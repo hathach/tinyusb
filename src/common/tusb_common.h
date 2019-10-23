@@ -35,7 +35,7 @@
  extern "C" {
 #endif
 
- //--------------------------------------------------------------------+
+//--------------------------------------------------------------------+
 // Macros Helper
 //--------------------------------------------------------------------+
 #define TU_ARRAY_SIZE(_arr)   ( sizeof(_arr) / sizeof(_arr[0]) )
@@ -58,7 +58,7 @@
 #define TU_BIT(n)             (1U << (n))
 
 //--------------------------------------------------------------------+
-// INCLUDES
+// Includes
 //--------------------------------------------------------------------+
 
 // Standard Headers
@@ -77,7 +77,7 @@
 #include "tusb_types.h"
 
 //--------------------------------------------------------------------+
-// INLINE FUNCTION
+// Inline Functions
 //--------------------------------------------------------------------+
 #define tu_memclr(buffer, size)  memset((buffer), 0, (size))
 #define tu_varclr(_var)          tu_memclr(_var, sizeof(*(_var)))
@@ -201,6 +201,44 @@ static inline bool     tu_bit_test (uint32_t value, uint8_t n) { return (value &
             + ((uint32_t)TU_BIN8(db2)<<16) \
             + ((uint32_t)TU_BIN8(db3)<<8) \
             + TU_BIN8(dlsb))
+#endif
+
+//--------------------------------------------------------------------+
+// Debug Function
+//--------------------------------------------------------------------+
+
+// CFG_TUSB_DEBUG for debugging
+// 0 : no debug
+// 1 : print when there is error
+// 2 : print out log
+#if CFG_TUSB_DEBUG
+
+void tu_print_mem(void const *buf, uint8_t size, uint16_t count);
+
+#ifndef tu_printf
+  #define tu_printf     printf
+#endif
+
+// Log with debug level 1
+#define TU_LOG1         tu_printf
+#define TU_LOG1_MEM     tu_print_mem
+
+// Log with debug level 2
+#if CFG_TUSB_DEBUG > 1
+  #define TU_LOG2       TU_LOG1
+  #define TU_LOG2_MEM   TU_LOG1_MEM
+#endif
+
+#endif // CFG_TUSB_DEBUG
+
+#ifndef TU_LOG1
+  #define TU_LOG1(...)
+  #define TU_LOG1_MEM(...)
+#endif
+
+#ifndef TU_LOG2
+  #define TU_LOG2(...)
+  #define TU_LOG2_MEM(...)
 #endif
 
 #ifdef __cplusplus

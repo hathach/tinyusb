@@ -192,6 +192,25 @@ void usbd_control_reset (uint8_t rhport);
 bool usbd_control_xfer_cb (uint8_t rhport, uint8_t ep_addr, xfer_result_t event, uint32_t xferred_bytes);
 void usbd_control_set_complete_callback( bool (*fp) (uint8_t, tusb_control_request_t const * ) );
 
+
+//--------------------------------------------------------------------+
+// Debugging
+//--------------------------------------------------------------------+
+#if CFG_TUSB_DEBUG
+static char const* const _usbd_event_str[DCD_EVENT_COUNT] =
+{
+  "INVALID"        ,
+  "BUS_RESET"      ,
+  "UNPLUGGED"      ,
+  "SOF"            ,
+  "SUSPEND"        ,
+  "RESUME"         ,
+  "SETUP_RECEIVED" ,
+  "XFER_COMPLETE"  ,
+  "FUNC_CALL"
+};
+#endif
+
 //--------------------------------------------------------------------+
 // Application API
 //--------------------------------------------------------------------+
@@ -218,6 +237,8 @@ bool tud_remote_wakeup(void)
 //--------------------------------------------------------------------+
 bool usbd_init (void)
 {
+  TU_LOG2("USBD Init\r\n");
+
   tu_varclr(&_usbd_dev);
 
   // Init device queue & task
@@ -279,6 +300,8 @@ void tud_task (void)
 
     if ( !osal_queue_receive(_usbd_q, &event) ) return;
 
+    TU_LOG2("USBD: event %s\r\n", event.event_id < DCD_EVENT_COUNT ? _usbd_event_str[event.event_id] : "CORRUPTED");
+
     switch ( event.event_id )
     {
       case DCD_EVENT_BUS_RESET:
@@ -293,6 +316,8 @@ void tud_task (void)
       break;
 
       case DCD_EVENT_SETUP_RECEIVED:
+        TU_LOG2_MEM(&event.setup_received, 1, 8);
+
         // Mark as connected after receiving 1st setup packet.
         // But it is easier to set it every time instead of wasting time to check then set
         _usbd_dev.connected = 1;
@@ -307,29 +332,29 @@ void tud_task (void)
       break;
 
       case DCD_EVENT_XFER_COMPLETE:
-        // Only handle xfer callback in ready state
-        // if (_usbd_dev.connected && !_usbd_dev.suspended)
+      {
+        // Invoke the class callback associated with the endpoint address
+        uint8_t const ep_addr = event.xfer_complete.ep_addr;
+        uint8_t const epnum   = tu_edpt_number(ep_addr);
+        uint8_t const ep_dir  = tu_edpt_dir(ep_addr);
+
+        TU_LOG2("Endpoint: 0x%02X, Bytes: %ld\r\n", ep_addr, event.xfer_complete.len);
+
+        _usbd_dev.ep_status[epnum][ep_dir].busy = false;
+
+        if ( 0 == epnum )
         {
-          // Invoke the class callback associated with the endpoint address
-          uint8_t const ep_addr = event.xfer_complete.ep_addr;
-          uint8_t const epnum   = tu_edpt_number(ep_addr);
-          uint8_t const ep_dir  = tu_edpt_dir(ep_addr);
-
-          _usbd_dev.ep_status[epnum][ep_dir].busy = false;
-
-          if ( 0 == epnum )
-          {
-            // control transfer DATA stage callback
-            usbd_control_xfer_cb(event.rhport, ep_addr, event.xfer_complete.result, event.xfer_complete.len);
-          }
-          else
-          {
-            uint8_t const drv_id = _usbd_dev.ep2drv[epnum][ep_dir];
-            TU_ASSERT(drv_id < USBD_CLASS_DRIVER_COUNT,);
-
-            usbd_class_drivers[drv_id].xfer_cb(event.rhport, ep_addr, event.xfer_complete.result, event.xfer_complete.len);
-          }
+          // control transfer DATA stage callback
+          usbd_control_xfer_cb(event.rhport, ep_addr, event.xfer_complete.result, event.xfer_complete.len);
         }
+        else
+        {
+          uint8_t const drv_id = _usbd_dev.ep2drv[epnum][ep_dir];
+          TU_ASSERT(drv_id < USBD_CLASS_DRIVER_COUNT,);
+
+          usbd_class_drivers[drv_id].xfer_cb(event.rhport, ep_addr, event.xfer_complete.result, event.xfer_complete.len);
+        }
+      }
       break;
 
       case DCD_EVENT_SUSPEND:
