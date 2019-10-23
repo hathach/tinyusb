@@ -86,6 +86,8 @@ typedef enum
   TUSB_DESC_BOS                   = 0x0F,
   TUSB_DESC_DEVICE_CAPABILITY     = 0x10,
 
+  TUSB_DESC_FUNCTIONAL            = 0x21,
+
   // Class Specific Descriptor
   TUSB_DESC_CS_DEVICE             = 0x21,
   TUSB_DESC_CS_CONFIGURATION      = 0x22,
