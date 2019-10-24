@@ -55,7 +55,6 @@ void cdc_task(void);
 int main(void)
 {
   board_init();
-
   tusb_init();
 
   while (1)

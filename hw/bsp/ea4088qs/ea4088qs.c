@@ -131,16 +131,14 @@ uint32_t board_button_read(void)
 int board_uart_read(uint8_t* buf, int len)
 {
   //return UART_ReceiveByte(BOARD_UART_PORT);
-  (void) buf;
-  (void) len;
+  (void) buf; (void) len;
   return 0;
 }
 
 int board_uart_write(void const * buf, int len)
 {
   //UART_Send(BOARD_UART_PORT, &c, 1, BLOCKING);
-  (void) buf;
-  (void) len;
+  (void) buf; (void) len;
   return 0;
 }
 
