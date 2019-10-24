@@ -85,7 +85,7 @@ void tu_print_mem(void const *buf, uint8_t size, uint16_t count)
 {
   if ( !buf || !count )
   {
-    tu_printf("NULL\n");
+    tu_printf("NULL\r\n");
     return;
   }
 
@@ -107,7 +107,7 @@ void tu_print_mem(void const *buf, uint8_t size, uint16_t count)
       {
         tu_printf(" | ");
         dump_str_line(buf8-16, 16);
-        tu_printf("\n");
+        tu_printf("\r\n");
       }
 
       // print offset or absolute address
@@ -136,9 +136,7 @@ void tu_print_mem(void const *buf, uint8_t size, uint16_t count)
 
   tu_printf(" | ");
   dump_str_line(buf8-nback, nback);
-  tu_printf("\n");
-
-  tu_printf("\n");
+  tu_printf("\r\n");
 }
 
 #endif
