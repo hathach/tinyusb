@@ -28,13 +28,12 @@
 #include "../board.h"
 
 // PD_10
-#define LED_PORT  6
-#define LED_PIN   24
+#define LED_PORT      6
+#define LED_PIN       24
 
 // P4_0
 #define BUTTON_PORT   2
 #define BUTTON_PIN    0
-
 
 //--------------------------------------------------------------------+
 // MACRO TYPEDEF CONSTANT ENUM DECLARATION
@@ -191,16 +190,14 @@ uint32_t board_button_read(void)
 int board_uart_read(uint8_t* buf, int len)
 {
   //return UART_ReceiveByte(BOARD_UART_PORT);
-  (void) buf;
-  (void) len;
+  (void) buf; (void) len;
   return 0;
 }
 
 int board_uart_write(void const * buf, int len)
 {
   //UART_Send(BOARD_UART_PORT, &c, 1, BLOCKING);
-  (void) buf;
-  (void) len;
+  (void) buf; (void) len;
   return 0;
 }
 

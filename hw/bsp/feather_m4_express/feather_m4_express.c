@@ -105,6 +105,18 @@ uint32_t board_button_read(void)
   return gpio_get_pin_level(BUTTON_PIN) ? 0 : 1;
 }
 
+int board_uart_read(uint8_t* buf, int len)
+{
+  (void) buf; (void) len;
+  return 0;
+}
+
+int board_uart_write(void const * buf, int len)
+{
+  (void) buf; (void) len;
+  return 0;
+}
+
 #if CFG_TUSB_OS  == OPT_OS_NONE
 volatile uint32_t system_ticks = 0;
 
