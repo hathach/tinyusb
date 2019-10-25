@@ -3,7 +3,11 @@
 #
 
 # libc
-LIBS += -lgcc -lc -lm -lnosys
+LIBS += -lgcc -lm -lnosys
+
+ifneq ($(BOARD), spresense)
+LIBS += -lc
+endif
 
 # TinyUSB Stack source
 SRC_C += \

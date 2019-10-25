@@ -15,7 +15,7 @@ ST_HAL_DRIVER = hw/mcu/st/st_driver/STM32F1xx_HAL_Driver
 ST_CMSIS = hw/mcu/st/st_driver/CMSIS/Device/ST/STM32F1xx
 
 # All source paths should be relative to the top level.
-LD_FILE = $(ST_CMSIS)/Source/Templates/gcc/linker/STM32F103XB_FLASH.ld
+LD_FILE = hw/bsp/$(BOARD)/STM32F103XB_FLASH.ld
 
 SRC_C += \
 	$(ST_CMSIS)/Source/Templates/system_stm32f1xx.c \

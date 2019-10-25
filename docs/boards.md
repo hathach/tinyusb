@@ -1,9 +1,9 @@
 # Boards
 
 The board support code is only used for self-contained examples and testing. It is not used when TinyUSB is part of a larger project. It is responsible for getting the MCU started and the USB peripheral clocked with minimal of on-board devices
-- One LED for status
-- One Button to get input from user
-- One UART optionally, mostly for host examples
+- One LED : for status
+- One Button : to get input from user
+- One UART : optional for device, but required for host examples
  
 ## Supported Boards
 
@@ -38,6 +38,10 @@ This code base already had supported for a handful of following boards
 - [LPCXpresso 51U68](https://www.nxp.com/products/processors-and-microcontrollers/arm-microcontrollers/general-purpose-mcus/lpcxpresso51u68-for-the-lpc51u68-mcus:OM40005)
 - [LPCXpresso 54114](https://www.nxp.com/design/microcontrollers-developer-resources/lpcxpresso-boards/lpcxpresso54114-board:OM13089)
 - [LPCXpresso 55s69 EVK](https://www.nxp.com/products/processors-and-microcontrollers/arm-microcontrollers/general-purpose-mcus/lpc5500-cortex-m33/lpcxpresso55s69-development-board:LPC55S69-EVK)
+
+### Sony
+
+- [Sony Spresense CXD5602](https://developer.sony.com/develop/spresense)
 
 ### ST STM32
 

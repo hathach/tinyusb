@@ -86,9 +86,6 @@ static inline bool osal_queue_send(osal_queue_t const qhdl, void const * data, b
 
 #define STASK_RETURN(_error)                return _error;
 #define STASK_INVOKE(_subtask, _status)     (_status) = _subtask
-
-// Sub Task Assert
-#define STASK_ASSERT_ERR(_err)              TU_VERIFY_ERR(_err)
 #define STASK_ASSERT(_cond)                 TU_VERIFY(_cond, TUSB_ERROR_OSAL_TASK_FAILED)
 #endif
 

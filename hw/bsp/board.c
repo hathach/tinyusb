@@ -1,7 +1,7 @@
 /* 
  * The MIT License (MIT)
  *
- * Copyright (c) 2019 Ha Thach (tinyusb.org)
+ * Copyright (c) 2018, hathach (tinyusb.org)
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -21,55 +21,38 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  *
+ * This file is part of the TinyUSB stack.
  */
 
-#include <stdlib.h>
-#include <stdio.h>
-#include <string.h>
-
-#include "bsp/board.h"
+#include "board.h"
 
 //--------------------------------------------------------------------+
-// MACRO CONSTANT TYPEDEF PROTYPES
+// MACRO TYPEDEF CONSTANT ENUM DECLARATION
 //--------------------------------------------------------------------+
 
-/* Blink pattern
- * - 250 ms  : button is not pressed
- * - 1000 ms : button is pressed (and hold)
- */
-enum  {
-  BLINK_PRESSED = 250,
-  BLINK_UNPRESSED = 1000
-};
+//#if CFG_PRINTF_TARGET == PRINTF_TARGET_UART
+//  #define retarget_getchar    board_uart_getchar
+//  #define retarget_putchar    board_uart_putchar
+//#elif CFG_PRINTF_TARGET == PRINTF_TARGET_SWO
+//  volatile int32_t ITM_RxBuffer;  // keil variable to read from SWO
+//	#define retarget_getchar    ITM_ReceiveChar
+//	#define retarget_putchar    ITM_SendChar
+//#else
+//	#error Target is not implemented yet
+//#endif
 
-#define HELLO_STR   "Hello from TinyUSB\n"
+//------------- IMPLEMENTATION -------------//
 
-int main(void)
+// newlib read()/write() retarget
+
+TU_ATTR_USED int _write (int fhdl, const void *buf, size_t count)
 {
-  board_init();
+  (void) fhdl;
+  return board_uart_write(buf, count);
+}
 
-  uint32_t start_ms = 0;
-  bool led_state = false;
-
-  while (1)
-  {
-    uint32_t interval_ms = board_button_read() ? BLINK_PRESSED : BLINK_UNPRESSED;
-
-    // uart echo
-//    uint8_t ch;
-//    if ( board_uart_read(&ch, 1) ) board_uart_write(&ch, 1);
-
-    // Blink every interval ms
-    if ( !(board_millis() - start_ms < interval_ms) )
-    {
-      board_uart_write(HELLO_STR, strlen(HELLO_STR));
-
-      start_ms = board_millis();
-
-      board_led_write(led_state);
-      led_state = 1 - led_state; // toggle
-    }
-  }
-
-  return 0;
+TU_ATTR_USED int _read (int fhdl, char *buf, size_t count)
+{
+  (void) fhdl;
+  return board_uart_read((uint8_t*) buf, count);
 }

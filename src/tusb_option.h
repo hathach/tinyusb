@@ -38,7 +38,8 @@
 
 // LPC
 #define OPT_MCU_LPC11UXX        1 ///< NXP LPC11Uxx
-#define OPT_MCU_LPC13XX         3 ///< NXP LPC13xx
+#define OPT_MCU_LPC13XX         2 ///< NXP LPC13xx
+#define OPT_MCU_LPC15XX         3 ///< NXP LPC15xx
 #define OPT_MCU_LPC175X_6X      4 ///< NXP LPC175x, LPC176x
 #define OPT_MCU_LPC177X_8X      5 ///< NXP LPC177x, LPC178x
 #define OPT_MCU_LPC18XX         6 ///< NXP LPC18xx
@@ -67,8 +68,11 @@
 #define OPT_MCU_STM32L1       308 ///< ST STM32L1
 #define OPT_MCU_STM32L4       309 ///< ST STM32L4
 
-#define OPT_MCU_MSP430x5xx    400 ///< TI MSP430x5xx
+// Sony
+#define OPT_MCU_CXD56         400 ///< SONY CXD56
 
+// TI MSP430
+#define OPT_MCU_MSP430x5xx    400 ///< TI MSP430x5xx
 
 /** @} */
 

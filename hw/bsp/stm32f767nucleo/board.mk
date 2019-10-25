@@ -25,6 +25,7 @@ SRC_C += \
 	$(ST_HAL_DRIVER)/Src/stm32f7xx_hal_rcc.c \
 	$(ST_HAL_DRIVER)/Src/stm32f7xx_hal_rcc_ex.c \
 	$(ST_HAL_DRIVER)/Src/stm32f7xx_hal_gpio.c \
+	$(ST_HAL_DRIVER)/Src/stm32f7xx_hal_uart.c \
 	$(ST_HAL_DRIVER)/Src/stm32f7xx_hal_pwr_ex.c
 
 SRC_S += \

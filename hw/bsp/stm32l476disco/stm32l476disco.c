@@ -28,6 +28,7 @@
 
 #include "stm32l4xx.h"
 #include "stm32l4xx_hal_conf.h"
+#include "stm32l4xx_hal.h"
 
 #define LED_PORT              GPIOB
 #define LED_PIN               GPIO_PIN_2
@@ -117,8 +118,6 @@ void board_init(void)
 
   SystemClock_Config();
 
-  HAL_RCC_MCOConfig(RCC_MCO1, RCC_MCO1SOURCE_MSI, RCC_MCODIV_1);//RCC_MCO1SOURCE_SYSCLK
-
   /* Enable Power Clock*/
   __HAL_RCC_PWR_CLK_ENABLE();
 
@@ -165,20 +164,12 @@ void board_init(void)
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
 
-  /* This for ID line */
-  GPIO_InitStruct.Pin = GPIO_PIN_12;
-  GPIO_InitStruct.Mode = GPIO_MODE_AF_OD;
-  GPIO_InitStruct.Pull = GPIO_PULLUP;
-  GPIO_InitStruct.Speed = GPIO_SPEED_HIGH;
-  GPIO_InitStruct.Alternate = GPIO_AF10_OTG_FS;
-  HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
-
   /* Enable USB FS Clock */
   __HAL_RCC_USB_OTG_FS_CLK_ENABLE();
 }
 
 //--------------------------------------------------------------------+
-// Board porting API
+// board porting API
 //--------------------------------------------------------------------+
 
 void board_led_write(bool state)
@@ -189,6 +180,18 @@ void board_led_write(bool state)
 uint32_t board_button_read(void)
 {
   return BUTTON_STATE_ACTIVE == HAL_GPIO_ReadPin(BUTTON_PORT, BUTTON_PIN);
+}
+
+int board_uart_read(uint8_t* buf, int len)
+{
+  (void) buf; (void) len;
+  return 0;
+}
+
+int board_uart_write(void const * buf, int len)
+{
+  (void) buf; (void) len;
+  return 0;
 }
 
 #if CFG_TUSB_OS  == OPT_OS_NONE

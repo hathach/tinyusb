@@ -39,17 +39,20 @@
 
 typedef enum
 {
-  DCD_EVENT_BUS_RESET = 1,
+  DCD_EVENT_INVALID = 0,
+  DCD_EVENT_BUS_RESET,
   DCD_EVENT_UNPLUGGED,
   DCD_EVENT_SOF,
-  DCD_EVENT_SUSPEND,
+  DCD_EVENT_SUSPEND, // TODO LPM Sleep L1 support
   DCD_EVENT_RESUME,
 
   DCD_EVENT_SETUP_RECEIVED,
   DCD_EVENT_XFER_COMPLETE,
 
   // Not an DCD event, just a convenient way to defer ISR function
-  USBD_EVENT_FUNC_CALL
+  USBD_EVENT_FUNC_CALL,
+
+  DCD_EVENT_COUNT
 } dcd_eventid_t;
 
 typedef struct TU_ATTR_ALIGNED(4)

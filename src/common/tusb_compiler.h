@@ -67,6 +67,7 @@
   #define TU_ATTR_WEAK                  __attribute__ ((weak))
   #define TU_ATTR_DEPRECATED(mess)      __attribute__ ((deprecated(mess))) // warn if function with this attribute is used
   #define TU_ATTR_UNUSED                __attribute__ ((unused))           // Function/Variable is meant to be possibly unused
+  #define TU_ATTR_USED                  __attribute__ ((used))             // Function/Variable is meant to be used
 
   // Endian conversion use well-known host to network (big endian) naming
   #if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
@@ -75,8 +76,8 @@
     #define TU_BYTE_ORDER TU_BIG_ENDIAN
   #endif
 
-#define TU_BSWAP16(u16) (__builtin_bswap16(u16))
-#define TU_BSWAP32(u32) (__builtin_bswap32(u32))
+  #define TU_BSWAP16(u16) (__builtin_bswap16(u16))
+  #define TU_BSWAP32(u32) (__builtin_bswap32(u32))
 
 #elif defined(__TI_COMPILER_VERSION__)
   #define TU_ATTR_ALIGNED(Bytes)        __attribute__ ((aligned(Bytes)))
@@ -86,6 +87,7 @@
   #define TU_ATTR_WEAK                  __attribute__ ((weak))
   #define TU_ATTR_DEPRECATED(mess)      __attribute__ ((deprecated(mess))) // warn if function with this attribute is used
   #define TU_ATTR_UNUSED                __attribute__ ((unused))           // Function/Variable is meant to be possibly unused
+  #define TU_ATTR_USED                  __attribute__ ((used))
 
   // __BYTE_ORDER is defined in the TI ARM compiler, but not MSP430 (which is little endian)
   #if ((__BYTE_ORDER__) == (__ORDER_LITTLE_ENDIAN__)) || defined(__MSP430__)
@@ -122,7 +124,6 @@
 
   #define tu_htonl(u32)  (u32)
   #define tu_ntohl(u32)  (u32)
-
 
   #define tu_htole16(u16) (tu_bswap16(u16))
   #define tu_le16toh(u16) (tu_bswap16(u16))
