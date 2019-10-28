@@ -304,6 +304,21 @@ TU_ATTR_WEAK bool tud_vendor_control_complete_cb(uint8_t rhport, tusb_control_re
   /* Endpoint In */\
   7, TUSB_DESC_ENDPOINT, _epin, TUSB_XFER_BULK, U16_TO_U8S_LE(_epsize), 0
 
+//------------- DFU Runtime -------------//
+#define TUD_DFU_APP_CLASS    (TUSB_CLASS_APPLICATION_SPECIFIC)
+#define TUD_DFU_APP_SUBCLASS 0x01u
+
+// Length of template descriptr: 18 bytes
+#define TUD_DFU_RT_DESC_LEN (9 + 9)
+
+// DFU runtime descriptor
+// Interface number, string index, attributes, detach timeout, transfer size
+#define TUD_DFU_RT_DESCRIPTOR(_itfnum, _stridx, _attr, _timeout, _xfer_size) \
+  /* Interface */ \
+  9, TUSB_DESC_INTERFACE, _itfnum, 0, 0, TUD_DFU_APP_CLASS, TUD_DFU_APP_SUBCLASS, DFU_PROTOCOL_RT, _stridx, \
+  /* Function */ \
+  9, DFU_DESC_FUNCTIONAL, _attr, U16_TO_U8S_LE(_timeout), U16_TO_U8S_LE(_xfer_size), U16_TO_U8S_LE(0x0101)
+
 
 #ifdef __cplusplus
  }

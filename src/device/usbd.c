@@ -167,6 +167,20 @@ static usbd_class_driver_t const usbd_class_drivers[] =
       .sof              = NULL
   },
   #endif
+
+  #if CFG_TUD_DFU_RT
+  {
+      .class_code       = TUD_DFU_APP_CLASS,
+    //.subclass_code    = TUD_DFU_APP_SUBCLASS
+      .init             = dfu_rtd_init,
+      .reset            = dfu_rtd_reset,
+      .open             = dfu_rtd_open,
+      .control_request  = dfu_rtd_control_request,
+      .control_complete = dfu_rtd_control_complete,
+      .xfer_cb          = dfu_rtd_xfer_cb,
+      .sof              = NULL
+  },
+  #endif
 };
 
 enum { USBD_CLASS_DRIVER_COUNT = TU_ARRAY_SIZE(usbd_class_drivers) };
