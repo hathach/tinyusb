@@ -34,7 +34,7 @@
 
 #define BUTTON_PORT           P1IN
 #define BUTTON_PIN            BIT1
-#define BUTTON_STATE_ACTIVE   1
+#define BUTTON_STATE_ACTIVE   0
 
 uint32_t cnt = 0;
 
@@ -161,7 +161,7 @@ void board_led_write(bool state)
 
 uint32_t board_button_read(void)
 {
-  return (P1IN & BIT1);
+  return ((P1IN & BIT1) >> 1) == BUTTON_STATE_ACTIVE;
 }
 
 int board_uart_read(uint8_t * buf, int len)
@@ -173,7 +173,7 @@ int board_uart_read(uint8_t * buf, int len)
     buf[i] = UCA1RXBUF;
   }
 
-  return 0;
+  return len;
 }
 
 int board_uart_write(void const * buf, int len)
@@ -187,7 +187,7 @@ int board_uart_write(void const * buf, int len)
     UCA1TXBUF = char_buf[i];
   }
 
-  return 0;
+  return len;
 }
 
 #if CFG_TUSB_OS  == OPT_OS_NONE
