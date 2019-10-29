@@ -7,10 +7,10 @@ CFLAGS += \
 #-mmcu=msp430f5529
 
 # All source paths should be relative to the top level.
-LD_FILE = hw/bsp/msp_exp430f5529lp/msp430f5529.ld
-LDINC += $(TOP)/hw/bsp/$(BOARD)
+LD_FILE = hw/mcu/ti/msp430/msp430-gcc-support-files/include/msp430f5529.ld
+LDINC += $(TOP)/hw/mcu/ti/msp430/msp430-gcc-support-files/include
 
-INC += $(TOP)/hw/bsp/$(BOARD)
+INC += $(TOP)/hw/mcu/ti/msp430/msp430-gcc-support-files/include
 
 # For TinyUSB port source
 VENDOR = ti
