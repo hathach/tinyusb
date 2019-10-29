@@ -515,12 +515,9 @@ static void handle_setup_packet(void)
     _setup_packet[i] = setup_buf[i];
   }
 
-  // The EP0 NAK bits must be clear to receive a SETUP packet, according to the
-  // manual (we don't do this right now- see below comments).
-  // Race conditions where the hardware STALLs can occur if the NAK bits aren't
-  // set for both IN/OUT EP0. Clearing SETUPIFG by reading USBVECINT does not
-  // set NAK, so now that we have a SETUP packet, force NAKs.
-  // FIXME: Explain more accurately why the STALL occurs.
+  // Clearing SETUPIFG by reading USBVECINT does not set NAK, so now that we
+  // have a SETUP packet, force NAKs until tinyusb can handle the SETUP
+  // packet and prepare for a new xfer.
   USBIEPCNT_0 |= NAK;
   USBOEPCNT_0 |= NAK;
   dcd_event_setup_received(0, (uint8_t*) &_setup_packet[0], true);
@@ -547,13 +544,31 @@ void __attribute__ ((interrupt(USB_UBM_VECTOR))) USB_UBM_ISR(void)
       break;
 
     // Clear the (hardware-enforced) NAK on EP 0 after a SETUP packet
-    // is received. The NAK bits for EP0 should still be set because it's
-    // possible for the hardware to STALL in the middle of a control xfer
-    // if the EP0 NAK bits aren't set properly.
+    // is received. At this point, even though the hardware is no longer
+    // forcing NAKs, the EP0 NAK bits should still be set to avoid
+    // sending/receiving data before tinyusb is ready.
+    //
+    // Furthermore, it's possible for the hardware to STALL in the middle of
+    // a control xfer if the EP0 NAK bits aren't set properly.
     // See: https://e2e.ti.com/support/microcontrollers/msp430/f/166/t/845259
+    // From my testing, if all of the following hold:
+    // * OUT EP0 NAK is cleared.
+    // * IN EP0 NAK is set.
+    // * DIR bit in USBCTL is clear.
+    // and an IN packet is received on EP0, the USB core will STALL. Setting
+    // both EP0 NAKs manually when a SETUP packet is received, as is done
+    // in handle_setup_packet(), avoids meeting STALL conditions.
+    //
+    // TODO: Figure out/explain why the STALL condition can be reached in the
+    // first place. When I first noticed the STALL, the only two places I
+    // touched the NAK bits were in dcd_edpt_xfer() and to _set_ (sic) them in
+    // bus_reset(). SETUP packet handling should've been unaffected.
+    //
     // FIXME: Per manual, we should be clearing the NAK bits of EP0 after the
     // Status Phase of a control xfer is done, in preparation of another
-    // possible setup packet. No clean way to do this right now.
+    // possible SETUP packet. We don't do this right now, as there is no
+    // "Status Phase done" callback the driver can use. However, SETUP packets
+    // _are_ correctly handled by the USB core without clearing the NAKs.
     case USBVECINT_SETUP_PACKET_RECEIVED:
       break;
 
