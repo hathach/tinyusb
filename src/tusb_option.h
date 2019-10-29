@@ -72,7 +72,7 @@
 #define OPT_MCU_CXD56         400 ///< SONY CXD56
 
 // TI MSP430
-#define OPT_MCU_MSP430x5xx    400 ///< TI MSP430x5xx
+#define OPT_MCU_MSP430x5xx    500 ///< TI MSP430x5xx
 
 /** @} */
 
