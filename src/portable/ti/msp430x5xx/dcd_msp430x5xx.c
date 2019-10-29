@@ -515,9 +515,12 @@ static void handle_setup_packet(void)
     _setup_packet[i] = setup_buf[i];
   }
 
-  // The NAK bits must be clear to receive a SETUP packet. Clearing SETUPIFG
-  // by reading USBVECINT does not set NAK, so now that we have a SETUP packet
-  // force NAKs.
+  // The EP0 NAK bits must be clear to receive a SETUP packet, according to the
+  // manual (we don't do this right now- see below comments).
+  // Race conditions where the hardware STALLs can occur if the NAK bits aren't
+  // set for both IN/OUT EP0. Clearing SETUPIFG by reading USBVECINT does not
+  // set NAK, so now that we have a SETUP packet, force NAKs.
+  // FIXME: Explain more accurately why the STALL occurs.
   USBIEPCNT_0 |= NAK;
   USBOEPCNT_0 |= NAK;
   dcd_event_setup_received(0, (uint8_t*) &_setup_packet[0], true);
@@ -526,7 +529,7 @@ static void handle_setup_packet(void)
 void __attribute__ ((interrupt(USB_UBM_VECTOR))) USB_UBM_ISR(void)
 {
   // Setup is special- reading USBVECINT to handle setup packets is done to
-  // stop NAKs on EP0.
+  // stop hardware-generated NAKs on EP0.
   uint8_t setup_status = USBIFG & SETUPIFG;
 
   if(setup_status)
@@ -543,7 +546,14 @@ void __attribute__ ((interrupt(USB_UBM_VECTOR))) USB_UBM_ISR(void)
       dcd_event_bus_signal(0, DCD_EVENT_BUS_RESET, true);
       break;
 
-    // Clear the NAK on EP 0 after a SETUP packet is received.
+    // Clear the (hardware-enforced) NAK on EP 0 after a SETUP packet
+    // is received. The NAK bits for EP0 should still be set because it's
+    // possible for the hardware to STALL in the middle of a control xfer
+    // if the EP0 NAK bits aren't set properly.
+    // See: https://e2e.ti.com/support/microcontrollers/msp430/f/166/t/845259
+    // FIXME: Per manual, we should be clearing the NAK bits of EP0 after the
+    // Status Phase of a control xfer is done, in preparation of another
+    // possible setup packet. No clean way to do this right now.
     case USBVECINT_SETUP_PACKET_RECEIVED:
       break;
 
