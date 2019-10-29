@@ -71,7 +71,7 @@ char const* const tusb_strerr[TUSB_ERROR_COUNT] = { ERROR_TABLE(ERROR_STRING) };
 static void dump_str_line(uint8_t const* buf, uint16_t count)
 {
   // each line is 16 bytes
-  for(int i=0; i<count; i++)
+  for(uint16_t i=0; i<count; i++)
   {
     const char ch = buf[i];
     tu_printf("%c", isprint(ch) ? ch : '.');
@@ -127,7 +127,7 @@ void tu_print_mem(void const *buf, uint8_t size, uint16_t count)
 
   if ( remain )
   {
-    for(int i=0; i< 16-remain; i++)
+    for(uint16_t i=0; i< 16-remain; i++)
     {
       tu_printf(" ");
       for(int j=0; j<2*size; j++) tu_printf(" ");

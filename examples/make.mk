@@ -77,10 +77,6 @@ CFLAGS += \
 	-ffunction-sections \
 	-fdata-sections
 
-ifneq ($(BOARD), msp_exp430f5529lp)
-  CFLAGS += -Wno-error=lto-type-mismatch
-endif
-
 # This causes lots of warning with nrf5x build due to nrfx code
 # CFLAGS += -Wcast-align
 
