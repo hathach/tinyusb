@@ -4,6 +4,8 @@ CFLAGS += \
 	-DCFG_EXAMPLE_MSC_READONLY \
 	-DCFG_TUD_ENDPOINT0_SIZE=8
 
+#-mmcu=msp430f5529
+
 # All source paths should be relative to the top level.
 LD_FILE = hw/bsp/msp_exp430f5529lp/msp430f5529.ld
 LDINC += $(TOP)/hw/bsp/$(BOARD)
@@ -19,4 +21,4 @@ MSPDEBUG = mspdebug
 
 # flash target using mspdebug.
 flash: $(BUILD)/$(BOARD)-firmware.elf
-	$(MSPDEBUG) tilib "prog $<"
+	$(MSPDEBUG) tilib "prog $<" --allow-fw-update
