@@ -47,7 +47,7 @@ bool tusb_init(void)
 #endif
 
 #if TUSB_OPT_DEVICE_ENABLED
-  TU_ASSERT ( usbd_init() ); // init device stack
+  TU_ASSERT ( tud_init() ); // init device stack
 #endif
 
   _initialized = true;
