@@ -97,12 +97,14 @@ uint16_t const* tud_descriptor_string_cb(uint8_t index)
 
 void setUp(void)
 {
-  dcd_init_Expect(rhport);
-
   dcd_int_disable_Ignore();
   dcd_int_enable_Ignore();
 
-  tusb_init();
+  if ( !tusb_inited() )
+  {
+    dcd_init_Expect(rhport);
+    tusb_init();
+  }
 
   ptr_desc_device = (uint8_t const *) &desc_device;
 }
@@ -127,10 +129,10 @@ void test_usbd_get_device_descriptor_null(void)
 {
   ptr_desc_device = NULL;
 
-//  dcd_event_setup_received(rhport, (uint8_t*) &req_get_desc_device, false);
-//
-//  dcd_edpt_stall_Expect(rhport, 0);
-//  dcd_edpt_stall_Expect(rhport, 0x80);
-//
-//  tud_task();
+  dcd_event_setup_received(rhport, (uint8_t*) &req_get_desc_device, false);
+
+  dcd_edpt_stall_Expect(rhport, 0);
+  dcd_edpt_stall_Expect(rhport, 0x80);
+
+  tud_task();
 }
