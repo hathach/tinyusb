@@ -65,9 +65,23 @@ tusb_desc_device_t const desc_device =
     .bNumConfigurations = 0x01
 };
 
+tusb_control_request_t const req_get_desc_device =
+{
+  .bmRequestType = 0x80,
+  .bRequest = TUSB_REQ_GET_DESCRIPTOR,
+  .wValue = (TUSB_DESC_DEVICE << 8),
+  .wIndex = 0x0000,
+  .wLength = 64
+};
+
+//--------------------------------------------------------------------+
+//
+//--------------------------------------------------------------------+
+uint8_t const * ptr_desc_device;
+
 uint8_t const * tud_descriptor_device_cb(void)
 {
-  return (uint8_t const *) &desc_device;
+  return ptr_desc_device;
 }
 
 uint8_t const * tud_descriptor_configuration_cb(uint8_t index)
@@ -84,8 +98,13 @@ uint16_t const* tud_descriptor_string_cb(uint8_t index)
 void setUp(void)
 {
   dcd_init_Expect(rhport);
-  dcd_int_enable_Expect(rhport);
+
+  dcd_int_disable_Ignore();
+  dcd_int_enable_Ignore();
+
   tusb_init();
+
+  ptr_desc_device = (uint8_t const *) &desc_device;
 }
 
 void tearDown(void)
@@ -97,25 +116,21 @@ void tearDown(void)
 //--------------------------------------------------------------------+
 void test_usbd_get_device_descriptor(void)
 {
-  tusb_control_request_t request =
-  {
-    .bmRequestType = 0x80,
-    .bRequest = TUSB_REQ_GET_DESCRIPTOR,
-    .wValue = (TUSB_DESC_DEVICE << 8),
-    .wIndex = 0x0000,
-    .wLength = 64
-  };
-
-  dcd_int_disable_Expect(rhport);
-  dcd_int_enable_Expect(rhport);
-  dcd_event_setup_received(rhport, (uint8_t*) &request, false);
-
-  dcd_int_disable_Expect(rhport);
-  dcd_int_enable_Expect(rhport);
+  dcd_event_setup_received(rhport, (uint8_t*) &req_get_desc_device, false);
 
   dcd_edpt_xfer_ExpectWithArrayAndReturn(rhport, 0x80, (uint8_t*)&desc_device, sizeof(tusb_desc_device_t), sizeof(tusb_desc_device_t), true);
 
-  dcd_int_disable_Expect(rhport);
-  dcd_int_enable_Expect(rhport);
   tud_task();
+}
+
+void test_usbd_get_device_descriptor_null(void)
+{
+  ptr_desc_device = NULL;
+
+//  dcd_event_setup_received(rhport, (uint8_t*) &req_get_desc_device, false);
+//
+//  dcd_edpt_stall_Expect(rhport, 0);
+//  dcd_edpt_stall_Expect(rhport, 0x80);
+//
+//  tud_task();
 }
