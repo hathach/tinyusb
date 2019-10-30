@@ -29,6 +29,7 @@
 #include "tusb.h"
 #include "usbd.h"
 TEST_FILE("usbd_control.c")
+//TEST_FILE("usb_descriptors.c")
 
 // Mock File
 #include "mock_dcd.h"
@@ -37,13 +38,41 @@ TEST_FILE("usbd_control.c")
 // MACRO TYPEDEF CONSTANT ENUM DECLARATION
 //--------------------------------------------------------------------+
 
+uint8_t const rhport = 0;
+
+tusb_desc_device_t const desc_device =
+{
+    .bLength            = sizeof(tusb_desc_device_t),
+    .bDescriptorType    = TUSB_DESC_DEVICE,
+    .bcdUSB             = 0x0200,
+
+    // Use Interface Association Descriptor (IAD) for CDC
+    // As required by USB Specs IAD's subclass must be common class (2) and protocol must be IAD (1)
+    .bDeviceClass       = TUSB_CLASS_MISC,
+    .bDeviceSubClass    = MISC_SUBCLASS_COMMON,
+    .bDeviceProtocol    = MISC_PROTOCOL_IAD,
+
+    .bMaxPacketSize0    = CFG_TUD_ENDPOINT0_SIZE,
+
+    .idVendor           = 0xCafe,
+    .idProduct          = 0xCafe,
+    .bcdDevice          = 0x0100,
+
+    .iManufacturer      = 0x01,
+    .iProduct           = 0x02,
+    .iSerialNumber      = 0x03,
+
+    .bNumConfigurations = 0x01
+};
+
 uint8_t const * tud_descriptor_device_cb(void)
 {
-  return NULL;
+  return (uint8_t const *) &desc_device;
 }
 
 uint8_t const * tud_descriptor_configuration_cb(uint8_t index)
 {
+  TEST_FAIL();
   return NULL;
 }
 
@@ -52,17 +81,41 @@ uint16_t const* tud_descriptor_string_cb(uint8_t index)
   return NULL;
 }
 
-//------------- IMPLEMENTATION -------------//
 void setUp(void)
 {
-
+  dcd_init_Expect(rhport);
+  dcd_int_enable_Expect(rhport);
+  tusb_init();
 }
 
 void tearDown(void)
 {
 }
 
-void test_ok(void)
+//--------------------------------------------------------------------+
+//
+//--------------------------------------------------------------------+
+void test_usbd_get_device_descriptor(void)
 {
+  tusb_control_request_t request =
+  {
+    .bmRequestType = 0x80,
+    .bRequest = TUSB_REQ_GET_DESCRIPTOR,
+    .wValue = (TUSB_DESC_DEVICE << 8),
+    .wIndex = 0x0000,
+    .wLength = 64
+  };
 
+  dcd_int_disable_Expect(rhport);
+  dcd_int_enable_Expect(rhport);
+  dcd_event_setup_received(rhport, (uint8_t*) &request, false);
+
+  dcd_int_disable_Expect(rhport);
+  dcd_int_enable_Expect(rhport);
+
+  dcd_edpt_xfer_ExpectWithArrayAndReturn(rhport, 0x80, (uint8_t*)&desc_device, sizeof(tusb_desc_device_t), sizeof(tusb_desc_device_t), true);
+
+  dcd_int_disable_Expect(rhport);
+  dcd_int_enable_Expect(rhport);
+  tud_task();
 }
