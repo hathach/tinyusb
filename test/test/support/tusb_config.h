@@ -73,12 +73,11 @@
 #define CFG_TUD_ENDOINT0_SIZE    64
 
 //------------- CLASS -------------//
-#define CFG_TUD_CDC              1
-#define CFG_TUD_MSC              1
-#define CFG_TUD_HID              1
-
-#define CFG_TUD_MIDI             1
-#define CFG_TUD_VENDOR           1
+#define CFG_TUD_CDC              0
+#define CFG_TUD_MSC              0
+#define CFG_TUD_HID              0
+#define CFG_TUD_MIDI             0
+#define CFG_TUD_VENDOR           0
 
 //------------- CDC -------------//
 
