@@ -39,17 +39,20 @@
 
 typedef enum
 {
-  DCD_EVENT_BUS_RESET = 1,
+  DCD_EVENT_INVALID = 0,
+  DCD_EVENT_BUS_RESET,
   DCD_EVENT_UNPLUGGED,
   DCD_EVENT_SOF,
-  DCD_EVENT_SUSPEND,
+  DCD_EVENT_SUSPEND, // TODO LPM Sleep L1 support
   DCD_EVENT_RESUME,
 
   DCD_EVENT_SETUP_RECEIVED,
   DCD_EVENT_XFER_COMPLETE,
 
   // Not an DCD event, just a convenient way to defer ISR function
-  USBD_EVENT_FUNC_CALL
+  USBD_EVENT_FUNC_CALL,
+
+  DCD_EVENT_COUNT
 } dcd_eventid_t;
 
 typedef struct TU_ATTR_ALIGNED(4)
@@ -76,7 +79,7 @@ typedef struct TU_ATTR_ALIGNED(4)
   };
 } dcd_event_t;
 
-TU_VERIFY_STATIC(sizeof(dcd_event_t) <= 12, "size is not correct");
+//TU_VERIFY_STATIC(sizeof(dcd_event_t) <= 12, "size is not correct");
 
 /*------------------------------------------------------------------*/
 /* Device API
@@ -116,20 +119,51 @@ void dcd_edpt_stall       (uint8_t rhport, uint8_t ep_addr);
 // clear stall, data toggle is also reset to DATA0
 void dcd_edpt_clear_stall (uint8_t rhport, uint8_t ep_addr);
 
-/*------------------------------------------------------------------*/
-/* Event Function
- * Called by DCD to notify device stack
- *------------------------------------------------------------------*/
-void dcd_event_handler(dcd_event_t const * event, bool in_isr);
+//--------------------------------------------------------------------+
+// Event API
+//--------------------------------------------------------------------+
+
+// Called by DCD to notify device stack
+extern void dcd_event_handler(dcd_event_t const * event, bool in_isr);
 
 // helper to send bus signal event
-void dcd_event_bus_signal (uint8_t rhport, dcd_eventid_t eid, bool in_isr);
+static inline void dcd_event_bus_signal (uint8_t rhport, dcd_eventid_t eid, bool in_isr);
 
 // helper to send setup received
-void dcd_event_setup_received(uint8_t rhport, uint8_t const * setup, bool in_isr);
+static inline void dcd_event_setup_received(uint8_t rhport, uint8_t const * setup, bool in_isr);
 
 // helper to send transfer complete event
-void dcd_event_xfer_complete (uint8_t rhport, uint8_t ep_addr, uint32_t xferred_bytes, uint8_t result, bool in_isr);
+static inline void dcd_event_xfer_complete (uint8_t rhport, uint8_t ep_addr, uint32_t xferred_bytes, uint8_t result, bool in_isr);
+
+
+//--------------------------------------------------------------------+
+// Inline helper
+//--------------------------------------------------------------------+
+
+static inline void dcd_event_bus_signal (uint8_t rhport, dcd_eventid_t eid, bool in_isr)
+{
+  dcd_event_t event = { .rhport = rhport, .event_id = eid, };
+  dcd_event_handler(&event, in_isr);
+}
+
+static inline void dcd_event_setup_received(uint8_t rhport, uint8_t const * setup, bool in_isr)
+{
+  dcd_event_t event = { .rhport = rhport, .event_id = DCD_EVENT_SETUP_RECEIVED };
+  memcpy(&event.setup_received, setup, 8);
+
+  dcd_event_handler(&event, in_isr);
+}
+
+static inline void dcd_event_xfer_complete (uint8_t rhport, uint8_t ep_addr, uint32_t xferred_bytes, uint8_t result, bool in_isr)
+{
+  dcd_event_t event = { .rhport = rhport, .event_id = DCD_EVENT_XFER_COMPLETE };
+
+  event.xfer_complete.ep_addr = ep_addr;
+  event.xfer_complete.len     = xferred_bytes;
+  event.xfer_complete.result  = result;
+
+  dcd_event_handler(&event, in_isr);
+}
 
 #ifdef __cplusplus
  }

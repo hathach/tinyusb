@@ -3,7 +3,11 @@
 #
 
 # libc
-LIBS += -lgcc -lc -lm -lnosys
+LIBS += -lgcc -lm -lnosys
+
+ifneq ($(BOARD), spresense)
+LIBS += -lc
+endif
 
 # TinyUSB Stack source
 SRC_C += \
@@ -13,6 +17,7 @@ SRC_C += \
 	src/device/usbd_control.c \
 	src/class/msc/msc_device.c \
 	src/class/cdc/cdc_device.c \
+	src/class/dfu/dfu_rt_device.c \
 	src/class/hid/hid_device.c \
 	src/class/midi/midi_device.c \
 	src/class/usbtmc/usbtmc_device.c \

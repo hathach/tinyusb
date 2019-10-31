@@ -4,7 +4,7 @@
 
 [![Build Status](https://travis-ci.org/hathach/tinyusb.svg?branch=master)](https://travis-ci.org/hathach/tinyusb) [![License](https://img.shields.io/badge/license-MIT-brightgreen.svg)](https://opensource.org/licenses/MIT)
 
-TinyUSB is an open-source cross-platform USB Host/Device stack for embedded system. It is designed to be memory-safe with no dynamic allocation and thread-safe with all interrupt events are deferred then handled in the stack's task function.
+TinyUSB is an open-source cross-platform USB Host/Device stack for embedded system, designed to be memory-safe with no dynamic allocation and thread-safe with all interrupt events are deferred then handled in the non-ISR task function.
 
 ![tinyusb](https://user-images.githubusercontent.com/249515/49858616-f60c9700-fe27-11e8-8627-e76936352ff7.png)
 
@@ -26,9 +26,10 @@ TinyUSB is an open-source cross-platform USB Host/Device stack for embedded syst
 The stack supports the following MCUs
 
 - **Nordic:** nRF52840
-- **NXP:** LPC11Uxx, LPC13xx, LPC175x_6x, LPC177x_8x, LPC18xx, LPC40xx, LPC43xx, LPC51Uxx
+- **NXP:** LPC Series: 11Uxx, 13xx, 175x_6x, 177x_8x, 18xx, 40xx, 43xx, 51Uxx, 54xxx, 55xx
 - **MicroChip:** SAMD21, SAMD51 (device only)
-- **ST:** STM32 series: L0, F0, F2, F3, F4, F7, H7 (device only)
+- **Sony:** CXD56
+- **ST:** STM32 series: L0, F0, F1, F2, F3, F4, F7, H7 (device only)
 
 [Here is the list of supported Boards](docs/boards.md) that can be used with provided examples.
 
@@ -53,7 +54,7 @@ Support multiple device configurations by dynamically changing usb descriptors. 
 
 ## OS Abtraction layer
 
-TinyUSB is completely thread-safe by pushing all ISR events into a central queue, then process it later in the non-ISR context. It also uses semphore/mutex to access shared resource such as CDC FIFO. Therefore the stack needs to use some of OS's basic APIs. Following OSes are already supported out of the box.
+TinyUSB is completely thread-safe by pushing all ISR events into a central queue, then process it later in the non-ISR context task function. It also uses semphore/mutex to access shared resource such as CDC FIFO. Therefore the stack needs to use some of OS's basic APIs. Following OSes are already supported out of the box.
 
 - **No OS** : Disabling USB IRQ is used as way to provide mutex
 - **FreeRTOS**
@@ -83,6 +84,7 @@ TinyUSB is currently used by these other projects:
 * [Adafruit nRF52 Bootloader](https://github.com/adafruit/Adafruit_nRF52_Bootloader)
 * [Adafruit SAMD Arduino](https://github.com/adafruit/ArduinoCore-samd)
 * [CircuitPython](https://github.com/adafruit/circuitpython)
+* [MicroPython](https://github.com/micropython/micropython)
 * [TinyUSB Arduino Library](https://github.com/adafruit/Adafruit_TinyUSB_Arduino)
 
 Let's me know if your project also uses TinyUSB and want to share.

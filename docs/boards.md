@@ -1,9 +1,9 @@
 # Boards
 
 The board support code is only used for self-contained examples and testing. It is not used when TinyUSB is part of a larger project. It is responsible for getting the MCU started and the USB peripheral clocked with minimal of on-board devices
-- One LED for status
-- One Button to get input from user
-- One UART optionally, mostly for host examples
+- One LED : for status
+- One Button : to get input from user
+- One UART : optional for device, but required for host examples
  
 ## Supported Boards
 
@@ -39,6 +39,10 @@ This code base already had supported for a handful of following boards
 - [LPCXpresso 54114](https://www.nxp.com/design/microcontrollers-developer-resources/lpcxpresso-boards/lpcxpresso54114-board:OM13089)
 - [LPCXpresso 55s69 EVK](https://www.nxp.com/products/processors-and-microcontrollers/arm-microcontrollers/general-purpose-mcus/lpc5500-cortex-m33/lpcxpresso55s69-development-board:LPC55S69-EVK)
 
+### Sony
+
+- [Sony Spresense CXD5602](https://developer.sony.com/develop/spresense)
+
 ### ST STM32
 
 - Adafruit Feather STM32F405 
@@ -46,6 +50,7 @@ This code base already had supported for a handful of following boards
 - [STM32 L035c8 Discovery](https://www.st.com/en/evaluation-tools/32l0538discovery.html)
 - [STM32 F070rb Nucleo](https://www.st.com/en/evaluation-tools/nucleo-f070rb.html)
 - [STM32 F072rb Discovery](https://www.st.com/en/evaluation-tools/32f072bdiscovery.html)
+- STM32 F103c Blue Pill
 - [STM32 F207zg Nucleo](https://www.st.com/en/evaluation-tools/nucleo-f207zg.html)
 - [STM32 F303vc Discovery](https://www.st.com/en/evaluation-tools/stm32f3discovery.html)
 - [STM32 F407vg Discovery](https://www.st.com/en/evaluation-tools/stm32f4discovery.html)

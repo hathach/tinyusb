@@ -116,7 +116,7 @@ void board_init(void)
 
 	UART_CFG_Type UARTConfigStruct;
   UART_ConfigStructInit(&UARTConfigStruct);
-	UARTConfigStruct.Baud_rate = CFG_UART_BAUDRATE;
+	UARTConfigStruct.Baud_rate = CFG_BOARD_UART_BAUDRATE;
 
 	UART_Init(BOARD_UART_PORT, &UARTConfigStruct);
 	UART_TxCmd(BOARD_UART_PORT, ENABLE); // Enable UART Transmit
@@ -160,16 +160,14 @@ uint32_t board_button_read(void)
 int board_uart_read(uint8_t* buf, int len)
 {
 //  return UART_ReceiveByte(BOARD_UART_PORT);
-  (void) buf;
-  (void) len;
+  (void) buf; (void) len;
   return 0;
 }
 
 int board_uart_write(void const * buf, int len)
 {
 //  UART_Send(BOARD_UART_PORT, &c, 1, BLOCKING);
-  (void) buf;
-  (void) len;
+  (void) buf; (void) len;
   return 0;
 }
 
