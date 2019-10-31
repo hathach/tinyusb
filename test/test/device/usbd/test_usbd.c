@@ -198,7 +198,7 @@ void test_usbd_get_configuration_descriptor_null(void)
 // Control ZLP
 //--------------------------------------------------------------------+
 
-void test_usbd_control_zlp(void)
+void test_usbd_control_in_zlp(void)
 {
   // 128 byte total len, with EP0 size = 64, and request length = 256
   // ZLP must be return
