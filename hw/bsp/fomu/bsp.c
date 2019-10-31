@@ -39,8 +39,9 @@ void hal_dcd_isr(uint8_t rhport);
 void mputs(const char *str) {
   (void)str;
   while (*str) {
-    if (! (messible_status_read() & CSR_MESSIBLE_STATUS_FULL_OFFSET))
-      messible_in_write(*str);
+    while ( (messible_status_read() & CSR_MESSIBLE_STATUS_FULL_OFFSET))
+      ;
+    messible_in_write(*str);
     str++;
   }
 }
@@ -54,7 +55,7 @@ void fomu_error(uint32_t line)
 {
   (void)line;
   TU_BREAKPOINT();
-  while (1) {}
+  // while (1) {}
 }
 
 volatile uint32_t system_ticks = 0;
