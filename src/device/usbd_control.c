@@ -53,11 +53,10 @@ static usbd_control_xfer_t _ctrl_xfer;
 
 CFG_TUSB_MEM_SECTION CFG_TUSB_MEM_ALIGN uint8_t _usbd_ctrl_buf[CFG_TUD_ENDPOINT0_SIZE];
 
-void usbd_control_reset (uint8_t rhport)
-{
-  (void) rhport;
-  tu_varclr(&_ctrl_xfer);
-}
+
+//--------------------------------------------------------------------+
+// Application API
+//--------------------------------------------------------------------+
 
 bool tud_control_status(uint8_t rhport, tusb_control_request_t const * request)
 {
@@ -66,7 +65,7 @@ bool tud_control_status(uint8_t rhport, tusb_control_request_t const * request)
 }
 
 // Each transaction is up to endpoint0's max packet size
-static bool start_control_data_xact(uint8_t rhport)
+static bool _ctrl_data_xact(uint8_t rhport)
 {
   uint16_t const xact_len = tu_min16(_ctrl_xfer.len - _ctrl_xfer.total_transferred, CFG_TUD_ENDPOINT0_SIZE);
 
@@ -81,12 +80,6 @@ static bool start_control_data_xact(uint8_t rhport)
   return dcd_edpt_xfer(rhport, ep_addr, _usbd_ctrl_buf, xact_len);
 }
 
-// TODO may find a better way
-void usbd_control_set_complete_callback( bool (*fp) (uint8_t, tusb_control_request_t const * ) )
-{
-  _ctrl_xfer.complete_cb = fp;
-}
-
 bool tud_control_xfer(uint8_t rhport, tusb_control_request_t const * request, void* buffer, uint16_t len)
 {
   _ctrl_xfer.request = (*request);
@@ -99,7 +92,7 @@ bool tud_control_xfer(uint8_t rhport, tusb_control_request_t const * request, vo
     TU_ASSERT(buffer);
 
     // Data stage
-    TU_ASSERT( start_control_data_xact(rhport) );
+    TU_ASSERT( _ctrl_data_xact(rhport) );
   }else
   {
     // Status stage
@@ -107,6 +100,22 @@ bool tud_control_xfer(uint8_t rhport, tusb_control_request_t const * request, vo
   }
 
   return true;
+}
+
+//--------------------------------------------------------------------+
+// USBD API
+//--------------------------------------------------------------------+
+
+void usbd_control_reset (uint8_t rhport)
+{
+  (void) rhport;
+  tu_varclr(&_ctrl_xfer);
+}
+
+// TODO may find a better way
+void usbd_control_set_complete_callback( bool (*fp) (uint8_t, tusb_control_request_t const * ) )
+{
+  _ctrl_xfer.complete_cb = fp;
 }
 
 // callback when a transaction complete on DATA stage of control endpoint
@@ -150,7 +159,7 @@ bool usbd_control_xfer_cb (uint8_t rhport, uint8_t ep_addr, xfer_result_t result
   else
   {
     // More data to transfer
-    TU_ASSERT( start_control_data_xact(rhport) );
+    TU_ASSERT( _ctrl_data_xact(rhport) );
   }
 
   return true;
