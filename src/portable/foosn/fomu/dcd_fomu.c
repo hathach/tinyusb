@@ -24,11 +24,11 @@
  * This file is part of the TinyUSB stack.
  */
 
+#ifndef DEBUG
+#define DEBUG 1
+#endif
 #include "tusb_option.h"
 
-#ifndef DEBUG
-#define DEBUG 0
-#endif
 
 // #if TUSB_OPT_DEVICE_ENABLED && (CFG_TUSB_MCU == OPT_MCU_FOMU_EPTRI)
 #if 1
@@ -40,6 +40,8 @@
 void fomu_error(uint32_t line);
 void mputs(const char *str);
 void mputln(const char *str);
+
+static uint8_t last_address;
 
 //--------------------------------------------------------------------+
 // SIE Command
@@ -58,11 +60,11 @@ uint8_t volatile * tx_buffer[16];
 volatile uint16_t tx_buffer_max[16];
 volatile uint8_t reset_count;
 
-#ifdef DEBUG
+#if DEBUG
 __attribute__((used)) uint8_t volatile * last_tx_buffer;
 __attribute__((used)) volatile uint8_t last_tx_ep;
-#endif
 uint8_t setup_packet_bfr[10];
+#endif
 //--------------------------------------------------------------------+
 // PIPE HELPER
 //--------------------------------------------------------------------+
@@ -82,15 +84,15 @@ static bool advance_tx_ep(void) {
 static void tx_more_data(void) {
   // Send more data
   uint8_t added_bytes;
-  for (added_bytes = 0; (added_bytes < EP_SIZE) && (added_bytes + tx_buffer_offset[tx_ep] < tx_buffer_max[tx_ep]); added_bytes++) {
-    usb_in_data_write(tx_buffer[tx_ep][added_bytes + tx_buffer_offset[tx_ep]]);
+  for (added_bytes = 0; (added_bytes < EP_SIZE) && (tx_buffer_offset[tx_ep] < tx_buffer_max[tx_ep]); added_bytes++) {
+    usb_in_data_write(tx_buffer[tx_ep][tx_buffer_offset[tx_ep]++]);
   }
 
   // Updating the epno queues the data
   usb_in_ctrl_write(tx_ep & 0xf);
 }
 
-static void process_tx(bool in_isr) {
+static void process_tx(void) {
 #if DEBUG
   // If the system isn't idle, then something is very wrong.
   uint8_t in_status = usb_in_status_read();
@@ -107,18 +109,20 @@ static void process_tx(bool in_isr) {
     return;
   }
 
-  tx_buffer_offset[tx_ep] += EP_SIZE;
-
   if (tx_buffer_offset[tx_ep] >= tx_buffer_max[tx_ep]) {
 #if DEBUG
     last_tx_buffer = tx_buffer[tx_ep];
     last_tx_ep = tx_ep;
 #endif
     tx_buffer[tx_ep] = NULL;
+    uint16_t xferred_bytes = tx_buffer_max[tx_ep];
+    uint8_t xferred_ep = tx_ep;
 
     if (!advance_tx_ep())
       tx_active = false;
-    dcd_event_xfer_complete(0, tu_edpt_addr(tx_ep, TUSB_DIR_IN), tx_buffer_max[tx_ep], XFER_RESULT_SUCCESS, in_isr);
+    if ((xferred_bytes == 13) && (tx_buffer_max[tx_ep] == 512))
+      fomu_error(__LINE__);
+    dcd_event_xfer_complete(0, tu_edpt_addr(xferred_ep, TUSB_DIR_IN), xferred_bytes, XFER_RESULT_SUCCESS, true);
     if (!tx_active)
       return;
   }
@@ -127,7 +131,7 @@ static void process_tx(bool in_isr) {
   return;
 }
 
-static void process_rx(bool in_isr) {
+static void process_rx(void) {
   uint8_t out_status = usb_out_status_read();
 #if DEBUG
   // If the OUT handler is still waiting to send, don't do anything.
@@ -190,15 +194,15 @@ static void process_rx(bool in_isr) {
     int i;
     for (i = 0; i < 16; i++) {
       if ((!!(ep_en_mask & (1 << i))) ^ (!!(rx_buffer[i]))) {
-        uint8_t new_status = usb_out_status_read();
-        // Another IRQ came in while we were processing, so ignore this endpoint.
-        if ((new_status & 0x20) && ((new_status & 0xf) == i))
-          continue;
+        // uint8_t new_status = usb_out_status_read();
+        // // Another IRQ came in while we were processing, so ignore this endpoint.
+        // if ((new_status & 0x20) && ((new_status & 0xf) == i))
+        //   continue;
         fomu_error(__LINE__);
       }
     }
 #endif
-    dcd_event_xfer_complete(0, tu_edpt_addr(rx_ep, TUSB_DIR_OUT), len, XFER_RESULT_SUCCESS, in_isr);
+    dcd_event_xfer_complete(0, tu_edpt_addr(rx_ep, TUSB_DIR_OUT), len, XFER_RESULT_SUCCESS, true);
   }
   else {
     // If there's more data, re-enable data reception on this endpoint
@@ -220,6 +224,8 @@ static void dcd_reset(void)
   usb_in_ev_enable_write(0);
   usb_out_ev_enable_write(0);
 
+  if (last_address)
+    asm("ebreak");
   usb_address_write(0);
 
   // Reset all three FIFO handlers
@@ -294,6 +300,7 @@ void dcd_set_address(uint8_t rhport, uint8_t dev_addr)
 
   // Activate the new address
   usb_address_write(dev_addr);
+  last_address = dev_addr;
 }
 
 // Called when the device received SET_CONFIG request, you can leave this
@@ -387,11 +394,13 @@ bool dcd_edpt_xfer (uint8_t rhport, uint8_t ep_addr, uint8_t* buffer, uint16_t t
     while (tx_buffer[ep_num] != NULL)
       ;
 
+    dcd_int_disable(0);
+    if (total_bytes == 499)
+      asm("ebreak");
     // If a reset happens while we're waiting, abort the transfer
     if (previous_reset_count != reset_count)
       return true;
 
-    dcd_int_disable(0);
     TU_ASSERT(tx_buffer[ep_num] == NULL);
     tx_buffer_offset[ep_num] = 0;
     tx_buffer_max[ep_num] = total_bytes;
@@ -419,18 +428,19 @@ bool dcd_edpt_xfer (uint8_t rhport, uint8_t ep_addr, uint8_t* buffer, uint16_t t
     rx_buffer_offset[ep_num] = 0;
     rx_buffer_max[ep_num] = total_bytes;
 
+    // Enable receiving on this particular endpoint
     usb_out_ctrl_write((1 << CSR_USB_OUT_CTRL_ENABLE_OFFSET) | ep_num);
-#if DEBUG
-    uint16_t ep_en_mask = usb_out_enable_status_read();
-    int i;
-    for (i = 0; i < 16; i++) {
-      if ((!!(ep_en_mask & (1 << i))) ^ (!!(rx_buffer[i]))) {
-        if (rx_buffer[i] && usb_out_ev_pending_read() && (usb_out_status_read() & 0xf) == i)
-          continue;
-        fomu_error(__LINE__);
-      }
-    }
-#endif
+// #if DEBUG
+//     uint16_t ep_en_mask = usb_out_enable_status_read();
+//     int i;
+//     for (i = 0; i < 16; i++) {
+//       if ((!!(ep_en_mask & (1 << i))) ^ (!!(rx_buffer[i]))) {
+//         if (rx_buffer[i] && usb_out_ev_pending_read() && (usb_out_status_read() & 0xf) == i)
+//           continue;
+//         fomu_error(__LINE__);
+//       }
+//     }
+// #endif
     dcd_int_enable(0);
   }
   return true;
@@ -442,9 +452,12 @@ bool dcd_edpt_xfer (uint8_t rhport, uint8_t ep_addr, uint8_t* buffer, uint16_t t
 
 void hal_dcd_isr(uint8_t rhport)
 {
-  uint8_t setup_pending   = usb_setup_ev_pending_read();
-  uint8_t in_pending      = usb_in_ev_pending_read();
-  uint8_t out_pending     = usb_out_ev_pending_read();
+  uint8_t setup_pending   = usb_setup_ev_pending_read() & usb_setup_ev_enable_read();
+  uint8_t in_pending      = usb_in_ev_pending_read() & usb_in_ev_enable_read();
+  uint8_t out_pending     = usb_out_ev_pending_read() & usb_out_ev_enable_read();
+#if !DEBUG
+  uint8_t setup_packet_bfr[10];
+#endif
   usb_setup_ev_pending_write(setup_pending);
 
   // This event means a bus reset occurred.  Reset everything, and
@@ -452,17 +465,6 @@ void hal_dcd_isr(uint8_t rhport)
   if (setup_pending & 2) {
     dcd_reset();
     return;
-  }
-
-  // An "OUT" transaction just completed so we have new data.
-  // (But only if we can accept the data)
-  // if (out_pending) {
-  if (out_pending) {
-#if DEBUG
-    if (!usb_out_ev_enable_read())
-      fomu_error(__LINE__);
-#endif
-    process_rx(true);
   }
 
   // An "IN" transaction just completed.
@@ -478,8 +480,19 @@ void hal_dcd_isr(uint8_t rhport)
       fomu_error(__LINE__);
 #endif
     usb_in_ev_pending_write(in_pending);
-    process_tx(true);
+    process_tx();
   } 
+
+  // An "OUT" transaction just completed so we have new data.
+  // (But only if we can accept the data)
+  // if (out_pending) {
+  if (out_pending) {
+#if DEBUG
+    if (!usb_out_ev_enable_read())
+      fomu_error(__LINE__);
+#endif
+    process_rx();
+  }
 
   // We got a SETUP packet.  Copy it to the setup buffer and clear
   // the "pending" bit.
