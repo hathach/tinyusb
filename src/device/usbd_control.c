@@ -45,7 +45,6 @@ typedef struct
   void* buffer;
   uint16_t len;
   uint16_t total_transferred;
-  uint16_t requested_len;
 
   bool (*complete_cb) (uint8_t, tusb_control_request_t const *);
 } usbd_control_xfer_t;
@@ -90,16 +89,10 @@ void usbd_control_set_complete_callback( bool (*fp) (uint8_t, tusb_control_reque
 
 bool tud_control_xfer(uint8_t rhport, tusb_control_request_t const * request, void* buffer, uint16_t len)
 {
-  // transmitted length must be <= requested length (USB 2.0 spec: 8.5.3.1 )
-  // FIXME: Should logic be here or in place that calls this function?
-  if(len > request->wLength)
-    len = request->wLength;
-
   _control_state.request = (*request);
   _control_state.buffer = buffer;
   _control_state.total_transferred = 0;
-  _control_state.requested_len = request->wLength;
-  _control_state.len = len;
+  _control_state.len = tu_min16(len, request->wLength);
 
   if ( len )
   {
@@ -131,7 +124,7 @@ bool usbd_control_xfer_cb (uint8_t rhport, uint8_t ep_addr, xfer_result_t result
   _control_state.total_transferred += xferred_bytes;
   _control_state.buffer = ((uint8_t*)_control_state.buffer) + xferred_bytes;
 
-  if ( (_control_state.requested_len == _control_state.total_transferred) || xferred_bytes < CFG_TUD_ENDPOINT0_SIZE )
+  if ( (_control_state.request.wLength == _control_state.total_transferred) || xferred_bytes < CFG_TUD_ENDPOINT0_SIZE )
 
   {
     // DATA stage is complete
