@@ -785,6 +785,8 @@ static bool process_get_descriptor(uint8_t rhport, tusb_control_request_t const 
     case TUSB_DESC_CONFIGURATION:
     {
       tusb_desc_configuration_t const* desc_config = (tusb_desc_configuration_t const*) tud_descriptor_configuration_cb(desc_index);
+      TU_ASSERT(desc_config);
+
       uint16_t total_len;
       memcpy(&total_len, &desc_config->wTotalLength, 2); // possibly mis-aligned memory
 
