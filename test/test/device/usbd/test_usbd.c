@@ -202,7 +202,7 @@ void test_usbd_control_zlp(void)
 {
   // 128 byte total len, with EP0 size = 64, and request length = 256
   // ZLP must be return
-  uint8_t zlp_desc_configuration[] =
+  uint8_t zlp_desc_configuration[CFG_TUD_ENDOINT0_SIZE*2] =
   {
     // Interface count, string index, total length, attribute, power in mA
     TUD_CONFIG_DESCRIPTOR(0, 0, CFG_TUD_ENDOINT0_SIZE*2, TUSB_DESC_CONFIG_ATT_REMOTE_WAKEUP, 100),

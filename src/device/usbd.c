@@ -404,7 +404,6 @@ void tud_task (void)
 
         if ( 0 == epnum )
         {
-          // control transfer DATA stage callback
           usbd_control_xfer_cb(event.rhport, ep_addr, event.xfer_complete.result, event.xfer_complete.len);
         }
         else
@@ -869,10 +868,6 @@ void dcd_event_handler(dcd_event_t const * event, bool in_isr)
     break;
 
     case DCD_EVENT_XFER_COMPLETE:
-      // skip zero-length control status complete event, should DCD notify us.
-      // TODO could cause issue with actual zero length data used by class such as DFU
-      if ( (0 == tu_edpt_number(event->xfer_complete.ep_addr)) && (event->xfer_complete.len == 0) ) break;
-
       osal_queue_send(_usbd_q, event, in_isr);
       TU_ASSERT(event->xfer_complete.result == XFER_RESULT_SUCCESS,);
     break;
