@@ -26,6 +26,10 @@
 
 #include "tusb_option.h"
 
+#ifndef DEBUG
+#define DEBUG 0
+#endif
+
 // #if TUSB_OPT_DEVICE_ENABLED && (CFG_TUSB_MCU == OPT_MCU_FOMU_EPTRI)
 #if 1
 
@@ -48,16 +52,17 @@ uint8_t volatile * rx_buffer[16];
 uint16_t volatile rx_buffer_max[16];
 
 volatile uint8_t tx_ep;
+volatile bool tx_active;
 volatile uint16_t tx_buffer_offset[16];
 uint8_t volatile * tx_buffer[16];
 volatile uint16_t tx_buffer_max[16];
 volatile uint8_t reset_count;
 
+#ifdef DEBUG
 __attribute__((used)) uint8_t volatile * last_tx_buffer;
 __attribute__((used)) volatile uint8_t last_tx_ep;
-
+#endif
 uint8_t setup_packet_bfr[10];
-
 //--------------------------------------------------------------------+
 // PIPE HELPER
 //--------------------------------------------------------------------+
@@ -86,27 +91,35 @@ static void tx_more_data(void) {
 }
 
 static void process_tx(bool in_isr) {
-  // If the buffer is now empty, search for the next buffer to fill.
-  if (!tx_buffer[tx_ep]) {
-    if (advance_tx_ep())
-      tx_more_data();
-    return;
-  }
-
+#if DEBUG
   // If the system isn't idle, then something is very wrong.
   uint8_t in_status = usb_in_status_read();
   if (!(in_status & (1 << CSR_USB_IN_STATUS_IDLE_OFFSET)))
     fomu_error(__LINE__);
+#endif
+
+  // If the buffer is now empty, search for the next buffer to fill.
+  if (!tx_buffer[tx_ep]) {
+    if (advance_tx_ep())
+      tx_more_data();
+    else
+      tx_active = false;
+    return;
+  }
 
   tx_buffer_offset[tx_ep] += EP_SIZE;
 
   if (tx_buffer_offset[tx_ep] >= tx_buffer_max[tx_ep]) {
+#if DEBUG
     last_tx_buffer = tx_buffer[tx_ep];
     last_tx_ep = tx_ep;
+#endif
     tx_buffer[tx_ep] = NULL;
 
-    dcd_event_xfer_complete(0, tu_edpt_addr(tx_ep, TUSB_DIR_IN), tx_buffer_max[tx_ep], XFER_RESULT_SUCCESS, in_isr);
     if (!advance_tx_ep())
+      tx_active = false;
+    dcd_event_xfer_complete(0, tu_edpt_addr(tx_ep, TUSB_DIR_IN), tx_buffer_max[tx_ep], XFER_RESULT_SUCCESS, in_isr);
+    if (!tx_active)
       return;
   }
 
@@ -115,61 +128,85 @@ static void process_tx(bool in_isr) {
 }
 
 static void process_rx(bool in_isr) {
-  // If the OUT handler is still waiting to send, don't do anything.
   uint8_t out_status = usb_out_status_read();
+#if DEBUG
+  // If the OUT handler is still waiting to send, don't do anything.
   if (!(out_status & (1 << CSR_USB_OUT_STATUS_HAVE_OFFSET)))
     fomu_error(__LINE__);
     // return;
-
+#endif
   uint8_t rx_ep = (out_status >> CSR_USB_OUT_STATUS_EPNO_OFFSET) & 0xf;
 
   // If the destination buffer doesn't exist, don't drain the hardware
   // fifo.  Note that this can cause deadlocks if the host is waiting
   // on some other endpoint's data!
+#if DEBUG
   if (rx_buffer[rx_ep] == NULL) {
     fomu_error(__LINE__);
     return;
   }
+#endif
 
+  // Drain the FIFO into the destination buffer
   uint32_t total_read = 0;
   uint32_t current_offset = rx_buffer_offset[rx_ep];
+#if DEBUG
   if (current_offset > rx_buffer_max[rx_ep])
     fomu_error(__LINE__);
+#endif
   while (usb_out_status_read() & (1 << CSR_USB_OUT_STATUS_HAVE_OFFSET)) {
     uint8_t c = usb_out_data_read();
     total_read++;
     if ((rx_buffer_offset[rx_ep] + current_offset) < rx_buffer_max[rx_ep])
       rx_buffer[rx_ep][current_offset++] = c;
   }
+#if DEBUG
   if (total_read > 66)
     fomu_error(__LINE__);
+  if (total_read < 2)
+    fomu_error(__LINE__);
+#endif
 
   // Strip off the CRC16
   rx_buffer_offset[rx_ep] += (total_read - 2);
   if (rx_buffer_offset[rx_ep] > rx_buffer_max[rx_ep])
     rx_buffer_offset[rx_ep] = rx_buffer_max[rx_ep];
 
+  // If there's no more data, complete the transfer to tinyusb
   if (rx_buffer_max[rx_ep] == rx_buffer_offset[rx_ep]) {
+#if DEBUG
     if (rx_buffer[rx_ep] == NULL)
       fomu_error(__LINE__);
+#endif
 
-    // Disable this endpoint (causing it to respond NAK) until we have
-    // a buffer to place the data into.
+    // Free up this buffer.
     rx_buffer[rx_ep] = NULL;
     uint16_t len = rx_buffer_offset[rx_ep];
 
-    // uint16_t ep_en_mask = usb_out_enable_status_read();
-    // int i;
-    // for (i = 0; i < 16; i++) {
-    //   if ((!!(ep_en_mask & (1 << i))) ^ (!!(rx_buffer[i])))
-    //     fomu_error(__LINE__);
-    // }
+#if DEBUG
+    // Validate that all enabled endpoints have buffers,
+    // and no disabled endpoints have buffers.
+    uint16_t ep_en_mask = usb_out_enable_status_read();
+    int i;
+    for (i = 0; i < 16; i++) {
+      if ((!!(ep_en_mask & (1 << i))) ^ (!!(rx_buffer[i]))) {
+        uint8_t new_status = usb_out_status_read();
+        // Another IRQ came in while we were processing, so ignore this endpoint.
+        if ((new_status & 0x20) && ((new_status & 0xf) == i))
+          continue;
+        fomu_error(__LINE__);
+      }
+    }
+#endif
     dcd_event_xfer_complete(0, tu_edpt_addr(rx_ep, TUSB_DIR_OUT), len, XFER_RESULT_SUCCESS, in_isr);
-    return;
+  }
+  else {
+    // If there's more data, re-enable data reception on this endpoint
+    usb_out_ctrl_write((1 << CSR_USB_OUT_CTRL_ENABLE_OFFSET) | rx_ep);
   }
 
-  // If there's more data, re-enable data reception
-  usb_out_ctrl_write((1 << CSR_USB_OUT_CTRL_ENABLE_OFFSET) | rx_ep);
+  // Now that the buffer is drained, clear the pending IRQ.
+  usb_out_ev_pending_write(usb_out_ev_pending_read());
 }
 
 //--------------------------------------------------------------------+
@@ -198,6 +235,7 @@ static void dcd_reset(void)
   memset((void *)tx_buffer_max, 0, sizeof(tx_buffer_max));
   memset((void *)tx_buffer_offset, 0, sizeof(tx_buffer_offset));
   tx_ep = 0;
+  tx_active = false;
 
   // Enable all event handlers and clear their contents
   usb_setup_ev_pending_write(-1);
@@ -251,7 +289,7 @@ void dcd_set_address(uint8_t rhport, uint8_t dev_addr)
   dcd_edpt_xfer(rhport, tu_edpt_addr(0, TUSB_DIR_IN), NULL, 0);
 
   // Wait for the response packet to get sent
-  while (tx_buffer[0] != NULL)
+  while (tx_active)
     ;
 
   // Activate the new address
@@ -305,8 +343,12 @@ void dcd_edpt_stall(uint8_t rhport, uint8_t ep_addr)
   if (tu_edpt_number(ep_addr) == 2)
     fomu_error(__LINE__);
 
-  if (tu_edpt_dir(ep_addr) == TUSB_DIR_OUT)
-    usb_out_ctrl_write((1 << CSR_USB_OUT_CTRL_STALL_OFFSET) | (1 << CSR_USB_OUT_CTRL_ENABLE_OFFSET) | tu_edpt_number(ep_addr));
+  if (tu_edpt_dir(ep_addr) == TUSB_DIR_OUT) {
+    uint8_t enable = 0;
+    if (rx_buffer[ep_addr])
+      enable = 1;
+    usb_out_ctrl_write((1 << CSR_USB_OUT_CTRL_STALL_OFFSET) | (enable << CSR_USB_OUT_CTRL_ENABLE_OFFSET) | tu_edpt_number(ep_addr));
+  }
   else
     usb_in_ctrl_write((1 << CSR_USB_IN_CTRL_STALL_OFFSET) | tu_edpt_number(ep_addr));
 }
@@ -359,32 +401,36 @@ bool dcd_edpt_xfer (uint8_t rhport, uint8_t ep_addr, uint8_t* buffer, uint16_t t
     // Update the tx_ep to point to our endpoint number and queue the data.
     // Otherwise, let it be and it'll get picked up after the next transfer
     // finishes.
-    if ((tx_buffer[tx_ep] == NULL) || (tx_ep == ep_num)) {
+    if (!tx_active) {
       tx_ep = ep_num;
+      tx_active = true;
       tx_more_data();
     }
     dcd_int_enable(0);
   }
+
   else if (ep_dir == TUSB_DIR_OUT) {
     while (rx_buffer[ep_num] != NULL)
       ;
 
+    dcd_int_disable(0);
+    TU_ASSERT(rx_buffer[ep_num] == NULL);
+    rx_buffer[ep_num] = buffer;
     rx_buffer_offset[ep_num] = 0;
     rx_buffer_max[ep_num] = total_bytes;
 
-    dcd_int_disable(0);
-    rx_buffer[ep_num] = buffer;
     usb_out_ctrl_write((1 << CSR_USB_OUT_CTRL_ENABLE_OFFSET) | ep_num);
-
-    // uint16_t ep_en_mask = usb_out_enable_status_read();
-    // int i;
-    // for (i = 0; i < 16; i++) {
-    //   if ((!!(ep_en_mask & (1 << i))) ^ (!!(rx_buffer[i]))) {
-    //     if (rx_buffer[i] && usb_out_ev_pending_read() && (usb_out_status_read() & 0xf) == i)
-    //       continue;
-    //     fomu_error(__LINE__);
-    //   }
-    // }
+#if DEBUG
+    uint16_t ep_en_mask = usb_out_enable_status_read();
+    int i;
+    for (i = 0; i < 16; i++) {
+      if ((!!(ep_en_mask & (1 << i))) ^ (!!(rx_buffer[i]))) {
+        if (rx_buffer[i] && usb_out_ev_pending_read() && (usb_out_status_read() & 0xf) == i)
+          continue;
+        fomu_error(__LINE__);
+      }
+    }
+#endif
     dcd_int_enable(0);
   }
   return true;
@@ -412,9 +458,10 @@ void hal_dcd_isr(uint8_t rhport)
   // (But only if we can accept the data)
   // if (out_pending) {
   if (out_pending) {
+#if DEBUG
     if (!usb_out_ev_enable_read())
       fomu_error(__LINE__);
-    usb_out_ev_pending_write(out_pending);
+#endif
     process_rx(true);
   }
 
@@ -426,8 +473,10 @@ void hal_dcd_isr(uint8_t rhport)
   // to begin with, then make a subsequent request.  If we don't handle
   // the IN packets first, then the second request will be truncated.
   if (in_pending) {
+#if DEBUG
     if (!usb_in_ev_enable_read())
       fomu_error(__LINE__);
+#endif
     usb_in_ev_pending_write(in_pending);
     process_tx(true);
   } 
@@ -438,8 +487,10 @@ void hal_dcd_isr(uint8_t rhport)
     // Setup packets are always 8 bytes, plus two bytes of crc16.
     uint32_t setup_length = 0;
 
+#if DEBUG
     if (!(usb_setup_status_read() & (1 << CSR_USB_SETUP_STATUS_HAVE_OFFSET)))
       fomu_error(__LINE__);
+#endif
 
     while (usb_setup_status_read() & (1 << CSR_USB_SETUP_STATUS_HAVE_OFFSET)) {
       uint8_t c = usb_setup_data_read();
@@ -458,9 +509,11 @@ void hal_dcd_isr(uint8_t rhport)
       // if (!((setup_packet_bfr[0] == 0x00) && (setup_packet_bfr[1] == 0x05)))
       usb_setup_ctrl_write(1 << CSR_USB_SETUP_CTRL_ACK_OFFSET);
     }
+#if DEBUG
     else {
       fomu_error(__LINE__);
     }
+#endif
   }
 }
 
