@@ -290,7 +290,7 @@ bool tud_remote_wakeup(void)
 //--------------------------------------------------------------------+
 // USBD Task
 //--------------------------------------------------------------------+
-bool usbd_init (void)
+bool tud_init (void)
 {
   TU_LOG2("USBD init\r\n");
 
@@ -882,34 +882,6 @@ void dcd_event_handler(dcd_event_t const * event, bool in_isr)
 
     default: break;
   }
-}
-
-// helper to send bus signal event
-void dcd_event_bus_signal (uint8_t rhport, dcd_eventid_t eid, bool in_isr)
-{
-  dcd_event_t event = { .rhport = rhport, .event_id = eid, };
-  dcd_event_handler(&event, in_isr);
-}
-
-// helper to send setup received
-void dcd_event_setup_received(uint8_t rhport, uint8_t const * setup, bool in_isr)
-{
-  dcd_event_t event = { .rhport = rhport, .event_id = DCD_EVENT_SETUP_RECEIVED };
-  memcpy(&event.setup_received, setup, 8);
-
-  dcd_event_handler(&event, in_isr);
-}
-
-// helper to send transfer complete event
-void dcd_event_xfer_complete (uint8_t rhport, uint8_t ep_addr, uint32_t xferred_bytes, uint8_t result, bool in_isr)
-{
-  dcd_event_t event = { .rhport = rhport, .event_id = DCD_EVENT_XFER_COMPLETE };
-
-  event.xfer_complete.ep_addr = ep_addr;
-  event.xfer_complete.len     = xferred_bytes;
-  event.xfer_complete.result  = result;
-
-  dcd_event_handler(&event, in_isr);
 }
 
 //--------------------------------------------------------------------+
