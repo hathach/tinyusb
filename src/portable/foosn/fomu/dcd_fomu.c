@@ -29,7 +29,6 @@
 #endif
 #include "tusb_option.h"
 
-
 // #if TUSB_OPT_DEVICE_ENABLED && (CFG_TUSB_MCU == OPT_MCU_FOMU_EPTRI)
 #if 1
 
@@ -40,6 +39,30 @@
 void fomu_error(uint32_t line);
 void mputs(const char *str);
 void mputln(const char *str);
+
+struct usb_log {
+  uint8_t ep_num;
+  uint8_t size;
+  uint8_t data[66];
+};
+__attribute__((used))
+struct usb_log usb_log[128];
+__attribute__((used))
+uint8_t usb_log_offset;
+
+struct xfer_log {
+  uint8_t ep_num;
+  uint16_t size;
+};
+__attribute__((used))
+struct xfer_log xfer_log[64];
+__attribute__((used))
+uint8_t xfer_log_offset;
+
+__attribute__((used))
+struct xfer_log queue_log[64];
+__attribute__((used))
+uint8_t queue_log_offset;
 
 static uint8_t last_address;
 
@@ -65,6 +88,7 @@ __attribute__((used)) uint8_t volatile * last_tx_buffer;
 __attribute__((used)) volatile uint8_t last_tx_ep;
 uint8_t setup_packet_bfr[10];
 #endif
+
 //--------------------------------------------------------------------+
 // PIPE HELPER
 //--------------------------------------------------------------------+
@@ -81,12 +105,35 @@ static bool advance_tx_ep(void) {
   return true;
 }
 
+void xfer_log_append(uint8_t ep_num, uint16_t sz) {
+  xfer_log[xfer_log_offset].ep_num = ep_num;
+  xfer_log[xfer_log_offset].size = sz;
+  xfer_log_offset++;
+  if (xfer_log_offset > sizeof(xfer_log)/sizeof(*xfer_log))
+    xfer_log_offset = 0;
+}
+
+void queue_log_append(uint8_t ep_num, uint16_t sz) {
+  queue_log[queue_log_offset].ep_num = ep_num;
+  queue_log[queue_log_offset].size = sz;
+  queue_log_offset++;
+  if (queue_log_offset > sizeof(queue_log)/sizeof(*queue_log))
+    queue_log_offset = 0;
+}
+
 static void tx_more_data(void) {
   // Send more data
   uint8_t added_bytes;
   for (added_bytes = 0; (added_bytes < EP_SIZE) && (tx_buffer_offset[tx_ep] < tx_buffer_max[tx_ep]); added_bytes++) {
+    usb_log[usb_log_offset].data[added_bytes] = tx_buffer[tx_ep][tx_buffer_offset[tx_ep]];
     usb_in_data_write(tx_buffer[tx_ep][tx_buffer_offset[tx_ep]++]);
   }
+
+  usb_log[usb_log_offset].ep_num = tu_edpt_addr(tx_ep, TUSB_DIR_IN);
+  usb_log[usb_log_offset].size = added_bytes;
+  usb_log_offset++;
+  if (usb_log_offset > sizeof(usb_log)/sizeof(*usb_log))
+    usb_log_offset = 0;
 
   // Updating the epno queues the data
   usb_in_ctrl_write(tx_ep & 0xf);
@@ -122,6 +169,7 @@ static void process_tx(void) {
       tx_active = false;
     if ((xferred_bytes == 13) && (tx_buffer_max[tx_ep] == 512))
       fomu_error(__LINE__);
+    xfer_log_append(tu_edpt_addr(xferred_ep, TUSB_DIR_IN), xferred_bytes);
     dcd_event_xfer_complete(0, tu_edpt_addr(xferred_ep, TUSB_DIR_IN), xferred_bytes, XFER_RESULT_SUCCESS, true);
     if (!tx_active)
       return;
@@ -158,12 +206,19 @@ static void process_rx(void) {
   if (current_offset > rx_buffer_max[rx_ep])
     fomu_error(__LINE__);
 #endif
+  usb_log[usb_log_offset].ep_num = tu_edpt_addr(rx_ep, TUSB_DIR_OUT);
+  usb_log[usb_log_offset].size = 0;
   while (usb_out_status_read() & (1 << CSR_USB_OUT_STATUS_HAVE_OFFSET)) {
     uint8_t c = usb_out_data_read();
     total_read++;
-    if ((rx_buffer_offset[rx_ep] + current_offset) < rx_buffer_max[rx_ep])
+    if ((rx_buffer_offset[rx_ep] + current_offset) < rx_buffer_max[rx_ep]) {
+      usb_log[usb_log_offset].data[usb_log[usb_log_offset].size++] = c;
       rx_buffer[rx_ep][current_offset++] = c;
+    }
   }
+  usb_log_offset++;
+  if (usb_log_offset > sizeof(usb_log)/sizeof(*usb_log))
+    usb_log_offset = 0;
 #if DEBUG
   if (total_read > 66)
     fomu_error(__LINE__);
@@ -202,6 +257,7 @@ static void process_rx(void) {
       }
     }
 #endif
+    xfer_log_append(tu_edpt_addr(rx_ep, TUSB_DIR_OUT), len);
     dcd_event_xfer_complete(0, tu_edpt_addr(rx_ep, TUSB_DIR_OUT), len, XFER_RESULT_SUCCESS, true);
   }
   else {
@@ -395,6 +451,7 @@ bool dcd_edpt_xfer (uint8_t rhport, uint8_t ep_addr, uint8_t* buffer, uint16_t t
       ;
 
     dcd_int_disable(0);
+    queue_log_append(ep_addr, total_bytes);
     if (total_bytes == 499)
       asm("ebreak");
     // If a reset happens while we're waiting, abort the transfer
@@ -422,8 +479,9 @@ bool dcd_edpt_xfer (uint8_t rhport, uint8_t ep_addr, uint8_t* buffer, uint16_t t
     while (rx_buffer[ep_num] != NULL)
       ;
 
-    dcd_int_disable(0);
     TU_ASSERT(rx_buffer[ep_num] == NULL);
+    dcd_int_disable(0);
+    queue_log_append(ep_addr, total_bytes);
     rx_buffer[ep_num] = buffer;
     rx_buffer_offset[ep_num] = 0;
     rx_buffer_max[ep_num] = total_bytes;
@@ -450,83 +508,107 @@ bool dcd_edpt_xfer (uint8_t rhport, uint8_t ep_addr, uint8_t* buffer, uint16_t t
 // ISR
 //--------------------------------------------------------------------+
 
-void hal_dcd_isr(uint8_t rhport)
+static void handle_out(void)
+{
+  // An "OUT" transaction just completed so we have new data.
+  // (But only if we can accept the data)
+#if DEBUG
+  if (!usb_out_ev_pending_read())
+    fomu_error(__LINE__);
+  if (!usb_out_ev_enable_read())
+    fomu_error(__LINE__);
+#endif
+  process_rx();
+}
+
+static void handle_in(void)
+{
+#if DEBUG
+  if (!usb_in_ev_pending_read())
+    fomu_error(__LINE__);
+  if (!usb_in_ev_enable_read())
+    fomu_error(__LINE__);
+#endif
+  usb_in_ev_pending_write(usb_in_ev_pending_read());
+  process_tx();
+}
+
+static void handle_reset(void)
 {
   uint8_t setup_pending   = usb_setup_ev_pending_read() & usb_setup_ev_enable_read();
-  uint8_t in_pending      = usb_in_ev_pending_read() & usb_in_ev_enable_read();
-  uint8_t out_pending     = usb_out_ev_pending_read() & usb_out_ev_enable_read();
-#if !DEBUG
-  uint8_t setup_packet_bfr[10];
-#endif
-  usb_setup_ev_pending_write(setup_pending);
+  if (!(setup_pending & 2))
+    fomu_error(__LINE__);
+  usb_setup_ev_pending_write(2);
 
   // This event means a bus reset occurred.  Reset everything, and
   // abandon any further processing.
-  if (setup_pending & 2) {
-    dcd_reset();
-    return;
-  }
+  dcd_reset();
+}
 
-  // An "IN" transaction just completed.
-  // Note that due to the way tinyusb's callback system is implemented,
-  // we must handle IN and OUT packets before we handle SETUP packets.
-  // This ensures that any responses to SETUP packets aren't overwritten.
-  // For example, oftentimes a host will request part of a descriptor
-  // to begin with, then make a subsequent request.  If we don't handle
-  // the IN packets first, then the second request will be truncated.
-  if (in_pending) {
-#if DEBUG
-    if (!usb_in_ev_enable_read())
-      fomu_error(__LINE__);
+static void handle_setup(void)
+{
+#if !DEBUG
+  uint8_t setup_packet_bfr[10];
 #endif
-    usb_in_ev_pending_write(in_pending);
-    process_tx();
-  } 
 
-  // An "OUT" transaction just completed so we have new data.
-  // (But only if we can accept the data)
-  // if (out_pending) {
-  if (out_pending) {
-#if DEBUG
-    if (!usb_out_ev_enable_read())
-      fomu_error(__LINE__);
-#endif
-    process_rx();
-  }
+  uint8_t setup_pending   = usb_setup_ev_pending_read() & usb_setup_ev_enable_read();
+  if (!(setup_pending & 1))
+    fomu_error(__LINE__);
 
   // We got a SETUP packet.  Copy it to the setup buffer and clear
   // the "pending" bit.
-  if (setup_pending & 1) {
-    // Setup packets are always 8 bytes, plus two bytes of crc16.
-    uint32_t setup_length = 0;
+  // Setup packets are always 8 bytes, plus two bytes of crc16.
+  uint32_t setup_length = 0;
 
 #if DEBUG
-    if (!(usb_setup_status_read() & (1 << CSR_USB_SETUP_STATUS_HAVE_OFFSET)))
-      fomu_error(__LINE__);
+  if (!(usb_setup_status_read() & (1 << CSR_USB_SETUP_STATUS_HAVE_OFFSET)))
+    fomu_error(__LINE__);
 #endif
 
-    while (usb_setup_status_read() & (1 << CSR_USB_SETUP_STATUS_HAVE_OFFSET)) {
-      uint8_t c = usb_setup_data_read();
-      if (setup_length < sizeof(setup_packet_bfr))
-        setup_packet_bfr[setup_length] = c;
-      setup_length++;
-    }
+  while (usb_setup_status_read() & (1 << CSR_USB_SETUP_STATUS_HAVE_OFFSET)) {
+    uint8_t c = usb_setup_data_read();
+    if (setup_length < sizeof(setup_packet_bfr))
+      setup_packet_bfr[setup_length] = c;
+    setup_length++;
+  }
 
-    // If we have 10 bytes, that's a full SETUP packet plus CRC16.
-    // Otherwise, it was an RX error.
-    if (setup_length == 10) {
-      dcd_event_setup_received(rhport, setup_packet_bfr, true);
-      // Acknowledge the packet, so long as it isn't a SET_ADDRESS
-      // packet.  If it is, leave it unacknowledged and we'll do this
-      // in the `dcd_set_address` function instead.
-      // if (!((setup_packet_bfr[0] == 0x00) && (setup_packet_bfr[1] == 0x05)))
-      usb_setup_ctrl_write(1 << CSR_USB_SETUP_CTRL_ACK_OFFSET);
-    }
+  // If we have 10 bytes, that's a full SETUP packet plus CRC16.
+  // Otherwise, it was an RX error.
+  if (setup_length == 10) {
+    dcd_event_setup_received(0, setup_packet_bfr, true);
+    // Acknowledge the packet, so long as it isn't a SET_ADDRESS
+    // packet.  If it is, leave it unacknowledged and we'll do this
+    // in the `dcd_set_address` function instead.
+    // if (!((setup_packet_bfr[0] == 0x00) && (setup_packet_bfr[1] == 0x05)))
+    usb_setup_ctrl_write(1 << CSR_USB_SETUP_CTRL_ACK_OFFSET);
+  }
 #if DEBUG
-    else {
-      fomu_error(__LINE__);
-    }
+  else {
+    fomu_error(__LINE__);
+  }
 #endif
+
+  usb_setup_ev_pending_write(1);
+}
+void hal_dcd_isr(uint8_t rhport)
+{
+  (void)rhport;
+  uint8_t next_ev;
+  while ((next_ev = usb_next_ev_read())) {
+    switch (next_ev) {
+    case 1 << CSR_USB_NEXT_EV_IN_OFFSET:
+        handle_in();
+        break;
+    case 1 << CSR_USB_NEXT_EV_OUT_OFFSET:
+      handle_out();
+      break;
+    case 1 << CSR_USB_NEXT_EV_SETUP_OFFSET:
+      handle_setup();
+      break;
+    case 1 << CSR_USB_NEXT_EV_RESET_OFFSET:
+      handle_reset();
+      break;
+    }
   }
 }
 
