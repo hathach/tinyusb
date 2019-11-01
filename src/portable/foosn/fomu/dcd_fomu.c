@@ -576,11 +576,6 @@ static void handle_setup(void)
   // Otherwise, it was an RX error.
   if (setup_length == 10) {
     dcd_event_setup_received(0, setup_packet_bfr, true);
-    // Acknowledge the packet, so long as it isn't a SET_ADDRESS
-    // packet.  If it is, leave it unacknowledged and we'll do this
-    // in the `dcd_set_address` function instead.
-    // if (!((setup_packet_bfr[0] == 0x00) && (setup_packet_bfr[1] == 0x05)))
-    usb_setup_ctrl_write(1 << CSR_USB_SETUP_CTRL_ACK_OFFSET);
   }
 #if DEBUG
   else {
