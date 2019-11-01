@@ -64,7 +64,7 @@ class CMockGeneratorPluginExpect
 
   def mock_implementation_might_check_args(function)
     return "" if (function[:args].empty?)
-    lines = "  if (cmock_call_instance->IgnoreMode != CMOCK_ARG_NONE)\n  {\n"
+    lines = "  if (!cmock_call_instance->ExpectAnyArgsBool)\n  {\n"
     function[:args].each do |arg|
       lines << @utils.code_verify_an_arg_expectation(function, arg)
     end
@@ -91,14 +91,13 @@ class CMockGeneratorPluginExpect
     lines << @utils.code_add_base_expectation(func_name)
     lines << @utils.code_call_argument_loader(function)
     lines << @utils.code_assign_argument_quickly("cmock_call_instance->ReturnVal", function[:return]) unless (function[:return][:void?])
-    lines << "  UNITY_CLR_DETAILS();\n"
     lines << "}\n\n"
   end
 
   def mock_verify(function)
-    func_name = function[:name]
     "  UNITY_SET_DETAIL(CMockString_#{function[:name]});\n" +
-    "  UNITY_TEST_ASSERT(CMOCK_GUTS_NONE == Mock.#{func_name}_CallInstance, cmock_line, CMockStringCalledLess);\n"
+    "  UNITY_TEST_ASSERT(CMOCK_GUTS_NONE == call_instance, cmock_line, CMockStringCalledLess);\n" +
+    "  UNITY_CLR_DETAILS();\n"
   end
 
 end

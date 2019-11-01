@@ -54,7 +54,20 @@ class TestInvoker
     end
   end
 
-  def setup_and_invoke(tests, context=TEST_SYM, options={:force_run => true})
+  # Convert libraries configuration form YAML configuration
+  # into a string that can be given to the compiler.
+  def convert_libraries_to_arguments()
+    if @configurator.project_config_hash.has_key?(:libraries_test)
+      lib_args = @configurator.project_config_hash[:libraries_test]
+      lib_args.flatten!
+      lib_flag = @configurator.project_config_hash[:libraries_flag]
+      lib_args.map! {|v| lib_flag.gsub(/\$\{1\}/, v) } if (defined? lib_flag)
+      return lib_args
+    end
+  end
+
+
+  def setup_and_invoke(tests, context=TEST_SYM, options={:force_run => true, :build_only => false})
 
     @tests = tests
 
@@ -68,7 +81,7 @@ class TestInvoker
       begin
         @plugin_manager.pre_test( test )
         test_name ="#{File.basename(test)}".chomp('.c')
-        def_test_key="defines_#{test_name}"
+        def_test_key="defines_#{test_name.downcase}"
 
         # Re-define the project out path and pre-processor defines.
         if @configurator.project_config_hash.has_key?(def_test_key.to_sym)
@@ -93,6 +106,8 @@ class TestInvoker
         objects      = @file_path_utils.form_test_build_objects_filelist( [runner] + core + extras )
         results_pass = @file_path_utils.form_pass_results_filepath( test )
         results_fail = @file_path_utils.form_fail_results_filepath( test )
+
+        @project_config_manager.process_test_defines_change(sources)
 
         # add the definition value in the build option for the unit test
         if @configurator.defines_use_test_definition
@@ -119,8 +134,15 @@ class TestInvoker
         # build test objects
         @task_invoker.invoke_test_objects( objects )
 
-        # 3, 2, 1... launch
-        @task_invoker.invoke_test_results( results_pass )
+        # if the option build_only has been specified, build only the executable
+        # but don't run the test
+        if (options[:build_only])
+          executable = @file_path_utils.form_test_executable_filepath( test )
+          @task_invoker.invoke_test_executable( executable )
+        else
+          # 3, 2, 1... launch
+          @task_invoker.invoke_test_results( results_pass )
+        end
       rescue => e
         @build_invoker_utils.process_exception( e, context )
       ensure
@@ -142,6 +164,8 @@ class TestInvoker
       # store away what's been processed
       @mocks.concat( mock_list )
       @sources.concat( sources )
+
+      @task_invoker.first_run = false
     end
 
     # post-process collected mock list

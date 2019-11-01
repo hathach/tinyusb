@@ -19,7 +19,7 @@ class CMockGeneratorUtils
     @ignore_arg   = @config.plugins.include? :ignore_arg
     @ignore       = @config.plugins.include? :ignore
     @treat_as     = @config.treat_as
-	  @helpers = helpers
+    @helpers = helpers
   end
 
   def self.arg_type_with_const(arg)
@@ -57,7 +57,7 @@ class CMockGeneratorUtils
     lines << "  cmock_call_instance->LineNumber = cmock_line;\n"
     lines << "  cmock_call_instance->CallOrder = ++GlobalExpectCount;\n" if (@ordered and global_ordering_supported)
     lines << "  cmock_call_instance->ExceptionToThrow = CEXCEPTION_NONE;\n" if (@cexception)
-    lines << "  cmock_call_instance->IgnoreMode = CMOCK_ARG_ALL;\n" if (@expect_any)
+    lines << "  cmock_call_instance->ExpectAnyArgsBool = (int)0;\n" if (@expect_any)
     lines
   end
 
@@ -73,7 +73,10 @@ class CMockGeneratorUtils
     if (arg[:ptr?] or @treat_as.include?(arg[:type]))
       "  #{dest} = #{arg[:name]};\n"
     else
-      "  memcpy(&#{dest}, &#{arg[:name]}, sizeof(#{arg[:type]}));\n"
+      assert_expr = "sizeof(#{arg[:name]}) == sizeof(#{arg[:type]}) ? 1 : -1"
+      comment = "/* add #{arg[:type]} to :treat_as_array if this causes an error */"
+      "  memcpy((void*)(&#{dest}), (void*)(&#{arg[:name]}),\n" +
+      "         sizeof(#{arg[:type]}[#{assert_expr}])); #{comment}\n"
     end
   end
 
@@ -84,10 +87,12 @@ class CMockGeneratorUtils
           type = arg_type_with_const(m)
           m[:ptr?] ? "#{type} #{m[:name]}, int #{m[:name]}_Depth" : "#{type} #{m[:name]}"
         end.join(', ')
+        "void CMockExpectParameters_#{function[:name]}(CMOCK_#{function[:name]}_CALL_INSTANCE* cmock_call_instance, #{args_string});\n" +
         "void CMockExpectParameters_#{function[:name]}(CMOCK_#{function[:name]}_CALL_INSTANCE* cmock_call_instance, #{args_string})\n{\n" +
         function[:args].inject("") { |all, arg| all + code_add_an_arg_expectation(arg, (arg[:ptr?] ? "#{arg[:name]}_Depth" : 1) ) } +
         "}\n\n"
       else
+        "void CMockExpectParameters_#{function[:name]}(CMOCK_#{function[:name]}_CALL_INSTANCE* cmock_call_instance, #{function[:args_string]});\n" +
         "void CMockExpectParameters_#{function[:name]}(CMOCK_#{function[:name]}_CALL_INSTANCE* cmock_call_instance, #{function[:args_string]})\n{\n" +
         function[:args].inject("") { |all, arg| all + code_add_an_arg_expectation(arg) } +
         "}\n\n"
@@ -100,7 +105,13 @@ class CMockGeneratorUtils
   def code_call_argument_loader(function)
     if (function[:args_string] != "void")
       args = function[:args].map do |m|
-        (@arrays and m[:ptr?]) ? "#{m[:name]}, 1" : m[:name]
+        if (@arrays and m[:ptr?] and not m[:array_data?])
+          "#{m[:name]}, 1"
+        elsif (@arrays and m[:array_size?])
+          "#{m[:name]}, #{m[:name]}"
+        else
+          m[:name]
+        end
       end
       "  CMockExpectParameters_#{function[:name]}(cmock_call_instance, #{args.join(', ')});\n"
     else
@@ -170,6 +181,7 @@ class CMockGeneratorUtils
     lines << "  if (!#{ignore})\n" if @ignore_arg
     lines << "  {\n"
     lines << "    UNITY_SET_DETAILS(CMockString_#{function[:name]},CMockString_#{arg_name});\n"
+    lines << "    if (#{pre}#{expected} != #{pre}#{arg_name}) {\n"
     case(unity_func)
       when "UNITY_TEST_ASSERT_EQUAL_MEMORY"
         c_type_local = c_type.gsub(/\*$/,'')
@@ -195,7 +207,7 @@ class CMockGeneratorUtils
       else
         lines << "    #{unity_func}(#{pre}#{expected}, #{pre}#{arg_name}, cmock_line, CMockStringMismatch);\n"
     end
-    lines << "  }\n"
+    lines << "      }\n  }\n"
     lines
   end
 
@@ -206,6 +218,7 @@ class CMockGeneratorUtils
     lines << "  if (!#{ignore})\n" if @ignore_arg
     lines << "  {\n"
     lines << "    UNITY_SET_DETAILS(CMockString_#{function[:name]},CMockString_#{arg_name});\n"
+    lines << "    if (#{pre}#{expected} != #{pre}#{arg_name}) {\n"
     case(unity_func)
       when "UNITY_TEST_ASSERT_EQUAL_MEMORY"
         c_type_local = c_type.gsub(/\*$/,'')
@@ -233,7 +246,7 @@ class CMockGeneratorUtils
       else
         lines << "    #{unity_func}(#{pre}#{expected}, #{pre}#{arg_name}, cmock_line, CMockStringMismatch);\n"
     end
-    lines << "  }\n"
+    lines << "    }\n  }\n"
     lines
   end
 

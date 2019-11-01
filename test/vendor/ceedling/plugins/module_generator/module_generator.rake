@@ -10,15 +10,20 @@ namespace :module do
       p = files.delete(pat)
       optz[:pattern] = p unless p.nil?
     end
-    files.each {
-      |v|
+    files.each do |v|
       module_root_path, module_name = v.split(module_root_separator, 2)
       if module_name
         optz[:module_root_path] = module_root_path
         v = module_name
       end
-      @ceedling[:module_generator].create(v, optz)
-    }
+      if (v =~ /^test_?/i)
+        # If the name of the file starts with test, automatically treat it as one
+        @ceedling[:module_generator].create(v.sub(/^test_?/i,''), optz.merge({:pattern => 'test'}))
+      else
+        # Otherwise, go through the normal procedure
+        @ceedling[:module_generator].create(v, optz)
+      end
+    end
   end
 
   desc "Destroy module (source, header and test files)"
@@ -29,15 +34,14 @@ namespace :module do
       p = files.delete(pat)
       optz[:pattern] = p unless p.nil?
     end
-    files.each {
-      |v|
+    files.each do |v|
       module_root_path, module_name = v.split(module_root_separator, 2)
       if module_name
         optz[:module_root_path] = module_root_path
         v = module_name
       end
       @ceedling[:module_generator].create(v, optz)
-    }
+    end
   end
 
 end

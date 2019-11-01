@@ -1,6 +1,5 @@
 require 'ceedling/plugin'
 require 'ceedling/constants'
-
 class CommandHooks < Plugin
 
   attr_reader :config
@@ -22,7 +21,6 @@ class CommandHooks < Plugin
       :pre_release               => ((defined? TOOLS_PRE_RELEASE)               ? TOOLS_PRE_RELEASE               : nil ),
       :post_release              => ((defined? TOOLS_POST_RELEASE)              ? TOOLS_POST_RELEASE              : nil ),
       :pre_build                 => ((defined? TOOLS_PRE_BUILD)                 ? TOOLS_PRE_BUILD                 : nil ),
-      :post_build                => ((defined? TOOLS_POST_BUILD)                ? TOOLS_POST_BUILD                : nil ),
       :post_build                => ((defined? TOOLS_POST_BUILD)                ? TOOLS_POST_BUILD                : nil ),
       :post_error                => ((defined? TOOLS_POST_ERROR)                ? TOOLS_POST_ERROR                : nil ),
     }
@@ -49,14 +47,33 @@ class CommandHooks < Plugin
 
   private
 
+  ##
+  # Run a hook if its available.
+  #
+  # :args:
+  #   - hook: Name of the hook to run
+  #   - name: Name of file (default: "")
+  #
+  # :return:
+  #    shell_result.
+  #
   def run_hook_step(hook, name="")
     if (hook[:executable])
-      args = ( (hook[:args].is_a? Array) ? hook[:args] : [] )
-      cmd = @ceedling[:tool_executor].build_command_line( hook, args, name )
-      shell_result = @ceedling[:tool_executor].exec( cmd[:line], cmd[:options] )
+      # Handle argument replacemant ({$1}), and get commandline
+      cmd = @ceedling[:tool_executor].build_command_line( hook, [], name )
+      shell_result = @ceedling[:tool_executor].exec(cmd[:line], cmd[:options])
     end
   end
 
+  ##
+  # Run a hook if its available.
+  #
+  # If __which_hook__ is an array, run each of them sequentially.
+  #
+  # :args:
+  #   - which_hook: Name of the hook to run
+  #   - name: Name of file
+  #
   def run_hook(which_hook, name="")
     if (@config[which_hook])
       @ceedling[:streaminator].stdout_puts("Running Hook #{which_hook}...", Verbosity::NORMAL)

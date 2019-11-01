@@ -35,8 +35,7 @@ end
 
 rule(/#{PROJECT_TEST_BUILD_OUTPUT_PATH}\/#{'.+\\'+EXTENSION_EXECUTABLE}$/) do |bin_file|
 
-  lib_args = ((defined? LIBRARIES_SYSTEM) ? LIBRARIES_SYSTEM : [])
-  lib_args.map! {|v| LIBRARIES_FLAG.gsub(/\$\{1\}/, v) } if (defined? LIBRARIES_FLAG)
+  lib_args = @ceedling[:test_invoker].convert_libraries_to_arguments()
 
   @ceedling[:generator].generate_executable_file(
     TOOLS_TEST_LINKER,
@@ -67,6 +66,7 @@ namespace TEST_SYM do
         @ceedling[:file_finder].find_test_from_file_path(test)
       end
   ]) do |test|
+    @ceedling[:rake_wrapper][:directories].reenable if @ceedling[:task_invoker].first_run == false && @ceedling[:project_config_manager].test_defines_changed
     @ceedling[:rake_wrapper][:directories].invoke
     @ceedling[:test_invoker].setup_and_invoke([test.source])
   end

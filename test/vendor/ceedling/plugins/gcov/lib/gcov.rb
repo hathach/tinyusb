@@ -14,8 +14,7 @@ class Gcov < Plugin
       project_test_results_path: GCOV_RESULTS_PATH,
       project_test_dependencies_path: GCOV_DEPENDENCIES_PATH,
       defines_test: DEFINES_TEST + ['CODE_COVERAGE'],
-      collection_defines_test_and_vendor: COLLECTION_DEFINES_TEST_AND_VENDOR + ['CODE_COVERAGE'],
-      gcov_html_report_filter: GCOV_FILTER_EXPR
+      gcov_html_report_filter: GCOV_FILTER_EXCLUDE
     }
 
     @plugin_root = File.expand_path(File.join(File.dirname(__FILE__), '..'))
@@ -23,13 +22,15 @@ class Gcov < Plugin
   end
 
   def generate_coverage_object_file(source, object)
+    lib_args = @ceedling[:test_invoker].convert_libraries_to_arguments()
     compile_command =
       @ceedling[:tool_executor].build_command_line(
         TOOLS_GCOV_COMPILER,
         @ceedling[:flaginator].flag_down(OPERATION_COMPILE_SYM, GCOV_SYM, source),
         source,
         object,
-        @ceedling[:file_path_utils].form_test_build_list_filepath(object)
+        @ceedling[:file_path_utils].form_test_build_list_filepath(object),
+        lib_args
       )
     @ceedling[:streaminator].stdout_puts("Compiling #{File.basename(source)} with coverage...")
     @ceedling[:tool_executor].exec(compile_command[:line], compile_command[:options])
@@ -94,6 +95,12 @@ class Gcov < Plugin
       if coverage_results.strip =~ /(File\s+'#{Regexp.escape(source)}'.+$)/m
         report = Regexp.last_match(1).lines.to_a[1..-1].map { |line| basename + ' ' + line }.join('')
         @ceedling[:streaminator].stdout_puts(report + "\n\n")
+      end
+    end
+
+    COLLECTION_ALL_SOURCE.each do |source|
+      unless coverage_sources.include?(source)
+        @ceedling[:streaminator].stdout_puts("Could not find coverage results for " + source + "\n")
       end
     end
   end
