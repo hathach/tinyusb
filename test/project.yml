@@ -54,6 +54,7 @@
   :enforce_strict_ordering: TRUE
   :plugins:
     - :ignore
+    - :ignore_arg
     - :callback
     - :array
   :treat_as:

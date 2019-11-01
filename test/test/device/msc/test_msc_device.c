@@ -55,10 +55,12 @@ enum
   ITF_NUM_TOTAL
 };
 
+#define CONFIG_TOTAL_LEN    (TUD_CONFIG_DESC_LEN + TUD_MSC_DESC_LEN)
+
 uint8_t const data_desc_configuration[] =
 {
   // Interface count, string index, total length, attribute, power in mA
-  TUD_CONFIG_DESCRIPTOR(ITF_NUM_TOTAL, 0, TUD_CONFIG_DESC_LEN, TUSB_DESC_CONFIG_ATT_REMOTE_WAKEUP, 100),
+  TUD_CONFIG_DESCRIPTOR(ITF_NUM_TOTAL, 0, CONFIG_TOTAL_LEN, TUSB_DESC_CONFIG_ATT_REMOTE_WAKEUP, 100),
 
   // Interface number, string index, EP Out & EP In address, EP size
   TUD_MSC_DESCRIPTOR(ITF_NUM_MSC, 0, EDPT_MSC_OUT, EDPT_MSC_IN, (CFG_TUSB_RHPORT0_MODE & OPT_MODE_HIGH_SPEED) ? 512 : 64),
@@ -66,9 +68,9 @@ uint8_t const data_desc_configuration[] =
 
 tusb_control_request_t const request_set_configuration =
 {
-  .bmRequestType = 0x80,
+  .bmRequestType = 0x00,
   .bRequest      = TUSB_REQ_SET_CONFIGURATION,
-  .wValue        = 0,
+  .wValue        = 1,
   .wIndex        = 0,
   .wLength       = 0
 };
@@ -163,39 +165,6 @@ int32_t tud_msc_scsi_cb (uint8_t lun, uint8_t const scsi_cmd[16], void* buffer, 
   void const* response = NULL;
   uint16_t resplen = 0;
 
-  // most scsi handled is input
-  bool in_xfer = true;
-
-  switch (scsi_cmd[0])
-  {
-    case SCSI_CMD_PREVENT_ALLOW_MEDIUM_REMOVAL:
-      // Host is about to read/write etc ... better not to disconnect disk
-      resplen = 0;
-    break;
-
-    default:
-      // Set Sense = Invalid Command Operation
-      tud_msc_set_sense(lun, SCSI_SENSE_ILLEGAL_REQUEST, 0x20, 0x00);
-
-      // negative means error -> tinyusb could stall and/or response with failed status
-      resplen = -1;
-    break;
-  }
-
-  // return resplen must not larger than bufsize
-  if ( resplen > bufsize ) resplen = bufsize;
-
-  if ( response && (resplen > 0) )
-  {
-    if(in_xfer)
-    {
-      memcpy(buffer, response, resplen);
-    }else
-    {
-      // SCSI output
-    }
-  }
-
   return resplen;
 }
 
@@ -227,6 +196,9 @@ void setUp(void)
     dcd_init_Expect(rhport);
     tusb_init();
   }
+
+  dcd_event_bus_signal(rhport, DCD_EVENT_BUS_RESET, false);
+  tud_task();
 }
 
 void tearDown(void)
@@ -240,8 +212,22 @@ void test_msc(void)
 {
   desc_configuration = data_desc_configuration;
 
-//  dcd_event_setup_received(rhport, (uint8_t*) &request_set_configuration, false);
+  dcd_event_setup_received(rhport, (uint8_t*) &request_set_configuration, false);
 
+  dcd_set_config_Expect(rhport, 1);
 
-//  tud_task();
+  uint8_t const* desc_ep = tu_desc_next(tu_desc_next(desc_configuration));
+
+  // open endpoints
+  dcd_edpt_open_ExpectAndReturn(rhport, desc_ep, true);
+  dcd_edpt_open_ExpectAndReturn(rhport, tu_desc_next(desc_ep), true);
+
+  // queue endpoint out
+  dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_MSC_OUT, NULL, 31, true);
+  dcd_edpt_xfer_IgnoreArg_buffer(); // don't care buffer since it is msc device interal
+
+  // control status
+  dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_CTRL_IN, NULL, 0, true);
+
+  tud_task();
 }
