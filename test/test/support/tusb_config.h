@@ -26,6 +26,9 @@
 #ifndef _TUSB_CONFIG_H_
 #define _TUSB_CONFIG_H_
 
+// testing framework
+#include "unity.h"
+
 #ifdef __cplusplus
  extern "C" {
 #endif
@@ -49,7 +52,7 @@
 #define CFG_TUSB_OS                 OPT_OS_NONE
 
 // CFG_TUSB_DEBUG is defined by compiler in DEBUG build
-// #define CFG_TUSB_DEBUG           0
+ #define CFG_TUSB_DEBUG           0
 
 /* USB DMA on some MCUs can only access a specific SRAM region with restriction on alignment.
  * Tinyusb use follows macros to declare transferring memory so that they can be put

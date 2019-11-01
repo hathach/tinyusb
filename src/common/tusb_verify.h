@@ -73,13 +73,21 @@
 //--------------------------------------------------------------------+
 // TU_VERIFY Helper
 //--------------------------------------------------------------------+
+
+// Running unit tests
+#ifdef _UNITY_TEST_
+  #define _TEST_FAILED()    TEST_FAIL();
+#else
+  #define _TEST_FAILED()
+#endif
+
 #if CFG_TUSB_DEBUG
   #include <stdio.h>
-  #define _MESS_ERR(_err)   printf("%s: %d: failed, error = %s\n", __func__, __LINE__, tusb_strerr[_err])
-  #define _MESS_FAILED()    printf("%s: %d: failed\n", __func__, __LINE__)
+  #define _MESS_ERR(_err)   printf("%s %d: failed, error = %s\n", __func__, __LINE__, tusb_strerr[_err])
+  #define _MESS_FAILED()    do { printf("%s %d: assert failed\n", __func__, __LINE__); _TEST_FAILED() } while(0)
 #else
   #define _MESS_ERR(_err)
-  #define _MESS_FAILED()
+  #define _MESS_FAILED()    _TEST_FAILED()
 #endif
 
 // Halt CPU (breakpoint) when hitting error, only apply for Cortex M3, M4, M7
