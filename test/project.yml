@@ -18,6 +18,9 @@
   :default_tasks:
     - test:all
 
+#:test_build:
+#  :use_assembly: TRUE
+
 #:release_build:
 #  :output: MyApp.out
 #  :use_assembly: FALSE
@@ -40,13 +43,12 @@
   # in order to add common defines:
   #  1) remove the trailing [] from the :common: section
   #  2) add entries to the :common: section (e.g. :test: has TEST defined)
-  :commmon: &common_defines []
+  :common: &common_defines
+    - _UNITY_TEST_
   :test:
     - *common_defines
-    - _TEST_
   :test_preprocess:
     - *common_defines
-    - _TEST_
 
 :cmock:
   :mock_prefix: mock_
@@ -64,8 +66,15 @@
     int8:     INT8
     bool:     UINT8
 
+# Add -gcov to the plugins list to make sure of the gcov plugin
+# You will need to have gcov and gcovr both installed to make it work.
+# For more information on these options, see docs in plugins/gcov
 :gcov:
-    :html_report_type: basic
+    :html_report: TRUE
+    :html_report_type: detailed
+    :html_medium_threshold: 75
+    :html_high_threshold: 90
+    :xml_report: FALSE
 
 #:tools:
 # Ceedling defaults to using gcc for compiling, linking, etc.
@@ -92,4 +101,5 @@
     - stdout_pretty_tests_report
     - module_generator
     - raw_output_report
+    - colour_report
 ...
