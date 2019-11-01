@@ -583,10 +583,14 @@ static void proc_read10_cmd(uint8_t rhport, mscd_interface_t* p_msc)
   msc_cbw_t const * p_cbw = &p_msc->cbw;
   msc_csw_t       * p_csw = &p_msc->csw;
 
-  uint16_t const block_sz = p_cbw->total_bytes / rdwr10_get_blockcount(p_cbw->command);
+  uint16_t const block_cnt = rdwr10_get_blockcount(p_cbw->command);
+  TU_ASSERT(block_cnt, ); // prevent div by zero
+
+  uint16_t const block_sz = p_cbw->total_bytes / block_cnt;
+  TU_ASSERT(block_sz, ); // prevent div by zero
 
   // Adjust lba with transferred bytes
-  uint32_t const lba = rdwr10_get_lba(p_cbw->command) + (p_msc->xferred_len / block_sz);
+  uint32_t lba = rdwr10_get_lba(p_cbw->command) + (p_msc->xferred_len / block_sz);
 
   // remaining bytes capped at class buffer
   int32_t nbytes = (int32_t) tu_min32(sizeof(_mscd_buf), p_cbw->total_bytes-p_msc->xferred_len);
