@@ -7,6 +7,7 @@
 
 :project:
   :use_exceptions: TRUE
+  :use_mocks: TRUE
   :use_test_preprocessor: TRUE
   :use_auxiliary_dependencies: TRUE
   :use_deep_dependencies: TRUE
