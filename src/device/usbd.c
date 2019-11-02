@@ -168,6 +168,20 @@ static usbd_class_driver_t const usbd_class_drivers[] =
       .sof              = NULL
   },
   #endif
+
+  #if CFG_TUD_DFU_RT
+  {
+      .class_code       = TUD_DFU_APP_CLASS,
+    //.subclass_code    = TUD_DFU_APP_SUBCLASS
+      .init             = dfu_rtd_init,
+      .reset            = dfu_rtd_reset,
+      .open             = dfu_rtd_open,
+      .control_request  = dfu_rtd_control_request,
+      .control_complete = dfu_rtd_control_complete,
+      .xfer_cb          = dfu_rtd_xfer_cb,
+      .sof              = NULL
+  },
+  #endif
 };
 
 enum { USBD_CLASS_DRIVER_COUNT = TU_ARRAY_SIZE(usbd_class_drivers) };
@@ -277,7 +291,7 @@ bool tud_remote_wakeup(void)
 //--------------------------------------------------------------------+
 // USBD Task
 //--------------------------------------------------------------------+
-bool usbd_init (void)
+bool tud_init (void)
 {
   TU_LOG2("USBD init\r\n");
 
@@ -391,7 +405,6 @@ void tud_task (void)
 
         if ( 0 == epnum )
         {
-          // control transfer DATA stage callback
           usbd_control_xfer_cb(event.rhport, ep_addr, event.xfer_complete.result, event.xfer_complete.len);
         }
         else
@@ -758,9 +771,13 @@ static bool process_get_descriptor(uint8_t rhport, tusb_control_request_t const 
       uint16_t len = sizeof(tusb_desc_device_t);
 
       // Only send up to EP0 Packet Size if not addressed
+      // This only happens with the very first get device descriptor and EP0 size = 8 or 16.
       if ((CFG_TUD_ENDPOINT0_SIZE < sizeof(tusb_desc_device_t)) && !_usbd_dev.addressed)
       {
         len = CFG_TUD_ENDPOINT0_SIZE;
+
+        // Hack here: we modify the request length to prevent usbd_control response with zlp
+        ((tusb_control_request_t*) p_request)->wLength = CFG_TUD_ENDPOINT0_SIZE;
       }
 
       return tud_control_xfer(rhport, p_request, (void*) tud_descriptor_device_cb(), len);
@@ -783,6 +800,8 @@ static bool process_get_descriptor(uint8_t rhport, tusb_control_request_t const 
     case TUSB_DESC_CONFIGURATION:
     {
       tusb_desc_configuration_t const* desc_config = (tusb_desc_configuration_t const*) tud_descriptor_configuration_cb(desc_index);
+      TU_ASSERT(desc_config);
+
       uint16_t total_len;
       memcpy(&total_len, &desc_config->wTotalLength, 2); // possibly mis-aligned memory
 
@@ -866,10 +885,6 @@ void dcd_event_handler(dcd_event_t const * event, bool in_isr)
     break;
 
     case DCD_EVENT_XFER_COMPLETE:
-      // skip zero-length control status complete event, should DCD notify us.
-      // TODO could cause issue with actual zero length data used by class such as DFU
-      if ( (0 == tu_edpt_number(event->xfer_complete.ep_addr)) && (event->xfer_complete.len == 0) ) break;
-
       osal_queue_send(_usbd_q, event, in_isr);
       TU_ASSERT(event->xfer_complete.result == XFER_RESULT_SUCCESS,);
     break;
@@ -881,34 +896,6 @@ void dcd_event_handler(dcd_event_t const * event, bool in_isr)
 
     default: break;
   }
-}
-
-// helper to send bus signal event
-void dcd_event_bus_signal (uint8_t rhport, dcd_eventid_t eid, bool in_isr)
-{
-  dcd_event_t event = { .rhport = rhport, .event_id = eid, };
-  dcd_event_handler(&event, in_isr);
-}
-
-// helper to send setup received
-void dcd_event_setup_received(uint8_t rhport, uint8_t const * setup, bool in_isr)
-{
-  dcd_event_t event = { .rhport = rhport, .event_id = DCD_EVENT_SETUP_RECEIVED };
-  memcpy(&event.setup_received, setup, 8);
-
-  dcd_event_handler(&event, in_isr);
-}
-
-// helper to send transfer complete event
-void dcd_event_xfer_complete (uint8_t rhport, uint8_t ep_addr, uint32_t xferred_bytes, uint8_t result, bool in_isr)
-{
-  dcd_event_t event = { .rhport = rhport, .event_id = DCD_EVENT_XFER_COMPLETE };
-
-  event.xfer_complete.ep_addr = ep_addr;
-  event.xfer_complete.len     = xferred_bytes;
-  event.xfer_complete.result  = result;
-
-  dcd_event_handler(&event, in_isr);
 }
 
 //--------------------------------------------------------------------+

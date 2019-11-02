@@ -16,9 +16,9 @@ install:
   - gem install ceedling
 
 before_script:
-  - wget http://software-dl.ti.com/msp430/msp430_public_sw/mcu/msp430/MSPGCC/latest/exports/msp430-gcc-8.2.0.52_linux64.tar.bz2 -O /tmp/msp430-gcc.tar.b2
-  - tar -xjf /tmp/msp430-gcc.tar.b2
-  - export PATH=$PATH:$PWD/msp430-gcc-8.2.0.52_linux64/bin
+  - wget http://software-dl.ti.com/msp430/msp430_public_sw/mcu/msp430/MSPGCC/8_3_0_0/exports/msp430-gcc-8.3.0.16_linux64.tar.bz2 -O /tmp/msp430-gcc.tar.bz2
+  - tar -xjf /tmp/msp430-gcc.tar.bz2
+  - export PATH=$PATH:$PWD/msp430-gcc-8.3.0.16_linux64/bin
   - arm-none-eabi-gcc --version
   - msp430-elf-gcc --version
 

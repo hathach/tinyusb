@@ -9,6 +9,7 @@
   :use_exceptions: TRUE
   :use_test_preprocessor: TRUE
   :use_auxiliary_dependencies: TRUE
+  :use_deep_dependencies: TRUE
   :build_root: _build
 #  :release_build: TRUE
   :test_file_prefix: test_
@@ -41,10 +42,10 @@
   :commmon: &common_defines []
   :test:
     - *common_defines
-    - TEST
+    - _TEST_
   :test_preprocess:
     - *common_defines
-    - TEST
+    - _TEST_
 
 :cmock:
   :mock_prefix: mock_
@@ -53,6 +54,7 @@
   :plugins:
     - :ignore
     - :callback
+    - :array
   :treat_as:
     uint8:    HEX8
     uint16:   HEX16
