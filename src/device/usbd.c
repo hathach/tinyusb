@@ -771,9 +771,13 @@ static bool process_get_descriptor(uint8_t rhport, tusb_control_request_t const 
       uint16_t len = sizeof(tusb_desc_device_t);
 
       // Only send up to EP0 Packet Size if not addressed
+      // This only happens with the very first get device descriptor and EP0 size = 8 or 16.
       if ((CFG_TUD_ENDPOINT0_SIZE < sizeof(tusb_desc_device_t)) && !_usbd_dev.addressed)
       {
         len = CFG_TUD_ENDPOINT0_SIZE;
+
+        // Hack here: we modify the request length to prevent usbd_control response with zlp
+        ((tusb_control_request_t*) p_request)->wLength = CFG_TUD_ENDPOINT0_SIZE;
       }
 
       return tud_control_xfer(rhport, p_request, (void*) tud_descriptor_device_cb(), len);
