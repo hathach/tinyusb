@@ -376,7 +376,7 @@ void tud_task (void)
 
       case DCD_EVENT_SETUP_RECEIVED:
         TU_LOG2("  ");
-        TU_LOG2_MEM(&event.setup_received, 1, 8);
+        TU_LOG1_MEM(&event.setup_received, 1, 8);
 
         // Mark as connected after receiving 1st setup packet.
         // But it is easier to set it every time instead of wasting time to check then set
@@ -385,6 +385,7 @@ void tud_task (void)
         // Process control request
         if ( !process_control_request(event.rhport, &event.setup_received) )
         {
+          TU_LOG1("  Stall EP0\r\n");
           // Failed -> stall both control endpoint IN and OUT
           dcd_edpt_stall(event.rhport, 0);
           dcd_edpt_stall(event.rhport, 0 | TUSB_DIR_IN_MASK);
@@ -404,6 +405,7 @@ void tud_task (void)
 
         if ( 0 == epnum )
         {
+          TU_LOG1("  EP Addr = 0x%02X, len = %ld\r\n", ep_addr, event.xfer_complete.len);
           usbd_control_xfer_cb(event.rhport, ep_addr, event.xfer_complete.result, event.xfer_complete.len);
         }
         else
