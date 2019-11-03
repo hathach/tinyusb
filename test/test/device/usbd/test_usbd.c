@@ -231,5 +231,7 @@ void test_usbd_control_in_zlp(void)
   dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_CTRL_OUT, NULL, 0, true);
   dcd_event_xfer_complete(rhport, EDPT_CTRL_OUT, 0, 0, false);
 
+  dcd_control_status_complete_Expect(rhport);
+
   tud_task();
 }
