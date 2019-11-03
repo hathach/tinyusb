@@ -119,6 +119,10 @@ void dcd_edpt_stall       (uint8_t rhport, uint8_t ep_addr);
 // clear stall, data toggle is also reset to DATA0
 void dcd_edpt_clear_stall (uint8_t rhport, uint8_t ep_addr);
 
+// Invoked when a control transfer's status stage is complete.
+// May help DCD to prepare for next control transfer, this API is optional.
+void dcd_control_status_complete(uint8_t rhport) TU_ATTR_WEAK;
+
 //--------------------------------------------------------------------+
 // Event API
 //--------------------------------------------------------------------+

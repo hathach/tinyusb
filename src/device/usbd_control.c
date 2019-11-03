@@ -129,6 +129,7 @@ bool usbd_control_xfer_cb (uint8_t rhport, uint8_t ep_addr, xfer_result_t result
   if ( tu_edpt_dir(ep_addr) != _ctrl_xfer.request.bmRequestType_bit.direction )
   {
     TU_ASSERT(0 == xferred_bytes);
+    if (dcd_control_status_complete) dcd_control_status_complete(rhport);
     return true;
   }
 
