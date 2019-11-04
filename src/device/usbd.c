@@ -599,7 +599,7 @@ static bool process_control_request(uint8_t rhport, tusb_control_request_t const
         // stall control endpoint if driver return false
         usbd_control_set_complete_callback(usbd_class_drivers[drvid].control_complete);
         TU_LOG2("  %s control request\r\n", _usbd_driver_str[drvid]);
-        TU_ASSERT(usbd_class_drivers[drvid].control_request != NULL &&
+        TU_VERIFY(usbd_class_drivers[drvid].control_request != NULL &&
                   usbd_class_drivers[drvid].control_request(rhport, p_request));
       }
     }
