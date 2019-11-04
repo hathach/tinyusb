@@ -36,6 +36,8 @@
  * \ref CFG_TUSB_MCU must be defined to one of these
  *  @{ */
 
+#define OPT_MCU_NONE            0
+
 // LPC
 #define OPT_MCU_LPC11UXX        1 ///< NXP LPC11Uxx
 #define OPT_MCU_LPC13XX         2 ///< NXP LPC13xx
