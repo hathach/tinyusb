@@ -10,7 +10,7 @@ CFLAGS += \
 
 #CFLAGS += -Wno-error=undef
 
-ASF_DIR = hw/mcu/microchip/samg
+ASF_DIR = hw/mcu/microchip/samg55
 
 # All source paths should be relative to the top level.
 LD_FILE = $(ASF_DIR)/samg55/gcc/gcc/samg55j19_flash.ld
