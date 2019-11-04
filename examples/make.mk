@@ -79,11 +79,16 @@ CFLAGS += \
 
 # Debugging/Optimization
 ifeq ($(DEBUG), 1)
-  CFLAGS += -Og -ggdb -DCFG_TUSB_DEBUG=2
+  CFLAGS += -Og -ggdb
 else
-ifneq ($(BOARD), spresense)
-  CFLAGS += -flto -Os
-else
-  CFLAGS += -Os
+  ifneq ($(BOARD),spresense)
+    CFLAGS += -flto -Os
+  else
+    CFLAGS += -Os
+  endif
 endif
+
+# TUSB Logging option
+ifneq ($(LOG),)
+  CFLAGS += -DCFG_TUSB_DEBUG=$(LOG)
 endif
