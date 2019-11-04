@@ -40,6 +40,7 @@
 #define BUTTON_PIN            GPIO(GPIO_PORTA, 2)
 #define BUTTON_STATE_ACTIVE   0
 
+
 //------------- IMPLEMENTATION -------------//
 void board_init(void)
 {
@@ -64,6 +65,14 @@ void board_init(void)
   // 1ms tick timer (samd SystemCoreClock may not correct)
   SysTick_Config(CONF_CPU_FREQUENCY / 1000);
 #endif
+
+  // USB
+
+  /* Clear SYSIO 10 & 11 for USB DM & DP */
+  hri_matrix_clear_CCFG_SYSIO_reg(MATRIX, CCFG_SYSIO_SYSIO10 | CCFG_SYSIO_SYSIO11);
+
+  // Enble clock
+  _pmc_enable_periph_clock(ID_UDP);
 }
 
 //--------------------------------------------------------------------+
