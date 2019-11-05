@@ -599,7 +599,7 @@ static void proc_read10_cmd(uint8_t rhport, mscd_interface_t* p_msc)
   TU_ASSERT(block_sz, ); // prevent div by zero
 
   // Adjust lba with transferred bytes
-  uint32_t lba = rdwr10_get_lba(p_cbw->command) + (p_msc->xferred_len / block_sz);
+  uint32_t const lba = rdwr10_get_lba(p_cbw->command) + (p_msc->xferred_len / block_sz);
 
   // remaining bytes capped at class buffer
   int32_t nbytes = (int32_t) tu_min32(sizeof(_mscd_buf), p_cbw->total_bytes-p_msc->xferred_len);
