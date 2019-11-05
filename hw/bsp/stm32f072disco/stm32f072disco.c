@@ -37,6 +37,24 @@
 #define BUTTON_PIN            GPIO_PIN_0
 #define BUTTON_STATE_ACTIVE   1
 
+#define UARTx                 USART1
+#define UART_GPIO_PORT        GPIOA
+#define UART_GPIO_AF          GPIO_AF1_USART1
+#define UART_TX_PIN           GPIO_PIN_9
+#define UART_RX_PIN           GPIO_PIN_10
+
+
+UART_HandleTypeDef UartHandle;
+
+// enable all LED, Button, Uart, USB clock
+static void all_rcc_clk_enable(void)
+{
+  __HAL_RCC_GPIOA_CLK_ENABLE();  // USB D+, D-
+  __HAL_RCC_GPIOC_CLK_ENABLE();  // LED
+  //__HAL_RCC_GPIOA_CLK_ENABLE();  // Button
+  //__HAL_RCC_GPIOA_CLK_ENABLE();  // Uart tx, rx
+  __HAL_RCC_USART1_CLK_ENABLE(); // Uart module
+}
 
 /**
   * @brief  System Clock Configuration
@@ -83,12 +101,11 @@ void board_init(void)
   #endif
 
   SystemClock_Config();
-  
-  // Notify runtime of frequency change.
   SystemCoreClockUpdate();
+  
+  all_rcc_clk_enable();
 
   // LED
-  __HAL_RCC_GPIOC_CLK_ENABLE();
   GPIO_InitTypeDef  GPIO_InitStruct;
   GPIO_InitStruct.Pin = LED_PIN;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
@@ -97,16 +114,32 @@ void board_init(void)
   HAL_GPIO_Init(LED_PORT, &GPIO_InitStruct);
 
   // Button
-  __HAL_RCC_GPIOA_CLK_ENABLE();
   GPIO_InitStruct.Pin = BUTTON_PIN;
   GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
   GPIO_InitStruct.Pull = GPIO_PULLDOWN;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_HIGH;
   HAL_GPIO_Init(BUTTON_PORT, &GPIO_InitStruct);
 
+  // Uart
+  GPIO_InitStruct.Pin       = UART_TX_PIN | UART_RX_PIN;
+  GPIO_InitStruct.Mode      = GPIO_MODE_AF_PP;
+  GPIO_InitStruct.Pull      = GPIO_PULLUP;
+  GPIO_InitStruct.Speed     = GPIO_SPEED_FREQ_HIGH;
+  GPIO_InitStruct.Alternate = UART_GPIO_AF;
+  HAL_GPIO_Init(UART_GPIO_PORT, &GPIO_InitStruct);
+
+  UartHandle.Instance        = UARTx;
+  UartHandle.Init.BaudRate   = CFG_BOARD_UART_BAUDRATE;
+  UartHandle.Init.WordLength = UART_WORDLENGTH_8B;
+  UartHandle.Init.StopBits   = UART_STOPBITS_1;
+  UartHandle.Init.Parity     = UART_PARITY_NONE;
+  UartHandle.Init.HwFlowCtl  = UART_HWCONTROL_NONE;
+  UartHandle.Init.Mode       = UART_MODE_TX_RX;
+  UartHandle.Init.OverSampling = UART_OVERSAMPLING_16;
+  HAL_UART_Init(&UartHandle);
+
   // USB Pins
   // Configure USB DM and DP pins. This is optional, and maintained only for user guidance.
-  __HAL_RCC_GPIOA_CLK_ENABLE();
   GPIO_InitStruct.Pin = (GPIO_PIN_11 | GPIO_PIN_12);
   GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
@@ -139,8 +172,8 @@ int board_uart_read(uint8_t* buf, int len)
 
 int board_uart_write(void const * buf, int len)
 {
-  (void) buf; (void) len;
-  return 0;
+  HAL_UART_Transmit(&UartHandle, (uint8_t*) buf, len, 0xffff);
+  return len;
 }
 
 #if CFG_TUSB_OS  == OPT_OS_NONE
@@ -170,7 +203,8 @@ void HardFault_Handler (void)
   * @retval None
   */
 void assert_failed(char *file, uint32_t line)
-{ 
+{
+  (void) file; (void) line;
   /* USER CODE BEGIN 6 */
   /* User can add his own implementation to report the file name and line number,
      tex: printf("Wrong parameters value: file %s on line %d\r\n", file, line) */
