@@ -41,9 +41,15 @@ TEST_FILE("usbd_control.c")
 // MACRO TYPEDEF CONSTANT ENUM DECLARATION
 //--------------------------------------------------------------------+
 
+enum
+{
+  EDPT_CTRL_OUT = 0x00,
+  EDPT_CTRL_IN  = 0x80
+};
+
 uint8_t const rhport = 0;
 
-tusb_desc_device_t const desc_device =
+tusb_desc_device_t const data_desc_device =
 {
     .bLength            = sizeof(tusb_desc_device_t),
     .bDescriptorType    = TUSB_DESC_DEVICE,
@@ -68,6 +74,12 @@ tusb_desc_device_t const desc_device =
     .bNumConfigurations = 0x01
 };
 
+uint8_t const data_desc_configuration[] =
+{
+  // Interface count, string index, total length, attribute, power in mA
+  TUD_CONFIG_DESCRIPTOR(0, 0, TUD_CONFIG_DESC_LEN, TUSB_DESC_CONFIG_ATT_REMOTE_WAKEUP, 100),
+};
+
 tusb_control_request_t const req_get_desc_device =
 {
   .bmRequestType = 0x80,
@@ -77,20 +89,29 @@ tusb_control_request_t const req_get_desc_device =
   .wLength = 64
 };
 
+tusb_control_request_t const req_get_desc_configuration =
+{
+  .bmRequestType = 0x80,
+  .bRequest = TUSB_REQ_GET_DESCRIPTOR,
+  .wValue = (TUSB_DESC_CONFIGURATION << 8),
+  .wIndex = 0x0000,
+  .wLength = 256
+};
+
+uint8_t const* desc_device;
+uint8_t const* desc_configuration;
+
 //--------------------------------------------------------------------+
 //
 //--------------------------------------------------------------------+
-uint8_t const * ptr_desc_device;
-
 uint8_t const * tud_descriptor_device_cb(void)
 {
-  return ptr_desc_device;
+  return desc_device;
 }
 
 uint8_t const * tud_descriptor_configuration_cb(uint8_t index)
 {
-  TEST_FAIL();
-  return NULL;
+  return desc_configuration;
 }
 
 uint16_t const* tud_descriptor_string_cb(uint8_t index)
@@ -108,8 +129,6 @@ void setUp(void)
     dcd_init_Expect(rhport);
     tusb_init();
   }
-
-  ptr_desc_device = (uint8_t const *) &desc_device;
 }
 
 void tearDown(void)
@@ -117,25 +136,103 @@ void tearDown(void)
 }
 
 //--------------------------------------------------------------------+
-//
+// Get Descriptor
 //--------------------------------------------------------------------+
+
+//------------- Device -------------//
 void test_usbd_get_device_descriptor(void)
 {
+  desc_device = (uint8_t const *) &data_desc_device;
   dcd_event_setup_received(rhport, (uint8_t*) &req_get_desc_device, false);
 
-  dcd_edpt_xfer_ExpectWithArrayAndReturn(rhport, 0x80, (uint8_t*)&desc_device, sizeof(tusb_desc_device_t), sizeof(tusb_desc_device_t), true);
+  // data
+  dcd_edpt_xfer_ExpectWithArrayAndReturn(rhport, 0x80, (uint8_t*)&data_desc_device, sizeof(tusb_desc_device_t), sizeof(tusb_desc_device_t), true);
+  dcd_event_xfer_complete(rhport, EDPT_CTRL_IN, sizeof(tusb_desc_device_t), 0, false);
+
+  // status
+  dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_CTRL_OUT, NULL, 0, true);
 
   tud_task();
 }
 
 void test_usbd_get_device_descriptor_null(void)
 {
-  ptr_desc_device = NULL;
+  desc_device = NULL;
 
   dcd_event_setup_received(rhport, (uint8_t*) &req_get_desc_device, false);
 
-  dcd_edpt_stall_Expect(rhport, 0);
-  dcd_edpt_stall_Expect(rhport, 0x80);
+  dcd_edpt_stall_Expect(rhport, EDPT_CTRL_OUT);
+  dcd_edpt_stall_Expect(rhport, EDPT_CTRL_IN);
+
+  tud_task();
+}
+
+//------------- Configuration -------------//
+
+void test_usbd_get_configuration_descriptor(void)
+{
+  desc_configuration = data_desc_configuration;
+  uint16_t total_len = ((tusb_desc_configuration_t const*) data_desc_configuration)->wTotalLength;
+
+  dcd_event_setup_received(rhport, (uint8_t*) &req_get_desc_configuration, false);
+
+  // data
+  dcd_edpt_xfer_ExpectWithArrayAndReturn(rhport, 0x80, (uint8_t*) data_desc_configuration, total_len, total_len, true);
+  dcd_event_xfer_complete(rhport, EDPT_CTRL_IN, total_len, 0, false);
+
+  // status
+  dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_CTRL_OUT, NULL, 0, true);
+
+  tud_task();
+}
+
+void test_usbd_get_configuration_descriptor_null(void)
+{
+  desc_configuration = NULL;
+  dcd_event_setup_received(rhport, (uint8_t*) &req_get_desc_configuration, false);
+
+  dcd_edpt_stall_Expect(rhport, EDPT_CTRL_OUT);
+  dcd_edpt_stall_Expect(rhport, EDPT_CTRL_IN);
+
+  tud_task();
+}
+
+//--------------------------------------------------------------------+
+// Control ZLP
+//--------------------------------------------------------------------+
+
+void test_usbd_control_in_zlp(void)
+{
+  // 128 byte total len, with EP0 size = 64, and request length = 256
+  // ZLP must be return
+  uint8_t zlp_desc_configuration[CFG_TUD_ENDOINT0_SIZE*2] =
+  {
+    // Interface count, string index, total length, attribute, power in mA
+    TUD_CONFIG_DESCRIPTOR(0, 0, CFG_TUD_ENDOINT0_SIZE*2, TUSB_DESC_CONFIG_ATT_REMOTE_WAKEUP, 100),
+  };
+
+  desc_configuration = zlp_desc_configuration;
+
+  // request, then 1st, 2nd xact + ZLP + status
+  dcd_event_setup_received(rhport, (uint8_t*) &req_get_desc_configuration, false);
+
+  // 1st transaction
+  dcd_edpt_xfer_ExpectWithArrayAndReturn(rhport, EDPT_CTRL_IN,
+                                         zlp_desc_configuration, CFG_TUD_ENDOINT0_SIZE, CFG_TUD_ENDOINT0_SIZE, true);
+  dcd_event_xfer_complete(rhport, EDPT_CTRL_IN, CFG_TUD_ENDOINT0_SIZE, 0, false);
+
+  // 2nd transaction
+  dcd_edpt_xfer_ExpectWithArrayAndReturn(rhport, EDPT_CTRL_IN,
+                                         zlp_desc_configuration + CFG_TUD_ENDOINT0_SIZE, CFG_TUD_ENDOINT0_SIZE, CFG_TUD_ENDOINT0_SIZE, true);
+  dcd_event_xfer_complete(rhport, EDPT_CTRL_IN, CFG_TUD_ENDOINT0_SIZE, 0, false);
+
+  // Expect Zero length Packet
+  dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_CTRL_IN, NULL, 0, true);
+  dcd_event_xfer_complete(rhport, EDPT_CTRL_IN, 0, 0, false);
+
+  // Status
+  dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_CTRL_OUT, NULL, 0, true);
+  dcd_event_xfer_complete(rhport, EDPT_CTRL_OUT, 0, 0, false);
 
   tud_task();
 }

@@ -656,7 +656,7 @@ bool usbtmcd_control_request_cb(uint8_t rhport, tusb_control_request_t const * r
     TU_VERIFY(request->wLength == sizeof(rsp));
     TU_VERIFY(request->wIndex == usbtmc_state.ep_bulk_out);
     TU_VERIFY(tud_usbtmc_check_abort_bulk_out_cb(&rsp));
-    TU_VERIFY(usbd_edpt_xfer(rhport, 0u, (void*)&rsp,sizeof(rsp)));
+    TU_VERIFY(tud_control_xfer(rhport, request, (void*)&rsp,sizeof(rsp)));
     return true;
   }
 
