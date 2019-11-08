@@ -43,8 +43,8 @@
 #define UART_TX_PIN           GPIO_PIN_9
 #define UART_RX_PIN           GPIO_PIN_10
 
-
 UART_HandleTypeDef UartHandle;
+
 
 // enable all LED, Button, Uart, USB clock
 static void all_rcc_clk_enable(void)
