@@ -377,7 +377,7 @@ void tud_task (void)
 
       case DCD_EVENT_SETUP_RECEIVED:
         TU_LOG2("  ");
-        TU_LOG2_MEM(&event.setup_received, 1, 8);
+        TU_LOG1_MEM(&event.setup_received, 1, 8);
 
         // Mark as connected after receiving 1st setup packet.
         // But it is easier to set it every time instead of wasting time to check then set
@@ -386,6 +386,7 @@ void tud_task (void)
         // Process control request
         if ( !process_control_request(event.rhport, &event.setup_received) )
         {
+          TU_LOG1("  Stall EP0\r\n");
           // Failed -> stall both control endpoint IN and OUT
           dcd_edpt_stall(event.rhport, 0);
           dcd_edpt_stall(event.rhport, 0 | TUSB_DIR_IN_MASK);
@@ -405,6 +406,7 @@ void tud_task (void)
 
         if ( 0 == epnum )
         {
+          TU_LOG1("  EP Addr = 0x%02X, len = %ld\r\n", ep_addr, event.xfer_complete.len);
           usbd_control_xfer_cb(event.rhport, ep_addr, event.xfer_complete.result, event.xfer_complete.len);
         }
         else
@@ -589,7 +591,7 @@ static bool process_control_request(uint8_t rhport, tusb_control_request_t const
             // stall control endpoint if driver return false
             usbd_control_set_complete_callback(usbd_class_drivers[drvid].control_complete);
             TU_LOG2("  %s control request\r\n", _usbd_driver_str[drvid]);
-            TU_ASSERT(usbd_class_drivers[drvid].control_request != NULL &&
+            TU_VERIFY(usbd_class_drivers[drvid].control_request != NULL &&
                       usbd_class_drivers[drvid].control_request(rhport, p_request));
           break;
         }
@@ -599,7 +601,7 @@ static bool process_control_request(uint8_t rhport, tusb_control_request_t const
         // stall control endpoint if driver return false
         usbd_control_set_complete_callback(usbd_class_drivers[drvid].control_complete);
         TU_LOG2("  %s control request\r\n", _usbd_driver_str[drvid]);
-        TU_ASSERT(usbd_class_drivers[drvid].control_request != NULL &&
+        TU_VERIFY(usbd_class_drivers[drvid].control_request != NULL &&
                   usbd_class_drivers[drvid].control_request(rhport, p_request));
       }
     }
@@ -896,6 +898,31 @@ void dcd_event_handler(dcd_event_t const * event, bool in_isr)
 
     default: break;
   }
+}
+
+void dcd_event_bus_signal (uint8_t rhport, dcd_eventid_t eid, bool in_isr)
+{
+  dcd_event_t event = { .rhport = rhport, .event_id = eid, };
+  dcd_event_handler(&event, in_isr);
+}
+
+void dcd_event_setup_received(uint8_t rhport, uint8_t const * setup, bool in_isr)
+{
+  dcd_event_t event = { .rhport = rhport, .event_id = DCD_EVENT_SETUP_RECEIVED };
+  memcpy(&event.setup_received, setup, 8);
+
+  dcd_event_handler(&event, in_isr);
+}
+
+void dcd_event_xfer_complete (uint8_t rhport, uint8_t ep_addr, uint32_t xferred_bytes, uint8_t result, bool in_isr)
+{
+  dcd_event_t event = { .rhport = rhport, .event_id = DCD_EVENT_XFER_COMPLETE };
+
+  event.xfer_complete.ep_addr = ep_addr;
+  event.xfer_complete.len     = xferred_bytes;
+  event.xfer_complete.result  = result;
+
+  dcd_event_handler(&event, in_isr);
 }
 
 //--------------------------------------------------------------------+

@@ -51,17 +51,27 @@ typedef struct
 
 static usbd_control_xfer_t _ctrl_xfer;
 
-CFG_TUSB_MEM_SECTION CFG_TUSB_MEM_ALIGN uint8_t _usbd_ctrl_buf[CFG_TUD_ENDPOINT0_SIZE];
+CFG_TUSB_MEM_SECTION CFG_TUSB_MEM_ALIGN static uint8_t _usbd_ctrl_buf[CFG_TUD_ENDPOINT0_SIZE];
 
 
 //--------------------------------------------------------------------+
 // Application API
 //--------------------------------------------------------------------+
 
-bool tud_control_status(uint8_t rhport, tusb_control_request_t const * request)
+static inline bool _status_stage_xact(uint8_t rhport, tusb_control_request_t const * request)
 {
   // status direction is reversed to one in the setup packet
   return dcd_edpt_xfer(rhport, request->bmRequestType_bit.direction ? EDPT_CTRL_OUT : EDPT_CTRL_IN, NULL, 0);
+}
+
+bool tud_control_status(uint8_t rhport, tusb_control_request_t const * request)
+{
+  _ctrl_xfer.request       = (*request);
+  _ctrl_xfer.buffer        = NULL;
+  _ctrl_xfer.total_xferred = 0;
+  _ctrl_xfer.data_len      = 0;
+
+  return _status_stage_xact(rhport, request);
 }
 
 // Transfer an transaction in Data Stage
@@ -98,7 +108,7 @@ bool tud_control_xfer(uint8_t rhport, tusb_control_request_t const * request, vo
   }else
   {
     // Status stage
-    TU_ASSERT( tud_control_status(rhport, request) );
+    TU_ASSERT( _status_stage_xact(rhport, request) );
   }
 
   return true;
@@ -159,7 +169,7 @@ bool usbd_control_xfer_cb (uint8_t rhport, uint8_t ep_addr, xfer_result_t result
     if ( is_ok )
     {
       // Send status
-      TU_ASSERT( tud_control_status(rhport, &_ctrl_xfer.request) );
+      TU_ASSERT( _status_stage_xact(rhport, &_ctrl_xfer.request) );
     }else
     {
       // Stall both IN and OUT control endpoint
