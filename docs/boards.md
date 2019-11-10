@@ -21,8 +21,10 @@ This code base already had supported for a handful of following boards
 
 - [Adafruit Feather nRF52840 Express](https://www.adafruit.com/product/4062)
 - [Adafruit Circuit Playground Bluefruit](https://www.adafruit.com/product/4333)
+- [Maker Diary nRF52840 MDK Dongle](https://wiki.makerdiary.com/nrf52840-mdk-usb-dongle)
 - [Nordic nRF52840 Development Kit (aka pca10056)](https://www.nordicsemi.com/Software-and-Tools/Development-Kits/nRF52840-DK)
 - [Nordic nRF52840 Dongle (aka pca10059)](https://www.nordicsemi.com/Software-and-Tools/Development-Kits/nRF52840-Dongle)
+- [Nordic nRF52833 Development Kit (aka pca10100)](https://www.nordicsemi.com/Software-and-Tools/Development-Kits/nRF52833-DK)
 
 ### NXP LPC
 
@@ -45,7 +47,7 @@ This code base already had supported for a handful of following boards
 
 ### ST STM32
 
-- Adafruit Feather STM32F405 
+- [Adafruit Feather STM32F405](https://www.adafruit.com/product/4382)
 - [Micro Python PyBoard v1.1](https://store.micropython.org/product/PYBv1.1)
 - [STM32 L035c8 Discovery](https://www.st.com/en/evaluation-tools/32l0538discovery.html)
 - [STM32 F070rb Nucleo](https://www.st.com/en/evaluation-tools/nucleo-f070rb.html)
