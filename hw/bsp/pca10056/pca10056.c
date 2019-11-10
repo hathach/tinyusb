@@ -84,10 +84,12 @@ void board_init(void)
     .pselcts   = NRF_UARTE_PSEL_DISCONNECTED,
     .pselrts   = NRF_UARTE_PSEL_DISCONNECTED,
     .p_context = NULL,
-    .hwfc      = NRF_UARTE_HWFC_DISABLED,
-    .parity    = NRF_UARTE_PARITY_EXCLUDED,
     .baudrate  = NRF_UARTE_BAUDRATE_115200, // CFG_BOARD_UART_BAUDRATE
-    .interrupt_priority = 7
+    .interrupt_priority = 7,
+    .hal_cfg = {
+      .hwfc      = NRF_UARTE_HWFC_DISABLED,
+      .parity    = NRF_UARTE_PARITY_EXCLUDED,
+    }
   };
 
   nrfx_uarte_init(&_uart_id, &uart_cfg, NULL); //uart_handler);
