@@ -25,7 +25,7 @@ TinyUSB is an open-source cross-platform USB Host/Device stack for embedded syst
 
 The stack supports the following MCUs
 
-- **Nordic:** nRF52840
+- **Nordic:** nRF52840, nRF52833
 - **NXP:** LPC Series: 11Uxx, 13xx, 175x_6x, 177x_8x, 18xx, 40xx, 43xx, 51Uxx, 54xxx, 55xx
 - **MicroChip:** SAMD21, SAMD51 (device only)
 - **Sony:** CXD56
