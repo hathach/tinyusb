@@ -12,7 +12,7 @@ CFLAGS += \
 # mcu driver cause following warnings
 CFLAGS += -Wno-error=unused-parameter
 
-MCU_DIR = hw/mcu/nxp/lpc_driver/lpc54xxx/devices/LPC54114
+MCU_DIR = hw/mcu/nxp/lpc_driver/sdk/devices/LPC54114
 
 # All source paths should be relative to the top level.
 LD_FILE = $(MCU_DIR)/gcc/LPC54114J256_cm4_flash.ld

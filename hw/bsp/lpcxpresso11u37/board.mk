@@ -13,7 +13,7 @@ CFLAGS += \
 # mcu driver cause following warnings
 CFLAGS += -Wno-error=nested-externs -Wno-error=strict-prototypes -Wno-error=unused-parameter
 
-MCU_DIR = hw/mcu/nxp/lpc_driver/lpc11uxx/lpc_chip_11uxx
+MCU_DIR = hw/mcu/nxp/lpc_driver/lpcopen/lpc11uxx/lpc_chip_11uxx
 
 # All source paths should be relative to the top level.
 LD_FILE = hw/bsp/lpcxpresso11u37/lpc11u37.ld

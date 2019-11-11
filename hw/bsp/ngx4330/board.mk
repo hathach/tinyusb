@@ -10,7 +10,7 @@ CFLAGS += \
 # mcu driver cause following warnings
 CFLAGS += -Wno-error=strict-prototypes -Wno-error=unused-parameter
 
-MCU_DIR = hw/mcu/nxp/lpc_driver/lpc43xx/lpc_chip_43xx
+MCU_DIR = hw/mcu/nxp/lpc_driver/lpcopen/lpc43xx/lpc_chip_43xx
 
 # All source paths should be relative to the top level.
 LD_FILE = hw/bsp/$(BOARD)/ngx4330.ld

@@ -10,7 +10,7 @@ CFLAGS += \
 # mcu driver cause following warnings
 CFLAGS += -Wno-error=nested-externs -Wno-error=unused-parameter
 
-MCU_DIR = hw/mcu/nxp/lpc_driver/lpc51u6x/devices/LPC51U68
+MCU_DIR = hw/mcu/nxp/lpc_driver/sdk/devices/LPC51U68
 
 # All source paths should be relative to the top level.
 LD_FILE = $(MCU_DIR)/gcc/LPC51U68_flash.ld
