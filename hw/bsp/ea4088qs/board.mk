@@ -11,7 +11,7 @@ CFLAGS += \
 # mcu driver cause following warnings
 CFLAGS += -Wno-error=strict-prototypes -Wno-error=unused-parameter
 
-MCU_DIR = hw/mcu/nxp/lpc_driver/lpc40xx/lpc_chip_40xx
+MCU_DIR = hw/mcu/nxp/lpcopen/lpc40xx/lpc_chip_40xx
 
 # All source paths should be relative to the top level.
 LD_FILE = hw/bsp/ea4088qs/lpc4088.ld
