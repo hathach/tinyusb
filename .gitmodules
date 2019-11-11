@@ -16,3 +16,6 @@
 [submodule "hw/mcu/ti"]
 	path = hw/mcu/ti
 	url = https://github.com/hathach/ti_driver.git
+[submodule "hw/mcu/nxp"]
+	path = hw/mcu/nxp
+	url = https://github.com/hathach/nxp_driver.git
