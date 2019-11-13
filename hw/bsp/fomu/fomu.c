@@ -36,26 +36,10 @@
 
 void hal_dcd_isr(uint8_t rhport);
 
-void mputs(const char *str) {
-  (void)str;
-  while (*str) {
-    while ( (messible_status_read() & CSR_MESSIBLE_STATUS_FULL_OFFSET))
-      ;
-    messible_in_write(*str);
-    str++;
-  }
-}
-
-void mputln(const char *str) {
-  mputs(str);
-  mputs("\n");
-}
-
 void fomu_error(uint32_t line)
 {
   (void)line;
   TU_BREAKPOINT();
-  // while (1) {}
 }
 
 volatile uint32_t system_ticks = 0;
@@ -90,7 +74,6 @@ void isr(void)
 
 void board_init(void)
 {
-  mputln("Fomu Initializing");
   irq_setmask(0);
   irq_setie(1);
   timer_init();
