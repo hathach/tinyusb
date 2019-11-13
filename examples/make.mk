@@ -2,8 +2,12 @@
 # Common make definition for all examples
 #
 
-# Compiler 
+# Compiler
+ifeq ($(BOARD), fomu)
+CROSS_COMPILE = riscv-none-embed-
+else
 CROSS_COMPILE = arm-none-eabi-
+endif
 CC = $(CROSS_COMPILE)gcc
 CXX = $(CROSS_COMPILE)g++
 OBJCOPY = $(CROSS_COMPILE)objcopy
