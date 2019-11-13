@@ -34,10 +34,10 @@
 
 #include "tusb_option.h"
 
-#if TUSB_OPT_DEVICE_ENABLED && (CFG_TUSB_MCU == OPT_MCU_FOMU_EPTRI)
+#if TUSB_OPT_DEVICE_ENABLED && (CFG_TUSB_MCU == OPT_MCU_VALENTYUSB_EPTRI)
 
 #include "device/dcd.h"
-#include "dcd_fomu.h"
+#include "dcd_eptri.h"
 #include "csr.h"
 #include "irq.h"
 void fomu_error(uint32_t line);

@@ -2,7 +2,7 @@ CFLAGS += \
   -march=rv32i \
   -mabi=ilp32 \
   -nostdlib \
-  -DCFG_TUSB_MCU=OPT_MCU_FOMU_EPTRI
+  -DCFG_TUSB_MCU=OPT_MCU_VALENTYUSB_EPTRI
 
 MCU_DIR = hw/mcu/fomu
 BSP_DIR = hw/bsp/fomu
@@ -21,8 +21,8 @@ INC += \
 	$(TOP)/$(BSP_DIR)/include
 
 # For TinyUSB port source
-VENDOR = foosn
-CHIP_FAMILY = fomu
+VENDOR = valentyusb
+CHIP_FAMILY = eptri
 
 # flash using dfu-util
 flash: $(BUILD)/$(BOARD)-firmware.dfu

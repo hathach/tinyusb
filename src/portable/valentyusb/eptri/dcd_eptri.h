@@ -24,10 +24,16 @@
  * This file is part of the TinyUSB stack.
  */
 
+#ifndef _TUSB_DCD_VALENTYUSB_EPTRI_H_
+#define _TUSB_DCD_VALENTYUSB_EPTRI_H_
+
 #include "common/tusb_common.h"
-
-#if (CFG_TUSB_MCU == OPT_MCU_FOMU_EPTRI)
-
-// No HAL-specific stuff here!
-
+#ifdef __cplusplus
+ extern "C" {
 #endif
+
+#ifdef __cplusplus
+ }
+#endif
+
+#endif /* _TUSB_DCD_VALENTYUSB_EPTRI_H_ */
