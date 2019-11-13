@@ -109,7 +109,7 @@ void xfer_log_append(uint8_t ep_num, uint16_t sz) {
   xfer_log[xfer_log_offset].ep_num = ep_num;
   xfer_log[xfer_log_offset].size = sz;
   xfer_log_offset++;
-  if (xfer_log_offset > sizeof(xfer_log)/sizeof(*xfer_log))
+  if (xfer_log_offset >= sizeof(xfer_log)/sizeof(*xfer_log))
     xfer_log_offset = 0;
 }
 
@@ -117,7 +117,7 @@ void queue_log_append(uint8_t ep_num, uint16_t sz) {
   queue_log[queue_log_offset].ep_num = ep_num;
   queue_log[queue_log_offset].size = sz;
   queue_log_offset++;
-  if (queue_log_offset > sizeof(queue_log)/sizeof(*queue_log))
+  if (queue_log_offset >= sizeof(queue_log)/sizeof(*queue_log))
     queue_log_offset = 0;
 }
 
@@ -132,7 +132,7 @@ static void tx_more_data(void) {
   usb_log[usb_log_offset].ep_num = tu_edpt_addr(tx_ep, TUSB_DIR_IN);
   usb_log[usb_log_offset].size = added_bytes;
   usb_log_offset++;
-  if (usb_log_offset > sizeof(usb_log)/sizeof(*usb_log))
+  if (usb_log_offset >= sizeof(usb_log)/sizeof(*usb_log))
     usb_log_offset = 0;
 
   // Updating the epno queues the data
@@ -167,8 +167,6 @@ static void process_tx(void) {
 
     if (!advance_tx_ep())
       tx_active = false;
-    if ((xferred_bytes == 13) && (tx_buffer_max[tx_ep] == 512))
-      fomu_error(__LINE__);
     xfer_log_append(tu_edpt_addr(xferred_ep, TUSB_DIR_IN), xferred_bytes);
     dcd_event_xfer_complete(0, tu_edpt_addr(xferred_ep, TUSB_DIR_IN), xferred_bytes, XFER_RESULT_SUCCESS, true);
     if (!tx_active)
@@ -213,17 +211,19 @@ static void process_rx(void) {
     total_read++;
     if ((rx_buffer_offset[rx_ep] + current_offset) < rx_buffer_max[rx_ep]) {
       usb_log[usb_log_offset].data[usb_log[usb_log_offset].size++] = c;
-      rx_buffer[rx_ep][current_offset++] = c;
+      if (rx_buffer[rx_ep] != (volatile uint8_t *)0xffffffff)
+        rx_buffer[rx_ep][current_offset++] = c;
     }
   }
   usb_log_offset++;
-  if (usb_log_offset > sizeof(usb_log)/sizeof(*usb_log))
+  if (usb_log_offset >= sizeof(usb_log)/sizeof(*usb_log))
     usb_log_offset = 0;
 #if DEBUG
   if (total_read > 66)
     fomu_error(__LINE__);
   if (total_read < 2)
-    fomu_error(__LINE__);
+    total_read = 2;
+    // fomu_error(__LINE__);
 #endif
 
   // Strip off the CRC16
@@ -232,7 +232,11 @@ static void process_rx(void) {
     rx_buffer_offset[rx_ep] = rx_buffer_max[rx_ep];
 
   // If there's no more data, complete the transfer to tinyusb
-  if (rx_buffer_max[rx_ep] == rx_buffer_offset[rx_ep]) {
+  if ((rx_buffer_max[rx_ep] == rx_buffer_offset[rx_ep])
+  // ZLP with less than the total amount of data
+  || ((total_read == 2) && ((rx_buffer_offset[rx_ep] & 63) == 0))
+  // Short read, but not a full packet
+  || (((rx_buffer_offset[rx_ep] & 63) != 0) && (total_read < 66))) {
 #if DEBUG
     if (rx_buffer[rx_ep] == NULL)
       fomu_error(__LINE__);
@@ -249,10 +253,10 @@ static void process_rx(void) {
     int i;
     for (i = 0; i < 16; i++) {
       if ((!!(ep_en_mask & (1 << i))) ^ (!!(rx_buffer[i]))) {
-        // uint8_t new_status = usb_out_status_read();
-        // // Another IRQ came in while we were processing, so ignore this endpoint.
-        // if ((new_status & 0x20) && ((new_status & 0xf) == i))
-        //   continue;
+        uint8_t new_status = usb_out_status_read();
+        // Another IRQ came in while we were processing, so ignore this endpoint.
+        if ((new_status & 0x20) && ((new_status & 0xf) == i))
+          continue;
         fomu_error(__LINE__);
       }
     }
@@ -280,8 +284,8 @@ static void dcd_reset(void)
   usb_in_ev_enable_write(0);
   usb_out_ev_enable_write(0);
 
-  if (last_address)
-    asm("ebreak");
+  // if (last_address)
+  //   asm("ebreak");
   usb_address_write(0);
 
   // Reset all three FIFO handlers
@@ -300,9 +304,9 @@ static void dcd_reset(void)
   tx_active = false;
 
   // Enable all event handlers and clear their contents
-  usb_setup_ev_pending_write(-1);
-  usb_in_ev_pending_write(-1);
-  usb_out_ev_pending_write(-1);
+  usb_setup_ev_pending_write(0xff);
+  usb_in_ev_pending_write(0xff);
+  usb_out_ev_pending_write(0xff);
   usb_in_ev_enable_write(1);
   usb_out_ev_enable_write(1);
   usb_setup_ev_enable_write(3);
@@ -535,9 +539,9 @@ static void handle_in(void)
 
 static void handle_reset(void)
 {
-  uint8_t setup_pending   = usb_setup_ev_pending_read() & usb_setup_ev_enable_read();
-  if (!(setup_pending & 2))
-    fomu_error(__LINE__);
+  // uint8_t setup_pending   = usb_setup_ev_pending_read() & usb_setup_ev_enable_read();
+  // if (!(setup_pending & 2))
+  //   fomu_error(__LINE__);
   usb_setup_ev_pending_write(2);
 
   // This event means a bus reset occurred.  Reset everything, and
@@ -592,8 +596,8 @@ void hal_dcd_isr(uint8_t rhport)
   while ((next_ev = usb_next_ev_read())) {
     switch (next_ev) {
     case 1 << CSR_USB_NEXT_EV_IN_OFFSET:
-        handle_in();
-        break;
+      handle_in();
+      break;
     case 1 << CSR_USB_NEXT_EV_OUT_OFFSET:
       handle_out();
       break;
