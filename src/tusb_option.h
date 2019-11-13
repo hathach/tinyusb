@@ -70,7 +70,7 @@
 
 #define OPT_MCU_CXD56         400 ///< SONY CXD56
 
-#define OPT_MCU_FOMU_EPTRI    600 ///< Fomu eptri config
+#define OPT_MCU_VALENTYUSB_EPTRI 600 ///< Fomu eptri config
 
 /** @} */
 
