@@ -63,9 +63,11 @@ void isr(void)
 
   irqs = irq_pending() & irq_getmask();
 
+#if CFG_TUSB_RHPORT0_MODE == OPT_MODE_DEVICE
   if (irqs & (1 << USB_INTERRUPT)) {
     hal_dcd_isr(0);
   }
+#endif
   if (irqs & (1 << TIMER0_INTERRUPT)) {
     system_ticks++;
     timer0_ev_pending_write(1);
