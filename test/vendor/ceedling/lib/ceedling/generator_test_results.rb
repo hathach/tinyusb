@@ -7,7 +7,7 @@ class GeneratorTestResults
   constructor :configurator, :generator_test_results_sanity_checker, :yaml_wrapper
 
   def process_and_write_results(unity_shell_result, results_file, test_file)
-    output_file   = results_file
+    output_file = results_file
 
     results = get_results_structure
 
@@ -17,10 +17,10 @@ class GeneratorTestResults
 
     # process test statistics
     if (unity_shell_result[:output] =~ TEST_STDOUT_STATISTICS_PATTERN)
-      results[:counts][:total]   = $1.to_i
-      results[:counts][:failed]  = $2.to_i
+      results[:counts][:total] = $1.to_i
+      results[:counts][:failed] = $2.to_i
       results[:counts][:ignored] = $3.to_i
-      results[:counts][:passed]  = (results[:counts][:total] - results[:counts][:failed] - results[:counts][:ignored])
+      results[:counts][:passed] = (results[:counts][:total] - results[:counts][:failed] - results[:counts][:ignored])
     end
 
     # remove test statistics lines
@@ -31,16 +31,16 @@ class GeneratorTestResults
       case line
       when /(:IGNORE)/
         elements = extract_line_elements(line, results[:source][:file])
-        results[:ignores]   << elements[0]
-        results[:stdout]    << elements[1] if (!elements[1].nil?)
+        results[:ignores] << elements[0]
+        results[:stdout] << elements[1] if (!elements[1].nil?)
       when /(:PASS$)/
         elements = extract_line_elements(line, results[:source][:file])
         results[:successes] << elements[0]
-        results[:stdout]    << elements[1] if (!elements[1].nil?)
+        results[:stdout] << elements[1] if (!elements[1].nil?)
       when /(:FAIL)/
         elements = extract_line_elements(line, results[:source][:file])
-        results[:failures]  << elements[0]
-        results[:stdout]    << elements[1] if (!elements[1].nil?)
+        results[:failures] << elements[0]
+        results[:stdout] << elements[1] if (!elements[1].nil?)
       else # collect up all other
         results[:stdout] << line.chomp
       end

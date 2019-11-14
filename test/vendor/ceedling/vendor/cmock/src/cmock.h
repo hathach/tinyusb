@@ -9,16 +9,17 @@
 
 #include "cmock_internals.h"
 
+#define CMOCK_VERSION_MAJOR    2
+#define CMOCK_VERSION_MINOR    5
+#define CMOCK_VERSION_BUILD    0
+#define CMOCK_VERSION          ((CMOCK_VERSION_MAJOR << 16) | (CMOCK_VERSION_MINOR << 8) | CMOCK_VERSION_BUILD)
+
 //should be big enough to index full range of CMOCK_MEM_MAX
 #ifndef CMOCK_MEM_INDEX_TYPE
 #define CMOCK_MEM_INDEX_TYPE  unsigned int
 #endif
 
 #define CMOCK_GUTS_NONE   (0)
-
-#define CMOCK_ARG_MODE    CMOCK_MEM_INDEX_TYPE
-#define CMOCK_ARG_ALL     0
-#define CMOCK_ARG_NONE    ((CMOCK_MEM_INDEX_TYPE)(~0U))
 
 //-------------------------------------------------------
 // Memory API
@@ -30,6 +31,7 @@ CMOCK_MEM_INDEX_TYPE  CMock_Guts_MemEndOfChain(CMOCK_MEM_INDEX_TYPE root_index);
 
 void*                 CMock_Guts_GetAddressFor(CMOCK_MEM_INDEX_TYPE index);
 
+CMOCK_MEM_INDEX_TYPE CMock_Guts_MemBytesCapacity(void);
 CMOCK_MEM_INDEX_TYPE  CMock_Guts_MemBytesFree(void);
 CMOCK_MEM_INDEX_TYPE  CMock_Guts_MemBytesUsed(void);
 void                  CMock_Guts_MemFreeAll(void);

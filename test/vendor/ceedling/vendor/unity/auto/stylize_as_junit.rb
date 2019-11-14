@@ -61,8 +61,8 @@ class ArgvParser
 
     opts.parse!(args)
     options
-  end # parse()
-end # class OptparseExample
+  end
+end
 
 class UnityToJUnit
   include FileUtils::Verbose
@@ -152,11 +152,8 @@ class UnityToJUnit
 
   def parse_test_summary(summary)
     raise "Couldn't parse test results: #{summary}" unless summary.find { |v| v =~ /(\d+) Tests (\d+) Failures (\d+) Ignored/ }
-    [Regexp.last_match(1).to_i, Regexp.last_match(2).to_i, Regexp.last_match(3).to_i]
-  end
 
-  def here
-    File.expand_path(File.dirname(__FILE__))
+    [Regexp.last_match(1).to_i, Regexp.last_match(2).to_i, Regexp.last_match(3).to_i]
   end
 
   private
@@ -221,9 +218,9 @@ class UnityToJUnit
   def write_suites_footer(stream)
     stream.puts '</testsuites>'
   end
-end # UnityToJUnit
+end
 
-if __FILE__ == $0
+if $0 == __FILE__
   # parse out the command options
   options = ArgvParser.parse(ARGV)
 
@@ -234,7 +231,9 @@ if __FILE__ == $0
     targets = "#{options.results_dir.tr('\\', '/')}**/*.test*"
 
     results = Dir[targets]
+
     raise "No *.testpass, *.testfail, or *.testresults files found in '#{targets}'" if results.empty?
+
     utj.targets = results
 
     # set the root path

@@ -29,10 +29,10 @@
 #include "tusb.h"
 #include "usbd.h"
 TEST_FILE("usbd_control.c")
-//TEST_FILE("usb_descriptors.c")
 
 // Mock File
 #include "mock_dcd.h"
+#include "mock_msc_device.h"
 
 //--------------------------------------------------------------------+
 // MACRO TYPEDEF CONSTANT ENUM DECLARATION
@@ -123,6 +123,7 @@ void setUp(void)
 
   if ( !tusb_inited() )
   {
+    mscd_init_Expect();
     dcd_init_Expect(rhport);
     tusb_init();
   }
