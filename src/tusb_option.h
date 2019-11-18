@@ -70,6 +70,8 @@
 
 #define OPT_MCU_CXD56         400 ///< SONY CXD56
 
+#define OPT_MCU_VALENTYUSB_EPTRI 600 ///< Fomu eptri config
+
 /** @} */
 
 /** \defgroup group_supported_os Supported RTOS
