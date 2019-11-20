@@ -29,17 +29,25 @@
 #include "fsl_gpio.h"
 #include "fsl_iomuxc.h"
 #include "fsl_clock.h"
+#include "fsl_lpuart.h"
 
 #include "clock_config.h"
 
+#define LED_PINMUX            IOMUXC_GPIO_AD_B0_09_GPIO1_IO09
 #define LED_PORT              GPIO1
 #define LED_PIN               9
 #define LED_STATE_ON          0
 
 // SW8 button
+#define BUTTON_PINMUX         IOMUXC_SNVS_WAKEUP_GPIO5_IO00
 #define BUTTON_PORT           GPIO5
 #define BUTTON_PIN            0
 #define BUTTON_STATE_ACTIVE   0
+
+// UART
+#define UART_PORT             LPUART1
+#define UART_RX_PINMUX        IOMUXC_GPIO_AD_B0_13_LPUART1_RX
+#define UART_TX_PINMUX        IOMUXC_GPIO_AD_B0_12_LPUART1_TX
 
 const uint8_t dcd_data[] = { 0x00 };
 
@@ -51,48 +59,40 @@ void board_init(void)
 
   // Enable IOCON clock
   CLOCK_EnableClock(kCLOCK_Iomuxc);
-//  CLOCK_EnableClock(kCLOCK_IomuxcSnvs);
-
-  /* GPIO_AD_B0_09 is configured as GPIO1_IO09 */
-  IOMUXC_SetPinMux( IOMUXC_GPIO_AD_B0_09_GPIO1_IO09, 0U);
-
-  IOMUXC_GPR->GPR26 = ((IOMUXC_GPR->GPR26 &
-    (~(IOMUXC_GPR_GPR26_GPIO_MUX1_GPIO_SEL_MASK))) /* Mask bits to zero which are setting */
-      | IOMUXC_GPR_GPR26_GPIO_MUX1_GPIO_SEL(0x00U) /* GPIO1 and GPIO6 share same IO MUX function, GPIO_MUX1 selects one GPIO function: 0x00U */
-    );
-
-  /* GPIO_AD_B0_09 PAD functional properties : */
-  /* Slew Rate Field: Slow Slew Rate
-     Drive Strength Field: R0/6
-     Speed Field: medium(100MHz)
-     Open Drain Enable Field: Open Drain Disabled
-     Pull / Keep Enable Field: Pull/Keeper Enabled
-     Pull / Keep Select Field: Keeper
-     Pull Up / Down Config. Field: 100K Ohm Pull Down
-     Hyst. Enable Field: Hysteresis Disabled */
-  IOMUXC_SetPinConfig( IOMUXC_GPIO_AD_B0_09_GPIO1_IO09, 0x10B0U);
-
-
-//  IOMUXC_SetPinMux(
-//      IOMUXC_SNVS_WAKEUP_GPIO5_IO00,          /* WAKEUP is configured as GPIO5_IO00 */
-//      0U);                                    /* Software Input On Field: Input Path is determined by functionality */
 
 #if CFG_TUSB_OS == OPT_OS_NONE
   // 1ms tick timer
   SysTick_Config(SystemCoreClock / 1000);
 #elif CFG_TUSB_OS == OPT_OS_FREERTOS
   // If freeRTOS is used, IRQ priority is limit by max syscall ( smaller is higher )
-  NVIC_SetPriority(USB0_IRQn, configLIBRARY_MAX_SYSCALL_INTERRUPT_PRIORITY );
+//  NVIC_SetPriority(USB0_IRQn, configLIBRARY_MAX_SYSCALL_INTERRUPT_PRIORITY );
 #endif
 
   // LED
+  IOMUXC_SetPinMux( LED_PINMUX, 0U);
+  IOMUXC_SetPinConfig( LED_PINMUX, 0x10B0U);
+
   gpio_pin_config_t led_config = { kGPIO_DigitalOutput, 0, kGPIO_NoIntmode };
   GPIO_PinInit(LED_PORT, LED_PIN, &led_config);
   board_led_write(true);
 
   // Button
-//  gpio_pin_config_t button_config = { kGPIO_DigitalInput, 0, kGPIO_IntRisingEdge, };
-//  GPIO_PinInit(BUTTON_PORT, BUTTON_PIN, &button_config);
+  IOMUXC_SetPinMux( BUTTON_PINMUX, 0U);
+  gpio_pin_config_t button_config = { kGPIO_DigitalInput, 0, kGPIO_IntRisingEdge, };
+  GPIO_PinInit(BUTTON_PORT, BUTTON_PIN, &button_config);
+
+  // UART
+  IOMUXC_SetPinMux( UART_TX_PINMUX, 0U);
+  IOMUXC_SetPinMux( UART_RX_PINMUX, 0U);
+  IOMUXC_SetPinConfig( UART_TX_PINMUX, 0x10B0u);
+  IOMUXC_SetPinConfig( UART_RX_PINMUX, 0x10B0u);
+
+  lpuart_config_t uart_config;
+  LPUART_GetDefaultConfig(&uart_config);
+  uart_config.baudRate_Bps = CFG_BOARD_UART_BAUDRATE;
+  uart_config.enableTx = true;
+  uart_config.enableRx = true;
+  LPUART_Init(UART_PORT, &uart_config, (CLOCK_GetPllFreq(kCLOCK_PllUsb1) / 6U) / (CLOCK_GetDiv(kCLOCK_UartDiv) + 1U));
 
 #if 0
   // USB VBUS
@@ -161,14 +161,14 @@ uint32_t board_button_read(void)
 
 int board_uart_read(uint8_t* buf, int len)
 {
-  (void) buf; (void) len;
-  return 0;
+  LPUART_ReadBlocking(UART_PORT, buf, len);
+  return len;
 }
 
 int board_uart_write(void const * buf, int len)
 {
-  (void) buf; (void) len;
-  return 0;
+  LPUART_WriteBlocking(UART_PORT, (uint8_t*)buf, len);
+  return len;
 }
 
 #if CFG_TUSB_OS == OPT_OS_NONE

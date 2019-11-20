@@ -51,5 +51,9 @@ JLINK_DEVICE = MIMXRT1064xxx6A
 JLINK_IF = swd
 
 # flash using pyocd
-flash: $(BUILD)/$(BOARD)-firmware.hex
-	pyocd flash -t mimxrt1050_quadspi $<
+#flash: $(BUILD)/$(BOARD)-firmware.hex
+#	pyocd flash -t mimxrt1050_quadspi $<
+
+flash: $(BUILD)/$(BOARD)-firmware.bin
+	cp $< /media/$(USER)/RT1064-EVK/
+
