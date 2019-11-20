@@ -41,7 +41,7 @@
 #define BUTTON_PIN            0
 #define BUTTON_STATE_ACTIVE   0
 
-const uint8_t dcd_data[] = {0x00};
+const uint8_t dcd_data[] = { 0x00 };
 
 void board_init(void)
 {

@@ -1,12 +1,3 @@
-SPRESENSE_SDK = $(TOP)/hw/mcu/sony/cxd56/spresense-exported-sdk
-
-INC += \
-	$(SPRESENSE_SDK)/nuttx/include \
-	$(SPRESENSE_SDK)/nuttx/arch \
-	$(SPRESENSE_SDK)/nuttx/arch/chip \
-	$(SPRESENSE_SDK)/sdk/bsp/include \
-	$(SPRESENSE_SDK)/sdk/bsp/include/sdk \
-
 CFLAGS += \
 	-DCONFIG_WCHAR_BUILTIN \
 	-DCONFIG_HAVE_DOUBLE \
@@ -22,6 +13,15 @@ CFLAGS += \
 	-fno-strength-reduce \
 	-fomit-frame-pointer \
 	-DCFG_TUSB_MCU=OPT_MCU_CXD56 \
+
+SPRESENSE_SDK = $(TOP)/hw/mcu/sony/cxd56/spresense-exported-sdk
+
+INC += \
+	$(SPRESENSE_SDK)/nuttx/include \
+	$(SPRESENSE_SDK)/nuttx/arch \
+	$(SPRESENSE_SDK)/nuttx/arch/chip \
+	$(SPRESENSE_SDK)/sdk/bsp/include \
+	$(SPRESENSE_SDK)/sdk/bsp/include/sdk \
 
 LIBS += \
 	$(SPRESENSE_SDK)/sdk/libs/libapps.a \

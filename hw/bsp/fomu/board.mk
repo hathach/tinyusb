@@ -1,4 +1,5 @@
 CFLAGS += \
+  -flto \
   -march=rv32i \
   -mabi=ilp32 \
   -nostdlib \

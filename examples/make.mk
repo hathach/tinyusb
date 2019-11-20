@@ -85,12 +85,7 @@ CFLAGS += \
 ifeq ($(DEBUG), 1)
   CFLAGS += -Og -ggdb
 else
-  ifneq ($(BOARD),spresense)
-    #CFLAGS += -flto -Os
-    CFLAGS += -Os
-  else
-    CFLAGS += -Os
-  endif
+	CFLAGS += -Os
 endif
 
 # TUSB Logging option
