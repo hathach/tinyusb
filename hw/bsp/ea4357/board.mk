@@ -16,9 +16,6 @@ MCU_DIR = hw/mcu/nxp/lpcopen/lpc43xx/lpc_chip_43xx
 # All source paths should be relative to the top level.
 LD_FILE = hw/bsp/ea4357/lpc4357.ld
 
-# TODO remove later
-SRC_C += src/portable/$(VENDOR)/$(CHIP_FAMILY)/hal_$(CHIP_FAMILY).c
-
 SRC_C += \
 	$(MCU_DIR)/../gcc/cr_startup_lpc43xx.c \
 	$(MCU_DIR)/src/chip_18xx_43xx.c \

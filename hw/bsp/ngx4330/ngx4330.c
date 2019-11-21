@@ -220,6 +220,31 @@ void board_init(void)
 }
 
 //--------------------------------------------------------------------+
+// USB Interrupt Handler
+//--------------------------------------------------------------------+
+void USB0_IRQHandler(void)
+{
+  #if TUSB_OPT_HOST_ENABLED
+    tuh_isr(0);
+  #endif
+
+  #if TUSB_OPT_DEVICE_ENABLED
+    tud_isr(0);
+  #endif
+}
+
+void USB1_IRQHandler(void)
+{
+  #if TUSB_OPT_HOST_ENABLED
+    tuh_isr(1);
+  #endif
+
+  #if TUSB_OPT_DEVICE_ENABLED
+    tud_isr(1);
+  #endif
+}
+
+//--------------------------------------------------------------------+
 // Board porting API
 //--------------------------------------------------------------------+
 
