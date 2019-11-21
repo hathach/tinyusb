@@ -94,54 +94,28 @@ void board_init(void)
   uart_config.enableRx = true;
   LPUART_Init(UART_PORT, &uart_config, (CLOCK_GetPllFreq(kCLOCK_PllUsb1) / 6U) / (CLOCK_GetDiv(kCLOCK_UartDiv) + 1U));
 
-#if 0
-  // USB VBUS
-  const uint32_t port0_pin22_config = (
-      IOCON_PIO_FUNC7         | /* Pin is configured as USB0_VBUS */
-      IOCON_PIO_MODE_INACT    | /* No addition pin function */
-      IOCON_PIO_SLEW_STANDARD | /* Standard mode, output slew rate control is enabled */
-      IOCON_PIO_INV_DI        | /* Input function is not inverted */
-      IOCON_PIO_DIGITAL_EN    | /* Enables digital function */
-      IOCON_PIO_OPENDRAIN_DI    /* Open drain is disabled */
-  );
-  /* PORT0 PIN22 (coords: 78) is configured as USB0_VBUS */
-  IOCON_PinMuxSet(IOCON, 0U, 22U, port0_pin22_config);
+  //------------- USB0 -------------//
+  // Clock
+  CLOCK_EnableUsbhs0PhyPllClock(kCLOCK_Usbphy480M, 480000000U);
+  CLOCK_EnableUsbhs0Clock(kCLOCK_Usb480M, 480000000U);
 
-  // USB Controller
-  POWER_DisablePD(kPDRUNCFG_PD_USB0_PHY); /*Turn on USB0 Phy */
-  POWER_DisablePD(kPDRUNCFG_PD_USB1_PHY); /*< Turn on USB1 Phy */
+  USBPHY_Type* usb_phy = USBPHY1;
 
-  /* reset the IP to make sure it's in reset state. */
-  RESET_PeripheralReset(kUSB0D_RST_SHIFT_RSTn);
-  RESET_PeripheralReset(kUSB0HSL_RST_SHIFT_RSTn);
-  RESET_PeripheralReset(kUSB0HMR_RST_SHIFT_RSTn);
-  RESET_PeripheralReset(kUSB1H_RST_SHIFT_RSTn);
-  RESET_PeripheralReset(kUSB1D_RST_SHIFT_RSTn);
-  RESET_PeripheralReset(kUSB1_RST_SHIFT_RSTn);
-  RESET_PeripheralReset(kUSB1RAM_RST_SHIFT_RSTn);
+  // Enable PHY support for Low speed device + LS via FS Hub
+  usb_phy->CTRL |= USBPHY_CTRL_SET_ENUTMILEVEL2_MASK | USBPHY_CTRL_SET_ENUTMILEVEL3_MASK;
 
-#if (defined USB_DEVICE_CONFIG_LPCIP3511HS) && (USB_DEVICE_CONFIG_LPCIP3511HS)
-  CLOCK_EnableClock(kCLOCK_Usbh1);
-  /* Put PHY powerdown under software control */
-  *((uint32_t *)(USBHSH_BASE + 0x50)) = USBHSH_PORTMODE_SW_PDCOM_MASK;
-  /* According to reference mannual, device mode setting has to be set by access usb host register */
-  *((uint32_t *)(USBHSH_BASE + 0x50)) |= USBHSH_PORTMODE_DEV_ENABLE_MASK;
-  /* enable usb1 host clock */
-  CLOCK_DisableClock(kCLOCK_Usbh1);
-#endif
+  // Enable all power for normal operation
+  usb_phy->PWD = 0;
 
-#if 1 || (defined USB_DEVICE_CONFIG_LPCIP3511FS) && (USB_DEVICE_CONFIG_LPCIP3511FS)
-  CLOCK_SetClkDiv(kCLOCK_DivUsb0Clk, 1, false);
-  CLOCK_AttachClk(kFRO_HF_to_USB0_CLK);
-  /* enable usb0 host clock */
-  CLOCK_EnableClock(kCLOCK_Usbhsl0);
-  /*According to reference mannual, device mode setting has to be set by access usb host register */
-  *((uint32_t *)(USBFSH_BASE + 0x5C)) |= USBFSH_PORTMODE_DEV_ENABLE_MASK;
-  /* disable usb0 host clock */
-  CLOCK_DisableClock(kCLOCK_Usbhsl0);
-  CLOCK_EnableUsbfs0DeviceClock(kCLOCK_UsbfsSrcFro, CLOCK_GetFreq(kCLOCK_FroHf)); /* enable USB Device clock */
-#endif
-#endif
+  // TX Timing
+  uint32_t phytx = usb_phy->TX;
+  phytx &= ~(USBPHY_TX_D_CAL_MASK | USBPHY_TX_TXCAL45DM_MASK | USBPHY_TX_TXCAL45DP_MASK);
+  phytx |= USBPHY_TX_D_CAL(0x0C) | USBPHY_TX_TXCAL45DP(0x06) | USBPHY_TX_TXCAL45DM(0x06);
+  usb_phy->TX = phytx;
+
+  // USB1
+//  CLOCK_EnableUsbhs1PhyPllClock(kCLOCK_Usbphy480M, 480000000U);
+//  CLOCK_EnableUsbhs1Clock(kCLOCK_Usb480M, 480000000U);
 }
 
 //--------------------------------------------------------------------+

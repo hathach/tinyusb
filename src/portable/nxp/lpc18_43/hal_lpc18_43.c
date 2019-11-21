@@ -26,35 +26,43 @@
 
 #include "tusb.h"
 
-#if (CFG_TUSB_MCU == OPT_MCU_LPC18XX || CFG_TUSB_MCU == OPT_MCU_LPC43XX)
+#if (CFG_TUSB_MCU == OPT_MCU_LPC18XX || CFG_TUSB_MCU == OPT_MCU_LPC43XX || CFG_TUSB_MCU == OPT_MCU_RT10XX)
 
 #include "chip.h"
 
-extern void hal_dcd_isr(uint8_t rhport);
-extern void hal_hcd_isr(uint8_t hostid);
+extern void dcd_isr(uint8_t rhport);
+extern void hcd_isr(uint8_t hostid);
 
 #if CFG_TUSB_RHPORT0_MODE
+#if CFG_TUSB_MCU == OPT_MCU_RT10XX
+void USB_OTG1_IRQHandler(void)
+#else
 void USB0_IRQHandler(void)
+#endif
 {
   #if TUSB_OPT_HOST_ENABLED
-    hal_hcd_isr(0);
+    hcd_isr(0);
   #endif
 
   #if TUSB_OPT_DEVICE_ENABLED
-    hal_dcd_isr(0);
+    dcd_isr(0);
   #endif
 }
 #endif
 
 #if CFG_TUSB_RHPORT1_MODE
+#if CFG_TUSB_MCU == OPT_MCU_RT10XX
+void USB_OTG2_IRQHandler(void)
+#else
 void USB1_IRQHandler(void)
+#endif
 {
   #if TUSB_OPT_HOST_ENABLED
-    hal_hcd_isr(1);
+    hcd_isr(1);
   #endif
 
   #if TUSB_OPT_DEVICE_ENABLED
-    hal_dcd_isr(1);
+    dcd_isr(1);
   #endif
 }
 #endif

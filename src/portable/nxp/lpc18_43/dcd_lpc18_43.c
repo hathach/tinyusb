@@ -26,7 +26,7 @@
 
 #include "tusb_option.h"
 
-#if TUSB_OPT_DEVICE_ENABLED && (CFG_TUSB_MCU == OPT_MCU_LPC18XX || CFG_TUSB_MCU == OPT_MCU_LPC43XX)
+#if TUSB_OPT_DEVICE_ENABLED && (CFG_TUSB_MCU == OPT_MCU_LPC18XX || CFG_TUSB_MCU == OPT_MCU_LPC43XX || CFG_TUSB_MCU == OPT_MCU_RT10XX)
 
 //--------------------------------------------------------------------+
 // INCLUDE
@@ -35,7 +35,11 @@
 #include "device/dcd.h"
 #include "dcd_lpc18_43.h"
 
-#include "chip.h"
+#if CFG_TUSB_MCU == OPT_MCU_RT10XX
+  #include "fsl_device_registers.h"
+#else
+  #include "chip.h"
+#endif
 
 //--------------------------------------------------------------------+
 // MACRO CONSTANT TYPEDEF
@@ -270,7 +274,7 @@ bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t t
 //--------------------------------------------------------------------+
 // ISR
 //--------------------------------------------------------------------+
-void hal_dcd_isr(uint8_t rhport)
+void dcd_isr(uint8_t rhport)
 {
   LPC_USBHS_T* const lpc_usb = LPC_USB[rhport];
 

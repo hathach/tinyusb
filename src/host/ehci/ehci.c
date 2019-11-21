@@ -623,7 +623,7 @@ static void xfer_error_isr(uint8_t hostid)
 }
 
 //------------- Host Controller Driver's Interrupt Handler -------------//
-void hal_hcd_isr(uint8_t rhport)
+void hcd_isr(uint8_t rhport)
 {
   ehci_registers_t* regs = ehci_data.regs;
 

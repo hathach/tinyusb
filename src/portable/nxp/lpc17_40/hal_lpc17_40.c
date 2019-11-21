@@ -30,17 +30,17 @@
 
 #include "chip.h"
 
-extern void hal_hcd_isr(uint8_t hostid);
-extern void hal_dcd_isr(uint8_t rhport);
+extern void hcd_isr(uint8_t hostid);
+extern void dcd_isr(uint8_t rhport);
 
 void USB_IRQHandler(void)
 {
   #if TUSB_OPT_HOST_ENABLED
-    hal_hcd_isr(0);
+    hcd_isr(0);
   #endif
 
   #if TUSB_OPT_DEVICE_ENABLED
-    hal_dcd_isr(0);
+    dcd_isr(0);
   #endif
 }
 
