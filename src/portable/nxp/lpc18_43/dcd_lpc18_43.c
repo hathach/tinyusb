@@ -26,7 +26,9 @@
 
 #include "tusb_option.h"
 
-#if TUSB_OPT_DEVICE_ENABLED && (CFG_TUSB_MCU == OPT_MCU_LPC18XX || CFG_TUSB_MCU == OPT_MCU_LPC43XX || CFG_TUSB_MCU == OPT_MCU_RT10XX)
+#if TUSB_OPT_DEVICE_ENABLED && (CFG_TUSB_MCU == OPT_MCU_LPC18XX || \
+                                CFG_TUSB_MCU == OPT_MCU_LPC43XX || \
+                                CFG_TUSB_MCU == OPT_MCU_RT10XX)
 
 //--------------------------------------------------------------------+
 // INCLUDE
@@ -150,30 +152,8 @@ typedef struct {
   dcd_qtd_t qtd[QHD_MAX] TU_ATTR_ALIGNED(32);
 }dcd_data_t;
 
-#if (CFG_TUSB_RHPORT0_MODE & OPT_MODE_DEVICE)
-CFG_TUSB_MEM_SECTION TU_ATTR_ALIGNED(2048) static dcd_data_t dcd_data0;
-#endif
-
-#if (CFG_TUSB_RHPORT1_MODE & OPT_MODE_DEVICE)
-CFG_TUSB_MEM_SECTION TU_ATTR_ALIGNED(2048) static dcd_data_t dcd_data1;
-#endif
-
+static dcd_data_t _dcd_data CFG_TUSB_MEM_SECTION TU_ATTR_ALIGNED(2048);
 static LPC_USBHS_T * const LPC_USB[2] = { LPC_USB0, LPC_USB1 };
-
-static dcd_data_t* const dcd_data_ptr[2] =
-{
-#if (CFG_TUSB_RHPORT0_MODE & OPT_MODE_DEVICE)
-  &dcd_data0,
-#else
-  NULL,
-#endif
-
-#if (CFG_TUSB_RHPORT1_MODE & OPT_MODE_DEVICE)
-  &dcd_data1
-#else
-  NULL
-#endif
-};
 
 //--------------------------------------------------------------------+
 // CONTROLLER API
@@ -210,25 +190,23 @@ static void bus_reset(uint8_t rhport)
   // read reset bit in portsc
 
   //------------- Queue Head & Queue TD -------------//
-  dcd_data_t* p_dcd = dcd_data_ptr[rhport];
-  tu_memclr(p_dcd, sizeof(dcd_data_t));
+  tu_memclr(&_dcd_data, sizeof(dcd_data_t));
 
   //------------- Set up Control Endpoints (0 OUT, 1 IN) -------------//
-	p_dcd->qhd[0].zero_length_termination = p_dcd->qhd[1].zero_length_termination = 1;
-	p_dcd->qhd[0].max_package_size = p_dcd->qhd[1].max_package_size = CFG_TUD_ENDPOINT0_SIZE;
-	p_dcd->qhd[0].qtd_overlay.next = p_dcd->qhd[1].qtd_overlay.next = QTD_NEXT_INVALID;
+	_dcd_data.qhd[0].zero_length_termination = _dcd_data.qhd[1].zero_length_termination = 1;
+	_dcd_data.qhd[0].max_package_size = _dcd_data.qhd[1].max_package_size = CFG_TUD_ENDPOINT0_SIZE;
+	_dcd_data.qhd[0].qtd_overlay.next = _dcd_data.qhd[1].qtd_overlay.next = QTD_NEXT_INVALID;
 
-	p_dcd->qhd[0].int_on_setup = 1; // OUT only
+	_dcd_data.qhd[0].int_on_setup = 1; // OUT only
 }
 
 void dcd_init(uint8_t rhport)
 {
   LPC_USBHS_T* const lpc_usb = LPC_USB[rhport];
-  dcd_data_t* p_dcd = dcd_data_ptr[rhport];
 
-  tu_memclr(p_dcd, sizeof(dcd_data_t));
+  tu_memclr(&_dcd_data, sizeof(dcd_data_t));
 
-  lpc_usb->ENDPOINTLISTADDR = (uint32_t) p_dcd->qhd; // Endpoint List Address has to be 2K alignment
+  lpc_usb->ENDPOINTLISTADDR = (uint32_t) _dcd_data.qhd; // Endpoint List Address has to be 2K alignment
   lpc_usb->USBSTS_D  = lpc_usb->USBSTS_D;
   lpc_usb->USBINTR_D = INT_MASK_USB | INT_MASK_ERROR | INT_MASK_PORT_CHANGE | INT_MASK_RESET | INT_MASK_SUSPEND | INT_MASK_SOF;
 
@@ -327,7 +305,7 @@ bool dcd_edpt_open(uint8_t rhport, tusb_desc_endpoint_t const * p_endpoint_desc)
   TU_ASSERT( epnum <= (rhport ? 3 : 5) );
 
   //------------- Prepare Queue Head -------------//
-  dcd_qhd_t * p_qhd = &dcd_data_ptr[rhport]->qhd[ep_idx];
+  dcd_qhd_t * p_qhd = &_dcd_data.qhd[ep_idx];
   tu_memclr(p_qhd, sizeof(dcd_qhd_t));
 
   p_qhd->zero_length_termination = 1;
@@ -353,8 +331,8 @@ bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t t
     while(LPC_USB[rhport]->ENDPTSETUPSTAT & TU_BIT(0)) {}
   }
 
-  dcd_qhd_t * p_qhd = &dcd_data_ptr[rhport]->qhd[ep_idx];
-  dcd_qtd_t * p_qtd = &dcd_data_ptr[rhport]->qtd[ep_idx];
+  dcd_qhd_t * p_qhd = &_dcd_data.qhd[ep_idx];
+  dcd_qtd_t * p_qtd = &_dcd_data.qtd[ep_idx];
 
   //------------- Prepare qtd -------------//
   qtd_init(p_qtd, buffer, total_bytes);
@@ -414,15 +392,13 @@ void dcd_isr(uint8_t rhport)
     uint32_t const edpt_complete = lpc_usb->ENDPTCOMPLETE;
     lpc_usb->ENDPTCOMPLETE = edpt_complete; // acknowledge
 
-    dcd_data_t* const p_dcd = dcd_data_ptr[rhport];
-
     if (lpc_usb->ENDPTSETUPSTAT)
     {
       //------------- Set up Received -------------//
       // 23.10.10.2 Operational model for setup transfers
       lpc_usb->ENDPTSETUPSTAT = lpc_usb->ENDPTSETUPSTAT;// acknowledge
 
-      dcd_event_setup_received(rhport, (uint8_t*) &p_dcd->qhd[0].setup_request, true);
+      dcd_event_setup_received(rhport, (uint8_t*) &_dcd_data.qhd[0].setup_request, true);
     }
 
     if ( edpt_complete )
@@ -432,7 +408,7 @@ void dcd_isr(uint8_t rhport)
         if ( tu_bit_test(edpt_complete, ep_idx2bit(ep_idx)) )
         {
           // 23.10.12.3 Failed QTD also get ENDPTCOMPLETE set
-          dcd_qtd_t * p_qtd = &dcd_data_ptr[rhport]->qtd[ep_idx];
+          dcd_qtd_t * p_qtd = &_dcd_data.qtd[ep_idx];
 
           uint8_t result = p_qtd->halted  ? XFER_RESULT_STALLED :
               ( p_qtd->xact_err ||p_qtd->buffer_err ) ? XFER_RESULT_FAILED : XFER_RESULT_SUCCESS;
