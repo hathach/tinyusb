@@ -1,7 +1,7 @@
 /* 
  * The MIT License (MIT)
  *
- * Copyright (c) 2019 Ha Thach (tinyusb.org)
+ * Copyright (c) 2019, Ha Thach (tinyusb.org)
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -24,47 +24,23 @@
  * This file is part of the TinyUSB stack.
  */
 
-#include "tusb.h"
+#include "tusb_option.h"
 
-#if (CFG_TUSB_MCU == OPT_MCU_LPC18XX || CFG_TUSB_MCU == OPT_MCU_LPC43XX || CFG_TUSB_MCU == OPT_MCU_RT10XX)
+#if (CFG_TUSB_MCU == OPT_MCU_LPC175X_6X || CFG_TUSB_MCU == OPT_MCU_LPC40XX)
 
 #include "chip.h"
 
-extern void dcd_isr(uint8_t rhport);
-extern void hcd_isr(uint8_t hostid);
-
-#if CFG_TUSB_RHPORT0_MODE
-#if CFG_TUSB_MCU == OPT_MCU_RT10XX
-void USB_OTG1_IRQHandler(void)
-#else
-void USB0_IRQHandler(void)
-#endif
+void hcd_int_enable(uint8_t rhport)
 {
-  #if TUSB_OPT_HOST_ENABLED
-    hcd_isr(0);
-  #endif
-
-  #if TUSB_OPT_DEVICE_ENABLED
-    dcd_isr(0);
-  #endif
+  (void) rhport;
+  NVIC_EnableIRQ(USB_IRQn);
 }
-#endif
 
-#if CFG_TUSB_RHPORT1_MODE
-#if CFG_TUSB_MCU == OPT_MCU_RT10XX
-void USB_OTG2_IRQHandler(void)
-#else
-void USB1_IRQHandler(void)
-#endif
+void hcd_int_disable(uint8_t rhport)
 {
-  #if TUSB_OPT_HOST_ENABLED
-    hcd_isr(1);
-  #endif
-
-  #if TUSB_OPT_DEVICE_ENABLED
-    dcd_isr(1);
-  #endif
+  (void) rhport;
+  NVIC_DisableIRQ(USB_IRQn);
 }
-#endif
 
 #endif
+

@@ -235,22 +235,22 @@ void board_init(void)
 //--------------------------------------------------------------------+
 void USB0_IRQHandler(void)
 {
-  #if TUSB_OPT_HOST_ENABLED
+  #if CFG_TUSB_RHPORT0_MODE & OPT_MODE_HOST
     tuh_isr(0);
   #endif
 
-  #if TUSB_OPT_DEVICE_ENABLED
+  #if CFG_TUSB_RHPORT0_MODE & OPT_MODE_DEVICE
     tud_isr(0);
   #endif
 }
 
 void USB1_IRQHandler(void)
 {
-  #if TUSB_OPT_HOST_ENABLED
+  #if CFG_TUSB_RHPORT1_MODE & OPT_MODE_HOST
     tuh_isr(1);
   #endif
 
-  #if TUSB_OPT_DEVICE_ENABLED
+  #if CFG_TUSB_RHPORT1_MODE & OPT_MODE_DEVICE
     tud_isr(1);
   #endif
 }
