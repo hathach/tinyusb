@@ -121,7 +121,7 @@ void board_init(void)
 //--------------------------------------------------------------------+
 // USB Interrupt Handler
 //--------------------------------------------------------------------+
-void USB0_IRQHandler(void)
+void USB_OTG1_IRQHandler(void)
 {
   #if CFG_TUSB_RHPORT0_MODE & OPT_MODE_HOST
     tuh_isr(0);
@@ -132,7 +132,7 @@ void USB0_IRQHandler(void)
   #endif
 }
 
-void USB1_IRQHandler(void)
+void USB_OTG2_IRQHandler(void)
 {
   #if CFG_TUSB_RHPORT1_MODE & OPT_MODE_HOST
     tuh_isr(1);
