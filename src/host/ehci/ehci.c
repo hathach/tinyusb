@@ -170,7 +170,7 @@ void hcd_device_close(uint8_t rhport, uint8_t dev_addr)
   list_remove_qhd_by_addr( (ehci_link_t*) qhd_async_head(rhport), dev_addr );
 
   // Remove from all interval period list
-  for(uint8_t i = 0; i < TU_ARRAY_SZIE(ehci_data.period_head_arr); i++)
+  for(uint8_t i = 0; i < TU_ARRAY_SIZE(ehci_data.period_head_arr); i++)
   {
     list_remove_qhd_by_addr( (ehci_link_t*) &ehci_data.period_head_arr[i], dev_addr);
   }
