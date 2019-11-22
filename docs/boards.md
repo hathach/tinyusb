@@ -9,6 +9,10 @@ The board support code is only used for self-contained examples and testing. It 
 
 This code base already had supported for a handful of following boards
 
+## Tomu
+
+- [Fomu](https://www.crowdsupply.com/sutajio-kosagi/fomu)
+
 ### MicroChip SAMD
 
 - [Adafruit Circuit Playground Express](https://www.adafruit.com/product/3333)
@@ -25,6 +29,10 @@ This code base already had supported for a handful of following boards
 - [Nordic nRF52840 Development Kit (aka pca10056)](https://www.nordicsemi.com/Software-and-Tools/Development-Kits/nRF52840-DK)
 - [Nordic nRF52840 Dongle (aka pca10059)](https://www.nordicsemi.com/Software-and-Tools/Development-Kits/nRF52840-Dongle)
 - [Nordic nRF52833 Development Kit (aka pca10100)](https://www.nordicsemi.com/Software-and-Tools/Development-Kits/nRF52833-DK)
+
+### NXP iMX RT
+
+- [iMX RT1064 Evaluation Kit](https://www.nxp.com/design/development-boards/i.mx-evaluation-and-development-boards/mimxrt1064-evk-i.mx-rt1064-evaluation-kit:MIMXRT1064-EVK)
 
 ### NXP LPC
 
