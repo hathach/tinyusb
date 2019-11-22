@@ -50,9 +50,6 @@ FREERTOS_PORT = ARM_CM7
 JLINK_DEVICE = MIMXRT1062xxx6A
 JLINK_IF = swd
 
-# flash using pyocd
-#flash: $(BUILD)/$(BOARD)-firmware.hex
-#	pyocd flash -t mimxrt1050_quadspi $<
-
+# flash by copying bin file to DAP Mass Storage
 flash: $(BUILD)/$(BOARD)-firmware.bin
 	cp $< /media/$(USER)/RT1060-EVK/
