@@ -30,7 +30,7 @@ INC += \
 
 # For TinyUSB port source
 VENDOR = nxp
-CHIP_FAMILY = lpc18_43
+CHIP_FAMILY = transdimension
 
 # For freeRTOS port source
 FREERTOS_PORT = ARM_CM3
