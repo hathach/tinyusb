@@ -79,11 +79,42 @@ enum {
   INTR_NAK         = TU_BIT(16)
 };
 
-// PORTSC
+// PORTSC1
 enum {
-  PORTSC_CURRENT_CONNECT_STATUS = TU_BIT(0),
-  PORTSC_FORCE_PORT_RESUME      = TU_BIT(6),
-  PORTSC_SUSPEND                = TU_BIT(7)
+  PORTSC1_CURRENT_CONNECT_STATUS = TU_BIT(0),
+  PORTSC1_FORCE_PORT_RESUME      = TU_BIT(6),
+  PORTSC1_SUSPEND                = TU_BIT(7),
+  PORTSC1_FORCE_FULL_SPEED       = TU_BIT(24),
+};
+
+// OTGSC
+enum {
+  OTGSC_VBUS_DISCHARGE          = TU_BIT(0),
+  OTGSC_VBUS_CHARGE             = TU_BIT(1),
+//  OTGSC_HWASSIST_AUTORESET    = TU_BIT(2),
+  OTGSC_OTG_TERMINATION         = TU_BIT(3), ///< Must set to 1 when OTG go to device mode
+  OTGSC_DATA_PULSING            = TU_BIT(4),
+  OTGSC_ID_PULLUP               = TU_BIT(5),
+//  OTGSC_HWASSIT_DATA_PULSE    = TU_BIT(6),
+//  OTGSC_HWASSIT_BDIS_ACONN    = TU_BIT(7),
+  OTGSC_ID                      = TU_BIT(8), ///< 0 = A device, 1 = B Device
+  OTGSC_A_VBUS_VALID            = TU_BIT(9),
+  OTGSC_A_SESSION_VALID         = TU_BIT(10),
+  OTGSC_B_SESSION_VALID         = TU_BIT(11),
+  OTGSC_B_SESSION_END           = TU_BIT(12),
+  OTGSC_1MS_TOGGLE              = TU_BIT(13),
+  OTGSC_DATA_BUS_PULSING_STATUS = TU_BIT(14),
+};
+
+// USBMode
+enum {
+  USBMODE_CM_DEVICE = 2,
+  USBMODE_CM_HOST   = 3,
+
+  USBMODE_SLOM = TU_BIT(3),
+  USBMODE_SDIS = TU_BIT(4),
+
+  USBMODE_VBUS_POWER_SELCT = TU_BIT(5), // Enable for LPC18XX/43XX in host most only
 };
 
 // Device Registers
@@ -258,9 +289,20 @@ static void bus_reset(uint8_t rhport)
 
 void dcd_init(uint8_t rhport)
 {
+  tu_memclr(&_dcd_data, sizeof(dcd_data_t));
+
   dcd_registers_t* const dcd_reg = DCD_REGS[rhport];
 
-  tu_memclr(&_dcd_data, sizeof(dcd_data_t));
+  // Reset controller
+  dcd_reg->USBCMD |= USBCMD_RESET;
+  while( dcd_reg->USBCMD & USBCMD_RESET ) {}
+
+  // Set mode to device, must be set immediately after reset
+  dcd_reg->USBMODE = USBMODE_CM_DEVICE;
+  dcd_reg->OTGSC = OTGSC_VBUS_DISCHARGE | OTGSC_OTG_TERMINATION;
+
+  // TODO Force fullspeed on non-highspeed port
+  // dcd_reg->PORTSC1 = PORTSC1_FORCE_FULL_SPEED;
 
   dcd_reg->ENDPTLISTADDR = (uint32_t) _dcd_data.qhd; // Endpoint List Address has to be 2K alignment
   dcd_reg->USBSTS  = dcd_reg->USBSTS;
@@ -423,7 +465,7 @@ void dcd_isr(uint8_t rhport)
 
   if (int_status & INTR_SUSPEND)
   {
-    if (dcd_reg->PORTSC1 & PORTSC_SUSPEND)
+    if (dcd_reg->PORTSC1 & PORTSC1_SUSPEND)
     {
       // Note: Host may delay more than 3 ms before and/or after bus reset before doing enumeration.
       if ((dcd_reg->DEVICEADDR >> 25) & 0x0f)
@@ -436,7 +478,7 @@ void dcd_isr(uint8_t rhport)
   // TODO disconnection does not generate interrupt !!!!!!
 //	if (int_status & INTR_PORT_CHANGE)
 //	{
-//	  if ( !(dcd_reg->PORTSC1 & PORTSC_CURRENT_CONNECT_STATUS) )
+//	  if ( !(dcd_reg->PORTSC1 & PORTSC1_CURRENT_CONNECT_STATUS) )
 //	  {
 //      dcd_event_t event = { .rhport = rhport, .event_id = DCD_EVENT_UNPLUGGED };
 //      dcd_event_handler(&event, true);
