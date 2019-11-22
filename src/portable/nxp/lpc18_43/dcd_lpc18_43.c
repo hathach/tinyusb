@@ -38,11 +38,13 @@
 
 #if CFG_TUSB_MCU == OPT_MCU_RT10XX
   #include "fsl_device_registers.h"
-  #define DCD_REGS_BASE     { (dcd_registers_t*) USB1_BASE, (dcd_registers_t*) USB2_BASE }
+  #define   DCD_REGS_BASE { (dcd_registers_t*) USB1_BASE, (dcd_registers_t*) USB2_BASE }
+  IRQn_Type DCD_IRQn[] =  { USB_OTG1_IRQn, USB_OTG2_IRQn };
 
 #else
   #include "chip.h"
-  #define DCD_REGS_BASE     { (dcd_registers_t*) LPC_USB0_BASE, (dcd_registers_t*) LPC_USB1_BASE }
+  #define   DCD_REGS_BASE { (dcd_registers_t*) LPC_USB0_BASE, (dcd_registers_t*) LPC_USB1_BASE }
+  IRQn_Type DCD_IRQn[] =  { USB0_IRQn, USB1_IRQn };
 #endif
 
 //--------------------------------------------------------------------+
@@ -270,12 +272,12 @@ void dcd_init(uint8_t rhport)
 
 void dcd_int_enable(uint8_t rhport)
 {
-  NVIC_EnableIRQ(rhport ? USB1_IRQn : USB0_IRQn);
+  NVIC_EnableIRQ(DCD_IRQn[rhport]);
 }
 
 void dcd_int_disable(uint8_t rhport)
 {
-  NVIC_DisableIRQ(rhport ? USB1_IRQn : USB0_IRQn);
+  NVIC_DisableIRQ(DCD_IRQn[rhport]);
 }
 
 void dcd_set_address(uint8_t rhport, uint8_t dev_addr)
