@@ -8,9 +8,7 @@ CFLAGS += \
   -DCPU_MIMXRT1064DVL6A \
   -DXIP_EXTERNAL_FLASH=1 \
   -DXIP_BOOT_HEADER_ENABLE=1 \
-  -DCFG_TUSB_MCU=OPT_MCU_MIMXRT10XX \
-  -DCFG_TUSB_MEM_SECTION='__attribute__((section(".data")))' \
-  -DCFG_TUSB_MEM_ALIGN='__attribute__((aligned(64)))'
+  -DCFG_TUSB_MCU=OPT_MCU_MIMXRT10XX
 
 # mcu driver cause following warnings
 #CFLAGS += -Wno-error=float-equal -Wno-error=nested-externs
@@ -50,9 +48,6 @@ FREERTOS_PORT = ARM_CM7
 JLINK_DEVICE = MIMXRT1064xxx6A
 JLINK_IF = swd
 
-# flash using pyocd
-#flash: $(BUILD)/$(BOARD)-firmware.hex
-#	pyocd flash -t mimxrt1050_quadspi $<
-
+# flash by copying bin file to DAP Mass Storage
 flash: $(BUILD)/$(BOARD)-firmware.bin
 	cp $< /media/$(USER)/RT1064-EVK/

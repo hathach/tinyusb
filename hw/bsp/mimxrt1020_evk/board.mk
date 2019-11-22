@@ -5,7 +5,7 @@ CFLAGS += \
   -mfloat-abi=hard \
   -mfpu=fpv5-d16 \
   -D__ARMVFP__=0 -D__ARMFPV5__=0\
-  -DCPU_MIMXRT1062DVL6A \
+  -DCPU_MIMXRT1021DAG5A \
   -DXIP_EXTERNAL_FLASH=1 \
   -DXIP_BOOT_HEADER_ENABLE=1 \
   -DCFG_TUSB_MCU=OPT_MCU_MIMXRT10XX
@@ -14,13 +14,13 @@ CFLAGS += \
 #CFLAGS += -Wno-error=float-equal -Wno-error=nested-externs
 CFLAGS += -Wno-error=unused-parameter
 
-MCU_DIR = hw/mcu/nxp/sdk/devices/MIMXRT1062
+MCU_DIR = hw/mcu/nxp/sdk/devices/MIMXRT1021
 
 # All source paths should be relative to the top level.
-LD_FILE = $(MCU_DIR)/gcc/MIMXRT1062xxxxx_flexspi_nor.ld
+LD_FILE = $(MCU_DIR)/gcc/MIMXRT1021xxxxx_flexspi_nor.ld
 
 SRC_C += \
-	$(MCU_DIR)/system_MIMXRT1062.c \
+	$(MCU_DIR)/system_MIMXRT1021.c \
 	$(MCU_DIR)/xip/fsl_flexspi_nor_boot.c \
 	$(MCU_DIR)/project_template/clock_config.c \
 	$(MCU_DIR)/drivers/fsl_clock.c \
@@ -35,7 +35,7 @@ INC += \
 	$(TOP)/$(MCU_DIR)/drivers \
 	$(TOP)/$(MCU_DIR)/project_template \
 
-SRC_S += $(MCU_DIR)/gcc/startup_MIMXRT1062.S
+SRC_S += $(MCU_DIR)/gcc/startup_MIMXRT1021.S
 
 # For TinyUSB port source
 VENDOR = nxp
@@ -45,9 +45,9 @@ CHIP_FAMILY = transdimension
 FREERTOS_PORT = ARM_CM7
 
 # For flash-jlink target
-JLINK_DEVICE = MIMXRT1062xxx6A
+JLINK_DEVICE = MIMXRT1021DAG5A
 JLINK_IF = swd
 
 # flash by copying bin file to DAP Mass Storage
 flash: $(BUILD)/$(BOARD)-firmware.bin
-	cp $< /media/$(USER)/RT1060-EVK/
+	cp $< /media/$(USER)/RT1020-EVK/

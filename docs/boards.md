@@ -9,10 +9,6 @@ The board support code is only used for self-contained examples and testing. It 
 
 This code base already had supported for a handful of following boards
 
-## Tomu
-
-- [Fomu](https://www.crowdsupply.com/sutajio-kosagi/fomu)
-
 ### MicroChip SAMD
 
 - [Adafruit Circuit Playground Express](https://www.adafruit.com/product/3333)
@@ -32,8 +28,11 @@ This code base already had supported for a handful of following boards
 
 ### NXP iMX RT
 
-- [MIMX RT1064 Evaluation Kit](https://www.nxp.com/design/development-boards/i.mx-evaluation-and-development-boards/mimxrt1064-evk-i.mx-rt1064-evaluation-kit:MIMXRT1064-EVK)
+- [MIMX RT1015 Evaluation Kit](https://www.nxp.com/design/development-boards/i.mx-evaluation-and-development-boards/i.mx-rt1015-evaluation-kit:MIMXRT1015-EVK)
+- [MIMX RT1020 Evaluation Kit](https://www.nxp.com/design/development-boards/i.mx-evaluation-and-development-boards/i.mx-rt1020-evaluation-kit:MIMXRT1020-EVK)
+- [MIMX RT1050 Evaluation Kit](https://www.nxp.com/design/development-boards/i.mx-evaluation-and-development-boards/i.mx-rt1050-evaluation-kit:MIMXRT1050-EVK)
 - [MIMX RT1060 Evaluation Kit](https://www.nxp.com/design/development-boards/i.mx-evaluation-and-development-boards/mimxrt1060-evk-i.mx-rt1060-evaluation-kit:MIMXRT1060-EVK)
+- [MIMX RT1064 Evaluation Kit](https://www.nxp.com/design/development-boards/i.mx-evaluation-and-development-boards/mimxrt1064-evk-i.mx-rt1064-evaluation-kit:MIMXRT1064-EVK)
 
 ### NXP LPC
 
@@ -69,6 +68,10 @@ This code base already had supported for a handful of following boards
 - [STM32 F412zg Discovery](https://www.st.com/en/evaluation-tools/32f412gdiscovery.html)
 - [STM32 F767zi Nucleo](https://www.st.com/en/evaluation-tools/nucleo-f767zi.html)
 - [STM32 H743zi Nucleo](https://www.st.com/en/evaluation-tools/nucleo-h743zi.html)
+
+### Tomu
+
+- [Fomu](https://www.crowdsupply.com/sutajio-kosagi/fomu)
 
 ## Add your own board
 

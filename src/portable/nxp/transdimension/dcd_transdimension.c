@@ -38,8 +38,17 @@
 
 #if CFG_TUSB_MCU == OPT_MCU_MIMXRT10XX
   #include "fsl_device_registers.h"
+
+// RT1010 and RT1020 only has 1 USB controller
+#if FSL_FEATURE_SOC_USBHS_COUNT == 1
+  #define   DCD_REGS_BASE { (dcd_registers_t*) USB_BASE }
+  IRQn_Type DCD_IRQn[] =  { USB_OTG1_IRQn };
+
+// RT1050, RT1060 has 2 USB controllers
+#else
   #define   DCD_REGS_BASE { (dcd_registers_t*) USB1_BASE, (dcd_registers_t*) USB2_BASE }
   IRQn_Type DCD_IRQn[] =  { USB_OTG1_IRQn, USB_OTG2_IRQn };
+#endif
 
 #else
   #include "chip.h"
