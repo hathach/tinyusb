@@ -8,9 +8,7 @@ CFLAGS += \
   -DCPU_MIMXRT1021DAG5A \
   -DXIP_EXTERNAL_FLASH=1 \
   -DXIP_BOOT_HEADER_ENABLE=1 \
-  -DCFG_TUSB_MCU=OPT_MCU_MIMXRT10XX \
-  -DCFG_TUSB_MEM_SECTION='__attribute__((section(".data")))' \
-  -DCFG_TUSB_MEM_ALIGN='__attribute__((aligned(64)))'
+  -DCFG_TUSB_MCU=OPT_MCU_MIMXRT10XX
 
 # mcu driver cause following warnings
 #CFLAGS += -Wno-error=float-equal -Wno-error=nested-externs
@@ -47,7 +45,7 @@ CHIP_FAMILY = transdimension
 FREERTOS_PORT = ARM_CM7
 
 # For flash-jlink target
-JLINK_DEVICE = CPU_MIMXRT1021DAG5A
+JLINK_DEVICE = MIMXRT1021DAG5A
 JLINK_IF = swd
 
 # flash by copying bin file to DAP Mass Storage
