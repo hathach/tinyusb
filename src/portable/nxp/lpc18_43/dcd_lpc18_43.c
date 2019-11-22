@@ -49,6 +49,41 @@
 // MACRO CONSTANT TYPEDEF
 //--------------------------------------------------------------------+
 
+// ENDPTCTRL
+enum {
+  ENDPTCTRL_STALL          = TU_BIT(0),
+  ENDPTCTRL_TOGGLE_INHIBIT = TU_BIT(5), ///< used for test only
+  ENDPTCTRL_TOGGLE_RESET   = TU_BIT(6),
+  ENDPTCTRL_ENABLE         = TU_BIT(7)
+};
+
+// USBCMD
+enum {
+  USBCMD_RUN_STOP         = TU_BIT(0),
+  USBCMD_RESET            = TU_BIT(1),
+  USBCMD_SETUP_TRIPWIRE   = TU_BIT(13),
+  USBCMD_ADD_QTD_TRIPWIRE = TU_BIT(14)  ///< This bit is used as a semaphore to ensure the to proper addition of a new dTD to an active (primed) endpoint’s linked list. This bit is set and cleared by software during the process of adding a new dTD
+};
+// Interrupt Threshold bit 23:16
+
+// USBSTS, USBINTR
+enum {
+  INTR_USB         = TU_BIT(0),
+  INTR_ERROR       = TU_BIT(1),
+  INTR_PORT_CHANGE = TU_BIT(2),
+  INTR_RESET       = TU_BIT(6),
+  INTR_SOF         = TU_BIT(7),
+  INTR_SUSPEND     = TU_BIT(8),
+  INTR_NAK         = TU_BIT(16)
+};
+
+// PORTSC
+enum {
+  PORTSC_CURRENT_CONNECT_STATUS = TU_BIT(0),
+  PORTSC_FORCE_PORT_RESUME      = TU_BIT(6),
+  PORTSC_SUSPEND                = TU_BIT(7)
+};
+
 // Device Register starting with CAPLENGTH offset
 typedef struct
 {
@@ -95,41 +130,7 @@ typedef struct
 } dcd_registers_t;
 
 
-/*---------- ENDPTCTRL ----------*/
-enum {
-  ENDPTCTRL_MASK_STALL          = TU_BIT(0),
-  ENDPTCTRL_MASK_TOGGLE_INHIBIT = TU_BIT(5), ///< used for test only
-  ENDPTCTRL_MASK_TOGGLE_RESET   = TU_BIT(6),
-  ENDPTCTRL_MASK_ENABLE         = TU_BIT(7)
-};
-
-/*---------- USBCMD ----------*/
-enum {
-  USBCMD_MASK_RUN_STOP         = TU_BIT(0),
-  USBCMD_MASK_RESET            = TU_BIT(1),
-  USBCMD_MASK_SETUP_TRIPWIRE   = TU_BIT(13),
-  USBCMD_MASK_ADD_QTD_TRIPWIRE = TU_BIT(14)  ///< This bit is used as a semaphore to ensure the to proper addition of a new dTD to an active (primed) endpoint’s linked list. This bit is set and cleared by software during the process of adding a new dTD
-};
-// Interrupt Threshold bit 23:16
-
-/*---------- USBSTS, USBINTR ----------*/
-enum {
-  INT_MASK_USB         = TU_BIT(0),
-  INT_MASK_ERROR       = TU_BIT(1),
-  INT_MASK_PORT_CHANGE = TU_BIT(2),
-  INT_MASK_RESET       = TU_BIT(6),
-  INT_MASK_SOF         = TU_BIT(7),
-  INT_MASK_SUSPEND     = TU_BIT(8),
-  INT_MASK_NAK         = TU_BIT(16)
-};
-
-//------------- PORTSC -------------//
-enum {
-  PORTSC_CURRENT_CONNECT_STATUS_MASK = TU_BIT(0),
-  PORTSC_FORCE_PORT_RESUME_MASK      = TU_BIT(6),
-  PORTSC_SUSPEND_MASK                = TU_BIT(7)
-};
-
+// Queue Transfer Descriptor
 typedef struct
 {
   // Word 0: Next QTD Pointer
@@ -159,6 +160,7 @@ typedef struct
 
 TU_VERIFY_STATIC( sizeof(dcd_qtd_t) == 32, "size is not correct");
 
+// Queue Head
 typedef struct
 {
   // Word 0: Capabilities and Characteristics
@@ -258,7 +260,7 @@ void dcd_init(uint8_t rhport)
 
   lpc_usb->ENDPTLISTADDR = (uint32_t) _dcd_data.qhd; // Endpoint List Address has to be 2K alignment
   lpc_usb->USBSTS  = lpc_usb->USBSTS;
-  lpc_usb->USBINTR = INT_MASK_USB | INT_MASK_ERROR | INT_MASK_PORT_CHANGE | INT_MASK_RESET | INT_MASK_SUSPEND | INT_MASK_SOF;
+  lpc_usb->USBINTR = INTR_USB | INTR_ERROR | INTR_PORT_CHANGE | INTR_RESET | INTR_SUSPEND | INTR_SOF;
 
   lpc_usb->USBCMD &= ~0x00FF0000; // Interrupt Threshold Interval = 0
   lpc_usb->USBCMD |= TU_BIT(0); // connect
@@ -329,7 +331,7 @@ void dcd_edpt_stall(uint8_t rhport, uint8_t ep_addr)
   uint8_t const epnum  = tu_edpt_number(ep_addr);
   uint8_t const dir    = tu_edpt_dir(ep_addr);
 
-  dcd_regs[rhport]->ENDPTCTRL[epnum] |= ENDPTCTRL_MASK_STALL << (dir ? 16 : 0);
+  dcd_regs[rhport]->ENDPTCTRL[epnum] |= ENDPTCTRL_STALL << (dir ? 16 : 0);
 }
 
 void dcd_edpt_clear_stall(uint8_t rhport, uint8_t ep_addr)
@@ -338,8 +340,8 @@ void dcd_edpt_clear_stall(uint8_t rhport, uint8_t ep_addr)
   uint8_t const dir    = tu_edpt_dir(ep_addr);
 
   // data toggle also need to be reset
-  dcd_regs[rhport]->ENDPTCTRL[epnum] |= ENDPTCTRL_MASK_TOGGLE_RESET << ( dir ? 16 : 0 );
-  dcd_regs[rhport]->ENDPTCTRL[epnum] &= ~(ENDPTCTRL_MASK_STALL << ( dir  ? 16 : 0));
+  dcd_regs[rhport]->ENDPTCTRL[epnum] |= ENDPTCTRL_TOGGLE_RESET << ( dir ? 16 : 0 );
+  dcd_regs[rhport]->ENDPTCTRL[epnum] &= ~(ENDPTCTRL_STALL << ( dir  ? 16 : 0));
 }
 
 bool dcd_edpt_open(uint8_t rhport, tusb_desc_endpoint_t const * p_endpoint_desc)
@@ -363,7 +365,7 @@ bool dcd_edpt_open(uint8_t rhport, tusb_desc_endpoint_t const * p_endpoint_desc)
   p_qhd->qtd_overlay.next        = QTD_NEXT_INVALID;
 
   // Enable EP Control
-  dcd_regs[rhport]->ENDPTCTRL[epnum] |= ((p_endpoint_desc->bmAttributes.xfer << 2) | ENDPTCTRL_MASK_ENABLE | ENDPTCTRL_MASK_TOGGLE_RESET) << (dir ? 16 : 0);
+  dcd_regs[rhport]->ENDPTCTRL[epnum] |= ((p_endpoint_desc->bmAttributes.xfer << 2) | ENDPTCTRL_ENABLE | ENDPTCTRL_TOGGLE_RESET) << (dir ? 16 : 0);
 
   return true;
 }
@@ -409,15 +411,15 @@ void dcd_isr(uint8_t rhport)
   if (int_status == 0) return;// disabled interrupt sources
 
 
-  if (int_status & INT_MASK_RESET)
+  if (int_status & INTR_RESET)
   {
     bus_reset(rhport);
     dcd_event_bus_signal(rhport, DCD_EVENT_BUS_RESET, true);
   }
 
-  if (int_status & INT_MASK_SUSPEND)
+  if (int_status & INTR_SUSPEND)
   {
-    if (lpc_usb->PORTSC1 & PORTSC_SUSPEND_MASK)
+    if (lpc_usb->PORTSC1 & PORTSC_SUSPEND)
     {
       // Note: Host may delay more than 3 ms before and/or after bus reset before doing enumeration.
       if ((lpc_usb->DEVICEADDR >> 25) & 0x0f)
@@ -428,16 +430,16 @@ void dcd_isr(uint8_t rhport)
   }
 
   // TODO disconnection does not generate interrupt !!!!!!
-//	if (int_status & INT_MASK_PORT_CHANGE)
+//	if (int_status & INTR_PORT_CHANGE)
 //	{
-//	  if ( !(lpc_usb->PORTSC1 & PORTSC_CURRENT_CONNECT_STATUS_MASK) )
+//	  if ( !(lpc_usb->PORTSC1 & PORTSC_CURRENT_CONNECT_STATUS) )
 //	  {
 //      dcd_event_t event = { .rhport = rhport, .event_id = DCD_EVENT_UNPLUGGED };
 //      dcd_event_handler(&event, true);
 //	  }
 //	}
 
-  if (int_status & INT_MASK_USB)
+  if (int_status & INTR_USB)
   {
     uint32_t const edpt_complete = lpc_usb->ENDPTCOMPLETE;
     lpc_usb->ENDPTCOMPLETE = edpt_complete; // acknowledge
@@ -470,13 +472,13 @@ void dcd_isr(uint8_t rhport)
     }
   }
 
-  if (int_status & INT_MASK_SOF)
+  if (int_status & INTR_SOF)
   {
     dcd_event_bus_signal(rhport, DCD_EVENT_SOF, true);
   }
 
-  if (int_status & INT_MASK_NAK) {}
-  if (int_status & INT_MASK_ERROR) TU_ASSERT(false, );
+  if (int_status & INTR_NAK) {}
+  if (int_status & INTR_ERROR) TU_ASSERT(false, );
 }
 
 #endif
