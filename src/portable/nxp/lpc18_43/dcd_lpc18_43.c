@@ -38,11 +38,11 @@
 
 #if CFG_TUSB_MCU == OPT_MCU_RT10XX
   #include "fsl_device_registers.h"
+  #define DCD_REGS_BASE     { (dcd_registers_t*) USB1_BASE, (dcd_registers_t*) USB2_BASE }
+
 #else
   #include "chip.h"
-
-  // Register base to CAPLENGTH
-  #define DCD_REGS_BASE     { (dcd_registers_t*) (LPC_USB0_BASE + 0x100), (dcd_registers_t*) (LPC_USB1_BASE + 0x100) }
+  #define DCD_REGS_BASE     { (dcd_registers_t*) LPC_USB0_BASE, (dcd_registers_t*) LPC_USB1_BASE }
 #endif
 
 //--------------------------------------------------------------------+
@@ -84,9 +84,12 @@ enum {
   PORTSC_SUSPEND                = TU_BIT(7)
 };
 
-// Device Register starting with CAPLENGTH offset
+// Device Registers
 typedef struct
 {
+  //------------- ID + HW Parameter Registers-------------//
+  __I  uint32_t TU_RESERVED[64];    ///< For iMX RT10xx, but not used by LPC18XX/LPC43XX
+
   //------------- Capability Registers-------------//
   __I  uint8_t  CAPLENGTH;          ///< Capability Registers Length
   __I  uint8_t  TU_RESERVED[1];
@@ -204,7 +207,6 @@ typedef struct {
 }dcd_data_t;
 
 static dcd_data_t _dcd_data CFG_TUSB_MEM_SECTION TU_ATTR_ALIGNED(2048);
-//static LPC_USBHS_T * const LPC_USB[2] = { LPC_USB0, LPC_USB1 };
 static dcd_registers_t* DCD_REGS[] = DCD_REGS_BASE;
 
 //--------------------------------------------------------------------+
