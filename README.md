@@ -30,7 +30,7 @@ The stack supports the following MCUs
 - **Nordic:** nRF52840, nRF52833
 - **NXP:** 
   - LPC Series: 11Uxx, 13xx, 175x_6x, 177x_8x, 18xx, 40xx, 43xx, 51Uxx, 54xxx, 55xx
-  - iMX RT Series: RT1064
+  - iMX RT Series: RT1060, RT1064
 - **Sony:** CXD56
 - **ST:** STM32 series: L0, F0, F1, F2, F3, F4, F7, H7 (device only)
 
