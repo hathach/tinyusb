@@ -40,11 +40,60 @@
   #include "fsl_device_registers.h"
 #else
   #include "chip.h"
+
+  // Register base to CAPLENGTH
+  #define DCD_REGS_BASE     { (dcd_registers_t*) (LPC_USB0_BASE + 0x100), (dcd_registers_t*) (LPC_USB1_BASE + 0x100) }
 #endif
 
 //--------------------------------------------------------------------+
 // MACRO CONSTANT TYPEDEF
 //--------------------------------------------------------------------+
+
+// Device Register starting with CAPLENGTH offset
+typedef struct
+{
+  //------------- Capability Registers-------------//
+  __I  uint8_t  CAPLENGTH;          ///< Capability Registers Length
+  __I  uint8_t  TU_RESERVED[1];
+  __I  uint16_t HCIVERSION;         ///< Host Controller Interface Version
+
+  __I  uint32_t HCSPARAMS;          ///< Host Controller Structural Parameters
+  __I  uint32_t HCCPARAMS;          ///< Host Controller Capability Parameters
+  __I  uint32_t TU_RESERVED[5];
+
+  __I  uint16_t DCIVERSION;         ///< Device Controller Interface Version
+  __I  uint8_t  TU_RESERVED[2];
+
+  __I  uint32_t DCCPARAMS;          ///< Device Controller Capability Parameters
+  __I  uint32_t TU_RESERVED[6];
+
+  //------------- Operational Registers -------------//
+  __IO uint32_t USBCMD;             ///< USB Command Register
+  __IO uint32_t USBSTS;             ///< USB Status Register
+  __IO uint32_t USBINTR;            ///< Interrupt Enable Register
+  __IO uint32_t FRINDEX;            ///< USB Frame Index
+  __I  uint32_t TU_RESERVED;
+  __IO uint32_t DEVICEADDR;         ///< Device Address
+  __IO uint32_t ENDPTLISTADDR;      ///< Endpoint List Address
+  __I  uint32_t TU_RESERVED;
+  __IO uint32_t BURSTSIZE;          ///< Programmable Burst Size
+  __IO uint32_t TXFILLTUNING;       ///< TX FIFO Fill Tuning
+       uint32_t TU_RESERVED[4];
+  __IO uint32_t ENDPTNAK;           ///< Endpoint NAK
+  __IO uint32_t ENDPTNAKEN;         ///< Endpoint NAK Enable
+  __I  uint32_t TU_RESERVED;
+  __IO uint32_t PORTSC1;            ///< Port Status & Control
+  __I  uint32_t TU_RESERVED[7];
+  __IO uint32_t OTGSC;              ///< On-The-Go Status & control
+  __IO uint32_t USBMODE;            ///< USB Device Mode
+  __IO uint32_t ENDPTSETUPSTAT;     ///< Endpoint Setup Status
+  __IO uint32_t ENDPTPRIME;         ///< Endpoint Prime
+  __IO uint32_t ENDPTFLUSH;         ///< Endpoint Flush
+  __I  uint32_t ENDPTSTAT;          ///< Endpoint Status
+  __IO uint32_t ENDPTCOMPLETE;      ///< Endpoint Complete
+  __IO uint32_t ENDPTCTRL[8];       ///< Endpoint Control 0 - 7
+} dcd_registers_t;
+
 
 /*---------- ENDPTCTRL ----------*/
 enum {
@@ -153,7 +202,8 @@ typedef struct {
 }dcd_data_t;
 
 static dcd_data_t _dcd_data CFG_TUSB_MEM_SECTION TU_ATTR_ALIGNED(2048);
-static LPC_USBHS_T * const LPC_USB[2] = { LPC_USB0, LPC_USB1 };
+//static LPC_USBHS_T * const LPC_USB[2] = { LPC_USB0, LPC_USB1 };
+static dcd_registers_t* dcd_regs[] = DCD_REGS_BASE;
 
 //--------------------------------------------------------------------+
 // CONTROLLER API
@@ -162,7 +212,7 @@ static LPC_USBHS_T * const LPC_USB[2] = { LPC_USB0, LPC_USB1 };
 /// follows LPC43xx User Manual 23.10.3
 static void bus_reset(uint8_t rhport)
 {
-  LPC_USBHS_T* lpc_usb = LPC_USB[rhport];
+  dcd_registers_t* lpc_usb = dcd_regs[rhport];
 
   // The reset value for all endpoint types is the control endpoint. If one endpoint
   // direction is enabled and the paired endpoint of opposite direction is disabled, then the
@@ -179,7 +229,7 @@ static void bus_reset(uint8_t rhport)
   //------------- Clear All Registers -------------//
   lpc_usb->ENDPTNAK       = lpc_usb->ENDPTNAK;
   lpc_usb->ENDPTNAKEN     = 0;
-  lpc_usb->USBSTS_D       = lpc_usb->USBSTS_D;
+  lpc_usb->USBSTS         = lpc_usb->USBSTS;
   lpc_usb->ENDPTSETUPSTAT = lpc_usb->ENDPTSETUPSTAT;
   lpc_usb->ENDPTCOMPLETE  = lpc_usb->ENDPTCOMPLETE;
 
@@ -202,16 +252,16 @@ static void bus_reset(uint8_t rhport)
 
 void dcd_init(uint8_t rhport)
 {
-  LPC_USBHS_T* const lpc_usb = LPC_USB[rhport];
+  dcd_registers_t* const lpc_usb = dcd_regs[rhport];
 
   tu_memclr(&_dcd_data, sizeof(dcd_data_t));
 
-  lpc_usb->ENDPOINTLISTADDR = (uint32_t) _dcd_data.qhd; // Endpoint List Address has to be 2K alignment
-  lpc_usb->USBSTS_D  = lpc_usb->USBSTS_D;
-  lpc_usb->USBINTR_D = INT_MASK_USB | INT_MASK_ERROR | INT_MASK_PORT_CHANGE | INT_MASK_RESET | INT_MASK_SUSPEND | INT_MASK_SOF;
+  lpc_usb->ENDPTLISTADDR = (uint32_t) _dcd_data.qhd; // Endpoint List Address has to be 2K alignment
+  lpc_usb->USBSTS  = lpc_usb->USBSTS;
+  lpc_usb->USBINTR = INT_MASK_USB | INT_MASK_ERROR | INT_MASK_PORT_CHANGE | INT_MASK_RESET | INT_MASK_SUSPEND | INT_MASK_SOF;
 
-  lpc_usb->USBCMD_D &= ~0x00FF0000; // Interrupt Threshold Interval = 0
-  lpc_usb->USBCMD_D |= TU_BIT(0); // connect
+  lpc_usb->USBCMD &= ~0x00FF0000; // Interrupt Threshold Interval = 0
+  lpc_usb->USBCMD |= TU_BIT(0); // connect
 }
 
 void dcd_int_enable(uint8_t rhport)
@@ -229,7 +279,7 @@ void dcd_set_address(uint8_t rhport, uint8_t dev_addr)
   // Response with status first before changing device address
   dcd_edpt_xfer(rhport, tu_edpt_addr(0, TUSB_DIR_IN), NULL, 0);
 
-  LPC_USB[rhport]->DEVICEADDR = (dev_addr << 25) | TU_BIT(24);
+  dcd_regs[rhport]->DEVICEADDR = (dev_addr << 25) | TU_BIT(24);
 }
 
 void dcd_set_config(uint8_t rhport, uint8_t config_num)
@@ -279,7 +329,7 @@ void dcd_edpt_stall(uint8_t rhport, uint8_t ep_addr)
   uint8_t const epnum  = tu_edpt_number(ep_addr);
   uint8_t const dir    = tu_edpt_dir(ep_addr);
 
-  LPC_USB[rhport]->ENDPTCTRL[epnum] |= ENDPTCTRL_MASK_STALL << (dir ? 16 : 0);
+  dcd_regs[rhport]->ENDPTCTRL[epnum] |= ENDPTCTRL_MASK_STALL << (dir ? 16 : 0);
 }
 
 void dcd_edpt_clear_stall(uint8_t rhport, uint8_t ep_addr)
@@ -288,8 +338,8 @@ void dcd_edpt_clear_stall(uint8_t rhport, uint8_t ep_addr)
   uint8_t const dir    = tu_edpt_dir(ep_addr);
 
   // data toggle also need to be reset
-  LPC_USB[rhport]->ENDPTCTRL[epnum] |= ENDPTCTRL_MASK_TOGGLE_RESET << ( dir ? 16 : 0 );
-  LPC_USB[rhport]->ENDPTCTRL[epnum] &= ~(ENDPTCTRL_MASK_STALL << ( dir  ? 16 : 0));
+  dcd_regs[rhport]->ENDPTCTRL[epnum] |= ENDPTCTRL_MASK_TOGGLE_RESET << ( dir ? 16 : 0 );
+  dcd_regs[rhport]->ENDPTCTRL[epnum] &= ~(ENDPTCTRL_MASK_STALL << ( dir  ? 16 : 0));
 }
 
 bool dcd_edpt_open(uint8_t rhport, tusb_desc_endpoint_t const * p_endpoint_desc)
@@ -313,7 +363,7 @@ bool dcd_edpt_open(uint8_t rhport, tusb_desc_endpoint_t const * p_endpoint_desc)
   p_qhd->qtd_overlay.next        = QTD_NEXT_INVALID;
 
   // Enable EP Control
-  LPC_USB[rhport]->ENDPTCTRL[epnum] |= ((p_endpoint_desc->bmAttributes.xfer << 2) | ENDPTCTRL_MASK_ENABLE | ENDPTCTRL_MASK_TOGGLE_RESET) << (dir ? 16 : 0);
+  dcd_regs[rhport]->ENDPTCTRL[epnum] |= ((p_endpoint_desc->bmAttributes.xfer << 2) | ENDPTCTRL_MASK_ENABLE | ENDPTCTRL_MASK_TOGGLE_RESET) << (dir ? 16 : 0);
 
   return true;
 }
@@ -328,7 +378,7 @@ bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t t
   {
     // follows UM 24.10.8.1.1 Setup packet handling using setup lockout mechanism
     // wait until ENDPTSETUPSTAT before priming data/status in response TODO add time out
-    while(LPC_USB[rhport]->ENDPTSETUPSTAT & TU_BIT(0)) {}
+    while(dcd_regs[rhport]->ENDPTSETUPSTAT & TU_BIT(0)) {}
   }
 
   dcd_qhd_t * p_qhd = &_dcd_data.qhd[ep_idx];
@@ -340,7 +390,7 @@ bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t t
   p_qhd->qtd_overlay.next = (uint32_t) p_qtd; // link qtd to qhd
 
   // start transfer
-  LPC_USB[rhport]->ENDPTPRIME = TU_BIT( ep_idx2bit(ep_idx) ) ;
+  dcd_regs[rhport]->ENDPTPRIME = TU_BIT( ep_idx2bit(ep_idx) ) ;
 
   return true;
 }
@@ -350,11 +400,11 @@ bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t t
 //--------------------------------------------------------------------+
 void dcd_isr(uint8_t rhport)
 {
-  LPC_USBHS_T* const lpc_usb = LPC_USB[rhport];
+  dcd_registers_t* const lpc_usb = dcd_regs[rhport];
 
-  uint32_t const int_enable = lpc_usb->USBINTR_D;
-  uint32_t const int_status = lpc_usb->USBSTS_D & int_enable;
-  lpc_usb->USBSTS_D = int_status; // Acknowledge handled interrupt
+  uint32_t const int_enable = lpc_usb->USBINTR;
+  uint32_t const int_status = lpc_usb->USBSTS & int_enable;
+  lpc_usb->USBSTS = int_status; // Acknowledge handled interrupt
 
   if (int_status == 0) return;// disabled interrupt sources
 
@@ -367,7 +417,7 @@ void dcd_isr(uint8_t rhport)
 
   if (int_status & INT_MASK_SUSPEND)
   {
-    if (lpc_usb->PORTSC1_D & PORTSC_SUSPEND_MASK)
+    if (lpc_usb->PORTSC1 & PORTSC_SUSPEND_MASK)
     {
       // Note: Host may delay more than 3 ms before and/or after bus reset before doing enumeration.
       if ((lpc_usb->DEVICEADDR >> 25) & 0x0f)
@@ -380,7 +430,7 @@ void dcd_isr(uint8_t rhport)
   // TODO disconnection does not generate interrupt !!!!!!
 //	if (int_status & INT_MASK_PORT_CHANGE)
 //	{
-//	  if ( !(lpc_usb->PORTSC1_D & PORTSC_CURRENT_CONNECT_STATUS_MASK) )
+//	  if ( !(lpc_usb->PORTSC1 & PORTSC_CURRENT_CONNECT_STATUS_MASK) )
 //	  {
 //      dcd_event_t event = { .rhport = rhport, .event_id = DCD_EVENT_UNPLUGGED };
 //      dcd_event_handler(&event, true);
