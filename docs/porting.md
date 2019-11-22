@@ -1,6 +1,6 @@
 # Porting
 
-TinyUSB is designed to be a universal USB protocol stack for low-cost 32 bit microcontrollers. It
+TinyUSB is designed to be a universal USB protocol stack for microcontrollers. It
 handles most of the high level USB protocol and relies on the microcontroller's USB peripheral for
 data transactions on different endpoints. Porting is the process of adding low-level support for
 the rest of the common stack. Once the low-level is implemented, it is very easy to add USB support

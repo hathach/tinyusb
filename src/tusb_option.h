@@ -72,7 +72,7 @@
 
 #define OPT_MCU_VALENTYUSB_EPTRI  600 ///< Fomu eptri config
 
-#define OPT_MCU_RT10XX            700 ///< NXP iMX RT10xx
+#define OPT_MCU_MIMXRT10XX        700 ///< NXP iMX RT10xx
 
 /** @} */
 

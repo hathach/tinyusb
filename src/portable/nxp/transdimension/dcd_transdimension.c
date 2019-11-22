@@ -28,7 +28,7 @@
 
 #if TUSB_OPT_DEVICE_ENABLED && (CFG_TUSB_MCU == OPT_MCU_LPC18XX || \
                                 CFG_TUSB_MCU == OPT_MCU_LPC43XX || \
-                                CFG_TUSB_MCU == OPT_MCU_RT10XX)
+                                CFG_TUSB_MCU == OPT_MCU_MIMXRT10XX)
 
 //--------------------------------------------------------------------+
 // INCLUDE
@@ -36,7 +36,7 @@
 #include "common/tusb_common.h"
 #include "device/dcd.h"
 
-#if CFG_TUSB_MCU == OPT_MCU_RT10XX
+#if CFG_TUSB_MCU == OPT_MCU_MIMXRT10XX
   #include "fsl_device_registers.h"
   #define   DCD_REGS_BASE { (dcd_registers_t*) USB1_BASE, (dcd_registers_t*) USB2_BASE }
   IRQn_Type DCD_IRQn[] =  { USB_OTG1_IRQn, USB_OTG2_IRQn };
