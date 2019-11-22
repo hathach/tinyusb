@@ -56,4 +56,3 @@ JLINK_IF = swd
 
 flash: $(BUILD)/$(BOARD)-firmware.bin
 	cp $< /media/$(USER)/RT1064-EVK/
-
