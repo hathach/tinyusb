@@ -1,7 +1,7 @@
 /* 
  * The MIT License (MIT)
  *
- * Copyright (c) 2019 Ha Thach (tinyusb.org)
+ * Copyright (c) 2019, Ha Thach (tinyusb.org)
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -24,27 +24,12 @@
  * This file is part of the TinyUSB stack.
  */
 
-#include "common/tusb_common.h"
+#include "tusb_option.h"
 
 #if (CFG_TUSB_MCU == OPT_MCU_LPC175X_6X || CFG_TUSB_MCU == OPT_MCU_LPC40XX)
 
 #include "chip.h"
 
-extern void hal_hcd_isr(uint8_t hostid);
-extern void hal_dcd_isr(uint8_t rhport);
-
-void USB_IRQHandler(void)
-{
-  #if TUSB_OPT_HOST_ENABLED
-    hal_hcd_isr(0);
-  #endif
-
-  #if TUSB_OPT_DEVICE_ENABLED
-    hal_dcd_isr(0);
-  #endif
-}
-
-//FIXME move later
 void hcd_int_enable(uint8_t rhport)
 {
   (void) rhport;
@@ -57,5 +42,5 @@ void hcd_int_disable(uint8_t rhport)
   NVIC_DisableIRQ(USB_IRQn);
 }
 
-
 #endif
+

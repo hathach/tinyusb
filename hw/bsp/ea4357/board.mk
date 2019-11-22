@@ -1,4 +1,5 @@
 CFLAGS += \
+  -flto \
   -mthumb \
   -mabi=aapcs \
   -mcpu=cortex-m4 \
@@ -14,9 +15,6 @@ MCU_DIR = hw/mcu/nxp/lpcopen/lpc43xx/lpc_chip_43xx
 
 # All source paths should be relative to the top level.
 LD_FILE = hw/bsp/ea4357/lpc4357.ld
-
-# TODO remove later
-SRC_C += src/portable/$(VENDOR)/$(CHIP_FAMILY)/hal_$(CHIP_FAMILY).c
 
 SRC_C += \
 	$(MCU_DIR)/../gcc/cr_startup_lpc43xx.c \
@@ -34,7 +32,7 @@ INC += \
 
 # For TinyUSB port source
 VENDOR = nxp
-CHIP_FAMILY = lpc18_43
+CHIP_FAMILY = transdimension
 
 # For freeRTOS port source
 FREERTOS_PORT = ARM_CM4

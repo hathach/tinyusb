@@ -495,7 +495,7 @@ static void dd_complete_isr(uint8_t rhport, uint8_t ep_id)
 }
 
 // main USB IRQ handler
-void hal_dcd_isr(uint8_t rhport)
+void dcd_isr(uint8_t rhport)
 {
   uint32_t const dev_int_status = LPC_USB->DevIntSt & LPC_USB->DevIntEn;
   LPC_USB->DevIntClr = dev_int_status;// Acknowledge handled interrupt

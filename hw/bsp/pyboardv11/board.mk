@@ -1,12 +1,13 @@
 CFLAGS += \
-  -DHSE_VALUE=12000000 \
-  -DSTM32F405xx \
+  -flto \
   -mthumb \
   -mabi=aapcs \
   -mcpu=cortex-m4 \
   -mfloat-abi=hard \
   -mfpu=fpv4-sp-d16 \
   -nostdlib -nostartfiles \
+  -DSTM32F405xx \
+  -DHSE_VALUE=12000000 \
   -DCFG_TUSB_MCU=OPT_MCU_STM32F4
 
 ST_HAL_DRIVER = hw/mcu/st/st_driver/STM32F4xx_HAL_Driver

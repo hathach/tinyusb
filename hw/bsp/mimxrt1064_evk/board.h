@@ -1,7 +1,7 @@
 /* 
  * The MIT License (MIT)
  *
- * Copyright (c) 2019 Ha Thach (tinyusb.org)
+ * Copyright (c) 2019, Ha Thach (tinyusb.org)
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -24,39 +24,11 @@
  * This file is part of the TinyUSB stack.
  */
 
-#include "tusb.h"
 
-#if (CFG_TUSB_MCU == OPT_MCU_LPC18XX || CFG_TUSB_MCU == OPT_MCU_LPC43XX)
+#ifndef BOARD_H_
+#define BOARD_H_
 
-#include "chip.h"
+// required since iMX RT10xx SDK include this file for board size
+#define BOARD_FLASH_SIZE (0x400000U)
 
-extern void hal_dcd_isr(uint8_t rhport);
-extern void hal_hcd_isr(uint8_t hostid);
-
-#if CFG_TUSB_RHPORT0_MODE
-void USB0_IRQHandler(void)
-{
-  #if TUSB_OPT_HOST_ENABLED
-    hal_hcd_isr(0);
-  #endif
-
-  #if TUSB_OPT_DEVICE_ENABLED
-    hal_dcd_isr(0);
-  #endif
-}
-#endif
-
-#if CFG_TUSB_RHPORT1_MODE
-void USB1_IRQHandler(void)
-{
-  #if TUSB_OPT_HOST_ENABLED
-    hal_hcd_isr(1);
-  #endif
-
-  #if TUSB_OPT_DEVICE_ENABLED
-    hal_dcd_isr(1);
-  #endif
-}
-#endif
-
-#endif
+#endif /* BOARD_H_ */

@@ -15,12 +15,17 @@ exit_status = 0
 total_time = time.monotonic()
 
 all_examples = []
-for entry in os.scandir("examples/device"):
-    if entry.is_dir():
-        all_examples.append(entry.name)
 
-# TODO update freeRTOS example to work with all boards (only nrf52840 now)
-all_examples.remove("cdc_msc_hid_freertos")
+# build all example if input not existed
+if len(sys.argv) > 1:
+    all_examples.append(sys.argv[1])
+else:
+    for entry in os.scandir("examples/device"):
+        if entry.is_dir():
+            all_examples.append(entry.name)
+
+    # TODO update freeRTOS example to work with all boards (only nrf52840 now)
+    all_examples.remove("cdc_msc_hid_freertos")
 
 all_boards = []
 for entry in os.scandir("hw/bsp"):
@@ -31,7 +36,7 @@ for entry in os.scandir("hw/bsp"):
 def build_example(example, board):
     subprocess.run("make -C examples/device/{} BOARD={} clean".format(example, board), shell=True,
                    stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
-    return subprocess.run("make -j 4 -C examples/device/{} BOARD={} all".format(example, board), shell=True,
+    return subprocess.run("make -j 8 -C examples/device/{} BOARD={} all".format(example, board), shell=True,
                           stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
 
 

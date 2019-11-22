@@ -1,12 +1,13 @@
 CFLAGS += \
-  -DHSE_VALUE=8000000 \
-  -DSTM32H743xx \
+  -flto \
   -mthumb \
   -mabi=aapcs \
   -mcpu=cortex-m7 \
   -mfloat-abi=hard \
   -mfpu=fpv5-d16 \
   -nostdlib -nostartfiles \
+  -DSTM32H743xx \
+  -DHSE_VALUE=8000000 \
   -DCFG_TUSB_MCU=OPT_MCU_STM32H7
 
 # mcu driver cause following warnings

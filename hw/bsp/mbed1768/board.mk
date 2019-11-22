@@ -1,4 +1,5 @@
 CFLAGS += \
+  -flto \
   -mthumb \
   -mabi=aapcs \
   -mcpu=cortex-m3 \
@@ -15,9 +16,6 @@ MCU_DIR = hw/mcu/nxp/lpcopen/lpc175x_6x/lpc_chip_175x_6x
 
 # All source paths should be relative to the top level.
 LD_FILE = hw/bsp/mbed1768/lpc1768.ld
-
-# TODO remove later
-SRC_C += src/portable/$(VENDOR)/$(CHIP_FAMILY)/hal_$(CHIP_FAMILY).c
 
 SRC_C += \
 	$(MCU_DIR)/../gcc/cr_startup_lpc175x_6x.c \
@@ -43,5 +41,7 @@ FREERTOS_PORT = ARM_CM3
 JLINK_DEVICE = LPC1768
 JLINK_IF = swd
 
-# flash using jlink
-flash: flash-jlink
+# flash using pyocd 
+flash: $(BUILD)/$(BOARD)-firmware.hex
+	pyocd flash -t lpc1768 $<
+

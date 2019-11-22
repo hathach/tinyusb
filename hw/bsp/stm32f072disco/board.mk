@@ -1,13 +1,14 @@
 CFLAGS += \
-	-DHSE_VALUE=8000000 \
-	-DSTM32F072xB \
-	-mthumb \
-	-mabi=aapcs \
-	-mcpu=cortex-m0 \
-	-mfloat-abi=soft \
-	-nostdlib -nostartfiles \
-	-DCFG_EXAMPLE_MSC_READONLY \
-	-DCFG_TUSB_MCU=OPT_MCU_STM32F0
+  -flto \
+  -mthumb \
+  -mabi=aapcs \
+  -mcpu=cortex-m0 \
+  -mfloat-abi=soft \
+  -nostdlib -nostartfiles \
+  -DSTM32F072xB \
+  -DHSE_VALUE=8000000 \
+  -DCFG_EXAMPLE_MSC_READONLY \
+  -DCFG_TUSB_MCU=OPT_MCU_STM32F0
 
 # mcu driver cause following warnings
 CFLAGS += -Wno-error=unused-parameter
@@ -19,22 +20,22 @@ ST_CMSIS = hw/mcu/st/st_driver/CMSIS/Device/ST/STM32F0xx
 LD_FILE = hw/bsp/$(BOARD)/STM32F072RBTx_FLASH.ld
 
 SRC_C += \
-	$(ST_CMSIS)/Source/Templates/system_stm32f0xx.c \
-	$(ST_HAL_DRIVER)/Src/stm32f0xx_hal.c \
-	$(ST_HAL_DRIVER)/Src/stm32f0xx_hal_cortex.c \
-	$(ST_HAL_DRIVER)/Src/stm32f0xx_hal_rcc.c \
-	$(ST_HAL_DRIVER)/Src/stm32f0xx_hal_rcc_ex.c \
-	$(ST_HAL_DRIVER)/Src/stm32f0xx_hal_gpio.c \
-	$(ST_HAL_DRIVER)/Src/stm32f0xx_hal_uart.c
+  $(ST_CMSIS)/Source/Templates/system_stm32f0xx.c \
+  $(ST_HAL_DRIVER)/Src/stm32f0xx_hal.c \
+  $(ST_HAL_DRIVER)/Src/stm32f0xx_hal_cortex.c \
+  $(ST_HAL_DRIVER)/Src/stm32f0xx_hal_rcc.c \
+  $(ST_HAL_DRIVER)/Src/stm32f0xx_hal_rcc_ex.c \
+  $(ST_HAL_DRIVER)/Src/stm32f0xx_hal_gpio.c \
+  $(ST_HAL_DRIVER)/Src/stm32f0xx_hal_uart.c
 
 SRC_S += \
-	$(ST_CMSIS)/Source/Templates/gcc/startup_stm32f072xb.s
+  $(ST_CMSIS)/Source/Templates/gcc/startup_stm32f072xb.s
 
 INC += \
-	$(TOP)/hw/mcu/st/st_driver/CMSIS/Include \
-	$(TOP)/$(ST_CMSIS)/Include \
-	$(TOP)/$(ST_HAL_DRIVER)/Inc \
-	$(TOP)/hw/bsp/$(BOARD)
+  $(TOP)/hw/mcu/st/st_driver/CMSIS/Include \
+  $(TOP)/$(ST_CMSIS)/Include \
+  $(TOP)/$(ST_HAL_DRIVER)/Inc \
+  $(TOP)/hw/bsp/$(BOARD)
 
 # For TinyUSB port source
 VENDOR = st
