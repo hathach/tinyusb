@@ -32,7 +32,7 @@ The stack supports the following MCUs
   - iMX RT Series: RT1011, RT1015, RT1021, RT1052, RT1062, RT1064
 - **Sony:** CXD56
 - **ST:** STM32 series: L0, F0, F1, F2, F3, F4, F7, H7 (device only)
-- **Tomu:** [valentyusb](https://github.com/im-tomu/valentyusb) (eptri)
+- **[valentyusb](https://github.com/im-tomu/valentyusb)** eptri
 
 [Here is the list of supported Boards](docs/boards.md) that can be used with provided examples.
 
