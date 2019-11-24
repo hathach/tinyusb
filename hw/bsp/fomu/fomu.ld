@@ -7,7 +7,7 @@ MEMORY {
 	csr : ORIGIN = 0x60000000, LENGTH = 0x01000000
 	vexriscv_debug : ORIGIN = 0xf00f0000, LENGTH = 0x00000100
 	ram : ORIGIN = 0x10000000, LENGTH = 0x00020000
-	rom : ORIGIN = 0x2001a000, LENGTH = 0x00200000 - 0x1a000
+	rom : ORIGIN = 0x20040000, LENGTH = 0x00200000 - 0x40000
 }
 
 /* The stack size used by the application. NOTE: you need to adjust according to your application. */
