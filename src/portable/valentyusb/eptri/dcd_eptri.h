@@ -24,39 +24,16 @@
  * This file is part of the TinyUSB stack.
  */
 
-#include "tusb.h"
+#ifndef _TUSB_DCD_VALENTYUSB_EPTRI_H_
+#define _TUSB_DCD_VALENTYUSB_EPTRI_H_
 
-#if (CFG_TUSB_MCU == OPT_MCU_LPC18XX || CFG_TUSB_MCU == OPT_MCU_LPC43XX)
-
-#include "chip.h"
-
-extern void hal_dcd_isr(uint8_t rhport);
-extern void hal_hcd_isr(uint8_t hostid);
-
-#if CFG_TUSB_RHPORT0_MODE
-void USB0_IRQHandler(void)
-{
-  #if TUSB_OPT_HOST_ENABLED
-    hal_hcd_isr(0);
-  #endif
-
-  #if TUSB_OPT_DEVICE_ENABLED
-    hal_dcd_isr(0);
-  #endif
-}
+#include "common/tusb_common.h"
+#ifdef __cplusplus
+ extern "C" {
 #endif
 
-#if CFG_TUSB_RHPORT1_MODE
-void USB1_IRQHandler(void)
-{
-  #if TUSB_OPT_HOST_ENABLED
-    hal_hcd_isr(1);
-  #endif
-
-  #if TUSB_OPT_DEVICE_ENABLED
-    hal_dcd_isr(1);
-  #endif
-}
+#ifdef __cplusplus
+ }
 #endif
 
-#endif
+#endif /* _TUSB_DCD_VALENTYUSB_EPTRI_H_ */

@@ -88,6 +88,9 @@ typedef struct TU_ATTR_ALIGNED(4)
 // Initialize controller to device mode
 void dcd_init       (uint8_t rhport);
 
+// Interrupt Handler
+void dcd_isr        (uint8_t rhport);
+
 // Enable device interrupt
 void dcd_int_enable (uint8_t rhport);
 

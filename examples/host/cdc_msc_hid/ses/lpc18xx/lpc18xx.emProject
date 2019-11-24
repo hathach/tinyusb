@@ -24,7 +24,7 @@
       gcc_entry_point="Reset_Handler"
       linker_memory_map_file="$(ProjectDir)/LPC1857_MemoryMap.xml"
       linker_section_placement_file="$(ProjectDir)/flash_placement.xml"
-      macros="DeviceFamily=LPC1800;DeviceSubFamily=LPC185x;Target=LPC1857;Placement=Flash;rootDir=../../../../..;lpcDir=../../../../../hw/mcu/nxp/lpc_chip_18xx"
+      macros="DeviceFamily=LPC1800;DeviceSubFamily=LPC185x;Target=LPC1857;Placement=Flash;rootDir=../../../../..;lpcDir=../../../../../hw/mcu/nxp/lpcopen/lpc18xx/lpc_chip_18xx"
       package_dependencies="LPC1800"
       project_directory=""
       project_type="Executable"
@@ -51,52 +51,51 @@
         <file file_name="../../../../../hw/bsp/ansi_escape.h" />
         <file file_name="../../../../../hw/bsp/board.h" />
         <folder Name="mcb1800">
-          <file file_name="../../../../../hw/bsp/mcb1800/board_mcb1800.c" />
-          <file file_name="../../../../../hw/bsp/mcb1800/board_mcb1800.h" />
+          <file file_name="../../../../../hw/bsp/mcb1800/mcb1800.c" />
         </folder>
       </folder>
       <folder Name="mcu">
         <folder Name="nxp">
           <folder Name="lpc_chip_18xx">
             <folder Name="inc">
-              <file file_name="../../../../../hw/mcu/nxp/lpc_chip_18xx/inc/arm_common_tables.h" />
-              <file file_name="../../../../../hw/mcu/nxp/lpc_chip_18xx/inc/arm_math.h" />
-              <file file_name="../../../../../hw/mcu/nxp/lpc_chip_18xx/inc/cguccu_18xx_43xx.h" />
-              <file file_name="../../../../../hw/mcu/nxp/lpc_chip_18xx/inc/chip.h" />
-              <file file_name="../../../../../hw/mcu/nxp/lpc_chip_18xx/inc/chip_clocks.h" />
-              <file file_name="../../../../../hw/mcu/nxp/lpc_chip_18xx/inc/chip_lpc18xx.h" />
-              <file file_name="../../../../../hw/mcu/nxp/lpc_chip_18xx/inc/chip_lpc43xx.h" />
-              <file file_name="../../../../../hw/mcu/nxp/lpc_chip_18xx/inc/clock_18xx_43xx.h" />
-              <file file_name="../../../../../hw/mcu/nxp/lpc_chip_18xx/inc/cmsis.h" />
-              <file file_name="../../../../../hw/mcu/nxp/lpc_chip_18xx/inc/cmsis_18xx.h" />
-              <file file_name="../../../../../hw/mcu/nxp/lpc_chip_18xx/inc/cmsis_43xx.h" />
-              <file file_name="../../../../../hw/mcu/nxp/lpc_chip_18xx/inc/cmsis_43xx_m0app.h" />
-              <file file_name="../../../../../hw/mcu/nxp/lpc_chip_18xx/inc/cmsis_43xx_m0sub.h" />
-              <file file_name="../../../../../hw/mcu/nxp/lpc_chip_18xx/inc/core_cm0.h" />
-              <file file_name="../../../../../hw/mcu/nxp/lpc_chip_18xx/inc/core_cm0plus.h" />
-              <file file_name="../../../../../hw/mcu/nxp/lpc_chip_18xx/inc/core_cm3.h" />
-              <file file_name="../../../../../hw/mcu/nxp/lpc_chip_18xx/inc/core_cm4.h" />
-              <file file_name="../../../../../hw/mcu/nxp/lpc_chip_18xx/inc/core_cm4_simd.h" />
-              <file file_name="../../../../../hw/mcu/nxp/lpc_chip_18xx/inc/core_cmFunc.h" />
-              <file file_name="../../../../../hw/mcu/nxp/lpc_chip_18xx/inc/core_cmInstr.h" />
-              <file file_name="../../../../../hw/mcu/nxp/lpc_chip_18xx/inc/core_sc000.h" />
-              <file file_name="../../../../../hw/mcu/nxp/lpc_chip_18xx/inc/core_sc300.h" />
-              <file file_name="../../../../../hw/mcu/nxp/lpc_chip_18xx/inc/creg_18xx_43xx.h" />
-              <file file_name="../../../../../hw/mcu/nxp/lpc_chip_18xx/inc/gpio_18xx_43xx.h" />
-              <file file_name="../../../../../hw/mcu/nxp/lpc_chip_18xx/inc/lpc_types.h" />
-              <file file_name="../../../../../hw/mcu/nxp/lpc_chip_18xx/inc/uart_18xx_43xx.h" />
-              <file file_name="../../../../../hw/mcu/nxp/lpc_chip_18xx/inc/usbhs_18xx_43xx.h" />
+              <file file_name="../../../../../hw/mcu/nxp/lpcopen/lpc18xx/lpc_chip_18xx/inc/arm_common_tables.h" />
+              <file file_name="../../../../../hw/mcu/nxp/lpcopen/lpc18xx/lpc_chip_18xx/inc/arm_math.h" />
+              <file file_name="../../../../../hw/mcu/nxp/lpcopen/lpc18xx/lpc_chip_18xx/inc/cguccu_18xx_43xx.h" />
+              <file file_name="../../../../../hw/mcu/nxp/lpcopen/lpc18xx/lpc_chip_18xx/inc/chip.h" />
+              <file file_name="../../../../../hw/mcu/nxp/lpcopen/lpc18xx/lpc_chip_18xx/inc/chip_clocks.h" />
+              <file file_name="../../../../../hw/mcu/nxp/lpcopen/lpc18xx/lpc_chip_18xx/inc/chip_lpc18xx.h" />
+              <file file_name="../../../../../hw/mcu/nxp/lpcopen/lpc18xx/lpc_chip_18xx/inc/chip_lpc43xx.h" />
+              <file file_name="../../../../../hw/mcu/nxp/lpcopen/lpc18xx/lpc_chip_18xx/inc/clock_18xx_43xx.h" />
+              <file file_name="../../../../../hw/mcu/nxp/lpcopen/lpc18xx/lpc_chip_18xx/inc/cmsis.h" />
+              <file file_name="../../../../../hw/mcu/nxp/lpcopen/lpc18xx/lpc_chip_18xx/inc/cmsis_18xx.h" />
+              <file file_name="../../../../../hw/mcu/nxp/lpcopen/lpc18xx/lpc_chip_18xx/inc/cmsis_43xx.h" />
+              <file file_name="../../../../../hw/mcu/nxp/lpcopen/lpc18xx/lpc_chip_18xx/inc/cmsis_43xx_m0app.h" />
+              <file file_name="../../../../../hw/mcu/nxp/lpcopen/lpc18xx/lpc_chip_18xx/inc/cmsis_43xx_m0sub.h" />
+              <file file_name="../../../../../hw/mcu/nxp/lpcopen/lpc18xx/lpc_chip_18xx/inc/core_cm0.h" />
+              <file file_name="../../../../../hw/mcu/nxp/lpcopen/lpc18xx/lpc_chip_18xx/inc/core_cm0plus.h" />
+              <file file_name="../../../../../hw/mcu/nxp/lpcopen/lpc18xx/lpc_chip_18xx/inc/core_cm3.h" />
+              <file file_name="../../../../../hw/mcu/nxp/lpcopen/lpc18xx/lpc_chip_18xx/inc/core_cm4.h" />
+              <file file_name="../../../../../hw/mcu/nxp/lpcopen/lpc18xx/lpc_chip_18xx/inc/core_cm4_simd.h" />
+              <file file_name="../../../../../hw/mcu/nxp/lpcopen/lpc18xx/lpc_chip_18xx/inc/core_cmFunc.h" />
+              <file file_name="../../../../../hw/mcu/nxp/lpcopen/lpc18xx/lpc_chip_18xx/inc/core_cmInstr.h" />
+              <file file_name="../../../../../hw/mcu/nxp/lpcopen/lpc18xx/lpc_chip_18xx/inc/core_sc000.h" />
+              <file file_name="../../../../../hw/mcu/nxp/lpcopen/lpc18xx/lpc_chip_18xx/inc/core_sc300.h" />
+              <file file_name="../../../../../hw/mcu/nxp/lpcopen/lpc18xx/lpc_chip_18xx/inc/creg_18xx_43xx.h" />
+              <file file_name="../../../../../hw/mcu/nxp/lpcopen/lpc18xx/lpc_chip_18xx/inc/gpio_18xx_43xx.h" />
+              <file file_name="../../../../../hw/mcu/nxp/lpcopen/lpc18xx/lpc_chip_18xx/inc/lpc_types.h" />
+              <file file_name="../../../../../hw/mcu/nxp/lpcopen/lpc18xx/lpc_chip_18xx/inc/uart_18xx_43xx.h" />
+              <file file_name="../../../../../hw/mcu/nxp/lpcopen/lpc18xx/lpc_chip_18xx/inc/usbhs_18xx_43xx.h" />
               <folder Name="config_18xx">
-                <file file_name="../../../../../hw/mcu/nxp/lpc_chip_18xx/inc/config_18xx/cmsis_18xx.h" />
-                <file file_name="../../../../../hw/mcu/nxp/lpc_chip_18xx/inc/config_18xx/sys_config.h" />
+                <file file_name="../../../../../hw/mcu/nxp/lpcopen/lpc18xx/lpc_chip_18xx/inc/config_18xx/cmsis_18xx.h" />
+                <file file_name="../../../../../hw/mcu/nxp/lpcopen/lpc18xx/lpc_chip_18xx/inc/config_18xx/sys_config.h" />
               </folder>
             </folder>
             <folder Name="src">
-              <file file_name="../../../../../hw/mcu/nxp/lpc_chip_18xx/src/chip_18xx_43xx.c" />
-              <file file_name="../../../../../hw/mcu/nxp/lpc_chip_18xx/src/clock_18xx_43xx.c" />
-              <file file_name="../../../../../hw/mcu/nxp/lpc_chip_18xx/src/gpio_18xx_43xx.c" />
-              <file file_name="../../../../../hw/mcu/nxp/lpc_chip_18xx/src/sysinit_18xx_43xx.c" />
-              <file file_name="../../../../../hw/mcu/nxp/lpc_chip_18xx/src/uart_18xx_43xx.c" />
+              <file file_name="../../../../../hw/mcu/nxp/lpcopen/lpc18xx/lpc_chip_18xx/src/chip_18xx_43xx.c" />
+              <file file_name="../../../../../hw/mcu/nxp/lpcopen/lpc18xx/lpc_chip_18xx/src/clock_18xx_43xx.c" />
+              <file file_name="../../../../../hw/mcu/nxp/lpcopen/lpc18xx/lpc_chip_18xx/src/gpio_18xx_43xx.c" />
+              <file file_name="../../../../../hw/mcu/nxp/lpcopen/lpc18xx/lpc_chip_18xx/src/sysinit_18xx_43xx.c" />
+              <file file_name="../../../../../hw/mcu/nxp/lpcopen/lpc18xx/lpc_chip_18xx/src/uart_18xx_43xx.c" />
             </folder>
           </folder>
         </folder>

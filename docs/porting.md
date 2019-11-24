@@ -1,6 +1,6 @@
 # Porting
 
-TinyUSB is designed to be a universal USB protocol stack for low-cost 32 bit microcontrollers. It
+TinyUSB is designed to be a universal USB protocol stack for microcontrollers. It
 handles most of the high level USB protocol and relies on the microcontroller's USB peripheral for
 data transactions on different endpoints. Porting is the process of adding low-level support for
 the rest of the common stack. Once the low-level is implemented, it is very easy to add USB support
@@ -24,8 +24,6 @@ Now that those directories are in place, we can start our iteration process to g
 Unless, you've read ahead, this will fail miserably. Now, lets get it to fail less by updating the files in the board directory. The code in the board's directory is responsible for setting up the microcontroller's clocks and pins so that USB works. TinyUSB itself only operates on the USB peripheral. The board directory also includes information what files are needed to build the example.
 
 One of the first things to change is the `-DCFG_TUSB_MCU` cflag in the `board.mk` file. This is used to tell TinyUSB what platform is being built. So, add an entry to `src/tusb_option.h` and update the CFLAG to match.
-
-Also, add an entry for the board in `hw/bsp/board.h`. The CFLAG is auto-added.
 
 Update `board.mk`'s VENDOR and CHIP_FAMILY values when creating the directory for the struct files. Duplicate one of the other sources from `src/portable` into `src/portable/<vendor>/<chip_family>` and delete all of the implementation internals. We'll cover what everything there does later. For now, get it compiling.
 
@@ -104,7 +102,7 @@ Calls to this look like:
 
     dcd_event_setup_received(0, setup, true);
 
-As before with `dcd_event_bus_signal` the first argument is the USB peripheral number and the third is true to signal its being called from an interrup handler. The middle argument is byte array of length 8 with the contents of the SETUP packet. It can be stack allocated because it is copied into the queue.
+As before with `dcd_event_bus_signal` the first argument is the USB peripheral number and the third is true to signal its being called from an interrupt handler. The middle argument is byte array of length 8 with the contents of the SETUP packet. It can be stack allocated because it is copied into the queue.
 
 #### Endpoints
 

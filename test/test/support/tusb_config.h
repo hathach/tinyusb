@@ -26,6 +26,9 @@
 #ifndef _TUSB_CONFIG_H_
 #define _TUSB_CONFIG_H_
 
+// testing framework
+#include "unity.h"
+
 #ifdef __cplusplus
  extern "C" {
 #endif
@@ -40,7 +43,7 @@
   #define CFG_TUSB_MCU  OPT_MCU_NRF5X
 #endif
 
-#if CFG_TUSB_MCU == OPT_MCU_LPC43XX || CFG_TUSB_MCU == OPT_MCU_LPC18XX
+#if CFG_TUSB_MCU == OPT_MCU_LPC43XX || CFG_TUSB_MCU == OPT_MCU_LPC18XX || CFG_TUSB_MCU == OPT_MCU_MIMXRT10XX
 #define CFG_TUSB_RHPORT0_MODE    (OPT_MODE_DEVICE | OPT_MODE_HIGH_SPEED)
 #else
 #define CFG_TUSB_RHPORT0_MODE    OPT_MODE_DEVICE
@@ -75,7 +78,7 @@
 
 //------------- CLASS -------------//
 //#define CFG_TUD_CDC              0
-//#define CFG_TUD_MSC              0
+#define CFG_TUD_MSC              1
 //#define CFG_TUD_HID              0
 //#define CFG_TUD_MIDI             0
 //#define CFG_TUD_VENDOR           0

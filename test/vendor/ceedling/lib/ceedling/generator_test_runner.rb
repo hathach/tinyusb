@@ -15,7 +15,9 @@ class GeneratorTestRunner
       pre_test_file = @file_path_utils.form_preprocessed_file_filepath(test_file)
 
       #actually look for the tests using Unity's test runner generator
-      tests_and_line_numbers = @test_runner_generator.find_tests(@file_wrapper.read(pre_test_file))
+      contents = @file_wrapper.read(pre_test_file)
+      tests_and_line_numbers = @test_runner_generator.find_tests(contents)
+      @test_runner_generator.find_setup_and_teardown(contents)
 
       #look up the line numbers in the original file
       source_lines = @file_wrapper.read(test_file).split("\n")
@@ -31,7 +33,9 @@ class GeneratorTestRunner
       end
     else
       #Just look for the tests using Unity's test runner generator
-      tests_and_line_numbers   = @test_runner_generator.find_tests(@file_wrapper.read(test_file))
+      contents = @file_wrapper.read(test_file)
+      tests_and_line_numbers = @test_runner_generator.find_tests(contents)
+      @test_runner_generator.find_setup_and_teardown(contents)
     end
 
     return tests_and_line_numbers

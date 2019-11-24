@@ -14,9 +14,12 @@ class CMockHeaderParser
     @c_attr_noconst = cfg.attributes.uniq - ['const']
     @c_attributes = ['const'] + c_attr_noconst
     @c_calling_conventions = cfg.c_calling_conventions.uniq
+    @treat_as_array = cfg.treat_as_array
     @treat_as_void = (['void'] + cfg.treat_as_void).uniq
-    @declaration_parse_matcher = /([\d\w\s\*\(\),\[\]]+??)\(([\d\w\s\*\(\),\.\[\]+-]*)\)$/m
+    @declaration_parse_matcher = /([\w\s\*\(\),\[\]]+??)\(([\w\s\*\(\),\.\[\]+-]*)\)$/m
     @standards = (['int','short','char','long','unsigned','signed'] + cfg.treat_as.keys).uniq
+    @array_size_name = cfg.array_size_name
+    @array_size_type = (['int', 'size_t'] + cfg.array_size_type).uniq
     @when_no_prototypes = cfg.when_no_prototypes
     @local_as_void = @treat_as_void
     @verbosity = cfg.verbosity
@@ -54,7 +57,7 @@ class CMockHeaderParser
     # void must be void for cmock _ExpectAndReturn calls to process properly, not some weird typedef which equates to void
     # to a certain extent, this action assumes we're chewing on pre-processed header files, otherwise we'll most likely just get stuff from @treat_as_void
     @local_as_void = @treat_as_void
-    void_types = source.scan(/typedef\s+(?:\(\s*)?void(?:\s*\))?\s+([\w\d]+)\s*;/)
+    void_types = source.scan(/typedef\s+(?:\(\s*)?void(?:\s*\))?\s+([\w]+)\s*;/)
     if void_types
       @local_as_void += void_types.flatten.uniq.compact
     end
@@ -63,9 +66,9 @@ class CMockHeaderParser
     source.gsub!(/\s*\\\s*/m, ' ')
 
     #remove comments (block and line, in three steps to ensure correct precedence)
-    source.gsub!(/\/\/(?:.+\/\*|\*(?:$|[^\/])).*$/, '')  # remove line comments that comment out the start of blocks
-    source.gsub!(/\/\*.*?\*\//m, '')                     # remove block comments
-    source.gsub!(/\/\/.*$/, '')                          # remove line comments (all that remain)
+    source.gsub!(/(?<!\*)\/\/(?:.+\/\*|\*(?:$|[^\/])).*$/, '')  # remove line comments that comment out the start of blocks
+    source.gsub!(/\/\*.*?\*\//m, '')                            # remove block comments
+    source.gsub!(/\/\/.*$/, '')                                 # remove line comments (all that remain)
 
     # remove assembler pragma sections
     source.gsub!(/^\s*#\s*pragma\s+asm\s+.*?#\s*pragma\s+endasm/m, '')
@@ -86,6 +89,9 @@ class CMockHeaderParser
     source.gsub!(/^(?:[\w\s]*\W)?typedef\W[^;]*/m, '')                                     # remove typedef statements
     source.gsub!(/\)(\w)/, ') \1')                                                         # add space between parenthese and alphanumeric
     source.gsub!(/(^|\W+)(?:#{@c_strippables.join('|')})(?=$|\W+)/,'\1') unless @c_strippables.empty? # remove known attributes slated to be stripped
+
+    #scan standalone function pointers and remove them, because they can just be ignored
+    source.gsub!(/\w+\s*\(\s*\*\s*\w+\s*\)\s*\([^)]*\)\s*;/,';')
 
     #scan for functions which return function pointers, because they are a pain
     source.gsub!(/([\w\s\*]+)\(*\(\s*\*([\w\s\*]+)\s*\(([\w\s\*,]*)\)\)\s*\(([\w\s\*,]*)\)\)*/) do |m|
@@ -184,8 +190,29 @@ class CMockHeaderParser
       arg_info = parse_type_and_name(arg)
       arg_info.delete(:modifier)             # don't care about this
       arg_info.delete(:c_calling_convention) # don't care about this
+
+      # in C, array arguments implicitly degrade to pointers
+      # make the translation explicit here to simplify later logic
+      if @treat_as_array[arg_info[:type]] and not arg_info[:ptr?] then
+        arg_info[:type] = "#{@treat_as_array[arg_info[:type]]}*"
+        arg_info[:type] = "const #{arg_info[:type]}" if arg_info[:const?]
+        arg_info[:ptr?] = true
+      end
+
       args << arg_info
     end
+
+    # Try to find array pair in parameters following this pattern : <type> * <name>, <@array_size_type> <@array_size_name>
+    args.each_with_index {|val, index|
+      next_index = index + 1
+      if (args.length > next_index)
+        if (val[:ptr?] == true and args[next_index][:name].match(@array_size_name) and @array_size_type.include?(args[next_index][:type]))
+          val[:array_data?] = true
+          args[next_index][:array_size?] = true
+        end
+      end
+    }
+
     return args
   end
 
@@ -220,7 +247,7 @@ class CMockHeaderParser
       return 'void'
     else
       c=0
-      arg_list.gsub!(/(\w+)(?:\s*\[\s*\(*[\s\d\w+-]*\)*\s*\])+/,'*\1')  # magically turn brackets into asterisks, also match for parentheses that come from macros
+      arg_list.gsub!(/(\w+)(?:\s*\[\s*\(*[\s\w+-]*\)*\s*\])+/,'*\1')  # magically turn brackets into asterisks, also match for parentheses that come from macros
       arg_list.gsub!(/\s+\*/,'*')                                       # remove space to place asterisks with type (where they belong)
       arg_list.gsub!(/\*(\w)/,'* \1')                                   # pull asterisks away from arg to place asterisks with type (where they belong)
 

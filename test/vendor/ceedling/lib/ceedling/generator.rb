@@ -19,6 +19,7 @@ class Generator
 
 
   def generate_shallow_includes_list(context, file)
+    @streaminator.stdout_puts("Generating include list for #{File.basename(file)}...", Verbosity::NORMAL)
     @preprocessinator.preprocess_shallow_includes(file)
   end
 
@@ -92,6 +93,8 @@ class Generator
                                          arg_hash[:list],
                                          arg_hash[:dependencies])
 
+    @streaminator.stdout_puts("Command: #{command}", Verbosity::DEBUG)
+
     begin
       shell_result = @tool_executor.exec( command[:line], command[:options] )
     rescue ShellExecutionException => ex
@@ -124,6 +127,7 @@ class Generator
                                          arg_hash[:map],
                                          arg_hash[:libraries]
                                        )
+    @streaminator.stdout_puts("Command: #{command}", Verbosity::DEBUG)
 
     begin
       shell_result = @tool_executor.exec( command[:line], command[:options] )
@@ -157,9 +161,12 @@ class Generator
     # Unity's exit code is equivalent to the number of failed tests, so we tell @tool_executor not to fail out if there are failures
     # so that we can run all tests and collect all results
     command = @tool_executor.build_command_line(arg_hash[:tool], [], arg_hash[:executable])
+    @streaminator.stdout_puts("Command: #{command}", Verbosity::DEBUG)
     command[:options][:boom] = false
     shell_result = @tool_executor.exec( command[:line], command[:options] )
-    shell_result[:exit_code] = 0 #Don't Let The Failure Count Make Us Believe Things Aren't Working
+
+    #Don't Let The Failure Count Make Us Believe Things Aren't Working
+    shell_result[:exit_code] = 0
     @generator_helper.test_results_error_handler(executable, shell_result)
 
     processed = @generator_test_results.process_and_write_results( shell_result,

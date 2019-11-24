@@ -2,8 +2,12 @@
 # Common make definition for all examples
 #
 
-# Compiler 
+# Compiler
+ifeq ($(BOARD), fomu)
+CROSS_COMPILE = riscv-none-embed-
+else
 CROSS_COMPILE = arm-none-eabi-
+endif
 CC = $(CROSS_COMPILE)gcc
 CXX = $(CROSS_COMPILE)g++
 OBJCOPY = $(CROSS_COMPILE)objcopy
@@ -81,11 +85,7 @@ CFLAGS += \
 ifeq ($(DEBUG), 1)
   CFLAGS += -Og -ggdb
 else
-  ifneq ($(BOARD),spresense)
-    CFLAGS += -flto -Os
-  else
-    CFLAGS += -Os
-  endif
+	CFLAGS += -Os
 endif
 
 # TUSB Logging option

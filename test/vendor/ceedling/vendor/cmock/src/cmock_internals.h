@@ -7,6 +7,8 @@
 #ifndef CMOCK_FRAMEWORK_INTERNALS_H
 #define CMOCK_FRAMEWORK_INTERNALS_H
 
+#include "unity.h"
+
 //These are constants that the generated mocks have access to
 extern const char* CMockStringOutOfMemory;
 extern const char* CMockStringCalledMore;

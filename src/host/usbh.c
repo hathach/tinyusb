@@ -95,7 +95,7 @@ static host_class_driver_t const usbh_class_drivers[] =
   #endif
 };
 
-enum { USBH_CLASS_DRIVER_COUNT = TU_ARRAY_SZIE(usbh_class_drivers) };
+enum { USBH_CLASS_DRIVER_COUNT = TU_ARRAY_SIZE(usbh_class_drivers) };
 
 //--------------------------------------------------------------------+
 // INTERNAL OBJECT & FUNCTION DECLARATION

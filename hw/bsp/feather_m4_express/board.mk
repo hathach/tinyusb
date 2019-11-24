@@ -1,11 +1,12 @@
 CFLAGS += \
-  -D__SAMD51J19A__ \
+  -flto \
   -mthumb \
   -mabi=aapcs-linux \
   -mcpu=cortex-m4 \
   -mfloat-abi=hard \
   -mfpu=fpv4-sp-d16 \
   -nostdlib -nostartfiles \
+  -D__SAMD51J19A__ \
   -DCFG_TUSB_MCU=OPT_MCU_SAMD51
 
 CFLAGS += -Wno-error=undef

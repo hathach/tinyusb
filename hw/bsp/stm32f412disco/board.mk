@@ -1,12 +1,13 @@
 CFLAGS += \
-  -DHSE_VALUE=8000000 \
-  -DSTM32F412Zx \
+  -flto \
   -mthumb \
   -mabi=aapcs \
   -mcpu=cortex-m4 \
   -mfloat-abi=hard \
   -mfpu=fpv4-sp-d16 \
   -nostdlib -nostartfiles \
+  -DSTM32F412Zx \
+  -DHSE_VALUE=8000000 \
   -DCFG_TUSB_MCU=OPT_MCU_STM32F4
 
 # mcu driver cause following warnings

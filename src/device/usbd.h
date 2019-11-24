@@ -47,6 +47,9 @@ bool tud_init (void);
 // Task function should be called in main/rtos loop
 void tud_task (void);
 
+// Interrupt handler, name alias to DCD
+#define tud_isr   dcd_isr
+
 // Check if device is connected and configured
 bool tud_mounted(void);
 

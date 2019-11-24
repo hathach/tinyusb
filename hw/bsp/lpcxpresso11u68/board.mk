@@ -1,4 +1,5 @@
 CFLAGS += \
+  -flto \
   -mthumb \
   -mabi=aapcs \
   -mcpu=cortex-m0plus \
@@ -10,7 +11,7 @@ CFLAGS += \
   -DCFG_TUSB_MEM_SECTION='__attribute__((section(".data.$$RAM3")))' \
   -DCFG_TUSB_MEM_ALIGN='__attribute__((aligned(64)))' 
 
-MCU_DIR = hw/mcu/nxp/lpc_driver/lpc11u6x/lpc_chip_11u6x
+MCU_DIR = hw/mcu/nxp/lpcopen/lpc11u6x/lpc_chip_11u6x
 
 # All source paths should be relative to the top level.
 LD_FILE = hw/bsp/lpcxpresso11u68/lpc11u68.ld

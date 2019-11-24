@@ -1,10 +1,11 @@
 CFLAGS += \
-  -DCONF_DFLL_OVERWRITE_CALIBRATION=0 \
-  -D__SAMD21G18A__ \
+  -flto \
   -mthumb \
   -mabi=aapcs-linux \
   -mcpu=cortex-m0plus \
   -nostdlib -nostartfiles \
+  -D__SAMD21G18A__ \
+  -DCONF_DFLL_OVERWRITE_CALIBRATION=0 \
   -DCFG_TUSB_MCU=OPT_MCU_SAMD21
 
 # All source paths should be relative to the top level.

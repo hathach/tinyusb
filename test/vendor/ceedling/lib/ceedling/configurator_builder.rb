@@ -274,10 +274,17 @@ class ConfiguratorBuilder
 
     return {:collection_all_assembly => all_assembly} if ((not in_hash[:release_build_use_assembly]) && (not in_hash[:test_build_use_assembly]))
 
+    # Sprinkle in all assembly files we can find in the source folders
     in_hash[:collection_paths_source].each do |path|
       all_assembly.include( File.join(path, "*#{in_hash[:extension_assembly]}") )
     end
 
+    # Also add all assembly files we can find in the support folders
+    in_hash[:collection_paths_support].each do |path|
+      all_assembly.include( File.join(path, "*#{in_hash[:extension_assembly]}") )
+    end
+
+    # Also add files that we are explicitly adding via :files:assembly: section
     @file_system_utils.revise_file_list( all_assembly, in_hash[:files_assembly] )
 
     return {:collection_all_assembly => all_assembly}

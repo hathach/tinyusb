@@ -73,10 +73,11 @@
 //--------------------------------------------------------------------+
 // TU_VERIFY Helper
 //--------------------------------------------------------------------+
+
 #if CFG_TUSB_DEBUG
   #include <stdio.h>
-  #define _MESS_ERR(_err)   printf("%s: %d: failed, error = %s\n", __func__, __LINE__, tusb_strerr[_err])
-  #define _MESS_FAILED()    printf("%s: %d: failed\n", __func__, __LINE__)
+  #define _MESS_ERR(_err)   printf("%s %d: failed, error = %s\n", __func__, __LINE__, tusb_strerr[_err])
+  #define _MESS_FAILED()    printf("%s %d: assert failed\n", __func__, __LINE__)
 #else
   #define _MESS_ERR(_err)
   #define _MESS_FAILED()
@@ -90,7 +91,11 @@
     if ( (*ARM_CM_DHCSR) & 1UL ) __asm("BKPT #0\n"); /* Only halt mcu if debugger is attached */            \
   } while(0)
 #else
+#if defined(__riscv)
+  #define TU_BREAKPOINT() do { __asm("ebreak\n"); } while(0)
+#else
   #define TU_BREAKPOINT()
+#endif
 #endif
 
 /*------------------------------------------------------------------*/
