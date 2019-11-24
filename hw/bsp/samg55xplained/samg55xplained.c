@@ -73,6 +73,14 @@ void board_init(void)
 
   // Enble clock
   _pmc_enable_periph_clock(ID_UDP);
+
+	/* USB Device mode & Transceiver active */
+	hri_matrix_write_CCFG_USBMR_reg(MATRIX, CCFG_USBMR_USBMODE);
+
+//	NVIC_EnableIRQ(UDP_IRQn);
+
+  // Attach
+  hri_udp_write_TXVC_reg(UDP, UDP_TXVC_PUON);
 }
 
 //--------------------------------------------------------------------+

@@ -6,7 +6,7 @@ CFLAGS += \
   -mfloat-abi=hard \
   -mfpu=fpv4-sp-d16 \
   -nostdlib -nostartfiles \
-  -DCFG_TUSB_MCU=OPT_MCU_NONE
+  -DCFG_TUSB_MCU=OPT_MCU_SAMG
 
 #CFLAGS += -Wno-error=undef
 
@@ -35,8 +35,8 @@ INC += \
 	$(TOP)/$(ASF_DIR)/CMSIS/Core/Include
 
 # For TinyUSB port source
-VENDOR = .
-CHIP_FAMILY = template
+VENDOR = microchip
+CHIP_FAMILY = samg
 
 # For freeRTOS port source
 FREERTOS_PORT = ARM_CM4F
