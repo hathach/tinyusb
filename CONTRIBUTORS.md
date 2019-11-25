@@ -3,6 +3,7 @@
 * **[Adafruit Team](https://github.com/adafruit)**
   * Main supporter and sponsor for hardware boards and kits
   * Discussion and suggestion for feature and improvement
+  * Design the project logo
 
 * **[arturo182](https://github.com/arturo182)**
   * Board support for MiMX RT1010 evaluation kit
