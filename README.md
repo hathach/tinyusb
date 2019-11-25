@@ -23,8 +23,8 @@ TinyUSB is an open-source cross-platform USB Host/Device stack for embedded syst
 
 ## Contributors
 
-Special thanks for all the people who had spent their precious time and effort to helped this project so far. 
-[CONTRIBUTORS.md](CONTRIBUTORS.md) file contains list of contributors and their awesome work.
+Special thanks for all the people who had spent their precious time and effort to helped this project so far. Check out
+[CONTRIBUTORS.md](CONTRIBUTORS.md) file for the list of all contributors and their awesome work for the stack.
 
 ## Supported MCUs
 
