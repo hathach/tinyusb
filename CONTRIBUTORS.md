@@ -1,6 +1,6 @@
 # TinyUSB contributors (sorted alphabetically)
 
-* **[Arturo182](https://github.com/arturo182)**
+* **[arturo182](https://github.com/arturo182)**
   * Board support for MiMX RT1010 evaluation kit
 
 * **[Ha Thach](https://github.com/hathach)**
