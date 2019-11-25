@@ -66,7 +66,7 @@ void board_init(void)
   SysTick_Config(CONF_CPU_FREQUENCY / 1000);
 #endif
 
-  // USB
+  // USB Pin, Clock init
 
   /* Clear SYSIO 10 & 11 for USB DM & DP */
   hri_matrix_clear_CCFG_SYSIO_reg(MATRIX, CCFG_SYSIO_SYSIO10 | CCFG_SYSIO_SYSIO11);
@@ -76,8 +76,6 @@ void board_init(void)
 
 	/* USB Device mode & Transceiver active */
 	hri_matrix_write_CCFG_USBMR_reg(MATRIX, CCFG_USBMR_USBMODE);
-
-//	NVIC_EnableIRQ(UDP_IRQn);
 
   // Attach
   hri_udp_write_TXVC_reg(UDP, UDP_TXVC_PUON);

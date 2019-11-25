@@ -29,6 +29,7 @@
 #if CFG_TUSB_MCU == OPT_MCU_SAMG
 
 #include "device/dcd.h"
+#include "sam.h"
 
 //--------------------------------------------------------------------+
 // MACRO TYPEDEF CONSTANT ENUM DECLARATION
@@ -49,12 +50,14 @@ void dcd_init (uint8_t rhport)
 void dcd_int_enable (uint8_t rhport)
 {
   (void) rhport;
+  NVIC_EnableIRQ(UDP_IRQn);
 }
 
 // Disable device interrupt
 void dcd_int_disable (uint8_t rhport)
 {
   (void) rhport;
+  NVIC_DisableIRQ(UDP_IRQn);
 }
 
 // Receive Set Address request, mcu port must also include status IN response
