@@ -21,6 +21,11 @@ TinyUSB is an open-source cross-platform USB Host/Device stack for embedded syst
 └── tools           # Files used internally
 ```
 
+## Contributors
+
+Special thanks for all the people who had spent their precious time and effort to helped this project so far. Check out
+[CONTRIBUTORS.md](CONTRIBUTORS.md) file for the list of all contributors and their awesome work for the stack.
+
 ## Supported MCUs
 
 The stack supports the following MCUs
@@ -32,7 +37,7 @@ The stack supports the following MCUs
   - iMX RT Series: RT1011, RT1015, RT1021, RT1052, RT1062, RT1064
 - **Sony:** CXD56
 - **ST:** STM32 series: L0, F0, F1, F2, F3, F4, F7, H7 (device only)
-- **[valentyusb](https://github.com/im-tomu/valentyusb)** eptri
+- **[ValentyUSB](https://github.com/im-tomu/valentyusb)** eptri
 
 [Here is the list of supported Boards](docs/boards.md) that can be used with provided examples.
 
