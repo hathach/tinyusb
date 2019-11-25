@@ -15,9 +15,8 @@
 
 * **[Nathan Conrad](https://github.com/pigrew)**
   * STM32 fsdev Fullspeed device driver port for STM32 L0, F0, F1, F3 etc ...
-  * USB device class driver support
   * USBTMC class driver support with example
-  * Improvement to Zero-length packet for control transfer
+  * Various improvement e.g Zero-length packet, Lint setup 
   * Board support for STM32F070RB Nucleo, STM32F303 Discovery
   
 * **[Scott Shawcroft](https://github.com/tannewt)**
