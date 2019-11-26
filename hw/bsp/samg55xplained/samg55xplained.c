@@ -26,6 +26,7 @@
 #include "sam.h"
 #include "peripheral_clk_config.h"
 #include "hal/include/hal_init.h"
+#include "hal/include/hpl_usart_sync.h"
 #include "hpl/pmc/hpl_pmc.h"
 #include "hal/include/hal_gpio.h"
 
@@ -39,6 +40,15 @@
 
 #define BUTTON_PIN            GPIO(GPIO_PORTA, 2)
 #define BUTTON_STATE_ACTIVE   0
+
+
+#define UART_TX_PIN           GPIO(GPIO_PORTA, 28)
+#define UART_RX_PIN           GPIO(GPIO_PORTA, 27)
+
+//struct usart_async_descriptor _edbg_com;
+//static uint8_t _edbg_com_buf[64];
+
+struct _usart_sync_device _edbg_com;
 
 
 //------------- IMPLEMENTATION -------------//
@@ -60,6 +70,17 @@ void board_init(void)
 	gpio_set_pin_direction(BUTTON_PIN, GPIO_DIRECTION_IN);
 	gpio_set_pin_pull_mode(BUTTON_PIN, GPIO_PULL_UP);
 	gpio_set_pin_function(BUTTON_PIN, GPIO_PIN_FUNCTION_OFF);
+
+	// Uart via EDBG Com
+	_pmc_enable_periph_clock(ID_FLEXCOM7);
+	gpio_set_pin_function(UART_RX_PIN, MUX_PA27B_FLEXCOM7_RXD);
+	gpio_set_pin_function(UART_TX_PIN, MUX_PA28B_FLEXCOM7_TXD);
+//	_usart_sync_init(&_edbg_com, FLEXCOM7, _edbg_com_buf, sizeof(_edbg_com_buf), _usart_get_usart_async());
+	_usart_sync_init(&_edbg_com, FLEXCOM7);
+	_usart_sync_set_baud_rate(&_edbg_com, CFG_BOARD_UART_BAUDRATE);
+	_usart_sync_set_mode(&_edbg_com, USART_MODE_ASYNCHRONOUS);
+	_usart_sync_enable(&_edbg_com);
+
 
 #if CFG_TUSB_OS  == OPT_OS_NONE
   // 1ms tick timer (samd SystemCoreClock may not correct)
@@ -100,8 +121,13 @@ int board_uart_read(uint8_t* buf, int len)
 
 int board_uart_write(void const * buf, int len)
 {
-  (void) buf; (void) len;
-  return 0;
+  uint8_t const * buf8 = (uint8_t const *) buf;
+  for(int i=0; i<len; i++)
+  {
+    while ( !_usart_sync_is_ready_to_send(&_edbg_com) ) {}
+    _usart_sync_write_byte(&_edbg_com, buf8[i]);
+  }
+  return len;
 }
 
 #if CFG_TUSB_OS  == OPT_OS_NONE

@@ -20,10 +20,12 @@ SRC_C += \
 	$(ASF_DIR)/samg55/gcc/gcc/startup_samg55j19.c \
 	$(ASF_DIR)/samg55/gcc/system_samg55j19.c \
 	$(ASF_DIR)/hpl/core/hpl_init.c \
+	$(ASF_DIR)/hpl/usart/hpl_usart.c \
 	$(ASF_DIR)/hpl/pmc/hpl_pmc.c \
 	$(ASF_DIR)/hal/src/hal_atomic.c
 
 INC += \
+  $(TOP)/hw/bsp/$(BOARD) \
 	$(TOP)/$(ASF_DIR) \
 	$(TOP)/$(ASF_DIR)/config \
 	$(TOP)/$(ASF_DIR)/samg55/include \
