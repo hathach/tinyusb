@@ -1,11 +1,12 @@
 CFLAGS += \
-  -D__SAMG55J19__ \
+  -flto \
   -mthumb \
   -mabi=aapcs \
   -mcpu=cortex-m4 \
   -mfloat-abi=hard \
   -mfpu=fpv4-sp-d16 \
   -nostdlib -nostartfiles \
+  -D__SAMG55J19__ \
   -DCFG_TUSB_MCU=OPT_MCU_SAMG
 
 #CFLAGS += -Wno-error=undef
@@ -13,7 +14,7 @@ CFLAGS += \
 ASF_DIR = hw/mcu/microchip/samg55
 
 # All source paths should be relative to the top level.
-LD_FILE = $(ASF_DIR)/samg55/gcc/gcc/samg55j19_flash.ld
+LD_FILE = hw/bsp/$(BOARD)/samg55j19_flash.ld
 
 SRC_C += \
 	$(ASF_DIR)/samg55/gcc/gcc/startup_samg55j19.c \

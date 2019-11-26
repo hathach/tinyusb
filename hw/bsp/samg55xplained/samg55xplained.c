@@ -71,14 +71,11 @@ void board_init(void)
   /* Clear SYSIO 10 & 11 for USB DM & DP */
   hri_matrix_clear_CCFG_SYSIO_reg(MATRIX, CCFG_SYSIO_SYSIO10 | CCFG_SYSIO_SYSIO11);
 
-  // Enble clock
+  // Enable clock
   _pmc_enable_periph_clock(ID_UDP);
 
 	/* USB Device mode & Transceiver active */
 	hri_matrix_write_CCFG_USBMR_reg(MATRIX, CCFG_USBMR_USBMODE);
-
-  // Attach
-  hri_udp_write_TXVC_reg(UDP, UDP_TXVC_PUON);
 }
 
 //--------------------------------------------------------------------+
