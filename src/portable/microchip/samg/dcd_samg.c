@@ -43,7 +43,14 @@
 // Set up endpoint 0, clear all other endpoints
 static void bus_reset(void)
 {
+  // Enable EP0 control
+  UDP->UDP_CSR[0] = UDP_CSR_EPEDS_Msk;
 
+  // Enable interrupt : EP0, Suspend, Resume, Wakeup
+  UDP->UDP_IER = UDP_IER_EP0INT_Msk | UDP_IER_RXSUSP_Msk | UDP_IER_RXRSM_Msk | UDP_IER_WAKEUP_Msk;
+
+  // Enable transceiver
+  UDP->UDP_TXVC &= ~UDP_TXVC_TXVDIS_Msk;
 }
 
 // Initialize controller to device mode
@@ -54,8 +61,8 @@ void dcd_init (uint8_t rhport)
 
 
 
-  // Pull-up & Transceiver enable
-  UDP->UDP_TXVC = UDP_TXVC_PUON;
+  // Enable pull-up, disable transceiver
+  UDP->UDP_TXVC = UDP_TXVC_PUON | UDP_TXVC_TXVDIS_Msk;
 }
 
 // Enable device interrupt
@@ -140,10 +147,44 @@ void dcd_isr(uint8_t rhport)
   UDP->UDP_ICR = intr_status;
 
   // Bus reset
-  if (intr_status & UDP_ISR_ENDBUSRES)
+  if (intr_status & UDP_ISR_ENDBUSRES_Msk)
   {
     bus_reset();
     dcd_event_bus_signal(rhport, DCD_EVENT_BUS_RESET, true);
+  }
+
+  // SOF
+  if (intr_status & UDP_ISR_SOFINT_Msk) dcd_event_bus_signal(rhport, DCD_EVENT_SOF, true);
+
+  // Suspend
+  if (intr_status & UDP_ISR_RXSUSP_Msk) dcd_event_bus_signal(rhport, DCD_EVENT_SUSPEND, true);
+
+  // Resume
+  if (intr_status & UDP_ISR_RXRSM_Msk)  dcd_event_bus_signal(rhport, DCD_EVENT_RESUME, true);
+
+  // Wakeup
+//  if (intr_status & UDP_ISR_WAKEUP_Msk)  dcd_event_bus_signal(rhport, DCD_EVENT_RESUME, true);
+
+  //------------- Endpoints -------------//
+
+  if ( intr_status & TU_BIT(0) )
+  {
+    // setup packet
+    if (UDP->UDP_CSR[0] & UDP_CSR_RXSETUP)
+    {
+      // get setup from FIFO
+      uint8_t setup[8];
+      for(uint8_t i=0; i<sizeof(setup); i++)
+      {
+        setup[i] = (uint8_t) UDP->UDP_FDR[0];
+      }
+
+      // clear setup bit
+      UDP->UDP_CSR[0] &= ~UDP_CSR_RXSETUP_Msk;
+
+      // notify usbd
+      dcd_event_setup_received(rhport, setup, true);
+    }
   }
 }
 
