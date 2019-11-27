@@ -41,10 +41,10 @@
  *------------------------------------------------------------------*/
 
 // Set up endpoint 0, clear all other endpoints
-//static void bus_reset(void)
-//{
-//
-//}
+static void bus_reset(void)
+{
+
+}
 
 // Initialize controller to device mode
 void dcd_init (uint8_t rhport)
@@ -133,9 +133,18 @@ void dcd_edpt_clear_stall (uint8_t rhport, uint8_t ep_addr)
 //--------------------------------------------------------------------+
 void dcd_isr(uint8_t rhport)
 {
-  (void) rhport;
+  uint32_t const intr_mask   = UDP->UDP_IMR;
+  uint32_t const intr_status = UDP->UDP_ISR & intr_mask;
 
+  // clear interrupt
+  UDP->UDP_ICR = intr_status;
 
+  // Bus reset
+  if (intr_status & UDP_ISR_ENDBUSRES)
+  {
+    bus_reset();
+    dcd_event_bus_signal(rhport, DCD_EVENT_BUS_RESET, true);
+  }
 }
 
 #endif

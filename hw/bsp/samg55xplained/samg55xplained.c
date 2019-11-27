@@ -45,11 +45,7 @@
 #define UART_TX_PIN           GPIO(GPIO_PORTA, 28)
 #define UART_RX_PIN           GPIO(GPIO_PORTA, 27)
 
-//struct usart_async_descriptor _edbg_com;
-//static uint8_t _edbg_com_buf[64];
-
 struct _usart_sync_device _edbg_com;
-
 
 //------------- IMPLEMENTATION -------------//
 void board_init(void)
@@ -80,7 +76,6 @@ void board_init(void)
 	_usart_sync_set_baud_rate(&_edbg_com, CFG_BOARD_UART_BAUDRATE);
 	_usart_sync_set_mode(&_edbg_com, USART_MODE_ASYNCHRONOUS);
 	_usart_sync_enable(&_edbg_com);
-
 
 #if CFG_TUSB_OS  == OPT_OS_NONE
   // 1ms tick timer (samd SystemCoreClock may not correct)
