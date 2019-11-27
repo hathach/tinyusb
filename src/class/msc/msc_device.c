@@ -149,7 +149,8 @@ bool mscd_open(uint8_t rhport, tusb_desc_interface_t const * itf_desc, uint16_t 
 // return false to stall control endpoint (e.g unsupported request)
 bool mscd_control_request(uint8_t rhport, tusb_control_request_t const * p_request)
 {
-  TU_ASSERT(p_request->bmRequestType_bit.type == TUSB_REQ_TYPE_CLASS);
+  // Handle class request only
+  TU_VERIFY(p_request->bmRequestType_bit.type == TUSB_REQ_TYPE_CLASS);
 
   switch ( p_request->bRequest )
   {
