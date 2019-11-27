@@ -139,9 +139,9 @@ static inline uint8_t tu_log2(uint32_t value)
 }
 
 // Bit
-static inline uint32_t tu_bit_set  (uint32_t value, uint8_t n) { return value | TU_BIT(n); }
-static inline uint32_t tu_bit_clear(uint32_t value, uint8_t n) { return value & (~TU_BIT(n)); }
-static inline bool     tu_bit_test (uint32_t value, uint8_t n) { return (value & TU_BIT(n)) ? true : false; }
+static inline uint32_t tu_bit_set  (uint32_t value, uint8_t pos) { return value | TU_BIT(pos);                  }
+static inline uint32_t tu_bit_clear(uint32_t value, uint8_t pos) { return value & (~TU_BIT(pos));               }
+static inline bool     tu_bit_test (uint32_t value, uint8_t pos) { return (value & TU_BIT(pos)) ? true : false; }
 
 /*------------------------------------------------------------------*/
 /* Count number of arguments of __VA_ARGS__

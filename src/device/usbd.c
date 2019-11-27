@@ -830,19 +830,15 @@ void dcd_event_handler(dcd_event_t const * event, bool in_isr)
 {
   switch (event->event_id)
   {
-    case DCD_EVENT_BUS_RESET:
-      osal_queue_send(_usbd_q, event, in_isr);
-    break;
-
     case DCD_EVENT_UNPLUGGED:
-      _usbd_dev.connected = 0;
+      _usbd_dev.connected  = 0;
       _usbd_dev.configured = 0;
-      _usbd_dev.suspended = 0;
+      _usbd_dev.suspended  = 0;
       osal_queue_send(_usbd_q, event, in_isr);
     break;
 
     case DCD_EVENT_SOF:
-      // nothing to do now
+      return;   // skip SOF event for now
     break;
 
     case DCD_EVENT_SUSPEND:
@@ -857,6 +853,7 @@ void dcd_event_handler(dcd_event_t const * event, bool in_isr)
     break;
 
     case DCD_EVENT_RESUME:
+      // skip event if not connected (especially required for SAMD)
       if ( _usbd_dev.connected )
       {
         _usbd_dev.suspended = 0;
@@ -864,21 +861,9 @@ void dcd_event_handler(dcd_event_t const * event, bool in_isr)
       }
     break;
 
-    case DCD_EVENT_SETUP_RECEIVED:
+    default:
       osal_queue_send(_usbd_q, event, in_isr);
     break;
-
-    case DCD_EVENT_XFER_COMPLETE:
-      osal_queue_send(_usbd_q, event, in_isr);
-      TU_ASSERT(event->xfer_complete.result == XFER_RESULT_SUCCESS,);
-    break;
-
-    // Not an DCD event, just a convenient way to defer ISR function should we need to
-    case USBD_EVENT_FUNC_CALL:
-      osal_queue_send(_usbd_q, event, in_isr);
-    break;
-
-    default: break;
   }
 }
 

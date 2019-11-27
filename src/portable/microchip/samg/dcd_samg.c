@@ -35,6 +35,38 @@
 // MACRO TYPEDEF CONSTANT ENUM DECLARATION
 //--------------------------------------------------------------------+
 
+// Transfer descriptor
+typedef struct
+{
+  uint8_t* buffer;
+  uint16_t total_len;
+  volatile uint16_t actual_len;
+  uint16_t  epsize;
+} xfer_desc_t;
+
+// Endpoint 0-5 with OUT & IN
+xfer_desc_t _dcd_xfer[6][2];
+
+void xfer_begin(xfer_desc_t* xfer, uint8_t * buffer, uint16_t total_bytes)
+{
+  xfer->buffer     = buffer;
+  xfer->total_len  = total_bytes;
+  xfer->actual_len = 0;
+}
+
+uint16_t xfer_packet_len(xfer_desc_t* xfer)
+{
+  // also cover zero-length packet
+  return tu_min16(xfer->total_len - xfer->actual_len, xfer->epsize);
+}
+
+void xfer_packet_done(xfer_desc_t* xfer)
+{
+  uint16_t const xact_len = xfer_packet_len(xfer);
+
+  xfer->buffer += xact_len;
+  xfer->actual_len += xact_len;
+}
 
 /*------------------------------------------------------------------*/
 /* Device API
@@ -43,6 +75,10 @@
 // Set up endpoint 0, clear all other endpoints
 static void bus_reset(void)
 {
+  tu_memclr(_dcd_xfer, sizeof(_dcd_xfer));
+
+  _dcd_xfer[0][0].epsize = _dcd_xfer[0][1].epsize = CFG_TUD_ENDPOINT0_SIZE;
+
   // Enable EP0 control
   UDP->UDP_CSR[0] = UDP_CSR_EPEDS_Msk;
 
@@ -58,8 +94,7 @@ void dcd_init (uint8_t rhport)
 {
   (void) rhport;
 
-
-
+  tu_memclr(_dcd_xfer, sizeof(_dcd_xfer));
 
   // Enable pull-up, disable transceiver
   UDP->UDP_TXVC = UDP_TXVC_PUON | UDP_TXVC_TXVDIS_Msk;
@@ -115,10 +150,46 @@ bool dcd_edpt_open (uint8_t rhport, tusb_desc_endpoint_t const * ep_desc)
 bool dcd_edpt_xfer (uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t total_bytes)
 {
   (void) rhport;
-  (void) ep_addr;
-  (void) buffer;
-  (void) total_bytes;
-  return false;
+
+  uint8_t const epnum = tu_edpt_number(ep_addr);
+  uint8_t const dir   = tu_edpt_dir(ep_addr);
+
+  xfer_desc_t* xfer = &_dcd_xfer[epnum][dir];
+  xfer_begin(xfer, buffer, total_bytes);
+
+  uint16_t const xact_len = xfer_packet_len(xfer);
+
+  // control endpoint
+  if ( epnum == 0 )
+  {
+    // opposite to DIR bit --> status phase
+    // switch the DIR bit
+//    if ( dir != tu_bit_test(UDP->UDP_CSR[0], UDP_CSR_DIR_Pos) )
+//    {
+//
+//    }
+
+    if (dir == TUSB_DIR_OUT)
+    {
+      UDP->UDP_CSR[0] &= ~UDP_CSR_DIR_Msk;
+      //
+    }else
+    {
+      UDP->UDP_CSR[0] |= UDP_CSR_DIR_Msk;
+
+      // Write data to fifo
+      for(uint16_t i=0; i<xact_len; i++) UDP->UDP_FDR[0] = (uint32_t) buffer[i];
+
+      // TX ready for transfer
+      UDP->UDP_CSR[0] |= UDP_CSR_TXPKTRDY_Msk;
+    }
+
+  }else
+  {
+    return false;
+  }
+
+  return true;
 }
 
 // Stall endpoint
@@ -154,13 +225,13 @@ void dcd_isr(uint8_t rhport)
   }
 
   // SOF
-  if (intr_status & UDP_ISR_SOFINT_Msk) dcd_event_bus_signal(rhport, DCD_EVENT_SOF, true);
+//  if (intr_status & UDP_ISR_SOFINT_Msk) dcd_event_bus_signal(rhport, DCD_EVENT_SOF, true);
 
   // Suspend
-  if (intr_status & UDP_ISR_RXSUSP_Msk) dcd_event_bus_signal(rhport, DCD_EVENT_SUSPEND, true);
+//  if (intr_status & UDP_ISR_RXSUSP_Msk) dcd_event_bus_signal(rhport, DCD_EVENT_SUSPEND, true);
 
   // Resume
-  if (intr_status & UDP_ISR_RXRSM_Msk)  dcd_event_bus_signal(rhport, DCD_EVENT_RESUME, true);
+//  if (intr_status & UDP_ISR_RXRSM_Msk)  dcd_event_bus_signal(rhport, DCD_EVENT_RESUME, true);
 
   // Wakeup
 //  if (intr_status & UDP_ISR_WAKEUP_Msk)  dcd_event_bus_signal(rhport, DCD_EVENT_RESUME, true);
@@ -179,11 +250,40 @@ void dcd_isr(uint8_t rhport)
         setup[i] = (uint8_t) UDP->UDP_FDR[0];
       }
 
-      // clear setup bit
-      UDP->UDP_CSR[0] &= ~UDP_CSR_RXSETUP_Msk;
+      // Set EP0 Dir bit & Clear setup bit
+//      uint32_t csr = UDP->UDP_CSR[0];
+//      csr &= ~(UDP_CSR_RXSETUP_Msk | UDP_CSR_DIR_Msk);
+//      if ( setup[0] & TUSB_DIR_IN_MASK ) csr |= UDP_CSR_DIR_Msk;
+//
+//      UDP->UDP_CSR[0] = csr;
 
       // notify usbd
       dcd_event_setup_received(rhport, setup, true);
+
+      // Clear Setup bit
+      UDP->UDP_CSR[0] &= ~UDP_CSR_RXSETUP_Msk;
+    }
+  }
+
+  for(uint8_t epnum = 0; epnum < 6; epnum++)
+  {
+    // Endpoint IN
+    if (UDP->UDP_CSR[epnum] & UDP_CSR_TXCOMP_Msk)
+    {
+      xfer_desc_t* xfer = &_dcd_xfer[epnum][1];
+      uint16_t xact_len = xfer_packet_len(xfer);
+      xfer_packet_done(xfer);
+
+      dcd_event_xfer_complete(rhport, epnum | TUSB_DIR_IN_MASK, xact_len, XFER_RESULT_SUCCESS, true);
+
+      // Clear TX Complete bit
+      UDP->UDP_CSR[0] &= ~UDP_CSR_TXCOMP_Msk;
+    }
+
+    // Endpoint OUT
+    if (UDP->UDP_CSR[epnum] & UDP_CSR_RX_DATA_BK0_Msk)
+    {
+      dcd_event_bus_signal(rhport, DCD_EVENT_INVALID, true);
     }
   }
 }
