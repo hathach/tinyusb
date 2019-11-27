@@ -130,7 +130,9 @@ void usbd_control_set_complete_callback( bool (*fp) (uint8_t, tusb_control_reque
   _ctrl_xfer.complete_cb = fp;
 }
 
-// callback when a transaction complete on DATA stage of control endpoint
+// callback when a transaction complete on
+// - DATA stage of control endpoint or
+// - Status stage
 bool usbd_control_xfer_cb (uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint32_t xferred_bytes)
 {
   (void) result;
