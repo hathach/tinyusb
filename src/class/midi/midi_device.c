@@ -322,10 +322,9 @@ bool midid_control_complete(uint8_t rhport, tusb_control_request_t const * p_req
 bool midid_control_request(uint8_t rhport, tusb_control_request_t const * p_request)
 {
   (void) rhport;
+  (void) p_request;
 
-  //------------- Class Specific Request -------------//
-  if (p_request->bmRequestType_bit.type != TUSB_REQ_TYPE_CLASS) return false;
-
+  // driver doesn't support any request yet
   return false;
 }
 
