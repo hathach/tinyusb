@@ -28,8 +28,8 @@
 
 #if CFG_TUSB_MCU == OPT_MCU_SAMG
 
-#include "device/dcd.h"
 #include "sam.h"
+#include "device/dcd.h"
 
 //--------------------------------------------------------------------+
 // MACRO TYPEDEF CONSTANT ENUM DECLARATION
@@ -40,10 +40,22 @@
 /* Device API
  *------------------------------------------------------------------*/
 
+// Set up endpoint 0, clear all other endpoints
+//static void bus_reset(void)
+//{
+//
+//}
+
 // Initialize controller to device mode
 void dcd_init (uint8_t rhport)
 {
   (void) rhport;
+
+
+
+
+  // Pull-up & Transceiver enable
+  UDP->UDP_TXVC = UDP_TXVC_PUON;
 }
 
 // Enable device interrupt
@@ -114,6 +126,16 @@ void dcd_edpt_clear_stall (uint8_t rhport, uint8_t ep_addr)
 {
   (void) rhport;
   (void) ep_addr;
+}
+
+//--------------------------------------------------------------------+
+// ISR
+//--------------------------------------------------------------------+
+void dcd_isr(uint8_t rhport)
+{
+  (void) rhport;
+
+
 }
 
 #endif

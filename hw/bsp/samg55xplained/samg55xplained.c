@@ -75,7 +75,7 @@ void board_init(void)
 	_pmc_enable_periph_clock(ID_FLEXCOM7);
 	gpio_set_pin_function(UART_RX_PIN, MUX_PA27B_FLEXCOM7_RXD);
 	gpio_set_pin_function(UART_TX_PIN, MUX_PA28B_FLEXCOM7_TXD);
-//	_usart_sync_init(&_edbg_com, FLEXCOM7, _edbg_com_buf, sizeof(_edbg_com_buf), _usart_get_usart_async());
+
 	_usart_sync_init(&_edbg_com, FLEXCOM7);
 	_usart_sync_set_baud_rate(&_edbg_com, CFG_BOARD_UART_BAUDRATE);
 	_usart_sync_set_mode(&_edbg_com, USART_MODE_ASYNCHRONOUS);
@@ -97,6 +97,16 @@ void board_init(void)
 
 	/* USB Device mode & Transceiver active */
 	hri_matrix_write_CCFG_USBMR_reg(MATRIX, CCFG_USBMR_USBMODE);
+}
+
+//--------------------------------------------------------------------+
+// USB Interrupt Handler
+//--------------------------------------------------------------------+
+void UDP_Handler(void)
+{
+  #if CFG_TUSB_RHPORT0_MODE & OPT_MODE_DEVICE
+    tud_isr(0);
+  #endif
 }
 
 //--------------------------------------------------------------------+
