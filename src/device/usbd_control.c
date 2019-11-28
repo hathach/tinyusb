@@ -119,9 +119,8 @@ bool tud_control_xfer(uint8_t rhport, tusb_control_request_t const * request, vo
 // USBD API
 //--------------------------------------------------------------------+
 
-void usbd_control_reset (uint8_t rhport)
+void usbd_control_reset(void)
 {
-  (void) rhport;
   tu_varclr(&_ctrl_xfer);
 }
 
@@ -129,6 +128,15 @@ void usbd_control_reset (uint8_t rhport)
 void usbd_control_set_complete_callback( bool (*fp) (uint8_t, tusb_control_request_t const * ) )
 {
   _ctrl_xfer.complete_cb = fp;
+}
+
+// useful for dcd_set_address where DCD is responsible for status response
+void usbd_control_set_request(tusb_control_request_t const *request)
+{
+  _ctrl_xfer.request       = (*request);
+  _ctrl_xfer.buffer        = NULL;
+  _ctrl_xfer.total_xferred = 0;
+  _ctrl_xfer.data_len      = 0;
 }
 
 // callback when a transaction complete on

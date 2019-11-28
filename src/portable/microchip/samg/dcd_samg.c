@@ -120,7 +120,10 @@ void dcd_set_address (uint8_t rhport, uint8_t dev_addr)
   (void) rhport;
   (void) dev_addr;
 
-  // SAMG can only set address after status for this request is complete
+  // Response with zlp status
+  dcd_edpt_xfer(rhport, 0x80, NULL, 0);
+
+  // DCD can only set address after status for this request is complete.
   // do it at dcd_edpt0_status_complete()
 }
 

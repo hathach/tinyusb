@@ -172,7 +172,6 @@ static inline xfer_ctl_t* xfer_ctl_ptr(uint32_t epnum, uint32_t dir)
 
 static TU_ATTR_ALIGNED(4) uint32_t _setup_packet[6];
 
-static uint8_t newDADDR; // Used to set the new device address during the CTR IRQ handler
 static uint8_t remoteWakeCountdown; // When wake is requested
 
 // EP Buffers assigned from end of memory location, to minimize their chance of crashing
@@ -297,14 +296,11 @@ void dcd_set_address(uint8_t rhport, uint8_t dev_addr)
 {
   (void)rhport;
 
-  // FIXME use dcd_edpt0_status_complete()
-  // We cannot immediatly change it; it must be queued to change after the STATUS packet is sent.
-  // (CTR handler will actually change the address once it sees that the transmission is complete)
-  newDADDR = dev_addr;
-
   // Respond with status
   dcd_edpt_xfer(rhport, tu_edpt_addr(0, TUSB_DIR_IN), NULL, 0);
 
+  // DCD can only set address after status for this request is complete.
+  // do it at dcd_edpt0_status_complete()
 }
 
 // Receive Set Config request
@@ -361,7 +357,7 @@ static void dcd_handle_bus_reset(void)
   ep_buf_ptr = DCD_STM32_BTABLE_BASE + 8*MAX_EP_COUNT; // 8 bytes per endpoint (two TX and two RX words, each)
   dcd_edpt_open (0, &ep0OUT_desc);
   dcd_edpt_open (0, &ep0IN_desc);
-  newDADDR = 0u;
+
   USB->DADDR = USB_DADDR_EF; // Set enable flag, and leaving the device address as zero.
 }
 
@@ -397,13 +393,7 @@ static uint16_t dcd_ep_ctr_handler(void)
         if((xfer->total_len == xfer->queued_len))
         {
           dcd_event_xfer_complete(0u, (uint8_t)(0x80 + EPindex), xfer->total_len, XFER_RESULT_SUCCESS, true);
-          if((newDADDR != 0) && ( xfer->total_len == 0U))
-          {
-            // Delayed setting of the DADDR after the 0-len DATA packet acking the request is sent.
-            reg16_clear_bits(&USB->DADDR, USB_DADDR_ADD);
-            USB->DADDR = (uint16_t)(USB->DADDR | newDADDR); // leave the enable bit set
-            newDADDR = 0;
-          }
+
           if(xfer->total_len == 0) // Probably a status message?
           {
             pcd_clear_rx_dtog(USB,EPindex);
@@ -600,6 +590,22 @@ static void dcd_fs_irqHandler(void) {
 //--------------------------------------------------------------------+
 // Endpoint API
 //--------------------------------------------------------------------+
+
+// Invoked when a control transfer's status stage is complete.
+// May help DCD to prepare for next control transfer, this API is optional.
+void dcd_edpt0_status_complete(uint8_t rhport, tusb_control_request_t const * request)
+{
+  (void) rhport;
+
+  if (request->bRequest == TUSB_REQ_SET_ADDRESS)
+  {
+    uint8_t const dev_addr = (uint8_t) request->wValue;
+
+    // Setting new address after the whole request is complete
+    reg16_clear_bits(&USB->DADDR, USB_DADDR_ADD);
+    USB->DADDR = (uint16_t)(USB->DADDR | dev_addr); // leave the enable bit set
+  }
+}
 
 // The STM32F0 doesn't seem to like |= or &= to manipulate the EP#R registers,
 // so I'm using the #define from HAL here, instead.

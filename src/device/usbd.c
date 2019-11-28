@@ -202,9 +202,10 @@ static bool process_control_request(uint8_t rhport, tusb_control_request_t const
 static bool process_set_config(uint8_t rhport, uint8_t cfg_num);
 static bool process_get_descriptor(uint8_t rhport, tusb_control_request_t const * p_request);
 
-void usbd_control_reset (uint8_t rhport);
-bool usbd_control_xfer_cb (uint8_t rhport, uint8_t ep_addr, xfer_result_t event, uint32_t xferred_bytes);
+void usbd_control_reset(void);
+void usbd_control_set_request(tusb_control_request_t const *request);
 void usbd_control_set_complete_callback( bool (*fp) (uint8_t, tusb_control_request_t const * ) );
+bool usbd_control_xfer_cb (uint8_t rhport, uint8_t ep_addr, xfer_result_t event, uint32_t xferred_bytes);
 
 
 //--------------------------------------------------------------------+
@@ -321,7 +322,7 @@ static void usbd_reset(uint8_t rhport)
   memset(_usbd_dev.itf2drv, DRVID_INVALID, sizeof(_usbd_dev.itf2drv)); // invalid mapping
   memset(_usbd_dev.ep2drv , DRVID_INVALID, sizeof(_usbd_dev.ep2drv )); // invalid mapping
 
-  usbd_control_reset(rhport);
+  usbd_control_reset();
 
   for (uint8_t i = 0; i < USBD_CLASS_DRIVER_COUNT; i++)
   {
@@ -376,7 +377,7 @@ void tud_task (void)
 
       case DCD_EVENT_SETUP_RECEIVED:
         TU_LOG2("  ");
-        TU_LOG1_MEM(&event.setup_received, 1, 8);
+        TU_LOG2_MEM(&event.setup_received, 1, 8);
 
         // Mark as connected after receiving 1st setup packet.
         // But it is easier to set it every time instead of wasting time to check then set
@@ -385,7 +386,7 @@ void tud_task (void)
         // Process control request
         if ( !process_control_request(event.rhport, &event.setup_received) )
         {
-          TU_LOG1("  Stall EP0\r\n");
+          TU_LOG2("  Stall EP0\r\n");
           // Failed -> stall both control endpoint IN and OUT
           dcd_edpt_stall(event.rhport, 0);
           dcd_edpt_stall(event.rhport, 0 | TUSB_DIR_IN_MASK);
@@ -499,16 +500,12 @@ static bool process_control_request(uint8_t rhport, tusb_control_request_t const
       switch ( p_request->bRequest )
       {
         case TUSB_REQ_SET_ADDRESS:
-          // Depending on mcu, status phase could be sent either before or after changing device address
-          // Therefore DCD must include zero-length status response
+          // Depending on mcu, status phase could be sent either before or after changing device address,
+          // or even require stack to not response with status at all
+          // Therefore DCD must take full responsibility to response and include zlp status packet if needed.
+          usbd_control_set_request(p_request); // set request since DCD has no access to tud_control_status() API
           dcd_set_address(rhport, (uint8_t) p_request->wValue);
-
-// FIXME remove STATUS response from dcd_set_address(),
-#if CFG_TUSB_MCU == OPT_MCU_SAMG // skip status for nrf5x mcu
-          tud_control_status(rhport, p_request);
-#else
-          return true; // skip status
-#endif
+          // skip tud_control_status()
         break;
 
         case TUSB_REQ_GET_CONFIGURATION:
