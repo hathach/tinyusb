@@ -215,7 +215,12 @@ bool dcd_edpt_xfer (uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t 
 void dcd_edpt_stall (uint8_t rhport, uint8_t ep_addr)
 {
   (void) rhport;
-  (void) ep_addr;
+
+  uint8_t const epnum = tu_edpt_number(ep_addr);
+//  uint8_t const dir   = tu_edpt_dir(ep_addr);
+
+  // Set force stall bit
+  UDP->UDP_CSR[epnum] |= UDP_CSR_FORCESTALL_Msk;
 }
 
 // clear stall, data toggle is also reset to DATA0
@@ -301,6 +306,12 @@ void dcd_isr(uint8_t rhport)
 
       // Clear DATA Bank0 bit
       UDP->UDP_CSR[0] &= ~UDP_CSR_RX_DATA_BK0_Msk;
+    }
+
+    // Stall sent to host
+    if (UDP->UDP_CSR[epnum] & UDP_CSR_STALLSENT_Msk)
+    {
+      UDP->UDP_CSR[0] &= ~UDP_CSR_STALLSENT_Msk;
     }
   }
 }
