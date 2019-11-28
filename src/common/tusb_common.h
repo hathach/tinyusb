@@ -216,17 +216,19 @@ static inline bool     tu_bit_test (uint32_t value, uint8_t pos) { return (value
 void tu_print_mem(void const *buf, uint8_t size, uint16_t count);
 
 #ifndef tu_printf
-  #define tu_printf     printf
+  #define tu_printf         printf
 #endif
 
 // Log with debug level 1
-#define TU_LOG1         tu_printf
-#define TU_LOG1_MEM     tu_print_mem
+#define TU_LOG1               tu_printf
+#define TU_LOG1_MEM           tu_print_mem
+#define TU_LOG1_LOCATION()    tu_printf("%s: %d:\n", __PRETTY_FUNCTION__, __LINE__)
 
 // Log with debug level 2
 #if CFG_TUSB_DEBUG > 1
-  #define TU_LOG2       TU_LOG1
-  #define TU_LOG2_MEM   TU_LOG1_MEM
+  #define TU_LOG2             TU_LOG1
+  #define TU_LOG2_MEM         TU_LOG1_MEM
+  #define TU_LOG2_LOCATION()  TU_LOG1_LOCATION()
 #endif
 
 #endif // CFG_TUSB_DEBUG

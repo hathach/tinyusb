@@ -296,6 +296,8 @@ void dcd_int_disable(uint8_t rhport)
 void dcd_set_address(uint8_t rhport, uint8_t dev_addr)
 {
   (void)rhport;
+
+  // FIXME use dcd_edpt0_status_complete()
   // We cannot immediatly change it; it must be queued to change after the STATUS packet is sent.
   // (CTR handler will actually change the address once it sees that the transmission is complete)
   newDADDR = dev_addr;

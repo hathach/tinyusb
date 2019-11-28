@@ -64,6 +64,7 @@ static inline bool _status_stage_xact(uint8_t rhport, tusb_control_request_t con
   return dcd_edpt_xfer(rhport, request->bmRequestType_bit.direction ? EDPT_CTRL_OUT : EDPT_CTRL_IN, NULL, 0);
 }
 
+// Status phase
 bool tud_control_status(uint8_t rhport, tusb_control_request_t const * request)
 {
   _ctrl_xfer.request       = (*request);
@@ -141,6 +142,7 @@ bool usbd_control_xfer_cb (uint8_t rhport, uint8_t ep_addr, xfer_result_t result
   if ( tu_edpt_dir(ep_addr) != _ctrl_xfer.request.bmRequestType_bit.direction )
   {
     TU_ASSERT(0 == xferred_bytes);
+    if (dcd_edpt0_status_complete) dcd_edpt0_status_complete(rhport, &_ctrl_xfer.request);
     return true;
   }
 
