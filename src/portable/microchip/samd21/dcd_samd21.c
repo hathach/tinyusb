@@ -133,13 +133,14 @@ void dcd_remote_wakeup(uint8_t rhport)
 // May help DCD to prepare for next control transfer, this API is optional.
 void dcd_edpt0_status_complete(uint8_t rhport, tusb_control_request_t const * request)
 {
-  (void) rhport;
-
   if (request->bRequest == TUSB_REQ_SET_ADDRESS)
   {
     uint8_t const dev_addr = (uint8_t) request->wValue;
     USB->DEVICE.DADD.reg = USB_DEVICE_DADD_DADD(dev_addr) | USB_DEVICE_DADD_ADDEN;
   }
+
+  // Just finished status stage, prepare for next setup packet
+  dcd_edpt_xfer(rhport, 0x00, _setup_packet, sizeof(_setup_packet));
 }
 
 
@@ -294,12 +295,6 @@ void maybe_transfer_complete(void) {
 
       uint8_t ep_addr = epnum;
       dcd_event_xfer_complete(0, ep_addr, total_transfer_size, XFER_RESULT_SUCCESS, true);
-    }
-
-    // Just finished status stage (total size = 0), prepare for next setup packet
-    // TODO could cause issue with actual zero length data used by class such as DFU
-    if (epnum == 0 && total_transfer_size == 0) {
-      dcd_edpt_xfer(0, 0, _setup_packet, sizeof(_setup_packet));
     }
   }
 }

@@ -146,6 +146,9 @@ void dcd_edpt0_status_complete(uint8_t rhport, tusb_control_request_t const * re
     uint8_t const dev_addr = (uint8_t) request->wValue;
     USB->DEVICE.DADD.reg = USB_DEVICE_DADD_DADD(dev_addr) | USB_DEVICE_DADD_ADDEN;
   }
+
+  // Just finished status stage, prepare for next setup packet
+  dcd_edpt_xfer(rhport, 0x00, _setup_packet, sizeof(_setup_packet));
 }
 
 bool dcd_edpt_open (uint8_t rhport, tusb_desc_endpoint_t const * desc_edpt)
@@ -346,11 +349,6 @@ void transfer_complete(uint8_t direction) {
       ep_addr |= TUSB_DIR_IN_MASK;
     }
     dcd_event_xfer_complete(0, ep_addr, total_transfer_size, XFER_RESULT_SUCCESS, true);
-
-    // just finished status stage (total size = 0), prepare for next setup packet
-    if (epnum == 0 && total_transfer_size == 0) {
-      dcd_edpt_xfer(0, 0, _setup_packet, sizeof(_setup_packet));
-    }
 
     if (direction == TUSB_DIR_IN) {
       ep->EPINTFLAG.reg = USB_DEVICE_EPINTFLAG_TRCPT1;
