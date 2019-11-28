@@ -150,15 +150,12 @@ void dcd_edpt0_status_complete(uint8_t rhport, tusb_control_request_t const * re
   if (request->bRequest == TUSB_REQ_SET_ADDRESS)
   {
     uint8_t const dev_addr = (uint8_t) request->wValue;
-    TU_LOG2("dev address = %d", dev_addr);
 
     // Enable addressed state
     UDP->UDP_GLB_STAT |= UDP_GLB_STAT_FADDEN_Msk;
 
     // Set new address & Function enable bit
-    UDP->UDP_FADDR |= UDP_FADDR_FADD(dev_addr);
-
-    UDP->UDP_FADDR |= UDP_FADDR_FEN_Msk;
+    UDP->UDP_FADDR = UDP_FADDR_FEN_Msk | UDP_FADDR_FADD(dev_addr);
   }
 }
 
