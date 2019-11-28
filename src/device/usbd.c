@@ -405,7 +405,6 @@ void tud_task (void)
 
         if ( 0 == epnum )
         {
-          TU_LOG1("  EP Addr = 0x%02X, len = %ld\r\n", ep_addr, event.xfer_complete.len);
           usbd_control_xfer_cb(event.rhport, ep_addr, event.xfer_complete.result, event.xfer_complete.len);
         }
         else
@@ -503,7 +502,13 @@ static bool process_control_request(uint8_t rhport, tusb_control_request_t const
           // Depending on mcu, status phase could be sent either before or after changing device address
           // Therefore DCD must include zero-length status response
           dcd_set_address(rhport, (uint8_t) p_request->wValue);
+
+// FIXME remove STATUS response from dcd_set_address(),
+#if CFG_TUSB_MCU == OPT_MCU_SAMG // skip status for nrf5x mcu
+          tud_control_status(rhport, p_request);
+#else
           return true; // skip status
+#endif
         break;
 
         case TUSB_REQ_GET_CONFIGURATION:

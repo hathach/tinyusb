@@ -119,6 +119,9 @@ void dcd_set_address (uint8_t rhport, uint8_t dev_addr)
 {
   (void) rhport;
   (void) dev_addr;
+
+  // SAMG can only set address after status for this request is complete
+  // do it at dcd_edpt0_status_complete()
 }
 
 // Receive Set Configure request
@@ -137,6 +140,27 @@ void dcd_remote_wakeup (uint8_t rhport)
 //--------------------------------------------------------------------+
 // Endpoint API
 //--------------------------------------------------------------------+
+
+// Invoked when a control transfer's status stage is complete.
+// May help DCD to prepare for next control transfer, this API is optional.
+void dcd_edpt0_status_complete(uint8_t rhport, tusb_control_request_t const * request)
+{
+  (void) rhport;
+
+  if (request->bRequest == TUSB_REQ_SET_ADDRESS)
+  {
+    uint8_t const dev_addr = (uint8_t) request->wValue;
+    TU_LOG2("dev address = %d", dev_addr);
+
+    // Enable addressed state
+    UDP->UDP_GLB_STAT |= UDP_GLB_STAT_FADDEN_Msk;
+
+    // Set new address & Function enable bit
+    UDP->UDP_FADDR |= UDP_FADDR_FADD(dev_addr);
+
+    UDP->UDP_FADDR |= UDP_FADDR_FEN_Msk;
+  }
+}
 
 // Configure endpoint's registers according to descriptor
 bool dcd_edpt_open (uint8_t rhport, tusb_desc_endpoint_t const * ep_desc)
@@ -162,19 +186,14 @@ bool dcd_edpt_xfer (uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t 
   // control endpoint
   if ( epnum == 0 )
   {
-    // opposite to DIR bit --> status phase
-    // switch the DIR bit
-//    if ( dir != tu_bit_test(UDP->UDP_CSR[0], UDP_CSR_DIR_Pos) )
-//    {
-//
-//    }
-
     if (dir == TUSB_DIR_OUT)
     {
+      // Clear DIR bit
       UDP->UDP_CSR[0] &= ~UDP_CSR_DIR_Msk;
-      //
+
     }else
     {
+      // Set DIR bit if needed
       UDP->UDP_CSR[0] |= UDP_CSR_DIR_Msk;
 
       // Write data to fifo
@@ -250,13 +269,6 @@ void dcd_isr(uint8_t rhport)
         setup[i] = (uint8_t) UDP->UDP_FDR[0];
       }
 
-      // Set EP0 Dir bit & Clear setup bit
-//      uint32_t csr = UDP->UDP_CSR[0];
-//      csr &= ~(UDP_CSR_RXSETUP_Msk | UDP_CSR_DIR_Msk);
-//      if ( setup[0] & TUSB_DIR_IN_MASK ) csr |= UDP_CSR_DIR_Msk;
-//
-//      UDP->UDP_CSR[0] = csr;
-
       // notify usbd
       dcd_event_setup_received(rhport, setup, true);
 
@@ -283,7 +295,12 @@ void dcd_isr(uint8_t rhport)
     // Endpoint OUT
     if (UDP->UDP_CSR[epnum] & UDP_CSR_RX_DATA_BK0_Msk)
     {
-      dcd_event_bus_signal(rhport, DCD_EVENT_INVALID, true);
+      uint16_t const xact_len = (uint16_t) ((UDP->UDP_CSR[0] & UDP_CSR_RXBYTECNT_Msk) >> UDP_CSR_RXBYTECNT_Pos);
+
+      dcd_event_xfer_complete(rhport, epnum, xact_len, XFER_RESULT_SUCCESS, true);
+
+      // Clear DATA Bank0 bit
+      UDP->UDP_CSR[0] &= ~UDP_CSR_RX_DATA_BK0_Msk;
     }
   }
 }
