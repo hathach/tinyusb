@@ -226,7 +226,7 @@ static void process_rx(void) {
     test_buffer[total_read] = c;
 #endif
     total_read++;
-    if ((rx_buffer_offset[rx_ep] + current_offset) < rx_buffer_max[rx_ep]) {
+    if (current_offset < rx_buffer_max[rx_ep]) {
 #if LOG_USB
       usb_log[usb_log_offset].data[usb_log[usb_log_offset].size++] = c;
 #endif
