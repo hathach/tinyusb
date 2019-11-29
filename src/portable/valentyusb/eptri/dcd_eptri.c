@@ -42,6 +42,8 @@
 #include "irq.h"
 void fomu_error(uint32_t line);
 
+static uint8_t last_ev;
+
 #if LOG_USB
 struct usb_log {
   uint8_t ep_num;
@@ -568,7 +570,11 @@ static void handle_reset(void)
 
   // This event means a bus reset occurred.  Reset everything, and
   // abandon any further processing.
-  dcd_reset();
+
+  // The core can sometimes send us lots of resets, particularly if
+  // it's a prolonged SE0 state.  Ignore these subsequent resets.
+  if (last_ev != (1 << CSR_USB_NEXT_EV_RESET_OFFSET))
+    dcd_reset();
 }
 
 static void handle_setup(void)
@@ -632,6 +638,7 @@ void hal_dcd_isr(uint8_t rhport)
       handle_reset();
       break;
     }
+    last_ev = next_ev;
   }
 }
 
