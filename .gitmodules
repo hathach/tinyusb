@@ -1,9 +1,6 @@
 [submodule "hw/mcu/nordic/nrfx"]
 	path = hw/mcu/nordic/nrfx
 	url = https://github.com/NordicSemiconductor/nrfx.git
-[submodule "hw/mcu/microchip/samd/asf4"]
-	path = hw/mcu/microchip/samd/asf4
-	url = https://github.com/adafruit/asf4.git
 [submodule "tools/uf2"]
 	path = tools/uf2
 	url = https://github.com/microsoft/uf2.git
