@@ -70,6 +70,17 @@ void xfer_packet_done(xfer_desc_t* xfer)
   xfer->actual_len += xact_len;
 }
 
+//------------- Transaction helpers -------------//
+static uint16_t xact_in(uint8_t epnum, xfer_desc_t* xfer)
+{
+  uint16_t const xact_len = xfer_packet_len(xfer);
+
+  // Write data to fifo
+  for(uint16_t i=0; i<xact_len; i++) UDP->UDP_FDR[epnum] = (uint32_t) xfer->buffer[i];
+
+  return xact_len;
+}
+
 /*------------------------------------------------------------------*/
 /* Device API
  *------------------------------------------------------------------*/
@@ -165,7 +176,7 @@ void dcd_edpt0_status_complete(uint8_t rhport, tusb_control_request_t const * re
 }
 
 // Configure endpoint's registers according to descriptor
-// SAMG doesnt support using a same endpoint with IN and OUT
+// SAMG doesn't support a same endpoint number with IN and OUT
 //    e.g EP1 OUT & EP1 IN cannot exist together
 bool dcd_edpt_open (uint8_t rhport, tusb_desc_endpoint_t const * ep_desc)
 {
@@ -201,31 +212,26 @@ bool dcd_edpt_xfer (uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t 
   xfer_desc_t* xfer = &_dcd_xfer[epnum];
   xfer_begin(xfer, buffer, total_bytes);
 
-  uint16_t const xact_len = xfer_packet_len(xfer);
-
-  // control endpoint
+  // Configure DIR bit for control endpoint
   if ( epnum == 0 )
   {
     if (dir == TUSB_DIR_OUT)
     {
       // Clear DIR bit
       UDP->UDP_CSR[0] &= ~UDP_CSR_DIR_Msk;
-
     }else
     {
-      // Set DIR bit if needed
+      // Set DIR bit
       UDP->UDP_CSR[0] |= UDP_CSR_DIR_Msk;
-
-      // Write data to fifo
-      for(uint16_t i=0; i<xact_len; i++) UDP->UDP_FDR[0] = (uint32_t) buffer[i];
-
-      // TX ready for transfer
-      UDP->UDP_CSR[0] |= UDP_CSR_TXPKTRDY_Msk;
     }
+  }
 
-  }else
+  if (dir == TUSB_DIR_IN)
   {
-    return false;
+    xact_in(epnum, xfer);
+
+    // TX ready for transfer
+    UDP->UDP_CSR[epnum] |= UDP_CSR_TXPKTRDY_Msk;
   }
 
   return true;
@@ -312,10 +318,17 @@ void dcd_isr(uint8_t rhport)
     // Endpoint IN
     if (UDP->UDP_CSR[epnum] & UDP_CSR_TXCOMP_Msk)
     {
-      uint16_t xact_len = xfer_packet_len(xfer);
       xfer_packet_done(xfer);
 
-      dcd_event_xfer_complete(rhport, epnum | TUSB_DIR_IN_MASK, xact_len, XFER_RESULT_SUCCESS, true);
+      if ( xact_in(epnum, xfer) )
+      {
+        // TX ready for transfer
+        UDP->UDP_CSR[epnum] |= UDP_CSR_TXPKTRDY_Msk;
+      }else
+      {
+        // xfer is complete
+        dcd_event_xfer_complete(rhport, epnum | TUSB_DIR_IN_MASK, xfer->actual_len, XFER_RESULT_SUCCESS, true);
+      }
 
       // Clear TX Complete bit
       UDP->UDP_CSR[0] &= ~UDP_CSR_TXCOMP_Msk;
