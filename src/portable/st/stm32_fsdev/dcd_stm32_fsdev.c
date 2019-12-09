@@ -294,7 +294,8 @@ void dcd_int_disable(uint8_t rhport)
 // Receive Set Address request, mcu port must also include status IN response
 void dcd_set_address(uint8_t rhport, uint8_t dev_addr)
 {
-  (void)rhport;
+  (void) rhport;
+  (void) dev_addr;
 
   // Respond with status
   dcd_edpt_xfer(rhport, tu_edpt_addr(0, TUSB_DIR_IN), NULL, 0);
