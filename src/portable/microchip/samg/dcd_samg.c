@@ -35,6 +35,8 @@
 // MACRO TYPEDEF CONSTANT ENUM DECLARATION
 //--------------------------------------------------------------------+
 
+#define EP_COUNT    6
+
 // Transfer descriptor
 typedef struct
 {
@@ -44,8 +46,8 @@ typedef struct
   uint16_t  epsize;
 } xfer_desc_t;
 
-// Endpoint 0-5 with OUT & IN
-xfer_desc_t _dcd_xfer[6][2];
+// Endpoint 0-5, each can only be either OUT or In
+xfer_desc_t _dcd_xfer[EP_COUNT];
 
 void xfer_begin(xfer_desc_t* xfer, uint8_t * buffer, uint16_t total_bytes)
 {
@@ -77,7 +79,7 @@ static void bus_reset(void)
 {
   tu_memclr(_dcd_xfer, sizeof(_dcd_xfer));
 
-  _dcd_xfer[0][0].epsize = _dcd_xfer[0][1].epsize = CFG_TUD_ENDPOINT0_SIZE;
+  _dcd_xfer[0].epsize = CFG_TUD_ENDPOINT0_SIZE;
 
   // Enable EP0 control
   UDP->UDP_CSR[0] = UDP_CSR_EPEDS_Msk;
@@ -163,11 +165,29 @@ void dcd_edpt0_status_complete(uint8_t rhport, tusb_control_request_t const * re
 }
 
 // Configure endpoint's registers according to descriptor
+// SAMG doesnt support using a same endpoint with IN and OUT
+//    e.g EP1 OUT & EP1 IN cannot exist together
 bool dcd_edpt_open (uint8_t rhport, tusb_desc_endpoint_t const * ep_desc)
 {
   (void) rhport;
-  (void) ep_desc;
-  return false;
+
+  uint8_t const epnum = tu_edpt_number(ep_desc->bEndpointAddress);
+  uint8_t const dir   = tu_edpt_dir(ep_desc->bEndpointAddress);
+
+  // TODO Isochronous is not supported yet
+  TU_VERIFY(ep_desc->bmAttributes.xfer != TUSB_XFER_ISOCHRONOUS);
+  TU_VERIFY(epnum < EP_COUNT);
+
+  // Must not already enabled
+  TU_ASSERT((UDP->UDP_CSR[epnum] & UDP_CSR_EPEDS_Msk) == 0);
+
+  // Configure type and eanble EP
+  UDP->UDP_CSR[epnum] = UDP_CSR_EPEDS_Msk | UDP_CSR_EPTYPE(ep_desc->bmAttributes.xfer + 4*dir);
+
+  // Enable EP Interrupt
+  UDP->UDP_IER |= (1 << epnum);
+
+  return true;
 }
 
 // Submit a transfer, When complete dcd_event_xfer_complete() is invoked to notify the stack
@@ -178,7 +198,7 @@ bool dcd_edpt_xfer (uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t 
   uint8_t const epnum = tu_edpt_number(ep_addr);
   uint8_t const dir   = tu_edpt_dir(ep_addr);
 
-  xfer_desc_t* xfer = &_dcd_xfer[epnum][dir];
+  xfer_desc_t* xfer = &_dcd_xfer[epnum];
   xfer_begin(xfer, buffer, total_bytes);
 
   uint16_t const xact_len = xfer_packet_len(xfer);
@@ -217,7 +237,6 @@ void dcd_edpt_stall (uint8_t rhport, uint8_t ep_addr)
   (void) rhport;
 
   uint8_t const epnum = tu_edpt_number(ep_addr);
-//  uint8_t const dir   = tu_edpt_dir(ep_addr);
 
   // Set force stall bit
   UDP->UDP_CSR[epnum] |= UDP_CSR_FORCESTALL_Msk;
@@ -227,7 +246,11 @@ void dcd_edpt_stall (uint8_t rhport, uint8_t ep_addr)
 void dcd_edpt_clear_stall (uint8_t rhport, uint8_t ep_addr)
 {
   (void) rhport;
-  (void) ep_addr;
+
+  uint8_t const epnum = tu_edpt_number(ep_addr);
+
+  // clear stall, must also clear data toggle
+  UDP->UDP_CSR[epnum] &= ~UDP_CSR_FORCESTALL_Msk;
 }
 
 //--------------------------------------------------------------------+
@@ -282,12 +305,13 @@ void dcd_isr(uint8_t rhport)
     }
   }
 
-  for(uint8_t epnum = 0; epnum < 6; epnum++)
+  for(uint8_t epnum = 0; epnum < EP_COUNT; epnum++)
   {
+    xfer_desc_t* xfer = &_dcd_xfer[epnum];
+
     // Endpoint IN
     if (UDP->UDP_CSR[epnum] & UDP_CSR_TXCOMP_Msk)
     {
-      xfer_desc_t* xfer = &_dcd_xfer[epnum][1];
       uint16_t xact_len = xfer_packet_len(xfer);
       xfer_packet_done(xfer);
 
