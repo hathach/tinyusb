@@ -31,6 +31,8 @@
 #include "sam.h"
 #include "device/dcd.h"
 
+// TODO should support (SAM3S || SAM4S || SAM4E || SAMG55)
+
 //--------------------------------------------------------------------+
 // MACRO TYPEDEF CONSTANT ENUM DECLARATION
 //--------------------------------------------------------------------+
@@ -346,24 +348,24 @@ void dcd_isr(uint8_t rhport)
       }
 
       // Clear TX Complete bit
-      UDP->UDP_CSR[0] &= ~UDP_CSR_TXCOMP_Msk;
+      UDP->UDP_CSR[epnum] &= ~UDP_CSR_TXCOMP_Msk;
     }
 
     // Endpoint OUT
     if (UDP->UDP_CSR[epnum] & UDP_CSR_RX_DATA_BK0_Msk)
     {
-      uint16_t const xact_len = (uint16_t) ((UDP->UDP_CSR[0] & UDP_CSR_RXBYTECNT_Msk) >> UDP_CSR_RXBYTECNT_Pos);
+      uint16_t const xact_len = (uint16_t) ((UDP->UDP_CSR[epnum] & UDP_CSR_RXBYTECNT_Msk) >> UDP_CSR_RXBYTECNT_Pos);
 
       dcd_event_xfer_complete(rhport, epnum, xact_len, XFER_RESULT_SUCCESS, true);
 
       // Clear DATA Bank0 bit
-      UDP->UDP_CSR[0] &= ~UDP_CSR_RX_DATA_BK0_Msk;
+      UDP->UDP_CSR[epnum] &= ~UDP_CSR_RX_DATA_BK0_Msk;
     }
 
     // Stall sent to host
     if (UDP->UDP_CSR[epnum] & UDP_CSR_STALLSENT_Msk)
     {
-      UDP->UDP_CSR[0] &= ~UDP_CSR_STALLSENT_Msk;
+      UDP->UDP_CSR[epnum] &= ~UDP_CSR_STALLSENT_Msk;
     }
   }
 }
