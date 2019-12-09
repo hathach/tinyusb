@@ -145,6 +145,9 @@ void dcd_set_config (uint8_t rhport, uint8_t config_num)
 {
   (void) rhport;
   (void) config_num;
+
+  // Configured State
+//  UDP->UDP_GLB_STAT |= UDP_GLB_STAT_CONFG_Msk;
 }
 
 // Wake up host
@@ -163,15 +166,23 @@ void dcd_edpt0_status_complete(uint8_t rhport, tusb_control_request_t const * re
 {
   (void) rhport;
 
-  if (request->bRequest == TUSB_REQ_SET_ADDRESS)
+  if (request->bmRequestType_bit.recipient == TUSB_REQ_RCPT_DEVICE &&
+      request->bmRequestType_bit.type == TUSB_REQ_TYPE_STANDARD )
   {
-    uint8_t const dev_addr = (uint8_t) request->wValue;
+    if (request->bRequest == TUSB_REQ_SET_ADDRESS)
+    {
+      uint8_t const dev_addr = (uint8_t) request->wValue;
 
-    // Enable addressed state
-    UDP->UDP_GLB_STAT |= UDP_GLB_STAT_FADDEN_Msk;
+      // Enable addressed state
+      UDP->UDP_GLB_STAT |= UDP_GLB_STAT_FADDEN_Msk;
 
-    // Set new address & Function enable bit
-    UDP->UDP_FADDR = UDP_FADDR_FEN_Msk | UDP_FADDR_FADD(dev_addr);
+      // Set new address & Function enable bit
+      UDP->UDP_FADDR = UDP_FADDR_FEN_Msk | UDP_FADDR_FADD(dev_addr);
+    }else if (request->bRequest == TUSB_REQ_SET_CONFIGURATION)
+    {
+      // Configured State
+      UDP->UDP_GLB_STAT |= UDP_GLB_STAT_CONFG_Msk;
+    }
   }
 }
 
@@ -255,8 +266,12 @@ void dcd_edpt_clear_stall (uint8_t rhport, uint8_t ep_addr)
 
   uint8_t const epnum = tu_edpt_number(ep_addr);
 
-  // clear stall, must also clear data toggle
+  // clear stall
   UDP->UDP_CSR[epnum] &= ~UDP_CSR_FORCESTALL_Msk;
+
+  // must also reset EP to clear data toggle
+  UDP->UDP_RST_EP = tu_bit_set(UDP->UDP_RST_EP, epnum);
+  UDP->UDP_RST_EP = tu_bit_clear(UDP->UDP_RST_EP, epnum);
 }
 
 //--------------------------------------------------------------------+
