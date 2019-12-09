@@ -28,8 +28,8 @@
 
 #if TUSB_OPT_DEVICE_ENABLED && CFG_TUSB_MCU == OPT_MCU_SAMD21
 
-#include "device/dcd.h"
 #include "sam.h"
+#include "device/dcd.h"
 
 /*------------------------------------------------------------------*/
 /* MACRO TYPEDEF CONSTANT ENUM
