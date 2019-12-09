@@ -16,3 +16,6 @@
 [submodule "hw/mcu/nxp"]
 	path = hw/mcu/nxp
 	url = https://github.com/hathach/nxp_driver.git
+[submodule "hw/mcu/microchip"]
+	path = hw/mcu/microchip
+	url = https://github.com/hathach/microchip_driver.git
