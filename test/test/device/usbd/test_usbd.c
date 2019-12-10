@@ -149,6 +149,8 @@ void test_usbd_get_device_descriptor(void)
 
   // status
   dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_CTRL_OUT, NULL, 0, true);
+  dcd_event_xfer_complete(rhport, EDPT_CTRL_OUT, 0, 0, false);
+  dcd_edpt0_status_complete_ExpectWithArray(rhport, &req_get_desc_device, 1);
 
   tud_task();
 }
@@ -180,6 +182,8 @@ void test_usbd_get_configuration_descriptor(void)
 
   // status
   dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_CTRL_OUT, NULL, 0, true);
+  dcd_event_xfer_complete(rhport, EDPT_CTRL_OUT, 0, 0, false);
+  dcd_edpt0_status_complete_ExpectWithArray(rhport, &req_get_desc_configuration, 1);
 
   tud_task();
 }
@@ -231,6 +235,7 @@ void test_usbd_control_in_zlp(void)
   // Status
   dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_CTRL_OUT, NULL, 0, true);
   dcd_event_xfer_complete(rhport, EDPT_CTRL_OUT, 0, 0, false);
+  dcd_edpt0_status_complete_ExpectWithArray(rhport, &req_get_desc_configuration, 1);
 
   tud_task();
 }
