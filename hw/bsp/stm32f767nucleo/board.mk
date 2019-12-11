@@ -7,7 +7,6 @@ CFLAGS += \
   -mfpu=fpv5-d16 \
   -nostdlib -nostartfiles \
   -DSTM32F767xx \
-  -DHSE_VALUE=8000000 \
   -DCFG_TUSB_MCU=OPT_MCU_STM32F7
 
 # mcu driver cause following warnings

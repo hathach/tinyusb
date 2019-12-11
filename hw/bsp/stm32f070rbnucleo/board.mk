@@ -5,7 +5,6 @@ CFLAGS += \
   -mcpu=cortex-m0 \
   -mfloat-abi=soft \
   -nostdlib -nostartfiles \
-  -DHSE_VALUE=8000000 \
   -DSTM32F070xB \
   -DCFG_EXAMPLE_MSC_READONLY \
   -DCFG_TUSB_MCU=OPT_MCU_STM32F0
