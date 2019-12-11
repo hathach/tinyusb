@@ -6,7 +6,6 @@ CFLAGS += \
   -mfloat-abi=soft \
   -nostdlib -nostartfiles \
   -DSTM32F072xB \
-  -DHSE_VALUE=8000000 \
   -DCFG_EXAMPLE_MSC_READONLY \
   -DCFG_TUSB_MCU=OPT_MCU_STM32F0
 
