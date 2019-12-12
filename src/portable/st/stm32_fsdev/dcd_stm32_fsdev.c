@@ -30,7 +30,7 @@
 
 /**********************************************
  * This driver has been tested with the following MCUs:
- *  - F070, F072, L053
+ *  - F070, F072, L053, F042F6
  *
  * It also should work with minimal changes for any ST MCU with an "USB A"/"PCD"/"HCD" peripheral. This
  *  covers:
@@ -44,6 +44,9 @@
  * L4x2, L4x3                     1024 byte buffer
  *
  * To use this driver, you must:
+ * - If you are using a device with crystal-less USB, set up the clock recovery system (CRS)
+ * - Remap pins to be D+/D- on devices that they are shared (for example: F042Fx)
+ *   - This is different to the normal "alternate function" GPIO interface, needs to go through SYSCFG->CFGRx register
  * - Enable USB clock; Perhaps use __HAL_RCC_USB_CLK_ENABLE();
  * - (Optionally configure GPIO HAL to tell it the USB driver is using the USB pins)
  * - call tusb_init();
