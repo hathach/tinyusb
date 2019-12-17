@@ -180,7 +180,7 @@ typedef enum
 /// Standard HID Boot Protocol Keyboard Report.
 typedef struct TU_ATTR_PACKED
 {
-  uint8_t modifier;   /**< Keyboard modifier (KEYBOARD_MODIFER_* masks). */
+  uint8_t modifier;   /**< Keyboard modifier (KEYBOARD_MODIFIER_* masks). */
   uint8_t reserved;   /**< Reserved for OEM use, always set to 0. */
   uint8_t keycode[6]; /**< Key codes of the currently pressed keys. */
 } hid_keyboard_report_t;
