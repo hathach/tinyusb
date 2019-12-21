@@ -379,7 +379,7 @@ bool mscd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t event, uint32_t
                  xferred_bytes == sizeof(msc_cbw_t) && p_cbw->signature == MSC_CBW_SIGNATURE );
 
       TU_LOG2("  Command Block Wrapper\n");
-      TU_LOG2_MEM(p_cbw, xferred_bytes, 2);
+      // TU_LOG2_MEM(p_cbw, xferred_bytes, 2);
 
       p_csw->signature    = MSC_CSW_SIGNATURE;
       p_csw->tag          = p_cbw->tag;
@@ -451,7 +451,7 @@ bool mscd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t event, uint32_t
     break;
 
     case MSC_STAGE_DATA:
-      //TU_LOG2("  SCSI Data\n");
+      TU_LOG2("  SCSI Data\n");
       //TU_LOG2_MEM(_mscd_buf, xferred_bytes, 2);
 
       // OUT transfer, invoke callback if needed
@@ -545,7 +545,7 @@ bool mscd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t event, uint32_t
       if( (ep_addr == p_msc->ep_in) && (xferred_bytes == sizeof(msc_csw_t)) )
       {
         TU_LOG2("  Command Status Wrapper\n");
-        TU_LOG2_MEM(p_csw, xferred_bytes, 2);
+        // TU_LOG2_MEM(p_csw, xferred_bytes, 2);
 
         // Move to default CMD stage
         p_msc->stage = MSC_STAGE_CMD;

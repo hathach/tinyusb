@@ -63,6 +63,13 @@ void xfer_begin(xfer_desc_t* xfer, uint8_t * buffer, uint16_t total_bytes)
   xfer->actual_len = 0;
 }
 
+void xfer_end(xfer_desc_t* xfer)
+{
+  xfer->buffer     = NULL;
+  xfer->total_len  = 0;
+  xfer->actual_len = 0;
+}
+
 uint16_t xfer_packet_len(xfer_desc_t* xfer)
 {
   // also cover zero-length packet
@@ -258,10 +265,12 @@ bool dcd_edpt_xfer (uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t 
 
     // OUT Data may already received and acked by hardware
     // Read it as 1st packet then continue with transfer if needed
-//    uint16_t const xact_len = (uint16_t) ((UDP->UDP_CSR[epnum] & UDP_CSR_RXBYTECNT_Msk) >> UDP_CSR_RXBYTECNT_Pos);
-//
-//    if ( xact_len )
-//    {
+    if ( UDP->UDP_CSR[epnum] & (UDP_CSR_RX_DATA_BK0_Msk | UDP_CSR_RX_DATA_BK1_Msk) )
+    {
+      uint16_t const xact_len = (uint16_t) ((UDP->UDP_CSR[epnum] & UDP_CSR_RXBYTECNT_Msk) >> UDP_CSR_RXBYTECNT_Pos);
+
+      TU_LOG2("xact_len = %d\r", xact_len);
+
 //      // Read from EP fifo
 //      xact_ep_read(epnum, xfer->buffer, xact_len);
 //      xfer_packet_done(xfer);
@@ -277,10 +286,10 @@ bool dcd_edpt_xfer (uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t 
 //        dcd_event_xfer_complete(rhport, epnum, xact_len, XFER_RESULT_SUCCESS, false);
 //        return true; // complete
 //      }
-//    }
+    }
 
     // Enable interrupt when starting OUT transfer
-    UDP->UDP_IER |= (1 << epnum);
+    if (epnum != 0) UDP->UDP_IER |= (1 << epnum);
   }
 
   return true;
@@ -397,9 +406,12 @@ void dcd_isr(uint8_t rhport)
       }
 
       // Endpoint OUT
-      if (UDP->UDP_CSR[epnum] & UDP_CSR_RX_DATA_BK0_Msk)
+      // When both Bank0 and Bank1 are both set, there is not way to know which one comes first
+      if (UDP->UDP_CSR[epnum] & (UDP_CSR_RX_DATA_BK0_Msk | UDP_CSR_RX_DATA_BK1_Msk))
       {
         uint16_t const xact_len = (uint16_t) ((UDP->UDP_CSR[epnum] & UDP_CSR_RXBYTECNT_Msk) >> UDP_CSR_RXBYTECNT_Pos);
+
+        //if (epnum != 0) TU_LOG2("xact_len = %d\r", xact_len);
 
         // Read from EP fifo
         xact_ep_read(epnum, xfer->buffer, xact_len);
@@ -408,13 +420,14 @@ void dcd_isr(uint8_t rhport)
         if ( 0 == xfer_packet_len(xfer) )
         {
           // Disable OUT EP interrupt when transfer is complete
-          UDP->UDP_IER &= ~(1 << epnum);
+          if (epnum != 0) UDP->UDP_IDR |= (1 << epnum);
 
           dcd_event_xfer_complete(rhport, epnum, xact_len, XFER_RESULT_SUCCESS, true);
+//          xfer_end(xfer);
         }
 
         // Clear DATA Bank0 bit
-        UDP->UDP_CSR[epnum] &= ~UDP_CSR_RX_DATA_BK0_Msk;
+        UDP->UDP_CSR[epnum] &= ~(UDP_CSR_RX_DATA_BK0_Msk | UDP_CSR_RX_DATA_BK1_Msk);
       }
 
       // Stall sent to host
