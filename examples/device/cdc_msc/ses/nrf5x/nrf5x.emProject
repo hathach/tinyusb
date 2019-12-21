@@ -60,6 +60,7 @@
               <folder Name="src">
                 <file file_name="../../../../../hw/mcu/nordic/nrfx/drivers/src/nrfx_power.c" />
                 <file file_name="../../../../../hw/mcu/nordic/nrfx/drivers/src/nrfx_qspi.c" />
+                <file file_name="../../../../../hw/mcu/nordic/nrfx/drivers/src/nrfx_uarte.c" />
               </folder>
             </folder>
             <folder Name="hal">

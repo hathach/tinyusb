@@ -189,6 +189,9 @@ void board_init(void)
 
   /* Enable USB FS Clocks */
   __HAL_RCC_USB_OTG_FS_CLK_ENABLE();
+
+  // Enable VBUS sense (B device) via pin PA9
+  USB_OTG_FS->GCCFG |= USB_OTG_GCCFG_VBDEN;
 }
 
 //--------------------------------------------------------------------+

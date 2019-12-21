@@ -6,7 +6,6 @@ CFLAGS += \
   -mfloat-abi=soft \
   -nostdlib -nostartfiles \
   -DSTM32F103xB \
-  -DHSE_VALUE=8000000 \
   -DCFG_TUSB_MCU=OPT_MCU_STM32F1
 
 # mcu driver cause following warnings

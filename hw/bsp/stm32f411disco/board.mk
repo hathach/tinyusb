@@ -7,7 +7,6 @@ CFLAGS += \
   -mfpu=fpv4-sp-d16 \
   -nostdlib -nostartfiles \
   -DSTM32F411xE \
-  -DHSE_VALUE=8000000 \
   -DCFG_TUSB_MCU=OPT_MCU_STM32F4
 
 ST_HAL_DRIVER = hw/mcu/st/st_driver/STM32F4xx_HAL_Driver
