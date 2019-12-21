@@ -51,6 +51,11 @@ typedef struct
 // Endpoint 0-5, each can only be either OUT or In
 xfer_desc_t _dcd_xfer[EP_COUNT];
 
+void xfer_epsize_set(xfer_desc_t* xfer, uint16_t epsize)
+{
+  xfer->epsize = epsize;
+}
+
 void xfer_begin(xfer_desc_t* xfer, uint8_t * buffer, uint16_t total_bytes)
 {
   xfer->buffer     = buffer;
@@ -73,14 +78,23 @@ void xfer_packet_done(xfer_desc_t* xfer)
 }
 
 //------------- Transaction helpers -------------//
-static uint16_t xact_in(uint8_t epnum, xfer_desc_t* xfer)
+
+// Write data to EP FIFO, return number of written bytes
+static void xact_ep_write(uint8_t epnum, uint8_t* buffer, uint16_t xact_len)
 {
-  uint16_t const xact_len = xfer_packet_len(xfer);
+  for(uint16_t i=0; i<xact_len; i++)
+  {
+    UDP->UDP_FDR[epnum] = (uint32_t) buffer[i];
+  }
+}
 
-  // Write data to fifo
-  for(uint16_t i=0; i<xact_len; i++) UDP->UDP_FDR[epnum] = (uint32_t) xfer->buffer[i];
-
-  return xact_len;
+// Read data from EP FIFO
+static void xact_ep_read(uint8_t epnum, uint8_t* buffer, uint16_t xact_len)
+{
+  for(uint16_t i=0; i<xact_len; i++)
+  {
+    buffer[i] = (uint8_t) UDP->UDP_FDR[epnum];
+  }
 }
 
 /*------------------------------------------------------------------*/
@@ -92,7 +106,7 @@ static void bus_reset(void)
 {
   tu_memclr(_dcd_xfer, sizeof(_dcd_xfer));
 
-  _dcd_xfer[0].epsize = CFG_TUD_ENDPOINT0_SIZE;
+  xfer_epsize_set(&_dcd_xfer[0], CFG_TUD_ENDPOINT0_SIZE);
 
   // Enable EP0 control
   UDP->UDP_CSR[0] = UDP_CSR_EPEDS_Msk;
@@ -205,11 +219,13 @@ bool dcd_edpt_open (uint8_t rhport, tusb_desc_endpoint_t const * ep_desc)
   // Must not already enabled
   TU_ASSERT((UDP->UDP_CSR[epnum] & UDP_CSR_EPEDS_Msk) == 0);
 
+  xfer_epsize_set(&_dcd_xfer[epnum], ep_desc->wMaxPacketSize.size);
+
   // Configure type and eanble EP
   UDP->UDP_CSR[epnum] = UDP_CSR_EPEDS_Msk | UDP_CSR_EPTYPE(ep_desc->bmAttributes.xfer + 4*dir);
 
-  // Enable EP Interrupt
-  UDP->UDP_IER |= (1 << epnum);
+  // Enable EP Interrupt for IN
+  if (dir == TUSB_DIR_IN) UDP->UDP_IER |= (1 << epnum);
 
   return true;
 }
@@ -225,26 +241,46 @@ bool dcd_edpt_xfer (uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t 
   xfer_desc_t* xfer = &_dcd_xfer[epnum];
   xfer_begin(xfer, buffer, total_bytes);
 
-  // Configure DIR bit for control endpoint
-  if ( epnum == 0 )
-  {
-    if (dir == TUSB_DIR_OUT)
-    {
-      // Clear DIR bit
-      UDP->UDP_CSR[0] &= ~UDP_CSR_DIR_Msk;
-    }else
-    {
-      // Set DIR bit
-      UDP->UDP_CSR[0] |= UDP_CSR_DIR_Msk;
-    }
-  }
-
   if (dir == TUSB_DIR_IN)
   {
-    xact_in(epnum, xfer);
+    // Set DIR bit for EP0
+    if ( epnum == 0 ) UDP->UDP_CSR[epnum] |= UDP_CSR_DIR_Msk;
+
+    xact_ep_write(epnum, xfer->buffer, xfer_packet_len(xfer));
 
     // TX ready for transfer
     UDP->UDP_CSR[epnum] |= UDP_CSR_TXPKTRDY_Msk;
+  }
+  else
+  {
+    // Clear DIR bit for EP0
+    if ( epnum == 0 ) UDP->UDP_CSR[epnum] &= ~UDP_CSR_DIR_Msk;
+
+    // OUT Data may already received and acked by hardware
+    // Read it as 1st packet then continue with transfer if needed
+//    uint16_t const xact_len = (uint16_t) ((UDP->UDP_CSR[epnum] & UDP_CSR_RXBYTECNT_Msk) >> UDP_CSR_RXBYTECNT_Pos);
+//
+//    if ( xact_len )
+//    {
+//      // Read from EP fifo
+//      xact_ep_read(epnum, xfer->buffer, xact_len);
+//      xfer_packet_done(xfer);
+//
+//      // Clear DATA Bank0 bit
+//      UDP->UDP_CSR[epnum] &= ~UDP_CSR_RX_DATA_BK0_Msk;
+//
+//      if ( 0 == xfer_packet_len(xfer) )
+//      {
+//        // Disable OUT EP interrupt when transfer is complete
+//        UDP->UDP_IER &= ~(1 << epnum);
+//
+//        dcd_event_xfer_complete(rhport, epnum, xact_len, XFER_RESULT_SUCCESS, false);
+//        return true; // complete
+//      }
+//    }
+
+    // Enable interrupt when starting OUT transfer
+    UDP->UDP_IER |= (1 << epnum);
   }
 
   return true;
@@ -325,47 +361,67 @@ void dcd_isr(uint8_t rhport)
 
       // Clear Setup bit
       UDP->UDP_CSR[0] &= ~UDP_CSR_RXSETUP_Msk;
+
+      return;
     }
   }
 
   for(uint8_t epnum = 0; epnum < EP_COUNT; epnum++)
   {
-    xfer_desc_t* xfer = &_dcd_xfer[epnum];
-
-    // Endpoint IN
-    if (UDP->UDP_CSR[epnum] & UDP_CSR_TXCOMP_Msk)
+    if ( intr_status & TU_BIT(epnum) )
     {
-      xfer_packet_done(xfer);
+      xfer_desc_t* xfer = &_dcd_xfer[epnum];
 
-      if ( xact_in(epnum, xfer) )
+      // Endpoint IN
+      if (UDP->UDP_CSR[epnum] & UDP_CSR_TXCOMP_Msk)
       {
-        // TX ready for transfer
-        UDP->UDP_CSR[epnum] |= UDP_CSR_TXPKTRDY_Msk;
-      }else
-      {
-        // xfer is complete
-        dcd_event_xfer_complete(rhport, epnum | TUSB_DIR_IN_MASK, xfer->actual_len, XFER_RESULT_SUCCESS, true);
+        xfer_packet_done(xfer);
+
+        uint16_t const xact_len = xfer_packet_len(xfer);
+
+        if (xact_len)
+        {
+          // write to EP fifo
+          xact_ep_write(epnum, xfer->buffer, xact_len);
+
+          // TX ready for transfer
+          UDP->UDP_CSR[epnum] |= UDP_CSR_TXPKTRDY_Msk;
+        }else
+        {
+          // xfer is complete
+          dcd_event_xfer_complete(rhport, epnum | TUSB_DIR_IN_MASK, xfer->actual_len, XFER_RESULT_SUCCESS, true);
+        }
+
+        // Clear TX Complete bit
+        UDP->UDP_CSR[epnum] &= ~UDP_CSR_TXCOMP_Msk;
       }
 
-      // Clear TX Complete bit
-      UDP->UDP_CSR[epnum] &= ~UDP_CSR_TXCOMP_Msk;
-    }
+      // Endpoint OUT
+      if (UDP->UDP_CSR[epnum] & UDP_CSR_RX_DATA_BK0_Msk)
+      {
+        uint16_t const xact_len = (uint16_t) ((UDP->UDP_CSR[epnum] & UDP_CSR_RXBYTECNT_Msk) >> UDP_CSR_RXBYTECNT_Pos);
 
-    // Endpoint OUT
-    if (UDP->UDP_CSR[epnum] & UDP_CSR_RX_DATA_BK0_Msk)
-    {
-      uint16_t const xact_len = (uint16_t) ((UDP->UDP_CSR[epnum] & UDP_CSR_RXBYTECNT_Msk) >> UDP_CSR_RXBYTECNT_Pos);
+        // Read from EP fifo
+        xact_ep_read(epnum, xfer->buffer, xact_len);
+        xfer_packet_done(xfer);
 
-      dcd_event_xfer_complete(rhport, epnum, xact_len, XFER_RESULT_SUCCESS, true);
+        if ( 0 == xfer_packet_len(xfer) )
+        {
+          // Disable OUT EP interrupt when transfer is complete
+          UDP->UDP_IER &= ~(1 << epnum);
 
-      // Clear DATA Bank0 bit
-      UDP->UDP_CSR[epnum] &= ~UDP_CSR_RX_DATA_BK0_Msk;
-    }
+          dcd_event_xfer_complete(rhport, epnum, xact_len, XFER_RESULT_SUCCESS, true);
+        }
 
-    // Stall sent to host
-    if (UDP->UDP_CSR[epnum] & UDP_CSR_STALLSENT_Msk)
-    {
-      UDP->UDP_CSR[epnum] &= ~UDP_CSR_STALLSENT_Msk;
+        // Clear DATA Bank0 bit
+        UDP->UDP_CSR[epnum] &= ~UDP_CSR_RX_DATA_BK0_Msk;
+      }
+
+      // Stall sent to host
+      if (UDP->UDP_CSR[epnum] & UDP_CSR_STALLSENT_Msk)
+      {
+        UDP->UDP_CSR[epnum] &= ~UDP_CSR_STALLSENT_Msk;
+      }
     }
   }
 }

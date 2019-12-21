@@ -376,8 +376,7 @@ void tud_task (void)
       break;
 
       case DCD_EVENT_SETUP_RECEIVED:
-        TU_LOG2("  ");
-        TU_LOG2_MEM(&event.setup_received, 1, 8);
+        TU_LOG2_MEM(&event.setup_received, 8, 2);
 
         // Mark as connected after receiving 1st setup packet.
         // But it is easier to set it every time instead of wasting time to check then set
@@ -948,6 +947,8 @@ bool usbd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t 
 
   TU_VERIFY( dcd_edpt_xfer(rhport, ep_addr, buffer, total_bytes) );
   _usbd_dev.ep_status[epnum][dir].busy = true;
+
+  TU_LOG2("  XFER Endpoint: 0x%02X, Bytes: %d\r\n", ep_addr, total_bytes);
 
   return true;
 }

@@ -213,7 +213,7 @@ static inline bool     tu_bit_test (uint32_t value, uint8_t pos) { return (value
 // 2 : print out log
 #if CFG_TUSB_DEBUG
 
-void tu_print_mem(void const *buf, uint8_t size, uint16_t count);
+void tu_print_mem(void const *buf, uint16_t count, uint8_t indent);
 
 #ifndef tu_printf
   #define tu_printf         printf
