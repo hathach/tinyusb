@@ -162,9 +162,18 @@ bool hidd_open(uint8_t rhport, tusb_desc_interface_t const * desc_itf, uint16_t 
 {
   uint8_t const *p_desc = (uint8_t const *) desc_itf;
 
-  // TODO support multiple HID interface
-  uint8_t const itf = 0;
-  hidd_interface_t * p_hid = &_hidd_itf[itf];
+  // Find available interface
+  hidd_interface_t * p_hid = NULL;
+  uint8_t hid_id;
+  for(hid_id=0; hid_id<CFG_TUD_HID; hid_id++)
+  {
+    if ( _hidd_itf[hid_id].ep_in == 0 )
+    {
+      p_hid = &_hidd_itf[hid_id];
+      break;
+    }
+  }
+  TU_ASSERT(p_hid);
 
   //------------- HID descriptor -------------//
   p_desc = tu_desc_next(p_desc);
@@ -309,9 +318,15 @@ bool hidd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint32_
 {
   (void) result;
 
-  // TODO support multiple HID interface
-  uint8_t const itf = 0;
-  hidd_interface_t * p_hid = &_hidd_itf[itf];
+  uint8_t itf = 0;
+  hidd_interface_t * p_hid = _hidd_itf;
+
+  for ( ; ; itf++, p_hid++)
+  {
+    if (itf >= TU_ARRAY_SIZE(_hidd_itf)) return false;
+
+    if ( ep_addr == p_hid->ep_out ) break;
+  }
 
   if (ep_addr == p_hid->ep_out)
   {
