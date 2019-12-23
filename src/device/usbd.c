@@ -211,7 +211,7 @@ bool usbd_control_xfer_cb (uint8_t rhport, uint8_t ep_addr, xfer_result_t event,
 //--------------------------------------------------------------------+
 // Debugging
 //--------------------------------------------------------------------+
-#if CFG_TUSB_DEBUG > 1
+#if CFG_TUSB_DEBUG >= 2
 static char const* const _usbd_event_str[DCD_EVENT_COUNT] =
 {
   "INVALID"        ,

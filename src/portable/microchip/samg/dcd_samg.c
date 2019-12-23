@@ -267,9 +267,9 @@ bool dcd_edpt_xfer (uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t 
     // Read it as 1st packet then continue with transfer if needed
     if ( UDP->UDP_CSR[epnum] & (UDP_CSR_RX_DATA_BK0_Msk | UDP_CSR_RX_DATA_BK1_Msk) )
     {
-      uint16_t const xact_len = (uint16_t) ((UDP->UDP_CSR[epnum] & UDP_CSR_RXBYTECNT_Msk) >> UDP_CSR_RXBYTECNT_Pos);
+//      uint16_t const xact_len = (uint16_t) ((UDP->UDP_CSR[epnum] & UDP_CSR_RXBYTECNT_Msk) >> UDP_CSR_RXBYTECNT_Pos);
 
-      TU_LOG2("xact_len = %d\r", xact_len);
+//      TU_LOG2("xact_len = %d\r", xact_len);
 
 //      // Read from EP fifo
 //      xact_ep_read(epnum, xfer->buffer, xact_len);
@@ -406,6 +406,7 @@ void dcd_isr(uint8_t rhport)
       }
 
       // Endpoint OUT
+      // Ping-Pong is a must for Bulk/Iso
       // When both Bank0 and Bank1 are both set, there is not way to know which one comes first
       if (UDP->UDP_CSR[epnum] & (UDP_CSR_RX_DATA_BK0_Msk | UDP_CSR_RX_DATA_BK1_Msk))
       {

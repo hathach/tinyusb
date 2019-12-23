@@ -231,6 +231,29 @@ void tu_print_mem(void const *buf, uint16_t count, uint8_t indent);
   #define TU_LOG2_LOCATION()  TU_LOG1_LOCATION()
 #endif
 
+
+typedef struct
+{
+  uint32_t key;
+  char const * data;
+}lookup_entry_t;
+
+typedef struct
+{
+  uint16_t count;
+  lookup_entry_t const* items;
+} lookup_table_t;
+
+static inline char const* lookup_find(lookup_table_t const* p_table, uint32_t key)
+{
+  for(uint16_t i=0; i<p_table->count; i++)
+  {
+    if (p_table->items[i].key == key) return p_table->items[i].data;
+  }
+
+  return NULL;
+}
+
 #endif // CFG_TUSB_DEBUG
 
 #ifndef TU_LOG1
