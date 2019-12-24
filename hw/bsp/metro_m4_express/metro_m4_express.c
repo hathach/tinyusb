@@ -24,9 +24,9 @@
  * This file is part of the TinyUSB stack.
  */
 
+#include "sam.h"
 #include "bsp/board.h"
 
-#include "sam.h"
 #include "hal/include/hal_gpio.h"
 #include "hal/include/hal_init.h"
 #include "hpl/gclk/hpl_gclk_base.h"
