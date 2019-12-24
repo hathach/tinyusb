@@ -39,7 +39,8 @@ enum
 {
   MSC_STAGE_CMD  = 0,
   MSC_STAGE_DATA,
-  MSC_STAGE_STATUS
+  MSC_STAGE_STATUS,
+  MSC_STAGE_STATUS_SENT
 };
 
 typedef struct
@@ -569,7 +570,11 @@ bool mscd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t event, uint32_t
     break;
 
     case MSC_STAGE_STATUS:
-      // Wait for the command status wrapper complete event
+      // processed immediately after this switch, supposedly to be empty
+    break;
+
+    case MSC_STAGE_STATUS_SENT:
+      // Wait for the Status phase to complete
       if( (ep_addr == p_msc->ep_in) && (xferred_bytes == sizeof(msc_csw_t)) )
       {
         TU_LOG2("  SCSI Status: %u\n", p_csw->status);
@@ -598,9 +603,6 @@ bool mscd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t event, uint32_t
     }
     else
     {
-      // Send SCSI Status
-      TU_ASSERT(usbd_edpt_xfer(rhport, p_msc->ep_in , (uint8_t*) &p_msc->csw, sizeof(msc_csw_t)));
-
       // Invoke complete callback if defined
       switch(p_cbw->command[0])
       {
@@ -616,6 +618,12 @@ bool mscd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t event, uint32_t
           if ( tud_msc_scsi_complete_cb ) tud_msc_scsi_complete_cb(p_cbw->lun, p_cbw->command);
         break;
       }
+
+      // Move to Status Sent stage
+      p_msc->stage = MSC_STAGE_STATUS_SENT;
+
+      // Send SCSI Status
+      TU_ASSERT(usbd_edpt_xfer(rhport, p_msc->ep_in , (uint8_t*) &p_msc->csw, sizeof(msc_csw_t)));
     }
   }
 
