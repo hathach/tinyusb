@@ -36,6 +36,8 @@
  * \ref CFG_TUSB_MCU must be defined to one of these
  *  @{ */
 
+#define OPT_MCU_NONE            0
+
 // LPC
 #define OPT_MCU_LPC11UXX            1 ///< NXP LPC11Uxx
 #define OPT_MCU_LPC13XX             2 ///< NXP LPC13xx
@@ -55,6 +57,7 @@
 // SAM
 #define OPT_MCU_SAMD21            200 ///< MicroChip SAMD21
 #define OPT_MCU_SAMD51            201 ///< MicroChip SAMD51
+#define OPT_MCU_SAMG              202 ///< MicroChip SAMDG series
 
 // STM32
 #define OPT_MCU_STM32F0           300 ///< ST STM32F0

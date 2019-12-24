@@ -28,8 +28,8 @@
 
 #if TUSB_OPT_DEVICE_ENABLED && CFG_TUSB_MCU == OPT_MCU_SAMD21
 
-#include "device/dcd.h"
 #include "sam.h"
+#include "device/dcd.h"
 
 /*------------------------------------------------------------------*/
 /* MACRO TYPEDEF CONSTANT ENUM
@@ -98,13 +98,13 @@ void dcd_int_disable(uint8_t rhport)
 
 void dcd_set_address (uint8_t rhport, uint8_t dev_addr)
 {
-  // Response with status first before changing device address
-  dcd_edpt_xfer(rhport, tu_edpt_addr(0, TUSB_DIR_IN), NULL, 0);
+  (void) dev_addr;
 
-  // Wait for EP0 to finish before switching the address.
-  while (USB->DEVICE.DeviceEndpoint[0].EPSTATUS.bit.BK1RDY == 1) {}
+  // Response with zlp status
+  dcd_edpt_xfer(rhport, 0x80, NULL, 0);
 
-  USB->DEVICE.DADD.reg = USB_DEVICE_DADD_DADD(dev_addr) | USB_DEVICE_DADD_ADDEN;
+  // DCD can only set address after status for this request is complete
+  // do it at dcd_edpt0_status_complete()
 
   // Enable SUSPEND interrupt since the bus signal D+/D- are stable now.
   USB->DEVICE.INTFLAG.reg = USB_DEVICE_INTENCLR_SUSPEND; // clear pending
@@ -116,7 +116,6 @@ void dcd_set_config (uint8_t rhport, uint8_t config_num)
   (void) rhport;
   (void) config_num;
   // Nothing to do
-
 }
 
 void dcd_remote_wakeup(uint8_t rhport)
@@ -129,6 +128,23 @@ void dcd_remote_wakeup(uint8_t rhport)
 /*------------------------------------------------------------------*/
 /* DCD Endpoint port
  *------------------------------------------------------------------*/
+
+// Invoked when a control transfer's status stage is complete.
+// May help DCD to prepare for next control transfer, this API is optional.
+void dcd_edpt0_status_complete(uint8_t rhport, tusb_control_request_t const * request)
+{
+  if (request->bmRequestType_bit.recipient == TUSB_REQ_RCPT_DEVICE &&
+      request->bmRequestType_bit.type == TUSB_REQ_TYPE_STANDARD &&
+      request->bRequest == TUSB_REQ_SET_ADDRESS )
+  {
+    uint8_t const dev_addr = (uint8_t) request->wValue;
+    USB->DEVICE.DADD.reg = USB_DEVICE_DADD_DADD(dev_addr) | USB_DEVICE_DADD_ADDEN;
+  }
+
+  // Just finished status stage, prepare for next setup packet
+  dcd_edpt_xfer(rhport, 0x00, _setup_packet, sizeof(_setup_packet));
+}
+
 
 bool dcd_edpt_open (uint8_t rhport, tusb_desc_endpoint_t const * desc_edpt)
 {
@@ -281,12 +297,6 @@ void maybe_transfer_complete(void) {
 
       uint8_t ep_addr = epnum;
       dcd_event_xfer_complete(0, ep_addr, total_transfer_size, XFER_RESULT_SUCCESS, true);
-    }
-
-    // Just finished status stage (total size = 0), prepare for next setup packet
-    // TODO could cause issue with actual zero length data used by class such as DFU
-    if (epnum == 0 && total_transfer_size == 0) {
-      dcd_edpt_xfer(0, 0, _setup_packet, sizeof(_setup_packet));
     }
   }
 }

@@ -110,6 +110,10 @@ void dcd_remote_wakeup(uint8_t rhport);
 // Endpoint API
 //--------------------------------------------------------------------+
 
+// Invoked when a control transfer's status stage is complete.
+// May help DCD to prepare for next control transfer, this API is optional.
+void dcd_edpt0_status_complete(uint8_t rhport, tusb_control_request_t const * request) TU_ATTR_WEAK;
+
 // Configure endpoint's registers according to descriptor
 bool dcd_edpt_open        (uint8_t rhport, tusb_desc_endpoint_t const * p_endpoint_desc);
 
