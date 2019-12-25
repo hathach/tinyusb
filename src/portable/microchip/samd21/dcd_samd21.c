@@ -253,7 +253,7 @@ static bool maybe_handle_setup_packet(void) {
     USB->DEVICE.DeviceEndpoint[0].EPINTFLAG.reg = USB_DEVICE_EPINTFLAG_RXSTP;
 
     // This copies the data elsewhere so we can reuse the buffer.
-    dcd_event_setup_received(0, (uint8_t*) sram_registers[0][0].ADDR.reg, true);
+    dcd_event_setup_received(0, _setup_packet, true);
     return true;
   }
   return false;
