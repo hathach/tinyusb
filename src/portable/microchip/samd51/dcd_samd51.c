@@ -34,7 +34,7 @@
 /*------------------------------------------------------------------*/
 /* MACRO TYPEDEF CONSTANT ENUM
  *------------------------------------------------------------------*/
-static UsbDeviceDescBank sram_registers[8][2];
+static TU_ATTR_ALIGNED(4) UsbDeviceDescBank sram_registers[8][2];
 static TU_ATTR_ALIGNED(4) uint8_t _setup_packet[8];
 
 // Setup the control endpoint 0.
@@ -69,7 +69,7 @@ void dcd_init (uint8_t rhport)
 
   USB->DEVICE.PADCAL.bit.TRANSP = (*((uint32_t*) USB_FUSES_TRANSP_ADDR) & USB_FUSES_TRANSP_Msk) >> USB_FUSES_TRANSP_Pos;
   USB->DEVICE.PADCAL.bit.TRANSN = (*((uint32_t*) USB_FUSES_TRANSN_ADDR) & USB_FUSES_TRANSN_Msk) >> USB_FUSES_TRANSN_Pos;
-  USB->DEVICE.PADCAL.bit.TRIM = (*((uint32_t*) USB_FUSES_TRIM_ADDR) & USB_FUSES_TRIM_Msk) >> USB_FUSES_TRIM_Pos;
+  USB->DEVICE.PADCAL.bit.TRIM   = (*((uint32_t*) USB_FUSES_TRIM_ADDR) & USB_FUSES_TRIM_Msk) >> USB_FUSES_TRIM_Pos;
 
   USB->DEVICE.QOSCTRL.bit.CQOS = 3;
   USB->DEVICE.QOSCTRL.bit.DQOS = 3;
@@ -81,7 +81,7 @@ void dcd_init (uint8_t rhport)
   while (USB->DEVICE.SYNCBUSY.bit.ENABLE == 1) {}
 
   USB->DEVICE.INTFLAG.reg |= USB->DEVICE.INTFLAG.reg; // clear pending
-  USB->DEVICE.INTENSET.reg = USB_DEVICE_INTENSET_SOF | USB_DEVICE_INTENSET_EORST;
+  USB->DEVICE.INTENSET.reg = /* USB_DEVICE_INTENSET_SOF | */ USB_DEVICE_INTENSET_EORST;
 }
 
 void dcd_int_enable(uint8_t rhport)
@@ -257,7 +257,8 @@ static bool maybe_handle_setup_packet(void) {
     USB->DEVICE.DeviceEndpoint[0].EPINTFLAG.reg = USB_DEVICE_EPINTFLAG_RXSTP;
 
     // This copies the data elsewhere so we can reuse the buffer.
-    dcd_event_setup_received(0, (uint8_t*) sram_registers[0][0].ADDR.reg, true);
+    dcd_event_setup_received(0, _setup_packet, true);
+
     return true;
   }
   return false;
@@ -336,11 +337,7 @@ void transfer_complete(uint8_t direction) {
       continue;
     }
 
-    if (direction == TUSB_DIR_OUT && maybe_handle_setup_packet()) {
-      continue;
-    }
     UsbDeviceEndpoint* ep = &USB->DEVICE.DeviceEndpoint[epnum];
-
     UsbDeviceDescBank* bank = &sram_registers[epnum][direction];
     uint16_t total_transfer_size = bank->PCKSIZE.bit.BYTE_COUNT;
 
