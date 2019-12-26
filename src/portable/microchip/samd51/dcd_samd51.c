@@ -37,6 +37,15 @@
 static TU_ATTR_ALIGNED(4) UsbDeviceDescBank sram_registers[8][2];
 static TU_ATTR_ALIGNED(4) uint8_t _setup_packet[8];
 
+
+// ready for receiving SETUP packet
+static inline void prepare_setup(void)
+{
+  // Only make sure the EP0 OUT buffer is ready
+  // SETUP token doesn't check any other parameters
+  sram_registers[0][0].ADDR.reg = (uint32_t) _setup_packet;
+}
+
 // Setup the control endpoint 0.
 static void bus_reset(void)
 {
@@ -51,9 +60,8 @@ static void bus_reset(void)
   ep->EPINTENSET.reg = USB_DEVICE_EPINTENSET_TRCPT0 | USB_DEVICE_EPINTENSET_TRCPT1 | USB_DEVICE_EPINTENSET_RXSTP;
 
   // Prepare for setup packet
-  dcd_edpt_xfer(0, 0, _setup_packet, sizeof(_setup_packet));
+  prepare_setup();
 }
-
 
 /*------------------------------------------------------------------*/
 /* Controller API
@@ -148,7 +156,9 @@ void dcd_edpt0_status_complete(uint8_t rhport, tusb_control_request_t const * re
   }
 
   // Just finished status stage, prepare for next setup packet
-  dcd_edpt_xfer(rhport, 0x00, _setup_packet, sizeof(_setup_packet));
+  // Note: we may already prepare setup when the last EP0 OUT complete.
+  // but it has no harm to do it again here
+  prepare_setup();
 }
 
 bool dcd_edpt_open (uint8_t rhport, tusb_desc_endpoint_t const * desc_edpt)
@@ -196,12 +206,6 @@ bool dcd_edpt_xfer (uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t 
 
   UsbDeviceDescBank* bank = &sram_registers[epnum][dir];
   UsbDeviceEndpoint* ep = &USB->DEVICE.DeviceEndpoint[epnum];
-
-  // A setup token can occur immediately after an OUT STATUS packet so make sure we have a valid
-  // buffer for the control endpoint.
-  if (epnum == 0 && dir == 0 && buffer == NULL) {
-    buffer = _setup_packet;
-  }
 
   bank->ADDR.reg = (uint32_t) buffer;
   if ( dir == TUSB_DIR_OUT )
@@ -254,10 +258,10 @@ void dcd_edpt_clear_stall (uint8_t rhport, uint8_t ep_addr)
 static bool maybe_handle_setup_packet(void) {
   if (USB->DEVICE.DeviceEndpoint[0].EPINTFLAG.bit.RXSTP)
   {
-    USB->DEVICE.DeviceEndpoint[0].EPINTFLAG.reg = USB_DEVICE_EPINTFLAG_RXSTP;
-
     // This copies the data elsewhere so we can reuse the buffer.
     dcd_event_setup_received(0, _setup_packet, true);
+
+    USB->DEVICE.DeviceEndpoint[0].EPINTFLAG.reg = USB_DEVICE_EPINTFLAG_RXSTP;
 
     return true;
   }
@@ -335,6 +339,12 @@ void transfer_complete(uint8_t direction) {
   for (uint8_t epnum = 0; epnum < USB_EPT_NUM; epnum++) {
     if ((epints & (1 << epnum)) == 0) {
       continue;
+    }
+
+    // A SETUP token can occur immediately after an OUT packet
+    // so make sure we have a valid buffer for the control endpoint.
+    if (epnum == 0 && direction == TUSB_DIR_OUT ) {
+      prepare_setup();
     }
 
     UsbDeviceEndpoint* ep = &USB->DEVICE.DeviceEndpoint[epnum];
