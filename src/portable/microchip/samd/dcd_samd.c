@@ -93,33 +93,40 @@ void dcd_init (uint8_t rhport)
   USB->DEVICE.INTENSET.reg = /* USB_DEVICE_INTENSET_SOF | */ USB_DEVICE_INTENSET_EORST;
 }
 
+#if CFG_TUSB_MCU == OPT_MCU_SAMD51
+
 void dcd_int_enable(uint8_t rhport)
 {
   (void) rhport;
-
-#if CFG_TUSB_MCU == OPT_MCU_SAMD51
   NVIC_EnableIRQ(USB_0_IRQn);
   NVIC_EnableIRQ(USB_1_IRQn);
   NVIC_EnableIRQ(USB_2_IRQn);
   NVIC_EnableIRQ(USB_3_IRQn);
-#elif CFG_TUSB_MCU == OPT_MCU_SAMD21
-  NVIC_EnableIRQ(USB_IRQn);
-#endif
 }
 
 void dcd_int_disable(uint8_t rhport)
 {
   (void) rhport;
-
-#if CFG_TUSB_MCU == OPT_MCU_SAMD51
   NVIC_DisableIRQ(USB_3_IRQn);
   NVIC_DisableIRQ(USB_2_IRQn);
   NVIC_DisableIRQ(USB_1_IRQn);
   NVIC_DisableIRQ(USB_0_IRQn);
-#elif CFG_TUSB_MCU == OPT_MCU_SAMD21
-  NVIC_DisableIRQ(USB_IRQn);
-#endif
 }
+
+#elif CFG_TUSB_MCU == OPT_MCU_SAMD21
+
+void dcd_int_enable(uint8_t rhport)
+{
+  (void) rhport;
+  NVIC_EnableIRQ(USB_IRQn);
+}
+
+void dcd_int_disable(uint8_t rhport)
+{
+  (void) rhport;
+  NVIC_DisableIRQ(USB_IRQn);
+}
+#endif
 
 void dcd_set_address (uint8_t rhport, uint8_t dev_addr)
 {
