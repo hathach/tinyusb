@@ -31,7 +31,7 @@ INC += \
 
 # For TinyUSB port source 
 VENDOR = microchip
-CHIP_FAMILY = samd21
+CHIP_FAMILY = samd
 
 # For freeRTOS port source
 FREERTOS_PORT = ARM_CM0
