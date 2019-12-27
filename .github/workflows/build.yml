@@ -21,9 +21,13 @@ jobs:
         xpm install --global @xpack-dev-tools/arm-none-eabi-gcc@latest
         xpm install --global @xpack-dev-tools/riscv-none-embed-gcc@latest
     - name: Git clone
-      uses: actions/checkout@v1
-      with:
-        submodules: true
+      uses: actions/checkout@v2
+    - name: Checkout submodules
+      shell: bash
+      run: |
+        auth_header="$(git config --local --get http.https://github.com/.extraheader)"
+        git submodule sync --recursive
+        git -c "http.extraheader=$auth_header" -c protocol.version=2 submodule update --init --force --recursive
     - name: Unit Tests
       run: |
         # Install Ceedling
