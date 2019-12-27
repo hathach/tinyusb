@@ -17,15 +17,15 @@ jobs:
       run: |
         # Install XPM
         npm install --global xpm
+        # Install ARM GCC
+        xpm install --global @xpack-dev-tools/arm-none-eabi-gcc@latest
+        export PATH=$PATH:`echo $HOME/opt/xPacks/@xpack-dev-tools/arm-none-embed-gcc/*/.content/bin`
+        # Install RISCV GCC
         xpm install --global @xpack-dev-tools/riscv-none-embed-gcc@latest
-        export PATH=$PATH:`$HOME/opt/xPacks/@xpack-dev-tools/riscv-none-embed-gcc/*/.content/bin`
-        # sudo apt-get install -y gettext
-        # pip install requests sh click setuptools awscli
-        # wget https://adafruit-circuit-python.s3.amazonaws.com/gcc-arm-none-eabi-9-2019-q4-major-x86_64-linux.tar.bz2
-        # sudo tar -C /usr --strip-components=1 -xaf gcc-arm-none-eabi-9-2019-q4-major-x86_64-linux.tar.bz2
+        export PATH=$PATH:`echo $HOME/opt/xPacks/@xpack-dev-tools/riscv-none-embed-gcc/*/.content/bin`
     - name: Versions
       run: |
-        #arm-none-eabi-gcc --version
+        arm-none-eabi-gcc --version
         riscv-none-embed-gcc --version
     - name: Git clone
       uses: actions/checkout@v1
