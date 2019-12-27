@@ -37,4 +37,7 @@ jobs:
         gem install ceedling
         cd test
         ceedling test:all
-        
+        cd ..
+    - name: Build
+      run: |
+        python3 tools/build_all.py board_test
