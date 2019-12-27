@@ -23,6 +23,7 @@ jobs:
         # Install RISCV GCC
         xpm install --global @xpack-dev-tools/riscv-none-embed-gcc@latest
         export PATH=$PATH:`echo $HOME/opt/xPacks/@xpack-dev-tools/riscv-none-embed-gcc/*/.content/bin`
+        echo $PATH
         arm-none-eabi-gcc --version
         riscv-none-embed-gcc --version        
     - name: Versions
