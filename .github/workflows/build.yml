@@ -7,13 +7,15 @@ jobs:
     runs-on: ubuntu-latest
     
     steps:
-    - name: Python
+    - name: Setup Python
       uses: actions/setup-python@v1
       with:
         python-version: 3.5
-    - name: Node.js
+    - name: Setup Node.js
       uses: actions/setup-node@v1.1.0
-    - name: Toolchains
+    - name: Setup Ruby
+      uses: actions/setup-ruby@v1.0.0
+    - name: Install Toolchains
       run: |
         # Install XPM
         npm install --global xpm
@@ -29,3 +31,10 @@ jobs:
       uses: actions/checkout@v1
       with:
         submodules: true
+    - name: Unit Tests
+      run: |
+        # Install Ceedling
+        gem install ceedling
+        cd test
+        ceedling test:all
+        
