@@ -42,8 +42,9 @@ static TU_ATTR_ALIGNED(4) uint8_t _setup_packet[8];
 static inline void prepare_setup(void)
 {
   // Only make sure the EP0 OUT buffer is ready
-  // SETUP token doesn't check any other parameters
   sram_registers[0][0].ADDR.reg = (uint32_t) _setup_packet;
+  sram_registers[0][0].PCKSIZE.bit.MULTI_PACKET_SIZE = sizeof(_setup_packet);
+  sram_registers[0][0].PCKSIZE.bit.BYTE_COUNT = 0;
 }
 
 // Setup the control endpoint 0.
@@ -292,8 +293,7 @@ void maybe_transfer_complete(void) {
       UsbDeviceDescBank* bank = &sram_registers[epnum][TUSB_DIR_IN];
       uint16_t total_transfer_size = bank->PCKSIZE.bit.BYTE_COUNT;
 
-      uint8_t ep_addr = epnum | TUSB_DIR_IN_MASK;
-      dcd_event_xfer_complete(0, ep_addr, total_transfer_size, XFER_RESULT_SUCCESS, true);
+      dcd_event_xfer_complete(0, epnum | TUSB_DIR_IN_MASK, total_transfer_size, XFER_RESULT_SUCCESS, true);
 
       ep->EPINTFLAG.reg = USB_DEVICE_EPINTFLAG_TRCPT1;
     }
@@ -301,17 +301,16 @@ void maybe_transfer_complete(void) {
     // Handle OUT completions
     if ((epintflag & USB_DEVICE_EPINTFLAG_TRCPT0) != 0) {
 
+      UsbDeviceDescBank* bank = &sram_registers[epnum][TUSB_DIR_OUT];
+      uint16_t total_transfer_size = bank->PCKSIZE.bit.BYTE_COUNT;
+
       // A SETUP token can occur immediately after an OUT packet
       // so make sure we have a valid buffer for the control endpoint.
       if (epnum == 0) {
         prepare_setup();
       }
 
-      UsbDeviceDescBank* bank = &sram_registers[epnum][TUSB_DIR_OUT];
-      uint16_t total_transfer_size = bank->PCKSIZE.bit.BYTE_COUNT;
-
-      uint8_t ep_addr = epnum;
-      dcd_event_xfer_complete(0, ep_addr, total_transfer_size, XFER_RESULT_SUCCESS, true);
+      dcd_event_xfer_complete(0, epnum, total_transfer_size, XFER_RESULT_SUCCESS, true);
 
       ep->EPINTFLAG.reg = USB_DEVICE_EPINTFLAG_TRCPT0;
     }
