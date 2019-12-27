@@ -7,6 +7,25 @@ jobs:
     runs-on: ubuntu-latest
     
     steps:
-    - uses: actions/checkout@v1
+    - name: Python
+      uses: actions/setup-python@v1
+      with:
+        python-version: 3.5
+    - name: Toolchains
+      run: |
+        sudo apt-get install -y gettext
+        pip install requests sh click setuptools awscli
+        wget https://adafruit-circuit-python.s3.amazonaws.com/gcc-arm-none-eabi-9-2019-q4-major-x86_64-linux.tar.bz2
+        sudo tar -C /usr --strip-components=1 -xaf gcc-arm-none-eabi-9-2019-q4-major-x86_64-linux.tar.bz2
+        wget -O /tmp/riscv-toolchain.tgz https://github.com/xpack-dev-tools/riscv-none-embed-gcc-xpack/releases/download/v8.3.0-1.1/xpack-riscv-none-embed-gcc-8.3.0-1.1-linux-x64.tgz
+        tar -xzf /tmp/riscv-toolchain.tgz
+        export PATH=$PWD/xPacks/riscv-none-embed-gcc/8.3.0-1.1/bin:$PATH
+    - name: Versions
+      run: |
+        arm-none-eabi-gcc --version
+        riscv-none-embed-gcc --version
+    - name: Git clone
+      uses: actions/checkout@v1
       with:
         submodules: true
+    - name: 
