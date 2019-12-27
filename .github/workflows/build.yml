@@ -40,4 +40,6 @@ jobs:
         cd ..
     - name: Build
       run: |
+        arm-none-eabi-gcc --version
+        riscv-none-embed-gcc --version
         python3 tools/build_all.py board_test
