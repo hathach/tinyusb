@@ -3,21 +3,34 @@ name: TinyUSB CI
 on: [pull_request, push]
 
 jobs:
+  unit-test:
+    runs-on: ubuntu-latest    
+    steps:
+    - name: Setup Ruby
+      uses: actions/setup-ruby@v1.0.0
+      
+    - name: Checkout TinyUSB
+      uses: actions/checkout@v2
+
+    - name: Unit Tests
+      run: |
+        # Install Ceedling
+        gem install ceedling
+        cd test
+        ceedling test:all
+        cd ..
+
   build:
-    runs-on: ubuntu-latest
-    
+    runs-on: ubuntu-latest    
     steps:
     - name: Setup Python
       uses: actions/setup-python@v1
       with:
         python-version: 3.5
-    
+
     - name: Setup Node.js
       uses: actions/setup-node@v1.1.0
-    
-    - name: Setup Ruby
-      uses: actions/setup-ruby@v1.0.0
-    
+      
     - name: Install Toolchains
       run: |
         npm install --global xpm
@@ -33,14 +46,6 @@ jobs:
         auth_header="$(git config --local --get http.https://github.com/.extraheader)"
         git submodule sync --recursive
         git -c "http.extraheader=$auth_header" -c protocol.version=2 submodule update --init --force --recursive
-    
-    - name: Unit Tests
-      run: |
-        # Install Ceedling
-        gem install ceedling
-        cd test
-        ceedling test:all
-        cd ..
     
     - name: Build
       run: |
