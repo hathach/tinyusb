@@ -19,15 +19,10 @@ jobs:
         npm install --global xpm
         # Install ARM GCC
         xpm install --global @xpack-dev-tools/arm-none-eabi-gcc@latest
-        export PATH=$PATH:`echo $HOME/opt/xPacks/@xpack-dev-tools/arm-none-embed-gcc/*/.content/bin`
+        export PATH=$PATH:`echo $HOME/opt/xPacks/@xpack-dev-tools/arm-none-eabi-gcc/*/.content/bin`
         # Install RISCV GCC
         xpm install --global @xpack-dev-tools/riscv-none-embed-gcc@latest
         export PATH=$PATH:`echo $HOME/opt/xPacks/@xpack-dev-tools/riscv-none-embed-gcc/*/.content/bin`
-        echo $PATH
-        arm-none-eabi-gcc --version
-        riscv-none-embed-gcc --version        
-    - name: Versions
-      run: |
         arm-none-eabi-gcc --version
         riscv-none-embed-gcc --version
     - name: Git clone
