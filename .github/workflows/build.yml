@@ -1,4 +1,4 @@
-name: TinyUSB CI
+name: Build
 
 on: [pull_request, push]
 
