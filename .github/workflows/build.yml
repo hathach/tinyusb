@@ -28,8 +28,6 @@ jobs:
     steps:
     - name: Setup Python
       uses: actions/setup-python@v1
-      with:
-        python-version: 3.5
 
     - name: Setup Node.js
       uses: actions/setup-node@v1.1.0
@@ -39,12 +37,8 @@ jobs:
         npm install --global xpm
         xpm install --global @xpack-dev-tools/arm-none-eabi-gcc@latest
         xpm install --global @xpack-dev-tools/riscv-none-embed-gcc@latest
-        echo "::add-path::/thach_tinyusb/"
         echo "::add-path::`echo $HOME/opt/xPacks/@xpack-dev-tools/arm-none-eabi-gcc/*/.content/bin`"
-        echo "::add-path::$HOME/opt/xPacks/@xpack-dev-tools/arm-none-eabi-gcc/*/.content/bin"
-        #echo "::add-path::`echo $HOME/opt/xPacks/@xpack-dev-tools/riscv-none-embed-gcc/*/.content/bin`"
-    - name: test PATH
-      run: echo $PATH
+        echo "::add-path::`echo $HOME/opt/xPacks/@xpack-dev-tools/riscv-none-embed-gcc/*/.content/bin`"
       
     - name: Checkout TinyUSB
       uses: actions/checkout@v2
