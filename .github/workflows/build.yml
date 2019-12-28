@@ -39,8 +39,9 @@ jobs:
         npm install --global xpm
         xpm install --global @xpack-dev-tools/arm-none-eabi-gcc@latest
         xpm install --global @xpack-dev-tools/riscv-none-embed-gcc@latest
-        echo "::add-path::$HOME/opt/xPacks/@xpack-dev-tools/arm-none-eabi-gcc/*/.content/bin"
-        echo "::add-path::$HOME/opt/xPacks/@xpack-dev-tools/riscv-none-embed-gcc/*/.content/bin"
+        echo "::add-path::`echo $HOME/opt/xPacks/@xpack-dev-tools/arm-none-eabi-gcc/*/.content/bin`"
+        echo "::add-path::`echo $HOME/opt/xPacks/@xpack-dev-tools/riscv-none-embed-gcc/*/.content/bin`"
+        echo $PATH
         #export PATH=$PATH:`echo $HOME/opt/xPacks/@xpack-dev-tools/arm-none-eabi-gcc/*/.content/bin`:`echo $HOME/opt/xPacks/@xpack-dev-tools/riscv-none-embed-gcc/*/.content/bin`
         arm-none-eabi-gcc --version
         riscv-none-embed-gcc --version        
