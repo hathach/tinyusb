@@ -41,6 +41,7 @@ jobs:
         xpm install --global @xpack-dev-tools/riscv-none-embed-gcc@latest
         echo "::add-path::$HOME/opt/xPacks/@xpack-dev-tools/arm-none-eabi-gcc/*/.content/bin"
         echo "::add-path::`echo $HOME/opt/xPacks/@xpack-dev-tools/riscv-none-embed-gcc/*/.content/bin`"
+        echo "::set-env PATH=`echo $HOME/opt/xPacks/@xpack-dev-tools/riscv-none-embed-gcc/*/.content/bin`"
         echo $PATH
         #export PATH=$PATH:`echo $HOME/opt/xPacks/@xpack-dev-tools/arm-none-eabi-gcc/*/.content/bin`:`echo $HOME/opt/xPacks/@xpack-dev-tools/riscv-none-embed-gcc/*/.content/bin`
         arm-none-eabi-gcc --version
