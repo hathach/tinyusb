@@ -39,7 +39,9 @@ jobs:
         npm install --global xpm
         xpm install --global @xpack-dev-tools/arm-none-eabi-gcc@latest
         xpm install --global @xpack-dev-tools/riscv-none-embed-gcc@latest
-        export PATH=$PATH:`echo $HOME/opt/xPacks/@xpack-dev-tools/arm-none-eabi-gcc/*/.content/bin`:`echo $HOME/opt/xPacks/@xpack-dev-tools/riscv-none-embed-gcc/*/.content/bin`
+        echo "::add-path::$HOME/opt/xPacks/@xpack-dev-tools/arm-none-eabi-gcc/*/.content/bin"
+        echo "::add-path::$HOME/opt/xPacks/@xpack-dev-tools/riscv-none-embed-gcc/*/.content/bin"
+        #export PATH=$PATH:`echo $HOME/opt/xPacks/@xpack-dev-tools/arm-none-eabi-gcc/*/.content/bin`:`echo $HOME/opt/xPacks/@xpack-dev-tools/riscv-none-embed-gcc/*/.content/bin`
         arm-none-eabi-gcc --version
         riscv-none-embed-gcc --version        
     
@@ -54,6 +56,4 @@ jobs:
         git -c "http.extraheader=$auth_header" -c protocol.version=2 submodule update --init --force --recursive
     
     - name: Build
-      run: |
-        export PATH=$PATH:`echo $HOME/opt/xPacks/@xpack-dev-tools/arm-none-eabi-gcc/*/.content/bin`:`echo $HOME/opt/xPacks/@xpack-dev-tools/riscv-none-embed-gcc/*/.content/bin`
-        python3 tools/build_all.py ${{ matrix.example }}
+      run: python3 tools/build_all.py ${{ matrix.example }}
