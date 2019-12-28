@@ -42,19 +42,21 @@ jobs:
         echo $PATH
         echo "::add-path::/thach_tinyusb/"
         echo $PATH
-        echo "::add-path::`echo $HOME/opt/xPacks/@xpack-dev-tools/arm-none-eabi-gcc/*/.content/bin`"
-        echo $PATH
-        echo "::add-path::$HOME/opt/xPacks/@xpack-dev-tools/arm-none-eabi-gcc/*/.content/bin"
-        echo $PATH
-        echo "::add-path::`echo $HOME/opt/xPacks/@xpack-dev-tools/riscv-none-embed-gcc/*/.content/bin`"
-        echo $PATH
+        #echo "::add-path::`echo $HOME/opt/xPacks/@xpack-dev-tools/arm-none-eabi-gcc/*/.content/bin`"
+        #echo $PATH
+        #echo "::add-path::$HOME/opt/xPacks/@xpack-dev-tools/arm-none-eabi-gcc/*/.content/bin"
+        #echo $PATH
+        #echo "::add-path::`echo $HOME/opt/xPacks/@xpack-dev-tools/riscv-none-embed-gcc/*/.content/bin`"
+        #echo $PATH
         
-        echo "::set-env name=PATH::$PATH:`echo $HOME/opt/xPacks/@xpack-dev-tools/riscv-none-embed-gcc/*/.content/bin`"
-        echo $PATH
+        #echo "::set-env name=PATH::$PATH:`echo $HOME/opt/xPacks/@xpack-dev-tools/riscv-none-embed-gcc/*/.content/bin`"
+        #echo $PATH
         #export PATH=$PATH:`echo $HOME/opt/xPacks/@xpack-dev-tools/arm-none-eabi-gcc/*/.content/bin`:`echo $HOME/opt/xPacks/@xpack-dev-tools/riscv-none-embed-gcc/*/.content/bin`
-        arm-none-eabi-gcc --version
-        riscv-none-embed-gcc --version        
-    
+        #arm-none-eabi-gcc --version
+        #riscv-none-embed-gcc --version        
+    - nane: test PATH
+      run: echo $PATH
+      
     - name: Checkout TinyUSB
       uses: actions/checkout@v2
     
