@@ -39,8 +39,8 @@
 // Macros Helper
 //--------------------------------------------------------------------+
 #define TU_ARRAY_SIZE(_arr)   ( sizeof(_arr) / sizeof(_arr[0]) )
-#define TU_MIN(_x, _y)        ( (_x) < (_y) ) ? (_x) : (_y) )
-#define TU_MAX(_x, _y)        ( (_x) > (_y) ) ? (_x) : (_y) )
+#define TU_MIN(_x, _y)        ( ( (_x) < (_y) ) ? (_x) : (_y) )
+#define TU_MAX(_x, _y)        ( ( (_x) > (_y) ) ? (_x) : (_y) )
 
 #define TU_U16_HIGH(u16)      ((uint8_t) (((u16) >> 8) & 0x00ff))
 #define TU_U16_LOW(u16)       ((uint8_t) ((u16)       & 0x00ff))
