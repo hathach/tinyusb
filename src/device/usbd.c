@@ -618,7 +618,6 @@ static bool process_control_request(uint8_t rhport, tusb_control_request_t const
       TU_ASSERT(ep_num < TU_ARRAY_SIZE(_usbd_dev.ep2drv) );
 
       uint8_t const drvid = _usbd_dev.ep2drv[ep_num][ep_dir];
-      TU_ASSERT(drvid < USBD_CLASS_DRIVER_COUNT);
 
       bool ret = false;
 
@@ -658,13 +657,17 @@ static bool process_control_request(uint8_t rhport, tusb_control_request_t const
         }
       }
 
-      // Some classes such as USBTMC needs to clear/re-init its buffer when receiving CLEAR_FEATURE request
-      // We will forward all request targeted endpoint to class drivers after
-      // - For class-type requests: driver is fully responsible to reply to host
-      // - For std-type requests  : driver init/re-init internal variable/buffer only, and
-      //                            must not call tud_control_status(), driver's return value will have no effect.
-      //                            EP state has already affected (stalled/cleared)
-      if ( invoke_class_control(rhport, drvid, p_request) ) ret = true;
+      if (drvid < 0xFF) {
+        TU_ASSERT(drvid < USBD_CLASS_DRIVER_COUNT);
+        
+        // Some classes such as USBTMC needs to clear/re-init its buffer when receiving CLEAR_FEATURE request
+        // We will forward all request targeted endpoint to class drivers after
+        // - For class-type requests: driver is fully responsible to reply to host
+        // - For std-type requests  : driver init/re-init internal variable/buffer only, and
+        //                            must not call tud_control_status(), driver's return value will have no effect.
+        //                            EP state has already affected (stalled/cleared)
+        if ( invoke_class_control(rhport, drvid, p_request) ) ret = true;
+      }
 
       if ( TUSB_REQ_TYPE_STANDARD == p_request->bmRequestType_bit.type )
       {
