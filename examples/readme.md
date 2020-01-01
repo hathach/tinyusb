@@ -12,7 +12,7 @@ $ cd tinyusb
 TinyUSB examples includes external repos aka submodules to provide low-level MCU peripheral's driver to compile with. Therefore we will firstly fetch those mcu driver repo by running this command in the top folder repo
 
 ```
-$ git submodule update --init --rescursive
+$ git submodule update --init --recursive
 ```
 
 It will takes a bit of time due to the number of supported MCUs, luckily we only need to do this once.
