@@ -58,5 +58,5 @@ jobs:
     needs: build
     steps:
     - name: Trigger mynewt-tinyusb-example
-    - run: curl -XPOST -u "hathach:${{secrets.MYNEWT_EXAMPLE_TOKEN}}" -H "Accept: application/vnd.github.everest-preview+json"  -H "Content-Type: application/json" https://api.github.com/repos/hathach/mynewt-tinyusb-example/dispatches --data '{"event_type": "build_application"}'
+    - run: curl -X POST -H "Authorization: token ${{ secrets.MYNEWT_EXAMPLE_TOKEN }}" -H "Accept: application/vnd.github.everest-preview+json" -H "Content-Type: application/json" https://api.github.com/repos/hathach/mynewt-tinyusb-example/dispatches --data '{"event_type": "build_application"}'
 
