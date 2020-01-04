@@ -74,6 +74,9 @@
 
 #define OPT_MCU_MIMXRT10XX        700 ///< NXP iMX RT10xx
 
+#define OPT_MCU_NUC121            800
+#define OPT_MCU_NUC126            801
+
 /** @} */
 
 /** \defgroup group_supported_os Supported RTOS

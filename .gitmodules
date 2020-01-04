@@ -19,3 +19,6 @@
 [submodule "hw/mcu/nxp"]
 	path = hw/mcu/nxp
 	url = https://github.com/hathach/nxp_driver.git
+[submodule "hw/mcu/nuvoton"]
+	path = hw/mcu/nuvoton
+	url = https://github.com/majbthrd/nuc_driver.git

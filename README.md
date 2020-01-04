@@ -38,6 +38,7 @@ The stack supports the following MCUs
 - **Sony:** CXD56
 - **ST:** STM32 series: L0, F0, F1, F2, F3, F4, F7, H7 (device only)
 - **[ValentyUSB](https://github.com/im-tomu/valentyusb)** eptri
+- **Nuvoton:** NUC121/NUC125, NUC126
 
 [Here is the list of supported Boards](docs/boards.md) that can be used with provided examples.
 
