@@ -402,10 +402,10 @@ bool cdcd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint32_
   // Data sent to host, we could continue to fetch data tx fifo to send.
   // But it will cause incorrect baudrate set in line coding.
   // Though maybe the baudrate is not really important !!!
-//  if ( ep_addr == p_cdc->ep_in )
-//  {
-//
-//  }
+  if ( ep_addr == p_cdc->ep_in )
+  {
+    if ( xferred_bytes && (0 == (xferred_bytes % CFG_TUD_CDC_EPSIZE)) ) usbd_edpt_xfer(TUD_OPT_RHPORT, p_cdc->ep_in, NULL, 0);
+  }
 
   // nothing to do with notif endpoint for now
 
