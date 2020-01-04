@@ -399,7 +399,7 @@ void USBD_IRQHandler(void)
           if ( (0 == xfer->remaining_bytes) || (available_bytes < xfer->max_packet_size) )
             dcd_event_xfer_complete(0, ep_addr, available_bytes, XFER_RESULT_SUCCESS, true);
         }
-        else if (xfer->remaining_bytes)
+        else
         {
           /* update the bookkeeping to reflect the data that has now been sent to the PC */
           xfer->remaining_bytes -= available_bytes;
