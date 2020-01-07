@@ -20,7 +20,6 @@ SRC_C += \
   hw/mcu/nuvoton/nuc126/StdDriver/src/ebi.c \
   hw/mcu/nuvoton/nuc126/StdDriver/src/fmc.c \
   hw/mcu/nuvoton/nuc126/StdDriver/src/gpio.c \
-  hw/mcu/nuvoton/nuc126/StdDriver/src/i2c.c \
   hw/mcu/nuvoton/nuc126/StdDriver/src/pdma.c \
   hw/mcu/nuvoton/nuc126/StdDriver/src/pwm.c \
   hw/mcu/nuvoton/nuc126/StdDriver/src/rtc.c \
@@ -32,7 +31,6 @@ SRC_C += \
   hw/mcu/nuvoton/nuc126/StdDriver/src/timer_pwm.c \
   hw/mcu/nuvoton/nuc126/StdDriver/src/uart.c \
   hw/mcu/nuvoton/nuc126/StdDriver/src/usbd.c \
-  hw/mcu/nuvoton/nuc126/StdDriver/src/usci_i2c.c \
   hw/mcu/nuvoton/nuc126/StdDriver/src/usci_spi.c \
   hw/mcu/nuvoton/nuc126/StdDriver/src/usci_uart.c \
   hw/mcu/nuvoton/nuc126/StdDriver/src/wdt.c \
