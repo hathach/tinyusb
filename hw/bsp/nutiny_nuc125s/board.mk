@@ -5,6 +5,7 @@ CFLAGS += \
   -mcpu=cortex-m0 \
   -D__ARM_FEATURE_DSP=0 \
   -DUSE_ASSERT=0 \
+  -DCFG_EXAMPLE_MSC_READONLY \
   -DCFG_TUSB_MCU=OPT_MCU_NUC121
 
 # All source paths should be relative to the top level.
