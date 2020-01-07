@@ -202,15 +202,16 @@ static bool process_control_request(uint8_t rhport, tusb_control_request_t const
 static bool process_set_config(uint8_t rhport, uint8_t cfg_num);
 static bool process_get_descriptor(uint8_t rhport, tusb_control_request_t const * p_request);
 
-void usbd_control_reset (uint8_t rhport);
-bool usbd_control_xfer_cb (uint8_t rhport, uint8_t ep_addr, xfer_result_t event, uint32_t xferred_bytes);
+void usbd_control_reset(void);
+void usbd_control_set_request(tusb_control_request_t const *request);
 void usbd_control_set_complete_callback( bool (*fp) (uint8_t, tusb_control_request_t const * ) );
+bool usbd_control_xfer_cb (uint8_t rhport, uint8_t ep_addr, xfer_result_t event, uint32_t xferred_bytes);
 
 
 //--------------------------------------------------------------------+
 // Debugging
 //--------------------------------------------------------------------+
-#if CFG_TUSB_DEBUG > 1
+#if CFG_TUSB_DEBUG >= 2
 static char const* const _usbd_event_str[DCD_EVENT_COUNT] =
 {
   "INVALID"        ,
@@ -321,7 +322,7 @@ static void usbd_reset(uint8_t rhport)
   memset(_usbd_dev.itf2drv, DRVID_INVALID, sizeof(_usbd_dev.itf2drv)); // invalid mapping
   memset(_usbd_dev.ep2drv , DRVID_INVALID, sizeof(_usbd_dev.ep2drv )); // invalid mapping
 
-  usbd_control_reset(rhport);
+  usbd_control_reset();
 
   for (uint8_t i = 0; i < USBD_CLASS_DRIVER_COUNT; i++)
   {
@@ -375,8 +376,7 @@ void tud_task (void)
       break;
 
       case DCD_EVENT_SETUP_RECEIVED:
-        TU_LOG2("  ");
-        TU_LOG1_MEM(&event.setup_received, 1, 8);
+        TU_LOG2_MEM(&event.setup_received, 8, 2);
 
         // Mark as connected after receiving 1st setup packet.
         // But it is easier to set it every time instead of wasting time to check then set
@@ -385,7 +385,7 @@ void tud_task (void)
         // Process control request
         if ( !process_control_request(event.rhport, &event.setup_received) )
         {
-          TU_LOG1("  Stall EP0\r\n");
+          TU_LOG2("  Stall EP0\r\n");
           // Failed -> stall both control endpoint IN and OUT
           dcd_edpt_stall(event.rhport, 0);
           dcd_edpt_stall(event.rhport, 0 | TUSB_DIR_IN_MASK);
@@ -405,7 +405,6 @@ void tud_task (void)
 
         if ( 0 == epnum )
         {
-          TU_LOG1("  EP Addr = 0x%02X, len = %ld\r\n", ep_addr, event.xfer_complete.len);
           usbd_control_xfer_cb(event.rhport, ep_addr, event.xfer_complete.result, event.xfer_complete.len);
         }
         else
@@ -500,10 +499,12 @@ static bool process_control_request(uint8_t rhport, tusb_control_request_t const
       switch ( p_request->bRequest )
       {
         case TUSB_REQ_SET_ADDRESS:
-          // Depending on mcu, status phase could be sent either before or after changing device address
-          // Therefore DCD must include zero-length status response
+          // Depending on mcu, status phase could be sent either before or after changing device address,
+          // or even require stack to not response with status at all
+          // Therefore DCD must take full responsibility to response and include zlp status packet if needed.
+          usbd_control_set_request(p_request); // set request since DCD has no access to tud_control_status() API
           dcd_set_address(rhport, (uint8_t) p_request->wValue);
-          return true; // skip status
+          // skip tud_control_status()
         break;
 
         case TUSB_REQ_GET_CONFIGURATION:
@@ -518,9 +519,11 @@ static bool process_control_request(uint8_t rhport, tusb_control_request_t const
           uint8_t const cfg_num = (uint8_t) p_request->wValue;
 
           dcd_set_config(rhport, cfg_num);
+
+          if ( !_usbd_dev.configured && cfg_num ) TU_ASSERT( process_set_config(rhport, cfg_num) );
+
           _usbd_dev.configured = cfg_num ? 1 : 0;
 
-          if ( cfg_num ) TU_ASSERT( process_set_config(rhport, cfg_num) );
           tud_control_status(rhport, p_request);
         }
         break;
@@ -617,7 +620,6 @@ static bool process_control_request(uint8_t rhport, tusb_control_request_t const
       TU_ASSERT(ep_num < TU_ARRAY_SIZE(_usbd_dev.ep2drv) );
 
       uint8_t const drvid = _usbd_dev.ep2drv[ep_num][ep_dir];
-      TU_ASSERT(drvid < USBD_CLASS_DRIVER_COUNT);
 
       bool ret = false;
 
@@ -657,13 +659,17 @@ static bool process_control_request(uint8_t rhport, tusb_control_request_t const
         }
       }
 
-      // Some classes such as USBTMC needs to clear/re-init its buffer when receiving CLEAR_FEATURE request
-      // We will forward all request targeted endpoint to class drivers after
-      // - For class-type requests: driver is fully responsible to reply to host
-      // - For std-type requests  : driver init/re-init internal variable/buffer only, and
-      //                            must not call tud_control_status(), driver's return value will have no effect.
-      //                            EP state has already affected (stalled/cleared)
-      if ( invoke_class_control(rhport, drvid, p_request) ) ret = true;
+      if (drvid < 0xFF) {
+        TU_ASSERT(drvid < USBD_CLASS_DRIVER_COUNT);
+        
+        // Some classes such as USBTMC needs to clear/re-init its buffer when receiving CLEAR_FEATURE request
+        // We will forward all request targeted endpoint to class drivers after
+        // - For class-type requests: driver is fully responsible to reply to host
+        // - For std-type requests  : driver init/re-init internal variable/buffer only, and
+        //                            must not call tud_control_status(), driver's return value will have no effect.
+        //                            EP state has already affected (stalled/cleared)
+        if ( invoke_class_control(rhport, drvid, p_request) ) ret = true;
+      }
 
       if ( TUSB_REQ_TYPE_STANDARD == p_request->bmRequestType_bit.type )
       {
@@ -830,19 +836,15 @@ void dcd_event_handler(dcd_event_t const * event, bool in_isr)
 {
   switch (event->event_id)
   {
-    case DCD_EVENT_BUS_RESET:
-      osal_queue_send(_usbd_q, event, in_isr);
-    break;
-
     case DCD_EVENT_UNPLUGGED:
-      _usbd_dev.connected = 0;
+      _usbd_dev.connected  = 0;
       _usbd_dev.configured = 0;
-      _usbd_dev.suspended = 0;
+      _usbd_dev.suspended  = 0;
       osal_queue_send(_usbd_q, event, in_isr);
     break;
 
     case DCD_EVENT_SOF:
-      // nothing to do now
+      return;   // skip SOF event for now
     break;
 
     case DCD_EVENT_SUSPEND:
@@ -857,6 +859,7 @@ void dcd_event_handler(dcd_event_t const * event, bool in_isr)
     break;
 
     case DCD_EVENT_RESUME:
+      // skip event if not connected (especially required for SAMD)
       if ( _usbd_dev.connected )
       {
         _usbd_dev.suspended = 0;
@@ -864,21 +867,9 @@ void dcd_event_handler(dcd_event_t const * event, bool in_isr)
       }
     break;
 
-    case DCD_EVENT_SETUP_RECEIVED:
+    default:
       osal_queue_send(_usbd_q, event, in_isr);
     break;
-
-    case DCD_EVENT_XFER_COMPLETE:
-      osal_queue_send(_usbd_q, event, in_isr);
-      TU_ASSERT(event->xfer_complete.result == XFER_RESULT_SUCCESS,);
-    break;
-
-    // Not an DCD event, just a convenient way to defer ISR function should we need to
-    case USBD_EVENT_FUNC_CALL:
-      osal_queue_send(_usbd_q, event, in_isr);
-    break;
-
-    default: break;
   }
 }
 
@@ -961,6 +952,8 @@ bool usbd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t 
 
   TU_VERIFY( dcd_edpt_xfer(rhport, ep_addr, buffer, total_bytes) );
   _usbd_dev.ep_status[epnum][dir].busy = true;
+
+  TU_LOG2("  XFER Endpoint: 0x%02X, Bytes: %d\r\n", ep_addr, total_bytes);
 
   return true;
 }

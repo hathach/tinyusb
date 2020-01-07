@@ -39,8 +39,8 @@
 // Macros Helper
 //--------------------------------------------------------------------+
 #define TU_ARRAY_SIZE(_arr)   ( sizeof(_arr) / sizeof(_arr[0]) )
-#define TU_MIN(_x, _y)        ( (_x) < (_y) ) ? (_x) : (_y) )
-#define TU_MAX(_x, _y)        ( (_x) > (_y) ) ? (_x) : (_y) )
+#define TU_MIN(_x, _y)        ( ( (_x) < (_y) ) ? (_x) : (_y) )
+#define TU_MAX(_x, _y)        ( ( (_x) > (_y) ) ? (_x) : (_y) )
 
 #define TU_U16_HIGH(u16)      ((uint8_t) (((u16) >> 8) & 0x00ff))
 #define TU_U16_LOW(u16)       ((uint8_t) ((u16)       & 0x00ff))
@@ -139,9 +139,9 @@ static inline uint8_t tu_log2(uint32_t value)
 }
 
 // Bit
-static inline uint32_t tu_bit_set  (uint32_t value, uint8_t n) { return value | TU_BIT(n); }
-static inline uint32_t tu_bit_clear(uint32_t value, uint8_t n) { return value & (~TU_BIT(n)); }
-static inline bool     tu_bit_test (uint32_t value, uint8_t n) { return (value & TU_BIT(n)) ? true : false; }
+static inline uint32_t tu_bit_set  (uint32_t value, uint8_t pos) { return value | TU_BIT(pos);                  }
+static inline uint32_t tu_bit_clear(uint32_t value, uint8_t pos) { return value & (~TU_BIT(pos));               }
+static inline bool     tu_bit_test (uint32_t value, uint8_t pos) { return (value & TU_BIT(pos)) ? true : false; }
 
 /*------------------------------------------------------------------*/
 /* Count number of arguments of __VA_ARGS__
@@ -213,21 +213,46 @@ static inline bool     tu_bit_test (uint32_t value, uint8_t n) { return (value &
 // 2 : print out log
 #if CFG_TUSB_DEBUG
 
-void tu_print_mem(void const *buf, uint8_t size, uint16_t count);
+void tu_print_mem(void const *buf, uint16_t count, uint8_t indent);
 
 #ifndef tu_printf
-  #define tu_printf     printf
+  #define tu_printf         printf
 #endif
 
 // Log with debug level 1
-#define TU_LOG1         tu_printf
-#define TU_LOG1_MEM     tu_print_mem
+#define TU_LOG1               tu_printf
+#define TU_LOG1_MEM           tu_print_mem
+#define TU_LOG1_LOCATION()    tu_printf("%s: %d:\n", __PRETTY_FUNCTION__, __LINE__)
 
 // Log with debug level 2
 #if CFG_TUSB_DEBUG > 1
-  #define TU_LOG2       TU_LOG1
-  #define TU_LOG2_MEM   TU_LOG1_MEM
+  #define TU_LOG2             TU_LOG1
+  #define TU_LOG2_MEM         TU_LOG1_MEM
+  #define TU_LOG2_LOCATION()  TU_LOG1_LOCATION()
 #endif
+
+
+typedef struct
+{
+  uint32_t key;
+  char const * data;
+}lookup_entry_t;
+
+typedef struct
+{
+  uint16_t count;
+  lookup_entry_t const* items;
+} lookup_table_t;
+
+static inline char const* lookup_find(lookup_table_t const* p_table, uint32_t key)
+{
+  for(uint16_t i=0; i<p_table->count; i++)
+  {
+    if (p_table->items[i].key == key) return p_table->items[i].data;
+  }
+
+  return NULL;
+}
 
 #endif // CFG_TUSB_DEBUG
 

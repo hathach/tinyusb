@@ -232,7 +232,6 @@ void dcd_set_address (uint8_t rhport, uint8_t dev_addr)
   (void) rhport;
 
   USB_OTG_DeviceTypeDef * dev = DEVICE_BASE;
-
   dev->DCFG |= (dev_addr << USB_OTG_DCFG_DAD_Pos) & USB_OTG_DCFG_DAD_Msk;
 
   // Response with status after changing device address
