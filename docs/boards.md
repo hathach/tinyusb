@@ -7,7 +7,7 @@ The board support code is only used for self-contained examples and testing. It 
  
 ## Supported Boards
 
-This code base already had supported for a handful of following boards
+This code base already had supported for a handful of following boards (sorted alphabetically)
 
 ### MicroChip SAMD
 
@@ -25,6 +25,12 @@ This code base already had supported for a handful of following boards
 - [Nordic nRF52840 Development Kit (aka pca10056)](https://www.nordicsemi.com/Software-and-Tools/Development-Kits/nRF52840-DK)
 - [Nordic nRF52840 Dongle (aka pca10059)](https://www.nordicsemi.com/Software-and-Tools/Development-Kits/nRF52840-Dongle)
 - [Nordic nRF52833 Development Kit (aka pca10100)](https://www.nordicsemi.com/Software-and-Tools/Development-Kits/nRF52833-DK)
+
+### Nuvoton
+
+- [NuTiny NUC121S](https://direct.nuvoton.com/en/nutiny-nuc121s)
+- [NuTiny NUC125S](https://direct.nuvoton.com/en/nutiny-nuc125s)
+- [NuTiny NUC126V](https://direct.nuvoton.com/en/nutiny-nuc126v)
 
 ### NXP iMX RT
 

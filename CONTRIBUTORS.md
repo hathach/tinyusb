@@ -23,6 +23,10 @@
   * USBTMC class driver support with example
   * Various improvement e.g Zero-length packet, Lint setup 
   * Board support for STM32F070RB Nucleo, STM32F303 Discovery
+
+* **[Peter Lawrence](https://github.com/majbthrd)**
+  * Nuvoton NUC 121, 125, 126 device driver port
+  * Board support for NuTiny NUC121s, NUC125s, NUC126V
   
 * **[Scott Shawcroft](https://github.com/tannewt)**
   * SAMD21 and SAMD51 device driver port
