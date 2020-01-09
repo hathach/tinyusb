@@ -19,3 +19,6 @@
 [submodule "hw/mcu/microchip"]
 	path = hw/mcu/microchip
 	url = https://github.com/hathach/microchip_driver.git
+[submodule "hw/mcu/nuvoton"]
+	path = hw/mcu/nuvoton
+	url = https://github.com/majbthrd/nuc_driver.git

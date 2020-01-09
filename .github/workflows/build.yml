@@ -52,12 +52,4 @@ jobs:
     
     - name: Build
       run: python3 tools/build_all.py ${{ matrix.example }}
-      
-  trigger-mynewt:
-    runs-on: ubuntu-latest
-    needs: build
-    steps:
-    - name: Trigger mynewt-tinyusb-example
-      shell: bash
-      run: |
-        curl -X POST -H "Authorization: token ${{ secrets.GH_REPO_TOKEN }}" -H "Accept: application/vnd.github.everest-preview+json" -H "Content-Type: application/json" --data '{"event_type": "rebuild"}' https://api.github.com/repos/hathach/mynewt-tinyusb-example/dispatches
+
