@@ -78,7 +78,8 @@ void board_init(void)
 
   // Button
   IOMUXC_SetPinMux( BUTTON_PINMUX, 0U);
-  gpio_pin_config_t button_config = { kGPIO_DigitalInput, 0, kGPIO_IntRisingEdge, };
+  IOMUXC_SetPinConfig(BUTTON_PINMUX, 0x01B0A0U);
+  gpio_pin_config_t button_config = { kGPIO_DigitalInput, 0, kGPIO_NoIntmode };
   GPIO_PinInit(BUTTON_PORT, BUTTON_PIN, &button_config);
 
   // UART
