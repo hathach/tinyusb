@@ -48,6 +48,7 @@ FREERTOS_PORT = ARM_CM7
 JLINK_DEVICE = MIMXRT1062xxx6A
 JLINK_IF = swd
 
-# flash by copying bin file to DAP Mass Storage
-flash: $(BUILD)/$(BOARD)-firmware.bin
-	cp $< /media/$(USER)/RT1060-EVK/
+# flash by using teensy_loader_cli https://github.com/PaulStoffregen/teensy_loader_cli
+# Make sure it is in your PATH 
+flash: $(BUILD)/$(BOARD)-firmware.hex
+	teensy_loader_cli --mcu=imxrt1062 -v -w $<

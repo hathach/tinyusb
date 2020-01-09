@@ -52,3 +52,4 @@ jobs:
     
     - name: Build
       run: python3 tools/build_all.py ${{ matrix.example }}
+

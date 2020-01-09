@@ -1,0 +1,14 @@
+name: Trigger Repos
+
+on:
+  push:
+    branches: master
+    
+jobs:
+  trigger:
+    runs-on: ubuntu-latest
+    steps:
+    - name: mynewt-tinyusb-example
+      shell: bash
+      run: |
+        curl -X POST -H "Authorization: token ${{ secrets.GH_REPO_TOKEN }}" -H "Accept: application/vnd.github.everest-preview+json" -H "Content-Type: application/json" --data '{"event_type": "rebuild"}' https://api.github.com/repos/hathach/mynewt-tinyusb-example/dispatches

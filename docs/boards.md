@@ -40,6 +40,7 @@ This code base already had supported for a handful of following boards (sorted a
 - [MIMX RT1050 Evaluation Kit](https://www.nxp.com/design/development-boards/i.mx-evaluation-and-development-boards/i.mx-rt1050-evaluation-kit:MIMXRT1050-EVK)
 - [MIMX RT1060 Evaluation Kit](https://www.nxp.com/design/development-boards/i.mx-evaluation-and-development-boards/mimxrt1060-evk-i.mx-rt1060-evaluation-kit:MIMXRT1060-EVK)
 - [MIMX RT1064 Evaluation Kit](https://www.nxp.com/design/development-boards/i.mx-evaluation-and-development-boards/mimxrt1064-evk-i.mx-rt1064-evaluation-kit:MIMXRT1064-EVK)
+- [Teensy 4.0 Development Board](https://www.pjrc.com/store/teensy40.html)
 
 ### NXP LPC
 
