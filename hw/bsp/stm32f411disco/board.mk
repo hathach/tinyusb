@@ -39,7 +39,7 @@ CHIP_FAMILY = synopsys
 FREERTOS_PORT = ARM_CM4F
 
 # For flash-jlink target
-JLINK_DEVICE = stm32f41ve
+JLINK_DEVICE = stm32f411ve
 JLINK_IF = swd
 
 # Path to STM32 Cube Programmer CLI, should be added into system path
