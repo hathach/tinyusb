@@ -46,9 +46,5 @@ FREERTOS_PORT = ARM_CM4F
 JLINK_DEVICE = stm32f41zx
 JLINK_IF = swd
 
-# Path to STM32 Cube Programmer CLI, should be added into system path
-STM32Prog = STM32_Programmer_CLI
-
 # flash target using on-board stlink
-flash: $(BUILD)/$(BOARD)-firmware.elf
-	$(STM32Prog) --connect port=swd --write $< --go
+flash: flash-stlink
