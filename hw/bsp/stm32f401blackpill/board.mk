@@ -6,14 +6,14 @@ CFLAGS += \
   -mfloat-abi=hard \
   -mfpu=fpv4-sp-d16 \
   -nostdlib -nostartfiles \
-  -DSTM32F411xE \
+  -DSTM32F401xC \
   -DCFG_TUSB_MCU=OPT_MCU_STM32F4
 
 ST_HAL_DRIVER = hw/mcu/st/st_driver/STM32F4xx_HAL_Driver
 ST_CMSIS = hw/mcu/st/st_driver/CMSIS/Device/ST/STM32F4xx
 
 # All source paths should be relative to the top level.
-LD_FILE = hw/bsp/$(BOARD)/STM32F411VETx_FLASH.ld
+LD_FILE = hw/bsp/$(BOARD)/STM32F401VCTx_FLASH.ld
 
 SRC_C += \
 	$(ST_CMSIS)/Source/Templates/system_stm32f4xx.c \
@@ -23,7 +23,7 @@ SRC_C += \
 	$(ST_HAL_DRIVER)/Src/stm32f4xx_hal_gpio.c
 
 SRC_S += \
-	$(ST_CMSIS)/Source/Templates/gcc/startup_stm32f411xe.s
+	$(ST_CMSIS)/Source/Templates/gcc/startup_stm32f401xc.s
 
 INC += \
 	$(TOP)/hw/mcu/st/st_driver/CMSIS/Include \
@@ -39,8 +39,9 @@ CHIP_FAMILY = synopsys
 FREERTOS_PORT = ARM_CM4F
 
 # For flash-jlink target
-JLINK_DEVICE = stm32f411ve
+JLINK_DEVICE = stm32f401cc
 JLINK_IF = swd
 
-# flash target using on-board stlink
-flash: flash-stlink
+# flash target ROM bootloader
+flash: $(BUILD)/$(BOARD)-firmware.bin
+	dfu-util -R -a 0 --dfuse-address 0x08000000 -D $<

@@ -29,19 +29,19 @@
 #include "stm32f4xx.h"
 #include "stm32f4xx_hal_conf.h"
 
-#define LED_PORT              GPIOD
+#define LED_PORT              GPIOC
 #define LED_PIN               GPIO_PIN_13
 #define LED_STATE_ON          1
 
 #define BUTTON_PORT           GPIOA
 #define BUTTON_PIN            GPIO_PIN_0
-#define BUTTON_STATE_ACTIVE   1
+#define BUTTON_STATE_ACTIVE   0
 
 // enable all LED, Button, Uart, USB clock
 static void all_rcc_clk_enable(void)
 {
   __HAL_RCC_GPIOA_CLK_ENABLE();  // USB D+, D-, Button
-  __HAL_RCC_GPIOD_CLK_ENABLE();  // LED
+  __HAL_RCC_GPIOC_CLK_ENABLE();  // LED
 }
 
 /**
@@ -53,7 +53,7 @@ static void all_rcc_clk_enable(void)
   *            AHB Prescaler                  = 1
   *            APB1 Prescaler                 = 2
   *            APB2 Prescaler                 = 1
-  *            HSE Frequency(Hz)              = 8000000
+  *            HSE Frequency(Hz)              = 25000000
   *            PLL_M                          = HSE_VALUE/1000000
   *            PLL_N                          = 336
   *            PLL_P                          = 4
@@ -126,7 +126,7 @@ void board_init(void)
   // Button
   GPIO_InitStruct.Pin = BUTTON_PIN;
   GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
-  GPIO_InitStruct.Pull = GPIO_PULLDOWN;
+  GPIO_InitStruct.Pull = BUTTON_STATE_ACTIVE ? GPIO_PULLDOWN : GPIO_PULLUP;
   GPIO_InitStruct.Speed = GPIO_SPEED_FAST;
   HAL_GPIO_Init(BUTTON_PORT, &GPIO_InitStruct);
 
@@ -156,9 +156,11 @@ void board_init(void)
   // Enable USB OTG clock
   __HAL_RCC_USB_OTG_FS_CLK_ENABLE();
 
-  // Enable VBUS sense (B device) via pin PA9
-  USB_OTG_FS->GCCFG &= ~USB_OTG_GCCFG_NOVBUSSENS;
-  USB_OTG_FS->GCCFG |= USB_OTG_GCCFG_VBUSBSEN;
+  // Blackpill doens't use VBUS sense (B device)
+  // explicitly disable it
+  USB_OTG_FS->GCCFG |= USB_OTG_GCCFG_NOVBUSSENS;
+  USB_OTG_FS->GCCFG &= ~USB_OTG_GCCFG_VBUSBSEN;
+  USB_OTG_FS->GCCFG &= ~USB_OTG_GCCFG_VBUSASEN;
 }
 
 //--------------------------------------------------------------------+

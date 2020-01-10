@@ -13,7 +13,7 @@ ST_HAL_DRIVER = hw/mcu/st/st_driver/STM32F4xx_HAL_Driver
 ST_CMSIS = hw/mcu/st/st_driver/CMSIS/Device/ST/STM32F4xx
 
 # All source paths should be relative to the top level.
-LD_FILE = hw/bsp/$(BOARD)/STM32F411VETx_FLASH.ld
+LD_FILE = hw/bsp/$(BOARD)/STM32F411CEUx_FLASH.ld
 
 SRC_C += \
 	$(ST_CMSIS)/Source/Templates/system_stm32f4xx.c \
@@ -39,8 +39,9 @@ CHIP_FAMILY = synopsys
 FREERTOS_PORT = ARM_CM4F
 
 # For flash-jlink target
-JLINK_DEVICE = stm32f411ve
+JLINK_DEVICE = stm32f411ce
 JLINK_IF = swd
 
-# flash target using on-board stlink
-flash: flash-stlink
+# flash target ROM bootloader
+flash: $(BUILD)/$(BOARD)-firmware.bin
+	dfu-util -R -a 0 --dfuse-address 0x08000000 -D $<
