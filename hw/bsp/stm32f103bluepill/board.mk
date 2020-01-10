@@ -42,12 +42,9 @@ CHIP_FAMILY = stm32_fsdev
 FREERTOS_PORT = ARM_CM3
 
 # For flash-jlink target
-JLINK_DEVICE = stm32f303vc
+JLINK_DEVICE = stm32f103c8
 JLINK_IF = swd
 
-# Path to STM32 Cube Programmer CLI, should be added into system path 
-STM32Prog = STM32_Programmer_CLI
-
-# flash target using on-board stlink
-flash: $(BUILD)/$(BOARD)-firmware.elf
-	$(STM32Prog) --connect port=swd --write $< --go
+# flash target ROM bootloader
+flash: $(BUILD)/$(BOARD)-firmware.bin
+	dfu-util -R -a 0 --dfuse-address 0x08000000 -D $<
