@@ -23,12 +23,12 @@ TinyUSB is an open-source cross-platform USB Host/Device stack for embedded syst
 
 ## Contributors
 
-Special thanks for all the people who had spent their precious time and effort to helped this project so far. Check out
+Special thanks to all the people who spent their precious time and effort to help this project so far. Check out the 
 [CONTRIBUTORS.md](CONTRIBUTORS.md) file for the list of all contributors and their awesome work for the stack.
 
 ## Supported MCUs
 
-The stack supports the following MCUs
+The stack supports the following MCUs:
 
 - **MicroChip:** SAMD21, SAMD51 (device only)
 - **Nordic:** nRF52840, nRF52833
@@ -44,7 +44,7 @@ The stack supports the following MCUs
 
 ## Device Stack
 
-Support multiple device configurations by dynamically changing usb descriptors. Low power functions such as suspend, resume and remote wakeup. Following device classes are supported:
+Supports multiple device configurations by dynamically changing usb descriptors. Low power functions such like suspend, resume, and remote wakeup. Following device classes are supported:
 
 - Communication Class (CDC)
 - Human Interface Device (HID): Generic (In & Out), Keyboard, Mouse, Gamepad etc ...
@@ -59,11 +59,11 @@ Support multiple device configurations by dynamically changing usb descriptors. 
 
 - Human Interface Device (HID): Keyboard, Mouse, Generic
 - Mass Storage Class (MSC)
-- Hub currently only support 1 level of hub (due to my laziness)
+- Hub currently only supports 1 level of hub (due to my laziness)
 
-## OS Abtraction layer
+## OS Abstraction layer
 
-TinyUSB is completely thread-safe by pushing all ISR events into a central queue, then process it later in the non-ISR context task function. It also uses semphore/mutex to access shared resource such as CDC FIFO. Therefore the stack needs to use some of OS's basic APIs. Following OSes are already supported out of the box.
+TinyUSB is completely thread-safe by pushing all ISR events into a central queue, then process it later in the non-ISR context task function. It also uses semaphore/mutex to access shared resources such as CDC FIFO. Therefore the stack needs to use some of OS's basic APIs. Following OSes are already supported out of the box.
 
 - **No OS** : Disabling USB IRQ is used as way to provide mutex
 - **FreeRTOS**
@@ -71,11 +71,11 @@ TinyUSB is completely thread-safe by pushing all ISR events into a central queue
 
 ## Compiler & IDE
 
-The stack is developed with GCC compiler, and should be compilable with others. Folder `examples` provide Makefile and Segger Embedded Studio build support. [Here is instruction to build example](examples/readme.md).
+The stack is developed with GCC compiler and should be compilable with others. The `examples` folder provides Makefile and Segger Embedded Studio build support. [Here are example build instructions](examples/readme.md).
 
 ## Getting Started
 
-[Here is the details for getting started](docs/getting_started.md) with the stack.
+[Here are the details for getting started](docs/getting_started.md) with the stack.
 
 ## Porting
 
@@ -83,7 +83,7 @@ Want to help add TinyUSB support for a new MCU? Read [here](docs/porting.md) for
 
 ## License
 
-MIT license for all TinyUSB sources `src` folder, [Full license is here](LICENSE). However each file is individually licensed especially those in `lib` and `hw/mcu` folder. Please make sure you understand all the license term for files you use in your project.
+MIT license for all TinyUSB sources `src` folder, [Full license is here](LICENSE). However, each file is individually licensed especially those in `lib` and `hw/mcu` folder. Please make sure you understand all the license term for files you use in your project.
 
 ## Uses
 
@@ -96,4 +96,4 @@ TinyUSB is currently used by these other projects:
 * [MicroPython](https://github.com/micropython/micropython)
 * [TinyUSB Arduino Library](https://github.com/adafruit/Adafruit_TinyUSB_Arduino)
 
-Let's me know if your project also uses TinyUSB and want to share.
+Let me know if your project also uses TinyUSB and want to share.
