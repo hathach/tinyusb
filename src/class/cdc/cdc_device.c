@@ -294,9 +294,16 @@ bool cdcd_control_complete(uint8_t rhport, tusb_control_request_t const * reques
   //------------- Class Specific Request -------------//
   TU_VERIFY (request->bmRequestType_bit.type == TUSB_REQ_TYPE_CLASS);
 
-  // TODO Support multiple interfaces
-  uint8_t const itf = 0;
-  cdcd_interface_t* p_cdc = &_cdcd_itf[itf];
+  uint8_t itf = 0;
+  cdcd_interface_t* p_cdc = _cdcd_itf;
+
+  // Identify which interface to use
+  for ( ; ; itf++, p_cdc++)
+  {
+    if (itf >= TU_ARRAY_SIZE(_cdcd_itf)) return false;
+
+    if ( p_cdc->itf_num == request->wIndex ) break;
+  }
 
   // Invoke callback
   if ( CDC_REQUEST_SET_LINE_CODING == request->bRequest )
@@ -314,9 +321,16 @@ bool cdcd_control_request(uint8_t rhport, tusb_control_request_t const * request
   // Handle class request only
   TU_VERIFY(request->bmRequestType_bit.type == TUSB_REQ_TYPE_CLASS);
 
-  // TODO Support multiple interfaces
-  uint8_t const itf = 0;
-  cdcd_interface_t* p_cdc = &_cdcd_itf[itf];
+  uint8_t itf = 0;
+  cdcd_interface_t* p_cdc = _cdcd_itf;
+
+  // Identify which interface to use
+  for ( ; ; itf++, p_cdc++)
+  {
+    if (itf >= TU_ARRAY_SIZE(_cdcd_itf)) return false;
+
+    if ( p_cdc->itf_num == request->wIndex ) break;
+  }
 
   switch ( request->bRequest )
   {
@@ -353,9 +367,16 @@ bool cdcd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint32_
   (void) rhport;
   (void) result;
 
-  // TODO Support multiple interfaces
-  uint8_t const itf = 0;
-  cdcd_interface_t* p_cdc = &_cdcd_itf[itf];
+  uint8_t itf = 0;
+  cdcd_interface_t* p_cdc = _cdcd_itf;
+
+  // Identify which interface to use
+  for ( ; ; itf++, p_cdc++)
+  {
+    if (itf >= TU_ARRAY_SIZE(_cdcd_itf)) return false;
+
+    if ( ( ep_addr == p_cdc->ep_out ) || ( ep_addr == p_cdc->ep_in ) ) break;
+  }
 
   // Received new data
   if ( ep_addr == p_cdc->ep_out )

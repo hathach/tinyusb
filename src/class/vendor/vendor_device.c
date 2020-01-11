@@ -197,9 +197,15 @@ bool vendord_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint
   (void) rhport;
   (void) result;
 
-  // TODO Support multiple interfaces
-  uint8_t const itf = 0;
-  vendord_interface_t* p_itf = &_vendord_itf[itf];
+  uint8_t itf = 0;
+  vendord_interface_t* p_itf = _vendord_itf;
+
+  for ( ; ; itf++, p_itf++)
+  {
+    if (itf >= TU_ARRAY_SIZE(_vendord_itf)) return false;
+
+    if ( ( ep_addr == p_itf->ep_out ) || ( ep_addr == p_itf->ep_in ) ) break;
+  }
 
   if ( ep_addr == p_itf->ep_out )
   {
