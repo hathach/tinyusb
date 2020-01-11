@@ -50,7 +50,9 @@ int main(void)
   return 0;
 }
 
-static void echo_all(uint8_t itf, uint8_t buf[], uint32_t count)
+// echo to either Serial0 or Serial1
+// with Serial0 as all lower case, Serial1 as all upper case
+static void echo_serial_port(uint8_t itf, uint8_t buf[], uint32_t count)
 {
   for(uint32_t i=0; i<count; i++)
   {
@@ -64,7 +66,7 @@ static void echo_all(uint8_t itf, uint8_t buf[], uint32_t count)
       // echo back additional ports as upper case
       if (islower(buf[i])) buf[i] -= 'a' - 'A';
     }
-    
+
     tud_cdc_n_write_char(itf, buf[i]);
 
     if ( buf[i] == '\r' ) tud_cdc_n_write_char(itf, '\n');
@@ -89,8 +91,9 @@ static void cdc_task(void)
 
         uint32_t count = tud_cdc_n_read(itf, buf, sizeof(buf));
 
-        // echo back to cdc
-        echo_all(itf, buf, count);
+        // echo back to both serial ports
+        echo_serial_port(0, buf, count);
+        echo_serial_port(1, buf, count);
       }
     }
   }
