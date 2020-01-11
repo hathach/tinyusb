@@ -82,9 +82,9 @@ static void _prep_out_transaction (uint8_t itf)
 
   // Prepare for incoming data but only allow what we can store in the ring buffer.
   uint16_t max_read = tu_fifo_remaining(&p_cdc->rx_ff);
-  if ( max_read >= CFG_TUD_CDC_EPSIZE )
+  if ( max_read >= TU_ARRAY_SIZE(p_cdc->epout_buf) )
   {
-    usbd_edpt_xfer(TUD_OPT_RHPORT, p_cdc->ep_out, p_cdc->epout_buf, CFG_TUD_CDC_EPSIZE);
+    usbd_edpt_xfer(TUD_OPT_RHPORT, p_cdc->ep_out, p_cdc->epout_buf, TU_ARRAY_SIZE(p_cdc->epout_buf));
   }
 }
 
@@ -162,7 +162,7 @@ bool tud_cdc_n_write_flush (uint8_t itf)
   cdcd_interface_t* p_cdc = &_cdcd_itf[itf];
   TU_VERIFY( !usbd_edpt_busy(TUD_OPT_RHPORT, p_cdc->ep_in) ); // skip if previous transfer not complete
 
-  uint16_t count = tu_fifo_read_n(&_cdcd_itf[itf].tx_ff, p_cdc->epin_buf, CFG_TUD_CDC_EPSIZE);
+  uint16_t count = tu_fifo_read_n(&_cdcd_itf[itf].tx_ff, p_cdc->epin_buf, TU_ARRAY_SIZE(p_cdc->epin_buf));
   if ( count )
   {
     TU_VERIFY( tud_cdc_n_connected(itf) ); // fifo is empty if not connected
@@ -198,8 +198,8 @@ void cdcd_init(void)
     p_cdc->line_coding.data_bits = 8;
 
     // config fifo
-    tu_fifo_config(&p_cdc->rx_ff, p_cdc->rx_ff_buf, CFG_TUD_CDC_RX_BUFSIZE, 1, false);
-    tu_fifo_config(&p_cdc->tx_ff, p_cdc->tx_ff_buf, CFG_TUD_CDC_TX_BUFSIZE, 1, false);
+    tu_fifo_config(&p_cdc->rx_ff, p_cdc->rx_ff_buf, TU_ARRAY_SIZE(p_cdc->rx_ff_buf), 1, false);
+    tu_fifo_config(&p_cdc->tx_ff, p_cdc->tx_ff_buf, TU_ARRAY_SIZE(p_cdc->tx_ff_buf), 1, false);
 
 #if CFG_FIFO_MUTEX
     tu_fifo_config_mutex(&p_cdc->rx_ff, osal_mutex_create(&p_cdc->rx_ff_mutex));
