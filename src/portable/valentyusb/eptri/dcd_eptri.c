@@ -75,13 +75,13 @@ uint8_t queue_log_offset;
 #define EP_SIZE 64
 
 uint16_t volatile rx_buffer_offset[16];
-uint8_t volatile * rx_buffer[16];
+uint8_t* volatile rx_buffer[16];
 uint16_t volatile rx_buffer_max[16];
 
 volatile uint8_t tx_ep;
 volatile bool tx_active;
 volatile uint16_t tx_buffer_offset[16];
-uint8_t volatile * tx_buffer[16];
+uint8_t* volatile tx_buffer[16];
 volatile uint16_t tx_buffer_max[16];
 volatile uint8_t reset_count;
 
