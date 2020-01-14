@@ -29,6 +29,11 @@
 #include "clk.h"
 #include "sys.h"
 
+#define LED_PORT              PC
+#define LED_PIN               9
+#define LED_PIN_IO            PC9
+#define LED_STATE_ON          0
+
 #define CRYSTAL_LESS /* system will be 48MHz when defined, otherwise, system is 72MHz */
 #define HIRC48_AUTO_TRIM    SYS_IRCTCTL1_REFCKSEL_Msk | (1UL << SYS_IRCTCTL1_LOOPSEL_Pos) | (2UL << SYS_IRCTCTL1_FREQSEL_Pos)
 #define TRIM_INIT           (SYS_BASE+0x118)
@@ -91,6 +96,9 @@ void board_init(void)
   // 1ms tick timer
   SysTick_Config(48000000 / 1000);
 #endif
+
+  // LED
+  GPIO_SetMode(LED_PORT, 1 << LED_PIN, GPIO_MODE_OUTPUT);
 }
 
 #if CFG_TUSB_OS  == OPT_OS_NONE
@@ -112,7 +120,7 @@ uint32_t board_millis(void)
 
 void board_led_write(bool state)
 {
-  (void)(state);
+  LED_PIN_IO = (state ? LED_STATE_ON : (1-LED_STATE_ON));
 }
 
 uint32_t board_button_read(void)
