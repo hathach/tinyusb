@@ -51,5 +51,7 @@ FREERTOS_PORT = ARM_CM0
 JLINK_DEVICE = NUC121SC2AE
 JLINK_IF = swd
 
-# flash using jlink
-flash: flash-jlink
+# Flash using Nuvoton's openocd fork at https://github.com/OpenNuvoton/OpenOCD-Nuvoton
+# Please compile and install it from github source
+flash: $(BUILD)/$(BOARD)-firmware.elf
+	openocd -f interface/nulink.cfg -f target/numicroM0.cfg -c "program $< reset exit"
