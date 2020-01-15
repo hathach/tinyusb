@@ -395,9 +395,11 @@ void USBD_IRQHandler(void)
           xfer->remaining_bytes -= available_bytes;
           xfer->data_ptr += available_bytes;
 
-          /* when the transfer is finished, alert TinyUSB */
+          /* when the transfer is finished, alert TinyUSB; otherwise, accept more data */
           if ( (0 == xfer->remaining_bytes) || (available_bytes < xfer->max_packet_size) )
             dcd_event_xfer_complete(0, ep_addr, available_bytes, XFER_RESULT_SUCCESS, true);
+          else if (xfer->remaining_bytes)
+            ep->MXPLD = xfer->max_packet_size;
         }
         else
         {
