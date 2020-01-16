@@ -1,0 +1,25 @@
+# Set the default behavior, in case people don't have core.autocrlf set.
+* text=auto
+
+*.c text 
+*.cpp text 
+*.h text
+*.icf text 
+*.js text
+*.json text
+*.ld text
+*.md text
+*.mk text
+*.py text
+*.rst text
+*.s text
+*.txt text
+*.xml text
+*.yml text
+
+Makefile text
+
+# Windows-only Visual Studio things
+
+*.sln        text eol=crlf
+*.csproj     text eol=crlf
