@@ -39,18 +39,19 @@
 #if CFG_TUSB_MCU == OPT_MCU_MIMXRT10XX
   #include "fsl_device_registers.h"
 
-// RT1010 and RT1020 only has 1 USB controller
-#if FSL_FEATURE_SOC_USBHS_COUNT == 1
-  #define   DCD_REGS_BASE { (dcd_registers_t*) USB_BASE }
-  IRQn_Type DCD_IRQn[] =  { USB_OTG1_IRQn };
+  // RT1010 and RT1020 only has 1 USB controller
+  #if FSL_FEATURE_SOC_USBHS_COUNT == 1
+    #define   DCD_REGS_BASE { (dcd_registers_t*) USB_BASE }
+    IRQn_Type DCD_IRQn[] =  { USB_OTG1_IRQn };
 
-// RT1050, RT1060 has 2 USB controllers
-#else
-  #define   DCD_REGS_BASE { (dcd_registers_t*) USB1_BASE, (dcd_registers_t*) USB2_BASE }
-  IRQn_Type DCD_IRQn[] =  { USB_OTG1_IRQn, USB_OTG2_IRQn };
-#endif
+  // RT1050, RT1060 has 2 USB controllers
+  #else
+    #define   DCD_REGS_BASE { (dcd_registers_t*) USB1_BASE, (dcd_registers_t*) USB2_BASE }
+    IRQn_Type DCD_IRQn[] =  { USB_OTG1_IRQn, USB_OTG2_IRQn };
+  #endif
 
 #else
+  // LPCOpen for 18xx & 43xx
   #include "chip.h"
   #define   DCD_REGS_BASE { (dcd_registers_t*) LPC_USB0_BASE, (dcd_registers_t*) LPC_USB1_BASE }
   IRQn_Type DCD_IRQn[] =  { USB0_IRQn, USB1_IRQn };
@@ -218,19 +219,19 @@ typedef struct
   uint32_t                         : 0  ;
 
   // Word 1: Current qTD Pointer
-	volatile uint32_t qtd_addr;
+  volatile uint32_t qtd_addr;
 
-	// Word 2-9: Transfer Overlay
-	volatile dcd_qtd_t qtd_overlay;
+  // Word 2-9: Transfer Overlay
+  volatile dcd_qtd_t qtd_overlay;
 
-	// Word 10-11: Setup request (control OUT only)
-	volatile tusb_control_request_t setup_request;
+  // Word 10-11: Setup request (control OUT only)
+  volatile tusb_control_request_t setup_request;
 
-	//--------------------------------------------------------------------+
-  /// Due to the fact QHD is 64 bytes aligned but occupies only 48 bytes
-	/// thus there are 16 bytes padding free that we can make use of.
   //--------------------------------------------------------------------+
-	uint8_t reserved[16];
+  /// Due to the fact QHD is 64 bytes aligned but occupies only 48 bytes
+  /// thus there are 16 bytes padding free that we can make use of.
+  //--------------------------------------------------------------------+
+  uint8_t reserved[16];
 }  dcd_qhd_t;
 
 TU_VERIFY_STATIC( sizeof(dcd_qhd_t) == 64, "size is not correct");
@@ -250,6 +251,12 @@ typedef struct {
 
 static dcd_data_t _dcd_data CFG_TUSB_MEM_SECTION TU_ATTR_ALIGNED(2048);
 static dcd_registers_t* DCD_REGS[] = DCD_REGS_BASE;
+
+#if defined(__CORTEX_M) && __CORTEX_M == 7 && __DCACHE_PRESENT == 1
+  #define CleanInvalidateDCache_by_Addr   SCB_CleanInvalidateDCache_by_Addr
+#else
+  #define CleanInvalidateDCache_by_Addr(_addr, _dsize)
+#endif
 
 //--------------------------------------------------------------------+
 // CONTROLLER API
@@ -289,11 +296,11 @@ static void bus_reset(uint8_t rhport)
   tu_memclr(&_dcd_data, sizeof(dcd_data_t));
 
   //------------- Set up Control Endpoints (0 OUT, 1 IN) -------------//
-	_dcd_data.qhd[0].zero_length_termination = _dcd_data.qhd[1].zero_length_termination = 1;
-	_dcd_data.qhd[0].max_package_size = _dcd_data.qhd[1].max_package_size = CFG_TUD_ENDPOINT0_SIZE;
-	_dcd_data.qhd[0].qtd_overlay.next = _dcd_data.qhd[1].qtd_overlay.next = QTD_NEXT_INVALID;
+  _dcd_data.qhd[0].zero_length_termination = _dcd_data.qhd[1].zero_length_termination = 1;
+  _dcd_data.qhd[0].max_package_size = _dcd_data.qhd[1].max_package_size = CFG_TUD_ENDPOINT0_SIZE;
+  _dcd_data.qhd[0].qtd_overlay.next = _dcd_data.qhd[1].qtd_overlay.next = QTD_NEXT_INVALID;
 
-	_dcd_data.qhd[0].int_on_setup = 1; // OUT only
+  _dcd_data.qhd[0].int_on_setup = 1; // OUT only
 }
 
 void dcd_init(uint8_t rhport)
@@ -313,13 +320,11 @@ void dcd_init(uint8_t rhport)
   // TODO Force fullspeed on non-highspeed port
   // dcd_reg->PORTSC1 = PORTSC1_FORCE_FULL_SPEED;
 
-  #if defined(__CORTEX_M) && __CORTEX_M == 7 && __DCACHE_PRESENT == 1
-  SCB_CleanInvalidateDCache_by_Addr((uint32_t*) &_dcd_data, sizeof(dcd_data_t));
-  #endif
+  CleanInvalidateDCache_by_Addr((uint32_t*) &_dcd_data, sizeof(dcd_data_t));
 
   dcd_reg->ENDPTLISTADDR = (uint32_t) _dcd_data.qhd; // Endpoint List Address has to be 2K alignment
   dcd_reg->USBSTS  = dcd_reg->USBSTS;
-  dcd_reg->USBINTR = INTR_USB | INTR_ERROR | INTR_PORT_CHANGE | INTR_RESET | INTR_SUSPEND | INTR_SOF;
+  dcd_reg->USBINTR = INTR_USB | INTR_ERROR | INTR_PORT_CHANGE | INTR_RESET | INTR_SUSPEND /*| INTR_SOF*/;
 
   dcd_reg->USBCMD &= ~0x00FF0000; // Interrupt Threshold Interval = 0
   dcd_reg->USBCMD |= TU_BIT(0); // connect
@@ -423,9 +428,7 @@ bool dcd_edpt_open(uint8_t rhport, tusb_desc_endpoint_t const * p_endpoint_desc)
   p_qhd->max_package_size        = p_endpoint_desc->wMaxPacketSize.size;
   p_qhd->qtd_overlay.next        = QTD_NEXT_INVALID;
 
-  #if defined(__CORTEX_M) && __CORTEX_M == 7 && __DCACHE_PRESENT == 1
-  SCB_CleanInvalidateDCache_by_Addr((uint32_t*) &_dcd_data, sizeof(dcd_data_t));
-  #endif
+  CleanInvalidateDCache_by_Addr((uint32_t*) &_dcd_data, sizeof(dcd_data_t));
 
   // Enable EP Control
   DCD_REGS[rhport]->ENDPTCTRL[epnum] |= ((p_endpoint_desc->bmAttributes.xfer << 2) | ENDPTCTRL_ENABLE | ENDPTCTRL_TOGGLE_RESET) << (dir ? 16 : 0);
@@ -451,17 +454,14 @@ bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t t
 
   // Force the CPU to flush the buffer. We increase the size by 32 because the call aligns the
   // address to 32-byte boundaries.
-  #if defined(__CORTEX_M) && __CORTEX_M == 7 && __DCACHE_PRESENT == 1
-  SCB_CleanInvalidateDCache_by_Addr((uint32_t*) buffer, total_bytes + 31);
-  #endif
+  CleanInvalidateDCache_by_Addr((uint32_t*) buffer, total_bytes + 31);
 
   //------------- Prepare qtd -------------//
   qtd_init(p_qtd, buffer, total_bytes);
   p_qtd->int_on_complete = true;
   p_qhd->qtd_overlay.next = (uint32_t) p_qtd; // link qtd to qhd
-  #if defined(__CORTEX_M) && __CORTEX_M == 7 && __DCACHE_PRESENT == 1
-  SCB_CleanInvalidateDCache_by_Addr((uint32_t*) &_dcd_data, sizeof(dcd_data_t));
-  #endif
+
+  CleanInvalidateDCache_by_Addr((uint32_t*) &_dcd_data, sizeof(dcd_data_t));
 
   // start transfer
   DCD_REGS[rhport]->ENDPTPRIME = TU_BIT( ep_idx2bit(ep_idx) ) ;
@@ -502,9 +502,7 @@ void dcd_isr(uint8_t rhport)
   }
 
   // Make sure we read the latest version of _dcd_data.
-  #if defined(__CORTEX_M) && __CORTEX_M == 7 && __DCACHE_PRESENT == 1
-  SCB_CleanInvalidateDCache_by_Addr((uint32_t*) &_dcd_data, sizeof(dcd_data_t));
-  #endif
+  CleanInvalidateDCache_by_Addr((uint32_t*) &_dcd_data, sizeof(dcd_data_t));
 
   // TODO disconnection does not generate interrupt !!!!!!
 //	if (int_status & INTR_PORT_CHANGE)
