@@ -313,12 +313,13 @@ void dcd_init(uint8_t rhport)
   // TODO Force fullspeed on non-highspeed port
   // dcd_reg->PORTSC1 = PORTSC1_FORCE_FULL_SPEED;
 
-
-  SCB_CleanInvalidateDCache_by_Addr(&_dcd_data, sizeof(dcd_data_t));
+  #if defined(__CORTEX_M) && __CORTEX_M == 7 && __DCACHE_PRESENT == 1
+  SCB_CleanInvalidateDCache_by_Addr((uint32_t*) &_dcd_data, sizeof(dcd_data_t));
+  #endif
 
   dcd_reg->ENDPTLISTADDR = (uint32_t) _dcd_data.qhd; // Endpoint List Address has to be 2K alignment
   dcd_reg->USBSTS  = dcd_reg->USBSTS;
-  dcd_reg->USBINTR = INTR_USB | INTR_ERROR | INTR_PORT_CHANGE | INTR_RESET | INTR_SUSPEND; // | INTR_SOF;
+  dcd_reg->USBINTR = INTR_USB | INTR_ERROR | INTR_PORT_CHANGE | INTR_RESET | INTR_SUSPEND | INTR_SOF;
 
   dcd_reg->USBCMD &= ~0x00FF0000; // Interrupt Threshold Interval = 0
   dcd_reg->USBCMD |= TU_BIT(0); // connect
@@ -421,7 +422,10 @@ bool dcd_edpt_open(uint8_t rhport, tusb_desc_endpoint_t const * p_endpoint_desc)
   p_qhd->zero_length_termination = 1;
   p_qhd->max_package_size        = p_endpoint_desc->wMaxPacketSize.size;
   p_qhd->qtd_overlay.next        = QTD_NEXT_INVALID;
-  SCB_CleanInvalidateDCache_by_Addr(&_dcd_data, sizeof(dcd_data_t));
+
+  #if defined(__CORTEX_M) && __CORTEX_M == 7 && __DCACHE_PRESENT == 1
+  SCB_CleanInvalidateDCache_by_Addr((uint32_t*) &_dcd_data, sizeof(dcd_data_t));
+  #endif
 
   // Enable EP Control
   DCD_REGS[rhport]->ENDPTCTRL[epnum] |= ((p_endpoint_desc->bmAttributes.xfer << 2) | ENDPTCTRL_ENABLE | ENDPTCTRL_TOGGLE_RESET) << (dir ? 16 : 0);
@@ -445,14 +449,19 @@ bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t t
   dcd_qhd_t * p_qhd = &_dcd_data.qhd[ep_idx];
   dcd_qtd_t * p_qtd = &_dcd_data.qtd[ep_idx];
 
-  // Force the CPU to flush the buffer.
-  SCB_CleanInvalidateDCache_by_Addr(buffer, total_bytes);
+  // Force the CPU to flush the buffer. We increase the size by 32 because the call aligns the
+  // address to 32-byte boundaries.
+  #if defined(__CORTEX_M) && __CORTEX_M == 7 && __DCACHE_PRESENT == 1
+  SCB_CleanInvalidateDCache_by_Addr((uint32_t*) buffer, total_bytes + 31);
+  #endif
 
   //------------- Prepare qtd -------------//
   qtd_init(p_qtd, buffer, total_bytes);
   p_qtd->int_on_complete = true;
   p_qhd->qtd_overlay.next = (uint32_t) p_qtd; // link qtd to qhd
-  SCB_CleanInvalidateDCache_by_Addr(&_dcd_data, sizeof(dcd_data_t));
+  #if defined(__CORTEX_M) && __CORTEX_M == 7 && __DCACHE_PRESENT == 1
+  SCB_CleanInvalidateDCache_by_Addr((uint32_t*) &_dcd_data, sizeof(dcd_data_t));
+  #endif
 
   // start transfer
   DCD_REGS[rhport]->ENDPTPRIME = TU_BIT( ep_idx2bit(ep_idx) ) ;
@@ -493,7 +502,9 @@ void dcd_isr(uint8_t rhport)
   }
 
   // Make sure we read the latest version of _dcd_data.
-  SCB_CleanInvalidateDCache_by_Addr(&_dcd_data, sizeof(dcd_data_t));
+  #if defined(__CORTEX_M) && __CORTEX_M == 7 && __DCACHE_PRESENT == 1
+  SCB_CleanInvalidateDCache_by_Addr((uint32_t*) &_dcd_data, sizeof(dcd_data_t));
+  #endif
 
   // TODO disconnection does not generate interrupt !!!!!!
 //	if (int_status & INTR_PORT_CHANGE)
