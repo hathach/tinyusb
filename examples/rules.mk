@@ -120,6 +120,7 @@ endif
 # Flash using jlink
 flash-jlink: $(BUILD)/$(BOARD)-firmware.hex
 	@echo halt > $(BUILD)/$(BOARD).jlink
+	@echo r > $(BUILD)/$(BOARD).jlink
 	@echo loadfile $^ >> $(BUILD)/$(BOARD).jlink
 	@echo r >> $(BUILD)/$(BOARD).jlink
 	@echo go >> $(BUILD)/$(BOARD).jlink

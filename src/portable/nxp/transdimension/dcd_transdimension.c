@@ -130,48 +130,48 @@ enum {
 typedef struct
 {
   //------------- ID + HW Parameter Registers-------------//
-  __I  uint32_t TU_RESERVED[64];    ///< For iMX RT10xx, but not used by LPC18XX/LPC43XX
+  __I  uint32_t TU_RESERVED[64]; ///< For iMX RT10xx, but not used by LPC18XX/LPC43XX
 
   //------------- Capability Registers-------------//
-  __I  uint8_t  CAPLENGTH;          ///< Capability Registers Length
+  __I  uint8_t  CAPLENGTH;       ///< Capability Registers Length
   __I  uint8_t  TU_RESERVED[1];
-  __I  uint16_t HCIVERSION;         ///< Host Controller Interface Version
+  __I  uint16_t HCIVERSION;      ///< Host Controller Interface Version
 
-  __I  uint32_t HCSPARAMS;          ///< Host Controller Structural Parameters
-  __I  uint32_t HCCPARAMS;          ///< Host Controller Capability Parameters
+  __I  uint32_t HCSPARAMS;       ///< Host Controller Structural Parameters
+  __I  uint32_t HCCPARAMS;       ///< Host Controller Capability Parameters
   __I  uint32_t TU_RESERVED[5];
 
-  __I  uint16_t DCIVERSION;         ///< Device Controller Interface Version
+  __I  uint16_t DCIVERSION;      ///< Device Controller Interface Version
   __I  uint8_t  TU_RESERVED[2];
 
-  __I  uint32_t DCCPARAMS;          ///< Device Controller Capability Parameters
+  __I  uint32_t DCCPARAMS;       ///< Device Controller Capability Parameters
   __I  uint32_t TU_RESERVED[6];
 
   //------------- Operational Registers -------------//
-  __IO uint32_t USBCMD;             ///< USB Command Register
-  __IO uint32_t USBSTS;             ///< USB Status Register
-  __IO uint32_t USBINTR;            ///< Interrupt Enable Register
-  __IO uint32_t FRINDEX;            ///< USB Frame Index
+  __IO uint32_t USBCMD;          ///< USB Command Register
+  __IO uint32_t USBSTS;          ///< USB Status Register
+  __IO uint32_t USBINTR;         ///< Interrupt Enable Register
+  __IO uint32_t FRINDEX;         ///< USB Frame Index
   __I  uint32_t TU_RESERVED;
-  __IO uint32_t DEVICEADDR;         ///< Device Address
-  __IO uint32_t ENDPTLISTADDR;      ///< Endpoint List Address
+  __IO uint32_t DEVICEADDR;      ///< Device Address
+  __IO uint32_t ENDPTLISTADDR;   ///< Endpoint List Address
   __I  uint32_t TU_RESERVED;
-  __IO uint32_t BURSTSIZE;          ///< Programmable Burst Size
-  __IO uint32_t TXFILLTUNING;       ///< TX FIFO Fill Tuning
+  __IO uint32_t BURSTSIZE;       ///< Programmable Burst Size
+  __IO uint32_t TXFILLTUNING;    ///< TX FIFO Fill Tuning
        uint32_t TU_RESERVED[4];
-  __IO uint32_t ENDPTNAK;           ///< Endpoint NAK
-  __IO uint32_t ENDPTNAKEN;         ///< Endpoint NAK Enable
+  __IO uint32_t ENDPTNAK;        ///< Endpoint NAK
+  __IO uint32_t ENDPTNAKEN;      ///< Endpoint NAK Enable
   __I  uint32_t TU_RESERVED;
-  __IO uint32_t PORTSC1;            ///< Port Status & Control
+  __IO uint32_t PORTSC1;         ///< Port Status & Control
   __I  uint32_t TU_RESERVED[7];
-  __IO uint32_t OTGSC;              ///< On-The-Go Status & control
-  __IO uint32_t USBMODE;            ///< USB Device Mode
-  __IO uint32_t ENDPTSETUPSTAT;     ///< Endpoint Setup Status
-  __IO uint32_t ENDPTPRIME;         ///< Endpoint Prime
-  __IO uint32_t ENDPTFLUSH;         ///< Endpoint Flush
-  __I  uint32_t ENDPTSTAT;          ///< Endpoint Status
-  __IO uint32_t ENDPTCOMPLETE;      ///< Endpoint Complete
-  __IO uint32_t ENDPTCTRL[8];       ///< Endpoint Control 0 - 7
+  __IO uint32_t OTGSC;           ///< On-The-Go Status & control
+  __IO uint32_t USBMODE;         ///< USB Device Mode
+  __IO uint32_t ENDPTSETUPSTAT;  ///< Endpoint Setup Status
+  __IO uint32_t ENDPTPRIME;      ///< Endpoint Prime
+  __IO uint32_t ENDPTFLUSH;      ///< Endpoint Flush
+  __I  uint32_t ENDPTSTAT;       ///< Endpoint Status
+  __IO uint32_t ENDPTCOMPLETE;   ///< Endpoint Complete
+  __IO uint32_t ENDPTCTRL[8];    ///< Endpoint Control 0 - 7
 } dcd_registers_t;
 
 
@@ -279,9 +279,9 @@ static void bus_reset(uint8_t rhport)
   dcd_reg->ENDPTSETUPSTAT = dcd_reg->ENDPTSETUPSTAT;
   dcd_reg->ENDPTCOMPLETE  = dcd_reg->ENDPTCOMPLETE;
 
-  while (dcd_reg->ENDPTPRIME);
+  while (dcd_reg->ENDPTPRIME) {}
   dcd_reg->ENDPTFLUSH = 0xFFFFFFFF;
-  while (dcd_reg->ENDPTFLUSH);
+  while (dcd_reg->ENDPTFLUSH) {}
 
   // read reset bit in portsc
 
