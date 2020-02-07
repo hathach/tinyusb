@@ -54,6 +54,7 @@ xfer_desc_t _dcd_xfer[EP_COUNT];
 // Indicate that DATA Toggle for Control Status is incorrect, which must always be DATA1 by USB Specs.
 // However SAMG DToggle is read-only, therefore we must duplicate the status phase ( D0 then D1 )
 // as walk-around to resolve this. The D0 status packet is likely to be discarded by USB Host safely.
+// Note: Only needed for IN Status e.g CDC_SET_LINE_CODING, since out data is sent by host
 volatile bool _walkaround_incorrect_dtoggle_control_status;
 
 void xfer_epsize_set(xfer_desc_t* xfer, uint16_t epsize)
@@ -255,57 +256,49 @@ bool dcd_edpt_xfer (uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t 
   xfer_desc_t* xfer = &_dcd_xfer[epnum];
   xfer_begin(xfer, buffer, total_bytes);
 
-  // Control Endpoint direction and data toggle
-  if (epnum == 0)
+  if (dir == TUSB_DIR_OUT)
   {
-    // Transfer direction is opposite to one previously set on EP0
-    // This transfer is Control Status Stage
-    if ( dir != tu_bit_test(UDP->UDP_CSR[epnum], UDP_CSR_DIR_Pos) )
-    {
-      // Set/Clear DIR bit accordingly
-      if (dir)
-      {
-        UDP->UDP_CSR[epnum] |= UDP_CSR_DIR_Msk;
-      }else
-      {
-        UDP->UDP_CSR[epnum] &= ~UDP_CSR_DIR_Msk;
-      }
+    // Clear EP0 direction bit
+    if (epnum == 0) UDP->UDP_CSR[epnum] &= ~UDP_CSR_DIR_Msk;
 
-      // DATA Toggle is 0, USB Specs requires Status Stage must be DATA1
-      // Since SAMG DToggle is read-only, we mark this and implement a walk-around
-      if ( !(UDP->UDP_CSR[epnum] & UDP_CSR_DTGLE_Msk) )
-      {
-        TU_LOG2("Incorrect DATA TOGGLE, Control Status must be DATA1\n");
-
-        // DTGLE is read-only on SAMG, this statement has no effect
-        UDP->UDP_CSR[epnum] |= UDP_CSR_DTGLE_Msk;
-
-        _walkaround_incorrect_dtoggle_control_status = true;
-      }
-    }
+    // Enable interrupt when starting OUT transfer
+    if (epnum != 0) UDP->UDP_IER |= (1 << epnum);
   }
-
-
-  if (dir == TUSB_DIR_IN)
+  else
   {
-    // WALKROUND: duplicate IN transfer to send DATA1 status packet
-    if (_walkaround_incorrect_dtoggle_control_status)
+    if (epnum == 0)
     {
-      UDP->UDP_CSR[epnum] |= UDP_CSR_TXPKTRDY_Msk;
-      while ( UDP->UDP_CSR[epnum] & UDP_CSR_TXPKTRDY_Msk ) {}
+      // Previous EP0 direction is OUT --> This transfer is ZLP control status.
+      if ( !(UDP->UDP_CSR[epnum] & UDP_CSR_DIR_Msk) )
+      {
+        // Set EP0 dir bit
+        UDP->UDP_CSR[epnum] |= UDP_CSR_DIR_Msk;
 
-      _walkaround_incorrect_dtoggle_control_status = false;
+        // DATA Toggle is 0, USB Specs requires Status Stage must be DATA1
+        // Since SAMG DToggle is read-only, we mark this and implement the walk-around
+        if ( !(UDP->UDP_CSR[epnum] & UDP_CSR_DTGLE_Msk) )
+        {
+          TU_LOG2("Incorrect DATA TOGGLE, Control Status must be DATA1\n");
+
+          // DTGLE is read-only on SAMG, this statement has no effect
+          UDP->UDP_CSR[epnum] |= UDP_CSR_DTGLE_Msk;
+
+          // WALKROUND: duplicate IN transfer to send DATA1 status packet
+          // set flag for irq to skip reporting first incorrect packet
+          _walkaround_incorrect_dtoggle_control_status = true;
+
+          UDP->UDP_CSR[epnum] |= UDP_CSR_TXPKTRDY_Msk;
+          while ( UDP->UDP_CSR[epnum] & UDP_CSR_TXPKTRDY_Msk ) {}
+
+          _walkaround_incorrect_dtoggle_control_status = false;
+        }
+      }
     }
 
     xact_ep_write(epnum, xfer->buffer, xfer_packet_len(xfer));
 
     // TX ready for transfer
     UDP->UDP_CSR[epnum] |= UDP_CSR_TXPKTRDY_Msk;
-  }
-  else
-  {
-    // Enable interrupt when starting OUT transfer
-    if (epnum != 0) UDP->UDP_IER |= (1 << epnum);
   }
 
   return true;
@@ -422,7 +415,7 @@ void dcd_isr(uint8_t rhport)
           UDP->UDP_CSR[epnum] |= UDP_CSR_TXPKTRDY_Msk;
         }else
         {
-          // WALKAROUND: Skip reporting this incorrect DATA Toggle status transfer
+          // WALKAROUND: Skip reporting this incorrect DATA Toggle status IN transfer
           if ( !(_walkaround_incorrect_dtoggle_control_status && (epnum == 0) && (xfer->actual_len == 0)) )
           {
             // xfer is complete
