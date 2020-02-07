@@ -335,25 +335,34 @@ bool cdcd_control_request(uint8_t rhport, tusb_control_request_t const * request
   switch ( request->bRequest )
   {
     case CDC_REQUEST_SET_LINE_CODING:
+      TU_LOG2("  Set Line Coding\n");
       tud_control_xfer(rhport, request, &p_cdc->line_coding, sizeof(cdc_line_coding_t));
     break;
 
     case CDC_REQUEST_GET_LINE_CODING:
+      TU_LOG2("  Get Line Coding\n");
       tud_control_xfer(rhport, request, &p_cdc->line_coding, sizeof(cdc_line_coding_t));
     break;
 
     case CDC_REQUEST_SET_CONTROL_LINE_STATE:
+    {
       // CDC PSTN v1.2 section 6.3.12
       // Bit 0: Indicates if DTE is present or not.
       //        This signal corresponds to V.24 signal 108/2 and RS-232 signal DTR (Data Terminal Ready)
       // Bit 1: Carrier control for half-duplex modems.
       //        This signal corresponds to V.24 signal 105 and RS-232 signal RTS (Request to Send)
+      bool const dtr = tu_bit_test(request->wValue, 0);
+      bool const rts = tu_bit_test(request->wValue, 1);
+
       p_cdc->line_state = (uint8_t) request->wValue;
+
+      TU_LOG2("  Set Control Line State: DTR = %d, RTS = %d\n", dtr, rts);
 
       tud_control_status(rhport, request);
 
       // Invoke callback
-      if ( tud_cdc_line_state_cb) tud_cdc_line_state_cb(itf, tu_bit_test(request->wValue, 0), tu_bit_test(request->wValue, 1));
+      if ( tud_cdc_line_state_cb) tud_cdc_line_state_cb(itf, dtr, rts);
+    }
     break;
 
     default: return false; // stall unsupported request

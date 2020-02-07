@@ -51,8 +51,8 @@ typedef struct
 
 static usbd_control_xfer_t _ctrl_xfer;
 
-CFG_TUSB_MEM_SECTION CFG_TUSB_MEM_ALIGN static uint8_t _usbd_ctrl_buf[CFG_TUD_ENDPOINT0_SIZE];
-
+CFG_TUSB_MEM_SECTION CFG_TUSB_MEM_ALIGN
+static uint8_t _usbd_ctrl_buf[CFG_TUD_ENDPOINT0_SIZE];
 
 //--------------------------------------------------------------------+
 // Application API
@@ -60,8 +60,14 @@ CFG_TUSB_MEM_SECTION CFG_TUSB_MEM_ALIGN static uint8_t _usbd_ctrl_buf[CFG_TUD_EN
 
 static inline bool _status_stage_xact(uint8_t rhport, tusb_control_request_t const * request)
 {
+  // Opposite to endpoint in Data Phase
+  uint8_t const ep_addr = request->bmRequestType_bit.direction ? EDPT_CTRL_OUT : EDPT_CTRL_IN;
+
+  TU_LOG2("  XFER Endpoint: 0x%02X, Bytes: %d\n", ep_addr, 0);
+
   // status direction is reversed to one in the setup packet
-  return dcd_edpt_xfer(rhport, request->bmRequestType_bit.direction ? EDPT_CTRL_OUT : EDPT_CTRL_IN, NULL, 0);
+  // Note: Status must always be DATA1
+  return dcd_edpt_xfer(rhport, ep_addr, NULL, 0);
 }
 
 // Status phase
@@ -106,6 +112,8 @@ bool tud_control_xfer(uint8_t rhport, tusb_control_request_t const * request, vo
 
     // Data stage
     TU_ASSERT( _data_stage_xact(rhport) );
+
+    TU_LOG2("  XFER Endpoint: 0x%02X, Bytes: %d\n", request->bmRequestType_bit.direction ? EDPT_CTRL_IN : EDPT_CTRL_OUT, _ctrl_xfer.data_len);
   }else
   {
     // Status stage
