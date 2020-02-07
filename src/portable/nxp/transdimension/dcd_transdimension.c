@@ -1,4 +1,4 @@
-/* 
+/*
  * The MIT License (MIT)
  *
  * Copyright (c) 2019 Ha Thach (tinyusb.org)
@@ -38,22 +38,15 @@
 
 #if CFG_TUSB_MCU == OPT_MCU_MIMXRT10XX
   #include "fsl_device_registers.h"
-
-// RT1010 and RT1020 only has 1 USB controller
-#if FSL_FEATURE_SOC_USBHS_COUNT == 1
-  #define   DCD_REGS_BASE { (dcd_registers_t*) USB_BASE }
-  IRQn_Type DCD_IRQn[] =  { USB_OTG1_IRQn };
-
-// RT1050, RT1060 has 2 USB controllers
 #else
-  #define   DCD_REGS_BASE { (dcd_registers_t*) USB1_BASE, (dcd_registers_t*) USB2_BASE }
-  IRQn_Type DCD_IRQn[] =  { USB_OTG1_IRQn, USB_OTG2_IRQn };
+  // LPCOpen for 18xx & 43xx
+  #include "chip.h"
 #endif
 
+#if defined(__CORTEX_M) && __CORTEX_M == 7 && __DCACHE_PRESENT == 1
+  #define CleanInvalidateDCache_by_Addr   SCB_CleanInvalidateDCache_by_Addr
 #else
-  #include "chip.h"
-  #define   DCD_REGS_BASE { (dcd_registers_t*) LPC_USB0_BASE, (dcd_registers_t*) LPC_USB1_BASE }
-  IRQn_Type DCD_IRQn[] =  { USB0_IRQn, USB1_IRQn };
+  #define CleanInvalidateDCache_by_Addr(_addr, _dsize)
 #endif
 
 //--------------------------------------------------------------------+
@@ -130,48 +123,48 @@ enum {
 typedef struct
 {
   //------------- ID + HW Parameter Registers-------------//
-  __I  uint32_t TU_RESERVED[64];    ///< For iMX RT10xx, but not used by LPC18XX/LPC43XX
+  __I  uint32_t TU_RESERVED[64]; ///< For iMX RT10xx, but not used by LPC18XX/LPC43XX
 
   //------------- Capability Registers-------------//
-  __I  uint8_t  CAPLENGTH;          ///< Capability Registers Length
+  __I  uint8_t  CAPLENGTH;       ///< Capability Registers Length
   __I  uint8_t  TU_RESERVED[1];
-  __I  uint16_t HCIVERSION;         ///< Host Controller Interface Version
+  __I  uint16_t HCIVERSION;      ///< Host Controller Interface Version
 
-  __I  uint32_t HCSPARAMS;          ///< Host Controller Structural Parameters
-  __I  uint32_t HCCPARAMS;          ///< Host Controller Capability Parameters
+  __I  uint32_t HCSPARAMS;       ///< Host Controller Structural Parameters
+  __I  uint32_t HCCPARAMS;       ///< Host Controller Capability Parameters
   __I  uint32_t TU_RESERVED[5];
 
-  __I  uint16_t DCIVERSION;         ///< Device Controller Interface Version
+  __I  uint16_t DCIVERSION;      ///< Device Controller Interface Version
   __I  uint8_t  TU_RESERVED[2];
 
-  __I  uint32_t DCCPARAMS;          ///< Device Controller Capability Parameters
+  __I  uint32_t DCCPARAMS;       ///< Device Controller Capability Parameters
   __I  uint32_t TU_RESERVED[6];
 
   //------------- Operational Registers -------------//
-  __IO uint32_t USBCMD;             ///< USB Command Register
-  __IO uint32_t USBSTS;             ///< USB Status Register
-  __IO uint32_t USBINTR;            ///< Interrupt Enable Register
-  __IO uint32_t FRINDEX;            ///< USB Frame Index
+  __IO uint32_t USBCMD;          ///< USB Command Register
+  __IO uint32_t USBSTS;          ///< USB Status Register
+  __IO uint32_t USBINTR;         ///< Interrupt Enable Register
+  __IO uint32_t FRINDEX;         ///< USB Frame Index
   __I  uint32_t TU_RESERVED;
-  __IO uint32_t DEVICEADDR;         ///< Device Address
-  __IO uint32_t ENDPTLISTADDR;      ///< Endpoint List Address
+  __IO uint32_t DEVICEADDR;      ///< Device Address
+  __IO uint32_t ENDPTLISTADDR;   ///< Endpoint List Address
   __I  uint32_t TU_RESERVED;
-  __IO uint32_t BURSTSIZE;          ///< Programmable Burst Size
-  __IO uint32_t TXFILLTUNING;       ///< TX FIFO Fill Tuning
+  __IO uint32_t BURSTSIZE;       ///< Programmable Burst Size
+  __IO uint32_t TXFILLTUNING;    ///< TX FIFO Fill Tuning
        uint32_t TU_RESERVED[4];
-  __IO uint32_t ENDPTNAK;           ///< Endpoint NAK
-  __IO uint32_t ENDPTNAKEN;         ///< Endpoint NAK Enable
+  __IO uint32_t ENDPTNAK;        ///< Endpoint NAK
+  __IO uint32_t ENDPTNAKEN;      ///< Endpoint NAK Enable
   __I  uint32_t TU_RESERVED;
-  __IO uint32_t PORTSC1;            ///< Port Status & Control
+  __IO uint32_t PORTSC1;         ///< Port Status & Control
   __I  uint32_t TU_RESERVED[7];
-  __IO uint32_t OTGSC;              ///< On-The-Go Status & control
-  __IO uint32_t USBMODE;            ///< USB Device Mode
-  __IO uint32_t ENDPTSETUPSTAT;     ///< Endpoint Setup Status
-  __IO uint32_t ENDPTPRIME;         ///< Endpoint Prime
-  __IO uint32_t ENDPTFLUSH;         ///< Endpoint Flush
-  __I  uint32_t ENDPTSTAT;          ///< Endpoint Status
-  __IO uint32_t ENDPTCOMPLETE;      ///< Endpoint Complete
-  __IO uint32_t ENDPTCTRL[8];       ///< Endpoint Control 0 - 7
+  __IO uint32_t OTGSC;           ///< On-The-Go Status & control
+  __IO uint32_t USBMODE;         ///< USB Device Mode
+  __IO uint32_t ENDPTSETUPSTAT;  ///< Endpoint Setup Status
+  __IO uint32_t ENDPTPRIME;      ///< Endpoint Prime
+  __IO uint32_t ENDPTFLUSH;      ///< Endpoint Flush
+  __I  uint32_t ENDPTSTAT;       ///< Endpoint Status
+  __IO uint32_t ENDPTCOMPLETE;   ///< Endpoint Complete
+  __IO uint32_t ENDPTCTRL[8];    ///< Endpoint Control 0 - 7
 } dcd_registers_t;
 
 
@@ -218,20 +211,20 @@ typedef struct
   uint32_t                         : 0  ;
 
   // Word 1: Current qTD Pointer
-	volatile uint32_t qtd_addr;
+  volatile uint32_t qtd_addr;
 
-	// Word 2-9: Transfer Overlay
-	volatile dcd_qtd_t qtd_overlay;
+  // Word 2-9: Transfer Overlay
+  volatile dcd_qtd_t qtd_overlay;
 
-	// Word 10-11: Setup request (control OUT only)
-	volatile tusb_control_request_t setup_request;
+  // Word 10-11: Setup request (control OUT only)
+  volatile tusb_control_request_t setup_request;
 
-	//--------------------------------------------------------------------+
-  /// Due to the fact QHD is 64 bytes aligned but occupies only 48 bytes
-	/// thus there are 16 bytes padding free that we can make use of.
   //--------------------------------------------------------------------+
-	uint8_t reserved[16];
-}  dcd_qhd_t;
+  /// Due to the fact QHD is 64 bytes aligned but occupies only 48 bytes
+  /// thus there are 16 bytes padding free that we can make use of.
+  //--------------------------------------------------------------------+
+  uint8_t reserved[16];
+} dcd_qhd_t;
 
 TU_VERIFY_STATIC( sizeof(dcd_qhd_t) == 64, "size is not correct");
 
@@ -239,17 +232,48 @@ TU_VERIFY_STATIC( sizeof(dcd_qhd_t) == 64, "size is not correct");
 // Variables
 //--------------------------------------------------------------------+
 
-#define QHD_MAX          12
+typedef struct
+{
+  dcd_registers_t* regs;  // registers
+  const IRQn_Type irqnum; // IRQ number
+  const uint8_t ep_count;   // Max bi-directional Endpoints
+}dcd_controller_t;
+
+#if CFG_TUSB_MCU == OPT_MCU_MIMXRT10XX
+  // Each endpoint with direction (IN/OUT) occupies a queue head
+  // Therefore QHD_MAX is 2 x max endpoint count
+  #define QHD_MAX  (8*2)
+
+  dcd_controller_t _dcd_controller[] =
+  {
+    // RT1010 and RT1020 only has 1 USB controller
+    #if FSL_FEATURE_SOC_USBHS_COUNT == 1
+      { .regs = (dcd_registers_t*) USB_BASE , .irqnum = USB_OTG1_IRQn, .ep_count = 8 }
+    #else
+      { .regs = (dcd_registers_t*) USB1_BASE, .irqnum = USB_OTG1_IRQn, .ep_count = 8 },
+      { .regs = (dcd_registers_t*) USB2_BASE, .irqnum = USB_OTG2_IRQn, .ep_count = 8 }
+    #endif
+  };
+
+#else
+  #define QHD_MAX (6*2)
+
+  dcd_controller_t _dcd_controller[] =
+  {
+    { .regs = (dcd_registers_t*) LPC_USB0_BASE, .irqnum = USB0_IRQn, .ep_count = 6 },
+    { .regs = (dcd_registers_t*) LPC_USB1_BASE, .irqnum = USB1_IRQn, .ep_count = 4 }
+  };
+#endif
+
 #define QTD_NEXT_INVALID 0x01
 
 typedef struct {
   // Must be at 2K alignment
   dcd_qhd_t qhd[QHD_MAX] TU_ATTR_ALIGNED(64);
-  dcd_qtd_t qtd[QHD_MAX] TU_ATTR_ALIGNED(32);
+  dcd_qtd_t qtd[QHD_MAX] TU_ATTR_ALIGNED(32); // for portability, TinyUSB only queue 1 TD for each Qhd
 }dcd_data_t;
 
 static dcd_data_t _dcd_data CFG_TUSB_MEM_SECTION TU_ATTR_ALIGNED(2048);
-static dcd_registers_t* DCD_REGS[] = DCD_REGS_BASE;
 
 //--------------------------------------------------------------------+
 // CONTROLLER API
@@ -258,16 +282,14 @@ static dcd_registers_t* DCD_REGS[] = DCD_REGS_BASE;
 /// follows LPC43xx User Manual 23.10.3
 static void bus_reset(uint8_t rhport)
 {
-  dcd_registers_t* dcd_reg = DCD_REGS[rhport];
+  dcd_registers_t* dcd_reg = _dcd_controller[rhport].regs;
 
   // The reset value for all endpoint types is the control endpoint. If one endpoint
   // direction is enabled and the paired endpoint of opposite direction is disabled, then the
-  // endpoint type of the unused direction must bechanged from the control type to any other
-  // type (e.g. bulk). Leaving an unconfigured endpoint control will cause undefined behavior
+  // endpoint type of the unused direction must be changed from the control type to any other
+  // type (e.g. bulk). Leaving an un-configured endpoint control will cause undefined behavior
   // for the data PID tracking on the active endpoint.
-
-  // USB0 has 5 but USB1 only has 3 non-control endpoints
-  for( int i=1; i < (rhport ? 6 : 4); i++)
+  for( int i=1; i < _dcd_controller[rhport].ep_count; i++)
   {
     dcd_reg->ENDPTCTRL[i] = (TUSB_XFER_BULK << 2) | (TUSB_XFER_BULK << 18);
   }
@@ -279,9 +301,9 @@ static void bus_reset(uint8_t rhport)
   dcd_reg->ENDPTSETUPSTAT = dcd_reg->ENDPTSETUPSTAT;
   dcd_reg->ENDPTCOMPLETE  = dcd_reg->ENDPTCOMPLETE;
 
-  while (dcd_reg->ENDPTPRIME);
+  while (dcd_reg->ENDPTPRIME) {}
   dcd_reg->ENDPTFLUSH = 0xFFFFFFFF;
-  while (dcd_reg->ENDPTFLUSH);
+  while (dcd_reg->ENDPTFLUSH) {}
 
   // read reset bit in portsc
 
@@ -289,18 +311,18 @@ static void bus_reset(uint8_t rhport)
   tu_memclr(&_dcd_data, sizeof(dcd_data_t));
 
   //------------- Set up Control Endpoints (0 OUT, 1 IN) -------------//
-	_dcd_data.qhd[0].zero_length_termination = _dcd_data.qhd[1].zero_length_termination = 1;
-	_dcd_data.qhd[0].max_package_size = _dcd_data.qhd[1].max_package_size = CFG_TUD_ENDPOINT0_SIZE;
-	_dcd_data.qhd[0].qtd_overlay.next = _dcd_data.qhd[1].qtd_overlay.next = QTD_NEXT_INVALID;
+  _dcd_data.qhd[0].zero_length_termination = _dcd_data.qhd[1].zero_length_termination = 1;
+  _dcd_data.qhd[0].max_package_size = _dcd_data.qhd[1].max_package_size = CFG_TUD_ENDPOINT0_SIZE;
+  _dcd_data.qhd[0].qtd_overlay.next = _dcd_data.qhd[1].qtd_overlay.next = QTD_NEXT_INVALID;
 
-	_dcd_data.qhd[0].int_on_setup = 1; // OUT only
+  _dcd_data.qhd[0].int_on_setup = 1; // OUT only
 }
 
 void dcd_init(uint8_t rhport)
 {
   tu_memclr(&_dcd_data, sizeof(dcd_data_t));
 
-  dcd_registers_t* const dcd_reg = DCD_REGS[rhport];
+  dcd_registers_t* const dcd_reg = _dcd_controller[rhport].regs;
 
   // Reset controller
   dcd_reg->USBCMD |= USBCMD_RESET;
@@ -313,9 +335,11 @@ void dcd_init(uint8_t rhport)
   // TODO Force fullspeed on non-highspeed port
   // dcd_reg->PORTSC1 = PORTSC1_FORCE_FULL_SPEED;
 
+  CleanInvalidateDCache_by_Addr((uint32_t*) &_dcd_data, sizeof(dcd_data_t));
+
   dcd_reg->ENDPTLISTADDR = (uint32_t) _dcd_data.qhd; // Endpoint List Address has to be 2K alignment
   dcd_reg->USBSTS  = dcd_reg->USBSTS;
-  dcd_reg->USBINTR = INTR_USB | INTR_ERROR | INTR_PORT_CHANGE | INTR_RESET | INTR_SUSPEND | INTR_SOF;
+  dcd_reg->USBINTR = INTR_USB | INTR_ERROR | INTR_PORT_CHANGE | INTR_RESET | INTR_SUSPEND /*| INTR_SOF*/;
 
   dcd_reg->USBCMD &= ~0x00FF0000; // Interrupt Threshold Interval = 0
   dcd_reg->USBCMD |= TU_BIT(0); // connect
@@ -323,12 +347,12 @@ void dcd_init(uint8_t rhport)
 
 void dcd_int_enable(uint8_t rhport)
 {
-  NVIC_EnableIRQ(DCD_IRQn[rhport]);
+  NVIC_EnableIRQ(_dcd_controller[rhport].irqnum);
 }
 
 void dcd_int_disable(uint8_t rhport)
 {
-  NVIC_DisableIRQ(DCD_IRQn[rhport]);
+  NVIC_DisableIRQ(_dcd_controller[rhport].irqnum);
 }
 
 void dcd_set_address(uint8_t rhport, uint8_t dev_addr)
@@ -336,7 +360,8 @@ void dcd_set_address(uint8_t rhport, uint8_t dev_addr)
   // Response with status first before changing device address
   dcd_edpt_xfer(rhport, tu_edpt_addr(0, TUSB_DIR_IN), NULL, 0);
 
-  DCD_REGS[rhport]->DEVICEADDR = (dev_addr << 25) | TU_BIT(24);
+  dcd_registers_t* dcd_reg = _dcd_controller[rhport].regs;
+  dcd_reg->DEVICEADDR = (dev_addr << 25) | TU_BIT(24);
 }
 
 void dcd_set_config(uint8_t rhport, uint8_t config_num)
@@ -386,7 +411,8 @@ void dcd_edpt_stall(uint8_t rhport, uint8_t ep_addr)
   uint8_t const epnum  = tu_edpt_number(ep_addr);
   uint8_t const dir    = tu_edpt_dir(ep_addr);
 
-  DCD_REGS[rhport]->ENDPTCTRL[epnum] |= ENDPTCTRL_STALL << (dir ? 16 : 0);
+  dcd_registers_t* dcd_reg = _dcd_controller[rhport].regs;
+  dcd_reg->ENDPTCTRL[epnum] |= ENDPTCTRL_STALL << (dir ? 16 : 0);
 }
 
 void dcd_edpt_clear_stall(uint8_t rhport, uint8_t ep_addr)
@@ -395,8 +421,9 @@ void dcd_edpt_clear_stall(uint8_t rhport, uint8_t ep_addr)
   uint8_t const dir    = tu_edpt_dir(ep_addr);
 
   // data toggle also need to be reset
-  DCD_REGS[rhport]->ENDPTCTRL[epnum] |= ENDPTCTRL_TOGGLE_RESET << ( dir ? 16 : 0 );
-  DCD_REGS[rhport]->ENDPTCTRL[epnum] &= ~(ENDPTCTRL_STALL << ( dir  ? 16 : 0));
+  dcd_registers_t* dcd_reg = _dcd_controller[rhport].regs;
+  dcd_reg->ENDPTCTRL[epnum] |= ENDPTCTRL_TOGGLE_RESET << ( dir ? 16 : 0 );
+  dcd_reg->ENDPTCTRL[epnum] &= ~(ENDPTCTRL_STALL << ( dir  ? 16 : 0));
 }
 
 bool dcd_edpt_open(uint8_t rhport, tusb_desc_endpoint_t const * p_endpoint_desc)
@@ -408,8 +435,8 @@ bool dcd_edpt_open(uint8_t rhport, tusb_desc_endpoint_t const * p_endpoint_desc)
   uint8_t const dir    = tu_edpt_dir(p_endpoint_desc->bEndpointAddress);
   uint8_t const ep_idx = 2*epnum + dir;
 
-  // USB0 has 5, USB1 has 3 non-control endpoints
-  TU_ASSERT( epnum <= (rhport ? 3 : 5) );
+  // Must not exceed max endpoint number
+  TU_ASSERT( epnum < _dcd_controller[rhport].ep_count );
 
   //------------- Prepare Queue Head -------------//
   dcd_qhd_t * p_qhd = &_dcd_data.qhd[ep_idx];
@@ -419,14 +446,18 @@ bool dcd_edpt_open(uint8_t rhport, tusb_desc_endpoint_t const * p_endpoint_desc)
   p_qhd->max_package_size        = p_endpoint_desc->wMaxPacketSize.size;
   p_qhd->qtd_overlay.next        = QTD_NEXT_INVALID;
 
+  CleanInvalidateDCache_by_Addr((uint32_t*) &_dcd_data, sizeof(dcd_data_t));
+
   // Enable EP Control
-  DCD_REGS[rhport]->ENDPTCTRL[epnum] |= ((p_endpoint_desc->bmAttributes.xfer << 2) | ENDPTCTRL_ENABLE | ENDPTCTRL_TOGGLE_RESET) << (dir ? 16 : 0);
+  dcd_registers_t* dcd_reg = _dcd_controller[rhport].regs;
+  dcd_reg->ENDPTCTRL[epnum] |= ((p_endpoint_desc->bmAttributes.xfer << 2) | ENDPTCTRL_ENABLE | ENDPTCTRL_TOGGLE_RESET) << (dir ? 16 : 0);
 
   return true;
 }
 
 bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t total_bytes)
 {
+  dcd_registers_t* dcd_reg = _dcd_controller[rhport].regs;
   uint8_t const epnum = tu_edpt_number(ep_addr);
   uint8_t const dir   = tu_edpt_dir(ep_addr);
   uint8_t const ep_idx = 2*epnum + dir;
@@ -435,19 +466,25 @@ bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t t
   {
     // follows UM 24.10.8.1.1 Setup packet handling using setup lockout mechanism
     // wait until ENDPTSETUPSTAT before priming data/status in response TODO add time out
-    while(DCD_REGS[rhport]->ENDPTSETUPSTAT & TU_BIT(0)) {}
+    while(dcd_reg->ENDPTSETUPSTAT & TU_BIT(0)) {}
   }
 
   dcd_qhd_t * p_qhd = &_dcd_data.qhd[ep_idx];
   dcd_qtd_t * p_qtd = &_dcd_data.qtd[ep_idx];
+
+  // Force the CPU to flush the buffer. We increase the size by 32 because the call aligns the
+  // address to 32-byte boundaries.
+  CleanInvalidateDCache_by_Addr((uint32_t*) buffer, total_bytes + 31);
 
   //------------- Prepare qtd -------------//
   qtd_init(p_qtd, buffer, total_bytes);
   p_qtd->int_on_complete = true;
   p_qhd->qtd_overlay.next = (uint32_t) p_qtd; // link qtd to qhd
 
+  CleanInvalidateDCache_by_Addr((uint32_t*) &_dcd_data, sizeof(dcd_data_t));
+
   // start transfer
-  DCD_REGS[rhport]->ENDPTPRIME = TU_BIT( ep_idx2bit(ep_idx) ) ;
+  dcd_reg->ENDPTPRIME = TU_BIT( ep_idx2bit(ep_idx) ) ;
 
   return true;
 }
@@ -457,7 +494,7 @@ bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t t
 //--------------------------------------------------------------------+
 void dcd_isr(uint8_t rhport)
 {
-  dcd_registers_t* const dcd_reg = DCD_REGS[rhport];
+  dcd_registers_t* const dcd_reg = _dcd_controller[rhport].regs;
 
   uint32_t const int_enable = dcd_reg->USBINTR;
   uint32_t const int_status = dcd_reg->USBSTS & int_enable;
@@ -483,6 +520,9 @@ void dcd_isr(uint8_t rhport)
       }
     }
   }
+
+  // Make sure we read the latest version of _dcd_data.
+  CleanInvalidateDCache_by_Addr((uint32_t*) &_dcd_data, sizeof(dcd_data_t));
 
   // TODO disconnection does not generate interrupt !!!!!!
 //	if (int_status & INTR_PORT_CHANGE)

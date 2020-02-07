@@ -148,6 +148,37 @@ static void dcd_in_xfer(struct xfer_ctl_t *xfer, USBD_EP_T *ep)
   ep->MXPLD = bytes_now;
 }
 
+/* called by dcd_init() as well as by the ISR during a USB bus reset */
+static void bus_reset(void)
+{
+  USBD->STBUFSEG = PERIPH_SETUP_BUF_BASE;
+
+  for (enum ep_enum ep_index = PERIPH_EP0; ep_index < PERIPH_MAX_EP; ep_index++)
+  {
+    USBD->EP[ep_index].CFG = 0;
+    USBD->EP[ep_index].CFGP = 0;
+  }
+
+  /* allocate the default EP0 endpoints */
+
+  USBD->EP[PERIPH_EP0].CFG = USBD_CFG_CSTALL_Msk | USBD_CFG_EPMODE_IN;
+  USBD->EP[PERIPH_EP0].BUFSEG = PERIPH_EP0_BUF_BASE;
+  xfer_table[PERIPH_EP0].max_packet_size = PERIPH_EP0_BUF_LEN;
+
+  USBD->EP[PERIPH_EP1].CFG = USBD_CFG_CSTALL_Msk | USBD_CFG_EPMODE_OUT;
+  USBD->EP[PERIPH_EP1].BUFSEG = PERIPH_EP1_BUF_BASE;
+  xfer_table[PERIPH_EP1].max_packet_size = PERIPH_EP1_BUF_LEN;
+
+  /* USB RAM beyond what we've allocated above is available to the user */
+  bufseg_addr = PERIPH_EP2_BUF_BASE;
+
+  /* Reset USB device address */
+  USBD->FADDR = 0;
+
+  /* reset EP0_IN flag */
+  active_ep0_xfer = false;
+}
+
 /* centralized location for USBD interrupt enable bit mask */
 static const uint32_t enabled_irqs = USBD_INTSTS_VBDETIF_Msk | USBD_INTSTS_BUSIF_Msk | USBD_INTSTS_SETUP_Msk | USBD_INTSTS_USBIF_Msk | USBD_INTSTS_SOFIF_Msk;
 
@@ -167,25 +198,7 @@ void dcd_init(uint8_t rhport)
 
   usb_detach();
 
-  USBD->STBUFSEG = PERIPH_SETUP_BUF_BASE;
-
-  for (enum ep_enum ep_index = PERIPH_EP0; ep_index < PERIPH_MAX_EP; ep_index++)
-  {
-    USBD->EP[ep_index].CFGP &= ~USBD_CFG_STATE_Msk;
-  }
-
-  /* allocate the default EP0 endpoints */
-
-  USBD->EP[PERIPH_EP0].CFG = USBD_CFG_CSTALL_Msk | USBD_CFG_EPMODE_IN;
-  USBD->EP[PERIPH_EP0].BUFSEG = PERIPH_EP0_BUF_BASE;
-  xfer_table[PERIPH_EP0].max_packet_size = PERIPH_EP0_BUF_LEN;
-
-  USBD->EP[PERIPH_EP1].CFG = USBD_CFG_CSTALL_Msk | USBD_CFG_EPMODE_OUT;
-  USBD->EP[PERIPH_EP1].BUFSEG = PERIPH_EP1_BUF_BASE;
-  xfer_table[PERIPH_EP1].max_packet_size = PERIPH_EP1_BUF_LEN;
-
-  /* USB RAM beyond what we've allocated above is available to the user */
-  bufseg_addr = PERIPH_EP2_BUF_BASE;
+  bus_reset();
 
   usb_attach();
 
@@ -329,15 +342,7 @@ void USBD_IRQHandler(void)
       /* USB bus reset */
       USBD->ATTR |= USBD_ATTR_USBEN_Msk | USBD_ATTR_PHYEN_Msk;
 
-      /* Reset all endpoints to DATA0 */
-      for(enum ep_enum ep_index = PERIPH_EP0; ep_index < PERIPH_MAX_EP; ep_index++)
-        USBD->EP[ep_index].CFG &= ~USBD_CFG_DSQSYNC_Msk;
-
-      /* Reset USB device address */
-      USBD->FADDR = 0;
-
-      /* reset EP0_IN flag */
-      active_ep0_xfer = false;
+      bus_reset();
 
       dcd_event_bus_signal(0, DCD_EVENT_BUS_RESET, true);
     }
