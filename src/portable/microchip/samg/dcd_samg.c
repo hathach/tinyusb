@@ -304,34 +304,6 @@ bool dcd_edpt_xfer (uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t 
   }
   else
   {
-    // Clear DIR bit for EP0
-    if ( epnum == 0 ) UDP->UDP_CSR[epnum] &= ~UDP_CSR_DIR_Msk;
-
-    // OUT Data may already received and acked by hardware
-    // Read it as 1st packet then continue with transfer if needed
-    if ( UDP->UDP_CSR[epnum] & (UDP_CSR_RX_DATA_BK0_Msk | UDP_CSR_RX_DATA_BK1_Msk) )
-    {
-//      uint16_t const xact_len = (uint16_t) ((UDP->UDP_CSR[epnum] & UDP_CSR_RXBYTECNT_Msk) >> UDP_CSR_RXBYTECNT_Pos);
-
-//      TU_LOG2("xact_len = %d\r", xact_len);
-
-//      // Read from EP fifo
-//      xact_ep_read(epnum, xfer->buffer, xact_len);
-//      xfer_packet_done(xfer);
-//
-//      // Clear DATA Bank0 bit
-//      UDP->UDP_CSR[epnum] &= ~UDP_CSR_RX_DATA_BK0_Msk;
-//
-//      if ( 0 == xfer_packet_len(xfer) )
-//      {
-//        // Disable OUT EP interrupt when transfer is complete
-//        UDP->UDP_IER &= ~(1 << epnum);
-//
-//        dcd_event_xfer_complete(rhport, epnum, xact_len, XFER_RESULT_SUCCESS, false);
-//        return true; // complete
-//      }
-    }
-
     // Enable interrupt when starting OUT transfer
     if (epnum != 0) UDP->UDP_IER |= (1 << epnum);
   }
@@ -387,13 +359,13 @@ void dcd_isr(uint8_t rhport)
 //  if (intr_status & UDP_ISR_SOFINT_Msk) dcd_event_bus_signal(rhport, DCD_EVENT_SOF, true);
 
   // Suspend
-//  if (intr_status & UDP_ISR_RXSUSP_Msk) dcd_event_bus_signal(rhport, DCD_EVENT_SUSPEND, true);
+  if (intr_status & UDP_ISR_RXSUSP_Msk) dcd_event_bus_signal(rhport, DCD_EVENT_SUSPEND, true);
 
   // Resume
-//  if (intr_status & UDP_ISR_RXRSM_Msk)  dcd_event_bus_signal(rhport, DCD_EVENT_RESUME, true);
+  if (intr_status & UDP_ISR_RXRSM_Msk)  dcd_event_bus_signal(rhport, DCD_EVENT_RESUME, true);
 
   // Wakeup
-//  if (intr_status & UDP_ISR_WAKEUP_Msk)  dcd_event_bus_signal(rhport, DCD_EVENT_RESUME, true);
+  if (intr_status & UDP_ISR_WAKEUP_Msk)  dcd_event_bus_signal(rhport, DCD_EVENT_RESUME, true);
 
   //------------- Endpoints -------------//
 
@@ -434,7 +406,7 @@ void dcd_isr(uint8_t rhport)
     {
       xfer_desc_t* xfer = &_dcd_xfer[epnum];
 
-      // Endpoint IN
+      //------------- Endpoint IN -------------//
       if (UDP->UDP_CSR[epnum] & UDP_CSR_TXCOMP_Msk)
       {
         xfer_packet_done(xfer);
@@ -455,6 +427,9 @@ void dcd_isr(uint8_t rhport)
           {
             // xfer is complete
             dcd_event_xfer_complete(rhport, epnum | TUSB_DIR_IN_MASK, xfer->actual_len, XFER_RESULT_SUCCESS, true);
+
+            // Required since control OUT can happen right after before stack handle this event
+            xfer_end(xfer);
           }
         }
 
@@ -462,14 +437,13 @@ void dcd_isr(uint8_t rhport)
         UDP->UDP_CSR[epnum] &= ~UDP_CSR_TXCOMP_Msk;
       }
 
-      // Endpoint OUT
+      //------------- Endpoint OUT -------------//
       // Ping-Pong is a MUST for Bulk/Iso
-      // When both Bank0 and Bank1 are both set, there is no way to know which one comes first
-      if (UDP->UDP_CSR[epnum] & (UDP_CSR_RX_DATA_BK0_Msk | UDP_CSR_RX_DATA_BK1_Msk))
+      // NOTE: When both Bank0 and Bank1 are both set, there is no way to know which one comes first
+      uint32_t const banks_complete = UDP->UDP_CSR[epnum] & (UDP_CSR_RX_DATA_BK0_Msk | UDP_CSR_RX_DATA_BK1_Msk);
+      if (banks_complete)
       {
         uint16_t const xact_len = (uint16_t) ((UDP->UDP_CSR[epnum] & UDP_CSR_RXBYTECNT_Msk) >> UDP_CSR_RXBYTECNT_Pos);
-
-        //if (epnum != 0) TU_LOG2("xact_len = %d\r", xact_len);
 
         // Read from EP fifo
         xact_ep_read(epnum, xfer->buffer, xact_len);
@@ -480,12 +454,12 @@ void dcd_isr(uint8_t rhport)
           // Disable OUT EP interrupt when transfer is complete
           if (epnum != 0) UDP->UDP_IDR |= (1 << epnum);
 
-          dcd_event_xfer_complete(rhport, epnum, xact_len, XFER_RESULT_SUCCESS, true);
-//          xfer_end(xfer);
+          dcd_event_xfer_complete(rhport, epnum, xfer->actual_len, XFER_RESULT_SUCCESS, true);
+          xfer_end(xfer);
         }
 
-        // Clear DATA Bank0 bit
-        UDP->UDP_CSR[epnum] &= ~(UDP_CSR_RX_DATA_BK0_Msk | UDP_CSR_RX_DATA_BK1_Msk);
+        // Clear DATA Bank0/1 bit
+        UDP->UDP_CSR[epnum] &= ~banks_complete;
       }
 
       // Stall sent to host
