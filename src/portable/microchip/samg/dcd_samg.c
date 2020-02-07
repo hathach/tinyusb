@@ -51,6 +51,11 @@ typedef struct
 // Endpoint 0-5, each can only be either OUT or In
 xfer_desc_t _dcd_xfer[EP_COUNT];
 
+// Indicate that DATA Toggle for Control Status is incorrect, which must always be DATA1 by USB Specs.
+// However SAMG DToggle is read-only, therefore we must duplicate the status phase ( D0 then D1 )
+// as walk-around to resolve this. The D0 status packet is likely to be discarded by USB Host safely.
+volatile bool _walkaround_incorrect_dtoggle_control_status;
+
 void xfer_epsize_set(xfer_desc_t* xfer, uint16_t epsize)
 {
   xfer->epsize = epsize;
@@ -111,6 +116,7 @@ static void xact_ep_read(uint8_t epnum, uint8_t* buffer, uint16_t xact_len)
 // Set up endpoint 0, clear all other endpoints
 static void bus_reset(void)
 {
+  _walkaround_incorrect_dtoggle_control_status = false;
   tu_memclr(_dcd_xfer, sizeof(_dcd_xfer));
 
   xfer_epsize_set(&_dcd_xfer[0], CFG_TUD_ENDPOINT0_SIZE);
@@ -201,7 +207,8 @@ void dcd_edpt0_status_complete(uint8_t rhport, tusb_control_request_t const * re
 
       // Set new address & Function enable bit
       UDP->UDP_FADDR = UDP_FADDR_FEN_Msk | UDP_FADDR_FADD(dev_addr);
-    }else if (request->bRequest == TUSB_REQ_SET_CONFIGURATION)
+    }
+    else if (request->bRequest == TUSB_REQ_SET_CONFIGURATION)
     {
       // Configured State
       UDP->UDP_GLB_STAT |= UDP_GLB_STAT_CONFG_Msk;
@@ -248,10 +255,47 @@ bool dcd_edpt_xfer (uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t 
   xfer_desc_t* xfer = &_dcd_xfer[epnum];
   xfer_begin(xfer, buffer, total_bytes);
 
+  // Control Endpoint direction and data toggle
+  if (epnum == 0)
+  {
+    // Transfer direction is opposite to one previously set on EP0
+    // This transfer is Control Status Stage
+    if ( dir != tu_bit_test(UDP->UDP_CSR[epnum], UDP_CSR_DIR_Pos) )
+    {
+      // Set/Clear DIR bit accordingly
+      if (dir)
+      {
+        UDP->UDP_CSR[epnum] |= UDP_CSR_DIR_Msk;
+      }else
+      {
+        UDP->UDP_CSR[epnum] &= ~UDP_CSR_DIR_Msk;
+      }
+
+      // DATA Toggle is 0, USB Specs requires Status Stage must be DATA1
+      // Since SAMG DToggle is read-only, we mark this and implement a walk-around
+      if ( !(UDP->UDP_CSR[epnum] & UDP_CSR_DTGLE_Msk) )
+      {
+        TU_LOG2("Incorrect DATA TOGGLE, Control Status must be DATA1\n");
+
+        // DTGLE is read-only on SAMG, this statement has no effect
+        UDP->UDP_CSR[epnum] |= UDP_CSR_DTGLE_Msk;
+
+        _walkaround_incorrect_dtoggle_control_status = true;
+      }
+    }
+  }
+
+
   if (dir == TUSB_DIR_IN)
   {
-    // Set DIR bit for EP0
-    if ( epnum == 0 ) UDP->UDP_CSR[epnum] |= UDP_CSR_DIR_Msk;
+    // WALKROUND: duplicate IN transfer to send DATA1 status packet
+    if (_walkaround_incorrect_dtoggle_control_status)
+    {
+      UDP->UDP_CSR[epnum] |= UDP_CSR_TXPKTRDY_Msk;
+      while ( UDP->UDP_CSR[epnum] & UDP_CSR_TXPKTRDY_Msk ) {}
+
+      _walkaround_incorrect_dtoggle_control_status = false;
+    }
 
     xact_ep_write(epnum, xfer->buffer, xfer_packet_len(xfer));
 
@@ -368,8 +412,17 @@ void dcd_isr(uint8_t rhport)
       // notify usbd
       dcd_event_setup_received(rhport, setup, true);
 
-      // Clear Setup bit
-      UDP->UDP_CSR[0] &= ~UDP_CSR_RXSETUP_Msk;
+      // Set EP direction bit according to DATA stage
+      if (setup[0] & 0x80)
+      {
+        UDP->UDP_CSR[0] |= UDP_CSR_DIR_Msk;
+      }else
+      {
+        UDP->UDP_CSR[0] &= ~UDP_CSR_DIR_Msk;
+      }
+
+      // Clear Setup bit & stall bit if needed
+      UDP->UDP_CSR[0] &= ~(UDP_CSR_RXSETUP_Msk | UDP_CSR_FORCESTALL_Msk);
 
       return;
     }
@@ -397,8 +450,12 @@ void dcd_isr(uint8_t rhport)
           UDP->UDP_CSR[epnum] |= UDP_CSR_TXPKTRDY_Msk;
         }else
         {
-          // xfer is complete
-          dcd_event_xfer_complete(rhport, epnum | TUSB_DIR_IN_MASK, xfer->actual_len, XFER_RESULT_SUCCESS, true);
+          // WALKAROUND: Skip reporting this incorrect DATA Toggle status transfer
+          if ( !(_walkaround_incorrect_dtoggle_control_status && (epnum == 0) && (xfer->actual_len == 0)) )
+          {
+            // xfer is complete
+            dcd_event_xfer_complete(rhport, epnum | TUSB_DIR_IN_MASK, xfer->actual_len, XFER_RESULT_SUCCESS, true);
+          }
         }
 
         // Clear TX Complete bit
@@ -406,8 +463,8 @@ void dcd_isr(uint8_t rhport)
       }
 
       // Endpoint OUT
-      // Ping-Pong is a must for Bulk/Iso
-      // When both Bank0 and Bank1 are both set, there is not way to know which one comes first
+      // Ping-Pong is a MUST for Bulk/Iso
+      // When both Bank0 and Bank1 are both set, there is no way to know which one comes first
       if (UDP->UDP_CSR[epnum] & (UDP_CSR_RX_DATA_BK0_Msk | UDP_CSR_RX_DATA_BK1_Msk))
       {
         uint16_t const xact_len = (uint16_t) ((UDP->UDP_CSR[epnum] & UDP_CSR_RXBYTECNT_Msk) >> UDP_CSR_RXBYTECNT_Pos);
