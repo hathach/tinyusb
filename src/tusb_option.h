@@ -79,6 +79,7 @@
 
 #define OPT_MCU_NUC121            800
 #define OPT_MCU_NUC126            801
+#define OPT_MCU_NUC505            803
 
 /** @} */
 
