@@ -93,8 +93,11 @@ void board_led_write(bool state)
 {
   uint32_t current = (state) ? LED_STATE_ON : (1-LED_STATE_ON);
   current <<= LED_PIN;
+  uint32_t irq_state = __get_PRIMASK();
+  __disable_irq();
   current |= LED_PORT->DOUT & ~(1UL << LED_PIN);
   LED_PORT->DOUT = current;
+  __set_PRIMASK(irq_state);
 }
 
 uint32_t board_button_read(void)
