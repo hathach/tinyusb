@@ -4,10 +4,6 @@ import sys
 import subprocess
 import time
 
-travis = False
-if "TRAVIS" in os.environ and os.environ["TRAVIS"] == "true":
-    travis = True
-
 success_count = 0
 fail_count = 0
 exit_status = 0
@@ -59,15 +55,9 @@ for example in all_examples:
             success = "\033[31mfailed\033[0m   "
             fail_count += 1
 
-        if travis:
-            print('travis_fold:start:build-{}-{}\\r'.format(example, board))
-
         print((build_format + '| {:.2f}s |').format(example, board, success, build_duration))
         if build_result.returncode != 0:
             print(build_result.stdout.decode("utf-8"))
-
-        if travis:
-            print('travis_fold:end:build-{}-{}\\r'.format(example, board))
 
 # FreeRTOS example
 # example = 'cdc_msc_hid_freertos'

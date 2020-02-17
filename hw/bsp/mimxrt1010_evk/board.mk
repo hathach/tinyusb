@@ -11,7 +11,8 @@ CFLAGS += \
   -DCFG_TUSB_MCU=OPT_MCU_MIMXRT10XX
 
 # mcu driver cause following warnings
-CFLAGS += -Wno-error=unused-parameter -Wno-error=implicit-fallthrough=
+# CFLAGS += -Wno-error=unused-parameter -Wno-error=implicit-fallthrough=
+CFLAGS += -Wno-error=unused-parameter
 
 MCU_DIR = hw/mcu/nxp/sdk/devices/MIMXRT1011
 

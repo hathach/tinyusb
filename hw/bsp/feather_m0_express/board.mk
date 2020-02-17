@@ -25,7 +25,7 @@ INC += \
 	$(TOP)/hw/mcu/microchip/samd/asf4/samd21/include \
 	$(TOP)/hw/mcu/microchip/samd/asf4/samd21/hal/include \
 	$(TOP)/hw/mcu/microchip/samd/asf4/samd21/hal/utils/include \
-	$(TOP)/hw/mcu/microchip/samd/asf4/samd51/hpl/pm/ \
+	$(TOP)/hw/mcu/microchip/samd/asf4/samd21/hpl/pm/ \
 	$(TOP)/hw/mcu/microchip/samd/asf4/samd21/hpl/port \
 	$(TOP)/hw/mcu/microchip/samd/asf4/samd21/hri \
 	$(TOP)/hw/mcu/microchip/samd/asf4/samd21/CMSIS/Include

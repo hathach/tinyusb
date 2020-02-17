@@ -7,7 +7,7 @@ The board support code is only used for self-contained examples and testing. It 
  
 ## Supported Boards
 
-This code base already had supported for a handful of following boards
+This code base already had supported for a handful of following boards (sorted alphabetically)
 
 ### MicroChip SAMD
 
@@ -25,6 +25,13 @@ This code base already had supported for a handful of following boards
 - [Nordic nRF52840 Development Kit (aka pca10056)](https://www.nordicsemi.com/Software-and-Tools/Development-Kits/nRF52840-DK)
 - [Nordic nRF52840 Dongle (aka pca10059)](https://www.nordicsemi.com/Software-and-Tools/Development-Kits/nRF52840-Dongle)
 - [Nordic nRF52833 Development Kit (aka pca10100)](https://www.nordicsemi.com/Software-and-Tools/Development-Kits/nRF52833-DK)
+- [Raytac MDBT50Q-RX Dongle](https://www.raytac.com/product/ins.php?index_id=89)
+
+### Nuvoton
+
+- [NuTiny NUC121S](https://direct.nuvoton.com/en/nutiny-nuc121s)
+- [NuTiny NUC125S](https://direct.nuvoton.com/en/nutiny-nuc125s)
+- [NuTiny NUC126V](https://direct.nuvoton.com/en/nutiny-nuc126v)
 
 ### NXP iMX RT
 
@@ -34,6 +41,7 @@ This code base already had supported for a handful of following boards
 - [MIMX RT1050 Evaluation Kit](https://www.nxp.com/design/development-boards/i.mx-evaluation-and-development-boards/i.mx-rt1050-evaluation-kit:MIMXRT1050-EVK)
 - [MIMX RT1060 Evaluation Kit](https://www.nxp.com/design/development-boards/i.mx-evaluation-and-development-boards/mimxrt1060-evk-i.mx-rt1060-evaluation-kit:MIMXRT1060-EVK)
 - [MIMX RT1064 Evaluation Kit](https://www.nxp.com/design/development-boards/i.mx-evaluation-and-development-boards/mimxrt1064-evk-i.mx-rt1064-evaluation-kit:MIMXRT1064-EVK)
+- [Teensy 4.0 Development Board](https://www.pjrc.com/store/teensy40.html)
 
 ### NXP LPC
 
@@ -64,7 +72,9 @@ This code base already had supported for a handful of following boards
 - STM32 F103c Blue Pill
 - [STM32 F207zg Nucleo](https://www.st.com/en/evaluation-tools/nucleo-f207zg.html)
 - [STM32 F303vc Discovery](https://www.st.com/en/evaluation-tools/stm32f3discovery.html)
+- STM32 F401cc Black Pill
 - [STM32 F407vg Discovery](https://www.st.com/en/evaluation-tools/stm32f4discovery.html)
+- STM32 F411ce Black Pill
 - [STM32 F411ve Discovery](https://www.st.com/en/evaluation-tools/32f411ediscovery.html)
 - [STM32 F412zg Discovery](https://www.st.com/en/evaluation-tools/32f412gdiscovery.html)
 - [STM32 F767zi Nucleo](https://www.st.com/en/evaluation-tools/nucleo-f767zi.html)
