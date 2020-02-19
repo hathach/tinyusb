@@ -80,6 +80,8 @@
 #define OPT_MCU_NUC121            800
 #define OPT_MCU_NUC126            801
 
+#define OPT_MCU_ESP32S2           900 ///< Espressif ESP32-S2
+
 /** @} */
 
 /** \defgroup group_supported_os Supported RTOS
