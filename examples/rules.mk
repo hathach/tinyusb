@@ -22,6 +22,7 @@ SRC_C += \
 	src/class/midi/midi_device.c \
 	src/class/usbtmc/usbtmc_device.c \
 	src/class/vendor/vendor_device.c \
+	src/class/net/net_device.c \
 	src/portable/$(VENDOR)/$(CHIP_FAMILY)/dcd_$(CHIP_FAMILY).c
 
 # TinyUSB stack include
