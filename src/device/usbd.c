@@ -809,7 +809,7 @@ static bool process_get_descriptor(uint8_t rhport, tusb_control_request_t const 
         return false;
       }else
       {
-        uint8_t const* desc_str = (uint8_t const*) tud_descriptor_string_cb(desc_index);
+        uint8_t const* desc_str = (uint8_t const*) tud_descriptor_string_cb(desc_index, p_request->wIndex);
         TU_ASSERT(desc_str);
 
         // first byte of descriptor is its size
