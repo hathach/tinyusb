@@ -117,6 +117,15 @@
 #define OPT_MODE_HIGH_SPEED   0x10 ///< High speed
 /** @} */
 
+/** \defgroup group_supported_netif Supported Network Interface
+ *  \ref CFG_TUD_NET must be defined to one of these
+ *  @{ */
+#define OPT_NET_NONE      0 ///< No network interface
+#define OPT_NET_ECM       1 ///< CDC-ECM
+#define OPT_NET_RNDIS     2 ///< RNDIS
+#define OPT_NET_EEM       3 ///< CDC-EEM
+/** @} */
+
 #ifndef CFG_TUSB_RHPORT0_MODE
   #define CFG_TUSB_RHPORT0_MODE OPT_MODE_NONE
 #endif
@@ -204,6 +213,9 @@
   #define CFG_TUD_DFU_RT          0
 #endif
 
+#ifndef CFG_TUD_NET
+  #define CFG_TUD_NET             0
+#endif
 
 //--------------------------------------------------------------------
 // HOST OPTIONS

@@ -181,6 +181,24 @@ static usbd_class_driver_t const _usbd_driver[] =
       .sof              = NULL
   },
   #endif
+
+  #if CFG_TUD_NET
+  {
+      .class_code       = 
+#if CFG_TUD_NET == OPT_NET_RNDIS
+                          TUD_RNDIS_ITF_CLASS,
+#else
+                          TUSB_CLASS_CDC,
+#endif
+      .init             = netd_init,
+      .reset            = netd_reset,
+      .open             = netd_open,
+      .control_request  = netd_control_request,
+      .control_complete = netd_control_complete,
+      .xfer_cb          = netd_xfer_cb,
+      .sof              = NULL
+  },
+  #endif
 };
 
 enum { USBD_CLASS_DRIVER_COUNT = TU_ARRAY_SIZE(_usbd_driver) };
