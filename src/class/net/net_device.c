@@ -74,7 +74,7 @@ CFG_TUSB_MEM_SECTION static netd_interface_t _netd_itf;
 
 static bool can_xmit;
 
-void network_recv_renew(void)
+void tud_network_recv_renew(void)
 {
   usbd_edpt_xfer(TUD_OPT_RHPORT, _netd_itf.ep_out, received, sizeof(received));
 }
@@ -156,13 +156,13 @@ bool netd_open(uint8_t rhport, tusb_desc_interface_t const * itf_desc, uint16_t 
     (*p_length) += 2*sizeof(tusb_desc_endpoint_t);
   }
 
-  network_init_callback();
+  tud_network_init_cb();
 
   // we are ready to transmit a packet
   can_xmit = true;
 
   // prepare for incoming packets
-  network_recv_renew();
+  tud_network_recv_renew();
 
   return true;
 }
@@ -237,7 +237,7 @@ static void handle_incoming_packet(uint32_t len)
   if (hdr->bmType)
   {
     /* EEM Control Packet: discard it */
-    network_recv_renew();
+    tud_network_recv_renew();
   }
   else
   {
@@ -256,13 +256,13 @@ static void handle_incoming_packet(uint32_t len)
     {
       memcpy(p->payload, pnt, size);
       p->len = size;
-      accepted = network_recv_callback(p);
+      accepted = tud_network_recv_cb(p);
     }
 
     if (!p || !accepted)
     {
       /* if a buffer couldn't be allocated or accepted by the callback, we must discard this packet */
-      network_recv_renew();
+      tud_network_recv_renew();
     }
   }
 }
@@ -297,12 +297,12 @@ bool netd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint32_
   return true;
 }
 
-bool network_can_xmit(void)
+bool tud_network_can_xmit(void)
 {
   return can_xmit;
 }
 
-void network_xmit(struct pbuf *p)
+void tud_network_xmit(struct pbuf *p)
 {
   struct pbuf *q;
   uint8_t *data;

@@ -48,12 +48,12 @@ The MCU appears to the host as IP address 192.168.7.1, and provides a DHCP serve
 /* lwip context */
 static struct netif netif_data;
 
-/* shared between network_recv_callback() and service_traffic() */
+/* shared between tud_network_recv_cb() and service_traffic() */
 static struct pbuf *received_frame;
 
 /* this is used by this code, ./class/net/net_driver.c, and usb_descriptors.c */
 /* ideally speaking, this should be generated from the hardware's unique ID (if available) */
-const uint8_t network_mac_address[6] = {0x20,0x89,0x84,0x6A,0x96,0x00};
+const uint8_t tud_network_mac_address[6] = {0x20,0x89,0x84,0x6A,0x96,0x00};
 
 /* network parameters of this MCU */
 static const ip_addr_t ipaddr  = IPADDR4_INIT_BYTES(192, 168, 7, 1);
@@ -90,9 +90,9 @@ static err_t linkoutput_fn(struct netif *netif, struct pbuf *p)
       return ERR_USE;
 
     /* if the network driver can accept another packet, we make it happen */
-    if (network_can_xmit())
+    if (tud_network_can_xmit())
     {
-      network_xmit(p);
+      tud_network_xmit(p);
       return ERR_OK;
     }
 
@@ -124,8 +124,8 @@ static void init_lwip(void)
   struct netif *netif = &netif_data;
 
   lwip_init();
-  netif->hwaddr_len = sizeof(network_mac_address);
-  memcpy(netif->hwaddr, network_mac_address, sizeof(network_mac_address));
+  netif->hwaddr_len = sizeof(tud_network_mac_address);
+  memcpy(netif->hwaddr, tud_network_mac_address, sizeof(tud_network_mac_address));
 
   netif = netif_add(netif, &ipaddr, &netmask, &gateway, NULL, netif_init_cb, ip_input);
   netif_set_default(netif);
@@ -142,7 +142,7 @@ bool dns_query_proc(const char *name, ip_addr_t *addr)
   return false;
 }
 
-bool network_recv_callback(struct pbuf *p)
+bool tud_network_recv_cb(struct pbuf *p)
 {
   /* this shouldn't happen, but if we get another packet before 
   parsing the previous, we must signal our inability to accept it */
@@ -155,17 +155,17 @@ bool network_recv_callback(struct pbuf *p)
 
 static void service_traffic(void)
 {
-  /* handle any packet received by network_recv_callback() */
+  /* handle any packet received by tud_network_recv_cb() */
   if (received_frame)
   {
     ethernet_input(received_frame, &netif_data);
     pbuf_free(received_frame);
     received_frame = NULL;
-    network_recv_renew();
+    tud_network_recv_renew();
   }
 }
 
-void network_init_callback(void)
+void tud_network_init_cb(void)
 {
   /* if the network is re-initializing and we have a leftover packet, we must do a cleanup */
   if (received_frame)

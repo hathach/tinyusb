@@ -49,22 +49,22 @@
 //--------------------------------------------------------------------+
 
 // client must provide this: initialize any network state back to the beginning
-void network_init_callback(void);
+void tud_network_init_cb(void);
 
 // client must provide this: return false if the packet buffer was not accepted
-bool network_recv_callback(struct pbuf *p);
+bool tud_network_recv_cb(struct pbuf *p);
 
 // client must provide this: 48-bit MAC address
-extern const uint8_t network_mac_address[6];
+extern const uint8_t tud_network_mac_address[6];
 
-// indicate to network driver that client has finished with the packet provided to network_recv_callback()
-void network_recv_renew(void);
+// indicate to network driver that client has finished with the packet provided to network_recv_cb()
+void tud_network_recv_renew(void);
 
 // poll network driver for its ability to accept another packet to transmit
-bool network_can_xmit(void);
+bool tud_network_can_xmit(void);
 
 // if network_can_xmit() returns true, network_xmit() can be called once
-void network_xmit(struct pbuf *p);
+void tud_network_xmit(struct pbuf *p);
 
 //--------------------------------------------------------------------+
 // INTERNAL USBD-CLASS DRIVER API

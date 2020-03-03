@@ -36,8 +36,8 @@
 #define RNDIS_LINK_SPEED 12000000                       /* Link baudrate (12Mbit/s for USB-FS) */
 #define RNDIS_VENDOR     "TinyUSB"                      /* NIC vendor name */
 
-static const uint8_t *const station_hwaddr = network_mac_address;
-static const uint8_t *const permanent_hwaddr = network_mac_address;
+static const uint8_t *const station_hwaddr = tud_network_mac_address;
+static const uint8_t *const permanent_hwaddr = tud_network_mac_address;
 
 static usb_eth_stat_t usb_eth_stat = { 0, 0, 0, 0 };
 static uint32_t oid_packet_filter = 0x0000000;

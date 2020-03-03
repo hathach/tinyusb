@@ -168,10 +168,10 @@ uint16_t const* tud_descriptor_string_cb(uint8_t index, uint16_t langid)
   {
     // Convert MAC address into UTF-16
 
-    for (unsigned i=0; i<sizeof(network_mac_address); i++)
+    for (unsigned i=0; i<sizeof(tud_network_mac_address); i++)
     {
-      _desc_str[1+chr_count++] = "0123456789ABCDEF"[(network_mac_address[i] >> 4) & 0xf];
-      _desc_str[1+chr_count++] = "0123456789ABCDEF"[(network_mac_address[i] >> 0) & 0xf];
+      _desc_str[1+chr_count++] = "0123456789ABCDEF"[(tud_network_mac_address[i] >> 4) & 0xf];
+      _desc_str[1+chr_count++] = "0123456789ABCDEF"[(tud_network_mac_address[i] >> 0) & 0xf];
     }
   }
   else
