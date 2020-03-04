@@ -64,7 +64,7 @@ CFG_TUSB_MEM_SECTION CFG_TUSB_MEM_ALIGN static uint8_t received[CFG_TUD_NET_PACK
 CFG_TUSB_MEM_SECTION CFG_TUSB_MEM_ALIGN static uint8_t transmitted[CFG_TUD_NET_PACKET_PREFIX_LEN + CFG_TUD_NET_MTU + CFG_TUD_NET_PACKET_PREFIX_LEN];
 
 #if CFG_TUD_NET == OPT_NET_RNDIS
-  CFG_TUSB_MEM_SECTION CFG_TUSB_MEM_ALIGN static uint8_t rndis_buf[128];
+  CFG_TUSB_MEM_SECTION CFG_TUSB_MEM_ALIGN static uint8_t rndis_buf[120];
 #endif
 
 //--------------------------------------------------------------------+
