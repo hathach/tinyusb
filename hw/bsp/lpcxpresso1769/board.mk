@@ -15,7 +15,7 @@ CFLAGS += -Wno-error=strict-prototypes
 MCU_DIR = hw/mcu/nxp/lpcopen/lpc175x_6x/lpc_chip_175x_6x
 
 # All source paths should be relative to the top level.
-LD_FILE = hw/bsp/lpcxpresso1769/lpc1769.ld
+LD_FILE = hw/bsp/$(BOARD)/lpc1769.ld
 
 SRC_C += \
 	$(MCU_DIR)/../gcc/cr_startup_lpc175x_6x.c \

@@ -12,7 +12,7 @@ CFLAGS += \
 CFLAGS += -Wno-error=undef
 
 # All source paths should be relative to the top level.
-LD_FILE = hw/bsp/metro_m4_express/samd51g19a_flash.ld
+LD_FILE = hw/bsp/$(BOARD)/samd51g19a_flash.ld
 
 SRC_C += \
 	hw/mcu/microchip/samd/asf4/samd51/gcc/gcc/startup_samd51.c \

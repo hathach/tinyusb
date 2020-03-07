@@ -19,7 +19,7 @@ CFLAGS += -Wno-error=cast-function-type
 endif
 
 # All source paths should be relative to the top level.
-LD_FILE = hw/bsp/circuitplayground_bluefruit/nrf52840_s140_v6.ld
+LD_FILE = hw/bsp/$(BOARD)/nrf52840_s140_v6.ld
 
 LDFLAGS += -L$(TOP)/hw/mcu/nordic/nrfx/mdk
 

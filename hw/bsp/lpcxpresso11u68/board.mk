@@ -14,7 +14,7 @@ CFLAGS += \
 MCU_DIR = hw/mcu/nxp/lpcopen/lpc11u6x/lpc_chip_11u6x
 
 # All source paths should be relative to the top level.
-LD_FILE = hw/bsp/lpcxpresso11u68/lpc11u68.ld
+LD_FILE = hw/bsp/$(BOARD)/lpc11u68.ld
 
 SRC_C += \
 	$(MCU_DIR)/../gcc/cr_startup_lpc11u6x.c \
