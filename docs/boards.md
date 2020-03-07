@@ -13,14 +13,18 @@ This code base already had supported for a handful of following boards (sorted a
 
 - [Adafruit Circuit Playground Express](https://www.adafruit.com/product/3333)
 - [Adafruit Feather M0 Express](https://www.adafruit.com/product/3403)
-- [Adafruit Metro M0 Express](https://www.adafruit.com/product/3505)
 - [Adafruit Feather M4 Express](https://www.adafruit.com/product/3857)
+- [Adafruit ItsyBitsy M0 Express](https://www.adafruit.com/product/3727)
+- [Adafruit ItsyBitsy M4 Express](https://www.adafruit.com/product/3800)
+- [Adafruit Metro M0 Express](https://www.adafruit.com/product/3505)
 - [Adafruit Metro M4 Express](https://www.adafruit.com/product/3382)
 
 ### Nordic nRF5x
 
-- [Adafruit Feather nRF52840 Express](https://www.adafruit.com/product/4062)
 - [Adafruit Circuit Playground Bluefruit](https://www.adafruit.com/product/4333)
+- [Adafruit CLUE](https://www.adafruit.com/product/4500)
+- [Adafruit Feather nRF52840 Express](https://www.adafruit.com/product/4062)
+- [Adafruit Feather nRF52840 Sense](https://www.adafruit.com/product/4516)
 - [Maker Diary nRF52840 MDK Dongle](https://wiki.makerdiary.com/nrf52840-mdk-usb-dongle)
 - [Nordic nRF52840 Development Kit (aka pca10056)](https://www.nordicsemi.com/Software-and-Tools/Development-Kits/nRF52840-DK)
 - [Nordic nRF52840 Dongle (aka pca10059)](https://www.nordicsemi.com/Software-and-Tools/Development-Kits/nRF52840-Dongle)
@@ -32,6 +36,7 @@ This code base already had supported for a handful of following boards (sorted a
 - [NuTiny NUC121S](https://direct.nuvoton.com/en/nutiny-nuc121s)
 - [NuTiny NUC125S](https://direct.nuvoton.com/en/nutiny-nuc125s)
 - [NuTiny NUC126V](https://direct.nuvoton.com/en/nutiny-nuc126v)
+- [NuTiny SDK NUC505Y](https://direct.nuvoton.com/en/nutiny-nuc505y)
 
 ### NXP iMX RT
 

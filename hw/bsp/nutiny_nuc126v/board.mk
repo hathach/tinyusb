@@ -9,7 +9,7 @@ CFLAGS += \
   -DCFG_TUSB_MCU=OPT_MCU_NUC126
 
 # All source paths should be relative to the top level.
-LD_FILE = hw/bsp/nutiny_nuc126v/nuc126_flash.ld
+LD_FILE = hw/bsp/$(BOARD)/nuc126_flash.ld
 
 SRC_C += \
   hw/mcu/nuvoton/nuc126/Device/Nuvoton/NUC126/Source/system_NUC126.c \

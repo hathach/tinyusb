@@ -6,7 +6,7 @@ CFLAGS += \
   -DCFG_TUSB_MCU=OPT_MCU_NUC505
 
 # All source paths should be relative to the top level.
-LD_FILE = hw/bsp/nutiny_sdk_nuc505/nuc505_flashtoram.ld
+LD_FILE = hw/bsp/$(BOARD)/nuc505_flashtoram.ld
 
 SRC_C += \
   hw/mcu/nuvoton/nuc505/Device/Nuvoton/NUC505Series/Source/system_NUC505Series.c \
