@@ -323,29 +323,27 @@ void dcd_remote_wakeup(uint8_t rhport)
   remoteWakeCountdown = 4u; // required to be 1 to 15 ms, ESOF should trigger every 1ms.
 }
 
-// I'm getting a weird warning about missing braces here that I don't
-// know how to fix.
-#if defined(__GNUC__) && (__GNUC__ >= 7)
-#  pragma GCC diagnostic push
-#  pragma GCC diagnostic ignored "-Wmissing-braces"
-#endif
 static const tusb_desc_endpoint_t ep0OUT_desc =
 {
-    .wMaxPacketSize = CFG_TUD_ENDPOINT0_SIZE,
-    .bDescriptorType = TUSB_XFER_CONTROL,
-    .bEndpointAddress = 0x00
+  .bLength          = sizeof(tusb_desc_endpoint_t),
+  .bDescriptorType  = TUSB_DESC_ENDPOINT,
+
+  .bEndpointAddress = 0x00,
+  .bmAttributes     = { .xfer = TUSB_XFER_CONTROL },
+  .wMaxPacketSize   = { .size = CFG_TUD_ENDPOINT0_SIZE },
+  .bInterval        = 0
 };
 
 static const tusb_desc_endpoint_t ep0IN_desc =
 {
-    .wMaxPacketSize = CFG_TUD_ENDPOINT0_SIZE,
-    .bDescriptorType = TUSB_XFER_CONTROL,
-    .bEndpointAddress = 0x80
-};
+  .bLength          = sizeof(tusb_desc_endpoint_t),
+  .bDescriptorType  = TUSB_DESC_ENDPOINT,
 
-#if defined(__GNUC__) && (__GNUC__ >= 7)
-#pragma GCC diagnostic pop
-#endif
+  .bEndpointAddress = 0x80,
+  .bmAttributes     = { .xfer = TUSB_XFER_CONTROL },
+  .wMaxPacketSize   = { .size = CFG_TUD_ENDPOINT0_SIZE },
+  .bInterval        = 0
+};
 
 static void dcd_handle_bus_reset(void)
 {
