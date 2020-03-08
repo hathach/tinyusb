@@ -264,6 +264,9 @@ static char const* const _usbd_driver_str[USBD_CLASS_DRIVER_COUNT] =
   #if CFG_TUD_USBTMC
     "USBTMC"
   #endif
+  #if CFG_TUD_NET
+    "NET"
+  #endif
 };
 
 static char const* const _tusb_std_request_str[] =
