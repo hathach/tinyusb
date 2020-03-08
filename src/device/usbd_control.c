@@ -96,6 +96,8 @@ static bool _data_stage_xact(uint8_t rhport)
     if ( xact_len ) memcpy(_usbd_ctrl_buf, _ctrl_xfer.buffer, xact_len);
   }
 
+  TU_LOG2("  XACT Control: 0x%02X, Bytes: %d\n", ep_addr, xact_len);
+
   return dcd_edpt_xfer(rhport, ep_addr, xact_len ? _usbd_ctrl_buf : NULL, xact_len);
 }
 
@@ -110,10 +112,10 @@ bool tud_control_xfer(uint8_t rhport, tusb_control_request_t const * request, vo
   {
     TU_ASSERT(buffer);
 
+    TU_LOG2("  XFER Endpoint: 0x%02X, Bytes: %d\n", request->bmRequestType_bit.direction ? EDPT_CTRL_IN : EDPT_CTRL_OUT, _ctrl_xfer.data_len);
+
     // Data stage
     TU_ASSERT( _data_stage_xact(rhport) );
-
-    TU_LOG2("  XFER Endpoint: 0x%02X, Bytes: %d\n", request->bmRequestType_bit.direction ? EDPT_CTRL_IN : EDPT_CTRL_OUT, _ctrl_xfer.data_len);
   }else
   {
     // Status stage
