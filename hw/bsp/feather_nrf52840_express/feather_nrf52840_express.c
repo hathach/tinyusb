@@ -29,6 +29,7 @@
 #include "nrfx.h"
 #include "nrfx/hal/nrf_gpio.h"
 #include "nrfx/drivers/include/nrfx_power.h"
+#include "nrfx/drivers/include/nrfx_uarte.h"
 
 #ifdef SOFTDEVICE_PRESENT
 #include "nrf_sdm.h"
@@ -45,12 +46,20 @@
 
 #define BUTTON_PIN      _PINNUM(1, 02)
 
+#define UART_RX_PIN     24
+#define UART_TX_PIN     25
+
+static nrfx_uarte_t _uart_id = NRFX_UARTE_INSTANCE(0);
+
 // tinyusb function that handles power event (detected, ready, removed)
 // We must call it within SD's SOC event handler, or set it as power event handler if SD is not enabled.
 extern void tusb_hal_nrf_power_event(uint32_t event);
 
 void board_init(void)
 {
+  // stop LF clock just in case we jump from application without reset
+  NRF_CLOCK->TASKS_LFCLKSTOP = 1UL;
+
   // Config clock source: XTAL or RC in sdk_config.h
   NRF_CLOCK->LFCLKSRC = (uint32_t)((CLOCK_LFCLKSRC_SRC_Xtal << CLOCK_LFCLKSRC_SRC_Pos) & CLOCK_LFCLKSRC_SRC_Msk);
   NRF_CLOCK->TASKS_LFCLKSTART = 1UL;
@@ -66,6 +75,24 @@ void board_init(void)
   // 1ms tick timer
   SysTick_Config(SystemCoreClock/1000);
 #endif
+
+  // UART
+  nrfx_uarte_config_t uart_cfg =
+  {
+    .pseltxd   = UART_TX_PIN,
+    .pselrxd   = UART_RX_PIN,
+    .pselcts   = NRF_UARTE_PSEL_DISCONNECTED,
+    .pselrts   = NRF_UARTE_PSEL_DISCONNECTED,
+    .p_context = NULL,
+    .baudrate  = NRF_UARTE_BAUDRATE_115200, // CFG_BOARD_UART_BAUDRATE
+    .interrupt_priority = 7,
+    .hal_cfg = {
+      .hwfc      = NRF_UARTE_HWFC_DISABLED,
+      .parity    = NRF_UARTE_PARITY_EXCLUDED,
+    }
+  };
+
+  nrfx_uarte_init(&_uart_id, &uart_cfg, NULL); //uart_handler);
 
 #if TUSB_OPT_DEVICE_ENABLED
   // Priorities 0, 1, 4 (nRF52) are reserved for SoftDevice
@@ -127,12 +154,12 @@ int board_uart_read(uint8_t* buf, int len)
 {
   (void) buf; (void) len;
   return 0;
+//  return NRFX_SUCCESS == nrfx_uart_rx(&_uart_id, buf, (size_t) len) ? len : 0;
 }
 
 int board_uart_write(void const * buf, int len)
 {
-  (void) buf; (void) len;
-  return 0;
+  return (NRFX_SUCCESS == nrfx_uarte_tx(&_uart_id, (uint8_t const*) buf, (size_t) len)) ? len : 0;
 }
 
 #if CFG_TUSB_OS == OPT_OS_NONE
