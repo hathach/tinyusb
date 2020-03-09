@@ -77,7 +77,7 @@ for example in all_examples:
         if skip_example(example, board):
             success = "\033[33mskipped\033[0m  "
             skip_count += 1
-            print((build_format + '| {:.2f}s |').format(example, board, success, 0, flash_size, sram_size))
+            print(build_format.format(example, board, success, '-', flash_size, sram_size))
         else:
             build_result = build_example(example, board)
 
