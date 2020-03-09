@@ -31,6 +31,8 @@
 #include "common/tusb_common.h"
 #include "device/usbd.h"
 #include "class/cdc/cdc.h"
+
+// TODO should not include external files
 #include "lwip/pbuf.h"
 #include "netif/ethernet.h"
 
