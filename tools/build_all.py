@@ -6,6 +6,7 @@ import time
 
 success_count = 0
 fail_count = 0
+skip_count = 0
 exit_status = 0
 
 total_time = time.monotonic()
@@ -40,6 +41,14 @@ def build_example(example, board):
     return subprocess.run("make -j 4 -C examples/device/{} BOARD={} all".format(example, board), shell=True,
                           stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
 
+def build_size(example, board):
+    elf_file = 'examples/device/{}/_build/build-{}/{}-firmware.elf'.format(example, board, board)
+    size_output = subprocess.run('size {}'.format(elf_file), shell=True, stdout=subprocess.PIPE).stdout.decode("utf-8")
+    size_list = size_output.split('\n')[1].split('\t')
+    flash_size = int(size_list[0])
+    sram_size = int(size_list[1]) + int(size_list[2])
+    return (flash_size, sram_size)
+
 def skip_example(example, board):
     ex_dir = 'examples/device/' + example
     board_mk = 'hw/bsp/{}/board.mk'.format(board)
@@ -51,32 +60,38 @@ def skip_example(example, board):
 
     return 0
 
-build_format = '| {:30} | {:30} | {:9} '
-build_separator = '-' * 87
+build_format = '| {:20} | {:30} | {:9} | {:5} | {:6} | {:6} |'
+build_separator = '-' * 95
 print(build_separator)
-print((build_format + '| {:5} |').format('Example', 'Board', 'Result', 'Time'))
+print(build_format.format('Example', 'Board', 'Result', 'Time', 'Flash', 'SRAM'))
+
 for example in all_examples:
     print(build_separator)
     for board in all_boards:
         start_time = time.monotonic()
 
+        flash_size = "-"
+        sram_size = "-"
+
         # Check if board is skipped
         if skip_example(example, board):
             success = "\033[33mskipped\033[0m  "
-            print((build_format + '| {:.2f}s |').format(example, board, success, 0))
+            skip_count += 1
+            print((build_format + '| {:.2f}s |').format(example, board, success, 0, flash_size, sram_size))
         else:
             build_result = build_example(example, board)
 
             if build_result.returncode == 0:
                 success = "\033[32msucceeded\033[0m"
                 success_count += 1
+                (flash_size, sram_size) = build_size(example, board)
             else:
                 exit_status = build_result.returncode
                 success = "\033[31mfailed\033[0m   "
                 fail_count += 1
 
             build_duration = time.monotonic() - start_time
-            print((build_format + '| {:.2f}s |').format(example, board, success, build_duration))
+            print(build_format.format(example, board, success, "{:.2f}".format(build_duration), flash_size, sram_size))
 
             if build_result.returncode != 0:
                 print(build_result.stdout.decode("utf-8"))
@@ -88,7 +103,7 @@ for example in all_examples:
 
 total_time = time.monotonic() - total_time
 print(build_separator)
-print("Build Sumamary: {} \033[32msucceeded\033[0m, {} \033[31mfailed\033[0m and took {:.2f}s".format(success_count, fail_count, total_time))
+print("Build Sumamary: {} \033[32msucceeded\033[0m, {} \033[31mfailed\033[0m, {} \033[33mskipped\033[0m and took {:.2f}s".format(success_count, fail_count, skip_count, total_time))
 print(build_separator)
 
 sys.exit(exit_status)
