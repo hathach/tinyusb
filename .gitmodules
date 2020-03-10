@@ -25,3 +25,6 @@
 [submodule "lib/lwip"]
 	path = lib/lwip
 	url = https://git.savannah.nongnu.org/git/lwip.git
+[submodule "lib/FreeRTOS"]
+	path = lib/FreeRTOS
+	url = https://github.com/FreeRTOS/FreeRTOS.git
