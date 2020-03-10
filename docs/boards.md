@@ -33,6 +33,7 @@ This code base already had supported for a handful of following boards (sorted a
 
 ### Nuvoton
 
+- NuTiny SDK NUC120
 - [NuTiny NUC121S](https://direct.nuvoton.com/en/nutiny-nuc121s)
 - [NuTiny NUC125S](https://direct.nuvoton.com/en/nutiny-nuc125s)
 - [NuTiny NUC126V](https://direct.nuvoton.com/en/nutiny-nuc126v)
