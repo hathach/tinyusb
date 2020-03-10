@@ -103,6 +103,15 @@
   #error "FreeRTOSConfig.h need to include low level mcu header for configuration"
 #endif
 
+extern uint32_t SystemCoreClock;
+
+
+/* Cortex M23/M33 port configuration. */
+#define configENABLE_MPU								        0
+#define configENABLE_FPU								        1
+#define configENABLE_TRUSTZONE					        0
+#define configMINIMAL_SECURE_STACK_SIZE					( 1024 )
+
 #define configUSE_PREEMPTION                    1
 #define configUSE_PORT_OPTIMISED_TASK_SELECTION 0
 #define configCPU_CLOCK_HZ                      SystemCoreClock

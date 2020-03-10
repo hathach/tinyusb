@@ -13,13 +13,13 @@ INC += \
 EXAMPLE_SOURCE += $(wildcard src/*.c)
 SRC_C += $(addprefix $(CURRENT_PATH)/, $(EXAMPLE_SOURCE))
 
-# FreeRTOS source
+# FreeRTOS source, all files in port folder
 SRC_C += \
 	$(FREERTOS_SRC)/list.c \
 	$(FREERTOS_SRC)/queue.c \
 	$(FREERTOS_SRC)/tasks.c \
 	$(FREERTOS_SRC)/timers.c \
-	$(FREERTOS_SRC)/portable/GCC/$(FREERTOS_PORT)/port.c
+	$(subst ../../../,,$(wildcard ../../../$(FREERTOS_SRC)/portable/GCC/$(FREERTOS_PORT)/*.c))
 
 # FreeRTOS (lto + Os) linker issue
 LDFLAGS += -Wl,--undefined=vTaskSwitchContext
