@@ -38,7 +38,7 @@ The stack supports the following MCUs:
 - **Sony:** CXD56
 - **ST:** STM32 series: L0, F0, F1, F2, F3, F4, F7, H7 (device only)
 - **[ValentyUSB](https://github.com/im-tomu/valentyusb)** eptri
-- **Nuvoton:** NUC121/NUC125, NUC126, NUC505
+- **Nuvoton:** NUC120, NUC121/NUC125, NUC126, NUC505
 
 [Here is the list of supported Boards](docs/boards.md) that can be used with provided examples.
 
@@ -50,6 +50,7 @@ Supports multiple device configurations by dynamically changing usb descriptors.
 - Human Interface Device (HID): Generic (In & Out), Keyboard, Mouse, Gamepad etc ...
 - Mass Storage Class (MSC): with multiple LUNs
 - Musical Instrument Digital Interface (MIDI)
+- Network with RNDIS, CDC-ECM, CDC-EEM (work in progress)
 - Vendor-specific class support with generic In & Out endpoints. Can be used with MS OS 2.0 compatible descriptor to load winUSB driver without INF file.
 - [WebUSB](https://github.com/WICG/webusb) with vendor-specific class
 

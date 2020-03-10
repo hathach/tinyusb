@@ -24,13 +24,14 @@
  */
 
 #include "sam.h"
+#include "bsp/board.h"
+
 #include "peripheral_clk_config.h"
 #include "hal/include/hal_init.h"
 #include "hal/include/hpl_usart_sync.h"
 #include "hpl/pmc/hpl_pmc.h"
 #include "hal/include/hal_gpio.h"
 
-#include "bsp/board.h"
 
 //--------------------------------------------------------------------+
 // MACRO TYPEDEF CONSTANT ENUM DECLARATION

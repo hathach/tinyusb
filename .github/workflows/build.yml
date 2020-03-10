@@ -24,8 +24,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        example: ['board_test', 'cdc_dual_ports', 'cdc_msc', 'dfu_rt', 'hid_composite', 
-                  'hid_generic_inout', 'midi_test', 'msc_dual_lun', 'usbtmc', 'webusb_serial']
+        example: ['board_test', 'cdc_dual_ports', 'cdc_msc', 'dfu_rt', 'hid_composite', 'hid_generic_inout', 
+                  'midi_test', 'msc_dual_lun', 'net_lwip_webserver', 'usbtmc', 'webusb_serial']
     steps:
     - name: Setup Python
       uses: actions/setup-python@v1
