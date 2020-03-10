@@ -53,6 +53,16 @@ enum  {
 
 TimerHandle_t blink_tm;
 
+// static task
+#define USBD_STACK_SIZE     150
+StackType_t  stack_usbd[USBD_STACK_SIZE];
+StaticTask_t static_task_usbd;
+
+#define CDC_STACK_SZIE      128
+StackType_t  stack_cdc[CDC_STACK_SZIE];
+StaticTask_t static_task_cdc;
+
+
 void led_blinky_cb(TimerHandle_t xTimer);
 void usb_device_task(void* param);
 void cdc_task(void* params);
@@ -69,11 +79,11 @@ int main(void)
   tusb_init();
 
   // Create a task for tinyusb device stack
-  xTaskCreate( usb_device_task, "usbd", 150, NULL, configMAX_PRIORITIES-1, NULL);
+  (void) xTaskCreateStatic( usb_device_task, "usbd", USBD_STACK_SIZE, NULL, configMAX_PRIORITIES-1, stack_usbd, &static_task_usbd);
 
   // Create task
 #if CFG_TUD_CDC
-  xTaskCreate( cdc_task, "cdc", 128, NULL, configMAX_PRIORITIES-2, NULL);
+  (void) xTaskCreateStatic( cdc_task, "cdc", CDC_STACK_SZIE, NULL, configMAX_PRIORITIES-2, stack_cdc, &static_task_cdc);
 #endif
 
   vTaskStartScheduler();

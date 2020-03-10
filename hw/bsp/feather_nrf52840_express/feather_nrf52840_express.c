@@ -71,10 +71,8 @@ void board_init(void)
   // Button
   nrf_gpio_cfg_input(BUTTON_PIN, NRF_GPIO_PIN_PULLUP);
 
-#if CFG_TUSB_OS == OPT_OS_NONE
   // 1ms tick timer
   SysTick_Config(SystemCoreClock/1000);
-#endif
 
   // UART
   nrfx_uarte_config_t uart_cfg =
@@ -98,7 +96,6 @@ void board_init(void)
   // Priorities 0, 1, 4 (nRF52) are reserved for SoftDevice
   // 2 is highest for application
   NVIC_SetPriority(USBD_IRQn, 2);
-
 
   // USB power may already be ready at this time -> no event generated
   // We need to invoke the handler based on the status initially

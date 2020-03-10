@@ -41,4 +41,5 @@ JLINK_DEVICE = ATSAMD21G18
 JLINK_IF = swd
 
 # flash using jlink
-flash: flash-jlink
+flash: $(BUILD)/$(BOARD)-firmware.uf2
+	cp $< /media/$(USER)/CPLAYBOOT/
