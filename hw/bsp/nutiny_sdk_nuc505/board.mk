@@ -40,7 +40,7 @@ VENDOR = nuvoton
 CHIP_FAMILY = nuc505
 
 # For freeRTOS port source
-FREERTOS_PORT = ARM_CM4
+FREERTOS_PORT = ARM_CM4F
 
 # For flash-jlink target
 JLINK_DEVICE = NUC505YO13Y

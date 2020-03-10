@@ -35,7 +35,7 @@ VENDOR = nxp
 CHIP_FAMILY = transdimension
 
 # For freeRTOS port source
-FREERTOS_PORT = ARM_CM4
+FREERTOS_PORT = ARM_CM4F
 
 # For flash-jlink target
 JLINK_DEVICE = LPC4357

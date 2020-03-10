@@ -19,7 +19,6 @@ SRC_C += \
 	$(FREERTOS_SRC)/queue.c \
 	$(FREERTOS_SRC)/tasks.c \
 	$(FREERTOS_SRC)/timers.c \
-	$(FREERTOS_SRC)/portable/MemMang/heap_4.c \
 	$(FREERTOS_SRC)/portable/GCC/$(FREERTOS_PORT)/port.c
 
 # FreeRTOS (lto + Os) linker issue

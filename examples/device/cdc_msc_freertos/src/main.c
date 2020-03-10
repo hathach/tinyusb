@@ -51,13 +51,16 @@ enum  {
   BLINK_SUSPENDED = 2500,
 };
 
+// static timer
+StaticTimer_t static_blink;
 TimerHandle_t blink_tm;
 
-// static task
+// static task for usbd
 #define USBD_STACK_SIZE     150
 StackType_t  stack_usbd[USBD_STACK_SIZE];
 StaticTask_t static_task_usbd;
 
+// static task for cdc
 #define CDC_STACK_SZIE      128
 StackType_t  stack_cdc[CDC_STACK_SZIE];
 StaticTask_t static_task_cdc;
@@ -73,7 +76,7 @@ int main(void)
   board_init();
 
   // soft timer for blinky
-  blink_tm = xTimerCreate(NULL, pdMS_TO_TICKS(BLINK_NOT_MOUNTED), true, NULL, led_blinky_cb);
+  blink_tm = xTimerCreateStatic(NULL, pdMS_TO_TICKS(BLINK_NOT_MOUNTED), true, NULL, led_blinky_cb, &static_blink);
   xTimerStart(blink_tm, 0);
 
   tusb_init();
