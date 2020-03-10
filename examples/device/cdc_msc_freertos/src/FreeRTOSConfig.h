@@ -95,9 +95,14 @@
 #elif CFG_TUSB_MCU == OPT_MCU_MIMXRT10XX
   #include "fsl_device_registers.h"
 
-#elif CFG_TUSB_MCU == OPT_MCU_NUC120 || CFG_TUSB_MCU == OPT_MCU_NUC121 || \
-      CFG_TUSB_MCU == OPT_MCU_NUC126 || CFG_TUSB_MCU == OPT_MCU_NUC505
+#elif CFG_TUSB_MCU == OPT_MCU_NUC120
+  #include "NUC100Series.h"
+
+#elif CFG_TUSB_MCU == OPT_MCU_NUC121 || CFG_TUSB_MCU == OPT_MCU_NUC126
   #include "NuMicro.h"
+
+#elif CFG_TUSB_MCU == OPT_MCU_NUC505
+  #include "NUC505Series.h"
 
 #else
   #error "FreeRTOSConfig.h need to include low level mcu header for configuration"

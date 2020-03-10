@@ -40,5 +40,8 @@ INC += \
 VENDOR = st
 CHIP_FAMILY = synopsys
 
+# For freeRTOS port source
+FREERTOS_PORT = ARM_CM7/r0p1
+
 # flash target using on-board stlink
 flash: flash-stlink
