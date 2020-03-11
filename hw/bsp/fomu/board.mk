@@ -25,6 +25,9 @@ INC += \
 VENDOR = valentyusb
 CHIP_FAMILY = eptri
 
+# For freeRTOS port source
+FREERTOS_PORT = RISC-V
+
 # flash using dfu-util
 flash: $(BUILD)/$(BOARD)-firmware.dfu
 	dfu-util -D $^

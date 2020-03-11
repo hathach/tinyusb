@@ -220,18 +220,6 @@ int32_t tud_msc_scsi_cb (uint8_t lun, uint8_t const scsi_cmd[16], void* buffer, 
       resplen = 0;
     break;
 
-    case SCSI_CMD_START_STOP_UNIT:
-      // Host try to eject/safe remove/poweroff us. We could safely disconnect with disk storage, or go into lower power
-      /* scsi_start_stop_unit_t const * start_stop = (scsi_start_stop_unit_t const *) scsi_cmd;
-        // Start bit = 0 : low power mode, if load_eject = 1 : unmount disk storage as well
-        // Start bit = 1 : Ready mode, if load_eject = 1 : mount disk storage
-        start_stop->start;
-        start_stop->load_eject;
-       */
-       resplen = 0;
-    break;
-
-
     default:
       // Set Sense = Invalid Command Operation
       tud_msc_set_sense(lun, SCSI_SENSE_ILLEGAL_REQUEST, 0x20, 0x00);

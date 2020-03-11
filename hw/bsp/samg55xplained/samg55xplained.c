@@ -42,7 +42,6 @@
 #define BUTTON_PIN            GPIO(GPIO_PORTA, 2)
 #define BUTTON_STATE_ACTIVE   0
 
-
 #define UART_TX_PIN           GPIO(GPIO_PORTA, 28)
 #define UART_RX_PIN           GPIO(GPIO_PORTA, 27)
 

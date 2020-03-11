@@ -41,8 +41,84 @@
  *
  * See http://www.freertos.org/a00110.html.
  *----------------------------------------------------------*/
-#include "nrf.h"
 
+// for OPT_MCU_
+#include "tusb_option.h"
+
+#if   CFG_TUSB_MCU == OPT_MCU_LPC11UXX   || CFG_TUSB_MCU == OPT_MCU_LPC13XX    || \
+      CFG_TUSB_MCU == OPT_MCU_LPC15XX    || CFG_TUSB_MCU == OPT_MCU_LPC175X_6X || \
+      CFG_TUSB_MCU == OPT_MCU_LPC177X_8X || CFG_TUSB_MCU == OPT_MCU_LPC18XX    || \
+      CFG_TUSB_MCU == OPT_MCU_LPC40XX    || CFG_TUSB_MCU == OPT_MCU_LPC43XX
+  #include "chip.h"
+
+#elif CFG_TUSB_MCU == OPT_MCU_LPC51UXX || CFG_TUSB_MCU == OPT_MCU_LPC54XXX || \
+      CFG_TUSB_MCU == OPT_MCU_LPC55XX
+  #include "fsl_device_registers.h"
+
+#elif CFG_TUSB_MCU == OPT_MCU_NRF5X
+  #include "nrf.h"
+
+#elif CFG_TUSB_MCU == OPT_MCU_SAMD21 || CFG_TUSB_MCU == OPT_MCU_SAMD51
+  #include "sam.h"
+
+#elif CFG_TUSB_MCU == OPT_MCU_SAMG
+  #undef LITTLE_ENDIAN // hack to suppress "LITTLE_ENDIAN" redefined
+  #include "sam.h"
+
+#elif CFG_TUSB_MCU == OPT_MCU_STM32F0
+  #include "stm32f0xx.h"
+
+#elif CFG_TUSB_MCU == OPT_MCU_STM32F1
+  #include "stm32f1xx.h"
+
+#elif CFG_TUSB_MCU == OPT_MCU_STM32F2
+  #include "stm32f2xx.h"
+
+#elif CFG_TUSB_MCU == OPT_MCU_STM32F3
+  #include "stm32f3xx.h"
+
+#elif CFG_TUSB_MCU == OPT_MCU_STM32F4
+  #include "stm32f4xx.h"
+
+#elif CFG_TUSB_MCU == OPT_MCU_STM32F7
+  #include "stm32f7xx.h"
+
+#elif CFG_TUSB_MCU == OPT_MCU_STM32H7
+  #include "stm32h7xx.h"
+
+#elif CFG_TUSB_MCU == OPT_MCU_STM32L0
+  #include "stm32l0xx.h"
+
+#elif CFG_TUSB_MCU == OPT_MCU_STM32L1
+  #include "stm32l1xx.h"
+
+#elif CFG_TUSB_MCU == OPT_MCU_STM32L4
+  #include "stm32l4xx.h"
+
+#elif CFG_TUSB_MCU == OPT_MCU_MIMXRT10XX
+  #include "fsl_device_registers.h"
+
+#elif CFG_TUSB_MCU == OPT_MCU_NUC120
+  #include "NUC100Series.h"
+
+#elif CFG_TUSB_MCU == OPT_MCU_NUC121 || CFG_TUSB_MCU == OPT_MCU_NUC126
+  #include "NuMicro.h"
+
+#elif CFG_TUSB_MCU == OPT_MCU_NUC505
+  #include "NUC505Series.h"
+
+#else
+  #error "FreeRTOSConfig.h need to include low level mcu header for configuration"
+#endif
+
+extern uint32_t SystemCoreClock;
+
+
+/* Cortex M23/M33 port configuration. */
+#define configENABLE_MPU								        0
+#define configENABLE_FPU								        1
+#define configENABLE_TRUSTZONE					        0
+#define configMINIMAL_SECURE_STACK_SIZE					( 1024 )
 
 #define configUSE_PREEMPTION                    1
 #define configUSE_PORT_OPTIMISED_TASK_SELECTION 0
@@ -50,7 +126,7 @@
 #define configTICK_RATE_HZ                      ( 1000 )
 #define configMAX_PRIORITIES                    ( 5 )
 #define configMINIMAL_STACK_SIZE                ( 128 )
-#define configTOTAL_HEAP_SIZE                   ( 16*1024 )
+#define configTOTAL_HEAP_SIZE                   ( 0*1024 ) // dynamic is not used
 #define configMAX_TASK_NAME_LEN                 16
 #define configUSE_16_BIT_TICKS                  0
 #define configIDLE_SHOULD_YIELD                 1
@@ -64,7 +140,7 @@
 #define configENABLE_BACKWARD_COMPATIBILITY     1
 
 #define configSUPPORT_STATIC_ALLOCATION         1
-#define configSUPPORT_DYNAMIC_ALLOCATION        1
+#define configSUPPORT_DYNAMIC_ALLOCATION        0
 
 /* Hook function related definitions. */
 #define configUSE_IDLE_HOOK                    0
@@ -108,18 +184,18 @@
 /* Define to trap errors during development. */
 // Halt CPU (breakpoint) when hitting error, only apply for Cortex M3, M4, M7
 #if defined(__ARM_ARCH_7M__) || defined (__ARM_ARCH_7EM__)
-#define configASSERT(_exp) \
-  do {\
-    if ( !(_exp) ) { \
-      volatile uint32_t* ARM_CM_DHCSR =  ((volatile uint32_t*) 0xE000EDF0UL); /* Cortex M CoreDebug->DHCSR */ \
-      if ( (*ARM_CM_DHCSR) & 1UL ) {  /* Only halt mcu if debugger is attached */ \
-        taskDISABLE_INTERRUPTS(); \
-         __asm("BKPT #0\n"); \
+  #define configASSERT(_exp) \
+    do {\
+      if ( !(_exp) ) { \
+        volatile uint32_t* ARM_CM_DHCSR =  ((volatile uint32_t*) 0xE000EDF0UL); /* Cortex M CoreDebug->DHCSR */ \
+        if ( (*ARM_CM_DHCSR) & 1UL ) {  /* Only halt mcu if debugger is attached */ \
+          taskDISABLE_INTERRUPTS(); \
+           __asm("BKPT #0\n"); \
+        }\
       }\
-    }\
-  } while(0)
+    } while(0)
 #else
-#define configASSERT( x )
+  #define configASSERT( x )
 #endif
 
 /* FreeRTOS hooks to NVIC vectors */
@@ -144,15 +220,6 @@
 routine that makes calls to interrupt safe FreeRTOS API functions.  DO NOT CALL
 INTERRUPT SAFE FREERTOS API FUNCTIONS FROM ANY INTERRUPT THAT HAS A HIGHER
 PRIORITY THAN THIS! (higher priorities are lower numeric values. */
-
-/* SD priority
- * 0: SD timing critical
- * 1: SD memory protection
- * 2: App Highest
- * 3: App High
- * 4: SD non-time-critical
- * 5+ Remaining Application
- */
 #define configLIBRARY_MAX_SYSCALL_INTERRUPT_PRIORITY	2
 
 /* Interrupt priorities used by the kernel port layer itself.  These are generic

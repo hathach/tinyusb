@@ -36,8 +36,6 @@
 #include "bsp/board.h"
 #include "tusb.h"
 
-#include "usb_descriptors.h"
-
 //--------------------------------------------------------------------+
 // MACRO CONSTANT TYPEDEF PROTYPES
 //--------------------------------------------------------------------+
@@ -53,12 +51,24 @@ enum  {
   BLINK_SUSPENDED = 2500,
 };
 
+// static timer
+StaticTimer_t static_blink;
 TimerHandle_t blink_tm;
+
+// static task for usbd
+#define USBD_STACK_SIZE     150
+StackType_t  stack_usbd[USBD_STACK_SIZE];
+StaticTask_t static_task_usbd;
+
+// static task for cdc
+#define CDC_STACK_SZIE      128
+StackType_t  stack_cdc[CDC_STACK_SZIE];
+StaticTask_t static_task_cdc;
+
 
 void led_blinky_cb(TimerHandle_t xTimer);
 void usb_device_task(void* param);
 void cdc_task(void* params);
-void hid_task(void* params);
 
 /*------------- MAIN -------------*/
 int main(void)
@@ -66,21 +76,17 @@ int main(void)
   board_init();
 
   // soft timer for blinky
-  blink_tm = xTimerCreate(NULL, pdMS_TO_TICKS(BLINK_NOT_MOUNTED), true, NULL, led_blinky_cb);
+  blink_tm = xTimerCreateStatic(NULL, pdMS_TO_TICKS(BLINK_NOT_MOUNTED), true, NULL, led_blinky_cb, &static_blink);
   xTimerStart(blink_tm, 0);
 
   tusb_init();
 
   // Create a task for tinyusb device stack
-  xTaskCreate( usb_device_task, "usbd", 150, NULL, configMAX_PRIORITIES-1, NULL);
+  (void) xTaskCreateStatic( usb_device_task, "usbd", USBD_STACK_SIZE, NULL, configMAX_PRIORITIES-1, stack_usbd, &static_task_usbd);
 
   // Create task
 #if CFG_TUD_CDC
-  xTaskCreate( cdc_task, "cdc", 128, NULL, configMAX_PRIORITIES-2, NULL);
-#endif
-
-#if CFG_TUD_HID
-  xTaskCreate( hid_task, "hid", 128, NULL, configMAX_PRIORITIES-2, NULL);
+  (void) xTaskCreateStatic( cdc_task, "cdc", CDC_STACK_SZIE, NULL, configMAX_PRIORITIES-2, stack_cdc, &static_task_cdc);
 #endif
 
   vTaskStartScheduler();
@@ -133,6 +139,7 @@ void tud_resume_cb(void)
 {
   xTimerChangePeriod(blink_tm, pdMS_TO_TICKS(BLINK_MOUNTED), 0);
 }
+
 
 //--------------------------------------------------------------------+
 // USB CDC
@@ -189,97 +196,7 @@ void tud_cdc_rx_cb(uint8_t itf)
   (void) itf;
 }
 
-#endif
-
-//--------------------------------------------------------------------+
-// USB HID
-//--------------------------------------------------------------------+
-#if CFG_TUD_HID
-
-void hid_task(void* params)
-{
-  (void) params;
-
-  while (1)
-  {
-    // Poll every 10ms
-    vTaskDelay(pdMS_TO_TICKS(10));
-
-    uint32_t const btn = board_button_read();
-
-    // Remote wakeup
-    if ( tud_suspended() && btn )
-    {
-      // Wake up host if we are in suspend mode
-      // and REMOTE_WAKEUP feature is enabled by host
-      tud_remote_wakeup();
-    }
-
-    /*------------- Mouse -------------*/
-    if ( tud_hid_ready() )
-    {
-      if ( btn )
-      {
-        int8_t const delta = 5;
-
-        // no button, right + down, no scroll pan
-        tud_hid_mouse_report(REPORT_ID_MOUSE, 0x00, delta, delta, 0, 0);
-
-        // delay a bit before attempt to send keyboard report
-        vTaskDelay(pdMS_TO_TICKS(2));
-      }
-    }
-
-    /*------------- Keyboard -------------*/
-    if ( tud_hid_ready() )
-    {
-      // use to avoid send multiple consecutive zero report for keyboard
-      static bool has_key = false;
-
-      if ( btn )
-      {
-        uint8_t keycode[6] = { 0 };
-        keycode[0] = HID_KEY_A;
-
-        tud_hid_keyboard_report(REPORT_ID_KEYBOARD, 0, keycode);
-
-        has_key = true;
-      }else
-      {
-        // send empty key report if previously has key pressed
-        if (has_key) tud_hid_keyboard_report(REPORT_ID_KEYBOARD, 0, NULL);
-        has_key = false;
-      }
-    }
-  }
-}
-
-// Invoked when received GET_REPORT control request
-// Application must fill buffer report's content and return its length.
-// Return zero will cause the stack to STALL request
-uint16_t tud_hid_get_report_cb(uint8_t report_id, hid_report_type_t report_type, uint8_t* buffer, uint16_t reqlen)
-{
-  // TODO not Implemented
-  (void) report_id;
-  (void) report_type;
-  (void) buffer;
-  (void) reqlen;
-
-  return 0;
-}
-
-// Invoked when received SET_REPORT control request or
-// received data on OUT endpoint ( Report ID = 0, Type = 0 )
-void tud_hid_set_report_cb(uint8_t report_id, hid_report_type_t report_type, uint8_t const* buffer, uint16_t bufsize)
-{
-  // TODO not Implemented
-  (void) report_id;
-  (void) report_type;
-  (void) buffer;
-  (void) bufsize;
-}
-
-#endif
+#endif // CFG_TUD_CDC
 
 //--------------------------------------------------------------------+
 // BLINKING TASK

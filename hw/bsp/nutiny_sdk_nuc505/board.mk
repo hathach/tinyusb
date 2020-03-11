@@ -3,6 +3,8 @@ CFLAGS += \
   -mthumb \
   -mabi=aapcs-linux \
   -mcpu=cortex-m4 \
+  -mfloat-abi=hard \
+  -mfpu=fpv4-sp-d16 \
   -DCFG_TUSB_MCU=OPT_MCU_NUC505
 
 # All source paths should be relative to the top level.
@@ -40,7 +42,7 @@ VENDOR = nuvoton
 CHIP_FAMILY = nuc505
 
 # For freeRTOS port source
-FREERTOS_PORT = ARM_CM4
+FREERTOS_PORT = ARM_CM4F
 
 # For flash-jlink target
 JLINK_DEVICE = NUC505YO13Y

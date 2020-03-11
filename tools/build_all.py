@@ -19,9 +19,6 @@ else:
     for entry in os.scandir("examples/device"):
         if entry.is_dir():
             all_examples.append(entry.name)
-
-    # TODO update freeRTOS example to work with all boards (only nrf52840 now)
-    all_examples.remove("cdc_msc_hid_freertos")
 all_examples.sort()
 
 # 2nd Argument is Board, build all boards if not existed
