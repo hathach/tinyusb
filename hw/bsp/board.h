@@ -39,7 +39,6 @@
 #include <stdbool.h>
 
 #include "ansi_escape.h"
-
 #include "tusb.h"
 
 #define CFG_BOARD_UART_BAUDRATE    115200
@@ -68,18 +67,21 @@ int board_uart_write(void const * buf, int len);
 #if CFG_TUSB_OS == OPT_OS_NONE
   // Get current milliseconds, must be implemented when no RTOS is used
   uint32_t board_millis(void);
+
 #elif CFG_TUSB_OS == OPT_OS_FREERTOS
   static inline uint32_t board_millis(void)
   {
     return ( ( ((uint64_t) xTaskGetTickCount()) * 1000) / configTICK_RATE_HZ );
   }
+
 #elif CFG_TUSB_OS == OPT_OS_MYNEWT
   static inline uint32_t board_millis(void)
   {
     return os_time_ticks_to_ms32( os_time_get() );
   }
+
 #else
-  #error "Need to implement board_millis() for this OS"
+  #error "board_millis() is not implemented for this OS"
 #endif
 
 //--------------------------------------------------------------------+
@@ -95,6 +97,7 @@ static inline void board_led_off(void)
   board_led_write(false);
 }
 
+// TODO remove
 static inline void board_delay(uint32_t ms)
 {
   uint32_t start_ms = board_millis();
