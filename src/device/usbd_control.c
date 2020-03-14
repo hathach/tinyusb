@@ -63,7 +63,7 @@ static inline bool _status_stage_xact(uint8_t rhport, tusb_control_request_t con
   // Opposite to endpoint in Data Phase
   uint8_t const ep_addr = request->bmRequestType_bit.direction ? EDPT_CTRL_OUT : EDPT_CTRL_IN;
 
-  TU_LOG2("  XFER Endpoint: 0x%02X, Bytes: %d\n", ep_addr, 0);
+  TU_LOG2("  XFER Endpoint: 0x%02X, Bytes: %d\r\n", ep_addr, 0);
 
   // status direction is reversed to one in the setup packet
   // Note: Status must always be DATA1
@@ -96,7 +96,7 @@ static bool _data_stage_xact(uint8_t rhport)
     if ( xact_len ) memcpy(_usbd_ctrl_buf, _ctrl_xfer.buffer, xact_len);
   }
 
-  TU_LOG2("  XACT Control: 0x%02X, Bytes: %d\n", ep_addr, xact_len);
+  TU_LOG2("  XACT Control: 0x%02X, Bytes: %d\r\n", ep_addr, xact_len);
 
   return dcd_edpt_xfer(rhport, ep_addr, xact_len ? _usbd_ctrl_buf : NULL, xact_len);
 }
@@ -112,7 +112,7 @@ bool tud_control_xfer(uint8_t rhport, tusb_control_request_t const * request, vo
   {
     TU_ASSERT(buffer);
 
-    TU_LOG2("  XFER Endpoint: 0x%02X, Bytes: %d\n", request->bmRequestType_bit.direction ? EDPT_CTRL_IN : EDPT_CTRL_OUT, _ctrl_xfer.data_len);
+    TU_LOG2("  XFER Endpoint: 0x%02X, Bytes: %d\r\n", request->bmRequestType_bit.direction ? EDPT_CTRL_IN : EDPT_CTRL_OUT, _ctrl_xfer.data_len);
 
     // Data stage
     TU_ASSERT( _data_stage_xact(rhport) );
