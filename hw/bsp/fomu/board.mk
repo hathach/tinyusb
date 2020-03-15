@@ -9,7 +9,7 @@ MCU_DIR = hw/mcu/fomu
 BSP_DIR = hw/bsp/fomu
 
 # All source paths should be relative to the top level.
-LD_FILE = hw/bsp/fomu/fomu.ld
+LD_FILE = hw/bsp/$(BOARD)/fomu.ld
 
 # TODO remove later
 SRC_C += src/portable/$(VENDOR)/$(CHIP_FAMILY)/hal_$(CHIP_FAMILY).c
@@ -24,6 +24,9 @@ INC += \
 # For TinyUSB port source
 VENDOR = valentyusb
 CHIP_FAMILY = eptri
+
+# For freeRTOS port source
+FREERTOS_PORT = RISC-V
 
 # flash using dfu-util
 flash: $(BUILD)/$(BOARD)-firmware.dfu

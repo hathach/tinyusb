@@ -13,7 +13,7 @@ ST_HAL_DRIVER = hw/mcu/st/st_driver/STM32F4xx_HAL_Driver
 ST_CMSIS = hw/mcu/st/st_driver/CMSIS/Device/ST/STM32F4xx
 
 # All source paths should be relative to the top level.
-LD_FILE = hw/bsp/pyboardv11/STM32F405RGTx_FLASH.ld
+LD_FILE = hw/bsp/$(BOARD)/STM32F405RGTx_FLASH.ld
 
 SRC_C += \
 	$(ST_CMSIS)/Source/Templates/system_stm32f4xx.c \

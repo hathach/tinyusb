@@ -29,6 +29,11 @@
 #include "clk.h"
 #include "sys.h"
 
+#define LED_PORT              PB
+#define LED_PIN               4
+#define LED_PIN_IO            PB4
+#define LED_STATE_ON          0
+
 void board_init(void)
 {
   /* Unlock protected registers */
@@ -60,6 +65,9 @@ void board_init(void)
   // 1ms tick timer
   SysTick_Config(48000000 / 1000);
 #endif
+
+  // LED
+  GPIO_SetMode(LED_PORT, 1 << LED_PIN, GPIO_MODE_OUTPUT);
 }
 
 #if CFG_TUSB_OS  == OPT_OS_NONE
@@ -81,7 +89,7 @@ uint32_t board_millis(void)
 
 void board_led_write(bool state)
 {
-  (void)(state);
+  LED_PIN_IO = (state ? LED_STATE_ON : (1-LED_STATE_ON));
 }
 
 uint32_t board_button_read(void)

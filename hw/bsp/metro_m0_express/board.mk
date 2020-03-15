@@ -9,7 +9,7 @@ CFLAGS += \
   -DCFG_TUSB_MCU=OPT_MCU_SAMD21
 
 # All source paths should be relative to the top level.
-LD_FILE = hw/bsp/metro_m0_express/samd21g18a_flash.ld
+LD_FILE = hw/bsp/$(BOARD)/samd21g18a_flash.ld
 
 SRC_C += \
 	hw/mcu/microchip/samd/asf4/samd21/gcc/gcc/startup_samd21.c \
@@ -25,7 +25,7 @@ INC += \
 	$(TOP)/hw/mcu/microchip/samd/asf4/samd21/include \
 	$(TOP)/hw/mcu/microchip/samd/asf4/samd21/hal/include \
 	$(TOP)/hw/mcu/microchip/samd/asf4/samd21/hal/utils/include \
-	$(TOP)/hw/mcu/microchip/samd/asf4/samd51/hpl/pm/ \
+	$(TOP)/hw/mcu/microchip/samd/asf4/samd21/hpl/pm/ \
 	$(TOP)/hw/mcu/microchip/samd/asf4/samd21/hpl/port \
 	$(TOP)/hw/mcu/microchip/samd/asf4/samd21/hri \
 	$(TOP)/hw/mcu/microchip/samd/asf4/samd21/CMSIS/Include

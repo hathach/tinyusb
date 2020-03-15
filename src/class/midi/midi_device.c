@@ -355,7 +355,7 @@ bool midid_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint32
 
   // nothing to do with in and notif endpoint
 
-  return TUSB_ERROR_NONE;
+  return true;
 }
 
 #endif

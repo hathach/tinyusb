@@ -77,8 +77,11 @@ static bool active_ep0_xfer;
 /* RAM table needed to track ongoing transfers performed by dcd_edpt_xfer(), dcd_in_xfer(), and the ISR */
 static struct xfer_ctl_t
 {
-  uint8_t *data_ptr;         /* collectively, data_ptr and remaining_bytes track progress of endpoint transfers */
-  uint16_t remaining_bytes;
+  uint8_t *data_ptr;         /* data_ptr tracks where to next copy data to (for OUT) or from (for IN) */
+  union {
+    uint16_t in_remaining_bytes; /* for IN endpoints, we track how many bytes are left to transfer */
+    uint16_t out_bytes_so_far;   /* but for OUT endpoints, we track how many bytes we've transferred so far */
+  };
   uint16_t max_packet_size;  /* needed since device driver only finds out this at runtime */
   uint16_t total_bytes;      /* quantity needed to pass as argument to dcd_event_xfer_complete() (for IN endpoints) */
 } xfer_table[PERIPH_MAX_EP];
@@ -139,10 +142,41 @@ static USBD_EP_T *ep_entry(uint8_t ep_addr, bool add)
 /* perform an IN endpoint transfer; this is called by dcd_edpt_xfer() and the ISR  */
 static void dcd_in_xfer(struct xfer_ctl_t *xfer, USBD_EP_T *ep)
 {
-  uint16_t bytes_now = tu_min16(xfer->remaining_bytes, xfer->max_packet_size);
+  uint16_t bytes_now = tu_min16(xfer->in_remaining_bytes, xfer->max_packet_size);
 
   memcpy((uint8_t *)(USBD_BUF_BASE + ep->BUFSEG), xfer->data_ptr, bytes_now);
   ep->MXPLD = bytes_now;
+}
+
+/* called by dcd_init() as well as by the ISR during a USB bus reset */
+static void bus_reset(void)
+{
+  USBD->STBUFSEG = PERIPH_SETUP_BUF_BASE;
+
+  for (enum ep_enum ep_index = PERIPH_EP0; ep_index < PERIPH_MAX_EP; ep_index++)
+  {
+    USBD->EP[ep_index].CFG = 0;
+    USBD->EP[ep_index].CFGP = 0;
+  }
+
+  /* allocate the default EP0 endpoints */
+
+  USBD->EP[PERIPH_EP0].CFG = USBD_CFG_CSTALL_Msk | USBD_CFG_EPMODE_IN;
+  USBD->EP[PERIPH_EP0].BUFSEG = PERIPH_EP0_BUF_BASE;
+  xfer_table[PERIPH_EP0].max_packet_size = PERIPH_EP0_BUF_LEN;
+
+  USBD->EP[PERIPH_EP1].CFG = USBD_CFG_CSTALL_Msk | USBD_CFG_EPMODE_OUT;
+  USBD->EP[PERIPH_EP1].BUFSEG = PERIPH_EP1_BUF_BASE;
+  xfer_table[PERIPH_EP1].max_packet_size = PERIPH_EP1_BUF_LEN;
+
+  /* USB RAM beyond what we've allocated above is available to the user */
+  bufseg_addr = PERIPH_EP2_BUF_BASE;
+
+  /* Reset USB device address */
+  USBD->FADDR = 0;
+
+  /* reset EP0_IN flag */
+  active_ep0_xfer = false;
 }
 
 /* centralized location for USBD interrupt enable bit mask */
@@ -164,25 +198,7 @@ void dcd_init(uint8_t rhport)
 
   usb_detach();
 
-  USBD->STBUFSEG = PERIPH_SETUP_BUF_BASE;
-
-  for (enum ep_enum ep_index = PERIPH_EP0; ep_index < PERIPH_MAX_EP; ep_index++)
-  {
-    USBD->EP[ep_index].CFGP &= ~USBD_CFG_STATE_Msk;
-  }
-
-  /* allocate the default EP0 endpoints */
-
-  USBD->EP[PERIPH_EP0].CFG = USBD_CFG_CSTALL_Msk | USBD_CFG_EPMODE_IN;
-  USBD->EP[PERIPH_EP0].BUFSEG = PERIPH_EP0_BUF_BASE;
-  xfer_table[PERIPH_EP0].max_packet_size = PERIPH_EP0_BUF_LEN;
-
-  USBD->EP[PERIPH_EP1].CFG = USBD_CFG_CSTALL_Msk | USBD_CFG_EPMODE_OUT;
-  USBD->EP[PERIPH_EP1].BUFSEG = PERIPH_EP1_BUF_BASE;
-  xfer_table[PERIPH_EP1].max_packet_size = PERIPH_EP1_BUF_LEN;
-
-  /* USB RAM beyond what we've allocated above is available to the user */
-  bufseg_addr = PERIPH_EP2_BUF_BASE;
+  bus_reset();
 
   usb_attach();
 
@@ -263,16 +279,21 @@ bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t *buffer, uint16_t to
 
   /* store away the information we'll needing now and later */
   xfer->data_ptr = buffer;
-  xfer->remaining_bytes = total_bytes;
+  xfer->in_remaining_bytes = total_bytes;
   xfer->total_bytes = total_bytes;
 
   /* for the first of one or more EP0_IN packets in a message, the first must be DATA1 */
   if ( (0x80 == ep_addr) && !active_ep0_xfer ) ep->CFG |= USBD_CFG_DSQSYNC_Msk;
 
   if (TUSB_DIR_IN == dir)
+  {
     dcd_in_xfer(xfer, ep);
+  }
   else
+  {
+    xfer->out_bytes_so_far = 0;
     ep->MXPLD = xfer->max_packet_size;
+  }
 
   return true;
 }
@@ -321,15 +342,7 @@ void USBD_IRQHandler(void)
       /* USB bus reset */
       USBD->ATTR |= USBD_ATTR_USBEN_Msk | USBD_ATTR_PHYEN_Msk;
 
-      /* Reset all endpoints to DATA0 */
-      for(enum ep_enum ep_index = PERIPH_EP0; ep_index < PERIPH_MAX_EP; ep_index++)
-        USBD->EP[ep_index].CFG &= ~USBD_CFG_DSQSYNC_Msk;
-
-      /* Reset USB device address */
-      USBD->FADDR = 0;
-
-      /* reset EP0_IN flag */
-      active_ep0_xfer = false;
+      bus_reset();
 
       dcd_event_bus_signal(0, DCD_EVENT_BUS_RESET, true);
     }
@@ -392,21 +405,23 @@ void USBD_IRQHandler(void)
         {
           /* copy the data from the PC to the previously provided buffer */
           memcpy(xfer->data_ptr, (uint8_t *)(USBD_BUF_BASE + ep->BUFSEG), available_bytes);
-          xfer->remaining_bytes -= available_bytes;
+          xfer->out_bytes_so_far += available_bytes;
           xfer->data_ptr += available_bytes;
 
-          /* when the transfer is finished, alert TinyUSB */
-          if ( (0 == xfer->remaining_bytes) || (available_bytes < xfer->max_packet_size) )
-            dcd_event_xfer_complete(0, ep_addr, available_bytes, XFER_RESULT_SUCCESS, true);
+          /* when the transfer is finished, alert TinyUSB; otherwise, accept more data */
+          if ( (xfer->total_bytes == xfer->out_bytes_so_far) || (available_bytes < xfer->max_packet_size) )
+            dcd_event_xfer_complete(0, ep_addr, xfer->out_bytes_so_far, XFER_RESULT_SUCCESS, true);
+          else
+            ep->MXPLD = xfer->max_packet_size;
         }
         else
         {
           /* update the bookkeeping to reflect the data that has now been sent to the PC */
-          xfer->remaining_bytes -= available_bytes;
+          xfer->in_remaining_bytes -= available_bytes;
           xfer->data_ptr += available_bytes;
 
           /* if more data to send, send it; otherwise, alert TinyUSB that we've finished */
-          if (xfer->remaining_bytes)
+          if (xfer->in_remaining_bytes)
             dcd_in_xfer(xfer, ep);
           else
             dcd_event_xfer_complete(0, ep_addr, xfer->total_bytes, XFER_RESULT_SUCCESS, true);

@@ -79,6 +79,10 @@
 
 #define OPT_MCU_NUC121            800
 #define OPT_MCU_NUC126            801
+#define OPT_MCU_NUC120            802
+#define OPT_MCU_NUC505            803
+
+#define OPT_MCU_ESP32S2           900 ///< Espressif ESP32-S2
 
 /** @} */
 
@@ -113,6 +117,15 @@
 #define OPT_MODE_DEVICE       0x01 ///< Device Mode
 #define OPT_MODE_HOST         0x02 ///< Host Mode
 #define OPT_MODE_HIGH_SPEED   0x10 ///< High speed
+/** @} */
+
+/** \defgroup group_supported_netif Supported Network Interface
+ *  \ref CFG_TUD_NET must be defined to one of these
+ *  @{ */
+#define OPT_NET_NONE      0 ///< No network interface
+#define OPT_NET_ECM       1 ///< CDC-ECM
+#define OPT_NET_RNDIS     2 ///< RNDIS
+#define OPT_NET_EEM       3 ///< CDC-EEM
 /** @} */
 
 #ifndef CFG_TUSB_RHPORT0_MODE
@@ -202,6 +215,9 @@
   #define CFG_TUD_DFU_RT          0
 #endif
 
+#ifndef CFG_TUD_NET
+  #define CFG_TUD_NET             0
+#endif
 
 //--------------------------------------------------------------------
 // HOST OPTIONS

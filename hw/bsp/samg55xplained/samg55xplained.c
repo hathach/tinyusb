@@ -24,13 +24,14 @@
  */
 
 #include "sam.h"
+#include "bsp/board.h"
+
 #include "peripheral_clk_config.h"
 #include "hal/include/hal_init.h"
 #include "hal/include/hpl_usart_sync.h"
 #include "hpl/pmc/hpl_pmc.h"
 #include "hal/include/hal_gpio.h"
 
-#include "bsp/board.h"
 
 //--------------------------------------------------------------------+
 // MACRO TYPEDEF CONSTANT ENUM DECLARATION
@@ -40,7 +41,6 @@
 
 #define BUTTON_PIN            GPIO(GPIO_PORTA, 2)
 #define BUTTON_STATE_ACTIVE   0
-
 
 #define UART_TX_PIN           GPIO(GPIO_PORTA, 28)
 #define UART_RX_PIN           GPIO(GPIO_PORTA, 27)

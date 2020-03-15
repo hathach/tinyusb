@@ -17,7 +17,7 @@ CFLAGS += -Wno-error=nested-externs -Wno-error=strict-prototypes -Wno-error=unus
 MCU_DIR = hw/mcu/nxp/lpcopen/lpc11uxx/lpc_chip_11uxx
 
 # All source paths should be relative to the top level.
-LD_FILE = hw/bsp/lpcxpresso11u37/lpc11u37.ld
+LD_FILE = hw/bsp/$(BOARD)/lpc11u37.ld
 
 SRC_C += \
 	$(MCU_DIR)/../gcc/cr_startup_lpc11xx.c \

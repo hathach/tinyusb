@@ -19,13 +19,14 @@ CFLAGS += -Wno-error=cast-function-type
 endif
 
 # All source paths should be relative to the top level.
-LD_FILE = hw/bsp/feather_nrf52840_express/nrf52840_s140_v6.ld
+LD_FILE = hw/bsp/$(BOARD)/nrf52840_s140_v6.ld
 
 LDFLAGS += -L$(TOP)/hw/mcu/nordic/nrfx/mdk
 
 SRC_C += \
   hw/mcu/nordic/nrfx/drivers/src/nrfx_power.c \
-  hw/mcu/nordic/nrfx/mdk/system_nrf52840.c \
+  hw/mcu/nordic/nrfx/drivers/src/nrfx_uarte.c \
+  hw/mcu/nordic/nrfx/mdk/system_nrf52840.c
 
 INC += \
   $(TOP)/hw/mcu/nordic/cmsis/Include \

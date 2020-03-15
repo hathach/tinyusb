@@ -39,7 +39,7 @@ VENDOR = nxp
 CHIP_FAMILY = lpc_ip3511
 
 # For freeRTOS port source
-FREERTOS_PORT = ARM_CM4
+FREERTOS_PORT = ARM_CM4F
 
 # For flash-jlink target
 JLINK_DEVICE = LPC54114J256_M4

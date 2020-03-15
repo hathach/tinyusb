@@ -80,10 +80,20 @@ enum
 
 #if CFG_TUSB_MCU == OPT_MCU_LPC175X_6X || CFG_TUSB_MCU == OPT_MCU_LPC177X_8X || CFG_TUSB_MCU == OPT_MCU_LPC40XX
   // LPC 17xx and 40xx endpoint type (bulk/interrupt/iso) are fixed by its number
-  // 0 control, 1 In, 2 Bulk, 3 Iso, 4 In etc ...
-  #define EPNUM_MSC   0x02
+  //  0 control, 1 In, 2 Bulk, 3 Iso, 4 In, 5 Bulk etc ...
+  #define EPNUM_MSC_OUT   0x02
+  #define EPNUM_MSC_IN    0x82
+
+#elif CFG_TUSB_MCU == OPT_MCU_SAMG
+  // SAMG doesn't support a same endpoint number with different direction IN and OUT
+  //  e.g EP1 OUT & EP1 IN cannot exist together
+  #define EPNUM_MSC_OUT   0x01
+  #define EPNUM_MSC_IN    0x82
+
 #else
-  #define EPNUM_MSC   0x01
+  #define EPNUM_MSC_OUT   0x01
+  #define EPNUM_MSC_IN    0x81
+
 #endif
 
 uint8_t const desc_configuration[] =
@@ -92,7 +102,7 @@ uint8_t const desc_configuration[] =
   TUD_CONFIG_DESCRIPTOR(ITF_NUM_TOTAL, 0, CONFIG_TOTAL_LEN, TUSB_DESC_CONFIG_ATT_REMOTE_WAKEUP, 100),
 
   // Interface number, string index, EP Out & EP In address, EP size
-  TUD_MSC_DESCRIPTOR(ITF_NUM_MSC, 0, EPNUM_MSC, 0x80 | EPNUM_MSC, (CFG_TUSB_RHPORT0_MODE & OPT_MODE_HIGH_SPEED) ? 512 : 64),
+  TUD_MSC_DESCRIPTOR(ITF_NUM_MSC, 0, EPNUM_MSC_OUT, EPNUM_MSC_IN, (CFG_TUSB_RHPORT0_MODE & OPT_MODE_HIGH_SPEED) ? 512 : 64),
 };
 
 // Invoked when received GET CONFIGURATION DESCRIPTOR
@@ -121,8 +131,10 @@ static uint16_t _desc_str[32];
 
 // Invoked when received GET STRING DESCRIPTOR request
 // Application return pointer to descriptor, whose contents must exist long enough for transfer to complete
-uint16_t const* tud_descriptor_string_cb(uint8_t index)
+uint16_t const* tud_descriptor_string_cb(uint8_t index, uint16_t langid)
 {
+  (void) langid;
+
   uint8_t chr_count;
 
   if ( index == 0)

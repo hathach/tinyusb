@@ -181,6 +181,24 @@ static usbd_class_driver_t const _usbd_driver[] =
       .sof              = NULL
   },
   #endif
+
+  #if CFG_TUD_NET
+  {
+      .class_code       = 
+#if CFG_TUD_NET == OPT_NET_RNDIS
+                          TUD_RNDIS_ITF_CLASS,
+#else
+                          TUSB_CLASS_CDC,
+#endif
+      .init             = netd_init,
+      .reset            = netd_reset,
+      .open             = netd_open,
+      .control_request  = netd_control_request,
+      .control_complete = netd_control_complete,
+      .xfer_cb          = netd_xfer_cb,
+      .sof              = NULL
+  },
+  #endif
 };
 
 enum { USBD_CLASS_DRIVER_COUNT = TU_ARRAY_SIZE(_usbd_driver) };
@@ -245,6 +263,9 @@ static char const* const _usbd_driver_str[USBD_CLASS_DRIVER_COUNT] =
   #endif
   #if CFG_TUD_USBTMC
     "USBTMC"
+  #endif
+  #if CFG_TUD_NET
+    "NET"
   #endif
 };
 
@@ -809,7 +830,7 @@ static bool process_get_descriptor(uint8_t rhport, tusb_control_request_t const 
         return false;
       }else
       {
-        uint8_t const* desc_str = (uint8_t const*) tud_descriptor_string_cb(desc_index);
+        uint8_t const* desc_str = (uint8_t const*) tud_descriptor_string_cb(desc_index, p_request->wIndex);
         TU_ASSERT(desc_str);
 
         // first byte of descriptor is its size
