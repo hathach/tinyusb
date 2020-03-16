@@ -64,7 +64,7 @@ CFG_TUSB_MEM_SECTION CFG_TUSB_MEM_ALIGN static uint8_t received[CFG_TUD_NET_PACK
 CFG_TUSB_MEM_SECTION CFG_TUSB_MEM_ALIGN static uint8_t transmitted[CFG_TUD_NET_PACKET_PREFIX_LEN + CFG_TUD_NET_MTU + CFG_TUD_NET_PACKET_PREFIX_LEN];
 
 #if CFG_TUD_NET == OPT_NET_RNDIS
-  CFG_TUSB_MEM_SECTION CFG_TUSB_MEM_ALIGN static uint8_t rndis_buf[128];
+  CFG_TUSB_MEM_SECTION CFG_TUSB_MEM_ALIGN static uint8_t rndis_buf[120];
 #endif
 
 //--------------------------------------------------------------------+
@@ -198,7 +198,17 @@ bool netd_control_request(uint8_t rhport, tusb_control_request_t const * request
   TU_VERIFY (_netd_itf.itf_num == request->wIndex);
 
 #if CFG_TUD_NET == OPT_NET_RNDIS
-  tud_control_xfer(rhport, request, rndis_buf, sizeof(rndis_buf));
+  if (request->bmRequestType_bit.direction == TUSB_DIR_IN)
+  {
+    rndis_generic_msg_t *rndis_msg = (rndis_generic_msg_t *)rndis_buf;
+    uint32_t msglen = tu_le32toh(rndis_msg->MessageLength);
+    TU_ASSERT(msglen <= sizeof(rndis_buf));
+    tud_control_xfer(rhport, request, rndis_buf, msglen);
+  }
+  else
+  {
+    tud_control_xfer(rhport, request, rndis_buf, sizeof(rndis_buf));
+  }
 #else
   (void)rhport;
 #endif
