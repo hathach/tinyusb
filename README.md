@@ -32,13 +32,13 @@ The stack supports the following MCUs:
 
 - **MicroChip:** SAMD21, SAMD51 (device only)
 - **Nordic:** nRF52840, nRF52833
+- **Nuvoton:** NUC120, NUC121/NUC125, NUC126, NUC505
 - **NXP:** 
   - LPC Series: 11Uxx, 13xx, 175x_6x, 177x_8x, 18xx, 40xx, 43xx, 51Uxx, 54xxx, 55xx
   - iMX RT Series: RT1011, RT1015, RT1021, RT1052, RT1062, RT1064
 - **Sony:** CXD56
 - **ST:** STM32 series: L0, F0, F1, F2, F3, F4, F7, H7 (device only)
 - **[ValentyUSB](https://github.com/im-tomu/valentyusb)** eptri
-- **Nuvoton:** NUC120, NUC121/NUC125, NUC126, NUC505
 
 [Here is the list of supported Boards](docs/boards.md) that can be used with provided examples.
 
