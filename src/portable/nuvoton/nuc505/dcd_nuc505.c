@@ -33,18 +33,19 @@
   nomenclature of EPA through EPL.
 */
 
-/*
-  Note on OPT_MCU_NUC505_USB_DMA: the author suggests against using this option.
-  The DMA functionality of the USBD peripheral does not appear to succeed with
-  transfer lengths that are longer (> 64 bytes) and are not a multiple of 4.
-*/
-
 #include "tusb_option.h"
 
 #if TUSB_OPT_DEVICE_ENABLED && (CFG_TUSB_MCU == OPT_MCU_NUC505)
 
 #include "device/dcd.h"
 #include "NUC505Series.h"
+
+/*
+ * The DMA functionality of the USBD peripheral does not appear to succeed with
+ * transfer lengths that are longer (> 64 bytes) and are not a multiple of 4.
+ * Keep disabled for now.
+ */
+#define USE_DMA     0
 
 /* rather important info unfortunately not provided by device include files */
 #define USBD_BUF_SIZE          2048 /* how much USB buffer space there is */
@@ -217,7 +218,7 @@ static void bus_reset(void)
   current_dma_xfer = NULL;
 }
 
-#ifdef OPT_MCU_NUC505_USB_DMA
+#if USE_DMA
 /* this must only be called by the ISR; it does its best to share the single DMA engine across all user EPs (IN and OUT) */
 static void service_dma(void)
 {
@@ -473,7 +474,7 @@ void USBD_IRQHandler(void)
 
     if (bus_state & USBD_BUSINTSTS_DMADONEIF_Msk)
     {
-#ifdef OPT_MCU_NUC505_USB_DMA
+#if USE_DMA
       if (current_dma_xfer)
       {
         current_dma_xfer->dma_requested = false;
@@ -607,7 +608,7 @@ void USBD_IRQHandler(void)
 
         if (out_ep)
         {
-#ifdef OPT_MCU_NUC505_USB_DMA
+#if USE_DMA
           xfer->dma_requested = true;
           service_dma();
 #else
