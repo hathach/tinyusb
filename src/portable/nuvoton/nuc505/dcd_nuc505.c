@@ -41,11 +41,10 @@
 #include "NUC505Series.h"
 
 /*
-  The DMA functionality of the USBD peripheral does not appear to succeed with
-  transfer lengths that are longer (> 64 bytes) and are not a multiple of 4.
-  Disable for now, we could implement a walk-around if non-DMA slow the MCU down
-  too much.
-*/
+ * The DMA functionality of the USBD peripheral does not appear to succeed with
+ * transfer lengths that are longer (> 64 bytes) and are not a multiple of 4.
+ * Keep disabled for now.
+ */
 #define USE_DMA     0
 
 /* rather important info unfortunately not provided by device include files */
