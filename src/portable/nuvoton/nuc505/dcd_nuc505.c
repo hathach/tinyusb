@@ -33,6 +33,12 @@
   nomenclature of EPA through EPL.
 */
 
+/*
+  Note on OPT_MCU_NUC505_USB_DMA: the author suggests against using this option.
+  The DMA functionality of the USBD peripheral does not appear to succeed with
+  transfer lengths that are longer (> 64 bytes) and are not a multiple of 4.
+*/
+
 #include "tusb_option.h"
 
 #if TUSB_OPT_DEVICE_ENABLED && (CFG_TUSB_MCU == OPT_MCU_NUC505)
@@ -211,6 +217,7 @@ static void bus_reset(void)
   current_dma_xfer = NULL;
 }
 
+#ifdef OPT_MCU_NUC505_USB_DMA
 /* this must only be called by the ISR; it does its best to share the single DMA engine across all user EPs (IN and OUT) */
 static void service_dma(void)
 {
@@ -243,6 +250,7 @@ static void service_dma(void)
     return;
   }
 }
+#endif
 
 /* centralized location for USBD interrupt enable bit masks */
 static const uint32_t enabled_irqs = USBD_GINTEN_USBIEN_Msk | \
@@ -366,7 +374,7 @@ bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t *buffer, uint16_t to
       for (int count = 0; count < total_bytes; count++)
         *buffer++ = USBD->CEPDAT_BYTE;
       
-      usb_control_send_zlp();
+      dcd_event_xfer_complete(0, ep_addr, total_bytes, XFER_RESULT_SUCCESS, true);
     }
   }
   else
@@ -465,6 +473,7 @@ void USBD_IRQHandler(void)
 
     if (bus_state & USBD_BUSINTSTS_DMADONEIF_Msk)
     {
+#ifdef OPT_MCU_NUC505_USB_DMA
       if (current_dma_xfer)
       {
         current_dma_xfer->dma_requested = false;
@@ -480,6 +489,7 @@ void USBD_IRQHandler(void)
         current_dma_xfer = NULL;
         service_dma();
       }
+#endif
     }
 
     if (bus_state & USBD_BUSINTSTS_VBUSDETIF_Msk)
@@ -597,7 +607,7 @@ void USBD_IRQHandler(void)
 
         if (out_ep)
         {
-#if 1
+#ifdef OPT_MCU_NUC505_USB_DMA
           xfer->dma_requested = true;
           service_dma();
 #else

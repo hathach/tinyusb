@@ -335,12 +335,12 @@ bool cdcd_control_request(uint8_t rhport, tusb_control_request_t const * request
   switch ( request->bRequest )
   {
     case CDC_REQUEST_SET_LINE_CODING:
-      TU_LOG2("  Set Line Coding\n");
+      TU_LOG2("  Set Line Coding\r\n");
       tud_control_xfer(rhport, request, &p_cdc->line_coding, sizeof(cdc_line_coding_t));
     break;
 
     case CDC_REQUEST_GET_LINE_CODING:
-      TU_LOG2("  Get Line Coding\n");
+      TU_LOG2("  Get Line Coding\r\n");
       tud_control_xfer(rhport, request, &p_cdc->line_coding, sizeof(cdc_line_coding_t));
     break;
 
@@ -356,7 +356,7 @@ bool cdcd_control_request(uint8_t rhport, tusb_control_request_t const * request
 
       p_cdc->line_state = (uint8_t) request->wValue;
 
-      TU_LOG2("  Set Control Line State: DTR = %d, RTS = %d\n", dtr, rts);
+      TU_LOG2("  Set Control Line State: DTR = %d, RTS = %d\r\n", dtr, rts);
 
       tud_control_status(rhport, request);
 
