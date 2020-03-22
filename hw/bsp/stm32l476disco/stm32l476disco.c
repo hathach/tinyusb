@@ -38,6 +38,16 @@
 #define BUTTON_PIN            GPIO_PIN_0
 #define BUTTON_STATE_ACTIVE   1
 
+
+// enable all LED, Button, Uart, USB clock
+static void all_rcc_clk_enable(void)
+{
+  __HAL_RCC_GPIOA_CLK_ENABLE(); // USB D+, D-, Button
+  __HAL_RCC_GPIOB_CLK_ENABLE(); // LED
+  __HAL_RCC_GPIOC_CLK_ENABLE(); // VBUS pin
+}
+
+
 /**
   * @brief  System Clock Configuration
   *         The system Clock is configured as follow :
@@ -117,6 +127,8 @@ void board_init(void)
 #endif
 
   SystemClock_Config();
+  SystemCoreClockUpdate();
+  all_rcc_clk_enable();
 
   /* Enable Power Clock*/
   __HAL_RCC_PWR_CLK_ENABLE();
@@ -124,13 +136,9 @@ void board_init(void)
   /* Enable USB power on Pwrctrl CR2 register */
   HAL_PWREx_EnableVddUSB();
 
-  // Notify runtime of frequency change.
-  SystemCoreClockUpdate();
-
   GPIO_InitTypeDef  GPIO_InitStruct;
 
   // LED
-  __HAL_RCC_GPIOB_CLK_ENABLE();
   GPIO_InitStruct.Pin = LED_PIN;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_PULLUP;
@@ -140,7 +148,6 @@ void board_init(void)
   board_led_write(false);
 
   // Button
-  __HAL_RCC_GPIOA_CLK_ENABLE();
   GPIO_InitStruct.Pin = BUTTON_PIN;
   GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
   GPIO_InitStruct.Pull = GPIO_PULLDOWN;
@@ -149,7 +156,6 @@ void board_init(void)
 
   // USB
   /* Configure DM DP Pins */
-  __HAL_RCC_GPIOA_CLK_ENABLE();
   GPIO_InitStruct.Pin = (GPIO_PIN_11 | GPIO_PIN_12);
   GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
@@ -158,7 +164,6 @@ void board_init(void)
   HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
 
   /* Configure VBUS Pin */
-  __HAL_RCC_GPIOC_CLK_ENABLE();
   GPIO_InitStruct.Pin = GPIO_PIN_11;
   GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
@@ -166,6 +171,9 @@ void board_init(void)
 
   /* Enable USB FS Clock */
   __HAL_RCC_USB_OTG_FS_CLK_ENABLE();
+
+  // Enable VBUS sense (B device) via pin PA9
+  USB_OTG_FS->GCCFG |= USB_OTG_GCCFG_VBDEN;
 }
 
 //--------------------------------------------------------------------+

@@ -30,10 +30,23 @@
 #include "stm32h7xx.h"
 #include "stm32h7xx_hal_conf.h"
 
-#define LED_PORT  GPIOB
-#define LED_PIN   GPIO_PIN_0
-#define BUTTON_PORT GPIOC
-#define BUTTON_PIN  GPIO_PIN_13
+#define LED_PORT              GPIOB
+#define LED_PIN               GPIO_PIN_0
+#define LED_STATE_ON          1
+
+#define BUTTON_PORT           GPIOC
+#define BUTTON_PIN            GPIO_PIN_13
+#define BUTTON_STATE_ACTIVE   1
+
+// enable all LED, Button, Uart, USB clock
+static void all_rcc_clk_enable(void)
+{
+  __HAL_RCC_GPIOA_CLK_ENABLE();  // USB D+, D-
+  __HAL_RCC_GPIOB_CLK_ENABLE();  // LED
+  __HAL_RCC_GPIOC_CLK_ENABLE();  // Button
+//  __HAL_RCC_GPIOD_CLK_ENABLE();  // Uart tx, rx
+//  __HAL_RCC_USART3_CLK_ENABLE(); // Uart module
+}
 
 /* PWR, RCC, GPIO (All): AHB4 (D3 domain)
    USB{1,2} OTG_{H,F}S: AHB1 (D2 domain)
@@ -81,7 +94,7 @@ static void SystemClock_Config(void)
   RCC_OscInitStruct.CSIState = RCC_CSI_OFF;
   RCC_OscInitStruct.PLL.PLLState = RCC_PLL_ON;
   RCC_OscInitStruct.PLL.PLLSource = RCC_PLLSOURCE_HSE;
-  RCC_OscInitStruct.PLL.PLLM = 8;
+  RCC_OscInitStruct.PLL.PLLM = HSE_VALUE/1000000;
   RCC_OscInitStruct.PLL.PLLN = 336;
   RCC_OscInitStruct.PLL.PLLP = 2;
   RCC_OscInitStruct.PLL.PLLQ = 7;
@@ -127,14 +140,27 @@ void board_init(void)
   #endif
 
   SystemClock_Config();
-
   SystemCoreClockUpdate();
+  all_rcc_clk_enable();
 
   GPIO_InitTypeDef  GPIO_InitStruct;
 
+  // LED
+  GPIO_InitStruct.Pin = LED_PIN;
+  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+  GPIO_InitStruct.Pull = GPIO_PULLUP;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_HIGH;
+  HAL_GPIO_Init(LED_PORT, &GPIO_InitStruct);
+
+  // Button
+  GPIO_InitStruct.Pin = BUTTON_PIN;
+  GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_HIGH;
+  HAL_GPIO_Init(BUTTON_PORT, &GPIO_InitStruct);
+
   // USB Pin Init
   // PA9- VUSB, PA10- ID, PA11- DM, PA12- DP
-  __HAL_RCC_GPIOA_CLK_ENABLE();
 
   /* Configure DM DP Pins */
   GPIO_InitStruct.Pin = GPIO_PIN_11 | GPIO_PIN_12;
@@ -158,27 +184,13 @@ void board_init(void)
   GPIO_InitStruct.Alternate = GPIO_AF10_OTG2_HS;
   HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
 
-  // LED
-  __HAL_RCC_GPIOB_CLK_ENABLE();
-
-  GPIO_InitStruct.Pin = LED_PIN;
-  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
-  GPIO_InitStruct.Pull = GPIO_PULLUP;
-  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_HIGH;
-  HAL_GPIO_Init(LED_PORT, &GPIO_InitStruct);
-
-  // Button
-  __HAL_RCC_GPIOC_CLK_ENABLE();
-  GPIO_InitStruct.Pin = BUTTON_PIN;
-  GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
-  GPIO_InitStruct.Pull = GPIO_NOPULL;
-  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_HIGH;
-  HAL_GPIO_Init(BUTTON_PORT, &GPIO_InitStruct);
-
   // https://community.st.com/s/question/0D50X00009XkYZLSA3/stm32h7-nucleo-usb-fs-cdc
   // TODO: Board init actually works fine without this line.
   HAL_PWREx_EnableUSBVoltageDetector();
   __HAL_RCC_USB2_OTG_FS_CLK_ENABLE();
+
+  // Enable VBUS sense (B device) via pin PA9
+  USB_OTG_FS->GCCFG |= USB_OTG_GCCFG_VBDEN;
 }
 
 //--------------------------------------------------------------------+

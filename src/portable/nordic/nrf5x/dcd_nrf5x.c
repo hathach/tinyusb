@@ -31,7 +31,6 @@
 #include "nrf.h"
 #include "nrf_clock.h"
 #include "nrf_power.h"
-#include "nrf_usbd.h"
 #include "nrfx_usbd_errata.h"
 
 #ifdef SOFTDEVICE_PRESENT
@@ -277,8 +276,10 @@ bool dcd_edpt_xfer (uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t 
   xfer->total_len  = total_bytes;
   xfer->actual_len = 0;
 
-  // Control endpoint with zero-length packet --> status stage
-  if ( epnum == 0 && total_bytes == 0 )
+  // Control endpoint with zero-length packet and opposite direction to 1st request byte --> status stage
+  bool const control_status = (epnum == 0 && total_bytes == 0 && dir != tu_edpt_dir(NRF_USBD->BMREQUESTTYPE));
+
+  if ( control_status )
   {
     // Status Phase also require Easy DMA has to be free as well !!!!
     edpt_dma_start(&NRF_USBD->TASKS_EP0STATUS);
@@ -498,7 +499,8 @@ void USBD_IRQHandler(void)
   if ( int_status & (USBD_INTEN_EPDATA_Msk | USBD_INTEN_EP0DATADONE_Msk) )
   {
     uint32_t data_status = NRF_USBD->EPDATASTATUS;
-    nrf_usbd_epdatastatus_clear(data_status);
+    NRF_USBD->EPDATASTATUS = data_status;
+    __ISB(); __DSB();
 
     // EP0DATADONE is set with either Control Out on IN Data
     // Since EPDATASTATUS cannot be used to determine whether it is control OUT or IN.
@@ -572,7 +574,7 @@ static bool hfclk_running(void)
   }
 #endif
 
-  return nrf_clock_hf_is_running(NRF_CLOCK_HFCLK_HIGH_ACCURACY);
+  return nrf_clock_hf_is_running(NRF_CLOCK, NRF_CLOCK_HFCLK_HIGH_ACCURACY);
 }
 
 static void hfclk_enable(void)
@@ -588,8 +590,8 @@ static void hfclk_enable(void)
   }
 #endif
 
-  nrf_clock_event_clear(NRF_CLOCK_EVENT_HFCLKSTARTED);
-  nrf_clock_task_trigger(NRF_CLOCK_TASK_HFCLKSTART);
+  nrf_clock_event_clear(NRF_CLOCK, NRF_CLOCK_EVENT_HFCLKSTARTED);
+  nrf_clock_task_trigger(NRF_CLOCK, NRF_CLOCK_TASK_HFCLKSTART);
 }
 
 static void hfclk_disable(void)
@@ -602,7 +604,7 @@ static void hfclk_disable(void)
   }
 #endif
 
-  nrf_clock_task_trigger(NRF_CLOCK_TASK_HFCLKSTOP);
+  nrf_clock_task_trigger(NRF_CLOCK, NRF_CLOCK_TASK_HFCLKSTOP);
 }
 
 // Power & Clock Peripheral on nRF5x to manage USB
@@ -630,7 +632,8 @@ void tusb_hal_nrf_power_event (uint32_t event)
       if ( !NRF_USBD->ENABLE )
       {
         /* Prepare for READY event receiving */
-        nrf_usbd_eventcause_clear(NRF_USBD_EVENTCAUSE_READY_MASK);
+        NRF_USBD->EVENTCAUSE = USBD_EVENTCAUSE_READY_Msk;
+        __ISB(); __DSB(); // for sync
 
         /* Enable the peripheral */
         // ERRATA 171, 187, 166
@@ -667,7 +670,8 @@ void tusb_hal_nrf_power_event (uint32_t event)
           // CRITICAL_REGION_EXIT();
         }
 
-        nrf_usbd_enable();
+        NRF_USBD->ENABLE = 1;
+        __ISB(); __DSB(); // for sync
 
         // Enable HFCLK
         hfclk_enable();
@@ -678,8 +682,8 @@ void tusb_hal_nrf_power_event (uint32_t event)
       /* Waiting for USBD peripheral enabled */
       while ( !(USBD_EVENTCAUSE_READY_Msk & NRF_USBD->EVENTCAUSE) ) { }
 
-      nrf_usbd_eventcause_clear(USBD_EVENTCAUSE_READY_Msk);
-      nrf_usbd_event_clear(USBD_EVENTCAUSE_READY_Msk);
+      NRF_USBD->EVENTCAUSE = USBD_EVENTCAUSE_READY_Msk;
+      __ISB(); __DSB(); // for sync
 
       if ( nrfx_usbd_errata_171() )
       {
@@ -719,11 +723,11 @@ void tusb_hal_nrf_power_event (uint32_t event)
         *((volatile uint32_t *) (NRF_USBD_BASE + 0x800)) = 0x7E3;
         *((volatile uint32_t *) (NRF_USBD_BASE + 0x804)) = 0x40;
 
-        __ISB();
-        __DSB();
+        __ISB(); __DSB();
       }
 
-      nrf_usbd_isosplit_set(USBD_ISOSPLIT_SPLIT_HalfIN);
+      // ISO buffer Lower half for IN, upper half for OUT
+      NRF_USBD->ISOSPLIT = USBD_ISOSPLIT_SPLIT_HalfIN;
 
       // Enable interrupt
       NRF_USBD->INTENSET = USBD_INTEN_USBRESET_Msk | USBD_INTEN_EPDATA_Msk |
@@ -737,7 +741,8 @@ void tusb_hal_nrf_power_event (uint32_t event)
       while ( !hfclk_running() ) { }
 
       // Enable pull up
-      nrf_usbd_pullup_enable();
+      NRF_USBD->USBPULLUP = 1;
+      __ISB(); __DSB(); // for sync
     break;
 
     case USB_EVT_REMOVED:
@@ -746,7 +751,8 @@ void tusb_hal_nrf_power_event (uint32_t event)
         // Abort all transfers
 
         // Disable pull up
-        nrf_usbd_pullup_disable();
+        NRF_USBD->USBPULLUP = 0;
+        __ISB(); __DSB(); // for sync
 
         // Disable Interrupt
         NVIC_DisableIRQ(USBD_IRQn);
@@ -754,7 +760,9 @@ void tusb_hal_nrf_power_event (uint32_t event)
         // disable all interrupt
         NRF_USBD->INTENCLR = NRF_USBD->INTEN;
 
-        nrf_usbd_disable();
+        NRF_USBD->ENABLE = 0;
+        __ISB(); __DSB(); // for sync
+
         hfclk_disable();
 
         dcd_event_bus_signal(0, DCD_EVENT_UNPLUGGED, true);

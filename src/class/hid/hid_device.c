@@ -162,9 +162,18 @@ bool hidd_open(uint8_t rhport, tusb_desc_interface_t const * desc_itf, uint16_t 
 {
   uint8_t const *p_desc = (uint8_t const *) desc_itf;
 
-  // TODO support multiple HID interface
-  uint8_t const itf = 0;
-  hidd_interface_t * p_hid = &_hidd_itf[itf];
+  // Find available interface
+  hidd_interface_t * p_hid = NULL;
+  uint8_t hid_id;
+  for(hid_id=0; hid_id<CFG_TUD_HID; hid_id++)
+  {
+    if ( _hidd_itf[hid_id].ep_in == 0 )
+    {
+      p_hid = &_hidd_itf[hid_id];
+      break;
+    }
+  }
+  TU_ASSERT(p_hid);
 
   //------------- HID descriptor -------------//
   p_desc = tu_desc_next(p_desc);
@@ -191,89 +200,87 @@ bool hidd_open(uint8_t rhport, tusb_desc_interface_t const * desc_itf, uint16_t 
 
 // Handle class control request
 // return false to stall control endpoint (e.g unsupported request)
-bool hidd_control_request(uint8_t rhport, tusb_control_request_t const * p_request)
+bool hidd_control_request(uint8_t rhport, tusb_control_request_t const * request)
 {
-  if (p_request->bmRequestType_bit.recipient != TUSB_REQ_RCPT_INTERFACE)
-  {
-    return false;
-  }
-  hidd_interface_t* p_hid = get_interface_by_itfnum( (uint8_t) p_request->wIndex );
+  TU_VERIFY(request->bmRequestType_bit.recipient == TUSB_REQ_RCPT_INTERFACE);
+
+  hidd_interface_t* p_hid = get_interface_by_itfnum( (uint8_t) request->wIndex );
   TU_ASSERT(p_hid);
 
-  if (p_request->bmRequestType_bit.type == TUSB_REQ_TYPE_STANDARD)
+  if (request->bmRequestType_bit.type == TUSB_REQ_TYPE_STANDARD)
   {
     //------------- STD Request -------------//
-    uint8_t const desc_type  = tu_u16_high(p_request->wValue);
-    uint8_t const desc_index = tu_u16_low (p_request->wValue);
+    uint8_t const desc_type  = tu_u16_high(request->wValue);
+    uint8_t const desc_index = tu_u16_low (request->wValue);
     (void) desc_index;
 
-    if (p_request->bRequest == TUSB_REQ_GET_DESCRIPTOR && desc_type == HID_DESC_TYPE_HID)
+    if (request->bRequest == TUSB_REQ_GET_DESCRIPTOR && desc_type == HID_DESC_TYPE_HID)
     {
       TU_VERIFY(p_hid->hid_descriptor != NULL);
-      TU_VERIFY(tud_control_xfer(rhport, p_request, (void*) p_hid->hid_descriptor, p_hid->hid_descriptor->bLength));
+      TU_VERIFY(tud_control_xfer(rhport, request, (void*) p_hid->hid_descriptor, p_hid->hid_descriptor->bLength));
     }
-    else if (p_request->bRequest == TUSB_REQ_GET_DESCRIPTOR && desc_type == HID_DESC_TYPE_REPORT)
+    else if (request->bRequest == TUSB_REQ_GET_DESCRIPTOR && desc_type == HID_DESC_TYPE_REPORT)
     {
       uint8_t const * desc_report = tud_hid_descriptor_report_cb();
-      tud_control_xfer(rhport, p_request, (void*) desc_report, p_hid->report_desc_len);
+      tud_control_xfer(rhport, request, (void*) desc_report, p_hid->report_desc_len);
     }
     else
     {
       return false; // stall unsupported request
     }
   }
-  else if (p_request->bmRequestType_bit.type == TUSB_REQ_TYPE_CLASS)
+  else if (request->bmRequestType_bit.type == TUSB_REQ_TYPE_CLASS)
   {
     //------------- Class Specific Request -------------//
-    switch( p_request->bRequest )
+    switch( request->bRequest )
     {
       case HID_REQ_CONTROL_GET_REPORT:
       {
         // wValue = Report Type | Report ID
-        uint8_t const report_type = tu_u16_high(p_request->wValue);
-        uint8_t const report_id   = tu_u16_low(p_request->wValue);
+        uint8_t const report_type = tu_u16_high(request->wValue);
+        uint8_t const report_id   = tu_u16_low(request->wValue);
 
-        uint16_t xferlen  = tud_hid_get_report_cb(report_id, (hid_report_type_t) report_type, p_hid->epin_buf, p_request->wLength);
+        uint16_t xferlen  = tud_hid_get_report_cb(report_id, (hid_report_type_t) report_type, p_hid->epin_buf, request->wLength);
         TU_ASSERT( xferlen > 0 );
 
-        tud_control_xfer(rhport, p_request, p_hid->epin_buf, xferlen);
+        tud_control_xfer(rhport, request, p_hid->epin_buf, xferlen);
       }
       break;
 
       case  HID_REQ_CONTROL_SET_REPORT:
-        TU_VERIFY(p_request->wLength <= sizeof(p_hid->epout_buf));
-        tud_control_xfer(rhport, p_request, p_hid->epout_buf, p_request->wLength);
+        TU_VERIFY(request->wLength <= sizeof(p_hid->epout_buf));
+        tud_control_xfer(rhport, request, p_hid->epout_buf, request->wLength);
       break;
 
       case HID_REQ_CONTROL_SET_IDLE:
-        p_hid->idle_rate = tu_u16_high(p_request->wValue);
+        p_hid->idle_rate = tu_u16_high(request->wValue);
         if ( tud_hid_set_idle_cb )
         {
           // stall request if callback return false
           if ( !tud_hid_set_idle_cb(p_hid->idle_rate) ) return false;
         }
 
-        tud_control_status(rhport, p_request);
+        tud_control_status(rhport, request);
       break;
 
       case HID_REQ_CONTROL_GET_IDLE:
         // TODO idle rate of report
-        tud_control_xfer(rhport, p_request, &p_hid->idle_rate, 1);
+        tud_control_xfer(rhport, request, &p_hid->idle_rate, 1);
       break;
 
       case HID_REQ_CONTROL_GET_PROTOCOL:
       {
         uint8_t protocol = (uint8_t)(1-p_hid->boot_mode);   // 0 is Boot, 1 is Report protocol
-        tud_control_xfer(rhport, p_request, &protocol, 1);
+        tud_control_xfer(rhport, request, &protocol, 1);
       }
       break;
 
       case HID_REQ_CONTROL_SET_PROTOCOL:
-        p_hid->boot_mode = 1 - p_request->wValue; // 0 is Boot, 1 is Report protocol
+        p_hid->boot_mode = 1 - request->wValue; // 0 is Boot, 1 is Report protocol
 
         if (tud_hid_boot_mode_cb) tud_hid_boot_mode_cb(p_hid->boot_mode);
 
-        tud_control_status(rhport, p_request);
+        tud_control_status(rhport, request);
       break;
 
       default: return false; // stall unsupported request
@@ -311,9 +318,15 @@ bool hidd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint32_
 {
   (void) result;
 
-  // TODO support multiple HID interface
-  uint8_t const itf = 0;
-  hidd_interface_t * p_hid = &_hidd_itf[itf];
+  uint8_t itf = 0;
+  hidd_interface_t * p_hid = _hidd_itf;
+
+  for ( ; ; itf++, p_hid++)
+  {
+    if (itf >= TU_ARRAY_SIZE(_hidd_itf)) return false;
+
+    if ( ep_addr == p_hid->ep_out ) break;
+  }
 
   if (ep_addr == p_hid->ep_out)
   {

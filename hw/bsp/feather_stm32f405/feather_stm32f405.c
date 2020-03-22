@@ -31,13 +31,31 @@
 
 // Blue LED is chosen because the other LEDs are connected to ST-LINK lines.
 #define LED_PORT              GPIOC
-#define LED_PIN               GPIO_PIN_4
+#define LED_PIN               GPIO_PIN_1
 #define LED_STATE_ON          1
 
 // Pin D5
 #define BUTTON_PORT           GPIOC
 #define BUTTON_PIN            GPIO_PIN_7
 #define BUTTON_STATE_ACTIVE   0
+
+#define UARTx                 USART3
+#define UART_GPIO_PORT        GPIOB
+#define UART_GPIO_AF          GPIO_AF7_USART3
+#define UART_TX_PIN           GPIO_PIN_10
+#define UART_RX_PIN           GPIO_PIN_11
+
+UART_HandleTypeDef UartHandle;
+
+
+// enable all LED, Button, Uart, USB clock
+static void all_rcc_clk_enable(void)
+{
+  __HAL_RCC_GPIOA_CLK_ENABLE();  // USB D+, D-
+  __HAL_RCC_GPIOC_CLK_ENABLE();  // LED, Button
+  __HAL_RCC_GPIOB_CLK_ENABLE();  // Uart tx, rx
+  __HAL_RCC_USART3_CLK_ENABLE(); // Uart module
+}
 
 /**
   * @brief  System Clock Configuration
@@ -49,7 +67,7 @@
   *            APB1 Prescaler                 = 4
   *            APB2 Prescaler                 = 2
   *            HSE Frequency(Hz)              = 12000000
-  *            PLL_M                          = 12
+  *            PLL_M                          = HSE_VALUE/1000000
   *            PLL_N                          = 336
   *            PLL_P                          = 2
   *            PLL_Q                          = 7
@@ -77,7 +95,7 @@ static void SystemClock_Config(void)
   RCC_OscInitStruct.HSEState = RCC_HSE_ON;
   RCC_OscInitStruct.PLL.PLLState = RCC_PLL_ON;
   RCC_OscInitStruct.PLL.PLLSource = RCC_PLLSOURCE_HSE;
-  RCC_OscInitStruct.PLL.PLLM = 12;
+  RCC_OscInitStruct.PLL.PLLM = HSE_VALUE/1000000;
   RCC_OscInitStruct.PLL.PLLN = 336;
   RCC_OscInitStruct.PLL.PLLP = RCC_PLLP_DIV2;
   RCC_OscInitStruct.PLL.PLLQ = 7;
@@ -104,14 +122,13 @@ void board_init(void)
 #endif
 
   SystemClock_Config();
-
-  // Notify runtime of frequency change.
   SystemCoreClockUpdate();
+
+  all_rcc_clk_enable();
 
   GPIO_InitTypeDef  GPIO_InitStruct;
 
   // LED
-  __HAL_RCC_GPIOC_CLK_ENABLE();
   GPIO_InitStruct.Pin = LED_PIN;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_PULLUP;
@@ -121,19 +138,22 @@ void board_init(void)
   board_led_write(false);
 
   // Button
-  //__HAL_RCC_GPIOC_CLK_ENABLE();
   GPIO_InitStruct.Pin = BUTTON_PIN;
   GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
   GPIO_InitStruct.Pull = GPIO_PULLUP;
   GPIO_InitStruct.Speed = GPIO_SPEED_FAST;
   HAL_GPIO_Init(BUTTON_PORT, &GPIO_InitStruct);
 
-  // Enable USB OTG clock
-  __HAL_RCC_USB_OTG_FS_CLK_ENABLE();
+  // Uart
+  GPIO_InitStruct.Pin       = UART_TX_PIN | UART_RX_PIN;
+  GPIO_InitStruct.Mode      = GPIO_MODE_AF_PP;
+  GPIO_InitStruct.Pull      = GPIO_PULLUP;
+  GPIO_InitStruct.Speed     = GPIO_SPEED_FREQ_HIGH;
+  GPIO_InitStruct.Alternate = UART_GPIO_AF;
+  HAL_GPIO_Init(UART_GPIO_PORT, &GPIO_InitStruct);
 
   // USB Pin Init
   // PA9- VUSB, PA10- ID, PA11- DM, PA12- DP
-  __HAL_RCC_GPIOA_CLK_ENABLE();
 
   /* Configure DM DP Pins */
   GPIO_InitStruct.Pin = GPIO_PIN_11 | GPIO_PIN_12;
@@ -156,6 +176,13 @@ void board_init(void)
   GPIO_InitStruct.Speed = GPIO_SPEED_HIGH;
   GPIO_InitStruct.Alternate = GPIO_AF10_OTG_FS;
   HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
+
+  // Enable USB OTG clock
+  __HAL_RCC_USB_OTG_FS_CLK_ENABLE();
+
+  // Enable VBUS sense (B device) via pin PA9
+  USB_OTG_FS->GCCFG &= ~USB_OTG_GCCFG_NOVBUSSENS;
+  USB_OTG_FS->GCCFG |= USB_OTG_GCCFG_VBUSBSEN;
 }
 
 //--------------------------------------------------------------------+
@@ -180,8 +207,8 @@ int board_uart_read(uint8_t* buf, int len)
 
 int board_uart_write(void const * buf, int len)
 {
-  (void) buf; (void) len;
-  return 0;
+  HAL_UART_Transmit(&UartHandle, (uint8_t*) buf, len, 0xffff);
+  return len;
 }
 
 #if CFG_TUSB_OS  == OPT_OS_NONE

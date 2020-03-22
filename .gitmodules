@@ -1,15 +1,9 @@
 [submodule "hw/mcu/nordic/nrfx"]
 	path = hw/mcu/nordic/nrfx
 	url = https://github.com/NordicSemiconductor/nrfx.git
-[submodule "hw/mcu/microchip/samd/asf4"]
-	path = hw/mcu/microchip/samd/asf4
-	url = https://github.com/adafruit/asf4.git
 [submodule "tools/uf2"]
 	path = tools/uf2
 	url = https://github.com/microsoft/uf2.git
-[submodule "hw/mcu/nxp/lpc_driver"]
-	path = hw/mcu/nxp/lpc_driver
-	url = https://github.com/hathach/lpc_driver.git
 [submodule "hw/mcu/st/st_driver"]
 	path = hw/mcu/st/st_driver
 	url = https://github.com/hathach/st_driver.git
@@ -19,3 +13,18 @@
 [submodule "hw/mcu/ti"]
 	path = hw/mcu/ti
 	url = https://github.com/hathach/ti_driver.git
+[submodule "hw/mcu/nxp"]
+	path = hw/mcu/nxp
+	url = https://github.com/hathach/nxp_driver.git
+[submodule "hw/mcu/microchip"]
+	path = hw/mcu/microchip
+	url = https://github.com/hathach/microchip_driver.git
+[submodule "hw/mcu/nuvoton"]
+	path = hw/mcu/nuvoton
+	url = https://github.com/majbthrd/nuc_driver.git
+[submodule "lib/lwip"]
+	path = lib/lwip
+	url = https://git.savannah.nongnu.org/git/lwip.git
+[submodule "lib/FreeRTOS"]
+	path = lib/FreeRTOS
+	url = https://github.com/FreeRTOS/FreeRTOS.git

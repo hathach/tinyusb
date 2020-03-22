@@ -88,6 +88,9 @@ typedef struct TU_ATTR_ALIGNED(4)
 // Initialize controller to device mode
 void dcd_init       (uint8_t rhport);
 
+// Interrupt Handler
+void dcd_isr        (uint8_t rhport);
+
 // Enable device interrupt
 void dcd_int_enable (uint8_t rhport);
 
@@ -107,6 +110,10 @@ void dcd_remote_wakeup(uint8_t rhport);
 // Endpoint API
 //--------------------------------------------------------------------+
 
+// Invoked when a control transfer's status stage is complete.
+// May help DCD to prepare for next control transfer, this API is optional.
+void dcd_edpt0_status_complete(uint8_t rhport, tusb_control_request_t const * request) TU_ATTR_WEAK;
+
 // Configure endpoint's registers according to descriptor
 bool dcd_edpt_open        (uint8_t rhport, tusb_desc_endpoint_t const * p_endpoint_desc);
 
@@ -118,10 +125,6 @@ void dcd_edpt_stall       (uint8_t rhport, uint8_t ep_addr);
 
 // clear stall, data toggle is also reset to DATA0
 void dcd_edpt_clear_stall (uint8_t rhport, uint8_t ep_addr);
-
-// Invoked when a control transfer's status stage is complete.
-// May help DCD to prepare for next control transfer, this API is optional.
-void dcd_control_status_complete(uint8_t rhport) TU_ATTR_WEAK;
 
 //--------------------------------------------------------------------+
 // Event API (Implemented by device stack)

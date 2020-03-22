@@ -81,8 +81,10 @@ static void dump_str_line(uint8_t const* buf, uint16_t count)
 // size  : item size in bytes
 // count : number of item
 // print offet or not (handfy for dumping large memory)
-void tu_print_mem(void const *buf, uint8_t size, uint16_t count)
+void tu_print_mem(void const *buf, uint16_t count, uint8_t indent)
 {
+  uint8_t const size = 1; // fixed 1 byte for now
+
   if ( !buf || !count )
   {
     tu_printf("NULL\r\n");
@@ -109,6 +111,8 @@ void tu_print_mem(void const *buf, uint8_t size, uint16_t count)
         dump_str_line(buf8-16, 16);
         tu_printf("\r\n");
       }
+
+      for(uint8_t s=0; s < indent; s++) tu_printf(" ");
 
       // print offset or absolute address
       tu_printf("%03lX: ", 16*i/item_per_line);

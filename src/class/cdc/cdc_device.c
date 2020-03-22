@@ -294,9 +294,16 @@ bool cdcd_control_complete(uint8_t rhport, tusb_control_request_t const * reques
   //------------- Class Specific Request -------------//
   TU_VERIFY (request->bmRequestType_bit.type == TUSB_REQ_TYPE_CLASS);
 
-  // TODO Support multiple interfaces
-  uint8_t const itf = 0;
-  cdcd_interface_t* p_cdc = &_cdcd_itf[itf];
+  uint8_t itf = 0;
+  cdcd_interface_t* p_cdc = _cdcd_itf;
+
+  // Identify which interface to use
+  for ( ; ; itf++, p_cdc++)
+  {
+    if (itf >= TU_ARRAY_SIZE(_cdcd_itf)) return false;
+
+    if ( p_cdc->itf_num == request->wIndex ) break;
+  }
 
   // Invoke callback
   if ( CDC_REQUEST_SET_LINE_CODING == request->bRequest )
@@ -311,35 +318,51 @@ bool cdcd_control_complete(uint8_t rhport, tusb_control_request_t const * reques
 // return false to stall control endpoint (e.g unsupported request)
 bool cdcd_control_request(uint8_t rhport, tusb_control_request_t const * request)
 {
-  //------------- Class Specific Request -------------//
-  TU_ASSERT(request->bmRequestType_bit.type == TUSB_REQ_TYPE_CLASS);
+  // Handle class request only
+  TU_VERIFY(request->bmRequestType_bit.type == TUSB_REQ_TYPE_CLASS);
 
-  // TODO Support multiple interfaces
-  uint8_t const itf = 0;
-  cdcd_interface_t* p_cdc = &_cdcd_itf[itf];
+  uint8_t itf = 0;
+  cdcd_interface_t* p_cdc = _cdcd_itf;
+
+  // Identify which interface to use
+  for ( ; ; itf++, p_cdc++)
+  {
+    if (itf >= TU_ARRAY_SIZE(_cdcd_itf)) return false;
+
+    if ( p_cdc->itf_num == request->wIndex ) break;
+  }
 
   switch ( request->bRequest )
   {
     case CDC_REQUEST_SET_LINE_CODING:
+      TU_LOG2("  Set Line Coding\r\n");
       tud_control_xfer(rhport, request, &p_cdc->line_coding, sizeof(cdc_line_coding_t));
     break;
 
     case CDC_REQUEST_GET_LINE_CODING:
+      TU_LOG2("  Get Line Coding\r\n");
       tud_control_xfer(rhport, request, &p_cdc->line_coding, sizeof(cdc_line_coding_t));
     break;
 
     case CDC_REQUEST_SET_CONTROL_LINE_STATE:
+    {
       // CDC PSTN v1.2 section 6.3.12
       // Bit 0: Indicates if DTE is present or not.
       //        This signal corresponds to V.24 signal 108/2 and RS-232 signal DTR (Data Terminal Ready)
       // Bit 1: Carrier control for half-duplex modems.
       //        This signal corresponds to V.24 signal 105 and RS-232 signal RTS (Request to Send)
+      bool const dtr = tu_bit_test(request->wValue, 0);
+      bool const rts = tu_bit_test(request->wValue, 1);
+
       p_cdc->line_state = (uint8_t) request->wValue;
+
+      TU_LOG2("  Set Control Line State: DTR = %d, RTS = %d\r\n", dtr, rts);
 
       tud_control_status(rhport, request);
 
       // Invoke callback
-      if ( tud_cdc_line_state_cb) tud_cdc_line_state_cb(itf, tu_bit_test(request->wValue, 0), tu_bit_test(request->wValue, 1));
+      if ( tud_cdc_line_state_cb) tud_cdc_line_state_cb(itf, dtr, rts);
+    }
     break;
 
     default: return false; // stall unsupported request
@@ -353,9 +376,16 @@ bool cdcd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint32_
   (void) rhport;
   (void) result;
 
-  // TODO Support multiple interfaces
-  uint8_t const itf = 0;
-  cdcd_interface_t* p_cdc = &_cdcd_itf[itf];
+  uint8_t itf = 0;
+  cdcd_interface_t* p_cdc = _cdcd_itf;
+
+  // Identify which interface to use
+  for ( ; ; itf++, p_cdc++)
+  {
+    if (itf >= TU_ARRAY_SIZE(_cdcd_itf)) return false;
+
+    if ( ( ep_addr == p_cdc->ep_out ) || ( ep_addr == p_cdc->ep_in ) ) break;
+  }
 
   // Received new data
   if ( ep_addr == p_cdc->ep_out )

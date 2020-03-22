@@ -5,6 +5,8 @@
 # Compiler
 ifeq ($(BOARD), msp_exp430f5529lp)
   CROSS_COMPILE = msp430-elf-
+else ifeq ($(BOARD), fomu)
+  CROSS_COMPILE = riscv-none-embed-
 else
   CROSS_COMPILE = arm-none-eabi-
 endif
@@ -74,6 +76,7 @@ CFLAGS += \
 	-Wno-deprecated-declarations \
 	-Wnested-externs \
 	-Wunreachable-code \
+	-Wno-error=lto-type-mismatch \
 	-ffunction-sections \
 	-fdata-sections
 
@@ -84,11 +87,7 @@ CFLAGS += \
 ifeq ($(DEBUG), 1)
   CFLAGS += -Og -ggdb
 else
-  ifneq ($(BOARD),spresense)
-    CFLAGS += -flto -Os
-  else
-    CFLAGS += -Os
-  endif
+	CFLAGS += -Os
 endif
 
 # TUSB Logging option

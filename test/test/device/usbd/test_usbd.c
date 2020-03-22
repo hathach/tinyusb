@@ -1,7 +1,7 @@
 /* 
  * The MIT License (MIT)
  *
- * Copyright (c) 2019 hathach for Adafruit Industries
+ * Copyright (c) 2019, Ha Thach (tinyusb.org)
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -29,10 +29,10 @@
 #include "tusb.h"
 #include "usbd.h"
 TEST_FILE("usbd_control.c")
-//TEST_FILE("usb_descriptors.c")
 
 // Mock File
 #include "mock_dcd.h"
+#include "mock_msc_device.h"
 
 //--------------------------------------------------------------------+
 // MACRO TYPEDEF CONSTANT ENUM DECLARATION
@@ -111,8 +111,10 @@ uint8_t const * tud_descriptor_configuration_cb(uint8_t index)
   return desc_configuration;
 }
 
-uint16_t const* tud_descriptor_string_cb(uint8_t index)
+uint16_t const* tud_descriptor_string_cb(uint8_t index, uint16_t langid)
 {
+  (void) langid;
+
   return NULL;
 }
 
@@ -123,6 +125,7 @@ void setUp(void)
 
   if ( !tusb_inited() )
   {
+    mscd_init_Expect();
     dcd_init_Expect(rhport);
     tusb_init();
   }
@@ -148,6 +151,8 @@ void test_usbd_get_device_descriptor(void)
 
   // status
   dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_CTRL_OUT, NULL, 0, true);
+  dcd_event_xfer_complete(rhport, EDPT_CTRL_OUT, 0, 0, false);
+  dcd_edpt0_status_complete_ExpectWithArray(rhport, &req_get_desc_device, 1);
 
   tud_task();
 }
@@ -179,6 +184,8 @@ void test_usbd_get_configuration_descriptor(void)
 
   // status
   dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_CTRL_OUT, NULL, 0, true);
+  dcd_event_xfer_complete(rhport, EDPT_CTRL_OUT, 0, 0, false);
+  dcd_edpt0_status_complete_ExpectWithArray(rhport, &req_get_desc_configuration, 1);
 
   tud_task();
 }
@@ -230,6 +237,7 @@ void test_usbd_control_in_zlp(void)
   // Status
   dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_CTRL_OUT, NULL, 0, true);
   dcd_event_xfer_complete(rhport, EDPT_CTRL_OUT, 0, 0, false);
+  dcd_edpt0_status_complete_ExpectWithArray(rhport, &req_get_desc_configuration, 1);
 
   dcd_control_status_complete_Expect(rhport);
 

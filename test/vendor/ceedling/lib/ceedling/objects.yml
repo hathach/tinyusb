@@ -41,7 +41,9 @@ project_file_loader:
 project_config_manager:
   compose:
     - cacheinator
+    - configurator
     - yaml_wrapper
+    - file_wrapper
 
 cacheinator:
   compose:
@@ -172,6 +174,7 @@ task_invoker:
     - dependinator
     - rake_utils
     - rake_wrapper
+    - project_config_manager
 
 flaginator:
   compose:

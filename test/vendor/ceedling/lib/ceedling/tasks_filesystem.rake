@@ -81,7 +81,10 @@ namespace :files do
     ['source', COLLECTION_ALL_SOURCE],
     ['header', COLLECTION_ALL_HEADERS]
     ]
-  categories << ['assembly', COLLECTION_ALL_ASSEMBLY] if (RELEASE_BUILD_USE_ASSEMBLY)
+
+  using_assembly = (defined?(TEST_BUILD_USE_ASSEMBLY) && TEST_BUILD_USE_ASSEMBLY) ||
+                   (defined?(RELEASE_BUILD_USE_ASSEMBLY) && RELEASE_BUILD_USE_ASSEMBLY)
+  categories << ['assembly', COLLECTION_ALL_ASSEMBLY] if using_assembly
 
   categories.each do |category|
     name       = category[0]

@@ -26,16 +26,21 @@ class Cacheinator
     return cached_filepath
   end
 
-  
   def diff_cached_test_config?(hash)
     cached_filepath = @file_path_utils.form_test_build_cache_path(INPUT_CONFIGURATION_CACHE_FILE)
-    
+
     return @cacheinator_helper.diff_cached_config?( cached_filepath, hash )
+  end
+
+  def diff_cached_test_defines?(files)
+    cached_filepath = @file_path_utils.form_test_build_cache_path(DEFINES_DEPENDENCY_CACHE_FILE)
+
+    return @cacheinator_helper.diff_cached_defines?( cached_filepath, files )
   end
 
   def diff_cached_release_config?(hash)
     cached_filepath = @file_path_utils.form_release_build_cache_path(INPUT_CONFIGURATION_CACHE_FILE)
-    
+
     return @cacheinator_helper.diff_cached_config?( cached_filepath, hash )
   end
   

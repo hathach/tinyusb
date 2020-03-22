@@ -1,0 +1,57 @@
+name: Build
+
+on: [pull_request, push]
+
+jobs:
+  unit-test:
+    runs-on: ubuntu-latest    
+    steps:
+    - name: Setup Ruby
+      uses: actions/setup-ruby@v1.0.0
+      
+    - name: Checkout TinyUSB
+      uses: actions/checkout@v2
+
+    - name: Unit Tests
+      run: |
+        # Install Ceedling
+        gem install ceedling
+        cd test
+        ceedling test:all
+
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        example: ['board_test', 'cdc_dual_ports', 'cdc_msc', 'cdc_msc_freertos', 'dfu_rt', 
+                  'hid_composite', 'hid_generic_inout', 'midi_test', 'msc_dual_lun', 'net_lwip_webserver', 
+                  'usbtmc', 'webusb_serial']
+    steps:
+    - name: Setup Python
+      uses: actions/setup-python@v1
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v1.1.0
+      
+    - name: Install Toolchains
+      run: |
+        npm install --global xpm
+        xpm install --global @xpack-dev-tools/arm-none-eabi-gcc@latest
+        xpm install --global @xpack-dev-tools/riscv-none-embed-gcc@latest
+        echo "::add-path::`echo $HOME/opt/xPacks/@xpack-dev-tools/arm-none-eabi-gcc/*/.content/bin`"
+        echo "::add-path::`echo $HOME/opt/xPacks/@xpack-dev-tools/riscv-none-embed-gcc/*/.content/bin`"
+      
+    - name: Checkout TinyUSB
+      uses: actions/checkout@v2
+    
+    - name: Checkout submodules
+      shell: bash
+      run: |
+        auth_header="$(git config --local --get http.https://github.com/.extraheader)"
+        git submodule sync --recursive
+        git -c "http.extraheader=$auth_header" -c protocol.version=2 submodule update --init --force --recursive
+    
+    - name: Build
+      run: python3 tools/build_all.py ${{ matrix.example }}
+

@@ -64,6 +64,8 @@ class Configurator
   end
 
 
+  # The default values defined in defaults.rb (eg. DEFAULT_TOOLS_TEST) are populated
+  # into @param config
   def populate_defaults(config)
     new_config = DEFAULT_CEEDLING_CONFIG.deep_clone
     new_config.deep_merge!(config)
@@ -184,7 +186,8 @@ class Configurator
     plugin_defaults = @configurator_plugins.find_plugin_defaults(config, paths_hash)
 
     config_plugins.each do |plugin|
-      config.deep_merge!( @yaml_wrapper.load(plugin) )
+      plugin_config = @yaml_wrapper.load(plugin)
+      config.deep_merge(plugin_config)
     end
 
     plugin_defaults.each do |defaults|
@@ -346,6 +349,10 @@ class Configurator
   end
 
   def eval_path_list( paths )
+    if paths.kind_of?(Array)
+      paths = Array.new(paths)
+    end
+
     paths.flatten.each do |path|
       path.replace( @system_wrapper.module_eval( path ) ) if (path =~ RUBY_STRING_REPLACEMENT_PATTERN)
     end

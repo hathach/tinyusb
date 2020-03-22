@@ -322,10 +322,9 @@ bool midid_control_complete(uint8_t rhport, tusb_control_request_t const * p_req
 bool midid_control_request(uint8_t rhport, tusb_control_request_t const * p_request)
 {
   (void) rhport;
+  (void) p_request;
 
-  //------------- Class Specific Request -------------//
-  if (p_request->bmRequestType_bit.type != TUSB_REQ_TYPE_CLASS) return false;
-
+  // driver doesn't support any request yet
   return false;
 }
 
@@ -333,9 +332,15 @@ bool midid_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint32
 {
   (void) result;
 
-  // TODO Support multiple interfaces
-  uint8_t const itf = 0;
-  midid_interface_t* p_midi = &_midid_itf[itf];
+  uint8_t itf = 0;
+  midid_interface_t* p_midi = _midid_itf;
+
+  for ( ; ; itf++, p_midi++)
+  {
+    if (itf >= TU_ARRAY_SIZE(_midid_itf)) return false;
+
+    if ( ep_addr == p_midi->ep_out ) break;
+  }
 
   // receive new data
   if ( ep_addr == p_midi->ep_out )
@@ -350,7 +355,7 @@ bool midid_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint32
 
   // nothing to do with in and notif endpoint
 
-  return TUSB_ERROR_NONE;
+  return true;
 }
 
 #endif

@@ -1,12 +1,12 @@
 CFLAGS += \
-  -DHSE_VALUE=8000000 \
-  -DSTM32F767xx \
+  -flto \
   -mthumb \
   -mabi=aapcs \
   -mcpu=cortex-m7 \
   -mfloat-abi=hard \
   -mfpu=fpv5-d16 \
   -nostdlib -nostartfiles \
+  -DSTM32F767xx \
   -DCFG_TUSB_MCU=OPT_MCU_STM32F7
 
 # mcu driver cause following warnings
@@ -41,9 +41,8 @@ INC += \
 VENDOR = st
 CHIP_FAMILY = synopsys
 
-# Path to STM32 Cube Programmer CLI, should be added into system path
-STM32Prog = STM32_Programmer_CLI
+# For freeRTOS port source
+FREERTOS_PORT = ARM_CM7/r0p1
 
 # flash target using on-board stlink
-flash: $(BUILD)/$(BOARD)-firmware.elf
-	$(STM32Prog) --connect port=swd --write $< --go
+flash: flash-stlink

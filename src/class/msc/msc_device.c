@@ -39,7 +39,8 @@ enum
 {
   MSC_STAGE_CMD  = 0,
   MSC_STAGE_DATA,
-  MSC_STAGE_STATUS
+  MSC_STAGE_STATUS,
+  MSC_STAGE_STATUS_SENT
 };
 
 typedef struct
@@ -98,6 +99,34 @@ static inline uint16_t rdwr10_get_blockcount(uint8_t const command[])
 }
 
 //--------------------------------------------------------------------+
+// Debug
+//--------------------------------------------------------------------+
+#if CFG_TUSB_DEBUG >= 2
+
+static lookup_entry_t const _msc_scsi_cmd_lookup[] =
+{
+  { .key = SCSI_CMD_TEST_UNIT_READY              , .data = "Test Unit Ready" },
+  { .key = SCSI_CMD_INQUIRY                      , .data = "Inquiry" },
+  { .key = SCSI_CMD_MODE_SELECT_6                , .data = "Mode_Select 6" },
+  { .key = SCSI_CMD_MODE_SENSE_6                 , .data = "Mode_Sense 6" },
+  { .key = SCSI_CMD_START_STOP_UNIT              , .data = "Start Stop Unit" },
+  { .key = SCSI_CMD_PREVENT_ALLOW_MEDIUM_REMOVAL , .data = "Prevent Allow Medium Removal" },
+  { .key = SCSI_CMD_READ_CAPACITY_10             , .data = "Read Capacity10" },
+  { .key = SCSI_CMD_REQUEST_SENSE                , .data = "Request Sense" },
+  { .key = SCSI_CMD_READ_FORMAT_CAPACITY         , .data = "Read Format Capacity" },
+  { .key = SCSI_CMD_READ_10                      , .data = "Read10" },
+  { .key = SCSI_CMD_WRITE_10                     , .data = "Write10" }
+};
+
+static lookup_table_t const _msc_scsi_cmd_table =
+{
+  .count = TU_ARRAY_SIZE(_msc_scsi_cmd_lookup),
+  .items = _msc_scsi_cmd_lookup
+};
+
+#endif
+
+//--------------------------------------------------------------------+
 // APPLICATION API
 //--------------------------------------------------------------------+
 bool tud_msc_set_sense(uint8_t lun, uint8_t sense_key, uint8_t add_sense_code, uint8_t add_sense_qualifier)
@@ -149,7 +178,8 @@ bool mscd_open(uint8_t rhport, tusb_desc_interface_t const * itf_desc, uint16_t 
 // return false to stall control endpoint (e.g unsupported request)
 bool mscd_control_request(uint8_t rhport, tusb_control_request_t const * p_request)
 {
-  TU_ASSERT(p_request->bmRequestType_bit.type == TUSB_REQ_TYPE_CLASS);
+  // Handle class request only
+  TU_VERIFY(p_request->bmRequestType_bit.type == TUSB_REQ_TYPE_CLASS);
 
   switch ( p_request->bRequest )
   {
@@ -377,6 +407,9 @@ bool mscd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t event, uint32_t
       TU_ASSERT( event == XFER_RESULT_SUCCESS &&
                  xferred_bytes == sizeof(msc_cbw_t) && p_cbw->signature == MSC_CBW_SIGNATURE );
 
+      TU_LOG2("  SCSI Command: %s\r\n", lookup_find(&_msc_scsi_cmd_table, p_cbw->command[0]));
+      // TU_LOG2_MEM(p_cbw, xferred_bytes, 2);
+
       p_csw->signature    = MSC_CSW_SIGNATURE;
       p_csw->tag          = p_cbw->tag;
       p_csw->data_residue = 0;
@@ -447,6 +480,9 @@ bool mscd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t event, uint32_t
     break;
 
     case MSC_STAGE_DATA:
+      TU_LOG2("  SCSI Data\r\n");
+      //TU_LOG2_MEM(_mscd_buf, xferred_bytes, 2);
+
       // OUT transfer, invoke callback if needed
       if ( !tu_bit_test(p_cbw->dir, 7) )
       {
@@ -533,7 +569,25 @@ bool mscd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t event, uint32_t
       }
     break;
 
-    case MSC_STAGE_STATUS: break; // processed immediately after this switch
+    case MSC_STAGE_STATUS:
+      // processed immediately after this switch, supposedly to be empty
+    break;
+
+    case MSC_STAGE_STATUS_SENT:
+      // Wait for the Status phase to complete
+      if( (ep_addr == p_msc->ep_in) && (xferred_bytes == sizeof(msc_csw_t)) )
+      {
+        TU_LOG2("  SCSI Status: %u\r\n", p_csw->status);
+        // TU_LOG2_MEM(p_csw, xferred_bytes, 2);
+
+        // Move to default CMD stage
+        p_msc->stage = MSC_STAGE_CMD;
+
+        // Queue for the next CBW
+        TU_ASSERT( usbd_edpt_xfer(rhport, p_msc->ep_out, (uint8_t*) &p_msc->cbw, sizeof(msc_cbw_t)) );
+      }
+    break;
+
     default : break;
   }
 
@@ -543,32 +597,33 @@ bool mscd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t event, uint32_t
     if ( usbd_edpt_stalled(rhport,  p_msc->ep_in) || usbd_edpt_stalled(rhport,  p_msc->ep_out) )
     {
       // simulate an transfer complete with adjusted parameters --> this driver callback will fired again
+      // and response with status phase after halted endpoints are cleared.
+      // note: use ep_out to prevent confusing with STATUS complete
       dcd_event_xfer_complete(rhport, p_msc->ep_out, 0, XFER_RESULT_SUCCESS, false);
     }
     else
     {
-      // Move to default CMD stage when sending status
-      p_msc->stage = MSC_STAGE_CMD;
+      // Invoke complete callback if defined
+      switch(p_cbw->command[0])
+      {
+        case SCSI_CMD_READ_10:
+          if ( tud_msc_read10_complete_cb ) tud_msc_read10_complete_cb(p_cbw->lun);
+        break;
+
+        case SCSI_CMD_WRITE_10:
+          if ( tud_msc_write10_complete_cb ) tud_msc_write10_complete_cb(p_cbw->lun);
+        break;
+
+        default:
+          if ( tud_msc_scsi_complete_cb ) tud_msc_scsi_complete_cb(p_cbw->lun, p_cbw->command);
+        break;
+      }
+
+      // Move to Status Sent stage
+      p_msc->stage = MSC_STAGE_STATUS_SENT;
 
       // Send SCSI Status
-      TU_ASSERT( usbd_edpt_xfer(rhport, p_msc->ep_in , (uint8_t*) &p_msc->csw, sizeof(msc_csw_t)) );
-
-      // Invoke complete callback if defined
-      if ( SCSI_CMD_READ_10 == p_cbw->command[0])
-      {
-        if ( tud_msc_read10_complete_cb ) tud_msc_read10_complete_cb(p_cbw->lun);
-      }
-      else if ( SCSI_CMD_WRITE_10 == p_cbw->command[0] )
-      {
-        if ( tud_msc_write10_complete_cb ) tud_msc_write10_complete_cb(p_cbw->lun);
-      }
-      else
-      {
-        if ( tud_msc_scsi_complete_cb ) tud_msc_scsi_complete_cb(p_cbw->lun, p_cbw->command);
-      }
-
-      // Queue for the next CBW
-      TU_ASSERT( usbd_edpt_xfer(rhport, p_msc->ep_out, (uint8_t*) &p_msc->cbw, sizeof(msc_cbw_t)) );
+      TU_ASSERT(usbd_edpt_xfer(rhport, p_msc->ep_in , (uint8_t*) &p_msc->csw, sizeof(msc_csw_t)));
     }
   }
 
@@ -583,7 +638,11 @@ static void proc_read10_cmd(uint8_t rhport, mscd_interface_t* p_msc)
   msc_cbw_t const * p_cbw = &p_msc->cbw;
   msc_csw_t       * p_csw = &p_msc->csw;
 
-  uint16_t const block_sz = p_cbw->total_bytes / rdwr10_get_blockcount(p_cbw->command);
+  uint16_t const block_cnt = rdwr10_get_blockcount(p_cbw->command);
+  TU_ASSERT(block_cnt, ); // prevent div by zero
+
+  uint16_t const block_sz = p_cbw->total_bytes / block_cnt;
+  TU_ASSERT(block_sz, ); // prevent div by zero
 
   // Adjust lba with transferred bytes
   uint32_t const lba = rdwr10_get_lba(p_cbw->command) + (p_msc->xferred_len / block_sz);

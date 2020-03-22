@@ -7,22 +7,47 @@ The board support code is only used for self-contained examples and testing. It 
  
 ## Supported Boards
 
-This code base already had supported for a handful of following boards
+This code base already had supported for a handful of following boards (sorted alphabetically)
 
 ### MicroChip SAMD
 
 - [Adafruit Circuit Playground Express](https://www.adafruit.com/product/3333)
 - [Adafruit Feather M0 Express](https://www.adafruit.com/product/3403)
-- [Adafruit Metro M0 Express](https://www.adafruit.com/product/3505)
 - [Adafruit Feather M4 Express](https://www.adafruit.com/product/3857)
+- [Adafruit ItsyBitsy M0 Express](https://www.adafruit.com/product/3727)
+- [Adafruit ItsyBitsy M4 Express](https://www.adafruit.com/product/3800)
+- [Adafruit Metro M0 Express](https://www.adafruit.com/product/3505)
 - [Adafruit Metro M4 Express](https://www.adafruit.com/product/3382)
 
 ### Nordic nRF5x
 
-- [Adafruit Feather nRF52840 Express](https://www.adafruit.com/product/4062)
 - [Adafruit Circuit Playground Bluefruit](https://www.adafruit.com/product/4333)
+- [Adafruit CLUE](https://www.adafruit.com/product/4500)
+- [Adafruit Feather nRF52840 Express](https://www.adafruit.com/product/4062)
+- [Adafruit Feather nRF52840 Sense](https://www.adafruit.com/product/4516)
+- [Maker Diary nRF52840 MDK Dongle](https://wiki.makerdiary.com/nrf52840-mdk-usb-dongle)
 - [Nordic nRF52840 Development Kit (aka pca10056)](https://www.nordicsemi.com/Software-and-Tools/Development-Kits/nRF52840-DK)
 - [Nordic nRF52840 Dongle (aka pca10059)](https://www.nordicsemi.com/Software-and-Tools/Development-Kits/nRF52840-Dongle)
+- [Nordic nRF52833 Development Kit (aka pca10100)](https://www.nordicsemi.com/Software-and-Tools/Development-Kits/nRF52833-DK)
+- [Raytac MDBT50Q-RX Dongle](https://www.raytac.com/product/ins.php?index_id=89)
+
+### Nuvoton
+
+- NuTiny SDK NUC120
+- [NuTiny NUC121S](https://direct.nuvoton.com/en/nutiny-nuc121s)
+- [NuTiny NUC125S](https://direct.nuvoton.com/en/nutiny-nuc125s)
+- [NuTiny NUC126V](https://direct.nuvoton.com/en/nutiny-nuc126v)
+- [NuTiny SDK NUC505Y](https://direct.nuvoton.com/en/nutiny-nuc505y)
+
+### NXP iMX RT
+
+- [MIMX RT1010 Evaluation Kit](https://www.nxp.com/design/development-boards/i.mx-evaluation-and-development-boards/i.mx-rt1010-evaluation-kit:MIMXRT1010-EVK)
+- [MIMX RT1015 Evaluation Kit](https://www.nxp.com/design/development-boards/i.mx-evaluation-and-development-boards/i.mx-rt1015-evaluation-kit:MIMXRT1015-EVK)
+- [MIMX RT1020 Evaluation Kit](https://www.nxp.com/design/development-boards/i.mx-evaluation-and-development-boards/i.mx-rt1020-evaluation-kit:MIMXRT1020-EVK)
+- [MIMX RT1050 Evaluation Kit](https://www.nxp.com/design/development-boards/i.mx-evaluation-and-development-boards/i.mx-rt1050-evaluation-kit:MIMXRT1050-EVK)
+- [MIMX RT1060 Evaluation Kit](https://www.nxp.com/design/development-boards/i.mx-evaluation-and-development-boards/mimxrt1060-evk-i.mx-rt1060-evaluation-kit:MIMXRT1060-EVK)
+- [MIMX RT1064 Evaluation Kit](https://www.nxp.com/design/development-boards/i.mx-evaluation-and-development-boards/mimxrt1064-evk-i.mx-rt1064-evaluation-kit:MIMXRT1064-EVK)
+- [Teensy 4.0 Development Board](https://www.pjrc.com/store/teensy40.html)
 
 ### NXP LPC
 
@@ -45,7 +70,7 @@ This code base already had supported for a handful of following boards
 
 ### ST STM32
 
-- Adafruit Feather STM32F405 
+- [Adafruit Feather STM32F405](https://www.adafruit.com/product/4382)
 - [Micro Python PyBoard v1.1](https://store.micropython.org/product/PYBv1.1)
 - [STM32 L035c8 Discovery](https://www.st.com/en/evaluation-tools/32l0538discovery.html)
 - [STM32 F070rb Nucleo](https://www.st.com/en/evaluation-tools/nucleo-f070rb.html)
@@ -53,11 +78,17 @@ This code base already had supported for a handful of following boards
 - STM32 F103c Blue Pill
 - [STM32 F207zg Nucleo](https://www.st.com/en/evaluation-tools/nucleo-f207zg.html)
 - [STM32 F303vc Discovery](https://www.st.com/en/evaluation-tools/stm32f3discovery.html)
+- STM32 F401cc Black Pill
 - [STM32 F407vg Discovery](https://www.st.com/en/evaluation-tools/stm32f4discovery.html)
+- STM32 F411ce Black Pill
 - [STM32 F411ve Discovery](https://www.st.com/en/evaluation-tools/32f411ediscovery.html)
 - [STM32 F412zg Discovery](https://www.st.com/en/evaluation-tools/32f412gdiscovery.html)
 - [STM32 F767zi Nucleo](https://www.st.com/en/evaluation-tools/nucleo-f767zi.html)
 - [STM32 H743zi Nucleo](https://www.st.com/en/evaluation-tools/nucleo-h743zi.html)
+
+### Tomu
+
+- [Fomu](https://www.crowdsupply.com/sutajio-kosagi/fomu)
 
 ## Add your own board
 

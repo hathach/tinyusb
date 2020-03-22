@@ -9,6 +9,11 @@ extern "C"
 #endif
 
 
+#define CEXCEPTION_VERSION_MAJOR    1
+#define CEXCEPTION_VERSION_MINOR    3
+#define CEXCEPTION_VERSION_BUILD    2
+#define CEXCEPTION_VERSION          ((CEXCEPTION_VERSION_MAJOR << 16) | (CEXCEPTION_VERSION_MINOR << 8) | CEXCEPTION_VERSION_BUILD)
+
 //To Use CException, you have a number of options:
 //1. Just include it and run with the defaults
 //2. Define any of the following symbols at the command line to override them

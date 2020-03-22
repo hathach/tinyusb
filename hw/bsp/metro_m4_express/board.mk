@@ -1,17 +1,18 @@
 CFLAGS += \
-  -D__SAMD51J19A__ \
+  -flto \
   -mthumb \
   -mabi=aapcs-linux \
   -mcpu=cortex-m4 \
   -mfloat-abi=hard \
   -mfpu=fpv4-sp-d16 \
   -nostdlib -nostartfiles \
+  -D__SAMD51J19A__ \
   -DCFG_TUSB_MCU=OPT_MCU_SAMD51
 
 CFLAGS += -Wno-error=undef
 
 # All source paths should be relative to the top level.
-LD_FILE = hw/bsp/metro_m4_express/samd51g19a_flash.ld
+LD_FILE = hw/bsp/$(BOARD)/samd51g19a_flash.ld
 
 SRC_C += \
 	hw/mcu/microchip/samd/asf4/samd51/gcc/gcc/startup_samd51.c \
@@ -34,7 +35,7 @@ INC += \
 
 # For TinyUSB port source
 VENDOR = microchip
-CHIP_FAMILY = samd51
+CHIP_FAMILY = samd
 
 # For freeRTOS port source
 FREERTOS_PORT = ARM_CM4F

@@ -99,11 +99,8 @@ class UnityTestSummary
 
   def parse_test_summary(summary)
     raise "Couldn't parse test results: #{summary}" unless summary.find { |v| v =~ /(\d+) Tests (\d+) Failures (\d+) Ignored/ }
-    [Regexp.last_match(1).to_i, Regexp.last_match(2).to_i, Regexp.last_match(3).to_i]
-  end
 
-  def here
-    File.expand_path(File.dirname(__FILE__))
+    [Regexp.last_match(1).to_i, Regexp.last_match(2).to_i, Regexp.last_match(3).to_i]
   end
 end
 
@@ -121,7 +118,9 @@ if $0 == __FILE__
     args[0] ||= './'
     targets = "#{ARGV[0].tr('\\', '/')}**/*.test*"
     results = Dir[targets]
+
     raise "No *.testpass, *.testfail, or *.testresults files found in '#{targets}'" if results.empty?
+
     uts.targets = results
 
     # set the root path

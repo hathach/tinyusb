@@ -1,12 +1,12 @@
 CFLAGS += \
-  -DHSE_VALUE=8000000 \
-  -DSTM32F412Zx \
+  -flto \
   -mthumb \
   -mabi=aapcs \
   -mcpu=cortex-m4 \
   -mfloat-abi=hard \
   -mfpu=fpv4-sp-d16 \
   -nostdlib -nostartfiles \
+  -DSTM32F412Zx \
   -DCFG_TUSB_MCU=OPT_MCU_STM32F4
 
 # mcu driver cause following warnings
@@ -46,9 +46,5 @@ FREERTOS_PORT = ARM_CM4F
 JLINK_DEVICE = stm32f41zx
 JLINK_IF = swd
 
-# Path to STM32 Cube Programmer CLI, should be added into system path
-STM32Prog = STM32_Programmer_CLI
-
 # flash target using on-board stlink
-flash: $(BUILD)/$(BOARD)-firmware.elf
-	$(STM32Prog) --connect port=swd --write $< --go
+flash: flash-stlink

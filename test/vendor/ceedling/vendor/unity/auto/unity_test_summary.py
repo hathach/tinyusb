@@ -121,7 +121,7 @@ if __name__ == '__main__':
         targets_dir = sys.argv[1]
     else:
         targets_dir = './'
-    targets = list(map(lambda x: x.replace('\\', '/'), glob(targets_dir + '*.test*')))
+    targets = list(map(lambda x: x.replace('\\', '/'), glob(targets_dir + '**/*.test*', recursive=True)))
     if len(targets) == 0:
         raise Exception("No *.testpass or *.testfail files found in '%s'" % targets_dir)
     uts.set_targets(targets)

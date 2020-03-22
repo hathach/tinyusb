@@ -207,12 +207,8 @@ void dcd_init (uint8_t rhport)
     USB_OTG_GINTMSK_SOFM | USB_OTG_GINTMSK_RXFLVLM /* SB_OTG_GINTMSK_ESUSPM | \
     USB_OTG_GINTMSK_USBSUSPM */;
 
-  // Enable VBUS hardware sensing, enable pullup, enable peripheral.
-#ifdef USB_OTG_GCCFG_VBDEN
-  USB_OTG_FS->GCCFG |= USB_OTG_GCCFG_VBDEN | USB_OTG_GCCFG_PWRDWN;
-#else
-  USB_OTG_FS->GCCFG |= USB_OTG_GCCFG_VBUSBSEN | USB_OTG_GCCFG_PWRDWN;
-#endif
+  // Enable USB transceiver.
+  USB_OTG_FS->GCCFG |= USB_OTG_GCCFG_PWRDWN;
 
   // Soft Connect -> Enable pullup on D+/D-.
   // This step does not appear to be specified in the programmer's model.
@@ -236,7 +232,6 @@ void dcd_set_address (uint8_t rhport, uint8_t dev_addr)
   (void) rhport;
 
   USB_OTG_DeviceTypeDef * dev = DEVICE_BASE;
-
   dev->DCFG |= (dev_addr << USB_OTG_DCFG_DAD_Pos) & USB_OTG_DCFG_DAD_Msk;
 
   // Response with status after changing device address

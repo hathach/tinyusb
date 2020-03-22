@@ -1,4 +1,5 @@
 CFLAGS += \
+  -flto \
   -mthumb \
   -mabi=aapcs \
   -mcpu=cortex-m4 \
@@ -12,7 +13,7 @@ CFLAGS += \
 # mcu driver cause following warnings
 CFLAGS += -Wno-error=unused-parameter
 
-MCU_DIR = hw/mcu/nxp/lpc_driver/lpc54xxx/devices/LPC54114
+MCU_DIR = hw/mcu/nxp/sdk/devices/LPC54114
 
 # All source paths should be relative to the top level.
 LD_FILE = $(MCU_DIR)/gcc/LPC54114J256_cm4_flash.ld
@@ -38,7 +39,7 @@ VENDOR = nxp
 CHIP_FAMILY = lpc_ip3511
 
 # For freeRTOS port source
-FREERTOS_PORT = ARM_CM4
+FREERTOS_PORT = ARM_CM4F
 
 # For flash-jlink target
 JLINK_DEVICE = LPC54114J256_M4

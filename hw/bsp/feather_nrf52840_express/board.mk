@@ -1,11 +1,12 @@
 CFLAGS += \
-	-mthumb \
-	-mabi=aapcs \
-	-mcpu=cortex-m4 \
-	-mfloat-abi=hard \
-	-mfpu=fpv4-sp-d16 \
-	-DCFG_TUSB_MCU=OPT_MCU_NRF5X \
-	-DNRF52840_XXAA \
+  -flto \
+  -mthumb \
+  -mabi=aapcs \
+  -mcpu=cortex-m4 \
+  -mfloat-abi=hard \
+  -mfpu=fpv4-sp-d16 \
+  -DCFG_TUSB_MCU=OPT_MCU_NRF5X \
+  -DNRF52840_XXAA \
   -DCONFIG_GPIO_AS_PINRESET
 
 # nrfx issue undef _ARMCC_VERSION usage https://github.com/NordicSemiconductor/nrfx/issues/49
@@ -18,22 +19,23 @@ CFLAGS += -Wno-error=cast-function-type
 endif
 
 # All source paths should be relative to the top level.
-LD_FILE = hw/bsp/feather_nrf52840_express/nrf52840_s140_v6.ld
+LD_FILE = hw/bsp/$(BOARD)/nrf52840_s140_v6.ld
 
 LDFLAGS += -L$(TOP)/hw/mcu/nordic/nrfx/mdk
 
 SRC_C += \
-	hw/mcu/nordic/nrfx/drivers/src/nrfx_power.c \
-	hw/mcu/nordic/nrfx/mdk/system_nrf52840.c \
+  hw/mcu/nordic/nrfx/drivers/src/nrfx_power.c \
+  hw/mcu/nordic/nrfx/drivers/src/nrfx_uarte.c \
+  hw/mcu/nordic/nrfx/mdk/system_nrf52840.c
 
 INC += \
-	$(TOP)/hw/mcu/nordic/cmsis/Include \
-	$(TOP)/hw/mcu/nordic \
-	$(TOP)/hw/mcu/nordic/nrfx \
-	$(TOP)/hw/mcu/nordic/nrfx/mdk \
-	$(TOP)/hw/mcu/nordic/nrfx/hal \
-	$(TOP)/hw/mcu/nordic/nrfx/drivers/include \
-	$(TOP)/hw/mcu/nordic/nrfx/drivers/src \
+  $(TOP)/hw/mcu/nordic/cmsis/Include \
+  $(TOP)/hw/mcu/nordic \
+  $(TOP)/hw/mcu/nordic/nrfx \
+  $(TOP)/hw/mcu/nordic/nrfx/mdk \
+  $(TOP)/hw/mcu/nordic/nrfx/hal \
+  $(TOP)/hw/mcu/nordic/nrfx/drivers/include \
+  $(TOP)/hw/mcu/nordic/nrfx/drivers/src \
 
 SRC_S += hw/mcu/nordic/nrfx/mdk/gcc_startup_nrf52840.S
 

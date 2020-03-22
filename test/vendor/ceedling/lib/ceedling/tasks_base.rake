@@ -89,7 +89,6 @@ namespace :options do
 
     desc "Merge #{option} project options."
     task option.downcase.to_sym do
-      # @ceedling[:setupinator].reset_defaults( @ceedling[:setupinator].config_hash )
       hash = @ceedling[:project_config_manager].merge_options( @ceedling[:setupinator].config_hash, option_path )
       @ceedling[:setupinator].do_setup( hash )
       if @ceedling[:configurator].project_release_build

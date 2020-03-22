@@ -1,4 +1,5 @@
 CFLAGS += \
+  -flto \
   -mthumb \
   -mabi=aapcs \
   -mcpu=cortex-m4 \
@@ -11,13 +12,10 @@ CFLAGS += \
 # mcu driver cause following warnings
 CFLAGS += -Wno-error=strict-prototypes -Wno-error=unused-parameter
 
-MCU_DIR = hw/mcu/nxp/lpc_driver/lpc40xx/lpc_chip_40xx
+MCU_DIR = hw/mcu/nxp/lpcopen/lpc40xx/lpc_chip_40xx
 
 # All source paths should be relative to the top level.
-LD_FILE = hw/bsp/ea4088qs/lpc4088.ld
-
-# TODO remove later
-SRC_C += src/portable/$(VENDOR)/$(CHIP_FAMILY)/hal_$(CHIP_FAMILY).c
+LD_FILE = hw/bsp/$(BOARD)/lpc4088.ld
 
 SRC_C += \
 	$(MCU_DIR)/../gcc/cr_startup_lpc40xx.c \

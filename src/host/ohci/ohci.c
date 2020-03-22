@@ -599,7 +599,7 @@ static void done_queue_isr(uint8_t hostid)
   }
 }
 
-void hal_hcd_isr(uint8_t hostid)
+void hcd_isr(uint8_t hostid)
 {
   uint32_t const int_en     = OHCI_REG->interrupt_enable;
   uint32_t const int_status = OHCI_REG->interrupt_status & int_en;

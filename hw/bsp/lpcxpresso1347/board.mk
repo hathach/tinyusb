@@ -1,4 +1,5 @@
 CFLAGS += \
+  -flto \
   -mthumb \
   -mabi=aapcs \
   -mcpu=cortex-m3 \
@@ -13,10 +14,10 @@ CFLAGS += \
 # startup.c and lpc_types.h cause following errors
 CFLAGS += -Wno-error=nested-externs -Wno-error=strict-prototypes
 
-MCU_DIR = hw/mcu/nxp/lpc_driver/lpc13xx/lpc_chip_13xx
+MCU_DIR = hw/mcu/nxp/lpcopen/lpc13xx/lpc_chip_13xx
 
 # All source paths should be relative to the top level.
-LD_FILE = hw/bsp/lpcxpresso1347/lpc1347.ld
+LD_FILE = hw/bsp/$(BOARD)/lpc1347.ld
 
 SRC_C += \
 	$(MCU_DIR)/../gcc/cr_startup_lpc13xx.c \

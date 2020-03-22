@@ -136,6 +136,20 @@ void board_init(void)
 }
 
 //--------------------------------------------------------------------+
+// USB Interrupt Handler
+//--------------------------------------------------------------------+
+void USB_IRQHandler(void)
+{
+  #if CFG_TUSB_RHPORT0_MODE & OPT_MODE_HOST
+    tuh_isr(0);
+  #endif
+
+  #if CFG_TUSB_RHPORT0_MODE & OPT_MODE_DEVICE
+    tud_isr(0);
+  #endif
+}
+
+//--------------------------------------------------------------------+
 // Board porting API
 //--------------------------------------------------------------------+
 

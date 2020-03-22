@@ -79,21 +79,17 @@ bool dfu_rtd_open(uint8_t rhport, tusb_desc_interface_t const * itf_desc, uint16
 bool dfu_rtd_control_complete(uint8_t rhport, tusb_control_request_t const * request)
 {
   (void) rhport;
+  (void) request;
 
-  //------------- Class Specific Request -------------//
-  TU_VERIFY(request->bmRequestType_bit.type == TUSB_REQ_TYPE_CLASS);
-  TU_VERIFY(request->bmRequestType_bit.recipient == TUSB_REQ_RCPT_INTERFACE);
-
+  // nothing to do
   return true;
 }
 
 bool dfu_rtd_control_request(uint8_t rhport, tusb_control_request_t const * request)
 {
-  (void) rhport;
-
-  //------------- Class Specific Request -------------//
-  TU_ASSERT(request->bmRequestType_bit.type == TUSB_REQ_TYPE_CLASS);
-  TU_ASSERT(request->bmRequestType_bit.recipient == TUSB_REQ_RCPT_INTERFACE);
+  // Handle class request only
+  TU_VERIFY(request->bmRequestType_bit.type == TUSB_REQ_TYPE_CLASS);
+  TU_VERIFY(request->bmRequestType_bit.recipient == TUSB_REQ_RCPT_INTERFACE);
 
   switch ( request->bRequest )
   {

@@ -39,10 +39,29 @@ class ModuleGenerator < Plugin
       :update_svn   => ((defined? MODULE_GENERATOR_UPDATE_SVN  ) ? MODULE_GENERATOR_UPDATE_SVN : false ),
     }
 
+    # Read Boilerplate template file.
+    if (defined? MODULE_GENERATOR_BOILERPLATE_FILES)
+
+      bf = MODULE_GENERATOR_BOILERPLATE_FILES
+
+      if !bf[:src].nil? && File.exists?(bf[:src]) 
+        unity_generator_options[:boilerplates][:src] = File.read(bf[:src])
+      end
+
+      if !bf[:inc].nil? && File.exists?(bf[:inc]) 
+        unity_generator_options[:boilerplates][:inc] = File.read(bf[:inc])
+      end
+
+      if !bf[:tst].nil? && File.exists?(bf[:tst]) 
+        unity_generator_options[:boilerplates][:tst] = File.read(bf[:tst])
+      end
+    end
+
+    # If using "create[<module_root>:<module_name>]" option from command line.
     unless optz[:module_root_path].to_s.empty?
-      unity_generator_options[:path_src]  = File.join(optz[:module_root_path], unity_generator_options[:path_src])
-      unity_generator_options[:path_inc]  = File.join(optz[:module_root_path], unity_generator_options[:path_inc])
-      unity_generator_options[:path_tst]  = File.join(optz[:module_root_path], unity_generator_options[:path_tst])
+      unity_generator_options[:path_src] = File.join(optz[:module_root_path], unity_generator_options[:path_src])
+      unity_generator_options[:path_inc] = File.join(optz[:module_root_path], unity_generator_options[:path_inc])
+      unity_generator_options[:path_tst] = File.join(optz[:module_root_path], unity_generator_options[:path_tst])
     end
 
     return unity_generator_options

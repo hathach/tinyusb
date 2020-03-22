@@ -22,6 +22,7 @@ SRC_C += \
 	src/class/midi/midi_device.c \
 	src/class/usbtmc/usbtmc_device.c \
 	src/class/vendor/vendor_device.c \
+	src/class/net/net_device.c \
 	src/portable/$(VENDOR)/$(CHIP_FAMILY)/dcd_$(CHIP_FAMILY).c
 
 # TinyUSB stack include
@@ -125,8 +126,13 @@ endif
 # Flash using jlink
 flash-jlink: $(BUILD)/$(BOARD)-firmware.hex
 	@echo halt > $(BUILD)/$(BOARD).jlink
+	@echo r > $(BUILD)/$(BOARD).jlink
 	@echo loadfile $^ >> $(BUILD)/$(BOARD).jlink
 	@echo r >> $(BUILD)/$(BOARD).jlink
 	@echo go >> $(BUILD)/$(BOARD).jlink
 	@echo exit >> $(BUILD)/$(BOARD).jlink
 	$(JLINKEXE) -device $(JLINK_DEVICE) -if $(JLINK_IF) -JTAGConf -1,-1 -speed auto -CommandFile $(BUILD)/$(BOARD).jlink
+
+# flash STM32 MCU using stlink with STM32 Cube Programmer CLI
+flash-stlink: $(BUILD)/$(BOARD)-firmware.elf
+	STM32_Programmer_CLI --connect port=swd --write $< --go

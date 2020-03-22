@@ -11,8 +11,8 @@ module RakefileHelpers
     def initialize(all_files = false)
       @all_files = all_files
 
-      return false unless @all_files
-      return false unless File.exist?('test_file_filter.yml')
+      return unless @all_files
+      return unless File.exist?('test_file_filter.yml')
 
       filters = YAML.load_file('test_file_filter.yml')
       @all_files = filters[:all_files]

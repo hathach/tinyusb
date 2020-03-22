@@ -38,6 +38,14 @@
 #define BUTTON_PIN            GPIO_PIN_0
 #define BUTTON_STATE_ACTIVE   1
 
+
+// enable all LED, Button, Uart, USB clock
+static void all_rcc_clk_enable(void)
+{
+  __HAL_RCC_GPIOA_CLK_ENABLE();  // USB D+, D-, Button
+  __HAL_RCC_GPIOE_CLK_ENABLE();  // LED
+}
+
 /**
   * @brief  System Clock Configuration
   *         The system Clock is configured as follow :
@@ -48,7 +56,7 @@
   *            APB1 Prescaler                 = 2
   *            APB2 Prescaler                 = 1
   *            HSE Frequency(Hz)              = 8000000
-  *            PLL_M                          = 8
+  *            PLL_M                          = HSE_VALUE/1000000
   *            PLL_N                          = 200
   *            PLL_P                          = 2
   *            PLL_Q                          = 7
@@ -83,7 +91,7 @@ static void SystemClock_Config(void)
   RCC_OscInitStruct.HSEState = RCC_HSE_ON;
   RCC_OscInitStruct.PLL.PLLState = RCC_PLL_ON;
   RCC_OscInitStruct.PLL.PLLSource = RCC_PLLSOURCE_HSE;
-  RCC_OscInitStruct.PLL.PLLM = 8;
+  RCC_OscInitStruct.PLL.PLLM = HSE_VALUE/1000000;
   RCC_OscInitStruct.PLL.PLLN = 200;
   RCC_OscInitStruct.PLL.PLLP = RCC_PLLP_DIV2;
   RCC_OscInitStruct.PLL.PLLQ = 7;
@@ -114,9 +122,8 @@ static void SystemClock_Config(void)
 void board_init(void)
 {
   SystemClock_Config();
-
-  // Notify runtime of frequency change.
   SystemCoreClockUpdate();
+  all_rcc_clk_enable();
 
 #if CFG_TUSB_OS == OPT_OS_NONE
   // 1ms tick timer
@@ -129,7 +136,6 @@ void board_init(void)
   GPIO_InitTypeDef  GPIO_InitStruct;
 
   // LED
-  __HAL_RCC_GPIOE_CLK_ENABLE();
   GPIO_InitStruct.Pin = LED_PIN;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_PULLUP;
@@ -139,7 +145,6 @@ void board_init(void)
   board_led_write(false);
 
   // Button
-  __HAL_RCC_GPIOA_CLK_ENABLE();
   GPIO_InitStruct.Pin = BUTTON_PIN;
   GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
   GPIO_InitStruct.Pull = GPIO_PULLDOWN;
@@ -148,7 +153,6 @@ void board_init(void)
 
   /* Configure USB FS GPIOs */
   /* Configure USB D+ D- Pins */
-  __HAL_RCC_GPIOA_CLK_ENABLE();
   GPIO_InitStruct.Pin = GPIO_PIN_11 | GPIO_PIN_12;
   GPIO_InitStruct.Speed = GPIO_SPEED_HIGH;
   GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
@@ -179,6 +183,9 @@ void board_init(void)
 
   // Enable USB OTG clock
   __HAL_RCC_USB_OTG_FS_CLK_ENABLE();
+
+  // Enable VBUS sense (B device) via pin PA9
+  USB_OTG_FS->GCCFG |= USB_OTG_GCCFG_VBDEN;
 }
 
 //--------------------------------------------------------------------+
