@@ -184,7 +184,7 @@ static void dcd_handle_bus_reset(void);
 static bool dcd_write_packet_memory(uint16_t dst, const void *__restrict src, size_t wNBytes);
 static bool dcd_read_packet_memory(void *__restrict dst, uint16_t src, size_t wNBytes);
 static void dcd_transmit_packet(xfer_ctl_t * xfer, uint16_t ep_ix);
-static uint16_t dcd_ep_ctr_handler(void);
+static void dcd_ep_ctr_handler(void);
 
 
 // Using a function due to better type checks
@@ -363,163 +363,130 @@ static void dcd_handle_bus_reset(void)
   USB->DADDR = USB_DADDR_EF; // Set enable flag, and leaving the device address as zero.
 }
 
-// FIXME: Defined to return uint16 so that ASSERT can be used, even though a return value is not needed.
-static uint16_t dcd_ep_ctr_handler(void)
+// Handle CTR interrupt for the TX/IN direction
+//
+// Upon call, (wIstr & USB_ISTR_DIR) == 0U
+static void dcd_ep_ctr_tx_handler(uint32_t wIstr)
 {
-  uint32_t count=0U;
-  uint8_t EPindex;
-  __IO uint16_t wIstr;
-  __IO uint16_t wEPVal = 0U;
+  uint32_t EPindex = wIstr & USB_ISTR_EP_ID;
+  uint32_t wEPRegVal = pcd_get_endpoint(USB, EPindex);
 
-  // stack variables to pass to USBD
+  // Verify the CTR_TX bit is set. This was in the ST Micro code,
+  // but I'm not sure it's actually necessary?
+  if((wEPRegVal & USB_EP_CTR_TX) == 0U)
+  {
+    return;
+  }
+
+  /* clear int flag */
+  pcd_clear_tx_ep_ctr(USB, EPindex);
+
+  xfer_ctl_t * xfer = xfer_ctl_ptr(EPindex,TUSB_DIR_IN);
+  if((xfer->total_len != xfer->queued_len)) /* TX not complete */
+  {
+      dcd_transmit_packet(xfer, EPindex);
+  }
+  else /* TX Complete */
+  {
+    dcd_event_xfer_complete(0, (uint8_t)(0x80 + EPindex), xfer->total_len, XFER_RESULT_SUCCESS, true);
+  }
+}
+
+// Handle CTR interrupt for the RX/OUT direction
+//
+// Upon call, (wIstr & USB_ISTR_DIR) == 0U
+static void dcd_ep_ctr_rx_handler(uint32_t wIstr)
+{
+  uint32_t EPindex = wIstr & USB_ISTR_EP_ID;
+  uint32_t wEPRegVal = pcd_get_endpoint(USB, EPindex);
+  uint32_t count = pcd_get_ep_rx_cnt(USB,EPindex);
+
+  xfer_ctl_t *xfer = xfer_ctl_ptr(EPindex,TUSB_DIR_OUT);
+
+  // Verify the CTR_RX bit is set. This was in the ST Micro code,
+  // but I'm not sure it's actually necessary?
+  if((wEPRegVal & USB_EP_CTR_RX) == 0U)
+  {
+    return;
+  }
+  
+  if((EPindex == 0U) && ((wEPRegVal & USB_EP_SETUP) != 0U)) /* Setup packet */
+  {
+    // The setup_received function uses memcpy, so this must first copy the setup data into
+    // user memory, to allow for the 32-bit access that memcpy performs.
+    uint8_t userMemBuf[8];
+    /* Get SETUP Packet*/
+    if(count == 8) // Setup packet should always be 8 bytes. If not, ignore it, and try again.
+    {
+      // Must reset EP to NAK (in case it had been stalling) (though, maybe too late here)
+      pcd_set_ep_rx_status(USB,0u,USB_EP_RX_NAK);
+      pcd_set_ep_tx_status(USB,0u,USB_EP_TX_NAK);
+      dcd_read_packet_memory(userMemBuf, *pcd_ep_rx_address_ptr(USB,EPindex), 8);
+      dcd_event_setup_received(0, (uint8_t*)userMemBuf, true);
+    }
+  }
+  else
+  {
+    // Clear RX CTR interrupt flag
+    if(EPindex != 0u)
+    {
+      pcd_clear_rx_ep_ctr(USB, EPindex);
+    }
+
+    if (count != 0U)
+    {
+      dcd_read_packet_memory(&(xfer->buffer[xfer->queued_len]),
+        *pcd_ep_rx_address_ptr(USB,EPindex), count);
+      xfer->queued_len = (uint16_t)(xfer->queued_len + count);
+    }
+
+    if ((count < xfer->max_packet_size) || (xfer->queued_len == xfer->total_len))
+    {
+      /* RX COMPLETE */
+      dcd_event_xfer_complete(0, EPindex, xfer->queued_len, XFER_RESULT_SUCCESS, true);
+      // Though the host could still send, we don't know.
+      // Does the bulk pipe need to be reset to valid to allow for a ZLP?
+    }
+    else
+    {
+      uint32_t remaining = (uint32_t)xfer->total_len - (uint32_t)xfer->queued_len;
+      if(remaining >= xfer->max_packet_size) {
+        pcd_set_ep_rx_cnt(USB, EPindex,xfer->max_packet_size);
+      } else {
+        pcd_set_ep_rx_cnt(USB, EPindex,remaining);
+      }
+      pcd_set_ep_rx_status(USB, EPindex, USB_EP_RX_VALID);
+    }
+  }
+
+  // For EP0, prepare to receive another SETUP packet.
+  // Clear CTR last so that a new packet does not overwrite the packing being read.
+  // (Based on the docs, it seems SETUP will always be accepted after CTR is cleared)
+  if(EPindex == 0u)
+  {
+      // Always be prepared for a status packet...
+    pcd_set_ep_rx_cnt(USB, EPindex, CFG_TUD_ENDPOINT0_SIZE);
+    pcd_clear_rx_ep_ctr(USB, EPindex);
+  }
+}
+
+static void dcd_ep_ctr_handler(void)
+{
+  uint32_t wIstr;
 
   /* stay in loop while pending interrupts */
   while (((wIstr = USB->ISTR) & USB_ISTR_CTR) != 0U)
   {
-    /* extract highest priority endpoint index */
-    EPindex = (uint8_t)(wIstr & USB_ISTR_EP_ID);
 
-    if (EPindex == 0U)
+    if ((wIstr & USB_ISTR_DIR) == 0U) /* TX/IN */
     {
-      /* Decode and service control endpoint interrupt */
-
-      /* DIR bit = origin of the interrupt */
-      if ((wIstr & USB_ISTR_DIR) == 0U)
-      {
-        /* DIR = 0  => IN  int */
-        /* DIR = 0 implies that (EP_CTR_TX = 1) always  */
-        pcd_clear_tx_ep_ctr(USB, 0);
-
-        xfer_ctl_t * xfer = xfer_ctl_ptr(EPindex,TUSB_DIR_IN);
-
-        if((xfer->total_len == xfer->queued_len))
-        {
-          dcd_event_xfer_complete(0u, (uint8_t)(0x80 + EPindex), xfer->total_len, XFER_RESULT_SUCCESS, true);
-
-          if(xfer->total_len == 0) // Probably a status message?
-          {
-            pcd_clear_rx_dtog(USB,EPindex);
-          }
-        }
-        else
-        {
-          dcd_transmit_packet(xfer,EPindex);
-        }
-      }
-      else
-      {
-        /* DIR = 1 & CTR_RX       => SETUP or OUT int */
-        /* DIR = 1 & (CTR_TX | CTR_RX) => 2 int pending */
-
-        xfer_ctl_t *xfer = xfer_ctl_ptr(EPindex,TUSB_DIR_OUT);
-
-        //ep = &hpcd->OUT_ep[0];
-        wEPVal = pcd_get_endpoint(USB, EPindex);
-
-        if ((wEPVal & USB_EP_SETUP) != 0U) // SETUP
-        {
-          // The setup_received function uses memcpy, so this must first copy the setup data into
-          // user memory, to allow for the 32-bit access that memcpy performs.
-          uint8_t userMemBuf[8];
-          /* Get SETUP Packet*/
-          count = pcd_get_ep_rx_cnt(USB, EPindex);
-          if(count == 8) // Setup packet should always be 8 bytes. If not, ignore it, and try again.
-          {
-            // Must reset EP to NAK (in case it had been stalling) (though, maybe too late here)
-            pcd_set_ep_rx_status(USB,0u,USB_EP_RX_NAK);
-            pcd_set_ep_tx_status(USB,0u,USB_EP_TX_NAK);
-            dcd_read_packet_memory(userMemBuf, *pcd_ep_rx_address_ptr(USB,EPindex), 8);
-            dcd_event_setup_received(0, (uint8_t*)userMemBuf, true);
-          }
-          /* SETUP bit kept frozen while CTR_RX = 1*/
-          pcd_clear_rx_ep_ctr(USB, EPindex);
-        }
-        else if ((wEPVal & USB_EP_CTR_RX) != 0U) // OUT
-        {
-
-          pcd_clear_rx_ep_ctr(USB, EPindex);
-
-          /* Get Control Data OUT Packet */
-          count = pcd_get_ep_rx_cnt(USB,EPindex);
-
-          if (count != 0U)
-          {
-            dcd_read_packet_memory(xfer->buffer, *pcd_ep_rx_address_ptr(USB,EPindex), count);
-            xfer->queued_len = (uint16_t)(xfer->queued_len + count);
-          }
-
-          /* Process Control Data OUT status Packet*/
-          dcd_event_xfer_complete(0, EPindex, xfer->total_len, XFER_RESULT_SUCCESS, true);
-
-          pcd_set_ep_rx_cnt(USB, EPindex, CFG_TUD_ENDPOINT0_SIZE);
-          if(EPindex == 0u && xfer->total_len == 0u)
-          {
-            pcd_set_ep_rx_status(USB, EPindex, USB_EP_RX_VALID);// Await next SETUP
-          }
-        }
-      }
+      dcd_ep_ctr_tx_handler(wIstr);
     }
-    else /* Decode and service non control endpoints interrupt  */
+    else /* RX/OUT*/
     {
-      /* process related endpoint register */
-      wEPVal = pcd_get_endpoint(USB, EPindex);
-      if ((wEPVal & USB_EP_CTR_RX) != 0U) // OUT
-      {
-        /* clear int flag */
-        pcd_clear_rx_ep_ctr(USB, EPindex);
-
-        xfer_ctl_t * xfer = xfer_ctl_ptr(EPindex,TUSB_DIR_OUT);
-
-        //ep = &hpcd->OUT_ep[EPindex];
-
-        count = pcd_get_ep_rx_cnt(USB, EPindex);
-        if (count != 0U)
-        {
-          dcd_read_packet_memory(&(xfer->buffer[xfer->queued_len]),
-              *pcd_ep_rx_address_ptr(USB,EPindex), count);
-        }
-
-        /*multi-packet on the NON control OUT endpoint */
-        xfer->queued_len = (uint16_t)(xfer->queued_len + count);
-
-        if ((count < xfer->max_packet_size) || (xfer->queued_len == xfer->total_len))
-        {
-          /* RX COMPLETE */
-          dcd_event_xfer_complete(0, EPindex, xfer->queued_len, XFER_RESULT_SUCCESS, true);
-          // Though the host could still send, we don't know.
-          // Does the bulk pipe need to be reset to valid to allow for a ZLP?
-        }
-        else
-        {
-          uint32_t remaining = (uint32_t)xfer->total_len - (uint32_t)xfer->queued_len;
-          if(remaining >= xfer->max_packet_size) {
-            pcd_set_ep_rx_cnt(USB, EPindex,xfer->max_packet_size);
-          } else {
-            pcd_set_ep_rx_cnt(USB, EPindex,remaining);
-          }
-
-          pcd_set_ep_rx_status(USB, EPindex, USB_EP_RX_VALID);
-        }
-
-      } /* if((wEPVal & EP_CTR_RX) */
-
-      if ((wEPVal & USB_EP_CTR_TX) != 0U) // IN
-      {
-        /* clear int flag */
-        pcd_clear_tx_ep_ctr(USB, EPindex);
-
-        xfer_ctl_t * xfer = xfer_ctl_ptr(EPindex,TUSB_DIR_IN);
-
-        if (xfer->queued_len  != xfer->total_len) // data remaining in transfer?
-        {
-          dcd_transmit_packet(xfer, EPindex);
-        } else {
-          dcd_event_xfer_complete(0, (uint8_t)(0x80 + EPindex), xfer->total_len, XFER_RESULT_SUCCESS, true);
-        }
-      }
+      dcd_ep_ctr_rx_handler(wIstr);
     }
   }
-  return 0;
 }
 
 static void dcd_fs_irqHandler(void) {
