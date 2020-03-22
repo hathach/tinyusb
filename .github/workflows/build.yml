@@ -39,12 +39,12 @@ jobs:
         npm install --global xpm
         xpm install --global @xpack-dev-tools/arm-none-eabi-gcc@latest
         xpm install --global @xpack-dev-tools/riscv-none-embed-gcc@latest
-        wget http://software-dl.ti.com/msp430/msp430_public_sw/mcu/msp430/MSPGCC/8_3_0_0/exports/msp430-gcc-8.3.0.16_linux64.tar.bz2 -O msp430-gcc.tar.bz2
-        tar -xaf msp430-gcc.tar.bz2
+        wget http://software-dl.ti.com/msp430/msp430_public_sw/mcu/msp430/MSPGCC/8_3_0_0/exports/msp430-gcc-8.3.0.16_linux64.tar.bz2 -O /tmp/msp430-gcc.tar.bz2
+        tar -C $HOME -vxaf /tmp/msp430-gcc.tar.bz2
         echo $PWD
         echo "::add-path::`echo $HOME/opt/xPacks/@xpack-dev-tools/arm-none-eabi-gcc/*/.content/bin`"
         echo "::add-path::`echo $HOME/opt/xPacks/@xpack-dev-tools/riscv-none-embed-gcc/*/.content/bin`"
-        echo "::add-path::$GITHUB_WORKSPACE/msp430-gcc-8.3.0.16_linux64/bin"
+        echo "::add-path::$HOME/msp430-gcc-8.3.0.16_linux64/bin"
       
     - name: Checkout TinyUSB
       uses: actions/checkout@v2
