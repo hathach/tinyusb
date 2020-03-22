@@ -239,7 +239,5 @@ void test_usbd_control_in_zlp(void)
   dcd_event_xfer_complete(rhport, EDPT_CTRL_OUT, 0, 0, false);
   dcd_edpt0_status_complete_ExpectWithArray(rhport, &req_get_desc_configuration, 1);
 
-  dcd_control_status_complete_Expect(rhport);
-
   tud_task();
 }
