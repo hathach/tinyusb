@@ -11,7 +11,6 @@ CFLAGS += \
   -DCFG_TUSB_MCU=OPT_MCU_MIMXRT10XX
 
 # mcu driver cause following warnings
-#CFLAGS += -Wno-error=float-equal -Wno-error=nested-externs
 CFLAGS += -Wno-error=unused-parameter
 
 MCU_DIR = hw/mcu/nxp/sdk/devices/MIMXRT1021
