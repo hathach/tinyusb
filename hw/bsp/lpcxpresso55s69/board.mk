@@ -11,7 +11,7 @@ CFLAGS += \
   -DCFG_TUSB_MEM_ALIGN='__attribute__((aligned(64)))'
 
 # mcu driver cause following warnings
-CFLAGS += -Wno-error=unused-parameter -Wno-error=float-equal -Wno-error=nested-externs
+CFLAGS += -Wno-error=unused-parameter -Wno-error=float-equal
 
 MCU_DIR = hw/mcu/nxp/sdk/devices/LPC55S69
 
