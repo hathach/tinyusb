@@ -136,7 +136,7 @@ uint8_t const * tud_descriptor_configuration_cb(uint8_t index)
 //--------------------------------------------------------------------+
 
 // array of pointer to string descriptors
-char const* string_desc_arr [] =
+static char const* string_desc_arr [] =
 {
   [STRID_LANGID]       = (const char[]) { 0x09, 0x04 }, // supported language is English (0x0409)
   [STRID_MANUFACTURER] = "TinyUSB",                     // Manufacturer
@@ -159,7 +159,7 @@ uint16_t const* tud_descriptor_string_cb(uint8_t index, uint16_t langid)
 
   if (STRID_LANGID == index)
   {
-    memcpy(&_desc_str[1], string_desc_arr[0], 2);
+    memcpy(&_desc_str[1], string_desc_arr[STRID_LANGID], 2);
     chr_count = 1;
   }
   else if (STRID_MAC == index)
