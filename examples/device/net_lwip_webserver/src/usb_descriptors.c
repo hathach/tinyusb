@@ -157,7 +157,7 @@ uint16_t const* tud_descriptor_string_cb(uint8_t index, uint16_t langid)
 {
   (void) langid;
 
-  uint8_t chr_count = 0;
+  unsigned int chr_count = 0;
 
   if (STR_LANGID == index)
   {
@@ -188,7 +188,7 @@ uint16_t const* tud_descriptor_string_cb(uint8_t index, uint16_t langid)
     chr_count = strlen(str);
     if ( chr_count > (TU_ARRAY_SIZE(_desc_str) - 1)) chr_count = TU_ARRAY_SIZE(_desc_str) - 1;
 
-    for (uint8_t i=0; i<chr_count; i++)
+    for (unsigned int i=0; i<chr_count; i++)
     {
       _desc_str[1+i] = str[i];
     }
