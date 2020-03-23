@@ -155,15 +155,16 @@ static uint16_t _desc_str[32];
 // Application return pointer to descriptor, whose contents must exist long enough for transfer to complete
 uint16_t const* tud_descriptor_string_cb(uint8_t index, uint16_t langid)
 {
-  (void)langid;
+  (void) langid;
 
-  unsigned chr_count = 0;
+  uint8_t chr_count = 0;
 
   if (STR_LANGID == index)
   {
     memcpy(&_desc_str[1], string_desc_arr[0], 2);
     chr_count = 1;
   }
+#if CFG_TUD_NET == OPT_NET_ECM
   else if (STR_MAC == index)
   {
     // Convert MAC address into UTF-16
@@ -174,6 +175,7 @@ uint16_t const* tud_descriptor_string_cb(uint8_t index, uint16_t langid)
       _desc_str[1+chr_count++] = "0123456789ABCDEF"[(tud_network_mac_address[i] >> 0) & 0xf];
     }
   }
+#endif
   else
   {
     // Convert ASCII string into UTF-16
@@ -186,7 +188,7 @@ uint16_t const* tud_descriptor_string_cb(uint8_t index, uint16_t langid)
     chr_count = strlen(str);
     if ( chr_count > (TU_ARRAY_SIZE(_desc_str) - 1)) chr_count = TU_ARRAY_SIZE(_desc_str) - 1;
 
-    for (unsigned i=0; i<chr_count; i++)
+    for (uint8_t i=0; i<chr_count; i++)
     {
       _desc_str[1+i] = str[i];
     }

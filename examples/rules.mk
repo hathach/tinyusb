@@ -30,7 +30,7 @@ INC += $(TOP)/src
 
 #
 CFLAGS += $(addprefix -I,$(INC))
-LDFLAGS += $(CFLAGS) -fshort-enums -Wl,-T,$(TOP)/$(LD_FILE) -Wl,-Map=$@.map -Wl,-cref -Wl,-gc-sections -specs=nosys.specs -specs=nano.specs
+LDFLAGS += $(CFLAGS) -Wl,-T,$(TOP)/$(LD_FILE) -Wl,-Map=$@.map -Wl,-cref -Wl,-gc-sections -specs=nosys.specs -specs=nano.specs
 ASFLAGS += $(CFLAGS)
 
 # Assembly files can be name with upper case .S, convert it to .s 
