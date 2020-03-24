@@ -31,6 +31,7 @@
 [submodule "lib/CMSIS_5"]
 	path = lib/CMSIS_5
 	url = https://github.com/ARM-software/CMSIS_5.git
+	branch = master
 [submodule "lib/CMSIS_4"]
 	path = lib/CMSIS_4
 	url = https://github.com/ARM-software/CMSIS.git
