@@ -44,6 +44,7 @@ typedef struct {
   struct TU_ATTR_PACKED
   {
     volatile uint8_t connected    : 1;
+    volatile uint8_t addressed    : 1;
     volatile uint8_t configured   : 1;
     volatile uint8_t suspended    : 1;
 
@@ -526,6 +527,7 @@ static bool process_control_request(uint8_t rhport, tusb_control_request_t const
           usbd_control_set_request(p_request); // set request since DCD has no access to tud_control_status() API
           dcd_set_address(rhport, (uint8_t) p_request->wValue);
           // skip tud_control_status()
+          _usbd_dev.addressed = 1;
         break;
 
         case TUSB_REQ_GET_CONFIGURATION:
@@ -793,7 +795,21 @@ static bool process_get_descriptor(uint8_t rhport, tusb_control_request_t const 
   switch(desc_type)
   {
     case TUSB_DESC_DEVICE:
-      return tud_control_xfer(rhport, p_request, (void*) tud_descriptor_device_cb(), sizeof(tusb_desc_device_t));
+    {
+      uint16_t len = sizeof(tusb_desc_device_t);
+
+      // Only send up to EP0 Packet Size if not addressed
+      // This only happens with the very first get device descriptor and EP0 size = 8 or 16.
+      if ((CFG_TUD_ENDPOINT0_SIZE < sizeof(tusb_desc_device_t)) && !_usbd_dev.addressed)
+      {
+        len = CFG_TUD_ENDPOINT0_SIZE;
+
+        // Hack here: we modify the request length to prevent usbd_control response with zlp
+        ((tusb_control_request_t*) p_request)->wLength = CFG_TUD_ENDPOINT0_SIZE;
+      }
+
+      return tud_control_xfer(rhport, p_request, (void*) tud_descriptor_device_cb(), len);
+    }
     break;
 
     case TUSB_DESC_BOS:
@@ -859,6 +875,7 @@ void dcd_event_handler(dcd_event_t const * event, bool in_isr)
   {
     case DCD_EVENT_UNPLUGGED:
       _usbd_dev.connected  = 0;
+      _usbd_dev.addressed  = 0;
       _usbd_dev.configured = 0;
       _usbd_dev.suspended  = 0;
       osal_queue_send(_usbd_q, event, in_isr);

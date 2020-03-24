@@ -10,7 +10,7 @@
 
 * **[Ha Thach](https://github.com/hathach)**
   * Author and maintainer
-  * Most features develpopment
+  * Most features development
 
 * **[Jeff Epler](https://github.com/jepler)**
   * Improvement to MIDI device driver
@@ -54,8 +54,8 @@
   
 * **[William D. Jones](https://github.com/cr1901)**
   * Synopsys DesignWare device driver port for STM32 L4, F2, F4, F7, H7 etc ...
-  * MSP430 device driver port (WIP)
-  * Board support for STM32F407 Discovery, STM32H743 Nucleo, pyboard v1.1
+  * TI MSP430 device driver port
+  * Board support for STM32F407 Discovery, STM32H743 Nucleo, pyboard v1.1, msp_exp430f5529lp etc ...
 
 
 **[Full contributors list](https://github.com/hathach/tinyusb/contributors).**

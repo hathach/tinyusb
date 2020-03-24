@@ -10,7 +10,7 @@ CFLAGS += \
   -DRTC_EV_SUPPORT=0
 
 # startup.c and lpc_types.h cause following errors
-CFLAGS += -Wno-error=nested-externs -Wno-error=strict-prototypes
+CFLAGS += -Wno-error=strict-prototypes
 
 MCU_DIR = hw/mcu/nxp/lpcopen/lpc175x_6x/lpc_chip_175x_6x
 
