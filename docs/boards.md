@@ -18,6 +18,7 @@ This code base already had supported for a handful of following boards (sorted a
 - [Adafruit ItsyBitsy M4 Express](https://www.adafruit.com/product/3800)
 - [Adafruit Metro M0 Express](https://www.adafruit.com/product/3505)
 - [Adafruit Metro M4 Express](https://www.adafruit.com/product/3382)
+- [Seeeduino Xiao](https://www.seeedstudio.com/Seeeduino-XIAO-Arduino-Microcontroller-SAMD21-Cortex-M0+-p-4426.html)
 
 ### Nordic nRF5x
 
