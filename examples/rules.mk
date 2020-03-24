@@ -30,10 +30,14 @@ INC += $(TOP)/src
 
 #
 CFLAGS += $(addprefix -I,$(INC))
-LDFLAGS += $(CFLAGS) -fshort-enums -Wl,-T,$(TOP)/$(LD_FILE) -Wl,-Map=$@.map -Wl,-cref -Wl,-gc-sections -specs=nosys.specs -specs=nano.specs
+ifeq ($(BOARD), msp_exp430f5529lp)
+  LDFLAGS += $(CFLAGS) -fshort-enums -Wl,-T,$(TOP)/$(LD_FILE) -Wl,-Map=$@.map -Wl,-cref -Wl,-gc-sections
+else
+  LDFLAGS += $(CFLAGS) -fshort-enums -Wl,-T,$(TOP)/$(LD_FILE) -Wl,-Map=$@.map -Wl,-cref -Wl,-gc-sections -specs=nosys.specs -specs=nano.specs
+endif
 ASFLAGS += $(CFLAGS)
 
-# Assembly files can be name with upper case .S, convert it to .s 
+# Assembly files can be name with upper case .S, convert it to .s
 SRC_S := $(SRC_S:.S=.s)
 
 # Due to GCC LTO bug https://bugs.launchpad.net/gcc-arm-embedded/+bug/1747966
@@ -66,8 +70,8 @@ $(BUILD)/$(BOARD)-firmware.elf: $(OBJ)
 $(BUILD)/$(BOARD)-firmware.bin: $(BUILD)/$(BOARD)-firmware.elf
 	@echo CREATE $@
 	@$(OBJCOPY) -O binary $^ $@
-	
-$(BUILD)/$(BOARD)-firmware.hex: $(BUILD)/$(BOARD)-firmware.elf	
+
+$(BUILD)/$(BOARD)-firmware.hex: $(BUILD)/$(BOARD)-firmware.elf
 	@echo CREATE $@
 	@$(OBJCOPY) -O ihex $^ $@
 
@@ -114,7 +118,7 @@ clean:
 # Flash binary using Jlink
 ifeq ($(OS),Windows_NT)
   JLINKEXE = JLink.exe
-else 
+else
   JLINKEXE = JLinkExe
 endif
 

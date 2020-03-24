@@ -17,6 +17,8 @@ INC += \
 # Example source
 EXAMPLE_SOURCE += $(wildcard src/*.c)
 SRC_C += $(addprefix $(CURRENT_PATH)/, $(EXAMPLE_SOURCE))
+
+# lwip sources
 SRC_C += \
   lib/lwip/src/core/altcp.c \
   lib/lwip/src/core/altcp_alloc.c \

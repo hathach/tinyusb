@@ -3,10 +3,12 @@
 #
 
 # Compiler
-ifeq ($(BOARD), fomu)
-CROSS_COMPILE = riscv-none-embed-
+ifeq ($(BOARD), msp_exp430f5529lp)
+  CROSS_COMPILE = msp430-elf-
+else ifeq ($(BOARD), fomu)
+  CROSS_COMPILE = riscv-none-embed-
 else
-CROSS_COMPILE = arm-none-eabi-
+  CROSS_COMPILE = arm-none-eabi-
 endif
 CC = $(CROSS_COMPILE)gcc
 CXX = $(CROSS_COMPILE)g++

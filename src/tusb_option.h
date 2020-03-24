@@ -71,7 +71,11 @@
 #define OPT_MCU_STM32L1           308 ///< ST STM32L1
 #define OPT_MCU_STM32L4           309 ///< ST STM32L4
 
+// Sony
 #define OPT_MCU_CXD56             400 ///< SONY CXD56
+
+// TI MSP430
+#define OPT_MCU_MSP430x5xx    500 ///< TI MSP430x5xx
 
 #define OPT_MCU_VALENTYUSB_EPTRI  600 ///< Fomu eptri config
 
