@@ -86,6 +86,10 @@ This code base already had supported for a handful of following boards (sorted a
 - [STM32 F767zi Nucleo](https://www.st.com/en/evaluation-tools/nucleo-f767zi.html)
 - [STM32 H743zi Nucleo](https://www.st.com/en/evaluation-tools/nucleo-h743zi.html)
 
+### TI
+
+ - [MSP430F5529 USB LaunchPad Evaluation Kit](http://www.ti.com/tool/MSP-EXP430F5529LP)
+ 
 ### Tomu
 
 - [Fomu](https://www.crowdsupply.com/sutajio-kosagi/fomu)
