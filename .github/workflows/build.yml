@@ -44,15 +44,14 @@ jobs:
       
     - name: Checkout TinyUSB
       uses: actions/checkout@v2
-      with:
-        submodules: 'recursive'
     
-    #- name: Checkout Submodules
-    #  shell: bash
-    #  run: |
-    #    auth_header="$(git config --local --get http.https://github.com/.extraheader)"
-    #    git submodule sync --recursive
-    #    git -c "http.extraheader=$auth_header" -c protocol.version=2 submodule update --init --force --recursive
+    - name: Checkout Submodules
+      shell: bash
+      run: |
+        #auth_header="$(git config --local --get http.https://github.com/.extraheader)"
+        git submodule sync --recursive
+        #git -c "http.extraheader=$auth_header" -c protocol.version=2 submodule update --init --force --recursive
+        git submodule update --init --recursive
     
     - name: Build
       run: python3 tools/build_all.py ${{ matrix.example }}
