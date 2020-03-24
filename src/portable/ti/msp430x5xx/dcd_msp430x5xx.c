@@ -1,8 +1,8 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2019 William D. Jones
- * Copyright (c) 2019 Ha Thach (tinyusb.org)
+ * Copyright (c) 2019-2020 William D. Jones
+ * Copyright (c) 2019-2020 Ha Thach (tinyusb.org)
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -384,6 +384,22 @@ void dcd_edpt_clear_stall (uint8_t rhport, uint8_t ep_addr)
   }
 }
 
+void dcd_edpt0_status_complete(uint8_t rhport, tusb_control_request_t const * request)
+{
+  (void) rhport;
+  (void) request;
+
+  // FIXME: Per manual, we should be clearing the NAK bits of EP0 after the
+  // Status Phase of a control xfer is done, in preparation of another possible
+  // SETUP packet. However, from my own testing, SETUP packets _are_ correctly
+  // handled by the USB core without clearing the NAKs.
+  //
+  // Right now, clearing NAKs in this callbacks causes a direction mismatch
+  // between host and device on EP0. Figure out why and come back to this.
+  // USBOEPCNT_0 &= ~NAK;
+  // USBIEPCNT_0 &= ~NAK;
+}
+
 /*------------------------------------------------------------------*/
 
 static void receive_packet(uint8_t ep_num)
@@ -563,12 +579,6 @@ void __attribute__ ((interrupt(USB_UBM_VECTOR))) USB_UBM_ISR(void)
     // first place. When I first noticed the STALL, the only two places I
     // touched the NAK bits were in dcd_edpt_xfer() and to _set_ (sic) them in
     // bus_reset(). SETUP packet handling should've been unaffected.
-    //
-    // FIXME: Per manual, we should be clearing the NAK bits of EP0 after the
-    // Status Phase of a control xfer is done, in preparation of another
-    // possible SETUP packet. We don't do this right now, as there is no
-    // "Status Phase done" callback the driver can use. However, SETUP packets
-    // _are_ correctly handled by the USB core without clearing the NAKs.
     case USBVECINT_SETUP_PACKET_RECEIVED:
       break;
 
