@@ -72,7 +72,6 @@ CFLAGS += \
 	-Wsign-compare \
 	-Wmissing-format-attribute \
 	-Wno-deprecated-declarations \
-	-Wnested-externs \
 	-Wunreachable-code \
 	-Wno-error=lto-type-mismatch \
 	-ffunction-sections \

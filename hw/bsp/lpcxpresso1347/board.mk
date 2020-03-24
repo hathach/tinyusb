@@ -12,7 +12,7 @@ CFLAGS += \
   -DCFG_TUSB_MEM_ALIGN='__attribute__((aligned(64)))' 
 
 # startup.c and lpc_types.h cause following errors
-CFLAGS += -Wno-error=nested-externs -Wno-error=strict-prototypes
+CFLAGS += -Wno-error=strict-prototypes
 
 MCU_DIR = hw/mcu/nxp/lpcopen/lpc13xx/lpc_chip_13xx
 

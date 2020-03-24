@@ -9,7 +9,7 @@ CFLAGS += \
   -DCFG_TUSB_MEM_ALIGN='__attribute__((aligned(64)))' 
 
 # mcu driver cause following warnings
-CFLAGS += -Wno-error=nested-externs -Wno-error=unused-parameter
+CFLAGS += -Wno-error=unused-parameter
 
 MCU_DIR = hw/mcu/nxp/sdk/devices/LPC51U68
 

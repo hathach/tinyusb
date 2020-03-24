@@ -29,7 +29,7 @@ SRC_C += \
 	hw/mcu/nordic/nrfx/mdk/system_nrf52833.c \
 
 INC += \
-	$(TOP)/hw/mcu/nordic/cmsis/Include \
+	$(TOP)/lib/CMSIS_4/CMSIS/Include \
 	$(TOP)/hw/mcu/nordic \
 	$(TOP)/hw/mcu/nordic/nrfx \
 	$(TOP)/hw/mcu/nordic/nrfx/mdk \
