@@ -310,6 +310,13 @@ static inline void pcd_set_ep_rx_status(USB_TypeDef * USBx,  uint32_t bEpNum, ui
   pcd_set_endpoint(USBx, bEpNum, regVal);
 } /* pcd_set_ep_rx_status */
 
+static inline uint32_t pcd_get_ep_rx_status(USB_TypeDef * USBx,  uint32_t bEpNum)
+{
+  uint32_t regVal = pcd_get_endpoint(USBx, bEpNum);
+  return (regVal & USB_EPRX_STAT) >> (12u);
+} /* pcd_get_ep_rx_status */
+
+
 /**
   * @brief  Toggles DTOG_RX / DTOG_TX bit in the endpoint register.
   * @param  USBx USB peripheral instance register address.

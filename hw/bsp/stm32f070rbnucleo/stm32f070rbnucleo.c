@@ -185,10 +185,7 @@ void HardFault_Handler (void)
   */
 void assert_failed(char *file, uint32_t line)
 { 
-  /* USER CODE BEGIN 6 */
-  /* User can add his own implementation to report the file name and line number,
-     tex: printf("Wrong parameters value: file %s on line %d\r\n", file, line) */
-  /* USER CODE END 6 */
+  TU_LOG1("Assertion failed (%s:%ld)\r\n", file, line);
 }
 #endif /* USE_FULL_ASSERT */
 
