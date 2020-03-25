@@ -1,15 +1,34 @@
-#
+# ---------------------------------------
 # Common make definition for all examples
-#
+# ---------------------------------------
 
-# Compiler
-ifeq ($(BOARD), msp_exp430f5529lp)
-  CROSS_COMPILE = msp430-elf-
-else ifeq ($(BOARD), fomu)
-  CROSS_COMPILE = riscv-none-embed-
-else
-  CROSS_COMPILE = arm-none-eabi-
+#-------------- Select the board to build for. ------------
+BOARD_LIST = $(sort $(subst /.,,$(subst $(TOP)/hw/bsp/,,$(wildcard $(TOP)/hw/bsp/*/.))))
+
+ifeq ($(filter $(BOARD),$(BOARD_LIST)),)
+  $(info You must provide a BOARD parameter with 'BOARD=', supported boards are:)
+  $(foreach b,$(BOARD_LIST),$(info - $(b)))
+  $(error Invalid BOARD specified)
 endif
+
+# Handy check parameter function
+check_defined = \
+    $(strip $(foreach 1,$1, \
+    $(call __check_defined,$1,$(strip $(value 2)))))
+__check_defined = \
+    $(if $(value $1),, \
+    $(error Undefined make flag: $1$(if $2, ($2))))
+    
+# Build directory
+BUILD = _build/build-$(BOARD)
+
+# Board specific define
+include $(TOP)/hw/bsp/$(BOARD)/board.mk
+
+#-------------- Cross Compiler  ------------
+# Can be set by board, default to ARM GCC
+CROSS_COMPILE ?= arm-none-eabi-
+
 CC = $(CROSS_COMPILE)gcc
 CXX = $(CROSS_COMPILE)g++
 OBJCOPY = $(CROSS_COMPILE)objcopy
@@ -18,38 +37,8 @@ MKDIR = mkdir
 SED = sed
 CP = cp
 RM = rm
-PYTHON ?= python
 
-check_defined = \
-    $(strip $(foreach 1,$1, \
-    $(call __check_defined,$1,$(strip $(value 2)))))
-__check_defined = \
-    $(if $(value $1),, \
-    $(error Undefined make flag: $1$(if $2, ($2))))
-
-
-define newline
-
-
-endef
-
-# Select the board to build for.
-ifeq ($(BOARD),)
-  $(info You must provide a BOARD parameter with 'BOARD=')
-  $(info Supported boards are:)
-  $(info $(sort $(subst /.,,$(subst $(TOP)/hw/bsp/, $(newline)-,$(wildcard $(TOP)/hw/bsp/*/.)))))
-  $(error BOARD not defined)
-else
-  ifeq ($(wildcard $(TOP)/hw/bsp/$(BOARD)/.),)
-    $(error Invalid BOARD specified)
-  endif
-endif
-
-# Build directory
-BUILD = _build/build-$(BOARD)
-
-# Board specific
-include $(TOP)/hw/bsp/$(BOARD)/board.mk
+#-------------- Source files and compiler flags --------------
 
 # Include all source C in board folder
 SRC_C += hw/bsp/board.c

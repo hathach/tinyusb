@@ -5,6 +5,9 @@ CFLAGS += \
   -nostdlib \
   -DCFG_TUSB_MCU=OPT_MCU_VALENTYUSB_EPTRI
 
+# Cross Compiler for RISC-V
+CROSS_COMPILE = riscv-none-embed-
+
 MCU_DIR = hw/mcu/fomu
 BSP_DIR = hw/bsp/fomu
 
