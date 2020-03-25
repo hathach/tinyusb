@@ -57,6 +57,7 @@ void tud_network_init_cb(void);
 bool tud_network_recv_cb(struct pbuf *p);
 
 // client must provide this: 48-bit MAC address
+// TODO removed later since it is not part of tinyusb stack
 extern const uint8_t tud_network_mac_address[6];
 
 // indicate to network driver that client has finished with the packet provided to network_recv_cb()
