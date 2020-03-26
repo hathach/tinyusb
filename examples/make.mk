@@ -46,26 +46,24 @@ SRC_C += $(subst $(TOP)/,,$(wildcard $(TOP)/hw/bsp/$(BOARD)/*.c))
 
 # Compiler Flags
 CFLAGS += \
+	-fdata-sections \
+	-ffunction-sections \
 	-fsingle-precision-constant \
 	-fno-strict-aliasing \
 	-Wdouble-promotion \
-	-Wno-endif-labels \
 	-Wstrict-prototypes \
 	-Wall \
 	-Wextra \
 	-Werror \
-	-Werror-implicit-function-declaration \
 	-Wfatal-errors \
+	-Werror-implicit-function-declaration \
 	-Wfloat-equal \
 	-Wundef \
 	-Wshadow \
 	-Wwrite-strings \
 	-Wsign-compare \
 	-Wmissing-format-attribute \
-	-Wno-deprecated-declarations \
-	-Wunreachable-code \
-	-ffunction-sections \
-	-fdata-sections
+	-Wunreachable-code
 
 # This causes lots of warning with nrf5x build due to nrfx code
 # CFLAGS += -Wcast-align
