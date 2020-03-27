@@ -182,7 +182,7 @@ void HardFault_Handler (void)
   * @param  line: assert_param error line source number
   * @retval None
   */
-void assert_failed(char *file, uint32_t line)
+void assert_failed(uint8_t* file, uint32_t line)
 { 
   TU_LOG1("Assertion failed (%s:%ld)\r\n", file, line);
 }
