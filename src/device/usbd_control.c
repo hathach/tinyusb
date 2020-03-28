@@ -101,22 +101,29 @@ static bool _data_stage_xact(uint8_t rhport)
   return dcd_edpt_xfer(rhport, ep_addr, xact_len ? _usbd_ctrl_buf : NULL, xact_len);
 }
 
+// Transmit data to/from the control endpoint.
+// 
+// If the request's wLength is zero, a status packet is sent instead.
 bool tud_control_xfer(uint8_t rhport, tusb_control_request_t const * request, void* buffer, uint16_t len)
 {
   _ctrl_xfer.request       = (*request);
   _ctrl_xfer.buffer        = (uint8_t*) buffer;
-  _ctrl_xfer.total_xferred = 0;
+  _ctrl_xfer.total_xferred = 0U;
   _ctrl_xfer.data_len      = tu_min16(len, request->wLength);
-
-  if ( _ctrl_xfer.data_len )
+  
+  if (request->wLength > 0U)
   {
-    TU_ASSERT(buffer);
+    if(_ctrl_xfer.data_len > 0U)
+    {
+      TU_ASSERT(buffer);
+    }
 
     TU_LOG2("  XFER Endpoint: 0x%02X, Bytes: %d\r\n", request->bmRequestType_bit.direction ? EDPT_CTRL_IN : EDPT_CTRL_OUT, _ctrl_xfer.data_len);
 
     // Data stage
     TU_ASSERT( _data_stage_xact(rhport) );
-  }else
+  }
+  else
   {
     // Status stage
     TU_ASSERT( _status_stage_xact(rhport, request) );
