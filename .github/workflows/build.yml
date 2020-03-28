@@ -1,6 +1,6 @@
 name: Build
 
-on: [pull_request, push]
+on: [pull_request, push, repository_dispatch]
 
 jobs:
   unit-test:
