@@ -63,7 +63,15 @@ typedef struct
 CFG_TUSB_MEM_SECTION CFG_TUSB_MEM_ALIGN static uint8_t received[CFG_TUD_NET_PACKET_PREFIX_LEN + CFG_TUD_NET_MTU + CFG_TUD_NET_PACKET_PREFIX_LEN];
 CFG_TUSB_MEM_SECTION CFG_TUSB_MEM_ALIGN static uint8_t transmitted[CFG_TUD_NET_PACKET_PREFIX_LEN + CFG_TUD_NET_MTU + CFG_TUD_NET_PACKET_PREFIX_LEN];
 
-#if CFG_TUD_NET == OPT_NET_RNDIS
+#if CFG_TUD_NET == OPT_NET_ECM
+  CFG_TUSB_MEM_SECTION CFG_TUSB_MEM_ALIGN static tusb_control_request_t notify =
+  {
+    .bmRequestType = 0x21,
+    .bRequest = 0 /* NETWORK_CONNECTION */,
+    .wValue = 1 /* Connected */,
+    .wLength = 0,
+  };
+#elif CFG_TUD_NET == OPT_NET_RNDIS
   CFG_TUSB_MEM_SECTION CFG_TUSB_MEM_ALIGN static uint8_t rndis_buf[120];
 #endif
 
@@ -197,7 +205,15 @@ bool netd_control_request(uint8_t rhport, tusb_control_request_t const * request
 
   TU_VERIFY (_netd_itf.itf_num == request->wIndex);
 
-#if CFG_TUD_NET == OPT_NET_RNDIS
+#if CFG_TUD_NET == OPT_NET_ECM
+  /* the only required CDC-ECM Management Element Request is SetEthernetPacketFilter */
+  if (0x43 /* SET_ETHERNET_PACKET_FILTER */ == request->bRequest)
+  {
+    tud_control_xfer(rhport, request, NULL, 0);
+    notify.wIndex = request->wIndex;
+    usbd_edpt_xfer(TUD_OPT_RHPORT, _netd_itf.ep_notif, (uint8_t *)&notify, sizeof(notify));
+  }
+#elif CFG_TUD_NET == OPT_NET_RNDIS
   if (request->bmRequestType_bit.direction == TUSB_DIR_IN)
   {
     rndis_generic_msg_t *rndis_msg = (rndis_generic_msg_t *)rndis_buf;
