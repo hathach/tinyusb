@@ -36,7 +36,6 @@
 #define BUTTON_PIN            GPIO_PIN_0
 #define BUTTON_STATE_ACTIVE   1
 
-
 // Enable PA2 as the debug log UART
 // It is not routed to the ST/Link on the Discovery board.
 #define UARTx                 USART2
@@ -114,7 +113,7 @@ void board_init(void)
   SystemClock_Config();
   all_rcc_clk_enable();
 
-#if CFG_TUSB_OS  == OPT_OS_NONE
+#if CFG_TUSB_OS == OPT_OS_NONE
   // 1ms tick timer
   SysTick_Config(SystemCoreClock / 1000);
 #elif CFG_TUSB_OS == OPT_OS_FREERTOS
