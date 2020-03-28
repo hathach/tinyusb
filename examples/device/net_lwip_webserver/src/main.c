@@ -53,7 +53,8 @@ static struct pbuf *received_frame;
 
 /* this is used by this code, ./class/net/net_driver.c, and usb_descriptors.c */
 /* ideally speaking, this should be generated from the hardware's unique ID (if available) */
-const uint8_t tud_network_mac_address[6] = {0x20,0x89,0x84,0x6A,0x96,0x00};
+/* it is suggested that the first two bytes are 0x02,0x02 to indicate a link-local address */
+const uint8_t tud_network_mac_address[6] = {0x02,0x02,0x84,0x6A,0x96,0x00};
 
 /* network parameters of this MCU */
 static const ip_addr_t ipaddr  = IPADDR4_INIT_BYTES(192, 168, 7, 1);
@@ -124,8 +125,11 @@ static void init_lwip(void)
   struct netif *netif = &netif_data;
 
   lwip_init();
+
+  /* the lwip virtual MAC address must be different from the host's; to ensure this, we toggle the LSbit */
   netif->hwaddr_len = sizeof(tud_network_mac_address);
   memcpy(netif->hwaddr, tud_network_mac_address, sizeof(tud_network_mac_address));
+  netif->hwaddr[5] ^= 0x01;
 
   netif = netif_add(netif, &ipaddr, &netmask, &gateway, NULL, netif_init_cb, ip_input);
   netif_set_default(netif);

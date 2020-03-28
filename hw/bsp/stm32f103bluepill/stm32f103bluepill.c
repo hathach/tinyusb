@@ -26,8 +26,7 @@
 
 #include "../board.h"
 
-#include "stm32f1xx.h"
-#include "stm32f1xx_hal_conf.h"
+#include "stm32f1xx_hal.h"
 
 #define LED_PORT              GPIOC
 #define LED_PIN               GPIO_PIN_13
@@ -85,16 +84,14 @@ void SystemClock_Config(void)
 
 void board_init(void)
 {
+
+  SystemClock_Config();
+  
   #if CFG_TUSB_OS  == OPT_OS_NONE
   // 1ms tick timer
   SysTick_Config(SystemCoreClock / 1000);
   #endif
-
-  SystemClock_Config();
   
-  // Notify runtime of frequency change.
-  SystemCoreClockUpdate();
-
   // LED
   __HAL_RCC_GPIOC_CLK_ENABLE();
   GPIO_InitTypeDef  GPIO_InitStruct;

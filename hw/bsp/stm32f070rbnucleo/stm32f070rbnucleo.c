@@ -26,8 +26,7 @@
 
 #include "../board.h"
 
-#include "stm32f0xx.h"
-#include "stm32f0xx_hal_conf.h"
+#include "stm32f0xx_hal.h"
 
 #define LED_PORT              GPIOA
 #define LED_PIN               GPIO_PIN_5
@@ -57,10 +56,7 @@ static void all_rcc_clk_enable(void)
 
 void board_init(void)
 {
-  #if CFG_TUSB_OS  == OPT_OS_NONE
-  // 1ms tick timer
-  SysTick_Config(SystemCoreClock / 1000);
-  #endif
+
 
   /* Configure the system clock to 48 MHz */
   RCC_ClkInitTypeDef RCC_ClkInitStruct;
@@ -90,9 +86,12 @@ void board_init(void)
   (void)HAL_RCCEx_PeriphCLKConfig(&PeriphClkInit) ;
   
   // Notify runtime of frequency change.
-  SystemCoreClockUpdate();
-
   all_rcc_clk_enable();
+
+  #if CFG_TUSB_OS  == OPT_OS_NONE
+  // 1ms tick timer
+  SysTick_Config(SystemCoreClock / 1000);
+  #endif
 
   // LED
   GPIO_InitTypeDef  GPIO_InitStruct;

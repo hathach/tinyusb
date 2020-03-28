@@ -26,8 +26,7 @@
 
 #include "../board.h"
 
-#include "stm32l0xx.h"
-#include "stm32l0xx_hal_conf.h"
+#include "stm32l0xx_hal.h"
 
 #define LED_PORT              GPIOA
 #define LED_PIN               GPIO_PIN_5
@@ -101,6 +100,8 @@ static void SystemClock_Config(void)
 
 void board_init(void)
 {
+  SystemClock_Config();
+
 #if CFG_TUSB_OS  == OPT_OS_NONE
   // 1ms tick timer
   SysTick_Config(SystemCoreClock / 1000);
@@ -108,11 +109,6 @@ void board_init(void)
   // If freeRTOS is used, IRQ priority is limit by max syscall ( smaller is higher )
   //NVIC_SetPriority(USB0_IRQn, configLIBRARY_MAX_SYSCALL_INTERRUPT_PRIORITY );
 #endif
-
-  SystemClock_Config();
-
-  // Notify runtime of frequency change.
-  SystemCoreClockUpdate();
 
   GPIO_InitTypeDef  GPIO_InitStruct;
 
