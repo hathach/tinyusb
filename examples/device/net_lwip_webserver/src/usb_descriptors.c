@@ -112,7 +112,7 @@ uint8_t const desc_configuration[] =
 
 #if CFG_TUD_NET == OPT_NET_ECM
   // Interface number, description string index, MAC address string index, EP notification address and size, EP data address (out, in), and size, max segment size.
-  TUD_CDC_ECM_DESCRIPTOR(ITF_NUM_CDC, STRID_INTERFACE, STRID_MAC, 0x81, 8, EPNUM_CDC, 0x80 | EPNUM_CDC, CFG_TUD_NET_ENDPOINT_SIZE, CFG_TUD_NET_MTU),
+  TUD_CDC_ECM_DESCRIPTOR(ITF_NUM_CDC, STRID_INTERFACE, STRID_MAC, 0x81, 64, EPNUM_CDC, 0x80 | EPNUM_CDC, CFG_TUD_NET_ENDPOINT_SIZE, CFG_TUD_NET_MTU),
 #elif CFG_TUD_NET == OPT_NET_RNDIS
   // Interface number, string index, EP notification address and size, EP data address (out, in) and size.
   TUD_RNDIS_DESCRIPTOR(ITF_NUM_CDC, STRID_INTERFACE, 0x81, 8, EPNUM_CDC, 0x80 | EPNUM_CDC, CFG_TUD_NET_ENDPOINT_SIZE),
