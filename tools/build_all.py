@@ -88,7 +88,7 @@ for example in all_examples:
                 fail_count += 1
 
             build_duration = time.monotonic() - start_time
-            print(build_format.format(example, board, success, "{:.2f}".format(build_duration), flash_size, sram_size))
+            print(build_format.format(example, board, success, "{:.2f}s".format(build_duration), flash_size, sram_size))
 
             if build_result.returncode != 0:
                 print(build_result.stdout.decode("utf-8"))

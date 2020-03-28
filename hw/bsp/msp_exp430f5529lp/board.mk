@@ -6,6 +6,9 @@ CFLAGS += \
 
 #-mmcu=msp430f5529
 
+# Cross Compiler for MSP430
+CROSS_COMPILE = msp430-elf-
+
 # All source paths should be relative to the top level.
 LD_FILE = hw/mcu/ti/msp430/msp430-gcc-support-files/include/msp430f5529.ld
 LDINC += $(TOP)/hw/mcu/ti/msp430/msp430-gcc-support-files/include
