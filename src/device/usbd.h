@@ -156,9 +156,9 @@ TU_ATTR_WEAK bool tud_vendor_control_complete_cb(uint8_t rhport, tusb_control_re
 //------------- Configuration -------------//
 #define TUD_CONFIG_DESC_LEN   (9)
 
-// Interface count, string index, total length, attribute, power in mA
-#define TUD_CONFIG_DESCRIPTOR(_itfcount, _stridx, _total_len, _attribute, _power_ma) \
-  9, TUSB_DESC_CONFIGURATION, U16_TO_U8S_LE(_total_len), _itfcount, 1, _stridx, TU_BIT(7) | _attribute, (_power_ma)/2
+// Interface count, string index, total length, attribute, power in mA, config number
+#define TUD_CONFIG_DESCRIPTOR(_itfcount, _stridx, _total_len, _attribute, _power_ma, config_num) \
+  9, TUSB_DESC_CONFIGURATION, U16_TO_U8S_LE(_total_len), _itfcount, config_num, _stridx, TU_BIT(7) | _attribute, (_power_ma)/2
 
 //------------- CDC -------------//
 
