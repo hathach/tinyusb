@@ -4,7 +4,7 @@
 
 ### Added
 
-- Added **CONTRIBUTORS.md** to give proper credit for contributors to the stack
+Added **CONTRIBUTORS.md** to give proper credit for contributors to the stack
 
 **MCU**
 
