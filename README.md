@@ -52,6 +52,7 @@ Supports multiple device configurations by dynamically changing usb descriptors.
 - Mass Storage Class (MSC): with multiple LUNs
 - Musical Instrument Digital Interface (MIDI)
 - Network with RNDIS, CDC-ECM, CDC-EEM (work in progress)
+- USB Test and Measurement Class (USBTMC)
 - Vendor-specific class support with generic In & Out endpoints. Can be used with MS OS 2.0 compatible descriptor to load winUSB driver without INF file.
 - [WebUSB](https://github.com/WICG/webusb) with vendor-specific class
 
