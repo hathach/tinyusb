@@ -2,9 +2,9 @@
 
 ## 0.6.0 - 2019.03.30
 
-### Added
+Added **CONTRIBUTORS.md** to give proper credit for contributors to the stack. Special thanks to [Nathan Conrad](https://github.com/pigrew), [Peter Lawrence](https://github.com/majbthrd) and [William D. Jones](https://github.com/cr1901) and others for spending their precious time to add lots of features and ports for this release.
 
-Added **CONTRIBUTORS.md** to give proper credit for contributors to the stack
+### Added
 
 **MCU**
 
