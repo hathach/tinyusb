@@ -55,7 +55,9 @@ typedef struct {
 
   uint8_t itf2drv[16];     // map interface number to driver (0xff is invalid)
   uint8_t ep2drv[8][2];    // map endpoint to driver ( 0xff is invalid )
+#if CFG_TUD_SUPPORT_ALTERNATES
   uint8_t itf2alt[16];     // map interface number to current alternative setting
+#endif
 
   struct TU_ATTR_PACKED
   {
@@ -84,7 +86,9 @@ typedef struct {
   bool (* control_complete ) (uint8_t rhport, tusb_control_request_t const * request);
   bool (* xfer_cb          ) (uint8_t rhport, uint8_t ep_addr, xfer_result_t event, uint32_t xferred_bytes);
   void (* sof              ) (uint8_t rhport);
+#if CFG_TUD_SUPPORT_ALTERNATES
   void (* set_alternate    ) (uint8_t rhport, uint8_t num);
+#endif
 } usbd_class_driver_t;
 
 static usbd_class_driver_t const _usbd_driver[] =
@@ -345,7 +349,9 @@ static void usbd_reset(uint8_t rhport)
 
   memset(_usbd_dev.itf2drv, DRVID_INVALID, sizeof(_usbd_dev.itf2drv)); // invalid mapping
   memset(_usbd_dev.ep2drv , DRVID_INVALID, sizeof(_usbd_dev.ep2drv )); // invalid mapping
+#if CFG_TUD_SUPPORT_ALTERNATES
   memset(_usbd_dev.itf2alt, 0, sizeof(_usbd_dev.ep2drv )); // default mapping
+#endif
 
   usbd_control_reset();
 
@@ -606,7 +612,11 @@ static bool process_control_request(uint8_t rhport, tusb_control_request_t const
         {
           case TUSB_REQ_GET_INTERFACE:
           {
+#if CFG_TUD_SUPPORT_ALTERNATES
             uint8_t alternate = _usbd_dev.itf2alt[itf];
+#else
+            uint8_t alternate = 0;
+#endif
             tud_control_xfer(rhport, p_request, &alternate, 1);
           }
           break;
@@ -615,8 +625,12 @@ static bool process_control_request(uint8_t rhport, tusb_control_request_t const
           {
             uint8_t const alternate = (uint8_t) p_request->wValue;
 
+#if CFG_TUD_SUPPORT_ALTERNATES
             _usbd_dev.itf2alt[itf] = alternate;
             if (_usbd_driver[drvid].set_alternate) _usbd_driver[drvid].set_alternate(rhport, alternate);
+#else
+            TU_ASSERT(alternate == 0);
+#endif
             tud_control_status(rhport, p_request);
           }
           break;

@@ -183,6 +183,10 @@
 #define CFG_TUSB_OS               OPT_OS_NONE
 #endif
 
+#ifndef CFG_TUD_SUPPORT_ALTERNATES
+  #define CFG_TUD_SUPPORT_ALTERNATES 0
+#endif
+
 //--------------------------------------------------------------------
 // DEVICE OPTIONS
 //--------------------------------------------------------------------
