@@ -55,6 +55,7 @@ typedef struct {
 
   uint8_t itf2drv[16];     // map interface number to driver (0xff is invalid)
   uint8_t ep2drv[8][2];    // map endpoint to driver ( 0xff is invalid )
+  uint8_t itf2alt[16];     // map interface number to current alternative setting
 
   struct TU_ATTR_PACKED
   {
@@ -83,6 +84,7 @@ typedef struct {
   bool (* control_complete ) (uint8_t rhport, tusb_control_request_t const * request);
   bool (* xfer_cb          ) (uint8_t rhport, uint8_t ep_addr, xfer_result_t event, uint32_t xferred_bytes);
   void (* sof              ) (uint8_t rhport);
+  void (* set_alternate    ) (uint8_t rhport, uint8_t num);
 } usbd_class_driver_t;
 
 static usbd_class_driver_t const _usbd_driver[] =
@@ -343,6 +345,7 @@ static void usbd_reset(uint8_t rhport)
 
   memset(_usbd_dev.itf2drv, DRVID_INVALID, sizeof(_usbd_dev.itf2drv)); // invalid mapping
   memset(_usbd_dev.ep2drv , DRVID_INVALID, sizeof(_usbd_dev.ep2drv )); // invalid mapping
+  memset(_usbd_dev.itf2alt, 0, sizeof(_usbd_dev.ep2drv )); // default mapping
 
   usbd_control_reset();
 
@@ -603,8 +606,7 @@ static bool process_control_request(uint8_t rhport, tusb_control_request_t const
         {
           case TUSB_REQ_GET_INTERFACE:
           {
-            // TODO not support alternate interface yet
-            uint8_t alternate = 0;
+            uint8_t alternate = _usbd_dev.itf2alt[itf];
             tud_control_xfer(rhport, p_request, &alternate, 1);
           }
           break;
@@ -613,8 +615,8 @@ static bool process_control_request(uint8_t rhport, tusb_control_request_t const
           {
             uint8_t const alternate = (uint8_t) p_request->wValue;
 
-            // TODO not support alternate interface yet
-            TU_ASSERT(alternate == 0);
+            _usbd_dev.itf2alt[itf] = alternate;
+            if (_usbd_driver[drvid].set_alternate) _usbd_driver[drvid].set_alternate(rhport, alternate);
             tud_control_status(rhport, p_request);
           }
           break;
