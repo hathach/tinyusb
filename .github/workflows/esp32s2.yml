@@ -1,0 +1,34 @@
+name: Build
+
+on: [pull_request, push, repository_dispatch]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        example: ['cdc_msc_freertos']
+        
+    steps:
+    - name: Setup Python
+      uses: actions/setup-python@v1
+      
+    - name: Install Toolchains
+      run: |
+        git clone https://github.com/espressif/esp-idf.git $HOME/esp-idf
+        cd $HOME/esp-idf
+        ./install.sh 
+        #echo "::add-path::`echo $HOME/msp430-gcc-*_linux64/bin`"
+      
+    - name: Checkout TinyUSB
+      uses: actions/checkout@v2
+    
+    - name: Checkout Submodules
+      run: |
+        git submodule sync --recursive
+        git submodule update --init --recursive
+    
+#    - name: Build
+#      run: python3 tools/build_all.py ${{ matrix.example }}
+
