@@ -56,12 +56,12 @@ StaticTimer_t static_blink;
 TimerHandle_t blink_tm;
 
 // static task for usbd
-#define USBD_STACK_SIZE     (2*configMINIMAL_STACK_SIZE)
+#define USBD_STACK_SIZE     (3*configMINIMAL_STACK_SIZE/2)
 StackType_t  stack_usbd[USBD_STACK_SIZE];
 StaticTask_t static_task_usbd;
 
 // static task for cdc
-#define CDC_STACK_SZIE      (2*configMINIMAL_STACK_SIZE)
+#define CDC_STACK_SZIE      configMINIMAL_STACK_SIZE
 StackType_t  stack_cdc[CDC_STACK_SZIE];
 StaticTask_t static_task_cdc;
 
@@ -90,7 +90,7 @@ int main(void)
 
   // Create task
 #if CFG_TUD_CDC
-  (void) xTaskCreateStatic( cdc_task, "cdc", CDC_STACK_SZIE, NULL, configMAX_PRIORITIES-1, stack_cdc, &static_task_cdc);
+  (void) xTaskCreateStatic( cdc_task, "cdc", CDC_STACK_SZIE, NULL, configMAX_PRIORITIES-2, stack_cdc, &static_task_cdc);
 #endif
 
   // skip starting scheduler (and return) for ESP32-S2
