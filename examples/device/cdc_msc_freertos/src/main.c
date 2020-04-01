@@ -56,12 +56,12 @@ StaticTimer_t static_blink;
 TimerHandle_t blink_tm;
 
 // static task for usbd
-#define USBD_STACK_SIZE     150
+#define USBD_STACK_SIZE     (3*(configMINIMAL_STACK_SIZE/2))
 StackType_t  stack_usbd[USBD_STACK_SIZE];
 StaticTask_t static_task_usbd;
 
 // static task for cdc
-#define CDC_STACK_SZIE      128
+#define CDC_STACK_SZIE      configMINIMAL_STACK_SIZE
 StackType_t  stack_cdc[CDC_STACK_SZIE];
 StaticTask_t static_task_cdc;
 
@@ -71,6 +71,11 @@ void usb_device_task(void* param);
 void cdc_task(void* params);
 
 /*------------- MAIN -------------*/
+#if CFG_TUSB_MCU == OPT_MCU_ESP32S2
+// ESP32S2 entry function is app_main()
+#define main    app_main
+#endif
+
 int main(void)
 {
   board_init();
@@ -89,8 +94,16 @@ int main(void)
   (void) xTaskCreateStatic( cdc_task, "cdc", CDC_STACK_SZIE, NULL, configMAX_PRIORITIES-2, stack_cdc, &static_task_cdc);
 #endif
 
+#if CFG_TUSB_MCU == OPT_MCU_ESP32S2
+  // skip starting scheduler for ESP32 S2 (already started)
+  while(1)
+  {
+    vTaskSuspend(NULL);
+  }
+#else
   vTaskStartScheduler();
   NVIC_SystemReset();
+#endif
 
   return 0;
 }

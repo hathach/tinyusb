@@ -27,7 +27,8 @@ if len(sys.argv) > 2:
     all_boards.append(sys.argv[2])
 else:
     for entry in os.scandir("hw/bsp"):
-        if entry.is_dir():
+        # Skip board without board.mk e.g esp32s2
+        if entry.is_dir() and os.path.exists(entry.path + "/board.mk"):
             all_boards.append(entry.name)
 all_boards.sort()
 
