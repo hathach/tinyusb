@@ -7,4 +7,4 @@ set(EXTRA_COMPONENT_DIRS "src")
 
 include($ENV{IDF_PATH}/tools/cmake/project.cmake)
 
-project(blink)
+project(cdc_msc_freertos)
