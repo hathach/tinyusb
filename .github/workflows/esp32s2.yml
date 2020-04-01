@@ -1,4 +1,4 @@
-name: Build
+name: Build ESP32-S2
 
 on: [pull_request, push, repository_dispatch]
 
@@ -14,7 +14,7 @@ jobs:
     - name: Setup Python
       uses: actions/setup-python@v1
       
-    - name: Install Toolchains
+    - name: Install ESP-IDF
       run: |
         git clone https://github.com/espressif/esp-idf.git $HOME/esp-idf
         cd $HOME/esp-idf
@@ -24,11 +24,15 @@ jobs:
     - name: Checkout TinyUSB
       uses: actions/checkout@v2
     
-    - name: Checkout Submodules
-      run: |
-        git submodule sync --recursive
-        git submodule update --init --recursive
+#    - name: Checkout Submodules
+#      run: |
+#        git submodule sync --recursive
+#        git submodule update --init --recursive
     
-#    - name: Build
-#      run: python3 tools/build_all.py ${{ matrix.example }}
+    - name: Build
+      run: |
+        . $HOME/esp-idf/export.sh
+        cd examples/device/cdc_msc_freertos
+        idf.py build
+        #python3 tools/build_all.py ${{ matrix.example }}
 
