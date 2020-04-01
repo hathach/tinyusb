@@ -6,7 +6,7 @@ data transactions on different endpoints. Porting is the process of adding low-l
 the rest of the common stack. Once the low-level is implemented, it is very easy to add USB support
 for the microcontroller to other projects, especially those already using TinyUSB such as CircuitPython.
 
-Below are instructions on how to get the cdc_msc_hid device example running on a new microcontroller. Doing so includes adding the common code necessary for other uses while minimizing other extra code. Whenever you see a phrase or word in <> it should be replaced.
+Below are instructions on how to get the cdc_msc device example running on a new microcontroller. Doing so includes adding the common code necessary for other uses while minimizing other extra code. Whenever you see a phrase or word in <> it should be replaced.
 
 ## Register defs
 
@@ -19,7 +19,7 @@ Once this is done, create a directory in `hw/bsp/<your board name>` for the spec
 ## Build
 Now that those directories are in place, we can start our iteration process to get the example building successfully. To build, run from the root of TinyUSB:
 
-`make -C examples/device/cdc_msc_hid BOARD=<board>`
+`make -C examples/device/cdc_msc BOARD=<board>`
 
 Unless, you've read ahead, this will fail miserably. Now, lets get it to fail less by updating the files in the board directory. The code in the board's directory is responsible for setting up the microcontroller's clocks and pins so that USB works. TinyUSB itself only operates on the USB peripheral. The board directory also includes information what files are needed to build the example.
 

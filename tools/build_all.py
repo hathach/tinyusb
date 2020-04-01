@@ -94,10 +94,7 @@ for example in all_examples:
             if build_result.returncode != 0:
                 print(build_result.stdout.decode("utf-8"))
 
-# FreeRTOS example
-# example = 'cdc_msc_hid_freertos'
-# board = 'pca10056'
-# build_example(example, board)
+
 
 total_time = time.monotonic() - total_time
 print(build_separator)
