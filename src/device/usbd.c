@@ -83,6 +83,7 @@ typedef struct {
   bool (* control_complete ) (uint8_t rhport, tusb_control_request_t const * request);
   bool (* xfer_cb          ) (uint8_t rhport, uint8_t ep_addr, xfer_result_t event, uint32_t xferred_bytes);
   void (* sof              ) (uint8_t rhport);
+  uint8_t (* get_alt_setting ) (uint8_t rhport, tusb_control_request_t const * request); //< (optional) Returns active alternate setting of an opened interface.
 } usbd_class_driver_t;
 
 static usbd_class_driver_t const _usbd_driver[] =
@@ -197,7 +198,8 @@ static usbd_class_driver_t const _usbd_driver[] =
       .control_request  = netd_control_request,
       .control_complete = netd_control_complete,
       .xfer_cb          = netd_xfer_cb,
-      .sof              = NULL
+      .sof              = NULL,
+      .get_alt_setting  = netd_get_alt_setting
   },
   #endif
 };
@@ -605,17 +607,11 @@ static bool process_control_request(uint8_t rhport, tusb_control_request_t const
           {
             // TODO not support alternate interface yet
             uint8_t alternate = 0;
+            if(_usbd_driver[drvid].get_alt_setting)
+            {
+              alternate = _usbd_driver[drvid].get_alt_setting(rhport, p_request);
+            }
             tud_control_xfer(rhport, p_request, &alternate, 1);
-          }
-          break;
-
-          case TUSB_REQ_SET_INTERFACE:
-          {
-            uint8_t const alternate = (uint8_t) p_request->wValue;
-
-            // TODO not support alternate interface yet
-            TU_ASSERT(alternate == 0);
-            tud_control_status(rhport, p_request);
           }
           break;
 

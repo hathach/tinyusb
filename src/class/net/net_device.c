@@ -44,6 +44,7 @@ typedef struct
   uint8_t ep_notif;
   uint8_t ep_in;
   uint8_t ep_out;
+  uint_fast8_t active_alt_setting;
 } netd_interface_t;
 
 #if CFG_TUD_NET == OPT_NET_ECM
@@ -123,6 +124,7 @@ bool netd_open(uint8_t rhport, tusb_desc_interface_t const * itf_desc, uint16_t 
 
   //------------- first Interface -------------//
   _netd_itf.itf_num = itf_desc->bInterfaceNumber;
+  _netd_itf.active_alt_setting = 0u;
 
   uint8_t const * p_desc = tu_desc_next( itf_desc );
   (*p_length) = sizeof(tusb_desc_interface_t);
@@ -196,10 +198,31 @@ bool netd_control_complete(uint8_t rhport, tusb_control_request_t const * reques
   return true;
 }
 
+uint8_t netd_get_alt_setting(uint8_t rhport, tusb_control_request_t const * request)
+{
+  (void)rhport;
+  (void)request;
+  /* TODO: Return actual value */
+  return _netd_itf.active_alt_setting;
+}
+
 // Handle class control request
 // return false to stall control endpoint (e.g unsupported request)
 bool netd_control_request(uint8_t rhport, tusb_control_request_t const * request)
 {
+
+  if((request->bmRequestType_bit.direction == TUSB_DIR_OUT)
+    && (request->bmRequestType_bit.type == TUSB_REQ_TYPE_STANDARD)
+    && (request->bmRequestType_bit.recipient == TUSB_REQ_RCPT_INTERFACE))
+  {
+    /* TODO: Do alternate interface setting work here. Only allow alternate setting of zero, for now. */
+    if (request->wIndex > 0)
+    {
+      return false;
+    }
+    return true;
+  }
+
   // Handle class request only
   TU_VERIFY(request->bmRequestType_bit.type == TUSB_REQ_TYPE_CLASS);
 
