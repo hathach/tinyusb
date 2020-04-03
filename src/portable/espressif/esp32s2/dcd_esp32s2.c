@@ -26,6 +26,10 @@
  * This file is part of the TinyUSB stack.
  */
 
+#include "tusb_option.h"
+
+#if CFG_TUSB_MCU == OPT_MCU_ESP32S2 && TUSB_OPT_DEVICE_ENABLED
+
 // Espressif
 #include "driver/periph_ctrl.h"
 #include "freertos/xtensa_api.h"
@@ -35,15 +39,12 @@
 #include "soc/dport_reg.h"
 #include "soc/gpio_sig_map.h"
 #include "soc/usb_periph.h"
-#include "tusb_config.h"
-// TinyUSB
-#include "tusb_option.h"
-//#include "descriptors_control.h"
+
 #include "device/dcd.h"
 
-
-#define USB_EP_DIRECTIONS 2
-#define USB_MAX_EP_NUM 16
+// FIFO size in bytes TODO need confirmation from Espressif
+#define EP_MAX            USB_OUT_EP_NUM
+#define EP_FIFO_SIZE      1280
 
 typedef struct {
     uint8_t *buffer;
@@ -61,7 +62,7 @@ static uint8_t s_setup_phase = 0; /*  00 - got setup,
                                     02 - setup cmd sent*/
 
 #define XFER_CTL_BASE(_ep, _dir) &xfer_status[_ep][_dir]
-static xfer_ctl_t xfer_status[USB_MAX_EP_NUM][USB_EP_DIRECTIONS];
+static xfer_ctl_t xfer_status[EP_MAX][2];
 
 static inline void readyfor1setup_pkg(int ep_num)
 {
@@ -78,34 +79,37 @@ static void bus_reset(void)
 
     USB0.dcfg &= ~USB_DEVADDR_M; // reset address
 
+    // "USB Data FIFOs" section in reference manual
     // Peripheral FIFO architecture
     //
-    // --------------- 320 ( 1280 bytes )
-    // | IN FIFO 3  |
+    // --------------- 320 or 1024 ( 1280 or 4096 bytes )
+    // | IN FIFO MAX |
+    // ---------------
+    // |    ...      |
     // --------------- y + x + 16 + GRXFSIZ
-    // | IN FIFO 2  |
+    // | IN FIFO 2   |
     // --------------- x + 16 + GRXFSIZ
-    // | IN FIFO 1  |
+    // | IN FIFO 1   |
     // --------------- 16 + GRXFSIZ
-    // | IN FIFO 0  |
+    // | IN FIFO 0   |
     // --------------- GRXFSIZ
-    // | OUT FIFO   |
-    // | ( Shared ) |
+    // | OUT FIFO    |
+    // | ( Shared )  |
     // --------------- 0
     //
-    // FIFO sizes are set up by the following rules (each word 32-bits):
-    // All EP OUT shared a unique OUT FIFO which uses (based on page 1354 of Rev 17 of reference manual):
-    // * 10 locations in hardware for setup packets + setup control words
-    // (up to 3 setup packets).
-    // * 2 locations for OUT endpoint control words.
-    // * 16 for largest packet size of 64 bytes. ( TODO Highspeed is 512 bytes)
-    // * 1 location for global NAK (not required/used here).
+    // According to "FIFO RAM allocation" section in RM, FIFO RAM are allocated as follows (each word 32-bits):
+    // - Each EP IN needs at least max packet size, 16 words is sufficient for EP0 IN
     //
-    // It is recommended to allocate 2 times the largest packet size, therefore
-    // Recommended value = 10 + 1 + 2 x (16+2) = 47 --> Let's make it 50
+    // - All EP OUT shared a unique OUT FIFO which uses
+    //   * 10 locations in hardware for setup packets + setup control words (up to 3 setup packets).
+    //   * 2 locations for OUT endpoint control words.
+    //   * 16 for largest packet size of 64 bytes. ( TODO Highspeed is 512 bytes)
+    //   * 1 location for global NAK (not required/used here).
+    //   * It is recommended to allocate 2 times the largest packet size, therefore
+    //   Recommended value = 10 + 1 + 2 x (16+2) = 47 --> Let's make it 52
     USB0.grstctl |= 0x10 << USB_TXFNUM_S; // fifo 0x10,
     USB0.grstctl |= USB_TXFFLSH_M;        // Flush fifo
-    USB0.grxfsiz = 50;
+    USB0.grxfsiz = 52;
 
     USB0.gintmsk = USB_MODEMISMSK_M |
                    USB_SOFMSK_M |
@@ -123,7 +127,8 @@ static void bus_reset(void)
     USB0.doepmsk |= USB_SETUPMSK_M | USB_XFERCOMPLMSK;
     USB0.diepmsk |= USB_TIMEOUTMSK_M | USB_DI_XFERCOMPLMSK_M;
 
-    USB0.gnptxfsiz = 16 << USB_NPTXFDEP_S; // Control IN uses FIFO 0 with 64 bytes ( 16 32-bit word )
+    // Control IN uses FIFO 0 with 64 bytes ( 16 32-bit word )
+    USB0.gnptxfsiz = (16 << USB_NPTXFDEP_S) | (USB0.grxfsiz & 0x0000ffffUL);
 
     readyfor1setup_pkg(0);
 }
@@ -245,10 +250,8 @@ bool dcd_edpt_open(uint8_t rhport, tusb_desc_endpoint_t const *desc_edpt)
     uint8_t const epnum = tu_edpt_number(desc_edpt->bEndpointAddress);
     uint8_t const dir = tu_edpt_dir(desc_edpt->bEndpointAddress);
 
-    // Unsupported endpoint numbers/size.
-    if ((desc_edpt->wMaxPacketSize.size > 64) || (epnum > 3)) {
-        return false;
-    }
+    TU_ASSERT(desc_edpt->wMaxPacketSize.size <= 64);
+    TU_ASSERT(epnum < EP_MAX);
 
     xfer_ctl_t *xfer = XFER_CTL_BASE(epnum, dir);
     xfer->max_size = desc_edpt->wMaxPacketSize.size;
@@ -259,33 +262,44 @@ bool dcd_edpt_open(uint8_t rhport, tusb_desc_endpoint_t const *desc_edpt)
                                  desc_edpt->wMaxPacketSize.size << USB_MPS0_S;
         USB0.daintmsk |= (1 << (16 + epnum));
     } else {
-        // Peripheral FIFO architecture (Rev18 RM 29.11)
+        // "USB Data FIFOs" section in reference manual
+        // Peripheral FIFO architecture
         //
-        // --------------- 320 ( 1280 bytes )
-        // | IN FIFO 3  |
+        // --------------- 320 or 1024 ( 1280 or 4096 bytes )
+        // | IN FIFO MAX |
+        // ---------------
+        // |    ...      |
         // --------------- y + x + 16 + GRXFSIZ
-        // | IN FIFO 2  |
+        // | IN FIFO 2   |
         // --------------- x + 16 + GRXFSIZ
-        // | IN FIFO 1  |
+        // | IN FIFO 1   |
         // --------------- 16 + GRXFSIZ
-        // | IN FIFO 0  |
+        // | IN FIFO 0   |
         // --------------- GRXFSIZ
-        // | OUT FIFO   |
-        // | ( Shared ) |
+        // | OUT FIFO    |
+        // | ( Shared )  |
         // --------------- 0
         //
-        // Since OUT FIFO = 50, FIFO 0 = 16, average of FIFOx = (312-50-16) / 3 = 82 ~ 80
+        // Since OUT FIFO = GRXFSIZ, FIFO 0 = 16, for simplicity, we equally allocated for the rest of endpoints
+        // - Size  : (FIFO_SIZE/4 - GRXFSIZ - 16) / (EP_MAX-1)
+        // - Offset: GRXFSIZ + 16 + Size*(epnum-1)
+        // - IN EP 1 gets FIFO 1, IN EP "n" gets FIFO "n".
+
         in_ep[epnum].diepctl |= USB_D_USBACTEP1_M |
-                                (epnum - 1) << USB_D_TXFNUM1_S |
+                                epnum << USB_D_TXFNUM1_S |
                                 desc_edpt->bmAttributes.xfer << USB_D_EPTYPE1_S |
                                 (desc_edpt->bmAttributes.xfer != TUSB_XFER_ISOCHRONOUS ? (1 << USB_DI_SETD0PID1_S) : 0) |
                                 desc_edpt->wMaxPacketSize.size << 0;
         USB0.daintmsk |= (1 << (0 + epnum));
 
-        // Both TXFD and TXSA are in unit of 32-bit words
-        uint16_t const fifo_size = 80;
-        uint32_t const fifo_offset = (USB0.grxfsiz & USB_NPTXFDEP_V) + 16 + fifo_size * (epnum - 1);
-        USB0.dieptxf[epnum - 1] = (80 << USB_NPTXFDEP_S) | fifo_offset;
+        // Both TXFD and TXSA are in unit of 32-bit words.
+        // IN FIFO 0 was configured during enumeration, hence the "+ 16".
+        uint16_t const allocated_size = (USB0.grxfsiz & 0x0000ffff) + 16;
+        uint16_t const fifo_size = (EP_FIFO_SIZE/4 - allocated_size) / (EP_MAX-1);
+        uint32_t const fifo_offset = allocated_size + fifo_size*(epnum-1);
+
+        // DIEPTXF starts at FIFO #1.
+        USB0.dieptxf[epnum - 1] = (fifo_size << USB_NPTXFDEP_S) | fifo_offset;
     }
     return true;
 }
@@ -320,12 +334,14 @@ bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t *buffer, uint16_t to
     // here.
     if (dir == TUSB_DIR_IN) {
         // A full IN transfer (multiple packets, possibly) triggers XFRC.
-        int bytes2fifo_left = total_bytes;
-        uint32_t val; // 32 bit val from 4 buff addresses
-
         USB0.in_ep_reg[epnum].diepint = ~0U; // clear all ints
         USB0.in_ep_reg[epnum].dieptsiz = (num_packets << USB_D_PKTCNT0_S) | total_bytes;
         USB0.in_ep_reg[epnum].diepctl |= USB_D_EPENA1_M | USB_D_CNAK1_M; // Enable | CNAK
+
+#if 1
+        //int bytes2fifo_left = tu_min16(total_bytes, xfer->max_size);
+        int bytes2fifo_left = total_bytes;
+        uint32_t val; // 32 bit val from 4 buff addresses
         while (bytes2fifo_left > 0) {  // TODO move it to ep_in_handle (IDF-1475)
             /* ATTENTION! In cases when CFG_TUD_ENDOINT0_SIZE, CFG_TUD_CDC_EPSIZE, CFG_TUD_MIDI_EPSIZE or
             CFG_TUD_MSC_BUFSIZE < 4 next line can be a cause of an error.*/
@@ -338,7 +354,10 @@ bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t *buffer, uint16_t to
             buffer += 4;
             bytes2fifo_left -= 4;
         }
+#else
+//        transmit_packet(xfer, &USB0.in_ep_reg[epnum], epnum);
         // USB0.dtknqr4_fifoemptymsk |= (1 << epnum);
+#endif
     } else {
         // Each complete packet for OUT xfers triggers XFRC.
         USB0.out_ep_reg[epnum].doeptsiz = USB_PKTCNT0_M |
@@ -747,3 +766,6 @@ void dcd_int_disable(uint8_t rhport)
     (void)rhport;
     esp_intr_free(usb_ih);
 }
+
+#endif // OPT_MCU_ESP32S2
+
