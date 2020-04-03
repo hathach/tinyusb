@@ -36,15 +36,23 @@ jobs:
       
     - name: Install Toolchains
       run: |
+        # ARM & RISC-V GCC from xpack
         npm install --global xpm
         xpm install --global @xpack-dev-tools/arm-none-eabi-gcc@latest
         xpm install --global @xpack-dev-tools/riscv-none-embed-gcc@latest
-        wget http://software-dl.ti.com/msp430/msp430_public_sw/mcu/msp430/MSPGCC/8_3_0_0/exports/msp430-gcc-8.3.0.16_linux64.tar.bz2 -O /tmp/msp430-gcc.tar.bz2
-        tar -C $HOME -xaf /tmp/msp430-gcc.tar.bz2
         echo "::add-path::`echo $HOME/opt/xPacks/@xpack-dev-tools/arm-none-eabi-gcc/*/.content/bin`"
         echo "::add-path::`echo $HOME/opt/xPacks/@xpack-dev-tools/riscv-none-embed-gcc/*/.content/bin`"
+
+        # TI MSP430 GCC
+        wget http://software-dl.ti.com/msp430/msp430_public_sw/mcu/msp430/MSPGCC/8_3_0_0/exports/msp430-gcc-8.3.0.16_linux64.tar.bz2 -O /tmp/msp430-gcc.tar.bz2
+        tar -C $HOME -xaf /tmp/msp430-gcc.tar.bz2
         echo "::add-path::`echo $HOME/msp430-gcc-*_linux64/bin`"
-      
+
+        # ESP IDF
+        git clone https://github.com/espressif/esp-idf.git $HOME/esp-idf
+        cd $HOME/esp-idf
+        ./install.sh
+
     - name: Checkout TinyUSB
       uses: actions/checkout@v2
     
@@ -54,5 +62,7 @@ jobs:
         git submodule update --init --recursive
     
     - name: Build
-      run: python3 tools/build_all.py ${{ matrix.example }}
+      run: |
+        . $HOME/esp-idf/export.sh
+        python3 tools/build_all.py ${{ matrix.example }}
 

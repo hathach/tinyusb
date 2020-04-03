@@ -27,8 +27,7 @@ if len(sys.argv) > 2:
     all_boards.append(sys.argv[2])
 else:
     for entry in os.scandir("hw/bsp"):
-        # Skip board without board.mk e.g esp32s2
-        if entry.is_dir() and os.path.exists(entry.path + "/board.mk"):
+        if entry.is_dir():
             all_boards.append(entry.name)
 all_boards.sort()
 
@@ -40,7 +39,8 @@ def build_example(example, board):
                           stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
 
 def build_size(example, board):
-    elf_file = 'examples/device/{}/_build/build-{}/{}-firmware.elf'.format(example, board, board)
+    #elf_file = 'examples/device/{}/_build/build-{}/{}-firmware.elf'.format(example, board, board)
+    elf_file = 'examples/device/{}/_build/build-{}/*.elf'.format(example, board)
     size_output = subprocess.run('size {}'.format(elf_file), shell=True, stdout=subprocess.PIPE).stdout.decode("utf-8")
     size_list = size_output.split('\n')[1].split('\t')
     flash_size = int(size_list[0])
@@ -50,10 +50,18 @@ def build_size(example, board):
 def skip_example(example, board):
     ex_dir = 'examples/device/' + example
     board_mk = 'hw/bsp/{}/board.mk'.format(board)
-    for skip_file in glob.iglob(ex_dir + '/.skip.MCU_*'):
-        mcu_cflag = '-DCFG_TUSB_MCU=OPT_' + os.path.basename(skip_file).split('.')[2]
-        with open(board_mk) as mk:
-            if mcu_cflag in mk.read():
+
+    with open(board_mk) as mk:
+        mk_contents = mk.read()
+
+        # Skip ESP32-S2 board if example is not FreeRTOS one
+        if 'freertos' not in example and 'CROSS_COMPILE = xtensa-esp32-elf-' in mk_contents:
+            return 1
+
+        # Skip if CFG_TUSB_MCU in board.mk to match skip file
+        for skip_file in glob.iglob(ex_dir + '/.skip.MCU_*'):
+            mcu_cflag = '-DCFG_TUSB_MCU=OPT_' + os.path.basename(skip_file).split('.')[2]
+            if mcu_cflag in mk_contents:
                 return 1
 
     return 0
