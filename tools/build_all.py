@@ -11,6 +11,9 @@ exit_status = 0
 
 total_time = time.monotonic()
 
+build_format = '| {:20} | {:30} | {:9} | {:7} | {:6} | {:6} |'
+build_separator = '-' * 97
+
 # 1st Argument is Example, build all examples if not existed
 all_examples = []
 if len(sys.argv) > 1:
@@ -66,8 +69,6 @@ def skip_example(example, board):
 
     return 0
 
-build_format = '| {:20} | {:30} | {:9} | {:5} | {:6} | {:6} |'
-build_separator = '-' * 95
 print(build_separator)
 print(build_format.format('Example', 'Board', 'Result', 'Time', 'Flash', 'SRAM'))
 
