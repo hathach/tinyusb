@@ -31,15 +31,6 @@ jobs:
     - name: Setup Python
       uses: actions/setup-python@v1
     
-    - name: Cache xPacks
-      uses: actions/cache@v1
-      env:
-        cache-name: cache-xpacks-modules
-      with:
-        path: ~/opt/xPacks # xpm cache files are installed in `~/opt/xPacks` on Linux.
-        # Update key with new serial number when packages are updated
-        key: xpm-${{ runner.os }}-build-${{ env.cache-name }}-0
-    
     - name: Cache MSP430 Toolchain
       id: cache-msp430
       uses: actions/cache@v1
@@ -50,13 +41,12 @@ jobs:
     
     - name: Setup Node.js
       uses: actions/setup-node@v1.1.0
-
+      
     - name: Install Toolchains
       run: |
         npm install --global xpm
-        # If updating version, update cache key above
-        xpm install --global @xpack-dev-tools/arm-none-eabi-gcc@9.2.1-1.1.1
-        xpm install --global @xpack-dev-tools/riscv-none-embed-gcc@8.3.0-1.1.1
+        xpm install --global @xpack-dev-tools/arm-none-eabi-gcc@latest
+        xpm install --global @xpack-dev-tools/riscv-none-embed-gcc@latest
         mkdir -p /tmp/dl/
         [ -f "/tmp/dl/msp430-gcc.tar.bz2" ] || wget --progress=dot:mega http://software-dl.ti.com/msp430/msp430_public_sw/mcu/msp430/MSPGCC/8_3_0_0/exports/msp430-gcc-8.3.0.16_linux64.tar.bz2 -O /tmp/dl/msp430-gcc.tar.bz2
         tar -C $HOME -xaf /tmp/dl/msp430-gcc.tar.bz2
