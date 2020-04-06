@@ -27,6 +27,23 @@
 #include "chip.h"
 #include "../board.h"
 
+//--------------------------------------------------------------------+
+// USB Interrupt Handler
+//--------------------------------------------------------------------+
+void USB_IRQHandler(void)
+{
+  #if CFG_TUSB_RHPORT0_MODE & OPT_MODE_HOST
+    tuh_isr(0);
+  #endif
+
+  #if CFG_TUSB_RHPORT0_MODE & OPT_MODE_DEVICE
+    tud_irq_handler(0);
+  #endif
+}
+
+//--------------------------------------------------------------------+
+// MACRO TYPEDEF CONSTANT ENUM
+//--------------------------------------------------------------------+
 #define LED_PORT              0
 #define LED_PIN               22
 #define LED_STATE_ON          1
@@ -141,20 +158,6 @@ void board_init(void)
   // set portfunc to host !!!
   LPC_USB->StCtrl = 0x3; // should be 1
 #endif
-}
-
-//--------------------------------------------------------------------+
-// USB Interrupt Handler
-//--------------------------------------------------------------------+
-void USB_IRQHandler(void)
-{
-  #if CFG_TUSB_RHPORT0_MODE & OPT_MODE_HOST
-    tuh_isr(0);
-  #endif
-
-  #if CFG_TUSB_RHPORT0_MODE & OPT_MODE_DEVICE
-    tud_irq_handler(0);
-  #endif
 }
 
 //--------------------------------------------------------------------+
