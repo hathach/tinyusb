@@ -424,7 +424,7 @@ void USBD_IRQHandler(void)
   USBD->INTSTS = status & enabled_irqs;
 }
 
-void dcd_isr(uint8_t rhport)
+void dcd_irq_handler(uint8_t rhport)
 {
   (void) rhport;
   USBD_IRQHandler();

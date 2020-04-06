@@ -318,7 +318,7 @@ void maybe_transfer_complete(void) {
 }
 
 
-void dcd_isr (uint8_t rhport)
+void dcd_irq_handler (uint8_t rhport)
 {
   (void) rhport;
 

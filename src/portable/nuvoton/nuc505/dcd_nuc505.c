@@ -641,7 +641,7 @@ void USBD_IRQHandler(void)
   }
 }
 
-void dcd_isr(uint8_t rhport)
+void dcd_irq_handler(uint8_t rhport)
 {
   (void) rhport;
   USBD_IRQHandler();

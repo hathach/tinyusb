@@ -492,7 +492,7 @@ bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t t
 //--------------------------------------------------------------------+
 // ISR
 //--------------------------------------------------------------------+
-void dcd_isr(uint8_t rhport)
+void dcd_irq_handler(uint8_t rhport)
 {
   dcd_registers_t* const dcd_reg = _dcd_controller[rhport].regs;
 
