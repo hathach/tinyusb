@@ -1,4 +1,18 @@
-# TinyUSB changelog
+# TinyUSB Changelog
+
+## Master branch (WIP)
+
+### Breaking
+
+- TinyUSB does not directly implement USB IRQ Handler function anymore. Application must implement IRQ Handler and invoke `tud_irq_handler(rhport)`. This is due to:
+  
+  - IRQ Handler name can be different across system depending on the startup
+  - Some OS need to execute enterISR()/exitISR() to work properly, also tracing tool may need to insert trace ISR enter/exit to record usb event
+  - Give application full control of IRQ handler, can be useful e.g signaling there is new usb event without constant polling
+
+### MCU
+
+- All default IRQ Handler is renamed to `dcd_irq_handler()`
 
 ## 0.6.0 - 2019.03.30
 
