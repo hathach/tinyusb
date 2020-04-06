@@ -93,9 +93,10 @@
 /** \defgroup group_supported_os Supported RTOS
  *  \ref CFG_TUSB_OS must be defined to one of these
  *  @{ */
-#define OPT_OS_NONE       1 ///< No RTOS
-#define OPT_OS_FREERTOS   2 ///< FreeRTOS
-#define OPT_OS_MYNEWT     3 ///< Mynewt OS
+#define OPT_OS_NONE       1  ///< No RTOS
+#define OPT_OS_FREERTOS   2  ///< FreeRTOS
+#define OPT_OS_MYNEWT     3  ///< Mynewt OS
+#define OPT_OS_CUSTOM     4  ///< Custom OS is implemented by application
 /** @} */
 
 

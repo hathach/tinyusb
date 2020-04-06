@@ -30,7 +30,15 @@ jobs:
     steps:
     - name: Setup Python
       uses: actions/setup-python@v1
-
+    
+    - name: Cache MSP430 Toolchain
+      id: cache-msp430
+      uses: actions/cache@v1
+      with:
+        path: /tmp/dl/
+        # Increment serial number at end when updating downloads
+        key: msp430-${{ runner.os }}-0
+    
     - name: Setup Node.js
       uses: actions/setup-node@v1.1.0
       
@@ -44,23 +52,29 @@ jobs:
         echo "::add-path::`echo $HOME/opt/xPacks/@xpack-dev-tools/riscv-none-embed-gcc/*/.content/bin`"
 
         # TI MSP430 GCC
-        wget http://software-dl.ti.com/msp430/msp430_public_sw/mcu/msp430/MSPGCC/8_3_0_0/exports/msp430-gcc-8.3.0.16_linux64.tar.bz2 -O /tmp/msp430-gcc.tar.bz2
-        tar -C $HOME -xaf /tmp/msp430-gcc.tar.bz2
+        mkdir -p /tmp/dl/
+        [ -f "/tmp/dl/msp430-gcc.tar.bz2" ] || wget --progress=dot:mega http://software-dl.ti.com/msp430/msp430_public_sw/mcu/msp430/MSPGCC/8_3_0_0/exports/msp430-gcc-8.3.0.16_linux64.tar.bz2 -O /tmp/dl/msp430-gcc.tar.bz2
+        tar -C $HOME -xaf /tmp/dl/msp430-gcc.tar.bz2
         echo "::add-path::`echo $HOME/msp430-gcc-*_linux64/bin`"
 
         # ESP IDF
-        git clone https://github.com/espressif/esp-idf.git $HOME/esp-idf
+        git clone --depth 1 https://github.com/espressif/esp-idf.git $HOME/esp-idf
         cd $HOME/esp-idf
         ./install.sh
 
     - name: Checkout TinyUSB
       uses: actions/checkout@v2
-    
+      with:
+        # Cannot do submodule checkout here since LWIP's git server cannot checkout unadventised commits (it must use tags)
+        submodules: 'false'
+        
     - name: Checkout Submodules
       run: |
         git submodule sync --recursive
-        git submodule update --init --recursive
-    
+        # Special case LWIP since GNU's Savannah can't do shallow checkout of non-tagged commits
+        git submodule update --init --recursive lib/lwip
+        git submodule update --init --recursive --depth 1
+
     - name: Build
       run: |
         . $HOME/esp-idf/export.sh
