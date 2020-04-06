@@ -48,7 +48,7 @@ bool tud_init (void);
 void tud_task (void);
 
 // Interrupt handler, name alias to DCD
-#define tud_isr   dcd_isr
+#define tud_irq_handler   dcd_isr
 
 // Check if device is connected and configured
 bool tud_mounted(void);
