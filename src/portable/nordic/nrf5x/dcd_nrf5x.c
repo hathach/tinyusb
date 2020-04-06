@@ -359,8 +359,10 @@ void bus_reset(void)
   _dcd.xfer[0][TUSB_DIR_OUT].mps = MAX_PACKET_SIZE;
 }
 
-void USBD_IRQHandler(void)
+void dcd_irq_handler(uint8_t rhport)
 {
+  (void) rhport;
+
   uint32_t const inten  = NRF_USBD->INTEN;
   uint32_t int_status = 0;
 
