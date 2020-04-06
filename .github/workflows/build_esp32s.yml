@@ -1,0 +1,34 @@
+name: Build ESP32S
+
+on: [pull_request, push, repository_dispatch]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        example: ['cdc_msc_freertos']
+
+    steps:
+    - name: Setup Python
+      uses: actions/setup-python@v1
+
+    - name: Install Toolchains
+      run: |
+        # ESP IDF
+        git clone --depth 1 https://github.com/espressif/esp-idf.git $HOME/esp-idf
+        cd $HOME/esp-idf
+        ./install.sh
+
+    - name: Checkout TinyUSB
+      uses: actions/checkout@v2
+      with:
+        # Cannot do submodule checkout here since LWIP's git server cannot checkout unadventised commits (it must use tags)
+        submodules: 'false'
+
+    - name: Build
+      run: |
+        . $HOME/esp-idf/export.sh
+        python3 tools/build_all.py ${{ matrix.example }}
+
