@@ -2,7 +2,7 @@
 # Common make rules for all examples
 # ---------------------------------------
 
-ifeq ($(CROSS_COMPILE),xtensa-esp32-elf-)
+ifeq ($(CROSS_COMPILE),xtensa-esp32s2-elf-)
 # Espressif IDF use CMake build system, this add wrapper target to call idf.py
 
 .PHONY: all clean flash
