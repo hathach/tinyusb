@@ -430,8 +430,10 @@ void dcd_edpt_clear_stall(uint8_t rhport, uint8_t ep_addr)
   }
 }
 
-void USBD_IRQHandler(void)
+void dcd_irq_handler(uint8_t rhport)
 {
+  (void) rhport;
+
   uint32_t status = USBD->GINTSTS;
 
   /* USB interrupt */
@@ -639,12 +641,6 @@ void USBD_IRQHandler(void)
       }
     }
   }
-}
-
-void dcd_irq_handler(uint8_t rhport)
-{
-  (void) rhport;
-  USBD_IRQHandler();
 }
 
 #endif
