@@ -58,7 +58,7 @@ def skip_example(example, board):
         mk_contents = mk.read()
 
         # Skip ESP32-S2 board if example is not FreeRTOS one
-        if 'freertos' not in example and 'CROSS_COMPILE = xtensa-esp32-elf-' in mk_contents:
+        if 'freertos' not in example and 'CROSS_COMPILE = xtensa-esp32s2-elf-' in mk_contents:
             return 1
 
         # Skip if CFG_TUSB_MCU in board.mk to match skip file
