@@ -36,6 +36,14 @@
 #include "hpl/pm/hpl_pm_base.h"
 
 //--------------------------------------------------------------------+
+// Forward USB interrupt events to TinyUSB IRQ Handler
+//--------------------------------------------------------------------+
+void USB_Handler(void)
+{
+  tud_isr(0);
+}
+
+//--------------------------------------------------------------------+
 // MACRO TYPEDEF CONSTANT ENUM DECLARATION
 //--------------------------------------------------------------------+
 #define LED_PIN      17
@@ -134,6 +142,7 @@ int board_uart_write(void const * buf, int len)
 }
 
 #if CFG_TUSB_OS  == OPT_OS_NONE
+
 volatile uint32_t system_ticks = 0;
 void SysTick_Handler (void)
 {
@@ -144,4 +153,5 @@ uint32_t board_millis(void)
 {
   return system_ticks;
 }
+
 #endif

@@ -33,6 +33,29 @@
 #include "hpl_mclk_config.h"
 
 //--------------------------------------------------------------------+
+// Forward USB interrupt events to TinyUSB IRQ Handler
+//--------------------------------------------------------------------+
+void USB_0_Handler (void)
+{
+  tud_isr(0);
+}
+
+void USB_1_Handler (void)
+{
+  tud_isr(0);
+}
+
+void USB_2_Handler (void)
+{
+  tud_isr(0);
+}
+
+void USB_3_Handler (void)
+{
+  tud_isr(0);
+}
+
+//--------------------------------------------------------------------+
 // MACRO TYPEDEF CONSTANT ENUM DECLARATION
 //--------------------------------------------------------------------+
 #define LED_PIN      16
