@@ -12,11 +12,11 @@ all:
 	idf.py -B$(BUILD) -DBOARD=$(BOARD) build
 
 clean:
-	idf.py clean
+	idf.py -B$(BUILD) clean
 
 flash:
 	@:$(call check_defined, SERIAL, example: SERIAL=/dev/ttyUSB0)
-	idf.py -p $(SERIAL) flash
+	idf.py -B$(BUILD) -p $(SERIAL) flash
 
 else
 # GNU Make build system
