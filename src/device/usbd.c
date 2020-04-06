@@ -45,13 +45,14 @@ typedef struct {
   {
     volatile uint8_t connected    : 1;
     volatile uint8_t addressed    : 1;
-    volatile uint8_t configured   : 1;
     volatile uint8_t suspended    : 1;
 
     uint8_t remote_wakeup_en      : 1; // enable/disable by host
     uint8_t remote_wakeup_support : 1; // configuration descriptor's attribute
     uint8_t self_powered          : 1; // configuration descriptor's attribute
   };
+
+  volatile uint8_t selected_config;
 
   uint8_t itf2drv[16];     // map interface number to driver (0xff is invalid)
   uint8_t ep2drv[8][2];    // map endpoint to driver ( 0xff is invalid )
@@ -294,7 +295,7 @@ static char const* const _tusb_std_request_str[] =
 //--------------------------------------------------------------------+
 bool tud_mounted(void)
 {
-  return _usbd_dev.configured;
+  return _usbd_dev.selected_config;
 }
 
 bool tud_suspended(void)
@@ -337,19 +338,23 @@ bool tud_init (void)
   return true;
 }
 
-static void usbd_reset(uint8_t rhport)
+static void usbd_reset_config(uint8_t rhport)
 {
-  tu_varclr(&_usbd_dev);
-
   memset(_usbd_dev.itf2drv, DRVID_INVALID, sizeof(_usbd_dev.itf2drv)); // invalid mapping
   memset(_usbd_dev.ep2drv , DRVID_INVALID, sizeof(_usbd_dev.ep2drv )); // invalid mapping
-
-  usbd_control_reset();
 
   for (uint8_t i = 0; i < USBD_CLASS_DRIVER_COUNT; i++)
   {
     if ( _usbd_driver[i].reset ) _usbd_driver[i].reset( rhport );
   }
+}
+
+static void usbd_reset(uint8_t rhport)
+{
+  tu_varclr(&_usbd_dev);
+  usbd_control_reset();
+
+  usbd_reset_config(rhport);
 }
 
 /* USB Device Driver task
@@ -532,7 +537,7 @@ static bool process_control_request(uint8_t rhport, tusb_control_request_t const
 
         case TUSB_REQ_GET_CONFIGURATION:
         {
-          uint8_t cfgnum = _usbd_dev.configured ? 1 : 0;
+          uint8_t cfgnum = _usbd_dev.selected_config;
           tud_control_xfer(rhport, p_request, &cfgnum, 1);
         }
         break;
@@ -543,9 +548,18 @@ static bool process_control_request(uint8_t rhport, tusb_control_request_t const
 
           dcd_set_config(rhport, cfg_num);
 
-          if ( !_usbd_dev.configured && cfg_num ) TU_ASSERT( process_set_config(rhport, cfg_num) );
+          if (0 == cfg_num)
+          {
+            usbd_reset_config(rhport);
+            if (tud_umount_cb) tud_umount_cb();
+          }
+          else
+          {
+            TU_VERIFY( (0 == _usbd_dev.selected_config) || (cfg_num == _usbd_dev.selected_config) );
+            if (0 == _usbd_dev.selected_config) TU_ASSERT( process_set_config(rhport, cfg_num) );
+          }
 
-          _usbd_dev.configured = cfg_num ? 1 : 0;
+          _usbd_dev.selected_config = cfg_num;
 
           tud_control_status(rhport, p_request);
         }
@@ -876,8 +890,8 @@ void dcd_event_handler(dcd_event_t const * event, bool in_isr)
     case DCD_EVENT_UNPLUGGED:
       _usbd_dev.connected  = 0;
       _usbd_dev.addressed  = 0;
-      _usbd_dev.configured = 0;
       _usbd_dev.suspended  = 0;
+      _usbd_dev.selected_config = 0;
       osal_queue_send(_usbd_q, event, in_isr);
     break;
 
