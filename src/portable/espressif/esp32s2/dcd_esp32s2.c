@@ -57,9 +57,9 @@ typedef struct {
 static const char *TAG = "TUSB:DCD";
 static intr_handle_t usb_ih;
 static volatile TU_ATTR_ALIGNED(4) uint32_t _setup_packet[6];
-static uint8_t s_setup_phase = 0; /*  00 - got setup,
-                                    01 - got done setup,
-                                    02 - setup cmd sent*/
+static volatile uint8_t s_setup_phase = 0; /*  00 - got setup,
+                                               01 - got done setup,
+                                               02 - setup cmd sent*/
 
 #define XFER_CTL_BASE(_ep, _dir) &xfer_status[_ep][_dir]
 static xfer_ctl_t xfer_status[EP_MAX][2];
@@ -125,7 +125,7 @@ static void bus_reset(void)
 
     USB0.daintmsk |= USB_OUTEPMSK0_M | USB_INEPMSK0_M;
     USB0.doepmsk |= USB_SETUPMSK_M | USB_XFERCOMPLMSK;
-    USB0.diepmsk |= USB_TIMEOUTMSK_M | USB_DI_XFERCOMPLMSK_M;
+    USB0.diepmsk |= USB_TIMEOUTMSK_M | USB_DI_XFERCOMPLMSK_M /*| USB_INTKNTXFEMPMSK_M*/;
 
     // Control IN uses FIFO 0 with 64 bytes ( 16 32-bit word )
     USB0.gnptxfsiz = (16 << USB_NPTXFDEP_S) | (USB0.grxfsiz & 0x0000ffffUL);
@@ -334,30 +334,9 @@ bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t *buffer, uint16_t to
     // here.
     if (dir == TUSB_DIR_IN) {
         // A full IN transfer (multiple packets, possibly) triggers XFRC.
-        USB0.in_ep_reg[epnum].diepint = ~0U; // clear all ints
         USB0.in_ep_reg[epnum].dieptsiz = (num_packets << USB_D_PKTCNT0_S) | total_bytes;
         USB0.in_ep_reg[epnum].diepctl |= USB_D_EPENA1_M | USB_D_CNAK1_M; // Enable | CNAK
-
-#if 1
-        //int bytes2fifo_left = tu_min16(total_bytes, xfer->max_size);
-        int bytes2fifo_left = total_bytes;
-        uint32_t val; // 32 bit val from 4 buff addresses
-        while (bytes2fifo_left > 0) {  // TODO move it to ep_in_handle (IDF-1475)
-            /* ATTENTION! In cases when CFG_TUD_ENDOINT0_SIZE, CFG_TUD_CDC_EPSIZE, CFG_TUD_MIDI_EPSIZE or
-            CFG_TUD_MSC_BUFSIZE < 4 next line can be a cause of an error.*/
-            val = (*(buffer + 3) << 24) |
-                  (*(buffer + 2) << 16) |
-                  (*(buffer + 1) << 8) |
-                  (*(buffer + 0) << 0);
-            ESP_LOGV(TAG, "Transfer 0x%08x -> FIFO%d", val, epnum);
-            USB0.fifo[epnum][0] = val; //copy and next buffer address
-            buffer += 4;
-            bytes2fifo_left -= 4;
-        }
-#else
-//        transmit_packet(xfer, &USB0.in_ep_reg[epnum], epnum);
-        // USB0.dtknqr4_fifoemptymsk |= (1 << epnum);
-#endif
+        USB0.dtknqr4_fifoemptymsk |= (1 << epnum);
     } else {
         // Each complete packet for OUT xfers triggers XFRC.
         USB0.out_ep_reg[epnum].doeptsiz = USB_PKTCNT0_M |
@@ -521,9 +500,8 @@ static void receive_packet(xfer_ctl_t *xfer, /* usb_out_endpoint_t * out_ep, */ 
 
 static void transmit_packet(xfer_ctl_t *xfer, volatile usb_in_endpoint_t *in_ep, uint8_t fifo_num)
 {
-
     ESP_EARLY_LOGV(TAG, "USB - transmit_packet");
-    uint32_t *tx_fifo = USB0.fifo[0];
+    volatile uint32_t *tx_fifo = USB0.fifo[fifo_num];
 
     uint16_t remaining = (in_ep->dieptsiz & 0x7FFFFU) >> USB_D_XFERSIZE0_S;
     xfer->queued_len = xfer->total_len - remaining;
@@ -567,10 +545,11 @@ static void read_rx_fifo(void)
 {
     // Pop control word off FIFO (completed xfers will have 2 control words,
     // we only pop one ctl word each interrupt).
-    volatile uint32_t ctl_word = USB0.grxstsp;
+    uint32_t ctl_word = USB0.grxstsp;
     uint8_t pktsts = (ctl_word & USB_PKTSTS_M) >> USB_PKTSTS_S;
     uint8_t epnum = (ctl_word & USB_CHNUM_M) >> USB_CHNUM_S;
     uint16_t bcnt = (ctl_word & USB_BCNT_M) >> USB_BCNT_S;
+
     switch (pktsts) {
     case 0x01: // Global OUT NAK (Interrupt)
         ESP_EARLY_LOGV(TAG, "TUSB IRQ - RX type : Global OUT NAK");
@@ -668,12 +647,12 @@ static void handle_epin_ints(void)
             if (USB0.in_ep_reg[n].diepint & USB_D_XFERCOMPL0_M) {
                 ESP_EARLY_LOGV(TAG, "TUSB IRQ - IN XFER complete!");
                 USB0.in_ep_reg[n].diepint = USB_D_XFERCOMPL0_M;
-                // USB0.dtknqr4_fifoemptymsk &= ~(1 << n); // Turn off TXFE b/c xfer inactive.
+                USB0.dtknqr4_fifoemptymsk &= ~(1 << n); // Turn off TXFE b/c xfer inactive.
                 dcd_event_xfer_complete(0, n | TUSB_DIR_IN_MASK, xfer->total_len, XFER_RESULT_SUCCESS, true);
             }
 
             // XFER FIFO empty
-            if (USB0.in_ep_reg[n].diepint & USB_D_XFERCOMPL0_M) {
+            if (USB0.in_ep_reg[n].diepint & USB_D_TXFEMP0_M) {
                 ESP_EARLY_LOGV(TAG, "TUSB IRQ - IN XFER FIFO empty!");
                 USB0.in_ep_reg[n].diepint = USB_D_TXFEMP0_M;
                 transmit_packet(xfer, &USB0.in_ep_reg[n], n);
@@ -685,8 +664,8 @@ static void handle_epin_ints(void)
 
 static void dcd_int_handler(void)
 {
-    uint32_t int_status = USB0.gintsts;
-    uint32_t int_msk = USB0.gintmsk;
+    const uint32_t int_status = USB0.gintsts;
+    const uint32_t int_msk = USB0.gintmsk;
 
     if (int_status & USB_DISCONNINT_M) {
         ESP_EARLY_LOGV(TAG, "dcd_int_handler - disconnected");
