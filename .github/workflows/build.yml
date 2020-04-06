@@ -7,7 +7,7 @@ jobs:
     runs-on: ubuntu-latest    
     steps:
     - name: Setup Ruby
-      uses: actions/setup-ruby@v1.0.0
+      uses: actions/setup-ruby@v1
       
     - name: Checkout TinyUSB
       uses: actions/checkout@v2
@@ -32,7 +32,7 @@ jobs:
       uses: actions/setup-python@v1
 
     - name: Setup Node.js
-      uses: actions/setup-node@v1.1.0
+      uses: actions/setup-node@v1
 
     - name: Cache MSP430 Toolchain
       id: cache-msp430
