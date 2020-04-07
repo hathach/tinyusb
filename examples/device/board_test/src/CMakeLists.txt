@@ -15,5 +15,5 @@ target_include_directories(${COMPONENT_TARGET} PUBLIC
 )
 
 target_sources(${COMPONENT_TARGET} PUBLIC
-  "${TOP}/hw/bsp/esp32s2_saola/esp32s2_saola.c"
+  "${TOP}/hw/bsp/esp32s2_saola_1/esp32s2_saola_1.c"
 )
