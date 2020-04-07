@@ -590,7 +590,7 @@ bool usbtmcd_control_request_cb(uint8_t rhport, tusb_control_request_t const * r
       criticalEnter();
       usbtmc_state.state = STATE_NAK; // USBD core has placed EP in NAK state for us
       criticalLeave();
-      tud_usmtmc_bulkOut_clearFeature_cb();
+      tud_usbtmc_bulkOut_clearFeature_cb();
     }
     else if (ep_addr == usbtmc_state.ep_bulk_in)
     {

@@ -36,12 +36,12 @@
 
 #include "common/tusb_common.h"
 
-enum
-{
-  OSAL_TIMEOUT_NOTIMEOUT    = 0,      // return immediately
-  OSAL_TIMEOUT_NORMAL       = 10,     // default timeout
-  OSAL_TIMEOUT_WAIT_FOREVER = 0xFFFFFFFFUL
-};
+// Return immediately
+#define OSAL_TIMEOUT_NOTIMEOUT (0)
+// Default timeout
+#define OSAL_TIMEOUT_NORMAL       (10)
+// Wait forever
+#define OSAL_TIMEOUT_WAIT_FOREVER  (UINT32_MAX)
 
 #define OSAL_TIMEOUT_CONTROL_XFER  OSAL_TIMEOUT_WAIT_FOREVER
 
