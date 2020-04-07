@@ -1,7 +1,3 @@
-# TOP is absolute path to root directory of TinyUSB git repo
-set(TOP "../../../..")
-get_filename_component(TOP "${TOP}" REALPATH)
-
 idf_component_register(SRCS "main.c" "usb_descriptors.c" "msc_disk.c"
                     INCLUDE_DIRS "."
                     REQUIRES freertos soc)

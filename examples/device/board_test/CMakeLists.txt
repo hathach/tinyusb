@@ -11,4 +11,4 @@ get_filename_component(TOP "${TOP}" REALPATH)
 
 include($ENV{IDF_PATH}/tools/cmake/project.cmake)
 
-project(cdc_msc_freertos)
+project(board_test)

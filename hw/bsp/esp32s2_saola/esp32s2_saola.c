@@ -32,7 +32,10 @@
 // MACRO TYPEDEF CONSTANT ENUM DECLARATION
 //--------------------------------------------------------------------+
 
-#define LED_PIN   21
+#define LED_PIN               21
+
+#define BUTTON_PIN            0
+#define BUTTON_STATE_ACTIVE   0
 
 // Initialize on-board peripherals : led, button, uart and USB
 void board_init(void)
@@ -40,6 +43,11 @@ void board_init(void)
   // LED
   gpio_pad_select_gpio(LED_PIN);
   gpio_set_direction(LED_PIN, GPIO_MODE_OUTPUT);
+
+  // Button
+  gpio_pad_select_gpio(BUTTON_PIN);
+  gpio_set_direction(BUTTON_PIN, GPIO_MODE_INPUT);
+  gpio_set_pull_mode(BUTTON_PIN, BUTTON_STATE_ACTIVE ? GPIO_PULLDOWN_ONLY : GPIO_PULLUP_ONLY);
 
   // USB Controller Hal init
   usb_hal_context_t hal = {
@@ -58,7 +66,7 @@ void board_led_write(bool state)
 // a '1' means active (pressed), a '0' means inactive.
 uint32_t board_button_read(void)
 {
-  return 0;
+  return gpio_get_level(BUTTON_PIN) == BUTTON_STATE_ACTIVE;
 }
 
 // Get characters from UART
