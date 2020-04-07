@@ -52,7 +52,7 @@ typedef struct {
     uint8_t self_powered          : 1; // configuration descriptor's attribute
   };
 
-  volatile uint8_t selected_config;
+  volatile uint8_t config_num;
 
   uint8_t itf2drv[16];     // map interface number to driver (0xff is invalid)
   uint8_t ep2drv[8][2];    // map endpoint to driver ( 0xff is invalid )
@@ -295,7 +295,7 @@ static char const* const _tusb_std_request_str[] =
 //--------------------------------------------------------------------+
 bool tud_mounted(void)
 {
-  return _usbd_dev.selected_config;
+  return _usbd_dev.config_num;
 }
 
 bool tud_suspended(void)
@@ -537,7 +537,7 @@ static bool process_control_request(uint8_t rhport, tusb_control_request_t const
 
         case TUSB_REQ_GET_CONFIGURATION:
         {
-          uint8_t cfgnum = _usbd_dev.selected_config;
+          uint8_t cfgnum = _usbd_dev.config_num;
           tud_control_xfer(rhport, p_request, &cfgnum, 1);
         }
         break;
@@ -555,11 +555,11 @@ static bool process_control_request(uint8_t rhport, tusb_control_request_t const
           }
           else
           {
-            TU_VERIFY( (0 == _usbd_dev.selected_config) || (cfg_num == _usbd_dev.selected_config) );
-            if (0 == _usbd_dev.selected_config) TU_ASSERT( process_set_config(rhport, cfg_num) );
+            TU_VERIFY( (0 == _usbd_dev.config_num) || (cfg_num == _usbd_dev.config_num) );
+            if (0 == _usbd_dev.config_num) TU_ASSERT( process_set_config(rhport, cfg_num) );
           }
 
-          _usbd_dev.selected_config = cfg_num;
+          _usbd_dev.config_num = cfg_num;
 
           tud_control_status(rhport, p_request);
         }
@@ -891,7 +891,7 @@ void dcd_event_handler(dcd_event_t const * event, bool in_isr)
       _usbd_dev.connected  = 0;
       _usbd_dev.addressed  = 0;
       _usbd_dev.suspended  = 0;
-      _usbd_dev.selected_config = 0;
+      _usbd_dev.config_num = 0;
       osal_queue_send(_usbd_q, event, in_isr);
     break;
 
