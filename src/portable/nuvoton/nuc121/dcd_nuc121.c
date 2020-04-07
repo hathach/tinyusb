@@ -446,4 +446,16 @@ void dcd_isr(uint8_t rhport)
   USBD_IRQHandler();
 }
 
+void dcd_disconnect(uint8_t rhport)
+{
+  (void) rhport;
+  usb_detach();
+}
+
+void dcd_connect(uint8_t rhport)
+{
+  (void) rhport;
+  usb_attach();
+}
+
 #endif
