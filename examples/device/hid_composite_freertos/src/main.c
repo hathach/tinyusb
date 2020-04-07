@@ -36,6 +36,8 @@
 #include "bsp/board.h"
 #include "tusb.h"
 
+#include "usb_descriptors.h"
+
 //--------------------------------------------------------------------+
 // MACRO CONSTANT TYPEDEF PROTYPES
 //--------------------------------------------------------------------+
@@ -60,15 +62,15 @@ TimerHandle_t blinky_tm;
 StackType_t  usb_device_stack[USBD_STACK_SIZE];
 StaticTask_t usb_device_taskdef;
 
-// static task for cdc
-#define CDC_STACK_SZIE      configMINIMAL_STACK_SIZE
-StackType_t  cdc_stack[CDC_STACK_SZIE];
-StaticTask_t cdc_taskdef;
+// static task for hid
+#define HID_STACK_SZIE      configMINIMAL_STACK_SIZE
+StackType_t  hid_stack[HID_STACK_SZIE];
+StaticTask_t hid_taskdef;
 
 
 void led_blinky_cb(TimerHandle_t xTimer);
 void usb_device_task(void* param);
-void cdc_task(void* params);
+void hid_task(void* params);
 
 //--------------------------------------------------------------------+
 // Main
@@ -86,8 +88,8 @@ int main(void)
   // Create a task for tinyusb device stack
   (void) xTaskCreateStatic( usb_device_task, "usbd", USBD_STACK_SIZE, NULL, configMAX_PRIORITIES-1, usb_device_stack, &usb_device_taskdef);
 
-  // Create CDC task
-  (void) xTaskCreateStatic( cdc_task, "cdc", CDC_STACK_SZIE, NULL, configMAX_PRIORITIES-2, cdc_stack, &cdc_taskdef);
+  // Create HID task
+  (void) xTaskCreateStatic( hid_task, "hid", HID_STACK_SZIE, NULL, configMAX_PRIORITIES-2, hid_stack, &hid_taskdef);
 
   // skip starting scheduler (and return) for ESP32-S2
 #if CFG_TUSB_MCU != OPT_MCU_ESP32S2
@@ -150,58 +152,90 @@ void tud_resume_cb(void)
 }
 
 //--------------------------------------------------------------------+
-// USB CDC
+// USB HID
 //--------------------------------------------------------------------+
-void cdc_task(void* params)
+
+void hid_task(void* param)
 {
-  (void) params;
+  (void) param;
 
-  // RTOS forever loop
-  while ( 1 )
+  while(1)
   {
-    if ( tud_cdc_connected() )
+    // Poll every 10ms
+    vTaskDelay(pdMS_TO_TICKS(10));
+
+    uint32_t const btn = board_button_read();
+
+    // Remote wakeup
+    if ( tud_suspended() && btn )
     {
-      // connected and there are data available
-      if ( tud_cdc_available() )
+      // Wake up host if we are in suspend mode
+      // and REMOTE_WAKEUP feature is enabled by host
+      tud_remote_wakeup();
+    }
+
+    /*------------- Mouse -------------*/
+    if ( tud_hid_ready() )
+    {
+      if ( btn )
       {
-        uint8_t buf[64];
+        int8_t const delta = 5;
 
-        // read and echo back
-        uint32_t count = tud_cdc_read(buf, sizeof(buf));
+        // no button, right + down, no scroll pan
+        tud_hid_mouse_report(REPORT_ID_MOUSE, 0x00, delta, delta, 0, 0);
 
-        for(uint32_t i=0; i<count; i++)
-        {
-          tud_cdc_write_char(buf[i]);
-
-          if ( buf[i] == '\r' ) tud_cdc_write_char('\n');
-        }
-
-        tud_cdc_write_flush();
+        // delay a bit before attempt to send keyboard report
+        vTaskDelay(pdMS_TO_TICKS(10));
       }
     }
 
-    // For ESP32-S2 this delay is essential to allow idle how to run and reset wdt
-    vTaskDelay(pdMS_TO_TICKS(10));
+    /*------------- Keyboard -------------*/
+    if ( tud_hid_ready() )
+    {
+      // use to avoid send multiple consecutive zero report for keyboard
+      static bool has_key = false;
+
+      if ( btn )
+      {
+        uint8_t keycode[6] = { 0 };
+        keycode[0] = HID_KEY_A;
+
+        tud_hid_keyboard_report(REPORT_ID_KEYBOARD, 0, keycode);
+
+        has_key = true;
+      }else
+      {
+        // send empty key report if previously has key pressed
+        if (has_key) tud_hid_keyboard_report(REPORT_ID_KEYBOARD, 0, NULL);
+        has_key = false;
+      }
+    }
   }
 }
 
-// Invoked when cdc when line state changed e.g connected/disconnected
-void tud_cdc_line_state_cb(uint8_t itf, bool dtr, bool rts)
+// Invoked when received GET_REPORT control request
+// Application must fill buffer report's content and return its length.
+// Return zero will cause the stack to STALL request
+uint16_t tud_hid_get_report_cb(uint8_t report_id, hid_report_type_t report_type, uint8_t* buffer, uint16_t reqlen)
 {
-  (void) itf;
+  // TODO not Implemented
+  (void) report_id;
+  (void) report_type;
+  (void) buffer;
+  (void) reqlen;
 
-  // connected
-  if ( dtr && rts )
-  {
-    // print initial message when connected
-    tud_cdc_write_str("\r\nTinyUSB CDC MSC HID device with FreeRTOS example\r\n");
-  }
+  return 0;
 }
 
-// Invoked when CDC interface received data from host
-void tud_cdc_rx_cb(uint8_t itf)
+// Invoked when received SET_REPORT control request or
+// received data on OUT endpoint ( Report ID = 0, Type = 0 )
+void tud_hid_set_report_cb(uint8_t report_id, hid_report_type_t report_type, uint8_t const* buffer, uint16_t bufsize)
 {
-  (void) itf;
+  // TODO set LED based on CAPLOCK, NUMLOCK etc...
+  (void) report_id;
+  (void) report_type;
+  (void) buffer;
+  (void) bufsize;
 }
 
 //--------------------------------------------------------------------+
