@@ -9,6 +9,10 @@ The board support code is only used for self-contained examples and testing. It 
 
 This code base already had supported for a handful of following boards (sorted alphabetically)
 
+### Espressif ESP32-S2
+
+- [ESP32-S2-Saola-1](https://docs.espressif.com/projects/esp-idf/en/latest/esp32s2/hw-reference/esp32s2/user-guide-saola-1-v1.2.html)
+
 ### MicroChip SAMD
 
 - [Adafruit Circuit Playground Express](https://www.adafruit.com/product/3333)
