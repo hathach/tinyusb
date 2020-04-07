@@ -27,7 +27,7 @@ jobs:
       fail-fast: false
       matrix:
         example: ['board_test', 'cdc_dual_ports', 'cdc_msc', 'cdc_msc_freertos', 'dfu_rt', 
-                  'hid_composite', 'hid_generic_inout', 'midi_test', 'msc_dual_lun', 'net_lwip_webserver', 
+                  'hid_composite', 'hid_composite_freertos', 'hid_generic_inout', 'midi_test', 'msc_dual_lun', 'net_lwip_webserver',
                   'usbtmc', 'webusb_serial']
     steps:
     - name: Setup Python
@@ -97,5 +97,4 @@ jobs:
     - name: Build
       run: |
         . $HOME/esp-idf/export.sh
-        cd examples/device/cdc_msc_freertos
-        idf.py build
+        python3 tools/build_esp32s.py
