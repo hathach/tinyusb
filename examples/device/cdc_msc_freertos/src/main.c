@@ -88,10 +88,8 @@ int main(void)
   // Create a task for tinyusb device stack
   (void) xTaskCreateStatic( usb_device_task, "usbd", USBD_STACK_SIZE, NULL, configMAX_PRIORITIES-1, stack_usbd, &static_task_usbd);
 
-  // Create task
-#if CFG_TUD_CDC
+  // Create CDC task
   (void) xTaskCreateStatic( cdc_task, "cdc", CDC_STACK_SZIE, NULL, configMAX_PRIORITIES-2, stack_cdc, &static_task_cdc);
-#endif
 
   // skip starting scheduler (and return) for ESP32-S2
 #if CFG_TUSB_MCU != OPT_MCU_ESP32S2
@@ -151,7 +149,6 @@ void tud_resume_cb(void)
 //--------------------------------------------------------------------+
 // USB CDC
 //--------------------------------------------------------------------+
-#if CFG_TUD_CDC
 void cdc_task(void* params)
 {
   (void) params;
@@ -203,8 +200,6 @@ void tud_cdc_rx_cb(uint8_t itf)
 {
   (void) itf;
 }
-
-#endif // CFG_TUD_CDC
 
 //--------------------------------------------------------------------+
 // BLINKING TASK
