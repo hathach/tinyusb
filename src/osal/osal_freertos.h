@@ -37,12 +37,39 @@
 extern "C" {
 #endif
 
+/* Translate TinyUSB msec to FreeRTOS ticks. May clip value in the case
+    of 16-bit ticks. */
+static inline TickType_t _tusb_osal_freertos_translate_msec_to_ticks(uint32_t msec)
+{
+#if (configUSE_16_BIT_TICKS == 1)
+  // Will never overflow here, since portMAX_DELAY is 16-bit
+  const uint32_t max_msec = ((uint32_t)(portMAX_DELAY-1))*1000U/configTICK_RATE_HZ - 1;
+#elif (configTICK_RATE_HZ >= 1000)
+  // slightly conservative, actual max is larger due to rounding.
+  const uint32_t max_msec = ((uint32_t)(portMAX_DELAY-1))/((uint32_t)configTICK_RATE_HZ)*1000U - 1; 
+#else
+  const uint32_t max_sec = (((uint32_t)portMAX_DELAY-1)) / configTICK_RATE_HZ;
+  const uint32_t max_msec =  (max_sec > (UINT32_MAX/1000)) ? (UINT32_MAX-1) : (max_sec * 1000 - 1);
+#endif
+
+  // Translate wait forever
+  if(msec >= OSAL_TIMEOUT_WAIT_FOREVER) 
+  {
+    // Note, FreeRTOS only waits forever if (INCLUDE_vTaskSuspend == 1), in RTOS config.
+    return portMAX_DELAY;
+  }
+  if(msec >= max_msec)
+  {
+    return portMAX_DELAY-1;
+  }
+  return pdMS_TO_TICKS(msec);
+}
 //--------------------------------------------------------------------+
 // TASK API
 //--------------------------------------------------------------------+
 static inline void osal_task_delay(uint32_t msec)
 {
-  vTaskDelay( pdMS_TO_TICKS(msec) );
+  vTaskDelay( _tusb_osal_freertos_translate_msec_to_ticks(msec) );
 }
 
 //--------------------------------------------------------------------+
@@ -63,7 +90,7 @@ static inline bool osal_semaphore_post(osal_semaphore_t sem_hdl, bool in_isr)
 
 static inline bool osal_semaphore_wait (osal_semaphore_t sem_hdl, uint32_t msec)
 {
-  uint32_t const ticks = (msec == OSAL_TIMEOUT_WAIT_FOREVER) ? portMAX_DELAY : pdMS_TO_TICKS(msec);
+  TickType_t const ticks = _tusb_osal_freertos_translate_msec_to_ticks(msec);
   return xSemaphoreTake(sem_hdl, ticks);
 }
 
@@ -125,7 +152,7 @@ static inline bool osal_queue_receive(osal_queue_t const queue_hdl, void* data)
 
 static inline bool osal_queue_send(osal_queue_t const queue_hdl, void const * data, bool in_isr)
 {
-  return in_isr ? xQueueSendToBackFromISR(queue_hdl, data, NULL) : xQueueSendToBack(queue_hdl, data, OSAL_TIMEOUT_WAIT_FOREVER);
+  return in_isr ? xQueueSendToBackFromISR(queue_hdl, data, NULL) : xQueueSendToBack(queue_hdl, data, portMAX_DELAY);
 }
 
 #ifdef __cplusplus
