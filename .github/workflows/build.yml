@@ -3,6 +3,7 @@ name: Build
 on: [pull_request, push, repository_dispatch]
 
 jobs:
+  # Unit testing with Ceedling
   unit-test:
     runs-on: ubuntu-latest    
     steps:
@@ -19,6 +20,7 @@ jobs:
         cd test
         ceedling test:all
 
+  # Build most of the ports
   build:
     runs-on: ubuntu-latest
     strategy:
@@ -57,11 +59,6 @@ jobs:
         tar -C $HOME -xaf /tmp/dl/msp430-gcc.tar.bz2
         echo "::add-path::`echo $HOME/msp430-gcc-*_linux64/bin`"
 
-        # ESP IDF
-        git clone --depth 1 https://github.com/espressif/esp-idf.git $HOME/esp-idf
-        cd $HOME/esp-idf
-        ./install.sh
-
     - name: Checkout TinyUSB
       uses: actions/checkout@v2
       with:
@@ -80,3 +77,26 @@ jobs:
         . $HOME/esp-idf/export.sh
         python3 tools/build_all.py ${{ matrix.example }}
 
+  # Build ESP32S
+  build-esp32s:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Setup Python
+      uses: actions/setup-python@v1
+
+    - name: Install Toolchains
+      run: |
+        git clone --depth 1 https://github.com/espressif/esp-idf.git $HOME/esp-idf
+        cd $HOME/esp-idf
+        ./install.sh
+
+    - name: Checkout TinyUSB
+      uses: actions/checkout@v2
+      with:
+        submodules: 'false'
+
+    - name: Build
+      run: |
+        . $HOME/esp-idf/export.sh
+        cd examples/device/cdc_msc_freertos
+        idf.py build
