@@ -59,6 +59,7 @@ def skip_example(example, board):
 
 print(build_separator)
 print(build_format.format('Example', 'Board', 'Result', 'Time', 'Flash', 'SRAM'))
+print(build_separator)
 
 for example in all_examples:
     for board in all_boards:
