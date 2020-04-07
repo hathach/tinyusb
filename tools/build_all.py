@@ -11,8 +11,8 @@ exit_status = 0
 
 total_time = time.monotonic()
 
-build_format = '| {:20} | {:30} | {:9} | {:7} | {:6} | {:6} |'
-build_separator = '-' * 97
+build_format = '| {:23} | {:30} | {:9} | {:7} | {:6} | {:6} |'
+build_separator = '-' * 100
 
 # 1st Argument is Example, build all examples if not existed
 all_examples = []
