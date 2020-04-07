@@ -74,7 +74,6 @@ jobs:
 
     - name: Build
       run: |
-        . $HOME/esp-idf/export.sh
         python3 tools/build_all.py ${{ matrix.example }}
 
   # Build ESP32S
