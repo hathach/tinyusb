@@ -32,6 +32,7 @@
 // MACRO TYPEDEF CONSTANT ENUM DECLARATION
 //--------------------------------------------------------------------+
 
+// TODO use saola-1 on-board neopixel (WS2812)
 #define LED_PIN               21
 
 #define BUTTON_PIN            0
