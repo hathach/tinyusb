@@ -273,23 +273,26 @@ static void handle_incoming_packet(uint32_t len)
   }
 #endif
 
+  bool accepted = false;
+
   if (size)
   {
     struct pbuf *p = pbuf_alloc(PBUF_RAW, size, PBUF_POOL);
-    bool accepted = true;
 
     if (p)
     {
       memcpy(p->payload, pnt, size);
       p->len = size;
       accepted = tud_network_recv_cb(p);
-    }
 
-    if (!p || !accepted)
-    {
-      /* if a buffer couldn't be allocated or accepted by the callback, we must discard this packet */
-      tud_network_recv_renew();
+      if (!accepted) pbuf_free(p);
     }
+  }
+
+  if (!accepted)
+  {
+    /* if a buffer was never handled by user code, we must renew on the user's behalf */
+    tud_network_recv_renew();
   }
 }
 
