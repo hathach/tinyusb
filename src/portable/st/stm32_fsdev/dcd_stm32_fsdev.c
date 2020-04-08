@@ -239,16 +239,28 @@ void dcd_init (uint8_t rhport)
   }
   USB->CNTR |= USB_CNTR_RESETM | USB_CNTR_SOFM | USB_CNTR_ESOFM | USB_CNTR_CTRM | USB_CNTR_SUSPM | USB_CNTR_WKUPM;
   dcd_handle_bus_reset();
-
-  // And finally enable pull-up, which may trigger the RESET IRQ if the host is connected.
-  // (if this MCU has an internal pullup)
-#if defined(USB_BCDR_DPPU)
-  USB->BCDR |= USB_BCDR_DPPU;
-#else
-  // FIXME: callback to the user to ask them to twiddle a GPIO to disable/enable D+???
-#endif
-
+  
+  // Data-line pull-up is left disconnected.
 }
+
+// Define only on MCU with internal pull-up so BSP can override (needed on MCU without internal pull-up)
+#if defined(USB_BCDR_DPPU)
+
+TU_ATTR_WEAK
+void dcd_disconnect(uint8_t rhport)
+{
+  (void) rhport;
+  USB->BCDR &= ~(USB_BCDR_DPPU);
+}
+
+TU_ATTR_WEAK
+void dcd_connect(uint8_t rhport)
+{
+  (void) rhport;
+  USB->BCDR |= USB_BCDR_DPPU;
+}
+
+#endif
 
 // Enable device interrupt
 void dcd_int_enable (uint8_t rhport)
