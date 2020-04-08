@@ -42,6 +42,10 @@
 
 #include "device/dcd.h"
 
+// Since TinyUSB doesn't use SOF for now, and this interrupt too often (1ms interval)
+// We disable SOF for now until needed later on
+#define USE_SOF     0
+
 // FIFO size in bytes TODO need confirmation from Espressif
 #define EP_MAX            USB_OUT_EP_NUM
 #define EP_FIFO_SIZE      1280
@@ -112,7 +116,7 @@ static void bus_reset(void)
     USB0.grxfsiz = 52;
 
     USB0.gintmsk = USB_MODEMISMSK_M |
-                   USB_SOFMSK_M |
+                   /* USB_SOFMSK_M | */
                    USB_RXFLVIMSK_M |
                    USB_ERLYSUSPMSK_M |
                    USB_USBSUSPMSK_M |
@@ -154,7 +158,7 @@ static void enum_done_processing(void)
         xfer_status[0][TUSB_DIR_IN].max_size = 8;
     }
 
-    USB0.gintmsk |= USB_SOFMSK_M; // SOF unmask
+//    USB0.gintmsk |= USB_SOFMSK_M; // SOF unmask
 }
 
 
@@ -202,7 +206,7 @@ void dcd_init(uint8_t rhport)
     USB0.gotgint = ~0U; //clear OTG ints
     USB0.gintsts = ~0U; //clear pending ints
     USB0.gintmsk = USB_MODEMISMSK_M |
-                   USB_SOFMSK_M |
+                   /*USB_SOFMSK_M |*/
                    USB_RXFLVIMSK_M |
                    USB_ERLYSUSPMSK_M |
                    USB_USBSUSPMSK_M |
