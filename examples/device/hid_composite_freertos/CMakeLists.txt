@@ -10,5 +10,6 @@ set(TOP "../../..")
 get_filename_component(TOP "${TOP}" REALPATH)
 
 include($ENV{IDF_PATH}/tools/cmake/project.cmake)
+set(SUPPORTED_TARGETS esp32s2)
 
 project(hid_composite_freertos)
