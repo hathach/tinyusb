@@ -24,26 +24,41 @@
  * This file is part of the TinyUSB stack.
  */
 
-#include "bsp/board.h"
+#include "../board.h"
 #include "driver/gpio.h"
 #include "hal/usb_hal.h"
+
+#include "driver/rmt.h"
+#include "led_strip/include/led_strip.h"
 
 //--------------------------------------------------------------------+
 // MACRO TYPEDEF CONSTANT ENUM DECLARATION
 //--------------------------------------------------------------------+
 
-// TODO use saola-1 on-board neopixel (WS2812)
-#define LED_PIN               21
+// Note: On the production version (v1.2) WS2812 is connected to GPIO 18,
+// however earlier revision v1.1 WS2812 is connected to GPIO 17
+//#define LED_PIN               18 // v1.2 and later
+#define LED_PIN               17 // v1.1
 
 #define BUTTON_PIN            0
 #define BUTTON_STATE_ACTIVE   0
 
+
+static led_strip_t *strip;
+
 // Initialize on-board peripherals : led, button, uart and USB
 void board_init(void)
 {
-  // LED
-  gpio_pad_select_gpio(LED_PIN);
-  gpio_set_direction(LED_PIN, GPIO_MODE_OUTPUT);
+  // WS2812 Neopixel driver with RMT peripheral
+  rmt_config_t config = RMT_DEFAULT_CONFIG_TX(LED_PIN, RMT_CHANNEL_0);
+  config.clk_div = 2; // set counter clock to 40MHz
+
+  rmt_config(&config);
+  rmt_driver_install(config.channel, 0, 0);
+
+  led_strip_config_t strip_config = LED_STRIP_DEFAULT_CONFIG(1, (led_strip_dev_t) config.channel);
+  strip = led_strip_new_rmt_ws2812(&strip_config);
+  strip->clear(strip, 100); // off led
 
   // Button
   gpio_pad_select_gpio(BUTTON_PIN);
@@ -60,7 +75,8 @@ void board_init(void)
 // Turn LED on or off
 void board_led_write(bool state)
 {
-  gpio_set_level(LED_PIN, state);
+  strip->set_pixel(strip, 0, (state ? 0x88 : 0x00), 0x00, 0x00);
+  strip->refresh(strip, 100);
 }
 
 // Get the current state of button
