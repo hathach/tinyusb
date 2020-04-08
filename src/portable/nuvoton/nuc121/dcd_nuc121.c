@@ -229,6 +229,15 @@ void dcd_set_config(uint8_t rhport, uint8_t config_num)
 {
   (void) rhport;
   (void) config_num;
+
+  /* reset context of all non-control endpoints */
+
+  for (enum ep_enum ep_index = PERIPH_EP2; ep_index < PERIPH_MAX_EP; ep_index++)
+  {
+    USBD->EP[ep_index].CFG = 0;
+  }
+
+  bufseg_addr = PERIPH_EP2_BUF_BASE;
 }
 
 void dcd_remote_wakeup(uint8_t rhport)

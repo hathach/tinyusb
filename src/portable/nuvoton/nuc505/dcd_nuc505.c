@@ -112,8 +112,6 @@ static struct
   uint16_t total_bytes;
 } ctrl_in_xfer;
 
-static volatile bool configuration_changed;
-
 static volatile struct xfer_ctl_t *current_dma_xfer;
 
 
@@ -214,7 +212,6 @@ static void bus_reset(void)
   /* Reset USB device address */
   USBD->FADDR = 0;
 
-  configuration_changed = false;
   current_dma_xfer = NULL;
 }
 
@@ -300,7 +297,15 @@ void dcd_set_config(uint8_t rhport, uint8_t config_num)
 {
   (void) rhport;
   (void) config_num;
-  configuration_changed = true;
+
+  /* reset context of all non-control endpoints */
+
+  for (enum ep_enum ep_index = PERIPH_EPA; ep_index < PERIPH_MAX_EP; ep_index++)
+  {
+    USBD->EP[ep_index].EPCFG = 0;
+  }
+
+  bufseg_addr = CFG_TUD_ENDPOINT0_SIZE;
 }
 
 void dcd_remote_wakeup(uint8_t rhport)
@@ -573,15 +578,6 @@ void USBD_IRQHandler(void)
     {
       /* given ACK from host has happened, we can now set the address (if not already done) */
       if((USBD->FADDR != assigned_address) && (USBD->FADDR == 0)) USBD->FADDR = assigned_address;
-
-      if (configuration_changed)
-      {
-        for (enum ep_enum ep_index = PERIPH_EPA; ep_index < PERIPH_MAX_EP; ep_index++)
-        {
-          if (USBD->EP[ep_index].EPCFG & USBD_EPCFG_EPEN_Msk) USBD->EP[ep_index].EPRSPCTL = USBD_EPRSPCTL_TOGGLE_Msk;
-        }
-        configuration_changed = false;
-      }
 
       USBD->CEPINTEN = USBD_CEPINTEN_SETUPPKIEN_Msk;
     }
