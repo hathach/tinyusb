@@ -116,7 +116,9 @@ static void bus_reset(void)
     USB0.grxfsiz = 52;
 
     USB0.gintmsk = USB_MODEMISMSK_M |
-                   /* USB_SOFMSK_M | */
+#if USE_SOF
+                   USB_SOFMSK_M |
+#endif
                    USB_RXFLVIMSK_M |
                    USB_ERLYSUSPMSK_M |
                    USB_USBSUSPMSK_M |
@@ -157,8 +159,6 @@ static void enum_done_processing(void)
         xfer_status[0][TUSB_DIR_OUT].max_size = 8;
         xfer_status[0][TUSB_DIR_IN].max_size = 8;
     }
-
-//    USB0.gintmsk |= USB_SOFMSK_M; // SOF unmask
 }
 
 
@@ -206,7 +206,9 @@ void dcd_init(uint8_t rhport)
     USB0.gotgint = ~0U; //clear OTG ints
     USB0.gintsts = ~0U; //clear pending ints
     USB0.gintmsk = USB_MODEMISMSK_M |
-                   /*USB_SOFMSK_M |*/
+#if USE_SOF
+                   USB_SOFMSK_M |
+#endif
                    USB_RXFLVIMSK_M |
                    USB_ERLYSUSPMSK_M |
                    USB_USBSUSPMSK_M |
@@ -698,10 +700,12 @@ static void dcd_int_handler(void)
         dcd_event_bus_signal(0, DCD_EVENT_BUS_RESET, true);
     }
 
+#if USE_SOF
     if (int_status & USB_SOF_M) {
         USB0.gintsts = USB_SOF_M;
         dcd_event_bus_signal(0, DCD_EVENT_SOF, true); // do nothing actually
     }
+#endif
 
     if ((int_status & USB_RXFLVI_M) & (int_msk & USB_RXFLVIMSK_M)) {
         ESP_EARLY_LOGV(TAG, "dcd_int_handler - rx!");
