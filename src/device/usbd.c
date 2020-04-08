@@ -555,8 +555,7 @@ static bool process_control_request(uint8_t rhport, tusb_control_request_t const
           }
           else
           {
-            TU_VERIFY( (0 == _usbd_dev.config_num) || (cfg_num == _usbd_dev.config_num) );
-            if (0 == _usbd_dev.config_num) TU_ASSERT( process_set_config(rhport, cfg_num) );
+            if (!_usbd_dev.config_num) TU_VERIFY( process_set_config(rhport, cfg_num) );
           }
 
           _usbd_dev.config_num = cfg_num;
