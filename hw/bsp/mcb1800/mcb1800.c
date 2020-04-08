@@ -27,6 +27,35 @@
 #include "chip.h"
 #include "../board.h"
 
+//--------------------------------------------------------------------+
+// USB Interrupt Handler
+//--------------------------------------------------------------------+
+void USB0_IRQHandler(void)
+{
+  #if CFG_TUSB_RHPORT0_MODE & OPT_MODE_HOST
+    tuh_isr(0);
+  #endif
+
+  #if CFG_TUSB_RHPORT0_MODE & OPT_MODE_DEVICE
+    tud_irq_handler(0);
+  #endif
+}
+
+void USB1_IRQHandler(void)
+{
+  #if CFG_TUSB_RHPORT1_MODE & OPT_MODE_HOST
+    tuh_isr(1);
+  #endif
+
+  #if CFG_TUSB_RHPORT1_MODE & OPT_MODE_DEVICE
+    tud_irq_handler(1);
+  #endif
+}
+
+//--------------------------------------------------------------------+
+// MACRO TYPEDEF CONSTANT ENUM DECLARATION
+//--------------------------------------------------------------------+
+
 // PD_10
 #define LED_PORT      6
 #define LED_PIN       24
@@ -35,9 +64,7 @@
 #define BUTTON_PORT   2
 #define BUTTON_PIN    0
 
-//--------------------------------------------------------------------+
-// MACRO TYPEDEF CONSTANT ENUM DECLARATION
-//--------------------------------------------------------------------+
+
 /* System configuration variables used by chip driver */
 const uint32_t OscRateIn = 12000000;
 const uint32_t ExtRateIn = 0;
@@ -172,30 +199,6 @@ void board_init(void)
 #endif
 }
 
-//--------------------------------------------------------------------+
-// USB Interrupt Handler
-//--------------------------------------------------------------------+
-void USB0_IRQHandler(void)
-{
-  #if CFG_TUSB_RHPORT0_MODE & OPT_MODE_HOST
-    tuh_isr(0);
-  #endif
-
-  #if CFG_TUSB_RHPORT0_MODE & OPT_MODE_DEVICE
-    tud_irq_handler(0);
-  #endif
-}
-
-void USB1_IRQHandler(void)
-{
-  #if CFG_TUSB_RHPORT1_MODE & OPT_MODE_HOST
-    tuh_isr(1);
-  #endif
-
-  #if CFG_TUSB_RHPORT1_MODE & OPT_MODE_DEVICE
-    tud_irq_handler(1);
-  #endif
-}
 //--------------------------------------------------------------------+
 // Board porting API
 //--------------------------------------------------------------------+
