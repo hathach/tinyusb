@@ -28,6 +28,17 @@
 
 #include "msp430.h"
 
+//--------------------------------------------------------------------+
+// Forward USB interrupt events to TinyUSB IRQ Handler
+//--------------------------------------------------------------------+
+void __attribute__ ((interrupt(USB_UBM_VECTOR))) USB_UBM_ISR(void)
+{
+  tud_irq_handler(0);
+}
+
+//--------------------------------------------------------------------+
+// MACRO TYPEDEF CONSTANT ENUM
+//--------------------------------------------------------------------+
 #define LED_PORT              P1OUT
 #define LED_PIN               BIT0
 #define LED_STATE_ON          1
