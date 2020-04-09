@@ -69,7 +69,7 @@ void tud_usbtmc_open_cb(uint8_t interface_id);
 bool tud_usbtmc_msgBulkOut_start_cb(usbtmc_msg_request_dev_dep_out const * msgHeader);
 // transfer_complete does not imply that a message is complete.
 bool tud_usbtmc_msg_data_cb( void *data, size_t len, bool transfer_complete);
-void tud_usmtmc_bulkOut_clearFeature_cb(void); // Notice to clear and abort the pending BULK out transfer
+void tud_usbtmc_bulkOut_clearFeature_cb(void); // Notice to clear and abort the pending BULK out transfer
 
 bool tud_usbtmc_msgBulkIn_request_cb(usbtmc_msg_request_dev_dep_in const * request);
 bool tud_usbtmc_msgBulkIn_complete_cb(void);

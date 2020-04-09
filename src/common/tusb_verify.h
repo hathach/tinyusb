@@ -79,8 +79,8 @@
   #define _MESS_ERR(_err)   printf("%s %d: failed, error = %s\r\n", __func__, __LINE__, tusb_strerr[_err])
   #define _MESS_FAILED()    printf("%s %d: assert failed\r\n", __func__, __LINE__)
 #else
-  #define _MESS_ERR(_err)
-  #define _MESS_FAILED()
+  #define _MESS_ERR(_err) do {} while (0)
+  #define _MESS_FAILED() do {} while (0)
 #endif
 
 // Halt CPU (breakpoint) when hitting error, only apply for Cortex M3, M4, M7
@@ -94,7 +94,7 @@
 #if defined(__riscv)
   #define TU_BREAKPOINT() do { __asm("ebreak\n"); } while(0)
 #else
-  #define TU_BREAKPOINT()
+  #define TU_BREAKPOINT() do {} while (0)
 #endif
 #endif
 

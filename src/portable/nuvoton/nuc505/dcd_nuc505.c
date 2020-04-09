@@ -126,6 +126,11 @@ static void usb_attach(void)
   USBD->PHYCTL |= USBD_PHYCTL_DPPUEN_Msk;
 }
 
+static void usb_detach(void)
+{
+  USBD->PHYCTL &= ~USBD_PHYCTL_DPPUEN_Msk;
+}
+
 static void usb_control_send_zlp(void)
 {
   USBD->CEPINTSTS = USBD_CEPINTSTS_STSDONEIF_Msk;
@@ -641,6 +646,18 @@ void dcd_irq_handler(uint8_t rhport)
       }
     }
   }
+}
+
+void dcd_disconnect(uint8_t rhport)
+{
+  (void) rhport;
+  usb_detach();
+}
+
+void dcd_connect(uint8_t rhport)
+{
+  (void) rhport;
+  usb_attach();
 }
 
 #endif

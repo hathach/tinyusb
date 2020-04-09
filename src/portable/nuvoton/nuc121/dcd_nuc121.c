@@ -442,4 +442,16 @@ void dcd_irq_handler(uint8_t rhport)
   USBD->INTSTS = status & enabled_irqs;
 }
 
+void dcd_disconnect(uint8_t rhport)
+{
+  (void) rhport;
+  usb_detach();
+}
+
+void dcd_connect(uint8_t rhport)
+{
+  (void) rhport;
+  usb_attach();
+}
+
 #endif
