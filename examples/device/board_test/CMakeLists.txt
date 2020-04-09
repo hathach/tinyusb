@@ -6,7 +6,7 @@ cmake_minimum_required(VERSION 3.5)
 set(TOP "../../..")
 get_filename_component(TOP "${TOP}" REALPATH)
 
-# Add example src and bsp directories 
+# Add example src and bsp directories
 set(EXTRA_COMPONENT_DIRS "src" "${TOP}/hw/bsp/esp32s2_saola_1")
 
 include($ENV{IDF_PATH}/tools/cmake/project.cmake)

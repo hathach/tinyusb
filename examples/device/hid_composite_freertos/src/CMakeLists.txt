@@ -4,7 +4,6 @@ idf_component_register(SRCS "main.c" "usb_descriptors.c"
 
 target_compile_options(${COMPONENT_TARGET} PUBLIC
   "-DCFG_TUSB_MCU=OPT_MCU_ESP32S2"
-  "-DCFG_TUSB_OS=OPT_OS_FREERTOS"
 )
 
 idf_component_get_property( FREERTOS_ORIG_INCLUDE_PATH freertos ORIG_INCLUDE_PATH)
@@ -15,7 +14,6 @@ target_include_directories(${COMPONENT_TARGET} PUBLIC
 )
 
 target_sources(${COMPONENT_TARGET} PUBLIC
-  "${TOP}/hw/bsp/esp32s2_saola_1/esp32s2_saola_1.c"
   "${TOP}/src/tusb.c"
   "${TOP}/src/common/tusb_fifo.c"
   "${TOP}/src/device/usbd.c"
