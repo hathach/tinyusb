@@ -60,18 +60,23 @@ typedef struct {
 
 static const char *TAG = "TUSB:DCD";
 static intr_handle_t usb_ih;
-static volatile TU_ATTR_ALIGNED(4) uint32_t _setup_packet[6];
-static volatile uint8_t s_setup_phase = 0; /*  00 - got setup,
-                                               01 - got done setup,
-                                               02 - setup cmd sent*/
+
+
+static uint32_t _setup_packet[2];
 
 #define XFER_CTL_BASE(_ep, _dir) &xfer_status[_ep][_dir]
 static xfer_ctl_t xfer_status[EP_MAX][2];
+
+#if 0
+static volatile uint8_t s_setup_phase = 0; /*  00 - got setup,
+                                               01 - got done setup,
+                                               02 - setup cmd sent*/
 
 static inline void readyfor1setup_pkg(int ep_num)
 {
     USB0.out_ep_reg[ep_num].doeptsiz |= (1 << USB_SUPCNT0_S); // doeptsiz 29:30 will decremented on every setup received
 }
+#endif
 
 // Setup the control endpoint 0.
 static void bus_reset(void)
@@ -82,6 +87,10 @@ static void bus_reset(void)
     }
 
     USB0.dcfg &= ~USB_DEVADDR_M; // reset address
+
+    USB0.daintmsk |= USB_OUTEPMSK0_M | USB_INEPMSK0_M;
+    USB0.doepmsk |= USB_SETUPMSK_M | USB_XFERCOMPLMSK;
+    USB0.diepmsk |= USB_TIMEOUTMSK_M | USB_DI_XFERCOMPLMSK_M /*| USB_INTKNTXFEMPMSK_M*/;
 
     // "USB Data FIFOs" section in reference manual
     // Peripheral FIFO architecture
@@ -115,28 +124,16 @@ static void bus_reset(void)
     USB0.grstctl |= USB_TXFFLSH_M;        // Flush fifo
     USB0.grxfsiz = 52;
 
-    USB0.gintmsk = USB_MODEMISMSK_M |
-#if USE_SOF
-                   USB_SOFMSK_M |
-#endif
-                   USB_RXFLVIMSK_M |
-                   USB_ERLYSUSPMSK_M |
-                   USB_USBSUSPMSK_M |
-                   USB_USBRSTMSK_M |
-                   USB_ENUMDONEMSK_M |
-                   USB_IEPINTMSK_M |
-                   USB_OEPINTMSK_M |
-                   USB_RESETDETMSK_M |
-                   USB_DISCONNINTMSK_M;
-
-    USB0.daintmsk |= USB_OUTEPMSK0_M | USB_INEPMSK0_M;
-    USB0.doepmsk |= USB_SETUPMSK_M | USB_XFERCOMPLMSK;
-    USB0.diepmsk |= USB_TIMEOUTMSK_M | USB_DI_XFERCOMPLMSK_M /*| USB_INTKNTXFEMPMSK_M*/;
-
     // Control IN uses FIFO 0 with 64 bytes ( 16 32-bit word )
     USB0.gnptxfsiz = (16 << USB_NPTXFDEP_S) | (USB0.grxfsiz & 0x0000ffffUL);
 
+#if 0
     readyfor1setup_pkg(0);
+#else
+    USB0.out_ep_reg[0].doeptsiz |= USB_SUPCNT0_M;
+#endif
+
+    USB0.gintmsk |= USB_IEPINTMSK_M | USB_OEPINTMSK_M;
 }
 
 static void enum_done_processing(void)
@@ -162,13 +159,13 @@ static void enum_done_processing(void)
 }
 
 
-
-
 /*------------------------------------------------------------------*/
 /* Controller API
  *------------------------------------------------------------------*/
 void dcd_init(uint8_t rhport)
 {
+    (void)rhport;
+
     ESP_LOGV(TAG, "DCD init - Start");
 
     // A. Disconnect
@@ -198,9 +195,7 @@ void dcd_init(uint8_t rhport)
     for (int n = 0; n < USB_OUT_EP_NUM; n++) {
         USB0.out_ep_reg[n].doepctl |= USB_DO_SNAK0_M; // DOEPCTL0_SNAK
     }
-    ESP_LOGV(TAG, "DCD init - Soft CONNECT");
-    USB0.dctl &= ~USB_SFTDISCON_M; // Connect
-
+    
     // D. Interruption masking
     USB0.gintmsk = 0;   //mask all
     USB0.gotgint = ~0U; //clear OTG ints
@@ -216,6 +211,10 @@ void dcd_init(uint8_t rhport)
                    USB_ENUMDONEMSK_M |
                    USB_RESETDETMSK_M |
                    USB_DISCONNINTMSK_M;
+
+    ESP_LOGV(TAG, "DCD init - Soft CONNECT");
+    USB0.dctl &= ~USB_SFTDISCON_M; // Connect
+
     ets_delay_us(100);
 }
 
@@ -238,6 +237,18 @@ void dcd_set_config(uint8_t rhport, uint8_t config_num)
 void dcd_remote_wakeup(uint8_t rhport)
 {
     (void)rhport;
+}
+
+// disconnect by disabling internal pull-up resistor on D+/D-
+void dcd_disconnect(uint8_t rhport)
+{
+  USB0.dctl |= USB_SFTDISCON_M;
+}
+
+// connect by enabling internal pull-up resistor on D+/D-
+void dcd_connect(uint8_t rhport)
+{
+  USB0.dctl &= ~USB_SFTDISCON_M;
 }
 
 /*------------------------------------------------------------------*/
@@ -312,7 +323,6 @@ bool dcd_edpt_open(uint8_t rhport, tusb_desc_endpoint_t const *desc_edpt)
 
 bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t *buffer, uint16_t total_bytes)
 {
-
     (void)rhport;
 
     uint8_t const epnum = tu_edpt_number(ep_addr);
@@ -447,7 +457,7 @@ void dcd_edpt_clear_stall(uint8_t rhport, uint8_t ep_addr)
 static void receive_packet(xfer_ctl_t *xfer, /* usb_out_endpoint_t * out_ep, */ uint16_t xfer_size)
 {
     ESP_EARLY_LOGV(TAG, "USB - receive_packet");
-    uint32_t *rx_fifo = USB0.fifo[0];
+    volatile uint32_t *rx_fifo = USB0.fifo[0];
 
     // See above TODO
     // uint16_t remaining = (out_ep->DOEPTSIZ & UsbDOEPTSIZ_XFRSIZ_Msk) >> UsbDOEPTSIZ_XFRSIZ_Pos;
@@ -549,35 +559,47 @@ static void transmit_packet(xfer_ctl_t *xfer, volatile usb_in_endpoint_t *in_ep,
 
 static void read_rx_fifo(void)
 {
+    volatile uint32_t *rx_fifo = USB0.fifo[0];
+
     // Pop control word off FIFO (completed xfers will have 2 control words,
     // we only pop one ctl word each interrupt).
-    uint32_t ctl_word = USB0.grxstsp;
-    uint8_t pktsts = (ctl_word & USB_PKTSTS_M) >> USB_PKTSTS_S;
-    uint8_t epnum = (ctl_word & USB_CHNUM_M) >> USB_CHNUM_S;
-    uint16_t bcnt = (ctl_word & USB_BCNT_M) >> USB_BCNT_S;
+    uint32_t const ctl_word = USB0.grxstsp;
+    uint8_t  const pktsts   = (ctl_word & USB_PKTSTS_M) >> USB_PKTSTS_S;
+    uint8_t  const epnum    = (ctl_word & USB_CHNUM_M ) >> USB_CHNUM_S;
+    uint16_t const bcnt     = (ctl_word & USB_BCNT_M  ) >> USB_BCNT_S;
 
     switch (pktsts) {
-    case 0x01: // Global OUT NAK (Interrupt)
+      case 0x01: // Global OUT NAK (Interrupt)
         ESP_EARLY_LOGV(TAG, "TUSB IRQ - RX type : Global OUT NAK");
         break;
-    case 0x02: { // Out packet recvd
+
+      case 0x02: { // Out packet recvd
         ESP_EARLY_LOGV(TAG, "TUSB IRQ - RX type : Out packet");
         xfer_ctl_t *xfer = XFER_CTL_BASE(epnum, TUSB_DIR_OUT);
         receive_packet(xfer, bcnt);
-    }
-    break;
-    case 0x03: // Out packet done (Interrupt)
+      }
+      break;
+
+      case 0x03: // Out packet done (Interrupt)
         ESP_EARLY_LOGV(TAG, "TUSB IRQ - RX type : Out packet done");
         break;
-    case 0x04:                // Setup packet done (Interrupt)
+
+      case 0x04: // Step 2: Setup transaction completed (Interrupt)
+        // After this event, OEPINT interrupt will occur with SETUP bit set
+#if 0
         if (s_setup_phase == 0) { // only if setup is started
-            s_setup_phase = 1;
-            ESP_EARLY_LOGV(TAG, "TUSB IRQ - setup_phase 1"); //finished
-            ESP_EARLY_LOGV(TAG, "TUSB IRQ - RX : Setup packet done");
+          s_setup_phase = 1;
+          ESP_EARLY_LOGV(TAG, "TUSB IRQ - setup_phase 1"); //finished
+          ESP_EARLY_LOGV(TAG, "TUSB IRQ - RX : Setup packet done");
         }
+#else
+        USB0.out_ep_reg[epnum].doeptsiz |= USB_SUPCNT0_M;
+#endif
 
         break;
-    case 0x06: { // Setup packet recvd
+
+      case 0x06: { // Step1: Setup data packet received
+#if 0
         s_setup_phase = 0;
         ESP_EARLY_LOGV(TAG, "TUSB IRQ - setup_phase 0"); // new setup process
         // For some reason, it's possible to get a mismatch between
@@ -588,11 +610,18 @@ static void read_rx_fifo(void)
         // only accepting one setup packet at a time for now.
         _setup_packet[0] = (USB0.grxstsp);
         _setup_packet[1] = (USB0.grxstsp);
-        ESP_EARLY_LOGV(TAG, "TUSB IRQ - RX : Setup packet : 0x%08x 0x%08x",
-                       _setup_packet[0], _setup_packet[1]);
-    }
-    break;
-    default: // Invalid, do something here, like breakpoint?
+        ESP_EARLY_LOGV(TAG, "TUSB IRQ - RX : Setup packet : 0x%08x 0x%08x", _setup_packet[0], _setup_packet[1]);
+#else
+        // We can receive up to three setup packets in succession, but
+        // only the last one is valid. Therefore we just overwrite it
+        _setup_packet[0] = (*rx_fifo);
+        _setup_packet[1] = (*rx_fifo);
+#endif
+      }
+      break;
+
+      default: // Invalid, do something here, like breakpoint?
+        TU_BREAKPOINT();
         break;
     }
 }
@@ -604,9 +633,11 @@ static void handle_epout_ints(void)
     // DOEPINT will be cleared when DAINT's out bits are cleared.
     for (int n = 0; n < USB_OUT_EP_NUM; n++) {
         xfer_ctl_t *xfer = XFER_CTL_BASE(n, TUSB_DIR_OUT);
+
         if (USB0.daint & (1 << (16 + n))) {
             // SETUP packet Setup Phase done.
             if ((USB0.out_ep_reg[n].doepint & USB_SETUP0_M)) {
+#if 0
                 USB0.out_ep_reg[n].doepint |= USB_STUPPKTRCVD0_M | USB_SETUP0_M; // clear
                 if (s_setup_phase == 1) {                                          // only if setup is done, but not handled
                     s_setup_phase = 2;
@@ -615,6 +646,10 @@ static void handle_epout_ints(void)
                     dcd_event_setup_received(0, (uint8_t *)&_setup_packet[0], true);
                 }
                 readyfor1setup_pkg(0);
+#else
+                USB0.out_ep_reg[n].doepint = USB_STUPPKTRCVD0_M | USB_SETUP0_M; // clear
+                dcd_event_setup_received(0, (uint8_t *)&_setup_packet[0], true);
+#endif
             }
 
             // OUT XFER complete (single packet).q
@@ -668,18 +703,21 @@ static void handle_epin_ints(void)
 }
 
 
-static void dcd_int_handler(void)
+static void dcd_int_handler(void* arg)
 {
+    (void) arg;
+
     const uint32_t int_status = USB0.gintsts;
-    const uint32_t int_msk = USB0.gintmsk;
+    //const uint32_t int_msk = USB0.gintmsk;
 
     if (int_status & USB_DISCONNINT_M) {
         ESP_EARLY_LOGV(TAG, "dcd_int_handler - disconnected");
         USB0.gintsts = USB_DISCONNINT_M;
+        dcd_event_bus_signal(0, DCD_EVENT_UNPLUGGED, true);
     }
 
     if (int_status & USB_USBRST_M) {
-
+        // start of reset
         ESP_EARLY_LOGV(TAG, "dcd_int_handler - reset");
         USB0.gintsts = USB_USBRST_M;
         bus_reset();
@@ -707,9 +745,12 @@ static void dcd_int_handler(void)
     }
 #endif
 
-    if ((int_status & USB_RXFLVI_M) & (int_msk & USB_RXFLVIMSK_M)) {
+    if ((int_status & USB_RXFLVI_M) /*& (int_msk & USB_RXFLVIMSK_M)*/) {
         ESP_EARLY_LOGV(TAG, "dcd_int_handler - rx!");
+        USB0.gintmsk &= ~USB_RXFLVIMSK_M;
         read_rx_fifo();
+        USB0.gintmsk |= USB_RXFLVIMSK_M;
+        USB0.gintsts = USB_RXFLVI_M;
     }
 
     // OUT endpoint interrupt handling.
