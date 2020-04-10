@@ -1,6 +1,25 @@
-#
-# Common make definition for all examples
-#
+# ---------------------------------------
+# Common make rules for all examples
+# ---------------------------------------
+
+ifeq ($(CROSS_COMPILE),xtensa-esp32s2-elf-)
+# Espressif IDF use CMake build system, this add wrapper target to call idf.py
+
+.PHONY: all clean flash
+.DEFAULT_GOAL := all
+
+all:
+	idf.py -B$(BUILD) -DBOARD=$(BOARD) build
+
+clean:
+	idf.py -B$(BUILD) clean
+
+flash:
+	@:$(call check_defined, SERIAL, example: SERIAL=/dev/ttyUSB0)
+	idf.py -B$(BUILD) -p $(SERIAL) flash
+
+else
+# GNU Make build system
 
 # libc
 LIBS += -lgcc -lm -lnosys
@@ -15,21 +34,22 @@ SRC_C += \
 	src/common/tusb_fifo.c \
 	src/device/usbd.c \
 	src/device/usbd_control.c \
-	src/class/msc/msc_device.c \
 	src/class/cdc/cdc_device.c \
 	src/class/dfu/dfu_rt_device.c \
 	src/class/hid/hid_device.c \
 	src/class/midi/midi_device.c \
+	src/class/msc/msc_device.c \
+	src/class/net/net_device.c \
 	src/class/usbtmc/usbtmc_device.c \
 	src/class/vendor/vendor_device.c \
-	src/class/net/net_device.c \
 	src/portable/$(VENDOR)/$(CHIP_FAMILY)/dcd_$(CHIP_FAMILY).c
 
 # TinyUSB stack include
 INC += $(TOP)/src
 
-#
 CFLAGS += $(addprefix -I,$(INC))
+
+# TODO Skip nanolib for MSP430
 ifeq ($(BOARD), msp_exp430f5529lp)
   LDFLAGS += $(CFLAGS) -fshort-enums -Wl,-T,$(TOP)/$(LD_FILE) -Wl,-Map=$@.map -Wl,-cref -Wl,-gc-sections
 else
@@ -135,3 +155,5 @@ flash-jlink: $(BUILD)/$(BOARD)-firmware.hex
 # flash STM32 MCU using stlink with STM32 Cube Programmer CLI
 flash-stlink: $(BUILD)/$(BOARD)-firmware.elf
 	STM32_Programmer_CLI --connect port=swd --write $< --go
+
+endif # Make target

@@ -52,48 +52,57 @@ enum  {
 };
 
 // static timer
-StaticTimer_t static_blink;
-TimerHandle_t blink_tm;
+StaticTimer_t blinky_tmdef;
+TimerHandle_t blinky_tm;
 
 // static task for usbd
-#define USBD_STACK_SIZE     150
-StackType_t  stack_usbd[USBD_STACK_SIZE];
-StaticTask_t static_task_usbd;
+#define USBD_STACK_SIZE     (3*configMINIMAL_STACK_SIZE/2)
+StackType_t  usb_device_stack[USBD_STACK_SIZE];
+StaticTask_t usb_device_taskdef;
 
 // static task for cdc
-#define CDC_STACK_SZIE      128
-StackType_t  stack_cdc[CDC_STACK_SZIE];
-StaticTask_t static_task_cdc;
+#define CDC_STACK_SZIE      configMINIMAL_STACK_SIZE
+StackType_t  cdc_stack[CDC_STACK_SZIE];
+StaticTask_t cdc_taskdef;
 
 
 void led_blinky_cb(TimerHandle_t xTimer);
 void usb_device_task(void* param);
 void cdc_task(void* params);
 
-/*------------- MAIN -------------*/
+//--------------------------------------------------------------------+
+// Main
+//--------------------------------------------------------------------+
+
 int main(void)
 {
   board_init();
-
-  // soft timer for blinky
-  blink_tm = xTimerCreateStatic(NULL, pdMS_TO_TICKS(BLINK_NOT_MOUNTED), true, NULL, led_blinky_cb, &static_blink);
-  xTimerStart(blink_tm, 0);
-
   tusb_init();
 
+  // soft timer for blinky
+  blinky_tm = xTimerCreateStatic(NULL, pdMS_TO_TICKS(BLINK_NOT_MOUNTED), true, NULL, led_blinky_cb, &blinky_tmdef);
+  xTimerStart(blinky_tm, 0);
+
   // Create a task for tinyusb device stack
-  (void) xTaskCreateStatic( usb_device_task, "usbd", USBD_STACK_SIZE, NULL, configMAX_PRIORITIES-1, stack_usbd, &static_task_usbd);
+  (void) xTaskCreateStatic( usb_device_task, "usbd", USBD_STACK_SIZE, NULL, configMAX_PRIORITIES-1, usb_device_stack, &usb_device_taskdef);
 
-  // Create task
-#if CFG_TUD_CDC
-  (void) xTaskCreateStatic( cdc_task, "cdc", CDC_STACK_SZIE, NULL, configMAX_PRIORITIES-2, stack_cdc, &static_task_cdc);
-#endif
+  // Create CDC task
+  (void) xTaskCreateStatic( cdc_task, "cdc", CDC_STACK_SZIE, NULL, configMAX_PRIORITIES-2, cdc_stack, &cdc_taskdef);
 
+  // skip starting scheduler (and return) for ESP32-S2
+#if CFG_TUSB_MCU != OPT_MCU_ESP32S2
   vTaskStartScheduler();
   NVIC_SystemReset();
-
   return 0;
+#endif
 }
+
+#if CFG_TUSB_MCU == OPT_MCU_ESP32S2
+void app_main(void)
+{
+  main();
+}
+#endif
 
 // USB Device Driver task
 // This top level thread process all usb events and invoke callbacks
@@ -116,13 +125,13 @@ void usb_device_task(void* param)
 // Invoked when device is mounted
 void tud_mount_cb(void)
 {
-  xTimerChangePeriod(blink_tm, pdMS_TO_TICKS(BLINK_MOUNTED), 0);
+  xTimerChangePeriod(blinky_tm, pdMS_TO_TICKS(BLINK_MOUNTED), 0);
 }
 
 // Invoked when device is unmounted
 void tud_umount_cb(void)
 {
-  xTimerChangePeriod(blink_tm, pdMS_TO_TICKS(BLINK_NOT_MOUNTED), 0);
+  xTimerChangePeriod(blinky_tm, pdMS_TO_TICKS(BLINK_NOT_MOUNTED), 0);
 }
 
 // Invoked when usb bus is suspended
@@ -131,20 +140,18 @@ void tud_umount_cb(void)
 void tud_suspend_cb(bool remote_wakeup_en)
 {
   (void) remote_wakeup_en;
-  xTimerChangePeriod(blink_tm, pdMS_TO_TICKS(BLINK_SUSPENDED), 0);
+  xTimerChangePeriod(blinky_tm, pdMS_TO_TICKS(BLINK_SUSPENDED), 0);
 }
 
 // Invoked when usb bus is resumed
 void tud_resume_cb(void)
 {
-  xTimerChangePeriod(blink_tm, pdMS_TO_TICKS(BLINK_MOUNTED), 0);
+  xTimerChangePeriod(blinky_tm, pdMS_TO_TICKS(BLINK_MOUNTED), 0);
 }
-
 
 //--------------------------------------------------------------------+
 // USB CDC
 //--------------------------------------------------------------------+
-#if CFG_TUD_CDC
 void cdc_task(void* params)
 {
   (void) params;
@@ -173,7 +180,8 @@ void cdc_task(void* params)
       }
     }
 
-    taskYIELD();
+    // For ESP32-S2 this delay is essential to allow idle how to run and reset wdt
+    vTaskDelay(pdMS_TO_TICKS(10));
   }
 }
 
@@ -195,8 +203,6 @@ void tud_cdc_rx_cb(uint8_t itf)
 {
   (void) itf;
 }
-
-#endif // CFG_TUD_CDC
 
 //--------------------------------------------------------------------+
 // BLINKING TASK
