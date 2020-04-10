@@ -46,9 +46,13 @@
 // We disable SOF for now until needed later on
 #define USE_SOF     0
 
-// FIFO size in bytes TODO need confirmation from Espressif
+// Max number of bi-directional endpoints including EP0
+// Note: ESP32S2 specs say there are only up to 5 IN active endpoints include EP0
+// We should probably prohibit enabling Endpoint IN > 4 (not done yet)
 #define EP_MAX            USB_OUT_EP_NUM
-#define EP_FIFO_SIZE      1280
+
+// FIFO size in bytes
+#define EP_FIFO_SIZE      1024
 
 typedef struct {
     uint8_t *buffer;
