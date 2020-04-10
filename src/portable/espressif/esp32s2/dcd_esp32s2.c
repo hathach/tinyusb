@@ -362,22 +362,18 @@ void dcd_edpt_stall(uint8_t rhport, uint8_t ep_addr)
     } else {
       // Stop transmitting packets and NAK IN xfers.
       in_ep[epnum].diepctl |= USB_DI_SNAK1_M;
-      while ((in_ep[epnum].diepint & USB_DI_SNAK1_M) == 0)
-        ;
+      while ((in_ep[epnum].diepint & USB_DI_SNAK1_M) == 0) ;
 
       // Disable the endpoint. Note that both SNAK and STALL are set here.
-      in_ep[epnum].diepctl |= (USB_DI_SNAK1_M | USB_D_STALL1_M |
-          USB_D_EPDIS1_M);
-      while ((in_ep[epnum].diepint & USB_D_EPDISBLD0_M) == 0)
-        ;
+      in_ep[epnum].diepctl |= (USB_DI_SNAK1_M | USB_D_STALL1_M | USB_D_EPDIS1_M);
+      while ((in_ep[epnum].diepint & USB_D_EPDISBLD0_M) == 0) ;
       in_ep[epnum].diepint = USB_D_EPDISBLD0_M;
     }
 
     // Flush the FIFO, and wait until we have confirmed it cleared.
     USB0.grstctl |= ((epnum - 1) << USB_TXFNUM_S);
     USB0.grstctl |= USB_TXFFLSH_M;
-    while ((USB0.grstctl & USB_TXFFLSH_M) != 0)
-      ;
+    while ((USB0.grstctl & USB_TXFFLSH_M) != 0) ;
   } else {
     // Only disable currently enabled non-control endpoint
     if ((epnum == 0) || !(out_ep[epnum].doepctl & USB_EPENA0_M)) {
@@ -388,14 +384,12 @@ void dcd_edpt_stall(uint8_t rhport, uint8_t ep_addr)
       // anyway, and it can't be cleared by user code. If this while loop never
       // finishes, we have bigger problems than just the stack.
       USB0.dctl |= USB_SGOUTNAK_M;
-      while ((USB0.gintsts & USB_GOUTNAKEFF_M) == 0)
-        ;
+      while ((USB0.gintsts & USB_GOUTNAKEFF_M) == 0) ;
 
       // Ditto here- disable the endpoint. Note that only STALL and not SNAK
       // is set here.
       out_ep[epnum].doepctl |= (USB_STALL0_M | USB_EPDIS0_M);
-      while ((out_ep[epnum].doepint & USB_EPDISBLD0_M) == 0)
-        ;
+      while ((out_ep[epnum].doepint & USB_EPDISBLD0_M) == 0) ;
       out_ep[epnum].doepint = USB_EPDISBLD0_M;
 
       // Allow other OUT endpoints to keep receiving.
@@ -698,6 +692,7 @@ void dcd_irq_handler(uint32_t rhport)
 
   if (int_status & USB_RXFLVI_M) {
     ESP_EARLY_LOGV(TAG, "dcd_irq_handler - rx!");
+    USB0.gintsts = USB_RXFLVI_M;
 
     // disable RXFLVI interrupt until we read data from FIFO
     USB0.gintmsk &= ~USB_RXFLVIMSK_M;
@@ -706,8 +701,6 @@ void dcd_irq_handler(uint32_t rhport)
 
     // re-enable RXFLVI
     USB0.gintmsk |= USB_RXFLVIMSK_M;
-
-    USB0.gintsts = USB_RXFLVI_M;
   }
 
   // OUT endpoint interrupt handling.
