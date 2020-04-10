@@ -198,8 +198,6 @@ void dcd_init(uint8_t rhport)
 
   ESP_LOGV(TAG, "DCD init - Soft CONNECT");
   USB0.dctl &= ~USB_SFTDISCON_M; // Connect
-
-  ets_delay_us(100);
 }
 
 void dcd_set_address(uint8_t rhport, uint8_t dev_addr)
