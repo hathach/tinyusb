@@ -243,17 +243,17 @@ void dcd_init (uint8_t rhport)
   // Data-line pull-up is left disconnected.
 }
 
-// Define only on MCU with internal pull-up so BSP can override (needed on MCU without internal pull-up)
+// Define only on MCU with internal pull-up. BSP can define on MCU without internal PU.
 #if defined(USB_BCDR_DPPU)
 
-TU_ATTR_WEAK
+// Disable internal D+ PU
 void dcd_disconnect(uint8_t rhport)
 {
   (void) rhport;
   USB->BCDR &= ~(USB_BCDR_DPPU);
 }
 
-TU_ATTR_WEAK
+// Enable internal D+ PU
 void dcd_connect(uint8_t rhport)
 {
   (void) rhport;
