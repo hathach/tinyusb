@@ -67,17 +67,6 @@ static uint32_t _setup_packet[2];
 #define XFER_CTL_BASE(_ep, _dir) &xfer_status[_ep][_dir]
 static xfer_ctl_t xfer_status[EP_MAX][2];
 
-#if 0
-static volatile uint8_t s_setup_phase = 0; /*  00 - got setup,
-                                               01 - got done setup,
-                                               02 - setup cmd sent*/
-
-static inline void readyfor1setup_pkg(int ep_num)
-{
-    USB0.out_ep_reg[ep_num].doeptsiz |= (1 << USB_SUPCNT0_S); // doeptsiz 29:30 will decremented on every setup received
-}
-#endif
-
 // Setup the control endpoint 0.
 static void bus_reset(void)
 {
@@ -127,11 +116,8 @@ static void bus_reset(void)
     // Control IN uses FIFO 0 with 64 bytes ( 16 32-bit word )
     USB0.gnptxfsiz = (16 << USB_NPTXFDEP_S) | (USB0.grxfsiz & 0x0000ffffUL);
 
-#if 0
-    readyfor1setup_pkg(0);
-#else
+    // Ready to receive SETUP packet
     USB0.out_ep_reg[0].doeptsiz |= USB_SUPCNT0_M;
-#endif
 
     USB0.gintmsk |= USB_IEPINTMSK_M | USB_OEPINTMSK_M;
 }
@@ -559,8 +545,6 @@ static void transmit_packet(xfer_ctl_t *xfer, volatile usb_in_endpoint_t *in_ep,
 
 static void read_rx_fifo(void)
 {
-    volatile uint32_t *rx_fifo = USB0.fifo[0];
-
     // Pop control word off FIFO (completed xfers will have 2 control words,
     // we only pop one ctl word each interrupt).
     uint32_t const ctl_word = USB0.grxstsp;
@@ -586,37 +570,19 @@ static void read_rx_fifo(void)
 
       case 0x04: // Step 2: Setup transaction completed (Interrupt)
         // After this event, OEPINT interrupt will occur with SETUP bit set
-#if 0
-        if (s_setup_phase == 0) { // only if setup is started
-          s_setup_phase = 1;
-          ESP_EARLY_LOGV(TAG, "TUSB IRQ - setup_phase 1"); //finished
-          ESP_EARLY_LOGV(TAG, "TUSB IRQ - RX : Setup packet done");
-        }
-#else
+        ESP_EARLY_LOGV(TAG, "TUSB IRQ - RX : Setup packet done");
         USB0.out_ep_reg[epnum].doeptsiz |= USB_SUPCNT0_M;
-#endif
-
         break;
 
       case 0x06: { // Step1: Setup data packet received
-#if 0
-        s_setup_phase = 0;
-        ESP_EARLY_LOGV(TAG, "TUSB IRQ - setup_phase 0"); // new setup process
-        // For some reason, it's possible to get a mismatch between
-        // how many setup packets were received versus the location
-        // of the Setup packet done word. This leads to situations
-        // where stale setup packets are in the RX FIFO that were received
-        // after the core loaded the Setup packet done word. Workaround by
-        // only accepting one setup packet at a time for now.
-        _setup_packet[0] = (USB0.grxstsp);
-        _setup_packet[1] = (USB0.grxstsp);
-        ESP_EARLY_LOGV(TAG, "TUSB IRQ - RX : Setup packet : 0x%08x 0x%08x", _setup_packet[0], _setup_packet[1]);
-#else
+        volatile uint32_t *rx_fifo = USB0.fifo[0];
+
         // We can receive up to three setup packets in succession, but
         // only the last one is valid. Therefore we just overwrite it
         _setup_packet[0] = (*rx_fifo);
         _setup_packet[1] = (*rx_fifo);
-#endif
+
+        ESP_EARLY_LOGV(TAG, "TUSB IRQ - RX : Setup packet : 0x%08x 0x%08x", _setup_packet[0], _setup_packet[1]);
       }
       break;
 
@@ -637,19 +603,8 @@ static void handle_epout_ints(void)
         if (USB0.daint & (1 << (16 + n))) {
             // SETUP packet Setup Phase done.
             if ((USB0.out_ep_reg[n].doepint & USB_SETUP0_M)) {
-#if 0
-                USB0.out_ep_reg[n].doepint |= USB_STUPPKTRCVD0_M | USB_SETUP0_M; // clear
-                if (s_setup_phase == 1) {                                          // only if setup is done, but not handled
-                    s_setup_phase = 2;
-                    ESP_EARLY_LOGV(TAG, "TUSB IRQ - setup_phase 2"); // sending to  a handling queue
-                    ESP_EARLY_LOGV(TAG, "TUSB IRQ - EP OUT - Setup Phase done (irq-s 0x%08x)", USB0.out_ep_reg[n].doepint);
-                    dcd_event_setup_received(0, (uint8_t *)&_setup_packet[0], true);
-                }
-                readyfor1setup_pkg(0);
-#else
                 USB0.out_ep_reg[n].doepint = USB_STUPPKTRCVD0_M | USB_SETUP0_M; // clear
                 dcd_event_setup_received(0, (uint8_t *)&_setup_packet[0], true);
-#endif
             }
 
             // OUT XFER complete (single packet).q
