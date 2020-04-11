@@ -62,6 +62,8 @@ All of the code for the low-level device API is in `src/portable/<vendor>/<chip 
 ##### dcd_init
 Initializes the USB peripheral for device mode and enables it.
 
+This function should leave an internal D+/D- pull-up in its default power-on state. `dcd_connect` will be called by the USBD core following `dcd_init`.
+
 #### dcd_int_enable / dcd_int_disable
 
 Enables or disables the USB device interrupt(s). May be used to prevent concurrency issues when mutating data structures shared between main code and the interrupt handler.
@@ -76,6 +78,10 @@ Called when the device received SET_CONFIG request, you can leave this empty if 
 
 ##### dcd_remote_wakeup
 Called to remote wake up host when suspended (e.g hid keyboard)
+
+##### dcd_connect / dcd_disconnect
+
+Connect or disconnect the data-line pull-up resistor. Define only if MCU has an internal pull-up. (BSP may define for MCU without internal pull-up.)
 
 #### Special events
 You must let TinyUSB know when certain events occur so that it can continue its work. There are a few methods you can call to queue events for TinyUSB to process.

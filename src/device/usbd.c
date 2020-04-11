@@ -332,6 +332,7 @@ bool tud_init (void)
 
   // Init device controller driver
   dcd_init(TUD_OPT_RHPORT);
+  tud_connect();
   dcd_int_enable(TUD_OPT_RHPORT);
 
   return true;
