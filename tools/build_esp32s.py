@@ -20,7 +20,8 @@ if len(sys.argv) > 1:
     all_examples.append(sys.argv[1])
 else:
     for entry in os.scandir("examples/device"):
-        if entry.is_dir():
+        # Only includes example with CMakeLists.txt for esp32s
+        if entry.is_dir() and os.path.exists(entry.path + "/CMakeLists.txt"):
             all_examples.append(entry.name)
 all_examples.sort()
 
@@ -31,9 +32,12 @@ if len(sys.argv) > 2:
 else:
     for entry in os.scandir("hw/bsp"):
         if entry.is_dir():
-            all_boards.append(entry.name)
+            with open(entry.path + '/board.mk') as mk:
+                # Only includes ESP32-S2 board
+                if 'CROSS_COMPILE = xtensa-esp32s2-elf-' in mk.read():
+                    all_boards.append(entry.name)
+                                
 all_boards.sort()
-
 
 def build_example(example, board):
     subprocess.run("make -C examples/device/{} BOARD={} clean".format(example, board), shell=True,
@@ -51,29 +55,13 @@ def build_size(example, board):
     return (flash_size, sram_size)
 
 def skip_example(example, board):
-    ex_dir = 'examples/device/' + example
-    board_mk = 'hw/bsp/{}/board.mk'.format(board)
-
-    with open(board_mk) as mk:
-        mk_contents = mk.read()
-
-        # Skip all ESP32-S2 board for CI
-        if 'CROSS_COMPILE = xtensa-esp32s2-elf-' in mk_contents:
-            return 1
-
-        # Skip if CFG_TUSB_MCU in board.mk to match skip file
-        for skip_file in glob.iglob(ex_dir + '/.skip.MCU_*'):
-            mcu_cflag = '-DCFG_TUSB_MCU=OPT_' + os.path.basename(skip_file).split('.')[2]
-            if mcu_cflag in mk_contents:
-                return 1
-
     return 0
 
 print(build_separator)
 print(build_format.format('Example', 'Board', 'Result', 'Time', 'Flash', 'SRAM'))
+print(build_separator)
 
 for example in all_examples:
-    print(build_separator)
     for board in all_boards:
         start_time = time.monotonic()
 

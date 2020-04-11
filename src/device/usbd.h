@@ -65,6 +65,20 @@ static inline bool tud_ready(void)
 // Remote wake up host, only if suspended and enabled by host
 bool tud_remote_wakeup(void);
 
+static inline bool tud_disconnect(void)
+{
+  TU_VERIFY(dcd_disconnect);
+  dcd_disconnect(TUD_OPT_RHPORT);
+  return true;
+}
+
+static inline bool tud_connect(void)
+{
+  TU_VERIFY(dcd_connect);
+  dcd_connect(TUD_OPT_RHPORT);
+  return true;
+}
+
 // Carry out Data and Status stage of control transfer
 // - If len = 0, it is equivalent to sending status only
 // - If len > wLength : it will be truncated

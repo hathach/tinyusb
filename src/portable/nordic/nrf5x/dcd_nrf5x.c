@@ -237,6 +237,20 @@ void dcd_remote_wakeup(uint8_t rhport)
   // We may manually raise DCD_EVENT_RESUME event here
 }
 
+// disconnect by disabling internal pull-up resistor on D+/D-
+void dcd_disconnect(uint8_t rhport)
+{
+  (void) rhport;
+  NRF_USBD->USBPULLUP = 0;
+}
+
+// connect by enabling internal pull-up resistor on D+/D-
+void dcd_connect(uint8_t rhport)
+{
+  (void) rhport;
+  NRF_USBD->USBPULLUP = 1;
+}
+
 //--------------------------------------------------------------------+
 // Endpoint API
 //--------------------------------------------------------------------+

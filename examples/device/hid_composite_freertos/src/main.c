@@ -27,6 +27,12 @@
 #include <stdio.h>
 #include <string.h>
 
+#include "FreeRTOS.h"
+#include "task.h"
+#include "timers.h"
+#include "queue.h"
+#include "semphr.h"
+
 #include "bsp/board.h"
 #include "tusb.h"
 
@@ -47,26 +53,71 @@ enum  {
   BLINK_SUSPENDED = 2500,
 };
 
-static uint32_t blink_interval_ms = BLINK_NOT_MOUNTED;
+// static timer
+StaticTimer_t blinky_tmdef;
+TimerHandle_t blinky_tm;
 
-void led_blinking_task(void);
-void hid_task(void);
+// static task for usbd
+#define USBD_STACK_SIZE     (3*configMINIMAL_STACK_SIZE/2)
+StackType_t  usb_device_stack[USBD_STACK_SIZE];
+StaticTask_t usb_device_taskdef;
 
-/*------------- MAIN -------------*/
+// static task for hid
+#define HID_STACK_SZIE      configMINIMAL_STACK_SIZE
+StackType_t  hid_stack[HID_STACK_SZIE];
+StaticTask_t hid_taskdef;
+
+
+void led_blinky_cb(TimerHandle_t xTimer);
+void usb_device_task(void* param);
+void hid_task(void* params);
+
+//--------------------------------------------------------------------+
+// Main
+//--------------------------------------------------------------------+
+
 int main(void)
 {
   board_init();
   tusb_init();
 
+  // soft timer for blinky
+  blinky_tm = xTimerCreateStatic(NULL, pdMS_TO_TICKS(BLINK_NOT_MOUNTED), true, NULL, led_blinky_cb, &blinky_tmdef);
+  xTimerStart(blinky_tm, 0);
+
+  // Create a task for tinyusb device stack
+  (void) xTaskCreateStatic( usb_device_task, "usbd", USBD_STACK_SIZE, NULL, configMAX_PRIORITIES-1, usb_device_stack, &usb_device_taskdef);
+
+  // Create HID task
+  (void) xTaskCreateStatic( hid_task, "hid", HID_STACK_SZIE, NULL, configMAX_PRIORITIES-2, hid_stack, &hid_taskdef);
+
+  // skip starting scheduler (and return) for ESP32-S2
+#if CFG_TUSB_MCU != OPT_MCU_ESP32S2
+  vTaskStartScheduler();
+  NVIC_SystemReset();
+  return 0;
+#endif
+}
+
+#if CFG_TUSB_MCU == OPT_MCU_ESP32S2
+void app_main(void)
+{
+  main();
+}
+#endif
+
+// USB Device Driver task
+// This top level thread process all usb events and invoke callbacks
+void usb_device_task(void* param)
+{
+  (void) param;
+
+  // RTOS forever loop
   while (1)
   {
-    tud_task(); // tinyusb device task
-    led_blinking_task();
-
-    hid_task();
+    // tinyusb device task
+    tud_task();
   }
-
-  return 0;
 }
 
 //--------------------------------------------------------------------+
@@ -76,13 +127,13 @@ int main(void)
 // Invoked when device is mounted
 void tud_mount_cb(void)
 {
-  blink_interval_ms = BLINK_MOUNTED;
+  xTimerChangePeriod(blinky_tm, pdMS_TO_TICKS(BLINK_MOUNTED), 0);
 }
 
 // Invoked when device is unmounted
 void tud_umount_cb(void)
 {
-  blink_interval_ms = BLINK_NOT_MOUNTED;
+  xTimerChangePeriod(blinky_tm, pdMS_TO_TICKS(BLINK_NOT_MOUNTED), 0);
 }
 
 // Invoked when usb bus is suspended
@@ -91,76 +142,76 @@ void tud_umount_cb(void)
 void tud_suspend_cb(bool remote_wakeup_en)
 {
   (void) remote_wakeup_en;
-  blink_interval_ms = BLINK_SUSPENDED;
+  xTimerChangePeriod(blinky_tm, pdMS_TO_TICKS(BLINK_SUSPENDED), 0);
 }
 
 // Invoked when usb bus is resumed
 void tud_resume_cb(void)
 {
-  blink_interval_ms = BLINK_MOUNTED;
+  xTimerChangePeriod(blinky_tm, pdMS_TO_TICKS(BLINK_MOUNTED), 0);
 }
 
 //--------------------------------------------------------------------+
 // USB HID
 //--------------------------------------------------------------------+
 
-void hid_task(void)
+void hid_task(void* param)
 {
-  // Poll every 10ms
-  const uint32_t interval_ms = 10;
-  static uint32_t start_ms = 0;
+  (void) param;
 
-  if ( board_millis() - start_ms < interval_ms) return; // not enough time
-  start_ms += interval_ms;
-
-  uint32_t const btn = board_button_read();
-
-  // Remote wakeup
-  if ( tud_suspended() && btn )
+  while(1)
   {
-    // Wake up host if we are in suspend mode
-    // and REMOTE_WAKEUP feature is enabled by host
-    tud_remote_wakeup();
-  }
+    // Poll every 10ms
+    vTaskDelay(pdMS_TO_TICKS(10));
 
-  /*------------- Mouse -------------*/
-  if ( tud_hid_ready() )
-  {
-    if ( btn )
+    uint32_t const btn = board_button_read();
+
+    // Remote wakeup
+    if ( tud_suspended() && btn )
     {
-      int8_t const delta = 5;
-
-      // no button, right + down, no scroll pan
-      tud_hid_mouse_report(REPORT_ID_MOUSE, 0x00, delta, delta, 0, 0);
-
-      // delay a bit before attempt to send keyboard report
-      board_delay(10);
+      // Wake up host if we are in suspend mode
+      // and REMOTE_WAKEUP feature is enabled by host
+      tud_remote_wakeup();
     }
-  }
 
-  /*------------- Keyboard -------------*/
-  if ( tud_hid_ready() )
-  {
-    // use to avoid send multiple consecutive zero report for keyboard
-    static bool has_key = false;
-
-    if ( btn )
+    /*------------- Mouse -------------*/
+    if ( tud_hid_ready() )
     {
-      uint8_t keycode[6] = { 0 };
-      keycode[0] = HID_KEY_A;
+      if ( btn )
+      {
+        int8_t const delta = 5;
 
-      tud_hid_keyboard_report(REPORT_ID_KEYBOARD, 0, keycode);
+        // no button, right + down, no scroll pan
+        tud_hid_mouse_report(REPORT_ID_MOUSE, 0x00, delta, delta, 0, 0);
 
-      has_key = true;
-    }else
+        // delay a bit before attempt to send keyboard report
+        vTaskDelay(pdMS_TO_TICKS(10));
+      }
+    }
+
+    /*------------- Keyboard -------------*/
+    if ( tud_hid_ready() )
     {
-      // send empty key report if previously has key pressed
-      if (has_key) tud_hid_keyboard_report(REPORT_ID_KEYBOARD, 0, NULL);
-      has_key = false;
+      // use to avoid send multiple consecutive zero report for keyboard
+      static bool has_key = false;
+
+      if ( btn )
+      {
+        uint8_t keycode[6] = { 0 };
+        keycode[0] = HID_KEY_A;
+
+        tud_hid_keyboard_report(REPORT_ID_KEYBOARD, 0, keycode);
+
+        has_key = true;
+      }else
+      {
+        // send empty key report if previously has key pressed
+        if (has_key) tud_hid_keyboard_report(REPORT_ID_KEYBOARD, 0, NULL);
+        has_key = false;
+      }
     }
   }
 }
-
 
 // Invoked when received GET_REPORT control request
 // Application must fill buffer report's content and return its length.
@@ -190,14 +241,10 @@ void tud_hid_set_report_cb(uint8_t report_id, hid_report_type_t report_type, uin
 //--------------------------------------------------------------------+
 // BLINKING TASK
 //--------------------------------------------------------------------+
-void led_blinking_task(void)
+void led_blinky_cb(TimerHandle_t xTimer)
 {
-  static uint32_t start_ms = 0;
+  (void) xTimer;
   static bool led_state = false;
-
-  // Blink every interval ms
-  if ( board_millis() - start_ms < blink_interval_ms) return; // not enough time
-  start_ms += blink_interval_ms;
 
   board_led_write(led_state);
   led_state = 1 - led_state; // toggle

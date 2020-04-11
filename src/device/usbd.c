@@ -332,6 +332,7 @@ bool tud_init (void)
 
   // Init device controller driver
   dcd_init(TUD_OPT_RHPORT);
+  tud_connect();
   dcd_int_enable(TUD_OPT_RHPORT);
 
   return true;
@@ -421,7 +422,7 @@ void tud_task (void)
         uint8_t const epnum   = tu_edpt_number(ep_addr);
         uint8_t const ep_dir  = tu_edpt_dir(ep_addr);
 
-        TU_LOG2("  Endpoint: 0x%02X, Bytes: %ld\r\n", ep_addr, event.xfer_complete.len);
+        TU_LOG2("  Endpoint: 0x%02X, Bytes: %u\r\n", ep_addr, (unsigned int) event.xfer_complete.len);
 
         _usbd_dev.ep_status[epnum][ep_dir].busy = false;
 
