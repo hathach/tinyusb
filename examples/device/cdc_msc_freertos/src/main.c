@@ -200,7 +200,7 @@ void tud_cdc_line_state_cb(uint8_t itf, bool dtr, bool rts)
   if ( dtr && rts )
   {
     // print initial message when connected
-    tud_cdc_write_str("\r\nTinyUSB CDC MSC HID device with FreeRTOS example\r\n");
+    tud_cdc_write_str("\r\nTinyUSB CDC MSC device with FreeRTOS example\r\n");
   }
 }
 
