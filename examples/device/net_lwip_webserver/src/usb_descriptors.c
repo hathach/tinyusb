@@ -63,13 +63,17 @@ tusb_desc_device_t const desc_device =
 
     .idVendor           = 0xCafe,
     .idProduct          = USB_PID,
-    .bcdDevice          = 0x0100,
+    .bcdDevice          = 0x0101,
 
     .iManufacturer      = STRID_MANUFACTURER,
     .iProduct           = STRID_PRODUCT,
     .iSerialNumber      = STRID_SERIAL,
 
+#if CFG_TUD_NET == OPT_NET_EEM
     .bNumConfigurations = 0x01
+#else
+    .bNumConfigurations = 0x02
+#endif
 };
 
 // Invoked when received GET DEVICE DESCRIPTOR
@@ -85,16 +89,23 @@ uint8_t const * tud_descriptor_device_cb(void)
 enum
 {
   ITF_NUM_CDC = 0,
+#if CFG_TUD_NET == OPT_NET_RNDIS_ECM
   ITF_NUM_CDC_DATA,
+#endif
   ITF_NUM_TOTAL
 };
 
-#if CFG_TUD_NET == OPT_NET_ECM
-  #define CONFIG_TOTAL_LEN    (TUD_CONFIG_DESC_LEN + TUD_CDC_ECM_DESC_LEN)
-#elif CFG_TUD_NET == OPT_NET_RNDIS
-  #define CONFIG_TOTAL_LEN    (TUD_CONFIG_DESC_LEN + TUD_RNDIS_DESC_LEN)
-#elif CFG_TUD_NET == OPT_NET_EEM
-  #define CONFIG_TOTAL_LEN    (TUD_CONFIG_DESC_LEN + TUD_CDC_EEM_DESC_LEN)
+enum
+{
+  CONFIG_NUM_DEFAULT = 1,
+  CONFIG_NUM_ALTERNATE = 2,
+};
+
+#if CFG_TUD_NET == OPT_NET_EEM
+  #define MAIN_CONFIG_TOTAL_LEN    (TUD_CONFIG_DESC_LEN + TUD_CDC_EEM_DESC_LEN)
+#else
+  #define MAIN_CONFIG_TOTAL_LEN    (TUD_CONFIG_DESC_LEN + TUD_RNDIS_DESC_LEN)
+  #define ALT_CONFIG_TOTAL_LEN     (TUD_CONFIG_DESC_LEN + TUD_CDC_ECM_DESC_LEN)
 #endif
 
 #if CFG_TUSB_MCU == OPT_MCU_LPC175X_6X || CFG_TUSB_MCU == OPT_MCU_LPC177X_8X || CFG_TUSB_MCU == OPT_MCU_LPC40XX
@@ -105,30 +116,42 @@ enum
   #define EPNUM_CDC     2
 #endif
 
-uint8_t const desc_configuration[] =
+static uint8_t const main_configuration[] =
 {
   // Config number, interface count, string index, total length, attribute, power in mA
-  TUD_CONFIG_DESCRIPTOR(1, ITF_NUM_TOTAL, 0, CONFIG_TOTAL_LEN, 0, 100),
+  TUD_CONFIG_DESCRIPTOR(CONFIG_NUM_DEFAULT, ITF_NUM_TOTAL, 0, MAIN_CONFIG_TOTAL_LEN, 0, 100),
 
-#if CFG_TUD_NET == OPT_NET_ECM
-  // Interface number, description string index, MAC address string index, EP notification address and size, EP data address (out, in), and size, max segment size.
-  TUD_CDC_ECM_DESCRIPTOR(ITF_NUM_CDC, STRID_INTERFACE, STRID_MAC, 0x81, 64, EPNUM_CDC, 0x80 | EPNUM_CDC, CFG_TUD_NET_ENDPOINT_SIZE, CFG_TUD_NET_MTU),
-#elif CFG_TUD_NET == OPT_NET_RNDIS
-  // Interface number, string index, EP notification address and size, EP data address (out, in) and size.
-  TUD_RNDIS_DESCRIPTOR(ITF_NUM_CDC, STRID_INTERFACE, 0x81, 8, EPNUM_CDC, 0x80 | EPNUM_CDC, CFG_TUD_NET_ENDPOINT_SIZE),
-#elif CFG_TUD_NET == OPT_NET_EEM
+#if CFG_TUD_NET == OPT_NET_EEM
   // Interface number, description string index, EP data address (out, in) and size.
   TUD_CDC_EEM_DESCRIPTOR(ITF_NUM_CDC, STRID_INTERFACE, EPNUM_CDC, 0x80 | EPNUM_CDC, CFG_TUD_NET_ENDPOINT_SIZE),
+#else
+  // Interface number, string index, EP notification address and size, EP data address (out, in) and size.
+  TUD_RNDIS_DESCRIPTOR(ITF_NUM_CDC, STRID_INTERFACE, 0x81, 8, EPNUM_CDC, 0x80 | EPNUM_CDC, CFG_TUD_NET_ENDPOINT_SIZE),
 #endif
 };
+
+#if CFG_TUD_NET == OPT_NET_RNDIS_ECM
+static uint8_t const alt_configuration[] =
+{
+  // Config number, interface count, string index, total length, attribute, power in mA
+  TUD_CONFIG_DESCRIPTOR(CONFIG_NUM_ALTERNATE, ITF_NUM_TOTAL, 0, ALT_CONFIG_TOTAL_LEN, 0, 100),
+
+  // Interface number, description string index, MAC address string index, EP notification address and size, EP data address (out, in), and size, max segment size.
+  TUD_CDC_ECM_DESCRIPTOR(ITF_NUM_CDC, STRID_INTERFACE, STRID_MAC, 0x81, 64, EPNUM_CDC, 0x80 | EPNUM_CDC, CFG_TUD_NET_ENDPOINT_SIZE, CFG_TUD_NET_MTU),
+};
+#endif
 
 // Invoked when received GET CONFIGURATION DESCRIPTOR
 // Application return pointer to descriptor
 // Descriptor contents must exist long enough for transfer to complete
 uint8_t const * tud_descriptor_configuration_cb(uint8_t index)
 {
+#if CFG_TUD_NET == OPT_NET_EEM
   (void) index; // for multiple configurations
-  return desc_configuration;
+  return main_configuration;
+#else
+  return (0 == index) ? main_configuration : alt_configuration;
+#endif
 }
 
 //--------------------------------------------------------------------+
@@ -141,8 +164,8 @@ static char const* string_desc_arr [] =
   [STRID_LANGID]       = (const char[]) { 0x09, 0x04 }, // supported language is English (0x0409)
   [STRID_MANUFACTURER] = "TinyUSB",                     // Manufacturer
   [STRID_PRODUCT]      = "TinyUSB Device",              // Product
-  [STRID_SERIAL]       = "123456",                      // Serials
-  [STRID_INTERFACE]    = "TinyUSB Network Interface"    // CDC-ECM Interface
+  [STRID_SERIAL]       = "123456",                      // Serial
+  [STRID_INTERFACE]    = "TinyUSB Network Interface"    // Interface Description
 
   // STRID_MAC index is handled separately
 };
