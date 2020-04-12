@@ -43,6 +43,7 @@ The MCU appears to the host as IP address 192.168.7.1, and provides a DHCP serve
 #include "dhserver.h"
 #include "dnserver.h"
 #include "lwip/init.h"
+#include "lwip/timeouts.h"
 #include "httpd.h"
 
 /* lwip context */
@@ -167,6 +168,8 @@ static void service_traffic(void)
     received_frame = NULL;
     tud_network_recv_renew();
   }
+
+  sys_check_timeouts();
 }
 
 void tud_network_init_cb(void)
