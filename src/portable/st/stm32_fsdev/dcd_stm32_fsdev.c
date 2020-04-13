@@ -501,7 +501,9 @@ static void dcd_ep_ctr_handler(void)
   }
 }
 
-static void dcd_fs_irqHandler(void) {
+void dcd_irq_handler(uint8_t rhport) {
+
+  (void) rhport;
 
   uint32_t int_status = USB->ISTR;
   //const uint32_t handled_ints = USB_ISTR_CTR | USB_ISTR_RESET | USB_ISTR_WKUP
@@ -815,58 +817,6 @@ static bool dcd_read_packet_memory(void *__restrict dst, uint16_t src, size_t wN
   }
   return true;
 }
-
-
-// Interrupt handlers
-#if CFG_TUSB_MCU == OPT_MCU_STM32F0 || CFG_TUSB_MCU == OPT_MCU_STM32L0
-void USB_IRQHandler(void)
-{
-  dcd_fs_irqHandler();
-}
-
-#elif CFG_TUSB_MCU == OPT_MCU_STM32F1
-void USB_HP_IRQHandler(void)
-{
-  dcd_fs_irqHandler();
-}
-void USB_LP_IRQHandler(void)
-{
-  dcd_fs_irqHandler();
-}
-void USBWakeUp_IRQHandler(void)
-{
-  dcd_fs_irqHandler();
-}
-
-#elif (CFG_TUSB_MCU) == (OPT_MCU_STM32F3)
-// USB defaults to using interrupts 19, 20, and 42 (based on SYSCFG_CFGR1.USB_IT_RMP)
-// FIXME: Do all three need to be handled, or just the LP one?
-// USB high-priority interrupt (Channel 19): Triggered only by a correct
-// transfer event for isochronous and double-buffer bulk transfer to reach
-// the highest possible transfer rate.
-void USB_HP_CAN_TX_IRQHandler(void)
-{
-  dcd_fs_irqHandler();
-}
-
-// USB low-priority interrupt (Channel 20): Triggered by all USB events
-// (Correct transfer, USB reset, etc.). The firmware has to check the
-// interrupt source before serving the interrupt.
-void USB_LP_CAN_RX0_IRQHandler(void)
-{
-  dcd_fs_irqHandler();
-}
-
-// USB wakeup interrupt (Channel 42): Triggered by the wakeup event from the USB
-// Suspend mode.
-void USBWakeUp_IRQHandler(void)
-{
-  dcd_fs_irqHandler();
-}
-
-#else
-  #error Which IRQ handler do you need?
-#endif
 
 #endif
 

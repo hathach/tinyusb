@@ -49,13 +49,11 @@
   // LPC 11Uxx, 13xx, 15xx use lpcopen
   #include "chip.h"
   #define DCD_REGS        LPC_USB
-  #define DCD_IRQHandler  USB_IRQHandler
 
 #elif CFG_TUSB_MCU == OPT_MCU_LPC51UXX || CFG_TUSB_MCU == OPT_MCU_LPC54XXX || \
       CFG_TUSB_MCU == OPT_MCU_LPC55XX // TODO 55xx has dual usb controllers
   #include "fsl_device_registers.h"
   #define DCD_REGS        USB0
-  #define DCD_IRQHandler  USB0_IRQHandler
 
 #endif
 
@@ -335,8 +333,10 @@ static void process_xfer_isr(uint32_t int_status)
   }
 }
 
-void DCD_IRQHandler(void)
+void dcd_irq_handler(uint8_t rhport)
 {
+  (void) rhport; // TODO support multiple USB on supported mcu such as LPC55s69
+
   uint32_t const cmd_stat = DCD_REGS->DEVCMDSTAT;
 
   uint32_t int_status = DCD_REGS->INTSTAT & DCD_REGS->INTEN;

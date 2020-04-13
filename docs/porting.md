@@ -60,23 +60,30 @@ All of the code for the low-level device API is in `src/portable/<vendor>/<chip 
 #### Device Setup
 
 ##### dcd_init
-Initializes the USB peripheral for device mode and enables it.
 
+Initializes the USB peripheral for device mode and enables it.
 This function should leave an internal D+/D- pull-up in its default power-on state. `dcd_connect` will be called by the USBD core following `dcd_init`.
 
-#### dcd_int_enable / dcd_int_disable
+##### dcd_int_enable / dcd_int_disable
 
 Enables or disables the USB device interrupt(s). May be used to prevent concurrency issues when mutating data structures shared between main code and the interrupt handler.
 
+##### dcd_irq_handler
+
+Processes all the hardware generated events e.g Bus reset, new data packet from host etc ... It will be called by application in the MCU USB interrupt handler.
+
 ##### dcd_set_address
+
 Called when the device is given a new bus address.
 
 If your peripheral automatically changes address during enumeration (like the nrf52) you may leave this empty and also no queue an event for the corresponding SETUP packet.
 
 ##### dcd_set_config
+
 Called when the device received SET_CONFIG request, you can leave this empty if your peripheral does not require any specific action.
 
 ##### dcd_remote_wakeup
+
 Called to remote wake up host when suspended (e.g hid keyboard)
 
 ##### dcd_connect / dcd_disconnect
@@ -84,6 +91,7 @@ Called to remote wake up host when suspended (e.g hid keyboard)
 Connect or disconnect the data-line pull-up resistor. Define only if MCU has an internal pull-up. (BSP may define for MCU without internal pull-up.)
 
 #### Special events
+
 You must let TinyUSB know when certain events occur so that it can continue its work. There are a few methods you can call to queue events for TinyUSB to process.
 
 ##### dcd_event_bus_signal
@@ -102,6 +110,7 @@ The first `0` is the USB peripheral number. Statically saying 0 is common for si
 The `true` indicates the call is from an interrupt handler and will always be the case when porting in this way.
 
 ##### dcd_setup_received
+
 SETUP packets are a special type of transaction that can occur at any time on the control endpoint, numbered `0`. Since they are unique, most peripherals have special handling for them. Their data is always 8 bytes in length as well.
 
 Calls to this look like:

@@ -36,6 +36,14 @@
 #include "nrf_soc.h"
 #endif
 
+//--------------------------------------------------------------------+
+// Forward USB interrupt events to TinyUSB IRQ Handler
+//--------------------------------------------------------------------+
+void USBD_IRQHandler(void)
+{
+  tud_irq_handler(0);
+}
+
 /*------------------------------------------------------------------*/
 /* MACRO TYPEDEF CONSTANT ENUM
  *------------------------------------------------------------------*/
@@ -92,6 +100,7 @@ void board_init(void)
 
   nrfx_uarte_init(&_uart_id, &uart_cfg, NULL); //uart_handler);
 
+  //------------- USB -------------//
 #if TUSB_OPT_DEVICE_ENABLED
   // Priorities 0, 1, 4 (nRF52) are reserved for SoftDevice
   // 2 is highest for application

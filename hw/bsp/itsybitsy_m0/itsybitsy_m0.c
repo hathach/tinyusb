@@ -36,6 +36,14 @@
 #include "hpl/pm/hpl_pm_base.h"
 
 //--------------------------------------------------------------------+
+// Forward USB interrupt events to TinyUSB IRQ Handler
+//--------------------------------------------------------------------+
+void USB_Handler(void)
+{
+  tud_irq_handler(0);
+}
+
+//--------------------------------------------------------------------+
 // MACRO TYPEDEF CONSTANT ENUM DECLARATION
 //--------------------------------------------------------------------+
 #define LED_PIN      17
