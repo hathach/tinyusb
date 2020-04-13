@@ -1044,6 +1044,8 @@ bool usbd_edpt_stalled(uint8_t rhport, uint8_t ep_addr)
 /**
  * Remove queued xfer complete messages from event queue,
  * for a particular ep.
+ * 
+ * Must be called with interrupts enabled.
  */
 static void usbd_abort_transfers(uint8_t rhport, uint8_t ep_addr)
 {
@@ -1077,13 +1079,13 @@ static void usbd_abort_transfers(uint8_t rhport, uint8_t ep_addr)
 }
 
 /**
- * tud_edpt_close will disable an endpoint, and clear all pending transfers
+ * usbd_edpt_close will disable an endpoint, and clear all pending transfers
  * through the particular endpoint.
  * 
- * It must be called from the usb task (i.e. from the control request
- * handler while handling SET_ALTERNATE).
+ * It must be called from the usb task (e.g. from the control request
+ * handler while handling SET_ALTERNATE), with interrupts enabled.
  */
-void tud_edpt_close(uint8_t rhport, uint8_t ep_addr)
+void usbd_edpt_close(uint8_t rhport, uint8_t ep_addr)
 {
   
   TU_ASSERT(dcd_edpt_close, /**/);

@@ -63,8 +63,10 @@
  * Current driver limitations (i.e., a list of features for you to add):
  * - STALL handled, but not tested.
  *   - Does it work? No clue.
- * - All EP BTABLE buffers are created as max 64 bytes.
- *   - Smaller can be requested, but it has to be an even number.
+ * - All EP BTABLE buffers are created as fixed 64 bytes.
+ *   - Smaller can be requested:
+ *   - Must be a multiple of 8 bytes
+ *   - All EP must have identical buffer size.
  * - No isochronous endpoints
  * - Endpoint index is the ID of the endpoint
  *   - This means that priority is given to endpoints with lower ID numbers
@@ -130,20 +132,28 @@
  * Configuration
  *****************************************************/
 
-// HW supports max of 8 endpoints, but this can be reduced to save RAM
+// HW supports max of 8 bidirectional endpoints, but this can be reduced to save RAM
+// (8u here would mean 8 IN and 8 OUT)
 #ifndef MAX_EP_COUNT
-#  define MAX_EP_COUNT 8u
+#  if (PMA_LENGTH == 512U)
+#    define MAX_EP_COUNT 4U
+#  else
+#    define MAX_EP_COUNT 8U
+#  endif
 #endif
 
 // If sharing with CAN, one can set this to be non-zero to give CAN space where it wants it
 // Both of these MUST be a multiple of 2, and are in byte units.
 #ifndef DCD_STM32_BTABLE_BASE
-#  define DCD_STM32_BTABLE_BASE 0u
+#  define DCD_STM32_BTABLE_BASE 0U
 #endif
 
 #ifndef DCD_STM32_BTABLE_LENGTH
 #  define DCD_STM32_BTABLE_LENGTH (PMA_LENGTH - DCD_STM32_BTABLE_BASE)
 #endif
+
+// Below is used by the static PMA allocator
+#define DCD_STM32_PMA_ALLOC_SIZE 64U
 
 /***************************************************
  * Checks, structs, defines, function definitions, etc.
@@ -155,6 +165,11 @@ TU_VERIFY_STATIC(((DCD_STM32_BTABLE_BASE) + (DCD_STM32_BTABLE_LENGTH))<=(PMA_LEN
     "BTABLE does not fit in PMA RAM");
 
 TU_VERIFY_STATIC(((DCD_STM32_BTABLE_BASE) % 8) == 0, "BTABLE base must be aligned to 8 bytes");
+
+// With static allocation of 64 bytes per endpoint, ensure there is enough packet buffer space
+TU_VERIFY_STATIC(((MAX_EP_COUNT*2u*DCD_STM32_PMA_ALLOC_SIZE) <= DCD_STM32_BTABLE_LENGTH), "Packed buffer not long enough for count of endpoints");
+
+TU_VERIFY_STATIC((DCD_STM32_PMA_ALLOC_SIZE % 8) == 0, "Packet buffer allocation must be a multiple of 8 bytes");
 
 // One of these for every EP IN & OUT, uses a bit of RAM....
 typedef struct
@@ -178,7 +193,6 @@ static uint8_t remoteWakeCountdown; // When wake is requested
 
 // EP Buffers assigned from end of memory location, to minimize their chance of crashing
 // into the stack.
-static uint16_t ep_buf_ptr;
 static void dcd_handle_bus_reset(void);
 static bool dcd_write_packet_memory(uint16_t dst, const void *__restrict src, size_t wNBytes);
 static bool dcd_read_packet_memory(void *__restrict dst, uint16_t src, size_t wNBytes);
@@ -355,7 +369,6 @@ static void dcd_handle_bus_reset(void)
     pcd_set_endpoint(USB,i,0u);
   }
 
-  ep_buf_ptr = DCD_STM32_BTABLE_BASE + 8*MAX_EP_COUNT; // 8 bytes per endpoint (two TX and two RX words, each)
   dcd_edpt_open (0, &ep0OUT_desc);
   dcd_edpt_open (0, &ep0IN_desc);
 
@@ -577,6 +590,22 @@ void dcd_edpt0_status_complete(uint8_t rhport, tusb_control_request_t const * re
   }
 }
 
+/***
+ * Allocate a section of PMA
+ * Currently statitically allocates 64 bytes for each EP.
+ * 
+ * stm32fsdev have 512 or 1024 bytes of packet RAM, and support 16 EP (8 in and 8 out),
+ * Static checks above have verified that there is enough packet memory space, so 
+ * this should NEVER fail.
+ */
+static uint16_t dcd_pma_alloc(uint8_t ep_addr)
+{
+  uint8_t const epnum = tu_edpt_number(ep_addr);
+  uint8_t const dir   = tu_edpt_dir(ep_addr);
+  
+  return ((2*epnum + dir) * DCD_STM32_PMA_ALLOC_SIZE);
+}
+
 // The STM32F0 doesn't seem to like |= or &= to manipulate the EP#R registers,
 // so I'm using the #define from HAL here, instead.
 
@@ -590,6 +619,7 @@ bool dcd_edpt_open (uint8_t rhport, tusb_desc_endpoint_t const * p_endpoint_desc
 
   TU_ASSERT(p_endpoint_desc->bmAttributes.xfer != TUSB_XFER_ISOCHRONOUS);
   TU_ASSERT(epnum < MAX_EP_COUNT);
+  TU_ASSERT(epMaxPktSize <= DCD_STM32_PMA_ALLOC_SIZE);
 
   // Set type
   switch(p_endpoint_desc->bmAttributes.xfer) {
@@ -623,7 +653,7 @@ bool dcd_edpt_open (uint8_t rhport, tusb_desc_endpoint_t const * p_endpoint_desc
   if(dir == TUSB_DIR_IN)
   {
     // FIXME: use pma_alloc to allocate memory dynamically
-    *pcd_ep_tx_address_ptr(USB, epnum) = ep_buf_ptr;
+    *pcd_ep_tx_address_ptr(USB, epnum) = dcd_pma_alloc(p_endpoint_desc->bEndpointAddress);
     pcd_set_ep_tx_cnt(USB, epnum, p_endpoint_desc->wMaxPacketSize.size);
     pcd_clear_tx_dtog(USB, epnum);
     pcd_set_ep_tx_status(USB,epnum,USB_EP_TX_NAK);
@@ -631,14 +661,13 @@ bool dcd_edpt_open (uint8_t rhport, tusb_desc_endpoint_t const * p_endpoint_desc
   else
   {
     // FIXME: use pma_alloc to allocate memory dynamically
-    *pcd_ep_rx_address_ptr(USB, epnum) = ep_buf_ptr;
+    *pcd_ep_rx_address_ptr(USB, epnum) = dcd_pma_alloc(p_endpoint_desc->bEndpointAddress);
     pcd_set_ep_rx_cnt(USB, epnum, p_endpoint_desc->wMaxPacketSize.size);
     pcd_clear_rx_dtog(USB, epnum);
     pcd_set_ep_rx_status(USB, epnum, USB_EP_RX_NAK);
   }
 
   xfer_ctl_ptr(epnum, dir)->max_packet_size = epMaxPktSize;
-  ep_buf_ptr = (uint16_t)(ep_buf_ptr + p_endpoint_desc->wMaxPacketSize.size); // increment buffer pointer
 
   return true;
 }
@@ -646,8 +675,8 @@ bool dcd_edpt_open (uint8_t rhport, tusb_desc_endpoint_t const * p_endpoint_desc
 /**
  * Close an endpoint.
  * 
- * This function should be called with interrupts enabled, though 
- * this implementation should be valid with them disabled, too.
+ * This function may be called with interrupts enabled or disabled.
+ * 
  * This also clears transfers in progress, should there be any.
  */
 void dcd_edpt_close (uint8_t rhport, uint8_t ep_addr)
@@ -660,21 +689,14 @@ void dcd_edpt_close (uint8_t rhport, uint8_t ep_addr)
   TU_ASSERT(epnum < MAX_EP_COUNT, /**/);
 #endif
 
-  //uint16_t memptr;
-
   if(dir == TUSB_DIR_IN)
   {
     pcd_set_ep_tx_status(USB,epnum,USB_EP_TX_DIS);
-    //memptr = *pcd_ep_tx_address_ptr(USB, epnum);
   }
   else
   {
     pcd_set_ep_rx_status(USB, epnum, USB_EP_RX_DIS);
-    //memptr = *pcd_ep_rx_address_ptr(USB, epnum);
   }
-
-  // FIXME: Free memory
-  // pma_free(memptr);
 }
 
 // Currently, single-buffered, and only 64 bytes at a time (max)

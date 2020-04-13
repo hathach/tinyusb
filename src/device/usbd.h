@@ -79,8 +79,6 @@ static inline bool tud_connect(void)
   return true;
 }
 
-void tud_edpt_close(uint8_t rhport, uint8_t ep_addr);
-
 // Carry out Data and Status stage of control transfer
 // - If len = 0, it is equivalent to sending status only
 // - If len > wLength : it will be truncated

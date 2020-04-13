@@ -121,10 +121,11 @@ Also make sure to enable endpoint specific interrupts.
 
 ##### dcd_edpt_close
 
-Close an endpoint. After calling this, the device should not respond to any packets directed towards this endpoint. Implementation is optional, and is to be called from USBD in a non-interrupt context.
-This function is used for implementing alternate settings.
+Close an endpoint. his function is used for implementing alternate settings.
 
-When called, this function need to abort any transfers in progress through this endpoint, before returning.
+After calling this, the device should not respond to any packets directed towards this endpoint. When called, this function must abort any transfers in progress through this endpoint, before returning.
+
+Implementation is optional. Must be called from the USB task. Interrupts could be disabled or enabled during the call.
 
 ##### dcd_edpt_xfer
 
