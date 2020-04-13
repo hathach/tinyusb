@@ -66,7 +66,7 @@ typedef struct TU_ATTR_ALIGNED(4)
 
     // USBD_EVT_XFER_COMPLETE
     struct {
-      uint8_t  ep_addr; ///< 0xFF signifies that the transfer was aborted.
+      uint8_t  ep_addr;
       uint8_t  result;
       uint32_t len;
     }xfer_complete;

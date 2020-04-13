@@ -420,11 +420,6 @@ void tud_task (void)
         uint8_t const ep_addr = event.xfer_complete.ep_addr;
         uint8_t const epnum   = tu_edpt_number(ep_addr);
         uint8_t const ep_dir  = tu_edpt_dir(ep_addr);
-        
-        if(ep_addr == 0xFF) // aborted transfer
-        {
-          break;
-        }
 
         TU_LOG2("  Endpoint: 0x%02X, Bytes: %u\r\n", ep_addr, (unsigned int) event.xfer_complete.len);
 
@@ -1069,9 +1064,11 @@ static void usbd_abort_transfers(uint8_t rhport, uint8_t ep_addr)
       && (event.xfer_complete.ep_addr == ep_addr))
     {
       _usbd_dev.ep_status[epnum][ep_dir].busy = false;
-      event.xfer_complete.ep_addr = 0xFF; // Mark transfer as invalid
     }
-    TU_ASSERT(osal_queue_send(_usbd_q, &event, true), /**/);
+    else
+    {
+      TU_ASSERT(osal_queue_send(_usbd_q, &event, true), /**/);
+    }
     TU_ASSERT(osal_queue_receive(_usbd_q, &event), /**/);
   }
   
@@ -1087,7 +1084,6 @@ static void usbd_abort_transfers(uint8_t rhport, uint8_t ep_addr)
  */
 void usbd_edpt_close(uint8_t rhport, uint8_t ep_addr)
 {
-  
   TU_ASSERT(dcd_edpt_close, /**/);
   TU_LOG2("  CLOSING Endpoint: 0x%02X\r\n", ep_addr);
 
