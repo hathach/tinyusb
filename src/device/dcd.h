@@ -132,6 +132,9 @@ void dcd_edpt_stall       (uint8_t rhport, uint8_t ep_addr);
 // clear stall, data toggle is also reset to DATA0
 void dcd_edpt_clear_stall (uint8_t rhport, uint8_t ep_addr);
 
+// Close/Disable all non-control endpoints
+void dcd_edpt_close_all(uint8_t rhport);
+
 //--------------------------------------------------------------------+
 // Event API (Implemented by device stack)
 //--------------------------------------------------------------------+
