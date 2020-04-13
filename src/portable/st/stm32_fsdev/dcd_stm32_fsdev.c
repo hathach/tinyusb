@@ -136,9 +136,9 @@
 // (8u here would mean 8 IN and 8 OUT)
 #ifndef MAX_EP_COUNT
 #  if (PMA_LENGTH == 512U)
-#    define MAX_EP_COUNT 4U
+#    define MAX_EP_COUNT 3U
 #  else
-#    define MAX_EP_COUNT 8U
+#    define MAX_EP_COUNT 7U
 #  endif
 #endif
 
@@ -153,7 +153,9 @@
 #endif
 
 // Below is used by the static PMA allocator
-#define DCD_STM32_PMA_ALLOC_SIZE 64U
+#ifndef DCD_STM32_PMA_ALLOC_SIZE
+#  define DCD_STM32_PMA_ALLOC_SIZE 64U
+#endif
 
 /***************************************************
  * Checks, structs, defines, function definitions, etc.
@@ -167,9 +169,12 @@ TU_VERIFY_STATIC(((DCD_STM32_BTABLE_BASE) + (DCD_STM32_BTABLE_LENGTH))<=(PMA_LEN
 TU_VERIFY_STATIC(((DCD_STM32_BTABLE_BASE) % 8) == 0, "BTABLE base must be aligned to 8 bytes");
 
 // With static allocation of 64 bytes per endpoint, ensure there is enough packet buffer space
-TU_VERIFY_STATIC(((MAX_EP_COUNT*2u*DCD_STM32_PMA_ALLOC_SIZE) <= DCD_STM32_BTABLE_LENGTH), "Packed buffer not long enough for count of endpoints");
+// 8 bytes are required for control data for each EP.
+TU_VERIFY_STATIC(((MAX_EP_COUNT*2u*DCD_STM32_PMA_ALLOC_SIZE + 8*MAX_EP_COUNT) <= DCD_STM32_BTABLE_LENGTH), "Packed buffer not long enough for count of endpoints");
 
 TU_VERIFY_STATIC((DCD_STM32_PMA_ALLOC_SIZE % 8) == 0, "Packet buffer allocation must be a multiple of 8 bytes");
+
+TU_VERIFY_STATIC(CFG_TUD_ENDPOINT0_SIZE <= DCD_STM32_PMA_ALLOC_SIZE,"EP0 size is more than PMA allocation size");
 
 // One of these for every EP IN & OUT, uses a bit of RAM....
 typedef struct
@@ -598,12 +603,18 @@ void dcd_edpt0_status_complete(uint8_t rhport, tusb_control_request_t const * re
  * Static checks above have verified that there is enough packet memory space, so 
  * this should NEVER fail.
  */
-static uint16_t dcd_pma_alloc(uint8_t ep_addr)
+static uint16_t dcd_pma_alloc(uint8_t ep_addr, size_t length)
 {
   uint8_t const epnum = tu_edpt_number(ep_addr);
   uint8_t const dir   = tu_edpt_dir(ep_addr);
+
+  (void)length;
   
-  return ((2*epnum + dir) * DCD_STM32_PMA_ALLOC_SIZE);
+  TU_ASSERT(length <= DCD_STM32_PMA_ALLOC_SIZE);
+
+  uint16_t addr = DCD_STM32_BTABLE_BASE + 8*MAX_EP_COUNT; // Each EP needs 8 bytes to store control data
+  addr += ((2*epnum + dir) * DCD_STM32_PMA_ALLOC_SIZE);
+  return addr;
 }
 
 // The STM32F0 doesn't seem to like |= or &= to manipulate the EP#R registers,
@@ -619,7 +630,6 @@ bool dcd_edpt_open (uint8_t rhport, tusb_desc_endpoint_t const * p_endpoint_desc
 
   TU_ASSERT(p_endpoint_desc->bmAttributes.xfer != TUSB_XFER_ISOCHRONOUS);
   TU_ASSERT(epnum < MAX_EP_COUNT);
-  TU_ASSERT(epMaxPktSize <= DCD_STM32_PMA_ALLOC_SIZE);
 
   // Set type
   switch(p_endpoint_desc->bmAttributes.xfer) {
@@ -652,16 +662,14 @@ bool dcd_edpt_open (uint8_t rhport, tusb_desc_endpoint_t const * p_endpoint_desc
 
   if(dir == TUSB_DIR_IN)
   {
-    // FIXME: use pma_alloc to allocate memory dynamically
-    *pcd_ep_tx_address_ptr(USB, epnum) = dcd_pma_alloc(p_endpoint_desc->bEndpointAddress);
+    *pcd_ep_tx_address_ptr(USB, epnum) = dcd_pma_alloc(p_endpoint_desc->bEndpointAddress, p_endpoint_desc->wMaxPacketSize.size);
     pcd_set_ep_tx_cnt(USB, epnum, p_endpoint_desc->wMaxPacketSize.size);
     pcd_clear_tx_dtog(USB, epnum);
     pcd_set_ep_tx_status(USB,epnum,USB_EP_TX_NAK);
   }
   else
   {
-    // FIXME: use pma_alloc to allocate memory dynamically
-    *pcd_ep_rx_address_ptr(USB, epnum) = dcd_pma_alloc(p_endpoint_desc->bEndpointAddress);
+    *pcd_ep_rx_address_ptr(USB, epnum) = dcd_pma_alloc(p_endpoint_desc->bEndpointAddress, p_endpoint_desc->wMaxPacketSize.size);
     pcd_set_ep_rx_cnt(USB, epnum, p_endpoint_desc->wMaxPacketSize.size);
     pcd_clear_rx_dtog(USB, epnum);
     pcd_set_ep_rx_status(USB, epnum, USB_EP_RX_NAK);
