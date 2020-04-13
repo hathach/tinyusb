@@ -205,13 +205,15 @@ void dcd_set_address(uint8_t rhport, uint8_t dev_addr)
   dcd_edpt_xfer(rhport, tu_edpt_addr(0, TUSB_DIR_IN), NULL, 0);
 
   sie_write(SIE_CMDCODE_SET_ADDRESS, 1, 0x80 | dev_addr); // 7th bit is : device_enable
+
+  // Also Set Configure Device to enable non-control endpoint response
+  sie_write(SIE_CMDCODE_CONFIGURE_DEVICE, 1, 1);
 }
 
 void dcd_set_config(uint8_t rhport, uint8_t config_num)
 {
   (void) rhport;
   (void) config_num;
-  sie_write(SIE_CMDCODE_CONFIGURE_DEVICE, 1, 1);
 }
 
 void dcd_remote_wakeup(uint8_t rhport)
@@ -273,6 +275,7 @@ static uint8_t control_ep_read(void * buffer, uint8_t len)
 //--------------------------------------------------------------------+
 // DCD Endpoint Port
 //--------------------------------------------------------------------+
+
 bool dcd_edpt_open(uint8_t rhport, tusb_desc_endpoint_t const * p_endpoint_desc)
 {
   (void) rhport;
