@@ -33,6 +33,22 @@
  extern "C" {
 #endif
 
+//typedef struct TU_ATTR_PACKED
+//{
+//  uint8_t itf_num; // Interface number
+//  uint8_t itf_alt; // Interface Alternate in use
+//  uint8_t ep_num;  // Number of endpoints used by current Alt Interface
+//  uint8_t ep_arr[1];   // Array of endpoints
+//} usbd_interface_t;
+
+#define usbd_interface_t(_epnum)                         \
+  struct TU_ATTR_PACKED { \
+    uint8_t itf_num;    /* Interface number */           \
+    uint8_t itf_alt;    /* Interface Alternate in use */ \
+    uint8_t ep_num;     /* Number of endpoints in use */ \
+    uint8_t ep_arr[_epnum]; /* endpoint array */         \
+ }\
+
 //--------------------------------------------------------------------+
 // USBD Endpoint API
 //--------------------------------------------------------------------+

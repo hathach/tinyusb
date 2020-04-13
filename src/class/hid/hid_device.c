@@ -40,9 +40,15 @@
 //--------------------------------------------------------------------+
 typedef struct
 {
-  uint8_t itf_num;
-  uint8_t ep_in;
-  uint8_t ep_out;        // optional Out endpoint
+//  uint8_t itf_num;
+//  uint8_t itf_alt;
+//  uint8_t ep_in;
+//  uint8_t ep_out;        // optional Out endpoint
+
+  // Interface with max 2 endpoints
+  // must be the first
+  usbd_interface_t(2);
+
   uint8_t boot_protocol; // Boot mouse or keyboard
   bool    boot_mode;     // default = false (Report)
   uint8_t idle_rate;     // up to application to handle idle rate
@@ -73,7 +79,7 @@ static inline hidd_interface_t* get_interface_by_itfnum(uint8_t itf_num)
 bool tud_hid_ready(void)
 {
   uint8_t itf = 0;
-  uint8_t const ep_in = _hidd_itf[itf].ep_in;
+  uint8_t const ep_in = _hidd_itf[itf].ep_arr[TUSB_DIR_IN];
   return tud_ready() && (ep_in != 0) && usbd_edpt_ready(TUD_OPT_RHPORT, ep_in);
 }
 
@@ -98,7 +104,7 @@ bool tud_hid_report(uint8_t report_id, void const* report, uint8_t len)
     memcpy(p_hid->epin_buf, report, len);
   }
 
-  return usbd_edpt_xfer(TUD_OPT_RHPORT, p_hid->ep_in, p_hid->epin_buf, len);
+  return usbd_edpt_xfer(TUD_OPT_RHPORT, p_hid->ep_arr[TUSB_DIR_IN], p_hid->epin_buf, len);
 }
 
 bool tud_hid_boot_mode(void)
@@ -164,10 +170,9 @@ bool hidd_open(uint8_t rhport, tusb_desc_interface_t const * desc_itf, uint16_t 
 
   // Find available interface
   hidd_interface_t * p_hid = NULL;
-  uint8_t hid_id;
-  for(hid_id=0; hid_id<CFG_TUD_HID; hid_id++)
+  for(uint8_t hid_id=0; hid_id<CFG_TUD_HID; hid_id++)
   {
-    if ( _hidd_itf[hid_id].ep_in == 0 )
+    if ( _hidd_itf[hid_id].ep_arr[TUSB_DIR_IN] == 0 )
     {
       p_hid = &_hidd_itf[hid_id];
       break;
@@ -182,7 +187,7 @@ bool hidd_open(uint8_t rhport, tusb_desc_interface_t const * desc_itf, uint16_t 
 
   //------------- Endpoint Descriptor -------------//
   p_desc = tu_desc_next(p_desc);
-  TU_ASSERT(usbd_open_edpt_pair(rhport, p_desc, desc_itf->bNumEndpoints, TUSB_XFER_INTERRUPT, &p_hid->ep_out, &p_hid->ep_in));
+  TU_ASSERT(usbd_open_edpt_pair(rhport, p_desc, desc_itf->bNumEndpoints, TUSB_XFER_INTERRUPT, &p_hid->ep_arr[TUSB_DIR_OUT], &p_hid->ep_arr[TUSB_DIR_IN]));
 
   if ( desc_itf->bInterfaceSubClass == HID_SUBCLASS_BOOT ) p_hid->boot_protocol = desc_itf->bInterfaceProtocol;
 
@@ -193,7 +198,7 @@ bool hidd_open(uint8_t rhport, tusb_desc_interface_t const * desc_itf, uint16_t 
   *p_len = sizeof(tusb_desc_interface_t) + sizeof(tusb_hid_descriptor_hid_t) + desc_itf->bNumEndpoints*sizeof(tusb_desc_endpoint_t);
 
   // Prepare for output endpoint
-  if (p_hid->ep_out) TU_ASSERT(usbd_edpt_xfer(rhport, p_hid->ep_out, p_hid->epout_buf, sizeof(p_hid->epout_buf)));
+  if (p_hid->ep_arr[TUSB_DIR_OUT]) TU_ASSERT(usbd_edpt_xfer(rhport, p_hid->ep_arr[TUSB_DIR_OUT], p_hid->epout_buf, sizeof(p_hid->epout_buf)));
 
   return true;
 }
@@ -318,20 +323,25 @@ bool hidd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint32_
 {
   (void) result;
 
-  uint8_t itf = 0;
-  hidd_interface_t * p_hid = _hidd_itf;
-
-  for ( ; ; itf++, p_hid++)
+  // Find interface which the EP belongs to
+  hidd_interface_t * p_hid = NULL;
+  for (uint8_t itf = 0; itf < CFG_TUD_HID; itf++)
   {
-    if (itf >= TU_ARRAY_SIZE(_hidd_itf)) return false;
-
-    if ( ep_addr == p_hid->ep_out ) break;
+    if ( (ep_addr == _hidd_itf[itf].ep_arr[TUSB_DIR_OUT]) ||
+         (ep_addr == _hidd_itf[itf].ep_arr[TUSB_DIR_IN ]) )
+    {
+      p_hid = &_hidd_itf[itf];
+      break;
+    }
   }
 
-  if (ep_addr == p_hid->ep_out)
+  TU_VERIFY(p_hid);
+
+  // Only handle EP Out, nothing to do with EP In for now
+  if (ep_addr == p_hid->ep_arr[TUSB_DIR_OUT])
   {
     tud_hid_set_report_cb(0, HID_REPORT_TYPE_INVALID, p_hid->epout_buf, xferred_bytes);
-    TU_ASSERT(usbd_edpt_xfer(rhport, p_hid->ep_out, p_hid->epout_buf, sizeof(p_hid->epout_buf)));
+    TU_ASSERT(usbd_edpt_xfer(rhport, p_hid->ep_arr[TUSB_DIR_OUT], p_hid->epout_buf, sizeof(p_hid->epout_buf)));
   }
 
   return true;
