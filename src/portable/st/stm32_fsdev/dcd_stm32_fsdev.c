@@ -69,7 +69,6 @@
  * - Endpoint index is the ID of the endpoint
  *   - This means that priority is given to endpoints with lower ID numbers
  *   - Code is mixing up EP IX with EP ID. Everywhere.
- * - No way to close endpoints; Can a device be reconfigured without a reset?
  * - Packet buffer memory is copied in the interrupt.
  *   - This is better for performance, but means interrupts are disabled for longer
  *   - DMA may be the best choice, but it could also be pushed to the USBD task.
@@ -623,6 +622,7 @@ bool dcd_edpt_open (uint8_t rhport, tusb_desc_endpoint_t const * p_endpoint_desc
 
   if(dir == TUSB_DIR_IN)
   {
+    // FIXME: use pma_alloc to allocate memory dynamically
     *pcd_ep_tx_address_ptr(USB, epnum) = ep_buf_ptr;
     pcd_set_ep_tx_cnt(USB, epnum, p_endpoint_desc->wMaxPacketSize.size);
     pcd_clear_tx_dtog(USB, epnum);
@@ -630,6 +630,7 @@ bool dcd_edpt_open (uint8_t rhport, tusb_desc_endpoint_t const * p_endpoint_desc
   }
   else
   {
+    // FIXME: use pma_alloc to allocate memory dynamically
     *pcd_ep_rx_address_ptr(USB, epnum) = ep_buf_ptr;
     pcd_set_ep_rx_cnt(USB, epnum, p_endpoint_desc->wMaxPacketSize.size);
     pcd_clear_rx_dtog(USB, epnum);
@@ -640,6 +641,40 @@ bool dcd_edpt_open (uint8_t rhport, tusb_desc_endpoint_t const * p_endpoint_desc
   ep_buf_ptr = (uint16_t)(ep_buf_ptr + p_endpoint_desc->wMaxPacketSize.size); // increment buffer pointer
 
   return true;
+}
+
+/**
+ * Close an endpoint.
+ * 
+ * This function should be called with interrupts enabled, though 
+ * this implementation should be valid with them disabled, too.
+ * This also clears transfers in progress, should there be any.
+ */
+void dcd_edpt_close (uint8_t rhport, uint8_t ep_addr)
+{
+  (void)rhport;
+  uint32_t const epnum = tu_edpt_number(ep_addr);
+  uint32_t const dir   = tu_edpt_dir(ep_addr);
+  
+#ifndef NDEBUG
+  TU_ASSERT(epnum < MAX_EP_COUNT, /**/);
+#endif
+
+  //uint16_t memptr;
+
+  if(dir == TUSB_DIR_IN)
+  {
+    pcd_set_ep_tx_status(USB,epnum,USB_EP_TX_DIS);
+    //memptr = *pcd_ep_tx_address_ptr(USB, epnum);
+  }
+  else
+  {
+    pcd_set_ep_rx_status(USB, epnum, USB_EP_RX_DIS);
+    //memptr = *pcd_ep_rx_address_ptr(USB, epnum);
+  }
+
+  // FIXME: Free memory
+  // pma_free(memptr);
 }
 
 // Currently, single-buffered, and only 64 bytes at a time (max)

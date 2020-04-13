@@ -119,6 +119,13 @@ Opening an endpoint is done for all non-control endpoints once the host picks a 
 
 Also make sure to enable endpoint specific interrupts.
 
+##### dcd_edpt_close
+
+Close an endpoint. After calling this, the device should not respond to any packets directed towards this endpoint. Implementation is optional, and is to be called from USBD in a non-interrupt context.
+This function is used for implementing alternate settings.
+
+When called, this function need to abort any transfers in progress through this endpoint, before returning.
+
 ##### dcd_edpt_xfer
 
 `dcd_edpt_xfer` is responsible for configuring the peripheral to send or receive data from the host. "xfer" is short for "transfer". **This is one of the core methods you must implement for TinyUSB to work (one other is the interrupt handler).**  Data from the host is the OUT direction and data to the host is IN. It  is used for all endpoints including the control endpoint 0. Make sure to handle the zero-length packet STATUS packet on endpoint 0 correctly. It may be a special transaction to the peripheral.

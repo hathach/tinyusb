@@ -420,6 +420,11 @@ void tud_task (void)
         uint8_t const ep_addr = event.xfer_complete.ep_addr;
         uint8_t const epnum   = tu_edpt_number(ep_addr);
         uint8_t const ep_dir  = tu_edpt_dir(ep_addr);
+        
+        if(ep_addr == 0xFF) // aborted transfer
+        {
+          break;
+        }
 
         TU_LOG2("  Endpoint: 0x%02X, Bytes: %u\r\n", ep_addr, (unsigned int) event.xfer_complete.len);
 
@@ -1034,6 +1039,62 @@ bool usbd_edpt_stalled(uint8_t rhport, uint8_t ep_addr)
   uint8_t const dir   = tu_edpt_dir(ep_addr);
 
   return _usbd_dev.ep_status[epnum][dir].stalled;
+}
+
+/**
+ * Remove queued xfer complete messages from event queue,
+ * for a particular ep.
+ */
+static void usbd_abort_transfers(uint8_t rhport, uint8_t ep_addr)
+{
+  dcd_event_t ev_sentinal = 
+  {
+    .event_id = DCD_EVENT_COUNT, ///< This is an invalid event ID.
+  };
+  dcd_event_t event;
+  uint8_t const epnum   = tu_edpt_number(ep_addr);
+  uint8_t const ep_dir  = tu_edpt_dir(ep_addr);
+  
+  dcd_int_disable(rhport);
+  // Queue sentinal element
+  TU_ASSERT(osal_queue_send(_usbd_q, &ev_sentinal, true), /**/);
+
+  TU_ASSERT(osal_queue_receive(_usbd_q, &event), /**/);
+
+  while(event.event_id != DCD_EVENT_COUNT)
+  {    
+    if((event.rhport == rhport) && (event.event_id == DCD_EVENT_XFER_COMPLETE)
+      && (event.xfer_complete.ep_addr == ep_addr))
+    {
+      _usbd_dev.ep_status[epnum][ep_dir].busy = false;
+      event.xfer_complete.ep_addr = 0xFF; // Mark transfer as invalid
+    }
+    TU_ASSERT(osal_queue_send(_usbd_q, &event, true), /**/);
+    TU_ASSERT(osal_queue_receive(_usbd_q, &event), /**/);
+  }
+  
+  dcd_int_enable(rhport);
+}
+
+/**
+ * tud_edpt_close will disable an endpoint, and clear all pending transfers
+ * through the particular endpoint.
+ * 
+ * It must be called from the usb task (i.e. from the control request
+ * handler while handling SET_ALTERNATE).
+ */
+void tud_edpt_close(uint8_t rhport, uint8_t ep_addr)
+{
+  
+  TU_ASSERT(dcd_edpt_close, /**/);
+  TU_LOG2("  CLOSING Endpoint: 0x%02X\r\n", ep_addr);
+
+  dcd_edpt_close(rhport, ep_addr);
+
+  /* Now, in progress transfers have to be expunged */
+  usbd_abort_transfers(rhport, ep_addr);
+
+  return;
 }
 
 #endif

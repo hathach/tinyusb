@@ -66,7 +66,7 @@ typedef struct TU_ATTR_ALIGNED(4)
 
     // USBD_EVT_XFER_COMPLETE
     struct {
-      uint8_t  ep_addr;
+      uint8_t  ep_addr; ///< 0xFF signifies that the transfer was aborted.
       uint8_t  result;
       uint32_t len;
     }xfer_complete;
@@ -122,6 +122,10 @@ void dcd_edpt0_status_complete(uint8_t rhport, tusb_control_request_t const * re
 
 // Configure endpoint's registers according to descriptor
 bool dcd_edpt_open        (uint8_t rhport, tusb_desc_endpoint_t const * p_endpoint_desc);
+
+// Close an endpoint.
+// Since it is weak, caller must TU_ASSERT this function's existence before calling it.
+void dcd_edpt_close        (uint8_t rhport, uint8_t ep_addr) TU_ATTR_WEAK;
 
 // Submit a transfer, When complete dcd_event_xfer_complete() is invoked to notify the stack
 bool dcd_edpt_xfer        (uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t total_bytes);
