@@ -73,8 +73,11 @@ enum { DRVID_INVALID = 0xFFu };
 //--------------------------------------------------------------------+
 // Class Driver
 //--------------------------------------------------------------------+
-typedef struct {
+typedef struct
+{
   uint8_t class_code;
+  uint8_t subclass; // 0xFF support all values of subclass
+  uint8_t protocol; // 0xFF support all values of protocol
 
   void (* init             ) (void);
   void (* reset            ) (uint8_t rhport);
@@ -90,6 +93,9 @@ static usbd_class_driver_t const _usbd_driver[] =
   #if CFG_TUD_CDC
   {
       .class_code       = TUSB_CLASS_CDC,
+      .subclass         = CDC_COMM_SUBCLASS_ABSTRACT_CONTROL_MODEL,
+      .protocol         = 0xFF, // all protocols
+
       .init             = cdcd_init,
       .reset            = cdcd_reset,
       .open             = cdcd_open,
@@ -103,6 +109,9 @@ static usbd_class_driver_t const _usbd_driver[] =
   #if CFG_TUD_MSC
   {
       .class_code       = TUSB_CLASS_MSC,
+      .subclass         = MSC_SUBCLASS_SCSI,
+      .protocol         = MSC_PROTOCOL_BOT,
+
       .init             = mscd_init,
       .reset            = mscd_reset,
       .open             = mscd_open,
@@ -116,6 +125,9 @@ static usbd_class_driver_t const _usbd_driver[] =
   #if CFG_TUD_HID
   {
       .class_code       = TUSB_CLASS_HID,
+      .subclass         = 0xFF, // all subclass
+      .protocol         = 0xFF, // all protocol
+
       .init             = hidd_init,
       .reset            = hidd_reset,
       .open             = hidd_open,
@@ -129,6 +141,9 @@ static usbd_class_driver_t const _usbd_driver[] =
   #if CFG_TUD_MIDI
   {
       .class_code       = TUSB_CLASS_AUDIO,
+      .subclass         = AUDIO_SUBCLASS_CONTROL,
+      .protocol         = AUDIO_PROTOCOL_V1,
+
       .init             = midid_init,
       .open             = midid_open,
       .reset            = midid_reset,
@@ -142,6 +157,9 @@ static usbd_class_driver_t const _usbd_driver[] =
   #if CFG_TUD_VENDOR
   {
       .class_code       = TUSB_CLASS_VENDOR_SPECIFIC,
+      .subclass         = 0xFF, // all subclass
+      .protocol         = 0xFF, // all protocol
+
       .init             = vendord_init,
       .reset            = vendord_reset,
       .open             = vendord_open,
@@ -153,12 +171,11 @@ static usbd_class_driver_t const _usbd_driver[] =
   #endif
 
   #if CFG_TUD_USBTMC
-  // Presently USBTMC is the only defined class with the APP_SPECIFIC class code.
-  // We maybe need to add subclass codes here, or a callback to ask if a driver can
-  // handle a particular interface.
   {
-      .class_code       = TUD_USBTMC_APP_CLASS,
-    //.subclass_code    = TUD_USBTMC_APP_SUBCLASS
+      .class_code       = TUSB_CLASS_APPLICATION_SPECIFIC,
+      .subclass         = APP_SUBCLASS_USBTMC,
+      .protocol         = 0xFF, // all protocol
+
       .init             = usbtmcd_init_cb,
       .reset            = usbtmcd_reset_cb,
       .open             = usbtmcd_open_cb,
@@ -171,8 +188,10 @@ static usbd_class_driver_t const _usbd_driver[] =
 
   #if CFG_TUD_DFU_RT
   {
-      .class_code       = TUD_DFU_APP_CLASS,
-    //.subclass_code    = TUD_DFU_APP_SUBCLASS
+      .class_code       = TUSB_CLASS_APPLICATION_SPECIFIC,
+      .subclass         = APP_SUBCLASS_DFU_RUNTIME,
+      .protocol         = DFU_PROTOCOL_RT,
+
       .init             = dfu_rtd_init,
       .reset            = dfu_rtd_reset,
       .open             = dfu_rtd_open,
@@ -183,11 +202,14 @@ static usbd_class_driver_t const _usbd_driver[] =
   },
   #endif
 
-  #if CFG_TUD_NET
-#if CFG_TUD_NET != OPT_NET_EEM
+#if CFG_TUD_NET
+  #if CFG_TUD_NET != OPT_NET_EEM
   /* RNDIS management interface */
   {
       .class_code       = TUD_RNDIS_ITF_CLASS,
+      .subclass         = TUD_RNDIS_ITF_SUBCLASS,
+      .protocol         = TUD_RNDIS_ITF_PROTOCOL,
+
       .init             = netd_init,
       .reset            = netd_reset,
       .open             = netd_open,
@@ -196,10 +218,14 @@ static usbd_class_driver_t const _usbd_driver[] =
       .xfer_cb          = netd_xfer_cb,
       .sof              = NULL,
   },
-#endif
+  #endif
+
   /* CDC-ECM management interface; CDC-EEM data interface */
   {
       .class_code       = TUSB_CLASS_CDC,
+      .subclass         = CDC_COMM_SUBCLASS_ETHERNET_NETWORKING_CONTROL_MODEL,
+      .protocol         = 0x00,
+
       .init             = netd_init,
       .reset            = netd_reset,
 #if CFG_TUD_NET == OPT_NET_EEM
@@ -212,10 +238,14 @@ static usbd_class_driver_t const _usbd_driver[] =
       .xfer_cb          = netd_xfer_cb,
       .sof              = NULL,
   },
+
   /* RNDIS/CDC-ECM data interface */
-#if CFG_TUD_NET != OPT_NET_EEM
+  #if CFG_TUD_NET != OPT_NET_EEM
   {
       .class_code       = TUSB_CLASS_CDC_DATA,
+      .subclass         = 0x00,
+      .protocol         = 0x00,
+
       .init             = netd_init_data,
       .reset            = NULL,
       .open             = netd_open_data,
@@ -224,8 +254,8 @@ static usbd_class_driver_t const _usbd_driver[] =
       .xfer_cb          = netd_xfer_cb,
       .sof              = NULL,
   },
-#endif
   #endif
+#endif
 };
 
 enum { USBD_CLASS_DRIVER_COUNT = TU_ARRAY_SIZE(_usbd_driver) };
