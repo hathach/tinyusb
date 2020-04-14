@@ -656,7 +656,10 @@ static void handle_epin_ints(USB_OTG_DeviceTypeDef * dev, USB_OTG_INEndpointType
   }
 }
 
-void OTG_FS_IRQHandler(void) {
+void dcd_irq_handler(uint8_t rhport) {
+
+  (void) rhport;
+
   USB_OTG_DeviceTypeDef * dev = DEVICE_BASE;
   USB_OTG_OUTEndpointTypeDef * out_ep = OUT_EP_BASE;
   USB_OTG_INEndpointTypeDef * in_ep = IN_EP_BASE;

@@ -56,7 +56,13 @@ StaticTimer_t blinky_tmdef;
 TimerHandle_t blinky_tm;
 
 // static task for usbd
-#define USBD_STACK_SIZE     (3*configMINIMAL_STACK_SIZE/2)
+// Increase stack size when debug log is enabled
+#if CFG_TUSB_DEBUG
+  #define USBD_STACK_SIZE     (3*configMINIMAL_STACK_SIZE)
+#else
+  #define USBD_STACK_SIZE     (3*configMINIMAL_STACK_SIZE/2)
+#endif
+
 StackType_t  usb_device_stack[USBD_STACK_SIZE];
 StaticTask_t usb_device_taskdef;
 
@@ -194,7 +200,7 @@ void tud_cdc_line_state_cb(uint8_t itf, bool dtr, bool rts)
   if ( dtr && rts )
   {
     // print initial message when connected
-    tud_cdc_write_str("\r\nTinyUSB CDC MSC HID device with FreeRTOS example\r\n");
+    tud_cdc_write_str("\r\nTinyUSB CDC MSC device with FreeRTOS example\r\n");
   }
 }
 

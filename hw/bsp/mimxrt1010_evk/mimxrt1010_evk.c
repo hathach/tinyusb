@@ -125,7 +125,7 @@ void USB_OTG1_IRQHandler(void)
   #endif
 
   #if CFG_TUSB_RHPORT0_MODE & OPT_MODE_DEVICE
-    tud_isr(0);
+    tud_irq_handler(0);
   #endif
 }
 

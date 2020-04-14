@@ -331,9 +331,8 @@ bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t *buffer, uint16_t to
     USB0.dtknqr4_fifoemptymsk |= (1 << epnum);
   } else {
     // Each complete packet for OUT xfers triggers XFRC.
-    USB0.out_ep_reg[epnum].doeptsiz = USB_PKTCNT0_M |
-        ((xfer->max_size & USB_XFERSIZE0_V) << USB_XFERSIZE0_S);
-    USB0.out_ep_reg[epnum].doepctl |= USB_EPENA0_M | USB_CNAK0_M;
+    USB0.out_ep_reg[epnum].doeptsiz |= USB_PKTCNT0_M | ((xfer->max_size & USB_XFERSIZE0_V) << USB_XFERSIZE0_S);
+    USB0.out_ep_reg[epnum].doepctl  |= USB_EPENA0_M | USB_CNAK0_M;
   }
   return true;
 }
@@ -603,8 +602,7 @@ static void handle_epout_ints(void)
           dcd_event_xfer_complete(0, n, xfer->queued_len, XFER_RESULT_SUCCESS, true);
         } else {
           // Schedule another packet to be received.
-          USB0.out_ep_reg[n].doeptsiz = USB_PKTCNT0_M |
-              ((xfer->max_size & USB_XFERSIZE0_V) << USB_XFERSIZE0_S);
+          USB0.out_ep_reg[n].doeptsiz |= USB_PKTCNT0_M | ((xfer->max_size & USB_XFERSIZE0_V) << USB_XFERSIZE0_S);
           USB0.out_ep_reg[n].doepctl |= USB_EPENA0_M | USB_CNAK0_M;
         }
       }

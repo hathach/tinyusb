@@ -539,8 +539,10 @@ static void handle_setup_packet(void)
   dcd_event_setup_received(0, (uint8_t*) &_setup_packet[0], true);
 }
 
-void __attribute__ ((interrupt(USB_UBM_VECTOR))) USB_UBM_ISR(void)
+void dcd_irq_handler(uint8_t rhport)
 {
+  (void) rhport;
+
   // Setup is special- reading USBVECINT to handle setup packets is done to
   // stop hardware-generated NAKs on EP0.
   uint8_t setup_status = USBIFG & SETUPIFG;

@@ -331,13 +331,13 @@ void maybe_transfer_complete(void) {
 }
 
 
-void dcd_isr (uint8_t rhport)
+void dcd_irq_handler (uint8_t rhport)
 {
   (void) rhport;
 
   uint32_t int_status = USB->DEVICE.INTFLAG.reg & USB->DEVICE.INTENSET.reg;
 
-  /*------------- Interrupt Processing -------------*/
+  // Start of Frame
   if ( int_status & USB_DEVICE_INTFLAG_SOF )
   {
     USB->DEVICE.INTFLAG.reg = USB_DEVICE_INTFLAG_SOF;
@@ -370,6 +370,7 @@ void dcd_isr (uint8_t rhport)
     dcd_event_bus_signal(0, DCD_EVENT_RESUME, true);
   }
 
+  // Enable of Reset
   if ( int_status & USB_DEVICE_INTFLAG_EORST )
   {
     USB->DEVICE.INTFLAG.reg = USB_DEVICE_INTFLAG_EORST;
@@ -393,56 +394,5 @@ void dcd_isr (uint8_t rhport)
   // Handle complete transfer
   maybe_transfer_complete();
 }
-
-#if CFG_TUSB_MCU == OPT_MCU_SAMD51
-
-/*
- *------------------------------------------------------------------*/
-/* USB_EORSM_DNRSM, USB_EORST_RST, USB_LPMSUSP_DDISC, USB_LPM_DCONN,
-USB_MSOF, USB_RAMACER, USB_RXSTP_TXSTP_0, USB_RXSTP_TXSTP_1,
-USB_RXSTP_TXSTP_2, USB_RXSTP_TXSTP_3, USB_RXSTP_TXSTP_4,
-USB_RXSTP_TXSTP_5, USB_RXSTP_TXSTP_6, USB_RXSTP_TXSTP_7,
-USB_STALL0_STALL_0, USB_STALL0_STALL_1, USB_STALL0_STALL_2,
-USB_STALL0_STALL_3, USB_STALL0_STALL_4, USB_STALL0_STALL_5,
-USB_STALL0_STALL_6, USB_STALL0_STALL_7, USB_STALL1_0, USB_STALL1_1,
-USB_STALL1_2, USB_STALL1_3, USB_STALL1_4, USB_STALL1_5, USB_STALL1_6,
-USB_STALL1_7, USB_SUSPEND, USB_TRFAIL0_TRFAIL_0, USB_TRFAIL0_TRFAIL_1,
-USB_TRFAIL0_TRFAIL_2, USB_TRFAIL0_TRFAIL_3, USB_TRFAIL0_TRFAIL_4,
-USB_TRFAIL0_TRFAIL_5, USB_TRFAIL0_TRFAIL_6, USB_TRFAIL0_TRFAIL_7,
-USB_TRFAIL1_PERR_0, USB_TRFAIL1_PERR_1, USB_TRFAIL1_PERR_2,
-USB_TRFAIL1_PERR_3, USB_TRFAIL1_PERR_4, USB_TRFAIL1_PERR_5,
-USB_TRFAIL1_PERR_6, USB_TRFAIL1_PERR_7, USB_UPRSM, USB_WAKEUP */
-void USB_0_Handler(void) {
-  dcd_isr(0);
-}
-
-/* USB_SOF_HSOF */
-void USB_1_Handler(void) {
-  dcd_isr(0);
-}
-
-// Bank zero is for OUT and SETUP transactions.
-/* USB_TRCPT0_0, USB_TRCPT0_1, USB_TRCPT0_2,
-USB_TRCPT0_3, USB_TRCPT0_4, USB_TRCPT0_5,
-USB_TRCPT0_6, USB_TRCPT0_7 */
-void USB_2_Handler(void) {
-  dcd_isr(0);
-}
-
-// Bank one is used for IN transactions.
-/* USB_TRCPT1_0, USB_TRCPT1_1, USB_TRCPT1_2,
-USB_TRCPT1_3, USB_TRCPT1_4, USB_TRCPT1_5,
-USB_TRCPT1_6, USB_TRCPT1_7 */
-void USB_3_Handler(void) {
-  dcd_isr(0);
-}
-
-#elif CFG_TUSB_MCU == OPT_MCU_SAMD21
-
-void USB_Handler(void) {
-  dcd_isr(0);
-}
-
-#endif
 
 #endif

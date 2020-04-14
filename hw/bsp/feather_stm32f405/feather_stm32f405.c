@@ -29,6 +29,18 @@
 #include "stm32f4xx.h"
 #include "stm32f4xx_hal_conf.h"
 
+//--------------------------------------------------------------------+
+// Forward USB interrupt events to TinyUSB IRQ Handler
+//--------------------------------------------------------------------+
+void OTG_FS_IRQHandler(void)
+{
+  tud_irq_handler(0);
+}
+
+//--------------------------------------------------------------------+
+// MACRO TYPEDEF CONSTANT ENUM
+//--------------------------------------------------------------------+
+
 // Blue LED is chosen because the other LEDs are connected to ST-LINK lines.
 #define LED_PORT              GPIOC
 #define LED_PIN               GPIO_PIN_1

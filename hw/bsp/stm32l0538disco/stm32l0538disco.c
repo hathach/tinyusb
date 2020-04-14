@@ -25,9 +25,19 @@
  */
 
 #include "../board.h"
-
 #include "stm32l0xx_hal.h"
 
+//--------------------------------------------------------------------+
+// Forward USB interrupt events to TinyUSB IRQ Handler
+//--------------------------------------------------------------------+
+void USB_IRQHandler(void)
+{
+  tud_irq_handler(0);
+}
+
+//--------------------------------------------------------------------+
+// MACRO TYPEDEF CONSTANT ENUM
+//--------------------------------------------------------------------+
 #define LED_PORT              GPIOA
 #define LED_PIN               GPIO_PIN_5
 #define LED_STATE_ON          1
