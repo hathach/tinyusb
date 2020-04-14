@@ -253,21 +253,31 @@ void midid_reset(uint8_t rhport)
   }
 }
 
-bool midid_open(uint8_t rhport, tusb_desc_interface_t const * p_interface_desc, uint16_t *p_length)
+bool midid_open(uint8_t rhport, tusb_desc_interface_t const * desc_itf, uint16_t *p_length)
 {
-  // For now handle the audio control interface as well.
-  if ( AUDIO_SUBCLASS_CONTROL == p_interface_desc->bInterfaceSubClass) {
-    uint8_t const * p_desc = tu_desc_next ( (uint8_t const *) p_interface_desc );
-    (*p_length) = sizeof(tusb_desc_interface_t);
 
-    // Skip over the class specific descriptor.
-    (*p_length) += tu_desc_len(p_desc);
+  // 1st Interface is Audio Control v1
+  TU_VERIFY(TUSB_CLASS_AUDIO       == desc_itf->bInterfaceClass    &&
+            AUDIO_SUBCLASS_CONTROL == desc_itf->bInterfaceSubClass &&
+            AUDIO_PROTOCOL_V1      == desc_itf->bInterfaceProtocol);
+
+  uint16_t drv_len = tu_desc_len(desc_itf);
+  uint8_t const * p_desc = tu_desc_next(desc_itf);
+
+  // Skip Class Specific descriptors
+  while ( TUSB_DESC_CS_INTERFACE == tu_desc_type(p_desc) )
+  {
+    drv_len += tu_desc_len(p_desc);
     p_desc = tu_desc_next(p_desc);
-    return true;
   }
 
-  TU_VERIFY(AUDIO_SUBCLASS_MIDI_STREAMING == p_interface_desc->bInterfaceSubClass &&
-            AUDIO_PROTOCOL_V1 == p_interface_desc->bInterfaceProtocol );
+  // 2nd Interface is MIDI Streaming
+  TU_VERIFY(TUSB_DESC_INTERFACE == tu_desc_type(p_desc));
+  tusb_desc_interface_t const * desc_midi = (tusb_desc_interface_t const *) p_desc;
+
+  TU_VERIFY(TUSB_CLASS_AUDIO              == desc_midi->bInterfaceClass    &&
+            AUDIO_SUBCLASS_MIDI_STREAMING == desc_midi->bInterfaceSubClass &&
+            AUDIO_PROTOCOL_V1             == desc_midi->bInterfaceProtocol );
 
   // Find available interface
   midid_interface_t * p_midi = NULL;
@@ -280,13 +290,15 @@ bool midid_open(uint8_t rhport, tusb_desc_interface_t const * p_interface_desc, 
     }
   }
 
-  p_midi->itf_num  = p_interface_desc->bInterfaceNumber;
+  p_midi->itf_num  = desc_midi->bInterfaceNumber;
 
-  uint8_t const * p_desc = tu_desc_next( (uint8_t const *) p_interface_desc );
-  (*p_length) = sizeof(tusb_desc_interface_t);
+  // next descriptor
+  drv_len += tu_desc_len(p_desc);
+  p_desc = tu_desc_next(p_desc);
 
+  // Find and open endpoint descriptors
   uint8_t found_endpoints = 0;
-  while (found_endpoints < p_interface_desc->bNumEndpoints)
+  while (found_endpoints < desc_midi->bNumEndpoints)
   {
     if ( TUSB_DESC_ENDPOINT == p_desc[DESC_OFFSET_TYPE])
     {
@@ -298,13 +310,15 @@ bool midid_open(uint8_t rhport, tusb_desc_interface_t const * p_interface_desc, 
             p_midi->ep_out = ep_addr;
         }
 
-        (*p_length) += p_desc[DESC_OFFSET_LEN];
+        drv_len += p_desc[DESC_OFFSET_LEN];
         p_desc = tu_desc_next(p_desc);
         found_endpoints += 1;
     }
-    (*p_length) += p_desc[DESC_OFFSET_LEN];
+    drv_len += p_desc[DESC_OFFSET_LEN];
     p_desc = tu_desc_next(p_desc);
   }
+
+  *p_length = drv_len;
 
   // Prepare for incoming data
   TU_ASSERT( usbd_edpt_xfer(rhport, p_midi->ep_out, p_midi->epout_buf, CFG_TUD_MIDI_EPSIZE), false);
