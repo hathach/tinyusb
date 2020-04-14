@@ -273,6 +273,8 @@ static osal_queue_t _usbd_q;
 // Prototypes
 //--------------------------------------------------------------------+
 static void mark_interface_endpoint(uint8_t ep2drv[8][2], uint8_t const* p_desc, uint16_t desc_len, uint8_t driver_id);
+static uint8_t find_driver_id(tusb_desc_interface_t const * desc_itf);
+
 static bool process_control_request(uint8_t rhport, tusb_control_request_t const * p_request);
 static bool process_set_config(uint8_t rhport, uint8_t cfg_num);
 static bool process_get_descriptor(uint8_t rhport, tusb_control_request_t const * p_request);
@@ -793,14 +795,10 @@ static bool process_set_config(uint8_t rhport, uint8_t cfg_num)
     {
       TU_ASSERT( TUSB_DESC_INTERFACE == tu_desc_type(p_desc) );
 
-      tusb_desc_interface_t* desc_itf = (tusb_desc_interface_t*) p_desc;
+      tusb_desc_interface_t const * desc_itf = (tusb_desc_interface_t const*) p_desc;
 
-      // Check if class is supported
-      uint8_t drv_id;
-      for (drv_id = 0; drv_id < USBD_CLASS_DRIVER_COUNT; drv_id++)
-      {
-        if ( _usbd_driver[drv_id].class_code == desc_itf->bInterfaceClass ) break;
-      }
+      // Find driver id for the interface
+      uint8_t drv_id = find_driver_id(desc_itf);
       TU_ASSERT( drv_id < USBD_CLASS_DRIVER_COUNT );
 
       // Interface number must not be used already TODO alternate interface
@@ -822,6 +820,24 @@ static bool process_set_config(uint8_t rhport, uint8_t cfg_num)
   if (tud_mount_cb) tud_mount_cb();
 
   return true;
+}
+
+// Helper to find class driver id for an interface
+// return 0xFF if not found
+static uint8_t find_driver_id(tusb_desc_interface_t const * desc_itf)
+{
+  for (uint8_t drv_id = 0; drv_id < USBD_CLASS_DRIVER_COUNT; drv_id++)
+  {
+    usbd_class_driver_t const *driver = &_usbd_driver[drv_id];
+    if ( (driver->class_code == desc_itf->bInterfaceClass) &&                                // match class code
+         (driver->subclass   == desc_itf->bInterfaceSubClass || driver->subclass == 0xFF) && // match subclass or 0xFF from driver
+         (driver->protocol   == desc_itf->bInterfaceProtocol || driver->protocol == 0xFF))   // match protocol or 0xFF from driver
+    {
+      return drv_id;
+    }
+  }
+
+  return DRVID_INVALID;
 }
 
 // Helper marking endpoint of interface belongs to class driver
