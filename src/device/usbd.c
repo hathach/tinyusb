@@ -79,6 +79,12 @@ typedef struct
   uint8_t subclass; // 0xFF support all values of subclass
   uint8_t protocol; // 0xFF support all values of protocol
 
+  struct TU_ATTR_PACKED
+  {
+    uint8_t all_subclass : 1;
+    uint8_t all_protocol : 1;
+  };
+
   void (* init             ) (void);
   void (* reset            ) (uint8_t rhport);
   bool (* open             ) (uint8_t rhport, tusb_desc_interface_t const * desc_intf, uint16_t* p_length);
@@ -94,7 +100,9 @@ static usbd_class_driver_t const _usbd_driver[] =
   {
       .class_code       = TUSB_CLASS_CDC,
       .subclass         = CDC_COMM_SUBCLASS_ABSTRACT_CONTROL_MODEL,
-      .protocol         = 0xFF, // all protocols
+      .protocol         = 0x00,
+      .all_subclass     = 0,
+      .all_protocol     = 1,
 
       .init             = cdcd_init,
       .reset            = cdcd_reset,
@@ -111,6 +119,8 @@ static usbd_class_driver_t const _usbd_driver[] =
       .class_code       = TUSB_CLASS_MSC,
       .subclass         = MSC_SUBCLASS_SCSI,
       .protocol         = MSC_PROTOCOL_BOT,
+      .all_subclass     = 0,
+      .all_protocol     = 0,
 
       .init             = mscd_init,
       .reset            = mscd_reset,
@@ -125,8 +135,10 @@ static usbd_class_driver_t const _usbd_driver[] =
   #if CFG_TUD_HID
   {
       .class_code       = TUSB_CLASS_HID,
-      .subclass         = 0xFF, // all subclass
-      .protocol         = 0xFF, // all protocol
+      .subclass         = 0x00,
+      .protocol         = 0x00,
+      .all_subclass     = 1,
+      .all_protocol     = 1,
 
       .init             = hidd_init,
       .reset            = hidd_reset,
@@ -143,6 +155,8 @@ static usbd_class_driver_t const _usbd_driver[] =
       .class_code       = TUSB_CLASS_AUDIO,
       .subclass         = AUDIO_SUBCLASS_CONTROL,
       .protocol         = AUDIO_PROTOCOL_V1,
+      .all_subclass     = 0,
+      .all_protocol     = 0,
 
       .init             = midid_init,
       .open             = midid_open,
@@ -157,8 +171,10 @@ static usbd_class_driver_t const _usbd_driver[] =
   #if CFG_TUD_VENDOR
   {
       .class_code       = TUSB_CLASS_VENDOR_SPECIFIC,
-      .subclass         = 0xFF, // all subclass
-      .protocol         = 0xFF, // all protocol
+      .subclass         = 0x00,
+      .protocol         = 0x00,
+      .all_subclass     = 1,
+      .all_protocol     = 1,
 
       .init             = vendord_init,
       .reset            = vendord_reset,
@@ -174,7 +190,9 @@ static usbd_class_driver_t const _usbd_driver[] =
   {
       .class_code       = TUSB_CLASS_APPLICATION_SPECIFIC,
       .subclass         = APP_SUBCLASS_USBTMC,
-      .protocol         = 0xFF, // all protocol
+      .protocol         = 0x00,
+      .all_subclass     = 0,
+      .all_protocol     = 1,
 
       .init             = usbtmcd_init_cb,
       .reset            = usbtmcd_reset_cb,
@@ -191,6 +209,8 @@ static usbd_class_driver_t const _usbd_driver[] =
       .class_code       = TUSB_CLASS_APPLICATION_SPECIFIC,
       .subclass         = APP_SUBCLASS_DFU_RUNTIME,
       .protocol         = DFU_PROTOCOL_RT,
+      .all_subclass     = 0,
+      .all_protocol     = 0,
 
       .init             = dfu_rtd_init,
       .reset            = dfu_rtd_reset,
@@ -209,6 +229,8 @@ static usbd_class_driver_t const _usbd_driver[] =
       .class_code       = TUD_RNDIS_ITF_CLASS,
       .subclass         = TUD_RNDIS_ITF_SUBCLASS,
       .protocol         = TUD_RNDIS_ITF_PROTOCOL,
+      .all_subclass     = 0,
+      .all_protocol     = 0,
 
       .init             = netd_init,
       .reset            = netd_reset,
@@ -225,6 +247,8 @@ static usbd_class_driver_t const _usbd_driver[] =
       .class_code       = TUSB_CLASS_CDC,
       .subclass         = CDC_COMM_SUBCLASS_ETHERNET_NETWORKING_CONTROL_MODEL,
       .protocol         = 0x00,
+      .all_subclass     = 0,
+      .all_protocol     = 0,
 
       .init             = netd_init,
       .reset            = netd_reset,
@@ -245,6 +269,8 @@ static usbd_class_driver_t const _usbd_driver[] =
       .class_code       = TUSB_CLASS_CDC_DATA,
       .subclass         = 0x00,
       .protocol         = 0x00,
+      .all_subclass     = 0,
+      .all_protocol     = 0,
 
       .init             = netd_init_data,
       .reset            = NULL,
@@ -829,9 +855,9 @@ static uint8_t find_driver_id(tusb_desc_interface_t const * desc_itf)
   for (uint8_t drv_id = 0; drv_id < USBD_CLASS_DRIVER_COUNT; drv_id++)
   {
     usbd_class_driver_t const *driver = &_usbd_driver[drv_id];
-    if ( (driver->class_code == desc_itf->bInterfaceClass) &&                                // match class code
-         (driver->subclass   == desc_itf->bInterfaceSubClass || driver->subclass == 0xFF) && // match subclass or 0xFF from driver
-         (driver->protocol   == desc_itf->bInterfaceProtocol || driver->protocol == 0xFF))   // match protocol or 0xFF from driver
+    if ( (driver->class_code == desc_itf->bInterfaceClass) &&                              // match class code
+         (driver->subclass   == desc_itf->bInterfaceSubClass || driver->all_subclass ) &&  // match subclass or driver support all
+         (driver->protocol   == desc_itf->bInterfaceProtocol || driver->all_protocol))     // match protocol or driver support all
     {
       return drv_id;
     }
