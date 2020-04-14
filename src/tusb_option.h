@@ -128,9 +128,8 @@
  *  \ref CFG_TUD_NET must be defined to one of these
  *  @{ */
 #define OPT_NET_NONE      0 ///< No network interface
-#define OPT_NET_ECM       1 ///< CDC-ECM
-#define OPT_NET_RNDIS     2 ///< RNDIS
-#define OPT_NET_EEM       3 ///< CDC-EEM
+#define OPT_NET_RNDIS_ECM 1 ///< RNDIS+CDC-ECM
+#define OPT_NET_EEM       2 ///< CDC-EEM
 /** @} */
 
 #ifndef CFG_TUSB_RHPORT0_MODE
