@@ -78,91 +78,24 @@ uint8_t const * tud_descriptor_device_cb(void)
 }
 
 //--------------------------------------------------------------------+
-// HID Report Descriptor
-//--------------------------------------------------------------------+
-#if CFG_TUD_HID
-
-uint8_t const desc_hid_report[] =
-{
-  TUD_HID_REPORT_DESC_KEYBOARD( HID_REPORT_ID(REPORT_ID_KEYBOARD), ),
-  TUD_HID_REPORT_DESC_MOUSE   ( HID_REPORT_ID(REPORT_ID_MOUSE), )
-};
-
-// Invoked when received GET HID REPORT DESCRIPTOR
-// Application return pointer to descriptor
-// Descriptor contents must exist long enough for transfer to complete
-uint8_t const * tud_hid_descriptor_report_cb(void)
-{
-  return desc_hid_report;
-}
-
-#endif
-
-//--------------------------------------------------------------------+
 // Configuration Descriptor
 //--------------------------------------------------------------------+
 
 enum
 {
-#if CFG_TUD_CDC
-  ITF_NUM_CDC = 0,
-  ITF_NUM_CDC_DATA,
-#endif
-
-#if CFG_TUD_MSC
-  ITF_NUM_MSC,
-#endif
-
-#if CFG_TUD_HID
-  ITF_NUM_HID,
-#endif
-
-#if CFG_TUD_DFU_RT
   ITF_NUM_DFU_RT,
-#endif
-
   ITF_NUM_TOTAL
 };
 
-
-#define CONFIG_TOTAL_LEN    (TUD_CONFIG_DESC_LEN + CFG_TUD_CDC*TUD_CDC_DESC_LEN + CFG_TUD_MSC*TUD_MSC_DESC_LEN +  \
-    CFG_TUD_HID*TUD_HID_DESC_LEN  + (CFG_TUD_DFU_RT)*TUD_DFU_RT_DESC_LEN)
-
-#if CFG_TUSB_MCU == OPT_MCU_LPC175X_6X || CFG_TUSB_MCU == OPT_MCU_LPC177X_8X || CFG_TUSB_MCU == OPT_MCU_LPC40XX
-  // LPC 17xx and 40xx endpoint type (bulk/interrupt/iso) are fixed by its number
-  // 0 control, 1 In, 2 Bulk, 3 Iso, 4 In etc ...
-  // Note: since CDC EP ( 1 & 2), HID (4) are spot-on, thus we only need to force
-  // endpoint number for MSC to 5
-  #define EPNUM_MSC   0x05
-#else
-  #define EPNUM_MSC   0x03
-#endif
-
+#define CONFIG_TOTAL_LEN    (TUD_CONFIG_DESC_LEN + TUD_DFU_RT_DESC_LEN)
 
 uint8_t const desc_configuration[] =
 {
   // Config number, interface count, string index, total length, attribute, power in mA
   TUD_CONFIG_DESCRIPTOR(1, ITF_NUM_TOTAL, 0, CONFIG_TOTAL_LEN, TUSB_DESC_CONFIG_ATT_REMOTE_WAKEUP, 100),
 
-#if CFG_TUD_CDC
-  // Interface number, string index, EP notification address and size, EP data address (out, in) and size.
-  TUD_CDC_DESCRIPTOR(ITF_NUM_CDC, 1, 0x81, 8, 0x02, 0x82, 64),
-#endif
-
-#if CFG_TUD_MSC
-  // Interface number, string index, EP Out & EP In address, EP size
-  TUD_MSC_DESCRIPTOR(ITF_NUM_MSC, 5, EPNUM_MSC, 0x80 | EPNUM_MSC, (CFG_TUSB_RHPORT0_MODE & OPT_MODE_HIGH_SPEED) ? 512 : 64),
-#endif
-
-#if CFG_TUD_HID
-  // Interface number, string index, protocol, report descriptor len, EP In address, size & polling interval
-  TUD_HID_DESCRIPTOR(ITF_NUM_HID, 6, HID_PROTOCOL_NONE, sizeof(desc_hid_report), 0x84, 16, 10),
-#endif
-
-#if CFG_TUD_DFU_RT
   // Interface number, string index, attributes, detach timeout, transfer size */
-  TUD_DFU_RT_DESCRIPTOR(ITF_NUM_DFU_RT, 7, 0x0d, 1000, 4096),
-#endif
+  TUD_DFU_RT_DESCRIPTOR(ITF_NUM_DFU_RT, 4, 0x0d, 1000, 4096),
 };
 
 

@@ -76,8 +76,8 @@ enum { DRVID_INVALID = 0xFFu };
 typedef struct
 {
   uint8_t class_code;
-  uint8_t subclass; // 0xFF support all values of subclass
-  uint8_t protocol; // 0xFF support all values of protocol
+  uint8_t subclass;
+  uint8_t protocol;
 
   struct TU_ATTR_PACKED
   {
@@ -299,7 +299,7 @@ static osal_queue_t _usbd_q;
 // Prototypes
 //--------------------------------------------------------------------+
 static void mark_interface_endpoint(uint8_t ep2drv[8][2], uint8_t const* p_desc, uint16_t desc_len, uint8_t driver_id);
-static uint8_t find_driver_id(tusb_desc_interface_t const * desc_itf);
+//static uint8_t find_driver_id(tusb_desc_interface_t const * desc_itf);
 
 static bool process_control_request(uint8_t rhport, tusb_control_request_t const * p_request);
 static bool process_set_config(uint8_t rhport, uint8_t cfg_num);
@@ -345,6 +345,9 @@ static char const* const _usbd_driver_str[USBD_CLASS_DRIVER_COUNT] =
   #endif
   #if CFG_TUD_VENDOR
     "Vendor",
+  #endif
+  #if CFG_TUD_DFU_RT
+    "DFU Runtime",
   #endif
   #if CFG_TUD_USBTMC
     "USBTMC"
@@ -823,6 +826,7 @@ static bool process_set_config(uint8_t rhport, uint8_t cfg_num)
 
       tusb_desc_interface_t const * desc_itf = (tusb_desc_interface_t const*) p_desc;
 
+#if 0
       // Find driver id for the interface
       uint8_t drv_id = find_driver_id(desc_itf);
       TU_ASSERT( drv_id < USBD_CLASS_DRIVER_COUNT );
@@ -835,8 +839,31 @@ static bool process_set_config(uint8_t rhport, uint8_t cfg_num)
       TU_LOG2("  %s open\r\n", _usbd_driver_str[drv_id]);
       TU_ASSERT( _usbd_driver[drv_id].open(rhport, desc_itf, &itf_len) );
       TU_ASSERT( itf_len >= sizeof(tusb_desc_interface_t) );
+#else
+      uint8_t drv_id;
+      uint16_t itf_len;
 
-      mark_interface_endpoint(_usbd_dev.ep2drv, p_desc, itf_len, drv_id);
+      for (drv_id = 0; drv_id < USBD_CLASS_DRIVER_COUNT; drv_id++)
+      {
+        usbd_class_driver_t const *driver = &_usbd_driver[drv_id];
+
+        itf_len = 0;
+        if ( driver->open(rhport, desc_itf, &itf_len) )
+        {
+          // Interface number must not be used already TODO alternate interface
+          TU_ASSERT( DRVID_INVALID == _usbd_dev.itf2drv[desc_itf->bInterfaceNumber] );
+          _usbd_dev.itf2drv[desc_itf->bInterfaceNumber] = drv_id;
+
+          TU_LOG2("  itf_len = %d \r\n", itf_len);
+          break;
+        }
+      }
+
+      // Assert if cannot find a driver
+      TU_ASSERT( drv_id < USBD_CLASS_DRIVER_COUNT && itf_len >= sizeof(tusb_desc_interface_t) );
+#endif
+
+      mark_interface_endpoint(_usbd_dev.ep2drv, p_desc, itf_len, drv_id); // TODO refactor
 
       p_desc += itf_len; // next interface
     }
@@ -848,6 +875,7 @@ static bool process_set_config(uint8_t rhport, uint8_t cfg_num)
   return true;
 }
 
+#if 0
 // Helper to find class driver id for an interface
 // return 0xFF if not found
 static uint8_t find_driver_id(tusb_desc_interface_t const * desc_itf)
@@ -865,6 +893,7 @@ static uint8_t find_driver_id(tusb_desc_interface_t const * desc_itf)
 
   return DRVID_INVALID;
 }
+#endif
 
 // Helper marking endpoint of interface belongs to class driver
 static void mark_interface_endpoint(uint8_t ep2drv[8][2], uint8_t const* p_desc, uint16_t desc_len, uint8_t driver_id)
