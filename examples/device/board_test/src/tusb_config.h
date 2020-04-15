@@ -39,8 +39,11 @@
   #error CFG_TUSB_MCU must be defined
 #endif
 
+#ifndef CFG_TUSB_OS
+  #define CFG_TUSB_OS               OPT_OS_NONE
+#endif
+
 #define CFG_TUSB_RHPORT0_MODE       OPT_MODE_NONE
-#define CFG_TUSB_OS                 OPT_OS_NONE
 
 // CFG_TUSB_DEBUG is defined by compiler in DEBUG build
 // #define CFG_TUSB_DEBUG           0

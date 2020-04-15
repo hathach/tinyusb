@@ -312,8 +312,10 @@ void dcd_edpt_clear_stall(uint8_t rhport, uint8_t ep_addr)
   ep->CFG |= USBD_CFG_CSTALL_Msk;
 }
 
-void USBD_IRQHandler(void)
+void dcd_irq_handler(uint8_t rhport)
 {
+  (void) rhport;
+
   uint32_t status = USBD->INTSTS;
 #ifdef SUPPORT_LPM
   uint32_t state = USBD->ATTR & 0x300f;
@@ -440,10 +442,16 @@ void USBD_IRQHandler(void)
   USBD->INTSTS = status & enabled_irqs;
 }
 
-void dcd_isr(uint8_t rhport)
+void dcd_disconnect(uint8_t rhport)
 {
   (void) rhport;
-  USBD_IRQHandler();
+  usb_detach();
+}
+
+void dcd_connect(uint8_t rhport)
+{
+  (void) rhport;
+  usb_attach();
 }
 
 #endif

@@ -79,9 +79,7 @@
 #define CFG_TUD_HID               0
 #define CFG_TUD_MIDI              0
 #define CFG_TUD_VENDOR            0
-//#define CFG_TUD_NET               OPT_NET_ECM
-#define CFG_TUD_NET               OPT_NET_RNDIS
-//#define CFG_TUD_NET               OPT_NET_EEM
+#define CFG_TUD_NET               1
 
 #ifdef __cplusplus
  }

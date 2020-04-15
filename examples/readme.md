@@ -15,22 +15,26 @@ TinyUSB examples includes external repos aka submodules to provide low-level MCU
 $ git submodule update --init --recursive
 ```
 
-It will takes a bit of time due to the number of supported MCUs, luckily we only need to do this once.
+It will takes a bit of time due to the number of supported MCUs, luckily we only need to do this once. Or if you only want to test with a specific mcu, you could only update its driver submodule 
 
 ## Build
 
-[Here is the list of supported Boards](docs/boards.md) that should work out of the box with provided examples. 
- 
-To build example, go to its folder project then type `make BOARD=[our_board] all` e.g
+[Here is the list of supported Boards](docs/boards.md) that should work out of the box with provided examples (hopefully).
+To build example, first change directory to example folder. 
 
 ```
-$ cd examples/device/cdc_msc_hid
+$ cd examples/device/cdc_msc
+```
+
+Then compile with `make BOARD=[your_board] all`, for example
+
+```
 $ make BOARD=feather_nrf52840_express all
 ```
 
 ## Flash
 
-`flash` target will use the on-board debugger (jlink/cmsisdap/stlink/dfu) to flash the binary. We should install those debugger/programmer software in advance. Futhermore, since external jlink can be used with most of the board, there is also `flash-jlink` target for out convenience.
+`flash` target will use the on-board debugger (jlink/cmsisdap/stlink/dfu) to flash the binary. We should install those debugger/programmer software in advance. Furthermore, since external jlink can be used with most of the board, there is also `flash-jlink` target for your convenience.
 
 ```
 $ make BOARD=feather_nrf52840_express flash

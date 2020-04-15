@@ -27,7 +27,7 @@
 
 #include "tusb_option.h"
 
-#if ( TUSB_OPT_DEVICE_ENABLED && (CFG_TUD_NET != OPT_NET_NONE) )
+#if ( TUSB_OPT_DEVICE_ENABLED && CFG_TUD_NET )
 
 #include "net_device.h"
 #include "device/usbd_pvt.h"
@@ -42,39 +42,49 @@ typedef struct
 {
   uint8_t itf_num;
   uint8_t ep_notif;
+  bool ecm_mode;
   uint8_t ep_in;
   uint8_t ep_out;
-  uint_fast8_t active_alt_setting;
 } netd_interface_t;
 
-#if CFG_TUD_NET == OPT_NET_ECM
-  #define CFG_TUD_NET_PACKET_PREFIX_LEN 0
-  #define CFG_TUD_NET_PACKET_SUFFIX_LEN 0
-  #define CFG_TUD_NET_INTERFACESUBCLASS CDC_COMM_SUBCLASS_ETHERNET_NETWORKING_CONTROL_MODEL
-#elif CFG_TUD_NET == OPT_NET_RNDIS
-  #define CFG_TUD_NET_PACKET_PREFIX_LEN sizeof(rndis_data_packet_t)
-  #define CFG_TUD_NET_PACKET_SUFFIX_LEN 0
-  #define CFG_TUD_NET_INTERFACESUBCLASS TUD_RNDIS_ITF_SUBCLASS
-#elif CFG_TUD_NET == OPT_NET_EEM
-  #define CFG_TUD_NET_PACKET_PREFIX_LEN 2
-  #define CFG_TUD_NET_PACKET_SUFFIX_LEN 4
-  #define CFG_TUD_NET_INTERFACESUBCLASS CDC_COMM_SUBCLASS_ETHERNET_EMULATION_MODEL
-#endif
+#define CFG_TUD_NET_PACKET_PREFIX_LEN sizeof(rndis_data_packet_t)
+#define CFG_TUD_NET_PACKET_SUFFIX_LEN 0
 
 CFG_TUSB_MEM_SECTION CFG_TUSB_MEM_ALIGN static uint8_t received[CFG_TUD_NET_PACKET_PREFIX_LEN + CFG_TUD_NET_MTU + CFG_TUD_NET_PACKET_PREFIX_LEN];
 CFG_TUSB_MEM_SECTION CFG_TUSB_MEM_ALIGN static uint8_t transmitted[CFG_TUD_NET_PACKET_PREFIX_LEN + CFG_TUD_NET_MTU + CFG_TUD_NET_PACKET_PREFIX_LEN];
 
-#if CFG_TUD_NET == OPT_NET_ECM
-  CFG_TUSB_MEM_SECTION CFG_TUSB_MEM_ALIGN static tusb_control_request_t notify =
-  {
-    .bmRequestType = 0x21,
-    .bRequest = 0 /* NETWORK_CONNECTION */,
+struct ecm_notify_struct
+{
+  tusb_control_request_t header;
+  uint32_t downlink, uplink;
+};
+
+static const struct ecm_notify_struct ecm_notify_nc =
+{
+  .header = {
+    .bmRequestType = 0xA1,
+    .bRequest = 0 /* NETWORK_CONNECTION aka NetworkConnection */,
     .wValue = 1 /* Connected */,
     .wLength = 0,
-  };
-#elif CFG_TUD_NET == OPT_NET_RNDIS
-  CFG_TUSB_MEM_SECTION CFG_TUSB_MEM_ALIGN static uint8_t rndis_buf[120];
-#endif
+  },
+};
+
+static const struct ecm_notify_struct ecm_notify_csc =
+{
+  .header = {
+    .bmRequestType = 0xA1,
+    .bRequest = 0x2A /* CONNECTION_SPEED_CHANGE aka ConnectionSpeedChange */,
+    .wLength = 8,
+  },
+  .downlink = 9728000,
+  .uplink = 9728000,
+};
+
+CFG_TUSB_MEM_SECTION CFG_TUSB_MEM_ALIGN static union
+{
+  uint8_t rndis_buf[120];
+  struct ecm_notify_struct ecm_buf;
+} notify;
 
 //--------------------------------------------------------------------+
 // INTERNAL OBJECT & FUNCTION DECLARATION
@@ -107,6 +117,10 @@ void netd_init(void)
   tu_memclr(&_netd_itf, sizeof(_netd_itf));
 }
 
+void netd_init_data(void)
+{
+}
+
 void netd_reset(uint8_t rhport)
 {
   (void) rhport;
@@ -117,19 +131,18 @@ void netd_reset(uint8_t rhport)
 bool netd_open(uint8_t rhport, tusb_desc_interface_t const * itf_desc, uint16_t *p_length)
 {
   // sanity check the descriptor
-  TU_ASSERT (CFG_TUD_NET_INTERFACESUBCLASS == itf_desc->bInterfaceSubClass);
+  _netd_itf.ecm_mode = (CDC_COMM_SUBCLASS_ETHERNET_NETWORKING_CONTROL_MODEL == itf_desc->bInterfaceSubClass);
+  TU_VERIFY ( (TUD_RNDIS_ITF_SUBCLASS == itf_desc->bInterfaceSubClass) || _netd_itf.ecm_mode );
 
   // confirm interface hasn't already been allocated
-  TU_ASSERT(0 == _netd_itf.ep_in);
+  TU_ASSERT(0 == _netd_itf.ep_notif);
 
-  //------------- first Interface -------------//
+  //------------- Management Interface -------------//
   _netd_itf.itf_num = itf_desc->bInterfaceNumber;
-  _netd_itf.active_alt_setting = 0u;
 
   uint8_t const * p_desc = tu_desc_next( itf_desc );
   (*p_length) = sizeof(tusb_desc_interface_t);
 
-#if CFG_TUD_NET != OPT_NET_EEM
   // Communication Functional Descriptors
   while ( TUSB_DESC_CS_INTERFACE == tu_desc_type(p_desc) )
   {
@@ -145,18 +158,27 @@ bool netd_open(uint8_t rhport, tusb_desc_interface_t const * itf_desc, uint16_t 
     _netd_itf.ep_notif = ((tusb_desc_endpoint_t const *) p_desc)->bEndpointAddress;
 
     (*p_length) += p_desc[DESC_OFFSET_LEN];
-    p_desc = tu_desc_next(p_desc);
   }
 
-  //------------- second Interface -------------//
-  if ( (TUSB_DESC_INTERFACE == p_desc[DESC_OFFSET_TYPE]) &&
+  return true;
+}
+
+bool netd_open_data(uint8_t rhport, tusb_desc_interface_t const * itf_desc, uint16_t *p_length)
+{
+  // confirm interface hasn't already been allocated
+  TU_ASSERT(0 == _netd_itf.ep_in);
+
+  uint8_t const * p_desc = tu_desc_next( itf_desc );
+  (*p_length) = sizeof(tusb_desc_interface_t);
+
+  //------------- Data Interface -------------//
+  while ( (TUSB_DESC_INTERFACE == p_desc[DESC_OFFSET_TYPE]) &&
        (TUSB_CLASS_CDC_DATA == ((tusb_desc_interface_t const *) p_desc)->bInterfaceClass) )
   {
     // next to endpoint descriptor
     p_desc = tu_desc_next(p_desc);
     (*p_length) += sizeof(tusb_desc_interface_t);
   }
-#endif
 
   if (TUSB_DESC_ENDPOINT == p_desc[DESC_OFFSET_TYPE])
   {
@@ -188,131 +210,98 @@ bool netd_control_complete(uint8_t rhport, tusb_control_request_t const * reques
 
   TU_VERIFY (_netd_itf.itf_num == request->wIndex);
 
-#if CFG_TUD_NET == OPT_NET_RNDIS
-  if (request->bmRequestType_bit.direction == TUSB_DIR_OUT)
+  if ( !_netd_itf.ecm_mode && (request->bmRequestType_bit.direction == TUSB_DIR_OUT) )
   {
-    rndis_class_set_handler(rndis_buf, request->wLength);
+    rndis_class_set_handler(notify.rndis_buf, request->wLength);
   }
-#endif
 
   return true;
 }
 
-uint8_t netd_get_alt_setting(uint8_t rhport, tusb_control_request_t const * request)
+static void ecm_report(bool nc)
 {
-  (void)rhport;
-  (void)request;
-  /* TODO: Return actual value */
-  return _netd_itf.active_alt_setting;
+  notify.ecm_buf = (nc) ? ecm_notify_nc : ecm_notify_csc;
+  notify.ecm_buf.header.wIndex = _netd_itf.itf_num;
+  netd_report((uint8_t *)&notify.ecm_buf, (nc) ? sizeof(notify.ecm_buf.header) : sizeof(notify.ecm_buf));
 }
 
 // Handle class control request
 // return false to stall control endpoint (e.g unsupported request)
 bool netd_control_request(uint8_t rhport, tusb_control_request_t const * request)
 {
-
-  if((request->bmRequestType_bit.direction == TUSB_DIR_OUT)
-    && (request->bmRequestType_bit.type == TUSB_REQ_TYPE_STANDARD)
-    && (request->bmRequestType_bit.recipient == TUSB_REQ_RCPT_INTERFACE))
-  {
-    /* TODO: Do alternate interface setting work here. Only allow alternate setting of zero, for now. */
-    if (request->wIndex > 0)
-    {
-      return false;
-    }
-    return true;
-  }
-
   // Handle class request only
   TU_VERIFY(request->bmRequestType_bit.type == TUSB_REQ_TYPE_CLASS);
 
   TU_VERIFY (_netd_itf.itf_num == request->wIndex);
 
-#if CFG_TUD_NET == OPT_NET_ECM
-  /* the only required CDC-ECM Management Element Request is SetEthernetPacketFilter */
-  if (0x43 /* SET_ETHERNET_PACKET_FILTER */ == request->bRequest)
+  if (_netd_itf.ecm_mode)
   {
-    tud_control_xfer(rhport, request, NULL, 0);
-    notify.wIndex = request->wIndex;
-    usbd_edpt_xfer(TUD_OPT_RHPORT, _netd_itf.ep_notif, (uint8_t *)&notify, sizeof(notify));
-  }
-#elif CFG_TUD_NET == OPT_NET_RNDIS
-  if (request->bmRequestType_bit.direction == TUSB_DIR_IN)
-  {
-    rndis_generic_msg_t *rndis_msg = (rndis_generic_msg_t *)rndis_buf;
-    uint32_t msglen = tu_le32toh(rndis_msg->MessageLength);
-    TU_ASSERT(msglen <= sizeof(rndis_buf));
-    tud_control_xfer(rhport, request, rndis_buf, msglen);
+    /* the only required CDC-ECM Management Element Request is SetEthernetPacketFilter */
+    if (0x43 /* SET_ETHERNET_PACKET_FILTER */ == request->bRequest)
+    {
+      tud_control_xfer(rhport, request, NULL, 0);
+      ecm_report(true);
+    }
   }
   else
   {
-    tud_control_xfer(rhport, request, rndis_buf, sizeof(rndis_buf));
+    if (request->bmRequestType_bit.direction == TUSB_DIR_IN)
+    {
+      rndis_generic_msg_t *rndis_msg = (rndis_generic_msg_t *)notify.rndis_buf;
+      uint32_t msglen = tu_le32toh(rndis_msg->MessageLength);
+      TU_ASSERT(msglen <= sizeof(notify.rndis_buf));
+      tud_control_xfer(rhport, request, notify.rndis_buf, msglen);
+    }
+    else
+    {
+      tud_control_xfer(rhport, request, notify.rndis_buf, sizeof(notify.rndis_buf));
+    }
   }
-#else
-  (void)rhport;
-#endif
 
   return true;
 }
-
-struct cdc_eem_packet_header
-{
-  uint16_t length:14;
-  uint16_t bmCRC:1;
-  uint16_t bmType:1;
-};
 
 static void handle_incoming_packet(uint32_t len)
 {
   uint8_t *pnt = received;
   uint32_t size = 0;
 
-#if CFG_TUD_NET == OPT_NET_ECM
-  size = len;
-#elif CFG_TUD_NET == OPT_NET_RNDIS
-  rndis_data_packet_t *r = (rndis_data_packet_t *)pnt;
-  if (len >= sizeof(rndis_data_packet_t))
-    if ( (r->MessageType == REMOTE_NDIS_PACKET_MSG) && (r->MessageLength <= len))
-      if ( (r->DataOffset + offsetof(rndis_data_packet_t, DataOffset) + r->DataLength) <= len)
-      {
-        pnt = &received[r->DataOffset + offsetof(rndis_data_packet_t, DataOffset)];
-        size = r->DataLength;
-      }
-#elif CFG_TUD_NET == OPT_NET_EEM
-  struct cdc_eem_packet_header *hdr = (struct cdc_eem_packet_header *)pnt;
-
-  (void)len;
-
-  if (hdr->bmType)
+  if (_netd_itf.ecm_mode)
   {
-    /* EEM Control Packet: discard it */
-    tud_network_recv_renew();
+    size = len;
   }
   else
   {
-    /* EEM Data Packet */
-    pnt += CFG_TUD_NET_PACKET_PREFIX_LEN;
-    size = hdr->length - 4; /* discard the unused CRC-32 */
+    rndis_data_packet_t *r = (rndis_data_packet_t *)pnt;
+    if (len >= sizeof(rndis_data_packet_t))
+      if ( (r->MessageType == REMOTE_NDIS_PACKET_MSG) && (r->MessageLength <= len))
+        if ( (r->DataOffset + offsetof(rndis_data_packet_t, DataOffset) + r->DataLength) <= len)
+        {
+          pnt = &received[r->DataOffset + offsetof(rndis_data_packet_t, DataOffset)];
+          size = r->DataLength;
+        }
   }
-#endif
+
+  bool accepted = false;
 
   if (size)
   {
     struct pbuf *p = pbuf_alloc(PBUF_RAW, size, PBUF_POOL);
-    bool accepted = true;
 
     if (p)
     {
       memcpy(p->payload, pnt, size);
       p->len = size;
       accepted = tud_network_recv_cb(p);
-    }
 
-    if (!p || !accepted)
-    {
-      /* if a buffer couldn't be allocated or accepted by the callback, we must discard this packet */
-      tud_network_recv_renew();
+      if (!accepted) pbuf_free(p);
     }
+  }
+
+  if (!accepted)
+  {
+    /* if a buffer was never handled by user code, we must renew on the user's behalf */
+    tud_network_recv_renew();
   }
 }
 
@@ -343,6 +332,11 @@ bool netd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint32_
     }
   }
 
+  if ( _netd_itf.ecm_mode && (ep_addr == _netd_itf.ep_notif) )
+  {
+    if (sizeof(notify.ecm_buf.header) == xferred_bytes) ecm_report(false);
+  }
+
   return true;
 }
 
@@ -360,7 +354,7 @@ void tud_network_xmit(struct pbuf *p)
   if (!can_xmit)
     return;
 
-  len = CFG_TUD_NET_PACKET_PREFIX_LEN;
+  len = (_netd_itf.ecm_mode) ? 0 : CFG_TUD_NET_PACKET_PREFIX_LEN;
   data = transmitted + len;
 
   for(q = p; q != NULL; q = q->next)
@@ -370,23 +364,15 @@ void tud_network_xmit(struct pbuf *p)
     len += q->len;
   }
 
-#if CFG_TUD_NET == OPT_NET_RNDIS
-  rndis_data_packet_t *hdr = (rndis_data_packet_t *)transmitted;
-  memset(hdr, 0, sizeof(rndis_data_packet_t));
-  hdr->MessageType = REMOTE_NDIS_PACKET_MSG;
-  hdr->MessageLength = len;
-  hdr->DataOffset = sizeof(rndis_data_packet_t) - offsetof(rndis_data_packet_t, DataOffset);
-  hdr->DataLength = len - sizeof(rndis_data_packet_t);
-#elif CFG_TUD_NET == OPT_NET_EEM
-  struct cdc_eem_packet_header *hdr = (struct cdc_eem_packet_header *)transmitted;
-  /* append a fake CRC-32; the standard allows 0xDEADBEEF, which takes less CPU time */
-  data[0] = 0xDE; data[1] = 0xAD; data[2] = 0xBE; data[3] = 0xEF;
-  /* adjust length to reflect added fake CRC-32 */
-  len += 4;
-  hdr->bmType = 0; /* EEM Data Packet */
-  hdr->length = len - sizeof(struct cdc_eem_packet_header);
-  hdr->bmCRC = 0; /* Ethernet Frame CRC-32 set to 0xDEADBEEF */
-#endif
+  if (!_netd_itf.ecm_mode)
+  {
+    rndis_data_packet_t *hdr = (rndis_data_packet_t *)transmitted;
+    memset(hdr, 0, sizeof(rndis_data_packet_t));
+    hdr->MessageType = REMOTE_NDIS_PACKET_MSG;
+    hdr->MessageLength = len;
+    hdr->DataOffset = sizeof(rndis_data_packet_t) - offsetof(rndis_data_packet_t, DataOffset);
+    hdr->DataLength = len - sizeof(rndis_data_packet_t);
+  }
 
   do_in_xfer(transmitted, len);
 }

@@ -26,13 +26,9 @@
  */
 
 /*
-depending on the value of CFG_TUD_NET (tusb_config.h), this can be a CDC-ECM, RNDIS, or CDC-EEM USB virtual network adapter
+this appears as either a RNDIS or CDC-ECM USB virtual network adapter; the OS picks its preference
 
-CDC-ECM should be valid on Linux and MacOS hosts
-RNDIS   should be valid on Linux and Windows hosts
-CDC-EEM should be valid on Linux hosts
-
-You *must* customize tusb_config.h to set the CFG_TUD_NET definition to the type of these network adapters to emulate.
+RNDIS should be valid on Linux and Windows hosts, and CDC-ECM should be valid on Linux and macOS hosts
 
 The MCU appears to the host as IP address 192.168.7.1, and provides a DHCP server, DNS server, and web server.
 */
@@ -43,6 +39,7 @@ The MCU appears to the host as IP address 192.168.7.1, and provides a DHCP serve
 #include "dhserver.h"
 #include "dnserver.h"
 #include "lwip/init.h"
+#include "lwip/timeouts.h"
 #include "httpd.h"
 
 /* lwip context */
@@ -167,6 +164,8 @@ static void service_traffic(void)
     received_frame = NULL;
     tud_network_recv_renew();
   }
+
+  sys_check_timeouts();
 }
 
 void tud_network_init_cb(void)

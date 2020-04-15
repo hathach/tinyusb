@@ -93,9 +93,10 @@
 /** \defgroup group_supported_os Supported RTOS
  *  \ref CFG_TUSB_OS must be defined to one of these
  *  @{ */
-#define OPT_OS_NONE       1 ///< No RTOS
-#define OPT_OS_FREERTOS   2 ///< FreeRTOS
-#define OPT_OS_MYNEWT     3 ///< Mynewt OS
+#define OPT_OS_NONE       1  ///< No RTOS
+#define OPT_OS_FREERTOS   2  ///< FreeRTOS
+#define OPT_OS_MYNEWT     3  ///< Mynewt OS
+#define OPT_OS_CUSTOM     4  ///< Custom OS is implemented by application
 /** @} */
 
 
@@ -121,15 +122,6 @@
 #define OPT_MODE_DEVICE       0x01 ///< Device Mode
 #define OPT_MODE_HOST         0x02 ///< Host Mode
 #define OPT_MODE_HIGH_SPEED   0x10 ///< High speed
-/** @} */
-
-/** \defgroup group_supported_netif Supported Network Interface
- *  \ref CFG_TUD_NET must be defined to one of these
- *  @{ */
-#define OPT_NET_NONE      0 ///< No network interface
-#define OPT_NET_ECM       1 ///< CDC-ECM
-#define OPT_NET_RNDIS     2 ///< RNDIS
-#define OPT_NET_EEM       3 ///< CDC-EEM
 /** @} */
 
 #ifndef CFG_TUSB_RHPORT0_MODE

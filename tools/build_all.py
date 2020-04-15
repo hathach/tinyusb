@@ -11,6 +11,9 @@ exit_status = 0
 
 total_time = time.monotonic()
 
+build_format = '| {:23} | {:30} | {:9} | {:7} | {:6} | {:6} |'
+build_separator = '-' * 100
+
 # 1st Argument is Example, build all examples if not existed
 all_examples = []
 if len(sys.argv) > 1:
@@ -39,7 +42,8 @@ def build_example(example, board):
                           stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
 
 def build_size(example, board):
-    elf_file = 'examples/device/{}/_build/build-{}/{}-firmware.elf'.format(example, board, board)
+    #elf_file = 'examples/device/{}/_build/build-{}/{}-firmware.elf'.format(example, board, board)
+    elf_file = 'examples/device/{}/_build/build-{}/*.elf'.format(example, board)
     size_output = subprocess.run('size {}'.format(elf_file), shell=True, stdout=subprocess.PIPE).stdout.decode("utf-8")
     size_list = size_output.split('\n')[1].split('\t')
     flash_size = int(size_list[0])
@@ -49,16 +53,22 @@ def build_size(example, board):
 def skip_example(example, board):
     ex_dir = 'examples/device/' + example
     board_mk = 'hw/bsp/{}/board.mk'.format(board)
-    for skip_file in glob.iglob(ex_dir + '/.skip.MCU_*'):
-        mcu_cflag = '-DCFG_TUSB_MCU=OPT_' + os.path.basename(skip_file).split('.')[2]
-        with open(board_mk) as mk:
-            if mcu_cflag in mk.read():
+
+    with open(board_mk) as mk:
+        mk_contents = mk.read()
+
+        # Skip all ESP32-S2 board for CI
+        if 'CROSS_COMPILE = xtensa-esp32s2-elf-' in mk_contents:
+            return 1
+
+        # Skip if CFG_TUSB_MCU in board.mk to match skip file
+        for skip_file in glob.iglob(ex_dir + '/.skip.MCU_*'):
+            mcu_cflag = '-DCFG_TUSB_MCU=OPT_' + os.path.basename(skip_file).split('.')[2]
+            if mcu_cflag in mk_contents:
                 return 1
 
     return 0
 
-build_format = '| {:20} | {:30} | {:9} | {:5} | {:6} | {:6} |'
-build_separator = '-' * 95
 print(build_separator)
 print(build_format.format('Example', 'Board', 'Result', 'Time', 'Flash', 'SRAM'))
 
@@ -93,10 +103,7 @@ for example in all_examples:
             if build_result.returncode != 0:
                 print(build_result.stdout.decode("utf-8"))
 
-# FreeRTOS example
-# example = 'cdc_msc_hid_freertos'
-# board = 'pca10056'
-# build_example(example, board)
+
 
 total_time = time.monotonic() - total_time
 print(build_separator)

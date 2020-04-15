@@ -73,3 +73,10 @@ int main(void)
 
   return 0;
 }
+
+#if CFG_TUSB_MCU == OPT_MCU_ESP32S2
+void app_main(void)
+{
+  main();
+}
+#endif

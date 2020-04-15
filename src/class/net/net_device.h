@@ -73,12 +73,13 @@ void tud_network_xmit(struct pbuf *p);
 // INTERNAL USBD-CLASS DRIVER API
 //--------------------------------------------------------------------+
 void netd_init             (void);
+void netd_init_data        (void);
 void netd_reset            (uint8_t rhport);
 bool netd_open             (uint8_t rhport, tusb_desc_interface_t const * itf_desc, uint16_t *p_length);
+bool netd_open_data        (uint8_t rhport, tusb_desc_interface_t const * itf_desc, uint16_t *p_length);
 bool netd_control_request  (uint8_t rhport, tusb_control_request_t const * request);
 bool netd_control_complete (uint8_t rhport, tusb_control_request_t const * request);
 bool netd_xfer_cb          (uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint32_t xferred_bytes);
-uint8_t netd_get_alt_setting(uint8_t rhport, tusb_control_request_t const * request);
 void netd_report           (uint8_t *buf, uint16_t len);
 
 #ifdef __cplusplus

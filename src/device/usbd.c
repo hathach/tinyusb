@@ -185,13 +185,9 @@ static usbd_class_driver_t const _usbd_driver[] =
   #endif
 
   #if CFG_TUD_NET
+  /* RNDIS management interface */
   {
-      .class_code       = 
-#if CFG_TUD_NET == OPT_NET_RNDIS
-                          TUD_RNDIS_ITF_CLASS,
-#else
-                          TUSB_CLASS_CDC,
-#endif
+      .class_code       = TUD_RNDIS_ITF_CLASS,
       .init             = netd_init,
       .reset            = netd_reset,
       .open             = netd_open,
@@ -199,7 +195,28 @@ static usbd_class_driver_t const _usbd_driver[] =
       .control_complete = netd_control_complete,
       .xfer_cb          = netd_xfer_cb,
       .sof              = NULL,
-      .get_alt_setting  = netd_get_alt_setting
+  },
+  /* CDC-ECM management interface */
+  {
+      .class_code       = TUSB_CLASS_CDC,
+      .init             = netd_init,
+      .reset            = netd_reset,
+      .open             = netd_open,
+      .control_request  = netd_control_request,
+      .control_complete = netd_control_complete,
+      .xfer_cb          = netd_xfer_cb,
+      .sof              = NULL,
+  },
+  /* RNDIS/CDC-ECM data interface */
+  {
+      .class_code       = TUSB_CLASS_CDC_DATA,
+      .init             = netd_init_data,
+      .reset            = NULL,
+      .open             = netd_open_data,
+      .control_request  = NULL,
+      .control_complete = NULL,
+      .xfer_cb          = netd_xfer_cb,
+      .sof              = NULL,
   },
   #endif
 };
@@ -334,6 +351,7 @@ bool tud_init (void)
 
   // Init device controller driver
   dcd_init(TUD_OPT_RHPORT);
+  tud_connect();
   dcd_int_enable(TUD_OPT_RHPORT);
 
   return true;
@@ -423,7 +441,7 @@ void tud_task (void)
         uint8_t const epnum   = tu_edpt_number(ep_addr);
         uint8_t const ep_dir  = tu_edpt_dir(ep_addr);
 
-        TU_LOG2("  Endpoint: 0x%02X, Bytes: %ld\r\n", ep_addr, event.xfer_complete.len);
+        TU_LOG2("  Endpoint: 0x%02X, Bytes: %u\r\n", ep_addr, (unsigned int) event.xfer_complete.len);
 
         _usbd_dev.ep_status[epnum][ep_dir].busy = false;
 
@@ -608,7 +626,7 @@ static bool process_control_request(uint8_t rhport, tusb_control_request_t const
             // TODO not support alternate interface yet
             uint8_t alternate = 0;
             if(_usbd_driver[drvid].get_alt_setting)
-            {
+          {
               alternate = _usbd_driver[drvid].get_alt_setting(rhport, p_request);
             }
             tud_control_xfer(rhport, p_request, &alternate, 1);

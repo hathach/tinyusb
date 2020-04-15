@@ -48,7 +48,7 @@ bool tud_init (void);
 void tud_task (void);
 
 // Interrupt handler, name alias to DCD
-#define tud_isr   dcd_isr
+#define tud_irq_handler   dcd_irq_handler
 
 // Check if device is connected and configured
 bool tud_mounted(void);
@@ -64,6 +64,20 @@ static inline bool tud_ready(void)
 
 // Remote wake up host, only if suspended and enabled by host
 bool tud_remote_wakeup(void);
+
+static inline bool tud_disconnect(void)
+{
+  TU_VERIFY(dcd_disconnect);
+  dcd_disconnect(TUD_OPT_RHPORT);
+  return true;
+}
+
+static inline bool tud_connect(void)
+{
+  TU_VERIFY(dcd_connect);
+  dcd_connect(TUD_OPT_RHPORT);
+  return true;
+}
 
 // Carry out Data and Status stage of control transfer
 // - If len = 0, it is equivalent to sending status only
@@ -328,8 +342,8 @@ TU_ATTR_WEAK bool tud_vendor_control_complete_cb(uint8_t rhport, tusb_control_re
 
 //------------- CDC-ECM -------------//
 
-// Length of template descriptor: 62 bytes
-#define TUD_CDC_ECM_DESC_LEN  (9+5+5+13+7+9+7+7)
+// Length of template descriptor: 71 bytes
+#define TUD_CDC_ECM_DESC_LEN  (9+5+5+13+7+9+9+7+7)
 
 // CDC-ECM Descriptor Template
 // Interface number, description string index, MAC address string index, EP notification address and size, EP data address (out, in), and size, max segment size.
@@ -344,8 +358,10 @@ TU_ATTR_WEAK bool tud_vendor_control_complete_cb(uint8_t rhport, tusb_control_re
   13, TUSB_DESC_CS_INTERFACE, CDC_FUNC_DESC_ETHERNET_NETWORKING, _mac_stridx, 0, 0, 0, 0, U16_TO_U8S_LE(_maxsegmentsize), U16_TO_U8S_LE(0), 0,\
   /* Endpoint Notification */\
   7, TUSB_DESC_ENDPOINT, _ep_notif, TUSB_XFER_INTERRUPT, U16_TO_U8S_LE(_ep_notif_size), 1,\
-  /* CDC Data Interface */\
-  9, TUSB_DESC_INTERFACE, (uint8_t)((_itfnum)+1), 0, 2, TUSB_CLASS_CDC_DATA, 0, 0, 0,\
+  /* CDC Data Interface (default inactive) */\
+  9, TUSB_DESC_INTERFACE, (uint8_t)((_itfnum)+1), 0, 0, TUSB_CLASS_CDC_DATA, 0, 0, 0,\
+  /* CDC Data Interface (alternative active) */\
+  9, TUSB_DESC_INTERFACE, (uint8_t)((_itfnum)+1), 1, 2, TUSB_CLASS_CDC_DATA, 0, 0, 0,\
   /* Endpoint In */\
   7, TUSB_DESC_ENDPOINT, _epin, TUSB_XFER_BULK, U16_TO_U8S_LE(_epsize), 0,\
   /* Endpoint Out */\
@@ -358,7 +374,7 @@ TU_ATTR_WEAK bool tud_vendor_control_complete_cb(uint8_t rhport, tusb_control_re
   /* Windows XP */
   #define TUD_RNDIS_ITF_CLASS    TUSB_CLASS_CDC
   #define TUD_RNDIS_ITF_SUBCLASS CDC_COMM_SUBCLASS_ABSTRACT_CONTROL_MODEL
-  #define TUD_RNDIS_ITF_PROTOCOL CDC_COMM_PROTOCOL_MICROSOFT_RNDIS
+  #define TUD_RNDIS_ITF_PROTOCOL 0xFF /* CDC_COMM_PROTOCOL_MICROSOFT_RNDIS */
 #else
   /* Windows 7+ */
   #define TUD_RNDIS_ITF_CLASS    0xE0

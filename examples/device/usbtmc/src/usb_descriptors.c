@@ -109,18 +109,18 @@ uint8_t const * tud_hid_descriptor_report_cb(void)
      TUD_USBTMC_IF_DESCRIPTOR(_itfnum, _bNumEndpoints,  /*_stridx = */ 4u, TUD_USBTMC_PROTOCOL_USB488), \
      TUD_USBTMC_BULK_DESCRIPTORS(/* OUT = */0x01, /* IN = */ 0x81, /* packet size = */USBTMCD_MAX_PACKET_SIZE)
 
-#if defined(CFG_TUD_USBTMC_ENABLE_INT_EP)
+#if CFG_TUD_USBTMC_ENABLE_INT_EP
 // Interrupt endpoint should be 2 bytes on a FS USB link
 #  define TUD_USBTMC_DESC(_itfnum) \
      TUD_USBTMC_DESC_MAIN(_itfnum, /* _epCount = */ 3), \
      TUD_USBTMC_INT_DESCRIPTOR(/* INT ep # */ 0x82, /* epMaxSize = */ 2, /* bInterval = */16u )
-#  define USBTMC_DESC_LEN (TUD_USBTMC_IF_DESCRIPTOR_LEN + TUD_USBTMC_BULK_DESCRIPTORS_LEN + TUD_USBTMC_INT_DESCRIPTOR_LEN)
+#  define TUD_USBTMC_DESC_LEN (TUD_USBTMC_IF_DESCRIPTOR_LEN + TUD_USBTMC_BULK_DESCRIPTORS_LEN + TUD_USBTMC_INT_DESCRIPTOR_LEN)
 
 #else
 
-#  define USBTMC_DESC(_itfnum) \
-     USBTMC_DESC_MAIN(_itfnum, /* _epCount = */ 2u)
-#  define USBTMC_DESC_LEN (USBTMC_IF_DESCRIPTOR_LEN + USBTMC_BULK_DESCRIPTORS_LEN)
+#  define TUD_USBTMC_DESC(_itfnum) \
+     TUD_USBTMC_DESC_MAIN(_itfnum, /* _epCount = */ 2u)
+#  define TUD_USBTMC_DESC_LEN (TUD_USBTMC_IF_DESCRIPTOR_LEN + TUD_USBTMC_BULK_DESCRIPTORS_LEN)
 
 #endif /* CFG_TUD_USBTMC_ENABLE_INT_EP */
 
@@ -150,7 +150,7 @@ enum
 
 
 #define CONFIG_TOTAL_LEN    (TUD_CONFIG_DESC_LEN + CFG_TUD_CDC*TUD_CDC_DESC_LEN + CFG_TUD_MSC*TUD_MSC_DESC_LEN +  \
-    CFG_TUD_HID*TUD_HID_DESC_LEN  + (CFG_TUD_USBTMC)*USBTMC_DESC_LEN)
+    CFG_TUD_HID*TUD_HID_DESC_LEN  + (CFG_TUD_USBTMC)*TUD_USBTMC_DESC_LEN)
 
 #if CFG_TUSB_MCU == OPT_MCU_LPC175X_6X || CFG_TUSB_MCU == OPT_MCU_LPC177X_8X || CFG_TUSB_MCU == OPT_MCU_LPC40XX
   // LPC 17xx and 40xx endpoint type (bulk/interrupt/iso) are fixed by its number
