@@ -40,11 +40,20 @@ void rndis_class_set_handler(uint8_t *data, int size); /* found in ./misc/networ
 //--------------------------------------------------------------------+
 typedef struct
 {
-  uint8_t itf_num;
+  uint8_t itf_num;      // Index number of Management Interface, +1 for Data Interface
+  uint8_t itf_data_alt; // Alternate setting of Data Interface. 0 : inactive, 1 : active
+
   uint8_t ep_notif;
-  bool ecm_mode;
   uint8_t ep_in;
   uint8_t ep_out;
+
+  bool ecm_mode;
+
+  // Endpoint descriptor use to open/close when receving SetInterface
+  // TODO since configuration descriptor may not be long-lived memory, we should
+  // keep a copy of endpoint attribute instead
+  uint8_t const * ecm_desc_epdata;
+
 } netd_interface_t;
 
 #define CFG_TUD_NET_PACKET_PREFIX_LEN sizeof(rndis_data_packet_t)
@@ -145,8 +154,8 @@ bool netd_open(uint8_t rhport, tusb_desc_interface_t const * itf_desc, uint16_t 
   //------------- Management Interface -------------//
   _netd_itf.itf_num = itf_desc->bInterfaceNumber;
 
-  uint8_t const * p_desc = tu_desc_next( itf_desc );
   (*p_length) = sizeof(tusb_desc_interface_t);
+  uint8_t const * p_desc = tu_desc_next( itf_desc );
 
   // Communication Functional Descriptors
   while ( TUSB_DESC_CS_INTERFACE == tu_desc_type(p_desc) )
@@ -167,31 +176,44 @@ bool netd_open(uint8_t rhport, tusb_desc_interface_t const * itf_desc, uint16_t 
   }
 
   //------------- Data Interface -------------//
-  // TODO extract Alt Interface 0 & 1
-  while ((TUSB_DESC_INTERFACE == tu_desc_type(p_desc)) &&
-         (TUSB_CLASS_CDC_DATA == ((tusb_desc_interface_t const *) p_desc)->bInterfaceClass) )
+  // - RNDIS Data followed immediately by a pair of endpoints
+  // - CDC-ECM data interface has 2 alternate settings
+  //   - 0 : zero endpoints for inactive (default)
+  //   - 1 : IN & OUT endpoints for active networking
+  TU_ASSERT(TUSB_DESC_INTERFACE == tu_desc_type(p_desc));
+
+  do
   {
-    // next to endpoint descriptor
+    tusb_desc_interface_t const * data_itf_desc = (tusb_desc_interface_t const *) p_desc;
+    TU_ASSERT(TUSB_CLASS_CDC_DATA == data_itf_desc->bInterfaceClass);
+
     (*p_length) += tu_desc_len(p_desc);
     p_desc = tu_desc_next(p_desc);
-  }
+  }while( _netd_itf.ecm_mode && (TUSB_DESC_INTERFACE == tu_desc_type(p_desc)) );
 
-  if (TUSB_DESC_ENDPOINT == tu_desc_type(p_desc))
+  // Pair of endpoints
+  TU_ASSERT(TUSB_DESC_ENDPOINT == tu_desc_type(p_desc));
+
+  if ( _netd_itf.ecm_mode )
   {
-    // Open endpoint pair
+    // ECM by default is in-active, save the endpoint attribute
+    // to open later when received setInterface
+    _netd_itf.ecm_desc_epdata = p_desc;
+  }else
+  {
+    // Open endpoint pair for RNDIS
     TU_ASSERT( usbd_open_edpt_pair(rhport, p_desc, 2, TUSB_XFER_BULK, &_netd_itf.ep_out, &_netd_itf.ep_in) );
 
-    (*p_length) += 2*sizeof(tusb_desc_endpoint_t);
+    tud_network_init_cb();
+
+    // we are ready to transmit a packet
+    can_xmit = true;
+
+    // prepare for incoming packets
+    tud_network_recv_renew();
   }
 
-  tud_network_init_cb();
-
-  // we are ready to transmit a packet
-  can_xmit = true;
-
-  // prepare for incoming packets
-  tud_network_recv_renew();
-
+  (*p_length) += 2*sizeof(tusb_desc_endpoint_t);
 
   return true;
 }
@@ -226,33 +248,83 @@ static void ecm_report(bool nc)
 // return false to stall control endpoint (e.g unsupported request)
 bool netd_control_request(uint8_t rhport, tusb_control_request_t const * request)
 {
-  // Handle class request only
-  TU_VERIFY(request->bmRequestType_bit.type == TUSB_REQ_TYPE_CLASS);
-
-  TU_VERIFY (_netd_itf.itf_num == request->wIndex);
-
-  if (_netd_itf.ecm_mode)
+  switch ( request->bmRequestType_bit.type )
   {
-    /* the only required CDC-ECM Management Element Request is SetEthernetPacketFilter */
-    if (0x43 /* SET_ETHERNET_PACKET_FILTER */ == request->bRequest)
-    {
-      tud_control_xfer(rhport, request, NULL, 0);
-      ecm_report(true);
-    }
-  }
-  else
-  {
-    if (request->bmRequestType_bit.direction == TUSB_DIR_IN)
-    {
-      rndis_generic_msg_t *rndis_msg = (rndis_generic_msg_t *)notify.rndis_buf;
-      uint32_t msglen = tu_le32toh(rndis_msg->MessageLength);
-      TU_ASSERT(msglen <= sizeof(notify.rndis_buf));
-      tud_control_xfer(rhport, request, notify.rndis_buf, msglen);
-    }
-    else
-    {
-      tud_control_xfer(rhport, request, notify.rndis_buf, sizeof(notify.rndis_buf));
-    }
+    case TUSB_REQ_TYPE_STANDARD:
+      switch ( request->bRequest )
+      {
+        case TUSB_REQ_GET_INTERFACE:
+          tud_control_xfer(rhport, request, &_netd_itf.itf_data_alt, 1);
+        break;
+
+        case TUSB_REQ_SET_INTERFACE:
+        {
+          // Request to enable/disable network activities on ACM-ECM only
+          TU_ASSERT(_netd_itf.ecm_mode);
+
+          _netd_itf.itf_data_alt = (uint8_t) request->wValue;
+
+          if ( _netd_itf.itf_data_alt )
+          {
+            // TODO since we don't actually close endpoint
+            // hack here to not re-open it
+            if ( _netd_itf.ep_in == 0 && _netd_itf.ep_out == 0 )
+            {
+              TU_ASSERT(_netd_itf.ecm_desc_epdata);
+              TU_ASSERT( usbd_open_edpt_pair(rhport, _netd_itf.ecm_desc_epdata, 2, TUSB_XFER_BULK, &_netd_itf.ep_out, &_netd_itf.ep_in) );
+
+              // TODO should have opposite callback for application to disable network !!
+              tud_network_init_cb();
+              can_xmit = true; // we are ready to transmit a packet
+              tud_network_recv_renew(); // prepare for incoming packets
+            }
+          }else
+          {
+            // TODO close the endpoint pair
+            // For now pretend that we did, this should have no harm since host won't try to
+            // communicate with the endpoints again
+            // _netd_itf.ep_in = _netd_itf.ep_out = 0
+          }
+
+          tud_control_status(rhport, request);
+        }
+        break;
+
+        // unsupported request
+        default: return false;
+      }
+    break;
+
+    case TUSB_REQ_TYPE_CLASS:
+      TU_VERIFY (_netd_itf.itf_num == request->wIndex);
+
+      if (_netd_itf.ecm_mode)
+      {
+        /* the only required CDC-ECM Management Element Request is SetEthernetPacketFilter */
+        if (0x43 /* SET_ETHERNET_PACKET_FILTER */ == request->bRequest)
+        {
+          tud_control_xfer(rhport, request, NULL, 0);
+          ecm_report(true);
+        }
+      }
+      else
+      {
+        if (request->bmRequestType_bit.direction == TUSB_DIR_IN)
+        {
+          rndis_generic_msg_t *rndis_msg = (rndis_generic_msg_t *)notify.rndis_buf;
+          uint32_t msglen = tu_le32toh(rndis_msg->MessageLength);
+          TU_ASSERT(msglen <= sizeof(notify.rndis_buf));
+          tud_control_xfer(rhport, request, notify.rndis_buf, msglen);
+        }
+        else
+        {
+          tud_control_xfer(rhport, request, notify.rndis_buf, sizeof(notify.rndis_buf));
+        }
+      }
+    break;
+
+    // unsupported request
+    default: return false;
   }
 
   return true;
