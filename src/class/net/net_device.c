@@ -117,10 +117,6 @@ void netd_init(void)
   tu_memclr(&_netd_itf, sizeof(_netd_itf));
 }
 
-void netd_init_data(void)
-{
-}
-
 void netd_reset(uint8_t rhport)
 {
   (void) rhport;
@@ -166,32 +162,21 @@ bool netd_open(uint8_t rhport, tusb_desc_interface_t const * itf_desc, uint16_t 
 
     _netd_itf.ep_notif = ((tusb_desc_endpoint_t const *) p_desc)->bEndpointAddress;
 
-    (*p_length) += p_desc[DESC_OFFSET_LEN];
+    (*p_length) += tu_desc_len(p_desc);
+    p_desc = tu_desc_next(p_desc);
   }
-
-  return true;
-}
-
-bool netd_open_data(uint8_t rhport, tusb_desc_interface_t const * itf_desc, uint16_t *p_length)
-{
-  TU_VERIFY(TUSB_CLASS_CDC_DATA == itf_desc->bInterfaceClass);
-
-  // confirm interface hasn't already been allocated
-  TU_ASSERT(0 == _netd_itf.ep_in);
-
-  uint8_t const * p_desc = tu_desc_next( itf_desc );
-  (*p_length) = sizeof(tusb_desc_interface_t);
 
   //------------- Data Interface -------------//
-  while ( (TUSB_DESC_INTERFACE == p_desc[DESC_OFFSET_TYPE]) &&
-       (TUSB_CLASS_CDC_DATA == ((tusb_desc_interface_t const *) p_desc)->bInterfaceClass) )
+  // TODO extract Alt Interface 0 & 1
+  while ((TUSB_DESC_INTERFACE == tu_desc_type(p_desc)) &&
+         (TUSB_CLASS_CDC_DATA == ((tusb_desc_interface_t const *) p_desc)->bInterfaceClass) )
   {
     // next to endpoint descriptor
+    (*p_length) += tu_desc_len(p_desc);
     p_desc = tu_desc_next(p_desc);
-    (*p_length) += sizeof(tusb_desc_interface_t);
   }
 
-  if (TUSB_DESC_ENDPOINT == p_desc[DESC_OFFSET_TYPE])
+  if (TUSB_DESC_ENDPOINT == tu_desc_type(p_desc))
   {
     // Open endpoint pair
     TU_ASSERT( usbd_open_edpt_pair(rhport, p_desc, 2, TUSB_XFER_BULK, &_netd_itf.ep_out, &_netd_itf.ep_in) );
@@ -206,6 +191,7 @@ bool netd_open_data(uint8_t rhport, tusb_desc_interface_t const * itf_desc, uint
 
   // prepare for incoming packets
   tud_network_recv_renew();
+
 
   return true;
 }

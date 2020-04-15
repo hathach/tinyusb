@@ -188,38 +188,13 @@ static usbd_class_driver_t const _usbd_driver[] =
   #endif
 
   #if CFG_TUD_NET
-  /* RNDIS management interface */
   {
-      DRIVER_NAME("RNDIS")
+      DRIVER_NAME("NET")
       .init             = netd_init,
       .reset            = netd_reset,
       .open             = netd_open,
       .control_request  = netd_control_request,
       .control_complete = netd_control_complete,
-      .xfer_cb          = netd_xfer_cb,
-      .sof              = NULL,
-  },
-
-  /* CDC-ECM management interface */
-  {
-      DRIVER_NAME("CDC-ECM")
-      .init             = netd_init,
-      .reset            = netd_reset,
-      .open             = netd_open,
-      .control_request  = netd_control_request,
-      .control_complete = netd_control_complete,
-      .xfer_cb          = netd_xfer_cb,
-      .sof              = NULL,
-  },
-
-  /* RNDIS/CDC-ECM data interface */
-  {
-      DRIVER_NAME("CDC-DATA")
-      .init             = netd_init_data,
-      .reset            = NULL,
-      .open             = netd_open_data,
-      .control_request  = NULL,
-      .control_complete = NULL,
       .xfer_cb          = netd_xfer_cb,
       .sof              = NULL,
   },
@@ -611,9 +586,10 @@ static bool process_control_request(uint8_t rhport, tusb_control_request_t const
           case TUSB_REQ_SET_INTERFACE:
           {
             uint8_t const alternate = (uint8_t) p_request->wValue;
+            (void) alternate;
 
             // TODO not support alternate interface yet
-            TU_ASSERT(alternate == 0);
+//            TU_ASSERT(alternate == 0);
             tud_control_status(rhport, p_request);
           }
           break;
@@ -727,41 +703,59 @@ static bool process_set_config(uint8_t rhport, uint8_t cfg_num)
 
   while( p_desc < desc_end )
   {
-    // Each interface always starts with Interface or Association descriptor
+    tusb_desc_interface_assoc_t const * desc_itf_assoc = NULL;
+
+    // Class will always starts with Interface Association (if any) and then Interface descriptor
     if ( TUSB_DESC_INTERFACE_ASSOCIATION == tu_desc_type(p_desc) )
     {
-      p_desc = tu_desc_next(p_desc); // ignore Interface Association
-    }else
-    {
-      TU_ASSERT( TUSB_DESC_INTERFACE == tu_desc_type(p_desc) );
-
-      tusb_desc_interface_t const * desc_itf = (tusb_desc_interface_t const*) p_desc;
-
-      uint8_t drv_id;
-      uint16_t drv_len;
-
-      for (drv_id = 0; drv_id < USBD_CLASS_DRIVER_COUNT; drv_id++)
-      {
-        usbd_class_driver_t const *driver = &_usbd_driver[drv_id];
-
-        drv_len = 0;
-        if ( driver->open(rhport, desc_itf, &drv_len) )
-        {
-          // Interface number must not be used already TODO alternate interface
-          TU_ASSERT( DRVID_INVALID == _usbd_dev.itf2drv[desc_itf->bInterfaceNumber] );
-          TU_LOG2("  %s open\r\n", _usbd_driver[drv_id].name);
-          _usbd_dev.itf2drv[desc_itf->bInterfaceNumber] = drv_id;
-          break;
-        }
-      }
-
-      // Assert if cannot find supported driver
-      TU_ASSERT( drv_id < USBD_CLASS_DRIVER_COUNT && drv_len >= sizeof(tusb_desc_interface_t) );
-
-      mark_interface_endpoint(_usbd_dev.ep2drv, p_desc, drv_len, drv_id); // TODO refactor
-
-      p_desc += drv_len; // next interface
+      desc_itf_assoc = (tusb_desc_interface_assoc_t const *) p_desc;
+      p_desc = tu_desc_next(p_desc); // next to Interface
     }
+
+    TU_ASSERT( TUSB_DESC_INTERFACE == tu_desc_type(p_desc) );
+
+    tusb_desc_interface_t const * desc_itf = (tusb_desc_interface_t const*) p_desc;
+    uint8_t drv_id;
+    uint16_t drv_len;
+
+    for (drv_id = 0; drv_id < USBD_CLASS_DRIVER_COUNT; drv_id++)
+    {
+      usbd_class_driver_t const *driver = &_usbd_driver[drv_id];
+
+      drv_len = 0;
+      if ( driver->open(rhport, desc_itf, &drv_len) )
+      {
+        // Interface number must not be used already
+        TU_ASSERT( DRVID_INVALID == _usbd_dev.itf2drv[desc_itf->bInterfaceNumber] );
+
+        TU_LOG2("  %s open\r\n", _usbd_driver[drv_id].name);
+        _usbd_dev.itf2drv[desc_itf->bInterfaceNumber] = drv_id;
+
+        // If IAD exist, assign all interfaces to the same driver
+        if (desc_itf_assoc)
+        {
+          // IAD's first interface number and class/subclass/protocol should match with opened interface
+          TU_ASSERT(desc_itf_assoc->bFirstInterface   == desc_itf->bInterfaceNumber   &&
+                    desc_itf_assoc->bFunctionClass    == desc_itf->bInterfaceClass    &&
+                    desc_itf_assoc->bFunctionSubClass == desc_itf->bInterfaceSubClass &&
+                    desc_itf_assoc->bFunctionProtocol == desc_itf->bInterfaceProtocol);
+
+          for(uint8_t i=1; i<desc_itf_assoc->bInterfaceCount; i++)
+          {
+            _usbd_dev.itf2drv[desc_itf->bInterfaceNumber+i] = drv_id;
+          }
+        }
+
+        break;
+      }
+    }
+
+    // Assert if cannot find supported driver
+    TU_ASSERT( drv_id < USBD_CLASS_DRIVER_COUNT && drv_len >= sizeof(tusb_desc_interface_t) );
+
+    mark_interface_endpoint(_usbd_dev.ep2drv, p_desc, drv_len, drv_id); // TODO refactor
+
+    p_desc += drv_len; // next interface
   }
 
   // invoke callback
