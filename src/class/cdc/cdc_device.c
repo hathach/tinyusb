@@ -262,12 +262,12 @@ bool cdcd_open(uint8_t rhport, tusb_desc_interface_t const * itf_desc, uint16_t 
 
     p_cdc->ep_notif = ((tusb_desc_endpoint_t const *) p_desc)->bEndpointAddress;
 
-    (*p_length) += p_desc[DESC_OFFSET_LEN];
+    (*p_length) += tu_desc_len(p_desc);
     p_desc = tu_desc_next(p_desc);
   }
 
   //------------- Data Interface (if any) -------------//
-  if ( (TUSB_DESC_INTERFACE == p_desc[DESC_OFFSET_TYPE]) &&
+  if ( (TUSB_DESC_INTERFACE == tu_desc_type(p_desc)) &&
        (TUSB_CLASS_CDC_DATA == ((tusb_desc_interface_t const *) p_desc)->bInterfaceClass) )
   {
     // next to endpoint descriptor
