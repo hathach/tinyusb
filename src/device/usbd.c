@@ -184,7 +184,6 @@ static usbd_class_driver_t const _usbd_driver[] =
   #endif
 
   #if CFG_TUD_NET
-#if CFG_TUD_NET != OPT_NET_EEM
   /* RNDIS management interface */
   {
       .class_code       = TUD_RNDIS_ITF_CLASS,
@@ -196,24 +195,18 @@ static usbd_class_driver_t const _usbd_driver[] =
       .xfer_cb          = netd_xfer_cb,
       .sof              = NULL,
   },
-#endif
-  /* CDC-ECM management interface; CDC-EEM data interface */
+  /* CDC-ECM management interface */
   {
       .class_code       = TUSB_CLASS_CDC,
       .init             = netd_init,
       .reset            = netd_reset,
-#if CFG_TUD_NET == OPT_NET_EEM
-      .open             = netd_open_data,
-#else
       .open             = netd_open,
-#endif
       .control_request  = netd_control_request,
       .control_complete = netd_control_complete,
       .xfer_cb          = netd_xfer_cb,
       .sof              = NULL,
   },
   /* RNDIS/CDC-ECM data interface */
-#if CFG_TUD_NET != OPT_NET_EEM
   {
       .class_code       = TUSB_CLASS_CDC_DATA,
       .init             = netd_init_data,
@@ -224,7 +217,6 @@ static usbd_class_driver_t const _usbd_driver[] =
       .xfer_cb          = netd_xfer_cb,
       .sof              = NULL,
   },
-#endif
   #endif
 };
 
