@@ -573,7 +573,16 @@ static bool process_control_request(uint8_t rhport, tusb_control_request_t const
 
       // all requests to Interface (STD or Class) is forwarded to class driver.
       // notable requests are: GET HID REPORT DESCRIPTOR, SET_INTERFACE, GET_INTERFACE
-      TU_VERIFY(invoke_class_control(rhport, drvid, p_request));
+      if ( !invoke_class_control(rhport, drvid, p_request) )
+      {
+        // For STD GET_INTERFACE even if class driver doesn't support alternate setting
+        // It is still mandatory to response with value of zero
+        TU_VERIFY( TUSB_REQ_TYPE_STANDARD == p_request->bmRequestType_bit.type &&
+                   TUSB_REQ_GET_INTERFACE == p_request->bRequest);
+
+        uint8_t alternate = 0;
+        tud_control_xfer(rhport, p_request, &alternate, 1);
+      }
     }
     break;
 
