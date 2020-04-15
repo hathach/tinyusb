@@ -343,11 +343,13 @@ TU_ATTR_WEAK bool tud_vendor_control_complete_cb(uint8_t rhport, tusb_control_re
 //------------- CDC-ECM -------------//
 
 // Length of template descriptor: 71 bytes
-#define TUD_CDC_ECM_DESC_LEN  (9+5+5+13+7+9+9+7+7)
+#define TUD_CDC_ECM_DESC_LEN  (8+9+5+5+13+7+9+9+7+7)
 
 // CDC-ECM Descriptor Template
 // Interface number, description string index, MAC address string index, EP notification address and size, EP data address (out, in), and size, max segment size.
 #define TUD_CDC_ECM_DESCRIPTOR(_itfnum, _desc_stridx, _mac_stridx, _ep_notif, _ep_notif_size, _epout, _epin, _epsize, _maxsegmentsize) \
+  /* Interface Association */\
+  8, TUSB_DESC_INTERFACE_ASSOCIATION, _itfnum, 2, TUSB_CLASS_CDC, CDC_COMM_SUBCLASS_ETHERNET_NETWORKING_CONTROL_MODEL, 0, 0,\
   /* CDC Control Interface */\
   9, TUSB_DESC_INTERFACE, _itfnum, 0, 1, TUSB_CLASS_CDC, CDC_COMM_SUBCLASS_ETHERNET_NETWORKING_CONTROL_MODEL, 0, _desc_stridx,\
   /* CDC-ECM Header */\
@@ -404,22 +406,6 @@ TU_ATTR_WEAK bool tud_vendor_control_complete_cb(uint8_t rhport, tusb_control_re
   7, TUSB_DESC_ENDPOINT, _ep_notif, TUSB_XFER_INTERRUPT, U16_TO_U8S_LE(_ep_notif_size), 1,\
   /* CDC Data Interface */\
   9, TUSB_DESC_INTERFACE, (uint8_t)((_itfnum)+1), 0, 2, TUSB_CLASS_CDC_DATA, 0, 0, 0,\
-  /* Endpoint In */\
-  7, TUSB_DESC_ENDPOINT, _epin, TUSB_XFER_BULK, U16_TO_U8S_LE(_epsize), 0,\
-  /* Endpoint Out */\
-  7, TUSB_DESC_ENDPOINT, _epout, TUSB_XFER_BULK, U16_TO_U8S_LE(_epsize), 0
-
-
-//------------- CDC-EEM -------------//
-
-// Length of template descriptor: 23 bytes
-#define TUD_CDC_EEM_DESC_LEN  (9+7+7)
-
-// CDC-EEM Descriptor Template
-// Interface number, description string index, EP data address (out, in) and size.
-#define TUD_CDC_EEM_DESCRIPTOR(_itfnum, _stridx, _epout, _epin, _epsize) \
-  /* EEM Interface */\
-  9, TUSB_DESC_INTERFACE, _itfnum, 0, 2, TUSB_CLASS_CDC, CDC_COMM_SUBCLASS_ETHERNET_EMULATION_MODEL, CDC_COMM_PROTOCOL_ETHERNET_EMULATION_MODEL, _stridx,\
   /* Endpoint In */\
   7, TUSB_DESC_ENDPOINT, _epin, TUSB_XFER_BULK, U16_TO_U8S_LE(_epsize), 0,\
   /* Endpoint Out */\
