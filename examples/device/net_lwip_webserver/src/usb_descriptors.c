@@ -46,6 +46,20 @@ enum
   STRID_MAC
 };
 
+enum
+{
+  ITF_NUM_CDC = 0,
+  ITF_NUM_CDC_DATA,
+  ITF_NUM_TOTAL
+};
+
+enum
+{
+  CONFIG_ID_RNDIS = 0,
+  CONFIG_ID_ECM   = 1,
+  CONFIG_ID_COUNT
+};
+
 //--------------------------------------------------------------------+
 // Device Descriptors
 //--------------------------------------------------------------------+
@@ -68,7 +82,7 @@ tusb_desc_device_t const desc_device =
     .iProduct           = STRID_PRODUCT,
     .iSerialNumber      = STRID_SERIAL,
 
-    .bNumConfigurations = 0x02 // multiple configurations
+    .bNumConfigurations = CONFIG_ID_COUNT // multiple configurations
 };
 
 // Invoked when received GET DEVICE DESCRIPTOR
@@ -81,19 +95,6 @@ uint8_t const * tud_descriptor_device_cb(void)
 //--------------------------------------------------------------------+
 // Configuration Descriptor
 //--------------------------------------------------------------------+
-enum
-{
-  ITF_NUM_CDC = 0,
-  ITF_NUM_CDC_DATA,
-  ITF_NUM_TOTAL
-};
-
-enum
-{
-  CONFIG_NUM_RNDIS = 1,
-  CONFIG_NUM_ECM   = 2,
-};
-
 #define MAIN_CONFIG_TOTAL_LEN    (TUD_CONFIG_DESC_LEN + TUD_RNDIS_DESC_LEN)
 #define ALT_CONFIG_TOTAL_LEN     (TUD_CONFIG_DESC_LEN + TUD_CDC_ECM_DESC_LEN)
 
@@ -107,8 +108,8 @@ enum
 
 static uint8_t const rndis_configuration[] =
 {
-  // Config number, interface count, string index, total length, attribute, power in mA
-  TUD_CONFIG_DESCRIPTOR(CONFIG_NUM_RNDIS, ITF_NUM_TOTAL, 0, MAIN_CONFIG_TOTAL_LEN, 0, 100),
+  // Config number (index+1), interface count, string index, total length, attribute, power in mA
+  TUD_CONFIG_DESCRIPTOR(CONFIG_ID_RNDIS+1, ITF_NUM_TOTAL, 0, MAIN_CONFIG_TOTAL_LEN, 0, 100),
 
   // Interface number, string index, EP notification address and size, EP data address (out, in) and size.
   TUD_RNDIS_DESCRIPTOR(ITF_NUM_CDC, STRID_INTERFACE, 0x81, 8, EPNUM_CDC, 0x80 | EPNUM_CDC, CFG_TUD_NET_ENDPOINT_SIZE),
@@ -116,8 +117,8 @@ static uint8_t const rndis_configuration[] =
 
 static uint8_t const ecm_configuration[] =
 {
-  // Config number, interface count, string index, total length, attribute, power in mA
-  TUD_CONFIG_DESCRIPTOR(CONFIG_NUM_ECM, ITF_NUM_TOTAL, 0, ALT_CONFIG_TOTAL_LEN, 0, 100),
+  // Config number (index+1), interface count, string index, total length, attribute, power in mA
+  TUD_CONFIG_DESCRIPTOR(CONFIG_ID_ECM+1, ITF_NUM_TOTAL, 0, ALT_CONFIG_TOTAL_LEN, 0, 100),
 
   // Interface number, description string index, MAC address string index, EP notification address and size, EP data address (out, in), and size, max segment size.
   TUD_CDC_ECM_DESCRIPTOR(ITF_NUM_CDC, STRID_INTERFACE, STRID_MAC, 0x81, 64, EPNUM_CDC, 0x80 | EPNUM_CDC, CFG_TUD_NET_ENDPOINT_SIZE, CFG_TUD_NET_MTU),
@@ -130,8 +131,8 @@ static uint8_t const ecm_configuration[] =
 // Note index is Num-1x
 static uint8_t const * const configuration_arr[2] =
 {
-  [CONFIG_NUM_RNDIS-1] = rndis_configuration,
-  [CONFIG_NUM_ECM-1  ] = ecm_configuration
+  [CONFIG_ID_RNDIS] = rndis_configuration,
+  [CONFIG_ID_ECM  ] = ecm_configuration
 };
 
 // Invoked when received GET CONFIGURATION DESCRIPTOR
@@ -139,7 +140,7 @@ static uint8_t const * const configuration_arr[2] =
 // Descriptor contents must exist long enough for transfer to complete
 uint8_t const * tud_descriptor_configuration_cb(uint8_t index)
 {
-  return configuration_arr[index];
+  return (index < CONFIG_ID_COUNT) ? configuration_arr[index] : NULL;
 }
 
 //--------------------------------------------------------------------+
