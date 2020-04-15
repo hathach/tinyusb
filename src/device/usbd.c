@@ -190,11 +190,6 @@ static usbd_class_driver_t const _usbd_driver[] =
   #if CFG_TUD_NET
   /* RNDIS management interface */
   {
-//      .class_code       = TUD_RNDIS_ITF_CLASS,
-//      .subclass         = TUD_RNDIS_ITF_SUBCLASS,
-//      .protocol         = TUD_RNDIS_ITF_PROTOCOL,
-//      .all_subclass     = 0,
-//      .all_protocol     = 0,
       DRIVER_NAME("RNDIS")
       .init             = netd_init,
       .reset            = netd_reset,
@@ -204,14 +199,9 @@ static usbd_class_driver_t const _usbd_driver[] =
       .xfer_cb          = netd_xfer_cb,
       .sof              = NULL,
   },
+
   /* CDC-ECM management interface */
   {
-//      .class_code       = TUSB_CLASS_CDC,
-//      .subclass         = CDC_COMM_SUBCLASS_ETHERNET_NETWORKING_CONTROL_MODEL,
-//      .protocol         = 0x00,
-//      .all_subclass     = 0,
-//      .all_protocol     = 0,
-
       DRIVER_NAME("CDC-ECM")
       .init             = netd_init,
       .reset            = netd_reset,
@@ -221,13 +211,9 @@ static usbd_class_driver_t const _usbd_driver[] =
       .xfer_cb          = netd_xfer_cb,
       .sof              = NULL,
   },
+
   /* RNDIS/CDC-ECM data interface */
   {
-//      .class_code       = TUSB_CLASS_CDC_DATA,
-//      .subclass         = 0x00,
-//      .protocol         = 0x00,
-//      .all_subclass     = 0,
-//      .all_protocol     = 0,
       DRIVER_NAME("CDC-DATA")
       .init             = netd_init_data,
       .reset            = NULL,
