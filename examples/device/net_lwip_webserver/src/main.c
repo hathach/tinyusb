@@ -26,14 +26,9 @@
  */
 
 /*
-depending on the value of CFG_TUD_NET (tusb_config.h), this can be a RNDIS+CDC-ECM or CDC-EEM USB virtual network adapter
+this appears as either a RNDIS or CDC-ECM USB virtual network adapter; the OS picks its preference
 
-OPT_NET_RNDIS_ECM : RNDIS should be valid on Linux and Windows hosts, and CDC-ECM should be valid on Linux and MacOS hosts
-OPT_NET_EEM       : CDC-EEM should be valid on Linux hosts
-
-OPT_NET_RNDIS_ECM should be the best choice, as it makes for a hopefully universal solution.
-
-You *must* customize tusb_config.h to set the CFG_TUD_NET definition to the type of these network option.
+RNDIS should be valid on Linux and Windows hosts, and CDC-ECM should be valid on Linux and macOS hosts
 
 The MCU appears to the host as IP address 192.168.7.1, and provides a DHCP server, DNS server, and web server.
 */
