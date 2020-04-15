@@ -224,14 +224,15 @@ bool netd_control_complete(uint8_t rhport, tusb_control_request_t const * reques
 {
   (void) rhport;
 
-  // Handle class request only
-  TU_VERIFY (request->bmRequestType_bit.type == TUSB_REQ_TYPE_CLASS);
-
-  TU_VERIFY (_netd_itf.itf_num == request->wIndex);
-
-  if ( !_netd_itf.ecm_mode && (request->bmRequestType_bit.direction == TUSB_DIR_OUT) )
+  // Handle RNDIS class control OUT only
+  if (request->bmRequestType_bit.type == TUSB_REQ_TYPE_CLASS &&
+      request->bmRequestType_bit.direction == TUSB_DIR_OUT   &&
+      _netd_itf.itf_num == request->wIndex)
   {
-    rndis_class_set_handler(notify.rndis_buf, request->wLength);
+    if ( !_netd_itf.ecm_mode )
+    {
+      rndis_class_set_handler(notify.rndis_buf, request->wLength);
+    }
   }
 
   return true;
@@ -259,8 +260,13 @@ bool netd_control_request(uint8_t rhport, tusb_control_request_t const * request
 
         case TUSB_REQ_SET_INTERFACE:
         {
+          uint8_t const req_itfnum = (uint8_t) request->wIndex;
+
           // Request to enable/disable network activities on ACM-ECM only
           TU_ASSERT(_netd_itf.ecm_mode);
+
+          // Only valid for Data Interface
+          TU_ASSERT(_netd_itf.itf_num+1 == req_itfnum);
 
           _netd_itf.itf_data_alt = (uint8_t) request->wValue;
 
@@ -273,7 +279,8 @@ bool netd_control_request(uint8_t rhport, tusb_control_request_t const * request
               TU_ASSERT(_netd_itf.ecm_desc_epdata);
               TU_ASSERT( usbd_open_edpt_pair(rhport, _netd_itf.ecm_desc_epdata, 2, TUSB_XFER_BULK, &_netd_itf.ep_out, &_netd_itf.ep_in) );
 
-              // TODO should have opposite callback for application to disable network !!
+              // TODO should be merge with RNDIS's after endpoint opened
+              // Also should have opposite callback for application to disable network !!
               tud_network_init_cb();
               can_xmit = true; // we are ready to transmit a packet
               tud_network_recv_renew(); // prepare for incoming packets
