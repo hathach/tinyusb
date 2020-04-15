@@ -130,12 +130,21 @@ void netd_reset(uint8_t rhport)
 
 bool netd_open(uint8_t rhport, tusb_desc_interface_t const * itf_desc, uint16_t *p_length)
 {
-  // sanity check the descriptor
-  _netd_itf.ecm_mode = (CDC_COMM_SUBCLASS_ETHERNET_NETWORKING_CONTROL_MODEL == itf_desc->bInterfaceSubClass);
-  TU_VERIFY ( (TUD_RNDIS_ITF_SUBCLASS == itf_desc->bInterfaceSubClass) || _netd_itf.ecm_mode );
+  bool const is_rndis = (TUD_RNDIS_ITF_CLASS    == itf_desc->bInterfaceClass    &&
+                         TUD_RNDIS_ITF_SUBCLASS == itf_desc->bInterfaceSubClass &&
+                         TUD_RNDIS_ITF_PROTOCOL == itf_desc->bInterfaceProtocol);
+
+  bool const is_ecm = (TUSB_CLASS_CDC                                      == itf_desc->bInterfaceClass &&
+                       CDC_COMM_SUBCLASS_ETHERNET_NETWORKING_CONTROL_MODEL == itf_desc->bInterfaceSubClass &&
+                       0x00                                                == itf_desc->bInterfaceProtocol);
+
+  TU_VERIFY ( is_rndis || is_ecm );
 
   // confirm interface hasn't already been allocated
   TU_ASSERT(0 == _netd_itf.ep_notif);
+
+  // sanity check the descriptor
+  _netd_itf.ecm_mode = is_ecm;
 
   //------------- Management Interface -------------//
   _netd_itf.itf_num = itf_desc->bInterfaceNumber;
@@ -165,6 +174,8 @@ bool netd_open(uint8_t rhport, tusb_desc_interface_t const * itf_desc, uint16_t 
 
 bool netd_open_data(uint8_t rhport, tusb_desc_interface_t const * itf_desc, uint16_t *p_length)
 {
+  TU_VERIFY(TUSB_CLASS_CDC_DATA == itf_desc->bInterfaceClass);
+
   // confirm interface hasn't already been allocated
   TU_ASSERT(0 == _netd_itf.ep_in);
 

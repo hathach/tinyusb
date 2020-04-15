@@ -160,6 +160,8 @@ void hidd_reset(uint8_t rhport)
 
 bool hidd_open(uint8_t rhport, tusb_desc_interface_t const * desc_itf, uint16_t *p_len)
 {
+  TU_VERIFY(TUSB_CLASS_HID == desc_itf->bInterfaceClass);
+
   uint8_t const *p_desc = (uint8_t const *) desc_itf;
 
   // Find available interface

@@ -73,8 +73,17 @@ enum { DRVID_INVALID = 0xFFu };
 //--------------------------------------------------------------------+
 // Class Driver
 //--------------------------------------------------------------------+
-typedef struct {
-  uint8_t class_code;
+#if CFG_TUSB_DEBUG >= 2
+  #define DRIVER_NAME(_name)    .name = _name,
+#else
+  #define DRIVER_NAME(_name)
+#endif
+
+typedef struct
+{
+  #if CFG_TUSB_DEBUG >= 2
+  char const* name;
+  #endif
 
   void (* init             ) (void);
   void (* reset            ) (uint8_t rhport);
@@ -89,7 +98,7 @@ static usbd_class_driver_t const _usbd_driver[] =
 {
   #if CFG_TUD_CDC
   {
-      .class_code       = TUSB_CLASS_CDC,
+      DRIVER_NAME("CDC")
       .init             = cdcd_init,
       .reset            = cdcd_reset,
       .open             = cdcd_open,
@@ -102,7 +111,7 @@ static usbd_class_driver_t const _usbd_driver[] =
 
   #if CFG_TUD_MSC
   {
-      .class_code       = TUSB_CLASS_MSC,
+      DRIVER_NAME("MSC")
       .init             = mscd_init,
       .reset            = mscd_reset,
       .open             = mscd_open,
@@ -115,7 +124,7 @@ static usbd_class_driver_t const _usbd_driver[] =
 
   #if CFG_TUD_HID
   {
-      .class_code       = TUSB_CLASS_HID,
+      DRIVER_NAME("HID")
       .init             = hidd_init,
       .reset            = hidd_reset,
       .open             = hidd_open,
@@ -128,7 +137,7 @@ static usbd_class_driver_t const _usbd_driver[] =
 
   #if CFG_TUD_MIDI
   {
-      .class_code       = TUSB_CLASS_AUDIO,
+      DRIVER_NAME("MIDI")
       .init             = midid_init,
       .open             = midid_open,
       .reset            = midid_reset,
@@ -141,7 +150,7 @@ static usbd_class_driver_t const _usbd_driver[] =
 
   #if CFG_TUD_VENDOR
   {
-      .class_code       = TUSB_CLASS_VENDOR_SPECIFIC,
+      DRIVER_NAME("VENDOR")
       .init             = vendord_init,
       .reset            = vendord_reset,
       .open             = vendord_open,
@@ -153,12 +162,8 @@ static usbd_class_driver_t const _usbd_driver[] =
   #endif
 
   #if CFG_TUD_USBTMC
-  // Presently USBTMC is the only defined class with the APP_SPECIFIC class code.
-  // We maybe need to add subclass codes here, or a callback to ask if a driver can
-  // handle a particular interface.
   {
-      .class_code       = TUD_USBTMC_APP_CLASS,
-    //.subclass_code    = TUD_USBTMC_APP_SUBCLASS
+      DRIVER_NAME("TMC")
       .init             = usbtmcd_init_cb,
       .reset            = usbtmcd_reset_cb,
       .open             = usbtmcd_open_cb,
@@ -171,8 +176,7 @@ static usbd_class_driver_t const _usbd_driver[] =
 
   #if CFG_TUD_DFU_RT
   {
-      .class_code       = TUD_DFU_APP_CLASS,
-    //.subclass_code    = TUD_DFU_APP_SUBCLASS
+      DRIVER_NAME("DFU-RT")
       .init             = dfu_rtd_init,
       .reset            = dfu_rtd_reset,
       .open             = dfu_rtd_open,
@@ -186,7 +190,7 @@ static usbd_class_driver_t const _usbd_driver[] =
   #if CFG_TUD_NET
   /* RNDIS management interface */
   {
-      .class_code       = TUD_RNDIS_ITF_CLASS,
+      DRIVER_NAME("RNDIS")
       .init             = netd_init,
       .reset            = netd_reset,
       .open             = netd_open,
@@ -195,9 +199,10 @@ static usbd_class_driver_t const _usbd_driver[] =
       .xfer_cb          = netd_xfer_cb,
       .sof              = NULL,
   },
+
   /* CDC-ECM management interface */
   {
-      .class_code       = TUSB_CLASS_CDC,
+      DRIVER_NAME("CDC-ECM")
       .init             = netd_init,
       .reset            = netd_reset,
       .open             = netd_open,
@@ -206,9 +211,10 @@ static usbd_class_driver_t const _usbd_driver[] =
       .xfer_cb          = netd_xfer_cb,
       .sof              = NULL,
   },
+
   /* RNDIS/CDC-ECM data interface */
   {
-      .class_code       = TUSB_CLASS_CDC_DATA,
+      DRIVER_NAME("CDC-DATA")
       .init             = netd_init_data,
       .reset            = NULL,
       .open             = netd_open_data,
@@ -260,32 +266,6 @@ static char const* const _usbd_event_str[DCD_EVENT_COUNT] =
   "SETUP_RECEIVED" ,
   "XFER_COMPLETE"  ,
   "FUNC_CALL"
-};
-
-// must be same driver order as usbd_class_drivers[]
-static char const* const _usbd_driver_str[USBD_CLASS_DRIVER_COUNT] =
-{
-  #if CFG_TUD_CDC
-    "CDC",
-  #endif
-  #if CFG_TUD_MSC
-    "MSC",
-  #endif
-  #if CFG_TUD_HID
-    "HID",
-  #endif
-  #if CFG_TUD_MIDI
-    "MIDI",
-  #endif
-  #if CFG_TUD_VENDOR
-    "Vendor",
-  #endif
-  #if CFG_TUD_USBTMC
-    "USBTMC"
-  #endif
-  #if CFG_TUD_NET
-    "NET"
-  #endif
 };
 
 static char const* const _tusb_std_request_str[] =
@@ -344,7 +324,7 @@ bool tud_init (void)
   // Init class drivers
   for (uint8_t i = 0; i < USBD_CLASS_DRIVER_COUNT; i++)
   {
-    TU_LOG2("%s init\r\n", _usbd_driver_str[i]);
+    TU_LOG2("%s init\r\n", _usbd_driver[i].name);
     _usbd_driver[i].init();
   }
 
@@ -453,7 +433,7 @@ void tud_task (void)
           uint8_t const drv_id = _usbd_dev.ep2drv[epnum][ep_dir];
           TU_ASSERT(drv_id < USBD_CLASS_DRIVER_COUNT,);
 
-          TU_LOG2("  %s xfer callback\r\n", _usbd_driver_str[drv_id]);
+          TU_LOG2("  %s xfer callback\r\n", _usbd_driver[drv_id].name);
           _usbd_driver[drv_id].xfer_cb(event.rhport, ep_addr, event.xfer_complete.result, event.xfer_complete.len);
         }
       }
@@ -498,7 +478,7 @@ static bool invoke_class_control(uint8_t rhport, uint8_t drvid, tusb_control_req
   TU_ASSERT(_usbd_driver[drvid].control_request);
 
   usbd_control_set_complete_callback(_usbd_driver[drvid].control_complete);
-  TU_LOG2("  %s control request\r\n", _usbd_driver_str[drvid]);
+  TU_LOG2("  %s control request\r\n", _usbd_driver[drvid].name);
   return _usbd_driver[drvid].control_request(rhport, request);
 }
 
@@ -755,28 +735,32 @@ static bool process_set_config(uint8_t rhport, uint8_t cfg_num)
     {
       TU_ASSERT( TUSB_DESC_INTERFACE == tu_desc_type(p_desc) );
 
-      tusb_desc_interface_t* desc_itf = (tusb_desc_interface_t*) p_desc;
+      tusb_desc_interface_t const * desc_itf = (tusb_desc_interface_t const*) p_desc;
 
-      // Check if class is supported
       uint8_t drv_id;
+      uint16_t drv_len;
+
       for (drv_id = 0; drv_id < USBD_CLASS_DRIVER_COUNT; drv_id++)
       {
-        if ( _usbd_driver[drv_id].class_code == desc_itf->bInterfaceClass ) break;
+        usbd_class_driver_t const *driver = &_usbd_driver[drv_id];
+
+        drv_len = 0;
+        if ( driver->open(rhport, desc_itf, &drv_len) )
+        {
+          // Interface number must not be used already TODO alternate interface
+          TU_ASSERT( DRVID_INVALID == _usbd_dev.itf2drv[desc_itf->bInterfaceNumber] );
+          TU_LOG2("  %s open\r\n", _usbd_driver[drv_id].name);
+          _usbd_dev.itf2drv[desc_itf->bInterfaceNumber] = drv_id;
+          break;
+        }
       }
-      TU_ASSERT( drv_id < USBD_CLASS_DRIVER_COUNT );
 
-      // Interface number must not be used already TODO alternate interface
-      TU_ASSERT( DRVID_INVALID == _usbd_dev.itf2drv[desc_itf->bInterfaceNumber] );
-      _usbd_dev.itf2drv[desc_itf->bInterfaceNumber] = drv_id;
+      // Assert if cannot find supported driver
+      TU_ASSERT( drv_id < USBD_CLASS_DRIVER_COUNT && drv_len >= sizeof(tusb_desc_interface_t) );
 
-      uint16_t itf_len=0;
-      TU_LOG2("  %s open\r\n", _usbd_driver_str[drv_id]);
-      TU_ASSERT( _usbd_driver[drv_id].open(rhport, desc_itf, &itf_len) );
-      TU_ASSERT( itf_len >= sizeof(tusb_desc_interface_t) );
+      mark_interface_endpoint(_usbd_dev.ep2drv, p_desc, drv_len, drv_id); // TODO refactor
 
-      mark_interface_endpoint(_usbd_dev.ep2drv, p_desc, itf_len, drv_id);
-
-      p_desc += itf_len; // next interface
+      p_desc += drv_len; // next interface
     }
   }
 
