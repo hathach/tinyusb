@@ -739,29 +739,15 @@ static bool process_set_config(uint8_t rhport, uint8_t cfg_num)
 
       tusb_desc_interface_t const * desc_itf = (tusb_desc_interface_t const*) p_desc;
 
-#if 0
-      // Find driver id for the interface
-      uint8_t drv_id = find_driver_id(desc_itf);
-      TU_ASSERT( drv_id < USBD_CLASS_DRIVER_COUNT );
-
-      // Interface number must not be used already TODO alternate interface
-      TU_ASSERT( DRVID_INVALID == _usbd_dev.itf2drv[desc_itf->bInterfaceNumber] );
-      _usbd_dev.itf2drv[desc_itf->bInterfaceNumber] = drv_id;
-
-      uint16_t itf_len=0;
-      TU_LOG2("  %s open\r\n", _usbd_driver[drv_id].name);
-      TU_ASSERT( _usbd_driver[drv_id].open(rhport, desc_itf, &itf_len) );
-      TU_ASSERT( itf_len >= sizeof(tusb_desc_interface_t) );
-#else
       uint8_t drv_id;
-      uint16_t itf_len;
+      uint16_t drv_len;
 
       for (drv_id = 0; drv_id < USBD_CLASS_DRIVER_COUNT; drv_id++)
       {
         usbd_class_driver_t const *driver = &_usbd_driver[drv_id];
 
-        itf_len = 0;
-        if ( driver->open(rhport, desc_itf, &itf_len) )
+        drv_len = 0;
+        if ( driver->open(rhport, desc_itf, &drv_len) )
         {
           // Interface number must not be used already TODO alternate interface
           TU_ASSERT( DRVID_INVALID == _usbd_dev.itf2drv[desc_itf->bInterfaceNumber] );
@@ -771,13 +757,12 @@ static bool process_set_config(uint8_t rhport, uint8_t cfg_num)
         }
       }
 
-      // Assert if cannot find a driver
-      TU_ASSERT( drv_id < USBD_CLASS_DRIVER_COUNT && itf_len >= sizeof(tusb_desc_interface_t) );
-#endif
+      // Assert if cannot find supported driver
+      TU_ASSERT( drv_id < USBD_CLASS_DRIVER_COUNT && drv_len >= sizeof(tusb_desc_interface_t) );
 
-      mark_interface_endpoint(_usbd_dev.ep2drv, p_desc, itf_len, drv_id); // TODO refactor
+      mark_interface_endpoint(_usbd_dev.ep2drv, p_desc, drv_len, drv_id); // TODO refactor
 
-      p_desc += itf_len; // next interface
+      p_desc += drv_len; // next interface
     }
   }
 
