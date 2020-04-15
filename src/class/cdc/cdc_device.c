@@ -223,11 +223,11 @@ void cdcd_reset(uint8_t rhport)
 bool cdcd_open(uint8_t rhport, tusb_desc_interface_t const * itf_desc, uint16_t *p_length)
 {
   // Only support ACM subclass
-  TU_ASSERT ( CDC_COMM_SUBCLASS_ABSTRACT_CONTROL_MODEL == itf_desc->bInterfaceSubClass);
+  TU_VERIFY ( TUSB_CLASS_CDC                           == itf_desc->bInterfaceClass &&
+              CDC_COMM_SUBCLASS_ABSTRACT_CONTROL_MODEL == itf_desc->bInterfaceSubClass);
 
-  // Only support AT commands, no protocol and vendor specific commands.
-  TU_ASSERT(tu_within(CDC_COMM_PROTOCOL_NONE, itf_desc->bInterfaceProtocol, CDC_COMM_PROTOCOL_ATCOMMAND_CDMA) ||
-            itf_desc->bInterfaceProtocol == 0xff);
+  // Note: 0xFF can be used with RNDIS
+  TU_VERIFY(tu_within(CDC_COMM_PROTOCOL_NONE, itf_desc->bInterfaceProtocol, CDC_COMM_PROTOCOL_ATCOMMAND_CDMA));
 
   // Find available interface
   cdcd_interface_t * p_cdc = NULL;
