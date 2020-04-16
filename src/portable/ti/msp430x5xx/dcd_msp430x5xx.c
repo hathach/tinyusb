@@ -206,20 +206,24 @@ void dcd_remote_wakeup(uint8_t rhport)
 
 void dcd_connect(uint8_t rhport)
 {
-  (void) rhport;
+  dcd_int_disable(rhport);
 
   USBKEYPID = USBKEY;
   USBCNF |= PUR_EN; // Enable pullup.
   USBKEYPID = 0;
+
+  dcd_int_enable(rhport);
 }
 
 void dcd_disconnect(uint8_t rhport)
 {
-  (void) rhport;
+  dcd_int_disable(rhport);
 
   USBKEYPID = USBKEY;
   USBCNF &= ~PUR_EN; // Disable pullup.
   USBKEYPID = 0;
+
+  dcd_int_enable(rhport);
 }
 
 /*------------------------------------------------------------------*/
