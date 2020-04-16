@@ -190,9 +190,6 @@ void dcd_init(uint8_t rhport)
                  USB_ENUMDONEMSK_M |
                  USB_RESETDETMSK_M |
                  USB_DISCONNINTMSK_M;
-
-  ESP_LOGV(TAG, "DCD init - Soft CONNECT");
-  USB0.dctl &= ~USB_SFTDISCON_M; // Connect
 }
 
 void dcd_set_address(uint8_t rhport, uint8_t dev_addr)
@@ -216,16 +213,18 @@ void dcd_remote_wakeup(uint8_t rhport)
   (void)rhport;
 }
 
-// disconnect by disabling internal pull-up resistor on D+/D-
-void dcd_disconnect(uint8_t rhport)
-{
-  USB0.dctl |= USB_SFTDISCON_M;
-}
-
 // connect by enabling internal pull-up resistor on D+/D-
 void dcd_connect(uint8_t rhport)
 {
+  (void) rhport;
   USB0.dctl &= ~USB_SFTDISCON_M;
+}
+
+// disconnect by disabling internal pull-up resistor on D+/D-
+void dcd_disconnect(uint8_t rhport)
+{
+  (void) rhport;
+  USB0.dctl |= USB_SFTDISCON_M;
 }
 
 /*------------------------------------------------------------------*/
