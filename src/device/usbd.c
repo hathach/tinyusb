@@ -571,39 +571,17 @@ static bool process_control_request(uint8_t rhport, tusb_control_request_t const
       uint8_t const drvid = _usbd_dev.itf2drv[itf];
       TU_VERIFY(drvid < USBD_CLASS_DRIVER_COUNT);
 
-      if (p_request->bmRequestType_bit.type == TUSB_REQ_TYPE_STANDARD)
+      // all requests to Interface (STD or Class) is forwarded to class driver.
+      // notable requests are: GET HID REPORT DESCRIPTOR, SET_INTERFACE, GET_INTERFACE
+      if ( !invoke_class_control(rhport, drvid, p_request) )
       {
-        switch ( p_request->bRequest )
-        {
-          case TUSB_REQ_GET_INTERFACE:
-          {
-            // TODO not support alternate interface yet
-            uint8_t alternate = 0;
-            tud_control_xfer(rhport, p_request, &alternate, 1);
-          }
-          break;
+        // For GET_INTERFACE, it is mandatory to respond even if the class
+        // driver doesn't use alternate settings.
+        TU_VERIFY( TUSB_REQ_TYPE_STANDARD == p_request->bmRequestType_bit.type &&
+                   TUSB_REQ_GET_INTERFACE == p_request->bRequest);
 
-          case TUSB_REQ_SET_INTERFACE:
-          {
-            uint8_t const alternate = (uint8_t) p_request->wValue;
-            (void) alternate;
-
-            // TODO not support alternate interface yet
-//            TU_ASSERT(alternate == 0);
-            tud_control_status(rhport, p_request);
-          }
-          break;
-
-          default:
-            // forward to class driver: "STD request to Interface"
-            // GET HID REPORT DESCRIPTOR falls into this case
-            TU_VERIFY(invoke_class_control(rhport, drvid, p_request));
-          break;
-        }
-      }else
-      {
-        // forward to class driver: "non-STD request to Interface"
-        TU_VERIFY(invoke_class_control(rhport, drvid, p_request));
+        uint8_t alternate = 0;
+        tud_control_xfer(rhport, p_request, &alternate, 1);
       }
     }
     break;

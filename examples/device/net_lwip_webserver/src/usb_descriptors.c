@@ -24,7 +24,6 @@
  */
 
 #include "tusb.h"
-#include "usb_descriptors.h"
 
 /* A combination of interfaces must have a unique product id, since PC will save device driver after the first plug.
  * Same VID/PID with different interface e.g MSC (first), then CDC (later) will possibly cause system error on PC.
@@ -45,6 +44,20 @@ enum
   STRID_SERIAL,
   STRID_INTERFACE,
   STRID_MAC
+};
+
+enum
+{
+  ITF_NUM_CDC = 0,
+  ITF_NUM_CDC_DATA,
+  ITF_NUM_TOTAL
+};
+
+enum
+{
+  CONFIG_ID_RNDIS = 0,
+  CONFIG_ID_ECM   = 1,
+  CONFIG_ID_COUNT
 };
 
 //--------------------------------------------------------------------+
@@ -71,7 +84,7 @@ tusb_desc_device_t const desc_device =
     .iProduct           = STRID_PRODUCT,
     .iSerialNumber      = STRID_SERIAL,
 
-    .bNumConfigurations = 0x02
+    .bNumConfigurations = CONFIG_ID_COUNT // multiple configurations
 };
 
 // Invoked when received GET DEVICE DESCRIPTOR
@@ -84,19 +97,6 @@ uint8_t const * tud_descriptor_device_cb(void)
 //--------------------------------------------------------------------+
 // Configuration Descriptor
 //--------------------------------------------------------------------+
-enum
-{
-  ITF_NUM_CDC = 0,
-  ITF_NUM_CDC_DATA,
-  ITF_NUM_TOTAL
-};
-
-enum
-{
-  CONFIG_NUM_DEFAULT = 1,
-  CONFIG_NUM_ALTERNATE = 2,
-};
-
 #define MAIN_CONFIG_TOTAL_LEN    (TUD_CONFIG_DESC_LEN + TUD_RNDIS_DESC_LEN)
 #define ALT_CONFIG_TOTAL_LEN     (TUD_CONFIG_DESC_LEN + TUD_CDC_ECM_DESC_LEN)
 
@@ -108,22 +108,33 @@ enum
   #define EPNUM_CDC     2
 #endif
 
-static uint8_t const main_configuration[] =
+static uint8_t const rndis_configuration[] =
 {
-  // Config number, interface count, string index, total length, attribute, power in mA
-  TUD_CONFIG_DESCRIPTOR(CONFIG_NUM_DEFAULT, ITF_NUM_TOTAL, 0, MAIN_CONFIG_TOTAL_LEN, 0, 100),
+  // Config number (index+1), interface count, string index, total length, attribute, power in mA
+  TUD_CONFIG_DESCRIPTOR(CONFIG_ID_RNDIS+1, ITF_NUM_TOTAL, 0, MAIN_CONFIG_TOTAL_LEN, 0, 100),
 
   // Interface number, string index, EP notification address and size, EP data address (out, in) and size.
   TUD_RNDIS_DESCRIPTOR(ITF_NUM_CDC, STRID_INTERFACE, 0x81, 8, EPNUM_CDC, 0x80 | EPNUM_CDC, CFG_TUD_NET_ENDPOINT_SIZE),
 };
 
-static uint8_t const alt_configuration[] =
+static uint8_t const ecm_configuration[] =
 {
-  // Config number, interface count, string index, total length, attribute, power in mA
-  TUD_CONFIG_DESCRIPTOR(CONFIG_NUM_ALTERNATE, ITF_NUM_TOTAL, 0, ALT_CONFIG_TOTAL_LEN, 0, 100),
+  // Config number (index+1), interface count, string index, total length, attribute, power in mA
+  TUD_CONFIG_DESCRIPTOR(CONFIG_ID_ECM+1, ITF_NUM_TOTAL, 0, ALT_CONFIG_TOTAL_LEN, 0, 100),
 
   // Interface number, description string index, MAC address string index, EP notification address and size, EP data address (out, in), and size, max segment size.
   TUD_CDC_ECM_DESCRIPTOR(ITF_NUM_CDC, STRID_INTERFACE, STRID_MAC, 0x81, 64, EPNUM_CDC, 0x80 | EPNUM_CDC, CFG_TUD_NET_ENDPOINT_SIZE, CFG_TUD_NET_MTU),
+};
+
+// Configuration array: RNDIS and CDC-ECM
+// - Windows only works with RNDIS
+// - MacOS only works with CDC-ECM
+// - Linux will work on both
+// Note index is Num-1x
+static uint8_t const * const configuration_arr[2] =
+{
+  [CONFIG_ID_RNDIS] = rndis_configuration,
+  [CONFIG_ID_ECM  ] = ecm_configuration
 };
 
 // Invoked when received GET CONFIGURATION DESCRIPTOR
@@ -131,7 +142,7 @@ static uint8_t const alt_configuration[] =
 // Descriptor contents must exist long enough for transfer to complete
 uint8_t const * tud_descriptor_configuration_cb(uint8_t index)
 {
-  return (0 == index) ? main_configuration : alt_configuration;
+  return (index < CONFIG_ID_COUNT) ? configuration_arr[index] : NULL;
 }
 
 //--------------------------------------------------------------------+
