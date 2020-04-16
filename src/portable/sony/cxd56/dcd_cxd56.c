@@ -201,6 +201,18 @@ void dcd_remote_wakeup(uint8_t rhport)
   DEV_WAKEUP(usbdev);
 }
 
+#if 0 // TODO implement for Spresense
+void dcd_connect(uint8_t rhport)
+{
+  (void) rhport;
+}
+
+void dcd_disconnect(uint8_t rhport)
+{
+  (void) rhport;
+}
+#endif
+
 //--------------------------------------------------------------------+
 // Endpoint API
 //--------------------------------------------------------------------+
