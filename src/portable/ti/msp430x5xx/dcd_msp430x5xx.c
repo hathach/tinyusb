@@ -134,9 +134,6 @@ void dcd_init (uint8_t rhport)
   // Enable reset and wait for it before continuing.
   USBIE |= RSTRIE;
 
-  // Enable pullup.
-  USBCNF |= PUR_EN;
-
   USBKEYPID = 0;
 }
 
@@ -205,6 +202,24 @@ void dcd_set_config (uint8_t rhport, uint8_t config_num)
 void dcd_remote_wakeup(uint8_t rhport)
 {
   (void) rhport;
+}
+
+void dcd_connect(uint8_t rhport)
+{
+  (void) rhport;
+
+  USBKEYPID = USBKEY;
+  USBCNF |= PUR_EN; // Enable pullup.
+  USBKEYPID = 0;
+}
+
+void dcd_disconnect(uint8_t rhport)
+{
+  (void) rhport;
+
+  USBKEYPID = USBKEY;
+  USBCNF &= ~PUR_EN; // Disable pullup.
+  USBKEYPID = 0;
 }
 
 /*------------------------------------------------------------------*/
