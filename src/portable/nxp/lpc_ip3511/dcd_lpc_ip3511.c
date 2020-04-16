@@ -95,7 +95,7 @@ enum {
   CMDSTAT_DEVICE_ADDR_MASK    = TU_BIT(7 )-1,
   CMDSTAT_DEVICE_ENABLE_MASK  = TU_BIT(7 ),
   CMDSTAT_SETUP_RECEIVED_MASK = TU_BIT(8 ),
-  CMDSTAT_DEVICE_CONNECT_MASK = TU_BIT(16), ///< reflect the softconnect only, does not reflect the actual attached state
+  CMDSTAT_DEVICE_CONNECT_MASK = TU_BIT(16), ///< reflect the soft-connect only, does not reflect the actual attached state
   CMDSTAT_DEVICE_SUSPEND_MASK = TU_BIT(17),
   CMDSTAT_CONNECT_CHANGE_MASK = TU_BIT(24),
   CMDSTAT_SUSPEND_CHANGE_MASK = TU_BIT(25),
@@ -207,6 +207,18 @@ void dcd_set_config(uint8_t rhport, uint8_t config_num)
 void dcd_remote_wakeup(uint8_t rhport)
 {
   (void) rhport;
+}
+
+void dcd_connect(uint8_t rhport)
+{
+  (void) rhport;
+  DCD_REGS->DEVCMDSTAT |= CMDSTAT_DEVICE_CONNECT_MASK;
+}
+
+void dcd_disconnect(uint8_t rhport)
+{
+  (void) rhport;
+  DCD_REGS->DEVCMDSTAT &= ~CMDSTAT_DEVICE_CONNECT_MASK;
 }
 
 //--------------------------------------------------------------------+

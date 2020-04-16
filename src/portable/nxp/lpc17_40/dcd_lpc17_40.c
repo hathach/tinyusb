@@ -219,11 +219,13 @@ void dcd_remote_wakeup(uint8_t rhport)
 
 void dcd_connect(uint8_t rhport)
 {
+  (void) rhport;
   sie_write(SIE_CMDCODE_DEVICE_STATUS, 1, SIE_DEV_STATUS_CONNECT_STATUS_MASK);
 }
 
 void dcd_disconnect(uint8_t rhport)
 {
+  (void) rhport;
   sie_write(SIE_CMDCODE_DEVICE_STATUS, 1, 0);
 }
 
