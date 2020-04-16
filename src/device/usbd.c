@@ -1064,50 +1064,10 @@ bool usbd_edpt_stalled(uint8_t rhport, uint8_t ep_addr)
 }
 
 /**
- * Remove queued xfer complete messages from event queue,
- * for a particular ep.
+ * usbd_edpt_close will disable an endpoint.
  * 
- * Must be called with interrupts enabled.
- */
-static void usbd_abort_transfers(uint8_t rhport, uint8_t ep_addr)
-{
-  dcd_event_t ev_sentinal = 
-  {
-    .event_id = DCD_EVENT_COUNT, ///< This is an invalid event ID.
-  };
-  dcd_event_t event;
-  uint8_t const epnum   = tu_edpt_number(ep_addr);
-  uint8_t const ep_dir  = tu_edpt_dir(ep_addr);
-  
-  dcd_int_disable(rhport);
-  // Queue sentinal element
-  TU_ASSERT(osal_queue_send(_usbd_q, &ev_sentinal, true), /**/);
-
-  TU_ASSERT(osal_queue_receive(_usbd_q, &event), /**/);
-
-  while(event.event_id != DCD_EVENT_COUNT)
-  {    
-    if((event.rhport == rhport) && (event.event_id == DCD_EVENT_XFER_COMPLETE)
-      && (event.xfer_complete.ep_addr == ep_addr))
-    {
-      _usbd_dev.ep_status[epnum][ep_dir].busy = false;
-    }
-    else
-    {
-      TU_ASSERT(osal_queue_send(_usbd_q, &event, true), /**/);
-    }
-    TU_ASSERT(osal_queue_receive(_usbd_q, &event), /**/);
-  }
-  
-  dcd_int_enable(rhport);
-}
-
-/**
- * usbd_edpt_close will disable an endpoint, and clear all pending transfers
- * through the particular endpoint.
+ * In progress transfers on this EP may be delivered after this call.
  * 
- * It must be called from the usb task (e.g. from the control request
- * handler while handling SET_ALTERNATE), with interrupts enabled.
  */
 void usbd_edpt_close(uint8_t rhport, uint8_t ep_addr)
 {
@@ -1115,9 +1075,6 @@ void usbd_edpt_close(uint8_t rhport, uint8_t ep_addr)
   TU_LOG2("  CLOSING Endpoint: 0x%02X\r\n", ep_addr);
 
   dcd_edpt_close(rhport, ep_addr);
-
-  /* Now, in progress transfers have to be expunged */
-  usbd_abort_transfers(rhport, ep_addr);
 
   return;
 }
