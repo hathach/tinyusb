@@ -106,10 +106,10 @@ void dcd_set_config (uint8_t rhport, uint8_t config_num);
 // Wake up host
 void dcd_remote_wakeup(uint8_t rhport);
 
-// Connect or disconnect D+/D- line pull-up resistor.
-// Defined in dcd source if MCU has internal pull-up.
-// Otherwise, may be defined in BSP.
+// Connect by enabling internal pull-up resistor on D+/D-
 void dcd_connect(uint8_t rhport) TU_ATTR_WEAK;
+
+// Disconnect by disabling internal pull-up resistor on D+/D-
 void dcd_disconnect(uint8_t rhport) TU_ATTR_WEAK;
 
 //--------------------------------------------------------------------+

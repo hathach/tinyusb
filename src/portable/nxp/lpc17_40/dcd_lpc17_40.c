@@ -181,9 +181,7 @@ void dcd_init(uint8_t rhport)
   LPC_USB->UDCAH = (uint32_t) _dcd.udca;
   LPC_USB->DMAIntEn = (DMA_INT_END_OF_XFER_MASK /*| DMA_INT_NEW_DD_REQUEST_MASK*/ | DMA_INT_ERROR_MASK);
 
-  sie_write(SIE_CMDCODE_DEVICE_STATUS, 1, 1);    // connect
-
-  // USB IRQ priority should be set by application previously
+  // Clear pending IRQ
   NVIC_ClearPendingIRQ(USB_IRQn);
 }
 
@@ -217,6 +215,16 @@ void dcd_set_config(uint8_t rhport, uint8_t config_num)
 void dcd_remote_wakeup(uint8_t rhport)
 {
   (void) rhport;
+}
+
+void dcd_connect(uint8_t rhport)
+{
+  sie_write(SIE_CMDCODE_DEVICE_STATUS, 1, SIE_DEV_STATUS_CONNECT_STATUS_MASK);
+}
+
+void dcd_disconnect(uint8_t rhport)
+{
+  sie_write(SIE_CMDCODE_DEVICE_STATUS, 1, 0);
 }
 
 //--------------------------------------------------------------------+
