@@ -1011,4 +1011,20 @@ bool usbd_edpt_stalled(uint8_t rhport, uint8_t ep_addr)
   return _usbd_dev.ep_status[epnum][dir].stalled;
 }
 
+/**
+ * usbd_edpt_close will disable an endpoint.
+ * 
+ * In progress transfers on this EP may be delivered after this call.
+ * 
+ */
+void usbd_edpt_close(uint8_t rhport, uint8_t ep_addr)
+{
+  TU_ASSERT(dcd_edpt_close, /**/);
+  TU_LOG2("  CLOSING Endpoint: 0x%02X\r\n", ep_addr);
+
+  dcd_edpt_close(rhport, ep_addr);
+
+  return;
+}
+
 #endif
