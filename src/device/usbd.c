@@ -575,8 +575,8 @@ static bool process_control_request(uint8_t rhport, tusb_control_request_t const
       // notable requests are: GET HID REPORT DESCRIPTOR, SET_INTERFACE, GET_INTERFACE
       if ( !invoke_class_control(rhport, drvid, p_request) )
       {
-        // For STD GET_INTERFACE even if class driver doesn't support alternate setting
-        // It is still mandatory to response with value of zero
+        // For GET_INTERFACE, it is mandatory to respond even if the class
+        // driver doesn't use alternate settings.
         TU_VERIFY( TUSB_REQ_TYPE_STANDARD == p_request->bmRequestType_bit.type &&
                    TUSB_REQ_GET_INTERFACE == p_request->bRequest);
 

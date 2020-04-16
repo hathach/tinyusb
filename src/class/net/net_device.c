@@ -255,20 +255,26 @@ bool netd_control_request(uint8_t rhport, tusb_control_request_t const * request
       switch ( request->bRequest )
       {
         case TUSB_REQ_GET_INTERFACE:
+        {
+          uint8_t const req_itfnum = (uint8_t) request->wIndex;
+          TU_VERIFY(_netd_itf.itf_num+1 == req_itfnum);
+
           tud_control_xfer(rhport, request, &_netd_itf.itf_data_alt, 1);
+        }
         break;
 
         case TUSB_REQ_SET_INTERFACE:
         {
           uint8_t const req_itfnum = (uint8_t) request->wIndex;
+          uint8_t const req_alt    = (uint8_t) request->wValue;
 
-          // Request to enable/disable network activities on ACM-ECM only
-          TU_ASSERT(_netd_itf.ecm_mode);
+          // Only valid for Data Interface with Alternate is either 0 or 1
+          TU_VERIFY(_netd_itf.itf_num+1 == req_itfnum && req_alt < 2);
 
-          // Only valid for Data Interface
-          TU_ASSERT(_netd_itf.itf_num+1 == req_itfnum);
+          // ACM-ECM only: qequest to enable/disable network activities
+          TU_VERIFY(_netd_itf.ecm_mode);
 
-          _netd_itf.itf_data_alt = (uint8_t) request->wValue;
+          _netd_itf.itf_data_alt = req_alt;
 
           if ( _netd_itf.itf_data_alt )
           {
