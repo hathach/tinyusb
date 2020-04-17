@@ -68,7 +68,7 @@ This function should leave an internal D+/D- pull-up in its default power-on sta
 
 Enables or disables the USB device interrupt(s). May be used to prevent concurrency issues when mutating data structures shared between main code and the interrupt handler.
 
-##### dcd_irq_handler
+##### dcd_int_handler
 
 Processes all the hardware generated events e.g Bus reset, new data packet from host etc ... It will be called by application in the MCU USB interrupt handler.
 

@@ -669,7 +669,7 @@ static void handle_epin_ints(USB_OTG_DeviceTypeDef * dev, USB_OTG_INEndpointType
   }
 }
 
-void dcd_irq_handler(uint8_t rhport) {
+void dcd_int_handler(uint8_t rhport) {
 
   (void) rhport;
 

@@ -35,12 +35,12 @@
 //--------------------------------------------------------------------+
 void USB0_IRQHandler(void)
 {
-  tud_irq_handler(0);
+  tud_int_handler(0);
 }
 
 void USB1_IRQHandler(void)
 {
-  tud_irq_handler(1);
+  tud_int_handler(1);
 }
 
 //--------------------------------------------------------------------+

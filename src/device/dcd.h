@@ -89,7 +89,7 @@ typedef struct TU_ATTR_ALIGNED(4)
 void dcd_init       (uint8_t rhport);
 
 // Interrupt Handler
-void dcd_irq_handler(uint8_t rhport) TU_ATTR_USED;
+void dcd_int_handler(uint8_t rhport);
 
 // Enable device interrupt
 void dcd_int_enable (uint8_t rhport);

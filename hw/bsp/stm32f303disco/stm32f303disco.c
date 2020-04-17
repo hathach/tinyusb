@@ -38,7 +38,7 @@
 // the highest possible transfer rate.
 void USB_HP_CAN_TX_IRQHandler(void)
 {
-  tud_irq_handler(0);
+  tud_int_handler(0);
 }
 
 // USB low-priority interrupt (Channel 20): Triggered by all USB events
@@ -46,14 +46,14 @@ void USB_HP_CAN_TX_IRQHandler(void)
 // interrupt source before serving the interrupt.
 void USB_LP_CAN_RX0_IRQHandler(void)
 {
-  tud_irq_handler(0);
+  tud_int_handler(0);
 }
 
 // USB wakeup interrupt (Channel 42): Triggered by the wakeup event from the USB
 // Suspend mode.
 void USBWakeUp_IRQHandler(void)
 {
-  tud_irq_handler(0);
+  tud_int_handler(0);
 }
 
 //--------------------------------------------------------------------+

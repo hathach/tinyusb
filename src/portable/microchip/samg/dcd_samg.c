@@ -347,7 +347,7 @@ void dcd_edpt_clear_stall (uint8_t rhport, uint8_t ep_addr)
 //--------------------------------------------------------------------+
 // ISR
 //--------------------------------------------------------------------+
-void dcd_irq_handler(uint8_t rhport)
+void dcd_int_handler(uint8_t rhport)
 {
   uint32_t const intr_mask   = UDP->UDP_IMR;
   uint32_t const intr_status = UDP->UDP_ISR & intr_mask;
