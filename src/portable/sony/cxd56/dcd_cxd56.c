@@ -205,11 +205,13 @@ void dcd_remote_wakeup(uint8_t rhport)
 void dcd_connect(uint8_t rhport)
 {
   (void) rhport;
+//  DEV_CONNECT(usbdev);
 }
 
 void dcd_disconnect(uint8_t rhport)
 {
   (void) rhport;
+//  DEV_DISCONNECT(usbdev);
 }
 #endif
 
