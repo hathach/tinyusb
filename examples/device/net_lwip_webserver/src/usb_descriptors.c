@@ -24,13 +24,12 @@
  */
 
 #include "tusb.h"
-#include "usb_descriptors.h"
 
 /* A combination of interfaces must have a unique product id, since PC will save device driver after the first plug.
  * Same VID/PID with different interface e.g MSC (first), then CDC (later) will possibly cause system error on PC.
  *
  * Auto ProductID layout's Bitmap:
- *   [MSB]       NET1:NET0 | VENDOR | MIDI | HID | MSC | CDC          [LSB]
+ *   [MSB]       NET | VENDOR | MIDI | HID | MSC | CDC          [LSB]
  */
 #define _PID_MAP(itf, n)  ( (CFG_TUD_##itf) << (n) )
 #define USB_PID           (0x4000 | _PID_MAP(CDC, 0) | _PID_MAP(MSC, 1) | _PID_MAP(HID, 2) | \
@@ -47,6 +46,20 @@ enum
   STRID_MAC
 };
 
+enum
+{
+  ITF_NUM_CDC = 0,
+  ITF_NUM_CDC_DATA,
+  ITF_NUM_TOTAL
+};
+
+enum
+{
+  CONFIG_ID_RNDIS = 0,
+  CONFIG_ID_ECM   = 1,
+  CONFIG_ID_COUNT
+};
+
 //--------------------------------------------------------------------+
 // Device Descriptors
 //--------------------------------------------------------------------+
@@ -56,20 +69,22 @@ tusb_desc_device_t const desc_device =
     .bDescriptorType    = TUSB_DESC_DEVICE,
     .bcdUSB             = 0x0200,
 
-    .bDeviceClass       = TUSB_CLASS_UNSPECIFIED,
-    .bDeviceSubClass    = 0,
-    .bDeviceProtocol    = 0,
+    // Use Interface Association Descriptor (IAD) device class
+    .bDeviceClass       = TUSB_CLASS_MISC,
+    .bDeviceSubClass    = MISC_SUBCLASS_COMMON,
+    .bDeviceProtocol    = MISC_PROTOCOL_IAD,
+    
     .bMaxPacketSize0    = CFG_TUD_ENDPOINT0_SIZE,
 
     .idVendor           = 0xCafe,
     .idProduct          = USB_PID,
-    .bcdDevice          = 0x0100,
+    .bcdDevice          = 0x0101,
 
     .iManufacturer      = STRID_MANUFACTURER,
     .iProduct           = STRID_PRODUCT,
     .iSerialNumber      = STRID_SERIAL,
 
-    .bNumConfigurations = 0x01
+    .bNumConfigurations = CONFIG_ID_COUNT // multiple configurations
 };
 
 // Invoked when received GET DEVICE DESCRIPTOR
@@ -82,20 +97,8 @@ uint8_t const * tud_descriptor_device_cb(void)
 //--------------------------------------------------------------------+
 // Configuration Descriptor
 //--------------------------------------------------------------------+
-enum
-{
-  ITF_NUM_CDC = 0,
-  ITF_NUM_CDC_DATA,
-  ITF_NUM_TOTAL
-};
-
-#if CFG_TUD_NET == OPT_NET_ECM
-  #define CONFIG_TOTAL_LEN    (TUD_CONFIG_DESC_LEN + TUD_CDC_ECM_DESC_LEN)
-#elif CFG_TUD_NET == OPT_NET_RNDIS
-  #define CONFIG_TOTAL_LEN    (TUD_CONFIG_DESC_LEN + TUD_RNDIS_DESC_LEN)
-#elif CFG_TUD_NET == OPT_NET_EEM
-  #define CONFIG_TOTAL_LEN    (TUD_CONFIG_DESC_LEN + TUD_CDC_EEM_DESC_LEN)
-#endif
+#define MAIN_CONFIG_TOTAL_LEN    (TUD_CONFIG_DESC_LEN + TUD_RNDIS_DESC_LEN)
+#define ALT_CONFIG_TOTAL_LEN     (TUD_CONFIG_DESC_LEN + TUD_CDC_ECM_DESC_LEN)
 
 #if CFG_TUSB_MCU == OPT_MCU_LPC175X_6X || CFG_TUSB_MCU == OPT_MCU_LPC177X_8X || CFG_TUSB_MCU == OPT_MCU_LPC40XX
   // LPC 17xx and 40xx endpoint type (bulk/interrupt/iso) are fixed by its number
@@ -105,21 +108,33 @@ enum
   #define EPNUM_CDC     2
 #endif
 
-uint8_t const desc_configuration[] =
+static uint8_t const rndis_configuration[] =
 {
-  // Config number, interface count, string index, total length, attribute, power in mA
-  TUD_CONFIG_DESCRIPTOR(1, ITF_NUM_TOTAL, 0, CONFIG_TOTAL_LEN, 0, 100),
+  // Config number (index+1), interface count, string index, total length, attribute, power in mA
+  TUD_CONFIG_DESCRIPTOR(CONFIG_ID_RNDIS+1, ITF_NUM_TOTAL, 0, MAIN_CONFIG_TOTAL_LEN, 0, 100),
 
-#if CFG_TUD_NET == OPT_NET_ECM
-  // Interface number, description string index, MAC address string index, EP notification address and size, EP data address (out, in), and size, max segment size.
-  TUD_CDC_ECM_DESCRIPTOR(ITF_NUM_CDC, STRID_INTERFACE, STRID_MAC, 0x81, 64, EPNUM_CDC, 0x80 | EPNUM_CDC, CFG_TUD_NET_ENDPOINT_SIZE, CFG_TUD_NET_MTU),
-#elif CFG_TUD_NET == OPT_NET_RNDIS
   // Interface number, string index, EP notification address and size, EP data address (out, in) and size.
   TUD_RNDIS_DESCRIPTOR(ITF_NUM_CDC, STRID_INTERFACE, 0x81, 8, EPNUM_CDC, 0x80 | EPNUM_CDC, CFG_TUD_NET_ENDPOINT_SIZE),
-#elif CFG_TUD_NET == OPT_NET_EEM
-  // Interface number, description string index, EP data address (out, in) and size.
-  TUD_CDC_EEM_DESCRIPTOR(ITF_NUM_CDC, STRID_INTERFACE, EPNUM_CDC, 0x80 | EPNUM_CDC, CFG_TUD_NET_ENDPOINT_SIZE),
-#endif
+};
+
+static uint8_t const ecm_configuration[] =
+{
+  // Config number (index+1), interface count, string index, total length, attribute, power in mA
+  TUD_CONFIG_DESCRIPTOR(CONFIG_ID_ECM+1, ITF_NUM_TOTAL, 0, ALT_CONFIG_TOTAL_LEN, 0, 100),
+
+  // Interface number, description string index, MAC address string index, EP notification address and size, EP data address (out, in), and size, max segment size.
+  TUD_CDC_ECM_DESCRIPTOR(ITF_NUM_CDC, STRID_INTERFACE, STRID_MAC, 0x81, 64, EPNUM_CDC, 0x80 | EPNUM_CDC, CFG_TUD_NET_ENDPOINT_SIZE, CFG_TUD_NET_MTU),
+};
+
+// Configuration array: RNDIS and CDC-ECM
+// - Windows only works with RNDIS
+// - MacOS only works with CDC-ECM
+// - Linux will work on both
+// Note index is Num-1x
+static uint8_t const * const configuration_arr[2] =
+{
+  [CONFIG_ID_RNDIS] = rndis_configuration,
+  [CONFIG_ID_ECM  ] = ecm_configuration
 };
 
 // Invoked when received GET CONFIGURATION DESCRIPTOR
@@ -127,8 +142,7 @@ uint8_t const desc_configuration[] =
 // Descriptor contents must exist long enough for transfer to complete
 uint8_t const * tud_descriptor_configuration_cb(uint8_t index)
 {
-  (void) index; // for multiple configurations
-  return desc_configuration;
+  return (index < CONFIG_ID_COUNT) ? configuration_arr[index] : NULL;
 }
 
 //--------------------------------------------------------------------+
@@ -141,8 +155,8 @@ static char const* string_desc_arr [] =
   [STRID_LANGID]       = (const char[]) { 0x09, 0x04 }, // supported language is English (0x0409)
   [STRID_MANUFACTURER] = "TinyUSB",                     // Manufacturer
   [STRID_PRODUCT]      = "TinyUSB Device",              // Product
-  [STRID_SERIAL]       = "123456",                      // Serials
-  [STRID_INTERFACE]    = "TinyUSB Network Interface"    // CDC-ECM Interface
+  [STRID_SERIAL]       = "123456",                      // Serial
+  [STRID_INTERFACE]    = "TinyUSB Network Interface"    // Interface Description
 
   // STRID_MAC index is handled separately
 };

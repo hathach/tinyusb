@@ -138,9 +138,6 @@ void dcd_init (uint8_t rhport)
   (void) rhport;
 
   tu_memclr(_dcd_xfer, sizeof(_dcd_xfer));
-
-  // Enable pull-up, disable transceiver
-  UDP->UDP_TXVC = UDP_TXVC_PUON | UDP_TXVC_TXVDIS_Msk;
 }
 
 // Enable device interrupt
@@ -185,6 +182,23 @@ void dcd_remote_wakeup (uint8_t rhport)
 {
   (void) rhport;
 }
+
+void dcd_connect(uint8_t rhport)
+{
+  (void) rhport;
+
+  // Enable pull-up, disable transceiver
+  UDP->UDP_TXVC = UDP_TXVC_PUON | UDP_TXVC_TXVDIS_Msk;
+}
+
+void dcd_disconnect(uint8_t rhport)
+{
+  (void) rhport;
+
+  // disable both pullup and transceiver
+  UDP->UDP_TXVC = UDP_TXVC_TXVDIS_Msk;
+}
+
 
 //--------------------------------------------------------------------+
 // Endpoint API
@@ -333,7 +347,7 @@ void dcd_edpt_clear_stall (uint8_t rhport, uint8_t ep_addr)
 //--------------------------------------------------------------------+
 // ISR
 //--------------------------------------------------------------------+
-void dcd_irq_handler(uint8_t rhport)
+void dcd_int_handler(uint8_t rhport)
 {
   uint32_t const intr_mask   = UDP->UDP_IMR;
   uint32_t const intr_status = UDP->UDP_ISR & intr_mask;

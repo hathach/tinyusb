@@ -91,6 +91,18 @@ void dcd_remote_wakeup (uint8_t rhport)
   (void) rhport;
 }
 
+// Connect by enabling internal pull-up resistor on D+/D-
+void dcd_connect(uint8_t rhport)
+{
+  (void) rhport;
+}
+
+// Disconnect by disabling internal pull-up resistor on D+/D-
+void dcd_disconnect(uint8_t rhport)
+{
+  (void) rhport;
+}
+
 //--------------------------------------------------------------------+
 // Endpoint API
 //--------------------------------------------------------------------+

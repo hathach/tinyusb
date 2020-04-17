@@ -13,6 +13,6 @@ SRC_C += $(addprefix $(CURRENT_PATH)/, $(EXAMPLE_SOURCE))
 # This can cause some TinyUSB API missing, this hack to allow us to fill those API
 # to pass the compilation process
 CFLAGS +=	\
-	-D"tud_irq_handler(x)= " \
+	-D"tud_int_handler(x)= " \
 
 include ../../rules.mk

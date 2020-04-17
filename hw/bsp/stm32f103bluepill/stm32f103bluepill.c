@@ -32,17 +32,17 @@
 //--------------------------------------------------------------------+
 void USB_HP_IRQHandler(void)
 {
-  tud_irq_handler(0);
+  tud_int_handler(0);
 }
 
 void USB_LP_IRQHandler(void)
 {
-  tud_irq_handler(0);
+  tud_int_handler(0);
 }
 
 void USBWakeUp_IRQHandler(void)
 {
-  tud_irq_handler(0);
+  tud_int_handler(0);
 }
 
 //--------------------------------------------------------------------+

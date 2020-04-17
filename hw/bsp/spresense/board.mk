@@ -43,7 +43,10 @@ LDFLAGS += \
 VENDOR = sony
 CHIP_FAMILY = cxd56
 
+$(BUILD)/$(BOARD)-firmware.spk: $(BUILD)/$(BOARD)-firmware.elf
+	@echo CREATE $@
+	@$(SPRESENSE_SDK)/sdk/tools/linux/mkspk -c 2 $^ nuttx $@
+
 # flash
-flash: 
-	$(SPRESENSE_SDK)/sdk/tools/linux/mkspk -c 2 $(BUILD)/spresense-firmware.elf nuttx $(BUILD)/spresense-firmware.spk
-	$(SPRESENSE_SDK)/sdk/tools/flash.sh -c /dev/ttyUSB0 $(BUILD)/spresense-firmware.spk
+flash: $(BUILD)/$(BOARD)-firmware.spk
+	@$(SPRESENSE_SDK)/sdk/tools/flash.sh -c /dev/ttyUSB0 $<

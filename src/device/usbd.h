@@ -48,7 +48,7 @@ bool tud_init (void);
 void tud_task (void);
 
 // Interrupt handler, name alias to DCD
-#define tud_irq_handler   dcd_irq_handler
+#define tud_int_handler   dcd_int_handler
 
 // Check if device is connected and configured
 bool tud_mounted(void);
@@ -183,9 +183,9 @@ TU_ATTR_WEAK bool tud_vendor_control_complete_cb(uint8_t rhport, tusb_control_re
 // Interface number, string index, EP notification address and size, EP data address (out, in) and size.
 #define TUD_CDC_DESCRIPTOR(_itfnum, _stridx, _ep_notif, _ep_notif_size, _epout, _epin, _epsize) \
   /* Interface Associate */\
-  8, TUSB_DESC_INTERFACE_ASSOCIATION, _itfnum, 2, TUSB_CLASS_CDC, CDC_COMM_SUBCLASS_ABSTRACT_CONTROL_MODEL, CDC_COMM_PROTOCOL_ATCOMMAND, 0,\
+  8, TUSB_DESC_INTERFACE_ASSOCIATION, _itfnum, 2, TUSB_CLASS_CDC, CDC_COMM_SUBCLASS_ABSTRACT_CONTROL_MODEL, CDC_COMM_PROTOCOL_NONE, 0,\
   /* CDC Control Interface */\
-  9, TUSB_DESC_INTERFACE, _itfnum, 0, 1, TUSB_CLASS_CDC, CDC_COMM_SUBCLASS_ABSTRACT_CONTROL_MODEL, CDC_COMM_PROTOCOL_ATCOMMAND, _stridx,\
+  9, TUSB_DESC_INTERFACE, _itfnum, 0, 1, TUSB_CLASS_CDC, CDC_COMM_SUBCLASS_ABSTRACT_CONTROL_MODEL, CDC_COMM_PROTOCOL_NONE, _stridx,\
   /* CDC Header */\
   5, TUSB_DESC_CS_INTERFACE, CDC_FUNC_DESC_HEADER, U16_TO_U8S_LE(0x0120),\
   /* CDC Call */\
@@ -291,23 +291,23 @@ TU_ATTR_WEAK bool tud_vendor_control_complete_cb(uint8_t rhport, tusb_control_re
 //   Interface number, number of endpoints, EP string index, USB_TMC_PROTOCOL*, bulk-out endpoint ID,
 //   bulk-in endpoint ID
 #define TUD_USBTMC_IF_DESCRIPTOR(_itfnum, _bNumEndpoints, _stridx, _itfProtocol) \
-/* Interface */ \
+  /* Interface */ \
   0x09, TUSB_DESC_INTERFACE, _itfnum, 0x00, _bNumEndpoints, TUD_USBTMC_APP_CLASS, TUD_USBTMC_APP_SUBCLASS, _itfProtocol, _stridx
 
 #define TUD_USBTMC_IF_DESCRIPTOR_LEN 9u
 
 #define TUD_USBTMC_BULK_DESCRIPTORS(_epout, _epin, _bulk_epsize) \
-/* Endpoint Out */ \
-7, TUSB_DESC_ENDPOINT, _epout, TUSB_XFER_BULK, U16_TO_U8S_LE(_bulk_epsize), 0u, \
-/* Endpoint In */ \
-7, TUSB_DESC_ENDPOINT, _epin, TUSB_XFER_BULK, U16_TO_U8S_LE(_bulk_epsize), 0u
+  /* Endpoint Out */ \
+  7, TUSB_DESC_ENDPOINT, _epout, TUSB_XFER_BULK, U16_TO_U8S_LE(_bulk_epsize), 0u, \
+  /* Endpoint In */ \
+  7, TUSB_DESC_ENDPOINT, _epin, TUSB_XFER_BULK, U16_TO_U8S_LE(_bulk_epsize), 0u
 
 #define TUD_USBTMC_BULK_DESCRIPTORS_LEN (7u+7u)
 
 /* optional interrupt endpoint */ \
 // _int_pollingInterval : for LS/FS, expressed in frames (1ms each). 16 may be a good number?
 #define TUD_USBTMC_INT_DESCRIPTOR(_ep_interrupt, _ep_interrupt_size, _int_pollingInterval ) \
-7, TUSB_DESC_ENDPOINT, _ep_interrupt, TUSB_XFER_INTERRUPT, U16_TO_U8S_LE(_ep_interrupt_size), 0x16
+  7, TUSB_DESC_ENDPOINT, _ep_interrupt, TUSB_XFER_INTERRUPT, U16_TO_U8S_LE(_ep_interrupt_size), 0x16
 
 #define TUD_USBTMC_INT_DESCRIPTOR_LEN (7u)
 
@@ -342,12 +342,14 @@ TU_ATTR_WEAK bool tud_vendor_control_complete_cb(uint8_t rhport, tusb_control_re
 
 //------------- CDC-ECM -------------//
 
-// Length of template descriptor: 62 bytes
-#define TUD_CDC_ECM_DESC_LEN  (9+5+5+13+7+9+7+7)
+// Length of template descriptor: 71 bytes
+#define TUD_CDC_ECM_DESC_LEN  (8+9+5+5+13+7+9+9+7+7)
 
 // CDC-ECM Descriptor Template
 // Interface number, description string index, MAC address string index, EP notification address and size, EP data address (out, in), and size, max segment size.
 #define TUD_CDC_ECM_DESCRIPTOR(_itfnum, _desc_stridx, _mac_stridx, _ep_notif, _ep_notif_size, _epout, _epin, _epsize, _maxsegmentsize) \
+  /* Interface Association */\
+  8, TUSB_DESC_INTERFACE_ASSOCIATION, _itfnum, 2, TUSB_CLASS_CDC, CDC_COMM_SUBCLASS_ETHERNET_NETWORKING_CONTROL_MODEL, 0, 0,\
   /* CDC Control Interface */\
   9, TUSB_DESC_INTERFACE, _itfnum, 0, 1, TUSB_CLASS_CDC, CDC_COMM_SUBCLASS_ETHERNET_NETWORKING_CONTROL_MODEL, 0, _desc_stridx,\
   /* CDC-ECM Header */\
@@ -358,8 +360,10 @@ TU_ATTR_WEAK bool tud_vendor_control_complete_cb(uint8_t rhport, tusb_control_re
   13, TUSB_DESC_CS_INTERFACE, CDC_FUNC_DESC_ETHERNET_NETWORKING, _mac_stridx, 0, 0, 0, 0, U16_TO_U8S_LE(_maxsegmentsize), U16_TO_U8S_LE(0), 0,\
   /* Endpoint Notification */\
   7, TUSB_DESC_ENDPOINT, _ep_notif, TUSB_XFER_INTERRUPT, U16_TO_U8S_LE(_ep_notif_size), 1,\
-  /* CDC Data Interface */\
-  9, TUSB_DESC_INTERFACE, (uint8_t)((_itfnum)+1), 0, 2, TUSB_CLASS_CDC_DATA, 0, 0, 0,\
+  /* CDC Data Interface (default inactive) */\
+  9, TUSB_DESC_INTERFACE, (uint8_t)((_itfnum)+1), 0, 0, TUSB_CLASS_CDC_DATA, 0, 0, 0,\
+  /* CDC Data Interface (alternative active) */\
+  9, TUSB_DESC_INTERFACE, (uint8_t)((_itfnum)+1), 1, 2, TUSB_CLASS_CDC_DATA, 0, 0, 0,\
   /* Endpoint In */\
   7, TUSB_DESC_ENDPOINT, _epin, TUSB_XFER_BULK, U16_TO_U8S_LE(_epsize), 0,\
   /* Endpoint Out */\
@@ -372,10 +376,10 @@ TU_ATTR_WEAK bool tud_vendor_control_complete_cb(uint8_t rhport, tusb_control_re
   /* Windows XP */
   #define TUD_RNDIS_ITF_CLASS    TUSB_CLASS_CDC
   #define TUD_RNDIS_ITF_SUBCLASS CDC_COMM_SUBCLASS_ABSTRACT_CONTROL_MODEL
-  #define TUD_RNDIS_ITF_PROTOCOL CDC_COMM_PROTOCOL_MICROSOFT_RNDIS
+  #define TUD_RNDIS_ITF_PROTOCOL 0xFF /* CDC_COMM_PROTOCOL_MICROSOFT_RNDIS */
 #else
   /* Windows 7+ */
-  #define TUD_RNDIS_ITF_CLASS    0xE0
+  #define TUD_RNDIS_ITF_CLASS    TUSB_CLASS_WIRELESS_CONTROLLER
   #define TUD_RNDIS_ITF_SUBCLASS 0x01
   #define TUD_RNDIS_ITF_PROTOCOL 0x03
 #endif
@@ -402,22 +406,6 @@ TU_ATTR_WEAK bool tud_vendor_control_complete_cb(uint8_t rhport, tusb_control_re
   7, TUSB_DESC_ENDPOINT, _ep_notif, TUSB_XFER_INTERRUPT, U16_TO_U8S_LE(_ep_notif_size), 1,\
   /* CDC Data Interface */\
   9, TUSB_DESC_INTERFACE, (uint8_t)((_itfnum)+1), 0, 2, TUSB_CLASS_CDC_DATA, 0, 0, 0,\
-  /* Endpoint In */\
-  7, TUSB_DESC_ENDPOINT, _epin, TUSB_XFER_BULK, U16_TO_U8S_LE(_epsize), 0,\
-  /* Endpoint Out */\
-  7, TUSB_DESC_ENDPOINT, _epout, TUSB_XFER_BULK, U16_TO_U8S_LE(_epsize), 0
-
-
-//------------- CDC-EEM -------------//
-
-// Length of template descriptor: 23 bytes
-#define TUD_CDC_EEM_DESC_LEN  (9+7+7)
-
-// CDC-EEM Descriptor Template
-// Interface number, description string index, EP data address (out, in) and size.
-#define TUD_CDC_EEM_DESCRIPTOR(_itfnum, _stridx, _epout, _epin, _epsize) \
-  /* EEM Interface */\
-  9, TUSB_DESC_INTERFACE, _itfnum, 0, 2, TUSB_CLASS_CDC, CDC_COMM_SUBCLASS_ETHERNET_EMULATION_MODEL, CDC_COMM_PROTOCOL_ETHERNET_EMULATION_MODEL, _stridx,\
   /* Endpoint In */\
   7, TUSB_DESC_ENDPOINT, _epin, TUSB_XFER_BULK, U16_TO_U8S_LE(_epsize), 0,\
   /* Endpoint Out */\

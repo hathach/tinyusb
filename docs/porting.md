@@ -68,7 +68,7 @@ This function should leave an internal D+/D- pull-up in its default power-on sta
 
 Enables or disables the USB device interrupt(s). May be used to prevent concurrency issues when mutating data structures shared between main code and the interrupt handler.
 
-##### dcd_irq_handler
+##### dcd_int_handler
 
 Processes all the hardware generated events e.g Bus reset, new data packet from host etc ... It will be called by application in the MCU USB interrupt handler.
 
@@ -133,6 +133,14 @@ Endpoints within USB have an address which encodes both the number and direction
 Opening an endpoint is done for all non-control endpoints once the host picks a configuration that the device should use. At this point, the endpoint should be enabled in the peripheral and configured to match the endpoint descriptor. Pay special attention to the direction of the endpoint you can get from the helper methods above. It will likely change what registers you are setting.
 
 Also make sure to enable endpoint specific interrupts.
+
+##### dcd_edpt_close
+
+Close an endpoint. his function is used for implementing alternate settings.
+
+After calling this, the device should not respond to any packets directed towards this endpoint. When called, this function must abort any transfers in progress through this endpoint, before returning.
+
+Implementation is optional. Must be called from the USB task. Interrupts could be disabled or enabled during the call.
 
 ##### dcd_edpt_xfer
 

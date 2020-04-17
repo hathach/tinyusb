@@ -322,7 +322,7 @@ void dcd_init(uint8_t rhport)
 {
   tu_memclr(&_dcd_data, sizeof(dcd_data_t));
 
-  dcd_registers_t* const dcd_reg = _dcd_controller[rhport].regs;
+  dcd_registers_t* dcd_reg = _dcd_controller[rhport].regs;
 
   // Reset controller
   dcd_reg->USBCMD |= USBCMD_RESET;
@@ -342,7 +342,6 @@ void dcd_init(uint8_t rhport)
   dcd_reg->USBINTR = INTR_USB | INTR_ERROR | INTR_PORT_CHANGE | INTR_RESET | INTR_SUSPEND /*| INTR_SOF*/;
 
   dcd_reg->USBCMD &= ~0x00FF0000; // Interrupt Threshold Interval = 0
-  dcd_reg->USBCMD |= TU_BIT(0); // connect
 }
 
 void dcd_int_enable(uint8_t rhport)
@@ -374,6 +373,18 @@ void dcd_set_config(uint8_t rhport, uint8_t config_num)
 void dcd_remote_wakeup(uint8_t rhport)
 {
   (void) rhport;
+}
+
+void dcd_connect(uint8_t rhport)
+{
+  dcd_registers_t* dcd_reg = _dcd_controller[rhport].regs;
+  dcd_reg->USBCMD |= USBCMD_RUN_STOP;
+}
+
+void dcd_disconnect(uint8_t rhport)
+{
+  dcd_registers_t* dcd_reg = _dcd_controller[rhport].regs;
+  dcd_reg->USBCMD &= ~USBCMD_RUN_STOP;
 }
 
 //--------------------------------------------------------------------+
@@ -492,7 +503,7 @@ bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t t
 //--------------------------------------------------------------------+
 // ISR
 //--------------------------------------------------------------------+
-void dcd_irq_handler(uint8_t rhport)
+void dcd_int_handler(uint8_t rhport)
 {
   dcd_registers_t* const dcd_reg = _dcd_controller[rhport].regs;
 

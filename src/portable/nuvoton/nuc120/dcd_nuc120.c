@@ -306,7 +306,7 @@ void dcd_edpt_clear_stall(uint8_t rhport, uint8_t ep_addr)
   ep->CFG |= USBD_CFG_CSTALL_Msk;
 }
 
-void dcd_irq_handler(uint8_t rhport)
+void dcd_int_handler(uint8_t rhport)
 {
   (void) rhport;
 

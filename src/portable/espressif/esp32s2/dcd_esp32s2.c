@@ -190,9 +190,6 @@ void dcd_init(uint8_t rhport)
                  USB_ENUMDONEMSK_M |
                  USB_RESETDETMSK_M |
                  USB_DISCONNINTMSK_M;
-
-  ESP_LOGV(TAG, "DCD init - Soft CONNECT");
-  USB0.dctl &= ~USB_SFTDISCON_M; // Connect
 }
 
 void dcd_set_address(uint8_t rhport, uint8_t dev_addr)
@@ -216,16 +213,18 @@ void dcd_remote_wakeup(uint8_t rhport)
   (void)rhport;
 }
 
-// disconnect by disabling internal pull-up resistor on D+/D-
-void dcd_disconnect(uint8_t rhport)
-{
-  USB0.dctl |= USB_SFTDISCON_M;
-}
-
 // connect by enabling internal pull-up resistor on D+/D-
 void dcd_connect(uint8_t rhport)
 {
+  (void) rhport;
   USB0.dctl &= ~USB_SFTDISCON_M;
+}
+
+// disconnect by disabling internal pull-up resistor on D+/D-
+void dcd_disconnect(uint8_t rhport)
+{
+  (void) rhport;
+  USB0.dctl |= USB_SFTDISCON_M;
 }
 
 /*------------------------------------------------------------------*/
@@ -639,7 +638,7 @@ static void handle_epin_ints(void)
 }
 
 
-static void dcd_int_handler(void* arg)
+static void _dcd_int_handler(void* arg)
 {
   (void) arg;
 
@@ -727,7 +726,7 @@ static void dcd_int_handler(void* arg)
 void dcd_int_enable (uint8_t rhport)
 {
   (void) rhport;
-  esp_intr_alloc(ETS_USB_INTR_SOURCE, ESP_INTR_FLAG_LOWMED, (intr_handler_t) dcd_int_handler, NULL, &usb_ih);
+  esp_intr_alloc(ETS_USB_INTR_SOURCE, ESP_INTR_FLAG_LOWMED, (intr_handler_t) _dcd_int_handler, NULL, &usb_ih);
 }
 
 void dcd_int_disable (uint8_t rhport)

@@ -50,3 +50,7 @@ JLINK_IF = swd
 # flash by copying bin file to DAP Mass Storage
 flash: $(BUILD)/$(BOARD)-firmware.bin
 	cp $< /media/$(USER)/RT1015-EVK/
+
+# flash using pyocd
+#flash: $(BUILD)/$(BOARD)-firmware.hex
+#	pyocd flash -b MIMXRT1015-EVK $<
