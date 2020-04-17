@@ -167,16 +167,6 @@ void dcd_set_address (uint8_t rhport, uint8_t dev_addr)
   // do it at dcd_edpt0_status_complete()
 }
 
-// Receive Set Configure request
-void dcd_set_config (uint8_t rhport, uint8_t config_num)
-{
-  (void) rhport;
-  (void) config_num;
-
-  // Configured State
-//  UDP->UDP_GLB_STAT |= UDP_GLB_STAT_CONFG_Msk;
-}
-
 // Wake up host
 void dcd_remote_wakeup (uint8_t rhport)
 {

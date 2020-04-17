@@ -144,13 +144,6 @@ void dcd_set_address (uint8_t rhport, uint8_t dev_addr)
   USB->DEVICE.INTENSET.reg = USB_DEVICE_INTENSET_SUSPEND;
 }
 
-void dcd_set_config (uint8_t rhport, uint8_t config_num)
-{
-  (void) rhport;
-  (void) config_num;
-  // Nothing to do
-}
-
 void dcd_remote_wakeup(uint8_t rhport)
 {
   (void) rhport;

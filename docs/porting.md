@@ -78,10 +78,6 @@ Called when the device is given a new bus address.
 
 If your peripheral automatically changes address during enumeration (like the nrf52) you may leave this empty and also no queue an event for the corresponding SETUP packet.
 
-##### dcd_set_config
-
-Called when the device received SET_CONFIG request, you can leave this empty if your peripheral does not require any specific action.
-
 ##### dcd_remote_wakeup
 
 Called to remote wake up host when suspended (e.g hid keyboard)
