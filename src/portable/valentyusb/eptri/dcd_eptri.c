@@ -397,6 +397,19 @@ void dcd_remote_wakeup(uint8_t rhport)
   (void) rhport;
 }
 
+void dcd_connect(uint8_t rhport)
+{
+  (void) rhport;
+  usb_pullup_out_write(1);
+}
+
+void dcd_disconnect(uint8_t rhport)
+{
+  (void) rhport;
+  usb_pullup_out_write(0);
+}
+
+
 //--------------------------------------------------------------------+
 // DCD Endpoint Port
 //--------------------------------------------------------------------+
