@@ -345,7 +345,7 @@ static void process_xfer_isr(uint32_t int_status)
   }
 }
 
-void dcd_irq_handler(uint8_t rhport)
+void dcd_int_handler(uint8_t rhport)
 {
   (void) rhport; // TODO support multiple USB on supported mcu such as LPC55s69
 

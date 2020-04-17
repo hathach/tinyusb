@@ -37,22 +37,22 @@
 //--------------------------------------------------------------------+
 void USB_0_Handler (void)
 {
-  tud_irq_handler(0);
+  tud_int_handler(0);
 }
 
 void USB_1_Handler (void)
 {
-  tud_irq_handler(0);
+  tud_int_handler(0);
 }
 
 void USB_2_Handler (void)
 {
-  tud_irq_handler(0);
+  tud_int_handler(0);
 }
 
 void USB_3_Handler (void)
 {
-  tud_irq_handler(0);
+  tud_int_handler(0);
 }
 
 //--------------------------------------------------------------------+

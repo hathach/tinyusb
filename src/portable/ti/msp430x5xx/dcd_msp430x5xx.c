@@ -558,7 +558,7 @@ static void handle_setup_packet(void)
   dcd_event_setup_received(0, (uint8_t*) &_setup_packet[0], true);
 }
 
-void dcd_irq_handler(uint8_t rhport)
+void dcd_int_handler(uint8_t rhport)
 {
   (void) rhport;
 

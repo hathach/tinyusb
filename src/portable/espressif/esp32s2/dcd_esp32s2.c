@@ -638,7 +638,7 @@ static void handle_epin_ints(void)
 }
 
 
-static void dcd_int_handler(void* arg)
+static void _dcd_int_handler(void* arg)
 {
   (void) arg;
 
@@ -726,7 +726,7 @@ static void dcd_int_handler(void* arg)
 void dcd_int_enable (uint8_t rhport)
 {
   (void) rhport;
-  esp_intr_alloc(ETS_USB_INTR_SOURCE, ESP_INTR_FLAG_LOWMED, (intr_handler_t) dcd_int_handler, NULL, &usb_ih);
+  esp_intr_alloc(ETS_USB_INTR_SOURCE, ESP_INTR_FLAG_LOWMED, (intr_handler_t) _dcd_int_handler, NULL, &usb_ih);
 }
 
 void dcd_int_disable (uint8_t rhport)

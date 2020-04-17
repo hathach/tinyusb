@@ -100,7 +100,7 @@ void board_init(void)
 void UDP_Handler(void)
 {
   #if CFG_TUSB_RHPORT0_MODE & OPT_MODE_DEVICE
-    tud_irq_handler(0);
+    tud_int_handler(0);
   #endif
 }
 

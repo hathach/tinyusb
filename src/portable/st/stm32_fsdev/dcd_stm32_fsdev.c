@@ -499,7 +499,7 @@ static void dcd_ep_ctr_handler(void)
   }
 }
 
-void dcd_irq_handler(uint8_t rhport) {
+void dcd_int_handler(uint8_t rhport) {
 
   (void) rhport;
 

@@ -63,7 +63,7 @@ void isr(void)
 
 #if CFG_TUSB_RHPORT0_MODE == OPT_MODE_DEVICE
   if (irqs & (1 << USB_INTERRUPT)) {
-    tud_irq_handler(0);
+    tud_int_handler(0);
   }
 #endif
   if (irqs & (1 << TIMER0_INTERRUPT)) {
