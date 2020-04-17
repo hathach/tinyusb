@@ -48,28 +48,58 @@
  *  @{ */
 
 //--------------------------------------------------------------------+
-// Application API (Multiple Interfaces)
+// Application API (Multiple Ports)
 // CFG_TUD_CDC > 1
 //--------------------------------------------------------------------+
+
+
+// Check if terminal is connected to this port
 bool     tud_cdc_n_connected       (uint8_t itf);
+
+// Get current line state. Bit 0:  DTR (Data Terminal Ready), Bit 1: RTS (Request to Send)
 uint8_t  tud_cdc_n_get_line_state  (uint8_t itf);
+
+// Get current line encoding: bit rate, stop bits parity etc ..
 void     tud_cdc_n_get_line_coding (uint8_t itf, cdc_line_coding_t* coding);
+
+// Set special character that will trigger tud_cdc_rx_wanted_cb() callback on receiving
 void     tud_cdc_n_set_wanted_char (uint8_t itf, char wanted);
 
+// Get the number of bytes available for reading
 uint32_t tud_cdc_n_available       (uint8_t itf);
-uint32_t tud_cdc_n_read            (uint8_t itf, void* buffer, uint32_t bufsize);
-void     tud_cdc_n_read_flush      (uint8_t itf);
-bool     tud_cdc_n_peek            (uint8_t itf, int pos, uint8_t* u8);
-static inline int32_t tud_cdc_n_read_char (uint8_t itf);
 
+// Read received bytes
+uint32_t tud_cdc_n_read            (uint8_t itf, void* buffer, uint32_t bufsize);
+
+// Read a byte, return -1 if there is none
+static inline
+int32_t  tud_cdc_n_read_char       (uint8_t itf);
+
+// Clear the received FIFO
+void     tud_cdc_n_read_flush      (uint8_t itf);
+
+// Get a byte from FIFO at the specified position without removing it
+bool     tud_cdc_n_peek            (uint8_t itf, int pos, uint8_t* u8);
+
+// Write bytes to TX FIFO, data may remain in the FIFO for a while
 uint32_t tud_cdc_n_write           (uint8_t itf, void const* buffer, uint32_t bufsize);
-bool     tud_cdc_n_write_flush     (uint8_t itf);
+
+// Write a byte
+static inline
+uint32_t tud_cdc_n_write_char      (uint8_t itf, char ch);
+
+// Write a nul-terminated string
+static inline
+uint32_t tud_cdc_n_write_str       (uint8_t itf, char const* str);
+
+// Force sending data if possible, return number of forced bytes
+uint32_t tud_cdc_n_write_flush     (uint8_t itf);
+
+// Return number of characters available for writing
 uint32_t tud_cdc_n_write_available (uint8_t itf);
-static inline uint32_t tud_cdc_n_write_char (uint8_t itf, char ch);
-static inline uint32_t tud_cdc_n_write_str  (uint8_t itf, char const* str);
 
 //--------------------------------------------------------------------+
-// Application API (Interface0)
+// Application API (Single Port)
 //--------------------------------------------------------------------+
 static inline bool     tud_cdc_connected       (void);
 static inline uint8_t  tud_cdc_get_line_state  (void);
@@ -85,7 +115,7 @@ static inline bool     tud_cdc_peek            (int pos, uint8_t* u8);
 static inline uint32_t tud_cdc_write_char      (char ch);
 static inline uint32_t tud_cdc_write           (void const* buffer, uint32_t bufsize);
 static inline uint32_t tud_cdc_write_str       (char const* str);
-static inline bool     tud_cdc_write_flush     (void);
+static inline uint32_t tud_cdc_write_flush     (void);
 static inline uint32_t tud_cdc_write_available (void);
 
 //--------------------------------------------------------------------+
@@ -183,7 +213,7 @@ static inline uint32_t tud_cdc_write_str (char const* str)
   return tud_cdc_n_write_str(0, str);
 }
 
-static inline bool tud_cdc_write_flush (void)
+static inline uint32_t tud_cdc_write_flush (void)
 {
   return tud_cdc_n_write_flush(0);
 }

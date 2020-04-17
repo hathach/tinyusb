@@ -157,19 +157,21 @@ uint32_t tud_cdc_n_write(uint8_t itf, void const* buffer, uint32_t bufsize)
   return ret;
 }
 
-bool tud_cdc_n_write_flush (uint8_t itf)
+uint32_t tud_cdc_n_write_flush (uint8_t itf)
 {
   cdcd_interface_t* p_cdc = &_cdcd_itf[itf];
-  TU_VERIFY( !usbd_edpt_busy(TUD_OPT_RHPORT, p_cdc->ep_in) ); // skip if previous transfer not complete
+
+  // skip if previous transfer not complete yet
+  TU_VERIFY( !usbd_edpt_busy(TUD_OPT_RHPORT, p_cdc->ep_in), 0 );
 
   uint16_t count = tu_fifo_read_n(&_cdcd_itf[itf].tx_ff, p_cdc->epin_buf, TU_ARRAY_SIZE(p_cdc->epin_buf));
   if ( count )
   {
-    TU_VERIFY( tud_cdc_n_connected(itf) ); // fifo is empty if not connected
-    TU_ASSERT( usbd_edpt_xfer(TUD_OPT_RHPORT, p_cdc->ep_in, p_cdc->epin_buf, count) );
+    TU_VERIFY( tud_cdc_n_connected(itf), 0 ); // fifo is empty if not connected
+    TU_ASSERT( usbd_edpt_xfer(TUD_OPT_RHPORT, p_cdc->ep_in, p_cdc->epin_buf, count), 0 );
   }
 
-  return true;
+  return count;
 }
 
 uint32_t tud_cdc_n_write_available (uint8_t itf)
@@ -376,16 +378,16 @@ bool cdcd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint32_
   (void) rhport;
   (void) result;
 
-  uint8_t itf = 0;
-  cdcd_interface_t* p_cdc = _cdcd_itf;
+  uint8_t itf;
+  cdcd_interface_t* p_cdc;
 
   // Identify which interface to use
-  for ( ; ; itf++, p_cdc++)
+  for (itf = 0; itf < CFG_TUD_CDC; itf++)
   {
-    if (itf >= TU_ARRAY_SIZE(_cdcd_itf)) return false;
-
+    p_cdc = &_cdcd_itf[itf];
     if ( ( ep_addr == p_cdc->ep_out ) || ( ep_addr == p_cdc->ep_in ) ) break;
   }
+  TU_ASSERT(itf < CFG_TUD_CDC);
 
   // Received new data
   if ( ep_addr == p_cdc->ep_out )
@@ -408,12 +410,20 @@ bool cdcd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint32_
     _prep_out_transaction(itf);
   }
 
-  // Data sent to host, we could continue to fetch data tx fifo to send.
-  // But it will cause incorrect baudrate set in line coding.
-  // Though maybe the baudrate is not really important !!!
+  // Data sent to host, we continue to fetch from tx fifo to send.
+  // Note: This will cause incorrect baudrate set in line coding.
+  //       Though maybe the baudrate is not really important !!!
   if ( ep_addr == p_cdc->ep_in )
   {
-    if ( xferred_bytes && (0 == (xferred_bytes % CFG_TUD_CDC_EPSIZE)) && (0 == p_cdc->tx_ff.count) ) usbd_edpt_xfer(TUD_OPT_RHPORT, p_cdc->ep_in, NULL, 0);
+    if ( 0 == tud_cdc_n_write_flush(itf) )
+    {
+      // There is no data left, a ZLP should be sent if
+      // xferred_bytes is multiple of EP size and not zero
+      if ( xferred_bytes && (0 == (xferred_bytes % CFG_TUD_CDC_EPSIZE)) )
+      {
+        usbd_edpt_xfer(TUD_OPT_RHPORT, p_cdc->ep_in, NULL, 0);
+      }
+    }
   }
 
   // nothing to do with notif endpoint for now
