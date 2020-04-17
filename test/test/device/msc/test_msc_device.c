@@ -241,8 +241,6 @@ void test_msc(void)
 
   dcd_event_setup_received(rhport, (uint8_t*) &request_set_configuration, false);
 
-  dcd_set_config_Expect(rhport, 1);
-
   // open endpoints
   dcd_edpt_open_ExpectAndReturn(rhport, (tusb_desc_endpoint_t const *) desc_ep, true);
   dcd_edpt_open_ExpectAndReturn(rhport, (tusb_desc_endpoint_t const *) tu_desc_next(desc_ep), true);

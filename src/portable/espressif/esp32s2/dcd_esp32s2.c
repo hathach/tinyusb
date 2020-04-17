@@ -201,13 +201,6 @@ void dcd_set_address(uint8_t rhport, uint8_t dev_addr)
   dcd_edpt_xfer(rhport, tu_edpt_addr(0, TUSB_DIR_IN), NULL, 0);
 }
 
-void dcd_set_config(uint8_t rhport, uint8_t config_num)
-{
-  (void)rhport;
-  (void)config_num;
-  // Nothing to do
-}
-
 void dcd_remote_wakeup(uint8_t rhport)
 {
   (void)rhport;

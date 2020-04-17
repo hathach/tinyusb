@@ -78,13 +78,6 @@ void dcd_set_address (uint8_t rhport, uint8_t dev_addr)
   (void) dev_addr;
 }
 
-// Receive Set Configure request
-void dcd_set_config (uint8_t rhport, uint8_t config_num)
-{
-  (void) rhport;
-  (void) config_num;
-}
-
 // Wake up host
 void dcd_remote_wakeup (uint8_t rhport)
 {
