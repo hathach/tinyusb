@@ -8,7 +8,7 @@
 import sys,struct,zlib,os
 from optparse import OptionParser
 
-DEFAULT_DEVICE="0x0483:0xdf11"
+DEFAULT_DEVICE="0x1209:0x5bf0"
 
 def named(tuple,names):
   return dict(zip(names.split(),tuple))
