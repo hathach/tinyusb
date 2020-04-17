@@ -209,10 +209,6 @@ void dcd_init (uint8_t rhport)
 
   // Enable USB transceiver.
   USB_OTG_FS->GCCFG |= USB_OTG_GCCFG_PWRDWN;
-
-  // Soft Connect -> Enable pullup on D+/D-.
-  // This step does not appear to be specified in the programmer's model.
-  dev->DCTL &= ~USB_OTG_DCTL_SDIS;
 }
 
 void dcd_int_enable (uint8_t rhport)
@@ -249,6 +245,23 @@ void dcd_remote_wakeup(uint8_t rhport)
 {
   (void) rhport;
 }
+
+void dcd_connect(uint8_t rhport)
+{
+  (void) rhport;
+  USB_OTG_DeviceTypeDef * dev = DEVICE_BASE;
+
+  dev->DCTL &= ~USB_OTG_DCTL_SDIS;
+}
+
+void dcd_disconnect(uint8_t rhport)
+{
+  (void) rhport;
+  USB_OTG_DeviceTypeDef * dev = DEVICE_BASE;
+
+  dev->DCTL |= USB_OTG_DCTL_SDIS;
+}
+
 
 /*------------------------------------------------------------------*/
 /* DCD Endpoint port
