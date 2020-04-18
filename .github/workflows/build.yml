@@ -20,7 +20,6 @@ jobs:
 
     - name: Build
       run: |
-        cd examples/device/cdc_msc_freertos
         docker run --rm -v $PWD:/project -w /project espressif/idf:latest python3 tools/build_esp32s.py
         exit 1
 
