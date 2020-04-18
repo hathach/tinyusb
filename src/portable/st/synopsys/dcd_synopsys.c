@@ -206,8 +206,9 @@ void dcd_init (uint8_t rhport)
   // (non zero-length packet), send STALL back and discard. Full speed.
   dev->DCFG |=  USB_OTG_DCFG_NZLSOHSK | (3 << USB_OTG_DCFG_DSPD_Pos);
 
-  USB_OTG_FS->GINTMSK |= USB_OTG_GINTMSK_USBRST | USB_OTG_GINTMSK_ENUMDNEM | USB_OTG_GINTMSK_USBSUSPM |
-    USB_OTG_GINTMSK_RXFLVLM | (USE_SOF ? USB_OTG_GINTMSK_SOFM : 0);
+  USB_OTG_FS->GINTMSK |= USB_OTG_GINTMSK_USBRST   | USB_OTG_GINTMSK_ENUMDNEM |
+                         USB_OTG_GINTMSK_USBSUSPM | USB_OTG_GINTMSK_WUIM     |
+                         USB_OTG_GINTMSK_RXFLVLM  | (USE_SOF ? USB_OTG_GINTMSK_SOFM : 0);
 
   // Enable USB transceiver.
   USB_OTG_FS->GCCFG |= USB_OTG_GCCFG_PWRDWN;
@@ -693,6 +694,12 @@ void dcd_int_handler(uint8_t rhport) {
   {
     USB_OTG_FS->GINTSTS = USB_OTG_GINTSTS_USBSUSP;
     dcd_event_bus_signal(0, DCD_EVENT_SUSPEND, true);
+  }
+
+  if(int_status & USB_OTG_GINTSTS_WKUINT)
+  {
+    USB_OTG_FS->GINTSTS = USB_OTG_GINTSTS_WKUINT;
+    dcd_event_bus_signal(0, DCD_EVENT_RESUME, true);
   }
 
   if(int_status & USB_OTG_GINTSTS_OTGINT)
