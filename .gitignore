@@ -11,6 +11,8 @@ latex
 *.elf
 *.ind
 .env
+.settings/
+.idea/
 /examples/*/*/build*
 test_old/
 tests_obsolete/
