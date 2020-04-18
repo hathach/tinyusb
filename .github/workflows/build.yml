@@ -3,9 +3,21 @@ name: Build
 on: [pull_request, push, repository_dispatch]
 
 jobs:
+  # Build ESP32S
+  build-esp32s-docker:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Setup Python
+      uses: actions/setup-python@v1
+
+    - name: failed
+      run: |
+        exit 1
+
   # Unit testing with Ceedling
   unit-test:
-    runs-on: ubuntu-latest    
+    runs-on: ubuntu-latest
+    needs: build-esp32s-docker
     steps:
     - name: Setup Ruby
       uses: actions/setup-ruby@v1
@@ -23,6 +35,7 @@ jobs:
   # Build most of the ports
   build:
     runs-on: ubuntu-latest
+    needs: build-esp32s-docker
     strategy:
       fail-fast: false
       matrix:
@@ -79,6 +92,7 @@ jobs:
   # Build ESP32S
   build-esp32s:
     runs-on: ubuntu-latest
+    needs: build-esp32s-docker
     steps:
     - name: Setup Python
       uses: actions/setup-python@v1
