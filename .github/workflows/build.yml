@@ -10,10 +10,19 @@ jobs:
     - name: Setup Python
       uses: actions/setup-python@v1
 
-    - name: failed
+    #- name: Docker ESP-IDF
+    #  run: docker pull espressif/idf:latest
+
+    - name: Checkout TinyUSB
+      uses: actions/checkout@v2
+      with:
+        submodules: 'false'
+
+    - name: Build
       run: |
-        docker --version
-        docker pull espressif/idf:latest
+        cd examples/device/cdc_msc_freertos
+        docker run --rm -v $PWD:/project -w /project espressif/idf:latest idf.py build
+        #python3 tools/build_esp32s.py
         exit 1
 
   # Unit testing with Ceedling
