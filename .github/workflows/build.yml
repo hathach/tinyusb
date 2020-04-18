@@ -3,30 +3,9 @@ name: Build
 on: [pull_request, push, repository_dispatch]
 
 jobs:
-  # Build ESP32S
-  build-esp32s-docker:
-    runs-on: ubuntu-latest
-    steps:
-    - name: Setup Python
-      uses: actions/setup-python@v1
-
-    - name: Pull ESP-IDF docker
-      run: docker pull espressif/idf:latest
-
-    - name: Checkout TinyUSB
-      uses: actions/checkout@v2
-      with:
-        submodules: 'false'
-
-    - name: Build
-      run: |
-        docker run --rm -v $PWD:/project -w /project espressif/idf:latest python3 tools/build_esp32s.py
-        exit 1
-
   # Unit testing with Ceedling
   unit-test:
     runs-on: ubuntu-latest
-    needs: build-esp32s-docker
     steps:
     - name: Setup Ruby
       uses: actions/setup-ruby@v1
@@ -44,7 +23,6 @@ jobs:
   # Build most of the ports
   build:
     runs-on: ubuntu-latest
-    needs: build-esp32s-docker
     strategy:
       fail-fast: false
       matrix:
@@ -101,16 +79,12 @@ jobs:
   # Build ESP32S
   build-esp32s:
     runs-on: ubuntu-latest
-    needs: build-esp32s-docker
     steps:
     - name: Setup Python
       uses: actions/setup-python@v1
 
-    - name: Install Toolchains
-      run: |
-        git clone --depth 1 https://github.com/espressif/esp-idf.git $HOME/esp-idf
-        cd $HOME/esp-idf
-        ./install.sh
+    - name: Pull ESP-IDF docker
+      run: docker pull espressif/idf:latest
 
     - name: Checkout TinyUSB
       uses: actions/checkout@v2
@@ -118,6 +92,4 @@ jobs:
         submodules: 'false'
 
     - name: Build
-      run: |
-        . $HOME/esp-idf/export.sh
-        python3 tools/build_esp32s.py
+      run: docker run --rm -v $PWD:/project -w /project espressif/idf:latest python3 tools/build_esp32s.py
