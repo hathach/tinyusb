@@ -13,6 +13,7 @@ jobs:
     - name: failed
       run: |
         docker --version
+        docker pull espressif/idf:latest
         exit 1
 
   # Unit testing with Ceedling
