@@ -7,26 +7,17 @@ assignees: ''
 
 ---
 
-**Describe the bug**
-A clear and concise description of what the bug is.
+**Set up (mandatory):**
+Provide details of your setup help us to reproduce the issue as quick as possible  
+ - **PC OS**   : Ubuntu 18.04 / Windows 10/ macOS 10.15 
+ - **Board**   : Feather nRF52840 Express
+ - **Firmware**: examples/device/cdc_msc
 
-**Set up (please complete the following information):**
- - OS: [e.g. Ubuntu 18.04]
- - Board: [e.g pca10056]
- - Firmware Code: [e.g examples/device/cdc_msc_hid]
+**Bug Description**
+Describe what the bug is.
 
-**To Reproduce**
+**Reproduce**
 Steps to reproduce the behavior:
 1. Go to '...'
 2. Click on '....'
-3. Scroll down to '....'
-4. See error
-
-**Expected behavior**
-A clear and concise description of what you expected to happen.
-
-**Screenshots**
-If applicable, add screenshots to help explain your problem.
-
-**Additional context**
-Add any other context about the problem here.
+3. See error

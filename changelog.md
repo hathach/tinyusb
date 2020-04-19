@@ -5,18 +5,34 @@
 ### Breaking
 
 - TinyUSB does not directly implement USB IRQ Handler function anymore. Application must implement IRQ Handler and invoke `tud_int_handler(rhport)`. This is due to:
-  
   - IRQ Handler name can be different across system depending on the startup
   - Some OS need to execute enterISR()/exitISR() to work properly, also tracing tool may need to insert trace ISR enter/exit to record usb event
   - Give application full control of IRQ handler, can be useful e.g signaling there is new usb event without constant polling
 
 ### MCU
 
+- Added support for Espressif ESP32-S2 and saola-1 board
 - All default IRQ Handler is renamed to `dcd_int_handler()`
+- STM32 Synopsys
+  - Bus events disconnection/suspend/resume are supported
+- Added `dcd_connect()` and `dcd_disconnect()` to enable/disable internal pullup on D+/D- on supported MCUs.
+- Added `dcd_edpt_close()` for STM32 FSDev
+
+### Device Stack
+
+- tud_cdc_n_write_flush() return number of bytes forced to transfer instead of bool
+- Support multiple configuration descriptors. `TUD_CONFIG_DESCRIPTOR()` template has extra config_num as 1st argument
+- Improve class driver management
+  - Driver detection is done by open() API
+  - IAD is handled to assign driver id
+- Improve Alternate Interface request with `SET_INTERFACE()` (not fully supported yet). 
+- Fixed CDC ZLP response #260
+- Remove ACM-EEM due to lack of support from host
 
 ### Others
 
-- tud_cdc_n_write_flush() return number of bytes forced to transfer instead of bool 
+- Added OPT_OS_CUMSTOM as hook for application to overwrite and/or add their own OS implementation
+- Enhanced `net_lwip_webserver` example with multiple configuration: RNDIS for Windows, CDC-ECM for macOS (Linux will work with both)
 
 ## 0.6.0 - 2019.03.30
 

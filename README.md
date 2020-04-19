@@ -32,7 +32,7 @@ The stack supports the following MCUs:
 
 - **Espressif:** ESP32-S2
 - **MicroChip:** SAMD21, SAMD51 (device only)
-- **NordicSemi:** nRF52840, nRF52833
+- **NordicSemi:** nRF52833, nRF52840
 - **Nuvoton:** NUC120, NUC121/NUC125, NUC126, NUC505
 - **NXP:** 
   - LPC Series: 11Uxx, 13xx, 175x_6x, 177x_8x, 18xx, 40xx, 43xx, 51Uxx, 54xxx, 55xx
@@ -52,7 +52,7 @@ Supports multiple device configurations by dynamically changing usb descriptors.
 - Human Interface Device (HID): Generic (In & Out), Keyboard, Mouse, Gamepad etc ...
 - Mass Storage Class (MSC): with multiple LUNs
 - Musical Instrument Digital Interface (MIDI)
-- Network with RNDIS, CDC-ECM, CDC-EEM (work in progress)
+- Network with RNDIS, CDC-ECM (work in progress)
 - USB Test and Measurement Class (USBTMC)
 - Vendor-specific class support with generic In & Out endpoints. Can be used with MS OS 2.0 compatible descriptor to load winUSB driver without INF file.
 - [WebUSB](https://github.com/WICG/webusb) with vendor-specific class
