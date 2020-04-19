@@ -806,6 +806,8 @@ static bool process_get_descriptor(uint8_t rhport, tusb_control_request_t const 
       uint16_t total_len;
       memcpy(&total_len, &desc_config->wTotalLength, 2); // possibly mis-aligned memory
 
+      tud_control_config(desc_index + 1);
+
       return tud_control_xfer(rhport, p_request, (void*) desc_config, total_len);
     }
     break;

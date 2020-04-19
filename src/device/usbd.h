@@ -87,6 +87,9 @@ bool tud_control_xfer(uint8_t rhport, tusb_control_request_t const * request, vo
 // Send STATUS (zero length) packet
 bool tud_control_status(uint8_t rhport, tusb_control_request_t const * request);
 
+// Pass configuration number for configuration descriptor
+void tud_control_config(uint8_t cfg_num);
+
 //--------------------------------------------------------------------+
 // Application Callbacks (WEAK is optional)
 //--------------------------------------------------------------------+

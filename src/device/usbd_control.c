@@ -53,6 +53,7 @@ static usbd_control_xfer_t _ctrl_xfer;
 
 CFG_TUSB_MEM_SECTION CFG_TUSB_MEM_ALIGN
 static uint8_t _usbd_ctrl_buf[CFG_TUD_ENDPOINT0_SIZE];
+static uint8_t _usbd_ctrl_cfg_num;
 
 //--------------------------------------------------------------------+
 // Application API
@@ -93,7 +94,13 @@ static bool _data_stage_xact(uint8_t rhport)
   if ( _ctrl_xfer.request.bmRequestType_bit.direction == TUSB_DIR_IN )
   {
     ep_addr = EDPT_CTRL_IN;
-    if ( xact_len ) memcpy(_usbd_ctrl_buf, _ctrl_xfer.buffer, xact_len);
+    if ( xact_len )
+    {
+      memcpy(_usbd_ctrl_buf, _ctrl_xfer.buffer, xact_len);
+      /* if non-zero, _usbd_ctrl_cfg_num will patch the configuration descriptor */
+      _usbd_ctrl_buf[5 /* bConfigurationValue */] |= _usbd_ctrl_cfg_num;
+      _usbd_ctrl_cfg_num = 0;
+    }
   }
 
   TU_LOG2("  XACT Control: 0x%02X, Bytes: %d\r\n", ep_addr, xact_len);
@@ -130,6 +137,11 @@ bool tud_control_xfer(uint8_t rhport, tusb_control_request_t const * request, vo
   }
 
   return true;
+}
+
+void tud_control_config(uint8_t cfg_num)
+{
+  _usbd_ctrl_cfg_num = cfg_num;
 }
 
 //--------------------------------------------------------------------+
