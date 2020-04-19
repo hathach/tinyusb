@@ -75,6 +75,11 @@
 /*------------------------------------------------------------------*/
 /* MACRO TYPEDEF CONSTANT ENUM
  *------------------------------------------------------------------*/
+
+// Since TinyUSB doesn't use SOF for now, and this interrupt too often (1ms interval)
+// We disable SOF for now until needed later on
+#define USE_SOF     0
+
 #define DEVICE_BASE     (USB_OTG_DeviceTypeDef *) (USB_OTG_FS_PERIPH_BASE + USB_OTG_DEVICE_BASE)
 #define OUT_EP_BASE     (USB_OTG_OUTEndpointTypeDef *) (USB_OTG_FS_PERIPH_BASE + USB_OTG_OUT_ENDPOINT_BASE)
 #define IN_EP_BASE      (USB_OTG_INEndpointTypeDef *) (USB_OTG_FS_PERIPH_BASE + USB_OTG_IN_ENDPOINT_BASE)
@@ -187,15 +192,13 @@ void dcd_init (uint8_t rhport)
   // TODO: PHYSEL is read-only on some cores (STM32F407). Worth gating?
   USB_OTG_FS->GUSBCFG |= (0x06 << USB_OTG_GUSBCFG_TRDT_Pos) | USB_OTG_GUSBCFG_PHYSEL;
 
-  // Clear all used interrupts
-  USB_OTG_FS->GINTSTS |= USB_OTG_GINTSTS_OTGINT | USB_OTG_GINTSTS_MMIS | \
-    USB_OTG_GINTSTS_USBRST | USB_OTG_GINTSTS_ENUMDNE | \
-    USB_OTG_GINTSTS_ESUSP | USB_OTG_GINTSTS_USBSUSP | USB_OTG_GINTSTS_SOF;
+  // Clear all interrupts
+  USB_OTG_FS->GINTSTS |= USB_OTG_FS->GINTSTS;
 
-  // Required as part of core initialization. Disable OTGINT as we don't use
-  // it right now. TODO: How should mode mismatch be handled? It will cause
+  // Required as part of core initialization.
+  // TODO: How should mode mismatch be handled? It will cause
   // the core to stop working/require reset.
-  USB_OTG_FS->GINTMSK |= /* USB_OTG_GINTMSK_OTGINT | */ USB_OTG_GINTMSK_MMISM;
+  USB_OTG_FS->GINTMSK |= USB_OTG_GINTMSK_OTGINT | USB_OTG_GINTMSK_MMISM;
 
   USB_OTG_DeviceTypeDef * dev = DEVICE_BASE;
 
@@ -203,9 +206,9 @@ void dcd_init (uint8_t rhport)
   // (non zero-length packet), send STALL back and discard. Full speed.
   dev->DCFG |=  USB_OTG_DCFG_NZLSOHSK | (3 << USB_OTG_DCFG_DSPD_Pos);
 
-  USB_OTG_FS->GINTMSK |= USB_OTG_GINTMSK_USBRST | USB_OTG_GINTMSK_ENUMDNEM | \
-    USB_OTG_GINTMSK_SOFM | USB_OTG_GINTMSK_RXFLVLM /* SB_OTG_GINTMSK_ESUSPM | \
-    USB_OTG_GINTMSK_USBSUSPM */;
+  USB_OTG_FS->GINTMSK |= USB_OTG_GINTMSK_USBRST   | USB_OTG_GINTMSK_ENUMDNEM |
+                         USB_OTG_GINTMSK_USBSUSPM | USB_OTG_GINTMSK_WUIM     |
+                         USB_OTG_GINTMSK_RXFLVLM  | (USE_SOF ? USB_OTG_GINTMSK_SOFM : 0);
 
   // Enable USB transceiver.
   USB_OTG_FS->GCCFG |= USB_OTG_GCCFG_PWRDWN;
@@ -687,22 +690,56 @@ void dcd_int_handler(uint8_t rhport) {
     dcd_event_bus_signal(0, DCD_EVENT_BUS_RESET, true);
   }
 
+  if(int_status & USB_OTG_GINTSTS_USBSUSP)
+  {
+    USB_OTG_FS->GINTSTS = USB_OTG_GINTSTS_USBSUSP;
+    dcd_event_bus_signal(0, DCD_EVENT_SUSPEND, true);
+  }
+
+  if(int_status & USB_OTG_GINTSTS_WKUINT)
+  {
+    USB_OTG_FS->GINTSTS = USB_OTG_GINTSTS_WKUINT;
+    dcd_event_bus_signal(0, DCD_EVENT_RESUME, true);
+  }
+
+  if(int_status & USB_OTG_GINTSTS_OTGINT)
+  {
+    // OTG INT bit is read-only
+    uint32_t const otg_int = USB_OTG_FS->GOTGINT;
+
+    if (otg_int & USB_OTG_GOTGINT_SEDET)
+    {
+      dcd_event_bus_signal(0, DCD_EVENT_UNPLUGGED, true);
+    }
+
+    USB_OTG_FS->GOTGINT = otg_int;
+  }
+
+#if USE_SOF
   if(int_status & USB_OTG_GINTSTS_SOF) {
     USB_OTG_FS->GINTSTS = USB_OTG_GINTSTS_SOF;
     dcd_event_bus_signal(0, DCD_EVENT_SOF, true);
   }
+#endif
 
   if(int_status & USB_OTG_GINTSTS_RXFLVL) {
+    // RXFLVL bit is read-only
+
+    // Mask out RXFLVL while reading data from FIFO
+    USB_OTG_FS->GINTMSK &= ~USB_OTG_GINTMSK_RXFLVLM;
     read_rx_fifo(out_ep);
+    USB_OTG_FS->GINTMSK |= USB_OTG_GINTMSK_RXFLVLM;
   }
 
   // OUT endpoint interrupt handling.
   if(int_status & USB_OTG_GINTSTS_OEPINT) {
+    // OEPINT is read-only
     handle_epout_ints(dev, out_ep);
   }
 
   // IN endpoint interrupt handling.
   if(int_status & USB_OTG_GINTSTS_IEPINT) {
+    // IEPINT bit read-only
     handle_epin_ints(dev, in_ep);
   }
 }

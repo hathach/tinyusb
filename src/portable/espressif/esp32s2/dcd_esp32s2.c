@@ -179,7 +179,8 @@ void dcd_init(uint8_t rhport)
   USB0.gintmsk = 0;   //mask all
   USB0.gotgint = ~0U; //clear OTG ints
   USB0.gintsts = ~0U; //clear pending ints
-  USB0.gintmsk = USB_MODEMISMSK_M  |
+  USB0.gintmsk = USB_OTGINTMSK_M   |
+                 USB_MODEMISMSK_M  |
           #if USE_SOF
                  USB_SOFMSK_M      |
           #endif
@@ -189,7 +190,7 @@ void dcd_init(uint8_t rhport)
                  USB_USBRSTMSK_M   |
                  USB_ENUMDONEMSK_M |
                  USB_RESETDETMSK_M |
-                 USB_DISCONNINTMSK_M;
+                 USB_DISCONNINTMSK_M; // host most only
 }
 
 void dcd_set_address(uint8_t rhport, uint8_t dev_addr)
@@ -638,12 +639,6 @@ static void _dcd_int_handler(void* arg)
   const uint32_t int_status = USB0.gintsts;
   //const uint32_t int_msk = USB0.gintmsk;
 
-  if (int_status & USB_DISCONNINT_M) {
-    ESP_EARLY_LOGV(TAG, "dcd_int_handler - disconnected");
-    USB0.gintsts = USB_DISCONNINT_M;
-    dcd_event_bus_signal(0, DCD_EVENT_UNPLUGGED, true);
-  }
-
   if (int_status & USB_USBRST_M) {
     // start of reset
     ESP_EARLY_LOGV(TAG, "dcd_int_handler - reset");
@@ -666,6 +661,21 @@ static void _dcd_int_handler(void* arg)
     dcd_event_bus_signal(0, DCD_EVENT_BUS_RESET, true);
   }
 
+  if (int_status & USB_OTGINT_M)
+  {
+    // OTG INT bit is read-only
+    ESP_EARLY_LOGV(TAG, "dcd_int_handler - disconnected");
+
+    uint32_t const otg_int = USB0.gotgint;
+
+    if (otg_int & USB_SESENDDET_M)
+    {
+      dcd_event_bus_signal(0, DCD_EVENT_UNPLUGGED, true);
+    }
+
+    USB0.gotgint = otg_int;
+  }
+
 #if USE_SOF
   if (int_status & USB_SOF_M) {
     USB0.gintsts = USB_SOF_M;
@@ -674,26 +684,25 @@ static void _dcd_int_handler(void* arg)
 #endif
 
   if (int_status & USB_RXFLVI_M) {
+    // RXFLVL bit is read-only
     ESP_EARLY_LOGV(TAG, "dcd_int_handler - rx!");
-    USB0.gintsts = USB_RXFLVI_M;
 
-    // disable RXFLVI interrupt until we read data from FIFO
+    // Mask out RXFLVL while reading data from FIFO
     USB0.gintmsk &= ~USB_RXFLVIMSK_M;
-
     read_rx_fifo();
-
-    // re-enable RXFLVI
     USB0.gintmsk |= USB_RXFLVIMSK_M;
   }
 
   // OUT endpoint interrupt handling.
   if (int_status & USB_OEPINT_M) {
+    // OEPINT is read-only
     ESP_EARLY_LOGV(TAG, "dcd_int_handler - OUT endpoint!");
     handle_epout_ints();
   }
 
   // IN endpoint interrupt handling.
   if (int_status & USB_IEPINT_M) {
+    // IEPINT bit read-only
     ESP_EARLY_LOGV(TAG, "dcd_int_handler - IN endpoint!");
     handle_epin_ints();
   }
