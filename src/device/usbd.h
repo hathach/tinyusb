@@ -249,37 +249,61 @@ TU_ATTR_WEAK bool tud_vendor_control_complete_cb(uint8_t rhport, tusb_control_re
 
 //------------- MIDI -------------//
 
-// Length of template descriptor (96 bytes)
-#define TUD_MIDI_DESC_LEN (9 + 9 + 9 + 7 + 6 + 6 + 9 + 9 + 7 + 5 + 7 + 5)
+#define TUD_MIDI_DESC_HEAD_LEN (9 + 9 + 9 + 7)
+#define TUD_MIDI_DESC_HEAD(_itfnum,  _stridx, _numcables) \
+  /* Audio Control (AC) Interface */\
+  9, TUSB_DESC_INTERFACE, _itfnum, 0, 0, TUSB_CLASS_AUDIO, AUDIO_SUBCLASS_CONTROL, AUDIO_PROTOCOL_V1, _stridx,\
+  /* AC Header */\
+  9, TUSB_DESC_CS_INTERFACE, AUDIO_CS_INTERFACE_HEADER, U16_TO_U8S_LE(0x0100), U16_TO_U8S_LE(0x0009), 1, (uint8_t)((_itfnum) + 1),\
+  /* MIDI Streaming (MS) Interface */\
+  9, TUSB_DESC_INTERFACE, (uint8_t)((_itfnum) + 1), 0, 2, TUSB_CLASS_AUDIO, AUDIO_SUBCLASS_MIDI_STREAMING, AUDIO_PROTOCOL_V1, 0,\
+  /* MS Header */\
+  7, TUSB_DESC_CS_INTERFACE, MIDI_CS_INTERFACE_HEADER, U16_TO_U8S_LE(0x0100), U16_TO_U8S_LE(7 + (_numcables) * TUD_MIDI_DESC_JACK_LEN)
+
+#define TUD_MIDI_JACKID_IN_EMB(_cablenum) \
+  (uint8_t)(((_cablenum) - 1) * 4 + 1)
+
+#define TUD_MIDI_JACKID_IN_EXT(_cablenum) \
+  (uint8_t)(((_cablenum) - 1) * 4 + 2)
+
+#define TUD_MIDI_JACKID_OUT_EMB(_cablenum) \
+  (uint8_t)(((_cablenum) - 1) * 4 + 3)
+
+#define TUD_MIDI_JACKID_OUT_EXT(_cablenum) \
+  (uint8_t)(((_cablenum) - 1) * 4 + 4)
+
+#define TUD_MIDI_DESC_JACK_LEN (6 + 6 + 9 + 9)
+#define TUD_MIDI_DESC_JACK(_cablenum) \
+  /* MS In Jack (Embedded) */\
+  6, TUSB_DESC_CS_INTERFACE, MIDI_CS_INTERFACE_IN_JACK, MIDI_JACK_EMBEDDED, TUD_MIDI_JACKID_IN_EMB(_cablenum), 0,\
+  /* MS In Jack (External) */\
+  6, TUSB_DESC_CS_INTERFACE, MIDI_CS_INTERFACE_IN_JACK, MIDI_JACK_EXTERNAL, TUD_MIDI_JACKID_IN_EXT(_cablenum), 0,\
+  /* MS Out Jack (Embedded), connected to In Jack External */\
+  9, TUSB_DESC_CS_INTERFACE, MIDI_CS_INTERFACE_OUT_JACK, MIDI_JACK_EMBEDDED, TUD_MIDI_JACKID_OUT_EMB(_cablenum), 1, TUD_MIDI_JACKID_IN_EXT(_cablenum), 1, 0,\
+  /* MS Out Jack (External), connected to In Jack Embedded */\
+  9, TUSB_DESC_CS_INTERFACE, MIDI_CS_INTERFACE_OUT_JACK, MIDI_JACK_EXTERNAL, TUD_MIDI_JACKID_OUT_EXT(_cablenum), 1, TUD_MIDI_JACKID_IN_EMB(_cablenum), 1, 0
+
+#define TUD_MIDI_DESC_EP_LEN(_numcables) (7 + 4 + (_numcables))
+#define TUD_MIDI_DESC_EP(_epout, _epsize, _numcables) \
+  /* Endpoint */\
+  7, TUSB_DESC_ENDPOINT, _epout, TUSB_XFER_BULK, U16_TO_U8S_LE(_epsize), 0,\
+  /* MS Endpoint (connected to embedded jack) */\
+  (uint8_t)(4 + (_numcables)), TUSB_DESC_CS_ENDPOINT, MIDI_CS_ENDPOINT_GENERAL, _numcables
+
+// Length of template descriptor (88 bytes)
+#define TUD_MIDI_DESC_LEN (TUD_MIDI_DESC_HEAD_LEN + TUD_MIDI_DESC_JACK_LEN + TUD_MIDI_DESC_EP_LEN(1) * 2)
 
 // MIDI simple descriptor
 // - 1 Embedded Jack In connected to 1 External Jack Out
 // - 1 Embedded Jack out connected to 1 External Jack In
 #define TUD_MIDI_DESCRIPTOR(_itfnum, _stridx, _epout, _epin, _epsize) \
-  /* Audio Control (AC) Interface */\
-  9, TUSB_DESC_INTERFACE, _itfnum, 0, 0, TUSB_CLASS_AUDIO, AUDIO_SUBCLASS_CONTROL, AUDIO_PROTOCOL_V1, _stridx,\
-  /* AC Header */\
-  9, TUSB_DESC_CS_INTERFACE, AUDIO_CS_INTERFACE_HEADER, U16_TO_U8S_LE(0x0100), U16_TO_U8S_LE(0x0009), 1, (uint8_t)((_itfnum)+1),\
-  /* MIDI Streaming (MS) Interface */\
-  9, TUSB_DESC_INTERFACE, (uint8_t)((_itfnum)+1), 0, 2, TUSB_CLASS_AUDIO, AUDIO_SUBCLASS_MIDI_STREAMING, AUDIO_PROTOCOL_V1, 0,\
-  /* MS Header */\
-  7, TUSB_DESC_CS_INTERFACE, MIDI_CS_INTERFACE_HEADER, U16_TO_U8S_LE(0x0100), U16_TO_U8S_LE(0x0025),\
-  /* MS In Jack (Embedded) */\
-  6, TUSB_DESC_CS_INTERFACE, MIDI_CS_INTERFACE_IN_JACK, MIDI_JACK_EMBEDDED, 1, 0,\
-  /* MS In Jack (External) */\
-  6, TUSB_DESC_CS_INTERFACE, MIDI_CS_INTERFACE_IN_JACK, MIDI_JACK_EXTERNAL, 2, 0,\
-  /* MS Out Jack (Embedded), connected to In Jack External */\
-  9, TUSB_DESC_CS_INTERFACE, MIDI_CS_INTERFACE_OUT_JACK, MIDI_JACK_EMBEDDED, 3, 1, 2, 1, 0,\
-  /* MS Out Jack (External), connected to In Jack Embedded */\
-  9, TUSB_DESC_CS_INTERFACE, MIDI_CS_INTERFACE_OUT_JACK, MIDI_JACK_EXTERNAL, 4, 1, 1, 1, 0,\
-  /* Endpoint Out */\
-  7, TUSB_DESC_ENDPOINT, _epout, TUSB_XFER_BULK, U16_TO_U8S_LE(_epsize), 0,\
-  /* MS Endpoint (connected to embedded jack in) */\
-  5, TUSB_DESC_CS_ENDPOINT, MIDI_CS_ENDPOINT_GENERAL, 1, 1,\
-  /* Endpoint In */\
-  7, TUSB_DESC_ENDPOINT, _epin, TUSB_XFER_BULK, U16_TO_U8S_LE(_epsize), 0,\
-  /* MS Endpoint (connected to embedded jack out) */\
-  5, TUSB_DESC_CS_ENDPOINT, MIDI_CS_ENDPOINT_GENERAL, 1, 3
+  TUD_MIDI_DESC_HEAD(_itfnum, _stridx, 1),\
+  TUD_MIDI_DESC_JACK(1),\
+  TUD_MIDI_DESC_EP(_epout, _epsize, 1),\
+  TUD_MIDI_JACKID_IN_EMB(1),\
+  TUD_MIDI_DESC_EP(_epin, _epsize, 1),\
+  TUD_MIDI_JACKID_OUT_EMB(1)
+
 
 //------------- TUD_USBTMC/USB488 -------------//
 #define TUD_USBTMC_APP_CLASS    (TUSB_CLASS_APPLICATION_SPECIFIC)
