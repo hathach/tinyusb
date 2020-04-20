@@ -450,7 +450,7 @@ void tud_task (void)
 // Helper to invoke class driver control request handler
 static bool invoke_class_control(uint8_t rhport, uint8_t drvid, tusb_control_request_t const * request)
 {
-  TU_ASSERT(_usbd_driver[drvid].control_request);
+  TU_VERIFY(_usbd_driver[drvid].control_request);
 
   usbd_control_set_complete_callback(_usbd_driver[drvid].control_complete);
   TU_LOG2("  %s control request\r\n", _usbd_driver[drvid].name);
@@ -463,7 +463,7 @@ static bool process_control_request(uint8_t rhport, tusb_control_request_t const
 {
   usbd_control_set_complete_callback(NULL);
 
-  TU_ASSERT(p_request->bmRequestType_bit.type < TUSB_REQ_TYPE_INVALID);
+  TU_VERIFY(p_request->bmRequestType_bit.type < TUSB_REQ_TYPE_INVALID);
 
   // Vendor request
   if ( p_request->bmRequestType_bit.type == TUSB_REQ_TYPE_VENDOR )
@@ -801,7 +801,7 @@ static bool process_get_descriptor(uint8_t rhport, tusb_control_request_t const 
     case TUSB_DESC_CONFIGURATION:
     {
       tusb_desc_configuration_t const* desc_config = (tusb_desc_configuration_t const*) tud_descriptor_configuration_cb(desc_index);
-      TU_ASSERT(desc_config);
+      TU_VERIFY(desc_config);
 
       uint16_t total_len;
       memcpy(&total_len, &desc_config->wTotalLength, 2); // possibly mis-aligned memory
@@ -817,10 +817,11 @@ static bool process_get_descriptor(uint8_t rhport, tusb_control_request_t const 
         // The 0xEE index string is a Microsoft OS Descriptors.
         // https://docs.microsoft.com/en-us/windows-hardware/drivers/usbcon/microsoft-defined-usb-descriptors
         return false;
-      }else
+      }
+      else
       {
         uint8_t const* desc_str = (uint8_t const*) tud_descriptor_string_cb(desc_index, p_request->wIndex);
-        TU_ASSERT(desc_str);
+        TU_VERIFY(desc_str);
 
         // first byte of descriptor is its size
         return tud_control_xfer(rhport, p_request, (void*) desc_str, desc_str[0]);
