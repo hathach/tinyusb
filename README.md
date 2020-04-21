@@ -73,10 +73,6 @@ TinyUSB is completely thread-safe by pushing all ISR events into a central queue
 - **FreeRTOS**
 - **Mynewt** Due to the newt package build system, Mynewt examples are better to be on its [own repo](https://github.com/hathach/mynewt-tinyusb-example) 
 
-## Compiler & IDE
-
-The stack is developed with GCC compiler and should be compilable with others. The `examples` folder provides Makefile and Segger Embedded Studio build support. [Here are example build instructions](examples/readme.md).
-
 ## Getting Started
 
 [Here are the details for getting started](docs/getting_started.md) with the stack.
