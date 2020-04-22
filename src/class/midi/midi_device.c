@@ -85,6 +85,19 @@ bool tud_midi_n_mounted (uint8_t itf)
   return midi->ep_in && midi->ep_out;
 }
 
+static void _prep_out_transaction (midid_interface_t* p_midi)
+{
+  // skip if previous transfer not complete
+  if ( usbd_edpt_busy(TUD_OPT_RHPORT, p_midi->ep_out) ) return;
+
+  // Prepare for incoming data but only allow what we can store in the ring buffer.
+  uint16_t max_read = tu_fifo_remaining(&p_midi->rx_ff);
+  if ( max_read >= CFG_TUD_MIDI_EPSIZE )
+  {
+    usbd_edpt_xfer(TUD_OPT_RHPORT, p_midi->ep_out, p_midi->epout_buf, CFG_TUD_MIDI_EPSIZE);
+  }
+}
+
 //--------------------------------------------------------------------+
 // READ API
 //--------------------------------------------------------------------+
@@ -138,11 +151,17 @@ void tud_midi_n_read_flush (uint8_t itf, uint8_t jack_id)
 {
   (void) jack_id;
   tu_fifo_clear(&_midid_itf[itf].rx_ff);
+
+  if (tud_ready() && &_midid_itf[itf].ep_out != 0)
+    _prep_out_transaction(&_midid_itf[itf]);
 }
 
 bool tud_midi_n_receive (uint8_t itf, uint8_t packet[4])
 {
-  return tu_fifo_read_n(&_midid_itf[itf].rx_ff, packet, 4);
+  if (tud_ready() && &_midid_itf[itf].ep_out != 0)
+    _prep_out_transaction(&_midid_itf[itf]);
+
+  return tu_fifo_read_n(&_midid_itf[itf].rx_ff, packet, 4) == 4;
 }
 
 void midi_rx_done_cb(midid_interface_t* midi, uint8_t const* buffer, uint32_t bufsize) {
@@ -267,8 +286,8 @@ void midid_init(void)
     midid_interface_t* midi = &_midid_itf[i];
 
     // config fifo
-    tu_fifo_config(&midi->rx_ff, midi->rx_ff_buf, CFG_TUD_MIDI_RX_BUFSIZE, 1, true);
-    tu_fifo_config(&midi->tx_ff, midi->tx_ff_buf, CFG_TUD_MIDI_TX_BUFSIZE, 1, true);
+    tu_fifo_config(&midi->rx_ff, midi->rx_ff_buf, CFG_TUD_MIDI_RX_BUFSIZE, 1, false);
+    tu_fifo_config(&midi->tx_ff, midi->tx_ff_buf, CFG_TUD_MIDI_TX_BUFSIZE, 1, false);
 
     #if CFG_FIFO_MUTEX
     tu_fifo_config_mutex(&midi->rx_ff, osal_mutex_create(&midi->rx_ff_mutex));
@@ -358,7 +377,7 @@ bool midid_open(uint8_t rhport, tusb_desc_interface_t const * desc_itf, uint16_t
   *p_length = drv_len;
 
   // Prepare for incoming data
-  TU_ASSERT( usbd_edpt_xfer(rhport, p_midi->ep_out, p_midi->epout_buf, CFG_TUD_MIDI_EPSIZE), false);
+  _prep_out_transaction(p_midi);
 
   return true;
 }
@@ -381,6 +400,7 @@ bool midid_control_request(uint8_t rhport, tusb_control_request_t const * p_requ
 
 bool midid_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint32_t xferred_bytes)
 {
+  (void) rhport;
   (void) result;
 
   uint8_t itf = 0;
@@ -399,7 +419,8 @@ bool midid_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint32
     midi_rx_done_cb(p_midi, p_midi->epout_buf, xferred_bytes);
 
     // prepare for next
-    TU_ASSERT( usbd_edpt_xfer(rhport, p_midi->ep_out, p_midi->epout_buf, CFG_TUD_MIDI_EPSIZE), false );
+    _prep_out_transaction(p_midi);
+
   } else if ( ep_addr == p_midi->ep_in ) {
     maybe_transmit(p_midi, itf);
   }

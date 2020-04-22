@@ -91,7 +91,7 @@ typedef struct
   bool (* control_request  ) (uint8_t rhport, tusb_control_request_t const * request);
   bool (* control_complete ) (uint8_t rhport, tusb_control_request_t const * request);
   bool (* xfer_cb          ) (uint8_t rhport, uint8_t ep_addr, xfer_result_t event, uint32_t xferred_bytes);
-  void (* sof              ) (uint8_t rhport);
+  void (* sof              ) (uint8_t rhport); /* optional */
 } usbd_class_driver_t;
 
 static usbd_class_driver_t const _usbd_driver[] =
@@ -450,8 +450,6 @@ void tud_task (void)
 // Helper to invoke class driver control request handler
 static bool invoke_class_control(uint8_t rhport, uint8_t drvid, tusb_control_request_t const * request)
 {
-  TU_ASSERT(_usbd_driver[drvid].control_request);
-
   usbd_control_set_complete_callback(_usbd_driver[drvid].control_complete);
   TU_LOG2("  %s control request\r\n", _usbd_driver[drvid].name);
   return _usbd_driver[drvid].control_request(rhport, request);
@@ -817,7 +815,8 @@ static bool process_get_descriptor(uint8_t rhport, tusb_control_request_t const 
         // The 0xEE index string is a Microsoft OS Descriptors.
         // https://docs.microsoft.com/en-us/windows-hardware/drivers/usbcon/microsoft-defined-usb-descriptors
         return false;
-      }else
+      }
+      else
       {
         uint8_t const* desc_str = (uint8_t const*) tud_descriptor_string_cb(desc_index, p_request->wIndex);
         TU_ASSERT(desc_str);
