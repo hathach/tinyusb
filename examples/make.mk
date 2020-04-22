@@ -80,7 +80,7 @@ ifneq ($(LOG),)
   CFLAGS += -DCFG_TUSB_DEBUG=$(LOG)
 endif
 
-# Logger: default is UART, can be set to RTT
+# Logger: default is uart, can be set to rtt or swo
 ifeq ($(LOGGER),rtt)
 	RTT_SRC = lib/SEGGER_RTT
 	
@@ -88,4 +88,8 @@ ifeq ($(LOGGER),rtt)
   INC   += $(TOP)/$(RTT_SRC)/RTT
   SRC_C += $(RTT_SRC)/RTT/SEGGER_RTT_printf.c
   SRC_C += $(RTT_SRC)/RTT/SEGGER_RTT.c
+  
+else ifeq ($(LOGGER),swo)
+	CFLAGS += -DLOGGER_SWO
+
 endif

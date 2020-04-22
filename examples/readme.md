@@ -44,13 +44,23 @@ $ make LOG=2 BOARD=feather_nrf52840_express all
 
 ### Logger
 
-By default log message is printed via on-board UART which is slow and take lots of CPU time comparing to USB speed. If your board support on-board/external JLink debugger, it would be more efficient to use it with [RTT protocol](https://www.segger.com/products/debug-probes/j-link/technology/about-real-time-transfer/) for logging. To do that add option `LOGGER=rtt` to build command e.g
+By default log message is printed via on-board UART which is slow and take lots of CPU time comparing to USB speed. If your board support on-board/external debugger, it would be more efficient to use it for logging. There are 2 protocols: 
+
+- `LOGGER=rtt`: use [Segger RTT protocol](https://www.segger.com/products/debug-probes/j-link/technology/about-real-time-transfer/)   
+  - Cons: requires jlink as the debugger.
+  - Pros: work with most if not all MCUs
+  - Software viewer is JLink RTT Viewer/Client/Logger which is bundled with JLink driver package.
+- `LOGGER=swo`: Use dedicated SWO pin of ARM Cortex SWD debug header.
+  - Cons: only work with ARM Cortex MCUs minus M0
+  - Pros: even faster than RTT, and should be compatible with hardware and software debugger that support SWO.
+  - Software viewer is JLink SWO Viewer which is also bundled with JLink driver package.
 
 ```
 $ make LOG=2 LOGGER=rtt BOARD=feather_nrf52840_express all
+$ make LOG=2 LOGGER=swo BOARD=feather_nrf52840_express all
 ```
 
-The log can be retrieved by JLink RTT Viewer/Client/Logger software which is bundled with their JLink driver.
+The log can be retrieved by
 
 ## Flash
 
