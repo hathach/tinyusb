@@ -52,8 +52,8 @@ By default log message is printed via on-board UART which is slow and take lots 
   - Software viewer is JLink RTT Viewer/Client/Logger which is bundled with JLink driver package.
 - `LOGGER=swo`: Use dedicated SWO pin of ARM Cortex SWD debug header.
   - Cons: only work with ARM Cortex MCUs minus M0
-  - Pros: even faster than RTT, and should be compatible with hardware and software debugger that support SWO.
-  - Software viewer is JLink SWO Viewer which is also bundled with JLink driver package.
+  - Pros: should be compatible with more debugger that support SWO.
+  - Software viewer should be provided along with your debugger driver.
 
 ```
 $ make LOG=2 LOGGER=rtt BOARD=feather_nrf52840_express all

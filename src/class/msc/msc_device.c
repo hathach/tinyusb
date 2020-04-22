@@ -605,6 +605,8 @@ bool mscd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t event, uint32_t
     else
     {
       // Invoke complete callback if defined
+      // Note: There is racing issue with samd51 + qspi flash testing with arduino
+      // if complete_cb() is invoked after queuing the status.
       switch(p_cbw->command[0])
       {
         case SCSI_CMD_READ_10:
