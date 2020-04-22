@@ -32,25 +32,31 @@
   #define sys_write   _write
   #define sys_read    _read
 #endif
+
 //--------------------------------------------------------------------+
-// MACRO TYPEDEF CONSTANT ENUM DECLARATION
-//--------------------------------------------------------------------+
-
-//#if CFG_PRINTF_TARGET == PRINTF_TARGET_UART
-//  #define retarget_getchar    board_uart_getchar
-//  #define retarget_putchar    board_uart_putchar
-//#elif CFG_PRINTF_TARGET == PRINTF_TARGET_SWO
-//  volatile int32_t ITM_RxBuffer;  // keil variable to read from SWO
-//	#define retarget_getchar    ITM_ReceiveChar
-//	#define retarget_putchar    ITM_SendChar
-//#else
-//	#error Target is not implemented yet
-//#endif
-
-//------------- IMPLEMENTATION -------------//
-
 // newlib read()/write() retarget
+//--------------------------------------------------------------------+
 
+#ifdef LOGGER_RTT
+
+#include "SEGGER_RTT.h"
+
+TU_ATTR_USED int sys_write (int fhdl, const void *buf, size_t count)
+{
+  (void) fhdl;
+  SEGGER_RTT_Write(0, (char*) buf, (int) count);
+  return count;
+}
+
+TU_ATTR_USED int sys_read (int fhdl, char *buf, size_t count)
+{
+  (void) fhdl;
+  return SEGGER_RTT_Read(0, buf, count);
+}
+
+#else
+
+// Default logger is on-board UART
 TU_ATTR_USED int sys_write (int fhdl, const void *buf, size_t count)
 {
   (void) fhdl;
@@ -62,3 +68,5 @@ TU_ATTR_USED int sys_read (int fhdl, char *buf, size_t count)
   (void) fhdl;
   return board_uart_read((uint8_t*) buf, count);
 }
+
+#endif

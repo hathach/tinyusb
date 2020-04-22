@@ -4,8 +4,6 @@
 
 ```
 git clone git@github.com:hathach/tinyusb.git tinyusb
-cd tinyusb
-git submodule update --init
 ```
 
 *examples* is the folder where all the application & project files are located. There are demos for both device and hosts. For each, there are different projects for each of supported RTOS. Click to have more information on how to [build](../examples/readme.md) and run [device](../examples/device/readme.md) demos.

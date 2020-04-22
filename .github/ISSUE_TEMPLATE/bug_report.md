@@ -23,4 +23,4 @@ Steps to reproduce the behavior:
 3. See error
 
 **Log & screenshots**
-If applicable, add screenshots and TinyUSB's log to help explain your problem. To enable logging, add `LOG=2` to your make command if building with stock examples or set `CFG_TUSB_DEBUG=2` in your tusb_config.h.  
+If applicable, add screenshots and TinyUSB's log to help explain your problem. To enable logging, add `LOG=2` to your make command if building with stock examples or set `CFG_TUSB_DEBUG=2` in your tusb_config.h. More information can be found at [example's readme](/examples/readme.md)
