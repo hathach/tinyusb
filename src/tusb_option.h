@@ -75,17 +75,21 @@
 #define OPT_MCU_CXD56             400 ///< SONY CXD56
 
 // TI MSP430
-#define OPT_MCU_MSP430x5xx    500 ///< TI MSP430x5xx
+#define OPT_MCU_MSP430x5xx        500 ///< TI MSP430x5xx
 
+// ValentyUSB eptri
 #define OPT_MCU_VALENTYUSB_EPTRI  600 ///< Fomu eptri config
 
+// NXP iMX RT
 #define OPT_MCU_MIMXRT10XX        700 ///< NXP iMX RT10xx
 
+// Nuvoton
 #define OPT_MCU_NUC121            800
 #define OPT_MCU_NUC126            801
 #define OPT_MCU_NUC120            802
 #define OPT_MCU_NUC505            803
 
+// Espressif
 #define OPT_MCU_ESP32S2           900 ///< Espressif ESP32-S2
 
 /** @} */

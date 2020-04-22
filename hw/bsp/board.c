@@ -37,7 +37,8 @@
 // newlib read()/write() retarget
 //--------------------------------------------------------------------+
 
-#ifdef LOGGER_RTT
+#if defined(LOGGER_RTT)
+// Logging with RTT
 
 #include "SEGGER_RTT.h"
 
@@ -54,9 +55,31 @@ TU_ATTR_USED int sys_read (int fhdl, char *buf, size_t count)
   return SEGGER_RTT_Read(0, buf, count);
 }
 
+#elif defined(LOGGER_SWO)
+// Logging with SWO for ARM Cortex
+
+#include "board_mcu.h"
+
+TU_ATTR_USED int sys_write (int fhdl, const void *buf, size_t count)
+{
+  (void) fhdl;
+  uint8_t const* buf8 = (uint8_t const*) buf;
+  for(size_t i=0; i<count; i++)
+  {
+    ITM_SendChar(buf8[i]);
+  }
+  return count;
+}
+
+TU_ATTR_USED int sys_read (int fhdl, char *buf, size_t count)
+{
+  (void) fhdl;
+  return 0;
+}
+
 #else
 
-// Default logger is on-board UART
+// Default logging with on-board UART
 TU_ATTR_USED int sys_write (int fhdl, const void *buf, size_t count)
 {
   (void) fhdl;
