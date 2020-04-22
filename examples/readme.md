@@ -60,8 +60,6 @@ $ make LOG=2 LOGGER=rtt BOARD=feather_nrf52840_express all
 $ make LOG=2 LOGGER=swo BOARD=feather_nrf52840_express all
 ```
 
-The log can be retrieved by
-
 ## Flash
 
 `flash` target will use the default on-board debugger (jlink/cmsisdap/stlink/dfu) to flash the binary, please install those support software in advance. Some board use bootloader/DFU via serial which is required to pass to make command
