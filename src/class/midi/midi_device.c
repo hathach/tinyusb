@@ -88,13 +88,14 @@ bool tud_midi_n_mounted (uint8_t itf)
 static void _prep_out_transaction (midid_interface_t* p_midi)
 {
   // skip if previous transfer not complete
-  if ( usbd_edpt_busy(TUD_OPT_RHPORT, p_midi->ep_out) )
-    return;
+  if ( usbd_edpt_busy(TUD_OPT_RHPORT, p_midi->ep_out) ) return;
 
   // Prepare for incoming data but only allow what we can store in the ring buffer.
   uint16_t max_read = tu_fifo_remaining(&p_midi->rx_ff);
   if ( max_read >= CFG_TUD_MIDI_EPSIZE )
+  {
     usbd_edpt_xfer(TUD_OPT_RHPORT, p_midi->ep_out, p_midi->epout_buf, CFG_TUD_MIDI_EPSIZE);
+  }
 }
 
 //--------------------------------------------------------------------+
