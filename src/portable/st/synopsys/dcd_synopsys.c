@@ -27,6 +27,11 @@
 
 #include "tusb_option.h"
 
+#if defined (STM32F105x8) || defined (STM32F105xB) || defined (STM32F105xC) || \
+    defined (STM32F107xB) || defined (STM32F107xC)
+#define STM32F1_SYNOPSYS
+#endif
+
 #if defined (STM32L475xx) || defined (STM32L476xx) ||                          \
     defined (STM32L485xx) || defined (STM32L486xx) || defined (STM32L496xx) || \
     defined (STM32L4R5xx) || defined (STM32L4R7xx) || defined (STM32L4R9xx) || \
@@ -35,7 +40,8 @@
 #endif
 
 #if TUSB_OPT_DEVICE_ENABLED && \
-    ( CFG_TUSB_MCU == OPT_MCU_STM32F2 || \
+    ( (CFG_TUSB_MCU == OPT_MCU_STM32F1 && defined(STM32F1_SYNOPSYS)) || \
+      CFG_TUSB_MCU == OPT_MCU_STM32F2 || \
       CFG_TUSB_MCU == OPT_MCU_STM32F4 || \
       CFG_TUSB_MCU == OPT_MCU_STM32F7 || \
       CFG_TUSB_MCU == OPT_MCU_STM32H7 || \
@@ -45,7 +51,11 @@
 // TODO Support OTG_HS
 // EP_MAX       : Max number of bi-directional endpoints including EP0
 // EP_FIFO_SIZE : Size of dedicated USB SRAM
-#if CFG_TUSB_MCU == OPT_MCU_STM32F2
+#if CFG_TUSB_MCU == OPT_MCU_STM32F1
+  #include "stm32f1xx.h"
+  #define EP_MAX          4
+  #define EP_FIFO_SIZE    1280
+#elif CFG_TUSB_MCU == OPT_MCU_STM32F2
   #include "stm32f2xx.h"
   #define EP_MAX          USB_OTG_FS_MAX_IN_ENDPOINTS
   #define EP_FIFO_SIZE    USB_OTG_FS_TOTAL_FIFO_SIZE
