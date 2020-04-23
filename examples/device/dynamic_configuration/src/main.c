@@ -30,13 +30,6 @@
 #include "bsp/board.h"
 #include "tusb.h"
 
-/* This MIDI example send sequence of note (on/off) repeatedly. To test on PC, you need to install
- * synth software and midi connection management software. On
- * - Linux (Ubuntu): install qsynth, qjackctl. Then connect TinyUSB output port to FLUID Synth input port
- * - Windows: install MIDI-OX
- * - MacOS: SimpleSynth
- */
-
 //--------------------------------------------------------------------+
 // MACRO CONSTANT TYPEDEF PROTYPES
 //--------------------------------------------------------------------+
@@ -55,22 +48,22 @@ enum  {
 static uint32_t blink_interval_ms = BLINK_NOT_MOUNTED;
 
 void led_blinking_task(void);
+void cdc_task(void);
 void midi_task(void);
 
 /*------------- MAIN -------------*/
 int main(void)
 {
   board_init();
-
   tusb_init();
 
   while (1)
   {
     tud_task(); // tinyusb device task
     led_blinking_task();
+    cdc_task();
     midi_task();
   }
-
 
   return 0;
 }
@@ -106,6 +99,53 @@ void tud_resume_cb(void)
   blink_interval_ms = BLINK_MOUNTED;
 }
 
+
+//--------------------------------------------------------------------+
+// USB CDC
+//--------------------------------------------------------------------+
+void cdc_task(void)
+{
+  if ( tud_cdc_connected() )
+  {
+    // connected and there are data available
+    if ( tud_cdc_available() )
+    {
+      uint8_t buf[64];
+
+      // read and echo back
+      uint32_t count = tud_cdc_read(buf, sizeof(buf));
+
+      for(uint32_t i=0; i<count; i++)
+      {
+        tud_cdc_write_char(buf[i]);
+
+        if ( buf[i] == '\r' ) tud_cdc_write_char('\n');
+      }
+
+      tud_cdc_write_flush();
+    }
+  }
+}
+
+// Invoked when cdc when line state changed e.g connected/disconnected
+void tud_cdc_line_state_cb(uint8_t itf, bool dtr, bool rts)
+{
+  (void) itf;
+
+  // connected
+  if ( dtr && rts )
+  {
+    // print initial message when connected
+    tud_cdc_write_str("\r\nTinyUSB CDC MSC device example\r\n");
+  }
+}
+
+// Invoked when CDC interface received data from host
+void tud_cdc_rx_cb(uint8_t itf)
+{
+  (void) itf;
+}
+
 //--------------------------------------------------------------------+
 // MIDI Task
 //--------------------------------------------------------------------+
@@ -114,7 +154,7 @@ void tud_resume_cb(void)
 uint32_t note_pos = 0;
 
 // Store example melody as an array of note values
-uint8_t note_sequence[] =
+static const uint8_t note_sequence[] =
 {
   74,78,81,86,90,93,98,102,57,61,66,69,73,78,81,85,88,92,97,100,97,92,88,85,81,78,
   74,69,66,62,57,62,66,69,74,78,81,86,90,93,97,102,97,93,90,85,81,78,73,68,64,61,
