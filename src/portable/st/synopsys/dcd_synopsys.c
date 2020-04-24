@@ -372,7 +372,10 @@ bool dcd_edpt_xfer (uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t 
     in_ep[epnum].DIEPTSIZ = (num_packets << USB_OTG_DIEPTSIZ_PKTCNT_Pos) | \
         ((total_bytes & USB_OTG_DIEPTSIZ_XFRSIZ_Msk) << USB_OTG_DIEPTSIZ_XFRSIZ_Pos);
     in_ep[epnum].DIEPCTL |= USB_OTG_DIEPCTL_EPENA | USB_OTG_DIEPCTL_CNAK;
-    dev->DIEPEMPMSK |= (1 << epnum);
+    // Enable fifo empty interrupt only if there are something to put in the fifo.
+    if(total_bytes != 0) {
+      dev->DIEPEMPMSK |= (1 << epnum);
+    }
   } else {
     // Each complete packet for OUT xfers triggers XFRC.
     out_ep[epnum].DOEPTSIZ |= (1 << USB_OTG_DOEPTSIZ_PKTCNT_Pos) | \
