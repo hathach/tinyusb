@@ -271,11 +271,17 @@ static inline char const* lookup_find(lookup_table_t const* p_table, uint32_t ke
 #ifndef TU_LOG1
   #define TU_LOG1(...)
   #define TU_LOG1_MEM(...)
+  #define TU_LOG1_VAR(...)
+  #define TU_LOG1_INT(...)
+  #define TU_LOG1_HEX(...)
 #endif
 
 #ifndef TU_LOG2
   #define TU_LOG2(...)
   #define TU_LOG2_MEM(...)
+  #define TU_LOG2_VAR(...)
+  #define TU_LOG2_INT(...)
+  #define TU_LOG2_HEX(...)
 #endif
 
 #ifdef __cplusplus
