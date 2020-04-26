@@ -309,7 +309,7 @@ bool usbtmcd_open_cb(uint8_t rhport, tusb_desc_interface_t const * itf_desc, uin
         default:
           TU_ASSERT(false);
       }
-      TU_VERIFY( dcd_edpt_open(rhport, ep_desc));
+      TU_VERIFY( usbd_edpt_open(rhport, ep_desc));
       found_endpoints++;
     }
     (*p_length) = (uint8_t)((*p_length) + p_desc[DESC_OFFSET_LEN]);

@@ -339,7 +339,7 @@ bool midid_open(uint8_t rhport, tusb_desc_interface_t const * desc_itf, uint16_t
   {
     if ( TUSB_DESC_ENDPOINT == p_desc[DESC_OFFSET_TYPE])
     {
-        TU_ASSERT( dcd_edpt_open(rhport, (tusb_desc_endpoint_t const *) p_desc), false);
+        TU_ASSERT( usbd_edpt_open(rhport, (tusb_desc_endpoint_t const *) p_desc), false);
         uint8_t ep_addr = ((tusb_desc_endpoint_t const *) p_desc)->bEndpointAddress;
         if (tu_edpt_dir(ep_addr) == TUSB_DIR_IN) {
             p_midi->ep_in = ep_addr;
