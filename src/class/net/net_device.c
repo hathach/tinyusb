@@ -90,7 +90,7 @@ static const struct ecm_notify_struct ecm_notify_csc =
 };
 
 // TODO remove CFG_TUSB_MEM_SECTION, control internal buffer is already in this special section
-CFG_TUSB_MEM_SECTION TU_ATTR_ALIGNED(4) static union
+CFG_TUSB_MEM_SECTION CFG_TUSB_MEM_ALIGN static union
 {
   uint8_t rndis_buf[120];
   struct ecm_notify_struct ecm_buf;
