@@ -90,12 +90,12 @@
     volatile uint32_t* ARM_CM_DHCSR =  ((volatile uint32_t*) 0xE000EDF0UL); /* Cortex M CoreDebug->DHCSR */ \
     if ( (*ARM_CM_DHCSR) & 1UL ) __asm("BKPT #0\n"); /* Only halt mcu if debugger is attached */            \
   } while(0)
-#else
-#if defined(__riscv)
+
+#elif defined(__riscv)
   #define TU_BREAKPOINT() do { __asm("ebreak\n"); } while(0)
+
 #else
   #define TU_BREAKPOINT() do {} while (0)
-#endif
 #endif
 
 /*------------------------------------------------------------------*/

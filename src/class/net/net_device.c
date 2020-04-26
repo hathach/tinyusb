@@ -167,7 +167,7 @@ bool netd_open(uint8_t rhport, tusb_desc_interface_t const * itf_desc, uint16_t 
   // notification endpoint (if any)
   if ( TUSB_DESC_ENDPOINT == tu_desc_type(p_desc) )
   {
-    TU_ASSERT( dcd_edpt_open(rhport, (tusb_desc_endpoint_t const *) p_desc) );
+    TU_ASSERT( usbd_edpt_open(rhport, (tusb_desc_endpoint_t const *) p_desc) );
 
     _netd_itf.ep_notif = ((tusb_desc_endpoint_t const *) p_desc)->bEndpointAddress;
 

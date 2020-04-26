@@ -219,17 +219,25 @@ void tu_print_mem(void const *buf, uint16_t count, uint8_t indent);
   #define tu_printf         printf
 #endif
 
+static inline
+void tu_print_var(uint8_t const* buf, uint32_t bufsize)
+{
+  for(uint32_t i=0; i<bufsize; i++) tu_printf("%02X ", buf[i]);
+}
+
 // Log with debug level 1
 #define TU_LOG1               tu_printf
 #define TU_LOG1_MEM           tu_print_mem
+#define TU_LOG1_VAR(_x)       tu_print_var((uint8_t const*)(_x), sizeof(*(_x)))
+#define TU_LOG1_INT(_x)       tu_printf(#_x " = %ld\n", (uint32_t) (_x) )
+#define TU_LOG1_HEX(_x)       tu_printf(#_x " = %lX\n", (uint32_t) (_x) )
 #define TU_LOG1_LOCATION()    tu_printf("%s: %d:\r\n", __PRETTY_FUNCTION__, __LINE__)
-#define TU_LOG1_INT(x)        tu_printf(#x " = %ld\n", (uint32_t) (x) )
-#define TU_LOG1_HEX(x)        tu_printf(#x " = %lX\n", (uint32_t) (x) )
 
 // Log with debug level 2
 #if CFG_TUSB_DEBUG > 1
   #define TU_LOG2             TU_LOG1
   #define TU_LOG2_MEM         TU_LOG1_MEM
+  #define TU_LOG2_VAR         TU_LOG1_VAR
   #define TU_LOG2_LOCATION()  TU_LOG1_LOCATION()
   #define TU_LOG2_INT         TU_LOG1_INT
   #define TU_LOG2_HEX         TU_LOG1_HEX

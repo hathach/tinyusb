@@ -78,9 +78,11 @@ static void dump_str_line(uint8_t const* buf, uint16_t count)
   }
 }
 
-// size  : item size in bytes
-// count : number of item
-// print offet or not (handfy for dumping large memory)
+/* Print out memory contents
+ *  - size  : item size in bytes
+ *  - count : number of item
+ *  - indent: prefix spaces on every line
+ */
 void tu_print_mem(void const *buf, uint16_t count, uint8_t indent)
 {
   uint8_t const size = 1; // fixed 1 byte for now
