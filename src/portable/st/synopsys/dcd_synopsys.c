@@ -679,7 +679,8 @@ static void handle_epin_ints(USB_OTG_DeviceTypeDef * dev, USB_OTG_INEndpointType
       // XFER FIFO empty
       if ( in_ep[n].DIEPINT & USB_OTG_DIEPINT_TXFE )
       {
-        in_ep[n].DIEPINT = USB_OTG_DIEPINT_TXFE;
+        // DIEPINT's TXFE bit is read-only -> no need to clear
+
         transmit_packet(xfer, &in_ep[n], n);
 
         // Turn off TXFE if all bytes are written.
