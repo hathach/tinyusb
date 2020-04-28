@@ -82,7 +82,7 @@ bool tud_control_status(uint8_t rhport, tusb_control_request_t const * request)
   return _status_stage_xact(rhport, request);
 }
 
-// Queue an transaction in Data Stage
+// Queue a transaction in Data Stage
 // Each transaction has up to Endpoint0's max packet size.
 // This function can also transfer an zero-length packet
 static bool _data_stage_xact(uint8_t rhport)
