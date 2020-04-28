@@ -244,8 +244,8 @@ bool dcd_edpt_open(uint8_t rhport, tusb_desc_endpoint_t const *desc_edpt)
 
   if (dir == TUSB_DIR_OUT) {
     out_ep[epnum].doepctl |= USB_USBACTEP0_M |
-        desc_edpt->bmAttributes.xfer << USB_EPTYPE0_S |
-        desc_edpt->wMaxPacketSize.size << USB_MPS0_S;
+                             desc_edpt->bmAttributes.xfer << USB_EPTYPE0_S |
+                             desc_edpt->wMaxPacketSize.size << USB_MPS0_S;
     USB0.daintmsk |= (1 << (16 + epnum));
   } else {
     // "USB Data FIFOs" section in reference manual
@@ -272,10 +272,11 @@ bool dcd_edpt_open(uint8_t rhport, tusb_desc_endpoint_t const *desc_edpt)
     // - IN EP 1 gets FIFO 1, IN EP "n" gets FIFO "n".
 
     in_ep[epnum].diepctl |= USB_D_USBACTEP1_M |
-        epnum << USB_D_TXFNUM1_S |
-        desc_edpt->bmAttributes.xfer << USB_D_EPTYPE1_S |
-        (desc_edpt->bmAttributes.xfer != TUSB_XFER_ISOCHRONOUS ? (1 << USB_DI_SETD0PID1_S) : 0) |
-        desc_edpt->wMaxPacketSize.size << 0;
+                            epnum << USB_D_TXFNUM1_S |
+                            desc_edpt->bmAttributes.xfer << USB_D_EPTYPE1_S |
+                            (desc_edpt->bmAttributes.xfer != TUSB_XFER_ISOCHRONOUS ? (1 << USB_DI_SETD0PID1_S) : 0) |
+                            desc_edpt->wMaxPacketSize.size << 0;
+
     USB0.daintmsk |= (1 << (0 + epnum));
 
     // Both TXFD and TXSA are in unit of 32-bit words.
@@ -295,12 +296,12 @@ bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t *buffer, uint16_t to
   (void)rhport;
 
   uint8_t const epnum = tu_edpt_number(ep_addr);
-  uint8_t const dir = tu_edpt_dir(ep_addr);
+  uint8_t const dir   = tu_edpt_dir(ep_addr);
 
-  xfer_ctl_t *xfer = XFER_CTL_BASE(epnum, dir);
-  xfer->buffer = buffer;
-  xfer->total_len = total_bytes;
-  xfer->queued_len = 0;
+  xfer_ctl_t * xfer = XFER_CTL_BASE(epnum, dir);
+  xfer->buffer       = buffer;
+  xfer->total_len    = total_bytes;
+  xfer->queued_len   = 0;
   xfer->short_packet = false;
 
   uint16_t num_packets = (total_bytes / xfer->max_size);
@@ -321,7 +322,11 @@ bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t *buffer, uint16_t to
     // A full IN transfer (multiple packets, possibly) triggers XFRC.
     USB0.in_ep_reg[epnum].dieptsiz = (num_packets << USB_D_PKTCNT0_S) | total_bytes;
     USB0.in_ep_reg[epnum].diepctl |= USB_D_EPENA1_M | USB_D_CNAK1_M; // Enable | CNAK
-    USB0.dtknqr4_fifoemptymsk |= (1 << epnum);
+
+    // Enable fifo empty interrupt only if there are something to put in the fifo.
+    if(total_bytes != 0) {
+      USB0.dtknqr4_fifoemptymsk |= (1 << epnum);
+    }
   } else {
     // Each complete packet for OUT xfers triggers XFRC.
     USB0.out_ep_reg[epnum].doeptsiz |= USB_PKTCNT0_M | ((xfer->max_size & USB_XFERSIZE0_V) << USB_XFERSIZE0_S);
@@ -617,7 +622,6 @@ static void handle_epin_ints(void)
       if (USB0.in_ep_reg[n].diepint & USB_D_XFERCOMPL0_M) {
         ESP_EARLY_LOGV(TAG, "TUSB IRQ - IN XFER complete!");
         USB0.in_ep_reg[n].diepint = USB_D_XFERCOMPL0_M;
-        USB0.dtknqr4_fifoemptymsk &= ~(1 << n); // Turn off TXFE b/c xfer inactive.
         dcd_event_xfer_complete(0, n | TUSB_DIR_IN_MASK, xfer->total_len, XFER_RESULT_SUCCESS, true);
       }
 
@@ -626,6 +630,12 @@ static void handle_epin_ints(void)
         ESP_EARLY_LOGV(TAG, "TUSB IRQ - IN XFER FIFO empty!");
         USB0.in_ep_reg[n].diepint = USB_D_TXFEMP0_M;
         transmit_packet(xfer, &USB0.in_ep_reg[n], n);
+
+        // Turn off TXFE if all bytes are written.
+        if (xfer->queued_len == xfer->total_len)
+        {
+          USB0.dtknqr4_fifoemptymsk &= ~(1 << n);
+        }
       }
     }
   }

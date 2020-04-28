@@ -232,15 +232,15 @@ bool usbd_control_xfer_cb (uint8_t rhport, uint8_t ep_addr, xfer_result_t event,
 #if CFG_TUSB_DEBUG >= 2
 static char const* const _usbd_event_str[DCD_EVENT_COUNT] =
 {
-  "INVALID"        ,
-  "BUS_RESET"      ,
-  "UNPLUGGED"      ,
+  "Invalid"        ,
+  "Bus Reset"      ,
+  "Unplugged"      ,
   "SOF"            ,
-  "SUSPEND"        ,
-  "RESUME"         ,
-  "SETUP_RECEIVED" ,
-  "XFER_COMPLETE"  ,
-  "FUNC_CALL"
+  "Suspend"        ,
+  "Resume"         ,
+  "Setup Received" ,
+  "Xfer Complete"  ,
+  "Func Call"
 };
 
 static char const* const _tusb_std_request_str[] =
@@ -259,6 +259,19 @@ static char const* const _tusb_std_request_str[] =
   "Set Interface"     ,
   "Synch Frame"
 };
+
+// for usbd_control to print the name of control complete driver
+void usbd_driver_print_control_complete_name(bool (*control_complete) (uint8_t, tusb_control_request_t const * ))
+{
+  for (uint8_t i = 0; i < USBD_CLASS_DRIVER_COUNT; i++)
+  {
+    if (_usbd_driver[i].control_complete == control_complete )
+    {
+      TU_LOG2("  %s control complete\r\n", _usbd_driver[i].name);
+      return;
+    }
+  }
+}
 
 #endif
 
@@ -356,7 +369,7 @@ void tud_task (void)
 
     if ( !osal_queue_receive(_usbd_q, &event) ) return;
 
-    TU_LOG2("USBD: %s", event.event_id < DCD_EVENT_COUNT ? _usbd_event_str[event.event_id] : "CORRUPTED");
+    TU_LOG2("USBD %s", event.event_id < DCD_EVENT_COUNT ? _usbd_event_str[event.event_id] : "CORRUPTED");
     TU_LOG2("%s", (event.event_id != DCD_EVENT_XFER_COMPLETE && event.event_id != DCD_EVENT_SETUP_RECEIVED) ? "\r\n" : " ");
 
     switch ( event.event_id )
