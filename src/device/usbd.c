@@ -995,12 +995,21 @@ bool usbd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t 
 
   TU_LOG2("  Queue EP %02X with %u bytes ... ", ep_addr, total_bytes);
 
+  // Set busy first since the actual transfer can be complete before dcd_edpt_xfer() could return
+  // and usbd task can preempt and clear the busy
   _usbd_dev.ep_status[epnum][dir].busy = true;
-  TU_VERIFY_HDLR( dcd_edpt_xfer(rhport, ep_addr, buffer, total_bytes), _usbd_dev.ep_status[epnum][dir].busy = false);
 
-  TU_LOG2("OK\r\n");
-
-  return true;
+  if ( dcd_edpt_xfer(rhport, ep_addr, buffer, total_bytes) )
+  {
+    TU_LOG2("OK\r\n");
+    return true;
+  }else
+  {
+    _usbd_dev.ep_status[epnum][dir].busy = false;
+    TU_LOG2("failed\r\n");
+    TU_BREAKPOINT();
+    return false;
+  }
 }
 
 bool usbd_edpt_busy(uint8_t rhport, uint8_t ep_addr)
