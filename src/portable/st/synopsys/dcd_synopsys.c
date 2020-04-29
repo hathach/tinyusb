@@ -550,14 +550,17 @@ static void transmit_fifo_packet(uint8_t fifo_num, uint8_t * src, uint16_t len){
 	}
 
 	// Write the remaining 1-3 bytes into fifo
-	uint32_t tmp_word = 0;
-	switch(len & 0x0003){
-		case 3: tmp_word |= src[2] << 16;
-		case 2: tmp_word |= src[1] << 8;
-		case 1: tmp_word |= src[0];
-			*tx_fifo = tmp_word;
-			break;
-		default: break;
+	uint8_t bytes_rem = len & 0x03;
+	if(bytes_rem){
+		uint32_t tmp_word = 0;
+		tmp_word |= src[0];
+		if(bytes_rem > 1){
+			tmp_word |= src[1] << 8;
+		}
+		if(bytes_rem > 2){
+			tmp_word |= src[2] << 16;
+		}
+		*tx_fifo = tmp_word;
 	}
 }
 
