@@ -295,19 +295,6 @@ bool dcd_edpt_xfer (uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t 
   xfer_desc_t* xfer = &_dcd_xfer[epnum];
   xfer_begin(xfer, buffer, total_bytes);
 
-  // Control Status Stage if EP0 with len = 0 and direction is opposite of current Data Stage
-  if ( (epnum == 0) && /*(total_bytes == 0) &&*/ (dir != ((UDP->UDP_CSR[epnum] & UDP_CSR_DIR_Msk) >> UDP_CSR_DIR_Pos)) )
-  {
-    TU_LOG2_INT(dir);
-    if ( dir )
-    {
-      csr_set(0, UDP_CSR_DIR_Msk);
-    }else
-    {
-      csr_clear(0, UDP_CSR_DIR_Msk);
-    }
-  }
-
   if (dir == TUSB_DIR_OUT)
   {
     // Enable interrupt when starting OUT transfer
@@ -388,10 +375,8 @@ void dcd_int_handler(uint8_t rhport)
 
   if ( intr_status & TU_BIT(0) )
   {
-    uint32_t csr0 = UDP->UDP_CSR[0];
-
     // setup packet
-    if (csr0 & UDP_CSR_RXSETUP)
+    if ( UDP->UDP_CSR[0] & UDP_CSR_RXSETUP )
     {
       // get setup from FIFO
       uint8_t setup[8];
@@ -403,31 +388,19 @@ void dcd_int_handler(uint8_t rhport)
       // notify usbd
       dcd_event_setup_received(rhport, setup, true);
 
-      // Reset FIFO
-//      UDP->UDP_RST_EP |=  (1 << 0);
-//      UDP->UDP_RST_EP &= ~(1 << 0);
-
-      csr0 &= ~(UDP_CSR_TXPKTRDY_Msk | UDP_CSR_TXCOMP_Msk | UDP_CSR_RX_DATA_BK0 | UDP_CSR_RX_DATA_BK1);
-
       // Set EP direction bit according to DATA stage
-      // must be set before RXSETUP is clear per specs
+      // MUST only be set before RXSETUP is clear per specs
       if ( tu_edpt_dir(setup[0]) )
       {
-        //csr_set(0, UDP_CSR_DIR_Msk);
-        csr0 |= UDP_CSR_DIR_Msk;
+        csr_set(0, UDP_CSR_DIR_Msk);
       }
       else
       {
-        //csr_clear(0, UDP_CSR_DIR_Msk);
-        csr0 &= ~UDP_CSR_DIR_Msk;
+        csr_clear(0, UDP_CSR_DIR_Msk);
       }
 
-      // Clear Setup bit & stall bit if needed
-      //csr_clear(0, UDP_CSR_RXSETUP_Msk | UDP_CSR_FORCESTALL_Msk);
-      csr0 &= ~(UDP_CSR_RXSETUP_Msk | UDP_CSR_STALLSENT_Msk | UDP_CSR_FORCESTALL_Msk);
-
-      UDP->UDP_CSR[0] = csr0;
-      for (uint32_t nop_count = 0; nop_count < 20; nop_count ++) __NOP();
+      // Clear Setup, stall and other on-going transfer bits
+      csr_clear(0, UDP_CSR_RXSETUP_Msk | UDP_CSR_TXPKTRDY_Msk | UDP_CSR_TXCOMP_Msk | UDP_CSR_RX_DATA_BK0 | UDP_CSR_RX_DATA_BK1 | UDP_CSR_STALLSENT_Msk | UDP_CSR_FORCESTALL_Msk);
     }
   }
 
@@ -450,8 +423,7 @@ void dcd_int_handler(uint8_t rhport)
           xact_ep_write(epnum, xfer->buffer, xact_len);
 
           // TX ready for transfer
-          //csr_set(epnum, UDP_CSR_TXPKTRDY_Msk);
-          UDP->UDP_CSR[epnum] |= UDP_CSR_TXPKTRDY_Msk;
+          csr_set(epnum, UDP_CSR_TXPKTRDY_Msk);
         }else
         {
           // xfer is complete
@@ -462,8 +434,7 @@ void dcd_int_handler(uint8_t rhport)
         }
 
         // Clear TX Complete bit
-        //csr_clear(epnum, UDP_CSR_TXCOMP_Msk);
-        UDP->UDP_CSR[epnum] &= ~UDP_CSR_TXCOMP_Msk;
+        csr_clear(epnum, UDP_CSR_TXCOMP_Msk);
       }
 
       //------------- Endpoint OUT -------------//
@@ -488,15 +459,13 @@ void dcd_int_handler(uint8_t rhport)
         }
 
         // Clear DATA Bank0/1 bit
-        //csr_clear(epnum, banks_complete);
-        UDP->UDP_CSR[epnum] &= ~banks_complete;
+        csr_clear(epnum, banks_complete);
       }
 
       // Stall sent to host
       if (UDP->UDP_CSR[epnum] & UDP_CSR_STALLSENT_Msk)
       {
-        //csr_clear(epnum, UDP_CSR_STALLSENT_Msk);
-        UDP->UDP_CSR[epnum] &= ~UDP_CSR_STALLSENT_Msk;
+        csr_clear(epnum, UDP_CSR_STALLSENT_Msk);
       }
     }
   }
