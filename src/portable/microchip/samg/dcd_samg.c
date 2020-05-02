@@ -51,12 +51,6 @@ typedef struct
 // Endpoint 0-5, each can only be either OUT or In
 xfer_desc_t _dcd_xfer[EP_COUNT];
 
-// Indicate that DATA Toggle for Control Status is incorrect, which must always be DATA1 by USB Specs.
-// However SAMG DToggle is read-only, therefore we must duplicate the status phase ( D0 then D1 )
-// as walk-around to resolve this. The D0 status packet is likely to be discarded by USB Host safely.
-// Note: Only needed for IN Status e.g CDC_SET_LINE_CODING, since out data is sent by host
-volatile bool _walkaround_incorrect_dtoggle_control_status;
-
 void xfer_epsize_set(xfer_desc_t* xfer, uint16_t epsize)
 {
   xfer->epsize = epsize;
@@ -110,6 +104,49 @@ static void xact_ep_read(uint8_t epnum, uint8_t* buffer, uint16_t xact_len)
   }
 }
 
+
+//! Bitmap for all status bits in CSR that are not affected by a value 1.
+#define UDP_REG_NO_EFFECT_1_ALL (UDP_CSR_RX_DATA_BK0 | UDP_CSR_RX_DATA_BK1 | UDP_CSR_STALLSENT | UDP_CSR_RXSETUP | UDP_CSR_TXCOMP)
+
+/*! Sets specified bit(s) in the UDP_CSR.
+* \param ep
+Endpoint number.
+* \param bits Bitmap to set to 1.
+*/
+#define csr_set(ep, bits) \
+    do { \
+      volatile uint32_t reg; \
+      volatile uint32_t nop_count; \
+      reg = UDP->UDP_CSR[ep]; \
+      reg |= UDP_REG_NO_EFFECT_1_ALL; \
+      reg |= (bits); \
+      UDP->UDP_CSR[ep] = reg; \
+      for (nop_count = 0; nop_count < 20; nop_count ++) {\
+        __NOP(); \
+      } \
+    } while (0)
+
+
+/*! Clears specified bit(s) in the UDP_CSR.
+* \param ep
+Endpoint number.
+* \param bits Bitmap to set to 0.
+*/
+#define csr_clear(ep, bits) \
+    do { \
+      volatile uint32_t reg; \
+      volatile uint32_t nop_count; \
+      reg = UDP->UDP_CSR[ep]; \
+      reg |= UDP_REG_NO_EFFECT_1_ALL; \
+      reg &= ~(bits); \
+      UDP->UDP_CSR[ep] = reg; \
+      for (nop_count = 0; nop_count < 20; nop_count ++) {\
+        __NOP(); \
+      } \
+    } while (0)
+
+#define udp_clear_csr     csr_clear
+#define udp_set_csr       csr_set
 /*------------------------------------------------------------------*/
 /* Device API
  *------------------------------------------------------------------*/
@@ -117,7 +154,6 @@ static void xact_ep_read(uint8_t epnum, uint8_t* buffer, uint16_t xact_len)
 // Set up endpoint 0, clear all other endpoints
 static void bus_reset(void)
 {
-  _walkaround_incorrect_dtoggle_control_status = false;
   tu_memclr(_dcd_xfer, sizeof(_dcd_xfer));
 
   xfer_epsize_set(&_dcd_xfer[0], CFG_TUD_ENDPOINT0_SIZE);
@@ -189,7 +225,6 @@ void dcd_disconnect(uint8_t rhport)
   UDP->UDP_TXVC = UDP_TXVC_TXVDIS_Msk;
 }
 
-
 //--------------------------------------------------------------------+
 // Endpoint API
 //--------------------------------------------------------------------+
@@ -240,7 +275,7 @@ bool dcd_edpt_open (uint8_t rhport, tusb_desc_endpoint_t const * ep_desc)
 
   xfer_epsize_set(&_dcd_xfer[epnum], ep_desc->wMaxPacketSize.size);
 
-  // Configure type and eanble EP
+  // Configure type and enable EP
   UDP->UDP_CSR[epnum] = UDP_CSR_EPEDS_Msk | UDP_CSR_EPTYPE(ep_desc->bmAttributes.xfer + 4*dir);
 
   // Enable EP Interrupt for IN
@@ -260,49 +295,30 @@ bool dcd_edpt_xfer (uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t 
   xfer_desc_t* xfer = &_dcd_xfer[epnum];
   xfer_begin(xfer, buffer, total_bytes);
 
+  // Control Status Stage if EP0 with len = 0 and direction is opposite of current Data Stage
+  if ( (epnum == 0) && /*(total_bytes == 0) &&*/ (dir != ((UDP->UDP_CSR[epnum] & UDP_CSR_DIR_Msk) >> UDP_CSR_DIR_Pos)) )
+  {
+    TU_LOG2_INT(dir);
+    if ( dir )
+    {
+      csr_set(0, UDP_CSR_DIR_Msk);
+    }else
+    {
+      csr_clear(0, UDP_CSR_DIR_Msk);
+    }
+  }
+
   if (dir == TUSB_DIR_OUT)
   {
-    // Clear EP0 direction bit
-    if (epnum == 0) UDP->UDP_CSR[epnum] &= ~UDP_CSR_DIR_Msk;
-
     // Enable interrupt when starting OUT transfer
     if (epnum != 0) UDP->UDP_IER |= (1 << epnum);
   }
   else
   {
-    if (epnum == 0)
-    {
-      // Previous EP0 direction is OUT --> This transfer is ZLP control status.
-      if ( !(UDP->UDP_CSR[epnum] & UDP_CSR_DIR_Msk) )
-      {
-        // Set EP0 dir bit
-        UDP->UDP_CSR[epnum] |= UDP_CSR_DIR_Msk;
-
-        // DATA Toggle is 0, USB Specs requires Status Stage must be DATA1
-        // Since SAMG DToggle is read-only, we mark this and implement the walk-around
-        if ( !(UDP->UDP_CSR[epnum] & UDP_CSR_DTGLE_Msk) )
-        {
-          TU_LOG2("Incorrect DATA TOGGLE, Control Status must be DATA1\n");
-
-          // DTGLE is read-only on SAMG, this statement has no effect
-          UDP->UDP_CSR[epnum] |= UDP_CSR_DTGLE_Msk;
-
-          // WALKROUND: duplicate IN transfer to send DATA1 status packet
-          // set flag for irq to skip reporting first incorrect packet
-          _walkaround_incorrect_dtoggle_control_status = true;
-
-          UDP->UDP_CSR[epnum] |= UDP_CSR_TXPKTRDY_Msk;
-          while ( UDP->UDP_CSR[epnum] & UDP_CSR_TXPKTRDY_Msk ) {}
-
-          _walkaround_incorrect_dtoggle_control_status = false;
-        }
-      }
-    }
-
     xact_ep_write(epnum, xfer->buffer, xfer_packet_len(xfer));
 
     // TX ready for transfer
-    UDP->UDP_CSR[epnum] |= UDP_CSR_TXPKTRDY_Msk;
+    csr_set(epnum, UDP_CSR_TXPKTRDY_Msk);
   }
 
   return true;
@@ -313,10 +329,14 @@ void dcd_edpt_stall (uint8_t rhport, uint8_t ep_addr)
 {
   (void) rhport;
 
+  // For EP0 USBD will stall both EP0 Out and In with 0x00 and 0x80
+  // only handle one by skipping 0x80
+  if ( ep_addr == tu_edpt_addr(0, TUSB_DIR_IN_MASK) ) return;
+
   uint8_t const epnum = tu_edpt_number(ep_addr);
 
   // Set force stall bit
-  UDP->UDP_CSR[epnum] |= UDP_CSR_FORCESTALL_Msk;
+  csr_set(epnum, UDP_CSR_FORCESTALL_Msk);
 }
 
 // clear stall, data toggle is also reset to DATA0
@@ -327,11 +347,11 @@ void dcd_edpt_clear_stall (uint8_t rhport, uint8_t ep_addr)
   uint8_t const epnum = tu_edpt_number(ep_addr);
 
   // clear stall
-  UDP->UDP_CSR[epnum] &= ~UDP_CSR_FORCESTALL_Msk;
+  csr_clear(epnum, UDP_CSR_FORCESTALL_Msk);
 
   // must also reset EP to clear data toggle
-  UDP->UDP_RST_EP = tu_bit_set(UDP->UDP_RST_EP, epnum);
-  UDP->UDP_RST_EP = tu_bit_clear(UDP->UDP_RST_EP, epnum);
+  UDP->UDP_RST_EP |= (1 << epnum);
+  UDP->UDP_RST_EP &= ~(1 << epnum);
 }
 
 //--------------------------------------------------------------------+
@@ -368,8 +388,10 @@ void dcd_int_handler(uint8_t rhport)
 
   if ( intr_status & TU_BIT(0) )
   {
+    uint32_t csr0 = UDP->UDP_CSR[0];
+
     // setup packet
-    if (UDP->UDP_CSR[0] & UDP_CSR_RXSETUP)
+    if (csr0 & UDP_CSR_RXSETUP)
     {
       // get setup from FIFO
       uint8_t setup[8];
@@ -381,19 +403,31 @@ void dcd_int_handler(uint8_t rhport)
       // notify usbd
       dcd_event_setup_received(rhport, setup, true);
 
+      // Reset FIFO
+//      UDP->UDP_RST_EP |=  (1 << 0);
+//      UDP->UDP_RST_EP &= ~(1 << 0);
+
+      csr0 &= ~(UDP_CSR_TXPKTRDY_Msk | UDP_CSR_TXCOMP_Msk | UDP_CSR_RX_DATA_BK0 | UDP_CSR_RX_DATA_BK1);
+
       // Set EP direction bit according to DATA stage
-      if (setup[0] & 0x80)
+      // must be set before RXSETUP is clear per specs
+      if ( tu_edpt_dir(setup[0]) )
       {
-        UDP->UDP_CSR[0] |= UDP_CSR_DIR_Msk;
-      }else
+        //csr_set(0, UDP_CSR_DIR_Msk);
+        csr0 |= UDP_CSR_DIR_Msk;
+      }
+      else
       {
-        UDP->UDP_CSR[0] &= ~UDP_CSR_DIR_Msk;
+        //csr_clear(0, UDP_CSR_DIR_Msk);
+        csr0 &= ~UDP_CSR_DIR_Msk;
       }
 
       // Clear Setup bit & stall bit if needed
-      UDP->UDP_CSR[0] &= ~(UDP_CSR_RXSETUP_Msk | UDP_CSR_FORCESTALL_Msk);
+      //csr_clear(0, UDP_CSR_RXSETUP_Msk | UDP_CSR_FORCESTALL_Msk);
+      csr0 &= ~(UDP_CSR_RXSETUP_Msk | UDP_CSR_STALLSENT_Msk | UDP_CSR_FORCESTALL_Msk);
 
-      return;
+      UDP->UDP_CSR[0] = csr0;
+      for (uint32_t nop_count = 0; nop_count < 20; nop_count ++) __NOP();
     }
   }
 
@@ -416,21 +450,19 @@ void dcd_int_handler(uint8_t rhport)
           xact_ep_write(epnum, xfer->buffer, xact_len);
 
           // TX ready for transfer
+          //csr_set(epnum, UDP_CSR_TXPKTRDY_Msk);
           UDP->UDP_CSR[epnum] |= UDP_CSR_TXPKTRDY_Msk;
         }else
         {
-          // WALKAROUND: Skip reporting this incorrect DATA Toggle status IN transfer
-          if ( !(_walkaround_incorrect_dtoggle_control_status && (epnum == 0) && (xfer->actual_len == 0)) )
-          {
-            // xfer is complete
-            dcd_event_xfer_complete(rhport, epnum | TUSB_DIR_IN_MASK, xfer->actual_len, XFER_RESULT_SUCCESS, true);
+          // xfer is complete
+          dcd_event_xfer_complete(rhport, epnum | TUSB_DIR_IN_MASK, xfer->actual_len, XFER_RESULT_SUCCESS, true);
 
-            // Required since control OUT can happen right after before stack handle this event
-            xfer_end(xfer);
-          }
+          // Required since control OUT can happen right after before stack handle this event
+          xfer_end(xfer);
         }
 
         // Clear TX Complete bit
+        //csr_clear(epnum, UDP_CSR_TXCOMP_Msk);
         UDP->UDP_CSR[epnum] &= ~UDP_CSR_TXCOMP_Msk;
       }
 
@@ -456,12 +488,14 @@ void dcd_int_handler(uint8_t rhport)
         }
 
         // Clear DATA Bank0/1 bit
+        //csr_clear(epnum, banks_complete);
         UDP->UDP_CSR[epnum] &= ~banks_complete;
       }
 
       // Stall sent to host
       if (UDP->UDP_CSR[epnum] & UDP_CSR_STALLSENT_Msk)
       {
+        //csr_clear(epnum, UDP_CSR_STALLSENT_Msk);
         UDP->UDP_CSR[epnum] &= ~UDP_CSR_STALLSENT_Msk;
       }
     }
