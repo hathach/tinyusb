@@ -106,47 +106,28 @@ static void xact_ep_read(uint8_t epnum, uint8_t* buffer, uint16_t xact_len)
 
 
 //! Bitmap for all status bits in CSR that are not affected by a value 1.
-#define UDP_REG_NO_EFFECT_1_ALL (UDP_CSR_RX_DATA_BK0 | UDP_CSR_RX_DATA_BK1 | UDP_CSR_STALLSENT | UDP_CSR_RXSETUP | UDP_CSR_TXCOMP)
+#define CSR_NO_EFFECT_1_ALL (UDP_CSR_RX_DATA_BK0 | UDP_CSR_RX_DATA_BK1 | UDP_CSR_STALLSENT | UDP_CSR_RXSETUP | UDP_CSR_TXCOMP)
 
-/*! Sets specified bit(s) in the UDP_CSR.
-* \param ep
-Endpoint number.
-* \param bits Bitmap to set to 1.
-*/
-#define csr_set(ep, bits) \
-    do { \
-      volatile uint32_t reg; \
-      volatile uint32_t nop_count; \
-      reg = UDP->UDP_CSR[ep]; \
-      reg |= UDP_REG_NO_EFFECT_1_ALL; \
-      reg |= (bits); \
-      UDP->UDP_CSR[ep] = reg; \
-      for (nop_count = 0; nop_count < 20; nop_count ++) {\
-        __NOP(); \
-      } \
-    } while (0)
+// Per Specs: CSR need synchronization each write
+static inline void csr_set(uint8_t epnum, uint32_t mask)
+{
+  uint32_t const csr = UDP->UDP_CSR[epnum] | CSR_NO_EFFECT_1_ALL | mask;
+  UDP->UDP_CSR[epnum] = csr;
 
+  volatile uint32_t nop_count;
+  for (nop_count = 0; nop_count < 20; nop_count ++) __NOP();
+}
 
-/*! Clears specified bit(s) in the UDP_CSR.
-* \param ep
-Endpoint number.
-* \param bits Bitmap to set to 0.
-*/
-#define csr_clear(ep, bits) \
-    do { \
-      volatile uint32_t reg; \
-      volatile uint32_t nop_count; \
-      reg = UDP->UDP_CSR[ep]; \
-      reg |= UDP_REG_NO_EFFECT_1_ALL; \
-      reg &= ~(bits); \
-      UDP->UDP_CSR[ep] = reg; \
-      for (nop_count = 0; nop_count < 20; nop_count ++) {\
-        __NOP(); \
-      } \
-    } while (0)
+// Per Specs: CSR need synchronization each write
+static inline void csr_clear(uint8_t epnum, uint32_t mask)
+{
+  uint32_t const csr = (UDP->UDP_CSR[epnum] | CSR_NO_EFFECT_1_ALL) & ~mask;
+  UDP->UDP_CSR[epnum] = csr;
 
-#define udp_clear_csr     csr_clear
-#define udp_set_csr       csr_set
+  volatile uint32_t nop_count;
+  for (nop_count = 0; nop_count < 20; nop_count ++) __NOP();
+}
+
 /*------------------------------------------------------------------*/
 /* Device API
  *------------------------------------------------------------------*/
