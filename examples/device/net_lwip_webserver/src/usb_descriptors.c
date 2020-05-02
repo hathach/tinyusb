@@ -103,9 +103,21 @@ uint8_t const * tud_descriptor_device_cb(void)
 #if CFG_TUSB_MCU == OPT_MCU_LPC175X_6X || CFG_TUSB_MCU == OPT_MCU_LPC177X_8X || CFG_TUSB_MCU == OPT_MCU_LPC40XX
   // LPC 17xx and 40xx endpoint type (bulk/interrupt/iso) are fixed by its number
   // 0 control, 1 In, 2 Bulk, 3 Iso, 4 In etc ...
-  #define EPNUM_CDC     2
+  #define EPNUM_NET_NOTIF   0x81
+  #define EPNUM_NET_OUT     0x02
+  #define EPNUM_NET_IN      0x82
+
+#elif CFG_TUSB_MCU == OPT_MCU_SAMG
+  // SAMG doesn't support a same endpoint number with different direction IN and OUT
+  //    e.g EP1 OUT & EP1 IN cannot exist together
+  #define EPNUM_NET_NOTIF   0x81
+  #define EPNUM_NET_OUT     0x02
+  #define EPNUM_NET_IN      0x83
+
 #else
-  #define EPNUM_CDC     2
+  #define EPNUM_NET_NOTIF   0x81
+  #define EPNUM_NET_OUT     0x02
+  #define EPNUM_NET_IN      0x82
 #endif
 
 static uint8_t const rndis_configuration[] =
@@ -114,7 +126,7 @@ static uint8_t const rndis_configuration[] =
   TUD_CONFIG_DESCRIPTOR(CONFIG_ID_RNDIS+1, ITF_NUM_TOTAL, 0, MAIN_CONFIG_TOTAL_LEN, 0, 100),
 
   // Interface number, string index, EP notification address and size, EP data address (out, in) and size.
-  TUD_RNDIS_DESCRIPTOR(ITF_NUM_CDC, STRID_INTERFACE, 0x81, 8, EPNUM_CDC, 0x80 | EPNUM_CDC, CFG_TUD_NET_ENDPOINT_SIZE),
+  TUD_RNDIS_DESCRIPTOR(ITF_NUM_CDC, STRID_INTERFACE, EPNUM_NET_NOTIF, 8, EPNUM_NET_OUT, EPNUM_NET_IN, CFG_TUD_NET_ENDPOINT_SIZE),
 };
 
 static uint8_t const ecm_configuration[] =
@@ -123,7 +135,7 @@ static uint8_t const ecm_configuration[] =
   TUD_CONFIG_DESCRIPTOR(CONFIG_ID_ECM+1, ITF_NUM_TOTAL, 0, ALT_CONFIG_TOTAL_LEN, 0, 100),
 
   // Interface number, description string index, MAC address string index, EP notification address and size, EP data address (out, in), and size, max segment size.
-  TUD_CDC_ECM_DESCRIPTOR(ITF_NUM_CDC, STRID_INTERFACE, STRID_MAC, 0x81, 64, EPNUM_CDC, 0x80 | EPNUM_CDC, CFG_TUD_NET_ENDPOINT_SIZE, CFG_TUD_NET_MTU),
+  TUD_CDC_ECM_DESCRIPTOR(ITF_NUM_CDC, STRID_INTERFACE, STRID_MAC, EPNUM_NET_NOTIF, 64, EPNUM_NET_OUT, EPNUM_NET_IN, CFG_TUD_NET_ENDPOINT_SIZE, CFG_TUD_NET_MTU),
 };
 
 // Configuration array: RNDIS and CDC-ECM
