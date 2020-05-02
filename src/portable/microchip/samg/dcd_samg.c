@@ -109,9 +109,9 @@ static void xact_ep_read(uint8_t epnum, uint8_t* buffer, uint16_t xact_len)
 #define CSR_NO_EFFECT_1_ALL (UDP_CSR_RX_DATA_BK0 | UDP_CSR_RX_DATA_BK1 | UDP_CSR_STALLSENT | UDP_CSR_RXSETUP | UDP_CSR_TXCOMP)
 
 // Per Specs: CSR need synchronization each write
-static inline void csr_set(uint8_t epnum, uint32_t mask)
+static inline void csr_write(uint8_t epnum, uint32_t value)
 {
-  uint32_t const csr = UDP->UDP_CSR[epnum] | CSR_NO_EFFECT_1_ALL | mask;
+  uint32_t const csr = value;
   UDP->UDP_CSR[epnum] = csr;
 
   volatile uint32_t nop_count;
@@ -119,13 +119,15 @@ static inline void csr_set(uint8_t epnum, uint32_t mask)
 }
 
 // Per Specs: CSR need synchronization each write
+static inline void csr_set(uint8_t epnum, uint32_t mask)
+{
+  csr_write(epnum, UDP->UDP_CSR[epnum] | CSR_NO_EFFECT_1_ALL | mask);
+}
+
+// Per Specs: CSR need synchronization each write
 static inline void csr_clear(uint8_t epnum, uint32_t mask)
 {
-  uint32_t const csr = (UDP->UDP_CSR[epnum] | CSR_NO_EFFECT_1_ALL) & ~mask;
-  UDP->UDP_CSR[epnum] = csr;
-
-  volatile uint32_t nop_count;
-  for (nop_count = 0; nop_count < 20; nop_count ++) __NOP();
+  csr_write(epnum, (UDP->UDP_CSR[epnum] | CSR_NO_EFFECT_1_ALL) & ~mask);
 }
 
 /*------------------------------------------------------------------*/
@@ -140,7 +142,7 @@ static void bus_reset(void)
   xfer_epsize_set(&_dcd_xfer[0], CFG_TUD_ENDPOINT0_SIZE);
 
   // Enable EP0 control
-  UDP->UDP_CSR[0] = UDP_CSR_EPEDS_Msk;
+  csr_write(0, UDP_CSR_EPEDS_Msk);
 
   // Enable interrupt : EP0, Suspend, Resume, Wakeup
   UDP->UDP_IER = UDP_IER_EP0INT_Msk | UDP_IER_RXSUSP_Msk | UDP_IER_RXRSM_Msk | UDP_IER_WAKEUP_Msk;
@@ -257,7 +259,7 @@ bool dcd_edpt_open (uint8_t rhport, tusb_desc_endpoint_t const * ep_desc)
   xfer_epsize_set(&_dcd_xfer[epnum], ep_desc->wMaxPacketSize.size);
 
   // Configure type and enable EP
-  UDP->UDP_CSR[epnum] = UDP_CSR_EPEDS_Msk | UDP_CSR_EPTYPE(ep_desc->bmAttributes.xfer + 4*dir);
+  csr_write(epnum, UDP_CSR_EPEDS_Msk | UDP_CSR_EPTYPE(ep_desc->bmAttributes.xfer + 4*dir));
 
   // Enable EP Interrupt for IN
   if (dir == TUSB_DIR_IN) UDP->UDP_IER |= (1 << epnum);
