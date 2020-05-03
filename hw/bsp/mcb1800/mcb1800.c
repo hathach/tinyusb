@@ -64,6 +64,11 @@ void USB1_IRQHandler(void)
 #define BUTTON_PORT   2
 #define BUTTON_PIN    0
 
+#define UART_DEV        LPC_USART3
+#define UART_PORT       0x02
+#define UART_PIN_TX     3
+#define UART_PIN_RX     4
+
 
 /* System configuration variables used by chip driver */
 const uint32_t OscRateIn = 12000000;
@@ -83,6 +88,10 @@ static const PINMUX_GRP_T pinmuxing[] =
 
 	// Button
 	{0x4, 0,  (SCU_MODE_INBUFF_EN | SCU_MODE_INACT | SCU_MODE_FUNC0 | SCU_MODE_PULLUP)},
+
+	// UART
+	{UART_PORT, UART_PIN_TX, SCU_MODE_PULLDOWN | SCU_MODE_FUNC2 },
+	{UART_PORT, UART_PIN_RX, SCU_MODE_INACT | SCU_MODE_INBUFF_EN | SCU_MODE_ZIF_DIS | SCU_MODE_FUNC2 },
 
 	/*  I2S  */
 	{0x3, 0,  (SCU_PINIO_FAST | SCU_MODE_FUNC2)},
@@ -137,19 +146,11 @@ void board_init(void)
   // Button
   Chip_GPIO_SetPinDIRInput(LPC_GPIO_PORT, BUTTON_PORT, BUTTON_PIN);
 
-#if 0
   //------------- UART -------------//
-  scu_pinmux(BOARD_UART_PIN_PORT, BOARD_UART_PIN_TX, MD_PDN, FUNC1);
-  scu_pinmux(BOARD_UART_PIN_PORT, BOARD_UART_PIN_RX, MD_PLN | MD_EZI | MD_ZI, FUNC1);
-
-  UART_CFG_Type UARTConfigStruct;
-  UART_ConfigStructInit(&UARTConfigStruct);
-  UARTConfigStruct.Baud_rate   = CFG_BOARD_UART_BAUDRATE;
-  UARTConfigStruct.Clock_Speed = 0;
-
-  UART_Init(BOARD_UART_PORT, &UARTConfigStruct);
-  UART_TxCmd(BOARD_UART_PORT, ENABLE); // Enable UART Transmit
-#endif
+	Chip_UART_Init(UART_DEV);
+	Chip_UART_SetBaud(UART_DEV, CFG_BOARD_UART_BAUDRATE);
+	Chip_UART_ConfigData(UART_DEV, UART_LCR_WLEN8 | UART_LCR_SBS_1BIT | UART_LCR_PARITY_DIS);
+	Chip_UART_TXEnable(UART_DEV);
 
   //------------- USB -------------//
   enum {
@@ -223,9 +224,14 @@ int board_uart_read(uint8_t* buf, int len)
 
 int board_uart_write(void const * buf, int len)
 {
-  //UART_Send(BOARD_UART_PORT, &c, 1, BLOCKING);
-  (void) buf; (void) len;
-  return 0;
+  uint8_t const* buf8 = (uint8_t const*) buf;
+  for(int i=0; i<len; i++)
+  {
+    while ((Chip_UART_ReadLineStatus(UART_DEV) & UART_LSR_THRE) == 0) {}
+    Chip_UART_SendByte(UART_DEV, buf8[i]);
+  }
+
+  return len;
 }
 
 #if CFG_TUSB_OS == OPT_OS_NONE
