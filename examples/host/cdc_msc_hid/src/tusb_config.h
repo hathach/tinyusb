@@ -75,22 +75,9 @@
 #define CFG_TUH_HID_MOUSE           0
 #define CFG_TUSB_HOST_HID_GENERIC   0 // (not yet supported)
 #define CFG_TUH_MSC                 0
+#define CFG_TUH_VENDOR              0
 
 #define CFG_TUSB_HOST_DEVICE_MAX    (CFG_TUH_HUB ? 5 : 1) // normal hub has 4 ports
-
-//------------- CLASS -------------//
-#define CFG_TUD_CDC                 0
-#define CFG_TUD_MSC                 0
-#define CFG_TUD_HID                 0
-#define CFG_TUD_VENDOR              0
-
-// CDC FIFO size of TX and RX
-#define CFG_TUD_CDC_RX_BUFSIZE      64
-#define CFG_TUD_CDC_TX_BUFSIZE      64
-
-// MSC Buffer size of Device Mass storage
-#define CFG_TUD_MSC_BUFSIZE         512
-
 
 #ifdef __cplusplus
  }

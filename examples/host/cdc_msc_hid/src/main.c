@@ -193,7 +193,7 @@ void print_greeting(void)
   printf("- issue at https://github.com/hathach/tinyusb\n");
   printf("--------------------------------------------------------------------\n\n");
 
-  printf("This Host demo is configured to support:");
+  printf("This Host demo is configured to support:\r\n");
   printf("  - RTOS = %s\n", rtos_name[CFG_TUSB_OS]);
 //  if (CFG_TUH_CDC          ) puts("  - Communication Device Class");
 //  if (CFG_TUH_MSC          ) puts("  - Mass Storage");

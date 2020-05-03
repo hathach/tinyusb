@@ -63,7 +63,7 @@ const uint32_t ExtRateIn = 0;
 
 static const PINMUX_GRP_T pinmuxing[] =
 {
-  // Button
+  // Button ( Joystick down )
   {0x9, 1,  (SCU_MODE_INBUFF_EN | SCU_MODE_INACT | SCU_MODE_FUNC0 | SCU_MODE_PULLUP)},
 
   // UART
@@ -139,21 +139,26 @@ void board_init(void)
     USBMODE_VBUS_HIGH = 1
   };
 
-  /* USB0
-   * For USB0 Device operation:
-   * - insert jumpers in position 1-2 in JP17/JP18/JP19.
+  /* From EA4357 user manual
+   *
+   * USB0 Device operation:
+   * - Insert jumpers in position 1-2 in JP17/JP18/JP19.
    * - GPIO28 controls USB connect functionality
    * - LED32 lights when the USB Device is connected. SJ4 has pads 1-2 shorted by default.
    * - LED33 is controlled by GPIO27 and signals USB-up state. GPIO54 is used for VBUS
    * sensing.
    *
-   * For USB0 Host operation:
+   * USB0 Host operation:
    * - insert jumpers in position 2-3 in JP17/JP18/JP19.
    * - USB Host power is controlled via distribution switch U20 (found in schematic page 11).
    * - Signal GPIO26 is active low and enables +5V on VBUS2.
    * - LED35 light whenever +5V is present on VBUS2.
    * - GPIO55 is connected to status feedback from the distribution switch.
    * - GPIO54 is used for VBUS sensing. 15Kohm pull-down resistors are always active
+   *
+   * Note:
+   * - Insert jumpers in position 2-3 in JP17/JP18/JP19
+   * - Insert jumpers in JP31 (OTG)
    */
 #if CFG_TUSB_RHPORT0_MODE
   Chip_USB0_Init();

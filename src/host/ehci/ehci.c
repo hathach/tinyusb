@@ -358,7 +358,7 @@ bool hcd_edpt_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_endpoint_t const 
   if ( dev_addr == 0 ) return true;
 
   // Insert to list
-  ehci_link_t * list_head;
+  ehci_link_t * list_head = NULL;
 
   switch (ep_desc->bmAttributes.xfer)
   {
@@ -378,8 +378,10 @@ bool hcd_edpt_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_endpoint_t const 
     default: break;
   }
 
+  TU_ASSERT(list_head);
+
   // TODO might need to disable async/period list
-  list_insert( list_head, (ehci_link_t*) p_qhd, EHCI_QTYPE_QHD);
+  list_insert(list_head, (ehci_link_t*) p_qhd, EHCI_QTYPE_QHD);
 
   return true;
 }

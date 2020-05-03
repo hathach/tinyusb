@@ -86,7 +86,6 @@ bool tuh_cdc_serial_is_mounted(uint8_t dev_addr)
 {
   // TODO consider all AT Command as serial candidate
   return tuh_cdc_mounted(dev_addr)                                         &&
-      (CDC_COMM_PROTOCOL_NONE <= cdch_data[dev_addr-1].itf_protocol) &&
       (cdch_data[dev_addr-1].itf_protocol <= CDC_COMM_PROTOCOL_ATCOMMAND_CDMA);
 }
 
