@@ -539,29 +539,29 @@ static void receive_packet(xfer_ctl_t * xfer, /* USB_OTG_OUTEndpointTypeDef * ou
 }
 
 // Write a single data packet to EPIN FIFO
-static void transmit_fifo_packet(uint8_t fifo_num, uint8_t * src, uint16_t len){
-	usb_fifo_t tx_fifo = FIFO_BASE(fifo_num);
+static void write_fifo_packet(uint8_t fifo_num, uint8_t * src, uint16_t len){
+  usb_fifo_t tx_fifo = FIFO_BASE(fifo_num);
 
-	// Pushing full available 32 bit words to fifo
-	uint16_t full_words = len >> 2;
-	for(uint16_t i = 0; i < full_words; i++){
-		*tx_fifo = (src[3] << 24) | (src[2] << 16) | (src[1] << 8) | src[0];
-		src += 4;
-	}
+  // Pushing full available 32 bit words to fifo
+  uint16_t full_words = len >> 2;
+  for(uint16_t i = 0; i < full_words; i++){
+    *tx_fifo = (src[3] << 24) | (src[2] << 16) | (src[1] << 8) | src[0];
+    src += 4;
+  }
 
-	// Write the remaining 1-3 bytes into fifo
-	uint8_t bytes_rem = len & 0x03;
-	if(bytes_rem){
-		uint32_t tmp_word = 0;
-		tmp_word |= src[0];
-		if(bytes_rem > 1){
-			tmp_word |= src[1] << 8;
-		}
-		if(bytes_rem > 2){
-			tmp_word |= src[2] << 16;
-		}
-		*tx_fifo = tmp_word;
-	}
+  // Write the remaining 1-3 bytes into fifo
+  uint8_t bytes_rem = len & 0x03;
+  if(bytes_rem){
+    uint32_t tmp_word = 0;
+    tmp_word |= src[0];
+    if(bytes_rem > 1){
+      tmp_word |= src[1] << 8;
+    }
+    if(bytes_rem > 2){
+      tmp_word |= src[2] << 16;
+    }
+    *tx_fifo = tmp_word;
+  }
 }
 
 static void read_rx_fifo(USB_OTG_OUTEndpointTypeDef * out_ep) {
@@ -652,6 +652,7 @@ static void handle_epin_ints(USB_OTG_DeviceTypeDef * dev, USB_OTG_INEndpointType
 
     if ( dev->DAINT & (1 << (USB_OTG_DAINT_IEPINT_Pos + n)) )
     {
+
       // IN XFER complete (entire xfer).
       if ( in_ep[n].DIEPINT & USB_OTG_DIEPINT_XFRC )
       {
@@ -667,27 +668,26 @@ static void handle_epin_ints(USB_OTG_DeviceTypeDef * dev, USB_OTG_INEndpointType
         // - 64 bytes or
         // - Half of TX FIFO size (configured by DIEPTXF)
 
-      	// Packets to be processed
-      	uint16_t tx_packet_amount = (in_ep[n].DIEPTSIZ & USB_OTG_DIEPTSIZ_PKTCNT_Msk) >> USB_OTG_DIEPTSIZ_PKTCNT_Pos;
+        uint16_t remaining_packets = (in_ep[n].DIEPTSIZ & USB_OTG_DIEPTSIZ_PKTCNT_Msk) >> USB_OTG_DIEPTSIZ_PKTCNT_Pos;
 
-      	// Process every single packet (only whole packets can be written to fifo)
-      	for(uint16_t i = 0; i < tx_packet_amount; i++){
-      		// amount of bytes EP still needs to transfer
-      		uint16_t tx_remaining = (in_ep[n].DIEPTSIZ & USB_OTG_DIEPTSIZ_XFRSIZ_Msk) >> USB_OTG_DIEPTSIZ_XFRSIZ_Pos;
-      		// Packet can not be larger than ep max size
-      		uint16_t packet_size = (tx_remaining > xfer->max_size) ? xfer->max_size : tx_remaining;
+        // Process every single packet (only whole packets can be written to fifo)
+        for(uint16_t i = 0; i < remaining_packets; i++){
+          uint16_t remaining_bytes = (in_ep[n].DIEPTSIZ & USB_OTG_DIEPTSIZ_XFRSIZ_Msk) >> USB_OTG_DIEPTSIZ_XFRSIZ_Pos;
+          // Packet can not be larger than ep max size
+          uint16_t packet_size = tu_min16(remaining_bytes, xfer->max_size);
 
-      		// It's only possible to write full packets into FIFO. Therefore DTXFSTS register of current
-      		// EP has to be checked if the buffer can take another WHOLE packet
-      		if(packet_size > ((in_ep[n].DTXFSTS & USB_OTG_DTXFSTS_INEPTFSAV_Msk) << 2)){
-      			break;
-      		}
+          // It's only possible to write full packets into FIFO. Therefore DTXFSTS register of current
+          // EP has to be checked if the buffer can take another WHOLE packet
+          if(packet_size > ((in_ep[n].DTXFSTS & USB_OTG_DTXFSTS_INEPTFSAV_Msk) << 2)){
+            break;
+          }
 
-      		xfer->queued_len = xfer->total_len - tx_remaining;
+          // TODO: queued_len can be removed later
+          xfer->queued_len = xfer->total_len - remaining_bytes;
 
-      		// Push packet to Tx-FIFO
-					transmit_fifo_packet(n, (xfer->buffer + xfer->queued_len), packet_size);
-      	}
+          // Push packet to Tx-FIFO
+          write_fifo_packet(n, (xfer->buffer + xfer->queued_len), packet_size);
+        }
 
         // Turn off TXFE if all bytes are written.
         if (((in_ep[n].DIEPTSIZ & USB_OTG_DIEPTSIZ_XFRSIZ_Msk) >> USB_OTG_DIEPTSIZ_XFRSIZ_Pos) == 0)
