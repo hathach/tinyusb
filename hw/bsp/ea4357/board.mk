@@ -6,9 +6,9 @@ CFLAGS += \
   -mfloat-abi=hard \
   -mfpu=fpv4-sp-d16 \
   -nostdlib \
+  -D__USE_LPCOPEN \
   -DCORE_M4 \
-  -DCFG_TUSB_MCU=OPT_MCU_LPC43XX \
-  -D__USE_LPCOPEN
+  -DCFG_TUSB_MCU=OPT_MCU_LPC43XX
 
 # mcu driver cause following warnings
 CFLAGS += -Wno-error=unused-parameter -Wno-error=strict-prototypes

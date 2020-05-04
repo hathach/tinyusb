@@ -127,6 +127,15 @@ tusb_device_state_t tuh_device_get_state (uint8_t const dev_addr)
   return (tusb_device_state_t) _usbh_devices[dev_addr].state;
 }
 
+
+static inline void osal_task_delay(uint32_t msec)
+{
+  (void) msec;
+
+  uint32_t start = hcd_frame_number(TUH_OPT_RHPORT);
+  while ( ( hcd_frame_number(TUH_OPT_RHPORT) - start ) < msec ) {}
+}
+
 //--------------------------------------------------------------------+
 // CLASS-USBD API (don't require to verify parameters)
 //--------------------------------------------------------------------+

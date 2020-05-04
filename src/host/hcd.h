@@ -91,6 +91,15 @@ void hcd_isr(uint8_t hostid);
 void hcd_int_enable (uint8_t rhport);
 void hcd_int_disable(uint8_t rhport);
 
+// Get micro frame number (125 us)
+uint32_t hcd_uframe_number(uint8_t rhport);
+
+// Get frame number (1ms)
+static inline uint32_t hcd_frame_number(uint8_t rhport)
+{
+  return hcd_uframe_number(rhport) >> 3;
+}
+
 // PORT API
 /// return the current connect status of roothub port
 bool hcd_port_connect_status(uint8_t hostid);

@@ -108,6 +108,12 @@ bool hcd_init(void)
   return ehci_init(TUH_OPT_RHPORT);
 }
 
+uint32_t hcd_uframe_number(uint8_t rhport)
+{
+  (void) rhport;
+  return ehci_data.uframe_number + ehci_data.regs->frame_index;
+}
+
 void hcd_port_reset(uint8_t rhport)
 {
   (void) rhport;
@@ -192,7 +198,7 @@ static bool ehci_init(uint8_t rhport)
   regs->status = EHCI_INT_MASK_ALL; // 2. clear all status
 
   regs->inten  = EHCI_INT_MASK_ERROR | EHCI_INT_MASK_PORT_CHANGE | EHCI_INT_MASK_ASYNC_ADVANCE |
-                 EHCI_INT_MASK_NXP_PERIODIC | EHCI_INT_MASK_NXP_ASYNC ;
+                 EHCI_INT_MASK_NXP_PERIODIC | EHCI_INT_MASK_NXP_ASYNC | EHCI_INT_MASK_FRAMELIST_ROLLOVER;
 
   //------------- Asynchronous List -------------//
   ehci_qhd_t * const async_head = qhd_async_head(rhport);
@@ -635,6 +641,11 @@ void hcd_isr(uint8_t rhport)
   regs->status |= int_status; // Acknowledge handled interrupt
 
   if (int_status == 0) return;
+
+  if (int_status & EHCI_INT_MASK_FRAMELIST_ROLLOVER)
+  {
+    ehci_data.uframe_number += (EHCI_FRAMELIST_SIZE << 3);
+  }
 
   if (int_status & EHCI_INT_MASK_PORT_CHANGE)
   {

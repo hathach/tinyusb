@@ -54,8 +54,8 @@
 //--------------------------------------------------------------------+
 // EHCI CONFIGURATION & CONSTANTS
 //--------------------------------------------------------------------+
-#define	EHCI_CFG_FRAMELIST_SIZE_BITS			7			/// Framelist Size (NXP specific) (0:1024) - (1:512) - (2:256) - (3:128) - (4:64) - (5:32) - (6:16) - (7:8)
-#define EHCI_FRAMELIST_SIZE  (1024 >> EHCI_CFG_FRAMELIST_SIZE_BITS)
+#define	EHCI_CFG_FRAMELIST_SIZE_BITS		7			/// Framelist Size (NXP specific) (0:1024) - (1:512) - (2:256) - (3:128) - (4:64) - (5:32) - (6:16) - (7:8)
+#define EHCI_FRAMELIST_SIZE             (1024 >> EHCI_CFG_FRAMELIST_SIZE_BITS)
 
 // TODO merge OHCI with EHCI
 enum {
@@ -445,6 +445,8 @@ typedef struct
   ehci_qtd_t qtd_pool[HCD_MAX_XFER] TU_ATTR_ALIGNED(32);
 
   ehci_registers_t* regs;
+
+  volatile uint32_t uframe_number;
 }ehci_data_t;
 
 #ifdef __cplusplus
