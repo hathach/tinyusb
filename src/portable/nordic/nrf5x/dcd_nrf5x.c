@@ -32,13 +32,6 @@
 #include "nrf_clock.h"
 #include "nrf_power.h"
 #include "nrfx_usbd_errata.h"
-
-#ifdef SOFTDEVICE_PRESENT
-// For enable/disable hfclk with SoftDevice
-#include "nrf_sdm.h"
-#include "nrf_soc.h"
-#endif
-
 #include "device/dcd.h"
 
 // TODO remove later
@@ -564,9 +557,26 @@ void dcd_int_handler(uint8_t rhport)
 // HFCLK helper
 //--------------------------------------------------------------------+
 #ifdef SOFTDEVICE_PRESENT
-// check if SD is present and enabled
-static bool is_sd_enabled(void)
+
+// For enable/disable hfclk with SoftDevice
+#include "nrf_mbr.h"
+#include "nrf_sdm.h"
+#include "nrf_soc.h"
+
+#ifndef SD_MAGIC_NUMBER
+  #define SD_MAGIC_NUMBER   0x51B1E5DB
+#endif
+
+static inline bool is_sd_existed(void)
 {
+  return *((uint32_t*)(SOFTDEVICE_INFO_STRUCT_ADDRESS+4)) == SD_MAGIC_NUMBER;
+}
+
+// check if SD is existed and enabled
+static inline bool is_sd_enabled(void)
+{
+  if ( !is_sd_existed() ) return false;
+
   uint8_t sd_en = false;
   (void) sd_softdevice_is_enabled(&sd_en);
   return sd_en;
