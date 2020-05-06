@@ -95,6 +95,10 @@ static void SystemClock_Config(void)
   /* Enable the CSS interrupt in case LSE signal is corrupted or not present */
   HAL_RCCEx_DisableLSECSS();
 
+  /* Set tick interrupt priority, default HAL value is intentionally invalid
+     and that prevents PLL initialization in HAL_RCC_OscConfig() */
+  HAL_InitTick((1UL << __NVIC_PRIO_BITS) - 1UL);
+
   /* Enable MSI Oscillator and activate PLL with MSI as source */
   RCC_OscInitStruct.OscillatorType      = RCC_OSCILLATORTYPE_MSI;
   RCC_OscInitStruct.MSIState            = RCC_MSI_ON;
