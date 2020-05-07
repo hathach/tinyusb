@@ -32,6 +32,10 @@
 #include "device/usbd_pvt.h"
 #include "dcd.h"
 
+#if CFG_TUSB_DEBUG >= 2
+extern void usbd_driver_print_control_complete_name(bool (*control_complete) (uint8_t, tusb_control_request_t const *));
+#endif
+
 enum
 {
   EDPT_CTRL_OUT = 0x00,
@@ -192,7 +196,6 @@ bool usbd_control_xfer_cb (uint8_t rhport, uint8_t ep_addr, xfer_result_t result
     if ( _ctrl_xfer.complete_cb )
     {
       #if CFG_TUSB_DEBUG >= 2
-      extern void usbd_driver_print_control_complete_name(bool (*control_complete) (uint8_t, tusb_control_request_t const *));
       usbd_driver_print_control_complete_name(_ctrl_xfer.complete_cb);
       #endif
 
