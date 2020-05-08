@@ -101,7 +101,11 @@ static void edpt_dma_start(volatile uint32_t* reg_startep)
     else
     {
       // Otherwise simply block wait
-      while ( _dcd.dma_running )  { }
+      while ( _dcd.dma_running )  {
+        // Manually poll the handler if interrupts are disabled
+        if ( __get_PRIMASK() )
+          dcd_int_handler(0);
+      }
     }
   }
 
