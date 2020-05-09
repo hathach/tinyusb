@@ -38,6 +38,14 @@
 #define CFG_TUD_CDC_EPSIZE 64
 #endif
 
+/* Some non-standard terminal programs don't set DTR bit while connected, 
+ * which makes TinyUSB believe that no connection is established.
+ * Use this option to ignore DTR bit in connection check.
+ */
+#ifndef CFG_TUD_CDC_IGNORE_DTR
+#define CFG_TUD_CDC_IGNORE_DTR 0
+#endif
+
 #ifdef __cplusplus
  extern "C" {
 #endif

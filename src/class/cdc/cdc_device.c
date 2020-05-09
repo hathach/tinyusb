@@ -93,8 +93,12 @@ static void _prep_out_transaction (uint8_t itf)
 //--------------------------------------------------------------------+
 bool tud_cdc_n_connected(uint8_t itf)
 {
+#if CFG_TUD_CDC_IGNORE_DTR
+  return tud_ready();
+#else
   // DTR (bit 0) active  is considered as connected
   return tud_ready() && tu_bit_test(_cdcd_itf[itf].line_state, 0);
+#endif
 }
 
 uint8_t tud_cdc_n_get_line_state (uint8_t itf)
