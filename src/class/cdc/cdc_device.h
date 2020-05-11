@@ -98,6 +98,9 @@ uint32_t tud_cdc_n_write_flush     (uint8_t itf);
 // Return number of characters available for writing
 uint32_t tud_cdc_n_write_available (uint8_t itf);
 
+// Check whether output fifo is flushed
+bool     tud_cdc_n_flushed         (uint8_t itf);
+
 //--------------------------------------------------------------------+
 // Application API (Single Port)
 //--------------------------------------------------------------------+
@@ -117,6 +120,7 @@ static inline uint32_t tud_cdc_write           (void const* buffer, uint32_t buf
 static inline uint32_t tud_cdc_write_str       (char const* str);
 static inline uint32_t tud_cdc_write_flush     (void);
 static inline uint32_t tud_cdc_write_available (void);
+static inline bool     tud_cdc_flushed         (void);
 
 //--------------------------------------------------------------------+
 // Application Callback API (weak is optional)
@@ -221,6 +225,11 @@ static inline uint32_t tud_cdc_write_flush (void)
 static inline uint32_t tud_cdc_write_available(void)
 {
   return tud_cdc_n_write_available(0);
+}
+
+static inline bool tud_cdc_flushed(void)
+{
+  return tud_cdc_n_flushed(0);
 }
 
 /** @} */
