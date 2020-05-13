@@ -199,6 +199,19 @@ static usbd_class_driver_t const _usbd_driver[] =
       .sof              = NULL,
   },
   #endif
+
+  #if CFG_TUD_BTH
+  {
+      DRIVER_NAME("BTH")
+      .init             = btd_init,
+      .reset            = btd_reset,
+      .open             = btd_open,
+      .control_request  = btd_control_request,
+      .control_complete = btd_control_complete,
+      .xfer_cb          = btd_xfer_cb,
+      .sof              = NULL
+  },
+  #endif
 };
 
 enum { USBD_CLASS_DRIVER_COUNT = TU_ARRAY_SIZE(_usbd_driver) };
