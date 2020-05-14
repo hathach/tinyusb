@@ -54,6 +54,64 @@ void test_normal(void)
   }
 }
 
+void test_read_n(void)
+{
+  // prepare data
+  uint8_t data[20];
+  for(int i=0; i<sizeof(data); i++) data[i] = i;
+
+  for(uint8_t i=0; i < FIFO_SIZE; i++) tu_fifo_write(&ff, data+i);
+
+  uint8_t rd[10];
+  uint16_t rd_count;
+
+  // case 1: Read index + count < depth
+  // read 0 -> 5
+  rd_count = tu_fifo_read_n(&ff, rd, 5);
+  TEST_ASSERT_EQUAL( 5, rd_count );
+  TEST_ASSERT_EQUAL_MEMORY( data, rd, rd_count ); // 0 -> 4
+
+  // case 2: Read index + count > depth
+  // write 10, 11, 12
+  tu_fifo_write(&ff, data+10);
+  tu_fifo_write(&ff, data+11);
+  tu_fifo_write(&ff, data+12);
+
+  rd_count = tu_fifo_read_n(&ff, rd, 7);
+  TEST_ASSERT_EQUAL( 7, rd_count );
+
+  TEST_ASSERT_EQUAL_MEMORY( data+5, rd, rd_count ); // 5 -> 11
+
+  // Should only read until empty
+  TEST_ASSERT_EQUAL( 1, tu_fifo_read_n(&ff, rd, 100) );
+}
+
+void test_write_n(void)
+{
+  // prepare data
+  uint8_t data[20];
+  for(int i=0; i<sizeof(data); i++) data[i] = i;
+
+  // case 1: wr + count < depth
+  tu_fifo_write_n(&ff, data, 8); // wr = 8, count = 8
+
+  uint8_t rd[10];
+  uint16_t rd_count;
+
+  rd_count = tu_fifo_read_n(&ff, rd, 5); // wr = 8, count = 3
+  TEST_ASSERT_EQUAL( 5, rd_count );
+  TEST_ASSERT_EQUAL_MEMORY( data, rd, rd_count ); // 0 -> 4
+
+  // case 2: wr + count > depth
+  tu_fifo_write_n(&ff, data+8, 6); // wr = 3, count = 9
+
+  for(rd_count=0; rd_count<7; rd_count++) tu_fifo_read(&ff, rd+rd_count); // wr = 3, count = 2
+
+  TEST_ASSERT_EQUAL_MEMORY( data+5, rd, rd_count); // 5 -> 11
+
+  TEST_ASSERT_EQUAL(2, tu_fifo_count(&ff));
+}
+
 void test_peek(void)
 {
   uint8_t temp;
