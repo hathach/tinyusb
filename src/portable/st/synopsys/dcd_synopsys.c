@@ -708,14 +708,19 @@ void dcd_int_handler(uint8_t rhport) {
   }
 #endif
 
-  // Use while loop to handle more than one fifo data entry
-  // within a single interrupt call
-  while(USB_OTG_FS->GINTSTS & USB_OTG_GINTSTS_RXFLVL) {
+  // RxFIFO non-empty interrupt handling.
+  if(int_status & USB_OTG_GINTSTS_RXFLVL) {
     // RXFLVL bit is read-only
 
     // Mask out RXFLVL while reading data from FIFO
     USB_OTG_FS->GINTMSK &= ~USB_OTG_GINTMSK_RXFLVLM;
-    handle_rxflvl_ints(out_ep);
+
+    // Loop until all available packets were handled
+    do {
+      handle_rxflvl_ints(out_ep);
+      int_status = USB_OTG_FS->GINTSTS;
+    } while(int_status & USB_OTG_GINTSTS_RXFLVL);
+
     USB_OTG_FS->GINTMSK |= USB_OTG_GINTMSK_RXFLVLM;
   }
 
