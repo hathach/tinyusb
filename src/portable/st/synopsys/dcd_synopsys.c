@@ -130,9 +130,7 @@ static TU_ATTR_ALIGNED(4) uint32_t _setup_packet[2];
 typedef struct {
   uint8_t * buffer;
   uint16_t total_len;
-  uint16_t queued_len;
   uint16_t max_size;
-  bool short_packet;
 } xfer_ctl_t;
 
 typedef volatile uint32_t * usb_fifo_t;
@@ -437,8 +435,6 @@ bool dcd_edpt_xfer (uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t 
   xfer_ctl_t * xfer = XFER_CTL_BASE(epnum, dir);
   xfer->buffer       = buffer;
   xfer->total_len    = total_bytes;
-  xfer->queued_len   = 0;
-  xfer->short_packet = false;
 
   uint16_t num_packets = (total_bytes / xfer->max_size);
   uint8_t short_packet_size = total_bytes % xfer->max_size;
@@ -461,9 +457,10 @@ bool dcd_edpt_xfer (uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t 
       dev->DIEPEMPMSK |= (1 << epnum);
     }
   } else {
-    // Each complete packet for OUT xfers triggers XFRC.
-    out_ep[epnum].DOEPTSIZ |= (1 << USB_OTG_DOEPTSIZ_PKTCNT_Pos) |
-                              ((xfer->max_size & USB_OTG_DOEPTSIZ_XFRSIZ_Msk) << USB_OTG_DOEPTSIZ_XFRSIZ_Pos);
+    // A full OUT transfer (multiple packets, possibly) triggers XFRC.
+    out_ep[epnum].DOEPTSIZ &= ~(USB_OTG_DOEPTSIZ_PKTCNT_Msk | USB_OTG_DOEPTSIZ_XFRSIZ);
+    out_ep[epnum].DOEPTSIZ |= (num_packets << USB_OTG_DOEPTSIZ_PKTCNT_Pos) |
+                              ((total_bytes << USB_OTG_DOEPTSIZ_XFRSIZ_Pos) & USB_OTG_DOEPTSIZ_XFRSIZ_Msk);
 
     out_ep[epnum].DOEPCTL |= USB_OTG_DOEPCTL_EPENA | USB_OTG_DOEPCTL_CNAK;
   }
@@ -558,65 +555,33 @@ void dcd_edpt_clear_stall (uint8_t rhport, uint8_t ep_addr)
 
 /*------------------------------------------------------------------*/
 
-// TODO: Split into "receive on endpoint 0" and "receive generic"; endpoint 0's
-// DOEPTSIZ register is smaller than the others, and so is insufficient for
-// determining how much of an OUT transfer is actually remaining.
-static void receive_packet(uint8_t rhport, xfer_ctl_t * xfer, /* USB_OTG_OUTEndpointTypeDef * out_ep, */ uint16_t xfer_size) {
+// Read a single data packet from receive FIFO
+static void read_fifo_packet(uint8_t rhport, uint8_t * dst, uint16_t len){
   usb_fifo_t rx_fifo = FIFO_BASE(rhport, 0);
 
-  // See above TODO
-  // uint16_t remaining = (out_ep->DOEPTSIZ & USB_OTG_DOEPTSIZ_XFRSIZ_Msk) >> USB_OTG_DOEPTSIZ_XFRSIZ_Pos;
-  // xfer->queued_len = xfer->total_len - remaining;
-
-  uint16_t remaining = xfer->total_len - xfer->queued_len;
-  uint16_t to_recv_size;
-
-  if(remaining <= xfer->max_size) {
-    // Avoid buffer overflow.
-    to_recv_size = (xfer_size > remaining) ? remaining : xfer_size;
-  } else {
-    // Room for full packet, choose recv_size based on what the microcontroller
-    // claims.
-    to_recv_size = (xfer_size > xfer->max_size) ? xfer->max_size : xfer_size;
+  // Reading full available 32 bit words from fifo
+  uint16_t full_words = len >> 2;
+  for(uint16_t i = 0; i < full_words; i++) {
+    uint32_t tmp = *rx_fifo;
+    dst[0] = tmp & 0x000000FF;
+    dst[1] = (tmp & 0x0000FF00) >> 8;
+    dst[2] = (tmp & 0x00FF0000) >> 16;
+    dst[3] = (tmp & 0xFF000000) >> 24;
+    dst += 4;
   }
 
-  uint8_t to_recv_rem = to_recv_size % 4;
-  uint16_t to_recv_size_aligned = to_recv_size - to_recv_rem;
-
-  // Do not assume xfer buffer is aligned.
-  uint8_t * base = (xfer->buffer + xfer->queued_len);
-
-  // This for loop always runs at least once- skip if less than 4 bytes
-  // to collect.
-  if(to_recv_size >= 4) {
-    for(uint16_t i = 0; i < to_recv_size_aligned; i += 4) {
-      uint32_t tmp = (* rx_fifo);
-      base[i] = tmp & 0x000000FF;
-      base[i + 1] = (tmp & 0x0000FF00) >> 8;
-      base[i + 2] = (tmp & 0x00FF0000) >> 16;
-      base[i + 3] = (tmp & 0xFF000000) >> 24;
+  // Read the remaining 1-3 bytes from fifo
+  uint8_t bytes_rem = len & 0x03;
+  if(bytes_rem != 0) {
+    uint32_t tmp = *rx_fifo;
+    dst[0] = tmp & 0x000000FF;
+    if(bytes_rem > 1) {
+      dst[1] = (tmp & 0x0000FF00) >> 8;
+    }
+    if(bytes_rem > 2) {
+      dst[2] = (tmp & 0x00FF0000) >> 16;
     }
   }
-
-  // Do not read invalid bytes from RX FIFO.
-  if(to_recv_rem != 0) {
-    uint32_t tmp = (* rx_fifo);
-    uint8_t * last_32b_bound = base + to_recv_size_aligned;
-
-    last_32b_bound[0] = tmp & 0x000000FF;
-    if(to_recv_rem > 1) {
-      last_32b_bound[1] = (tmp & 0x0000FF00) >> 8;
-    }
-    if(to_recv_rem > 2) {
-      last_32b_bound[2] = (tmp & 0x00FF0000) >> 16;
-    }
-  }
-
-  xfer->queued_len += xfer_size;
-
-  // Per USB spec, a short OUT packet (including length 0) is always
-  // indicative of the end of a transfer (at least for ctl, bulk, int).
-  xfer->short_packet = (xfer_size < xfer->max_size);
 }
 
 // Write a single data packet to EPIN FIFO
@@ -645,13 +610,11 @@ static void write_fifo_packet(uint8_t rhport, uint8_t fifo_num, uint8_t * src, u
   }
 }
 
-static void read_rx_fifo(uint8_t rhport, USB_OTG_OUTEndpointTypeDef * out_ep)
-{
+static void handle_rxflvl_ints(uint8_t rhport, USB_OTG_OUTEndpointTypeDef * out_ep) {
   USB_OTG_GlobalTypeDef * usb_otg = GLOBAL_BASE(rhport);
   usb_fifo_t rx_fifo = FIFO_BASE(rhport, 0);
 
-  // Pop control word off FIFO (completed xfers will have 2 control words,
-  // we only pop one ctl word each interrupt).
+  // Pop control word off FIFO
   uint32_t ctl_word = usb_otg->GRXSTSP;
   uint8_t pktsts = (ctl_word & USB_OTG_GRXSTSP_PKTSTS_Msk) >> USB_OTG_GRXSTSP_PKTSTS_Pos;
   uint8_t epnum = (ctl_word &  USB_OTG_GRXSTSP_EPNUM_Msk) >>  USB_OTG_GRXSTSP_EPNUM_Pos;
@@ -663,7 +626,13 @@ static void read_rx_fifo(uint8_t rhport, USB_OTG_OUTEndpointTypeDef * out_ep)
     case 0x02: // Out packet recvd
       {
         xfer_ctl_t * xfer = XFER_CTL_BASE(epnum, TUSB_DIR_OUT);
-        receive_packet(rhport, xfer, bcnt);
+
+        // Use BCNT to calculate correct bytes before data entry popped out from RxFIFO
+        uint16_t remaining_bytes = ((out_ep[epnum].DOEPTSIZ & USB_OTG_DOEPTSIZ_XFRSIZ_Msk) \
+                                    >> USB_OTG_DOEPTSIZ_XFRSIZ_Pos) + bcnt;
+
+        // Read packet off RxFIFO
+        read_fifo_packet(rhport, (xfer->buffer + xfer->total_len - remaining_bytes), bcnt);
       }
       break;
     case 0x03: // Out packet done (Interrupt)
@@ -698,25 +667,10 @@ static void handle_epout_ints(uint8_t rhport, USB_OTG_DeviceTypeDef * dev, USB_O
         dcd_event_setup_received(rhport, (uint8_t*) &_setup_packet[0], true);
       }
 
-      // OUT XFER complete (single packet).
+      // OUT XFER complete
       if(out_ep[n].DOEPINT & USB_OTG_DOEPINT_XFRC) {
         out_ep[n].DOEPINT = USB_OTG_DOEPINT_XFRC;
-
-        // TODO: Because of endpoint 0's constrained size, we handle XFRC
-        // on a packet-basis. The core can internally handle multiple OUT
-        // packets; it would be more efficient to only trigger XFRC on a
-        // completed transfer for non-0 endpoints.
-
-        // Transfer complete if short packet or total len is transferred
-        if(xfer->short_packet || (xfer->queued_len == xfer->total_len)) {
-          xfer->short_packet = false;
-          dcd_event_xfer_complete(rhport, n, xfer->queued_len, XFER_RESULT_SUCCESS, true);
-        } else {
-          // Schedule another packet to be received.
-          out_ep[n].DOEPTSIZ |= (1 << USB_OTG_DOEPTSIZ_PKTCNT_Pos) | \
-              ((xfer->max_size & USB_OTG_DOEPTSIZ_XFRSIZ_Msk) << USB_OTG_DOEPTSIZ_XFRSIZ_Pos);
-          out_ep[n].DOEPCTL |= USB_OTG_DOEPCTL_EPENA | USB_OTG_DOEPCTL_CNAK;
-        }
+        dcd_event_xfer_complete(rhport, n, xfer->total_len, XFER_RESULT_SUCCESS, true);
       }
     }
   }
@@ -760,11 +714,8 @@ static void handle_epin_ints(uint8_t rhport, USB_OTG_DeviceTypeDef * dev, USB_OT
             break;
           }
 
-          // TODO: queued_len can be removed later
-          xfer->queued_len = xfer->total_len - remaining_bytes;
-
           // Push packet to Tx-FIFO
-          write_fifo_packet(rhport, n, (xfer->buffer + xfer->queued_len), packet_size);
+          write_fifo_packet(rhport, n, (xfer->buffer + xfer->total_len - remaining_bytes), packet_size);
         }
 
         // Turn off TXFE if all bytes are written.
@@ -835,12 +786,20 @@ void dcd_int_handler(uint8_t rhport)
   }
 #endif
 
-  if(int_status & USB_OTG_GINTSTS_RXFLVL) {
+  // Use while loop to handle more than one fifo data entry
+  // within a single interrupt call
+  while(usb_otg->GINTSTS & USB_OTG_GINTSTS_RXFLVL) {
     // RXFLVL bit is read-only
 
     // Mask out RXFLVL while reading data from FIFO
     usb_otg->GINTMSK &= ~USB_OTG_GINTMSK_RXFLVLM;
-    read_rx_fifo(rhport, out_ep);
+
+    // Loop until all available packets were handled
+    do {
+      handle_rxflvl_ints(rhport, out_ep);
+      int_status = usb_otg->GINTSTS;
+    } while(int_status & USB_OTG_GINTSTS_RXFLVL);
+
     usb_otg->GINTMSK |= USB_OTG_GINTMSK_RXFLVLM;
   }
 
