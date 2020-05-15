@@ -109,6 +109,9 @@ typedef volatile uint32_t * usb_fifo_t;
 xfer_ctl_t xfer_status[EP_MAX][2];
 #define XFER_CTL_BASE(_ep, _dir) &xfer_status[_ep][_dir]
 
+// EP0 transfers are limited to 1 packet - larger sizes has to be split
+static uint16_t ep0_pending[2];     // Index determines direction as tusb_dir_t type
+
 
 // Setup the control endpoint 0.
 static void bus_reset(void) {
@@ -356,11 +359,24 @@ bool dcd_edpt_xfer (uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t 
   xfer->total_len    = total_bytes;
 
   uint16_t num_packets = (total_bytes / xfer->max_size);
-  uint8_t short_packet_size = total_bytes % xfer->max_size;
+  uint8_t const short_packet_size = total_bytes % xfer->max_size;
 
   // Zero-size packet is special case.
   if(short_packet_size > 0 || (total_bytes == 0)) {
     num_packets++;
+  }
+
+  // EP0 can only handle one packet
+  if(epnum == 0) {
+    num_packets = 1;
+    if(total_bytes > xfer->max_size) {
+      ep0_pending[dir] = total_bytes - xfer->max_size;
+      total_bytes = xfer->max_size;
+      // Decrement pointer to make EP0 buffers compatible with existing routines.
+      xfer->buffer -= ep0_pending[dir];
+    } else {
+      ep0_pending[dir] = 0;
+    }
   }
 
   // IN and OUT endpoint xfers are interrupt-driven, we just schedule them here.
@@ -549,6 +565,9 @@ static void handle_rxflvl_ints(USB_OTG_OUTEndpointTypeDef * out_ep) {
         uint16_t remaining_bytes = ((out_ep[epnum].DOEPTSIZ & USB_OTG_DOEPTSIZ_XFRSIZ_Msk) \
                                     >> USB_OTG_DOEPTSIZ_XFRSIZ_Pos) + bcnt;
 
+        // Adjust remaining bytes in case of multi packet EP0 transfer
+        if(epnum == 0) remaining_bytes += ep0_pending[TUSB_DIR_OUT];
+
         // Read packet off RxFIFO
         read_fifo_packet((xfer->buffer + xfer->total_len - remaining_bytes), bcnt);
       }
@@ -592,7 +611,18 @@ static void handle_epout_ints(USB_OTG_DeviceTypeDef * dev, USB_OTG_OUTEndpointTy
       // OUT XFER complete
       if(out_ep[n].DOEPINT & USB_OTG_DOEPINT_XFRC) {
         out_ep[n].DOEPINT = USB_OTG_DOEPINT_XFRC;
-        dcd_event_xfer_complete(0, n, xfer->total_len, XFER_RESULT_SUCCESS, true);
+
+        // EP0 can only handle one packet
+        if((n == 0) && ep0_pending[TUSB_DIR_OUT]){
+          uint16_t const total_bytes = tu_min16(ep0_pending[TUSB_DIR_OUT], xfer->max_size);
+          ep0_pending[TUSB_DIR_OUT] -= total_bytes;
+          // Schedule another packet to be received.
+          out_ep[0].DOEPTSIZ |= (1 << USB_OTG_DOEPTSIZ_PKTCNT_Pos) |
+                                ((total_bytes << USB_OTG_DOEPTSIZ_XFRSIZ_Pos) & USB_OTG_DOEPTSIZ_XFRSIZ_Msk);
+          out_ep[0].DOEPCTL |= USB_OTG_DOEPCTL_EPENA | USB_OTG_DOEPCTL_CNAK;
+        } else {
+          dcd_event_xfer_complete(0, n, xfer->total_len, XFER_RESULT_SUCCESS, true);
+        }
       }
     }
   }
@@ -612,7 +642,18 @@ static void handle_epin_ints(USB_OTG_DeviceTypeDef * dev, USB_OTG_INEndpointType
       if ( in_ep[n].DIEPINT & USB_OTG_DIEPINT_XFRC )
       {
         in_ep[n].DIEPINT = USB_OTG_DIEPINT_XFRC;
-        dcd_event_xfer_complete(0, n | TUSB_DIR_IN_MASK, xfer->total_len, XFER_RESULT_SUCCESS, true);
+
+        // EP0 can only handle one packet
+        if((n == 0) && ep0_pending[TUSB_DIR_IN]){
+          uint16_t const total_bytes = tu_min16(ep0_pending[TUSB_DIR_IN], xfer->max_size);
+          ep0_pending[TUSB_DIR_IN] -= total_bytes;
+          // Schedule another packet to be received.
+          in_ep[0].DIEPTSIZ |= (1 << USB_OTG_DIEPTSIZ_PKTCNT_Pos) |
+                                ((total_bytes << USB_OTG_DIEPTSIZ_XFRSIZ_Pos) & USB_OTG_DIEPTSIZ_XFRSIZ_Msk);
+          in_ep[0].DIEPCTL |= USB_OTG_DIEPCTL_EPENA | USB_OTG_DIEPCTL_CNAK;
+        } else {
+          dcd_event_xfer_complete(0, n | TUSB_DIR_IN_MASK, xfer->total_len, XFER_RESULT_SUCCESS, true);
+        }
       }
 
       // XFER FIFO empty
@@ -636,6 +677,9 @@ static void handle_epin_ints(USB_OTG_DeviceTypeDef * dev, USB_OTG_INEndpointType
           if(packet_size > ((in_ep[n].DTXFSTS & USB_OTG_DTXFSTS_INEPTFSAV_Msk) << 2)){
             break;
           }
+
+          // Adjust remaining bytes in case of multi packet EP0 transfer
+          if(n == 0) remaining_bytes += ep0_pending[TUSB_DIR_IN];
 
           // Push packet to Tx-FIFO
           write_fifo_packet(n, (xfer->buffer + xfer->total_len - remaining_bytes), packet_size);
