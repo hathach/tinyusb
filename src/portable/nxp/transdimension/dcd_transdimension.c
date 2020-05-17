@@ -273,7 +273,8 @@ typedef struct {
   dcd_qtd_t qtd[QHD_MAX] TU_ATTR_ALIGNED(32); // for portability, TinyUSB only queue 1 TD for each Qhd
 }dcd_data_t;
 
-static dcd_data_t _dcd_data CFG_TUSB_MEM_SECTION TU_ATTR_ALIGNED(2048);
+CFG_TUSB_MEM_SECTION TU_ATTR_ALIGNED(2048)
+static dcd_data_t _dcd_data;
 
 //--------------------------------------------------------------------+
 // CONTROLLER API
@@ -478,7 +479,8 @@ bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t t
 
   // Force the CPU to flush the buffer. We increase the size by 32 because the call aligns the
   // address to 32-byte boundaries.
-  CleanInvalidateDCache_by_Addr((uint32_t*) buffer, total_bytes + 31);
+  // void* cast to suppress cast-align warning, buffer must be
+  CleanInvalidateDCache_by_Addr((uint32_t*) tu_align((uint32_t) buffer, 4), total_bytes + 31);
 
   //------------- Prepare qtd -------------//
   qtd_init(p_qtd, buffer, total_bytes);

@@ -7,6 +7,9 @@ CFLAGS += \
   -mfpu=fpv4-sp-d16 \
   -DCFG_TUSB_MCU=OPT_MCU_NUC505
 
+# TODO this cast-align is caused by dcd_nuc505 should be fixed
+CFLAGS += -Wno-error=cast-align
+
 # All source paths should be relative to the top level.
 LD_FILE = hw/bsp/$(BOARD)/nuc505_flashtoram.ld
 
@@ -19,13 +22,11 @@ SRC_C += \
   hw/mcu/nuvoton/nuc505/StdDriver/src/i2s.c \
   hw/mcu/nuvoton/nuc505/StdDriver/src/pwm.c \
   hw/mcu/nuvoton/nuc505/StdDriver/src/rtc.c \
-  hw/mcu/nuvoton/nuc505/StdDriver/src/sd.c \
   hw/mcu/nuvoton/nuc505/StdDriver/src/spi.c \
   hw/mcu/nuvoton/nuc505/StdDriver/src/spim.c \
   hw/mcu/nuvoton/nuc505/StdDriver/src/sys.c \
   hw/mcu/nuvoton/nuc505/StdDriver/src/timer.c \
   hw/mcu/nuvoton/nuc505/StdDriver/src/uart.c \
-  hw/mcu/nuvoton/nuc505/StdDriver/src/usbd.c \
   hw/mcu/nuvoton/nuc505/StdDriver/src/wdt.c \
   hw/mcu/nuvoton/nuc505/StdDriver/src/wwdt.c
 
