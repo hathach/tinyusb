@@ -326,7 +326,7 @@ bool netd_control_request(uint8_t rhport, tusb_control_request_t const * request
       {
         if (request->bmRequestType_bit.direction == TUSB_DIR_IN)
         {
-          rndis_generic_msg_t *rndis_msg = (rndis_generic_msg_t *)notify.rndis_buf;
+          rndis_generic_msg_t *rndis_msg = (rndis_generic_msg_t *) ((void*) notify.rndis_buf);
           uint32_t msglen = tu_le32toh(rndis_msg->MessageLength);
           TU_ASSERT(msglen <= sizeof(notify.rndis_buf));
           tud_control_xfer(rhport, request, notify.rndis_buf, msglen);
@@ -356,7 +356,7 @@ static void handle_incoming_packet(uint32_t len)
   }
   else
   {
-    rndis_data_packet_t *r = (rndis_data_packet_t *)pnt;
+    rndis_data_packet_t *r = (rndis_data_packet_t *) ((void*) pnt);
     if (len >= sizeof(rndis_data_packet_t))
       if ( (r->MessageType == REMOTE_NDIS_PACKET_MSG) && (r->MessageLength <= len))
         if ( (r->DataOffset + offsetof(rndis_data_packet_t, DataOffset) + r->DataLength) <= len)
@@ -450,7 +450,7 @@ void tud_network_xmit(struct pbuf *p)
 
   if (!_netd_itf.ecm_mode)
   {
-    rndis_data_packet_t *hdr = (rndis_data_packet_t *)transmitted;
+    rndis_data_packet_t *hdr = (rndis_data_packet_t *) ((void*) transmitted);
     memset(hdr, 0, sizeof(rndis_data_packet_t));
     hdr->MessageType = REMOTE_NDIS_PACKET_MSG;
     hdr->MessageLength = len;
