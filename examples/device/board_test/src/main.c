@@ -42,7 +42,7 @@ enum  {
   BLINK_UNPRESSED = 1000
 };
 
-#define HELLO_STR   "Hello from TinyUSB\n"
+#define HELLO_STR   "Hello from TinyUSB\r\n"
 
 int main(void)
 {
@@ -73,3 +73,10 @@ int main(void)
 
   return 0;
 }
+
+#if CFG_TUSB_MCU == OPT_MCU_ESP32S2
+void app_main(void)
+{
+  main();
+}
+#endif

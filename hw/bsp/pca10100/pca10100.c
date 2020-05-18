@@ -36,6 +36,14 @@
 #include "nrf_soc.h"
 #endif
 
+//--------------------------------------------------------------------+
+// Forward USB interrupt events to TinyUSB IRQ Handler
+//--------------------------------------------------------------------+
+void USBD_IRQHandler(void)
+{
+  tud_int_handler(0);
+}
+
 /*------------------------------------------------------------------*/
 /* MACRO TYPEDEF CONSTANT ENUM
  *------------------------------------------------------------------*/
@@ -71,10 +79,8 @@ void board_init(void)
   // Button
   nrf_gpio_cfg_input(BUTTON_PIN, NRF_GPIO_PIN_PULLUP);
 
-#if CFG_TUSB_OS == OPT_OS_NONE
   // 1ms tick timer
   SysTick_Config(SystemCoreClock/1000);
-#endif
 
   // UART
   nrfx_uarte_config_t uart_cfg =

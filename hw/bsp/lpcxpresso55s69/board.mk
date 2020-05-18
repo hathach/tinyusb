@@ -11,7 +11,7 @@ CFLAGS += \
   -DCFG_TUSB_MEM_ALIGN='__attribute__((aligned(64)))'
 
 # mcu driver cause following warnings
-CFLAGS += -Wno-error=unused-parameter -Wno-error=float-equal -Wno-error=nested-externs
+CFLAGS += -Wno-error=unused-parameter -Wno-error=float-equal
 
 MCU_DIR = hw/mcu/nxp/sdk/devices/LPC55S69
 
@@ -39,7 +39,7 @@ VENDOR = nxp
 CHIP_FAMILY = lpc_ip3511
 
 # For freeRTOS port source
-FREERTOS_PORT = ARM_CM33
+FREERTOS_PORT = ARM_CM33_NTZ/non_secure
 
 # For flash-jlink target
 JLINK_DEVICE = LPC55S69

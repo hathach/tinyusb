@@ -5,18 +5,16 @@ CFLAGS += \
   -nostdlib \
   -DCFG_TUSB_MCU=OPT_MCU_VALENTYUSB_EPTRI
 
+# Cross Compiler for RISC-V
+CROSS_COMPILE = riscv-none-embed-
+
 MCU_DIR = hw/mcu/fomu
 BSP_DIR = hw/bsp/fomu
 
 # All source paths should be relative to the top level.
-LD_FILE = hw/bsp/fomu/fomu.ld
+LD_FILE = hw/bsp/$(BOARD)/fomu.ld
 
-# TODO remove later
-SRC_C += src/portable/$(VENDOR)/$(CHIP_FAMILY)/hal_$(CHIP_FAMILY).c
-
-SRC_C += 
-
-SRC_S += hw/bsp/fomu/crt0-vexriscv.S
+SRC_S += hw/bsp/$(BOARD)/crt0-vexriscv.S
 
 INC += \
 	$(TOP)/$(BSP_DIR)/include
@@ -25,6 +23,13 @@ INC += \
 VENDOR = valentyusb
 CHIP_FAMILY = eptri
 
+# For freeRTOS port source
+FREERTOS_PORT = RISC-V
+
 # flash using dfu-util
+$(BUILD)/$(BOARD)-firmware.dfu: $(BUILD)/$(BOARD)-firmware.bin
+	@echo "Create $@"
+	python $(TOP)/hw/bsp/$(BOARD)/dfu.py -b $^ -D 0x1209:0x5bf0 $@
+	
 flash: $(BUILD)/$(BOARD)-firmware.dfu
 	dfu-util -D $^

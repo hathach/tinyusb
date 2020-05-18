@@ -71,23 +71,36 @@
 #define OPT_MCU_STM32L1           308 ///< ST STM32L1
 #define OPT_MCU_STM32L4           309 ///< ST STM32L4
 
+// Sony
 #define OPT_MCU_CXD56             400 ///< SONY CXD56
 
+// TI MSP430
+#define OPT_MCU_MSP430x5xx        500 ///< TI MSP430x5xx
+
+// ValentyUSB eptri
 #define OPT_MCU_VALENTYUSB_EPTRI  600 ///< Fomu eptri config
 
+// NXP iMX RT
 #define OPT_MCU_MIMXRT10XX        700 ///< NXP iMX RT10xx
 
+// Nuvoton
 #define OPT_MCU_NUC121            800
 #define OPT_MCU_NUC126            801
+#define OPT_MCU_NUC120            802
+#define OPT_MCU_NUC505            803
+
+// Espressif
+#define OPT_MCU_ESP32S2           900 ///< Espressif ESP32-S2
 
 /** @} */
 
 /** \defgroup group_supported_os Supported RTOS
  *  \ref CFG_TUSB_OS must be defined to one of these
  *  @{ */
-#define OPT_OS_NONE       1 ///< No RTOS
-#define OPT_OS_FREERTOS   2 ///< FreeRTOS
-#define OPT_OS_MYNEWT     3 ///< Mynewt OS
+#define OPT_OS_NONE       1  ///< No RTOS
+#define OPT_OS_FREERTOS   2  ///< FreeRTOS
+#define OPT_OS_MYNEWT     3  ///< Mynewt OS
+#define OPT_OS_CUSTOM     4  ///< Custom OS is implemented by application
 /** @} */
 
 
@@ -202,6 +215,9 @@
   #define CFG_TUD_DFU_RT          0
 #endif
 
+#ifndef CFG_TUD_NET
+  #define CFG_TUD_NET             0
+#endif
 
 //--------------------------------------------------------------------
 // HOST OPTIONS

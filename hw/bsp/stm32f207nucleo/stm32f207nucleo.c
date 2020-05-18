@@ -26,8 +26,19 @@
 
 #include "../board.h"
 
-#include "stm32f2xx.h"
-#include "stm32f2xx_hal_conf.h"
+#include "stm32f2xx_hal.h"
+
+//--------------------------------------------------------------------+
+// Forward USB interrupt events to TinyUSB IRQ Handler
+//--------------------------------------------------------------------+
+void OTG_FS_IRQHandler(void)
+{
+  tud_int_handler(0);
+}
+
+//--------------------------------------------------------------------+
+// MACRO TYPEDEF CONSTANT ENUM
+//--------------------------------------------------------------------+
 
 #define LED_PORT              GPIOB
 #define LED_PIN               GPIO_PIN_14
@@ -93,13 +104,13 @@ void SystemClock_Config(void)
 
 void board_init(void)
 {
+  SystemClock_Config();
+  
   #if CFG_TUSB_OS  == OPT_OS_NONE
   // 1ms tick timer
   SysTick_Config(SystemCoreClock / 1000);
   #endif
 
-  SystemClock_Config();
-  SystemCoreClockUpdate();
 
   all_rcc_clk_enable();
 

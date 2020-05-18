@@ -25,10 +25,19 @@
  */
 
 #include "../board.h"
+#include "stm32f0xx_hal.h"
 
-#include "stm32f0xx.h"
-#include "stm32f0xx_hal_conf.h"
+//--------------------------------------------------------------------+
+// Forward USB interrupt events to TinyUSB IRQ Handler
+//--------------------------------------------------------------------+
+void USB_IRQHandler(void)
+{
+  tud_int_handler(0);
+}
 
+//--------------------------------------------------------------------+
+// MACRO TYPEDEF CONSTANT ENUM
+//--------------------------------------------------------------------+
 #define LED_PORT              GPIOC
 #define LED_PIN               GPIO_PIN_6
 #define LED_STATE_ON          1
@@ -95,15 +104,13 @@ static void SystemClock_Config(void)
 
 void board_init(void)
 {
+  SystemClock_Config();
+  all_rcc_clk_enable();
+
   #if CFG_TUSB_OS  == OPT_OS_NONE
   // 1ms tick timer
   SysTick_Config(SystemCoreClock / 1000);
   #endif
-
-  SystemClock_Config();
-  SystemCoreClockUpdate();
-  
-  all_rcc_clk_enable();
 
   // LED
   GPIO_InitTypeDef  GPIO_InitStruct;
@@ -202,7 +209,7 @@ void HardFault_Handler (void)
   * @param  line: assert_param error line source number
   * @retval None
   */
-void assert_failed(char *file, uint32_t line)
+void assert_failed(uint8_t* file, uint32_t line)
 {
   (void) file; (void) line;
   /* USER CODE BEGIN 6 */

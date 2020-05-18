@@ -168,6 +168,8 @@ void vendord_reset(uint8_t rhport)
 
 bool vendord_open(uint8_t rhport, tusb_desc_interface_t const * itf_desc, uint16_t *p_len)
 {
+  TU_VERIFY(TUSB_CLASS_VENDOR_SPECIFIC == itf_desc->bInterfaceClass);
+
   // Find available interface
   vendord_interface_t* p_vendor = NULL;
   for(uint8_t i=0; i<CFG_TUD_VENDOR; i++)

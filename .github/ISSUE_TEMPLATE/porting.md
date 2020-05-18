@@ -7,11 +7,5 @@ assignees: ''
 
 ---
 
-**Porting layer**
- - [ ] Device Controller Driver (DCD)
- - [ ] Host Controller Driver (HCD)
- - [ ] Board Supported Package (BSP)
- - [ ] OS Abstraction Layer (OSAL)
-
 **Description**
-A clear and concise description of what you want to happen.
+Describe which API you want to port (DCD/HCD/OSAL/BSP). It is also helpful to go through [porting.md](docs/porting.md) first if you haven't yet.

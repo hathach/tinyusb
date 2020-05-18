@@ -11,7 +11,6 @@ CFLAGS += \
   -DCFG_TUSB_MCU=OPT_MCU_MIMXRT10XX
 
 # mcu driver cause following warnings
-#CFLAGS += -Wno-error=float-equal -Wno-error=nested-externs
 CFLAGS += -Wno-error=unused-parameter
 
 MCU_DIR = hw/mcu/nxp/sdk/devices/MIMXRT1062
@@ -42,7 +41,7 @@ VENDOR = nxp
 CHIP_FAMILY = transdimension
 
 # For freeRTOS port source
-FREERTOS_PORT = ARM_CM7
+FREERTOS_PORT = ARM_CM7/r0p1
 
 # For flash-jlink target
 JLINK_DEVICE = MIMXRT1062xxx6A

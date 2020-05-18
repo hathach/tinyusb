@@ -273,7 +273,8 @@ typedef struct {
   dcd_qtd_t qtd[QHD_MAX] TU_ATTR_ALIGNED(32); // for portability, TinyUSB only queue 1 TD for each Qhd
 }dcd_data_t;
 
-static dcd_data_t _dcd_data CFG_TUSB_MEM_SECTION TU_ATTR_ALIGNED(2048);
+CFG_TUSB_MEM_SECTION TU_ATTR_ALIGNED(2048)
+static dcd_data_t _dcd_data;
 
 //--------------------------------------------------------------------+
 // CONTROLLER API
@@ -322,7 +323,7 @@ void dcd_init(uint8_t rhport)
 {
   tu_memclr(&_dcd_data, sizeof(dcd_data_t));
 
-  dcd_registers_t* const dcd_reg = _dcd_controller[rhport].regs;
+  dcd_registers_t* dcd_reg = _dcd_controller[rhport].regs;
 
   // Reset controller
   dcd_reg->USBCMD |= USBCMD_RESET;
@@ -342,7 +343,6 @@ void dcd_init(uint8_t rhport)
   dcd_reg->USBINTR = INTR_USB | INTR_ERROR | INTR_PORT_CHANGE | INTR_RESET | INTR_SUSPEND /*| INTR_SOF*/;
 
   dcd_reg->USBCMD &= ~0x00FF0000; // Interrupt Threshold Interval = 0
-  dcd_reg->USBCMD |= TU_BIT(0); // connect
 }
 
 void dcd_int_enable(uint8_t rhport)
@@ -364,16 +364,21 @@ void dcd_set_address(uint8_t rhport, uint8_t dev_addr)
   dcd_reg->DEVICEADDR = (dev_addr << 25) | TU_BIT(24);
 }
 
-void dcd_set_config(uint8_t rhport, uint8_t config_num)
-{
-  (void) rhport;
-  (void) config_num;
-  // nothing to do
-}
-
 void dcd_remote_wakeup(uint8_t rhport)
 {
   (void) rhport;
+}
+
+void dcd_connect(uint8_t rhport)
+{
+  dcd_registers_t* dcd_reg = _dcd_controller[rhport].regs;
+  dcd_reg->USBCMD |= USBCMD_RUN_STOP;
+}
+
+void dcd_disconnect(uint8_t rhport)
+{
+  dcd_registers_t* dcd_reg = _dcd_controller[rhport].regs;
+  dcd_reg->USBCMD &= ~USBCMD_RUN_STOP;
 }
 
 //--------------------------------------------------------------------+
@@ -474,7 +479,8 @@ bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t t
 
   // Force the CPU to flush the buffer. We increase the size by 32 because the call aligns the
   // address to 32-byte boundaries.
-  CleanInvalidateDCache_by_Addr((uint32_t*) buffer, total_bytes + 31);
+  // void* cast to suppress cast-align warning, buffer must be
+  CleanInvalidateDCache_by_Addr((uint32_t*) tu_align((uint32_t) buffer, 4), total_bytes + 31);
 
   //------------- Prepare qtd -------------//
   qtd_init(p_qtd, buffer, total_bytes);
@@ -492,7 +498,7 @@ bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t t
 //--------------------------------------------------------------------+
 // ISR
 //--------------------------------------------------------------------+
-void dcd_isr(uint8_t rhport)
+void dcd_int_handler(uint8_t rhport)
 {
   dcd_registers_t* const dcd_reg = _dcd_controller[rhport].regs;
 

@@ -10,7 +10,6 @@ CFLAGS += \
   -DCFG_TUSB_MCU=OPT_MCU_STM32H7
 
 # mcu driver cause following warnings
-CFLAGS += -Wno-error=maybe-uninitialized
 
 ST_HAL_DRIVER = hw/mcu/st/st_driver/STM32H7xx_HAL_Driver
 ST_CMSIS = hw/mcu/st/st_driver/CMSIS/Device/ST/STM32H7xx
@@ -39,6 +38,9 @@ INC += \
 # For TinyUSB port source
 VENDOR = st
 CHIP_FAMILY = synopsys
+
+# For freeRTOS port source
+FREERTOS_PORT = ARM_CM7/r0p1
 
 # flash target using on-board stlink
 flash: flash-stlink

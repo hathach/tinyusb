@@ -7,26 +7,23 @@ assignees: ''
 
 ---
 
+**Set up**
+[Mandatory] Provide details of your setup help us to reproduce the issue as quick as possible  
+ - **PC OS**   : Ubuntu 18.04 / Windows 10/ macOS 10.15 
+ - **Board**   : Feather nRF52840 Express
+ - **Firmware**: examples/device/cdc_msc
+
 **Describe the bug**
 A clear and concise description of what the bug is.
 
-**Set up (please complete the following information):**
- - OS: [e.g. Ubuntu 18.04]
- - Board: [e.g pca10056]
- - Firmware Code: [e.g examples/device/cdc_msc_hid]
-
-**To Reproduce**
+**To reproduce**
 Steps to reproduce the behavior:
 1. Go to '...'
 2. Click on '....'
-3. Scroll down to '....'
-4. See error
-
-**Expected behavior**
-A clear and concise description of what you expected to happen.
+3. See error
 
 **Screenshots**
-If applicable, add screenshots to help explain your problem.
+If applicable, add screenshots, bus capture to help explain your problem. 
 
-**Additional context**
-Add any other context about the problem here.
+**Log**
+Please provide the stack's log (uart/rtt/swo) where the issue occurred, best with comments to explain the actual events. To enable logging, add `LOG=2` to to the make command if building with stock examples or set `CFG_TUSB_DEBUG=2` in your tusb_config.h. More information can be found at [example's readme](/examples/readme.md)

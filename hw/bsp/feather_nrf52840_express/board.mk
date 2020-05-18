@@ -9,8 +9,8 @@ CFLAGS += \
   -DNRF52840_XXAA \
   -DCONFIG_GPIO_AS_PINRESET
 
-# nrfx issue undef _ARMCC_VERSION usage https://github.com/NordicSemiconductor/nrfx/issues/49
-CFLAGS += -Wno-error=undef -Wno-error=unused-parameter
+# suppress warning caused by vendor mcu driver
+CFLAGS += -Wno-error=undef -Wno-error=unused-parameter -Wno-error=cast-align
 
 # due to tusb_hal_nrf_power_event
 GCCVERSION = $(firstword $(subst ., ,$(shell arm-none-eabi-gcc -dumpversion)))
@@ -19,16 +19,17 @@ CFLAGS += -Wno-error=cast-function-type
 endif
 
 # All source paths should be relative to the top level.
-LD_FILE = hw/bsp/feather_nrf52840_express/nrf52840_s140_v6.ld
+LD_FILE = hw/bsp/$(BOARD)/nrf52840_s140_v6.ld
 
 LDFLAGS += -L$(TOP)/hw/mcu/nordic/nrfx/mdk
 
 SRC_C += \
   hw/mcu/nordic/nrfx/drivers/src/nrfx_power.c \
-  hw/mcu/nordic/nrfx/mdk/system_nrf52840.c \
+  hw/mcu/nordic/nrfx/drivers/src/nrfx_uarte.c \
+  hw/mcu/nordic/nrfx/mdk/system_nrf52840.c
 
 INC += \
-  $(TOP)/hw/mcu/nordic/cmsis/Include \
+  $(TOP)/lib/CMSIS_4/CMSIS/Include \
   $(TOP)/hw/mcu/nordic \
   $(TOP)/hw/mcu/nordic/nrfx \
   $(TOP)/hw/mcu/nordic/nrfx/mdk \

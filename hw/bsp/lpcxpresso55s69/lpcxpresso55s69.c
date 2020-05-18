@@ -30,6 +30,22 @@
 #include "fsl_power.h"
 #include "fsl_iocon.h"
 
+//--------------------------------------------------------------------+
+// Forward USB interrupt events to TinyUSB IRQ Handler
+//--------------------------------------------------------------------+
+void USB0_IRQHandler(void)
+{
+  tud_int_handler(0);
+}
+
+void USB1_IRQHandler(void)
+{
+  tud_int_handler(1);
+}
+
+//--------------------------------------------------------------------+
+// MACRO TYPEDEF CONSTANT ENUM
+//--------------------------------------------------------------------+
 #define LED_PORT              1
 #define LED_PIN               6
 #define LED_STATE_ON          0

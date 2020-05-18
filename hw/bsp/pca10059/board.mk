@@ -9,8 +9,8 @@ CFLAGS += \
   -DCONFIG_GPIO_AS_PINRESET \
   -DCFG_TUSB_MCU=OPT_MCU_NRF5X
 
-# nrfx issue undef _ARMCC_VERSION usage https://github.com/NordicSemiconductor/nrfx/issues/49
-CFLAGS += -Wno-error=undef -Wno-error=unused-parameter
+# suppress warning caused by vendor mcu driver
+CFLAGS += -Wno-error=undef -Wno-error=unused-parameter -Wno-error=cast-align
 
 # due to tusb_hal_nrf_power_event
 GCCVERSION = $(firstword $(subst ., ,$(shell arm-none-eabi-gcc -dumpversion)))
@@ -28,7 +28,7 @@ SRC_C += \
 	hw/mcu/nordic/nrfx/mdk/system_nrf52840.c \
 
 INC += \
-	$(TOP)/hw/mcu/nordic/cmsis/Include \
+	$(TOP)/lib/CMSIS_4/CMSIS/Include \
 	$(TOP)/hw/mcu/nordic \
 	$(TOP)/hw/mcu/nordic/nrfx \
 	$(TOP)/hw/mcu/nordic/nrfx/mdk \

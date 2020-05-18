@@ -26,24 +26,43 @@
 
 #include "../board.h"
 
-#include "stm32f4xx.h"
-#include "stm32f4xx_hal_conf.h"
+#include "stm32f4xx_hal.h"
+
+//--------------------------------------------------------------------+
+// Forward USB interrupt events to TinyUSB IRQ Handler
+//--------------------------------------------------------------------+
+void OTG_FS_IRQHandler(void)
+{
+  tud_int_handler(0);
+}
+
+//--------------------------------------------------------------------+
+// MACRO TYPEDEF CONSTANT ENUM
+//--------------------------------------------------------------------+
 
 #define LED_PORT              GPIOE
 #define LED_PIN               GPIO_PIN_2
 #define LED_STATE_ON          0
 
-// Joystick selection
 #define BUTTON_PORT           GPIOA
 #define BUTTON_PIN            GPIO_PIN_0
 #define BUTTON_STATE_ACTIVE   1
 
+// Enable PA2 as the debug log UART
+#define UARTx                 USART2
+#define UART_GPIO_PORT        GPIOA
+#define UART_GPIO_AF          GPIO_AF7_USART2
+#define UART_TX_PIN           GPIO_PIN_2
+#define UART_RX_PIN           GPIO_PIN_3
+
+UART_HandleTypeDef UartHandle;
 
 // enable all LED, Button, Uart, USB clock
 static void all_rcc_clk_enable(void)
 {
   __HAL_RCC_GPIOA_CLK_ENABLE();  // USB D+, D-, Button
   __HAL_RCC_GPIOE_CLK_ENABLE();  // LED
+  __HAL_RCC_USART2_CLK_ENABLE(); // Uart module
 }
 
 /**
@@ -104,6 +123,8 @@ static void SystemClock_Config(void)
   PeriphClkInitStruct.PLLI2S.PLLI2SN = 192;
   PeriphClkInitStruct.PeriphClockSelection = RCC_PERIPHCLK_CK48;
   PeriphClkInitStruct.Clk48ClockSelection = RCC_CK48CLKSOURCE_PLLI2SQ;
+  PeriphClkInitStruct.PLLI2SSelection = RCC_PLLI2SCLKSOURCE_PLLSRC;
+  PeriphClkInitStruct.PLLI2S.PLLI2SR = 7;
   HAL_RCCEx_PeriphCLKConfig(&PeriphClkInitStruct);
 
   /* Select PLL as system clock source and configure the HCLK, PCLK1 and PCLK2
@@ -118,11 +139,9 @@ static void SystemClock_Config(void)
   HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_3);
 }
 
-
 void board_init(void)
 {
   SystemClock_Config();
-  SystemCoreClockUpdate();
   all_rcc_clk_enable();
 
 #if CFG_TUSB_OS == OPT_OS_NONE
@@ -180,6 +199,24 @@ void board_init(void)
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_OD;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(GPIOG, &GPIO_InitStruct);
+  GPIO_InitStruct.Pin       = UART_TX_PIN | UART_RX_PIN;
+  GPIO_InitStruct.Mode      = GPIO_MODE_AF_PP;
+  GPIO_InitStruct.Pull      = GPIO_PULLUP;
+  GPIO_InitStruct.Speed     = GPIO_SPEED_FREQ_HIGH;
+  GPIO_InitStruct.Alternate = UART_GPIO_AF;
+  HAL_GPIO_Init(UART_GPIO_PORT, &GPIO_InitStruct);
+
+  UartHandle = (UART_HandleTypeDef){
+    .Instance        = UARTx,
+    .Init.BaudRate   = CFG_BOARD_UART_BAUDRATE,
+    .Init.WordLength = UART_WORDLENGTH_8B,
+    .Init.StopBits   = UART_STOPBITS_1,
+    .Init.Parity     = UART_PARITY_NONE,
+    .Init.HwFlowCtl  = UART_HWCONTROL_NONE,
+    .Init.Mode       = UART_MODE_TX_RX,
+    .Init.OverSampling = UART_OVERSAMPLING_16
+  };
+  HAL_UART_Init(&UartHandle);
 
   // Enable USB OTG clock
   __HAL_RCC_USB_OTG_FS_CLK_ENABLE();
@@ -210,8 +247,8 @@ int board_uart_read(uint8_t* buf, int len)
 
 int board_uart_write(void const * buf, int len)
 {
-  (void) buf; (void) len;
-  return 0;
+  HAL_UART_Transmit(&UartHandle, (uint8_t*) buf, len, 0xffff);
+  return len;
 }
 
 #if CFG_TUSB_OS  == OPT_OS_NONE

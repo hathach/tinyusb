@@ -41,7 +41,7 @@ VENDOR = nxp
 CHIP_FAMILY = transdimension
 
 # For freeRTOS port source
-FREERTOS_PORT = ARM_CM7
+FREERTOS_PORT = ARM_CM7/r0p1
 
 # For flash-jlink target
 JLINK_DEVICE = MIMXRT1015DAF5A
@@ -50,3 +50,7 @@ JLINK_IF = swd
 # flash by copying bin file to DAP Mass Storage
 flash: $(BUILD)/$(BOARD)-firmware.bin
 	cp $< /media/$(USER)/RT1015-EVK/
+
+# flash using pyocd
+#flash: $(BUILD)/$(BOARD)-firmware.hex
+#	pyocd flash -b MIMXRT1015-EVK $<

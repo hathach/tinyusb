@@ -76,11 +76,11 @@
 
 #if CFG_TUSB_DEBUG
   #include <stdio.h>
-  #define _MESS_ERR(_err)   printf("%s %d: failed, error = %s\n", __func__, __LINE__, tusb_strerr[_err])
-  #define _MESS_FAILED()    printf("%s %d: assert failed\n", __func__, __LINE__)
+  #define _MESS_ERR(_err)   printf("%s %d: failed, error = %s\r\n", __func__, __LINE__, tusb_strerr[_err])
+  #define _MESS_FAILED()    printf("%s %d: assert failed\r\n", __func__, __LINE__)
 #else
-  #define _MESS_ERR(_err)
-  #define _MESS_FAILED()
+  #define _MESS_ERR(_err) do {} while (0)
+  #define _MESS_FAILED() do {} while (0)
 #endif
 
 // Halt CPU (breakpoint) when hitting error, only apply for Cortex M3, M4, M7
@@ -90,12 +90,12 @@
     volatile uint32_t* ARM_CM_DHCSR =  ((volatile uint32_t*) 0xE000EDF0UL); /* Cortex M CoreDebug->DHCSR */ \
     if ( (*ARM_CM_DHCSR) & 1UL ) __asm("BKPT #0\n"); /* Only halt mcu if debugger is attached */            \
   } while(0)
-#else
-#if defined(__riscv)
+
+#elif defined(__riscv)
   #define TU_BREAKPOINT() do { __asm("ebreak\n"); } while(0)
+
 #else
-  #define TU_BREAKPOINT()
-#endif
+  #define TU_BREAKPOINT() do {} while (0)
 #endif
 
 /*------------------------------------------------------------------*/

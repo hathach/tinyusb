@@ -36,6 +36,14 @@
 #include "hpl/pm/hpl_pm_base.h"
 
 //--------------------------------------------------------------------+
+// Forward USB interrupt events to TinyUSB IRQ Handler
+//--------------------------------------------------------------------+
+void USB_Handler(void)
+{
+  tud_int_handler(0);
+}
+
+//--------------------------------------------------------------------+
 // MACRO TYPEDEF CONSTANT ENUM DECLARATION
 //--------------------------------------------------------------------+
 #define LED_PIN      17
@@ -60,6 +68,11 @@ void board_init(void)
   _sysctrl_init_referenced_generators();
   _gclk_init_generators_by_fref(_GCLK_INIT_LAST);
 
+  // Update SystemCoreClock since it is hard coded with asf4 and not correct
+  // Init 1ms tick timer (samd SystemCoreClock may not correct)
+  SystemCoreClock = CONF_CPU_FREQUENCY;
+  SysTick_Config(CONF_CPU_FREQUENCY / 1000);
+
   // Led init
   gpio_set_pin_direction(LED_PIN, GPIO_DIRECTION_OUT);
   gpio_set_pin_level(LED_PIN, 0);
@@ -68,9 +81,9 @@ void board_init(void)
   gpio_set_pin_direction(BUTTON_PIN, GPIO_DIRECTION_IN);
   gpio_set_pin_pull_mode(BUTTON_PIN, GPIO_PULL_DOWN);
 
-#if CFG_TUSB_OS  == OPT_OS_NONE
-  // 1ms tick timer (samd SystemCoreClock may not correct)
-  SysTick_Config(CONF_CPU_FREQUENCY / 1000);
+#if CFG_TUSB_OS  == OPT_OS_FREERTOS
+  // If freeRTOS is used, IRQ priority is limit by max syscall ( smaller is higher )
+  NVIC_SetPriority(USB_IRQn, configLIBRARY_MAX_SYSCALL_INTERRUPT_PRIORITY);
 #endif
 
   /* USB Clock init
@@ -129,6 +142,7 @@ int board_uart_write(void const * buf, int len)
 }
 
 #if CFG_TUSB_OS  == OPT_OS_NONE
+
 volatile uint32_t system_ticks = 0;
 void SysTick_Handler (void)
 {
@@ -139,4 +153,5 @@ uint32_t board_millis(void)
 {
   return system_ticks;
 }
+
 #endif

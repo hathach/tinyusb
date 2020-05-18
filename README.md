@@ -30,15 +30,17 @@ Special thanks to all the people who spent their precious time and effort to hel
 
 The stack supports the following MCUs:
 
+- **Espressif:** ESP32-S2
 - **MicroChip:** SAMD21, SAMD51 (device only)
-- **Nordic:** nRF52840, nRF52833
+- **NordicSemi:** nRF52833, nRF52840
+- **Nuvoton:** NUC120, NUC121/NUC125, NUC126, NUC505
 - **NXP:** 
   - LPC Series: 11Uxx, 13xx, 175x_6x, 177x_8x, 18xx, 40xx, 43xx, 51Uxx, 54xxx, 55xx
   - iMX RT Series: RT1011, RT1015, RT1021, RT1052, RT1062, RT1064
 - **Sony:** CXD56
 - **ST:** STM32 series: L0, F0, F1, F2, F3, F4, F7, H7 (device only)
+- **TI:** MSP430
 - **[ValentyUSB](https://github.com/im-tomu/valentyusb)** eptri
-- **Nuvoton:** NUC121/NUC125, NUC126
 
 [Here is the list of supported Boards](docs/boards.md) that can be used with provided examples.
 
@@ -50,6 +52,8 @@ Supports multiple device configurations by dynamically changing usb descriptors.
 - Human Interface Device (HID): Generic (In & Out), Keyboard, Mouse, Gamepad etc ...
 - Mass Storage Class (MSC): with multiple LUNs
 - Musical Instrument Digital Interface (MIDI)
+- Network with RNDIS, CDC-ECM (work in progress)
+- USB Test and Measurement Class (USBTMC)
 - Vendor-specific class support with generic In & Out endpoints. Can be used with MS OS 2.0 compatible descriptor to load winUSB driver without INF file.
 - [WebUSB](https://github.com/WICG/webusb) with vendor-specific class
 
@@ -68,10 +72,6 @@ TinyUSB is completely thread-safe by pushing all ISR events into a central queue
 - **No OS** : Disabling USB IRQ is used as way to provide mutex
 - **FreeRTOS**
 - **Mynewt** Due to the newt package build system, Mynewt examples are better to be on its [own repo](https://github.com/hathach/mynewt-tinyusb-example) 
-
-## Compiler & IDE
-
-The stack is developed with GCC compiler and should be compilable with others. The `examples` folder provides Makefile and Segger Embedded Studio build support. [Here are example build instructions](examples/readme.md).
 
 ## Getting Started
 

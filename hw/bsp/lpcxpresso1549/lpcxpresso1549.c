@@ -27,6 +27,17 @@
 #include "chip.h"
 #include "../board.h"
 
+//--------------------------------------------------------------------+
+// Forward USB interrupt events to TinyUSB IRQ Handler
+//--------------------------------------------------------------------+
+void USB_IRQHandler(void)
+{
+  tud_int_handler(0);
+}
+
+//--------------------------------------------------------------------+
+// MACRO TYPEDEF CONSTANT ENUM
+//--------------------------------------------------------------------+
 #define LED_PORT      0
 #define LED_PIN       25
 

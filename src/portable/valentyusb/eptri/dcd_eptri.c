@@ -383,19 +383,24 @@ void dcd_set_address(uint8_t rhport, uint8_t dev_addr)
   usb_address_write(dev_addr);
 }
 
-// Called when the device received SET_CONFIG request, you can leave this
-// empty if your peripheral does not require any specific action.
-void dcd_set_config(uint8_t rhport, uint8_t config_num)
-{
-  (void) rhport;
-  (void) config_num;
-}
-
 // Called to remote wake up host when suspended (e.g hid keyboard)
 void dcd_remote_wakeup(uint8_t rhport)
 {
   (void) rhport;
 }
+
+void dcd_connect(uint8_t rhport)
+{
+  (void) rhport;
+  usb_pullup_out_write(1);
+}
+
+void dcd_disconnect(uint8_t rhport)
+{
+  (void) rhport;
+  usb_pullup_out_write(0);
+}
+
 
 //--------------------------------------------------------------------+
 // DCD Endpoint Port
@@ -613,7 +618,7 @@ static void handle_setup(void)
 
   usb_setup_ev_pending_write(1);
 }
-void hal_dcd_isr(uint8_t rhport)
+void dcd_int_handler(uint8_t rhport)
 {
   (void)rhport;
   uint8_t next_ev;

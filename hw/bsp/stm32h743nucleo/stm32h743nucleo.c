@@ -27,8 +27,19 @@
 
 #include "../board.h"
 
-#include "stm32h7xx.h"
-#include "stm32h7xx_hal_conf.h"
+#include "stm32h7xx_hal.h"
+
+//--------------------------------------------------------------------+
+// Forward USB interrupt events to TinyUSB IRQ Handler
+//--------------------------------------------------------------------+
+void OTG_FS_IRQHandler(void)
+{
+  tud_int_handler(0);
+}
+
+//--------------------------------------------------------------------+
+// MACRO TYPEDEF CONSTANT ENUM
+//--------------------------------------------------------------------+
 
 #define LED_PORT              GPIOB
 #define LED_PIN               GPIO_PIN_0
@@ -98,6 +109,7 @@ static void SystemClock_Config(void)
   RCC_OscInitStruct.PLL.PLLN = 336;
   RCC_OscInitStruct.PLL.PLLP = 2;
   RCC_OscInitStruct.PLL.PLLQ = 7;
+  RCC_OscInitStruct.PLL.PLLR = 2; /* Unused */
   RCC_OscInitStruct.PLL.PLLRGE = RCC_PLL1VCIRANGE_0;
   RCC_OscInitStruct.PLL.PLLVCOSEL = RCC_PLL1VCOMEDIUM;
   RCC_OscInitStruct.PLL.PLLFRACN = 0;
@@ -134,15 +146,14 @@ static void SystemClock_Config(void)
 
 void board_init(void)
 {
+  SystemClock_Config();
+  all_rcc_clk_enable();
+
   #if CFG_TUSB_OS  == OPT_OS_NONE
     // 1ms tick timer
     SysTick_Config(SystemCoreClock / 1000);
   #endif
-
-  SystemClock_Config();
-  SystemCoreClockUpdate();
-  all_rcc_clk_enable();
-
+  
   GPIO_InitTypeDef  GPIO_InitStruct;
 
   // LED

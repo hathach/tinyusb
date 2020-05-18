@@ -14,7 +14,7 @@ CFLAGS += -Wno-error=unused-parameter -Wno-error=strict-prototypes
 MCU_DIR = hw/mcu/nxp/lpcopen/lpc18xx/lpc_chip_18xx
 
 # All source paths should be relative to the top level.
-LD_FILE = hw/bsp/mcb1800/lpc1857.ld
+LD_FILE = hw/bsp/$(BOARD)/lpc1857.ld
 
 SRC_C += \
 	$(MCU_DIR)/../gcc/cr_startup_lpc18xx.c \

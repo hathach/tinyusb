@@ -99,7 +99,26 @@
   #define TU_BSWAP16(u16) (__builtin_bswap16(u16))
   #define TU_BSWAP32(u32) (__builtin_bswap32(u32))
 
-#else
+#elif defined(__ICCARM__)
+  #define TU_ATTR_ALIGNED(Bytes)        __attribute__ ((aligned(Bytes)))
+  #define TU_ATTR_SECTION(sec_name)     __attribute__ ((section(#sec_name)))
+  #define TU_ATTR_PACKED                __attribute__ ((packed))
+  #define TU_ATTR_PREPACKED
+  #define TU_ATTR_WEAK                  __attribute__ ((weak))
+  #define TU_ATTR_DEPRECATED(mess)      __attribute__ ((deprecated(mess))) // warn if function with this attribute is used
+  #define TU_ATTR_UNUSED                __attribute__ ((unused))           // Function/Variable is meant to be possibly unused
+  #define TU_ATTR_USED                  __attribute__ ((used))             // Function/Variable is meant to be used
+
+  // Endian conversion use well-known host to network (big endian) naming
+  #if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
+    #define TU_BYTE_ORDER TU_LITTLE_ENDIAN
+  #else
+    #define TU_BYTE_ORDER TU_BIG_ENDIAN
+  #endif
+
+  #define TU_BSWAP16(u16) (__iar_builtin_REV16(u16))
+  #define TU_BSWAP32(u32) (__iar_builtin_REV(u32))
+#else 
   #error "Compiler attribute porting is required"
 #endif
 

@@ -26,8 +26,19 @@
 
 #include "../board.h"
 
-#include "stm32f4xx.h"
-#include "stm32f4xx_hal_conf.h"
+#include "stm32f4xx_hal.h"
+
+//--------------------------------------------------------------------+
+// Forward USB interrupt events to TinyUSB IRQ Handler
+//--------------------------------------------------------------------+
+void OTG_FS_IRQHandler(void)
+{
+  tud_int_handler(0);
+}
+
+//--------------------------------------------------------------------+
+// MACRO TYPEDEF CONSTANT ENUM
+//--------------------------------------------------------------------+
 
 #define LED_PORT              GPIOD
 #define LED_PIN               GPIO_PIN_14
@@ -37,12 +48,22 @@
 #define BUTTON_PIN            GPIO_PIN_0
 #define BUTTON_STATE_ACTIVE   1
 
+// Enable PA2 as the debug log UART
+// It is not routed to the ST/Link on the Discovery board.
+#define UARTx                 USART2
+#define UART_GPIO_PORT        GPIOA
+#define UART_GPIO_AF          GPIO_AF7_USART2
+#define UART_TX_PIN           GPIO_PIN_2
+#define UART_RX_PIN           GPIO_PIN_3
+
+UART_HandleTypeDef UartHandle;
 
 // enable all LED, Button, Uart, USB clock
 static void all_rcc_clk_enable(void)
 {
   __HAL_RCC_GPIOA_CLK_ENABLE();  // USB D+, D-, Button
   __HAL_RCC_GPIOD_CLK_ENABLE();  // LED
+  __HAL_RCC_USART2_CLK_ENABLE(); // Uart module
 }
 
 /**
@@ -101,17 +122,16 @@ static void SystemClock_Config(void)
 
 void board_init(void)
 {
-#if CFG_TUSB_OS  == OPT_OS_NONE
+  SystemClock_Config();
+  all_rcc_clk_enable();
+
+#if CFG_TUSB_OS == OPT_OS_NONE
   // 1ms tick timer
   SysTick_Config(SystemCoreClock / 1000);
 #elif CFG_TUSB_OS == OPT_OS_FREERTOS
   // If freeRTOS is used, IRQ priority is limit by max syscall ( smaller is higher )
   //NVIC_SetPriority(USB0_IRQn, configLIBRARY_MAX_SYSCALL_INTERRUPT_PRIORITY );
 #endif
-
-  SystemClock_Config();
-  SystemCoreClockUpdate();
-  all_rcc_clk_enable();
 
   GPIO_InitTypeDef  GPIO_InitStruct;
 
@@ -155,6 +175,25 @@ void board_init(void)
   GPIO_InitStruct.Alternate = GPIO_AF10_OTG_FS;
   HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
 
+  GPIO_InitStruct.Pin       = UART_TX_PIN | UART_RX_PIN;
+  GPIO_InitStruct.Mode      = GPIO_MODE_AF_PP;
+  GPIO_InitStruct.Pull      = GPIO_PULLUP;
+  GPIO_InitStruct.Speed     = GPIO_SPEED_FREQ_HIGH;
+  GPIO_InitStruct.Alternate = UART_GPIO_AF;
+  HAL_GPIO_Init(UART_GPIO_PORT, &GPIO_InitStruct);
+
+  UartHandle = (UART_HandleTypeDef){
+    .Instance        = UARTx,
+    .Init.BaudRate   = CFG_BOARD_UART_BAUDRATE,
+    .Init.WordLength = UART_WORDLENGTH_8B,
+    .Init.StopBits   = UART_STOPBITS_1,
+    .Init.Parity     = UART_PARITY_NONE,
+    .Init.HwFlowCtl  = UART_HWCONTROL_NONE,
+    .Init.Mode       = UART_MODE_TX_RX,
+    .Init.OverSampling = UART_OVERSAMPLING_16
+  };
+  HAL_UART_Init(&UartHandle);
+
   // Enable USB OTG clock
   __HAL_RCC_USB_OTG_FS_CLK_ENABLE();
 
@@ -185,8 +224,8 @@ int board_uart_read(uint8_t* buf, int len)
 
 int board_uart_write(void const * buf, int len)
 {
-  (void) buf; (void) len;
-  return 0;
+  HAL_UART_Transmit(&UartHandle, (uint8_t*) buf, len, 0xffff);
+  return len;
 }
 
 #if CFG_TUSB_OS  == OPT_OS_NONE

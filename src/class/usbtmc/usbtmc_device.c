@@ -263,16 +263,18 @@ void usbtmcd_init_cb(void)
 bool usbtmcd_open_cb(uint8_t rhport, tusb_desc_interface_t const * itf_desc, uint16_t *p_length)
 {
   (void)rhport;
-  TU_ASSERT(usbtmc_state.state == STATE_CLOSED);
   uint8_t const * p_desc;
   uint8_t found_endpoints = 0;
 
+  TU_VERIFY(itf_desc->bInterfaceClass    == TUD_USBTMC_APP_CLASS);
+  TU_VERIFY(itf_desc->bInterfaceSubClass == TUD_USBTMC_APP_SUBCLASS);
+
 #ifndef NDEBUG
-  TU_ASSERT(itf_desc->bInterfaceClass == TUD_USBTMC_APP_CLASS);
-  TU_ASSERT(itf_desc->bInterfaceSubClass == TUD_USBTMC_APP_SUBCLASS);
   // Only 2 or 3 endpoints are allowed for USBTMC.
   TU_ASSERT((itf_desc->bNumEndpoints == 2) || (itf_desc->bNumEndpoints ==3));
 #endif
+
+  TU_ASSERT(usbtmc_state.state == STATE_CLOSED);
 
   // Interface
   (*p_length) = 0u;
@@ -307,7 +309,7 @@ bool usbtmcd_open_cb(uint8_t rhport, tusb_desc_interface_t const * itf_desc, uin
         default:
           TU_ASSERT(false);
       }
-      TU_VERIFY( dcd_edpt_open(rhport, ep_desc));
+      TU_VERIFY( usbd_edpt_open(rhport, ep_desc));
       found_endpoints++;
     }
     (*p_length) = (uint8_t)((*p_length) + p_desc[DESC_OFFSET_LEN]);
@@ -590,7 +592,7 @@ bool usbtmcd_control_request_cb(uint8_t rhport, tusb_control_request_t const * r
       criticalEnter();
       usbtmc_state.state = STATE_NAK; // USBD core has placed EP in NAK state for us
       criticalLeave();
-      tud_usmtmc_bulkOut_clearFeature_cb();
+      tud_usbtmc_bulkOut_clearFeature_cb();
     }
     else if (ep_addr == usbtmc_state.ep_bulk_in)
     {

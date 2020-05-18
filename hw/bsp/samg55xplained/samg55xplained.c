@@ -24,13 +24,14 @@
  */
 
 #include "sam.h"
+#include "bsp/board.h"
+
 #include "peripheral_clk_config.h"
 #include "hal/include/hal_init.h"
 #include "hal/include/hpl_usart_sync.h"
 #include "hpl/pmc/hpl_pmc.h"
 #include "hal/include/hal_gpio.h"
 
-#include "bsp/board.h"
 
 //--------------------------------------------------------------------+
 // MACRO TYPEDEF CONSTANT ENUM DECLARATION
@@ -40,7 +41,6 @@
 
 #define BUTTON_PIN            GPIO(GPIO_PORTA, 2)
 #define BUTTON_STATE_ACTIVE   0
-
 
 #define UART_TX_PIN           GPIO(GPIO_PORTA, 28)
 #define UART_RX_PIN           GPIO(GPIO_PORTA, 27)
@@ -100,7 +100,7 @@ void board_init(void)
 void UDP_Handler(void)
 {
   #if CFG_TUSB_RHPORT0_MODE & OPT_MODE_DEVICE
-    tud_isr(0);
+    tud_int_handler(0);
   #endif
 }
 

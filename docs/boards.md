@@ -9,18 +9,29 @@ The board support code is only used for self-contained examples and testing. It 
 
 This code base already had supported for a handful of following boards (sorted alphabetically)
 
+### Espressif ESP32-S2
+
+- [ESP32-S2-Saola-1](https://docs.espressif.com/projects/esp-idf/en/latest/esp32s2/hw-reference/esp32s2/user-guide-saola-1-v1.2.html)
+
 ### MicroChip SAMD
 
 - [Adafruit Circuit Playground Express](https://www.adafruit.com/product/3333)
 - [Adafruit Feather M0 Express](https://www.adafruit.com/product/3403)
-- [Adafruit Metro M0 Express](https://www.adafruit.com/product/3505)
 - [Adafruit Feather M4 Express](https://www.adafruit.com/product/3857)
+- [Adafruit ItsyBitsy M0 Express](https://www.adafruit.com/product/3727)
+- [Adafruit ItsyBitsy M4 Express](https://www.adafruit.com/product/3800)
+- [Adafruit Metro M0 Express](https://www.adafruit.com/product/3505)
 - [Adafruit Metro M4 Express](https://www.adafruit.com/product/3382)
+- [Seeeduino Xiao](https://www.seeedstudio.com/Seeeduino-XIAO-Arduino-Microcontroller-SAMD21-Cortex-M0+-p-4426.html)
 
 ### Nordic nRF5x
 
-- [Adafruit Feather nRF52840 Express](https://www.adafruit.com/product/4062)
 - [Adafruit Circuit Playground Bluefruit](https://www.adafruit.com/product/4333)
+- [Adafruit CLUE](https://www.adafruit.com/product/4500)
+- [Adafruit Feather nRF52840 Express](https://www.adafruit.com/product/4062)
+- [Adafruit Feather nRF52840 Sense](https://www.adafruit.com/product/4516)
+- [Arduino Nano 33 BLE](https://store.arduino.cc/usa/nano-33-ble)
+- [Arduino Nano 33 BLE Sense](https://store.arduino.cc/usa/nano-33-ble-sense)
 - [Maker Diary nRF52840 MDK Dongle](https://wiki.makerdiary.com/nrf52840-mdk-usb-dongle)
 - [Nordic nRF52840 Development Kit (aka pca10056)](https://www.nordicsemi.com/Software-and-Tools/Development-Kits/nRF52840-DK)
 - [Nordic nRF52840 Dongle (aka pca10059)](https://www.nordicsemi.com/Software-and-Tools/Development-Kits/nRF52840-Dongle)
@@ -29,9 +40,11 @@ This code base already had supported for a handful of following boards (sorted a
 
 ### Nuvoton
 
+- NuTiny SDK NUC120
 - [NuTiny NUC121S](https://direct.nuvoton.com/en/nutiny-nuc121s)
 - [NuTiny NUC125S](https://direct.nuvoton.com/en/nutiny-nuc125s)
 - [NuTiny NUC126V](https://direct.nuvoton.com/en/nutiny-nuc126v)
+- [NuTiny SDK NUC505Y](https://direct.nuvoton.com/en/nutiny-nuc505y)
 
 ### NXP iMX RT
 
@@ -45,18 +58,18 @@ This code base already had supported for a handful of following boards (sorted a
 
 ### NXP LPC
 
+- [ARM mbed LPC1768](https://www.nxp.com/products/processors-and-microcontrollers/arm-microcontrollers/general-purpose-mcus/lpc1700-cortex-m3/arm-mbed-lpc1768-board:OM11043)
+- [Embedded Artists LPC4088 Quick Start board](https://www.embeddedartists.com/products/lpc4088-quickstart-board)
+- [Embedded Artists LPC4357 Developer Kit](http://www.embeddedartists.com/products/kits/lpc4357_kit.php)
+- [Keil MCB1800 Evaluation Board](http://www.keil.com/mcb1800)
 - [LPCXpresso 11u37](https://www.nxp.com/design/microcontrollers-developer-resources/lpcxpresso-boards/lpcxpresso-board-for-lpc11u37h:OM13074)
 - [LPCXpresso 11u68](https://www.nxp.com/support/developer-resources/evaluation-and-development-boards/lpcxpresso-boards/lpcxpresso-board-for-lpc11u68:OM13058)
 - [LPCXpresso 1347](https://www.nxp.com/support/developer-resources/evaluation-and-development-boards/lpcxpresso-boards/lpcxpresso-board-for-lpc1347:OM13045)
-- [ARM mbed LPC1768](https://www.nxp.com/products/processors-and-microcontrollers/arm-microcontrollers/general-purpose-mcus/lpc1700-cortex-m3/arm-mbed-lpc1768-board:OM11043)
 - [LPCXpresso 1769](https://www.nxp.com/support/developer-resources/evaluation-and-development-boards/lpcxpresso-boards/lpcxpresso-board-for-lpc1769:OM13000)
-- [Keil MCB1800 Evaluation Board](http://www.keil.com/mcb1800)
-- [Embedded Artists LPC4088 Quick Start board](https://www.embeddedartists.com/products/lpc4088-quickstart-board)
-- [NGX LPC4330-Xplorer](https://www.nxp.com/design/designs/lpc4330-xplorer-board:OM13027)
-- [Embedded Artists LPC4357 Developer Kit](http://www.embeddedartists.com/products/kits/lpc4357_kit.php)
 - [LPCXpresso 51U68](https://www.nxp.com/products/processors-and-microcontrollers/arm-microcontrollers/general-purpose-mcus/lpcxpresso51u68-for-the-lpc51u68-mcus:OM40005)
 - [LPCXpresso 54114](https://www.nxp.com/design/microcontrollers-developer-resources/lpcxpresso-boards/lpcxpresso54114-board:OM13089)
 - [LPCXpresso 55s69 EVK](https://www.nxp.com/products/processors-and-microcontrollers/arm-microcontrollers/general-purpose-mcus/lpc5500-cortex-m33/lpcxpresso55s69-development-board:LPC55S69-EVK)
+- [NGX LPC4330-Xplorer](https://www.nxp.com/design/designs/lpc4330-xplorer-board:OM13027)
 
 ### Sony
 
@@ -77,9 +90,14 @@ This code base already had supported for a handful of following boards (sorted a
 - STM32 F411ce Black Pill
 - [STM32 F411ve Discovery](https://www.st.com/en/evaluation-tools/32f411ediscovery.html)
 - [STM32 F412zg Discovery](https://www.st.com/en/evaluation-tools/32f412gdiscovery.html)
+- [STM32 F746zg Nucleo](https://www.st.com/en/evaluation-tools/nucleo-f746zg.html)
 - [STM32 F767zi Nucleo](https://www.st.com/en/evaluation-tools/nucleo-f767zi.html)
 - [STM32 H743zi Nucleo](https://www.st.com/en/evaluation-tools/nucleo-h743zi.html)
 
+### TI
+
+ - [MSP430F5529 USB LaunchPad Evaluation Kit](http://www.ti.com/tool/MSP-EXP430F5529LP)
+ 
 ### Tomu
 
 - [Fomu](https://www.crowdsupply.com/sutajio-kosagi/fomu)

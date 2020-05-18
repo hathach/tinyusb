@@ -61,8 +61,8 @@ bool dfu_rtd_open(uint8_t rhport, tusb_desc_interface_t const * itf_desc, uint16
   (void) rhport;
 
   // Ensure this is DFU Runtime
-  TU_ASSERT(itf_desc->bInterfaceSubClass == TUD_DFU_APP_SUBCLASS);
-  TU_ASSERT(itf_desc->bInterfaceProtocol == DFU_PROTOCOL_RT);
+  TU_VERIFY(itf_desc->bInterfaceSubClass == TUD_DFU_APP_SUBCLASS);
+  TU_VERIFY(itf_desc->bInterfaceProtocol == DFU_PROTOCOL_RT);
 
   uint8_t const * p_desc = tu_desc_next( itf_desc );
   (*p_length) = sizeof(tusb_desc_interface_t);

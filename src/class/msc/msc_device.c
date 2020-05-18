@@ -157,7 +157,8 @@ void mscd_reset(uint8_t rhport)
 bool mscd_open(uint8_t rhport, tusb_desc_interface_t const * itf_desc, uint16_t *p_len)
 {
   // only support SCSI's BOT protocol
-  TU_ASSERT(MSC_SUBCLASS_SCSI == itf_desc->bInterfaceSubClass &&
+  TU_VERIFY(TUSB_CLASS_MSC    == itf_desc->bInterfaceClass &&
+            MSC_SUBCLASS_SCSI == itf_desc->bInterfaceSubClass &&
             MSC_PROTOCOL_BOT  == itf_desc->bInterfaceProtocol);
 
   mscd_interface_t * p_msc = &_mscd_itf;
@@ -407,7 +408,7 @@ bool mscd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t event, uint32_t
       TU_ASSERT( event == XFER_RESULT_SUCCESS &&
                  xferred_bytes == sizeof(msc_cbw_t) && p_cbw->signature == MSC_CBW_SIGNATURE );
 
-      TU_LOG2("  SCSI Command: %s\n", lookup_find(&_msc_scsi_cmd_table, p_cbw->command[0]));
+      TU_LOG2("  SCSI Command: %s\r\n", lookup_find(&_msc_scsi_cmd_table, p_cbw->command[0]));
       // TU_LOG2_MEM(p_cbw, xferred_bytes, 2);
 
       p_csw->signature    = MSC_CSW_SIGNATURE;
@@ -480,7 +481,7 @@ bool mscd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t event, uint32_t
     break;
 
     case MSC_STAGE_DATA:
-      TU_LOG2("  SCSI Data\n");
+      TU_LOG2("  SCSI Data\r\n");
       //TU_LOG2_MEM(_mscd_buf, xferred_bytes, 2);
 
       // OUT transfer, invoke callback if needed
@@ -577,7 +578,7 @@ bool mscd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t event, uint32_t
       // Wait for the Status phase to complete
       if( (ep_addr == p_msc->ep_in) && (xferred_bytes == sizeof(msc_csw_t)) )
       {
-        TU_LOG2("  SCSI Status: %u\n", p_csw->status);
+        TU_LOG2("  SCSI Status: %u\r\n", p_csw->status);
         // TU_LOG2_MEM(p_csw, xferred_bytes, 2);
 
         // Move to default CMD stage
@@ -604,6 +605,8 @@ bool mscd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t event, uint32_t
     else
     {
       // Invoke complete callback if defined
+      // Note: There is racing issue with samd51 + qspi flash testing with arduino
+      // if complete_cb() is invoked after queuing the status.
       switch(p_cbw->command[0])
       {
         case SCSI_CMD_READ_10:

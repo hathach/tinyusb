@@ -25,9 +25,40 @@
  */
 
 #include "../board.h"
+#include "stm32f3xx_hal.h"
 
-#include "stm32f3xx.h"
-#include "stm32f3xx_hal_conf.h"
+//--------------------------------------------------------------------+
+// Forward USB interrupt events to TinyUSB IRQ Handler
+//--------------------------------------------------------------------+
+
+// USB defaults to using interrupts 19, 20, and 42 (based on SYSCFG_CFGR1.USB_IT_RMP)
+// FIXME: Do all three need to be handled, or just the LP one?
+// USB high-priority interrupt (Channel 19): Triggered only by a correct
+// transfer event for isochronous and double-buffer bulk transfer to reach
+// the highest possible transfer rate.
+void USB_HP_CAN_TX_IRQHandler(void)
+{
+  tud_int_handler(0);
+}
+
+// USB low-priority interrupt (Channel 20): Triggered by all USB events
+// (Correct transfer, USB reset, etc.). The firmware has to check the
+// interrupt source before serving the interrupt.
+void USB_LP_CAN_RX0_IRQHandler(void)
+{
+  tud_int_handler(0);
+}
+
+// USB wakeup interrupt (Channel 42): Triggered by the wakeup event from the USB
+// Suspend mode.
+void USBWakeUp_IRQHandler(void)
+{
+  tud_int_handler(0);
+}
+
+//--------------------------------------------------------------------+
+// MACRO TYPEDEF CONSTANT ENUM
+//--------------------------------------------------------------------+
 
 #define LED_PORT              GPIOE
 #define LED_PIN               GPIO_PIN_9
@@ -89,15 +120,12 @@ static void SystemClock_Config(void)
 
 void board_init(void)
 {
+  SystemClock_Config();
+
   #if CFG_TUSB_OS  == OPT_OS_NONE
   // 1ms tick timer
   SysTick_Config(SystemCoreClock / 1000);
   #endif
-
-  SystemClock_Config();
-
-  // Notify runtime of frequency change.
-  SystemCoreClockUpdate();
 
   // LED
   __HAL_RCC_GPIOE_CLK_ENABLE();

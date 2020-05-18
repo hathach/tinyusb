@@ -26,9 +26,19 @@
 
 #include "../board.h"
 
-#include "stm32l4xx.h"
-#include "stm32l4xx_hal_conf.h"
 #include "stm32l4xx_hal.h"
+
+//--------------------------------------------------------------------+
+// Forward USB interrupt events to TinyUSB IRQ Handler
+//--------------------------------------------------------------------+
+void OTG_FS_IRQHandler(void)
+{
+  tud_int_handler(0);
+}
+
+//--------------------------------------------------------------------+
+// MACRO TYPEDEF CONSTANT ENUM
+//--------------------------------------------------------------------+
 
 #define LED_PORT              GPIOB
 #define LED_PIN               GPIO_PIN_2
@@ -76,13 +86,18 @@ static void SystemClock_Config(void)
   RCC_OscInitTypeDef RCC_OscInitStruct;
   RCC_PeriphCLKInitTypeDef PeriphClkInitStruct;
 
-  /* Enable the LSE Oscilator */
+  /* Enable the LSE Oscillator */
   RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_LSE;
   RCC_OscInitStruct.LSEState = RCC_LSE_ON;
+  RCC_OscInitStruct.PLL.PLLState = RCC_PLL_NONE;
   HAL_RCC_OscConfig(&RCC_OscInitStruct);
 
   /* Enable the CSS interrupt in case LSE signal is corrupted or not present */
   HAL_RCCEx_DisableLSECSS();
+
+  /* Set tick interrupt priority, default HAL value is intentionally invalid
+     and that prevents PLL initialization in HAL_RCC_OscConfig() */
+  HAL_InitTick((1UL << __NVIC_PRIO_BITS) - 1UL);
 
   /* Enable MSI Oscillator and activate PLL with MSI as source */
   RCC_OscInitStruct.OscillatorType      = RCC_OSCILLATORTYPE_MSI;
@@ -118,6 +133,9 @@ static void SystemClock_Config(void)
 
 void board_init(void)
 {
+  SystemClock_Config();
+  all_rcc_clk_enable();
+
 #if CFG_TUSB_OS  == OPT_OS_NONE
   // 1ms tick timer
   SysTick_Config(SystemCoreClock / 1000);
@@ -125,10 +143,6 @@ void board_init(void)
   // If freeRTOS is used, IRQ priority is limit by max syscall ( smaller is higher )
   //NVIC_SetPriority(USB0_IRQn, configLIBRARY_MAX_SYSCALL_INTERRUPT_PRIORITY );
 #endif
-
-  SystemClock_Config();
-  SystemCoreClockUpdate();
-  all_rcc_clk_enable();
 
   /* Enable Power Clock*/
   __HAL_RCC_PWR_CLK_ENABLE();

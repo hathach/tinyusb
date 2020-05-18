@@ -73,8 +73,8 @@ tusb_desc_device_t const data_desc_device =
 
 uint8_t const data_desc_configuration[] =
 {
-  // Interface count, string index, total length, attribute, power in mA
-  TUD_CONFIG_DESCRIPTOR(0, 0, TUD_CONFIG_DESC_LEN, TUSB_DESC_CONFIG_ATT_REMOTE_WAKEUP, 100),
+  // Config number, interface count, string index, total length, attribute, power in mA
+  TUD_CONFIG_DESCRIPTOR(1, 0, 0, TUD_CONFIG_DESC_LEN, TUSB_DESC_CONFIG_ATT_REMOTE_WAKEUP, 100),
 };
 
 tusb_control_request_t const req_get_desc_device =
@@ -111,8 +111,10 @@ uint8_t const * tud_descriptor_configuration_cb(uint8_t index)
   return desc_configuration;
 }
 
-uint16_t const* tud_descriptor_string_cb(uint8_t index)
+uint16_t const* tud_descriptor_string_cb(uint8_t index, uint16_t langid)
 {
+  (void) langid;
+
   return NULL;
 }
 
@@ -125,6 +127,7 @@ void setUp(void)
   {
     mscd_init_Expect();
     dcd_init_Expect(rhport);
+    dcd_connect_Expect(rhport);
     tusb_init();
   }
 }
@@ -209,8 +212,8 @@ void test_usbd_control_in_zlp(void)
   // ZLP must be return
   uint8_t zlp_desc_configuration[CFG_TUD_ENDOINT0_SIZE*2] =
   {
-    // Interface count, string index, total length, attribute, power in mA
-    TUD_CONFIG_DESCRIPTOR(0, 0, CFG_TUD_ENDOINT0_SIZE*2, TUSB_DESC_CONFIG_ATT_REMOTE_WAKEUP, 100),
+    // Config number, interface count, string index, total length, attribute, power in mA
+    TUD_CONFIG_DESCRIPTOR(1, 0, 0, CFG_TUD_ENDOINT0_SIZE*2, TUSB_DESC_CONFIG_ATT_REMOTE_WAKEUP, 100),
   };
 
   desc_configuration = zlp_desc_configuration;

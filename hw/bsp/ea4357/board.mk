@@ -3,6 +3,8 @@ CFLAGS += \
   -mthumb \
   -mabi=aapcs \
   -mcpu=cortex-m4 \
+  -mfloat-abi=hard \
+  -mfpu=fpv4-sp-d16 \
   -nostdlib \
   -DCORE_M4 \
   -DCFG_TUSB_MCU=OPT_MCU_LPC43XX \
@@ -14,7 +16,7 @@ CFLAGS += -Wno-error=unused-parameter -Wno-error=strict-prototypes
 MCU_DIR = hw/mcu/nxp/lpcopen/lpc43xx/lpc_chip_43xx
 
 # All source paths should be relative to the top level.
-LD_FILE = hw/bsp/ea4357/lpc4357.ld
+LD_FILE = hw/bsp/$(BOARD)/lpc4357.ld
 
 SRC_C += \
 	$(MCU_DIR)/../gcc/cr_startup_lpc43xx.c \
@@ -35,7 +37,7 @@ VENDOR = nxp
 CHIP_FAMILY = transdimension
 
 # For freeRTOS port source
-FREERTOS_PORT = ARM_CM4
+FREERTOS_PORT = ARM_CM4F
 
 # For flash-jlink target
 JLINK_DEVICE = LPC4357

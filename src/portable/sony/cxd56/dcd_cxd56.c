@@ -46,22 +46,22 @@ struct usbdcd_driver_s
 static struct usbdcd_driver_s usbdcd_driver;
 static struct usbdev_s *usbdev;
 
-static int dcd_bind(FAR struct usbdevclass_driver_s *driver, FAR struct usbdev_s *dev);
-static void dcd_unbind(FAR struct usbdevclass_driver_s *driver, FAR struct usbdev_s *dev);
-static int dcd_setup(FAR struct usbdevclass_driver_s *driver, FAR struct usbdev_s *dev,
-                     FAR const struct usb_ctrlreq_s *ctrl, FAR uint8_t *dataout, size_t outlen);
-static void dcd_disconnect(FAR struct usbdevclass_driver_s *driver, FAR struct usbdev_s *dev);
-static void dcd_suspend(FAR struct usbdevclass_driver_s *driver, FAR struct usbdev_s *dev);
-static void dcd_resume(FAR struct usbdevclass_driver_s *driver, FAR struct usbdev_s *dev);
+static int  _dcd_bind       (FAR struct usbdevclass_driver_s *driver, FAR struct usbdev_s *dev);
+static void _dcd_unbind     (FAR struct usbdevclass_driver_s *driver, FAR struct usbdev_s *dev);
+static int  _dcd_setup      (FAR struct usbdevclass_driver_s *driver, FAR struct usbdev_s *dev,
+                             FAR const struct usb_ctrlreq_s *ctrl, FAR uint8_t *dataout, size_t outlen);
+static void _dcd_disconnect (FAR struct usbdevclass_driver_s *driver, FAR struct usbdev_s *dev);
+static void _dcd_suspend    (FAR struct usbdevclass_driver_s *driver, FAR struct usbdev_s *dev);
+static void _dcd_resume     (FAR struct usbdevclass_driver_s *driver, FAR struct usbdev_s *dev);
 
 static const struct usbdevclass_driverops_s g_driverops =
 {
-  dcd_bind,       /* bind */
-  dcd_unbind,     /* unbind */
-  dcd_setup,      /* setup */
-  dcd_disconnect, /* disconnect */
-  dcd_suspend,    /* suspend */
-  dcd_resume,     /* resume */
+  _dcd_bind,       /* bind */
+  _dcd_unbind,     /* unbind */
+  _dcd_setup,      /* setup */
+  _dcd_disconnect, /* disconnect */
+  _dcd_suspend,    /* suspend */
+  _dcd_resume,     /* resume */
 };
 
 static void usbdcd_ep0incomplete(FAR struct usbdev_ep_s *ep, FAR struct usbdev_req_s *req)
@@ -86,7 +86,7 @@ static void usbdcd_ep0incomplete(FAR struct usbdev_ep_s *ep, FAR struct usbdev_r
   }
 }
 
-static int dcd_bind(FAR struct usbdevclass_driver_s *driver, FAR struct usbdev_s *dev)
+static int _dcd_bind(FAR struct usbdevclass_driver_s *driver, FAR struct usbdev_s *dev)
 {
   (void) driver;
 
@@ -111,13 +111,13 @@ static int dcd_bind(FAR struct usbdevclass_driver_s *driver, FAR struct usbdev_s
   return 0;
 }
 
-static void dcd_unbind(FAR struct usbdevclass_driver_s *driver, FAR struct usbdev_s *dev)
+static void _dcd_unbind(FAR struct usbdevclass_driver_s *driver, FAR struct usbdev_s *dev)
 {
   (void) driver;
   (void) dev;
 }
 
-static int dcd_setup(FAR struct usbdevclass_driver_s *driver, FAR struct usbdev_s *dev,
+static int _dcd_setup(FAR struct usbdevclass_driver_s *driver, FAR struct usbdev_s *dev,
                      FAR const struct usb_ctrlreq_s *ctrl, FAR uint8_t *dataout, size_t outlen)
 {
   (void) driver;
@@ -130,7 +130,7 @@ static int dcd_setup(FAR struct usbdevclass_driver_s *driver, FAR struct usbdev_
   return 0;
 }
 
-static void dcd_disconnect(FAR struct usbdevclass_driver_s *driver, FAR struct usbdev_s *dev)
+static void _dcd_disconnect(FAR struct usbdevclass_driver_s *driver, FAR struct usbdev_s *dev)
 {
   (void) driver;
 
@@ -138,7 +138,7 @@ static void dcd_disconnect(FAR struct usbdevclass_driver_s *driver, FAR struct u
   DEV_CONNECT(dev);
 }
 
-static void dcd_suspend(FAR struct usbdevclass_driver_s *driver, FAR struct usbdev_s *dev)
+static void _dcd_suspend(FAR struct usbdevclass_driver_s *driver, FAR struct usbdev_s *dev)
 {
   (void) driver;
   (void) dev;
@@ -146,7 +146,7 @@ static void dcd_suspend(FAR struct usbdevclass_driver_s *driver, FAR struct usbd
   dcd_event_bus_signal(0, DCD_EVENT_SUSPEND, true);
 }
 
-static void dcd_resume(FAR struct usbdevclass_driver_s *driver, FAR struct usbdev_s *dev)
+static void _dcd_resume(FAR struct usbdevclass_driver_s *driver, FAR struct usbdev_s *dev)
 {
   (void) driver;
   (void) dev;
@@ -187,18 +187,23 @@ void dcd_set_address(uint8_t rhport, uint8_t dev_addr)
   (void) dev_addr;
 }
 
-// Receive Set Config request
-void dcd_set_config(uint8_t rhport, uint8_t config_num)
-{
-  (void) rhport;
-  (void) config_num;
-}
-
 void dcd_remote_wakeup(uint8_t rhport)
 {
   (void) rhport;
   
   DEV_WAKEUP(usbdev);
+}
+
+void dcd_connect(uint8_t rhport)
+{
+  (void) rhport;
+  DEV_CONNECT(usbdev);
+}
+
+void dcd_disconnect(uint8_t rhport)
+{
+  (void) rhport;
+  DEV_DISCONNECT(usbdev);
 }
 
 //--------------------------------------------------------------------+

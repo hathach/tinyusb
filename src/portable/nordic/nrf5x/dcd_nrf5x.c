@@ -32,13 +32,6 @@
 #include "nrf_clock.h"
 #include "nrf_power.h"
 #include "nrfx_usbd_errata.h"
-
-#ifdef SOFTDEVICE_PRESENT
-// For enable/disable hfclk with SoftDevice
-#include "nrf_sdm.h"
-#include "nrf_soc.h"
-#endif
-
 #include "device/dcd.h"
 
 // TODO remove later
@@ -216,12 +209,6 @@ void dcd_set_address (uint8_t rhport, uint8_t dev_addr)
   NRF_USBD->INTENSET = USBD_INTEN_USBEVENT_Msk;
 }
 
-void dcd_set_config (uint8_t rhport, uint8_t config_num)
-{
-  (void) rhport;
-  (void) config_num;
-}
-
 void dcd_remote_wakeup(uint8_t rhport)
 {
   (void) rhport;
@@ -235,6 +222,20 @@ void dcd_remote_wakeup(uint8_t rhport)
 
   // TODO There is no USBEVENT Resume interrupt
   // We may manually raise DCD_EVENT_RESUME event here
+}
+
+// disconnect by disabling internal pull-up resistor on D+/D-
+void dcd_disconnect(uint8_t rhport)
+{
+  (void) rhport;
+  NRF_USBD->USBPULLUP = 0;
+}
+
+// connect by enabling internal pull-up resistor on D+/D-
+void dcd_connect(uint8_t rhport)
+{
+  (void) rhport;
+  NRF_USBD->USBPULLUP = 1;
 }
 
 //--------------------------------------------------------------------+
@@ -276,8 +277,10 @@ bool dcd_edpt_xfer (uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t 
   xfer->total_len  = total_bytes;
   xfer->actual_len = 0;
 
-  // Control endpoint with zero-length packet --> status stage
-  if ( epnum == 0 && total_bytes == 0 )
+  // Control endpoint with zero-length packet and opposite direction to 1st request byte --> status stage
+  bool const control_status = (epnum == 0 && total_bytes == 0 && dir != tu_edpt_dir(NRF_USBD->BMREQUESTTYPE));
+
+  if ( control_status )
   {
     // Status Phase also require Easy DMA has to be free as well !!!!
     edpt_dma_start(&NRF_USBD->TASKS_EP0STATUS);
@@ -357,8 +360,10 @@ void bus_reset(void)
   _dcd.xfer[0][TUSB_DIR_OUT].mps = MAX_PACKET_SIZE;
 }
 
-void USBD_IRQHandler(void)
+void dcd_int_handler(uint8_t rhport)
 {
+  (void) rhport;
+
   uint32_t const inten  = NRF_USBD->INTEN;
   uint32_t int_status = 0;
 
@@ -552,9 +557,26 @@ void USBD_IRQHandler(void)
 // HFCLK helper
 //--------------------------------------------------------------------+
 #ifdef SOFTDEVICE_PRESENT
-// check if SD is present and enabled
-static bool is_sd_enabled(void)
+
+// For enable/disable hfclk with SoftDevice
+#include "nrf_mbr.h"
+#include "nrf_sdm.h"
+#include "nrf_soc.h"
+
+#ifndef SD_MAGIC_NUMBER
+  #define SD_MAGIC_NUMBER   0x51B1E5DB
+#endif
+
+static inline bool is_sd_existed(void)
 {
+  return *((uint32_t*)(SOFTDEVICE_INFO_STRUCT_ADDRESS+4)) == SD_MAGIC_NUMBER;
+}
+
+// check if SD is existed and enabled
+static inline bool is_sd_enabled(void)
+{
+  if ( !is_sd_existed() ) return false;
+
   uint8_t sd_en = false;
   (void) sd_softdevice_is_enabled(&sd_en);
   return sd_en;

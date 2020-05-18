@@ -1,5 +1,4 @@
 CFLAGS += \
-	-DCONFIG_WCHAR_BUILTIN \
 	-DCONFIG_HAVE_DOUBLE \
 	-Dmain=spresense_main \
 	-pipe \
@@ -14,6 +13,9 @@ CFLAGS += \
 	-fomit-frame-pointer \
 	-DCFG_TUSB_MCU=OPT_MCU_CXD56 \
 
+# lwip/src/core/raw.c:334:43: error: declaration of 'recv' shadows a global declaration
+CFLAGS += -Wno-error=shadow
+ 
 SPRESENSE_SDK = $(TOP)/hw/mcu/sony/cxd56/spresense-exported-sdk
 
 INC += \
@@ -41,7 +43,10 @@ LDFLAGS += \
 VENDOR = sony
 CHIP_FAMILY = cxd56
 
+$(BUILD)/$(BOARD)-firmware.spk: $(BUILD)/$(BOARD)-firmware.elf
+	@echo CREATE $@
+	@$(SPRESENSE_SDK)/sdk/tools/linux/mkspk -c 2 $^ nuttx $@
+
 # flash
-flash: 
-	$(SPRESENSE_SDK)/sdk/tools/linux/mkspk -c 2 $(BUILD)/spresense-firmware.elf nuttx $(BUILD)/spresense-firmware.spk
-	$(SPRESENSE_SDK)/sdk/tools/flash.sh -c /dev/ttyUSB0 $(BUILD)/spresense-firmware.spk
+flash: $(BUILD)/$(BOARD)-firmware.spk
+	@$(SPRESENSE_SDK)/sdk/tools/flash.sh -c /dev/ttyUSB0 $<

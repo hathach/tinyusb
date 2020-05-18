@@ -25,10 +25,19 @@
  */
 
 #include "../board.h"
+#include "stm32f0xx_hal.h"
 
-#include "stm32f0xx.h"
-#include "stm32f0xx_hal_conf.h"
+//--------------------------------------------------------------------+
+// Forward USB interrupt events to TinyUSB IRQ Handler
+//--------------------------------------------------------------------+
+void USB_IRQHandler(void)
+{
+  tud_int_handler(0);
+}
 
+//--------------------------------------------------------------------+
+// MACRO TYPEDEF CONSTANT ENUM
+//--------------------------------------------------------------------+
 #define LED_PORT              GPIOA
 #define LED_PIN               GPIO_PIN_5
 #define LED_STATE_ON          1
@@ -57,11 +66,6 @@ static void all_rcc_clk_enable(void)
 
 void board_init(void)
 {
-  #if CFG_TUSB_OS  == OPT_OS_NONE
-  // 1ms tick timer
-  SysTick_Config(SystemCoreClock / 1000);
-  #endif
-
   /* Configure the system clock to 48 MHz */
   RCC_ClkInitTypeDef RCC_ClkInitStruct;
   RCC_OscInitTypeDef RCC_OscInitStruct;
@@ -90,9 +94,12 @@ void board_init(void)
   (void)HAL_RCCEx_PeriphCLKConfig(&PeriphClkInit) ;
   
   // Notify runtime of frequency change.
-  SystemCoreClockUpdate();
-
   all_rcc_clk_enable();
+
+  #if CFG_TUSB_OS  == OPT_OS_NONE
+  // 1ms tick timer
+  SysTick_Config(SystemCoreClock / 1000);
+  #endif
 
   // LED
   GPIO_InitTypeDef  GPIO_InitStruct;
@@ -183,12 +190,9 @@ void HardFault_Handler (void)
   * @param  line: assert_param error line source number
   * @retval None
   */
-void assert_failed(char *file, uint32_t line)
+void assert_failed(uint8_t* file, uint32_t line)
 { 
-  /* USER CODE BEGIN 6 */
-  /* User can add his own implementation to report the file name and line number,
-     tex: printf("Wrong parameters value: file %s on line %d\r\n", file, line) */
-  /* USER CODE END 6 */
+  TU_LOG1("Assertion failed (%s:%ld)\r\n", file, line);
 }
 #endif /* USE_FULL_ASSERT */
 

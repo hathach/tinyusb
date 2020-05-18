@@ -26,8 +26,19 @@
 
 #include "../board.h"
 
-#include "stm32f4xx.h"
-#include "stm32f4xx_hal_conf.h"
+#include "stm32f4xx_hal.h"
+
+//--------------------------------------------------------------------+
+// Forward USB interrupt events to TinyUSB IRQ Handler
+//--------------------------------------------------------------------+
+void OTG_FS_IRQHandler(void)
+{
+  tud_int_handler(0);
+}
+
+//--------------------------------------------------------------------+
+// MACRO TYPEDEF CONSTANT ENUM
+//--------------------------------------------------------------------+
 
 #define LED_PORT              GPIOC
 #define LED_PIN               GPIO_PIN_13
@@ -100,6 +111,9 @@ static void SystemClock_Config(void)
 
 void board_init(void)
 {
+  SystemClock_Config();
+  all_rcc_clk_enable();
+
 #if CFG_TUSB_OS == OPT_OS_NONE
   // 1ms tick timer
   SysTick_Config(SystemCoreClock / 1000);
@@ -107,10 +121,6 @@ void board_init(void)
   // If freeRTOS is used, IRQ priority is limit by max syscall ( smaller is higher )
   //NVIC_SetPriority(USB0_IRQn, configLIBRARY_MAX_SYSCALL_INTERRUPT_PRIORITY );
 #endif
-
-  SystemClock_Config();
-  SystemCoreClockUpdate();
-  all_rcc_clk_enable();
 
   GPIO_InitTypeDef  GPIO_InitStruct;
 

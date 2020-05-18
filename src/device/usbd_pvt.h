@@ -37,7 +37,11 @@
 // USBD Endpoint API
 //--------------------------------------------------------------------+
 
-//bool usbd_edpt_open(uint8_t rhport, tusb_desc_endpoint_t const * p_endpoint_desc);
+// Open an endpoint
+bool usbd_edpt_open(uint8_t rhport, tusb_desc_endpoint_t const * desc_ep);
+
+// Close an endpoint
+void usbd_edpt_close(uint8_t rhport, uint8_t ep_addr);
 
 // Submit a usb transfer
 bool usbd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t total_bytes);

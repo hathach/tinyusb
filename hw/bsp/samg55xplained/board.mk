@@ -9,7 +9,8 @@ CFLAGS += \
   -D__SAMG55J19__ \
   -DCFG_TUSB_MCU=OPT_MCU_SAMG
 
-#CFLAGS += -Wno-error=undef
+# suppress following warnings from mcu driver
+CFLAGS += -Wno-error=undef
 
 ASF_DIR = hw/mcu/microchip/samg55
 
