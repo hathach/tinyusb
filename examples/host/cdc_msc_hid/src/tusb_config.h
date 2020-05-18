@@ -40,9 +40,9 @@
 #endif
 
 #if CFG_TUSB_MCU == OPT_MCU_LPC43XX || CFG_TUSB_MCU == OPT_MCU_LPC18XX || CFG_TUSB_MCU == OPT_MCU_MIMXRT10XX
-#define CFG_TUSB_RHPORT0_MODE       (OPT_MODE_HOST | OPT_MODE_HIGH_SPEED)
+  #define CFG_TUSB_RHPORT0_MODE       (OPT_MODE_HOST | OPT_MODE_HIGH_SPEED)
 #else
-#define CFG_TUSB_RHPORT0_MODE       OPT_MODE_HOST
+  #define CFG_TUSB_RHPORT0_MODE       OPT_MODE_HOST
 #endif
 
 #define CFG_TUSB_OS                 OPT_OS_NONE
@@ -74,7 +74,7 @@
 #define CFG_TUH_HID_KEYBOARD        0
 #define CFG_TUH_HID_MOUSE           0
 #define CFG_TUSB_HOST_HID_GENERIC   0 // (not yet supported)
-#define CFG_TUH_MSC                 0
+#define CFG_TUH_MSC                 1
 #define CFG_TUH_VENDOR              0
 
 #define CFG_TUSB_HOST_DEVICE_MAX    (CFG_TUH_HUB ? 5 : 1) // normal hub has 4 ports

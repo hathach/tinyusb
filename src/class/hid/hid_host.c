@@ -40,7 +40,7 @@
 //--------------------------------------------------------------------+
 static inline bool hidh_interface_open(uint8_t dev_addr, uint8_t interface_number, tusb_desc_endpoint_t const *p_endpoint_desc, hidh_interface_info_t *p_hid)
 {
-  p_hid->pipe_hdl         = hcd_edpt_open(dev_addr, p_endpoint_desc, TUSB_CLASS_HID);
+  p_hid->pipe_hdl         = usbh_edpt_open(dev_addr, p_endpoint_desc, TUSB_CLASS_HID);
   p_hid->report_size      = p_endpoint_desc->wMaxPacketSize.size; // TODO get size from report descriptor
   p_hid->interface_number = interface_number;
 

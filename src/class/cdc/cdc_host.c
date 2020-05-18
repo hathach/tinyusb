@@ -158,7 +158,7 @@ bool cdch_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_interface_t const *it
     // notification endpoint
     tusb_desc_endpoint_t const * ep_desc = (tusb_desc_endpoint_t const *) p_desc;
 
-    TU_ASSERT( hcd_edpt_open(rhport, dev_addr, ep_desc) );
+    TU_ASSERT( usbh_edpt_open(rhport, dev_addr, ep_desc) );
     p_cdc->ep_notif = ep_desc->bEndpointAddress;
 
     (*p_length) += p_desc[DESC_OFFSET_LEN];
@@ -179,7 +179,7 @@ bool cdch_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_interface_t const *it
       TU_ASSERT(TUSB_DESC_ENDPOINT == ep_desc->bDescriptorType);
       TU_ASSERT(TUSB_XFER_BULK == ep_desc->bmAttributes.xfer);
 
-      TU_ASSERT(hcd_edpt_open(rhport, dev_addr, ep_desc));
+      TU_ASSERT(usbh_edpt_open(rhport, dev_addr, ep_desc));
 
       if ( tu_edpt_dir(ep_desc->bEndpointAddress) ==  TUSB_DIR_IN )
       {

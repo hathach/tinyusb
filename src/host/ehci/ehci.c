@@ -120,9 +120,26 @@ void hcd_port_reset(uint8_t rhport)
 
   ehci_registers_t* regs = ehci_data.regs;
 
-  regs->portsc_bm.port_enabled = 0; // disable port before reset
-  regs->portsc_bm.port_reset = 1;
+//  regs->portsc_bm.port_enabled = 0; // disable port before reset
+//  regs->portsc_bm.port_reset = 1;
+
+  uint32_t portsc = regs->portsc;
+
+  portsc &= ~(EHCI_PORTSC_MASK_PORT_EANBLED);
+  portsc |= EHCI_PORTSC_MASK_PORT_RESET;
+
+  regs->portsc = portsc;
 }
+
+#if 0
+void hcd_port_reset_end(uint8_t rhport)
+{
+  (void) rhport;
+
+  ehci_registers_t* regs = ehci_data.regs;
+  regs->portsc_bm.port_reset = 0;
+}
+#endif
 
 bool hcd_port_connect_status(uint8_t rhport)
 {

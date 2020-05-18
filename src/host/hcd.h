@@ -104,6 +104,7 @@ static inline uint32_t hcd_frame_number(uint8_t rhport)
 /// return the current connect status of roothub port
 bool hcd_port_connect_status(uint8_t hostid);
 void hcd_port_reset(uint8_t hostid);
+void hcd_port_reset_end(uint8_t rhport);
 tusb_speed_t hcd_port_speed_get(uint8_t hostid);
 
 // HCD closes all opened endpoints belong to this device

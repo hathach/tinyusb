@@ -41,7 +41,7 @@ FREERTOS_PORT = ARM_CM4F
 
 # For flash-jlink target
 JLINK_DEVICE = LPC4357
-JLINK_IF = jtag 
+JLINK_IF = jtag
 
 # flash using jlink
 flash: flash-jlink

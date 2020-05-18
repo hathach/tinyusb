@@ -75,7 +75,7 @@ CFG_TUSB_MEM_SECTION static char serial_in_buffer[64] = { 0 };
 void tuh_mount_cb(uint8_t dev_addr)
 {
   // application set-up
-  printf("\na CDC device  (address %d) is mounted\n", dev_addr);
+  printf("\na device with address %d is mounted\n", dev_addr);
 
   tuh_cdc_receive(dev_addr, serial_in_buffer, sizeof(serial_in_buffer), true); // schedule first transfer
 }
@@ -83,7 +83,7 @@ void tuh_mount_cb(uint8_t dev_addr)
 void tuh_umount_cb(uint8_t dev_addr)
 {
   // application tear-down
-  printf("\na CDC device (address %d) is unmounted \n", dev_addr);
+  printf("\na device with address %d is unmounted \n", dev_addr);
 }
 
 // invoked ISR context
@@ -195,8 +195,15 @@ void print_greeting(void)
 
   printf("This Host demo is configured to support:\r\n");
   printf("  - RTOS = %s\n", rtos_name[CFG_TUSB_OS]);
-//  if (CFG_TUH_CDC          ) puts("  - Communication Device Class");
-//  if (CFG_TUH_MSC          ) puts("  - Mass Storage");
+
+#if CFG_TUH_CDC
+  printf("  - Communication Device Class\r\n");
+#endif
+
+#if CFG_TUH_MSC
+  printf("  - Mass Storage\r\n");
+#endif
+
 //  if (CFG_TUH_HID_KEYBOARD ) puts("  - HID Keyboard");
 //  if (CFG_TUH_HID_MOUSE    ) puts("  - HID Mouse");
 }

@@ -124,6 +124,10 @@
         </folder>
       </folder>
     </folder>
+    <configuration
+      Name="MCB1800"
+      arm_target_interface_type="JTAG"
+      speed="12000" />
   </project>
   <configuration
     Name="MCB1800"

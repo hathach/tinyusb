@@ -172,8 +172,7 @@ void board_init(void)
   // Set mode
   #if CFG_TUSB_RHPORT0_MODE & OPT_MODE_HOST
     LPC_USB0->USBMODE_H = USBMODE_HOST | (USBMODE_VBUS_HIGH << 5);
-
-//    LPC_USB0->PORTSC1_D |= (1<<24); // FIXME force full speed for debugging
+    LPC_USB0->PORTSC1_H |= (1<<24); // FIXME force full speed for debugging
   #else // TODO OTG
     LPC_USB0->USBMODE_D = USBMODE_DEVICE;
     LPC_USB0->OTGSC = (1<<3) | (1<<0) /*| (1<<16)| (1<<24)| (1<<25)| (1<<26)| (1<<27)| (1<<28)| (1<<29)| (1<<30)*/;
