@@ -63,11 +63,9 @@ CFLAGS += \
 	-Wwrite-strings \
 	-Wsign-compare \
 	-Wmissing-format-attribute \
-	-Wunreachable-code
-
-# This causes lots of warning with nrf5x build due to nrfx code
-# CFLAGS += -Wcast-align
-
+	-Wunreachable-code \
+	-Wcast-align
+	
 # Debugging/Optimization
 ifeq ($(DEBUG), 1)
   CFLAGS += -Og -ggdb

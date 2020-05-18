@@ -182,7 +182,10 @@ static void dcd_userEP_in_xfer(struct xfer_ctl_t *xfer, USBD_EP_T *ep)
   /* provided buffers are thankfully 32-bit aligned, allowing most data to be transfered as 32-bit */
   while (countdown > 3)
   {
-    ep->EPDAT = *(uint32_t *)xfer->data_ptr;
+    uint32_t u32;
+    memcpy(&u32, xfer->data_ptr, 4);
+
+    ep->EPDAT = u32;
     xfer->data_ptr += 4; countdown -= 4;
   }
   while (countdown--)
