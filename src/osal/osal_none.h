@@ -176,7 +176,7 @@ static inline osal_queue_t osal_queue_create(osal_queue_def_t* qdef)
   return (osal_queue_t) qdef;
 }
 
-static inline bool osal_queue_receive(osal_queue_t const qhdl, void* data)
+static inline bool osal_queue_receive(osal_queue_t qhdl, void* data)
 {
   _osal_q_lock(qhdl);
   bool success = tu_fifo_read(&qhdl->ff, data);
@@ -185,7 +185,7 @@ static inline bool osal_queue_receive(osal_queue_t const qhdl, void* data)
   return success;
 }
 
-static inline bool osal_queue_send(osal_queue_t const qhdl, void const * data, bool in_isr)
+static inline bool osal_queue_send(osal_queue_t qhdl, void const * data, bool in_isr)
 {
   if (!in_isr) {
     _osal_q_lock(qhdl);
@@ -202,7 +202,7 @@ static inline bool osal_queue_send(osal_queue_t const qhdl, void const * data, b
   return success;
 }
 
-static inline bool osal_queue_empty(osal_queue_t const qhdl)
+static inline bool osal_queue_empty(osal_queue_t qhdl)
 {
   _osal_q_lock(qhdl);
   bool is_empty = tu_fifo_empty(&qhdl->ff);

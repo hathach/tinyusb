@@ -118,17 +118,17 @@ static inline osal_queue_t osal_queue_create(osal_queue_def_t* qdef)
   return xQueueCreateStatic(qdef->depth, qdef->item_sz, (uint8_t*) qdef->buf, &qdef->sq);
 }
 
-static inline bool osal_queue_receive(osal_queue_t const qhdl, void* data)
+static inline bool osal_queue_receive(osal_queue_t qhdl, void* data)
 {
   return xQueueReceive(qhdl, data, portMAX_DELAY);
 }
 
-static inline bool osal_queue_send(osal_queue_t const qhdl, void const * data, bool in_isr)
+static inline bool osal_queue_send(osal_queue_t qhdl, void const * data, bool in_isr)
 {
   return in_isr ? xQueueSendToBackFromISR(qhdl, data, NULL) : xQueueSendToBack(qhdl, data, OSAL_TIMEOUT_WAIT_FOREVER);
 }
 
-static inline bool osal_queue_empty(osal_queue_t const qhdl)
+static inline bool osal_queue_empty(osal_queue_t qhdl)
 {
   return uxQueueMessagesWaiting(qhdl) > 0;
 }
