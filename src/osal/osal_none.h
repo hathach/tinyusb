@@ -204,11 +204,9 @@ static inline bool osal_queue_send(osal_queue_t qhdl, void const * data, bool in
 
 static inline bool osal_queue_empty(osal_queue_t qhdl)
 {
-  _osal_q_lock(qhdl);
-  bool is_empty = tu_fifo_empty(&qhdl->ff);
-  _osal_q_unlock(qhdl);
-
-  return is_empty;
+  // Skip queue lock/unlock since this function is primarily called
+  // with interrupt disabled before going into low power mode
+  return tu_fifo_empty(&qhdl->ff);
 }
 
 #ifdef __cplusplus
