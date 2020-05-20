@@ -130,7 +130,7 @@ static inline bool osal_queue_send(osal_queue_t qhdl, void const * data, bool in
 
 static inline bool osal_queue_empty(osal_queue_t qhdl)
 {
-  return uxQueueMessagesWaiting(qhdl) > 0;
+  return uxQueueMessagesWaiting(qhdl) == 0;
 }
 
 #ifdef __cplusplus
