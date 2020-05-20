@@ -161,6 +161,12 @@ static inline bool osal_queue_send(osal_queue_t const qhdl, void const * data, b
   return true;
 }
 
+static inline bool osal_queue_empty(osal_queue_t const qhdl)
+{
+  return STAILQ_EMPTY(&qhdl->evq.evq_list);
+}
+
+
 #ifdef __cplusplus
  }
 #endif
