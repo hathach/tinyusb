@@ -51,6 +51,11 @@ enum
                       USBD_INTENCLR_ENDISOIN_Msk | USBD_INTEN_ENDISOOUT_Msk
 };
 
+enum
+{
+  EP_COUNT = 8
+};
+
 // Transfer descriptor
 typedef struct
 {
@@ -69,36 +74,73 @@ typedef struct
 static struct
 {
   // All 8 endpoints including control IN & OUT (offset 1)
-  xfer_td_t xfer[8][2];
+  xfer_td_t xfer[EP_COUNT][2];
 
-  // Only one DMA can run at a time
-  volatile bool dma_running;
+  // Number of pending DMA that is started but not handled yet by dcd_int_handler().
+  // Since nRF can only carry one DMA can run at a time, this value is normally be either 0 or 1.
+  // However, in critical section with interrupt disabled, the DMA can be finished and added up
+  // until handled by dcd_init_handler() when exiting critical section.
+  volatile uint8_t dma_pending;
 }_dcd;
 
 /*------------------------------------------------------------------*/
 /* Control / Bulk / Interrupt (CBI) Transfer
  *------------------------------------------------------------------*/
 
+// NVIC_GetEnableIRQ is only available in CMSIS v5
+#ifndef NVIC_GetEnableIRQ
+static inline uint32_t NVIC_GetEnableIRQ(IRQn_Type IRQn)
+{
+  if ((int32_t)(IRQn) >= 0)
+  {
+    return((uint32_t)(((NVIC->ISER[(((uint32_t)(int32_t)IRQn) >> 5UL)] & (1UL << (((uint32_t)(int32_t)IRQn) & 0x1FUL))) != 0UL) ? 1UL : 0UL));
+  }
+  else
+  {
+    return(0U);
+  }
+}
+#endif
+
 // helper to start DMA
 static void edpt_dma_start(volatile uint32_t* reg_startep)
 {
   // Only one dma can be active
-  if ( _dcd.dma_running )
+  if ( _dcd.dma_pending )
   {
     if (SCB->ICSR & SCB_ICSR_VECTACTIVE_Msk)
     {
-      // If called within ISR, use usbd task to defer later
+      // Called within ISR, use usbd task to defer later
       usbd_defer_func( (osal_task_func_t) edpt_dma_start, (void*) reg_startep, true );
       return;
     }
     else
     {
-      // Otherwise simply block wait
-      while ( _dcd.dma_running )  { }
+      if ( __get_PRIMASK() || !NVIC_GetEnableIRQ(USBD_IRQn) )
+      {
+        // Called in critical section with interrupt disabled. We have to manually check
+        // for the DMA complete by comparing current pending DMA with number of ENDED Events
+        uint32_t ended = 0;
+
+        while ( _dcd.dma_pending < ((uint8_t) ended) )
+        {
+          ended = NRF_USBD->EVENTS_ENDISOIN + NRF_USBD->EVENTS_ENDISOOUT;
+
+          for (uint8_t i=0; i<EP_COUNT; i++)
+          {
+            ended += NRF_USBD->EVENTS_ENDEPIN[i] + NRF_USBD->EVENTS_ENDEPOUT[i];
+          }
+        }
+      }else
+      {
+        // Called in non-critical thread-mode, should be 99% of the time.
+        // Should be safe to blocking wait until previous DMA transfer complete
+        while ( _dcd.dma_pending ) { }
+      }
     }
   }
 
-  _dcd.dma_running = true;
+  _dcd.dma_pending++;
 
   (*reg_startep) = 1;
   __ISB(); __DSB();
@@ -107,8 +149,8 @@ static void edpt_dma_start(volatile uint32_t* reg_startep)
 // DMA is complete
 static void edpt_dma_end(void)
 {
-  TU_ASSERT(_dcd.dma_running, );
-  _dcd.dma_running = false;
+  TU_ASSERT(_dcd.dma_pending, );
+  _dcd.dma_pending = 0;
 }
 
 // helper getting td
@@ -282,9 +324,11 @@ bool dcd_edpt_xfer (uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t 
 
   if ( control_status )
   {
-    // Status Phase also require Easy DMA has to be free as well !!!!
+    // Status Phase also requires Easy DMA has to be available as well !!!!
+    // However TASKS_EP0STATUS doesn't trigger any DMA transfer and got ENDED event subsequently
+    // Therefore dma_running state will be corrected right away
     edpt_dma_start(&NRF_USBD->TASKS_EP0STATUS);
-    edpt_dma_end();
+    if (_dcd.dma_pending) _dcd.dma_pending--; // correct the dma_running++ in dma start
 
     // The nRF doesn't interrupt on status transmit so we queue up a success response.
     dcd_event_xfer_complete(0, ep_addr, 0, XFER_RESULT_SUCCESS, false);
