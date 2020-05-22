@@ -71,41 +71,46 @@ bool tu_fifo_config(tu_fifo_t *f, void* buffer, uint16_t depth, uint16_t item_si
   return true;
 }
 
+static inline uint16_t _ff_mod(uint16_t idx, uint16_t depth)
+{
+  return (idx < depth) ? idx : (idx-depth);
+}
+
 // retrieve data from fifo
-static void _tu_ff_pull(tu_fifo_t* f, void * buffer)
+static inline void _ff_pull(tu_fifo_t* f, void * buffer, uint16_t n)
 {
   memcpy(buffer,
          f->buffer + (f->rd_idx * f->item_size),
-         f->item_size);
+         f->item_size*n);
 
-  f->rd_idx = (f->rd_idx + 1) % f->depth;
-  f->count--;
+  f->rd_idx = _ff_mod(f->rd_idx + n, f->depth);
+  f->count -= n;
 }
 
 // send data to fifo
-static void _tu_ff_push(tu_fifo_t* f, void const * data)
+static inline void _ff_push(tu_fifo_t* f, void const * data, uint16_t n)
 {
-  memcpy( f->buffer + (f->wr_idx * f->item_size),
-          data,
-          f->item_size);
+  memcpy(f->buffer + (f->wr_idx * f->item_size),
+         data,
+         f->item_size*n);
 
-  f->wr_idx = (f->wr_idx + 1) % f->depth;
+  f->wr_idx = _ff_mod(f->wr_idx + n, f->depth);
 
   if (tu_fifo_full(f))
   {
-    f->rd_idx = f->wr_idx; // keep the full state (rd == wr && len = size)
+    f->rd_idx = f->wr_idx; // keep the full state (rd == wr && count = depth)
   }
   else
   {
-    f->count++;
+    f->count += n;
   }
 }
 
 /******************************************************************************/
 /*!
-    @brief Read one byte out of the RX buffer.
+    @brief Read one element out of the RX buffer.
 
-    This function will return the byte located at the array index of the
+    This function will return the element located at the array index of the
     read pointer, and then increment the read pointer index.  If the read
     pointer exceeds the maximum buffer size, it will roll over to zero.
 
@@ -123,7 +128,7 @@ bool tu_fifo_read(tu_fifo_t* f, void * buffer)
 
   tu_fifo_lock(f);
 
-  _tu_ff_pull(f, buffer);
+  _ff_pull(f, buffer, 1);
 
   tu_fifo_unlock(f);
 
@@ -132,8 +137,8 @@ bool tu_fifo_read(tu_fifo_t* f, void * buffer)
 
 /******************************************************************************/
 /*!
-    @brief This function will read n elements into the array index specified by
-    the write pointer and increment the write index. If the write index
+    @brief This function will read n elements from the array index specified by
+    the read pointer and increment the read index. If the read index
     exceeds the max buffer size, then it will roll over to zero.
 
     @param[in]  f
@@ -148,32 +153,37 @@ bool tu_fifo_read(tu_fifo_t* f, void * buffer)
 /******************************************************************************/
 uint16_t tu_fifo_read_n (tu_fifo_t* f, void * buffer, uint16_t count)
 {
-  if( tu_fifo_empty(f) ) return 0;
+  if(tu_fifo_empty(f)) return 0;
 
   tu_fifo_lock(f);
 
-  /* Limit up to fifo's count */
-  if ( count > f->count ) count = f->count;
+  // Limit up to fifo's count
+  if(count > f->count) count = f->count;
 
-  uint8_t* buf8 = (uint8_t*) buffer;
-  uint16_t len = 0;
-
-  while (len < count)
+  if(count + f->rd_idx <= f->depth)
   {
-    _tu_ff_pull(f, buf8);
+    _ff_pull(f, buffer, count);
+  }
+  else
+  {
+    uint16_t const part1 = f->depth - f->rd_idx;
 
-    len++;
-    buf8 += f->item_size;
+    // Part 1: from rd_idx to end
+    _ff_pull(f, buffer, part1);
+    buffer = ((uint8_t*) buffer) + part1*f->item_size;
+
+    // Part 2: start to remaining
+    _ff_pull(f, buffer, count-part1);
   }
 
   tu_fifo_unlock(f);
 
-  return len;
+  return count;
 }
 
 /******************************************************************************/
 /*!
-    @brief Reads one item without removing it from the FIFO
+    @brief Read one item without removing it from the FIFO
 
     @param[in]  f
                 Pointer to the FIFO buffer to manipulate
@@ -189,11 +199,15 @@ bool tu_fifo_peek_at(tu_fifo_t* f, uint16_t pos, void * p_buffer)
 {
   if ( pos >= f->count ) return false;
 
+  tu_fifo_lock(f);
+
   // rd_idx is pos=0
-  uint16_t index = (f->rd_idx + pos) % f->depth;
+  uint16_t index = _ff_mod(f->rd_idx + pos, f->depth);
   memcpy(p_buffer,
          f->buffer + (index * f->item_size),
          f->item_size);
+
+  tu_fifo_unlock(f);
 
   return true;
 }
@@ -221,7 +235,7 @@ bool tu_fifo_write (tu_fifo_t* f, const void * data)
 
   tu_fifo_lock(f);
 
-  _tu_ff_push(f, data);
+  _ff_push(f, data, 1);
 
   tu_fifo_unlock(f);
 
@@ -249,23 +263,42 @@ uint16_t tu_fifo_write_n (tu_fifo_t* f, const void * data, uint16_t count)
 
   tu_fifo_lock(f);
 
-  // Not overwritable limit up to full
-  if (!f->overwritable) count = tu_min16(count, tu_fifo_remaining(f));
-
   uint8_t const* buf8 = (uint8_t const*) data;
-  uint16_t len = 0;
 
-  while (len < count)
+  if (!f->overwritable)
   {
-    _tu_ff_push(f, buf8);
-
-    len++;
-    buf8 += f->item_size;
+    // Not overwritable limit up to full
+    count = tu_min16(count, tu_fifo_remaining(f));
+  }
+  else if (count > f->depth)
+  {
+    // Only copy last part
+    buf8 = buf8 + (count - f->depth) * f->item_size;
+    count = f->depth;
+    f->wr_idx = 0;
+    f->rd_idx = 0;
+    f->count = 0;
   }
 
+  if (count + f->wr_idx <= f->depth )
+  {
+    _ff_push(f, buf8, count);
+  }
+  else
+  {
+    uint16_t const part1 = f->depth - f->wr_idx;
+
+    // Part 1: from wr_idx to end
+    _ff_push(f, buf8, part1);
+    buf8 += part1*f->item_size;
+
+    // Part 2: start to remaining
+    _ff_push(f, buf8, count-part1);
+  }
+  
   tu_fifo_unlock(f);
 
-  return len;
+  return count;
 }
 
 /******************************************************************************/

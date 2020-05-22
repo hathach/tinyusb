@@ -47,6 +47,9 @@ bool tud_init (void);
 // Task function should be called in main/rtos loop
 void tud_task (void);
 
+// Check if there is pending events need proccessing by tud_task()
+bool tud_task_event_ready(void);
+
 // Interrupt handler, name alias to DCD
 #define tud_int_handler   dcd_int_handler
 

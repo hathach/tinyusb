@@ -19,8 +19,9 @@
       arm_target_device_name="nRF52840_xxAA"
       arm_target_interface_type="SWD"
       build_treat_warnings_as_errors="Yes"
-      c_preprocessor_definitions="NRF52840_XXAA;__nRF_FAMILY;ARM_MATH_CM4;FLASH_PLACEMENT=1;CFG_TUSB_MCU=OPT_MCU_NRF5X"
-      c_user_include_directories="../../src;$(rootDir)/hw/mcu/nordic/cmsis/Include;$(rootDir)/hw;$(rootDir)/src;$(nrfxDir)/..;$(nrfxDir);$(nrfxDir)/mdk;$(nrfxDir)/hal;$(nrfxDir)/drivers/include;$(nrfxDir)/drivers/src"
+      c_additional_options="-Wno-error=undef;-Wno-error=unused-parameter;-Wno-error=cast-align;-Wno-error=cast-function-type"
+      c_preprocessor_definitions="NRF52840_XXAA;__nRF_FAMILY;ARM_MATH_CM4;FLASH_PLACEMENT=1;CFG_TUSB_MCU=OPT_MCU_NRF5X;CFG_TUSB_DEBUG=1"
+      c_user_include_directories="../../src;$(rootDir)/lib/CMSIS_4/CMSIS/Include;$(rootDir)/hw;$(rootDir)/src;$(nrfxDir)/..;$(nrfxDir);$(nrfxDir)/mdk;$(nrfxDir)/hal;$(nrfxDir)/drivers/include;$(nrfxDir)/drivers/src"
       debug_register_definition_file="nrf52840_Registers.xml"
       debug_target_connection="J-Link"
       gcc_enable_all_warnings="Yes"
@@ -42,11 +43,12 @@
       recurse="Yes" />
     <folder Name="hw">
       <folder Name="bsp">
-        <folder Name="pca10056">
-          <file file_name="../../../../../hw/bsp/pca10056/pca10056.c" />
-        </folder>
         <file file_name="../../../../../hw/bsp/ansi_escape.h" />
         <file file_name="../../../../../hw/bsp/board.h" />
+        <file file_name="../../../../../hw/bsp/board.c" />
+        <folder Name="feather_nrf52840_express">
+          <file file_name="../../../../../hw/bsp/feather_nrf52840_express/feather_nrf52840_express.c" />
+        </folder>
       </folder>
       <folder Name="mcu">
         <folder Name="nordic">
@@ -103,16 +105,10 @@
       <file file_name="thumb_crt0.s" />
       <file file_name="nRF52840_xxAA_s140v6_MemoryMap.xml" />
     </folder>
-    <folder
-      Name="segger_rtt"
-      exclude=""
-      filter="*.c;*.h"
-      path="../../../../../lib/segger_rtt"
-      recurse="No" />
     <configuration
       Name="pca10056"
       build_treat_warnings_as_errors="No"
-      c_preprocessor_definitions="BOARD_PCA10056"
+      c_preprocessor_definitions=""
       linker_memory_map_file="nRF52840_xxAA_MemoryMap.xml" />
     <configuration
       Name="pca10056 s140v6"
@@ -121,7 +117,16 @@
       c_user_include_directories="$(nrfxDir)/../nrf5x/s140_nrf52_6.1.1_API/include;$(nrfxDir)/../nrf5x/s140_nrf52_6.1.1_API/include/nrf52"
       debug_start_from_entry_point_symbol="No"
       linker_memory_map_file="nRF52840_xxAA_s140v6_MemoryMap.xml" />
+    <folder Name="SEGGER_RTT">
+      <folder Name="RTT">
+        <file file_name="../../../../../lib/SEGGER_RTT/RTT/SEGGER_RTT.c" />
+        <file file_name="../../../../../lib/SEGGER_RTT/RTT/SEGGER_RTT.h" />
+        <file file_name="../../../../../lib/SEGGER_RTT/RTT/SEGGER_RTT_Conf.h" />
+        <file file_name="../../../../../lib/SEGGER_RTT/RTT/SEGGER_RTT_printf.c" />
+      </folder>
+    </folder>
   </project>
   <configuration Name="pca10056" />
   <configuration Name="pca10056 s140v6" />
+  <configuration Name="Feather nRF52840" />
 </solution>

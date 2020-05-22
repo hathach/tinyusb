@@ -78,8 +78,9 @@ static inline bool osal_mutex_unlock(osal_mutex_t mutex_hdl);
 
 //------------- Queue -------------//
 static inline osal_queue_t osal_queue_create(osal_queue_def_t* qdef);
-static inline bool osal_queue_receive(osal_queue_t const qhdl, void* data);
-static inline bool osal_queue_send(osal_queue_t const qhdl, void const * data, bool in_isr);
+static inline bool osal_queue_receive(osal_queue_t qhdl, void* data);
+static inline bool osal_queue_send(osal_queue_t qhdl, void const * data, bool in_isr);
+static inline bool osal_queue_empty(osal_queue_t qhdl);
 
 #if 0  // TODO remove subtask related macros later
 // Sub Task

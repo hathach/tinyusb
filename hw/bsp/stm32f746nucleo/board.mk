@@ -6,7 +6,7 @@ CFLAGS += \
   -mfloat-abi=hard \
   -mfpu=fpv5-d16 \
   -nostdlib -nostartfiles \
-  -DSTM32F767xx \
+  -DSTM32F746xx \
   -DCFG_TUSB_MCU=OPT_MCU_STM32F7
 
 # suppress warning caused by vendor mcu driver
@@ -16,7 +16,7 @@ ST_HAL_DRIVER = hw/mcu/st/st_driver/STM32F7xx_HAL_Driver
 ST_CMSIS = hw/mcu/st/st_driver/CMSIS/Device/ST/STM32F7xx
 
 # All source paths should be relative to the top level.
-LD_FILE = hw/bsp/$(BOARD)/STM32F767ZITx_FLASH.ld
+LD_FILE = hw/bsp/$(BOARD)/STM32F746ZGTx_FLASH.ld
 
 SRC_C += \
 	$(ST_CMSIS)/Source/Templates/system_stm32f7xx.c \
@@ -29,7 +29,7 @@ SRC_C += \
 	$(ST_HAL_DRIVER)/Src/stm32f7xx_hal_pwr_ex.c
 
 SRC_S += \
-	$(ST_CMSIS)/Source/Templates/gcc/startup_stm32f767xx.s
+	$(ST_CMSIS)/Source/Templates/gcc/startup_stm32f746xx.s
 
 INC += \
 	$(TOP)/hw/mcu/st/st_driver/CMSIS/Include \

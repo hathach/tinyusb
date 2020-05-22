@@ -6,6 +6,9 @@ CFLAGS += \
   -DTCP_WND=2*TCP_MSS \
   -DHTTPD_USE_CUSTOM_FSDATA=0
 
+# TODO rndis_reports.c and net_device cause cast algin warnings
+CFLAGS += -Wno-error=cast-align
+
 INC += \
   src \
   $(TOP)/hw \

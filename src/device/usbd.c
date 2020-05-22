@@ -339,6 +339,14 @@ static void usbd_reset(uint8_t rhport)
   }
 }
 
+bool tud_task_event_ready(void)
+{
+  // Skip if stack is not initialized
+  if ( !tusb_inited() ) return false;
+
+  return !osal_queue_empty(_usbd_q);
+}
+
 /* USB Device Driver task
  * This top level thread manages all device controller event and delegates events to class-specific drivers.
  * This should be called periodically within the mainloop or rtos thread.

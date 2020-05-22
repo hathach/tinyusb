@@ -19,13 +19,11 @@ SRC_C += \
   hw/mcu/nuvoton/nuc505/StdDriver/src/i2s.c \
   hw/mcu/nuvoton/nuc505/StdDriver/src/pwm.c \
   hw/mcu/nuvoton/nuc505/StdDriver/src/rtc.c \
-  hw/mcu/nuvoton/nuc505/StdDriver/src/sd.c \
   hw/mcu/nuvoton/nuc505/StdDriver/src/spi.c \
   hw/mcu/nuvoton/nuc505/StdDriver/src/spim.c \
   hw/mcu/nuvoton/nuc505/StdDriver/src/sys.c \
   hw/mcu/nuvoton/nuc505/StdDriver/src/timer.c \
   hw/mcu/nuvoton/nuc505/StdDriver/src/uart.c \
-  hw/mcu/nuvoton/nuc505/StdDriver/src/usbd.c \
   hw/mcu/nuvoton/nuc505/StdDriver/src/wdt.c \
   hw/mcu/nuvoton/nuc505/StdDriver/src/wwdt.c
 

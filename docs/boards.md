@@ -90,6 +90,7 @@ This code base already had supported for a handful of following boards (sorted a
 - STM32 F411ce Black Pill
 - [STM32 F411ve Discovery](https://www.st.com/en/evaluation-tools/32f411ediscovery.html)
 - [STM32 F412zg Discovery](https://www.st.com/en/evaluation-tools/32f412gdiscovery.html)
+- [STM32 F746zg Nucleo](https://www.st.com/en/evaluation-tools/nucleo-f746zg.html)
 - [STM32 F767zi Nucleo](https://www.st.com/en/evaluation-tools/nucleo-f767zi.html)
 - [STM32 H743zi Nucleo](https://www.st.com/en/evaluation-tools/nucleo-h743zi.html)
 
