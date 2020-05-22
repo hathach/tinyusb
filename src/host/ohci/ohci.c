@@ -166,7 +166,7 @@ bool hcd_init(void)
   OHCI_REG->interrupt_disable = OHCI_REG->interrupt_enable; // disable all interrupts
   OHCI_REG->interrupt_status  = OHCI_REG->interrupt_status; // clear current set bits
   OHCI_REG->interrupt_enable  = OHCI_INT_WRITEBACK_DONEHEAD_MASK | OHCI_INT_RESUME_DETECTED_MASK |
-      OHCI_INT_UNRECOVERABLE_ERROR_MASK | /*OHCI_INT_FRAME_OVERFLOW_MASK |*/ OHCI_INT_RHPORT_STATUS_CHANGE_MASK |
+      OHCI_INT_UNRECOVERABLE_ERROR_MASK | OHCI_INT_FRAME_OVERFLOW_MASK | OHCI_INT_RHPORT_STATUS_CHANGE_MASK |
       OHCI_INT_MASTER_ENABLE_MASK;
 
   OHCI_REG->control |= OHCI_CONTROL_CONTROL_BULK_RATIO | OHCI_CONTROL_LIST_CONTROL_ENABLE_MASK |
@@ -180,6 +180,13 @@ bool hcd_init(void)
 
   return true;
 }
+
+uint32_t hcd_uframe_number(uint8_t rhport)
+{
+  (void) rhport;
+  return (ohci_data.frame_number_hi << 16 | OHCI_REG->frame_number) << 3;
+}
+
 
 //--------------------------------------------------------------------+
 // PORT API
@@ -605,6 +612,12 @@ void hcd_isr(uint8_t hostid)
   uint32_t const int_status = OHCI_REG->interrupt_status & int_en;
 
   if (int_status == 0) return;
+
+  // Frame number overflow
+  if ( int_status & OHCI_INT_FRAME_OVERFLOW_MASK )
+  {
+    ohci_data.frame_number_hi++;
+  }
 
   //------------- RootHub status -------------//
   if ( int_status & OHCI_INT_RHPORT_STATUS_CHANGE_MASK )
