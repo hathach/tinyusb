@@ -236,7 +236,7 @@ typedef struct
 {
   dcd_registers_t* regs;  // registers
   const IRQn_Type irqnum; // IRQ number
-  const uint8_t ep_count;   // Max bi-directional Endpoints
+  const uint8_t ep_count; // Max bi-directional Endpoints
 }dcd_controller_t;
 
 #if CFG_TUSB_MCU == OPT_MCU_MIMXRT10XX
@@ -244,7 +244,7 @@ typedef struct
   // Therefore QHD_MAX is 2 x max endpoint count
   #define QHD_MAX  (8*2)
 
-  dcd_controller_t _dcd_controller[] =
+  static const dcd_controller_t _dcd_controller[] =
   {
     // RT1010 and RT1020 only has 1 USB controller
     #if FSL_FEATURE_SOC_USBHS_COUNT == 1
@@ -258,7 +258,7 @@ typedef struct
 #else
   #define QHD_MAX (6*2)
 
-  dcd_controller_t _dcd_controller[] =
+  static const dcd_controller_t _dcd_controller[] =
   {
     { .regs = (dcd_registers_t*) LPC_USB0_BASE, .irqnum = USB0_IRQn, .ep_count = 6 },
     { .regs = (dcd_registers_t*) LPC_USB1_BASE, .irqnum = USB1_IRQn, .ep_count = 4 }
