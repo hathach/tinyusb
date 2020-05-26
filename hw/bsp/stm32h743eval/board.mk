@@ -12,7 +12,7 @@ CFLAGS += \
 	-DBOARD_DEVICE_RHPORT_SPEED=OPT_MODE_HIGH_SPEED
 
 # suppress warning caused by vendor mcu driver
-CFLAGS += -Wno-error=maybe-uninitialized
+CFLAGS += -Wno-error=maybe-uninitialized -Wno-error=cast-align
 
 ST_HAL_DRIVER = hw/mcu/st/st_driver/STM32H7xx_HAL_Driver
 ST_CMSIS = hw/mcu/st/st_driver/CMSIS/Device/ST/STM32H7xx
@@ -27,6 +27,7 @@ SRC_C += \
 	$(ST_HAL_DRIVER)/Src/stm32h7xx_hal_rcc.c \
 	$(ST_HAL_DRIVER)/Src/stm32h7xx_hal_rcc_ex.c \
 	$(ST_HAL_DRIVER)/Src/stm32h7xx_hal_gpio.c \
+	$(ST_HAL_DRIVER)/Src/stm32h7xx_hal_uart.c \
 	$(ST_HAL_DRIVER)/Src/stm32h7xx_hal_pwr_ex.c
 
 SRC_S += \
@@ -44,6 +45,10 @@ CHIP_FAMILY = synopsys
 
 # For freeRTOS port source
 FREERTOS_PORT = ARM_CM7/r0p1
+
+# For flash-jlink target
+JLINK_DEVICE = stm32h743xi
+JLINK_IF = jtag
 
 # flash target using on-board stlink
 flash: flash-stlink
