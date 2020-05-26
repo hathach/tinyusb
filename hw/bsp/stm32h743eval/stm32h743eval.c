@@ -187,8 +187,16 @@ void board_init(void)
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_HIGH;
   HAL_GPIO_Init(BUTTON_PORT, &GPIO_InitStruct);
 
-  // USB Pin Init
-  // PA9- VUSB, PA10- ID, PA11- DM, PA12- DP
+#if CFG_TUSB_RHPORT0_MODE & OPT_MODE_DEVICE
+
+  // USB1 HS (ULPI Phy), internal FS PHY
+  // PB12 ID, PB13 VBUS, PB14 DM, PB15 DP
+
+#endif
+
+#if CFG_TUSB_RHPORT1_MODE & OPT_MODE_DEVICE
+  // USB2 FS Pin Init
+  // PA9 VUSB, PA10 ID, PA11 DM, PA12 DP
 
   /* Configure DM DP Pins */
   GPIO_InitStruct.Pin = GPIO_PIN_11 | GPIO_PIN_12;
@@ -219,6 +227,7 @@ void board_init(void)
 
   // Enable VBUS sense (B device) via pin PA9
   USB_OTG_FS->GCCFG |= USB_OTG_GCCFG_VBDEN;
+#endif
 }
 
 //--------------------------------------------------------------------+

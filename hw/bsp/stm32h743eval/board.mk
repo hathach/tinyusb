@@ -7,7 +7,12 @@ CFLAGS += \
   -mfpu=fpv5-d16 \
   -nostdlib -nostartfiles \
   -DSTM32H743xx \
-  -DCFG_TUSB_MCU=OPT_MCU_STM32H7
+  -DCFG_TUSB_MCU=OPT_MCU_STM32H7 \
+  
+# Board specific for using usb ports
+CFLAGS += \
+	-DCFG_BOARD_DEVICE_RHPORT_NUM=1 \
+	-DCFG_BOARD_DEVICE_RHPORT_HIGHSPEED
 
 # suppress warning caused by vendor mcu driver
 CFLAGS += -Wno-error=maybe-uninitialized
