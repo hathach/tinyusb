@@ -32,10 +32,21 @@
 //--------------------------------------------------------------------+
 // Forward USB interrupt events to TinyUSB IRQ Handler
 //--------------------------------------------------------------------+
+
+// Despite being call USB2_OTG
+// OTG_FS is marked as RHPort0 by TinyUSB to be consistent across stm32 port
 void OTG_FS_IRQHandler(void)
 {
   tud_int_handler(0);
 }
+
+// Despite being call USB2_OTG
+// OTG_HS is marked as RHPort1 by TinyUSB to be consistent across stm32 port
+void OTG_HS_IRQHandler(void)
+{
+  tud_int_handler(1);
+}
+
 
 //--------------------------------------------------------------------+
 // MACRO TYPEDEF CONSTANT ENUM
@@ -53,7 +64,7 @@ void OTG_FS_IRQHandler(void)
 // enable all LED, Button, Uart, USB clock
 static void all_rcc_clk_enable(void)
 {
-  __HAL_RCC_GPIOA_CLK_ENABLE();  // LED, USB D+, D-
+  __HAL_RCC_GPIOA_CLK_ENABLE();  // LED
   __HAL_RCC_GPIOC_CLK_ENABLE();  // Button
 //  __HAL_RCC_GPIOD_CLK_ENABLE();  // Uart tx, rx
 //  __HAL_RCC_USART3_CLK_ENABLE(); // Uart module
@@ -187,16 +198,12 @@ void board_init(void)
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_HIGH;
   HAL_GPIO_Init(BUTTON_PORT, &GPIO_InitStruct);
 
-#if CFG_TUSB_RHPORT0_MODE & OPT_MODE_DEVICE
-
-  // USB1 HS (ULPI Phy), internal FS PHY
-  // PB12 ID, PB13 VBUS, PB14 DM, PB15 DP
-
-#endif
-
-#if CFG_TUSB_RHPORT1_MODE & OPT_MODE_DEVICE
-  // USB2 FS Pin Init
+#if BOARD_DEVICE_RHPORT_NUM == 0
+  // Despite being call USB2_OTG
+  // OTG_FS is marked as RHPort0 by TinyUSB to be consistent across stm32 port
   // PA9 VUSB, PA10 ID, PA11 DM, PA12 DP
+
+  __HAL_RCC_GPIOA_CLK_ENABLE();
 
   /* Configure DM DP Pins */
   GPIO_InitStruct.Pin = GPIO_PIN_11 | GPIO_PIN_12;
@@ -228,6 +235,76 @@ void board_init(void)
   // Enable VBUS sense (B device) via pin PA9
   USB_OTG_FS->GCCFG |= USB_OTG_GCCFG_VBDEN;
 #endif
+
+#if BOARD_DEVICE_RHPORT_NUM == 1
+  // Despite being call USB2_OTG
+  // OTG_HS is marked as RHPort1 by TinyUSB to be consistent across stm32 port
+  __GPIOA_CLK_ENABLE();
+  __GPIOB_CLK_ENABLE();
+  __GPIOC_CLK_ENABLE();
+  __GPIOH_CLK_ENABLE();
+  __GPIOI_CLK_ENABLE();
+
+  /* CLK */
+  GPIO_InitStruct.Pin = GPIO_PIN_5;
+  GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_VERY_HIGH;
+  GPIO_InitStruct.Alternate = GPIO_AF10_OTG2_HS;
+  HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
+
+  /* D0 */
+  GPIO_InitStruct.Pin = GPIO_PIN_3;
+  GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_VERY_HIGH;
+  GPIO_InitStruct.Alternate = GPIO_AF10_OTG2_HS;
+  HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
+
+  /* D1 D2 D3 D4 D5 D6 D7 */
+  GPIO_InitStruct.Pin = GPIO_PIN_0 | GPIO_PIN_1 | GPIO_PIN_5 | GPIO_PIN_10 | GPIO_PIN_11 | GPIO_PIN_12 | GPIO_PIN_13;
+  GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Alternate = GPIO_AF10_OTG2_HS;
+  HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
+
+  /* STP */
+  GPIO_InitStruct.Pin = GPIO_PIN_0;
+  GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Alternate = GPIO_AF10_OTG2_HS;
+  HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
+
+  /* NXT */
+  GPIO_InitStruct.Pin = GPIO_PIN_4;
+  GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Alternate = GPIO_AF10_OTG2_HS;
+  HAL_GPIO_Init(GPIOH, &GPIO_InitStruct);
+
+  /* DIR */
+  GPIO_InitStruct.Pin = GPIO_PIN_11;
+  GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Alternate = GPIO_AF10_OTG2_HS;
+  HAL_GPIO_Init(GPIOI, &GPIO_InitStruct);
+  __HAL_RCC_USB1_OTG_HS_ULPI_CLK_ENABLE();
+
+  /* Enable USB HS Clocks */
+  __HAL_RCC_USB1_OTG_HS_CLK_ENABLE();
+
+  // No VBUS sense
+  USB_OTG_HS->GCCFG &= ~USB_OTG_GCCFG_VBDEN;
+
+  // Force device mode
+  // USB_OTG_HS->GUSBCFG &= ~USB_OTG_GUSBCFG_FHMOD;
+  // USB_OTG_HS->GUSBCFG |= USB_OTG_GUSBCFG_FDMOD;
+
+  // B-peripheral session valid override enabl
+//  USB_OTG_HS->GOTGCTL |= USB_OTG_GOTGCTL_BVALOEN;
+//  USB_OTG_HS->GOTGCTL |= USB_OTG_GOTGCTL_BVALOVAL;
+#endif // rhport = 1
+
 }
 
 //--------------------------------------------------------------------+

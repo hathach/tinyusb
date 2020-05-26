@@ -138,10 +138,6 @@
   #define CFG_TUSB_RHPORT0_MODE OPT_MODE_NONE
 #endif
 
-//#ifndef CFG_TUSB_RHPORT1_MODE
-//  #define CFG_TUSB_RHPORT1_MODE OPT_MODE_NONE
-//#endif
-
 #if ((CFG_TUSB_RHPORT0_MODE & OPT_MODE_HOST  ) && (CFG_TUSB_RHPORT0_MODE & (OPT_MODE_HOST   << 8)) ) || \
     ((CFG_TUSB_RHPORT0_MODE & OPT_MODE_DEVICE) && (CFG_TUSB_RHPORT0_MODE & (OPT_MODE_DEVICE << 8)) )
   #error "TinyUSB currently does not support same modes on more than 1 roothub port"

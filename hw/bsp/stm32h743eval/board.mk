@@ -8,11 +8,8 @@ CFLAGS += \
   -nostdlib -nostartfiles \
   -DSTM32H743xx \
   -DCFG_TUSB_MCU=OPT_MCU_STM32H7 \
-  
-# Board specific for using usb ports
-CFLAGS += \
-	-DCFG_BOARD_DEVICE_RHPORT_NUM=1 \
-	-DCFG_BOARD_DEVICE_RHPORT_HIGHSPEED
+	-DBOARD_DEVICE_RHPORT_NUM=1 \
+	-DBOARD_DEVICE_RHPORT_SPEED=OPT_MODE_HIGH_SPEED
 
 # suppress warning caused by vendor mcu driver
 CFLAGS += -Wno-error=maybe-uninitialized
