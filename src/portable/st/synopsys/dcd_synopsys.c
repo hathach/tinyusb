@@ -103,6 +103,7 @@ static const dcd_rhport_t _dcd_rhport[] =
 #endif
 };
 
+#define GLOBAL_BASE(_port)     ((USB_OTG_GlobalTypeDef*) _dcd_rhport[_port].regs)
 #define DEVICE_BASE(_port)     (USB_OTG_DeviceTypeDef *) (_dcd_rhport[_port].regs + USB_OTG_DEVICE_BASE)
 #define OUT_EP_BASE(_port)     (USB_OTG_OUTEndpointTypeDef *) (_dcd_rhport[_port].regs + USB_OTG_OUT_ENDPOINT_BASE)
 #define IN_EP_BASE(_port)      (USB_OTG_INEndpointTypeDef *) (_dcd_rhport[_port].regs + USB_OTG_IN_ENDPOINT_BASE)
@@ -137,6 +138,7 @@ xfer_ctl_t xfer_status[EP_MAX][2];
 // Setup the control endpoint 0.
 static void bus_reset(uint8_t rhport)
 {
+  USB_OTG_GlobalTypeDef * usb_otg = GLOBAL_BASE(rhport);
   USB_OTG_DeviceTypeDef * dev = DEVICE_BASE(rhport);
   USB_OTG_OUTEndpointTypeDef * out_ep = OUT_EP_BASE(rhport);
 
@@ -176,14 +178,14 @@ static void bus_reset(uint8_t rhport)
   //   * 1 location for global NAK (not required/used here).
   //   * It is recommended to allocate 2 times the largest packet size, therefore
   //   Recommended value = 10 + 1 + 2 x (16+2) = 47 --> Let's make it 52
-  USB_OTG_FS->GRXFSIZ = 52;
+  usb_otg->GRXFSIZ = 52;
 
   // Control IN uses FIFO 0 with 64 bytes ( 16 32-bit word )
-  USB_OTG_FS->DIEPTXF0_HNPTXFSIZ = (16 << USB_OTG_TX0FD_Pos) | (USB_OTG_FS->GRXFSIZ & 0x0000ffffUL);
+  usb_otg->DIEPTXF0_HNPTXFSIZ = (16 << USB_OTG_TX0FD_Pos) | (usb_otg->GRXFSIZ & 0x0000ffffUL);
 
   out_ep[0].DOEPTSIZ |= (3 << USB_OTG_DOEPTSIZ_STUPCNT_Pos);
 
-  USB_OTG_FS->GINTMSK |= USB_OTG_GINTMSK_OEPINT | USB_OTG_GINTMSK_IEPINT;
+  usb_otg->GINTMSK |= USB_OTG_GINTMSK_OEPINT | USB_OTG_GINTMSK_IEPINT;
 }
 
 static void end_of_reset(uint8_t rhport)
@@ -216,22 +218,24 @@ static void end_of_reset(uint8_t rhport)
  *------------------------------------------------------------------*/
 void dcd_init (uint8_t rhport)
 {
+  USB_OTG_GlobalTypeDef * usb_otg = GLOBAL_BASE(rhport);
+
   // Programming model begins in the last section of the chapter on the USB
   // peripheral in each Reference Manual.
-  USB_OTG_FS->GAHBCFG |= USB_OTG_GAHBCFG_GINT;
+  usb_otg->GAHBCFG |= USB_OTG_GAHBCFG_GINT;
 
   // No HNP/SRP (no OTG support), program timeout later, turnaround
   // programmed for 32+ MHz.
   // TODO: PHYSEL is read-only on some cores (STM32F407). Worth gating?
-  USB_OTG_FS->GUSBCFG |= (0x06 << USB_OTG_GUSBCFG_TRDT_Pos) | USB_OTG_GUSBCFG_PHYSEL;
+  usb_otg->GUSBCFG |= (0x06 << USB_OTG_GUSBCFG_TRDT_Pos) | USB_OTG_GUSBCFG_PHYSEL;
 
   // Clear all interrupts
-  USB_OTG_FS->GINTSTS |= USB_OTG_FS->GINTSTS;
+  usb_otg->GINTSTS |= usb_otg->GINTSTS;
 
   // Required as part of core initialization.
   // TODO: How should mode mismatch be handled? It will cause
   // the core to stop working/require reset.
-  USB_OTG_FS->GINTMSK |= USB_OTG_GINTMSK_OTGINT | USB_OTG_GINTMSK_MMISM;
+  usb_otg->GINTMSK |= USB_OTG_GINTMSK_OTGINT | USB_OTG_GINTMSK_MMISM;
 
   USB_OTG_DeviceTypeDef * dev = DEVICE_BASE(rhport);
 
@@ -239,12 +243,12 @@ void dcd_init (uint8_t rhport)
   // (non zero-length packet), send STALL back and discard. Full speed.
   dev->DCFG |=  USB_OTG_DCFG_NZLSOHSK | (3 << USB_OTG_DCFG_DSPD_Pos);
 
-  USB_OTG_FS->GINTMSK |= USB_OTG_GINTMSK_USBRST   | USB_OTG_GINTMSK_ENUMDNEM |
+  usb_otg->GINTMSK |= USB_OTG_GINTMSK_USBRST   | USB_OTG_GINTMSK_ENUMDNEM |
                          USB_OTG_GINTMSK_USBSUSPM | USB_OTG_GINTMSK_WUIM     |
                          USB_OTG_GINTMSK_RXFLVLM  | (USE_SOF ? USB_OTG_GINTMSK_SOFM : 0);
 
   // Enable USB transceiver.
-  USB_OTG_FS->GCCFG |= USB_OTG_GCCFG_PWRDWN;
+  usb_otg->GCCFG |= USB_OTG_GCCFG_PWRDWN;
 }
 
 void dcd_int_enable (uint8_t rhport)
@@ -292,6 +296,7 @@ void dcd_disconnect(uint8_t rhport)
 
 bool dcd_edpt_open (uint8_t rhport, tusb_desc_endpoint_t const * desc_edpt)
 {
+  USB_OTG_GlobalTypeDef * usb_otg = GLOBAL_BASE(rhport);
   USB_OTG_DeviceTypeDef * dev = DEVICE_BASE(rhport);
   USB_OTG_OUTEndpointTypeDef * out_ep = OUT_EP_BASE(rhport);
   USB_OTG_INEndpointTypeDef * in_ep = IN_EP_BASE(rhport);
@@ -348,12 +353,12 @@ bool dcd_edpt_open (uint8_t rhport, tusb_desc_endpoint_t const * desc_edpt)
 
     // Both TXFD and TXSA are in unit of 32-bit words.
     // IN FIFO 0 was configured during enumeration, hence the "+ 16".
-    uint16_t const allocated_size = (USB_OTG_FS->GRXFSIZ & 0x0000ffff) + 16;
+    uint16_t const allocated_size = (usb_otg->GRXFSIZ & 0x0000ffff) + 16;
     uint16_t const fifo_size = (EP_FIFO_SIZE/4 - allocated_size) / (EP_MAX-1);
     uint32_t const fifo_offset = allocated_size + fifo_size*(epnum-1);
 
     // DIEPTXF starts at FIFO #1.
-    USB_OTG_FS->DIEPTXF[epnum - 1] = (fifo_size << USB_OTG_DIEPTXF_INEPTXFD_Pos) | fifo_offset;
+    usb_otg->DIEPTXF[epnum - 1] = (fifo_size << USB_OTG_DIEPTXF_INEPTXFD_Pos) | fifo_offset;
   }
 
   return true;
@@ -408,6 +413,7 @@ bool dcd_edpt_xfer (uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t 
 // (send STALL versus NAK handshakes back). Refactor into resuable function.
 void dcd_edpt_stall (uint8_t rhport, uint8_t ep_addr)
 {
+  USB_OTG_GlobalTypeDef * usb_otg = GLOBAL_BASE(rhport);
   USB_OTG_DeviceTypeDef * dev = DEVICE_BASE(rhport);
   USB_OTG_OUTEndpointTypeDef * out_ep = OUT_EP_BASE(rhport);
   USB_OTG_INEndpointTypeDef * in_ep = IN_EP_BASE(rhport);
@@ -431,9 +437,9 @@ void dcd_edpt_stall (uint8_t rhport, uint8_t ep_addr)
     }
 
     // Flush the FIFO, and wait until we have confirmed it cleared.
-    USB_OTG_FS->GRSTCTL |= ((epnum - 1) << USB_OTG_GRSTCTL_TXFNUM_Pos);
-    USB_OTG_FS->GRSTCTL |= USB_OTG_GRSTCTL_TXFFLSH;
-    while((USB_OTG_FS->GRSTCTL & USB_OTG_GRSTCTL_TXFFLSH_Msk) != 0);
+    usb_otg->GRSTCTL |= ((epnum - 1) << USB_OTG_GRSTCTL_TXFNUM_Pos);
+    usb_otg->GRSTCTL |= USB_OTG_GRSTCTL_TXFFLSH;
+    while((usb_otg->GRSTCTL & USB_OTG_GRSTCTL_TXFFLSH_Msk) != 0);
   } else {
     // Only disable currently enabled non-control endpoint
     if ( (epnum == 0) || !(out_ep[epnum].DOEPCTL & USB_OTG_DOEPCTL_EPENA) ){
@@ -444,7 +450,7 @@ void dcd_edpt_stall (uint8_t rhport, uint8_t ep_addr)
       // anyway, and it can't be cleared by user code. If this while loop never
       // finishes, we have bigger problems than just the stack.
       dev->DCTL |= USB_OTG_DCTL_SGONAK;
-      while((USB_OTG_FS->GINTSTS & USB_OTG_GINTSTS_BOUTNAKEFF_Msk) == 0);
+      while((usb_otg->GINTSTS & USB_OTG_GINTSTS_BOUTNAKEFF_Msk) == 0);
 
       // Ditto here- disable the endpoint.
       out_ep[epnum].DOEPCTL |= (USB_OTG_DOEPCTL_STALL | USB_OTG_DOEPCTL_EPDIS);
@@ -577,12 +583,14 @@ static void write_fifo_packet(uint8_t rhport, uint8_t fifo_num, uint8_t * src, u
   }
 }
 
-static void read_rx_fifo(uint8_t rhport, USB_OTG_OUTEndpointTypeDef * out_ep) {
+static void read_rx_fifo(uint8_t rhport, USB_OTG_OUTEndpointTypeDef * out_ep)
+{
+  USB_OTG_GlobalTypeDef * usb_otg = GLOBAL_BASE(rhport);
   usb_fifo_t rx_fifo = FIFO_BASE(rhport, 0);
 
   // Pop control word off FIFO (completed xfers will have 2 control words,
   // we only pop one ctl word each interrupt).
-  uint32_t ctl_word = USB_OTG_FS->GRXSTSP;
+  uint32_t ctl_word = usb_otg->GRXSTSP;
   uint8_t pktsts = (ctl_word & USB_OTG_GRXSTSP_PKTSTS_Msk) >> USB_OTG_GRXSTSP_PKTSTS_Pos;
   uint8_t epnum = (ctl_word &  USB_OTG_GRXSTSP_EPNUM_Msk) >>  USB_OTG_GRXSTSP_EPNUM_Pos;
   uint16_t bcnt = (ctl_word & USB_OTG_GRXSTSP_BCNT_Msk) >> USB_OTG_GRXSTSP_BCNT_Pos;
@@ -714,15 +722,16 @@ static void handle_epin_ints(uint8_t rhport, USB_OTG_DeviceTypeDef * dev, USB_OT
 
 void dcd_int_handler(uint8_t rhport)
 {
+  USB_OTG_GlobalTypeDef * usb_otg = GLOBAL_BASE(rhport);
   USB_OTG_DeviceTypeDef * dev = DEVICE_BASE(rhport);
   USB_OTG_OUTEndpointTypeDef * out_ep = OUT_EP_BASE(rhport);
   USB_OTG_INEndpointTypeDef * in_ep = IN_EP_BASE(rhport);
 
-  uint32_t int_status = USB_OTG_FS->GINTSTS;
+  uint32_t int_status = usb_otg->GINTSTS;
 
   if(int_status & USB_OTG_GINTSTS_USBRST) {
     // USBRST is start of reset.
-    USB_OTG_FS->GINTSTS = USB_OTG_GINTSTS_USBRST;
+    usb_otg->GINTSTS = USB_OTG_GINTSTS_USBRST;
     bus_reset(rhport);
   }
 
@@ -730,40 +739,40 @@ void dcd_int_handler(uint8_t rhport)
     // ENUMDNE detects speed of the link. For full-speed, we
     // always expect the same value. This interrupt is considered
     // the end of reset.
-    USB_OTG_FS->GINTSTS = USB_OTG_GINTSTS_ENUMDNE;
+    usb_otg->GINTSTS = USB_OTG_GINTSTS_ENUMDNE;
     end_of_reset(rhport);
     dcd_event_bus_signal(rhport, DCD_EVENT_BUS_RESET, true);
   }
 
   if(int_status & USB_OTG_GINTSTS_USBSUSP)
   {
-    USB_OTG_FS->GINTSTS = USB_OTG_GINTSTS_USBSUSP;
+    usb_otg->GINTSTS = USB_OTG_GINTSTS_USBSUSP;
     dcd_event_bus_signal(rhport, DCD_EVENT_SUSPEND, true);
   }
 
   if(int_status & USB_OTG_GINTSTS_WKUINT)
   {
-    USB_OTG_FS->GINTSTS = USB_OTG_GINTSTS_WKUINT;
+    usb_otg->GINTSTS = USB_OTG_GINTSTS_WKUINT;
     dcd_event_bus_signal(rhport, DCD_EVENT_RESUME, true);
   }
 
   if(int_status & USB_OTG_GINTSTS_OTGINT)
   {
     // OTG INT bit is read-only
-    uint32_t const otg_int = USB_OTG_FS->GOTGINT;
+    uint32_t const otg_int = usb_otg->GOTGINT;
 
     if (otg_int & USB_OTG_GOTGINT_SEDET)
     {
       dcd_event_bus_signal(rhport, DCD_EVENT_UNPLUGGED, true);
     }
 
-    USB_OTG_FS->GOTGINT = otg_int;
+    usb_otg->GOTGINT = otg_int;
   }
 
 #if USE_SOF
   if(int_status & USB_OTG_GINTSTS_SOF) {
-    USB_OTG_FS->GINTSTS = USB_OTG_GINTSTS_SOF;
-    dcd_event_bus_signal(0, DCD_EVENT_SOF, true);
+    usb_otg->GINTSTS = USB_OTG_GINTSTS_SOF;
+    dcd_event_bus_signal(rhport, DCD_EVENT_SOF, true);
   }
 #endif
 
@@ -771,9 +780,9 @@ void dcd_int_handler(uint8_t rhport)
     // RXFLVL bit is read-only
 
     // Mask out RXFLVL while reading data from FIFO
-    USB_OTG_FS->GINTMSK &= ~USB_OTG_GINTMSK_RXFLVLM;
+    usb_otg->GINTMSK &= ~USB_OTG_GINTMSK_RXFLVLM;
     read_rx_fifo(rhport, out_ep);
-    USB_OTG_FS->GINTMSK |= USB_OTG_GINTMSK_RXFLVLM;
+    usb_otg->GINTMSK |= USB_OTG_GINTMSK_RXFLVLM;
   }
 
   // OUT endpoint interrupt handling.
