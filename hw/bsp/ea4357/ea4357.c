@@ -149,7 +149,7 @@ void board_init(void)
    * status feedback from the distribution switch. GPIO54 is used for VBUS sensing. 15Kohm pull-down
    * resistors are always active
    */
-#if CFG_TUSB_RHPORT0_MODE
+#if CFG_TUSB_RHPORT0_MODE & (OPT_MODE_DEVICE | OPT_MODE_HOST)
   Chip_USB0_Init();
 
 //  // Reset controller
@@ -185,7 +185,7 @@ void board_init(void)
    * of VBUS can be read via U31.
    * JP16 shall not be inserted.
    */
-#if CFG_TUSB_RHPORT1_MODE
+#if CFG_TUSB_RHPORT0_MODE & ((OPT_MODE_DEVICE | OPT_MODE_HOST) << 8)
   Chip_USB1_Init();
 
 //  // Reset controller
@@ -232,11 +232,11 @@ void USB0_IRQHandler(void)
 
 void USB1_IRQHandler(void)
 {
-  #if CFG_TUSB_RHPORT1_MODE & OPT_MODE_HOST
+  #if CFG_TUSB_RHPORT0_MODE & (OPT_MODE_HOST << 8)
     tuh_isr(1);
   #endif
 
-  #if CFG_TUSB_RHPORT1_MODE & OPT_MODE_DEVICE
+  #if CFG_TUSB_RHPORT0_MODE & (OPT_MODE_DEVICE << 8)
     tud_int_handler(1);
   #endif
 }
