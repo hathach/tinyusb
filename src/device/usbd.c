@@ -384,6 +384,7 @@ void tud_task (void)
     {
       case DCD_EVENT_BUS_RESET:
         usbd_reset(event.rhport);
+        // TODO DCD should report operational speed (LS/FS/HS)
       break;
 
       case DCD_EVENT_UNPLUGGED:

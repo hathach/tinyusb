@@ -99,7 +99,7 @@ static const dcd_rhport_t _dcd_rhport[] =
   { .regs = USB_OTG_FS_PERIPH_BASE, .irqnum = OTG_FS_IRQn }
 
 #ifdef USB_OTG_HS
-  ,{ .regs = USB_OTG_HS_PERIPH_BASE, .irqnum = OTG_HS_IRQn }
+ ,{ .regs = USB_OTG_HS_PERIPH_BASE, .irqnum = OTG_HS_IRQn }
 #endif
 };
 
@@ -218,16 +218,48 @@ static void end_of_reset(uint8_t rhport)
  *------------------------------------------------------------------*/
 void dcd_init (uint8_t rhport)
 {
+  dcd_disconnect(rhport);
+
   USB_OTG_GlobalTypeDef * usb_otg = GLOBAL_BASE(rhport);
 
-  // Programming model begins in the last section of the chapter on the USB
-  // peripheral in each Reference Manual.
-  usb_otg->GAHBCFG |= USB_OTG_GAHBCFG_GINT;
+  // No HNP/SRP (no OTG support), program timeout later.
+#if TUD_OPT_HIGH_SPEED   // TODO may pass parameter instead of using macro for HighSpeed
+  if ( rhport == 1 )
+  {
+    // Highspeed with external ULPI PHY
 
-  // No HNP/SRP (no OTG support), program timeout later, turnaround
-  // programmed for 32+ MHz.
-  // TODO: PHYSEL is read-only on some cores (STM32F407). Worth gating?
-  usb_otg->GUSBCFG |= (0x06 << USB_OTG_GUSBCFG_TRDT_Pos) | USB_OTG_GUSBCFG_PHYSEL;
+    // deactivate internal PHY
+    usb_otg->GCCFG &= ~USB_OTG_GCCFG_PWRDWN;
+
+    // On selected MCUs HS port1 can be used with external PHY via ULPI interface
+    // Select ULPI highspeed PHY with default external VBUS Indicator and Drive
+    usb_otg->GUSBCFG &= ~(USB_OTG_GUSBCFG_TSDPS | USB_OTG_GUSBCFG_ULPIFSLS | USB_OTG_GUSBCFG_PHYSEL |
+                          USB_OTG_GUSBCFG_ULPIEVBUSD | USB_OTG_GUSBCFG_ULPIEVBUSI);
+
+    // Turn around time for Highspeed is 0x09
+    usb_otg->GUSBCFG &= ~USB_OTG_GUSBCFG_TRDT;
+    usb_otg->GUSBCFG |= (0x09 << USB_OTG_GUSBCFG_TRDT_Pos);
+  }else
+#endif
+  {
+    // Turn around programmed for 32+ MHz is 0x06
+    usb_otg->GUSBCFG &= ~USB_OTG_GUSBCFG_TRDT;
+    usb_otg->GUSBCFG |= (0x06 << USB_OTG_GUSBCFG_TRDT_Pos) | USB_OTG_GUSBCFG_PHYSEL;
+  }
+
+  // Reset core after selecting PHY
+  // Wait AHB IDLE, reset then wait until it is cleared
+  while ((usb_otg->GRSTCTL & USB_OTG_GRSTCTL_AHBIDL) == 0U) {}
+  usb_otg->GRSTCTL |= USB_OTG_GRSTCTL_CSRST;
+  while ((usb_otg->GRSTCTL & USB_OTG_GRSTCTL_CSRST) == USB_OTG_GRSTCTL_CSRST) {}
+
+  // Force device mode
+  usb_otg->GUSBCFG |= USB_OTG_GUSBCFG_FDMOD;
+
+  TU_LOG2_LOCATION();
+
+  // Restart PHY clock
+  *((volatile uint32_t *)(_dcd_rhport[rhport].regs + USB_OTG_PCGCCTL_BASE)) = 0;
 
   // Clear all interrupts
   usb_otg->GINTSTS |= usb_otg->GINTSTS;
@@ -241,14 +273,33 @@ void dcd_init (uint8_t rhport)
 
   // If USB host misbehaves during status portion of control xfer
   // (non zero-length packet), send STALL back and discard. Full speed.
-  dev->DCFG |=  USB_OTG_DCFG_NZLSOHSK | (3 << USB_OTG_DCFG_DSPD_Pos);
+  dev->DCFG |=  USB_OTG_DCFG_NZLSOHSK;
+
+#if TUD_OPT_HIGH_SPEED
+  if ( rhport == 1 )
+  {
+    // high speed = 0x00
+    dev->DCFG &= ~(3 << USB_OTG_DCFG_DSPD_Pos);
+
+    // Transceiver delay, necessary for some ULPI PHYs
+    dev->DCFG |= (1 << 14);
+  }
+#endif
+  {
+    // full speed with internal phy
+    dev->DCFG |= (3 << USB_OTG_DCFG_DSPD_Pos);
+
+    // Enable USB transceiver.
+    usb_otg->GCCFG |= USB_OTG_GCCFG_PWRDWN;
+  }
 
   usb_otg->GINTMSK |= USB_OTG_GINTMSK_USBRST   | USB_OTG_GINTMSK_ENUMDNEM |
-                         USB_OTG_GINTMSK_USBSUSPM | USB_OTG_GINTMSK_WUIM     |
-                         USB_OTG_GINTMSK_RXFLVLM  | (USE_SOF ? USB_OTG_GINTMSK_SOFM : 0);
+                      USB_OTG_GINTMSK_USBSUSPM | USB_OTG_GINTMSK_WUIM     |
+                      USB_OTG_GINTMSK_RXFLVLM  | (USE_SOF ? USB_OTG_GINTMSK_SOFM : 0);
 
-  // Enable USB transceiver.
-  usb_otg->GCCFG |= USB_OTG_GCCFG_PWRDWN;
+  // Programming model begins in the last section of the chapter on the USB
+  // peripheral in each Reference Manual.
+  usb_otg->GAHBCFG |= USB_OTG_GAHBCFG_GINT;
 }
 
 void dcd_int_enable (uint8_t rhport)
@@ -739,6 +790,9 @@ void dcd_int_handler(uint8_t rhport)
     // ENUMDNE detects speed of the link. For full-speed, we
     // always expect the same value. This interrupt is considered
     // the end of reset.
+
+    TU_LOG2_HEX(dev->DSTS);
+
     usb_otg->GINTSTS = USB_OTG_GINTSTS_ENUMDNE;
     end_of_reset(rhport);
     dcd_event_bus_signal(rhport, DCD_EVENT_BUS_RESET, true);
