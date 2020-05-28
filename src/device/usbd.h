@@ -68,6 +68,8 @@ static inline bool tud_ready(void)
 // Remote wake up host, only if suspended and enabled by host
 bool tud_remote_wakeup(void);
 
+// Enable pull-up resistor on D+ D-
+// Return false on unsupported MCUs
 static inline bool tud_disconnect(void)
 {
   TU_VERIFY(dcd_disconnect);
@@ -75,6 +77,8 @@ static inline bool tud_disconnect(void)
   return true;
 }
 
+// Disable pull-up resistor on D+ D-
+// Return false on unsupported MCUs
 static inline bool tud_connect(void)
 {
   TU_VERIFY(dcd_connect);
@@ -110,6 +114,10 @@ uint8_t const * tud_descriptor_configuration_cb(uint8_t index);
 // Application return pointer to descriptor, whose contents must exist long enough for transfer to complete
 uint16_t const* tud_descriptor_string_cb(uint8_t index, uint16_t langid);
 
+// Invoked when received GET DEVICE QUALIFIER DESCRIPTOR request
+// Application return pointer to descriptor, whose contents must exist long enough for transfer to complete
+TU_ATTR_WEAK uint8_t const* tud_descriptor_device_qualifier_cb(void);
+
 // Invoked when device is mounted (configured)
 TU_ATTR_WEAK void tud_mount_cb(void);
 
@@ -125,6 +133,8 @@ TU_ATTR_WEAK void tud_resume_cb(void);
 
 // Invoked when received control request with VENDOR TYPE
 TU_ATTR_WEAK bool tud_vendor_control_request_cb(uint8_t rhport, tusb_control_request_t const * request);
+
+// Invoked when vendor control request is complete
 TU_ATTR_WEAK bool tud_vendor_control_complete_cb(uint8_t rhport, tusb_control_request_t const * request);
 
 
