@@ -196,7 +196,14 @@ uint16_t hidd_open(uint8_t rhport, tusb_desc_interface_t const * desc_itf, uint1
   memcpy(&p_hid->report_desc_len, &(p_hid->hid_descriptor->wReportLength), 2);
 
   // Prepare for output endpoint
-  if (p_hid->ep_out) TU_ASSERT(usbd_edpt_xfer(rhport, p_hid->ep_out, p_hid->epout_buf, sizeof(p_hid->epout_buf)), 0);
+  if (p_hid->ep_out)
+  {
+    if ( !usbd_edpt_xfer(rhport, p_hid->ep_out, p_hid->epout_buf, sizeof(p_hid->epout_buf)) )
+    {
+      TU_LOG1_FAILED();
+      TU_BREAKPOINT();
+    }
+  }
 
   return sizeof(tusb_desc_interface_t) + sizeof(tusb_hid_descriptor_hid_t) + desc_itf->bNumEndpoints*sizeof(tusb_desc_endpoint_t);
 }

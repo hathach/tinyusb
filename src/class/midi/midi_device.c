@@ -359,7 +359,11 @@ uint16_t midid_open(uint8_t rhport, tusb_desc_interface_t const * desc_itf, uint
   }
 
   // Prepare for incoming data
-  TU_ASSERT( usbd_edpt_xfer(rhport, p_midi->ep_out, p_midi->epout_buf, CFG_TUD_MIDI_EPSIZE), 0 );
+  if ( !usbd_edpt_xfer(rhport, p_midi->ep_out, p_midi->epout_buf, CFG_TUD_MIDI_EPSIZE) )
+  {
+    TU_LOG1_FAILED();
+    TU_BREAKPOINT();
+  }
 
   return drv_len;
 }
