@@ -247,14 +247,14 @@ uint16_t cdcd_open(uint8_t rhport, tusb_desc_interface_t const * itf_desc, uint1
   //------------- Control Interface -------------//
   p_cdc->itf_num = itf_desc->bInterfaceNumber;
 
-  uint16_t len = sizeof(tusb_desc_interface_t);
+  uint16_t drv_len = sizeof(tusb_desc_interface_t);
   uint8_t const * p_desc = tu_desc_next( itf_desc );
 
   // Communication Functional Descriptors
-  while ( TUSB_DESC_CS_INTERFACE == tu_desc_type(p_desc) && len <= max_len )
+  while ( TUSB_DESC_CS_INTERFACE == tu_desc_type(p_desc) && drv_len <= max_len )
   {
-    len   += tu_desc_len(p_desc);
-    p_desc = tu_desc_next(p_desc);
+    drv_len += tu_desc_len(p_desc);
+    p_desc   = tu_desc_next(p_desc);
   }
 
   if ( TUSB_DESC_ENDPOINT == tu_desc_type(p_desc) )
@@ -264,8 +264,8 @@ uint16_t cdcd_open(uint8_t rhport, tusb_desc_interface_t const * itf_desc, uint1
 
     p_cdc->ep_notif = ((tusb_desc_endpoint_t const *) p_desc)->bEndpointAddress;
 
-    len   += tu_desc_len(p_desc);
-    p_desc = tu_desc_next(p_desc);
+    drv_len += tu_desc_len(p_desc);
+    p_desc   = tu_desc_next(p_desc);
   }
 
   //------------- Data Interface (if any) -------------//
@@ -273,19 +273,19 @@ uint16_t cdcd_open(uint8_t rhport, tusb_desc_interface_t const * itf_desc, uint1
        (TUSB_CLASS_CDC_DATA == ((tusb_desc_interface_t const *) p_desc)->bInterfaceClass) )
   {
     // next to endpoint descriptor
-    len   += tu_desc_len(p_desc);
-    p_desc = tu_desc_next(p_desc);
+    drv_len += tu_desc_len(p_desc);
+    p_desc   = tu_desc_next(p_desc);
 
     // Open endpoint pair
     TU_ASSERT( usbd_open_edpt_pair(rhport, p_desc, 2, TUSB_XFER_BULK, &p_cdc->ep_out, &p_cdc->ep_in), 0 );
 
-    len += 2*sizeof(tusb_desc_endpoint_t);
+    drv_len += 2*sizeof(tusb_desc_endpoint_t);
   }
 
   // Prepare for incoming data
   _prep_out_transaction(cdc_id);
 
-  return len;
+  return drv_len;
 }
 
 // Invoked when class request DATA stage is finished.

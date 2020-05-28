@@ -162,10 +162,10 @@ uint16_t mscd_open(uint8_t rhport, tusb_desc_interface_t const * itf_desc, uint1
             MSC_PROTOCOL_BOT  == itf_desc->bInterfaceProtocol, 0);
 
   // msc driver length is fixed
-  enum { _MSC_DRIVER_LEN = sizeof(tusb_desc_interface_t) + 2*sizeof(tusb_desc_endpoint_t) };
+  uint16_t const drv_len = sizeof(tusb_desc_interface_t) + 2*sizeof(tusb_desc_endpoint_t);
 
   // Max length mus be at least 1 interface + 2 endpoints
-  TU_ASSERT(max_len >= _MSC_DRIVER_LEN, 0);
+  TU_ASSERT(max_len >= drv_len, 0);
 
   mscd_interface_t * p_msc = &_mscd_itf;
   p_msc->itf_num = itf_desc->bInterfaceNumber;
@@ -180,7 +180,7 @@ uint16_t mscd_open(uint8_t rhport, tusb_desc_interface_t const * itf_desc, uint1
     TU_BREAKPOINT();
   }
 
-  return _MSC_DRIVER_LEN;
+  return drv_len;
 }
 
 // Handle class control request

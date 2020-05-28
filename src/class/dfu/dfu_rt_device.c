@@ -66,15 +66,15 @@ uint16_t dfu_rtd_open(uint8_t rhport, tusb_desc_interface_t const * itf_desc, ui
             itf_desc->bInterfaceProtocol == DFU_PROTOCOL_RT, 0);
 
   uint8_t const * p_desc = tu_desc_next( itf_desc );
-  uint16_t len = sizeof(tusb_desc_interface_t);
+  uint16_t drv_len = sizeof(tusb_desc_interface_t);
 
   if ( TUSB_DESC_FUNCTIONAL == tu_desc_type(p_desc) )
   {
-    len += tu_desc_len(p_desc);
-    p_desc = tu_desc_next(p_desc);
+    drv_len += tu_desc_len(p_desc);
+    p_desc   = tu_desc_next(p_desc);
   }
 
-  return len;
+  return drv_len;
 }
 
 bool dfu_rtd_control_complete(uint8_t rhport, tusb_control_request_t const * request)
