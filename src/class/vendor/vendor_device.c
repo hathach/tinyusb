@@ -170,6 +170,9 @@ uint16_t vendord_open(uint8_t rhport, tusb_desc_interface_t const * itf_desc, ui
 {
   TU_VERIFY(TUSB_CLASS_VENDOR_SPECIFIC == itf_desc->bInterfaceClass, 0);
 
+  uint16_t const drv_len = sizeof(tusb_desc_interface_t) + itf_desc->bNumEndpoints*sizeof(tusb_desc_endpoint_t);
+  TU_VERIFY(max_len >= drv_len, 0);
+
   // Find available interface
   vendord_interface_t* p_vendor = NULL;
   for(uint8_t i=0; i<CFG_TUD_VENDOR; i++)
@@ -194,7 +197,7 @@ uint16_t vendord_open(uint8_t rhport, tusb_desc_interface_t const * itf_desc, ui
     TU_BREAKPOINT();
   }
 
-  return sizeof(tusb_desc_interface_t) + itf_desc->bNumEndpoints*sizeof(tusb_desc_endpoint_t);
+  return drv_len;
 }
 
 bool vendord_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint32_t xferred_bytes)
