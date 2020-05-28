@@ -867,9 +867,27 @@ static bool process_get_descriptor(uint8_t rhport, tusb_control_request_t const 
     case TUSB_DESC_DEVICE_QUALIFIER:
       TU_LOG2(" Device Qualifier\r\n");
 
-      // TODO If not highspeed capable stall this request otherwise
-      // return the descriptor that could work in highspeed
-      return false;
+      // Host sends this request to ask why our device with USB BCD from 2.0
+      // but is running at Full/Low Speed. If not highspeed capable stall this request,
+      // otherwise return the descriptor that could work in highspeed mode
+      if ( tud_descriptor_device_qualifier_cb )
+      {
+        uint8_t const* desc_qualifier = tud_descriptor_device_qualifier_cb();
+        TU_ASSERT(desc_qualifier);
+
+        // first byte of descriptor is its size
+        return tud_control_xfer(rhport, p_request, (void*) desc_qualifier, desc_qualifier[0]);
+      }else
+      {
+        return false;
+      }
+    break;
+
+    case TUSB_DESC_OTHER_SPEED_CONFIG:
+      TU_LOG2(" Other Speed Configuration\r\n");
+
+      // After Device Qualifier descriptor is received host will ask for this descriptor
+      return false; // not supported
     break;
 
     default: return false;
