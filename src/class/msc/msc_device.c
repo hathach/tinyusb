@@ -154,25 +154,33 @@ void mscd_reset(uint8_t rhport)
   tu_memclr(&_mscd_itf, sizeof(mscd_interface_t));
 }
 
-bool mscd_open(uint8_t rhport, tusb_desc_interface_t const * itf_desc, uint16_t *p_len)
+uint16_t mscd_open(uint8_t rhport, tusb_desc_interface_t const * itf_desc, uint16_t max_len)
 {
   // only support SCSI's BOT protocol
   TU_VERIFY(TUSB_CLASS_MSC    == itf_desc->bInterfaceClass &&
             MSC_SUBCLASS_SCSI == itf_desc->bInterfaceSubClass &&
-            MSC_PROTOCOL_BOT  == itf_desc->bInterfaceProtocol);
+            MSC_PROTOCOL_BOT  == itf_desc->bInterfaceProtocol, 0);
+
+  // msc driver length is fixed
+  uint16_t const drv_len = sizeof(tusb_desc_interface_t) + 2*sizeof(tusb_desc_endpoint_t);
+
+  // Max length mus be at least 1 interface + 2 endpoints
+  TU_ASSERT(max_len >= drv_len, 0);
 
   mscd_interface_t * p_msc = &_mscd_itf;
+  p_msc->itf_num = itf_desc->bInterfaceNumber;
 
   // Open endpoint pair
-  TU_ASSERT( usbd_open_edpt_pair(rhport, tu_desc_next(itf_desc), 2, TUSB_XFER_BULK, &p_msc->ep_out, &p_msc->ep_in) );
-
-  p_msc->itf_num = itf_desc->bInterfaceNumber;
-  (*p_len) = sizeof(tusb_desc_interface_t) + 2*sizeof(tusb_desc_endpoint_t);
+  TU_ASSERT( usbd_open_edpt_pair(rhport, tu_desc_next(itf_desc), 2, TUSB_XFER_BULK, &p_msc->ep_out, &p_msc->ep_in), 0 );
 
   // Prepare for Command Block Wrapper
-  TU_ASSERT( usbd_edpt_xfer(rhport, p_msc->ep_out, (uint8_t*) &p_msc->cbw, sizeof(msc_cbw_t)) );
+  if ( !usbd_edpt_xfer(rhport, p_msc->ep_out, (uint8_t*) &p_msc->cbw, sizeof(msc_cbw_t)) )
+  {
+    TU_LOG1_FAILED();
+    TU_BREAKPOINT();
+  }
 
-  return true;
+  return drv_len;
 }
 
 // Handle class control request

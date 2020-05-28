@@ -56,24 +56,25 @@ void dfu_rtd_reset(uint8_t rhport)
   (void) rhport;
 }
 
-bool dfu_rtd_open(uint8_t rhport, tusb_desc_interface_t const * itf_desc, uint16_t *p_length)
+uint16_t dfu_rtd_open(uint8_t rhport, tusb_desc_interface_t const * itf_desc, uint16_t max_len)
 {
   (void) rhport;
+  (void) max_len;
 
   // Ensure this is DFU Runtime
-  TU_VERIFY(itf_desc->bInterfaceSubClass == TUD_DFU_APP_SUBCLASS);
-  TU_VERIFY(itf_desc->bInterfaceProtocol == DFU_PROTOCOL_RT);
+  TU_VERIFY(itf_desc->bInterfaceSubClass == TUD_DFU_APP_SUBCLASS &&
+            itf_desc->bInterfaceProtocol == DFU_PROTOCOL_RT, 0);
 
   uint8_t const * p_desc = tu_desc_next( itf_desc );
-  (*p_length) = sizeof(tusb_desc_interface_t);
+  uint16_t drv_len = sizeof(tusb_desc_interface_t);
 
   if ( TUSB_DESC_FUNCTIONAL == tu_desc_type(p_desc) )
   {
-    (*p_length) += p_desc[DESC_OFFSET_LEN];
-    p_desc = tu_desc_next(p_desc);
+    drv_len += tu_desc_len(p_desc);
+    p_desc   = tu_desc_next(p_desc);
   }
 
-  return true;
+  return drv_len;
 }
 
 bool dfu_rtd_control_complete(uint8_t rhport, tusb_control_request_t const * request)
