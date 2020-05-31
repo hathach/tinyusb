@@ -265,6 +265,7 @@ void board_init(void)
 #endif
 
 #if BOARD_DEVICE_RHPORT_NUM == 1
+
   // Despite being call USB2_OTG
   // OTG_HS is marked as RHPort1 by TinyUSB to be consistent across stm32 port
   __GPIOA_CLK_ENABLE();
@@ -316,6 +317,8 @@ void board_init(void)
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Alternate = GPIO_AF10_OTG2_HS;
   HAL_GPIO_Init(GPIOI, &GPIO_InitStruct);
+
+  // Enable ULPI clock
   __HAL_RCC_USB1_OTG_HS_ULPI_CLK_ENABLE();
 
   /* Enable USB HS Clocks */
@@ -325,12 +328,14 @@ void board_init(void)
   USB_OTG_HS->GCCFG &= ~USB_OTG_GCCFG_VBDEN;
 
   // Force device mode
-  // USB_OTG_HS->GUSBCFG &= ~USB_OTG_GUSBCFG_FHMOD;
-  // USB_OTG_HS->GUSBCFG |= USB_OTG_GUSBCFG_FDMOD;
+  USB_OTG_HS->GUSBCFG &= ~USB_OTG_GUSBCFG_FHMOD;
+  USB_OTG_HS->GUSBCFG |= USB_OTG_GUSBCFG_FDMOD;
 
   // B-peripheral session valid override enabl
-//  USB_OTG_HS->GOTGCTL |= USB_OTG_GOTGCTL_BVALOEN;
-//  USB_OTG_HS->GOTGCTL |= USB_OTG_GOTGCTL_BVALOVAL;
+  USB_OTG_HS->GOTGCTL |= USB_OTG_GOTGCTL_BVALOEN;
+  USB_OTG_HS->GOTGCTL |= USB_OTG_GOTGCTL_BVALOVAL;
+
+  HAL_PWREx_EnableUSBVoltageDetector();
 #endif // rhport = 1
 
 }

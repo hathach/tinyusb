@@ -197,6 +197,8 @@ static void end_of_reset(uint8_t rhport)
   // However, keep for debugging and in case Low Speed is ever supported.
   uint32_t enum_spd = (dev->DSTS & USB_OTG_DSTS_ENUMSPD_Msk) >> USB_OTG_DSTS_ENUMSPD_Pos;
 
+  // TODO set turnaround in GUSBCFG accordingly to the speed
+
   // Maximum packet size for EP 0 is set for both directions by writing
   // DIEPCTL.
   if(enum_spd == 0x03) {
@@ -239,7 +241,8 @@ void dcd_init (uint8_t rhport)
     // Turn around time for Highspeed is 0x09
     usb_otg->GUSBCFG &= ~USB_OTG_GUSBCFG_TRDT;
     usb_otg->GUSBCFG |= (0x09 << USB_OTG_GUSBCFG_TRDT_Pos);
-  }else
+  }
+  else
 #endif
   {
     // Turn around programmed for 32+ MHz is 0x06
@@ -255,8 +258,6 @@ void dcd_init (uint8_t rhport)
 
   // Force device mode
   usb_otg->GUSBCFG |= USB_OTG_GUSBCFG_FDMOD;
-
-  TU_LOG2_LOCATION();
 
   // Restart PHY clock
   *((volatile uint32_t *)(_dcd_rhport[rhport].regs + USB_OTG_PCGCCTL_BASE)) = 0;
@@ -282,8 +283,9 @@ void dcd_init (uint8_t rhport)
     dev->DCFG &= ~(3 << USB_OTG_DCFG_DSPD_Pos);
 
     // Transceiver delay, necessary for some ULPI PHYs
-    dev->DCFG |= (1 << 14);
+    //dev->DCFG |= (1 << 14);
   }
+  else
 #endif
   {
     // full speed with internal phy
