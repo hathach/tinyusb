@@ -185,8 +185,9 @@ static void bus_reset(uint8_t rhport)
   //   * 16 for largest packet size of 64 bytes. ( TODO Highspeed is 512 bytes)
   //   * 1 location for global NAK (not required/used here).
   //   * It is recommended to allocate 2 times the largest packet size, therefore
-  //   Recommended value = 10 + 1 + 2 x (16+2) = 47 --> Let's make it 52
-  usb_otg->GRXFSIZ = 52;
+  //   Recommended value = 10 + 1 + 2 x (16+2) = 47. To make it scale better with large FIFO size
+  //   and work better with Highspeed. We use 1/5 of total FIFO size
+  usb_otg->GRXFSIZ = (EP_FIFO_SIZE/4)/5;
 
   // Control IN uses FIFO 0 with 64 bytes ( 16 32-bit word )
   usb_otg->DIEPTXF0_HNPTXFSIZ = (16 << USB_OTG_TX0FD_Pos) | (usb_otg->GRXFSIZ & 0x0000ffffUL);
@@ -201,11 +202,11 @@ static void bus_reset(uint8_t rhport)
 }
 
 // speed is native DCD speed
-static void set_turnaround(USB_OTG_GlobalTypeDef * usb_otg, uint32_t speed)
+static void set_turnaround(USB_OTG_GlobalTypeDef * usb_otg, tusb_speed_t speed)
 {
   usb_otg->GUSBCFG &= ~USB_OTG_GUSBCFG_TRDT;
 
-  if ( speed == DCD_HIGH_SPEED )
+  if ( speed == TUSB_SPEED_HIGH )
   {
     // Use fixed 0x09 for Highspeed
     usb_otg->GUSBCFG |= (0x09 << USB_OTG_GUSBCFG_TRDT_Pos);
@@ -215,6 +216,12 @@ static void set_turnaround(USB_OTG_GlobalTypeDef * usb_otg, uint32_t speed)
     // Fullspeed depends on MCU clocks, but we will use 0x06 for 32+ Mhz
     usb_otg->GUSBCFG |= (0x06 << USB_OTG_GUSBCFG_TRDT_Pos);
   }
+}
+
+static tusb_speed_t get_speed(USB_OTG_DeviceTypeDef* dev)
+{
+  uint32_t const enum_spd = (dev->DSTS & USB_OTG_DSTS_ENUMSPD_Msk) >> USB_OTG_DSTS_ENUMSPD_Pos;
+  return (enum_spd == DCD_HIGH_SPEED) ? TUSB_SPEED_HIGH : TUSB_SPEED_FULL;
 }
 
 
@@ -242,12 +249,12 @@ void dcd_init (uint8_t rhport)
     usb_otg->GUSBCFG &= ~(USB_OTG_GUSBCFG_TSDPS | USB_OTG_GUSBCFG_ULPIFSLS | USB_OTG_GUSBCFG_PHYSEL |
                           USB_OTG_GUSBCFG_ULPIEVBUSD | USB_OTG_GUSBCFG_ULPIEVBUSI);
 
-    set_turnaround(usb_otg, DCD_HIGH_SPEED);
+    set_turnaround(usb_otg, TUSB_SPEED_HIGH);
   }
   else
 #endif
   {
-    set_turnaround(usb_otg, DCD_FULL_SPEED);
+    set_turnaround(usb_otg, TUSB_SPEED_FULL);
 
     // Enable internal PHY
     usb_otg->GUSBCFG |= USB_OTG_GUSBCFG_PHYSEL;
@@ -357,8 +364,10 @@ bool dcd_edpt_open (uint8_t rhport, tusb_desc_endpoint_t const * desc_edpt)
   uint8_t const epnum = tu_edpt_number(desc_edpt->bEndpointAddress);
   uint8_t const dir   = tu_edpt_dir(desc_edpt->bEndpointAddress);
 
-  TU_ASSERT(desc_edpt->wMaxPacketSize.size <= 64);
   TU_ASSERT(epnum < EP_MAX);
+
+  // TODO ISO endpoint can be up to 1024 bytes
+  TU_ASSERT(desc_edpt->wMaxPacketSize.size <= (get_speed(dev) == TUSB_SPEED_HIGH ? 512 : 64));
 
   xfer_ctl_t * xfer = XFER_CTL_BASE(epnum, dir);
   xfer->max_size = desc_edpt->wMaxPacketSize.size;
@@ -447,6 +456,7 @@ bool dcd_edpt_xfer (uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t 
                             ((total_bytes & USB_OTG_DIEPTSIZ_XFRSIZ_Msk) << USB_OTG_DIEPTSIZ_XFRSIZ_Pos);
 
     in_ep[epnum].DIEPCTL |= USB_OTG_DIEPCTL_EPENA | USB_OTG_DIEPCTL_CNAK;
+
     // Enable fifo empty interrupt only if there are something to put in the fifo.
     if(total_bytes != 0) {
       dev->DIEPEMPMSK |= (1 << epnum);
@@ -793,10 +803,10 @@ void dcd_int_handler(uint8_t rhport)
 
     usb_otg->GINTSTS = USB_OTG_GINTSTS_ENUMDNE;
 
-    uint32_t const enum_spd = (dev->DSTS & USB_OTG_DSTS_ENUMSPD_Msk) >> USB_OTG_DSTS_ENUMSPD_Pos;
+    tusb_speed_t const speed = get_speed(dev);
 
-    set_turnaround(usb_otg, enum_spd);
-    dcd_event_bus_reset(rhport, (enum_spd == DCD_HIGH_SPEED) ? TUSB_SPEED_HIGH : TUSB_SPEED_FULL, true);
+    set_turnaround(usb_otg, speed);
+    dcd_event_bus_reset(rhport, speed, true);
   }
 
   if(int_status & USB_OTG_GINTSTS_USBSUSP)
