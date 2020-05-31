@@ -199,6 +199,19 @@ static usbd_class_driver_t const _usbd_driver[] =
       .sof              = NULL,
   },
   #endif
+
+  #if CFG_TUD_BTH
+  {
+      DRIVER_NAME("BTH")
+      .init             = btd_init,
+      .reset            = btd_reset,
+      .open             = btd_open,
+      .control_request  = btd_control_request,
+      .control_complete = btd_control_complete,
+      .xfer_cb          = btd_xfer_cb,
+      .sof              = NULL
+  },
+  #endif
 };
 
 enum { USBD_CLASS_DRIVER_COUNT = TU_ARRAY_SIZE(_usbd_driver) };
@@ -507,6 +520,18 @@ static bool process_control_request(uint8_t rhport, tusb_control_request_t const
   {
     //------------- Device Requests e.g in enumeration -------------//
     case TUSB_REQ_RCPT_DEVICE:
+      if ( TUSB_REQ_TYPE_CLASS == p_request->bmRequestType_bit.type )
+      {
+          uint8_t const itf = tu_u16_low(p_request->wIndex);
+          TU_VERIFY(itf < TU_ARRAY_SIZE(_usbd_dev.itf2drv));
+
+          uint8_t const drvid = _usbd_dev.itf2drv[itf];
+          TU_VERIFY(drvid < USBD_CLASS_DRIVER_COUNT);
+
+          // forward to class driver: "non-STD request to Interface"
+          TU_VERIFY(invoke_class_control(rhport, drvid, p_request));
+          return true;
+      }
       if ( TUSB_REQ_TYPE_STANDARD != p_request->bmRequestType_bit.type )
       {
         // Non standard request is not supported
