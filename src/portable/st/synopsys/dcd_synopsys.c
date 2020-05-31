@@ -109,6 +109,13 @@ static const dcd_rhport_t _dcd_rhport[] =
 #define IN_EP_BASE(_port)      (USB_OTG_INEndpointTypeDef *) (_dcd_rhport[_port].regs + USB_OTG_IN_ENDPOINT_BASE)
 #define FIFO_BASE(_port, _x)   ((volatile uint32_t *) (_dcd_rhport[_port].regs + USB_OTG_FIFO_BASE + (_x) * USB_OTG_FIFO_SIZE))
 
+enum
+{
+  DCD_HIGH_SPEED        = 0, // Highspeed mode
+  DCD_FULL_SPEED_USE_HS = 1, // Full speed in Highspeed port (probably with internal PHY)
+  DCD_FULL_SPEED        = 3, // Full speed with internal PHY
+};
+
 
 /*------------------------------------------------------------------*/
 /* MACRO TYPEDEF CONSTANT ENUM
@@ -141,6 +148,7 @@ static void bus_reset(uint8_t rhport)
   USB_OTG_GlobalTypeDef * usb_otg = GLOBAL_BASE(rhport);
   USB_OTG_DeviceTypeDef * dev = DEVICE_BASE(rhport);
   USB_OTG_OUTEndpointTypeDef * out_ep = OUT_EP_BASE(rhport);
+  USB_OTG_INEndpointTypeDef * in_ep = IN_EP_BASE(rhport);
 
   for(uint8_t n = 0; n < EP_MAX; n++) {
     out_ep[n].DOEPCTL |= USB_OTG_DOEPCTL_SNAK;
@@ -183,34 +191,29 @@ static void bus_reset(uint8_t rhport)
   // Control IN uses FIFO 0 with 64 bytes ( 16 32-bit word )
   usb_otg->DIEPTXF0_HNPTXFSIZ = (16 << USB_OTG_TX0FD_Pos) | (usb_otg->GRXFSIZ & 0x0000ffffUL);
 
+  // Fixed control EP0 size to 64 bytes
+  in_ep[0].DIEPCTL &= ~(0x03 << USB_OTG_DIEPCTL_MPSIZ_Pos);
+  xfer_status[0][TUSB_DIR_OUT].max_size = xfer_status[0][TUSB_DIR_IN].max_size = 64;
+
   out_ep[0].DOEPTSIZ |= (3 << USB_OTG_DOEPTSIZ_STUPCNT_Pos);
 
   usb_otg->GINTMSK |= USB_OTG_GINTMSK_OEPINT | USB_OTG_GINTMSK_IEPINT;
 }
 
-static void end_of_reset(uint8_t rhport)
+// speed is native DCD speed
+static void set_turnaround(USB_OTG_GlobalTypeDef * usb_otg, uint32_t speed)
 {
-  USB_OTG_DeviceTypeDef * dev = DEVICE_BASE(rhport);
-  USB_OTG_INEndpointTypeDef * in_ep = IN_EP_BASE(rhport);
+  usb_otg->GUSBCFG &= ~USB_OTG_GUSBCFG_TRDT;
 
-  // On current silicon on the Full Speed core, speed is fixed to Full Speed.
-  // However, keep for debugging and in case Low Speed is ever supported.
-  uint32_t enum_spd = (dev->DSTS & USB_OTG_DSTS_ENUMSPD_Msk) >> USB_OTG_DSTS_ENUMSPD_Pos;
-
-  // TODO set turnaround in GUSBCFG accordingly to the speed
-
-  // Maximum packet size for EP 0 is set for both directions by writing
-  // DIEPCTL.
-  if(enum_spd == 0x03) {
-    // 64 bytes
-    in_ep[0].DIEPCTL &= ~(0x03 << USB_OTG_DIEPCTL_MPSIZ_Pos);
-    xfer_status[0][TUSB_DIR_OUT].max_size = 64;
-    xfer_status[0][TUSB_DIR_IN].max_size = 64;
-  } else {
-    // 8 bytes
-    in_ep[0].DIEPCTL |= (0x03 << USB_OTG_DIEPCTL_MPSIZ_Pos);
-    xfer_status[0][TUSB_DIR_OUT].max_size = 8;
-    xfer_status[0][TUSB_DIR_IN].max_size = 8;
+  if ( speed == DCD_HIGH_SPEED )
+  {
+    // Use fixed 0x09 for Highspeed
+    usb_otg->GUSBCFG |= (0x09 << USB_OTG_GUSBCFG_TRDT_Pos);
+  }
+  else
+  {
+    // Fullspeed depends on MCU clocks, but we will use 0x06 for 32+ Mhz
+    usb_otg->GUSBCFG |= (0x06 << USB_OTG_GUSBCFG_TRDT_Pos);
   }
 }
 
@@ -220,7 +223,8 @@ static void end_of_reset(uint8_t rhport)
  *------------------------------------------------------------------*/
 void dcd_init (uint8_t rhport)
 {
-  dcd_disconnect(rhport);
+  // Programming model begins in the last section of the chapter on the USB
+  // peripheral in each Reference Manual.
 
   USB_OTG_GlobalTypeDef * usb_otg = GLOBAL_BASE(rhport);
 
@@ -238,16 +242,15 @@ void dcd_init (uint8_t rhport)
     usb_otg->GUSBCFG &= ~(USB_OTG_GUSBCFG_TSDPS | USB_OTG_GUSBCFG_ULPIFSLS | USB_OTG_GUSBCFG_PHYSEL |
                           USB_OTG_GUSBCFG_ULPIEVBUSD | USB_OTG_GUSBCFG_ULPIEVBUSI);
 
-    // Turn around time for Highspeed is 0x09
-    usb_otg->GUSBCFG &= ~USB_OTG_GUSBCFG_TRDT;
-    usb_otg->GUSBCFG |= (0x09 << USB_OTG_GUSBCFG_TRDT_Pos);
+    set_turnaround(usb_otg, DCD_HIGH_SPEED);
   }
   else
 #endif
   {
-    // Turn around programmed for 32+ MHz is 0x06
-    usb_otg->GUSBCFG &= ~USB_OTG_GUSBCFG_TRDT;
-    usb_otg->GUSBCFG |= (0x06 << USB_OTG_GUSBCFG_TRDT_Pos) | USB_OTG_GUSBCFG_PHYSEL;
+    set_turnaround(usb_otg, DCD_FULL_SPEED);
+
+    // Enable internal PHY
+    usb_otg->GUSBCFG |= USB_OTG_GUSBCFG_PHYSEL;
   }
 
   // Reset core after selecting PHY
@@ -255,9 +258,6 @@ void dcd_init (uint8_t rhport)
   while ((usb_otg->GRSTCTL & USB_OTG_GRSTCTL_AHBIDL) == 0U) {}
   usb_otg->GRSTCTL |= USB_OTG_GRSTCTL_CSRST;
   while ((usb_otg->GRSTCTL & USB_OTG_GRSTCTL_CSRST) == USB_OTG_GRSTCTL_CSRST) {}
-
-  // Force device mode
-  usb_otg->GUSBCFG |= USB_OTG_GUSBCFG_FDMOD;
 
   // Restart PHY clock
   *((volatile uint32_t *)(_dcd_rhport[rhport].regs + USB_OTG_PCGCCTL_BASE)) = 0;
@@ -273,7 +273,7 @@ void dcd_init (uint8_t rhport)
   USB_OTG_DeviceTypeDef * dev = DEVICE_BASE(rhport);
 
   // If USB host misbehaves during status portion of control xfer
-  // (non zero-length packet), send STALL back and discard. Full speed.
+  // (non zero-length packet), send STALL back and discard.
   dev->DCFG |=  USB_OTG_DCFG_NZLSOHSK;
 
 #if TUD_OPT_HIGH_SPEED
@@ -288,10 +288,10 @@ void dcd_init (uint8_t rhport)
   else
 #endif
   {
-    // full speed with internal phy
+    // full speed with internal PHY
     dev->DCFG |= (3 << USB_OTG_DCFG_DSPD_Pos);
 
-    // Enable USB transceiver.
+    // Enable internal USB transceiver.
     usb_otg->GCCFG |= USB_OTG_GCCFG_PWRDWN;
   }
 
@@ -299,8 +299,8 @@ void dcd_init (uint8_t rhport)
                       USB_OTG_GINTMSK_USBSUSPM | USB_OTG_GINTMSK_WUIM     |
                       USB_OTG_GINTMSK_RXFLVLM  | (USE_SOF ? USB_OTG_GINTMSK_SOFM : 0);
 
-  // Programming model begins in the last section of the chapter on the USB
-  // peripheral in each Reference Manual.
+
+  // Enable global interrupt
   usb_otg->GAHBCFG |= USB_OTG_GAHBCFG_GINT;
 }
 
@@ -789,15 +789,14 @@ void dcd_int_handler(uint8_t rhport)
   }
 
   if(int_status & USB_OTG_GINTSTS_ENUMDNE) {
-    // ENUMDNE detects speed of the link. For full-speed, we
-    // always expect the same value. This interrupt is considered
-    // the end of reset.
-
-    TU_LOG2_HEX(dev->DSTS);
+    // ENUMDNE is the end of reset where speed of the link is detected
 
     usb_otg->GINTSTS = USB_OTG_GINTSTS_ENUMDNE;
-    end_of_reset(rhport);
-    dcd_event_bus_signal(rhport, DCD_EVENT_BUS_RESET, true);
+
+    uint32_t const enum_spd = (dev->DSTS & USB_OTG_DSTS_ENUMSPD_Msk) >> USB_OTG_DSTS_ENUMSPD_Pos;
+
+    set_turnaround(usb_otg, enum_spd);
+    dcd_event_bus_reset(rhport, (enum_spd == DCD_HIGH_SPEED) ? TUSB_SPEED_HIGH : TUSB_SPEED_FULL, true);
   }
 
   if(int_status & USB_OTG_GINTSTS_USBSUSP)
