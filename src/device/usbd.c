@@ -40,7 +40,8 @@
 //--------------------------------------------------------------------+
 // Device Data
 //--------------------------------------------------------------------+
-typedef struct {
+typedef struct
+{
   struct TU_ATTR_PACKED
   {
     volatile uint8_t connected    : 1;
@@ -52,6 +53,8 @@ typedef struct {
     uint8_t remote_wakeup_support : 1; // configuration descriptor's attribute
     uint8_t self_powered          : 1; // configuration descriptor's attribute
   };
+
+  uint8_t speed;
 
   uint8_t itf2drv[16];     // map interface number to driver (0xff is invalid)
   uint8_t ep2drv[8][2];    // map endpoint to driver ( 0xff is invalid )
@@ -384,7 +387,7 @@ void tud_task (void)
     {
       case DCD_EVENT_BUS_RESET:
         usbd_reset(event.rhport);
-        // TODO DCD should report operational speed (LS/FS/HS)
+        _usbd_dev.speed = event.bus_reset.speed;
       break;
 
       case DCD_EVENT_UNPLUGGED:

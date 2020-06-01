@@ -48,7 +48,7 @@ FREERTOS_PORT = ARM_CM7/r0p1
 
 # For flash-jlink target
 JLINK_DEVICE = stm32h743xi
-JLINK_IF = jtag
+JLINK_IF = swd
 
 # flash target using on-board stlink
 flash: flash-stlink
