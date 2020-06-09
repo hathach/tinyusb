@@ -92,6 +92,9 @@
 // Espressif
 #define OPT_MCU_ESP32S2           900 ///< Espressif ESP32-S2
 
+// Dialog
+#define OPT_MCU_DA1469X          1000 ///< Dialog Semiconductor DA1469x
+
 /** @} */
 
 /** \defgroup group_supported_os Supported RTOS
