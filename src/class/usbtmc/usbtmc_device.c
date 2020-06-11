@@ -260,37 +260,39 @@ void usbtmcd_init_cb(void)
     usbtmcLock = osal_mutex_create(&usbtmcLockBuffer);
 }
 
-bool usbtmcd_open_cb(uint8_t rhport, tusb_desc_interface_t const * itf_desc, uint16_t *p_length)
+uint16_t usbtmcd_open_cb(uint8_t rhport, tusb_desc_interface_t const * itf_desc, uint16_t max_len)
 {
   (void)rhport;
+
+  uint16_t drv_len;
   uint8_t const * p_desc;
   uint8_t found_endpoints = 0;
 
-  TU_VERIFY(itf_desc->bInterfaceClass    == TUD_USBTMC_APP_CLASS);
-  TU_VERIFY(itf_desc->bInterfaceSubClass == TUD_USBTMC_APP_SUBCLASS);
+  TU_VERIFY(itf_desc->bInterfaceClass    == TUD_USBTMC_APP_CLASS   , 0);
+  TU_VERIFY(itf_desc->bInterfaceSubClass == TUD_USBTMC_APP_SUBCLASS, 0);
 
 #ifndef NDEBUG
   // Only 2 or 3 endpoints are allowed for USBTMC.
-  TU_ASSERT((itf_desc->bNumEndpoints == 2) || (itf_desc->bNumEndpoints ==3));
+  TU_ASSERT((itf_desc->bNumEndpoints == 2) || (itf_desc->bNumEndpoints ==3), 0);
 #endif
 
-  TU_ASSERT(usbtmc_state.state == STATE_CLOSED);
+  TU_ASSERT(usbtmc_state.state == STATE_CLOSED, 0);
 
   // Interface
-  (*p_length) = 0u;
+  drv_len = 0u;
   p_desc = (uint8_t const *) itf_desc;
 
   usbtmc_state.itf_id = itf_desc->bInterfaceNumber;
   usbtmc_state.rhport = rhport;
 
-  while (found_endpoints < itf_desc->bNumEndpoints)
+  while (found_endpoints < itf_desc->bNumEndpoints && drv_len <= max_len)
   {
     if ( TUSB_DESC_ENDPOINT == p_desc[DESC_OFFSET_TYPE])
     {
       tusb_desc_endpoint_t const *ep_desc = (tusb_desc_endpoint_t const *)p_desc;
       switch(ep_desc->bmAttributes.xfer) {
         case TUSB_XFER_BULK:
-          TU_ASSERT(ep_desc->wMaxPacketSize.size == USBTMCD_MAX_PACKET_SIZE);
+          TU_ASSERT(ep_desc->wMaxPacketSize.size == USBTMCD_MAX_PACKET_SIZE, 0);
           if (tu_edpt_dir(ep_desc->bEndpointAddress) == TUSB_DIR_IN)
           {
             usbtmc_state.ep_bulk_in = ep_desc->bEndpointAddress;
@@ -301,45 +303,46 @@ bool usbtmcd_open_cb(uint8_t rhport, tusb_desc_interface_t const * itf_desc, uin
           break;
         case TUSB_XFER_INTERRUPT:
 #ifndef NDEBUG
-          TU_ASSERT(tu_edpt_dir(ep_desc->bEndpointAddress) == TUSB_DIR_IN);
-          TU_ASSERT(usbtmc_state.ep_int_in == 0);
+          TU_ASSERT(tu_edpt_dir(ep_desc->bEndpointAddress) == TUSB_DIR_IN, 0);
+          TU_ASSERT(usbtmc_state.ep_int_in == 0, 0);
 #endif
           usbtmc_state.ep_int_in = ep_desc->bEndpointAddress;
           break;
         default:
-          TU_ASSERT(false);
+          TU_ASSERT(false, 0);
       }
-      TU_VERIFY( usbd_edpt_open(rhport, ep_desc));
+      TU_ASSERT( usbd_edpt_open(rhport, ep_desc), 0);
       found_endpoints++;
     }
-    (*p_length) = (uint8_t)((*p_length) + p_desc[DESC_OFFSET_LEN]);
-    p_desc = tu_desc_next(p_desc);
+
+    drv_len += tu_desc_len(p_desc);
+    p_desc   = tu_desc_next(p_desc);
   }
 
   // bulk endpoints are required, but interrupt IN is optional
 #ifndef NDEBUG
-  TU_ASSERT(usbtmc_state.ep_bulk_in != 0);
-  TU_ASSERT(usbtmc_state.ep_bulk_out != 0);
+  TU_ASSERT(usbtmc_state.ep_bulk_in  != 0, 0);
+  TU_ASSERT(usbtmc_state.ep_bulk_out != 0, 0);
   if (itf_desc->bNumEndpoints == 2)
   {
-    TU_ASSERT(usbtmc_state.ep_int_in == 0);
+    TU_ASSERT(usbtmc_state.ep_int_in == 0, 0);
   }
   else if (itf_desc->bNumEndpoints == 3)
   {
-    TU_ASSERT(usbtmc_state.ep_int_in != 0);
+    TU_ASSERT(usbtmc_state.ep_int_in != 0, 0);
   }
 #if (CFG_TUD_USBTMC_ENABLE_488)
   if(usbtmc_state.capabilities->bmIntfcCapabilities488.is488_2 ||
       usbtmc_state.capabilities->bmDevCapabilities488.SR1)
   {
-    TU_ASSERT(usbtmc_state.ep_int_in != 0);
+    TU_ASSERT(usbtmc_state.ep_int_in != 0, 0);
   }
 #endif
 #endif
   atomicChangeState(STATE_CLOSED, STATE_NAK);
   tud_usbtmc_open_cb(itf_desc->iInterface);
 
-  return true;
+  return drv_len;
 }
 // Tell USBTMC class to set its bulk-in EP to ACK so that it can
 // receive USBTMC commands.

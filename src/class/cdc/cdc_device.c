@@ -222,14 +222,14 @@ void cdcd_reset(uint8_t rhport)
   }
 }
 
-bool cdcd_open(uint8_t rhport, tusb_desc_interface_t const * itf_desc, uint16_t *p_length)
+uint16_t cdcd_open(uint8_t rhport, tusb_desc_interface_t const * itf_desc, uint16_t max_len)
 {
   // Only support ACM subclass
   TU_VERIFY ( TUSB_CLASS_CDC                           == itf_desc->bInterfaceClass &&
-              CDC_COMM_SUBCLASS_ABSTRACT_CONTROL_MODEL == itf_desc->bInterfaceSubClass);
+              CDC_COMM_SUBCLASS_ABSTRACT_CONTROL_MODEL == itf_desc->bInterfaceSubClass, 0);
 
   // Note: 0xFF can be used with RNDIS
-  TU_VERIFY(tu_within(CDC_COMM_PROTOCOL_NONE, itf_desc->bInterfaceProtocol, CDC_COMM_PROTOCOL_ATCOMMAND_CDMA));
+  TU_VERIFY(tu_within(CDC_COMM_PROTOCOL_NONE, itf_desc->bInterfaceProtocol, CDC_COMM_PROTOCOL_ATCOMMAND_CDMA), 0);
 
   // Find available interface
   cdcd_interface_t * p_cdc = NULL;
@@ -242,30 +242,30 @@ bool cdcd_open(uint8_t rhport, tusb_desc_interface_t const * itf_desc, uint16_t 
       break;
     }
   }
-  TU_ASSERT(p_cdc);
+  TU_ASSERT(p_cdc, 0);
 
   //------------- Control Interface -------------//
   p_cdc->itf_num = itf_desc->bInterfaceNumber;
 
+  uint16_t drv_len = sizeof(tusb_desc_interface_t);
   uint8_t const * p_desc = tu_desc_next( itf_desc );
-  (*p_length) = sizeof(tusb_desc_interface_t);
 
   // Communication Functional Descriptors
-  while ( TUSB_DESC_CS_INTERFACE == tu_desc_type(p_desc) )
+  while ( TUSB_DESC_CS_INTERFACE == tu_desc_type(p_desc) && drv_len <= max_len )
   {
-    (*p_length) += tu_desc_len(p_desc);
-    p_desc = tu_desc_next(p_desc);
+    drv_len += tu_desc_len(p_desc);
+    p_desc   = tu_desc_next(p_desc);
   }
 
   if ( TUSB_DESC_ENDPOINT == tu_desc_type(p_desc) )
   {
     // notification endpoint if any
-    TU_ASSERT( usbd_edpt_open(rhport, (tusb_desc_endpoint_t const *) p_desc) );
+    TU_ASSERT( usbd_edpt_open(rhport, (tusb_desc_endpoint_t const *) p_desc), 0 );
 
     p_cdc->ep_notif = ((tusb_desc_endpoint_t const *) p_desc)->bEndpointAddress;
 
-    (*p_length) += tu_desc_len(p_desc);
-    p_desc = tu_desc_next(p_desc);
+    drv_len += tu_desc_len(p_desc);
+    p_desc   = tu_desc_next(p_desc);
   }
 
   //------------- Data Interface (if any) -------------//
@@ -273,18 +273,19 @@ bool cdcd_open(uint8_t rhport, tusb_desc_interface_t const * itf_desc, uint16_t 
        (TUSB_CLASS_CDC_DATA == ((tusb_desc_interface_t const *) p_desc)->bInterfaceClass) )
   {
     // next to endpoint descriptor
-    p_desc = tu_desc_next(p_desc);
+    drv_len += tu_desc_len(p_desc);
+    p_desc   = tu_desc_next(p_desc);
 
     // Open endpoint pair
-    TU_ASSERT( usbd_open_edpt_pair(rhport, p_desc, 2, TUSB_XFER_BULK, &p_cdc->ep_out, &p_cdc->ep_in) );
+    TU_ASSERT( usbd_open_edpt_pair(rhport, p_desc, 2, TUSB_XFER_BULK, &p_cdc->ep_out, &p_cdc->ep_in), 0 );
 
-    (*p_length) += sizeof(tusb_desc_interface_t) + 2*sizeof(tusb_desc_endpoint_t);
+    drv_len += 2*sizeof(tusb_desc_endpoint_t);
   }
 
   // Prepare for incoming data
   _prep_out_transaction(cdc_id);
 
-  return true;
+  return drv_len;
 }
 
 // Invoked when class request DATA stage is finished.

@@ -85,13 +85,13 @@ typedef struct
   char const* name;
   #endif
 
-  void (* init             ) (void);
-  void (* reset            ) (uint8_t rhport);
-  bool (* open             ) (uint8_t rhport, tusb_desc_interface_t const * desc_intf, uint16_t* p_length);
-  bool (* control_request  ) (uint8_t rhport, tusb_control_request_t const * request);
-  bool (* control_complete ) (uint8_t rhport, tusb_control_request_t const * request);
-  bool (* xfer_cb          ) (uint8_t rhport, uint8_t ep_addr, xfer_result_t event, uint32_t xferred_bytes);
-  void (* sof              ) (uint8_t rhport); /* optional */
+  void     (* init             ) (void);
+  void     (* reset            ) (uint8_t rhport);
+  uint16_t (* open             ) (uint8_t rhport, tusb_desc_interface_t const * desc_intf, uint16_t max_len);
+  bool     (* control_request  ) (uint8_t rhport, tusb_control_request_t const * request);
+  bool     (* control_complete ) (uint8_t rhport, tusb_control_request_t const * request);
+  bool     (* xfer_cb          ) (uint8_t rhport, uint8_t ep_addr, xfer_result_t event, uint32_t xferred_bytes);
+  void     (* sof              ) (uint8_t rhport); /* optional */
 } usbd_class_driver_t;
 
 static usbd_class_driver_t const _usbd_driver[] =
@@ -210,6 +210,19 @@ static usbd_class_driver_t const _usbd_driver[] =
       .control_complete = netd_control_complete,
       .xfer_cb          = netd_xfer_cb,
       .sof              = NULL,
+  },
+  #endif
+
+  #if CFG_TUD_BTH
+  {
+      DRIVER_NAME("BTH")
+      .init             = btd_init,
+      .reset            = btd_reset,
+      .open             = btd_open,
+      .control_request  = btd_control_request,
+      .control_complete = btd_control_complete,
+      .xfer_cb          = btd_xfer_cb,
+      .sof              = NULL
   },
   #endif
 };
@@ -520,6 +533,18 @@ static bool process_control_request(uint8_t rhport, tusb_control_request_t const
   {
     //------------- Device Requests e.g in enumeration -------------//
     case TUSB_REQ_RCPT_DEVICE:
+      if ( TUSB_REQ_TYPE_CLASS == p_request->bmRequestType_bit.type )
+      {
+          uint8_t const itf = tu_u16_low(p_request->wIndex);
+          TU_VERIFY(itf < TU_ARRAY_SIZE(_usbd_dev.itf2drv));
+
+          uint8_t const drvid = _usbd_dev.itf2drv[itf];
+          TU_VERIFY(drvid < USBD_CLASS_DRIVER_COUNT);
+
+          // forward to class driver: "non-STD request to Interface"
+          TU_VERIFY(invoke_class_control(rhport, drvid, p_request));
+          return true;
+      }
       if ( TUSB_REQ_TYPE_STANDARD != p_request->bmRequestType_bit.type )
       {
         // Non standard request is not supported
@@ -726,6 +751,8 @@ static bool process_set_config(uint8_t rhport, uint8_t cfg_num)
     TU_ASSERT( TUSB_DESC_INTERFACE == tu_desc_type(p_desc) );
 
     tusb_desc_interface_t const * desc_itf = (tusb_desc_interface_t const*) p_desc;
+    uint16_t const remaining_len = desc_end-p_desc;
+
     uint8_t drv_id;
     uint16_t drv_len;
 
@@ -733,13 +760,17 @@ static bool process_set_config(uint8_t rhport, uint8_t cfg_num)
     {
       usbd_class_driver_t const *driver = &_usbd_driver[drv_id];
 
-      drv_len = 0;
-      if ( driver->open(rhport, desc_itf, &drv_len) )
+      drv_len = driver->open(rhport, desc_itf, remaining_len);
+
+      if ( drv_len > 0 )
       {
+        // Open successfully, check if length is correct
+        TU_ASSERT( sizeof(tusb_desc_interface_t) <= drv_len && drv_len <= remaining_len);
+
         // Interface number must not be used already
         TU_ASSERT( DRVID_INVALID == _usbd_dev.itf2drv[desc_itf->bInterfaceNumber] );
 
-        TU_LOG2("  %s opened\r\n", _usbd_driver[drv_id].name);
+        TU_LOG2("  %s opened\r\n", driver->name);
         _usbd_dev.itf2drv[desc_itf->bInterfaceNumber] = drv_id;
 
         // If IAD exist, assign all interfaces to the same driver
@@ -761,8 +792,8 @@ static bool process_set_config(uint8_t rhport, uint8_t cfg_num)
       }
     }
 
-    // Assert if cannot find supported driver
-    TU_ASSERT( drv_id < USBD_CLASS_DRIVER_COUNT && drv_len >= sizeof(tusb_desc_interface_t) );
+    // Failed if cannot find supported driver
+    TU_ASSERT(drv_id < USBD_CLASS_DRIVER_COUNT);
 
     mark_interface_endpoint(_usbd_dev.ep2drv, p_desc, drv_len, drv_id); // TODO refactor
 
@@ -874,9 +905,27 @@ static bool process_get_descriptor(uint8_t rhport, tusb_control_request_t const 
     case TUSB_DESC_DEVICE_QUALIFIER:
       TU_LOG2(" Device Qualifier\r\n");
 
-      // TODO If not highspeed capable stall this request otherwise
-      // return the descriptor that could work in highspeed
-      return false;
+      // Host sends this request to ask why our device with USB BCD from 2.0
+      // but is running at Full/Low Speed. If not highspeed capable stall this request,
+      // otherwise return the descriptor that could work in highspeed mode
+      if ( tud_descriptor_device_qualifier_cb )
+      {
+        uint8_t const* desc_qualifier = tud_descriptor_device_qualifier_cb();
+        TU_ASSERT(desc_qualifier);
+
+        // first byte of descriptor is its size
+        return tud_control_xfer(rhport, p_request, (void*) desc_qualifier, desc_qualifier[0]);
+      }else
+      {
+        return false;
+      }
+    break;
+
+    case TUSB_DESC_OTHER_SPEED_CONFIG:
+      TU_LOG2(" Other Speed Configuration\r\n");
+
+      // After Device Qualifier descriptor is received host will ask for this descriptor
+      return false; // not supported
     break;
 
     default: return false;

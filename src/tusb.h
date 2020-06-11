@@ -99,6 +99,10 @@
   #if CFG_TUD_NET
     #include "class/net/net_device.h"
   #endif
+
+  #if CFG_TUD_BTH
+    #include "class/bth/bth_device.h"
+  #endif
 #endif
 
 
