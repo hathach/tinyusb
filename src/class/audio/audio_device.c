@@ -632,7 +632,7 @@ void audiod_reset(uint8_t rhport)
 	}
 }
 
-bool audiod_open(uint8_t rhport, tusb_desc_interface_t const * itf_desc, uint16_t *p_length)
+uint16_t audiod_open(uint8_t rhport, tusb_desc_interface_t const * itf_desc, uint16_t max_len)
 {
 	TU_VERIFY ( TUSB_CLASS_AUDIO 	== itf_desc->bInterfaceClass &&
 			AUDIO_SUBCLASS_CONTROL	== itf_desc->bInterfaceSubClass);
@@ -666,9 +666,11 @@ bool audiod_open(uint8_t rhport, tusb_desc_interface_t const * itf_desc, uint16_
 	// This is all we need so far - the EPs are setup by a later set_interface request (as per UAC2 specification)
 
 	// Notify caller we read complete descriptor
-	(*p_length) += tud_audio_desc_lengths[i];
+//	(*p_length) += tud_audio_desc_lengths[i];
+	// TODO: Find a way to find end of current audio function and avoid necessity of tud_audio_desc_lengths - since now max_length is available we could do this surely somehow
+	uint16_t drv_len = tud_audio_desc_lengths[i] - TUD_AUDIO_DESC_IAD_LEN; 	// - TUD_AUDIO_DESC_IAD_LEN since tinyUSB already handles the IAD descriptor
 
-	return true;
+	return drv_len;
 }
 
 static bool audiod_get_interface(uint8_t rhport, tusb_control_request_t const * p_request)

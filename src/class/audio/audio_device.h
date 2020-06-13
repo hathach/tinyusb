@@ -289,7 +289,7 @@ inline uint16_t tud_audio_int_ctr_write(uint8_t const* buffer, uint16_t bufsize)
 //--------------------------------------------------------------------+
 void audiod_init             (void);
 void audiod_reset            (uint8_t rhport);
-bool audiod_open             (uint8_t rhport, tusb_desc_interface_t const * itf_desc, uint16_t *p_length);
+uint16_t audiod_open		 (uint8_t rhport, tusb_desc_interface_t const * itf_desc, uint16_t max_len);
 bool audiod_control_request  (uint8_t rhport, tusb_control_request_t const * request);
 bool audiod_control_complete (uint8_t rhport, tusb_control_request_t const * request);
 bool audiod_xfer_cb          (uint8_t rhport, uint8_t edpt_addr, xfer_result_t result, uint32_t xferred_bytes);
