@@ -763,7 +763,7 @@ static bool process_set_config(uint8_t rhport, uint8_t cfg_num)
         // If IAD exist, assign all interfaces to the same driver
         if (desc_itf_assoc)
         {
-          // IAD's first interface number and class/subclass/protocol should match with opened interface
+          // IAD's first interface number and class should match with opened interface
           TU_ASSERT(desc_itf_assoc->bFirstInterface == desc_itf->bInterfaceNumber &&
                     desc_itf_assoc->bFunctionClass  == desc_itf->bInterfaceClass);
 
