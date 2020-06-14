@@ -262,9 +262,8 @@ void board_init(void)
 
   // Enable VBUS sense (B device) via pin PA9
   USB_OTG_FS->GCCFG |= USB_OTG_GCCFG_VBDEN;
-#endif
 
-#if BOARD_DEVICE_RHPORT_NUM == 1
+#elif BOARD_DEVICE_RHPORT_NUM == 1
 
   // Despite being call USB2_OTG
   // OTG_HS is marked as RHPort1 by TinyUSB to be consistent across stm32 port

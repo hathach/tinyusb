@@ -56,7 +56,14 @@
 #endif
 
 // Device mode with rhport and speed defined by board.mk
-#define CFG_TUSB_RHPORT0_MODE     ((OPT_MODE_DEVICE | BOARD_DEVICE_RHPORT_SPEED) << (8*BOARD_DEVICE_RHPORT_NUM))
+#if   BOARD_DEVICE_RHPORT_NUM == 0
+  #define CFG_TUSB_RHPORT0_MODE     (OPT_MODE_DEVICE | BOARD_DEVICE_RHPORT_SPEED)
+#elif BOARD_DEVICE_RHPORT_NUM == 1
+  #define CFG_TUSB_RHPORT1_MODE     (OPT_MODE_DEVICE | BOARD_DEVICE_RHPORT_SPEED)
+#else
+  #error "Incorrect RHPort configuration"
+#endif
+
 #define CFG_TUSB_OS               OPT_OS_NONE
 
 // CFG_TUSB_DEBUG is defined by compiler in DEBUG build
