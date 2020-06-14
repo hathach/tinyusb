@@ -125,8 +125,7 @@ enum
 // We disable SOF for now until needed later on
 #define USE_SOF     0
 
-static TU_ATTR_ALIGNED(4) uint32_t _setup_packet[6];
-static uint8_t _setup_offs; // We store up to 3 setup packets.
+static TU_ATTR_ALIGNED(4) uint32_t _setup_packet[2];
 
 typedef struct {
   uint8_t * buffer;
@@ -670,17 +669,14 @@ static void read_rx_fifo(uint8_t rhport, USB_OTG_OUTEndpointTypeDef * out_ep)
     case 0x03: // Out packet done (Interrupt)
       break;
     case 0x04: // Setup packet done (Interrupt)
-      _setup_offs = 2 - ((out_ep[epnum].DOEPTSIZ & USB_OTG_DOEPTSIZ_STUPCNT_Msk) >> USB_OTG_DOEPTSIZ_STUPCNT_Pos);
       out_ep[epnum].DOEPTSIZ |= (3 << USB_OTG_DOEPTSIZ_STUPCNT_Pos);
       break;
     case 0x06: // Setup packet recvd
       {
-        uint8_t setup_left = ((out_ep[epnum].DOEPTSIZ & USB_OTG_DOEPTSIZ_STUPCNT_Msk) >> USB_OTG_DOEPTSIZ_STUPCNT_Pos);
-
         // We can receive up to three setup packets in succession, but
         // only the last one is valid.
-        _setup_packet[4 - 2*setup_left] = (* rx_fifo);
-        _setup_packet[5 - 2*setup_left] = (* rx_fifo);
+        _setup_packet[0] = (* rx_fifo);
+        _setup_packet[1] = (* rx_fifo);
       }
       break;
     default: // Invalid
@@ -699,8 +695,7 @@ static void handle_epout_ints(uint8_t rhport, USB_OTG_DeviceTypeDef * dev, USB_O
       // SETUP packet Setup Phase done.
       if(out_ep[n].DOEPINT & USB_OTG_DOEPINT_STUP) {
         out_ep[n].DOEPINT =  USB_OTG_DOEPINT_STUP;
-        dcd_event_setup_received(rhport, (uint8_t*) &_setup_packet[2*_setup_offs], true);
-        _setup_offs = 0;
+        dcd_event_setup_received(rhport, (uint8_t*) &_setup_packet[0], true);
       }
 
       // OUT XFER complete (single packet).
@@ -736,7 +731,6 @@ static void handle_epin_ints(uint8_t rhport, USB_OTG_DeviceTypeDef * dev, USB_OT
 
     if ( dev->DAINT & (1 << (USB_OTG_DAINT_IEPINT_Pos + n)) )
     {
-
       // IN XFER complete (entire xfer).
       if ( in_ep[n].DIEPINT & USB_OTG_DIEPINT_XFRC )
       {
