@@ -777,8 +777,8 @@ static bool process_set_config(uint8_t rhport, uint8_t cfg_num)
         if (desc_itf_assoc)
         {
           // IAD's first interface number and class/subclass/protocol should match with opened interface
-          TU_ASSERT(desc_itf_assoc->bFirstInterface   == desc_itf->bInterfaceNumber   &&
-                    desc_itf_assoc->bFunctionClass    == desc_itf->bInterfaceClass);
+          TU_ASSERT(desc_itf_assoc->bFirstInterface == desc_itf->bInterfaceNumber &&
+                    desc_itf_assoc->bFunctionClass  == desc_itf->bInterfaceClass);
 
           for(uint8_t i=1; i<desc_itf_assoc->bInterfaceCount; i++)
           {
