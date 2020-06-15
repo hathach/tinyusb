@@ -116,7 +116,6 @@ enum
   DCD_FULL_SPEED        = 3, // Full speed with internal PHY
 };
 
-
 /*------------------------------------------------------------------*/
 /* MACRO TYPEDEF CONSTANT ENUM
  *------------------------------------------------------------------*/
@@ -138,6 +137,8 @@ typedef volatile uint32_t * usb_fifo_t;
 xfer_ctl_t xfer_status[EP_MAX][2];
 #define XFER_CTL_BASE(_ep, _dir) &xfer_status[_ep][_dir]
 
+// FIFO RAM allocation so far in words
+static uint16_t _allocated_fifo_words;
 
 // Setup the control endpoint 0.
 static void bus_reset(uint8_t rhport)
@@ -146,6 +147,8 @@ static void bus_reset(uint8_t rhport)
   USB_OTG_DeviceTypeDef * dev = DEVICE_BASE(rhport);
   USB_OTG_OUTEndpointTypeDef * out_ep = OUT_EP_BASE(rhport);
   USB_OTG_INEndpointTypeDef * in_ep = IN_EP_BASE(rhport);
+
+  tu_memclr(xfer_status, sizeof(xfer_status));
 
   for(uint8_t n = 0; n < EP_MAX; n++) {
     out_ep[n].DOEPCTL |= USB_OTG_DOEPCTL_SNAK;
@@ -177,17 +180,36 @@ static void bus_reset(uint8_t rhport)
   // - Each EP IN needs at least max packet size, 16 words is sufficient for EP0 IN
   //
   // - All EP OUT shared a unique OUT FIFO which uses
-  //   * 10 locations in hardware for setup packets + setup control words (up to 3 setup packets).
-  //   * 2 locations for OUT endpoint control words.
-  //   * 16 for largest packet size of 64 bytes. ( TODO Highspeed is 512 bytes)
-  //   * 1 location for global NAK (not required/used here).
-  //   * It is recommended to allocate 2 times the largest packet size, therefore
-  //   Recommended value = 10 + 1 + 2 x (16+2) = 47. To make it scale better with large FIFO size
-  //   and work better with Highspeed. We use 1/5 of total FIFO size
-  usb_otg->GRXFSIZ = (EP_FIFO_SIZE/4)/5;
+  //   - 13 for setup packets + control words (up to 3 setup packets).
+  //   - 1 for global NAK (not required/used here).
+  //   - Largest-EPsize / 4 + 1. ( FS: 64 bytes, HS: 512 bytes). Recommended is  "2 x (Largest-EPsize/4) + 1"
+  //   - 2 for each used OUT endpoint
+  //
+  //   Therefore GRXFSIZ = 13 + 1 + 1 + 2 x (Largest-EPsize/4) + 2 x EPOUTnum
+  //   - FullSpeed (64 Bytes ): GRXFSIZ = 15 + 2 x  16 + 2 x EP_MAX = 47  + 2 x EP_MAX
+  //   - Highspeed (512 bytes): GRXFSIZ = 15 + 2 x 128 + 2 x EP_MAX = 271 + 2 x EP_MAX
+  //
+  //   NOTE: Largest-EPsize & EPOUTnum is actual used endpoints in configuration. Since DCD has no knowledge
+  //   of the overall picture yet. We will use the worst scenario: largest possible + EP_MAX
+  //
+  //   FIXME: for Isochronous, largest EP size can be 1023/1024 for FS/HS respectively. In addition if multiple ISO
+  //   are enabled at least "2 x (Largest-EPsize/4) + 1" are recommended.  Maybe provide a macro for application to
+  //   overwrite this.
+
+#if TUD_OPT_HIGH_SPEED
+  _allocated_fifo_words = 271 + 2*EP_MAX;
+#else
+  _allocated_fifo_words =  47 + 2*EP_MAX;
+#endif
+
+  usb_otg->GRXFSIZ = _allocated_fifo_words;
 
   // Control IN uses FIFO 0 with 64 bytes ( 16 32-bit word )
-  usb_otg->DIEPTXF0_HNPTXFSIZ = (16 << USB_OTG_TX0FD_Pos) | (usb_otg->GRXFSIZ & 0x0000ffffUL);
+  usb_otg->DIEPTXF0_HNPTXFSIZ = (16 << USB_OTG_TX0FD_Pos) | _allocated_fifo_words;
+
+  _allocated_fifo_words += 16;
+
+  // TU_LOG2_INT(_allocated_fifo_words);
 
   // Fixed control EP0 size to 64 bytes
   in_ep[0].DIEPCTL &= ~(0x03 << USB_OTG_DIEPCTL_MPSIZ_Pos);
@@ -221,7 +243,6 @@ static tusb_speed_t get_speed(USB_OTG_DeviceTypeDef* dev)
   return (enum_spd == DCD_HIGH_SPEED) ? TUSB_SPEED_HIGH : TUSB_SPEED_FULL;
 }
 
-
 /*------------------------------------------------------------------*/
 /* Controller API
  *------------------------------------------------------------------*/
@@ -242,9 +263,11 @@ void dcd_init (uint8_t rhport)
     usb_otg->GCCFG &= ~USB_OTG_GCCFG_PWRDWN;
 
     // On selected MCUs HS port1 can be used with external PHY via ULPI interface
-    // Select ULPI highspeed PHY with default external VBUS Indicator and Drive
-    usb_otg->GUSBCFG &= ~(USB_OTG_GUSBCFG_TSDPS | USB_OTG_GUSBCFG_ULPIFSLS | USB_OTG_GUSBCFG_PHYSEL |
-                          USB_OTG_GUSBCFG_ULPIEVBUSD | USB_OTG_GUSBCFG_ULPIEVBUSI);
+    // Init ULPI Interface
+    usb_otg->GUSBCFG &= ~(USB_OTG_GUSBCFG_TSDPS | USB_OTG_GUSBCFG_ULPIFSLS | USB_OTG_GUSBCFG_PHYSEL);
+
+    // Select default internal VBUS Indicator and Drive for ULPI
+    usb_otg->GUSBCFG &= ~(USB_OTG_GUSBCFG_ULPIEVBUSD | USB_OTG_GUSBCFG_ULPIEVBUSI);
 
     set_turnaround(usb_otg, TUSB_SPEED_HIGH);
   }
@@ -302,7 +325,6 @@ void dcd_init (uint8_t rhport)
   usb_otg->GINTMSK |= USB_OTG_GINTMSK_USBRST   | USB_OTG_GINTMSK_ENUMDNEM |
                       USB_OTG_GINTMSK_USBSUSPM | USB_OTG_GINTMSK_WUIM     |
                       USB_OTG_GINTMSK_RXFLVLM  | (USE_SOF ? USB_OTG_GINTMSK_SOFM : 0);
-
 
   // Enable global interrupt
   usb_otg->GAHBCFG |= USB_OTG_GAHBCFG_GINT;
@@ -397,10 +419,40 @@ bool dcd_edpt_open (uint8_t rhport, tusb_desc_endpoint_t const * desc_edpt)
     // | ( Shared )  |
     // --------------- 0
     //
-    // Since OUT FIFO = GRXFSIZ, FIFO 0 = 16, for simplicity, we equally allocated for the rest of endpoints
-    // - Size  : (FIFO_SIZE/4 - GRXFSIZ - 16) / (EP_MAX-1)
-    // - Offset: GRXFSIZ + 16 + Size*(epnum-1)
+    // In FIFO is allocated by following rules:
     // - IN EP 1 gets FIFO 1, IN EP "n" gets FIFO "n".
+    // - Offset: allocated so far
+    // - Size
+    //    - Interrupt is EPSize
+    //    - Bulk/ISO is max(EPSize, remaining-fifo / non-opened-EPIN)
+
+    uint16_t const fifo_remaining = EP_FIFO_SIZE/4 - _allocated_fifo_words;
+    uint16_t fifo_size = desc_edpt->wMaxPacketSize.size / 4;
+
+    if ( desc_edpt->bmAttributes.xfer != TUSB_XFER_INTERRUPT )
+    {
+      uint8_t opened = 0;
+      for(uint8_t i = 0; i < EP_MAX; i++)
+      {
+        if ( (i != epnum) && (xfer_status[i][TUSB_DIR_IN].max_size > 0) ) opened++;
+      }
+
+      // EP Size or equally divided of remaining whichever is larger
+      fifo_size = tu_max16(fifo_size, fifo_remaining / (EP_MAX - opened));
+    }
+
+
+    // FIFO overflows, we probably need a better allocating scheme
+    TU_ASSERT(fifo_size <= fifo_remaining);
+
+    // DIEPTXF starts at FIFO #1.
+    // Both TXFD and TXSA are in unit of 32-bit words.
+    usb_otg->DIEPTXF[epnum - 1] = (fifo_size << USB_OTG_DIEPTXF_INEPTXFD_Pos) | _allocated_fifo_words;
+
+    _allocated_fifo_words += fifo_size;
+
+    //TU_LOG2_INT(fifo_size);
+    //TU_LOG2_INT(_allocated_fifo_words);
 
     in_ep[epnum].DIEPCTL |= (1 << USB_OTG_DIEPCTL_USBAEP_Pos) |
                             (epnum << USB_OTG_DIEPCTL_TXFNUM_Pos) |
@@ -409,15 +461,6 @@ bool dcd_edpt_open (uint8_t rhport, tusb_desc_endpoint_t const * desc_edpt)
                             (desc_edpt->wMaxPacketSize.size << USB_OTG_DIEPCTL_MPSIZ_Pos);
 
     dev->DAINTMSK |= (1 << (USB_OTG_DAINTMSK_IEPM_Pos + epnum));
-
-    // Both TXFD and TXSA are in unit of 32-bit words.
-    // IN FIFO 0 was configured during enumeration, hence the "+ 16".
-    uint16_t const allocated_size = (usb_otg->GRXFSIZ & 0x0000ffff) + 16;
-    uint16_t const fifo_size = (EP_FIFO_SIZE/4 - allocated_size) / (EP_MAX-1);
-    uint32_t const fifo_offset = allocated_size + fifo_size*(epnum-1);
-
-    // DIEPTXF starts at FIFO #1.
-    usb_otg->DIEPTXF[epnum - 1] = (fifo_size << USB_OTG_DIEPTXF_INEPTXFD_Pos) | fifo_offset;
   }
 
   return true;
@@ -433,8 +476,8 @@ bool dcd_edpt_xfer (uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t 
   uint8_t const dir   = tu_edpt_dir(ep_addr);
 
   xfer_ctl_t * xfer = XFER_CTL_BASE(epnum, dir);
-  xfer->buffer       = buffer;
-  xfer->total_len    = total_bytes;
+  xfer->buffer      = buffer;
+  xfer->total_len   = total_bytes;
 
   uint16_t num_packets = (total_bytes / xfer->max_size);
   uint8_t short_packet_size = total_bytes % xfer->max_size;
@@ -533,20 +576,16 @@ void dcd_edpt_clear_stall (uint8_t rhport, uint8_t ep_addr)
   if(dir == TUSB_DIR_IN) {
     in_ep[epnum].DIEPCTL &= ~USB_OTG_DIEPCTL_STALL;
 
-    uint8_t eptype = (in_ep[epnum].DIEPCTL & USB_OTG_DIEPCTL_EPTYP_Msk) >> \
-      USB_OTG_DIEPCTL_EPTYP_Pos;
-    // Required by USB spec to reset DATA toggle bit to DATA0 on interrupt
-    // and bulk endpoints.
+    uint8_t eptype = (in_ep[epnum].DIEPCTL & USB_OTG_DIEPCTL_EPTYP_Msk) >> USB_OTG_DIEPCTL_EPTYP_Pos;
+    // Required by USB spec to reset DATA toggle bit to DATA0 on interrupt and bulk endpoints.
     if(eptype == 2 || eptype == 3) {
       in_ep[epnum].DIEPCTL |= USB_OTG_DIEPCTL_SD0PID_SEVNFRM;
     }
   } else {
     out_ep[epnum].DOEPCTL &= ~USB_OTG_DOEPCTL_STALL;
 
-    uint8_t eptype = (out_ep[epnum].DOEPCTL & USB_OTG_DOEPCTL_EPTYP_Msk) >> \
-      USB_OTG_DOEPCTL_EPTYP_Pos;
-    // Required by USB spec to reset DATA toggle bit to DATA0 on interrupt
-    // and bulk endpoints.
+    uint8_t eptype = (out_ep[epnum].DOEPCTL & USB_OTG_DOEPCTL_EPTYP_Msk) >> USB_OTG_DOEPCTL_EPTYP_Pos;
+    // Required by USB spec to reset DATA toggle bit to DATA0 on interrupt and bulk endpoints.
     if(eptype == 2 || eptype == 3) {
       out_ep[epnum].DOEPCTL |= USB_OTG_DOEPCTL_SD0PID_SEVNFRM;
     }
