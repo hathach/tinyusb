@@ -326,13 +326,13 @@ void board_init(void)
   // No VBUS sense
   USB_OTG_HS->GCCFG &= ~USB_OTG_GCCFG_VBDEN;
 
+  // B-peripheral session valid override enable
+  USB_OTG_HS->GOTGCTL |= USB_OTG_GOTGCTL_BVALOEN;
+  USB_OTG_HS->GOTGCTL |= USB_OTG_GOTGCTL_BVALOVAL;
+
   // Force device mode
   USB_OTG_HS->GUSBCFG &= ~USB_OTG_GUSBCFG_FHMOD;
   USB_OTG_HS->GUSBCFG |= USB_OTG_GUSBCFG_FDMOD;
-
-  // B-peripheral session valid override enabl
-  USB_OTG_HS->GOTGCTL |= USB_OTG_GOTGCTL_BVALOEN;
-  USB_OTG_HS->GOTGCTL |= USB_OTG_GOTGCTL_BVALOVAL;
 
   HAL_PWREx_EnableUSBVoltageDetector();
 #endif // rhport = 1
@@ -367,7 +367,7 @@ int board_uart_write(void const * buf, int len)
 }
 
 
-#if CFG_TUSB_OS  == OPT_OS_NONE
+#if CFG_TUSB_OS == OPT_OS_NONE
 volatile uint32_t system_ticks = 0;
 void SysTick_Handler (void)
 {
