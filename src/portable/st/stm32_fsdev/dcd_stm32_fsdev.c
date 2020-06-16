@@ -698,7 +698,6 @@ bool dcd_edpt_open (uint8_t rhport, tusb_desc_endpoint_t const * p_endpoint_desc
 
   default:
     TU_ASSERT(false);
-    return false;
   }
 
   pcd_set_eptype(USB, epnum, wType);
