@@ -80,7 +80,8 @@ static inline uint32_t rdwr10_get_lba(uint8_t const command[])
 
   // copy first to prevent mis-aligned access
   uint32_t lba;
-  memcpy(&lba, &p_rdwr10->lba, 4);
+  // use offsetof to avoid pointer to the odd/misaligned address
+  memcpy(&lba, (uint8_t*) p_rdwr10 + offsetof(scsi_write10_t, lba), 4);
 
   // lba is in Big Endian format
   return tu_ntohl(lba);
@@ -93,7 +94,8 @@ static inline uint16_t rdwr10_get_blockcount(uint8_t const command[])
 
   // copy first to prevent mis-aligned access
   uint16_t block_count;
-  memcpy(&block_count, &p_rdwr10->block_count, 2);
+  // use offsetof to avoid pointer to the odd/misaligned address
+  memcpy(&block_count, (uint8_t*) p_rdwr10 + offsetof(scsi_write10_t, block_count), 2);
 
   return tu_ntohs(block_count);
 }
