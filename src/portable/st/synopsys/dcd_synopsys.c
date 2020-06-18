@@ -186,6 +186,40 @@ static void end_of_reset(void) {
   }
 }
 
+static void edpt_xact(uint8_t const epnum, uint8_t const dir, uint16_t const num_packets, uint16_t total_bytes) {
+    USB_OTG_DeviceTypeDef * const dev = DEVICE_BASE;
+    USB_OTG_OUTEndpointTypeDef * const out_ep = OUT_EP_BASE;
+    USB_OTG_INEndpointTypeDef * const in_ep = IN_EP_BASE;
+
+    // EP0 is limited to one packet each xfer
+    // We use multiple transaction of xfer->max_size length to get a whole transfer done
+    if(epnum == 0) {
+      xfer_ctl_t * const xfer = XFER_CTL_BASE(epnum, dir);
+      total_bytes = tu_min16(ep0_pending[dir], xfer->max_size);
+      ep0_pending[dir] -= total_bytes;
+    }
+
+    // IN and OUT endpoint xfers are interrupt-driven, we just schedule them here.
+    if(dir == TUSB_DIR_IN) {
+      // A full IN transfer (multiple packets, possibly) triggers XFRC.
+      in_ep[epnum].DIEPTSIZ = (num_packets << USB_OTG_DIEPTSIZ_PKTCNT_Pos) |
+                              ((total_bytes << USB_OTG_DIEPTSIZ_XFRSIZ_Pos) & USB_OTG_DIEPTSIZ_XFRSIZ_Msk);
+
+      in_ep[epnum].DIEPCTL |= USB_OTG_DIEPCTL_EPENA | USB_OTG_DIEPCTL_CNAK;
+      // Enable fifo empty interrupt only if there are something to put in the fifo.
+      if(total_bytes != 0) {
+        dev->DIEPEMPMSK |= (1 << epnum);
+      }
+    } else {
+      // A full OUT transfer (multiple packets, possibly) triggers XFRC.
+      out_ep[epnum].DOEPTSIZ &= ~(USB_OTG_DOEPTSIZ_PKTCNT_Msk | USB_OTG_DOEPTSIZ_XFRSIZ);
+      out_ep[epnum].DOEPTSIZ |= (num_packets << USB_OTG_DOEPTSIZ_PKTCNT_Pos) |
+                                ((total_bytes << USB_OTG_DOEPTSIZ_XFRSIZ_Pos) & USB_OTG_DOEPTSIZ_XFRSIZ_Msk);
+
+      out_ep[epnum].DOEPCTL |= USB_OTG_DOEPCTL_EPENA | USB_OTG_DOEPCTL_CNAK;
+    }
+}
+
 
 /*------------------------------------------------------------------*/
 /* Controller API
@@ -347,9 +381,6 @@ bool dcd_edpt_open (uint8_t rhport, tusb_desc_endpoint_t const * desc_edpt)
 bool dcd_edpt_xfer (uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t total_bytes)
 {
   (void) rhport;
-  USB_OTG_DeviceTypeDef * dev = DEVICE_BASE;
-  USB_OTG_OUTEndpointTypeDef * out_ep = OUT_EP_BASE;
-  USB_OTG_INEndpointTypeDef * in_ep = IN_EP_BASE;
 
   uint8_t const epnum = tu_edpt_number(ep_addr);
   uint8_t const dir   = tu_edpt_dir(ep_addr);
@@ -357,6 +388,14 @@ bool dcd_edpt_xfer (uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t 
   xfer_ctl_t * xfer = XFER_CTL_BASE(epnum, dir);
   xfer->buffer       = buffer;
   xfer->total_len    = total_bytes;
+
+  // EP0 can only handle one packet
+  if(epnum == 0) {
+    ep0_pending[dir] = total_bytes;
+    // Schedule the first transaction for EP0 transfer
+    edpt_xact(epnum, dir, 1, ep0_pending[dir]);
+    return true;
+  }
 
   uint16_t num_packets = (total_bytes / xfer->max_size);
   uint8_t const short_packet_size = total_bytes % xfer->max_size;
@@ -366,38 +405,8 @@ bool dcd_edpt_xfer (uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t 
     num_packets++;
   }
 
-  // EP0 can only handle one packet
-  if(epnum == 0) {
-    num_packets = 1;
-    if(total_bytes > xfer->max_size) {
-      ep0_pending[dir] = total_bytes - xfer->max_size;
-      total_bytes = xfer->max_size;
-      // Decrement pointer to make EP0 buffers compatible with existing routines.
-      xfer->buffer -= ep0_pending[dir];
-    } else {
-      ep0_pending[dir] = 0;
-    }
-  }
-
-  // IN and OUT endpoint xfers are interrupt-driven, we just schedule them here.
-  if(dir == TUSB_DIR_IN) {
-    // A full IN transfer (multiple packets, possibly) triggers XFRC.
-    in_ep[epnum].DIEPTSIZ = (num_packets << USB_OTG_DIEPTSIZ_PKTCNT_Pos) |
-                            ((total_bytes & USB_OTG_DIEPTSIZ_XFRSIZ_Msk) << USB_OTG_DIEPTSIZ_XFRSIZ_Pos);
-
-    in_ep[epnum].DIEPCTL |= USB_OTG_DIEPCTL_EPENA | USB_OTG_DIEPCTL_CNAK;
-    // Enable fifo empty interrupt only if there are something to put in the fifo.
-    if(total_bytes != 0) {
-      dev->DIEPEMPMSK |= (1 << epnum);
-    }
-  } else {
-    // A full OUT transfer (multiple packets, possibly) triggers XFRC.
-    out_ep[epnum].DOEPTSIZ &= ~(USB_OTG_DOEPTSIZ_PKTCNT_Msk | USB_OTG_DOEPTSIZ_XFRSIZ);
-    out_ep[epnum].DOEPTSIZ |= (num_packets << USB_OTG_DOEPTSIZ_PKTCNT_Pos) |
-                              ((total_bytes << USB_OTG_DOEPTSIZ_XFRSIZ_Pos) & USB_OTG_DOEPTSIZ_XFRSIZ_Msk);
-
-    out_ep[epnum].DOEPCTL |= USB_OTG_DOEPCTL_EPENA | USB_OTG_DOEPCTL_CNAK;
-  }
+  // Schedule the transaction for endpoint transfer
+  edpt_xact(epnum, dir, num_packets, total_bytes);
 
   return true;
 }
@@ -613,13 +622,9 @@ static void handle_epout_ints(USB_OTG_DeviceTypeDef * dev, USB_OTG_OUTEndpointTy
         out_ep[n].DOEPINT = USB_OTG_DOEPINT_XFRC;
 
         // EP0 can only handle one packet
-        if((n == 0) && ep0_pending[TUSB_DIR_OUT]){
-          uint16_t const total_bytes = tu_min16(ep0_pending[TUSB_DIR_OUT], xfer->max_size);
-          ep0_pending[TUSB_DIR_OUT] -= total_bytes;
+        if((n == 0) && ep0_pending[TUSB_DIR_OUT]) {
           // Schedule another packet to be received.
-          out_ep[0].DOEPTSIZ |= (1 << USB_OTG_DOEPTSIZ_PKTCNT_Pos) |
-                                ((total_bytes << USB_OTG_DOEPTSIZ_XFRSIZ_Pos) & USB_OTG_DOEPTSIZ_XFRSIZ_Msk);
-          out_ep[0].DOEPCTL |= USB_OTG_DOEPCTL_EPENA | USB_OTG_DOEPCTL_CNAK;
+          edpt_xact(n, TUSB_DIR_OUT, 1, ep0_pending[TUSB_DIR_OUT]);
         } else {
           dcd_event_xfer_complete(0, n, xfer->total_len, XFER_RESULT_SUCCESS, true);
         }
@@ -644,13 +649,9 @@ static void handle_epin_ints(USB_OTG_DeviceTypeDef * dev, USB_OTG_INEndpointType
         in_ep[n].DIEPINT = USB_OTG_DIEPINT_XFRC;
 
         // EP0 can only handle one packet
-        if((n == 0) && ep0_pending[TUSB_DIR_IN]){
-          uint16_t const total_bytes = tu_min16(ep0_pending[TUSB_DIR_IN], xfer->max_size);
-          ep0_pending[TUSB_DIR_IN] -= total_bytes;
-          // Schedule another packet to be received.
-          in_ep[0].DIEPTSIZ |= (1 << USB_OTG_DIEPTSIZ_PKTCNT_Pos) |
-                                ((total_bytes << USB_OTG_DIEPTSIZ_XFRSIZ_Pos) & USB_OTG_DIEPTSIZ_XFRSIZ_Msk);
-          in_ep[0].DIEPCTL |= USB_OTG_DIEPCTL_EPENA | USB_OTG_DIEPCTL_CNAK;
+        if((n == 0) && ep0_pending[TUSB_DIR_IN]) {
+          // Schedule another packet to be transmitted.
+          edpt_xact(n, TUSB_DIR_IN, 1, ep0_pending[TUSB_DIR_IN]);
         } else {
           dcd_event_xfer_complete(0, n | TUSB_DIR_IN_MASK, xfer->total_len, XFER_RESULT_SUCCESS, true);
         }
