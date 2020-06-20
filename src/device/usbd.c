@@ -437,7 +437,7 @@ void tud_task (void)
 
         if ( 0 == epnum )
         {
-          usbd_control_xfer_cb(event.rhport, ep_addr, event.xfer_complete.result, event.xfer_complete.len);
+          usbd_control_xfer_cb(event.rhport, ep_addr, (xfer_result_t)event.xfer_complete.result, event.xfer_complete.len);
         }
         else
         {
@@ -445,7 +445,7 @@ void tud_task (void)
           TU_ASSERT(drv_id < USBD_CLASS_DRIVER_COUNT,);
 
           TU_LOG2("  %s xfer callback\r\n", _usbd_driver[drv_id].name);
-          _usbd_driver[drv_id].xfer_cb(event.rhport, ep_addr, event.xfer_complete.result, event.xfer_complete.len);
+          _usbd_driver[drv_id].xfer_cb(event.rhport, ep_addr, (xfer_result_t)event.xfer_complete.result, event.xfer_complete.len);
         }
       }
       break;
@@ -763,11 +763,9 @@ static bool process_set_config(uint8_t rhport, uint8_t cfg_num)
         // If IAD exist, assign all interfaces to the same driver
         if (desc_itf_assoc)
         {
-          // IAD's first interface number and class/subclass/protocol should match with opened interface
-          TU_ASSERT(desc_itf_assoc->bFirstInterface   == desc_itf->bInterfaceNumber   &&
-                    desc_itf_assoc->bFunctionClass    == desc_itf->bInterfaceClass    &&
-                    desc_itf_assoc->bFunctionSubClass == desc_itf->bInterfaceSubClass &&
-                    desc_itf_assoc->bFunctionProtocol == desc_itf->bInterfaceProtocol);
+          // IAD's first interface number and class should match with opened interface
+          TU_ASSERT(desc_itf_assoc->bFirstInterface == desc_itf->bInterfaceNumber &&
+                    desc_itf_assoc->bFunctionClass  == desc_itf->bInterfaceClass);
 
           for(uint8_t i=1; i<desc_itf_assoc->bInterfaceCount; i++)
           {
@@ -848,8 +846,10 @@ static bool process_get_descriptor(uint8_t rhport, tusb_control_request_t const 
       if (!tud_descriptor_bos_cb) return false;
 
       tusb_desc_bos_t const* desc_bos = (tusb_desc_bos_t const*) tud_descriptor_bos_cb();
+
       uint16_t total_len;
-      memcpy(&total_len, &desc_bos->wTotalLength, 2); // possibly mis-aligned memory
+      // Use offsetof to avoid pointer to the odd/misaligned address
+      memcpy(&total_len, (uint8_t*) desc_bos + offsetof(tusb_desc_bos_t, wTotalLength), 2);
 
       return tud_control_xfer(rhport, p_request, (void*) desc_bos, total_len);
     }
@@ -863,7 +863,8 @@ static bool process_get_descriptor(uint8_t rhport, tusb_control_request_t const 
       TU_ASSERT(desc_config);
 
       uint16_t total_len;
-      memcpy(&total_len, &desc_config->wTotalLength, 2); // possibly mis-aligned memory
+      // Use offsetof to avoid pointer to the odd/misaligned address
+      memcpy(&total_len, (uint8_t*) desc_config + offsetof(tusb_desc_configuration_t, wTotalLength), 2);
 
       return tud_control_xfer(rhport, p_request, (void*) desc_config, total_len);
     }
@@ -917,8 +918,6 @@ static bool process_get_descriptor(uint8_t rhport, tusb_control_request_t const 
 
     default: return false;
   }
-
-  return true;
 }
 
 //--------------------------------------------------------------------+
