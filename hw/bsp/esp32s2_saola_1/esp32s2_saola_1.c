@@ -26,7 +26,9 @@
 
 #include "../board.h"
 #include "driver/gpio.h"
+#include "driver/periph_ctrl.h"
 #include "hal/usb_hal.h"
+#include "soc/usb_periph.h"
 
 #include "driver/rmt.h"
 #include "led_strip/include/led_strip.h"
@@ -66,10 +68,17 @@ void board_init(void)
   gpio_set_pull_mode(BUTTON_PIN, BUTTON_STATE_ACTIVE ? GPIO_PULLDOWN_ONLY : GPIO_PULLUP_ONLY);
 
   // USB Controller Hal init
+  periph_module_reset(PERIPH_USB_MODULE);
+  periph_module_enable(PERIPH_USB_MODULE);
+
   usb_hal_context_t hal = {
     .use_external_phy = false // use built-in PHY
   };
   usb_hal_init(&hal);
+
+  // Pin drive strength
+  gpio_set_drive_capability(USBPHY_DM_NUM, GPIO_DRIVE_CAP_3);
+  gpio_set_drive_capability(USBPHY_DP_NUM, GPIO_DRIVE_CAP_3);
 }
 
 // Turn LED on or off

@@ -135,7 +135,7 @@ void netd_reset(uint8_t rhport)
   netd_init();
 }
 
-bool netd_open(uint8_t rhport, tusb_desc_interface_t const * itf_desc, uint16_t *p_length)
+uint16_t netd_open(uint8_t rhport, tusb_desc_interface_t const * itf_desc, uint16_t max_len)
 {
   bool const is_rndis = (TUD_RNDIS_ITF_CLASS    == itf_desc->bInterfaceClass    &&
                          TUD_RNDIS_ITF_SUBCLASS == itf_desc->bInterfaceSubClass &&
@@ -145,10 +145,10 @@ bool netd_open(uint8_t rhport, tusb_desc_interface_t const * itf_desc, uint16_t 
                        CDC_COMM_SUBCLASS_ETHERNET_NETWORKING_CONTROL_MODEL == itf_desc->bInterfaceSubClass &&
                        0x00                                                == itf_desc->bInterfaceProtocol);
 
-  TU_VERIFY ( is_rndis || is_ecm );
+  TU_VERIFY(is_rndis || is_ecm, 0);
 
   // confirm interface hasn't already been allocated
-  TU_ASSERT(0 == _netd_itf.ep_notif);
+  TU_ASSERT(0 == _netd_itf.ep_notif, 0);
 
   // sanity check the descriptor
   _netd_itf.ecm_mode = is_ecm;
@@ -156,25 +156,25 @@ bool netd_open(uint8_t rhport, tusb_desc_interface_t const * itf_desc, uint16_t 
   //------------- Management Interface -------------//
   _netd_itf.itf_num = itf_desc->bInterfaceNumber;
 
-  (*p_length) = sizeof(tusb_desc_interface_t);
+  uint16_t drv_len = sizeof(tusb_desc_interface_t);
   uint8_t const * p_desc = tu_desc_next( itf_desc );
 
   // Communication Functional Descriptors
-  while ( TUSB_DESC_CS_INTERFACE == tu_desc_type(p_desc) )
+  while ( TUSB_DESC_CS_INTERFACE == tu_desc_type(p_desc) && drv_len <= max_len )
   {
-    (*p_length) += tu_desc_len(p_desc);
-    p_desc = tu_desc_next(p_desc);
+    drv_len += tu_desc_len(p_desc);
+    p_desc   = tu_desc_next(p_desc);
   }
 
   // notification endpoint (if any)
   if ( TUSB_DESC_ENDPOINT == tu_desc_type(p_desc) )
   {
-    TU_ASSERT( usbd_edpt_open(rhport, (tusb_desc_endpoint_t const *) p_desc) );
+    TU_ASSERT( usbd_edpt_open(rhport, (tusb_desc_endpoint_t const *) p_desc), 0 );
 
     _netd_itf.ep_notif = ((tusb_desc_endpoint_t const *) p_desc)->bEndpointAddress;
 
-    (*p_length) += tu_desc_len(p_desc);
-    p_desc = tu_desc_next(p_desc);
+    drv_len += tu_desc_len(p_desc);
+    p_desc   = tu_desc_next(p_desc);
   }
 
   //------------- Data Interface -------------//
@@ -182,19 +182,19 @@ bool netd_open(uint8_t rhport, tusb_desc_interface_t const * itf_desc, uint16_t 
   // - CDC-ECM data interface has 2 alternate settings
   //   - 0 : zero endpoints for inactive (default)
   //   - 1 : IN & OUT endpoints for active networking
-  TU_ASSERT(TUSB_DESC_INTERFACE == tu_desc_type(p_desc));
+  TU_ASSERT(TUSB_DESC_INTERFACE == tu_desc_type(p_desc), 0);
 
   do
   {
     tusb_desc_interface_t const * data_itf_desc = (tusb_desc_interface_t const *) p_desc;
-    TU_ASSERT(TUSB_CLASS_CDC_DATA == data_itf_desc->bInterfaceClass);
+    TU_ASSERT(TUSB_CLASS_CDC_DATA == data_itf_desc->bInterfaceClass, 0);
 
-    (*p_length) += tu_desc_len(p_desc);
-    p_desc = tu_desc_next(p_desc);
-  }while( _netd_itf.ecm_mode && (TUSB_DESC_INTERFACE == tu_desc_type(p_desc)) );
+    drv_len += tu_desc_len(p_desc);
+    p_desc   = tu_desc_next(p_desc);
+  }while( _netd_itf.ecm_mode && (TUSB_DESC_INTERFACE == tu_desc_type(p_desc)) && (drv_len <= max_len) );
 
   // Pair of endpoints
-  TU_ASSERT(TUSB_DESC_ENDPOINT == tu_desc_type(p_desc));
+  TU_ASSERT(TUSB_DESC_ENDPOINT == tu_desc_type(p_desc), 0);
 
   if ( _netd_itf.ecm_mode )
   {
@@ -204,7 +204,7 @@ bool netd_open(uint8_t rhport, tusb_desc_interface_t const * itf_desc, uint16_t 
   }else
   {
     // Open endpoint pair for RNDIS
-    TU_ASSERT( usbd_open_edpt_pair(rhport, p_desc, 2, TUSB_XFER_BULK, &_netd_itf.ep_out, &_netd_itf.ep_in) );
+    TU_ASSERT( usbd_open_edpt_pair(rhport, p_desc, 2, TUSB_XFER_BULK, &_netd_itf.ep_out, &_netd_itf.ep_in), 0 );
 
     tud_network_init_cb();
 
@@ -215,9 +215,9 @@ bool netd_open(uint8_t rhport, tusb_desc_interface_t const * itf_desc, uint16_t 
     tud_network_recv_renew();
   }
 
-  (*p_length) += 2*sizeof(tusb_desc_endpoint_t);
+  drv_len += 2*sizeof(tusb_desc_endpoint_t);
 
-  return true;
+  return drv_len;
 }
 
 // Invoked when class request DATA stage is finished.
