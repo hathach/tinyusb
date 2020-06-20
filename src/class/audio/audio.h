@@ -57,6 +57,12 @@ typedef enum
 	AUDIO_SUBCLASS_MIDI_STREAMING  , ///< MIDI Streaming
 } audio_subclass_type_t;
 
+/// Audio Function Subclass Codes
+typedef enum
+{
+	AUDIO_FUNCTION_SUBCLASS_UNDEFINED = 0x00,
+} audio_function_subclass_type_t;
+
 /// Audio Protocol Codes
 typedef enum
 {
