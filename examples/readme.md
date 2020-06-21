@@ -37,6 +37,10 @@ To compile for debugging with debug symbols add DEBUG=1, for example
 
 ```
 $ make BOARD=feather_nrf52840_express DEBUG=1 all
+If a board has several ports, one port is choosen by default in the individual board.mk file. Choose another port with PORT=x. For example to select the HS port of a STM32F746Disco board, use:
+
+```
+$ make BOARD=stm32f746disco PORT=1 all
 ```
 
 ### Debug Log
