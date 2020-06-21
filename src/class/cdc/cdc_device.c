@@ -416,9 +416,6 @@ bool cdcd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint32_
   //       Though maybe the baudrate is not really important !!!
   if ( ep_addr == p_cdc->ep_in )
   {
-    // invoke transmit callback to possibly refill tx fifo
-    if ( tud_cdc_tx_cb && !tu_fifo_full(&p_cdc->tx_ff) ) tud_cdc_tx_cb(itf);
-
     if ( 0 == tud_cdc_n_write_flush(itf) )
     {
       // There is no data left, a ZLP should be sent if
@@ -428,6 +425,9 @@ bool cdcd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint32_
         usbd_edpt_xfer(TUD_OPT_RHPORT, p_cdc->ep_in, NULL, 0);
       }
     }
+
+    // invoke transmit callback to possibly refill tx fifo
+    if ( tud_cdc_tx_cb && !tu_fifo_full(&p_cdc->tx_ff) ) tud_cdc_tx_cb(itf);
   }
 
   // nothing to do with notif endpoint for now
