@@ -9,7 +9,8 @@ CFLAGS += \
   -DSTM32H743xx \
   -DCFG_TUSB_MCU=OPT_MCU_STM32H7
 
-# mcu driver cause following warnings
+# suppress warning caused by vendor mcu driver
+CFLAGS += -Wno-error=maybe-uninitialized -Wno-error=cast-align
 
 ST_HAL_DRIVER = hw/mcu/st/st_driver/STM32H7xx_HAL_Driver
 ST_CMSIS = hw/mcu/st/st_driver/CMSIS/Device/ST/STM32H7xx
@@ -24,6 +25,7 @@ SRC_C += \
 	$(ST_HAL_DRIVER)/Src/stm32h7xx_hal_rcc.c \
 	$(ST_HAL_DRIVER)/Src/stm32h7xx_hal_rcc_ex.c \
 	$(ST_HAL_DRIVER)/Src/stm32h7xx_hal_gpio.c \
+	$(ST_HAL_DRIVER)/Src/stm32h7xx_hal_uart.c \
 	$(ST_HAL_DRIVER)/Src/stm32h7xx_hal_pwr_ex.c
 
 SRC_S += \
