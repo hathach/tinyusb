@@ -53,33 +53,39 @@
 // EP_FIFO_SIZE : Size of dedicated USB SRAM
 #if CFG_TUSB_MCU == OPT_MCU_STM32F1
   #include "stm32f1xx.h"
-  #define EP_MAX          4
-  #define EP_FIFO_SIZE    1280
+  #define EP_MAX_FS       4
+  #define EP_FIFO_SIZE_FS 1280
 
 #elif CFG_TUSB_MCU == OPT_MCU_STM32F2
   #include "stm32f2xx.h"
-  #define EP_MAX          USB_OTG_FS_MAX_IN_ENDPOINTS
-  #define EP_FIFO_SIZE    USB_OTG_FS_TOTAL_FIFO_SIZE
+  #define EP_MAX_FS       USB_OTG_FS_MAX_IN_ENDPOINTS
+  #define EP_FIFO_SIZE_FS USB_OTG_FS_TOTAL_FIFO_SIZE
 
 #elif CFG_TUSB_MCU == OPT_MCU_STM32F4
   #include "stm32f4xx.h"
-  #define EP_MAX          USB_OTG_FS_MAX_IN_ENDPOINTS
-  #define EP_FIFO_SIZE    USB_OTG_FS_TOTAL_FIFO_SIZE
+  #define EP_MAX_FS       USB_OTG_FS_MAX_IN_ENDPOINTS
+  #define EP_FIFO_SIZE_FS USB_OTG_FS_TOTAL_FIFO_SIZE
+  #define EP_MAX_HS       USB_OTG_HS_MAX_IN_ENDPOINTS
+  #define EP_FIFO_SIZE_HS USB_OTG_HS_TOTAL_FIFO_SIZE
 
 #elif CFG_TUSB_MCU == OPT_MCU_STM32H7
   #include "stm32h7xx.h"
-  #define EP_MAX          9
-  #define EP_FIFO_SIZE    4096
+  #define EP_MAX_FS       9
+  #define EP_FIFO_SIZE_FS 4096
+  #define EP_MAX_HS       9
+  #define EP_FIFO_SIZE_HS 4096
 
 #elif CFG_TUSB_MCU == OPT_MCU_STM32F7
   #include "stm32f7xx.h"
-  #define EP_MAX          6
-  #define EP_FIFO_SIZE    1280
+  #define EP_MAX_FS       6
+  #define EP_FIFO_SIZE_FS 1280
+  #define EP_MAX_HS       9
+  #define EP_FIFO_SIZE_HS 4096
 
 #elif CFG_TUSB_MCU == OPT_MCU_STM32L4
   #include "stm32l4xx.h"
-  #define EP_MAX          6
-  #define EP_FIFO_SIZE    1280
+  #define EP_MAX_FS       6
+  #define EP_FIFO_SIZE_FS 1280
 
 #else
   #error "Unsupported MCUs"
@@ -140,7 +146,15 @@ typedef struct {
 
 typedef volatile uint32_t * usb_fifo_t;
 
-xfer_ctl_t xfer_status[EP_MAX][2];
+#if TUD_OPT_RHPORT == 1
+xfer_ctl_t xfer_status[EP_MAX_HS][2];
+# define EP_MAX EP_MAX_HS
+# define EP_FIFO_SIZE EP_FIFO_SIZE_HS
+#else
+xfer_ctl_t xfer_status[EP_MAX_FS][2];
+# define EP_MAX EP_MAX_FS
+# define EP_FIFO_SIZE EP_FIFO_SIZE_FS
+#endif
 #define XFER_CTL_BASE(_ep, _dir) &xfer_status[_ep][_dir]
 
 // EP0 transfers are limited to 1 packet - larger sizes has to be split
@@ -206,9 +220,9 @@ static void bus_reset(uint8_t rhport)
   //   overwrite this.
 
 #if TUD_OPT_HIGH_SPEED
-  _allocated_fifo_words = 271 + 2*EP_MAX;
+  _allocated_fifo_words = 271 + 2*EP_MAX_HS;
 #else
-  _allocated_fifo_words =  47 + 2*EP_MAX;
+  _allocated_fifo_words =  47 + 2*EP_MAX_FS;
 #endif
 
   usb_otg->GRXFSIZ = _allocated_fifo_words;
