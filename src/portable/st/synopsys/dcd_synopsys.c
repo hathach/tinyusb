@@ -27,6 +27,7 @@
  */
 
 #include "tusb_option.h"
+#include "../../../../hw/bsp//board.h"
 
 #if defined (STM32F105x8) || defined (STM32F105xB) || defined (STM32F105xC) || \
     defined (STM32F107xB) || defined (STM32F107xC)
@@ -147,14 +148,13 @@ typedef struct {
 typedef volatile uint32_t * usb_fifo_t;
 
 #if TUD_OPT_RHPORT == 1
-xfer_ctl_t xfer_status[EP_MAX_HS][2];
 # define EP_MAX EP_MAX_HS
 # define EP_FIFO_SIZE EP_FIFO_SIZE_HS
 #else
-xfer_ctl_t xfer_status[EP_MAX_FS][2];
 # define EP_MAX EP_MAX_FS
 # define EP_FIFO_SIZE EP_FIFO_SIZE_FS
 #endif
+xfer_ctl_t xfer_status[EP_MAX][2];
 #define XFER_CTL_BASE(_ep, _dir) &xfer_status[_ep][_dir]
 
 // EP0 transfers are limited to 1 packet - larger sizes has to be split
@@ -220,9 +220,9 @@ static void bus_reset(uint8_t rhport)
   //   overwrite this.
 
 #if TUD_OPT_HIGH_SPEED
-  _allocated_fifo_words = 271 + 2*EP_MAX_HS;
+  _allocated_fifo_words = 271 + 2*EP_MAX;
 #else
-  _allocated_fifo_words =  47 + 2*EP_MAX_FS;
+  _allocated_fifo_words =  47 + 2*EP_MAX;
 #endif
 
   usb_otg->GRXFSIZ = _allocated_fifo_words;
@@ -301,6 +301,59 @@ static void edpt_schedule_packets(uint8_t rhport, uint8_t const epnum, uint8_t c
 }
 
 
+# if defined(USB_HS_PHYC) && TUD_OPT_HIGH_SPEED
+static bool USB_HS_PHYCInit(void)
+{
+    USB_HS_PHYC_GlobalTypeDef *usb_hs_phyc = (USB_HS_PHYC_GlobalTypeDef *)USB_HS_PHYC_CONTROLLER_BASE;
+    // Enable LDO
+    usb_hs_phyc->USB_HS_PHYC_LDO |= USB_HS_PHYC_LDO_ENABLE;
+    int32_t count = 2000000;
+    while(1) {
+        if (usb_hs_phyc->USB_HS_PHYC_LDO & USB_HS_PHYC_LDO_STATUS)
+            break;
+        TU_ASSERT(count > 0);
+    }
+    uint32_t  phyc_pll = 0;
+    switch (HSE_VALUE) {
+    case 12000000:
+        phyc_pll = USB_HS_PHYC_PLL1_PLLSEL_12MHZ;
+        break;
+    case 12500000:
+        phyc_pll = USB_HS_PHYC_PLL1_PLLSEL_12_5MHZ;
+        break;
+    case 16000000:
+        phyc_pll = USB_HS_PHYC_PLL1_PLLSEL_16MHZ;
+        break;
+    case 24000000:
+        phyc_pll = USB_HS_PHYC_PLL1_PLLSEL_24MHZ;
+        break;
+    case 25000000:
+        phyc_pll = USB_HS_PHYC_PLL1_PLLSEL_25MHZ;
+        break;
+    case 32000000:
+        // Value not defined in header
+        phyc_pll =   USB_HS_PHYC_PLL1_PLLSEL_Msk;
+        break;
+    default:
+        TU_ASSERT(0);
+    }
+    usb_hs_phyc->USB_HS_PHYC_PLL = phyc_pll;
+
+    // Use magic value as in stm32f7xx_ll_usb.
+#  if !defined  (USB_HS_PHYC_TUNE_VALUE)
+#  define USB_HS_PHYC_TUNE_VALUE    0x00000F13U /*!< Value of USB HS PHY Tune */
+#  endif /* USB_HS_PHYC_TUNE_VALUE */
+    // Control the tuning interface of the High Speed PHY */
+    usb_hs_phyc->USB_HS_PHYC_TUNE |= USB_HS_PHYC_TUNE_VALUE;
+
+    // Enable PLL internal PHY
+    usb_hs_phyc->USB_HS_PHYC_PLL = phyc_pll | USB_HS_PHYC_PLL_PLLEN;
+
+    board_delay(2);
+    return true;
+}
+# endif
+
 /*------------------------------------------------------------------*/
 /* Controller API
  *------------------------------------------------------------------*/
@@ -315,12 +368,31 @@ void dcd_init (uint8_t rhport)
 #if TUD_OPT_HIGH_SPEED   // TODO may pass parameter instead of using macro for HighSpeed
   if ( rhport == 1 )
   {
-    // Highspeed with external ULPI PHY
-
     // deactivate internal PHY
     usb_otg->GCCFG &= ~USB_OTG_GCCFG_PWRDWN;
 
-    // On selected MCUs HS port1 can be used with external PHY via ULPI interface
+    // TODO may pass parameter instead of using macro for HighSpeed
+#if defined(USB_HS_PHYC)
+    // Highspeed with embedded UTMI PHYC
+    // Init The UTMI Interface
+    usb_otg->GUSBCFG &= ~(USB_OTG_GUSBCFG_TSDPS | USB_OTG_GUSBCFG_ULPIFSLS | USB_OTG_GUSBCFG_PHYSEL);
+
+    // Select vbus source
+    usb_otg->GUSBCFG &= ~(USB_OTG_GUSBCFG_ULPIEVBUSD | USB_OTG_GUSBCFG_ULPIEVBUSI);
+
+    // Select UTMI Interace
+    usb_otg->GUSBCFG &= ~USB_OTG_GUSBCFG_ULPI_UTMI_SEL;
+    usb_otg->GCCFG |= USB_OTG_GCCFG_PHYHSEN;
+
+    //Enables control of a High Speed USB PHY
+    USB_HS_PHYCInit();
+
+    // Disable external VBUS detection
+    usb_otg->GUSBCFG &= ~USB_OTG_GUSBCFG_ULPIEVBUSD;
+
+# else// On selected MCUs HS port1 can be used with external PHY via ULPI interface
+    // Highspeed with external ULPI PHY
+
     // Init ULPI Interface
     usb_otg->GUSBCFG &= ~(USB_OTG_GUSBCFG_TSDPS | USB_OTG_GUSBCFG_ULPIFSLS | USB_OTG_GUSBCFG_PHYSEL);
 
@@ -328,6 +400,7 @@ void dcd_init (uint8_t rhport)
     usb_otg->GUSBCFG &= ~(USB_OTG_GUSBCFG_ULPIEVBUSD | USB_OTG_GUSBCFG_ULPIEVBUSI);
 
     set_turnaround(usb_otg, TUSB_SPEED_HIGH);
+# endif
   }
   else
 #endif

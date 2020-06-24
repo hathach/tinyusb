@@ -217,7 +217,7 @@ void board_init(void)
   GPIO_InitStruct.Pin = (GPIO_PIN_14 | GPIO_PIN_15);
   GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
-  GPIO_InitStruct.Speed = GPIO_SPEED_VERY_HIGH;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_HIGH;
   GPIO_InitStruct.Alternate = GPIO_AF10_OTG_HS;
   HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
 
@@ -231,8 +231,12 @@ void board_init(void)
   GPIO_InitStruct.Alternate = GPIO_AF10_OTG_HS;
   HAL_GPIO_Init(GPIOD, &GPIO_InitStruct);
 
+  /* Enable PHYC Clocks */
+  __HAL_RCC_OTGPHYC_CLK_ENABLE();
+
   /* Enable USB HS Clocks */
   __HAL_RCC_USB_OTG_HS_CLK_ENABLE();
+  __HAL_RCC_USB_OTG_HS_ULPI_CLK_ENABLE();
 
   // Enable VBUS sense (B device) via pin PA9
   USB_OTG_HS->GCCFG &= ~USB_OTG_GCCFG_VBDEN;
