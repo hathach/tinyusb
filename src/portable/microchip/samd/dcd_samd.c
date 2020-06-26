@@ -91,7 +91,7 @@ void dcd_init (uint8_t rhport)
   USB->DEVICE.INTENSET.reg = /* USB_DEVICE_INTENSET_SOF | */ USB_DEVICE_INTENSET_EORST;
 }
 
-#if CFG_TUSB_MCU == OPT_MCU_SAMD51
+#if CFG_TUSB_MCU == OPT_MCU_SAMD51 || CFG_TUSB_MCU == OPT_MCU_SAME5X
 
 void dcd_int_enable(uint8_t rhport)
 {
@@ -124,6 +124,11 @@ void dcd_int_disable(uint8_t rhport)
   (void) rhport;
   NVIC_DisableIRQ(USB_IRQn);
 }
+
+#else
+
+#error "No implementation available for dcd_int_enable / dcd_int_disable"
+
 #endif
 
 void dcd_set_address (uint8_t rhport, uint8_t dev_addr)
