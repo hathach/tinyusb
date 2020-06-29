@@ -32,6 +32,13 @@ Then compile with `make BOARD=[your_board] all`, for example
 $ make BOARD=feather_nrf52840_express all
 ```
 
+
+To compile for debugging with debug symbols add DEBUG=1, for example
+
+```
+$ make BOARD=feather_nrf52840_express DEBUG=1 all
+```
+
 ### Debug Log
 
 ### Log Level

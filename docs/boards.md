@@ -11,6 +11,7 @@ This code base already had supported for a handful of following boards (sorted a
 
 ### Espressif ESP32-S2
 
+- [ESP32-S2-Kaluga-1](https://docs.espressif.com/projects/esp-idf/en/latest/esp32s2/hw-reference/esp32s2/user-guide-esp32-s2-kaluga-1-kit.html)
 - [ESP32-S2-Saola-1](https://docs.espressif.com/projects/esp-idf/en/latest/esp32s2/hw-reference/esp32s2/user-guide-saola-1-v1.2.html)
 
 ### MicroChip SAMD

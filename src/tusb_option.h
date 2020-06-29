@@ -58,6 +58,7 @@
 #define OPT_MCU_SAMD21            200 ///< MicroChip SAMD21
 #define OPT_MCU_SAMD51            201 ///< MicroChip SAMD51
 #define OPT_MCU_SAMG              202 ///< MicroChip SAMDG series
+#define OPT_MCU_SAME5X            203 ///< MicroChip SAM E5x
 
 // STM32
 #define OPT_MCU_STM32F0           300 ///< ST STM32F0
@@ -220,6 +221,10 @@
 
 #ifndef CFG_TUD_NET
   #define CFG_TUD_NET             0
+#endif
+
+#ifndef CFG_TUD_BTH
+  #define CFG_TUD_BTH             0
 #endif
 
 //--------------------------------------------------------------------
