@@ -79,6 +79,11 @@ jobs:
   # Build ESP32S
   build-esp32s:
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        example: ['board_test', 'cdc_msc_freertos', 'hid_composite_freertos']
+
     steps:
     - name: Setup Python
       uses: actions/setup-python@v1
@@ -92,4 +97,4 @@ jobs:
         submodules: 'false'
 
     - name: Build
-      run: docker run --rm -v $PWD:/project -w /project espressif/idf:latest python3 tools/build_esp32s.py
+      run: docker run --rm -v $PWD:/project -w /project espressif/idf:latest python3 tools/build_esp32s.py ${{ matrix.example }}

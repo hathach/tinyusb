@@ -37,10 +37,7 @@
 // MACRO TYPEDEF CONSTANT ENUM DECLARATION
 //--------------------------------------------------------------------+
 
-// Note: On the production version (v1.2) WS2812 is connected to GPIO 18,
-// however earlier revision v1.1 WS2812 is connected to GPIO 17
-//#define LED_PIN               17 // v1.1
-#define LED_PIN               18 // v1.2 and later
+#define LED_PIN               45
 
 #define BUTTON_PIN            0
 #define BUTTON_STATE_ACTIVE   0
