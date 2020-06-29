@@ -1033,6 +1033,19 @@ void usbd_defer_func(osal_task_func_t func, void* param, bool in_isr)
   dcd_event_handler(&event, in_isr);
 }
 
+// Can be called by the dcd driver when rebooting wirh persistent USB
+bool usbd_force_reconfig(uint8_t rhport, uint8_t cfg_num)
+{
+    usbd_reset(rhport);
+    if ( !_usbd_dev.configured && cfg_num )
+    {
+        TU_ASSERT( process_set_config(rhport, cfg_num) );
+    }
+
+    _usbd_dev.configured = cfg_num ? 1 : 0;
+    return 1;
+}
+
 //--------------------------------------------------------------------+
 // USBD Endpoint API
 //--------------------------------------------------------------------+
