@@ -1,4 +1,4 @@
-idf_component_register(SRCS "esp32s2_saola_1.c" "led_strip/src/led_strip_rmt_ws2812.c"
+idf_component_register(SRCS "${BOARD}.c" "led_strip/src/led_strip_rmt_ws2812.c"
                     INCLUDE_DIRS "led_strip/include"
                     PRIV_REQUIRES "driver"
                     REQUIRES freertos src)
