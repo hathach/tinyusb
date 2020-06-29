@@ -56,6 +56,9 @@
   * Synopsys DesignWare device driver port for STM32 L4, F2, F4, F7, H7 etc ...
   * TI MSP430 device driver port
   * Board support for STM32F407 Discovery, STM32H743 Nucleo, pyboard v1.1, msp_exp430f5529lp etc ...
+  
+* **[Jan Dümpelmann](https://github.com/duempel)**
+  * Improvements to Synopsys device controller driver (DCD) for STM32 MCUs
 
 
 **[Full contributors list](https://github.com/hathach/tinyusb/contributors).**

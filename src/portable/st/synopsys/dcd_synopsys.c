@@ -3,6 +3,7 @@
  *
  * Copyright (c) 2018 Scott Shawcroft, 2019 William D. Jones for Adafruit Industries
  * Copyright (c) 2019 Ha Thach (tinyusb.org)
+ * Copyright (c) 2020 Jan Duempelmann
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -101,15 +102,16 @@ static uint8_t _setup_offs; // We store up to 3 setup packets.
 typedef struct {
   uint8_t * buffer;
   uint16_t total_len;
-  uint16_t queued_len;
   uint16_t max_size;
-  bool short_packet;
 } xfer_ctl_t;
 
 typedef volatile uint32_t * usb_fifo_t;
 
 xfer_ctl_t xfer_status[EP_MAX][2];
 #define XFER_CTL_BASE(_ep, _dir) &xfer_status[_ep][_dir]
+
+// EP0 transfers are limited to 1 packet - larger sizes has to be split
+static uint16_t ep0_pending[2];     // Index determines direction as tusb_dir_t type
 
 
 // Setup the control endpoint 0.
@@ -183,6 +185,40 @@ static void end_of_reset(void) {
     xfer_status[0][TUSB_DIR_OUT].max_size = 8;
     xfer_status[0][TUSB_DIR_IN].max_size = 8;
   }
+}
+
+static void edpt_schedule_packets(uint8_t const epnum, uint8_t const dir, uint16_t const num_packets, uint16_t total_bytes) {
+    USB_OTG_DeviceTypeDef * const dev = DEVICE_BASE;
+    USB_OTG_OUTEndpointTypeDef * const out_ep = OUT_EP_BASE;
+    USB_OTG_INEndpointTypeDef * const in_ep = IN_EP_BASE;
+
+    // EP0 is limited to one packet each xfer
+    // We use multiple transaction of xfer->max_size length to get a whole transfer done
+    if(epnum == 0) {
+      xfer_ctl_t * const xfer = XFER_CTL_BASE(epnum, dir);
+      total_bytes = tu_min16(ep0_pending[dir], xfer->max_size);
+      ep0_pending[dir] -= total_bytes;
+    }
+
+    // IN and OUT endpoint xfers are interrupt-driven, we just schedule them here.
+    if(dir == TUSB_DIR_IN) {
+      // A full IN transfer (multiple packets, possibly) triggers XFRC.
+      in_ep[epnum].DIEPTSIZ = (num_packets << USB_OTG_DIEPTSIZ_PKTCNT_Pos) |
+                              ((total_bytes << USB_OTG_DIEPTSIZ_XFRSIZ_Pos) & USB_OTG_DIEPTSIZ_XFRSIZ_Msk);
+
+      in_ep[epnum].DIEPCTL |= USB_OTG_DIEPCTL_EPENA | USB_OTG_DIEPCTL_CNAK;
+      // Enable fifo empty interrupt only if there are something to put in the fifo.
+      if(total_bytes != 0) {
+        dev->DIEPEMPMSK |= (1 << epnum);
+      }
+    } else {
+      // A full OUT transfer (multiple packets, possibly) triggers XFRC.
+      out_ep[epnum].DOEPTSIZ &= ~(USB_OTG_DOEPTSIZ_PKTCNT_Msk | USB_OTG_DOEPTSIZ_XFRSIZ);
+      out_ep[epnum].DOEPTSIZ |= (num_packets << USB_OTG_DOEPTSIZ_PKTCNT_Pos) |
+                                ((total_bytes << USB_OTG_DOEPTSIZ_XFRSIZ_Pos) & USB_OTG_DOEPTSIZ_XFRSIZ_Msk);
+
+      out_ep[epnum].DOEPCTL |= USB_OTG_DOEPCTL_EPENA | USB_OTG_DOEPCTL_CNAK;
+    }
 }
 
 
@@ -346,9 +382,6 @@ bool dcd_edpt_open (uint8_t rhport, tusb_desc_endpoint_t const * desc_edpt)
 bool dcd_edpt_xfer (uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t total_bytes)
 {
   (void) rhport;
-  USB_OTG_DeviceTypeDef * dev = DEVICE_BASE;
-  USB_OTG_OUTEndpointTypeDef * out_ep = OUT_EP_BASE;
-  USB_OTG_INEndpointTypeDef * in_ep = IN_EP_BASE;
 
   uint8_t const epnum = tu_edpt_number(ep_addr);
   uint8_t const dir   = tu_edpt_dir(ep_addr);
@@ -356,35 +389,25 @@ bool dcd_edpt_xfer (uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t 
   xfer_ctl_t * xfer = XFER_CTL_BASE(epnum, dir);
   xfer->buffer       = buffer;
   xfer->total_len    = total_bytes;
-  xfer->queued_len   = 0;
-  xfer->short_packet = false;
+
+  // EP0 can only handle one packet
+  if(epnum == 0) {
+    ep0_pending[dir] = total_bytes;
+    // Schedule the first transaction for EP0 transfer
+    edpt_schedule_packets(epnum, dir, 1, ep0_pending[dir]);
+    return true;
+  }
 
   uint16_t num_packets = (total_bytes / xfer->max_size);
-  uint8_t short_packet_size = total_bytes % xfer->max_size;
+  uint8_t const short_packet_size = total_bytes % xfer->max_size;
 
   // Zero-size packet is special case.
   if(short_packet_size > 0 || (total_bytes == 0)) {
     num_packets++;
   }
 
-  // IN and OUT endpoint xfers are interrupt-driven, we just schedule them here.
-  if(dir == TUSB_DIR_IN) {
-    // A full IN transfer (multiple packets, possibly) triggers XFRC.
-    in_ep[epnum].DIEPTSIZ = (num_packets << USB_OTG_DIEPTSIZ_PKTCNT_Pos) |
-                            ((total_bytes & USB_OTG_DIEPTSIZ_XFRSIZ_Msk) << USB_OTG_DIEPTSIZ_XFRSIZ_Pos);
-
-    in_ep[epnum].DIEPCTL |= USB_OTG_DIEPCTL_EPENA | USB_OTG_DIEPCTL_CNAK;
-    // Enable fifo empty interrupt only if there are something to put in the fifo.
-    if(total_bytes != 0) {
-      dev->DIEPEMPMSK |= (1 << epnum);
-    }
-  } else {
-    // Each complete packet for OUT xfers triggers XFRC.
-    out_ep[epnum].DOEPTSIZ |= (1 << USB_OTG_DOEPTSIZ_PKTCNT_Pos) |
-                              ((xfer->max_size & USB_OTG_DOEPTSIZ_XFRSIZ_Msk) << USB_OTG_DOEPTSIZ_XFRSIZ_Pos);
-
-    out_ep[epnum].DOEPCTL |= USB_OTG_DOEPCTL_EPENA | USB_OTG_DOEPCTL_CNAK;
-  }
+  // Schedule packets to be sent within interrupt
+  edpt_schedule_packets(epnum, dir, num_packets, total_bytes);
 
   return true;
 }
@@ -477,65 +500,33 @@ void dcd_edpt_clear_stall (uint8_t rhport, uint8_t ep_addr)
 
 /*------------------------------------------------------------------*/
 
-// TODO: Split into "receive on endpoint 0" and "receive generic"; endpoint 0's
-// DOEPTSIZ register is smaller than the others, and so is insufficient for
-// determining how much of an OUT transfer is actually remaining.
-static void receive_packet(xfer_ctl_t * xfer, /* USB_OTG_OUTEndpointTypeDef * out_ep, */ uint16_t xfer_size) {
+// Read a single data packet from receive FIFO
+static void read_fifo_packet(uint8_t * dst, uint16_t len){
   usb_fifo_t rx_fifo = FIFO_BASE(0);
 
-  // See above TODO
-  // uint16_t remaining = (out_ep->DOEPTSIZ & USB_OTG_DOEPTSIZ_XFRSIZ_Msk) >> USB_OTG_DOEPTSIZ_XFRSIZ_Pos;
-  // xfer->queued_len = xfer->total_len - remaining;
-
-  uint16_t remaining = xfer->total_len - xfer->queued_len;
-  uint16_t to_recv_size;
-
-  if(remaining <= xfer->max_size) {
-    // Avoid buffer overflow.
-    to_recv_size = (xfer_size > remaining) ? remaining : xfer_size;
-  } else {
-    // Room for full packet, choose recv_size based on what the microcontroller
-    // claims.
-    to_recv_size = (xfer_size > xfer->max_size) ? xfer->max_size : xfer_size;
+  // Reading full available 32 bit words from fifo
+  uint16_t full_words = len >> 2;
+  for(uint16_t i = 0; i < full_words; i++) {
+    uint32_t tmp = *rx_fifo;
+    dst[0] = tmp & 0x000000FF;
+    dst[1] = (tmp & 0x0000FF00) >> 8;
+    dst[2] = (tmp & 0x00FF0000) >> 16;
+    dst[3] = (tmp & 0xFF000000) >> 24;
+    dst += 4;
   }
 
-  uint8_t to_recv_rem = to_recv_size % 4;
-  uint16_t to_recv_size_aligned = to_recv_size - to_recv_rem;
-
-  // Do not assume xfer buffer is aligned.
-  uint8_t * base = (xfer->buffer + xfer->queued_len);
-
-  // This for loop always runs at least once- skip if less than 4 bytes
-  // to collect.
-  if(to_recv_size >= 4) {
-    for(uint16_t i = 0; i < to_recv_size_aligned; i += 4) {
-      uint32_t tmp = (* rx_fifo);
-      base[i] = tmp & 0x000000FF;
-      base[i + 1] = (tmp & 0x0000FF00) >> 8;
-      base[i + 2] = (tmp & 0x00FF0000) >> 16;
-      base[i + 3] = (tmp & 0xFF000000) >> 24;
+  // Read the remaining 1-3 bytes from fifo
+  uint8_t bytes_rem = len & 0x03;
+  if(bytes_rem != 0) {
+    uint32_t tmp = *rx_fifo;
+    dst[0] = tmp & 0x000000FF;
+    if(bytes_rem > 1) {
+      dst[1] = (tmp & 0x0000FF00) >> 8;
+    }
+    if(bytes_rem > 2) {
+      dst[2] = (tmp & 0x00FF0000) >> 16;
     }
   }
-
-  // Do not read invalid bytes from RX FIFO.
-  if(to_recv_rem != 0) {
-    uint32_t tmp = (* rx_fifo);
-    uint8_t * last_32b_bound = base + to_recv_size_aligned;
-
-    last_32b_bound[0] = tmp & 0x000000FF;
-    if(to_recv_rem > 1) {
-      last_32b_bound[1] = (tmp & 0x0000FF00) >> 8;
-    }
-    if(to_recv_rem > 2) {
-      last_32b_bound[2] = (tmp & 0x00FF0000) >> 16;
-    }
-  }
-
-  xfer->queued_len += xfer_size;
-
-  // Per USB spec, a short OUT packet (including length 0) is always
-  // indicative of the end of a transfer (at least for ctl, bulk, int).
-  xfer->short_packet = (xfer_size < xfer->max_size);
 }
 
 // Write a single data packet to EPIN FIFO
@@ -564,11 +555,10 @@ static void write_fifo_packet(uint8_t fifo_num, uint8_t * src, uint16_t len){
   }
 }
 
-static void read_rx_fifo(USB_OTG_OUTEndpointTypeDef * out_ep) {
+static void handle_rxflvl_ints(USB_OTG_OUTEndpointTypeDef * out_ep) {
   usb_fifo_t rx_fifo = FIFO_BASE(0);
 
-  // Pop control word off FIFO (completed xfers will have 2 control words,
-  // we only pop one ctl word each interrupt).
+  // Pop control word off FIFO
   uint32_t ctl_word = USB_OTG_FS->GRXSTSP;
   uint8_t pktsts = (ctl_word & USB_OTG_GRXSTSP_PKTSTS_Msk) >> USB_OTG_GRXSTSP_PKTSTS_Pos;
   uint8_t epnum = (ctl_word &  USB_OTG_GRXSTSP_EPNUM_Msk) >>  USB_OTG_GRXSTSP_EPNUM_Pos;
@@ -580,7 +570,12 @@ static void read_rx_fifo(USB_OTG_OUTEndpointTypeDef * out_ep) {
     case 0x02: // Out packet recvd
       {
         xfer_ctl_t * xfer = XFER_CTL_BASE(epnum, TUSB_DIR_OUT);
-        receive_packet(xfer, bcnt);
+
+        // Read packet off RxFIFO
+        read_fifo_packet(xfer->buffer, bcnt);
+
+        // Increment pointer to xfer data
+        xfer->buffer += bcnt;
       }
       break;
     case 0x03: // Out packet done (Interrupt)
@@ -619,24 +614,16 @@ static void handle_epout_ints(USB_OTG_DeviceTypeDef * dev, USB_OTG_OUTEndpointTy
         _setup_offs = 0;
       }
 
-      // OUT XFER complete (single packet).
+      // OUT XFER complete
       if(out_ep[n].DOEPINT & USB_OTG_DOEPINT_XFRC) {
         out_ep[n].DOEPINT = USB_OTG_DOEPINT_XFRC;
 
-        // TODO: Because of endpoint 0's constrained size, we handle XFRC
-        // on a packet-basis. The core can internally handle multiple OUT
-        // packets; it would be more efficient to only trigger XFRC on a
-        // completed transfer for non-0 endpoints.
-
-        // Transfer complete if short packet or total len is transferred
-        if(xfer->short_packet || (xfer->queued_len == xfer->total_len)) {
-          xfer->short_packet = false;
-          dcd_event_xfer_complete(0, n, xfer->queued_len, XFER_RESULT_SUCCESS, true);
-        } else {
+        // EP0 can only handle one packet
+        if((n == 0) && ep0_pending[TUSB_DIR_OUT]) {
           // Schedule another packet to be received.
-          out_ep[n].DOEPTSIZ |= (1 << USB_OTG_DOEPTSIZ_PKTCNT_Pos) | \
-              ((xfer->max_size & USB_OTG_DOEPTSIZ_XFRSIZ_Msk) << USB_OTG_DOEPTSIZ_XFRSIZ_Pos);
-          out_ep[n].DOEPCTL |= USB_OTG_DOEPCTL_EPENA | USB_OTG_DOEPCTL_CNAK;
+          edpt_schedule_packets(n, TUSB_DIR_OUT, 1, ep0_pending[TUSB_DIR_OUT]);
+        } else {
+          dcd_event_xfer_complete(0, n, xfer->total_len, XFER_RESULT_SUCCESS, true);
         }
       }
     }
@@ -657,7 +644,14 @@ static void handle_epin_ints(USB_OTG_DeviceTypeDef * dev, USB_OTG_INEndpointType
       if ( in_ep[n].DIEPINT & USB_OTG_DIEPINT_XFRC )
       {
         in_ep[n].DIEPINT = USB_OTG_DIEPINT_XFRC;
-        dcd_event_xfer_complete(0, n | TUSB_DIR_IN_MASK, xfer->total_len, XFER_RESULT_SUCCESS, true);
+
+        // EP0 can only handle one packet
+        if((n == 0) && ep0_pending[TUSB_DIR_IN]) {
+          // Schedule another packet to be transmitted.
+          edpt_schedule_packets(n, TUSB_DIR_IN, 1, ep0_pending[TUSB_DIR_IN]);
+        } else {
+          dcd_event_xfer_complete(0, n | TUSB_DIR_IN_MASK, xfer->total_len, XFER_RESULT_SUCCESS, true);
+        }
       }
 
       // XFER FIFO empty
@@ -682,11 +676,11 @@ static void handle_epin_ints(USB_OTG_DeviceTypeDef * dev, USB_OTG_INEndpointType
             break;
           }
 
-          // TODO: queued_len can be removed later
-          xfer->queued_len = xfer->total_len - remaining_bytes;
-
           // Push packet to Tx-FIFO
-          write_fifo_packet(n, (xfer->buffer + xfer->queued_len), packet_size);
+          write_fifo_packet(n, xfer->buffer, packet_size);
+
+          // Increment pointer to xfer data
+          xfer->buffer += packet_size;
         }
 
         // Turn off TXFE if all bytes are written.
@@ -756,12 +750,19 @@ void dcd_int_handler(uint8_t rhport) {
   }
 #endif
 
+  // RxFIFO non-empty interrupt handling.
   if(int_status & USB_OTG_GINTSTS_RXFLVL) {
     // RXFLVL bit is read-only
 
     // Mask out RXFLVL while reading data from FIFO
     USB_OTG_FS->GINTMSK &= ~USB_OTG_GINTMSK_RXFLVLM;
-    read_rx_fifo(out_ep);
+
+    // Loop until all available packets were handled
+    do {
+      handle_rxflvl_ints(out_ep);
+      int_status = USB_OTG_FS->GINTSTS;
+    } while(int_status & USB_OTG_GINTSTS_RXFLVL);
+
     USB_OTG_FS->GINTMSK |= USB_OTG_GINTMSK_RXFLVLM;
   }
 
