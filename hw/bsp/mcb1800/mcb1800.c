@@ -43,11 +43,11 @@ void USB0_IRQHandler(void)
 
 void USB1_IRQHandler(void)
 {
-  #if CFG_TUSB_RHPORT0_MODE & (OPT_MODE_HOST << 8)
+  #if CFG_TUSB_RHPORT1_MODE & OPT_MODE_HOST
     tuh_isr(1);
   #endif
 
-  #if CFG_TUSB_RHPORT0_MODE & (OPT_MODE_DEVICE << 8)
+  #if CFG_TUSB_RHPORT1_MODE & OPT_MODE_DEVICE
     tud_int_handler(1);
   #endif
 }
@@ -163,7 +163,7 @@ void board_init(void)
   };
 
   // USB0
-#if CFG_TUSB_RHPORT0_MODE & (OPT_MODE_DEVICE | OPT_MODE_HOST)
+#if CFG_TUSB_RHPORT0_MODE
   Chip_USB0_Init();
 
 //  // Reset controller
@@ -180,7 +180,7 @@ void board_init(void)
 #endif
 
   // USB1
-#if CFG_TUSB_RHPORT0_MODE & ((OPT_MODE_DEVICE | OPT_MODE_HOST) << 8)
+#if CFG_TUSB_RHPORT1_MODE
   Chip_USB1_Init();
 
 //  // Reset controller

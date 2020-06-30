@@ -134,11 +134,11 @@ void USB_OTG1_IRQHandler(void)
 
 void USB_OTG2_IRQHandler(void)
 {
-  #if CFG_TUSB_RHPORT0_MODE & (OPT_MODE_HOST << 8)
+  #if CFG_TUSB_RHPORT0_MODE & OPT_MODE_HOST
     tuh_isr(1);
   #endif
 
-  #if CFG_TUSB_RHPORT0_MODE & (OPT_MODE_DEVICE << 8)
+  #if CFG_TUSB_RHPORT1_MODE & OPT_MODE_DEVICE
     tud_int_handler(1);
   #endif
 }
