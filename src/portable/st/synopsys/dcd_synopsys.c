@@ -576,6 +576,15 @@ static void handle_rxflvl_ints(USB_OTG_OUTEndpointTypeDef * out_ep) {
 
         // Increment pointer to xfer data
         xfer->buffer += bcnt;
+
+        // Truncate transfer length in case of short packet
+        if(bcnt < xfer->max_size) {
+          xfer->total_len -= (out_ep[epnum].DOEPTSIZ & USB_OTG_DOEPTSIZ_XFRSIZ_Msk) >> USB_OTG_DOEPTSIZ_XFRSIZ_Pos;
+          if(epnum == 0) {
+            xfer->total_len -= ep0_pending[TUSB_DIR_OUT];
+            ep0_pending[TUSB_DIR_OUT] = 0;
+          }
+        }
       }
       break;
     case 0x03: // Out packet done (Interrupt)
