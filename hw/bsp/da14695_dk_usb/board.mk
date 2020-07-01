@@ -37,7 +37,7 @@ CHIP_FAMILY = da146xx
 FREERTOS_PORT = ARM_CM33_NTZ/non_secure
 
 # For flash-jlink target
-JLINK_DEVICE = DA14699
+JLINK_DEVICE = DA14695
 JLINK_IF = swd
 
 # flash using jlink but with some twists
