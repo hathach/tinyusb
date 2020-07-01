@@ -255,8 +255,33 @@ static void set_turnaround(USB_OTG_GlobalTypeDef * usb_otg, tusb_speed_t speed)
   }
   else
   {
+    // Turnaround timeout depends on the MCU clock
+    extern uint32_t SystemCoreClock;
+    uint32_t turnaround;
+
+    if ( SystemCoreClock >= 32000000U )
+      turnaround = 0x6U;
+    else if ( SystemCoreClock >= 27500000U )
+      turnaround = 0x7U;
+    else if ( SystemCoreClock >= 24000000U )
+      turnaround = 0x8U;
+    else if ( SystemCoreClock >= 21800000U )
+      turnaround = 0x9U;
+    else if ( SystemCoreClock >= 20000000U )
+      turnaround = 0xAU;
+    else if ( SystemCoreClock >= 18500000U )
+      turnaround = 0xBU;
+    else if ( SystemCoreClock >= 17200000U )
+      turnaround = 0xCU;
+    else if ( SystemCoreClock >= 16000000U )
+      turnaround = 0xDU;
+    else if ( SystemCoreClock >= 15000000U )
+      turnaround = 0xEU;
+    else
+      turnaround = 0xFU;
+
     // Fullspeed depends on MCU clocks, but we will use 0x06 for 32+ Mhz
-    usb_otg->GUSBCFG |= (0x06 << USB_OTG_GUSBCFG_TRDT_Pos);
+    usb_otg->GUSBCFG |= (turnaround << USB_OTG_GUSBCFG_TRDT_Pos);
   }
 }
 
