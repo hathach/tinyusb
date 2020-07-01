@@ -243,7 +243,7 @@ static void bus_reset(uint8_t rhport)
   usb_otg->GINTMSK |= USB_OTG_GINTMSK_OEPINT | USB_OTG_GINTMSK_IEPINT;
 }
 
-// speed is native DCD speed
+// Set turn-around timeout according to link speed
 static void set_turnaround(USB_OTG_GlobalTypeDef * usb_otg, tusb_speed_t speed)
 {
   usb_otg->GUSBCFG &= ~USB_OTG_GUSBCFG_TRDT;
@@ -368,47 +368,40 @@ void dcd_init (uint8_t rhport)
 #if TUD_OPT_HIGH_SPEED   // TODO may pass parameter instead of using macro for HighSpeed
   if ( rhport == 1 )
   {
+    // On selected MCUs HS port1 can be used with external PHY via ULPI interface
+
     // deactivate internal PHY
     usb_otg->GCCFG &= ~USB_OTG_GCCFG_PWRDWN;
 
-    // TODO may pass parameter instead of using macro for HighSpeed
-#if defined(USB_HS_PHYC)
-    // Highspeed with embedded UTMI PHYC
     // Init The UTMI Interface
-    usb_otg->GUSBCFG &= ~(USB_OTG_GUSBCFG_TSDPS | USB_OTG_GUSBCFG_ULPIFSLS | USB_OTG_GUSBCFG_PHYSEL);
-
-    // Select vbus source
-    usb_otg->GUSBCFG &= ~(USB_OTG_GUSBCFG_ULPIEVBUSD | USB_OTG_GUSBCFG_ULPIEVBUSI);
-
-    // Select UTMI Interace
-    usb_otg->GUSBCFG &= ~USB_OTG_GUSBCFG_ULPI_UTMI_SEL;
-    usb_otg->GCCFG |= USB_OTG_GCCFG_PHYHSEN;
-
-    //Enables control of a High Speed USB PHY
-    USB_HS_PHYCInit();
-
-    // Disable external VBUS detection
-    usb_otg->GUSBCFG &= ~USB_OTG_GUSBCFG_ULPIEVBUSD;
-
-# else// On selected MCUs HS port1 can be used with external PHY via ULPI interface
-    // Highspeed with external ULPI PHY
-
-    // Init ULPI Interface
     usb_otg->GUSBCFG &= ~(USB_OTG_GUSBCFG_TSDPS | USB_OTG_GUSBCFG_ULPIFSLS | USB_OTG_GUSBCFG_PHYSEL);
 
     // Select default internal VBUS Indicator and Drive for ULPI
     usb_otg->GUSBCFG &= ~(USB_OTG_GUSBCFG_ULPIEVBUSD | USB_OTG_GUSBCFG_ULPIEVBUSI);
 
+#if defined(USB_HS_PHYC)
+    // Highspeed with embedded UTMI PHYC
+
+    // Select UTMI Interface
+    usb_otg->GUSBCFG &= ~USB_OTG_GUSBCFG_ULPI_UTMI_SEL;
+    usb_otg->GCCFG |= USB_OTG_GCCFG_PHYHSEN;
+
+    // Enables control of a High Speed USB PHY
+    USB_HS_PHYCInit();
+
+    // Disable external VBUS detection
+    usb_otg->GUSBCFG &= ~USB_OTG_GUSBCFG_ULPIEVBUSD;
+#endif
+
+    // Highspeed with external ULPI PHY
     set_turnaround(usb_otg, TUSB_SPEED_HIGH);
-# endif
-  }
-  else
+  } else
 #endif
   {
-    set_turnaround(usb_otg, TUSB_SPEED_FULL);
-
     // Enable internal PHY
     usb_otg->GUSBCFG |= USB_OTG_GUSBCFG_PHYSEL;
+
+    set_turnaround(usb_otg, TUSB_SPEED_FULL);
   }
 
   // Reset core after selecting PHY
@@ -434,20 +427,17 @@ void dcd_init (uint8_t rhport)
   // (non zero-length packet), send STALL back and discard.
   dev->DCFG |=  USB_OTG_DCFG_NZLSOHSK;
 
-#if TUD_OPT_HIGH_SPEED
+  // Clear speed bits
+  dev->DCFG &= ~(3 << USB_OTG_DCFG_DSPD_Pos);
+
   if ( rhport == 1 )
   {
-    // high speed = 0x00
-    dev->DCFG &= ~(3 << USB_OTG_DCFG_DSPD_Pos);
-
-    // Transceiver delay, necessary for some ULPI PHYs
-    //dev->DCFG |= (1 << 14);
+    if ( !TUD_OPT_HIGH_SPEED ) dev->DCFG |= ((TUD_OPT_HIGH_SPEED ? DCD_HIGH_SPEED : DCD_FULL_SPEED_USE_HS) << USB_OTG_DCFG_DSPD_Pos);
   }
   else
-#endif
   {
-    // full speed with internal PHY
-    dev->DCFG |= (3 << USB_OTG_DCFG_DSPD_Pos);
+    // full speed = 0x03
+    dev->DCFG |= (DCD_FULL_SPEED << USB_OTG_DCFG_DSPD_Pos);
 
     // Enable internal USB transceiver.
     usb_otg->GCCFG |= USB_OTG_GCCFG_PWRDWN;
