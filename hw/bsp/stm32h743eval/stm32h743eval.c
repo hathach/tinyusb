@@ -61,6 +61,7 @@ void OTG_HS_IRQHandler(void)
 #define BUTTON_PIN            GPIO_PIN_13
 #define BUTTON_STATE_ACTIVE   0
 
+// Need to change jumper setting J7 and J8 from RS-232 to STLink
 #define UARTx                 USART1
 #define UART_GPIO_PORT        GPIOB
 #define UART_GPIO_AF          GPIO_AF4_USART1
@@ -74,8 +75,8 @@ static void all_rcc_clk_enable(void)
 {
   __HAL_RCC_GPIOA_CLK_ENABLE();  // LED
   __HAL_RCC_GPIOC_CLK_ENABLE();  // Button
-//  __HAL_RCC_GPIOB_CLK_ENABLE();  // Uart tx, rx
-//  __HAL_RCC_USART1_CLK_ENABLE(); // Uart module
+  __HAL_RCC_GPIOB_CLK_ENABLE();  // Uart tx, rx
+  __HAL_RCC_USART1_CLK_ENABLE(); // Uart module
 }
 
 /* PWR, RCC, GPIO (All): AHB4 (D3 domain)
@@ -197,20 +198,19 @@ void board_init(void)
   GPIO_InitTypeDef  GPIO_InitStruct;
 
   // LED
-  GPIO_InitStruct.Pin = LED_PIN;
-  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
-  GPIO_InitStruct.Pull = GPIO_PULLUP;
+  GPIO_InitStruct.Pin   = LED_PIN;
+  GPIO_InitStruct.Mode  = GPIO_MODE_OUTPUT_PP;
+  GPIO_InitStruct.Pull  = GPIO_PULLUP;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_HIGH;
   HAL_GPIO_Init(LED_PORT, &GPIO_InitStruct);
 
   // Button
-  GPIO_InitStruct.Pin = BUTTON_PIN;
-  GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
-  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Pin   = BUTTON_PIN;
+  GPIO_InitStruct.Mode  = GPIO_MODE_INPUT;
+  GPIO_InitStruct.Pull  = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_HIGH;
   HAL_GPIO_Init(BUTTON_PORT, &GPIO_InitStruct);
 
-#if 0
   // Uart
   GPIO_InitStruct.Pin       = UART_TX_PIN | UART_RX_PIN;
   GPIO_InitStruct.Mode      = GPIO_MODE_AF_PP;
@@ -228,7 +228,6 @@ void board_init(void)
   UartHandle.Init.Mode       = UART_MODE_TX_RX;
   UartHandle.Init.OverSampling = UART_OVERSAMPLING_16;
   HAL_UART_Init(&UartHandle);
-#endif
 
 #if BOARD_DEVICE_RHPORT_NUM == 0
   // Despite being call USB2_OTG
@@ -365,8 +364,7 @@ int board_uart_read(uint8_t* buf, int len)
 
 int board_uart_write(void const * buf, int len)
 {
-  (void) buf; (void) len;
-//  HAL_UART_Transmit(&UartHandle, (uint8_t*) buf, len, 0xffff);
+  HAL_UART_Transmit(&UartHandle, (uint8_t*) buf, len, 0xffff);
   return len;
 }
 
