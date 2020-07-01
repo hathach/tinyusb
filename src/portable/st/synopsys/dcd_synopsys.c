@@ -417,16 +417,11 @@ void dcd_init (uint8_t rhport)
     // Disable external VBUS detection
     usb_otg->GUSBCFG &= ~USB_OTG_GUSBCFG_ULPIEVBUSD;
 #endif
-
-    // Highspeed with external ULPI PHY
-    set_turnaround(usb_otg, TUSB_SPEED_HIGH);
   } else
 #endif
   {
     // Enable internal PHY
     usb_otg->GUSBCFG |= USB_OTG_GUSBCFG_PHYSEL;
-
-    set_turnaround(usb_otg, TUSB_SPEED_FULL);
   }
 
   // Reset core after selecting PHY
@@ -457,7 +452,7 @@ void dcd_init (uint8_t rhport)
 
   if ( rhport == 1 )
   {
-    if ( !TUD_OPT_HIGH_SPEED ) dev->DCFG |= ((TUD_OPT_HIGH_SPEED ? DCD_HIGH_SPEED : DCD_FULL_SPEED_USE_HS) << USB_OTG_DCFG_DSPD_Pos);
+    dev->DCFG |= ((TUD_OPT_HIGH_SPEED ? DCD_HIGH_SPEED : DCD_FULL_SPEED_USE_HS) << USB_OTG_DCFG_DSPD_Pos);
   }
   else
   {
