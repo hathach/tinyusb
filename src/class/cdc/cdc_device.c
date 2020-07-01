@@ -364,7 +364,7 @@ bool cdcd_control_request(uint8_t rhport, tusb_control_request_t const * request
       tud_control_status(rhport, request);
 
       // Invoke callback
-      if ( tud_cdc_line_state_cb) tud_cdc_line_state_cb(itf, dtr, rts);
+      if ( tud_cdc_line_state_cb ) tud_cdc_line_state_cb(itf, dtr, rts);
     }
     break;
 
