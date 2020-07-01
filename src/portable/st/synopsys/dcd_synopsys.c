@@ -27,7 +27,6 @@
  */
 
 #include "tusb_option.h"
-#include "../../../../hw/bsp//board.h"
 
 #if defined (STM32F105x8) || defined (STM32F105xB) || defined (STM32F105xC) || \
     defined (STM32F107xB) || defined (STM32F107xC)
@@ -374,7 +373,12 @@ static bool USB_HS_PHYCInit(void)
     // Enable PLL internal PHY
     usb_hs_phyc->USB_HS_PHYC_PLL = phyc_pll | USB_HS_PHYC_PLL_PLLEN;
 
-    board_delay(2);
+    /* Original ST code has 2 ms delay for PLL stabilization.
+     * Primitive test shows that more than 10 USB un/replug cycle
+     * showed no error with enumeration
+     * //#include "../../../../hw/bsp//board.h"
+     * //board_delay(2);
+     */
     return true;
 }
 # endif
