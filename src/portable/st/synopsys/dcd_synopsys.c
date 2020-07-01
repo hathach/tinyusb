@@ -147,12 +147,13 @@ typedef struct {
 typedef volatile uint32_t * usb_fifo_t;
 
 #if TUD_OPT_RHPORT == 1
-# define EP_MAX EP_MAX_HS
-# define EP_FIFO_SIZE EP_FIFO_SIZE_HS
+  #define EP_MAX        EP_MAX_HS
+  #define EP_FIFO_SIZE  EP_FIFO_SIZE_HS
 #else
-# define EP_MAX EP_MAX_FS
-# define EP_FIFO_SIZE EP_FIFO_SIZE_FS
+  #define EP_MAX        EP_MAX_FS
+  #define EP_FIFO_SIZE  EP_FIFO_SIZE_FS
 #endif
+
 xfer_ctl_t xfer_status[EP_MAX][2];
 #define XFER_CTL_BASE(_ep, _dir) &xfer_status[_ep][_dir]
 
@@ -325,63 +326,44 @@ static void edpt_schedule_packets(uint8_t rhport, uint8_t const epnum, uint8_t c
 }
 
 
-# if defined(USB_HS_PHYC) && TUD_OPT_HIGH_SPEED
+#if defined(USB_HS_PHYC) && TUD_OPT_HIGH_SPEED
 static bool USB_HS_PHYCInit(void)
 {
-    USB_HS_PHYC_GlobalTypeDef *usb_hs_phyc = (USB_HS_PHYC_GlobalTypeDef *)USB_HS_PHYC_CONTROLLER_BASE;
-    // Enable LDO
-    usb_hs_phyc->USB_HS_PHYC_LDO |= USB_HS_PHYC_LDO_ENABLE;
-    int32_t count = 2000000;
-    while(1) {
-        if (usb_hs_phyc->USB_HS_PHYC_LDO & USB_HS_PHYC_LDO_STATUS)
-            break;
-        TU_ASSERT(count > 0);
-    }
-    uint32_t  phyc_pll = 0;
-    switch (HSE_VALUE) {
-    case 12000000:
-        phyc_pll = USB_HS_PHYC_PLL1_PLLSEL_12MHZ;
-        break;
-    case 12500000:
-        phyc_pll = USB_HS_PHYC_PLL1_PLLSEL_12_5MHZ;
-        break;
-    case 16000000:
-        phyc_pll = USB_HS_PHYC_PLL1_PLLSEL_16MHZ;
-        break;
-    case 24000000:
-        phyc_pll = USB_HS_PHYC_PLL1_PLLSEL_24MHZ;
-        break;
-    case 25000000:
-        phyc_pll = USB_HS_PHYC_PLL1_PLLSEL_25MHZ;
-        break;
-    case 32000000:
-        // Value not defined in header
-        phyc_pll =   USB_HS_PHYC_PLL1_PLLSEL_Msk;
-        break;
+  USB_HS_PHYC_GlobalTypeDef *usb_hs_phyc = (USB_HS_PHYC_GlobalTypeDef*) USB_HS_PHYC_CONTROLLER_BASE;
+
+  // Enable LDO
+  usb_hs_phyc->USB_HS_PHYC_LDO |= USB_HS_PHYC_LDO_ENABLE;
+
+  // Wait until LDO ready
+  while ( 0 == (usb_hs_phyc->USB_HS_PHYC_LDO & USB_HS_PHYC_LDO_STATUS) ) {}
+
+  uint32_t phyc_pll = 0;
+  switch ( HSE_VALUE )
+  {
+    case 12000000: phyc_pll = USB_HS_PHYC_PLL1_PLLSEL_12MHZ   ; break;
+    case 12500000: phyc_pll = USB_HS_PHYC_PLL1_PLLSEL_12_5MHZ ; break;
+    case 16000000: phyc_pll = USB_HS_PHYC_PLL1_PLLSEL_16MHZ   ; break;
+    case 24000000: phyc_pll = USB_HS_PHYC_PLL1_PLLSEL_24MHZ   ; break;
+    case 25000000: phyc_pll = USB_HS_PHYC_PLL1_PLLSEL_25MHZ   ; break;
+    case 32000000: phyc_pll = USB_HS_PHYC_PLL1_PLLSEL_Msk     ; break; // Value not defined in header
     default:
-        TU_ASSERT(0);
-    }
-    usb_hs_phyc->USB_HS_PHYC_PLL = phyc_pll;
+      TU_ASSERT(0);
+  }
+  usb_hs_phyc->USB_HS_PHYC_PLL = phyc_pll;
 
-    // Use magic value as in stm32f7xx_ll_usb.
-#  if !defined  (USB_HS_PHYC_TUNE_VALUE)
-#  define USB_HS_PHYC_TUNE_VALUE    0x00000F13U /*!< Value of USB HS PHY Tune */
-#  endif /* USB_HS_PHYC_TUNE_VALUE */
-    // Control the tuning interface of the High Speed PHY */
-    usb_hs_phyc->USB_HS_PHYC_TUNE |= USB_HS_PHYC_TUNE_VALUE;
+  // Control the tuning interface of the High Speed PHY
+  // Use magic value from ST driver
+  usb_hs_phyc->USB_HS_PHYC_TUNE |= 0x00000F13U;
 
-    // Enable PLL internal PHY
-    usb_hs_phyc->USB_HS_PHYC_PLL = phyc_pll | USB_HS_PHYC_PLL_PLLEN;
+  // Enable PLL internal PHY
+  usb_hs_phyc->USB_HS_PHYC_PLL |= USB_HS_PHYC_PLL_PLLEN;
 
-    /* Original ST code has 2 ms delay for PLL stabilization.
-     * Primitive test shows that more than 10 USB un/replug cycle
-     * showed no error with enumeration
-     * //#include "../../../../hw/bsp//board.h"
-     * //board_delay(2);
-     */
-    return true;
+  // Original ST code has 2 ms delay for PLL stabilization.
+  // Primitive test shows that more than 10 USB un/replug cycle showed no error with enumeration
+
+  return true;
 }
-# endif
+#endif
 
 /*------------------------------------------------------------------*/
 /* Controller API
@@ -417,9 +399,6 @@ void dcd_init (uint8_t rhport)
 
     // Enables control of a High Speed USB PHY
     USB_HS_PHYCInit();
-
-    // Disable external VBUS detection
-    usb_otg->GUSBCFG &= ~USB_OTG_GUSBCFG_ULPIEVBUSD;
 #endif
   } else
 #endif
