@@ -90,11 +90,12 @@ MIT license for all TinyUSB sources `src` folder, [Full license is here](LICENSE
 
 TinyUSB is currently used by these other projects:
 
-* [Adafruit nRF52 Arduino](https://github.com/adafruit/Adafruit_nRF52_Arduino)
-* [Adafruit nRF52 Bootloader](https://github.com/adafruit/Adafruit_nRF52_Bootloader)
-* [Adafruit SAMD Arduino](https://github.com/adafruit/ArduinoCore-samd)
-* [CircuitPython](https://github.com/adafruit/circuitpython)
-* [MicroPython](https://github.com/micropython/micropython)
-* [TinyUSB Arduino Library](https://github.com/adafruit/Adafruit_TinyUSB_Arduino)
+- [Adafruit nRF52 Arduino](https://github.com/adafruit/Adafruit_nRF52_Arduino)
+- [Adafruit nRF52 Bootloader](https://github.com/adafruit/Adafruit_nRF52_Bootloader)
+- [Adafruit SAMD Arduino](https://github.com/adafruit/ArduinoCore-samd)
+- [CircuitPython](https://github.com/adafruit/circuitpython)
+- [MicroPython](https://github.com/micropython/micropython)
+- [mynewt](https://mynewt.apache.org)
+- [TinyUSB Arduino Library](https://github.com/adafruit/Adafruit_TinyUSB_Arduino)
 
 Let me know if your project also uses TinyUSB and want to share.
