@@ -312,7 +312,8 @@ static void set_speed(uint8_t rhport, tusb_speed_t speed)
   dev->DCFG |= (bitvalue << USB_OTG_DCFG_DSPD_Pos);
 }
 
-#if defined(USB_HS_PHYC) && TUD_OPT_HIGH_SPEED
+
+#if defined(USB_HS_PHYC)
 static bool USB_HS_PHYCInit(void)
 {
   USB_HS_PHYC_GlobalTypeDef *usb_hs_phyc = (USB_HS_PHYC_GlobalTypeDef*) USB_HS_PHYC_CONTROLLER_BASE;
@@ -398,7 +399,6 @@ void dcd_init (uint8_t rhport)
   USB_OTG_GlobalTypeDef * usb_otg = GLOBAL_BASE(rhport);
 
   // No HNP/SRP (no OTG support), program timeout later.
-#if TUD_OPT_HIGH_SPEED   // TODO may pass parameter instead of using macro for HighSpeed
   if ( rhport == 1 )
   {
     // On selected MCUs HS port1 can be used with external PHY via ULPI interface
@@ -421,10 +421,8 @@ void dcd_init (uint8_t rhport)
 
     // Enables control of a High Speed USB PHY
     USB_HS_PHYCInit();
-    #endif
-  }
-  else
 #endif
+  } else
   {
     // Enable internal PHY
     usb_otg->GUSBCFG |= USB_OTG_GUSBCFG_PHYSEL;
