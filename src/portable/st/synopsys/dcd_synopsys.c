@@ -285,11 +285,73 @@ static void set_turnaround(USB_OTG_GlobalTypeDef * usb_otg, tusb_speed_t speed)
   }
 }
 
-static tusb_speed_t get_speed(USB_OTG_DeviceTypeDef* dev)
+static tusb_speed_t get_speed(uint8_t rhport)
 {
+  USB_OTG_DeviceTypeDef * dev = DEVICE_BASE(rhport);
   uint32_t const enum_spd = (dev->DSTS & USB_OTG_DSTS_ENUMSPD_Msk) >> USB_OTG_DSTS_ENUMSPD_Pos;
   return (enum_spd == DCD_HIGH_SPEED) ? TUSB_SPEED_HIGH : TUSB_SPEED_FULL;
 }
+
+static void set_speed(uint8_t rhport, tusb_speed_t speed)
+{
+  uint32_t bitvalue;
+
+  if ( rhport == 1 )
+  {
+    bitvalue = ((TUSB_SPEED_HIGH == speed) ? DCD_HIGH_SPEED : DCD_FULL_SPEED_USE_HS);
+  }
+  else
+  {
+    bitvalue = DCD_FULL_SPEED;
+  }
+
+  USB_OTG_DeviceTypeDef * dev = DEVICE_BASE(rhport);
+
+  // Clear and set speed bits
+  dev->DCFG &= ~(3 << USB_OTG_DCFG_DSPD_Pos);
+  dev->DCFG |= (bitvalue << USB_OTG_DCFG_DSPD_Pos);
+}
+
+#if defined(USB_HS_PHYC) && TUD_OPT_HIGH_SPEED
+static bool USB_HS_PHYCInit(void)
+{
+  USB_HS_PHYC_GlobalTypeDef *usb_hs_phyc = (USB_HS_PHYC_GlobalTypeDef*) USB_HS_PHYC_CONTROLLER_BASE;
+
+  // Enable LDO
+  usb_hs_phyc->USB_HS_PHYC_LDO |= USB_HS_PHYC_LDO_ENABLE;
+
+  // Wait until LDO ready
+  while ( 0 == (usb_hs_phyc->USB_HS_PHYC_LDO & USB_HS_PHYC_LDO_STATUS) ) {}
+
+  uint32_t phyc_pll = 0;
+
+  // TODO Try to get HSE_VALUE from registers instead of depending CFLAGS
+  switch ( HSE_VALUE )
+  {
+    case 12000000: phyc_pll = USB_HS_PHYC_PLL1_PLLSEL_12MHZ   ; break;
+    case 12500000: phyc_pll = USB_HS_PHYC_PLL1_PLLSEL_12_5MHZ ; break;
+    case 16000000: phyc_pll = USB_HS_PHYC_PLL1_PLLSEL_16MHZ   ; break;
+    case 24000000: phyc_pll = USB_HS_PHYC_PLL1_PLLSEL_24MHZ   ; break;
+    case 25000000: phyc_pll = USB_HS_PHYC_PLL1_PLLSEL_25MHZ   ; break;
+    case 32000000: phyc_pll = USB_HS_PHYC_PLL1_PLLSEL_Msk     ; break; // Value not defined in header
+    default:
+      TU_ASSERT(0);
+  }
+  usb_hs_phyc->USB_HS_PHYC_PLL = phyc_pll;
+
+  // Control the tuning interface of the High Speed PHY
+  // Use magic value from ST driver
+  usb_hs_phyc->USB_HS_PHYC_TUNE |= 0x00000F13U;
+
+  // Enable PLL internal PHY
+  usb_hs_phyc->USB_HS_PHYC_PLL |= USB_HS_PHYC_PLL_PLLEN;
+
+  // Original ST code has 2 ms delay for PLL stabilization.
+  // Primitive test shows that more than 10 USB un/replug cycle showed no error with enumeration
+
+  return true;
+}
+#endif
 
 static void edpt_schedule_packets(uint8_t rhport, uint8_t const epnum, uint8_t const dir, uint16_t const num_packets, uint16_t total_bytes) {
   USB_OTG_DeviceTypeDef * dev = DEVICE_BASE(rhport);
@@ -324,46 +386,6 @@ static void edpt_schedule_packets(uint8_t rhport, uint8_t const epnum, uint8_t c
     out_ep[epnum].DOEPCTL |= USB_OTG_DOEPCTL_EPENA | USB_OTG_DOEPCTL_CNAK;
   }
 }
-
-
-#if defined(USB_HS_PHYC) && TUD_OPT_HIGH_SPEED
-static bool USB_HS_PHYCInit(void)
-{
-  USB_HS_PHYC_GlobalTypeDef *usb_hs_phyc = (USB_HS_PHYC_GlobalTypeDef*) USB_HS_PHYC_CONTROLLER_BASE;
-
-  // Enable LDO
-  usb_hs_phyc->USB_HS_PHYC_LDO |= USB_HS_PHYC_LDO_ENABLE;
-
-  // Wait until LDO ready
-  while ( 0 == (usb_hs_phyc->USB_HS_PHYC_LDO & USB_HS_PHYC_LDO_STATUS) ) {}
-
-  uint32_t phyc_pll = 0;
-  switch ( HSE_VALUE )
-  {
-    case 12000000: phyc_pll = USB_HS_PHYC_PLL1_PLLSEL_12MHZ   ; break;
-    case 12500000: phyc_pll = USB_HS_PHYC_PLL1_PLLSEL_12_5MHZ ; break;
-    case 16000000: phyc_pll = USB_HS_PHYC_PLL1_PLLSEL_16MHZ   ; break;
-    case 24000000: phyc_pll = USB_HS_PHYC_PLL1_PLLSEL_24MHZ   ; break;
-    case 25000000: phyc_pll = USB_HS_PHYC_PLL1_PLLSEL_25MHZ   ; break;
-    case 32000000: phyc_pll = USB_HS_PHYC_PLL1_PLLSEL_Msk     ; break; // Value not defined in header
-    default:
-      TU_ASSERT(0);
-  }
-  usb_hs_phyc->USB_HS_PHYC_PLL = phyc_pll;
-
-  // Control the tuning interface of the High Speed PHY
-  // Use magic value from ST driver
-  usb_hs_phyc->USB_HS_PHYC_TUNE |= 0x00000F13U;
-
-  // Enable PLL internal PHY
-  usb_hs_phyc->USB_HS_PHYC_PLL |= USB_HS_PHYC_PLL_PLLEN;
-
-  // Original ST code has 2 ms delay for PLL stabilization.
-  // Primitive test shows that more than 10 USB un/replug cycle showed no error with enumeration
-
-  return true;
-}
-#endif
 
 /*------------------------------------------------------------------*/
 /* Controller API
@@ -431,21 +453,10 @@ void dcd_init (uint8_t rhport)
   // (non zero-length packet), send STALL back and discard.
   dev->DCFG |=  USB_OTG_DCFG_NZLSOHSK;
 
-  // Clear speed bits
-  dev->DCFG &= ~(3 << USB_OTG_DCFG_DSPD_Pos);
+  set_speed(rhport, TUD_OPT_HIGH_SPEED ? TUSB_SPEED_HIGH : TUSB_SPEED_FULL);
 
-  if ( rhport == 1 )
-  {
-    dev->DCFG |= ((TUD_OPT_HIGH_SPEED ? DCD_HIGH_SPEED : DCD_FULL_SPEED_USE_HS) << USB_OTG_DCFG_DSPD_Pos);
-  }
-  else
-  {
-    // full speed = 0x03
-    dev->DCFG |= (DCD_FULL_SPEED << USB_OTG_DCFG_DSPD_Pos);
-
-    // Enable internal USB transceiver.
-    usb_otg->GCCFG |= USB_OTG_GCCFG_PWRDWN;
-  }
+  // Enable internal USB transceiver.
+  if ( rhport == 0 ) usb_otg->GCCFG |= USB_OTG_GCCFG_PWRDWN;
 
   usb_otg->GINTMSK |= USB_OTG_GINTMSK_USBRST   | USB_OTG_GINTMSK_ENUMDNEM |
                       USB_OTG_GINTMSK_USBSUSPM | USB_OTG_GINTMSK_WUIM     |
@@ -511,7 +522,7 @@ bool dcd_edpt_open (uint8_t rhport, tusb_desc_endpoint_t const * desc_edpt)
   TU_ASSERT(epnum < EP_MAX);
 
   // TODO ISO endpoint can be up to 1024 bytes
-  TU_ASSERT(desc_edpt->wMaxPacketSize.size <= (get_speed(dev) == TUSB_SPEED_HIGH ? 512 : 64));
+  TU_ASSERT(desc_edpt->wMaxPacketSize.size <= (get_speed(rhport) == TUSB_SPEED_HIGH ? 512 : 64));
 
   xfer_ctl_t * xfer = XFER_CTL_BASE(epnum, dir);
   xfer->max_size = desc_edpt->wMaxPacketSize.size;
@@ -574,9 +585,6 @@ bool dcd_edpt_open (uint8_t rhport, tusb_desc_endpoint_t const * desc_edpt)
     usb_otg->DIEPTXF[epnum - 1] = (fifo_size << USB_OTG_DIEPTXF_INEPTXFD_Pos) | _allocated_fifo_words;
 
     _allocated_fifo_words += fifo_size;
-
-    //TU_LOG2_INT(fifo_size);
-    //TU_LOG2_INT(_allocated_fifo_words);
 
     in_ep[epnum].DIEPCTL |= (1 << USB_OTG_DIEPCTL_USBAEP_Pos) |
                             (epnum << USB_OTG_DIEPCTL_TXFNUM_Pos) |
@@ -925,7 +933,7 @@ void dcd_int_handler(uint8_t rhport)
 
     usb_otg->GINTSTS = USB_OTG_GINTSTS_ENUMDNE;
 
-    tusb_speed_t const speed = get_speed(dev);
+    tusb_speed_t const speed = get_speed(rhport);
 
     set_turnaround(usb_otg, speed);
     dcd_event_bus_reset(rhport, speed, true);

@@ -85,6 +85,7 @@ This code base already had supported for a handful of following boards (sorted a
 
 - [Adafruit Feather STM32F405](https://www.adafruit.com/product/4382)
 - [Micro Python PyBoard v1.1](https://store.micropython.org/product/PYBv1.1)
+- [STLink-V3 Mini](https://www.st.com/en/development-tools/stlink-v3mini.html)
 - [STM32 L035c8 Discovery](https://www.st.com/en/evaluation-tools/32l0538discovery.html)
 - [STM32 F070rb Nucleo](https://www.st.com/en/evaluation-tools/nucleo-f070rb.html)
 - [STM32 F072rb Discovery](https://www.st.com/en/evaluation-tools/32f072bdiscovery.html)
@@ -96,9 +97,13 @@ This code base already had supported for a handful of following boards (sorted a
 - STM32 F411ce Black Pill
 - [STM32 F411ve Discovery](https://www.st.com/en/evaluation-tools/32f411ediscovery.html)
 - [STM32 F412zg Discovery](https://www.st.com/en/evaluation-tools/32f412gdiscovery.html)
+- [STM32 F723e Discovery](https://www.st.com/en/evaluation-tools/32f723ediscovery.html)
 - [STM32 F746zg Nucleo](https://www.st.com/en/evaluation-tools/nucleo-f746zg.html)
+- [STM32 F746g Discovery](https://www.st.com/en/evaluation-tools/32f746gdiscovery.html)
 - [STM32 F767zi Nucleo](https://www.st.com/en/evaluation-tools/nucleo-f767zi.html)
+- [STM32 F769i Discovery](https://www.st.com/en/evaluation-tools/32f769idiscovery.html)
 - [STM32 H743zi Nucleo](https://www.st.com/en/evaluation-tools/nucleo-h743zi.html)
+- [STM32 H743i Evaluation](https://www.st.com/en/evaluation-tools/stm32h743i-eval.html)
 
 ### TI
 
