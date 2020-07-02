@@ -340,7 +340,7 @@ static bool USB_HS_PHYCInit(void)
   usb_hs_phyc->USB_HS_PHYC_PLL = phyc_pll;
 
   // Control the tuning interface of the High Speed PHY
-  // Use magic value from ST driver
+  // Use magic value (USB_HS_PHYC_TUNE_VALUE) from ST driver
   usb_hs_phyc->USB_HS_PHYC_TUNE |= 0x00000F13U;
 
   // Enable PLL internal PHY
@@ -473,7 +473,7 @@ void dcd_int_enable (uint8_t rhport)
 
 void dcd_int_disable (uint8_t rhport)
 {
-  NVIC_EnableIRQ(_dcd_rhport[rhport].irqnum);
+  NVIC_DisableIRQ(_dcd_rhport[rhport].irqnum);
 }
 
 void dcd_set_address (uint8_t rhport, uint8_t dev_addr)
