@@ -263,8 +263,7 @@ void board_init(void)
   HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
 
   // https://community.st.com/s/question/0D50X00009XkYZLSA3/stm32h7-nucleo-usb-fs-cdc
-  // TODO: Board init actually works fine without this line.
-//  HAL_PWREx_EnableUSBVoltageDetector();
+  HAL_PWREx_EnableUSBVoltageDetector();
   __HAL_RCC_USB2_OTG_FS_CLK_ENABLE();
 
   // Enable VBUS sense (B device) via pin PA9
