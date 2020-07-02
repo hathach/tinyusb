@@ -390,7 +390,7 @@ void dcd_init (uint8_t rhport)
     // Select default internal VBUS Indicator and Drive for ULPI
     usb_otg->GUSBCFG &= ~(USB_OTG_GUSBCFG_ULPIEVBUSD | USB_OTG_GUSBCFG_ULPIEVBUSI);
 
-#if defined(USB_HS_PHYC)
+    #if defined(USB_HS_PHYC)
     // Highspeed with embedded UTMI PHYC
 
     // Select UTMI Interface
@@ -399,8 +399,9 @@ void dcd_init (uint8_t rhport)
 
     // Enables control of a High Speed USB PHY
     USB_HS_PHYCInit();
-#endif
-  } else
+    #endif
+  }
+  else
 #endif
   {
     // Enable internal PHY
@@ -770,43 +771,46 @@ static void handle_rxflvl_ints(uint8_t rhport, USB_OTG_OUTEndpointTypeDef * out_
 
   switch(pktsts) {
     case 0x01: // Global OUT NAK (Interrupt)
-      break;
+    break;
+
     case 0x02: // Out packet recvd
-      {
-        xfer_ctl_t * xfer = XFER_CTL_BASE(epnum, TUSB_DIR_OUT);
+    {
+      xfer_ctl_t * xfer = XFER_CTL_BASE(epnum, TUSB_DIR_OUT);
 
-        // Read packet off RxFIFO
-        read_fifo_packet(rhport, xfer->buffer, bcnt);
+      // Read packet off RxFIFO
+      read_fifo_packet(rhport, xfer->buffer, bcnt);
 
-        // Increment pointer to xfer data
-        xfer->buffer += bcnt;
+      // Increment pointer to xfer data
+      xfer->buffer += bcnt;
 
-        // Truncate transfer length in case of short packet
-        if(bcnt < xfer->max_size) {
-          xfer->total_len -= (out_ep[epnum].DOEPTSIZ & USB_OTG_DOEPTSIZ_XFRSIZ_Msk) >> USB_OTG_DOEPTSIZ_XFRSIZ_Pos;
-          if(epnum == 0) {
-            xfer->total_len -= ep0_pending[TUSB_DIR_OUT];
-            ep0_pending[TUSB_DIR_OUT] = 0;
-          }
+      // Truncate transfer length in case of short packet
+      if(bcnt < xfer->max_size) {
+        xfer->total_len -= (out_ep[epnum].DOEPTSIZ & USB_OTG_DOEPTSIZ_XFRSIZ_Msk) >> USB_OTG_DOEPTSIZ_XFRSIZ_Pos;
+        if(epnum == 0) {
+          xfer->total_len -= ep0_pending[TUSB_DIR_OUT];
+          ep0_pending[TUSB_DIR_OUT] = 0;
         }
       }
-      break;
+    }
+    break;
+
     case 0x03: // Out packet done (Interrupt)
       break;
+
     case 0x04: // Setup packet done (Interrupt)
       out_ep[epnum].DOEPTSIZ |= (3 << USB_OTG_DOEPTSIZ_STUPCNT_Pos);
-      break;
+    break;
+
     case 0x06: // Setup packet recvd
-      {
-        // We can receive up to three setup packets in succession, but
-        // only the last one is valid.
-        _setup_packet[0] = (* rx_fifo);
-        _setup_packet[1] = (* rx_fifo);
-      }
-      break;
+      // We can receive up to three setup packets in succession, but
+      // only the last one is valid.
+      _setup_packet[0] = (* rx_fifo);
+      _setup_packet[1] = (* rx_fifo);
+    break;
+
     default: // Invalid
       TU_BREAKPOINT();
-      break;
+    break;
   }
 }
 

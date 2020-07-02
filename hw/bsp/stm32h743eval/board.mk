@@ -1,3 +1,6 @@
+# Default is Highspeed port
+PORT ?= 1
+
 CFLAGS += \
   -flto \
   -mthumb \
@@ -8,8 +11,14 @@ CFLAGS += \
   -nostdlib -nostartfiles \
   -DSTM32H743xx \
   -DCFG_TUSB_MCU=OPT_MCU_STM32H7 \
-	-DBOARD_DEVICE_RHPORT_NUM=1 \
-	-DBOARD_DEVICE_RHPORT_SPEED=OPT_MODE_HIGH_SPEED
+	-DBOARD_DEVICE_RHPORT_NUM=$(PORT)
+
+ifeq ($(PORT), 1)
+  CFLAGS += -DBOARD_DEVICE_RHPORT_SPEED=OPT_MODE_HIGH_SPEED
+  $(info "PORT1 High Speed")
+else
+  $(info "PORT0 Full Speed")
+endif
 
 # suppress warning caused by vendor mcu driver
 CFLAGS += -Wno-error=maybe-uninitialized -Wno-error=cast-align

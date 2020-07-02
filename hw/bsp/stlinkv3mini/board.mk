@@ -1,5 +1,3 @@
-PORT ?= 1
-
 CFLAGS += \
   -flto \
   -mthumb \
@@ -11,14 +9,8 @@ CFLAGS += \
   -DSTM32F723xx \
   -DHSE_VALUE=25000000 \
   -DCFG_TUSB_MCU=OPT_MCU_STM32F7 \
-  -DBOARD_DEVICE_RHPORT_NUM=$(PORT)
-
-ifeq ($(PORT), 1)
-CFLAGS += -DBOARD_DEVICE_RHPORT_SPEED=OPT_MODE_HIGH_SPEED
-$(info "PORT1 HS")
-else
-$(info "PORT0")
-endif
+  -DBOARD_DEVICE_RHPORT_NUM=1 \
+  -DBOARD_DEVICE_RHPORT_SPEED=OPT_MODE_HIGH_SPEED
 
 # mcu driver cause following warnings
 CFLAGS += -Wno-error=shadow -Wno-error=cast-align

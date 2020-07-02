@@ -1,4 +1,5 @@
-PORT ?= 0
+# Default is Highspeed port
+PORT ?= 1
 
 CFLAGS += \
   -flto \
@@ -14,10 +15,10 @@ CFLAGS += \
   -DBOARD_DEVICE_RHPORT_NUM=$(PORT)
 
 ifeq ($(PORT), 1)
-CFLAGS += -DBOARD_DEVICE_RHPORT_SPEED=OPT_MODE_HIGH_SPEED
-$(info "PORT1 HS")
+  CFLAGS += -DBOARD_DEVICE_RHPORT_SPEED=OPT_MODE_HIGH_SPEED
+  $(info "PORT1 High Speed")
 else
-$(info "PORT0")
+  $(info "PORT0 Full Speed")
 endif
 
 # mcu driver cause following warnings
