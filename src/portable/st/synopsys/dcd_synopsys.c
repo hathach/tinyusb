@@ -28,6 +28,10 @@
 
 #include "tusb_option.h"
 
+// Since TinyUSB doesn't use SOF for now, and this interrupt too often (1ms interval)
+// We disable SOF for now until needed later on
+#define USE_SOF     0
+
 #if defined (STM32F105x8) || defined (STM32F105xB) || defined (STM32F105xC) || \
     defined (STM32F107xB) || defined (STM32F107xC)
 #define STM32F1_SYNOPSYS
@@ -95,31 +99,28 @@
 #include "device/dcd.h"
 
 //--------------------------------------------------------------------+
-//
+// MACRO TYPEDEF CONSTANT ENUM
 //--------------------------------------------------------------------+
 
-typedef struct
-{
-  uint32_t regs;  // registers
-  const IRQn_Type irqnum; // IRQ number
-//  const uint8_t ep_count; // Max bi-directional Endpoints
-}dcd_rhport_t;
+// On STM32 we associate Port0 to OTG_FS, and Port1 to OTG_HS
+#if TUD_OPT_RHPORT == 0
+  #define EP_MAX            EP_MAX_FS
+  #define EP_FIFO_SIZE      EP_FIFO_SIZE_FS
+  #define RHPORT_REGS_BASE  USB_OTG_FS_PERIPH_BASE
+  #define RHPORT_IRQn       OTG_FS_IRQn
 
-// To be consistent across stm32 port. We will number OTG_FS as Rhport0, and OTG_HS as Rhport1
-static const dcd_rhport_t _dcd_rhport[] =
-{
-  { .regs = USB_OTG_FS_PERIPH_BASE, .irqnum = OTG_FS_IRQn }
-
-#ifdef USB_OTG_HS
- ,{ .regs = USB_OTG_HS_PERIPH_BASE, .irqnum = OTG_HS_IRQn }
+#else
+  #define EP_MAX            EP_MAX_HS
+  #define EP_FIFO_SIZE      EP_FIFO_SIZE_HS
+  #define RHPORT_REGS_BASE  USB_OTG_HS_PERIPH_BASE
+  #define RHPORT_IRQn       OTG_HS_IRQn
 #endif
-};
 
-#define GLOBAL_BASE(_port)     ((USB_OTG_GlobalTypeDef*) _dcd_rhport[_port].regs)
-#define DEVICE_BASE(_port)     (USB_OTG_DeviceTypeDef *) (_dcd_rhport[_port].regs + USB_OTG_DEVICE_BASE)
-#define OUT_EP_BASE(_port)     (USB_OTG_OUTEndpointTypeDef *) (_dcd_rhport[_port].regs + USB_OTG_OUT_ENDPOINT_BASE)
-#define IN_EP_BASE(_port)      (USB_OTG_INEndpointTypeDef *) (_dcd_rhport[_port].regs + USB_OTG_IN_ENDPOINT_BASE)
-#define FIFO_BASE(_port, _x)   ((volatile uint32_t *) (_dcd_rhport[_port].regs + USB_OTG_FIFO_BASE + (_x) * USB_OTG_FIFO_SIZE))
+#define GLOBAL_BASE(_port)     ((USB_OTG_GlobalTypeDef*) RHPORT_REGS_BASE)
+#define DEVICE_BASE(_port)     (USB_OTG_DeviceTypeDef *) (RHPORT_REGS_BASE + USB_OTG_DEVICE_BASE)
+#define OUT_EP_BASE(_port)     (USB_OTG_OUTEndpointTypeDef *) (RHPORT_REGS_BASE + USB_OTG_OUT_ENDPOINT_BASE)
+#define IN_EP_BASE(_port)      (USB_OTG_INEndpointTypeDef *) (RHPORT_REGS_BASE + USB_OTG_IN_ENDPOINT_BASE)
+#define FIFO_BASE(_port, _x)   ((volatile uint32_t *) (RHPORT_REGS_BASE + USB_OTG_FIFO_BASE + (_x) * USB_OTG_FIFO_SIZE))
 
 enum
 {
@@ -127,14 +128,6 @@ enum
   DCD_FULL_SPEED_USE_HS = 1, // Full speed in Highspeed port (probably with internal PHY)
   DCD_FULL_SPEED        = 3, // Full speed with internal PHY
 };
-
-/*------------------------------------------------------------------*/
-/* MACRO TYPEDEF CONSTANT ENUM
- *------------------------------------------------------------------*/
-
-// Since TinyUSB doesn't use SOF for now, and this interrupt too often (1ms interval)
-// We disable SOF for now until needed later on
-#define USE_SOF     0
 
 static TU_ATTR_ALIGNED(4) uint32_t _setup_packet[2];
 
@@ -145,14 +138,6 @@ typedef struct {
 } xfer_ctl_t;
 
 typedef volatile uint32_t * usb_fifo_t;
-
-#if TUD_OPT_RHPORT == 1
-  #define EP_MAX        EP_MAX_HS
-  #define EP_FIFO_SIZE  EP_FIFO_SIZE_HS
-#else
-  #define EP_MAX        EP_MAX_FS
-  #define EP_FIFO_SIZE  EP_FIFO_SIZE_FS
-#endif
 
 xfer_ctl_t xfer_status[EP_MAX][2];
 #define XFER_CTL_BASE(_ep, _dir) &xfer_status[_ep][_dir]
@@ -166,6 +151,8 @@ static uint16_t _allocated_fifo_words;
 // Setup the control endpoint 0.
 static void bus_reset(uint8_t rhport)
 {
+  (void) rhport;
+
   USB_OTG_GlobalTypeDef * usb_otg = GLOBAL_BASE(rhport);
   USB_OTG_DeviceTypeDef * dev = DEVICE_BASE(rhport);
   USB_OTG_OUTEndpointTypeDef * out_ep = OUT_EP_BASE(rhport);
@@ -287,6 +274,7 @@ static void set_turnaround(USB_OTG_GlobalTypeDef * usb_otg, tusb_speed_t speed)
 
 static tusb_speed_t get_speed(uint8_t rhport)
 {
+  (void) rhport;
   USB_OTG_DeviceTypeDef * dev = DEVICE_BASE(rhport);
   uint32_t const enum_spd = (dev->DSTS & USB_OTG_DSTS_ENUMSPD_Msk) >> USB_OTG_DSTS_ENUMSPD_Pos;
   return (enum_spd == DCD_HIGH_SPEED) ? TUSB_SPEED_HIGH : TUSB_SPEED_FULL;
@@ -353,7 +341,10 @@ static bool USB_HS_PHYCInit(void)
 }
 #endif
 
-static void edpt_schedule_packets(uint8_t rhport, uint8_t const epnum, uint8_t const dir, uint16_t const num_packets, uint16_t total_bytes) {
+static void edpt_schedule_packets(uint8_t rhport, uint8_t const epnum, uint8_t const dir, uint16_t const num_packets, uint16_t total_bytes)
+{
+  (void) rhport;
+
   USB_OTG_DeviceTypeDef * dev = DEVICE_BASE(rhport);
   USB_OTG_OUTEndpointTypeDef * out_ep = OUT_EP_BASE(rhport);
   USB_OTG_INEndpointTypeDef * in_ep = IN_EP_BASE(rhport);
@@ -437,7 +428,7 @@ void dcd_init (uint8_t rhport)
   while ((usb_otg->GRSTCTL & USB_OTG_GRSTCTL_CSRST) == USB_OTG_GRSTCTL_CSRST) {}
 
   // Restart PHY clock
-  *((volatile uint32_t *)(_dcd_rhport[rhport].regs + USB_OTG_PCGCCTL_BASE)) = 0;
+  *((volatile uint32_t *)(RHPORT_REGS_BASE + USB_OTG_PCGCCTL_BASE)) = 0;
 
   // Clear all interrupts
   usb_otg->GINTSTS |= usb_otg->GINTSTS;
@@ -468,12 +459,14 @@ void dcd_init (uint8_t rhport)
 
 void dcd_int_enable (uint8_t rhport)
 {
-  NVIC_EnableIRQ(_dcd_rhport[rhport].irqnum);
+  (void) rhport;
+  NVIC_EnableIRQ(RHPORT_IRQn);
 }
 
 void dcd_int_disable (uint8_t rhport)
 {
-  NVIC_DisableIRQ(_dcd_rhport[rhport].irqnum);
+  (void) rhport;
+  NVIC_DisableIRQ(RHPORT_IRQn);
 }
 
 void dcd_set_address (uint8_t rhport, uint8_t dev_addr)
@@ -492,6 +485,7 @@ void dcd_remote_wakeup(uint8_t rhport)
 
 void dcd_connect(uint8_t rhport)
 {
+  (void) rhport;
   USB_OTG_DeviceTypeDef * dev = DEVICE_BASE(rhport);
 
   dev->DCTL &= ~USB_OTG_DCTL_SDIS;
@@ -499,6 +493,7 @@ void dcd_connect(uint8_t rhport)
 
 void dcd_disconnect(uint8_t rhport)
 {
+  (void) rhport;
   USB_OTG_DeviceTypeDef * dev = DEVICE_BASE(rhport);
 
   dev->DCTL |= USB_OTG_DCTL_SDIS;
@@ -633,6 +628,8 @@ bool dcd_edpt_xfer (uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t 
 // (send STALL versus NAK handshakes back). Refactor into resuable function.
 void dcd_edpt_stall (uint8_t rhport, uint8_t ep_addr)
 {
+  (void) rhport;
+
   USB_OTG_GlobalTypeDef * usb_otg = GLOBAL_BASE(rhport);
   USB_OTG_DeviceTypeDef * dev = DEVICE_BASE(rhport);
   USB_OTG_OUTEndpointTypeDef * out_ep = OUT_EP_BASE(rhport);
@@ -685,6 +682,8 @@ void dcd_edpt_stall (uint8_t rhport, uint8_t ep_addr)
 
 void dcd_edpt_clear_stall (uint8_t rhport, uint8_t ep_addr)
 {
+  (void) rhport;
+
   USB_OTG_OUTEndpointTypeDef * out_ep = OUT_EP_BASE(rhport);
   USB_OTG_INEndpointTypeDef * in_ep = IN_EP_BASE(rhport);
 
@@ -713,7 +712,10 @@ void dcd_edpt_clear_stall (uint8_t rhport, uint8_t ep_addr)
 /*------------------------------------------------------------------*/
 
 // Read a single data packet from receive FIFO
-static void read_fifo_packet(uint8_t rhport, uint8_t * dst, uint16_t len){
+static void read_fifo_packet(uint8_t rhport, uint8_t * dst, uint16_t len)
+{
+  (void) rhport;
+
   usb_fifo_t rx_fifo = FIFO_BASE(rhport, 0);
 
   // Reading full available 32 bit words from fifo
@@ -742,7 +744,10 @@ static void read_fifo_packet(uint8_t rhport, uint8_t * dst, uint16_t len){
 }
 
 // Write a single data packet to EPIN FIFO
-static void write_fifo_packet(uint8_t rhport, uint8_t fifo_num, uint8_t * src, uint16_t len){
+static void write_fifo_packet(uint8_t rhport, uint8_t fifo_num, uint8_t * src, uint16_t len)
+{
+  (void) rhport;
+
   usb_fifo_t tx_fifo = FIFO_BASE(rhport, fifo_num);
 
   // Pushing full available 32 bit words to fifo
