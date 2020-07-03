@@ -1,4 +1,5 @@
-PORT ?= 1
+# Only OTG-HS has a connector on this board
+
 REDUCE_SPEED ?= 0
 
 CFLAGS += \
@@ -12,18 +13,13 @@ CFLAGS += \
   -DSTM32F723xx \
   -DHSE_VALUE=25000000 \
   -DCFG_TUSB_MCU=OPT_MCU_STM32F7 \
-  -DBOARD_DEVICE_RHPORT_NUM=$(PORT)
-
-ifeq ($(PORT), 1)
- ifeq ($(REDUCE_SPEED), 0)
+  -DBOARD_DEVICE_RHPORT_NUM=1
+ifeq ($(REDUCE_SPEED), 0)
 CFLAGS += -DBOARD_DEVICE_RHPORT_SPEED=OPT_MODE_HIGH_SPEED
 $(info "Using OTG_HS in HS mode")
- else
+else
 CFLAGS += -DBOARD_DEVICE_RHPORT_SPEED=OPT_MODE_FULL_SPEED
 $(info "Using OTG_HS in FS mode")
- endif
-else
-$(info "Using OTG_FS")
 endif
 
 # mcu driver cause following warnings
