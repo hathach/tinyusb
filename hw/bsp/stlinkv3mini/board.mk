@@ -1,3 +1,7 @@
+# Only OTG-HS has a connector on this board
+
+REDUCE_SPEED ?= 0
+
 CFLAGS += \
   -flto \
   -mthumb \
@@ -9,8 +13,14 @@ CFLAGS += \
   -DSTM32F723xx \
   -DHSE_VALUE=25000000 \
   -DCFG_TUSB_MCU=OPT_MCU_STM32F7 \
-  -DBOARD_DEVICE_RHPORT_NUM=1 \
-  -DBOARD_DEVICE_RHPORT_SPEED=OPT_MODE_HIGH_SPEED
+  -DBOARD_DEVICE_RHPORT_NUM=1
+ifeq ($(REDUCE_SPEED), 0)
+CFLAGS += -DBOARD_DEVICE_RHPORT_SPEED=OPT_MODE_HIGH_SPEED
+$(info "Using OTG_HS in HS mode")
+else
+CFLAGS += -DBOARD_DEVICE_RHPORT_SPEED=OPT_MODE_FULL_SPEED
+$(info "Using OTG_HS in FS mode")
+endif
 
 # mcu driver cause following warnings
 CFLAGS += -Wno-error=shadow -Wno-error=cast-align
