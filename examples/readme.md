@@ -32,24 +32,39 @@ Then compile with `make BOARD=[your_board] all`, for example
 $ make BOARD=feather_nrf52840_express all
 ```
 
+**Port Selection**
 
-To compile for debugging with debug symbols add DEBUG=1, for example
+If a board has several ports, one port is chosen by default in the individual board.mk file. Use option `PORT=x` To choose another port. For example to select the HS port of a STM32F746Disco board, use:
+
+```
+$ make BOARD=stm32f746disco PORT=1 all
+```
+
+**Port Speed**
+
+A MCU can support multiple operational speed. By default, the example build system will use the fastest supported on the board. Use option `SPEED=full/high` e.g To force F723 operate at full instead of default high speed
+
+```
+$ make BOARD=stm32f746disco SPEED=full all
+```
+
+### Debug
+
+To compile for debugging with debug symbols add `DEBUG=1`, for example
 
 ```
 $ make BOARD=feather_nrf52840_express DEBUG=1 all
 ```
 
-### Debug Log
-
-### Log Level
+#### Log
 
 Should you have an issue running example and/or submitting an bug report. You could enable TinyUSB built-in debug logging with optional `LOG=`. LOG=1 will only print out error message, LOG=2 print more information with on-going events. LOG=3 or higher is not used yet. 
 
 ```
-$ make LOG=2 BOARD=feather_nrf52840_express all
+$ make BOARD=feather_nrf52840_express LOG=2 all
 ```
 
-### Logger
+#### Logger
 
 By default log message is printed via on-board UART which is slow and take lots of CPU time comparing to USB speed. If your board support on-board/external debugger, it would be more efficient to use it for logging. There are 2 protocols: 
 
@@ -63,8 +78,8 @@ By default log message is printed via on-board UART which is slow and take lots 
   - Software viewer should be provided along with your debugger driver.
 
 ```
-$ make LOG=2 LOGGER=rtt BOARD=feather_nrf52840_express all
-$ make LOG=2 LOGGER=swo BOARD=feather_nrf52840_express all
+$ make BOARD=feather_nrf52840_express LOG=2 LOGGER=rtt all
+$ make BOARD=feather_nrf52840_express LOG=2 LOGGER=swo all
 ```
 
 ## Flash
