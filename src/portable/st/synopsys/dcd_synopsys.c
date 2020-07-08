@@ -403,7 +403,7 @@ void dcd_init (uint8_t rhport)
     // Select default internal VBUS Indicator and Drive for ULPI
     usb_otg->GUSBCFG &= ~(USB_OTG_GUSBCFG_ULPIEVBUSD | USB_OTG_GUSBCFG_ULPIEVBUSI);
 
-    #if defined(USB_HS_PHYC)
+#if defined(USB_HS_PHYC)
     // Highspeed with embedded UTMI PHYC
 
     // Select UTMI Interface

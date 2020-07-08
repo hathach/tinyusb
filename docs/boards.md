@@ -87,6 +87,7 @@ This code base already had supported for a handful of following boards (sorted a
 - [Micro Python PyBoard v1.1](https://store.micropython.org/product/PYBv1.1)
 - [STLink-V3 Mini](https://www.st.com/en/development-tools/stlink-v3mini.html)
 - [STM32 L035c8 Discovery](https://www.st.com/en/evaluation-tools/32l0538discovery.html)
+- [STM32 L4R5zi Nucleo](https://www.st.com/en/evaluation-tools/nucleo-l4r5zi.html)
 - [STM32 F070rb Nucleo](https://www.st.com/en/evaluation-tools/nucleo-f070rb.html)
 - [STM32 F072rb Discovery](https://www.st.com/en/evaluation-tools/32f072bdiscovery.html)
 - STM32 F103c Blue Pill
@@ -104,6 +105,7 @@ This code base already had supported for a handful of following boards (sorted a
 - [STM32 F769i Discovery](https://www.st.com/en/evaluation-tools/32f769idiscovery.html)
 - [STM32 H743zi Nucleo](https://www.st.com/en/evaluation-tools/nucleo-h743zi.html)
 - [STM32 H743i Evaluation](https://www.st.com/en/evaluation-tools/stm32h743i-eval.html)
+- [STM32 H745i Discovery](https://www.st.com/en/evaluation-tools/stm32h745i-disco.html)
 
 ### TI
 

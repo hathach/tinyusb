@@ -1,5 +1,5 @@
 PORT ?= 1
-REDUCE_SPEED ?= 0
+SPEED ?= high
 
 CFLAGS += \
   -flto \
@@ -15,15 +15,15 @@ CFLAGS += \
   -DBOARD_DEVICE_RHPORT_NUM=$(PORT)
 
 ifeq ($(PORT), 1)
- ifeq ($(REDUCE_SPEED), 0)
-CFLAGS += -DBOARD_DEVICE_RHPORT_SPEED=OPT_MODE_HIGH_SPEED
-$(info "Using OTG_HS in HS mode")
- else
-CFLAGS += -DBOARD_DEVICE_RHPORT_SPEED=OPT_MODE_FULL_SPEED
-$(info "Using OTG_HS in FS mode")
- endif
+  ifeq ($(SPEED), high)
+    CFLAGS += -DBOARD_DEVICE_RHPORT_SPEED=OPT_MODE_HIGH_SPEED
+    $(info "Using OTG_HS in HighSpeed mode")
+  else
+    CFLAGS += -DBOARD_DEVICE_RHPORT_SPEED=OPT_MODE_FULL_SPEED
+    $(info "Using OTG_HS in FullSpeed mode")
+  endif
 else
-$(info "Using OTG_FS")
+  $(info "Using OTG_FS")
 endif
 
 # mcu driver cause following warnings
