@@ -95,7 +95,7 @@ uint32_t tud_cdc_n_write_str       (uint8_t itf, char const* str);
 // Force sending data if possible, return number of forced bytes
 uint32_t tud_cdc_n_write_flush     (uint8_t itf);
 
-// Return number of characters available for writing
+// Return the number of bytes (characters) available for writing to TX FIFO buffer in a single n_write operation.
 uint32_t tud_cdc_n_write_available (uint8_t itf);
 
 //--------------------------------------------------------------------+
