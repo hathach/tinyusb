@@ -34,8 +34,8 @@
 //--------------------------------------------------------------------+
 // Class Driver Configuration
 //--------------------------------------------------------------------+
-#ifndef CFG_TUD_CDC_EPSIZE
-#define CFG_TUD_CDC_EPSIZE 64
+#ifndef CFG_TUD_CDC_EP_BUFSIZE
+#define CFG_TUD_CDC_EP_BUFSIZE (TUD_OPT_HIGH_SPEED ? 512 : 64)
 #endif
 
 #ifdef __cplusplus

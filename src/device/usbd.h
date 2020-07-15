@@ -53,6 +53,9 @@ bool tud_task_event_ready(void);
 // Interrupt handler, name alias to DCD
 #define tud_int_handler   dcd_int_handler
 
+// Get current bus speed
+tusb_speed_t tud_speed_get(void);
+
 // Check if device is connected and configured
 bool tud_mounted(void);
 

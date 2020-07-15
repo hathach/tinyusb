@@ -74,10 +74,10 @@ uint8_t const * tud_descriptor_device_cb(void)
 //--------------------------------------------------------------------+
 enum
 {
-  ITF_NUM_CDC1 = 0,
-  ITF_NUM_CDC_DATA1,
-  ITF_NUM_CDC2,
-  ITF_NUM_CDC_DATA2,
+  ITF_NUM_CDC_0 = 0,
+  ITF_NUM_CDC_0_DATA,
+  ITF_NUM_CDC_1,
+  ITF_NUM_CDC_1_DATA,
   ITF_NUM_TOTAL
 };
 
@@ -86,22 +86,44 @@ enum
 #if CFG_TUSB_MCU == OPT_MCU_LPC175X_6X || CFG_TUSB_MCU == OPT_MCU_LPC177X_8X || CFG_TUSB_MCU == OPT_MCU_LPC40XX
   // LPC 17xx and 40xx endpoint type (bulk/interrupt/iso) are fixed by its number
   // 0 control, 1 In, 2 Bulk, 3 Iso, 4 In etc ...
-  #define EPNUM_CDC     2
+  #define EPNUM_CDC_0_NOTIF   0x81
+  #define EPNUM_CDC_0_DATA    0x02
+
+  #define EPNUM_CDC_1_NOTIF   0x84
+  #define EPNUM_CDC_1_DATA    0x05
 #else
-  #define EPNUM_CDC     2
+  #define EPNUM_CDC_0_NOTIF   0x81
+  #define EPNUM_CDC_0_DATA    0x02
+
+  #define EPNUM_CDC_1_NOTIF   0x83
+  #define EPNUM_CDC_1_DATA    0x04
 #endif
 
-uint8_t const desc_configuration[] =
+uint8_t const desc_fs_configuration[] =
 {
   // Config number, interface count, string index, total length, attribute, power in mA
   TUD_CONFIG_DESCRIPTOR(1, ITF_NUM_TOTAL, 0, CONFIG_TOTAL_LEN, TUSB_DESC_CONFIG_ATT_REMOTE_WAKEUP, 100),
 
   // 1st CDC: Interface number, string index, EP notification address and size, EP data address (out, in) and size.
-  TUD_CDC_DESCRIPTOR(ITF_NUM_CDC1, 4, 0x81, 8, EPNUM_CDC, 0x80 | EPNUM_CDC, TUD_OPT_HIGH_SPEED ? 512 : 64),
+  TUD_CDC_DESCRIPTOR(ITF_NUM_CDC_0, 4, EPNUM_CDC_0_NOTIF, 8, EPNUM_CDC_0_DATA, 0x80 | EPNUM_CDC_0_DATA, 64),
 
   // 2nd CDC: Interface number, string index, EP notification address and size, EP data address (out, in) and size.
-  TUD_CDC_DESCRIPTOR(ITF_NUM_CDC2, 4, 0x83, 8, EPNUM_CDC + 2, 0x80 | (EPNUM_CDC + 2), TUD_OPT_HIGH_SPEED ? 512 : 64),
+  TUD_CDC_DESCRIPTOR(ITF_NUM_CDC_1, 4, EPNUM_CDC_1_NOTIF, 8, EPNUM_CDC_1_DATA, 0x80 | EPNUM_CDC_1_DATA, 64),
 };
+
+#if TUD_OPT_HIGH_SPEED
+uint8_t const desc_hs_configuration[] =
+{
+  // Config number, interface count, string index, total length, attribute, power in mA
+  TUD_CONFIG_DESCRIPTOR(1, ITF_NUM_TOTAL, 0, CONFIG_TOTAL_LEN, TUSB_DESC_CONFIG_ATT_REMOTE_WAKEUP, 100),
+
+  // 1st CDC: Interface number, string index, EP notification address and size, EP data address (out, in) and size.
+  TUD_CDC_DESCRIPTOR(ITF_NUM_CDC_0, 4, EPNUM_CDC_0_NOTIF, 8, EPNUM_CDC_0_DATA, 0x80 | EPNUM_CDC_0_DATA, 512),
+
+  // 2nd CDC: Interface number, string index, EP notification address and size, EP data address (out, in) and size.
+  TUD_CDC_DESCRIPTOR(ITF_NUM_CDC_1, 4, EPNUM_CDC_1_NOTIF, 8, EPNUM_CDC_1_DATA, 0x80 | EPNUM_CDC_1_DATA, 512),
+};
+#endif
 
 // Invoked when received GET CONFIGURATION DESCRIPTOR
 // Application return pointer to descriptor
@@ -109,7 +131,13 @@ uint8_t const desc_configuration[] =
 uint8_t const * tud_descriptor_configuration_cb(uint8_t index)
 {
   (void) index; // for multiple configurations
-  return desc_configuration;
+
+#if TUD_OPT_HIGH_SPEED
+  // Although we are highspeed, host may be fullspeed.
+  return (tud_speed_get() == TUSB_SPEED_HIGH ) ?  desc_hs_configuration : desc_fs_configuration;
+#else
+  return desc_fs_configuration;
+#endif
 }
 
 //--------------------------------------------------------------------+

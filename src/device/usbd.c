@@ -294,6 +294,11 @@ void usbd_driver_print_control_complete_name(bool (*control_complete) (uint8_t, 
 //--------------------------------------------------------------------+
 // Application API
 //--------------------------------------------------------------------+
+tusb_speed_t tud_speed_get(void)
+{
+  return (tusb_speed_t) _usbd_dev.speed;
+}
+
 bool tud_mounted(void)
 {
   return _usbd_dev.configured;
