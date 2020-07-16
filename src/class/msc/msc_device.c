@@ -65,7 +65,7 @@ typedef struct
 }mscd_interface_t;
 
 CFG_TUSB_MEM_SECTION CFG_TUSB_MEM_ALIGN static mscd_interface_t _mscd_itf;
-CFG_TUSB_MEM_SECTION CFG_TUSB_MEM_ALIGN static uint8_t _mscd_buf[CFG_TUD_MSC_BUFSIZE];
+CFG_TUSB_MEM_SECTION CFG_TUSB_MEM_ALIGN static uint8_t _mscd_buf[CFG_TUD_MSC_EP_BUFSIZE];
 
 //--------------------------------------------------------------------+
 // INTERNAL OBJECT & FUNCTION DECLARATION
@@ -564,7 +564,7 @@ bool mscd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t event, uint32_t
       else
       {
         // READ10 & WRITE10 Can be executed with large bulk of data e.g write 8K bytes (several flash write)
-        // We break it into multiple smaller command whose data size is up to CFG_TUD_MSC_BUFSIZE
+        // We break it into multiple smaller command whose data size is up to CFG_TUD_MSC_EP_BUFSIZE
         if (SCSI_CMD_READ_10 == p_cbw->command[0])
         {
           proc_read10_cmd(rhport, p_msc);

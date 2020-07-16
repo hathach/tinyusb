@@ -48,8 +48,8 @@ typedef struct
   uint8_t idle_rate;     // up to application to handle idle rate
   uint16_t report_desc_len;
 
-  CFG_TUSB_MEM_ALIGN uint8_t epin_buf[CFG_TUD_HID_BUFSIZE];
-  CFG_TUSB_MEM_ALIGN uint8_t epout_buf[CFG_TUD_HID_BUFSIZE];
+  CFG_TUSB_MEM_ALIGN uint8_t epin_buf[CFG_TUD_HID_EP_BUFSIZE];
+  CFG_TUSB_MEM_ALIGN uint8_t epout_buf[CFG_TUD_HID_EP_BUFSIZE];
 
   tusb_hid_descriptor_hid_t const * hid_descriptor;
 } hidd_interface_t;
@@ -86,7 +86,7 @@ bool tud_hid_report(uint8_t report_id, void const* report, uint8_t len)
 
   if (report_id)
   {
-    len = tu_min8(len, CFG_TUD_HID_BUFSIZE-1);
+    len = tu_min8(len, CFG_TUD_HID_EP_BUFSIZE-1);
 
     p_hid->epin_buf[0] = report_id;
     memcpy(p_hid->epin_buf+1, report, len);
@@ -94,7 +94,7 @@ bool tud_hid_report(uint8_t report_id, void const* report, uint8_t len)
   }else
   {
     // If report id = 0, skip ID field
-    len = tu_min8(len, CFG_TUD_HID_BUFSIZE);
+    len = tu_min8(len, CFG_TUD_HID_EP_BUFSIZE);
     memcpy(p_hid->epin_buf, report, len);
   }
 
