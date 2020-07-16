@@ -82,11 +82,14 @@ enum {
 };
 
 // PORTSC1
+#define PORTSC1_PORT_SPEED_POS    26
+
 enum {
   PORTSC1_CURRENT_CONNECT_STATUS = TU_BIT(0),
   PORTSC1_FORCE_PORT_RESUME      = TU_BIT(6),
   PORTSC1_SUSPEND                = TU_BIT(7),
   PORTSC1_FORCE_FULL_SPEED       = TU_BIT(24),
+  PORTSC1_PORT_SPEED             = TU_BIT(26) | TU_BIT(27)
 };
 
 // OTGSC
@@ -512,7 +515,8 @@ void dcd_int_handler(uint8_t rhport)
   if (int_status & INTR_RESET)
   {
     bus_reset(rhport);
-    dcd_event_bus_signal(rhport, DCD_EVENT_BUS_RESET, true);
+    uint32_t speed = (dcd_reg->PORTSC1 & PORTSC1_PORT_SPEED) >> PORTSC1_PORT_SPEED_POS;
+    dcd_event_bus_reset(rhport, (tusb_speed_t) speed, true);
   }
 
   if (int_status & INTR_SUSPEND)
