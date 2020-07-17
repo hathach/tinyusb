@@ -322,12 +322,12 @@ TU_ATTR_WEAK bool tud_vendor_control_complete_cb(uint8_t rhport, tusb_control_re
 /* Standard Interface Association Descriptor (IAD) */
 #define TUD_AUDIO_DESC_IAD_LEN 8
 #define TUD_AUDIO_DESC_IAD(_firstitfs, _nitfs, _stridx) \
-		TUD_AUDIO_DESC_IAD_LEN, TUSB_DESC_INTERFACE_ASSOCIATION, _firstitfs, _nitfs, TUSB_CLASS_AUDIO, AUDIO_FUNCTION_SUBCLASS_UNDEFINED, AUDIO_PROTOCOL_V2, _stridx
+		TUD_AUDIO_DESC_IAD_LEN, TUSB_DESC_INTERFACE_ASSOCIATION, _firstitfs, _nitfs, TUSB_CLASS_AUDIO, AUDIO_FUNCTION_SUBCLASS_UNDEFINED, AUDIO_FUNC_PROTOCOL_CODE_V2, _stridx
 
 /* Standard AC Interface Descriptor(4.7.1) */
 #define TUD_AUDIO_DESC_STD_AC_LEN 9
 #define TUD_AUDIO_DESC_STD_AC(_itfnum, _nEPs, _stridx) /* _nEPs is 0 or 1 */\
-		TUD_AUDIO_DESC_STD_AC_LEN, TUSB_DESC_INTERFACE, _itfnum, /* fixed to zero */ 0x00, _nEPs, TUSB_CLASS_AUDIO, AUDIO_SUBCLASS_CONTROL, AUDIO_PROTOCOL_V2, _stridx
+		TUD_AUDIO_DESC_STD_AC_LEN, TUSB_DESC_INTERFACE, _itfnum, /* fixed to zero */ 0x00, _nEPs, TUSB_CLASS_AUDIO, AUDIO_SUBCLASS_CONTROL, AUDIO_INT_PROTOCOL_CODE_V2, _stridx
 
 /* Class-Specific AC Interface Header Descriptor(4.7.2) */
 #define TUD_AUDIO_DESC_CS_AC_LEN 9
@@ -360,7 +360,7 @@ TU_ATTR_WEAK bool tud_vendor_control_complete_cb(uint8_t rhport, tusb_control_re
 /* Standard AS Interface Descriptor(4.9.1) */
 #define TUD_AUDIO_DESC_STD_AS_INT_LEN 9
 #define TUD_AUDIO_DESC_STD_AS_INT(_itfnum, _altset, _nEPs, _stridx) \
-		TUD_AUDIO_DESC_STD_AS_INT_LEN, TUSB_DESC_INTERFACE, _itfnum, _altset, _nEPs, TUSB_CLASS_AUDIO, AUDIO_SUBCLASS_STREAMING, AUDIO_PROTOCOL_V2, _stridx
+		TUD_AUDIO_DESC_STD_AS_INT_LEN, TUSB_DESC_INTERFACE, _itfnum, _altset, _nEPs, TUSB_CLASS_AUDIO, AUDIO_SUBCLASS_STREAMING, AUDIO_INT_PROTOCOL_CODE_V2, _stridx
 
 /* Class-Specific AS Interface Descriptor(4.9.2) */
 #define TUD_AUDIO_DESC_CS_AS_INT_LEN 16
@@ -430,43 +430,6 @@ TU_ATTR_WEAK bool tud_vendor_control_complete_cb(uint8_t rhport, tusb_control_re
 		TUD_AUDIO_DESC_STD_AS_ISO_EP(/*_ep*/ _epin, /*_attr*/ (TUSB_XFER_ISOCHRONOUS | TUSB_ISO_EP_ATT_ASYNCHRONOUS | TUSB_ISO_EP_ATT_DATA), /*_maxEPsize*/ _epsize, /*_interval*/ (CFG_TUSB_RHPORT0_MODE & OPT_MODE_HIGH_SPEED) ? 0x04 : 0x01),\
 		/* Class-Specific AS Isochronous Audio Data Endpoint Descriptor(4.10.1.2) */\
 		TUD_AUDIO_DESC_CS_AS_ISO_EP(/*_attr*/ AUDIO_CS_AS_ISO_DATA_EP_ATT_NON_MAX_PACKETS_OK, /*_ctrl*/ AUDIO_CTRL_NONE, /*_lockdelayunit*/ AUDIO_CS_AS_ISO_DATA_EP_LOCK_DELAY_UNIT_UNDEFINED, /*_lockdelay*/ 0x0000)
-
-// Length of template descriptor (132 bytes)
-//#define TUD_AUDIO_MIC_DESC_LEN (8 + 9 + 9 + 8 + 17 + 12 + 14 + 9 + 9 + 16 + 6 + 7 + 8)
-//#define TUD_AUDIO_MIC_DESC_N_AS_INT 1
-//
-//		// AUDIO simple descriptor (UAC2) for 1 microphone input
-//		// - 1 Input Terminal, 1 Feature Unit (Mute and Volume Control), 1 Output Terminal, 1 Clock Source
-//		#define TUD_AUDIO_MIC_DESCRIPTOR(_itfnum, _stridx, _nBytesPerSample, _nBitsUsedPerSample, _epin, _epsize) \
-//		/* Standard Interface Association Descriptor (IAD) */\
-//		8, TUSB_DESC_INTERFACE_ASSOCIATION, _itfnum, 0x02, TUSB_CLASS_AUDIO, 0x00, AUDIO_PROTOCOL_V2, 0x00,\
-//		/* Standard AC Interface Descriptor(4.7.1) */\
-//		9, TUSB_DESC_INTERFACE, _itfnum, 0x00, 0x00, TUSB_CLASS_AUDIO, AUDIO_SUBCLASS_CONTROL, AUDIO_PROTOCOL_V2, _stridx,\
-//		/* Class-Specific AC Interface Header Descriptor(4.7.2) */\
-//		9, TUSB_DESC_CS_INTERFACE, AUDIO_CS_AC_INTERFACE_HEADER, U16_TO_U8S_LE(0x0200), AUDIO_FUNC_MICROPHONE, U16_TO_U8S_LE(9+8+17+12+6+(1+1)*4), AUDIO_CS_AS_INTERFACE_CTRL_LATENCY_POS,\
-//		/* Clock Source Descriptor(4.7.2.1) */\
-//		8, TUSB_DESC_CS_INTERFACE, AUDIO_CS_AC_INTERFACE_CLOCK_SOURCE, 0x04, AUDIO_CLOCK_SOURCE_ATT_INT_FIX_CLK, (AUDIO_CTRL_R << AUDIO_CLOCK_SOURCE_CTRL_CLK_FRQ_POS), 0x00, \
-//		/* Input Terminal Descriptor(4.7.2.4) */\
-//		17, TUSB_DESC_CS_INTERFACE, AUDIO_CS_AC_INTERFACE_INPUT_TERMINAL, 0x01, U16_TO_U8S_LE(AUDIO_TERM_TYPE_IN_GENERIC_MIC), 0x00, 0x04, 0x01, U32_TO_U8S_LE(AUDIO_CHANNEL_CONFIG_NON_PREDEFINED), 0x00, U16_TO_U8S_LE(AUDIO_CTRL_R << AUDIO_IN_TERM_CTRL_CONNECTOR_POS), 0x00, \
-//		/* Output Terminal Descriptor(4.7.2.5) */\
-//		12, TUSB_DESC_CS_INTERFACE, AUDIO_CS_AC_INTERFACE_OUTPUT_TERMINAL, 0x03, U16_TO_U8S_LE(AUDIO_TERM_TYPE_USB_STREAMING), 0x00, 0x02, 0x04, U16_TO_U8S_LE(0x0000), 0x00, \
-//		/* Feature Unit Descriptor(4.7.2.8) */\
-//		6+(1+1)*4, TUSB_DESC_CS_INTERFACE, AUDIO_CS_AC_INTERFACE_FEATURE_UNIT, 0x02, 0x01, U32_TO_U8S_LE(AUDIO_CTRL_RW << AUDIO_FEATURE_UNIT_CTRL_MUTE_POS | AUDIO_CTRL_RW << AUDIO_FEATURE_UNIT_CTRL_VOLUME_POS), U32_TO_U8S_LE(AUDIO_CTRL_RW << AUDIO_FEATURE_UNIT_CTRL_MUTE_POS | AUDIO_CTRL_RW << AUDIO_FEATURE_UNIT_CTRL_VOLUME_POS), 0x00, \
-//		/* Standard AS Interface Descriptor(4.9.1) */\
-//		/* Interface 1, Alternate 0 - default alternate setting with 0 bandwidth */\
-//		9, TUSB_DESC_INTERFACE, (uint8_t)((_itfnum)+1), /* alternate setting */ 0x00, /* number of EPs */ 0x00, TUSB_CLASS_AUDIO, AUDIO_SUBCLASS_STREAMING, AUDIO_PROTOCOL_V2, 0x00,\
-//		/* Standard AS Interface Descriptor(4.9.1) */\
-//		/* Interface 1, Alternate 1 - alternate interface for data streaming */\
-//		9, TUSB_DESC_INTERFACE, (uint8_t)((_itfnum)+1), /* alternate setting */ 0x01, /* number of EPs */ 0x01, TUSB_CLASS_AUDIO, AUDIO_SUBCLASS_STREAMING, AUDIO_PROTOCOL_V2, 0x00,\
-//		/* Class-Specific AS Interface Descriptor(4.9.2) */\
-//		16, TUSB_DESC_CS_INTERFACE, AUDIO_CS_AS_INTERFACE_AS_GENERAL, 0x03, AUDIO_CTRL_NONE, AUDIO_FORMAT_TYPE_I, U32_TO_U8S_LE(AUDIO_DATA_FORMAT_TYPE_I_PCM), 0x01, U32_TO_U8S_LE(AUDIO_CHANNEL_CONFIG_NON_PREDEFINED), 0x00,\
-//		/* Type I Format Type Descriptor(2.3.1.6 - Audio Formats) */\
-//		6, TUSB_DESC_CS_INTERFACE, AUDIO_CS_AS_INTERFACE_FORMAT_TYPE, AUDIO_FORMAT_TYPE_I, _nBytesPerSample, _nBitsUsedPerSample,\
-//		/* Standard AS Isochronous Audio Data Endpoint Descriptor(4.10.1.1) */\
-//		7, TUSB_DESC_ENDPOINT, _epin, (TUSB_XFER_ISOCHRONOUS | TUSB_ISO_EP_ATT_ASYNCHRONOUS | TUSB_ISO_EP_ATT_DATA), U16_TO_U8S_LE(_epsize), (CFG_TUSB_RHPORT0_MODE & OPT_MODE_HIGH_SPEED) ? 0x04 : 0x01,\
-//		/* Class-Specific AS Isochronous Audio Data Endpoint Descriptor(4.10.1.2) */\
-//		8, TUSB_DESC_CS_ENDPOINT, AUDIO_CS_EP_SUBTYPE_GENERAL, AUDIO_CS_AS_ISO_DATA_EP_ATT_NON_MAX_PACKETS_OK, AUDIO_CTRL_NONE, AUDIO_CS_AS_ISO_DATA_EP_LOCK_DELAY_UNIT_UNDEFINED, U16_TO_U8S_LE(0x0000)
-
 
 //------------- TUD_USBTMC/USB488 -------------//
 #define TUD_USBTMC_APP_CLASS    (TUSB_CLASS_APPLICATION_SPECIFIC)

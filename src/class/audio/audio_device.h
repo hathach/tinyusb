@@ -229,6 +229,27 @@ bool tud_audio_fb_done_cb(uint8_t rhport);
 TU_ATTR_WEAK bool tud_audio_int_ctr_done_cb(uint8_t rhport, uint16_t * n_bytes_copied);
 #endif
 
+// Invoked when audio set interface request received
+TU_ATTR_WEAK bool tud_audio_set_itf_cb(uint8_t rhport, tusb_control_request_t const * p_request);
+
+// Invoked when audio class specific set request received for an EP
+TU_ATTR_WEAK bool tud_audio_set_req_ep_cb(uint8_t rhport, tusb_control_request_t const * p_request);
+
+// Invoked when audio class specific set request received for an interface
+TU_ATTR_WEAK bool tud_audio_set_req_itf_cb(uint8_t rhport, tusb_control_request_t const * p_request);
+
+// Invoked when audio class specific set request received for an entity
+TU_ATTR_WEAK bool tud_audio_set_req_entity_cb(uint8_t rhport, tusb_control_request_t const * p_request);
+
+// Invoked when audio class specific get request received for an EP
+TU_ATTR_WEAK bool tud_audio_get_req_ep_cb(uint8_t rhport, tusb_control_request_t const * p_request);
+
+// Invoked when audio class specific get request received for an interface
+TU_ATTR_WEAK bool tud_audio_get_req_itf_cb(uint8_t rhport, tusb_control_request_t const * p_request);
+
+// Invoked when audio class specific get request received for an entity
+TU_ATTR_WEAK bool tud_audio_get_req_entity_cb(uint8_t rhport, tusb_control_request_t const * p_request);
+
 //--------------------------------------------------------------------+
 // Inline Functions
 //--------------------------------------------------------------------+

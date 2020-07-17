@@ -38,17 +38,22 @@
 extern "C" {
 #endif
 
-/// Isochronous End Point Attributes
+/// Audio Device Class Codes
+
+/// A.2 - Audio Function Subclass Codes
 typedef enum
 {
-	TUSB_ISO_EP_ATT_ASYNCHRONOUS 	= 0x04,
-	TUSB_ISO_EP_ATT_ADAPTIVE 		= 0x08,
-	TUSB_ISO_EP_ATT_SYNCHRONOUS 	= 0x0C,
-	TUSB_ISO_EP_ATT_DATA 			= 0x00,	///< Data End Point
-	TUSB_ISO_EP_ATT_FB 				= 0x20, ///< Feedback End Point
-} tusb_iso_ep_attribute_t;
+	AUDIO_FUNCTION_SUBCLASS_UNDEFINED = 0x00,
+} audio_function_subclass_type_t;
 
-/// Audio Interface Subclass Codes
+/// A.3 - Audio Function Protocol Codes
+typedef enum
+{
+	AUDIO_FUNC_PROTOCOL_CODE_UNDEF       = 0x00,
+	AUDIO_FUNC_PROTOCOL_CODE_V2          = 0x20, ///< Version 2.0
+} audio_function_protocol_code_t;
+
+/// A.5 - Audio Interface Subclass Codes
 typedef enum
 {
 	AUDIO_SUBCLASS_UNDEFINED = 0x00,
@@ -57,23 +62,17 @@ typedef enum
 	AUDIO_SUBCLASS_MIDI_STREAMING  , ///< MIDI Streaming
 } audio_subclass_type_t;
 
-/// Audio Function Subclass Codes
+/// A.6 - Audio Interface Protocol Codes
 typedef enum
 {
-	AUDIO_FUNCTION_SUBCLASS_UNDEFINED = 0x00,
-} audio_function_subclass_type_t;
+	AUDIO_INT_PROTOCOL_CODE_UNDEF 		= 0x00,
+	AUDIO_INT_PROTOCOL_CODE_V2   		= 0x20, ///< Version 2.0
+} audio_interface_protocol_code_t;
 
-/// Audio Protocol Codes
+/// A.7 - Audio Function Category Codes
 typedef enum
 {
-	AUDIO_PROTOCOL_V1                   = 0x00, ///< Version 1.0
-	AUDIO_PROTOCOL_V2                   = 0x20, ///< Version 2.0
-	AUDIO_PROTOCOL_V3                   = 0x30, ///< Version 3.0
-} audio_protocol_type_t;
-
-/// Audio Function Category Codes
-typedef enum
-{
+	AUDIO_FUNC_UNDEF 			  = 0x00,
 	AUDIO_FUNC_DESKTOP_SPEAKER    = 0x01,
 	AUDIO_FUNC_HOME_THEATER       = 0x02,
 	AUDIO_FUNC_MICROPHONE         = 0x03,
@@ -86,9 +85,10 @@ typedef enum
 	AUDIO_FUNC_PRO_AUDIO          = 0x0A,
 	AUDIO_FUNC_AUDIO_VIDEO        = 0x0B,
 	AUDIO_FUNC_CONTROL_PANEL      = 0x0C,
-} audio_function_t;
+	AUDIO_FUNC_OTHER      		  = 0xFF,
+} audio_function_code_t;
 
-/// Audio Class-Specific AC Interface Descriptor Subtypes UAC2
+/// A.9 - Audio Class-Specific AC Interface Descriptor Subtypes UAC2
 typedef enum
 {
 	AUDIO_CS_AC_INTERFACE_AC_DESCRIPTOR_UNDEF   = 0x00,
@@ -107,7 +107,7 @@ typedef enum
 	AUDIO_CS_AC_INTERFACE_SAMPLE_RATE_CONVERTER = 0x0D,
 } audio_cs_ac_interface_subtype_t;
 
-/// Audio Class-Specific AS Interface Descriptor Subtypes UAC2
+/// A.10 - Audio Class-Specific AS Interface Descriptor Subtypes UAC2
 typedef enum
 {
 	AUDIO_CS_AS_INTERFACE_AS_DESCRIPTOR_UNDEF 	= 0x00,
@@ -116,6 +116,150 @@ typedef enum
 	AUDIO_CS_AS_INTERFACE_ENCODER       		= 0x03,
 	AUDIO_CS_AS_INTERFACE_DECODER       		= 0x04,
 } audio_cs_as_interface_subtype_t;
+
+/// A.11 - Effect Unit Effect Types
+typedef enum
+{
+	AUDIO_EFFECT_TYPE_UNDEF 					= 0x00,
+	AUDIO_EFFECT_TYPE_PARAM_EQ_SECTION			= 0x01,
+	AUDIO_EFFECT_TYPE_REVERBERATION				= 0x02,
+	AUDIO_EFFECT_TYPE_MOD_DELAY 				= 0x03,
+	AUDIO_EFFECT_TYPE_DYN_RANGE_COMP			= 0x04,
+} audio_effect_unit_effect_type_t;
+
+/// A.12 - Processing Unit Process Types
+typedef enum
+{
+	AUDIO_PROCESS_TYPE_UNDEF 					= 0x00,
+	AUDIO_PROCESS_TYPE_UP_DOWN_MIX 				= 0x01,
+	AUDIO_PROCESS_TYPE_DOLBY_PROLOGIC			= 0x02,
+	AUDIO_PROCESS_TYPE_STEREO_EXTENDER			= 0x03,
+} audio_processing_unit_process_type_t;
+
+/// A.13 - Audio Class-Specific EP Descriptor Subtypes UAC2
+typedef enum
+{
+	AUDIO_CS_EP_SUBTYPE_UNDEF 					= 0x00,
+	AUDIO_CS_EP_SUBTYPE_GENERAL 				= 0x01,
+} audio_cs_ep_subtype_t;
+
+/// A.14 - Audio Class-Specific Request Codes
+typedef enum
+{
+	AUDIO_CS_REQ_UNDEF 							= 0x00,
+	AUDIO_CS_REQ_CUR 	 						= 0x01,
+	AUDIO_CS_REQ_RANGE 							= 0x02,
+	AUDIO_CS_REQ_MEM 							= 0x03,
+} audio_cs_req_t;
+
+/// A.17 - Control Selector Codes
+
+/// A.17.1 - Clock Source Control Selectors
+typedef enum
+{
+	AUDIO_CLK_SRC_CTRL_UNDEF 					= 0x00,
+	AUDIO_CLK_SRC_CTRL_SAM_FREQ					= 0x01,
+	AUDIO_CLK_SRC_CTRL_CLK_VALID				= 0x02,
+} audio_clock_src_control_selector_t;
+
+/// A.17.7 - Feature Unit Control Selectors
+typedef enum
+{
+	AUDIO_FU_CTRL_UNDEF 						= 0x00,
+	AUDIO_FU_CTRL_MUTE  						= 0x01,
+	AUDIO_FU_CTRL_VOLUME						= 0x02,
+	AUDIO_FU_CTRL_BASS							= 0x03,
+	AUDIO_FU_CTRL_MID							= 0x04,
+	AUDIO_FU_CTRL_TREBLE						= 0x05,
+	AUDIO_FU_CTRL_GRAPHIC_EQUALIZER				= 0x06,
+	AUDIO_FU_CTRL_AGC							= 0x07,
+	AUDIO_FU_CTRL_DELAY							= 0x08,
+	AUDIO_FU_CTRL_BASS_BOOST					= 0x09,
+	AUDIO_FU_CTRL_LOUDNESS						= 0x0A,
+	AUDIO_FU_CTRL_INPUT_GAIN					= 0x0B,
+	AUDIO_FU_CTRL_GAIN_PAD						= 0x0C,
+	AUDIO_FU_CTRL_INVERTER						= 0x0D,
+	AUDIO_FU_CTRL_UNDERFLOW						= 0x0E,
+	AUDIO_FU_CTRL_OVERVLOW						= 0x0F,
+	AUDIO_FU_CTRL_LATENCY						= 0x10,
+} audio_feature_unit_control_selector_t;
+
+// Rest is yet to be implemented!
+
+/// Terminal Types
+
+/// 2.1 - Audio Class-Terminal Types UAC2
+typedef enum
+{
+	AUDIO_TERM_TYPE_USB_UNDEFINED 		= 0x0100,
+	AUDIO_TERM_TYPE_USB_STREAMING 		= 0x0101,
+	AUDIO_TERM_TYPE_USB_VENDOR_SPEC		= 0x01FF,
+} audio_terminal_type_t;
+
+/// 2.2 - Audio Class-Input Terminal Types UAC2
+typedef enum
+{
+	AUDIO_TERM_TYPE_IN_UNDEFINED 		= 0x0200,
+	AUDIO_TERM_TYPE_IN_GENERIC_MIC 		= 0x0201,
+	AUDIO_TERM_TYPE_IN_DESKTOP_MIC 		= 0x0202,
+	AUDIO_TERM_TYPE_IN_PERSONAL_MIC 	= 0x0203,
+	AUDIO_TERM_TYPE_IN_OMNI_MIC 		= 0x0204,
+	AUDIO_TERM_TYPE_IN_ARRAY_MIC 		= 0x0205,
+	AUDIO_TERM_TYPE_IN_PROC_ARRAY_MIC 	= 0x0206,
+} audio_terminal_input_type_t;
+
+/// 2.3 - Audio Class-Output Terminal Types UAC2
+typedef enum
+{
+	AUDIO_TERM_TYPE_OUT_UNDEFINED 				= 0x0300,
+	AUDIO_TERM_TYPE_OUT_GENERIC_SPEAKER 		= 0x0301,
+	AUDIO_TERM_TYPE_OUT_HEADPHONES 				= 0x0302,
+	AUDIO_TERM_TYPE_OUT_HEAD_MNT_DISP_AUIDO 	= 0x0303,
+	AUDIO_TERM_TYPE_OUT_DESKTOP_SPEAKER 		= 0x0304,
+	AUDIO_TERM_TYPE_OUT_ROOM_SPEAKER	 		= 0x0305,
+	AUDIO_TERM_TYPE_OUT_COMMUNICATION_SPEAKER 	= 0x0306,
+	AUDIO_TERM_TYPE_OUT_LOW_FRQ_EFFECTS_SPEAKER = 0x0307,
+} audio_terminal_output_type_t;
+
+/// Rest is yet to be implemented
+
+/// Additional Audio Device Class Codes - Source: Audio Data Formats
+
+/// A.1 - Audio Class-Format Type Codes UAC2
+typedef enum
+{
+	AUDIO_FORMAT_TYPE_UNDEFINED 	= 0x00,
+	AUDIO_FORMAT_TYPE_I 			= 0x01,
+	AUDIO_FORMAT_TYPE_II 			= 0x02,
+	AUDIO_FORMAT_TYPE_III 			= 0x03,
+	AUDIO_FORMAT_TYPE_IV 			= 0x04,
+	AUDIO_EXT_FORMAT_TYPE_I 		= 0x81,
+	AUDIO_EXT_FORMAT_TYPE_II 		= 0x82,
+	AUDIO_EXT_FORMAT_TYPE_III 		= 0x83,
+} audio_format_type_t;
+
+/// A.2.1 - Audio Class-Audio Data Format Type I UAC2
+typedef enum
+{
+	AUDIO_DATA_FORMAT_TYPE_I_PCM 			= (uint32_t) (1 << 0),
+	AUDIO_DATA_FORMAT_TYPE_I_PCM8 			= (uint32_t) (1 << 1),
+	AUDIO_DATA_FORMAT_TYPE_I_IEEE_FLOAT 	= (uint32_t) (1 << 2),
+	AUDIO_DATA_FORMAT_TYPE_I_ALAW 			= (uint32_t) (1 << 3),
+	AUDIO_DATA_FORMAT_TYPE_I_MULAW 			= (uint32_t) (1 << 4),
+	AUDIO_DATA_FORMAT_TYPE_I_RAW_DATA		= (uint32_t) (1 << 31),
+} audio_data_format_type_I_t;
+
+/// All remaining definitions are taken from the descriptor descriptions in the UAC2 main specification
+
+/// Isochronous End Point Attributes
+typedef enum
+{
+	TUSB_ISO_EP_ATT_ASYNCHRONOUS 	= 0x04,
+	TUSB_ISO_EP_ATT_ADAPTIVE 		= 0x08,
+	TUSB_ISO_EP_ATT_SYNCHRONOUS 	= 0x0C,
+	TUSB_ISO_EP_ATT_DATA 			= 0x00,	///< Data End Point
+	TUSB_ISO_EP_ATT_FB 				= 0x20, ///< Feedback End Point
+} tusb_iso_ep_attribute_t;
 
 /// Audio Class-Control Values UAC2
 typedef enum
@@ -137,13 +281,6 @@ typedef enum
 	AUDIO_CS_AS_INTERFACE_CTRL_ACTIVE_ALT_SET_POS 	= 0,
 	AUDIO_CS_AS_INTERFACE_CTRL_VALID_ALT_SET_POS	= 2,
 } audio_cs_as_interface_control_pos_t;
-
-/// Audio Class-Specific EP Descriptor Subtypes UAC2
-typedef enum
-{
-	AUDIO_CS_EP_SUBTYPE_DESCRIPTOR_UNDEFINED 	= 0x00,
-	AUDIO_CS_EP_SUBTYPE_GENERAL 				= 0x01,
-} audio_cs_ep_subtype_t;
 
 /// Audio Class-Specific AS Isochronous Data EP Attributes UAC2
 typedef enum
@@ -198,26 +335,6 @@ typedef enum
 	AUDIO_CLOCK_MULTIPLIER_CTRL_DENOMINATOR_POS 	= 2,
 } audio_clock_multiplier_control_pos_t;
 
-/// Audio Class-Terminal Types UAC2
-typedef enum
-{
-	AUDIO_TERM_TYPE_USB_UNDEFINED 		= 0x0100,
-	AUDIO_TERM_TYPE_USB_STREAMING 		= 0x0101,
-	AUDIO_TERM_TYPE_USB_VENDOR_SPEC		= 0x01FF,
-} audio_terminal_type_t;
-
-/// Audio Class-Input Terminal Types UAC2
-typedef enum
-{
-	AUDIO_TERM_TYPE_IN_UNDEFINED 		= 0x0200,
-	AUDIO_TERM_TYPE_IN_GENERIC_MIC 		= 0x0201,
-	AUDIO_TERM_TYPE_IN_DESKTOP_MIC 		= 0x0202,
-	AUDIO_TERM_TYPE_IN_PERSONAL_MIC 	= 0x0203,
-	AUDIO_TERM_TYPE_IN_OMNI_MIC 		= 0x0204,
-	AUDIO_TERM_TYPE_IN_ARRAY_MIC 		= 0x0205,
-	AUDIO_TERM_TYPE_IN_PROC_ARRAY_MIC 	= 0x0206,
-} audio_terminal_input_type_t;
-
 /// Audio Class-Input Terminal Controls UAC2
 typedef enum
 {
@@ -228,19 +345,6 @@ typedef enum
 	AUDIO_IN_TERM_CTRL_UNDERFLOW_POS 	= 8,
 	AUDIO_IN_TERM_CTRL_OVERFLOW_POS 	= 10,
 } audio_terminal_input_control_pos_t;
-
-/// Audio Class-Output Terminal Types UAC2
-typedef enum
-{
-	AUDIO_TERM_TYPE_OUT_UNDEFINED 				= 0x0300,
-	AUDIO_TERM_TYPE_OUT_GENERIC_SPEAKER 		= 0x0301,
-	AUDIO_TERM_TYPE_OUT_HEADPHONES 				= 0x0302,
-	AUDIO_TERM_TYPE_OUT_HEAD_MNT_DISP_AUIDO 	= 0x0303,
-	AUDIO_TERM_TYPE_OUT_DESKTOP_SPEAKER 		= 0x0304,
-	AUDIO_TERM_TYPE_OUT_ROOM_SPEAKER	 		= 0x0305,
-	AUDIO_TERM_TYPE_OUT_COMMUNICATION_SPEAKER 	= 0x0306,
-	AUDIO_TERM_TYPE_OUT_LOW_FRQ_EFFECTS_SPEAKER = 0x0307,
-} audio_terminal_output_type_t;
 
 /// Audio Class-Output Terminal Controls UAC2
 typedef enum
@@ -271,29 +375,6 @@ typedef enum
 	AUDIO_FEATURE_UNIT_CTRL_UNDERFLOW_POS		= 26,
 	AUDIO_FEATURE_UNIT_CTRL_OVERFLOW_POS		= 28,
 } audio_feature_unit_control_pos_t;
-
-/// Audio Class-Format Type Codes UAC2
-typedef enum
-{
-	AUDIO_FORMAT_TYPE_UNDEFINED 	= 0x00,
-	AUDIO_FORMAT_TYPE_I 			= 0x01,
-	AUDIO_FORMAT_TYPE_II 			= 0x02,
-	AUDIO_FORMAT_TYPE_III 			= 0x03,
-	AUDIO_FORMAT_TYPE_IV 			= 0x04,
-	AUDIO_EXT_FORMAT_TYPE_I 		= 0x81,
-	AUDIO_EXT_FORMAT_TYPE_II 		= 0x82,
-	AUDIO_EXT_FORMAT_TYPE_III 		= 0x83,
-} audio_format_type_t;
-
-/// Audio Class-Audio Data Format Type I UAC2
-typedef enum
-{
-	AUDIO_DATA_FORMAT_TYPE_I_PCM 			= 0x00000000,
-	AUDIO_DATA_FORMAT_TYPE_I_PCM8 			= 0x00000001,
-	AUDIO_DATA_FORMAT_TYPE_I_IEEE_FLOAT 	= 0x00000002,
-	AUDIO_DATA_FORMAT_TYPE_I_ALAW 			= 0x00000003,
-	AUDIO_DATA_FORMAT_TYPE_I_MULAW 			= 0x00000004,
-} audio_data_format_type_I_t;
 
 /// Audio Class-Audio Channel Configuration UAC2
 typedef enum
@@ -490,6 +571,85 @@ typedef struct TU_ATTR_PACKED
   uint16_t wLockDelay 		 ; ///< Indicates the time it takes this endpoint to reliably lock its internal clock recovery circuitry. Units used depend on the value of the bLockDelayUnits field.
 } audio_desc_cs_as_iso_data_ep_t;
 
+//// 5.2.3 Control Request Parameter Block Layout
+
+// 5.2.3.1 1-byte Control CUR Parameter Block
+typedef struct TU_ATTR_PACKED
+{
+  int8_t bCur            	; 	///< The setting for the CUR attribute of the addressed Control
+} audio_control_cur_1_t;
+
+// 5.2.3.2 2-byte Control CUR Parameter Block
+typedef struct TU_ATTR_PACKED
+{
+  int16_t bCur            	;	///< The setting for the CUR attribute of the addressed Control
+} audio_control_cur_2_t;
+
+// 5.2.3.3 4-byte Control CUR Parameter Block
+typedef struct TU_ATTR_PACKED
+{
+  int32_t bCur            	;	///< The setting for the CUR attribute of the addressed Control
+} audio_control_cur_4_t;
+
+// 5.2.3.1 1-byte Control RANGE Parameter Block
+//#define audio_control_range_1_n_t(numSubRanges) \
+//  struct TU_ATTR_PACKED {         				\
+//	uint16_t wNumSubRanges = numSubRanges; 		\
+//    struct TU_ATTR_PACKED {    	  				\
+//        int8_t bMin			; /*The setting for the MIN attribute of the nth subrange of the addressed Control*/\
+//        int8_t bMax			; /*The setting for the MAX attribute of the nth subrange of the addressed Control*/\
+//        uint8_t bRes			; /*The setting for the RES attribute of the nth subrange of the addressed Control*/\
+//    } setting[numSubRanges]		; \
+// }
+
+typedef struct TU_ATTR_PACKED {
+	uint16_t wNumSubRanges;
+  struct TU_ATTR_PACKED {
+      int8_t bMin			; /*The setting for the MIN attribute of the nth subrange of the addressed Control*/
+      int8_t bMax			; /*The setting for the MAX attribute of the nth subrange of the addressed Control*/
+      uint8_t bRes			; /*The setting for the RES attribute of the nth subrange of the addressed Control*/
+  } setting[]				;
+} audio_control_range_1_t;
+
+// 5.2.3.2 2-byte Control RANGE Parameter Block
+//#define audio_control_range_2_n_t(numSubRanges) \
+//  struct TU_ATTR_PACKED {         				\
+//	uint16_t wNumSubRanges = numSubRanges; 		\
+//    struct TU_ATTR_PACKED {    	  				\
+//        int16_t bMin			; /*The setting for the MIN attribute of the nth subrange of the addressed Control*/\
+//        int16_t bMax			; /*The setting for the MAX attribute of the nth subrange of the addressed Control*/\
+//        uint16_t bRes			; /*The setting for the RES attribute of the nth subrange of the addressed Control*/\
+//    } setting[numSubRanges]		; \
+// }
+
+typedef struct TU_ATTR_PACKED {
+	uint16_t wNumSubRanges;
+  struct TU_ATTR_PACKED {
+      int16_t bMin			; /*The setting for the MIN attribute of the nth subrange of the addressed Control*/
+      int16_t bMax			; /*The setting for the MAX attribute of the nth subrange of the addressed Control*/
+      uint16_t bRes			; /*The setting for the RES attribute of the nth subrange of the addressed Control*/
+  } setting[]				;
+} audio_control_range_2_t;
+
+// 5.2.3.3 4-byte Control RANGE Parameter Block
+//#define audio_control_range_4_n_t(numSubRanges) \
+//  struct TU_ATTR_PACKED {         				\
+//	uint16_t wNumSubRanges = numSubRanges; 		\
+//    struct TU_ATTR_PACKED {    	  				\
+//        int32_t bMin			; /*The setting for the MIN attribute of the nth subrange of the addressed Control*/\
+//        int32_t bMax			; /*The setting for the MAX attribute of the nth subrange of the addressed Control*/\
+//        uint32_t bRes			; /*The setting for the RES attribute of the nth subrange of the addressed Control*/\
+//    } setting[numSubRanges]		; \
+// }
+
+typedef struct TU_ATTR_PACKED {
+	uint16_t wNumSubRanges;
+  struct TU_ATTR_PACKED {
+      int32_t bMin			; /*The setting for the MIN attribute of the nth subrange of the addressed Control*/
+      int32_t bMax			; /*The setting for the MAX attribute of the nth subrange of the addressed Control*/
+      uint32_t bRes			; /*The setting for the RES attribute of the nth subrange of the addressed Control*/
+  } setting[]				;
+} audio_control_range_4_t;
 
 /** @} */
 
