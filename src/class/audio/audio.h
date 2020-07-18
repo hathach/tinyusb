@@ -162,6 +162,19 @@ typedef enum
 	AUDIO_CLK_SRC_CTRL_CLK_VALID				= 0x02,
 } audio_clock_src_control_selector_t;
 
+/// A.17.4 - Terminal Control Selectors
+typedef enum
+{
+	AUDIO_TERMINAL_CTRL_UNDEF 					= 0x00,
+	AUDIO_TERMINAL_CTRL_COPY_PROTECT			= 0x01,
+	AUDIO_TERMINAL_CTRL_CONNECTOR				= 0x02,
+	AUDIO_TERMINAL_CTRL_OVERLOAD				= 0x03,
+	AUDIO_TERMINAL_CTRL_CLUSTER					= 0x04,
+	AUDIO_TERMINAL_CTRL_UNDERFLOW				= 0x05,
+	AUDIO_TERMINAL_CTRL_OVERFLOW				= 0x06,
+	AUDIO_TERMINAL_CTRL_LATENCY					= 0x07,
+} audio_terminal_control_selector_t;
+
 /// A.17.7 - Feature Unit Control Selectors
 typedef enum
 {
