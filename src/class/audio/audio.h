@@ -157,23 +157,57 @@ typedef enum
 /// A.17.1 - Clock Source Control Selectors
 typedef enum
 {
-	AUDIO_CLK_SRC_CTRL_UNDEF 					= 0x00,
-	AUDIO_CLK_SRC_CTRL_SAM_FREQ					= 0x01,
-	AUDIO_CLK_SRC_CTRL_CLK_VALID				= 0x02,
+	AUDIO_CS_CTRL_UNDEF 						= 0x00,
+	AUDIO_CS_CTRL_SAM_FREQ						= 0x01,
+	AUDIO_CS_CTRL_CLK_VALID						= 0x02,
 } audio_clock_src_control_selector_t;
+
+/// A.17.2 - Clock Selector Control Selectors
+typedef enum
+{
+	AUDIO_CX_CTRL_UNDEF 						= 0x00,
+	AUDIO_CX_CTRL_CONTROL						= 0x01,
+} audio_clock_sel_control_selector_t;
+
+/// A.17.3 - Clock Multiplier Control Selectors
+typedef enum
+{
+	AUDIO_CM_CTRL_UNDEF 						= 0x00,
+	AUDIO_CM_CTRL_NUMERATOR_CONTROL				= 0x01,
+	AUDIO_CM_CTRL_DENOMINATOR_CONTROL			= 0x02,
+} audio_clock_mul_control_selector_t;
 
 /// A.17.4 - Terminal Control Selectors
 typedef enum
 {
-	AUDIO_TERMINAL_CTRL_UNDEF 					= 0x00,
-	AUDIO_TERMINAL_CTRL_COPY_PROTECT			= 0x01,
-	AUDIO_TERMINAL_CTRL_CONNECTOR				= 0x02,
-	AUDIO_TERMINAL_CTRL_OVERLOAD				= 0x03,
-	AUDIO_TERMINAL_CTRL_CLUSTER					= 0x04,
-	AUDIO_TERMINAL_CTRL_UNDERFLOW				= 0x05,
-	AUDIO_TERMINAL_CTRL_OVERFLOW				= 0x06,
-	AUDIO_TERMINAL_CTRL_LATENCY					= 0x07,
+	AUDIO_TE_CTRL_UNDEF 						= 0x00,
+	AUDIO_TE_CTRL_COPY_PROTECT					= 0x01,
+	AUDIO_TE_CTRL_CONNECTOR						= 0x02,
+	AUDIO_TE_CTRL_OVERLOAD						= 0x03,
+	AUDIO_TE_CTRL_CLUSTER						= 0x04,
+	AUDIO_TE_CTRL_UNDERFLOW						= 0x05,
+	AUDIO_TE_CTRL_OVERFLOW						= 0x06,
+	AUDIO_TE_CTRL_LATENCY						= 0x07,
 } audio_terminal_control_selector_t;
+
+/// A.17.5 - Mixer Control Selectors
+typedef enum
+{
+	AUDIO_MU_CTRL_UNDEF 						= 0x00,
+	AUDIO_MU_CTRL_MIXER							= 0x01,
+	AUDIO_MU_CTRL_CLUSTER						= 0x02,
+	AUDIO_MU_CTRL_UNDERFLOW						= 0x03,
+	AUDIO_MU_CTRL_OVERFLOW						= 0x04,
+	AUDIO_MU_CTRL_LATENCY						= 0x05,
+} audio_mixer_control_selector_t;
+
+/// A.17.6 - Selector Control Selectors
+typedef enum
+{
+	AUDIO_SU_CTRL_UNDEF 						= 0x00,
+	AUDIO_SU_CTRL_SELECTOR						= 0x01,
+	AUDIO_SU_CTRL_LATENCY 						= 0x02,
+} audio_sel_control_selector_t;
 
 /// A.17.7 - Feature Unit Control Selectors
 typedef enum
@@ -197,7 +231,202 @@ typedef enum
 	AUDIO_FU_CTRL_LATENCY						= 0x10,
 } audio_feature_unit_control_selector_t;
 
-// Rest is yet to be implemented!
+/// A.17.8 Effect Unit Control Selectors
+
+/// A.17.8.1 Parametric Equalizer Section Effect Unit Control Selectors
+typedef enum
+{
+	AUDIO_PE_CTRL_UNDEF 						= 0x00,
+	AUDIO_PE_CTRL_ENABLE 						= 0x01,
+	AUDIO_PE_CTRL_CENTERFREQ					= 0x02,
+	AUDIO_PE_CTRL_QFACTOR 						= 0x03,
+	AUDIO_PE_CTRL_GAIN	 						= 0x04,
+	AUDIO_PE_CTRL_UNDERFLOW						= 0x05,
+	AUDIO_PE_CTRL_OVERFLOW 						= 0x06,
+	AUDIO_PE_CTRL_LATENCY 						= 0x07,
+} audio_parametric_equalizer_control_selector_t;
+
+/// A.17.8.2 Reverberation Effect Unit Control Selectors
+typedef enum
+{
+	AUDIO_RV_CTRL_UNDEF 						= 0x00,
+	AUDIO_RV_CTRL_ENABLE 						= 0x01,
+	AUDIO_RV_CTRL_TYPE 							= 0x02,
+	AUDIO_RV_CTRL_LEVEL							= 0x03,
+	AUDIO_RV_CTRL_TIME 							= 0x04,
+	AUDIO_RV_CTRL_FEEDBACK						= 0x05,
+	AUDIO_RV_CTRL_PREDELAY 						= 0x06,
+	AUDIO_RV_CTRL_DENSITY						= 0x07,
+	AUDIO_RV_CTRL_HIFREQ_ROLLOFF				= 0x08,
+	AUDIO_RV_CTRL_UNDERFLOW						= 0x09,
+	AUDIO_RV_CTRL_OVERFLOW 						= 0x0A,
+	AUDIO_RV_CTRL_LATENCY 						= 0x0B,
+} audio_reverberation_effect_control_selector_t;
+
+/// A.17.8.3 Modulation Delay Effect Unit Control Selectors
+typedef enum
+{
+	AUDIO_MD_CTRL_UNDEF 						= 0x00,
+	AUDIO_MD_CTRL_ENABLE 						= 0x01,
+	AUDIO_MD_CTRL_BALANCE 						= 0x02,
+	AUDIO_MD_CTRL_RATE 							= 0x03,
+	AUDIO_MD_CTRL_DEPTH 						= 0x04,
+	AUDIO_MD_CTRL_TIME 							= 0x05,
+	AUDIO_MD_CTRL_FEEDBACK 						= 0x06,
+	AUDIO_MD_CTRL_UNDERFLOW						= 0x07,
+	AUDIO_MD_CTRL_OVERFLOW						= 0x08,
+	AUDIO_MD_CTRL_LATENCY 						= 0x09,
+} audio_modulation_delay_control_selector_t;
+
+/// A.17.8.4 Dynamic Range Compressor Effect Unit Control Selectors
+typedef enum
+{
+	AUDIO_DR_CTRL_UNDEF 						= 0x00,
+	AUDIO_DR_CTRL_ENABLE 						= 0x01,
+	AUDIO_DR_CTRL_COMPRESSION_RATE				= 0x02,
+	AUDIO_DR_CTRL_MAXAMPL 						= 0x03,
+	AUDIO_DR_CTRL_THRESHOLD						= 0x04,
+	AUDIO_DR_CTRL_ATTACK_TIME					= 0x05,
+	AUDIO_DR_CTRL_RELEASE_TIME					= 0x06,
+	AUDIO_DR_CTRL_UNDERFLOW						= 0x07,
+	AUDIO_DR_CTRL_OVERFLOW 						= 0x08,
+	AUDIO_DR_CTRL_LATENCY 						= 0x09,
+} audio_dynamic_range_compression_control_selector_t;
+
+/// A.17.9 Processing Unit Control Selectors
+
+/// A.17.9.1 Up/Down-mix Processing Unit Control Selectors
+typedef enum
+{
+	AUDIO_UD_CTRL_UNDEF 						= 0x00,
+	AUDIO_UD_CTRL_ENABLE 						= 0x01,
+	AUDIO_UD_CTRL_MODE_SELECT					= 0x02,
+	AUDIO_UD_CTRL_CLUSTER 						= 0x03,
+	AUDIO_UD_CTRL_UNDERFLOW						= 0x04,
+	AUDIO_UD_CTRL_OVERFLOW 						= 0x05,
+	AUDIO_UD_CTRL_LATENCY 						= 0x06,
+} audio_up_down_mix_control_selector_t;
+
+/// A.17.9.2 Dolby Prologic ™ Processing Unit Control Selectors
+typedef enum
+{
+	AUDIO_DP_CTRL_UNDEF 						= 0x00,
+	AUDIO_DP_CTRL_ENABLE 						= 0x01,
+	AUDIO_DP_CTRL_MODE_SELECT					= 0x02,
+	AUDIO_DP_CTRL_CLUSTER 						= 0x03,
+	AUDIO_DP_CTRL_UNDERFLOW						= 0x04,
+	AUDIO_DP_CTRL_OVERFLOW 						= 0x05,
+	AUDIO_DP_CTRL_LATENCY 						= 0x06,
+} audio_dolby_prologic_control_selector_t;
+
+/// A.17.9.3 Stereo Extender Processing Unit Control Selectors
+typedef enum
+{
+	AUDIO_ST_EXT_CTRL_UNDEF 					= 0x00,
+	AUDIO_ST_EXT_CTRL_ENABLE 					= 0x01,
+	AUDIO_ST_EXT_CTRL_WIDTH 					= 0x02,
+	AUDIO_ST_EXT_CTRL_UNDERFLOW					= 0x03,
+	AUDIO_ST_EXT_CTRL_OVERFLOW 					= 0x04,
+	AUDIO_ST_EXT_CTRL_LATENCY 					= 0x05,
+} audio_stereo_extender_control_selector_t;
+
+/// A.17.10 Extension Unit Control Selectors
+typedef enum
+{
+	AUDIO_XU_CTRL_UNDEF 						= 0x00,
+	AUDIO_XU_CTRL_ENABLE 						= 0x01,
+	AUDIO_XU_CTRL_CLUSTER 						= 0x02,
+	AUDIO_XU_CTRL_UNDERFLOW						= 0x03,
+	AUDIO_XU_CTRL_OVERFLOW 						= 0x04,
+	AUDIO_XU_CTRL_LATENCY 						= 0x05,
+} audio_extension_unit_control_selector_t;
+
+/// A.17.11 AudioStreaming Interface Control Selectors
+typedef enum
+{
+	AUDIO_AS_CTRL_UNDEF 						= 0x00,
+	AUDIO_AS_CTRL_ACT_ALT_SETTING				= 0x01,
+	AUDIO_AS_CTRL_VAL_ALT_SETTINGS				= 0x02,
+	AUDIO_AS_CTRL_AUDIO_DATA_FORMAT				= 0x03,
+} audio_audiostreaming_interface_control_selector_t;
+
+/// A.17.12 Encoder Control Selectors
+typedef enum
+{
+	AUDIO_EN_CTRL_UNDEF 						= 0x00,
+	AUDIO_EN_CTRL_BIT_RATE 						= 0x01,
+	AUDIO_EN_CTRL_QUALITY 						= 0x02,
+	AUDIO_EN_CTRL_VBR  							= 0x03,
+	AUDIO_EN_CTRL_TYPE	 						= 0x04,
+	AUDIO_EN_CTRL_UNDERFLOW						= 0x05,
+	AUDIO_EN_CTRL_OVERFLOW 						= 0x06,
+	AUDIO_EN_CTRL_ENCODER_ERROR					= 0x07,
+	AUDIO_EN_CTRL_PARAM1 						= 0x08,
+	AUDIO_EN_CTRL_PARAM2 						= 0x09,
+	AUDIO_EN_CTRL_PARAM3 						= 0x0A,
+	AUDIO_EN_CTRL_PARAM4 						= 0x0B,
+	AUDIO_EN_CTRL_PARAM5 						= 0x0C,
+	AUDIO_EN_CTRL_PARAM6 						= 0x0D,
+	AUDIO_EN_CTRL_PARAM7 						= 0x0E,
+	AUDIO_EN_CTRL_PARAM8 						= 0x0F,
+} audio_encoder_control_selector_t;
+
+/// A.17.13 Decoder Control Selectors
+
+/// A.17.13.1 MPEG Decoder Control Selectors
+typedef enum
+{
+	AUDIO_MPD_CTRL_UNDEF 						= 0x00,
+	AUDIO_MPD_CTRL_DUAL_CHANNEL					= 0x01,
+	AUDIO_MPD_CTRL_SECOND_STEREO				= 0x02,
+	AUDIO_MPD_CTRL_MULTILINGUAL					= 0x03,
+	AUDIO_MPD_CTRL_DYN_RANGE					= 0x04,
+	AUDIO_MPD_CTRL_SCALING 						= 0x05,
+	AUDIO_MPD_CTRL_HILO_SCALING					= 0x06,
+	AUDIO_MPD_CTRL_UNDERFLOW					= 0x07,
+	AUDIO_MPD_CTRL_OVERFLOW 					= 0x08,
+	AUDIO_MPD_CTRL_DECODER_ERROR				= 0x09,
+} audio_MPEG_decoder_control_selector_t;
+
+/// A.17.13.2 AC-3 Decoder Control Selectors
+typedef enum
+{
+	AUDIO_AD_CTRL_UNDEF 						= 0x00,
+	AUDIO_AD_CTRL_MODE	 						= 0x01,
+	AUDIO_AD_CTRL_DYN_RANGE						= 0x02,
+	AUDIO_AD_CTRL_SCALING 						= 0x03,
+	AUDIO_AD_CTRL_HILO_SCALING					= 0x04,
+	AUDIO_AD_CTRL_UNDERFLOW						= 0x05,
+	AUDIO_AD_CTRL_OVERFLOW 						= 0x06,
+	AUDIO_AD_CTRL_DECODER_ERROR					= 0x07,
+} audio_AC3_decoder_control_selector_t;
+
+/// A.17.13.3 WMA Decoder Control Selectors
+typedef enum
+{
+	AUDIO_WD_CTRL_UNDEF 						= 0x00,
+	AUDIO_WD_CTRL_UNDERFLOW						= 0x01,
+	AUDIO_WD_CTRL_OVERFLOW 						= 0x02,
+	AUDIO_WD_CTRL_DECODER_ERROR					= 0x03,
+} audio_WMA_decoder_control_selector_t;
+
+/// A.17.13.4 DTS Decoder Control Selectors
+typedef enum
+{
+	AUDIO_DD_CTRL_UNDEF 						= 0x00,
+	AUDIO_DD_CTRL_UNDERFLOW						= 0x01,
+	AUDIO_DD_CTRL_OVERFLOW 						= 0x02,
+	AUDIO_DD_CTRL_DECODER_ERROR					= 0x03,
+} audio_DTS_decoder_control_selector_t;
+
+/// A.17.14 Endpoint Control Selectors
+typedef enum
+{
+	AUDIO_EP_CTRL_UNDEF 						= 0x00,
+	AUDIO_EP_CTRL_PITCH 						= 0x01,
+	AUDIO_EP_CTRL_DATA_OVERRUN					= 0x02,
+	AUDIO_EP_CTRL_DATA_UNDERRUN					= 0x03,
+} audio_EP_control_selector_t;
 
 /// Terminal Types
 
