@@ -150,7 +150,7 @@ uint8_t const * tud_descriptor_configuration_cb(uint8_t index)
 
 #if TUD_OPT_HIGH_SPEED
   // Although we are highspeed, host may be fullspeed.
-  return (tud_speed_get() == TUSB_SPEED_HIGH ) ?  desc_hs_configuration : desc_fs_configuration;
+  return (tud_speed_get() == TUSB_SPEED_HIGH) ?  desc_hs_configuration : desc_fs_configuration;
 #else
   return desc_fs_configuration;
 #endif
