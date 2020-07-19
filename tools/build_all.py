@@ -14,26 +14,33 @@ total_time = time.monotonic()
 build_format = '| {:23} | {:30} | {:9} | {:7} | {:6} | {:6} |'
 build_separator = '-' * 100
 
-# 1st Argument is Example, build all examples if not existed
+# If examples are not specified in arguments, build all
 all_examples = []
+
+for entry in os.scandir("examples/device"):
+    if entry.is_dir():
+        all_examples.append(entry.name)
+
 if len(sys.argv) > 1:
-    all_examples.append(sys.argv[1])
-else:
-    for entry in os.scandir("examples/device"):
-        if entry.is_dir():
-            all_examples.append(entry.name)
+    input_examples = list(set(all_examples).intersection(sys.argv))
+    if len(input_examples) > 0:
+        all_examples = input_examples
+
 all_examples.sort()
 
-# 2nd Argument is Board, build all boards if not existed
+# If boards are not specified in arguments, build all
 all_boards = []
-if len(sys.argv) > 2:
-    all_boards.append(sys.argv[2])
-else:
-    for entry in os.scandir("hw/bsp"):
-        if entry.is_dir():
-            all_boards.append(entry.name)
-all_boards.sort()
 
+for entry in os.scandir("hw/bsp"):
+    if entry.is_dir():
+        all_boards.append(entry.name)
+
+if len(sys.argv) > 1:
+    input_boards = list(set(all_boards).intersection(sys.argv))
+    if len(input_boards) > 0:
+        all_boards = input_boards
+
+all_boards.sort()
 
 def build_example(example, board):
     subprocess.run("make -C examples/device/{} BOARD={} clean".format(example, board), shell=True,
