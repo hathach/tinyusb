@@ -131,8 +131,14 @@ size: $(BUILD)/$(BOARD)-firmware.elf
 	@$(SIZE) $<
 	-@echo ''
 
+.PHONY: clean
 clean:
-	rm -rf $(BUILD)
+	$(RM) -rf $(BUILD)
+
+# Print out the value of a make variable.
+# https://stackoverflow.com/questions/16467718/how-to-print-out-a-variable-in-makefile
+print-%:
+	@echo $* = $($*)
 
 # Flash binary using Jlink
 ifeq ($(OS),Windows_NT)
