@@ -45,7 +45,7 @@
 
 // Size of control buffer used to receive and send control messages via EP0 - has to be big enough to hold your biggest request structure e.g. range requests with multiple intervals defined or cluster descriptors
 #ifndef CFG_TUD_AUDIO_CTRL_BUF_SIZE
-#define CFG_TUD_AUDIO_CTRL_BUF_SIZE 	64
+#error You must define an audio class control request buffer size!
 #endif
 
 // Use of TX/RX FIFOs - If sizes are not zero, audio.c implements FIFOs for RX and TX (whatever defined).
@@ -79,7 +79,7 @@
 #define CFG_TUD_AUDIO_INT_CTR_EPSIZE_IN 0						// Audio interrupt control
 #endif
 
-#if CFG_TUD_AUDIO_INT_CTR_EPSIZE_IN > 0
+#if CFG_TUD_AUDIO_INT_CTR_EPSIZE_IN
 #ifndef CFG_TUD_AUDIO_INT_CTR_BUFSIZE
 #define CFG_TUD_AUDIO_INT_CTR_BUFSIZE	6 						// Buffer size of audio control interrupt EP - 6 Bytes according to UAC 2 specification (p. 74)
 #endif
