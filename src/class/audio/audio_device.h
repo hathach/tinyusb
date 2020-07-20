@@ -43,16 +43,23 @@
 #define CFG_TUD_AUDIO_N_AS_INT 	0
 #endif
 
-// Use internal FIFOs - In this case, audio.c implements FIFOs for RX and TX (whatever required) and implements encoding and decoding (parameterized by the defines below).
-// For RX: the input stream gets decoded into its corresponding channels, where for each channel a FIFO is setup to hold its data -> see: audio_rx_done_cb().
-// For TX: the output stream is composed from CFG_TUD_AUDIO_N_CHANNELS_TX channels, where for each channel a FIFO is defined.
-// If you disable this you need to fill in desired code into audio_rx_done_cb() and Y on your own, however, this allows for optimizations in byte processing.
-#ifndef CFG_TUD_AUDIO_USE_RX_FIFO
-#define CFG_TUD_AUDIO_USE_RX_FIFO 	0
+// Size of control buffer used to receive and send control messages via EP0 - has to be big enough to hold your biggest request structure e.g. range requests with multiple intervals defined or cluster descriptors
+#ifndef CFG_TUD_AUDIO_CTRL_BUF_SIZE
+#define CFG_TUD_AUDIO_CTRL_BUF_SIZE 	64
 #endif
 
-#ifndef CFG_TUD_AUDIO_USE_TX_FIFO
-#define CFG_TUD_AUDIO_USE_TX_FIFO 	0
+// Use of TX/RX FIFOs - If sizes are not zero, audio.c implements FIFOs for RX and TX (whatever defined).
+// For RX: the input stream gets decoded into its corresponding channels, where for each channel a FIFO is setup to hold its data -> see: audio_rx_done_cb().
+// For TX: the output stream is composed from CFG_TUD_AUDIO_N_CHANNELS_TX channels, where for each channel a FIFO is defined.
+// Further, it implements encoding and decoding of the individual channels (parameterized by the defines below).
+// If you don't use the FIFOs you need to handle encoding and decoding on your own in audio_rx_done_cb() and Y. This, however, allows for optimizations.
+
+#ifndef CFG_TUD_AUDIO_TX_FIFO_SIZE
+#define CFG_TUD_AUDIO_TX_FIFO_SIZE 	0 							// Buffer size per channel
+#endif
+
+#ifndef CFG_TUD_AUDIO_RX_FIFO_SIZE
+#define CFG_TUD_AUDIO_RX_FIFO_SIZE 	0 							// Buffer size per channel
 #endif
 
 // End point sizes - Limits: Full Speed <= 1023, High Speed <= 1024
@@ -60,20 +67,8 @@
 #define CFG_TUD_AUDIO_EPSIZE_IN 0 	// TX
 #endif
 
-#if CFG_TUD_AUDIO_EPSIZE_IN > 0
-#ifndef CFG_TUD_AUDIO_TX_BUFSIZE
-#define CFG_TUD_AUDIO_TX_BUFSIZE	CFG_TUD_AUDIO_EPSIZE_IN 	// Buffer size per channel
-#endif
-#endif
-
 #ifndef CFG_TUD_AUDIO_EPSIZE_OUT
 #define CFG_TUD_AUDIO_EPSIZE_OUT 0 	// RX
-#endif
-
-#if CFG_TUD_AUDIO_EPSIZE_OUT > 0
-#ifndef CFG_TUD_AUDIO_RX_BUFSIZE
-#define CFG_TUD_AUDIO_RX_BUFSIZE	CFG_TUD_AUDIO_EPSIZE_OUT 	// Buffer size per channel
-#endif
 #endif
 
 #ifndef CFG_TUD_AUDIO_ENABLE_FEEDBACK_EP
@@ -169,13 +164,13 @@ extern "C" {
 //--------------------------------------------------------------------+
 bool     tud_audio_n_mounted    (uint8_t itf);
 
-#if CFG_TUD_AUDIO_EPSIZE_OUT > 0 && CFG_TUD_AUDIO_USE_RX_FIFO
+#if CFG_TUD_AUDIO_EPSIZE_OUT && CFG_TUD_AUDIO_RX_BUFSIZE
 uint16_t tud_audio_n_available  (uint8_t itf, uint8_t channelId);
 uint16_t tud_audio_n_read       (uint8_t itf, uint8_t channelId, void* buffer, uint16_t bufsize);
 void     tud_audio_n_read_flush (uint8_t itf, uint8_t channelId);
 #endif
 
-#if CFG_TUD_AUDIO_EPSIZE_IN > 0 && CFG_TUD_AUDIO_USE_TX_FIFO
+#if CFG_TUD_AUDIO_EPSIZE_IN && CFG_TUD_AUDIO_TX_BUFSIZE
 uint16_t tud_audio_n_write		(uint8_t itf, uint8_t channelId, uint8_t const* buffer, uint16_t bufsize);
 #endif
 
@@ -192,13 +187,13 @@ uint16_t 	tud_audio_int_ctr_n_write		(uint8_t itf, uint8_t const* buffer, uint16
 
 inline bool     	tud_audio_mounted    (void);
 
-#if CFG_TUD_AUDIO_EPSIZE_OUT > 0 && CFG_TUD_AUDIO_USE_RX_FIFO
+#if CFG_TUD_AUDIO_EPSIZE_OUT && CFG_TUD_AUDIO_RX_BUFSIZE
 inline uint16_t 	tud_audio_available  (void);
 inline uint16_t 	tud_audio_read       (void* buffer, uint16_t bufsize);
 inline void     	tud_audio_read_flush (void);
 #endif
 
-#if CFG_TUD_AUDIO_EPSIZE_IN > 0 && CFG_TUD_AUDIO_USE_TX_FIFO
+#if CFG_TUD_AUDIO_EPSIZE_IN && CFG_TUD_AUDIO_TX_BUFSIZE
 inline uint16_t tud_audio_write      (uint8_t channelId, uint8_t const* buffer, uint16_t bufsize);
 #endif
 
@@ -259,14 +254,14 @@ inline bool tud_audio_mounted(void)
 	return tud_audio_n_mounted(0);
 }
 
-#if CFG_TUD_AUDIO_EPSIZE_IN > 0 && CFG_TUD_AUDIO_USE_TX_FIFO
+#if CFG_TUD_AUDIO_EPSIZE_IN && CFG_TUD_AUDIO_TX_BUFSIZE
 inline uint16_t tud_audio_write (uint8_t channelId, uint8_t const* buffer, uint16_t bufsize) 	// Short version if only one audio function is used
 {
 	return tud_audio_n_write(0, channelId, buffer, bufsize);
 }
-#endif 	// CFG_TUD_AUDIO_EPSIZE_IN > 0 && CFG_TUD_AUDIO_USE_TX_FIFO
+#endif 	// CFG_TUD_AUDIO_EPSIZE_IN && CFG_TUD_AUDIO_TX_BUFSIZE
 
-#if CFG_TUD_AUDIO_EPSIZE_OUT > 0 && CFG_TUD_AUDIO_USE_RX_FIFO
+#if CFG_TUD_AUDIO_EPSIZE_OUT && CFG_TUD_AUDIO_RX_BUFSIZE
 inline uint16_t tud_audio_available(uint8_t channelId)
 {
 	return tud_audio_n_available(0, channelId);
