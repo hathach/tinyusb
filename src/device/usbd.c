@@ -891,20 +891,11 @@ static bool process_get_descriptor(uint8_t rhport, tusb_control_request_t const 
       TU_LOG2(" String[%u]\r\n", desc_index);
 
       // String Descriptor always uses the desc set from user
-      if ( desc_index == 0xEE )
-      {
-        // The 0xEE index string is a Microsoft OS Descriptors.
-        // https://docs.microsoft.com/en-us/windows-hardware/drivers/usbcon/microsoft-defined-usb-descriptors
-        return false;
-      }
-      else
-      {
-        uint8_t const* desc_str = (uint8_t const*) tud_descriptor_string_cb(desc_index, p_request->wIndex);
-        TU_ASSERT(desc_str);
+      uint8_t const* desc_str = (uint8_t const*) tud_descriptor_string_cb(desc_index, p_request->wIndex);
+      TU_VERIFY(desc_str);
 
-        // first byte of descriptor is its size
-        return tud_control_xfer(rhport, p_request, (void*) desc_str, desc_str[0]);
-      }
+      // first byte of descriptor is its size
+      return tud_control_xfer(rhport, p_request, (void*) desc_str, desc_str[0]);
     break;
 
     case TUSB_DESC_DEVICE_QUALIFIER:
