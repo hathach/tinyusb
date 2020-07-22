@@ -43,6 +43,8 @@ static inline void prepare_setup(void)
 {
   // Only make sure the EP0 OUT buffer is ready
   sram_registers[0][0].ADDR.reg = (uint32_t) _setup_packet;
+  sram_registers[0][0].PCKSIZE.bit.MULTI_PACKET_SIZE = sizeof(_setup_packet);
+  sram_registers[0][0].PCKSIZE.bit.BYTE_COUNT = 0;
 }
 
 // Setup the control endpoint 0.
