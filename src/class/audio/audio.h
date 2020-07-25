@@ -874,7 +874,7 @@ typedef struct TU_ATTR_PACKED {
 // 5.2.3.1 1-byte Control RANGE Parameter Block
 #define audio_control_range_1_n_t(numSubRanges) \
 		struct TU_ATTR_PACKED {         		\
-	uint16_t wNumSubRanges = numSubRanges; 		\
+	uint16_t wNumSubRanges; 					\
 	struct TU_ATTR_PACKED {    	  				\
 			int8_t bMin				; /*The setting for the MIN attribute of the nth subrange of the addressed Control*/\
 		int8_t bMax					; /*The setting for the MAX attribute of the nth subrange of the addressed Control*/\
@@ -884,8 +884,8 @@ typedef struct TU_ATTR_PACKED {
 
 		// 5.2.3.2 2-byte Control RANGE Parameter Block
 #define audio_control_range_2_n_t(numSubRanges) \
-		struct TU_ATTR_PACKED {         				\
-	uint16_t wNumSubRanges = numSubRanges; 		\
+		struct TU_ATTR_PACKED {         		\
+	uint16_t wNumSubRanges; 					\
 	struct TU_ATTR_PACKED {    	  				\
 			int16_t bMin			; /*The setting for the MIN attribute of the nth subrange of the addressed Control*/\
 		int16_t bMax			; /*The setting for the MAX attribute of the nth subrange of the addressed Control*/\
@@ -895,8 +895,8 @@ typedef struct TU_ATTR_PACKED {
 
 		// 5.2.3.3 4-byte Control RANGE Parameter Block
 #define audio_control_range_4_n_t(numSubRanges) \
-		struct TU_ATTR_PACKED {         				\
-	uint16_t wNumSubRanges = numSubRanges; 		\
+		struct TU_ATTR_PACKED {         		\
+	uint16_t wNumSubRanges; 					\
 	struct TU_ATTR_PACKED {    	  				\
 			int32_t bMin			; /*The setting for the MIN attribute of the nth subrange of the addressed Control*/\
 		int32_t bMax			; /*The setting for the MAX attribute of the nth subrange of the addressed Control*/\

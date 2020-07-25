@@ -694,6 +694,8 @@ static bool audiod_get_interface(uint8_t rhport, tusb_control_request_t const * 
 	TU_VERIFY(audiod_get_AS_interface_index(itf, &idxDriver, &idxItf, &dummy));
 	TU_VERIFY(tud_control_xfer(rhport, p_request, &_audiod_itf[idxDriver].altSetting[idxItf], 1));
 
+	TU_LOG2("  Get itf: %u - current alt: %u\r\n", itf, _audiod_itf[idxDriver].altSetting[idxItf]);
+
 	return true;
 
 #else
@@ -709,9 +711,9 @@ static bool audiod_set_interface(uint8_t rhport, tusb_control_request_t const * 
 
 	// Here we need to do the following:
 
-	// 1. Find the audio driver interface which was assigned to the given interface which is to be set
+	// 1. Find the audio driver assigned to the given interface to be set
 	// Since one audio driver interface has to be able to cover an unknown number of interfaces (AC, AS + its alternate settings), the best memory efficient way to solve this is to always search through the descriptors.
-	// The audio driver interface is mapped to an audio function by a reference pointer to the corresponding AC interface of this audio function which serves as a starting point for searching
+	// The audio driver is mapped to an audio function by a reference pointer to the corresponding AC interface of this audio function which serves as a starting point for searching
 
 	// 2. Close EPs which are currently open
 	// To do so it is not necessary to know the current active alternate interface since we already save the current EP addresses - we simply close them
@@ -720,6 +722,8 @@ static bool audiod_set_interface(uint8_t rhport, tusb_control_request_t const * 
 
 	uint8_t const itf = tu_u16_low(p_request->wIndex);
 	uint8_t const alt = tu_u16_low(p_request->wValue);
+
+	TU_LOG2("  Set itf: %u - alt: %u\r\n", itf, alt);
 
 	// Find index of audio streaming interface and index of interface
 	uint8_t idxDriver, idxItf;
@@ -768,7 +772,8 @@ static bool audiod_set_interface(uint8_t rhport, tusb_control_request_t const * 
 			{
 				if (tu_desc_type(p_desc) == TUSB_DESC_ENDPOINT)
 				{
-					TU_ASSERT(dcd_edpt_open(rhport, (tusb_desc_endpoint_t const *) p_desc), false);
+//					TU_ASSERT(dcd_edpt_open(rhport, (tusb_desc_endpoint_t const *) p_desc), false);
+					TU_ASSERT(usbd_edpt_open(rhport, (tusb_desc_endpoint_t const *)p_desc));
 					uint8_t ep_addr = ((tusb_desc_endpoint_t const *) p_desc)->bEndpointAddress;
 
 #if CFG_TUD_AUDIO_EPSIZE_IN > 0
@@ -813,17 +818,14 @@ static bool audiod_set_interface(uint8_t rhport, tusb_control_request_t const * 
 	// Check for nothing found - we can rely on this since EP descriptors are never the last descriptors, there are always also class specific EP descriptors following!
 	TU_VERIFY(p_desc < p_desc_end);
 
+	// Save current alternative interface setting
+	_audiod_itf[idxDriver].altSetting[idxItf] = alt;
+
 	// Invoke callback
 	if (tud_audio_set_itf_cb)
 	{
-		if (!tud_audio_set_itf_cb(rhport, p_request))
-		{
-			return false;
-		}
+		if (!tud_audio_set_itf_cb(rhport, p_request)) return false;
 	}
-
-	// Save current alternative interface setting
-	_audiod_itf[idxDriver].altSetting[idxItf] = alt;
 
 	tud_control_status(rhport, p_request);
 
