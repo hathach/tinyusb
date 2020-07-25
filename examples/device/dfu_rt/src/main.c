@@ -23,6 +23,19 @@
  *
  */
 
+/* After device is enumerated, run following command
+ *
+ * $ dfu-util -l
+ *
+ * It should be able to list our device as in Runtime mode. Then run
+ *
+ * $ dfu-util -e
+ *
+ * This will send DETTACH command to put device into bootloader. Since this example
+ * is minimal, it doesn't actually go into DFU mode but rather change the LED blinking
+ * pattern to fast rate as indicator.
+ */
+
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
@@ -41,9 +54,9 @@
  * - 2500 ms : device is suspended
  */
 enum  {
-  BLINK_DFU_MODE = 1000,
+  BLINK_DFU_MODE = 100,
   BLINK_NOT_MOUNTED = 250,
-  BLINK_MOUNTED = 0,
+  BLINK_MOUNTED = 1000,
   BLINK_SUSPENDED = 2500,
 };
 
@@ -104,48 +117,19 @@ void tud_dfu_rt_reboot_to_dfu(void)
   blink_interval_ms = BLINK_DFU_MODE;
 }
 
-
 //--------------------------------------------------------------------+
 // BLINKING TASK + Indicator pulse
 //--------------------------------------------------------------------+
-
-
-volatile uint8_t doPulse = false;
-// called from USB context
-void led_indicator_pulse(void) {
-	doPulse = true;
-}
 
 void led_blinking_task(void)
 {
   static uint32_t start_ms = 0;
   static bool led_state = false;
-  if(blink_interval_ms == BLINK_MOUNTED) // Mounted
-  {
-    if(doPulse)
-    {
-      led_state = true;
-      board_led_write(true);
-      start_ms = board_millis();
-      doPulse = false;
-    }
-    else if (led_state == true)
-    {
-      if ( board_millis() - start_ms < 750) //Spec says blink must be between 500 and 1000 ms.
-      {
-        return; // not enough time
-      }
-      led_state = false;
-      board_led_write(false);
-    }
-  }
-  else
-  {
-    // Blink every interval ms
-    if ( board_millis() - start_ms < blink_interval_ms) return; // not enough time
-    start_ms += blink_interval_ms;
 
-    board_led_write(led_state);
-    led_state = 1 - led_state; // toggle
-  }
+  // Blink every interval ms
+  if ( board_millis() - start_ms < blink_interval_ms) return; // not enough time
+  start_ms += blink_interval_ms;
+
+  board_led_write(led_state);
+  led_state = 1 - led_state; // toggle
 }

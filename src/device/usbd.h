@@ -42,6 +42,8 @@ extern "C" {
 //--------------------------------------------------------------------+
 
 // Init device stack
+// Note: when using with RTOS, this should be called after scheduler/kernel is started.
+// Otherwise it could cause kernel issue since USB IRQ handler does use RTOS queue API.
 bool tud_init (void);
 
 // Task function should be called in main/rtos loop
@@ -52,6 +54,9 @@ bool tud_task_event_ready(void);
 
 // Interrupt handler, name alias to DCD
 #define tud_int_handler   dcd_int_handler
+
+// Get current bus speed
+tusb_speed_t tud_speed_get(void);
 
 // Check if device is connected and configured
 bool tud_mounted(void);

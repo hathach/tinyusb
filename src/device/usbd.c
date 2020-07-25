@@ -40,7 +40,8 @@
 //--------------------------------------------------------------------+
 // Device Data
 //--------------------------------------------------------------------+
-typedef struct {
+typedef struct
+{
   struct TU_ATTR_PACKED
   {
     volatile uint8_t connected    : 1;
@@ -52,6 +53,8 @@ typedef struct {
     uint8_t remote_wakeup_support : 1; // configuration descriptor's attribute
     uint8_t self_powered          : 1; // configuration descriptor's attribute
   };
+
+  uint8_t speed;
 
   uint8_t itf2drv[16];     // map interface number to driver (0xff is invalid)
   uint8_t ep2drv[8][2];    // map endpoint to driver ( 0xff is invalid )
@@ -304,6 +307,11 @@ void usbd_driver_print_control_complete_name(bool (*control_complete) (uint8_t, 
 //--------------------------------------------------------------------+
 // Application API
 //--------------------------------------------------------------------+
+tusb_speed_t tud_speed_get(void)
+{
+  return (tusb_speed_t) _usbd_dev.speed;
+}
+
 bool tud_mounted(void)
 {
   return _usbd_dev.configured;
@@ -403,16 +411,21 @@ void tud_task (void)
 
     if ( !osal_queue_receive(_usbd_q, &event) ) return;
 
-    TU_LOG2("USBD %s", event.event_id < DCD_EVENT_COUNT ? _usbd_event_str[event.event_id] : "CORRUPTED");
-    TU_LOG2("%s", (event.event_id != DCD_EVENT_XFER_COMPLETE && event.event_id != DCD_EVENT_SETUP_RECEIVED) ? "\r\n" : " ");
+#if CFG_TUSB_DEBUG >= 2
+    if (event.event_id == DCD_EVENT_SETUP_RECEIVED) TU_LOG2("\r\n"); // extra line for setup
+    TU_LOG2("USBD %s ", event.event_id < DCD_EVENT_COUNT ? _usbd_event_str[event.event_id] : "CORRUPTED");
+#endif
 
     switch ( event.event_id )
     {
       case DCD_EVENT_BUS_RESET:
+        TU_LOG2("\r\n");
         usbd_reset(event.rhport);
+        _usbd_dev.speed = event.bus_reset.speed;
       break;
 
       case DCD_EVENT_UNPLUGGED:
+        TU_LOG2("\r\n");
         usbd_reset(event.rhport);
 
         // invoke callback
@@ -464,14 +477,17 @@ void tud_task (void)
       break;
 
       case DCD_EVENT_SUSPEND:
+        TU_LOG2("\r\n");
         if (tud_suspend_cb) tud_suspend_cb(_usbd_dev.remote_wakeup_en);
       break;
 
       case DCD_EVENT_RESUME:
+        TU_LOG2("\r\n");
         if (tud_resume_cb) tud_resume_cb();
       break;
 
       case DCD_EVENT_SOF:
+        TU_LOG2("\r\n");
         for ( uint8_t i = 0; i < USBD_CLASS_DRIVER_COUNT; i++ )
         {
           if ( _usbd_driver[i].sof )
@@ -482,6 +498,7 @@ void tud_task (void)
       break;
 
       case USBD_EVENT_FUNC_CALL:
+        TU_LOG2("\r\n");
         if ( event.func_call.func ) event.func_call.func(event.func_call.param);
       break;
 
@@ -887,20 +904,11 @@ static bool process_get_descriptor(uint8_t rhport, tusb_control_request_t const 
       TU_LOG2(" String[%u]\r\n", desc_index);
 
       // String Descriptor always uses the desc set from user
-      if ( desc_index == 0xEE )
-      {
-        // The 0xEE index string is a Microsoft OS Descriptors.
-        // https://docs.microsoft.com/en-us/windows-hardware/drivers/usbcon/microsoft-defined-usb-descriptors
-        return false;
-      }
-      else
-      {
-        uint8_t const* desc_str = (uint8_t const*) tud_descriptor_string_cb(desc_index, p_request->wIndex);
-        TU_ASSERT(desc_str);
+      uint8_t const* desc_str = (uint8_t const*) tud_descriptor_string_cb(desc_index, p_request->wIndex);
+      TU_VERIFY(desc_str);
 
-        // first byte of descriptor is its size
-        return tud_control_xfer(rhport, p_request, (void*) desc_str, desc_str[0]);
-      }
+      // first byte of descriptor is its size
+      return tud_control_xfer(rhport, p_request, (void*) desc_str, desc_str[0]);
     break;
 
     case TUSB_DESC_DEVICE_QUALIFIER:
@@ -980,7 +988,14 @@ void dcd_event_handler(dcd_event_t const * event, bool in_isr)
 
 void dcd_event_bus_signal (uint8_t rhport, dcd_eventid_t eid, bool in_isr)
 {
-  dcd_event_t event = { .rhport = rhport, .event_id = eid, };
+  dcd_event_t event = { .rhport = rhport, .event_id = eid };
+  dcd_event_handler(&event, in_isr);
+}
+
+void dcd_event_bus_reset (uint8_t rhport, tusb_speed_t speed, bool in_isr)
+{
+  dcd_event_t event = { .rhport = rhport, .event_id = DCD_EVENT_BUS_RESET };
+  event.bus_reset.speed = speed;
   dcd_event_handler(&event, in_isr);
 }
 

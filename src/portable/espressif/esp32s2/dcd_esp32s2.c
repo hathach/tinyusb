@@ -637,6 +637,13 @@ static void handle_epin_ints(void)
           USB0.dtknqr4_fifoemptymsk &= ~(1 << n);
         }
       }
+
+      // XFER Timeout
+      if (USB0.in_ep_reg[n].diepint & USB_D_TIMEOUT0_M) {
+        // Clear interrupt or enpoint will hang.
+        USB0.in_ep_reg[n].diepint = USB_D_TIMEOUT0_M;
+        // Maybe retry?
+      }
     }
   }
 }
