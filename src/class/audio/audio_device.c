@@ -157,10 +157,10 @@ static bool audio_tx_done_type_I_pcm_ff_cb(uint8_t rhport, audiod_interface_t* a
 static bool audiod_get_interface(uint8_t rhport, tusb_control_request_t const * p_request);
 static bool audiod_set_interface(uint8_t rhport, tusb_control_request_t const * p_request);
 
-static bool audiod_get_interface_index(uint8_t itf, uint8_t *idxDriver, uint8_t *idxItf, uint8_t const **pp_desc_int);
-static bool audiod_verify_entity_exists(uint8_t itf, uint8_t entityID);
-static bool audiod_verify_itf_exists(uint8_t itf);
-static bool audiod_verify_ep_exists(uint8_t ep);
+static bool audiod_get_AS_interface_index(uint8_t itf, uint8_t *idxDriver, uint8_t *idxItf, uint8_t const **pp_desc_int);
+static bool audiod_verify_entity_exists(uint8_t itf, uint8_t entityID, uint8_t *idxDriver);
+static bool audiod_verify_itf_exists(uint8_t itf, uint8_t *idxDriver);
+static bool audiod_verify_ep_exists(uint8_t ep, uint8_t *idxDriver);
 
 bool tud_audio_n_mounted(uint8_t itf)
 {
@@ -691,7 +691,7 @@ static bool audiod_get_interface(uint8_t rhport, tusb_control_request_t const * 
 	uint8_t idxDriver, idxItf;
 	uint8_t const *dummy;
 
-	TU_VERIFY(audiod_get_interface_index(itf, &idxDriver, &idxItf, &dummy));
+	TU_VERIFY(audiod_get_AS_interface_index(itf, &idxDriver, &idxItf, &dummy));
 	TU_VERIFY(tud_control_xfer(rhport, p_request, &_audiod_itf[idxDriver].altSetting[idxItf], 1));
 
 	return true;
@@ -724,7 +724,7 @@ static bool audiod_set_interface(uint8_t rhport, tusb_control_request_t const * 
 	// Find index of audio streaming interface and index of interface
 	uint8_t idxDriver, idxItf;
 	uint8_t const *p_desc;
-	TU_VERIFY(audiod_get_interface_index(itf, &idxDriver, &idxItf, &p_desc));
+	TU_VERIFY(audiod_get_AS_interface_index(itf, &idxDriver, &idxItf, &p_desc));
 
 	// Look if there is an EP to be closed - for this driver, there are only 3 possible EPs which may be closed (only AS related EPs can be closed, AC EP (if present) is always open)
 #if CFG_TUD_AUDIO_EPSIZE_IN > 0
@@ -837,6 +837,8 @@ bool audiod_control_complete(uint8_t rhport, tusb_control_request_t const * p_re
 	// Handle audio class specific set requests
 	if(p_request->bmRequestType_bit.type == TUSB_REQ_TYPE_CLASS && p_request->bmRequestType_bit.direction == TUSB_DIR_OUT)
 	{
+		uint8_t idxDriver;
+
 		switch (p_request->bmRequestType_bit.recipient)
 		{
 		case TUSB_REQ_RCPT_INTERFACE: ;		// The semicolon is there to enable a declaration right after the label
@@ -844,28 +846,35 @@ bool audiod_control_complete(uint8_t rhport, tusb_control_request_t const * p_re
 		uint8_t itf = TU_U16_LOW(p_request->wIndex);
 		uint8_t entityID = TU_U16_HIGH(p_request->wIndex);
 
-		// Verify if entity is present - This check may be omitted if we trust the host not to send rubbish
 		if (entityID != 0)
 		{
-			// Invoke callback
-			if (tud_audio_set_req_entity_cb && tud_audio_set_req_entity_cb(rhport, p_request))
+			if (tud_audio_set_req_entity_cb)
 			{
-				tud_control_status(rhport, p_request);
+				// Check if entity is present and get corresponding driver index
+				TU_VERIFY(audiod_verify_entity_exists(itf, entityID, &idxDriver));
+
+				// Invoke callback
+				return tud_audio_set_req_entity_cb(rhport, p_request, _audiod_itf[idxDriver].ctrl_buf);
 			}
 			else
 			{
+				TU_LOG2("  No entity set request callback available!\r\n");
 				return false; 	// In case no callback function is present or request can not be conducted we stall it
 			}
 		}
 		else
 		{
-			// Invoke callback
-			if (tud_audio_set_req_itf_cb && tud_audio_set_req_itf_cb(rhport, p_request))
+			if (tud_audio_set_req_itf_cb)
 			{
-				tud_control_status(rhport, p_request);
+				// Find index of audio driver structure and verify interface really exists
+				TU_VERIFY(audiod_verify_itf_exists(itf, &idxDriver));
+
+				// Invoke callback
+				return tud_audio_set_req_itf_cb(rhport, p_request, _audiod_itf[idxDriver].ctrl_buf);
 			}
 			else
 			{
+				TU_LOG2("  No interface set request callback available!\r\n");
 				return false; 	// In case no callback function is present or request can not be conducted we stall it
 			}
 		}
@@ -876,17 +885,19 @@ bool audiod_control_complete(uint8_t rhport, tusb_control_request_t const * p_re
 
 		uint8_t ep = TU_U16_LOW(p_request->wIndex);
 
-		// Invoke callback
-		if (tud_audio_set_req_ep_cb && tud_audio_set_req_ep_cb(rhport, p_request))
+		if (tud_audio_set_req_ep_cb)
 		{
-			tud_control_status(rhport, p_request);
+			// Check if entity is present and get corresponding driver index
+			TU_VERIFY(audiod_verify_ep_exists(ep, &idxDriver));
+
+			// Invoke callback
+			return tud_audio_set_req_ep_cb(rhport, p_request, _audiod_itf[idxDriver].ctrl_buf);
 		}
 		else
 		{
+			TU_LOG2("  No EP set request callback available!\r\n");
 			return false; 	// In case no callback function is present or request can not be conducted we stall it
 		}
-
-		break;
 
 		// Unknown/Unsupported recipient
 		default: TU_BREAKPOINT(); return false;
@@ -920,82 +931,89 @@ bool audiod_control_request(uint8_t rhport, tusb_control_request_t const * p_req
 	// Handle class requests
 	if (p_request->bmRequestType_bit.type == TUSB_REQ_TYPE_CLASS)
 	{
+		uint8_t itf = TU_U16_LOW(p_request->wIndex);
+		uint8_t idxDriver;
+
 		// Conduct checks which depend on the recipient
 		switch (p_request->bmRequestType_bit.recipient)
 		{
 		case TUSB_REQ_RCPT_INTERFACE: ;		// The semicolon is there to enable a declaration right after the label
 
-		uint8_t itf = TU_U16_LOW(p_request->wIndex);
 		uint8_t entityID = TU_U16_HIGH(p_request->wIndex);
 
-		// Verify if entity is present - This check may be omitted if we trust the host not to send rubbish
+		// Verify if entity is present
 		if (entityID != 0)
 		{
-			TU_VERIFY(audiod_verify_entity_exists(itf, entityID));
+			// Find index of audio driver structure and verify entity really exists
+			TU_VERIFY(audiod_verify_entity_exists(itf, entityID, &idxDriver));
 
-			// If request is a set request we return true here and handle the rest later in audiod_control_complete() once the data stage was finished
-			if (p_request->bmRequestType_bit.direction == TUSB_DIR_OUT) return true;
-
-			// Invoke callback - callback needs to answer as defined in UAC2 specification page 89 - 5. Requests
-			if (tud_audio_get_req_entity_cb)
+			// In case we got a get request invoke callback - callback needs to answer as defined in UAC2 specification page 89 - 5. Requests
+			if (p_request->bmRequestType_bit.direction == TUSB_DIR_IN)
 			{
-				return tud_audio_get_req_entity_cb(rhport, p_request);
-			}
-			else
-			{
-				TU_LOG2("  No entity get request callback available!\r\n");
+				if (tud_audio_get_req_entity_cb)
+				{
+					return tud_audio_get_req_entity_cb(rhport, p_request);
+				}
+				else
+				{
+					TU_LOG2("  No entity get request callback available!\r\n");
+					return false; 	// Stall
+				}
 			}
 		}
 		else
 		{
-			TU_VERIFY(audiod_verify_itf_exists(itf));
+			// Find index of audio driver structure and verify interface really exists
+			TU_VERIFY(audiod_verify_itf_exists(itf, &idxDriver));
 
-			// If request is a set request we return true here and handle the rest later in audiod_control_complete() once the data stage was finished
-			if (p_request->bmRequestType_bit.direction == TUSB_DIR_OUT) return true;
-
-			// Invoke callback - callback needs to answer as defined in UAC2 specification page 89 - 5. Requests
-			if (tud_audio_get_req_itf_cb)
+			// In case we got a get request invoke callback - callback needs to answer as defined in UAC2 specification page 89 - 5. Requests
+			if (p_request->bmRequestType_bit.direction == TUSB_DIR_IN)
 			{
-				return tud_audio_get_req_itf_cb(rhport, p_request);
-			}
-			else
-			{
-				TU_LOG2("  No interface get request callback available!\r\n");
+				if (tud_audio_get_req_itf_cb)
+				{
+					return tud_audio_get_req_itf_cb(rhport, p_request);
+				}
+				else
+				{
+					TU_LOG2("  No interface get request callback available!\r\n");
+					return false; 	// Stall
+				}
 			}
 		}
-
 		break;
 
 		case TUSB_REQ_RCPT_ENDPOINT: ;		// The semicolon is there to enable a declaration right after the label
 
 		uint8_t ep = TU_U16_LOW(p_request->wIndex);
 
-		// Verify if EP is present - This check may be omitted if we trust the host not to send rubbish
-		TU_VERIFY(audiod_verify_ep_exists(ep));
+		// Find index of audio driver structure and verify EP really exists
+		TU_VERIFY(audiod_verify_ep_exists(ep, &idxDriver));
 
-		// If request is a set request we return true here and handle the rest later in audiod_control_complete() once the data stage was finished
-		if (p_request->bmRequestType_bit.direction == TUSB_DIR_OUT) return true;
-
-		if (tud_audio_get_req_ep_cb)
+		// In case we got a get request invoke callback - callback needs to answer as defined in UAC2 specification page 89 - 5. Requests
+		if (p_request->bmRequestType_bit.direction == TUSB_DIR_IN)
 		{
-			return tud_audio_get_req_ep_cb(rhport, p_request);
+			if (tud_audio_get_req_ep_cb)
+			{
+				return tud_audio_get_req_ep_cb(rhport, p_request);
+			}
+			else
+			{
+				TU_LOG2("  No EP get request callback available!\r\n");
+				return false; 	// Stall
+			}
 		}
-		else
-		{
-			TU_LOG2("  No EP get request callback available!\r\n");
-		}
-
 		break;
 
 		// Unknown/Unsupported recipient
 		default: TU_LOG2("  Unsupported recipient: %d\r\n", p_request->bmRequestType_bit.recipient); TU_BREAKPOINT(); return false;
 		}
 
-		// Host expects an answer - in case no callback function is present we stall the request
-		return false;
+		// If we end here, the received request is a set request - we schedule a receive for the data stage and return true here. We handle the rest later in audiod_control_complete() once the data stage was finished
+		TU_VERIFY(tud_control_xfer(rhport, p_request, _audiod_itf[idxDriver].ctrl_buf, CFG_TUD_AUDIO_CTRL_BUF_SIZE));
+		return true;
 	}
 
-	// There went something wrong
+	// There went something wrong - unsupported control request type
 	TU_BREAKPOINT();
 	return false;
 }
@@ -1094,10 +1112,61 @@ bool audiod_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint3
 
 }
 
-// This helper function finds for a given interface number the index of the attached driver interface, the index of the interface in the audio function
+bool tud_audio_buffer_and_schedule_control_xfer(uint8_t rhport, tusb_control_request_t const * p_request, void* data, uint16_t len)
+{
+	// Handles only sending of data not receiving
+	if (p_request->bmRequestType_bit.direction == TUSB_DIR_OUT) return false;
+
+	// Get corresponding driver index
+	uint8_t idxDriver;
+	uint8_t itf = TU_U16_LOW(p_request->wIndex);
+
+	// Conduct checks which depend on the recipient
+	switch (p_request->bmRequestType_bit.recipient)
+	{
+	case TUSB_REQ_RCPT_INTERFACE: ;		// The semicolon is there to enable a declaration right after the label
+
+	uint8_t entityID = TU_U16_HIGH(p_request->wIndex);
+
+	// Verify if entity is present
+	if (entityID != 0)
+	{
+		// Find index of audio driver structure and verify entity really exists
+		TU_VERIFY(audiod_verify_entity_exists(itf, entityID, &idxDriver));
+	}
+	else
+	{
+		// Find index of audio driver structure and verify interface really exists
+		TU_VERIFY(audiod_verify_itf_exists(itf, &idxDriver));
+	}
+	break;
+
+	case TUSB_REQ_RCPT_ENDPOINT: ;		// The semicolon is there to enable a declaration right after the label
+
+	uint8_t ep = TU_U16_LOW(p_request->wIndex);
+
+	// Find index of audio driver structure and verify EP really exists
+	TU_VERIFY(audiod_verify_ep_exists(ep, &idxDriver));
+	break;
+
+	// Unknown/Unsupported recipient
+	default: TU_LOG2("  Unsupported recipient: %d\r\n", p_request->bmRequestType_bit.recipient); TU_BREAKPOINT(); return false;
+	}
+
+	// Crop length
+	if (len > CFG_TUD_AUDIO_CTRL_BUF_SIZE) len = CFG_TUD_AUDIO_CTRL_BUF_SIZE;
+
+	// Copy into buffer
+	memcpy((void *)_audiod_itf[idxDriver].ctrl_buf, data, (size_t)len);
+
+	// Schedule transmit
+	return tud_control_xfer(rhport, p_request, (void*)_audiod_itf[idxDriver].ctrl_buf, len);
+}
+
+// This helper function finds for a given AS interface number the index of the attached driver structure, the index of the interface in the audio function
 // (e.g. the std. AS interface with interface number 15 is the first AS interface for the given audio function and thus gets index zero), and
-// finally a pointer to the std. AS interface, where the pointer always points to the start i.e. alternate interface zero.
-static bool audiod_get_interface_index(uint8_t itf, uint8_t *idxDriver, uint8_t *idxItf, uint8_t const **pp_desc_int)
+// finally a pointer to the std. AS interface, where the pointer always points to the first alternate setting i.e. alternate interface zero.
+static bool audiod_get_AS_interface_index(uint8_t itf, uint8_t *idxDriver, uint8_t *idxItf, uint8_t const **pp_desc_int)
 {
 	// Loop over audio driver interfaces
 	uint8_t i;
@@ -1134,7 +1203,8 @@ static bool audiod_get_interface_index(uint8_t itf, uint8_t *idxDriver, uint8_t 
 	return false;
 }
 
-static bool audiod_verify_entity_exists(uint8_t itf, uint8_t entityID)
+// Verify an entity with the given ID exists and returns also the corresponding driver index
+static bool audiod_verify_entity_exists(uint8_t itf, uint8_t entityID, uint8_t *idxDriver)
 {
 	uint8_t i;
 	for (i = 0; i < CFG_TUD_AUDIO; i++)
@@ -1151,6 +1221,7 @@ static bool audiod_verify_entity_exists(uint8_t itf, uint8_t entityID)
 			{
 				if (p_desc[3] == entityID) 	// Entity IDs are always at offset 3
 				{
+					*idxDriver = i;
 					return true;
 				}
 				p_desc = tu_desc_next(p_desc);
@@ -1160,7 +1231,7 @@ static bool audiod_verify_entity_exists(uint8_t itf, uint8_t entityID)
 	return false;
 }
 
-static bool audiod_verify_itf_exists(uint8_t itf)
+static bool audiod_verify_itf_exists(uint8_t itf, uint8_t *idxDriver)
 {
 	uint8_t i;
 	for (i = 0; i < CFG_TUD_AUDIO; i++)
@@ -1175,6 +1246,7 @@ static bool audiod_verify_itf_exists(uint8_t itf)
 			{
 				if (tu_desc_type(p_desc) == TUSB_DESC_INTERFACE && ((tusb_desc_interface_t const *)_audiod_itf[i].p_desc)->bInterfaceNumber == itf)
 				{
+					*idxDriver = i;
 					return true;
 				}
 				p_desc = tu_desc_next(p_desc);
@@ -1184,7 +1256,7 @@ static bool audiod_verify_itf_exists(uint8_t itf)
 	return false;
 }
 
-static bool audiod_verify_ep_exists(uint8_t ep)
+static bool audiod_verify_ep_exists(uint8_t ep, uint8_t *idxDriver)
 {
 	uint8_t i;
 	for (i = 0; i < CFG_TUD_AUDIO; i++)
@@ -1202,6 +1274,7 @@ static bool audiod_verify_ep_exists(uint8_t ep)
 			{
 				if (tu_desc_type(p_desc) == TUSB_DESC_ENDPOINT && ((tusb_desc_endpoint_t const * )p_desc)->bEndpointAddress == ep)
 				{
+					*idxDriver = i;
 					return true;
 				}
 				p_desc = tu_desc_next(p_desc);

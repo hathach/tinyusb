@@ -652,165 +652,172 @@ typedef enum
 	AUDIO_CHANNEL_CONFIG_RAW_DATA					= 0x80000000,
 } audio_channel_config_t;
 
+/// AUDIO Channel Cluster Descriptor (4.1)
+typedef struct TU_ATTR_PACKED {
+	uint8_t 				bNrChannels; 		///< Number of channels currently connected.
+	audio_channel_config_t 	bmChannelConfig; 	///< Bitmap according to 'audio_channel_config_t' with a 1 set if channel is connected and 0 else. In case channels are non-predefined ignore them here (see UAC2 specification 4.1 Audio Channel Cluster Descriptor.
+	uint8_t 				iChannelNames; 		///< Index of a string descriptor, describing the name of the first inserted channel with a non-predefined spatial location.
+} audio_desc_channel_cluster_t;
+
 /// AUDIO Class-Specific AC Interface Header Descriptor (4.7.2)
 typedef struct TU_ATTR_PACKED
 {
-  uint8_t bLength            ; ///< Size of this descriptor in bytes: 9.
-  uint8_t bDescriptorType    ; ///< Descriptor Type. Value: TUSB_DESC_CS_INTERFACE.
-  uint8_t bDescriptorSubType ; ///< Descriptor SubType. Value: AUDIO_CS_AC_INTERFACE_HEADER.
-  uint16_t bcdADC            ; ///< Audio Device Class Specification Release Number in Binary-Coded Decimal. Value: U16_TO_U8S_LE(0x0200).
-  uint8_t bCategory 		 ; ///< Constant, indicating the primary use of this audio function, as intended by the manufacturer. See: audio_function_t.
-  uint16_t wTotalLength      ; ///< Total number of bytes returned for the class-specific AudioControl interface descriptor. Includes the combined length of this descriptor header and all Clock Source, Unit and Terminal descriptors.
-  uint8_t bmControls 		 ; ///< See: audio_cs_ac_interface_control_pos_t.
+	uint8_t bLength            ; ///< Size of this descriptor in bytes: 9.
+	uint8_t bDescriptorType    ; ///< Descriptor Type. Value: TUSB_DESC_CS_INTERFACE.
+	uint8_t bDescriptorSubType ; ///< Descriptor SubType. Value: AUDIO_CS_AC_INTERFACE_HEADER.
+	uint16_t bcdADC            ; ///< Audio Device Class Specification Release Number in Binary-Coded Decimal. Value: U16_TO_U8S_LE(0x0200).
+	uint8_t bCategory 		 ; ///< Constant, indicating the primary use of this audio function, as intended by the manufacturer. See: audio_function_t.
+	uint16_t wTotalLength      ; ///< Total number of bytes returned for the class-specific AudioControl interface descriptor. Includes the combined length of this descriptor header and all Clock Source, Unit and Terminal descriptors.
+	uint8_t bmControls 		 ; ///< See: audio_cs_ac_interface_control_pos_t.
 } audio_desc_cs_ac_interface_t;
 
 /// AUDIO Clock Source Descriptor (4.7.2.1)
 typedef struct TU_ATTR_PACKED
 {
-  uint8_t bLength            ; ///< Size of this descriptor in bytes: 8.
-  uint8_t bDescriptorType    ; ///< Descriptor Type. Value: TUSB_DESC_CS_INTERFACE.
-  uint8_t bDescriptorSubType ; ///< Descriptor SubType. Value: AUDIO_CS_AC_INTERFACE_CLOCK_SOURCE.
-  uint8_t bClockID 		 	 ; ///< Constant uniquely identifying the Clock Source Entity within the audio function. This value is used in all requests to address this Entity.
-  uint8_t bmAttributes 		 ; ///< See: audio_clock_source_attribute_t.
-  uint8_t bmControls 		 ; ///< See: audio_clock_source_control_pos_t.
-  uint8_t bAssocTerminal	 ; ///< Terminal ID of the Terminal that is associated with this Clock Source.
-  uint8_t iClockSource	 	 ; ///< Index of a string descriptor, describing the Clock Source Entity.
+	uint8_t bLength            ; ///< Size of this descriptor in bytes: 8.
+	uint8_t bDescriptorType    ; ///< Descriptor Type. Value: TUSB_DESC_CS_INTERFACE.
+	uint8_t bDescriptorSubType ; ///< Descriptor SubType. Value: AUDIO_CS_AC_INTERFACE_CLOCK_SOURCE.
+	uint8_t bClockID 		 	 ; ///< Constant uniquely identifying the Clock Source Entity within the audio function. This value is used in all requests to address this Entity.
+	uint8_t bmAttributes 		 ; ///< See: audio_clock_source_attribute_t.
+	uint8_t bmControls 		 ; ///< See: audio_clock_source_control_pos_t.
+	uint8_t bAssocTerminal	 ; ///< Terminal ID of the Terminal that is associated with this Clock Source.
+	uint8_t iClockSource	 	 ; ///< Index of a string descriptor, describing the Clock Source Entity.
 } audio_desc_clock_source_t;
 
 /// AUDIO Clock Selector Descriptor (4.7.2.2) for ONE pin
 typedef struct TU_ATTR_PACKED
 {
-  uint8_t bLength            ; ///< Size of this descriptor, in bytes: 7+p.
-  uint8_t bDescriptorType    ; ///< Descriptor Type. Value: TUSB_DESC_CS_INTERFACE.
-  uint8_t bDescriptorSubType ; ///< Descriptor SubType. Value: AUDIO_CS_AC_INTERFACE_CLOCK_SELECTOR.
-  uint8_t bClockID 		 	 ; ///< Constant uniquely identifying the Clock Selector Entity within the audio function. This value is used in all requests to address this Entity.
-  uint8_t bNrInPins 		 ; ///< Number of Input Pins of this Unit: p = 1 thus bNrInPins = 1.
-  uint8_t baCSourceID 		 ; ///< ID of the Clock Entity to which the first Clock Input Pin of this Clock Selector Entity is connected..
-  uint8_t bmControls 		 ; ///< See: audio_clock_selector_control_pos_t.
-  uint8_t iClockSource	 	 ; ///< Index of a string descriptor, describing the Clock Selector Entity.
+	uint8_t bLength            ; ///< Size of this descriptor, in bytes: 7+p.
+	uint8_t bDescriptorType    ; ///< Descriptor Type. Value: TUSB_DESC_CS_INTERFACE.
+	uint8_t bDescriptorSubType ; ///< Descriptor SubType. Value: AUDIO_CS_AC_INTERFACE_CLOCK_SELECTOR.
+	uint8_t bClockID 		 	 ; ///< Constant uniquely identifying the Clock Selector Entity within the audio function. This value is used in all requests to address this Entity.
+	uint8_t bNrInPins 		 ; ///< Number of Input Pins of this Unit: p = 1 thus bNrInPins = 1.
+	uint8_t baCSourceID 		 ; ///< ID of the Clock Entity to which the first Clock Input Pin of this Clock Selector Entity is connected..
+	uint8_t bmControls 		 ; ///< See: audio_clock_selector_control_pos_t.
+	uint8_t iClockSource	 	 ; ///< Index of a string descriptor, describing the Clock Selector Entity.
 } audio_desc_clock_selector_t;
 
 /// AUDIO Clock Selector Descriptor (4.7.2.2) for multiple pins
 #define audio_desc_clock_selector_n_t(source_num) \
-  struct TU_ATTR_PACKED {         \
+		struct TU_ATTR_PACKED {         \
 	uint8_t bLength            	; \
 	uint8_t bDescriptorType    	; \
 	uint8_t bDescriptorSubType 	; \
 	uint8_t bClockID 		 	; \
 	uint8_t bNrInPins 		 	; \
-    struct TU_ATTR_PACKED {    	  \
-        uint8_t baSourceID		; \
-    } sourceID[source_num]		; \
-    uint8_t bmControls			; \
-    uint8_t iClockSource		; \
- }
+	struct TU_ATTR_PACKED {    	  \
+		uint8_t baSourceID		; \
+	} sourceID[source_num]		; \
+	uint8_t bmControls			; \
+	uint8_t iClockSource		; \
+}
 
 /// AUDIO Clock Multiplier Descriptor (4.7.2.3)
 typedef struct TU_ATTR_PACKED
 {
-  uint8_t bLength            ; ///< Size of this descriptor, in bytes: 7.
-  uint8_t bDescriptorType    ; ///< Descriptor Type. Value: TUSB_DESC_CS_INTERFACE.
-  uint8_t bDescriptorSubType ; ///< Descriptor SubType. Value: AUDIO_CS_AC_INTERFACE_CLOCK_MULTIPLIER.
-  uint8_t bClockID 		 	 ; ///< Constant uniquely identifying the Clock Multiplier Entity within the audio function. This value is used in all requests to address this Entity.
-  uint8_t bCSourceID 		 ; ///< ID of the Clock Entity to which the last Clock Input Pin of this Clock Selector Entity is connected.
-  uint8_t bmControls 		 ; ///< See: audio_clock_multiplier_control_pos_t.
-  uint8_t iClockSource	 	 ; ///< Index of a string descriptor, describing the Clock Multiplier Entity.
+	uint8_t bLength            ; ///< Size of this descriptor, in bytes: 7.
+	uint8_t bDescriptorType    ; ///< Descriptor Type. Value: TUSB_DESC_CS_INTERFACE.
+	uint8_t bDescriptorSubType ; ///< Descriptor SubType. Value: AUDIO_CS_AC_INTERFACE_CLOCK_MULTIPLIER.
+	uint8_t bClockID 		 	 ; ///< Constant uniquely identifying the Clock Multiplier Entity within the audio function. This value is used in all requests to address this Entity.
+	uint8_t bCSourceID 		 ; ///< ID of the Clock Entity to which the last Clock Input Pin of this Clock Selector Entity is connected.
+	uint8_t bmControls 		 ; ///< See: audio_clock_multiplier_control_pos_t.
+	uint8_t iClockSource	 	 ; ///< Index of a string descriptor, describing the Clock Multiplier Entity.
 } audio_desc_clock_multiplier_t;
 
 /// AUDIO Input Terminal Descriptor(4.7.2.4)
 typedef struct TU_ATTR_PACKED
 {
-  uint8_t bLength            ; ///< Size of this descriptor, in bytes: 17.
-  uint8_t bDescriptorType    ; ///< Descriptor Type. Value: TUSB_DESC_CS_INTERFACE.
-  uint8_t bDescriptorSubType ; ///< Descriptor SubType. Value: AUDIO_CS_AC_INTERFACE_INPUT_TERMINAL.
-  uint16_t wTerminalType 	 ; ///< Constant characterizing the type of Terminal. See: audio_terminal_type_t for USB streaming and audio_terminal_input_type_t for other input types.
-  uint8_t bAssocTerminal	 ; ///< ID of the Output Terminal to which this Input Terminal is associated.
-  uint8_t bCSourceID 		 ; ///< ID of the Clock Entity to which this Input Terminal is connected.
-  uint8_t bNrChannels	 	 ; ///< Number of logical output channels in the Terminal’s output audio channel cluster.
-  uint32_t bmChannelConfig	 ; ///< Describes the spatial location of the logical channels. See:audio_channel_config_t.
-  uint16_t bmControls	 	 ; ///< See: audio_terminal_input_control_pos_t.
-  uint8_t iTerminal	 	 	 ; ///< Index of a string descriptor, describing the Input Terminal.
+	uint8_t bLength            ; ///< Size of this descriptor, in bytes: 17.
+	uint8_t bDescriptorType    ; ///< Descriptor Type. Value: TUSB_DESC_CS_INTERFACE.
+	uint8_t bDescriptorSubType ; ///< Descriptor SubType. Value: AUDIO_CS_AC_INTERFACE_INPUT_TERMINAL.
+	uint16_t wTerminalType 	 ; ///< Constant characterizing the type of Terminal. See: audio_terminal_type_t for USB streaming and audio_terminal_input_type_t for other input types.
+	uint8_t bAssocTerminal	 ; ///< ID of the Output Terminal to which this Input Terminal is associated.
+	uint8_t bCSourceID 		 ; ///< ID of the Clock Entity to which this Input Terminal is connected.
+	uint8_t bNrChannels	 	 ; ///< Number of logical output channels in the Terminal’s output audio channel cluster.
+	uint32_t bmChannelConfig	 ; ///< Describes the spatial location of the logical channels. See:audio_channel_config_t.
+	uint16_t bmControls	 	 ; ///< See: audio_terminal_input_control_pos_t.
+	uint8_t iTerminal	 	 	 ; ///< Index of a string descriptor, describing the Input Terminal.
 } audio_desc_input_terminal_t;
 
 /// AUDIO Output Terminal Descriptor(4.7.2.5)
 typedef struct TU_ATTR_PACKED
 {
-  uint8_t bLength            ; ///< Size of this descriptor, in bytes: 12.
-  uint8_t bDescriptorType    ; ///< Descriptor Type. Value: TUSB_DESC_CS_INTERFACE.
-  uint8_t bDescriptorSubType ; ///< Descriptor SubType. Value: AUDIO_CS_AC_INTERFACE_OUTPUT_TERMINAL.
-  uint8_t bTerminalID 	 	 ; ///< Constant uniquely identifying the Terminal within the audio function. This value is used in all requests to address this Terminal.
-  uint16_t wTerminalType	 ; ///< Constant characterizing the type of Terminal. See: audio_terminal_type_t for USB streaming and audio_terminal_output_type_t for other output types.
-  uint8_t bAssocTerminal 	 ; ///< Constant, identifying the Input Terminal to which this Output Terminal is associated.
-  uint8_t bSourceID		 	 ; ///< ID of the Unit or Terminal to which this Terminal is connected.
-  uint8_t bCSourceID	 	 ; ///< ID of the Clock Entity to which this Output Terminal is connected.
-  uint16_t bmControls	 	 ; ///< See: audio_terminal_output_type_t.
-  uint8_t iTerminal	 	 	 ; ///< Index of a string descriptor, describing the Output Terminal.
+	uint8_t bLength            ; ///< Size of this descriptor, in bytes: 12.
+	uint8_t bDescriptorType    ; ///< Descriptor Type. Value: TUSB_DESC_CS_INTERFACE.
+	uint8_t bDescriptorSubType ; ///< Descriptor SubType. Value: AUDIO_CS_AC_INTERFACE_OUTPUT_TERMINAL.
+	uint8_t bTerminalID 	 	 ; ///< Constant uniquely identifying the Terminal within the audio function. This value is used in all requests to address this Terminal.
+	uint16_t wTerminalType	 ; ///< Constant characterizing the type of Terminal. See: audio_terminal_type_t for USB streaming and audio_terminal_output_type_t for other output types.
+	uint8_t bAssocTerminal 	 ; ///< Constant, identifying the Input Terminal to which this Output Terminal is associated.
+	uint8_t bSourceID		 	 ; ///< ID of the Unit or Terminal to which this Terminal is connected.
+	uint8_t bCSourceID	 	 ; ///< ID of the Clock Entity to which this Output Terminal is connected.
+	uint16_t bmControls	 	 ; ///< See: audio_terminal_output_type_t.
+	uint8_t iTerminal	 	 	 ; ///< Index of a string descriptor, describing the Output Terminal.
 } audio_desc_output_terminal_t;
 
 /// AUDIO Feature Unit Descriptor(4.7.2.8) for ONE channel
 typedef struct TU_ATTR_PACKED
 {
-  uint8_t bLength            ; ///< Size of this descriptor, in bytes: 14.
-  uint8_t bDescriptorType    ; ///< Descriptor Type. Value: TUSB_DESC_CS_INTERFACE.
-  uint8_t bDescriptorSubType ; ///< Descriptor SubType. Value: AUDIO_CS_AC_INTERFACE_FEATURE_UNIT.
-  uint8_t bUnitID    	 	 ; ///< Constant uniquely identifying the Unit within the audio function. This value is used in all requests to address this Unit.
-  uint8_t bSourceID	 		 ; ///< ID of the Unit or Terminal to which this Feature Unit is connected.
-  struct TU_ATTR_PACKED {
-	  uint32_t bmaControls	 ; ///< See: audio_feature_unit_control_pos_t. Controls0 is master channel 0 (always present) and Controls1 is logical channel 1.
-  } controls[2] 		     ;
-  uint8_t iTerminal	 	 	 ; ///< Index of a string descriptor, describing this Feature Unit.
+	uint8_t bLength            ; ///< Size of this descriptor, in bytes: 14.
+	uint8_t bDescriptorType    ; ///< Descriptor Type. Value: TUSB_DESC_CS_INTERFACE.
+	uint8_t bDescriptorSubType ; ///< Descriptor SubType. Value: AUDIO_CS_AC_INTERFACE_FEATURE_UNIT.
+	uint8_t bUnitID    	 	 ; ///< Constant uniquely identifying the Unit within the audio function. This value is used in all requests to address this Unit.
+	uint8_t bSourceID	 		 ; ///< ID of the Unit or Terminal to which this Feature Unit is connected.
+	struct TU_ATTR_PACKED {
+		uint32_t bmaControls	 ; ///< See: audio_feature_unit_control_pos_t. Controls0 is master channel 0 (always present) and Controls1 is logical channel 1.
+	} controls[2] 		     ;
+	uint8_t iTerminal	 	 	 ; ///< Index of a string descriptor, describing this Feature Unit.
 } audio_desc_feature_unit_t;
 
 /// AUDIO Feature Unit Descriptor(4.7.2.8) for multiple channels
 #define audio_desc_feature_unit_n_t(ch_num) \
-  struct TU_ATTR_PACKED {         \
+		struct TU_ATTR_PACKED {         \
 	uint8_t bLength            	; /* 6+(ch_num+1)*4 */\
-	uint8_t bDescriptorType    	; \
-	uint8_t bDescriptorSubType 	; \
-	uint8_t bUnitID 		 	; \
-	uint8_t bSourceID 		 	; \
-    struct TU_ATTR_PACKED {    	  \
-        uint32_t bmaControls	; \
-    } controls[ch_num+1]		; \
-    uint8_t iTerminal			; \
- }
+		uint8_t bDescriptorType    	; \
+		uint8_t bDescriptorSubType 	; \
+		uint8_t bUnitID 		 	; \
+		uint8_t bSourceID 		 	; \
+		struct TU_ATTR_PACKED {    	  \
+			uint32_t bmaControls	; \
+		} controls[ch_num+1]		; \
+		uint8_t iTerminal			; \
+}
 
 /// AUDIO Class-Specific AS Interface Descriptor(4.9.2)
 typedef struct TU_ATTR_PACKED
 {
-  uint8_t bLength            ; ///< Size of this descriptor, in bytes: 16.
-  uint8_t bDescriptorType    ; ///< Descriptor Type. Value: TUSB_DESC_CS_INTERFACE.
-  uint8_t bDescriptorSubType ; ///< Descriptor SubType. Value: AUDIO_CS_AS_INTERFACE_AS_GENERAL.
-  uint8_t bTerminalLink	 	 ; ///< The Terminal ID of the Terminal to which this interface is connected.
-  uint8_t bmControls	 	 ; ///< See: audio_cs_as_interface_control_pos_t.
-  uint8_t bFormatType 	 	 ; ///< Constant identifying the Format Type the AudioStreaming interface is using. See: audio_format_type_t.
-  uint32_t bmFormats	 	 ; ///< The Audio Data Format(s) that can be used to communicate with this interface.See: audio_data_format_type_I_t.
-  uint8_t bNrChannels	 	 ; ///< Number of physical channels in the AS Interface audio channel cluster.
-  uint32_t bmChannelConfig	 ; ///< Describes the spatial location of the physical channels. See: audio_channel_config_t.
-  uint8_t iChannelNames	 	 ; ///< Index of a string descriptor, describing the name of the first physical channel.
+	uint8_t bLength            ; ///< Size of this descriptor, in bytes: 16.
+	uint8_t bDescriptorType    ; ///< Descriptor Type. Value: TUSB_DESC_CS_INTERFACE.
+	uint8_t bDescriptorSubType ; ///< Descriptor SubType. Value: AUDIO_CS_AS_INTERFACE_AS_GENERAL.
+	uint8_t bTerminalLink	 	 ; ///< The Terminal ID of the Terminal to which this interface is connected.
+	uint8_t bmControls	 	 ; ///< See: audio_cs_as_interface_control_pos_t.
+	uint8_t bFormatType 	 	 ; ///< Constant identifying the Format Type the AudioStreaming interface is using. See: audio_format_type_t.
+	uint32_t bmFormats	 	 ; ///< The Audio Data Format(s) that can be used to communicate with this interface.See: audio_data_format_type_I_t.
+	uint8_t bNrChannels	 	 ; ///< Number of physical channels in the AS Interface audio channel cluster.
+	uint32_t bmChannelConfig	 ; ///< Describes the spatial location of the physical channels. See: audio_channel_config_t.
+	uint8_t iChannelNames	 	 ; ///< Index of a string descriptor, describing the name of the first physical channel.
 } audio_desc_cs_as_interface_t;
 
 /// AUDIO Type I Format Type Descriptor(2.3.1.6 - Audio Formats)
 typedef struct TU_ATTR_PACKED
 {
-  uint8_t bLength            ; ///< Size of this descriptor, in bytes: 6.
-  uint8_t bDescriptorType    ; ///< Descriptor Type. Value: TUSB_DESC_CS_INTERFACE.
-  uint8_t bDescriptorSubType ; ///< Descriptor SubType. Value: AUDIO_CS_AS_INTERFACE_FORMAT_TYPE.
-  uint8_t bFormatType	 	 ; ///< Constant identifying the Format Type the AudioStreaming interface is using. Value: AUDIO_FORMAT_TYPE_I.
-  uint8_t bSubslotSize	 	 ; ///< The number of bytes occupied by one audio subslot. Can be 1, 2, 3 or 4.
-  uint8_t bBitResolution 	 ; ///< The number of effectively used bits from the available bits in an audio subslot.
+	uint8_t bLength            ; ///< Size of this descriptor, in bytes: 6.
+	uint8_t bDescriptorType    ; ///< Descriptor Type. Value: TUSB_DESC_CS_INTERFACE.
+	uint8_t bDescriptorSubType ; ///< Descriptor SubType. Value: AUDIO_CS_AS_INTERFACE_FORMAT_TYPE.
+	uint8_t bFormatType	 	 ; ///< Constant identifying the Format Type the AudioStreaming interface is using. Value: AUDIO_FORMAT_TYPE_I.
+	uint8_t bSubslotSize	 	 ; ///< The number of bytes occupied by one audio subslot. Can be 1, 2, 3 or 4.
+	uint8_t bBitResolution 	 ; ///< The number of effectively used bits from the available bits in an audio subslot.
 } audio_desc_type_I_format_t;
 
 /// AUDIO Class-Specific AS Isochronous Audio Data Endpoint Descriptor(4.10.1.2)
 typedef struct TU_ATTR_PACKED
 {
-  uint8_t bLength            ; ///< Size of this descriptor, in bytes: 8.
-  uint8_t bDescriptorType    ; ///< Descriptor Type. Value: TUSB_DESC_CS_ENDPOINT.
-  uint8_t bDescriptorSubType ; ///< Descriptor SubType. Value: AUDIO_CS_EP_SUBTYPE_GENERAL.
-  uint8_t bmAttributes	 	 ; ///< See: audio_cs_as_iso_data_ep_attribute_t.
-  uint8_t bmControls	 	 ; ///< See: audio_cs_as_iso_data_ep_control_pos_t.
-  uint8_t bLockDelayUnits 	 ; ///< Indicates the units used for the wLockDelay field. See: audio_cs_as_iso_data_ep_lock_delay_unit_t.
-  uint16_t wLockDelay 		 ; ///< Indicates the time it takes this endpoint to reliably lock its internal clock recovery circuitry. Units used depend on the value of the bLockDelayUnits field.
+	uint8_t bLength            ; ///< Size of this descriptor, in bytes: 8.
+	uint8_t bDescriptorType    ; ///< Descriptor Type. Value: TUSB_DESC_CS_ENDPOINT.
+	uint8_t bDescriptorSubType ; ///< Descriptor SubType. Value: AUDIO_CS_EP_SUBTYPE_GENERAL.
+	uint8_t bmAttributes	 	 ; ///< See: audio_cs_as_iso_data_ep_attribute_t.
+	uint8_t bmControls	 	 ; ///< See: audio_cs_as_iso_data_ep_control_pos_t.
+	uint8_t bLockDelayUnits 	 ; ///< Indicates the units used for the wLockDelay field. See: audio_cs_as_iso_data_ep_lock_delay_unit_t.
+	uint16_t wLockDelay 		 ; ///< Indicates the time it takes this endpoint to reliably lock its internal clock recovery circuitry. Units used depend on the value of the bLockDelayUnits field.
 } audio_desc_cs_as_iso_data_ep_t;
 
 //// 5.2.3 Control Request Parameter Block Layout
@@ -818,87 +825,91 @@ typedef struct TU_ATTR_PACKED
 // 5.2.3.1 1-byte Control CUR Parameter Block
 typedef struct TU_ATTR_PACKED
 {
-  int8_t bCur            	; 	///< The setting for the CUR attribute of the addressed Control
+	int8_t bCur            	; 	///< The setting for the CUR attribute of the addressed Control
 } audio_control_cur_1_t;
 
 // 5.2.3.2 2-byte Control CUR Parameter Block
 typedef struct TU_ATTR_PACKED
 {
-  int16_t bCur            	;	///< The setting for the CUR attribute of the addressed Control
+	int16_t bCur            	;	///< The setting for the CUR attribute of the addressed Control
 } audio_control_cur_2_t;
 
 // 5.2.3.3 4-byte Control CUR Parameter Block
 typedef struct TU_ATTR_PACKED
 {
-  int32_t bCur            	;	///< The setting for the CUR attribute of the addressed Control
+	int32_t bCur            	;	///< The setting for the CUR attribute of the addressed Control
 } audio_control_cur_4_t;
 
+// Use the following ONLY for RECEIVED data - compiler does not know how many subranges are defined! Use the one below for predefined lengths - or if you know what you are doing do what you like
 // 5.2.3.1 1-byte Control RANGE Parameter Block
-//#define audio_control_range_1_n_t(numSubRanges) \
-//  struct TU_ATTR_PACKED {         				\
-//	uint16_t wNumSubRanges = numSubRanges; 		\
-//    struct TU_ATTR_PACKED {    	  				\
-//        int8_t bMin			; /*The setting for the MIN attribute of the nth subrange of the addressed Control*/\
-//        int8_t bMax			; /*The setting for the MAX attribute of the nth subrange of the addressed Control*/\
-//        uint8_t bRes			; /*The setting for the RES attribute of the nth subrange of the addressed Control*/\
-//    } setting[numSubRanges]		; \
-// }
-
 typedef struct TU_ATTR_PACKED {
 	uint16_t wNumSubRanges;
-  struct TU_ATTR_PACKED {
-      int8_t bMin			; /*The setting for the MIN attribute of the nth subrange of the addressed Control*/
-      int8_t bMax			; /*The setting for the MAX attribute of the nth subrange of the addressed Control*/
-      uint8_t bRes			; /*The setting for the RES attribute of the nth subrange of the addressed Control*/
-  } setting[]				;
+	struct TU_ATTR_PACKED {
+		int8_t bMin			; /*The setting for the MIN attribute of the nth subrange of the addressed Control*/
+		int8_t bMax			; /*The setting for the MAX attribute of the nth subrange of the addressed Control*/
+		uint8_t bRes			; /*The setting for the RES attribute of the nth subrange of the addressed Control*/
+	} subrange[]				;
 } audio_control_range_1_t;
 
 // 5.2.3.2 2-byte Control RANGE Parameter Block
-//#define audio_control_range_2_n_t(numSubRanges) \
-//  struct TU_ATTR_PACKED {         				\
-//	uint16_t wNumSubRanges = numSubRanges; 		\
-//    struct TU_ATTR_PACKED {    	  				\
-//        int16_t bMin			; /*The setting for the MIN attribute of the nth subrange of the addressed Control*/\
-//        int16_t bMax			; /*The setting for the MAX attribute of the nth subrange of the addressed Control*/\
-//        uint16_t bRes			; /*The setting for the RES attribute of the nth subrange of the addressed Control*/\
-//    } setting[numSubRanges]		; \
-// }
-
 typedef struct TU_ATTR_PACKED {
 	uint16_t wNumSubRanges;
-  struct TU_ATTR_PACKED {
-      int16_t bMin			; /*The setting for the MIN attribute of the nth subrange of the addressed Control*/
-      int16_t bMax			; /*The setting for the MAX attribute of the nth subrange of the addressed Control*/
-      uint16_t bRes			; /*The setting for the RES attribute of the nth subrange of the addressed Control*/
-  } setting[]				;
+	struct TU_ATTR_PACKED {
+		int16_t bMin			; /*The setting for the MIN attribute of the nth subrange of the addressed Control*/
+		int16_t bMax			; /*The setting for the MAX attribute of the nth subrange of the addressed Control*/
+		uint16_t bRes			; /*The setting for the RES attribute of the nth subrange of the addressed Control*/
+	} subrange[]				;
 } audio_control_range_2_t;
 
 // 5.2.3.3 4-byte Control RANGE Parameter Block
-//#define audio_control_range_4_n_t(numSubRanges) \
-//  struct TU_ATTR_PACKED {         				\
-//	uint16_t wNumSubRanges = numSubRanges; 		\
-//    struct TU_ATTR_PACKED {    	  				\
-//        int32_t bMin			; /*The setting for the MIN attribute of the nth subrange of the addressed Control*/\
-//        int32_t bMax			; /*The setting for the MAX attribute of the nth subrange of the addressed Control*/\
-//        uint32_t bRes			; /*The setting for the RES attribute of the nth subrange of the addressed Control*/\
-//    } setting[numSubRanges]		; \
-// }
-
 typedef struct TU_ATTR_PACKED {
 	uint16_t wNumSubRanges;
-  struct TU_ATTR_PACKED {
-      int32_t bMin			; /*The setting for the MIN attribute of the nth subrange of the addressed Control*/
-      int32_t bMax			; /*The setting for the MAX attribute of the nth subrange of the addressed Control*/
-      uint32_t bRes			; /*The setting for the RES attribute of the nth subrange of the addressed Control*/
-  } setting[]				;
+	struct TU_ATTR_PACKED {
+		int32_t bMin			; /*The setting for the MIN attribute of the nth subrange of the addressed Control*/
+		int32_t bMax			; /*The setting for the MAX attribute of the nth subrange of the addressed Control*/
+		uint32_t bRes			; /*The setting for the RES attribute of the nth subrange of the addressed Control*/
+	} subrange[]				;
 } audio_control_range_4_t;
 
-/** @} */
+// 5.2.3.1 1-byte Control RANGE Parameter Block
+#define audio_control_range_1_n_t(numSubRanges) \
+		struct TU_ATTR_PACKED {         		\
+	uint16_t wNumSubRanges = numSubRanges; 		\
+	struct TU_ATTR_PACKED {    	  				\
+			int8_t bMin				; /*The setting for the MIN attribute of the nth subrange of the addressed Control*/\
+		int8_t bMax					; /*The setting for the MAX attribute of the nth subrange of the addressed Control*/\
+		uint8_t bRes				; /*The setting for the RES attribute of the nth subrange of the addressed Control*/\
+		} subrange[numSubRanges]	; \
+}
+
+		// 5.2.3.2 2-byte Control RANGE Parameter Block
+#define audio_control_range_2_n_t(numSubRanges) \
+		struct TU_ATTR_PACKED {         				\
+	uint16_t wNumSubRanges = numSubRanges; 		\
+	struct TU_ATTR_PACKED {    	  				\
+			int16_t bMin			; /*The setting for the MIN attribute of the nth subrange of the addressed Control*/\
+		int16_t bMax			; /*The setting for the MAX attribute of the nth subrange of the addressed Control*/\
+		uint16_t bRes			; /*The setting for the RES attribute of the nth subrange of the addressed Control*/\
+		} subrange[numSubRanges]		; \
+	}
+
+		// 5.2.3.3 4-byte Control RANGE Parameter Block
+#define audio_control_range_4_n_t(numSubRanges) \
+		struct TU_ATTR_PACKED {         				\
+	uint16_t wNumSubRanges = numSubRanges; 		\
+	struct TU_ATTR_PACKED {    	  				\
+			int32_t bMin			; /*The setting for the MIN attribute of the nth subrange of the addressed Control*/\
+		int32_t bMax			; /*The setting for the MAX attribute of the nth subrange of the addressed Control*/\
+		uint32_t bRes			; /*The setting for the RES attribute of the nth subrange of the addressed Control*/\
+		} subrange[numSubRanges]		; \
+	}
+
+		/** @} */
 
 #ifdef __cplusplus
-}
+	}
 #endif
 
 #endif
 
-/** @} */
+	/** @} */
