@@ -82,11 +82,14 @@ enum {
 };
 
 // PORTSC1
+#define PORTSC1_PORT_SPEED_POS    26
+
 enum {
   PORTSC1_CURRENT_CONNECT_STATUS = TU_BIT(0),
   PORTSC1_FORCE_PORT_RESUME      = TU_BIT(6),
   PORTSC1_SUSPEND                = TU_BIT(7),
   PORTSC1_FORCE_FULL_SPEED       = TU_BIT(24),
+  PORTSC1_PORT_SPEED             = TU_BIT(26) | TU_BIT(27)
 };
 
 // OTGSC
@@ -236,7 +239,7 @@ typedef struct
 {
   dcd_registers_t* regs;  // registers
   const IRQn_Type irqnum; // IRQ number
-  const uint8_t ep_count;   // Max bi-directional Endpoints
+  const uint8_t ep_count; // Max bi-directional Endpoints
 }dcd_controller_t;
 
 #if CFG_TUSB_MCU == OPT_MCU_MIMXRT10XX
@@ -244,7 +247,7 @@ typedef struct
   // Therefore QHD_MAX is 2 x max endpoint count
   #define QHD_MAX  (8*2)
 
-  dcd_controller_t _dcd_controller[] =
+  static const dcd_controller_t _dcd_controller[] =
   {
     // RT1010 and RT1020 only has 1 USB controller
     #if FSL_FEATURE_SOC_USBHS_COUNT == 1
@@ -258,7 +261,7 @@ typedef struct
 #else
   #define QHD_MAX (6*2)
 
-  dcd_controller_t _dcd_controller[] =
+  static const dcd_controller_t _dcd_controller[] =
   {
     { .regs = (dcd_registers_t*) LPC_USB0_BASE, .irqnum = USB0_IRQn, .ep_count = 6 },
     { .regs = (dcd_registers_t*) LPC_USB1_BASE, .irqnum = USB1_IRQn, .ep_count = 4 }
@@ -512,7 +515,8 @@ void dcd_int_handler(uint8_t rhport)
   if (int_status & INTR_RESET)
   {
     bus_reset(rhport);
-    dcd_event_bus_signal(rhport, DCD_EVENT_BUS_RESET, true);
+    uint32_t speed = (dcd_reg->PORTSC1 & PORTSC1_PORT_SPEED) >> PORTSC1_PORT_SPEED_POS;
+    dcd_event_bus_reset(rhport, (tusb_speed_t) speed, true);
   }
 
   if (int_status & INTR_SUSPEND)

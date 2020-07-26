@@ -452,7 +452,9 @@ void dcd_int_handler(uint8_t rhport)
       USBD->CEPINTEN = USBD_CEPINTEN_SETUPPKIEN_Msk;
       USBD->BUSINTEN = USBD_BUSINTEN_RSTIEN_Msk | USBD_BUSINTEN_RESUMEIEN_Msk | USBD_BUSINTEN_SUSPENDIEN_Msk | USBD_BUSINTEN_DMADONEIEN_Msk;
       USBD->CEPINTSTS = 0x1ffc;
-      dcd_event_bus_signal(0, DCD_EVENT_BUS_RESET, true);
+
+      tusb_speed_t speed = (USBD->OPER & USBD_OPER_CURSPD_Msk) ? TUSB_SPEED_HIGH : TUSB_SPEED_FULL;
+      dcd_event_bus_reset(0, speed, true);
     }
 
     if (bus_state & USBD_BUSINTSTS_RESUMEIF_Msk)

@@ -49,14 +49,22 @@ void OTG_FS_IRQHandler(void)
 #define BUTTON_PIN            GPIO_PIN_13
 #define BUTTON_STATE_ACTIVE   1
 
+#define UARTx                 USART3
+#define UART_GPIO_PORT        GPIOD
+#define UART_GPIO_AF          GPIO_AF7_USART3
+#define UART_TX_PIN           GPIO_PIN_8
+#define UART_RX_PIN           GPIO_PIN_9
+
+UART_HandleTypeDef UartHandle;
+
 // enable all LED, Button, Uart, USB clock
 static void all_rcc_clk_enable(void)
 {
   __HAL_RCC_GPIOA_CLK_ENABLE();  // USB D+, D-
   __HAL_RCC_GPIOB_CLK_ENABLE();  // LED
   __HAL_RCC_GPIOC_CLK_ENABLE();  // Button
-//  __HAL_RCC_GPIOD_CLK_ENABLE();  // Uart tx, rx
-//  __HAL_RCC_USART3_CLK_ENABLE(); // Uart module
+  __HAL_RCC_GPIOD_CLK_ENABLE();  // Uart tx, rx
+  __HAL_RCC_USART3_CLK_ENABLE(); // Uart module
 }
 
 /* PWR, RCC, GPIO (All): AHB4 (D3 domain)
@@ -170,6 +178,24 @@ void board_init(void)
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_HIGH;
   HAL_GPIO_Init(BUTTON_PORT, &GPIO_InitStruct);
 
+  // Uart
+  GPIO_InitStruct.Pin       = UART_TX_PIN | UART_RX_PIN;
+  GPIO_InitStruct.Mode      = GPIO_MODE_AF_PP;
+  GPIO_InitStruct.Pull      = GPIO_PULLUP;
+  GPIO_InitStruct.Speed     = GPIO_SPEED_FREQ_VERY_HIGH;
+  GPIO_InitStruct.Alternate = UART_GPIO_AF;
+  HAL_GPIO_Init(UART_GPIO_PORT, &GPIO_InitStruct);
+
+  UartHandle.Instance        = UARTx;
+  UartHandle.Init.BaudRate   = CFG_BOARD_UART_BAUDRATE;
+  UartHandle.Init.WordLength = UART_WORDLENGTH_8B;
+  UartHandle.Init.StopBits   = UART_STOPBITS_1;
+  UartHandle.Init.Parity     = UART_PARITY_NONE;
+  UartHandle.Init.HwFlowCtl  = UART_HWCONTROL_NONE;
+  UartHandle.Init.Mode       = UART_MODE_TX_RX;
+  UartHandle.Init.OverSampling = UART_OVERSAMPLING_16;
+  HAL_UART_Init(&UartHandle);
+
   // USB Pin Init
   // PA9- VUSB, PA10- ID, PA11- DM, PA12- DP
 
@@ -226,8 +252,8 @@ int board_uart_read(uint8_t* buf, int len)
 
 int board_uart_write(void const * buf, int len)
 {
-  (void) buf; (void) len;
-  return 0;
+  HAL_UART_Transmit(&UartHandle, (uint8_t*) buf, len, 0xffff);
+  return len;
 }
 
 

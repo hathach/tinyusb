@@ -61,8 +61,8 @@ typedef struct
 #endif
 
   // Endpoint Transfer buffer
-  CFG_TUSB_MEM_ALIGN uint8_t epout_buf[CFG_TUD_CDC_EPSIZE];
-  CFG_TUSB_MEM_ALIGN uint8_t epin_buf[CFG_TUD_CDC_EPSIZE];
+  CFG_TUSB_MEM_ALIGN uint8_t epout_buf[CFG_TUD_CDC_EP_BUFSIZE];
+  CFG_TUSB_MEM_ALIGN uint8_t epin_buf[CFG_TUD_CDC_EP_BUFSIZE];
 
 }cdcd_interface_t;
 
@@ -82,9 +82,9 @@ static void _prep_out_transaction (uint8_t itf)
 
   // Prepare for incoming data but only allow what we can store in the ring buffer.
   uint16_t max_read = tu_fifo_remaining(&p_cdc->rx_ff);
-  if ( max_read >= TU_ARRAY_SIZE(p_cdc->epout_buf) )
+  if ( max_read >= sizeof(p_cdc->epout_buf) )
   {
-    usbd_edpt_xfer(TUD_OPT_RHPORT, p_cdc->ep_out, p_cdc->epout_buf, TU_ARRAY_SIZE(p_cdc->epout_buf));
+    usbd_edpt_xfer(TUD_OPT_RHPORT, p_cdc->ep_out, p_cdc->epout_buf, sizeof(p_cdc->epout_buf));
   }
 }
 
@@ -148,7 +148,7 @@ uint32_t tud_cdc_n_write(uint8_t itf, void const* buffer, uint32_t bufsize)
 
 #if 0 // TODO issue with circuitpython's REPL
   // flush if queue more than endpoint size
-  if ( tu_fifo_count(&_cdcd_itf[itf].tx_ff) >= CFG_TUD_CDC_EPSIZE )
+  if ( tu_fifo_count(&_cdcd_itf[itf].tx_ff) >= CFG_TUD_CDC_EP_BUFSIZE )
   {
     tud_cdc_n_write_flush(itf);
   }
@@ -164,7 +164,7 @@ uint32_t tud_cdc_n_write_flush (uint8_t itf)
   // skip if previous transfer not complete yet
   TU_VERIFY( !usbd_edpt_busy(TUD_OPT_RHPORT, p_cdc->ep_in), 0 );
 
-  uint16_t count = tu_fifo_read_n(&_cdcd_itf[itf].tx_ff, p_cdc->epin_buf, TU_ARRAY_SIZE(p_cdc->epin_buf));
+  uint16_t count = tu_fifo_read_n(&_cdcd_itf[itf].tx_ff, p_cdc->epin_buf, sizeof(p_cdc->epin_buf));
   if ( count )
   {
     TU_VERIFY( tud_cdc_n_connected(itf), 0 ); // fifo is empty if not connected
@@ -364,7 +364,7 @@ bool cdcd_control_request(uint8_t rhport, tusb_control_request_t const * request
       tud_control_status(rhport, request);
 
       // Invoke callback
-      if ( tud_cdc_line_state_cb) tud_cdc_line_state_cb(itf, dtr, rts);
+      if ( tud_cdc_line_state_cb ) tud_cdc_line_state_cb(itf, dtr, rts);
     }
     break;
 
@@ -420,7 +420,7 @@ bool cdcd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint32_
     {
       // There is no data left, a ZLP should be sent if
       // xferred_bytes is multiple of EP size and not zero
-      if ( xferred_bytes && (0 == (xferred_bytes % CFG_TUD_CDC_EPSIZE)) )
+      if ( xferred_bytes && (0 == (xferred_bytes % CFG_TUD_CDC_EP_BUFSIZE)) )
       {
         usbd_edpt_xfer(TUD_OPT_RHPORT, p_cdc->ep_in, NULL, 0);
       }
