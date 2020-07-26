@@ -206,11 +206,10 @@ static void bus_reset(uint8_t rhport)
   //   are enabled at least "2 x (Largest-EPsize/4) + 1" are recommended.  Maybe provide a macro for application to
   //   overwrite this.
 
-#if TUD_OPT_HIGH_SPEED
-  _allocated_fifo_words = 271 + 2*EP_MAX;
-#else
-  _allocated_fifo_words =  47 + 2*EP_MAX;
-#endif
+  // We rework this here and initialize the FIFOs here only for the USB reset case. The rest is done once a
+  // configuration was set from the host. For this initialization phase we use 64 bytes as FIFO size.
+
+  _allocated_fifo_words = 16 + 2 + 10; 	// 64 bytes max packet size + 2 words (for the status of the control OUT data packet) + 10 words (for setup packets)
 
   usb_otg->GRXFSIZ = _allocated_fifo_words;
 
@@ -219,15 +218,98 @@ static void bus_reset(uint8_t rhport)
 
   _allocated_fifo_words += 16;
 
-  // TU_LOG2_INT(_allocated_fifo_words);
-
   // Fixed control EP0 size to 64 bytes
   in_ep[0].DIEPCTL &= ~(0x03 << USB_OTG_DIEPCTL_MPSIZ_Pos);
   xfer_status[0][TUSB_DIR_OUT].max_size = xfer_status[0][TUSB_DIR_IN].max_size = 64;
 
+  // Set SETUP packet count to 3
   out_ep[0].DOEPTSIZ |= (3 << USB_OTG_DOEPTSIZ_STUPCNT_Pos);
 
   usb_otg->GINTMSK |= USB_OTG_GINTMSK_OEPINT | USB_OTG_GINTMSK_IEPINT;
+
+//#if TUD_OPT_HIGH_SPEED
+//  _allocated_fifo_words = 271 + 2*EP_MAX;
+//#else
+//  _allocated_fifo_words =  47 + 2*EP_MAX;
+//#endif
+//
+//  usb_otg->GRXFSIZ = _allocated_fifo_words;
+//
+//  // Control IN uses FIFO 0 with 64 bytes ( 16 32-bit word )
+//  usb_otg->DIEPTXF0_HNPTXFSIZ = (16 << USB_OTG_TX0FD_Pos) | _allocated_fifo_words;
+//
+//  _allocated_fifo_words += 16;
+//
+//  // TU_LOG2_INT(_allocated_fifo_words);
+//
+//  // Fixed control EP0 size to 64 bytes
+////  in_ep[0].DIEPCTL &= ~(0x03 << USB_OTG_DIEPCTL_MPSIZ_Pos);
+////  xfer_status[0][TUSB_DIR_OUT].max_size = xfer_status[0][TUSB_DIR_IN].max_size = 64;
+//
+//  // Set SETUP packet count to 3
+//  out_ep[0].DOEPTSIZ |= (3 << USB_OTG_DOEPTSIZ_STUPCNT_Pos);
+//
+//  usb_otg->GINTMSK |= USB_OTG_GINTMSK_OEPINT | USB_OTG_GINTMSK_IEPINT;
+}
+
+// Required after new configuration received in case EP0 max packet size has changed
+static bool set_EP0_max_pkt_size(uint8_t maxPktSize)
+{
+  USB_OTG_DeviceTypeDef * dev = DEVICE_BASE(rhport);
+  USB_OTG_INEndpointTypeDef * in_ep = IN_EP_BASE(rhport);
+
+  uint32_t enum_spd = (dev->DSTS & USB_OTG_DSTS_ENUMSPD_Msk) >> USB_OTG_DSTS_ENUMSPD_Pos;
+
+  // Maximum packet size for EP 0 is set for both directions by writing DIEPCTL.
+  switch (enum_spd)
+  {
+    case 0x00: 	// High speed - always 64 byte
+      if (maxPktSize == 64)
+      {
+        in_ep[0].DIEPCTL &= ~(0x03 << USB_OTG_DIEPCTL_MPSIZ_Pos);
+	xfer_status[0][TUSB_DIR_OUT].max_size = xfer_status[0][TUSB_DIR_IN].max_size = 64;
+	return true;
+      }
+
+      return false; 	// Only 64 bytes are valid
+
+    case 0x03: 	// Full speed
+      switch (maxPktSize)
+      {
+	case 8:
+	  in_ep[0].DIEPCTL |= (0x03 << USB_OTG_DIEPCTL_MPSIZ_Pos);
+	  xfer_status[0][TUSB_DIR_OUT].max_size = xfer_status[0][TUSB_DIR_IN].max_size = 8;
+	  break;
+
+	case 16:
+	  in_ep[0].DIEPCTL &= ~(0x03 << USB_OTG_DIEPCTL_MPSIZ_Pos);
+	  in_ep[0].DIEPCTL |= (0x02 << USB_OTG_DIEPCTL_MPSIZ_Pos);
+	  xfer_status[0][TUSB_DIR_OUT].max_size = xfer_status[0][TUSB_DIR_IN].max_size = 16;
+	  break;
+
+	case 32:
+	  in_ep[0].DIEPCTL &= ~(0x03 << USB_OTG_DIEPCTL_MPSIZ_Pos);
+	  in_ep[0].DIEPCTL |= (0x01 << USB_OTG_DIEPCTL_MPSIZ_Pos);
+	  xfer_status[0][TUSB_DIR_OUT].max_size = xfer_status[0][TUSB_DIR_IN].max_size = 32;
+	  break;
+
+	case 64:
+	  in_ep[0].DIEPCTL &= ~(0x03 << USB_OTG_DIEPCTL_MPSIZ_Pos);
+	  xfer_status[0][TUSB_DIR_OUT].max_size = xfer_status[0][TUSB_DIR_IN].max_size = 64;
+	  break;
+
+	default:
+	  return false;		// Other sizes are not valid
+      }
+
+      return true;
+
+    default: 	// Low speed - always 8 bytes
+      in_ep[0].DIEPCTL |= (0x03 << USB_OTG_DIEPCTL_MPSIZ_Pos);
+      xfer_status[0][TUSB_DIR_OUT].max_size = 8;
+      xfer_status[0][TUSB_DIR_IN].max_size = 8;
+      return true;
+  }
 }
 
 // Set turn-around timeout according to link speed
@@ -939,6 +1021,7 @@ void dcd_int_handler(uint8_t rhport)
     tusb_speed_t const speed = get_speed(rhport);
 
     set_turnaround(usb_otg, speed);
+
     dcd_event_bus_reset(rhport, speed, true);
   }
 
