@@ -156,7 +156,7 @@ static void bus_reset(uint8_t rhport)
   USB_OTG_GlobalTypeDef * usb_otg = GLOBAL_BASE(rhport);
   USB_OTG_DeviceTypeDef * dev = DEVICE_BASE(rhport);
   USB_OTG_OUTEndpointTypeDef * out_ep = OUT_EP_BASE(rhport);
-  USB_OTG_INEndpointTypeDef * in_ep = IN_EP_BASE(rhport);
+//  USB_OTG_INEndpointTypeDef * in_ep = IN_EP_BASE(rhport);
 
   tu_memclr(xfer_status, sizeof(xfer_status));
 
@@ -209,23 +209,23 @@ static void bus_reset(uint8_t rhport)
   // We rework this here and initialize the FIFOs here only for the USB reset case. The rest is done once a
   // configuration was set from the host. For this initialization phase we use 64 bytes as FIFO size.
 
-  _allocated_fifo_words = 16 + 2 + 10; 	// 64 bytes max packet size + 2 words (for the status of the control OUT data packet) + 10 words (for setup packets)
+  // Found by trial: 10 + 2 + CFG_TUD_ENDPOINT0_SIZE/4 + 1 + 6 - not quite sure where 1 + 6 comes from but this works for 8/16/32/64 EP0 size
+  _allocated_fifo_words = 10 + 2 + CFG_TUD_ENDPOINT0_SIZE/4 + 1 + 6; 	// 64 bytes max packet size + 2 words (for the status of the control OUT data packet) + 10 words (for setup packets)
+
+//  _allocated_fifo_words = 47 + 2*EP_MAX; 	// 64 bytes max packet size + 2 words (for the status of the control OUT data packet) + 10 words (for setup packets)
 
   usb_otg->GRXFSIZ = _allocated_fifo_words;
 
   // Control IN uses FIFO 0 with 64 bytes ( 16 32-bit word )
-  usb_otg->DIEPTXF0_HNPTXFSIZ = (16 << USB_OTG_TX0FD_Pos) | _allocated_fifo_words;
+  usb_otg->DIEPTXF0_HNPTXFSIZ = (CFG_TUD_ENDPOINT0_SIZE/4 << USB_OTG_TX0FD_Pos) | _allocated_fifo_words;
 
-  _allocated_fifo_words += 16;
-
-  // Fixed control EP0 size to 64 bytes
-  in_ep[0].DIEPCTL &= ~(0x03 << USB_OTG_DIEPCTL_MPSIZ_Pos);
-  xfer_status[0][TUSB_DIR_OUT].max_size = xfer_status[0][TUSB_DIR_IN].max_size = 64;
+  _allocated_fifo_words += CFG_TUD_ENDPOINT0_SIZE/4;
 
   // Set SETUP packet count to 3
   out_ep[0].DOEPTSIZ |= (3 << USB_OTG_DOEPTSIZ_STUPCNT_Pos);
 
   usb_otg->GINTMSK |= USB_OTG_GINTMSK_OEPINT | USB_OTG_GINTMSK_IEPINT;
+
 
 //#if TUD_OPT_HIGH_SPEED
 //  _allocated_fifo_words = 271 + 2*EP_MAX;
@@ -243,8 +243,8 @@ static void bus_reset(uint8_t rhport)
 //  // TU_LOG2_INT(_allocated_fifo_words);
 //
 //  // Fixed control EP0 size to 64 bytes
-////  in_ep[0].DIEPCTL &= ~(0x03 << USB_OTG_DIEPCTL_MPSIZ_Pos);
-////  xfer_status[0][TUSB_DIR_OUT].max_size = xfer_status[0][TUSB_DIR_IN].max_size = 64;
+//  in_ep[0].DIEPCTL &= ~(0x03 << USB_OTG_DIEPCTL_MPSIZ_Pos);
+//  xfer_status[0][TUSB_DIR_OUT].max_size = xfer_status[0][TUSB_DIR_IN].max_size = 64;
 //
 //  // Set SETUP packet count to 3
 //  out_ep[0].DOEPTSIZ |= (3 << USB_OTG_DOEPTSIZ_STUPCNT_Pos);
@@ -253,7 +253,7 @@ static void bus_reset(uint8_t rhport)
 }
 
 // Required after new configuration received in case EP0 max packet size has changed
-static bool set_EP0_max_pkt_size(uint8_t maxPktSize)
+static void set_EP0_max_pkt_size()
 {
   USB_OTG_DeviceTypeDef * dev = DEVICE_BASE(rhport);
   USB_OTG_INEndpointTypeDef * in_ep = IN_EP_BASE(rhport);
@@ -264,51 +264,34 @@ static bool set_EP0_max_pkt_size(uint8_t maxPktSize)
   switch (enum_spd)
   {
     case 0x00: 	// High speed - always 64 byte
-      if (maxPktSize == 64)
-      {
-        in_ep[0].DIEPCTL &= ~(0x03 << USB_OTG_DIEPCTL_MPSIZ_Pos);
-	xfer_status[0][TUSB_DIR_OUT].max_size = xfer_status[0][TUSB_DIR_IN].max_size = 64;
-	return true;
-      }
-
-      return false; 	// Only 64 bytes are valid
+      in_ep[0].DIEPCTL &= ~(0x03 << USB_OTG_DIEPCTL_MPSIZ_Pos);
+      xfer_status[0][TUSB_DIR_OUT].max_size = xfer_status[0][TUSB_DIR_IN].max_size = 64;
+      break;
 
     case 0x03: 	// Full speed
-      switch (maxPktSize)
-      {
-	case 8:
-	  in_ep[0].DIEPCTL |= (0x03 << USB_OTG_DIEPCTL_MPSIZ_Pos);
-	  xfer_status[0][TUSB_DIR_OUT].max_size = xfer_status[0][TUSB_DIR_IN].max_size = 8;
-	  break;
-
-	case 16:
-	  in_ep[0].DIEPCTL &= ~(0x03 << USB_OTG_DIEPCTL_MPSIZ_Pos);
-	  in_ep[0].DIEPCTL |= (0x02 << USB_OTG_DIEPCTL_MPSIZ_Pos);
-	  xfer_status[0][TUSB_DIR_OUT].max_size = xfer_status[0][TUSB_DIR_IN].max_size = 16;
-	  break;
-
-	case 32:
-	  in_ep[0].DIEPCTL &= ~(0x03 << USB_OTG_DIEPCTL_MPSIZ_Pos);
-	  in_ep[0].DIEPCTL |= (0x01 << USB_OTG_DIEPCTL_MPSIZ_Pos);
-	  xfer_status[0][TUSB_DIR_OUT].max_size = xfer_status[0][TUSB_DIR_IN].max_size = 32;
-	  break;
-
-	case 64:
-	  in_ep[0].DIEPCTL &= ~(0x03 << USB_OTG_DIEPCTL_MPSIZ_Pos);
-	  xfer_status[0][TUSB_DIR_OUT].max_size = xfer_status[0][TUSB_DIR_IN].max_size = 64;
-	  break;
-
-	default:
-	  return false;		// Other sizes are not valid
-      }
-
-      return true;
+#if CFG_TUD_ENDPOINT0_SIZE == 64
+      in_ep[0].DIEPCTL &= ~(0x03 << USB_OTG_DIEPCTL_MPSIZ_Pos);
+      xfer_status[0][TUSB_DIR_OUT].max_size = xfer_status[0][TUSB_DIR_IN].max_size = 64;
+#elif CFG_TUD_ENDPOINT0_SIZE == 32
+      in_ep[0].DIEPCTL &= ~(0x03 << USB_OTG_DIEPCTL_MPSIZ_Pos);
+      in_ep[0].DIEPCTL |= (0x01 << USB_OTG_DIEPCTL_MPSIZ_Pos);
+      xfer_status[0][TUSB_DIR_OUT].max_size = xfer_status[0][TUSB_DIR_IN].max_size = 32;
+#elif CFG_TUD_ENDPOINT0_SIZE == 16
+      in_ep[0].DIEPCTL &= ~(0x03 << USB_OTG_DIEPCTL_MPSIZ_Pos);
+      in_ep[0].DIEPCTL |= (0x02 << USB_OTG_DIEPCTL_MPSIZ_Pos);
+      xfer_status[0][TUSB_DIR_OUT].max_size = xfer_status[0][TUSB_DIR_IN].max_size = 16;
+#elif CFG_TUD_ENDPOINT0_SIZE == 8
+      in_ep[0].DIEPCTL |= (0x03 << USB_OTG_DIEPCTL_MPSIZ_Pos);
+      xfer_status[0][TUSB_DIR_OUT].max_size = xfer_status[0][TUSB_DIR_IN].max_size = 8;
+#else
+# error CFG_TUD_ENDPOINT0_SIZE MUST be 8, 16, 32, or 64!
+#endif
+      break;
 
     default: 	// Low speed - always 8 bytes
       in_ep[0].DIEPCTL |= (0x03 << USB_OTG_DIEPCTL_MPSIZ_Pos);
       xfer_status[0][TUSB_DIR_OUT].max_size = 8;
       xfer_status[0][TUSB_DIR_IN].max_size = 8;
-      return true;
   }
 }
 
@@ -1022,6 +1005,8 @@ void dcd_int_handler(uint8_t rhport)
 
     set_turnaround(usb_otg, speed);
 
+    set_EP0_max_pkt_size();
+
     dcd_event_bus_reset(rhport, speed, true);
   }
 
@@ -1084,6 +1069,49 @@ void dcd_int_handler(uint8_t rhport)
     // IEPINT bit read-only
     handle_epin_ints(rhport, dev, in_ep);
   }
+}
+
+TU_ATTR_WEAK bool dcd_alloc_mem_for_conf(uint8_t rhport, tusb_desc_configuration_t const * desc_cfg)
+{
+  (void) rhport;
+
+  USB_OTG_GlobalTypeDef * usb_otg = GLOBAL_BASE(rhport);
+  USB_OTG_DeviceTypeDef * dev = DEVICE_BASE(rhport);
+  USB_OTG_OUTEndpointTypeDef * out_ep = OUT_EP_BASE(rhport);
+
+//  for(uint8_t n = 0; n < EP_MAX; n++) {
+//      out_ep[n].DOEPCTL |= USB_OTG_DOEPCTL_SNAK;
+//  }
+
+  out_ep[0].DOEPCTL |= USB_OTG_DOEPCTL_SNAK;
+
+  // Deactivate Interrupts?
+  dev->DAINTMSK &= ~((1 << USB_OTG_DAINTMSK_OEPM_Pos) | (1 << USB_OTG_DAINTMSK_IEPM_Pos));
+  dev->DOEPMSK &= ~(USB_OTG_DOEPMSK_STUPM | USB_OTG_DOEPMSK_XFRCM);
+  dev->DIEPMSK &= ~(USB_OTG_DIEPMSK_TOM | USB_OTG_DIEPMSK_XFRCM);
+
+  //	 usb_otg->GINTMSK &= ~(USB_OTG_GINTMSK_OEPINT | USB_OTG_GINTMSK_IEPINT);
+
+  // Reconfigure RX buffer and EP0 TX buffer
+  _allocated_fifo_words = 47 + 2*EP_MAX;
+
+  usb_otg->GRXFSIZ = _allocated_fifo_words;
+
+  // Control IN uses FIFO 0 with 64 bytes ( 16 32-bit word )
+  usb_otg->DIEPTXF0_HNPTXFSIZ = (16 << USB_OTG_TX0FD_Pos) | _allocated_fifo_words;
+
+  _allocated_fifo_words += 16;
+
+//  usb_otg->GINTMSK |= USB_OTG_GINTMSK_OEPINT | USB_OTG_GINTMSK_IEPINT;
+
+  // Enable interrupts
+  dev->DAINTMSK |= (1 << USB_OTG_DAINTMSK_OEPM_Pos) | (1 << USB_OTG_DAINTMSK_IEPM_Pos);
+  dev->DOEPMSK |= USB_OTG_DOEPMSK_STUPM | USB_OTG_DOEPMSK_XFRCM;
+  dev->DIEPMSK |= USB_OTG_DIEPMSK_TOM | USB_OTG_DIEPMSK_XFRCM;
+
+  //	 USB_OTG_FS->GINTMSK |= USB_OTG_GINTMSK_OEPINT | USB_OTG_GINTMSK_IEPINT;
+
+  return true;
 }
 
 #endif

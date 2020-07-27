@@ -46,7 +46,6 @@ typedef struct
   {
     volatile uint8_t connected    : 1;
     volatile uint8_t addressed    : 1;
-    volatile uint8_t configured   : 1;
     volatile uint8_t suspended    : 1;
 
     uint8_t remote_wakeup_en      : 1; // enable/disable by host
@@ -54,6 +53,7 @@ typedef struct
     uint8_t self_powered          : 1; // configuration descriptor's attribute
   };
 
+  volatile uint8_t cfg_num; // current active configuration (0x00 is not configured)
   uint8_t speed;
 
   uint8_t itf2drv[16];     // map interface number to driver (0xff is invalid)
@@ -314,7 +314,7 @@ tusb_speed_t tud_speed_get(void)
 
 bool tud_mounted(void)
 {
-  return _usbd_dev.configured;
+  return _usbd_dev.cfg_num ? 1 : 0;
 }
 
 bool tud_suspended(void)
@@ -583,8 +583,8 @@ static bool process_control_request(uint8_t rhport, tusb_control_request_t const
 
         case TUSB_REQ_GET_CONFIGURATION:
         {
-          uint8_t cfgnum = _usbd_dev.configured ? 1 : 0;
-          tud_control_xfer(rhport, p_request, &cfgnum, 1);
+          uint8_t cfg_num = _usbd_dev.cfg_num;
+          tud_control_xfer(rhport, p_request, &cfg_num, 1);
         }
         break;
 
@@ -592,9 +592,9 @@ static bool process_control_request(uint8_t rhport, tusb_control_request_t const
         {
           uint8_t const cfg_num = (uint8_t) p_request->wValue;
 
-          if ( !_usbd_dev.configured && cfg_num ) TU_ASSERT( process_set_config(rhport, cfg_num) );
+          if ( !_usbd_dev.cfg_num && cfg_num ) TU_ASSERT( process_set_config(rhport, cfg_num) );
 
-          _usbd_dev.configured = cfg_num ? 1 : 0;
+          _usbd_dev.cfg_num = cfg_num;
 
           tud_control_status(rhport, p_request);
         }
@@ -745,6 +745,9 @@ static bool process_set_config(uint8_t rhport, uint8_t cfg_num)
 {
   tusb_desc_configuration_t const * desc_cfg = (tusb_desc_configuration_t const *) tud_descriptor_configuration_cb(cfg_num-1); // index is cfg_num-1
   TU_ASSERT(desc_cfg != NULL && desc_cfg->bDescriptorType == TUSB_DESC_CONFIGURATION);
+
+  // Allow for dynamic allocation of EP buffer for current configuration - only one configuration may be active according to USB specification
+  if (dcd_alloc_mem_for_conf) TU_ASSERT(dcd_alloc_mem_for_conf(rhport, desc_cfg));
 
   // Parse configuration descriptor
   _usbd_dev.remote_wakeup_support = (desc_cfg->bmAttributes & TUSB_DESC_CONFIG_ATT_REMOTE_WAKEUP) ? 1 : 0;
@@ -951,7 +954,7 @@ void dcd_event_handler(dcd_event_t const * event, bool in_isr)
     case DCD_EVENT_UNPLUGGED:
       _usbd_dev.connected  = 0;
       _usbd_dev.addressed  = 0;
-      _usbd_dev.configured = 0;
+      _usbd_dev.cfg_num    = 0;
       _usbd_dev.suspended  = 0;
       osal_queue_send(_usbd_q, event, in_isr);
     break;
