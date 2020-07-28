@@ -54,6 +54,9 @@
 // FIFO size in bytes
 #define EP_FIFO_SIZE      1024
 
+// Max number of IN EP FIFOs
+#define EP_FIFO_NUM 5
+
 typedef struct {
     uint8_t *buffer;
     uint16_t total_len;
@@ -71,17 +74,12 @@ static uint32_t _setup_packet[2];
 #define XFER_CTL_BASE(_ep, _dir) &xfer_status[_ep][_dir]
 static xfer_ctl_t xfer_status[EP_MAX][2];
 
-// Max number of IN EP FIFOs
-#define USB_FIFO_NUM 5
-
 // Keep count of how many FIFOs are in use
-static uint8_t dcd_allocated_fifos = 1; //FIFO0 is always in use
+static uint8_t _allocated_fifos = 1; //FIFO0 is always in use
 
 // Will either return an unused FIFO number, or 0 if all are used.
-static uint8_t dcd_get_free_fifo(){
-  if (dcd_allocated_fifos < USB_FIFO_NUM) {
-    return dcd_allocated_fifos++;
-  }
+static uint8_t get_free_fifo(){
+  if (_allocated_fifos < EP_FIFO_NUM) return _allocated_fifos++;
   return 0;
 }
 
@@ -285,7 +283,7 @@ bool dcd_edpt_open(uint8_t rhport, tusb_desc_endpoint_t const *desc_edpt)
     // - Offset: GRXFSIZ + 16 + Size*(epnum-1)
     // - IN EP 1 gets FIFO 1, IN EP "n" gets FIFO "n".
 
-    uint8_t fifo_num = dcd_get_free_fifo();
+    uint8_t fifo_num = get_free_fifo();
     TU_ASSERT(fifo_num != 0);
 
     in_ep[epnum].diepctl &= ~(USB_D_TXFNUM1_M | USB_D_EPTYPE1_M | USB_DI_SETD0PID1 | USB_D_MPS1_M);
@@ -300,7 +298,7 @@ bool dcd_edpt_open(uint8_t rhport, tusb_desc_endpoint_t const *desc_edpt)
     // Both TXFD and TXSA are in unit of 32-bit words.
     // IN FIFO 0 was configured during enumeration, hence the "+ 16".
     uint16_t const allocated_size = (USB0.grxfsiz & 0x0000ffff) + 16;
-    uint16_t const fifo_size = (EP_FIFO_SIZE/4 - allocated_size) / (USB_FIFO_NUM-1);
+    uint16_t const fifo_size = (EP_FIFO_SIZE/4 - allocated_size) / (EP_FIFO_NUM-1);
     uint32_t const fifo_offset = allocated_size + fifo_size*(fifo_num-1);
 
     // DIEPTXF starts at FIFO #1.
@@ -673,7 +671,7 @@ static void _dcd_int_handler(void* arg)
     ESP_EARLY_LOGV(TAG, "dcd_int_handler - reset");
     USB0.gintsts = USB_USBRST_M;
     // FIFOs will be reassigned when the endpoints are reopen
-    dcd_allocated_fifos = 1;
+    _allocated_fifos = 1;
     bus_reset();
   }
 
@@ -702,8 +700,6 @@ static void _dcd_int_handler(void* arg)
     if (otg_int & USB_SESENDDET_M)
     {
       dcd_event_bus_signal(0, DCD_EVENT_UNPLUGGED, true);
-      // FIFOs will be reassigned when the endpoints are reopen
-      dcd_allocated_fifos = 1;
     }
 
     USB0.gotgint = otg_int;
