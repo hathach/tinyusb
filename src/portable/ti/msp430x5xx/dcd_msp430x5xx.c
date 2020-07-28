@@ -70,8 +70,7 @@ typedef enum
   SIZXY = 7
 } ep_regs_index_t;
 
-#define EP_REGS(epnum, dir) &USBOEPCNF_1 + 64*dir + 8*(epnum - 1)
-
+#define EP_REGS(epnum, dir) ((ep_regs_t) ((uintptr_t)&USBOEPCNF_1 + 64*dir + 8*(epnum - 1)))
 
 static void bus_reset(void)
 {
