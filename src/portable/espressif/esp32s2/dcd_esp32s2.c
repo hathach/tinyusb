@@ -78,7 +78,8 @@ static xfer_ctl_t xfer_status[EP_MAX][2];
 static uint8_t _allocated_fifos = 1; //FIFO0 is always in use
 
 // Will either return an unused FIFO number, or 0 if all are used.
-static uint8_t get_free_fifo(){
+static uint8_t get_free_fifo(void)
+{
   if (_allocated_fifos < EP_FIFO_NUM) return _allocated_fifos++;
   return 0;
 }
