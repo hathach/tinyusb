@@ -231,6 +231,7 @@ static void bus_reset(uint8_t rhport)
 }
 
 // Set turn-around timeout according to link speed
+extern uint32_t SystemCoreClock;
 static void set_turnaround(USB_OTG_GlobalTypeDef * usb_otg, tusb_speed_t speed)
 {
   usb_otg->GUSBCFG &= ~USB_OTG_GUSBCFG_TRDT;
@@ -243,7 +244,6 @@ static void set_turnaround(USB_OTG_GlobalTypeDef * usb_otg, tusb_speed_t speed)
   else
   {
     // Turnaround timeout depends on the MCU clock
-    extern uint32_t SystemCoreClock;
     uint32_t turnaround;
 
     if ( SystemCoreClock >= 32000000U )
