@@ -74,7 +74,7 @@ static const uint32_t OIDSupportedList[] =
 #define OID_LIST_LENGTH TU_ARRAY_SIZE(OIDSupportedList)
 #define ENC_BUF_SIZE    (OID_LIST_LENGTH * 4 + 32)
 
-static uint8_t *encapsulated_buffer;
+static void *encapsulated_buffer;
 
 static void rndis_report(void)
 {
@@ -152,7 +152,7 @@ static void rndis_query(void)
   }
 }
 
-#define INFBUF ((uint32_t *)((uint8_t *)&(m->RequestId) + m->InformationBufferOffset))
+#define INFBUF  ((uint8_t *)&(m->RequestId) + m->InformationBufferOffset)
 
 static void rndis_handle_config_parm(const char *data, int keyoffset, int valoffset, int keylen, int vallen)
 {
@@ -191,14 +191,14 @@ static void rndis_handle_set_msg(void)
         char *ptr = (char *)m;
         ptr += sizeof(rndis_generic_msg_t);
         ptr += m->InformationBufferOffset;
-        p = (rndis_config_parameter_t *)ptr;
+        p = (rndis_config_parameter_t *) ((void*) ptr);
         rndis_handle_config_parm(ptr, p->ParameterNameOffset, p->ParameterValueOffset, p->ParameterNameLength, p->ParameterValueLength);
       }
       break;
 
     /* Mandatory general OIDs */
     case OID_GEN_CURRENT_PACKET_FILTER:
-      oid_packet_filter = *INFBUF;
+      memcpy(&oid_packet_filter, INFBUF, 4);
       if (oid_packet_filter)
       {
         rndis_packetFilter(oid_packet_filter);
@@ -239,7 +239,7 @@ void rndis_class_set_handler(uint8_t *data, int size)
   encapsulated_buffer = data;
   (void)size;
 
-  switch (((rndis_generic_msg_t *)data)->MessageType)
+  switch (((rndis_generic_msg_t *)encapsulated_buffer)->MessageType)
   {
     case REMOTE_NDIS_INITIALIZE_MSG:
       {
