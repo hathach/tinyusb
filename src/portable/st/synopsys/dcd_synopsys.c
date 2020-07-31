@@ -365,6 +365,13 @@ static void edpt_schedule_packets(uint8_t rhport, uint8_t const epnum, uint8_t c
         ((total_bytes << USB_OTG_DIEPTSIZ_XFRSIZ_Pos) & USB_OTG_DIEPTSIZ_XFRSIZ_Msk);
 
     in_ep[epnum].DIEPCTL |= USB_OTG_DIEPCTL_EPENA | USB_OTG_DIEPCTL_CNAK;
+    // For ISO endpoint set correct odd/even bit for next frame.
+    if ((in_ep[epnum].DIEPCTL & USB_OTG_DIEPCTL_EPTYP) == USB_OTG_DIEPCTL_EPTYP_0)
+    {
+      // Take odd/even bit from frame counter.
+      uint32_t const odd_frame_now = (dev->DSTS & (1u << USB_OTG_DSTS_FNSOF_Pos));
+      in_ep[epnum].DIEPCTL |= (odd_frame_now ? USB_OTG_DIEPCTL_SD0PID_SEVNFRM_Msk : USB_OTG_DIEPCTL_SODDFRM_Msk);
+    }
     // Enable fifo empty interrupt only if there are something to put in the fifo.
     if(total_bytes != 0) {
       dev->DIEPEMPMSK |= (1 << epnum);
