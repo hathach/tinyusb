@@ -514,8 +514,14 @@ bool dcd_edpt_open (uint8_t rhport, tusb_desc_endpoint_t const * desc_edpt)
 
   TU_ASSERT(epnum < EP_MAX);
 
-  // TODO ISO endpoint can be up to 1024 bytes
-  TU_ASSERT(desc_edpt->wMaxPacketSize.size <= (get_speed(rhport) == TUSB_SPEED_HIGH ? 512 : 64));
+  if (desc_edpt->bmAttributes.xfer == TUSB_XFER_ISOCHRONOUS)
+  {
+    TU_ASSERT(desc_edpt->wMaxPacketSize.size <= (get_speed(rhport) == TUSB_SPEED_HIGH ? 1024 : 1023));
+  }
+  else
+  {
+    TU_ASSERT(desc_edpt->wMaxPacketSize.size <= (get_speed(rhport) == TUSB_SPEED_HIGH ? 512 : 64));
+  }
 
   xfer_ctl_t * xfer = XFER_CTL_BASE(epnum, dir);
   xfer->max_size = desc_edpt->wMaxPacketSize.size;
