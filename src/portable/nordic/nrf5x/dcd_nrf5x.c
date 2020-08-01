@@ -829,7 +829,7 @@ void tusb_hal_nrf_power_event (uint32_t event)
 
         hfclk_disable();
 
-        dcd_event_bus_signal(0, DCD_EVENT_UNPLUGGED, true);
+        dcd_event_bus_signal(0, DCD_EVENT_UNPLUGGED, (SCB->ICSR & SCB_ICSR_VECTACTIVE_Msk) ? true : false);
       }
     break;
 
