@@ -105,7 +105,7 @@ static inline uint16_t rdwr10_get_blockcount(uint8_t const command[])
 //--------------------------------------------------------------------+
 #if CFG_TUSB_DEBUG >= 2
 
-static lookup_entry_t const _msc_scsi_cmd_lookup[] =
+static tu_lookup_entry_t const _msc_scsi_cmd_lookup[] =
 {
   { .key = SCSI_CMD_TEST_UNIT_READY              , .data = "Test Unit Ready" },
   { .key = SCSI_CMD_INQUIRY                      , .data = "Inquiry" },
@@ -120,7 +120,7 @@ static lookup_entry_t const _msc_scsi_cmd_lookup[] =
   { .key = SCSI_CMD_WRITE_10                     , .data = "Write10" }
 };
 
-static lookup_table_t const _msc_scsi_cmd_table =
+static tu_lookup_table_t const _msc_scsi_cmd_table =
 {
   .count = TU_ARRAY_SIZE(_msc_scsi_cmd_lookup),
   .items = _msc_scsi_cmd_lookup
@@ -418,7 +418,7 @@ bool mscd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t event, uint32_t
       TU_ASSERT( event == XFER_RESULT_SUCCESS &&
                  xferred_bytes == sizeof(msc_cbw_t) && p_cbw->signature == MSC_CBW_SIGNATURE );
 
-      TU_LOG2("  SCSI Command: %s\r\n", lookup_find(&_msc_scsi_cmd_table, p_cbw->command[0]));
+      TU_LOG2("  SCSI Command: %s\r\n", tu_lookup_find(&_msc_scsi_cmd_table, p_cbw->command[0]));
       // TU_LOG2_MEM(p_cbw, xferred_bytes, 2);
 
       p_csw->signature    = MSC_CSW_SIGNATURE;

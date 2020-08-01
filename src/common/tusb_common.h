@@ -251,16 +251,16 @@ void tu_print_var(uint8_t const* buf, uint32_t bufsize)
 typedef struct
 {
   uint32_t key;
-  char const * data;
-}lookup_entry_t;
+  const char* data;
+} tu_lookup_entry_t;
 
 typedef struct
 {
   uint16_t count;
-  lookup_entry_t const* items;
-} lookup_table_t;
+  tu_lookup_entry_t const* items;
+} tu_lookup_table_t;
 
-static inline char const* lookup_find(lookup_table_t const* p_table, uint32_t key)
+static inline const char* tu_lookup_find(tu_lookup_table_t const* p_table, uint32_t key)
 {
   for(uint16_t i=0; i<p_table->count; i++)
   {
