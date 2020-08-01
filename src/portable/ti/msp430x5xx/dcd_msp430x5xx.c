@@ -134,6 +134,9 @@ void dcd_init (uint8_t rhport)
   // Enable reset and wait for it before continuing.
   USBIE |= RSTRIE;
 
+  // Enable pullup.
+  USBCNF |= PUR_EN;
+
   USBKEYPID = 0;
 }
 

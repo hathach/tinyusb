@@ -555,10 +555,10 @@ static void handle_ep0_nak(void)
  *------------------------------------------------------------------*/
 void dcd_init(uint8_t rhport)
 {
-  (void)rhport;
-
   USB->USB_MCTRL_REG = USB_USB_MCTRL_REG_USBEN_Msk;
   tusb_vbus_changed((CRG_TOP->ANA_STATUS_REG & CRG_TOP_ANA_STATUS_REG_VBUS_AVAILABLE_Msk) != 0);
+
+  dcd_connect(rhport);
 }
 
 void dcd_int_enable(uint8_t rhport)
