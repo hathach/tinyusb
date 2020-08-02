@@ -41,10 +41,12 @@ jobs:
       uses: actions/cache@v1
       with:
         path: /tmp/dl/
-        # Increment serial number at end when updating downloads
-        key: msp430-${{ runner.os }}-0
+        # Increment gcc version number at end when updating downloads
+        key: msp430-${{ runner.os }}-9.2.0.50
 
     - name: Install Toolchains
+      env:
+        MSP430GCC_URL: http://software-dl.ti.com/msp430/msp430_public_sw/mcu/msp430/MSPGCC/9_2_0_0/export/msp430-gcc-9.2.0.50_linux64.tar.bz2
       run: |
         # ARM & RISC-V GCC from xpack
         npm install --global xpm
@@ -55,7 +57,7 @@ jobs:
 
         # TI MSP430 GCC
         mkdir -p /tmp/dl/
-        [ -f "/tmp/dl/msp430-gcc.tar.bz2" ] || wget --progress=dot:mega http://software-dl.ti.com/msp430/msp430_public_sw/mcu/msp430/MSPGCC/8_3_0_0/exports/msp430-gcc-8.3.0.16_linux64.tar.bz2 -O /tmp/dl/msp430-gcc.tar.bz2
+        [ -f "/tmp/dl/msp430-gcc.tar.bz2" ] || wget --progress=dot:mega $MSP430GCC_URL -O /tmp/dl/msp430-gcc.tar.bz2
         tar -C $HOME -xaf /tmp/dl/msp430-gcc.tar.bz2
         echo "::add-path::`echo $HOME/msp430-gcc-*_linux64/bin`"
 
