@@ -33,6 +33,11 @@
 #include "device/usbd_pvt.h"
 #include "dcd.h"
 
+// Include application driver header if defined
+#ifdef CFG_TUD_APP_DRIVER_HEADER
+#include CFG_TUD_APP_DRIVER_HEADER
+#endif
+
 #ifndef CFG_TUD_TASK_QUEUE_SZ
 #define CFG_TUD_TASK_QUEUE_SZ   16
 #endif
@@ -99,6 +104,10 @@ typedef struct
 
 static usbd_class_driver_t const _usbd_driver[] =
 {
+  #ifdef CFG_TUD_APP_DRIVER_LIST
+  CFG_TUD_APP_DRIVER_LIST
+  #endif
+
   #if CFG_TUD_CDC
   {
       DRIVER_NAME("CDC")
