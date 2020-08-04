@@ -271,6 +271,10 @@ void dcd_disconnect(uint8_t rhport)
 {
   (void) rhport;
   NRF_USBD->USBPULLUP = 0;
+
+  // Disable Pull-up does not trigger Power USB Removed, in fact it have no
+  // impact on the USB Power status at all -> need to submit unplugged event to the stack.
+  dcd_event_bus_signal(0, DCD_EVENT_UNPLUGGED, false);
 }
 
 // connect by enabling internal pull-up resistor on D+/D-
@@ -693,6 +697,8 @@ void tusb_hal_nrf_power_event (uint32_t event)
   switch ( event )
   {
     case USB_EVT_DETECTED:
+      TU_LOG2("Power USB Detect\r\n");
+
       if ( !NRF_USBD->ENABLE )
       {
         /* Prepare for READY event receiving */
@@ -743,6 +749,12 @@ void tusb_hal_nrf_power_event (uint32_t event)
     break;
 
     case USB_EVT_READY:
+      TU_LOG2("Power USB Ready\r\n");
+
+      // Skip if pull-up is enabled and HCLK is already running.
+      // Application probably call this more than necessary.
+      if ( NRF_USBD->USBPULLUP && hfclk_running() ) break;
+
       /* Waiting for USBD peripheral enabled */
       while ( !(USBD_EVENTCAUSE_READY_Msk & NRF_USBD->EVENTCAUSE) ) { }
 
@@ -810,6 +822,7 @@ void tusb_hal_nrf_power_event (uint32_t event)
     break;
 
     case USB_EVT_REMOVED:
+      TU_LOG2("Power USB Removed\r\n");
       if ( NRF_USBD->ENABLE )
       {
         // Abort all transfers
