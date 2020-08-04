@@ -453,6 +453,8 @@ void dcd_init (uint8_t rhport)
 
   // Enable global interrupt
   usb_otg->GAHBCFG |= USB_OTG_GAHBCFG_GINT;
+
+  dcd_connect(rhport);
 }
 
 void dcd_int_enable (uint8_t rhport)

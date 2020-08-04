@@ -165,8 +165,6 @@ static void enum_done_processing(void)
  *------------------------------------------------------------------*/
 void dcd_init(uint8_t rhport)
 {
-  (void)rhport;
-
   ESP_LOGV(TAG, "DCD init - Start");
 
   // A. Disconnect
@@ -204,6 +202,8 @@ void dcd_init(uint8_t rhport)
                  USB_ENUMDONEMSK_M |
                  USB_RESETDETMSK_M |
                  USB_DISCONNINTMSK_M; // host most only
+
+  dcd_connect(rhport);
 }
 
 void dcd_set_address(uint8_t rhport, uint8_t dev_addr)

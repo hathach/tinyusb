@@ -345,7 +345,8 @@ void dcd_init(uint8_t rhport)
   dcd_reg->USBSTS  = dcd_reg->USBSTS;
   dcd_reg->USBINTR = INTR_USB | INTR_ERROR | INTR_PORT_CHANGE | INTR_RESET | INTR_SUSPEND /*| INTR_SOF*/;
 
-  dcd_reg->USBCMD &= ~0x00FF0000; // Interrupt Threshold Interval = 0
+  dcd_reg->USBCMD &= ~0x00FF0000;     // Interrupt Threshold Interval = 0
+  dcd_reg->USBCMD |= USBCMD_RUN_STOP; // Connect
 }
 
 void dcd_int_enable(uint8_t rhport)
