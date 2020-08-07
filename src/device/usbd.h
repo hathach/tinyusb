@@ -35,7 +35,6 @@
 #endif
 
 #include "common/tusb_common.h"
-#include "dcd.h"
 
 //--------------------------------------------------------------------+
 // Application API
@@ -53,6 +52,7 @@ void tud_task (void);
 bool tud_task_event_ready(void);
 
 // Interrupt handler, name alias to DCD
+extern void dcd_int_handler(uint8_t rhport);
 #define tud_int_handler   dcd_int_handler
 
 // Get current bus speed
@@ -75,21 +75,11 @@ bool tud_remote_wakeup(void);
 
 // Enable pull-up resistor on D+ D-
 // Return false on unsupported MCUs
-static inline bool tud_disconnect(void)
-{
-  TU_VERIFY(dcd_disconnect);
-  dcd_disconnect(TUD_OPT_RHPORT);
-  return true;
-}
+bool tud_disconnect(void);
 
 // Disable pull-up resistor on D+ D-
 // Return false on unsupported MCUs
-static inline bool tud_connect(void)
-{
-  TU_VERIFY(dcd_connect);
-  dcd_connect(TUD_OPT_RHPORT);
-  return true;
-}
+bool tud_connect(void);
 
 // Carry out Data and Status stage of control transfer
 // - If len = 0, it is equivalent to sending status only

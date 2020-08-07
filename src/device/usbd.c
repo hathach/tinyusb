@@ -203,30 +203,30 @@ static usbd_class_driver_t const _usbd_driver[] =
   #endif
 };
 
-enum { USBD_CLASS_DRIVER_COUNT = TU_ARRAY_SIZE(_usbd_driver) };
+enum { BUILTIN_DRIVER_COUNT = TU_ARRAY_SIZE(_usbd_driver) };
 
 // Additional class drivers implemented by application
 static usbd_class_driver_t const * _app_driver = NULL;
 static uint8_t _app_driver_count = 0;
 
-// virtually joins built-in and application drivers together
-//   All drivers = built-in + application
+// virtually joins built-in and application drivers together.
+// Application is positioned first to allow overwriting built-in ones.
 static inline usbd_class_driver_t const * get_driver(uint8_t drvid)
 {
-  // Built-in drivers
-  if (drvid < USBD_CLASS_DRIVER_COUNT) return &_usbd_driver[drvid];
-
-  // App drivers
+  // Application drivers
   if ( usbd_app_driver_get_cb )
   {
-    drvid -= USBD_CLASS_DRIVER_COUNT;
     if ( drvid < _app_driver_count ) return &_app_driver[drvid];
+    drvid -= _app_driver_count;
   }
+
+  // Built-in drivers
+  if (drvid < BUILTIN_DRIVER_COUNT) return &_usbd_driver[drvid];
 
   return NULL;
 }
 
-#define TOTAL_DRIVER_COUNT    (USBD_CLASS_DRIVER_COUNT+_app_driver_count)
+#define TOTAL_DRIVER_COUNT    (_app_driver_count + BUILTIN_DRIVER_COUNT)
 
 //--------------------------------------------------------------------+
 // DCD Event
@@ -245,6 +245,7 @@ static bool process_control_request(uint8_t rhport, tusb_control_request_t const
 static bool process_set_config(uint8_t rhport, uint8_t cfg_num);
 static bool process_get_descriptor(uint8_t rhport, tusb_control_request_t const * p_request);
 
+// from usbd_control.c
 void usbd_control_reset(void);
 void usbd_control_set_request(tusb_control_request_t const *request);
 void usbd_control_set_complete_callback( bool (*fp) (uint8_t, tusb_control_request_t const * ) );
@@ -252,7 +253,7 @@ bool usbd_control_xfer_cb (uint8_t rhport, uint8_t ep_addr, xfer_result_t event,
 
 
 //--------------------------------------------------------------------+
-// Debugging
+// Debug
 //--------------------------------------------------------------------+
 #if CFG_TUSB_DEBUG >= 2
 static char const* const _usbd_event_str[DCD_EVENT_COUNT] =
@@ -324,6 +325,20 @@ bool tud_remote_wakeup(void)
   // only wake up host if this feature is supported and enabled and we are suspended
   TU_VERIFY (_usbd_dev.suspended && _usbd_dev.remote_wakeup_support && _usbd_dev.remote_wakeup_en );
   dcd_remote_wakeup(TUD_OPT_RHPORT);
+  return true;
+}
+
+bool tud_disconnect(void)
+{
+  TU_VERIFY(dcd_disconnect);
+  dcd_disconnect(TUD_OPT_RHPORT);
+  return true;
+}
+
+bool tud_connect(void)
+{
+  TU_VERIFY(dcd_connect);
+  dcd_connect(TUD_OPT_RHPORT);
   return true;
 }
 
@@ -593,7 +608,6 @@ static bool process_control_request(uint8_t rhport, tusb_control_request_t const
           uint8_t const cfg_num = (uint8_t) p_request->wValue;
 
           if ( !_usbd_dev.configured && cfg_num ) TU_ASSERT( process_set_config(rhport, cfg_num) );
-
           _usbd_dev.configured = cfg_num ? 1 : 0;
 
           tud_control_status(rhport, p_request);
@@ -688,18 +702,12 @@ static bool process_control_request(uint8_t rhport, tusb_control_request_t const
           break;
 
           case TUSB_REQ_CLEAR_FEATURE:
-            if ( TUSB_REQ_FEATURE_EDPT_HALT == p_request->wValue )
-            {
-              usbd_edpt_clear_stall(rhport, ep_addr);
-            }
+            if ( TUSB_REQ_FEATURE_EDPT_HALT == p_request->wValue ) usbd_edpt_clear_stall(rhport, ep_addr);
             tud_control_status(rhport, p_request);
           break;
 
           case TUSB_REQ_SET_FEATURE:
-            if ( TUSB_REQ_FEATURE_EDPT_HALT == p_request->wValue )
-            {
-              usbd_edpt_stall(rhport, ep_addr);
-            }
+            if ( TUSB_REQ_FEATURE_EDPT_HALT == p_request->wValue ) usbd_edpt_stall(rhport, ep_addr);
             tud_control_status(rhport, p_request);
           break;
 
@@ -773,7 +781,6 @@ static bool process_set_config(uint8_t rhport, uint8_t cfg_num)
     for (drv_id = 0; drv_id < TOTAL_DRIVER_COUNT; drv_id++)
     {
       usbd_class_driver_t const *driver = get_driver(drv_id);
-
       uint16_t const drv_len = driver->open(rhport, desc_itf, remaining_len);
 
       if ( drv_len > 0 )

@@ -31,6 +31,7 @@
 #include "common/tusb_common.h"
 #include "msc_device.h"
 #include "device/usbd_pvt.h"
+#include "device/dcd.h"         // for faking dcd_event_xfer_complete
 
 //--------------------------------------------------------------------+
 // MACRO CONSTANT TYPEDEF
