@@ -32,13 +32,6 @@
 #include "nrf_clock.h"
 #include "nrf_power.h"
 #include "nrfx_usbd_errata.h"
-
-#ifdef SOFTDEVICE_PRESENT
-// For enable/disable hfclk with SoftDevice
-#include "nrf_sdm.h"
-#include "nrf_soc.h"
-#endif
-
 #include "device/dcd.h"
 
 // TODO remove later
@@ -56,6 +49,11 @@ enum
   // Mask of all END event (IN & OUT) for all endpoints. ENDEPIN0-7, ENDEPOUT0-7, ENDISOIN, ENDISOOUT
   EDPT_END_ALL_MASK = (0xff << USBD_INTEN_ENDEPIN0_Pos) | (0xff << USBD_INTEN_ENDEPOUT0_Pos) |
                       USBD_INTENCLR_ENDISOIN_Msk | USBD_INTEN_ENDISOOUT_Msk
+};
+
+enum
+{
+  EP_COUNT = 8
 };
 
 // Transfer descriptor
@@ -76,36 +74,73 @@ typedef struct
 static struct
 {
   // All 8 endpoints including control IN & OUT (offset 1)
-  xfer_td_t xfer[8][2];
+  xfer_td_t xfer[EP_COUNT][2];
 
-  // Only one DMA can run at a time
-  volatile bool dma_running;
+  // Number of pending DMA that is started but not handled yet by dcd_int_handler().
+  // Since nRF can only carry one DMA can run at a time, this value is normally be either 0 or 1.
+  // However, in critical section with interrupt disabled, the DMA can be finished and added up
+  // until handled by dcd_init_handler() when exiting critical section.
+  volatile uint8_t dma_pending;
 }_dcd;
 
 /*------------------------------------------------------------------*/
 /* Control / Bulk / Interrupt (CBI) Transfer
  *------------------------------------------------------------------*/
 
+// NVIC_GetEnableIRQ is only available in CMSIS v5
+#ifndef NVIC_GetEnableIRQ
+static inline uint32_t NVIC_GetEnableIRQ(IRQn_Type IRQn)
+{
+  if ((int32_t)(IRQn) >= 0)
+  {
+    return((uint32_t)(((NVIC->ISER[(((uint32_t)(int32_t)IRQn) >> 5UL)] & (1UL << (((uint32_t)(int32_t)IRQn) & 0x1FUL))) != 0UL) ? 1UL : 0UL));
+  }
+  else
+  {
+    return(0U);
+  }
+}
+#endif
+
 // helper to start DMA
 static void edpt_dma_start(volatile uint32_t* reg_startep)
 {
   // Only one dma can be active
-  if ( _dcd.dma_running )
+  if ( _dcd.dma_pending )
   {
     if (SCB->ICSR & SCB_ICSR_VECTACTIVE_Msk)
     {
-      // If called within ISR, use usbd task to defer later
+      // Called within ISR, use usbd task to defer later
       usbd_defer_func( (osal_task_func_t) edpt_dma_start, (void*) reg_startep, true );
       return;
     }
     else
     {
-      // Otherwise simply block wait
-      while ( _dcd.dma_running )  { }
+      if ( __get_PRIMASK() || !NVIC_GetEnableIRQ(USBD_IRQn) )
+      {
+        // Called in critical section with interrupt disabled. We have to manually check
+        // for the DMA complete by comparing current pending DMA with number of ENDED Events
+        uint32_t ended = 0;
+
+        while ( _dcd.dma_pending < ((uint8_t) ended) )
+        {
+          ended = NRF_USBD->EVENTS_ENDISOIN + NRF_USBD->EVENTS_ENDISOOUT;
+
+          for (uint8_t i=0; i<EP_COUNT; i++)
+          {
+            ended += NRF_USBD->EVENTS_ENDEPIN[i] + NRF_USBD->EVENTS_ENDEPOUT[i];
+          }
+        }
+      }else
+      {
+        // Called in non-critical thread-mode, should be 99% of the time.
+        // Should be safe to blocking wait until previous DMA transfer complete
+        while ( _dcd.dma_pending ) { }
+      }
     }
   }
 
-  _dcd.dma_running = true;
+  _dcd.dma_pending++;
 
   (*reg_startep) = 1;
   __ISB(); __DSB();
@@ -114,8 +149,8 @@ static void edpt_dma_start(volatile uint32_t* reg_startep)
 // DMA is complete
 static void edpt_dma_end(void)
 {
-  TU_ASSERT(_dcd.dma_running, );
-  _dcd.dma_running = false;
+  TU_ASSERT(_dcd.dma_pending, );
+  _dcd.dma_pending = 0;
 }
 
 // helper getting td
@@ -236,6 +271,10 @@ void dcd_disconnect(uint8_t rhport)
 {
   (void) rhport;
   NRF_USBD->USBPULLUP = 0;
+
+  // Disable Pull-up does not trigger Power USB Removed, in fact it have no
+  // impact on the USB Power status at all -> need to submit unplugged event to the stack.
+  dcd_event_bus_signal(0, DCD_EVENT_UNPLUGGED, false);
 }
 
 // connect by enabling internal pull-up resistor on D+/D-
@@ -289,9 +328,11 @@ bool dcd_edpt_xfer (uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t 
 
   if ( control_status )
   {
-    // Status Phase also require Easy DMA has to be free as well !!!!
+    // Status Phase also requires Easy DMA has to be available as well !!!!
+    // However TASKS_EP0STATUS doesn't trigger any DMA transfer and got ENDED event subsequently
+    // Therefore dma_running state will be corrected right away
     edpt_dma_start(&NRF_USBD->TASKS_EP0STATUS);
-    edpt_dma_end();
+    if (_dcd.dma_pending) _dcd.dma_pending--; // correct the dma_running++ in dma start
 
     // The nRF doesn't interrupt on status transmit so we queue up a success response.
     dcd_event_xfer_complete(0, ep_addr, 0, XFER_RESULT_SUCCESS, false);
@@ -564,9 +605,26 @@ void dcd_int_handler(uint8_t rhport)
 // HFCLK helper
 //--------------------------------------------------------------------+
 #ifdef SOFTDEVICE_PRESENT
-// check if SD is present and enabled
-static bool is_sd_enabled(void)
+
+// For enable/disable hfclk with SoftDevice
+#include "nrf_mbr.h"
+#include "nrf_sdm.h"
+#include "nrf_soc.h"
+
+#ifndef SD_MAGIC_NUMBER
+  #define SD_MAGIC_NUMBER   0x51B1E5DB
+#endif
+
+static inline bool is_sd_existed(void)
 {
+  return *((uint32_t*)(SOFTDEVICE_INFO_STRUCT_ADDRESS+4)) == SD_MAGIC_NUMBER;
+}
+
+// check if SD is existed and enabled
+static inline bool is_sd_enabled(void)
+{
+  if ( !is_sd_existed() ) return false;
+
   uint8_t sd_en = false;
   (void) sd_softdevice_is_enabled(&sd_en);
   return sd_en;
@@ -639,6 +697,8 @@ void tusb_hal_nrf_power_event (uint32_t event)
   switch ( event )
   {
     case USB_EVT_DETECTED:
+      TU_LOG2("Power USB Detect\r\n");
+
       if ( !NRF_USBD->ENABLE )
       {
         /* Prepare for READY event receiving */
@@ -689,6 +749,12 @@ void tusb_hal_nrf_power_event (uint32_t event)
     break;
 
     case USB_EVT_READY:
+      TU_LOG2("Power USB Ready\r\n");
+
+      // Skip if pull-up is enabled and HCLK is already running.
+      // Application probably call this more than necessary.
+      if ( NRF_USBD->USBPULLUP && hfclk_running() ) break;
+
       /* Waiting for USBD peripheral enabled */
       while ( !(USBD_EVENTCAUSE_READY_Msk & NRF_USBD->EVENTCAUSE) ) { }
 
@@ -756,6 +822,7 @@ void tusb_hal_nrf_power_event (uint32_t event)
     break;
 
     case USB_EVT_REMOVED:
+      TU_LOG2("Power USB Removed\r\n");
       if ( NRF_USBD->ENABLE )
       {
         // Abort all transfers
@@ -775,7 +842,7 @@ void tusb_hal_nrf_power_event (uint32_t event)
 
         hfclk_disable();
 
-        dcd_event_bus_signal(0, DCD_EVENT_UNPLUGGED, true);
+        dcd_event_bus_signal(0, DCD_EVENT_UNPLUGGED, (SCB->ICSR & SCB_ICSR_VECTACTIVE_Msk) ? true : false);
       }
     break;
 

@@ -58,7 +58,23 @@ static inline osal_semaphore_t osal_semaphore_create(osal_semaphore_def_t* semde
 
 static inline bool osal_semaphore_post(osal_semaphore_t sem_hdl, bool in_isr)
 {
-  return in_isr ?  xSemaphoreGiveFromISR(sem_hdl, NULL) : xSemaphoreGive(sem_hdl);
+  if ( !in_isr )
+  {
+    return xSemaphoreGive(sem_hdl) != 0;
+  }
+  else
+  {
+    BaseType_t xHigherPriorityTaskWoken;
+    BaseType_t res = xSemaphoreGiveFromISR(sem_hdl, &xHigherPriorityTaskWoken);
+
+#if CFG_TUSB_MCU == OPT_MCU_ESP32S2
+    if ( xHigherPriorityTaskWoken ) portYIELD_FROM_ISR();
+#else
+    portYIELD_FROM_ISR(xHigherPriorityTaskWoken);
+#endif
+
+    return res != 0;
+  }
 }
 
 static inline bool osal_semaphore_wait (osal_semaphore_t sem_hdl, uint32_t msec)
@@ -118,14 +134,35 @@ static inline osal_queue_t osal_queue_create(osal_queue_def_t* qdef)
   return xQueueCreateStatic(qdef->depth, qdef->item_sz, (uint8_t*) qdef->buf, &qdef->sq);
 }
 
-static inline bool osal_queue_receive(osal_queue_t const queue_hdl, void* data)
+static inline bool osal_queue_receive(osal_queue_t qhdl, void* data)
 {
-  return xQueueReceive(queue_hdl, data, portMAX_DELAY);
+  return xQueueReceive(qhdl, data, portMAX_DELAY);
 }
 
-static inline bool osal_queue_send(osal_queue_t const queue_hdl, void const * data, bool in_isr)
+static inline bool osal_queue_send(osal_queue_t qhdl, void const * data, bool in_isr)
 {
-  return in_isr ? xQueueSendToBackFromISR(queue_hdl, data, NULL) : xQueueSendToBack(queue_hdl, data, OSAL_TIMEOUT_WAIT_FOREVER);
+  if ( !in_isr )
+  {
+    return xQueueSendToBack(qhdl, data, OSAL_TIMEOUT_WAIT_FOREVER) != 0;
+  }
+  else
+  {
+    BaseType_t xHigherPriorityTaskWoken;
+    BaseType_t res = xQueueSendToBackFromISR(qhdl, data, &xHigherPriorityTaskWoken);
+
+#if CFG_TUSB_MCU == OPT_MCU_ESP32S2
+    if ( xHigherPriorityTaskWoken ) portYIELD_FROM_ISR();
+#else
+    portYIELD_FROM_ISR(xHigherPriorityTaskWoken);
+#endif
+
+    return res != 0;
+  }
+}
+
+static inline bool osal_queue_empty(osal_queue_t qhdl)
+{
+  return uxQueueMessagesWaiting(qhdl) == 0;
 }
 
 #ifdef __cplusplus

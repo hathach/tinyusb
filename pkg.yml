@@ -5,5 +5,10 @@ pkg.homepage: "https://github.com/hathach/tinyusb"
 pkg.keywords:
     - usb
 
+pkg.type: sdk
+
 pkg.deps:
     - "@apache-mynewt-core/kernel/os"
+
+pkg.include_dirs:
+    - src

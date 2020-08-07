@@ -11,7 +11,13 @@ This code base already had supported for a handful of following boards (sorted a
 
 ### Espressif ESP32-S2
 
+- [ESP32-S2-Kaluga-1](https://docs.espressif.com/projects/esp-idf/en/latest/esp32s2/hw-reference/esp32s2/user-guide-esp32-s2-kaluga-1-kit.html)
 - [ESP32-S2-Saola-1](https://docs.espressif.com/projects/esp-idf/en/latest/esp32s2/hw-reference/esp32s2/user-guide-saola-1-v1.2.html)
+
+### Dialog DA146xx
+
+- [DA14695 Development Kit – USB](https://www.dialog-semiconductor.com/products/da14695-development-kit-usb)
+- [DA1469x Development Kit – Pro](https://www.dialog-semiconductor.com/products/da14695-development-kit-pro)
 
 ### MicroChip SAMD
 
@@ -23,6 +29,7 @@ This code base already had supported for a handful of following boards (sorted a
 - [Adafruit Metro M0 Express](https://www.adafruit.com/product/3505)
 - [Adafruit Metro M4 Express](https://www.adafruit.com/product/3382)
 - [Seeeduino Xiao](https://www.seeedstudio.com/Seeeduino-XIAO-Arduino-Microcontroller-SAMD21-Cortex-M0+-p-4426.html)
+- [Great Scott Gadgets LUNA](https://greatscottgadgets.com/luna/)
 
 ### Nordic nRF5x
 
@@ -79,7 +86,9 @@ This code base already had supported for a handful of following boards (sorted a
 
 - [Adafruit Feather STM32F405](https://www.adafruit.com/product/4382)
 - [Micro Python PyBoard v1.1](https://store.micropython.org/product/PYBv1.1)
+- [STLink-V3 Mini](https://www.st.com/en/development-tools/stlink-v3mini.html)
 - [STM32 L035c8 Discovery](https://www.st.com/en/evaluation-tools/32l0538discovery.html)
+- [STM32 L4R5zi Nucleo](https://www.st.com/en/evaluation-tools/nucleo-l4r5zi.html)
 - [STM32 F070rb Nucleo](https://www.st.com/en/evaluation-tools/nucleo-f070rb.html)
 - [STM32 F072rb Discovery](https://www.st.com/en/evaluation-tools/32f072bdiscovery.html)
 - STM32 F103c Blue Pill
@@ -90,8 +99,14 @@ This code base already had supported for a handful of following boards (sorted a
 - STM32 F411ce Black Pill
 - [STM32 F411ve Discovery](https://www.st.com/en/evaluation-tools/32f411ediscovery.html)
 - [STM32 F412zg Discovery](https://www.st.com/en/evaluation-tools/32f412gdiscovery.html)
+- [STM32 F723e Discovery](https://www.st.com/en/evaluation-tools/32f723ediscovery.html)
+- [STM32 F746zg Nucleo](https://www.st.com/en/evaluation-tools/nucleo-f746zg.html)
+- [STM32 F746g Discovery](https://www.st.com/en/evaluation-tools/32f746gdiscovery.html)
 - [STM32 F767zi Nucleo](https://www.st.com/en/evaluation-tools/nucleo-f767zi.html)
+- [STM32 F769i Discovery](https://www.st.com/en/evaluation-tools/32f769idiscovery.html)
 - [STM32 H743zi Nucleo](https://www.st.com/en/evaluation-tools/nucleo-h743zi.html)
+- [STM32 H743i Evaluation](https://www.st.com/en/evaluation-tools/stm32h743i-eval.html)
+- [STM32 H745i Discovery](https://www.st.com/en/evaluation-tools/stm32h745i-disco.html)
 
 ### TI
 

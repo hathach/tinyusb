@@ -86,13 +86,18 @@ static void SystemClock_Config(void)
   RCC_OscInitTypeDef RCC_OscInitStruct;
   RCC_PeriphCLKInitTypeDef PeriphClkInitStruct;
 
-  /* Enable the LSE Oscilator */
+  /* Enable the LSE Oscillator */
   RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_LSE;
   RCC_OscInitStruct.LSEState = RCC_LSE_ON;
+  RCC_OscInitStruct.PLL.PLLState = RCC_PLL_NONE;
   HAL_RCC_OscConfig(&RCC_OscInitStruct);
 
   /* Enable the CSS interrupt in case LSE signal is corrupted or not present */
   HAL_RCCEx_DisableLSECSS();
+
+  /* Set tick interrupt priority, default HAL value is intentionally invalid
+     and that prevents PLL initialization in HAL_RCC_OscConfig() */
+  HAL_InitTick((1UL << __NVIC_PRIO_BITS) - 1UL);
 
   /* Enable MSI Oscillator and activate PLL with MSI as source */
   RCC_OscInitStruct.OscillatorType      = RCC_OSCILLATORTYPE_MSI;

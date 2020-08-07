@@ -182,7 +182,10 @@ static void dcd_userEP_in_xfer(struct xfer_ctl_t *xfer, USBD_EP_T *ep)
   /* provided buffers are thankfully 32-bit aligned, allowing most data to be transfered as 32-bit */
   while (countdown > 3)
   {
-    ep->EPDAT = *(uint32_t *)xfer->data_ptr;
+    uint32_t u32;
+    memcpy(&u32, xfer->data_ptr, 4);
+
+    ep->EPDAT = u32;
     xfer->data_ptr += 4; countdown -= 4;
   }
   while (countdown--)
@@ -449,7 +452,9 @@ void dcd_int_handler(uint8_t rhport)
       USBD->CEPINTEN = USBD_CEPINTEN_SETUPPKIEN_Msk;
       USBD->BUSINTEN = USBD_BUSINTEN_RSTIEN_Msk | USBD_BUSINTEN_RESUMEIEN_Msk | USBD_BUSINTEN_SUSPENDIEN_Msk | USBD_BUSINTEN_DMADONEIEN_Msk;
       USBD->CEPINTSTS = 0x1ffc;
-      dcd_event_bus_signal(0, DCD_EVENT_BUS_RESET, true);
+
+      tusb_speed_t speed = (USBD->OPER & USBD_OPER_CURSPD_Msk) ? TUSB_SPEED_HIGH : TUSB_SPEED_FULL;
+      dcd_event_bus_reset(0, speed, true);
     }
 
     if (bus_state & USBD_BUSINTSTS_RESUMEIF_Msk)

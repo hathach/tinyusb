@@ -12,11 +12,10 @@ all:
 	idf.py -B$(BUILD) -DBOARD=$(BOARD) build
 
 clean:
-	idf.py -B$(BUILD) clean
+	idf.py -B$(BUILD) -DBOARD=$(BOARD) clean
 
 flash:
-	@:$(call check_defined, SERIAL, example: SERIAL=/dev/ttyUSB0)
-	idf.py -B$(BUILD) -p $(SERIAL) flash
+	idf.py -B$(BUILD) -DBOARD=$(BOARD) flash
 
 else
 # GNU Make build system
@@ -132,8 +131,14 @@ size: $(BUILD)/$(BOARD)-firmware.elf
 	@$(SIZE) $<
 	-@echo ''
 
+.PHONY: clean
 clean:
-	rm -rf $(BUILD)
+	$(RM) -rf $(BUILD)
+
+# Print out the value of a make variable.
+# https://stackoverflow.com/questions/16467718/how-to-print-out-a-variable-in-makefile
+print-%:
+	@echo $* = $($*)
 
 # Flash binary using Jlink
 ifeq ($(OS),Windows_NT)

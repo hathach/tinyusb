@@ -125,7 +125,7 @@ static inline osal_queue_t osal_queue_create(osal_queue_def_t* qdef)
   return (osal_queue_t) qdef;
 }
 
-static inline bool osal_queue_receive(osal_queue_t const qhdl, void* data)
+static inline bool osal_queue_receive(osal_queue_t qhdl, void* data)
 {
   struct os_event* ev;
   ev = os_eventq_get(&qhdl->evq);
@@ -137,7 +137,7 @@ static inline bool osal_queue_receive(osal_queue_t const qhdl, void* data)
   return true;
 }
 
-static inline bool osal_queue_send(osal_queue_t const qhdl, void const * data, bool in_isr)
+static inline bool osal_queue_send(osal_queue_t qhdl, void const * data, bool in_isr)
 {
   (void) in_isr;
 
@@ -160,6 +160,12 @@ static inline bool osal_queue_send(osal_queue_t const qhdl, void const * data, b
 
   return true;
 }
+
+static inline bool osal_queue_empty(osal_queue_t qhdl)
+{
+  return STAILQ_EMPTY(&qhdl->evq.evq_list);
+}
+
 
 #ifdef __cplusplus
  }

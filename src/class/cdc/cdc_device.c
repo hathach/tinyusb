@@ -61,8 +61,8 @@ typedef struct
 #endif
 
   // Endpoint Transfer buffer
-  CFG_TUSB_MEM_ALIGN uint8_t epout_buf[CFG_TUD_CDC_EPSIZE];
-  CFG_TUSB_MEM_ALIGN uint8_t epin_buf[CFG_TUD_CDC_EPSIZE];
+  CFG_TUSB_MEM_ALIGN uint8_t epout_buf[CFG_TUD_CDC_EP_BUFSIZE];
+  CFG_TUSB_MEM_ALIGN uint8_t epin_buf[CFG_TUD_CDC_EP_BUFSIZE];
 
 }cdcd_interface_t;
 
@@ -82,9 +82,9 @@ static void _prep_out_transaction (uint8_t itf)
 
   // Prepare for incoming data but only allow what we can store in the ring buffer.
   uint16_t max_read = tu_fifo_remaining(&p_cdc->rx_ff);
-  if ( max_read >= TU_ARRAY_SIZE(p_cdc->epout_buf) )
+  if ( max_read >= sizeof(p_cdc->epout_buf) )
   {
-    usbd_edpt_xfer(TUD_OPT_RHPORT, p_cdc->ep_out, p_cdc->epout_buf, TU_ARRAY_SIZE(p_cdc->epout_buf));
+    usbd_edpt_xfer(TUD_OPT_RHPORT, p_cdc->ep_out, p_cdc->epout_buf, sizeof(p_cdc->epout_buf));
   }
 }
 
@@ -148,7 +148,7 @@ uint32_t tud_cdc_n_write(uint8_t itf, void const* buffer, uint32_t bufsize)
 
 #if 0 // TODO issue with circuitpython's REPL
   // flush if queue more than endpoint size
-  if ( tu_fifo_count(&_cdcd_itf[itf].tx_ff) >= CFG_TUD_CDC_EPSIZE )
+  if ( tu_fifo_count(&_cdcd_itf[itf].tx_ff) >= CFG_TUD_CDC_EP_BUFSIZE )
   {
     tud_cdc_n_write_flush(itf);
   }
@@ -164,7 +164,7 @@ uint32_t tud_cdc_n_write_flush (uint8_t itf)
   // skip if previous transfer not complete yet
   TU_VERIFY( !usbd_edpt_busy(TUD_OPT_RHPORT, p_cdc->ep_in), 0 );
 
-  uint16_t count = tu_fifo_read_n(&_cdcd_itf[itf].tx_ff, p_cdc->epin_buf, TU_ARRAY_SIZE(p_cdc->epin_buf));
+  uint16_t count = tu_fifo_read_n(&_cdcd_itf[itf].tx_ff, p_cdc->epin_buf, sizeof(p_cdc->epin_buf));
   if ( count )
   {
     TU_VERIFY( tud_cdc_n_connected(itf), 0 ); // fifo is empty if not connected
@@ -222,14 +222,14 @@ void cdcd_reset(uint8_t rhport)
   }
 }
 
-bool cdcd_open(uint8_t rhport, tusb_desc_interface_t const * itf_desc, uint16_t *p_length)
+uint16_t cdcd_open(uint8_t rhport, tusb_desc_interface_t const * itf_desc, uint16_t max_len)
 {
   // Only support ACM subclass
   TU_VERIFY ( TUSB_CLASS_CDC                           == itf_desc->bInterfaceClass &&
-              CDC_COMM_SUBCLASS_ABSTRACT_CONTROL_MODEL == itf_desc->bInterfaceSubClass);
+              CDC_COMM_SUBCLASS_ABSTRACT_CONTROL_MODEL == itf_desc->bInterfaceSubClass, 0);
 
   // Note: 0xFF can be used with RNDIS
-  TU_VERIFY(tu_within(CDC_COMM_PROTOCOL_NONE, itf_desc->bInterfaceProtocol, CDC_COMM_PROTOCOL_ATCOMMAND_CDMA));
+  TU_VERIFY(tu_within(CDC_COMM_PROTOCOL_NONE, itf_desc->bInterfaceProtocol, CDC_COMM_PROTOCOL_ATCOMMAND_CDMA), 0);
 
   // Find available interface
   cdcd_interface_t * p_cdc = NULL;
@@ -242,30 +242,30 @@ bool cdcd_open(uint8_t rhport, tusb_desc_interface_t const * itf_desc, uint16_t 
       break;
     }
   }
-  TU_ASSERT(p_cdc);
+  TU_ASSERT(p_cdc, 0);
 
   //------------- Control Interface -------------//
   p_cdc->itf_num = itf_desc->bInterfaceNumber;
 
+  uint16_t drv_len = sizeof(tusb_desc_interface_t);
   uint8_t const * p_desc = tu_desc_next( itf_desc );
-  (*p_length) = sizeof(tusb_desc_interface_t);
 
   // Communication Functional Descriptors
-  while ( TUSB_DESC_CS_INTERFACE == tu_desc_type(p_desc) )
+  while ( TUSB_DESC_CS_INTERFACE == tu_desc_type(p_desc) && drv_len <= max_len )
   {
-    (*p_length) += tu_desc_len(p_desc);
-    p_desc = tu_desc_next(p_desc);
+    drv_len += tu_desc_len(p_desc);
+    p_desc   = tu_desc_next(p_desc);
   }
 
   if ( TUSB_DESC_ENDPOINT == tu_desc_type(p_desc) )
   {
     // notification endpoint if any
-    TU_ASSERT( usbd_edpt_open(rhport, (tusb_desc_endpoint_t const *) p_desc) );
+    TU_ASSERT( usbd_edpt_open(rhport, (tusb_desc_endpoint_t const *) p_desc), 0 );
 
     p_cdc->ep_notif = ((tusb_desc_endpoint_t const *) p_desc)->bEndpointAddress;
 
-    (*p_length) += tu_desc_len(p_desc);
-    p_desc = tu_desc_next(p_desc);
+    drv_len += tu_desc_len(p_desc);
+    p_desc   = tu_desc_next(p_desc);
   }
 
   //------------- Data Interface (if any) -------------//
@@ -273,18 +273,19 @@ bool cdcd_open(uint8_t rhport, tusb_desc_interface_t const * itf_desc, uint16_t 
        (TUSB_CLASS_CDC_DATA == ((tusb_desc_interface_t const *) p_desc)->bInterfaceClass) )
   {
     // next to endpoint descriptor
-    p_desc = tu_desc_next(p_desc);
+    drv_len += tu_desc_len(p_desc);
+    p_desc   = tu_desc_next(p_desc);
 
     // Open endpoint pair
-    TU_ASSERT( usbd_open_edpt_pair(rhport, p_desc, 2, TUSB_XFER_BULK, &p_cdc->ep_out, &p_cdc->ep_in) );
+    TU_ASSERT( usbd_open_edpt_pair(rhport, p_desc, 2, TUSB_XFER_BULK, &p_cdc->ep_out, &p_cdc->ep_in), 0 );
 
-    (*p_length) += sizeof(tusb_desc_interface_t) + 2*sizeof(tusb_desc_endpoint_t);
+    drv_len += 2*sizeof(tusb_desc_endpoint_t);
   }
 
   // Prepare for incoming data
   _prep_out_transaction(cdc_id);
 
-  return true;
+  return drv_len;
 }
 
 // Invoked when class request DATA stage is finished.
@@ -363,7 +364,7 @@ bool cdcd_control_request(uint8_t rhport, tusb_control_request_t const * request
       tud_control_status(rhport, request);
 
       // Invoke callback
-      if ( tud_cdc_line_state_cb) tud_cdc_line_state_cb(itf, dtr, rts);
+      if ( tud_cdc_line_state_cb ) tud_cdc_line_state_cb(itf, dtr, rts);
     }
     break;
 
@@ -419,7 +420,7 @@ bool cdcd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint32_
     {
       // There is no data left, a ZLP should be sent if
       // xferred_bytes is multiple of EP size and not zero
-      if ( xferred_bytes && (0 == (xferred_bytes % CFG_TUD_CDC_EPSIZE)) )
+      if ( xferred_bytes && (0 == (xferred_bytes % CFG_TUD_CDC_EP_BUFSIZE)) )
       {
         usbd_edpt_xfer(TUD_OPT_RHPORT, p_cdc->ep_in, NULL, 0);
       }

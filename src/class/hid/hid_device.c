@@ -48,8 +48,8 @@ typedef struct
   uint8_t idle_rate;     // up to application to handle idle rate
   uint16_t report_desc_len;
 
-  CFG_TUSB_MEM_ALIGN uint8_t epin_buf[CFG_TUD_HID_BUFSIZE];
-  CFG_TUSB_MEM_ALIGN uint8_t epout_buf[CFG_TUD_HID_BUFSIZE];
+  CFG_TUSB_MEM_ALIGN uint8_t epin_buf[CFG_TUD_HID_EP_BUFSIZE];
+  CFG_TUSB_MEM_ALIGN uint8_t epout_buf[CFG_TUD_HID_EP_BUFSIZE];
 
   tusb_hid_descriptor_hid_t const * hid_descriptor;
 } hidd_interface_t;
@@ -86,7 +86,7 @@ bool tud_hid_report(uint8_t report_id, void const* report, uint8_t len)
 
   if (report_id)
   {
-    len = tu_min8(len, CFG_TUD_HID_BUFSIZE-1);
+    len = tu_min8(len, CFG_TUD_HID_EP_BUFSIZE-1);
 
     p_hid->epin_buf[0] = report_id;
     memcpy(p_hid->epin_buf+1, report, len);
@@ -94,7 +94,7 @@ bool tud_hid_report(uint8_t report_id, void const* report, uint8_t len)
   }else
   {
     // If report id = 0, skip ID field
-    len = tu_min8(len, CFG_TUD_HID_BUFSIZE);
+    len = tu_min8(len, CFG_TUD_HID_EP_BUFSIZE);
     memcpy(p_hid->epin_buf, report, len);
   }
 
@@ -158,11 +158,13 @@ void hidd_reset(uint8_t rhport)
   tu_memclr(_hidd_itf, sizeof(_hidd_itf));
 }
 
-bool hidd_open(uint8_t rhport, tusb_desc_interface_t const * desc_itf, uint16_t *p_len)
+uint16_t hidd_open(uint8_t rhport, tusb_desc_interface_t const * desc_itf, uint16_t max_len)
 {
-  TU_VERIFY(TUSB_CLASS_HID == desc_itf->bInterfaceClass);
+  TU_VERIFY(TUSB_CLASS_HID == desc_itf->bInterfaceClass, 0);
 
-  uint8_t const *p_desc = (uint8_t const *) desc_itf;
+  // len = interface + hid + n*endpoints
+  uint16_t const drv_len = sizeof(tusb_desc_interface_t) + sizeof(tusb_hid_descriptor_hid_t) + desc_itf->bNumEndpoints*sizeof(tusb_desc_endpoint_t);
+  TU_ASSERT(max_len >= drv_len, 0);
 
   // Find available interface
   hidd_interface_t * p_hid = NULL;
@@ -175,29 +177,38 @@ bool hidd_open(uint8_t rhport, tusb_desc_interface_t const * desc_itf, uint16_t 
       break;
     }
   }
-  TU_ASSERT(p_hid);
+  TU_ASSERT(p_hid, 0);
+
+  uint8_t const *p_desc = (uint8_t const *) desc_itf;
 
   //------------- HID descriptor -------------//
   p_desc = tu_desc_next(p_desc);
   p_hid->hid_descriptor = (tusb_hid_descriptor_hid_t const *) p_desc;
-  TU_ASSERT(HID_DESC_TYPE_HID == p_hid->hid_descriptor->bDescriptorType);
+  TU_ASSERT(HID_DESC_TYPE_HID == p_hid->hid_descriptor->bDescriptorType, 0);
 
   //------------- Endpoint Descriptor -------------//
   p_desc = tu_desc_next(p_desc);
-  TU_ASSERT(usbd_open_edpt_pair(rhport, p_desc, desc_itf->bNumEndpoints, TUSB_XFER_INTERRUPT, &p_hid->ep_out, &p_hid->ep_in));
+  TU_ASSERT(usbd_open_edpt_pair(rhport, p_desc, desc_itf->bNumEndpoints, TUSB_XFER_INTERRUPT, &p_hid->ep_out, &p_hid->ep_in), 0);
 
   if ( desc_itf->bInterfaceSubClass == HID_SUBCLASS_BOOT ) p_hid->boot_protocol = desc_itf->bInterfaceProtocol;
 
   p_hid->boot_mode = false; // default mode is REPORT
   p_hid->itf_num   = desc_itf->bInterfaceNumber;
-  memcpy(&p_hid->report_desc_len, &(p_hid->hid_descriptor->wReportLength), 2);
-
-  *p_len = sizeof(tusb_desc_interface_t) + sizeof(tusb_hid_descriptor_hid_t) + desc_itf->bNumEndpoints*sizeof(tusb_desc_endpoint_t);
+  
+  // Use offsetof to avoid pointer to the odd/misaligned address
+  memcpy(&p_hid->report_desc_len, (uint8_t*) p_hid->hid_descriptor + offsetof(tusb_hid_descriptor_hid_t, wReportLength), 2);
 
   // Prepare for output endpoint
-  if (p_hid->ep_out) TU_ASSERT(usbd_edpt_xfer(rhport, p_hid->ep_out, p_hid->epout_buf, sizeof(p_hid->epout_buf)));
+  if (p_hid->ep_out)
+  {
+    if ( !usbd_edpt_xfer(rhport, p_hid->ep_out, p_hid->epout_buf, sizeof(p_hid->epout_buf)) )
+    {
+      TU_LOG1_FAILED();
+      TU_BREAKPOINT();
+    }
+  }
 
-  return true;
+  return drv_len;
 }
 
 // Handle class control request

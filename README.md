@@ -31,14 +31,15 @@ Special thanks to all the people who spent their precious time and effort to hel
 The stack supports the following MCUs:
 
 - **Espressif:** ESP32-S2
-- **MicroChip:** SAMD21, SAMD51 (device only)
+- **Dialog:** DA1469x
+- **MicroChip:** SAMD21, SAMD51, SAME5x (device only)
 - **NordicSemi:** nRF52833, nRF52840
 - **Nuvoton:** NUC120, NUC121/NUC125, NUC126, NUC505
 - **NXP:** 
   - LPC Series: 11Uxx, 13xx, 175x_6x, 177x_8x, 18xx, 40xx, 43xx, 51Uxx, 54xxx, 55xx
   - iMX RT Series: RT1011, RT1015, RT1021, RT1052, RT1062, RT1064
 - **Sony:** CXD56
-- **ST:** STM32 series: L0, F0, F1, F2, F3, F4, F7, H7 (device only)
+- **ST:** STM32 series: L0, F0, F1, F2, F3, F4, F7, H7 both FullSpeed and HighSpeed
 - **TI:** MSP430
 - **[ValentyUSB](https://github.com/im-tomu/valentyusb)** eptri
 
@@ -89,11 +90,12 @@ MIT license for all TinyUSB sources `src` folder, [Full license is here](LICENSE
 
 TinyUSB is currently used by these other projects:
 
-* [Adafruit nRF52 Arduino](https://github.com/adafruit/Adafruit_nRF52_Arduino)
-* [Adafruit nRF52 Bootloader](https://github.com/adafruit/Adafruit_nRF52_Bootloader)
-* [Adafruit SAMD Arduino](https://github.com/adafruit/ArduinoCore-samd)
-* [CircuitPython](https://github.com/adafruit/circuitpython)
-* [MicroPython](https://github.com/micropython/micropython)
-* [TinyUSB Arduino Library](https://github.com/adafruit/Adafruit_TinyUSB_Arduino)
+- [Adafruit nRF52 Arduino](https://github.com/adafruit/Adafruit_nRF52_Arduino)
+- [Adafruit nRF52 Bootloader](https://github.com/adafruit/Adafruit_nRF52_Bootloader)
+- [Adafruit SAMD Arduino](https://github.com/adafruit/ArduinoCore-samd)
+- [CircuitPython](https://github.com/adafruit/circuitpython)
+- [MicroPython](https://github.com/micropython/micropython)
+- [mynewt](https://mynewt.apache.org)
+- [TinyUSB Arduino Library](https://github.com/adafruit/Adafruit_TinyUSB_Arduino)
 
 Let me know if your project also uses TinyUSB and want to share.

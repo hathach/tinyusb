@@ -2,7 +2,7 @@
 name: Bug report
 about: Create a report to help us improve
 title: ''
-labels: Bug
+labels: Bug 🐞
 assignees: ''
 
 ---
@@ -22,5 +22,8 @@ Steps to reproduce the behavior:
 2. Click on '....'
 3. See error
 
-**Log & screenshots**
-If applicable, add screenshots and TinyUSB's log to help explain your problem. To enable logging, add `LOG=2` to your make command if building with stock examples or set `CFG_TUSB_DEBUG=2` in your tusb_config.h. More information can be found at [example's readme](/examples/readme.md)
+**Screenshots**
+If applicable, add screenshots, bus capture to help explain your problem. 
+
+**Log**
+Please provide the stack's log (uart/rtt/swo) where the issue occurred, best with comments to explain the actual events. To enable logging, add `LOG=2` to to the make command if building with stock examples or set `CFG_TUSB_DEBUG=2` in your tusb_config.h. More information can be found at [example's readme](/examples/readme.md)
