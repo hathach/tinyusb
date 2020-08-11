@@ -121,7 +121,7 @@ uint16_t btd_open(uint8_t rhport, tusb_desc_interface_t const *itf_desc, uint16_
     desc_ep = (tusb_desc_endpoint_t const *) tu_desc_next(itf_desc);
 
     TU_ASSERT(TUSB_DESC_ENDPOINT == desc_ep->bDescriptorType && TUSB_XFER_INTERRUPT == desc_ep->bmAttributes.xfer, 0);
-    TU_ASSERT(dcd_edpt_open(rhport, desc_ep), 0);
+    TU_ASSERT(usbd_edpt_open(rhport, desc_ep), 0);
     _btd_itf.ep_ev = desc_ep->bEndpointAddress;
 
     // Open endpoint pair
