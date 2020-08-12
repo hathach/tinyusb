@@ -667,7 +667,7 @@ void dcd_edpt_stall (uint8_t rhport, uint8_t ep_addr)
     }
 
     // Flush the FIFO, and wait until we have confirmed it cleared.
-    usb_otg->GRSTCTL |= ((epnum - 1) << USB_OTG_GRSTCTL_TXFNUM_Pos);
+    usb_otg->GRSTCTL |= (epnum << USB_OTG_GRSTCTL_TXFNUM_Pos);
     usb_otg->GRSTCTL |= USB_OTG_GRSTCTL_TXFFLSH;
     while((usb_otg->GRSTCTL & USB_OTG_GRSTCTL_TXFFLSH_Msk) != 0);
   } else {
