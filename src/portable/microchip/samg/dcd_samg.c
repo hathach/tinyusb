@@ -154,9 +154,8 @@ static void bus_reset(void)
 // Initialize controller to device mode
 void dcd_init (uint8_t rhport)
 {
-  (void) rhport;
-
   tu_memclr(_dcd_xfer, sizeof(_dcd_xfer));
+  dcd_connect(rhport);
 }
 
 // Enable device interrupt
