@@ -384,7 +384,8 @@ static bool audio_tx_done_cb(uint8_t rhport, audiod_interface_t* audio, uint16_t
   {
     case AUDIO_FORMAT_TYPE_UNDEFINED:
       // INDIVIDUAL ENCODING PROCEDURE REQUIRED HERE!
-      asm("nop");
+      TU_LOG2("  Desired CFG_TUD_AUDIO_FORMAT encoding not implemented!\r\n");
+      TU_BREAKPOINT();
       break;
 
     case AUDIO_FORMAT_TYPE_I:
@@ -402,19 +403,21 @@ static bool audio_tx_done_cb(uint8_t rhport, audiod_interface_t* audio, uint16_t
 
 	default:
 	  // YOUR ENCODING AND SENDING IS REQUIRED HERE!
-	  asm("nop");
+	  TU_LOG2("  Desired CFG_TUD_AUDIO_FORMAT_TYPE_I_TX encoding not implemented!\r\n");
+	  TU_BREAKPOINT();
 	  break;
       }
       break;
 
 	default:
 	  // Desired CFG_TUD_AUDIO_FORMAT_TYPE_TX not implemented!
-	  asm("nop");
+	  TU_LOG2("  Desired CFG_TUD_AUDIO_FORMAT_TYPE_TX not implemented!\r\n");
+	  TU_BREAKPOINT();
 	  break;
   }
 
   // Call a weak callback here - a possibility for user to get informed TX was completed
-  TU_VERIFY(tud_audio_tx_done_cb(rhport, n_bytes_copied));
+  if (tud_audio_tx_done_cb) TU_VERIFY(tud_audio_tx_done_cb(rhport, n_bytes_copied));
   return true;
 }
 
@@ -497,7 +500,7 @@ static uint16_t audio_fb_done_cb(uint8_t rhport, audiod_interface_t* audio)
   // Here we need to return the feedback value
 #error RETURN YOUR FEEDBACK VALUE HERE!
 
-  TU_VERIFY(tud_audio_fb_done_cb(rhport));
+  if (tud_audio_fb_done_cb) TU_VERIFY(tud_audio_fb_done_cb(rhport));
   return 0;
 }
 
@@ -522,55 +525,10 @@ static bool audio_int_ctr_done_cb(uint8_t rhport, audiod_interface_t* audio, uin
 
   *n_bytes_copied = cnt;
 
-  TU_VERIFY(tud_audio_int_ctr_done_cb(rhport, n_bytes_copied));
+  if (tud_audio_int_ctr_done_cb) TU_VERIFY(tud_audio_int_ctr_done_cb(rhport, n_bytes_copied));
 
   return true;
 }
-#endif
-
-// Callback functions
-// Currently the return value has to effect so far. The return value finally is discarded in tud_task(void) in usbd.c - we just incorporate that for later use
-
-#if CFG_TUD_AUDIO_EPSIZE_IN
-TU_ATTR_WEAK bool tud_audio_tx_done_cb(uint8_t rhport, uint16_t * n_bytes_copied)
-{
-  (void) rhport;
-  (void) n_bytes_copied;
-
-  /* NOTE: This function should not be modified, when the callback is needed,
-           the tud_audio_tx_done_cb could be implemented in the user file
-   */
-
-  return true;
-}
-#endif
-
-#if CFG_TUD_AUDIO_EPSIZE_OUT && CFG_TUD_AUDIO_ENABLE_FEEDBACK_EP
-TU_ATTR_WEAK bool tud_audio_fb_done_cb(uint8_t rhport)
-{
-  (void) rhport;
-
-  /* NOTE: This function should not be modified, when the callback is needed,
-           the tud_audio_fb_done_cb could be implemented in the user file
-   */
-
-  return true;
-}
-#endif
-
-#if CFG_TUD_AUDIO_INT_CTR_EPSIZE_IN
-TU_ATTR_WEAK bool tud_audio_int_ctr_done_cb(uint8_t rhport, uint16_t * n_bytes_copied)
-{
-  (void) rhport;
-  (void) n_bytes_copied;
-
-  /* NOTE: This function should not be modified, when the callback is needed,
-	           the tud_audio_int_ctr_done_cb could be implemented in the user file
-   */
-
-  return true;
-}
-
 #endif
 
 //--------------------------------------------------------------------+
@@ -755,6 +713,8 @@ static bool audiod_set_interface(uint8_t rhport, tusb_control_request_t const * 
   }
 #endif
 
+  // Save current alternative interface setting
+  _audiod_itf[idxDriver].altSetting[idxItf] = alt;
 
   // Open new EP if necessary - EPs are only to be closed or opened for AS interfaces - Look for AS interface with correct alternate interface
   // Get pointer at end
@@ -778,8 +738,16 @@ static bool audiod_set_interface(uint8_t rhport, tusb_control_request_t const * 
 #if CFG_TUD_AUDIO_EPSIZE_IN > 0
 	  if (tu_edpt_dir(ep_addr) == TUSB_DIR_IN && ((tusb_desc_endpoint_t const *) p_desc)->bmAttributes.usage == 0x00) 	// Check if usage is data EP
 	  {
+	    // Save address
 	    _audiod_itf[idxDriver].ep_in = ep_addr;
 	    _audiod_itf[idxDriver].ep_in_as_intf_num = itf;
+
+	    // HERE WE WOULD NEED TO SCHEDULE OUR FIRST TRANSMIT, HOWEVER, WE ALSO WOULD FIRST NEED TO ENABLE SAMPLING AT ALL - HOW TO HANDLE THIS?
+	    // Invoke callback - fill something in the FIFO here for now
+	    if (tud_audio_set_itf_cb) TU_VERIFY(tud_audio_set_itf_cb(rhport, p_request));
+
+	    uint16_t n_bytes_copied;
+	    TU_VERIFY(audio_tx_done_cb(rhport, &_audiod_itf[idxDriver], &n_bytes_copied));
 	  }
 #endif
 
@@ -791,6 +759,9 @@ static bool audiod_set_interface(uint8_t rhport, tusb_control_request_t const * 
 	    _audiod_itf[idxDriver].ep_out = ep_addr;
 	    _audiod_itf[idxDriver].ep_out_as_intf_num = itf;
 
+	    // Invoke callback
+	    if (tud_audio_set_itf_cb) TU_VERIFY(tud_audio_set_itf_cb(rhport, p_request));
+
 	    // Prepare for incoming data
 	    TU_ASSERT(usbd_edpt_xfer(rhport, ep_addr, _audiod_itf[idxDriver].epout_buf, CFG_TUD_AUDIO_EPSIZE_OUT), false);
 	  }
@@ -799,6 +770,9 @@ static bool audiod_set_interface(uint8_t rhport, tusb_control_request_t const * 
 	  if (tu_edpt_dir(ep_addr) == TUSB_DIR_IN && ((tusb_desc_endpoint_t const *) p_desc)->bmAttributes.usage == 0x10) 	// Check if usage is implicit data feedback
 	  {
 	    _audiod_itf[idxDriver].ep_fb = ep_addr;
+
+	    // Invoke callback
+	    if (tud_audio_set_itf_cb) TU_VERIFY(tud_audio_set_itf_cb(rhport, p_request));
 	  }
 #endif
 
@@ -817,20 +791,6 @@ static bool audiod_set_interface(uint8_t rhport, tusb_control_request_t const * 
     // Moving forward
     p_desc = tu_desc_next(p_desc);
   }
-
-//  // Check for nothing found - we can rely on this since EP descriptors are never the last descriptors, there are always also class specific EP descriptors following!
-//  TU_VERIFY(p_desc < p_desc_end);
-
-  // Save current alternative interface setting
-  _audiod_itf[idxDriver].altSetting[idxItf] = alt;
-
-  // Invoke callback
-  if (tud_audio_set_itf_cb)
-  {
-    if (!tud_audio_set_itf_cb(rhport, p_request)) return false;
-  }
-
-  // Start sending or receiving?
 
   tud_control_status(rhport, p_request);
 

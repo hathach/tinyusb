@@ -1,7 +1,8 @@
 /* 
  * The MIT License (MIT)
  *
- * Copyright (c) 2020 Ha Thach (tinyusb.org) and Reinhard Panhuber
+ * Copyright (c) 2020 Ha Thach (tinyusb.org)
+ * Copyright (c) 2020 Reinhard Panhuber
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -217,15 +218,15 @@ bool tud_audio_buffer_and_schedule_control_xfer(uint8_t rhport, tusb_control_req
 //--------------------------------------------------------------------+
 
 #if CFG_TUD_AUDIO_EPSIZE_IN
-bool tud_audio_tx_done_cb(uint8_t rhport, uint16_t * n_bytes_copied);
+TU_ATTR_WEAK bool tud_audio_tx_done_cb(uint8_t rhport, uint16_t * n_bytes_copied);
 #endif
 
 #if CFG_TUD_AUDIO_EPSIZE_OUT
-bool tud_audio_rx_done_cb(uint8_t rhport, uint8_t * buffer, uint16_t bufsize);
+TU_ATTR_WEAK bool tud_audio_rx_done_cb(uint8_t rhport, uint8_t * buffer, uint16_t bufsize);
 #endif
 
 #if CFG_TUD_AUDIO_EPSIZE_OUT > 0 && CFG_TUD_AUDIO_ENABLE_FEEDBACK_EP
-bool tud_audio_fb_done_cb(uint8_t rhport);
+TU_ATTR_WEAK bool tud_audio_fb_done_cb(uint8_t rhport);
 #endif
 
 #if CFG_TUD_AUDIO_INT_CTR_EPSIZE_IN
