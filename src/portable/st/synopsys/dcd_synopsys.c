@@ -142,9 +142,9 @@ typedef struct {
 typedef struct TU_ATTR_PACKED {
   // The following format may look complicated but it is the most elegant way of addressing the required fields: EP number, EP direction, and EP transfer type.
   // The codes assigned to those fields, according to the USB specification, can be neatly used as indices.
-  uint16_t ep_size[EP_MAX][2]; 			///< dim 1: EP number, dim 2: EP direction denoted by TUSB_DIR_OUT (= 0) and TUSB_DIR_IN (= 1)
-  bool ep_transfer_type[EP_MAX][2][4]; 		///< dim 1: EP number, dim 2: EP direction, dim 3: transfer type, where 0 = Control, 1 = Isochronous, 2 = Bulk, and 3 = Interrupt
-						///< I know very well that EP0 can only be used as control EP and we waste space here but for the sake of simplicity we accept that. It is used in a non-persistent way anyway!
+  uint16_t ep_size[EP_MAX][2];          ///< dim 1: EP number, dim 2: EP direction denoted by TUSB_DIR_OUT (= 0) and TUSB_DIR_IN (= 1)
+  bool ep_transfer_type[EP_MAX][2][4];      ///< dim 1: EP number, dim 2: EP direction, dim 3: transfer type, where 0 = Control, 1 = Isochronous, 2 = Bulk, and 3 = Interrupt
+                        ///< I know very well that EP0 can only be used as control EP and we waste space here but for the sake of simplicity we accept that. It is used in a non-persistent way anyway!
 } ep_sz_tt_report_t;
 
 typedef volatile uint32_t * usb_fifo_t;
@@ -166,7 +166,7 @@ static void bus_reset(uint8_t rhport)
   USB_OTG_GlobalTypeDef * usb_otg = GLOBAL_BASE(rhport);
   USB_OTG_DeviceTypeDef * dev = DEVICE_BASE(rhport);
   USB_OTG_OUTEndpointTypeDef * out_ep = OUT_EP_BASE(rhport);
-//  USB_OTG_INEndpointTypeDef * in_ep = IN_EP_BASE(rhport);
+  //  USB_OTG_INEndpointTypeDef * in_ep = IN_EP_BASE(rhport);
 
   tu_memclr(xfer_status, sizeof(xfer_status));
 
@@ -220,9 +220,9 @@ static void bus_reset(uint8_t rhport)
   // configuration was set from the host. For this initialization phase we use 64 bytes as FIFO size.
 
   // Found by trial: 10 + 2 + CFG_TUD_ENDPOINT0_SIZE/4 + 1 + 6 - not quite sure where 1 + 6 comes from but this works for 8/16/32/64 EP0 size
-  _allocated_fifo_words = 10 + 2 + CFG_TUD_ENDPOINT0_SIZE/4 + 1 + 6; 	// 64 bytes max packet size + 2 words (for the status of the control OUT data packet) + 10 words (for setup packets)
+  _allocated_fifo_words = 10 + 2 + CFG_TUD_ENDPOINT0_SIZE/4 + 1 + 6;    // 64 bytes max packet size + 2 words (for the status of the control OUT data packet) + 10 words (for setup packets)
 
-//  _allocated_fifo_words = 47 + 2*EP_MAX; 	// 64 bytes max packet size + 2 words (for the status of the control OUT data packet) + 10 words (for setup packets)
+  //  _allocated_fifo_words = 47 + 2*EP_MAX;    // 64 bytes max packet size + 2 words (for the status of the control OUT data packet) + 10 words (for setup packets)
 
   usb_otg->GRXFSIZ = _allocated_fifo_words;
 
@@ -237,29 +237,29 @@ static void bus_reset(uint8_t rhport)
   usb_otg->GINTMSK |= USB_OTG_GINTMSK_OEPINT | USB_OTG_GINTMSK_IEPINT;
 
 
-//#if TUD_OPT_HIGH_SPEED
-//  _allocated_fifo_words = 271 + 2*EP_MAX;
-//#else
-//  _allocated_fifo_words =  47 + 2*EP_MAX;
-//#endif
-//
-//  usb_otg->GRXFSIZ = _allocated_fifo_words;
-//
-//  // Control IN uses FIFO 0 with 64 bytes ( 16 32-bit word )
-//  usb_otg->DIEPTXF0_HNPTXFSIZ = (16 << USB_OTG_TX0FD_Pos) | _allocated_fifo_words;
-//
-//  _allocated_fifo_words += 16;
-//
-//  // TU_LOG2_INT(_allocated_fifo_words);
-//
-//  // Fixed control EP0 size to 64 bytes
-//  in_ep[0].DIEPCTL &= ~(0x03 << USB_OTG_DIEPCTL_MPSIZ_Pos);
-//  xfer_status[0][TUSB_DIR_OUT].max_size = xfer_status[0][TUSB_DIR_IN].max_size = 64;
-//
-//  // Set SETUP packet count to 3
-//  out_ep[0].DOEPTSIZ |= (3 << USB_OTG_DOEPTSIZ_STUPCNT_Pos);
-//
-//  usb_otg->GINTMSK |= USB_OTG_GINTMSK_OEPINT | USB_OTG_GINTMSK_IEPINT;
+  //#if TUD_OPT_HIGH_SPEED
+  //  _allocated_fifo_words = 271 + 2*EP_MAX;
+  //#else
+  //  _allocated_fifo_words =  47 + 2*EP_MAX;
+  //#endif
+  //
+  //  usb_otg->GRXFSIZ = _allocated_fifo_words;
+  //
+  //  // Control IN uses FIFO 0 with 64 bytes ( 16 32-bit word )
+  //  usb_otg->DIEPTXF0_HNPTXFSIZ = (16 << USB_OTG_TX0FD_Pos) | _allocated_fifo_words;
+  //
+  //  _allocated_fifo_words += 16;
+  //
+  //  // TU_LOG2_INT(_allocated_fifo_words);
+  //
+  //  // Fixed control EP0 size to 64 bytes
+  //  in_ep[0].DIEPCTL &= ~(0x03 << USB_OTG_DIEPCTL_MPSIZ_Pos);
+  //  xfer_status[0][TUSB_DIR_OUT].max_size = xfer_status[0][TUSB_DIR_IN].max_size = 64;
+  //
+  //  // Set SETUP packet count to 3
+  //  out_ep[0].DOEPTSIZ |= (3 << USB_OTG_DOEPTSIZ_STUPCNT_Pos);
+  //
+  //  usb_otg->GINTMSK |= USB_OTG_GINTMSK_OEPINT | USB_OTG_GINTMSK_IEPINT;
 }
 
 // Required after new configuration received in case EP0 max packet size has changed
@@ -273,12 +273,12 @@ static void set_EP0_max_pkt_size()
   // Maximum packet size for EP 0 is set for both directions by writing DIEPCTL.
   switch (enum_spd)
   {
-    case 0x00: 	// High speed - always 64 byte
+    case 0x00:  // High speed - always 64 byte
       in_ep[0].DIEPCTL &= ~(0x03 << USB_OTG_DIEPCTL_MPSIZ_Pos);
       xfer_status[0][TUSB_DIR_OUT].max_size = xfer_status[0][TUSB_DIR_IN].max_size = 64;
       break;
 
-    case 0x03: 	// Full speed
+    case 0x03:  // Full speed
 #if CFG_TUD_ENDPOINT0_SIZE == 64
       in_ep[0].DIEPCTL &= ~(0x03 << USB_OTG_DIEPCTL_MPSIZ_Pos);
       xfer_status[0][TUSB_DIR_OUT].max_size = xfer_status[0][TUSB_DIR_IN].max_size = 64;
@@ -298,7 +298,7 @@ static void set_EP0_max_pkt_size()
 #endif
       break;
 
-    default: 	// Low speed - always 8 bytes
+    default:    // Low speed - always 8 bytes
       in_ep[0].DIEPCTL |= (0x03 << USB_OTG_DIEPCTL_MPSIZ_Pos);
       xfer_status[0][TUSB_DIR_OUT].max_size = 8;
       xfer_status[0][TUSB_DIR_IN].max_size = 8;
@@ -374,7 +374,6 @@ static void set_speed(uint8_t rhport, tusb_speed_t speed)
   dev->DCFG &= ~(3 << USB_OTG_DCFG_DSPD_Pos);
   dev->DCFG |= (bitvalue << USB_OTG_DCFG_DSPD_Pos);
 }
-
 
 #if defined(USB_HS_PHYC)
 static bool USB_HS_PHYCInit(void)
@@ -1140,7 +1139,7 @@ static bool get_ep_size_report(uint8_t rhport, tusb_desc_configuration_t const *
 {
   (void) rhport;
 
-//  tu_memclr(p_report, sizeof(ep_sz_tt_report_t)); 	// This does not initialize the first two entries ... i do not know why!
+  //  tu_memclr(p_report, sizeof(ep_sz_tt_report_t));   // This does not initialize the first two entries ... i do not know why!
 
   // EP0 sizes and usages are fixed
   p_report->ep_size[0][TUSB_DIR_OUT] = p_report->ep_size[0][TUSB_DIR_IN] = CFG_TUD_ENDPOINT0_SIZE;
@@ -1153,22 +1152,22 @@ static bool get_ep_size_report(uint8_t rhport, tusb_desc_configuration_t const *
   uint8_t addr;
 
   while( p_desc < desc_end )
+  {
+    if (TUSB_DESC_ENDPOINT == tu_desc_type(p_desc))
     {
-      if (TUSB_DESC_ENDPOINT == tu_desc_type(p_desc))
-	{
 
-	  addr = ((tusb_desc_endpoint_t const*) p_desc)->bEndpointAddress;
+      addr = ((tusb_desc_endpoint_t const*) p_desc)->bEndpointAddress;
 
-	  // Verify values - this checks may be omitted in case we trust the descriptors to be okay
-	  TU_VERIFY(tu_edpt_number(addr) < EP_MAX);
-	  TU_VERIFY(tu_edpt_dir(addr) <= TUSB_DIR_IN);
-	  TU_VERIFY(((tusb_desc_endpoint_t const*) p_desc)->bmAttributes.xfer <= TUSB_XFER_INTERRUPT);
+      // Verify values - this checks may be omitted in case we trust the descriptors to be okay
+      TU_VERIFY(tu_edpt_number(addr) < EP_MAX);
+      TU_VERIFY(tu_edpt_dir(addr) <= TUSB_DIR_IN);
+      TU_VERIFY(((tusb_desc_endpoint_t const*) p_desc)->bmAttributes.xfer <= TUSB_XFER_INTERRUPT);
 
-	  p_report->ep_size[tu_edpt_number(addr)][tu_edpt_dir(addr)] = tu_max16(p_report->ep_size[tu_edpt_number(addr)][tu_edpt_dir(addr)], ((tusb_desc_endpoint_t const*) p_desc)->wMaxPacketSize.size);
-	  p_report->ep_transfer_type[tu_edpt_number(addr)][tu_edpt_dir(addr)][((tusb_desc_endpoint_t const*) p_desc)->bmAttributes.xfer] = true;
-	}
-      p_desc = tu_desc_next(p_desc); // Proceed
+      p_report->ep_size[tu_edpt_number(addr)][tu_edpt_dir(addr)] = tu_max16(p_report->ep_size[tu_edpt_number(addr)][tu_edpt_dir(addr)], ((tusb_desc_endpoint_t const*) p_desc)->wMaxPacketSize.size);
+      p_report->ep_transfer_type[tu_edpt_number(addr)][tu_edpt_dir(addr)][((tusb_desc_endpoint_t const*) p_desc)->bmAttributes.xfer] = true;
     }
+    p_desc = tu_desc_next(p_desc); // Proceed
+  }
   return true;
 }
 
@@ -1201,10 +1200,10 @@ TU_ATTR_WEAK bool dcd_alloc_mem_for_conf(uint8_t rhport, tusb_desc_configuration
   dev->DOEPMSK &= ~(USB_OTG_DOEPMSK_STUPM | USB_OTG_DOEPMSK_XFRCM);
   dev->DIEPMSK &= ~(USB_OTG_DIEPMSK_TOM | USB_OTG_DIEPMSK_XFRCM);
 
-  //	 usb_otg->GINTMSK &= ~(USB_OTG_GINTMSK_OEPINT | USB_OTG_GINTMSK_IEPINT);
+  //     usb_otg->GINTMSK &= ~(USB_OTG_GINTMSK_OEPINT | USB_OTG_GINTMSK_IEPINT);
 
   // Determine maximum required spaces for individual EPs and what kind of usage (control, bulk, etc.) they are used for
-  ep_sz_tt_report_t report = {0}; 				// dim 1: EP number, dim 2: EP direction, dim 3: transfer type
+  ep_sz_tt_report_t report = {0};               // dim 1: EP number, dim 2: EP direction, dim 3: transfer type
   TU_VERIFY(get_ep_size_report(rhport, desc_cfg, &report));
 
   // With that information, set the following up:
@@ -1233,14 +1232,14 @@ TU_ATTR_WEAK bool dcd_alloc_mem_for_conf(uint8_t rhport, tusb_desc_configuration
   }
 
   // For configuration use the approach as explained in bus_reset()
-  _allocated_fifo_words = 15 + 2*nUsedOutEPs + (sz[0] / 4) + (sz[0] % 4 > 0 ? 1 : 0) + (sz[1] / 4) + (sz[1] % 4 > 0 ? 1 : 0) + 2; 	// again, i do not really know why we need + 2 but otherwise it does not work
+  _allocated_fifo_words = 15 + 2*nUsedOutEPs + (sz[0] / 4) + (sz[0] % 4 > 0 ? 1 : 0) + (sz[1] / 4) + (sz[1] % 4 > 0 ? 1 : 0) + 2;   // again, i do not really know why we need + 2 but otherwise it does not work
 
   usb_otg->GRXFSIZ = _allocated_fifo_words;
 
   // Control IN uses FIFO 0 with report.ep_size[0][TUSB_DIR_IN] bytes ( report.ep_size[0][TUSB_DIR_IN]/4 32-bit word )
   usb_otg->DIEPTXF0_HNPTXFSIZ = (report.ep_size[0][TUSB_DIR_IN]/4 << USB_OTG_TX0FD_Pos) | _allocated_fifo_words;
 
-  _allocated_fifo_words += report.ep_size[0][TUSB_DIR_IN]/4; 	// Since EP0 size MUST be a power of two we do not need to take care of remainders
+  _allocated_fifo_words += report.ep_size[0][TUSB_DIR_IN]/4;    // Since EP0 size MUST be a power of two we do not need to take care of remainders
 
   // For configuration of remaining in EPs use the approach as explained in dcd_edpt_open() except that:
   // - ISO EPs only get EP size as FIFO size. More makes no sense since within one frame precisely EP size bytes are transfered and not more.
@@ -1283,7 +1282,7 @@ TU_ATTR_WEAK bool dcd_alloc_mem_for_conf(uint8_t rhport, tusb_desc_configuration
   // EP0 is already taken care of so exclude that here
   for (cnt_ep = 1; cnt_ep < EP_MAX; cnt_ep++)
   {
-    ep_sz_total += report.ep_size[cnt_ep][TUSB_DIR_IN] / 4 + (report.ep_size[cnt_ep][TUSB_DIR_IN] % 4 > 0 ? 1 : 0); 	// Since we need full words take care of remainders!
+    ep_sz_total += report.ep_size[cnt_ep][TUSB_DIR_IN] / 4 + (report.ep_size[cnt_ep][TUSB_DIR_IN] % 4 > 0 ? 1 : 0);     // Since we need full words take care of remainders!
     nbc += (report.ep_transfer_type[cnt_ep][TUSB_DIR_IN][TUSB_XFER_BULK] | report.ep_transfer_type[cnt_ep][TUSB_DIR_IN][TUSB_XFER_CONTROL]);
   }
 
@@ -1293,7 +1292,7 @@ TU_ATTR_WEAK bool dcd_alloc_mem_for_conf(uint8_t rhport, tusb_desc_configuration
     return false;
   }
 
-  uint16_t extra_space = nbc > 0 ? fifo_remaining / nbc : 0; 		// If no bulk or control EPs are used we just leave the rest of the memory unused
+  uint16_t extra_space = nbc > 0 ? fifo_remaining / nbc : 0;        // If no bulk or control EPs are used we just leave the rest of the memory unused
   uint16_t fifo_size;
 
   // Setup FIFOs
@@ -1315,7 +1314,7 @@ TU_ATTR_WEAK bool dcd_alloc_mem_for_conf(uint8_t rhport, tusb_desc_configuration
   dev->DOEPMSK |= USB_OTG_DOEPMSK_STUPM | USB_OTG_DOEPMSK_XFRCM;
   dev->DIEPMSK |= USB_OTG_DIEPMSK_TOM | USB_OTG_DIEPMSK_XFRCM;
 
-  //	 USB_OTG_FS->GINTMSK |= USB_OTG_GINTMSK_OEPINT | USB_OTG_GINTMSK_IEPINT;
+  //     USB_OTG_FS->GINTMSK |= USB_OTG_GINTMSK_OEPINT | USB_OTG_GINTMSK_IEPINT;
 
   out_ep[0].DOEPCTL |= USB_OTG_DOEPCTL_CNAK;
 

@@ -48,29 +48,29 @@
 //--------------------------------------------------------------------+
 typedef struct
 {
-  uint8_t const * p_desc; 	// Pointer pointing to Standard AC Interface Descriptor(4.7.1) - Audio Control descriptor defining audio function
+  uint8_t const * p_desc;       // Pointer pointing to Standard AC Interface Descriptor(4.7.1) - Audio Control descriptor defining audio function
 
 #if CFG_TUD_AUDIO_EPSIZE_IN
-  uint8_t ep_in; 	 		// Outgoing (out of uC) audio data EP.
-  uint8_t ep_in_as_intf_num; 	// Corresponding Standard AS Interface Descriptor (4.9.1) belonging to output terminal to which this EP belongs - 0 is invalid (this fits to UAC2 specification since AS interfaces can not have interface number equal to zero)
+  uint8_t ep_in;                // Outgoing (out of uC) audio data EP.
+  uint8_t ep_in_as_intf_num;    // Corresponding Standard AS Interface Descriptor (4.9.1) belonging to output terminal to which this EP belongs - 0 is invalid (this fits to UAC2 specification since AS interfaces can not have interface number equal to zero)
 #endif
 
 #if CFG_TUD_AUDIO_EPSIZE_OUT
-  uint8_t ep_out; 		// Incoming (into uC) audio data EP.
-  uint8_t ep_out_as_intf_num; 	// Corresponding Standard AS Interface Descriptor (4.9.1) belonging to input terminal to which this EP belongs - 0 is invalid (this fits to UAC2 specification since AS interfaces can not have interface number equal to zero)
+  uint8_t ep_out;               // Incoming (into uC) audio data EP.
+  uint8_t ep_out_as_intf_num;   // Corresponding Standard AS Interface Descriptor (4.9.1) belonging to input terminal to which this EP belongs - 0 is invalid (this fits to UAC2 specification since AS interfaces can not have interface number equal to zero)
 
 #if CFG_TUD_AUDIO_ENABLE_FEEDBACK_EP
-  uint8_t ep_fb; 			// Feedback EP.
+  uint8_t ep_fb;                // Feedback EP.
 #endif
 
 #endif
 
 #if CFG_TUD_AUDIO_INT_CTR_EPSIZE_IN
-  uint8_t ep_int_ctr; 		// Audio control interrupt EP.
+  uint8_t ep_int_ctr;           // Audio control interrupt EP.
 #endif
 
 #if CFG_TUD_AUDIO_N_AS_INT
-  uint8_t altSetting[CFG_TUD_AUDIO_N_AS_INT]; 	// We need to save the current alternate setting this way, because it is possible that there are AS interfaces which do not have an EP!
+  uint8_t altSetting[CFG_TUD_AUDIO_N_AS_INT];   // We need to save the current alternate setting this way, because it is possible that there are AS interfaces which do not have an EP!
 #endif
   /*------------- From this point, data is not cleared by bus reset -------------*/
 
@@ -104,17 +104,17 @@ typedef struct
 
   // Endpoint Transfer buffers
 #if CFG_TUD_AUDIO_EPSIZE_OUT
-  CFG_TUSB_MEM_ALIGN uint8_t epout_buf[CFG_TUD_AUDIO_EPSIZE_OUT]; 	// Bigger makes no sense for isochronous EP's (but technically possible here)
+  CFG_TUSB_MEM_ALIGN uint8_t epout_buf[CFG_TUD_AUDIO_EPSIZE_OUT];   // Bigger makes no sense for isochronous EP's (but technically possible here)
 
   // TODO: required?
   //#if CFG_TUD_AUDIO_ENABLE_FEEDBACK_EP
-  //	uint16_t fb_val; 													// Feedback value for asynchronous mode!
+  //    uint16_t fb_val;                                                    // Feedback value for asynchronous mode!
   //#endif
 
 #endif
 
 #if CFG_TUD_AUDIO_EPSIZE_IN
-  CFG_TUSB_MEM_ALIGN uint8_t epin_buf[CFG_TUD_AUDIO_EPSIZE_IN]; 		// Bigger makes no sense for isochronous EP's (but technically possible here)
+  CFG_TUSB_MEM_ALIGN uint8_t epin_buf[CFG_TUD_AUDIO_EPSIZE_IN];         // Bigger makes no sense for isochronous EP's (but technically possible here)
 #endif
 
 #if CFG_TUD_AUDIO_INT_CTR_EPSIZE_IN
@@ -124,20 +124,6 @@ typedef struct
 } audiod_interface_t;
 
 #define ITF_MEM_RESET_SIZE   offsetof(audiod_interface_t, ctrl_buf)
-
-//#if CFG_TUD_AUDIO_EPSIZE_IN && CFG_TUD_AUDIO_TX_FIFO_SIZE
-//#define ITF_MEM_RESET_SIZE   offsetof(audiod_interface_t, tx_ff)
-//#elif CFG_TUD_AUDIO_EPSIZE_OUT && CFG_TUD_AUDIO_RX_FIFO_SIZE
-//#define ITF_MEM_RESET_SIZE   offsetof(audiod_interface_t, rx_ff)
-//#elif CFG_TUD_AUDIO_INT_CTR_EPSIZE_IN
-//#define ITF_MEM_RESET_SIZE   offsetof(audiod_interface_t, int_ctr_ff)
-//#elif CFG_TUD_AUDIO_EPSIZE_OUT
-//#define ITF_MEM_RESET_SIZE   offsetof(audiod_interface_t, epout_buf)
-//#elif CFG_TUD_AUDIO_EPSIZE_IN
-//#define ITF_MEM_RESET_SIZE   offsetof(audiod_interface_t, epin_buf)
-//#elif CFG_TUD_AUDIO_INT_CTR_EPSIZE_IN
-//#define ITF_MEM_RESET_SIZE   offsetof(audiod_interface_t, ep_int_ctr_buf)
-//#endif
 
 //--------------------------------------------------------------------+
 // INTERNAL OBJECT & FUNCTION DECLARATION
@@ -253,37 +239,41 @@ static bool audio_rx_done_cb(uint8_t rhport, audiod_interface_t* audio, uint8_t*
   {
     case AUDIO_FORMAT_TYPE_UNDEFINED:
       // INDIVIDUAL DECODING PROCEDURE REQUIRED HERE!
-      asm("nop");
+      TU_LOG2("  Desired CFG_TUD_AUDIO_FORMAT encoding not implemented!\r\n");
+      TU_BREAKPOINT();
       break;
 
     case AUDIO_FORMAT_TYPE_I:
 
       switch (CFG_TUD_AUDIO_FORMAT_TYPE_I_RX)
       {
-	case AUDIO_DATA_FORMAT_TYPE_I_PCM:
+        case AUDIO_DATA_FORMAT_TYPE_I_PCM:
 
 #if CFG_TUD_AUDIO_RX_FIFO_SIZE
-	  TU_VERIFY(audio_rx_done_type_I_pcm_ff_cb(rhport, audio, buffer, bufsize));
+          TU_VERIFY(audio_rx_done_type_I_pcm_ff_cb(rhport, audio, buffer, bufsize));
 #else
 #error YOUR DECODING AND BUFFERING IS REQUIRED HERE!
 #endif
-	  break;
+          break;
 
-	default:
-	  // DESIRED CFG_TUD_AUDIO_FORMAT_TYPE_I_RX NOT IMPLEMENTED!
-	  asm("nop");
-	  break;
+        default:
+          // DESIRED CFG_TUD_AUDIO_FORMAT_TYPE_I_RX NOT IMPLEMENTED!
+          TU_LOG2("  Desired CFG_TUD_AUDIO_FORMAT_TYPE_I_RX encoding not implemented!\r\n");
+          TU_BREAKPOINT();
+          break;
       }
       break;
 
-	default:
-	  // Desired CFG_TUD_AUDIO_FORMAT_TYPE_RX not implemented!
-	  asm("nop");
-	  break;
+        default:
+          // Desired CFG_TUD_AUDIO_FORMAT_TYPE_RX not implemented!
+          TU_LOG2("  Desired CFG_TUD_AUDIO_FORMAT_TYPE_RX not implemented!\r\n");
+          TU_BREAKPOINT();
+          break;
   }
 
   // Call a weak callback here - a possibility for user to get informed RX was completed
-  TTU_VERIFY(tud_audio_rx_done_cb(rhport, buffer, bufsize));
+  if (tud_audio_rx_done_cb) TU_VERIFY(tud_audio_rx_done_cb(rhport, buffer, bufsize));
+
   return true;
 }
 
@@ -325,24 +315,8 @@ static bool audio_rx_done_type_I_pcm_ff_cb(uint8_t rhport, audiod_interface_t* a
       chId = 0;
     }
   }
-}																																														}
+}                                                                                                                                                                                       }
 #endif //CFG_TUD_AUDIO_RX_FIFO_SIZE
-
-
-#if CFG_TUD_AUDIO_EPSIZE_OUT
-TU_ATTR_WEAK bool tud_audio_rx_done_cb(uint8_t rhport, uint8_t * buffer, uint16_t bufsize)
-{
-  (void) rhport;
-  (void) buffer;
-  (void) bufsize;
-
-  /* NOTE: This function should not be modified, when the callback is needed,
-           the tud_audio_rx_done_cb could be implemented in the user file
-   */
-
-  return true;
-}
-#endif
 
 //--------------------------------------------------------------------+
 // WRITE API
@@ -392,28 +366,28 @@ static bool audio_tx_done_cb(uint8_t rhport, audiod_interface_t* audio, uint16_t
 
       switch (CFG_TUD_AUDIO_FORMAT_TYPE_I_TX)
       {
-	case AUDIO_DATA_FORMAT_TYPE_I_PCM:
+        case AUDIO_DATA_FORMAT_TYPE_I_PCM:
 
 #if CFG_TUD_AUDIO_TX_FIFO_SIZE
-	  TU_VERIFY(audio_tx_done_type_I_pcm_ff_cb(rhport, audio, n_bytes_copied));
+          TU_VERIFY(audio_tx_done_type_I_pcm_ff_cb(rhport, audio, n_bytes_copied));
 #else
 #error YOUR ENCODING AND BUFFERING IS REQUIRED HERE!
 #endif
-	  break;
+          break;
 
-	default:
-	  // YOUR ENCODING AND SENDING IS REQUIRED HERE!
-	  TU_LOG2("  Desired CFG_TUD_AUDIO_FORMAT_TYPE_I_TX encoding not implemented!\r\n");
-	  TU_BREAKPOINT();
-	  break;
+        default:
+          // YOUR ENCODING AND SENDING IS REQUIRED HERE!
+          TU_LOG2("  Desired CFG_TUD_AUDIO_FORMAT_TYPE_I_TX encoding not implemented!\r\n");
+          TU_BREAKPOINT();
+          break;
       }
       break;
 
-	default:
-	  // Desired CFG_TUD_AUDIO_FORMAT_TYPE_TX not implemented!
-	  TU_LOG2("  Desired CFG_TUD_AUDIO_FORMAT_TYPE_TX not implemented!\r\n");
-	  TU_BREAKPOINT();
-	  break;
+        default:
+          // Desired CFG_TUD_AUDIO_FORMAT_TYPE_TX not implemented!
+          TU_LOG2("  Desired CFG_TUD_AUDIO_FORMAT_TYPE_TX not implemented!\r\n");
+          TU_BREAKPOINT();
+          break;
   }
 
   // Call a weak callback here - a possibility for user to get informed TX was completed
@@ -601,8 +575,8 @@ void audiod_reset(uint8_t rhport)
 
 uint16_t audiod_open(uint8_t rhport, tusb_desc_interface_t const * itf_desc, uint16_t max_len)
 {
-  TU_VERIFY ( TUSB_CLASS_AUDIO 	== itf_desc->bInterfaceClass &&
-	      AUDIO_SUBCLASS_CONTROL	== itf_desc->bInterfaceSubClass);
+  TU_VERIFY ( TUSB_CLASS_AUDIO  == itf_desc->bInterfaceClass &&
+              AUDIO_SUBCLASS_CONTROL    == itf_desc->bInterfaceSubClass);
 
   // Verify version is correct - this check can be omitted
   TU_VERIFY(itf_desc->bInterfaceProtocol == AUDIO_INT_PROTOCOL_CODE_V2);
@@ -622,7 +596,7 @@ uint16_t audiod_open(uint8_t rhport, tusb_desc_interface_t const * itf_desc, uin
   {
     if (!_audiod_itf[i].p_desc)
     {
-      _audiod_itf[i].p_desc = (uint8_t const *)itf_desc; 	// Save pointer to AC descriptor which is by specification always the first one
+      _audiod_itf[i].p_desc = (uint8_t const *)itf_desc;    // Save pointer to AC descriptor which is by specification always the first one
       break;
     }
   }
@@ -631,11 +605,8 @@ uint16_t audiod_open(uint8_t rhport, tusb_desc_interface_t const * itf_desc, uin
   TU_ASSERT( i < CFG_TUD_AUDIO );
 
   // This is all we need so far - the EPs are setup by a later set_interface request (as per UAC2 specification)
-
-  // Notify caller we read complete descriptor
-  //	(*p_length) += tud_audio_desc_lengths[i];
   // TODO: Find a way to find end of current audio function and avoid necessity of tud_audio_desc_lengths - since now max_length is available we could do this surely somehow
-  uint16_t drv_len = tud_audio_desc_lengths[i] - TUD_AUDIO_DESC_IAD_LEN; 	// - TUD_AUDIO_DESC_IAD_LEN since tinyUSB already handles the IAD descriptor
+  uint16_t drv_len = tud_audio_desc_lengths[i] - TUD_AUDIO_DESC_IAD_LEN;    // - TUD_AUDIO_DESC_IAD_LEN since tinyUSB already handles the IAD descriptor
 
   return drv_len;
 }
@@ -694,7 +665,7 @@ static bool audiod_set_interface(uint8_t rhport, tusb_control_request_t const * 
   {
     _audiod_itf[idxDriver].ep_in_as_intf_num = 0;
     usbd_edpt_close(rhport, _audiod_itf[idxDriver].ep_in);
-    _audiod_itf[idxDriver].ep_in = 0; 							// Necessary?
+    _audiod_itf[idxDriver].ep_in = 0;                           // Necessary?
   }
 #endif
 
@@ -703,12 +674,12 @@ static bool audiod_set_interface(uint8_t rhport, tusb_control_request_t const * 
   {
     _audiod_itf[idxDriver].ep_out_as_intf_num = 0;
     usbd_edpt_close(rhport, _audiod_itf[idxDriver].ep_out);
-    _audiod_itf[idxDriver].ep_out = 0; 							// Necessary?
+    _audiod_itf[idxDriver].ep_out = 0;                          // Necessary?
 
     // Close corresponding feedback EP
 #if CFG_TUD_AUDIO_ENABLE_FEEDBACK_EP
     usbd_edpt_close(rhport, _audiod_itf[idxDriver].ep_fb);
-    _audiod_itf[idxDriver].ep_fb = 0; 							// Necessary?
+    _audiod_itf[idxDriver].ep_fb = 0;                           // Necessary?
 #endif
   }
 #endif
@@ -730,56 +701,56 @@ static bool audiod_set_interface(uint8_t rhport, tusb_control_request_t const * 
       uint8_t foundEPs = 0, nEps = ((tusb_desc_interface_t const * )p_desc)->bNumEndpoints;
       while (foundEPs < nEps && p_desc < p_desc_end)
       {
-	if (tu_desc_type(p_desc) == TUSB_DESC_ENDPOINT)
-	{
-	  TU_ASSERT(usbd_edpt_open(rhport, (tusb_desc_endpoint_t const *)p_desc));
-	  uint8_t ep_addr = ((tusb_desc_endpoint_t const *) p_desc)->bEndpointAddress;
+        if (tu_desc_type(p_desc) == TUSB_DESC_ENDPOINT)
+        {
+          TU_ASSERT(usbd_edpt_open(rhport, (tusb_desc_endpoint_t const *)p_desc));
+          uint8_t ep_addr = ((tusb_desc_endpoint_t const *) p_desc)->bEndpointAddress;
 
 #if CFG_TUD_AUDIO_EPSIZE_IN > 0
-	  if (tu_edpt_dir(ep_addr) == TUSB_DIR_IN && ((tusb_desc_endpoint_t const *) p_desc)->bmAttributes.usage == 0x00) 	// Check if usage is data EP
-	  {
-	    // Save address
-	    _audiod_itf[idxDriver].ep_in = ep_addr;
-	    _audiod_itf[idxDriver].ep_in_as_intf_num = itf;
+          if (tu_edpt_dir(ep_addr) == TUSB_DIR_IN && ((tusb_desc_endpoint_t const *) p_desc)->bmAttributes.usage == 0x00)   // Check if usage is data EP
+          {
+            // Save address
+            _audiod_itf[idxDriver].ep_in = ep_addr;
+            _audiod_itf[idxDriver].ep_in_as_intf_num = itf;
 
-	    // HERE WE WOULD NEED TO SCHEDULE OUR FIRST TRANSMIT, HOWEVER, WE ALSO WOULD FIRST NEED TO ENABLE SAMPLING AT ALL - HOW TO HANDLE THIS?
-	    // Invoke callback - fill something in the FIFO here for now
-	    if (tud_audio_set_itf_cb) TU_VERIFY(tud_audio_set_itf_cb(rhport, p_request));
+            // HERE WE WOULD NEED TO SCHEDULE OUR FIRST TRANSMIT, HOWEVER, WE ALSO WOULD FIRST NEED TO ENABLE SAMPLING AT ALL - HOW TO HANDLE THIS?
+            // Invoke callback - fill something in the FIFO here for now
+            if (tud_audio_set_itf_cb) TU_VERIFY(tud_audio_set_itf_cb(rhport, p_request));
 
-	    uint16_t n_bytes_copied;
-	    TU_VERIFY(audio_tx_done_cb(rhport, &_audiod_itf[idxDriver], &n_bytes_copied));
-	  }
+            uint16_t n_bytes_copied;
+            TU_VERIFY(audio_tx_done_cb(rhport, &_audiod_itf[idxDriver], &n_bytes_copied));
+          }
 #endif
 
 #if CFG_TUD_AUDIO_EPSIZE_OUT
 
-	  if (tu_edpt_dir(ep_addr) == TUSB_DIR_OUT) 	// Checking usage not necessary
-	  {
-	    // Save address
-	    _audiod_itf[idxDriver].ep_out = ep_addr;
-	    _audiod_itf[idxDriver].ep_out_as_intf_num = itf;
+          if (tu_edpt_dir(ep_addr) == TUSB_DIR_OUT)     // Checking usage not necessary
+          {
+            // Save address
+            _audiod_itf[idxDriver].ep_out = ep_addr;
+            _audiod_itf[idxDriver].ep_out_as_intf_num = itf;
 
-	    // Invoke callback
-	    if (tud_audio_set_itf_cb) TU_VERIFY(tud_audio_set_itf_cb(rhport, p_request));
+            // Invoke callback
+            if (tud_audio_set_itf_cb) TU_VERIFY(tud_audio_set_itf_cb(rhport, p_request));
 
-	    // Prepare for incoming data
-	    TU_ASSERT(usbd_edpt_xfer(rhport, ep_addr, _audiod_itf[idxDriver].epout_buf, CFG_TUD_AUDIO_EPSIZE_OUT), false);
-	  }
+            // Prepare for incoming data
+            TU_ASSERT(usbd_edpt_xfer(rhport, ep_addr, _audiod_itf[idxDriver].epout_buf, CFG_TUD_AUDIO_EPSIZE_OUT), false);
+          }
 
 #if CFG_TUD_AUDIO_ENABLE_FEEDBACK_EP
-	  if (tu_edpt_dir(ep_addr) == TUSB_DIR_IN && ((tusb_desc_endpoint_t const *) p_desc)->bmAttributes.usage == 0x10) 	// Check if usage is implicit data feedback
-	  {
-	    _audiod_itf[idxDriver].ep_fb = ep_addr;
+          if (tu_edpt_dir(ep_addr) == TUSB_DIR_IN && ((tusb_desc_endpoint_t const *) p_desc)->bmAttributes.usage == 0x10)   // Check if usage is implicit data feedback
+          {
+            _audiod_itf[idxDriver].ep_fb = ep_addr;
 
-	    // Invoke callback
-	    if (tud_audio_set_itf_cb) TU_VERIFY(tud_audio_set_itf_cb(rhport, p_request));
-	  }
+            // Invoke callback
+            if (tud_audio_set_itf_cb) TU_VERIFY(tud_audio_set_itf_cb(rhport, p_request));
+          }
 #endif
 
 #endif
-	  foundEPs += 1;
-	}
-	p_desc = tu_desc_next(p_desc);
+          foundEPs += 1;
+        }
+        p_desc = tu_desc_next(p_desc);
       }
 
       TU_VERIFY(foundEPs == nEps);
@@ -808,62 +779,62 @@ bool audiod_control_complete(uint8_t rhport, tusb_control_request_t const * p_re
 
     switch (p_request->bmRequestType_bit.recipient)
     {
-      case TUSB_REQ_RCPT_INTERFACE: ;		// The semicolon is there to enable a declaration right after the label
+      case TUSB_REQ_RCPT_INTERFACE: ;       // The semicolon is there to enable a declaration right after the label
 
       uint8_t itf = TU_U16_LOW(p_request->wIndex);
       uint8_t entityID = TU_U16_HIGH(p_request->wIndex);
 
       if (entityID != 0)
       {
-	if (tud_audio_set_req_entity_cb)
-	{
-	  // Check if entity is present and get corresponding driver index
-	  TU_VERIFY(audiod_verify_entity_exists(itf, entityID, &idxDriver));
+        if (tud_audio_set_req_entity_cb)
+        {
+          // Check if entity is present and get corresponding driver index
+          TU_VERIFY(audiod_verify_entity_exists(itf, entityID, &idxDriver));
 
-	  // Invoke callback
-	  return tud_audio_set_req_entity_cb(rhport, p_request, _audiod_itf[idxDriver].ctrl_buf);
-	}
-	else
-	{
-	  TU_LOG2("  No entity set request callback available!\r\n");
-	  return false; 	// In case no callback function is present or request can not be conducted we stall it
-	}
+          // Invoke callback
+          return tud_audio_set_req_entity_cb(rhport, p_request, _audiod_itf[idxDriver].ctrl_buf);
+        }
+        else
+        {
+          TU_LOG2("  No entity set request callback available!\r\n");
+          return false;     // In case no callback function is present or request can not be conducted we stall it
+        }
       }
       else
       {
-	if (tud_audio_set_req_itf_cb)
-	{
-	  // Find index of audio driver structure and verify interface really exists
-	  TU_VERIFY(audiod_verify_itf_exists(itf, &idxDriver));
+        if (tud_audio_set_req_itf_cb)
+        {
+          // Find index of audio driver structure and verify interface really exists
+          TU_VERIFY(audiod_verify_itf_exists(itf, &idxDriver));
 
-	  // Invoke callback
-	  return tud_audio_set_req_itf_cb(rhport, p_request, _audiod_itf[idxDriver].ctrl_buf);
-	}
-	else
-	{
-	  TU_LOG2("  No interface set request callback available!\r\n");
-	  return false; 	// In case no callback function is present or request can not be conducted we stall it
-	}
+          // Invoke callback
+          return tud_audio_set_req_itf_cb(rhport, p_request, _audiod_itf[idxDriver].ctrl_buf);
+        }
+        else
+        {
+          TU_LOG2("  No interface set request callback available!\r\n");
+          return false;     // In case no callback function is present or request can not be conducted we stall it
+        }
       }
 
       break;
 
-      case TUSB_REQ_RCPT_ENDPOINT: ;		// The semicolon is there to enable a declaration right after the label
+      case TUSB_REQ_RCPT_ENDPOINT: ;        // The semicolon is there to enable a declaration right after the label
 
       uint8_t ep = TU_U16_LOW(p_request->wIndex);
 
       if (tud_audio_set_req_ep_cb)
       {
-	// Check if entity is present and get corresponding driver index
-	TU_VERIFY(audiod_verify_ep_exists(ep, &idxDriver));
+        // Check if entity is present and get corresponding driver index
+        TU_VERIFY(audiod_verify_ep_exists(ep, &idxDriver));
 
-	// Invoke callback
-	return tud_audio_set_req_ep_cb(rhport, p_request, _audiod_itf[idxDriver].ctrl_buf);
+        // Invoke callback
+        return tud_audio_set_req_ep_cb(rhport, p_request, _audiod_itf[idxDriver].ctrl_buf);
       }
       else
       {
-	TU_LOG2("  No EP set request callback available!\r\n");
-	return false; 	// In case no callback function is present or request can not be conducted we stall it
+        TU_LOG2("  No EP set request callback available!\r\n");
+        return false;   // In case no callback function is present or request can not be conducted we stall it
       }
 
       // Unknown/Unsupported recipient
@@ -885,12 +856,12 @@ bool audiod_control_request(uint8_t rhport, tusb_control_request_t const * p_req
     switch (p_request->bRequest)
     {
       case TUSB_REQ_GET_INTERFACE:
-	return audiod_get_interface(rhport, p_request);
+        return audiod_get_interface(rhport, p_request);
 
       case TUSB_REQ_SET_INTERFACE:
-	return audiod_set_interface(rhport, p_request);
+        return audiod_set_interface(rhport, p_request);
 
-	// Unknown/Unsupported request
+        // Unknown/Unsupported request
       default: TU_BREAKPOINT(); return false;
     }
   }
@@ -904,52 +875,52 @@ bool audiod_control_request(uint8_t rhport, tusb_control_request_t const * p_req
     // Conduct checks which depend on the recipient
     switch (p_request->bmRequestType_bit.recipient)
     {
-      case TUSB_REQ_RCPT_INTERFACE: ;		// The semicolon is there to enable a declaration right after the label
+      case TUSB_REQ_RCPT_INTERFACE: ;       // The semicolon is there to enable a declaration right after the label
 
       uint8_t entityID = TU_U16_HIGH(p_request->wIndex);
 
       // Verify if entity is present
       if (entityID != 0)
       {
-	// Find index of audio driver structure and verify entity really exists
-	TU_VERIFY(audiod_verify_entity_exists(itf, entityID, &idxDriver));
+        // Find index of audio driver structure and verify entity really exists
+        TU_VERIFY(audiod_verify_entity_exists(itf, entityID, &idxDriver));
 
-	// In case we got a get request invoke callback - callback needs to answer as defined in UAC2 specification page 89 - 5. Requests
-	if (p_request->bmRequestType_bit.direction == TUSB_DIR_IN)
-	{
-	  if (tud_audio_get_req_entity_cb)
-	  {
-	    return tud_audio_get_req_entity_cb(rhport, p_request);
-	  }
-	  else
-	  {
-	    TU_LOG2("  No entity get request callback available!\r\n");
-	    return false; 	// Stall
-	  }
-	}
+        // In case we got a get request invoke callback - callback needs to answer as defined in UAC2 specification page 89 - 5. Requests
+        if (p_request->bmRequestType_bit.direction == TUSB_DIR_IN)
+        {
+          if (tud_audio_get_req_entity_cb)
+          {
+            return tud_audio_get_req_entity_cb(rhport, p_request);
+          }
+          else
+          {
+            TU_LOG2("  No entity get request callback available!\r\n");
+            return false;   // Stall
+          }
+        }
       }
       else
       {
-	// Find index of audio driver structure and verify interface really exists
-	TU_VERIFY(audiod_verify_itf_exists(itf, &idxDriver));
+        // Find index of audio driver structure and verify interface really exists
+        TU_VERIFY(audiod_verify_itf_exists(itf, &idxDriver));
 
-	// In case we got a get request invoke callback - callback needs to answer as defined in UAC2 specification page 89 - 5. Requests
-	if (p_request->bmRequestType_bit.direction == TUSB_DIR_IN)
-	{
-	  if (tud_audio_get_req_itf_cb)
-	  {
-	    return tud_audio_get_req_itf_cb(rhport, p_request);
-	  }
-	  else
-	  {
-	    TU_LOG2("  No interface get request callback available!\r\n");
-	    return false; 	// Stall
-	  }
-	}
+        // In case we got a get request invoke callback - callback needs to answer as defined in UAC2 specification page 89 - 5. Requests
+        if (p_request->bmRequestType_bit.direction == TUSB_DIR_IN)
+        {
+          if (tud_audio_get_req_itf_cb)
+          {
+            return tud_audio_get_req_itf_cb(rhport, p_request);
+          }
+          else
+          {
+            TU_LOG2("  No interface get request callback available!\r\n");
+            return false;   // Stall
+          }
+        }
       }
       break;
 
-      case TUSB_REQ_RCPT_ENDPOINT: ;		// The semicolon is there to enable a declaration right after the label
+      case TUSB_REQ_RCPT_ENDPOINT: ;        // The semicolon is there to enable a declaration right after the label
 
       uint8_t ep = TU_U16_LOW(p_request->wIndex);
 
@@ -959,15 +930,15 @@ bool audiod_control_request(uint8_t rhport, tusb_control_request_t const * p_req
       // In case we got a get request invoke callback - callback needs to answer as defined in UAC2 specification page 89 - 5. Requests
       if (p_request->bmRequestType_bit.direction == TUSB_DIR_IN)
       {
-	if (tud_audio_get_req_ep_cb)
-	{
-	  return tud_audio_get_req_ep_cb(rhport, p_request);
-	}
-	else
-	{
-	  TU_LOG2("  No EP get request callback available!\r\n");
-	  return false; 	// Stall
-	}
+        if (tud_audio_get_req_ep_cb)
+        {
+          return tud_audio_get_req_ep_cb(rhport, p_request);
+        }
+        else
+        {
+          TU_LOG2("  No EP get request callback available!\r\n");
+          return false;     // Stall
+        }
       }
       break;
 
@@ -1009,9 +980,9 @@ bool audiod_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint3
 
       if (*n_bytes_copied == 0 && xferred_bytes && (0 == (xferred_bytes % CFG_TUD_AUDIO_INT_CTR_EPSIZE_IN)))
       {
-	// There is no data left to send, a ZLP should be sent if
-	// xferred_bytes is multiple of EP size and not zero
-	return usbd_edpt_xfer(rhport, ep_addr, NULL, 0);
+        // There is no data left to send, a ZLP should be sent if
+        // xferred_bytes is multiple of EP size and not zero
+        return usbd_edpt_xfer(rhport, ep_addr, NULL, 0);
       }
     }
 
@@ -1036,8 +1007,8 @@ bool audiod_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint3
 
       if (*n_bytes_copied == 0)
       {
-	// Load with ZLP
-	return usbd_edpt_xfer(rhport, ep_addr, NULL, 0);
+        // Load with ZLP
+        return usbd_edpt_xfer(rhport, ep_addr, NULL, 0);
       }
 
       return true;
@@ -1065,8 +1036,8 @@ bool audiod_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint3
     {
       if (!audio_fb_done_cb(rhport, &_audiod_itf[idxDriver]))
       {
-	// Load with ZLP
-	return usbd_edpt_xfer(rhport, ep_addr, NULL, 0);
+        // Load with ZLP
+        return usbd_edpt_xfer(rhport, ep_addr, NULL, 0);
       }
 
       return true;
@@ -1091,7 +1062,7 @@ bool tud_audio_buffer_and_schedule_control_xfer(uint8_t rhport, tusb_control_req
   // Conduct checks which depend on the recipient
   switch (p_request->bmRequestType_bit.recipient)
   {
-    case TUSB_REQ_RCPT_INTERFACE: ;		// The semicolon is there to enable a declaration right after the label
+    case TUSB_REQ_RCPT_INTERFACE: ;     // The semicolon is there to enable a declaration right after the label
 
     uint8_t entityID = TU_U16_HIGH(p_request->wIndex);
 
@@ -1108,7 +1079,7 @@ bool tud_audio_buffer_and_schedule_control_xfer(uint8_t rhport, tusb_control_req
     }
     break;
 
-    case TUSB_REQ_RCPT_ENDPOINT: ;		// The semicolon is there to enable a declaration right after the label
+    case TUSB_REQ_RCPT_ENDPOINT: ;      // The semicolon is there to enable a declaration right after the label
 
     uint8_t ep = TU_U16_LOW(p_request->wIndex);
 
@@ -1151,18 +1122,18 @@ static bool audiod_get_AS_interface_index(uint8_t itf, uint8_t *idxDriver, uint8
       uint8_t tmp = 0;
       while (p_desc < p_desc_end)
       {
-	// We assume the number of alternate settings is increasing thus we return the index of alternate setting zero!
-	if (tu_desc_type(p_desc) == TUSB_DESC_INTERFACE && ((tusb_desc_interface_t const * )p_desc)->bInterfaceNumber == itf)
-	{
-	  *idxItf = tmp;
-	  *idxDriver = i;
-	  *pp_desc_int = p_desc;
-	  return true;
-	}
+        // We assume the number of alternate settings is increasing thus we return the index of alternate setting zero!
+        if (tu_desc_type(p_desc) == TUSB_DESC_INTERFACE && ((tusb_desc_interface_t const * )p_desc)->bInterfaceNumber == itf)
+        {
+          *idxItf = tmp;
+          *idxDriver = i;
+          *pp_desc_int = p_desc;
+          return true;
+        }
 
-	// Increase index, bytes read, and pointer
-	tmp++;
-	p_desc = tu_desc_next(p_desc);
+        // Increase index, bytes read, and pointer
+        tmp++;
+        p_desc = tu_desc_next(p_desc);
       }
     }
   }
@@ -1180,18 +1151,18 @@ static bool audiod_verify_entity_exists(uint8_t itf, uint8_t entityID, uint8_t *
     if (_audiod_itf[i].p_desc && ((tusb_desc_interface_t const *)_audiod_itf[i].p_desc)->bInterfaceNumber == itf)
     {
       // Get pointers after class specific AC descriptors and end of AC descriptors - entities are defined in between
-      uint8_t const *p_desc = tu_desc_next(_audiod_itf[i].p_desc); 											// Points to CS AC descriptor
+      uint8_t const *p_desc = tu_desc_next(_audiod_itf[i].p_desc);                                          // Points to CS AC descriptor
       uint8_t const *p_desc_end = ((audio_desc_cs_ac_interface_t const *)p_desc)->wTotalLength + p_desc;
-      p_desc = tu_desc_next(p_desc); 																			// Get past CS AC descriptor
+      p_desc = tu_desc_next(p_desc);                                                                            // Get past CS AC descriptor
 
       while (p_desc < p_desc_end)
       {
-	if (p_desc[3] == entityID) 	// Entity IDs are always at offset 3
-	{
-	  *idxDriver = i;
-	  return true;
-	}
-	p_desc = tu_desc_next(p_desc);
+        if (p_desc[3] == entityID)  // Entity IDs are always at offset 3
+        {
+          *idxDriver = i;
+          return true;
+        }
+        p_desc = tu_desc_next(p_desc);
       }
     }
   }
@@ -1211,12 +1182,12 @@ static bool audiod_verify_itf_exists(uint8_t itf, uint8_t *idxDriver)
 
       while (p_desc < p_desc_end)
       {
-	if (tu_desc_type(p_desc) == TUSB_DESC_INTERFACE && ((tusb_desc_interface_t const *)_audiod_itf[i].p_desc)->bInterfaceNumber == itf)
-	{
-	  *idxDriver = i;
-	  return true;
-	}
-	p_desc = tu_desc_next(p_desc);
+        if (tu_desc_type(p_desc) == TUSB_DESC_INTERFACE && ((tusb_desc_interface_t const *)_audiod_itf[i].p_desc)->bInterfaceNumber == itf)
+        {
+          *idxDriver = i;
+          return true;
+        }
+        p_desc = tu_desc_next(p_desc);
       }
     }
   }
@@ -1239,12 +1210,12 @@ static bool audiod_verify_ep_exists(uint8_t ep, uint8_t *idxDriver)
 
       while (p_desc < p_desc_end)
       {
-	if (tu_desc_type(p_desc) == TUSB_DESC_ENDPOINT && ((tusb_desc_endpoint_t const * )p_desc)->bEndpointAddress == ep)
-	{
-	  *idxDriver = i;
-	  return true;
-	}
-	p_desc = tu_desc_next(p_desc);
+        if (tu_desc_type(p_desc) == TUSB_DESC_ENDPOINT && ((tusb_desc_endpoint_t const * )p_desc)->bEndpointAddress == ep)
+        {
+          *idxDriver = i;
+          return true;
+        }
+        p_desc = tu_desc_next(p_desc);
       }
     }
   }
@@ -1252,222 +1223,3 @@ static bool audiod_verify_ep_exists(uint8_t ep, uint8_t *idxDriver)
 }
 
 #endif //TUSB_OPT_DEVICE_ENABLED && CFG_TUD_AUDIO
-
-// OLD
-//// In order that this function works the following is mandatory:
-//	// - An IAD descriptor is required and has to be placed directly before the Standard AC Interface Descriptor (4.7.1) ALSO if no Audio Streaming interfaces are used!
-//	// - The Standard AC Interface Descriptor (4.7.1) has to be the first interface listed (required by UAC2 specification)
-//	// - The alternate interfaces of the Standard AS Interface Descriptor(4.9.1) must be listed in increasing order and alternate 0 must have zero EPs
-//
-//	TU_VERIFY ( TUSB_CLASS_AUDIO 	== itf_desc->bInterfaceClass &&
-//			AUDIO_SUBCLASS_CONTROL	== itf_desc->bInterfaceSubClass);
-//
-//	// Verify version is correct - this check can be omitted
-//	TU_VERIFY(itf_desc->bInterfaceProtocol == AUDIO_PROTOCOL_V2);
-//
-//	// Verify interrupt control EP is enabled if demanded by descriptor - this should be best some static check however - this check can be omitted
-//	if (itf_desc->bNumEndpoints == 1) // 0 or 1 EPs are allowed
-//	{
-//		TU_VERIFY(CFG_TUD_AUDIO_INT_CTR_EPSIZE_IN > 0);
-//	}
-//
-//	// Alternate setting MUST be zero - this check can be omitted
-//	TU_VERIFY(itf_desc->bAlternateSetting == 0);
-//
-//	// Since checks are successful we get the number of interfaces we have to process by exploiting the fact that an IAD descriptor has to be provided directly before this AC descriptor
-//	// We do not get this value delivered by the stack so we need to hack a little bit - the number of interfaces to be processed is listed in the IAD descriptor with an offset of exactly 5
-//	uint8_t nItfs = *(((uint8_t const *) itf_desc) - 5) - 1; 	// -1 since we already process the (included) AC interface
-//
-//	// Notify caller we have read Standard AC Interface Descriptor (4.7.1)
-//	(*p_length) = sizeof(tusb_desc_interface_t);
-//
-//	// Go to next descriptor which has to be a Class-Specific AC Interface Header Descriptor(4.7.2) - always present
-//	audio_desc_cs_ac_interface_t const * p_desc_cs_ac = (audio_desc_cs_ac_interface_t const *) tu_desc_next ( (uint8_t const *) itf_desc );
-//
-//	// Verify its the correct descriptor - this check can be omitted
-//	TU_VERIFY(p_desc_cs_ac->bDescriptorType == TUSB_DESC_CS_INTERFACE
-//			&& p_desc_cs_ac->bDescriptorSubType == AUDIO_CS_AC_INTERFACE_HEADER
-//			&& p_desc_cs_ac->bcdADC == 0x0200);
-//
-//	// We do not check the Audio Function Category Codes
-//
-//	// We do not check all the following Clock Source, Unit and Terminal descriptors
-//
-//	// We do not check the latency control
-//
-//	// We jump over all the following descriptor to the next following interface (which should be a Standard AS Interface Descriptor(4.9.1) if nItfs > 0)
-//	(*p_length) += p_desc_cs_ac->wTotalLength; 																		// Notify caller of read bytes
-//	itf_desc = (tusb_desc_interface_t const * )(((uint8_t const *)p_desc_cs_ac ) + p_desc_cs_ac->wTotalLength); 	// Move pointer
-//
-//	// From this point on we have nItfs packs of audio streaming interfaces (consisting of multiple descriptors always starting with a Standard AS Interface Descriptor(4.9.1))
-//
-//	uint8_t cnt;
-//	uint8_t nEPs;
-//	audio_format_type_t formatType;
-//	uint8_t intNum;
-//	uint8_t altInt;
-//
-//	for (cnt = 0; cnt < nItfs; cnt++)
-//	{
-//
-//		// Here starts an unknown number of alternate interfaces - the art here is to find the end of this interface pack. We do not have the total number of descriptor bytes available (not provided by tinyUSB stack for .open() function) so we try to find the end of this interface pack by deducing it from the order and content of the descriptor pack
-//		while(1)
-//		{
-//			// At first this should be a Standard AS Interface Descriptor(4.9.1) - this check can be omitted
-//			TU_VERIFY(itf_desc->bDescriptorType == TUSB_DESC_INTERFACE &&
-//					itf_desc->bInterfaceClass == TUSB_CLASS_AUDIO &&
-//					itf_desc->bInterfaceSubClass == AUDIO_SUBCLASS_STREAMING &&
-//					itf_desc->bInterfaceProtocol == AUDIO_PROTOCOL_V2);
-//
-//			// Remember number of EPs this interface has - required for later
-//			nEPs = itf_desc->bNumEndpoints;
-//			intNum = itf_desc->bInterfaceNumber;
-//			altInt = itf_desc->bAlternateSetting;
-//
-//			// Notify caller we have read bytes
-//			(*p_length) += tu_desc_len((uint8_t const *) itf_desc);
-//
-//			// Advance pointer
-//			itf_desc = (tusb_desc_interface_t const * )(tu_desc_next((uint8_t const *)itf_desc));
-//
-//			// It is possible now that the following interface is again a Standard AS Interface Descriptor(4.9.1) (in case the related terminal has more than zero EPs at all and this is the following alternative interface > 0 - the alternative (that this is not a Standard AS Interface Descriptor(4.9.1) but a Class-Specific AS Interface Descriptor(4.9.2)) could be in case the related terminal has no EPs at all e.g. SPDIF connector
-//			if (tu_desc_type((uint8_t const *) itf_desc) == TUSB_DESC_INTERFACE)
-//			{
-//				// It is not possible, that a Standard AS Interface Descriptor(4.9.1) ends without a Class-Specific AS Interface Descriptor(4.9.2)
-//				// hence the next interface has to be an alternative interface with regard to the one we started above - continue
-//				continue;
-//			}
-//
-//			// Second, this interface has to be a Class-Specific AS Interface Descriptor(4.9.2) - this check can be omitted
-//			TU_VERIFY(tu_desc_type((uint8_t const *) itf_desc) == TUSB_DESC_CS_INTERFACE &&
-//					((audio_desc_cs_as_interface_t *) itf_desc)->bDescriptorSubType ==  AUDIO_CS_AS_INTERFACE_AS_GENERAL);
-//
-//			// Remember format type of this interface - required for later
-//			formatType = ((audio_desc_cs_as_interface_t *) itf_desc)->bFormatType;
-//
-//			// Notify caller we have read bytes
-//			(*p_length) += tu_desc_len((uint8_t const *) itf_desc);
-//
-//			// Advance pointer
-//			itf_desc = (tusb_desc_interface_t const * )(tu_desc_next((uint8_t const *)itf_desc));
-//
-//			// Every Class-Specific AS Interface Descriptor(4.9.2) defines a format type and thus a format type descriptor e.g. Type I Format Type Descriptor(2.3.1.6 - Audio Formats) should follow - only if the format type is undefined no format type descriptor follows
-//			if (formatType != AUDIO_FORMAT_TYPE_UNDEFINED)
-//			{
-//				// We do not need any information from this descriptor - we simply advance
-//				// Notify caller we have read bytes
-//				(*p_length) += tu_desc_len((uint8_t const *) itf_desc);
-//
-//				// Advance pointer
-//				itf_desc = (tusb_desc_interface_t const * )(tu_desc_next((uint8_t const *)itf_desc));
-//			}
-//
-//			// Now there might be an encoder/decoder interface - i found no clue if this interface is mandatory (although examples found by google never use this descriptor) or if there is any way to determine if this descriptor is reliably present or not. Problem here: Since we need to find the end of this interface pack and we do not have the total amount of descriptor bytes available here (not given by the tinyUSB stack for the .open() function), we have to make a speculative check if the following is an encoder/decoder interface or not.
-//			// It could be possible that we ready over the total length of all descriptor bytes here - we simply hope that the combination of descriptor length, type, and sub type does not occur randomly in memory here. The only way to make this check waterproof is to know how many bytes we can read at all but this would be an information we need to be given by tinyUSB!
-//			if (tu_desc_len((uint8_t const *) itf_desc) == 21 && tu_desc_type((uint8_t const *) itf_desc) == TUSB_DESC_CS_INTERFACE && (((audio_desc_cs_as_interface_t *) itf_desc)->bDescriptorSubType ==  AUDIO_CS_AS_INTERFACE_ENCODER || ((audio_desc_cs_as_interface_t *) itf_desc)->bDescriptorSubType ==  AUDIO_CS_AS_INTERFACE_DECODER))
-//			{
-//				// We do not need any information from this descriptor - we simply advance
-//				// Notify caller we have read bytes
-//				(*p_length) += tu_desc_len((uint8_t const *) itf_desc);
-//
-//				// Advance pointer
-//				itf_desc = (tusb_desc_interface_t const * )(tu_desc_next((uint8_t const *)itf_desc));
-//			}
-//
-//			// Here may be some EP descriptors
-//			for (uint8_t cntEP = 0; cntEP < nEPs; cntEP++)
-//			{
-//				// This check can be omitted
-//				TU_VERIFY(tu_desc_type((uint8_t const *) itf_desc) == TUSB_DESC_ENDPOINT);
-//
-//				// Here we can find information about our EPs address etc. but in the initialization process we do not set anything, we have to wait for the host to send a setInterface request where the EPs etc. are set up according
-//
-//				// Notify caller we have read bytes
-//				(*p_length) += tu_desc_len((uint8_t const *) itf_desc);
-//
-//				// If the usage type is something else than feedback there is a Class-Specific AS Isochronous Audio Data Endpoint Descriptor(4.10.1.2) following up
-//				if (((tusb_desc_endpoint_t *) itf_desc)->bmAttributes.usage != 0x10)
-//				{
-//					// Advance pointer
-//					itf_desc = (tusb_desc_interface_t const * )(tu_desc_next((uint8_t const *)itf_desc));
-//
-//					// We do not need any information from this descriptor - we simply advance
-//					// Notify caller we have read bytes
-//					(*p_length) += tu_desc_len((uint8_t const *) itf_desc);
-//
-//				}
-//
-//				// Advance pointer
-//				itf_desc = (tusb_desc_interface_t const * )(tu_desc_next((uint8_t const *)itf_desc));
-//			}
-//
-//			// Okay we processed a complete pack - now we have to make a speculative check if the next interface is an alternate interface belonging to the ones processed before - since it is speculative we check a lot to reduce the chances we go wrong and hope for the best
-//			if (!(tu_desc_len((uint8_t const *) itf_desc) == 9 && tu_desc_type((uint8_t const *) itf_desc) == TUSB_DESC_INTERFACE && itf_desc->bInterfaceNumber ==  intNum && itf_desc->bAlternateSetting == altInt + 1))
-//			{
-//				// The current interface is not a consecutive alternate interface to the one processed above
-//				break;
-//			}
-//		}
-//
-//	}
-
-
-// Here follow the encoding steps
-
-//#if CFG_TUD_AUDIO_FORMAT_TYPE_TX == AUDIO_FORMAT_TYPE_UNDEFINED
-//
-//#error Individual encoding procedure required!
-//
-//#elif CFG_TUD_AUDIO_FORMAT_TYPE_TX == AUDIO_FORMAT_TYPE_I
-//
-//#if CFG_TUD_AUDIO_FORMAT_TYPE_I_TX == AUDIO_DATA_FORMAT_TYPE_I_PCM
-//
-//#if CFG_TUD_AUDIO_TX_FIFO_SIZE
-//	TU_VERIFY(audio_tx_done_type_I_pcm_cb(rhport, audio, n_bytes_copied));
-//#else
-//#error YOUR ENCODING AND SENDING IS REQUIRED HERE!
-//#endif
-//
-//#else
-//#error Desired CFG_TUD_AUDIO_FORMAT_TYPE_I_TX not implemented!
-//#endif
-//
-//#else
-//#error Desired CFG_TUD_AUDIO_FORMAT_TYPE_TX not implemented!
-//#endif
-//
-//	// Call a weak callback here - a possibility for user to get informed TX was completed
-//	TU_VERIFY(tud_audio_tx_done_cb(rhport, n_bytes_copied));
-//	return true;
-
-//#if CFG_TUD_AUDIO_EPSIZE_OUT
-//static bool audio_rx_done_cb(uint8_t rhport, audiod_interface_t* audio, uint8_t* buffer, uint16_t bufsize) {
-//
-//	// Here follow the decoding steps
-//
-//#if CFG_TUD_AUDIO_FORMAT_TYPE_RX == AUDIO_FORMAT_TYPE_UNDEFINED
-//
-//#error Individual decoding procedure required!
-//
-//#elif CFG_TUD_AUDIO_FORMAT_TYPE_RX == AUDIO_FORMAT_TYPE_I
-//
-//#if CFG_TUD_AUDIO_FORMAT_TYPE_I_RX == AUDIO_DATA_FORMAT_TYPE_I_PCM
-//
-//#if CFG_TUD_AUDIO_RX_FIFO_SIZE
-//	TU_VERIFY(audio_rx_done_type_I_pcm_ff_cb(rhport, audio, buffer, bufsize));
-//#else
-//#error YOUR DECODING AND BUFFERING IS REQUIRED HERE!
-//#endif
-//
-//#else
-//#error Desired CFG_TUD_AUDIO_FORMAT_TYPE_I_RX not implemented!
-//#endif
-//
-//#else
-//#error Desired CFG_TUD_AUDIO_FORMAT_TYPE_RX not implemented!
-//#endif
-//
-//	TU_VERIFY(tud_audio_rx_done_cb(rhport, buffer, bufsize));
-//	return true;
-//}
-//#endif

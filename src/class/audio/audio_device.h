@@ -41,7 +41,7 @@
 
 // Number of Standard AS Interface Descriptors (4.9.1) defined per audio function - this is required to be able to remember the current alternate settings of these interfaces - We restrict us here to have a constant number for all audio functions (which means this has to be the maximum number of AS interfaces an audio function has and a second audio function with less AS interfaces just waste a few bytes)
 #ifndef CFG_TUD_AUDIO_N_AS_INT
-#define CFG_TUD_AUDIO_N_AS_INT 	0
+#define CFG_TUD_AUDIO_N_AS_INT  0
 #endif
 
 // Size of control buffer used to receive and send control messages via EP0 - has to be big enough to hold your biggest request structure e.g. range requests with multiple intervals defined or cluster descriptors
@@ -56,51 +56,51 @@
 // If you don't use the FIFOs you need to handle encoding and decoding on your own in audio_rx_done_cb() and Y. This, however, allows for optimizations.
 
 #ifndef CFG_TUD_AUDIO_TX_FIFO_SIZE
-#define CFG_TUD_AUDIO_TX_FIFO_SIZE 	0 							// Buffer size per channel
+#define CFG_TUD_AUDIO_TX_FIFO_SIZE  0                           // Buffer size per channel
 #endif
 
 #ifndef CFG_TUD_AUDIO_RX_FIFO_SIZE
-#define CFG_TUD_AUDIO_RX_FIFO_SIZE 	0 							// Buffer size per channel
+#define CFG_TUD_AUDIO_RX_FIFO_SIZE  0                           // Buffer size per channel
 #endif
 
 // End point sizes - Limits: Full Speed <= 1023, High Speed <= 1024
 #ifndef CFG_TUD_AUDIO_EPSIZE_IN
-#define CFG_TUD_AUDIO_EPSIZE_IN 0 	// TX
+#define CFG_TUD_AUDIO_EPSIZE_IN 0   // TX
 #endif
 
 #ifndef CFG_TUD_AUDIO_EPSIZE_OUT
-#define CFG_TUD_AUDIO_EPSIZE_OUT 0 	// RX
+#define CFG_TUD_AUDIO_EPSIZE_OUT 0  // RX
 #endif
 
 #ifndef CFG_TUD_AUDIO_ENABLE_FEEDBACK_EP
-#define CFG_TUD_AUDIO_ENABLE_FEEDBACK_EP 0						// Feedback
+#define CFG_TUD_AUDIO_ENABLE_FEEDBACK_EP 0                      // Feedback
 #endif
 
 #ifndef CFG_TUD_AUDIO_INT_CTR_EPSIZE_IN
-#define CFG_TUD_AUDIO_INT_CTR_EPSIZE_IN 0						// Audio interrupt control
+#define CFG_TUD_AUDIO_INT_CTR_EPSIZE_IN 0                       // Audio interrupt control
 #endif
 
 #if CFG_TUD_AUDIO_INT_CTR_EPSIZE_IN
 #ifndef CFG_TUD_AUDIO_INT_CTR_BUFSIZE
-#define CFG_TUD_AUDIO_INT_CTR_BUFSIZE	6 						// Buffer size of audio control interrupt EP - 6 Bytes according to UAC 2 specification (p. 74)
+#define CFG_TUD_AUDIO_INT_CTR_BUFSIZE   6                       // Buffer size of audio control interrupt EP - 6 Bytes according to UAC 2 specification (p. 74)
 #endif
 #endif
 
 #ifndef CFG_TUD_AUDIO_N_CHANNELS_TX
-#define CFG_TUD_AUDIO_N_CHANNELS_TX 					1
+#define CFG_TUD_AUDIO_N_CHANNELS_TX                     1
 #endif
 
 #ifndef CFG_TUD_AUDIO_N_CHANNELS_RX
-#define CFG_TUD_AUDIO_N_CHANNELS_RX 					1
+#define CFG_TUD_AUDIO_N_CHANNELS_RX                     1
 #endif
 
 // Audio data format types
 #ifndef CFG_TUD_AUDIO_FORMAT_TYPE_TX
-#define CFG_TUD_AUDIO_FORMAT_TYPE_TX 				AUDIO_FORMAT_TYPE_UNDEFINED 	// If this option is used, an encoding function has to be implemented in audio_device.c
+#define CFG_TUD_AUDIO_FORMAT_TYPE_TX                AUDIO_FORMAT_TYPE_UNDEFINED     // If this option is used, an encoding function has to be implemented in audio_device.c
 #endif
 
 #ifndef CFG_TUD_AUDIO_FORMAT_TYPE_RX
-#define CFG_TUD_AUDIO_FORMAT_TYPE_RX 				AUDIO_FORMAT_TYPE_UNDEFINED 	// If this option is used, a decoding function has to be implemented in audio_device.c
+#define CFG_TUD_AUDIO_FORMAT_TYPE_RX                AUDIO_FORMAT_TYPE_UNDEFINED     // If this option is used, a decoding function has to be implemented in audio_device.c
 #endif
 
 // Audio data format type I specifications
@@ -108,11 +108,11 @@
 
 // Type definitions - for possible formats see: audio_data_format_type_I_t and further in UAC2 specifications.
 #ifndef CFG_TUD_AUDIO_FORMAT_TYPE_I_TX
-#define CFG_TUD_AUDIO_FORMAT_TYPE_I_TX 				AUDIO_DATA_FORMAT_TYPE_I_PCM
+#define CFG_TUD_AUDIO_FORMAT_TYPE_I_TX              AUDIO_DATA_FORMAT_TYPE_I_PCM
 #endif
 
-#ifndef CFG_TUD_AUDIO_N_BYTES_PER_SAMPLE_TX 			// bSubslotSize
-#define CFG_TUD_AUDIO_N_BYTES_PER_SAMPLE_TX 			1
+#ifndef CFG_TUD_AUDIO_N_BYTES_PER_SAMPLE_TX             // bSubslotSize
+#define CFG_TUD_AUDIO_N_BYTES_PER_SAMPLE_TX             1
 #endif
 
 #if CFG_TUD_AUDIO_N_BYTES_PER_SAMPLE_TX == 1
@@ -128,11 +128,11 @@
 #if CFG_TUD_AUDIO_FORMAT_TYPE_RX == AUDIO_FORMAT_TYPE_I
 
 #ifndef CFG_TUD_AUDIO_FORMAT_TYPE_I_RX
-#define CFG_TUD_AUDIO_FORMAT_TYPE_I_RX 				AUDIO_DATA_FORMAT_TYPE_I_PCM
+#define CFG_TUD_AUDIO_FORMAT_TYPE_I_RX              AUDIO_DATA_FORMAT_TYPE_I_PCM
 #endif
 
-#ifndef CFG_TUD_AUDIO_N_BYTES_PER_SAMPLE_RX 			// bSubslotSize
-#define CFG_TUD_AUDIO_N_BYTES_PER_SAMPLE_RX 			1
+#ifndef CFG_TUD_AUDIO_N_BYTES_PER_SAMPLE_RX             // bSubslotSize
+#define CFG_TUD_AUDIO_N_BYTES_PER_SAMPLE_RX             1
 #endif
 
 #if CFG_TUD_AUDIO_N_BYTES_PER_SAMPLE_RX == 1
@@ -148,7 +148,7 @@
 //static_assert(sizeof(tud_audio_desc_lengths) != CFG_TUD_AUDIO, "Supply audio function descriptor pack length!");
 
 // Supported types of this driver:
-// AUDIO_DATA_FORMAT_TYPE_I_PCM 	- 	Required definitions: CFG_TUD_AUDIO_N_CHANNELS and CFG_TUD_AUDIO_BYTES_PER_CHANNEL
+// AUDIO_DATA_FORMAT_TYPE_I_PCM     -   Required definitions: CFG_TUD_AUDIO_N_CHANNELS and CFG_TUD_AUDIO_BYTES_PER_CHANNEL
 
 #ifdef __cplusplus
 extern "C" {
@@ -172,26 +172,26 @@ void     tud_audio_n_read_flush (uint8_t itf, uint8_t channelId);
 #endif
 
 #if CFG_TUD_AUDIO_EPSIZE_IN && CFG_TUD_AUDIO_TX_BUFSIZE
-uint16_t tud_audio_n_write		(uint8_t itf, uint8_t channelId, uint8_t const* buffer, uint16_t bufsize);
+uint16_t tud_audio_n_write      (uint8_t itf, uint8_t channelId, uint8_t const* buffer, uint16_t bufsize);
 #endif
 
 #if CFG_TUD_AUDIO_INT_CTR_EPSIZE_IN > 0
-uint16_t 	tud_audio_int_ctr_n_available	(uint8_t itf);
-uint16_t 	tud_audio_int_ctr_n_read		(uint8_t itf, void* buffer, uint16_t bufsize);
-void 		tud_audio_int_ctr_n_read_flush 	(uint8_t itf);
-uint16_t 	tud_audio_int_ctr_n_write		(uint8_t itf, uint8_t const* buffer, uint16_t bufsize);
+uint16_t    tud_audio_int_ctr_n_available   (uint8_t itf);
+uint16_t    tud_audio_int_ctr_n_read        (uint8_t itf, void* buffer, uint16_t bufsize);
+void        tud_audio_int_ctr_n_read_flush  (uint8_t itf);
+uint16_t    tud_audio_int_ctr_n_write       (uint8_t itf, uint8_t const* buffer, uint16_t bufsize);
 #endif
 
 //--------------------------------------------------------------------+
 // Application API (Interface0)
 //--------------------------------------------------------------------+
 
-inline bool     	tud_audio_mounted    (void);
+inline bool         tud_audio_mounted    (void);
 
 #if CFG_TUD_AUDIO_EPSIZE_OUT && CFG_TUD_AUDIO_RX_BUFSIZE
-inline uint16_t 	tud_audio_available  (void);
-inline uint16_t 	tud_audio_read       (void* buffer, uint16_t bufsize);
-inline void     	tud_audio_read_flush (void);
+inline uint16_t     tud_audio_available  (void);
+inline uint16_t     tud_audio_read       (void* buffer, uint16_t bufsize);
+inline void         tud_audio_read_flush (void);
 #endif
 
 #if CFG_TUD_AUDIO_EPSIZE_IN && CFG_TUD_AUDIO_TX_BUFSIZE
@@ -199,10 +199,10 @@ inline uint16_t tud_audio_write      (uint8_t channelId, uint8_t const* buffer, 
 #endif
 
 #if CFG_TUD_AUDIO_INT_CTR_EPSIZE_IN > 0
-inline uint32_t 	tud_audio_int_ctr_available		(void);
-inline uint32_t 	tud_audio_int_ctr_read			(void* buffer, uint32_t bufsize);
-inline void 		tud_audio_int_ctr_read_flush 	(void);
-inline uint32_t 	tud_audio_int_ctr_write			(uint8_t const* buffer, uint32_t bufsize);
+inline uint32_t     tud_audio_int_ctr_available     (void);
+inline uint32_t     tud_audio_int_ctr_read          (void* buffer, uint32_t bufsize);
+inline void         tud_audio_int_ctr_read_flush    (void);
+inline uint32_t     tud_audio_int_ctr_write         (uint8_t const* buffer, uint32_t bufsize);
 #endif
 
 // Buffer control EP data and schedule a transmit
@@ -260,52 +260,52 @@ TU_ATTR_WEAK bool tud_audio_get_req_entity_cb(uint8_t rhport, tusb_control_reque
 
 inline bool tud_audio_mounted(void)
 {
-	return tud_audio_n_mounted(0);
+  return tud_audio_n_mounted(0);
 }
 
 #if CFG_TUD_AUDIO_EPSIZE_IN && CFG_TUD_AUDIO_TX_BUFSIZE
-inline uint16_t tud_audio_write (uint8_t channelId, uint8_t const* buffer, uint16_t bufsize) 	// Short version if only one audio function is used
+inline uint16_t tud_audio_write (uint8_t channelId, uint8_t const* buffer, uint16_t bufsize)    // Short version if only one audio function is used
 {
-	return tud_audio_n_write(0, channelId, buffer, bufsize);
+  return tud_audio_n_write(0, channelId, buffer, bufsize);
 }
-#endif 	// CFG_TUD_AUDIO_EPSIZE_IN && CFG_TUD_AUDIO_TX_BUFSIZE
+#endif  // CFG_TUD_AUDIO_EPSIZE_IN && CFG_TUD_AUDIO_TX_BUFSIZE
 
 #if CFG_TUD_AUDIO_EPSIZE_OUT && CFG_TUD_AUDIO_RX_BUFSIZE
 inline uint16_t tud_audio_available(uint8_t channelId)
 {
-	return tud_audio_n_available(0, channelId);
+  return tud_audio_n_available(0, channelId);
 }
 
 inline uint16_t tud_audio_read(uint8_t channelId, void* buffer, uint16_t bufsize)
 {
-	return tud_audio_n_read(0, channelId, buffer, bufsize);
+  return tud_audio_n_read(0, channelId, buffer, bufsize);
 }
 
 inline void tud_audio_read_flush(uint8_t channelId)
 {
-	tud_audio_n_read_flush(0, channelId);
+  tud_audio_n_read_flush(0, channelId);
 }
 #endif
 
 #if CFG_TUD_AUDIO_INT_CTR_EPSIZE_IN > 0
 inline uint16_t tud_audio_int_ctr_available(void)
 {
-	return tud_audio_int_ctr_n_available(0);
+  return tud_audio_int_ctr_n_available(0);
 }
 
 inline uint16_t tud_audio_int_ctr_read(void* buffer, uint16_t bufsize)
 {
-	return tud_audio_int_ctr_n_read(0, buffer, bufsize);
+  return tud_audio_int_ctr_n_read(0, buffer, bufsize);
 }
 
 inline void tud_audio_int_ctr_read_flush(void)
 {
-	return tud_audio_int_ctr_n_read_flush(0);
+  return tud_audio_int_ctr_n_read_flush(0);
 }
 
 inline uint16_t tud_audio_int_ctr_write(uint8_t const* buffer, uint16_t bufsize)
 {
-	return tud_audio_int_ctr_n_write(0, buffer, bufsize);
+  return tud_audio_int_ctr_n_write(0, buffer, bufsize);
 }
 #endif
 
@@ -314,7 +314,7 @@ inline uint16_t tud_audio_int_ctr_write(uint8_t const* buffer, uint16_t bufsize)
 //--------------------------------------------------------------------+
 void audiod_init             (void);
 void audiod_reset            (uint8_t rhport);
-uint16_t audiod_open		 (uint8_t rhport, tusb_desc_interface_t const * itf_desc, uint16_t max_len);
+uint16_t audiod_open         (uint8_t rhport, tusb_desc_interface_t const * itf_desc, uint16_t max_len);
 bool audiod_control_request  (uint8_t rhport, tusb_control_request_t const * request);
 bool audiod_control_complete (uint8_t rhport, tusb_control_request_t const * request);
 bool audiod_xfer_cb          (uint8_t rhport, uint8_t edpt_addr, xfer_result_t result, uint32_t xferred_bytes);
