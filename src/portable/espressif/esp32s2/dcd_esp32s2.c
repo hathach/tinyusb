@@ -167,15 +167,22 @@ void dcd_init(uint8_t rhport)
 {
   ESP_LOGV(TAG, "DCD init - Start");
 
-  // A. Disconnect
-  ESP_LOGV(TAG, "DCD init - Soft DISCONNECT and Setting up");
-  USB0.dctl |= USB_SFTDISCON_M; // Soft disconnect
+  bool did_persist = (USB_WRAP.date.val & (1 << 31)) != 0;
 
-  // B. Programming DCFG
-  /* If USB host misbehaves during status portion of control xfer
-    (non zero-length packet), send STALL back and discard. Full speed. */
-  USB0.dcfg |= USB_NZSTSOUTHSHK_M | // NonZero .... STALL
-      (3 << 0);            // dev speed: fullspeed 1.1 on 48 mhz  // TODO no value in usb_reg.h (IDF-1476)
+  if (did_persist) {
+    //Clear persistence of USB peripheral through reset
+    USB_WRAP.date.val = 0;
+  } else {
+    // A. Disconnect
+    ESP_LOGV(TAG, "DCD init - Soft DISCONNECT and Setting up");
+    USB0.dctl |= USB_SFTDISCON_M; // Soft disconnect
+
+    // B. Programming DCFG
+    /* If USB host misbehaves during status portion of control xfer
+      (non zero-length packet), send STALL back and discard. Full speed. */
+    USB0.dcfg |= USB_NZSTSOUTHSHK_M | // NonZero .... STALL
+        (3 << 0);            // dev speed: fullspeed 1.1 on 48 mhz  // TODO no value in usb_reg.h (IDF-1476)
+  }
 
   USB0.gahbcfg |= USB_NPTXFEMPLVL_M | USB_GLBLLNTRMSK_M; // Global interruptions ON
   USB0.gusbcfg |= USB_FORCEDEVMODE_M;                    // force devmode
@@ -186,10 +193,13 @@ void dcd_init(uint8_t rhport)
     USB0.out_ep_reg[n].doepctl |= USB_DO_SNAK0_M; // DOEPCTL0_SNAK
   }
 
-  // D. Interruption masking
-  USB0.gintmsk = 0;   //mask all
-  USB0.gotgint = ~0U; //clear OTG ints
-  USB0.gintsts = ~0U; //clear pending ints
+  if (!did_persist) {
+    // D. Interruption masking
+    USB0.gintmsk = 0;   //mask all
+    USB0.gotgint = ~0U; //clear OTG ints
+    USB0.gintsts = ~0U; //clear pending ints
+  }
+
   USB0.gintmsk = USB_OTGINTMSK_M   |
                  USB_MODEMISMSK_M  |
           #if USE_SOF
@@ -203,7 +213,41 @@ void dcd_init(uint8_t rhport)
                  USB_RESETDETMSK_M |
                  USB_DISCONNINTMSK_M; // host most only
 
-  dcd_connect(rhport);
+  if (did_persist) {
+    USB0.grstctl &= ~USB_TXFNUM_M;
+    USB0.grstctl |= 0x10 << USB_TXFNUM_S;
+    USB0.grstctl |= USB_TXFFLSH;
+    USB0.grxfsiz = 52;
+
+    for (int n = 0; n < USB_IN_EP_NUM; n++) {
+      USB0.in_ep_reg[n].diepint = USB_D_XFERCOMPL0_M | USB_D_TXFEMP0_M;
+      USB0.in_ep_reg[n].diepctl &= ~USB_D_STALL0_M; // clear Stall
+      USB0.in_ep_reg[n].diepctl |= USB_D_CNAK0 | USB_D_EPENA0; // clear NAK
+    }
+    USB0.dtknqr4_fifoemptymsk &= ~(0x7F);
+
+    USB0.gnptxfsiz = (16 << USB_NPTXFDEP_S) | (USB0.grxfsiz & 0x0000ffffUL);
+
+    USB0.daintmsk |= USB_OUTEPMSK0_M | USB_INEPMSK0_M;
+    USB0.doepmsk |= USB_SETUP0 | USB_XFERCOMPLMSK;
+    USB0.diepmsk |= USB_TIMEOUTMSK_M | USB_DI_XFERCOMPLMSK_M;//USB_INEPNAKEFFMSK
+
+    USB0.gintmsk |= USB_IEPINTMSK_M | USB_OEPINTMSK_M;
+    USB0.gotgint = ~0; //clear OTG ints
+    USB0.gintsts = ~0; //clear pending ints
+    enum_done_processing();
+    dcd_event_bus_signal(0, DCD_EVENT_BUS_RESET, true);
+    tusb_control_request_t request = {
+          .bmRequestType_bit = { .recipient = TUSB_REQ_RCPT_DEVICE, .type = TUSB_REQ_TYPE_STANDARD, .direction = TUSB_DIR_OUT },
+          .bRequest = TUSB_REQ_SET_CONFIGURATION,
+          .wValue = 1,
+          .wIndex = 0,
+          .wLength = 0
+    };
+    dcd_event_setup_received(0, (uint8_t *)&request, true);
+  } else {
+    dcd_connect(rhport);
+  }
 }
 
 void dcd_set_address(uint8_t rhport, uint8_t dev_addr)

@@ -84,7 +84,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        example: ['board_test', 'cdc_msc_freertos', 'hid_composite_freertos']
+        example: ['board_test', 'cdc_msc_freertos', 'hid_composite_freertos', 'esp32_s2_cdc_persist']
 
     steps:
     - name: Setup Python

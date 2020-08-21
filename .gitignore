@@ -21,3 +21,6 @@ _build
 cov-int
 # cppcheck build directories
 *-build-dir
+.DS_Store
+sdkconfig
+sdkconfig.old
