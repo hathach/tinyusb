@@ -416,6 +416,9 @@ bool cdcd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint32_
   //       Though maybe the baudrate is not really important !!!
   if ( ep_addr == p_cdc->ep_in )
   {
+    // invoke transmit callback to possibly refill tx fifo
+    if ( tud_cdc_tx_complete_cb ) tud_cdc_tx_complete_cb(itf);
+
     if ( 0 == tud_cdc_n_write_flush(itf) )
     {
       // There is no data left, a ZLP should be sent if
