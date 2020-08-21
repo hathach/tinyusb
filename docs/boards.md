@@ -28,6 +28,7 @@ This code base already had supported for a handful of following boards (sorted a
 - [Adafruit ItsyBitsy M4 Express](https://www.adafruit.com/product/3800)
 - [Adafruit Metro M0 Express](https://www.adafruit.com/product/3505)
 - [Adafruit Metro M4 Express](https://www.adafruit.com/product/3382)
+- [Microchip SAMD11 Xplained](https://www.microchip.com/developmenttools/ProductDetails/atsamd11-xpro)
 - [Seeeduino Xiao](https://www.seeedstudio.com/Seeeduino-XIAO-Arduino-Microcontroller-SAMD21-Cortex-M0+-p-4426.html)
 - [Great Scott Gadgets LUNA](https://greatscottgadgets.com/luna/)
 
