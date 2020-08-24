@@ -101,8 +101,7 @@ uint32_t tud_midi_n_read(uint8_t itf, uint8_t jack_id, void* buffer, uint32_t bu
 
   // Fill empty buffer
   if (midi->read_buffer_length == 0) {
-    if (!tud_midi_n_receive(itf, midi->read_buffer))
-      return 0;
+    if (!tud_midi_n_receive(itf, midi->read_buffer)) return 0;
 
     uint8_t code_index = midi->read_buffer[0] & 0x0f;
     // We always copy over the first byte.
@@ -119,8 +118,7 @@ uint32_t tud_midi_n_read(uint8_t itf, uint8_t jack_id, void* buffer, uint32_t bu
   }
 
   uint32_t n = midi->read_buffer_length - midi->read_target_length;
-  if (bufsize < n)
-    n = bufsize;
+  if (bufsize < n) n = bufsize;
 
   // Skip the header in the buffer
   memcpy(buffer, midi->read_buffer + 1 + midi->read_target_length, n);
@@ -153,10 +151,8 @@ void midi_rx_done_cb(midid_interface_t* midi, uint8_t const* buffer, uint32_t bu
 // WRITE API
 //--------------------------------------------------------------------+
 
-static bool maybe_transmit(midid_interface_t* midi, uint8_t itf_index)
+static uint32_t write_flush(midid_interface_t* midi)
 {
-  (void) itf_index;
-
   // skip if previous transfer not complete
   TU_VERIFY( !usbd_edpt_busy(TUD_OPT_RHPORT, midi->ep_in) );
 
@@ -165,7 +161,7 @@ static bool maybe_transmit(midid_interface_t* midi, uint8_t itf_index)
   {
     TU_ASSERT( usbd_edpt_xfer(TUD_OPT_RHPORT, midi->ep_in, midi->epin_buf, count) );
   }
-  return true;
+  return count;
 }
 
 uint32_t tud_midi_n_write(uint8_t itf, uint8_t jack_id, uint8_t const* buffer, uint32_t bufsize)
@@ -234,7 +230,8 @@ uint32_t tud_midi_n_write(uint8_t itf, uint8_t jack_id, uint8_t const* buffer, u
     }
     i++;
   }
-  maybe_transmit(midi, itf);
+
+  write_flush(midi);
 
   return i;
 }
@@ -250,7 +247,7 @@ bool tud_midi_n_send (uint8_t itf, uint8_t const packet[4])
     return false;
 
   tu_fifo_write_n(&midi->tx_ff, packet, 4);
-  maybe_transmit(midi, itf);
+  write_flush(midi);
 
   return true;
 }
@@ -389,27 +386,39 @@ bool midid_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint32
   (void) result;
 
   uint8_t itf = 0;
-  midid_interface_t* p_midi = _midid_itf;
+  midid_interface_t* p_midi;
 
-  for ( ; ; itf++, p_midi++)
+  // Identify which interface to use
+  for (itf = 0; itf < CFG_TUD_MIDI; itf++)
   {
-    if (itf >= TU_ARRAY_SIZE(_midid_itf)) return false;
-
-    if ( ep_addr == p_midi->ep_out ) break;
+    p_midi = &_midid_itf[itf];
+    if ( ( ep_addr == p_midi->ep_out ) || ( ep_addr == p_midi->ep_in ) ) break;
   }
+  TU_ASSERT(itf < CFG_TUD_CDC);
 
   // receive new data
   if ( ep_addr == p_midi->ep_out )
   {
-    midi_rx_done_cb(p_midi, p_midi->epout_buf, xferred_bytes);
+    tu_fifo_write_n(&p_midi->rx_ff, p_midi->epout_buf, xferred_bytes);
+
+    // invoke receive callback if available
+    if (tud_midi_rx_cb) tud_midi_rx_cb(itf);
 
     // prepare for next
-    TU_ASSERT( usbd_edpt_xfer(rhport, p_midi->ep_out, p_midi->epout_buf, CFG_TUD_MIDI_EP_BUFSIZE), false );
-  } else if ( ep_addr == p_midi->ep_in ) {
-    maybe_transmit(p_midi, itf);
+    TU_ASSERT(usbd_edpt_xfer(rhport, p_midi->ep_out, p_midi->epout_buf, CFG_TUD_MIDI_EP_BUFSIZE), false);
   }
-
-  // nothing to do with in and notif endpoint
+  else if ( ep_addr == p_midi->ep_in )
+  {
+    if (0 == write_flush(p_midi))
+    {
+      // There is no data left, a ZLP should be sent if
+      // xferred_bytes is multiple of EP size and not zero
+      if ( xferred_bytes && (0 == (xferred_bytes % CFG_TUD_MIDI_EP_BUFSIZE)) )
+      {
+        usbd_edpt_xfer(rhport, p_midi->ep_in, NULL, 0);
+      }
+    }
+  }
 
   return true;
 }

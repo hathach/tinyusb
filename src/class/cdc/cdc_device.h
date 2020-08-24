@@ -57,7 +57,6 @@
 // CFG_TUD_CDC > 1
 //--------------------------------------------------------------------+
 
-
 // Check if terminal is connected to this port
 bool     tud_cdc_n_connected       (uint8_t itf);
 
