@@ -385,7 +385,7 @@ bool midid_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint32
 {
   (void) result;
 
-  uint8_t itf = 0;
+  uint8_t itf;
   midid_interface_t* p_midi;
 
   // Identify which interface to use
@@ -394,7 +394,7 @@ bool midid_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint32
     p_midi = &_midid_itf[itf];
     if ( ( ep_addr == p_midi->ep_out ) || ( ep_addr == p_midi->ep_in ) ) break;
   }
-  TU_ASSERT(itf < CFG_TUD_CDC);
+  TU_ASSERT(itf < CFG_TUD_MIDI);
 
   // receive new data
   if ( ep_addr == p_midi->ep_out )
