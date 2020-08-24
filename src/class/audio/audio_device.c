@@ -689,7 +689,7 @@ static bool audiod_set_interface(uint8_t rhport, tusb_control_request_t const * 
 
   // Open new EP if necessary - EPs are only to be closed or opened for AS interfaces - Look for AS interface with correct alternate interface
   // Get pointer at end
-  uint8_t const *p_desc_end = _audiod_itf[idxDriver].p_desc + tud_audio_desc_lengths[idxDriver];
+  uint8_t const *p_desc_end = _audiod_itf[idxDriver].p_desc + tud_audio_desc_lengths[idxDriver] - TUD_AUDIO_DESC_IAD_LEN;
 
   // p_desc starts at required interface with alternate setting zero
   while (p_desc < p_desc_end)
@@ -1113,7 +1113,7 @@ static bool audiod_get_AS_interface_index(uint8_t itf, uint8_t *idxDriver, uint8
     if (_audiod_itf[i].p_desc)
     {
       // Get pointer at end
-      uint8_t const *p_desc_end = _audiod_itf[i].p_desc + tud_audio_desc_lengths[i];
+      uint8_t const *p_desc_end = _audiod_itf[i].p_desc + tud_audio_desc_lengths[i] - TUD_AUDIO_DESC_IAD_LEN;
 
       // Advance past AC descriptors
       uint8_t const *p_desc = tu_desc_next(_audiod_itf[i].p_desc);
@@ -1178,7 +1178,7 @@ static bool audiod_verify_itf_exists(uint8_t itf, uint8_t *idxDriver)
     {
       // Get pointer at beginning and end
       uint8_t const *p_desc = _audiod_itf[i].p_desc;
-      uint8_t const *p_desc_end = _audiod_itf[i].p_desc + tud_audio_desc_lengths[i];
+      uint8_t const *p_desc_end = _audiod_itf[i].p_desc + tud_audio_desc_lengths[i] - TUD_AUDIO_DESC_IAD_LEN;
 
       while (p_desc < p_desc_end)
       {
