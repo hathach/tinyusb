@@ -637,9 +637,7 @@ bool dcd_edpt_xfer (uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t 
   return true;
 }
 
-// TODO: The logic for STALLing and disabling an endpoint is very similar
-// (send STALL versus NAK handshakes back). Refactor into resuable function.
-void dcd_edpt_stall (uint8_t rhport, uint8_t ep_addr)
+static void dcd_edpt_disable (uint8_t rhport, uint8_t ep_addr, bool stall)
 {
   (void) rhport;
 
@@ -654,14 +652,14 @@ void dcd_edpt_stall (uint8_t rhport, uint8_t ep_addr)
   if(dir == TUSB_DIR_IN) {
     // Only disable currently enabled non-control endpoint
     if ( (epnum == 0) || !(in_ep[epnum].DIEPCTL & USB_OTG_DIEPCTL_EPENA) ){
-      in_ep[epnum].DIEPCTL |= (USB_OTG_DIEPCTL_SNAK | USB_OTG_DIEPCTL_STALL);
+      in_ep[epnum].DIEPCTL |= USB_OTG_DIEPCTL_SNAK | (stall ? USB_OTG_DIEPCTL_STALL : 0);
     } else {
       // Stop transmitting packets and NAK IN xfers.
       in_ep[epnum].DIEPCTL |= USB_OTG_DIEPCTL_SNAK;
       while((in_ep[epnum].DIEPINT & USB_OTG_DIEPINT_INEPNE) == 0);
 
       // Disable the endpoint.
-      in_ep[epnum].DIEPCTL |= (USB_OTG_DIEPCTL_STALL | USB_OTG_DIEPCTL_EPDIS);
+      in_ep[epnum].DIEPCTL |= USB_OTG_DIEPCTL_EPDIS | (stall ? USB_OTG_DIEPCTL_STALL : 0);
       while((in_ep[epnum].DIEPINT & USB_OTG_DIEPINT_EPDISD_Msk) == 0);
       in_ep[epnum].DIEPINT = USB_OTG_DIEPINT_EPDISD;
     }
@@ -673,7 +671,7 @@ void dcd_edpt_stall (uint8_t rhport, uint8_t ep_addr)
   } else {
     // Only disable currently enabled non-control endpoint
     if ( (epnum == 0) || !(out_ep[epnum].DOEPCTL & USB_OTG_DOEPCTL_EPENA) ){
-      out_ep[epnum].DOEPCTL |= USB_OTG_DOEPCTL_STALL;
+      out_ep[epnum].DOEPCTL |= stall ? USB_OTG_DOEPCTL_STALL : 0;
     } else {
       // Asserting GONAK is required to STALL an OUT endpoint.
       // Simpler to use polling here, we don't use the "B"OUTNAKEFF interrupt
@@ -683,7 +681,7 @@ void dcd_edpt_stall (uint8_t rhport, uint8_t ep_addr)
       while((usb_otg->GINTSTS & USB_OTG_GINTSTS_BOUTNAKEFF_Msk) == 0);
 
       // Ditto here- disable the endpoint.
-      out_ep[epnum].DOEPCTL |= (USB_OTG_DOEPCTL_STALL | USB_OTG_DOEPCTL_EPDIS);
+      out_ep[epnum].DOEPCTL |= USB_OTG_DOEPCTL_EPDIS | (stall ? USB_OTG_DOEPCTL_STALL : 0);
       while((out_ep[epnum].DOEPINT & USB_OTG_DOEPINT_EPDISD_Msk) == 0);
       out_ep[epnum].DOEPINT = USB_OTG_DOEPINT_EPDISD;
 
@@ -691,6 +689,32 @@ void dcd_edpt_stall (uint8_t rhport, uint8_t ep_addr)
       dev->DCTL |= USB_OTG_DCTL_CGONAK;
     }
   }
+}
+
+/**
+ * Close an endpoint.
+ */
+void dcd_edpt_close (uint8_t rhport, uint8_t ep_addr)
+{
+  USB_OTG_GlobalTypeDef * usb_otg = GLOBAL_BASE(rhport);
+
+  uint8_t const epnum = tu_edpt_number(ep_addr);
+  uint8_t const dir   = tu_edpt_dir(ep_addr);
+
+  dcd_edpt_disable(rhport, ep_addr, false);
+  if (dir == TUSB_DIR_IN)
+  {
+    uint16_t const fifo_size = (usb_otg->DIEPTXF[epnum - 1] & USB_OTG_DIEPTXF_INEPTXFD_Msk) >> USB_OTG_DIEPTXF_INEPTXFD_Pos;
+    uint16_t const fifo_start = (usb_otg->DIEPTXF[epnum - 1] & USB_OTG_DIEPTXF_INEPTXSA_Msk) >> USB_OTG_DIEPTXF_INEPTXSA_Pos;
+    // For now only endpoint that has FIFO at the end of FIFO memory can be closed without fuss.
+    TU_ASSERT(fifo_start + fifo_size == _allocated_fifo_words,);
+    _allocated_fifo_words -= fifo_size;
+  }
+}
+
+void dcd_edpt_stall (uint8_t rhport, uint8_t ep_addr)
+{
+  dcd_edpt_disable(rhport, ep_addr, true);
 }
 
 void dcd_edpt_clear_stall (uint8_t rhport, uint8_t ep_addr)
