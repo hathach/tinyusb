@@ -1002,10 +1002,10 @@ bool audiod_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint3
       // This is the only place where we can fill something into the EPs buffer!
 
       // Load new data
-      uint16_t *n_bytes_copied = NULL;
-      TU_VERIFY(audio_tx_done_cb(rhport, &_audiod_itf[idxDriver], n_bytes_copied));
+      uint16_t n_bytes_copied;
+      TU_VERIFY(audio_tx_done_cb(rhport, &_audiod_itf[idxDriver], &n_bytes_copied));
 
-      if (*n_bytes_copied == 0)
+      if (n_bytes_copied == 0)
       {
         // Load with ZLP
         return usbd_edpt_xfer(rhport, ep_addr, NULL, 0);
