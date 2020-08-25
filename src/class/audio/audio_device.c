@@ -80,7 +80,7 @@ typedef struct
   // FIFO
 #if CFG_TUD_AUDIO_EPSIZE_IN && CFG_TUD_AUDIO_TX_FIFO_SIZE
   tu_fifo_t tx_ff[CFG_TUD_AUDIO_N_CHANNELS_TX];
-  CFG_TUSB_MEM_ALIGN uint8_t tx_ff_buf[CFG_TUD_AUDIO_N_CHANNELS_TX][CFG_TUD_AUDIO_TX_FIFO_SIZE];
+  CFG_TUSB_MEM_ALIGN uint8_t tx_ff_buf[CFG_TUD_AUDIO_N_CHANNELS_TX][CFG_TUD_AUDIO_TX_FIFO_SIZE * CFG_TUD_AUDIO_TX_ITEMSIZE];
 #if CFG_FIFO_MUTEX
   osal_mutex_def_t tx_ff_mutex[CFG_TUD_AUDIO_N_CHANNELS_TX];
 #endif
@@ -88,7 +88,7 @@ typedef struct
 
 #if CFG_TUD_AUDIO_EPSIZE_OUT && CFG_TUD_AUDIO_RX_FIFO_SIZE
   tu_fifo_t rx_ff[CFG_TUD_AUDIO_N_CHANNELS_RX];
-  CFG_TUSB_MEM_ALIGN uint8_t rx_ff_buf[CFG_TUD_AUDIO_N_CHANNELS_RX][CFG_TUD_AUDIO_RX_FIFO_SIZE];
+  CFG_TUSB_MEM_ALIGN uint8_t rx_ff_buf[CFG_TUD_AUDIO_N_CHANNELS_RX][CFG_TUD_AUDIO_RX_FIFO_SIZE * CFG_TUD_AUDIO_RX_ITEMSIZE];
 #if CFG_FIFO_MUTEX
   osal_mutex_def_t rx_ff_mutex[CFG_TUD_AUDIO_N_CHANNELS_RX];
 #endif
@@ -404,10 +404,12 @@ static bool audio_tx_done_type_I_pcm_ff_cb(uint8_t rhport, audiod_interface_t* a
   TU_VERIFY(!usbd_edpt_busy(rhport, audio->ep_in));
 
   // Determine amount of samples
-  uint16_t nSamplesPerChannelToSend = 0xFFFF;
+  uint16_t const nEndpointSampleCapacity = CFG_TUD_AUDIO_EPSIZE_IN / CFG_TUD_AUDIO_N_CHANNELS_TX / CFG_TUD_AUDIO_N_BYTES_PER_SAMPLE_TX;
+  uint16_t nSamplesPerChannelToSend = tu_fifo_count(&audio->tx_ff[0]);
+  uint16_t nBytesToSend;
   uint8_t cntChannel;
 
-  for (cntChannel = 0; cntChannel < CFG_TUD_AUDIO_N_CHANNELS_TX; cntChannel++)
+  for (cntChannel = 1; cntChannel < CFG_TUD_AUDIO_N_CHANNELS_TX; cntChannel++)
   {
     if (audio->tx_ff[cntChannel].count < nSamplesPerChannelToSend)
     {
@@ -423,10 +425,8 @@ static bool audio_tx_done_type_I_pcm_ff_cb(uint8_t rhport, audiod_interface_t* a
   }
 
   // Limit to maximum sample number - THIS IS A POSSIBLE ERROR SOURCE IF TOO MANY SAMPLE WOULD NEED TO BE SENT BUT CAN NOT!
-  if (nSamplesPerChannelToSend * CFG_TUD_AUDIO_N_CHANNELS_TX * CFG_TUD_AUDIO_N_BYTES_PER_SAMPLE_TX > CFG_TUD_AUDIO_EPSIZE_IN)
-  {
-    nSamplesPerChannelToSend = CFG_TUD_AUDIO_EPSIZE_IN / CFG_TUD_AUDIO_N_CHANNELS_TX / CFG_TUD_AUDIO_N_BYTES_PER_SAMPLE_TX;
-  }
+  nSamplesPerChannelToSend = min(nSamplesPerChannelToSend, nEndpointSampleCapacity);
+  nBytesToSend = nSamplesPerChannelToSend * CFG_TUD_AUDIO_N_CHANNELS_TX * CFG_TUD_AUDIO_N_BYTES_PER_SAMPLE_TX;
 
   // Encode
   uint16_t cntSample;
@@ -456,8 +456,8 @@ static bool audio_tx_done_type_I_pcm_ff_cb(uint8_t rhport, audiod_interface_t* a
   }
 
   // Schedule transmit
-  TU_VERIFY(usbd_edpt_xfer(rhport, audio->ep_in, audio->epin_buf, nSamplesPerChannelToSend*CFG_TUD_AUDIO_N_BYTES_PER_SAMPLE_TX));
-  *n_bytes_copied = nSamplesPerChannelToSend*CFG_TUD_AUDIO_N_BYTES_PER_SAMPLE_TX;
+  TU_VERIFY(usbd_edpt_xfer(rhport, audio->ep_in, audio->epin_buf, nBytesToSend));
+  *n_bytes_copied = nBytesToSend;
   return true;
 }
 
