@@ -1241,34 +1241,43 @@ TU_ATTR_WEAK bool dcd_alloc_mem_for_conf(uint8_t rhport, tusb_desc_configuration
 
   // Determine number of used out EPs of current configuration and size of two biggest out EPs
   uint8_t nUsedOutEPs = 0, cnt_ep, cnt_tt;
-  bool tmp;
   uint16_t sz[2] = {0, 0};
+  uint16_t fifo_depth;
 
   for (cnt_ep = 0; cnt_ep < EP_MAX; cnt_ep++)
   {
-    tmp = false;
     for (cnt_tt = 0; cnt_tt <= TUSB_XFER_INTERRUPT; cnt_tt++)
     {
-      tmp |= report.ep_transfer_type[cnt_ep][TUSB_DIR_OUT][cnt_tt];
+      if (report.ep_transfer_type[cnt_ep][TUSB_DIR_OUT][cnt_tt])
+      {
+        nUsedOutEPs++;
+        break;
+      }
     }
-    nUsedOutEPs += tmp;
 
-    if (sz[0] < report.ep_size[cnt_ep][TUSB_DIR_OUT])
+    fifo_depth = report.ep_size[cnt_ep][TUSB_DIR_OUT] / 4 + 1;
+    if (sz[0] < fifo_depth)
     {
       sz[1] = sz[0];
-      sz[0] = report.ep_size[cnt_ep][TUSB_DIR_OUT];
+      sz[0] = fifo_depth;
+    }
+    else if (sz[1] < report.ep_size[cnt_ep][TUSB_DIR_OUT])
+    {
+      sz[1] = fifo_depth;
     }
   }
 
   // For configuration use the approach as explained in bus_reset()
-  _allocated_fifo_words = 15 + 2*nUsedOutEPs + (sz[0] / 4) + (sz[0] % 4 > 0 ? 1 : 0) + (sz[1] / 4) + (sz[1] % 4 > 0 ? 1 : 0) + 2;   // again, i do not really know why we need + 2 but otherwise it does not work
+  _allocated_fifo_words = 13 + 1 + 1 + 2 * nUsedOutEPs + sz[0] + sz[1] + 2;   // again, i do not really know why we need + 2 but otherwise it does not work
 
   usb_otg->GRXFSIZ = _allocated_fifo_words;
 
   // Control IN uses FIFO 0 with report.ep_size[0][TUSB_DIR_IN] bytes ( report.ep_size[0][TUSB_DIR_IN]/4 32-bit word )
-  usb_otg->DIEPTXF0_HNPTXFSIZ = (report.ep_size[0][TUSB_DIR_IN]/4 << USB_OTG_TX0FD_Pos) | _allocated_fifo_words;
+  fifo_depth = report.ep_size[0][TUSB_DIR_IN] / 4;
+  fifo_depth = tu_max16(16, fifo_depth);
+  usb_otg->DIEPTXF0_HNPTXFSIZ = (fifo_depth << USB_OTG_TX0FD_Pos) | _allocated_fifo_words;
 
-  _allocated_fifo_words += report.ep_size[0][TUSB_DIR_IN]/4;    // Since EP0 size MUST be a power of two we do not need to take care of remainders
+  _allocated_fifo_words += fifo_depth;
 
   // For configuration of remaining in EPs use the approach as explained in dcd_edpt_open() except that:
   // - ISO EPs only get EP size as FIFO size. More makes no sense since within one frame precisely EP size bytes are transfered and not more.
@@ -1307,11 +1316,14 @@ TU_ATTR_WEAK bool dcd_alloc_mem_for_conf(uint8_t rhport, tusb_desc_configuration
 
   // Required space by EPs in words, number of bulk and control EPs
   uint16_t ep_sz_total = 0;
+  // Number of bulk and control EPs
   uint8_t nbc = 0;
   // EP0 is already taken care of so exclude that here
   for (cnt_ep = 1; cnt_ep < EP_MAX; cnt_ep++)
   {
-    ep_sz_total += report.ep_size[cnt_ep][TUSB_DIR_IN] / 4 + (report.ep_size[cnt_ep][TUSB_DIR_IN] % 4 > 0 ? 1 : 0);     // Since we need full words take care of remainders!
+    fifo_depth = (report.ep_size[cnt_ep][TUSB_DIR_IN] + 3) / 4;     // Since we need full words take care of remainders!
+    if (fifo_depth > 0 && fifo_depth < 16) fifo_depth = 16;         // Minimum FIFO depth is 16
+    ep_sz_total += fifo_depth;
     nbc += (report.ep_transfer_type[cnt_ep][TUSB_DIR_IN][TUSB_XFER_BULK] | report.ep_transfer_type[cnt_ep][TUSB_DIR_IN][TUSB_XFER_CONTROL]);
   }
 
@@ -1321,8 +1333,7 @@ TU_ATTR_WEAK bool dcd_alloc_mem_for_conf(uint8_t rhport, tusb_desc_configuration
     return false;
   }
 
-  uint16_t extra_space = nbc > 0 ? fifo_remaining / nbc : 0;        // If no bulk or control EPs are used we just leave the rest of the memory unused
-  uint16_t fifo_size;
+  uint16_t extra_space = nbc > 0 ? (fifo_remaining - ep_sz_total) / nbc : 0;        // If no bulk or control EPs are used we just leave the rest of the memory unused
 
   // Setup FIFOs
   for (cnt_ep = 1; cnt_ep < EP_MAX; cnt_ep++)
@@ -1330,9 +1341,10 @@ TU_ATTR_WEAK bool dcd_alloc_mem_for_conf(uint8_t rhport, tusb_desc_configuration
     // If EP is used
     if (report.ep_size[cnt_ep][TUSB_DIR_IN] > 0)
     {
-      fifo_size = report.ep_size[cnt_ep][TUSB_DIR_IN] / 4 + (report.ep_size[cnt_ep][TUSB_DIR_IN] % 4 > 0 ? 1 : 0) + ((report.ep_transfer_type[cnt_ep][TUSB_DIR_IN][TUSB_XFER_BULK] || report.ep_transfer_type[cnt_ep][TUSB_DIR_IN][TUSB_XFER_CONTROL]) ? extra_space : 0);
-      usb_otg->DIEPTXF[cnt_ep - 1] = (fifo_size << USB_OTG_DIEPTXF_INEPTXFD_Pos) | _allocated_fifo_words;
-      _allocated_fifo_words += fifo_size;
+      fifo_depth = (report.ep_size[cnt_ep][TUSB_DIR_IN] + 3) / 4 + ((report.ep_transfer_type[cnt_ep][TUSB_DIR_IN][TUSB_XFER_BULK] || report.ep_transfer_type[cnt_ep][TUSB_DIR_IN][TUSB_XFER_CONTROL]) ? extra_space : 0);
+      fifo_depth = tu_max16(16, fifo_depth);
+      usb_otg->DIEPTXF[cnt_ep - 1] = (fifo_depth << USB_OTG_DIEPTXF_INEPTXFD_Pos) | _allocated_fifo_words;
+      _allocated_fifo_words += fifo_depth;
     }
   }
 
