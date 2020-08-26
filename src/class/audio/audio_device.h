@@ -196,23 +196,23 @@ uint16_t    tud_audio_int_ctr_n_write       (uint8_t itf, uint8_t const* buffer,
 // Application API (Interface0)
 //--------------------------------------------------------------------+
 
-inline bool         tud_audio_mounted    (void);
+static inline bool         tud_audio_mounted    (void);
 
 #if CFG_TUD_AUDIO_EPSIZE_OUT && CFG_TUD_AUDIO_RX_FIFO_SIZE
-inline uint16_t     tud_audio_available  (void);
-inline uint16_t     tud_audio_read       (void* buffer, uint16_t bufsize);
-inline void         tud_audio_read_flush (void);
+static inline uint16_t     tud_audio_available  (void);
+static inline uint16_t     tud_audio_read       (void* buffer, uint16_t bufsize);
+static inline void         tud_audio_read_flush (void);
 #endif
 
 #if CFG_TUD_AUDIO_EPSIZE_IN && CFG_TUD_AUDIO_TX_FIFO_SIZE
-inline uint16_t tud_audio_write      (uint8_t channelId, uint8_t const* buffer, uint16_t bufsize);
+static inline uint16_t tud_audio_write      (uint8_t channelId, uint8_t const* buffer, uint16_t bufsize);
 #endif
 
 #if CFG_TUD_AUDIO_INT_CTR_EPSIZE_IN > 0
-inline uint32_t     tud_audio_int_ctr_available     (void);
-inline uint32_t     tud_audio_int_ctr_read          (void* buffer, uint32_t bufsize);
-inline void         tud_audio_int_ctr_read_flush    (void);
-inline uint32_t     tud_audio_int_ctr_write         (uint8_t const* buffer, uint32_t bufsize);
+static inline uint32_t     tud_audio_int_ctr_available     (void);
+static inline uint32_t     tud_audio_int_ctr_read          (void* buffer, uint32_t bufsize);
+static inline void         tud_audio_int_ctr_read_flush    (void);
+static inline uint32_t     tud_audio_int_ctr_write         (uint8_t const* buffer, uint32_t bufsize);
 #endif
 
 // Buffer control EP data and schedule a transmit
@@ -269,52 +269,52 @@ TU_ATTR_WEAK bool tud_audio_get_req_entity_cb(uint8_t rhport, tusb_control_reque
 // Inline Functions
 //--------------------------------------------------------------------+
 
-inline bool tud_audio_mounted(void)
+static inline bool tud_audio_mounted(void)
 {
   return tud_audio_n_mounted(0);
 }
 
 #if CFG_TUD_AUDIO_EPSIZE_IN && CFG_TUD_AUDIO_TX_FIFO_SIZE
-inline uint16_t tud_audio_write (uint8_t channelId, uint8_t const* buffer, uint16_t bufsize)    // Short version if only one audio function is used
+static inline uint16_t tud_audio_write (uint8_t channelId, uint8_t const* buffer, uint16_t bufsize)    // Short version if only one audio function is used
 {
   return tud_audio_n_write(0, channelId, buffer, bufsize);
 }
 #endif  // CFG_TUD_AUDIO_EPSIZE_IN && CFG_TUD_AUDIO_TX_FIFO_SIZE
 
 #if CFG_TUD_AUDIO_EPSIZE_OUT && CFG_TUD_AUDIO_RX_FIFO_SIZE
-inline uint16_t tud_audio_available(uint8_t channelId)
+static inline uint16_t tud_audio_available(uint8_t channelId)
 {
   return tud_audio_n_available(0, channelId);
 }
 
-inline uint16_t tud_audio_read(uint8_t channelId, void* buffer, uint16_t bufsize)
+static inline uint16_t tud_audio_read(uint8_t channelId, void* buffer, uint16_t bufsize)
 {
   return tud_audio_n_read(0, channelId, buffer, bufsize);
 }
 
-inline void tud_audio_read_flush(uint8_t channelId)
+static inline void tud_audio_read_flush(uint8_t channelId)
 {
   tud_audio_n_read_flush(0, channelId);
 }
 #endif
 
 #if CFG_TUD_AUDIO_INT_CTR_EPSIZE_IN > 0
-inline uint16_t tud_audio_int_ctr_available(void)
+static inline uint16_t tud_audio_int_ctr_available(void)
 {
   return tud_audio_int_ctr_n_available(0);
 }
 
-inline uint16_t tud_audio_int_ctr_read(void* buffer, uint16_t bufsize)
+static inline uint16_t tud_audio_int_ctr_read(void* buffer, uint16_t bufsize)
 {
   return tud_audio_int_ctr_n_read(0, buffer, bufsize);
 }
 
-inline void tud_audio_int_ctr_read_flush(void)
+static inline void tud_audio_int_ctr_read_flush(void)
 {
   return tud_audio_int_ctr_n_read_flush(0);
 }
 
-inline uint16_t tud_audio_int_ctr_write(uint8_t const* buffer, uint16_t bufsize)
+static inline uint16_t tud_audio_int_ctr_write(uint8_t const* buffer, uint16_t bufsize)
 {
   return tud_audio_int_ctr_n_write(0, buffer, bufsize);
 }
