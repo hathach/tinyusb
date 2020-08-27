@@ -164,7 +164,7 @@ uint32_t tud_cdc_n_write_flush (uint8_t itf)
   // skip if previous transfer not complete yet
   TU_VERIFY( !usbd_edpt_busy(TUD_OPT_RHPORT, p_cdc->ep_in), 0 );
 
-  uint16_t count = tu_fifo_read_n(&_cdcd_itf[itf].tx_ff, p_cdc->epin_buf, sizeof(p_cdc->epin_buf));
+  uint16_t count = tu_fifo_read_n(&p_cdc->tx_ff, p_cdc->epin_buf, sizeof(p_cdc->epin_buf));
   if ( count )
   {
     TU_VERIFY( tud_cdc_n_connected(itf), 0 ); // fifo is empty if not connected
@@ -376,7 +376,6 @@ bool cdcd_control_request(uint8_t rhport, tusb_control_request_t const * request
 
 bool cdcd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint32_t xferred_bytes)
 {
-  (void) rhport;
   (void) result;
 
   uint8_t itf;
@@ -393,6 +392,7 @@ bool cdcd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint32_
   // Received new data
   if ( ep_addr == p_cdc->ep_out )
   {
+    // TODO search for wanted char first for better performance
     for(uint32_t i=0; i<xferred_bytes; i++)
     {
       tu_fifo_write(&p_cdc->rx_ff, &p_cdc->epout_buf[i]);
@@ -423,9 +423,10 @@ bool cdcd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint32_
     {
       // There is no data left, a ZLP should be sent if
       // xferred_bytes is multiple of EP size and not zero
+      // FIXME CFG_TUD_CDC_EP_BUFSIZE is not Endpoint packet size
       if ( xferred_bytes && (0 == (xferred_bytes % CFG_TUD_CDC_EP_BUFSIZE)) )
       {
-        usbd_edpt_xfer(TUD_OPT_RHPORT, p_cdc->ep_in, NULL, 0);
+        usbd_edpt_xfer(rhport, p_cdc->ep_in, NULL, 0);
       }
     }
   }
