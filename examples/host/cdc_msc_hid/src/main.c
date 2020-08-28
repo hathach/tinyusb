@@ -58,7 +58,7 @@ int main(void)
     cdc_task();
 #endif
 
-#if CFG_TUD_HID
+#if CFG_TUH_HID
     hid_task();
 #endif
   }
@@ -173,7 +173,7 @@ void led_blinking_task(void)
   start_ms += interval_ms;
 
   board_led_write(led_state);
-  led_state = 1 - led_state; // toggle
+  led_state = !led_state; // toggle
 }
 
 //--------------------------------------------------------------------+
@@ -193,10 +193,11 @@ void print_greeting(void)
   printf("- issue at https://github.com/hathach/tinyusb\n");
   printf("--------------------------------------------------------------------\n\n");
 
-  printf("This Host demo is configured to support:");
+  printf("This Host demo is configured to support:\n");
   printf("  - RTOS = %s\n", rtos_name[CFG_TUSB_OS]);
-//  if (CFG_TUH_CDC          ) puts("  - Communication Device Class");
-//  if (CFG_TUH_MSC          ) puts("  - Mass Storage");
-//  if (CFG_TUH_HID_KEYBOARD ) puts("  - HID Keyboard");
-//  if (CFG_TUH_HID_MOUSE    ) puts("  - HID Mouse");
+  if (CFG_TUH_HUB          ) printf("  - HUB\n");
+  if (CFG_TUH_CDC          ) printf("  - Communication Device Class\n");
+  if (CFG_TUH_MSC          ) printf("  - Mass Storage\n");
+  if (CFG_TUH_HID_KEYBOARD ) printf("  - HID Keyboard\n");
+  if (CFG_TUH_HID_MOUSE    ) printf("  - HID Mouse\n");
 }

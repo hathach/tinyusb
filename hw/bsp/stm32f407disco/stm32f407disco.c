@@ -31,9 +31,30 @@
 //--------------------------------------------------------------------+
 // Forward USB interrupt events to TinyUSB IRQ Handler
 //--------------------------------------------------------------------+
+// Despite being call USB2_OTG
+// OTG_FS is marked as RHPort0 by TinyUSB to be consistent across stm32 port
 void OTG_FS_IRQHandler(void)
 {
+#if TUSB_OPT_DEVICE_ENABLED
   tud_int_handler(0);
+#endif
+
+#if TUSB_OPT_HOST_ENABLED
+  tuh_isr(0);
+#endif
+}
+
+// Despite being call USB2_OTG
+// OTG_HS is marked as RHPort1 by TinyUSB to be consistent across stm32 port
+void OTG_HS_IRQHandler(void)
+{
+#if TUSB_OPT_DEVICE_ENABLED
+  tud_int_handler(0);
+#endif
+
+#if TUSB_OPT_HOST_ENABLED
+  tuh_isr(0);
+#endif
 }
 
 //--------------------------------------------------------------------+
@@ -56,12 +77,16 @@ void OTG_FS_IRQHandler(void)
 #define UART_TX_PIN           GPIO_PIN_2
 #define UART_RX_PIN           GPIO_PIN_3
 
+#define USB_HOST_EN_PIN       GPIO_PIN_0
+#define USB_HOST_EN_PORT      GPIOC
+
 UART_HandleTypeDef UartHandle;
 
 // enable all LED, Button, Uart, USB clock
 static void all_rcc_clk_enable(void)
 {
   __HAL_RCC_GPIOA_CLK_ENABLE();  // USB D+, D-, Button
+  __HAL_RCC_GPIOC_CLK_ENABLE();
   __HAL_RCC_GPIOD_CLK_ENABLE();  // LED
   __HAL_RCC_USART2_CLK_ENABLE(); // Uart module
 }
@@ -174,6 +199,18 @@ void board_init(void)
   GPIO_InitStruct.Speed = GPIO_SPEED_HIGH;
   GPIO_InitStruct.Alternate = GPIO_AF10_OTG_FS;
   HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
+
+  /* Configure Vbus USB OTG EN Pin */
+  GPIO_InitStruct.Pin = USB_HOST_EN_PIN;
+  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  HAL_GPIO_Init(USB_HOST_EN_PORT, &GPIO_InitStruct);
+#if TUSB_OPT_DEVICE_ENABLED
+  HAL_GPIO_WritePin(USB_HOST_EN_PORT, USB_HOST_EN_PIN, 1);
+#endif
+#if TUSB_OPT_HOST_ENABLED
+  HAL_GPIO_WritePin(USB_HOST_EN_PORT, USB_HOST_EN_PIN, 0);
+#endif
 
   GPIO_InitStruct.Pin       = UART_TX_PIN | UART_RX_PIN;
   GPIO_InitStruct.Mode      = GPIO_MODE_AF_PP;

@@ -31,17 +31,25 @@ endif
 SRC_C += \
 	src/tusb.c \
 	src/common/tusb_fifo.c \
+	src/host/usbh.c \
+	src/host/hub.c \
+	src/host/ehci/ehci.c \
+	src/host/ehci/ehci.c \
 	src/device/usbd.c \
 	src/device/usbd_control.c \
+	src/class/cdc/cdc_host.c \
 	src/class/cdc/cdc_device.c \
 	src/class/dfu/dfu_rt_device.c \
+	src/class/hid/hid_host.c \
 	src/class/hid/hid_device.c \
 	src/class/midi/midi_device.c \
+	src/class/msc/msc_host.c \
 	src/class/msc/msc_device.c \
 	src/class/net/net_device.c \
 	src/class/usbtmc/usbtmc_device.c \
 	src/class/vendor/vendor_device.c \
-	src/portable/$(VENDOR)/$(CHIP_FAMILY)/dcd_$(CHIP_FAMILY).c
+	src/portable/$(VENDOR)/$(CHIP_FAMILY)/dcd_$(CHIP_FAMILY).c \
+	src/portable/$(VENDOR)/$(CHIP_FAMILY)/hcd_$(CHIP_FAMILY).c \
 
 # TinyUSB stack include
 INC += $(TOP)/src
