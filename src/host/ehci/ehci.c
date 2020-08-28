@@ -26,7 +26,8 @@
 
 #include "common/tusb_common.h"
 
-#if TUSB_OPT_HOST_ENABLED && (CFG_TUSB_MCU == OPT_MCU_LPC43XX || CFG_TUSB_MCU == OPT_MCU_LPC18XX)
+#if TUSB_OPT_HOST_ENABLED && \
+    (CFG_TUSB_MCU == OPT_MCU_LPC43XX || CFG_TUSB_MCU == OPT_MCU_LPC18XX || CFG_TUSB_MCU == OPT_MCU_STM32F4)
 //--------------------------------------------------------------------+
 // INCLUDE
 //--------------------------------------------------------------------+
