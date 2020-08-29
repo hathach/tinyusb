@@ -165,7 +165,7 @@ extern "C" {
 //--------------------------------------------------------------------+
 bool     tud_audio_n_mounted    (uint8_t itf);
 
-#if CFG_TUD_AUDIO_EPSIZE_OUT && CFG_TUD_AUDIO_RX_BUFSIZE
+#if CFG_TUD_AUDIO_EPSIZE_OUT && CFG_TUD_AUDIO_RX_FIFO_SIZE
 uint16_t tud_audio_n_available  (uint8_t itf, uint8_t channelId);
 uint16_t tud_audio_n_read       (uint8_t itf, uint8_t channelId, void* buffer, uint16_t bufsize);
 void     tud_audio_n_read_flush (uint8_t itf, uint8_t channelId);
@@ -188,7 +188,7 @@ uint16_t    tud_audio_int_ctr_n_write       (uint8_t itf, uint8_t const* buffer,
 
 inline bool         tud_audio_mounted    (void);
 
-#if CFG_TUD_AUDIO_EPSIZE_OUT && CFG_TUD_AUDIO_RX_BUFSIZE
+#if CFG_TUD_AUDIO_EPSIZE_OUT && CFG_TUD_AUDIO_RX_FIFO_SIZE
 inline uint16_t     tud_audio_available  (void);
 inline uint16_t     tud_audio_read       (void* buffer, uint16_t bufsize);
 inline void         tud_audio_read_flush (void);
@@ -270,7 +270,7 @@ inline uint16_t tud_audio_write (uint8_t channelId, uint8_t const* buffer, uint1
 }
 #endif  // CFG_TUD_AUDIO_EPSIZE_IN && CFG_TUD_AUDIO_TX_FIFO_SIZE
 
-#if CFG_TUD_AUDIO_EPSIZE_OUT && CFG_TUD_AUDIO_RX_BUFSIZE
+#if CFG_TUD_AUDIO_EPSIZE_OUT && CFG_TUD_AUDIO_RX_FIFO_SIZE
 inline uint16_t tud_audio_available(uint8_t channelId)
 {
   return tud_audio_n_available(0, channelId);
