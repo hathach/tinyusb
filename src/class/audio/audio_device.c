@@ -425,7 +425,7 @@ static bool audio_tx_done_type_I_pcm_ff_cb(uint8_t rhport, audiod_interface_t* a
   }
 
   // Limit to maximum sample number - THIS IS A POSSIBLE ERROR SOURCE IF TOO MANY SAMPLE WOULD NEED TO BE SENT BUT CAN NOT!
-  nSamplesPerChannelToSend = min(nSamplesPerChannelToSend, nEndpointSampleCapacity);
+  nSamplesPerChannelToSend = tu_min16(nSamplesPerChannelToSend, nEndpointSampleCapacity);
   nBytesToSend = nSamplesPerChannelToSend * CFG_TUD_AUDIO_N_CHANNELS_TX * CFG_TUD_AUDIO_N_BYTES_PER_SAMPLE_TX;
 
   // Encode
