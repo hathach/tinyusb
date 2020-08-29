@@ -53,7 +53,7 @@
 // For RX: the input stream gets decoded into its corresponding channels, where for each channel a FIFO is setup to hold its data -> see: audio_rx_done_cb().
 // For TX: the output stream is composed from CFG_TUD_AUDIO_N_CHANNELS_TX channels, where for each channel a FIFO is defined.
 // Further, it implements encoding and decoding of the individual channels (parameterized by the defines below).
-// If you don't use the FIFOs you need to handle encoding and decoding on your own in audio_rx_done_cb() and Y. This, however, allows for optimizations.
+// If you don't use the FIFOs you need to handle encoding and decoding on your own in audio_rx_done_cb() and audio_tx_done_cb(). This, however, allows for optimizations.
 
 #ifndef CFG_TUD_AUDIO_TX_FIFO_SIZE
 #define CFG_TUD_AUDIO_TX_FIFO_SIZE  0                           // Buffer size per channel
