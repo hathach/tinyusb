@@ -75,7 +75,7 @@ CFG_TUSB_MEM_SECTION static char serial_in_buffer[64] = { 0 };
 void tuh_mount_cb(uint8_t dev_addr)
 {
   // application set-up
-  printf("\na device with address %d is mounted\n", dev_addr);
+  printf("A device with address %d is mounted\r\n", dev_addr);
 
   tuh_cdc_receive(dev_addr, serial_in_buffer, sizeof(serial_in_buffer), true); // schedule first transfer
 }
@@ -83,7 +83,7 @@ void tuh_mount_cb(uint8_t dev_addr)
 void tuh_umount_cb(uint8_t dev_addr)
 {
   // application tear-down
-  printf("\na device with address %d is unmounted \n", dev_addr);
+  printf("A device with address %d is unmounted \r\n", dev_addr);
 }
 
 // invoked ISR context
@@ -187,14 +187,14 @@ void print_greeting(void)
       [OPT_OS_FREERTOS]  = "FreeRTOS",
   };
 
-  printf("\n--------------------------------------------------------------------\n");
-  printf("- Host example\n");
-  printf("- if you find any bugs or get any questions, feel free to file an\n");
-  printf("- issue at https://github.com/hathach/tinyusb\n");
-  printf("--------------------------------------------------------------------\n\n");
+  printf("--------------------------------------------------------------------\r\n");
+  printf("- Host example\r\n");
+  printf("- if you find any bugs or get any questions, feel free to file an\r\n");
+  printf("- issue at https://github.com/hathach/tinyusb\r\n");
+  printf("--------------------------------------------------------------------\r\n\r\n");
 
   printf("This Host demo is configured to support:\r\n");
-  printf("  - RTOS = %s\n", rtos_name[CFG_TUSB_OS]);
+  printf("  - RTOS = %s\r\n", rtos_name[CFG_TUSB_OS]);
 
 #if CFG_TUH_CDC
   printf("  - Communication Device Class\r\n");

@@ -5,7 +5,7 @@ CFLAGS += \
   -mcpu=cortex-m3 \
   -nostdlib \
   -DCORE_M3 \
-  -D__USE_LPCOPEN
+  -D__USE_LPCOPEN \
   -DCFG_TUSB_MCU=OPT_MCU_LPC18XX \
 
 # mcu driver cause following warnings
@@ -37,7 +37,7 @@ FREERTOS_PORT = ARM_CM3
 
 # For flash-jlink target
 JLINK_DEVICE = LPC1857
-JLINK_IF = jtag
+JLINK_IF = swd
 
 # flash using jlink
 flash: flash-jlink

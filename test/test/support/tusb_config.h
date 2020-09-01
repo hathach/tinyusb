@@ -43,7 +43,7 @@
   #define CFG_TUSB_MCU  OPT_MCU_NRF5X
 #endif
 
-#define CFG_TUSB_RHPORT0_MODE    (OPT_MODE_DEVICE | OPT_MODE_HIGH_SPEED)
+#define CFG_TUSB_RHPORT0_MODE    (OPT_MODE_DEVICE | OPT_MODE_HOST | OPT_MODE_HIGH_SPEED)
 #define CFG_TUSB_OS              OPT_OS_NONE
 
 // CFG_TUSB_DEBUG is defined by compiler in DEBUG build
