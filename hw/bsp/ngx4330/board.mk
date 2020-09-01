@@ -4,7 +4,7 @@ CFLAGS += \
   -mabi=aapcs \
   -mcpu=cortex-m4 \
   -mfloat-abi=hard \
-  -mfpu=fpv4-sp-d16 \  
+  -mfpu=fpv4-sp-d16 \
   -nostdlib \
   -DCORE_M4 \
   -D__USE_CMSIS \
