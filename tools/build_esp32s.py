@@ -42,7 +42,7 @@ all_boards.sort()
 def build_example(example, board):
     subprocess.run("make -C examples/device/{} BOARD={} clean".format(example, board), shell=True,
                    stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
-    return subprocess.run("make -j 4 -C examples/device/{} BOARD={} all".format(example, board), shell=True,
+    return subprocess.run("make -C examples/device/{} BOARD={} all".format(example, board), shell=True,
                           stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
 
 def build_size(example, board):

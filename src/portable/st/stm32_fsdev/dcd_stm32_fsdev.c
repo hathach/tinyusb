@@ -144,6 +144,12 @@
 #  define DCD_STM32_BTABLE_LENGTH (PMA_LENGTH - DCD_STM32_BTABLE_BASE)
 #endif
 
+// Since TinyUSB doesn't use SOF for now, and this interrupt too often (1ms interval)
+// We disable SOF for now until needed later on
+#ifndef USE_SOF
+#  define USE_SOF     0
+#endif
+
 /***************************************************
  * Checks, structs, defines, function definitions, etc.
  */
@@ -199,7 +205,6 @@ static inline void reg16_clear_bits(__IO uint16_t *reg, uint16_t mask) {
 
 void dcd_init (uint8_t rhport)
 {
-  (void)rhport;
   /* Clocks should already be enabled */
   /* Use __HAL_RCC_USB_CLK_ENABLE(); to enable the clocks before calling this function */
 
@@ -235,10 +240,11 @@ void dcd_init (uint8_t rhport)
     pcd_set_endpoint(USB,i,0u);
   }
 
-  USB->CNTR |= USB_CNTR_RESETM | USB_CNTR_SOFM | USB_CNTR_ESOFM | USB_CNTR_CTRM | USB_CNTR_SUSPM | USB_CNTR_WKUPM;
+  USB->CNTR |= USB_CNTR_RESETM | (USE_SOF ? USB_CNTR_SOFM : 0) | USB_CNTR_ESOFM | USB_CNTR_CTRM | USB_CNTR_SUSPM | USB_CNTR_WKUPM;
   dcd_handle_bus_reset();
   
-  // Data-line pull-up is left disconnected.
+  // Enable pull-up if supported
+  if ( dcd_connect ) dcd_connect(rhport);
 }
 
 // Define only on MCU with internal pull-up. BSP can define on MCU without internal PU.
@@ -542,10 +548,12 @@ void dcd_int_handler(uint8_t rhport) {
     dcd_event_bus_signal(0, DCD_EVENT_SUSPEND, true);
   }
 
+#if USE_SOF
   if(int_status & USB_ISTR_SOF) {
     reg16_clear_bits(&USB->ISTR, USB_ISTR_SOF);
     dcd_event_bus_signal(0, DCD_EVENT_SOF, true);
   }
+#endif 
 
   if(int_status & USB_ISTR_ESOF) {
     if(remoteWakeCountdown == 1u)
@@ -698,7 +706,6 @@ bool dcd_edpt_open (uint8_t rhport, tusb_desc_endpoint_t const * p_endpoint_desc
 
   default:
     TU_ASSERT(false);
-    return false;
   }
 
   pcd_set_eptype(USB, epnum, wType);

@@ -181,6 +181,8 @@ void dcd_init(uint8_t rhport)
   LPC_USB->UDCAH = (uint32_t) _dcd.udca;
   LPC_USB->DMAIntEn = (DMA_INT_END_OF_XFER_MASK /*| DMA_INT_NEW_DD_REQUEST_MASK*/ | DMA_INT_ERROR_MASK);
 
+  dcd_connect(rhport);
+
   // Clear pending IRQ
   NVIC_ClearPendingIRQ(USB_IRQn);
 }

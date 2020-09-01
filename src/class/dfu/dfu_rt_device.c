@@ -44,6 +44,14 @@ typedef enum {
   DFU_REQUEST_ABORT       = 6,
 } dfu_requests_t;
 
+typedef struct TU_ATTR_PACKED
+{
+  uint8_t status;
+  uint8_t poll_timeout[3];
+  uint8_t state;
+  uint8_t istring;
+} dfu_status_t;
+
 //--------------------------------------------------------------------+
 // USBD Driver API
 //--------------------------------------------------------------------+
@@ -56,24 +64,25 @@ void dfu_rtd_reset(uint8_t rhport)
   (void) rhport;
 }
 
-bool dfu_rtd_open(uint8_t rhport, tusb_desc_interface_t const * itf_desc, uint16_t *p_length)
+uint16_t dfu_rtd_open(uint8_t rhport, tusb_desc_interface_t const * itf_desc, uint16_t max_len)
 {
   (void) rhport;
+  (void) max_len;
 
   // Ensure this is DFU Runtime
-  TU_VERIFY(itf_desc->bInterfaceSubClass == TUD_DFU_APP_SUBCLASS);
-  TU_VERIFY(itf_desc->bInterfaceProtocol == DFU_PROTOCOL_RT);
+  TU_VERIFY(itf_desc->bInterfaceSubClass == TUD_DFU_APP_SUBCLASS &&
+            itf_desc->bInterfaceProtocol == DFU_PROTOCOL_RT, 0);
 
   uint8_t const * p_desc = tu_desc_next( itf_desc );
-  (*p_length) = sizeof(tusb_desc_interface_t);
+  uint16_t drv_len = sizeof(tusb_desc_interface_t);
 
   if ( TUSB_DESC_FUNCTIONAL == tu_desc_type(p_desc) )
   {
-    (*p_length) += p_desc[DESC_OFFSET_LEN];
-    p_desc = tu_desc_next(p_desc);
+    drv_len += tu_desc_len(p_desc);
+    p_desc   = tu_desc_next(p_desc);
   }
 
-  return true;
+  return drv_len;
 }
 
 bool dfu_rtd_control_complete(uint8_t rhport, tusb_control_request_t const * request)
@@ -87,15 +96,32 @@ bool dfu_rtd_control_complete(uint8_t rhport, tusb_control_request_t const * req
 
 bool dfu_rtd_control_request(uint8_t rhport, tusb_control_request_t const * request)
 {
-  // Handle class request only
-  TU_VERIFY(request->bmRequestType_bit.type == TUSB_REQ_TYPE_CLASS);
   TU_VERIFY(request->bmRequestType_bit.recipient == TUSB_REQ_RCPT_INTERFACE);
+
+  // dfu-util will try to claim the interface with SET_INTERFACE request before sending DFU request
+  if ( TUSB_REQ_TYPE_STANDARD == request->bmRequestType_bit.type &&
+       TUSB_REQ_SET_INTERFACE == request->bRequest )
+  {
+    tud_control_status(rhport, request);
+    return true;
+  }
+
+  // Handle class request only from here
+  TU_VERIFY(request->bmRequestType_bit.type == TUSB_REQ_TYPE_CLASS);
 
   switch ( request->bRequest )
   {
     case DFU_REQUEST_DETACH:
       tud_control_status(rhport, request);
       tud_dfu_rt_reboot_to_dfu();
+    break;
+
+    case DFU_REQUEST_GETSTATUS:
+    {
+      // status = OK, poll timeout = 0, state = app idle, istring = 0
+      uint8_t status_response[6] = { 0, 0, 0, 0, 0, 0 };
+      tud_control_xfer(rhport, request, status_response, sizeof(status_response));
+    }
     break;
 
     default: return false; // stall unsupported request

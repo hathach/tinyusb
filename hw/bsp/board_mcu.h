@@ -52,7 +52,7 @@
 #elif CFG_TUSB_MCU == OPT_MCU_NRF5X
   #include "nrf.h"
 
-#elif CFG_TUSB_MCU == OPT_MCU_SAMD21 || CFG_TUSB_MCU == OPT_MCU_SAMD51
+#elif CFG_TUSB_MCU == OPT_MCU_SAMD11 || CFG_TUSB_MCU == OPT_MCU_SAMD21 || CFG_TUSB_MCU == OPT_MCU_SAMD51
   #include "sam.h"
 
 #elif CFG_TUSB_MCU == OPT_MCU_SAMG
@@ -112,6 +112,9 @@
 
 #elif CFG_TUSB_MCU == OPT_MCU_ESP32S2
   // no header needed
+
+#elif CFG_TUSB_MCU == OPT_MCU_DA1469X
+  #include "DA1469xAB.h"
 
 #else
   #error "Missing MCU header"

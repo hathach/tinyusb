@@ -62,7 +62,7 @@ All of the code for the low-level device API is in `src/portable/<vendor>/<chip 
 ##### dcd_init
 
 Initializes the USB peripheral for device mode and enables it.
-This function should leave an internal D+/D- pull-up in its default power-on state. `dcd_connect` will be called by the USBD core following `dcd_init`.
+This function should enable internal D+/D- pull-up for enumeration.
 
 ##### dcd_int_enable / dcd_int_disable
 

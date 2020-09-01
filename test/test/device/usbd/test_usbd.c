@@ -127,7 +127,6 @@ void setUp(void)
   {
     mscd_init_Expect();
     dcd_init_Expect(rhport);
-    dcd_connect_Expect(rhport);
     tusb_init();
   }
 }
