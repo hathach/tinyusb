@@ -78,21 +78,26 @@ static const PINMUX_GRP_T pin_usb_mux[] =
 {
   {0, 29, IOCON_MODE_INACT | IOCON_FUNC1}, // D+
   {0, 30, IOCON_MODE_INACT | IOCON_FUNC1}, // D-
-  {2,  9, IOCON_MODE_INACT | IOCON_FUNC1}, // Connect
+  {2,  9, IOCON_MODE_INACT | IOCON_FUNC1}, // Soft Connect
 
-  {1, 19, IOCON_MODE_INACT | IOCON_FUNC2}, // USB_PPWR
-  {1, 22, IOCON_MODE_INACT | IOCON_FUNC2}, // USB_PWRD
+  {1, 19, IOCON_MODE_INACT | IOCON_FUNC2}, // USB_PPWR (Host mode)
 
-  /* VBUS is not connected on this board, so leave the pin at default setting. */
-  /*Chip_IOCON_PinMux(LPC_IOCON, 1, 30, IOCON_MODE_INACT, IOCON_FUNC2);*/ /* USB VBUS */
+  // VBUS is not connected on this board, so leave the pin at default setting.
+  /// Chip_IOCON_PinMux(LPC_IOCON, 1, 30, IOCON_MODE_INACT, IOCON_FUNC2);  // USB VBUS
 };
 
 // Invoked by startup code
 void SystemInit(void)
 {
+	extern void (* const g_pfnVectors[])(void);
+  unsigned int *pSCB_VTOR = (unsigned int *) 0xE000ED08;
+	*pSCB_VTOR = (unsigned int) &g_pfnVectors;
+
   Chip_IOCON_Init(LPC_IOCON);
   Chip_IOCON_SetPinMuxing(LPC_IOCON, pinmuxing, sizeof(pinmuxing) / sizeof(PINMUX_GRP_T));
   Chip_SetupXtalClocking();
+
+  Chip_SYSCTL_SetFLASHAccess(FLASHTIM_100MHZ_CPU);
 }
 
 void board_init(void)
