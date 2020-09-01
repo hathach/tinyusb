@@ -59,6 +59,10 @@
 #define CFG_TUD_AUDIO_TX_FIFO_SIZE  0                           // Buffer size per channel
 #endif
 
+#if CFG_TUD_AUDIO_TX_FIFO_SIZE && CFG_TUD_AUDIO_TX_DMA_RINGBUFFER_SIZE
+#error TX_FIFOs and TX_DMA_RINGBUFFER can not be used simultaneously!
+#endif
+
 #ifndef CFG_TUD_AUDIO_RX_FIFO_SIZE
 #define CFG_TUD_AUDIO_RX_FIFO_SIZE  0                           // Buffer size per channel
 #endif
@@ -171,8 +175,12 @@ uint16_t tud_audio_n_read       (uint8_t itf, uint8_t channelId, void* buffer, u
 void     tud_audio_n_read_flush (uint8_t itf, uint8_t channelId);
 #endif
 
+#if CFG_TUD_AUDIO_EPSIZE_IN && !CFG_TUD_AUDIO_TX_FIFO_SIZE
+uint16_t tud_audio_n_write_ep_in_buffer(uint8_t itf, const void * data, uint16_t len)
+#endif
+
 #if CFG_TUD_AUDIO_EPSIZE_IN && CFG_TUD_AUDIO_TX_FIFO_SIZE
-uint16_t tud_audio_n_write      (uint8_t itf, uint8_t channelId, uint8_t const* buffer, uint16_t bufsize);
+uint16_t tud_audio_n_write      (uint8_t itf, uint8_t channelId, const void * data, uint16_t len);
 #endif
 
 #if CFG_TUD_AUDIO_INT_CTR_EPSIZE_IN > 0
@@ -218,7 +226,8 @@ bool tud_audio_buffer_and_schedule_control_xfer(uint8_t rhport, tusb_control_req
 //--------------------------------------------------------------------+
 
 #if CFG_TUD_AUDIO_EPSIZE_IN
-TU_ATTR_WEAK bool tud_audio_tx_done_cb(uint8_t rhport, uint16_t * n_bytes_copied);
+TU_ATTR_WEAK bool tud_audio_tx_done_pre_load_cb(uint8_t rhport, uint8_t itf, uint8_t ep_in, uint8_t cur_alt_setting);
+TU_ATTR_WEAK bool tud_audio_tx_done_post_load_cb(uint8_t rhport, uint16_t n_bytes_copied, uint8_t itf, uint8_t ep_in, uint8_t cur_alt_setting);
 #endif
 
 #if CFG_TUD_AUDIO_EPSIZE_OUT
