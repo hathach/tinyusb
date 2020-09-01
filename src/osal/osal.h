@@ -37,9 +37,9 @@
 #include "common/tusb_common.h"
 
 // Return immediately
-#define OSAL_TIMEOUT_NOTIMEOUT (0)
+#define OSAL_TIMEOUT_NOTIMEOUT     (0)
 // Default timeout
-#define OSAL_TIMEOUT_NORMAL       (10)
+#define OSAL_TIMEOUT_NORMAL        (10)
 // Wait forever
 #define OSAL_TIMEOUT_WAIT_FOREVER  (UINT32_MAX)
 

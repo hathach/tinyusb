@@ -3,8 +3,6 @@ CFLAGS += \
   -mthumb \
   -mabi=aapcs \
   -mcpu=cortex-m4 \
-  -mfloat-abi=hard \
-  -mfpu=fpv4-sp-d16 \
   -nostdlib \
   -DCORE_M4 \
   -DCFG_TUSB_MCU=OPT_MCU_LPC43XX \

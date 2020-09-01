@@ -52,6 +52,10 @@ typedef enum tusb_interface_status_{
 } tusb_interface_status_t;
 
 typedef struct {
+  #if CFG_TUSB_DEBUG >= 2
+  char const* name;
+  #endif
+
   uint8_t class_code;
 
   void (* const init) (void);

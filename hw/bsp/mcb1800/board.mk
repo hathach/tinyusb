@@ -6,7 +6,7 @@ CFLAGS += \
   -nostdlib \
   -DCORE_M3 \
   -D__USE_LPCOPEN \
-  -DCFG_TUSB_MCU=OPT_MCU_LPC18XX \
+  -DCFG_TUSB_MCU=OPT_MCU_LPC18XX
 
 # mcu driver cause following warnings
 CFLAGS += -Wno-error=unused-parameter -Wno-error=strict-prototypes

@@ -310,6 +310,7 @@ bool msch_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_interface_t const *it
   (*p_length) += sizeof(tusb_desc_interface_t) + 2*sizeof(tusb_desc_endpoint_t);
 
   //------------- Get Max Lun -------------//
+  TU_LOG2("MSC Get Max Lun\r\n");
   tusb_control_request_t request = {
         .bmRequestType_bit = { .recipient = TUSB_REQ_RCPT_INTERFACE, .type = TUSB_REQ_TYPE_CLASS, .direction = TUSB_DIR_IN },
         .bRequest = MSC_REQ_GET_MAX_LUN,

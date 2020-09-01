@@ -3,8 +3,6 @@ CFLAGS += \
   -mthumb \
   -mabi=aapcs \
   -mcpu=cortex-m4 \
-  -mfloat-abi=hard \
-  -mfpu=fpv4-sp-d16 \
   -nostdlib \
   -D__USE_LPCOPEN \
   -DCORE_M4 \
@@ -40,8 +38,8 @@ CHIP_FAMILY = transdimension
 FREERTOS_PORT = ARM_CM4F
 
 # For flash-jlink target
-JLINK_DEVICE = LPC4357
-JLINK_IF = jtag
+JLINK_DEVICE = LPC4357_M4
+JLINK_IF = swd
 
 # flash using jlink
 flash: flash-jlink
