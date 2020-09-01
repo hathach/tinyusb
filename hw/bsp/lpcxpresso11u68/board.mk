@@ -6,7 +6,7 @@ CFLAGS += \
   -nostdlib \
   -DCORE_M0PLUS \
   -D__VTOR_PRESENT=0 \
-  -D__USE_LPCOPEN \
+  -D__USE_CMSIS \
   -DCFG_TUSB_MCU=OPT_MCU_LPC11UXX \
   -DCFG_TUSB_MEM_SECTION='__attribute__((section(".data.$$RAM3")))' \
   -DCFG_TUSB_MEM_ALIGN='__attribute__((aligned(64)))' 

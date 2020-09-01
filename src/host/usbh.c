@@ -596,7 +596,7 @@ bool enum_task(hcd_event_t* event)
   //------------- parse configuration & install drivers -------------//
   uint8_t const* p_desc = _usbh_ctrl_buf + sizeof(tusb_desc_configuration_t);
 
-  TU_LOG2_MEM(_usbh_ctrl_buf, ((tusb_desc_configuration_t*)_usbh_ctrl_buf)->wTotalLength, 0);
+  // TU_LOG2_MEM(_usbh_ctrl_buf, ((tusb_desc_configuration_t*)_usbh_ctrl_buf)->wTotalLength, 0);
 
   // parse each interfaces
   while( p_desc < _usbh_ctrl_buf + ((tusb_desc_configuration_t*)_usbh_ctrl_buf)->wTotalLength )

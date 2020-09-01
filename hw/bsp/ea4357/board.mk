@@ -3,9 +3,11 @@ CFLAGS += \
   -mthumb \
   -mabi=aapcs \
   -mcpu=cortex-m4 \
+  -mfloat-abi=hard \
+  -mfpu=fpv4-sp-d16 \
   -nostdlib \
-  -D__USE_LPCOPEN \
   -DCORE_M4 \
+  -D__USE_CMSIS \
   -DCFG_TUSB_MCU=OPT_MCU_LPC43XX
 
 # mcu driver cause following warnings

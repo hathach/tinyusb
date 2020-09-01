@@ -5,7 +5,7 @@ CFLAGS += \
   -mcpu=cortex-m0 \
   -nostdlib \
   -DCORE_M0 \
-  -D__USE_LPCOPEN \
+  -D__USE_CMSIS \
   -DCFG_EXAMPLE_MSC_READONLY \
   -DCFG_TUSB_MCU=OPT_MCU_LPC11UXX \
   -DCFG_TUSB_MEM_SECTION='__attribute__((section(".data.$$RAM2")))' \
