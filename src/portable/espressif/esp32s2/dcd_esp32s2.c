@@ -36,6 +36,7 @@
 #include "esp_intr_alloc.h"
 #include "esp_log.h"
 #include "esp32s2/rom/gpio.h"
+#include "esp32s2/rom/usb/usb_persist.h"
 #include "soc/dport_reg.h"
 #include "soc/gpio_sig_map.h"
 #include "soc/usb_periph.h"
@@ -167,7 +168,10 @@ void dcd_init(uint8_t rhport)
 {
   ESP_LOGV(TAG, "DCD init - Start");
 
-  bool did_persist = (USB_WRAP.date.val & (1 << 31)) != 0;
+  //Detect if USB Persistence flag is set
+  //If flag is set, then we should assume that the USB periperal is already running,
+  //that we have not changed any descriptors, so we can skip enumeration and continue from there
+  bool did_persist = (USB_WRAP.date.val & USBDC_PERSIST_ENA) != 0;
 
   if (did_persist) {
     //Clear persistence of USB peripheral through reset
@@ -236,7 +240,7 @@ void dcd_init(uint8_t rhport)
     USB0.gotgint = ~0; //clear OTG ints
     USB0.gintsts = ~0; //clear pending ints
     enum_done_processing();
-    dcd_event_bus_signal(0, DCD_EVENT_BUS_RESET, true);
+    dcd_event_bus_signal(0, DCD_EVENT_BUS_RESET, false);
     tusb_control_request_t request = {
           .bmRequestType_bit = { .recipient = TUSB_REQ_RCPT_DEVICE, .type = TUSB_REQ_TYPE_STANDARD, .direction = TUSB_DIR_OUT },
           .bRequest = TUSB_REQ_SET_CONFIGURATION,
@@ -244,7 +248,7 @@ void dcd_init(uint8_t rhport)
           .wIndex = 0,
           .wLength = 0
     };
-    dcd_event_setup_received(0, (uint8_t *)&request, true);
+    dcd_event_setup_received(0, (uint8_t *)&request, false);
   } else {
     dcd_connect(rhport);
   }
