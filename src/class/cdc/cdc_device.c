@@ -197,7 +197,7 @@ void cdcd_init(void)
 
     // config fifo
     tu_fifo_config(&p_cdc->rx_ff, p_cdc->rx_ff_buf, TU_ARRAY_SIZE(p_cdc->rx_ff_buf), 1, false);
-    tu_fifo_config(&p_cdc->tx_ff, p_cdc->tx_ff_buf, TU_ARRAY_SIZE(p_cdc->tx_ff_buf), 1, false);
+    tu_fifo_config(&p_cdc->tx_ff, p_cdc->tx_ff_buf, TU_ARRAY_SIZE(p_cdc->tx_ff_buf), 1, true);
 
 #if CFG_FIFO_MUTEX
     tu_fifo_config_mutex(&p_cdc->rx_ff, osal_mutex_create(&p_cdc->rx_ff_mutex));
@@ -354,6 +354,9 @@ bool cdcd_control_request(uint8_t rhport, tusb_control_request_t const * request
       bool const rts = tu_bit_test(request->wValue, 1);
 
       p_cdc->line_state = (uint8_t) request->wValue;
+
+      // Disable fifo overwriting if DTR bit is set
+      p_cdc->tx_ff.overwritable = dtr ? false : true;
 
       TU_LOG2("  Set Control Line State: DTR = %d, RTS = %d\r\n", dtr, rts);
 
