@@ -36,7 +36,7 @@
 //--------------------------------------------------------------------+
 
 typedef struct {
-  uint8_t  itf_numr;
+  uint8_t  itf_num;
   uint8_t  ep_in;
   uint8_t  ep_out;
 
@@ -52,7 +52,7 @@ static inline bool hidh_interface_open(uint8_t rhport, uint8_t dev_addr, uint8_t
 
   p_hid->ep_in       = p_endpoint_desc->bEndpointAddress;
   p_hid->report_size = p_endpoint_desc->wMaxPacketSize.size; // TODO get size from report descriptor
-  p_hid->itf_numr    = interface_number;
+  p_hid->itf_num     = interface_number;
 
   return true;
 }
