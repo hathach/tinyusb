@@ -143,6 +143,8 @@ static inline void process_kbd_report(hid_keyboard_report_t const *p_new_report)
         uint8_t ch = keycode2ascii[p_new_report->keycode[i]][is_shift ? 1 : 0];
         putchar(ch);
         if ( ch == '\r' ) putchar('\n'); // added new line for enter key
+
+        fflush(stdout); // flush right away, else nanolib will wait for newline
       }
     }
     // TODO example skips key released

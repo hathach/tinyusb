@@ -35,7 +35,7 @@
 //------------- IMPLEMENTATION -------------//
 void tuh_msc_mounted_cb(uint8_t dev_addr)
 {
-  printf("a MassStorage device is mounted\r\n");
+  printf("A MassStorage device is mounted\r\n");
 
   //------------- Disk Information -------------//
   // SCSI VendorID[8] & ProductID[16] from Inquiry Command
@@ -83,7 +83,7 @@ void tuh_msc_mounted_cb(uint8_t dev_addr)
 void tuh_msc_unmounted_cb(uint8_t dev_addr)
 {
   (void) dev_addr;
-  printf("a MassStorage device is unmounted\r\n");
+  printf("A MassStorage device is unmounted\r\n");
 
 //  uint8_t phy_disk = dev_addr-1;
 //
