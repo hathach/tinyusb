@@ -115,7 +115,7 @@ void SystemInit(void)
 #ifdef __USE_LPCOPEN
 	extern void (* const g_pfnVectors[])(void);
   unsigned int *pSCB_VTOR = (unsigned int *) 0xE000ED08;
-	*pSCB_VTOR = (unsigned int) &g_pfnVectors;
+	*pSCB_VTOR = (unsigned int) g_pfnVectors;
 #endif
 
   /* Setup system level pin muxing */
