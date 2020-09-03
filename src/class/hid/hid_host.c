@@ -67,11 +67,11 @@ tusb_error_t hidh_interface_get_report(uint8_t dev_addr, void * report, hidh_int
 {
   //------------- parameters validation -------------//
   // TODO change to use is configured function
-  TU_ASSERT (TUSB_DEVICE_STATE_CONFIGURED == tuh_device_get_state(dev_addr), TUSB_ERROR_DEVICE_NOT_READY);
-  TU_VERIFY (report, TUSB_ERROR_INVALID_PARA);
-  TU_ASSERT (!hcd_edpt_busy(dev_addr, p_hid->ep_in), TUSB_ERROR_INTERFACE_IS_BUSY);
+  TU_ASSERT(TUSB_DEVICE_STATE_CONFIGURED == tuh_device_get_state(dev_addr), TUSB_ERROR_DEVICE_NOT_READY);
+  TU_VERIFY(report, TUSB_ERROR_INVALID_PARA);
+  TU_ASSERT(!hcd_edpt_busy(dev_addr, p_hid->ep_in), TUSB_ERROR_INTERFACE_IS_BUSY);
 
-  TU_ASSERT_ERR( hcd_pipe_xfer(dev_addr, p_hid->ep_in, report, p_hid->report_size, true) ) ;
+  TU_ASSERT( hcd_pipe_xfer(dev_addr, p_hid->ep_in, report, p_hid->report_size, true) ) ;
 
   return TUSB_ERROR_NONE;
 }
@@ -80,18 +80,6 @@ tusb_error_t hidh_interface_get_report(uint8_t dev_addr, void * report, hidh_int
 // KEYBOARD
 //--------------------------------------------------------------------+
 #if CFG_TUH_HID_KEYBOARD
-
-#if 0
-#define EXPAND_KEYCODE_TO_ASCII(keycode, ascii, shift_modified)  \
-  [0][keycode] = ascii,\
-  [1][keycode] = shift_modified,\
-
-// TODO size of table should be a macro for application to check boundary
-uint8_t const hid_keycode_to_ascii_tbl[2][128] =
-{
-    HID_KEYCODE_TABLE(EXPAND_KEYCODE_TO_ASCII)
-};
-#endif
 
 static hidh_interface_t keyboardh_data[CFG_TUSB_HOST_DEVICE_MAX]; // does not have addr0, index = dev_address-1
 
@@ -215,6 +203,7 @@ bool hidh_open_subtask(uint8_t rhport, uint8_t dev_addr, tusb_desc_interface_t c
     if ( HID_PROTOCOL_KEYBOARD == p_interface_desc->bInterfaceProtocol)
     {
       TU_ASSERT( hidh_interface_open(rhport, dev_addr, p_interface_desc->bInterfaceNumber, p_endpoint_desc, &keyboardh_data[dev_addr-1]) );
+      TU_LOG2_HEX(keyboardh_data[dev_addr-1].ep_in);
       tuh_hid_keyboard_mounted_cb(dev_addr);
     } else
     #endif
@@ -223,6 +212,7 @@ bool hidh_open_subtask(uint8_t rhport, uint8_t dev_addr, tusb_desc_interface_t c
     if ( HID_PROTOCOL_MOUSE == p_interface_desc->bInterfaceProtocol)
     {
       TU_ASSERT ( hidh_interface_open(rhport, dev_addr, p_interface_desc->bInterfaceNumber, p_endpoint_desc, &mouseh_data[dev_addr-1]) );
+      TU_LOG2_HEX(mouseh_data[dev_addr-1].ep_in);
       tuh_hid_mouse_mounted_cb(dev_addr);
     } else
     #endif

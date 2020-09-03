@@ -110,21 +110,74 @@ void cdc_task(void)
 // USB HID
 //--------------------------------------------------------------------+
 #if CFG_TUH_HID_KEYBOARD
+
+uint8_t const keycode2ascii[128][2] =  { HID_KEYCODE_TO_ASCII };
+
+// look up new key in previous keys
+static inline bool find_key_in_report(hid_keyboard_report_t const *p_report, uint8_t keycode)
+{
+  for(uint8_t i=0; i<6; i++)
+  {
+    if (p_report->keycode[i] == keycode)  return true;
+  }
+
+  return false;
+}
+
+static inline void process_kbd_report(hid_keyboard_report_t const *p_new_report)
+{
+  static hid_keyboard_report_t prev_report = { 0, 0, {0} }; // previous report to check key released
+
+  //------------- example code ignore control (non-printable) key affects -------------//
+  for(uint8_t i=0; i<6; i++)
+  {
+    if ( p_new_report->keycode[i] )
+    {
+      if ( find_key_in_report(&prev_report, p_new_report->keycode[i]) )
+      {
+        // exist in previous report means the current key is holding
+      }else
+      {
+        // not existed in previous report means the current key is pressed
+        bool const is_shift =  p_new_report->modifier & (KEYBOARD_MODIFIER_LEFTSHIFT | KEYBOARD_MODIFIER_RIGHTSHIFT);
+        uint8_t ch = keycode2ascii[p_new_report->keycode[i]][is_shift ? 1 : 0];
+        putchar(ch);
+        if ( ch == '\r' ) putchar('\n'); // added new line for enter key
+      }
+    }
+    // TODO example skips key released
+  }
+
+  prev_report = *p_new_report;
+}
+
+CFG_TUSB_MEM_SECTION static hid_keyboard_report_t usb_keyboard_report;
+
 void hid_task(void)
 {
-
+  uint8_t const addr = 1;
+  if ( tuh_hid_keyboard_is_mounted(addr) )
+  {
+    if ( !tuh_hid_keyboard_is_busy(addr) )
+    {
+      process_kbd_report(&usb_keyboard_report);
+      tuh_hid_keyboard_get_report(addr, &usb_keyboard_report);
+    }
+  }
 }
 
 void tuh_hid_keyboard_mounted_cb(uint8_t dev_addr)
 {
   // application set-up
-  printf("\na Keyboard device (address %d) is mounted\n", dev_addr);
+  printf("A Keyboard device (address %d) is mounted\r\n", dev_addr);
+
+  tuh_hid_keyboard_get_report(dev_addr, &usb_keyboard_report);
 }
 
 void tuh_hid_keyboard_unmounted_cb(uint8_t dev_addr)
 {
   // application tear-down
-  printf("\na Keyboard device (address %d) is unmounted\n", dev_addr);
+  printf("A Keyboard device (address %d) is unmounted\r\n", dev_addr);
 }
 
 // invoked ISR context
@@ -139,13 +192,13 @@ void tuh_hid_keyboard_isr(uint8_t dev_addr, xfer_result_t event)
 void tuh_hid_mouse_mounted_cb(uint8_t dev_addr)
 {
   // application set-up
-  printf("\na Mouse device (address %d) is mounted\n", dev_addr);
+  printf("A Mouse device (address %d) is mounted\r\n", dev_addr);
 }
 
 void tuh_hid_mouse_unmounted_cb(uint8_t dev_addr)
 {
   // application tear-down
-  printf("\na Mouse device (address %d) is unmounted\n", dev_addr);
+  printf("A Mouse device (address %d) is unmounted\r\n", dev_addr);
 }
 
 // invoked ISR context
