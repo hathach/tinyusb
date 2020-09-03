@@ -175,9 +175,11 @@ uint16_t tud_audio_n_read       (uint8_t itf, uint8_t channelId, void* buffer, u
 void     tud_audio_n_read_flush (uint8_t itf, uint8_t channelId);
 #endif
 
+/*  This function is intended for later use once EP buffers (at least for ISO EPs) are implemented as ring buffers
 #if CFG_TUD_AUDIO_EPSIZE_IN && !CFG_TUD_AUDIO_TX_FIFO_SIZE
 uint16_t tud_audio_n_write_ep_in_buffer(uint8_t itf, const void * data, uint16_t len)
 #endif
+*/
 
 #if CFG_TUD_AUDIO_EPSIZE_IN && CFG_TUD_AUDIO_TX_FIFO_SIZE
 uint16_t tud_audio_n_write      (uint8_t itf, uint8_t channelId, const void * data, uint16_t len);

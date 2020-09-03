@@ -334,6 +334,8 @@ static bool audio_rx_done_type_I_pcm_ff_cb(uint8_t rhport, audiod_interface_t* a
  * \param[in]       len: # of array elements to copy
  * \return          Number of bytes actually written
  */
+
+/*  This function is intended for later use once EP buffers (at least for ISO EPs) are implemented as ring buffers
 #if CFG_TUD_AUDIO_EPSIZE_IN && !CFG_TUD_AUDIO_TX_FIFO_SIZE
 uint16_t tud_audio_n_write_ep_in_buffer(uint8_t itf, const void * data, uint16_t len)
 {
@@ -362,6 +364,8 @@ uint16_t tud_audio_n_write_ep_in_buffer(uint8_t itf, const void * data, uint16_t
   return len;
 }
 #endif
+
+*/
 
 #if CFG_TUD_AUDIO_EPSIZE_IN && CFG_TUD_AUDIO_TX_FIFO_SIZE
 uint16_t tud_audio_n_write(uint8_t itf, uint8_t channelId, const void * data, uint16_t len)
