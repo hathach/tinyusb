@@ -165,11 +165,7 @@ uint32_t tud_cdc_n_write_flush (uint8_t itf)
   TU_VERIFY( !usbd_edpt_busy(TUD_OPT_RHPORT, p_cdc->ep_in), 0 );
 
   uint16_t count = tu_fifo_read_n(&p_cdc->tx_ff, p_cdc->epin_buf, sizeof(p_cdc->epin_buf));
-  if ( count )
-  {
-    TU_VERIFY( tud_cdc_n_connected(itf), 0 ); // fifo is empty if not connected
-    TU_ASSERT( usbd_edpt_xfer(TUD_OPT_RHPORT, p_cdc->ep_in, p_cdc->epin_buf, count), 0 );
-  }
+  if ( count ) TU_ASSERT( usbd_edpt_xfer(TUD_OPT_RHPORT, p_cdc->ep_in, p_cdc->epin_buf, count), 0 );
 
   return count;
 }
