@@ -58,7 +58,7 @@ int main(void)
     cdc_task();
 #endif
 
-#if CFG_TUD_HID
+#if CFG_TUH_HID_KEYBOARD || CFG_TUH_HID_MOUSE
     hid_task();
 #endif
   }

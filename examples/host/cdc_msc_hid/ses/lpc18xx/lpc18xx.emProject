@@ -53,6 +53,7 @@
         <folder Name="mcb1800">
           <file file_name="../../../../../hw/bsp/mcb1800/mcb1800.c" />
         </folder>
+        <file file_name="../../../../../hw/bsp/board.c" />
       </folder>
       <folder Name="mcu">
         <folder Name="nxp">
