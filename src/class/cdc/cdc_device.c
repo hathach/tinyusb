@@ -356,7 +356,7 @@ bool cdcd_control_request(uint8_t rhport, tusb_control_request_t const * request
       p_cdc->line_state = (uint8_t) request->wValue;
 
       // Disable fifo overwriting if DTR bit is set
-      p_cdc->tx_ff.overwritable = dtr ? false : true;
+      tu_fifo_change_mode(&p_cdc->tx_ff, (dtr?false:true));
 
       TU_LOG2("  Set Control Line State: DTR = %d, RTS = %d\r\n", dtr, rts);
 

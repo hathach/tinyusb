@@ -319,3 +319,22 @@ bool tu_fifo_clear(tu_fifo_t *f)
 
   return true;
 }
+
+/******************************************************************************/
+/*!
+    @brief Change the fifo mode to overwritable or not overwritable
+
+    @param[in]  f
+                Pointer to the FIFO buffer to manipulate
+*/
+/******************************************************************************/
+bool tu_fifo_change_mode(tu_fifo_t *f, bool overwritable)
+{
+  tu_fifo_lock(f);
+
+  f->overwritable = overwritable;
+
+  tu_fifo_unlock(f);
+
+  return true;
+}
