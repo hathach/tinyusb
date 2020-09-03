@@ -3,9 +3,11 @@ CFLAGS += \
   -mthumb \
   -mabi=aapcs \
   -mcpu=cortex-m4 \
+  -mfloat-abi=hard \
+  -mfpu=fpv4-sp-d16 \
   -nostdlib \
   -DCORE_M4 \
-  -D__USE_CMSIS \
+  -D__USE_LPCOPEN \
   -DCFG_TUSB_MEM_SECTION='__attribute__((section(".data.$$RAM2")))' \
   -DCFG_TUSB_MCU=OPT_MCU_LPC40XX
 
@@ -25,7 +27,8 @@ SRC_C += \
 	$(MCU_DIR)/src/iocon_17xx_40xx.c \
 	$(MCU_DIR)/src/sysctl_17xx_40xx.c \
 	$(MCU_DIR)/src/sysinit_17xx_40xx.c \
-	$(MCU_DIR)/src/uart_17xx_40xx.c
+	$(MCU_DIR)/src/uart_17xx_40xx.c \
+	$(MCU_DIR)/src/fpu_init.c
 
 INC += \
 	$(TOP)/$(MCU_DIR)/inc
@@ -35,7 +38,7 @@ VENDOR = nxp
 CHIP_FAMILY = lpc17_40
 
 # For freeRTOS port source
-FREERTOS_PORT = ARM_CM3
+FREERTOS_PORT = ARM_CM4F
 
 # For flash-jlink target
 JLINK_DEVICE = LPC4088

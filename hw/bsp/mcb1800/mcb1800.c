@@ -112,6 +112,12 @@ static const PINMUX_GRP_T pinclockmuxing[] =
 // Invoked by startup code
 void SystemInit(void)
 {
+#ifdef __USE_LPCOPEN
+	extern void (* const g_pfnVectors[])(void);
+  unsigned int *pSCB_VTOR = (unsigned int *) 0xE000ED08;
+	*pSCB_VTOR = (unsigned int) &g_pfnVectors;
+#endif
+
   /* Setup system level pin muxing */
   Chip_SCU_SetPinMuxing(pinmuxing, sizeof(pinmuxing) / sizeof(PINMUX_GRP_T));
 

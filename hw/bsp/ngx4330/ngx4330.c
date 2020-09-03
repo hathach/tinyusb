@@ -71,11 +71,17 @@ static const PINMUX_GRP_T pinmuxing[] =
 };
 
 // Invoked by startup code
-extern void (* const g_pfnVectors[])(void);
 void SystemInit(void)
 {
-  // Remap isr vector
-	*((uint32_t *) 0xE000ED08) = (uint32_t) &g_pfnVectors;
+#ifdef __USE_LPCOPEN
+	extern void (* const g_pfnVectors[])(void);
+  unsigned int *pSCB_VTOR = (unsigned int *) 0xE000ED08;
+	*pSCB_VTOR = (unsigned int) &g_pfnVectors;
+
+#if __FPU_USED == 1
+	fpuInit();
+#endif
+#endif // __USE_LPCOPEN
 
 	// Set up pinmux
 	Chip_SCU_SetPinMuxing(pinmuxing, sizeof(pinmuxing) / sizeof(PINMUX_GRP_T));
