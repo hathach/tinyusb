@@ -84,10 +84,10 @@ enum {
 #endif
 
 //--------------------------------------------------------------------+
-// HCD API
+// Controller & Port API
 //--------------------------------------------------------------------+
 bool hcd_init(void);
-void hcd_isr(uint8_t hostid);
+void hcd_int_handler(uint8_t rhport);
 void hcd_int_enable (uint8_t rhport);
 void hcd_int_disable(uint8_t rhport);
 
@@ -100,7 +100,6 @@ static inline uint32_t hcd_frame_number(uint8_t rhport)
   return hcd_uframe_number(rhport) >> 3;
 }
 
-// PORT API
 /// return the current connect status of roothub port
 bool hcd_port_connect_status(uint8_t hostid);
 void hcd_port_reset(uint8_t hostid);
@@ -144,9 +143,7 @@ bool hcd_edpt_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr, uint8_t * 
 bool hcd_pipe_queue_xfer(uint8_t dev_addr, uint8_t ep_addr, uint8_t buffer[], uint16_t total_bytes); // only queue, not transferring yet
 bool hcd_pipe_xfer(uint8_t dev_addr, uint8_t ep_addr, uint8_t buffer[], uint16_t total_bytes, bool int_on_complete);
 
-#if 0
-tusb_error_t hcd_pipe_cancel();
-#endif
+// tusb_error_t hcd_pipe_cancel();
 
 #ifdef __cplusplus
  }
