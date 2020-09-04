@@ -353,6 +353,16 @@ bool cdcd_control_request(uint8_t rhport, tusb_control_request_t const * request
       bool const dtr = tu_bit_test(request->wValue, 0);
       bool const rts = tu_bit_test(request->wValue, 1);
 
+#if CFG_TUD_CDC_CLEAR_AT_CONNECTION
+      // DTE connected event (if DTE supports DTR bit)
+      if ( dtr && !tu_bit_test(p_cdc->line_state, 0) )
+      {
+        // Clear not transmitted data
+        usbd_edpt_xfer_abort(rhport, p_cdc->ep_in);
+        tu_fifo_clear(&p_cdc->tx_ff);
+      }
+#endif
+
       p_cdc->line_state = (uint8_t) request->wValue;
 
       // Disable fifo overwriting if DTR bit is set
