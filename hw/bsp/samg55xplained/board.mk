@@ -46,7 +46,7 @@ CHIP_FAMILY = samg
 FREERTOS_PORT = ARM_CM4F
 
 # For flash-jlink target
-JLINK_DEVICE = ATSAMD51J19
+JLINK_DEVICE = ATSAMG55J19
 JLINK_IF = swd
 
 # flash using edbg from https://github.com/ataradov/edbg
