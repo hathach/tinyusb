@@ -125,7 +125,7 @@ void board_init(void)
 void USB_OTG1_IRQHandler(void)
 {
   #if CFG_TUSB_RHPORT0_MODE & OPT_MODE_HOST
-    tuh_isr(0);
+    tuh_int_handler(0);
   #endif
 
   #if CFG_TUSB_RHPORT0_MODE & OPT_MODE_DEVICE
@@ -136,7 +136,7 @@ void USB_OTG1_IRQHandler(void)
 void USB_OTG2_IRQHandler(void)
 {
   #if CFG_TUSB_RHPORT1_MODE & OPT_MODE_HOST
-    tuh_isr(1);
+    tuh_int_handler(1);
   #endif
 
   #if CFG_TUSB_RHPORT1_MODE & OPT_MODE_DEVICE

@@ -57,7 +57,6 @@
 // CFG_TUD_CDC > 1
 //--------------------------------------------------------------------+
 
-
 // Check if terminal is connected to this port
 bool     tud_cdc_n_connected       (uint8_t itf);
 
@@ -132,6 +131,9 @@ TU_ATTR_WEAK void tud_cdc_rx_cb(uint8_t itf);
 
 // Invoked when received `wanted_char`
 TU_ATTR_WEAK void tud_cdc_rx_wanted_cb(uint8_t itf, char wanted_char);
+
+// Invoked when space becomes available in TX buffer
+TU_ATTR_WEAK void tud_cdc_tx_complete_cb(uint8_t itf);
 
 // Invoked when line state DTR & RTS are changed via SET_CONTROL_LINE_STATE
 TU_ATTR_WEAK void tud_cdc_line_state_cb(uint8_t itf, bool dtr, bool rts);

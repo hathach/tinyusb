@@ -7,8 +7,8 @@ CFLAGS += \
   -mfpu=fpv4-sp-d16 \
   -nostdlib \
   -DCORE_M4 \
-  -DCFG_TUSB_MCU=OPT_MCU_LPC43XX \
-  -D__USE_LPCOPEN
+  -D__USE_LPCOPEN \
+  -DCFG_TUSB_MCU=OPT_MCU_LPC43XX
 
 # mcu driver cause following warnings
 CFLAGS += -Wno-error=strict-prototypes -Wno-error=unused-parameter
@@ -24,7 +24,8 @@ SRC_C += \
 	$(MCU_DIR)/src/clock_18xx_43xx.c \
 	$(MCU_DIR)/src/gpio_18xx_43xx.c \
 	$(MCU_DIR)/src/sysinit_18xx_43xx.c \
-	$(MCU_DIR)/src/uart_18xx_43xx.c
+	$(MCU_DIR)/src/uart_18xx_43xx.c \
+	$(MCU_DIR)/src/fpu_init.c
 
 INC += \
 	$(TOP)/$(MCU_DIR)/inc \

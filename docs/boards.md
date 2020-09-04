@@ -19,7 +19,7 @@ This code base already had supported for a handful of following boards (sorted a
 - [DA14695 Development Kit – USB](https://www.dialog-semiconductor.com/products/da14695-development-kit-usb)
 - [DA1469x Development Kit – Pro](https://www.dialog-semiconductor.com/products/da14695-development-kit-pro)
 
-### MicroChip SAMD
+### MicroChip SAM
 
 - [Adafruit Circuit Playground Express](https://www.adafruit.com/product/3333)
 - [Adafruit Feather M0 Express](https://www.adafruit.com/product/3403)
@@ -28,8 +28,10 @@ This code base already had supported for a handful of following boards (sorted a
 - [Adafruit ItsyBitsy M4 Express](https://www.adafruit.com/product/3800)
 - [Adafruit Metro M0 Express](https://www.adafruit.com/product/3505)
 - [Adafruit Metro M4 Express](https://www.adafruit.com/product/3382)
-- [Seeeduino Xiao](https://www.seeedstudio.com/Seeeduino-XIAO-Arduino-Microcontroller-SAMD21-Cortex-M0+-p-4426.html)
 - [Great Scott Gadgets LUNA](https://greatscottgadgets.com/luna/)
+- [Microchip SAMD11 Xplained](https://www.microchip.com/developmenttools/ProductDetails/atsamd11-xpro)
+- [Microchip SAMG55 Xplained Pro Evaluation Kit](https://www.microchip.com/DevelopmentTools/ProductDetails/PartNO/ATSAMG55-XPRO)
+- [Seeeduino Xiao](https://www.seeedstudio.com/Seeeduino-XIAO-Arduino-Microcontroller-SAMD21-Cortex-M0+-p-4426.html)
 
 ### Nordic nRF5x
 
@@ -37,6 +39,7 @@ This code base already had supported for a handful of following boards (sorted a
 - [Adafruit CLUE](https://www.adafruit.com/product/4500)
 - [Adafruit Feather nRF52840 Express](https://www.adafruit.com/product/4062)
 - [Adafruit Feather nRF52840 Sense](https://www.adafruit.com/product/4516)
+- [Adafruit ItsyBitsy nRF52840 Express](https://www.adafruit.com/product/4481)
 - [Arduino Nano 33 BLE](https://store.arduino.cc/usa/nano-33-ble)
 - [Arduino Nano 33 BLE Sense](https://store.arduino.cc/usa/nano-33-ble-sense)
 - [Maker Diary nRF52840 MDK Dongle](https://wiki.makerdiary.com/nrf52840-mdk-usb-dongle)
