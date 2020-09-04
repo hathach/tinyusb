@@ -35,23 +35,24 @@
 //------------- IMPLEMENTATION -------------//
 void tuh_msc_mounted_cb(uint8_t dev_addr)
 {
-  puts("\na MassStorage device is mounted");
+  printf("A MassStorage device is mounted\r\n");
 
-//  //------------- Disk Information -------------//
-//  // SCSI VendorID[8] & ProductID[16] from Inquiry Command
-//  uint8_t const* p_vendor  = tuh_msc_get_vendor_name(dev_addr);
-//  uint8_t const* p_product = tuh_msc_get_product_name(dev_addr);
-//
-//  for(uint8_t i=0; i<8; i++) putchar(p_vendor[i]);
-//
-//  putchar(' ');
-//  for(uint8_t i=0; i<16; i++) putchar(p_product[i]);
-//  putchar('\n');
-//
-//  uint32_t last_lba, block_size;
-//  tuh_msc_get_capacity(dev_addr, &last_lba, &block_size);
-//  printf("Disk Size: %d MB\n", (last_lba+1)/ ((1024*1024)/block_size) );
-//  printf("LBA 0-0x%X  Block Size: %d\n", last_lba, block_size);
+  //------------- Disk Information -------------//
+  // SCSI VendorID[8] & ProductID[16] from Inquiry Command
+  uint8_t const* p_vendor  = tuh_msc_get_vendor_name(dev_addr);
+  uint8_t const* p_product = tuh_msc_get_product_name(dev_addr);
+
+  for(uint8_t i=0; i<8; i++) putchar(p_vendor[i]);
+
+  putchar(' ');
+  for(uint8_t i=0; i<16; i++) putchar(p_product[i]);
+  putchar('\n');
+
+  uint32_t last_lba = 0;
+  uint32_t block_size = 0;
+  tuh_msc_get_capacity(dev_addr, &last_lba, &block_size);
+  printf("Disk Size: %ld MB\r\n", (last_lba+1)/ ((1024*1024)/block_size) );
+  printf("LBA 0-0x%lX  Block Size: %ld\r\n", last_lba, block_size);
 //
 //  //------------- file system (only 1 LUN support) -------------//
 //  uint8_t phy_disk = dev_addr-1;
@@ -81,7 +82,8 @@ void tuh_msc_mounted_cb(uint8_t dev_addr)
 
 void tuh_msc_unmounted_cb(uint8_t dev_addr)
 {
-  puts("\na MassStorage device is unmounted");
+  (void) dev_addr;
+  printf("A MassStorage device is unmounted\r\n");
 
 //  uint8_t phy_disk = dev_addr-1;
 //
