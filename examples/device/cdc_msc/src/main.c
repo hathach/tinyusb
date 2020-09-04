@@ -105,34 +105,31 @@ void tud_resume_cb(void)
 //--------------------------------------------------------------------+
 void cdc_task(void)
 {
-  if ( tud_cdc_connected() )
+  // is data available to read from rx fifo
+  if ( tud_cdc_available() )
   {
-    // connected and there are data available
-    if ( tud_cdc_available() )
+    uint8_t buf[64];
+
+    // read and echo back
+    uint32_t count = tud_cdc_read(buf, sizeof(buf));
+
+    for(uint32_t i=0; i<count; i++)
     {
-      uint8_t buf[64];
+      tud_cdc_write_char(buf[i]);
 
-      // read and echo back
-      uint32_t count = tud_cdc_read(buf, sizeof(buf));
-
-      for(uint32_t i=0; i<count; i++)
-      {
-        tud_cdc_write_char(buf[i]);
-
-        if ( buf[i] == '\r' ) tud_cdc_write_char('\n');
-      }
-
-      tud_cdc_write_flush();
+      if ( buf[i] == '\r' ) tud_cdc_write_char('\n');
     }
+
+    tud_cdc_write_flush();
   }
 }
 
-// Invoked when cdc when line state changed e.g connected/disconnected
+// Invoked when cdc line state changed e.g connected/disconnected
 void tud_cdc_line_state_cb(uint8_t itf, bool dtr, bool rts)
 {
   (void) itf;
 
-  // connected
+  // usually terminal software sets DTR and RTS when connected
   if ( dtr && rts )
   {
     // print initial message when connected
