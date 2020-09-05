@@ -268,7 +268,7 @@ void hcd_event_handler(hcd_event_t const* event, bool in_isr)
 }
 
 // interrupt caused by a TD (with IOC=1) in pipe of class class_code
-void hcd_event_xfer_complete(uint8_t dev_addr, uint8_t ep_addr, uint8_t result, uint32_t xferred_bytes)
+void hcd_event_xfer_complete(uint8_t dev_addr, uint8_t ep_addr, uint32_t xferred_bytes, xfer_result_t result, bool in_isr)
 {
   usbh_device_t* dev = &_usbh_devices[ dev_addr ];
 
@@ -276,7 +276,7 @@ void hcd_event_xfer_complete(uint8_t dev_addr, uint8_t ep_addr, uint8_t result, 
   {
     dev->control.pipe_status = result;
 //    usbh_devices[ pipe_hdl.dev_addr ].control.xferred_bytes = xferred_bytes; not yet neccessary
-    osal_semaphore_post( dev->control.sem_hdl, true );
+    osal_semaphore_post( dev->control.sem_hdl, true ); // FIXME post within ISR
   }
   else
   {
@@ -293,11 +293,11 @@ void hcd_event_xfer_complete(uint8_t dev_addr, uint8_t ep_addr, uint8_t result, 
       }
     };
 
-    hcd_event_handler(&event, true);
+    hcd_event_handler(&event, in_isr);
   }
 }
 
-void hcd_event_device_attach(uint8_t rhport)
+void hcd_event_device_attach(uint8_t rhport, bool in_isr)
 {
   hcd_event_t event =
   {
@@ -308,10 +308,10 @@ void hcd_event_device_attach(uint8_t rhport)
   event.attach.hub_addr = 0;
   event.attach.hub_port = 0;
 
-  hcd_event_handler(&event, true);
+  hcd_event_handler(&event, in_isr);
 }
 
-void hcd_event_device_remove(uint8_t hostid)
+void hcd_event_device_remove(uint8_t hostid, bool in_isr)
 {
   hcd_event_t event =
   {
@@ -322,7 +322,7 @@ void hcd_event_device_remove(uint8_t hostid)
   event.attach.hub_addr = 0;
   event.attach.hub_port = 0;
 
-  hcd_event_handler(&event, true);
+  hcd_event_handler(&event, in_isr);
 }
 
 

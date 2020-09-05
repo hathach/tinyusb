@@ -223,7 +223,7 @@ void hub_xfer_cb(uint8_t dev_addr, uint8_t ep_addr, xfer_result_t event, uint32_
         event.attach.hub_port = port;
 
         hcd_event_handler(&event, true);
-        break; // handle one port at a time, next port if any will be handled in the next cycle
+        break; // TODO handle one port at a time, next port if any will be handled in the next cycle
       }
     }
     // NOTE: next status transfer is queued by usbh.c after handling this request

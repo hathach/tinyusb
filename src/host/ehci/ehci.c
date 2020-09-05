@@ -489,10 +489,10 @@ static void port_connect_status_change_isr(uint8_t hostid)
   if (ehci_data.regs->portsc_bm.current_connect_status)
   {
     hcd_port_reset(hostid);
-    hcd_event_device_attach(hostid);
+    hcd_event_device_attach(hostid, true);
   }else // device unplugged
   {
-    hcd_event_device_remove(hostid);
+    hcd_event_device_remove(hostid, true);
   }
 }
 
@@ -512,7 +512,7 @@ static void qhd_xfer_complete_isr(ehci_qhd_t * p_qhd)
     {
       // end of request
       // call USBH callback
-      hcd_event_xfer_complete(p_qhd->dev_addr, tu_edpt_addr(p_qhd->ep_number, p_qhd->pid == EHCI_PID_IN ? 1 : 0), XFER_RESULT_SUCCESS, p_qhd->total_xferred_bytes);
+      hcd_event_xfer_complete(p_qhd->dev_addr, tu_edpt_addr(p_qhd->ep_number, p_qhd->pid == EHCI_PID_IN ? 1 : 0), p_qhd->total_xferred_bytes, XFER_RESULT_SUCCESS, true);
       p_qhd->total_xferred_bytes = 0;
     }
   }
@@ -599,7 +599,7 @@ static void qhd_xfer_error_isr(ehci_qhd_t * p_qhd)
     }
 
     // call USBH callback
-    hcd_event_xfer_complete(p_qhd->dev_addr, tu_edpt_addr(p_qhd->ep_number, p_qhd->pid == EHCI_PID_IN ? 1 : 0), error_event, p_qhd->total_xferred_bytes);
+    hcd_event_xfer_complete(p_qhd->dev_addr, tu_edpt_addr(p_qhd->ep_number, p_qhd->pid == EHCI_PID_IN ? 1 : 0), p_qhd->total_xferred_bytes, error_event, true);
 
     p_qhd->total_xferred_bytes = 0;
   }

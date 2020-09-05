@@ -599,7 +599,7 @@ static void done_queue_isr(uint8_t hostid)
 
       hcd_event_xfer_complete(p_ed->dev_addr,
                               tu_edpt_addr(p_ed->ep_number, p_ed->pid == OHCI_PID_IN),
-                              event, xferred_bytes);
+                              xferred_bytes, event, true);
     }
 
     td_head = (ohci_td_item_t*) td_head->next;
@@ -632,10 +632,10 @@ void hcd_int_handler(uint8_t hostid)
       {
         // TODO reset port immediately, without this controller will got 2-3 (debouncing connection status change)
         OHCI_REG->rhport_status[0] = OHCI_RHPORT_PORT_RESET_STATUS_MASK;
-        hcd_event_device_attach(0);
+        hcd_event_device_attach(hostid, true);
       }else
       {
-        hcd_event_device_remove(0);
+        hcd_event_device_remove(hostid, true);
       }
     }
 
