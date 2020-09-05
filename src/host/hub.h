@@ -182,7 +182,7 @@ bool hub_status_pipe_queue(uint8_t dev_addr);
 //--------------------------------------------------------------------+
 void hub_init(void);
 bool hub_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_interface_t const *itf_desc, uint16_t *p_length);
-void hub_isr(uint8_t dev_addr, uint8_t ep_addr, xfer_result_t event, uint32_t xferred_bytes);
+void hub_xfer_cb(uint8_t dev_addr, uint8_t ep_addr, xfer_result_t event, uint32_t xferred_bytes);
 void hub_close(uint8_t dev_addr);
 
 #ifdef __cplusplus

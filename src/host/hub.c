@@ -199,7 +199,7 @@ bool hub_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_interface_t const *itf
 
 // is the response of interrupt endpoint polling
 #include "usbh_hcd.h" // FIXME remove
-void hub_isr(uint8_t dev_addr, uint8_t ep_addr, xfer_result_t event, uint32_t xferred_bytes)
+void hub_xfer_cb(uint8_t dev_addr, uint8_t ep_addr, xfer_result_t event, uint32_t xferred_bytes)
 {
   (void) xferred_bytes; // TODO can be more than 1 for hub with lots of ports
   (void) ep_addr;

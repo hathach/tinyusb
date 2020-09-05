@@ -56,7 +56,7 @@ static host_class_driver_t const usbh_class_drivers[] =
       .class_code = TUSB_CLASS_CDC,
       .init       = cdch_init,
       .open       = cdch_open,
-      .isr        = cdch_isr,
+      .xfer_cb    = cdch_xfer_cb,
       .close      = cdch_close
     },
   #endif
@@ -67,7 +67,7 @@ static host_class_driver_t const usbh_class_drivers[] =
       .class_code = TUSB_CLASS_MSC,
       .init       = msch_init,
       .open       = msch_open,
-      .isr        = msch_isr,
+      .xfer_cb    = msch_xfer_cb,
       .close      = msch_close
     },
   #endif
@@ -78,7 +78,7 @@ static host_class_driver_t const usbh_class_drivers[] =
       .class_code = TUSB_CLASS_HID,
       .init       = hidh_init,
       .open       = hidh_open_subtask,
-      .isr        = hidh_isr,
+      .xfer_cb    = hidh_xfer_cb,
       .close      = hidh_close
     },
   #endif
@@ -89,7 +89,7 @@ static host_class_driver_t const usbh_class_drivers[] =
       .class_code = TUSB_CLASS_HUB,
       .init       = hub_init,
       .open       = hub_open,
-      .isr        = hub_isr,
+      .xfer_cb    = hub_xfer_cb,
       .close      = hub_close
     },
   #endif
@@ -100,7 +100,7 @@ static host_class_driver_t const usbh_class_drivers[] =
       .class_code = TUSB_CLASS_VENDOR_SPECIFIC,
       .init       = cush_init,
       .open       = cush_open_subtask,
-      .isr        = cush_isr,
+      .xfer_cb    = cush_isr,
       .close      = cush_close
     }
   #endif
@@ -263,33 +263,46 @@ bool usbh_edpt_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_endpoint_t const
 }
 
 //--------------------------------------------------------------------+
-// USBH-HCD ISR/Callback API
+// HCD Event Handler
 //--------------------------------------------------------------------+
+
+void hcd_event_handler(hcd_event_t const* event, bool in_isr)
+{
+  switch (event->event_id)
+  {
+    default:
+      osal_queue_send(_usbh_q, event, in_isr);
+    break;
+  }
+}
+
 // interrupt caused by a TD (with IOC=1) in pipe of class class_code
-void hcd_event_xfer_complete(uint8_t dev_addr, uint8_t ep_addr, xfer_result_t event, uint32_t xferred_bytes)
+void hcd_event_xfer_complete(uint8_t dev_addr, uint8_t ep_addr, uint8_t result, uint32_t xferred_bytes)
 {
   usbh_device_t* dev = &_usbh_devices[ dev_addr ];
 
   if (0 == tu_edpt_number(ep_addr))
   {
-    dev->control.pipe_status   = event;
+    dev->control.pipe_status = result;
 //    usbh_devices[ pipe_hdl.dev_addr ].control.xferred_bytes = xferred_bytes; not yet neccessary
     osal_semaphore_post( dev->control.sem_hdl, true );
   }
   else
   {
-    uint8_t drv_id = dev->ep2drv[tu_edpt_number(ep_addr)][tu_edpt_dir(ep_addr)];
-    TU_ASSERT(drv_id < USBH_CLASS_DRIVER_COUNT, );
+    hcd_event_t event =
+    {
+      .rhport = 0,
+      .event_id = HCD_EVENT_XFER_COMPLETE,
+      .dev_addr = dev_addr,
+      .xfer_complete =
+      {
+        .ep_addr = ep_addr,
+        .result = result,
+        .len = xferred_bytes
+      }
+    };
 
-    if (usbh_class_drivers[drv_id].isr)
-    {
-      //TU_LOG2("%s isr\r\n", usbh_class_drivers[drv_id].name);
-      usbh_class_drivers[drv_id].isr(dev_addr, ep_addr, event, xferred_bytes);
-    }
-    else
-    {
-      TU_BREAKPOINT(); // something wrong, no one claims the isr's source
-    }
+    hcd_event_handler(&event, true);
   }
 }
 
@@ -305,16 +318,6 @@ void hcd_event_device_attach(uint8_t rhport)
   event.attach.hub_port = 0;
 
   hcd_event_handler(&event, true);
-}
-
-void hcd_event_handler(hcd_event_t const* event, bool in_isr)
-{
-  switch (event->event_id)
-  {
-    default:
-      osal_queue_send(_usbh_q, event, in_isr);
-    break;
-  }
 }
 
 void hcd_event_device_remove(uint8_t hostid)
@@ -419,7 +422,7 @@ bool enum_task(hcd_event_t* event)
       return true; // restart task
     }
   }
-  #if CFG_TUH_HUB
+#if CFG_TUH_HUB
   //------------- connected/disconnected via hub -------------//
   else
   {
@@ -462,7 +465,7 @@ bool enum_task(hcd_event_t* event)
       hub_port_clear_feature_subtask(dev0->hub_addr, dev0->hub_port, HUB_FEATURE_PORT_RESET_CHANGE);
     }
   }
-  #endif
+#endif // CFG_TUH_HUB
 
   TU_ASSERT_ERR( usbh_pipe_control_open(0, 8) );
 
@@ -682,6 +685,29 @@ void tuh_task(void)
       case HCD_EVENT_DEVICE_ATTACH:
       case HCD_EVENT_DEVICE_REMOVE:
         enum_task(&event);
+      break;
+
+      case HCD_EVENT_XFER_COMPLETE:
+      {
+        usbh_device_t* dev = &_usbh_devices[event.dev_addr];
+        uint8_t const ep_addr = event.xfer_complete.ep_addr;
+        uint8_t const epnum   = tu_edpt_number(ep_addr);
+        uint8_t const ep_dir  = tu_edpt_dir(ep_addr);
+
+        TU_LOG2("on EP %02X with %u bytes\r\n", ep_addr, (unsigned int) event.xfer_complete.len);
+
+        if ( 0 == epnum )
+        {
+          // TODO control transfer
+        }else
+        {
+          uint8_t drv_id = dev->ep2drv[epnum][ep_dir];
+          TU_ASSERT(drv_id < USBH_CLASS_DRIVER_COUNT, );
+
+          TU_LOG2("%s xfer callback\r\n", usbh_class_drivers[drv_id].name);
+          usbh_class_drivers[drv_id].xfer_cb(event.dev_addr, ep_addr, event.xfer_complete.result, event.xfer_complete.len);
+        }
+      }
       break;
 
       default: break;

@@ -232,7 +232,7 @@ bool hidh_open_subtask(uint8_t rhport, uint8_t dev_addr, tusb_desc_interface_t c
   return true;
 }
 
-void hidh_isr(uint8_t dev_addr, uint8_t ep_addr, xfer_result_t event, uint32_t xferred_bytes)
+void hidh_xfer_cb(uint8_t dev_addr, uint8_t ep_addr, xfer_result_t event, uint32_t xferred_bytes)
 {
   (void) xferred_bytes; // TODO may need to use this para later
 

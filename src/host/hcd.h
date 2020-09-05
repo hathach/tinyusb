@@ -51,17 +51,17 @@ typedef struct
 {
   uint8_t rhport;
   uint8_t event_id;
+  uint8_t dev_addr;
 
   union
   {
-    struct
-    {
+    struct {
       uint8_t hub_addr;
       uint8_t hub_port;
     } attach, remove;
 
-    struct
-    {
+    // XFER_COMPLETE
+    struct {
       uint8_t ep_addr;
       uint8_t result;
       uint32_t len;
