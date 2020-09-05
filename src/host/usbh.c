@@ -211,7 +211,7 @@ bool usbh_control_xfer (uint8_t dev_addr, tusb_control_request_t* request, uint8
   return true;
 }
 
-tusb_error_t usbh_pipe_control_open(uint8_t dev_addr, uint8_t max_packet_size)
+bool usbh_pipe_control_open(uint8_t dev_addr, uint8_t max_packet_size)
 {
   osal_semaphore_reset( _usbh_devices[dev_addr].control.sem_hdl );
   //osal_mutex_reset( usbh_devices[dev_addr].control.mutex_hdl );
@@ -226,9 +226,7 @@ tusb_error_t usbh_pipe_control_open(uint8_t dev_addr, uint8_t max_packet_size)
     .bInterval        = 0
   };
 
-  hcd_edpt_open(_usbh_devices[dev_addr].rhport, dev_addr, &ep0_desc);
-
-  return TUSB_ERROR_NONE;
+  return hcd_edpt_open(_usbh_devices[dev_addr].rhport, dev_addr, &ep0_desc);
 }
 
 bool usbh_edpt_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_endpoint_t const * ep_desc)
@@ -518,7 +516,7 @@ bool enum_task(hcd_event_t* event)
   }
 #endif // CFG_TUH_HUB
 
-  TU_ASSERT_ERR( usbh_pipe_control_open(0, 8) );
+  TU_ASSERT( usbh_pipe_control_open(0, 8) );
 
   //------------- Get first 8 bytes of device descriptor to get Control Endpoint Size -------------//
   TU_LOG2("Get 8 byte of Device Descriptor\r\n");
@@ -584,7 +582,7 @@ bool enum_task(hcd_event_t* event)
   dev0->state = TUSB_DEVICE_STATE_UNPLUG;
 
   // open control pipe for new address
-  TU_ASSERT_ERR ( usbh_pipe_control_open(new_addr, ((tusb_desc_device_t*) _usbh_ctrl_buf)->bMaxPacketSize0 ) );
+  TU_ASSERT ( usbh_pipe_control_open(new_addr, ((tusb_desc_device_t*) _usbh_ctrl_buf)->bMaxPacketSize0 ) );
 
   //------------- Get full device descriptor -------------//
   TU_LOG2("Get Device Descriptor \r\n");
