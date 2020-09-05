@@ -366,6 +366,64 @@ static void usbh_device_unplugged(uint8_t rhport, uint8_t hub_addr, uint8_t hub_
 //--------------------------------------------------------------------+
 // ENUMERATION TASK
 //--------------------------------------------------------------------+
+static bool parse_configuration_descriptor(uint8_t dev_addr, tusb_desc_configuration_t const* desc_cfg)
+{
+  usbh_device_t* dev = &_usbh_devices[dev_addr];
+  uint8_t const* p_desc = (uint8_t const*) desc_cfg;
+  p_desc = tu_desc_next(p_desc);
+
+  TU_LOG2_MEM(desc_cfg, desc_cfg->wTotalLength, 0);
+
+  // parse each interfaces
+  while( p_desc < _usbh_ctrl_buf + desc_cfg->wTotalLength )
+  {
+    // skip until we see interface descriptor
+    if ( TUSB_DESC_INTERFACE != tu_desc_type(p_desc) )
+    {
+      p_desc = tu_desc_next(p_desc); // skip the descriptor, increase by the descriptor's length
+    }else
+    {
+      tusb_desc_interface_t const* desc_itf = (tusb_desc_interface_t const*) p_desc;
+
+      // Check if class is supported
+      uint8_t drv_id;
+      for (drv_id = 0; drv_id < USBH_CLASS_DRIVER_COUNT; drv_id++)
+      {
+        if ( usbh_class_drivers[drv_id].class_code == desc_itf->bInterfaceClass ) break;
+      }
+
+      if( drv_id >= USBH_CLASS_DRIVER_COUNT )
+      {
+        // skip unsupported class
+        p_desc = tu_desc_next(p_desc);
+      }
+      else
+      {
+        // Interface number must not be used already TODO alternate interface
+        TU_ASSERT( dev->itf2drv[desc_itf->bInterfaceNumber] == 0xff );
+        dev->itf2drv[desc_itf->bInterfaceNumber] = drv_id;
+
+        if (desc_itf->bInterfaceClass == TUSB_CLASS_HUB && dev->hub_addr != 0)
+        {
+          // TODO Attach hub to Hub is not currently supported
+          // skip this interface
+          p_desc = tu_desc_next(p_desc);
+        }
+        else
+        {
+          uint16_t itf_len = 0;
+
+          TU_LOG2("%s open\r\n", usbh_class_drivers[drv_id].name);
+          TU_ASSERT( usbh_class_drivers[drv_id].open(dev->rhport, dev_addr, desc_itf, &itf_len) );
+          TU_ASSERT( itf_len >= sizeof(tusb_desc_interface_t) );
+          p_desc += itf_len;
+        }
+      }
+    }
+  }
+
+  return true;
+}
 
 bool enum_task(hcd_event_t* event)
 {
@@ -585,59 +643,10 @@ bool enum_task(hcd_event_t* event)
 
   //------------- TODO Get String Descriptors -------------//
 
-  //------------- parse configuration & install drivers -------------//
-  uint8_t const* p_desc = _usbh_ctrl_buf + sizeof(tusb_desc_configuration_t);
+  // Parse configuration & set up drivers
+  parse_configuration_descriptor(new_addr, (tusb_desc_configuration_t*) _usbh_ctrl_buf);
 
-  // TU_LOG2_MEM(_usbh_ctrl_buf, ((tusb_desc_configuration_t*)_usbh_ctrl_buf)->wTotalLength, 0);
-
-  // parse each interfaces
-  while( p_desc < _usbh_ctrl_buf + ((tusb_desc_configuration_t*)_usbh_ctrl_buf)->wTotalLength )
-  {
-    // skip until we see interface descriptor
-    if ( TUSB_DESC_INTERFACE != tu_desc_type(p_desc) )
-    {
-      p_desc = tu_desc_next(p_desc); // skip the descriptor, increase by the descriptor's length
-    }else
-    {
-      tusb_desc_interface_t const* desc_itf = (tusb_desc_interface_t const*) p_desc;
-
-      // Check if class is supported
-      uint8_t drv_id;
-      for (drv_id = 0; drv_id < USBH_CLASS_DRIVER_COUNT; drv_id++)
-      {
-        if ( usbh_class_drivers[drv_id].class_code == desc_itf->bInterfaceClass ) break;
-      }
-      
-      if( drv_id >= USBH_CLASS_DRIVER_COUNT )
-      {
-        // skip unsupported class
-        p_desc = tu_desc_next(p_desc);
-      }
-      else
-      {
-        // Interface number must not be used already TODO alternate interface
-        TU_ASSERT( new_dev->itf2drv[desc_itf->bInterfaceNumber] == 0xff );
-        new_dev->itf2drv[desc_itf->bInterfaceNumber] = drv_id;
-
-        if (desc_itf->bInterfaceClass == TUSB_CLASS_HUB && new_dev->hub_addr != 0)
-        {
-          // TODO Attach hub to Hub is not currently supported
-          // skip this interface
-          p_desc = tu_desc_next(p_desc);
-        }
-        else
-        {
-          uint16_t itf_len = 0;
-
-          TU_LOG2("%s open\r\n", usbh_class_drivers[drv_id].name);
-          TU_ASSERT( usbh_class_drivers[drv_id].open(new_dev->rhport, new_addr, desc_itf, &itf_len) );
-          TU_ASSERT( itf_len >= sizeof(tusb_desc_interface_t) );
-          p_desc += itf_len;
-        }
-      }
-    }
-  }
-
+  // Invoke callback if available
   if (tuh_mount_cb) tuh_mount_cb(new_addr);
 
   return true;
