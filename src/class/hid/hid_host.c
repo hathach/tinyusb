@@ -173,7 +173,8 @@ bool hidh_open_subtask(uint8_t rhport, uint8_t dev_addr, tusb_desc_interface_t c
   tusb_desc_endpoint_t const * p_endpoint_desc = (tusb_desc_endpoint_t const *) p_desc;
   TU_ASSERT(TUSB_DESC_ENDPOINT == p_endpoint_desc->bDescriptorType, TUSB_ERROR_INVALID_PARA);
 
-  //------------- SET IDLE (0) request -------------//
+  // SET IDLE = 0 request
+  // Device can stall if not support this request
   tusb_control_request_t request = {
         .bmRequestType_bit = { .recipient = TUSB_REQ_RCPT_INTERFACE, .type = TUSB_REQ_TYPE_CLASS, .direction = TUSB_DIR_OUT },
         .bRequest = HID_REQ_CONTROL_SET_IDLE,
@@ -181,7 +182,7 @@ bool hidh_open_subtask(uint8_t rhport, uint8_t dev_addr, tusb_desc_interface_t c
         .wIndex = p_interface_desc->bInterfaceNumber,
         .wLength = 0
   };
-  TU_ASSERT( usbh_control_xfer( dev_addr, &request, NULL ) );
+  usbh_control_xfer( dev_addr, &request, NULL ); // TODO stall is valid
 
 #if 0
   //------------- Get Report Descriptor TODO HID parser -------------//

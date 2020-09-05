@@ -111,6 +111,7 @@ void cdc_task(void)
 //--------------------------------------------------------------------+
 #if CFG_TUH_HID_KEYBOARD
 
+CFG_TUSB_MEM_SECTION static hid_keyboard_report_t usb_keyboard_report;
 uint8_t const keycode2ascii[128][2] =  { HID_KEYCODE_TO_ASCII };
 
 // look up new key in previous keys
@@ -153,21 +154,6 @@ static inline void process_kbd_report(hid_keyboard_report_t const *p_new_report)
   prev_report = *p_new_report;
 }
 
-CFG_TUSB_MEM_SECTION static hid_keyboard_report_t usb_keyboard_report;
-
-void hid_task(void)
-{
-  uint8_t const addr = 1;
-  if ( tuh_hid_keyboard_is_mounted(addr) )
-  {
-    if ( !tuh_hid_keyboard_is_busy(addr) )
-    {
-      process_kbd_report(&usb_keyboard_report);
-      tuh_hid_keyboard_get_report(addr, &usb_keyboard_report);
-    }
-  }
-}
-
 void tuh_hid_keyboard_mounted_cb(uint8_t dev_addr)
 {
   // application set-up
@@ -192,6 +178,58 @@ void tuh_hid_keyboard_isr(uint8_t dev_addr, xfer_result_t event)
 #endif
 
 #if CFG_TUH_HID_MOUSE
+
+CFG_TUSB_MEM_SECTION static hid_mouse_report_t usb_mouse_report;
+
+void cursor_movement(int8_t x, int8_t y, int8_t wheel)
+{
+  //------------- X -------------//
+  if ( x < 0)
+  {
+    printf(ANSI_CURSOR_BACKWARD(%d), (-x)); // move left
+  }else if ( x > 0)
+  {
+    printf(ANSI_CURSOR_FORWARD(%d), x); // move right
+  }else { }
+
+  //------------- Y -------------//
+  if ( y < 0)
+  {
+    printf(ANSI_CURSOR_UP(%d), (-y)); // move up
+  }else if ( y > 0)
+  {
+    printf(ANSI_CURSOR_DOWN(%d), y); // move down
+  }else { }
+
+  //------------- wheel -------------//
+  if (wheel < 0)
+  {
+    printf(ANSI_SCROLL_UP(%d), (-wheel)); // scroll up
+  }else if (wheel > 0)
+  {
+    printf(ANSI_SCROLL_DOWN(%d), wheel); // scroll down
+  }else { }
+}
+
+static inline void process_mouse_report(hid_mouse_report_t const * p_report)
+{
+  static hid_mouse_report_t prev_report = { 0 };
+
+  //------------- button state  -------------//
+  uint8_t button_changed_mask = p_report->buttons ^ prev_report.buttons;
+  if ( button_changed_mask & p_report->buttons)
+  {
+    printf(" %c%c%c ",
+       p_report->buttons & MOUSE_BUTTON_LEFT   ? 'L' : '-',
+       p_report->buttons & MOUSE_BUTTON_MIDDLE ? 'M' : '-',
+       p_report->buttons & MOUSE_BUTTON_RIGHT  ? 'R' : '-');
+  }
+
+  //------------- cursor movement -------------//
+  cursor_movement(p_report->x, p_report->y, p_report->wheel);
+}
+
+
 void tuh_hid_mouse_mounted_cb(uint8_t dev_addr)
 {
   // application set-up
@@ -211,6 +249,35 @@ void tuh_hid_mouse_isr(uint8_t dev_addr, xfer_result_t event)
   (void) event;
 }
 #endif
+
+
+
+void hid_task(void)
+{
+  uint8_t const addr = 1;
+
+#if CFG_TUH_HID_KEYBOARD
+  if ( tuh_hid_keyboard_is_mounted(addr) )
+  {
+    if ( !tuh_hid_keyboard_is_busy(addr) )
+    {
+      process_kbd_report(&usb_keyboard_report);
+      tuh_hid_keyboard_get_report(addr, &usb_mouse_report);
+    }
+  }
+#endif
+
+#if CFG_TUH_HID_MOUSE
+  if ( tuh_hid_mouse_is_mounted(addr) )
+  {
+    if ( !tuh_hid_mouse_is_busy(addr) )
+    {
+      process_mouse_report(&usb_mouse_report);
+      tuh_hid_mouse_get_report(addr, &usb_mouse_report);
+    }
+  }
+#endif
+}
 
 //--------------------------------------------------------------------+
 // tinyusb callbacks
