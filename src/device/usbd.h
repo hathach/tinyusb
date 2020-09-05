@@ -41,8 +41,6 @@
 //--------------------------------------------------------------------+
 
 // Init device stack
-// Note: when using with RTOS, this should be called after scheduler/kernel is started.
-// Otherwise it could cause kernel issue since USB IRQ handler does use RTOS queue API.
 bool tud_init (void);
 
 // Task function should be called in main/rtos loop

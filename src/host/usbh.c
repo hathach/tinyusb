@@ -116,7 +116,7 @@ enum { USBH_CLASS_DRIVER_COUNT = TU_ARRAY_SIZE(usbh_class_drivers) };
 CFG_TUSB_MEM_SECTION usbh_device_t _usbh_devices[CFG_TUSB_HOST_DEVICE_MAX+1];
 
 // Event queue
-// role device/host is used by OS NONE for mutex (disable usb isr) only
+// role device/host is used by OS NONE for mutex (disable usb isr)
 OSAL_QUEUE_DEF(OPT_MODE_HOST, _usbh_qdef, CFG_TUH_TASK_QUEUE_SZ, hcd_event_t);
 static osal_queue_t _usbh_q;
 
@@ -137,7 +137,6 @@ tusb_device_state_t tuh_device_get_state (uint8_t const dev_addr)
   return (tusb_device_state_t) _usbh_devices[dev_addr].state;
 }
 
-
 static inline void osal_task_delay(uint32_t msec)
 {
   (void) msec;
@@ -149,7 +148,7 @@ static inline void osal_task_delay(uint32_t msec)
 //--------------------------------------------------------------------+
 // CLASS-USBD API (don't require to verify parameters)
 //--------------------------------------------------------------------+
-bool usbh_init(void)
+bool tuh_init(void)
 {
   tu_memclr(_usbh_devices, sizeof(usbh_device_t)*(CFG_TUSB_HOST_DEVICE_MAX+1));
 
@@ -385,13 +384,10 @@ bool enum_task(hcd_event_t* event)
 #endif
   };
 
-  // for OSAL_NONE local variable won't retain value after blocking service sem_wait/queue_recv
-  static uint8_t configure_selected = 1; // TODO move
-
   usbh_device_t* dev0 = &_usbh_devices[0];
   tusb_control_request_t request;
 
-  dev0->rhport  = event->rhport; // TODO refractor integrate to device_pool
+  dev0->rhport   = event->rhport; // TODO refractor integrate to device_pool
   dev0->hub_addr = event->attach.hub_addr;
   dev0->hub_port = event->attach.hub_port;
   dev0->state    = TUSB_DEVICE_STATE_UNPLUG;
@@ -552,7 +548,7 @@ bool enum_task(hcd_event_t* event)
   new_dev->product_id      = ((tusb_desc_device_t*) _usbh_ctrl_buf)->idProduct;
   new_dev->configure_count = ((tusb_desc_device_t*) _usbh_ctrl_buf)->bNumConfigurations;
 
-  configure_selected = get_configure_number_for_device((tusb_desc_device_t*) _usbh_ctrl_buf);
+  uint8_t const configure_selected = get_configure_number_for_device((tusb_desc_device_t*) _usbh_ctrl_buf);
   TU_ASSERT(configure_selected <= new_dev->configure_count); // TODO notify application when invalid configuration
 
   //------------- Get 9 bytes of configuration descriptor -------------//
