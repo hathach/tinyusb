@@ -426,14 +426,8 @@ static bool parse_configuration_descriptor(uint8_t dev_addr, tusb_desc_configura
 bool enum_task(hcd_event_t* event)
 {
   enum {
-#if 1
-    // FIXME ohci LPC1769 xpresso + debugging to have 1st control xfer to work, some kind of timing or ohci driver issue !!!
     POWER_STABLE_DELAY = 100,
-    RESET_DELAY        = 500
-#else
-    POWER_STABLE_DELAY = 500,
-    RESET_DELAY        = 200, // USB specs say only 50ms but many devices require much longer
-#endif
+    RESET_DELAY        = 500, // 200 USB specs say only 50ms but many devices require much longer
   };
 
   usbh_device_t* dev0 = &_usbh_devices[0];
@@ -534,14 +528,13 @@ bool enum_task(hcd_event_t* event)
 
   if (dev0->hub_addr == 0)
   {
+    TU_ASSERT(is_ok);
+
     // connected directly to roothub
-    TU_ASSERT(is_ok); // TODO some slow device is observed to fail the very fist controller xfer, can try more times
     hcd_port_reset( dev0->rhport ); // reset port after 8 byte descriptor
     osal_task_delay(RESET_DELAY);
-//    hcd_port_reset_end(dev0->rhport);
-//    osal_task_delay(RESET_DELAY);
   }
-  #if CFG_TUH_HUB
+#if CFG_TUH_HUB
   else
   {
     // connected via a hub
@@ -555,7 +548,7 @@ bool enum_task(hcd_event_t* event)
 
     (void) hub_status_pipe_queue( dev0->hub_addr ); // done with hub, waiting for next data on status pipe
   }
-  #endif
+#endif // CFG_TUH_HUB
 
   //------------- Set new address -------------//
   TU_LOG2("Set Address \r\n");
