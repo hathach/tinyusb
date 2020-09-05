@@ -69,9 +69,6 @@ typedef struct {
 
     osal_semaphore_def_t sem_def;
     osal_semaphore_t sem_hdl;  // used to synchronize with HCD when control xfer complete
-
-    osal_mutex_def_t mutex_def;
-    osal_mutex_t mutex_hdl;    // used to exclusively occupy control pipe
   } control;
 
   uint8_t itf2drv[16];  // map interface number to driver (0xff is invalid)

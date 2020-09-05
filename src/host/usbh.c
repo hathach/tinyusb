@@ -164,9 +164,6 @@ bool tuh_init(void)
     dev->control.sem_hdl = osal_semaphore_create(&dev->control.sem_def);
     TU_ASSERT(dev->control.sem_hdl != NULL);
 
-    dev->control.mutex_hdl = osal_mutex_create(&dev->control.mutex_def);
-    TU_ASSERT(dev->control.mutex_hdl != NULL);
-
     memset(dev->itf2drv, 0xff, sizeof(dev->itf2drv)); // invalid mapping
     memset(dev->ep2drv , 0xff, sizeof(dev->ep2drv )); // invalid mapping
   }
@@ -190,8 +187,6 @@ bool usbh_control_xfer (uint8_t dev_addr, tusb_control_request_t* request, uint8
   usbh_device_t* dev = &_usbh_devices[dev_addr];
   const uint8_t rhport = dev->rhport;
 
-  TU_ASSERT(osal_mutex_lock(dev->control.mutex_hdl, OSAL_TIMEOUT_NORMAL));
-
   dev->control.request = *request;
   dev->control.pipe_status = 0;
 
@@ -209,8 +204,6 @@ bool usbh_control_xfer (uint8_t dev_addr, tusb_control_request_t* request, uint8
   // Status : data toggle is always 1
   hcd_edpt_xfer(rhport, dev_addr, tu_edpt_addr(0, 1-request->bmRequestType_bit.direction), NULL, 0);
   TU_VERIFY(osal_semaphore_wait(dev->control.sem_hdl, OSAL_TIMEOUT_NORMAL));
-
-  osal_mutex_unlock(dev->control.mutex_hdl);
 
   if ( XFER_RESULT_STALLED == dev->control.pipe_status ) return false;
   if ( XFER_RESULT_FAILED == dev->control.pipe_status ) return false;
