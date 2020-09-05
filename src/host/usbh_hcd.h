@@ -53,7 +53,6 @@ typedef struct {
   //------------- device descriptor -------------//
   uint16_t vendor_id;
   uint16_t product_id;
-  uint8_t  configure_count; // bNumConfigurations alias
 
   //------------- configuration descriptor -------------//
   uint8_t interface_count; // bNumInterfaces alias

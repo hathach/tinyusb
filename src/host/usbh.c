@@ -122,11 +122,8 @@ static osal_queue_t _usbh_q;
 
 CFG_TUSB_MEM_SECTION TU_ATTR_ALIGNED(4) static uint8_t _usbh_ctrl_buf[CFG_TUSB_HOST_ENUM_BUFFER_SIZE];
 
-//------------- Reporter Task Data -------------//
-
 //------------- Helper Function Prototypes -------------//
 static inline uint8_t get_new_address(void);
-static inline uint8_t get_configure_number_for_device(tusb_desc_device_t* dev_desc);
 
 //--------------------------------------------------------------------+
 // PUBLIC API (Parameter Verification is required)
@@ -557,19 +554,22 @@ bool enum_task(hcd_event_t* event)
   TU_ASSERT(usbh_control_xfer(new_addr, &request, _usbh_ctrl_buf));
 
   // update device info  TODO alignment issue
-  new_dev->vendor_id       = ((tusb_desc_device_t*) _usbh_ctrl_buf)->idVendor;
-  new_dev->product_id      = ((tusb_desc_device_t*) _usbh_ctrl_buf)->idProduct;
-  new_dev->configure_count = ((tusb_desc_device_t*) _usbh_ctrl_buf)->bNumConfigurations;
+  tusb_desc_device_t const * desc_device = (tusb_desc_device_t const*) _usbh_ctrl_buf;
 
-  uint8_t const configure_selected = get_configure_number_for_device((tusb_desc_device_t*) _usbh_ctrl_buf);
-  TU_ASSERT(configure_selected <= new_dev->configure_count); // TODO notify application when invalid configuration
+  if (tuh_attach_cb) tuh_attach_cb((tusb_desc_device_t*) _usbh_ctrl_buf);
+
+  new_dev->vendor_id  = desc_device->idVendor;
+  new_dev->product_id = desc_device->idProduct;
+  TU_ASSERT(desc_device->bNumConfigurations > 0);
+
+  enum { CONFIG_NUM = 1 }; // default to use configuration 1
 
   //------------- Get 9 bytes of configuration descriptor -------------//
   TU_LOG2("Get 9 bytes of Configuration Descriptor\r\n");
   request = (tusb_control_request_t ) {
         .bmRequestType_bit = { .recipient = TUSB_REQ_RCPT_DEVICE, .type = TUSB_REQ_TYPE_STANDARD, .direction = TUSB_DIR_IN },
         .bRequest = TUSB_REQ_GET_DESCRIPTOR,
-        .wValue = (TUSB_DESC_CONFIGURATION << 8) | (configure_selected - 1),
+        .wValue = (TUSB_DESC_CONFIGURATION << 8) | (CONFIG_NUM - 1),
         .wIndex = 0,
         .wLength = 9
   };
@@ -591,7 +591,7 @@ bool enum_task(hcd_event_t* event)
   request = (tusb_control_request_t ) {
         .bmRequestType_bit = { .recipient = TUSB_REQ_RCPT_DEVICE, .type = TUSB_REQ_TYPE_STANDARD, .direction = TUSB_DIR_OUT },
         .bRequest = TUSB_REQ_SET_CONFIGURATION,
-        .wValue = configure_selected,
+        .wValue = CONFIG_NUM,
         .wIndex = 0,
         .wLength = 0
   };
@@ -700,19 +700,6 @@ static inline uint8_t get_new_address(void)
     if (_usbh_devices[addr].state == TUSB_DEVICE_STATE_UNPLUG) return addr;
   }
   return CFG_TUSB_HOST_DEVICE_MAX+1;
-}
-
-static inline uint8_t get_configure_number_for_device(tusb_desc_device_t* dev_desc)
-{
-  uint8_t config_num = 1;
-
-  // invoke callback to ask user which configuration to select
-  if (tuh_device_attached_cb)
-  {
-    config_num = tu_min8(1, tuh_device_attached_cb(dev_desc) );
-  }
-
-  return config_num;
 }
 
 #endif

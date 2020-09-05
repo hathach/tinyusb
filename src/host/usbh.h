@@ -90,7 +90,7 @@ static inline bool tuh_device_is_configured(uint8_t dev_addr)
 //--------------------------------------------------------------------+
 // APPLICATION CALLBACK
 //--------------------------------------------------------------------+
-TU_ATTR_WEAK uint8_t tuh_device_attached_cb (tusb_desc_device_t const *p_desc_device);
+TU_ATTR_WEAK uint8_t tuh_attach_cb (tusb_desc_device_t const *desc_device);
 
 /** Callback invoked when device is mounted (configured) */
 TU_ATTR_WEAK void tuh_mount_cb (uint8_t dev_addr);
