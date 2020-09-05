@@ -137,7 +137,7 @@ tusb_device_state_t tuh_device_get_state (uint8_t const dev_addr)
   return (tusb_device_state_t) _usbh_devices[dev_addr].state;
 }
 
-static inline void osal_task_delay(uint32_t msec)
+void osal_task_delay(uint32_t msec)
 {
   (void) msec;
 
@@ -305,8 +305,8 @@ void hcd_event_device_attach(uint8_t rhport, bool in_isr)
     .event_id = HCD_EVENT_DEVICE_ATTACH
   };
 
-  event.attach.hub_addr = 0;
-  event.attach.hub_port = 0;
+  event.connection.hub_addr = 0;
+  event.connection.hub_port = 0;
 
   hcd_event_handler(&event, in_isr);
 }
@@ -319,8 +319,8 @@ void hcd_event_device_remove(uint8_t hostid, bool in_isr)
     .event_id = HCD_EVENT_DEVICE_REMOVE
   };
 
-  event.attach.hub_addr = 0;
-  event.attach.hub_port = 0;
+  event.connection.hub_addr = 0;
+  event.connection.hub_port = 0;
 
   hcd_event_handler(&event, in_isr);
 }
@@ -434,78 +434,44 @@ bool enum_task(hcd_event_t* event)
   tusb_control_request_t request;
 
   dev0->rhport   = event->rhport; // TODO refractor integrate to device_pool
-  dev0->hub_addr = event->attach.hub_addr;
-  dev0->hub_port = event->attach.hub_port;
+  dev0->hub_addr = event->connection.hub_addr;
+  dev0->hub_port = event->connection.hub_port;
   dev0->state    = TUSB_DEVICE_STATE_UNPLUG;
 
   //------------- connected/disconnected directly with roothub -------------//
   if ( dev0->hub_addr == 0)
   {
-    if( hcd_port_connect_status(dev0->rhport) )
-    {
-      TU_LOG2("Device connect \r\n");
+    // wait until device is stable. Increase this if the first 8 bytes is failed to get
+    osal_task_delay(POWER_STABLE_DELAY);
 
-      // connection event
-      osal_task_delay(POWER_STABLE_DELAY); // wait until device is stable. Increase this if the first 8 bytes is failed to get
+    // device unplugged while delaying
+    if ( !hcd_port_connect_status(dev0->rhport) ) return true;
 
-      // exit if device unplugged while delaying
-      if ( !hcd_port_connect_status(dev0->rhport) ) return true;
+    hcd_port_reset( dev0->rhport ); // port must be reset to have correct speed operation
+    osal_task_delay(RESET_DELAY);
 
-      hcd_port_reset( dev0->rhport ); // port must be reset to have correct speed operation
-      osal_task_delay(RESET_DELAY);
-
-      dev0->speed = hcd_port_speed_get( dev0->rhport );
-    }
-    else
-    {
-      TU_LOG2("Device disconnect \r\n");
-
-      // disconnection event
-      usbh_device_unplugged(dev0->rhport, 0, 0);
-      return true; // restart task
-    }
+    dev0->speed = hcd_port_speed_get( dev0->rhport );
   }
 #if CFG_TUH_HUB
   //------------- connected/disconnected via hub -------------//
   else
   {
-    //------------- Get Port Status -------------//
-    request = (tusb_control_request_t ) {
-          .bmRequestType_bit = { .recipient = TUSB_REQ_RCPT_OTHER, .type = TUSB_REQ_TYPE_CLASS, .direction = TUSB_DIR_IN },
-          .bRequest = HUB_REQUEST_GET_STATUS,
-          .wValue = 0,
-          .wIndex = dev0->hub_port,
-          .wLength = 4
-    };
-    // TODO hub refractor
-    TU_VERIFY_HDLR( usbh_control_xfer( dev0->hub_addr, &request, _usbh_ctrl_buf ), hub_status_pipe_queue( dev0->hub_addr) );
+    // TODO wait for PORT reset change instead
+    osal_task_delay(POWER_STABLE_DELAY);
 
-    // Acknowledge Port Connection Change
-    hub_port_clear_feature_subtask(dev0->hub_addr, dev0->hub_port, HUB_FEATURE_PORT_CONNECTION_CHANGE);
+    hub_port_status_response_t port_status;
+    TU_VERIFY_HDLR( hub_port_get_status(dev0->hub_addr, dev0->hub_port, &port_status), hub_status_pipe_queue( dev0->hub_addr) );
 
-    hub_port_status_response_t * p_port_status;
-    p_port_status = ((hub_port_status_response_t *) _usbh_ctrl_buf);
+    // device unplugged while delaying
+    if ( !port_status.status.connection ) return true;
 
-    if ( ! p_port_status->status_change.connect_status )   return true; // only handle connection change
+    dev0->speed = (port_status.status.high_speed) ? TUSB_SPEED_HIGH :
+                  (port_status.status.low_speed ) ? TUSB_SPEED_LOW  : TUSB_SPEED_FULL;
 
-    if ( ! p_port_status->status_current.connect_status )
+    // Acknowledge Port Reset Change
+    if (port_status.change.reset)
     {
-      // Disconnection event
-      usbh_device_unplugged(dev0->rhport, dev0->hub_addr, dev0->hub_port);
-
-      (void) hub_status_pipe_queue( dev0->hub_addr ); // done with hub, waiting for next data on status pipe
-      return true; // restart task
-    }
-    else
-    {
-      // Connection Event
-      TU_VERIFY_HDLR(hub_port_reset_subtask(dev0->hub_addr, dev0->hub_port),
-                     hub_status_pipe_queue( dev0->hub_addr) ); // TODO hub refractor
-
-      dev0->speed = hub_port_get_speed();
-
-      // Acknowledge Port Reset Change
-      hub_port_clear_feature_subtask(dev0->hub_addr, dev0->hub_port, HUB_FEATURE_PORT_RESET_CHANGE);
+      hub_port_clear_feature(dev0->hub_addr, dev0->hub_port, HUB_FEATURE_PORT_RESET_CHANGE);
     }
   }
 #endif // CFG_TUH_HUB
@@ -540,10 +506,12 @@ bool enum_task(hcd_event_t* event)
     // connected via a hub
     TU_VERIFY_HDLR(is_ok, hub_status_pipe_queue( dev0->hub_addr) ); // TODO hub refractor
 
-    if ( hub_port_reset_subtask(dev0->hub_addr, dev0->hub_port) )
+    if ( hub_port_reset(dev0->hub_addr, dev0->hub_port) )
     {
+      osal_task_delay(RESET_DELAY);
+
       // Acknowledge Port Reset Change if Reset Successful
-      hub_port_clear_feature_subtask(dev0->hub_addr, dev0->hub_port, HUB_FEATURE_PORT_RESET_CHANGE);
+      hub_port_clear_feature(dev0->hub_addr, dev0->hub_port, HUB_FEATURE_PORT_RESET_CHANGE);
     }
 
     (void) hub_status_pipe_queue( dev0->hub_addr ); // done with hub, waiting for next data on status pipe
@@ -676,8 +644,22 @@ void tuh_task(void)
     switch (event.event_id)
     {
       case HCD_EVENT_DEVICE_ATTACH:
-      case HCD_EVENT_DEVICE_REMOVE:
+        TU_LOG2("USBH DEVICE ATTACH\r\n");
         enum_task(&event);
+      break;
+
+      case HCD_EVENT_DEVICE_REMOVE:
+        TU_LOG2("USBH DEVICE REMOVED\r\n");
+        usbh_device_unplugged(event.rhport, event.connection.hub_addr, event.connection.hub_port);
+
+        #if CFG_TUH_HUB
+        // TODO remove
+        if ( event.connection.hub_addr != 0)
+        {
+          // done with hub, waiting for next data on status pipe
+          (void) hub_status_pipe_queue( event.connection.hub_addr );
+        }
+        #endif
       break;
 
       case HCD_EVENT_XFER_COMPLETE:

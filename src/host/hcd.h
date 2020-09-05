@@ -55,10 +55,11 @@ typedef struct
 
   union
   {
+    // Attach, Remove
     struct {
       uint8_t hub_addr;
       uint8_t hub_port;
-    } attach, remove;
+    } connection;
 
     // XFER_COMPLETE
     struct {

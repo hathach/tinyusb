@@ -533,7 +533,7 @@ static void async_list_xfer_complete_isr(ehci_qhd_t * const async_head)
 
 static void period_list_xfer_complete_isr(uint8_t hostid, uint8_t interval_ms)
 {
-  uint8_t max_loop = 0;
+  uint16_t max_loop = 0;
   uint32_t const period_1ms_addr = (uint32_t) get_period_head(hostid, 1);
   ehci_link_t next_item = * get_period_head(hostid, interval_ms);
 

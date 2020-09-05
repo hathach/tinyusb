@@ -33,6 +33,8 @@
 //--------------------------------------------------------------------+
 #include "hub.h"
 
+extern void osal_task_delay(uint32_t msec); // TODO remove
+
 //--------------------------------------------------------------------+
 // MACRO CONSTANT TYPEDEF
 //--------------------------------------------------------------------+
@@ -53,7 +55,7 @@ TU_ATTR_ALIGNED(4) CFG_TUSB_MEM_SECTION static uint8_t hub_enum_buffer[sizeof(de
 //--------------------------------------------------------------------+
 // HUB
 //--------------------------------------------------------------------+
-bool hub_port_clear_feature_subtask(uint8_t hub_addr, uint8_t hub_port, uint8_t feature)
+bool hub_port_clear_feature(uint8_t hub_addr, uint8_t hub_port, uint8_t feature)
 {
   TU_ASSERT(HUB_FEATURE_PORT_CONNECTION_CHANGE <= feature && feature <= HUB_FEATURE_PORT_RESET_CHANGE);
 
@@ -65,33 +67,35 @@ bool hub_port_clear_feature_subtask(uint8_t hub_addr, uint8_t hub_port, uint8_t 
           .wLength = 0
   };
 
-  //------------- Clear Port Feature request -------------//
   TU_ASSERT( usbh_control_xfer( hub_addr, &request, NULL ) );
+  return true;
+}
 
-  //------------- Get Port Status to check if feature is cleared -------------//
-  request = (tusb_control_request_t ) {
-        .bmRequestType_bit = { .recipient = TUSB_REQ_RCPT_OTHER, .type = TUSB_REQ_TYPE_CLASS, .direction = TUSB_DIR_IN },
-        .bRequest = HUB_REQUEST_GET_STATUS,
-        .wValue = 0,
-        .wIndex = hub_port,
-        .wLength = 4
+bool hub_port_get_status(uint8_t hub_addr, uint8_t hub_port, hub_port_status_response_t* resp)
+{
+  tusb_control_request_t request =
+  {
+    .bmRequestType_bit =
+    {
+      .recipient = TUSB_REQ_RCPT_OTHER,
+      .type      = TUSB_REQ_TYPE_CLASS,
+      .direction = TUSB_DIR_IN
+    },
+
+    .bRequest = HUB_REQUEST_GET_STATUS,
+    .wValue   = 0,
+    .wIndex   = hub_port,
+    .wLength  = 4
   };
 
   TU_ASSERT( usbh_control_xfer( hub_addr, &request, hub_enum_buffer ) );
 
-  //------------- Check if feature is cleared -------------//
-  hub_port_status_response_t * p_port_status;
-  p_port_status = (hub_port_status_response_t *) hub_enum_buffer;
-
-  TU_ASSERT( !tu_bit_test(p_port_status->status_change.value, feature-16)  );
-
+  memcpy(resp, hub_enum_buffer, sizeof(hub_port_status_response_t));
   return true;
 }
 
-bool hub_port_reset_subtask(uint8_t hub_addr, uint8_t hub_port)
+bool hub_port_reset(uint8_t hub_addr, uint8_t hub_port)
 {
-  enum { RESET_DELAY = 200 }; // USB specs say only 50ms but many devices require much longer
-
   //------------- Set Port Reset -------------//
   tusb_control_request_t request = {
           .bmRequestType_bit = { .recipient = TUSB_REQ_RCPT_OTHER, .type = TUSB_REQ_TYPE_CLASS, .direction = TUSB_DIR_OUT },
@@ -102,35 +106,7 @@ bool hub_port_reset_subtask(uint8_t hub_addr, uint8_t hub_port)
   };
 
   TU_ASSERT( usbh_control_xfer( hub_addr, &request, NULL ) );
-
-  osal_task_delay(RESET_DELAY); // TODO Hub wait for Status Endpoint on Reset Change
-
-  //------------- Get Port Status to check if port is enabled, powered and reset_change -------------//
-  request = (tusb_control_request_t ) {
-        .bmRequestType_bit = { .recipient = TUSB_REQ_RCPT_OTHER, .type = TUSB_REQ_TYPE_CLASS, .direction = TUSB_DIR_IN },
-        .bRequest = HUB_REQUEST_GET_STATUS,
-        .wValue = 0,
-        .wIndex = hub_port,
-        .wLength = 4
-  };
-
-  TU_ASSERT( usbh_control_xfer( hub_addr, &request, hub_enum_buffer ) );
-
-  hub_port_status_response_t * p_port_status;
-  p_port_status = (hub_port_status_response_t *) hub_enum_buffer;
-
-  TU_ASSERT ( p_port_status->status_change.reset && p_port_status->status_current.connect_status &&
-              p_port_status->status_current.port_power && p_port_status->status_current.port_enable);
-
   return true;
-}
-
-// can only get the speed RIGHT AFTER hub_port_reset_subtask call
-tusb_speed_t hub_port_get_speed(void)
-{
-  hub_port_status_response_t * p_port_status = (hub_port_status_response_t *) hub_enum_buffer;
-  return (p_port_status->status_current.high_speed_device_attached) ? TUSB_SPEED_HIGH :
-         (p_port_status->status_current.low_speed_device_attached ) ? TUSB_SPEED_LOW  : TUSB_SPEED_FULL;
 }
 
 //--------------------------------------------------------------------+
@@ -199,31 +175,49 @@ bool hub_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_interface_t const *itf
 
 // is the response of interrupt endpoint polling
 #include "usbh_hcd.h" // FIXME remove
-void hub_xfer_cb(uint8_t dev_addr, uint8_t ep_addr, xfer_result_t event, uint32_t xferred_bytes)
+void hub_xfer_cb(uint8_t dev_addr, uint8_t ep_addr, xfer_result_t result, uint32_t xferred_bytes)
 {
   (void) xferred_bytes; // TODO can be more than 1 for hub with lots of ports
   (void) ep_addr;
 
   usbh_hub_t * p_hub = &hub_data[dev_addr-1];
 
-  if ( event == XFER_RESULT_SUCCESS )
+  if ( result == XFER_RESULT_SUCCESS )
   {
+    TU_LOG2("Port Status Change = 0x%02X\r\n", p_hub->status_change);
     for (uint8_t port=1; port <= p_hub->port_number; port++)
     {
       // TODO HUB ignore bit0 hub_status_change
       if ( tu_bit_test(p_hub->status_change, port) )
       {
-        hcd_event_t event =
+        hub_port_status_response_t port_status;
+        hub_port_get_status(dev_addr, port, &port_status);
+
+        // Connection change
+        if (port_status.change.connection)
         {
-          .rhport = _usbh_devices[dev_addr].rhport,
-          .event_id = HCD_EVENT_DEVICE_ATTACH
-        };
+          // Port is powered and enabled
+          //TU_VERIFY(port_status.status_current.port_power && port_status.status_current.port_enable, );
 
-        event.attach.hub_addr = dev_addr;
-        event.attach.hub_port = port;
+          // Acknowledge Port Connection Change
+          hub_port_clear_feature(dev_addr, port, HUB_FEATURE_PORT_CONNECTION_CHANGE);
 
-        hcd_event_handler(&event, true);
-        break; // TODO handle one port at a time, next port if any will be handled in the next cycle
+          // Reset port if attach event
+          if ( port_status.status.connection ) hub_port_reset(dev_addr, port);
+
+          hcd_event_t event =
+          {
+            .rhport     = _usbh_devices[dev_addr].rhport,
+            .event_id   = port_status.status.connection ? HCD_EVENT_DEVICE_ATTACH : HCD_EVENT_DEVICE_REMOVE,
+            .connection =
+            {
+              .hub_addr = dev_addr,
+              .hub_port = port
+            }
+          };
+
+          hcd_event_handler(&event, true);
+        }
       }
     }
     // NOTE: next status transfer is queued by usbh.c after handling this request

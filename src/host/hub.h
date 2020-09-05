@@ -142,7 +142,7 @@ typedef struct {
     };
 
     uint16_t value;
-  } status, status_change;
+  } status, change;
 } hub_status_response_t;
 
 TU_VERIFY_STATIC( sizeof(hub_status_response_t) == 4, "size is not correct");
@@ -151,30 +151,30 @@ TU_VERIFY_STATIC( sizeof(hub_status_response_t) == 4, "size is not correct");
 typedef struct {
   union {
     struct TU_ATTR_PACKED {
-      uint16_t connect_status             : 1;
-      uint16_t port_enable                : 1;
-      uint16_t suspend                    : 1;
-      uint16_t over_current               : 1;
-      uint16_t reset                      : 1;
+      uint16_t connection             : 1;
+      uint16_t port_enable            : 1;
+      uint16_t suspend                : 1;
+      uint16_t over_current           : 1;
+      uint16_t reset                  : 1;
 
-      uint16_t                            : 3;
-      uint16_t port_power                 : 1;
-      uint16_t low_speed_device_attached  : 1;
-      uint16_t high_speed_device_attached : 1;
-      uint16_t port_test_mode             : 1;
-      uint16_t port_indicator_control     : 1;
+      uint16_t                        : 3;
+      uint16_t port_power             : 1;
+      uint16_t low_speed              : 1;
+      uint16_t high_speed             : 1;
+      uint16_t port_test_mode         : 1;
+      uint16_t port_indicator_control : 1;
       uint16_t : 0;
     };
 
     uint16_t value;
-  } status_current, status_change;
+  } status, change;
 } hub_port_status_response_t;
 
 TU_VERIFY_STATIC( sizeof(hub_port_status_response_t) == 4, "size is not correct");
 
-bool hub_port_reset_subtask(uint8_t hub_addr, uint8_t hub_port);
-bool hub_port_clear_feature_subtask(uint8_t hub_addr, uint8_t hub_port, uint8_t feature);
-tusb_speed_t hub_port_get_speed(void);
+bool hub_port_reset(uint8_t hub_addr, uint8_t hub_port);
+bool hub_port_get_status(uint8_t hub_addr, uint8_t hub_port, hub_port_status_response_t* resp);
+bool hub_port_clear_feature(uint8_t hub_addr, uint8_t hub_port, uint8_t feature);
 bool hub_status_pipe_queue(uint8_t dev_addr);
 
 //--------------------------------------------------------------------+
