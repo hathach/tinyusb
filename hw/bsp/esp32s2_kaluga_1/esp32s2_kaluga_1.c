@@ -29,7 +29,6 @@
 #include "driver/periph_ctrl.h"
 #include "hal/usb_hal.h"
 #include "soc/usb_periph.h"
-#include "soc/usb_wrap_struct.h"
 #include "soc/rtc_cntl_reg.h"
 
 #include "driver/rmt.h"
@@ -44,19 +43,10 @@
 #define BUTTON_PIN            0
 #define BUTTON_STATE_ACTIVE   0
 
-#define USBDC_PERSIST_ENA (1<<31)
-
 static led_strip_t *strip;
 
 static void configure_pins(usb_hal_context_t *usb)
 {
-    if (usb->use_external_phy) {
-        gpio_output_set_high(0x10, 0, 0x1E, 0xE);
-    } else {
-        gpio_set_drive_capability(USBPHY_DP_NUM, GPIO_DRIVE_CAP_3);
-        gpio_set_drive_capability(USBPHY_DM_NUM, GPIO_DRIVE_CAP_3);
-    }
-
     /* usb_periph_iopins currently configures USB_OTG as USB Device.
      * Introduce additional parameters in usb_hal_context_t when adding support
      * for USB Host.
@@ -72,6 +62,11 @@ static void configure_pins(usb_hal_context_t *usb)
             }
             gpio_pad_unhold(iopin->pin);
         }
+    }
+
+    if (!usb->use_external_phy) {
+        gpio_set_drive_capability(USBPHY_DP_NUM, GPIO_DRIVE_CAP_3);
+        gpio_set_drive_capability(USBPHY_DM_NUM, GPIO_DRIVE_CAP_3);
     }
 }
 
@@ -93,16 +88,6 @@ void board_init(void)
   gpio_pad_select_gpio(BUTTON_PIN);
   gpio_set_direction(BUTTON_PIN, GPIO_MODE_INPUT);
   gpio_set_pull_mode(BUTTON_PIN, BUTTON_STATE_ACTIVE ? GPIO_PULLDOWN_ONLY : GPIO_PULLUP_ONLY);
-
-  if (USB_WRAP.date.val == USBDC_PERSIST_ENA) {
-    // Enable USB/IO_MUX peripheral reset, if coming from persistent reboot
-    REG_CLR_BIT(RTC_CNTL_USB_CONF_REG, RTC_CNTL_IO_MUX_RESET_DISABLE);
-    REG_CLR_BIT(RTC_CNTL_USB_CONF_REG, RTC_CNTL_USB_RESET_DISABLE);
-  } else {
-    // Reset USB module
-    periph_module_reset(PERIPH_USB_MODULE);
-    periph_module_enable(PERIPH_USB_MODULE);
-  }
 
   // USB Controller Hal init
   usb_hal_context_t hal = {
