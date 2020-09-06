@@ -167,8 +167,8 @@ bool hub_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_interface_t const *itf
     TU_ASSERT( usbh_control_xfer( dev_addr, &request, NULL ) );
   }
 
-  //------------- Queue the initial Status endpoint transfer -------------//
-  TU_ASSERT( hcd_pipe_xfer(dev_addr, hub_data[dev_addr-1].ep_status, &hub_data[dev_addr-1].status_change, 1, true) );
+  // Queue notification status endpoint
+  TU_ASSERT( usbh_edpt_xfer(dev_addr, hub_data[dev_addr-1].ep_status, &hub_data[dev_addr-1].status_change, 1) );
 
   return true;
 }

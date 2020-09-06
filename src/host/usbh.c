@@ -208,6 +208,12 @@ bool usbh_control_xfer (uint8_t dev_addr, tusb_control_request_t* request, uint8
   return true;
 }
 
+bool usbh_edpt_xfer(uint8_t dev_addr, uint8_t ep_addr, uint8_t * buffer, uint16_t total_bytes)
+{
+  usbh_device_t* dev = &_usbh_devices[dev_addr];
+  return hcd_edpt_xfer(dev->rhport, dev_addr, ep_addr, buffer, total_bytes);
+}
+
 bool usbh_pipe_control_open(uint8_t dev_addr, uint8_t max_packet_size)
 {
   osal_semaphore_reset( _usbh_devices[dev_addr].control.sem_hdl );

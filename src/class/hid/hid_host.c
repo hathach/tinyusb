@@ -71,7 +71,7 @@ tusb_error_t hidh_interface_get_report(uint8_t dev_addr, void * report, hidh_int
   TU_VERIFY(report, TUSB_ERROR_INVALID_PARA);
   TU_ASSERT(!hcd_edpt_busy(dev_addr, p_hid->ep_in), TUSB_ERROR_INTERFACE_IS_BUSY);
 
-  TU_ASSERT( hcd_pipe_xfer(dev_addr, p_hid->ep_in, report, p_hid->report_size, true) ) ;
+  TU_ASSERT( usbh_edpt_xfer(dev_addr, p_hid->ep_in, report, p_hid->report_size) ) ;
 
   return TUSB_ERROR_NONE;
 }

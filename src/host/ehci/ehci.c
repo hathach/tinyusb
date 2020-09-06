@@ -328,7 +328,20 @@ bool hcd_edpt_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr, uint8_t * 
     qhd->qtd_overlay.next.address = (uint32_t) qtd;
   }else
   {
-    // TODO implement later
+    ehci_qhd_t *p_qhd = qhd_get_from_addr(dev_addr, ep_addr);
+    ehci_qtd_t *p_qtd = qtd_find_free();
+    TU_ASSERT(p_qtd);
+
+    qtd_init(p_qtd, buffer, buflen);
+    p_qtd->pid = p_qhd->pid;
+
+    // Insert TD to QH
+    qtd_insert_to_qhd(p_qhd, p_qtd);
+
+    p_qhd->p_qtd_list_tail->int_on_complete = 1;
+
+    // attach head QTD to QHD start transferring
+    p_qhd->qtd_overlay.next.address = (uint32_t) p_qhd->p_qtd_list_head;
   }
 
   return true;

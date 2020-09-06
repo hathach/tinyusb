@@ -105,6 +105,8 @@ TU_ATTR_WEAK void tuh_umount_cb(uint8_t dev_addr);
 bool usbh_control_xfer (uint8_t dev_addr, tusb_control_request_t* request, uint8_t* data);
 bool usbh_edpt_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_endpoint_t const * ep_desc);
 
+bool usbh_edpt_xfer(uint8_t dev_addr, uint8_t ep_addr, uint8_t * buffer, uint16_t total_bytes);
+
 #ifdef __cplusplus
  }
 #endif
