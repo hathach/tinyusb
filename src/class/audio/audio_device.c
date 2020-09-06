@@ -780,7 +780,11 @@ static bool audiod_set_interface(uint8_t rhport, tusb_control_request_t const * 
         if (tu_desc_type(p_desc) == TUSB_DESC_ENDPOINT)
         {
           TU_ASSERT(usbd_edpt_open(rhport, (tusb_desc_endpoint_t const *)p_desc));
+
           uint8_t ep_addr = ((tusb_desc_endpoint_t const *) p_desc)->bEndpointAddress;
+
+          // We need to set EP non busy since this is not taken care of right now in ep_close() - THIS IS A WORKAROUND!
+          usbd_edpt_clear_stall(rhport, ep_addr);
 
 #if CFG_TUD_AUDIO_EPSIZE_IN > 0
           if (tu_edpt_dir(ep_addr) == TUSB_DIR_IN && ((tusb_desc_endpoint_t const *) p_desc)->bmAttributes.usage == 0x00)   // Check if usage is data EP
@@ -1081,11 +1085,12 @@ bool audiod_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint3
       uint16_t n_bytes_copied;
       TU_VERIFY(audiod_tx_done_cb(rhport, &_audiod_itf[idxDriver], &n_bytes_copied));
 
-      if (n_bytes_copied == 0)
-      {
-        // Load with ZLP
-        return usbd_edpt_xfer(rhport, ep_addr, NULL, 0);
-      }
+      // Transmission of ZLP is done by audiod_tx_done_cb()
+//      if (n_bytes_copied == 0)
+//      {
+//        // Load with ZLP
+//        return usbd_edpt_xfer(rhport, ep_addr, NULL, 0);
+//      }
 
       return true;
     }

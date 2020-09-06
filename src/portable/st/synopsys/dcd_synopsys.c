@@ -682,42 +682,42 @@ bool dcd_edpt_open (uint8_t rhport, tusb_desc_endpoint_t const * desc_edpt)
   return true;
 }
 
-/**
- * Close an EP.
- *
- * Currently, we only deactivate the EPs and do not fully disable them - this might not be necessary!
- *
- */
-void dcd_edpt_close (uint8_t rhport, uint8_t ep_addr)
-{
-  (void)rhport;
-  uint32_t const epnum = tu_edpt_number(ep_addr);
-  uint32_t const dir   = tu_edpt_dir(ep_addr);
-
-  USB_OTG_DeviceTypeDef * dev = DEVICE_BASE(rhport);
-
-  if(dir == TUSB_DIR_IN)
-  {
-    USB_OTG_INEndpointTypeDef * in_ep = IN_EP_BASE(rhport);
-
-    // Disable interrupt for this EP
-    dev->DAINTMSK &= ~(1 << (USB_OTG_DAINTMSK_IEPM_Pos + epnum));
-
-    // Clear USB active EP
-    in_ep[epnum].DIEPCTL &= ~USB_OTG_DIEPCTL_USBAEP;
-  }
-  else
-  {
-    USB_OTG_OUTEndpointTypeDef * out_ep = OUT_EP_BASE(rhport);
-
-    // Disable interrupt for this EP
-    dev->DAINTMSK &= ~(1 << (USB_OTG_DAINTMSK_OEPM_Pos + epnum));;
-
-    // Clear USB active EP bit
-    out_ep[epnum].DOEPCTL &= ~USB_OTG_DOEPCTL_USBAEP;
-
-  }
-}
+///**
+// * Close an EP.
+// *
+// * Currently, we only deactivate the EPs and do not fully disable them - this might not be necessary!
+// *
+// */
+//void dcd_edpt_close (uint8_t rhport, uint8_t ep_addr)
+//{
+//  (void)rhport;
+//  uint32_t const epnum = tu_edpt_number(ep_addr);
+//  uint32_t const dir   = tu_edpt_dir(ep_addr);
+//
+//  USB_OTG_DeviceTypeDef * dev = DEVICE_BASE(rhport);
+//
+//  if(dir == TUSB_DIR_IN)
+//  {
+//    USB_OTG_INEndpointTypeDef * in_ep = IN_EP_BASE(rhport);
+//
+//    // Disable interrupt for this EP
+//    dev->DAINTMSK &= ~(1 << (USB_OTG_DAINTMSK_IEPM_Pos + epnum));
+//
+//    // Clear USB active EP
+//    in_ep[epnum].DIEPCTL &= ~USB_OTG_DIEPCTL_USBAEP;
+//  }
+//  else
+//  {
+//    USB_OTG_OUTEndpointTypeDef * out_ep = OUT_EP_BASE(rhport);
+//
+//    // Disable interrupt for this EP
+//    dev->DAINTMSK &= ~(1 << (USB_OTG_DAINTMSK_OEPM_Pos + epnum));;
+//
+//    // Clear USB active EP bit
+//    out_ep[epnum].DOEPCTL &= ~USB_OTG_DOEPCTL_USBAEP;
+//
+//  }
+//}
 
 bool dcd_edpt_xfer (uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t total_bytes)
 {
@@ -815,14 +815,14 @@ void dcd_edpt_close (uint8_t rhport, uint8_t ep_addr)
   uint8_t const dir   = tu_edpt_dir(ep_addr);
 
   dcd_edpt_disable(rhport, ep_addr, false);
-  if (dir == TUSB_DIR_IN)
-  {
-    uint16_t const fifo_size = (usb_otg->DIEPTXF[epnum - 1] & USB_OTG_DIEPTXF_INEPTXFD_Msk) >> USB_OTG_DIEPTXF_INEPTXFD_Pos;
-    uint16_t const fifo_start = (usb_otg->DIEPTXF[epnum - 1] & USB_OTG_DIEPTXF_INEPTXSA_Msk) >> USB_OTG_DIEPTXF_INEPTXSA_Pos;
-    // For now only endpoint that has FIFO at the end of FIFO memory can be closed without fuss.
-    TU_ASSERT(fifo_start + fifo_size == _allocated_fifo_words,);
-    _allocated_fifo_words -= fifo_size;
-  }
+//  if (dir == TUSB_DIR_IN)
+//  {
+//    uint16_t const fifo_size = (usb_otg->DIEPTXF[epnum - 1] & USB_OTG_DIEPTXF_INEPTXFD_Msk) >> USB_OTG_DIEPTXF_INEPTXFD_Pos;
+//    uint16_t const fifo_start = (usb_otg->DIEPTXF[epnum - 1] & USB_OTG_DIEPTXF_INEPTXSA_Msk) >> USB_OTG_DIEPTXF_INEPTXSA_Pos;
+//    // For now only endpoint that has FIFO at the end of FIFO memory can be closed without fuss.
+//    TU_ASSERT(fifo_start + fifo_size == _allocated_fifo_words,);
+//    _allocated_fifo_words -= fifo_size;
+//  }
 }
 
 void dcd_edpt_stall (uint8_t rhport, uint8_t ep_addr)
@@ -1155,6 +1155,11 @@ void dcd_int_handler(uint8_t rhport)
   if(int_status & USB_OTG_GINTSTS_IEPINT) {
     // IEPINT bit read-only
     handle_epin_ints(rhport, dev, in_ep);
+  }
+
+  // Check for Incomplete isochronous IN transfer
+  if(int_status & USB_OTG_GINTSTS_IISOIXFR) {
+    TU_LOG2("      IISOIXFR!\r\n");
   }
 }
 
