@@ -209,10 +209,11 @@ bool cdch_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_interface_t const *it
   return true;
 }
 
-void cdch_xfer_cb(uint8_t dev_addr, uint8_t ep_addr, xfer_result_t event, uint32_t xferred_bytes)
+bool cdch_xfer_cb(uint8_t dev_addr, uint8_t ep_addr, xfer_result_t event, uint32_t xferred_bytes)
 {
   (void) ep_addr;
   tuh_cdc_xfer_isr( dev_addr, event, 0, xferred_bytes );
+  return true;
 }
 
 void cdch_close(uint8_t dev_addr)

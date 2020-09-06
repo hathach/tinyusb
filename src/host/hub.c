@@ -175,7 +175,7 @@ bool hub_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_interface_t const *itf
 
 // is the response of interrupt endpoint polling
 #include "usbh_hcd.h" // FIXME remove
-void hub_xfer_cb(uint8_t dev_addr, uint8_t ep_addr, xfer_result_t result, uint32_t xferred_bytes)
+bool hub_xfer_cb(uint8_t dev_addr, uint8_t ep_addr, xfer_result_t result, uint32_t xferred_bytes)
 {
   (void) xferred_bytes; // TODO can be more than 1 for hub with lots of ports
   (void) ep_addr;
@@ -227,6 +227,8 @@ void hub_xfer_cb(uint8_t dev_addr, uint8_t ep_addr, xfer_result_t result, uint32
     // TODO [HUB] check if hub is still plugged before polling status endpoint since failed usually mean hub unplugged
 //    TU_ASSERT ( hub_status_pipe_queue(dev_addr) );
   }
+
+  return true;
 }
 
 void hub_close(uint8_t dev_addr)

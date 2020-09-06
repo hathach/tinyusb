@@ -48,7 +48,7 @@
   #define DRIVER_NAME(_name)
 #endif
 
-static host_class_driver_t const usbh_class_drivers[] =
+static usbh_class_driver_t const usbh_class_drivers[] =
 {
   #if CFG_TUH_CDC
     {
@@ -442,7 +442,7 @@ bool enum_task(hcd_event_t* event)
   dev0->state    = TUSB_DEVICE_STATE_UNPLUG;
 
   //------------- connected/disconnected directly with roothub -------------//
-  if ( dev0->hub_addr == 0)
+  if (dev0->hub_addr == 0)
   {
     // wait until device is stable. Increase this if the first 8 bytes is failed to get
     osal_task_delay(POWER_STABLE_DELAY);

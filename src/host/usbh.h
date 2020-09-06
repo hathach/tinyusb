@@ -60,9 +60,9 @@ typedef struct {
 
   void (* const init) (void);
   bool (* const open)(uint8_t rhport, uint8_t dev_addr, tusb_desc_interface_t const * itf_desc, uint16_t* outlen);
-  void (* const xfer_cb) (uint8_t dev_addr, uint8_t ep_addr, xfer_result_t result, uint32_t len);
+  bool (* const xfer_cb) (uint8_t dev_addr, uint8_t ep_addr, xfer_result_t result, uint32_t xferred_bytes);
   void (* const close) (uint8_t);
-} host_class_driver_t;
+} usbh_class_driver_t;
 //--------------------------------------------------------------------+
 // INTERNAL OBJECT & FUNCTION DECLARATION
 //--------------------------------------------------------------------+
@@ -106,6 +106,9 @@ bool usbh_control_xfer (uint8_t dev_addr, tusb_control_request_t* request, uint8
 bool usbh_edpt_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_endpoint_t const * ep_desc);
 
 bool usbh_edpt_xfer(uint8_t dev_addr, uint8_t ep_addr, uint8_t * buffer, uint16_t total_bytes);
+
+
+bool tuh_control_xfer (uint8_t dev_addr, tusb_control_request_t const* request, uint8_t* buffer, uint16_t buflen);
 
 #ifdef __cplusplus
  }

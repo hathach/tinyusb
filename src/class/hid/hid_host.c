@@ -233,7 +233,7 @@ bool hidh_open_subtask(uint8_t rhport, uint8_t dev_addr, tusb_desc_interface_t c
   return true;
 }
 
-void hidh_xfer_cb(uint8_t dev_addr, uint8_t ep_addr, xfer_result_t event, uint32_t xferred_bytes)
+bool hidh_xfer_cb(uint8_t dev_addr, uint8_t ep_addr, xfer_result_t event, uint32_t xferred_bytes)
 {
   (void) xferred_bytes; // TODO may need to use this para later
 
@@ -241,7 +241,7 @@ void hidh_xfer_cb(uint8_t dev_addr, uint8_t ep_addr, xfer_result_t event, uint32
   if ( ep_addr == keyboardh_data[dev_addr-1].ep_in )
   {
     tuh_hid_keyboard_isr(dev_addr, event);
-    return;
+    return true;
   }
 #endif
 
@@ -249,13 +249,15 @@ void hidh_xfer_cb(uint8_t dev_addr, uint8_t ep_addr, xfer_result_t event, uint32
   if ( ep_addr == mouseh_data[dev_addr-1].ep_in )
   {
     tuh_hid_mouse_isr(dev_addr, event);
-    return;
+    return true;
   }
 #endif
 
 #if CFG_TUSB_HOST_HID_GENERIC
 
 #endif
+
+  return true;
 }
 
 void hidh_close(uint8_t dev_addr)

@@ -336,6 +336,7 @@ bool msch_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_interface_t const *it
 
   enum { SCSI_XFER_TIMEOUT = 2000 };
   //------------- SCSI Inquiry -------------//
+  TU_LOG2("SCSI Inquiry\r\n");
   tusbh_msc_inquiry(dev_addr, 0, msch_buffer);
   TU_ASSERT( osal_semaphore_wait(msch_sem_hdl, SCSI_XFER_TIMEOUT) );
 
@@ -343,6 +344,7 @@ bool msch_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_interface_t const *it
   memcpy(p_msc->product_id, ((scsi_inquiry_resp_t*) msch_buffer)->product_id, 16);
 
   //------------- SCSI Read Capacity 10 -------------//
+  TU_LOG2("SCSI Read Capacity 10\r\n");
   tusbh_msc_read_capacity10(dev_addr, 0, msch_buffer);
   TU_ASSERT( osal_semaphore_wait(msch_sem_hdl, SCSI_XFER_TIMEOUT));
 
@@ -383,7 +385,7 @@ bool msch_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_interface_t const *it
   return true;
 }
 
-void msch_xfer_cb(uint8_t dev_addr, uint8_t ep_addr, xfer_result_t event, uint32_t xferred_bytes)
+bool msch_xfer_cb(uint8_t dev_addr, uint8_t ep_addr, xfer_result_t event, uint32_t xferred_bytes)
 {
   msch_interface_t* p_msc = &msch_data[dev_addr-1];
   if ( ep_addr == p_msc->ep_in )
@@ -396,6 +398,8 @@ void msch_xfer_cb(uint8_t dev_addr, uint8_t ep_addr, xfer_result_t event, uint32
       osal_semaphore_post(msch_sem_hdl, true);
     }
   }
+
+  return true;
 }
 
 void msch_close(uint8_t dev_addr)
