@@ -37,6 +37,7 @@
 #include "esp_log.h"
 #include "esp32s2/rom/gpio.h"
 #include "esp32s2/rom/usb/usb_persist.h"
+#include "soc/rtc_cntl_reg.h"
 #include "soc/dport_reg.h"
 #include "soc/gpio_sig_map.h"
 #include "soc/usb_periph.h"
@@ -176,14 +177,7 @@ void dcd_init(uint8_t rhport)
   if (did_persist) {
     //Clear persistence of USB peripheral through reset
     USB_WRAP.date.val = 0;
-    // Enable USB/IO_MUX peripheral reset
-    REG_CLR_BIT(RTC_CNTL_USB_CONF_REG, RTC_CNTL_IO_MUX_RESET_DISABLE);
-    REG_CLR_BIT(RTC_CNTL_USB_CONF_REG, RTC_CNTL_USB_RESET_DISABLE);
   } else {
-    // Reset USB module
-    periph_module_reset(PERIPH_USB_MODULE);
-    periph_module_enable(PERIPH_USB_MODULE);
-    
     // A. Disconnect
     ESP_LOGV(TAG, "DCD init - Soft DISCONNECT and Setting up");
     USB0.dctl |= USB_SFTDISCON_M; // Soft disconnect

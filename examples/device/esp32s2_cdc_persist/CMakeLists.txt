@@ -15,4 +15,4 @@ set(EXTRA_COMPONENT_DIRS "src" "${TOP}/hw/bsp/${BOARD}")
 include($ENV{IDF_PATH}/tools/cmake/project.cmake)
 set(SUPPORTED_TARGETS esp32s2)
 
-project(esp32_s2_cdc_persist)
+project(esp32s2_cdc_persist)

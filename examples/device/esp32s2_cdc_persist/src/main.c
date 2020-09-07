@@ -23,6 +23,25 @@
  *
  */
 
+/*
+ * This example showcases ESP32-S2's ability to keep the USB peripheral active
+ * while rebooting into download mode to flash a new firmware. This makes the CDC
+ * behave just like a normal USB-UART chip and not lose/change the serial port
+ * at each step of the process.
+ *
+ * It is important to remember that this feature should be used in cases where only
+ * CDC is active. This feature will break USB standarts for any other device driver
+ * and can lead to different issues, most rendering the USB unusable until full
+ * power-on reset is performed.
+ *
+ * To see this feature in action, first build and upload this example to the board,
+ * then execute the following command in the example root:
+ * idf.py -p [usb cdc port] monitor
+ * Once you are connected to the CDC, you can press Ctrl+T and then Ctrl+A to reflash
+ * the firmware with persistence. idf-monitor will automatically reconnect to
+ * CDC once flashing has completed.
+ */
+
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
@@ -44,8 +63,7 @@
 #include "soc/usb_wrap_struct.h"
 #include "driver/periph_ctrl.h"
 #include "soc/rtc_cntl_reg.h"
-
-#define USBDC_PERSIST_ENA (1<<31)
+#include "esp32s2/rom/usb/usb_persist.h"
 
 typedef enum {
   PERSIST_DISABLED,
