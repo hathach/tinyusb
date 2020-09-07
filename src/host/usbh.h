@@ -63,6 +63,8 @@ typedef struct {
   bool (* const xfer_cb) (uint8_t dev_addr, uint8_t ep_addr, xfer_result_t result, uint32_t xferred_bytes);
   void (* const close) (uint8_t);
 } usbh_class_driver_t;
+
+typedef bool (*tuh_control_complete_cb_t)(uint8_t dev_addr, tusb_control_request_t const * request, xfer_result_t result);
 //--------------------------------------------------------------------+
 // INTERNAL OBJECT & FUNCTION DECLARATION
 //--------------------------------------------------------------------+
@@ -87,10 +89,12 @@ static inline bool tuh_device_is_configured(uint8_t dev_addr)
   return tuh_device_get_state(dev_addr) == TUSB_DEVICE_STATE_CONFIGURED;
 }
 
+bool tuh_control_xfer (uint8_t dev_addr, tusb_control_request_t const* request, void* buffer, tuh_control_complete_cb_t complete_cb);
+
 //--------------------------------------------------------------------+
 // APPLICATION CALLBACK
 //--------------------------------------------------------------------+
-TU_ATTR_WEAK uint8_t tuh_attach_cb (tusb_desc_device_t const *desc_device);
+//TU_ATTR_WEAK uint8_t tuh_attach_cb (tusb_desc_device_t const *desc_device);
 
 /** Callback invoked when device is mounted (configured) */
 TU_ATTR_WEAK void tuh_mount_cb (uint8_t dev_addr);
@@ -106,9 +110,6 @@ bool usbh_control_xfer (uint8_t dev_addr, tusb_control_request_t* request, uint8
 bool usbh_edpt_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_endpoint_t const * ep_desc);
 
 bool usbh_edpt_xfer(uint8_t dev_addr, uint8_t ep_addr, uint8_t * buffer, uint16_t total_bytes);
-
-
-bool tuh_control_xfer (uint8_t dev_addr, tusb_control_request_t const* request, uint8_t* buffer, uint16_t buflen);
 
 #ifdef __cplusplus
  }

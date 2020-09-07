@@ -175,14 +175,22 @@ bool hidh_open_subtask(uint8_t rhport, uint8_t dev_addr, tusb_desc_interface_t c
 
   // SET IDLE = 0 request
   // Device can stall if not support this request
-  tusb_control_request_t request = {
-        .bmRequestType_bit = { .recipient = TUSB_REQ_RCPT_INTERFACE, .type = TUSB_REQ_TYPE_CLASS, .direction = TUSB_DIR_OUT },
-        .bRequest = HID_REQ_CONTROL_SET_IDLE,
-        .wValue = 0, // idle_rate = 0
-        .wIndex = p_interface_desc->bInterfaceNumber,
-        .wLength = 0
+  tusb_control_request_t const request =
+  {
+    .bmRequestType_bit =
+    {
+      .recipient = TUSB_REQ_RCPT_INTERFACE,
+      .type      = TUSB_REQ_TYPE_CLASS,
+      .direction = TUSB_DIR_OUT
+    },
+    .bRequest = HID_REQ_CONTROL_SET_IDLE,
+    .wValue   = 0, // idle_rate = 0
+    .wIndex   = p_interface_desc->bInterfaceNumber,
+    .wLength  = 0
   };
-  usbh_control_xfer( dev_addr, &request, NULL ); // TODO stall is valid
+
+  // stall is a valid response for SET_IDLE, therefore we could ignore result of this request
+  tuh_control_xfer(dev_addr, &request, NULL, NULL);
 
 #if 0
   //------------- Get Report Descriptor TODO HID parser -------------//

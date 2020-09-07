@@ -53,11 +53,20 @@ typedef struct {
   //------------- device descriptor -------------//
   uint16_t vendor_id;
   uint16_t product_id;
+  uint8_t  ep0_packet_size;
 
   //------------- configuration descriptor -------------//
-  uint8_t interface_count; // bNumInterfaces alias
+  // uint8_t interface_count; // bNumInterfaces alias
 
   //------------- device -------------//
+  struct TU_ATTR_PACKED
+  {
+    uint8_t connected    : 1;
+    uint8_t addressed    : 1;
+    uint8_t configured   : 1;
+    uint8_t suspended    : 1;
+  };
+
   volatile uint8_t state;             // device state, value from enum tusbh_device_state_t
 
   //------------- control pipe -------------//
