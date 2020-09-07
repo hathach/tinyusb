@@ -432,21 +432,27 @@ static bool parse_configuration_descriptor(uint8_t dev_addr, tusb_desc_configura
 
 static bool enum_set_config_complete(uint8_t dev_addr, tusb_control_request_t const * request, xfer_result_t result)
 {
-  TU_LOG2_LOCATION();
+  (void) request;
   TU_ASSERT(XFER_RESULT_SUCCESS == result);
 
   TU_LOG2("Device configured\r\n");
   usbh_device_t* dev = &_usbh_devices[dev_addr];
+  dev->configured = 1;
   dev->state = TUSB_DEVICE_STATE_CONFIGURED;
 
   // Parse configuration & set up drivers
+  // TODO driver open still use usbh_control_xfer
   parse_configuration_descriptor(dev_addr, (tusb_desc_configuration_t*) _usbh_ctrl_buf);
+
+  // Invoke callback if available
+  if (tuh_mount_cb) tuh_mount_cb(dev_addr);
 
   return true;
 }
 
 static bool enum_get_config_desc_complete(uint8_t dev_addr, tusb_control_request_t const * request, xfer_result_t result)
 {
+  (void) request;
   TU_ASSERT(XFER_RESULT_SUCCESS == result);
 
   TU_LOG2("Set Configuration Descriptor\r\n");
@@ -471,6 +477,7 @@ static bool enum_get_config_desc_complete(uint8_t dev_addr, tusb_control_request
 
 static bool enum_get_9byte_config_desc_complete(uint8_t dev_addr, tusb_control_request_t const * request, xfer_result_t result)
 {
+  (void) request;
   TU_ASSERT(XFER_RESULT_SUCCESS == result);
 
   // TODO not enough buffer to hold configuration descriptor
@@ -504,6 +511,7 @@ static bool enum_get_9byte_config_desc_complete(uint8_t dev_addr, tusb_control_r
 
 static bool enum_get_device_desc_complete(uint8_t dev_addr, tusb_control_request_t const * request, xfer_result_t result)
 {
+  (void) request;
   TU_ASSERT(XFER_RESULT_SUCCESS == result);
 
   tusb_desc_device_t const * desc_device = (tusb_desc_device_t const*) _usbh_ctrl_buf;
@@ -576,6 +584,7 @@ static bool enum_set_address_complete(uint8_t dev_addr, tusb_control_request_t c
 // After Get Device Descriptor of Address 0
 static bool enum_get_dev0_devic_desc_complete(uint8_t dev_addr, tusb_control_request_t const * request, xfer_result_t result)
 {
+  (void) request;
   TU_ASSERT(0 == dev_addr);
 
   usbh_device_t* dev0 = &_usbh_devices[0];
@@ -647,7 +656,7 @@ static bool enum_get_dev0_devic_desc_complete(uint8_t dev_addr, tusb_control_req
   return true;
 }
 
-bool enum_task(hcd_event_t* event)
+static bool enum_device_attached(hcd_event_t* event)
 {
   usbh_device_t* dev0 = &_usbh_devices[0];
   dev0->rhport   = event->rhport; // TODO refractor integrate to device_pool
@@ -711,138 +720,6 @@ bool enum_task(hcd_event_t* event)
   };
   TU_ASSERT(tuh_control_xfer(0, &request, _usbh_ctrl_buf, enum_get_dev0_devic_desc_complete));
 
-#if 0
-  //------------- Reset device again before Set Address -------------//
-  TU_LOG2("Port reset \r\n");
-
-  if (dev0->hub_addr == 0)
-  {
-    TU_ASSERT(is_ok);
-
-    // connected directly to roothub
-    hcd_port_reset( dev0->rhport ); // reset port after 8 byte descriptor
-    osal_task_delay(RESET_DELAY);
-  }
-#if CFG_TUH_HUB
-  else
-  {
-    // connected via a hub
-    TU_VERIFY_HDLR(is_ok, hub_status_pipe_queue( dev0->hub_addr) ); // TODO hub refractor
-
-    if ( hub_port_reset(dev0->hub_addr, dev0->hub_port) )
-    {
-      osal_task_delay(RESET_DELAY);
-
-      // Acknowledge Port Reset Change if Reset Successful
-      hub_port_clear_feature(dev0->hub_addr, dev0->hub_port, HUB_FEATURE_PORT_RESET_CHANGE);
-    }
-
-    (void) hub_status_pipe_queue( dev0->hub_addr ); // done with hub, waiting for next data on status pipe
-  }
-#endif // CFG_TUH_HUB
-
-  //------------- Set new address -------------//
-  TU_LOG2("Set Address \r\n");
-  uint8_t const new_addr = get_new_address();
-  TU_ASSERT(new_addr <= CFG_TUSB_HOST_DEVICE_MAX); // TODO notify application we reach max devices
-
-  usbh_device_t* new_dev = &_usbh_devices[new_addr];
-  new_dev->rhport  = dev0->rhport;
-  new_dev->hub_addr = dev0->hub_addr;
-  new_dev->hub_port = dev0->hub_port;
-  new_dev->speed    = dev0->speed;
-  new_dev->connected = 1;
-  new_dev->ep0_packet_size = ((tusb_desc_device_t*) _usbh_ctrl_buf)->bMaxPacketSize0;
-
-  request = (tusb_control_request_t ) {
-        .bmRequestType_bit = { .recipient = TUSB_REQ_RCPT_DEVICE, .type = TUSB_REQ_TYPE_STANDARD, .direction = TUSB_DIR_OUT },
-        .bRequest = TUSB_REQ_SET_ADDRESS,
-        .wValue = new_addr,
-        .wIndex = 0,
-        .wLength = 0
-  };
-  TU_ASSERT(tuh_control_xfer(0, &request, NULL, enum_set_address_complete));
-
-  //------------- update port info & close control pipe of addr0 -------------//
-  usbh_device_t* new_dev = &_usbh_devices[new_addr];
-  new_dev->rhport  = dev0->rhport;
-  new_dev->hub_addr = dev0->hub_addr;
-  new_dev->hub_port = dev0->hub_port;
-  new_dev->speed    = dev0->speed;
-
-  hcd_device_close(dev0->rhport, 0); // close device 0
-  dev0->state = TUSB_DEVICE_STATE_UNPLUG;
-
-  // open control pipe for new address
-  TU_ASSERT ( usbh_pipe_control_open(new_addr, ((tusb_desc_device_t*) _usbh_ctrl_buf)->bMaxPacketSize0 ) );
-
-  //------------- Get full device descriptor -------------//
-  TU_LOG2("Get Device Descriptor \r\n");
-  request = (tusb_control_request_t ) {
-        .bmRequestType_bit = { .recipient = TUSB_REQ_RCPT_DEVICE, .type = TUSB_REQ_TYPE_STANDARD, .direction = TUSB_DIR_IN },
-        .bRequest = TUSB_REQ_GET_DESCRIPTOR,
-        .wValue = TUSB_DESC_DEVICE << 8,
-        .wIndex = 0,
-        .wLength = 18
-  };
-  TU_ASSERT(usbh_control_xfer(new_addr, &request, _usbh_ctrl_buf));
-
-  // update device info  TODO alignment issue
-  tusb_desc_device_t const * desc_device = (tusb_desc_device_t const*) _usbh_ctrl_buf;
-
-  if (tuh_attach_cb) tuh_attach_cb((tusb_desc_device_t*) _usbh_ctrl_buf);
-
-  new_dev->vendor_id  = desc_device->idVendor;
-  new_dev->product_id = desc_device->idProduct;
-  TU_ASSERT(desc_device->bNumConfigurations > 0);
-
-  enum { CONFIG_NUM = 1 }; // default to use configuration 1
-
-  //------------- Get 9 bytes of configuration descriptor -------------//
-  TU_LOG2("Get 9 bytes of Configuration Descriptor\r\n");
-  request = (tusb_control_request_t ) {
-        .bmRequestType_bit = { .recipient = TUSB_REQ_RCPT_DEVICE, .type = TUSB_REQ_TYPE_STANDARD, .direction = TUSB_DIR_IN },
-        .bRequest = TUSB_REQ_GET_DESCRIPTOR,
-        .wValue = (TUSB_DESC_CONFIGURATION << 8) | (CONFIG_NUM - 1),
-        .wIndex = 0,
-        .wLength = 9
-  };
-  TU_ASSERT( usbh_control_xfer(new_addr, &request, _usbh_ctrl_buf));
-
-  // TODO not enough buffer to hold configuration descriptor
-  TU_ASSERT( CFG_TUSB_HOST_ENUM_BUFFER_SIZE >= ((tusb_desc_configuration_t*)_usbh_ctrl_buf)->wTotalLength );
-
-  //------------- Get full configuration descriptor -------------//
-  TU_LOG2("Get full Configuration Descriptor\r\n");
-  request.wLength = ((tusb_desc_configuration_t*)_usbh_ctrl_buf)->wTotalLength; // full length
-  TU_ASSERT( usbh_control_xfer( new_addr, &request, _usbh_ctrl_buf ) );
-
-  // update configuration info
-  new_dev->interface_count = ((tusb_desc_configuration_t*) _usbh_ctrl_buf)->bNumInterfaces;
-
-  //------------- Set Configure -------------//
-  TU_LOG2("Set Configuration Descriptor\r\n");
-  request = (tusb_control_request_t ) {
-        .bmRequestType_bit = { .recipient = TUSB_REQ_RCPT_DEVICE, .type = TUSB_REQ_TYPE_STANDARD, .direction = TUSB_DIR_OUT },
-        .bRequest = TUSB_REQ_SET_CONFIGURATION,
-        .wValue = CONFIG_NUM,
-        .wIndex = 0,
-        .wLength = 0
-  };
-  TU_ASSERT(usbh_control_xfer( new_addr, &request, NULL ));
-
-  TU_LOG2("Device configured\r\n");
-  new_dev->state = TUSB_DEVICE_STATE_CONFIGURED;
-
-  //------------- TODO Get String Descriptors -------------//
-
-  // Parse configuration & set up drivers
-  parse_configuration_descriptor(new_addr, (tusb_desc_configuration_t*) _usbh_ctrl_buf);
-
-  // Invoke callback if available
-  if (tuh_mount_cb) tuh_mount_cb(new_addr);
-#endif
-
   return true;
 }
 
@@ -880,7 +757,7 @@ void tuh_task(void)
     {
       case HCD_EVENT_DEVICE_ATTACH:
         TU_LOG2("USBH DEVICE ATTACH\r\n");
-        enum_task(&event);
+        enum_device_attached(&event);
       break;
 
       case HCD_EVENT_DEVICE_REMOVE:
