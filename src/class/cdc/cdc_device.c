@@ -77,8 +77,8 @@ static void _prep_out_transaction (uint8_t itf)
 {
   cdcd_interface_t* p_cdc = &_cdcd_itf[itf];
 
-  // skip if previous transfer not complete
-  if ( usbd_edpt_busy(TUD_OPT_RHPORT, p_cdc->ep_out) ) return;
+  // claim endpoint
+  TU_VERIFY( usbd_edpt_claim(TUD_OPT_RHPORT, p_cdc->ep_out), );
 
   // Prepare for incoming data but only allow what we can store in the ring buffer.
   uint16_t max_read = tu_fifo_remaining(&p_cdc->rx_ff);
@@ -161,17 +161,29 @@ uint32_t tud_cdc_n_write_flush (uint8_t itf)
 {
   cdcd_interface_t* p_cdc = &_cdcd_itf[itf];
 
-  // skip if previous transfer not complete yet
-  TU_VERIFY( !usbd_edpt_busy(TUD_OPT_RHPORT, p_cdc->ep_in), 0 );
+  // No data to send
+  if ( !tu_fifo_count(&p_cdc->tx_ff) ) return 0;
 
-  uint16_t count = tu_fifo_read_n(&p_cdc->tx_ff, p_cdc->epin_buf, sizeof(p_cdc->epin_buf));
-  if ( count )
+  uint8_t const rhport = TUD_OPT_RHPORT;
+
+  // claim the endpoint first
+  TU_VERIFY( usbd_edpt_claim(rhport, p_cdc->ep_in), 0 );
+
+  // we can be blocked by another write()/write_flush() from other thread.
+  // causing us to attempt to transfer on an busy endpoint.
+  uint16_t const count = tu_fifo_read_n(&p_cdc->tx_ff, p_cdc->epin_buf, sizeof(p_cdc->epin_buf));
+
+  if ( count && tud_cdc_n_connected(itf) )
   {
-    TU_VERIFY( tud_cdc_n_connected(itf), 0 ); // fifo is empty if not connected
-    TU_ASSERT( usbd_edpt_xfer(TUD_OPT_RHPORT, p_cdc->ep_in, p_cdc->epin_buf, count), 0 );
+    TU_ASSERT( usbd_edpt_xfer(rhport, p_cdc->ep_in, p_cdc->epin_buf, count), 0 );
+    return count;
+  }else
+  {
+    // Release endpoint since we don't make any transfer
+    // Note: data is dropped if terminal is not connected
+    usbd_edpt_release(rhport, p_cdc->ep_in);
+    return 0;
   }
-
-  return count;
 }
 
 uint32_t tud_cdc_n_write_available (uint8_t itf)
@@ -194,7 +206,7 @@ void cdcd_init(void)
     p_cdc->wanted_char = -1;
 
     // default line coding is : stop bit = 1, parity = none, data bits = 8
-    p_cdc->line_coding.bit_rate = 115200;
+    p_cdc->line_coding.bit_rate  = 115200;
     p_cdc->line_coding.stop_bits = 0;
     p_cdc->line_coding.parity    = 0;
     p_cdc->line_coding.data_bits = 8;
@@ -421,10 +433,10 @@ bool cdcd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint32_
 
     if ( 0 == tud_cdc_n_write_flush(itf) )
     {
-      // There is no data left, a ZLP should be sent if
+      // If there is no data left, a ZLP should be sent if
       // xferred_bytes is multiple of EP size and not zero
       // FIXME CFG_TUD_CDC_EP_BUFSIZE is not Endpoint packet size
-      if ( xferred_bytes && (0 == (xferred_bytes % CFG_TUD_CDC_EP_BUFSIZE)) )
+      if ( !tu_fifo_count(&p_cdc->tx_ff) && xferred_bytes && (0 == (xferred_bytes % CFG_TUD_CDC_EP_BUFSIZE)) )
       {
         usbd_edpt_xfer(rhport, p_cdc->ep_in, NULL, 0);
       }
