@@ -165,7 +165,7 @@ uint32_t tud_cdc_n_write_flush (uint8_t itf)
   uint8_t const rhport = TUD_OPT_RHPORT;
 
   // Claim the endpoint first
-  TU_VnERIFY( usbd_edpt_claim(rhport, p_cdc->ep_in), 0 );
+  TU_VERIFY( usbd_edpt_claim(rhport, p_cdc->ep_in), 0 );
 
   // Pull data from FIFO
   uint16_t const count = tu_fifo_read_n(&p_cdc->tx_ff, p_cdc->epin_buf, sizeof(p_cdc->epin_buf));
