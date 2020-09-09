@@ -164,11 +164,10 @@ uint32_t tud_cdc_n_write_flush (uint8_t itf)
 
   uint8_t const rhport = TUD_OPT_RHPORT;
 
-  // claim the endpoint first
-  TU_VERIFY( usbd_edpt_claim(rhport, p_cdc->ep_in), 0 );
+  // Claim the endpoint first
+  TU_VnERIFY( usbd_edpt_claim(rhport, p_cdc->ep_in), 0 );
 
-  // we can be blocked by another write()/write_flush() from other thread.
-  // causing us to attempt to transfer on an busy endpoint.
+  // Pull data from FIFO
   uint16_t const count = tu_fifo_read_n(&p_cdc->tx_ff, p_cdc->epin_buf, sizeof(p_cdc->epin_buf));
 
   if ( count && tud_cdc_n_connected(itf) )
