@@ -77,15 +77,13 @@ static void _prep_out_transaction (uint8_t itf)
 {
   cdcd_interface_t* p_cdc = &_cdcd_itf[itf];
 
+  // Prepare for incoming data but only allow what we can store in the ring buffer.
+  uint16_t const available = tu_fifo_remaining(&p_cdc->rx_ff);
+  TU_VERIFY( available >= sizeof(p_cdc->epout_buf), );
+
   // claim endpoint
   TU_VERIFY( usbd_edpt_claim(TUD_OPT_RHPORT, p_cdc->ep_out), );
-
-  // Prepare for incoming data but only allow what we can store in the ring buffer.
-  uint16_t max_read = tu_fifo_remaining(&p_cdc->rx_ff);
-  if ( max_read >= sizeof(p_cdc->epout_buf) )
-  {
-    usbd_edpt_xfer(TUD_OPT_RHPORT, p_cdc->ep_out, p_cdc->epout_buf, sizeof(p_cdc->epout_buf));
-  }
+  usbd_edpt_xfer(TUD_OPT_RHPORT, p_cdc->ep_out, p_cdc->epout_buf, sizeof(p_cdc->epout_buf));
 }
 
 //--------------------------------------------------------------------+

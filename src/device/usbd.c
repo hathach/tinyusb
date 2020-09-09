@@ -1162,7 +1162,9 @@ bool usbd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t 
     return true;
   }else
   {
+    // DCD error, mark endpoint as ready to allow next transfer
     _usbd_dev.ep_status[epnum][dir].busy = false;
+    _usbd_dev.ep_status[epnum][dir].claimed = 0;
     TU_LOG2("failed\r\n");
     TU_BREAKPOINT();
     return false;
