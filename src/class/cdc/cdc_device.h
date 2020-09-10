@@ -43,6 +43,10 @@
   #define CFG_TUD_CDC_EP_BUFSIZE    (TUD_OPT_HIGH_SPEED ? 512 : 64)
 #endif
 
+#ifndef CFG_TUD_CDC_CLEAR_AT_CONNECTION
+  #define CFG_TUD_CDC_CLEAR_AT_CONNECTION   0
+#endif
+
 #ifdef __cplusplus
  extern "C" {
 #endif
