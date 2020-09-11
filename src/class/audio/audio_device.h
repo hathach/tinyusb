@@ -119,12 +119,18 @@
 #define CFG_TUD_AUDIO_N_BYTES_PER_SAMPLE_TX             1
 #endif
 
+#ifndef CFG_TUD_AUDIO_TX_ITEMSIZE
 #if CFG_TUD_AUDIO_N_BYTES_PER_SAMPLE_TX == 1
 #define CFG_TUD_AUDIO_TX_ITEMSIZE 1
 #elif CFG_TUD_AUDIO_N_BYTES_PER_SAMPLE_TX == 2
 #define CFG_TUD_AUDIO_TX_ITEMSIZE 2
 #else
 #define CFG_TUD_AUDIO_TX_ITEMSIZE 4
+#endif
+#endif
+
+#if CFG_TUD_AUDIO_TX_ITEMSIZE < CFG_TUD_AUDIO_N_BYTES_PER_SAMPLE_TX
+#error FIFO element size (ITEMSIZE) must not be smaller then sample size
 #endif
 
 #endif
@@ -170,9 +176,15 @@ extern "C" {
 bool     tud_audio_n_mounted    (uint8_t itf);
 
 #if CFG_TUD_AUDIO_EPSIZE_OUT && CFG_TUD_AUDIO_RX_FIFO_SIZE
+#if CFG_TUD_AUDIO_RX_FIFO_COUNT > 1
 uint16_t tud_audio_n_available  (uint8_t itf, uint8_t channelId);
 uint16_t tud_audio_n_read       (uint8_t itf, uint8_t channelId, void* buffer, uint16_t bufsize);
 void     tud_audio_n_read_flush (uint8_t itf, uint8_t channelId);
+#else
+uint16_t tud_audio_n_available  (uint8_t itf);
+uint16_t tud_audio_n_read       (uint8_t itf, void* buffer, uint16_t bufsize);
+void     tud_audio_n_read_flush (uint8_t itf);
+#endif
 #endif
 
 /*  This function is intended for later use once EP buffers (at least for ISO EPs) are implemented as ring buffers
@@ -182,7 +194,12 @@ uint16_t tud_audio_n_write_ep_in_buffer(uint8_t itf, const void * data, uint16_t
 */
 
 #if CFG_TUD_AUDIO_EPSIZE_IN && CFG_TUD_AUDIO_TX_FIFO_SIZE
+#if CFG_TUD_AUDIO_TX_FIFO_COUNT > 1
 uint16_t tud_audio_n_write      (uint8_t itf, uint8_t channelId, const void * data, uint16_t len);
+#else
+uint16_t tud_audio_n_write      (uint8_t itf, const void * data, uint16_t len);
+#endif
+uint16_t tud_audio_n_write_flush(uint8_t itf);
 #endif
 
 #if CFG_TUD_AUDIO_INT_CTR_EPSIZE_IN > 0
@@ -205,7 +222,11 @@ static inline void         tud_audio_read_flush (void);
 #endif
 
 #if CFG_TUD_AUDIO_EPSIZE_IN && CFG_TUD_AUDIO_TX_FIFO_SIZE
+#if CFG_TUD_AUDIO_TX_FIFO_COUNT > 1
 static inline uint16_t tud_audio_write      (uint8_t channelId, uint8_t const* buffer, uint16_t bufsize);
+#else
+static inline uint16_t tud_audio_write      (uint8_t const* buffer, uint16_t bufsize);
+#endif
 #endif
 
 #if CFG_TUD_AUDIO_INT_CTR_EPSIZE_IN > 0
@@ -274,14 +295,31 @@ static inline bool tud_audio_mounted(void)
   return tud_audio_n_mounted(0);
 }
 
-#if CFG_TUD_AUDIO_EPSIZE_IN && CFG_TUD_AUDIO_TX_FIFO_SIZE
-static inline uint16_t tud_audio_write (uint8_t channelId, uint8_t const* buffer, uint16_t bufsize)    // Short version if only one audio function is used
+#if CFG_TUD_AUDIO_EPSIZE_IN
+#if CFG_TUD_AUDIO_TX_FIFO_SIZE && CFG_TUD_AUDIO_TX_FIFO_COUNT > 1
+static inline uint16_t tud_audio_write (uint8_t channelId, uint8_t const* buffer, uint16_t n_bytes)    // Short version if only one audio function is used
 {
-  return tud_audio_n_write(0, channelId, buffer, bufsize);
+  return tud_audio_n_write(0, channelId, buffer, n_bytes);
+}
+#else
+static inline uint16_t tud_audio_write (uint8_t const* buffer, uint16_t n_bytes)    // Short version if only one audio function is used
+{
+  return tud_audio_n_write(0, buffer, n_bytes);
+}
+#endif
+
+static inline uint16_t tud_audio_write_flush (void)    // Short version if only one audio function is used
+{
+#if CFG_TUD_AUDIO_TX_FIFO_SIZE
+  return tud_audio_n_write_flush(0);
+#else
+  return 0;
+#endif
 }
 #endif  // CFG_TUD_AUDIO_EPSIZE_IN && CFG_TUD_AUDIO_TX_FIFO_SIZE
 
 #if CFG_TUD_AUDIO_EPSIZE_OUT && CFG_TUD_AUDIO_RX_FIFO_SIZE
+#if CFG_TUD_AUDIO_RX_FIFO_COUNT > 1
 static inline uint16_t tud_audio_available(uint8_t channelId)
 {
   return tud_audio_n_available(0, channelId);
@@ -296,6 +334,22 @@ static inline void tud_audio_read_flush(uint8_t channelId)
 {
   tud_audio_n_read_flush(0, channelId);
 }
+#else
+static inline uint16_t tud_audio_available(void)
+{
+  return tud_audio_n_available(0);
+}
+
+static inline uint16_t tud_audio_read(void *buffer, uint16_t bufsize)
+{
+  return tud_audio_n_read(0, buffer, bufsize);
+}
+
+static inline void tud_audio_read_flush(void)
+{
+  tud_audio_n_read_flush(0);
+}
+#endif
 #endif
 
 #if CFG_TUD_AUDIO_INT_CTR_EPSIZE_IN > 0

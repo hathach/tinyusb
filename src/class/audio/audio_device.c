@@ -46,6 +46,19 @@
 //--------------------------------------------------------------------+
 // MACRO CONSTANT TYPEDEF
 //--------------------------------------------------------------------+
+
+#if CFG_TUD_AUDIO_EPSIZE_IN && CFG_TUD_AUDIO_TX_FIFO_SIZE
+#ifndef CFG_TUD_AUDIO_TX_FIFO_COUNT
+#define CFG_TUD_AUDIO_TX_FIFO_COUNT CFG_TUD_AUDIO_N_CHANNELS_TX
+#endif
+#endif
+
+#if CFG_TUD_AUDIO_EPSIZE_OUT && CFG_TUD_AUDIO_RX_FIFO_SIZE
+#ifndef CFG_TUD_AUDIO_RX_FIFO_COUNT
+#define CFG_TUD_AUDIO_RX_FIFO_COUNT CFG_TUD_AUDIO_N_CHANNELS_RX
+#endif
+#endif
+
 typedef struct
 {
   uint8_t rhport;
@@ -81,18 +94,18 @@ typedef struct
 
   // FIFO
 #if CFG_TUD_AUDIO_EPSIZE_IN && CFG_TUD_AUDIO_TX_FIFO_SIZE
-  tu_fifo_t tx_ff[CFG_TUD_AUDIO_N_CHANNELS_TX];
-  CFG_TUSB_MEM_ALIGN uint8_t tx_ff_buf[CFG_TUD_AUDIO_N_CHANNELS_TX][CFG_TUD_AUDIO_TX_FIFO_SIZE * CFG_TUD_AUDIO_TX_ITEMSIZE];
+  tu_fifo_t tx_ff[CFG_TUD_AUDIO_TX_FIFO_COUNT];
+  CFG_TUSB_MEM_ALIGN uint8_t tx_ff_buf[CFG_TUD_AUDIO_TX_FIFO_COUNT][CFG_TUD_AUDIO_TX_FIFO_SIZE];
 #if CFG_FIFO_MUTEX
-  osal_mutex_def_t tx_ff_mutex[CFG_TUD_AUDIO_N_CHANNELS_TX];
+  osal_mutex_def_t tx_ff_mutex[CFG_TUD_AUDIO_TX_FIFO_COUNT];
 #endif
 #endif
 
 #if CFG_TUD_AUDIO_EPSIZE_OUT && CFG_TUD_AUDIO_RX_FIFO_SIZE
-  tu_fifo_t rx_ff[CFG_TUD_AUDIO_N_CHANNELS_RX];
-  CFG_TUSB_MEM_ALIGN uint8_t rx_ff_buf[CFG_TUD_AUDIO_N_CHANNELS_RX][CFG_TUD_AUDIO_RX_FIFO_SIZE * CFG_TUD_AUDIO_RX_ITEMSIZE];
+  tu_fifo_t rx_ff[CFG_TUD_AUDIO_RX_FIFO_COUNT];
+  CFG_TUSB_MEM_ALIGN uint8_t rx_ff_buf[CFG_TUD_AUDIO_RX_FIFO_COUNT][CFG_TUD_AUDIO_RX_FIFO_SIZE];
 #if CFG_FIFO_MUTEX
-  osal_mutex_def_t rx_ff_mutex[CFG_TUD_AUDIO_N_CHANNELS_RX];
+  osal_mutex_def_t rx_ff_mutex[CFG_TUD_AUDIO_RX_FIFO_COUNT];
 #endif
 #endif
 
@@ -190,7 +203,7 @@ bool tud_audio_n_mounted(uint8_t itf)
 //--------------------------------------------------------------------+
 
 #if CFG_TUD_AUDIO_EPSIZE_OUT && CFG_TUD_AUDIO_RX_FIFO_SIZE
-
+#if CFG_TUD_AUDIO_RX_FIFO_COUNT > 1
 uint16_t tud_audio_n_available(uint8_t itf, uint8_t channelId)
 {
   TU_VERIFY(channelId < CFG_TUD_AUDIO_N_CHANNELS_RX);
@@ -208,7 +221,22 @@ void tud_audio_n_read_flush (uint8_t itf, uint8_t channelId)
   TU_VERIFY(channelId < CFG_TUD_AUDIO_N_CHANNELS_RX, );
   tu_fifo_clear(&_audiod_itf[itf].rx_ff[channelId]);
 }
+#else
+uint16_t tud_audio_n_available(uint8_t itf)
+{
+  return tu_fifo_count(&_audiod_itf[itf].rx_ff[0]);
+}
 
+uint16_t tud_audio_n_read(uint8_t itf, void* buffer, uint16_t bufsize)
+{
+  return tu_fifo_read_n(&_audiod_itf[itf].rx_ff[0], buffer, bufsize);
+}
+
+void tud_audio_n_read_flush (uint8_t itf)
+{
+  tu_fifo_clear(&_audiod_itf[itf].rx_ff[0]);
+}
+#endif
 #endif
 
 #if CFG_TUD_AUDIO_INT_CTR_EPSIZE_IN
@@ -283,6 +311,7 @@ static bool audio_rx_done_cb(uint8_t rhport, audiod_interface_t* audio, uint8_t*
 
 // The following functions are used in case CFG_TUD_AUDIO_RX_FIFO_SIZE != 0
 #if CFG_TUD_AUDIO_RX_FIFO_SIZE
+#if CFG_TUD_AUDIO_RX_FIFO_COUNT > 1
 static bool audio_rx_done_type_I_pcm_ff_cb(uint8_t rhport, audiod_interface_t* audio, uint8_t * buffer, uint16_t bufsize)
 {
   (void) rhport;
@@ -318,7 +347,23 @@ static bool audio_rx_done_type_I_pcm_ff_cb(uint8_t rhport, audiod_interface_t* a
       chId = 0;
     }
   }
-}                                                                                                                                                                                       }
+  return true;
+}
+#else
+static bool audio_rx_done_type_I_pcm_ff_cb(uint8_t rhport, audiod_interface_t *audio, uint8_t *buffer, uint16_t bufsize)
+{
+  (void) rhport;
+
+  // We expect to get a multiple of CFG_TUD_AUDIO_N_BYTES_PER_SAMPLE_RX * CFG_TUD_AUDIO_N_CHANNELS_RX per channel
+  if (bufsize % (CFG_TUD_AUDIO_N_BYTES_PER_SAMPLE_RX * CFG_TUD_AUDIO_N_CHANNELS_RX) != 0)
+  {
+    return false;
+  }
+
+  tu_fifo_write_n(&audio->rx_ff[0], buffer, bufsize);
+  return true;
+}
+#endif // CFG_TUD_AUDIO_RX_FIFO_COUNT > 1
 #endif //CFG_TUD_AUDIO_RX_FIFO_SIZE
 
 //--------------------------------------------------------------------+
@@ -336,9 +381,9 @@ static bool audio_rx_done_type_I_pcm_ff_cb(uint8_t rhport, audiod_interface_t* a
  * \param[in]       len: # of array elements to copy
  * \return          Number of bytes actually written
  */
-
+#if CFG_TUD_AUDIO_EPSIZE_IN
+#if !CFG_TUD_AUDIO_TX_FIFO_SIZE
 /*  This function is intended for later use once EP buffers (at least for ISO EPs) are implemented as ring buffers
-#if CFG_TUD_AUDIO_EPSIZE_IN && !CFG_TUD_AUDIO_TX_FIFO_SIZE
 uint16_t tud_audio_n_write_ep_in_buffer(uint8_t itf, const void * data, uint16_t len)
 {
   audiod_interface_t* audio = &_audiod_itf[itf];
@@ -365,11 +410,23 @@ uint16_t tud_audio_n_write_ep_in_buffer(uint8_t itf, const void * data, uint16_t
   // Return number of bytes written
   return len;
 }
-#endif
-
 */
 
-#if CFG_TUD_AUDIO_EPSIZE_IN && CFG_TUD_AUDIO_TX_FIFO_SIZE
+#else
+
+#if CFG_TUD_AUDIO_TX_FIFO_COUNT == 1
+uint16_t tud_audio_n_write(uint8_t itf, void const* data, uint16_t len)
+{
+  {
+    audiod_interface_t* audio = &_audiod_itf[itf];
+    if (audio->p_desc == NULL)
+    {
+      return 0;
+    }
+    return tu_fifo_write_n(&audio->tx_ff[0], data, len);
+  }
+}
+#else
 uint16_t tud_audio_n_write(uint8_t itf, uint8_t channelId, const void * data, uint16_t len)
 {
   audiod_interface_t* audio = &_audiod_itf[itf];
@@ -379,6 +436,23 @@ uint16_t tud_audio_n_write(uint8_t itf, uint8_t channelId, const void * data, ui
 
   return tu_fifo_write_n(&audio->tx_ff[channelId], data, len);
 }
+#endif
+
+static bool audiod_tx_done_cb(uint8_t rhport, audiod_interface_t* audio, uint16_t * n_bytes_copied);
+
+uint16_t tud_audio_n_write_flush(uint8_t itf)
+{
+  audiod_interface_t *audio = &_audiod_itf[itf];
+  if (audio->p_desc == NULL) {
+    return 0;
+  }
+
+  uint16_t n_bytes_copied;
+  TU_VERIFY(audiod_tx_done_cb(audio->rhport, audio, &n_bytes_copied));
+  return n_bytes_copied;
+}
+
+#endif
 #endif
 
 #if CFG_TUD_AUDIO_INT_CTR_EPSIZE_IN > 0
@@ -477,6 +551,7 @@ static bool audiod_tx_done_cb(uint8_t rhport, audiod_interface_t* audio, uint16_
 #endif //CFG_TUD_AUDIO_EPSIZE_IN
 
 #if CFG_TUD_AUDIO_TX_FIFO_SIZE
+#if CFG_TUD_AUDIO_TX_FIFO_COUNT > 1 || (CFG_TUD_AUDIO_N_BYTES_PER_SAMPLE_TX != CFG_TUD_AUDIO_TX_ITEMSIZE)
 static bool audiod_tx_done_type_I_pcm_ff_cb(uint8_t rhport, audiod_interface_t* audio)
 {
   // We encode directly into IN EP's buffer - abort if previous transfer not complete
@@ -484,15 +559,15 @@ static bool audiod_tx_done_type_I_pcm_ff_cb(uint8_t rhport, audiod_interface_t* 
 
   // Determine amount of samples
   uint16_t const nEndpointSampleCapacity = CFG_TUD_AUDIO_EPSIZE_IN / CFG_TUD_AUDIO_N_CHANNELS_TX / CFG_TUD_AUDIO_N_BYTES_PER_SAMPLE_TX;
-  uint16_t nSamplesPerChannelToSend = tu_fifo_count(&audio->tx_ff[0]);
+  uint16_t nSamplesPerChannelToSend = tu_fifo_count(&audio->tx_ff[0]) / CFG_TUD_AUDIO_TX_ITEMSIZE;
   uint16_t nBytesToSend;
   uint8_t cntChannel;
 
   for (cntChannel = 1; cntChannel < CFG_TUD_AUDIO_N_CHANNELS_TX; cntChannel++)
   {
-    if (audio->tx_ff[cntChannel].count < nSamplesPerChannelToSend)
+    if (audio->tx_ff[cntChannel].count / CFG_TUD_AUDIO_TX_ITEMSIZE < nSamplesPerChannelToSend)
     {
-      nSamplesPerChannelToSend = audio->tx_ff[cntChannel].count;
+      nSamplesPerChannelToSend = audio->tx_ff[cntChannel].count * CFG_TUD_AUDIO_TX_ITEMSIZE;
     }
   }
 
@@ -524,7 +599,7 @@ static bool audiod_tx_done_type_I_pcm_ff_cb(uint8_t rhport, audiod_interface_t* 
     for (cntChannel = 0; cntChannel < CFG_TUD_AUDIO_N_CHANNELS_TX; cntChannel++)
     {
       // Get sample from buffer
-      tu_fifo_read(&audio->tx_ff[cntChannel], &sample);
+      tu_fifo_read_n(&audio->tx_ff[cntChannel], &sample, CFG_TUD_AUDIO_TX_ITEMSIZE);
 
       // Put it into EP's buffer - Let alignment problems be handled by memcpy
       memcpy(pBuff, &sample, CFG_TUD_AUDIO_N_BYTES_PER_SAMPLE_TX);
@@ -538,6 +613,30 @@ static bool audiod_tx_done_type_I_pcm_ff_cb(uint8_t rhport, audiod_interface_t* 
 
   return true;
 }
+
+#else
+static bool audiod_tx_done_type_I_pcm_ff_cb(uint8_t rhport, audiod_interface_t* audio)
+{
+  // We encode directly into IN EP's buffer - abort if previous transfer not complete
+  TU_VERIFY(!usbd_edpt_busy(rhport, audio->ep_in));
+
+  // Determine amount of samples
+  uint16_t nByteCount = tu_fifo_count(&audio->tx_ff[0]);
+
+  nByteCount = tu_min16(nByteCount, CFG_TUD_AUDIO_EPSIZE_IN);
+
+  // Check if there is enough
+  if (nByteCount == 0)
+  {
+    return true;
+  }
+
+  nByteCount = tu_fifo_read_n(&audio->tx_ff[0], audio->epin_buf, nByteCount);
+  audio->epin_buf_cnt = nByteCount;
+
+  return true;
+}
+#endif // CFG_TUD_AUDIO_TX_FIFO_COUNT > 1 || (CFG_TUD_AUDIO_N_BYTES_PER_SAMPLE_TX != CFG_TUD_AUDIO_TX_ITEMSIZE)
 
 #endif //CFG_TUD_AUDIO_TX_FIFO_SIZE
 
@@ -588,7 +687,6 @@ static bool audio_int_ctr_done_cb(uint8_t rhport, audiod_interface_t* audio, uin
 //--------------------------------------------------------------------+
 void audiod_init(void)
 {
-  uint8_t cnt;
   tu_memclr(_audiod_itf, sizeof(_audiod_itf));
 
   for(uint8_t i=0; i<CFG_TUD_AUDIO; i++)
@@ -597,9 +695,9 @@ void audiod_init(void)
 
     // Initialize TX FIFOs if required
 #if CFG_TUD_AUDIO_EPSIZE_IN && CFG_TUD_AUDIO_TX_FIFO_SIZE
-    for (cnt = 0; cnt < CFG_TUD_AUDIO_N_CHANNELS_TX; cnt++)
+    for (uint8_t cnt = 0; cnt < CFG_TUD_AUDIO_TX_FIFO_COUNT; cnt++)
     {
-      tu_fifo_config(&audio->tx_ff[cnt], &audio->tx_ff_buf[cnt], CFG_TUD_AUDIO_TX_FIFO_SIZE, CFG_TUD_AUDIO_TX_ITEMSIZE, true);
+      tu_fifo_config(&audio->tx_ff[cnt], &audio->tx_ff_buf[cnt], CFG_TUD_AUDIO_TX_FIFO_SIZE, 1, true);
 #if CFG_FIFO_MUTEX
       tu_fifo_config_mutex(&audio->tx_ff[cnt], osal_mutex_create(&audio->tx_ff_mutex[cnt]));
 #endif
@@ -607,9 +705,9 @@ void audiod_init(void)
 #endif
 
 #if CFG_TUD_AUDIO_EPSIZE_OUT && CFG_TUD_AUDIO_RX_FIFO_SIZE
-    for (cnt = 0; cnt < CFG_TUD_AUDIO_N_CHANNELS_RX; cnt++)
+    for (uint8_t cnt = 0; cnt < CFG_TUD_AUDIO_RX_FIFO_COUNT; cnt++)
     {
-      tu_fifo_config(&audio->rx_ff[cnt], &audio->rx_ff_buf[cnt], CFG_TUD_AUDIO_RX_FIFO_SIZE, CFG_TUD_AUDIO_RX_ITEMSIZE, true);
+      tu_fifo_config(&audio->rx_ff[cnt], &audio->rx_ff_buf[cnt], CFG_TUD_AUDIO_RX_FIFO_SIZE, 1, true);
 #if CFG_FIFO_MUTEX
       tu_fifo_config_mutex(&audio->rx_ff[cnt], osal_mutex_create(&audio->rx_ff_mutex[cnt]));
 #endif
@@ -634,16 +732,15 @@ void audiod_reset(uint8_t rhport)
     audiod_interface_t* audio = &_audiod_itf[i];
     tu_memclr(audio, ITF_MEM_RESET_SIZE);
 
-    uint8_t cnt;
 #if CFG_TUD_AUDIO_EPSIZE_IN && CFG_TUD_AUDIO_TX_FIFO_SIZE
-    for (cnt = 0; cnt < CFG_TUD_AUDIO_N_CHANNELS_TX; cnt++)
+    for (uint8_t cnt = 0; cnt < CFG_TUD_AUDIO_TX_FIFO_COUNT; cnt++)
     {
       tu_fifo_clear(&audio->tx_ff[cnt]);
     }
 #endif
 
 #if CFG_TUD_AUDIO_EPSIZE_OUT && CFG_TUD_AUDIO_RX_FIFO_SIZE
-    for (cnt = 0; cnt < CFG_TUD_AUDIO_N_CHANNELS_RX; cnt++)
+    for (uint8_t cnt = 0; cnt < CFG_TUD_AUDIO_RX_FIFO_COUNT; cnt++)
     {
       tu_fifo_clear(&audio->rx_ff[cnt]);
     }
