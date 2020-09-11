@@ -48,6 +48,7 @@
 //--------------------------------------------------------------------+
 typedef struct
 {
+  uint8_t rhport;
   uint8_t const * p_desc;       // Pointer pointing to Standard AC Interface Descriptor(4.7.1) - Audio Control descriptor defining audio function
 
 #if CFG_TUD_AUDIO_EPSIZE_IN
@@ -673,6 +674,7 @@ uint16_t audiod_open(uint8_t rhport, tusb_desc_interface_t const * itf_desc, uin
     if (!_audiod_itf[i].p_desc)
     {
       _audiod_itf[i].p_desc = (uint8_t const *)itf_desc;    // Save pointer to AC descriptor which is by specification always the first one
+      _audiod_itf[i].rhport = rhport;
       break;
     }
   }
