@@ -288,7 +288,8 @@ static bool audio_rx_done_type_I_pcm_ff_cb(uint8_t rhport, audiod_interface_t* a
   (void) rhport;
 
   // We expect to get a multiple of CFG_TUD_AUDIO_N_BYTES_PER_SAMPLE_RX * CFG_TUD_AUDIO_N_CHANNELS_RX per channel
-  if (bufsize % CFG_TUD_AUDIO_N_BYTES_PER_SAMPLE_RX*CFG_TUD_AUDIO_N_CHANNELS_RX != 0) {
+  if (bufsize % (CFG_TUD_AUDIO_N_BYTES_PER_SAMPLE_RX * CFG_TUD_AUDIO_N_CHANNELS_RX) != 0)
+  {
     return false;
   }
 
