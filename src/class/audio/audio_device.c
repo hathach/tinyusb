@@ -205,7 +205,7 @@ uint16_t tud_audio_n_read(uint8_t itf, uint8_t channelId, void* buffer, uint16_t
 
 void tud_audio_n_read_flush (uint8_t itf, uint8_t channelId)
 {
-  TU_VERIFY(channelId < CFG_TUD_AUDIO_N_CHANNELS_RX);
+  TU_VERIFY(channelId < CFG_TUD_AUDIO_N_CHANNELS_RX, );
   tu_fifo_clear(&_audiod_itf[itf].rx_ff[channelId]);
 }
 
