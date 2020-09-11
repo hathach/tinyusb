@@ -135,7 +135,7 @@ CFG_TUSB_MEM_SECTION audiod_interface_t _audiod_itf[CFG_TUD_AUDIO];
 extern const uint16_t tud_audio_desc_lengths[];
 
 #if CFG_TUD_AUDIO_EPSIZE_OUT
-static audio_rx_done_type_I_pcm_ff_cb(uint8_t rhport, audiod_interface_t* audio, uint8_t const* buffer, uint32_t bufsize);
+static bool audio_rx_done_type_I_pcm_ff_cb(uint8_t rhport, audiod_interface_t* audio, uint8_t * buffer, uint16_t bufsize);
 #endif
 
 #if CFG_TUD_AUDIO_EPSIZE_IN
