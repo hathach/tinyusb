@@ -19,8 +19,8 @@
       arm_target_device_name="LPC1769"
       arm_target_interface_type="SWD"
       build_treat_warnings_as_errors="Yes"
-      c_preprocessor_definitions="LPC175x_6x;__LPC1700_FAMILY;__LPC176x_SUBFAMILY;ARM_MATH_CM3;FLASH_PLACEMENT=1;CORE_M3;BOARD_LPCXPRESSO1769;CFG_TUSB_MCU=OPT_MCU_LPC175X_6X"
-      c_user_include_directories="../../src;$(rootDir)/hw;$(rootDir)/src;$(lpcDir)/inc"
+      c_preprocessor_definitions="LPC175x_6x;__LPC1700_FAMILY;__LPC176x_SUBFAMILY;ARM_MATH_CM3;FLASH_PLACEMENT=1;CORE_M3;BOARD_LPCXPRESSO1769;CFG_TUSB_MCU=OPT_MCU_LPC175X_6X;CFG_TUSB_DEBUG=2;LOGGER_RTT"
+      c_user_include_directories="../../src;$(rootDir)/hw;$(rootDir)/src;$(lpcDir)/inc;$(rootDir)/lib/SEGGER_RTT/RTT"
       debug_register_definition_file="LPC176x5x_Registers.xml"
       debug_target_connection="J-Link"
       gcc_enable_all_warnings="Yes"
@@ -101,12 +101,19 @@
       <file file_name="LPC176x5x_Vectors.s" />
       <file file_name="thumb_crt0.s" />
     </folder>
-    <folder
-      Name="segger_rtt"
-      exclude=""
-      filter="*.c;*.h"
-      path="../../../../../lib/segger_rtt"
-      recurse="No" />
+    <folder Name="lib">
+      <folder Name="SEGGER_RTT">
+        <folder Name="RTT">
+          <file file_name="../../../../../lib/SEGGER_RTT/RTT/SEGGER_RTT.c" />
+          <file file_name="../../../../../lib/SEGGER_RTT/RTT/SEGGER_RTT.h" />
+          <file file_name="../../../../../lib/SEGGER_RTT/RTT/SEGGER_RTT_Conf.h" />
+          <file file_name="../../../../../lib/SEGGER_RTT/RTT/SEGGER_RTT_printf.c" />
+        </folder>
+        <folder Name="Syscalls">
+          <file file_name="../../../../../lib/SEGGER_RTT/Syscalls/SEGGER_RTT_Syscalls_SES.c" />
+        </folder>
+      </folder>
+    </folder>
   </project>
   <configuration Name="LPCXpresso 1769" />
 </solution>

@@ -20,7 +20,7 @@
       arm_target_interface_type="SWD"
       build_treat_warnings_as_errors="No"
       c_preprocessor_definitions="CORE_M4;__LPC4300_FAMILY;__LPC435x_SUBFAMILY;ARM_MATH_CM4;FLASH_PLACEMENT=1;BOARD_EA4357;CFG_TUSB_MCU=OPT_MCU_LPC43XX;CFG_TUSB_MEM_SECTION= __attribute__((section(&quot;.bss2&quot;)))"
-      c_user_include_directories="../../src;$(rootDir)/hw;$(rootDir)/src;$(lpcDir)//inc;$(lpcDir)//inc/config_43xx"
+      c_user_include_directories="../../src;$(rootDir)/hw;$(rootDir)/src;$(lpcDir)//inc;$(rootDir)/lib/SEGGER_RTT/RTT;$(lpcDir)//inc/config_43xx"
       debug_register_definition_file="LPC43xx_Registers.xml"
       debug_target_connection="J-Link"
       gcc_enable_all_warnings="Yes"
@@ -122,11 +122,16 @@
       <file file_name="LPC43xx_Vectors.s" />
       <file file_name="thumb_crt0.s" />
     </folder>
-    <folder
-      Name="segger_rtt"
-      exclude=""
-      filter="*.c;*.h"
-      path="../../../../../lib/segger_rtt"
-      recurse="No" />
+    <folder Name="lib">
+      <folder Name="SEGGER_RTT">
+        <folder Name="RTT">
+          <file file_name="../../../../../lib/SEGGER_RTT/RTT/SEGGER_RTT.c" />
+          <file file_name="../../../../../lib/SEGGER_RTT/RTT/SEGGER_RTT_printf.c" />
+        </folder>
+        <folder Name="Syscalls">
+          <file file_name="../../../../../lib/SEGGER_RTT/Syscalls/SEGGER_RTT_Syscalls_SES.c" />
+        </folder>
+      </folder>
+    </folder>
   </project>
 </solution>

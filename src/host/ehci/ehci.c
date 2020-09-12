@@ -108,15 +108,38 @@ bool hcd_init(void)
   return ehci_init(TUH_OPT_RHPORT);
 }
 
+uint32_t hcd_uframe_number(uint8_t rhport)
+{
+  (void) rhport;
+  return ehci_data.uframe_number + ehci_data.regs->frame_index;
+}
+
 void hcd_port_reset(uint8_t rhport)
 {
   (void) rhport;
 
   ehci_registers_t* regs = ehci_data.regs;
 
-  regs->portsc_bm.port_enabled = 0; // disable port before reset
-  regs->portsc_bm.port_reset = 1;
+//  regs->portsc_bm.port_enabled = 0; // disable port before reset
+//  regs->portsc_bm.port_reset = 1;
+
+  uint32_t portsc = regs->portsc;
+
+  portsc &= ~(EHCI_PORTSC_MASK_PORT_EANBLED);
+  portsc |= EHCI_PORTSC_MASK_PORT_RESET;
+
+  regs->portsc = portsc;
 }
+
+#if 0
+void hcd_port_reset_end(uint8_t rhport)
+{
+  (void) rhport;
+
+  ehci_registers_t* regs = ehci_data.regs;
+  regs->portsc_bm.port_reset = 0;
+}
+#endif
 
 bool hcd_port_connect_status(uint8_t rhport)
 {
@@ -192,7 +215,7 @@ static bool ehci_init(uint8_t rhport)
   regs->status = EHCI_INT_MASK_ALL; // 2. clear all status
 
   regs->inten  = EHCI_INT_MASK_ERROR | EHCI_INT_MASK_PORT_CHANGE | EHCI_INT_MASK_ASYNC_ADVANCE |
-                 EHCI_INT_MASK_NXP_PERIODIC | EHCI_INT_MASK_NXP_ASYNC ;
+                 EHCI_INT_MASK_NXP_PERIODIC | EHCI_INT_MASK_NXP_ASYNC | EHCI_INT_MASK_FRAMELIST_ROLLOVER;
 
   //------------- Asynchronous List -------------//
   ehci_qhd_t * const async_head = qhd_async_head(rhport);
@@ -358,7 +381,7 @@ bool hcd_edpt_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_endpoint_t const 
   if ( dev_addr == 0 ) return true;
 
   // Insert to list
-  ehci_link_t * list_head;
+  ehci_link_t * list_head = NULL;
 
   switch (ep_desc->bmAttributes.xfer)
   {
@@ -378,8 +401,10 @@ bool hcd_edpt_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_endpoint_t const 
     default: break;
   }
 
+  TU_ASSERT(list_head);
+
   // TODO might need to disable async/period list
-  list_insert( list_head, (ehci_link_t*) p_qhd, EHCI_QTYPE_QHD);
+  list_insert(list_head, (ehci_link_t*) p_qhd, EHCI_QTYPE_QHD);
 
   return true;
 }
@@ -623,7 +648,7 @@ static void xfer_error_isr(uint8_t hostid)
 }
 
 //------------- Host Controller Driver's Interrupt Handler -------------//
-void hcd_isr(uint8_t rhport)
+void hcd_int_handler(uint8_t rhport)
 {
   ehci_registers_t* regs = ehci_data.regs;
 
@@ -633,6 +658,11 @@ void hcd_isr(uint8_t rhport)
   regs->status |= int_status; // Acknowledge handled interrupt
 
   if (int_status == 0) return;
+
+  if (int_status & EHCI_INT_MASK_FRAMELIST_ROLLOVER)
+  {
+    ehci_data.uframe_number += (EHCI_FRAMELIST_SIZE << 3);
+  }
 
   if (int_status & EHCI_INT_MASK_PORT_CHANGE)
   {

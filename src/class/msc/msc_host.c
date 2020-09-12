@@ -293,7 +293,7 @@ bool msch_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_interface_t const *it
     TU_ASSERT(TUSB_DESC_ENDPOINT == ep_desc->bDescriptorType);
     TU_ASSERT(TUSB_XFER_BULK == ep_desc->bmAttributes.xfer);
 
-    TU_ASSERT(hcd_edpt_open(rhport, dev_addr, ep_desc));
+    TU_ASSERT(usbh_edpt_open(rhport, dev_addr, ep_desc));
 
     if ( tu_edpt_dir(ep_desc->bEndpointAddress) == TUSB_DIR_IN )
     {
@@ -306,15 +306,16 @@ bool msch_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_interface_t const *it
     ep_desc = (tusb_desc_endpoint_t const *) tu_desc_next(ep_desc);
   }
 
-  p_msc->itf_numr = itf_desc->bInterfaceNumber;
+  p_msc->itf_num = itf_desc->bInterfaceNumber;
   (*p_length) += sizeof(tusb_desc_interface_t) + 2*sizeof(tusb_desc_endpoint_t);
 
   //------------- Get Max Lun -------------//
+  TU_LOG2("MSC Get Max Lun\r\n");
   tusb_control_request_t request = {
         .bmRequestType_bit = { .recipient = TUSB_REQ_RCPT_INTERFACE, .type = TUSB_REQ_TYPE_CLASS, .direction = TUSB_DIR_IN },
         .bRequest = MSC_REQ_GET_MAX_LUN,
         .wValue = 0,
-        .wIndex = p_msc->itf_numr,
+        .wIndex = p_msc->itf_num,
         .wLength = 1
   };
   // TODO STALL means zero
@@ -327,7 +328,7 @@ bool msch_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_interface_t const *it
         .bmRequestType_bit = { .recipient = TUSB_REQ_RCPT_INTERFACE, .type = TUSB_REQ_TYPE_CLASS, .direction = TUSB_DIR_OUT },
         .bRequest = MSC_REQ_RESET,
         .wValue = 0,
-        .wIndex = p_msc->itf_numr,
+        .wIndex = p_msc->itf_num,
         .wLength = 0
   };
   TU_ASSERT( usbh_control_xfer( dev_addr, &request, NULL ) );

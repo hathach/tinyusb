@@ -30,8 +30,8 @@
 
 #define UART_DEV        LPC_USART0
 #define UART_PORT       0x0f
-#define UART_PIN_TX     10 // PF.10 : UART0_TXD
-#define UART_PIN_RX     11 // PF.11 : UART0_RXD
+#define UART_PIN_TX     10
+#define UART_PIN_RX     11
 
 // P9_1 joystick down
 #define BUTTON_PORT     4
@@ -63,8 +63,12 @@ const uint32_t ExtRateIn = 0;
 
 static const PINMUX_GRP_T pinmuxing[] =
 {
-  // Button
+  // Button ( Joystick down )
   {0x9, 1,  (SCU_MODE_INBUFF_EN | SCU_MODE_INACT | SCU_MODE_FUNC0 | SCU_MODE_PULLUP)},
+
+  // UART
+  {UART_PORT, UART_PIN_TX, SCU_MODE_PULLDOWN | SCU_MODE_FUNC1},
+  {UART_PORT, UART_PIN_RX, SCU_MODE_INACT | SCU_MODE_INBUFF_EN | SCU_MODE_ZIF_DIS | SCU_MODE_FUNC1},
 
   // USB
 };
@@ -81,6 +85,16 @@ static const PINMUX_GRP_T pinclockmuxing[] =
 // Invoked by startup code
 void SystemInit(void)
 {
+#ifdef __USE_LPCOPEN
+	extern void (* const g_pfnVectors[])(void);
+  unsigned int *pSCB_VTOR = (unsigned int *) 0xE000ED08;
+	*pSCB_VTOR = (unsigned int) g_pfnVectors;
+
+#if __FPU_USED == 1
+	fpuInit();
+#endif
+#endif // __USE_LPCOPEN
+
 	/* Setup system level pin muxing */
 	Chip_SCU_SetPinMuxing(pinmuxing, sizeof(pinmuxing) / sizeof(PINMUX_GRP_T));
 
@@ -119,9 +133,6 @@ void board_init(void)
   Chip_GPIO_SetPinDIRInput(LPC_GPIO_PORT, BUTTON_PORT, BUTTON_PIN);
 
   //------------- UART -------------//
-  Chip_SCU_PinMuxSet(UART_PORT, UART_PIN_TX, (SCU_MODE_PULLDOWN | SCU_MODE_FUNC1));
-  Chip_SCU_PinMuxSet(UART_PORT, UART_PIN_RX, (SCU_MODE_INACT | SCU_MODE_INBUFF_EN | SCU_MODE_ZIF_DIS | SCU_MODE_FUNC1));
-
 	Chip_UART_Init(UART_DEV);
 	Chip_UART_SetBaud(UART_DEV, CFG_BOARD_UART_BAUDRATE);
 	Chip_UART_ConfigData(UART_DEV, UART_LCR_WLEN8 | UART_LCR_SBS_1BIT | UART_LCR_PARITY_DIS);
@@ -138,52 +149,65 @@ void board_init(void)
     USBMODE_VBUS_HIGH = 1
   };
 
-  /* USB0
-   * For USB Device operation; insert jumpers in position 1-2 in JP17/JP18/JP19. GPIO28 controls USB
-   * connect functionality and LED32 lights when the USB Device is connected. SJ4 has pads 1-2 shorted
-   * by default. LED33 is controlled by GPIO27 and signals USB-up state. GPIO54 is used for VBUS
+  /* From EA4357 user manual
+   *
+   * USB0 Device operation:
+   * - Insert jumpers in position 1-2 in JP17/JP18/JP19.
+   * - GPIO28 controls USB connect functionality
+   * - LED32 lights when the USB Device is connected. SJ4 has pads 1-2 shorted by default.
+   * - LED33 is controlled by GPIO27 and signals USB-up state. GPIO54 is used for VBUS
    * sensing.
-   * For USB Host operation; insert jumpers in position 2-3 in JP17/JP18/JP19. USB Host power is
-   * controlled via distribution switch U20 (found in schematic page 11). Signal GPIO26 is active low and
-   * enables +5V on VBUS2. LED35 light whenever +5V is present on VBUS2. GPIO55 is connected to
-   * status feedback from the distribution switch. GPIO54 is used for VBUS sensing. 15Kohm pull-down
-   * resistors are always active
+   *
+   * USB0 Host operation:
+   * - insert jumpers in position 2-3 in JP17/JP18/JP19.
+   * - USB Host power is controlled via distribution switch U20 (found in schematic page 11).
+   * - Signal GPIO26 is active low and enables +5V on VBUS2.
+   * - LED35 light whenever +5V is present on VBUS2.
+   * - GPIO55 is connected to status feedback from the distribution switch.
+   * - GPIO54 is used for VBUS sensing. 15Kohm pull-down resistors are always active
+   *
+   * Note:
+   * - Insert jumpers in position 2-3 in JP17/JP18/JP19
+   * - Insert jumpers in JP31 (OTG)
    */
 #if CFG_TUSB_RHPORT0_MODE
   Chip_USB0_Init();
 
-//  // Reset controller
-//  LPC_USB0->USBCMD_D |= 0x02;
-//  while( LPC_USB0->USBCMD_D & 0x02 ) {}
-//
-//  // Set mode
-//  #if CFG_TUSB_RHPORT0_MODE & OPT_MODE_HOST
-//    LPC_USB0->USBMODE_H = USBMODE_HOST | (USBMODE_VBUS_HIGH << 5);
-//
-//    LPC_USB0->PORTSC1_D |= (1<<24); // FIXME force full speed for debugging
-//  #else // TODO OTG
-//    LPC_USB0->USBMODE_D = USBMODE_DEVICE;
-//    LPC_USB0->OTGSC = (1<<3) | (1<<0) /*| (1<<16)| (1<<24)| (1<<25)| (1<<26)| (1<<27)| (1<<28)| (1<<29)| (1<<30)*/;
-//  #endif
+  // Reset controller
+  LPC_USB0->USBCMD_D |= 0x02;
+  while( LPC_USB0->USBCMD_D & 0x02 ) {}
+
+  // Set mode
+  #if CFG_TUSB_RHPORT0_MODE & OPT_MODE_HOST
+    LPC_USB0->USBMODE_H = USBMODE_HOST | (USBMODE_VBUS_HIGH << 5);
+
+    LPC_USB0->PORTSC1_D |= (1<<24); // FIXME force full speed for debugging
+  #else // TODO OTG
+    LPC_USB0->USBMODE_D = USBMODE_DEVICE;
+    LPC_USB0->OTGSC = (1<<3) | (1<<0) /*| (1<<16)| (1<<24)| (1<<25)| (1<<26)| (1<<27)| (1<<28)| (1<<29)| (1<<30)*/;
+  #endif
 #endif
 
   /* USB1
-   * When USB channel #1 is used as USB Host, 15Kohm pull-down resistors are needed on the USB data
-   * signals. These are activated inside the USB OTG chip (U31), and this has to be done via the I2C
-   * interface of GPIO52/GPIO53.
-   * J20 is the connector to use when USB Host is used. In order to provide +5V to the external USB
-   * device connected to this connector (J20), channel A of U20 must be enabled. It is enabled by default
-   * since SJ5 is normally connected between pin 1-2. LED34 lights green when +5V is available on J20.
-   * JP15 shall not be inserted. JP16 has no effect
    *
-   * When USB channel #1 is used as USB Device, a 1.5Kohm pull-up resistor is needed on the USB DP
-   * data signal. There are two methods to create this. JP15 is inserted and the pull-up resistor is always
-   * enabled. Alternatively, the pull-up resistor is activated inside the USB OTG chip (U31), and this has to
-   * be done via the I2C interface of GPIO52/GPIO53. In the latter case, JP15 shall not be inserted.
-   * J19 is the connector to use when USB Device is used. Normally it should be a USB-B connector for
+   * For USB Device:
+   * - a 1.5Kohm pull-up resistor is needed on the USB DP data signal. There are two methods to create this.
+   * JP15 is inserted and the pull-up resistor is always enabled. Alternatively, the pull-up resistor is activated
+   * inside the USB OTG chip (U31), and this has to be done via the I2C interface of GPIO52/GPIO53. In the latter case,
+   * JP15 shall not be inserted.
+   * - J19 is the connector to use when USB Device is used. Normally it should be a USB-B connector for
    * creating a USB Device interface, but the mini-AB connector can also be used in this case. The status
    * of VBUS can be read via U31.
-   * JP16 shall not be inserted.
+   * - JP16 shall not be inserted.
+   *
+   * For USB Host:
+   * - 15Kohm pull-down resistors are needed on the USB data signals. These are activated inside the USB OTG chip (U31),
+   * and this has to be done via the I2C interface of GPIO52/GPIO53.
+   * - J20 is the connector to use when USB Host is used. In order to provide +5V to the external USB
+   * device connected to this connector (J20), channel A of U20 must be enabled. It is enabled by default
+   * since SJ5 is normally connected between pin 1-2.
+   * - LED34 lights green when +5V is available on J20.
+   * - JP15 shall not be inserted. JP16 has no effect
    */
 #if CFG_TUSB_RHPORT1_MODE
   Chip_USB1_Init();
@@ -222,7 +246,7 @@ void board_init(void)
 void USB0_IRQHandler(void)
 {
   #if CFG_TUSB_RHPORT0_MODE & OPT_MODE_HOST
-    tuh_isr(0);
+    tuh_int_handler(0);
   #endif
 
   #if CFG_TUSB_RHPORT0_MODE & OPT_MODE_DEVICE
@@ -233,7 +257,7 @@ void USB0_IRQHandler(void)
 void USB1_IRQHandler(void)
 {
   #if CFG_TUSB_RHPORT1_MODE & OPT_MODE_HOST
-    tuh_isr(1);
+    tuh_int_handler(1);
   #endif
 
   #if CFG_TUSB_RHPORT1_MODE & OPT_MODE_DEVICE

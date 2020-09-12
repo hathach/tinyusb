@@ -40,6 +40,8 @@
 #if defined(LOGGER_RTT)
 // Logging with RTT
 
+// If using SES IDE, use the Syscalls/SEGGER_RTT_Syscalls_SES.c instead
+#if !(defined __SES_ARM) && !(defined __SES_RISCV) && !(defined __CROSSWORKS_ARM)
 #include "SEGGER_RTT.h"
 
 TU_ATTR_USED int sys_write (int fhdl, const void *buf, size_t count)
@@ -54,6 +56,7 @@ TU_ATTR_USED int sys_read (int fhdl, char *buf, size_t count)
   (void) fhdl;
   return SEGGER_RTT_Read(0, buf, count);
 }
+#endif
 
 #elif defined(LOGGER_SWO)
 // Logging with SWO for ARM Cortex

@@ -71,11 +71,17 @@ static const PINMUX_GRP_T pinmuxing[] =
 };
 
 // Invoked by startup code
-extern void (* const g_pfnVectors[])(void);
 void SystemInit(void)
 {
-  // Remap isr vector
-	*((uint32_t *) 0xE000ED08) = (uint32_t) &g_pfnVectors;
+#ifdef __USE_LPCOPEN
+	extern void (* const g_pfnVectors[])(void);
+  unsigned int *pSCB_VTOR = (unsigned int *) 0xE000ED08;
+	*pSCB_VTOR = (unsigned int) g_pfnVectors;
+
+#if __FPU_USED == 1
+	fpuInit();
+#endif
+#endif // __USE_LPCOPEN
 
 	// Set up pinmux
 	Chip_SCU_SetPinMuxing(pinmuxing, sizeof(pinmuxing) / sizeof(PINMUX_GRP_T));
@@ -225,7 +231,7 @@ void board_init(void)
 void USB0_IRQHandler(void)
 {
   #if CFG_TUSB_RHPORT0_MODE & OPT_MODE_HOST
-    tuh_isr(0);
+    tuh_int_handler(0);
   #endif
 
   #if CFG_TUSB_RHPORT0_MODE & OPT_MODE_DEVICE
@@ -236,7 +242,7 @@ void USB0_IRQHandler(void)
 void USB1_IRQHandler(void)
 {
   #if CFG_TUSB_RHPORT1_MODE & OPT_MODE_HOST
-    tuh_isr(1);
+    tuh_int_handler(1);
   #endif
 
   #if CFG_TUSB_RHPORT1_MODE & OPT_MODE_DEVICE

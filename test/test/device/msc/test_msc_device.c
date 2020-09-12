@@ -199,7 +199,6 @@ void setUp(void)
   if ( !tusb_inited() )
   {
     dcd_init_Expect(rhport);
-    dcd_connect_Expect(rhport);
     tusb_init();
   }
 

@@ -80,7 +80,6 @@
 #include <string.h>
 #include "usbtmc.h"
 #include "usbtmc_device.h"
-#include "device/dcd.h"
 #include "device/usbd.h"
 #include "osal/osal.h"
 

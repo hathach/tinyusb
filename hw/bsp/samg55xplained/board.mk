@@ -18,8 +18,8 @@ ASF_DIR = hw/mcu/microchip/samg55
 LD_FILE = hw/bsp/$(BOARD)/samg55j19_flash.ld
 
 SRC_C += \
-	$(ASF_DIR)/samg55/gcc/gcc/startup_samg55j19.c \
-	$(ASF_DIR)/samg55/gcc/system_samg55j19.c \
+	$(ASF_DIR)/samg55/gcc/gcc/startup_samg55.c \
+	$(ASF_DIR)/samg55/gcc/system_samg55.c \
 	$(ASF_DIR)/hpl/core/hpl_init.c \
 	$(ASF_DIR)/hpl/usart/hpl_usart.c \
 	$(ASF_DIR)/hpl/pmc/hpl_pmc.c \
@@ -46,7 +46,7 @@ CHIP_FAMILY = samg
 FREERTOS_PORT = ARM_CM4F
 
 # For flash-jlink target
-JLINK_DEVICE = ATSAMD51J19
+JLINK_DEVICE = ATSAMG55J19
 JLINK_IF = swd
 
 # flash using edbg from https://github.com/ataradov/edbg
