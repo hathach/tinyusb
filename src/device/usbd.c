@@ -1132,7 +1132,7 @@ bool usbd_edpt_release(uint8_t rhport, uint8_t ep_addr)
 #endif
 
   // can only release the endpoint if it is claimed and not busy
-  bool ret = (_usbd_dev.ep_status[epnum][dir].busy == 0) && (_usbd_dev.ep_status[epnum][dir].claimed == 1);
+  bool const ret = (_usbd_dev.ep_status[epnum][dir].busy == 0) && (_usbd_dev.ep_status[epnum][dir].claimed == 1);
   if (ret)
   {
     _usbd_dev.ep_status[epnum][dir].claimed = 0;
