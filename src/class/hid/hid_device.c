@@ -72,18 +72,21 @@ static inline hidd_interface_t* get_interface_by_itfnum(uint8_t itf_num)
 //--------------------------------------------------------------------+
 bool tud_hid_ready(void)
 {
-  uint8_t itf = 0;
+  uint8_t const itf = 0;
   uint8_t const ep_in = _hidd_itf[itf].ep_in;
-  return tud_ready() && (ep_in != 0) && usbd_edpt_ready(TUD_OPT_RHPORT, ep_in);
+  return tud_ready() && (ep_in != 0) && !usbd_edpt_busy(TUD_OPT_RHPORT, ep_in);
 }
 
 bool tud_hid_report(uint8_t report_id, void const* report, uint8_t len)
 {
-  TU_VERIFY( tud_hid_ready() );
-
-  uint8_t itf = 0;
+  uint8_t const rhport = 0;
+  uint8_t const itf = 0;
   hidd_interface_t * p_hid = &_hidd_itf[itf];
 
+  // claim endpoint
+  TU_VERIFY( usbd_edpt_claim(rhport, p_hid->ep_in) );
+
+  // prepare data
   if (report_id)
   {
     len = tu_min8(len, CFG_TUD_HID_EP_BUFSIZE-1);
