@@ -121,10 +121,9 @@ typedef struct
 #if CFG_TUD_AUDIO_EPSIZE_OUT
   CFG_TUSB_MEM_ALIGN uint8_t epout_buf[CFG_TUD_AUDIO_EPSIZE_OUT];        // Bigger makes no sense for isochronous EP's (but technically possible here)
 
-  // TODO: required?
-  //#if CFG_TUD_AUDIO_ENABLE_FEEDBACK_EP
-  //    uint16_t fb_val;                                                 // Feedback value for asynchronous mode!
-  //#endif
+#if CFG_TUD_AUDIO_ENABLE_FEEDBACK_EP
+  uint32_t fb_val;                                                       // Feedback value for asynchronous mode (in 16.16 format).
+#endif
 
 #endif
 
@@ -643,17 +642,50 @@ static bool audiod_tx_done_type_I_pcm_ff_cb(uint8_t rhport, audiod_interface_t* 
 // This function is called once a transmit of an feedback packet was successfully completed. Here, we get the next feedback value to be sent
 
 #if CFG_TUD_AUDIO_EPSIZE_OUT && CFG_TUD_AUDIO_ENABLE_FEEDBACK_EP
-static uint16_t audio_fb_done_cb(uint8_t rhport, audiod_interface_t* audio)
+static bool audio_fb_send(uint8_t rhport, audiod_interface_t *audio)
 {
-  (void) rhport;
-  (void) audio;
+  uint8_t fb[4];
+  uint16_t len;
 
-  // Here we need to return the feedback value
-#error RETURN YOUR FEEDBACK VALUE HERE!
+  if (audio->fb_val == 0)
+  {
+    len = 0;
+    return true;
+  }
+  else
+  {
+    len = 4;
+    // Here we need to return the feedback value
+    if (rhport == 0)
+    {
+      // For FS format is 10.14
+      fb[0] = (audio->fb_val >> 2) & 0xFF;
+      fb[1] = (audio->fb_val >> 10) & 0xFF;
+      fb[2] = (audio->fb_val >> 18) & 0xFF;
+      // 4th byte is needed to work correctly with MS Windows
+      fb[3] = 0;
+    }
+    else
+    {
+      // For HS format is 16.16
+      fb[0] = (audio->fb_val >> 0) & 0xFF;
+      fb[1] = (audio->fb_val >> 8) & 0xFF;
+      fb[2] = (audio->fb_val >> 16) & 0xFF;
+      fb[3] = (audio->fb_val >> 24) & 0xFF;
+    }
+    return usbd_edpt_xfer(rhport, audio->ep_fb, fb, len);
+  }
 
-  if (tud_audio_fb_done_cb) TU_VERIFY(tud_audio_fb_done_cb(rhport));
-  return 0;
 }
+
+//static uint16_t audio_fb_done_cb(uint8_t rhport, audiod_interface_t* audio)
+//{
+//  (void) rhport;
+//  (void) audio;
+//
+//  if (tud_audio_fb_done_cb) TU_VERIFY(tud_audio_fb_done_cb(rhport));
+//  return 0;
+//}
 
 #endif
 
@@ -918,7 +950,7 @@ static bool audiod_set_interface(uint8_t rhport, tusb_control_request_t const * 
           }
 
 #if CFG_TUD_AUDIO_ENABLE_FEEDBACK_EP
-          if (tu_edpt_dir(ep_addr) == TUSB_DIR_IN && ((tusb_desc_endpoint_t const *) p_desc)->bmAttributes.usage == 0x10)   // Check if usage is implicit data feedback
+          if (tu_edpt_dir(ep_addr) == TUSB_DIR_IN && ((tusb_desc_endpoint_t const *) p_desc)->bmAttributes.usage == 1)   // Check if usage is explicit data feedback
           {
             _audiod_itf[idxDriver].ep_fb = ep_addr;
 
@@ -1215,13 +1247,9 @@ bool audiod_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint3
     // Transmission of feedback EP finished
     if (_audiod_itf[idxDriver].ep_fb == ep_addr)
     {
-      if (!audio_fb_done_cb(rhport, &_audiod_itf[idxDriver]))
-      {
-        // Load with ZLP
-        return usbd_edpt_xfer(rhport, ep_addr, NULL, 0);
-      }
+      if (tud_audio_fb_done_cb) TU_VERIFY(tud_audio_fb_done_cb(rhport));
 
-      return true;
+      return audio_fb_send(rhport, &_audiod_itf[idxDriver]);
     }
 #endif
 #endif
@@ -1402,5 +1430,17 @@ static bool audiod_verify_ep_exists(uint8_t ep, uint8_t *idxDriver)
   }
   return false;
 }
+
+#if CFG_TUD_AUDIO_ENABLE_FEEDBACK_EP
+bool tud_audio_fb_set(uint8_t rhport, uint32_t feedback)
+{
+  audiod_interface_t *audio = &_audiod_itf[0];
+
+  audio->fb_val = feedback;
+  TU_VERIFY(!usbd_edpt_busy(rhport, audio->ep_fb), true);
+
+  return audio_fb_send(rhport, audio);
+}
+#endif
 
 #endif //TUSB_OPT_DEVICE_ENABLED && CFG_TUD_AUDIO

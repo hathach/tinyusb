@@ -259,6 +259,11 @@ TU_ATTR_WEAK bool tud_audio_rx_done_cb(uint8_t rhport, uint8_t * buffer, uint16_
 
 #if CFG_TUD_AUDIO_EPSIZE_OUT > 0 && CFG_TUD_AUDIO_ENABLE_FEEDBACK_EP
 TU_ATTR_WEAK bool tud_audio_fb_done_cb(uint8_t rhport);
+// User code should call this function with feedback value in 16.16 format for FS and HS.
+// Value will be corrected for FS to 10.14 format automatically.
+// (see Universal Serial Bus Specification Revision 2.0 5.12.4.2).
+// Feedback value will be sent at FB endpoint interval till it's changed.
+bool tud_audio_fb_set(uint8_t rhport, uint32_t feedback);
 #endif
 
 #if CFG_TUD_AUDIO_INT_CTR_EPSIZE_IN
