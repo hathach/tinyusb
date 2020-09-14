@@ -809,20 +809,7 @@ static void dcd_edpt_disable (uint8_t rhport, uint8_t ep_addr, bool stall)
  */
 void dcd_edpt_close (uint8_t rhport, uint8_t ep_addr)
 {
-  USB_OTG_GlobalTypeDef * usb_otg = GLOBAL_BASE(rhport);
-
-  uint8_t const epnum = tu_edpt_number(ep_addr);
-  uint8_t const dir   = tu_edpt_dir(ep_addr);
-
   dcd_edpt_disable(rhport, ep_addr, false);
-//  if (dir == TUSB_DIR_IN)
-//  {
-//    uint16_t const fifo_size = (usb_otg->DIEPTXF[epnum - 1] & USB_OTG_DIEPTXF_INEPTXFD_Msk) >> USB_OTG_DIEPTXF_INEPTXFD_Pos;
-//    uint16_t const fifo_start = (usb_otg->DIEPTXF[epnum - 1] & USB_OTG_DIEPTXF_INEPTXSA_Msk) >> USB_OTG_DIEPTXF_INEPTXSA_Pos;
-//    // For now only endpoint that has FIFO at the end of FIFO memory can be closed without fuss.
-//    TU_ASSERT(fifo_start + fifo_size == _allocated_fifo_words,);
-//    _allocated_fifo_words -= fifo_size;
-//  }
 }
 
 void dcd_edpt_stall (uint8_t rhport, uint8_t ep_addr)
