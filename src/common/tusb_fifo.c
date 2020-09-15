@@ -65,8 +65,8 @@ bool tu_fifo_config(tu_fifo_t *f, void* buffer, uint16_t depth, uint16_t item_si
   f->item_size = item_size;
   f->overwritable = overwritable;
 
-  f->non_used_index_space = ((2^16)-1) % depth;
-  f->max_pointer_idx = ((2^16)-1) - f->non_used_index_space;
+  f->non_used_index_space = 0x10000 % depth;
+  f->max_pointer_idx = 0xFFFF - f->non_used_index_space;
 
   f->rd_idx = f->wr_idx = 0;
 
@@ -78,13 +78,14 @@ bool tu_fifo_config(tu_fifo_t *f, void* buffer, uint16_t depth, uint16_t item_si
 // TODO: To be changed!!
 static inline uint16_t _ff_mod(uint16_t idx, uint16_t depth)
 {
-  return (idx < depth) ? idx : (idx-depth);
+//  return (idx < depth) ? idx : (idx-depth);
+  return idx % depth;
 }
 
 // send one item to FIFO WITHOUT updating write pointer
-static inline void _ff_push(tu_fifo_t* f, void const * data, uint16_t n, uint16_t wRel)
+static inline void _ff_push(tu_fifo_t* f, void const * data, uint16_t wRel)
 {
-  memcpy(f->buffer + (wRel * f->item_size), data, n*f->item_size);
+  memcpy(f->buffer + (wRel * f->item_size), data, f->item_size);
 }
 
 // send n items to FIFO WITHOUT updating write pointer
@@ -107,13 +108,13 @@ static void _ff_push_n(tu_fifo_t* f, void const * data, uint16_t n, uint16_t wRe
 }
 
 // get one item from FIFO WITHOUT updating write pointer
-static inline void _ff_pull(tu_fifo_t* f, void const * p_buffer, uint16_t rRel)
+static inline void _ff_pull(tu_fifo_t* f, void * p_buffer, uint16_t rRel)
 {
   memcpy(p_buffer, f->buffer + (rRel * f->item_size), f->item_size);
 }
 
 // get n items from FIFO WITHOUT updating write pointer
-static void _ff_pull_n(tu_fifo_t* f, void const * p_buffer, uint16_t n, uint16_t rRel)
+static void _ff_pull_n(tu_fifo_t* f, void * p_buffer, uint16_t n, uint16_t rRel)
 {
   if(rRel + n <= f->depth)       // Linear mode only
   {
@@ -136,7 +137,7 @@ static uint16_t advance_pointer(tu_fifo_t* f, uint16_t p, uint16_t pos)
 {
   // We limit the index space of p such that a correct wrap around happens
   // Check for a wrap around or if we are in unused index space - This has to be checked first!! We are exploiting the wrap around to the correct index
-  if ((p > p + pos) || (p + pos >= f->max_pointer_idx))
+  if ((p > p + pos) || (p + pos > f->max_pointer_idx))
   {
     p = (p + pos) + f->non_used_index_space;
   }
