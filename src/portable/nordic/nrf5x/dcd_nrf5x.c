@@ -122,7 +122,7 @@ static void edpt_dma_start(volatile uint32_t* reg_startep)
         // for the DMA complete by comparing current pending DMA with number of ENDED Events
         uint32_t ended = 0;
 
-        while ( _dcd.dma_pending < ((uint8_t) ended) )
+        while ( _dcd.dma_pending > ((uint8_t) ended) )
         {
           ended = NRF_USBD->EVENTS_ENDISOIN + NRF_USBD->EVENTS_ENDISOOUT;
 
