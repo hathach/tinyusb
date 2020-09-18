@@ -280,6 +280,9 @@ void dcd_int_enable (uint8_t rhport)
   NVIC_EnableIRQ(USB_LP_CAN_RX0_IRQn);
   NVIC_EnableIRQ(USBWakeUp_IRQn);
 #elif CFG_TUSB_MCU == OPT_MCU_STM32F1
+  NVIC_SetPriority(USB_HP_CAN1_TX_IRQn, 15);
+  NVIC_SetPriority(USB_LP_CAN1_RX0_IRQn, 15);
+  NVIC_SetPriority(USBWakeUp_IRQn, 15);
   NVIC_EnableIRQ(USB_HP_CAN1_TX_IRQn);
   NVIC_EnableIRQ(USB_LP_CAN1_RX0_IRQn);
   NVIC_EnableIRQ(USBWakeUp_IRQn);
