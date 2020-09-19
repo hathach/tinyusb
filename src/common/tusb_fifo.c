@@ -2,7 +2,7 @@
  * The MIT License (MIT)
  *
  * Copyright (c) 2019 Ha Thach (tinyusb.org)
- * Copyright (c) 2020 Reinhard Panhuber
+ * Copyright (c) 2020 Reinhard Panhuber - rework to unmasked pointers
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -75,10 +75,10 @@ bool tu_fifo_config(tu_fifo_t *f, void* buffer, uint16_t depth, uint16_t item_si
   return true;
 }
 
-// TODO: To be changed!!
+// Static functions are intended to work on local variables
+
 static inline uint16_t _ff_mod(uint16_t idx, uint16_t depth)
 {
-//  return (idx < depth) ? idx : (idx-depth);
   return idx % depth;
 }
 
@@ -148,6 +148,22 @@ static uint16_t advance_pointer(tu_fifo_t* f, uint16_t p, uint16_t pos)
   return p;
 }
 
+// Backward an absolute pointer
+static uint16_t backward_pointer(tu_fifo_t* f, uint16_t p, uint16_t pos)
+{
+  // We limit the index space of p such that a correct wrap around happens
+  // Check for a wrap around or if we are in unused index space - This has to be checked first!! We are exploiting the wrap around to the correct index
+  if ((p < p - pos) || (p - pos > f->max_pointer_idx))
+  {
+    p = (p - pos) - f->non_used_index_space;
+  }
+  else
+  {
+    p -= pos;
+  }
+  return p;
+}
+
 // get relative from absolute pointer
 static uint16_t get_relative_pointer(tu_fifo_t* f, uint16_t p, uint16_t pos)
 {
@@ -178,13 +194,15 @@ static inline bool _tu_fifo_full(tu_fifo_t* f, uint16_t wAbs, uint16_t rAbs)
 }
 
 // Works on local copies of w and r
-// BE AWARE - THIS FUNCTION MIGHT NOT GIVE A CORRECT ANSWERE IN CASE WRITE POINTER "OVERFLOWS"
-// EXAMPLE with buffer depth: 100
-// Maximum index space: (2^16)-1) - ((2^16)-1) % depth = 65500
-// If you produce 65500 / 100 = 655 buffer overflows, the write pointer will overflow as well and
-// the check _tu_fifo_overflow() will not give you a valid result! Avoid such nasty things!
-// Use _tu_fifo_correct_read_pointer() if overflow happened to set read pointer to correct index
-// for reading latest items!
+//BE AWARE - THIS FUNCTION MIGHT NOT GIVE A CORRECT ANSWERE IN CASE WRITE POINTER "OVERFLOWS"
+//EXAMPLE with buffer depth: 100
+//Maximum index space: (2^16) - (2^16) % depth = 65500
+//If you produce 65500 / 100 + 1 = 656 buffer overflows, the write pointer will overflow as well and
+//the check _tu_fifo_overflow() will not give you a valid result! Avoid such nasty things!
+//All reading functions (read, peek) check for overflows and correct read pointer on their own such
+//that latest items are read.
+//If required (e.g. for DMA use) you can also correct the read pointer by
+//tu_fifo_correct_read_pointer().
 static inline bool _tu_fifo_overflow(tu_fifo_t* f, uint16_t wAbs, uint16_t rAbs)
 {
   return (_tu_fifo_count(f, wAbs, rAbs) > f->depth);
@@ -194,15 +212,21 @@ static inline bool _tu_fifo_overflow(tu_fifo_t* f, uint16_t wAbs, uint16_t rAbs)
 // For more details see _tu_fifo_overflow()!
 static inline void _tu_fifo_correct_read_pointer(tu_fifo_t* f, uint16_t wAbs)
 {
-  tu_fifo_lock(f);
-  f->rd_idx = advance_pointer(f, f->wr_idx, 1);
-  tu_fifo_unlock(f);
+  f->rd_idx = backward_pointer(f, wAbs, f->depth);
 }
 
 // Works on local copies of w and r
+// Must be protected by mutexes since in case of an overflow read pointer gets modified
 static bool _tu_fifo_peek_at(tu_fifo_t* f, uint16_t pos, void * p_buffer, uint16_t wAbs, uint16_t rAbs)
 {
   uint16_t cnt = _tu_fifo_count(f, wAbs, rAbs);
+
+  // Check overflow and correct if required
+  if (cnt > f->depth)
+  {
+    _tu_fifo_correct_read_pointer(f, wAbs);
+    cnt = f->depth;
+  }
 
   // Skip beginning of buffer
   if (cnt == 0 || pos >= cnt) return false;
@@ -216,9 +240,17 @@ static bool _tu_fifo_peek_at(tu_fifo_t* f, uint16_t pos, void * p_buffer, uint16
 }
 
 // Works on local copies of w and r
+// Must be protected by mutexes since in case of an overflow read pointer gets modified
 static uint16_t _tu_fifo_peek_at_n(tu_fifo_t* f, uint16_t pos, void * p_buffer, uint16_t n, uint16_t wAbs, uint16_t rAbs)
 {
   uint16_t cnt = _tu_fifo_count(f, wAbs, rAbs);
+
+  // Check overflow and correct if required
+  if (cnt > f->depth)
+  {
+    _tu_fifo_correct_read_pointer(f, wAbs);
+    cnt = f->depth;
+  }
 
   // Skip beginning of buffer
   if (cnt == 0 || pos >= cnt) return 0;
@@ -322,11 +354,13 @@ uint16_t tu_fifo_remaining(tu_fifo_t* f)
 
      BE AWARE - THIS FUNCTION MIGHT NOT GIVE A CORRECT ANSWERE IN CASE WRITE POINTER "OVERFLOWS"
      EXAMPLE with buffer depth: 100
-     Maximum index space: (2^16)-1) - ((2^16)-1) % depth = 65500
-     If you produce 65500 / 100 = 655 buffer overflows, the write pointer will overflow as well and
+     Maximum index space: (2^16) - (2^16) % depth = 65500
+     If you produce 65500 / 100 + 1 = 656 buffer overflows, the write pointer will overflow as well and
      the check _tu_fifo_overflow() will not give you a valid result! Avoid such nasty things!
-     Use tu_fifo_correct_read_pointer() if overflow happened to set read pointer to correct index
-     for reading latest items!
+     All reading functions (read, peek) check for overflows and correct read pointer on their own such
+     that latest items are read.
+     If required (e.g. for DMA use) you can also correct the read pointer by
+     tu_fifo_correct_read_pointer().
 
     @param[in]  f
                 Pointer to the FIFO buffer to manipulate
@@ -342,7 +376,9 @@ bool tu_fifo_overflow(tu_fifo_t* f)
 // Only use in case tu_fifo_overflow() returned true!
 void tu_fifo_correct_read_pointer(tu_fifo_t* f)
 {
+  tu_fifo_lock(f);
   _tu_fifo_correct_read_pointer(f, f->wr_idx);
+  tu_fifo_unlock(f);
 }
 
 /******************************************************************************/
@@ -350,8 +386,8 @@ void tu_fifo_correct_read_pointer(tu_fifo_t* f)
     @brief Read one element out of the buffer.
 
     This function will return the element located at the array index of the
-    read pointer, and then increment the read pointer index.  If the read
-    pointer exceeds the maximum buffer size, it will roll over to zero.
+    read pointer, and then increment the read pointer index.
+    This function checks for an overflow and corrects read pointer if required.
 
     @param[in]  f
                 Pointer to the FIFO buffer to manipulate
@@ -380,8 +416,8 @@ bool tu_fifo_read(tu_fifo_t* f, void * buffer)
 /******************************************************************************/
 /*!
     @brief This function will read n elements from the array index specified by
-    the read pointer and increment the read index. If the read index
-    exceeds the max buffer size, then it will roll over to zero.
+    the read pointer and increment the read index.
+    This function checks for an overflow and corrects read pointer if required.
 
     @param[in]  f
                 Pointer to the FIFO buffer to manipulate
@@ -411,12 +447,13 @@ uint16_t tu_fifo_read_n(tu_fifo_t* f, void * buffer, uint16_t count)
 
 /******************************************************************************/
 /*!
-    @brief Read one item without removing it from the FIFO
+    @brief Read one item without removing it from the FIFO.
+    This function checks for an overflow and corrects read pointer if required.
 
     @param[in]  f
                 Pointer to the FIFO buffer to manipulate
     @param[in]  pos
-                Position to read from in the FIFO buffer
+                Position to read from in the FIFO buffer with respect to read pointer
     @param[in]  p_buffer
                 Pointer to the place holder for data read from the buffer
 
@@ -425,17 +462,21 @@ uint16_t tu_fifo_read_n(tu_fifo_t* f, void * buffer, uint16_t count)
 /******************************************************************************/
 bool tu_fifo_peek_at(tu_fifo_t* f, uint16_t pos, void * p_buffer)
 {
-  return _tu_fifo_peek_at(f, pos, p_buffer, f->wr_idx, f->rd_idx);
+  tu_fifo_lock(f);                                          // TODO: Here we may distinguish for read and write pointer mutexes!
+  bool ret = _tu_fifo_peek_at(f, pos, p_buffer, f->wr_idx, f->rd_idx);
+  tu_fifo_unlock(f);
+  return ret;
 }
 
 /******************************************************************************/
 /*!
     @brief Read n items without removing it from the FIFO
+    This function checks for an overflow and corrects read pointer if required.
 
     @param[in]  f
                 Pointer to the FIFO buffer to manipulate
     @param[in]  pos
-                Position to read from in the FIFO buffer
+                Position to read from in the FIFO buffer with respect to read pointer
     @param[in]  p_buffer
                 Pointer to the place holder for data read from the buffer
     @param[in]  n
@@ -446,7 +487,10 @@ bool tu_fifo_peek_at(tu_fifo_t* f, uint16_t pos, void * p_buffer)
 /******************************************************************************/
 uint16_t tu_fifo_peek_at_n(tu_fifo_t* f, uint16_t pos, void * p_buffer, uint16_t n)
 {
-  return _tu_fifo_peek_at_n(f, pos, p_buffer, n, f->wr_idx, f->rd_idx);
+  tu_fifo_lock(f);                                          // TODO: Here we may distinguish for read and write pointer mutexes!
+  bool ret = _tu_fifo_peek_at_n(f, pos, p_buffer, n, f->wr_idx, f->rd_idx);
+  tu_fifo_unlock(f);
+  return ret;
 }
 
 /******************************************************************************/
@@ -454,8 +498,7 @@ uint16_t tu_fifo_peek_at_n(tu_fifo_t* f, uint16_t pos, void * p_buffer, uint16_t
     @brief Write one element into the buffer.
 
     This function will write one element into the array index specified by
-    the write pointer and increment the write index. If the write index
-    exceeds the max buffer size, then it will roll over to zero.
+    the write pointer and increment the write index.
 
     @param[in]  f
                 Pointer to the FIFO buffer to manipulate
@@ -490,8 +533,7 @@ bool tu_fifo_write(tu_fifo_t* f, const void * data)
 /******************************************************************************/
 /*!
     @brief This function will write n elements into the array index specified by
-    the write pointer and increment the write index. If the write index
-    exceeds the max buffer size, then it will roll over to zero.
+    the write pointer and increment the write index.
 
     @param[in]  f
                 Pointer to the FIFO buffer to manipulate
@@ -543,7 +585,7 @@ uint16_t tu_fifo_write_n(tu_fifo_t* f, const void * data, uint16_t count)
 
 /******************************************************************************/
 /*!
-    @brief Clear the fifo read and write pointers and set length to zero
+    @brief Clear the fifo read and write pointers
 
     @param[in]  f
                 Pointer to the FIFO buffer to manipulate
@@ -552,10 +594,50 @@ uint16_t tu_fifo_write_n(tu_fifo_t* f, const void * data, uint16_t count)
 bool tu_fifo_clear(tu_fifo_t *f)
 {
   tu_fifo_lock(f);
-
   f->rd_idx = f->wr_idx = 0;
-
   tu_fifo_unlock(f);
 
   return true;
+}
+
+/******************************************************************************/
+/*!
+    @brief Advance write pointer - intended to be used in combination with DMA.
+    It is possible to fill the FIFO by use of a DMA in circular mode. Within
+    DMA ISRs you may update the write pointer to be able to read from the FIFO.
+    As long as the DMA is the only process writing into the FIFO this is safe
+    to use.
+
+    USE WITH CARE - WE DO NOT CONDUCT SAFTY CHECKS HERE!
+
+    @param[in]  f
+                Pointer to the FIFO buffer to manipulate
+    @param[in]  n
+                Number of items the write pointer moves forward
+ */
+/******************************************************************************/
+void tu_fifo_advance_write_pointer(tu_fifo_t *f, uint16_t n)
+{
+  f->wr_idx = advance_pointer(f, f->wr_idx, n);
+}
+
+/******************************************************************************/
+/*!
+    @brief Advance read pointer - intended to be used in combination with DMA.
+    It is possible to read from the FIFO by use of a DMA in linear mode. Within
+    DMA ISRs you may update the read pointer to be able to again write into the
+    FIFO. As long as the DMA is the only process reading from the FIFO this is
+    safe to use.
+
+    USE WITH CARE - WE DO NOT CONDUCT SAFTY CHECKS HERE!
+
+    @param[in]  f
+                Pointer to the FIFO buffer to manipulate
+    @param[in]  n
+                Number of items the read pointer moves forward
+ */
+/******************************************************************************/
+void tu_fifo_advance_read_pointer(tu_fifo_t *f, uint16_t n)
+{
+  f->rd_idx = advance_pointer(f, f->rd_idx, n);
 }
