@@ -62,7 +62,7 @@ typedef struct
   uint8_t* buffer;
   uint16_t total_len;
   volatile uint16_t actual_len;
-  uint8_t  mps; // max packet size
+  uint16_t  mps; // max packet size
 
   // nrf52840 will auto ACK OUT packet after DMA is done
   // indicate packet is already ACK
@@ -205,7 +205,7 @@ static void xact_in_prepare(uint8_t epnum)
   xfer_td_t* xfer = get_td(epnum, TUSB_DIR_IN);
 
   // Each transaction is up to Max Packet Size
-  uint8_t const xact_len = tu_min16(xfer->total_len - xfer->actual_len, xfer->mps);
+  uint16_t const xact_len = tu_min16(xfer->total_len - xfer->actual_len, xfer->mps);
 
   NRF_USBD->EPIN[epnum].PTR    = (uint32_t) xfer->buffer;
   NRF_USBD->EPIN[epnum].MAXCNT = xact_len;
