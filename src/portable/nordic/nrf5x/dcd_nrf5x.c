@@ -310,6 +310,27 @@ bool dcd_edpt_open (uint8_t rhport, tusb_desc_endpoint_t const * desc_edpt)
   return true;
 }
 
+void dcd_edpt_close (uint8_t rhport, uint8_t ep_addr)
+{
+  (void) rhport;
+
+  uint8_t const epnum = tu_edpt_number(ep_addr);
+  uint8_t const dir   = tu_edpt_dir(ep_addr);
+
+  // CBI
+  if (dir == TUSB_DIR_OUT)
+  {
+    NRF_USBD->INTENCLR = TU_BIT(USBD_INTEN_ENDEPOUT0_Pos + epnum);
+    NRF_USBD->EPOUTEN &= ~TU_BIT(epnum);
+  }
+  else
+  {
+    NRF_USBD->INTENCLR = TU_BIT(USBD_INTEN_ENDEPIN0_Pos + epnum);
+    NRF_USBD->EPINEN &= ~TU_BIT(epnum);
+  }
+  __ISB(); __DSB();
+}
+
 bool dcd_edpt_xfer (uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t total_bytes)
 {
   (void) rhport;
