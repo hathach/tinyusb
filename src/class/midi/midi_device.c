@@ -193,7 +193,7 @@ uint32_t tud_midi_n_write(uint8_t itf, uint8_t jack_id, uint8_t const* buffer, u
             if (data == 0xf7) {
                 midi->write_buffer[0] = 0x5;
             } else {
-                midi->write_buffer_length = 4;
+                midi->write_target_length = 4;
             }
         } else if ((msg >= 0x8 && msg <= 0xB) || msg == 0xE) {
             midi->write_buffer[0] = jack_id << 4 | msg;
