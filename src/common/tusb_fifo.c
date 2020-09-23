@@ -82,8 +82,8 @@ bool tu_fifo_config(tu_fifo_t *f, void* buffer, uint16_t depth, uint16_t item_si
 static inline uint16_t _ff_mod(uint16_t idx, uint16_t depth)
 {
 //  return idx % depth;
-  idx -= depth & -(idx > depth);
-  return idx -= depth & -(idx > depth);
+  idx -= depth & -(idx >= depth);
+  return idx -= depth & -(idx >= depth);
 }
 
 // send one item to FIFO WITHOUT updating write pointer
