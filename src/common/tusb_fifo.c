@@ -58,6 +58,8 @@ static void tu_fifo_unlock(tu_fifo_t *f)
 
 bool tu_fifo_config(tu_fifo_t *f, void* buffer, uint16_t depth, uint16_t item_size, bool overwritable)
 {
+  if (depth > 0x8000) return false;               // Maximum depth is 2^15 items
+
   tu_fifo_lock(f);
 
   f->buffer = (uint8_t*) buffer;
@@ -65,8 +67,8 @@ bool tu_fifo_config(tu_fifo_t *f, void* buffer, uint16_t depth, uint16_t item_si
   f->item_size = item_size;
   f->overwritable = overwritable;
 
-  f->non_used_index_space = 0x10000 % depth;
-  f->max_pointer_idx = 0xFFFF - f->non_used_index_space;
+  f->max_pointer_idx = 2*depth - 1;               // Limit index space to 2*depth - this allows for a fast "modulo" calculation but limits the maximum depth to 2^16/2 = 2^15 and buffer overflows are detectable only if overflow happens once (important for unsupervised DMA applications)
+  f->non_used_index_space = 0xFFFF - f->max_pointer_idx;
 
   f->rd_idx = f->wr_idx = 0;
 
@@ -79,7 +81,9 @@ bool tu_fifo_config(tu_fifo_t *f, void* buffer, uint16_t depth, uint16_t item_si
 
 static inline uint16_t _ff_mod(uint16_t idx, uint16_t depth)
 {
-  return idx % depth;
+//  return idx % depth;
+  idx -= depth & -(idx > depth);
+  return idx -= depth & -(idx > depth);
 }
 
 // send one item to FIFO WITHOUT updating write pointer
@@ -194,15 +198,11 @@ static inline bool _tu_fifo_full(tu_fifo_t* f, uint16_t wAbs, uint16_t rAbs)
 }
 
 // Works on local copies of w and r
-//BE AWARE - THIS FUNCTION MIGHT NOT GIVE A CORRECT ANSWERE IN CASE WRITE POINTER "OVERFLOWS"
-//EXAMPLE with buffer depth: 100
-//Maximum index space: (2^16) - (2^16) % depth = 65500
-//If you produce 65500 / 100 + 1 = 656 buffer overflows, the write pointer will overflow as well and
-//the check _tu_fifo_overflow() will not give you a valid result! Avoid such nasty things!
-//All reading functions (read, peek) check for overflows and correct read pointer on their own such
-//that latest items are read.
-//If required (e.g. for DMA use) you can also correct the read pointer by
-//tu_fifo_correct_read_pointer().
+// BE AWARE - THIS FUNCTION MIGHT NOT GIVE A CORRECT ANSWERE IN CASE WRITE POINTER "OVERFLOWS"
+// Only one overflow is allowed for this function to work e.g. if depth = 100, you must not
+// write more than 2*depth-1 items in one rush without updating write pointer. Otherwise
+// write pointer wraps and you pointer states are messed up. This can only happen if you
+// use DMAs, write functions do not allow such an error.
 static inline bool _tu_fifo_overflow(tu_fifo_t* f, uint16_t wAbs, uint16_t rAbs)
 {
   return (_tu_fifo_count(f, wAbs, rAbs) > f->depth);
@@ -249,6 +249,7 @@ static uint16_t _tu_fifo_peek_at_n(tu_fifo_t* f, uint16_t pos, void * p_buffer, 
   if (cnt > f->depth)
   {
     _tu_fifo_correct_read_pointer(f, wAbs);
+    rAbs = f->rd_idx;
     cnt = f->depth;
   }
 
@@ -401,13 +402,11 @@ bool tu_fifo_read(tu_fifo_t* f, void * buffer)
 {
   tu_fifo_lock(f);                                          // TODO: Here we may distinguish for read and write pointer mutexes!
 
-  uint16_t r = f->rd_idx;
-
   // Peek the data
-  bool ret = _tu_fifo_peek_at(f, 0, buffer, f->wr_idx, r);
+  bool ret = _tu_fifo_peek_at(f, 0, buffer, f->wr_idx, f->rd_idx);    // f->rd_idx might get modified in case of an overflow so we can not use a local variable
 
   // Advance pointer
-  f->rd_idx = advance_pointer(f, r, ret);
+  f->rd_idx = advance_pointer(f, f->rd_idx, ret);
 
   tu_fifo_unlock(f);
   return ret;
@@ -433,13 +432,11 @@ uint16_t tu_fifo_read_n(tu_fifo_t* f, void * buffer, uint16_t count)
 {
   tu_fifo_lock(f);                                          // TODO: Here we may distinguish for read and write pointer mutexes!
 
-  uint16_t r = f->rd_idx;
-
   // Peek the data
-  count = _tu_fifo_peek_at_n(f, 0, buffer, count, f->wr_idx, r);
+  count = _tu_fifo_peek_at_n(f, 0, buffer, count, f->wr_idx, f->rd_idx);        // f->rd_idx might get modified in case of an overflow so we can not use a local variable
 
   // Advance read pointer
-  f->rd_idx = advance_pointer(f, r, count);
+  f->rd_idx = advance_pointer(f, f->rd_idx, count);
 
   tu_fifo_unlock(f);
   return count;

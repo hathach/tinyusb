@@ -48,7 +48,7 @@
 #include <stdbool.h>
 
 #ifdef __cplusplus
- extern "C" {
+extern "C" {
 #endif
 
 #if CFG_FIFO_MUTEX
@@ -61,16 +61,16 @@
  */
 typedef struct
 {
-           uint8_t* buffer                        ; ///< buffer pointer
-           uint16_t depth                         ; ///< max items
-           uint16_t item_size                     ; ///< size of each item
-           bool overwritable                      ;
+  uint8_t* buffer                        ; ///< buffer pointer
+  uint16_t depth                         ; ///< max items
+  uint16_t item_size                     ; ///< size of each item
+  bool overwritable                      ;
 
-           uint16_t non_used_index_space          ; ///< required for non-power-of-two buffer length
-           uint16_t max_pointer_idx               ; ///< maximum absolute pointer index
+  uint16_t non_used_index_space          ; ///< required for non-power-of-two buffer length
+  uint16_t max_pointer_idx               ; ///< maximum absolute pointer index
 
-  volatile uint16_t wr_idx                        ; ///< write pointer
-  volatile uint16_t rd_idx                        ; ///< read pointer
+  volatile uint16_t wr_idx               ; ///< write pointer
+  volatile uint16_t rd_idx               ; ///< read pointer
 
 #if CFG_FIFO_MUTEX
   tu_fifo_mutex_t mutex;
@@ -78,16 +78,16 @@ typedef struct
 
 } tu_fifo_t;
 
-#define TU_FIFO_DEF(_name, _depth, _type, _overwritable)              \
-  uint8_t _name##_buf[_depth*sizeof(_type)];                          \
-  tu_fifo_t _name = {                                                 \
-      .buffer                 = _name##_buf,                          \
-      .depth                  = _depth,                               \
-      .item_size              = sizeof(_type),                        \
-      .overwritable           = _overwritable,                        \
-      .non_used_index_space   = 0x10000 % _depth,                     \
-      .max_pointer_idx        = 0xFFFF - (0x10000 % _depth),          \
-  }
+#define TU_FIFO_DEF(_name, _depth, _type, _overwritable)                \
+    uint8_t _name##_buf[_depth*sizeof(_type)];                          \
+    tu_fifo_t _name = {                                                 \
+        .buffer                 = _name##_buf,                          \
+        .depth                  = _depth,                               \
+        .item_size              = sizeof(_type),                        \
+        .overwritable           = _overwritable,                        \
+        .max_pointer_idx        = 2*_depth-1,                           \
+        .non_used_index_space   = 0xFFFF - 2*_depth-1,                  \
+    }
 
 bool tu_fifo_clear(tu_fifo_t *f);
 bool tu_fifo_config(tu_fifo_t *f, void* buffer, uint16_t depth, uint16_t item_size, bool overwritable);
@@ -131,7 +131,7 @@ static inline uint16_t tu_fifo_depth(tu_fifo_t* f)
 }
 
 #ifdef __cplusplus
- }
+}
 #endif
 
 #endif /* _TUSB_FIFO_H_ */
