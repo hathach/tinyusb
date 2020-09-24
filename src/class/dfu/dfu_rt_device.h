@@ -57,8 +57,27 @@ typedef enum
 // Application Callback API (weak is optional)
 //--------------------------------------------------------------------+
 
+// Invoked to init the DFU
+TU_ATTR_WEAK void tud_dfu_rt_init(void);
+
+// Invoked to reset the DFU
+TU_ATTR_WEAK void tud_dfu_rt_reset(uint8_t rhport);
+
 // Invoked when received new data
 TU_ATTR_WEAK void tud_dfu_rt_reboot_to_dfu(void); // TODO rename to _cb convention
+
+// Invoked to get DFU status and get state
+TU_ATTR_WEAK void tud_dfu_get_status(uint8_t *error, uint8_t *state);
+TU_ATTR_WEAK uint8_t tud_dfu_get_state(void);
+
+// Invoked to clear DFU error state and get back to DFUidle
+TU_ATTR_WEAK void tud_dfu_clear_status(void);
+
+// Invoked to abort a download
+TU_ATTR_WEAK void tud_dfu_abort(void);
+
+// Invoked to do a download
+TU_ATTR_WEAK void tud_dfu_download(uint8_t *buffer, uint16_t length);
 
 //--------------------------------------------------------------------+
 // Internal Class Driver API

@@ -34,6 +34,9 @@
 //--------------------------------------------------------------------+
 // MACRO CONSTANT TYPEDEF
 //--------------------------------------------------------------------+
+
+#define EP_CTR_IN 0x00
+
 typedef enum {
   DFU_REQUEST_DETACH      = 0,
   DFU_REQUEST_DNLOAD      = 1,
@@ -57,11 +60,12 @@ typedef struct TU_ATTR_PACKED
 //--------------------------------------------------------------------+
 void dfu_rtd_init(void)
 {
+  tud_dfu_rt_init();
 }
 
 void dfu_rtd_reset(uint8_t rhport)
 {
-  (void) rhport;
+  tud_dfu_rt_reset(rhport);
 }
 
 uint16_t dfu_rtd_open(uint8_t rhport, tusb_desc_interface_t const * itf_desc, uint16_t max_len)
@@ -71,7 +75,8 @@ uint16_t dfu_rtd_open(uint8_t rhport, tusb_desc_interface_t const * itf_desc, ui
 
   // Ensure this is DFU Runtime
   TU_VERIFY(itf_desc->bInterfaceSubClass == TUD_DFU_APP_SUBCLASS &&
-            itf_desc->bInterfaceProtocol == DFU_PROTOCOL_RT, 0);
+            (itf_desc->bInterfaceProtocol == DFU_PROTOCOL_RT ||
+	     itf_desc->bInterfaceProtocol == DFU_PROTOCOL_DFU), 0);
 
   uint8_t const * p_desc = tu_desc_next( itf_desc );
   uint16_t drv_len = sizeof(tusb_desc_interface_t);
@@ -83,15 +88,6 @@ uint16_t dfu_rtd_open(uint8_t rhport, tusb_desc_interface_t const * itf_desc, ui
   }
 
   return drv_len;
-}
-
-bool dfu_rtd_control_complete(uint8_t rhport, tusb_control_request_t const * request)
-{
-  (void) rhport;
-  (void) request;
-
-  // nothing to do
-  return true;
 }
 
 bool dfu_rtd_control_request(uint8_t rhport, tusb_control_request_t const * request)
@@ -112,30 +108,51 @@ bool dfu_rtd_control_request(uint8_t rhport, tusb_control_request_t const * requ
   switch ( request->bRequest )
   {
     case DFU_REQUEST_DETACH:
-      tud_control_status(rhport, request);
       tud_dfu_rt_reboot_to_dfu();
     break;
 
-    case DFU_REQUEST_GETSTATUS:
-    {
-      // status = OK, poll timeout = 0, state = app idle, istring = 0
-      uint8_t status_response[6] = { 0, 0, 0, 0, 0, 0 };
+    case DFU_REQUEST_GETSTATUS: {
+      uint8_t error = 0;
+      uint8_t state = 0;
+
+      tud_dfu_get_status(&error, &state);
+      // status = OK (1), poll timeout = 0 (3), state = app idle = 0 (1), istring = 0 (1)
+      uint8_t status_response[6] = { error, 0, 0, 0, state, 0 };
       tud_control_xfer(rhport, request, status_response, sizeof(status_response));
     }
     break;
 
+    case DFU_REQUEST_DNLOAD: {
+      uint8_t buffer[request->wLength];
+
+      memset(buffer, 0, sizeof(buffer));
+
+      usbd_edpt_xfer(rhport, EP_CTR_IN, buffer, request->wLength);
+      tud_dfu_download(buffer, request->wLength);
+    }
+    break;
+
+    case DFU_REQUEST_UPLOAD:
+    break;
+
+    case DFU_REQUEST_CLRSTATUS:
+      tud_dfu_clear_status();
+    break;
+
+    case DFU_REQUEST_GETSTATE: {
+      uint8_t state = 0;
+
+      state = tud_dfu_get_state();
+      tud_control_xfer(rhport, request, &state, sizeof(state));
+    }
+    break;
+
+    case DFU_REQUEST_ABORT:
+      tud_dfu_abort();
+    break;
+
     default: return false; // stall unsupported request
   }
-
-  return true;
-}
-
-bool dfu_rtd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint32_t xferred_bytes)
-{
-  (void) rhport;
-  (void) ep_addr;
-  (void) result;
-  (void) xferred_bytes;
   return true;
 }
 
