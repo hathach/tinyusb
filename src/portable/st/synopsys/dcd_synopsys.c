@@ -264,7 +264,7 @@ static void bus_reset(uint8_t rhport)
 }
 
 // Required after new configuration received in case EP0 max packet size has changed
-static void set_EP0_max_pkt_size()
+static void set_EP0_max_pkt_size(void)
 {
   USB_OTG_DeviceTypeDef * dev = DEVICE_BASE(rhport);
   USB_OTG_INEndpointTypeDef * in_ep = IN_EP_BASE(rhport);
