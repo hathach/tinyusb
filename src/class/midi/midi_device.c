@@ -153,15 +153,25 @@ void midi_rx_done_cb(midid_interface_t* midi, uint8_t const* buffer, uint32_t bu
 
 static uint32_t write_flush(midid_interface_t* midi)
 {
+  // No data to send
+  if ( !tu_fifo_count(&midi->tx_ff) ) return 0;
+
+  uint8_t const rhport = TUD_OPT_RHPORT;
+
   // skip if previous transfer not complete
-  TU_VERIFY( !usbd_edpt_busy(TUD_OPT_RHPORT, midi->ep_in) );
+  TU_VERIFY( usbd_edpt_claim(rhport, midi->ep_in), 0 );
 
   uint16_t count = tu_fifo_read_n(&midi->tx_ff, midi->epin_buf, CFG_TUD_MIDI_EP_BUFSIZE);
   if (count > 0)
   {
-    TU_ASSERT( usbd_edpt_xfer(TUD_OPT_RHPORT, midi->ep_in, midi->epin_buf, count) );
+    TU_ASSERT( usbd_edpt_xfer(rhport, midi->ep_in, midi->epin_buf, count), 0 );
+    return count;
+  }else
+  {
+    // Release endpoint since we don't make any transfer
+    usbd_edpt_release(rhport, midi->ep_in);
+    return 0;
   }
-  return count;
 }
 
 uint32_t tud_midi_n_write(uint8_t itf, uint8_t jack_id, uint8_t const* buffer, uint32_t bufsize)
@@ -183,7 +193,7 @@ uint32_t tud_midi_n_write(uint8_t itf, uint8_t jack_id, uint8_t const* buffer, u
             if (data == 0xf7) {
                 midi->write_buffer[0] = 0x5;
             } else {
-                midi->write_buffer_length = 4;
+                midi->write_target_length = 4;
             }
         } else if ((msg >= 0x8 && msg <= 0xB) || msg == 0xE) {
             midi->write_buffer[0] = jack_id << 4 | msg;
@@ -405,17 +415,22 @@ bool midid_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint32
     if (tud_midi_rx_cb) tud_midi_rx_cb(itf);
 
     // prepare for next
+    // TODO for now ep_out is not used by public API therefore there is no race condition,
+    // and does not need to claim like ep_in
     TU_ASSERT(usbd_edpt_xfer(rhport, p_midi->ep_out, p_midi->epout_buf, CFG_TUD_MIDI_EP_BUFSIZE), false);
   }
   else if ( ep_addr == p_midi->ep_in )
   {
     if (0 == write_flush(p_midi))
     {
-      // There is no data left, a ZLP should be sent if
+      // If there is no data left, a ZLP should be sent if
       // xferred_bytes is multiple of EP size and not zero
-      if ( xferred_bytes && (0 == (xferred_bytes % CFG_TUD_MIDI_EP_BUFSIZE)) )
+      if ( !tu_fifo_count(&p_midi->tx_ff) && xferred_bytes && (0 == (xferred_bytes % CFG_TUD_MIDI_EP_BUFSIZE)) )
       {
-        usbd_edpt_xfer(rhport, p_midi->ep_in, NULL, 0);
+        if ( usbd_edpt_claim(rhport, p_midi->ep_in) )
+        {
+          usbd_edpt_xfer(rhport, p_midi->ep_in, NULL, 0);
+        }
       }
     }
   }
