@@ -1,7 +1,7 @@
 /* 
  * The MIT License (MIT)
  *
- * Copyright (c) 2020 Reinhard Panhuber
+ * Copyright (c) 2020 Reinhard Panhuber, Jerzy Kasenberg
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -66,7 +66,7 @@ typedef struct
 
 #if CFG_TUD_AUDIO_EPSIZE_IN
   uint8_t ep_in;                // Outgoing (out of uC) audio data EP.
-  uint16_t epin_buf_cnt;        // Count filling status of EP in buffer
+  uint16_t epin_buf_cnt;        // Count filling status of EP in buffer - this is a shared state currently and is intended to be removed once EP buffers can be implemented as FIFOs!
   uint8_t ep_in_as_intf_num;    // Corresponding Standard AS Interface Descriptor (4.9.1) belonging to output terminal to which this EP belongs - 0 is invalid (this fits to UAC2 specification since AS interfaces can not have interface number equal to zero)
 #endif
 
@@ -468,7 +468,7 @@ uint32_t tud_audio_int_ctr_n_write(uint8_t itf, uint8_t const* buffer, uint32_t 
 
 
 // This function is called once a transmit of an audio packet was successfully completed. Here, we encode samples and place it in IN EP's buffer for next transmission.
-// If you prefer your own (more efficient) implementation suiting your purpose set CFG_TUD_AUDIO_TX_FIFO_SIZE = 0.
+// If you prefer your own (more efficient) implementation suiting your purpose set CFG_TUD_AUDIO_TX_FIFO_SIZE = 0 and use tud_audio_n_write_ep_in_buffer() (NOT IMPLEMENTED SO FAR).
 
 // n_bytes_copied - Informs caller how many bytes were loaded. In case n_bytes_copied = 0, a ZLP is scheduled to inform host no data is available for current frame.
 #if CFG_TUD_AUDIO_EPSIZE_IN
@@ -925,10 +925,10 @@ static bool audiod_set_interface(uint8_t rhport, tusb_control_request_t const * 
             _audiod_itf[idxDriver].ep_in = ep_addr;
             _audiod_itf[idxDriver].ep_in_as_intf_num = itf;
 
-            // HERE WE WOULD NEED TO SCHEDULE OUR FIRST TRANSMIT, HOWEVER, WE ALSO WOULD FIRST NEED TO ENABLE SAMPLING AT ALL - HOW TO HANDLE THIS?
-            // Invoke callback - fill something in the FIFO here for now
+            // Invoke callback and trigger data generation - if not already running
             if (tud_audio_set_itf_cb) TU_VERIFY(tud_audio_set_itf_cb(rhport, p_request));
 
+            // Schedule first transmit - in case no sample data is available a ZLP is loaded
             uint16_t n_bytes_copied;
             TU_VERIFY(audiod_tx_done_cb(rhport, &_audiod_itf[idxDriver], &n_bytes_copied));
           }
@@ -1218,12 +1218,6 @@ bool audiod_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint3
       TU_VERIFY(audiod_tx_done_cb(rhport, &_audiod_itf[idxDriver], &n_bytes_copied));
 
       // Transmission of ZLP is done by audiod_tx_done_cb()
-//      if (n_bytes_copied == 0)
-//      {
-//        // Load with ZLP
-//        return usbd_edpt_xfer(rhport, ep_addr, NULL, 0);
-//      }
-
       return true;
     }
 #endif

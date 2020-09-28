@@ -690,43 +690,6 @@ bool dcd_edpt_open (uint8_t rhport, tusb_desc_endpoint_t const * desc_edpt)
   return true;
 }
 
-///**
-// * Close an EP.
-// *
-// * Currently, we only deactivate the EPs and do not fully disable them - this might not be necessary!
-// *
-// */
-//void dcd_edpt_close (uint8_t rhport, uint8_t ep_addr)
-//{
-//  (void)rhport;
-//  uint32_t const epnum = tu_edpt_number(ep_addr);
-//  uint32_t const dir   = tu_edpt_dir(ep_addr);
-//
-//  USB_OTG_DeviceTypeDef * dev = DEVICE_BASE(rhport);
-//
-//  if(dir == TUSB_DIR_IN)
-//  {
-//    USB_OTG_INEndpointTypeDef * in_ep = IN_EP_BASE(rhport);
-//
-//    // Disable interrupt for this EP
-//    dev->DAINTMSK &= ~(1 << (USB_OTG_DAINTMSK_IEPM_Pos + epnum));
-//
-//    // Clear USB active EP
-//    in_ep[epnum].DIEPCTL &= ~USB_OTG_DIEPCTL_USBAEP;
-//  }
-//  else
-//  {
-//    USB_OTG_OUTEndpointTypeDef * out_ep = OUT_EP_BASE(rhport);
-//
-//    // Disable interrupt for this EP
-//    dev->DAINTMSK &= ~(1 << (USB_OTG_DAINTMSK_OEPM_Pos + epnum));;
-//
-//    // Clear USB active EP bit
-//    out_ep[epnum].DOEPCTL &= ~USB_OTG_DOEPCTL_USBAEP;
-//
-//  }
-//}
-
 bool dcd_edpt_xfer (uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t total_bytes)
 {
   uint8_t const epnum = tu_edpt_number(ep_addr);
