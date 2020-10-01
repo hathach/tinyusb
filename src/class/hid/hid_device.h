@@ -1,4 +1,4 @@
-/* 
+/*
  * The MIT License (MIT)
  *
  * Copyright (c) 2019 Ha Thach (tinyusb.org)
@@ -50,25 +50,35 @@
 #endif
 
 //--------------------------------------------------------------------+
-// Application API
+// Application API (Multiple Ports)
+// CFG_TUD_HID > 1
 //--------------------------------------------------------------------+
 
 // Check if the interface is ready to use
-bool tud_hid_ready(void);
+bool tud_hid_n_ready(uint8_t itf);
 
 // Check if current mode is Boot (true) or Report (false)
-bool tud_hid_boot_mode(void);
+bool tud_hid_n_boot_mode(uint8_t itf);
 
 // Send report to host
-bool tud_hid_report(uint8_t report_id, void const* report, uint8_t len);
+bool tud_hid_n_report(uint8_t itf, uint8_t report_id, void const* report, uint8_t len);
 
 // KEYBOARD: convenient helper to send keyboard report if application
 // use template layout report as defined by hid_keyboard_report_t
-bool tud_hid_keyboard_report(uint8_t report_id, uint8_t modifier, uint8_t keycode[6]);
+bool tud_hid_n_keyboard_report(uint8_t itf, uint8_t report_id, uint8_t modifier, uint8_t keycode[6]);
 
 // MOUSE: convenient helper to send mouse report if application
 // use template layout report as defined by hid_mouse_report_t
-bool tud_hid_mouse_report(uint8_t report_id, uint8_t buttons, int8_t x, int8_t y, int8_t vertical, int8_t horizontal);
+bool tud_hid_n_mouse_report(uint8_t itf, uint8_t report_id, uint8_t buttons, int8_t x, int8_t y, int8_t vertical, int8_t horizontal);
+
+//--------------------------------------------------------------------+
+// Application API (Single Port)
+//--------------------------------------------------------------------+
+static inline bool tud_hid_ready(void);
+static inline bool tud_hid_boot_mode(void);
+static inline bool tud_hid_report(uint8_t report_id, void const* report, uint8_t len);
+static inline bool tud_hid_keyboard_report(uint8_t report_id, uint8_t modifier, uint8_t keycode[6]);
+static inline bool tud_hid_mouse_report(uint8_t report_id, uint8_t buttons, int8_t x, int8_t y, int8_t vertical, int8_t horizontal);
 
 //--------------------------------------------------------------------+
 // Callbacks (Weak is optional)
@@ -94,6 +104,34 @@ TU_ATTR_WEAK void tud_hid_boot_mode_cb(uint8_t boot_mode);
 // - Idle Rate = 0 : only send report if there is changes, i.e skip duplication
 // - Idle Rate > 0 : skip duplication, but send at least 1 report every idle rate (in unit of 4 ms).
 TU_ATTR_WEAK bool tud_hid_set_idle_cb(uint8_t idle_rate);
+
+//--------------------------------------------------------------------+
+// Inline Functions
+//--------------------------------------------------------------------+
+static inline bool tud_hid_ready(void)
+{
+  return tud_hid_n_ready(0);
+}
+
+static inline bool tud_hid_boot_mode(void)
+{
+  return tud_hid_n_boot_mode(0);
+}
+
+static inline bool tud_hid_report(uint8_t report_id, void const* report, uint8_t len)
+{
+  return tud_hid_n_report(0, report_id, report, len);
+}
+
+static inline bool tud_hid_keyboard_report(uint8_t report_id, uint8_t modifier, uint8_t keycode[6])
+{
+  return tud_hid_n_keyboard_report(0, report_id, modifier, keycode);
+}
+
+static inline bool tud_hid_mouse_report(uint8_t report_id, uint8_t buttons, int8_t x, int8_t y, int8_t vertical, int8_t horizontal)
+{
+  return tud_hid_n_mouse_report(0, report_id, buttons, x, y, vertical, horizontal);
+}
 
 /* --------------------------------------------------------------------+
  * HID Report Descriptor Template
@@ -318,4 +356,3 @@ bool     hidd_xfer_cb          (uint8_t rhport, uint8_t ep_addr, xfer_result_t e
 #endif
 
 #endif /* _TUSB_HID_DEVICE_H_ */
-
