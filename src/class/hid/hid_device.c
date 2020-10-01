@@ -237,7 +237,7 @@ bool hidd_control_request(uint8_t rhport, tusb_control_request_t const * request
     }
     else if (request->bRequest == TUSB_REQ_GET_DESCRIPTOR && desc_type == HID_DESC_TYPE_REPORT)
     {
-      uint8_t const * desc_report = tud_hid_descriptor_report_cb();
+      uint8_t const * desc_report = tud_hid_descriptor_report_cb((uint8_t) request->wIndex);
       tud_control_xfer(rhport, request, (void*) desc_report, p_hid->report_desc_len);
     }
     else
