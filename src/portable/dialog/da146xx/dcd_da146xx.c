@@ -210,6 +210,8 @@ typedef struct {
   uint8_t data1 : 1;
   // Endpoint is stalled
   uint8_t stall : 1;
+  // ISO endpoint
+  uint8_t iso : 1;
 } xfer_ctl_t;
 
 static struct
@@ -290,7 +292,7 @@ static void transmit_packet(xfer_ctl_t * xfer)
   EPx_REGS *regs = xfer->regs;
   uint32_t txc;
 
-  txc = USB_USB_TXC1_REG_USB_TX_EN_Msk;
+  txc = USB_USB_TXC1_REG_USB_TX_EN_Msk | USB_USB_TXC1_REG_USB_IGN_ISOMSK_Msk;
   if (xfer->data1) txc |= USB_USB_TXC1_REG_USB_TOGGLE_TX_Msk;
 
   src = &xfer->buffer[xfer->transferred];
@@ -531,7 +533,7 @@ static void handle_epx_rx_ev(uint8_t ep)
       }
       if (GET_BIT(rxs, USB_USB_RXS1_REG_USB_RX_LAST))
       {
-        if (GET_BIT(rxs, USB_USB_RXS1_REG_USB_TOGGLE_RX) != xfer->data1)
+        if (!xfer->iso && GET_BIT(rxs, USB_USB_RXS1_REG_USB_TOGGLE_RX) != xfer->data1)
         {
           // Toggle bit does not match discard packet
           regs->rxc |= USB_USB_RXC1_REG_USB_FLUSH_Msk;
@@ -540,7 +542,7 @@ static void handle_epx_rx_ev(uint8_t ep)
         {
           xfer->data1 ^= 1;
           xfer->transferred += xfer->last_packet_size;
-          if (xfer->total_len == xfer->transferred || xfer->last_packet_size < xfer->max_packet_size)
+          if (xfer->total_len == xfer->transferred || xfer->last_packet_size < xfer->max_packet_size || xfer->iso)
           {
             dcd_event_xfer_complete(0, xfer->ep_addr, xfer->transferred, XFER_RESULT_SUCCESS, true);
           }
@@ -787,8 +789,13 @@ bool dcd_edpt_open(uint8_t rhport, tusb_desc_endpoint_t const * desc_edpt)
   xfer->max_packet_size = desc_edpt->wMaxPacketSize.size;
   xfer->ep_addr = desc_edpt->bEndpointAddress;
   xfer->data1 = 0;
+  xfer->iso = 0;
 
-  if (epnum != 0 && desc_edpt->bmAttributes.xfer == 1) iso_mask = USB_USB_EPC1_REG_USB_ISO_Msk;
+  if (epnum != 0 && desc_edpt->bmAttributes.xfer == 1)
+  {
+    iso_mask = USB_USB_EPC1_REG_USB_ISO_Msk;
+    xfer->iso = 1;
+  }
 
   if (epnum == 0)
   {
