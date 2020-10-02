@@ -814,6 +814,50 @@ bool dcd_edpt_open(uint8_t rhport, tusb_desc_endpoint_t const * desc_edpt)
   return true;
 }
 
+void dcd_edpt_close(uint8_t rhport, uint8_t ep_addr)
+{
+  uint8_t const epnum = tu_edpt_number(ep_addr);
+  uint8_t const dir   = tu_edpt_dir(ep_addr);
+  xfer_ctl_t * xfer = XFER_CTL_BASE(epnum, dir);
+
+  (void)rhport;
+
+  TU_ASSERT(epnum < EP_MAX,);
+
+  if (epnum == 0)
+  {
+    USB->USB_MAMSK_REG &= ~(USB_USB_MAMSK_REG_USB_M_EP0_RX_Msk |
+                            USB_USB_MAMSK_REG_USB_M_EP0_TX_Msk);
+  }
+  else
+  {
+    if (dir == TUSB_DIR_OUT)
+    {
+      xfer->regs->rxc = USB_USB_RXC1_REG_USB_FLUSH_Msk;
+      xfer->regs->epc_out = 0;
+      USB->USB_RXMSK_REG &= ~(0x101 << (epnum - 1));
+      // Release DMA if needed
+      if (_dcd.dma_ep[TUSB_DIR_OUT] == epnum)
+      {
+        RX_DMA_REGS->DMAx_CTRL_REG &= ~DMA_DMA0_CTRL_REG_DMA_ON_Msk;
+        _dcd.dma_ep[TUSB_DIR_OUT] = 0;
+      }
+    }
+    else
+    {
+      xfer->regs->txc = USB_USB_TXC1_REG_USB_FLUSH_Msk;
+      xfer->regs->epc_in = 0;
+      USB->USB_TXMSK_REG &= ~(0x101 << (epnum - 1));
+      // Release DMA if needed
+      if (_dcd.dma_ep[TUSB_DIR_IN] == epnum)
+      {
+        TX_DMA_REGS->DMAx_CTRL_REG &= ~DMA_DMA1_CTRL_REG_DMA_ON_Msk;
+        _dcd.dma_ep[TUSB_DIR_IN] = 0;
+      }
+    }
+  }
+}
+
 bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t total_bytes)
 {
   uint8_t const epnum = tu_edpt_number(ep_addr);
