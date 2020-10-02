@@ -86,8 +86,11 @@ static inline bool tud_hid_mouse_report(uint8_t report_id, uint8_t buttons, int8
 
 // Invoked when received GET HID REPORT DESCRIPTOR request
 // Application return pointer to descriptor, whose contents must exist long enough for transfer to complete
-// TODO Talk about this change... because it is breaking. Might be better way to handle.
+#if CFG_TUD_HID>1
 uint8_t const * tud_hid_descriptor_report_cb(uint8_t desc_index);
+#else
+uint8_t const * tud_hid_descriptor_report_cb(void);
+#endif
 
 // Invoked when received GET_REPORT control request
 // Application must fill buffer report's content and return its length.

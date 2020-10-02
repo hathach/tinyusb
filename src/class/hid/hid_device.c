@@ -67,12 +67,21 @@ static inline hidd_interface_t* get_interface_by_itfnum(uint8_t itf_num)
   return NULL;
 }
 
+static inline uint8_t get_descindex_by_itfnum(uint8_t itf_num)
+{
+	for (uint8_t i=0; i < CFG_TUD_HID; i++ )
+	{
+		if ( itf_num == _hidd_itf[i].itf_num ) return i;
+	}
+
+	return 0;
+}
+
 //--------------------------------------------------------------------+
 // APPLICATION API
 //--------------------------------------------------------------------+
 bool tud_hid_n_ready(uint8_t itf)
 {
-  //uint8_t const itf = 0;
   uint8_t const ep_in = _hidd_itf[itf].ep_in;
   return tud_ready() && (ep_in != 0) && !usbd_edpt_busy(TUD_OPT_RHPORT, ep_in);
 }
@@ -80,7 +89,6 @@ bool tud_hid_n_ready(uint8_t itf)
 bool tud_hid_n_report(uint8_t itf, uint8_t report_id, void const* report, uint8_t len)
 {
   uint8_t const rhport = 0;
-  //uint8_t const itf = 0;
   hidd_interface_t * p_hid = &_hidd_itf[itf];
 
   // claim endpoint
@@ -106,7 +114,6 @@ bool tud_hid_n_report(uint8_t itf, uint8_t report_id, void const* report, uint8_
 
 bool tud_hid_n_boot_mode(uint8_t itf)
 {
-  //uint8_t itf = 0;
   return _hidd_itf[itf].boot_mode;
 }
 
@@ -237,7 +244,12 @@ bool hidd_control_request(uint8_t rhport, tusb_control_request_t const * request
     }
     else if (request->bRequest == TUSB_REQ_GET_DESCRIPTOR && desc_type == HID_DESC_TYPE_REPORT)
     {
-      uint8_t const * desc_report = tud_hid_descriptor_report_cb((uint8_t) request->wIndex);
+      #if CFG_TUD_HID>1
+      uint8_t const calculated_desc_index = get_descindex_by_itfnum((uint8_t) request->wIndex);
+      uint8_t const * desc_report = tud_hid_descriptor_report_cb(calculated_desc_index);
+      #else
+      uint8_t const * desc_report = tud_hid_descriptor_report_cb();
+      #endif
       tud_control_xfer(rhport, request, (void*) desc_report, p_hid->report_desc_len);
     }
     else
