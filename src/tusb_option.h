@@ -171,7 +171,7 @@
 
 // Debug enable to print out error message
 #ifndef CFG_TUSB_DEBUG
-  #define CFG_TUSB_DEBUG 2
+  #define CFG_TUSB_DEBUG 0
 #endif
 
 // place data in accessible RAM for usb controller

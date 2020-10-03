@@ -489,7 +489,7 @@ typedef enum
   AUDIO_DATA_FORMAT_TYPE_I_IEEE_FLOAT     = (uint32_t) (1 << 2),
   AUDIO_DATA_FORMAT_TYPE_I_ALAW           = (uint32_t) (1 << 3),
   AUDIO_DATA_FORMAT_TYPE_I_MULAW          = (uint32_t) (1 << 4),
-  AUDIO_DATA_FORMAT_TYPE_I_RAW_DATA       = (uint32_t) (1 << 31),
+  AUDIO_DATA_FORMAT_TYPE_I_RAW_DATA       = 0x100000000,
 } audio_data_format_type_I_t;
 
 /// All remaining definitions are taken from the descriptor descriptions in the UAC2 main specification
