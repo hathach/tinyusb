@@ -28,7 +28,8 @@
 
 #if TUSB_OPT_DEVICE_ENABLED && \
     (CFG_TUSB_MCU == OPT_MCU_SAMD11 || CFG_TUSB_MCU == OPT_MCU_SAMD21 || \
-     CFG_TUSB_MCU == OPT_MCU_SAMD51 || CFG_TUSB_MCU == OPT_MCU_SAME5X)
+     CFG_TUSB_MCU == OPT_MCU_SAMD51 || CFG_TUSB_MCU == OPT_MCU_SAME5X || \
+     CFG_TUSB_MCU == OPT_MCU_SAME51)
 
 #include "sam.h"
 #include "device/dcd.h"
@@ -94,7 +95,8 @@ void dcd_init (uint8_t rhport)
   USB->DEVICE.INTENSET.reg = /* USB_DEVICE_INTENSET_SOF | */ USB_DEVICE_INTENSET_EORST;
 }
 
-#if CFG_TUSB_MCU == OPT_MCU_SAMD51 || CFG_TUSB_MCU == OPT_MCU_SAME5X
+#if CFG_TUSB_MCU == OPT_MCU_SAMD51 || CFG_TUSB_MCU == OPT_MCU_SAME5X || \
+    CFG_TUSB_MCU == OPT_MCU_SAME51
 
 void dcd_int_enable(uint8_t rhport)
 {

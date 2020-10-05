@@ -1,4 +1,4 @@
-/* 
+/*
  * The MIT License (MIT)
  *
  * Copyright (c) 2020, Ha Thach (tinyusb.org)
@@ -52,8 +52,14 @@
 #elif CFG_TUSB_MCU == OPT_MCU_NRF5X
   #include "nrf.h"
 
-#elif CFG_TUSB_MCU == OPT_MCU_SAMD11 || CFG_TUSB_MCU == OPT_MCU_SAMD21 || CFG_TUSB_MCU == OPT_MCU_SAMD51
+#elif CFG_TUSB_MCU == OPT_MCU_SAMD11 || CFG_TUSB_MCU == OPT_MCU_SAMD21 || \
+      CFG_TUSB_MCU == OPT_MCU_SAMD51 || CFG_TUSB_MCU == OPT_MCU_SAME5X || \
+      CFG_TUSB_MCU == OPT_MCU_SAME51
   #include "sam.h"
+
+  #if CFG_TUSB_MCU == OPT_MCU_SAME51
+    #define SVC_Handler SVCall_Handler
+  #endif
 
 #elif CFG_TUSB_MCU == OPT_MCU_SAMG
   #undef LITTLE_ENDIAN // hack to suppress "LITTLE_ENDIAN" redefined
