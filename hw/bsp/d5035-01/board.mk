@@ -13,11 +13,9 @@ CFLAGS += \
   -DD5035_01=1 \
   -DBOARD_NAME="\"D5035-01\""
 
-ifdef HWREV
-  CFLAGS += -DHWREV=$(HWREV)
-else
-  CFLAGS += -DHWREV=1
-endif
+HWREV ?= 1
+
+CFLAGS += -DHWREV=$(HWREV)
 
 # All source paths should be relative to the top level.
 LD_FILE = hw/bsp/$(BOARD)/same51j19a_flash.ld
