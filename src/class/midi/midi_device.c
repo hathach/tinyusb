@@ -300,9 +300,9 @@ void midid_reset(uint8_t rhport)
 uint16_t midid_open(uint8_t rhport, tusb_desc_interface_t const * desc_itf, uint16_t max_len)
 {
   // 1st Interface is Audio Control v1
-  TU_VERIFY(TUSB_CLASS_AUDIO       == desc_itf->bInterfaceClass    &&
-            AUDIO_SUBCLASS_CONTROL == desc_itf->bInterfaceSubClass &&
-            AUDIO_PROTOCOL_V1      == desc_itf->bInterfaceProtocol, 0);
+  TU_VERIFY(TUSB_CLASS_AUDIO                      == desc_itf->bInterfaceClass    &&
+            AUDIO_SUBCLASS_CONTROL                == desc_itf->bInterfaceSubClass &&
+            AUDIO_FUNC_PROTOCOL_CODE_UNDEF        == desc_itf->bInterfaceProtocol, 0);
 
   uint16_t drv_len = tu_desc_len(desc_itf);
   uint8_t const * p_desc = tu_desc_next(desc_itf);
@@ -318,9 +318,9 @@ uint16_t midid_open(uint8_t rhport, tusb_desc_interface_t const * desc_itf, uint
   TU_VERIFY(TUSB_DESC_INTERFACE == tu_desc_type(p_desc), 0);
   tusb_desc_interface_t const * desc_midi = (tusb_desc_interface_t const *) p_desc;
 
-  TU_VERIFY(TUSB_CLASS_AUDIO              == desc_midi->bInterfaceClass    &&
-            AUDIO_SUBCLASS_MIDI_STREAMING == desc_midi->bInterfaceSubClass &&
-            AUDIO_PROTOCOL_V1             == desc_midi->bInterfaceProtocol, 0);
+  TU_VERIFY(TUSB_CLASS_AUDIO                      == desc_midi->bInterfaceClass    &&
+            AUDIO_SUBCLASS_MIDI_STREAMING         == desc_midi->bInterfaceSubClass &&
+            AUDIO_FUNC_PROTOCOL_CODE_UNDEF        == desc_midi->bInterfaceProtocol, 0);
 
   // Find available interface
   midid_interface_t * p_midi = NULL;

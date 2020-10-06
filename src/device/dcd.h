@@ -115,6 +115,10 @@ void dcd_connect(uint8_t rhport) TU_ATTR_WEAK;
 // Disconnect by disabling internal pull-up resistor on D+/D-
 void dcd_disconnect(uint8_t rhport) TU_ATTR_WEAK;
 
+// Invoked when a set configuration request was received
+// Helper to allow for dynamic EP buffer allocation according to configuration descriptor
+TU_ATTR_WEAK bool dcd_alloc_mem_for_conf(uint8_t rhport, tusb_desc_configuration_t const * desc_cfg);
+
 //--------------------------------------------------------------------+
 // Endpoint API
 //--------------------------------------------------------------------+
