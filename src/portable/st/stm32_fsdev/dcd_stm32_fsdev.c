@@ -203,6 +203,11 @@ static inline void reg16_clear_bits(__IO uint16_t *reg, uint16_t mask) {
   *reg = (uint16_t)(*reg & ~mask);
 }
 
+// Bits in ISTR are cleared upon writing 0
+static inline void clear_istr_bits(uint16_t mask) {
+  USB->ISTR = ~mask;
+}
+
 void dcd_init (uint8_t rhport)
 {
   /* Clocks should already be enabled */
@@ -231,7 +236,7 @@ void dcd_init (uint8_t rhport)
   
   USB->BTABLE = DCD_STM32_BTABLE_BASE;
 
-  reg16_clear_bits(&USB->ISTR, USB_ISTR_ALL_EVENTS); // Clear pending interrupts
+  USB->ISTR = 0; // Clear pending interrupts
 
   // Reset endpoints to disabled
   for(uint32_t i=0; i<STFSDEV_EP_COUNT; i++)
@@ -512,7 +517,7 @@ void dcd_int_handler(uint8_t rhport) {
 
   if(int_status & USB_ISTR_RESET) {
     // USBRST is start of reset.
-    reg16_clear_bits(&USB->ISTR, USB_ISTR_RESET);
+    clear_istr_bits(USB_ISTR_RESET);
     dcd_handle_bus_reset();
     dcd_event_bus_signal(0, DCD_EVENT_BUS_RESET, true);
     return; // Don't do the rest of the things here; perhaps they've been cleared?
@@ -523,14 +528,13 @@ void dcd_int_handler(uint8_t rhport) {
     /* servicing of the endpoint correct transfer interrupt */
     /* clear of the CTR flag into the sub */
     dcd_ep_ctr_handler();
-    reg16_clear_bits(&USB->ISTR, USB_ISTR_CTR);
   }
 
   if (int_status & USB_ISTR_WKUP)
   {
     reg16_clear_bits(&USB->CNTR, USB_CNTR_LPMODE);
     reg16_clear_bits(&USB->CNTR, USB_CNTR_FSUSP);
-    reg16_clear_bits(&USB->ISTR, USB_ISTR_WKUP);
+    clear_istr_bits(USB_ISTR_WKUP);
     dcd_event_bus_signal(0, DCD_EVENT_RESUME, true);
   }
 
@@ -544,13 +548,13 @@ void dcd_int_handler(uint8_t rhport) {
     USB->CNTR |= USB_CNTR_LPMODE;
 
     /* clear of the ISTR bit must be done after setting of CNTR_FSUSP */
-    reg16_clear_bits(&USB->ISTR, USB_ISTR_SUSP);
+    clear_istr_bits(USB_ISTR_SUSP);
     dcd_event_bus_signal(0, DCD_EVENT_SUSPEND, true);
   }
 
 #if USE_SOF
   if(int_status & USB_ISTR_SOF) {
-    reg16_clear_bits(&USB->ISTR, USB_ISTR_SOF);
+    clear_istr_bits(USB_ISTR_SOF);
     dcd_event_bus_signal(0, DCD_EVENT_SOF, true);
   }
 #endif 
@@ -564,7 +568,7 @@ void dcd_int_handler(uint8_t rhport) {
     {
       remoteWakeCountdown--;
     }
-    reg16_clear_bits(&USB->ISTR, USB_ISTR_ESOF);
+    clear_istr_bits(USB_ISTR_ESOF);
   }
 }
 
