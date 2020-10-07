@@ -1,7 +1,4 @@
 CFLAGS += \
-  -ffunction-sections \
-  -fdata-sections \
-  -Wl,--gc-sections \
   -mthumb \
   -mabi=aapcs-linux \
   -mcpu=cortex-m0plus \
@@ -9,9 +6,7 @@ CFLAGS += \
   -D__SAMD11D14AM__ \
   -DCONF_DFLL_OVERWRITE_CALIBRATION=0 \
   -DOSC32K_OVERWRITE_CALIBRATION=0 \
-  -DCFG_TUSB_MCU=OPT_MCU_SAMD11 \
-  -fshort-enums \
-  -Os
+  -DCFG_TUSB_MCU=OPT_MCU_SAMD11
 
 # All source paths should be relative to the top level.
 LD_FILE = hw/bsp/$(BOARD)/samd11d14am_flash.ld
@@ -50,4 +45,3 @@ JLINK_IF = swd
 # flash using edbg
 flash: $(BUILD)/$(BOARD)-firmware.bin
 	edbg -b -t samd11 -e -pv -f $<
-
