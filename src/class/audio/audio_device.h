@@ -58,14 +58,6 @@
 #define CFG_TUD_AUDIO_TX_FIFO_SIZE  0                           // Buffer size per channel
 #endif
 
-#ifndef CFG_TUD_AUDIO_TX_DMA_RINGBUFFER_SIZE
-#define CFG_TUD_AUDIO_TX_DMA_RINGBUFFER_SIZE 0
-#endif
-
-#if CFG_TUD_AUDIO_TX_FIFO_SIZE && CFG_TUD_AUDIO_TX_DMA_RINGBUFFER_SIZE
-#error TX_FIFOs and TX_DMA_RINGBUFFER can not be used simultaneously!
-#endif
-
 #ifndef CFG_TUD_AUDIO_RX_FIFO_SIZE
 #define CFG_TUD_AUDIO_RX_FIFO_SIZE  0                           // Buffer size per channel
 #endif
