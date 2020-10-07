@@ -137,6 +137,7 @@ void audio_task(void)
 bool tud_audio_set_req_ep_cb(uint8_t rhport, tusb_control_request_t const * p_request, uint8_t *pBuff)
 {
   (void) rhport;
+  (void) pBuff;
 
   // We do not support any set range requests here, only current value requests
   TU_VERIFY(p_request->bRequest == AUDIO_CS_REQ_CUR);
@@ -146,6 +147,8 @@ bool tud_audio_set_req_ep_cb(uint8_t rhport, tusb_control_request_t const * p_re
   uint8_t ctrlSel = TU_U16_HIGH(p_request->wValue);
   uint8_t ep = TU_U16_LOW(p_request->wIndex);
 
+  (void) channelNum; (void) ctrlSel; (void) ep;
+
   return false; 	// Yet not implemented
 }
 
@@ -153,6 +156,7 @@ bool tud_audio_set_req_ep_cb(uint8_t rhport, tusb_control_request_t const * p_re
 bool tud_audio_set_req_itf_cb(uint8_t rhport, tusb_control_request_t const * p_request, uint8_t *pBuff)
 {
   (void) rhport;
+  (void) pBuff;
 
   // We do not support any set range requests here, only current value requests
   TU_VERIFY(p_request->bRequest == AUDIO_CS_REQ_CUR);
@@ -161,6 +165,8 @@ bool tud_audio_set_req_itf_cb(uint8_t rhport, tusb_control_request_t const * p_r
   uint8_t channelNum = TU_U16_LOW(p_request->wValue);
   uint8_t ctrlSel = TU_U16_HIGH(p_request->wValue);
   uint8_t itf = TU_U16_LOW(p_request->wIndex);
+
+  (void) channelNum; (void) ctrlSel; (void) itf;
 
   return false; 	// Yet not implemented
 }
@@ -176,39 +182,43 @@ bool tud_audio_set_req_entity_cb(uint8_t rhport, tusb_control_request_t const * 
   uint8_t itf = TU_U16_LOW(p_request->wIndex);
   uint8_t entityID = TU_U16_HIGH(p_request->wIndex);
 
+  (void) itf;
+
   // We do not support any set range requests here, only current value requests
   TU_VERIFY(p_request->bRequest == AUDIO_CS_REQ_CUR);
 
   // If request is for our feature unit
-  if (entityID == 2)
+  if ( entityID == 2 )
   {
-    switch (ctrlSel)
+    switch ( ctrlSel )
     {
       case AUDIO_FU_CTRL_MUTE:
-	// Request uses format layout 1
-	TU_VERIFY(p_request->wLength == sizeof(audio_control_cur_1_t));
+        // Request uses format layout 1
+        TU_VERIFY(p_request->wLength == sizeof(audio_control_cur_1_t));
 
-	mute[channelNum] = ((audio_control_cur_1_t *)pBuff)->bCur;
+        mute[channelNum] = ((audio_control_cur_1_t*) pBuff)->bCur;
 
-	TU_LOG2("    Set Mute: %d of channel: %u\r\n", mute[channelNum], channelNum);
+        TU_LOG2("    Set Mute: %d of channel: %u\r\n", mute[channelNum], channelNum);
 
-	return true;
+      return true;
 
       case AUDIO_FU_CTRL_VOLUME:
-	// Request uses format layout 2
-	TU_VERIFY(p_request->wLength == sizeof(audio_control_cur_2_t));
+        // Request uses format layout 2
+        TU_VERIFY(p_request->wLength == sizeof(audio_control_cur_2_t));
 
-	volume[channelNum] = ((audio_control_cur_2_t *)pBuff)->bCur;
+        volume[channelNum] = ((audio_control_cur_2_t*) pBuff)->bCur;
 
-	TU_LOG2("    Set Volume: %d dB of channel: %u\r\n", volume[channelNum], channelNum);
+        TU_LOG2("    Set Volume: %d dB of channel: %u\r\n", volume[channelNum], channelNum);
 
-	return true;
+     return true;
 
-	// Unknown/Unsupported control
-      default: TU_BREAKPOINT(); return false;
+        // Unknown/Unsupported control
+      default:
+        TU_BREAKPOINT();
+      return false;
     }
   }
-  return false; 	// Yet not implemented
+  return false;    // Yet not implemented
 }
 
 // Invoked when audio class specific get request received for an EP
@@ -220,6 +230,8 @@ bool tud_audio_get_req_ep_cb(uint8_t rhport, tusb_control_request_t const * p_re
   uint8_t channelNum = TU_U16_LOW(p_request->wValue);
   uint8_t ctrlSel = TU_U16_HIGH(p_request->wValue);
   uint8_t ep = TU_U16_LOW(p_request->wIndex);
+
+  (void) channelNum; (void) ctrlSel; (void) ep;
 
   //	return tud_control_xfer(rhport, p_request, &tmp, 1);
 
@@ -235,6 +247,8 @@ bool tud_audio_get_req_itf_cb(uint8_t rhport, tusb_control_request_t const * p_r
   uint8_t channelNum = TU_U16_LOW(p_request->wValue);
   uint8_t ctrlSel = TU_U16_HIGH(p_request->wValue);
   uint8_t itf = TU_U16_LOW(p_request->wIndex);
+
+  (void) channelNum; (void) ctrlSel; (void) itf;
 
   return false; 	// Yet not implemented
 }

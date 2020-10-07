@@ -27,6 +27,7 @@ jobs:
       fail-fast: false
       matrix:
         example:
+        - 'device/audio_test'
         - 'device/board_test'
         - 'device/cdc_dual_ports'
         - 'device/cdc_msc'
