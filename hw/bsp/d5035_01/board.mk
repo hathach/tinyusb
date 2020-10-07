@@ -14,7 +14,7 @@ CFLAGS += \
   -DBOARD_NAME="\"D5035-01\"" \
   -DSVC_Handler=SVCall_Handler
 
-HWRED ?= 1
+HWREV ?= 1
 
 CFLAGS += -DHWREV=$(HWREV)
 
