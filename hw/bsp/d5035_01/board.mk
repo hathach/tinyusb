@@ -9,13 +9,15 @@ CFLAGS += \
   -D__SAME51J19A__ \
   -DCONF_CPU_FREQUENCY=80000000 \
   -DCONF_GCLK_USB_FREQUENCY=48000000 \
-  -DCFG_TUSB_MCU=OPT_MCU_SAME51 \
+  -DCFG_TUSB_MCU=OPT_MCU_SAME5X \
   -DD5035_01=1 \
-  -DBOARD_NAME="\"D5035-01\""
+  -DBOARD_NAME="\"D5035-01\"" \
+  -DSVC_Handler=SVCall_Handler
 
-HWREV ?= 1
+HWRED ?= 1
 
 CFLAGS += -DHWREV=$(HWREV)
+
 
 # All source paths should be relative to the top level.
 LD_FILE = hw/bsp/$(BOARD)/same51j19a_flash.ld
