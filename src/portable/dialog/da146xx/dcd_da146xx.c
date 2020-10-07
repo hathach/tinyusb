@@ -285,15 +285,12 @@ void tusb_vbus_changed(bool present)
   }
 }
 
-static void transmit_packet(xfer_ctl_t * xfer)
+static void fill_tx_fifo(xfer_ctl_t * xfer)
 {
   int left_to_send;
   uint8_t const *src;
   EPx_REGS *regs = xfer->regs;
-  uint32_t txc;
-
-  txc = USB_USB_TXC1_REG_USB_TX_EN_Msk | USB_USB_TXC1_REG_USB_IGN_ISOMSK_Msk;
-  if (xfer->data1) txc |= USB_USB_TXC1_REG_USB_TOGGLE_TX_Msk;
+  uint8_t const epnum = tu_edpt_number(xfer->ep_addr);
 
   src = &xfer->buffer[xfer->transferred];
   left_to_send = xfer->total_len - xfer->transferred;
@@ -310,22 +307,23 @@ static void transmit_packet(xfer_ctl_t * xfer)
     xfer->last_packet_size++;
     left_to_send--;
   }
-  if (tu_edpt_number(xfer->ep_addr) != 0)
+  if (epnum != 0)
   {
     if (left_to_send > 0)
     {
       // Max packet size is set to value greater then FIFO. Enable fifo level warning
       // to handle larger packets.
-      txc |= USB_USB_TXC1_REG_USB_TFWL_Msk;
+      regs->txc |= (3 << USB_USB_TXC1_REG_USB_TFWL_Pos);
+      USB->USB_FWMSK_REG |= 1 << (epnum - 1 + USB_USB_FWMSK_REG_USB_M_TXWARN31_Pos);
     }
     else
     {
+      xfer->regs->txc &= ~USB_USB_TXC1_REG_USB_TFWL_Msk;
+      USB->USB_FWMSK_REG &= ~(1 << (epnum - 1 + USB_USB_FWMSK_REG_USB_M_TXWARN31_Pos));
       // Whole packet already in fifo, no need to refill it later.  Mark last.
-      txc |= USB_USB_TXC1_REG_USB_LAST_Msk;
+      regs->txc |= USB_USB_TXC1_REG_USB_LAST_Msk;
     }
   }
-  // Enable transfer with correct interrupts enabled
-  regs->txc = txc;
 }
 
 static bool try_allocate_dma(uint8_t epnum, uint8_t dir)
@@ -385,6 +383,43 @@ static void start_rx_packet(xfer_ctl_t *xfer)
     USB->USB_FWMSK_REG &= ~(1 << (epnum - 1 + USB_USB_FWMSK_REG_USB_M_RXWARN31_Pos));
   }
   xfer->regs->rxc |= USB_USB_RXC1_REG_USB_RX_EN_Msk;
+}
+
+static void start_tx_dma(void *src, volatile void *dst, uint16_t size)
+{
+  // Setup SRC and DST registers
+  TX_DMA_REGS->DMAx_A_START_REG = (uint32_t)src;
+  TX_DMA_REGS->DMAx_B_START_REG = (uint32_t)dst;
+  // Interrupt not needed
+  TX_DMA_REGS->DMAx_INT_REG = size;
+  TX_DMA_REGS->DMAx_LEN_REG = size - 1;
+  TX_DMA_REGS->DMAx_CTRL_REG = TX_DMA_START;
+}
+
+static void start_tx_packet(xfer_ctl_t *xfer)
+{
+  uint8_t const epnum = tu_edpt_number(xfer->ep_addr);
+  uint16_t remaining = xfer->total_len - xfer->transferred;
+  uint16_t size = tu_min16(remaining, xfer->max_packet_size);
+  EPx_REGS *regs = xfer->regs;
+
+  xfer->last_packet_size = 0;
+
+  regs->txc = USB_USB_TXC1_REG_USB_FLUSH_Msk;
+  regs->txc = USB_USB_TXC1_REG_USB_IGN_ISOMSK_Msk;
+  if (xfer->data1) xfer->regs->txc |= USB_USB_TXC1_REG_USB_TOGGLE_TX_Msk;
+
+  if (xfer->max_packet_size > FIFO_SIZE && remaining > FIFO_SIZE && try_allocate_dma(epnum, TUSB_DIR_IN))
+  {
+    // Whole packet will be put in FIFO by DMA. Set LAST bit before start.
+    start_tx_dma(xfer->buffer + xfer->transferred, &regs->txd, size);
+    regs->txc |= USB_USB_TXC1_REG_USB_LAST_Msk;
+  }
+  else
+  {
+    fill_tx_fifo(xfer);
+  }
+  regs->txc |= USB_USB_TXC1_REG_USB_TX_EN_Msk;
 }
 
 static void read_rx_fifo(xfer_ctl_t *xfer, uint16_t bytes_in_fifo)
@@ -483,7 +518,7 @@ static void handle_ep0_tx(void)
       // Start from the beginning
       xfer->last_packet_size = 0;
     }
-    transmit_packet(xfer);
+    fill_tx_fifo(xfer);
   }
 }
 
@@ -570,14 +605,23 @@ static void handle_rx_ev(void)
 
 static void handle_epx_tx_ev(xfer_ctl_t *xfer)
 {
-  uint32_t usb_txs1_reg;
+  uint8_t const epnum = tu_edpt_number(xfer->ep_addr);
+  uint32_t txs;
   EPx_REGS *regs = xfer->regs;
 
-  usb_txs1_reg = regs->USB_TXS1_REG;
+  txs = regs->txs;
 
-  if (GET_BIT(usb_txs1_reg, USB_USB_TXS1_REG_USB_TX_DONE))
+  if (GET_BIT(txs, USB_USB_TXS1_REG_USB_TX_DONE))
   {
-    if (GET_BIT(usb_txs1_reg, USB_USB_TXS1_REG_USB_ACK_STAT))
+    if (_dcd.dma_ep[TUSB_DIR_IN] == epnum)
+    {
+      // Disable DMA and update last_packet_size with what DMA reported.
+      TX_DMA_REGS->DMAx_CTRL_REG &= ~DMA_DMA1_CTRL_REG_DMA_ON_Msk;
+      xfer->last_packet_size = TX_DMA_REGS->DMAx_IDX_REG + 1;
+      // Release DMA to used by other endpoints.
+      _dcd.dma_ep[TUSB_DIR_IN] = 0;
+    }
+    if (GET_BIT(txs, USB_USB_TXS1_REG_USB_ACK_STAT))
     {
       // ACK received, update transfer state and DATA0/1 bit
       xfer->transferred += xfer->last_packet_size;
@@ -590,12 +634,13 @@ static void handle_epx_tx_ev(xfer_ctl_t *xfer)
         return;
       }
     }
-    else
-    {
-      xfer->last_packet_size = 0;
-    }
-    transmit_packet(xfer);
   }
+  if (txs & USB_USB_TXS1_REG_USB_TX_URUN_Msk)
+  {
+    TU_LOG1("EP %d FIFO underrun\n", epnum);
+  }
+  // Start next or repeated packet.
+  start_tx_packet(xfer);
 }
 
 static void handle_tx_ev(void)
@@ -665,9 +710,9 @@ static void handle_alt_ev(void)
   }
 }
 
-static void handle_epx_tx_refill(uint8_t ep)
+static void handle_epx_tx_warn_ev(uint8_t ep)
 {
-  transmit_packet(XFER_CTL_BASE(ep, TUSB_DIR_IN));
+  fill_tx_fifo(XFER_CTL_BASE(ep, TUSB_DIR_IN));
 }
 
 static void handle_fifo_warning(void)
@@ -675,11 +720,11 @@ static void handle_fifo_warning(void)
   uint32_t fifo_warning = USB->USB_FWEV_REG;
 
   if (fifo_warning & 0x01)
-    handle_epx_tx_refill(1);
+    handle_epx_tx_warn_ev(1);
   if (fifo_warning & 0x02)
-    handle_epx_tx_refill(2);
+    handle_epx_tx_warn_ev(2);
   if (fifo_warning & 0x04)
-    handle_epx_tx_refill(3);
+    handle_epx_tx_warn_ev(3);
   if (fifo_warning & 0x10)
     handle_epx_rx_ev(1);
   if (fifo_warning & 0x20)
@@ -884,7 +929,7 @@ bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t t
   }
   else // IN
   {
-    transmit_packet(xfer);
+    start_tx_packet(xfer);
   }
 
   return true;
