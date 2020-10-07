@@ -33,7 +33,6 @@
 #include "device/usbd.h"
 
 #include "audio.h"
-#include "tusb_config.h"
 
 //--------------------------------------------------------------------+
 // Class Driver Configuration
@@ -57,6 +56,10 @@
 
 #ifndef CFG_TUD_AUDIO_TX_FIFO_SIZE
 #define CFG_TUD_AUDIO_TX_FIFO_SIZE  0                           // Buffer size per channel
+#endif
+
+#ifndef CFG_TUD_AUDIO_TX_DMA_RINGBUFFER_SIZE
+#define CFG_TUD_AUDIO_TX_DMA_RINGBUFFER_SIZE 0
 #endif
 
 #if CFG_TUD_AUDIO_TX_FIFO_SIZE && CFG_TUD_AUDIO_TX_DMA_RINGBUFFER_SIZE
@@ -192,6 +195,10 @@ void     tud_audio_n_read_flush (uint8_t itf);
 uint16_t tud_audio_n_write_ep_in_buffer(uint8_t itf, const void * data, uint16_t len)
 #endif
 */
+
+#ifndef CFG_TUD_AUDIO_TX_FIFO_COUNT
+#define CFG_TUD_AUDIO_TX_FIFO_COUNT 1
+#endif
 
 #if CFG_TUD_AUDIO_EPSIZE_IN && CFG_TUD_AUDIO_TX_FIFO_SIZE
 #if CFG_TUD_AUDIO_TX_FIFO_COUNT > 1

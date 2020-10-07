@@ -564,9 +564,10 @@ static bool audiod_tx_done_type_I_pcm_ff_cb(uint8_t rhport, audiod_interface_t* 
 
   for (cntChannel = 1; cntChannel < CFG_TUD_AUDIO_N_CHANNELS_TX; cntChannel++)
   {
-    if (audio->tx_ff[cntChannel].count / CFG_TUD_AUDIO_TX_ITEMSIZE < nSamplesPerChannelToSend)
+    uint16_t const count = tu_fifo_count(&audio->tx_ff[cntChannel]);
+    if (count / CFG_TUD_AUDIO_TX_ITEMSIZE < nSamplesPerChannelToSend)
     {
-      nSamplesPerChannelToSend = audio->tx_ff[cntChannel].count * CFG_TUD_AUDIO_TX_ITEMSIZE;
+      nSamplesPerChannelToSend = count * CFG_TUD_AUDIO_TX_ITEMSIZE;
     }
   }
 
@@ -782,6 +783,8 @@ void audiod_reset(uint8_t rhport)
 
 uint16_t audiod_open(uint8_t rhport, tusb_desc_interface_t const * itf_desc, uint16_t max_len)
 {
+  (void) max_len;
+
   TU_VERIFY ( TUSB_CLASS_AUDIO  == itf_desc->bInterfaceClass &&
               AUDIO_SUBCLASS_CONTROL    == itf_desc->bInterfaceSubClass);
 
@@ -1171,6 +1174,7 @@ bool audiod_control_request(uint8_t rhport, tusb_control_request_t const * p_req
 bool audiod_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint32_t xferred_bytes)
 {
   (void) result;
+  (void) xferred_bytes;
 
   // Search for interface belonging to given end point address and proceed as required
   uint8_t idxDriver;
