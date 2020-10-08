@@ -9,7 +9,7 @@ jobs:
     steps:
     - name: Setup Ruby
       uses: actions/setup-ruby@v1
-      
+
     - name: Checkout TinyUSB
       uses: actions/checkout@v2
 
@@ -35,13 +35,14 @@ jobs:
         - 'device/hid_composite'
         - 'device/hid_composite_freertos'
         - 'device/hid_generic_inout'
+        - 'device/hid_multipleinterface'
         - 'device/midi_test'
         - 'device/msc_dual_lun'
         - 'device/net_lwip_webserver'
         - 'device/usbtmc'
         - 'device/webusb_serial'
         - 'host/cdc_msc_hid'
-        
+
     steps:
     - name: Setup Python
       uses: actions/setup-python@v1
@@ -79,7 +80,7 @@ jobs:
       with:
         # Cannot do submodule checkout here since LWIP's git server cannot checkout unadventised commits (it must use tags)
         submodules: 'false'
-        
+
     - name: Checkout Submodules
       run: |
         git submodule sync --recursive
