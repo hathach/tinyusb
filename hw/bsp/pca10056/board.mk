@@ -50,7 +50,6 @@ FREERTOS_PORT = ARM_CM4F
 
 # For flash-jlink target
 JLINK_DEVICE = nRF52840_xxAA
-JLINK_IF = swd
 
 # flash using jlink
 flash: flash-jlink

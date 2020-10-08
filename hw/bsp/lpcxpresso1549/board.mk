@@ -40,7 +40,6 @@ FREERTOS_PORT = ARM_CM3
 
 # For flash-jlink target
 JLINK_DEVICE = LPC1549
-JLINK_IF = swd
 
 # flash using jlink
 flash: flash-jlink

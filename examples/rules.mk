@@ -147,6 +147,8 @@ else
   JLINKEXE = JLinkExe
 endif
 
+JLINK_IF ?= swd
+
 # Flash using jlink
 flash-jlink: $(BUILD)/$(BOARD)-firmware.hex
 	@echo halt > $(BUILD)/$(BOARD).jlink

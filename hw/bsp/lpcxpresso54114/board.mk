@@ -43,7 +43,6 @@ FREERTOS_PORT = ARM_CM4F
 
 # For flash-jlink target
 JLINK_DEVICE = LPC54114J256_M4
-JLINK_IF = swd
 
 # flash using pyocd
 flash: $(BUILD)/$(BOARD)-firmware.hex

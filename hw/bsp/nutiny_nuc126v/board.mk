@@ -53,7 +53,6 @@ FREERTOS_PORT = ARM_CM0
 
 # For flash-jlink target
 JLINK_DEVICE = NUC126VG4AE
-JLINK_IF = swd
 
 # Flash using Nuvoton's openocd fork at https://github.com/OpenNuvoton/OpenOCD-Nuvoton
 # Please compile and install it from github source

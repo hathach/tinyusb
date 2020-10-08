@@ -40,7 +40,6 @@ FREERTOS_PORT = ARM_CM0
 
 # For flash-jlink target
 JLINK_DEVICE = ATSAMD11D14
-JLINK_IF = swd
 
 # flash using edbg
 flash: $(BUILD)/$(BOARD)-firmware.bin

@@ -39,7 +39,6 @@ FREERTOS_PORT = ARM_CM0
 
 # For flash-jlink target
 JLINK_DEVICE = ATSAMD21G18
-JLINK_IF = swd
 
 # flash using jlink
 flash: flash-jlink
