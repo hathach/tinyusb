@@ -75,7 +75,7 @@ uint8_t const desc_hid_report1[] =
   TUD_HID_REPORT_DESC_KEYBOARD()
 };
 
-uint8_t desc_hid_report2[] =
+uint8_t const desc_hid_report2[] =
 {
   TUD_HID_REPORT_DESC_MOUSE()
 };
@@ -86,15 +86,15 @@ uint8_t desc_hid_report2[] =
 uint8_t const * tud_hid_n_descriptor_report_cb(uint8_t itf)
 {
   if (itf == 0)
-	{
-		return desc_hid_report1;
-	}
-	else if (itf == 1)
-	{
-		return desc_hid_report2;
-	}
+  {
+    return desc_hid_report1;
+  }
+  else if (itf == 1)
+  {
+    return desc_hid_report2;
+  }
 
-		return 0;
+  return NULL;
 }
 
 //--------------------------------------------------------------------+
