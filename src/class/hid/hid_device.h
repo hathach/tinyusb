@@ -87,7 +87,7 @@ static inline bool tud_hid_mouse_report(uint8_t report_id, uint8_t buttons, int8
 // Invoked when received GET HID REPORT DESCRIPTOR request
 // Application return pointer to descriptor, whose contents must exist long enough for transfer to complete
 #if CFG_TUD_HID>1
-uint8_t const * tud_hid_descriptor_report_cb(uint8_t desc_index);
+uint8_t const * tud_hid_n_descriptor_report_cb(uint8_t itf);
 #else
 uint8_t const * tud_hid_descriptor_report_cb(void);
 #endif
@@ -95,11 +95,19 @@ uint8_t const * tud_hid_descriptor_report_cb(void);
 // Invoked when received GET_REPORT control request
 // Application must fill buffer report's content and return its length.
 // Return zero will cause the stack to STALL request
+#if CFG_TUD_HID>1
+uint16_t tud_hid_n_get_report_cb(uint8_t itf, uint8_t report_id, hid_report_type_t report_type, uint8_t* buffer, uint16_t reqlen);
+#else
 uint16_t tud_hid_get_report_cb(uint8_t report_id, hid_report_type_t report_type, uint8_t* buffer, uint16_t reqlen);
+#endif
 
 // Invoked when received SET_REPORT control request or
 // received data on OUT endpoint ( Report ID = 0, Type = 0 )
+#if CFG_TUD_HID>1
+void tud_hid_n_set_report_cb(uint8_t itf, uint8_t report_id, hid_report_type_t report_type, uint8_t const* buffer, uint16_t bufsize);
+#else
 void tud_hid_set_report_cb(uint8_t report_id, hid_report_type_t report_type, uint8_t const* buffer, uint16_t bufsize);
+#endif
 
 // Invoked when received SET_PROTOCOL request ( mode switch Boot <-> Report )
 TU_ATTR_WEAK void tud_hid_boot_mode_cb(uint8_t boot_mode);

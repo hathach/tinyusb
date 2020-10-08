@@ -67,7 +67,7 @@ static inline hidd_interface_t* get_interface_by_itfnum(uint8_t itf_num)
   return NULL;
 }
 
-static inline uint8_t get_descindex_by_itfnum(uint8_t itf_num)
+static inline uint8_t get_hid_index_by_itfnum(uint8_t itf_num)
 {
 	for (uint8_t i=0; i < CFG_TUD_HID; i++ )
 	{
@@ -230,6 +230,10 @@ bool hidd_control_request(uint8_t rhport, tusb_control_request_t const * request
   hidd_interface_t* p_hid = get_interface_by_itfnum( (uint8_t) request->wIndex );
   TU_ASSERT(p_hid);
 
+  #if CFG_TUD_HID>1
+  uint8_t const hid_itf = get_hid_index_by_itfnum((uint8_t) request->wIndex);
+  #endif
+
   if (request->bmRequestType_bit.type == TUSB_REQ_TYPE_STANDARD)
   {
     //------------- STD Request -------------//
@@ -245,8 +249,7 @@ bool hidd_control_request(uint8_t rhport, tusb_control_request_t const * request
     else if (request->bRequest == TUSB_REQ_GET_DESCRIPTOR && desc_type == HID_DESC_TYPE_REPORT)
     {
       #if CFG_TUD_HID>1
-      uint8_t const calculated_desc_index = get_descindex_by_itfnum((uint8_t) request->wIndex);
-      uint8_t const * desc_report = tud_hid_descriptor_report_cb(calculated_desc_index);
+      uint8_t const * desc_report = tud_hid_n_descriptor_report_cb(hid_itf);
       #else
       uint8_t const * desc_report = tud_hid_descriptor_report_cb();
       #endif
@@ -268,7 +271,11 @@ bool hidd_control_request(uint8_t rhport, tusb_control_request_t const * request
         uint8_t const report_type = tu_u16_high(request->wValue);
         uint8_t const report_id   = tu_u16_low(request->wValue);
 
+        #if CFG_TUD_HID>1
+        uint16_t xferlen  = tud_hid_n_get_report_cb(hid_itf, report_id, (hid_report_type_t) report_type, p_hid->epin_buf, request->wLength);
+        #else
         uint16_t xferlen  = tud_hid_get_report_cb(report_id, (hid_report_type_t) report_type, p_hid->epin_buf, request->wLength);
+        #endif
         TU_ASSERT( xferlen > 0 );
 
         tud_control_xfer(rhport, request, p_hid->epin_buf, xferlen);
@@ -336,7 +343,12 @@ bool hidd_control_complete(uint8_t rhport, tusb_control_request_t const * p_requ
     uint8_t const report_type = tu_u16_high(p_request->wValue);
     uint8_t const report_id   = tu_u16_low(p_request->wValue);
 
+    #if CFG_TUD_HID>1
+    uint8_t const hid_itf = get_hid_index_by_itfnum((uint8_t)p_request->wIndex);
+    tud_hid_n_set_report_cb(hid_itf, report_id, (hid_report_type_t) report_type, p_hid->epout_buf, p_request->wLength);
+    #else
     tud_hid_set_report_cb(report_id, (hid_report_type_t) report_type, p_hid->epout_buf, p_request->wLength);
+    #endif
   }
 
   return true;
@@ -358,7 +370,11 @@ bool hidd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint32_
 
   if (ep_addr == p_hid->ep_out)
   {
+    #if CFG_TUD_HID>1
+    tud_hid_n_set_report_cb(itf,  0, HID_REPORT_TYPE_INVALID, p_hid->epout_buf, xferred_bytes);
+    #else
     tud_hid_set_report_cb(0, HID_REPORT_TYPE_INVALID, p_hid->epout_buf, xferred_bytes);
+    #endif
     TU_ASSERT(usbd_edpt_xfer(rhport, p_hid->ep_out, p_hid->epout_buf, sizeof(p_hid->epout_buf)));
   }
 
