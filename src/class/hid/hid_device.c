@@ -232,7 +232,7 @@ bool hidd_control_request(uint8_t rhport, tusb_control_request_t const * request
 
   #if CFG_TUD_HID>1
   uint8_t const hid_itf = get_hid_index_by_itfnum((uint8_t) request->wIndex);
-  TU_VERIFY(hid_itf<0xFF, 0);
+  TU_VERIFY(hid_itf<0xFF);
   #endif
 
   if (request->bmRequestType_bit.type == TUSB_REQ_TYPE_STANDARD)
@@ -346,7 +346,7 @@ bool hidd_control_complete(uint8_t rhport, tusb_control_request_t const * p_requ
 
     #if CFG_TUD_HID>1
     uint8_t const hid_itf = get_hid_index_by_itfnum((uint8_t)p_request->wIndex);
-    TU_VERIFY(hid_itf<0xFF, 0);
+    TU_VERIFY(hid_itf<0xFF);
     tud_hid_n_set_report_cb(hid_itf, report_id, (hid_report_type_t) report_type, p_hid->epout_buf, p_request->wLength);
     #else
     tud_hid_set_report_cb(report_id, (hid_report_type_t) report_type, p_hid->epout_buf, p_request->wLength);
