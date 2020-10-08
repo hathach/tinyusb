@@ -163,4 +163,8 @@ flash-jlink: $(BUILD)/$(BOARD)-firmware.hex
 flash-stlink: $(BUILD)/$(BOARD)-firmware.elf
 	STM32_Programmer_CLI --connect port=swd --write $< --go
 
+# flash with pyocd
+flash-pyocd: $(BUILD)/$(BOARD)-firmware.hex
+	pyocd flash -t $(PYOCD_TARGET) $<
+
 endif # Make target
