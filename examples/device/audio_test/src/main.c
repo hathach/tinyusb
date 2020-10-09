@@ -59,7 +59,7 @@ audio_control_range_2_n_t(1) volumeRng[CFG_TUD_AUDIO_N_CHANNELS_TX+1]; 			// Vol
 audio_control_range_4_n_t(1) sampleFreqRng; 						// Sample frequency range state
 
 // Audio test data
-uint8_t test_buffer_audio[CFG_TUD_AUDIO_TX_FIFO_SIZE];
+uint16_t test_buffer_audio[CFG_TUD_AUDIO_TX_FIFO_SIZE/2];
 uint16_t startVal = 0;
 
 void led_blinking_task(void);
@@ -375,7 +375,7 @@ bool tud_audio_tx_done_pre_load_cb(uint8_t rhport, uint8_t itf, uint8_t ep_in, u
   (void) ep_in;
   (void) cur_alt_setting;
 
-  tud_audio_write (test_buffer_audio, CFG_TUD_AUDIO_TX_FIFO_SIZE);
+  tud_audio_write ((uint8_t *)test_buffer_audio, CFG_TUD_AUDIO_TX_FIFO_SIZE);
 
   return true;
 }
@@ -388,12 +388,9 @@ bool tud_audio_tx_done_post_load_cb(uint8_t rhport, uint16_t n_bytes_copied, uin
   (void) ep_in;
   (void) cur_alt_setting;
 
-  uint8_t * pBuffer = test_buffer_audio;
-
   for (size_t cnt = 0; cnt < CFG_TUD_AUDIO_TX_FIFO_SIZE/2; cnt++)
   {
-    *(uint16_t *)pBuffer = startVal++;
-    pBuffer += 2;
+    test_buffer_audio[cnt] = startVal++;
   }
 
   return true;
