@@ -383,7 +383,7 @@ bool tud_audio_tx_done_pre_load_cb(uint8_t rhport, uint8_t itf, uint8_t ep_in, u
 bool tud_audio_tx_done_post_load_cb(uint8_t rhport, uint16_t n_bytes_copied, uint8_t itf, uint8_t ep_in, uint8_t cur_alt_setting)
 {
   (void) rhport;
-  (void) rhport;
+  (void) n_bytes_copied;
   (void) itf;
   (void) ep_in;
   (void) cur_alt_setting;
