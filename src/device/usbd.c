@@ -786,9 +786,6 @@ static bool process_set_config(uint8_t rhport, uint8_t cfg_num)
   tusb_desc_configuration_t const * desc_cfg = (tusb_desc_configuration_t const *) tud_descriptor_configuration_cb(cfg_num-1); // index is cfg_num-1
   TU_ASSERT(desc_cfg != NULL && desc_cfg->bDescriptorType == TUSB_DESC_CONFIGURATION);
 
-  // Allow for dynamic allocation of EP buffer for current configuration - only one configuration may be active according to USB specification
-  if (dcd_alloc_mem_for_conf) TU_ASSERT(dcd_alloc_mem_for_conf(rhport, desc_cfg));
-
   // Parse configuration descriptor
   _usbd_dev.remote_wakeup_support = (desc_cfg->bmAttributes & TUSB_DESC_CONFIG_ATT_REMOTE_WAKEUP) ? 1 : 0;
   _usbd_dev.self_powered = (desc_cfg->bmAttributes & TUSB_DESC_CONFIG_ATT_SELF_POWERED) ? 1 : 0;

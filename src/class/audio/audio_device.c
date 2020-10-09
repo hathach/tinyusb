@@ -876,6 +876,10 @@ static bool audiod_set_interface(uint8_t rhport, tusb_control_request_t const * 
   {
     _audiod_itf[idxDriver].ep_in_as_intf_num = 0;
     usbd_edpt_close(rhport, _audiod_itf[idxDriver].ep_in);
+
+    // Invoke callback - can be used to stop data sampling
+    if (tud_audio_set_itf_close_EP_cb) TU_VERIFY(tud_audio_set_itf_close_EP_cb(rhport, p_request));
+
     _audiod_itf[idxDriver].ep_in = 0;                           // Necessary?
   }
 #endif
@@ -928,7 +932,7 @@ static bool audiod_set_interface(uint8_t rhport, tusb_control_request_t const * 
             _audiod_itf[idxDriver].ep_in = ep_addr;
             _audiod_itf[idxDriver].ep_in_as_intf_num = itf;
 
-            // Invoke callback and trigger data generation - if not already running
+            // Invoke callback - can be used to trigger data sampling if not already running
             if (tud_audio_set_itf_cb) TU_VERIFY(tud_audio_set_itf_cb(rhport, p_request));
 
             // Schedule first transmit - in case no sample data is available a ZLP is loaded
