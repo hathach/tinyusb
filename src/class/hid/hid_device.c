@@ -1,4 +1,4 @@
-/* 
+/*
  * The MIT License (MIT)
  *
  * Copyright (c) 2019 Ha Thach (tinyusb.org)
@@ -67,20 +67,28 @@ static inline hidd_interface_t* get_interface_by_itfnum(uint8_t itf_num)
   return NULL;
 }
 
+static inline uint8_t get_hid_index_by_itfnum(uint8_t itf_num)
+{
+	for (uint8_t i=0; i < CFG_TUD_HID; i++ )
+	{
+		if ( itf_num == _hidd_itf[i].itf_num ) return i;
+	}
+
+	return 0xFF;
+}
+
 //--------------------------------------------------------------------+
 // APPLICATION API
 //--------------------------------------------------------------------+
-bool tud_hid_ready(void)
+bool tud_hid_n_ready(uint8_t itf)
 {
-  uint8_t const itf = 0;
   uint8_t const ep_in = _hidd_itf[itf].ep_in;
   return tud_ready() && (ep_in != 0) && !usbd_edpt_busy(TUD_OPT_RHPORT, ep_in);
 }
 
-bool tud_hid_report(uint8_t report_id, void const* report, uint8_t len)
+bool tud_hid_n_report(uint8_t itf, uint8_t report_id, void const* report, uint8_t len)
 {
   uint8_t const rhport = 0;
-  uint8_t const itf = 0;
   hidd_interface_t * p_hid = &_hidd_itf[itf];
 
   // claim endpoint
@@ -104,16 +112,15 @@ bool tud_hid_report(uint8_t report_id, void const* report, uint8_t len)
   return usbd_edpt_xfer(TUD_OPT_RHPORT, p_hid->ep_in, p_hid->epin_buf, len);
 }
 
-bool tud_hid_boot_mode(void)
+bool tud_hid_n_boot_mode(uint8_t itf)
 {
-  uint8_t itf = 0;
   return _hidd_itf[itf].boot_mode;
 }
 
 //--------------------------------------------------------------------+
 // KEYBOARD API
 //--------------------------------------------------------------------+
-bool tud_hid_keyboard_report(uint8_t report_id, uint8_t modifier, uint8_t keycode[6])
+bool tud_hid_n_keyboard_report(uint8_t itf, uint8_t report_id, uint8_t modifier, uint8_t keycode[6])
 {
   hid_keyboard_report_t report;
 
@@ -127,13 +134,13 @@ bool tud_hid_keyboard_report(uint8_t report_id, uint8_t modifier, uint8_t keycod
     tu_memclr(report.keycode, 6);
   }
 
-  return tud_hid_report(report_id, &report, sizeof(report));
+  return tud_hid_n_report(itf, report_id, &report, sizeof(report));
 }
 
 //--------------------------------------------------------------------+
 // MOUSE APPLICATION API
 //--------------------------------------------------------------------+
-bool tud_hid_mouse_report(uint8_t report_id, uint8_t buttons, int8_t x, int8_t y, int8_t vertical, int8_t horizontal)
+bool tud_hid_n_mouse_report(uint8_t itf, uint8_t report_id, uint8_t buttons, int8_t x, int8_t y, int8_t vertical, int8_t horizontal)
 {
   hid_mouse_report_t report =
   {
@@ -144,7 +151,7 @@ bool tud_hid_mouse_report(uint8_t report_id, uint8_t buttons, int8_t x, int8_t y
     .pan     = horizontal
   };
 
-  return tud_hid_report(report_id, &report, sizeof(report));
+  return tud_hid_n_report(itf, report_id, &report, sizeof(report));
 }
 
 //--------------------------------------------------------------------+
@@ -197,7 +204,7 @@ uint16_t hidd_open(uint8_t rhport, tusb_desc_interface_t const * desc_itf, uint1
 
   p_hid->boot_mode = false; // default mode is REPORT
   p_hid->itf_num   = desc_itf->bInterfaceNumber;
-  
+
   // Use offsetof to avoid pointer to the odd/misaligned address
   memcpy(&p_hid->report_desc_len, (uint8_t*) p_hid->hid_descriptor + offsetof(tusb_hid_descriptor_hid_t, wReportLength), 2);
 
@@ -223,6 +230,11 @@ bool hidd_control_request(uint8_t rhport, tusb_control_request_t const * request
   hidd_interface_t* p_hid = get_interface_by_itfnum( (uint8_t) request->wIndex );
   TU_ASSERT(p_hid);
 
+  #if CFG_TUD_HID>1
+  uint8_t const hid_itf = get_hid_index_by_itfnum((uint8_t) request->wIndex);
+  TU_VERIFY(hid_itf<0xFF);
+  #endif
+
   if (request->bmRequestType_bit.type == TUSB_REQ_TYPE_STANDARD)
   {
     //------------- STD Request -------------//
@@ -237,7 +249,11 @@ bool hidd_control_request(uint8_t rhport, tusb_control_request_t const * request
     }
     else if (request->bRequest == TUSB_REQ_GET_DESCRIPTOR && desc_type == HID_DESC_TYPE_REPORT)
     {
+      #if CFG_TUD_HID>1
+      uint8_t const * desc_report = tud_hid_n_descriptor_report_cb(hid_itf);
+      #else
       uint8_t const * desc_report = tud_hid_descriptor_report_cb();
+      #endif
       tud_control_xfer(rhport, request, (void*) desc_report, p_hid->report_desc_len);
     }
     else
@@ -256,7 +272,11 @@ bool hidd_control_request(uint8_t rhport, tusb_control_request_t const * request
         uint8_t const report_type = tu_u16_high(request->wValue);
         uint8_t const report_id   = tu_u16_low(request->wValue);
 
+        #if CFG_TUD_HID>1
+        uint16_t xferlen  = tud_hid_n_get_report_cb(hid_itf, report_id, (hid_report_type_t) report_type, p_hid->epin_buf, request->wLength);
+        #else
         uint16_t xferlen  = tud_hid_get_report_cb(report_id, (hid_report_type_t) report_type, p_hid->epin_buf, request->wLength);
+        #endif
         TU_ASSERT( xferlen > 0 );
 
         tud_control_xfer(rhport, request, p_hid->epin_buf, xferlen);
@@ -324,7 +344,13 @@ bool hidd_control_complete(uint8_t rhport, tusb_control_request_t const * p_requ
     uint8_t const report_type = tu_u16_high(p_request->wValue);
     uint8_t const report_id   = tu_u16_low(p_request->wValue);
 
+    #if CFG_TUD_HID>1
+    uint8_t const hid_itf = get_hid_index_by_itfnum((uint8_t)p_request->wIndex);
+    TU_VERIFY(hid_itf<0xFF);
+    tud_hid_n_set_report_cb(hid_itf, report_id, (hid_report_type_t) report_type, p_hid->epout_buf, p_request->wLength);
+    #else
     tud_hid_set_report_cb(report_id, (hid_report_type_t) report_type, p_hid->epout_buf, p_request->wLength);
+    #endif
   }
 
   return true;
@@ -346,7 +372,11 @@ bool hidd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint32_
 
   if (ep_addr == p_hid->ep_out)
   {
+    #if CFG_TUD_HID>1
+    tud_hid_n_set_report_cb(itf,  0, HID_REPORT_TYPE_INVALID, p_hid->epout_buf, xferred_bytes);
+    #else
     tud_hid_set_report_cb(0, HID_REPORT_TYPE_INVALID, p_hid->epout_buf, xferred_bytes);
+    #endif
     TU_ASSERT(usbd_edpt_xfer(rhport, p_hid->ep_out, p_hid->epout_buf, sizeof(p_hid->epout_buf)));
   }
 

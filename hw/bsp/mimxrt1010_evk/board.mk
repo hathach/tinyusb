@@ -19,6 +19,9 @@ MCU_DIR = hw/mcu/nxp/sdk/devices/MIMXRT1011
 # All source paths should be relative to the top level.
 LD_FILE = $(MCU_DIR)/gcc/MIMXRT1011xxxxx_flexspi_nor.ld
 
+LDFLAGS += \
+	-Wl,--defsym,__stack_size__=0x800 \
+
 SRC_C += \
 	$(MCU_DIR)/system_MIMXRT1011.c \
 	$(MCU_DIR)/xip/fsl_flexspi_nor_boot.c \
