@@ -35,7 +35,7 @@ jobs:
         - 'device/hid_composite'
         - 'device/hid_composite_freertos'
         - 'device/hid_generic_inout'
-        - 'device/hid_multipleinterface'
+        - 'device/hid_multiple_interface'
         - 'device/midi_test'
         - 'device/msc_dual_lun'
         - 'device/net_lwip_webserver'
