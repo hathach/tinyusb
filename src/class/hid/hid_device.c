@@ -250,7 +250,7 @@ bool hidd_control_request(uint8_t rhport, tusb_control_request_t const * request
     else if (request->bRequest == TUSB_REQ_GET_DESCRIPTOR && desc_type == HID_DESC_TYPE_REPORT)
     {
       #if CFG_TUD_HID>1
-      uint8_t const * desc_report = tud_hid_n_descriptor_report_cb(hid_itf);
+      uint8_t const * desc_report = tud_hid_descriptor_report_cb(hid_itf);
       #else
       uint8_t const * desc_report = tud_hid_descriptor_report_cb();
       #endif
@@ -273,7 +273,7 @@ bool hidd_control_request(uint8_t rhport, tusb_control_request_t const * request
         uint8_t const report_id   = tu_u16_low(request->wValue);
 
         #if CFG_TUD_HID>1
-        uint16_t xferlen  = tud_hid_n_get_report_cb(hid_itf, report_id, (hid_report_type_t) report_type, p_hid->epin_buf, request->wLength);
+        uint16_t xferlen  = tud_hid_get_report_cb(hid_itf, report_id, (hid_report_type_t) report_type, p_hid->epin_buf, request->wLength);
         #else
         uint16_t xferlen  = tud_hid_get_report_cb(report_id, (hid_report_type_t) report_type, p_hid->epin_buf, request->wLength);
         #endif
@@ -347,7 +347,7 @@ bool hidd_control_complete(uint8_t rhport, tusb_control_request_t const * p_requ
     #if CFG_TUD_HID>1
     uint8_t const hid_itf = get_hid_index_by_itfnum((uint8_t)p_request->wIndex);
     TU_VERIFY(hid_itf<0xFF);
-    tud_hid_n_set_report_cb(hid_itf, report_id, (hid_report_type_t) report_type, p_hid->epout_buf, p_request->wLength);
+    tud_hid_set_report_cb(hid_itf, report_id, (hid_report_type_t) report_type, p_hid->epout_buf, p_request->wLength);
     #else
     tud_hid_set_report_cb(report_id, (hid_report_type_t) report_type, p_hid->epout_buf, p_request->wLength);
     #endif
@@ -373,7 +373,7 @@ bool hidd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint32_
   if (ep_addr == p_hid->ep_out)
   {
     #if CFG_TUD_HID>1
-    tud_hid_n_set_report_cb(itf,  0, HID_REPORT_TYPE_INVALID, p_hid->epout_buf, xferred_bytes);
+    tud_hid_set_report_cb(itf,  0, HID_REPORT_TYPE_INVALID, p_hid->epout_buf, xferred_bytes);
     #else
     tud_hid_set_report_cb(0, HID_REPORT_TYPE_INVALID, p_hid->epout_buf, xferred_bytes);
     #endif
