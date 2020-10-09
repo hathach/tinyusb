@@ -51,7 +51,6 @@ FREERTOS_PORT = ARM_CM4F
 
 # For flash-jlink target
 JLINK_DEVICE = nRF52840_xxAA
-JLINK_IF = swd
 
 # flash using bossac (as part of Nano33 BSP tools)
 # can be found in arduino15/packages/arduino/tools/bossac/

@@ -44,7 +44,6 @@ FREERTOS_PORT = ARM_CM0
 
 # For flash-jlink target
 JLINK_DEVICE = STM32L053R8
-JLINK_IF = swd
 
 # Path to STM32 Cube Programmer CLI, should be added into system path 
 STM32Prog = STM32_Programmer_CLI

@@ -83,7 +83,7 @@ uint8_t const desc_hid_report2[] =
 // Invoked when received GET HID REPORT DESCRIPTOR
 // Application return pointer to descriptor
 // Descriptor contents must exist long enough for transfer to complete
-uint8_t const * tud_hid_n_descriptor_report_cb(uint8_t itf)
+uint8_t const * tud_hid_descriptor_report_cb(uint8_t itf)
 {
   if (itf == 0)
   {

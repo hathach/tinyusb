@@ -49,7 +49,6 @@ FREERTOS_PORT = ARM_CM4F
 
 # For flash-jlink target
 JLINK_DEVICE = nRF52840_xxAA
-JLINK_IF = swd
 
 # flash using Nordic nrfutil (pip2 install nrfutil)
 # 	make BOARD=pca10059 SERIAL=/dev/ttyACM0 all flash

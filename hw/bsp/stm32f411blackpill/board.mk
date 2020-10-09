@@ -40,7 +40,6 @@ FREERTOS_PORT = ARM_CM4F
 
 # For flash-jlink target
 JLINK_DEVICE = stm32f411ce
-JLINK_IF = swd
 
 # flash target ROM bootloader
 flash: $(BUILD)/$(BOARD)-firmware.bin

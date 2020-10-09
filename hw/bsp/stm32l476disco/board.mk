@@ -43,7 +43,6 @@ FREERTOS_PORT = ARM_CM4F
 
 # For flash-jlink target
 JLINK_DEVICE = stm32l476vg
-JLINK_IF = swd
 
 # Path to STM32 Cube Programmer CLI, should be added into system path
 STM32Prog = STM32_Programmer_CLI

@@ -49,7 +49,6 @@ FREERTOS_PORT = ARM_CM4F
 
 # For flash-jlink target
 JLINK_DEVICE = nRF52840_xxAA
-JLINK_IF = swd
 
 # For uf2 conversion
 UF2_FAMILY = 0xADA52840
