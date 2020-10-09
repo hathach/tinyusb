@@ -43,9 +43,8 @@ CHIP_FAMILY = transdimension
 # For freeRTOS port source
 FREERTOS_PORT = ARM_CM7/r0p1
 
-# For flash-jlink target
-JLINK_DEVICE = MIMXRT1052xxx6B
+# For flash-pyocd target
+PYOCD_TARGET = mimxrt1050
 
-# flash by copying bin file to DAP Mass Storage
-flash: $(BUILD)/$(BOARD)-firmware.bin
-	cp $< /media/$(USER)/RT1050-EVK/
+# flash using pyocd
+flash: flash-pyocd

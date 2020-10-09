@@ -47,6 +47,8 @@ FREERTOS_PORT = ARM_CM7/r0p1
 # For flash-jlink target
 JLINK_DEVICE = MIMXRT1011DAE5A
 
-# flash by copying bin file to DAP Mass Storage
-flash: $(BUILD)/$(BOARD)-firmware.bin
-	cp $< /media/$(USER)/RT1010-EVK/
+# For flash-pyocd target
+PYOCD_TARGET = mimxrt1010
+
+# flash using pyocd
+flash: flash-pyocd

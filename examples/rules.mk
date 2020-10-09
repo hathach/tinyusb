@@ -166,5 +166,6 @@ flash-stlink: $(BUILD)/$(BOARD)-firmware.elf
 # flash with pyocd
 flash-pyocd: $(BUILD)/$(BOARD)-firmware.hex
 	pyocd flash -t $(PYOCD_TARGET) $<
+	pyocd reset -t $(PYOCD_TARGET)
 
 endif # Make target
