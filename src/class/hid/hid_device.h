@@ -100,15 +100,16 @@ uint16_t tud_hid_get_report_cb(uint8_t itf, uint8_t report_id, hid_report_type_t
 void tud_hid_set_report_cb(uint8_t itf, uint8_t report_id, hid_report_type_t report_type, uint8_t const* buffer, uint16_t bufsize);
 
 // Invoked when received SET_PROTOCOL request ( mode switch Boot <-> Report )
-TU_ATTR_WEAK void tud_hid_boot_mode_cb(uint8_t boot_mode);
+TU_ATTR_WEAK void tud_hid_boot_mode_cb(uint8_t itf, uint8_t boot_mode);
 
 // Invoked when received SET_IDLE request. return false will stall the request
 // - Idle Rate = 0 : only send report if there is changes, i.e skip duplication
 // - Idle Rate > 0 : skip duplication, but send at least 1 report every idle rate (in unit of 4 ms).
-TU_ATTR_WEAK bool tud_hid_set_idle_cb(uint8_t idle_rate);
+TU_ATTR_WEAK bool tud_hid_set_idle_cb(uint8_t itf, uint8_t idle_rate);
 
 #else
 
+// TODO for backward compatible callback, remove later when appropriate
 uint8_t const * tud_hid_descriptor_report_cb(void);
 uint16_t tud_hid_get_report_cb(uint8_t report_id, hid_report_type_t report_type, uint8_t* buffer, uint16_t reqlen);
 void tud_hid_set_report_cb(uint8_t report_id, hid_report_type_t report_type, uint8_t const* buffer, uint16_t bufsize);
