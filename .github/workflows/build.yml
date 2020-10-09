@@ -66,7 +66,7 @@ jobs:
         npm install --global xpm
         xpm install --global @xpack-dev-tools/arm-none-eabi-gcc@latest
         xpm install --global @xpack-dev-tools/riscv-none-embed-gcc@latest
-        echo `$HOME/opt/xPacks/@xpack-dev-tools/arm-none-eabi-gcc/*/.content/bin` >> $GITHUB_PATH
+        echo `echo $HOME/opt/xPacks/@xpack-dev-tools/arm-none-eabi-gcc/*/.content/bin` >> $GITHUB_PATH
         echo `echo $HOME/opt/xPacks/@xpack-dev-tools/riscv-none-embed-gcc/*/.content/bin` >> $GITHUB_PATH
 
         # TI MSP430 GCC
