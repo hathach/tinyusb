@@ -58,6 +58,10 @@ uint8_t clkValid;
 audio_control_range_2_n_t(1) volumeRng[CFG_TUD_AUDIO_N_CHANNELS_TX+1]; 			// Volume range state
 audio_control_range_4_n_t(1) sampleFreqRng; 						// Sample frequency range state
 
+// Audio test data
+uint8_t test_buffer_audio[CFG_TUD_AUDIO_TX_FIFO_SIZE];
+uint16_t startVal = 0;
+
 void led_blinking_task(void);
 void audio_task(void);
 
@@ -362,6 +366,46 @@ bool tud_audio_get_req_entity_cb(uint8_t rhport, tusb_control_request_t const * 
 
   TU_LOG2("  Unsupported entity: %d\r\n", entityID);
   return false; 	// Yet not implemented
+}
+
+bool tud_audio_tx_done_pre_load_cb(uint8_t rhport, uint8_t itf, uint8_t ep_in, uint8_t cur_alt_setting)
+{
+  (void) rhport;
+  (void) itf;
+  (void) ep_in;
+  (void) cur_alt_setting;
+
+  tud_audio_write (test_buffer_audio, CFG_TUD_AUDIO_TX_FIFO_SIZE);
+
+  return true;
+}
+
+bool tud_audio_tx_done_post_load_cb(uint8_t rhport, uint16_t n_bytes_copied, uint8_t itf, uint8_t ep_in, uint8_t cur_alt_setting)
+{
+  (void) rhport;
+  (void) rhport;
+  (void) itf;
+  (void) ep_in;
+  (void) cur_alt_setting;
+
+  uint8_t * pBuffer = test_buffer_audio;
+
+  for (size_t cnt = 0; cnt < CFG_TUD_AUDIO_TX_FIFO_SIZE/2; cnt++)
+  {
+    *(uint16_t *)pBuffer = startVal++;
+    pBuffer += 2;
+  }
+
+  return true;
+}
+
+bool tud_audio_set_itf_close_EP_cb(uint8_t rhport, tusb_control_request_t const * p_request)
+{
+  (void) rhport;
+  (void) p_request;
+  startVal = 0;
+
+  return true;
 }
 
 //--------------------------------------------------------------------+
