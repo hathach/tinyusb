@@ -34,6 +34,12 @@
 // MACRO CONSTANT TYPEDEF PROTYPES
 //--------------------------------------------------------------------+
 
+// Interface index depends on the order in configuration descriptor
+enum {
+  ITF_KEYBOARD = 0,
+  ITF_MOUSE = 1
+};
+
 /* Blink pattern
  * - 250 ms  : device not mounted
  * - 1000 ms : device mounted
@@ -104,10 +110,6 @@ void tud_resume_cb(void)
 
 void hid_task(void)
 {
-  //Set up interfaces
-  const uint8_t keyboard_interface = 0;
-  const uint8_t mouse_interface = 1;
-
   // Poll every 10ms
   const uint32_t interval_ms = 10;
   static uint32_t start_ms = 0;
@@ -126,7 +128,7 @@ void hid_task(void)
   }
 
   /*------------- Keyboard -------------*/
-  if ( tud_hid_n_ready(keyboard_interface) )
+  if ( tud_hid_n_ready(ITF_KEYBOARD) )
   {
     // use to avoid send multiple consecutive zero report for keyboard
     static bool has_key = false;
@@ -136,29 +138,26 @@ void hid_task(void)
       uint8_t keycode[6] = { 0 };
       keycode[0] = HID_KEY_A;
 
-      tud_hid_n_keyboard_report(keyboard_interface, 0, 0, keycode);
+      tud_hid_n_keyboard_report(ITF_KEYBOARD, 0, 0, keycode);
 
       has_key = true;
     }else
     {
       // send empty key report if previously has key pressed
-      if (has_key) tud_hid_n_keyboard_report(keyboard_interface, 0, 0, NULL);
+      if (has_key) tud_hid_n_keyboard_report(ITF_KEYBOARD, 0, 0, NULL);
       has_key = false;
     }
   }
 
   /*------------- Mouse -------------*/
-  if ( tud_hid_n_ready(mouse_interface) )
+  if ( tud_hid_n_ready(ITF_MOUSE) )
   {
     if ( btn )
     {
       int8_t const delta = 5;
 
       // no button, right + down, no scroll pan
-      tud_hid_n_mouse_report(mouse_interface, 0, 0x00, delta, delta, 0, 0);
-
-      // delay a bit before attempt to send keyboard report
-      board_delay(10);
+      tud_hid_n_mouse_report(ITF_MOUSE, 0, 0x00, delta, delta, 0, 0);
     }
   }
 }
