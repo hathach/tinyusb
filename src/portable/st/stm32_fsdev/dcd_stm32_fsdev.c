@@ -276,9 +276,23 @@ void dcd_int_enable (uint8_t rhport)
 #if CFG_TUSB_MCU == OPT_MCU_STM32F0 || CFG_TUSB_MCU == OPT_MCU_STM32L0
   NVIC_EnableIRQ(USB_IRQn);
 #elif CFG_TUSB_MCU == OPT_MCU_STM32F3
-  NVIC_EnableIRQ(USB_HP_CAN_TX_IRQn);
-  NVIC_EnableIRQ(USB_LP_CAN_RX0_IRQn);
-  NVIC_EnableIRQ(USBWakeUp_IRQn);
+  // Some STM32F302/F303 devices allow to remap the USB interrupt vectors from
+  // shared USB/CAN IRQs to separate CAN and USB IRQs.
+  // This dynamically checks if this remap is active to enable the right IRQs.
+  #ifdef SYSCFG_CFGR1_USB_IT_RMP
+  if (SYSCFG->CFGR1 & SYSCFG_CFGR1_USB_IT_RMP)
+  {
+    NVIC_EnableIRQ(USB_HP_IRQn);
+    NVIC_EnableIRQ(USB_LP_IRQn);
+    NVIC_EnableIRQ(USBWakeUp_RMP_IRQn);
+  }
+  else
+  #endif
+  {
+    NVIC_EnableIRQ(USB_HP_CAN_TX_IRQn);
+    NVIC_EnableIRQ(USB_LP_CAN_RX0_IRQn);
+    NVIC_EnableIRQ(USBWakeUp_IRQn);
+  }
 #elif CFG_TUSB_MCU == OPT_MCU_STM32F1
   NVIC_EnableIRQ(USB_HP_CAN1_TX_IRQn);
   NVIC_EnableIRQ(USB_LP_CAN1_RX0_IRQn);
@@ -296,9 +310,23 @@ void dcd_int_disable(uint8_t rhport)
 #if CFG_TUSB_MCU == OPT_MCU_STM32F0 || CFG_TUSB_MCU == OPT_MCU_STM32L0
   NVIC_DisableIRQ(USB_IRQn);
 #elif CFG_TUSB_MCU == OPT_MCU_STM32F3
-  NVIC_DisableIRQ(USB_HP_CAN_TX_IRQn);
-  NVIC_DisableIRQ(USB_LP_CAN_RX0_IRQn);
-  NVIC_DisableIRQ(USBWakeUp_IRQn);
+  // Some STM32F302/F303 devices allow to remap the USB interrupt vectors from
+  // shared USB/CAN IRQs to separate CAN and USB IRQs.
+  // This dynamically checks if this remap is active to disable the right IRQs.
+  #ifdef SYSCFG_CFGR1_USB_IT_RMP
+  if (SYSCFG->CFGR1 & SYSCFG_CFGR1_USB_IT_RMP)
+  {
+    NVIC_DisableIRQ(USB_HP_IRQn);
+    NVIC_DisableIRQ(USB_LP_IRQn);
+    NVIC_DisableIRQ(USBWakeUp_RMP_IRQn);
+  }
+  else
+  #endif
+  {
+    NVIC_DisableIRQ(USB_HP_CAN_TX_IRQn);
+    NVIC_DisableIRQ(USB_LP_CAN_RX0_IRQn);
+    NVIC_DisableIRQ(USBWakeUp_IRQn);
+  }
 #elif CFG_TUSB_MCU == OPT_MCU_STM32F1
   NVIC_DisableIRQ(USB_HP_CAN1_TX_IRQn);
   NVIC_DisableIRQ(USB_LP_CAN1_RX0_IRQn);
