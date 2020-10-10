@@ -4,6 +4,7 @@
  * Copyright (c) 2018 Scott Shawcroft, 2019 William D. Jones for Adafruit Industries
  * Copyright (c) 2019 Ha Thach (tinyusb.org)
  * Copyright (c) 2020 Jan Duempelmann
+ * Copyright (c) 2020 Reinhard Panhuber
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -46,53 +47,53 @@
 
 #if TUSB_OPT_DEVICE_ENABLED && \
     ( (CFG_TUSB_MCU == OPT_MCU_STM32F1 && defined(STM32F1_SYNOPSYS)) || \
-      CFG_TUSB_MCU == OPT_MCU_STM32F2 || \
-      CFG_TUSB_MCU == OPT_MCU_STM32F4 || \
-      CFG_TUSB_MCU == OPT_MCU_STM32F7 || \
-      CFG_TUSB_MCU == OPT_MCU_STM32H7 || \
-      (CFG_TUSB_MCU == OPT_MCU_STM32L4 && defined(STM32L4_SYNOPSYS)) \
+        CFG_TUSB_MCU == OPT_MCU_STM32F2 || \
+        CFG_TUSB_MCU == OPT_MCU_STM32F4 || \
+        CFG_TUSB_MCU == OPT_MCU_STM32F7 || \
+        CFG_TUSB_MCU == OPT_MCU_STM32H7 || \
+        (CFG_TUSB_MCU == OPT_MCU_STM32L4 && defined(STM32L4_SYNOPSYS)) \
     )
 
 // EP_MAX       : Max number of bi-directional endpoints including EP0
 // EP_FIFO_SIZE : Size of dedicated USB SRAM
 #if CFG_TUSB_MCU == OPT_MCU_STM32F1
-  #include "stm32f1xx.h"
-  #define EP_MAX_FS       4
-  #define EP_FIFO_SIZE_FS 1280
+#include "stm32f1xx.h"
+#define EP_MAX_FS       4
+#define EP_FIFO_SIZE_FS 1280
 
 #elif CFG_TUSB_MCU == OPT_MCU_STM32F2
-  #include "stm32f2xx.h"
-  #define EP_MAX_FS       USB_OTG_FS_MAX_IN_ENDPOINTS
-  #define EP_FIFO_SIZE_FS USB_OTG_FS_TOTAL_FIFO_SIZE
+#include "stm32f2xx.h"
+#define EP_MAX_FS       USB_OTG_FS_MAX_IN_ENDPOINTS
+#define EP_FIFO_SIZE_FS USB_OTG_FS_TOTAL_FIFO_SIZE
 
 #elif CFG_TUSB_MCU == OPT_MCU_STM32F4
-  #include "stm32f4xx.h"
-  #define EP_MAX_FS       USB_OTG_FS_MAX_IN_ENDPOINTS
-  #define EP_FIFO_SIZE_FS USB_OTG_FS_TOTAL_FIFO_SIZE
-  #define EP_MAX_HS       USB_OTG_HS_MAX_IN_ENDPOINTS
-  #define EP_FIFO_SIZE_HS USB_OTG_HS_TOTAL_FIFO_SIZE
+#include "stm32f4xx.h"
+#define EP_MAX_FS       USB_OTG_FS_MAX_IN_ENDPOINTS
+#define EP_FIFO_SIZE_FS USB_OTG_FS_TOTAL_FIFO_SIZE
+#define EP_MAX_HS       USB_OTG_HS_MAX_IN_ENDPOINTS
+#define EP_FIFO_SIZE_HS USB_OTG_HS_TOTAL_FIFO_SIZE
 
 #elif CFG_TUSB_MCU == OPT_MCU_STM32H7
-  #include "stm32h7xx.h"
-  #define EP_MAX_FS       9
-  #define EP_FIFO_SIZE_FS 4096
-  #define EP_MAX_HS       9
-  #define EP_FIFO_SIZE_HS 4096
+#include "stm32h7xx.h"
+#define EP_MAX_FS       9
+#define EP_FIFO_SIZE_FS 4096
+#define EP_MAX_HS       9
+#define EP_FIFO_SIZE_HS 4096
 
 #elif CFG_TUSB_MCU == OPT_MCU_STM32F7
-  #include "stm32f7xx.h"
-  #define EP_MAX_FS       6
-  #define EP_FIFO_SIZE_FS 1280
-  #define EP_MAX_HS       9
-  #define EP_FIFO_SIZE_HS 4096
+#include "stm32f7xx.h"
+#define EP_MAX_FS       6
+#define EP_FIFO_SIZE_FS 1280
+#define EP_MAX_HS       9
+#define EP_FIFO_SIZE_HS 4096
 
 #elif CFG_TUSB_MCU == OPT_MCU_STM32L4
-  #include "stm32l4xx.h"
-  #define EP_MAX_FS       6
-  #define EP_FIFO_SIZE_FS 1280
+#include "stm32l4xx.h"
+#define EP_MAX_FS       6
+#define EP_FIFO_SIZE_FS 1280
 
 #else
-  #error "Unsupported MCUs"
+#error "Unsupported MCUs"
 
 #endif
 
@@ -104,16 +105,16 @@
 
 // On STM32 we associate Port0 to OTG_FS, and Port1 to OTG_HS
 #if TUD_OPT_RHPORT == 0
-  #define EP_MAX            EP_MAX_FS
-  #define EP_FIFO_SIZE      EP_FIFO_SIZE_FS
-  #define RHPORT_REGS_BASE  USB_OTG_FS_PERIPH_BASE
-  #define RHPORT_IRQn       OTG_FS_IRQn
+#define EP_MAX            EP_MAX_FS
+#define EP_FIFO_SIZE      EP_FIFO_SIZE_FS
+#define RHPORT_REGS_BASE  USB_OTG_FS_PERIPH_BASE
+#define RHPORT_IRQn       OTG_FS_IRQn
 
 #else
-  #define EP_MAX            EP_MAX_HS
-  #define EP_FIFO_SIZE      EP_FIFO_SIZE_HS
-  #define RHPORT_REGS_BASE  USB_OTG_HS_PERIPH_BASE
-  #define RHPORT_IRQn       OTG_HS_IRQn
+#define EP_MAX            EP_MAX_HS
+#define EP_FIFO_SIZE      EP_FIFO_SIZE_HS
+#define RHPORT_REGS_BASE  USB_OTG_HS_PERIPH_BASE
+#define RHPORT_IRQn       OTG_HS_IRQn
 #endif
 
 #define GLOBAL_BASE(_port)     ((USB_OTG_GlobalTypeDef*) RHPORT_REGS_BASE)
@@ -135,7 +136,17 @@ typedef struct {
   uint8_t * buffer;
   uint16_t total_len;
   uint16_t max_size;
+  uint8_t interval;
 } xfer_ctl_t;
+
+// EP size and transfer type report
+typedef struct TU_ATTR_PACKED {
+  // The following format may look complicated but it is the most elegant way of addressing the required fields: EP number, EP direction, and EP transfer type.
+  // The codes assigned to those fields, according to the USB specification, can be neatly used as indices.
+  uint16_t ep_size[EP_MAX][2];          ///< dim 1: EP number, dim 2: EP direction denoted by TUSB_DIR_OUT (= 0) and TUSB_DIR_IN (= 1)
+  bool ep_transfer_type[EP_MAX][2][4];      ///< dim 1: EP number, dim 2: EP direction, dim 3: transfer type, where 0 = Control, 1 = Isochronous, 2 = Bulk, and 3 = Interrupt
+  ///< I know very well that EP0 can only be used as control EP and we waste space here but for the sake of simplicity we accept that. It is used in a non-persistent way anyway!
+} ep_sz_tt_report_t;
 
 typedef volatile uint32_t * usb_fifo_t;
 
@@ -300,7 +311,6 @@ static void set_speed(uint8_t rhport, tusb_speed_t speed)
   dev->DCFG |= (bitvalue << USB_OTG_DCFG_DSPD_Pos);
 }
 
-
 #if defined(USB_HS_PHYC)
 static bool USB_HS_PHYCInit(void)
 {
@@ -366,7 +376,7 @@ static void edpt_schedule_packets(uint8_t rhport, uint8_t const epnum, uint8_t c
 
     in_ep[epnum].DIEPCTL |= USB_OTG_DIEPCTL_EPENA | USB_OTG_DIEPCTL_CNAK;
     // For ISO endpoint set correct odd/even bit for next frame.
-    if ((in_ep[epnum].DIEPCTL & USB_OTG_DIEPCTL_EPTYP) == USB_OTG_DIEPCTL_EPTYP_0)
+    if ((in_ep[epnum].DIEPCTL & USB_OTG_DIEPCTL_EPTYP) == USB_OTG_DIEPCTL_EPTYP_0 && (XFER_CTL_BASE(epnum, dir))->interval == 1)
     {
       // Take odd/even bit from frame counter.
       uint32_t const odd_frame_now = (dev->DSTS & (1u << USB_OTG_DSTS_FNSOF_Pos));
@@ -383,6 +393,12 @@ static void edpt_schedule_packets(uint8_t rhport, uint8_t const epnum, uint8_t c
         ((total_bytes << USB_OTG_DOEPTSIZ_XFRSIZ_Pos) & USB_OTG_DOEPTSIZ_XFRSIZ_Msk);
 
     out_ep[epnum].DOEPCTL |= USB_OTG_DOEPCTL_EPENA | USB_OTG_DOEPCTL_CNAK;
+    if ((out_ep[epnum].DOEPCTL & USB_OTG_DOEPCTL_EPTYP) == USB_OTG_DOEPCTL_EPTYP_0 && (XFER_CTL_BASE(epnum, dir))->interval == 1)
+    {
+      // Take odd/even bit from frame counter.
+      uint32_t const odd_frame_now = (dev->DSTS & (1u << USB_OTG_DSTS_FNSOF_Pos));
+      out_ep[epnum].DOEPCTL |= (odd_frame_now ? USB_OTG_DOEPCTL_SD0PID_SEVNFRM_Msk : USB_OTG_DOEPCTL_SODDFRM_Msk);
+    }
   }
 }
 
@@ -455,8 +471,8 @@ void dcd_init (uint8_t rhport)
   if ( rhport == 0 ) usb_otg->GCCFG |= USB_OTG_GCCFG_PWRDWN;
 
   usb_otg->GINTMSK |= USB_OTG_GINTMSK_USBRST   | USB_OTG_GINTMSK_ENUMDNEM |
-                      USB_OTG_GINTMSK_USBSUSPM | USB_OTG_GINTMSK_WUIM     |
-                      USB_OTG_GINTMSK_RXFLVLM  | (USE_SOF ? USB_OTG_GINTMSK_SOFM : 0);
+      USB_OTG_GINTMSK_USBSUSPM | USB_OTG_GINTMSK_WUIM     |
+      USB_OTG_GINTMSK_RXFLVLM  | (USE_SOF ? USB_OTG_GINTMSK_SOFM : 0);
 
   // Enable global interrupt
   usb_otg->GAHBCFG |= USB_OTG_GAHBCFG_GINT;
@@ -534,12 +550,13 @@ bool dcd_edpt_open (uint8_t rhport, tusb_desc_endpoint_t const * desc_edpt)
 
   xfer_ctl_t * xfer = XFER_CTL_BASE(epnum, dir);
   xfer->max_size = desc_edpt->wMaxPacketSize.size;
+  xfer->interval = desc_edpt->bInterval;
 
   if(dir == TUSB_DIR_OUT)
   {
     out_ep[epnum].DOEPCTL |= (1 << USB_OTG_DOEPCTL_USBAEP_Pos) |
-                             (desc_edpt->bmAttributes.xfer << USB_OTG_DOEPCTL_EPTYP_Pos) |
-                             (desc_edpt->wMaxPacketSize.size << USB_OTG_DOEPCTL_MPSIZ_Pos);
+        (desc_edpt->bmAttributes.xfer << USB_OTG_DOEPCTL_EPTYP_Pos) |
+        (desc_edpt->wMaxPacketSize.size << USB_OTG_DOEPCTL_MPSIZ_Pos);
 
     dev->DAINTMSK |= (1 << (USB_OTG_DAINTMSK_OEPM_Pos + epnum));
   }
@@ -571,7 +588,7 @@ bool dcd_edpt_open (uint8_t rhport, tusb_desc_endpoint_t const * desc_edpt)
     //    - Bulk/ISO is max(EPSize, remaining-fifo / non-opened-EPIN)
 
     uint16_t const fifo_remaining = EP_FIFO_SIZE/4 - _allocated_fifo_words;
-    uint16_t fifo_size = desc_edpt->wMaxPacketSize.size / 4;
+    uint16_t fifo_size = (desc_edpt->wMaxPacketSize.size + 3) / 4;  // +3 for rounding up to next full word
 
     if ( desc_edpt->bmAttributes.xfer != TUSB_XFER_INTERRUPT )
     {
@@ -595,10 +612,10 @@ bool dcd_edpt_open (uint8_t rhport, tusb_desc_endpoint_t const * desc_edpt)
     _allocated_fifo_words += fifo_size;
 
     in_ep[epnum].DIEPCTL |= (1 << USB_OTG_DIEPCTL_USBAEP_Pos) |
-                            (epnum << USB_OTG_DIEPCTL_TXFNUM_Pos) |
-                            (desc_edpt->bmAttributes.xfer << USB_OTG_DIEPCTL_EPTYP_Pos) |
-                            (desc_edpt->bmAttributes.xfer != TUSB_XFER_ISOCHRONOUS ? USB_OTG_DOEPCTL_SD0PID_SEVNFRM : 0) |
-                            (desc_edpt->wMaxPacketSize.size << USB_OTG_DIEPCTL_MPSIZ_Pos);
+        (epnum << USB_OTG_DIEPCTL_TXFNUM_Pos) |
+        (desc_edpt->bmAttributes.xfer << USB_OTG_DIEPCTL_EPTYP_Pos) |
+        (desc_edpt->bmAttributes.xfer != TUSB_XFER_ISOCHRONOUS ? USB_OTG_DOEPCTL_SD0PID_SEVNFRM : 0) |
+        (desc_edpt->wMaxPacketSize.size << USB_OTG_DIEPCTL_MPSIZ_Pos);
 
     dev->DAINTMSK |= (1 << (USB_OTG_DAINTMSK_IEPM_Pos + epnum));
   }
@@ -821,7 +838,7 @@ static void handle_rxflvl_ints(uint8_t rhport, USB_OTG_OUTEndpointTypeDef * out_
 
   switch(pktsts) {
     case 0x01: // Global OUT NAK (Interrupt)
-    break;
+      break;
 
     case 0x02: // Out packet recvd
     {
@@ -849,18 +866,18 @@ static void handle_rxflvl_ints(uint8_t rhport, USB_OTG_OUTEndpointTypeDef * out_
 
     case 0x04: // Setup packet done (Interrupt)
       out_ep[epnum].DOEPTSIZ |= (3 << USB_OTG_DOEPTSIZ_STUPCNT_Pos);
-    break;
+      break;
 
     case 0x06: // Setup packet recvd
       // We can receive up to three setup packets in succession, but
       // only the last one is valid.
       _setup_packet[0] = (* rx_fifo);
       _setup_packet[1] = (* rx_fifo);
-    break;
+      break;
 
     default: // Invalid
       TU_BREAKPOINT();
-    break;
+      break;
   }
 }
 
@@ -1040,6 +1057,12 @@ void dcd_int_handler(uint8_t rhport)
     // IEPINT bit read-only
     handle_epin_ints(rhport, dev, in_ep);
   }
+
+//  // Check for Incomplete isochronous IN transfer
+//  if(int_status & USB_OTG_GINTSTS_IISOIXFR) {
+//    printf("      IISOIXFR!\r\n");
+////    TU_LOG2("      IISOIXFR!\r\n");
+//  }
 }
 
 #endif

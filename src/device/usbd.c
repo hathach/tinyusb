@@ -50,7 +50,6 @@ typedef struct
   {
     volatile uint8_t connected    : 1;
     volatile uint8_t addressed    : 1;
-    volatile uint8_t configured   : 1;
     volatile uint8_t suspended    : 1;
 
     uint8_t remote_wakeup_en      : 1; // enable/disable by host
@@ -58,6 +57,7 @@ typedef struct
     uint8_t self_powered          : 1; // configuration descriptor's attribute
   };
 
+  volatile uint8_t cfg_num; // current active configuration (0x00 is not configured)
   uint8_t speed;
 
   uint8_t itf2drv[16];     // map interface number to driver (0xff is invalid)
@@ -129,6 +129,19 @@ static usbd_class_driver_t const _usbd_driver[] =
       .sof              = NULL
   },
   #endif
+
+#if CFG_TUD_AUDIO
+{
+	DRIVER_NAME("AUDIO")
+    .init             = audiod_init,
+	.reset            = audiod_reset,
+    .open             = audiod_open,
+    .control_request  = audiod_control_request,
+    .control_complete = audiod_control_complete,
+    .xfer_cb          = audiod_xfer_cb,
+    .sof              = NULL
+},
+#endif
 
   #if CFG_TUD_MIDI
   {
@@ -325,7 +338,7 @@ tusb_speed_t tud_speed_get(void)
 
 bool tud_mounted(void)
 {
-  return _usbd_dev.configured;
+  return _usbd_dev.cfg_num ? 1 : 0;
 }
 
 bool tud_suspended(void)
@@ -618,8 +631,8 @@ static bool process_control_request(uint8_t rhport, tusb_control_request_t const
 
         case TUSB_REQ_GET_CONFIGURATION:
         {
-          uint8_t cfgnum = _usbd_dev.configured ? 1 : 0;
-          tud_control_xfer(rhport, p_request, &cfgnum, 1);
+          uint8_t cfg_num = _usbd_dev.cfg_num;
+          tud_control_xfer(rhport, p_request, &cfg_num, 1);
         }
         break;
 
@@ -627,8 +640,8 @@ static bool process_control_request(uint8_t rhport, tusb_control_request_t const
         {
           uint8_t const cfg_num = (uint8_t) p_request->wValue;
 
-          if ( !_usbd_dev.configured && cfg_num ) TU_ASSERT( process_set_config(rhport, cfg_num) );
-          _usbd_dev.configured = cfg_num ? 1 : 0;
+          if ( !_usbd_dev.cfg_num && cfg_num ) TU_ASSERT( process_set_config(rhport, cfg_num) );
+          _usbd_dev.cfg_num = cfg_num;
 
           tud_control_status(rhport, p_request);
         }
@@ -975,7 +988,7 @@ void dcd_event_handler(dcd_event_t const * event, bool in_isr)
     case DCD_EVENT_UNPLUGGED:
       _usbd_dev.connected  = 0;
       _usbd_dev.addressed  = 0;
-      _usbd_dev.configured = 0;
+      _usbd_dev.cfg_num    = 0;
       _usbd_dev.suspended  = 0;
       osal_queue_send(_usbd_q, event, in_isr);
     break;

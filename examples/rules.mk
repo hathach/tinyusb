@@ -33,6 +33,7 @@ SRC_C += \
 	src/common/tusb_fifo.c \
 	src/device/usbd.c \
 	src/device/usbd_control.c \
+	src/class/audio/audio_device.c \
 	src/class/cdc/cdc_device.c \
 	src/class/dfu/dfu_rt_device.c \
 	src/class/hid/hid_device.c \
