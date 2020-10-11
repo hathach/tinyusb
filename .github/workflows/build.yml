@@ -9,7 +9,7 @@ jobs:
     steps:
     - name: Setup Ruby
       uses: actions/setup-ruby@v1
-      
+
     - name: Checkout TinyUSB
       uses: actions/checkout@v2
 
@@ -27,6 +27,7 @@ jobs:
       fail-fast: false
       matrix:
         example:
+        - 'device/audio_test'
         - 'device/board_test'
         - 'device/cdc_dual_ports'
         - 'device/cdc_msc'
@@ -35,13 +36,14 @@ jobs:
         - 'device/hid_composite'
         - 'device/hid_composite_freertos'
         - 'device/hid_generic_inout'
+        - 'device/hid_multiple_interface'
         - 'device/midi_test'
         - 'device/msc_dual_lun'
         - 'device/net_lwip_webserver'
         - 'device/usbtmc'
         - 'device/webusb_serial'
         - 'host/cdc_msc_hid'
-        
+
     steps:
     - name: Setup Python
       uses: actions/setup-python@v1
@@ -65,21 +67,21 @@ jobs:
         npm install --global xpm
         xpm install --global @xpack-dev-tools/arm-none-eabi-gcc@latest
         xpm install --global @xpack-dev-tools/riscv-none-embed-gcc@latest
-        echo "::add-path::`echo $HOME/opt/xPacks/@xpack-dev-tools/arm-none-eabi-gcc/*/.content/bin`"
-        echo "::add-path::`echo $HOME/opt/xPacks/@xpack-dev-tools/riscv-none-embed-gcc/*/.content/bin`"
+        echo `echo $HOME/opt/xPacks/@xpack-dev-tools/arm-none-eabi-gcc/*/.content/bin` >> $GITHUB_PATH
+        echo `echo $HOME/opt/xPacks/@xpack-dev-tools/riscv-none-embed-gcc/*/.content/bin` >> $GITHUB_PATH
 
         # TI MSP430 GCC
         mkdir -p /tmp/dl/
         [ -f "/tmp/dl/msp430-gcc.tar.bz2" ] || wget --progress=dot:mega $MSP430GCC_URL -O /tmp/dl/msp430-gcc.tar.bz2
         tar -C $HOME -xaf /tmp/dl/msp430-gcc.tar.bz2
-        echo "::add-path::`echo $HOME/msp430-gcc-*_linux64/bin`"
+        echo `echo $HOME/msp430-gcc-*_linux64/bin` >> $GITHUB_PATH
 
     - name: Checkout TinyUSB
       uses: actions/checkout@v2
       with:
         # Cannot do submodule checkout here since LWIP's git server cannot checkout unadventised commits (it must use tags)
         submodules: 'false'
-        
+
     - name: Checkout Submodules
       run: |
         git submodule sync --recursive

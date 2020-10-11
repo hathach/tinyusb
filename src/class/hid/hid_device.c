@@ -1,4 +1,4 @@
-/* 
+/*
  * The MIT License (MIT)
  *
  * Copyright (c) 2019 Ha Thach (tinyusb.org)
@@ -57,33 +57,34 @@ typedef struct
 CFG_TUSB_MEM_SECTION static hidd_interface_t _hidd_itf[CFG_TUD_HID];
 
 /*------------- Helpers -------------*/
-static inline hidd_interface_t* get_interface_by_itfnum(uint8_t itf_num)
+static inline uint8_t get_index_by_itfnum(uint8_t itf_num)
 {
-  for (uint8_t i=0; i < CFG_TUD_HID; i++ )
-  {
-    if ( itf_num == _hidd_itf[i].itf_num ) return &_hidd_itf[i];
-  }
+	for (uint8_t i=0; i < CFG_TUD_HID; i++ )
+	{
+		if ( itf_num == _hidd_itf[i].itf_num ) return i;
+	}
 
-  return NULL;
+	return 0xFF;
 }
 
 //--------------------------------------------------------------------+
 // APPLICATION API
 //--------------------------------------------------------------------+
-bool tud_hid_ready(void)
+bool tud_hid_n_ready(uint8_t itf)
 {
-  uint8_t itf = 0;
   uint8_t const ep_in = _hidd_itf[itf].ep_in;
-  return tud_ready() && (ep_in != 0) && usbd_edpt_ready(TUD_OPT_RHPORT, ep_in);
+  return tud_ready() && (ep_in != 0) && !usbd_edpt_busy(TUD_OPT_RHPORT, ep_in);
 }
 
-bool tud_hid_report(uint8_t report_id, void const* report, uint8_t len)
+bool tud_hid_n_report(uint8_t itf, uint8_t report_id, void const* report, uint8_t len)
 {
-  TU_VERIFY( tud_hid_ready() );
-
-  uint8_t itf = 0;
+  uint8_t const rhport = 0;
   hidd_interface_t * p_hid = &_hidd_itf[itf];
 
+  // claim endpoint
+  TU_VERIFY( usbd_edpt_claim(rhport, p_hid->ep_in) );
+
+  // prepare data
   if (report_id)
   {
     len = tu_min8(len, CFG_TUD_HID_EP_BUFSIZE-1);
@@ -101,16 +102,15 @@ bool tud_hid_report(uint8_t report_id, void const* report, uint8_t len)
   return usbd_edpt_xfer(TUD_OPT_RHPORT, p_hid->ep_in, p_hid->epin_buf, len);
 }
 
-bool tud_hid_boot_mode(void)
+bool tud_hid_n_boot_mode(uint8_t itf)
 {
-  uint8_t itf = 0;
   return _hidd_itf[itf].boot_mode;
 }
 
 //--------------------------------------------------------------------+
 // KEYBOARD API
 //--------------------------------------------------------------------+
-bool tud_hid_keyboard_report(uint8_t report_id, uint8_t modifier, uint8_t keycode[6])
+bool tud_hid_n_keyboard_report(uint8_t itf, uint8_t report_id, uint8_t modifier, uint8_t keycode[6])
 {
   hid_keyboard_report_t report;
 
@@ -124,13 +124,13 @@ bool tud_hid_keyboard_report(uint8_t report_id, uint8_t modifier, uint8_t keycod
     tu_memclr(report.keycode, 6);
   }
 
-  return tud_hid_report(report_id, &report, sizeof(report));
+  return tud_hid_n_report(itf, report_id, &report, sizeof(report));
 }
 
 //--------------------------------------------------------------------+
 // MOUSE APPLICATION API
 //--------------------------------------------------------------------+
-bool tud_hid_mouse_report(uint8_t report_id, uint8_t buttons, int8_t x, int8_t y, int8_t vertical, int8_t horizontal)
+bool tud_hid_n_mouse_report(uint8_t itf, uint8_t report_id, uint8_t buttons, int8_t x, int8_t y, int8_t vertical, int8_t horizontal)
 {
   hid_mouse_report_t report =
   {
@@ -141,7 +141,7 @@ bool tud_hid_mouse_report(uint8_t report_id, uint8_t buttons, int8_t x, int8_t y
     .pan     = horizontal
   };
 
-  return tud_hid_report(report_id, &report, sizeof(report));
+  return tud_hid_n_report(itf, report_id, &report, sizeof(report));
 }
 
 //--------------------------------------------------------------------+
@@ -194,7 +194,7 @@ uint16_t hidd_open(uint8_t rhport, tusb_desc_interface_t const * desc_itf, uint1
 
   p_hid->boot_mode = false; // default mode is REPORT
   p_hid->itf_num   = desc_itf->bInterfaceNumber;
-  
+
   // Use offsetof to avoid pointer to the odd/misaligned address
   memcpy(&p_hid->report_desc_len, (uint8_t*) p_hid->hid_descriptor + offsetof(tusb_hid_descriptor_hid_t, wReportLength), 2);
 
@@ -217,8 +217,10 @@ bool hidd_control_request(uint8_t rhport, tusb_control_request_t const * request
 {
   TU_VERIFY(request->bmRequestType_bit.recipient == TUSB_REQ_RCPT_INTERFACE);
 
-  hidd_interface_t* p_hid = get_interface_by_itfnum( (uint8_t) request->wIndex );
-  TU_ASSERT(p_hid);
+  uint8_t const hid_itf = get_index_by_itfnum((uint8_t) request->wIndex);
+  TU_VERIFY(hid_itf < CFG_TUD_HID);
+
+  hidd_interface_t* p_hid = &_hidd_itf[hid_itf];
 
   if (request->bmRequestType_bit.type == TUSB_REQ_TYPE_STANDARD)
   {
@@ -234,7 +236,11 @@ bool hidd_control_request(uint8_t rhport, tusb_control_request_t const * request
     }
     else if (request->bRequest == TUSB_REQ_GET_DESCRIPTOR && desc_type == HID_DESC_TYPE_REPORT)
     {
-      uint8_t const * desc_report = tud_hid_descriptor_report_cb();
+      uint8_t const * desc_report = tud_hid_descriptor_report_cb(
+          #if CFG_TUD_HID > 1
+          hid_itf // TODO for backward compatible callback, remove later when appropriate
+          #endif
+      );
       tud_control_xfer(rhport, request, (void*) desc_report, p_hid->report_desc_len);
     }
     else
@@ -253,7 +259,12 @@ bool hidd_control_request(uint8_t rhport, tusb_control_request_t const * request
         uint8_t const report_type = tu_u16_high(request->wValue);
         uint8_t const report_id   = tu_u16_low(request->wValue);
 
-        uint16_t xferlen  = tud_hid_get_report_cb(report_id, (hid_report_type_t) report_type, p_hid->epin_buf, request->wLength);
+        uint16_t xferlen  = tud_hid_get_report_cb(
+            #if CFG_TUD_HID > 1
+            hid_itf, // TODO for backward compatible callback, remove later when appropriate
+            #endif
+            report_id, (hid_report_type_t) report_type, p_hid->epin_buf, request->wLength
+        );
         TU_ASSERT( xferlen > 0 );
 
         tud_control_xfer(rhport, request, p_hid->epin_buf, xferlen);
@@ -270,7 +281,12 @@ bool hidd_control_request(uint8_t rhport, tusb_control_request_t const * request
         if ( tud_hid_set_idle_cb )
         {
           // stall request if callback return false
-          if ( !tud_hid_set_idle_cb(p_hid->idle_rate) ) return false;
+          TU_VERIFY( tud_hid_set_idle_cb(
+                          #if CFG_TUD_HID > 1
+                          hid_itf, // TODO for backward compatible callback, remove later when appropriate
+                          #endif
+                          p_hid->idle_rate)
+          );
         }
 
         tud_control_status(rhport, request);
@@ -291,7 +307,15 @@ bool hidd_control_request(uint8_t rhport, tusb_control_request_t const * request
       case HID_REQ_CONTROL_SET_PROTOCOL:
         p_hid->boot_mode = 1 - request->wValue; // 0 is Boot, 1 is Report protocol
 
-        if (tud_hid_boot_mode_cb) tud_hid_boot_mode_cb(p_hid->boot_mode);
+        if (tud_hid_boot_mode_cb)
+        {
+          tud_hid_boot_mode_cb(
+              #if CFG_TUD_HID > 1
+              hid_itf, // TODO for backward compatible callback, remove later when appropriate
+              #endif
+              p_hid->boot_mode
+          );
+        }
 
         tud_control_status(rhport, request);
       break;
@@ -311,8 +335,11 @@ bool hidd_control_request(uint8_t rhport, tusb_control_request_t const * request
 bool hidd_control_complete(uint8_t rhport, tusb_control_request_t const * p_request)
 {
   (void) rhport;
-  hidd_interface_t* p_hid = get_interface_by_itfnum( (uint8_t) p_request->wIndex );
-  TU_ASSERT(p_hid);
+
+  uint8_t const hid_itf = get_index_by_itfnum((uint8_t) p_request->wIndex);
+  TU_VERIFY(hid_itf < CFG_TUD_HID);
+
+  hidd_interface_t* p_hid = &_hidd_itf[hid_itf];
 
   if (p_request->bmRequestType_bit.type == TUSB_REQ_TYPE_CLASS &&
       p_request->bRequest == HID_REQ_CONTROL_SET_REPORT)
@@ -321,7 +348,12 @@ bool hidd_control_complete(uint8_t rhport, tusb_control_request_t const * p_requ
     uint8_t const report_type = tu_u16_high(p_request->wValue);
     uint8_t const report_id   = tu_u16_low(p_request->wValue);
 
-    tud_hid_set_report_cb(report_id, (hid_report_type_t) report_type, p_hid->epout_buf, p_request->wLength);
+    tud_hid_set_report_cb(
+        #if CFG_TUD_HID > 1
+        hid_itf, // TODO for backward compatible callback, remove later when appropriate
+        #endif
+        report_id, (hid_report_type_t) report_type, p_hid->epout_buf, p_request->wLength
+    );
   }
 
   return true;
@@ -343,7 +375,12 @@ bool hidd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint32_
 
   if (ep_addr == p_hid->ep_out)
   {
-    tud_hid_set_report_cb(0, HID_REPORT_TYPE_INVALID, p_hid->epout_buf, xferred_bytes);
+    tud_hid_set_report_cb(
+        #if CFG_TUD_HID > 1
+        itf, // TODO for backward compatible callback, remove later when appropriate
+        #endif
+        0, HID_REPORT_TYPE_INVALID, p_hid->epout_buf, xferred_bytes
+    );
     TU_ASSERT(usbd_edpt_xfer(rhport, p_hid->ep_out, p_hid->epout_buf, sizeof(p_hid->epout_buf)));
   }
 

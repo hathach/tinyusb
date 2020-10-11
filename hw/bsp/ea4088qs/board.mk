@@ -42,7 +42,6 @@ FREERTOS_PORT = ARM_CM4F
 
 # For flash-jlink target
 JLINK_DEVICE = LPC4088
-JLINK_IF = swd
 
 # flash using jlink
 flash: flash-jlink

@@ -44,7 +44,6 @@ FREERTOS_PORT = ARM_CM4F
 
 # For flash-jlink target
 JLINK_DEVICE = NUC505YO13Y
-JLINK_IF = swd
 
 # Note
 # To be able to program the SPI flash, it need to boot with ICP mode "1011". 

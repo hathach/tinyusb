@@ -44,7 +44,6 @@ FREERTOS_PORT = ARM_CM4F
 
 # For flash-jlink target
 JLINK_DEVICE = stm32f407vg
-JLINK_IF = swd
 
 # flash target using on-board stlink
 flash: flash-stlink

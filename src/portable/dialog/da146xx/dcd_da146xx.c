@@ -40,6 +40,24 @@
 // We disable SOF for now until needed later on
 #define USE_SOF           0
 
+// Size of RX or TX FIFO.
+#define FIFO_SIZE         64
+
+#ifndef TU_DA1469X_FIFO_READ_THRESHOLD
+// RX FIFO is 64 bytes. When endpoint size is greater then 64, FIFO warning interrupt
+// is enabled to allow read incoming data during frame reception.
+// It is possible to stay in interrupt reading whole packet at once, but it may be
+// more efficient for MCU to read as much data as possible and when FIFO is hardly
+// filled exit interrupt handler waiting for next FIFO warning level interrupt
+// or packet end.
+// When running at 96MHz code that reads FIFO based on number of bytes stored in
+// USB_RXSx_REG.USB_RXCOUNT takes enough time to fill FIFO with two additional bytes.
+// Settings this threshold above this allows to leave interrupt handler and wait
+// for more bytes to before next ISR. This allows reduce overall ISR time to 1/3
+// of time that would be needed if ISR read as fast as possible.
+#define TU_DA1469X_FIFO_READ_THRESHOLD  4
+#endif
+
 #define EP_MAX            4
 
 #define NFSR_NODE_RESET         0
@@ -119,6 +137,54 @@ typedef struct
 
 #define EP_REGS(first_ep_reg) (EPx_REGS*)(&USB->first_ep_reg)
 
+// DMA channel pair to use, channel 6 will be used for RX channel 7 for TX direction.
+#ifndef TU_DA146XX_DMA_RX_CHANNEL
+#define TU_DA146XX_DMA_RX_CHANNEL 6
+#endif
+#define DA146XX_DMA_USB_MUX       (0x6 << (TU_DA146XX_DMA_RX_CHANNEL * 2))
+#define DA146XX_DMA_USB_MUX_MASK  (0xF << (TU_DA146XX_DMA_RX_CHANNEL * 2))
+
+typedef struct
+{
+  __IOM uint32_t DMAx_A_START_REG;
+  __IOM uint32_t DMAx_B_START_REG;
+  __IOM uint32_t DMAx_INT_REG;
+  __IOM uint32_t DMAx_LEN_REG;
+  __IOM uint32_t DMAx_CTRL_REG;
+  __IOM uint32_t DMAx_IDX_REG;
+  __IM uint32_t RESERVED[2]; // Extend structure size for array like usage, registers for each channel are 0x20 bytes apart.
+} da146xx_dma_channel_t;
+
+#define DMA_CHANNEL_REGS(n) ((da146xx_dma_channel_t *)(DMA) + n)
+#define RX_DMA_REGS  DMA_CHANNEL_REGS(TU_DA146XX_DMA_RX_CHANNEL)
+#define TX_DMA_REGS  DMA_CHANNEL_REGS((TU_DA146XX_DMA_RX_CHANNEL) + 1)
+
+#define RX_DMA_START ((1 << DMA_DMA0_CTRL_REG_DMA_ON_Pos) |\
+                      (0 << DMA_DMA0_CTRL_REG_BW_Pos) | \
+                      (1 << DMA_DMA0_CTRL_REG_DREQ_MODE_Pos) | \
+                      (1 << DMA_DMA0_CTRL_REG_BINC_Pos) | \
+                      (0 << DMA_DMA0_CTRL_REG_AINC_Pos) | \
+                      (0 << DMA_DMA0_CTRL_REG_CIRCULAR_Pos) | \
+                      (2 << DMA_DMA0_CTRL_REG_DMA_PRIO_Pos) | \
+                      (0 << DMA_DMA0_CTRL_REG_DMA_IDLE_Pos) | \
+                      (0 << DMA_DMA0_CTRL_REG_DMA_INIT_Pos) | \
+                      (0 << DMA_DMA0_CTRL_REG_REQ_SENSE_Pos) | \
+                      (0 << DMA_DMA0_CTRL_REG_BURST_MODE_Pos) | \
+                      (0 << DMA_DMA0_CTRL_REG_BUS_ERROR_DETECT_Pos))
+
+#define TX_DMA_START ((1 << DMA_DMA0_CTRL_REG_DMA_ON_Pos) |\
+                      (0 << DMA_DMA0_CTRL_REG_BW_Pos) | \
+                      (1 << DMA_DMA0_CTRL_REG_DREQ_MODE_Pos) | \
+                      (0 << DMA_DMA0_CTRL_REG_BINC_Pos) | \
+                      (1 << DMA_DMA0_CTRL_REG_AINC_Pos) | \
+                      (0 << DMA_DMA0_CTRL_REG_CIRCULAR_Pos) | \
+                      (2 << DMA_DMA0_CTRL_REG_DMA_PRIO_Pos) | \
+                      (0 << DMA_DMA0_CTRL_REG_DMA_IDLE_Pos) | \
+                      (0 << DMA_DMA0_CTRL_REG_DMA_INIT_Pos) | \
+                      (1 << DMA_DMA0_CTRL_REG_REQ_SENSE_Pos) | \
+                      (0 << DMA_DMA0_CTRL_REG_BURST_MODE_Pos) | \
+                      (0 << DMA_DMA0_CTRL_REG_BUS_ERROR_DETECT_Pos))
+
 // Dialog register fields and bit mask are very long. Filed masks repeat register names.
 // Those convenience macros are a way to reduce complexity of register modification lines.
 #define GET_BIT(val, field) (val & field ## _Msk) >> field ## _Pos
@@ -144,6 +210,8 @@ typedef struct {
   uint8_t data1 : 1;
   // Endpoint is stalled
   uint8_t stall : 1;
+  // ISO endpoint
+  uint8_t iso : 1;
 } xfer_ctl_t;
 
 static struct
@@ -151,6 +219,8 @@ static struct
   bool vbus_present;
   bool in_reset;
   xfer_ctl_t xfer_status[EP_MAX][2];
+  // Endpoints that use DMA, one for each direction
+  uint8_t dma_ep[2];
 } _dcd =
 {
   .vbus_present = false,
@@ -215,15 +285,12 @@ void tusb_vbus_changed(bool present)
   }
 }
 
-static void transmit_packet(xfer_ctl_t * xfer)
+static void fill_tx_fifo(xfer_ctl_t * xfer)
 {
   int left_to_send;
   uint8_t const *src;
   EPx_REGS *regs = xfer->regs;
-  uint32_t txc;
-
-  txc = USB_USB_TXC1_REG_USB_TX_EN_Msk;
-  if (xfer->data1) txc |= USB_USB_TXC1_REG_USB_TOGGLE_TX_Msk;
+  uint8_t const epnum = tu_edpt_number(xfer->ep_addr);
 
   src = &xfer->buffer[xfer->transferred];
   left_to_send = xfer->total_len - xfer->transferred;
@@ -240,53 +307,149 @@ static void transmit_packet(xfer_ctl_t * xfer)
     xfer->last_packet_size++;
     left_to_send--;
   }
-  if (tu_edpt_number(xfer->ep_addr) != 0)
+  if (epnum != 0)
   {
     if (left_to_send > 0)
     {
       // Max packet size is set to value greater then FIFO. Enable fifo level warning
       // to handle larger packets.
-      txc |= USB_USB_TXC1_REG_USB_TFWL_Msk;
+      regs->txc |= (3 << USB_USB_TXC1_REG_USB_TFWL_Pos);
+      USB->USB_FWMSK_REG |= 1 << (epnum - 1 + USB_USB_FWMSK_REG_USB_M_TXWARN31_Pos);
     }
     else
     {
+      xfer->regs->txc &= ~USB_USB_TXC1_REG_USB_TFWL_Msk;
+      USB->USB_FWMSK_REG &= ~(1 << (epnum - 1 + USB_USB_FWMSK_REG_USB_M_TXWARN31_Pos));
       // Whole packet already in fifo, no need to refill it later.  Mark last.
-      txc |= USB_USB_TXC1_REG_USB_LAST_Msk;
+      regs->txc |= USB_USB_TXC1_REG_USB_LAST_Msk;
     }
   }
-  // Enable transfer with correct interrupts enabled
-  regs->txc = txc;
 }
 
-static void receive_packet(xfer_ctl_t *xfer, uint16_t bytes_in_fifo)
+static bool try_allocate_dma(uint8_t epnum, uint8_t dir)
+{
+  // TODO: Disable interrupts while checking
+  if (_dcd.dma_ep[dir] == 0)
+  {
+    _dcd.dma_ep[dir] = epnum;
+    if (dir == TUSB_DIR_OUT)
+      USB->USB_DMA_CTRL_REG = (USB->USB_DMA_CTRL_REG & ~USB_USB_DMA_CTRL_REG_USB_DMA_RX_Msk) |
+        ((epnum - 1) << USB_USB_DMA_CTRL_REG_USB_DMA_RX_Pos);
+    else
+      USB->USB_DMA_CTRL_REG = (USB->USB_DMA_CTRL_REG & ~USB_USB_DMA_CTRL_REG_USB_DMA_TX_Msk) |
+        ((epnum - 1) << USB_USB_DMA_CTRL_REG_USB_DMA_TX_Pos);
+    USB->USB_DMA_CTRL_REG |= USB_USB_DMA_CTRL_REG_USB_DMA_EN_Msk;
+  }
+  return _dcd.dma_ep[dir] == epnum;
+}
+
+static void start_rx_dma(volatile void *src, void *dst, uint16_t size)
+{
+  // Setup SRC and DST registers
+  RX_DMA_REGS->DMAx_A_START_REG = (uint32_t)src;
+  RX_DMA_REGS->DMAx_B_START_REG = (uint32_t)dst;
+  // Don't need DMA interrupt, read end is determined by RX_LAST or RX_ERR events.
+  RX_DMA_REGS->DMAx_INT_REG = size - 1;
+  RX_DMA_REGS->DMAx_LEN_REG = size - 1;
+  RX_DMA_REGS->DMAx_CTRL_REG = RX_DMA_START;
+}
+
+static void start_rx_packet(xfer_ctl_t *xfer)
+{
+  uint8_t const epnum = tu_edpt_number(xfer->ep_addr);
+  uint16_t remaining = xfer->total_len - xfer->transferred;
+  uint16_t size = tu_min16(remaining, xfer->max_packet_size);
+
+  xfer->last_packet_size = 0;
+  if (xfer->max_packet_size > FIFO_SIZE && remaining > FIFO_SIZE)
+  {
+    if (try_allocate_dma(epnum, TUSB_DIR_OUT))
+    {
+      start_rx_dma(&xfer->regs->rxd, xfer->buffer + xfer->transferred, size);
+    }
+    else
+    {
+      // Other endpoint is using DMA in that direction, fall back to interrupts.
+      // For endpoint size greater then FIFO size enable FIFO level warning interrupt
+      // when FIFO has less then 17 bytes free.
+      xfer->regs->rxc |= USB_USB_RXC1_REG_USB_RFWL_Msk;
+      USB->USB_FWMSK_REG |= 1 << (epnum - 1 + USB_USB_FWMSK_REG_USB_M_RXWARN31_Pos);
+    }
+  }
+  else if (epnum != 0)
+  {
+    // If max_packet_size would fit in FIFO no need for FIFO level warning interrupt.
+    xfer->regs->rxc &= ~USB_USB_RXC1_REG_USB_RFWL_Msk;
+    USB->USB_FWMSK_REG &= ~(1 << (epnum - 1 + USB_USB_FWMSK_REG_USB_M_RXWARN31_Pos));
+  }
+  xfer->regs->rxc |= USB_USB_RXC1_REG_USB_RX_EN_Msk;
+}
+
+static void start_tx_dma(void *src, volatile void *dst, uint16_t size)
+{
+  // Setup SRC and DST registers
+  TX_DMA_REGS->DMAx_A_START_REG = (uint32_t)src;
+  TX_DMA_REGS->DMAx_B_START_REG = (uint32_t)dst;
+  // Interrupt not needed
+  TX_DMA_REGS->DMAx_INT_REG = size;
+  TX_DMA_REGS->DMAx_LEN_REG = size - 1;
+  TX_DMA_REGS->DMAx_CTRL_REG = TX_DMA_START;
+}
+
+static void start_tx_packet(xfer_ctl_t *xfer)
+{
+  uint8_t const epnum = tu_edpt_number(xfer->ep_addr);
+  uint16_t remaining = xfer->total_len - xfer->transferred;
+  uint16_t size = tu_min16(remaining, xfer->max_packet_size);
+  EPx_REGS *regs = xfer->regs;
+
+  xfer->last_packet_size = 0;
+
+  regs->txc = USB_USB_TXC1_REG_USB_FLUSH_Msk;
+  regs->txc = USB_USB_TXC1_REG_USB_IGN_ISOMSK_Msk;
+  if (xfer->data1) xfer->regs->txc |= USB_USB_TXC1_REG_USB_TOGGLE_TX_Msk;
+
+  if (xfer->max_packet_size > FIFO_SIZE && remaining > FIFO_SIZE && try_allocate_dma(epnum, TUSB_DIR_IN))
+  {
+    // Whole packet will be put in FIFO by DMA. Set LAST bit before start.
+    start_tx_dma(xfer->buffer + xfer->transferred, &regs->txd, size);
+    regs->txc |= USB_USB_TXC1_REG_USB_LAST_Msk;
+  }
+  else
+  {
+    fill_tx_fifo(xfer);
+  }
+  regs->txc |= USB_USB_TXC1_REG_USB_TX_EN_Msk;
+}
+
+static void read_rx_fifo(xfer_ctl_t *xfer, uint16_t bytes_in_fifo)
 {
   EPx_REGS *regs = xfer->regs;
-  uint16_t remaining = xfer->total_len - xfer->transferred;
+  uint16_t remaining = xfer->total_len - xfer->transferred - xfer->last_packet_size;
   uint16_t receive_this_time = bytes_in_fifo;
 
-  if (remaining <= bytes_in_fifo) receive_this_time = remaining;
+  if (remaining < bytes_in_fifo) receive_this_time = remaining;
 
   uint8_t *buf = xfer->buffer + xfer->transferred + xfer->last_packet_size;
 
   for (int i = 0; i < receive_this_time; ++i) buf[i] = regs->rxd;
 
-  xfer->transferred += receive_this_time;
   xfer->last_packet_size += receive_this_time;
 }
 
 static void handle_ep0_rx(void)
 {
-  int packet_size;
+  int fifo_bytes;
   uint32_t rxs0 = USB->USB_RXS0_REG;
 
   xfer_ctl_t *xfer = XFER_CTL_BASE(0, TUSB_DIR_OUT);
 
-  packet_size = GET_BIT(rxs0, USB_USB_RXS0_REG_USB_RCOUNT);
+  fifo_bytes = GET_BIT(rxs0, USB_USB_RXS0_REG_USB_RCOUNT);
   if (rxs0 & USB_USB_RXS0_REG_USB_SETUP_Msk)
   {
     xfer_ctl_t *xfer_in = XFER_CTL_BASE(0, TUSB_DIR_IN);
     // Setup packet is in
-    for (int i = 0; i < packet_size; ++i) _setup_packet[i] = USB->USB_RXD0_REG;
+    for (int i = 0; i < fifo_bytes; ++i) _setup_packet[i] = USB->USB_RXD0_REG;
 
     xfer->stall = 0;
     xfer->data1 = 1;
@@ -302,21 +465,26 @@ static void handle_ep0_rx(void)
     {
       // Toggle bit does not match discard packet
       REG_SET_BIT(USB_RXC0_REG, USB_FLUSH);
+      xfer->last_packet_size = 0;
     }
     else
     {
-      receive_packet(xfer, packet_size);
-      xfer->data1 ^= 1;
+      read_rx_fifo(xfer, fifo_bytes);
+      if (rxs0 & USB_USB_RXS0_REG_USB_RX_LAST_Msk)
+      {
+        xfer->transferred += xfer->last_packet_size;
+        xfer->data1 ^= 1;
 
-      if (xfer->total_len == xfer->transferred || xfer->last_packet_size < xfer->max_packet_size)
-      {
-        dcd_event_xfer_complete(0, 0, xfer->transferred, XFER_RESULT_SUCCESS, true);
-      }
-      else
-      {
+        if (xfer->total_len == xfer->transferred || xfer->last_packet_size < xfer->max_packet_size)
+        {
+          dcd_event_xfer_complete(0, 0, xfer->transferred, XFER_RESULT_SUCCESS, true);
+        }
+        else
+        {
+          // Re-enable reception
+          REG_SET_BIT(USB_RXC0_REG, USB_RX_EN);
+        }
         xfer->last_packet_size = 0;
-        // Re-enable reception
-        REG_SET_BIT(USB_RXC0_REG, USB_RX_EN);
       }
     }
   }
@@ -350,51 +518,79 @@ static void handle_ep0_tx(void)
       // Start from the beginning
       xfer->last_packet_size = 0;
     }
-    transmit_packet(xfer);
+    fill_tx_fifo(xfer);
   }
 }
 
 static void handle_epx_rx_ev(uint8_t ep)
 {
   uint32_t rxs;
-  int packet_size;
+  int fifo_bytes;
   xfer_ctl_t *xfer = XFER_CTL_BASE(ep, TUSB_DIR_OUT);
 
   EPx_REGS *regs = xfer->regs;
 
-  rxs = regs->rxs;
+  do
+  {
+    rxs = regs->rxs;
 
-  if (GET_BIT(rxs, USB_USB_RXS1_REG_USB_RX_ERR))
-  {
-    regs->rxc |= USB_USB_RXC1_REG_USB_FLUSH_Msk;
-  }
-  else
-  {
-    packet_size = GET_BIT(rxs, USB_USB_RXS1_REG_USB_RXCOUNT);
-    receive_packet(xfer, packet_size);
-    if (GET_BIT(rxs, USB_USB_RXS1_REG_USB_RX_LAST))
+    if (GET_BIT(rxs, USB_USB_RXS1_REG_USB_RX_ERR))
     {
-      if (GET_BIT(rxs, USB_USB_RXS1_REG_USB_TOGGLE_RX) != xfer->data1)
+      regs->rxc |= USB_USB_RXC1_REG_USB_FLUSH_Msk;
+      xfer->last_packet_size = 0;
+      if (_dcd.dma_ep[TUSB_DIR_OUT] == ep)
       {
-        // Toggle bit does not match discard packet
-        regs->rxc |= USB_USB_RXC1_REG_USB_FLUSH_Msk;
+        // Stop DMA
+        RX_DMA_REGS->DMAx_CTRL_REG &= ~DMA_DMA0_CTRL_REG_DMA_ON_Msk;
+        // Restart DMA since packet was dropped, all parameters should still work.
+        RX_DMA_REGS->DMAx_CTRL_REG |= DMA_DMA0_CTRL_REG_DMA_ON_Msk;
       }
-      else
+      break;
+    }
+    else
+    {
+      if (_dcd.dma_ep[TUSB_DIR_OUT] == ep)
       {
-        xfer->data1 ^= 1;
-        if (xfer->total_len == xfer->transferred || xfer->last_packet_size < xfer->max_packet_size)
+        // Disable DMA and update last_packet_size with what DMA reported.
+        RX_DMA_REGS->DMAx_CTRL_REG &= ~DMA_DMA0_CTRL_REG_DMA_ON_Msk;
+        xfer->last_packet_size = RX_DMA_REGS->DMAx_IDX_REG;
+        // When DMA did not finished (packet was smaller then MPS), DMAx_IDX_REG holds exact number of bytes transmitted.
+        // When DMA finished value in DMAx_IDX_REG is one less then actual number of transmitted bytes.
+        if (xfer->last_packet_size == RX_DMA_REGS->DMAx_LEN_REG) xfer->last_packet_size++;
+        // Release DMA to use by other endpoints.
+        _dcd.dma_ep[TUSB_DIR_OUT] = 0;
+      }
+      fifo_bytes = GET_BIT(rxs, USB_USB_RXS1_REG_USB_RXCOUNT);
+      // FIFO maybe empty if DMA read it before or it's final iteration and function already read all that was to read.
+      if (fifo_bytes > 0)
+      {
+        read_rx_fifo(xfer, fifo_bytes);
+      }
+      if (GET_BIT(rxs, USB_USB_RXS1_REG_USB_RX_LAST))
+      {
+        if (!xfer->iso && GET_BIT(rxs, USB_USB_RXS1_REG_USB_TOGGLE_RX) != xfer->data1)
         {
-          dcd_event_xfer_complete(0, xfer->ep_addr, xfer->transferred, XFER_RESULT_SUCCESS, true);
+          // Toggle bit does not match discard packet
+          regs->rxc |= USB_USB_RXC1_REG_USB_FLUSH_Msk;
         }
         else
         {
-          xfer->last_packet_size = 0;
-          // Re-enable reception
-          regs->rxc |= USB_USB_RXC1_REG_USB_RX_EN_Msk;
+          xfer->data1 ^= 1;
+          xfer->transferred += xfer->last_packet_size;
+          if (xfer->total_len == xfer->transferred || xfer->last_packet_size < xfer->max_packet_size || xfer->iso)
+          {
+            dcd_event_xfer_complete(0, xfer->ep_addr, xfer->transferred, XFER_RESULT_SUCCESS, true);
+          }
+          else
+          {
+            // Re-enable reception
+            start_rx_packet(xfer);
+          }
         }
+        xfer->last_packet_size = 0;
       }
     }
-  }
+  } while (fifo_bytes > TU_DA1469X_FIFO_READ_THRESHOLD);
 }
 
 static void handle_rx_ev(void)
@@ -409,14 +605,23 @@ static void handle_rx_ev(void)
 
 static void handle_epx_tx_ev(xfer_ctl_t *xfer)
 {
-  uint32_t usb_txs1_reg;
+  uint8_t const epnum = tu_edpt_number(xfer->ep_addr);
+  uint32_t txs;
   EPx_REGS *regs = xfer->regs;
 
-  usb_txs1_reg = regs->USB_TXS1_REG;
+  txs = regs->txs;
 
-  if (GET_BIT(usb_txs1_reg, USB_USB_TXS1_REG_USB_TX_DONE))
+  if (GET_BIT(txs, USB_USB_TXS1_REG_USB_TX_DONE))
   {
-    if (GET_BIT(usb_txs1_reg, USB_USB_TXS1_REG_USB_ACK_STAT))
+    if (_dcd.dma_ep[TUSB_DIR_IN] == epnum)
+    {
+      // Disable DMA and update last_packet_size with what DMA reported.
+      TX_DMA_REGS->DMAx_CTRL_REG &= ~DMA_DMA1_CTRL_REG_DMA_ON_Msk;
+      xfer->last_packet_size = TX_DMA_REGS->DMAx_IDX_REG + 1;
+      // Release DMA to used by other endpoints.
+      _dcd.dma_ep[TUSB_DIR_IN] = 0;
+    }
+    if (GET_BIT(txs, USB_USB_TXS1_REG_USB_ACK_STAT))
     {
       // ACK received, update transfer state and DATA0/1 bit
       xfer->transferred += xfer->last_packet_size;
@@ -429,12 +634,13 @@ static void handle_epx_tx_ev(xfer_ctl_t *xfer)
         return;
       }
     }
-    else
-    {
-      xfer->last_packet_size = 0;
-    }
-    transmit_packet(xfer);
   }
+  if (txs & USB_USB_TXS1_REG_USB_TX_URUN_Msk)
+  {
+    TU_LOG1("EP %d FIFO underrun\n", epnum);
+  }
+  // Start next or repeated packet.
+  start_tx_packet(xfer);
 }
 
 static void handle_tx_ev(void)
@@ -459,6 +665,7 @@ static void handle_bus_reset(void)
   _dcd.in_reset = true;
 
   dcd_event_bus_signal(0, DCD_EVENT_BUS_RESET, true);
+  USB->USB_DMA_CTRL_REG = 0;
 
   USB->USB_MAMSK_REG = USB_USB_MAMSK_REG_USB_M_INTR_Msk |
 #if USE_SOF
@@ -503,9 +710,9 @@ static void handle_alt_ev(void)
   }
 }
 
-static void handle_epx_tx_refill(uint8_t ep)
+static void handle_epx_tx_warn_ev(uint8_t ep)
 {
-  transmit_packet(XFER_CTL_BASE(ep, TUSB_DIR_IN));
+  fill_tx_fifo(XFER_CTL_BASE(ep, TUSB_DIR_IN));
 }
 
 static void handle_fifo_warning(void)
@@ -513,11 +720,11 @@ static void handle_fifo_warning(void)
   uint32_t fifo_warning = USB->USB_FWEV_REG;
 
   if (fifo_warning & 0x01)
-    handle_epx_tx_refill(1);
+    handle_epx_tx_warn_ev(1);
   if (fifo_warning & 0x02)
-    handle_epx_tx_refill(2);
+    handle_epx_tx_warn_ev(2);
   if (fifo_warning & 0x04)
-    handle_epx_tx_refill(3);
+    handle_epx_tx_warn_ev(3);
   if (fifo_warning & 0x10)
     handle_epx_rx_ev(1);
   if (fifo_warning & 0x20)
@@ -595,6 +802,9 @@ void dcd_connect(uint8_t rhport)
   (void)rhport;
 
   REG_SET_BIT(USB_MCTRL_REG, USB_NAT);
+
+  // Select chosen DMA to be triggered by USB.
+  DMA->DMA_REQ_MUX_REG = (DMA->DMA_REQ_MUX_REG & ~DA146XX_DMA_USB_MUX_MASK) | DA146XX_DMA_USB_MUX;
 }
 
 void dcd_disconnect(uint8_t rhport)
@@ -624,8 +834,13 @@ bool dcd_edpt_open(uint8_t rhport, tusb_desc_endpoint_t const * desc_edpt)
   xfer->max_packet_size = desc_edpt->wMaxPacketSize.size;
   xfer->ep_addr = desc_edpt->bEndpointAddress;
   xfer->data1 = 0;
+  xfer->iso = 0;
 
-  if (epnum != 0 && desc_edpt->bmAttributes.xfer == 1) iso_mask = USB_USB_EPC1_REG_USB_ISO_Msk;
+  if (epnum != 0 && desc_edpt->bmAttributes.xfer == 1)
+  {
+    iso_mask = USB_USB_EPC1_REG_USB_ISO_Msk;
+    xfer->iso = 1;
+  }
 
   if (epnum == 0)
   {
@@ -651,6 +866,50 @@ bool dcd_edpt_open(uint8_t rhport, tusb_desc_endpoint_t const * desc_edpt)
   return true;
 }
 
+void dcd_edpt_close(uint8_t rhport, uint8_t ep_addr)
+{
+  uint8_t const epnum = tu_edpt_number(ep_addr);
+  uint8_t const dir   = tu_edpt_dir(ep_addr);
+  xfer_ctl_t * xfer = XFER_CTL_BASE(epnum, dir);
+
+  (void)rhport;
+
+  TU_ASSERT(epnum < EP_MAX,);
+
+  if (epnum == 0)
+  {
+    USB->USB_MAMSK_REG &= ~(USB_USB_MAMSK_REG_USB_M_EP0_RX_Msk |
+                            USB_USB_MAMSK_REG_USB_M_EP0_TX_Msk);
+  }
+  else
+  {
+    if (dir == TUSB_DIR_OUT)
+    {
+      xfer->regs->rxc = USB_USB_RXC1_REG_USB_FLUSH_Msk;
+      xfer->regs->epc_out = 0;
+      USB->USB_RXMSK_REG &= ~(0x101 << (epnum - 1));
+      // Release DMA if needed
+      if (_dcd.dma_ep[TUSB_DIR_OUT] == epnum)
+      {
+        RX_DMA_REGS->DMAx_CTRL_REG &= ~DMA_DMA0_CTRL_REG_DMA_ON_Msk;
+        _dcd.dma_ep[TUSB_DIR_OUT] = 0;
+      }
+    }
+    else
+    {
+      xfer->regs->txc = USB_USB_TXC1_REG_USB_FLUSH_Msk;
+      xfer->regs->epc_in = 0;
+      USB->USB_TXMSK_REG &= ~(0x101 << (epnum - 1));
+      // Release DMA if needed
+      if (_dcd.dma_ep[TUSB_DIR_IN] == epnum)
+      {
+        TX_DMA_REGS->DMAx_CTRL_REG &= ~DMA_DMA1_CTRL_REG_DMA_ON_Msk;
+        _dcd.dma_ep[TUSB_DIR_IN] = 0;
+      }
+    }
+  }
+}
+
 bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t total_bytes)
 {
   uint8_t const epnum = tu_edpt_number(ep_addr);
@@ -666,26 +925,11 @@ bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t t
 
   if (dir == TUSB_DIR_OUT)
   {
-    if (epnum != 0)
-    {
-      if (xfer->max_packet_size > 64)
-      {
-        // For endpoint size greater then FIFO size enable FIFO level warning interrupt
-        // when FIFO has less then 17 bytes free.
-        xfer->regs->rxc |= USB_USB_RXC1_REG_USB_RFWL_Msk;
-      }
-      else
-      {
-        // If max_packet_size would fit in FIFO no need for FIFO level warning interrupt.
-        xfer->regs->rxc &= ~USB_USB_RXC1_REG_USB_RFWL_Msk;
-      }
-    }
-    // USB_RX_EN bit is in same place for all endpoints.
-    xfer->regs->rxc = USB_USB_RXC0_REG_USB_RX_EN_Msk;
+    start_rx_packet(xfer);
   }
   else // IN
   {
-    transmit_packet(xfer);
+    start_tx_packet(xfer);
   }
 
   return true;
