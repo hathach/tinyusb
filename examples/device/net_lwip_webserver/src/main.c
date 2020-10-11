@@ -32,6 +32,16 @@ RNDIS should be valid on Linux and Windows hosts, and CDC-ECM should be valid on
 
 The MCU appears to the host as IP address 192.168.7.1, and provides a DHCP server, DNS server, and web server.
 */
+/*
+Some smartphones *may* work with this implementation as well, but likely have limited (broken) drivers,
+and likely their manufacturer has not tested such functionality.  Some code workarounds could be tried:
+
+The smartphone may only have an ECM driver, but refuse to automatically pick ECM (unlike the OSes above);
+try modifying ./examples/devices/net_lwip_webserver/usb_descriptors.c so that CONFIG_ID_ECM is default.
+
+The smartphone may be artificially picky about which Ethernet MAC address to recognize; if this happens, 
+try changing the first byte of tud_network_mac_address[] below from 0x02 to 0x00 (clearing bit 1).
+*/
 
 #include "bsp/board.h"
 #include "tusb.h"
@@ -50,7 +60,7 @@ static struct pbuf *received_frame;
 
 /* this is used by this code, ./class/net/net_driver.c, and usb_descriptors.c */
 /* ideally speaking, this should be generated from the hardware's unique ID (if available) */
-/* it is suggested that the first two bytes are 0x02,0x02 to indicate a link-local address */
+/* it is suggested that the first byte is 0x02 to indicate a link-local address */
 const uint8_t tud_network_mac_address[6] = {0x02,0x02,0x84,0x6A,0x96,0x00};
 
 /* network parameters of this MCU */
