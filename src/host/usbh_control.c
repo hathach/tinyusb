@@ -58,6 +58,8 @@ static usbh_control_xfer_t _ctrl_xfer;
 
 bool tuh_control_xfer (uint8_t dev_addr, tusb_control_request_t const* request, void* buffer, tuh_control_complete_cb_t complete_cb)
 {
+  // TODO need to claim the endpoint first
+
   usbh_device_t* dev = &_usbh_devices[dev_addr];
   const uint8_t rhport = dev->rhport;
 
@@ -83,6 +85,10 @@ static void _xfer_complete(uint8_t dev_addr, xfer_result_t result)
 
 bool usbh_control_xfer_cb (uint8_t dev_addr, uint8_t ep_addr, xfer_result_t result, uint32_t xferred_bytes)
 {
+  (void) ep_addr;
+  (void) xferred_bytes;
+
+
   usbh_device_t* dev = &_usbh_devices[dev_addr];
   const uint8_t rhport = dev->rhport;
 
@@ -106,7 +112,7 @@ bool usbh_control_xfer_cb (uint8_t dev_addr, uint8_t ep_addr, xfer_result_t resu
           hcd_edpt_xfer(rhport, dev_addr, tu_edpt_addr(0, request->bmRequestType_bit.direction), _ctrl_xfer.buffer, request->wLength);
           return true;
         }
-      __attribute__((fallthrough));
+        __attribute__((fallthrough));
 
       case STAGE_DATA:
         _ctrl_xfer.stage = STAGE_ACK;

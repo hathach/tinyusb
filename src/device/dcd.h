@@ -77,7 +77,7 @@ typedef struct TU_ATTR_ALIGNED(4)
       uint32_t len;
     }xfer_complete;
 
-    // USBD_EVENT_FUNC_CALL
+    // FUNC_CALL
     struct {
       void (*func) (void*);
       void* param;

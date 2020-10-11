@@ -40,6 +40,10 @@
 #include "common/tusb_common.h"
 #include "osal/osal.h"
 
+#ifndef CFG_TUH_EP_MAX
+#define CFG_TUH_EP_MAX          9
+#endif
+
 //--------------------------------------------------------------------+
 // USBH-HCD common data structure
 //--------------------------------------------------------------------+
@@ -80,7 +84,24 @@ typedef struct {
   } control;
 
   uint8_t itf2drv[16];  // map interface number to driver (0xff is invalid)
-  uint8_t ep2drv[8][2]; // map endpoint to driver ( 0xff is invalid )
+  uint8_t ep2drv[CFG_TUH_EP_MAX][2]; // map endpoint to driver ( 0xff is invalid )
+
+  struct TU_ATTR_PACKED
+  {
+    volatile bool busy    : 1;
+    volatile bool stalled : 1;
+    volatile bool claimed : 1;
+
+    // TODO merge ep2drv here, 4-bit should be sufficient
+  }ep_status[CFG_TUH_EP_MAX][2];
+
+
+// Mutex for claiming endpoint, only needed when using with preempted RTOS
+#if CFG_TUSB_OS != OPT_OS_NONE
+  osal_mutex_def_t mutexdef;
+  osal_mutex_t mutex;
+#endif
+
 } usbh_device_t;
 
 extern usbh_device_t _usbh_devices[CFG_TUSB_HOST_DEVICE_MAX+1]; // including zero-address

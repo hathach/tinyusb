@@ -169,6 +169,11 @@ bool tuh_init(void)
     dev->control.sem_hdl = osal_semaphore_create(&dev->control.sem_def);
     TU_ASSERT(dev->control.sem_hdl != NULL);
 
+#if CFG_TUSB_OS != OPT_OS_NONE
+    dev->mutex = osal_mutex_create(&dev->mutexdef);
+    TU_ASSERT(dev->mutex);
+#endif
+
     memset(dev->itf2drv, 0xff, sizeof(dev->itf2drv)); // invalid mapping
     memset(dev->ep2drv , 0xff, sizeof(dev->ep2drv )); // invalid mapping
   }
@@ -187,6 +192,8 @@ bool tuh_init(void)
 }
 
 //------------- USBH control transfer -------------//
+
+// TODO remove
 bool usbh_control_xfer (uint8_t dev_addr, tusb_control_request_t* request, uint8_t* data)
 {
   usbh_device_t* dev = &_usbh_devices[dev_addr];
@@ -214,6 +221,58 @@ bool usbh_control_xfer (uint8_t dev_addr, tusb_control_request_t* request, uint8
   if ( XFER_RESULT_FAILED == dev->control.pipe_status ) return false;
 
   return true;
+}
+
+bool usbh_edpt_claim(uint8_t dev_addr, uint8_t ep_addr)
+{
+  uint8_t const epnum = tu_edpt_number(ep_addr);
+  uint8_t const dir   = tu_edpt_dir(ep_addr);
+
+  usbh_device_t* dev = &_usbh_devices[dev_addr];
+
+#if CFG_TUSB_OS != OPT_OS_NONE
+  // pre-check to help reducing mutex lock
+  TU_VERIFY((dev->ep_status[epnum][dir].busy == 0) && (dev->ep_status[epnum][dir].claimed == 0));
+  osal_mutex_lock(dev->mutex, OSAL_TIMEOUT_WAIT_FOREVER);
+#endif
+
+  // can only claim the endpoint if it is not busy and not claimed yet.
+  bool const ret = (dev->ep_status[epnum][dir].busy == 0) && (dev->ep_status[epnum][dir].claimed == 0);
+  if (ret)
+  {
+    dev->ep_status[epnum][dir].claimed = 1;
+  }
+
+#if CFG_TUSB_OS != OPT_OS_NONE
+  osal_mutex_unlock(dev->mutex);
+#endif
+
+  return ret;
+}
+
+bool usbh_edpt_release(uint8_t dev_addr, uint8_t ep_addr)
+{
+  uint8_t const epnum = tu_edpt_number(ep_addr);
+  uint8_t const dir   = tu_edpt_dir(ep_addr);
+
+  usbh_device_t* dev = &_usbh_devices[dev_addr];
+
+#if CFG_TUSB_OS != OPT_OS_NONE
+  osal_mutex_lock(dev->mutex, OSAL_TIMEOUT_WAIT_FOREVER);
+#endif
+
+  // can only release the endpoint if it is claimed and not busy
+  bool const ret = (dev->ep_status[epnum][dir].busy == 0) && (dev->ep_status[epnum][dir].claimed == 1);
+  if (ret)
+  {
+    dev->ep_status[epnum][dir].claimed = 0;
+  }
+
+#if CFG_TUSB_OS != OPT_OS_NONE
+  osal_mutex_unlock(dev->mutex);
+#endif
+
+  return ret;
 }
 
 bool usbh_edpt_xfer(uint8_t dev_addr, uint8_t ep_addr, uint8_t * buffer, uint16_t total_bytes)
@@ -402,6 +461,8 @@ void tuh_task(void)
     switch (event.event_id)
     {
       case HCD_EVENT_DEVICE_ATTACH:
+        // TODO due to the shared _usbh_ctrl_buf, we must complete enumerating
+        // one device before enumerating another one.
         TU_LOG2("USBH DEVICE ATTACH\r\n");
         enum_new_device(&event);
       break;
@@ -443,6 +504,10 @@ void tuh_task(void)
       }
       break;
 
+      case USBH_EVENT_FUNC_CALL:
+        if ( event.func_call.func ) event.func_call.func(event.func_call.param);
+      break;
+
       default: break;
     }
   }
@@ -465,6 +530,8 @@ static uint8_t get_new_address(void)
 // is a lengthy process with a seires of control transfer to configure
 // newly attached device. Each step is handled by a function in this
 // section
+// TODO due to the shared _usbh_ctrl_buf, we must complete enumerating
+// one device before enumerating another one.
 //--------------------------------------------------------------------+
 
 static bool enum_get_addr0_device_desc_complete (uint8_t dev_addr, tusb_control_request_t const * request, xfer_result_t result);
@@ -785,7 +852,7 @@ static bool parse_configuration_descriptor(uint8_t dev_addr, tusb_desc_configura
     {
       tusb_desc_interface_t const* desc_itf = (tusb_desc_interface_t const*) p_desc;
 
-      // Check if class is supportedVe
+      // Check if class is supported
       uint8_t drv_id;
       for (drv_id = 0; drv_id < USBH_CLASS_DRIVER_COUNT; drv_id++)
       {
@@ -799,6 +866,8 @@ static bool parse_configuration_descriptor(uint8_t dev_addr, tusb_desc_configura
       }
       else
       {
+        usbh_class_driver_t const * driver = &usbh_class_drivers[drv_id];
+
         // Interface number must not be used already TODO alternate interface
         TU_ASSERT( dev->itf2drv[desc_itf->bInterfaceNumber] == 0xff );
         dev->itf2drv[desc_itf->bInterfaceNumber] = drv_id;
@@ -813,8 +882,8 @@ static bool parse_configuration_descriptor(uint8_t dev_addr, tusb_desc_configura
         {
           uint16_t itf_len = 0;
 
-          TU_LOG2("%s open\r\n", usbh_class_drivers[drv_id].name);
-          TU_ASSERT( usbh_class_drivers[drv_id].open(dev->rhport, dev_addr, desc_itf, &itf_len) );
+          TU_LOG2("%s open\r\n", driver->name);
+          TU_ASSERT( driver->open(dev->rhport, dev_addr, desc_itf, &itf_len) );
           TU_ASSERT( itf_len >= sizeof(tusb_desc_interface_t) );
           p_desc += itf_len;
         }

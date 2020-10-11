@@ -45,6 +45,11 @@ typedef enum
   HCD_EVENT_DEVICE_ATTACH,
   HCD_EVENT_DEVICE_REMOVE,
   HCD_EVENT_XFER_COMPLETE,
+
+  // Not an HCD event, just a convenient way to defer ISR function
+  USBH_EVENT_FUNC_CALL,
+
+  HCD_EVENT_COUNT
 } hcd_eventid_t;
 
 typedef struct
@@ -67,6 +72,12 @@ typedef struct
       uint8_t result;
       uint32_t len;
     } xfer_complete;
+
+    // FUNC_CALL
+    struct {
+      void (*func) (void*);
+      void* param;
+    }func_call;
   };
 
 } hcd_event_t;
