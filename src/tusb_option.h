@@ -110,11 +110,13 @@
 
 
 // Allow to use command line to change the config name/location
-#ifndef CFG_TUSB_CONFIG_FILE
-  #define CFG_TUSB_CONFIG_FILE "tusb_config.h"
+#ifdef CFG_TUSB_CONFIG_FILE
+  #include CFG_TUSB_CONFIG_FILE
+#else
+  #include "tusb_config.h"
 #endif
 
-#include CFG_TUSB_CONFIG_FILE
+
 
 /** \addtogroup group_configuration
  *  @{ */
