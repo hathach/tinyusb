@@ -88,7 +88,6 @@ bool usbh_control_xfer_cb (uint8_t dev_addr, uint8_t ep_addr, xfer_result_t resu
   (void) ep_addr;
   (void) xferred_bytes;
 
-
   usbh_device_t* dev = &_usbh_devices[dev_addr];
   const uint8_t rhport = dev->rhport;
 

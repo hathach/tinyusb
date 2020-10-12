@@ -38,6 +38,7 @@ void tuh_msc_mounted_cb(uint8_t dev_addr)
   printf("A MassStorage device is mounted\r\n");
 
   //------------- Disk Information -------------//
+#if 0
   // SCSI VendorID[8] & ProductID[16] from Inquiry Command
   uint8_t const* p_vendor  = tuh_msc_get_vendor_name(dev_addr);
   uint8_t const* p_product = tuh_msc_get_product_name(dev_addr);
@@ -47,6 +48,7 @@ void tuh_msc_mounted_cb(uint8_t dev_addr)
   putchar(' ');
   for(uint8_t i=0; i<16; i++) putchar(p_product[i]);
   putchar('\n');
+#endif
 
   uint32_t last_lba = 0;
   uint32_t block_size = 0;
@@ -103,12 +105,11 @@ void tuh_msc_unmounted_cb(uint8_t dev_addr)
 //  }
 }
 
-// invoked ISR context
-void tuh_msc_isr(uint8_t dev_addr, xfer_result_t event, uint32_t xferred_bytes)
-{
-  (void) dev_addr;
-  (void) event;
-  (void) xferred_bytes;
-}
+//void tuh_msc_scsi_complete_cb(uint8_t dev_addr, msc_cbw_t const* cbw, msc_csw_t const* csw)
+//{
+//  (void) dev_addr;
+//  (void) cbw;
+//  (void) csw;
+//}
 
 #endif

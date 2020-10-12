@@ -40,6 +40,9 @@
  * \defgroup MSC_Host Host
  *  The interface API includes status checking function, data transferring function and callback functions
  *  @{ */
+
+typedef bool (*tuh_msc_complete_cb_t)(uint8_t dev_addr, msc_cbw_t const* cbw, msc_csw_t const* csw);
+
 //--------------------------------------------------------------------+
 // MASS STORAGE Application API
 //--------------------------------------------------------------------+
@@ -60,23 +63,9 @@ bool          tuh_msc_is_mounted(uint8_t dev_addr);
  */
 bool          tuh_msc_is_busy(uint8_t dev_addr);
 
-/** \brief      Get SCSI vendor's name of MassStorage device
- * \param[in]   dev_addr device address
- * \return      pointer to vendor's name or NULL if specified device does not support MassStorage
- * \note        SCSI vendor's name is 8-byte length field in \ref scsi_inquiry_data_t. During enumeration, the stack has already
- *              retrieved (via SCSI INQUIRY) and store this information internally. There is no need for application to re-send SCSI INQUIRY
- *              command or allocate buffer for this.
- */
-uint8_t const* tuh_msc_get_vendor_name(uint8_t dev_addr);
+bool tuh_msc_scsi_command(uint8_t dev_addr, msc_cbw_t const* cbw, void* data, tuh_msc_complete_cb_t complete_cb);
 
-/** \brief      Get SCSI product's name of MassStorage device
- * \param[in]   dev_addr device address
- * \return      pointer to product's name or NULL if specified device does not support MassStorage
- * \note        SCSI product's name is 16-byte length field in \ref scsi_inquiry_data_t. During enumeration, the stack has already
- *              retrieved (via SCSI INQUIRY) and store this information internally. There is no need for application to re-send SCSI INQUIRY
- *              command or allocate buffer for this.
- */
-uint8_t const* tuh_msc_get_product_name(uint8_t dev_addr);
+bool tuh_msc_scsi_inquiry(uint8_t dev_addr, uint8_t lun, void* response, uint32_t len);
 
 /** \brief      Get SCSI Capacity of MassStorage device
  * \param[in]   dev_addr device address
@@ -87,8 +76,10 @@ uint8_t const* tuh_msc_get_product_name(uint8_t dev_addr);
  *              retrieved (via SCSI READ CAPACITY 10) and store this information internally. There is no need for application
  *              to re-send SCSI READ CAPACITY 10 command
  */
-tusb_error_t tuh_msc_get_capacity(uint8_t dev_addr, uint32_t* p_last_lba, uint32_t* p_block_size);
 
+bool tuh_msc_get_capacity(uint8_t dev_addr, uint32_t* p_last_lba, uint32_t* p_block_size);
+
+#if 0
 /** \brief 			Perform SCSI READ 10 command to read data from MassStorage device
  * \param[in]		dev_addr	device address
  * \param[in]		lun       Targeted Logical Unit
@@ -116,29 +107,25 @@ tusb_error_t tuh_msc_read10 (uint8_t dev_addr, uint8_t lun, void * p_buffer, uin
  * \note        This function is non-blocking and returns immediately. The result of USB transfer will be reported by the interface's callback function
  */
 tusb_error_t tuh_msc_write10(uint8_t dev_addr, uint8_t lun, void const * p_buffer, uint32_t lba, uint16_t block_count);
+#endif
 
 /** \brief 			Perform SCSI REQUEST SENSE command, used to retrieve sense data from MassStorage device
  * \param[in]		dev_addr	device address
  * \param[in]		lun       Targeted Logical Unit
  * \param[in]	  p_data    Buffer to store response's data from device. Must be accessible by USB controller (see \ref CFG_TUSB_MEM_SECTION)
- * \retval      TUSB_ERROR_NONE on success
- * \retval      TUSB_ERROR_INTERFACE_IS_BUSY if the interface is already transferring data with device
- * \retval      TUSB_ERROR_DEVICE_NOT_READY if device is not yet configured (by SET CONFIGURED request)
- * \retval      TUSB_ERROR_INVALID_PARA if input parameters are not correct
- * \note        This function is non-blocking and returns immediately. The result of USB transfer will be reported by the interface's callback function
+ * \note        This function is non-blocking and returns immediately.
+ *              Callback is invoked when command is complete
  */
-tusb_error_t tuh_msc_request_sense(uint8_t dev_addr, uint8_t lun, uint8_t *p_data);
+bool tuh_msc_request_sense(uint8_t dev_addr, uint8_t lun, void *resposne, tuh_msc_complete_cb_t complete_cb);
 
 /** \brief 			Perform SCSI TEST UNIT READY command to test if MassStorage device is ready
  * \param[in]		dev_addr	device address
  * \param[in]		lun       Targeted Logical Unit
- * \retval      TUSB_ERROR_NONE on success
- * \retval      TUSB_ERROR_INTERFACE_IS_BUSY if the interface is already transferring data with device
- * \retval      TUSB_ERROR_DEVICE_NOT_READY if device is not yet configured (by SET CONFIGURED request)
- * \retval      TUSB_ERROR_INVALID_PARA if input parameters are not correct
- * \note        This function is non-blocking and returns immediately. The result of USB transfer will be reported by the interface's callback function
+ * \note        This function is non-blocking and returns immediately.
+ *              Callback is invoked when command is complete
  */
-tusb_error_t tuh_msc_test_unit_ready(uint8_t dev_addr, uint8_t lun, msc_csw_t * p_csw); // TODO to be refractor
+bool tuh_msc_test_unit_ready(uint8_t dev_addr, uint8_t lun, tuh_msc_complete_cb_t complete_cb);
+
 
 //tusb_error_t  tusbh_msc_scsi_send(uint8_t dev_addr, uint8_t lun, bool is_direction_in,
 //                                  uint8_t const * p_command, uint8_t cmd_len,
@@ -157,39 +144,9 @@ void tuh_msc_mounted_cb(uint8_t dev_addr);
  */
 void tuh_msc_unmounted_cb(uint8_t dev_addr);
 
-/** \brief      Callback function that is invoked when an transferring event occurred
- * \param[in]		dev_addr	Address of device
- * \param[in]   event an value from \ref xfer_result_t
- * \param[in]   xferred_bytes Number of bytes transferred via USB bus
- * \note        event can be one of following
- *              - XFER_RESULT_SUCCESS : previously scheduled transfer completes successfully.
- *              - XFER_RESULT_FAILED   : previously scheduled transfer encountered a transaction error.
- *              - XFER_RESULT_STALLED : previously scheduled transfer is stalled by device.
- * \note
- */
-void tuh_msc_isr(uint8_t dev_addr, xfer_result_t event, uint32_t xferred_bytes);
-
-
 //--------------------------------------------------------------------+
 // Internal Class Driver API
 //--------------------------------------------------------------------+
-typedef struct
-{
-  uint8_t  itf_num;
-  uint8_t  ep_in;
-  uint8_t  ep_out;
-
-  uint8_t  max_lun;
-  uint16_t block_size;
-  uint32_t last_lba; // last logical block address
-
-  volatile bool is_initialized;
-  uint8_t vendor_id[8];
-  uint8_t product_id[16];
-
-  msc_cbw_t cbw;
-  msc_csw_t csw;
-}msch_interface_t;
 
 void msch_init(void);
 bool msch_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_interface_t const *itf_desc, uint16_t *p_length);
