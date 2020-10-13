@@ -51,7 +51,10 @@ typedef bool (*tuh_msc_complete_cb_t)(uint8_t dev_addr, msc_cbw_t const* cbw, ms
  * \retval      true if device supports
  * \retval      false if device does not support or is not mounted
  */
-bool          tuh_msc_is_mounted(uint8_t dev_addr);
+
+// Check if device supports MassStorage interface.
+// This function true after tuh_msc_mounted_cb() and false after tuh_msc_unmounted_cb()
+bool tuh_msc_mounted(uint8_t dev_addr);
 
 /** \brief      Check if the interface is currently busy or not
  * \param[in]   dev_addr device address
