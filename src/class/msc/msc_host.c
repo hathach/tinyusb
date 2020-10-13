@@ -109,7 +109,7 @@ static inline void msc_cbw_add_signature(msc_cbw_t *p_cbw, uint8_t lun)
 bool tuh_msc_scsi_command(uint8_t dev_addr, msc_cbw_t const* cbw, void* data, tuh_msc_complete_cb_t complete_cb)
 {
   msch_interface_t* p_msc = get_itf(dev_addr);
-  TU_VERIFY(p_msc->mounted);
+  // TU_VERIFY(p_msc->mounted); // TODO part of the enumeration also use scsi command
 
   // TODO claim endpoint
 
@@ -278,7 +278,8 @@ void msch_init(void)
 
 void msch_close(uint8_t dev_addr)
 {
-  tu_memclr(&msch_data[dev_addr-1], sizeof(msch_interface_t));
+  msch_interface_t* p_msc = get_itf(dev_addr);
+  tu_memclr(p_msc, sizeof(msch_interface_t));
   tuh_msc_unmounted_cb(dev_addr); // invoke Application Callback
 }
 

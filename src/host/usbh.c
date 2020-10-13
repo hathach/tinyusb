@@ -880,9 +880,12 @@ static bool parse_configuration_descriptor(uint8_t dev_addr, tusb_desc_configura
         }
         else
         {
+          TU_LOG2("%s open\r\n", driver->name);
+
           uint16_t itf_len = 0;
 
-          TU_LOG2("%s open\r\n", driver->name);
+          // TODO class driver can perform control transfer when opening which is
+          // non-blocking --> need a way to coordinate composite device
           TU_ASSERT( driver->open(dev->rhport, dev_addr, desc_itf, &itf_len) );
           TU_ASSERT( itf_len >= sizeof(tusb_desc_interface_t) );
           p_desc += itf_len;

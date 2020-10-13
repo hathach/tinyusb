@@ -44,13 +44,8 @@
 typedef bool (*tuh_msc_complete_cb_t)(uint8_t dev_addr, msc_cbw_t const* cbw, msc_csw_t const* csw);
 
 //--------------------------------------------------------------------+
-// MASS STORAGE Application API
+// Application API
 //--------------------------------------------------------------------+
-/** \brief      Check if device supports MassStorage interface or not
- * \param[in]   dev_addr    device address
- * \retval      true if device supports
- * \retval      false if device does not support or is not mounted
- */
 
 // Check if device supports MassStorage interface.
 // This function true after tuh_msc_mounted_cb() and false after tuh_msc_unmounted_cb()
@@ -66,22 +61,24 @@ bool tuh_msc_mounted(uint8_t dev_addr);
  */
 bool          tuh_msc_is_busy(uint8_t dev_addr);
 
+// Get Max Lun
 uint8_t tuh_msc_get_maxlun(uint8_t dev_addr);
 
+// Carry out a full SCSI command (cbw, data, csw) in non-blocking manner.
+// `complete_cb` callback is invoked when SCSI op is complete.
+// return true if success, false if there is already pending operation.
 bool tuh_msc_scsi_command(uint8_t dev_addr, msc_cbw_t const* cbw, void* data, tuh_msc_complete_cb_t complete_cb);
 
+// Carry out SCSI INQUIRY command in non-blocking manner.
 bool tuh_msc_scsi_inquiry(uint8_t dev_addr, uint8_t lun, scsi_inquiry_resp_t* response, tuh_msc_complete_cb_t complete_cb);
 
-/** \brief      Get SCSI Capacity of MassStorage device
- * \param[in]   dev_addr device address
- * \param[out]  p_last_lba Last Logical Block Address of device
- * \param[out]  p_block_size Block Size of device in bytes
- * \retval      pointer to product's name or NULL if specified device does not support MassStorage
- * \note        MassStorage's capacity can be computed by last LBA x block size (in bytes). During enumeration, the stack has already
- *              retrieved (via SCSI READ CAPACITY 10) and store this information internally. There is no need for application
- *              to re-send SCSI READ CAPACITY 10 command
- */
+// Carry out SCSI REQUEST SENSE (10) command in non-blocking manner.
+bool tuh_msc_test_unit_ready(uint8_t dev_addr, uint8_t lun, tuh_msc_complete_cb_t complete_cb);
 
+// Carry out SCSI REQUEST SENSE (10) command in non-blocking manner.
+bool tuh_msc_request_sense(uint8_t dev_addr, uint8_t lun, void *resposne, tuh_msc_complete_cb_t complete_cb);
+
+// Carry out SCSI READ CAPACITY (10) command in non-blocking manner.
 bool tuh_msc_read_capacity(uint8_t dev_addr, uint8_t lun, scsi_read_capacity10_resp_t* response, tuh_msc_complete_cb_t complete_cb);
 
 #if 0
@@ -114,39 +111,12 @@ tusb_error_t tuh_msc_read10 (uint8_t dev_addr, uint8_t lun, void * p_buffer, uin
 tusb_error_t tuh_msc_write10(uint8_t dev_addr, uint8_t lun, void const * p_buffer, uint32_t lba, uint16_t block_count);
 #endif
 
-/** \brief 			Perform SCSI REQUEST SENSE command, used to retrieve sense data from MassStorage device
- * \param[in]		dev_addr	device address
- * \param[in]		lun       Targeted Logical Unit
- * \param[in]	  p_data    Buffer to store response's data from device. Must be accessible by USB controller (see \ref CFG_TUSB_MEM_SECTION)
- * \note        This function is non-blocking and returns immediately.
- *              Callback is invoked when command is complete
- */
-bool tuh_msc_request_sense(uint8_t dev_addr, uint8_t lun, void *resposne, tuh_msc_complete_cb_t complete_cb);
-
-/** \brief 			Perform SCSI TEST UNIT READY command to test if MassStorage device is ready
- * \param[in]		dev_addr	device address
- * \param[in]		lun       Targeted Logical Unit
- * \note        This function is non-blocking and returns immediately.
- *              Callback is invoked when command is complete
- */
-bool tuh_msc_test_unit_ready(uint8_t dev_addr, uint8_t lun, tuh_msc_complete_cb_t complete_cb);
-
-
-//tusb_error_t  tusbh_msc_scsi_send(uint8_t dev_addr, uint8_t lun, bool is_direction_in,
-//                                  uint8_t const * p_command, uint8_t cmd_len,
-//                                  uint8_t * p_response, uint32_t resp_len);
-
 //------------- Application Callback -------------//
-/** \brief 			Callback function that will be invoked when a device with MassStorage interface is mounted
- * \param[in]	  dev_addr Address of newly mounted device
- * \note        This callback should be used by Application to set-up interface-related data
- */
+
+// Invoked when a device with MassStorage interface is mounted
 void tuh_msc_mounted_cb(uint8_t dev_addr);
 
-/** \brief 			Callback function that will be invoked when a device with MassStorage interface is unmounted
- * \param[in] 	dev_addr Address of newly unmounted device
- * \note        This callback should be used by Application to tear-down interface-related data
- */
+// Invoked when a device with MassStorage interface is unmounted
 void tuh_msc_unmounted_cb(uint8_t dev_addr);
 
 //--------------------------------------------------------------------+
