@@ -63,9 +63,11 @@ bool          tuh_msc_is_mounted(uint8_t dev_addr);
  */
 bool          tuh_msc_is_busy(uint8_t dev_addr);
 
+uint8_t tuh_msc_get_maxlun(uint8_t dev_addr);
+
 bool tuh_msc_scsi_command(uint8_t dev_addr, msc_cbw_t const* cbw, void* data, tuh_msc_complete_cb_t complete_cb);
 
-bool tuh_msc_scsi_inquiry(uint8_t dev_addr, uint8_t lun, void* response, uint32_t len);
+bool tuh_msc_scsi_inquiry(uint8_t dev_addr, uint8_t lun, scsi_inquiry_resp_t* response, tuh_msc_complete_cb_t complete_cb);
 
 /** \brief      Get SCSI Capacity of MassStorage device
  * \param[in]   dev_addr device address
@@ -77,7 +79,7 @@ bool tuh_msc_scsi_inquiry(uint8_t dev_addr, uint8_t lun, void* response, uint32_
  *              to re-send SCSI READ CAPACITY 10 command
  */
 
-bool tuh_msc_get_capacity(uint8_t dev_addr, uint32_t* p_last_lba, uint32_t* p_block_size);
+bool tuh_msc_read_capacity(uint8_t dev_addr, uint8_t lun, scsi_read_capacity10_resp_t* response, tuh_msc_complete_cb_t complete_cb);
 
 #if 0
 /** \brief 			Perform SCSI READ 10 command to read data from MassStorage device
