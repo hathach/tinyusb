@@ -25,8 +25,6 @@
  */
 
 #include "bsp/board.h"
-
-#undef LITTLE_ENDIAN /* workaround for buggy SAMD submodule: compile error for ATSAMD21J18 (J, not G) */
 #include "sam.h"
 
 #include "hal/include/hal_gpio.h"
