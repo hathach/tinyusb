@@ -30,8 +30,9 @@ This code base already had supported for a handful of following boards (sorted a
 - [Adafruit Metro M4 Express](https://www.adafruit.com/product/3382)
 - [D5035-01](https://github.com/RudolphRiedel/USB_CAN-FD)
 - [Great Scott Gadgets LUNA](https://greatscottgadgets.com/luna/)
-- [Microchip SAMD11 Xplained](https://www.microchip.com/developmenttools/ProductDetails/atsamd11-xpro)
-- [Microchip SAMG55 Xplained Pro Evaluation Kit](https://www.microchip.com/DevelopmentTools/ProductDetails/PartNO/ATSAMG55-XPRO)
+- [Microchip SAMD11 Xplained Pro](https://www.microchip.com/developmenttools/ProductDetails/atsamd11-xpro)
+- [Microchip SAMD21 Xplained Pro](https://www.microchip.com/DevelopmentTools/ProductDetails/ATSAMD21-XPRO)
+- [Microchip SAMG55 Xplained Pro](https://www.microchip.com/DevelopmentTools/ProductDetails/PartNO/ATSAMG55-XPRO)
 - [Seeeduino Xiao](https://www.seeedstudio.com/Seeeduino-XIAO-Arduino-Microcontroller-SAMD21-Cortex-M0+-p-4426.html)
 
 ### Nordic nRF5x
