@@ -71,22 +71,21 @@ static const ip_addr_t gateway = IPADDR4_INIT_BYTES(0, 0, 0, 0);
 /* database IP addresses that can be offered to the host; this must be in RAM to store assigned MAC addresses */
 static dhcp_entry_t entries[] =
 {
-  /* mac    ip address        subnet mask        lease time */
-  { {0}, {192, 168, 7, 2}, {255, 255, 255, 0}, 24 * 60 * 60 },
-  { {0}, {192, 168, 7, 3}, {255, 255, 255, 0}, 24 * 60 * 60 },
-  { {0}, {192, 168, 7, 4}, {255, 255, 255, 0}, 24 * 60 * 60 }
+    /* mac ip address                          lease time */
+    { {0}, IPADDR4_INIT_BYTES(192, 168, 7, 2), 24 * 60 * 60 },
+    { {0}, IPADDR4_INIT_BYTES(192, 168, 7, 3), 24 * 60 * 60 },
+    { {0}, IPADDR4_INIT_BYTES(192, 168, 7, 4), 24 * 60 * 60 },
 };
 
-/* DHCP configuration parameters, leveraging "entries" above */
 static const dhcp_config_t dhcp_config =
 {
-  {192, 168, 7, 1}, 67,    /* server address (self), port */
-  {192, 168, 7, 1},        /* dns server (self) */
-  "usb",                   /* dns suffix */
-  TU_ARRAY_SIZE(entries),  /* number of entries */
-  entries                  /* pointer to entries */
+    .router = IPADDR4_INIT_BYTES(0, 0, 0, 0),  /* router address (if any) */
+    .port = 67,                                /* listen port */
+    .dns = IPADDR4_INIT_BYTES(192, 168, 7, 1), /* dns server (if any) */
+    "usb",                                     /* dns suffix */
+    TU_ARRAY_SIZE(entries),                    /* num entry */
+    entries                                    /* entries */
 };
-
 static err_t linkoutput_fn(struct netif *netif, struct pbuf *p)
 {
   (void)netif;
