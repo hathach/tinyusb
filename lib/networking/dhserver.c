@@ -96,23 +96,23 @@ static const dhcp_config_t *config = NULL;
 
 char magic_cookie[] = {0x63,0x82,0x53,0x63};
 
-static uint32_t get_ip(const uint8_t *pnt)
+static ip_addr_t get_ip(const uint8_t *pnt)
 {
-  uint32_t result;
+  ip_addr_t result;
   memcpy(&result, pnt, sizeof(result));
   return result;
 }
 
-static void set_ip(uint8_t *pnt, uint32_t value)
+static void set_ip(uint8_t *pnt, ip_addr_t value)
 {
-  memcpy(pnt, &value, sizeof(value));
+  memcpy(pnt, &value.addr, sizeof(value.addr));
 }
 
-static dhcp_entry_t *entry_by_ip(uint32_t ip)
+static dhcp_entry_t *entry_by_ip(ip_addr_t ip)
 {
 	int i;
 	for (i = 0; i < config->num_entry; i++)
-		if (get_ip(config->entries[i].addr) == ip)
+		if (config->entries[i].addr.addr == ip.addr)
 			return &config->entries[i];
 	return NULL;
 }
@@ -162,11 +162,11 @@ uint8_t *find_dhcp_option(uint8_t *attrs, int size, uint8_t attr)
 int fill_options(void *dest,
 	uint8_t msg_type,
 	const char *domain,
-	uint32_t dns,
+	ip_addr_t dns,
 	int lease_time,
-	uint32_t serverid,
-	uint32_t router,
-	uint32_t subnet)
+	ip_addr_t serverid,
+	ip_addr_t router,
+	ip_addr_t subnet)
 {
 	uint8_t *ptr = (uint8_t *)dest;
 	/* ACK message type */
@@ -195,7 +195,7 @@ int fill_options(void *dest,
 	ptr += 4;
 
 	/* router */
-	if (router != 0)
+	if (router.addr != 0)
 	{
 		*ptr++ = DHCP_ROUTER;
 		*ptr++ = 4;
@@ -214,7 +214,7 @@ int fill_options(void *dest,
 	}
 
 	/* domain name server (DNS) */
-	if (dns != 0)
+	if (dns.addr != 0)
 	{
 		*ptr++ = DHCP_DNSSERVER;
 		*ptr++ = 4;
@@ -232,6 +232,7 @@ static void udp_recv_proc(void *arg, struct udp_pcb *upcb, struct pbuf *p, const
 	uint8_t *ptr;
 	dhcp_entry_t *entry;
 	struct pbuf *pp;
+	struct netif *netif = netif_get_by_index(p->if_idx);
 
 	(void)arg;
 	(void)addr;
@@ -249,7 +250,7 @@ static void udp_recv_proc(void *arg, struct udp_pcb *upcb, struct pbuf *p, const
 			dhcp_data.dp_op = 2; /* reply */
 			dhcp_data.dp_secs = 0;
 			dhcp_data.dp_flags = 0;
-			set_ip(dhcp_data.dp_yiaddr, get_ip(entry->addr));
+			set_ip(dhcp_data.dp_yiaddr, entry->addr);
 			memcpy(dhcp_data.dp_magic, magic_cookie, 4);
 
 			memset(dhcp_data.dp_options, 0, sizeof(dhcp_data.dp_options));
@@ -257,11 +258,11 @@ static void udp_recv_proc(void *arg, struct udp_pcb *upcb, struct pbuf *p, const
 			fill_options(dhcp_data.dp_options,
 				DHCP_OFFER,
 				config->domain,
-				get_ip(config->dns),
+				config->dns,
 				entry->lease, 
-				get_ip(config->addr),
-				get_ip(config->addr), 
-				get_ip(entry->subnet));
+				*netif_ip4_addr(netif),
+				config->router,
+				*netif_ip4_netmask(netif));
 
 			pp = pbuf_alloc(PBUF_TRANSPORT, sizeof(dhcp_data), PBUF_POOL);
 			if (pp == NULL) break;
@@ -299,11 +300,11 @@ static void udp_recv_proc(void *arg, struct udp_pcb *upcb, struct pbuf *p, const
 			fill_options(dhcp_data.dp_options,
 				DHCP_ACK,
 				config->domain,
-				get_ip(config->dns),
+				config->dns,
 				entry->lease, 
-				get_ip(config->addr),
-				get_ip(config->addr), 
-				get_ip(entry->subnet));
+				*netif_ip4_addr(netif),
+				config->router,
+				*netif_ip4_netmask(netif));
 
 			/* 6. send ACK */
 			pp = pbuf_alloc(PBUF_TRANSPORT, sizeof(dhcp_data), PBUF_POOL);
