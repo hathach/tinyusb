@@ -416,7 +416,9 @@ void dcd_init (uint8_t rhport)
   if ( rhport == 1 )
   {
     // On selected MCUs HS port1 can be used with external PHY via ULPI interface
-
+#if defined(TUD_OPT_SYNOPSYS_FS_PHY)
+      usb_otg->GUSBCFG |= USB_OTG_GUSBCFG_PHYSEL;
+#else
     // deactivate internal PHY
     usb_otg->GCCFG &= ~USB_OTG_GCCFG_PWRDWN;
 
@@ -425,6 +427,7 @@ void dcd_init (uint8_t rhport)
 
     // Select default internal VBUS Indicator and Drive for ULPI
     usb_otg->GUSBCFG &= ~(USB_OTG_GUSBCFG_ULPIEVBUSD | USB_OTG_GUSBCFG_ULPIEVBUSI);
+#endif
 
 #if defined(USB_HS_PHYC)
     // Highspeed with embedded UTMI PHYC
@@ -467,8 +470,13 @@ void dcd_init (uint8_t rhport)
 
   set_speed(rhport, TUD_OPT_HIGH_SPEED ? TUSB_SPEED_HIGH : TUSB_SPEED_FULL);
 
-  // Enable internal USB transceiver.
+  // Enable internal USB transceiver. Unconditional if using FS PHY on HS core.
+#if defined(TUD_OPT_SYNOPSYS_FS_PHY)
+  usb_otg->GCCFG |= USB_OTG_GCCFG_PWRDWN;
+#else
   if ( rhport == 0 ) usb_otg->GCCFG |= USB_OTG_GCCFG_PWRDWN;
+#endif
+
 
   usb_otg->GINTMSK |= USB_OTG_GINTMSK_USBRST   | USB_OTG_GINTMSK_ENUMDNEM |
       USB_OTG_GINTMSK_USBSUSPM | USB_OTG_GINTMSK_WUIM     |
