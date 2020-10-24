@@ -374,8 +374,8 @@ static void handle_incoming_packet(uint32_t len)
 
     if (p)
     {
+      /* pbuf_alloc() has already initialized struct; all we need to do is copy the data */
       memcpy(p->payload, pnt, size);
-      p->len = size;
       accepted = tud_network_recv_cb(p);
 
       if (!accepted) pbuf_free(p);
@@ -441,11 +441,13 @@ void tud_network_xmit(struct pbuf *p)
   len = (_netd_itf.ecm_mode) ? 0 : CFG_TUD_NET_PACKET_PREFIX_LEN;
   data = transmitted + len;
 
+  /* traverse the "pbuf chain"; see ./lwip/src/core/pbuf.c for more info */
   for(q = p; q != NULL; q = q->next)
   {
     memcpy(data, (char *)q->payload, q->len);
     data += q->len;
     len += q->len;
+    if (q->len == q->tot_len) break;
   }
 
   if (!_netd_itf.ecm_mode)
