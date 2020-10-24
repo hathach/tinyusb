@@ -471,12 +471,7 @@ void dcd_init (uint8_t rhport)
   set_speed(rhport, TUD_OPT_HIGH_SPEED ? TUSB_SPEED_HIGH : TUSB_SPEED_FULL);
 
   // Enable internal USB transceiver, unless using HS core (port 1) with external PHY.
-#if CFG_TUSB_RHPORT1_MODE & OPT_MODE_HIGH_SPEED
-  if ( rhport == 0 ) usb_otg->GCCFG |= USB_OTG_GCCFG_PWRDWN;
-#else
-  usb_otg->GCCFG |= USB_OTG_GCCFG_PWRDWN;
-#endif
-
+  if (!(rhport == 1 && (CFG_TUSB_RHPORT1_MODE & OPT_MODE_HIGH_SPEED))) usb_otg->GCCFG |= USB_OTG_GCCFG_PWRDWN;
 
   usb_otg->GINTMSK |= USB_OTG_GINTMSK_USBRST   | USB_OTG_GINTMSK_ENUMDNEM |
       USB_OTG_GINTMSK_USBSUSPM | USB_OTG_GINTMSK_WUIM     |
