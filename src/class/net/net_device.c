@@ -366,23 +366,7 @@ static void handle_incoming_packet(uint32_t len)
         }
   }
 
-  bool accepted = false;
-
-  if (size)
-  {
-    struct pbuf *p = pbuf_alloc(PBUF_RAW, size, PBUF_POOL);
-
-    if (p)
-    {
-      memcpy(p->payload, pnt, size);
-      p->len = size;
-      accepted = tud_network_recv_cb(p);
-
-      if (!accepted) pbuf_free(p);
-    }
-  }
-
-  if (!accepted)
+  if (!tud_network_recv_cb(pnt, size))
   {
     /* if a buffer was never handled by user code, we must renew on the user's behalf */
     tud_network_recv_renew();
@@ -429,9 +413,8 @@ bool tud_network_can_xmit(void)
   return can_xmit;
 }
 
-void tud_network_xmit(struct pbuf *p)
+void tud_network_xmit(void *ref, uint16_t arg)
 {
-  struct pbuf *q;
   uint8_t *data;
   uint16_t len;
 
@@ -441,12 +424,7 @@ void tud_network_xmit(struct pbuf *p)
   len = (_netd_itf.ecm_mode) ? 0 : CFG_TUD_NET_PACKET_PREFIX_LEN;
   data = transmitted + len;
 
-  for(q = p; q != NULL; q = q->next)
-  {
-    memcpy(data, (char *)q->payload, q->len);
-    data += q->len;
-    len += q->len;
-  }
+  len += tud_network_xmit_cb(data, ref, arg);
 
   if (!_netd_itf.ecm_mode)
   {
