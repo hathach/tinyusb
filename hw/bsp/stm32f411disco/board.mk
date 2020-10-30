@@ -31,7 +31,7 @@ SRC_S += \
 	$(ST_CMSIS)/Source/Templates/gcc/startup_stm32f411xe.s
 
 INC += \
-	$(TOP)/hw/mcu/st/st_driver/CMSIS/Include \
+	$(TOP)/lib/CMSIS_5/CMSIS/Core/Include \
 	$(TOP)/$(ST_CMSIS)/Include \
 	$(TOP)/$(ST_HAL_DRIVER)/Inc \
 	$(TOP)/hw/bsp/$(BOARD)
