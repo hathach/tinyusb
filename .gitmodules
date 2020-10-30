@@ -73,3 +73,9 @@
 [submodule "hw/mcu/st/stm32h7xx_hal_driver"]
 	path = hw/mcu/st/stm32h7xx_hal_driver
 	url = https://github.com/STMicroelectronics/stm32h7xx_hal_driver.git
+[submodule "hw/mcu/st/cmsis_device_l0"]
+	path = hw/mcu/st/cmsis_device_l0
+	url = https://github.com/STMicroelectronics/cmsis_device_l0.git
+[submodule "hw/mcu/st/stm32l0xx_hal_driver"]
+	path = hw/mcu/st/stm32l0xx_hal_driver
+	url = https://github.com/STMicroelectronics/stm32l0xx_hal_driver.git
