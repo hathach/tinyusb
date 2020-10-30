@@ -91,3 +91,21 @@
 [submodule "hw/mcu/st/stm32l4xx_hal_driver"]
 	path = hw/mcu/st/stm32l4xx_hal_driver
 	url = https://github.com/STMicroelectronics/stm32l4xx_hal_driver.git
+[submodule "hw/mcu/st/cmsis_device_g0"]
+	path = hw/mcu/st/cmsis_device_g0
+	url = https://github.com/STMicroelectronics/cmsis_device_g0.git
+[submodule "hw/mcu/st/stm32g0xx_hal_driver"]
+	path = hw/mcu/st/stm32g0xx_hal_driver
+	url = https://github.com/STMicroelectronics/stm32g0xx_hal_driver.git
+[submodule "hw/mcu/st/cmsis_device_g4"]
+	path = hw/mcu/st/cmsis_device_g4
+	url = https://github.com/STMicroelectronics/cmsis_device_g4.git
+[submodule "hw/mcu/st/stm32g4xx_hal_driver"]
+	path = hw/mcu/st/stm32g4xx_hal_driver
+	url = https://github.com/STMicroelectronics/stm32g4xx_hal_driver.git
+[submodule "hw/mcu/st/cmsis_device_l5"]
+	path = hw/mcu/st/cmsis_device_l5
+	url = https://github.com/STMicroelectronics/cmsis_device_l5.git
+[submodule "hw/mcu/st/stm32l5xx_hal_driver"]
+	path = hw/mcu/st/stm32l5xx_hal_driver
+	url = https://github.com/STMicroelectronics/stm32l5xx_hal_driver.git

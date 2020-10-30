@@ -10,7 +10,7 @@ CFLAGS += \
   -DCFG_TUSB_MCU=OPT_MCU_STM32L4
 
 # suppress warning caused by vendor mcu driver
-CFLAGS +=  -Wno-error=maybe-uninitialized -Wno-error=cast-align
+CFLAGS += -Wno-error=maybe-uninitialized -Wno-error=cast-align
 
 ST_FAMILY = l4
 ST_CMSIS = hw/mcu/st/cmsis_device_$(ST_FAMILY)
