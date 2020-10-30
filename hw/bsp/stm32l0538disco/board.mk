@@ -12,25 +12,26 @@ CFLAGS += \
 # mcu driver cause following warnings
 CFLAGS += -Wno-error=unused-parameter -Wno-error=maybe-uninitialized
 
-ST_HAL_DRIVER = hw/mcu/st/st_driver/STM32L0xx_HAL_Driver
-ST_CMSIS = hw/mcu/st/st_driver/CMSIS/Device/ST/STM32L0xx
+ST_FAMILY = l0
+ST_CMSIS = hw/mcu/st/cmsis_device_$(ST_FAMILY)
+ST_HAL_DRIVER = hw/mcu/st/stm32$(ST_FAMILY)xx_hal_driver
 
 # All source paths should be relative to the top level.
 LD_FILE = hw/bsp/$(BOARD)/STM32L053C8Tx_FLASH.ld
 
 SRC_C += \
-  $(ST_CMSIS)/Source/Templates/system_stm32l0xx.c \
-  $(ST_HAL_DRIVER)/Src/stm32l0xx_hal.c \
-  $(ST_HAL_DRIVER)/Src/stm32l0xx_hal_cortex.c \
-  $(ST_HAL_DRIVER)/Src/stm32l0xx_hal_rcc.c \
-  $(ST_HAL_DRIVER)/Src/stm32l0xx_hal_rcc_ex.c \
-  $(ST_HAL_DRIVER)/Src/stm32l0xx_hal_gpio.c
+  $(ST_CMSIS)/Source/Templates/system_stm32$(ST_FAMILY)xx.c \
+  $(ST_HAL_DRIVER)/Src/stm32$(ST_FAMILY)xx_hal.c \
+  $(ST_HAL_DRIVER)/Src/stm32$(ST_FAMILY)xx_hal_cortex.c \
+  $(ST_HAL_DRIVER)/Src/stm32$(ST_FAMILY)xx_hal_rcc.c \
+  $(ST_HAL_DRIVER)/Src/stm32$(ST_FAMILY)xx_hal_rcc_ex.c \
+  $(ST_HAL_DRIVER)/Src/stm32$(ST_FAMILY)xx_hal_gpio.c
 
 SRC_S += \
   $(ST_CMSIS)/Source/Templates/gcc/startup_stm32l053xx.s
 
 INC += \
-  $(TOP)/hw/mcu/st/st_driver/CMSIS/Include \
+  $(TOP)/lib/CMSIS_5/CMSIS/Core/Include \
   $(TOP)/$(ST_CMSIS)/Include \
   $(TOP)/$(ST_HAL_DRIVER)/Inc \
   $(TOP)/hw/bsp/$(BOARD)

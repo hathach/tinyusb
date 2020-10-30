@@ -49,6 +49,7 @@
 #define UART_RX_PINMUX        IOMUXC_GPIO_AD_B0_13_LPUART1_RX
 #define UART_TX_PINMUX        IOMUXC_GPIO_AD_B0_12_LPUART1_TX
 
+// needed by fsl_flexspi_nor_boot
 const uint8_t dcd_data[] = { 0x00 };
 
 void board_init(void)
