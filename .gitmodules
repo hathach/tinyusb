@@ -109,3 +109,6 @@
 [submodule "hw/mcu/st/stm32l5xx_hal_driver"]
 	path = hw/mcu/st/stm32l5xx_hal_driver
 	url = https://github.com/STMicroelectronics/stm32l5xx_hal_driver.git
+[submodule "lib/CMSIS_5"]
+	path = lib/CMSIS_5
+	url = https://github.com/ARM-software/CMSIS_5.git
