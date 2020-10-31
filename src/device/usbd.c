@@ -220,6 +220,19 @@ static usbd_class_driver_t const _usbd_driver[] =
       .sof              = NULL
   },
   #endif
+
+  #if CFG_TUD_NCM
+  {
+      DRIVER_NAME("NCM")
+      .init             = ncmd_init,
+      .reset            = ncmd_reset,
+      .open             = ncmd_open,
+      .control_request  = ncmd_control_request,
+      .control_complete = ncmd_control_complete,
+      .xfer_cb          = ncmd_xfer_cb,
+      .sof              = NULL
+  },
+  #endif
 };
 
 enum { BUILTIN_DRIVER_COUNT = TU_ARRAY_SIZE(_usbd_driver) };
