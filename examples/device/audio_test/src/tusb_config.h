@@ -47,6 +47,10 @@ extern "C" {
 
 #define CFG_TUSB_OS                 OPT_OS_NONE
 
+#ifndef CFG_TUSB_DEBUG
+#define CFG_TUSB_DEBUG              0
+#endif
+
 // CFG_TUSB_DEBUG is defined by compiler in DEBUG build
 // #define CFG_TUSB_DEBUG           0
 
@@ -104,8 +108,6 @@ extern "C" {
 
 // Size of control request buffer
 #define CFG_TUD_AUDIO_CTRL_BUF_SIZE 				64
-
-#define CFG_TUSB_DEBUG                                                0
 
 #ifdef __cplusplus
 }
