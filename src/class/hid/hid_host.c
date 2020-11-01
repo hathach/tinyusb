@@ -173,6 +173,56 @@ bool hidh_open_subtask(uint8_t rhport, uint8_t dev_addr, tusb_desc_interface_t c
   tusb_desc_endpoint_t const * p_endpoint_desc = (tusb_desc_endpoint_t const *) p_desc;
   TU_ASSERT(TUSB_DESC_ENDPOINT == p_endpoint_desc->bDescriptorType, TUSB_ERROR_INVALID_PARA);
 
+  if ( HID_SUBCLASS_BOOT == p_interface_desc->bInterfaceSubClass )
+  {
+    #if CFG_TUH_HID_KEYBOARD
+    if ( HID_PROTOCOL_KEYBOARD == p_interface_desc->bInterfaceProtocol)
+    {
+      TU_ASSERT( hidh_interface_open(rhport, dev_addr, p_interface_desc->bInterfaceNumber, p_endpoint_desc, &keyboardh_data[dev_addr-1]) );
+      TU_LOG2_HEX(keyboardh_data[dev_addr-1].ep_in);
+    } else
+    #endif
+
+    #if CFG_TUH_HID_MOUSE
+    if ( HID_PROTOCOL_MOUSE == p_interface_desc->bInterfaceProtocol)
+    {
+      TU_ASSERT ( hidh_interface_open(rhport, dev_addr, p_interface_desc->bInterfaceNumber, p_endpoint_desc, &mouseh_data[dev_addr-1]) );
+      TU_LOG2_HEX(mouseh_data[dev_addr-1].ep_in);
+    } else
+    #endif
+
+    {
+      // Not supported protocol
+      return false;
+    }
+  }else
+  {
+    // Not supported subclass
+    return false;
+  }
+
+  *p_length = sizeof(tusb_desc_interface_t) + sizeof(tusb_hid_descriptor_hid_t) + sizeof(tusb_desc_endpoint_t);
+
+  return true;
+}
+
+bool hidh_set_config(uint8_t dev_addr, uint8_t itf_num)
+{
+#if 0
+  //------------- Get Report Descriptor TODO HID parser -------------//
+  if ( p_desc_hid->bNumDescriptors )
+  {
+    STASK_INVOKE(
+        usbh_control_xfer_subtask( dev_addr, bm_request_type(TUSB_DIR_IN, TUSB_REQ_TYPE_STANDARD, TUSB_REQ_RCPT_INTERFACE),
+                                   TUSB_REQ_GET_DESCRIPTOR, (p_desc_hid->bReportType << 8), 0,
+                                   p_desc_hid->wReportLength, report_descriptor ),
+        error
+    );
+    (void) error; // if error in getting report descriptor --> treating like there is none
+  }
+#endif
+
+#if 0
   // SET IDLE = 0 request
   // Device can stall if not support this request
   tusb_control_request_t const request =
@@ -191,52 +241,23 @@ bool hidh_open_subtask(uint8_t rhport, uint8_t dev_addr, tusb_desc_interface_t c
 
   // stall is a valid response for SET_IDLE, therefore we could ignore result of this request
   tuh_control_xfer(dev_addr, &request, NULL, NULL);
+#endif
 
-#if 0
-  //------------- Get Report Descriptor TODO HID parser -------------//
-  if ( p_desc_hid->bNumDescriptors )
+  usbh_driver_set_config_complete(dev_addr, itf_num);
+
+#if CFG_TUH_HID_KEYBOARD
+  if ( keyboardh_data[dev_addr-1].itf_num == itf_num)
   {
-    STASK_INVOKE(
-        usbh_control_xfer_subtask( dev_addr, bm_request_type(TUSB_DIR_IN, TUSB_REQ_TYPE_STANDARD, TUSB_REQ_RCPT_INTERFACE),
-                                   TUSB_REQ_GET_DESCRIPTOR, (p_desc_hid->bReportType << 8), 0,
-                                   p_desc_hid->wReportLength, report_descriptor ),
-        error
-    );
-    (void) error; // if error in getting report descriptor --> treating like there is none
+    tuh_hid_keyboard_mounted_cb(dev_addr);
   }
 #endif
 
-  if ( HID_SUBCLASS_BOOT == p_interface_desc->bInterfaceSubClass )
+#if CFG_TUH_HID_MOUSE
+  if ( mouseh_data[dev_addr-1].ep_in == itf_num )
   {
-    #if CFG_TUH_HID_KEYBOARD
-    if ( HID_PROTOCOL_KEYBOARD == p_interface_desc->bInterfaceProtocol)
-    {
-      TU_ASSERT( hidh_interface_open(rhport, dev_addr, p_interface_desc->bInterfaceNumber, p_endpoint_desc, &keyboardh_data[dev_addr-1]) );
-      TU_LOG2_HEX(keyboardh_data[dev_addr-1].ep_in);
-      tuh_hid_keyboard_mounted_cb(dev_addr);
-    } else
-    #endif
-
-    #if CFG_TUH_HID_MOUSE
-    if ( HID_PROTOCOL_MOUSE == p_interface_desc->bInterfaceProtocol)
-    {
-      TU_ASSERT ( hidh_interface_open(rhport, dev_addr, p_interface_desc->bInterfaceNumber, p_endpoint_desc, &mouseh_data[dev_addr-1]) );
-      TU_LOG2_HEX(mouseh_data[dev_addr-1].ep_in);
-      tuh_hid_mouse_mounted_cb(dev_addr);
-    } else
-    #endif
-
-    {
-      // Not supported protocol
-      return false;
-    }
-  }else
-  {
-    // Not supported subclass
-    return false;
+    tuh_hid_mouse_mounted_cb(dev_addr);
   }
-
-  *p_length = sizeof(tusb_desc_interface_t) + sizeof(tusb_hid_descriptor_hid_t) + sizeof(tusb_desc_endpoint_t);
+#endif
 
   return true;
 }

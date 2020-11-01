@@ -67,6 +67,7 @@ static usbh_class_driver_t const usbh_class_drivers[] =
       .class_code = TUSB_CLASS_MSC,
       .init       = msch_init,
       .open       = msch_open,
+      .set_config = msch_set_config,
       .xfer_cb    = msch_xfer_cb,
       .close      = msch_close
     },
@@ -78,6 +79,7 @@ static usbh_class_driver_t const usbh_class_drivers[] =
       .class_code = TUSB_CLASS_HID,
       .init       = hidh_init,
       .open       = hidh_open_subtask,
+      .set_config = hidh_set_config,
       .xfer_cb    = hidh_xfer_cb,
       .close      = hidh_close
     },
@@ -308,6 +310,7 @@ bool usbh_edpt_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_endpoint_t const
     usbh_device_t* dev = &_usbh_devices[dev_addr];
 
     // new endpoints belongs to latest interface (last valid value)
+    // TODO FIXME not true with ISO
     uint8_t drvid = 0xff;
     for(uint8_t i=0; i < sizeof(dev->itf2drv); i++)
     {
@@ -523,6 +526,31 @@ static uint8_t get_new_address(void)
     if (_usbh_devices[addr].state == TUSB_DEVICE_STATE_UNPLUG) return addr;
   }
   return CFG_TUSB_HOST_DEVICE_MAX+1;
+}
+
+void usbh_driver_set_config_complete(uint8_t dev_addr, uint8_t itf_num)
+{
+  usbh_device_t* dev = &_usbh_devices[dev_addr];
+
+  for(itf_num++; itf_num < sizeof(dev->itf2drv); itf_num++)
+  {
+    // continue with next valid interface
+    uint8_t const drv_id = dev->itf2drv[itf_num];
+    if (drv_id != 0xff)
+    {
+      usbh_class_driver_t const * driver = &usbh_class_drivers[drv_id];
+      TU_LOG2("%s set config itf = %u\r\n", driver->name, itf_num);
+      driver->set_config(dev_addr, itf_num);
+      break;
+    }
+  }
+
+  // all interface are configured
+  if (itf_num == sizeof(dev->itf2drv))
+  {
+    // Invoke callback if available
+    if (tuh_mount_cb) tuh_mount_cb(dev_addr);
+  }
 }
 
 //--------------------------------------------------------------------+
@@ -783,6 +811,7 @@ static bool enum_get_9byte_config_desc_complete(uint8_t dev_addr, tusb_control_r
     .wValue   = (TUSB_DESC_CONFIGURATION << 8) | (CONFIG_NUM - 1),
     .wIndex   = 0,
     .wLength  = total_len
+
   };
 
   TU_ASSERT( tuh_control_xfer(dev_addr, &new_request, _usbh_ctrl_buf, enum_get_config_desc_complete) );
@@ -794,6 +823,10 @@ static bool enum_get_config_desc_complete(uint8_t dev_addr, tusb_control_request
 {
   (void) request;
   TU_ASSERT(XFER_RESULT_SUCCESS == result);
+
+  // Parse configuration & set up drivers
+  // Driver open aren't allowed to make any usb transfer yet
+  parse_configuration_descriptor(dev_addr, (tusb_desc_configuration_t*) _usbh_ctrl_buf);
 
   TU_LOG2("Set Configuration Descriptor\r\n");
   tusb_control_request_t const new_request =
@@ -825,12 +858,10 @@ static bool enum_set_config_complete(uint8_t dev_addr, tusb_control_request_t co
   dev->configured = 1;
   dev->state = TUSB_DEVICE_STATE_CONFIGURED;
 
-  // Parse configuration & set up drivers
-  // TODO driver open still use usbh_control_xfer
-  parse_configuration_descriptor(dev_addr, (tusb_desc_configuration_t*) _usbh_ctrl_buf);
-
-  // Invoke callback if available
-  if (tuh_mount_cb) tuh_mount_cb(dev_addr);
+  // Start the Set Configuration process for interfaces (itf = 0xff)
+  // Since driver can perform control transfer within its set_config, this is done asynchronously.
+  // The process continue with next interface when class driver complete its sequence with usbh_driver_set_config_complete()
+  usbh_driver_set_config_complete(dev_addr, 0xff);
 
   return true;
 }
@@ -883,9 +914,6 @@ static bool parse_configuration_descriptor(uint8_t dev_addr, tusb_desc_configura
           TU_LOG2("%s open\r\n", driver->name);
 
           uint16_t itf_len = 0;
-
-          // TODO class driver can perform control transfer when opening which is
-          // non-blocking --> need a way to coordinate composite device
           TU_ASSERT( driver->open(dev->rhport, dev_addr, desc_itf, &itf_len) );
           TU_ASSERT( itf_len >= sizeof(tusb_desc_interface_t) );
           p_desc += itf_len;

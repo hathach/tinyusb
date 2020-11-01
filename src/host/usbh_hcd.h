@@ -47,6 +47,8 @@
 //--------------------------------------------------------------------+
 // USBH-HCD common data structure
 //--------------------------------------------------------------------+
+
+// TODO move to usbh.c
 typedef struct {
   //------------- port -------------//
   uint8_t rhport;
@@ -94,7 +96,6 @@ typedef struct {
 
     // TODO merge ep2drv here, 4-bit should be sufficient
   }ep_status[CFG_TUH_EP_MAX][2];
-
 
 // Mutex for claiming endpoint, only needed when using with preempted RTOS
 #if CFG_TUSB_OS != OPT_OS_NONE

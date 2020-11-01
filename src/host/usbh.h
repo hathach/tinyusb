@@ -58,10 +58,11 @@ typedef struct {
 
   uint8_t class_code;
 
-  void (* const init) (void);
-  bool (* const open)(uint8_t rhport, uint8_t dev_addr, tusb_desc_interface_t const * itf_desc, uint16_t* outlen);
-  bool (* const xfer_cb) (uint8_t dev_addr, uint8_t ep_addr, xfer_result_t result, uint32_t xferred_bytes);
-  void (* const close) (uint8_t);
+  void (* const init       )(void);
+  bool (* const open       )(uint8_t rhport, uint8_t dev_addr, tusb_desc_interface_t const * itf_desc, uint16_t* outlen);
+  bool (* const set_config )(uint8_t dev_addr, uint8_t itf_num);
+  bool (* const xfer_cb    )(uint8_t dev_addr, uint8_t ep_addr, xfer_result_t result, uint32_t xferred_bytes);
+  void (* const close      )(uint8_t dev_addr);
 } usbh_class_driver_t;
 
 typedef bool (*tuh_control_complete_cb_t)(uint8_t dev_addr, tusb_control_request_t const * request, xfer_result_t result);
@@ -105,6 +106,7 @@ TU_ATTR_WEAK void tuh_umount_cb(uint8_t dev_addr);
 
 //--------------------------------------------------------------------+
 // CLASS-USBH & INTERNAL API
+// TODO move to usbh_pvt.h
 //--------------------------------------------------------------------+
 
 bool usbh_edpt_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_endpoint_t const * ep_desc);
@@ -115,6 +117,8 @@ bool usbh_edpt_xfer(uint8_t dev_addr, uint8_t ep_addr, uint8_t * buffer, uint16_
 bool usbh_edpt_claim(uint8_t dev_addr, uint8_t ep_addr);
 
 bool usbh_control_xfer (uint8_t dev_addr, tusb_control_request_t* request, uint8_t* data); // TODO remove later
+
+void usbh_driver_set_config_complete(uint8_t dev_addr, uint8_t itf_num);
 
 #ifdef __cplusplus
  }
