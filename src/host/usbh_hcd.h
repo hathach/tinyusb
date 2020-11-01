@@ -97,7 +97,7 @@ typedef struct {
     // TODO merge ep2drv here, 4-bit should be sufficient
   }ep_status[CFG_TUH_EP_MAX][2];
 
-// Mutex for claiming endpoint, only needed when using with preempted RTOS
+  // Mutex for claiming endpoint, only needed when using with preempted RTOS
 #if CFG_TUSB_OS != OPT_OS_NONE
   osal_mutex_def_t mutexdef;
   osal_mutex_t mutex;

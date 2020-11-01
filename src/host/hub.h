@@ -36,7 +36,7 @@
 #ifndef _TUSB_HUB_H_
 #define _TUSB_HUB_H_
 
-#include <common/tusb_common.h>
+#include "common/tusb_common.h"
 #include "usbh.h"
 
 #ifdef __cplusplus
@@ -172,9 +172,9 @@ typedef struct {
 
 TU_VERIFY_STATIC( sizeof(hub_port_status_response_t) == 4, "size is not correct");
 
-bool hub_port_reset(uint8_t hub_addr, uint8_t hub_port);
-bool hub_port_get_status(uint8_t hub_addr, uint8_t hub_port, hub_port_status_response_t* resp);
-bool hub_port_clear_feature(uint8_t hub_addr, uint8_t hub_port, uint8_t feature);
+bool hub_port_reset(uint8_t hub_addr, uint8_t hub_port, tuh_control_complete_cb_t complete_cb);
+bool hub_port_get_status(uint8_t hub_addr, uint8_t hub_port, void* resp, tuh_control_complete_cb_t complete_cb);
+bool hub_port_clear_feature(uint8_t hub_addr, uint8_t hub_port, uint8_t feature, tuh_control_complete_cb_t complete_cb);
 bool hub_status_pipe_queue(uint8_t dev_addr);
 
 //--------------------------------------------------------------------+
@@ -182,6 +182,7 @@ bool hub_status_pipe_queue(uint8_t dev_addr);
 //--------------------------------------------------------------------+
 void hub_init(void);
 bool hub_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_interface_t const *itf_desc, uint16_t *p_length);
+bool hub_set_config(uint8_t dev_addr, uint8_t itf_num);
 bool hub_xfer_cb(uint8_t dev_addr, uint8_t ep_addr, xfer_result_t event, uint32_t xferred_bytes);
 void hub_close(uint8_t dev_addr);
 

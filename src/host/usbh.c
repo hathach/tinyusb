@@ -91,6 +91,7 @@ static usbh_class_driver_t const usbh_class_drivers[] =
       .class_code = TUSB_CLASS_HUB,
       .init       = hub_init,
       .open       = hub_open,
+      .set_config = hub_set_config,
       .xfer_cb    = hub_xfer_cb,
       .close      = hub_close
     },
@@ -134,6 +135,11 @@ static bool enum_new_device(hcd_event_t* event);
 
 // from usbh_control.c
 extern bool usbh_control_xfer_cb (uint8_t dev_addr, uint8_t ep_addr, xfer_result_t result, uint32_t xferred_bytes);
+
+uint8_t usbh_get_rhport(uint8_t dev_addr)
+{
+  return _usbh_devices[dev_addr].rhport;
+}
 
 //--------------------------------------------------------------------+
 // PUBLIC API (Parameter Verification is required)
@@ -562,6 +568,9 @@ void usbh_driver_set_config_complete(uint8_t dev_addr, uint8_t itf_num)
 // one device before enumerating another one.
 //--------------------------------------------------------------------+
 
+static bool enum_request_addr0_device_desc(void);
+static bool enum_request_set_addr(void);
+
 static bool enum_get_addr0_device_desc_complete (uint8_t dev_addr, tusb_control_request_t const * request, xfer_result_t result);
 static bool enum_set_address_complete           (uint8_t dev_addr, tusb_control_request_t const * request, xfer_result_t result);
 static bool enum_get_device_desc_complete       (uint8_t dev_addr, tusb_control_request_t const * request, xfer_result_t result);
@@ -569,6 +578,92 @@ static bool enum_get_9byte_config_desc_complete (uint8_t dev_addr, tusb_control_
 static bool enum_get_config_desc_complete       (uint8_t dev_addr, tusb_control_request_t const * request, xfer_result_t result);
 static bool enum_set_config_complete            (uint8_t dev_addr, tusb_control_request_t const * request, xfer_result_t result);
 static bool parse_configuration_descriptor      (uint8_t dev_addr, tusb_desc_configuration_t const* desc_cfg);
+
+static bool enum_hub_clear_reset0_complete(uint8_t dev_addr, tusb_control_request_t const * request, xfer_result_t result)
+{
+  (void) dev_addr; (void) request;
+  TU_ASSERT(XFER_RESULT_SUCCESS == result);
+  enum_request_addr0_device_desc();
+  return true;
+}
+
+static bool enum_hub_clear_reset1_complete(uint8_t dev_addr, tusb_control_request_t const * request, xfer_result_t result)
+{
+  (void) dev_addr; (void) request;
+  TU_ASSERT(XFER_RESULT_SUCCESS == result);
+  usbh_device_t* dev0 = &_usbh_devices[0];
+
+  enum_request_set_addr();
+
+  // done with hub, waiting for next data on status pipe
+  (void) hub_status_pipe_queue( dev0->hub_addr );
+
+  return true;
+}
+
+static bool enum_hub_get_status_complete(uint8_t dev_addr, tusb_control_request_t const * request, xfer_result_t result)
+{
+  (void) dev_addr; (void) request;
+  TU_ASSERT(XFER_RESULT_SUCCESS == result);
+  usbh_device_t* dev0 = &_usbh_devices[0];
+
+  hub_port_status_response_t port_status;
+  memcpy(&port_status, _usbh_ctrl_buf, sizeof(hub_port_status_response_t));
+
+  if ( !port_status.status.connection )
+  {
+    // device unplugged while delaying, nothing else to do, queue hub status
+    return hub_status_pipe_queue(dev_addr);
+  }
+
+  dev0->speed = (port_status.status.high_speed) ? TUSB_SPEED_HIGH :
+                (port_status.status.low_speed ) ? TUSB_SPEED_LOW  : TUSB_SPEED_FULL;
+
+  // Acknowledge Port Reset Change
+  if (port_status.change.reset)
+  {
+    hub_port_clear_feature(dev0->hub_addr, dev0->hub_port, HUB_FEATURE_PORT_RESET_CHANGE, enum_hub_clear_reset0_complete);
+  }
+
+  return true;
+}
+
+
+static bool enum_request_set_addr(void)
+{
+  // Set Address
+  TU_LOG2("Set Address \r\n");
+  uint8_t const new_addr = get_new_address();
+  TU_ASSERT(new_addr <= CFG_TUSB_HOST_DEVICE_MAX); // TODO notify application we reach max devices
+
+  usbh_device_t* dev0    = &_usbh_devices[0];
+  usbh_device_t* new_dev = &_usbh_devices[new_addr];
+
+  new_dev->rhport          = dev0->rhport;
+  new_dev->hub_addr        = dev0->hub_addr;
+  new_dev->hub_port        = dev0->hub_port;
+  new_dev->speed           = dev0->speed;
+  new_dev->connected       = 1;
+  new_dev->ep0_packet_size = ((tusb_desc_device_t*) _usbh_ctrl_buf)->bMaxPacketSize0;
+
+  tusb_control_request_t const new_request =
+  {
+    .bmRequestType_bit =
+    {
+      .recipient = TUSB_REQ_RCPT_DEVICE,
+      .type      = TUSB_REQ_TYPE_STANDARD,
+      .direction = TUSB_DIR_OUT
+    },
+    .bRequest = TUSB_REQ_SET_ADDRESS,
+    .wValue   = new_addr,
+    .wIndex   = 0,
+    .wLength  = 0
+  };
+
+  TU_ASSERT( tuh_control_xfer(0, &new_request, NULL, enum_set_address_complete) );
+
+  return true;
+}
 
 static bool enum_new_device(hcd_event_t* event)
 {
@@ -581,39 +676,31 @@ static bool enum_new_device(hcd_event_t* event)
   //------------- connected/disconnected directly with roothub -------------//
   if (dev0->hub_addr == 0)
   {
-    // wait until device is stable. Increase this if the first 8 bytes is failed to get
+    // wait until device is stable
     osal_task_delay(RESET_DELAY);
 
     // device unplugged while delaying
     if ( !hcd_port_connect_status(dev0->rhport) ) return true;
 
     dev0->speed = hcd_port_speed_get( dev0->rhport );
+
+    enum_request_addr0_device_desc();
   }
 #if CFG_TUH_HUB
   //------------- connected/disconnected via hub -------------//
   else
   {
-    // TODO wait for PORT reset change instead
+    // wait until device is stable
     osal_task_delay(RESET_DELAY);
-
-    // FIXME hub API use usbh_control_xfer
-    hub_port_status_response_t port_status;
-    TU_VERIFY_HDLR( hub_port_get_status(dev0->hub_addr, dev0->hub_port, &port_status), hub_status_pipe_queue( dev0->hub_addr) );
-
-    // device unplugged while delaying
-    if ( !port_status.status.connection ) return true;
-
-    dev0->speed = (port_status.status.high_speed) ? TUSB_SPEED_HIGH :
-                  (port_status.status.low_speed ) ? TUSB_SPEED_LOW  : TUSB_SPEED_FULL;
-
-    // Acknowledge Port Reset Change
-    if (port_status.change.reset)
-    {
-      hub_port_clear_feature(dev0->hub_addr, dev0->hub_port, HUB_FEATURE_PORT_RESET_CHANGE);
-    }
+    TU_ASSERT( hub_port_get_status(dev0->hub_addr, dev0->hub_port, _usbh_ctrl_buf, enum_hub_get_status_complete) );
   }
 #endif // CFG_TUH_HUB
 
+  return true;
+}
+
+static bool enum_request_addr0_device_desc(void)
+{
   // TODO probably doesn't need to open/close each enumeration
   TU_ASSERT( usbh_pipe_control_open(0, 8) );
 
@@ -632,7 +719,7 @@ static bool enum_new_device(hcd_event_t* event)
     .wIndex   = 0,
     .wLength  = 8
   };
-  TU_ASSERT(tuh_control_xfer(0, &request, _usbh_ctrl_buf, enum_get_addr0_device_desc_complete));
+  TU_ASSERT( tuh_control_xfer(0, &request, _usbh_ctrl_buf, enum_get_addr0_device_desc_complete) );
 
   return true;
 }
@@ -663,51 +750,21 @@ static bool enum_get_addr0_device_desc_complete(uint8_t dev_addr, tusb_control_r
     // connected directly to roothub
     hcd_port_reset( dev0->rhport ); // reset port after 8 byte descriptor
     osal_task_delay(RESET_DELAY);
+
+    enum_request_set_addr();
   }
 #if CFG_TUH_HUB
   else
   {
-    // FIXME hub_port_reset use usbh_control_xfer
-    if ( hub_port_reset(dev0->hub_addr, dev0->hub_port) )
-    {
-      osal_task_delay(RESET_DELAY);
+    // after RESET_DELAY the hub_port_reset() already complete
+    TU_ASSERT( hub_port_reset(dev0->hub_addr, dev0->hub_port, NULL) );
 
-      // Acknowledge Port Reset Change if Reset Successful
-      hub_port_clear_feature(dev0->hub_addr, dev0->hub_port, HUB_FEATURE_PORT_RESET_CHANGE);
-    }
+    osal_task_delay(RESET_DELAY);
 
-    (void) hub_status_pipe_queue( dev0->hub_addr ); // done with hub, waiting for next data on status pipe
+    // Acknowledge Port Reset Change if Reset Successful
+    TU_ASSERT( hub_port_clear_feature(dev0->hub_addr, dev0->hub_port, HUB_FEATURE_PORT_RESET_CHANGE, enum_hub_clear_reset1_complete) );
   }
 #endif // CFG_TUH_HUB
-
-  // Set Address
-  TU_LOG2("Set Address \r\n");
-  uint8_t const new_addr = get_new_address();
-  TU_ASSERT(new_addr <= CFG_TUSB_HOST_DEVICE_MAX); // TODO notify application we reach max devices
-
-  usbh_device_t* new_dev = &_usbh_devices[new_addr];
-  new_dev->rhport  = dev0->rhport;
-  new_dev->hub_addr = dev0->hub_addr;
-  new_dev->hub_port = dev0->hub_port;
-  new_dev->speed    = dev0->speed;
-  new_dev->connected = 1;
-  new_dev->ep0_packet_size = ((tusb_desc_device_t*) _usbh_ctrl_buf)->bMaxPacketSize0;
-
-  tusb_control_request_t const new_request =
-  {
-    .bmRequestType_bit =
-    {
-      .recipient = TUSB_REQ_RCPT_DEVICE,
-      .type      = TUSB_REQ_TYPE_STANDARD,
-      .direction = TUSB_DIR_OUT
-    },
-    .bRequest = TUSB_REQ_SET_ADDRESS,
-    .wValue   = new_addr,
-    .wIndex   = 0,
-    .wLength  = 0
-  };
-
-  TU_ASSERT(tuh_control_xfer(0, &new_request, NULL, enum_set_address_complete));
 
   return true;
 }

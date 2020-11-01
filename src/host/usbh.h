@@ -120,6 +120,8 @@ bool usbh_control_xfer (uint8_t dev_addr, tusb_control_request_t* request, uint8
 
 void usbh_driver_set_config_complete(uint8_t dev_addr, uint8_t itf_num);
 
+uint8_t usbh_get_rhport(uint8_t dev_addr);
+
 #ifdef __cplusplus
  }
 #endif
