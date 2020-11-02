@@ -71,7 +71,7 @@ bool hub_port_clear_feature(uint8_t hub_addr, uint8_t hub_port, uint8_t feature,
     .wLength  = 0
   };
 
-  TU_LOG2("HUB Clear Port Feature: addr = 0x%02X, port = %u, feature = %u\r\n", hub_addr, hub_port, feature);
+  TU_LOG2("HUB Clear Port Feature: addr = %u port = %u, feature = %u\r\n", hub_addr, hub_port, feature);
   TU_ASSERT( tuh_control_xfer(hub_addr, &request, NULL, complete_cb) );
   return true;
 }
@@ -92,7 +92,7 @@ bool hub_port_get_status(uint8_t hub_addr, uint8_t hub_port, void* resp, tuh_con
     .wLength  = 4
   };
 
-  TU_LOG2("HUB Get Port Status: addr = 0x%02X, port = %u\r\n", hub_addr, hub_port);
+  TU_LOG2("HUB Get Port Status: addr = %u port = %u\r\n", hub_addr, hub_port);
   TU_ASSERT( tuh_control_xfer( hub_addr, &request, resp, complete_cb) );
   return true;
 }
@@ -113,7 +113,7 @@ bool hub_port_reset(uint8_t hub_addr, uint8_t hub_port, tuh_control_complete_cb_
     .wLength  = 0
   };
 
-  TU_LOG2("HUB Reset Port: addr = 0x%02X, port = %u\r\n", hub_addr, hub_port);
+  TU_LOG2("HUB Reset Port: addr = %u port = %u\r\n", hub_addr, hub_port);
   TU_ASSERT( tuh_control_xfer(hub_addr, &request, NULL, complete_cb) );
   return true;
 }

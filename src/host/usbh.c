@@ -601,7 +601,25 @@ static bool enum_hub_clear_reset1_complete(uint8_t dev_addr, tusb_control_reques
   return true;
 }
 
-static bool enum_hub_get_status_complete(uint8_t dev_addr, tusb_control_request_t const * request, xfer_result_t result)
+static bool enum_hub_get_status1_complete(uint8_t dev_addr, tusb_control_request_t const * request, xfer_result_t result)
+{
+  (void) dev_addr; (void) request;
+  TU_ASSERT(XFER_RESULT_SUCCESS == result);
+  usbh_device_t* dev0 = &_usbh_devices[0];
+
+  hub_port_status_response_t port_status;
+  memcpy(&port_status, _usbh_ctrl_buf, sizeof(hub_port_status_response_t));
+
+  // Acknowledge Port Reset Change if Reset Successful
+  if (port_status.change.reset)
+  {
+    TU_ASSERT( hub_port_clear_feature(dev0->hub_addr, dev0->hub_port, HUB_FEATURE_PORT_RESET_CHANGE, enum_hub_clear_reset1_complete) );
+  }
+
+  return true;
+}
+
+static bool enum_hub_get_status0_complete(uint8_t dev_addr, tusb_control_request_t const * request, xfer_result_t result)
 {
   (void) dev_addr; (void) request;
   TU_ASSERT(XFER_RESULT_SUCCESS == result);
@@ -692,7 +710,7 @@ static bool enum_new_device(hcd_event_t* event)
   {
     // wait until device is stable
     osal_task_delay(RESET_DELAY);
-    TU_ASSERT( hub_port_get_status(dev0->hub_addr, dev0->hub_port, _usbh_ctrl_buf, enum_hub_get_status_complete) );
+    TU_ASSERT( hub_port_get_status(dev0->hub_addr, dev0->hub_port, _usbh_ctrl_buf, enum_hub_get_status0_complete) );
   }
 #endif // CFG_TUH_HUB
 
@@ -736,7 +754,7 @@ static bool enum_get_addr0_device_desc_complete(uint8_t dev_addr, tusb_control_r
   {
 #if CFG_TUH_HUB
     // TODO remove, waiting for next data on status pipe
-    if (dev0->hub_addr != 0) hub_status_pipe_queue( dev0->hub_addr);
+    if (dev0->hub_addr != 0) hub_status_pipe_queue(dev0->hub_addr);
 #endif
 
     return false;
@@ -758,13 +776,13 @@ static bool enum_get_addr0_device_desc_complete(uint8_t dev_addr, tusb_control_r
   {
     // after RESET_DELAY the hub_port_reset() already complete
     TU_ASSERT( hub_port_reset(dev0->hub_addr, dev0->hub_port, NULL) );
-
     osal_task_delay(RESET_DELAY);
 
-    // Acknowledge Port Reset Change if Reset Successful
-    TU_ASSERT( hub_port_clear_feature(dev0->hub_addr, dev0->hub_port, HUB_FEATURE_PORT_RESET_CHANGE, enum_hub_clear_reset1_complete) );
+    tuh_task(); // FIXME temporarily to clean up port_reset control transfer
+
+    TU_ASSERT( hub_port_get_status(dev0->hub_addr, dev0->hub_port, _usbh_ctrl_buf, enum_hub_get_status1_complete) );
   }
-#endif // CFG_TUH_HUB
+#endif
 
   return true;
 }
