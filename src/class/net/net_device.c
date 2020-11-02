@@ -141,9 +141,9 @@ uint16_t netd_open(uint8_t rhport, tusb_desc_interface_t const * itf_desc, uint1
                          TUD_RNDIS_ITF_SUBCLASS == itf_desc->bInterfaceSubClass &&
                          TUD_RNDIS_ITF_PROTOCOL == itf_desc->bInterfaceProtocol);
 
-  bool const is_ecm = (TUSB_CLASS_CDC                                      == itf_desc->bInterfaceClass &&
-                       CDC_COMM_SUBCLASS_ETHERNET_NETWORKING_CONTROL_MODEL == itf_desc->bInterfaceSubClass &&
-                       0x00                                                == itf_desc->bInterfaceProtocol);
+  bool const is_ecm = (TUSB_CLASS_CDC                           == itf_desc->bInterfaceClass &&
+                       CDC_COMM_SUBCLASS_ETHERNET_CONTROL_MODEL == itf_desc->bInterfaceSubClass &&
+                       0x00                                     == itf_desc->bInterfaceProtocol);
 
   TU_VERIFY(is_rndis || is_ecm, 0);
 
