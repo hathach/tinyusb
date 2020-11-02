@@ -56,6 +56,7 @@ static usbh_class_driver_t const usbh_class_drivers[] =
       .class_code = TUSB_CLASS_CDC,
       .init       = cdch_init,
       .open       = cdch_open,
+      .set_config = cdch_set_config,
       .xfer_cb    = cdch_xfer_cb,
       .close      = cdch_close
     },
@@ -174,9 +175,6 @@ bool tuh_init(void)
   {
     usbh_device_t * const dev = &_usbh_devices[i];
 
-    dev->control.sem_hdl = osal_semaphore_create(&dev->control.sem_def);
-    TU_ASSERT(dev->control.sem_hdl != NULL);
-
 #if CFG_TUSB_OS != OPT_OS_NONE
     dev->mutex = osal_mutex_create(&dev->mutexdef);
     TU_ASSERT(dev->mutex);
@@ -195,38 +193,6 @@ bool tuh_init(void)
 
   TU_ASSERT(hcd_init());
   hcd_int_enable(TUH_OPT_RHPORT);
-
-  return true;
-}
-
-//------------- USBH control transfer -------------//
-
-// TODO remove
-bool usbh_control_xfer (uint8_t dev_addr, tusb_control_request_t* request, uint8_t* data)
-{
-  usbh_device_t* dev = &_usbh_devices[dev_addr];
-  const uint8_t rhport = dev->rhport;
-
-  dev->control.request = *request;
-  dev->control.pipe_status = 0;
-
-  // Setup Stage
-  hcd_setup_send(rhport, dev_addr, (uint8_t*) &dev->control.request);
-  TU_VERIFY(osal_semaphore_wait(dev->control.sem_hdl, OSAL_TIMEOUT_NORMAL));
-
-  // Data stage : first data toggle is always 1
-  if ( request->wLength )
-  {
-    hcd_edpt_xfer(rhport, dev_addr, tu_edpt_addr(0, request->bmRequestType_bit.direction), data, request->wLength);
-    TU_VERIFY(osal_semaphore_wait(dev->control.sem_hdl, OSAL_TIMEOUT_NORMAL));
-  }
-
-  // Status : data toggle is always 1
-  hcd_edpt_xfer(rhport, dev_addr, tu_edpt_addr(0, 1-request->bmRequestType_bit.direction), NULL, 0);
-  TU_VERIFY(osal_semaphore_wait(dev->control.sem_hdl, OSAL_TIMEOUT_NORMAL));
-
-  if ( XFER_RESULT_STALLED == dev->control.pipe_status ) return false;
-  if ( XFER_RESULT_FAILED == dev->control.pipe_status ) return false;
 
   return true;
 }
@@ -291,9 +257,6 @@ bool usbh_edpt_xfer(uint8_t dev_addr, uint8_t ep_addr, uint8_t * buffer, uint16_
 
 bool usbh_pipe_control_open(uint8_t dev_addr, uint8_t max_packet_size)
 {
-  osal_semaphore_reset( _usbh_devices[dev_addr].control.sem_hdl );
-  //osal_mutex_reset( usbh_devices[dev_addr].control.mutex_hdl );
-      
   tusb_desc_endpoint_t ep0_desc =
   {
     .bLength          = sizeof(tusb_desc_endpoint_t),
@@ -349,15 +312,6 @@ void hcd_event_handler(hcd_event_t const* event, bool in_isr)
 // interrupt caused by a TD (with IOC=1) in pipe of class class_code
 void hcd_event_xfer_complete(uint8_t dev_addr, uint8_t ep_addr, uint32_t xferred_bytes, xfer_result_t result, bool in_isr)
 {
-  usbh_device_t* dev = &_usbh_devices[ dev_addr ];
-
-  if (0 == tu_edpt_number(ep_addr))
-  {
-    dev->control.pipe_status = result;
-//    usbh_devices[ pipe_hdl.dev_addr ].control.xferred_bytes = xferred_bytes; not yet neccessary
-    osal_semaphore_post( dev->control.sem_hdl, true ); // FIXME post within ISR
-  }
-
   hcd_event_t event =
   {
     .rhport   = 0, // TODO correct rhport

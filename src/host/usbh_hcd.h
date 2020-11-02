@@ -75,16 +75,6 @@ typedef struct {
 
   volatile uint8_t state;             // device state, value from enum tusbh_device_state_t
 
-  //------------- control pipe -------------//
-  struct {
-    volatile uint8_t pipe_status;
-//    uint8_t xferred_bytes; TODO not yet necessary
-    tusb_control_request_t request;
-
-    osal_semaphore_def_t sem_def;
-    osal_semaphore_t sem_hdl;  // used to synchronize with HCD when control xfer complete
-  } control;
-
   uint8_t itf2drv[16];  // map interface number to driver (0xff is invalid)
   uint8_t ep2drv[CFG_TUH_EP_MAX][2]; // map endpoint to driver ( 0xff is invalid )
 
