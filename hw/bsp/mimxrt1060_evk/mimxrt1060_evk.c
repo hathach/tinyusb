@@ -49,6 +49,7 @@
 #define UART_RX_PINMUX        IOMUXC_GPIO_AD_B0_13_LPUART1_RX
 #define UART_TX_PINMUX        IOMUXC_GPIO_AD_B0_12_LPUART1_TX
 
+// needed by fsl_flexspi_nor_boot
 const uint8_t dcd_data[] = { 0x00 };
 
 void board_init(void)
@@ -124,7 +125,7 @@ void board_init(void)
 void USB_OTG1_IRQHandler(void)
 {
   #if CFG_TUSB_RHPORT0_MODE & OPT_MODE_HOST
-    tuh_isr(0);
+    tuh_int_handler(0);
   #endif
 
   #if CFG_TUSB_RHPORT0_MODE & OPT_MODE_DEVICE
@@ -135,7 +136,7 @@ void USB_OTG1_IRQHandler(void)
 void USB_OTG2_IRQHandler(void)
 {
   #if CFG_TUSB_RHPORT1_MODE & OPT_MODE_HOST
-    tuh_isr(1);
+    tuh_int_handler(1);
   #endif
 
   #if CFG_TUSB_RHPORT1_MODE & OPT_MODE_DEVICE

@@ -33,6 +33,7 @@ SRC_C += \
 	src/common/tusb_fifo.c \
 	src/device/usbd.c \
 	src/device/usbd_control.c \
+	src/class/audio/audio_device.c \
 	src/class/cdc/cdc_device.c \
 	src/class/dfu/dfu_rt_device.c \
 	src/class/hid/hid_device.c \
@@ -147,6 +148,8 @@ else
   JLINKEXE = JLinkExe
 endif
 
+JLINK_IF ?= swd
+
 # Flash using jlink
 flash-jlink: $(BUILD)/$(BOARD)-firmware.hex
 	@echo halt > $(BUILD)/$(BOARD).jlink
@@ -160,5 +163,10 @@ flash-jlink: $(BUILD)/$(BOARD)-firmware.hex
 # flash STM32 MCU using stlink with STM32 Cube Programmer CLI
 flash-stlink: $(BUILD)/$(BOARD)-firmware.elf
 	STM32_Programmer_CLI --connect port=swd --write $< --go
+
+# flash with pyocd
+flash-pyocd: $(BUILD)/$(BOARD)-firmware.hex
+	pyocd flash -t $(PYOCD_TARGET) $<
+	pyocd reset -t $(PYOCD_TARGET)
 
 endif # Make target

@@ -32,6 +32,16 @@ RNDIS should be valid on Linux and Windows hosts, and CDC-ECM should be valid on
 
 The MCU appears to the host as IP address 192.168.7.1, and provides a DHCP server, DNS server, and web server.
 */
+/*
+Some smartphones *may* work with this implementation as well, but likely have limited (broken) drivers,
+and likely their manufacturer has not tested such functionality.  Some code workarounds could be tried:
+
+The smartphone may only have an ECM driver, but refuse to automatically pick ECM (unlike the OSes above);
+try modifying ./examples/devices/net_lwip_webserver/usb_descriptors.c so that CONFIG_ID_ECM is default.
+
+The smartphone may be artificially picky about which Ethernet MAC address to recognize; if this happens, 
+try changing the first byte of tud_network_mac_address[] below from 0x02 to 0x00 (clearing bit 1).
+*/
 
 #include "bsp/board.h"
 #include "tusb.h"
@@ -50,7 +60,7 @@ static struct pbuf *received_frame;
 
 /* this is used by this code, ./class/net/net_driver.c, and usb_descriptors.c */
 /* ideally speaking, this should be generated from the hardware's unique ID (if available) */
-/* it is suggested that the first two bytes are 0x02,0x02 to indicate a link-local address */
+/* it is suggested that the first byte is 0x02 to indicate a link-local address */
 const uint8_t tud_network_mac_address[6] = {0x02,0x02,0x84,0x6A,0x96,0x00};
 
 /* network parameters of this MCU */
@@ -61,22 +71,21 @@ static const ip_addr_t gateway = IPADDR4_INIT_BYTES(0, 0, 0, 0);
 /* database IP addresses that can be offered to the host; this must be in RAM to store assigned MAC addresses */
 static dhcp_entry_t entries[] =
 {
-  /* mac    ip address        subnet mask        lease time */
-  { {0}, {192, 168, 7, 2}, {255, 255, 255, 0}, 24 * 60 * 60 },
-  { {0}, {192, 168, 7, 3}, {255, 255, 255, 0}, 24 * 60 * 60 },
-  { {0}, {192, 168, 7, 4}, {255, 255, 255, 0}, 24 * 60 * 60 }
+    /* mac ip address                          lease time */
+    { {0}, IPADDR4_INIT_BYTES(192, 168, 7, 2), 24 * 60 * 60 },
+    { {0}, IPADDR4_INIT_BYTES(192, 168, 7, 3), 24 * 60 * 60 },
+    { {0}, IPADDR4_INIT_BYTES(192, 168, 7, 4), 24 * 60 * 60 },
 };
 
-/* DHCP configuration parameters, leveraging "entries" above */
 static const dhcp_config_t dhcp_config =
 {
-  {192, 168, 7, 1}, 67,    /* server address (self), port */
-  {192, 168, 7, 1},        /* dns server (self) */
-  "usb",                   /* dns suffix */
-  TU_ARRAY_SIZE(entries),  /* number of entries */
-  entries                  /* pointer to entries */
+    .router = IPADDR4_INIT_BYTES(0, 0, 0, 0),  /* router address (if any) */
+    .port = 67,                                /* listen port */
+    .dns = IPADDR4_INIT_BYTES(192, 168, 7, 1), /* dns server (if any) */
+    "usb",                                     /* dns suffix */
+    TU_ARRAY_SIZE(entries),                    /* num entry */
+    entries                                    /* entries */
 };
-
 static err_t linkoutput_fn(struct netif *netif, struct pbuf *p)
 {
   (void)netif;
@@ -90,7 +99,7 @@ static err_t linkoutput_fn(struct netif *netif, struct pbuf *p)
     /* if the network driver can accept another packet, we make it happen */
     if (tud_network_can_xmit())
     {
-      tud_network_xmit(p);
+      tud_network_xmit(p, 0 /* unused for this example */);
       return ERR_OK;
     }
 
@@ -143,15 +152,47 @@ bool dns_query_proc(const char *name, ip_addr_t *addr)
   return false;
 }
 
-bool tud_network_recv_cb(struct pbuf *p)
+bool tud_network_recv_cb(const uint8_t *src, uint16_t size)
 {
   /* this shouldn't happen, but if we get another packet before 
   parsing the previous, we must signal our inability to accept it */
   if (received_frame) return false;
 
-  /* store away the pointer for service_traffic() to later handle */
-  received_frame = p;
+  if (size)
+  {
+    struct pbuf *p = pbuf_alloc(PBUF_RAW, size, PBUF_POOL);
+
+    if (p)
+    {
+      /* pbuf_alloc() has already initialized struct; all we need to do is copy the data */
+      memcpy(p->payload, src, size);
+
+      /* store away the pointer for service_traffic() to later handle */
+      received_frame = p;
+    }
+  }
+
   return true;
+}
+
+uint16_t tud_network_xmit_cb(uint8_t *dst, void *ref, uint16_t arg)
+{
+  struct pbuf *p = (struct pbuf *)ref;
+  struct pbuf *q;
+  uint16_t len = 0;
+
+  (void)arg; /* unused for this example */
+
+  /* traverse the "pbuf chain"; see ./lwip/src/core/pbuf.c for more info */
+  for(q = p; q != NULL; q = q->next)
+  {
+    memcpy(dst, (char *)q->payload, q->len);
+    dst += q->len;
+    len += q->len;
+    if (q->len == q->tot_len) break;
+  }
+
+  return len;
 }
 
 static void service_traffic(void)

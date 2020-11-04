@@ -34,6 +34,11 @@
 //--------------------------------------------------------------------+
 // MACRO CONSTANT TYPEDEF
 //--------------------------------------------------------------------+
+enum
+{
+  BULK_PACKET_SIZE = (TUD_OPT_HIGH_SPEED ? 512 : 64)
+};
+
 typedef struct
 {
   uint8_t itf_num;
@@ -73,18 +78,29 @@ typedef struct
 //--------------------------------------------------------------------+
 CFG_TUSB_MEM_SECTION static cdcd_interface_t _cdcd_itf[CFG_TUD_CDC];
 
-static void _prep_out_transaction (uint8_t itf)
+static void _prep_out_transaction (cdcd_interface_t* p_cdc)
 {
-  cdcd_interface_t* p_cdc = &_cdcd_itf[itf];
-
-  // skip if previous transfer not complete
-  if ( usbd_edpt_busy(TUD_OPT_RHPORT, p_cdc->ep_out) ) return;
+  uint8_t const rhport = TUD_OPT_RHPORT;
+  uint16_t available = tu_fifo_remaining(&p_cdc->rx_ff);
 
   // Prepare for incoming data but only allow what we can store in the ring buffer.
-  uint16_t max_read = tu_fifo_remaining(&p_cdc->rx_ff);
-  if ( max_read >= sizeof(p_cdc->epout_buf) )
+  // TODO Actually we can still carry out the transfer, keeping count of received bytes
+  // and slowly move it to the FIFO when read().
+  // This pre-check reduces endpoint claiming
+  TU_VERIFY(available >= sizeof(p_cdc->epout_buf), );
+
+  // claim endpoint
+  TU_VERIFY(usbd_edpt_claim(rhport, p_cdc->ep_out), );
+
+  // fifo can be changed before endpoint is claimed
+  available = tu_fifo_remaining(&p_cdc->rx_ff);
+
+  if ( available >= sizeof(p_cdc->epout_buf) )  {
+    usbd_edpt_xfer(rhport, p_cdc->ep_out, p_cdc->epout_buf, sizeof(p_cdc->epout_buf));
+  }else
   {
-    usbd_edpt_xfer(TUD_OPT_RHPORT, p_cdc->ep_out, p_cdc->epout_buf, sizeof(p_cdc->epout_buf));
+    // Release endpoint since we don't make any transfer
+    usbd_edpt_release(rhport, p_cdc->ep_out);
   }
 }
 
@@ -123,8 +139,9 @@ uint32_t tud_cdc_n_available(uint8_t itf)
 
 uint32_t tud_cdc_n_read(uint8_t itf, void* buffer, uint32_t bufsize)
 {
-  uint32_t num_read = tu_fifo_read_n(&_cdcd_itf[itf].rx_ff, buffer, bufsize);
-  _prep_out_transaction(itf);
+  cdcd_interface_t* p_cdc = &_cdcd_itf[itf];
+  uint32_t num_read = tu_fifo_read_n(&p_cdc->rx_ff, buffer, bufsize);
+  _prep_out_transaction(p_cdc);
   return num_read;
 }
 
@@ -135,8 +152,9 @@ bool tud_cdc_n_peek(uint8_t itf, int pos, uint8_t* chr)
 
 void tud_cdc_n_read_flush (uint8_t itf)
 {
-  tu_fifo_clear(&_cdcd_itf[itf].rx_ff);
-  _prep_out_transaction(itf);
+  cdcd_interface_t* p_cdc = &_cdcd_itf[itf];
+  tu_fifo_clear(&p_cdc->rx_ff);
+  _prep_out_transaction(p_cdc);
 }
 
 //--------------------------------------------------------------------+
@@ -144,15 +162,14 @@ void tud_cdc_n_read_flush (uint8_t itf)
 //--------------------------------------------------------------------+
 uint32_t tud_cdc_n_write(uint8_t itf, void const* buffer, uint32_t bufsize)
 {
-  uint16_t ret = tu_fifo_write_n(&_cdcd_itf[itf].tx_ff, buffer, bufsize);
+  cdcd_interface_t* p_cdc = &_cdcd_itf[itf];
+  uint16_t ret = tu_fifo_write_n(&p_cdc->tx_ff, buffer, bufsize);
 
-#if 0 // TODO issue with circuitpython's REPL
-  // flush if queue more than endpoint size
-  if ( tu_fifo_count(&_cdcd_itf[itf].tx_ff) >= CFG_TUD_CDC_EP_BUFSIZE )
+  // flush if queue more than packet size
+  if ( tu_fifo_count(&p_cdc->tx_ff) >= BULK_PACKET_SIZE )
   {
     tud_cdc_n_write_flush(itf);
   }
-#endif
 
   return ret;
 }
@@ -161,13 +178,28 @@ uint32_t tud_cdc_n_write_flush (uint8_t itf)
 {
   cdcd_interface_t* p_cdc = &_cdcd_itf[itf];
 
-  // skip if previous transfer not complete yet
-  TU_VERIFY( !usbd_edpt_busy(TUD_OPT_RHPORT, p_cdc->ep_in), 0 );
+  // No data to send
+  if ( !tu_fifo_count(&p_cdc->tx_ff) ) return 0;
 
-  uint16_t count = tu_fifo_read_n(&p_cdc->tx_ff, p_cdc->epin_buf, sizeof(p_cdc->epin_buf));
-  if ( count ) TU_ASSERT( usbd_edpt_xfer(TUD_OPT_RHPORT, p_cdc->ep_in, p_cdc->epin_buf, count), 0 );
+  uint8_t const rhport = TUD_OPT_RHPORT;
 
-  return count;
+  // Claim the endpoint
+  TU_VERIFY( usbd_edpt_claim(rhport, p_cdc->ep_in), 0 );
+
+  // Pull data from FIFO
+  uint16_t const count = tu_fifo_read_n(&p_cdc->tx_ff, p_cdc->epin_buf, sizeof(p_cdc->epin_buf));
+
+  if ( count )
+  {
+    TU_ASSERT( usbd_edpt_xfer(rhport, p_cdc->ep_in, p_cdc->epin_buf, count), 0 );
+    return count;
+  }else
+  {
+    // Release endpoint since we don't make any transfer
+    // Note: data is dropped if terminal is not connected
+    usbd_edpt_release(rhport, p_cdc->ep_in);
+    return 0;
+  }
 }
 
 uint32_t tud_cdc_n_write_available (uint8_t itf)
@@ -190,7 +222,7 @@ void cdcd_init(void)
     p_cdc->wanted_char = -1;
 
     // default line coding is : stop bit = 1, parity = none, data bits = 8
-    p_cdc->line_coding.bit_rate = 115200;
+    p_cdc->line_coding.bit_rate  = 115200;
     p_cdc->line_coding.stop_bits = 0;
     p_cdc->line_coding.parity    = 0;
     p_cdc->line_coding.data_bits = 8;
@@ -221,16 +253,15 @@ void cdcd_reset(uint8_t rhport)
 uint16_t cdcd_open(uint8_t rhport, tusb_desc_interface_t const * itf_desc, uint16_t max_len)
 {
   // Only support ACM subclass
-  TU_VERIFY ( TUSB_CLASS_CDC                           == itf_desc->bInterfaceClass &&
-              CDC_COMM_SUBCLASS_ABSTRACT_CONTROL_MODEL == itf_desc->bInterfaceSubClass, 0);
+  TU_VERIFY( TUSB_CLASS_CDC                           == itf_desc->bInterfaceClass &&
+             CDC_COMM_SUBCLASS_ABSTRACT_CONTROL_MODEL == itf_desc->bInterfaceSubClass, 0);
 
   // Note: 0xFF can be used with RNDIS
   TU_VERIFY(tu_within(CDC_COMM_PROTOCOL_NONE, itf_desc->bInterfaceProtocol, CDC_COMM_PROTOCOL_ATCOMMAND_CDMA), 0);
 
   // Find available interface
   cdcd_interface_t * p_cdc = NULL;
-  uint8_t cdc_id;
-  for(cdc_id=0; cdc_id<CFG_TUD_CDC; cdc_id++)
+  for(uint8_t cdc_id=0; cdc_id<CFG_TUD_CDC; cdc_id++)
   {
     if ( _cdcd_itf[cdc_id].ep_in == 0 )
     {
@@ -279,7 +310,7 @@ uint16_t cdcd_open(uint8_t rhport, tusb_desc_interface_t const * itf_desc, uint1
   }
 
   // Prepare for incoming data
-  _prep_out_transaction(cdc_id);
+  _prep_out_transaction(p_cdc);
 
   return drv_len;
 }
@@ -417,7 +448,7 @@ bool cdcd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint32_
     if (tud_cdc_rx_cb && tu_fifo_count(&p_cdc->rx_ff) ) tud_cdc_rx_cb(itf);
 
     // prepare for OUT transaction
-    _prep_out_transaction(itf);
+    _prep_out_transaction(p_cdc);
   }
 
   // Data sent to host, we continue to fetch from tx fifo to send.
@@ -430,12 +461,14 @@ bool cdcd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint32_
 
     if ( 0 == tud_cdc_n_write_flush(itf) )
     {
-      // There is no data left, a ZLP should be sent if
-      // xferred_bytes is multiple of EP size and not zero
-      // FIXME CFG_TUD_CDC_EP_BUFSIZE is not Endpoint packet size
-      if ( xferred_bytes && (0 == (xferred_bytes % CFG_TUD_CDC_EP_BUFSIZE)) )
+      // If there is no data left, a ZLP should be sent if
+      // xferred_bytes is multiple of EP Packet size and not zero
+      if ( !tu_fifo_count(&p_cdc->tx_ff) && xferred_bytes && (0 == (xferred_bytes & (BULK_PACKET_SIZE-1))) )
       {
-        usbd_edpt_xfer(rhport, p_cdc->ep_in, NULL, 0);
+        if ( usbd_edpt_claim(rhport, p_cdc->ep_in) )
+        {
+          usbd_edpt_xfer(rhport, p_cdc->ep_in, NULL, 0);
+        }
       }
     }
   }

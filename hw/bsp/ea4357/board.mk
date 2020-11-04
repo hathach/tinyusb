@@ -7,8 +7,8 @@ CFLAGS += \
   -mfpu=fpv4-sp-d16 \
   -nostdlib \
   -DCORE_M4 \
-  -DCFG_TUSB_MCU=OPT_MCU_LPC43XX \
-  -D__USE_LPCOPEN
+  -D__USE_LPCOPEN \
+  -DCFG_TUSB_MCU=OPT_MCU_LPC43XX
 
 # mcu driver cause following warnings
 CFLAGS += -Wno-error=unused-parameter -Wno-error=strict-prototypes
@@ -26,7 +26,8 @@ SRC_C += \
 	$(MCU_DIR)/src/sysinit_18xx_43xx.c \
 	$(MCU_DIR)/src/i2c_18xx_43xx.c \
 	$(MCU_DIR)/src/i2cm_18xx_43xx.c \
-	$(MCU_DIR)/src/uart_18xx_43xx.c
+	$(MCU_DIR)/src/uart_18xx_43xx.c \
+	$(MCU_DIR)/src/fpu_init.c
 
 INC += \
 	$(TOP)/$(MCU_DIR)/inc \
@@ -40,8 +41,7 @@ CHIP_FAMILY = transdimension
 FREERTOS_PORT = ARM_CM4F
 
 # For flash-jlink target
-JLINK_DEVICE = LPC4357
-JLINK_IF = jtag 
+JLINK_DEVICE = LPC4357_M4
 
 # flash using jlink
 flash: flash-jlink

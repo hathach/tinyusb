@@ -203,6 +203,11 @@ static inline void reg16_clear_bits(__IO uint16_t *reg, uint16_t mask) {
   *reg = (uint16_t)(*reg & ~mask);
 }
 
+// Bits in ISTR are cleared upon writing 0
+static inline void clear_istr_bits(uint16_t mask) {
+  USB->ISTR = ~mask;
+}
+
 void dcd_init (uint8_t rhport)
 {
   /* Clocks should already be enabled */
@@ -231,7 +236,7 @@ void dcd_init (uint8_t rhport)
   
   USB->BTABLE = DCD_STM32_BTABLE_BASE;
 
-  reg16_clear_bits(&USB->ISTR, USB_ISTR_ALL_EVENTS); // Clear pending interrupts
+  USB->ISTR = 0; // Clear pending interrupts
 
   // Reset endpoints to disabled
   for(uint32_t i=0; i<STFSDEV_EP_COUNT; i++)
@@ -276,9 +281,23 @@ void dcd_int_enable (uint8_t rhport)
 #if CFG_TUSB_MCU == OPT_MCU_STM32F0 || CFG_TUSB_MCU == OPT_MCU_STM32L0
   NVIC_EnableIRQ(USB_IRQn);
 #elif CFG_TUSB_MCU == OPT_MCU_STM32F3
-  NVIC_EnableIRQ(USB_HP_CAN_TX_IRQn);
-  NVIC_EnableIRQ(USB_LP_CAN_RX0_IRQn);
-  NVIC_EnableIRQ(USBWakeUp_IRQn);
+  // Some STM32F302/F303 devices allow to remap the USB interrupt vectors from
+  // shared USB/CAN IRQs to separate CAN and USB IRQs.
+  // This dynamically checks if this remap is active to enable the right IRQs.
+  #ifdef SYSCFG_CFGR1_USB_IT_RMP
+  if (SYSCFG->CFGR1 & SYSCFG_CFGR1_USB_IT_RMP)
+  {
+    NVIC_EnableIRQ(USB_HP_IRQn);
+    NVIC_EnableIRQ(USB_LP_IRQn);
+    NVIC_EnableIRQ(USBWakeUp_RMP_IRQn);
+  }
+  else
+  #endif
+  {
+    NVIC_EnableIRQ(USB_HP_CAN_TX_IRQn);
+    NVIC_EnableIRQ(USB_LP_CAN_RX0_IRQn);
+    NVIC_EnableIRQ(USBWakeUp_IRQn);
+  }
 #elif CFG_TUSB_MCU == OPT_MCU_STM32F1
   NVIC_EnableIRQ(USB_HP_CAN1_TX_IRQn);
   NVIC_EnableIRQ(USB_LP_CAN1_RX0_IRQn);
@@ -296,9 +315,23 @@ void dcd_int_disable(uint8_t rhport)
 #if CFG_TUSB_MCU == OPT_MCU_STM32F0 || CFG_TUSB_MCU == OPT_MCU_STM32L0
   NVIC_DisableIRQ(USB_IRQn);
 #elif CFG_TUSB_MCU == OPT_MCU_STM32F3
-  NVIC_DisableIRQ(USB_HP_CAN_TX_IRQn);
-  NVIC_DisableIRQ(USB_LP_CAN_RX0_IRQn);
-  NVIC_DisableIRQ(USBWakeUp_IRQn);
+  // Some STM32F302/F303 devices allow to remap the USB interrupt vectors from
+  // shared USB/CAN IRQs to separate CAN and USB IRQs.
+  // This dynamically checks if this remap is active to disable the right IRQs.
+  #ifdef SYSCFG_CFGR1_USB_IT_RMP
+  if (SYSCFG->CFGR1 & SYSCFG_CFGR1_USB_IT_RMP)
+  {
+    NVIC_DisableIRQ(USB_HP_IRQn);
+    NVIC_DisableIRQ(USB_LP_IRQn);
+    NVIC_DisableIRQ(USBWakeUp_RMP_IRQn);
+  }
+  else
+  #endif
+  {
+    NVIC_DisableIRQ(USB_HP_CAN_TX_IRQn);
+    NVIC_DisableIRQ(USB_LP_CAN_RX0_IRQn);
+    NVIC_DisableIRQ(USBWakeUp_IRQn);
+  }
 #elif CFG_TUSB_MCU == OPT_MCU_STM32F1
   NVIC_DisableIRQ(USB_HP_CAN1_TX_IRQn);
   NVIC_DisableIRQ(USB_LP_CAN1_RX0_IRQn);
@@ -512,7 +545,7 @@ void dcd_int_handler(uint8_t rhport) {
 
   if(int_status & USB_ISTR_RESET) {
     // USBRST is start of reset.
-    reg16_clear_bits(&USB->ISTR, USB_ISTR_RESET);
+    clear_istr_bits(USB_ISTR_RESET);
     dcd_handle_bus_reset();
     dcd_event_bus_signal(0, DCD_EVENT_BUS_RESET, true);
     return; // Don't do the rest of the things here; perhaps they've been cleared?
@@ -523,14 +556,13 @@ void dcd_int_handler(uint8_t rhport) {
     /* servicing of the endpoint correct transfer interrupt */
     /* clear of the CTR flag into the sub */
     dcd_ep_ctr_handler();
-    reg16_clear_bits(&USB->ISTR, USB_ISTR_CTR);
   }
 
   if (int_status & USB_ISTR_WKUP)
   {
     reg16_clear_bits(&USB->CNTR, USB_CNTR_LPMODE);
     reg16_clear_bits(&USB->CNTR, USB_CNTR_FSUSP);
-    reg16_clear_bits(&USB->ISTR, USB_ISTR_WKUP);
+    clear_istr_bits(USB_ISTR_WKUP);
     dcd_event_bus_signal(0, DCD_EVENT_RESUME, true);
   }
 
@@ -544,13 +576,13 @@ void dcd_int_handler(uint8_t rhport) {
     USB->CNTR |= USB_CNTR_LPMODE;
 
     /* clear of the ISTR bit must be done after setting of CNTR_FSUSP */
-    reg16_clear_bits(&USB->ISTR, USB_ISTR_SUSP);
+    clear_istr_bits(USB_ISTR_SUSP);
     dcd_event_bus_signal(0, DCD_EVENT_SUSPEND, true);
   }
 
 #if USE_SOF
   if(int_status & USB_ISTR_SOF) {
-    reg16_clear_bits(&USB->ISTR, USB_ISTR_SOF);
+    clear_istr_bits(USB_ISTR_SOF);
     dcd_event_bus_signal(0, DCD_EVENT_SOF, true);
   }
 #endif 
@@ -564,7 +596,7 @@ void dcd_int_handler(uint8_t rhport) {
     {
       remoteWakeCountdown--;
     }
-    reg16_clear_bits(&USB->ISTR, USB_ISTR_ESOF);
+    clear_istr_bits(USB_ISTR_ESOF);
   }
 }
 

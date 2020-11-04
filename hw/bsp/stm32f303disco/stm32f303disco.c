@@ -31,27 +31,29 @@
 // Forward USB interrupt events to TinyUSB IRQ Handler
 //--------------------------------------------------------------------+
 
-// USB defaults to using interrupts 19, 20, and 42 (based on SYSCFG_CFGR1.USB_IT_RMP)
+// USB defaults to using interrupts 19, 20 and 42, however, this BSP sets the
+// SYSCFG_CFGR1.USB_IT_RMP bit remapping interrupts to 74, 75 and 76.
+
 // FIXME: Do all three need to be handled, or just the LP one?
-// USB high-priority interrupt (Channel 19): Triggered only by a correct
+// USB high-priority interrupt (Channel 74): Triggered only by a correct
 // transfer event for isochronous and double-buffer bulk transfer to reach
 // the highest possible transfer rate.
-void USB_HP_CAN_TX_IRQHandler(void)
+void USB_HP_IRQHandler(void)
 {
   tud_int_handler(0);
 }
 
-// USB low-priority interrupt (Channel 20): Triggered by all USB events
+// USB low-priority interrupt (Channel 75): Triggered by all USB events
 // (Correct transfer, USB reset, etc.). The firmware has to check the
 // interrupt source before serving the interrupt.
-void USB_LP_CAN_RX0_IRQHandler(void)
+void USB_LP_IRQHandler(void)
 {
   tud_int_handler(0);
 }
 
-// USB wakeup interrupt (Channel 42): Triggered by the wakeup event from the USB
+// USB wakeup interrupt (Channel 76): Triggered by the wakeup event from the USB
 // Suspend mode.
-void USBWakeUp_IRQHandler(void)
+void USBWakeUp_RMP_IRQHandler(void)
 {
   tud_int_handler(0);
 }
@@ -126,6 +128,10 @@ void board_init(void)
   // 1ms tick timer
   SysTick_Config(SystemCoreClock / 1000);
   #endif
+
+  // Remap the USB interrupts
+  __HAL_RCC_SYSCFG_CLK_ENABLE();
+  __HAL_REMAPINTERRUPT_USB_ENABLE();
 
   // LED
   __HAL_RCC_GPIOE_CLK_ENABLE();

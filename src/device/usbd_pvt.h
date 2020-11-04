@@ -73,6 +73,13 @@ bool usbd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t 
 // Abort a scheduled transfer
 bool usbd_edpt_xfer_abort(uint8_t rhport, uint8_t ep_addr);
 
+// Claim an endpoint before submitting a transfer.
+// If caller does not make any transfer, it must release endpoint for others.
+bool usbd_edpt_claim(uint8_t rhport, uint8_t ep_addr);
+
+// Release an endpoint without submitting a transfer
+bool usbd_edpt_release(uint8_t rhport, uint8_t ep_addr);
+
 // Check if endpoint transferring is complete
 bool usbd_edpt_busy(uint8_t rhport, uint8_t ep_addr);
 

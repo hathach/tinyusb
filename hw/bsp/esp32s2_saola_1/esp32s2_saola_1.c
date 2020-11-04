@@ -25,11 +25,12 @@
  */
 
 #include "../board.h"
-#include "driver/gpio.h"
-#include "driver/periph_ctrl.h"
+#include "esp_rom_gpio.h"
+#include "hal/gpio_ll.h"
 #include "hal/usb_hal.h"
 #include "soc/usb_periph.h"
 
+#include "driver/periph_ctrl.h"
 #include "driver/rmt.h"
 #include "led_strip/include/led_strip.h"
 
@@ -41,11 +42,10 @@
 // however earlier revision v1.1 WS2812 is connected to GPIO 17
 //#define LED_PIN               17 // v1.1
 #define LED_PIN               18 // v1.2 and later
-
 #define BUTTON_PIN            0
 #define BUTTON_STATE_ACTIVE   0
 
-
+static void configure_pins(usb_hal_context_t *usb);
 static led_strip_t *strip;
 
 // Initialize on-board peripherals : led, button, uart and USB
@@ -75,10 +75,33 @@ void board_init(void)
     .use_external_phy = false // use built-in PHY
   };
   usb_hal_init(&hal);
+  configure_pins(&hal);
+}
 
-  // Pin drive strength
-  gpio_set_drive_capability(USBPHY_DM_NUM, GPIO_DRIVE_CAP_3);
-  gpio_set_drive_capability(USBPHY_DP_NUM, GPIO_DRIVE_CAP_3);
+static void configure_pins(usb_hal_context_t *usb)
+{
+  /* usb_periph_iopins currently configures USB_OTG as USB Device.
+   * Introduce additional parameters in usb_hal_context_t when adding support
+   * for USB Host.
+   */
+  for (const usb_iopin_dsc_t *iopin = usb_periph_iopins; iopin->pin != -1; ++iopin) {
+    if ((usb->use_external_phy) || (iopin->ext_phy_only == 0)) {
+      esp_rom_gpio_pad_select_gpio(iopin->pin);
+      if (iopin->is_output) {
+        esp_rom_gpio_connect_out_signal(iopin->pin, iopin->func, false, false);
+      } else {
+        esp_rom_gpio_connect_in_signal(iopin->pin, iopin->func, false);
+        if ((iopin->pin != GPIO_FUNC_IN_LOW) && (iopin->pin != GPIO_FUNC_IN_HIGH)) {
+          gpio_ll_input_enable(&GPIO, iopin->pin);
+        }
+      }
+      esp_rom_gpio_pad_unhold(iopin->pin);
+    }
+  }
+  if (!usb->use_external_phy) {
+    gpio_set_drive_capability(USBPHY_DM_NUM, GPIO_DRIVE_CAP_3);
+    gpio_set_drive_capability(USBPHY_DP_NUM, GPIO_DRIVE_CAP_3);
+  }
 }
 
 // Turn LED on or off

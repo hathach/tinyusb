@@ -34,14 +34,14 @@
 //--------------------------------------------------------------------+
 // TASK API
 //--------------------------------------------------------------------+
-static inline void osal_task_delay(uint32_t msec)
-{
-  (void) msec;
-  // TODO only used by Host stack, will implement using SOF
-
-//  uint32_t start = tusb_hal_millis();
-//  while ( ( tusb_hal_millis() - start ) < msec ) {}
-}
+//static inline void osal_task_delay(uint32_t msec)
+//{
+//  (void) msec;
+//  // TODO only used by Host stack, will implement using SOF
+//
+////  uint32_t start = tusb_hal_millis();
+////  while ( ( tusb_hal_millis() - start ) < msec ) {}
+//}
 
 //--------------------------------------------------------------------+
 // Binary Semaphore API
@@ -139,6 +139,8 @@ typedef osal_queue_def_t* osal_queue_t;
       .depth        = _depth,                       \
       .item_size    = sizeof(_type),                \
       .overwritable = false,                        \
+      .max_pointer_idx = (2*(_depth))-1,            \
+      .non_used_index_space = 0xFFFF-((2*(_depth))-1),\
     }\
   }
 

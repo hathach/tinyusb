@@ -70,20 +70,24 @@ char const* const tusb_strerr[TUSB_ERROR_COUNT] = { ERROR_TABLE(ERROR_STRING) };
 
 static void dump_str_line(uint8_t const* buf, uint16_t count)
 {
+  tu_printf("  |");
+
   // each line is 16 bytes
   for(uint16_t i=0; i<count; i++)
   {
     const char ch = buf[i];
     tu_printf("%c", isprint(ch) ? ch : '.');
   }
+
+  tu_printf("|\r\n");
 }
 
 /* Print out memory contents
- *  - size  : item size in bytes
+ *  - buf   : buffer
  *  - count : number of item
  *  - indent: prefix spaces on every line
  */
-void tu_print_mem(void const *buf, uint16_t count, uint8_t indent)
+void tu_print_mem(void const *buf, uint32_t count, uint8_t indent)
 {
   uint8_t const size = 1; // fixed 1 byte for now
 
@@ -95,29 +99,27 @@ void tu_print_mem(void const *buf, uint16_t count, uint8_t indent)
 
   uint8_t const *buf8 = (uint8_t const *) buf;
 
-  char format[] = "%00lX";
+  char format[] = "%00X";
   format[2] += 2*size;
 
   const uint8_t item_per_line  = 16 / size;
 
-  for(uint16_t i=0; i<count; i++)
+  for(unsigned int i=0; i<count; i++)
   {
-    uint32_t value=0;
+    unsigned int value=0;
 
     if ( i%item_per_line == 0 )
     {
       // Print Ascii
       if ( i != 0 )
       {
-        tu_printf(" | ");
         dump_str_line(buf8-16, 16);
-        tu_printf("\r\n");
       }
 
       for(uint8_t s=0; s < indent; s++) tu_printf(" ");
 
       // print offset or absolute address
-      tu_printf("%03X: ", 16*i/item_per_line);
+      tu_printf("%04X: ", 16*i/item_per_line);
     }
 
     memcpy(&value, buf8, size);
@@ -128,21 +130,19 @@ void tu_print_mem(void const *buf, uint16_t count, uint8_t indent)
   }
 
   // fill up last row to 16 for printing ascii
-  const uint16_t remain = count%16;
+  const uint32_t remain = count%16;
   uint8_t nback = (remain ? remain : 16);
 
   if ( remain )
   {
-    for(uint16_t i=0; i< 16-remain; i++)
+    for(uint32_t i=0; i< 16-remain; i++)
     {
       tu_printf(" ");
       for(int j=0; j<2*size; j++) tu_printf(" ");
     }
   }
 
-  tu_printf(" | ");
   dump_str_line(buf8-nback, nback);
-  tu_printf("\r\n");
 }
 
 #endif

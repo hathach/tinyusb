@@ -33,7 +33,7 @@
 void USB0_IRQHandler(void)
 {
   #if CFG_TUSB_RHPORT0_MODE & OPT_MODE_HOST
-    tuh_isr(0);
+    tuh_int_handler(0);
   #endif
 
   #if CFG_TUSB_RHPORT0_MODE & OPT_MODE_DEVICE
@@ -44,7 +44,7 @@ void USB0_IRQHandler(void)
 void USB1_IRQHandler(void)
 {
   #if CFG_TUSB_RHPORT1_MODE & OPT_MODE_HOST
-    tuh_isr(1);
+    tuh_int_handler(1);
   #endif
 
   #if CFG_TUSB_RHPORT1_MODE & OPT_MODE_DEVICE
@@ -64,6 +64,11 @@ void USB1_IRQHandler(void)
 #define BUTTON_PORT   2
 #define BUTTON_PIN    0
 
+#define UART_DEV        LPC_USART3
+#define UART_PORT       0x02
+#define UART_PIN_TX     3
+#define UART_PIN_RX     4
+
 
 /* System configuration variables used by chip driver */
 const uint32_t OscRateIn = 12000000;
@@ -71,40 +76,48 @@ const uint32_t ExtRateIn = 0;
 
 static const PINMUX_GRP_T pinmuxing[] =
 {
-	// LEDs
-	{0xD, 10, (SCU_MODE_INBUFF_EN | SCU_MODE_INACT | SCU_MODE_FUNC4)},
-	{0xD, 11, (SCU_MODE_INBUFF_EN | SCU_MODE_INACT | SCU_MODE_FUNC4 | SCU_MODE_PULLDOWN)},
-	{0xD, 12, (SCU_MODE_INBUFF_EN | SCU_MODE_INACT | SCU_MODE_FUNC4 | SCU_MODE_PULLDOWN)},
-	{0xD, 13, (SCU_MODE_INBUFF_EN | SCU_MODE_INACT | SCU_MODE_FUNC4 | SCU_MODE_PULLDOWN)},
-	{0xD, 14, (SCU_MODE_INBUFF_EN | SCU_MODE_INACT | SCU_MODE_FUNC4 | SCU_MODE_PULLDOWN)},
-	{0x9, 0,  (SCU_MODE_INBUFF_EN | SCU_MODE_INACT | SCU_MODE_FUNC0 | SCU_MODE_PULLDOWN)},
-	{0x9, 1,  (SCU_MODE_INBUFF_EN | SCU_MODE_INACT | SCU_MODE_FUNC0 | SCU_MODE_PULLDOWN)},
-	{0x9, 2,  (SCU_MODE_INBUFF_EN | SCU_MODE_INACT | SCU_MODE_FUNC0 | SCU_MODE_PULLDOWN)},
+  // LEDs
+  { 0xD, 10, (SCU_MODE_INBUFF_EN | SCU_MODE_INACT | SCU_MODE_FUNC4) },
+  { 0xD, 11, (SCU_MODE_INBUFF_EN | SCU_MODE_INACT | SCU_MODE_FUNC4 | SCU_MODE_PULLDOWN) },
+  { 0xD, 12, (SCU_MODE_INBUFF_EN | SCU_MODE_INACT | SCU_MODE_FUNC4 | SCU_MODE_PULLDOWN) },
+  { 0xD, 13, (SCU_MODE_INBUFF_EN | SCU_MODE_INACT | SCU_MODE_FUNC4 | SCU_MODE_PULLDOWN) },
+  { 0xD, 14, (SCU_MODE_INBUFF_EN | SCU_MODE_INACT | SCU_MODE_FUNC4 | SCU_MODE_PULLDOWN) },
+  { 0x9,  0, (SCU_MODE_INBUFF_EN | SCU_MODE_INACT | SCU_MODE_FUNC0 | SCU_MODE_PULLDOWN) },
+  { 0x9,  1, (SCU_MODE_INBUFF_EN | SCU_MODE_INACT | SCU_MODE_FUNC0 | SCU_MODE_PULLDOWN) },
+  { 0x9,  2, (SCU_MODE_INBUFF_EN | SCU_MODE_INACT | SCU_MODE_FUNC0 | SCU_MODE_PULLDOWN) },
 
-	// Button
-	{0x4, 0,  (SCU_MODE_INBUFF_EN | SCU_MODE_INACT | SCU_MODE_FUNC0 | SCU_MODE_PULLUP)},
+  // Button
+  { 0x4, 0, (SCU_MODE_INBUFF_EN | SCU_MODE_INACT | SCU_MODE_FUNC0 | SCU_MODE_PULLUP) },
 
-	/*  I2S  */
-	{0x3, 0,  (SCU_PINIO_FAST | SCU_MODE_FUNC2)},
-	{0x6, 0,  (SCU_PINIO_FAST | SCU_MODE_FUNC4)},
-	{0x7, 2,  (SCU_PINIO_FAST | SCU_MODE_FUNC2)},
-	{0x6, 2,  (SCU_PINIO_FAST | SCU_MODE_FUNC3)},
-	{0x7, 1,  (SCU_PINIO_FAST | SCU_MODE_FUNC2)},
-	{0x6, 1,  (SCU_PINIO_FAST | SCU_MODE_FUNC3)},
+  // UART
+  { UART_PORT, UART_PIN_TX, SCU_MODE_PULLDOWN | SCU_MODE_FUNC2 },
+  { UART_PORT, UART_PIN_RX, SCU_MODE_INACT | SCU_MODE_INBUFF_EN | SCU_MODE_ZIF_DIS | SCU_MODE_FUNC2 },
+
+  // USB0
+  { 0x6, 3, SCU_MODE_PULLUP | SCU_MODE_INBUFF_EN | SCU_MODE_FUNC1 },		                // P6_3 USB0_PWR_EN, USB0 VBus function
+
+  { 0x9, 5, SCU_MODE_PULLUP | SCU_MODE_INBUFF_EN | SCU_MODE_FUNC2 },			              // P9_5 USB1_VBUS_EN, USB1 VBus function
+  { 0x2, 5, SCU_MODE_INACT  | SCU_MODE_INBUFF_EN | SCU_MODE_ZIF_DIS | SCU_MODE_FUNC2 }, // P2_5 USB1_VBUS, MUST CONFIGURE THIS SIGNAL FOR USB1 NORMAL OPERATION
 };
 
 /* Pin clock mux values, re-used structure, value in first index is meaningless */
 static const PINMUX_GRP_T pinclockmuxing[] =
 {
-	{0, 0,  (SCU_MODE_INACT | SCU_MODE_INBUFF_EN | SCU_MODE_ZIF_DIS | SCU_MODE_HIGHSPEEDSLEW_EN | SCU_MODE_FUNC0)},
-	{0, 1,  (SCU_MODE_INACT | SCU_MODE_INBUFF_EN | SCU_MODE_ZIF_DIS | SCU_MODE_HIGHSPEEDSLEW_EN | SCU_MODE_FUNC0)},
-	{0, 2,  (SCU_MODE_INACT | SCU_MODE_INBUFF_EN | SCU_MODE_ZIF_DIS | SCU_MODE_HIGHSPEEDSLEW_EN | SCU_MODE_FUNC0)},
-	{0, 3,  (SCU_MODE_INACT | SCU_MODE_INBUFF_EN | SCU_MODE_ZIF_DIS | SCU_MODE_HIGHSPEEDSLEW_EN | SCU_MODE_FUNC0)},
+	{ 0, 0,  (SCU_MODE_INACT | SCU_MODE_INBUFF_EN | SCU_MODE_ZIF_DIS | SCU_MODE_HIGHSPEEDSLEW_EN | SCU_MODE_FUNC0)},
+	{ 0, 1,  (SCU_MODE_INACT | SCU_MODE_INBUFF_EN | SCU_MODE_ZIF_DIS | SCU_MODE_HIGHSPEEDSLEW_EN | SCU_MODE_FUNC0)},
+	{ 0, 2,  (SCU_MODE_INACT | SCU_MODE_INBUFF_EN | SCU_MODE_ZIF_DIS | SCU_MODE_HIGHSPEEDSLEW_EN | SCU_MODE_FUNC0)},
+	{ 0, 3,  (SCU_MODE_INACT | SCU_MODE_INBUFF_EN | SCU_MODE_ZIF_DIS | SCU_MODE_HIGHSPEEDSLEW_EN | SCU_MODE_FUNC0)},
 };
 
 // Invoked by startup code
 void SystemInit(void)
 {
+#ifdef __USE_LPCOPEN
+	extern void (* const g_pfnVectors[])(void);
+  unsigned int *pSCB_VTOR = (unsigned int *) 0xE000ED08;
+	*pSCB_VTOR = (unsigned int) g_pfnVectors;
+#endif
+
   /* Setup system level pin muxing */
   Chip_SCU_SetPinMuxing(pinmuxing, sizeof(pinmuxing) / sizeof(PINMUX_GRP_T));
 
@@ -137,19 +150,11 @@ void board_init(void)
   // Button
   Chip_GPIO_SetPinDIRInput(LPC_GPIO_PORT, BUTTON_PORT, BUTTON_PIN);
 
-#if 0
   //------------- UART -------------//
-  scu_pinmux(BOARD_UART_PIN_PORT, BOARD_UART_PIN_TX, MD_PDN, FUNC1);
-  scu_pinmux(BOARD_UART_PIN_PORT, BOARD_UART_PIN_RX, MD_PLN | MD_EZI | MD_ZI, FUNC1);
-
-  UART_CFG_Type UARTConfigStruct;
-  UART_ConfigStructInit(&UARTConfigStruct);
-  UARTConfigStruct.Baud_rate   = CFG_BOARD_UART_BAUDRATE;
-  UARTConfigStruct.Clock_Speed = 0;
-
-  UART_Init(BOARD_UART_PORT, &UARTConfigStruct);
-  UART_TxCmd(BOARD_UART_PORT, ENABLE); // Enable UART Transmit
-#endif
+  Chip_UART_Init(UART_DEV);
+  Chip_UART_SetBaud(UART_DEV, CFG_BOARD_UART_BAUDRATE);
+  Chip_UART_ConfigData(UART_DEV, UART_LCR_WLEN8 | UART_LCR_SBS_1BIT | UART_LCR_PARITY_DIS);
+  Chip_UART_TXEnable(UART_DEV);
 
   //------------- USB -------------//
   enum {
@@ -166,17 +171,18 @@ void board_init(void)
 #if CFG_TUSB_RHPORT0_MODE
   Chip_USB0_Init();
 
-//  // Reset controller
-//  LPC_USB0->USBCMD_D |= 0x02;
-//  while( LPC_USB0->USBCMD_D & 0x02 ) {}
-//
-//  // Set mode
-//  #if CFG_TUSB_RHPORT0_MODE & OPT_MODE_HOST
-//    LPC_USB0->USBMODE_H = USBMODE_HOST | (USBMODE_VBUS_HIGH << 5);
-//  #else // TODO OTG
-//    LPC_USB0->USBMODE_D = USBMODE_DEVICE;
-//    LPC_USB0->OTGSC = (1<<3) | (1<<0) /*| (1<<16)| (1<<24)| (1<<25)| (1<<26)| (1<<27)| (1<<28)| (1<<29)| (1<<30)*/;
-//  #endif
+  // Host/Device mode can only be set right after controller reset
+  LPC_USB0->USBCMD_D |= 0x02;
+  while( LPC_USB0->USBCMD_D & 0x02 ) {}
+
+  // Set mode
+  #if CFG_TUSB_RHPORT0_MODE & OPT_MODE_HOST
+    LPC_USB0->USBMODE_H = USBMODE_HOST | (USBMODE_VBUS_HIGH << 5);
+    LPC_USB0->PORTSC1_H |= (1<<24); // FIXME force full speed for debugging
+  #else // TODO OTG
+    LPC_USB0->USBMODE_D = USBMODE_DEVICE;
+    LPC_USB0->OTGSC = (1<<3) | (1<<0) /*| (1<<16)| (1<<24)| (1<<25)| (1<<26)| (1<<27)| (1<<28)| (1<<29)| (1<<30)*/;
+  #endif
 #endif
 
   // USB1
@@ -223,9 +229,14 @@ int board_uart_read(uint8_t* buf, int len)
 
 int board_uart_write(void const * buf, int len)
 {
-  //UART_Send(BOARD_UART_PORT, &c, 1, BLOCKING);
-  (void) buf; (void) len;
-  return 0;
+  uint8_t const* buf8 = (uint8_t const*) buf;
+  for(int i=0; i<len; i++)
+  {
+    while ((Chip_UART_ReadLineStatus(UART_DEV) & UART_LSR_THRE) == 0) {}
+    Chip_UART_SendByte(UART_DEV, buf8[i]);
+  }
+
+  return len;
 }
 
 #if CFG_TUSB_OS == OPT_OS_NONE

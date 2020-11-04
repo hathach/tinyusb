@@ -37,6 +37,10 @@
 #define CFG_TUD_TASK_QUEUE_SZ   16
 #endif
 
+#ifndef CFG_TUD_EP_MAX
+#define CFG_TUD_EP_MAX          9
+#endif
+
 //--------------------------------------------------------------------+
 // Device Data
 //--------------------------------------------------------------------+
@@ -46,7 +50,6 @@ typedef struct
   {
     volatile uint8_t connected    : 1;
     volatile uint8_t addressed    : 1;
-    volatile uint8_t configured   : 1;
     volatile uint8_t suspended    : 1;
 
     uint8_t remote_wakeup_en      : 1; // enable/disable by host
@@ -54,18 +57,21 @@ typedef struct
     uint8_t self_powered          : 1; // configuration descriptor's attribute
   };
 
+  volatile uint8_t cfg_num; // current active configuration (0x00 is not configured)
   uint8_t speed;
 
   uint8_t itf2drv[16];     // map interface number to driver (0xff is invalid)
-  uint8_t ep2drv[8][2];    // map endpoint to driver ( 0xff is invalid )
+  uint8_t ep2drv[CFG_TUD_EP_MAX][2]; // map endpoint to driver ( 0xff is invalid )
 
   struct TU_ATTR_PACKED
   {
     volatile bool busy    : 1;
     volatile bool stalled : 1;
+    volatile bool claimed : 1;
 
     // TODO merge ep2drv here, 4-bit should be sufficient
-  }ep_status[8][2];
+  }ep_status[CFG_TUD_EP_MAX][2];
+
 }usbd_device_t;
 
 static usbd_device_t _usbd_dev;
@@ -123,6 +129,19 @@ static usbd_class_driver_t const _usbd_driver[] =
       .sof              = NULL
   },
   #endif
+
+#if CFG_TUD_AUDIO
+{
+	DRIVER_NAME("AUDIO")
+    .init             = audiod_init,
+	.reset            = audiod_reset,
+    .open             = audiod_open,
+    .control_request  = audiod_control_request,
+    .control_complete = audiod_control_complete,
+    .xfer_cb          = audiod_xfer_cb,
+    .sof              = NULL
+},
+#endif
 
   #if CFG_TUD_MIDI
   {
@@ -237,10 +256,17 @@ static inline usbd_class_driver_t const * get_driver(uint8_t drvid)
 OSAL_QUEUE_DEF(OPT_MODE_DEVICE, _usbd_qdef, CFG_TUD_TASK_QUEUE_SZ, dcd_event_t);
 static osal_queue_t _usbd_q;
 
+// Mutex for claiming endpoint, only needed when using with preempted RTOS
+#if CFG_TUSB_OS != OPT_OS_NONE
+static osal_mutex_def_t _ubsd_mutexdef;
+static osal_mutex_t _usbd_mutex;
+#endif
+
+
 //--------------------------------------------------------------------+
 // Prototypes
 //--------------------------------------------------------------------+
-static void mark_interface_endpoint(uint8_t ep2drv[8][2], uint8_t const* p_desc, uint16_t desc_len, uint8_t driver_id);
+static void mark_interface_endpoint(uint8_t ep2drv[][2], uint8_t const* p_desc, uint16_t desc_len, uint8_t driver_id);
 static bool process_control_request(uint8_t rhport, tusb_control_request_t const * p_request);
 static bool process_set_config(uint8_t rhport, uint8_t cfg_num);
 static bool process_get_descriptor(uint8_t rhport, tusb_control_request_t const * p_request);
@@ -312,7 +338,7 @@ tusb_speed_t tud_speed_get(void)
 
 bool tud_mounted(void)
 {
-  return _usbd_dev.configured;
+  return _usbd_dev.cfg_num ? 1 : 0;
 }
 
 bool tud_suspended(void)
@@ -351,9 +377,15 @@ bool tud_init (void)
 
   tu_varclr(&_usbd_dev);
 
+#if CFG_TUSB_OS != OPT_OS_NONE
+  // Init device mutex
+  _usbd_mutex = osal_mutex_create(&_ubsd_mutexdef);
+  TU_ASSERT(_usbd_mutex);
+#endif
+
   // Init device queue & task
   _usbd_q = osal_queue_create(&_usbd_qdef);
-  TU_ASSERT(_usbd_q != NULL);
+  TU_ASSERT(_usbd_q);
 
   // Get application driver if available
   if ( usbd_app_driver_get_cb )
@@ -478,6 +510,7 @@ void tud_task (void)
         TU_LOG2("on EP %02X with %u bytes\r\n", ep_addr, (unsigned int) event.xfer_complete.len);
 
         _usbd_dev.ep_status[epnum][ep_dir].busy = false;
+        _usbd_dev.ep_status[epnum][ep_dir].claimed = 0;
 
         if ( 0 == epnum )
         {
@@ -598,8 +631,8 @@ static bool process_control_request(uint8_t rhport, tusb_control_request_t const
 
         case TUSB_REQ_GET_CONFIGURATION:
         {
-          uint8_t cfgnum = _usbd_dev.configured ? 1 : 0;
-          tud_control_xfer(rhport, p_request, &cfgnum, 1);
+          uint8_t cfg_num = _usbd_dev.cfg_num;
+          tud_control_xfer(rhport, p_request, &cfg_num, 1);
         }
         break;
 
@@ -607,8 +640,8 @@ static bool process_control_request(uint8_t rhport, tusb_control_request_t const
         {
           uint8_t const cfg_num = (uint8_t) p_request->wValue;
 
-          if ( !_usbd_dev.configured && cfg_num ) TU_ASSERT( process_set_config(rhport, cfg_num) );
-          _usbd_dev.configured = cfg_num ? 1 : 0;
+          if ( !_usbd_dev.cfg_num && cfg_num ) TU_ASSERT( process_set_config(rhport, cfg_num) );
+          _usbd_dev.cfg_num = cfg_num;
 
           tud_control_status(rhport, p_request);
         }
@@ -826,7 +859,7 @@ static bool process_set_config(uint8_t rhport, uint8_t cfg_num)
 }
 
 // Helper marking endpoint of interface belongs to class driver
-static void mark_interface_endpoint(uint8_t ep2drv[8][2], uint8_t const* p_desc, uint16_t desc_len, uint8_t driver_id)
+static void mark_interface_endpoint(uint8_t ep2drv[][2], uint8_t const* p_desc, uint16_t desc_len, uint8_t driver_id)
 {
   uint16_t len = 0;
 
@@ -955,7 +988,7 @@ void dcd_event_handler(dcd_event_t const * event, bool in_isr)
     case DCD_EVENT_UNPLUGGED:
       _usbd_dev.connected  = 0;
       _usbd_dev.addressed  = 0;
-      _usbd_dev.configured = 0;
+      _usbd_dev.cfg_num    = 0;
       _usbd_dev.suspended  = 0;
       osal_queue_send(_usbd_q, event, in_isr);
     break;
@@ -1076,12 +1109,68 @@ bool usbd_edpt_open(uint8_t rhport, tusb_desc_endpoint_t const * desc_ep)
   return dcd_edpt_open(rhport, desc_ep);
 }
 
+bool usbd_edpt_claim(uint8_t rhport, uint8_t ep_addr)
+{
+  (void) rhport;
+
+  uint8_t const epnum = tu_edpt_number(ep_addr);
+  uint8_t const dir   = tu_edpt_dir(ep_addr);
+
+#if CFG_TUSB_OS != OPT_OS_NONE
+  // pre-check to help reducing mutex lock
+  TU_VERIFY((_usbd_dev.ep_status[epnum][dir].busy == 0) && (_usbd_dev.ep_status[epnum][dir].claimed == 0));
+
+  osal_mutex_lock(_usbd_mutex, OSAL_TIMEOUT_WAIT_FOREVER);
+#endif
+
+  // can only claim the endpoint if it is not busy and not claimed yet.
+  bool const ret = (_usbd_dev.ep_status[epnum][dir].busy == 0) && (_usbd_dev.ep_status[epnum][dir].claimed == 0);
+  if (ret)
+  {
+    _usbd_dev.ep_status[epnum][dir].claimed = 1;
+  }
+
+#if CFG_TUSB_OS != OPT_OS_NONE
+  osal_mutex_unlock(_usbd_mutex);
+#endif
+
+  return ret;
+}
+
+bool usbd_edpt_release(uint8_t rhport, uint8_t ep_addr)
+{
+  (void) rhport;
+
+  uint8_t const epnum = tu_edpt_number(ep_addr);
+  uint8_t const dir   = tu_edpt_dir(ep_addr);
+
+#if CFG_TUSB_OS != OPT_OS_NONE
+  osal_mutex_lock(_usbd_mutex, OSAL_TIMEOUT_WAIT_FOREVER);
+#endif
+
+  // can only release the endpoint if it is claimed and not busy
+  bool const ret = (_usbd_dev.ep_status[epnum][dir].busy == 0) && (_usbd_dev.ep_status[epnum][dir].claimed == 1);
+  if (ret)
+  {
+    _usbd_dev.ep_status[epnum][dir].claimed = 0;
+  }
+
+#if CFG_TUSB_OS != OPT_OS_NONE
+  osal_mutex_unlock(_usbd_mutex);
+#endif
+
+  return ret;
+}
+
 bool usbd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t total_bytes)
 {
   uint8_t const epnum = tu_edpt_number(ep_addr);
   uint8_t const dir   = tu_edpt_dir(ep_addr);
 
   TU_LOG2("  Queue EP %02X with %u bytes ... ", ep_addr, total_bytes);
+
+  // Attempt to transfer on a busy endpoint, sound like an race condition !
+  TU_ASSERT(_usbd_dev.ep_status[epnum][dir].busy == 0);
 
   // Set busy first since the actual transfer can be complete before dcd_edpt_xfer() could return
   // and usbd task can preempt and clear the busy
@@ -1093,7 +1182,9 @@ bool usbd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t 
     return true;
   }else
   {
+    // DCD error, mark endpoint as ready to allow next transfer
     _usbd_dev.ep_status[epnum][dir].busy = false;
+    _usbd_dev.ep_status[epnum][dir].claimed = 0;
     TU_LOG2("failed\r\n");
     TU_BREAKPOINT();
     return false;
