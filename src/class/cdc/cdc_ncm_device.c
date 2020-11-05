@@ -51,11 +51,6 @@ typedef struct
   uint8_t ep_in;
   uint8_t ep_out;
 
-  // Endpoint descriptor use to open/close when receving SetInterface
-  // TODO since configuration descriptor may not be long-lived memory, we should
-  // keep a copy of endpoint attribute instead
-  uint8_t const * ecm_desc_epdata;
-
   enum {
     REPORT_SPEED,
     REPORT_CONNECTED,
@@ -290,9 +285,7 @@ uint16_t ncmd_open(uint8_t rhport, tusb_desc_interface_t const * itf_desc, uint1
   // Pair of endpoints
   TU_ASSERT(TUSB_DESC_ENDPOINT == tu_desc_type(p_desc), 0);
 
-  // ECM by default is in-active, save the endpoint attribute
-  // to open later when receive_ntb setInterface
-  ncm_interface.ecm_desc_epdata = p_desc;
+  TU_ASSERT(usbd_open_edpt_pair(rhport, p_desc, 2, TUSB_XFER_BULK, &ncm_interface.ep_out, &ncm_interface.ep_in) );
 
   drv_len += 2*sizeof(tusb_desc_endpoint_t);
 
@@ -348,33 +341,22 @@ bool ncmd_control_request(uint8_t rhport, tusb_control_request_t const * request
           // Only valid for Data Interface with Alternate is either 0 or 1
           TU_VERIFY(ncm_interface.itf_num + 1 == req_itfnum && req_alt < 2);
 
-          ncm_interface.itf_data_alt = req_alt;
+          if (req_alt != ncm_interface.itf_data_alt) {
+            ncm_interface.itf_data_alt = req_alt;
 
-          if ( ncm_interface.itf_data_alt )
-          {
-            // TODO since we don't actually close endpoint
-            // hack here to not re-open it
-            if (ncm_interface.ep_in == 0 && ncm_interface.ep_out == 0)
-            {
-              TU_ASSERT(ncm_interface.ecm_desc_epdata);
-              TU_ASSERT( usbd_open_edpt_pair(rhport, ncm_interface.ecm_desc_epdata, 2, TUSB_XFER_BULK, &ncm_interface.ep_out, &ncm_interface.ep_in) );
-
-              // TODO set flag indicating tx allowed?
-              ncm_receive_renew(); // prepare for incoming datagrams
-              tud_ncm_link_state_cb(true);
+            if (ncm_interface.itf_data_alt) {
+              if (!usbd_edpt_busy(rhport, ncm_interface.ep_out)) {
+                ncm_receive_renew(); // prepare for incoming datagrams
+              }
+              if (!ncm_interface.report_pending) {
+                ncm_report();
+              }
             }
-          } else {
-            // TODO close the endpoint pair
-            // For now pretend that we did, this should have no harm since host won't try to
-            // communicate with the endpoints again
-            // ncm_interface.ep_in = ncm_interface.ep_out = 0
-            // ncm_interface.report_pending = 0;
+
+            tud_ncm_link_state_cb(ncm_interface.itf_data_alt);
           }
 
           tud_control_status(rhport, request);
-
-          if (!ncm_interface.report_pending) ncm_report();
-
         }
           break;
 
@@ -445,7 +427,7 @@ bool ncmd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint32_
     }
 
     // If there are datagrams queued up that we tried to send while this NTB was being emitted, send them now
-    if (ncm_interface.datagram_count) {
+    if (ncm_interface.datagram_count && ncm_interface.itf_data_alt == 1) {
       ncm_start_tx();
     }
   }
@@ -461,6 +443,8 @@ bool ncmd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint32_
 
 bool tud_ncm_xmit(void *arg, uint16_t size, void (*flatten)(void *, uint8_t *, uint16_t)) {
   transmit_ntb_t *ntb = &transmit_ntb[ncm_interface.current_ntb];
+
+  TU_VERIFY(ncm_interface.itf_data_alt == 1);
 
   if (ncm_interface.datagram_count >= ncm_interface.max_datagrams_per_ntb) {
     return false;
