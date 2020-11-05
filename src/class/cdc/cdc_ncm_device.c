@@ -447,11 +447,13 @@ bool tud_ncm_xmit(void *arg, uint16_t size, void (*flatten)(void *, uint8_t *, u
   TU_VERIFY(ncm_interface.itf_data_alt == 1);
 
   if (ncm_interface.datagram_count >= ncm_interface.max_datagrams_per_ntb) {
+    TU_LOG2("NTB full [by count]\r\n");
     return false;
   }
 
   size_t next_datagram_offset = ncm_interface.next_datagram_offset;
   if (next_datagram_offset + size > ncm_interface.ntb_in_size) {
+    TU_LOG2("ntb full [by size]\r\n");
     return false;
   }
 
