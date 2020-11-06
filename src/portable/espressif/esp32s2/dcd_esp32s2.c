@@ -127,7 +127,7 @@ static void bus_reset(void)
   //   Recommended value = 10 + 1 + 2 x (16+2) = 47 --> Let's make it 52
   USB0.grstctl |= 0x10 << USB_TXFNUM_S; // fifo 0x10,
   USB0.grstctl |= USB_TXFFLSH_M;        // Flush fifo
-  USB0.grxfsiz = 52;
+  USB0.grxfsiz = 15 + 2 * (256/4) + 2*EP_MAX;
 
   // Control IN uses FIFO 0 with 64 bytes ( 16 32-bit word )
   USB0.gnptxfsiz = (16 << USB_NPTXFDEP_S) | (USB0.grxfsiz & 0x0000ffffUL);
@@ -249,8 +249,16 @@ bool dcd_edpt_open(uint8_t rhport, tusb_desc_endpoint_t const *desc_edpt)
   uint8_t const epnum = tu_edpt_number(desc_edpt->bEndpointAddress);
   uint8_t const dir = tu_edpt_dir(desc_edpt->bEndpointAddress);
 
-  TU_ASSERT(desc_edpt->wMaxPacketSize.size <= 64);
   TU_ASSERT(epnum < EP_MAX);
+
+  if (desc_edpt->bmAttributes.xfer == TUSB_XFER_ISOCHRONOUS)
+  {
+    TU_ASSERT(desc_edpt->wMaxPacketSize.size <= 1023);
+  }
+  else
+  {
+    TU_ASSERT(desc_edpt->wMaxPacketSize.size <= 64);
+  }
 
   xfer_ctl_t *xfer = XFER_CTL_BASE(epnum, dir);
   xfer->max_size = desc_edpt->wMaxPacketSize.size;
@@ -350,6 +358,72 @@ bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t *buffer, uint16_t to
     USB0.out_ep_reg[epnum].doepctl  |= USB_EPENA0_M | USB_CNAK0_M;
   }
   return true;
+}
+
+static void dcd_edpt_disable (uint8_t rhport, uint8_t ep_addr, bool stall)
+{
+  (void) rhport;
+
+  usb_out_endpoint_t *out_ep = &(USB0.out_ep_reg[0]);
+  usb_in_endpoint_t *in_ep = &(USB0.in_ep_reg[0]);
+
+  uint8_t const epnum = tu_edpt_number(ep_addr);
+  uint8_t const dir   = tu_edpt_dir(ep_addr);
+
+  if(dir == TUSB_DIR_IN) {
+    // Only disable currently enabled non-control endpoint
+    if ( (epnum == 0) || !(in_ep[epnum].diepctl & USB_D_EPENA0_M) ){
+      in_ep[epnum].diepctl |= USB_DI_SNAK0_M | (stall ? USB_D_STALL0_M : 0);
+    } else {
+      // Stop transmitting packets and NAK IN xfers.
+      in_ep[epnum].diepctl |= USB_DI_SNAK0_M;
+      while((in_ep[epnum].diepint & USB_D_INEPNAKEFF1_M) == 0);
+
+      // Disable the endpoint.
+      in_ep[epnum].diepctl |= USB_D_EPDIS0_M | (stall ? USB_D_STALL0_M : 0);
+      while((in_ep[epnum].diepint & USB_D_EPDISBLD1_M) == 0);
+      in_ep[epnum].diepint = USB_D_EPDISBLD1_M;
+    }
+
+    // Flush the FIFO, and wait until we have confirmed it cleared.
+    USB0.grstctl |= (epnum << USB_TXFNUM);
+    USB0.grstctl |= USB_TXFFLSH_M;
+    while((USB0.grstctl & USB_TXFFLSH_M) != 0);
+  } else {
+    // Only disable currently enabled non-control endpoint
+    if ( (epnum == 0) || !(out_ep[epnum].doepctl & USB_EPENA0_M) ){
+      out_ep[epnum].doepctl |= stall ? USB_STALL0_M : 0;
+    } else {
+      // Asserting GONAK is required to STALL an OUT endpoint.
+      // Simpler to use polling here, we don't use the "B"OUTNAKEFF interrupt
+      // anyway, and it can't be cleared by user code. If this while loop never
+      // finishes, we have bigger problems than just the stack.
+      USB0.dctl |= USB_SGOUTNAK_M;
+      while((USB0.gintsts & USB_GOUTNAKEFF_M) == 0);
+
+      // Ditto here- disable the endpoint.
+      out_ep[epnum].doepctl |= USB_EPDIS0_M | (stall ? USB_STALL0_M : 0);
+      while((out_ep[epnum].doepint & USB_EPDISBLD0_M) == 0);
+      out_ep[epnum].doepint = USB_EPDISBLD0_M;
+
+      // Allow other OUT endpoints to keep receiving.
+      USB0.dctl |= USB_CGOUTNAK_M;
+    }
+  }
+}
+
+/**
+ * Close an endpoint.
+ */
+void dcd_edpt_close (uint8_t rhport, uint8_t ep_addr)
+{
+  uint8_t const dir   = tu_edpt_dir(ep_addr);
+
+  dcd_edpt_disable(rhport, ep_addr, false);
+
+  if (dir == TUSB_DIR_IN) {
+    _allocated_fifos--;
+  }
 }
 
 void dcd_edpt_stall(uint8_t rhport, uint8_t ep_addr)
