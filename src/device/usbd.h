@@ -693,7 +693,7 @@ TU_ATTR_WEAK bool tud_vendor_control_complete_cb(uint8_t rhport, tusb_control_re
   /* CDC-ECM Functional Descriptor */\
   6, TUSB_DESC_CS_INTERFACE, CDC_FUNC_DESC_NCM, U16_TO_U8S_LE(0x0100), 0, \
   /* Endpoint Notification */\
-  7, TUSB_DESC_ENDPOINT, _ep_notif, TUSB_XFER_INTERRUPT, U16_TO_U8S_LE(_ep_notif_size), 1,\
+  7, TUSB_DESC_ENDPOINT, _ep_notif, TUSB_XFER_INTERRUPT, U16_TO_U8S_LE(_ep_notif_size), 50,\
   /* CDC Data Interface (default inactive) */\
   9, TUSB_DESC_INTERFACE, (uint8_t)((_itfnum)+1), 0, 0, TUSB_CLASS_CDC_DATA, 0, 1, 0,\
   /* CDC Data Interface (alternative active) */\
