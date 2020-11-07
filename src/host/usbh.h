@@ -116,8 +116,6 @@ bool usbh_edpt_xfer(uint8_t dev_addr, uint8_t ep_addr, uint8_t * buffer, uint16_
 // If caller does not make any transfer, it must release endpoint for others.
 bool usbh_edpt_claim(uint8_t dev_addr, uint8_t ep_addr);
 
-bool usbh_control_xfer (uint8_t dev_addr, tusb_control_request_t* request, uint8_t* data); // TODO remove later
-
 void usbh_driver_set_config_complete(uint8_t dev_addr, uint8_t itf_num);
 
 uint8_t usbh_get_rhport(uint8_t dev_addr);
