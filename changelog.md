@@ -1,46 +1,118 @@
 # TinyUSB Changelog
 
-## Master branch (WIP)
+## 0.7.0 - 2020.11.08
 
-### Breaking
+### Device Controller Driver
 
-- TinyUSB does not directly implement USB IRQ Handler function anymore. Application must implement IRQ Handler and invoke `tud_int_handler(rhport)`. This is due to:
-  - IRQ Handler name can be different across system depending on the startup
-  - Some OS need to execute enterISR()/exitISR() to work properly, also tracing tool may need to insert trace ISR enter/exit to record usb event
-  - Give application full control of IRQ handler, can be useful e.g signaling there is new usb event without constant polling
+- Added new support for Espressif ESP32-S2
+- Added new support for Dialog DA1469x
+- Enhance STM32 Synopsys
+  - Support bus events disconnection/suspend/resume/wakeup
+  - Improve transfer performance with optimizing xfer and fifo size
+  - Support Highspeed port (OTG_HS) with both internal and external PHY
+  - Support multiple usb ports with rhport=1 is highspeed on selected MCUs e.g H743, F23. It is possible to have OTG_HS to run on Fullspeed PHY (e.g lacking external PHY)
+  - Add ISO transfer, fix odd/even frame
+  - Fix FIFO flush during stall
+  - Implement dcd_edpt_close() API
+  - Support F105, F107
+- Enhance STM32 fsdev
+  - Improve dcd fifo allocation
+  - Fix ISTR race condition
+  - Support remap USB IRQ on supported MCUs
+  - Implement dcd_edpt_close() API
+- Enhance NUC 505: enhance set configure behavior
+- Enhance SAMD
+  - Fix race condition with setup packet
+  - Add SAMD11 option `OPT_MCU_SAMD11`
+  - Add SAME5x option `OPT_MCU_SAME5X`
+- Fix SAMG control data toggle and stall race condition
+- Enhance nRF
+  - Fix hanged when tud_task() is called within critical section (disabled interrupt)
+  - Fix disconnect bus event not submitted
+  - Implement ISO transfer and dcd_edpt_close()
 
-### MCU
+### USB Device
 
-- Added support for Espressif ESP32-S2 and saola-1 board
-- All default IRQ Handler is renamed to `dcd_int_handler()`
-- STM32 Synopsys
-  - Bus events disconnection/suspend/resume are supported
-- Added `dcd_connect()` and `dcd_disconnect()` to enable/disable internal pullup on D+/D- on supported MCUs.
-- Added `dcd_edpt_close()` for STM32 FSDev
+**USBD**
 
-### Device Stack
-
-- tud_cdc_n_write_flush() return number of bytes forced to transfer instead of bool
+- Add new class driver for **Bluetooth HCI** class driver with example can be found in [mynewt-tinyusb-example](https://github.com/hathach/mynewt-tinyusb-example) since it needs mynewt OS to run with.
+- Fix USBD endpoint usage racing condition with `usbd_edpt_claim()/usbd_edpt_release()`
+- Added `tud_task_event_ready()` and `osal_queue_empty()`. This API is needed to check before enter low power mode with WFI/WFE
+- Rename USB IRQ Handler to `dcd_int_handler()`. Application must define IRQ handler in which it calls this API.
+- Add `dcd_connect()` and `dcd_disconnect()` to enable/disable internal pullup on D+/D- on supported MCUs.
+- Add `usbd_edpt_open()`
+- Remove `dcd_set_config()`
+- Add *OPT_OS_CUMSTOM* as hook for application to overwrite and/or add their own OS implementation
+- Support SET_INTERFACE, GET_INTERFACE request
+- Add Logging for debug with optional uart/rtt/swo printf retarget or `CFG_TUSB_DEBUG_PRINTF` hook
+- Add IAR compiler support
 - Support multiple configuration descriptors. `TUD_CONFIG_DESCRIPTOR()` template has extra config_num as 1st argument
-- Improve class driver management
-  - Driver detection is done by open() API
+- Improve USB Highspeed support with actual link speed detection with `dcd_event_bus_reset()`
+- Enhance class driver management
+  - `usbd_driver_open()` add max length argument, and return length of interface (0 for not supported). Return value is used for finding appropriate driver
+  - Add application implemented class driver via `usbd_app_driver_get_cb()`
   - IAD is handled to assign driver id
-- Improve Alternate Interface request with `SET_INTERFACE()` (not fully supported yet). 
-- Fixed CDC ZLP response #260
-- Remove ACM-EEM due to lack of support from host
+- Added `tud_descriptor_device_qualifier_cb()` callback
+- Optimize `tu_fifo` bulk write/read transfer
+- Forward non-std control request to class driver
+- Let application handle Microsoft OS 1.0 Descriptors (the 0xEE index string)
+- Fix OSAL FreeRTOS yield from ISR
 
-### Others
+**Class Drivers**
 
-- Added OPT_OS_CUMSTOM as hook for application to overwrite and/or add their own OS implementation
-- Enhanced `net_lwip_webserver` example with multiple configuration: RNDIS for Windows, CDC-ECM for macOS (Linux will work with both)
+- USBNET: remove ACM-EEM due to lack of support from host
+- USBTMC: fix descriptors when INT EP is disabled
+- CDC:
+  - Send zero length packet for end of data when needed
+  - Add `tud_cdc_tx_complete_cb()` callback
+  - Change tud_cdc_n_write_flush() return number of bytes forced to transfer, and flush when writing enough data to fifo
+- MIDI:
+  - Add packet interface
+  - Add multiple jack descriptors
+  - Fix MIDI driver for sysex
+- DFU Runtime: fix response to SET_INTERFACE and DFU_GETSTATUS request
+- Rename some configure macro to make it clear that those are used directly for endpoint transfer
+  - CFG_TUD_HID_BUFSIZE to `CFG_TUD_HID_EP_BUFSIZE
+  - CFG_TUD_CDC_EPSIZE to CFG_TUD_CDC_EP_BUFSIZE
+  - CFG_TUD_MSC_BUFSIZE to CFG_TUD_MSC_EP_BUFSIZE
+  - CFG_TUD_MIDI_EPSIZE to CFG_TUD_MIDI_EP_BUFSIZE
+- HID:
+  - Fix gamepad template descriptor
+  - Add multiple HID interface API
+  - Add extra comma to HID_REPORT_ID
 
-## 0.6.0 - 2019.03.30
+### USB Host
+
+- Rework USB host stack (still work in progress)
+  - Fix compile error with pipehandle
+  - Rework usbh control and enumeration as non-blocking
+- Improve Hub, MSC, HID host driver
+
+### Examples
+
+- Add new hid_composite_freertos
+- Add new dynamic_configuration to demonstrate how to switch configuration descriptors
+- Add new hid_multiple_interface
+- Enhance `net_lwip_webserver` example
+  - Add multiple configuration: RNDIS for Windows, CDC-ECM for macOS (Linux will work with both)
+  - Update lwip to STABLE-2_1_2_RELEASE for net_lwip_webserver
+- Added new Audio example: audio_test uac2_headsest
+
+### New Boards
+
+- Espressif ESP32-S2: saola_1, kaluga_1
+- STM32: F746 Nucleo, H743 Eval, H743 Nucleo, F723 discovery, stlink v3 mini, STM32L4r5 Nucleo
+- Dialog DA1469x dk pro and dk usb
+- Microchip: Great Scoot Gadgets' LUNA, samd11_xplained, D5035-01, atsamd21 xplained pro
+- nRF: ItsyBitsy nRF52840
+
+## 0.6.0 - 2020.03.30
 
 Added **CONTRIBUTORS.md** to give proper credit for contributors to the stack. Special thanks to [Nathan Conrad](https://github.com/pigrew), [Peter Lawrence](https://github.com/majbthrd) and [William D. Jones](https://github.com/cr1901) and others for spending their precious time to add lots of features and ports for this release.
 
 ### Added
 
-**MCU**
+**MCUs**
 
 - Added support for Microchip SAMG55
 - Added support for Nordic nRF52833
