@@ -16,8 +16,9 @@ SRC_C += \
 	src/class/cdc/cdc_host.c \
 	src/class/hid/hid_host.c \
 	src/class/msc/msc_host.c \
-	src/host/usbh.c \
 	src/host/hub.c \
+	src/host/usbh.c \
+	src/host/usbh_control.c \
 	src/host/ehci/ehci.c \
 	src/host/ohci/ohci.c \
 	src/portable/nxp/lpc18_43/hcd_lpc18_43.c \
