@@ -45,20 +45,6 @@ void dcd_init (uint8_t rhport)
   (void) rhport;
 }
 
-#if HAS_INTERNAL_PULLUP
-// Enable internal D+/D- pullup
-void dcd_connect(uint8_t rhport) TU_ATTR_WEAK
-{
-  (void) rhport;
-}
-
-// Disable internal D+/D- pullup
-void dcd_disconnect(uint8_t rhport) TU_ATTR_WEAK
-{
-  (void) rhport;
-}
-#endif
-
 // Enable device interrupt
 void dcd_int_enable (uint8_t rhport)
 {
