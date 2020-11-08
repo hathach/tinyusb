@@ -9,7 +9,7 @@ CFLAGS += \
   -DCFG_TUSB_MCU=OPT_MCU_NONE
 
 # suppress following warnings from mcu driver
-CFLAGS += -Wno-error=undef
+CFLAGS += -Wno-error=unused-parameter -Wno-error=cast-align
 
 ASF_DIR = hw/mcu/microchip/same70
 
@@ -22,7 +22,10 @@ SRC_C += \
 	$(ASF_DIR)/hpl/core/hpl_init.c \
 	$(ASF_DIR)/hpl/usart/hpl_usart.c \
 	$(ASF_DIR)/hpl/pmc/hpl_pmc.c \
-	$(ASF_DIR)/hal/src/hal_atomic.c
+	$(ASF_DIR)/hal/src/hal_usart_async.c \
+	$(ASF_DIR)/hal/src/hal_io.c \
+	$(ASF_DIR)/hal/src/hal_atomic.c \
+	$(ASF_DIR)/hal/utils/src/utils_ringbuffer.c
 
 INC += \
   $(TOP)/hw/bsp/$(BOARD) \

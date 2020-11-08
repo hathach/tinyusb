@@ -27,9 +27,10 @@
 #include "bsp/board.h"
 
 #include "peripheral_clk_config.h"
-#include "hal/include/hal_init.h"
-#include "hal/include/hpl_usart_sync.h"
+#include "hpl/usart/hpl_usart_base.h"
 #include "hpl/pmc/hpl_pmc.h"
+#include "hal/include/hal_init.h"
+#include "hal/include/hal_usart_async.h"
 #include "hal/include/hal_gpio.h"
 
 
@@ -42,10 +43,17 @@
 #define BUTTON_PIN            GPIO(GPIO_PORTA, 11)
 #define BUTTON_STATE_ACTIVE   0
 
-#define UART_TX_PIN           GPIO(GPIO_PORTA, 28)
-#define UART_RX_PIN           GPIO(GPIO_PORTA, 27)
+#define UART_TX_PIN           GPIO(GPIO_PORTB, 4)
+#define UART_RX_PIN           GPIO(GPIO_PORTA, 21)
 
-struct _usart_sync_device _edbg_com;
+static struct usart_async_descriptor edbg_com;
+static uint8_t edbg_com_buffer[64];
+static volatile bool uart_busy = false;
+
+static void tx_cb_EDBG_COM(const struct usart_async_descriptor *const io_descr)
+{
+  uart_busy = false;
+}
 
 //------------- IMPLEMENTATION -------------//
 void board_init(void)
@@ -67,18 +75,16 @@ void board_init(void)
 	gpio_set_pin_pull_mode(BUTTON_PIN, GPIO_PULL_UP);
 	gpio_set_pin_function(BUTTON_PIN, GPIO_PIN_FUNCTION_OFF);
 
-#if 0
 	// Uart via EDBG Com
-	_pmc_enable_periph_clock(ID_FLEXCOM7);
-	gpio_set_pin_function(UART_RX_PIN, MUX_PA27B_FLEXCOM7_RXD);
-	gpio_set_pin_function(UART_TX_PIN, MUX_PA28B_FLEXCOM7_TXD);
+	_pmc_enable_periph_clock(ID_USART1);
+	gpio_set_pin_function(UART_RX_PIN, MUX_PA21A_USART1_RXD1);
+	gpio_set_pin_function(UART_TX_PIN, MUX_PB4D_USART1_TXD1);
 
-	_usart_sync_init(&_edbg_com, FLEXCOM7);
-	_usart_sync_set_baud_rate(&_edbg_com, CFG_BOARD_UART_BAUDRATE);
-	_usart_sync_set_mode(&_edbg_com, USART_MODE_ASYNCHRONOUS);
-	_usart_sync_enable(&_edbg_com);
-
-#endif
+	usart_async_init(&edbg_com, USART1, edbg_com_buffer, sizeof(edbg_com_buffer), _usart_get_usart_async());
+	usart_async_set_baud_rate(&edbg_com, CFG_BOARD_UART_BAUDRATE);
+	usart_async_register_callback(&edbg_com, USART_ASYNC_TXC_CB, tx_cb_EDBG_COM);
+//	usart_async_register_callback(&EDBG_COM, USART_ASYNC_RXC_CB, rx_cb_EDBG_COM);
+	usart_async_enable(&edbg_com);
 
 #if CFG_TUSB_OS  == OPT_OS_NONE
   // 1ms tick timer (samd SystemCoreClock may not correct)
@@ -131,13 +137,11 @@ int board_uart_read(uint8_t* buf, int len)
 
 int board_uart_write(void const * buf, int len)
 {
-  (void) buf;
-//  uint8_t const * buf8 = (uint8_t const *) buf;
-//  for(int i=0; i<len; i++)
-//  {
-//    while ( !_usart_sync_is_ready_to_send(&_edbg_com) ) {}
-//    _usart_sync_write_byte(&_edbg_com, buf8[i]);
-//  }
+  // while until previous transfer is complete
+  while(uart_busy) {}
+  uart_busy = true;
+
+  io_write(&edbg_com.io, buf, len);
   return len;
 }
 
