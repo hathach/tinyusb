@@ -29,7 +29,7 @@
       linker_memory_map_file="ATSAMD51J19A_MemoryMap.xml"
       linker_section_placement_file="flash_placement.xml"
       linker_section_placements_segments="FLASH RX 0x00000000 0x00080000;RAM RWX 0x20000000 0x00030000"
-      macros="DeviceFamily=SAMD51;Target=ATSAMD51J19A;Placement=Flash;rootDir=../../../../..;asf4Dir=../../../../../hw/mcu/microchip/samd/asf4/samd51"
+      macros="DeviceFamily=SAMD51;Target=ATSAMD51J19A;Placement=Flash;rootDir=../../../../..;asf4Dir=../../../../../hw/mcu/microchip/asf4/samd51"
       project_directory=""
       project_type="Executable"
       target_reset_script="Reset();"
@@ -55,25 +55,25 @@
             <folder Name="asf4">
               <folder Name="samd51">
                 <folder Name="gcc">
-                  <file file_name="../../../../../hw/mcu/microchip/samd/asf4/samd51/gcc/system_samd51.c" />
+                  <file file_name="../../../../../hw/mcu/microchip/asf4/samd51/gcc/system_samd51.c" />
                 </folder>
                 <folder Name="hpl">
                   <folder Name="osc32kctrl">
-                    <file file_name="../../../../../hw/mcu/microchip/samd/asf4/samd51/hpl/osc32kctrl/hpl_osc32kctrl.c" />
+                    <file file_name="../../../../../hw/mcu/microchip/asf4/samd51/hpl/osc32kctrl/hpl_osc32kctrl.c" />
                   </folder>
                   <folder Name="oscctrl">
-                    <file file_name="../../../../../hw/mcu/microchip/samd/asf4/samd51/hpl/oscctrl/hpl_oscctrl.c" />
+                    <file file_name="../../../../../hw/mcu/microchip/asf4/samd51/hpl/oscctrl/hpl_oscctrl.c" />
                   </folder>
                   <folder Name="mclk">
-                    <file file_name="../../../../../hw/mcu/microchip/samd/asf4/samd51/hpl/mclk/hpl_mclk.c" />
+                    <file file_name="../../../../../hw/mcu/microchip/asf4/samd51/hpl/mclk/hpl_mclk.c" />
                   </folder>
                   <folder Name="gclk">
-                    <file file_name="../../../../../hw/mcu/microchip/samd/asf4/samd51/hpl/gclk/hpl_gclk.c" />
+                    <file file_name="../../../../../hw/mcu/microchip/asf4/samd51/hpl/gclk/hpl_gclk.c" />
                   </folder>
                 </folder>
                 <folder Name="hal">
                   <folder Name="src">
-                    <file file_name="../../../../../hw/mcu/microchip/samd/asf4/samd51/hal/src/hal_atomic.c" />
+                    <file file_name="../../../../../hw/mcu/microchip/asf4/samd51/hal/src/hal_atomic.c" />
                   </folder>
                 </folder>
               </folder>

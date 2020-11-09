@@ -28,7 +28,7 @@
       linker_memory_map_file="$(ProjectDir)/ATSAMD21G18A_MemoryMap.xml"
       linker_section_placement_file="flash_placement.xml"
       linker_section_placements_segments="FLASH RX 0x00000000 0x00080000;RAM RWX 0x20000000 0x00030000"
-      macros="DeviceFamily=SAMD21;Target=ATSAMD21G18A;Placement=Flash;rootDir=../../../../..;asf4Dir=../../../../../hw/mcu/microchip/samd/asf4/samd21"
+      macros="DeviceFamily=SAMD21;Target=ATSAMD21G18A;Placement=Flash;rootDir=../../../../..;asf4Dir=../../../../../hw/mcu/microchip/asf4/samd21"
       project_directory=""
       project_type="Executable"
       target_reset_script="Reset();"
@@ -54,22 +54,22 @@
             <folder Name="asf4">
               <folder Name="samd21">
                 <folder Name="gcc">
-                  <file file_name="../../../../../hw/mcu/microchip/samd/asf4/samd21/gcc/system_samd21.c" />
+                  <file file_name="../../../../../hw/mcu/microchip/asf4/samd21/gcc/system_samd21.c" />
                 </folder>
                 <folder Name="hpl">
                   <folder Name="gclk">
-                    <file file_name="../../../../../hw/mcu/microchip/samd/asf4/samd21/hpl/gclk/hpl_gclk.c" />
+                    <file file_name="../../../../../hw/mcu/microchip/asf4/samd21/hpl/gclk/hpl_gclk.c" />
                   </folder>
                   <folder Name="pm">
-                    <file file_name="../../../../../hw/mcu/microchip/samd/asf4/samd21/hpl/pm/hpl_pm.c" />
+                    <file file_name="../../../../../hw/mcu/microchip/asf4/samd21/hpl/pm/hpl_pm.c" />
                   </folder>
                   <folder Name="sysctrl">
-                    <file file_name="../../../../../hw/mcu/microchip/samd/asf4/samd21/hpl/sysctrl/hpl_sysctrl.c" />
+                    <file file_name="../../../../../hw/mcu/microchip/asf4/samd21/hpl/sysctrl/hpl_sysctrl.c" />
                   </folder>
                 </folder>
                 <folder Name="hal">
                   <folder Name="src">
-                    <file file_name="../../../../../hw/mcu/microchip/samd/asf4/samd21/hal/src/hal_atomic.c" />
+                    <file file_name="../../../../../hw/mcu/microchip/asf4/samd21/hal/src/hal_atomic.c" />
                   </folder>
                 </folder>
               </folder>
