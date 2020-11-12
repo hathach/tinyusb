@@ -425,6 +425,11 @@ void dcd_init (uint8_t rhport)
 
     // Select default internal VBUS Indicator and Drive for ULPI
     usb_otg->GUSBCFG &= ~(USB_OTG_GUSBCFG_ULPIEVBUSD | USB_OTG_GUSBCFG_ULPIEVBUSI);
+#if CFG_TUSB_USB3340_PHY
+    // Enable delay to default timing, necessary for some ULPI PHYs
+    USB_OTG_DeviceTypeDef * dev = DEVICE_BASE(rhport);
+    dev->DCFG |= (1 << 14); // Set XCVRDLY to 1
+#endif
 #else
     usb_otg->GUSBCFG |= USB_OTG_GUSBCFG_PHYSEL;
 #endif
