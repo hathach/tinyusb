@@ -309,6 +309,10 @@ static void set_speed(uint8_t rhport, tusb_speed_t speed)
   // Clear and set speed bits
   dev->DCFG &= ~(3 << USB_OTG_DCFG_DSPD_Pos);
   dev->DCFG |= (bitvalue << USB_OTG_DCFG_DSPD_Pos);
+#if CFG_TUSB_USB3340_PHY
+    // Enable delay to default timing, necessary for some ULPI PHYs
+  dev->DCFG |= (1 << 14); // Set XCVRDLY to 1
+#endif
 }
 
 #if defined(USB_HS_PHYC)
@@ -425,11 +429,6 @@ void dcd_init (uint8_t rhport)
 
     // Select default internal VBUS Indicator and Drive for ULPI
     usb_otg->GUSBCFG &= ~(USB_OTG_GUSBCFG_ULPIEVBUSD | USB_OTG_GUSBCFG_ULPIEVBUSI);
-#if CFG_TUSB_USB3340_PHY
-    // Enable delay to default timing, necessary for some ULPI PHYs
-    USB_OTG_DeviceTypeDef * dev = DEVICE_BASE(rhport);
-    dev->DCFG |= (1 << 14); // Set XCVRDLY to 1
-#endif
 #else
     usb_otg->GUSBCFG |= USB_OTG_GUSBCFG_PHYSEL;
 #endif
