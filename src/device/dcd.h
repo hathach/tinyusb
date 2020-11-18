@@ -133,9 +133,6 @@ void dcd_edpt_close        (uint8_t rhport, uint8_t ep_addr) TU_ATTR_WEAK;
 // Submit a transfer, When complete dcd_event_xfer_complete() is invoked to notify the stack
 bool dcd_edpt_xfer        (uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t total_bytes);
 
-// Abort a ongoing transfer
-TU_ATTR_WEAK bool dcd_edpt_xfer_abort(uint8_t rhport, uint8_t ep_addr);
-
 // Stall endpoint
 void dcd_edpt_stall       (uint8_t rhport, uint8_t ep_addr);
 
