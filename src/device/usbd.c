@@ -1191,33 +1191,6 @@ bool usbd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t 
   }
 }
 
-bool usbd_edpt_xfer_abort(uint8_t rhport, uint8_t ep_addr)
-{
-  uint8_t const epnum = tu_edpt_number(ep_addr);
-  uint8_t const dir   = tu_edpt_dir(ep_addr);
-
-  TU_LOG2("  Abort XFER EP %02X ... ", ep_addr);
-
-  // Abort API is optional for DCD
-  if ( dcd_edpt_xfer_abort )
-  {
-    if ( dcd_edpt_xfer_abort(rhport, ep_addr) )
-    {
-      _usbd_dev.ep_status[epnum][dir].busy = false;
-      TU_LOG2("OK\r\n");
-      return true;
-    }else
-    {
-      TU_LOG2("failed\r\n");
-      return false;
-    }
-  }else
-  {
-    TU_LOG2("no DCD support\r\n");
-    return false;
-  }
-}
-
 bool usbd_edpt_busy(uint8_t rhport, uint8_t ep_addr)
 {
   (void) rhport;

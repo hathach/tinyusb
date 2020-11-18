@@ -207,6 +207,10 @@ uint32_t tud_cdc_n_write_available (uint8_t itf)
   return tu_fifo_remaining(&_cdcd_itf[itf].tx_ff);
 }
 
+bool tud_cdc_n_write_clear (uint8_t itf)
+{
+  return tu_fifo_clear(&_cdcd_itf[itf].tx_ff);
+}
 
 //--------------------------------------------------------------------+
 // USBD Driver API
@@ -229,6 +233,9 @@ void cdcd_init(void)
 
     // config fifo
     tu_fifo_config(&p_cdc->rx_ff, p_cdc->rx_ff_buf, TU_ARRAY_SIZE(p_cdc->rx_ff_buf), 1, false);
+    // tx fifo is set to overwritable at initialization and will be changed to not overwritable
+    // if terminal supports DTR bit. Without DTR we do not know if data is actually polled by terminal.
+    // In this way, the most current data is prioritized.
     tu_fifo_config(&p_cdc->tx_ff, p_cdc->tx_ff_buf, TU_ARRAY_SIZE(p_cdc->tx_ff_buf), 1, true);
 
 #if CFG_FIFO_MUTEX
@@ -384,20 +391,14 @@ bool cdcd_control_request(uint8_t rhport, tusb_control_request_t const * request
       bool const dtr = tu_bit_test(request->wValue, 0);
       bool const rts = tu_bit_test(request->wValue, 1);
 
-#if CFG_TUD_CDC_CLEAR_AT_CONNECTION
-      // DTE connected event (if DTE supports DTR bit)
-      if ( dtr && !tu_bit_test(p_cdc->line_state, 0) )
-      {
-        // Clear not transmitted data
-        usbd_edpt_xfer_abort(rhport, p_cdc->ep_in);
-        tu_fifo_clear(&p_cdc->tx_ff);
-      }
-#endif
+      // TODO if terminal supports DTR we can check for an connection event here and
+      // clear the fifo as well as ongoing transfers with new usbd_edpt_xfer_abort api.
+      // Until then user can self clear the buffer with tud_cdc_n_write_clear in tud_cdc_line_state_cb
 
       p_cdc->line_state = (uint8_t) request->wValue;
 
       // Disable fifo overwriting if DTR bit is set
-      tu_fifo_change_mode(&p_cdc->tx_ff, (dtr?false:true));
+      tu_fifo_set_mode(&p_cdc->tx_ff, !dtr);
 
       TU_LOG2("  Set Control Line State: DTR = %d, RTS = %d\r\n", dtr, rts);
 

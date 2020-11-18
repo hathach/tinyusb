@@ -603,9 +603,11 @@ bool tu_fifo_clear(tu_fifo_t *f)
 
     @param[in]  f
                 Pointer to the FIFO buffer to manipulate
+    @param[in]  overwritable
+                Overwritable mode the fifo is set to
 */
 /******************************************************************************/
-bool tu_fifo_change_mode(tu_fifo_t *f, bool overwritable)
+bool tu_fifo_set_mode(tu_fifo_t *f, bool overwritable)
 {
   tu_fifo_lock(f);
 
