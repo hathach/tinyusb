@@ -83,15 +83,18 @@ static void cdc_task(void)
 
   for (itf = 0; itf < CFG_TUD_CDC; itf++)
   {
-    if ( tud_cdc_n_available(itf) )
+    if ( tud_cdc_n_connected(itf) )
     {
-      uint8_t buf[64];
+      if ( tud_cdc_n_available(itf) )
+      {
+        uint8_t buf[64];
 
-      uint32_t count = tud_cdc_n_read(itf, buf, sizeof(buf));
+        uint32_t count = tud_cdc_n_read(itf, buf, sizeof(buf));
 
-      // echo back to both serial ports
-      echo_serial_port(0, buf, count);
-      echo_serial_port(1, buf, count);
+        // echo back to both serial ports
+        echo_serial_port(0, buf, count);
+        echo_serial_port(1, buf, count);
+      }
     }
   }
 }

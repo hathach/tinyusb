@@ -168,22 +168,25 @@ void cdc_task(void* params)
   // RTOS forever loop
   while ( 1 )
   {
-    // is data available to read from rx fifo
-    if ( tud_cdc_available() )
+    if ( tud_cdc_connected() )
     {
-      uint8_t buf[64];
-
-      // read and echo back
-      uint32_t count = tud_cdc_read(buf, sizeof(buf));
-
-      for(uint32_t i=0; i<count; i++)
+      // connected and there are data available
+      if ( tud_cdc_available() )
       {
-        tud_cdc_write_char(buf[i]);
+        uint8_t buf[64];
 
-        if ( buf[i] == '\r' ) tud_cdc_write_char('\n');
+        // read and echo back
+        uint32_t count = tud_cdc_read(buf, sizeof(buf));
+
+        for(uint32_t i=0; i<count; i++)
+        {
+          tud_cdc_write_char(buf[i]);
+
+          if ( buf[i] == '\r' ) tud_cdc_write_char('\n');
+        }
+
+        tud_cdc_write_flush();
       }
-
-      tud_cdc_write_flush();
     }
 
     // For ESP32-S2 this delay is essential to allow idle how to run and reset wdt
@@ -191,12 +194,12 @@ void cdc_task(void* params)
   }
 }
 
-// Invoked when cdc line state changed e.g connected/disconnected
+// Invoked when cdc when line state changed e.g connected/disconnected
 void tud_cdc_line_state_cb(uint8_t itf, bool dtr, bool rts)
 {
   (void) itf;
 
-  // usually terminal software sets DTR and RTS when connected
+  // connected
   if ( dtr && rts )
   {
     // print initial message when connected
