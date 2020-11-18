@@ -137,6 +137,7 @@ void tud_cdc_line_state_cb(uint8_t itf, bool dtr, bool rts)
   {
     // print initial message when connected
     tud_cdc_write_str("\r\nTinyUSB CDC MSC device example\r\n");
+    tud_cdc_write_flush();
   }
 }
 
@@ -144,6 +145,16 @@ void tud_cdc_line_state_cb(uint8_t itf, bool dtr, bool rts)
 void tud_cdc_rx_cb(uint8_t itf)
 {
   (void) itf;
+  uint8_t const line_state = tud_cdc_get_line_state();
+
+  // Provide information that terminal did not set DTR bit
+  if( !(line_state & 0x01) )
+  {
+    tud_cdc_write_str("\r\nTinyUSB example: Your terminal did not set DTR bit\r\n");
+    tud_cdc_write_flush();
+    // Clear rx fifo since we do not read the data
+    tud_cdc_read_flush();
+  }
 }
 
 //--------------------------------------------------------------------+
