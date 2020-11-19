@@ -171,7 +171,16 @@ bool usbd_control_xfer_cb (uint8_t rhport, uint8_t ep_addr, xfer_result_t result
   if ( tu_edpt_dir(ep_addr) != _ctrl_xfer.request.bmRequestType_bit.direction )
   {
     TU_ASSERT(0 == xferred_bytes);
+
+    // invoke optional dcd hook if available
     if (dcd_edpt0_status_complete) dcd_edpt0_status_complete(rhport, &_ctrl_xfer.request);
+
+    if (_ctrl_xfer.complete_cb)
+    {
+      // TODO refactor with usbd_driver_print_control_complete_name
+      _ctrl_xfer.complete_cb(rhport, CONTROL_STAGE_ACK, &_ctrl_xfer.request);
+    }
+
     return true;
   }
 
