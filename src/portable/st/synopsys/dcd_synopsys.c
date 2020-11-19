@@ -159,6 +159,13 @@ static uint16_t ep0_pending[2];     // Index determines direction as tusb_dir_t 
 // FIFO RAM allocation so far in words
 static uint16_t _allocated_fifo_words;
 
+#if CFG_TUSB_USB3340_PHY
+static bool suspended = false;
+#endif
+
+#include "os/os.h"
+#include <hal/hal_gpio.h>
+
 // Setup the control endpoint 0.
 static void bus_reset(uint8_t rhport)
 {
@@ -239,6 +246,17 @@ static void bus_reset(uint8_t rhport)
   out_ep[0].DOEPTSIZ |= (3 << USB_OTG_DOEPTSIZ_STUPCNT_Pos);
 
   usb_otg->GINTMSK |= USB_OTG_GINTMSK_OEPINT | USB_OTG_GINTMSK_IEPINT;
+
+#if CFG_TUSB_USB3340_PHY
+// In some cases after a USB suspended event, the ULPI Function
+// Control register is not set back to HS mode automatically
+// Forcing a ulpi_write to addr 0x04 with value 0x40 has not effect.
+// Force now we're just calling dcd_init to recover
+  if(suspended){
+    suspended = false;
+    dcd_init(rhport);
+  }
+#endif
 }
 
 // Set turn-around timeout according to link speed
@@ -524,6 +542,7 @@ void dcd_connect(uint8_t rhport)
 void dcd_disconnect(uint8_t rhport)
 {
   (void) rhport;
+
   USB_OTG_DeviceTypeDef * dev = DEVICE_BASE(rhport);
 
   dev->DCTL |= USB_OTG_DCTL_SDIS;
@@ -1007,6 +1026,9 @@ void dcd_int_handler(uint8_t rhport)
 
   if(int_status & USB_OTG_GINTSTS_USBSUSP)
   {
+#if CFG_TUSB_USB3340_PHY
+    suspended = true;
+#endif
     usb_otg->GINTSTS = USB_OTG_GINTSTS_USBSUSP;
     dcd_event_bus_signal(rhport, DCD_EVENT_SUSPEND, true);
   }
