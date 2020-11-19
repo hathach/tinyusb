@@ -121,8 +121,7 @@ static usbd_class_driver_t const _usbd_driver[] =
       .init             = hidd_init,
       .reset            = hidd_reset,
       .open             = hidd_open,
-      .control_xfer_cb  = hidd_control_request,
-      .control_complete = hidd_control_complete,
+      .control_xfer_cb  = hidd_control_xfer_cb,
       .xfer_cb          = hidd_xfer_cb,
       .sof              = NULL
   },
