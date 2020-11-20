@@ -158,8 +158,7 @@ static usbd_class_driver_t const _usbd_driver[] =
     .init             = vendord_init,
     .reset            = vendord_reset,
     .open             = vendord_open,
-    .control_xfer_cb  = tud_vendor_control_request_cb,
-    .control_complete = tud_vendor_control_complete_cb,
+    .control_xfer_cb  = tud_vendor_control_xfer_cb,
     .xfer_cb          = vendord_xfer_cb,
     .sof              = NULL
   },
