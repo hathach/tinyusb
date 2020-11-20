@@ -133,8 +133,7 @@ static usbd_class_driver_t const _usbd_driver[] =
     .init             = audiod_init,
     .reset            = audiod_reset,
     .open             = audiod_open,
-    .control_xfer_cb  = audiod_control_request,
-    .control_complete = audiod_control_complete,
+    .control_xfer_cb  = audiod_control_xfer_cb,
     .xfer_cb          = audiod_xfer_cb,
     .sof              = NULL
   },
