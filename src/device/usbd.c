@@ -183,8 +183,7 @@ static usbd_class_driver_t const _usbd_driver[] =
     .init             = dfu_rtd_init,
     .reset            = dfu_rtd_reset,
     .open             = dfu_rtd_open,
-    .control_xfer_cb  = dfu_rtd_control_request,
-    .control_complete = dfu_rtd_control_complete,
+    .control_xfer_cb  = dfu_rtd_control_xfer_cb,
     .xfer_cb          = dfu_rtd_xfer_cb,
     .sof              = NULL
   },
