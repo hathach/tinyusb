@@ -146,8 +146,7 @@ static usbd_class_driver_t const _usbd_driver[] =
       .init             = midid_init,
       .open             = midid_open,
       .reset            = midid_reset,
-      .control_xfer_cb  = midid_control_request,
-      .control_complete = midid_control_complete,
+      .control_xfer_cb  = midid_control_xfer_cb,
       .xfer_cb          = midid_xfer_cb,
       .sof              = NULL
   },
