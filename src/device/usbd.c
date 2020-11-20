@@ -93,43 +93,43 @@ static usbd_class_driver_t const _usbd_driver[] =
 {
   #if CFG_TUD_CDC
   {
-      DRIVER_NAME("CDC")
-      .init             = cdcd_init,
-      .reset            = cdcd_reset,
-      .open             = cdcd_open,
-      .control_xfer_cb  = cdcd_control_xfer_cb,
-      .xfer_cb          = cdcd_xfer_cb,
-      .sof              = NULL
+    DRIVER_NAME("CDC")
+    .init             = cdcd_init,
+    .reset            = cdcd_reset,
+    .open             = cdcd_open,
+    .control_xfer_cb  = cdcd_control_xfer_cb,
+    .xfer_cb          = cdcd_xfer_cb,
+    .sof              = NULL
   },
   #endif
 
   #if CFG_TUD_MSC
   {
-      DRIVER_NAME("MSC")
-      .init             = mscd_init,
-      .reset            = mscd_reset,
-      .open             = mscd_open,
-      .control_xfer_cb  = mscd_control_xfer_cb,
-      .xfer_cb          = mscd_xfer_cb,
-      .sof              = NULL
+    DRIVER_NAME("MSC")
+    .init             = mscd_init,
+    .reset            = mscd_reset,
+    .open             = mscd_open,
+    .control_xfer_cb  = mscd_control_xfer_cb,
+    .xfer_cb          = mscd_xfer_cb,
+    .sof              = NULL
   },
   #endif
 
   #if CFG_TUD_HID
   {
-      DRIVER_NAME("HID")
-      .init             = hidd_init,
-      .reset            = hidd_reset,
-      .open             = hidd_open,
-      .control_xfer_cb  = hidd_control_xfer_cb,
-      .xfer_cb          = hidd_xfer_cb,
-      .sof              = NULL
+    DRIVER_NAME("HID")
+    .init             = hidd_init,
+    .reset            = hidd_reset,
+    .open             = hidd_open,
+    .control_xfer_cb  = hidd_control_xfer_cb,
+    .xfer_cb          = hidd_xfer_cb,
+    .sof              = NULL
   },
   #endif
 
-#if CFG_TUD_AUDIO
-{
-	DRIVER_NAME("AUDIO")
+  #if CFG_TUD_AUDIO
+  {
+    DRIVER_NAME("AUDIO")
     .init             = audiod_init,
     .reset            = audiod_reset,
     .open             = audiod_open,
@@ -137,83 +137,83 @@ static usbd_class_driver_t const _usbd_driver[] =
     .control_complete = audiod_control_complete,
     .xfer_cb          = audiod_xfer_cb,
     .sof              = NULL
-},
-#endif
+  },
+  #endif
 
   #if CFG_TUD_MIDI
   {
-      DRIVER_NAME("MIDI")
-      .init             = midid_init,
-      .open             = midid_open,
-      .reset            = midid_reset,
-      .control_xfer_cb  = midid_control_xfer_cb,
-      .xfer_cb          = midid_xfer_cb,
-      .sof              = NULL
+    DRIVER_NAME("MIDI")
+    .init             = midid_init,
+    .open             = midid_open,
+    .reset            = midid_reset,
+    .control_xfer_cb  = midid_control_xfer_cb,
+    .xfer_cb          = midid_xfer_cb,
+    .sof              = NULL
   },
   #endif
 
   #if CFG_TUD_VENDOR
   {
-      DRIVER_NAME("VENDOR")
-      .init             = vendord_init,
-      .reset            = vendord_reset,
-      .open             = vendord_open,
-      .control_xfer_cb  = tud_vendor_control_request_cb,
-      .control_complete = tud_vendor_control_complete_cb,
-      .xfer_cb          = vendord_xfer_cb,
-      .sof              = NULL
+    DRIVER_NAME("VENDOR")
+    .init             = vendord_init,
+    .reset            = vendord_reset,
+    .open             = vendord_open,
+    .control_xfer_cb  = tud_vendor_control_request_cb,
+    .control_complete = tud_vendor_control_complete_cb,
+    .xfer_cb          = vendord_xfer_cb,
+    .sof              = NULL
   },
   #endif
 
   #if CFG_TUD_USBTMC
   {
-      DRIVER_NAME("TMC")
-      .init             = usbtmcd_init_cb,
-      .reset            = usbtmcd_reset_cb,
-      .open             = usbtmcd_open_cb,
-      .control_xfer_cb  = usbtmcd_control_request_cb,
-      .control_complete = usbtmcd_control_complete_cb,
-      .xfer_cb          = usbtmcd_xfer_cb,
-      .sof              = NULL
+    DRIVER_NAME("TMC")
+    .init             = usbtmcd_init_cb,
+    .reset            = usbtmcd_reset_cb,
+    .open             = usbtmcd_open_cb,
+    .control_xfer_cb  = usbtmcd_control_request_cb,
+    .control_complete = usbtmcd_control_complete_cb,
+    .xfer_cb          = usbtmcd_xfer_cb,
+    .sof              = NULL
   },
   #endif
 
   #if CFG_TUD_DFU_RT
   {
-      DRIVER_NAME("DFU-RT")
-      .init             = dfu_rtd_init,
-      .reset            = dfu_rtd_reset,
-      .open             = dfu_rtd_open,
-      .control_xfer_cb  = dfu_rtd_control_request,
-      .control_complete = dfu_rtd_control_complete,
-      .xfer_cb          = dfu_rtd_xfer_cb,
-      .sof              = NULL
+    DRIVER_NAME("DFU-RT")
+    .init             = dfu_rtd_init,
+    .reset            = dfu_rtd_reset,
+    .open             = dfu_rtd_open,
+    .control_xfer_cb  = dfu_rtd_control_request,
+    .control_complete = dfu_rtd_control_complete,
+    .xfer_cb          = dfu_rtd_xfer_cb,
+    .sof              = NULL
   },
   #endif
 
   #if CFG_TUD_NET
   {
-      DRIVER_NAME("NET")
-      .init             = netd_init,
-      .reset            = netd_reset,
-      .open             = netd_open,
-      .control_xfer_cb  = netd_control_request,
-      .control_complete = netd_control_complete,
-      .xfer_cb          = netd_xfer_cb,
-      .sof              = NULL,
+    DRIVER_NAME("NET")
+    .init             = netd_init,
+    .reset            = netd_reset,
+    .open             = netd_open,
+    .control_xfer_cb  = netd_control_request,
+    .control_complete = netd_control_complete,
+    .xfer_cb          = netd_xfer_cb,
+    .sof              = NULL,
   },
   #endif
 
   #if CFG_TUD_BTH
   {
-      DRIVER_NAME("BTH")
-      .init             = btd_init,
-      .reset            = btd_reset,
-      .open             = btd_open,
-      .control_xfer_cb  = btd_control_request,
-      .control_complete = btd_control_complete,
-      .xfer_cb          = btd_xfer_cb,
-      .sof              = NULL
+    DRIVER_NAME("BTH")
+    .init             = btd_init,
+    .reset            = btd_reset,
+    .open             = btd_open,
+    .control_xfer_cb  = btd_control_request,
+    .control_complete = btd_control_complete,
+    .xfer_cb          = btd_xfer_cb,
+    .sof              = NULL
   },
   #endif
 };
