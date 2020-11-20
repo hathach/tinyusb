@@ -171,8 +171,7 @@ static usbd_class_driver_t const _usbd_driver[] =
     .init             = usbtmcd_init_cb,
     .reset            = usbtmcd_reset_cb,
     .open             = usbtmcd_open_cb,
-    .control_xfer_cb  = usbtmcd_control_request_cb,
-    .control_complete = usbtmcd_control_complete_cb,
+    .control_xfer_cb  = usbtmcd_control_xfer_cb,
     .xfer_cb          = usbtmcd_xfer_cb,
     .sof              = NULL
   },
