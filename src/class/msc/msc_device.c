@@ -186,10 +186,14 @@ uint16_t mscd_open(uint8_t rhport, tusb_desc_interface_t const * itf_desc, uint1
   return drv_len;
 }
 
-// Handle class control request
+// Invoked when a control transfer occurred on an interface of this class
+// Driver response accordingly to the request and the transfer stage (setup/data/ack)
 // return false to stall control endpoint (e.g unsupported request)
-bool mscd_control_request(uint8_t rhport, tusb_control_request_t const * p_request)
+bool mscd_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request_t const * p_request)
 {
+  // nothing to do with DATA & ACK stage
+  if (stage != CONTROL_STAGE_SETUP) return true;
+
   // Handle class request only
   TU_VERIFY(p_request->bmRequestType_bit.type == TUSB_REQ_TYPE_CLASS);
 
@@ -216,17 +220,6 @@ bool mscd_control_request(uint8_t rhport, tusb_control_request_t const * p_reque
     default: return false; // stall unsupported request
   }
 
-  return true;
-}
-
-// Invoked when class request DATA stage is finished.
-// return false to stall control endpoint (e.g Host send non-sense DATA)
-bool mscd_control_complete(uint8_t rhport, tusb_control_request_t const * request)
-{
-  (void) rhport;
-  (void) request;
-
-  // nothing to do
   return true;
 }
 
