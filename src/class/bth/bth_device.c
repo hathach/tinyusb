@@ -249,7 +249,7 @@ bool btd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint32_t
     if (tud_bt_acl_data_sent_cb) tud_bt_acl_data_sent_cb((uint16_t)xferred_bytes);
   }
 
-  return TUSB_ERROR_NONE;
+  return true;
 }
 
 #endif
