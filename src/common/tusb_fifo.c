@@ -599,6 +599,27 @@ bool tu_fifo_clear(tu_fifo_t *f)
 
 /******************************************************************************/
 /*!
+    @brief Change the fifo mode to overwritable or not overwritable
+
+    @param[in]  f
+                Pointer to the FIFO buffer to manipulate
+    @param[in]  overwritable
+                Overwritable mode the fifo is set to
+*/
+/******************************************************************************/
+bool tu_fifo_set_overwritable(tu_fifo_t *f, bool overwritable)
+{
+  tu_fifo_lock(f);
+
+  f->overwritable = overwritable;
+
+  tu_fifo_unlock(f);
+
+  return true;
+}
+
+/******************************************************************************/
+/*!
     @brief Advance write pointer - intended to be used in combination with DMA.
     It is possible to fill the FIFO by use of a DMA in circular mode. Within
     DMA ISRs you may update the write pointer to be able to read from the FIFO.
