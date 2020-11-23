@@ -105,7 +105,9 @@ void tud_resume_cb(void)
 //--------------------------------------------------------------------+
 void cdc_task(void)
 {
-  if ( tud_cdc_connected() )
+  // connected() check for DTR bit
+  // Most but not all terminal client set this when making connection
+  // if ( tud_cdc_connected() )
   {
     // connected and there are data available
     if ( tud_cdc_available() )
@@ -133,7 +135,7 @@ void tud_cdc_line_state_cb(uint8_t itf, bool dtr, bool rts)
   (void) itf;
 
   // connected
-  if ( dtr && rts )
+  if ( dtr )
   {
     // print initial message when connected
     tud_cdc_write_str("\r\nTinyUSB CDC MSC device example\r\n");
