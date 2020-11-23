@@ -133,6 +133,7 @@ void cdc_task(void)
 void tud_cdc_line_state_cb(uint8_t itf, bool dtr, bool rts)
 {
   (void) itf;
+  (void) rts;
 
   // connected
   if ( dtr )
