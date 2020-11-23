@@ -178,6 +178,9 @@ uint32_t tud_cdc_n_write_flush (uint8_t itf)
 {
   cdcd_interface_t* p_cdc = &_cdcd_itf[itf];
 
+  // Skip if usb is not ready yet
+  TU_VERIFY( tud_ready(), 0 );
+
   // No data to send
   if ( !tu_fifo_count(&p_cdc->tx_ff) ) return 0;
 
@@ -231,9 +234,10 @@ void cdcd_init(void)
     p_cdc->line_coding.parity    = 0;
     p_cdc->line_coding.data_bits = 8;
 
-    // config fifo
+    // Config RX fifo
     tu_fifo_config(&p_cdc->rx_ff, p_cdc->rx_ff_buf, TU_ARRAY_SIZE(p_cdc->rx_ff_buf), 1, false);
-    // tx fifo is set to overwritable at initialization and will be changed to not overwritable
+
+    // Config TX fifo as overwritable at initialization and will be changed to non-overwritable
     // if terminal supports DTR bit. Without DTR we do not know if data is actually polled by terminal.
     // In this way, the most current data is prioritized.
     tu_fifo_config(&p_cdc->tx_ff, p_cdc->tx_ff_buf, TU_ARRAY_SIZE(p_cdc->tx_ff_buf), 1, true);
@@ -251,9 +255,12 @@ void cdcd_reset(uint8_t rhport)
 
   for(uint8_t i=0; i<CFG_TUD_CDC; i++)
   {
-    tu_memclr(&_cdcd_itf[i], ITF_MEM_RESET_SIZE);
-    tu_fifo_clear(&_cdcd_itf[i].rx_ff);
-    tu_fifo_clear(&_cdcd_itf[i].tx_ff);
+    cdcd_interface_t* p_cdc = &_cdcd_itf[i];
+
+    tu_memclr(p_cdc, ITF_MEM_RESET_SIZE);
+    tu_fifo_clear(&p_cdc->rx_ff);
+    tu_fifo_clear(&p_cdc->tx_ff);
+    tu_fifo_set_overwritable(&p_cdc->tx_ff, true);
   }
 }
 
@@ -381,7 +388,7 @@ bool cdcd_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request_t 
         p_cdc->line_state = (uint8_t) request->wValue;
         
         // Disable fifo overwriting if DTR bit is set
-        tu_fifo_set_mode(&p_cdc->tx_ff, !dtr);
+        tu_fifo_set_overwritable(&p_cdc->tx_ff, !dtr);
 
         TU_LOG2("  Set Control Line State: DTR = %d, RTS = %d\r\n", dtr, rts);
 

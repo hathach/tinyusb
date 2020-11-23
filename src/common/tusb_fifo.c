@@ -607,7 +607,7 @@ bool tu_fifo_clear(tu_fifo_t *f)
                 Overwritable mode the fifo is set to
 */
 /******************************************************************************/
-bool tu_fifo_set_mode(tu_fifo_t *f, bool overwritable)
+bool tu_fifo_set_overwritable(tu_fifo_t *f, bool overwritable)
 {
   tu_fifo_lock(f);
 
