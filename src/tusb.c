@@ -52,7 +52,7 @@ bool tusb_init(void)
 
   _initialized = true;
 
-  return TUSB_ERROR_NONE;
+  return true;
 }
 
 bool tusb_inited(void)
