@@ -30,29 +30,59 @@
 //--------------------------------------------------------------------+
 // MACRO TYPEDEF CONSTANT ENUM DECLARATION
 //--------------------------------------------------------------------+
+static scsi_inquiry_resp_t inquiry_resp;
+static scsi_read_capacity10_resp_t capacity_resp;
 
+uint32_t block_size;
+uint32_t block_count;
+
+bool capacity_complete_cb(uint8_t dev_addr, msc_cbw_t const* cbw, msc_csw_t const* csw)
+{
+  (void) dev_addr;
+  (void) cbw;
+
+  if (csw->status != 0)
+  {
+    printf("Read Capacity (10) failed\r\n");
+    return false;
+  }
+
+  // Capacity response field: Block size and Last LBA are both Big-Endian
+  block_count = tu_ntohl(capacity_resp.last_lba) + 1;
+  block_size = tu_ntohl(capacity_resp.block_size);
+
+  printf("Disk Size: %lu MB\r\n", block_count / ((1024*1024)/block_size));
+  printf("Block Count = %lu, Block Size: %lu\r\n", block_count, block_size);
+
+  return true;
+}
+
+bool inquiry_complete_cb(uint8_t dev_addr, msc_cbw_t const* cbw, msc_csw_t const* csw)
+{
+  if (csw->status != 0)
+  {
+    printf("Inquiry failed\r\n");
+    return false;
+  }
+
+  // Print out Vendor ID, Product ID and Rev
+  printf("%.8s %.16s rev %.4s\r\n", inquiry_resp.vendor_id, inquiry_resp.product_id, inquiry_resp.product_rev);
+
+  // Read capacity of device
+  tuh_msc_read_capacity(dev_addr, cbw->lun, &capacity_resp, capacity_complete_cb);
+
+  return true;
+}
 
 //------------- IMPLEMENTATION -------------//
 void tuh_msc_mounted_cb(uint8_t dev_addr)
 {
   printf("A MassStorage device is mounted\r\n");
 
-  //------------- Disk Information -------------//
-  // SCSI VendorID[8] & ProductID[16] from Inquiry Command
-  uint8_t const* p_vendor  = tuh_msc_get_vendor_name(dev_addr);
-  uint8_t const* p_product = tuh_msc_get_product_name(dev_addr);
+  block_size = block_count = 0;
 
-  for(uint8_t i=0; i<8; i++) putchar(p_vendor[i]);
-
-  putchar(' ');
-  for(uint8_t i=0; i<16; i++) putchar(p_product[i]);
-  putchar('\n');
-
-  uint32_t last_lba = 0;
-  uint32_t block_size = 0;
-  tuh_msc_get_capacity(dev_addr, &last_lba, &block_size);
-  printf("Disk Size: %ld MB\r\n", (last_lba+1)/ ((1024*1024)/block_size) );
-  printf("LBA 0-0x%lX  Block Size: %ld\r\n", last_lba, block_size);
+  uint8_t const lun = 0;
+  tuh_msc_scsi_inquiry(dev_addr, lun, &inquiry_resp, inquiry_complete_cb);
 //
 //  //------------- file system (only 1 LUN support) -------------//
 //  uint8_t phy_disk = dev_addr-1;
@@ -103,12 +133,11 @@ void tuh_msc_unmounted_cb(uint8_t dev_addr)
 //  }
 }
 
-// invoked ISR context
-void tuh_msc_isr(uint8_t dev_addr, xfer_result_t event, uint32_t xferred_bytes)
-{
-  (void) dev_addr;
-  (void) event;
-  (void) xferred_bytes;
-}
+//void tuh_msc_scsi_complete_cb(uint8_t dev_addr, msc_cbw_t const* cbw, msc_csw_t const* csw)
+//{
+//  (void) dev_addr;
+//  (void) cbw;
+//  (void) csw;
+//}
 
 #endif

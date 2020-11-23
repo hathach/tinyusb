@@ -322,38 +322,10 @@ uint16_t cdcd_open(uint8_t rhport, tusb_desc_interface_t const * itf_desc, uint1
   return drv_len;
 }
 
-// Invoked when class request DATA stage is finished.
-// return false to stall control endpoint (e.g Host send non-sense DATA)
-bool cdcd_control_complete(uint8_t rhport, tusb_control_request_t const * request)
-{
-  (void) rhport;
-
-  //------------- Class Specific Request -------------//
-  TU_VERIFY (request->bmRequestType_bit.type == TUSB_REQ_TYPE_CLASS);
-
-  uint8_t itf = 0;
-  cdcd_interface_t* p_cdc = _cdcd_itf;
-
-  // Identify which interface to use
-  for ( ; ; itf++, p_cdc++)
-  {
-    if (itf >= TU_ARRAY_SIZE(_cdcd_itf)) return false;
-
-    if ( p_cdc->itf_num == request->wIndex ) break;
-  }
-
-  // Invoke callback
-  if ( CDC_REQUEST_SET_LINE_CODING == request->bRequest )
-  {
-    if ( tud_cdc_line_coding_cb ) tud_cdc_line_coding_cb(itf, &p_cdc->line_coding);
-  }
-
-  return true;
-}
-
-// Handle class control request
+// Invoked when a control transfer occurred on an interface of this class
+// Driver response accordingly to the request and the transfer stage (setup/data/ack)
 // return false to stall control endpoint (e.g unsupported request)
-bool cdcd_control_request(uint8_t rhport, tusb_control_request_t const * request)
+bool cdcd_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request_t const * request)
 {
   // Handle class request only
   TU_VERIFY(request->bmRequestType_bit.type == TUSB_REQ_TYPE_CLASS);
@@ -372,41 +344,50 @@ bool cdcd_control_request(uint8_t rhport, tusb_control_request_t const * request
   switch ( request->bRequest )
   {
     case CDC_REQUEST_SET_LINE_CODING:
-      TU_LOG2("  Set Line Coding\r\n");
-      tud_control_xfer(rhport, request, &p_cdc->line_coding, sizeof(cdc_line_coding_t));
+      if (stage == CONTROL_STAGE_SETUP)
+      {
+        TU_LOG2("  Set Line Coding\r\n");
+        tud_control_xfer(rhport, request, &p_cdc->line_coding, sizeof(cdc_line_coding_t));
+      }
+      else if ( stage == CONTROL_STAGE_ACK)
+      {
+        if ( tud_cdc_line_coding_cb ) tud_cdc_line_coding_cb(itf, &p_cdc->line_coding);
+      }
     break;
 
     case CDC_REQUEST_GET_LINE_CODING:
-      TU_LOG2("  Get Line Coding\r\n");
-      tud_control_xfer(rhport, request, &p_cdc->line_coding, sizeof(cdc_line_coding_t));
+      if (stage == CONTROL_STAGE_SETUP)
+      {
+        TU_LOG2("  Get Line Coding\r\n");
+        tud_control_xfer(rhport, request, &p_cdc->line_coding, sizeof(cdc_line_coding_t));
+      }
     break;
 
     case CDC_REQUEST_SET_CONTROL_LINE_STATE:
-    {
-      // CDC PSTN v1.2 section 6.3.12
-      // Bit 0: Indicates if DTE is present or not.
-      //        This signal corresponds to V.24 signal 108/2 and RS-232 signal DTR (Data Terminal Ready)
-      // Bit 1: Carrier control for half-duplex modems.
-      //        This signal corresponds to V.24 signal 105 and RS-232 signal RTS (Request to Send)
-      bool const dtr = tu_bit_test(request->wValue, 0);
-      bool const rts = tu_bit_test(request->wValue, 1);
+      if (stage == CONTROL_STAGE_SETUP)
+      {
+        tud_control_status(rhport, request);
+      }
+      else if (stage == CONTROL_STAGE_ACK)
+      {
+        // CDC PSTN v1.2 section 6.3.12
+        // Bit 0: Indicates if DTE is present or not.
+        //        This signal corresponds to V.24 signal 108/2 and RS-232 signal DTR (Data Terminal Ready)
+        // Bit 1: Carrier control for half-duplex modems.
+        //        This signal corresponds to V.24 signal 105 and RS-232 signal RTS (Request to Send)
+        bool const dtr = tu_bit_test(request->wValue, 0);
+        bool const rts = tu_bit_test(request->wValue, 1);
 
-      // TODO if terminal supports DTR we can check for an connection event here and
-      // clear the fifo as well as ongoing transfers with new usbd_edpt_xfer_abort api.
-      // Until then user can self clear the buffer with tud_cdc_n_write_clear in tud_cdc_line_state_cb
+        p_cdc->line_state = (uint8_t) request->wValue;
+        
+        // Disable fifo overwriting if DTR bit is set
+        tu_fifo_set_mode(&p_cdc->tx_ff, !dtr);
 
-      p_cdc->line_state = (uint8_t) request->wValue;
+        TU_LOG2("  Set Control Line State: DTR = %d, RTS = %d\r\n", dtr, rts);
 
-      // Disable fifo overwriting if DTR bit is set
-      tu_fifo_set_mode(&p_cdc->tx_ff, !dtr);
-
-      TU_LOG2("  Set Control Line State: DTR = %d, RTS = %d\r\n", dtr, rts);
-
-      tud_control_status(rhport, request);
-
-      // Invoke callback
-      if ( tud_cdc_line_state_cb ) tud_cdc_line_state_cb(itf, dtr, rts);
-    }
+        // Invoke callback
+        if ( tud_cdc_line_state_cb ) tud_cdc_line_state_cb(itf, dtr, rts);
+      }
     break;
 
     default: return false; // stall unsupported request

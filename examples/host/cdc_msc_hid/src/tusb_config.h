@@ -69,7 +69,7 @@
 // CONFIGURATION
 //--------------------------------------------------------------------
 
-#define CFG_TUH_HUB                 0
+#define CFG_TUH_HUB                 1
 #define CFG_TUH_CDC                 1
 #define CFG_TUH_HID_KEYBOARD        1
 #define CFG_TUH_HID_MOUSE           1

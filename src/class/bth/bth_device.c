@@ -186,43 +186,46 @@ uint16_t btd_open(uint8_t rhport, tusb_desc_interface_t const *itf_desc, uint16_
   return drv_len;
 }
 
-bool btd_control_complete(uint8_t rhport, tusb_control_request_t const *request)
+// Invoked when a control transfer occurred on an interface of this class
+// Driver response accordingly to the request and the transfer stage (setup/data/ack)
+// return false to stall control endpoint (e.g unsupported request)
+bool btd_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request_t const *request)
 {
   (void)rhport;
 
-  // Handle class request only
-  TU_VERIFY(request->bmRequestType_bit.type == TUSB_REQ_TYPE_CLASS);
+  if ( stage == CONTROL_STAGE_SETUP )
+  {
+    if (request->bmRequestType_bit.type == TUSB_REQ_TYPE_CLASS &&
+        request->bmRequestType_bit.recipient == TUSB_REQ_RCPT_DEVICE)
+    {
+      // HCI command packet addressing for single function Primary Controllers
+      TU_VERIFY(request->bRequest == 0 && request->wValue == 0 && request->wIndex == 0);
+    }
+    else if (request->bmRequestType_bit.recipient == TUSB_REQ_RCPT_INTERFACE)
+    {
+      if (request->bRequest == TUSB_REQ_SET_INTERFACE && _btd_itf.itf_num + 1 == request->wIndex)
+      {
+        // TODO: Set interface it would involve changing size of endpoint size
+      }
+      else
+      {
+        // HCI command packet for Primary Controller function in a composite device
+        TU_VERIFY(request->bRequest == 0 && request->wValue == 0 && request->wIndex == _btd_itf.itf_num);
+      }
+    }
+    else return false;
 
-  if (tud_bt_hci_cmd_cb) tud_bt_hci_cmd_cb(&_btd_itf.hci_cmd, request->wLength);
+    return tud_control_xfer(rhport, request, &_btd_itf.hci_cmd, request->wLength);
+  }
+  else if ( stage == CONTROL_STAGE_DATA )
+  {
+    // Handle class request only
+    TU_VERIFY(request->bmRequestType_bit.type == TUSB_REQ_TYPE_CLASS);
+
+    if (tud_bt_hci_cmd_cb) tud_bt_hci_cmd_cb(&_btd_itf.hci_cmd, request->wLength);
+  }
 
   return true;
-}
-
-bool btd_control_request(uint8_t rhport, tusb_control_request_t const *request)
-{
-  (void)rhport;
-
-  if (request->bmRequestType_bit.type == TUSB_REQ_TYPE_CLASS &&
-      request->bmRequestType_bit.recipient == TUSB_REQ_RCPT_DEVICE)
-  {
-    // HCI command packet addressing for single function Primary Controllers
-    TU_VERIFY(request->bRequest == 0 && request->wValue == 0 && request->wIndex == 0);
-  }
-  else if (request->bmRequestType_bit.recipient == TUSB_REQ_RCPT_INTERFACE)
-  {
-    if (request->bRequest == TUSB_REQ_SET_INTERFACE && _btd_itf.itf_num + 1 == request->wIndex)
-    {
-      // TODO: Set interface it would involve changing size of endpoint size
-    }
-    else
-    {
-      // HCI command packet for Primary Controller function in a composite device
-      TU_VERIFY(request->bRequest == 0 && request->wValue == 0 && request->wIndex == _btd_itf.itf_num);
-    }
-  }
-  else return false;
-
-  return tud_control_xfer(rhport, request, &_btd_itf.hci_cmd, request->wLength);
 }
 
 bool btd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint32_t xferred_bytes)
@@ -246,7 +249,7 @@ bool btd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint32_t
     if (tud_bt_acl_data_sent_cb) tud_bt_acl_data_sent_cb((uint16_t)xferred_bytes);
   }
 
-  return TUSB_ERROR_NONE;
+  return true;
 }
 
 #endif

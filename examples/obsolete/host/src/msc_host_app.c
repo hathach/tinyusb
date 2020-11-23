@@ -64,7 +64,7 @@ void tuh_msc_mounted_cb(uint8_t dev_addr)
   putchar('\n');
 
   uint32_t last_lba, block_size;
-  tuh_msc_get_capacity(dev_addr, &last_lba, &block_size);
+  tuh_msc_read_capacity(dev_addr, &last_lba, &block_size);
   printf("Disk Size: %d MB\n", (last_lba+1)/ ((1024*1024)/block_size) );
   printf("LBA 0-0x%X  Block Size: %d\n", last_lba, block_size);
 

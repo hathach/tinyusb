@@ -27,7 +27,7 @@
       linker_memory_map_file="$(ProjectDir)/ATSAMD21G18A_MemoryMap.xml"
       linker_section_placement_file="flash_placement.xml"
       linker_section_placements_segments="FLASH RX 0x00000000 0x00080000;RAM RWX 0x20000000 0x00030000"
-      macros="DeviceFamily=SAMD21;Target=ATSAMD21G18A;Placement=Flash;rootDir=../../../../..;asf4Dir=../../../../../hw/mcu/microchip/samd/asf4/samd21;freertosDir=../../../../../lib/FreeRTOS"
+      macros="DeviceFamily=SAMD21;Target=ATSAMD21G18A;Placement=Flash;rootDir=../../../../..;asf4Dir=../../../../../hw/mcu/microchip/asf4/samd21;freertosDir=../../../../../lib/FreeRTOS"
       project_directory=""
       project_type="Executable"
       target_reset_script="Reset();"
@@ -52,20 +52,20 @@
             <folder Name="asf4">
               <folder Name="samd21">
                 <folder Name="gcc">
-                  <file file_name="../../../../../hw/mcu/microchip/samd/asf4/samd21/gcc/system_samd21.c" />
+                  <file file_name="../../../../../hw/mcu/microchip/asf4/samd21/gcc/system_samd21.c" />
                 </folder>
                 <folder Name="hpl">
                   <folder Name="core">
-                    <file file_name="../../../../../hw/mcu/microchip/samd/asf4/samd21/hpl/core/hpl_init.c" />
+                    <file file_name="../../../../../hw/mcu/microchip/asf4/samd21/hpl/core/hpl_init.c" />
                   </folder>
                   <folder Name="gclk">
-                    <file file_name="../../../../../hw/mcu/microchip/samd/asf4/samd21/hpl/gclk/hpl_gclk.c" />
+                    <file file_name="../../../../../hw/mcu/microchip/asf4/samd21/hpl/gclk/hpl_gclk.c" />
                   </folder>
                   <folder Name="pm">
-                    <file file_name="../../../../../hw/mcu/microchip/samd/asf4/samd21/hpl/pm/hpl_pm.c" />
+                    <file file_name="../../../../../hw/mcu/microchip/asf4/samd21/hpl/pm/hpl_pm.c" />
                   </folder>
                   <folder Name="sysctrl">
-                    <file file_name="../../../../../hw/mcu/microchip/samd/asf4/samd21/hpl/sysctrl/hpl_sysctrl.c" />
+                    <file file_name="../../../../../hw/mcu/microchip/asf4/samd21/hpl/sysctrl/hpl_sysctrl.c" />
                   </folder>
                 </folder>
               </folder>

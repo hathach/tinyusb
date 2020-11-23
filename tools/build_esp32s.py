@@ -4,6 +4,10 @@ import sys
 import subprocess
 import time
 
+SUCCEEDED = "\033[32msucceeded\033[0m"
+FAILED = "\033[31mfailed\033[0m"
+SKIPPED = "\033[33mskipped\033[0m"
+
 success_count = 0
 fail_count = 0
 skip_count = 0
@@ -11,7 +15,7 @@ exit_status = 0
 
 total_time = time.monotonic()
 
-build_format = '| {:23} | {:30} | {:9} | {:7} | {:6} | {:6} |'
+build_format = '| {:23} | {:30} | {:18} | {:7} | {:6} | {:6} |'
 build_separator = '-' * 100
 
 # 1st Argument is Example, build all examples if not existed
@@ -58,7 +62,7 @@ def skip_example(example, board):
     return 0
 
 print(build_separator)
-print(build_format.format('Example', 'Board', 'Result', 'Time', 'Flash', 'SRAM'))
+print(build_format.format('Example', 'Board', '\033[39mResult\033[0m', 'Time', 'Flash', 'SRAM'))
 print(build_separator)
 
 for example in all_examples:
@@ -70,19 +74,19 @@ for example in all_examples:
 
         # Check if board is skipped
         if skip_example(example, board):
-            success = "\033[33mskipped\033[0m  "
+            success = SKIPPED
             skip_count += 1
             print(build_format.format(example, board, success, '-', flash_size, sram_size))
         else:
             build_result = build_example(example, board)
 
             if build_result.returncode == 0:
-                success = "\033[32msucceeded\033[0m"
+                success = SUCCEEDED
                 success_count += 1
                 (flash_size, sram_size) = build_size(example, board)
             else:
                 exit_status = build_result.returncode
-                success = "\033[31mfailed\033[0m   "
+                success = FAILED
                 fail_count += 1
 
             build_duration = time.monotonic() - start_time
@@ -95,7 +99,7 @@ for example in all_examples:
 
 total_time = time.monotonic() - total_time
 print(build_separator)
-print("Build Sumamary: {} \033[32msucceeded\033[0m, {} \033[31mfailed\033[0m, {} \033[33mskipped\033[0m and took {:.2f}s".format(success_count, fail_count, skip_count, total_time))
+print("Build Summary: {} {}, {} {}, {} {} and took {:.2f}s".format(success_count, SUCCEEDED, fail_count, FAILED, skip_count, SKIPPED, total_time))
 print(build_separator)
 
 sys.exit(exit_status)

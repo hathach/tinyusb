@@ -76,6 +76,10 @@ def skip_example(example, board):
         if 'CROSS_COMPILE = xtensa-esp32s2-elf-' in mk_contents:
             return 1
 
+        # Skip all OPT_MCU_NONE these are WIP port
+        if '-DCFG_TUSB_MCU=OPT_MCU_NONE' in mk_contents:
+            return 1
+
         # Skip if CFG_TUSB_MCU in board.mk to match skip file
         for skip_file in glob.iglob(ex_dir + '/.skip.MCU_*'):
             mcu_cflag = '-DCFG_TUSB_MCU=OPT_' + os.path.basename(skip_file).split('.')[2]
