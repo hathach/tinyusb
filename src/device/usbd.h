@@ -56,6 +56,9 @@ extern void dcd_int_handler(uint8_t rhport);
 // Get current bus speed
 tusb_speed_t tud_speed_get(void);
 
+// Check if device is connected (may not mounted/configured yet)
+bool tud_connected(void);
+
 // Check if device is connected and configured
 bool tud_mounted(void);
 
