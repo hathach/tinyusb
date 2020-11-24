@@ -585,6 +585,24 @@ bool mscd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t event, uint32_t
         TU_LOG2("  SCSI Status: %u\r\n", p_csw->status);
         // TU_LOG2_MEM(p_csw, xferred_bytes, 2);
 
+        // Invoke complete callback if defined
+        // Note: There is racing issue with samd51 + qspi flash testing with arduino
+        // if complete_cb() is invoked after queuing the status.
+        switch(p_cbw->command[0])
+        {
+          case SCSI_CMD_READ_10:
+            if ( tud_msc_read10_complete_cb ) tud_msc_read10_complete_cb(p_cbw->lun);
+          break;
+
+          case SCSI_CMD_WRITE_10:
+            if ( tud_msc_write10_complete_cb ) tud_msc_write10_complete_cb(p_cbw->lun);
+          break;
+
+          default:
+            if ( tud_msc_scsi_complete_cb ) tud_msc_scsi_complete_cb(p_cbw->lun, p_cbw->command);
+          break;
+        }
+
         // Move to default CMD stage
         p_msc->stage = MSC_STAGE_CMD;
 
@@ -608,24 +626,6 @@ bool mscd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t event, uint32_t
     }
     else
     {
-      // Invoke complete callback if defined
-      // Note: There is racing issue with samd51 + qspi flash testing with arduino
-      // if complete_cb() is invoked after queuing the status.
-      switch(p_cbw->command[0])
-      {
-        case SCSI_CMD_READ_10:
-          if ( tud_msc_read10_complete_cb ) tud_msc_read10_complete_cb(p_cbw->lun);
-        break;
-
-        case SCSI_CMD_WRITE_10:
-          if ( tud_msc_write10_complete_cb ) tud_msc_write10_complete_cb(p_cbw->lun);
-        break;
-
-        default:
-          if ( tud_msc_scsi_complete_cb ) tud_msc_scsi_complete_cb(p_cbw->lun, p_cbw->command);
-        break;
-      }
-
       // Move to Status Sent stage
       p_msc->stage = MSC_STAGE_STATUS_SENT;
 
