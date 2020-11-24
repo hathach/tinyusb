@@ -326,9 +326,14 @@ tusb_speed_t tud_speed_get(void)
   return (tusb_speed_t) _usbd_dev.speed;
 }
 
+bool tud_connected(void)
+{
+  return _usbd_dev.connected;
+}
+
 bool tud_mounted(void)
 {
-  return _usbd_dev.cfg_num ? 1 : 0;
+  return _usbd_dev.cfg_num ? true : false;
 }
 
 bool tud_suspended(void)
