@@ -97,6 +97,10 @@
 // Dialog
 #define OPT_MCU_DA1469X          1000 ///< Dialog Semiconductor DA1469x
 
+// NXP Kinetis
+#define OPT_MCU_MKL25ZXX         1100 ///< NXP MKL25Zxx
+
+
 /** @} */
 
 /** \defgroup group_supported_os Supported RTOS
