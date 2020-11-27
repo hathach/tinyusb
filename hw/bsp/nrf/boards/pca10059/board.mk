@@ -1,7 +1,7 @@
-LD_FILE ?= $(BOARD_PATH)/$(BOARD).ld
+LD_FILE = $(BOARD_PATH)/$(BOARD).ld
 
-# flash using Nordic nrfutil (pip3 install nrfutil)
-# 	make BOARD=nrf52840_mdk_dongle SERIAL=/dev/ttyACM0 all flash
+# flash using Nordic nrfutil (pip2 install nrfutil)
+# 	make BOARD=pca10059 SERIAL=/dev/ttyACM0 all flash
 NRFUTIL = nrfutil
 
 $(BUILD)/$(BOARD)-firmware.zip: $(BUILD)/$(BOARD)-firmware.hex
