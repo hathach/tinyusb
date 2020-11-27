@@ -507,13 +507,16 @@ void dcd_set_address (uint8_t rhport, uint8_t dev_addr)
 void dcd_remote_wakeup(uint8_t rhport)
 {
   (void) rhport;
+
+  // TODO must manually clear this bit after 1-15 ms
+  // USB_OTG_DeviceTypeDef * dev = DEVICE_BASE(rhport);
+  // dev->DCTL |= USB_OTG_DCTL_RWUSIG;
 }
 
 void dcd_connect(uint8_t rhport)
 {
   (void) rhport;
   USB_OTG_DeviceTypeDef * dev = DEVICE_BASE(rhport);
-
   dev->DCTL &= ~USB_OTG_DCTL_SDIS;
 }
 
@@ -521,7 +524,6 @@ void dcd_disconnect(uint8_t rhport)
 {
   (void) rhport;
   USB_OTG_DeviceTypeDef * dev = DEVICE_BASE(rhport);
-
   dev->DCTL |= USB_OTG_DCTL_SDIS;
 }
 
