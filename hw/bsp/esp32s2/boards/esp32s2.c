@@ -24,22 +24,21 @@
  * This file is part of the TinyUSB stack.
  */
 
-#include "../board.h"
+#include "../../board.h"
+#include "board.h"
+
 #include "esp_rom_gpio.h"
 #include "hal/gpio_ll.h"
 #include "hal/usb_hal.h"
 #include "soc/usb_periph.h"
+
 #include "driver/periph_ctrl.h"
 #include "driver/rmt.h"
-#include "led_strip/include/led_strip.h"
+#include "led_strip.h"
 
 //--------------------------------------------------------------------+
 // MACRO TYPEDEF CONSTANT ENUM DECLARATION
 //--------------------------------------------------------------------+
-
-#define LED_PIN               45
-#define BUTTON_PIN            0
-#define BUTTON_STATE_ACTIVE   0
 
 static void configure_pins(usb_hal_context_t *usb);
 static led_strip_t *strip;
@@ -48,7 +47,7 @@ static led_strip_t *strip;
 void board_init(void)
 {
   // WS2812 Neopixel driver with RMT peripheral
-  rmt_config_t config = RMT_DEFAULT_CONFIG_TX(LED_PIN, RMT_CHANNEL_0);
+  rmt_config_t config = RMT_DEFAULT_CONFIG_TX(NEOPIXEL_PIN, RMT_CHANNEL_0);
   config.clk_div = 2; // set counter clock to 40MHz
 
   rmt_config(&config);
