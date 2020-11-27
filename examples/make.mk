@@ -2,15 +2,6 @@
 # Common make definition for all examples
 # ---------------------------------------
 
-#-------------- Select the board to build for. ------------
-BOARD_LIST = $(sort $(subst /.,,$(subst $(TOP)/hw/bsp/,,$(wildcard $(TOP)/hw/bsp/*/.))))
-
-ifeq ($(filter $(BOARD),$(BOARD_LIST)),)
-  $(info You must provide a BOARD parameter with 'BOARD=', supported boards are:)
-  $(foreach b,$(BOARD_LIST),$(info - $(b)))
-  $(error Invalid BOARD specified)
-endif
-
 # Handy check parameter function
 check_defined = \
     $(strip $(foreach 1,$1, \
@@ -19,11 +10,28 @@ __check_defined = \
     $(if $(value $1),, \
     $(error Undefined make flag: $1$(if $2, ($2))))
     
+#-------------- Select the board to build for. ------------
+#BOARD_LIST = $(sort $(subst /.,,$(subst $(TOP)/hw/bsp/,,$(wildcard $(TOP)/hw/bsp/*/.))))
+#ifeq ($(filter $(BOARD),$(BOARD_LIST)),)
+#  $(info You must provide a BOARD parameter with 'BOARD=', supported boards are:)
+#  $(foreach b,$(BOARD_LIST),$(info - $(b)))
+#  $(error Invalid BOARD specified)
+#endif
+
+BOARD_PATH = $(subst $(TOP)/,,$(wildcard $(TOP)/hw/bsp/*/boards/$(BOARD)))
+ifeq ($(BOARD_PATH),)
+  $(error Invalid BOARD specified)
+endif
+
+FAMILY = $(word 3, $(subst /, ,$(BOARD_PATH)))
+FAMILY_PATH = hw/bsp/$(FAMILY)
+
 # Build directory
 BUILD = _build/build-$(BOARD)
 
-# Board specific define
-include $(TOP)/hw/bsp/$(BOARD)/board.mk
+# Include Family and Board specific defs
+include $(TOP)/$(FAMILY_PATH)/family.mk
+-include $(TOP)/$(BOARD_PATH)/board.mk
 
 #-------------- Cross Compiler  ------------
 # Can be set by board, default to ARM GCC
@@ -40,9 +48,10 @@ RM = rm
 
 #-------------- Source files and compiler flags --------------
 
-# Include all source C in board folder
+# Include all source C in family & board folder
 SRC_C += hw/bsp/board.c
-SRC_C += $(subst $(TOP)/,,$(wildcard $(TOP)/hw/bsp/$(BOARD)/*.c))
+SRC_C += $(subst $(TOP)/,,$(wildcard $(TOP)/$(FAMILY_PATH)/*.c))
+SRC_C += $(subst $(TOP)/,,$(wildcard $(TOP)/$(BOARD_PATH)/*.c))
 
 # Compiler Flags
 CFLAGS += \

@@ -19,7 +19,7 @@ CFLAGS += -Wno-error=cast-function-type
 endif
 
 # All source paths should be relative to the top level.
-LD_FILE = hw/bsp/$(BOARD)/nrf52840_s140_v6.ld
+LD_FILE = hw/bsp/nrf/boards/$(BOARD)/nrf52840_s140_v6.ld
 
 LDFLAGS += -L$(TOP)/hw/mcu/nordic/nrfx/mdk
 
@@ -29,6 +29,7 @@ SRC_C += \
   hw/mcu/nordic/nrfx/mdk/system_nrf52840.c
 
 INC += \
+  $(TOP)/$(BOARD_PATH) \
   $(TOP)/lib/CMSIS_4/CMSIS/Include \
   $(TOP)/hw/mcu/nordic \
   $(TOP)/hw/mcu/nordic/nrfx \
@@ -58,6 +59,6 @@ $(BUILD)/$(BOARD)-firmware.zip: $(BUILD)/$(BOARD)-firmware.hex
 	adafruit-nrfutil dfu genpkg --dev-type 0x0052 --sd-req 0xFFFE --application $^ $@
 	
 # flash using adafruit-nrfutil dfu
-flash: $(BUILD)/$(BOARD)-firmware.zip
+flash-adafruit-nrfutil: $(BUILD)/$(BOARD)-firmware.zip
 	@:$(call check_defined, SERIAL, example: SERIAL=/dev/ttyACM0)
 	adafruit-nrfutil --verbose dfu serial --package $^ -p $(SERIAL) -b 115200 --singlebank --touch 1200
