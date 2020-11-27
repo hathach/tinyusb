@@ -34,16 +34,16 @@
 #define _PINNUM(port, pin)    ((port)*32 + (pin))
 
 // LED
-#define LED_PIN               _PINNUM(1, 1)
-#define LED_STATE_ON          1
+#define LED_PIN         _PINNUM(0, 6)
+#define LED_STATE_ON    1
 
 // Button
-#define BUTTON_PIN            _PINNUM(1, 02)
+#define BUTTON_PIN      _PINNUM(0, 29)
 #define BUTTON_STATE_ACTIVE   0
 
 // UART
-#define UART_RX_PIN           4
-#define UART_TX_PIN           5
+#define UART_RX_PIN     25
+#define UART_TX_PIN     24
 
 #ifdef __cplusplus
  }

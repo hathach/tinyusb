@@ -39,6 +39,7 @@
 
 // Button
 #define BUTTON_PIN      _PINNUM(1, 02)
+#define BUTTON_STATE_ACTIVE   0
 
 // UART
 #define UART_RX_PIN     24

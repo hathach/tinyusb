@@ -145,8 +145,7 @@ void board_led_write(bool state)
 
 uint32_t board_button_read(void)
 {
-  // button is active LOW
-  return (nrf_gpio_pin_read(BUTTON_PIN) ? 0 : 1);
+  return BUTTON_STATE_ACTIVE == nrf_gpio_pin_read(BUTTON_PIN);
 }
 
 int board_uart_read(uint8_t* buf, int len)
