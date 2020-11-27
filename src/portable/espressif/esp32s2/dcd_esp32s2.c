@@ -723,7 +723,7 @@ static void _dcd_int_handler(void* arg)
 
     if (otg_int & USB_SESENDDET_M)
     {
-      dcd_event_bus_signal(0, DCD_EVENT_UNPLUGGED, true);
+      dcd_event_bus_signal(rhport, DCD_EVENT_UNPLUGGED, true);
     }
 
     USB0.gotgint = otg_int;
@@ -732,7 +732,7 @@ static void _dcd_int_handler(void* arg)
 #if USE_SOF
   if (int_status & USB_SOF_M) {
     USB0.gintsts = USB_SOF_M;
-    dcd_event_bus_signal(0, DCD_EVENT_SOF, true); // do nothing actually
+    dcd_event_bus_signal(rhport, DCD_EVENT_SOF, true); // do nothing actually
   }
 #endif
 
