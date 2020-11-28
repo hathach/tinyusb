@@ -38,3 +38,12 @@ CHIP_FAMILY = samd
 
 # For freeRTOS port source
 FREERTOS_PORT = ARM_CM0
+
+# flash using bossac at least version 1.8
+# can be found in arduino15/packages/arduino/tools/bossac/
+# Add it to your PATH or change BOSSAC variable to match your installation
+BOSSAC = bossac
+
+flash-bossac: $(BUILD)/$(BOARD)-firmware.bin
+	@:$(call check_defined, SERIAL, example: SERIAL=/dev/ttyACM0)
+	$(BOSSAC) --port=$(SERIAL) -U -i --offset=0x2000 -e -w $^ -R

@@ -74,11 +74,11 @@ void board_init(void)
 
   // Led init
   gpio_set_pin_direction(LED_PIN, GPIO_DIRECTION_OUT);
-  gpio_set_pin_level(LED_PIN, 0);
+  board_led_write(false);
 
   // Button init
   gpio_set_pin_direction(BUTTON_PIN, GPIO_DIRECTION_IN);
-  gpio_set_pin_pull_mode(BUTTON_PIN, GPIO_PULL_UP);
+  gpio_set_pin_pull_mode(BUTTON_PIN, BUTTON_STATE_ACTIVE ? GPIO_PULL_DOWN : GPIO_PULL_UP);
 
 #if CFG_TUSB_OS  == OPT_OS_FREERTOS
   // If freeRTOS is used, IRQ priority is limit by max syscall ( smaller is higher )
@@ -119,13 +119,12 @@ void board_init(void)
 
 void board_led_write(bool state)
 {
-  gpio_set_pin_level(LED_PIN, state);
+  gpio_set_pin_level(LED_PIN, state ? LED_STATE_ON : (1-LED_STATE_ON));
 }
 
 uint32_t board_button_read(void)
 {
-  // button is active low
-  return gpio_get_pin_level(BUTTON_PIN) ? 0 : 1;
+  return BUTTON_STATE_ACTIVE == gpio_get_pin_level(BUTTON_PIN);
 }
 
 int board_uart_read(uint8_t* buf, int len)
