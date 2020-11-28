@@ -30,7 +30,6 @@ FAMILY_PATH = hw/bsp/$(FAMILY)
 BUILD = _build/build-$(BOARD)
 
 # Include Family and Board specific defs
--include $(TOP)/$(BOARD_PATH)/board.mk
 include $(TOP)/$(FAMILY_PATH)/family.mk
 
 #-------------- Cross Compiler  ------------

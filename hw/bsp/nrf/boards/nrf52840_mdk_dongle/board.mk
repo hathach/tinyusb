@@ -1,4 +1,7 @@
-LD_FILE ?= $(BOARD_PATH)/$(BOARD).ld
+MCU_VARIANT = nrf52840
+CFLAGS += -DNRF52840_XXAA
+
+LD_FILE = $(BOARD_PATH)/$(BOARD).ld
 
 # flash using Nordic nrfutil (pip3 install nrfutil)
 # 	make BOARD=nrf52840_mdk_dongle SERIAL=/dev/ttyACM0 all flash

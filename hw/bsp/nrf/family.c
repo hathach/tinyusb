@@ -61,8 +61,8 @@ void board_init(void)
   // stop LF clock just in case we jump from application without reset
   NRF_CLOCK->TASKS_LFCLKSTOP = 1UL;
 
-  // Config clock source: XTAL or RC in sdk_config.h
-  NRF_CLOCK->LFCLKSRC = (uint32_t)((CLOCK_LFCLKSRC_SRC_Xtal << CLOCK_LFCLKSRC_SRC_Pos) & CLOCK_LFCLKSRC_SRC_Msk);
+  // Use Internal OSC to compatible with all boards
+  NRF_CLOCK->LFCLKSRC = CLOCK_LFCLKSRC_SRC_RC;
   NRF_CLOCK->TASKS_LFCLKSTART = 1UL;
 
   // LED
@@ -121,7 +121,8 @@ void board_init(void)
     nrfx_power_init(&pwr_cfg);
 
     // Register tusb function as USB power handler
-    const nrfx_power_usbevt_config_t config = { .handler = (nrfx_power_usb_event_handler_t) tusb_hal_nrf_power_event };
+    // cause cast-function-type warning
+    const nrfx_power_usbevt_config_t config = { .handler = ((nrfx_power_usb_event_handler_t) tusb_hal_nrf_power_event) };
     nrfx_power_usbevt_init(&config);
 
     nrfx_power_usbevt_enable();

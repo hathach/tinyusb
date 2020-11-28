@@ -1,3 +1,6 @@
+MCU_VARIANT = nrf52840
+CFLAGS += -DNRF52840_XXAA
+
 LD_FILE = $(BOARD_PATH)/$(BOARD).ld
 
 # flash using Nordic nrfutil (pip2 install nrfutil)
