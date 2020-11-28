@@ -26,6 +26,7 @@
 
 #include "sam.h"
 #include "bsp/board.h"
+#include "board.h"
 
 #include "hal/include/hal_gpio.h"
 #include "hal/include/hal_init.h"
@@ -58,8 +59,6 @@ void USB_3_Handler (void)
 //--------------------------------------------------------------------+
 // MACRO TYPEDEF CONSTANT ENUM DECLARATION
 //--------------------------------------------------------------------+
-#define LED_PIN      22
-#define BUTTON_PIN   18  // pin D5
 
 /* Referenced GCLKs, should be initialized firstly */
 #define _GCLK_INIT_1ST 0xFFFFFFFF

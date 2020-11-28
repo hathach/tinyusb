@@ -9,9 +9,6 @@ CFLAGS += \
   -DCONF_DFLL_OVERWRITE_CALIBRATION=0 \
   -DCFG_TUSB_MCU=OPT_MCU_SAMD21
 
-# All source paths should be relative to the top level.
-#LD_FILE = hw/bsp/$(BOARD)/samd21g18a_flash.ld
-
 SRC_C += \
 	hw/mcu/microchip/asf4/samd21/gcc/gcc/startup_samd21.c \
 	hw/mcu/microchip/asf4/samd21/gcc/system_samd21.c \
