@@ -24,7 +24,8 @@
  * This file is part of the TinyUSB stack.
  */
 
-#include "../board.h"
+#include "bsp/board.h"
+#include "board.h"
 #include "fsl_device_registers.h"
 #include "fsl_gpio.h"
 #include "fsl_iomuxc.h"
@@ -33,22 +34,7 @@
 
 #include "clock_config.h"
 
-#define LED_PINMUX            IOMUXC_GPIO_AD_B0_09_GPIO1_IO09
-#define LED_PORT              GPIO1
-#define LED_PIN               9
-#define LED_STATE_ON          0
-
-// SW8 button
-#define BUTTON_PINMUX         IOMUXC_SNVS_WAKEUP_GPIO5_IO00
-#define BUTTON_PORT           GPIO5
-#define BUTTON_PIN            0
-#define BUTTON_STATE_ACTIVE   0
-
-// UART
-#define UART_PORT             LPUART1
-#define UART_RX_PINMUX        IOMUXC_GPIO_AD_B0_13_LPUART1_RX
-#define UART_TX_PINMUX        IOMUXC_GPIO_AD_B0_12_LPUART1_TX
-
+// needed by fsl_flexspi_nor_boot
 const uint8_t dcd_data[] = { 0x00 };
 
 void board_init(void)
@@ -78,6 +64,7 @@ void board_init(void)
 
   // Button
   IOMUXC_SetPinMux( BUTTON_PINMUX, 0U);
+  IOMUXC_SetPinConfig(BUTTON_PINMUX, 0x01B0A0U);
   gpio_pin_config_t button_config = { kGPIO_DigitalInput, 0, kGPIO_IntRisingEdge, };
   GPIO_PinInit(BUTTON_PORT, BUTTON_PIN, &button_config);
 
@@ -99,7 +86,14 @@ void board_init(void)
   CLOCK_EnableUsbhs0PhyPllClock(kCLOCK_Usbphy480M, 480000000U);
   CLOCK_EnableUsbhs0Clock(kCLOCK_Usb480M, 480000000U);
 
-  USBPHY_Type* usb_phy = USBPHY1;
+  USBPHY_Type* usb_phy;
+
+  // RT105x RT106x have dual USB controller. TODO support USB2
+#ifdef USBPHY1
+  usb_phy = USBPHY1;
+#else
+  usb_phy = USBPHY;
+#endif
 
   // Enable PHY support for Low speed device + LS via FS Hub
   usb_phy->CTRL |= USBPHY_CTRL_SET_ENUTMILEVEL2_MASK | USBPHY_CTRL_SET_ENUTMILEVEL3_MASK;
