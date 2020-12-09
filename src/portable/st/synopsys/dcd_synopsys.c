@@ -501,6 +501,8 @@ void dcd_init (uint8_t rhport)
 
   // Enable global interrupt
   usb_otg->GAHBCFG |= USB_OTG_GAHBCFG_GINT;
+  usb_otg->GINTMSK &= ~USB_OTG_GINTMSK_LPMINTM;
+  usb_otg->GLPMCFG &= ~(USB_OTG_GLPMCFG_LPMEN | USB_OTG_GLPMCFG_LPMACK | USB_OTG_GLPMCFG_ENBESL);
 
   dcd_connect(rhport);
 }
