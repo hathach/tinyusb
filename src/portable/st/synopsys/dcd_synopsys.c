@@ -160,6 +160,7 @@ static uint16_t ep0_pending[2];     // Index determines direction as tusb_dir_t 
 static uint16_t _allocated_fifo_words;
 
 #if CFG_TUSB_USB3340_PHY
+#include "cihal/cusb.h" 
 static bool suspended = false;
 #endif
 
@@ -433,6 +434,7 @@ void dcd_init (uint8_t rhport)
   // peripheral in each Reference Manual.
 
   USB_OTG_GlobalTypeDef * usb_otg = GLOBAL_BASE(rhport);
+  USB_OTG_DeviceTypeDef * dev = DEVICE_BASE(rhport);
 
   // No HNP/SRP (no OTG support), program timeout later.
   if ( rhport == 1 )
@@ -476,6 +478,11 @@ void dcd_init (uint8_t rhport)
   // Restart PHY clock
   *((volatile uint32_t *)(RHPORT_REGS_BASE + USB_OTG_PCGCCTL_BASE)) = 0;
 
+#if CFG_TUSB_USB3340_PHY
+  if(cusb_ulpi_sanity_check() != 0){
+    cusb_reset(true);
+  }
+#endif
   // Clear all interrupts
   usb_otg->GINTSTS |= usb_otg->GINTSTS;
 
@@ -483,8 +490,6 @@ void dcd_init (uint8_t rhport)
   // TODO: How should mode mismatch be handled? It will cause
   // the core to stop working/require reset.
   usb_otg->GINTMSK |= USB_OTG_GINTMSK_OTGINT | USB_OTG_GINTMSK_MMISM;
-
-  USB_OTG_DeviceTypeDef * dev = DEVICE_BASE(rhport);
 
   // If USB host misbehaves during status portion of control xfer
   // (non zero-length packet), send STALL back and discard.
@@ -1029,7 +1034,10 @@ void dcd_int_handler(uint8_t rhport)
   if(int_status & USB_OTG_GINTSTS_USBSUSP)
   {
 #if CFG_TUSB_USB3340_PHY
-    suspended = true;
+    if(!suspended){
+      cusb_reset(false);
+      suspended = true;
+    }
 #endif
     usb_otg->GINTSTS = USB_OTG_GINTSTS_USBSUSP;
     dcd_event_bus_signal(rhport, DCD_EVENT_SUSPEND, true);
