@@ -517,7 +517,7 @@ void tud_task (void)
           TU_ASSERT(driver, );
 
           TU_LOG2("  %s xfer callback\r\n", driver->name);
-          driver->xfer_cb(event.rhport, ep_addr, event.xfer_complete.result, event.xfer_complete.len);
+          driver->xfer_cb(event.rhport, ep_addr, (xfer_result_t)event.xfer_complete.result, event.xfer_complete.len);
         }
       }
       break;
@@ -933,6 +933,7 @@ static bool process_get_descriptor(uint8_t rhport, tusb_control_request_t const 
     break;
 
     case TUSB_DESC_STRING:
+    {
       TU_LOG2(" String[%u]\r\n", desc_index);
 
       // String Descriptor always uses the desc set from user
@@ -941,6 +942,7 @@ static bool process_get_descriptor(uint8_t rhport, tusb_control_request_t const 
 
       // first byte of descriptor is its size
       return tud_control_xfer(rhport, p_request, (void*) desc_str, desc_str[0]);
+    }
     break;
 
     case TUSB_DESC_DEVICE_QUALIFIER:
