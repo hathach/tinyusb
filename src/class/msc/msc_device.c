@@ -71,6 +71,7 @@ CFG_TUSB_MEM_SECTION CFG_TUSB_MEM_ALIGN static uint8_t _mscd_buf[CFG_TUD_MSC_EP_
 //--------------------------------------------------------------------+
 // INTERNAL OBJECT & FUNCTION DECLARATION
 //--------------------------------------------------------------------+
+static int32_t proc_builtin_scsi(uint8_t lun, uint8_t const scsi_cmd[16], uint8_t* buffer, uint32_t bufsize);
 static void proc_read10_cmd(uint8_t rhport, mscd_interface_t* p_msc);
 static void proc_write10_cmd(uint8_t rhport, mscd_interface_t* p_msc);
 
@@ -221,179 +222,6 @@ bool mscd_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request_t 
   }
 
   return true;
-}
-
-// return response's length (copied to buffer). Negative if it is not an built-in command or indicate Failed status (CSW)
-// In case of a failed status, sense key must be set for reason of failure
-int32_t proc_builtin_scsi(uint8_t lun, uint8_t const scsi_cmd[16], uint8_t* buffer, uint32_t bufsize)
-{
-  (void) bufsize; // TODO refractor later
-  int32_t resplen;
-
-  switch ( scsi_cmd[0] )
-  {
-    case SCSI_CMD_TEST_UNIT_READY:
-      resplen = 0;
-      if ( !tud_msc_test_unit_ready_cb(lun) )
-      {
-        // Failed status response
-        resplen = - 1;
-
-        // If sense key is not set by callback, default to Logical Unit Not Ready, Cause Not Reportable
-        if ( _mscd_itf.sense_key == 0 ) tud_msc_set_sense(lun, SCSI_SENSE_NOT_READY, 0x04, 0x00);
-      }
-    break;
-
-    case SCSI_CMD_START_STOP_UNIT:
-      resplen = 0;
-
-      if (tud_msc_start_stop_cb)
-      {
-        scsi_start_stop_unit_t const * start_stop = (scsi_start_stop_unit_t const *) scsi_cmd;
-        if ( !tud_msc_start_stop_cb(lun, start_stop->power_condition, start_stop->start, start_stop->load_eject) )
-        {
-          // Failed status response
-          resplen = - 1;
-
-          // If sense key is not set by callback, default to Logical Unit Not Ready, Cause Not Reportable
-          if ( _mscd_itf.sense_key == 0 ) tud_msc_set_sense(lun, SCSI_SENSE_NOT_READY, 0x04, 0x00);
-        }
-      }
-    break;
-
-    case SCSI_CMD_READ_CAPACITY_10:
-    {
-      uint32_t block_count;
-      uint32_t block_size;
-      uint16_t block_size_u16;
-
-      tud_msc_capacity_cb(lun, &block_count, &block_size_u16);
-      block_size = (uint32_t) block_size_u16;
-
-      // Invalid block size/count from callback, possibly unit is not ready
-      // stall this request, set sense key to NOT READY
-      if (block_count == 0 || block_size == 0)
-      {
-        resplen = -1;
-
-        // If sense key is not set by callback, default to Logical Unit Not Ready, Cause Not Reportable
-        if ( _mscd_itf.sense_key == 0 ) tud_msc_set_sense(lun, SCSI_SENSE_NOT_READY, 0x04, 0x00);
-      }else
-      {
-        scsi_read_capacity10_resp_t read_capa10;
-
-        read_capa10.last_lba = tu_htonl(block_count-1);
-        read_capa10.block_size = tu_htonl(block_size);
-
-        resplen = sizeof(read_capa10);
-        memcpy(buffer, &read_capa10, resplen);
-      }
-    }
-    break;
-
-    case SCSI_CMD_READ_FORMAT_CAPACITY:
-    {
-      scsi_read_format_capacity_data_t read_fmt_capa =
-      {
-          .list_length     = 8,
-          .block_num       = 0,
-          .descriptor_type = 2, // formatted media
-          .block_size_u16  = 0
-      };
-
-      uint32_t block_count;
-      uint16_t block_size;
-
-      tud_msc_capacity_cb(lun, &block_count, &block_size);
-
-      // Invalid block size/count from callback, possibly unit is not ready
-      // stall this request, set sense key to NOT READY
-      if (block_count == 0 || block_size == 0)
-      {
-        resplen = -1;
-
-        // If sense key is not set by callback, default to Logical Unit Not Ready, Cause Not Reportable
-        if ( _mscd_itf.sense_key == 0 ) tud_msc_set_sense(lun, SCSI_SENSE_NOT_READY, 0x04, 0x00);
-      }else
-      {
-        read_fmt_capa.block_num = tu_htonl(block_count);
-        read_fmt_capa.block_size_u16 = tu_htons(block_size);
-
-        resplen = sizeof(read_fmt_capa);
-        memcpy(buffer, &read_fmt_capa, resplen);
-      }
-    }
-    break;
-
-    case SCSI_CMD_INQUIRY:
-    {
-      scsi_inquiry_resp_t inquiry_rsp =
-      {
-          .is_removable         = 1,
-          .version              = 2,
-          .response_data_format = 2,
-      };
-
-      // vendor_id, product_id, product_rev is space padded string
-      memset(inquiry_rsp.vendor_id  , ' ', sizeof(inquiry_rsp.vendor_id));
-      memset(inquiry_rsp.product_id , ' ', sizeof(inquiry_rsp.product_id));
-      memset(inquiry_rsp.product_rev, ' ', sizeof(inquiry_rsp.product_rev));
-
-      tud_msc_inquiry_cb(lun, inquiry_rsp.vendor_id, inquiry_rsp.product_id, inquiry_rsp.product_rev);
-
-      resplen = sizeof(inquiry_rsp);
-      memcpy(buffer, &inquiry_rsp, resplen);
-    }
-    break;
-
-    case SCSI_CMD_MODE_SENSE_6:
-    {
-      scsi_mode_sense6_resp_t mode_resp =
-      {
-          .data_len = 3,
-          .medium_type = 0,
-          .write_protected = false,
-          .reserved = 0,
-          .block_descriptor_len = 0  // no block descriptor are included
-      };
-
-      bool writable = true;
-      if (tud_msc_is_writable_cb) {
-          writable = tud_msc_is_writable_cb(lun);
-      }
-      mode_resp.write_protected = !writable;
-
-      resplen = sizeof(mode_resp);
-      memcpy(buffer, &mode_resp, resplen);
-    }
-    break;
-
-    case SCSI_CMD_REQUEST_SENSE:
-    {
-      scsi_sense_fixed_resp_t sense_rsp =
-      {
-          .response_code = 0x70,
-          .valid         = 1
-      };
-
-      sense_rsp.add_sense_len = sizeof(scsi_sense_fixed_resp_t) - 8;
-
-      sense_rsp.sense_key           = _mscd_itf.sense_key;
-      sense_rsp.add_sense_code      = _mscd_itf.add_sense_code;
-      sense_rsp.add_sense_qualifier = _mscd_itf.add_sense_qualifier;
-
-      resplen = sizeof(sense_rsp);
-      memcpy(buffer, &sense_rsp, resplen);
-
-      // Clear sense data after copy
-      tud_msc_set_sense(lun, 0, 0, 0);
-    }
-    break;
-
-    default: resplen = -1; break;
-  }
-
-  return resplen;
 }
 
 bool mscd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t event, uint32_t xferred_bytes)
@@ -640,6 +468,180 @@ bool mscd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t event, uint32_t
 /*------------------------------------------------------------------*/
 /* SCSI Command Process
  *------------------------------------------------------------------*/
+
+// return response's length (copied to buffer). Negative if it is not an built-in command or indicate Failed status (CSW)
+// In case of a failed status, sense key must be set for reason of failure
+static int32_t proc_builtin_scsi(uint8_t lun, uint8_t const scsi_cmd[16], uint8_t* buffer, uint32_t bufsize)
+{
+  (void) bufsize; // TODO refractor later
+  int32_t resplen;
+
+  switch ( scsi_cmd[0] )
+  {
+    case SCSI_CMD_TEST_UNIT_READY:
+      resplen = 0;
+      if ( !tud_msc_test_unit_ready_cb(lun) )
+      {
+        // Failed status response
+        resplen = - 1;
+
+        // If sense key is not set by callback, default to Logical Unit Not Ready, Cause Not Reportable
+        if ( _mscd_itf.sense_key == 0 ) tud_msc_set_sense(lun, SCSI_SENSE_NOT_READY, 0x04, 0x00);
+      }
+    break;
+
+    case SCSI_CMD_START_STOP_UNIT:
+      resplen = 0;
+
+      if (tud_msc_start_stop_cb)
+      {
+        scsi_start_stop_unit_t const * start_stop = (scsi_start_stop_unit_t const *) scsi_cmd;
+        if ( !tud_msc_start_stop_cb(lun, start_stop->power_condition, start_stop->start, start_stop->load_eject) )
+        {
+          // Failed status response
+          resplen = - 1;
+
+          // If sense key is not set by callback, default to Logical Unit Not Ready, Cause Not Reportable
+          if ( _mscd_itf.sense_key == 0 ) tud_msc_set_sense(lun, SCSI_SENSE_NOT_READY, 0x04, 0x00);
+        }
+      }
+    break;
+
+    case SCSI_CMD_READ_CAPACITY_10:
+    {
+      uint32_t block_count;
+      uint32_t block_size;
+      uint16_t block_size_u16;
+
+      tud_msc_capacity_cb(lun, &block_count, &block_size_u16);
+      block_size = (uint32_t) block_size_u16;
+
+      // Invalid block size/count from callback, possibly unit is not ready
+      // stall this request, set sense key to NOT READY
+      if (block_count == 0 || block_size == 0)
+      {
+        resplen = -1;
+
+        // If sense key is not set by callback, default to Logical Unit Not Ready, Cause Not Reportable
+        if ( _mscd_itf.sense_key == 0 ) tud_msc_set_sense(lun, SCSI_SENSE_NOT_READY, 0x04, 0x00);
+      }else
+      {
+        scsi_read_capacity10_resp_t read_capa10;
+
+        read_capa10.last_lba = tu_htonl(block_count-1);
+        read_capa10.block_size = tu_htonl(block_size);
+
+        resplen = sizeof(read_capa10);
+        memcpy(buffer, &read_capa10, resplen);
+      }
+    }
+    break;
+
+    case SCSI_CMD_READ_FORMAT_CAPACITY:
+    {
+      scsi_read_format_capacity_data_t read_fmt_capa =
+      {
+          .list_length     = 8,
+          .block_num       = 0,
+          .descriptor_type = 2, // formatted media
+          .block_size_u16  = 0
+      };
+
+      uint32_t block_count;
+      uint16_t block_size;
+
+      tud_msc_capacity_cb(lun, &block_count, &block_size);
+
+      // Invalid block size/count from callback, possibly unit is not ready
+      // stall this request, set sense key to NOT READY
+      if (block_count == 0 || block_size == 0)
+      {
+        resplen = -1;
+
+        // If sense key is not set by callback, default to Logical Unit Not Ready, Cause Not Reportable
+        if ( _mscd_itf.sense_key == 0 ) tud_msc_set_sense(lun, SCSI_SENSE_NOT_READY, 0x04, 0x00);
+      }else
+      {
+        read_fmt_capa.block_num = tu_htonl(block_count);
+        read_fmt_capa.block_size_u16 = tu_htons(block_size);
+
+        resplen = sizeof(read_fmt_capa);
+        memcpy(buffer, &read_fmt_capa, resplen);
+      }
+    }
+    break;
+
+    case SCSI_CMD_INQUIRY:
+    {
+      scsi_inquiry_resp_t inquiry_rsp =
+      {
+          .is_removable         = 1,
+          .version              = 2,
+          .response_data_format = 2,
+      };
+
+      // vendor_id, product_id, product_rev is space padded string
+      memset(inquiry_rsp.vendor_id  , ' ', sizeof(inquiry_rsp.vendor_id));
+      memset(inquiry_rsp.product_id , ' ', sizeof(inquiry_rsp.product_id));
+      memset(inquiry_rsp.product_rev, ' ', sizeof(inquiry_rsp.product_rev));
+
+      tud_msc_inquiry_cb(lun, inquiry_rsp.vendor_id, inquiry_rsp.product_id, inquiry_rsp.product_rev);
+
+      resplen = sizeof(inquiry_rsp);
+      memcpy(buffer, &inquiry_rsp, resplen);
+    }
+    break;
+
+    case SCSI_CMD_MODE_SENSE_6:
+    {
+      scsi_mode_sense6_resp_t mode_resp =
+      {
+          .data_len = 3,
+          .medium_type = 0,
+          .write_protected = false,
+          .reserved = 0,
+          .block_descriptor_len = 0  // no block descriptor are included
+      };
+
+      bool writable = true;
+      if (tud_msc_is_writable_cb) {
+          writable = tud_msc_is_writable_cb(lun);
+      }
+      mode_resp.write_protected = !writable;
+
+      resplen = sizeof(mode_resp);
+      memcpy(buffer, &mode_resp, resplen);
+    }
+    break;
+
+    case SCSI_CMD_REQUEST_SENSE:
+    {
+      scsi_sense_fixed_resp_t sense_rsp =
+      {
+          .response_code = 0x70,
+          .valid         = 1
+      };
+
+      sense_rsp.add_sense_len = sizeof(scsi_sense_fixed_resp_t) - 8;
+
+      sense_rsp.sense_key           = _mscd_itf.sense_key;
+      sense_rsp.add_sense_code      = _mscd_itf.add_sense_code;
+      sense_rsp.add_sense_qualifier = _mscd_itf.add_sense_qualifier;
+
+      resplen = sizeof(sense_rsp);
+      memcpy(buffer, &sense_rsp, resplen);
+
+      // Clear sense data after copy
+      tud_msc_set_sense(lun, 0, 0, 0);
+    }
+    break;
+
+    default: resplen = -1; break;
+  }
+
+  return resplen;
+}
+
 static void proc_read10_cmd(uint8_t rhport, mscd_interface_t* p_msc)
 {
   msc_cbw_t const * p_cbw = &p_msc->cbw;
