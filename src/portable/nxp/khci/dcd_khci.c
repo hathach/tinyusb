@@ -49,25 +49,24 @@ typedef struct TU_ATTR_PACKED
     uint32_t head;
     struct {
       union {
-	uint16_t ctl;
-	struct {
-	  uint16_t zeros    :  2;
-	  uint16_t tok_pid  :  4;
-	  uint16_t data     :  1;
-	  uint16_t own      :  1;
-	  uint16_t rsvd0    :  8;
-	};
-	struct {
-	  uint16_t dmy0     :  2;
-	  uint16_t bdt_stall:  1;
-	  uint16_t dts      :  1;
-	  uint16_t ninc     :  1;
-	  uint16_t keep     :  1;
-	  uint16_t dmy1     : 10;
-	};
+        struct {
+          uint16_t          :  2;
+          uint16_t tok_pid  :  4;
+          uint16_t data     :  1;
+          uint16_t own      :  1;
+          uint16_t          :  8;
+        };
+        struct {
+          uint16_t          :  2;
+          uint16_t bdt_stall:  1;
+          uint16_t dts      :  1;
+          uint16_t ninc     :  1;
+          uint16_t keep     :  1;
+          uint16_t          : 10;
+        };
       };
       uint16_t bc          : 10;
-      uint16_t rsvd1       :  6;
+      uint16_t             :  6;
     };
   };
   uint8_t *addr;
@@ -80,10 +79,10 @@ typedef struct TU_ATTR_PACKED
   union {
     uint32_t state;
     struct {
-      uint32_t max_packet_size: 11;
-      uint32_t reserved0       : 5;
+      uint32_t max_packet_size :11;
+      uint32_t                 : 5;
       uint32_t odd             : 1;
-      uint32_t reserved1       :15;
+      uint32_t                 :15;
     };
   };
   uint16_t length;
@@ -128,7 +127,7 @@ static void prepare_next_setup_packet(uint8_t rhport)
   _dcd.bdt[0][1][in_odd].data      = 1;
   _dcd.bdt[0][1][in_odd ^ 1].data  = 0;
   dcd_edpt_xfer(rhport, tu_edpt_addr(0, TUSB_DIR_OUT),
-		_dcd.setup_packet, sizeof(_dcd.setup_packet));
+                _dcd.setup_packet, sizeof(_dcd.setup_packet));
 }
 
 static void process_stall(uint8_t rhport)
@@ -137,7 +136,6 @@ static void process_stall(uint8_t rhport)
     /* clear stall condition of the control pipe */
     prepare_next_setup_packet(rhport);
     KHCI->ENDPOINT[0].ENDPT &= ~USB_ENDPT_EPSTALL_MASK;
-    KHCI->ENDPOINT[1].ENDPT &= ~USB_ENDPT_EPSTALL_MASK;
   }
 }
 
@@ -163,6 +161,9 @@ static void process_tokdne(uint8_t rhport)
     KHCI->CTL &= ~USB_CTL_TXSUSPENDTOKENBUSY_MASK;
     return;
   }
+  if (s >> 4) {
+    TU_LOG1("TKDNE %x\r\n", s);
+  }
 
   const unsigned bc = bd->bc;
   const unsigned remaining = ep->remaining - bc;
@@ -181,13 +182,13 @@ static void process_tokdne(uint8_t rhport)
   }
   const unsigned length = ep->length;
   dcd_event_xfer_complete(rhport,
-			  ((s & USB_STAT_TX_MASK) << 4) | (s >> USB_STAT_ENDP_SHIFT),
-			  length - remaining, XFER_RESULT_SUCCESS, true);
+                          ((s & USB_STAT_TX_MASK) << 4) | (s >> USB_STAT_ENDP_SHIFT),
+                          length - remaining, XFER_RESULT_SUCCESS, true);
   if (0 == (s & USB_STAT_ENDP_MASK) && 0 == length) {
     /* After completion a ZLP of control transfer,
      * it prepares for the next steup transfer. */
     if (_dcd.addr) {
-      /* When the transfer was the SetAddress, 
+      /* When the transfer was the SetAddress,
        * the device address should be updated here. */
       KHCI->ADDR = _dcd.addr;
       _dcd.addr  = 0;
@@ -319,7 +320,7 @@ bool dcd_edpt_open(uint8_t rhport, tusb_desc_endpoint_t const * ep_desc)
 
   const unsigned ep_addr  = ep_desc->bEndpointAddress;
   const unsigned epn      = ep_addr & 0xFu;
-  const unsigned dir      = ep_addr & TUSB_DIR_IN_MASK ? 1 : 0;
+  const unsigned dir      = (ep_addr & TUSB_DIR_IN_MASK) ? TUSB_DIR_IN : TUSB_DIR_OUT;
   const unsigned xfer     = ep_desc->bmAttributes.xfer;
   endpoint_state_t *ep    = &_dcd.endpoint[epn][dir];
   const unsigned odd      = ep->odd;
@@ -331,7 +332,7 @@ bool dcd_edpt_open(uint8_t rhport, tusb_desc_endpoint_t const * ep_desc)
   ep->max_packet_size = ep_desc->wMaxPacketSize.size;
   unsigned val = USB_ENDPT_EPCTLDIS_MASK;
   val |= (xfer != TUSB_XFER_ISOCHRONOUS) ? USB_ENDPT_EPHSHK_MASK: 0;
-  val |= dir ? USB_ENDPT_EPRXEN_MASK : USB_ENDPT_EPTXEN_MASK;
+  val |= dir ? USB_ENDPT_EPTXEN_MASK : USB_ENDPT_EPRXEN_MASK;
   KHCI->ENDPOINT[epn].ENDPT |= val;
 
   if (xfer != TUSB_XFER_ISOCHRONOUS) {
@@ -340,6 +341,7 @@ bool dcd_edpt_open(uint8_t rhport, tusb_desc_endpoint_t const * ep_desc)
     bd[odd ^ 1].dts  = 1;
     bd[odd ^ 1].data = 1;
   }
+
   return true;
 }
 
@@ -348,11 +350,11 @@ void dcd_edpt_close(uint8_t rhport, uint8_t ep_addr)
   (void) rhport;
 
   const unsigned epn      = ep_addr & 0xFu;
-  const unsigned dir      = ep_addr & TUSB_DIR_IN_MASK ? 1 : 0;
+  const unsigned dir      = (ep_addr & TUSB_DIR_IN_MASK) ? TUSB_DIR_IN : TUSB_DIR_OUT;
   endpoint_state_t *ep    = &_dcd.endpoint[epn][dir];
   buffer_descriptor_t *bd = &_dcd.bdt[epn][dir][0];
-
-  KHCI->ENDPOINT[epn].ENDPT = 0;
+  const unsigned msk      = dir ? USB_ENDPT_EPTXEN_MASK : USB_ENDPT_EPRXEN_MASK;
+  KHCI->ENDPOINT[epn].ENDPT &= ~msk;
   ep->max_packet_size = 0;
   ep->length          = 0;
   ep->remaining       = 0;
@@ -396,14 +398,30 @@ void dcd_edpt_stall(uint8_t rhport, uint8_t ep_addr)
 {
   (void) rhport;
   const unsigned epn = ep_addr & 0xFu;
-  KHCI->ENDPOINT[epn].ENDPT |=  USB_ENDPT_EPSTALL_MASK;
+  if (0 == epn) {
+    KHCI->ENDPOINT[epn].ENDPT |=  USB_ENDPT_EPSTALL_MASK;
+  } else {
+    const unsigned dir      = (ep_addr & TUSB_DIR_IN_MASK) ? TUSB_DIR_IN : TUSB_DIR_OUT;
+    buffer_descriptor_t *bd = _dcd.bdt[epn][dir];
+    bd[0].bdt_stall = 1;
+    bd[1].bdt_stall = 1;
+  }
 }
 
 void dcd_edpt_clear_stall(uint8_t rhport, uint8_t ep_addr)
 {
   (void) rhport;
-  const unsigned epn = ep_addr & 0xFu;
-  KHCI->ENDPOINT[epn].ENDPT &= ~USB_ENDPT_EPSTALL_MASK;
+  const unsigned epn      = ep_addr & 0xFu;
+  const unsigned dir      = (ep_addr & TUSB_DIR_IN_MASK) ? TUSB_DIR_IN : TUSB_DIR_OUT;
+  const unsigned odd      = _dcd.endpoint[epn][dir].odd;
+  buffer_descriptor_t *bd = _dcd.bdt[epn][dir];
+
+  bd[odd ^ 1].own       = 0;
+  bd[odd ^ 1].data      = 1;
+  bd[odd ^ 1].bdt_stall = 0;
+  bd[odd].own           = 0;
+  bd[odd].data          = 0;
+  bd[odd].bdt_stall     = 0;
 }
 
 //--------------------------------------------------------------------+
