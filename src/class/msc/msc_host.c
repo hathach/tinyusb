@@ -192,60 +192,59 @@ bool tuh_msc_request_sense(uint8_t dev_addr, uint8_t lun, void *resposne, tuh_ms
   return tuh_msc_scsi_command(dev_addr, &cbw, resposne, complete_cb);
 }
 
-#if 0
-
-tusb_error_t  tuh_msc_read10(uint8_t dev_addr, uint8_t lun, void * p_buffer, uint32_t lba, uint16_t block_count)
+bool  tuh_msc_read10(uint8_t dev_addr, uint8_t lun, void * p_buffer, uint32_t lba, uint16_t block_count, tuh_msc_complete_cb_t complete_cb)
 {
-  msch_interface_t* p_msch = &msch_data[dev_addr-1];
+  msch_interface_t* p_msc = get_itf(dev_addr);
+  if ( !p_msc->mounted ){ return false;};
 
-  //------------- Command Block Wrapper -------------//
-  msc_cbw_add_signature(&p_msch->cbw, lun);
-
-  p_msch->cbw.total_bytes = p_msch->block_size*block_count; // Number of bytes
-  p_msch->cbw.dir        = TUSB_DIR_IN_MASK;
-  p_msch->cbw.cmd_len    = sizeof(scsi_read10_t);
-
-  //------------- SCSI command -------------//
-  scsi_read10_t cmd_read10 =msch_sem_hdl
+  msc_cbw_t cbw = { 0 };
+ 
+   //------------- Command Block Wrapper -------------//
+  msc_cbw_add_signature(&cbw, lun);
+ 
+  cbw.total_bytes = 512*block_count; // Number of bytes
+  cbw.dir        = TUSB_DIR_IN_MASK;
+  cbw.cmd_len    = sizeof(scsi_read10_t);
+ 
+   //------------- SCSI command -------------//
+  scsi_read10_t cmd_read10 =
   {
-      .cmd_code    = SCSI_CMD_READ_10,
-      .lba         = tu_htonl(lba),
-      .block_count = tu_htons(block_count)
+       .cmd_code    = SCSI_CMD_READ_10,
+       .lba         = tu_htonl(lba),
+       .block_count = tu_htons(block_count)
   };
-
-  memcpy(p_msch->cbw.command, &cmd_read10, p_msch->cbw.cmd_len);
-
-  TU_ASSERT_ERR ( send_cbw(dev_addr, p_msch, p_buffer));
-
-  return TUSB_ERROR_NONE;
+ 
+  memcpy(cbw.command, &cmd_read10, cbw.cmd_len);
+ 
+  return tuh_msc_scsi_command(dev_addr, &cbw, p_buffer, complete_cb);
 }
-
-tusb_error_t tuh_msc_write10(uint8_t dev_addr, uint8_t lun, void const * p_buffer, uint32_t lba, uint16_t block_count)
+ 
+bool tuh_msc_write10(uint8_t dev_addr, uint8_t lun, void * p_buffer, uint32_t lba, uint16_t block_count, tuh_msc_complete_cb_t complete_cb)
 {
-  msch_interface_t* p_msch = &msch_data[dev_addr-1];
+    msch_interface_t* p_msc = get_itf(dev_addr);
+    if ( !p_msc->mounted ){ return false;};
+ 
+    msc_cbw_t cbw = { 0 };
+ 
+    //------------- Command Block Wrapper -------------//
+    msc_cbw_add_signature(&cbw, lun);
+ 
+    cbw.total_bytes = 512*block_count; // Number of bytes
+    cbw.dir        = TUSB_DIR_OUT;
+    cbw.cmd_len    = sizeof(scsi_write10_t);
 
-  //------------- Command Block Wrapper -------------//
-  msc_cbw_add_signature(&p_msch->cbw, lun);
-
-  p_msch->cbw.total_bytes = p_msch->block_size*block_count; // Number of bytes
-  p_msch->cbw.dir        = TUSB_DIR_OUT;
-  p_msch->cbw.cmd_len    = sizeof(scsi_write10_t);
-
-  //------------- SCSI command -------------//
-  scsi_write10_t cmd_write10 =
-  {
-      .cmd_code    = SCSI_CMD_WRITE_10,
-      .lba         = tu_htonl(lba),
-      .block_count = tu_htons(block_count)
-  };
-
-  memcpy(p_msch->cbw.command, &cmd_write10, p_msch->cbw.cmd_len);
-
-  TU_ASSERT_ERR ( send_cbw(dev_addr, p_msch, (void*) p_buffer));
-
-  return TUSB_ERROR_NONE;
+    //------------- SCSI command -------------//
+    scsi_write10_t cmd_write10 =
+    {
+       .cmd_code    = SCSI_CMD_WRITE_10,
+       .lba         = tu_htonl(lba),
+       .block_count = tu_htons(block_count)
+    };
+ 
+    memcpy(cbw.command, &cmd_write10, cbw.cmd_len);
+ 
+    return tuh_msc_scsi_command(dev_addr, &cbw, p_buffer, complete_cb);
 }
-#endif
 
 #if 0
 // MSC interface Reset (not used now)
