@@ -93,17 +93,20 @@ void USB1_IRQHandler(void)
 #define NEO_EVENT_NEXT    3
 #define NEO_EVENT_START   4
 #define NEO_SCT_OUTPUT    6
-#define NEO_STATE_IDLE    8
-#define NEO_ARRAY_SIZE    (3 * NEOPIXEL_NUMBER)
+#define NEO_STATE_IDLE    24
+//#define NEO_ARRAY_SIZE    (3 * NEOPIXEL_NUMBER)
 
-volatile uint32_t _neopixel_array[NEO_ARRAY_SIZE] = {0x10, 0x20, 0x30, 0x40, 0x50, 0x60};
+//volatile uint32_t _neopixel_array[NEO_ARRAY_SIZE] = {0x10, 0x20, 0x30, 0x40, 0x50, 0x60};
+volatile uint32_t _neopixel_array[NEOPIXEL_NUMBER] = {0x404040, 0x202020};
 volatile uint32_t _neopixel_count = 0;
 
 void neopixel_int_handler(void){
   uint32_t eventFlag = NEO_SCT->EVFLAG;
-  if ((eventFlag == (1 << NEO_EVENT_NEXT)) && (_neopixel_count < (NEO_ARRAY_SIZE))) {
-    NEO_SCT->EV[NEO_EVENT_FALL_0].STATE = 0xFF & (~_neopixel_array[_neopixel_count]);
+//  if ((eventFlag & (1 << NEO_EVENT_NEXT)) && (_neopixel_count < (NEO_ARRAY_SIZE))) {
+//    NEO_SCT->EV[NEO_EVENT_FALL_0].STATE = 0xFF & (~_neopixel_array[_neopixel_count]);
+  if ((eventFlag & (1 << NEO_EVENT_NEXT)) && (_neopixel_count < (NEOPIXEL_NUMBER))) {
     _neopixel_count += 1;
+    NEO_SCT->EV[NEO_EVENT_FALL_0].STATE = 0xFFFFFF & (~_neopixel_array[_neopixel_count]);
     NEO_SCT->EVFLAG = eventFlag;
     NEO_SCT->CTRL &= ~(SCT_CTRL_HALT_L_MASK);
   } else {
@@ -118,13 +121,16 @@ void SCT0_DriverIRQHandler(void){
 
 void neopixel_update(uint32_t pixel, uint32_t color){
   if (pixel < NEOPIXEL_NUMBER) { 
+    /*
     uint32_t index = 3*pixel;
     _neopixel_array[index++] = color>>8; // green first
     _neopixel_array[index++] = color>>16; // red
     _neopixel_array[index] = color; // blue
-//    _neopixel_array[pixel] = color;
+    */
+    _neopixel_array[pixel] = color;
     _neopixel_count = 0;
-    NEO_SCT->EV[NEO_EVENT_FALL_0].STATE = 0xFF & (~_neopixel_array[0]);
+//    NEO_SCT->EV[NEO_EVENT_FALL_0].STATE = 0xFF & (~_neopixel_array[0]);
+    NEO_SCT->EV[NEO_EVENT_FALL_0].STATE = 0xFFFFFF & (~_neopixel_array[0]);
     NEO_SCT->CTRL &= ~(SCT_CTRL_HALT_L_MASK);
   }
 }
@@ -147,30 +153,32 @@ void neopixel_init(void) {
   NEO_SCT->EV[NEO_EVENT_START].STATE = (1 << NEO_STATE_IDLE);
   NEO_SCT->EV[NEO_EVENT_START].CTRL = (
     kSCTIMER_OutputLowEvent | SCT_EV_CTRL_IOSEL(NEO_SCT_OUTPUT) | 
-    SCT_EV_CTRL_STATELD(1) | SCT_EV_CTRL_STATEV(7));
-  NEO_SCT->EV[NEO_EVENT_RISE].STATE = 0xFE;
+    SCT_EV_CTRL_STATELD(1) | SCT_EV_CTRL_STATEV(23));
+//  NEO_SCT->EV[NEO_EVENT_RISE].STATE = 0xFE;
+  NEO_SCT->EV[NEO_EVENT_RISE].STATE = 0xFFFFFE;
   NEO_SCT->EV[NEO_EVENT_RISE].CTRL = (
     kSCTIMER_MatchEventOnly | SCT_EV_CTRL_MATCHSEL(NEO_MATCH_PERIOD) | 
     SCT_EV_CTRL_STATELD(0) | SCT_EV_CTRL_STATEV(31));
   NEO_SCT->EV[NEO_EVENT_FALL_0].STATE = 0x0;
   NEO_SCT->EV[NEO_EVENT_FALL_0].CTRL = (
     kSCTIMER_MatchEventOnly | SCT_EV_CTRL_MATCHSEL(NEO_MATCH_0) | 
-    SCT_EV_CTRL_STATELD(0) | SCT_EV_CTRL_STATEV(31));
-  NEO_SCT->EV[NEO_EVENT_FALL_1].STATE = 0xFF;
+    SCT_EV_CTRL_STATELD(0) );
+//  NEO_SCT->EV[NEO_EVENT_FALL_1].STATE = 0xFF;
+  NEO_SCT->EV[NEO_EVENT_FALL_1].STATE = 0xFFFFFF;
   NEO_SCT->EV[NEO_EVENT_FALL_1].CTRL = (
     kSCTIMER_MatchEventOnly | SCT_EV_CTRL_MATCHSEL(NEO_MATCH_1) | 
-    SCT_EV_CTRL_STATELD(0) | SCT_EV_CTRL_STATEV(31));
+    SCT_EV_CTRL_STATELD(0) );
   NEO_SCT->EV[NEO_EVENT_NEXT].STATE = 0x1;
   NEO_SCT->EV[NEO_EVENT_NEXT].CTRL = (
     kSCTIMER_MatchEventOnly | SCT_EV_CTRL_MATCHSEL(NEO_MATCH_PERIOD) | 
     SCT_EV_CTRL_STATELD(1) | SCT_EV_CTRL_STATEV(NEO_STATE_IDLE));
 
-  NEO_SCT->LIMIT = (1 << NEO_EVENT_START) | (1 << NEO_EVENT_RISE);
+  NEO_SCT->LIMIT = (1 << NEO_EVENT_START) | (1 << NEO_EVENT_RISE) | (1 << NEO_EVENT_NEXT);
   NEO_SCT->HALT = (1 << NEO_EVENT_NEXT);
   NEO_SCT->START = (1 << NEO_EVENT_START);
 
   NEO_SCT->OUT[NEO_SCT_OUTPUT].SET = (1 << NEO_EVENT_START) | (1 << NEO_EVENT_RISE);
-  NEO_SCT->OUT[NEO_SCT_OUTPUT].CLR = (1 << NEO_EVENT_FALL_0) | (1<< NEO_EVENT_FALL_1);
+  NEO_SCT->OUT[NEO_SCT_OUTPUT].CLR = (1 << NEO_EVENT_FALL_0) | (1 << NEO_EVENT_FALL_1) | (1 << NEO_EVENT_NEXT);
   
   NEO_SCT->STATE = NEO_STATE_IDLE; 
   NEO_SCT->OUTPUT = 0x0;
@@ -322,6 +330,8 @@ void board_init(void)
 void board_led_write(bool state)
 {
   GPIO_PinWrite(GPIO, LED_PORT, LED_PIN, state ? LED_STATE_ON : (1-LED_STATE_ON));
+  _neopixel_array[1] = _neopixel_array[0];
+  neopixel_update(0, state ? 0x001000 : 0x100000);
 }
 
 uint32_t board_button_read(void)
