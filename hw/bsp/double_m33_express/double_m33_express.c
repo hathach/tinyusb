@@ -93,15 +93,15 @@ void USB1_IRQHandler(void)
 #define NEO_EVENT_NEXT    3
 #define NEO_EVENT_START   4
 #define NEO_SCT_OUTPUT    6
-#define NEO_STATE_IDLE    8
+#define NEO_STATE_IDLE    24
 
-volatile uint8_t _neopixel_array[3*NEOPIXEL_NUMBER] = {0};
+volatile uint32_t _neopixel_array[NEOPIXEL_NUMBER] = {0x202020, 0x101010};
 volatile uint32_t _neopixel_count = 0;
 
 void neopixel_int_handler(void){
   uint32_t eventFlag = NEO_SCT->EVFLAG;
-  if ((eventFlag == (1 << NEO_EVENT_NEXT)) && (_neopixel_count < (3*NEOPIXEL_NUMBER))) {
-    NEO_SCT->EV[NEO_EVENT_FALL_0].STATE = 0xFF & (~_neopixel_array[_neopixel_count]);
+  if ((eventFlag == (1 << NEO_EVENT_NEXT)) && (_neopixel_count < (NEOPIXEL_NUMBER))) {
+    NEO_SCT->EV[NEO_EVENT_FALL_0].STATE = 0xFFFFFF & (~_neopixel_array[_neopixel_count]);
     _neopixel_count += 1;
   }
   NEO_SCT->EVFLAG = eventFlag;
@@ -115,12 +115,15 @@ void SCT0_DriverIRQHandler(void){
 
 void neopixel_update(uint32_t pixel, uint32_t color){
   if (pixel < NEOPIXEL_NUMBER) { 
+/*
     uint32_t index = 3*pixel;
     _neopixel_array[index++] = color>>8; // green first
     _neopixel_array[index++] = color>>16; // red
     _neopixel_array[index] = color; // blue
+*/
+    _neopixel_array[pixel] = color;
     _neopixel_count = 0;
-    NEO_SCT->EV[NEO_EVENT_FALL_0].STATE = 0xFF & (~_neopixel_array[0]);
+    NEO_SCT->EV[NEO_EVENT_FALL_0].STATE = 0xFFFFFF & (~_neopixel_array[0]);
     NEO_SCT->CTRL &= ~(SCT_CTRL_HALT_L_MASK);
   }
 }
@@ -140,10 +143,10 @@ void neopixel_init(void) {
   NEO_SCT->MATCH[NEO_MATCH_PERIOD] = 120;
   NEO_SCT->MATCH[NEO_MATCH_0] = 30;
   NEO_SCT->MATCH[NEO_MATCH_1] = 60;
-  NEO_SCT->EV[NEO_EVENT_START].STATE = (1 << 24U);
+  NEO_SCT->EV[NEO_EVENT_START].STATE = (1 << NEO_STATE_IDLE);
   NEO_SCT->EV[NEO_EVENT_START].CTRL = (
     kSCTIMER_OutputLowEvent | SCT_EV_CTRL_IOSEL(NEO_SCT_OUTPUT) | 
-    SCT_EV_CTRL_STATELD(1) | SCT_EV_CTRL_STATEV(7));
+    SCT_EV_CTRL_STATELD(1) | SCT_EV_CTRL_STATEV(23));
   NEO_SCT->EV[NEO_EVENT_RISE].STATE = 0xFFFFFE;
   NEO_SCT->EV[NEO_EVENT_RISE].CTRL = (
     kSCTIMER_MatchEventOnly | SCT_EV_CTRL_MATCHSEL(NEO_MATCH_PERIOD) | 
@@ -240,13 +243,13 @@ void board_init(void)
 
   // Neopixel
   /* PORT0 PIN27 configured as SCT0_OUT6 */
-  IOCON_PinMuxSet(IOCON, 0U, 27U, IOCON_PIO_DIG_FUNC4_EN);
+  IOCON_PinMuxSet(IOCON, NEOPIXEL_PORT, NEOPIXEL_PIN, IOCON_PIO_DIG_FUNC4_EN);
 
   neopixel_init();
 
   // Button
   /* PORT0 PIN5 configured as PIO0_5 */
-  IOCON_PinMuxSet(IOCON, 0U, 5U, IOCON_PIO_DIG_FUNC0_EN);
+  IOCON_PinMuxSet(IOCON, BUTTON_PORT, BUTTON_PIN, IOCON_PIO_DIG_FUNC0_EN);
 
   gpio_pin_config_t const button_config = { kGPIO_DigitalInput, 0};
   GPIO_PinInit(GPIO, BUTTON_PORT, BUTTON_PIN, &button_config);
