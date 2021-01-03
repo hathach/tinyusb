@@ -139,15 +139,6 @@ typedef struct {
   uint8_t interval;
 } xfer_ctl_t;
 
-// EP size and transfer type report
-typedef struct TU_ATTR_PACKED {
-  // The following format may look complicated but it is the most elegant way of addressing the required fields: EP number, EP direction, and EP transfer type.
-  // The codes assigned to those fields, according to the USB specification, can be neatly used as indices.
-  uint16_t ep_size[EP_MAX][2];          ///< dim 1: EP number, dim 2: EP direction denoted by TUSB_DIR_OUT (= 0) and TUSB_DIR_IN (= 1)
-  bool ep_transfer_type[EP_MAX][2][4];      ///< dim 1: EP number, dim 2: EP direction, dim 3: transfer type, where 0 = Control, 1 = Isochronous, 2 = Bulk, and 3 = Interrupt
-  ///< I know very well that EP0 can only be used as control EP and we waste space here but for the sake of simplicity we accept that. It is used in a non-persistent way anyway!
-} ep_sz_tt_report_t;
-
 typedef volatile uint32_t * usb_fifo_t;
 
 xfer_ctl_t xfer_status[EP_MAX][2];
@@ -156,8 +147,9 @@ xfer_ctl_t xfer_status[EP_MAX][2];
 // EP0 transfers are limited to 1 packet - larger sizes has to be split
 static uint16_t ep0_pending[2];     // Index determines direction as tusb_dir_t type
 
-// FIFO RAM allocation so far in words
-static uint16_t _allocated_fifo_words;
+// TX FIFO RAM allocation so far in words - RX FIFO size is readily available from usb_otg->GRXFSIZ
+static uint16_t _allocated_fifo_words_tx;         // TX FIFO size in words (IN EPs)
+static bool _rx_ep_closed;
 
 // Setup the control endpoint 0.
 static void bus_reset(uint8_t rhport)
@@ -170,6 +162,7 @@ static void bus_reset(uint8_t rhport)
   USB_OTG_INEndpointTypeDef * in_ep = IN_EP_BASE(rhport);
 
   tu_memclr(xfer_status, sizeof(xfer_status));
+  _rx_ep_closed = false;
 
   for(uint8_t n = 0; n < EP_MAX; n++) {
     out_ep[n].DOEPCTL |= USB_OTG_DOEPCTL_SNAK;
@@ -182,16 +175,28 @@ static void bus_reset(uint8_t rhport)
   // "USB Data FIFOs" section in reference manual
   // Peripheral FIFO architecture
   //
+  // The FIFO is split up in a lower part where the RX FIFO is located and an upper part where the TX FIFOs start.
+  // We do this to allow the RX FIFO to grow dynamically which is possible since the free space is located
+  // between the RX and TX FIFOs. This is required by ISO OUT EPs which need a bigger FIFO than the standard
+  // configuration done below.
+  //
+  // Dynamically FIFO sizes are of interest only for ISO EPs since all others are usually not opened and closed.
+  // All EPs other than ISO are opened as soon as the driver starts up i.e. when the host sends a
+  // configure interface command. Hence, all IN EPs other the ISO will be located at the top. IN ISO EPs are usually
+  // opened when the host sends an additional command: setInterface. At this point in time
+  // the ISO EP will be located next to the free space and can change its size. In case more IN EPs change its size
+  // an additional memory
+  //
   // --------------- 320 or 1024 ( 1280 or 4096 bytes )
+  // | IN FIFO 0   |
+  // --------------- (320 or 1024) - 16
+  // | IN FIFO 1   |
+  // --------------- (320 or 1024) - 16 - x
+  // |   . . . .   |
+  // --------------- (320 or 1024) - 16 - x - y - ... - z
   // | IN FIFO MAX |
   // ---------------
-  // |    ...      |
-  // --------------- y + x + 16 + GRXFSIZ
-  // | IN FIFO 2   |
-  // --------------- x + 16 + GRXFSIZ
-  // | IN FIFO 1   |
-  // --------------- 16 + GRXFSIZ
-  // | IN FIFO 0   |
+  // |    FREE     |
   // --------------- GRXFSIZ
   // | OUT FIFO    |
   // | ( Shared )  |
@@ -213,24 +218,20 @@ static void bus_reset(uint8_t rhport)
   //   NOTE: Largest-EPsize & EPOUTnum is actual used endpoints in configuration. Since DCD has no knowledge
   //   of the overall picture yet. We will use the worst scenario: largest possible + EP_MAX
   //
-  //   FIXME: for Isochronous, largest EP size can be 1023/1024 for FS/HS respectively. In addition if multiple ISO
+  //   For Isochronous, largest EP size can be 1023/1024 for FS/HS respectively. In addition if multiple ISO
   //   are enabled at least "2 x (Largest-EPsize/4) + 1" are recommended.  Maybe provide a macro for application to
   //   overwrite this.
 
 #if TUD_OPT_HIGH_SPEED
-  _allocated_fifo_words = 271 + 2*EP_MAX;
+  usb_otg->GRXFSIZ = 271 + 2*EP_MAX;
 #else
-  _allocated_fifo_words =  47 + 2*EP_MAX;
+  usb_otg->GRXFSIZ =  47 + 2*EP_MAX;
 #endif
 
-  usb_otg->GRXFSIZ = _allocated_fifo_words;
+  _allocated_fifo_words_tx += 16;
 
   // Control IN uses FIFO 0 with 64 bytes ( 16 32-bit word )
-  usb_otg->DIEPTXF0_HNPTXFSIZ = (16 << USB_OTG_TX0FD_Pos) | _allocated_fifo_words;
-
-  _allocated_fifo_words += 16;
-
-  // TU_LOG2_INT(_allocated_fifo_words);
+  usb_otg->DIEPTXF0_HNPTXFSIZ = (16 << USB_OTG_TX0FD_Pos) | (EP_FIFO_SIZE/4 - _allocated_fifo_words_tx);
 
   // Fixed control EP0 size to 64 bytes
   in_ep[0].DIEPCTL &= ~(0x03 << USB_OTG_DIEPCTL_MPSIZ_Pos);
@@ -557,8 +558,22 @@ bool dcd_edpt_open (uint8_t rhport, tusb_desc_endpoint_t const * desc_edpt)
   xfer->max_size = desc_edpt->wMaxPacketSize.size;
   xfer->interval = desc_edpt->bInterval;
 
+  uint16_t const fifo_size = tu_max16((desc_edpt->wMaxPacketSize.size + 3) / 4, 16); // Round up to next full word, minimum value must be 16
+
   if(dir == TUSB_DIR_OUT)
   {
+    // Calculate required size of RX FIFO
+    uint16_t size_rx = 15 + 2*fifo_size + 2*EP_MAX;
+
+    // If size_rx needs to be extended check if possible and if so enlarge it
+    if (usb_otg->GRXFSIZ < size_rx)
+    {
+      TU_ASSERT(size_rx + _allocated_fifo_words_tx <= EP_FIFO_SIZE/4);
+
+      // Enlarge RX FIFO
+      usb_otg->GRXFSIZ = size_rx;
+    }
+
     out_ep[epnum].DOEPCTL |= (1 << USB_OTG_DOEPCTL_USBAEP_Pos) |
         (desc_edpt->bmAttributes.xfer << USB_OTG_DOEPCTL_EPTYP_Pos) |
         (desc_edpt->wMaxPacketSize.size << USB_OTG_DOEPCTL_MPSIZ_Pos);
@@ -570,16 +585,28 @@ bool dcd_edpt_open (uint8_t rhport, tusb_desc_endpoint_t const * desc_edpt)
     // "USB Data FIFOs" section in reference manual
     // Peripheral FIFO architecture
     //
+    // The FIFO is split up in a lower part where the RX FIFO is located and an upper part where the TX FIFOs start.
+    // We do this to allow the RX FIFO to grow dynamically which is possible since the free space is located
+    // between the RX and TX FIFOs. This is required by ISO OUT EPs which need a bigger FIFO than the standard
+    // configuration done below.
+    //
+    // Dynamically FIFO sizes are of interest only for ISO EPs since all others are usually not opened and closed.
+    // All EPs other than ISO are opened as soon as the driver starts up i.e. when the host sends a
+    // configure interface command. Hence, all IN EPs other the ISO will be located at the top. IN ISO EPs are usually
+    // opened when the host sends an additional command: setInterface. At this point in time
+    // the ISO EP will be located next to the free space and can change its size. In case more IN EPs change its size
+    // an additional memory
+    //
     // --------------- 320 or 1024 ( 1280 or 4096 bytes )
+    // | IN FIFO 0   |
+    // --------------- (320 or 1024) - 16
+    // | IN FIFO 1   |
+    // --------------- (320 or 1024) - 16 - x
+    // |   . . . .   |
+    // --------------- (320 or 1024) - 16 - x - y - ... - z
     // | IN FIFO MAX |
     // ---------------
-    // |    ...      |
-    // --------------- y + x + 16 + GRXFSIZ
-    // | IN FIFO 2   |
-    // --------------- x + 16 + GRXFSIZ
-    // | IN FIFO 1   |
-    // --------------- 16 + GRXFSIZ
-    // | IN FIFO 0   |
+    // |    FREE     |
     // --------------- GRXFSIZ
     // | OUT FIFO    |
     // | ( Shared )  |
@@ -592,29 +619,14 @@ bool dcd_edpt_open (uint8_t rhport, tusb_desc_endpoint_t const * desc_edpt)
     //    - Interrupt is EPSize
     //    - Bulk/ISO is max(EPSize, remaining-fifo / non-opened-EPIN)
 
-    uint16_t const fifo_remaining = EP_FIFO_SIZE/4 - _allocated_fifo_words;
-    uint16_t fifo_size = (desc_edpt->wMaxPacketSize.size + 3) / 4;  // +3 for rounding up to next full word
+    // Check if free space is available
+    TU_ASSERT(_allocated_fifo_words_tx + fifo_size + usb_otg->GRXFSIZ <= EP_FIFO_SIZE/4);
 
-    if ( desc_edpt->bmAttributes.xfer != TUSB_XFER_INTERRUPT )
-    {
-      uint8_t opened = 0;
-      for(uint8_t i = 0; i < EP_MAX; i++)
-      {
-        if ( (i != epnum) && (xfer_status[i][TUSB_DIR_IN].max_size > 0) ) opened++;
-      }
-
-      // EP Size or equally divided of remaining whichever is larger
-      fifo_size = tu_max16(fifo_size, fifo_remaining / (EP_MAX - opened));
-    }
-
-    // FIFO overflows, we probably need a better allocating scheme
-    TU_ASSERT(fifo_size <= fifo_remaining);
+    _allocated_fifo_words_tx += fifo_size;
 
     // DIEPTXF starts at FIFO #1.
     // Both TXFD and TXSA are in unit of 32-bit words.
-    usb_otg->DIEPTXF[epnum - 1] = (fifo_size << USB_OTG_DIEPTXF_INEPTXFD_Pos) | _allocated_fifo_words;
-
-    _allocated_fifo_words += fifo_size;
+    usb_otg->DIEPTXF[epnum - 1] = (fifo_size << USB_OTG_DIEPTXF_INEPTXFD_Pos) | (EP_FIFO_SIZE/4 - _allocated_fifo_words_tx);
 
     in_ep[epnum].DIEPCTL |= (1 << USB_OTG_DIEPCTL_USBAEP_Pos) |
         (epnum << USB_OTG_DIEPCTL_TXFNUM_Pos) |
@@ -728,9 +740,17 @@ void dcd_edpt_close (uint8_t rhport, uint8_t ep_addr)
   {
     uint16_t const fifo_size = (usb_otg->DIEPTXF[epnum - 1] & USB_OTG_DIEPTXF_INEPTXFD_Msk) >> USB_OTG_DIEPTXF_INEPTXFD_Pos;
     uint16_t const fifo_start = (usb_otg->DIEPTXF[epnum - 1] & USB_OTG_DIEPTXF_INEPTXSA_Msk) >> USB_OTG_DIEPTXF_INEPTXSA_Pos;
-    // For now only endpoint that has FIFO at the end of FIFO memory can be closed without fuss.
-    TU_ASSERT(fifo_start + fifo_size == _allocated_fifo_words,);
-    _allocated_fifo_words -= fifo_size;
+    // For now only the last opened endpoint can be closed without fuss.
+    TU_ASSERT(fifo_start == EP_FIFO_SIZE/4 - _allocated_fifo_words_tx,);
+    _allocated_fifo_words_tx -= fifo_size;
+  }
+  else
+  {
+    // Update max_size
+    xfer_status[epnum][TUSB_DIR_OUT].max_size = 0;
+
+    // Set flag such that RX FIFO gets reduced in size one RX FIFO is empty
+    _rx_ep_closed = true;
   }
 }
 
@@ -883,6 +903,24 @@ static void handle_rxflvl_ints(uint8_t rhport, USB_OTG_OUTEndpointTypeDef * out_
     default: // Invalid
       TU_BREAKPOINT();
       break;
+  }
+
+  // If an OUT EP was closed update (reduce) the RX FIFO size if RX FIFO is empty - since this function handle_rxflvl_ints() gets looped from dcd_int_handler() until RX FIFO is empty it is guaranteed to be entered
+  if (_rx_ep_closed && (usb_otg->GINTSTS & USB_OTG_GINTSTS_RXFLVL))
+  {
+    // Determine largest EP size for RX FIFO
+    uint16_t sz = xfer_status[0][TUSB_DIR_OUT].max_size;
+
+    for (uint8_t cnt = 1; cnt < EP_MAX; cnt++)
+    {
+      if (sz < xfer_status[cnt][TUSB_DIR_OUT].max_size) sz = xfer_status[cnt][TUSB_DIR_OUT].max_size;
+    }
+
+    // Update size of RX FIFO
+    usb_otg->GRXFSIZ = 15 + 2*sz/4 + 2*EP_MAX;        // sz was in bytes and is now needed in words
+
+    // Disable flag
+    _rx_ep_closed = false;
   }
 }
 
@@ -1063,11 +1101,11 @@ void dcd_int_handler(uint8_t rhport)
     handle_epin_ints(rhport, dev, in_ep);
   }
 
-//  // Check for Incomplete isochronous IN transfer
-//  if(int_status & USB_OTG_GINTSTS_IISOIXFR) {
-//    printf("      IISOIXFR!\r\n");
-////    TU_LOG2("      IISOIXFR!\r\n");
-//  }
+  //  // Check for Incomplete isochronous IN transfer
+  //  if(int_status & USB_OTG_GINTSTS_IISOIXFR) {
+  //    printf("      IISOIXFR!\r\n");
+  ////    TU_LOG2("      IISOIXFR!\r\n");
+  //  }
 }
 
 #endif
