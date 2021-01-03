@@ -102,6 +102,38 @@ volatile uint32_t _neopixel_count = 0;
 
 void neopixel_int_handler(void){
   uint32_t eventFlag = NEO_SCT->EVFLAG;
+  if (eventFlag & (1 << NEO_EVENT_NEXT)) {
+    _neopixel_count += 1;
+    if (_neopixel_count < (NEOPIXEL_NUMBER)) {
+      NEO_SCT->EV[NEO_EVENT_FALL_0].STATE = 0xFFFFFF & (~_neopixel_array[_neopixel_count]);
+      NEO_SCT->CTRL &= ~(SCT_CTRL_HALT_L_MASK);
+    }
+  }
+  NEO_SCT->EVFLAG = eventFlag;
+}
+
+void SCT0_DriverIRQHandler(void){
+  neopixel_int_handler();
+  SDK_ISR_EXIT_BARRIER;
+}
+
+void neopixel_set(uint32_t pixel, uint32_t color){
+  if (pixel < NEOPIXEL_NUMBER) { 
+    _neopixel_array[pixel] = color;
+  }
+}
+
+void neopixel_update(void){
+//  while (NEO_SCT->CTRL & SCT_CTRL_HALT_L_MASK);
+  _neopixel_count = 0;
+  NEO_SCT->EV[NEO_EVENT_FALL_0].STATE = 0xFFFFFF & (~_neopixel_array[0]);
+  NEO_SCT->CTRL &= ~(SCT_CTRL_HALT_L_MASK);
+}
+
+
+/*
+void neopixel_int_handler(void){
+  uint32_t eventFlag = NEO_SCT->EVFLAG;
 //  if ((eventFlag & (1 << NEO_EVENT_NEXT)) && (_neopixel_count < (NEO_ARRAY_SIZE))) {
 //    NEO_SCT->EV[NEO_EVENT_FALL_0].STATE = 0xFF & (~_neopixel_array[_neopixel_count]);
   if ((eventFlag & (1 << NEO_EVENT_NEXT)) && (_neopixel_count < (NEOPIXEL_NUMBER))) {
@@ -121,12 +153,6 @@ void SCT0_DriverIRQHandler(void){
 
 void neopixel_update(uint32_t pixel, uint32_t color){
   if (pixel < NEOPIXEL_NUMBER) { 
-    /*
-    uint32_t index = 3*pixel;
-    _neopixel_array[index++] = color>>8; // green first
-    _neopixel_array[index++] = color>>16; // red
-    _neopixel_array[index] = color; // blue
-    */
     _neopixel_array[pixel] = color;
     _neopixel_count = 0;
 //    NEO_SCT->EV[NEO_EVENT_FALL_0].STATE = 0xFF & (~_neopixel_array[0]);
@@ -134,7 +160,7 @@ void neopixel_update(uint32_t pixel, uint32_t color){
     NEO_SCT->CTRL &= ~(SCT_CTRL_HALT_L_MASK);
   }
 }
-
+*/
 void neopixel_init(void) {
   CLOCK_EnableClock(kCLOCK_Sct0);
   RESET_PeripheralReset(kSCT0_RST_SHIFT_RSTn);
@@ -186,7 +212,9 @@ void neopixel_init(void) {
   NEO_SCT->EVEN = (1 << NEO_EVENT_NEXT);
   EnableIRQ(SCT0_IRQn);
 
-  neopixel_update(0, 0x404040);
+  neopixel_set(0, 0x101000);
+  neopixel_set(1, 0x101000);
+  neopixel_update();
 }
 
 
@@ -330,8 +358,14 @@ void board_init(void)
 void board_led_write(bool state)
 {
   GPIO_PinWrite(GPIO, LED_PORT, LED_PIN, state ? LED_STATE_ON : (1-LED_STATE_ON));
-  _neopixel_array[1] = _neopixel_array[0];
-  neopixel_update(0, state ? 0x001000 : 0x100000);
+  if (state) {
+    neopixel_set(0, 0x100000);
+    neopixel_set(1, 0x101010);
+  } else {
+    neopixel_set(0, 0x001000);
+    neopixel_set(1, 0x000010);
+  }
+  neopixel_update();
 }
 
 uint32_t board_button_read(void)
