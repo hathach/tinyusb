@@ -28,7 +28,7 @@
 #define _TUSB_OPTION_H_
 
 #define TUSB_VERSION_MAJOR     0
-#define TUSB_VERSION_MINOR     5
+#define TUSB_VERSION_MINOR     7
 #define TUSB_VERSION_REVISION  0
 #define TUSB_VERSION_STRING    TU_STRING(TUSB_VERSION_MAJOR) "." TU_STRING(TUSB_VERSION_MINOR) "." TU_STRING(TUSB_VERSION_REVISION)
 
@@ -96,6 +96,10 @@
 
 // Dialog
 #define OPT_MCU_DA1469X          1000 ///< Dialog Semiconductor DA1469x
+
+// NXP Kinetis
+#define OPT_MCU_MKL25ZXX         1100 ///< NXP MKL25Zxx
+
 
 /** @} */
 

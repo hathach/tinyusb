@@ -58,7 +58,12 @@ StaticTimer_t blinky_tmdef;
 TimerHandle_t blinky_tm;
 
 // static task for usbd
-#define USBD_STACK_SIZE     (3*configMINIMAL_STACK_SIZE/2)
+#if CFG_TUSB_DEBUG
+  #define USBD_STACK_SIZE     (3*configMINIMAL_STACK_SIZE)
+#else
+  #define USBD_STACK_SIZE     (3*configMINIMAL_STACK_SIZE/2)
+#endif
+
 StackType_t  usb_device_stack[USBD_STACK_SIZE];
 StaticTask_t usb_device_taskdef;
 

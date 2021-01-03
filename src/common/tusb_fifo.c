@@ -30,6 +30,12 @@
 #include "osal/osal.h"
 #include "tusb_fifo.h"
 
+// Supress IAR warning
+// Warning[Pa082]: undefined behavior: the order of volatile accesses is undefined in this statement
+#if defined(__ICCARM__)
+#pragma diag_suppress = Pa082
+#endif
+
 // implement mutex lock and unlock
 #if CFG_FIFO_MUTEX
 
@@ -106,7 +112,7 @@ static void _ff_push_n(tu_fifo_t* f, void const * data, uint16_t n, uint16_t wRe
     memcpy(f->buffer + (wRel * f->item_size), data, nLin*f->item_size);
 
     // Write data wrapped around
-    memcpy(f->buffer, data + nLin*f->item_size, (n - nLin) * f->item_size);
+    memcpy(f->buffer, ((uint8_t const*) data) + nLin*f->item_size, (n - nLin) * f->item_size);
   }
 }
 
@@ -131,7 +137,7 @@ static void _ff_pull_n(tu_fifo_t* f, void * p_buffer, uint16_t n, uint16_t rRel)
     memcpy(p_buffer, f->buffer + (rRel * f->item_size), nLin*f->item_size);
 
     // Read data wrapped part
-    memcpy(p_buffer + nLin*f->item_size, f->buffer, (n - nLin) * f->item_size);
+    memcpy((uint8_t*)p_buffer + nLin*f->item_size, f->buffer, (n - nLin) * f->item_size);
   }
 }
 
@@ -592,6 +598,27 @@ bool tu_fifo_clear(tu_fifo_t *f)
 {
   tu_fifo_lock(f);
   f->rd_idx = f->wr_idx = 0;
+  tu_fifo_unlock(f);
+
+  return true;
+}
+
+/******************************************************************************/
+/*!
+    @brief Change the fifo mode to overwritable or not overwritable
+
+    @param[in]  f
+                Pointer to the FIFO buffer to manipulate
+    @param[in]  overwritable
+                Overwritable mode the fifo is set to
+*/
+/******************************************************************************/
+bool tu_fifo_set_overwritable(tu_fifo_t *f, bool overwritable)
+{
+  tu_fifo_lock(f);
+
+  f->overwritable = overwritable;
+
   tu_fifo_unlock(f);
 
   return true;

@@ -83,6 +83,8 @@ static void cdc_task(void)
 
   for (itf = 0; itf < CFG_TUD_CDC; itf++)
   {
+    // connected() check for DTR bit
+    // Most but not all terminal client set this when making connection
     if ( tud_cdc_n_connected(itf) )
     {
       if ( tud_cdc_n_available(itf) )

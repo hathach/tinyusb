@@ -143,9 +143,14 @@ void tud_resume_cb(void)
 // WebUSB use vendor class
 //--------------------------------------------------------------------+
 
-// Invoked when received VENDOR control request
-bool tud_vendor_control_request_cb(uint8_t rhport, tusb_control_request_t const * request)
+// Invoked when a control transfer occurred on an interface of this class
+// Driver response accordingly to the request and the transfer stage (setup/data/ack)
+// return false to stall control endpoint (e.g unsupported request)
+bool tud_vendor_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request_t const * request)
 {
+  // nothing to with DATA & ACK stage
+  if (stage != CONTROL_STAGE_SETUP ) return true;
+
   switch (request->bRequest)
   {
     case VENDOR_REQUEST_WEBUSB:
@@ -191,16 +196,6 @@ bool tud_vendor_control_request_cb(uint8_t rhport, tusb_control_request_t const 
       return false;
   }
 
-  return true;
-}
-
-// Invoked when DATA Stage of VENDOR's request is complete
-bool tud_vendor_control_complete_cb(uint8_t rhport, tusb_control_request_t const * request)
-{
-  (void) rhport;
-  (void) request;
-
-  // nothing to do
   return true;
 }
 

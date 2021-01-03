@@ -220,26 +220,6 @@ uint16_t netd_open(uint8_t rhport, tusb_desc_interface_t const * itf_desc, uint1
   return drv_len;
 }
 
-// Invoked when class request DATA stage is finished.
-// return false to stall control endpoint (e.g Host send nonsense DATA)
-bool netd_control_complete(uint8_t rhport, tusb_control_request_t const * request)
-{
-  (void) rhport;
-
-  // Handle RNDIS class control OUT only
-  if (request->bmRequestType_bit.type == TUSB_REQ_TYPE_CLASS &&
-      request->bmRequestType_bit.direction == TUSB_DIR_OUT   &&
-      _netd_itf.itf_num == request->wIndex)
-  {
-    if ( !_netd_itf.ecm_mode )
-    {
-      rndis_class_set_handler(notify.rndis_buf, request->wLength);
-    }
-  }
-
-  return true;
-}
-
 static void ecm_report(bool nc)
 {
   notify.ecm_buf = (nc) ? ecm_notify_nc : ecm_notify_csc;
@@ -247,99 +227,116 @@ static void ecm_report(bool nc)
   netd_report((uint8_t *)&notify.ecm_buf, (nc) ? sizeof(notify.ecm_buf.header) : sizeof(notify.ecm_buf));
 }
 
-// Handle class control request
+// Invoked when a control transfer occurred on an interface of this class
+// Driver response accordingly to the request and the transfer stage (setup/data/ack)
 // return false to stall control endpoint (e.g unsupported request)
-bool netd_control_request(uint8_t rhport, tusb_control_request_t const * request)
+bool netd_control_xfer_cb (uint8_t rhport, uint8_t stage, tusb_control_request_t const * request)
 {
-  switch ( request->bmRequestType_bit.type )
+  if ( stage == CONTROL_STAGE_SETUP )
   {
-    case TUSB_REQ_TYPE_STANDARD:
-      switch ( request->bRequest )
-      {
-        case TUSB_REQ_GET_INTERFACE:
+    switch ( request->bmRequestType_bit.type )
+    {
+      case TUSB_REQ_TYPE_STANDARD:
+        switch ( request->bRequest )
         {
-          uint8_t const req_itfnum = (uint8_t) request->wIndex;
-          TU_VERIFY(_netd_itf.itf_num+1 == req_itfnum);
-
-          tud_control_xfer(rhport, request, &_netd_itf.itf_data_alt, 1);
-        }
-        break;
-
-        case TUSB_REQ_SET_INTERFACE:
-        {
-          uint8_t const req_itfnum = (uint8_t) request->wIndex;
-          uint8_t const req_alt    = (uint8_t) request->wValue;
-
-          // Only valid for Data Interface with Alternate is either 0 or 1
-          TU_VERIFY(_netd_itf.itf_num+1 == req_itfnum && req_alt < 2);
-
-          // ACM-ECM only: qequest to enable/disable network activities
-          TU_VERIFY(_netd_itf.ecm_mode);
-
-          _netd_itf.itf_data_alt = req_alt;
-
-          if ( _netd_itf.itf_data_alt )
+          case TUSB_REQ_GET_INTERFACE:
           {
-            // TODO since we don't actually close endpoint
-            // hack here to not re-open it
-            if ( _netd_itf.ep_in == 0 && _netd_itf.ep_out == 0 )
-            {
-              TU_ASSERT(_netd_itf.ecm_desc_epdata);
-              TU_ASSERT( usbd_open_edpt_pair(rhport, _netd_itf.ecm_desc_epdata, 2, TUSB_XFER_BULK, &_netd_itf.ep_out, &_netd_itf.ep_in) );
+            uint8_t const req_itfnum = (uint8_t) request->wIndex;
+            TU_VERIFY(_netd_itf.itf_num+1 == req_itfnum);
 
-              // TODO should be merge with RNDIS's after endpoint opened
-              // Also should have opposite callback for application to disable network !!
-              tud_network_init_cb();
-              can_xmit = true; // we are ready to transmit a packet
-              tud_network_recv_renew(); // prepare for incoming packets
-            }
-          }else
-          {
-            // TODO close the endpoint pair
-            // For now pretend that we did, this should have no harm since host won't try to
-            // communicate with the endpoints again
-            // _netd_itf.ep_in = _netd_itf.ep_out = 0
+            tud_control_xfer(rhport, request, &_netd_itf.itf_data_alt, 1);
           }
+          break;
 
-          tud_control_status(rhport, request);
+          case TUSB_REQ_SET_INTERFACE:
+          {
+            uint8_t const req_itfnum = (uint8_t) request->wIndex;
+            uint8_t const req_alt    = (uint8_t) request->wValue;
+
+            // Only valid for Data Interface with Alternate is either 0 or 1
+            TU_VERIFY(_netd_itf.itf_num+1 == req_itfnum && req_alt < 2);
+
+            // ACM-ECM only: qequest to enable/disable network activities
+            TU_VERIFY(_netd_itf.ecm_mode);
+
+            _netd_itf.itf_data_alt = req_alt;
+
+            if ( _netd_itf.itf_data_alt )
+            {
+              // TODO since we don't actually close endpoint
+              // hack here to not re-open it
+              if ( _netd_itf.ep_in == 0 && _netd_itf.ep_out == 0 )
+              {
+                TU_ASSERT(_netd_itf.ecm_desc_epdata);
+                TU_ASSERT( usbd_open_edpt_pair(rhport, _netd_itf.ecm_desc_epdata, 2, TUSB_XFER_BULK, &_netd_itf.ep_out, &_netd_itf.ep_in) );
+
+                // TODO should be merge with RNDIS's after endpoint opened
+                // Also should have opposite callback for application to disable network !!
+                tud_network_init_cb();
+                can_xmit = true; // we are ready to transmit a packet
+                tud_network_recv_renew(); // prepare for incoming packets
+              }
+            }else
+            {
+              // TODO close the endpoint pair
+              // For now pretend that we did, this should have no harm since host won't try to
+              // communicate with the endpoints again
+              // _netd_itf.ep_in = _netd_itf.ep_out = 0
+            }
+
+            tud_control_status(rhport, request);
+          }
+          break;
+
+          // unsupported request
+          default: return false;
         }
-        break;
+      break;
 
-        // unsupported request
-        default: return false;
-      }
-    break;
+      case TUSB_REQ_TYPE_CLASS:
+        TU_VERIFY (_netd_itf.itf_num == request->wIndex);
 
-    case TUSB_REQ_TYPE_CLASS:
-      TU_VERIFY (_netd_itf.itf_num == request->wIndex);
-
-      if (_netd_itf.ecm_mode)
-      {
-        /* the only required CDC-ECM Management Element Request is SetEthernetPacketFilter */
-        if (0x43 /* SET_ETHERNET_PACKET_FILTER */ == request->bRequest)
+        if (_netd_itf.ecm_mode)
         {
-          tud_control_xfer(rhport, request, NULL, 0);
-          ecm_report(true);
-        }
-      }
-      else
-      {
-        if (request->bmRequestType_bit.direction == TUSB_DIR_IN)
-        {
-          rndis_generic_msg_t *rndis_msg = (rndis_generic_msg_t *) ((void*) notify.rndis_buf);
-          uint32_t msglen = tu_le32toh(rndis_msg->MessageLength);
-          TU_ASSERT(msglen <= sizeof(notify.rndis_buf));
-          tud_control_xfer(rhport, request, notify.rndis_buf, msglen);
+          /* the only required CDC-ECM Management Element Request is SetEthernetPacketFilter */
+          if (0x43 /* SET_ETHERNET_PACKET_FILTER */ == request->bRequest)
+          {
+            tud_control_xfer(rhport, request, NULL, 0);
+            ecm_report(true);
+          }
         }
         else
         {
-          tud_control_xfer(rhport, request, notify.rndis_buf, sizeof(notify.rndis_buf));
+          if (request->bmRequestType_bit.direction == TUSB_DIR_IN)
+          {
+            rndis_generic_msg_t *rndis_msg = (rndis_generic_msg_t *) ((void*) notify.rndis_buf);
+            uint32_t msglen = tu_le32toh(rndis_msg->MessageLength);
+            TU_ASSERT(msglen <= sizeof(notify.rndis_buf));
+            tud_control_xfer(rhport, request, notify.rndis_buf, msglen);
+          }
+          else
+          {
+            tud_control_xfer(rhport, request, notify.rndis_buf, sizeof(notify.rndis_buf));
+          }
         }
-      }
-    break;
+      break;
 
-    // unsupported request
-    default: return false;
+      // unsupported request
+      default: return false;
+    }
+  }
+  else if ( stage == CONTROL_STAGE_DATA )
+  {
+    // Handle RNDIS class control OUT only
+    if (request->bmRequestType_bit.type == TUSB_REQ_TYPE_CLASS &&
+        request->bmRequestType_bit.direction == TUSB_DIR_OUT   &&
+        _netd_itf.itf_num == request->wIndex)
+    {
+      if ( !_netd_itf.ecm_mode )
+      {
+        rndis_class_set_handler(notify.rndis_buf, request->wLength);
+      }
+    }
   }
 
   return true;

@@ -23,6 +23,7 @@
       debug_target_connection="J-Link"
       gcc_entry_point="Reset_Handler"
       linker_memory_map_file="$(ProjectDir)/LPC1857_MemoryMap.xml"
+      linker_printf_width_precision_supported="Yes"
       linker_section_placement_file="$(ProjectDir)/flash_placement.xml"
       macros="DeviceFamily=LPC1800;DeviceSubFamily=LPC185x;Target=LPC1857;Placement=Flash;rootDir=../../../../..;lpcDir=../../../../../hw/mcu/nxp/lpcopen/lpc18xx/lpc_chip_18xx"
       package_dependencies="LPC1800"
