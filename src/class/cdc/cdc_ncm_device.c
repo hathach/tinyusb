@@ -292,14 +292,6 @@ uint16_t ncmd_open(uint8_t rhport, tusb_desc_interface_t const * itf_desc, uint1
   return drv_len;
 }
 
-// Invoked when class request DATA stage is finished.
-bool ncmd_control_complete(uint8_t rhport, tusb_control_request_t const * request)
-{
-  (void) rhport;
-  (void) request;
-  return true;
-}
-
 static void ncm_report()
 {
   if (ncm_interface.report_state == REPORT_SPEED) {
@@ -317,8 +309,10 @@ static void ncm_report()
 
 // Handle class control request
 // return false to stall control endpoint (e.g unsupported request)
-bool ncmd_control_request(uint8_t rhport, tusb_control_request_t const * request)
+bool ncmd_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request_t const * request)
 {
+  if ( stage != CONTROL_STAGE_SETUP ) return true;
+
   switch ( request->bmRequestType_bit.type )
   {
     case TUSB_REQ_TYPE_STANDARD:

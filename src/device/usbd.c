@@ -217,8 +217,7 @@ static usbd_class_driver_t const _usbd_driver[] =
       .init             = ncmd_init,
       .reset            = ncmd_reset,
       .open             = ncmd_open,
-      .control_request  = ncmd_control_request,
-      .control_complete = ncmd_control_complete,
+      .control_xfer_cb  = ncmd_control_xfer_cb,
       .xfer_cb          = ncmd_xfer_cb,
       .sof              = NULL
   },
