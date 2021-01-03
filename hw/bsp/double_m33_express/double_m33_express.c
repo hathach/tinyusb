@@ -29,6 +29,7 @@
 #include "fsl_gpio.h"
 #include "fsl_power.h"
 #include "fsl_iocon.h"
+#include "fsl_sctimer.h"
 
 //--------------------------------------------------------------------+
 // Forward USB interrupt events to TinyUSB IRQ Handler
@@ -55,15 +56,127 @@ void USB1_IRQHandler(void)
 #define BUTTON_PIN            5
 #define BUTTON_STATE_ACTIVE   0
 
+// Number of neopixels
+#define NEOPIXEL_NUMBER       2
+#define NEOPIXEL_PORT         0
+#define NEOPIXEL_PIN          27
+
+// UART
+#define UART_DEV              USART0
+
 // IOCON pin mux
 #define IOCON_PIO_DIGITAL_EN 0x0100u  /*!<@brief Enables digital function */
 #define IOCON_PIO_FUNC0 0x00u         /*!<@brief Selects pin function 0 */
 #define IOCON_PIO_FUNC1 0x01u         /*!<@brief Selects pin function 1 */
+#define IOCON_PIO_FUNC4 0x04u         /*!<@brief Selects pin function 4 */
 #define IOCON_PIO_FUNC7 0x07u         /*!<@brief Selects pin function 7 */
 #define IOCON_PIO_INV_DI 0x00u        /*!<@brief Input function is not inverted */
 #define IOCON_PIO_MODE_INACT 0x00u    /*!<@brief No addition pin function */
 #define IOCON_PIO_OPENDRAIN_DI 0x00u  /*!<@brief Open drain is disabled */
 #define IOCON_PIO_SLEW_STANDARD 0x00u /*!<@brief Standard mode, output slew rate control is enabled */
+
+#define IOCON_PIO_DIG_FUNC0_EN   (IOCON_PIO_DIGITAL_EN | IOCON_PIO_FUNC0) /*!<@brief Digital pin function 0 enabled */
+#define IOCON_PIO_DIG_FUNC1_EN   (IOCON_PIO_DIGITAL_EN | IOCON_PIO_FUNC1) /*!<@brief Digital pin function 1 enabled */
+#define IOCON_PIO_DIG_FUNC4_EN   (IOCON_PIO_DIGITAL_EN | IOCON_PIO_FUNC4) /*!<@brief Digital pin function 2 enabled */
+#define IOCON_PIO_DIG_FUNC7_EN   (IOCON_PIO_DIGITAL_EN | IOCON_PIO_FUNC7) /*!<@brief Digital pin function 2 enabled */
+
+//--------------------------------------------------------------------+
+// Neopixel Driver
+//--------------------------------------------------------------------+
+#define NEO_SCT           SCT0
+#define NEO_MATCH_PERIOD  0
+#define NEO_MATCH_0       1
+#define NEO_MATCH_1       2
+#define NEO_EVENT_RISE    2
+#define NEO_EVENT_FALL_0  0
+#define NEO_EVENT_FALL_1  1
+#define NEO_EVENT_NEXT    3
+#define NEO_EVENT_START   4
+#define NEO_SCT_OUTPUT    6
+#define NEO_STATE_IDLE    8
+
+volatile uint8_t _neopixel_array[3*NEOPIXEL_NUMBER] = {0};
+volatile uint32_t _neopixel_count = 0;
+
+void neopixel_int_handler(void){
+  uint32_t eventFlag = NEO_SCT->EVFLAG;
+  if ((eventFlag == (1 << NEO_EVENT_NEXT)) && (_neopixel_count < (3*NEOPIXEL_NUMBER))) {
+    NEO_SCT->EV[NEO_EVENT_FALL_0].STATE = 0xFF & (~_neopixel_array[_neopixel_count]);
+    _neopixel_count += 1;
+  }
+  NEO_SCT->EVFLAG = eventFlag;
+  NEO_SCT->CTRL &= ~(SCT_CTRL_HALT_L_MASK);
+}
+
+void SCT0_DriverIRQHandler(void){
+  neopixel_int_handler();
+  SDK_ISR_EXIT_BARRIER;
+}
+
+void neopixel_update(uint32_t pixel, uint32_t color){
+  if (pixel < NEOPIXEL_NUMBER) { 
+    uint32_t index = 3*pixel;
+    _neopixel_array[index++] = color>>8; // green first
+    _neopixel_array[index++] = color>>16; // red
+    _neopixel_array[index] = color; // blue
+    _neopixel_count = 0;
+    NEO_SCT->EV[NEO_EVENT_FALL_0].STATE = 0xFF & (~_neopixel_array[0]);
+    NEO_SCT->CTRL &= ~(SCT_CTRL_HALT_L_MASK);
+  }
+}
+
+void neopixel_init(void) {
+  CLOCK_EnableClock(kCLOCK_Sct0);
+  RESET_PeripheralReset(kSCT0_RST_SHIFT_RSTn);
+
+  NEO_SCT->CONFIG = (
+    SCT_CONFIG_UNIFY(1) | 
+    SCT_CONFIG_CLKMODE(kSCTIMER_System_ClockMode) | 
+    SCT_CONFIG_NORELOAD_L(1) );
+  NEO_SCT->CTRL = ( 
+    SCT_CTRL_HALT_L(1) |
+    SCT_CTRL_CLRCTR_L(1) );
+
+  NEO_SCT->MATCH[NEO_MATCH_PERIOD] = 120;
+  NEO_SCT->MATCH[NEO_MATCH_0] = 30;
+  NEO_SCT->MATCH[NEO_MATCH_1] = 60;
+  NEO_SCT->EV[NEO_EVENT_START].STATE = (1 << 24U);
+  NEO_SCT->EV[NEO_EVENT_START].CTRL = (
+    kSCTIMER_OutputLowEvent | SCT_EV_CTRL_IOSEL(NEO_SCT_OUTPUT) | 
+    SCT_EV_CTRL_STATELD(1) | SCT_EV_CTRL_STATEV(7));
+  NEO_SCT->EV[NEO_EVENT_RISE].STATE = 0xFFFFFE;
+  NEO_SCT->EV[NEO_EVENT_RISE].CTRL = (
+    kSCTIMER_MatchEventOnly | SCT_EV_CTRL_MATCHSEL(NEO_MATCH_PERIOD) | 
+    SCT_EV_CTRL_STATELD(0) | SCT_EV_CTRL_STATEV(31));
+  NEO_SCT->EV[NEO_EVENT_FALL_0].STATE = 0x0;
+  NEO_SCT->EV[NEO_EVENT_FALL_0].CTRL = (
+    kSCTIMER_MatchEventOnly | SCT_EV_CTRL_MATCHSEL(NEO_MATCH_0) | 
+    SCT_EV_CTRL_STATELD(0) | SCT_EV_CTRL_STATEV(31));
+  NEO_SCT->EV[NEO_EVENT_FALL_1].STATE = 0xFFFFFF;
+  NEO_SCT->EV[NEO_EVENT_FALL_1].CTRL = (
+    kSCTIMER_MatchEventOnly | SCT_EV_CTRL_MATCHSEL(NEO_MATCH_1) | 
+    SCT_EV_CTRL_STATELD(0) | SCT_EV_CTRL_STATEV(31));
+  NEO_SCT->EV[NEO_EVENT_NEXT].STATE = 0x1;
+  NEO_SCT->EV[NEO_EVENT_NEXT].CTRL = (
+    kSCTIMER_MatchEventOnly | SCT_EV_CTRL_MATCHSEL(NEO_MATCH_PERIOD) | 
+    SCT_EV_CTRL_STATELD(1) | SCT_EV_CTRL_STATEV(NEO_STATE_IDLE));
+
+  NEO_SCT->LIMIT = (1 << NEO_EVENT_START) | (1 << NEO_EVENT_RISE);
+  NEO_SCT->HALT = (1 << NEO_EVENT_NEXT);
+  NEO_SCT->START = (1 << NEO_EVENT_START);
+
+  NEO_SCT->OUT[NEO_SCT_OUTPUT].SET = (1 << NEO_EVENT_START) | (1 << NEO_EVENT_RISE);
+  NEO_SCT->OUT[NEO_SCT_OUTPUT].CLR = (1 << NEO_EVENT_FALL_0) | (1<< NEO_EVENT_FALL_1);
+  
+  NEO_SCT->STATE = NEO_STATE_IDLE; 
+  NEO_SCT->OUTPUT = 0x0;
+  NEO_SCT->RES = SCT_RES_O6RES(0x2);
+  NEO_SCT->EVEN = (1 << NEO_EVENT_NEXT);
+  EnableIRQ(SCT0_IRQn);
+
+  neopixel_update(0, 0x404040);
+}
+
 
 /****************************************************************
 name: BOARD_BootClockFROHF96M
@@ -115,40 +228,49 @@ void board_init(void)
   NVIC_SetPriority(USB0_IRQn, configLIBRARY_MAX_SYSCALL_INTERRUPT_PRIORITY );
 #endif
 
-  GPIO_PortInit(GPIO, LED_PORT);
-  GPIO_PortInit(GPIO, BUTTON_PORT);
+  GPIO_PortInit(GPIO, 0);
+  GPIO_PortInit(GPIO, 1);
 
   // LED
-  gpio_pin_config_t const led_config = { kGPIO_DigitalOutput, 0};
+  /* PORT0 PIN1 configured as PIO0_1 */
+  IOCON_PinMuxSet(IOCON, 0U, 1U, IOCON_PIO_DIG_FUNC0_EN);
+
+  gpio_pin_config_t const led_config = { kGPIO_DigitalOutput, 1};
   GPIO_PinInit(GPIO, LED_PORT, LED_PIN, &led_config);
-  board_led_write(true);
+
+  // Neopixel
+  /* PORT0 PIN27 configured as SCT0_OUT6 */
+  IOCON_PinMuxSet(IOCON, 0U, 27U, IOCON_PIO_DIG_FUNC4_EN);
+
+  neopixel_init();
 
   // Button
-  const uint32_t port1_pin18_config = (
-      IOCON_PIO_FUNC0         | /* Pin is configured as PIO1_18 */
-      IOCON_PIO_MODE_INACT    | /* No addition pin function */
-      IOCON_PIO_SLEW_STANDARD | /* Standard mode, output slew rate control is enabled */
-      IOCON_PIO_INV_DI        | /* Input function is not inverted */
-      IOCON_PIO_DIGITAL_EN    | /* Enables digital function */
-      IOCON_PIO_OPENDRAIN_DI    /* Open drain is disabled */
-  );
-  /* PORT1 PIN18 (coords: 64) is configured as PIO1_18 */
-  IOCON_PinMuxSet(IOCON, 1U, 18U, port1_pin18_config);
+  /* PORT0 PIN5 configured as PIO0_5 */
+  IOCON_PinMuxSet(IOCON, 0U, 5U, IOCON_PIO_DIG_FUNC0_EN);
 
   gpio_pin_config_t const button_config = { kGPIO_DigitalInput, 0};
   GPIO_PinInit(GPIO, BUTTON_PORT, BUTTON_PIN, &button_config);
 
+  // UART
+  /* PORT0 PIN29 (coords: 92) is configured as FC0_RXD_SDA_MOSI_DATA */
+  IOCON_PinMuxSet(IOCON, 0U, 29U, IOCON_PIO_DIG_FUNC1_EN);
+  /* PORT0 PIN30 (coords: 94) is configured as FC0_TXD_SCL_MISO_WS */
+  IOCON_PinMuxSet(IOCON, 0U, 30U, IOCON_PIO_DIG_FUNC1_EN);
+
+#if defined(UART_DEV) && CFG_TUSB_DEBUG
+  // Enable UART when debug log is on
+  CLOCK_AttachClk(kFRO12M_to_FLEXCOMM0);
+  usart_config_t uart_config;
+  USART_GetDefaultConfig(&uart_config);
+  uart_config.baudRate_Bps = BOARD_UART_BAUDRATE;
+  uart_config.enableTx     = true;
+  uart_config.enableRx     = true;
+  USART_Init(UART_DEV, &uart_config, 12000000);
+#endif
+
   // USB VBUS
-  const uint32_t port0_pin22_config = (
-      IOCON_PIO_FUNC7         | /* Pin is configured as USB0_VBUS */
-      IOCON_PIO_MODE_INACT    | /* No addition pin function */
-      IOCON_PIO_SLEW_STANDARD | /* Standard mode, output slew rate control is enabled */
-      IOCON_PIO_INV_DI        | /* Input function is not inverted */
-      IOCON_PIO_DIGITAL_EN    | /* Enables digital function */
-      IOCON_PIO_OPENDRAIN_DI    /* Open drain is disabled */
-  );
-  /* PORT0 PIN22 (coords: 78) is configured as USB0_VBUS */
-  IOCON_PinMuxSet(IOCON, 0U, 22U, port0_pin22_config);
+  /* PORT0 PIN22 configured as USB0_VBUS */
+  IOCON_PinMuxSet(IOCON, 0U, 22U, IOCON_PIO_DIG_FUNC7_EN);
 
   // USB Controller
   POWER_DisablePD(kPDRUNCFG_PD_USB0_PHY); /*Turn on USB0 Phy */
@@ -163,27 +285,30 @@ void board_init(void)
   RESET_PeripheralReset(kUSB1_RST_SHIFT_RSTn);
   RESET_PeripheralReset(kUSB1RAM_RST_SHIFT_RSTn);
 
-#if (defined USB_DEVICE_CONFIG_LPCIP3511HS) && (USB_DEVICE_CONFIG_LPCIP3511HS)
+#if (defined CFG_TUSB_RHPORT1_MODE) && (CFG_TUSB_RHPORT1_MODE & OPT_MODE_DEVICE)
   CLOCK_EnableClock(kCLOCK_Usbh1);
   /* Put PHY powerdown under software control */
-  *((uint32_t *)(USBHSH_BASE + 0x50)) = USBHSH_PORTMODE_SW_PDCOM_MASK;
+  USBHSH->PORTMODE = USBHSH_PORTMODE_SW_PDCOM_MASK;
   /* According to reference mannual, device mode setting has to be set by access usb host register */
-  *((uint32_t *)(USBHSH_BASE + 0x50)) |= USBHSH_PORTMODE_DEV_ENABLE_MASK;
+  USBHSH->PORTMODE |= USBHSH_PORTMODE_DEV_ENABLE_MASK;
   /* enable usb1 host clock */
   CLOCK_DisableClock(kCLOCK_Usbh1);
 #endif
 
-#if 1 || (defined USB_DEVICE_CONFIG_LPCIP3511FS) && (USB_DEVICE_CONFIG_LPCIP3511FS)
+#if (defined CFG_TUSB_RHPORT0_MODE) && (CFG_TUSB_RHPORT0_MODE & OPT_MODE_DEVICE)
+  // Enable USB Clock Adjustments to trim the FRO for the full speed controller
+  ANACTRL->FRO192M_CTRL |= ANACTRL_FRO192M_CTRL_USBCLKADJ_MASK;
   CLOCK_SetClkDiv(kCLOCK_DivUsb0Clk, 1, false);
   CLOCK_AttachClk(kFRO_HF_to_USB0_CLK);
   /* enable usb0 host clock */
   CLOCK_EnableClock(kCLOCK_Usbhsl0);
   /*According to reference mannual, device mode setting has to be set by access usb host register */
-  *((uint32_t *)(USBFSH_BASE + 0x5C)) |= USBFSH_PORTMODE_DEV_ENABLE_MASK;
+  USBFSH->PORTMODE |= USBFSH_PORTMODE_DEV_ENABLE_MASK;
   /* disable usb0 host clock */
   CLOCK_DisableClock(kCLOCK_Usbhsl0);
   CLOCK_EnableUsbfs0DeviceClock(kCLOCK_UsbfsSrcFro, CLOCK_GetFreq(kCLOCK_FroHf)); /* enable USB Device clock */
 #endif
+
 }
 
 //--------------------------------------------------------------------+
