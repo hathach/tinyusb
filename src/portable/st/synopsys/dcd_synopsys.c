@@ -145,11 +145,11 @@ xfer_ctl_t xfer_status[EP_MAX][2];
 #define XFER_CTL_BASE(_ep, _dir) &xfer_status[_ep][_dir]
 
 // EP0 transfers are limited to 1 packet - larger sizes has to be split
-static uint16_t ep0_pending[2];     // Index determines direction as tusb_dir_t type
+static uint16_t ep0_pending[2];                   // Index determines direction as tusb_dir_t type
 
 // TX FIFO RAM allocation so far in words - RX FIFO size is readily available from usb_otg->GRXFSIZ
 static uint16_t _allocated_fifo_words_tx;         // TX FIFO size in words (IN EPs)
-static bool _rx_ep_closed;
+static bool _rx_ep_closed;                        // Flag to check if RX FIFO size needs an update (reduce its size)
 
 // Setup the control endpoint 0.
 static void bus_reset(uint8_t rhport)
@@ -563,15 +563,15 @@ bool dcd_edpt_open (uint8_t rhport, tusb_desc_endpoint_t const * desc_edpt)
   if(dir == TUSB_DIR_OUT)
   {
     // Calculate required size of RX FIFO
-    uint16_t size_rx = 15 + 2*fifo_size + 2*EP_MAX;
+    uint16_t const sz = 15 + 2*fifo_size + 2*EP_MAX;
 
     // If size_rx needs to be extended check if possible and if so enlarge it
-    if (usb_otg->GRXFSIZ < size_rx)
+    if (usb_otg->GRXFSIZ < sz)
     {
-      TU_ASSERT(size_rx + _allocated_fifo_words_tx <= EP_FIFO_SIZE/4);
+      TU_ASSERT(sz + _allocated_fifo_words_tx <= EP_FIFO_SIZE/4);
 
       // Enlarge RX FIFO
-      usb_otg->GRXFSIZ = size_rx;
+      usb_otg->GRXFSIZ = sz;
     }
 
     out_ep[epnum].DOEPCTL |= (1 << USB_OTG_DOEPCTL_USBAEP_Pos) |
@@ -736,6 +736,10 @@ void dcd_edpt_close (uint8_t rhport, uint8_t ep_addr)
   uint8_t const dir   = tu_edpt_dir(ep_addr);
 
   dcd_edpt_disable(rhport, ep_addr, false);
+
+  // Update max_size
+  xfer_status[epnum][dir].max_size = 0;  // max_size = 0 marks a disabled EP - required for changing FIFO allocation
+
   if (dir == TUSB_DIR_IN)
   {
     uint16_t const fifo_size = (usb_otg->DIEPTXF[epnum - 1] & USB_OTG_DIEPTXF_INEPTXFD_Msk) >> USB_OTG_DIEPTXF_INEPTXFD_Pos;
@@ -746,11 +750,7 @@ void dcd_edpt_close (uint8_t rhport, uint8_t ep_addr)
   }
   else
   {
-    // Update max_size
-    xfer_status[epnum][TUSB_DIR_OUT].max_size = 0;
-
-    // Set flag such that RX FIFO gets reduced in size one RX FIFO is empty
-    _rx_ep_closed = true;
+    _rx_ep_closed = true;     // Set flag such that RX FIFO gets reduced in size once RX FIFO is empty
   }
 }
 
