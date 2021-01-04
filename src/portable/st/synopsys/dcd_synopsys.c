@@ -28,6 +28,7 @@
  */
 
 #include "tusb_option.h"
+#include "tusb_fifo.h"
 
 // Since TinyUSB doesn't use SOF for now, and this interrupt too often (1ms interval)
 // We disable SOF for now until needed later on
@@ -134,6 +135,7 @@ static TU_ATTR_ALIGNED(4) uint32_t _setup_packet[2];
 
 typedef struct {
   uint8_t * buffer;
+  tu_fifo_t * ff;
   uint16_t total_len;
   uint16_t max_size;
   uint8_t interval;
@@ -659,6 +661,38 @@ bool dcd_edpt_xfer (uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t 
   return true;
 }
 
+bool dcd_edpt_ISO_xfer (uint8_t rhport, uint8_t ep_addr, tu_fifo_t * ff, uint16_t total_bytes)
+{
+  uint8_t const epnum = tu_edpt_number(ep_addr);
+  uint8_t const dir   = tu_edpt_dir(ep_addr);
+
+  xfer_ctl_t * xfer = XFER_CTL_BASE(epnum, dir);
+  xfer->buffer      = NULL;                                 // Indicates a FIFO shall be used
+  xfer->ff          = ff;
+  xfer->total_len   = total_bytes;
+
+  // EP0 can only handle one packet
+  if(epnum == 0) {
+    ep0_pending[dir] = total_bytes;
+    // Schedule the first transaction for EP0 transfer
+    edpt_schedule_packets(rhport, epnum, dir, 1, ep0_pending[dir]);
+    return true;
+  }
+
+  uint16_t num_packets = (total_bytes / xfer->max_size);
+  uint8_t const short_packet_size = total_bytes % xfer->max_size;
+
+  // Zero-size packet is special case.
+  if(short_packet_size > 0 || (total_bytes == 0)) {
+    num_packets++;
+  }
+
+  // Schedule packets to be sent within interrupt
+  edpt_schedule_packets(rhport, epnum, dir, num_packets, total_bytes);
+
+  return true;
+}
+
 static void dcd_edpt_disable (uint8_t rhport, uint8_t ep_addr, bool stall)
 {
   (void) rhport;
@@ -849,6 +883,9 @@ static void handle_rxflvl_ints(uint8_t rhport, USB_OTG_OUTEndpointTypeDef * out_
     {
       xfer_ctl_t * xfer = XFER_CTL_BASE(epnum, TUSB_DIR_OUT);
 
+
+      // TODO: TAKE CARE OF ISO FIFO!
+
       // Read packet off RxFIFO
       read_fifo_packet(rhport, xfer->buffer, bcnt);
 
@@ -959,6 +996,8 @@ static void handle_epin_ints(uint8_t rhport, USB_OTG_DeviceTypeDef * dev, USB_OT
           if(packet_size > ((in_ep[n].DTXFSTS & USB_OTG_DTXFSTS_INEPTFSAV_Msk) << 2)){
             break;
           }
+
+          // TODO: TAKE CARE OF ISO FIFO!
 
           // Push packet to Tx-FIFO
           write_fifo_packet(rhport, n, xfer->buffer, packet_size);
