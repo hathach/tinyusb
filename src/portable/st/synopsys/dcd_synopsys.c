@@ -158,7 +158,7 @@ static inline uint16_t calc_rx_ff_size(uint16_t ep_size)
   return 15 + 2*ep_size + 2*EP_MAX;
 }
 
-static inline void update_grxfsiz()
+static inline void update_grxfsiz(void)
 {
   // If an OUT EP was closed update (reduce) the RX FIFO size if RX FIFO is empty - since this function handle_rxflvl_ints() gets looped from dcd_int_handler() until RX FIFO is empty it is guaranteed to be entered
   if (_rx_ep_closed)
