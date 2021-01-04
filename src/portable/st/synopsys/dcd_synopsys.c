@@ -585,18 +585,6 @@ bool dcd_edpt_open (uint8_t rhport, tusb_desc_endpoint_t const * desc_edpt)
     // "USB Data FIFOs" section in reference manual
     // Peripheral FIFO architecture
     //
-    // The FIFO is split up in a lower part where the RX FIFO is located and an upper part where the TX FIFOs start.
-    // We do this to allow the RX FIFO to grow dynamically which is possible since the free space is located
-    // between the RX and TX FIFOs. This is required by ISO OUT EPs which need a bigger FIFO than the standard
-    // configuration done below.
-    //
-    // Dynamically FIFO sizes are of interest only for ISO EPs since all others are usually not opened and closed.
-    // All EPs other than ISO are opened as soon as the driver starts up i.e. when the host sends a
-    // configure interface command. Hence, all IN EPs other the ISO will be located at the top. IN ISO EPs are usually
-    // opened when the host sends an additional command: setInterface. At this point in time
-    // the ISO EP will be located next to the free space and can change its size. In case more IN EPs change its size
-    // an additional memory
-    //
     // --------------- 320 or 1024 ( 1280 or 4096 bytes )
     // | IN FIFO 0   |
     // --------------- (320 or 1024) - 16
