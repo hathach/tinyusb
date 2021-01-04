@@ -151,6 +151,36 @@ static uint16_t ep0_pending[2];                   // Index determines direction 
 static uint16_t _allocated_fifo_words_tx;         // TX FIFO size in words (IN EPs)
 static bool _rx_ep_closed;                        // Flag to check if RX FIFO size needs an update (reduce its size)
 
+// Calculate the RX FIFO size according to recommendations from reference manual
+// ep_size in words
+static inline uint16_t calc_rx_ff_size(uint16_t ep_size)
+{
+  return 15 + 2*ep_size + 2*EP_MAX;
+}
+
+static inline void update_grxfsiz()
+{
+  // If an OUT EP was closed update (reduce) the RX FIFO size if RX FIFO is empty - since this function handle_rxflvl_ints() gets looped from dcd_int_handler() until RX FIFO is empty it is guaranteed to be entered
+  if (_rx_ep_closed)
+  {
+    USB_OTG_GlobalTypeDef * usb_otg = GLOBAL_BASE(rhport);
+
+    // Determine largest EP size for RX FIFO
+    uint16_t sz = xfer_status[0][TUSB_DIR_OUT].max_size;
+
+    for (uint8_t cnt = 1; cnt < EP_MAX; cnt++)
+    {
+      if (sz < xfer_status[cnt][TUSB_DIR_OUT].max_size) sz = xfer_status[cnt][TUSB_DIR_OUT].max_size;
+    }
+
+    // Update size of RX FIFO
+    usb_otg->GRXFSIZ = calc_rx_ff_size(sz/4);     // sz was in bytes and is now needed in words
+
+    // Disable flag
+    _rx_ep_closed = false;
+  }
+}
+
 // Setup the control endpoint 0.
 static void bus_reset(uint8_t rhport)
 {
@@ -223,12 +253,12 @@ static void bus_reset(uint8_t rhport)
   //   overwrite this.
 
 #if TUD_OPT_HIGH_SPEED
-  usb_otg->GRXFSIZ = 271 + 2*EP_MAX;
+  usb_otg->GRXFSIZ = calc_rx_ff_size(128);
 #else
-  usb_otg->GRXFSIZ =  47 + 2*EP_MAX;
+  usb_otg->GRXFSIZ = calc_rx_ff_size(16);
 #endif
 
-  _allocated_fifo_words_tx += 16;
+  _allocated_fifo_words_tx = 16;
 
   // Control IN uses FIFO 0 with 64 bytes ( 16 32-bit word )
   usb_otg->DIEPTXF0_HNPTXFSIZ = (16 << USB_OTG_TX0FD_Pos) | (EP_FIFO_SIZE/4 - _allocated_fifo_words_tx);
@@ -563,7 +593,7 @@ bool dcd_edpt_open (uint8_t rhport, tusb_desc_endpoint_t const * desc_edpt)
   if(dir == TUSB_DIR_OUT)
   {
     // Calculate required size of RX FIFO
-    uint16_t const sz = 15 + 2*fifo_size + 2*EP_MAX;
+    uint16_t const sz = calc_rx_ff_size(fifo_size);
 
     // If size_rx needs to be extended check if possible and if so enlarge it
     if (usb_otg->GRXFSIZ < sz)
@@ -602,10 +632,6 @@ bool dcd_edpt_open (uint8_t rhport, tusb_desc_endpoint_t const * desc_edpt)
     //
     // In FIFO is allocated by following rules:
     // - IN EP 1 gets FIFO 1, IN EP "n" gets FIFO "n".
-    // - Offset: allocated so far
-    // - Size
-    //    - Interrupt is EPSize
-    //    - Bulk/ISO is max(EPSize, remaining-fifo / non-opened-EPIN)
 
     // Check if free space is available
     TU_ASSERT(_allocated_fifo_words_tx + fifo_size + usb_otg->GRXFSIZ <= EP_FIFO_SIZE/4);
@@ -892,24 +918,6 @@ static void handle_rxflvl_ints(uint8_t rhport, USB_OTG_OUTEndpointTypeDef * out_
       TU_BREAKPOINT();
       break;
   }
-
-  // If an OUT EP was closed update (reduce) the RX FIFO size if RX FIFO is empty - since this function handle_rxflvl_ints() gets looped from dcd_int_handler() until RX FIFO is empty it is guaranteed to be entered
-  if (_rx_ep_closed && (usb_otg->GINTSTS & USB_OTG_GINTSTS_RXFLVL))
-  {
-    // Determine largest EP size for RX FIFO
-    uint16_t sz = xfer_status[0][TUSB_DIR_OUT].max_size;
-
-    for (uint8_t cnt = 1; cnt < EP_MAX; cnt++)
-    {
-      if (sz < xfer_status[cnt][TUSB_DIR_OUT].max_size) sz = xfer_status[cnt][TUSB_DIR_OUT].max_size;
-    }
-
-    // Update size of RX FIFO
-    usb_otg->GRXFSIZ = 15 + 2*sz/4 + 2*EP_MAX;        // sz was in bytes and is now needed in words
-
-    // Disable flag
-    _rx_ep_closed = false;
-  }
 }
 
 static void handle_epout_ints(uint8_t rhport, USB_OTG_DeviceTypeDef * dev, USB_OTG_OUTEndpointTypeDef * out_ep) {
@@ -1073,6 +1081,9 @@ void dcd_int_handler(uint8_t rhport)
       handle_rxflvl_ints(rhport, out_ep);
       int_status = usb_otg->GINTSTS;
     } while(int_status & USB_OTG_GINTSTS_RXFLVL);
+
+    // Manage RX FIFO size
+    update_grxfsiz();
 
     usb_otg->GINTMSK |= USB_OTG_GINTMSK_RXFLVLM;
   }
