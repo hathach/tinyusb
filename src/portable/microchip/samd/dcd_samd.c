@@ -37,14 +37,20 @@
 /* MACRO TYPEDEF CONSTANT ENUM
  *------------------------------------------------------------------*/
 static TU_ATTR_ALIGNED(4) UsbDeviceDescBank sram_registers[8][2];
-static TU_ATTR_ALIGNED(4) uint8_t _setup_packet[8];
+
+// Setup packet is only 8 bytes in length. However under certain scenario,
+// SAMD21 USB DMA controller is "suspected" to overwrite/overflow the setup_packet with 2 extra bytes.
+// Which corrupt other variable and cause issue such as
+//    https://github.com/adafruit/circuitpython/issues/3912 (on macOS)
+// Therefore we increase it to 12 bytes as walk-around until figuring out the root cause
+static TU_ATTR_ALIGNED(4) uint8_t _setup_packet[8+4];
 
 // ready for receiving SETUP packet
 static inline void prepare_setup(void)
 {
   // Only make sure the EP0 OUT buffer is ready
   sram_registers[0][0].ADDR.reg = (uint32_t) _setup_packet;
-  sram_registers[0][0].PCKSIZE.bit.MULTI_PACKET_SIZE = sizeof(_setup_packet);
+  sram_registers[0][0].PCKSIZE.bit.MULTI_PACKET_SIZE = sizeof(tusb_control_request_t);
   sram_registers[0][0].PCKSIZE.bit.BYTE_COUNT = 0;
 }
 
