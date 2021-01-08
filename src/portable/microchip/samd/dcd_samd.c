@@ -45,7 +45,7 @@ static TU_ATTR_ALIGNED(4) UsbDeviceDescBank sram_registers[8][2];
 //    PCKSIZE.SIZE minus one, only the first CRC data is written to the data buffer.
 //    If the number of received data is equal or less than the data payload specified
 //    by PCKSIZE.SIZE minus two, both CRC data bytes are written to the data buffer.
-// Therefore we will increase it to 10 bytes just to be safe
+// Therefore we will need to increase it to 10 bytes here.
 static TU_ATTR_ALIGNED(4) uint8_t _setup_packet[8+2];
 
 // ready for receiving SETUP packet
