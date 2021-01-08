@@ -165,14 +165,14 @@ static void update_grxfsiz(uint8_t rhport)
   USB_OTG_GlobalTypeDef * usb_otg = GLOBAL_BASE(rhport);
 
   // Determine largest EP size for RX FIFO
-  uint16_t sz = 0;
+  uint16_t max_epsize = 0;
   for (uint8_t epnum = 0; epnum < EP_MAX; epnum++)
   {
-    sz = tu_max16(sz, xfer_status[epnum][TUSB_DIR_OUT].max_size);
+    max_epsize = tu_max16(max_epsize, xfer_status[epnum][TUSB_DIR_OUT].max_size);
   }
 
   // Update size of RX FIFO
-  usb_otg->GRXFSIZ = calc_rx_ff_size(sz);
+  usb_otg->GRXFSIZ = calc_rx_ff_size(max_epsize);
 }
 
 // Setup the control endpoint 0.
