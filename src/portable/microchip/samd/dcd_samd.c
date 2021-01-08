@@ -39,11 +39,14 @@
 static TU_ATTR_ALIGNED(4) UsbDeviceDescBank sram_registers[8][2];
 
 // Setup packet is only 8 bytes in length. However under certain scenario,
-// SAMD21 USB DMA controller is "suspected" to overwrite/overflow the setup_packet with 2 extra bytes.
-// Which corrupt other variable and cause issue such as
-//    https://github.com/adafruit/circuitpython/issues/3912 (on macOS)
-// Therefore we increase it to 12 bytes as walk-around until figuring out the root cause
-static TU_ATTR_ALIGNED(4) uint8_t _setup_packet[8+4];
+// USB DMA controller may decide to overwrite/overflow the buffer  with
+// 2 extra bytes of CRC. From datasheet's "Management of SETUP Transactions" section
+//    If the number of received data bytes is the maximum data payload specified by
+//    PCKSIZE.SIZE minus one, only the first CRC data is written to the data buffer.
+//    If the number of received data is equal or less than the data payload specified
+//    by PCKSIZE.SIZE minus two, both CRC data bytes are written to the data buffer.
+// Therefore we will increase it to 10 bytes just to be safe
+static TU_ATTR_ALIGNED(4) uint8_t _setup_packet[8+2];
 
 // ready for receiving SETUP packet
 static inline void prepare_setup(void)
