@@ -547,7 +547,7 @@ void dcd_int_handler(uint8_t rhport) {
     // USBRST is start of reset.
     clear_istr_bits(USB_ISTR_RESET);
     dcd_handle_bus_reset();
-    dcd_event_bus_signal(0, DCD_EVENT_BUS_RESET, true);
+    dcd_event_bus_reset(0, TUSB_SPEED_FULL, true);
     return; // Don't do the rest of the things here; perhaps they've been cleared?
   }
 

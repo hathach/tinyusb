@@ -224,7 +224,7 @@ static void process_bus_reset(uint8_t rhport)
   _dcd.addr = 0;
   prepare_next_setup_packet(rhport);
   KHCI->CTL &= ~USB_CTL_ODDRST_MASK;
-  dcd_event_bus_signal(rhport, DCD_EVENT_BUS_RESET, true);
+  dcd_event_bus_reset(rhport, TUSB_SPEED_FULL, true);
 }
 
 static void process_bus_inactive(uint8_t rhport)
