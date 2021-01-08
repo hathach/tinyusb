@@ -158,7 +158,7 @@ static inline uint16_t calc_rx_ff_size(uint16_t ep_size)
   return 15 + 2*(ep_size/4) + 2*EP_MAX;
 }
 
-static inline void update_grxfsiz(uint8_t rhport)
+static void update_grxfsiz(uint8_t rhport)
 {
   (void) rhport;
 
