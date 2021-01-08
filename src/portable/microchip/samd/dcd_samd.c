@@ -37,14 +37,23 @@
 /* MACRO TYPEDEF CONSTANT ENUM
  *------------------------------------------------------------------*/
 static TU_ATTR_ALIGNED(4) UsbDeviceDescBank sram_registers[8][2];
-static TU_ATTR_ALIGNED(4) uint8_t _setup_packet[8];
+
+// Setup packet is only 8 bytes in length. However under certain scenario,
+// USB DMA controller may decide to overwrite/overflow the buffer  with
+// 2 extra bytes of CRC. From datasheet's "Management of SETUP Transactions" section
+//    If the number of received data bytes is the maximum data payload specified by
+//    PCKSIZE.SIZE minus one, only the first CRC data is written to the data buffer.
+//    If the number of received data is equal or less than the data payload specified
+//    by PCKSIZE.SIZE minus two, both CRC data bytes are written to the data buffer.
+// Therefore we will need to increase it to 10 bytes here.
+static TU_ATTR_ALIGNED(4) uint8_t _setup_packet[8+2];
 
 // ready for receiving SETUP packet
 static inline void prepare_setup(void)
 {
   // Only make sure the EP0 OUT buffer is ready
   sram_registers[0][0].ADDR.reg = (uint32_t) _setup_packet;
-  sram_registers[0][0].PCKSIZE.bit.MULTI_PACKET_SIZE = sizeof(_setup_packet);
+  sram_registers[0][0].PCKSIZE.bit.MULTI_PACKET_SIZE = sizeof(tusb_control_request_t);
   sram_registers[0][0].PCKSIZE.bit.BYTE_COUNT = 0;
 }
 
