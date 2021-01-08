@@ -45,13 +45,13 @@
 #define STM32L4_SYNOPSYS
 #endif
 
-#if TUSB_OPT_DEVICE_ENABLED && \
+#if TUSB_OPT_DEVICE_ENABLED &&                                          \
     ( (CFG_TUSB_MCU == OPT_MCU_STM32F1 && defined(STM32F1_SYNOPSYS)) || \
-        CFG_TUSB_MCU == OPT_MCU_STM32F2 || \
-        CFG_TUSB_MCU == OPT_MCU_STM32F4 || \
-        CFG_TUSB_MCU == OPT_MCU_STM32F7 || \
-        CFG_TUSB_MCU == OPT_MCU_STM32H7 || \
-        (CFG_TUSB_MCU == OPT_MCU_STM32L4 && defined(STM32L4_SYNOPSYS)) \
+       CFG_TUSB_MCU == OPT_MCU_STM32F2                               || \
+       CFG_TUSB_MCU == OPT_MCU_STM32F4                               || \
+       CFG_TUSB_MCU == OPT_MCU_STM32F7                               || \
+       CFG_TUSB_MCU == OPT_MCU_STM32H7                               || \
+      (CFG_TUSB_MCU == OPT_MCU_STM32L4 && defined(STM32L4_SYNOPSYS))    \
     )
 
 // EP_MAX       : Max number of bi-directional endpoints including EP0
@@ -115,6 +115,7 @@
 #define EP_FIFO_SIZE      EP_FIFO_SIZE_HS
 #define RHPORT_REGS_BASE  USB_OTG_HS_PERIPH_BASE
 #define RHPORT_IRQn       OTG_HS_IRQn
+
 #endif
 
 #define GLOBAL_BASE(_port)     ((USB_OTG_GlobalTypeDef*) RHPORT_REGS_BASE)
@@ -152,33 +153,27 @@ static uint16_t _allocated_fifo_words_tx;         // TX FIFO size in words (IN E
 static bool _rx_ep_closed;                        // Flag to check if RX FIFO size needs an update (reduce its size)
 
 // Calculate the RX FIFO size according to recommendations from reference manual
-// ep_size in words
 static inline uint16_t calc_rx_ff_size(uint16_t ep_size)
 {
-  return 15 + 2*ep_size + 2*EP_MAX;
+  return 15 + 2*(ep_size/4) + 2*EP_MAX;
 }
 
-static inline void update_grxfsiz(void)
+static inline void update_grxfsiz(uint8_t rhport)
 {
-  // If an OUT EP was closed update (reduce) the RX FIFO size if RX FIFO is empty - since this function handle_rxflvl_ints() gets looped from dcd_int_handler() until RX FIFO is empty it is guaranteed to be entered
-  if (_rx_ep_closed)
+  (void) rhport;
+
+  USB_OTG_GlobalTypeDef * usb_otg = GLOBAL_BASE(rhport);
+
+  // Determine largest EP size for RX FIFO
+  uint16_t sz = xfer_status[0][TUSB_DIR_OUT].max_size;
+
+  for (uint8_t cnt = 1; cnt < EP_MAX; cnt++)
   {
-    USB_OTG_GlobalTypeDef * usb_otg = GLOBAL_BASE(rhport);
-
-    // Determine largest EP size for RX FIFO
-    uint16_t sz = xfer_status[0][TUSB_DIR_OUT].max_size;
-
-    for (uint8_t cnt = 1; cnt < EP_MAX; cnt++)
-    {
-      if (sz < xfer_status[cnt][TUSB_DIR_OUT].max_size) sz = xfer_status[cnt][TUSB_DIR_OUT].max_size;
-    }
-
-    // Update size of RX FIFO
-    usb_otg->GRXFSIZ = calc_rx_ff_size(sz/4);     // sz was in bytes and is now needed in words
-
-    // Disable flag
-    _rx_ep_closed = false;
+    if (sz < xfer_status[cnt][TUSB_DIR_OUT].max_size) sz = xfer_status[cnt][TUSB_DIR_OUT].max_size;
   }
+
+  // Update size of RX FIFO
+  usb_otg->GRXFSIZ = calc_rx_ff_size(sz);
 }
 
 // Setup the control endpoint 0.
@@ -252,11 +247,7 @@ static void bus_reset(uint8_t rhport)
   //   are enabled at least "2 x (Largest-EPsize/4) + 1" are recommended.  Maybe provide a macro for application to
   //   overwrite this.
 
-#if TUD_OPT_HIGH_SPEED
-  usb_otg->GRXFSIZ = calc_rx_ff_size(128);
-#else
-  usb_otg->GRXFSIZ = calc_rx_ff_size(16);
-#endif
+  usb_otg->GRXFSIZ = calc_rx_ff_size(TUD_OPT_HIGH_SPEED ? 512 : 64);
 
   _allocated_fifo_words_tx = 16;
 
@@ -588,12 +579,12 @@ bool dcd_edpt_open (uint8_t rhport, tusb_desc_endpoint_t const * desc_edpt)
   xfer->max_size = desc_edpt->wMaxPacketSize.size;
   xfer->interval = desc_edpt->bInterval;
 
-  uint16_t const fifo_size = tu_max16((desc_edpt->wMaxPacketSize.size + 3) / 4, 16); // Round up to next full word, minimum value must be 16
+  uint16_t const fifo_size = (desc_edpt->wMaxPacketSize.size + 3) / 4; // Round up to next full word
 
   if(dir == TUSB_DIR_OUT)
   {
     // Calculate required size of RX FIFO
-    uint16_t const sz = calc_rx_ff_size(fifo_size);
+    uint16_t const sz = calc_rx_ff_size(4*fifo_size);
 
     // If size_rx needs to be extended check if possible and if so enlarge it
     if (usb_otg->GRXFSIZ < sz)
@@ -1020,13 +1011,15 @@ void dcd_int_handler(uint8_t rhport)
 
   uint32_t int_status = usb_otg->GINTSTS;
 
-  if(int_status & USB_OTG_GINTSTS_USBRST) {
+  if(int_status & USB_OTG_GINTSTS_USBRST)
+  {
     // USBRST is start of reset.
     usb_otg->GINTSTS = USB_OTG_GINTSTS_USBRST;
     bus_reset(rhport);
   }
 
-  if(int_status & USB_OTG_GINTSTS_ENUMDNE) {
+  if(int_status & USB_OTG_GINTSTS_ENUMDNE)
+  {
     // ENUMDNE is the end of reset where speed of the link is detected
 
     usb_otg->GINTSTS = USB_OTG_GINTSTS_ENUMDNE;
@@ -1063,39 +1056,50 @@ void dcd_int_handler(uint8_t rhport)
   }
 
 #if USE_SOF
-  if(int_status & USB_OTG_GINTSTS_SOF) {
+  if(int_status & USB_OTG_GINTSTS_SOF)
+  {
     usb_otg->GINTSTS = USB_OTG_GINTSTS_SOF;
     dcd_event_bus_signal(rhport, DCD_EVENT_SOF, true);
   }
 #endif
 
   // RxFIFO non-empty interrupt handling.
-  if(int_status & USB_OTG_GINTSTS_RXFLVL) {
+  if(int_status & USB_OTG_GINTSTS_RXFLVL)
+  {
     // RXFLVL bit is read-only
 
     // Mask out RXFLVL while reading data from FIFO
     usb_otg->GINTMSK &= ~USB_OTG_GINTMSK_RXFLVLM;
 
     // Loop until all available packets were handled
-    do {
+    do
+    {
       handle_rxflvl_ints(rhport, out_ep);
       int_status = usb_otg->GINTSTS;
     } while(int_status & USB_OTG_GINTSTS_RXFLVL);
 
     // Manage RX FIFO size
-    update_grxfsiz();
+    if (_rx_ep_closed)
+    {
+      update_grxfsiz(rhport);
+
+      // Disable flag
+      _rx_ep_closed = false;
+    }
 
     usb_otg->GINTMSK |= USB_OTG_GINTMSK_RXFLVLM;
   }
 
   // OUT endpoint interrupt handling.
-  if(int_status & USB_OTG_GINTSTS_OEPINT) {
+  if(int_status & USB_OTG_GINTSTS_OEPINT)
+  {
     // OEPINT is read-only
     handle_epout_ints(rhport, dev, out_ep);
   }
 
   // IN endpoint interrupt handling.
-  if(int_status & USB_OTG_GINTSTS_IEPINT) {
+  if(int_status & USB_OTG_GINTSTS_IEPINT)
+  {
     // IEPINT bit read-only
     handle_epin_ints(rhport, dev, in_ep);
   }
