@@ -150,7 +150,7 @@ static uint16_t ep0_pending[2];                   // Index determines direction 
 
 // TX FIFO RAM allocation so far in words - RX FIFO size is readily available from usb_otg->GRXFSIZ
 static uint16_t _allocated_fifo_words_tx;         // TX FIFO size in words (IN EPs)
-static bool _rx_ep_closed;                        // Flag to check if RX FIFO size needs an update (reduce its size)
+static bool _out_ep_closed;                       // Flag to check if RX FIFO size needs an update (reduce its size)
 
 // Calculate the RX FIFO size according to recommendations from reference manual
 static inline uint16_t calc_rx_ff_size(uint16_t ep_size)
@@ -165,11 +165,10 @@ static inline void update_grxfsiz(uint8_t rhport)
   USB_OTG_GlobalTypeDef * usb_otg = GLOBAL_BASE(rhport);
 
   // Determine largest EP size for RX FIFO
-  uint16_t sz = xfer_status[0][TUSB_DIR_OUT].max_size;
-
-  for (uint8_t cnt = 1; cnt < EP_MAX; cnt++)
+  uint16_t sz = 0;
+  for (uint8_t epnum = 0; epnum < EP_MAX; epnum++)
   {
-    if (sz < xfer_status[cnt][TUSB_DIR_OUT].max_size) sz = xfer_status[cnt][TUSB_DIR_OUT].max_size;
+    sz = tu_max16(sz, xfer_status[epnum][TUSB_DIR_OUT].max_size);
   }
 
   // Update size of RX FIFO
@@ -187,7 +186,7 @@ static void bus_reset(uint8_t rhport)
   USB_OTG_INEndpointTypeDef * in_ep = IN_EP_BASE(rhport);
 
   tu_memclr(xfer_status, sizeof(xfer_status));
-  _rx_ep_closed = false;
+  _out_ep_closed = false;
 
   for(uint8_t n = 0; n < EP_MAX; n++) {
     out_ep[n].DOEPCTL |= USB_OTG_DOEPCTL_SNAK;
@@ -755,7 +754,7 @@ void dcd_edpt_close (uint8_t rhport, uint8_t ep_addr)
   }
   else
   {
-    _rx_ep_closed = true;     // Set flag such that RX FIFO gets reduced in size once RX FIFO is empty
+    _out_ep_closed = true;     // Set flag such that RX FIFO gets reduced in size once RX FIFO is empty
   }
 }
 
@@ -1079,12 +1078,12 @@ void dcd_int_handler(uint8_t rhport)
     } while(int_status & USB_OTG_GINTSTS_RXFLVL);
 
     // Manage RX FIFO size
-    if (_rx_ep_closed)
+    if (_out_ep_closed)
     {
       update_grxfsiz(rhport);
 
       // Disable flag
-      _rx_ep_closed = false;
+      _out_ep_closed = false;
     }
 
     usb_otg->GINTMSK |= USB_OTG_GINTMSK_RXFLVLM;
