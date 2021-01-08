@@ -332,7 +332,7 @@ static void dcd_reset(void)
   usb_out_ev_enable_write(1);
   usb_setup_ev_enable_write(3);
 
-  dcd_event_bus_signal(0, DCD_EVENT_BUS_RESET, true);
+  dcd_event_bus_reset(0, TUSB_SPEED_FULL, true);
 }
 
 // Initializes the USB peripheral for device mode and enables it.
