@@ -232,9 +232,9 @@ bool dcd_edpt_open (uint8_t rhport, tusb_desc_endpoint_t const * desc_edpt)
   uint8_t const epnum = tu_edpt_number(desc_edpt->bEndpointAddress);
   uint8_t const dir   = tu_edpt_dir(desc_edpt->bEndpointAddress);
 
-  // Unsupported endpoint numbers/size or type (Iso not supported. Control
+  // Unsupported endpoint numbers or type (Iso not supported. Control
   // not supported on nonzero endpoints).
-  if((desc_edpt->wMaxPacketSize.size > 64) || (epnum > 7) || \
+  if( (epnum > 7) || \
       (desc_edpt->bmAttributes.xfer == 0) || \
       (desc_edpt->bmAttributes.xfer == 1)) {
     return false;
@@ -572,7 +572,7 @@ void dcd_int_handler(uint8_t rhport)
   {
     case USBVECINT_RSTR:
       bus_reset();
-      dcd_event_bus_signal(0, DCD_EVENT_BUS_RESET, true);
+      dcd_event_bus_reset(0, TUSB_SPEED_FULL, true);
       break;
 
     // Clear the (hardware-enforced) NAK on EP 0 after a SETUP packet

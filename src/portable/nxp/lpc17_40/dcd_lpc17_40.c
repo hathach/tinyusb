@@ -471,7 +471,7 @@ static void bus_event_isr(uint8_t rhport)
   if (dev_status & SIE_DEV_STATUS_RESET_MASK)
   {
     bus_reset();
-    dcd_event_bus_signal(rhport, DCD_EVENT_BUS_RESET, true);
+    dcd_event_bus_reset(rhport, TUSB_SPEED_FULL, true);
   }
 
   if (dev_status & SIE_DEV_STATUS_CONNECT_CHANGE_MASK)
