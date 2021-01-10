@@ -28,6 +28,8 @@ SRC_C += \
 	$(MCU_DIR)/drivers/fsl_flexcomm.c 
 
 INC += \
+    $(TOP)/hw/bsp/ \
+	$(TOP)/hw/bsp/$(BOARD) \
 	$(TOP)/$(MCU_DIR)/../../CMSIS/Include \
 	$(TOP)/$(MCU_DIR) \
 	$(TOP)/$(MCU_DIR)/drivers

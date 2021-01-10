@@ -29,7 +29,9 @@
 #include "fsl_gpio.h"
 #include "fsl_power.h"
 #include "fsl_iocon.h"
+#include "fsl_usart.h"
 #include "fsl_sctimer.h"
+#include "neopixel.h"
 
 //--------------------------------------------------------------------+
 // Forward USB interrupt events to TinyUSB IRQ Handler
@@ -60,6 +62,7 @@ void USB1_IRQHandler(void)
 #define NEOPIXEL_NUMBER       2
 #define NEOPIXEL_PORT         0
 #define NEOPIXEL_PIN          27
+#define NEOPIXEL_CH           6
 
 // UART
 #define UART_DEV              USART0
@@ -80,142 +83,10 @@ void USB1_IRQHandler(void)
 #define IOCON_PIO_DIG_FUNC4_EN   (IOCON_PIO_DIGITAL_EN | IOCON_PIO_FUNC4) /*!<@brief Digital pin function 2 enabled */
 #define IOCON_PIO_DIG_FUNC7_EN   (IOCON_PIO_DIGITAL_EN | IOCON_PIO_FUNC7) /*!<@brief Digital pin function 2 enabled */
 
-//--------------------------------------------------------------------+
-// Neopixel Driver
-//--------------------------------------------------------------------+
-#define NEO_SCT           SCT0
-#define NEO_MATCH_PERIOD  0
-#define NEO_MATCH_0       1
-#define NEO_MATCH_1       2
-#define NEO_EVENT_RISE    2
-#define NEO_EVENT_FALL_0  0
-#define NEO_EVENT_FALL_1  1
-#define NEO_EVENT_NEXT    3
-#define NEO_EVENT_START   4
-#define NEO_SCT_OUTPUT    6
-#define NEO_STATE_IDLE    24
-//#define NEO_ARRAY_SIZE    (3 * NEOPIXEL_NUMBER)
 
-//volatile uint32_t _neopixel_array[NEO_ARRAY_SIZE] = {0x10, 0x20, 0x30, 0x40, 0x50, 0x60};
-volatile uint32_t _neopixel_array[NEOPIXEL_NUMBER] = {0x404040, 0x202020};
-volatile uint32_t _neopixel_count = 0;
-
-void neopixel_int_handler(void){
-  uint32_t eventFlag = NEO_SCT->EVFLAG;
-  if (eventFlag & (1 << NEO_EVENT_NEXT)) {
-    _neopixel_count += 1;
-    if (_neopixel_count < (NEOPIXEL_NUMBER)) {
-      NEO_SCT->EV[NEO_EVENT_FALL_0].STATE = 0xFFFFFF & (~_neopixel_array[_neopixel_count]);
-      NEO_SCT->CTRL &= ~(SCT_CTRL_HALT_L_MASK);
-    }
-  }
-  NEO_SCT->EVFLAG = eventFlag;
-}
-
-void SCT0_DriverIRQHandler(void){
-  neopixel_int_handler();
-  SDK_ISR_EXIT_BARRIER;
-}
-
-void neopixel_set(uint32_t pixel, uint32_t color){
-  if (pixel < NEOPIXEL_NUMBER) { 
-    _neopixel_array[pixel] = color;
-  }
-}
-
-void neopixel_update(void){
-//  while (NEO_SCT->CTRL & SCT_CTRL_HALT_L_MASK);
-  _neopixel_count = 0;
-  NEO_SCT->EV[NEO_EVENT_FALL_0].STATE = 0xFFFFFF & (~_neopixel_array[0]);
-  NEO_SCT->CTRL &= ~(SCT_CTRL_HALT_L_MASK);
-}
-
-
-/*
-void neopixel_int_handler(void){
-  uint32_t eventFlag = NEO_SCT->EVFLAG;
-//  if ((eventFlag & (1 << NEO_EVENT_NEXT)) && (_neopixel_count < (NEO_ARRAY_SIZE))) {
-//    NEO_SCT->EV[NEO_EVENT_FALL_0].STATE = 0xFF & (~_neopixel_array[_neopixel_count]);
-  if ((eventFlag & (1 << NEO_EVENT_NEXT)) && (_neopixel_count < (NEOPIXEL_NUMBER))) {
-    _neopixel_count += 1;
-    NEO_SCT->EV[NEO_EVENT_FALL_0].STATE = 0xFFFFFF & (~_neopixel_array[_neopixel_count]);
-    NEO_SCT->EVFLAG = eventFlag;
-    NEO_SCT->CTRL &= ~(SCT_CTRL_HALT_L_MASK);
-  } else {
-    NEO_SCT->EVFLAG = eventFlag;
-  }
-}
-
-void SCT0_DriverIRQHandler(void){
-  neopixel_int_handler();
-  SDK_ISR_EXIT_BARRIER;
-}
-
-void neopixel_update(uint32_t pixel, uint32_t color){
-  if (pixel < NEOPIXEL_NUMBER) { 
-    _neopixel_array[pixel] = color;
-    _neopixel_count = 0;
-//    NEO_SCT->EV[NEO_EVENT_FALL_0].STATE = 0xFF & (~_neopixel_array[0]);
-    NEO_SCT->EV[NEO_EVENT_FALL_0].STATE = 0xFFFFFF & (~_neopixel_array[0]);
-    NEO_SCT->CTRL &= ~(SCT_CTRL_HALT_L_MASK);
-  }
-}
-*/
-void neopixel_init(void) {
-  CLOCK_EnableClock(kCLOCK_Sct0);
-  RESET_PeripheralReset(kSCT0_RST_SHIFT_RSTn);
-
-  NEO_SCT->CONFIG = (
-    SCT_CONFIG_UNIFY(1) | 
-    SCT_CONFIG_CLKMODE(kSCTIMER_System_ClockMode) | 
-    SCT_CONFIG_NORELOAD_L(1) );
-  NEO_SCT->CTRL = ( 
-    SCT_CTRL_HALT_L(1) |
-    SCT_CTRL_CLRCTR_L(1) );
-
-  NEO_SCT->MATCH[NEO_MATCH_PERIOD] = 120;
-  NEO_SCT->MATCH[NEO_MATCH_0] = 30;
-  NEO_SCT->MATCH[NEO_MATCH_1] = 60;
-  NEO_SCT->EV[NEO_EVENT_START].STATE = (1 << NEO_STATE_IDLE);
-  NEO_SCT->EV[NEO_EVENT_START].CTRL = (
-    kSCTIMER_OutputLowEvent | SCT_EV_CTRL_IOSEL(NEO_SCT_OUTPUT) | 
-    SCT_EV_CTRL_STATELD(1) | SCT_EV_CTRL_STATEV(23));
-//  NEO_SCT->EV[NEO_EVENT_RISE].STATE = 0xFE;
-  NEO_SCT->EV[NEO_EVENT_RISE].STATE = 0xFFFFFE;
-  NEO_SCT->EV[NEO_EVENT_RISE].CTRL = (
-    kSCTIMER_MatchEventOnly | SCT_EV_CTRL_MATCHSEL(NEO_MATCH_PERIOD) | 
-    SCT_EV_CTRL_STATELD(0) | SCT_EV_CTRL_STATEV(31));
-  NEO_SCT->EV[NEO_EVENT_FALL_0].STATE = 0x0;
-  NEO_SCT->EV[NEO_EVENT_FALL_0].CTRL = (
-    kSCTIMER_MatchEventOnly | SCT_EV_CTRL_MATCHSEL(NEO_MATCH_0) | 
-    SCT_EV_CTRL_STATELD(0) );
-//  NEO_SCT->EV[NEO_EVENT_FALL_1].STATE = 0xFF;
-  NEO_SCT->EV[NEO_EVENT_FALL_1].STATE = 0xFFFFFF;
-  NEO_SCT->EV[NEO_EVENT_FALL_1].CTRL = (
-    kSCTIMER_MatchEventOnly | SCT_EV_CTRL_MATCHSEL(NEO_MATCH_1) | 
-    SCT_EV_CTRL_STATELD(0) );
-  NEO_SCT->EV[NEO_EVENT_NEXT].STATE = 0x1;
-  NEO_SCT->EV[NEO_EVENT_NEXT].CTRL = (
-    kSCTIMER_MatchEventOnly | SCT_EV_CTRL_MATCHSEL(NEO_MATCH_PERIOD) | 
-    SCT_EV_CTRL_STATELD(1) | SCT_EV_CTRL_STATEV(NEO_STATE_IDLE));
-
-  NEO_SCT->LIMIT = (1 << NEO_EVENT_START) | (1 << NEO_EVENT_RISE) | (1 << NEO_EVENT_NEXT);
-  NEO_SCT->HALT = (1 << NEO_EVENT_NEXT);
-  NEO_SCT->START = (1 << NEO_EVENT_START);
-
-  NEO_SCT->OUT[NEO_SCT_OUTPUT].SET = (1 << NEO_EVENT_START) | (1 << NEO_EVENT_RISE);
-  NEO_SCT->OUT[NEO_SCT_OUTPUT].CLR = (1 << NEO_EVENT_FALL_0) | (1 << NEO_EVENT_FALL_1) | (1 << NEO_EVENT_NEXT);
-  
-  NEO_SCT->STATE = NEO_STATE_IDLE; 
-  NEO_SCT->OUTPUT = 0x0;
-  NEO_SCT->RES = SCT_RES_O6RES(0x2);
-  NEO_SCT->EVEN = (1 << NEO_EVENT_NEXT);
-  EnableIRQ(SCT0_IRQn);
-
-  neopixel_set(0, 0x101000);
-  neopixel_set(1, 0x101000);
-  neopixel_update();
-}
+// Global Variables
+uint32_t pixelData[NEOPIXEL_NUMBER];
+neopixel_config_t neoConfig;
 
 
 /****************************************************************
@@ -282,7 +153,34 @@ void board_init(void)
   /* PORT0 PIN27 configured as SCT0_OUT6 */
   IOCON_PinMuxSet(IOCON, NEOPIXEL_PORT, NEOPIXEL_PIN, IOCON_PIO_DIG_FUNC4_EN);
 
-  neopixel_init();
+  neoConfig.pixelData[0] = NULL; 
+  neoConfig.pixelCnt[0] = 0;
+  neoConfig.pixelData[1] = NULL; 
+  neoConfig.pixelCnt[1] = 0;
+  neoConfig.pixelData[2] = NULL; 
+  neoConfig.pixelCnt[2] = 0;
+  neoConfig.pixelData[3] = NULL; 
+  neoConfig.pixelCnt[3] = 0;
+  neoConfig.pixelData[4] = NULL; 
+  neoConfig.pixelCnt[4] = 0;
+  neoConfig.pixelData[5] = NULL; 
+  neoConfig.pixelCnt[5] = 0;
+  neoConfig.pixelData[6] = NULL; 
+  neoConfig.pixelCnt[6] = 0;
+  neoConfig.pixelData[7] = NULL; 
+  neoConfig.pixelCnt[7] = 0;
+  neoConfig.pixelData[8] = NULL; 
+  neoConfig.pixelCnt[8] = 0;
+  neoConfig.pixelData[9] = NULL; 
+  neoConfig.pixelCnt[9] = 0;
+  neoConfig.pixelData[NEOPIXEL_CH] = pixelData; 
+  neoConfig.pixelCnt[NEOPIXEL_CH] = NEOPIXEL_NUMBER;
+  neoConfig.syncUpdate = true;
+  neopixel_init(&neoConfig);
+  neopixel_setPixel(NEOPIXEL_CH, 0, 0x100010);
+  neopixel_setPixel(NEOPIXEL_CH, 1, 0x100010);
+  neopixel_refresh();
+
 
   // Button
   /* PORT0 PIN5 configured as PIO0_5 */
@@ -302,7 +200,7 @@ void board_init(void)
   CLOCK_AttachClk(kFRO12M_to_FLEXCOMM0);
   usart_config_t uart_config;
   USART_GetDefaultConfig(&uart_config);
-  uart_config.baudRate_Bps = BOARD_UART_BAUDRATE;
+  uart_config.baudRate_Bps = CFG_BOARD_UART_BAUDRATE;
   uart_config.enableTx     = true;
   uart_config.enableRx     = true;
   USART_Init(UART_DEV, &uart_config, 12000000);
@@ -359,13 +257,13 @@ void board_led_write(bool state)
 {
   GPIO_PinWrite(GPIO, LED_PORT, LED_PIN, state ? LED_STATE_ON : (1-LED_STATE_ON));
   if (state) {
-    neopixel_set(0, 0x100000);
-    neopixel_set(1, 0x101010);
+    neopixel_setPixel(NEOPIXEL_CH, 0, 0x100000);
+    neopixel_setPixel(NEOPIXEL_CH, 1, 0x101010);
   } else {
-    neopixel_set(0, 0x001000);
-    neopixel_set(1, 0x000010);
+    neopixel_setPixel(NEOPIXEL_CH, 0, 0x001000);
+    neopixel_setPixel(NEOPIXEL_CH, 1, 0x000010);
   }
-  neopixel_update();
+  neopixel_refresh();
 }
 
 uint32_t board_button_read(void)
