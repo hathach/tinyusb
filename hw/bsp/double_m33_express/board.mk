@@ -25,11 +25,13 @@ SRC_C += \
 	$(MCU_DIR)/drivers/fsl_power.c \
 	$(MCU_DIR)/drivers/fsl_reset.c \
 	$(MCU_DIR)/drivers/fsl_usart.c \
-	$(MCU_DIR)/drivers/fsl_flexcomm.c 
+	$(MCU_DIR)/drivers/fsl_flexcomm.c \
+	$(TOP)/lib/sct_neopixel/sct_neopixel.c 
 
 INC += \
     $(TOP)/hw/bsp/ \
 	$(TOP)/hw/bsp/$(BOARD) \
+	$(TOP)/lib/sct_neopixel \
 	$(TOP)/$(MCU_DIR)/../../CMSIS/Include \
 	$(TOP)/$(MCU_DIR) \
 	$(TOP)/$(MCU_DIR)/drivers

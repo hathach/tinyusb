@@ -31,7 +31,7 @@
 #include "fsl_iocon.h"
 #include "fsl_usart.h"
 #include "fsl_sctimer.h"
-#include "neopixel.h"
+#include "sct_neopixel.h"
 
 //--------------------------------------------------------------------+
 // Forward USB interrupt events to TinyUSB IRQ Handler
@@ -63,6 +63,7 @@ void USB1_IRQHandler(void)
 #define NEOPIXEL_PORT         0
 #define NEOPIXEL_PIN          27
 #define NEOPIXEL_CH           6
+#define NEOPIXEL_TYPE         0  
 
 // UART
 #define UART_DEV              USART0
@@ -86,8 +87,6 @@ void USB1_IRQHandler(void)
 
 // Global Variables
 uint32_t pixelData[NEOPIXEL_NUMBER];
-neopixel_config_t neoConfig;
-
 
 /****************************************************************
 name: BOARD_BootClockFROHF96M
@@ -153,33 +152,11 @@ void board_init(void)
   /* PORT0 PIN27 configured as SCT0_OUT6 */
   IOCON_PinMuxSet(IOCON, NEOPIXEL_PORT, NEOPIXEL_PIN, IOCON_PIO_DIG_FUNC4_EN);
 
-  neoConfig.pixelData[0] = NULL; 
-  neoConfig.pixelCnt[0] = 0;
-  neoConfig.pixelData[1] = NULL; 
-  neoConfig.pixelCnt[1] = 0;
-  neoConfig.pixelData[2] = NULL; 
-  neoConfig.pixelCnt[2] = 0;
-  neoConfig.pixelData[3] = NULL; 
-  neoConfig.pixelCnt[3] = 0;
-  neoConfig.pixelData[4] = NULL; 
-  neoConfig.pixelCnt[4] = 0;
-  neoConfig.pixelData[5] = NULL; 
-  neoConfig.pixelCnt[5] = 0;
-  neoConfig.pixelData[6] = NULL; 
-  neoConfig.pixelCnt[6] = 0;
-  neoConfig.pixelData[7] = NULL; 
-  neoConfig.pixelCnt[7] = 0;
-  neoConfig.pixelData[8] = NULL; 
-  neoConfig.pixelCnt[8] = 0;
-  neoConfig.pixelData[9] = NULL; 
-  neoConfig.pixelCnt[9] = 0;
-  neoConfig.pixelData[NEOPIXEL_CH] = pixelData; 
-  neoConfig.pixelCnt[NEOPIXEL_CH] = NEOPIXEL_NUMBER;
-  neoConfig.syncUpdate = true;
-  neopixel_init(&neoConfig);
-  neopixel_setPixel(NEOPIXEL_CH, 0, 0x100010);
-  neopixel_setPixel(NEOPIXEL_CH, 1, 0x100010);
-  neopixel_refresh();
+  sctpix_init(NEOPIXEL_TYPE);
+  sctpix_addCh(NEOPIXEL_CH, pixelData, NEOPIXEL_NUMBER);
+  sctpix_setPixel(NEOPIXEL_CH, 0, 0x100010);
+  sctpix_setPixel(NEOPIXEL_CH, 1, 0x100010);
+  sctpix_show();
 
 
   // Button
@@ -257,13 +234,13 @@ void board_led_write(bool state)
 {
   GPIO_PinWrite(GPIO, LED_PORT, LED_PIN, state ? LED_STATE_ON : (1-LED_STATE_ON));
   if (state) {
-    neopixel_setPixel(NEOPIXEL_CH, 0, 0x100000);
-    neopixel_setPixel(NEOPIXEL_CH, 1, 0x101010);
+    sctpix_setPixel(NEOPIXEL_CH, 0, 0x100000);
+    sctpix_setPixel(NEOPIXEL_CH, 1, 0x101010);
   } else {
-    neopixel_setPixel(NEOPIXEL_CH, 0, 0x001000);
-    neopixel_setPixel(NEOPIXEL_CH, 1, 0x000010);
+    sctpix_setPixel(NEOPIXEL_CH, 0, 0x001000);
+    sctpix_setPixel(NEOPIXEL_CH, 1, 0x000010);
   }
-  neopixel_refresh();
+  sctpix_show();
 }
 
 uint32_t board_button_read(void)
