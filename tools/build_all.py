@@ -40,8 +40,13 @@ all_examples.sort()
 all_boards = []
 
 for entry in os.scandir("hw/bsp"):
-    if entry.is_dir():
-        all_boards.append(entry.name)
+    if entry.is_dir() and entry.name != "esp32s2":
+        if os.path.isdir(entry.path + "/boards"):
+            # family directory
+            for subentry in os.scandir(entry.path + "/boards"):
+                if subentry.is_dir(): all_boards.append(subentry.name)
+        else:
+            all_boards.append(entry.name)
 
 if len(sys.argv) > 1:
     input_boards = list(set(all_boards).intersection(sys.argv))
@@ -67,14 +72,13 @@ def build_size(example, board):
 
 def skip_example(example, board):
     ex_dir = 'examples/' + example
+
     board_mk = 'hw/bsp/{}/board.mk'.format(board)
+    if not os.path.exists(board_mk):
+        board_mk = list(glob.iglob('hw/bsp/*/boards/{}/../../family.mk'.format(board)))[0]
 
     with open(board_mk) as mk:
         mk_contents = mk.read()
-
-        # Skip all ESP32-S2 board for CI
-        if 'CROSS_COMPILE = xtensa-esp32s2-elf-' in mk_contents:
-            return 1
 
         # Skip all OPT_MCU_NONE these are WIP port
         if '-DCFG_TUSB_MCU=OPT_MCU_NONE' in mk_contents:
