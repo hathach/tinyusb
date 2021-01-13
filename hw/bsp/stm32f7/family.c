@@ -60,6 +60,13 @@ void board_init(void)
   __HAL_RCC_GPIOB_CLK_ENABLE();
   __HAL_RCC_GPIOC_CLK_ENABLE();
   __HAL_RCC_GPIOD_CLK_ENABLE();
+  __HAL_RCC_GPIOH_CLK_ENABLE();  // ULPI NXT
+  __HAL_RCC_GPIOI_CLK_ENABLE();  // ULPI NXT
+
+#ifdef __HAL_RCC_GPIOJ_CLK_ENABLE
+  __HAL_RCC_GPIOJ_CLK_ENABLE();
+#endif
+
   UART_CLK_EN();
 
 #if CFG_TUSB_OS  == OPT_OS_NONE
@@ -102,7 +109,8 @@ void board_init(void)
   HAL_UART_Init(&UartHandle);
 
 #if BOARD_DEVICE_RHPORT_NUM == 0
-  /* Configure USB FS GPIOs */
+  // OTG_FS
+
   /* Configure DM DP Pins */
   GPIO_InitStruct.Pin = (GPIO_PIN_11 | GPIO_PIN_12);
   GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
@@ -131,7 +139,11 @@ void board_init(void)
   USB_OTG_FS->GCCFG |= USB_OTG_GCCFG_VBDEN;
 
 #else
-  /* Configure USB HS GPIOs */
+  // OTG_HS
+
+  #ifdef __HAL_RCC_OTGPHYC_CLK_ENABLE
+  // MCU with built-in HS PHY such as F723, F733, F730
+
   /* Configure DM DP Pins */
   GPIO_InitStruct.Pin = (GPIO_PIN_14 | GPIO_PIN_15);
   GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
@@ -153,11 +165,60 @@ void board_init(void)
   /* Enable PHYC Clocks */
   __HAL_RCC_OTGPHYC_CLK_ENABLE();
 
-  /* Enable USB HS Clocks */
-  __HAL_RCC_USB_OTG_HS_CLK_ENABLE();
-  __HAL_RCC_USB_OTG_HS_ULPI_CLK_ENABLE();
+  #else
+  // MUC with external ULPI PHY
 
-  // Enable VBUS sense (B device) via pin PA9
+    /* Configure USB HS GPIOs */
+  /* ULPI CLK */
+  GPIO_InitStruct.Pin = GPIO_PIN_5;
+  GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_HIGH;
+  GPIO_InitStruct.Alternate = GPIO_AF10_OTG_HS;
+  HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
+
+  /* D0 */
+  GPIO_InitStruct.Pin = GPIO_PIN_3;
+  GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_HIGH;
+  GPIO_InitStruct.Alternate = GPIO_AF10_OTG_HS;
+  HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
+
+  /* D1 D2 D3 D4 D5 D6 D7 */
+  GPIO_InitStruct.Pin = GPIO_PIN_0 | GPIO_PIN_1 | GPIO_PIN_10 | GPIO_PIN_11 | GPIO_PIN_12 | GPIO_PIN_13 | GPIO_PIN_5;
+  GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Alternate = GPIO_AF10_OTG_HS;
+  HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
+
+  /* STP */
+  GPIO_InitStruct.Pin = GPIO_PIN_0;
+  GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Alternate = GPIO_AF10_OTG_HS;
+  HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
+
+  /* NXT */
+  GPIO_InitStruct.Pin = GPIO_PIN_4;
+  GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Alternate = GPIO_AF10_OTG_HS;
+  HAL_GPIO_Init(GPIOH, &GPIO_InitStruct);
+
+  /* DIR */
+  GPIO_InitStruct.Pin = GPIO_PIN_11;
+  GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Alternate = GPIO_AF10_OTG_HS;
+  HAL_GPIO_Init(GPIOI, &GPIO_InitStruct);
+  #endif
+
+  /* Enable USB HS & ULPI Clocks */
+  __HAL_RCC_USB_OTG_HS_ULPI_CLK_ENABLE();
+  __HAL_RCC_USB_OTG_HS_CLK_ENABLE();
+
+  // No VBUS sense
   USB_OTG_HS->GCCFG &= ~USB_OTG_GCCFG_VBDEN;
 
   // B-peripheral session valid override enable
@@ -169,6 +230,7 @@ void board_init(void)
   USB_OTG_HS->GUSBCFG |= USB_OTG_GUSBCFG_FDMOD;
 
 #endif
+
 }
 
 //--------------------------------------------------------------------+
