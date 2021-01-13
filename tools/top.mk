@@ -2,10 +2,10 @@ ifneq ($(lastword a b),b)
 $(error This Makefile require make 3.81 or newer)
 endif
 
-# Detect windows or not
+# Detect whether shell style is windows or not
 # https://stackoverflow.com/questions/714100/os-detecting-makefile/52062069#52062069
 ifeq '$(findstring ;,$(PATH))' ';'
-UNAME := Windows
+CMDEXE := 1
 endif
 
 # Set TOP to be the path to get from the current directory (where make was
@@ -15,14 +15,14 @@ endif
 THIS_MAKEFILE := $(lastword $(MAKEFILE_LIST))
 TOP := $(patsubst %/tools/top.mk,%,$(THIS_MAKEFILE))
 
-ifeq ($(UNAME),Windows)
+ifeq ($(CMDEXE),1)
 TOP := $(subst \,/,$(shell for %%i in ( $(TOP) ) do echo %%~fi))
 else
 TOP := $(shell realpath $(TOP))
 endif
 #$(info Top directory is $(TOP))
 
-ifeq ($(UNAME),Windows)
+ifeq ($(CMDEXE),1)
 CURRENT_PATH := $(subst $(TOP)/,,$(subst \,/,$(shell echo %CD%)))
 else
 CURRENT_PATH := $(shell realpath --relative-to=$(TOP) `pwd`)

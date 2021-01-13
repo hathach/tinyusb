@@ -81,7 +81,7 @@ uf2: $(BUILD)/$(BOARD)-firmware.uf2
 OBJ_DIRS = $(sort $(dir $(OBJ)))
 $(OBJ): | $(OBJ_DIRS)
 $(OBJ_DIRS):
-ifeq ($(UNAME),Windows)
+ifeq ($(CMDEXE),1)
 	@$(MKDIR) $(subst /,\,$@)
 else
 	@$(MKDIR) -p $@
@@ -111,15 +111,6 @@ vpath %.c . $(TOP)
 $(BUILD)/obj/%.o: %.c
 	@echo CC $(notdir $@)
 	@$(CC) $(CFLAGS) -c -MD -o $@ $<
-ifneq ($(UNAME),Windows)
-	@# The following fixes the dependency file.
-	@# See http://make.paulandlesley.org/autodep.html for details.
-	@# Regex adjusted from the above to play better with Windows paths, etc.
-	@$(CP) $(@:.o=.d) $(@:.o=.P); \
-	  $(SED) -e 's/#.*//' -e 's/^.*:  *//' -e 's/ *\\$$//' \
-	      -e '/^$$/ d' -e 's/$$/ :/' < $(@:.o=.d) >> $(@:.o=.P); \
-	  $(RM) $(@:.o=.d)
-endif
 
 # ASM sources lower case .s
 vpath %.s . $(TOP)
@@ -140,7 +131,7 @@ size: $(BUILD)/$(BOARD)-firmware.elf
 
 .PHONY: clean
 clean:
-ifeq ($(UNAME),Windows)
+ifeq ($(CMDEXE),1)
 	rd /S /Q $(subst /,\,$(BUILD))
 else
 	$(RM) -rf $(BUILD)

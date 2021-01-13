@@ -14,7 +14,7 @@ CFLAGS += -Wno-error=undef -Wno-error=unused-parameter -Wno-error=cast-align
 
 # due to tusb_hal_nrf_power_event
 GCCVERSION = $(firstword $(subst ., ,$(shell arm-none-eabi-gcc -dumpversion)))
-ifeq ($(UNAME),Windows)
+ifeq ($(CMDEXE),1)
 ifeq ($(shell if $(GCCVERSION) geq 8 echo 1), 1)
 CFLAGS += -Wno-error=cast-function-type
 endif
