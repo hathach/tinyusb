@@ -60,6 +60,7 @@ void board_init(void)
   __HAL_RCC_GPIOB_CLK_ENABLE();
   __HAL_RCC_GPIOC_CLK_ENABLE();
   __HAL_RCC_GPIOD_CLK_ENABLE();
+  __HAL_RCC_GPIOG_CLK_ENABLE();
   __HAL_RCC_GPIOH_CLK_ENABLE();  // ULPI NXT
   __HAL_RCC_GPIOI_CLK_ENABLE();  // ULPI NXT
 
@@ -141,7 +142,7 @@ void board_init(void)
 #else
   // OTG_HS
 
-  #ifdef __HAL_RCC_OTGPHYC_CLK_ENABLE
+  #ifdef USB_HS_PHYC
   // MCU with built-in HS PHY such as F723, F733, F730
 
   /* Configure DM DP Pins */
