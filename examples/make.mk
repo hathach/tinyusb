@@ -2,6 +2,9 @@
 # Common make definition for all examples
 # ---------------------------------------
 
+# Build directory
+BUILD = _build/build-$(BOARD)
+
 # Handy check parameter function
 check_defined = \
     $(strip $(foreach 1,$1, \
@@ -18,19 +21,29 @@ __check_defined = \
 #  $(error Invalid BOARD specified)
 #endif
 
-BOARD_PATH = $(subst $(TOP)/,,$(wildcard $(TOP)/hw/bsp/*/boards/$(BOARD)))
+# Board without family
+BOARD_PATH := $(subst $(TOP)/,,$(wildcard $(TOP)/hw/bsp/$(BOARD)))
+FAMILY :=
+
+# Board within family
+ifeq ($(BOARD_PATH),)
+  BOARD_PATH := $(subst $(TOP)/,,$(wildcard $(TOP)/hw/bsp/*/boards/$(BOARD)))
+  FAMILY := $(word 3, $(subst /, ,$(BOARD_PATH)))
+  FAMILY_PATH = hw/bsp/$(FAMILY)
+endif
+
 ifeq ($(BOARD_PATH),)
   $(error Invalid BOARD specified)
 endif
 
-FAMILY = $(word 3, $(subst /, ,$(BOARD_PATH)))
-FAMILY_PATH = hw/bsp/$(FAMILY)
+ifeq ($(FAMILY),)
+  include $(TOP)/hw/bsp/$(BOARD)/board.mk
+else
+  # Include Family and Board specific defs
+  include $(TOP)/$(FAMILY_PATH)/family.mk
 
-# Build directory
-BUILD = _build/build-$(BOARD)
-
-# Include Family and Board specific defs
-include $(TOP)/$(FAMILY_PATH)/family.mk
+  SRC_C += $(subst $(TOP)/,,$(wildcard $(TOP)/$(FAMILY_PATH)/*.c))
+endif
 
 #-------------- Cross Compiler  ------------
 # Can be set by board, default to ARM GCC
@@ -49,7 +62,6 @@ RM = rm
 
 # Include all source C in family & board folder
 SRC_C += hw/bsp/board.c
-SRC_C += $(subst $(TOP)/,,$(wildcard $(TOP)/$(FAMILY_PATH)/*.c))
 SRC_C += $(subst $(TOP)/,,$(wildcard $(TOP)/$(BOARD_PATH)/*.c))
 
 # Compiler Flags
