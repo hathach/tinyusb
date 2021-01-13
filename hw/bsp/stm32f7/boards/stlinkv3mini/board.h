@@ -42,10 +42,17 @@
 
 #define UART_DEV              USART6
 #define UART_CLK_EN           __HAL_RCC_USART6_CLK_ENABLE
-#define UART_GPIO_PORT        GPIOG
 #define UART_GPIO_AF          GPIO_AF8_USART6
+
+#define UART_TX_PORT          GPIOG
 #define UART_TX_PIN           GPIO_PIN_9
+
+#define UART_RX_PORT          GPIOG
 #define UART_RX_PIN           GPIO_PIN_14
+
+// VBUS Sense detection
+#define OTG_FS_VBUS_SENSE     1
+#define OTG_HS_VBUS_SENSE     0
 
 //--------------------------------------------------------------------+
 // RCC Clock

@@ -91,21 +91,29 @@ void board_init(void)
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_HIGH;
   HAL_GPIO_Init(BUTTON_PORT, &GPIO_InitStruct);
 
-  // Uart
-  GPIO_InitStruct.Pin       = UART_TX_PIN | UART_RX_PIN;
+  // Uart TX
+  GPIO_InitStruct.Pin       = UART_TX_PIN;
   GPIO_InitStruct.Mode      = GPIO_MODE_AF_PP;
   GPIO_InitStruct.Pull      = GPIO_PULLUP;
   GPIO_InitStruct.Speed     = GPIO_SPEED_FREQ_HIGH;
   GPIO_InitStruct.Alternate = UART_GPIO_AF;
-  HAL_GPIO_Init(UART_GPIO_PORT, &GPIO_InitStruct);
+  HAL_GPIO_Init(UART_TX_PORT, &GPIO_InitStruct);
 
-  UartHandle.Instance        = UART_DEV;
-  UartHandle.Init.BaudRate   = CFG_BOARD_UART_BAUDRATE;
-  UartHandle.Init.WordLength = UART_WORDLENGTH_8B;
-  UartHandle.Init.StopBits   = UART_STOPBITS_1;
-  UartHandle.Init.Parity     = UART_PARITY_NONE;
-  UartHandle.Init.HwFlowCtl  = UART_HWCONTROL_NONE;
-  UartHandle.Init.Mode       = UART_MODE_TX_RX;
+  // Uart RX
+  GPIO_InitStruct.Pin       = UART_RX_PIN;
+  GPIO_InitStruct.Mode      = GPIO_MODE_AF_PP;
+  GPIO_InitStruct.Pull      = GPIO_PULLUP;
+  GPIO_InitStruct.Speed     = GPIO_SPEED_FREQ_HIGH;
+  GPIO_InitStruct.Alternate = UART_GPIO_AF;
+  HAL_GPIO_Init(UART_RX_PORT, &GPIO_InitStruct);
+
+  UartHandle.Instance          = UART_DEV;
+  UartHandle.Init.BaudRate     = CFG_BOARD_UART_BAUDRATE;
+  UartHandle.Init.WordLength   = UART_WORDLENGTH_8B;
+  UartHandle.Init.StopBits     = UART_STOPBITS_1;
+  UartHandle.Init.Parity       = UART_PARITY_NONE;
+  UartHandle.Init.HwFlowCtl    = UART_HWCONTROL_NONE;
+  UartHandle.Init.Mode         = UART_MODE_TX_RX;
   UartHandle.Init.OverSampling = UART_OVERSAMPLING_16;
   HAL_UART_Init(&UartHandle);
 
@@ -120,12 +128,6 @@ void board_init(void)
   GPIO_InitStruct.Alternate = GPIO_AF10_OTG_FS;
   HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
 
-  /* Configure VBUS Pin */
-  GPIO_InitStruct.Pin = GPIO_PIN_9;
-  GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
-  GPIO_InitStruct.Pull = GPIO_NOPULL;
-  HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
-
   /* Configure OTG-FS ID pin */
   GPIO_InitStruct.Pin = GPIO_PIN_10;
   GPIO_InitStruct.Mode = GPIO_MODE_AF_OD;
@@ -136,8 +138,23 @@ void board_init(void)
   /* Enable USB FS Clocks */
   __HAL_RCC_USB_OTG_FS_CLK_ENABLE();
 
+#if OTG_FS_VBUS_SENSE
+  /* Configure VBUS Pin */
+  GPIO_InitStruct.Pin = GPIO_PIN_9;
+  GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
+
   // Enable VBUS sense (B device) via pin PA9
   USB_OTG_FS->GCCFG |= USB_OTG_GCCFG_VBDEN;
+#else
+  // Disable VBUS sense (B device) via pin PA9
+  USB_OTG_FS->GCCFG &= ~USB_OTG_GCCFG_VBDEN;
+
+  // B-peripheral session valid override enable
+  USB_OTG_FS->GOTGCTL |= USB_OTG_GOTGCTL_BVALOEN;
+  USB_OTG_FS->GOTGCTL |= USB_OTG_GOTGCTL_BVALOVAL;
+#endif
 
 #else
   // OTG_HS
@@ -146,10 +163,10 @@ void board_init(void)
   // MCU with built-in HS PHY such as F723, F733, F730
 
   /* Configure DM DP Pins */
-  GPIO_InitStruct.Pin = (GPIO_PIN_14 | GPIO_PIN_15);
-  GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
-  GPIO_InitStruct.Pull = GPIO_NOPULL;
-  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_HIGH;
+  GPIO_InitStruct.Pin       = (GPIO_PIN_14 | GPIO_PIN_15);
+  GPIO_InitStruct.Mode      = GPIO_MODE_AF_PP;
+  GPIO_InitStruct.Pull      = GPIO_NOPULL;
+  GPIO_InitStruct.Speed     = GPIO_SPEED_FREQ_HIGH;
   GPIO_InitStruct.Alternate = GPIO_AF10_OTG_HS;
   HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
 
@@ -157,9 +174,9 @@ void board_init(void)
   USB_OTG_HS->GCCFG |= USB_OTG_GCCFG_VBDEN;
 
   /* Configure OTG-HS ID pin */
-  GPIO_InitStruct.Pin = GPIO_PIN_13;
-  GPIO_InitStruct.Mode = GPIO_MODE_AF_OD;
-  GPIO_InitStruct.Pull = GPIO_PULLUP;
+  GPIO_InitStruct.Pin       = GPIO_PIN_13;
+  GPIO_InitStruct.Mode      = GPIO_MODE_AF_OD;
+  GPIO_InitStruct.Pull      = GPIO_PULLUP;
   GPIO_InitStruct.Alternate = GPIO_AF10_OTG_HS;
   HAL_GPIO_Init(GPIOD, &GPIO_InitStruct);
 
@@ -169,68 +186,71 @@ void board_init(void)
   #else
   // MUC with external ULPI PHY
 
-    /* Configure USB HS GPIOs */
   /* ULPI CLK */
-  GPIO_InitStruct.Pin = GPIO_PIN_5;
-  GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
-  GPIO_InitStruct.Pull = GPIO_NOPULL;
-  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_HIGH;
+  GPIO_InitStruct.Pin       = GPIO_PIN_5;
+  GPIO_InitStruct.Mode      = GPIO_MODE_AF_PP;
+  GPIO_InitStruct.Pull      = GPIO_NOPULL;
+  GPIO_InitStruct.Speed     = GPIO_SPEED_FREQ_HIGH;
   GPIO_InitStruct.Alternate = GPIO_AF10_OTG_HS;
   HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
 
-  /* D0 */
-  GPIO_InitStruct.Pin = GPIO_PIN_3;
-  GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
-  GPIO_InitStruct.Pull = GPIO_NOPULL;
-  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_HIGH;
+  /* ULPI D0 */
+  GPIO_InitStruct.Pin       = GPIO_PIN_3;
+  GPIO_InitStruct.Mode      = GPIO_MODE_AF_PP;
+  GPIO_InitStruct.Pull      = GPIO_NOPULL;
+  GPIO_InitStruct.Speed     = GPIO_SPEED_FREQ_HIGH;
   GPIO_InitStruct.Alternate = GPIO_AF10_OTG_HS;
   HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
 
-  /* D1 D2 D3 D4 D5 D6 D7 */
-  GPIO_InitStruct.Pin = GPIO_PIN_0 | GPIO_PIN_1 | GPIO_PIN_10 | GPIO_PIN_11 | GPIO_PIN_12 | GPIO_PIN_13 | GPIO_PIN_5;
-  GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
-  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  /* ULPI D1 D2 D3 D4 D5 D6 D7 */
+  GPIO_InitStruct.Pin       = GPIO_PIN_0 | GPIO_PIN_1 | GPIO_PIN_10 | GPIO_PIN_11 | GPIO_PIN_12 | GPIO_PIN_13 | GPIO_PIN_5;
+  GPIO_InitStruct.Mode      = GPIO_MODE_AF_PP;
+  GPIO_InitStruct.Pull      = GPIO_NOPULL;
   GPIO_InitStruct.Alternate = GPIO_AF10_OTG_HS;
   HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
 
-  /* STP */
-  GPIO_InitStruct.Pin = GPIO_PIN_0;
-  GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
-  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  /* ULPI STP */
+  GPIO_InitStruct.Pin       = GPIO_PIN_0 | GPIO_PIN_2;
+  GPIO_InitStruct.Mode      = GPIO_MODE_AF_PP;
+  GPIO_InitStruct.Pull      = GPIO_NOPULL;
   GPIO_InitStruct.Alternate = GPIO_AF10_OTG_HS;
   HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
 
   /* NXT */
-  GPIO_InitStruct.Pin = GPIO_PIN_4;
-  GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
-  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Pin       = GPIO_PIN_4;
+  GPIO_InitStruct.Mode      = GPIO_MODE_AF_PP;
+  GPIO_InitStruct.Pull      = GPIO_NOPULL;
   GPIO_InitStruct.Alternate = GPIO_AF10_OTG_HS;
   HAL_GPIO_Init(GPIOH, &GPIO_InitStruct);
 
-  /* DIR */
-  GPIO_InitStruct.Pin = GPIO_PIN_11;
-  GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
-  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  /* ULPI DIR */
+  GPIO_InitStruct.Pin       = GPIO_PIN_11;
+  GPIO_InitStruct.Mode      = GPIO_MODE_AF_PP;
+  GPIO_InitStruct.Pull      = GPIO_NOPULL;
   GPIO_InitStruct.Alternate = GPIO_AF10_OTG_HS;
   HAL_GPIO_Init(GPIOI, &GPIO_InitStruct);
-  #endif
+  #endif // USB_HS_PHYC
 
   /* Enable USB HS & ULPI Clocks */
   __HAL_RCC_USB_OTG_HS_ULPI_CLK_ENABLE();
   __HAL_RCC_USB_OTG_HS_CLK_ENABLE();
 
+#if OTG_HS_VBUS_SENSE
+  #error OTG HS VBUS Sense enabled is not implemented
+#else
   // No VBUS sense
   USB_OTG_HS->GCCFG &= ~USB_OTG_GCCFG_VBDEN;
 
   // B-peripheral session valid override enable
   USB_OTG_HS->GOTGCTL |= USB_OTG_GOTGCTL_BVALOEN;
   USB_OTG_HS->GOTGCTL |= USB_OTG_GOTGCTL_BVALOVAL;
+#endif
 
   // Force device mode
   USB_OTG_HS->GUSBCFG &= ~USB_OTG_GUSBCFG_FHMOD;
   USB_OTG_HS->GUSBCFG |= USB_OTG_GUSBCFG_FDMOD;
 
-#endif
+#endif // BOARD_DEVICE_RHPORT_NUM
 
 }
 

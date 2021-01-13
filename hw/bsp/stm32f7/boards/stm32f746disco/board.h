@@ -31,26 +31,26 @@
  extern "C" {
 #endif
 
-#define LED_PORT              GPIOB
-#define LED_PIN               GPIO_PIN_14
+#define LED_PORT              GPIOI
+#define LED_PIN               GPIO_PIN_1
 #define LED_STATE_ON          1
 
-#define BUTTON_PORT           GPIOC
-#define BUTTON_PIN            GPIO_PIN_13
+#define BUTTON_PORT           GPIOI
+#define BUTTON_PIN            GPIO_PIN_11
 #define BUTTON_STATE_ACTIVE   1
 
-#define UART_DEV              USART3
-#define UART_CLK_EN           __HAL_RCC_USART3_CLK_ENABLE
-#define UART_GPIO_AF          GPIO_AF7_USART3
+#define UART_DEV              USART1
+#define UART_CLK_EN           __HAL_RCC_USART1_CLK_ENABLE
+#define UART_GPIO_AF          GPIO_AF7_USART1
 
-#define UART_TX_PORT          GPIOD
-#define UART_TX_PIN           GPIO_PIN_8
+#define UART_TX_PORT          GPIOA
+#define UART_TX_PIN           GPIO_PIN_9
 
-#define UART_RX_PORT          GPIOD
-#define UART_RX_PIN           GPIO_PIN_9
+#define UART_RX_PORT          GPIOB
+#define UART_RX_PIN           GPIO_PIN_7
 
 // VBUS Sense detection
-#define OTG_FS_VBUS_SENSE     1
+#define OTG_FS_VBUS_SENSE     0
 #define OTG_HS_VBUS_SENSE     0
 
 //--------------------------------------------------------------------+
@@ -71,14 +71,13 @@ static inline void board_clock_init(void)
 
   /* Enable HSE Oscillator and activate PLL with HSE as source */
   RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSE;
-  RCC_OscInitStruct.HSEState = RCC_HSE_ON;
+  RCC_OscInitStruct.HSEState = RCC_HSE_BYPASS;
   RCC_OscInitStruct.PLL.PLLState = RCC_PLL_ON;
   RCC_OscInitStruct.PLL.PLLSource = RCC_PLLSOURCE_HSE;
   RCC_OscInitStruct.PLL.PLLM = HSE_VALUE/1000000;
   RCC_OscInitStruct.PLL.PLLN = 432;
   RCC_OscInitStruct.PLL.PLLP = RCC_PLLP_DIV2;
   RCC_OscInitStruct.PLL.PLLQ = 9;
-  RCC_OscInitStruct.PLL.PLLR = 7;
   HAL_RCC_OscConfig(&RCC_OscInitStruct);
 
   /* Activate the OverDrive to reach the 216 MHz Frequency */
@@ -93,7 +92,6 @@ static inline void board_clock_init(void)
 
   HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_7);
 }
-
 
 #ifdef __cplusplus
  }
