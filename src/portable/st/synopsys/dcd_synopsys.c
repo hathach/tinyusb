@@ -670,8 +670,13 @@ bool dcd_edpt_xfer (uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t 
   return true;
 }
 
-bool dcd_edpt_ISO_xfer (uint8_t rhport, uint8_t ep_addr, tu_fifo_t * ff, uint16_t total_bytes)
+bool dcd_edpt_ISO_xfer (uint8_t rhport, uint8_t ep_addr, tu_fifo_t * ff)
 {
+  // USB buffers always work in bytes so to avoid unnecessary divisions we demand item_size = 1
+  TU_ASSERT(ff->item_size == 1);
+
+  uint16_t total_bytes = tu_fifo_count(ff);
+
   uint8_t const epnum = tu_edpt_number(ep_addr);
   uint8_t const dir   = tu_edpt_dir(ep_addr);
 
@@ -679,6 +684,16 @@ bool dcd_edpt_ISO_xfer (uint8_t rhport, uint8_t ep_addr, tu_fifo_t * ff, uint16_
   xfer->buffer      = NULL;                                 // Indicates a FIFO shall be used
   xfer->ff          = ff;
   xfer->total_len   = total_bytes;
+
+  // Set copy mode to constant address - required since data copied to or from the hardware USB FIFO needs to be written at a constant address
+  if (dir == TUSB_DIR_IN)
+  {
+    tu_fifo_set_copy_mode_write(ff, TU_FIFO_COPY_CST);
+  }
+  else
+  {
+    tu_fifo_set_copy_mode_read(ff, TU_FIFO_COPY_CST);
+  }
 
   // EP0 can only handle one packet
   if(epnum == 0) {
@@ -692,9 +707,7 @@ bool dcd_edpt_ISO_xfer (uint8_t rhport, uint8_t ep_addr, tu_fifo_t * ff, uint16_
   uint8_t const short_packet_size = total_bytes % xfer->max_size;
 
   // Zero-size packet is special case.
-  if(short_packet_size > 0 || (total_bytes == 0)) {
-    num_packets++;
-  }
+  if(short_packet_size > 0 || (total_bytes == 0)) num_packets++;
 
   // Schedule packets to be sent within interrupt
   edpt_schedule_packets(rhport, epnum, dir, num_packets, total_bytes);
@@ -900,14 +913,20 @@ static void handle_rxflvl_ints(uint8_t rhport, USB_OTG_OUTEndpointTypeDef * out_
     {
       xfer_ctl_t * xfer = XFER_CTL_BASE(epnum, TUSB_DIR_OUT);
 
-
-      // TODO: TAKE CARE OF ISO FIFO!
-
       // Read packet off RxFIFO
-      read_fifo_packet(rhport, xfer->buffer, bcnt);
+      if (xfer->buffer)
+      {
+        // Linear buffer
+        read_fifo_packet(rhport, xfer->buffer, bcnt);
 
-      // Increment pointer to xfer data
-      xfer->buffer += bcnt;
+        // Increment pointer to xfer data
+        xfer->buffer += bcnt;
+      }
+      else
+      {
+        // Ring buffer
+        tu_fifo_write_n(xfer->ff, (const void *) rx_fifo, bcnt);
+      }
 
       // Truncate transfer length in case of short packet
       if(bcnt < xfer->max_size) {
@@ -1014,13 +1033,19 @@ static void handle_epin_ints(uint8_t rhport, USB_OTG_DeviceTypeDef * dev, USB_OT
             break;
           }
 
-          // TODO: TAKE CARE OF ISO FIFO!
-
           // Push packet to Tx-FIFO
-          write_fifo_packet(rhport, n, xfer->buffer, packet_size);
+          if (xfer->buffer)
+          {
+            write_fifo_packet(rhport, n, xfer->buffer, packet_size);
 
-          // Increment pointer to xfer data
-          xfer->buffer += packet_size;
+            // Increment pointer to xfer data
+            xfer->buffer += packet_size;
+          }
+          else
+          {
+            usb_fifo_t tx_fifo = FIFO_BASE(rhport, n);
+            tu_fifo_read_n(xfer->ff, (void *) tx_fifo, packet_size);
+          }
         }
 
         // Turn off TXFE if all bytes are written.
