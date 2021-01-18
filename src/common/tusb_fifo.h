@@ -64,11 +64,6 @@ typedef enum
   TU_FIFO_COPY_CST,                     ///< Copy from/to a constant source/destination address - required for e.g. STM32 to write into USB hardware FIFO
 } tu_fifo_copy_mode_t;
 
-//TU_FIFO_WRITE_INC_DST,                   ///< Write to an increasing destination address - default mode
-//  TU_FIFO_WRITE_CONST_DST,                 ///< Write to a constant destination address - required for e.g. STM32 to write into USB hardware FIFO
-//  TU_FIFO_READ_INC_SRC,                    ///< Read from an increasing source address - default mode
-//  TU_FIFO_READ_CONST_SRC,                  ///< Read from a constant source address - required for e.g. STM32 to read from USB hardware FIFO
-
 /** \struct tu_fifo_t
  * \brief Simple Circular FIFO
  */
