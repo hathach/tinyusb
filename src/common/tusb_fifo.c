@@ -135,7 +135,7 @@ static void _tu_fifo_write_to_const_dst_ptr(void * dst, const void * src, uint16
   // Pushing full available 32 bit words to FIFO
   uint16_t full_words = len >> 2;
   for(uint16_t i = 0; i < full_words; i++){
-    *tx_fifo = (src_u8[3] << 24) | (src_u8[2] << 16) | (src_u8[1] << 8) | src_u8[0];
+    *tx_fifo = ((uint32_t)(src_u8[3]) << 24) | ((uint32_t)(src_u8[2]) << 16) | ((uint32_t)(src_u8[1]) << 8) | (uint32_t)src_u8[0];
     src_u8 += 4;
   }
 
@@ -145,10 +145,10 @@ static void _tu_fifo_write_to_const_dst_ptr(void * dst, const void * src, uint16
     uint32_t tmp_word = 0;
     tmp_word |= src_u8[0];
     if(bytes_rem > 1){
-      tmp_word |= src_u8[1] << 8;
+      tmp_word |= (uint32_t)(src_u8[1]) << 8;
     }
     if(bytes_rem > 2){
-      tmp_word |= src_u8[2] << 16;
+      tmp_word |= (uint32_t)(src_u8[2]) << 16;
     }
     *tx_fifo = tmp_word;
   }
