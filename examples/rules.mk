@@ -81,7 +81,11 @@ uf2: $(BUILD)/$(BOARD)-firmware.uf2
 OBJ_DIRS = $(sort $(dir $(OBJ)))
 $(OBJ): | $(OBJ_DIRS)
 $(OBJ_DIRS):
+ifeq ($(CMDEXE),1)
+	@$(MKDIR) $(subst /,\,$@)
+else
 	@$(MKDIR) -p $@
+endif
 
 $(BUILD)/$(BOARD)-firmware.elf: $(OBJ)
 	@echo LINK $@
@@ -107,13 +111,6 @@ vpath %.c . $(TOP)
 $(BUILD)/obj/%.o: %.c
 	@echo CC $(notdir $@)
 	@$(CC) $(CFLAGS) -c -MD -o $@ $<
-	@# The following fixes the dependency file.
-	@# See http://make.paulandlesley.org/autodep.html for details.
-	@# Regex adjusted from the above to play better with Windows paths, etc.
-	@$(CP) $(@:.o=.d) $(@:.o=.P); \
-	  $(SED) -e 's/#.*//' -e 's/^.*:  *//' -e 's/ *\\$$//' \
-	      -e '/^$$/ d' -e 's/$$/ :/' < $(@:.o=.d) >> $(@:.o=.P); \
-	  $(RM) $(@:.o=.d)
 
 # ASM sources lower case .s
 vpath %.s . $(TOP)
@@ -134,7 +131,11 @@ size: $(BUILD)/$(BOARD)-firmware.elf
 
 .PHONY: clean
 clean:
+ifeq ($(CMDEXE),1)
+	rd /S /Q $(subst /,\,$(BUILD))
+else
 	$(RM) -rf $(BUILD)
+endif
 
 # Print out the value of a make variable.
 # https://stackoverflow.com/questions/16467718/how-to-print-out-a-variable-in-makefile
