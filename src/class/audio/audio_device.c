@@ -32,6 +32,8 @@
  *
  * */
 
+// TODO: Rename CFG_TUD_AUDIO_EPSIZE_IN to CFG_TUD_AUDIO_EP_IN_BUFFER_SIZE
+
 #include "tusb_option.h"
 
 #if (TUSB_OPT_DEVICE_ENABLED && CFG_TUD_AUDIO)
@@ -129,6 +131,7 @@ typedef struct
 
 #if CFG_TUD_AUDIO_EPSIZE_IN
   CFG_TUSB_MEM_ALIGN uint8_t epin_buf[CFG_TUD_AUDIO_EPSIZE_IN];         // Bigger makes no sense for isochronous EP's (but technically possible here)
+  tu_fifo_t epin_ff;
 #endif
 
 #if CFG_TUD_AUDIO_INT_CTR_EPSIZE_IN
@@ -531,7 +534,14 @@ static bool audiod_tx_done_cb(uint8_t rhport, audiod_interface_t* audio, uint16_
   // THIS FUNCTION IS NOT EXECUTED WITHIN AN INTERRUPT SO IT DOES NOT INTERRUPT tud_audio_n_write_ep_in_buffer()! AS LONG AS tud_audio_n_write_ep_in_buffer() IS NOT EXECUTED WITHIN AN INTERRUPT ALL IS FINE!
 
   // Schedule transmit
-  TU_VERIFY(usbd_edpt_xfer(rhport, audio->ep_in, audio->epin_buf, audio->epin_buf_cnt));
+  // TU_VERIFY(usbd_edpt_xfer(rhport, audio->ep_in, audio->epin_buf, audio->epin_buf_cnt));
+
+
+  TU_VERIFY(usbd_edpt_ISO_xfer(rhport, audio->ep_in, &audio->epin_ff));
+
+
+
+
 
   // Inform how many bytes were copied
   *n_bytes_copied = audio->epin_buf_cnt;
@@ -631,7 +641,9 @@ static bool audiod_tx_done_type_I_pcm_ff_cb(uint8_t rhport, audiod_interface_t* 
     return true;
   }
 
-  nByteCount = tu_fifo_read_n(&audio->tx_ff[0], audio->epin_buf, nByteCount);
+  nByteCount = tu_fifo_read_n_into_other_fifo(&audio->tx_ff[0], &audio->epin_ff, 0, nByteCount);
+//  nByteCount = tu_fifo_read_n(&audio->tx_ff[0], audio->epin_buf, nByteCount);
+
   audio->epin_buf_cnt = nByteCount;
 
   return true;
@@ -735,6 +747,10 @@ void audiod_init(void)
       tu_fifo_config_mutex(&audio->tx_ff[cnt], osal_mutex_create(&audio->tx_ff_mutex[cnt]));
 #endif
     }
+
+    // Initialize IN EP FIFO
+    tu_fifo_config(&audio->epin_ff, &audio->epin_buf, CFG_TUD_AUDIO_EPSIZE_IN, 1, true);
+
 #endif
 
 #if CFG_TUD_AUDIO_EPSIZE_OUT && CFG_TUD_AUDIO_RX_FIFO_SIZE
@@ -764,6 +780,10 @@ void audiod_reset(uint8_t rhport)
   {
     audiod_interface_t* audio = &_audiod_itf[i];
     tu_memclr(audio, ITF_MEM_RESET_SIZE);
+
+#if CFG_TUD_AUDIO_EPSIZE_IN
+    tu_fifo_clear(&audio->epin_ff);
+#endif
 
 #if CFG_TUD_AUDIO_EPSIZE_IN && CFG_TUD_AUDIO_TX_FIFO_SIZE
     for (uint8_t cnt = 0; cnt < CFG_TUD_AUDIO_TX_FIFO_COUNT; cnt++)
