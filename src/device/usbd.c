@@ -1206,12 +1206,12 @@ bool usbd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t 
   }
 }
 
-bool usbd_edpt_ISO_xfer(uint8_t rhport, uint8_t ep_addr, tu_fifo_t * ff, uint16_t total_bytes)
+bool usbd_edpt_ISO_xfer(uint8_t rhport, uint8_t ep_addr, tu_fifo_t * ff)
 {
   uint8_t const epnum = tu_edpt_number(ep_addr);
   uint8_t const dir   = tu_edpt_dir(ep_addr);
 
-  TU_LOG2("  Queue ISO EP %02X with %u bytes ... ", ep_addr, total_bytes);
+  TU_LOG2("  Queue ISO EP %02X with %u bytes ... ", ep_addr, tu_fifo_count(ff));
 
   // Attempt to transfer on a busy endpoint, sound like an race condition !
   TU_ASSERT(_usbd_dev.ep_status[epnum][dir].busy == 0);
@@ -1220,7 +1220,7 @@ bool usbd_edpt_ISO_xfer(uint8_t rhport, uint8_t ep_addr, tu_fifo_t * ff, uint16_
   // and usbd task can preempt and clear the busy
   _usbd_dev.ep_status[epnum][dir].busy = true;
 
-  if ( dcd_edpt_ISO_xfer(rhport, ep_addr, ff, total_bytes) )
+  if ( dcd_edpt_ISO_xfer(rhport, ep_addr, ff) )
   {
     TU_LOG2("OK\r\n");
     return true;
