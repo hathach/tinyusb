@@ -32,6 +32,7 @@
 #define _TUSB_DCD_H_
 
 #include "common/tusb_common.h"
+#include "common/tusb_fifo.h"
 
 #ifdef __cplusplus
  extern "C" {
@@ -132,6 +133,9 @@ void dcd_edpt_close        (uint8_t rhport, uint8_t ep_addr) TU_ATTR_WEAK;
 
 // Submit a transfer, When complete dcd_event_xfer_complete() is invoked to notify the stack
 bool dcd_edpt_xfer        (uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t total_bytes);
+
+// Submit an ISO transfer, When complete dcd_event_xfer_complete() is invoked to notify the stack
+bool dcd_edpt_ISO_xfer    (uint8_t rhport, uint8_t ep_addr, tu_fifo_t * ff);
 
 // Stall endpoint
 void dcd_edpt_stall       (uint8_t rhport, uint8_t ep_addr);
