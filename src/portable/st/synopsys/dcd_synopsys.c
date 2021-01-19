@@ -670,7 +670,7 @@ bool dcd_edpt_xfer (uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t 
   return true;
 }
 
-bool dcd_edpt_ISO_xfer (uint8_t rhport, uint8_t ep_addr, tu_fifo_t * ff)
+bool dcd_edpt_iso_xfer (uint8_t rhport, uint8_t ep_addr, tu_fifo_t * ff)
 {
   // USB buffers always work in bytes so to avoid unnecessary divisions we demand item_size = 1
   TU_ASSERT(ff->item_size == 1);

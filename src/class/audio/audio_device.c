@@ -537,7 +537,7 @@ static bool audiod_tx_done_cb(uint8_t rhport, audiod_interface_t* audio, uint16_
   // TU_VERIFY(usbd_edpt_xfer(rhport, audio->ep_in, audio->epin_buf, audio->epin_buf_cnt));
 
 
-  TU_VERIFY(usbd_edpt_ISO_xfer(rhport, audio->ep_in, &audio->epin_ff));
+  TU_VERIFY(usbd_edpt_iso_xfer(rhport, audio->ep_in, &audio->epin_ff));
 
 
 

@@ -135,7 +135,7 @@ void dcd_edpt_close        (uint8_t rhport, uint8_t ep_addr) TU_ATTR_WEAK;
 bool dcd_edpt_xfer        (uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t total_bytes);
 
 // Submit an ISO transfer, When complete dcd_event_xfer_complete() is invoked to notify the stack
-bool dcd_edpt_ISO_xfer    (uint8_t rhport, uint8_t ep_addr, tu_fifo_t * ff);
+bool dcd_edpt_iso_xfer    (uint8_t rhport, uint8_t ep_addr, tu_fifo_t * ff);
 
 // Stall endpoint
 void dcd_edpt_stall       (uint8_t rhport, uint8_t ep_addr);

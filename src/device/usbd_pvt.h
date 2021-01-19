@@ -73,7 +73,7 @@ void usbd_edpt_close(uint8_t rhport, uint8_t ep_addr);
 bool usbd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t total_bytes);
 
 // Submit a usb ISO transfer by use of a FIFO (ring buffer) - all bytes in FIFO get transmitted
-bool usbd_edpt_ISO_xfer(uint8_t rhport, uint8_t ep_addr, tu_fifo_t * ff);
+bool usbd_edpt_iso_xfer(uint8_t rhport, uint8_t ep_addr, tu_fifo_t * ff);
 
 // Claim an endpoint before submitting a transfer.
 // If caller does not make any transfer, it must release endpoint for others.
