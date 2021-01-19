@@ -29,9 +29,9 @@
 #if TUSB_OPT_DEVICE_ENABLED
 
 #include "tusb.h"
-#include "usbd.h"
+#include "device/usbd.h"
 #include "device/usbd_pvt.h"
-#include "dcd.h"
+#include "device/dcd.h"
 
 #ifndef CFG_TUD_TASK_QUEUE_SZ
 #define CFG_TUD_TASK_QUEUE_SZ   16
