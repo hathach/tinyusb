@@ -95,9 +95,9 @@ static inline uint16_t _ff_mod(uint16_t idx, uint16_t depth)
 
 // Intended to be used to read from hardware USB FIFO in e.g. STM32 where all data is read from a constant address
 // Code adapted from dcd_synopsis.c
-static void _tu_fifo_read_from_const_src_ptr(void * dst, const void * src, uint16_t len)
+static void _tu_fifo_read_from_const_src_ptr(void * __restrict dst, const void * __restrict src, uint16_t len)
 {
-  uint8_t * dst_u8 = (uint8_t *)dst;
+  uint8_t CFG_TUSB_MEM_ALIGN * dst_u8 = (uint8_t *)dst;
   volatile uint32_t * rx_fifo = (volatile uint32_t *) src;
 
   // Reading full available 32 bit words from FIFO
@@ -127,10 +127,10 @@ static void _tu_fifo_read_from_const_src_ptr(void * dst, const void * src, uint1
 
 // Intended to be used to write to hardware USB FIFO in e.g. STM32 where all data is written to a constant address
 // Code adapted from dcd_synopsis.c
-static void _tu_fifo_write_to_const_dst_ptr(void * dst, const void * src, uint16_t len)
+static void _tu_fifo_write_to_const_dst_ptr(void * __restrict dst, const void * __restrict src, uint16_t len)
 {
   volatile uint32_t * tx_fifo = (volatile uint32_t *) dst;
-  uint8_t * src_u8 = (uint8_t *)src;
+  uint8_t CFG_TUSB_MEM_ALIGN * src_u8 = (uint8_t *)src;
 
   // Pushing full available 32 bit words to FIFO
   uint16_t full_words = len >> 2;
