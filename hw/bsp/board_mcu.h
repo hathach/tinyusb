@@ -117,6 +117,9 @@
 #elif CFG_TUSB_MCU == OPT_MCU_DA1469X
   #include "DA1469xAB.h"
 
+#elif CFG_TUSB_MCU == OPT_MCU_RP2040
+  #include "pico.h"
+
 #else
   #error "Missing MCU header"
 #endif
