@@ -80,6 +80,13 @@ int board_uart_write(void const * buf, int len);
     return os_time_ticks_to_ms32( os_time_get() );
   }
 
+#elif CFG_TUSB_OS == OPT_OS_PICO
+#include "pico/time.h"
+static inline uint32_t board_millis(void)
+  {
+    return to_ms_since_boot(get_absolute_time());
+  }
+
 #else
   #error "board_millis() is not implemented for this OS"
 #endif

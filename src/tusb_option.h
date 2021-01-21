@@ -97,9 +97,11 @@
 // Dialog
 #define OPT_MCU_DA1469X          1000 ///< Dialog Semiconductor DA1469x
 
-// NXP Kinetis
-#define OPT_MCU_MKL25ZXX         1100 ///< NXP MKL25Zxx
+// Raspberry Pi
+#define OPT_MCU_RP2040           1100 ///< Raspberry Pi RP2040
 
+// NXP Kinetis
+#define OPT_MCU_MKL25ZXX         1200 ///< NXP MKL25Zxx
 
 /** @} */
 
@@ -110,6 +112,7 @@
 #define OPT_OS_FREERTOS   2  ///< FreeRTOS
 #define OPT_OS_MYNEWT     3  ///< Mynewt OS
 #define OPT_OS_CUSTOM     4  ///< Custom OS is implemented by application
+#define OPT_OS_PICO       5  ///< Raspberry Pi Pico SDK
 /** @} */
 
 
