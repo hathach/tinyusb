@@ -533,7 +533,7 @@ void dcd_int_handler(uint8_t rhport)
   if ( int_status & USBD_INTEN_USBRESET_Msk )
   {
     bus_reset();
-    dcd_event_bus_signal(0, DCD_EVENT_BUS_RESET, true);
+    dcd_event_bus_reset(0, TUSB_SPEED_FULL, true);
   }
 
   // ISOIN: Data was moved to endpoint buffer, client will be notified in SOF

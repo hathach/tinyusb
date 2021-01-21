@@ -989,7 +989,7 @@ static bool audiod_set_interface(uint8_t rhport, tusb_control_request_t const * 
 
 // Invoked when class request DATA stage is finished.
 // return false to stall control EP (e.g Host send non-sense DATA)
-bool audiod_control_complete(uint8_t rhport, tusb_control_request_t const * p_request)
+static bool audiod_control_complete(uint8_t rhport, tusb_control_request_t const * p_request)
 {
   // Handle audio class specific set requests
   if(p_request->bmRequestType_bit.type == TUSB_REQ_TYPE_CLASS && p_request->bmRequestType_bit.direction == TUSB_DIR_OUT)
@@ -1065,7 +1065,7 @@ bool audiod_control_complete(uint8_t rhport, tusb_control_request_t const * p_re
 
 // Handle class control request
 // return false to stall control endpoint (e.g unsupported request)
-bool audiod_control_request(uint8_t rhport, tusb_control_request_t const * p_request)
+static bool audiod_control_request(uint8_t rhport, tusb_control_request_t const * p_request)
 {
   (void) rhport;
 
@@ -1173,6 +1173,20 @@ bool audiod_control_request(uint8_t rhport, tusb_control_request_t const * p_req
   // There went something wrong - unsupported control request type
   TU_BREAKPOINT();
   return false;
+}
+
+bool audiod_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request_t const * request)
+{
+  if ( stage == CONTROL_STAGE_SETUP )
+  {
+    return audiod_control_request(rhport, request);
+  }
+  else if ( stage == CONTROL_STAGE_DATA )
+  {
+    return audiod_control_complete(rhport, request);
+  }
+
+  return true;
 }
 
 bool audiod_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint32_t xferred_bytes)

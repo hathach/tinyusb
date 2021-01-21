@@ -575,7 +575,13 @@ bool usbtmcd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint
   return false;
 }
 
-bool usbtmcd_control_request_cb(uint8_t rhport, tusb_control_request_t const * request) {
+// Invoked when a control transfer occurred on an interface of this class
+// Driver response accordingly to the request and the transfer stage (setup/data/ack)
+// return false to stall control endpoint (e.g unsupported request)
+bool usbtmcd_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request_t const * request)
+{
+  // nothing to do with DATA and ACK stage
+  if ( stage != CONTROL_STAGE_SETUP ) return true;
 
   uint8_t tmcStatusCode = USBTMC_STATUS_FAILED;
 #if (CFG_TUD_USBTMC_ENABLE_488)
@@ -853,15 +859,6 @@ bool usbtmcd_control_request_cb(uint8_t rhport, tusb_control_request_t const * r
     return false;
   }
   TU_VERIFY(false);
-}
-
-bool usbtmcd_control_complete_cb(uint8_t rhport, tusb_control_request_t const * request)
-{
-  (void)rhport;
-  //------------- Class Specific Request -------------//
-  TU_ASSERT (request->bmRequestType_bit.type == TUSB_REQ_TYPE_CLASS);
-
-  return true;
 }
 
 #endif /* CFG_TUD_TSMC */

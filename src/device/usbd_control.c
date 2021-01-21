@@ -33,7 +33,7 @@
 #include "dcd.h"
 
 #if CFG_TUSB_DEBUG >= 2
-extern void usbd_driver_print_control_complete_name(bool (*control_complete) (uint8_t, tusb_control_request_t const *));
+extern void usbd_driver_print_control_complete_name(usbd_control_xfer_cb_t callback);
 #endif
 
 enum
@@ -50,7 +50,7 @@ typedef struct
   uint16_t data_len;
   uint16_t total_xferred;
 
-  bool (*complete_cb) (uint8_t, tusb_control_request_t const *);
+  usbd_control_xfer_cb_t complete_cb;
 } usbd_control_xfer_t;
 
 static usbd_control_xfer_t _ctrl_xfer;
@@ -140,13 +140,21 @@ bool tud_control_xfer(uint8_t rhport, tusb_control_request_t const * request, vo
 // USBD API
 //--------------------------------------------------------------------+
 
+//--------------------------------------------------------------------+
+// Prototypes
+//--------------------------------------------------------------------+
+void usbd_control_reset(void);
+void usbd_control_set_request(tusb_control_request_t const *request);
+void usbd_control_set_complete_callback( usbd_control_xfer_cb_t fp );
+bool usbd_control_xfer_cb (uint8_t rhport, uint8_t ep_addr, xfer_result_t event, uint32_t xferred_bytes);
+
 void usbd_control_reset(void)
 {
   tu_varclr(&_ctrl_xfer);
 }
 
 // TODO may find a better way
-void usbd_control_set_complete_callback( bool (*fp) (uint8_t, tusb_control_request_t const * ) )
+void usbd_control_set_complete_callback( usbd_control_xfer_cb_t fp )
 {
   _ctrl_xfer.complete_cb = fp;
 }
@@ -171,7 +179,16 @@ bool usbd_control_xfer_cb (uint8_t rhport, uint8_t ep_addr, xfer_result_t result
   if ( tu_edpt_dir(ep_addr) != _ctrl_xfer.request.bmRequestType_bit.direction )
   {
     TU_ASSERT(0 == xferred_bytes);
+
+    // invoke optional dcd hook if available
     if (dcd_edpt0_status_complete) dcd_edpt0_status_complete(rhport, &_ctrl_xfer.request);
+
+    if (_ctrl_xfer.complete_cb)
+    {
+      // TODO refactor with usbd_driver_print_control_complete_name
+      _ctrl_xfer.complete_cb(rhport, CONTROL_STAGE_ACK, &_ctrl_xfer.request);
+    }
+
     return true;
   }
 
@@ -199,7 +216,7 @@ bool usbd_control_xfer_cb (uint8_t rhport, uint8_t ep_addr, xfer_result_t result
       usbd_driver_print_control_complete_name(_ctrl_xfer.complete_cb);
       #endif
 
-      is_ok = _ctrl_xfer.complete_cb(rhport, &_ctrl_xfer.request);
+      is_ok = _ctrl_xfer.complete_cb(rhport, CONTROL_STAGE_DATA, &_ctrl_xfer.request);
     }
 
     if ( is_ok )

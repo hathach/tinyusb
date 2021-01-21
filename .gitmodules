@@ -109,3 +109,6 @@
 [submodule "lib/CMSIS_5"]
 	path = lib/CMSIS_5
 	url = https://github.com/ARM-software/CMSIS_5.git
+[submodule "lib/sct_neopixel"]
+	path = lib/sct_neopixel
+	url = https://github.com/gsteiert/sct_neopixel

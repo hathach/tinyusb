@@ -21,7 +21,7 @@ SRC_C += \
 	$(MCU_FAMILY_DIR)/src/da1469x_clock.c \
 	$(MCU_FAMILY_DIR)/src/hal_gpio.c \
 
-SRC_S += $(TOP)/hw/bsp/$(BOARD)/gcc_startup_da1469x.S
+SRC_S += hw/bsp/$(BOARD)/gcc_startup_da1469x.S
 
 INC += \
 	$(TOP)/hw/bsp/$(BOARD) \

@@ -46,7 +46,7 @@
   #include "chip.h"
 
 #elif CFG_TUSB_MCU == OPT_MCU_LPC51UXX || CFG_TUSB_MCU == OPT_MCU_LPC54XXX || \
-      CFG_TUSB_MCU == OPT_MCU_LPC55XX
+      CFG_TUSB_MCU == OPT_MCU_LPC55XX  || CFG_TUSB_MCU == OPT_MCU_MKL25ZXX
   #include "fsl_device_registers.h"
 
 #elif CFG_TUSB_MCU == OPT_MCU_NRF5X

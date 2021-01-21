@@ -31,6 +31,9 @@
 - **[Kay Sievers](https://github.com/kaysievers)**
   - Improve MIDI driver with packet API
 
+- **[Koji KITAYAMA](https://github.com/kkitayam)**
+  - Add new DCD port for **NXP Kinetis KL25**
+
 - **[Nathan Conrad](https://github.com/pigrew)**
   - Add new DCD port for **STM32 fsdev** Fullspeed device for STM32 L0, F0, F1, F3 etc ...
   - Add new class driver for **USB Test and Measurement Class (USBTMC)**
