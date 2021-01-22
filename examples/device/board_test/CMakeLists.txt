@@ -4,13 +4,40 @@ cmake_minimum_required(VERSION 3.5)
 set(TOP "../../..")
 get_filename_component(TOP "${TOP}" REALPATH)
 
+set(PROJECT board_test)
+
 # Check for -DFAMILY=
 if(NOT DEFINED FAMILY)
   message(FATAL_ERROR "Invalid FAMILY specified")
 endif()
 
 include(${TOP}/hw/bsp/${FAMILY}/family.cmake)
+project(${PROJECT})
 
-project(board_test)
+if(FAMILY STREQUAL "rp2040")
 
-include(${TOP}/hw/bsp/${FAMILY}/family_extra.cmake OPTIONAL)
+pico_sdk_init()
+
+add_executable(${PROJECT})
+
+target_sources(${PROJECT} PRIVATE
+  src/main.c
+  "${TOP}/hw/bsp/rp2040/boards/raspberry_pi_pico/board_raspberry_pi_pico.c"
+)
+
+target_include_directories(${PROJECT} PRIVATE
+  "src/"
+  "${TOP}/hw"
+  "${TOP}/src"
+)
+
+target_compile_definitions(${PROJECT} PUBLIC
+  CFG_TUSB_MCU=OPT_MCU_RP2040
+  CFG_TUSB_OS=OPT_OS_PICO
+)
+
+target_link_libraries(${PROJECT} pico_stdlib)
+
+pico_add_extra_outputs(${PROJECT})
+
+endif()
