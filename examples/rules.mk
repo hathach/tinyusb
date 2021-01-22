@@ -37,7 +37,7 @@ monitor:
 else ifeq ($(FAMILY),rp2040)
 
 all:
-	[ -d $(BUILD) ] || cmake -S . -B $(BUILD) -DFAMILY=$(FAMILY) -DPICO_BUILD_DOCS=0
+	[ -d $(BUILD) ] || cmake -S . -B $(BUILD) -DFAMILY=$(FAMILY) -DBOARD=$(BOARD) -DPICO_BUILD_DOCS=0
 	$(MAKE) -C $(BUILD)
 
 clean:

@@ -20,15 +20,16 @@ pico_sdk_init()
 
 add_executable(${PROJECT})
 
-target_sources(${PROJECT} PRIVATE
+target_sources(${PROJECT} PUBLIC
   src/main.c
-  "${TOP}/hw/bsp/rp2040/boards/raspberry_pi_pico/board_raspberry_pi_pico.c"
+  "${TOP}/hw/bsp/${FAMILY}/family.c"
 )
 
-target_include_directories(${PROJECT} PRIVATE
+target_include_directories(${PROJECT} PUBLIC
   "src/"
   "${TOP}/hw"
   "${TOP}/src"
+  "${TOP}/hw/bsp/${FAMILY}/boards/${BOARD}"
 )
 
 target_compile_definitions(${PROJECT} PUBLIC

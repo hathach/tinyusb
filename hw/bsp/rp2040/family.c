@@ -2,6 +2,7 @@
  * The MIT License (MIT)
  *
  * Copyright (c) 2020 Raspberry Pi (Trading) Ltd.
+ * Copyright (c) 2021, Ha Thach (tinyusb.org)
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -31,14 +32,9 @@
 #include "hardware/structs/sio.h"
 
 #include "bsp/board.h"
+#include "board.h"
 
-#define LED_PIN               PICO_DEFAULT_LED_PIN
-#define LED_STATE_ON          1
-
-// Button pin is BOOTSEL which is flash CS pin
-// #define BUTTON_PIN
-#define BUTTON_STATE_ACTIVE   0
-
+#ifdef BUTTON_BOOTSEL
 // This example blinks the Picoboard LED when the BOOTSEL button is pressed.
 //
 // Picoboard has a button attached to the flash CS pin, which the bootrom
@@ -49,7 +45,6 @@
 //
 // This doesn't work if others are trying to access flash at the same time,
 // e.g. XIP streamer, or the other core.
-
 bool __no_inline_not_in_flash_func(get_bootsel_button)() {
     const uint CS_PIN_INDEX = 1;
 
@@ -79,22 +74,23 @@ bool __no_inline_not_in_flash_func(get_bootsel_button)() {
 
     return button_state;
 }
+#endif
 
 void board_init(void)
 {
-    setup_default_uart();
-    gpio_init(LED_PIN);
-    gpio_set_dir(LED_PIN, GPIO_OUT);
+  setup_default_uart();
+  gpio_init(LED_PIN);
+  gpio_set_dir(LED_PIN, GPIO_OUT);
 
-    // Button
+  // Button
 
-    // todo probably set up device mode?
+  // todo probably set up device mode?
 #if TUSB_OPT_DEVICE_ENABLED
 
 #endif
 
 #if TUSB_OPT_HOST_ENABLED
-    // set portfunc to host !!!
+  // set portfunc to host !!!
 #endif
 }
 
@@ -118,26 +114,30 @@ void board_init(void)
 
 void board_led_write(bool state)
 {
-    gpio_put(LED_PIN, state ? LED_STATE_ON : (1-LED_STATE_ON));
+  gpio_put(LED_PIN, state ? LED_STATE_ON : (1-LED_STATE_ON));
 }
 
 uint32_t board_button_read(void)
 {
-    return BUTTON_STATE_ACTIVE == get_bootsel_button();
+#ifdef BUTTON_BOOTSEL
+  return BUTTON_STATE_ACTIVE == get_bootsel_button();
+#else
+  return 0;
+#endif
 }
 
 int board_uart_read(uint8_t* buf, int len)
 {
-    for(int i=0;i<len;i++) {
-        buf[i] = uart_getc(uart_default);
-    }
-    return 0;
+  for(int i=0;i<len;i++) {
+    buf[i] = uart_getc(uart_default);
+  }
+  return 0;
 }
 
 int board_uart_write(void const * buf, int len)
 {
-    for(int i=0;i<len;i++) {
-        uart_putc(uart_default, ((char *)buf)[i]);
-    }
-    return 0;
+  for(int i=0;i<len;i++) {
+    uart_putc(uart_default, ((char *)buf)[i]);
+  }
+  return 0;
 }
