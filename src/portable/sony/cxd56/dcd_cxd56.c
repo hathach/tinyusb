@@ -1,4 +1,4 @@
-/* 
+/*
  * The MIT License (MIT)
  *
  * Copyright 2019 Sony Semiconductor Solutions Corporation
@@ -33,14 +33,23 @@
 #include <nuttx/arch.h>
 
 #include "device/dcd.h"
+#include "osal/osal.h"
 
 #define CXD56_EPNUM (7)
+#define CXD56_SETUP_QUEUE_DEPTH (4)
+#define CXD56_MAX_DATA_OUT_SIZE (64)
+
+OSAL_QUEUE_DEF(OPT_MODE_DEVICE, _setup_queue_def, CXD56_SETUP_QUEUE_DEPTH, struct usb_ctrlreq_s);
 
 struct usbdcd_driver_s
 {
   struct usbdevclass_driver_s usbdevclass_driver;
   FAR struct usbdev_ep_s *ep[CXD56_EPNUM];
   FAR struct usbdev_req_s *req[CXD56_EPNUM];
+  osal_queue_t setup_queue;
+  bool setup_processed;
+  FAR uint8_t dataout[CXD56_MAX_DATA_OUT_SIZE];
+  size_t outlen;
 };
 
 static struct usbdcd_driver_s usbdcd_driver;
@@ -118,14 +127,26 @@ static void _dcd_unbind(FAR struct usbdevclass_driver_s *driver, FAR struct usbd
 }
 
 static int _dcd_setup(FAR struct usbdevclass_driver_s *driver, FAR struct usbdev_s *dev,
-                     FAR const struct usb_ctrlreq_s *ctrl, FAR uint8_t *dataout, size_t outlen)
+                      FAR const struct usb_ctrlreq_s *ctrl, FAR uint8_t *dataout, size_t outlen)
 {
   (void) driver;
   (void) dev;
-  (void) dataout;
-  (void) outlen;
 
-  dcd_event_setup_received(0, (uint8_t *)ctrl, true);
+  if (usbdcd_driver.setup_processed)
+  {
+    usbdcd_driver.setup_processed = false;
+    dcd_event_setup_received(0, (uint8_t *) ctrl, true);
+  }
+  else
+  {
+    osal_queue_send(usbdcd_driver.setup_queue, ctrl, true);
+  }
+
+  if (outlen > 0 && outlen <= CXD56_MAX_DATA_OUT_SIZE)
+  {
+    memcpy(usbdcd_driver.dataout, dataout, outlen);
+    usbdcd_driver.outlen = outlen;
+  }
 
   return 0;
 }
@@ -161,6 +182,8 @@ void dcd_init(uint8_t rhport)
 
   usbdcd_driver.usbdevclass_driver.speed = USB_SPEED_HIGH;
   usbdcd_driver.usbdevclass_driver.ops = &g_driverops;
+  usbdcd_driver.setup_processed = true;
+  usbdcd_driver.setup_queue = osal_queue_create(&_setup_queue_def);
 
   usbdev_register(&usbdcd_driver.usbdevclass_driver);
 }
@@ -191,7 +214,7 @@ void dcd_set_address(uint8_t rhport, uint8_t dev_addr)
 void dcd_remote_wakeup(uint8_t rhport)
 {
   (void) rhport;
-  
+
   DEV_WAKEUP(usbdev);
 }
 
@@ -277,6 +300,7 @@ bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t *buffer, uint16_t to
 {
   (void) rhport;
 
+  bool ret = true;
   uint8_t epnum = tu_edpt_number(ep_addr);
 
   if (epnum >= CXD56_EPNUM)
@@ -284,25 +308,53 @@ bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t *buffer, uint16_t to
     return false;
   }
 
-  usbdcd_driver.req[epnum]->len = total_bytes;
-  usbdcd_driver.req[epnum]->priv = (void *)((uint32_t)ep_addr);
-  usbdcd_driver.req[epnum]->flags = 0;
-
-  if (total_bytes)
+  if (epnum == 0)
   {
-    usbdcd_driver.req[epnum]->buf = buffer;
+    if (total_bytes == 0)
+    {
+      dcd_event_xfer_complete(0, ep_addr, 0, XFER_RESULT_SUCCESS, false);
+    }
+    else if (ep_addr == 0x00 && total_bytes == usbdcd_driver.outlen)
+    {
+      memcpy(buffer, usbdcd_driver.dataout, usbdcd_driver.outlen);
+      dcd_event_xfer_complete(0, ep_addr, total_bytes, XFER_RESULT_SUCCESS, false);
+      usbdcd_driver.outlen = 0;
+    }
+    else
+    {
+      usbdcd_driver.req[epnum]->len = total_bytes;
+      usbdcd_driver.req[epnum]->priv = (void *)((uint32_t)ep_addr);
+      usbdcd_driver.req[epnum]->flags = total_bytes < usbdcd_driver.ep[epnum]->maxpacket ? USBDEV_REQFLAGS_NULLPKT : 0;
+      usbdcd_driver.req[epnum]->buf = buffer;
+
+      if (EP_SUBMIT(usbdcd_driver.ep[epnum], usbdcd_driver.req[epnum]) < 0)
+      {
+        ret = false;
+      }
+    }
+
+    usbdcd_driver.setup_processed = true;
+    struct usb_ctrlreq_s ctrl;
+
+    if (osal_queue_receive(usbdcd_driver.setup_queue, &ctrl))
+    {
+      dcd_event_setup_received(0, (uint8_t *)&ctrl, false);
+    }
   }
   else
   {
-    return true;
+    usbdcd_driver.req[epnum]->len = total_bytes;
+    usbdcd_driver.req[epnum]->priv = (void *)((uint32_t)ep_addr);
+    usbdcd_driver.req[epnum]->flags = total_bytes < usbdcd_driver.ep[epnum]->maxpacket ? USBDEV_REQFLAGS_NULLPKT : 0;
+    usbdcd_driver.req[epnum]->buf = buffer;
+
+    if (EP_SUBMIT(usbdcd_driver.ep[epnum], usbdcd_driver.req[epnum]) < 0)
+    {
+      ret = false;
+    }
   }
 
-  if (EP_SUBMIT(usbdcd_driver.ep[epnum], usbdcd_driver.req[epnum]) < 0)
-  {
-    return false;
-  }
-
-  return true;
+  return ret;
 }
 
 void dcd_edpt_stall(uint8_t rhport, uint8_t ep_addr)
@@ -322,7 +374,7 @@ void dcd_edpt_stall(uint8_t rhport, uint8_t ep_addr)
 void dcd_edpt_clear_stall(uint8_t rhport, uint8_t ep_addr)
 {
   (void) rhport;
-  
+
   uint8_t epnum = tu_edpt_number(ep_addr);
 
   if (epnum >= CXD56_EPNUM)
