@@ -34,12 +34,9 @@ all_boards = []
 if len(sys.argv) > 2:
     all_boards.append(sys.argv[2])
 else:
-    for entry in os.scandir("hw/bsp"):
+    for entry in os.scandir("hw/bsp/esp32s2/boards"):
         if entry.is_dir():
-            with open(entry.path + '/board.mk') as mk:
-                # Only includes ESP32-S2 board
-                if 'CROSS_COMPILE = xtensa-esp32s2-elf-' in mk.read():
-                    all_boards.append(entry.name)
+            all_boards.append(entry.name)
                                 
 all_boards.sort()
 
