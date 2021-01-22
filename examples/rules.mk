@@ -11,11 +11,25 @@ ifeq ($(CROSS_COMPILE),xtensa-esp32s2-elf-)
 all:
 	idf.py -B$(BUILD) -DBOARD=$(BOARD) build
 
+build: all
+
 clean:
 	idf.py -B$(BUILD) -DBOARD=$(BOARD) clean
 
 flash:
 	idf.py -B$(BUILD) -DBOARD=$(BOARD) flash
+
+bootloader-flash:
+	idf.py -B$(BUILD) -DBOARD=$(BOARD) bootloader-flash
+
+app-flash:
+	idf.py -B$(BUILD) -DBOARD=$(BOARD) app-flash
+
+erase:
+	idf.py -B$(BUILD) -DBOARD=$(BOARD) erase_flash
+
+monitor:
+	idf.py -B$(BUILD) -DBOARD=$(BOARD) monitor
 
 else
 # GNU Make build system
