@@ -112,3 +112,6 @@
 [submodule "lib/sct_neopixel"]
 	path = lib/sct_neopixel
 	url = https://github.com/gsteiert/sct_neopixel
+[submodule "hw/mcu/raspberrypi/pico-sdk"]
+	path = hw/mcu/raspberrypi/pico-sdk
+	url = https://github.com/raspberrypi/pico-sdk.git
