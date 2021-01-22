@@ -40,8 +40,15 @@ set(SRC_TINYUSB
 	${TOP}/src/portable/raspberrypi/${FAMILY}/rp2040_usb.c
 )
 
-target_sources(${PROJECT} PUBLIC
+# Example source
+set(SRC_EXAMPLE
   src/main.c
+  src/msc_disk.c
+  src/usb_descriptors.c
+)
+
+target_sources(${PROJECT} PUBLIC
+  ${SRC_EXAMPLE}
   ${TOP}/hw/bsp/${FAMILY}/family.c
   ${SRC_TINYUSB}
 )

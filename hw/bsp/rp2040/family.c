@@ -83,6 +83,8 @@ void board_init(void)
   gpio_set_dir(LED_PIN, GPIO_OUT);
 
   // Button
+#ifndef BUTTON_BOOTSEL
+#endif
 
   // todo probably set up device mode?
 #if TUSB_OPT_DEVICE_ENABLED
@@ -93,20 +95,6 @@ void board_init(void)
   // set portfunc to host !!!
 #endif
 }
-
-////--------------------------------------------------------------------+
-//// USB Interrupt Handler
-////--------------------------------------------------------------------+
-//void USB_IRQHandler(void)
-//{
-//#if CFG_TUSB_RHPORT0_MODE & OPT_MODE_HOST
-//    tuh_isr(0);
-//#endif
-//
-//#if CFG_TUSB_RHPORT0_MODE & OPT_MODE_DEVICE
-//    tud_int_handler(0);
-//#endif
-//}
 
 //--------------------------------------------------------------------+
 // Board porting API
@@ -141,3 +129,9 @@ int board_uart_write(void const * buf, int len)
   }
   return 0;
 }
+
+//--------------------------------------------------------------------+
+// USB Interrupt Handler
+// rp2040 implementation will install approriate handler when initializing
+// tinyusb. There is no need to forward IRQ from application
+//--------------------------------------------------------------------+
