@@ -39,6 +39,7 @@ The stack supports the following MCUs:
   - iMX RT Series: RT1011, RT1015, RT1021, RT1052, RT1062, RT1064
   - Kinetis: KL25
   - LPC Series: 11Uxx, 13xx, 175x_6x, 177x_8x, 18xx, 40xx, 43xx, 51Uxx, 54xxx, 55xx
+- **Raspberry Pi:** RP2040
 - **Sony:** CXD56
 - **ST:** STM32 series: L0, F0, F1, F2, F3, F4, F7, H7 both FullSpeed and HighSpeed
 - **TI:** MSP430
@@ -98,8 +99,9 @@ TinyUSB is currently used by these other projects:
 - [Adafruit nRF52 Bootloader](https://github.com/adafruit/Adafruit_nRF52_Bootloader)
 - [Adafruit SAMD Arduino](https://github.com/adafruit/ArduinoCore-samd)
 - [CircuitPython](https://github.com/adafruit/circuitpython)
+- [Espressif IDF](https://github.com/espressif/esp-idf)
 - [MicroPython](https://github.com/micropython/micropython)
 - [mynewt](https://mynewt.apache.org)
+- [Raspberry pico-sdk](https://github.com/raspberrypi/pico-sdk)
+- [TinyUF2 Bootloader](https://github.com/adafruit/tinyuf2)
 - [TinyUSB Arduino Library](https://github.com/adafruit/Adafruit_TinyUSB_Arduino)
-
-Let me know if your project also uses TinyUSB and want to share.
