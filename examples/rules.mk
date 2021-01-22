@@ -2,34 +2,46 @@
 # Common make rules for all examples
 # ---------------------------------------
 
-ifeq ($(CROSS_COMPILE),xtensa-esp32s2-elf-)
+ifeq ($(FAMILY),esp32s2)
 # Espressif IDF use CMake build system, this add wrapper target to call idf.py
 
 .PHONY: all clean flash
 .DEFAULT_GOAL := all
 
 all:
-	idf.py -B$(BUILD) -DBOARD=$(BOARD) build
+	idf.py -B$(BUILD) -DFAMILY=$(FAMILY) -DBOARD=$(BOARD) build
 
 build: all
 
 clean:
-	idf.py -B$(BUILD) -DBOARD=$(BOARD) clean
+	idf.py -B$(BUILD) -DFAMILY=$(FAMILY) -DBOARD=$(BOARD) clean
+
+fullclean:
+	idf.py -B$(BUILD) -DFAMILY=$(FAMILY) -DBOARD=$(BOARD) fullclean
 
 flash:
-	idf.py -B$(BUILD) -DBOARD=$(BOARD) flash
+	idf.py -B$(BUILD) -DFAMILY=$(FAMILY) -DBOARD=$(BOARD) flash
 
 bootloader-flash:
-	idf.py -B$(BUILD) -DBOARD=$(BOARD) bootloader-flash
+	idf.py -B$(BUILD) -DFAMILY=$(FAMILY) -DBOARD=$(BOARD) bootloader-flash
 
 app-flash:
-	idf.py -B$(BUILD) -DBOARD=$(BOARD) app-flash
+	idf.py -B$(BUILD) -DFAMILY=$(FAMILY) -DBOARD=$(BOARD) app-flash
 
 erase:
-	idf.py -B$(BUILD) -DBOARD=$(BOARD) erase_flash
+	idf.py -B$(BUILD) -DFAMILY=$(FAMILY) -DBOARD=$(BOARD) erase_flash
 
 monitor:
-	idf.py -B$(BUILD) -DBOARD=$(BOARD) monitor
+	idf.py -B$(BUILD) -DFAMILY=$(FAMILY) -DBOARD=$(BOARD) monitor
+
+else ifeq ($(FAMILY),rp2040)
+
+all:
+	[ -d $(BUILD) ] || cmake -S . -B $(BUILD) -DFAMILY=$(FAMILY) -DPICO_BUILD_DOCS=0
+	$(MAKE) -C $(BUILD)
+
+clean:
+	$(RM) -rf $(BUILD)
 
 else
 # GNU Make build system
