@@ -35,9 +35,10 @@ The stack supports the following MCUs:
 - **MicroChip:** SAMD11, SAMD21, SAMD51, SAME5x, SAMG55
 - **NordicSemi:** nRF52833, nRF52840
 - **Nuvoton:** NUC120, NUC121/NUC125, NUC126, NUC505
-- **NXP:** 
-  - LPC Series: 11Uxx, 13xx, 175x_6x, 177x_8x, 18xx, 40xx, 43xx, 51Uxx, 54xxx, 55xx
+- **NXP:**
   - iMX RT Series: RT1011, RT1015, RT1021, RT1052, RT1062, RT1064
+  - Kinetis: KL25
+  - LPC Series: 11Uxx, 13xx, 175x_6x, 177x_8x, 18xx, 40xx, 43xx, 51Uxx, 54xxx, 55xx
 - **Sony:** CXD56
 - **ST:** STM32 series: L0, F0, F1, F2, F3, F4, F7, H7 both FullSpeed and HighSpeed
 - **TI:** MSP430

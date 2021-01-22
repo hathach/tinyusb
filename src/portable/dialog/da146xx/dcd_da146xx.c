@@ -664,7 +664,7 @@ static void handle_bus_reset(void)
   (void)USB->USB_ALTEV_REG;
   _dcd.in_reset = true;
 
-  dcd_event_bus_signal(0, DCD_EVENT_BUS_RESET, true);
+  dcd_event_bus_reset(0, TUSB_SPEED_FULL, true);
   USB->USB_DMA_CTRL_REG = 0;
 
   USB->USB_MAMSK_REG = USB_USB_MAMSK_REG_USB_M_INTR_Msk |
@@ -821,14 +821,13 @@ void dcd_disconnect(uint8_t rhport)
 
 bool dcd_edpt_open(uint8_t rhport, tusb_desc_endpoint_t const * desc_edpt)
 {
+  (void)rhport;
+
   uint8_t const epnum = tu_edpt_number(desc_edpt->bEndpointAddress);
   uint8_t const dir   = tu_edpt_dir(desc_edpt->bEndpointAddress);
   xfer_ctl_t * xfer = XFER_CTL_BASE(epnum, dir);
   uint8_t iso_mask = 0;
-  
-  (void)rhport;
 
-  TU_ASSERT(desc_edpt->wMaxPacketSize.size <= 1023);
   TU_ASSERT(epnum < EP_MAX);
 
   xfer->max_packet_size = desc_edpt->wMaxPacketSize.size;

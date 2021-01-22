@@ -329,8 +329,7 @@ void dcd_int_handler(uint8_t rhport)
       USBD->ATTR |= USBD_ATTR_USB_EN_Msk | USBD_ATTR_PHY_EN_Msk;
 
       bus_reset();
-
-      dcd_event_bus_signal(0, DCD_EVENT_BUS_RESET, true);
+      dcd_event_bus_reset(0, TUSB_SPEED_FULL, true);
     }
 
     if(state & USBD_STATE_SUSPEND)

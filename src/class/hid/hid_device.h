@@ -46,7 +46,7 @@
 #endif
 
 #ifndef CFG_TUD_HID_EP_BUFSIZE
-  #define CFG_TUD_HID_EP_BUFSIZE     16
+  #define CFG_TUD_HID_EP_BUFSIZE     64
 #endif
 
 //--------------------------------------------------------------------+

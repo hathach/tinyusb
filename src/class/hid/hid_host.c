@@ -39,6 +39,7 @@ typedef struct {
   uint8_t  itf_num;
   uint8_t  ep_in;
   uint8_t  ep_out;
+  bool     valid;
 
   uint16_t report_size;
 }hidh_interface_t;
@@ -53,6 +54,7 @@ static inline bool hidh_interface_open(uint8_t rhport, uint8_t dev_addr, uint8_t
   p_hid->ep_in       = p_endpoint_desc->bEndpointAddress;
   p_hid->report_size = p_endpoint_desc->wMaxPacketSize.size; // TODO get size from report descriptor
   p_hid->itf_num     = interface_number;
+  p_hid->valid       = true;
 
   return true;
 }
@@ -246,14 +248,14 @@ bool hidh_set_config(uint8_t dev_addr, uint8_t itf_num)
   usbh_driver_set_config_complete(dev_addr, itf_num);
 
 #if CFG_TUH_HID_KEYBOARD
-  if ( keyboardh_data[dev_addr-1].itf_num == itf_num)
+  if (( keyboardh_data[dev_addr-1].itf_num == itf_num) && keyboardh_data[dev_addr-1].valid)
   {
     tuh_hid_keyboard_mounted_cb(dev_addr);
   }
 #endif
 
 #if CFG_TUH_HID_MOUSE
-  if ( mouseh_data[dev_addr-1].ep_in == itf_num )
+  if (( mouseh_data[dev_addr-1].ep_in == itf_num ) &&  mouseh_data[dev_addr-1].valid)
   {
     tuh_hid_mouse_mounted_cb(dev_addr);
   }

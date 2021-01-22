@@ -243,7 +243,7 @@ bool dcd_edpt_open(uint8_t rhport, tusb_desc_endpoint_t const * p_endpoint_desc)
   (void) rhport;
 
   // TODO not support ISO yet
-  if (p_endpoint_desc->bmAttributes.xfer == TUSB_XFER_ISOCHRONOUS) return false;
+  TU_VERIFY(p_endpoint_desc->bmAttributes.xfer != TUSB_XFER_ISOCHRONOUS);
 
   //------------- Prepare Queue Head -------------//
   uint8_t ep_id = ep_addr2id(p_endpoint_desc->bEndpointAddress);
@@ -357,7 +357,7 @@ void dcd_int_handler(uint8_t rhport)
     if ( cmd_stat & CMDSTAT_RESET_CHANGE_MASK) // bus reset
     {
       bus_reset();
-      dcd_event_bus_signal(0, DCD_EVENT_BUS_RESET, true);
+      dcd_event_bus_reset(0, TUSB_SPEED_FULL, true);
     }
 
     if (cmd_stat & CMDSTAT_CONNECT_CHANGE_MASK)
