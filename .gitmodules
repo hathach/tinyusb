@@ -21,7 +21,7 @@
 	url = https://github.com/majbthrd/nuc_driver.git
 [submodule "lib/lwip"]
 	path = lib/lwip
-	url = https://git.savannah.nongnu.org/git/lwip.git
+	url = https://github.com/lwip-tcpip/lwip.git
 [submodule "lib/FreeRTOS"]
 	path = lib/FreeRTOS
 	url = https://github.com/FreeRTOS/FreeRTOS.git
