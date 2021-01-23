@@ -95,7 +95,13 @@ def build_size(example, board):
 
 def skip_example(example, board):
     ex_dir = 'examples/' + example
+    
+    # family.mk
     board_mk = 'hw/bsp/{}/family.mk'.format(family)
+    
+    # family.cmake
+    if not os.path.exists(board_mk):
+        board_mk = 'hw/bsp/{}/family.cmake'.format(family)
 
     with open(board_mk) as mk:
         mk_contents = mk.read()
