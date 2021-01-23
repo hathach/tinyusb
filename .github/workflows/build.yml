@@ -29,7 +29,7 @@ jobs:
         family:
         - 'imxrt'
         - 'nrf'
-        #- 'rp2040'
+        - 'rp2040'
         - 'samd21'
         - 'samd51'
         - 'stm32f4'
