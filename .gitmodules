@@ -115,3 +115,5 @@
 [submodule "hw/mcu/raspberrypi/pico-sdk"]
 	path = hw/mcu/raspberrypi/pico-sdk
 	url = https://github.com/raspberrypi/pico-sdk.git
+	fetchRecurseSubmodules = false
+

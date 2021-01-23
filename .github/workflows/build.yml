@@ -85,8 +85,6 @@ jobs:
     - name: Checkout Submodules
       run: |
         git submodule sync --recursive
-        # pico-sdk also include tinyusb, therefore we cannot recursive include it
-        git submodule update --init hw/mcu/raspberrypi/pico-sdk
         # Special case LWIP since GNU's Savannah can't do shallow checkout of non-tagged commits
         git submodule update --init --recursive lib/lwip
         git submodule update --init --recursive --depth 1
