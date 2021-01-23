@@ -82,12 +82,11 @@ jobs:
         # Cannot do submodule checkout here since LWIP's git server cannot checkout unadventised commits (it must use tags)
         submodules: 'true'
 
-#    - name: Checkout Submodules
-#      run: |
-#        git submodule sync --recursive
-        # Special case LWIP since GNU's Savannah can't do shallow checkout of non-tagged commits
-#        git submodule update --init --recursive lib/lwip
-#        git submodule update --init --recursive --depth 1
+    - name: Checkout Sub-Submodules
+      run: |
+        # some submodule has it own submodule that need to be fetched as well
+        git submodule update --init --recursive hw/mcu/microchip
+        #git submodule update --init --recursive hw/mcu/microchip
 
     - name: Build
       run: |
