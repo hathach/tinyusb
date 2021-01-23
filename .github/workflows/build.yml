@@ -80,14 +80,14 @@ jobs:
       uses: actions/checkout@v2
       with:
         # Cannot do submodule checkout here since LWIP's git server cannot checkout unadventised commits (it must use tags)
-        submodules: 'false'
+        submodules: 'true'
 
-    - name: Checkout Submodules
-      run: |
-        git submodule sync --recursive
+#    - name: Checkout Submodules
+#      run: |
+#        git submodule sync --recursive
         # Special case LWIP since GNU's Savannah can't do shallow checkout of non-tagged commits
-        git submodule update --init --recursive lib/lwip
-        git submodule update --init --recursive --depth 1
+#        git submodule update --init --recursive lib/lwip
+#        git submodule update --init --recursive --depth 1
 
     - name: Build
       run: |
