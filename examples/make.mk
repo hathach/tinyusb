@@ -40,7 +40,7 @@ ifeq ($(FAMILY),)
   include $(TOP)/hw/bsp/$(BOARD)/board.mk
 else
   # Include Family and Board specific defs
-  include $(TOP)/$(FAMILY_PATH)/family.mk
+  -include $(TOP)/$(FAMILY_PATH)/family.mk
 
   SRC_C += $(subst $(TOP)/,,$(wildcard $(TOP)/$(FAMILY_PATH)/*.c))
 endif

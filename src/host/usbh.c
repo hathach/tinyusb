@@ -154,7 +154,7 @@ tusb_device_state_t tuh_device_get_state (uint8_t const dev_addr)
 tusb_speed_t tuh_device_get_speed (uint8_t const dev_addr)
 {
   TU_ASSERT( dev_addr <= CFG_TUSB_HOST_DEVICE_MAX, TUSB_DEVICE_STATE_UNPLUG);
-  return _usbh_devices[dev_addr].speed;
+  return (tusb_speed_t) _usbh_devices[dev_addr].speed;
 }
 
 void osal_task_delay(uint32_t msec)

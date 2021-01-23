@@ -18,48 +18,71 @@ total_time = time.monotonic()
 build_format = '| {:29} | {:30} | {:18} | {:7} | {:6} | {:6} |'
 build_separator = '-' * 106
 
+def filter_with_input(mylist):
+    if len(sys.argv) > 1:
+        input_args = list(set(mylist).intersection(sys.argv))
+        if len(input_args) > 0:
+            mylist[:] = input_args
+
 # If examples are not specified in arguments, build all
 all_examples = []
-
 for entry in os.scandir("examples/device"):
     if entry.is_dir():
         all_examples.append("device/" + entry.name)
-
 for entry in os.scandir("examples/host"):
     if entry.is_dir():
         all_examples.append("host/" + entry.name)
-
-if len(sys.argv) > 1:
-    input_examples = list(set(all_examples).intersection(sys.argv))
-    if len(input_examples) > 0:
-        all_examples = input_examples
-
+filter_with_input(all_examples)
 all_examples.sort()
 
-# If boards are not specified in arguments, build all
-all_boards = []
-
+# If family are not specified in arguments, build all
+all_families = []
 for entry in os.scandir("hw/bsp"):
-    if entry.is_dir() and entry.name != "esp32s2":
-        if os.path.isdir(entry.path + "/boards"):
-            # family directory
-            for subentry in os.scandir(entry.path + "/boards"):
-                if subentry.is_dir(): all_boards.append(subentry.name)
-        else:
+    if entry.is_dir() and os.path.isdir(entry.path + "/boards") and entry.name != "esp32s2":
+        all_families.append(entry.name)
+            
+filter_with_input(all_families)
+all_families.sort()
+
+def build_family(example, family):
+    all_boards = []
+    for entry in os.scandir("hw/bsp/{}/boards".format(family)):
+        if entry.is_dir():
             all_boards.append(entry.name)
+    all_boards.sort()
+    
+    for board in all_boards:
+        build_board(example, board)
+    
+def build_board(example, board):
+    global success_count, fail_count, skip_count
+    start_time = time.monotonic()
+    flash_size = "-"
+    sram_size = "-"
 
-if len(sys.argv) > 1:
-    input_boards = list(set(all_boards).intersection(sys.argv))
-    if len(input_boards) > 0:
-        all_boards = input_boards
+    # Check if board is skipped
+    if skip_example(example, board):
+        success = SKIPPED
+        skip_count += 1
+        print(build_format.format(example, board, success, '-', flash_size, sram_size))
+    else:   
+        subprocess.run("make -C examples/{} BOARD={} clean".format(example, board), shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+        build_result = subprocess.run("make -j -C examples/{} BOARD={} all".format(example, board), shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
 
-all_boards.sort()
+        if build_result.returncode == 0:
+            success = SUCCEEDED
+            success_count += 1
+            (flash_size, sram_size) = build_size(example, board)
+        else:
+            exit_status = build_result.returncode
+            success = FAILED
+            fail_count += 1
 
-def build_example(example, board):
-    subprocess.run("make -C examples/{} BOARD={} clean".format(example, board), shell=True,
-                   stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
-    return subprocess.run("make -j -C examples/{} BOARD={} all".format(example, board), shell=True,
-                          stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+        build_duration = time.monotonic() - start_time
+        print(build_format.format(example, board, success, "{:.2f}s".format(build_duration), flash_size, sram_size))
+
+        if build_result.returncode != 0:
+            print(build_result.stdout.decode("utf-8"))            
 
 def build_size(example, board):
     #elf_file = 'examples/device/{}/_build/build-{}/{}-firmware.elf'.format(example, board, board)
@@ -72,10 +95,7 @@ def build_size(example, board):
 
 def skip_example(example, board):
     ex_dir = 'examples/' + example
-
-    board_mk = 'hw/bsp/{}/board.mk'.format(board)
-    if not os.path.exists(board_mk):
-        board_mk = list(glob.iglob('hw/bsp/*/boards/{}/../../family.mk'.format(board)))[0]
+    board_mk = 'hw/bsp/{}/family.mk'.format(family)
 
     with open(board_mk) as mk:
         mk_contents = mk.read()
@@ -98,7 +118,6 @@ def skip_example(example, board):
                 if mcu_cflag in mk_contents:
                     return 0
             return 1
-
     return 0
 
 print(build_separator)
@@ -106,36 +125,8 @@ print(build_format.format('Example', 'Board', '\033[39mResult\033[0m', 'Time', '
 
 for example in all_examples:
     print(build_separator)
-    for board in all_boards:
-        start_time = time.monotonic()
-
-        flash_size = "-"
-        sram_size = "-"
-
-        # Check if board is skipped
-        if skip_example(example, board):
-            success = SKIPPED
-            skip_count += 1
-            print(build_format.format(example, board, success, '-', flash_size, sram_size))
-        else:
-            build_result = build_example(example, board)
-
-            if build_result.returncode == 0:
-                success = SUCCEEDED
-                success_count += 1
-                (flash_size, sram_size) = build_size(example, board)
-            else:
-                exit_status = build_result.returncode
-                success = FAILED
-                fail_count += 1
-
-            build_duration = time.monotonic() - start_time
-            print(build_format.format(example, board, success, "{:.2f}s".format(build_duration), flash_size, sram_size))
-
-            if build_result.returncode != 0:
-                print(build_result.stdout.decode("utf-8"))
-
-
+    for family in all_families:
+        build_family(example, family)
 
 total_time = time.monotonic() - total_time
 print(build_separator)

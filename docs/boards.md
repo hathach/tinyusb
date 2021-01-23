@@ -88,6 +88,10 @@ This code base already had supported for a handful of following boards (sorted a
 - [NGX LPC4330-Xplorer](https://www.nxp.com/design/designs/lpc4330-xplorer-board:OM13027)
 - [Double M33 Express](https://www.crowdsupply.com/steiert-solutions/double-m33-express)
 
+### Raspberry PI RP2040
+
+- [Raspberry PI PICO](https://www.raspberrypi.org/products/raspberry-pi-pico/)
+
 ### Sony
 
 - [Sony Spresense CXD5602](https://developer.sony.com/develop/spresense)
