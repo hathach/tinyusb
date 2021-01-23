@@ -20,6 +20,49 @@ jobs:
         cd test
         ceedling test:all
 
+  # build all example for each family
+  build-family:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        family:
+        - 'imxrt'
+        - 'nrf'
+        #- 'rp2040'
+        - 'samd21'
+        - 'samd51'
+        - 'stm32f4'
+        - 'stm32f7'
+    steps:
+    - name: Setup Python
+      uses: actions/setup-python@v2
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v1
+
+    - name: Install Toolchains
+      run: |
+        # ARM GCC from xpack
+        npm install --global xpm
+        xpm install --global @xpack-dev-tools/arm-none-eabi-gcc@latest
+        echo `echo $HOME/opt/xPacks/@xpack-dev-tools/arm-none-eabi-gcc/*/.content/bin` >> $GITHUB_PATH
+
+    - name: Checkout TinyUSB
+      uses: actions/checkout@v2
+      with:
+        # Cannot do submodule checkout here since LWIP's git server cannot checkout unadventised commits (it must use tags)
+        submodules: 'true'
+
+    - name: Checkout Sub-Submodules
+      run: |
+        # some submodule has it own submodule that need to be fetched as well
+        git submodule update --init --recursive hw/mcu/microchip
+        git submodule update --init --recursive lib/FreeRTOS
+
+    - name: Build
+      run: python3 tools/build_family.py ${{ matrix.family }}
+
   # Build all no-family (opharned) boards
   build-board:
     runs-on: ubuntu-latest
@@ -47,7 +90,7 @@ jobs:
 
     steps:
     - name: Setup Python
-      uses: actions/setup-python@v1
+      uses: actions/setup-python@v2
 
     - name: Setup Node.js
       uses: actions/setup-node@v1
@@ -98,51 +141,6 @@ jobs:
     - name: Build
       run: python3 tools/build_board.py ${{ matrix.example }}
 
-  # build all example for each family
-  build-family:
-    runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        family:
-        - 'imxrt'
-        - 'nrf'
-        #- 'rp2040'
-        - 'samd21'
-        - 'samd51'
-        - 'stm32f4'
-        - 'stm32f7'
-    steps:
-    - name: Setup Python
-      uses: actions/setup-python@v1
-
-    - name: Setup Node.js
-      uses: actions/setup-node@v1
-
-    - name: Install Toolchains
-      run: |
-        # ARM & RISC-V GCC from xpack
-        npm install --global xpm
-        xpm install --global @xpack-dev-tools/arm-none-eabi-gcc@latest
-        xpm install --global @xpack-dev-tools/riscv-none-embed-gcc@latest
-        echo `echo $HOME/opt/xPacks/@xpack-dev-tools/arm-none-eabi-gcc/*/.content/bin` >> $GITHUB_PATH
-        echo `echo $HOME/opt/xPacks/@xpack-dev-tools/riscv-none-embed-gcc/*/.content/bin` >> $GITHUB_PATH
-
-    - name: Checkout TinyUSB
-      uses: actions/checkout@v2
-      with:
-        # Cannot do submodule checkout here since LWIP's git server cannot checkout unadventised commits (it must use tags)
-        submodules: 'true'
-
-    - name: Checkout Sub-Submodules
-      run: |
-        # some submodule has it own submodule that need to be fetched as well
-        git submodule update --init --recursive hw/mcu/microchip
-        git submodule update --init --recursive lib/FreeRTOS
-
-    - name: Build
-      run: python3 tools/build_family.py ${{ matrix.family }}
-
   # Build ESP32S2
   build-esp32s2:
     runs-on: ubuntu-latest
@@ -155,7 +153,7 @@ jobs:
 
     steps:
     - name: Setup Python
-      uses: actions/setup-python@v1
+      uses: actions/setup-python@v2
 
     - name: Pull ESP-IDF docker
       run: docker pull espressif/idf:latest
