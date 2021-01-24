@@ -444,6 +444,7 @@ bool hcd_edpt_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr, uint8_t * 
     
     // Get appropriate ep. Either EPX or interrupt endpoint
     struct hw_endpoint *ep = get_dev_ep(dev_addr, ep_addr);
+    assert(ep);
 
     if (ep_addr != ep->ep_addr)
     {
