@@ -94,22 +94,33 @@ jobs:
     - name: Setup Node.js
       uses: actions/setup-node@v1
 
+    - name: Checkout TinyUSB
+      uses: actions/checkout@v2
+      with:
+        submodules: 'true'
+
+    - name: Checkout Sub-Submodules
+      run: |
+        # some submodule has it own submodules that need to be fetched as well
+        git submodule update --init --recursive hw/mcu/microchip
+        git submodule update --init --recursive lib/FreeRTOS
+
+        # Add MSP430 URL to env
+        echo >> $GITHUB_ENV MSP430GCC_URL=http://software-dl.ti.com/msp430/msp430_public_sw/mcu/msp430/MSPGCC/9_2_0_0/export/msp430-gcc-9.2.0.50_linux64.tar.bz2
+
     - name: Cache MSP430 Toolchain
       uses: actions/cache@v2
       id: cache-msp430
       with:
-        path: /tmp/dl/
+        path: $HOME/msp430-gcc/
         # Increment gcc version number at end when updating downloads
-        key: ${{ runner.os }}-msp430-9.2.0.50
+        key: ${{ runner.os }}-${{ env.MSP430GCC_URL }}
 
     - name: Install MSP430 Toolchain
       if: steps.cache-msp430.outputs.cache-hit != 'true'
-      env:
-        MSP430GCC_URL: http://software-dl.ti.com/msp430/msp430_public_sw/mcu/msp430/MSPGCC/9_2_0_0/export/msp430-gcc-9.2.0.50_linux64.tar.bz2      
       run: |
-        mkdir -p /tmp/dl/
-        [ -f "/tmp/dl/msp430-gcc.tar.bz2" ] || wget --progress=dot:mega $MSP430GCC_URL -O /tmp/dl/msp430-gcc.tar.bz2
-        tar -C $HOME -xaf /tmp/dl/msp430-gcc.tar.bz2
+        wget --progress=dot:mega $MSP430GCC_URL -O msp430-gcc.tar.bz2
+        tar -C $HOME/msp430-gcc -xaf msp430-gcc.tar.bz2
 
     - name: Install Toolchains
       run: |
@@ -121,18 +132,7 @@ jobs:
         echo `echo $HOME/opt/xPacks/@xpack-dev-tools/riscv-none-embed-gcc/*/.content/bin` >> $GITHUB_PATH
 
         # TI MSP430 GCC
-        echo `echo $HOME/msp430-gcc-*_linux64/bin` >> $GITHUB_PATH
-
-    - name: Checkout TinyUSB
-      uses: actions/checkout@v2
-      with:
-        submodules: 'true'
-
-    - name: Checkout Sub-Submodules
-      run: |
-        # some submodule has it own submodules that need to be fetched as well
-        git submodule update --init --recursive hw/mcu/microchip
-        git submodule update --init --recursive lib/FreeRTOS
+        echo `echo $HOME/msp430-gcc/msp430-gcc-*_linux64/bin` >> $GITHUB_PATH
 
     - name: Build
       run: python3 tools/build_board.py ${{ matrix.example }}
