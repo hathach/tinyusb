@@ -105,35 +105,50 @@ jobs:
         git submodule update --init --recursive hw/mcu/microchip
         git submodule update --init --recursive lib/FreeRTOS
 
-        # Add MSP430 URL to env
-        echo >> $GITHUB_ENV MSP430GCC_URL=http://software-dl.ti.com/msp430/msp430_public_sw/mcu/msp430/MSPGCC/9_2_0_0/export/msp430-gcc-9.2.0.50_linux64.tar.bz2
+    - name: Pre-Install Toolchain
+      run: |
+        # Add Toolchain URL to env
+        echo >> $GITHUB_ENV ARM_GCC_URL=https://developer.arm.com/-/media/Files/downloads/gnu-rm/10-2020q4/gcc-arm-none-eabi-10-2020-q4-major-x86_64-linux.tar.bz2
+        echo >> $GITHUB_ENV MSP430_GCC_URL=http://software-dl.ti.com/msp430/msp430_public_sw/mcu/msp430/MSPGCC/9_2_0_0/export/msp430-gcc-9.2.0.50_linux64.tar.bz2
+        echo >> $GITHUB_ENV RISCV_GCC_URL=https://static.dev.sifive.com/dev-tools/freedom-tools/v2020.08/riscv64-unknown-elf-gcc-10.1.0-2020.08.2-x86_64-linux-ubuntu14.tar.gz
 
-    - name: Cache MSP430 Toolchain
+    - name: Cache Toolchain
       uses: actions/cache@v2
-      id: cache-msp430
+      id: cache-toolchain
       with:
-        path: ${{ env.HOME }}/msp430-gcc/
-        # Increment gcc version number at end when updating downloads
-        key: ${{ runner.os }}-${{ env.MSP430GCC_URL }}-210125
+        path: ${{ HOME }}/cache/
+        key: ${{ runner.os }}-21-01-25-${{ env.ARM_GCC_URL }}-${{ env.RISCV_GCC_URL }}-${{ env.MSP430_GCC_URL }}
 
-    - name: Install MSP430 Toolchain
+    - name: Install Toolchain
       if: steps.cache-msp430.outputs.cache-hit != 'true'
       run: |
-        wget --progress=dot:mega $MSP430GCC_URL -O msp430-gcc.tar.bz2
-        mkdir -p $HOME/msp430-gcc
-        tar -C $HOME/msp430-gcc -xaf msp430-gcc.tar.bz2
+        # ARM GCC
+        mkdir -p $HOME/cache/arm-gcc
+        wget --progress=dot:mega $ARM_GCC_URL -O arm-gcc.tar.bz2
+        tar -C $HOME/cache/arm-gcc -xaf arm-gcc.tar.bz2        
 
-    - name: Install Toolchains
-      run: |
-        # ARM & RISC-V GCC from xpack
-        npm install --global xpm
-        xpm install --global @xpack-dev-tools/arm-none-eabi-gcc@latest
-        xpm install --global @xpack-dev-tools/riscv-none-embed-gcc@latest
-        echo `echo $HOME/opt/xPacks/@xpack-dev-tools/arm-none-eabi-gcc/*/.content/bin` >> $GITHUB_PATH
-        echo `echo $HOME/opt/xPacks/@xpack-dev-tools/riscv-none-embed-gcc/*/.content/bin` >> $GITHUB_PATH
+        # MSP430 GCC
+        mkdir -p $HOME/cache/msp430-gcc
+        wget --progress=dot:mega $MSP430_GCC_URL -O msp430-gcc.tar.bz2
+        tar -C $HOME/cache/msp430-gcc -xaf msp430-gcc.tar.bz2
 
-        # TI MSP430 GCC
-        echo `echo $HOME/msp430-gcc/msp430-gcc-*_linux64/bin` >> $GITHUB_PATH
+        # RISC-V GCC
+        mkdir -p $HOME/cache/riscv-gcc
+        wget --progress=dot:mega $RISCV_GCC_URL -O riscv-gcc.tar.gz
+        tar -C $HOME/cache/riscv-gcc -xaf riscv-gcc.tar.gz        
+
+    - name: Post-Install Toolchains
+      run: |      
+        ls $HOME/cache/*
+        
+        # ARM
+        echo >> $GITHUB_PATH `echo $HOME/cache/arm-gcc/gcc-arm-none-eabi-*/bin`
+
+        # MSP430
+        echo >> $GITHUB_PATH `echo $HOME/cache/msp430-gcc/msp430-gcc-*/bin`
+        
+        # RISC-V
+        echo >> $GITHUB_PATH `echo $HOME/cache/riscv-gcc/riscv64-*/bin`
 
     - name: Build
       run: python3 tools/build_board.py ${{ matrix.example }}
