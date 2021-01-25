@@ -120,6 +120,7 @@ jobs:
       if: steps.cache-msp430.outputs.cache-hit != 'true'
       run: |
         wget --progress=dot:mega $MSP430GCC_URL -O msp430-gcc.tar.bz2
+        mkdir -p $HOME/msp430-gcc
         tar -C $HOME/msp430-gcc -xaf msp430-gcc.tar.bz2
 
     - name: Install Toolchains
