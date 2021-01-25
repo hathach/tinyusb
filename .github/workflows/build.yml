@@ -110,7 +110,7 @@ jobs:
         # Add Toolchain URL to env
         echo >> $GITHUB_ENV ARM_GCC_URL=https://developer.arm.com/-/media/Files/downloads/gnu-rm/10-2020q4/gcc-arm-none-eabi-10-2020-q4-major-x86_64-linux.tar.bz2
         echo >> $GITHUB_ENV MSP430_GCC_URL=http://software-dl.ti.com/msp430/msp430_public_sw/mcu/msp430/MSPGCC/9_2_0_0/export/msp430-gcc-9.2.0.50_linux64.tar.bz2
-        echo >> $GITHUB_ENV RISCV_GCC_URL=https://static.dev.sifive.com/dev-tools/freedom-tools/v2020.08/riscv64-unknown-elf-gcc-10.1.0-2020.08.2-x86_64-linux-ubuntu14.tar.gz
+        echo >> $GITHUB_ENV RISCV_GCC_URL=https://github.com/xpack-dev-tools/riscv-none-embed-gcc-xpack/releases/download/v10.1.0-1.1/xpack-riscv-none-embed-gcc-10.1.0-1.1-linux-x64.tar.gz
 
     - name: Cache Toolchain
       uses: actions/cache@v2
@@ -148,7 +148,7 @@ jobs:
         echo >> $GITHUB_PATH `echo ~/cache/msp430-gcc/msp430-gcc-*/bin`
         
         # RISC-V
-        echo >> $GITHUB_PATH `echo ~/cache/riscv-gcc/riscv64-*/bin`
+        echo >> $GITHUB_PATH `echo ~/cache/riscv-gcc/xpack-riscv-*/bin`
 
     - name: Build
       run: python3 tools/build_board.py ${{ matrix.example }}
