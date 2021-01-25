@@ -112,9 +112,9 @@ jobs:
       uses: actions/cache@v2
       id: cache-msp430
       with:
-        path: $HOME/msp430-gcc/
+        path: ${{ env.HOME }}/msp430-gcc/
         # Increment gcc version number at end when updating downloads
-        key: ${{ runner.os }}-${{ env.MSP430GCC_URL }}
+        key: ${{ runner.os }}-${{ env.MSP430GCC_URL }}-210125
 
     - name: Install MSP430 Toolchain
       if: steps.cache-msp430.outputs.cache-hit != 'true'
