@@ -55,7 +55,7 @@ def build_family(example, family):
         build_board(example, board)
     
 def build_board(example, board):
-    global success_count, fail_count, skip_count
+    global success_count, fail_count, skip_count, exit_status
     start_time = time.monotonic()
     flash_size = "-"
     sram_size = "-"
