@@ -116,39 +116,39 @@ jobs:
       uses: actions/cache@v2
       id: cache-toolchain
       with:
-        path: ${{ HOME }}/cache/
+        path: ~/cache/
         key: ${{ runner.os }}-21-01-25-${{ env.ARM_GCC_URL }}-${{ env.RISCV_GCC_URL }}-${{ env.MSP430_GCC_URL }}
 
     - name: Install Toolchain
       if: steps.cache-msp430.outputs.cache-hit != 'true'
       run: |
         # ARM GCC
-        mkdir -p $HOME/cache/arm-gcc
+        mkdir -p ~/cache/arm-gcc
         wget --progress=dot:mega $ARM_GCC_URL -O arm-gcc.tar.bz2
-        tar -C $HOME/cache/arm-gcc -xaf arm-gcc.tar.bz2        
+        tar -C ~/cache/arm-gcc -xaf arm-gcc.tar.bz2
 
         # MSP430 GCC
-        mkdir -p $HOME/cache/msp430-gcc
+        mkdir -p ~/cache/msp430-gcc
         wget --progress=dot:mega $MSP430_GCC_URL -O msp430-gcc.tar.bz2
-        tar -C $HOME/cache/msp430-gcc -xaf msp430-gcc.tar.bz2
+        tar -C ~/cache/msp430-gcc -xaf msp430-gcc.tar.bz2
 
         # RISC-V GCC
-        mkdir -p $HOME/cache/riscv-gcc
+        mkdir -p ~/cache/riscv-gcc
         wget --progress=dot:mega $RISCV_GCC_URL -O riscv-gcc.tar.gz
-        tar -C $HOME/cache/riscv-gcc -xaf riscv-gcc.tar.gz        
+        tar -C ~/cache/riscv-gcc -xaf riscv-gcc.tar.gz
 
     - name: Post-Install Toolchains
       run: |      
-        ls $HOME/cache/*
+        ls ~/cache/*
         
         # ARM
-        echo >> $GITHUB_PATH `echo $HOME/cache/arm-gcc/gcc-arm-none-eabi-*/bin`
+        echo >> $GITHUB_PATH `echo ~/cache/arm-gcc/gcc-arm-none-eabi-*/bin`
 
         # MSP430
-        echo >> $GITHUB_PATH `echo $HOME/cache/msp430-gcc/msp430-gcc-*/bin`
+        echo >> $GITHUB_PATH `echo ~/cache/msp430-gcc/msp430-gcc-*/bin`
         
         # RISC-V
-        echo >> $GITHUB_PATH `echo $HOME/cache/riscv-gcc/riscv64-*/bin`
+        echo >> $GITHUB_PATH `echo ~/cache/riscv-gcc/riscv64-*/bin`
 
     - name: Build
       run: python3 tools/build_board.py ${{ matrix.example }}
