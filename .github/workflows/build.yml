@@ -41,12 +41,30 @@ jobs:
     - name: Setup Node.js
       uses: actions/setup-node@v1
 
-    - name: Install Toolchains
+    - name: Pre-Install Toolchain
       run: |
-        # ARM GCC from xpack
-        npm install --global xpm
-        xpm install --global @xpack-dev-tools/arm-none-eabi-gcc@latest
-        echo `echo $HOME/opt/xPacks/@xpack-dev-tools/arm-none-eabi-gcc/*/.content/bin` >> $GITHUB_PATH
+        # Add Toolchain URL to env
+        echo >> $GITHUB_ENV ARM_GCC_URL=https://developer.arm.com/-/media/Files/downloads/gnu-rm/10-2020q4/gcc-arm-none-eabi-10-2020-q4-major-x86_64-linux.tar.bz2
+
+    - name: Cache Toolchain
+      uses: actions/cache@v2
+      id: cache-toolchain
+      with:
+        path: ~/cache/
+        key: ${{ runner.os }}-21-01-26-${{ env.ARM_GCC_URL }}
+
+    - name: Install Toolchain
+      if: steps.cache-toolchain.outputs.cache-hit != 'true'
+      run: |
+        # ARM GCC
+        mkdir -p ~/cache/arm-gcc
+        wget --progress=dot:mega $ARM_GCC_URL -O arm-gcc.tar.bz2
+        tar -C ~/cache/arm-gcc -xaf arm-gcc.tar.bz2
+
+    - name: Post-Install Toolchains
+      run: |
+        # ARM
+        echo >> $GITHUB_PATH `echo ~/cache/arm-gcc/gcc-arm-none-eabi-*/bin`
 
     - name: Checkout TinyUSB
       uses: actions/checkout@v2
@@ -117,10 +135,10 @@ jobs:
       id: cache-toolchain
       with:
         path: ~/cache/
-        key: ${{ runner.os }}-21-01-25-${{ env.ARM_GCC_URL }}-${{ env.RISCV_GCC_URL }}-${{ env.MSP430_GCC_URL }}
+        key: ${{ runner.os }}-21-01-26-${{ env.ARM_GCC_URL }}-${{ env.RISCV_GCC_URL }}-${{ env.MSP430_GCC_URL }}
 
     - name: Install Toolchain
-      if: steps.cache-msp430.outputs.cache-hit != 'true'
+      if: steps.cache-toolchain.outputs.cache-hit != 'true'
       run: |
         # ARM GCC
         mkdir -p ~/cache/arm-gcc
