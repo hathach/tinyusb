@@ -30,5 +30,4 @@ target_include_directories(${PROJECT} PUBLIC
 
 target_compile_definitions(${PROJECT} PUBLIC
   CFG_TUSB_MCU=OPT_MCU_RP2040
-  CFG_TUSB_OS=OPT_OS_PICO
 )

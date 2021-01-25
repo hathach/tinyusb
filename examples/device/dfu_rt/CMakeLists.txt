@@ -27,6 +27,11 @@ if(FAMILY STREQUAL "rp2040")
     ${CMAKE_CURRENT_SOURCE_DIR}/src
   )
 
+  # Example defines
+  target_compile_definitions(${PROJECT} PUBLIC
+    CFG_TUSB_OS=OPT_OS_PICO
+  )
+
   target_link_libraries(${PROJECT} pico_stdlib)
   pico_add_extra_outputs(${PROJECT})
 
