@@ -44,7 +44,7 @@ filter_with_input(all_boards)
 all_boards.sort()
 
 def build_board(example, board):
-    global success_count, fail_count, skip_count
+    global success_count, fail_count, skip_count, exit_status
     start_time = time.monotonic()
     flash_size = "-"
     sram_size = "-"

@@ -48,7 +48,8 @@ typedef enum
 {
   TUSB_SPEED_FULL = 0,
   TUSB_SPEED_LOW     ,
-  TUSB_SPEED_HIGH
+  TUSB_SPEED_HIGH,
+  TUSB_SPEED_INVALID = 0xff,
 }tusb_speed_t;
 
 /// defined base on USB Specs Endpoint's bmAttributes

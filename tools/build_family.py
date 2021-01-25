@@ -55,7 +55,7 @@ def build_family(example, family):
         build_board(example, board)
     
 def build_board(example, board):
-    global success_count, fail_count, skip_count
+    global success_count, fail_count, skip_count, exit_status
     start_time = time.monotonic()
     flash_size = "-"
     sram_size = "-"
@@ -95,18 +95,24 @@ def build_size(example, board):
 
 def skip_example(example, board):
     ex_dir = 'examples/' + example
+    
+    # family.mk
     board_mk = 'hw/bsp/{}/family.mk'.format(family)
+    
+    # family.cmake
+    if not os.path.exists(board_mk):
+        board_mk = 'hw/bsp/{}/family.cmake'.format(family)
 
     with open(board_mk) as mk:
         mk_contents = mk.read()
 
         # Skip all OPT_MCU_NONE these are WIP port
-        if '-DCFG_TUSB_MCU=OPT_MCU_NONE' in mk_contents:
+        if 'CFG_TUSB_MCU=OPT_MCU_NONE' in mk_contents:
             return 1
 
         # Skip if CFG_TUSB_MCU in board.mk to match skip file
         for skip_file in glob.iglob(ex_dir + '/.skip.MCU_*'):
-            mcu_cflag = '-DCFG_TUSB_MCU=OPT_' + os.path.basename(skip_file).split('.')[2]
+            mcu_cflag = 'CFG_TUSB_MCU=OPT_' + os.path.basename(skip_file).split('.')[2]
             if mcu_cflag in mk_contents:
                 return 1
 
@@ -114,7 +120,7 @@ def skip_example(example, board):
         only_list = list(glob.iglob(ex_dir + '/.only.MCU_*'))
         if len(only_list) > 0:
             for only_file in only_list:
-                mcu_cflag = '-DCFG_TUSB_MCU=OPT_' + os.path.basename(only_file).split('.')[2]
+                mcu_cflag = 'CFG_TUSB_MCU=OPT_' + os.path.basename(only_file).split('.')[2]
                 if mcu_cflag in mk_contents:
                     return 0
             return 1

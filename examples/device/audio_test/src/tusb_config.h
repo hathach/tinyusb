@@ -45,7 +45,9 @@ extern "C" {
 #define CFG_TUSB_RHPORT0_MODE       OPT_MODE_DEVICE
 #endif
 
+#ifndef CFG_TUSB_OS
 #define CFG_TUSB_OS                 OPT_OS_NONE
+#endif
 
 #ifndef CFG_TUSB_DEBUG
 #define CFG_TUSB_DEBUG              0
