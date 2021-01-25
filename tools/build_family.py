@@ -85,8 +85,8 @@ def build_board(example, board):
             print(build_result.stdout.decode("utf-8"))            
 
 def build_size(example, board):
-    #elf_file = 'examples/device/{}/_build/build-{}/{}-firmware.elf'.format(example, board, board)
-    elf_file = 'examples/{}/_build/build-{}/*.elf'.format(example, board)
+    #elf_file = 'examples/device/{}/_build/{}/{}-firmware.elf'.format(example, board, board)
+    elf_file = 'examples/{}/_build/{}/*.elf'.format(example, board)
     size_output = subprocess.run('size {}'.format(elf_file), shell=True, stdout=subprocess.PIPE).stdout.decode("utf-8")
     size_list = size_output.split('\n')[1].split('\t')
     flash_size = int(size_list[0])
