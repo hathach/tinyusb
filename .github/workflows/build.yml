@@ -1,6 +1,12 @@
 name: Build
 
-on: [pull_request, push, repository_dispatch]
+on:
+  pull_request:
+  push:
+  repository_dispatch:
+  release:
+    types:
+      - created
 
 jobs:
   # Unit testing with Ceedling
@@ -27,6 +33,7 @@ jobs:
       fail-fast: false
       matrix:
         family:
+        # Alphabetical order
         - 'imxrt'
         - 'nrf'
         - 'rp2040'
@@ -64,9 +71,8 @@ jobs:
 
     - uses: actions/upload-artifact@v2
       with:
-        name: tinyusb-${{ matrix.family }}
+        name: ${{ matrix.family }}-tinyusb-examples
         path: _bin/
-     #TODO upload release assest upload
 
   # Build all no-family (opharned) boards
   build-board:
@@ -75,6 +81,7 @@ jobs:
       fail-fast: false
       matrix:
         example:
+        # Alphabetical order
         - 'device/audio_test'
         - 'device/board_test'
         - 'device/cdc_dual_ports'
@@ -151,6 +158,7 @@ jobs:
       fail-fast: false
       matrix:
         board:
+        # Alphabetical order
         - 'espressif_kaluga_1'
         - 'espressif_saola_1'
 
