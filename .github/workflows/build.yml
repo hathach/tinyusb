@@ -64,7 +64,7 @@ jobs:
 
     - uses: actions/upload-artifact@v2
       with:
-        name: ${{ matrix.family }}
+        name: tinyusb-${{ matrix.family }}
         path: _bin/
      #TODO upload release assest upload
 
