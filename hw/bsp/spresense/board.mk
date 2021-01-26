@@ -61,13 +61,13 @@ LDFLAGS += \
 VENDOR = sony
 CHIP_FAMILY = cxd56
 
-$(MKSPK): $(BUILD)/$(BOARD)-firmware.elf
+$(MKSPK): $(BUILD)/$(PROJECT).elf
 	$(MAKE) -C $(TOP)/hw/mcu/sony/cxd56/mkspk
 
-$(BUILD)/$(BOARD)-firmware.spk: $(MKSPK)
+$(BUILD)/$(PROJECT).spk: $(MKSPK)
 	@echo CREATE $@
-	@$(MKSPK) -c 2 $(BUILD)/$(BOARD)-firmware.elf nuttx $@
+	@$(MKSPK) -c 2 $(BUILD)/$(PROJECT).elf nuttx $@
 
 # flash
-flash: $(BUILD)/$(BOARD)-firmware.spk
+flash: $(BUILD)/$(PROJECT).spk
 	@$(TOP)/hw/mcu/sony/cxd56/tools/flash_writer.py -s -c $(SERIAL) -d -b 115200 -n $<

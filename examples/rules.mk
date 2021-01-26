@@ -43,6 +43,9 @@ all:
 clean:
 	$(RM) -rf $(BUILD)
 
+#copy-artifact:
+#	@$(CP) 
+
 else
 # GNU Make build system
 
@@ -100,9 +103,9 @@ endif
 
 # Set all as default goal
 .DEFAULT_GOAL := all
-all: $(BUILD)/$(BOARD)-firmware.bin $(BUILD)/$(BOARD)-firmware.hex size
+all: $(BUILD)/$(PROJECT).bin $(BUILD)/$(PROJECT).hex size
 
-uf2: $(BUILD)/$(BOARD)-firmware.uf2
+uf2: $(BUILD)/$(PROJECT).uf2
 
 OBJ_DIRS = $(sort $(dir $(OBJ)))
 $(OBJ): | $(OBJ_DIRS)
@@ -113,20 +116,20 @@ else
 	@$(MKDIR) -p $@
 endif
 
-$(BUILD)/$(BOARD)-firmware.elf: $(OBJ)
+$(BUILD)/$(PROJECT).elf: $(OBJ)
 	@echo LINK $@
 	@$(CC) -o $@ $(LDFLAGS) $^ -Wl,--start-group $(LIBS) -Wl,--end-group
 
-$(BUILD)/$(BOARD)-firmware.bin: $(BUILD)/$(BOARD)-firmware.elf
+$(BUILD)/$(PROJECT).bin: $(BUILD)/$(PROJECT).elf
 	@echo CREATE $@
 	@$(OBJCOPY) -O binary $^ $@
 
-$(BUILD)/$(BOARD)-firmware.hex: $(BUILD)/$(BOARD)-firmware.elf
+$(BUILD)/$(PROJECT).hex: $(BUILD)/$(PROJECT).elf
 	@echo CREATE $@
 	@$(OBJCOPY) -O ihex $^ $@
 
 UF2_FAMILY ?= 0x00
-$(BUILD)/$(BOARD)-firmware.uf2: $(BUILD)/$(BOARD)-firmware.hex
+$(BUILD)/$(PROJECT).uf2: $(BUILD)/$(PROJECT).hex
 	@echo CREATE $@
 	$(PYTHON) $(TOP)/tools/uf2/utils/uf2conv.py -f $(UF2_FAMILY) -c -o $@ $^
 
@@ -150,7 +153,7 @@ $(BUILD)/obj/%.o: %.S
 	@echo AS $(notdir $@)
 	@$(CC) -x assembler-with-cpp $(ASFLAGS) -c -o $@ $<
 
-size: $(BUILD)/$(BOARD)-firmware.elf
+size: $(BUILD)/$(PROJECT).elf
 	-@echo ''
 	@$(SIZE) $<
 	-@echo ''
@@ -178,7 +181,7 @@ endif
 JLINK_IF ?= swd
 
 # Flash using jlink
-flash-jlink: $(BUILD)/$(BOARD)-firmware.hex
+flash-jlink: $(BUILD)/$(PROJECT).hex
 	@echo halt > $(BUILD)/$(BOARD).jlink
 	@echo r > $(BUILD)/$(BOARD).jlink
 	@echo loadfile $^ >> $(BUILD)/$(BOARD).jlink
@@ -188,11 +191,11 @@ flash-jlink: $(BUILD)/$(BOARD)-firmware.hex
 	$(JLINKEXE) -device $(JLINK_DEVICE) -if $(JLINK_IF) -JTAGConf -1,-1 -speed auto -CommandFile $(BUILD)/$(BOARD).jlink
 
 # flash STM32 MCU using stlink with STM32 Cube Programmer CLI
-flash-stlink: $(BUILD)/$(BOARD)-firmware.elf
+flash-stlink: $(BUILD)/$(PROJECT).elf
 	STM32_Programmer_CLI --connect port=swd --write $< --go
 
 # flash with pyocd
-flash-pyocd: $(BUILD)/$(BOARD)-firmware.hex
+flash-pyocd: $(BUILD)/$(PROJECT).hex
 	pyocd flash -t $(PYOCD_TARGET) $<
 	pyocd reset -t $(PYOCD_TARGET)
 

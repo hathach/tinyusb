@@ -41,6 +41,6 @@ FREERTOS_PORT = ARM_CM0
 # Add it to your PATH or change BOSSAC variable to match your installation
 BOSSAC = bossac
 
-flash-bossac: $(BUILD)/$(BOARD)-firmware.bin
+flash-bossac: $(BUILD)/$(PROJECT).bin
 	@:$(call check_defined, SERIAL, example: SERIAL=/dev/ttyACM0)
 	$(BOSSAC) --port=$(SERIAL) -U -i --offset=0x2000 -e -w $^ -R
