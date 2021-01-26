@@ -62,14 +62,10 @@ jobs:
     - name: Build
       run: python3 tools/build_family.py ${{ matrix.family }}
 
-    - name: test
-      run: |
-        ls -a _bin/*
-
-    #- uses: actions/upload-artifact@v2
-    #  with:
-    #    name: ${{ matrix.family }}
-    #    path: _bin/
+    - uses: actions/upload-artifact@v2
+      with:
+        name: ${{ matrix.family }}
+        path: _bin/
      #TODO upload release assest upload
 
   # Build all no-family (opharned) boards

@@ -219,9 +219,10 @@ $(BIN):
 	@$(MKDIR) -p $@
 
 # Copy binaries .elf, .bin, .hex, .uf2 to BIN for upload
+# due to large size of combined artifacts, only uf2 is uploaded for now
 copy-artifact: $(BIN)
-	@$(CP) $(BUILD)/$(PROJECT).elf $(BIN)
-	@$(CP) $(BUILD)/$(PROJECT).bin $(BIN)
-	@$(CP) $(BUILD)/$(PROJECT).hex $(BIN)
 	@$(CP) $(BUILD)/$(PROJECT).uf2 $(BIN)
+	#@$(CP) $(BUILD)/$(PROJECT).bin $(BIN)
+	#@$(CP) $(BUILD)/$(PROJECT).hex $(BIN)
+	#@$(CP) $(BUILD)/$(PROJECT).elf $(BIN)
 
