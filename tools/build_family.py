@@ -66,13 +66,14 @@ def build_board(example, board):
         skip_count += 1
         print(build_format.format(example, board, success, '-', flash_size, sram_size))
     else:   
-        subprocess.run("make -C examples/{} BOARD={} clean".format(example, board), shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+        #subprocess.run("make -C examples/{} BOARD={} clean".format(example, board), shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
         build_result = subprocess.run("make -j -C examples/{} BOARD={} all".format(example, board), shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
 
         if build_result.returncode == 0:
             success = SUCCEEDED
             success_count += 1
             (flash_size, sram_size) = build_size(example, board)
+            subprocess.run("make -j -C examples/{} BOARD={} copy-artifact".format(example, board), shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
         else:
             exit_status = build_result.returncode
             success = FAILED
@@ -85,8 +86,8 @@ def build_board(example, board):
             print(build_result.stdout.decode("utf-8"))            
 
 def build_size(example, board):
-    #elf_file = 'examples/device/{}/_build/build-{}/{}-firmware.elf'.format(example, board, board)
-    elf_file = 'examples/{}/_build/build-{}/*.elf'.format(example, board)
+    #elf_file = 'examples/device/{}/_build/{}/{}-firmware.elf'.format(example, board, board)
+    elf_file = 'examples/{}/_build/{}/*.elf'.format(example, board)
     size_output = subprocess.run('size {}'.format(elf_file), shell=True, stdout=subprocess.PIPE).stdout.decode("utf-8")
     size_list = size_output.split('\n')[1].split('\t')
     flash_size = int(size_list[0])

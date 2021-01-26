@@ -8,5 +8,5 @@ SRC_S += $(ST_CMSIS)/Source/Templates/gcc/startup_stm32f405xx.s
 JLINK_DEVICE = stm32f405rg
 
 # flash target ROM bootloader
-flash: $(BUILD)/$(BOARD)-firmware.bin
+flash: $(BUILD)/$(PROJECT).bin
 	dfu-util -R -a 0 --dfuse-address 0x08000000 -D $<

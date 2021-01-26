@@ -7,9 +7,9 @@ LD_FILE = $(BOARD_PATH)/$(BOARD).ld
 # 	make BOARD=nrf52840_mdk_dongle SERIAL=/dev/ttyACM0 all flash
 NRFUTIL = nrfutil
 
-$(BUILD)/$(BOARD)-firmware.zip: $(BUILD)/$(BOARD)-firmware.hex
+$(BUILD)/$(PROJECT).zip: $(BUILD)/$(PROJECT).hex
 	$(NRFUTIL) pkg generate --hw-version 52 --sd-req 0x0000 --debug-mode --application $^ $@
 
-flash: $(BUILD)/$(BOARD)-firmware.zip
+flash: $(BUILD)/$(PROJECT).zip
 	@:$(call check_defined, SERIAL, example: SERIAL=/dev/ttyACM0)
 	$(NRFUTIL) dfu usb-serial --package $^ -p $(SERIAL) -b 115200

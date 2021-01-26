@@ -1,3 +1,5 @@
+UF2_FAMILY_ID = 0xADA52840
+
 include $(TOP)/$(BOARD_PATH)/board.mk
 
 CFLAGS += \
@@ -58,6 +60,3 @@ FREERTOS_PORT = ARM_CM4F
 
 # For flash-jlink target
 JLINK_DEVICE = $(MCU_VARIANT)_xxaa
-
-# For uf2 conversion
-UF2_FAMILY = 0xADA52840

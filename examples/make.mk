@@ -3,7 +3,10 @@
 # ---------------------------------------
 
 # Build directory
-BUILD = _build/build-$(BOARD)
+BUILD := _build/$(BOARD)
+
+PROJECT := $(BOARD)-$(notdir $(CURDIR))
+BIN := $(TOP)/_bin/$(BOARD)/$(notdir $(CURDIR))
 
 # Handy check parameter function
 check_defined = \
@@ -13,6 +16,12 @@ __check_defined = \
     $(if $(value $1),, \
     $(error Undefined make flag: $1$(if $2, ($2))))
     
+# TODO Check if submodule haven't checkout yet
+fetch_submodule_if_empty = \
+  ifeq ($(wildcard $(TOP)/$1/*),) \
+    $(info $(shell git -C $(TOP) submodule update --init)) \
+  endif
+
 #-------------- Select the board to build for. ------------
 #BOARD_LIST = $(sort $(subst /.,,$(subst $(TOP)/hw/bsp/,,$(wildcard $(TOP)/hw/bsp/*/.))))
 #ifeq ($(filter $(BOARD),$(BOARD_LIST)),)
@@ -44,6 +53,8 @@ else
 
   SRC_C += $(subst $(TOP)/,,$(wildcard $(TOP)/$(FAMILY_PATH)/*.c))
 endif
+
+#TODO $(call fetch_submodule_if_empty,lib/sct_neopixel)
 
 #-------------- Cross Compiler  ------------
 # Can be set by board, default to ARM GCC

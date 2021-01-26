@@ -54,5 +54,5 @@ JLINK_DEVICE = SAME70Q21B
 # flash using edbg from https://github.com/ataradov/edbg
 # Note: SAME70's GPNVM1 must be set to 1 to boot from flash with
 # 	edbg -t same70 -F w0,1,1
-flash: $(BUILD)/$(BOARD)-firmware.bin
+flash: $(BUILD)/$(PROJECT).bin
 	edbg --verbose -t same70 -pv -f $< 

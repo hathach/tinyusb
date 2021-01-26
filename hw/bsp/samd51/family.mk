@@ -1,3 +1,5 @@
+UF2_FAMILY_ID = 0x55114460
+
 include $(TOP)/$(BOARD_PATH)/board.mk
 
 CFLAGS += \
@@ -44,6 +46,6 @@ FREERTOS_PORT = ARM_CM4F
 # Add it to your PATH or change BOSSAC variable to match your installation
 BOSSAC = bossac
 
-flash-bossac: $(BUILD)/$(BOARD)-firmware.bin
+flash-bossac: $(BUILD)/$(PROJECT).bin
 	@:$(call check_defined, SERIAL, example: SERIAL=/dev/ttyACM0)
 	$(BOSSAC) --port=$(SERIAL) -U -i --offset=0x4000 -e -w $^ -R

@@ -50,5 +50,5 @@ JLINK_DEVICE = STM32L053R8
 STM32Prog = STM32_Programmer_CLI
 
 # flash target using on-board stlink
-flash: $(BUILD)/$(BOARD)-firmware.elf
+flash: $(BUILD)/$(PROJECT).elf
 	$(STM32Prog) --connect port=swd --write $< --go

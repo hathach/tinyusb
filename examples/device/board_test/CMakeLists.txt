@@ -1,5 +1,6 @@
 # use directory name for project id
 get_filename_component(PROJECT ${CMAKE_CURRENT_SOURCE_DIR} NAME)
+set(PROJECT ${BOARD}-${PROJECT})
 
 # TOP is absolute path to root directory of TinyUSB git repo
 set(TOP "../../..")

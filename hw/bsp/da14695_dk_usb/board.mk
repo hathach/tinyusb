@@ -42,10 +42,10 @@ JLINK_DEVICE = DA14695
 # flash using jlink but with some twists
 flash: flash-dialog
 
-flash-dialog: $(BUILD)/$(BOARD)-firmware.bin
+flash-dialog: $(BUILD)/$(PROJECT).bin
 	@echo '#define SW_VERSION "v_1.0.0.1"' >$(BUILD)/version.h
 	@echo '#define SW_VERSION_DATE "'`date +"%Y-%m-%d %H:%M"`'"' >>$(BUILD)/version.h
-	mkimage da1469x $(BUILD)/$(BOARD)-firmware.bin $(BUILD)/version.h $^.img
+	mkimage da1469x $(BUILD)/$(PROJECT).bin $(BUILD)/version.h $^.img
 	cp $(TOP)/hw/bsp/$(BOARD)/product_header.dump $(BUILD)/$(BOARD)-image.bin
 	cat $^.img >> $(BUILD)/$(BOARD)-image.bin
 	@echo r > $(BUILD)/$(BOARD).jlink
