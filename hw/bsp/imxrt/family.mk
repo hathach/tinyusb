@@ -1,3 +1,5 @@
+UF2_FAMILY_ID = 0x4fb2d5bd
+
 include $(TOP)/$(BOARD_PATH)/board.mk
 
 CFLAGS += \

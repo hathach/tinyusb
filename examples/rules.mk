@@ -2,11 +2,13 @@
 # Common make rules for all examples
 # ---------------------------------------
 
+# Set all as default goal
+.DEFAULT_GOAL := all
+
 ifeq ($(FAMILY),esp32s2)
 # Espressif IDF use CMake build system, this add wrapper target to call idf.py
 
 .PHONY: all clean flash
-.DEFAULT_GOAL := all
 
 all:
 	idf.py -B$(BUILD) -DFAMILY=$(FAMILY) -DBOARD=$(BOARD) build
@@ -34,6 +36,11 @@ erase:
 monitor:
 	idf.py -B$(BUILD) -DFAMILY=$(FAMILY) -DBOARD=$(BOARD) monitor
 
+UF2_FAMILY_ID = 0xbfdd4eee
+$(BUILD)/$(PROJECT).uf2: $(BUILD)/$(PROJECT).hex
+	@echo CREATE $@
+	$(PYTHON) $(TOP)/tools/uf2/utils/uf2conv.py -f $(UF2_FAMILY_ID) -c -o $@ $^
+
 else ifeq ($(FAMILY),rp2040)
 
 all:
@@ -42,9 +49,6 @@ all:
 
 clean:
 	$(RM) -rf $(BUILD)
-
-#copy-artifact:
-#	@$(CP) 
 
 else
 # GNU Make build system
@@ -101,8 +105,6 @@ $(info LDFLAGS $(LDFLAGS)) $(info )
 $(info ASFLAGS $(ASFLAGS)) $(info )
 endif
 
-# Set all as default goal
-.DEFAULT_GOAL := all
 all: $(BUILD)/$(PROJECT).bin $(BUILD)/$(PROJECT).hex size
 
 uf2: $(BUILD)/$(PROJECT).uf2
@@ -128,10 +130,19 @@ $(BUILD)/$(PROJECT).hex: $(BUILD)/$(PROJECT).elf
 	@echo CREATE $@
 	@$(OBJCOPY) -O ihex $^ $@
 
-UF2_FAMILY ?= 0x00
+# UF2 generation, iMXRT need to strip to text only before conversion
+ifeq ($(FAMILY),imxrt)
+$(BUILD)/$(PROJECT).uf2: $(BUILD)/$(PROJECT).elf
+	@echo CREATE $@
+	@$(OBJCOPY) -O ihex -R .flash_config -R .ivt $^ $(BUILD)/$(PROJECT)-textonly.hex
+	$(PYTHON) $(TOP)/tools/uf2/utils/uf2conv.py -f $(UF2_FAMILY_ID) -c -o $@ $(BUILD)/$(PROJECT)-textonly.hex
+else
 $(BUILD)/$(PROJECT).uf2: $(BUILD)/$(PROJECT).hex
 	@echo CREATE $@
-	$(PYTHON) $(TOP)/tools/uf2/utils/uf2conv.py -f $(UF2_FAMILY) -c -o $@ $^
+	$(PYTHON) $(TOP)/tools/uf2/utils/uf2conv.py -f $(UF2_FAMILY_ID) -c -o $@ $^
+endif
+
+copy-artifact: $(BUILD)/$(PROJECT).bin $(BUILD)/$(PROJECT).hex $(BUILD)/$(PROJECT).uf2
 
 # We set vpath to point to the top of the tree so that the source files
 # can be located. By following this scheme, it allows a single build rule
@@ -199,4 +210,18 @@ flash-pyocd: $(BUILD)/$(PROJECT).hex
 	pyocd flash -t $(PYOCD_TARGET) $<
 	pyocd reset -t $(PYOCD_TARGET)
 
-endif # Make target
+endif # GNU Make
+
+#-------------- Artifacts --------------
+
+# Create binary directory
+$(BIN):
+	@$(MKDIR) -p $@
+
+# Copy binaries .elf, .bin, .hex, .uf2 to BIN for upload
+copy-artifact: $(BIN)
+	@$(CP) $(BUILD)/$(PROJECT).elf $(BIN)
+	@$(CP) $(BUILD)/$(PROJECT).bin $(BIN)
+	@$(CP) $(BUILD)/$(PROJECT).hex $(BIN)
+	@$(CP) $(BUILD)/$(PROJECT).uf2 $(BIN)
+

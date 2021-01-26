@@ -73,6 +73,7 @@ def build_board(example, board):
             success = SUCCEEDED
             success_count += 1
             (flash_size, sram_size) = build_size(example, board)
+            subprocess.run("make -j -C examples/{} BOARD={} copy-artifact".format(example, board), shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
         else:
             exit_status = build_result.returncode
             success = FAILED

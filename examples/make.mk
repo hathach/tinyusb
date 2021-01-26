@@ -3,8 +3,10 @@
 # ---------------------------------------
 
 # Build directory
-BUILD = _build/$(BOARD)
-PROJECT = $(BOARD)-$(notdir $(CURDIR))
+BUILD := _build/$(BOARD)
+
+PROJECT := $(BOARD)-$(notdir $(CURDIR))
+BIN := $(TOP)/_bin/$(BOARD)/$(notdir $(CURDIR))
 
 # Handy check parameter function
 check_defined = \
