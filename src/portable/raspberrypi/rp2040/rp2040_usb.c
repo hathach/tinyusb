@@ -24,10 +24,13 @@
  * This file is part of the TinyUSB stack.
  */
 
+#include "tusb_option.h"
+
+#if CFG_TUSB_MCU == OPT_MCU_RP2040
+
 #include <stdlib.h>
 #include "rp2040_usb.h"
 #include "hardware/clocks.h"
-#include "tusb_option.h"
 
 // Direction strings for debug
 const char *ep_dir_string[] = {
@@ -277,3 +280,4 @@ void _hw_endpoint_xfer(struct hw_endpoint *ep, uint8_t *buffer, uint16_t total_l
     }
 }
 
+#endif
