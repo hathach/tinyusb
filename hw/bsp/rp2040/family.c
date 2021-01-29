@@ -76,6 +76,38 @@ bool __no_inline_not_in_flash_func(get_bootsel_button)() {
 }
 #endif
 
+//------------- Segger RTT retarget -------------//
+#if defined(LOGGER_RTT)
+// Logging with RTT
+
+#include "pico/stdio/driver.h"
+#include "SEGGER_RTT.h"
+
+static void stdio_rtt_write (const char *buf, int length)
+{
+  SEGGER_RTT_Write(0, buf, length);
+}
+
+static int stdio_rtt_read (char *buf, int len)
+{
+  return SEGGER_RTT_Read(0, buf, len);
+}
+
+static stdio_driver_t stdio_rtt =
+{
+  .out_chars = stdio_rtt_write,
+  .out_flush = NULL,
+  .in_chars = stdio_rtt_read
+};
+
+void stdio_rtt_init(void)
+{
+  stdio_set_driver_enabled(&stdio_rtt, true);
+}
+
+#endif
+
+
 void board_init(void)
 {
   gpio_init(LED_PIN);
@@ -86,9 +118,11 @@ void board_init(void)
 #endif
 
 #ifdef UART_DEV
-  uart_init(UART_DEV, CFG_BOARD_UART_BAUDRATE);
-  gpio_set_function(UART_TX_PIN, GPIO_FUNC_UART);
-  gpio_set_function(UART_RX_PIN, GPIO_FUNC_UART);
+  stdio_uart_init_full(UART_DEV, CFG_BOARD_UART_BAUDRATE, UART_TX_PIN, UART_RX_PIN);
+#endif
+
+#if defined(LOGGER_RTT)
+  stdio_rtt_init();
 #endif
 
   // todo probably set up device mode?

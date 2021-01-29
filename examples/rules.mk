@@ -11,30 +11,30 @@ ifeq ($(FAMILY),esp32s2)
 .PHONY: all clean flash
 
 all:
-	idf.py -B$(BUILD) -DFAMILY=$(FAMILY) -DBOARD=$(BOARD) build
+	idf.py -B$(BUILD) -DFAMILY=$(FAMILY) -DBOARD=$(BOARD) $(CMAKE_DEFSYM) build
 
 build: all
 
 clean:
-	idf.py -B$(BUILD) -DFAMILY=$(FAMILY) -DBOARD=$(BOARD) clean
+	idf.py -B$(BUILD) -DFAMILY=$(FAMILY) -DBOARD=$(BOARD) $(CMAKE_DEFSYM) clean
 
 fullclean:
-	idf.py -B$(BUILD) -DFAMILY=$(FAMILY) -DBOARD=$(BOARD) fullclean
+	idf.py -B$(BUILD) -DFAMILY=$(FAMILY) -DBOARD=$(BOARD) $(CMAKE_DEFSYM) fullclean
 
 flash:
-	idf.py -B$(BUILD) -DFAMILY=$(FAMILY) -DBOARD=$(BOARD) flash
+	idf.py -B$(BUILD) -DFAMILY=$(FAMILY) -DBOARD=$(BOARD) $(CMAKE_DEFSYM) flash
 
 bootloader-flash:
-	idf.py -B$(BUILD) -DFAMILY=$(FAMILY) -DBOARD=$(BOARD) bootloader-flash
+	idf.py -B$(BUILD) -DFAMILY=$(FAMILY) -DBOARD=$(BOARD) $(CMAKE_DEFSYM) bootloader-flash
 
 app-flash:
-	idf.py -B$(BUILD) -DFAMILY=$(FAMILY) -DBOARD=$(BOARD) app-flash
+	idf.py -B$(BUILD) -DFAMILY=$(FAMILY) -DBOARD=$(BOARD) $(CMAKE_DEFSYM) app-flash
 
 erase:
-	idf.py -B$(BUILD) -DFAMILY=$(FAMILY) -DBOARD=$(BOARD) erase_flash
+	idf.py -B$(BUILD) -DFAMILY=$(FAMILY) -DBOARD=$(BOARD) $(CMAKE_DEFSYM) erase_flash
 
 monitor:
-	idf.py -B$(BUILD) -DFAMILY=$(FAMILY) -DBOARD=$(BOARD) monitor
+	idf.py -B$(BUILD) -DFAMILY=$(FAMILY) -DBOARD=$(BOARD) $(CMAKE_DEFSYM) monitor
 
 UF2_FAMILY_ID = 0xbfdd4eee
 $(BUILD)/$(PROJECT).uf2: $(BUILD)/$(PROJECT).hex
@@ -43,12 +43,17 @@ $(BUILD)/$(PROJECT).uf2: $(BUILD)/$(PROJECT).hex
 
 else ifeq ($(FAMILY),rp2040)
 
-all:
-	[ -d $(BUILD) ] || cmake -S . -B $(BUILD) -DFAMILY=$(FAMILY) -DBOARD=$(BOARD) -DPICO_BUILD_DOCS=0
+$(BUILD):
+	cmake -S . -B $(BUILD) -DFAMILY=$(FAMILY) -DBOARD=$(BOARD) -DPICO_BUILD_DOCS=0 $(CMAKE_DEFSYM)
+
+all: $(BUILD)
 	$(MAKE) -C $(BUILD)
 
 clean:
 	$(RM) -rf $(BUILD)
+
+flash:
+	@$(CP) $(BUILD)/$(PROJECT).uf2 /media/$(USER)/RPI-RP2
 
 else
 # GNU Make build system
