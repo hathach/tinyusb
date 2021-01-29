@@ -74,7 +74,7 @@
 //--------------------------------------------------------------------
 
 #define CFG_TUD_TASK_QUEUE_SZ    100
-#define CFG_TUD_ENDOINT0_SIZE    64
+#define CFG_TUD_ENDPOINT0_SIZE    64
 
 //------------- CLASS -------------//
 //#define CFG_TUD_CDC              0
