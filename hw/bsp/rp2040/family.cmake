@@ -30,6 +30,7 @@ target_include_directories(${PROJECT} PUBLIC
 
 target_compile_definitions(${PROJECT} PUBLIC
   CFG_TUSB_MCU=OPT_MCU_RP2040
+  PICO_RP2040_USB_DEVICE_ENUMERATION_FIX=1
 )
 
 if(DEFINED LOG)
