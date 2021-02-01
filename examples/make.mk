@@ -112,13 +112,18 @@ endif
 
 # Log level is mapped to TUSB DEBUG option
 ifneq ($(LOG),)
+  CMAKE_DEFSYM +=	-DLOG=$(LOG)
   CFLAGS += -DCFG_TUSB_DEBUG=$(LOG)
 endif
 
 # Logger: default is uart, can be set to rtt or swo
+ifneq ($(LOGGER),)
+	CMAKE_DEFSYM +=	-DLOGGER=$(LOGGER)
+endif
+
 ifeq ($(LOGGER),rtt)
-  RTT_SRC = lib/SEGGER_RTT
   CFLAGS += -DLOGGER_RTT -DSEGGER_RTT_MODE_DEFAULT=SEGGER_RTT_MODE_BLOCK_IF_FIFO_FULL
+  RTT_SRC = lib/SEGGER_RTT
   INC   += $(TOP)/$(RTT_SRC)/RTT
   SRC_C += $(RTT_SRC)/RTT/SEGGER_RTT.c
 else ifeq ($(LOGGER),swo)
