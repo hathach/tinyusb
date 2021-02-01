@@ -49,6 +49,7 @@ def build_family(example, family):
     for entry in os.scandir("hw/bsp/{}/boards".format(family)):
         if entry.is_dir():
             all_boards.append(entry.name)
+    filter_with_input(all_boards)
     all_boards.sort()
     
     for board in all_boards:
@@ -83,7 +84,7 @@ def build_board(example, board):
         print(build_format.format(example, board, success, "{:.2f}s".format(build_duration), flash_size, sram_size))
 
         if build_result.returncode != 0:
-            print(build_result.stdout.decode("utf-8"))            
+            print(build_result.stdout.decode("utf-8"))
 
 def build_size(example, board):
     #elf_file = 'examples/device/{}/_build/{}/{}-firmware.elf'.format(example, board, board)

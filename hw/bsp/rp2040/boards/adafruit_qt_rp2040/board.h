@@ -36,9 +36,13 @@
 #define LED_STATE_ON          1
 
 // Button pin is BOOTSEL which is flash CS pin
-
 #define BUTTON_BOOTSEL
 #define BUTTON_STATE_ACTIVE   0
+
+
+#define UART_DEV              uart0
+#define UART_TX_PIN           0
+#define UART_RX_PIN           1
 
 #ifdef __cplusplus
  }

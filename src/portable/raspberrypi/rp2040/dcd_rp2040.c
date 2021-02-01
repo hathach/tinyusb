@@ -46,7 +46,6 @@
 #define usb_hw_clear hw_clear_alias(usb_hw)
 
 // Init these in dcd_init
-static uint8_t assigned_address;
 static uint8_t *next_buffer_ptr;
 
 // Endpoints 0-15, direction 0 for out and 1 for in.
@@ -313,8 +312,7 @@ static void dcd_rp2040_irq(void)
     if (status & USB_INTS_BUS_RESET_BITS)
     {
         pico_trace("BUS RESET (addr %d -> %d)\n", assigned_address, 0);
-        assigned_address = 0;
-        usb_hw->dev_addr_ctrl = assigned_address;
+        usb_hw->dev_addr_ctrl = 0;
         handled |= USB_INTS_BUS_RESET_BITS;
         dcd_event_bus_signal(0, DCD_EVENT_BUS_RESET, true);
         usb_hw_clear->sie_status = USB_SIE_STATUS_BUS_RESET_BITS;
@@ -349,7 +347,6 @@ void dcd_init (uint8_t rhport)
 
     irq_set_exclusive_handler(USBCTRL_IRQ, dcd_rp2040_irq);
     memset(hw_endpoints, 0, sizeof(hw_endpoints));
-    assigned_address = 0;
     next_buffer_ptr = &usb_dpram->epx_data[0];
 
     // EP0 always exists so init it now
@@ -388,14 +385,12 @@ void dcd_set_address (uint8_t rhport, uint8_t dev_addr)
     assert(rhport == 0);
 
     // Can't set device address in hardware until status xfer has complete
-    assigned_address = dev_addr;
-
     ep0_0len_status();
 }
 
 void dcd_remote_wakeup(uint8_t rhport)
 {
-    panic("dcd_remote_wakeup %d\n", rhport);
+    pico_info("dcd_remote_wakeup %d is not supported yet\n", rhport);
     assert(rhport == 0);
 }
 
@@ -429,7 +424,7 @@ void dcd_edpt0_status_complete(uint8_t rhport, tusb_control_request_t const * re
         request->bRequest == TUSB_REQ_SET_ADDRESS)
     {
         pico_trace("Set HW address %d\n", assigned_address);
-        usb_hw->dev_addr_ctrl = assigned_address;
+        usb_hw->dev_addr_ctrl = (uint8_t) request->wValue;
     }
 
     reset_ep0();

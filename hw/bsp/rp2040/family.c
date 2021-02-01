@@ -78,12 +78,17 @@ bool __no_inline_not_in_flash_func(get_bootsel_button)() {
 
 void board_init(void)
 {
-  setup_default_uart();
   gpio_init(LED_PIN);
   gpio_set_dir(LED_PIN, GPIO_OUT);
 
   // Button
 #ifndef BUTTON_BOOTSEL
+#endif
+
+#ifdef UART_DEV
+  uart_init(UART_DEV, CFG_BOARD_UART_BAUDRATE);
+  gpio_set_function(UART_TX_PIN, GPIO_FUNC_UART);
+  gpio_set_function(UART_RX_PIN, GPIO_FUNC_UART);
 #endif
 
   // todo probably set up device mode?
@@ -116,18 +121,27 @@ uint32_t board_button_read(void)
 
 int board_uart_read(uint8_t* buf, int len)
 {
+#ifdef UART_DEV
   for(int i=0;i<len;i++) {
-    buf[i] = uart_getc(uart_default);
+    buf[i] = uart_getc(UART_DEV);
   }
+  return len;
+#else
   return 0;
+#endif
 }
 
 int board_uart_write(void const * buf, int len)
 {
+#ifdef UART_DEV
+  char const* bufch = (uint8_t const*) buf;
   for(int i=0;i<len;i++) {
-    uart_putc(uart_default, ((char *)buf)[i]);
+    uart_putc(UART_DEV, bufch[i]);
   }
+  return len;
+#else
   return 0;
+#endif
 }
 
 //--------------------------------------------------------------------+
