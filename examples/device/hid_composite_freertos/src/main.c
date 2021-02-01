@@ -192,7 +192,7 @@ void hid_task(void* param)
         // no button, right + down, no scroll pan
         tud_hid_mouse_report(REPORT_ID_MOUSE, 0x00, delta, delta, 0, 0);
 
-        // delay a bit before attempt to send keyboard report
+        // delay a bit before sending keyboard report
         vTaskDelay(pdMS_TO_TICKS(10));
       }
     }
@@ -216,6 +216,31 @@ void hid_task(void* param)
         // send empty key report if previously has key pressed
         if (has_key) tud_hid_keyboard_report(REPORT_ID_KEYBOARD, 0, NULL);
         has_key = false;
+      }
+
+      // delay a bit before sending consumer report
+      vTaskDelay(pdMS_TO_TICKS(10));
+    }
+
+    /*------------- Consume Control -------------*/
+    if ( tud_hid_ready() )
+    {
+      // use to avoid send multiple consecutive zero report
+      static bool has_consumer_key = false;
+
+      if ( btn )
+      {
+        // volume down
+        uint16_t volume_down = HID_USAGE_CONSUMER_VOLUME_DECREMENT;
+        tud_hid_report(REPORT_ID_CONSUMER_CONTROL, &volume_down, 2);
+
+        has_consumer_key = true;
+      }else
+      {
+        // send empty key report (release key) if previously has key pressed
+        uint16_t empty_key = 0;
+        if (has_consumer_key) tud_hid_report(REPORT_ID_CONSUMER_CONTROL, &empty_key, 2);
+        has_consumer_key = false;
       }
     }
   }
