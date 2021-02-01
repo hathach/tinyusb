@@ -86,7 +86,7 @@ static void set_dev_ep(uint8_t dev_addr, uint8_t ep_addr, struct hw_endpoint *ep
     uint8_t num = tu_edpt_number(ep_addr);
     uint8_t in = (ep_addr & TUSB_DIR_IN_MASK) ? 1 : 0;
     uint32_t index = ep - eps;
-    hard_assert(index < count_of(eps));
+    hard_assert(index < TU_ARRAY_SIZE(eps));
     // todo revisit why dev_addr can be 0 here
     if (dev_addr) {
         dev_ep_map[dev_addr-1][num][in] = 128u | index;
@@ -245,7 +245,7 @@ static void hcd_rp2040_irq(void)
 static struct hw_endpoint *_next_free_interrupt_ep(void)
 {
     struct hw_endpoint *ep = NULL;
-    for (uint i = 1; i < count_of(eps); i++)
+    for (uint i = 1; i < TU_ARRAY_SIZE(eps); i++)
     {
         ep = &eps[i];
         if (!ep->configured)
@@ -444,6 +444,7 @@ bool hcd_edpt_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr, uint8_t * 
     
     // Get appropriate ep. Either EPX or interrupt endpoint
     struct hw_endpoint *ep = get_dev_ep(dev_addr, ep_addr);
+    assert(ep);
 
     if (ep_addr != ep->ep_addr)
     {
