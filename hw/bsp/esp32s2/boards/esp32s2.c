@@ -34,18 +34,29 @@
 
 #include "driver/periph_ctrl.h"
 #include "driver/rmt.h"
+
+#ifdef NEOPIXEL_PIN
 #include "led_strip.h"
+static led_strip_t *strip;
+#endif
 
 //--------------------------------------------------------------------+
 // MACRO TYPEDEF CONSTANT ENUM DECLARATION
 //--------------------------------------------------------------------+
 
 static void configure_pins(usb_hal_context_t *usb);
-static led_strip_t *strip;
 
 // Initialize on-board peripherals : led, button, uart and USB
 void board_init(void)
 {
+
+#ifdef NEOPIXEL_PIN
+  #ifdef NEOPIXEL_POWER_PIN
+  gpio_reset_pin(NEOPIXEL_POWER_PIN);
+  gpio_set_direction(NEOPIXEL_POWER_PIN, GPIO_MODE_OUTPUT);
+  gpio_set_level(NEOPIXEL_POWER_PIN, NEOPIXEL_POWER_STATE);
+  #endif
+
   // WS2812 Neopixel driver with RMT peripheral
   rmt_config_t config = RMT_DEFAULT_CONFIG_TX(NEOPIXEL_PIN, RMT_CHANNEL_0);
   config.clk_div = 2; // set counter clock to 40MHz
@@ -56,6 +67,7 @@ void board_init(void)
   led_strip_config_t strip_config = LED_STRIP_DEFAULT_CONFIG(1, (led_strip_dev_t) config.channel);
   strip = led_strip_new_rmt_ws2812(&strip_config);
   strip->clear(strip, 100); // off led
+#endif
 
   // Button
   gpio_pad_select_gpio(BUTTON_PIN);
@@ -102,8 +114,10 @@ static void configure_pins(usb_hal_context_t *usb)
 // Turn LED on or off
 void board_led_write(bool state)
 {
+#ifdef NEOPIXEL_PIN
   strip->set_pixel(strip, 0, (state ? 0x88 : 0x00), 0x00, 0x00);
   strip->refresh(strip, 100);
+#endif
 }
 
 // Get the current state of button
