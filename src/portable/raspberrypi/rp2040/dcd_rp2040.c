@@ -38,8 +38,6 @@
 
 #include "device/dcd.h"
 
-#include "pico/stdlib.h"
-
 /*------------------------------------------------------------------*/
 /* Low level controller
  *------------------------------------------------------------------*/
@@ -67,11 +65,7 @@ static struct hw_endpoint *hw_endpoint_get_by_addr(uint8_t ep_addr)
 }
 static void _hw_endpoint_alloc(struct hw_endpoint *ep)
 {
-    uint size = 64;
-    if (ep->wMaxPacketSize > 64)
-    {
-        size = ep->wMaxPacketSize;
-    }
+    uint size = TU_MIN(64, ep->wMaxPacketSize);
 
     // Assumes single buffered for now
     ep->hw_data_buf = next_buffer_ptr;
@@ -244,7 +238,7 @@ static void reset_ep0(void)
     // If we have finished this transfer on EP0 set pid back to 1 for next
     // setup transfer. Also clear a stall in case
     uint8_t addrs[] = {0x0, 0x80};
-    for (uint i = 0 ; i < count_of(addrs); i++)
+    for (uint i = 0 ; i < TU_ARRAY_SIZE(addrs); i++)
     {
         struct hw_endpoint *ep = hw_endpoint_get_by_addr(addrs[i]);
         ep->next_pid = 1u;
@@ -477,6 +471,12 @@ void dcd_edpt_close (uint8_t rhport, uint8_t ep_addr)
     // usbd.c says: In progress transfers on this EP may be delivered after this call
     pico_trace("dcd_edpt_close %d %02x\n", rhport, ep_addr);
 
+}
+
+void dcd_int_handler(uint8_t rhport)
+{
+    (void) rhport;
+    dcd_rp2040_irq();
 }
 
 #endif
