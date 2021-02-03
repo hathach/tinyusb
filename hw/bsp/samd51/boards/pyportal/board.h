@@ -32,16 +32,16 @@
 #endif
 
 // LED
-#define LED_PIN               22
+#define LED_PIN               (32+23)
 #define LED_STATE_ON          1
 
 // Button
-#define BUTTON_PIN            18 // D5
+#define BUTTON_PIN            (32+22) // D2
 #define BUTTON_STATE_ACTIVE   0
 
 // UART
-#define UART_TX_PIN           16
-#define UART_RX_PIN           17
+#define UART_TX_PIN           (32 + 13)
+#define UART_RX_PIN           (32 + 12)
 
 #ifdef __cplusplus
  }
