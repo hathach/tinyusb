@@ -40,8 +40,8 @@
 #define BUTTON_STATE_ACTIVE   0
 
 // UART
-#define UART_RX_PIN           4
-#define UART_TX_PIN           5
+#define UART_TX_PIN           23
+#define UART_RX_PIN           22
 
 #ifdef __cplusplus
  }
