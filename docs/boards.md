@@ -22,21 +22,29 @@ This code base already had supported for a handful of following boards (sorted a
 - [DA14695 Development Kit – USB](https://www.dialog-semiconductor.com/products/da14695-development-kit-usb)
 - [DA1469x Development Kit – Pro](https://www.dialog-semiconductor.com/products/da14695-development-kit-pro)
 
-### MicroChip SAM
+### MicroChip SAMD11 & SAMD21
 
 - [Adafruit Circuit Playground Express](https://www.adafruit.com/product/3333)
 - [Adafruit Feather M0 Express](https://www.adafruit.com/product/3403)
-- [Adafruit Feather M4 Express](https://www.adafruit.com/product/3857)
 - [Adafruit ItsyBitsy M0 Express](https://www.adafruit.com/product/3727)
-- [Adafruit ItsyBitsy M4 Express](https://www.adafruit.com/product/3800)
 - [Adafruit Metro M0 Express](https://www.adafruit.com/product/3505)
-- [Adafruit Metro M4 Express](https://www.adafruit.com/product/3382)
-- [D5035-01](https://github.com/RudolphRiedel/USB_CAN-FD)
 - [Great Scott Gadgets LUNA](https://greatscottgadgets.com/luna/)
 - [Microchip SAMD11 Xplained Pro](https://www.microchip.com/developmenttools/ProductDetails/atsamd11-xpro)
 - [Microchip SAMD21 Xplained Pro](https://www.microchip.com/DevelopmentTools/ProductDetails/ATSAMD21-XPRO)
-- [Microchip SAMG55 Xplained Pro](https://www.microchip.com/DevelopmentTools/ProductDetails/PartNO/ATSAMG55-XPRO)
 - [Seeeduino Xiao](https://www.seeedstudio.com/Seeeduino-XIAO-Arduino-Microcontroller-SAMD21-Cortex-M0+-p-4426.html)
+
+### MicroChip SAMD51 & SAME54
+
+- [Adafruit Feather M4 Express](https://www.adafruit.com/product/3857)
+- [Adafruit ItsyBitsy M4 Express](https://www.adafruit.com/product/3800)
+- [Adafruit PyBadge](https://www.adafruit.com/product/4200)
+- [Adafruit PyPortal](https://www.adafruit.com/product/4116)
+- [Adafruit Metro M4 Express](https://www.adafruit.com/product/3382)
+- [D5035-01](https://github.com/RudolphRiedel/USB_CAN-FD)
+
+### MicroChip SAMG
+
+- [Microchip SAMG55 Xplained Pro](https://www.microchip.com/DevelopmentTools/ProductDetails/PartNO/ATSAMG55-XPRO)
 
 ### Nordic nRF5x
 
@@ -95,6 +103,7 @@ This code base already had supported for a handful of following boards (sorted a
 
 - [Adafruit Feather RP2040](https://www.adafruit.com/product/4884)
 - [Adafruit ItsyBitsy RP2040](https://www.adafruit.com/product/4888)
+- Adafruit QT RP2040
 - [Raspberry PI PICO](https://www.raspberrypi.org/products/raspberry-pi-pico/)
 
 ### Sony
