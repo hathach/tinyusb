@@ -24,9 +24,10 @@
  * This file is part of the TinyUSB stack.
  */
 
-#include "bsp/board.h"
-
 #include "sam.h"
+#include "bsp/board.h"
+#include "board.h"
+
 #include "hal/include/hal_gpio.h"
 #include "hal/include/hal_init.h"
 #include "hri/hri_nvmctrl_d11.h"
@@ -47,8 +48,6 @@ void USB_Handler(void)
 //--------------------------------------------------------------------+
 // MACRO TYPEDEF CONSTANT ENUM DECLARATION
 //--------------------------------------------------------------------+
-#define LED_PIN      PIN_PA16 // pin PA22
-#define BUTTON_PIN   PIN_PA14 // pin PB22
 
 /* Referenced GCLKs, should be initialized firstly */
 #define _GCLK_INIT_1ST (1 << 0 | 1 << 1)
@@ -106,13 +105,12 @@ void board_init(void)
 
 void board_led_write(bool state)
 {
-  gpio_set_pin_level(LED_PIN, state);
+  gpio_set_pin_level(LED_PIN, state ? LED_STATE_ON : (1-LED_STATE_ON));
 }
 
 uint32_t board_button_read(void)
 {
-  // button is active low
-  return gpio_get_pin_level(BUTTON_PIN) ? 0 : 1;
+  return BUTTON_STATE_ACTIVE == gpio_get_pin_level(BUTTON_PIN);
 }
 
 int board_uart_read(uint8_t* buf, int len)
