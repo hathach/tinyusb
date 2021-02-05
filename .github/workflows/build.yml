@@ -77,6 +77,23 @@ jobs:
         name: ${{ matrix.family }}-tinyusb-examples
         path: _bin/
 
+    - name: Create Release Asset
+      if: ${{ github.event_name == 'release' }}
+      run: |
+        cd _bin/
+        zip -r ../${{ matrix.family }}-tinyusb-${{ github.event.release.tag_name }}-examples.zip *
+
+    - name: Upload Release Asset
+      uses: actions/upload-release-asset@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      if: ${{ github.event_name == 'release' }}
+      with:
+        upload_url: ${{ github.event.release.upload_url }}
+        asset_path: ${{ matrix.family }}-tinyusb-${{ github.event.release.tag_name }}-examples.zip
+        asset_name: ${{ matrix.family }}-tinyusb-${{ github.event.release.tag_name }}-examples.zip
+        asset_content_type: application/zip
+
   # Build all no-family (opharned) boards
   build-board:
     runs-on: ubuntu-latest
