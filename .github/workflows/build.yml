@@ -81,7 +81,7 @@ jobs:
       if: ${{ github.event_name == 'release' }}
       run: |
         cd _bin/
-        zip r ../${{ matrix.family }}-tinyusb-${{ github.event.release.tag_name }}-examples.zip *
+        zip -r ../${{ matrix.family }}-tinyusb-${{ github.event.release.tag_name }}-examples.zip *
 
     - name: Upload Release Asset
       uses: actions/upload-release-asset@v1
