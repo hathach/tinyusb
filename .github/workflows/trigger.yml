@@ -22,15 +22,16 @@ jobs:
 #        target-branch: 'main'
 #        user-email: thach@tinyusb.org
 
-    - name: Push to tinyusb_src
-      uses: johno/actions-push-subdirectories@master
-      env:
-        API_TOKEN_GITHUB: ${{ secrets.API_TOKEN_GITHUB }}
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      with:
-        args: src hathach tinyusb_src
+#    - name: Push to tinyusb_src
+#      uses: johno/actions-push-subdirectories@master
+#      env:
+#        API_TOKEN_GITHUB: ${{ secrets.API_TOKEN_GITHUB }}
+#        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+#      with:
+#        args: src hathach tinyusb_src
 
     - name: Trigger mynewt-tinyusb-example
       shell: bash
       run: |
+        curl -X POST -H "Authorization: token ${{ secrets.API_TOKEN_GITHUB }}" -H "Accept: application/vnd.github.everest-preview+json" -H "Content-Type: application/json" --data '{"event_type": "rebuild"}' https://api.github.com/repos/hathach/tinyusb_src/dispatches
         curl -X POST -H "Authorization: token ${{ secrets.API_TOKEN_GITHUB }}" -H "Accept: application/vnd.github.everest-preview+json" -H "Content-Type: application/json" --data '{"event_type": "rebuild"}' https://api.github.com/repos/hathach/mynewt-tinyusb-example/dispatches
