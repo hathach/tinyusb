@@ -11,16 +11,24 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v2
 
+#    - name: Push to tinyusb_src
+#      uses: cpina/github-action-push-to-another-repository@master
+#      env:
+#        API_TOKEN_GITHUB: ${{ secrets.API_TOKEN_GITHUB }}
+#      with:
+#        source-directory: 'src'
+#        destination-github-username: 'hathach'
+#        destination-repository-name: 'tinyusb_src'
+#        target-branch: 'main'
+#        user-email: thach@tinyusb.org
+
     - name: Push to tinyusb_src
-      uses: cpina/github-action-push-to-another-repository@master
+      uses: johno/actions-push-subdirectories@master
       env:
         API_TOKEN_GITHUB: ${{ secrets.API_TOKEN_GITHUB }}
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       with:
-        source-directory: 'src'
-        destination-github-username: 'hathach'
-        destination-repository-name: 'tinyusb_src'
-        target-branch: 'main'
-        user-email: thach@tinyusb.org
+        args: src hathach tinyusb_src
 
     - name: Trigger mynewt-tinyusb-example
       shell: bash
