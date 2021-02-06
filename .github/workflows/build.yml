@@ -1,9 +1,9 @@
 name: Build
 
 on:
-  pull_request:
-  push:
-  repository_dispatch:
+#  pull_request:
+#  push:
+#  repository_dispatch:
   release:
     types:
       - created

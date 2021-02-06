@@ -2,7 +2,7 @@ name: Trigger Repos
 
 on:
   push:
-    branches: master
+    branches: test_ci
     
 jobs:
   trigger:
