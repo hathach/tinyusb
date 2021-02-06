@@ -8,7 +8,20 @@ jobs:
   trigger:
     runs-on: ubuntu-latest
     steps:
-    - name: mynewt-tinyusb-example
+    - name: Checkout code
+      uses: actions/checkout@v2
+
+    - name: Push to tinyusb_src
+      uses: cpina/github-action-push-to-another-repository@master
+      env:
+        API_TOKEN_GITHUB: ${{ secrets.API_TOKEN_GITHUB }}
+      with:
+        source-directory: 'src'
+        destination-github-username: 'hathach'
+        destination-repository-name: 'tinyusb_src'
+        user-email: thach@tinyusb.org
+
+    - name: Trigger mynewt-tinyusb-example
       shell: bash
       run: |
-        curl -X POST -H "Authorization: token ${{ secrets.GH_REPO_TOKEN }}" -H "Accept: application/vnd.github.everest-preview+json" -H "Content-Type: application/json" --data '{"event_type": "rebuild"}' https://api.github.com/repos/hathach/mynewt-tinyusb-example/dispatches
+        curl -X POST -H "Authorization: token ${{ secrets.API_TOKEN_GITHUB }}" -H "Accept: application/vnd.github.everest-preview+json" -H "Content-Type: application/json" --data '{"event_type": "rebuild"}' https://api.github.com/repos/hathach/mynewt-tinyusb-example/dispatches
