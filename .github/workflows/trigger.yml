@@ -19,6 +19,7 @@ jobs:
         source-directory: 'src'
         destination-github-username: 'hathach'
         destination-repository-name: 'tinyusb_src'
+        target-branch: 'main'
         user-email: thach@tinyusb.org
 
     - name: Trigger mynewt-tinyusb-example
