@@ -30,8 +30,8 @@ jobs:
 #      with:
 #        args: src hathach tinyusb_src
 
-    - name: Trigger mynewt-tinyusb-example
+    - name: Trigger tinyusb_src & mynewt-tinyusb-example
       shell: bash
       run: |
-        curl -X POST -H "Authorization: token ${{ secrets.API_TOKEN_GITHUB }}" -H "Accept: application/vnd.github.everest-preview+json" -H "Content-Type: application/json" --data '{"event_type": "rebuild"}' https://api.github.com/repos/hathach/tinyusb_src/dispatches
+        curl -X POST -H "Authorization: token ${{ secrets.API_TOKEN_GITHUB }}" -H "Accept: application/vnd.github.everest-preview+json" -H "Content-Type: application/json" --data '{"event_type": "mirror"}' https://api.github.com/repos/hathach/tinyusb_src/dispatches
         curl -X POST -H "Authorization: token ${{ secrets.API_TOKEN_GITHUB }}" -H "Accept: application/vnd.github.everest-preview+json" -H "Content-Type: application/json" --data '{"event_type": "rebuild"}' https://api.github.com/repos/hathach/mynewt-tinyusb-example/dispatches
