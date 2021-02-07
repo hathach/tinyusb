@@ -46,13 +46,16 @@ jobs:
           git push 
         fi
 
+    - name: Get Tag
+      if: ${{ github.event_name == 'release' }}
+      run: echo ::set-output name=TAG::${GITHUB_REF#refs/tags/}
+
     - name: Create tinyusb_src Tag
       if: ${{ github.event_name == 'release' }}
       run: |
         cd tinyusb_src
-        ls *
-        echo ::set-output name=TAG::${GITHUB_REF#refs/tags/}
-        echo $TAG
+        git tag $TAG
+        git push origin $TAG
         
     - name: Create tinyusb_src Release
       if: ${{ github.event_name == 'release' }}
