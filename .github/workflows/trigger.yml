@@ -14,13 +14,20 @@ jobs:
 
     - name: Push to tinyusb_src
       run: |
+        # clone tinyusb_src with PAT
         git config --global user.email "thach@tinyusb.org"
         git config --global user.name "hathach"
         git clone --depth 1 --single-branch --branch main "https://${{ secrets.API_TOKEN_GITHUB }}@github.com/hathach/tinyusb_src.git" tinyusb_src
+
+        # Remove all files
         rm -rf tinyusb_src/*
+
+        # Copy src and other files
         cp -r src tinyusb_src/
         cp LICENSE tinyusb_src/
         cd tinyusb_src
+
+        # Commit if there is changes
         if [ -n "$(git status --porcelain)" ]; then
           git add .
           git commit --message "Update from https://github.com/$GITHUB_REPOSITORY/commit/$GITHUB_SHA"
