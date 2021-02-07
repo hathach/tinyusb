@@ -3,9 +3,21 @@ name: Trigger Repos
 on:
   push:
     branches: test-ci
-    
+  release:
+    types:
+      - created
+
 jobs:
-  trigger:
+  trigger-mynewt:
+    if: github.repository == 'hathach/tinyusb'
+    runs-on: ubuntu-latest
+    steps:
+    - name: Trigger mynewt-tinyusb-example
+      shell: bash
+      run: |
+        curl -X POST -H "Authorization: token ${{ secrets.API_TOKEN_GITHUB }}" -H "Accept: application/vnd.github.everest-preview+json" -H "Content-Type: application/json" --data '{"event_type": "rebuild"}' https://api.github.com/repos/hathach/mynewt-tinyusb-example/dispatches
+
+  mirror-tinyusb-src:
     if: github.repository == 'hathach/tinyusb'
     runs-on: ubuntu-latest
     steps:
@@ -34,8 +46,16 @@ jobs:
           git push 
         fi
 
-    - name: Trigger tinyusb_src & mynewt-tinyusb-example
-      shell: bash
-      run: |
-        curl -X POST -H "Authorization: token ${{ secrets.API_TOKEN_GITHUB }}" -H "Accept: application/vnd.github.everest-preview+json" -H "Content-Type: application/json" --data '{"event_type": "mirror"}' https://api.github.com/repos/hathach/tinyusb_src/dispatches
-        curl -X POST -H "Authorization: token ${{ secrets.API_TOKEN_GITHUB }}" -H "Accept: application/vnd.github.everest-preview+json" -H "Content-Type: application/json" --data '{"event_type": "rebuild"}' https://api.github.com/repos/hathach/mynewt-tinyusb-example/dispatches
+    - name: Create tinyusb_src Release
+      if: ${{ github.event_name == 'release' }}
+      uses: actions/create-release@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        owner: hathach
+        repo: tinyusb_src
+        tag_name: ${{ github.ref }}
+        release_name: ${{ github.ref }}
+        body: Changelog can be found at https://github.com/hathach/tinyusb/releases/tag/${{ github.ref }}
+        draft: false
+        prerelease: false
