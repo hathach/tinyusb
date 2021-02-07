@@ -50,27 +50,13 @@ jobs:
       if: ${{ github.event_name == 'release' }}
       run: echo "TAG=${GITHUB_REF#refs/tags/}" >> $GITHUB_ENV
 
-    - name: Create tinyusb_src Tag
+    - name: Create tinyusb_src Release
       if: ${{ github.event_name == 'release' }}
       run: |
+        # Push tag
         cd tinyusb_src
         git tag ${{ env.TAG }}
         git push origin ${{ env.TAG }}
         
-    - name: Create tinyusb_src Release
-      id: create-release
-      if: ${{ github.event_name == 'release' }}
-      uses: actions/create-release@v1.1.4
-      env:
-        GITHUB_TOKEN: ${{ secrets.API_TOKEN_GITHUB }}
-      with:
-        owner: hathach
-        repo: tinyusb_src
-        tag_name: ${{ github.ref }}
-        release_name: ${{ github.ref }}
-        body: Changelog can be found at https://github.com/hathach/tinyusb/releases/tag/${{ env.TAG }}
-
-    - if: ${{ github.event_name == 'release' }}
-      run: |
-        echo ${{ steps.create-release.outputs.html_url }}
-        echo ${{ steps.create-release.outputs.upload_url }}
+        # Send POST reqwuest to release https://docs.github.com/en/rest/reference/repos#create-a-release
+        curl -X POST -H "Authorization: token ${{ secrets.API_TOKEN_GITHUB }}" -H "Accept: application/vnd.github.v3+json" --data '{"tag_name": "${{ env.TAG }}", "name": "${{ env.TAG }}", "body": "Changelog can be found at https://github.com/hathach/tinyusb/releases/tag/${{ env.TAG }}"}' https://api.github.com/repos/hathach/tinyusb_src/releases
