@@ -46,6 +46,13 @@ jobs:
           git push 
         fi
 
+    - name: Create tinyusb_src Tag
+      if: ${{ github.event_name == 'release' }}
+      run: |
+        ls *
+        TAG=${GITHUB_REF/refs\/tags\//}
+        echo $TAG
+        
     - name: Create tinyusb_src Release
       if: ${{ github.event_name == 'release' }}
       uses: actions/create-release@v1.1.4
