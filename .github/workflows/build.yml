@@ -3,10 +3,10 @@ name: Build
 on:
 #  pull_request:
 #  push:
-#  repository_dispatch:
-  release:
-    types:
-      - created
+  repository_dispatch:
+#  release:
+#    types:
+#      - created
 
 jobs:
   # Unit testing with Ceedling

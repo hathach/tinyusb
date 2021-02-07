@@ -49,8 +49,9 @@ jobs:
     - name: Create tinyusb_src Tag
       if: ${{ github.event_name == 'release' }}
       run: |
+        cd tinyusb_src
         ls *
-        TAG=${GITHUB_REF/refs\/tags\//}
+        echo ::set-output name=TAG::${GITHUB_REF#refs/tags/}
         echo $TAG
         
     - name: Create tinyusb_src Release
