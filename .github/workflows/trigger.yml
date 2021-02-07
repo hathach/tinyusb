@@ -48,7 +48,7 @@ jobs:
 
     - name: Create tinyusb_src Release
       if: ${{ github.event_name == 'release' }}
-      uses: actions/create-release@v1
+      uses: actions/create-release@v1.1.4
       env:
         GITHUB_TOKEN: ${{ secrets.API_TOKEN_GITHUB }}
       with:
