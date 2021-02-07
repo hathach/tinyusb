@@ -8,14 +8,14 @@ on:
       - created
 
 jobs:
-  trigger-mynewt:
-    if: github.repository == 'hathach/tinyusb'
-    runs-on: ubuntu-latest
-    steps:
-    - name: Trigger mynewt-tinyusb-example
-      shell: bash
-      run: |
-        curl -X POST -H "Authorization: token ${{ secrets.API_TOKEN_GITHUB }}" -H "Accept: application/vnd.github.everest-preview+json" -H "Content-Type: application/json" --data '{"event_type": "rebuild"}' https://api.github.com/repos/hathach/mynewt-tinyusb-example/dispatches
+#  trigger-mynewt:
+#    if: github.repository == 'hathach/tinyusb'
+#    runs-on: ubuntu-latest
+#    steps:
+#    - name: Trigger mynewt-tinyusb-example
+#      shell: bash
+#      run: |
+#        curl -X POST -H "Authorization: token ${{ secrets.API_TOKEN_GITHUB }}" -H "Accept: application/vnd.github.everest-preview+json" -H "Content-Type: application/json" --data '{"event_type": "rebuild"}' https://api.github.com/repos/hathach/mynewt-tinyusb-example/dispatches
 
   mirror-tinyusb-src:
     if: github.repository == 'hathach/tinyusb'
@@ -47,18 +47,18 @@ jobs:
         fi
 
     - name: Get Tag
-      #if: ${{ github.event_name == 'release' }}
+      if: ${{ github.event_name == 'release' }}
       run: |
         echo $GITHUB_REF
-        echo ::set-output name=TAG::${GITHUB_REF#refs/tags/}
+        echo "TAG=${GITHUB_REF#refs/tags/}" >> $GITHUB_ENV
 
     - name: Create tinyusb_src Tag
-      #if: ${{ github.event_name == 'release' }}
+      if: ${{ github.event_name == 'release' }}
       run: |
-        echo $TAG
+        echo ${{ env.TAG }}
         cd tinyusb_src
-        git tag $TAG
-        git push origin $TAG
+        git tag ${{ env.TAG }}
+        git push origin ${{ env.TAG }}
         
     - name: Create tinyusb_src Release
       if: ${{ github.event_name == 'release' }}
