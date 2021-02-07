@@ -2,20 +2,20 @@ name: Trigger Repos
 
 on:
   push:
-    branches: test-ci
+    branches: master
   release:
     types:
       - created
 
 jobs:
-#  trigger-mynewt:
-#    if: github.repository == 'hathach/tinyusb'
-#    runs-on: ubuntu-latest
-#    steps:
-#    - name: Trigger mynewt-tinyusb-example
-#      shell: bash
-#      run: |
-#        curl -X POST -H "Authorization: token ${{ secrets.API_TOKEN_GITHUB }}" -H "Accept: application/vnd.github.everest-preview+json" -H "Content-Type: application/json" --data '{"event_type": "rebuild"}' https://api.github.com/repos/hathach/mynewt-tinyusb-example/dispatches
+  trigger-mynewt:
+    if: github.repository == 'hathach/tinyusb'
+    runs-on: ubuntu-latest
+    steps:
+    - name: Trigger mynewt-tinyusb-example
+      shell: bash
+      run: |
+        curl -X POST -H "Authorization: token ${{ secrets.API_TOKEN_GITHUB }}" -H "Accept: application/vnd.github.everest-preview+json" -H "Content-Type: application/json" --data '{"event_type": "rebuild"}' https://api.github.com/repos/hathach/mynewt-tinyusb-example/dispatches
 
   mirror-tinyusb-src:
     if: github.repository == 'hathach/tinyusb'
