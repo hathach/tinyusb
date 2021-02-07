@@ -48,19 +48,17 @@ jobs:
 
     - name: Get Tag
       if: ${{ github.event_name == 'release' }}
-      run: |
-        echo $GITHUB_REF
-        echo "TAG=${GITHUB_REF#refs/tags/}" >> $GITHUB_ENV
+      run: echo "TAG=${GITHUB_REF#refs/tags/}" >> $GITHUB_ENV
 
     - name: Create tinyusb_src Tag
       if: ${{ github.event_name == 'release' }}
       run: |
-        echo ${{ env.TAG }}
         cd tinyusb_src
         git tag ${{ env.TAG }}
         git push origin ${{ env.TAG }}
         
     - name: Create tinyusb_src Release
+      id: create-release
       if: ${{ github.event_name == 'release' }}
       uses: actions/create-release@v1.1.4
       env:
@@ -70,6 +68,9 @@ jobs:
         repo: tinyusb_src
         tag_name: ${{ github.ref }}
         release_name: ${{ github.ref }}
-        body: Changelog can be found at https://github.com/hathach/tinyusb/releases/tag/${{ github.ref }}
-        draft: false
-        prerelease: false
+        body: Changelog can be found at https://github.com/hathach/tinyusb/releases/tag/${{ env.TAG }}
+
+    - if: ${{ github.event_name == 'release' }}
+      run: |
+        echo ${{ steps.create-release.outputs.html_url }}
+        echo ${{ steps.create-release.outputs.upload_url }}
