@@ -118,7 +118,7 @@ uint8_t const desc_configuration[] =
   // Config number, interface count, string index, total length, attribute, power in mA
   TUD_CONFIG_DESCRIPTOR(1, ITF_NUM_TOTAL, 0, CONFIG_TOTAL_LEN, TUSB_DESC_CONFIG_ATT_REMOTE_WAKEUP, 100),
 
-  // Interface number, string index, protocol, report descriptor len, EP In & Out address, size & polling interval
+  // Interface number, string index, protocol, report descriptor len, EP In address, size & polling interval
   TUD_HID_DESCRIPTOR(ITF_NUM_HID1, 4, HID_PROTOCOL_NONE, sizeof(desc_hid_report1), EPNUM_HID1, CFG_TUD_HID_EP_BUFSIZE, 10),
   TUD_HID_DESCRIPTOR(ITF_NUM_HID2, 5, HID_PROTOCOL_NONE, sizeof(desc_hid_report2), EPNUM_HID2, CFG_TUD_HID_EP_BUFSIZE, 10)
 };
@@ -140,11 +140,11 @@ uint8_t const * tud_descriptor_configuration_cb(uint8_t index)
 char const* string_desc_arr [] =
 {
   (const char[]) { 0x09, 0x04 },  // 0: is supported language is English (0x0409)
-  "TinyUSB",                              // 1: Manufacturer
-  "TinyUSB Device",                 // 2: Product
-  "123456",                                // 3: Serials, should use chip ID
-  "Keyboard Interface",             // 4: Interface 1 String
-  "Mouse Interface",                 // 5: Interface 2 String
+  "TinyUSB",                      // 1: Manufacturer
+  "TinyUSB Device",               // 2: Product
+  "123456",                       // 3: Serials, should use chip ID
+  "Keyboard Interface",           // 4: Interface 1 String
+  "Mouse Interface",              // 5: Interface 2 String
 };
 
 static uint16_t _desc_str[32];

@@ -183,6 +183,35 @@ void hid_task(void)
       if (has_consumer_key) tud_hid_report(REPORT_ID_CONSUMER_CONTROL, &empty_key, 2);
       has_consumer_key = false;
     }
+
+    // delay a bit before sending next report
+    board_delay(10);
+  }
+
+  /*------------- Gamepad -------------*/
+  if ( tud_hid_ready() )
+  {
+    // use to avoid send multiple consecutive zero report for keyboard
+    static bool has_gamepad_key = false;
+
+    hid_gamepad_report_t report =
+    {
+      .x   = 0, .y = 0, .z = 0, .rz = 0, .rx = 0, .ry = 0,
+      .hat = 0, .buttons = 0
+    };
+
+    if ( btn )
+    {
+      report.hat = GAMEPAD_HAT_UP;
+      tud_hid_report(REPORT_ID_GAMEPAD, &report, sizeof(report));
+
+      has_gamepad_key = true;
+    }else
+    {
+      report.hat = GAMEPAD_HAT_CENTERED;
+      if (has_gamepad_key) tud_hid_report(REPORT_ID_GAMEPAD, &report, sizeof(report));
+      has_gamepad_key = false;
+    }
   }
 }
 
