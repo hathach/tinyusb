@@ -71,6 +71,10 @@ bool tud_hid_n_keyboard_report(uint8_t itf, uint8_t report_id, uint8_t modifier,
 // use template layout report as defined by hid_mouse_report_t
 bool tud_hid_n_mouse_report(uint8_t itf, uint8_t report_id, uint8_t buttons, int8_t x, int8_t y, int8_t vertical, int8_t horizontal);
 
+// Gamepad: convenient helper to send mouse report if application
+// use template layout report TUD_HID_REPORT_DESC_GAMEPAD
+bool tud_hid_n_gamepad_report(uint8_t itf, uint8_t report_id, int8_t x, int8_t y, int8_t z, int8_t rz, int8_t rx, int8_t ry, uint8_t hat, uint16_t buttons);
+
 //--------------------------------------------------------------------+
 // Application API (Single Port)
 //--------------------------------------------------------------------+
@@ -118,6 +122,8 @@ TU_ATTR_WEAK void tud_hid_boot_mode_cb(uint8_t boot_mode);
 TU_ATTR_WEAK bool tud_hid_set_idle_cb(uint8_t idle_rate);
 
 #endif
+
+// TU_ATTR_WEAK void tud_hid_report_complete_cb(uint8_t itf, );
 
 
 //--------------------------------------------------------------------+

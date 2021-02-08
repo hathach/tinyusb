@@ -218,7 +218,7 @@ typedef enum
 //GAMEPAD_BUTTON_       = TU_BIT(15), ///< Undefined button
 }hid_gamepad_button_bm_t;
 
-/// Standard Gamepad HAT/DPAD Buttons Bitmap (from Linux input event codes)
+/// Standard Gamepad HAT/DPAD Buttons (from Linux input event codes)
 typedef enum
 {
   GAMEPAD_HAT_CENTERED   = 0,  ///< DPAD_CENTERED
@@ -230,7 +230,7 @@ typedef enum
   GAMEPAD_HAT_DOWN_LEFT  = 6,  ///< DPAD_DOWN_LEFT
   GAMEPAD_HAT_LEFT       = 7,  ///< DPAD_LEFT
   GAMEPAD_HAT_UP_LEFT    = 8,  ///< DPAD_UP_LEFT
-}hid_gamepad_hat_bm_t;
+}hid_gamepad_hat_t;
 
 /// @}
 
