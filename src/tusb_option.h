@@ -113,6 +113,7 @@
 #define OPT_OS_MYNEWT     3  ///< Mynewt OS
 #define OPT_OS_CUSTOM     4  ///< Custom OS is implemented by application
 #define OPT_OS_PICO       5  ///< Raspberry Pi Pico SDK
+#define OPT_OS_RTTHREAD   6  ///< RT-Thread
 /** @} */
 
 
