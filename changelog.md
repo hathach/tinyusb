@@ -1,5 +1,11 @@
 # TinyUSB Changelog
 
+## WIP
+
+- Fix dropping MIDI sysex message when fifo is full
+- Add DPad/Hat support for HID Gamepad
+- Add tud_hid_report_complete_cb() API
+
 ## 0.8.0 - 2021.02.05
 
 ### Device Controller Driver
