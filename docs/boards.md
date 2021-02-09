@@ -99,12 +99,12 @@ This code base already had supported for a handful of following boards (sorted a
 - [NGX LPC4330-Xplorer](https://www.nxp.com/design/designs/lpc4330-xplorer-board:OM13027)
 - [Double M33 Express](https://www.crowdsupply.com/steiert-solutions/double-m33-express)
 
-### Raspberry PI RP2040
+### Raspberry Pi RP2040
 
 - [Adafruit Feather RP2040](https://www.adafruit.com/product/4884)
 - [Adafruit ItsyBitsy RP2040](https://www.adafruit.com/product/4888)
 - Adafruit QT RP2040
-- [Raspberry PI PICO](https://www.raspberrypi.org/products/raspberry-pi-pico/)
+- [Raspberry Pi Pico](https://www.raspberrypi.org/products/raspberry-pi-pico/)
 
 ### Sony
 
