@@ -123,7 +123,10 @@ TU_ATTR_WEAK bool tud_hid_set_idle_cb(uint8_t idle_rate);
 
 #endif
 
-// TU_ATTR_WEAK void tud_hid_report_complete_cb(uint8_t itf, );
+// Invoked when sent REPORT successfully to host
+// Application can use this to send the next report
+// Note: For composite reports, report[0] is report ID
+TU_ATTR_WEAK void tud_hid_report_complete_cb(uint8_t itf, uint8_t const* report, uint8_t len);
 
 
 //--------------------------------------------------------------------+
