@@ -163,6 +163,96 @@ void tud_resume_cb(void)
 // USB HID
 //--------------------------------------------------------------------+
 
+static void send_hid_report(uint8_t report_id, uint32_t btn)
+{
+  // skip if hid is not ready yet
+  if ( !tud_hid_ready() ) return;
+
+  switch(report_id)
+  {
+    case REPORT_ID_KEYBOARD:
+    {
+      // use to avoid send multiple consecutive zero report for keyboard
+      static bool has_keyboard_key = false;
+
+      if ( btn )
+      {
+        uint8_t keycode[6] = { 0 };
+        keycode[0] = HID_KEY_A;
+
+        tud_hid_keyboard_report(REPORT_ID_KEYBOARD, 0, keycode);
+        has_keyboard_key = true;
+      }else
+      {
+        // send empty key report if previously has key pressed
+        if (has_keyboard_key) tud_hid_keyboard_report(REPORT_ID_KEYBOARD, 0, NULL);
+        has_keyboard_key = false;
+      }
+    }
+    break;
+
+    case REPORT_ID_MOUSE:
+    {
+      int8_t const delta = 5;
+
+      // no button, right + down, no scroll, no pan
+      tud_hid_mouse_report(REPORT_ID_MOUSE, 0x00, delta, delta, 0, 0);
+    }
+    break;
+
+    case REPORT_ID_CONSUMER_CONTROL:
+    {
+      // use to avoid send multiple consecutive zero report
+      static bool has_consumer_key = false;
+
+      if ( btn )
+      {
+        // volume down
+        uint16_t volume_down = HID_USAGE_CONSUMER_VOLUME_DECREMENT;
+        tud_hid_report(REPORT_ID_CONSUMER_CONTROL, &volume_down, 2);
+        has_consumer_key = true;
+      }else
+      {
+        // send empty key report (release key) if previously has key pressed
+        uint16_t empty_key = 0;
+        if (has_consumer_key) tud_hid_report(REPORT_ID_CONSUMER_CONTROL, &empty_key, 2);
+        has_consumer_key = false;
+      }
+    }
+    break;
+
+    case REPORT_ID_GAMEPAD:
+    {
+      // use to avoid send multiple consecutive zero report for keyboard
+      static bool has_gamepad_key = false;
+
+      hid_gamepad_report_t report =
+      {
+        .x   = 0, .y = 0, .z = 0, .rz = 0, .rx = 0, .ry = 0,
+        .hat = 0, .buttons = 0
+      };
+
+      if ( btn )
+      {
+        report.hat = GAMEPAD_HAT_UP;
+        report.buttons = GAMEPAD_BUTTON_A;
+        tud_hid_report(REPORT_ID_GAMEPAD, &report, sizeof(report));
+
+        has_gamepad_key = true;
+      }else
+      {
+        report.hat = GAMEPAD_HAT_CENTERED;
+        report.buttons = 0;
+        if (has_gamepad_key) tud_hid_report(REPORT_ID_GAMEPAD, &report, sizeof(report));
+        has_gamepad_key = false;
+      }
+    }
+    break;
+
+    default: break;
+  }
+}
+
 void hid_task(void* param)
 {
   (void) param;
@@ -181,70 +271,30 @@ void hid_task(void* param)
       // and REMOTE_WAKEUP feature is enabled by host
       tud_remote_wakeup();
     }
-
-    /*------------- Mouse -------------*/
-    if ( tud_hid_ready() )
+    else
     {
-      if ( btn )
-      {
-        int8_t const delta = 5;
-
-        // no button, right + down, no scroll pan
-        tud_hid_mouse_report(REPORT_ID_MOUSE, 0x00, delta, delta, 0, 0);
-
-        // delay a bit before sending keyboard report
-        vTaskDelay(pdMS_TO_TICKS(10));
-      }
-    }
-
-    /*------------- Keyboard -------------*/
-    if ( tud_hid_ready() )
-    {
-      // use to avoid send multiple consecutive zero report for keyboard
-      static bool has_key = false;
-
-      if ( btn )
-      {
-        uint8_t keycode[6] = { 0 };
-        keycode[0] = HID_KEY_A;
-
-        tud_hid_keyboard_report(REPORT_ID_KEYBOARD, 0, keycode);
-
-        has_key = true;
-      }else
-      {
-        // send empty key report if previously has key pressed
-        if (has_key) tud_hid_keyboard_report(REPORT_ID_KEYBOARD, 0, NULL);
-        has_key = false;
-      }
-
-      // delay a bit before sending consumer report
-      vTaskDelay(pdMS_TO_TICKS(10));
-    }
-
-    /*------------- Consume Control -------------*/
-    if ( tud_hid_ready() )
-    {
-      // use to avoid send multiple consecutive zero report
-      static bool has_consumer_key = false;
-
-      if ( btn )
-      {
-        // volume down
-        uint16_t volume_down = HID_USAGE_CONSUMER_VOLUME_DECREMENT;
-        tud_hid_report(REPORT_ID_CONSUMER_CONTROL, &volume_down, 2);
-
-        has_consumer_key = true;
-      }else
-      {
-        // send empty key report (release key) if previously has key pressed
-        uint16_t empty_key = 0;
-        if (has_consumer_key) tud_hid_report(REPORT_ID_CONSUMER_CONTROL, &empty_key, 2);
-        has_consumer_key = false;
-      }
+      // Send the 1st of report chain, the rest will be sent by tud_hid_report_complete_cb()
+      send_hid_report(REPORT_ID_KEYBOARD, btn);
     }
   }
 }
+
+// Invoked when sent REPORT successfully to host
+// Application can use this to send the next report
+// Note: For composite reports, report[0] is report ID
+void tud_hid_report_complete_cb(uint8_t itf, uint8_t const* report, uint8_t len)
+{
+  (void) itf;
+  (void) len;
+
+  uint8_t next_report_id = report[0] + 1;
+
+  if (next_report_id < REPORT_ID_COUNT)
+  {
+    send_hid_report(next_report_id, board_button_read());
+  }
+}
+
 
 // Invoked when received GET_REPORT control request
 // Application must fill buffer report's content and return its length.
