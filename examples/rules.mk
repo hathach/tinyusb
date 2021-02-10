@@ -45,6 +45,10 @@ $(BUILD)/$(PROJECT).uf2: $(BUILD)/$(PROJECT).bin
 
 else ifeq ($(FAMILY),rp2040)
 
+ifeq ($(DEBUG), 1)
+CMAKE_DEFSYM += -DCMAKE_BUILD_TYPE=Debug
+endif
+
 $(BUILD):
 	cmake -S . -B $(BUILD) -DFAMILY=$(FAMILY) -DBOARD=$(BOARD) -DPICO_BUILD_DOCS=0 $(CMAKE_DEFSYM)
 
