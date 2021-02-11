@@ -166,9 +166,10 @@ static void _hw_endpoint_init(struct hw_endpoint *ep, uint8_t ep_addr, uint wMax
 
         // Now if it hasn't already been done
         //alloc a buffer and fill in endpoint control register
-        if( !(ep->configured)){
-        _hw_endpoint_alloc(ep);
-    }
+        if( !(ep->configured))
+        {
+            _hw_endpoint_alloc(ep);
+        }
     }
 
     ep->configured = true;
