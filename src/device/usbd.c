@@ -1113,7 +1113,6 @@ bool usbd_edpt_open(uint8_t rhport, tusb_desc_endpoint_t const * desc_ep)
     break;
 
     case TUSB_XFER_BULK:
-
       if (_usbd_dev.speed == TUSB_SPEED_HIGH)
       {
         // Bulk highspeed must be EXACTLY 512
