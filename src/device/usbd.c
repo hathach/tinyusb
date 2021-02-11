@@ -175,9 +175,9 @@ static usbd_class_driver_t const _usbd_driver[] =
   },
   #endif
 
-  #if CFG_TUD_DFU_RT
+  #if CFG_TUD_DFU_RUNTIME
   {
-    DRIVER_NAME("DFU-RT")
+    DRIVER_NAME("DFU-RUNTIME")
     .init             = dfu_rtd_init,
     .reset            = dfu_rtd_reset,
     .open             = dfu_rtd_open,
