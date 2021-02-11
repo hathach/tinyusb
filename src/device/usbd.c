@@ -1112,22 +1112,35 @@ bool usbd_edpt_open(uint8_t rhport, tusb_desc_endpoint_t const * desc_ep)
 {
   TU_LOG2("  Open EP %02X with Size = %u\r\n", desc_ep->bEndpointAddress, desc_ep->wMaxPacketSize.size);
 
-  if (TUSB_XFER_ISOCHRONOUS == desc_ep->bmAttributes.xfer)
+  switch (desc_ep->bmAttributes.xfer)
   {
-    TU_ASSERT(desc_ep->wMaxPacketSize.size <= (_usbd_dev.speed == TUSB_SPEED_HIGH ? 1024 : 1023));
-  }
-  else
-  {
-    uint16_t const max_epsize = (_usbd_dev.speed == TUSB_SPEED_HIGH ? 512 : 64);
-
-    if (TUSB_XFER_BULK == desc_ep->bmAttributes.xfer)
+    case TUSB_XFER_ISOCHRONOUS:
     {
-      // Bulk must be EXACTLY 512/64 bytes
-      TU_ASSERT(desc_ep->wMaxPacketSize.size == max_epsize);
-    }else
-    {
+      uint16_t const max_epsize = (_usbd_dev.speed == TUSB_SPEED_HIGH ? 1024 : 1023);
       TU_ASSERT(desc_ep->wMaxPacketSize.size <= max_epsize);
     }
+    break;
+
+    case TUSB_XFER_BULK:
+      if (_usbd_dev.speed == TUSB_SPEED_HIGH)
+      {
+        // Bulk highspeed must be EXACTLY 512
+        TU_ASSERT(desc_ep->wMaxPacketSize.size == 512);
+      }else
+      {
+        // TODO Bulk fullspeed can only be 8, 16, 32, 64
+        TU_ASSERT(desc_ep->wMaxPacketSize.size <= 64);
+      }
+    break;
+
+    case TUSB_XFER_INTERRUPT:
+    {
+      uint16_t const max_epsize = (_usbd_dev.speed == TUSB_SPEED_HIGH ? 1024 : 64);
+      TU_ASSERT(desc_ep->wMaxPacketSize.size <= max_epsize);
+    }
+    break;
+
+    default: return false;
   }
 
   return dcd_edpt_open(rhport, desc_ep);
