@@ -152,22 +152,28 @@ bool tud_vendor_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_requ
   if (stage != CONTROL_STAGE_SETUP ) return true;
 
   if (request->bmRequestType_bit.type == TUSB_REQ_TYPE_VENDOR) {
-    switch (request->bRequest) {
+    switch (request->bRequest)
+    {
       case VENDOR_REQUEST_WEBUSB:
         // match vendor request in BOS descriptor
         // Get landing page url
         return tud_control_xfer(rhport, request, (void*) &desc_url, desc_url.bLength);
 
       case VENDOR_REQUEST_MICROSOFT:
-        if ( request->wIndex == 7 ) {
+        if ( request->wIndex == 7 )
+        {
           // Get Microsoft OS 2.0 compatible descriptor
           uint16_t total_len;
           memcpy(&total_len, desc_ms_os_20+8, 2);
 
           return tud_control_xfer(rhport, request, (void*) desc_ms_os_20, total_len);
-        } else {
+        }else
+        {
           return false;
         }
+
+      default:
+        return false;
     }
   } else if (
         request->bmRequestType_bit.type == TUSB_REQ_TYPE_CLASS &&
@@ -182,7 +188,8 @@ bool tud_vendor_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_requ
       blink_interval_ms = BLINK_ALWAYS_ON;
 
       tud_vendor_write_str("\r\nTinyUSB WebUSB device example\r\n");
-    } else {
+    }else
+    {
       blink_interval_ms = BLINK_MOUNTED;
     }
 
