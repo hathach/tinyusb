@@ -233,8 +233,8 @@
   #define CFG_TUD_USBTMC          0
 #endif
 
-#ifndef CFG_TUD_DFU_RT
-  #define CFG_TUD_DFU_RT          0
+#ifndef CFG_TUD_DFU_RUNTIME
+  #define CFG_TUD_DFU_RUNTIME          0
 #endif
 
 #ifndef CFG_TUD_NET

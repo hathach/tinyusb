@@ -112,7 +112,7 @@ void tud_resume_cb(void)
 }
 
 // Invoked on DFU_DETACH request to reboot to the bootloader
-void tud_dfu_rt_reboot_to_dfu(void)
+void tud_dfu_runtime_reboot_to_dfu_cb(void)
 {
   blink_interval_ms = BLINK_DFU_MODE;
 }

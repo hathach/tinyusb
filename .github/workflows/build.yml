@@ -107,7 +107,7 @@ jobs:
         - 'device/cdc_dual_ports'
         - 'device/cdc_msc'
         - 'device/cdc_msc_freertos'
-        - 'device/dfu_rt'
+        - 'device/dfu_runtime'
         - 'device/hid_composite'
         - 'device/hid_composite_freertos'
         - 'device/hid_generic_inout'
