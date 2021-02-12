@@ -46,7 +46,9 @@ extern "C" {
 #define CFG_TUSB_RHPORT0_MODE       OPT_MODE_DEVICE
 #endif
 
+#ifndef CFG_TUSB_OS
 #define CFG_TUSB_OS                 OPT_OS_NONE
+#endif
 
 #ifndef CFG_TUSB_DEBUG
 // Can be set during compilation i.e.: make LOG=<value for CFG_TUSB_DEBUG> BOARD=<bsp>

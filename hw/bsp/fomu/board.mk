@@ -27,9 +27,9 @@ CHIP_FAMILY = eptri
 FREERTOS_PORT = RISC-V
 
 # flash using dfu-util
-$(BUILD)/$(BOARD)-firmware.dfu: $(BUILD)/$(BOARD)-firmware.bin
+$(BUILD)/$(PROJECT).dfu: $(BUILD)/$(PROJECT).bin
 	@echo "Create $@"
 	python $(TOP)/hw/bsp/$(BOARD)/dfu.py -b $^ -D 0x1209:0x5bf0 $@
 	
-flash: $(BUILD)/$(BOARD)-firmware.dfu
+flash: $(BUILD)/$(PROJECT).dfu
 	dfu-util -D $^

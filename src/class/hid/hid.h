@@ -144,6 +144,97 @@ typedef enum
 /** @} */
 
 //--------------------------------------------------------------------+
+// GAMEPAD
+//--------------------------------------------------------------------+
+/** \addtogroup ClassDriver_HID_Gamepad Gamepad
+ *  @{ */
+
+/* From https://www.kernel.org/doc/html/latest/input/gamepad.html
+          ____________________________              __
+         / [__ZL__]          [__ZR__] \               |
+        / [__ TL __]        [__ TR __] \              | Front Triggers
+     __/________________________________\__         __|
+    /                                  _   \          |
+   /      /\           __             (N)   \         |
+  /       ||      __  |MO|  __     _       _ \        | Main Pad
+ |    <===DP===> |SE|      |ST|   (W) -|- (E) |       |
+  \       ||    ___          ___       _     /        |
+  /\      \/   /   \        /   \     (S)   /\      __|
+ /  \________ | LS  | ____ |  RS | ________/  \       |
+|         /  \ \___/ /    \ \___/ /  \         |      | Control Sticks
+|        /    \_____/      \_____/    \        |    __|
+|       /                              \       |
+ \_____/                                \_____/
+
+     |________|______|    |______|___________|
+       D-Pad    Left       Right   Action Pad
+               Stick       Stick
+
+                 |_____________|
+                    Menu Pad
+
+  Most gamepads have the following features:
+  - Action-Pad 4 buttons in diamonds-shape (on the right side) NORTH, SOUTH, WEST and EAST.
+  - D-Pad (Direction-pad) 4 buttons (on the left side) that point up, down, left and right.
+  - Menu-Pad Different constellations, but most-times 2 buttons: SELECT - START.
+  - Analog-Sticks provide freely moveable sticks to control directions, Analog-sticks may also
+  provide a digital button if you press them.
+  - Triggers are located on the upper-side of the pad in vertical direction. The upper buttons
+  are normally named Left- and Right-Triggers, the lower buttons Z-Left and Z-Right.
+  - Rumble Many devices provide force-feedback features. But are mostly just simple rumble motors.
+ */
+
+/// HID Gamepad Protocol Report.
+typedef struct TU_ATTR_PACKED
+{
+  int8_t  x;         ///< Delta x  movement of left analog-stick
+  int8_t  y;         ///< Delta y  movement of left analog-stick
+  int8_t  z;         ///< Delta z  movement of right analog-joystick
+  int8_t  rz;        ///< Delta Rz movement of right analog-joystick
+  int8_t  rx;        ///< Delta Rx movement of analog left trigger
+  int8_t  ry;        ///< Delta Ry movement of analog right trigger
+  uint8_t hat;       ///< Buttons mask for currently pressed buttons in the DPad/hat
+  uint16_t buttons;  ///< Buttons mask for currently pressed buttons
+}hid_gamepad_report_t;
+
+/// Standard Gamepad Buttons Bitmap (from Linux input event codes)
+typedef enum
+{
+  GAMEPAD_BUTTON_A      = TU_BIT(0),  ///< A/South button
+  GAMEPAD_BUTTON_B      = TU_BIT(1),  ///< B/East button
+  GAMEPAD_BUTTON_C      = TU_BIT(2),  ///< C button
+  GAMEPAD_BUTTON_X      = TU_BIT(3),  ///< X/North button
+  GAMEPAD_BUTTON_Y      = TU_BIT(4),  ///< Y/West button
+  GAMEPAD_BUTTON_Z      = TU_BIT(5),  ///< Z button
+  GAMEPAD_BUTTON_TL     = TU_BIT(6),  ///< L1 button
+  GAMEPAD_BUTTON_TR     = TU_BIT(7),  ///< R1 button
+  GAMEPAD_BUTTON_TL2    = TU_BIT(8),  ///< L2 button
+  GAMEPAD_BUTTON_TR2    = TU_BIT(9),  ///< R2 button
+  GAMEPAD_BUTTON_SELECT = TU_BIT(10), ///< Select button
+  GAMEPAD_BUTTON_START  = TU_BIT(11), ///< Start button
+  GAMEPAD_BUTTON_MODE   = TU_BIT(12), ///< Mode button
+  GAMEPAD_BUTTON_THUMBL = TU_BIT(13), ///< L3 button
+  GAMEPAD_BUTTON_THUMBR = TU_BIT(14), ///< R3 button
+//GAMEPAD_BUTTON_       = TU_BIT(15), ///< Undefined button
+}hid_gamepad_button_bm_t;
+
+/// Standard Gamepad HAT/DPAD Buttons (from Linux input event codes)
+typedef enum
+{
+  GAMEPAD_HAT_CENTERED   = 0,  ///< DPAD_CENTERED
+  GAMEPAD_HAT_UP         = 1,  ///< DPAD_UP
+  GAMEPAD_HAT_UP_RIGHT   = 2,  ///< DPAD_UP_RIGHT
+  GAMEPAD_HAT_RIGHT      = 3,  ///< DPAD_RIGHT
+  GAMEPAD_HAT_DOWN_RIGHT = 4,  ///< DPAD_DOWN_RIGHT
+  GAMEPAD_HAT_DOWN       = 5,  ///< DPAD_DOWN
+  GAMEPAD_HAT_DOWN_LEFT  = 6,  ///< DPAD_DOWN_LEFT
+  GAMEPAD_HAT_LEFT       = 7,  ///< DPAD_LEFT
+  GAMEPAD_HAT_UP_LEFT    = 8,  ///< DPAD_UP_LEFT
+}hid_gamepad_hat_t;
+
+/// @}
+
+//--------------------------------------------------------------------+
 // MOUSE
 //--------------------------------------------------------------------+
 /** \addtogroup ClassDriver_HID_Mouse Mouse

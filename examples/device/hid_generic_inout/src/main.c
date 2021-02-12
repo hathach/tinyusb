@@ -36,8 +36,8 @@
  *
  * There are 2 ways to test the sketch
  * 1. Using nodejs
- *    - Install nodejs and nmp to your PC
- *    - Install execellent node-hid (https://github.com/node-hid/node-hid) by
+ *    - Install nodejs and npm to your PC
+ *    - Install excellent node-hid (https://github.com/node-hid/node-hid) by
  *      $ npm install node-hid
  *    - Run provided hid test script
  *      $ node hid_test.js

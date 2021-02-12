@@ -28,7 +28,7 @@
 #define _TUSB_OPTION_H_
 
 #define TUSB_VERSION_MAJOR     0
-#define TUSB_VERSION_MINOR     7
+#define TUSB_VERSION_MINOR     8
 #define TUSB_VERSION_REVISION  0
 #define TUSB_VERSION_STRING    TU_STRING(TUSB_VERSION_MAJOR) "." TU_STRING(TUSB_VERSION_MINOR) "." TU_STRING(TUSB_VERSION_REVISION)
 
@@ -97,9 +97,11 @@
 // Dialog
 #define OPT_MCU_DA1469X          1000 ///< Dialog Semiconductor DA1469x
 
-// NXP Kinetis
-#define OPT_MCU_MKL25ZXX         1100 ///< NXP MKL25Zxx
+// Raspberry Pi
+#define OPT_MCU_RP2040           1100 ///< Raspberry Pi RP2040
 
+// NXP Kinetis
+#define OPT_MCU_MKL25ZXX         1200 ///< NXP MKL25Zxx
 
 /** @} */
 
@@ -110,6 +112,8 @@
 #define OPT_OS_FREERTOS   2  ///< FreeRTOS
 #define OPT_OS_MYNEWT     3  ///< Mynewt OS
 #define OPT_OS_CUSTOM     4  ///< Custom OS is implemented by application
+#define OPT_OS_PICO       5  ///< Raspberry Pi Pico SDK
+#define OPT_OS_RTTHREAD   6  ///< RT-Thread
 /** @} */
 
 
@@ -229,8 +233,8 @@
   #define CFG_TUD_USBTMC          0
 #endif
 
-#ifndef CFG_TUD_DFU_RT
-  #define CFG_TUD_DFU_RT          0
+#ifndef CFG_TUD_DFU_RUNTIME
+  #define CFG_TUD_DFU_RUNTIME          0
 #endif
 
 #ifndef CFG_TUD_NET

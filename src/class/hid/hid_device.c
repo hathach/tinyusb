@@ -107,9 +107,6 @@ bool tud_hid_n_boot_mode(uint8_t itf)
   return _hidd_itf[itf].boot_mode;
 }
 
-//--------------------------------------------------------------------+
-// KEYBOARD API
-//--------------------------------------------------------------------+
 bool tud_hid_n_keyboard_report(uint8_t itf, uint8_t report_id, uint8_t modifier, uint8_t keycode[6])
 {
   hid_keyboard_report_t report;
@@ -127,10 +124,8 @@ bool tud_hid_n_keyboard_report(uint8_t itf, uint8_t report_id, uint8_t modifier,
   return tud_hid_n_report(itf, report_id, &report, sizeof(report));
 }
 
-//--------------------------------------------------------------------+
-// MOUSE APPLICATION API
-//--------------------------------------------------------------------+
-bool tud_hid_n_mouse_report(uint8_t itf, uint8_t report_id, uint8_t buttons, int8_t x, int8_t y, int8_t vertical, int8_t horizontal)
+bool tud_hid_n_mouse_report(uint8_t itf, uint8_t report_id,
+                            uint8_t buttons, int8_t x, int8_t y, int8_t vertical, int8_t horizontal)
 {
   hid_mouse_report_t report =
   {
@@ -139,6 +134,24 @@ bool tud_hid_n_mouse_report(uint8_t itf, uint8_t report_id, uint8_t buttons, int
     .y       = y,
     .wheel   = vertical,
     .pan     = horizontal
+  };
+
+  return tud_hid_n_report(itf, report_id, &report, sizeof(report));
+}
+
+bool tud_hid_n_gamepad_report(uint8_t itf, uint8_t report_id,
+                              int8_t x, int8_t y, int8_t z, int8_t rz, int8_t rx, int8_t ry, uint8_t hat, uint16_t buttons)
+{
+  hid_gamepad_report_t report =
+  {
+    .x       = x,
+    .y       = y,
+    .z       = z,
+    .rz      = rz,
+    .rx      = rx,
+    .ry      = ry,
+    .hat     = hat,
+    .buttons = buttons,
   };
 
   return tud_hid_n_report(itf, report_id, &report, sizeof(report));
@@ -368,14 +381,24 @@ bool hidd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint32_
   uint8_t itf = 0;
   hidd_interface_t * p_hid = _hidd_itf;
 
-  for ( ; ; itf++, p_hid++)
+  // Identify which interface to use
+  for (itf = 0; itf < CFG_TUD_HID; itf++)
   {
-    if (itf >= TU_ARRAY_SIZE(_hidd_itf)) return false;
-
-    if ( ep_addr == p_hid->ep_out ) break;
+    p_hid = &_hidd_itf[itf];
+    if ( (ep_addr == p_hid->ep_out) || (ep_addr == p_hid->ep_in) ) break;
   }
+  TU_ASSERT(itf < CFG_TUD_HID);
 
-  if (ep_addr == p_hid->ep_out)
+  // Sent report successfully
+  if (ep_addr == p_hid->ep_in)
+  {
+    if (tud_hid_report_complete_cb)
+    {
+      tud_hid_report_complete_cb(itf, p_hid->epin_buf, (uint8_t) xferred_bytes);
+    }
+  }
+  // Received report
+  else if (ep_addr == p_hid->ep_out)
   {
     tud_hid_set_report_cb(
         #if CFG_TUD_HID > 1

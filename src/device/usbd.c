@@ -175,9 +175,9 @@ static usbd_class_driver_t const _usbd_driver[] =
   },
   #endif
 
-  #if CFG_TUD_DFU_RT
+  #if CFG_TUD_DFU_RUNTIME
   {
-    DRIVER_NAME("DFU-RT")
+    DRIVER_NAME("DFU-RUNTIME")
     .init             = dfu_rtd_init,
     .reset            = dfu_rtd_reset,
     .open             = dfu_rtd_open,
@@ -485,6 +485,12 @@ void tud_task (void)
         // But it is easier to set it every time instead of wasting time to check then set
         _usbd_dev.connected = 1;
 
+        // mark both in & out control as free
+        _usbd_dev.ep_status[0][TUSB_DIR_OUT].busy = false;
+        _usbd_dev.ep_status[0][TUSB_DIR_OUT].claimed = 0;
+        _usbd_dev.ep_status[0][TUSB_DIR_IN ].busy = false;
+        _usbd_dev.ep_status[0][TUSB_DIR_IN ].claimed = 0;
+
         // Process control request
         if ( !process_control_request(event.rhport, &event.setup_received) )
         {
@@ -605,6 +611,7 @@ static bool process_control_request(uint8_t rhport, tusb_control_request_t const
         // forward to class driver: "non-STD request to Interface"
         return invoke_class_control(rhport, driver, p_request);
       }
+
       if ( TUSB_REQ_TYPE_STANDARD != p_request->bmRequestType_bit.type )
       {
         // Non standard request is not supported
@@ -712,14 +719,17 @@ static bool process_control_request(uint8_t rhport, tusb_control_request_t const
 
       TU_ASSERT(ep_num < TU_ARRAY_SIZE(_usbd_dev.ep2drv) );
 
-      bool ret = false;
+      usbd_class_driver_t const * driver = get_driver(_usbd_dev.ep2drv[ep_num][ep_dir]);
 
-      // Handle STD request to endpoint
-      if ( TUSB_REQ_TYPE_STANDARD == p_request->bmRequestType_bit.type )
+      if ( TUSB_REQ_TYPE_STANDARD != p_request->bmRequestType_bit.type )
       {
-        // force return true for standard request
-        ret = true;
-
+        // Forward class request to its driver
+        TU_VERIFY(driver);
+        return invoke_class_control(rhport, driver, p_request);
+      }
+      else
+      {
+        // Handle STD request to endpoint
         switch ( p_request->bRequest )
         {
           case TUSB_REQ_GET_STATUS:
@@ -730,40 +740,39 @@ static bool process_control_request(uint8_t rhport, tusb_control_request_t const
           break;
 
           case TUSB_REQ_CLEAR_FEATURE:
-            if ( TUSB_REQ_FEATURE_EDPT_HALT == p_request->wValue ) usbd_edpt_clear_stall(rhport, ep_addr);
-            tud_control_status(rhport, p_request);
-          break;
-
           case TUSB_REQ_SET_FEATURE:
-            if ( TUSB_REQ_FEATURE_EDPT_HALT == p_request->wValue ) usbd_edpt_stall(rhport, ep_addr);
-            tud_control_status(rhport, p_request);
+          {
+            if ( TUSB_REQ_FEATURE_EDPT_HALT == p_request->wValue )
+            {
+              if ( TUSB_REQ_CLEAR_FEATURE ==  p_request->bRequest )
+              {
+                usbd_edpt_clear_stall(rhport, ep_addr);
+              }else
+              {
+                usbd_edpt_stall(rhport, ep_addr);
+              }
+            }
+
+            if (driver)
+            {
+              // Some classes such as USBTMC needs to clear/re-init its buffer when receiving CLEAR_FEATURE request
+              // We will also forward std request targeted endpoint to class drivers as well
+
+              // STD request must always be ACKed regardless of driver returned value
+              // Also clear complete callback if driver set since it can also stall the request.
+              (void) invoke_class_control(rhport, driver, p_request);
+              usbd_control_set_complete_callback(NULL);
+
+              // skip ZLP status if driver already did that
+              if ( !_usbd_dev.ep_status[0][TUSB_DIR_IN].busy ) tud_control_status(rhport, p_request);
+            }
+          }
           break;
 
           // Unknown/Unsupported request
           default: TU_BREAKPOINT(); return false;
         }
       }
-
-      usbd_class_driver_t const * driver = get_driver(_usbd_dev.ep2drv[ep_num][ep_dir]);
-
-      if (driver)
-      {
-        // Some classes such as USBTMC needs to clear/re-init its buffer when receiving CLEAR_FEATURE request
-        // We will forward all request targeted endpoint to class drivers after
-        // - For class-type requests: driver is fully responsible to reply to host
-        // - For std-type requests  : driver init/re-init internal variable/buffer only, and
-        //                            must not call tud_control_status(), driver's return value will have no effect.
-        //                            EP state has already affected (stalled/cleared)
-        if ( invoke_class_control(rhport, driver, p_request) ) ret = true;
-      }
-
-      if ( TUSB_REQ_TYPE_STANDARD == p_request->bmRequestType_bit.type )
-      {
-        // Set complete callback = NULL since it can also stall the request.
-        usbd_control_set_complete_callback(NULL);
-      }
-
-      return ret;
     }
     break;
 
@@ -1103,22 +1112,35 @@ bool usbd_edpt_open(uint8_t rhport, tusb_desc_endpoint_t const * desc_ep)
 {
   TU_LOG2("  Open EP %02X with Size = %u\r\n", desc_ep->bEndpointAddress, desc_ep->wMaxPacketSize.size);
 
-  if (TUSB_XFER_ISOCHRONOUS == desc_ep->bmAttributes.xfer)
+  switch (desc_ep->bmAttributes.xfer)
   {
-    TU_ASSERT(desc_ep->wMaxPacketSize.size <= (_usbd_dev.speed == TUSB_SPEED_HIGH ? 1024 : 1023));
-  }
-  else
-  {
-    uint16_t const max_epsize = (_usbd_dev.speed == TUSB_SPEED_HIGH ? 512 : 64);
-
-    if (TUSB_XFER_BULK == desc_ep->bmAttributes.xfer)
+    case TUSB_XFER_ISOCHRONOUS:
     {
-      // Bulk must be EXACTLY 512/64 bytes
-      TU_ASSERT(desc_ep->wMaxPacketSize.size == max_epsize);
-    }else
-    {
+      uint16_t const max_epsize = (_usbd_dev.speed == TUSB_SPEED_HIGH ? 1024 : 1023);
       TU_ASSERT(desc_ep->wMaxPacketSize.size <= max_epsize);
     }
+    break;
+
+    case TUSB_XFER_BULK:
+      if (_usbd_dev.speed == TUSB_SPEED_HIGH)
+      {
+        // Bulk highspeed must be EXACTLY 512
+        TU_ASSERT(desc_ep->wMaxPacketSize.size == 512);
+      }else
+      {
+        // TODO Bulk fullspeed can only be 8, 16, 32, 64
+        TU_ASSERT(desc_ep->wMaxPacketSize.size <= 64);
+      }
+    break;
+
+    case TUSB_XFER_INTERRUPT:
+    {
+      uint16_t const max_epsize = (_usbd_dev.speed == TUSB_SPEED_HIGH ? 1024 : 64);
+      TU_ASSERT(desc_ep->wMaxPacketSize.size <= max_epsize);
+    }
+    break;
+
+    default: return false;
   }
 
   return dcd_edpt_open(rhport, desc_ep);

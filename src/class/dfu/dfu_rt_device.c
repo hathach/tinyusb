@@ -26,7 +26,7 @@
 
 #include "tusb_option.h"
 
-#if (TUSB_OPT_DEVICE_ENABLED && CFG_TUD_DFU_RT)
+#if (TUSB_OPT_DEVICE_ENABLED && CFG_TUD_DFU_RUNTIME)
 
 #include "dfu_rt_device.h"
 #include "device/usbd_pvt.h"
@@ -110,7 +110,7 @@ bool dfu_rtd_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request
   {
     case DFU_REQUEST_DETACH:
       tud_control_status(rhport, request);
-      tud_dfu_rt_reboot_to_dfu();
+      tud_dfu_runtime_reboot_to_dfu_cb();
     break;
 
     case DFU_REQUEST_GETSTATUS:

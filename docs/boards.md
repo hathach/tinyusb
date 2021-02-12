@@ -11,6 +11,9 @@ This code base already had supported for a handful of following boards (sorted a
 
 ### Espressif ESP32-S2
 
+- Adafruit Feather ESP32-S2
+- [Adafruit Magtag 2.9" E-Ink WiFi Display](https://www.adafruit.com/product/4800)
+- [Adafruit Metro ESP32-S2](https://www.adafruit.com/product/4775)
 - [ESP32-S2-Kaluga-1](https://docs.espressif.com/projects/esp-idf/en/latest/esp32s2/hw-reference/esp32s2/user-guide-esp32-s2-kaluga-1-kit.html)
 - [ESP32-S2-Saola-1](https://docs.espressif.com/projects/esp-idf/en/latest/esp32s2/hw-reference/esp32s2/user-guide-saola-1-v1.2.html)
 
@@ -19,21 +22,29 @@ This code base already had supported for a handful of following boards (sorted a
 - [DA14695 Development Kit – USB](https://www.dialog-semiconductor.com/products/da14695-development-kit-usb)
 - [DA1469x Development Kit – Pro](https://www.dialog-semiconductor.com/products/da14695-development-kit-pro)
 
-### MicroChip SAM
+### MicroChip SAMD11 & SAMD21
 
 - [Adafruit Circuit Playground Express](https://www.adafruit.com/product/3333)
 - [Adafruit Feather M0 Express](https://www.adafruit.com/product/3403)
-- [Adafruit Feather M4 Express](https://www.adafruit.com/product/3857)
 - [Adafruit ItsyBitsy M0 Express](https://www.adafruit.com/product/3727)
-- [Adafruit ItsyBitsy M4 Express](https://www.adafruit.com/product/3800)
 - [Adafruit Metro M0 Express](https://www.adafruit.com/product/3505)
-- [Adafruit Metro M4 Express](https://www.adafruit.com/product/3382)
-- [D5035-01](https://github.com/RudolphRiedel/USB_CAN-FD)
 - [Great Scott Gadgets LUNA](https://greatscottgadgets.com/luna/)
 - [Microchip SAMD11 Xplained Pro](https://www.microchip.com/developmenttools/ProductDetails/atsamd11-xpro)
 - [Microchip SAMD21 Xplained Pro](https://www.microchip.com/DevelopmentTools/ProductDetails/ATSAMD21-XPRO)
-- [Microchip SAMG55 Xplained Pro](https://www.microchip.com/DevelopmentTools/ProductDetails/PartNO/ATSAMG55-XPRO)
 - [Seeeduino Xiao](https://www.seeedstudio.com/Seeeduino-XIAO-Arduino-Microcontroller-SAMD21-Cortex-M0+-p-4426.html)
+
+### MicroChip SAMD51 & SAME54
+
+- [Adafruit Feather M4 Express](https://www.adafruit.com/product/3857)
+- [Adafruit ItsyBitsy M4 Express](https://www.adafruit.com/product/3800)
+- [Adafruit PyBadge](https://www.adafruit.com/product/4200)
+- [Adafruit PyPortal](https://www.adafruit.com/product/4116)
+- [Adafruit Metro M4 Express](https://www.adafruit.com/product/3382)
+- [D5035-01](https://github.com/RudolphRiedel/USB_CAN-FD)
+
+### MicroChip SAMG
+
+- [Microchip SAMG55 Xplained Pro](https://www.microchip.com/DevelopmentTools/ProductDetails/PartNO/ATSAMG55-XPRO)
 
 ### Nordic nRF5x
 
@@ -87,6 +98,13 @@ This code base already had supported for a handful of following boards (sorted a
 - [LPCXpresso 55s69 EVK](https://www.nxp.com/products/processors-and-microcontrollers/arm-microcontrollers/general-purpose-mcus/lpc5500-cortex-m33/lpcxpresso55s69-development-board:LPC55S69-EVK)
 - [NGX LPC4330-Xplorer](https://www.nxp.com/design/designs/lpc4330-xplorer-board:OM13027)
 - [Double M33 Express](https://www.crowdsupply.com/steiert-solutions/double-m33-express)
+
+### Raspberry Pi RP2040
+
+- [Adafruit Feather RP2040](https://www.adafruit.com/product/4884)
+- [Adafruit ItsyBitsy RP2040](https://www.adafruit.com/product/4888)
+- Adafruit QT RP2040
+- [Raspberry Pi Pico](https://www.raspberrypi.org/products/raspberry-pi-pico/)
 
 ### Sony
 

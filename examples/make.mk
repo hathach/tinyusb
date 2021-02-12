@@ -2,14 +2,11 @@
 # Common make definition for all examples
 # ---------------------------------------
 
-#-------------- Select the board to build for. ------------
-BOARD_LIST = $(sort $(subst /.,,$(subst $(TOP)/hw/bsp/,,$(wildcard $(TOP)/hw/bsp/*/.))))
+# Build directory
+BUILD := _build/$(BOARD)
 
-ifeq ($(filter $(BOARD),$(BOARD_LIST)),)
-  $(info You must provide a BOARD parameter with 'BOARD=', supported boards are:)
-  $(foreach b,$(BOARD_LIST),$(info - $(b)))
-  $(error Invalid BOARD specified)
-endif
+PROJECT := $(BOARD)-$(notdir $(CURDIR))
+BIN := $(TOP)/_bin/$(BOARD)/$(notdir $(CURDIR))
 
 # Handy check parameter function
 check_defined = \
@@ -19,11 +16,45 @@ __check_defined = \
     $(if $(value $1),, \
     $(error Undefined make flag: $1$(if $2, ($2))))
     
-# Build directory
-BUILD = _build/build-$(BOARD)
+# TODO Check if submodule haven't checkout yet
+fetch_submodule_if_empty = \
+  ifeq ($(wildcard $(TOP)/$1/*),) \
+    $(info $(shell git -C $(TOP) submodule update --init)) \
+  endif
 
-# Board specific define
-include $(TOP)/hw/bsp/$(BOARD)/board.mk
+#-------------- Select the board to build for. ------------
+#BOARD_LIST = $(sort $(subst /.,,$(subst $(TOP)/hw/bsp/,,$(wildcard $(TOP)/hw/bsp/*/.))))
+#ifeq ($(filter $(BOARD),$(BOARD_LIST)),)
+#  $(info You must provide a BOARD parameter with 'BOARD=', supported boards are:)
+#  $(foreach b,$(BOARD_LIST),$(info - $(b)))
+#  $(error Invalid BOARD specified)
+#endif
+
+# Board without family
+BOARD_PATH := $(subst $(TOP)/,,$(wildcard $(TOP)/hw/bsp/$(BOARD)))
+FAMILY :=
+
+# Board within family
+ifeq ($(BOARD_PATH),)
+  BOARD_PATH := $(subst $(TOP)/,,$(wildcard $(TOP)/hw/bsp/*/boards/$(BOARD)))
+  FAMILY := $(word 3, $(subst /, ,$(BOARD_PATH)))
+  FAMILY_PATH = hw/bsp/$(FAMILY)
+endif
+
+ifeq ($(BOARD_PATH),)
+  $(error Invalid BOARD specified)
+endif
+
+ifeq ($(FAMILY),)
+  include $(TOP)/hw/bsp/$(BOARD)/board.mk
+else
+  # Include Family and Board specific defs
+  -include $(TOP)/$(FAMILY_PATH)/family.mk
+
+  SRC_C += $(subst $(TOP)/,,$(wildcard $(TOP)/$(FAMILY_PATH)/*.c))
+endif
+
+#TODO $(call fetch_submodule_if_empty,lib/sct_neopixel)
 
 #-------------- Cross Compiler  ------------
 # Can be set by board, default to ARM GCC
@@ -45,9 +76,9 @@ endif
 
 #-------------- Source files and compiler flags --------------
 
-# Include all source C in board folder
+# Include all source C in family & board folder
 SRC_C += hw/bsp/board.c
-SRC_C += $(subst $(TOP)/,,$(wildcard $(TOP)/hw/bsp/$(BOARD)/*.c))
+SRC_C += $(subst $(TOP)/,,$(wildcard $(TOP)/$(BOARD_PATH)/*.c))
 
 # Compiler Flags
 CFLAGS += \
@@ -81,13 +112,18 @@ endif
 
 # Log level is mapped to TUSB DEBUG option
 ifneq ($(LOG),)
+  CMAKE_DEFSYM +=	-DLOG=$(LOG)
   CFLAGS += -DCFG_TUSB_DEBUG=$(LOG)
 endif
 
 # Logger: default is uart, can be set to rtt or swo
+ifneq ($(LOGGER),)
+	CMAKE_DEFSYM +=	-DLOGGER=$(LOGGER)
+endif
+
 ifeq ($(LOGGER),rtt)
-  RTT_SRC = lib/SEGGER_RTT
   CFLAGS += -DLOGGER_RTT -DSEGGER_RTT_MODE_DEFAULT=SEGGER_RTT_MODE_BLOCK_IF_FIFO_FULL
+  RTT_SRC = lib/SEGGER_RTT
   INC   += $(TOP)/$(RTT_SRC)/RTT
   SRC_C += $(RTT_SRC)/RTT/SEGGER_RTT.c
 else ifeq ($(LOGGER),swo)

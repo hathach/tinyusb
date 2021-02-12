@@ -21,7 +21,7 @@
 	url = https://github.com/majbthrd/nuc_driver.git
 [submodule "lib/lwip"]
 	path = lib/lwip
-	url = https://git.savannah.nongnu.org/git/lwip.git
+	url = https://github.com/lwip-tcpip/lwip.git
 [submodule "lib/FreeRTOS"]
 	path = lib/FreeRTOS
 	url = https://github.com/FreeRTOS/FreeRTOS.git
@@ -112,3 +112,8 @@
 [submodule "lib/sct_neopixel"]
 	path = lib/sct_neopixel
 	url = https://github.com/gsteiert/sct_neopixel
+[submodule "hw/mcu/raspberrypi/pico-sdk"]
+	path = hw/mcu/raspberrypi/pico-sdk
+	url = https://github.com/raspberrypi/pico-sdk.git
+	fetchRecurseSubmodules = false
+

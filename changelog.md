@@ -1,5 +1,75 @@
 # TinyUSB Changelog
 
+## WIP
+
+- Fix dropping MIDI sysex message when fifo is full
+- Add DPad/Hat support for HID Gamepad
+- Add tud_hid_report_complete_cb() API
+
+## 0.8.0 - 2021.02.05
+
+### Device Controller Driver
+
+- Added new device support for Raspberry Pi RP2040
+- Added new device support for NXP Kinetis KL25ZXX
+- Use dcd_event_bus_reset() with link speed to replace bus_signal
+- ESP32-S2:
+  - Add bus suspend and wakeup support
+- SAMD21:
+  - Fix (walkaround) samd21 setup_packet overflow by USB DMA
+- STM32 Synopsys:
+  - Rework USB FIFO allocation scheme and allow RX FIFO size reduction
+- Sony CXD56
+  - Update Update Spresense SDK to 2.0.2
+  - Fix dcd issues with setup packets
+  - Correct EP number for cdc_msc example
+
+### USB Device 
+
+**UBSD**
+
+- Rework usbd control transfer to have additional stage parameter for setup, data, status
+- Fix tusb_init() return true instead of TUSB_ERROR_NONE
+- Added new API tud_connected() that return true after device got out of bus reset and received the very first setup packet
+
+**Class Driver**
+
+- CDC
+  - Allow to transmit data, even if the host does not support control line states i.e set DTR
+- HID
+  - change default CFG_TUD_HID_EP_BUFSIZE from 16 to 64
+- MIDI
+  - Fix midi sysex sending bug
+- MSC
+  - Invoke only scsi complete callback after status transaction is complete.
+  - Fix scsi_mode_sense6_t padding, which cause IAR compiler internal error.
+- USBTMC
+  - Change interrupt endpoint example size to 8 instead of 2 for better compatibility with mcu 
+
+**Example**
+
+- Support make from windows cmd.exe 
+- Add HID Consumer Control (media keys) to hid_composite & hid_composite_freertos examples
+
+### USB Host
+
+No noticeable changes to host stack
+
+### New Boards
+
+- NXP/Freescale Freedom FRDM-KL25Z
+- Feather Double M33 express
+- Raspberry Pi Pico
+- Adafruit Feather RP2040
+- Adafruit Itsy Bitsy RP2040
+- Adafruit QT RP2040
+- Adfruit Feather ESP32-S2
+- Adafruit Magtag 29" Eink
+- Adafruit Metro ESP32-S2
+- Adafruit PyBadge
+- Adafruit PyPortal
+- Great Scott Gadgets' LUNA D11 & D21
+
 ## 0.7.0 - 2020.11.08
 
 ### Device Controller Driver

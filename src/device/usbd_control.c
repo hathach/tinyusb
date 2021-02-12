@@ -67,12 +67,7 @@ static inline bool _status_stage_xact(uint8_t rhport, tusb_control_request_t con
 {
   // Opposite to endpoint in Data Phase
   uint8_t const ep_addr = request->bmRequestType_bit.direction ? EDPT_CTRL_OUT : EDPT_CTRL_IN;
-
-  TU_LOG2("  Queue EP %02X with zlp Status\r\n", ep_addr);
-
-  // status direction is reversed to one in the setup packet
-  // Note: Status must always be DATA1
-  return dcd_edpt_xfer(rhport, ep_addr, NULL, 0);
+  return usbd_edpt_xfer(rhport, ep_addr, NULL, 0);
 }
 
 // Status phase
@@ -101,9 +96,7 @@ static bool _data_stage_xact(uint8_t rhport)
     if ( xact_len ) memcpy(_usbd_ctrl_buf, _ctrl_xfer.buffer, xact_len);
   }
 
-  TU_LOG2("  Queue EP %02X with %u bytes\r\n", ep_addr, xact_len);
-
-  return dcd_edpt_xfer(rhport, ep_addr, xact_len ? _usbd_ctrl_buf : NULL, xact_len);
+  return usbd_edpt_xfer(rhport, ep_addr, xact_len ? _usbd_ctrl_buf : NULL, xact_len);
 }
 
 // Transmit data to/from the control endpoint.
@@ -140,9 +133,6 @@ bool tud_control_xfer(uint8_t rhport, tusb_control_request_t const * request, vo
 // USBD API
 //--------------------------------------------------------------------+
 
-//--------------------------------------------------------------------+
-// Prototypes
-//--------------------------------------------------------------------+
 void usbd_control_reset(void);
 void usbd_control_set_request(tusb_control_request_t const *request);
 void usbd_control_set_complete_callback( usbd_control_xfer_cb_t fp );
@@ -153,13 +143,13 @@ void usbd_control_reset(void)
   tu_varclr(&_ctrl_xfer);
 }
 
-// TODO may find a better way
+// Set complete callback
 void usbd_control_set_complete_callback( usbd_control_xfer_cb_t fp )
 {
   _ctrl_xfer.complete_cb = fp;
 }
 
-// useful for dcd_set_address where DCD is responsible for status response
+// for dcd_set_address where DCD is responsible for status response
 void usbd_control_set_request(tusb_control_request_t const *request)
 {
   _ctrl_xfer.request       = (*request);
