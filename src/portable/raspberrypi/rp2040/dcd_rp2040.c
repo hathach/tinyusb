@@ -164,8 +164,12 @@ static void _hw_endpoint_init(struct hw_endpoint *ep, uint8_t ep_addr, uint wMax
             ep->endpoint_control = &usb_dpram->ep_ctrl[num-1].out;
         }
 
-        // Now alloc a buffer and fill in endpoint control register
-        _hw_endpoint_alloc(ep);
+        // Now if it hasn't already been done
+        //alloc a buffer and fill in endpoint control register
+        if(!(ep->configured))
+        {
+            _hw_endpoint_alloc(ep);
+        }
     }
 
     ep->configured = true;
