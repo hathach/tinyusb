@@ -240,21 +240,21 @@ uint16_t tud_audio_n_read_support_ff(uint8_t itf, uint8_t channelId, void* buffe
 
 static bool audiod_rx_done_cb(uint8_t rhport, audiod_interface_t* audio)
 {
-	uint8_t idxDriver, idxItf;
-	uint8_t const *dummy2;
+  uint8_t idxDriver, idxItf;
+  uint8_t const *dummy2;
 
-	// If a callback is used determine current alternate setting of
-	if (tud_audio_rx_done_pre_read_cb || tud_audio_rx_done_post_read_cb)
-	{
-		// Find index of audio streaming interface and index of interface
-		TU_VERIFY(audiod_get_AS_interface_index(audio->ep_out_as_intf_num, &idxDriver, &idxItf, &dummy2));
-	}
+  // If a callback is used determine current alternate setting of
+  if (tud_audio_rx_done_pre_read_cb || tud_audio_rx_done_post_read_cb)
+  {
+    // Find index of audio streaming interface and index of interface
+    TU_VERIFY(audiod_get_AS_interface_index(audio->ep_out_as_intf_num, &idxDriver, &idxItf, &dummy2));
+  }
 
-	// Get number of bytes in EP OUT SW FIFO
-	uint16_t n_bytes_received = tu_fifo_count(&audio->ep_out_ff);
+  // Get number of bytes in EP OUT SW FIFO
+  uint16_t n_bytes_received = tu_fifo_count(&audio->ep_out_ff);
 
-	// Call a weak callback here - a possibility for user to get informed an audio packet was received and data gets now decoded into support RX software FIFO
-	if (tud_audio_rx_done_pre_read_cb) TU_VERIFY(tud_audio_rx_done_pre_read_cb(rhport, n_bytes_received, idxDriver, audio->ep_out, audio->altSetting[idxItf]));
+  // Call a weak callback here - a possibility for user to get informed an audio packet was received and data gets now decoded into support RX software FIFO
+  if (tud_audio_rx_done_pre_read_cb) TU_VERIFY(tud_audio_rx_done_pre_read_cb(rhport, n_bytes_received, idxDriver, audio->ep_out, audio->altSetting[idxItf]));
 
 #if CFG_TUD_AUDIO_RX_SUPPORT_SW_FIFO_SIZE
 
@@ -316,23 +316,23 @@ static bool audiod_decode_type_I_pcm(uint8_t rhport, audiod_interface_t* audio)
 
   while (cnt <= n_bytes)
   {
-	  for (uint8_t cntChannel = 0; cntChannel < CFG_TUD_AUDIO_N_CHANNELS_RX; cntChannel++)
-	  {
-	  // If 8, 16, or 32 bit values are to be copied
+    for (uint8_t cntChannel = 0; cntChannel < CFG_TUD_AUDIO_N_CHANNELS_RX; cntChannel++)
+    {
+      // If 8, 16, or 32 bit values are to be copied
 #if CFG_TUD_AUDIO_N_BYTES_PER_SAMPLE_RX == CFG_TUD_AUDIO_RX_ITEMSIZE
-		  // If this aborts then the target buffer is full
-		  TU_VERIFY(tu_fifo_read_n_into_other_fifo(&audio->ep_out_ff, &audio->rx_ff[cntChannel], 0, CFG_TUD_AUDIO_N_BYTES_PER_SAMPLE_RX));
+      // If this aborts then the target buffer is full
+      TU_VERIFY(tu_fifo_read_n_into_other_fifo(&audio->ep_out_ff, &audio->rx_ff[cntChannel], 0, CFG_TUD_AUDIO_N_BYTES_PER_SAMPLE_RX));
 #else
-	  // TODO: Implement a left and right justified 24 to 32 and vice versa copy process from FIFO to FIFO
-	  uint32_t sample = 0;
+      // TODO: Implement a left and right justified 24 to 32 and vice versa copy process from FIFO to FIFO
+      uint32_t sample = 0;
 
-	  // Get sample from buffer
-	  TU_VERIFY(tu_fifo_read_n(&audio->ep_out_ff, &sample, CFG_TUD_AUDIO_N_BYTES_PER_SAMPLE_RX));
-	  TU_VERIFY(tu_fifo_write_n(&audio->rx_ff[cntChannel], &sample, CFG_TUD_AUDIO_RX_ITEMSIZE));
+      // Get sample from buffer
+      TU_VERIFY(tu_fifo_read_n(&audio->ep_out_ff, &sample, CFG_TUD_AUDIO_N_BYTES_PER_SAMPLE_RX));
+      TU_VERIFY(tu_fifo_write_n(&audio->rx_ff[cntChannel], &sample, CFG_TUD_AUDIO_RX_ITEMSIZE));
 #endif
-	  }
+    }
 
-	  cnt += CFG_TUD_AUDIO_N_BYTES_PER_SAMPLE_RX * CFG_TUD_AUDIO_N_CHANNELS_RX;
+    cnt += CFG_TUD_AUDIO_N_BYTES_PER_SAMPLE_RX * CFG_TUD_AUDIO_N_CHANNELS_RX;
   }
 
   // Number of bytes should be a multiple of CFG_TUD_AUDIO_N_BYTES_PER_SAMPLE_RX * CFG_TUD_AUDIO_N_CHANNELS_RX but checking makes no sense - no way to correct it
@@ -389,8 +389,8 @@ uint16_t tud_audio_n_flush_tx_support_ff(uint8_t itf)                 // Force a
 
 bool tud_audio_n_clear_tx_support_ff(uint8_t itf, uint8_t channelId)
 {
-	TU_VERIFY(itf < CFG_TUD_AUDIO && _audiod_itf[itf].p_desc != NULL, channelId < CFG_TUD_AUDIO_N_CHANNELS_TX);
-	return tu_fifo_clear(&_audiod_itf[itf].tx_ff[channelId]);
+  TU_VERIFY(itf < CFG_TUD_AUDIO && _audiod_itf[itf].p_desc != NULL, channelId < CFG_TUD_AUDIO_N_CHANNELS_TX);
+  return tu_fifo_clear(&_audiod_itf[itf].tx_ff[channelId]);
 }
 
 uint16_t tud_audio_n_write_support_ff(uint8_t itf, uint8_t channelId, const void * data, uint16_t len)
@@ -574,15 +574,15 @@ void audiod_init(void)
 #if CFG_TUD_AUDIO_EP_IN_SW_BUFFER_SIZE
     tu_fifo_config(&audio->ep_in_ff, &audio->ep_in_buf, CFG_TUD_AUDIO_EP_IN_SW_BUFFER_SIZE, 1, true);
 #if CFG_FIFO_MUTEX
-      tu_fifo_config_mutex(&audio->ep_in_ff, osal_mutex_create(&audio->ep_in_ff_mutex));
+    tu_fifo_config_mutex(&audio->ep_in_ff, osal_mutex_create(&audio->ep_in_ff_mutex));
 #endif
 #endif
 
     // Initialize OUT EP FIFO if required
 #if CFG_TUD_AUDIO_EP_OUT_SW_BUFFER_SIZE
-      tu_fifo_config(&audio->ep_out_ff, &audio->ep_out_buf, CFG_TUD_AUDIO_EP_OUT_SW_BUFFER_SIZE, 1, true);
+    tu_fifo_config(&audio->ep_out_ff, &audio->ep_out_buf, CFG_TUD_AUDIO_EP_OUT_SW_BUFFER_SIZE, 1, true);
 #if CFG_FIFO_MUTEX
-      tu_fifo_config_mutex(&audio->ep_out_ff, osal_mutex_create(&audio->ep_out_ff_mutex));
+    tu_fifo_config_mutex(&audio->ep_out_ff, osal_mutex_create(&audio->ep_out_ff_mutex));
 #endif
 #endif
 
@@ -1105,8 +1105,8 @@ bool audiod_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint3
     if (_audiod_itf[idxDriver].ep_out == ep_addr)
     {
       // Save into buffer - do whatever has to be done
-//      TU_VERIFY(audiod_rx_done_cb(rhport, &_audiod_itf[idxDriver], _audiod_itf[idxDriver].ep_out_buf, xferred_bytes));
-    	TU_VERIFY(audiod_rx_done_cb(rhport, &_audiod_itf[idxDriver]));
+      //      TU_VERIFY(audiod_rx_done_cb(rhport, &_audiod_itf[idxDriver], _audiod_itf[idxDriver].ep_out_buf, xferred_bytes));
+      TU_VERIFY(audiod_rx_done_cb(rhport, &_audiod_itf[idxDriver]));
 
       return true;
     }
@@ -1305,33 +1305,33 @@ static bool audiod_verify_ep_exists(uint8_t ep, uint8_t *idxDriver)
 // Input value feedback has to be in 16.16 format - the format will be converted according to speed settings automatically
 bool tud_audio_n_fb_set(uint8_t itf, uint32_t feedback)
 {
-	TU_VERIFY(itf < CFG_TUD_AUDIO && _audiod_itf[itf].p_desc != NULL);
+  TU_VERIFY(itf < CFG_TUD_AUDIO && _audiod_itf[itf].p_desc != NULL);
 
-	// Format the feedback value
-	if (_audiod_itf[itf].rhport == 0)
-	{
-		uint8_t * fb = (uint8_t *) &_audiod_itf[itf].fb_val;
+  // Format the feedback value
+  if (_audiod_itf[itf].rhport == 0)
+  {
+    uint8_t * fb = (uint8_t *) &_audiod_itf[itf].fb_val;
 
-		// For FS format is 10.14
-		*(fb++) = (feedback >> 2) & 0xFF;
-		*(fb++) = (feedback >> 10) & 0xFF;
-		*(fb++) = (feedback >> 18) & 0xFF;
-		// 4th byte is needed to work correctly with MS Windows
-		*fb = 0;
-	}
-	else
-	{
-		// For HS format is 16.16 as originally demanded
-		_audiod_itf[itf].fb_val = feedback;
-	}
+    // For FS format is 10.14
+    *(fb++) = (feedback >> 2) & 0xFF;
+    *(fb++) = (feedback >> 10) & 0xFF;
+    *(fb++) = (feedback >> 18) & 0xFF;
+    // 4th byte is needed to work correctly with MS Windows
+    *fb = 0;
+  }
+  else
+  {
+    // For HS format is 16.16 as originally demanded
+    _audiod_itf[itf].fb_val = feedback;
+  }
 
-	// Schedule a transmit with the new value if EP is not busy - this triggers repetitive scheduling of the feedback value
-	if (!usbd_edpt_busy(_audiod_itf[itf].rhport, _audiod_itf[itf].ep_fb))
-	{
-		return audiod_fb_send(_audiod_itf[itf].rhport, &_audiod_itf[itf]);
-	}
+  // Schedule a transmit with the new value if EP is not busy - this triggers repetitive scheduling of the feedback value
+  if (!usbd_edpt_busy(_audiod_itf[itf].rhport, _audiod_itf[itf].ep_fb))
+  {
+    return audiod_fb_send(_audiod_itf[itf].rhport, &_audiod_itf[itf]);
+  }
 
-	return true;
+  return true;
 }
 #endif
 

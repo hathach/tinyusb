@@ -901,7 +901,7 @@ typedef struct TU_ATTR_PACKED {
     } subrange[numSubRanges]    ;               \
 }
 
-    /// 5.2.3.2 2-byte Control RANGE Parameter Block
+/// 5.2.3.2 2-byte Control RANGE Parameter Block
 #define audio_control_range_2_n_t(numSubRanges) \
     struct TU_ATTR_PACKED {                     \
   uint16_t wNumSubRanges;                       \
@@ -912,7 +912,7 @@ typedef struct TU_ATTR_PACKED {
     } subrange[numSubRanges];                   \
 }
 
-    // 5.2.3.3 4-byte Control RANGE Parameter Block
+// 5.2.3.3 4-byte Control RANGE Parameter Block
 #define audio_control_range_4_n_t(numSubRanges) \
     struct TU_ATTR_PACKED {                     \
   uint16_t wNumSubRanges;                       \
@@ -923,12 +923,12 @@ typedef struct TU_ATTR_PACKED {
     } subrange[numSubRanges];                   \
 }
 
-    /** @} */
+/** @} */
 
 #ifdef __cplusplus
-  }
+}
 #endif
 
 #endif
 
-  /** @} */
+/** @} */

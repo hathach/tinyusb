@@ -447,7 +447,7 @@ static inline uint16_t tud_audio_int_ctr_write(uint8_t const* buffer, uint16_t l
 #if CFG_TUD_AUDIO_EP_OUT_SW_BUFFER_SIZE && CFG_TUD_AUDIO_ENABLE_FEEDBACK_EP
 static inline bool tud_audio_fb_set(uint32_t feedback)
 {
-	return tud_audio_n_fb_set(0, feedback);
+  return tud_audio_n_fb_set(0, feedback);
 }
 #endif
 
