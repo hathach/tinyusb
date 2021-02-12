@@ -697,14 +697,6 @@ bool dcd_edpt_iso_xfer (uint8_t rhport, uint8_t ep_addr, tu_fifo_t * ff, uint16_
     tu_fifo_set_copy_mode_read(ff, TU_FIFO_COPY_CST);
   }
 
-  // EP0 can only handle one packet
-  if(epnum == 0) {
-    ep0_pending[dir] = total_bytes;
-    // Schedule the first transaction for EP0 transfer
-    edpt_schedule_packets(rhport, epnum, dir, 1, ep0_pending[dir]);
-    return true;
-  }
-
   uint16_t num_packets = (total_bytes / xfer->max_size);
   uint8_t const short_packet_size = total_bytes % xfer->max_size;
 

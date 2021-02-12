@@ -102,7 +102,7 @@ uint8_t const desc_configuration[] =
     TUD_CONFIG_DESCRIPTOR(1, ITF_NUM_TOTAL, 0, CONFIG_TOTAL_LEN, TUSB_DESC_CONFIG_ATT_REMOTE_WAKEUP, 100),
 
     // Interface number, string index, EP Out & EP In address, EP size
-    TUD_AUDIO_MIC_DESCRIPTOR(/*_itfnum*/ ITF_NUM_AUDIO_CONTROL, /*_stridx*/ 0, /*_nBytesPerSample*/ 3, /*_nBitsUsedPerSample*/ 24, /*_epin*/ 0x80 | EPNUM_AUDIO, /*_epsize*/ 48*4)
+    TUD_AUDIO_MIC_DESCRIPTOR(/*_itfnum*/ ITF_NUM_AUDIO_CONTROL, /*_stridx*/ 0, /*_nBytesPerSample*/ CFG_TUD_AUDIO_N_BYTES_PER_SAMPLE_TX, /*_nBitsUsedPerSample*/ 16, /*_epin*/ 0x80 | EPNUM_AUDIO, /*_epsize*/ CFG_TUD_AUDIO_EPSIZE_IN)
 };
 
 // Invoked when received GET CONFIGURATION DESCRIPTOR
