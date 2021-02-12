@@ -64,21 +64,25 @@
 #ifndef CFG_TUD_AUDIO_EP_IN_SW_BUFFER_SIZE
 #define CFG_TUD_AUDIO_EP_IN_SW_BUFFER_SIZE CFG_TUD_AUDIO_EPSIZE_IN    // TX
 #endif
+#else
+#define CFG_TUD_AUDIO_EP_IN_SW_BUFFER_SIZE                  0
 #endif
 
 #if CFG_TUD_AUDIO_EPSIZE_OUT
 #ifndef CFG_TUD_AUDIO_EP_OUT_SW_BUFFER_SIZE
 #define CFG_TUD_AUDIO_EP_OUT_SW_BUFFER_SIZE CFG_TUD_AUDIO_EPSIZE_OUT  // RX
 #endif
+#else
+#define CFG_TUD_AUDIO_EP_OUT_SW_BUFFER_SIZE                 0
 #endif
 
 // General information of number of TX and/or RX channels - is used in case support FIFOs (see below) are used and can be used for descriptor definitions
 #ifndef CFG_TUD_AUDIO_N_CHANNELS_TX
-#define CFG_TUD_AUDIO_N_CHANNELS_TX                     0
+#define CFG_TUD_AUDIO_N_CHANNELS_TX                         0
 #endif
 
 #ifndef CFG_TUD_AUDIO_N_CHANNELS_RX
-#define CFG_TUD_AUDIO_N_CHANNELS_RX                     0
+#define CFG_TUD_AUDIO_N_CHANNELS_RX                         0
 #endif
 
 // Use of TX/RX support FIFOs
