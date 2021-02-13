@@ -144,7 +144,15 @@ static void dcd_in_xfer(struct xfer_ctl_t *xfer, USBD_EP_T *ep)
 {
   uint16_t bytes_now = tu_min16(xfer->in_remaining_bytes, xfer->max_packet_size);
 
-  memcpy((uint8_t *)(USBD_BUF_BASE + ep->BUFSEG), xfer->data_ptr, bytes_now);
+  if (xfer->data_ptr)
+  {
+    memcpy((uint8_t *)(USBD_BUF_BASE + ep->BUFSEG), xfer->data_ptr, bytes_now);
+  }
+  else
+  {
+    tu_fifo_read_n(xfer->ff, (void *) (USBD_BUF_BASE + ep->BUFSEG), bytes_now);
+  }
+
   ep->MXPLD = bytes_now;
 }
 
@@ -292,6 +300,36 @@ bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t *buffer, uint16_t to
   return true;
 }
 
+bool dcd_edpt_iso_xfer (uint8_t rhport, uint8_t ep_addr, tu_fifo_t * ff, uint16_t total_bytes)
+{
+  (void) rhport;
+
+  /* mine the data for the information we need */
+  tusb_dir_t dir = tu_edpt_dir(ep_addr);
+  USBD_EP_T *ep = ep_entry(ep_addr, false);
+  struct xfer_ctl_t *xfer = &xfer_table[ep - USBD->EP];
+
+  /* store away the information we'll needing now and later */
+  xfer->data_ptr = NULL;      // Indicates a FIFO shall be used
+  xfer->ff       = ff;
+  xfer->in_remaining_bytes = total_bytes;
+  xfer->total_bytes = total_bytes;
+
+  if (TUSB_DIR_IN == dir)
+  {
+    tu_fifo_set_copy_mode_write(ff, TU_FIFO_COPY_INC);      // For the PHY in nuc120 the source and destination pointer have to be incremented!
+    dcd_in_xfer(xfer, ep);
+  }
+  else
+  {
+    tu_fifo_set_copy_mode_read(ff, TU_FIFO_COPY_INC);       // For the PHY in nuc120 the source and destination pointer have to be incremented!
+    xfer->out_bytes_so_far = 0;
+    ep->MXPLD = xfer->max_packet_size;
+  }
+
+  return true;
+}
+
 void dcd_edpt_stall(uint8_t rhport, uint8_t ep_addr)
 {
   (void) rhport;
@@ -400,9 +438,17 @@ void dcd_int_handler(uint8_t rhport)
         if (out_ep)
         {
           /* copy the data from the PC to the previously provided buffer */
-          memcpy(xfer->data_ptr, (uint8_t *)(USBD_BUF_BASE + ep->BUFSEG), available_bytes);
+          if (xfer->data_ptr)
+          {
+            memcpy(xfer->data_ptr, (uint8_t *)(USBD_BUF_BASE + ep->BUFSEG), available_bytes);
+            xfer->data_ptr += available_bytes;
+          }
+          else
+          {
+            tu_fifo_write_n(xfer->ff, (const void *) (USBD_BUF_BASE + ep->BUFSEG), available_bytes);
+          }
+
           xfer->out_bytes_so_far += available_bytes;
-          xfer->data_ptr += available_bytes;
 
           /* when the transfer is finished, alert TinyUSB; otherwise, accept more data */
           if ( (xfer->total_bytes == xfer->out_bytes_so_far) || (available_bytes < xfer->max_packet_size) )
@@ -414,7 +460,7 @@ void dcd_int_handler(uint8_t rhport)
         {
           /* update the bookkeeping to reflect the data that has now been sent to the PC */
           xfer->in_remaining_bytes -= available_bytes;
-          xfer->data_ptr += available_bytes;
+          if (xfer->data_ptr) xfer->data_ptr += available_bytes;
 
           /* if more data to send, send it; otherwise, alert TinyUSB that we've finished */
           if (xfer->in_remaining_bytes)
