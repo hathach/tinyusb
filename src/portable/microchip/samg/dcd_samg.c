@@ -82,7 +82,7 @@ void xfer_packet_done(xfer_desc_t* xfer)
 {
   uint16_t const xact_len = xfer_packet_len(xfer);
 
-  xfer->buffer += xact_len;
+  if (xfer->buffer) xfer->buffer += xact_len;
   xfer->actual_len += xact_len;
 }
 
