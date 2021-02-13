@@ -34,6 +34,7 @@
 */
 
 #include "tusb_option.h"
+#include "common/tusb_fifo.h"
 
 #if TUSB_OPT_DEVICE_ENABLED && (CFG_TUSB_MCU == OPT_MCU_NUC505)
 
@@ -94,6 +95,7 @@ static uint32_t bufseg_addr;
 static struct xfer_ctl_t
 {
   uint8_t *data_ptr;         /* data_ptr tracks where to next copy data to (for OUT) or from (for IN) */
+  tu_fifo_t * ff;            /* pointer to FIFO required for dcd_edpt_iso_xfer() */
   union {
     uint16_t in_remaining_bytes; /* for IN endpoints, we track how many bytes are left to transfer */
     uint16_t out_bytes_so_far;   /* but for OUT endpoints, we track how many bytes we've transferred so far */
@@ -164,7 +166,6 @@ static USBD_EP_T *ep_entry(uint8_t ep_addr, bool add)
 static void dcd_userEP_in_xfer(struct xfer_ctl_t *xfer, USBD_EP_T *ep)
 {
   uint16_t bytes_now = tu_min16(xfer->in_remaining_bytes, xfer->max_packet_size);
-  uint16_t countdown = bytes_now;
 
   /* precompute what amount of data will be left */
   xfer->in_remaining_bytes -= bytes_now;
@@ -180,16 +181,24 @@ static void dcd_userEP_in_xfer(struct xfer_ctl_t *xfer, USBD_EP_T *ep)
   }
 
   /* provided buffers are thankfully 32-bit aligned, allowing most data to be transfered as 32-bit */
-  while (countdown > 3)
+  if (xfer->data_ptr)
   {
-    uint32_t u32;
-    memcpy(&u32, xfer->data_ptr, 4);
+    uint16_t countdown = bytes_now;
+    while (countdown > 3)
+    {
+      uint32_t u32;
+      memcpy(&u32, xfer->data_ptr, 4);
 
-    ep->EPDAT = u32;
-    xfer->data_ptr += 4; countdown -= 4;
+      ep->EPDAT = u32;
+      xfer->data_ptr += 4; countdown -= 4;
+    }
+    while (countdown--)
+      ep->EPDAT_BYTE = *xfer->data_ptr++;
   }
-  while (countdown--)
-    ep->EPDAT_BYTE = *xfer->data_ptr++;
+  else
+  {
+    tu_fifo_read_n(xfer->ff, (void *) (ep->EPDAT_BYTE), bytes_now);
+  }
 
   /* for short packets, we must nudge the peripheral to say 'that's all folks' */
   if (bytes_now != xfer->max_packet_size)
@@ -397,6 +406,38 @@ bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t *buffer, uint16_t to
       xfer->out_bytes_so_far = 0;
       ep->EPINTEN = USBD_EPINTEN_RXPKIEN_Msk;
     }
+  }
+
+  return true;
+}
+
+bool dcd_edpt_iso_xfer (uint8_t rhport, uint8_t ep_addr, tu_fifo_t * ff, uint16_t total_bytes)
+{
+  (void) rhport;
+
+  TU_ASSERT(0x80 != ep_addr && 0x00 != ep_addr);  // Must not be used for control stuff
+
+  /* mine the data for the information we need */
+  tusb_dir_t dir = tu_edpt_dir(ep_addr);
+  USBD_EP_T *ep = ep_entry(ep_addr, false);
+  struct xfer_ctl_t *xfer = &xfer_table[ep - USBD->EP];
+
+  /* store away the information we'll needing now and later */
+  xfer->data_ptr = NULL;      // Indicates a FIFO shall be used
+  xfer->ff       = ff;
+  xfer->in_remaining_bytes = total_bytes;
+  xfer->total_bytes = total_bytes;
+
+  if (TUSB_DIR_IN == dir)
+  {
+    tu_fifo_set_copy_mode_write(ff, TU_FIFO_COPY_CST);      // For the PHY in nuc505 the source and destination pointer have to be constant!
+    ep->EPINTEN = USBD_EPINTEN_BUFEMPTYIEN_Msk;
+  }
+  else
+  {
+    tu_fifo_set_copy_mode_read(ff, TU_FIFO_COPY_CST);       // For the PHY in nuc505 the source and destination pointer have to be constant!
+    xfer->out_bytes_so_far = 0;
+    ep->EPINTEN = USBD_EPINTEN_RXPKIEN_Msk;
   }
 
   return true;
@@ -615,8 +656,15 @@ void dcd_int_handler(uint8_t rhport)
 #else
           uint16_t const available_bytes = ep->EPDATCNT & USBD_EPDATCNT_DATCNT_Msk;
           /* copy the data from the PC to the previously provided buffer */
-          for (int count = 0; (count < available_bytes) && (xfer->out_bytes_so_far < xfer->total_bytes); count++, xfer->out_bytes_so_far++)
-            *xfer->data_ptr++ = ep->EPDAT_BYTE;
+          if (xfer->data_ptr)
+          {
+            for (int count = 0; (count < available_bytes) && (xfer->out_bytes_so_far < xfer->total_bytes); count++, xfer->out_bytes_so_far++)
+              *xfer->data_ptr++ = ep->EPDAT_BYTE;
+          }
+          else
+          {
+            tu_fifo_write_n(xfer->ff, (const void *) &ep->EPDAT_BYTE, tu_min16(available_bytes, xfer->total_bytes - xfer->out_bytes_so_far));
+          }
 
           /* when the transfer is finished, alert TinyUSB; otherwise, continue accepting more data */
           if ( (xfer->total_bytes == xfer->out_bytes_so_far) || (available_bytes < xfer->max_packet_size) )
