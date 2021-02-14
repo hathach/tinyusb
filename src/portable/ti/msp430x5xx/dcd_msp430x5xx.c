@@ -26,6 +26,7 @@
  */
 
 #include "tusb_option.h"
+#include "common/tusb_fifo.h"
 
 #if TUSB_OPT_DEVICE_ENABLED && ( CFG_TUSB_MCU == OPT_MCU_MSP430x5xx )
 
@@ -48,6 +49,7 @@ uint8_t _setup_packet[8];
 typedef struct
 {
   uint8_t * buffer;
+  tu_fifo_t * ff;
   uint16_t total_len;
   uint16_t queued_len;
   uint16_t max_size;
@@ -306,6 +308,7 @@ bool dcd_edpt_xfer (uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t 
 
   xfer_ctl_t * xfer = XFER_CTL_BASE(epnum, dir);
   xfer->buffer = buffer;
+  xfer->ff     = NULL;
   xfer->total_len = total_bytes;
   xfer->queued_len = 0;
   xfer->short_packet = false;
@@ -339,6 +342,36 @@ bool dcd_edpt_xfer (uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t 
     {
       USBIEPIFG |= (1 << epnum);
     }
+  }
+
+  return true;
+}
+
+bool dcd_edpt_iso_xfer (uint8_t rhport, uint8_t ep_addr, tu_fifo_t * ff, uint16_t total_bytes)
+{
+  (void) rhport;
+
+  uint8_t const epnum = tu_edpt_number(ep_addr);
+  uint8_t const dir   = tu_edpt_dir(ep_addr);
+
+  xfer_ctl_t * xfer = XFER_CTL_BASE(epnum, dir);
+  xfer->buffer = NULL;
+  xfer->ff     = ff;
+  xfer->total_len = total_bytes;
+  xfer->queued_len = 0;
+  xfer->short_packet = false;
+
+  ep_regs_t ep_regs = EP_REGS(epnum, dir);
+
+  if(dir == TUSB_DIR_OUT)
+  {
+    tu_fifo_set_copy_mode_read(ff, TU_FIFO_COPY_INC);       // For the PHY in msp430 the source and destination pointer have to be incremented!
+    ep_regs[BCTX] &= ~NAK;
+  }
+  else
+  {
+    tu_fifo_set_copy_mode_write(ff, TU_FIFO_COPY_INC);      // For the PHY in msp430 the source and destination pointer have to be incremented!
+    USBIEPIFG |= (1 << epnum);
   }
 
   return true;
@@ -443,22 +476,30 @@ static void receive_packet(uint8_t ep_num)
     to_recv_size = (xfer_size > xfer->max_size) ? xfer->max_size : xfer_size;
   }
 
-  uint8_t * base = (xfer->buffer + xfer->queued_len);
-
-  if(ep_num == 0)
+  if (xfer->ff)
   {
-    volatile uint8_t * ep0out_buf = &USBOEP0BUF;
-    for(uint16_t i = 0; i < to_recv_size; i++)
-    {
-      base[i] = ep0out_buf[i];
-    }
+    volatile uint8_t * ep_buf = &USBSTABUFF + (ep_regs[BBAX] << 3);
+    tu_fifo_write_n(xfer->ff, (const void *) ep_buf, to_recv_size);
   }
   else
   {
-    volatile uint8_t * ep_buf = &USBSTABUFF + (ep_regs[BBAX] << 3);
-    for(uint16_t i = 0; i < to_recv_size ; i++)
+    uint8_t * base = (xfer->buffer + xfer->queued_len);
+
+    if(ep_num == 0)
     {
-      base[i] = ep_buf[i];
+      volatile uint8_t * ep0out_buf = &USBOEP0BUF;
+      for(uint16_t i = 0; i < to_recv_size; i++)
+      {
+        base[i] = ep0out_buf[i];
+      }
+    }
+    else
+    {
+      volatile uint8_t * ep_buf = &USBSTABUFF + (ep_regs[BBAX] << 3);
+      for(uint16_t i = 0; i < to_recv_size ; i++)
+      {
+        base[i] = ep_buf[i];
+      }
     }
   }
 
@@ -499,7 +540,6 @@ static void transmit_packet(uint8_t ep_num)
   }
 
   // Then actually commit to transmit a packet.
-  uint8_t * base = (xfer->buffer + xfer->queued_len);
   uint16_t remaining = xfer->total_len - xfer->queued_len;
   uint8_t xfer_size = (xfer->max_size < xfer->total_len) ? xfer->max_size : remaining;
 
@@ -513,6 +553,7 @@ static void transmit_packet(uint8_t ep_num)
   if(ep_num == 0)
   {
     volatile uint8_t * ep0in_buf = &USBIEP0BUF;
+    uint8_t * base = (xfer->buffer + xfer->queued_len);
     for(uint16_t i = 0; i < xfer_size; i++)
     {
       ep0in_buf[i] = base[i];
@@ -526,9 +567,17 @@ static void transmit_packet(uint8_t ep_num)
     ep_regs_t ep_regs = EP_REGS(ep_num, TUSB_DIR_IN);
     volatile uint8_t * ep_buf = &USBSTABUFF + (ep_regs[BBAX] << 3);
 
-    for(int i = 0; i < xfer_size; i++)
+    if (xfer->ff)
     {
-      ep_buf[i] = base[i];
+      tu_fifo_read_n(xfer->ff, (void *) ep_buf, xfer_size);
+    }
+    else
+    {
+      uint8_t * base = (xfer->buffer + xfer->queued_len);
+      for(int i = 0; i < xfer_size; i++)
+      {
+        ep_buf[i] = base[i];
+      }
     }
 
     ep_regs[BCTX] = (ep_regs[BCTX] & 0x80) + (xfer_size & 0x7F);
