@@ -61,6 +61,7 @@ void xfer_epsize_set(xfer_desc_t* xfer, uint16_t epsize)
 void xfer_begin(xfer_desc_t* xfer, uint8_t * buffer, uint16_t total_bytes)
 {
   xfer->buffer     = buffer;
+  xfer->ff         = NULL;
   xfer->total_len  = total_bytes;
   xfer->actual_len = 0;
 }
@@ -68,6 +69,7 @@ void xfer_begin(xfer_desc_t* xfer, uint8_t * buffer, uint16_t total_bytes)
 void xfer_end(xfer_desc_t* xfer)
 {
   xfer->buffer     = NULL;
+  xfer->ff         = NULL;
   xfer->total_len  = 0;
   xfer->actual_len = 0;
 }
@@ -82,7 +84,7 @@ void xfer_packet_done(xfer_desc_t* xfer)
 {
   uint16_t const xact_len = xfer_packet_len(xfer);
 
-  if (xfer->buffer) xfer->buffer += xact_len;
+  xfer->buffer += xact_len;
   xfer->actual_len += xact_len;
 }
 
@@ -436,13 +438,13 @@ void dcd_int_handler(uint8_t rhport)
         if (xact_len)
         {
           // write to EP fifo
-          if (xfer->buffer)
+          if (xfer->ff)
           {
-            xact_ep_write(epnum, xfer->buffer, xact_len);
+            tu_fifo_read_n(ff, (void *) &UDP->UDP_FDR[epnum], xact_len);
           }
           else
           {
-            tu_fifo_read_n(ff, (void *) &UDP->UDP_FDR[epnum], xact_len);
+            xact_ep_write(epnum, xfer->buffer, xact_len);
           }
 
           // TX ready for transfer
@@ -469,13 +471,13 @@ void dcd_int_handler(uint8_t rhport)
         uint16_t const xact_len = (uint16_t) ((UDP->UDP_CSR[epnum] & UDP_CSR_RXBYTECNT_Msk) >> UDP_CSR_RXBYTECNT_Pos);
 
         // Read from EP fifo
-        if (xfer->buffer)
+        if (xfer->ff)
         {
-          xact_ep_read(epnum, xfer->buffer, xact_len);
+          tu_fifo_write_n(xfer->ff, (const void *) &UDP->UDP_FDR[epnum], xact_len);
         }
         else
         {
-          tu_fifo_write_n(xfer->ff, (const void *) &UDP->UDP_FDR[epnum], xact_len);
+          xact_ep_read(epnum, xfer->buffer, xact_len);
         }
 
         xfer_packet_done(xfer);

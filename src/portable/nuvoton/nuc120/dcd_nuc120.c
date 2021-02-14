@@ -144,13 +144,13 @@ static void dcd_in_xfer(struct xfer_ctl_t *xfer, USBD_EP_T *ep)
 {
   uint16_t bytes_now = tu_min16(xfer->in_remaining_bytes, xfer->max_packet_size);
 
-  if (xfer->data_ptr)
+  if (xfer->ff)
   {
-    memcpy((uint8_t *)(USBD_BUF_BASE + ep->BUFSEG), xfer->data_ptr, bytes_now);
+    tu_fifo_read_n(xfer->ff, (void *) (USBD_BUF_BASE + ep->BUFSEG), bytes_now);
   }
   else
   {
-    tu_fifo_read_n(xfer->ff, (void *) (USBD_BUF_BASE + ep->BUFSEG), bytes_now);
+    memcpy((uint8_t *)(USBD_BUF_BASE + ep->BUFSEG), xfer->data_ptr, bytes_now);
   }
 
   ep->MXPLD = bytes_now;
@@ -277,6 +277,7 @@ bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t *buffer, uint16_t to
 
   /* store away the information we'll needing now and later */
   xfer->data_ptr = buffer;
+  xfer->ff       = NULL;
   xfer->in_remaining_bytes = total_bytes;
   xfer->total_bytes = total_bytes;
 
@@ -429,14 +430,14 @@ void dcd_int_handler(uint8_t rhport)
         if (out_ep)
         {
           /* copy the data from the PC to the previously provided buffer */
-          if (xfer->data_ptr)
+          if (xfer->ff)
           {
-            memcpy(xfer->data_ptr, (uint8_t *)(USBD_BUF_BASE + ep->BUFSEG), available_bytes);
-            xfer->data_ptr += available_bytes;
+            tu_fifo_write_n(xfer->ff, (const void *) (USBD_BUF_BASE + ep->BUFSEG), available_bytes);
           }
           else
           {
-            tu_fifo_write_n(xfer->ff, (const void *) (USBD_BUF_BASE + ep->BUFSEG), available_bytes);
+            memcpy(xfer->data_ptr, (uint8_t *)(USBD_BUF_BASE + ep->BUFSEG), available_bytes);
+            xfer->data_ptr += available_bytes;
           }
 
           xfer->out_bytes_so_far += available_bytes;
@@ -452,8 +453,7 @@ void dcd_int_handler(uint8_t rhport)
           /* update the bookkeeping to reflect the data that has now been sent to the PC */
           xfer->in_remaining_bytes -= available_bytes;
 
-          /* increment only if xfer->data_ptr != NULL - if xfer->data_ptr == NULL then a FIFO is used for which xfer->data_ptr MUST STAY ZERO! */
-          if (xfer->data_ptr) xfer->data_ptr += available_bytes;
+          xfer->data_ptr += available_bytes;
 
           /* if more data to send, send it; otherwise, alert TinyUSB that we've finished */
           if (xfer->in_remaining_bytes)

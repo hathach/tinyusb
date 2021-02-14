@@ -181,7 +181,11 @@ static void dcd_userEP_in_xfer(struct xfer_ctl_t *xfer, USBD_EP_T *ep)
   }
 
   /* provided buffers are thankfully 32-bit aligned, allowing most data to be transfered as 32-bit */
-  if (xfer->data_ptr)
+  if (xfer->ff)
+  {
+    tu_fifo_read_n(xfer->ff, (void *) (ep->EPDAT_BYTE), bytes_now);
+  }
+  else
   {
     uint16_t countdown = bytes_now;
     while (countdown > 3)
@@ -194,10 +198,6 @@ static void dcd_userEP_in_xfer(struct xfer_ctl_t *xfer, USBD_EP_T *ep)
     }
     while (countdown--)
       ep->EPDAT_BYTE = *xfer->data_ptr++;
-  }
-  else
-  {
-    tu_fifo_read_n(xfer->ff, (void *) (ep->EPDAT_BYTE), bytes_now);
   }
 
   /* for short packets, we must nudge the peripheral to say 'that's all folks' */
@@ -394,6 +394,7 @@ bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t *buffer, uint16_t to
 
     /* store away the information we'll needing now and later */
     xfer->data_ptr = buffer;
+    xfer->ff       = NULL;
     xfer->in_remaining_bytes = total_bytes;
     xfer->total_bytes = total_bytes;
 
@@ -656,14 +657,15 @@ void dcd_int_handler(uint8_t rhport)
 #else
           uint16_t const available_bytes = ep->EPDATCNT & USBD_EPDATCNT_DATCNT_Msk;
           /* copy the data from the PC to the previously provided buffer */
-          if (xfer->data_ptr)
+          if (xfer->ff)
           {
-            for (int count = 0; (count < available_bytes) && (xfer->out_bytes_so_far < xfer->total_bytes); count++, xfer->out_bytes_so_far++)
-              *xfer->data_ptr++ = ep->EPDAT_BYTE;
+            tu_fifo_write_n(xfer->ff, (const void *) &ep->EPDAT_BYTE, tu_min16(available_bytes, xfer->total_bytes - xfer->out_bytes_so_far));
           }
           else
           {
-            tu_fifo_write_n(xfer->ff, (const void *) &ep->EPDAT_BYTE, tu_min16(available_bytes, xfer->total_bytes - xfer->out_bytes_so_far));
+            for (int count = 0; (count < available_bytes) && (xfer->out_bytes_so_far < xfer->total_bytes); count++, xfer->out_bytes_so_far++)
+              *xfer->data_ptr++ = ep->EPDAT_BYTE;
+
           }
 
           /* when the transfer is finished, alert TinyUSB; otherwise, continue accepting more data */

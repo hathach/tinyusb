@@ -321,6 +321,7 @@ bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t *buffer, uint16_t to
 
   xfer_ctl_t * xfer = XFER_CTL_BASE(epnum, dir);
   xfer->buffer       = buffer;
+  xfer->ff           = NULL;
   xfer->total_len    = total_bytes;
   xfer->queued_len   = 0;
   xfer->short_packet = false;
@@ -523,7 +524,12 @@ static void receive_packet(xfer_ctl_t *xfer, /* usb_out_endpoint_t * out_ep, */ 
   }
 
   // Common buffer read
-  if (xfer->buffer)
+  if (xfer->ff)
+  {
+    // Ring buffer
+    tu_fifo_write_n(xfer->ff, (const void *) rx_fifo, to_recv_size);
+  }
+  else
   {
     uint8_t to_recv_rem = to_recv_size % 4;
     uint16_t to_recv_size_aligned = to_recv_size - to_recv_rem;
@@ -556,12 +562,6 @@ static void receive_packet(xfer_ctl_t *xfer, /* usb_out_endpoint_t * out_ep, */ 
         last_32b_bound[2] = (tmp & 0x00FF0000) >> 16;
       }
     }
-
-  }
-  else
-  {
-    // Ring buffer
-    tu_fifo_write_n(xfer->ff, (const void *) rx_fifo, to_recv_size);
   }
 
   xfer->queued_len += xfer_size;
@@ -581,7 +581,11 @@ static void transmit_packet(xfer_ctl_t *xfer, volatile usb_in_endpoint_t *in_ep,
 
   uint16_t to_xfer_size = (remaining > xfer->max_size) ? xfer->max_size : remaining;
 
-  if (xfer->buffer)
+  if (xfer->ff)
+  {
+    tu_fifo_read_n(xfer->ff, (void *) tx_fifo, to_xfer_size);
+  }
+  else
   {
     uint8_t to_xfer_rem = to_xfer_size % 4;
     uint16_t to_xfer_size_aligned = to_xfer_size - to_xfer_rem;
@@ -615,10 +619,6 @@ static void transmit_packet(xfer_ctl_t *xfer, volatile usb_in_endpoint_t *in_ep,
 
       (*tx_fifo) = tmp;
     }
-  }
-  else
-  {
-    tu_fifo_read_n(xfer->ff, (void *) tx_fifo, to_xfer_size);
   }
 }
 

@@ -646,6 +646,7 @@ bool dcd_edpt_xfer (uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t 
 
   xfer_ctl_t * xfer = XFER_CTL_BASE(epnum, dir);
   xfer->buffer      = buffer;
+  xfer->ff          = NULL;
   xfer->total_len   = total_bytes;
 
   // EP0 can only handle one packet
@@ -908,18 +909,18 @@ static void handle_rxflvl_ints(uint8_t rhport, USB_OTG_OUTEndpointTypeDef * out_
       xfer_ctl_t * xfer = XFER_CTL_BASE(epnum, TUSB_DIR_OUT);
 
       // Read packet off RxFIFO
-      if (xfer->buffer)
+      if (xfer->ff)
+      {
+        // Ring buffer
+        tu_fifo_write_n(xfer->ff, (const void *) rx_fifo, bcnt);
+      }
+      else
       {
         // Linear buffer
         read_fifo_packet(rhport, xfer->buffer, bcnt);
 
         // Increment pointer to xfer data
         xfer->buffer += bcnt;
-      }
-      else
-      {
-        // Ring buffer
-        tu_fifo_write_n(xfer->ff, (const void *) rx_fifo, bcnt);
       }
 
       // Truncate transfer length in case of short packet
@@ -1028,17 +1029,17 @@ static void handle_epin_ints(uint8_t rhport, USB_OTG_DeviceTypeDef * dev, USB_OT
           }
 
           // Push packet to Tx-FIFO
-          if (xfer->buffer)
+          if (xfer->ff)
+          {
+            usb_fifo_t tx_fifo = FIFO_BASE(rhport, n);
+            tu_fifo_read_n(xfer->ff, (void *) tx_fifo, packet_size);
+          }
+          else
           {
             write_fifo_packet(rhport, n, xfer->buffer, packet_size);
 
             // Increment pointer to xfer data
             xfer->buffer += packet_size;
-          }
-          else
-          {
-            usb_fifo_t tx_fifo = FIFO_BASE(rhport, n);
-            tu_fifo_read_n(xfer->ff, (void *) tx_fifo, packet_size);
           }
         }
 
