@@ -440,7 +440,7 @@ void dcd_int_handler(uint8_t rhport)
           // write to EP fifo
           if (xfer->ff)
           {
-            tu_fifo_read_n(ff, (void *) &UDP->UDP_FDR[epnum], xact_len);
+            tu_fifo_read_n(xfer->ff, (void *) &UDP->UDP_FDR[epnum], xact_len);
           }
           else
           {
