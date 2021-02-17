@@ -354,10 +354,7 @@ static uint16_t _tu_fifo_peek_at_n(tu_fifo_t* f, uint16_t offset, void * p_buffe
 
   // Check if we can read something at and after offset - if too less is available we read what remains
   cnt -= offset;
-  if (cnt < n) {
-    if (cnt == 0) return 0;
-    n = cnt;
-  }
+  if (cnt < n) n = cnt;
 
   uint16_t rRel = get_relative_pointer(f, rAbs, offset);
 
@@ -664,10 +661,7 @@ uint16_t tu_fifo_peek_n_into_other_fifo (tu_fifo_t* f, tu_fifo_t* f_target, uint
 
   // Check if we can read something at and after offset - if too less is available we read what remains
   cnt -= offset;
-  if (cnt < n) {
-    if (cnt == 0) return 0;
-    n = cnt;
-  }
+  if (cnt < n) n = cnt;
 
   tu_fifo_lock(f_target);     // Lock both read and write pointers - in case of an overwritable FIFO both may be modified
 
@@ -880,4 +874,196 @@ void tu_fifo_advance_write_pointer(tu_fifo_t *f, uint16_t n)
 void tu_fifo_advance_read_pointer(tu_fifo_t *f, uint16_t n)
 {
   f->rd_idx = advance_pointer(f, f->rd_idx, n);
+}
+
+/******************************************************************************/
+/*!
+    @brief Move back write pointer - intended to be used in combination with DMA.
+    It is possible to fill the FIFO by use of a DMA in circular mode. Within
+    DMA ISRs you may update the write pointer to be able to read from the FIFO.
+    As long as the DMA is the only process writing into the FIFO this is safe
+    to use.
+
+    USE WITH CARE - WE DO NOT CONDUCT SAFTY CHECKS HERE!
+
+    @param[in]  f
+                Pointer to the FIFO buffer to manipulate
+    @param[in]  n
+                Number of items the write pointer moves backward
+ */
+/******************************************************************************/
+void tu_fifo_backward_write_pointer(tu_fifo_t *f, uint16_t n)
+{
+  f->wr_idx = backward_pointer(f, f->wr_idx, n);
+}
+
+/******************************************************************************/
+/*!
+    @brief Move back read pointer - intended to be used in combination with DMA.
+    It is possible to read from the FIFO by use of a DMA in linear mode. Within
+    DMA ISRs you may update the read pointer to be able to again write into the
+    FIFO. As long as the DMA is the only process reading from the FIFO this is
+    safe to use.
+
+    USE WITH CARE - WE DO NOT CONDUCT SAFTY CHECKS HERE!
+
+    @param[in]  f
+                Pointer to the FIFO buffer to manipulate
+    @param[in]  n
+                Number of items the read pointer moves backward
+ */
+/******************************************************************************/
+void tu_fifo_backward_read_pointer(tu_fifo_t *f, uint16_t n)
+{
+  f->rd_idx = backward_pointer(f, f->rd_idx, n);
+}
+
+/******************************************************************************/
+/*!
+   @brief Get linear read info
+
+   Returns the length and pointer from which bytes can be read in a linear manner.
+   This is of major interest for DMA transmissions. If returned length is zero the
+   corresponding pointer is invalid. The returned length is limited to the number
+   of BYTES n which the user wants to write into the buffer.
+   The write pointer does NOT get advanced, use tu_fifo_advance_read_pointer() to
+   do so! If the length returned is less than n i.e. len<n, then a wrap occurs
+   and you need to execute this function a second time to get a pointer to the
+   wrapped part!
+   @param[in]       f
+                    Pointer to FIFO
+   @param[in]       offset
+                    Number of BYTES to ignore before start writing
+   @param[out]      **ptr
+                    Pointer to start writing to
+   @param[in]       n
+                    Number of BYTES to read from buffer
+   @return          len
+                    Length of linear part IN BYTES, if zero corresponding pointer ptr is invalid
+*/
+/******************************************************************************/
+uint16_t tu_fifo_get_linear_read_info(tu_fifo_t *f, uint16_t offset, void **ptr, uint16_t n)
+{
+  // Operate on temporary values in case they change in between
+  uint16_t w = f->wr_idx, r = f->rd_idx;
+
+  uint16_t cnt = _tu_fifo_count(f, w, r);
+
+  // Check overflow and correct if required
+  if (cnt > f->depth)
+  {
+    tu_fifo_lock(f);
+    _tu_fifo_correct_read_pointer(f, w);
+    tu_fifo_unlock(f);
+    r = f->rd_idx;
+    cnt = f->depth;
+  }
+
+  // Convert to bytes
+  cnt = cnt * f->item_size;
+
+  // Skip beginning of buffer
+  if (cnt == 0 || offset >= cnt) return 0;
+
+  // Check if we can read something at and after offset - if too less is available we read what remains
+  cnt -= offset;
+  if (cnt < n) n = cnt;
+
+  // Get relative pointers
+  w = get_relative_pointer(f, w, 0);
+  r = get_relative_pointer(f, r, offset);
+
+  // Check if there is a wrap around necessary
+  uint16_t len;
+
+  if (w >= r) {
+    len = w - r;
+  }
+  else
+  {
+    len = f->depth - r;
+  }
+
+  len = len * f->item_size;
+
+  // Limit to required length
+  len = tu_min16(n, len);
+
+  // Copy pointer to buffer to start reading from
+  *ptr = &f->buffer[r];
+
+  return len;
+}
+
+/******************************************************************************/
+/*!
+   @brief Get linear write info
+
+   Returns the length and pointer from which bytes can be written into buffer array in a linear manner.
+   This is of major interest for DMA transmissions not using circular mode. If returned length is zero the
+   corresponding pointer is invalid. The returned length is limited to the number of BYTES n which the user
+   wants to write into the buffer.
+   The write pointer does NOT get advanced, use tu_fifo_advance_write_pointer() to do so! If the length
+   returned is less than n i.e. len<n, then a wrap occurs and you need to execute this function a second
+   time to get a pointer to the wrapped part!
+   @param[in]       f
+                    Pointer to FIFO
+   @param[in]       offset
+                    Number of bytes to ignore before start writing
+   @param[out]      **ptr
+                    Pointer to start writing to
+   @param[in]       n
+                    Number of BYTES to write into buffer
+   @return          len
+                    Length of linear part IN BYTES, if zero corresponding pointer ptr is invalid
+*/
+/******************************************************************************/
+uint16_t tu_fifo_get_linear_write_info(tu_fifo_t *f, uint16_t offset, void **ptr, uint16_t n)
+{
+  uint16_t w = f->wr_idx, r = f->rd_idx;
+  uint16_t free = _tu_fifo_remaining(f, w, r) * f->item_size;
+
+  if (!f->overwritable)
+  {
+    // Not overwritable limit up to full
+    n = tu_min16(n, free);
+  }
+  else if (n >= f->depth * f->item_size)
+  {
+    // If overwrite is allowed it must be less than or equal to 2 x buffer length, otherwise the overflow can not be resolved by the read functions
+    TU_VERIFY(n <= 2*f->depth * f->item_size);
+
+    n = f->depth * f->item_size;
+    // We start writing at the read pointer's position since we fill the complete
+    // buffer and we do not want to modify the read pointer within a write function!
+    // This would end up in a race condition with read functions!
+    w = r;
+  }
+
+  // Check if there is room to write to
+  if (free == 0 || offset >= free) return 0;
+
+  // Get relative pointers
+  w = get_relative_pointer(f, w, offset);
+  r = get_relative_pointer(f, r, 0);
+  uint16_t len;
+
+  if (w < r)
+  {
+    len = r-w;
+  }
+  else
+  {
+    len = f->depth - w;
+  }
+
+  len = len * f->item_size;
+
+  // Limit to required length
+  len = tu_min16(n, len);
+
+  // Copy pointer to buffer to start reading from
+  *ptr = &f->buffer[w];
+
+  return len;
 }

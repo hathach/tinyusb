@@ -128,13 +128,22 @@ uint16_t tu_fifo_count                  (tu_fifo_t* f);
 bool     tu_fifo_empty                  (tu_fifo_t* f);
 bool     tu_fifo_full                   (tu_fifo_t* f);
 uint16_t tu_fifo_remaining              (tu_fifo_t* f);
-bool     tu_fifo_overflowed               (tu_fifo_t* f);
+bool     tu_fifo_overflowed             (tu_fifo_t* f);
 void     tu_fifo_correct_read_pointer   (tu_fifo_t* f);
 
 // Pointer modifications intended to be used in combinations with DMAs.
 // USE WITH CARE - NO SAFTY CHECKS CONDUCTED HERE! NOT MUTEX PROTECTED!
 void     tu_fifo_advance_write_pointer  (tu_fifo_t *f, uint16_t n);
+void     tu_fifo_backward_write_pointer (tu_fifo_t *f, uint16_t n);
 void     tu_fifo_advance_read_pointer   (tu_fifo_t *f, uint16_t n);
+void     tu_fifo_backward_read_pointer  (tu_fifo_t *f, uint16_t n);
+
+// If you want to read/write from/to the FIFO by use of a DMA, you may need to conduct two copies to handle a possible wrapping part
+// This functions deliver a pointer to start reading/writing from/to and a valid linear length along which no wrap occurs.
+// In case not all of your data is available within one read/write, update the read/write pointer by
+// tu_fifo_advance_read_pointer()/tu_fifo_advance_write_pointer and conduct a second read/write operation
+uint16_t tu_fifo_get_linear_read_info   (tu_fifo_t *f, uint16_t offset, void **ptr, uint16_t n);
+uint16_t tu_fifo_get_linear_write_info  (tu_fifo_t *f, uint16_t offset, void **ptr, uint16_t n);
 
 static inline bool tu_fifo_peek(tu_fifo_t* f, void * p_buffer)
 {
