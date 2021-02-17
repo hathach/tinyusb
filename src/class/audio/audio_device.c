@@ -144,7 +144,11 @@ typedef struct
     CFG_TUSB_MCU == OPT_MCU_LPC54XXX              || \
     CFG_TUSB_MCU == OPT_MCU_LPC55XX               || \
     CFG_TUSB_MCU == OPT_MCU_LPC175X_6X            || \
-    CFG_TUSB_MCU == OPT_MCU_LPC40XX)
+    CFG_TUSB_MCU == OPT_MCU_LPC40XX               || \
+    CFG_TUSB_MCU == OPT_MCU_SAMD11                || /* Uses DMA - Ok for FIFO, had no time for implementation */       \
+    CFG_TUSB_MCU == OPT_MCU_SAMD21                || \
+    CFG_TUSB_MCU == OPT_MCU_SAMD51                || \
+    CFG_TUSB_MCU == OPT_MCU_SAME5X)
 
 #define USE_EVADE_BUFFER      1
 
