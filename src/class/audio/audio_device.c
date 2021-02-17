@@ -332,7 +332,7 @@ static bool audiod_rx_done_cb(uint8_t rhport, audiod_interface_t* audio)
 
   // Prepare for next transmission
 #if USE_EVADE_BUFFER
-  TU_VERIFY(usbd_edpt_xfer(rhport, audio->ep_out, &audio->evasion_buf_out, CFG_TUD_AUDIO_EPSIZE_OUT), false);
+  TU_VERIFY(usbd_edpt_xfer(rhport, audio->ep_out, audio->evasion_buf_out, CFG_TUD_AUDIO_EPSIZE_OUT), false);
 #else
   TU_VERIFY(usbd_edpt_iso_xfer(rhport, audio->ep_out, &audio->ep_out_ff, CFG_TUD_AUDIO_EP_OUT_SW_BUFFER_SIZE), false);
 #endif
@@ -529,8 +529,8 @@ static bool audiod_tx_done_cb(uint8_t rhport, audiod_interface_t * audio)
 
   // Schedule transmit
 #if USE_EVADE_BUFFER
-  tu_fifo_write_n(&audio->ep_in_ff, &audio->evasion_buf_in, n_bytes_tx);
-  TU_VERIFY(usbd_edpt_xfer(rhport, audio->ep_in, &audio->evasion_buf_in, n_bytes_tx));
+  tu_fifo_write_n(&audio->ep_in_ff, audio->evasion_buf_in, n_bytes_tx);
+  TU_VERIFY(usbd_edpt_xfer(rhport, audio->ep_in, audio->evasion_buf_in, n_bytes_tx));
 #else
   TU_VERIFY(usbd_edpt_iso_xfer(rhport, audio->ep_in, &audio->ep_in_ff, n_bytes_tx));
 #endif
