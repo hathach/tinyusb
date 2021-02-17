@@ -183,7 +183,7 @@ static void dcd_userEP_in_xfer(struct xfer_ctl_t *xfer, USBD_EP_T *ep)
   /* provided buffers are thankfully 32-bit aligned, allowing most data to be transfered as 32-bit */
   if (xfer->ff)
   {
-    tu_fifo_read_n(xfer->ff, (void *) (ep->EPDAT_BYTE), bytes_now);
+    tu_fifo_read_n(xfer->ff, (void *) (&ep->EPDAT_BYTE), bytes_now);
   }
   else
   {
