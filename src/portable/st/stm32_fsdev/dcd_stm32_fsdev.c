@@ -1004,7 +1004,7 @@ static bool dcd_write_packet_memory_ff(tu_fifo_t * ff, uint16_t dst, uint16_t wN
     {
       // Since PMA can accessed only 16 bit-wise we copy the last byte again
       tu_fifo_backward_read_pointer(ff, 1);                 // Move one byte back and copy two bytes for the PMA
-      pma[PMA_STRIDE*(dst>>1)] = tu_fifo_read_n(ff, 2);     // Since EP FIFOs must be of item size 1 this is safe to do
+      tu_fifo_read_n(ff, &pma[PMA_STRIDE*(dst>>1)], 2);     // Since EP FIFOs must be of item size 1 this is safe to do
       dst++;
       len2--;
     }
