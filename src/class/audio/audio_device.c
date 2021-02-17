@@ -132,7 +132,7 @@ typedef struct
     CFG_TUSB_MCU == OPT_MCU_LPC18XX               || /* No clue how driver works */                                     \
     CFG_TUSB_MCU == OPT_MCU_LPC43XX               ||                                                                    \
     CFG_TUSB_MCU == OPT_MCU_MIMXRT10XX            ||                                                                    \
-    CFG_TUSB_MCU == OPT_MCU_RP2040)               || /* Don't want to change driver */                                  \
+    CFG_TUSB_MCU == OPT_MCU_RP2040                || /* Don't want to change driver */                                  \
     CFG_TUSB_MCU == OPT_MCU_VALENTYUSB_EPTRI      || /* Intermediate software buffer required */                        \
     CFG_TUSB_MCU == OPT_MCU_CXD56                 || /* No clue how driver works */                                     \
     CFG_TUSB_MCU == OPT_MCU_DA1469X               || /* Uses DMA - Ok for FIFO, had no time for implementation */       \
@@ -148,7 +148,7 @@ typedef struct
     CFG_TUSB_MCU == OPT_MCU_SAMD11                || /* Uses DMA - Ok for FIFO, had no time for implementation */       \
     CFG_TUSB_MCU == OPT_MCU_SAMD21                || \
     CFG_TUSB_MCU == OPT_MCU_SAMD51                || \
-    CFG_TUSB_MCU == OPT_MCU_SAME5X)
+    CFG_TUSB_MCU == OPT_MCU_SAME5X )
 
 #define USE_EVADE_BUFFER      1
 
