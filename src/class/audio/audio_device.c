@@ -127,6 +127,41 @@ typedef struct
 #endif
 #endif
 
+  // Evasion buffer in case target MCU is not capable of handling a ring buffer FIFO e.g. no hardware buffer is available or driver is would need to be changed dramatically
+#if ( CFG_TUSB_MCU == OPT_MCU_MKL25ZXX            || /* Intermediate software buffer required */                        \
+    CFG_TUSB_MCU == OPT_MCU_LPC18XX               || /* No clue how driver works */                                     \
+    CFG_TUSB_MCU == OPT_MCU_LPC43XX               ||                                                                    \
+    CFG_TUSB_MCU == OPT_MCU_MIMXRT10XX            ||                                                                    \
+    CFG_TUSB_MCU == OPT_MCU_RP2040)               || /* Don't want to change driver */                                  \
+    CFG_TUSB_MCU == OPT_MCU_VALENTYUSB_EPTRI      || /* Intermediate software buffer required */                        \
+    CFG_TUSB_MCU == OPT_MCU_CXD56                 || /* No clue how driver works */                                     \
+    CFG_TUSB_MCU == OPT_MCU_DA1469X               || /* Uses DMA - Ok for FIFO, had no time for implementation */       \
+    CFG_TUSB_MCU == OPT_MCU_NRF5X                 || /* Uses DMA - Ok for FIFO, had no time for implementation */       \
+    CFG_TUSB_MCU == OPT_MCU_LPC11UXX              || /* Uses DMA - Ok for FIFO, had no time for implementation */       \
+    CFG_TUSB_MCU == OPT_MCU_LPC13XX               || \
+    CFG_TUSB_MCU == OPT_MCU_LPC15XX               || \
+    CFG_TUSB_MCU == OPT_MCU_LPC51UXX              || \
+    CFG_TUSB_MCU == OPT_MCU_LPC54XXX              || \
+    CFG_TUSB_MCU == OPT_MCU_LPC55XX               || \
+    CFG_TUSB_MCU == OPT_MCU_LPC175X_6X            || \
+    CFG_TUSB_MCU == OPT_MCU_LPC40XX)
+
+#define USE_EVADE_BUFFER      1
+
+#if CFG_TUD_AUDIO_EP_OUT_SW_BUFFER_SIZE
+  CFG_TUSB_MEM_ALIGN uint8_t evasion_buf_out[CFG_TUD_AUDIO_EPSIZE_OUT];
+#endif
+
+#if CFG_TUD_AUDIO_EP_IN_SW_BUFFER_SIZE
+  CFG_TUSB_MEM_ALIGN uint8_t evasion_buf_in[CFG_TUD_AUDIO_EPSIZE_IN];
+#endif
+
+#endif
+
+#ifndef USE_EVADE_BUFFER
+#define  USE_EVADE_BUFFER     0
+#endif
+
 } audiod_interface_t;
 
 #define ITF_MEM_RESET_SIZE   offsetof(audiod_interface_t, ctrl_buf)
@@ -292,7 +327,11 @@ static bool audiod_rx_done_cb(uint8_t rhport, audiod_interface_t* audio)
 #endif
 
   // Prepare for next transmission
+#if USE_EVADE_BUFFER
+  TU_VERIFY(usbd_edpt_xfer(rhport, audio->ep_out, &audio->evasion_buf_out, CFG_TUD_AUDIO_EPSIZE_OUT), false);
+#else
   TU_VERIFY(usbd_edpt_iso_xfer(rhport, audio->ep_out, &audio->ep_out_ff, CFG_TUD_AUDIO_EP_OUT_SW_BUFFER_SIZE), false);
+#endif
 
   // Call a weak callback here - a possibility for user to get informed decoding was completed
   if (tud_audio_rx_done_post_read_cb) TU_VERIFY(tud_audio_rx_done_post_read_cb(rhport, n_bytes_received, idxDriver, audio->ep_out, audio->altSetting[idxItf]));
@@ -485,7 +524,12 @@ static bool audiod_tx_done_cb(uint8_t rhport, audiod_interface_t * audio)
   uint16_t n_bytes_tx = tu_fifo_count(&audio->ep_in_ff);
 
   // Schedule transmit
+#if USE_EVADE_BUFFER
+  tu_fifo_write_n(&audio->ep_in_ff, &audio->evasion_buf_in, n_bytes_tx);
+  TU_VERIFY(usbd_edpt_xfer(rhport, audio->ep_in, &audio->evasion_buf_in, n_bytes_tx));
+#else
   TU_VERIFY(usbd_edpt_iso_xfer(rhport, audio->ep_in, &audio->ep_in_ff, n_bytes_tx));
+#endif
 
   // Call a weak callback here - a possibility for user to get informed former TX was completed and how many bytes were loaded for the next frame
   if (tud_audio_tx_done_post_load_cb) TU_VERIFY(tud_audio_tx_done_post_load_cb(rhport, n_bytes_tx, idxDriver, audio->ep_in, audio->altSetting[idxItf]));
@@ -815,7 +859,11 @@ static bool audiod_set_interface(uint8_t rhport, tusb_control_request_t const * 
             if (tud_audio_set_itf_cb) TU_VERIFY(tud_audio_set_itf_cb(rhport, p_request));
 
             // Prepare for incoming data
-            TU_VERIFY(usbd_edpt_iso_xfer(rhport, _audiod_itf[idxDriver].ep_out, &_audiod_itf[idxDriver].ep_out_ff, CFG_TUD_AUDIO_EP_OUT_SW_BUFFER_SIZE), false);
+#if USE_EVADE_BUFFER
+            TU_VERIFY(usbd_edpt_xfer(rhport, _audiod_itf[idxDriver].ep_out, &_audiod_itf[idxDriver].evasion_buf_out, CFG_TUD_AUDIO_EPSIZE_OUT), false);
+#else
+            TU_VERIFY(usbd_edpt_iso_xfer(rhport, _audiod_itf[idxDriver].ep_out, &_audiod_itf[idxDriver].ep_out_ff, CFG_TUD_AUDIO_EPSIZE_OUT), false);
+#endif
           }
 
 #if CFG_TUD_AUDIO_ENABLE_FEEDBACK_EP
@@ -1106,6 +1154,11 @@ bool audiod_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint3
     {
       // Save into buffer - do whatever has to be done
       //      TU_VERIFY(audiod_rx_done_cb(rhport, &_audiod_itf[idxDriver], _audiod_itf[idxDriver].ep_out_buf, xferred_bytes));
+
+#if USE_EVADE_BUFFER
+      TU_VERIFY(tu_fifo_write_n(&_audiod_itf[idxDriver].ep_out_ff, &_audiod_itf[idxDriver].evasion_buf_out, (uint16_t) xferred_bytes)); // Copy data into FIFO
+#endif
+
       TU_VERIFY(audiod_rx_done_cb(rhport, &_audiod_itf[idxDriver]));
 
       return true;
