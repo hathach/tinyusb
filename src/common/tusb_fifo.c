@@ -74,7 +74,7 @@ bool tu_fifo_config(tu_fifo_t *f, void* buffer, uint16_t depth, uint16_t item_si
   f->overwritable = overwritable;
 
   f->max_pointer_idx = 2*depth - 1;               // Limit index space to 2*depth - this allows for a fast "modulo" calculation but limits the maximum depth to 2^16/2 = 2^15 and buffer overflows are detectable only if overflow happens once (important for unsupervised DMA applications)
-  f->non_used_index_space = 0xFFFF - f->max_pointer_idx;
+  f->non_used_index_space = UINT16_MAX - f->max_pointer_idx;
 
   f->rd_idx = f->wr_idx = 0;
 

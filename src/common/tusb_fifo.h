@@ -86,7 +86,7 @@ typedef struct
         .item_size              = sizeof(_type),                        \
         .overwritable           = _overwritable,                        \
         .max_pointer_idx        = 2*_depth-1,                           \
-        .non_used_index_space   = 0xFFFF - 2*_depth-1,                  \
+        .non_used_index_space   = UINT16_MAX - (2*_depth-1),                  \
     }
 
 bool tu_fifo_set_overwritable(tu_fifo_t *f, bool overwritable);
