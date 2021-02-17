@@ -34,6 +34,7 @@
 */
 
 #include "tusb_option.h"
+#include "common/tusb_fifo.h"
 
 #if TUSB_OPT_DEVICE_ENABLED && ( (CFG_TUSB_MCU == OPT_MCU_NUC121) || (CFG_TUSB_MCU == OPT_MCU_NUC126) )
 
@@ -78,6 +79,7 @@ static bool active_ep0_xfer;
 static struct xfer_ctl_t
 {
   uint8_t *data_ptr;         /* data_ptr tracks where to next copy data to (for OUT) or from (for IN) */
+  tu_fifo_t * ff;
   union {
     uint16_t in_remaining_bytes; /* for IN endpoints, we track how many bytes are left to transfer */
     uint16_t out_bytes_so_far;   /* but for OUT endpoints, we track how many bytes we've transferred so far */
