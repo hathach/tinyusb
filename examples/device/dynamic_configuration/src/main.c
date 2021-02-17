@@ -165,6 +165,12 @@ void midi_task(void)
 {
   static uint32_t start_ms = 0;
 
+  // The MIDI interface always creates input and output port/jack descriptors
+  // regardless of these being used or not. Therefore incoming traffic should be read
+  // (possibly just discarded) to avoid the sender blocking in IO
+  uint8_t packet[4];
+  while(tud_midi_available()) tud_midi_receive(packet);
+
   // send note every 1000 ms
   if (board_millis() - start_ms < 286) return; // not enough time
   start_ms += 286;

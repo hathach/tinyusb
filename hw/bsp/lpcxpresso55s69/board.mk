@@ -45,5 +45,5 @@ FREERTOS_PORT = ARM_CM33_NTZ/non_secure
 JLINK_DEVICE = LPC55S69
 
 # flash using pyocd
-flash: $(BUILD)/$(BOARD)-firmware.hex
+flash: $(BUILD)/$(PROJECT).hex
 	pyocd flash -t LPC55S69 $<

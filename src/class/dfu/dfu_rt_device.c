@@ -26,7 +26,7 @@
 
 #include "tusb_option.h"
 
-#if (TUSB_OPT_DEVICE_ENABLED && CFG_TUD_DFU_RT)
+#if (TUSB_OPT_DEVICE_ENABLED && CFG_TUD_DFU_RUNTIME)
 
 #include "dfu_rt_device.h"
 #include "device/usbd_pvt.h"
@@ -85,17 +85,14 @@ uint16_t dfu_rtd_open(uint8_t rhport, tusb_desc_interface_t const * itf_desc, ui
   return drv_len;
 }
 
-bool dfu_rtd_control_complete(uint8_t rhport, tusb_control_request_t const * request)
+// Invoked when a control transfer occurred on an interface of this class
+// Driver response accordingly to the request and the transfer stage (setup/data/ack)
+// return false to stall control endpoint (e.g unsupported request)
+bool dfu_rtd_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request_t const * request)
 {
-  (void) rhport;
-  (void) request;
+  // nothing to do with DATA and ACK stage
+  if ( stage != CONTROL_STAGE_SETUP ) return true;
 
-  // nothing to do
-  return true;
-}
-
-bool dfu_rtd_control_request(uint8_t rhport, tusb_control_request_t const * request)
-{
   TU_VERIFY(request->bmRequestType_bit.recipient == TUSB_REQ_RCPT_INTERFACE);
 
   // dfu-util will try to claim the interface with SET_INTERFACE request before sending DFU request
@@ -113,7 +110,7 @@ bool dfu_rtd_control_request(uint8_t rhport, tusb_control_request_t const * requ
   {
     case DFU_REQUEST_DETACH:
       tud_control_status(rhport, request);
-      tud_dfu_rt_reboot_to_dfu();
+      tud_dfu_runtime_reboot_to_dfu_cb();
     break;
 
     case DFU_REQUEST_GETSTATUS:

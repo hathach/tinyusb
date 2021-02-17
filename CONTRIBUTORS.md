@@ -1,63 +1,82 @@
 # TinyUSB contributors (sorted alphabetically)
 
-* **[Adafruit Team](https://github.com/adafruit)**
-  * Main supporter and sponsor for hardware boards and kits
-  * Discussion and suggestion for feature and improvement
-  * Design the project logo
+- **[Adafruit Team](https://github.com/adafruit)**
+  - Main supporter and sponsor for hardware boards and kits
+  - Discussion and suggestion for feature and improvement
+  - Design the project logo
 
-* **[arturo182](https://github.com/arturo182)**
-  * Board support for MiMX RT1010 evaluation kit
+- **[Ha Thach](https://github.com/hathach)**
+  - *Author and maintainer*
+  - Most features development
 
-* **[Ha Thach](https://github.com/hathach)**
-  * Author and maintainer
-  * Most features development
+- **[Hristo Gochkov](https://github.com/me-no-dev)**
+  - Improve ESP32s2 DCD
 
-* **[Jan Dümpelmann](https://github.com/duempel)**
-  * Improvements to Synopsys device controller driver (DCD) for STM32 MCUs
+- **[Jan Dümpelmann](https://github.com/duempel)**
+  - Improve transfer performance for Synopsys DCD for STM32 MCUs
 
-* **[Jeff Epler](https://github.com/jepler)**
-  * Improvement to MIDI device driver
+- **[Jeff Epler](https://github.com/jepler)**
+  - Improve MIDI class driver
 
-* **[Kamil Tomaszewski](https://github.com/kamtom480)**
-  * Sony CXD56 device driver port for spresnese board
+- **[Jerzy Kasenberg](https://github.com/kasjer)**
+  - Add new DCD port for **Dialog DA1469x**
+  - Add new class driver for **Bluetooth HCI**
+  - Add ISO transfer for STM32 Synopsys, Nordic nRF, Dialog DA1469x
+  - Improve Audio driver and add uac2_headset example
+  - Improve STM32 Synopsys DCD with various PRs
 
-* **[Nathan Conrad](https://github.com/pigrew)**
-  * STM32 fsdev Fullspeed device driver port for STM32 L0, F0, F1, F3 etc ...
-  * USBTMC class driver support with example
-  * Various improvement e.g Zero-length packet, Lint setup 
-  * Board support for STM32F070RB Nucleo, STM32F303 Discovery
+- **[Kamil Tomaszewski](https://github.com/kamtom480)**
+  - Add new DCD port for **Sony CXD56** (spresnese board)
 
-* **[Peter Lawrence](https://github.com/majbthrd)**
-  * Nuvoton NUC 120, 121, 125, 126, 505 device driver port
-  * USBNET RNDIS, CDC-ECM, CDC-EEM class driver
-  * Added `net_lwip_webserver` example for demonstration of usbnet with lwip
-  * Board support for NuTiny NUC120, NUC121s, NUC125s, NUC126V, NUC505
-  * Complete multiple class interfaces & add cdc_dual_ports example
+- **[Kay Sievers](https://github.com/kaysievers)**
+  - Improve MIDI driver with packet API
 
-* **[Scott Shawcroft](https://github.com/tannewt)**
-  * SAMD21 and SAMD51 device driver port
-  * MIDI device class driver support
-  * Improvement to USBD control transfer, MSC, CDC class driver
-  * Board support for Metro M0 & M4 express
-  * Write the execellent porting.md documentation
-  * Introduce inital Makefile
+- **[Koji KITAYAMA](https://github.com/kkitayam)**
+  - Add new DCD port for **NXP Kinetis KL25**
 
-* **[Sean Cross](https://github.com/xobs)**
-  * ValentyUSB eptri device driver port
-  * Board support for fomu 
+- **[Nathan Conrad](https://github.com/pigrew)**
+  - Add new DCD port for **STM32 fsdev** Fullspeed device for STM32 L0, F0, F1, F3 etc ...
+  - Add new class driver for **USB Test and Measurement Class (USBTMC)**
+  - Various improvement e.g Zero-length packet, Lint setup
+  - Board support for STM32F070RB Nucleo, STM32F303 Discovery
 
-* **[Sylvain "tnt" Munaut](https://github.com/smunaut)**
-  * DFU runtime support with example
+- **[Peter Lawrence](https://github.com/majbthrd)**
+  - Add new DCD port for **Nuvoton NUC 120, 121, 125, 126, 505**
+  - Add new class driver for **USBNET RNDIS, CDC-ECM**
+  - Add *net_lwip_webserver* example for demonstration of usbnet with lwip
+  - Board support for NuTiny NUC120, NUC121s, NUC125s, NUC126V, NUC505
+  - Improve multiple cdc interfaces API & add cdc_dual_ports example
 
-* **[Timon Skerutsch](https://github.com/PTS93)**
-  * hid_test.js script and extensive test for bi-directional raw HID
+- **[Reinhard Panhuber](https://github.com/PanRe)**
+  - Add new class driver for **USB Audio Class 2.0 (UAC2)**
+  - Enhance tu_fifo with unmasked pointer, which better support DMA
 
-* **[Tod E. Kurt](https://github.com/todbot)**
-  * hid_test.js script and extensive test for bi-directional raw HID
+- **[Scott Shawcroft](https://github.com/tannewt)**
+  - Add new DCD port for **SAMD21 and SAMD51**
+  - Add new class driver for **Musical Instrument Digital Interface (MIDI)**
+  - Improve USBD control transfer, MSC, CDC class driver
+  - Board support for Metro M0 & M4 express
+  - Write the execellent porting.md documentation
+  - Add initial Makefile
 
-* **[William D. Jones](https://github.com/cr1901)**
-  * Synopsys DesignWare device driver port for STM32 L4, F2, F4, F7, H7 etc ...
-  * TI MSP430 device driver port
-  * Board support for STM32F407 Discovery, STM32H743 Nucleo, pyboard v1.1, msp_exp430f5529lp etc ...
+- **[Sean Cross](https://github.com/xobs)**
+  - Add new DCD port for **ValentyUSB eptri** (fomu board)
+
+- **[Sylvain "tnt" Munaut](https://github.com/smunaut)**
+  - Add new class driver for DFU Runtime
+
+- **[Timon Skerutsch](https://github.com/PTS93)**
+  - Add hid_test.js script and extensive test for bi-directional raw HID
+
+- **[Tod E. Kurt](https://github.com/todbot)**
+  - Add hid_test.js script and extensive test for bi-directional raw HID
+
+- **[Uwe Bonnes](https://github.com/UweBonnes)**
+  - Improve STM32 Synopsys highspeed DCD
+
+- **[William D. Jones](https://github.com/cr1901)**
+  - Add new DCD port for **Synopsys DesignWare** for STM32 L4, F2, F4, F7, H7 etc ...
+  - Add new DCD port for **TI MSP430**
+  - Board support for STM32F407 Discovery, STM32H743 Nucleo, pyboard v1.1, msp_exp430f5529lp etc ...
 
 **[Full contributors list](https://github.com/hathach/tinyusb/contributors).**

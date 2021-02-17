@@ -39,6 +39,7 @@ typedef struct {
   uint8_t  itf_num;
   uint8_t  ep_in;
   uint8_t  ep_out;
+  bool     valid;
 
   uint16_t report_size;
 }hidh_interface_t;
@@ -53,6 +54,7 @@ static inline bool hidh_interface_open(uint8_t rhport, uint8_t dev_addr, uint8_t
   p_hid->ep_in       = p_endpoint_desc->bEndpointAddress;
   p_hid->report_size = p_endpoint_desc->wMaxPacketSize.size; // TODO get size from report descriptor
   p_hid->itf_num     = interface_number;
+  p_hid->valid       = true;
 
   return true;
 }
@@ -71,7 +73,7 @@ tusb_error_t hidh_interface_get_report(uint8_t dev_addr, void * report, hidh_int
   TU_VERIFY(report, TUSB_ERROR_INVALID_PARA);
   TU_ASSERT(!hcd_edpt_busy(dev_addr, p_hid->ep_in), TUSB_ERROR_INTERFACE_IS_BUSY);
 
-  TU_ASSERT( hcd_pipe_xfer(dev_addr, p_hid->ep_in, report, p_hid->report_size, true) ) ;
+  TU_ASSERT( usbh_edpt_xfer(dev_addr, p_hid->ep_in, report, p_hid->report_size) ) ;
 
   return TUSB_ERROR_NONE;
 }
@@ -173,30 +175,6 @@ bool hidh_open_subtask(uint8_t rhport, uint8_t dev_addr, tusb_desc_interface_t c
   tusb_desc_endpoint_t const * p_endpoint_desc = (tusb_desc_endpoint_t const *) p_desc;
   TU_ASSERT(TUSB_DESC_ENDPOINT == p_endpoint_desc->bDescriptorType, TUSB_ERROR_INVALID_PARA);
 
-  //------------- SET IDLE (0) request -------------//
-  tusb_control_request_t request = {
-        .bmRequestType_bit = { .recipient = TUSB_REQ_RCPT_INTERFACE, .type = TUSB_REQ_TYPE_CLASS, .direction = TUSB_DIR_OUT },
-        .bRequest = HID_REQ_CONTROL_SET_IDLE,
-        .wValue = 0, // idle_rate = 0
-        .wIndex = p_interface_desc->bInterfaceNumber,
-        .wLength = 0
-  };
-  TU_ASSERT( usbh_control_xfer( dev_addr, &request, NULL ) );
-
-#if 0
-  //------------- Get Report Descriptor TODO HID parser -------------//
-  if ( p_desc_hid->bNumDescriptors )
-  {
-    STASK_INVOKE(
-        usbh_control_xfer_subtask( dev_addr, bm_request_type(TUSB_DIR_IN, TUSB_REQ_TYPE_STANDARD, TUSB_REQ_RCPT_INTERFACE),
-                                   TUSB_REQ_GET_DESCRIPTOR, (p_desc_hid->bReportType << 8), 0,
-                                   p_desc_hid->wReportLength, report_descriptor ),
-        error
-    );
-    (void) error; // if error in getting report descriptor --> treating like there is none
-  }
-#endif
-
   if ( HID_SUBCLASS_BOOT == p_interface_desc->bInterfaceSubClass )
   {
     #if CFG_TUH_HID_KEYBOARD
@@ -204,7 +182,6 @@ bool hidh_open_subtask(uint8_t rhport, uint8_t dev_addr, tusb_desc_interface_t c
     {
       TU_ASSERT( hidh_interface_open(rhport, dev_addr, p_interface_desc->bInterfaceNumber, p_endpoint_desc, &keyboardh_data[dev_addr-1]) );
       TU_LOG2_HEX(keyboardh_data[dev_addr-1].ep_in);
-      tuh_hid_keyboard_mounted_cb(dev_addr);
     } else
     #endif
 
@@ -213,7 +190,6 @@ bool hidh_open_subtask(uint8_t rhport, uint8_t dev_addr, tusb_desc_interface_t c
     {
       TU_ASSERT ( hidh_interface_open(rhport, dev_addr, p_interface_desc->bInterfaceNumber, p_endpoint_desc, &mouseh_data[dev_addr-1]) );
       TU_LOG2_HEX(mouseh_data[dev_addr-1].ep_in);
-      tuh_hid_mouse_mounted_cb(dev_addr);
     } else
     #endif
 
@@ -232,7 +208,63 @@ bool hidh_open_subtask(uint8_t rhport, uint8_t dev_addr, tusb_desc_interface_t c
   return true;
 }
 
-void hidh_isr(uint8_t dev_addr, uint8_t ep_addr, xfer_result_t event, uint32_t xferred_bytes)
+bool hidh_set_config(uint8_t dev_addr, uint8_t itf_num)
+{
+#if 0
+  //------------- Get Report Descriptor TODO HID parser -------------//
+  if ( p_desc_hid->bNumDescriptors )
+  {
+    STASK_INVOKE(
+        usbh_control_xfer_subtask( dev_addr, bm_request_type(TUSB_DIR_IN, TUSB_REQ_TYPE_STANDARD, TUSB_REQ_RCPT_INTERFACE),
+                                   TUSB_REQ_GET_DESCRIPTOR, (p_desc_hid->bReportType << 8), 0,
+                                   p_desc_hid->wReportLength, report_descriptor ),
+        error
+    );
+    (void) error; // if error in getting report descriptor --> treating like there is none
+  }
+#endif
+
+#if 0
+  // SET IDLE = 0 request
+  // Device can stall if not support this request
+  tusb_control_request_t const request =
+  {
+    .bmRequestType_bit =
+    {
+      .recipient = TUSB_REQ_RCPT_INTERFACE,
+      .type      = TUSB_REQ_TYPE_CLASS,
+      .direction = TUSB_DIR_OUT
+    },
+    .bRequest = HID_REQ_CONTROL_SET_IDLE,
+    .wValue   = 0, // idle_rate = 0
+    .wIndex   = p_interface_desc->bInterfaceNumber,
+    .wLength  = 0
+  };
+
+  // stall is a valid response for SET_IDLE, therefore we could ignore result of this request
+  tuh_control_xfer(dev_addr, &request, NULL, NULL);
+#endif
+
+  usbh_driver_set_config_complete(dev_addr, itf_num);
+
+#if CFG_TUH_HID_KEYBOARD
+  if (( keyboardh_data[dev_addr-1].itf_num == itf_num) && keyboardh_data[dev_addr-1].valid)
+  {
+    tuh_hid_keyboard_mounted_cb(dev_addr);
+  }
+#endif
+
+#if CFG_TUH_HID_MOUSE
+  if (( mouseh_data[dev_addr-1].ep_in == itf_num ) &&  mouseh_data[dev_addr-1].valid)
+  {
+    tuh_hid_mouse_mounted_cb(dev_addr);
+  }
+#endif
+
+  return true;
+}
+
+bool hidh_xfer_cb(uint8_t dev_addr, uint8_t ep_addr, xfer_result_t event, uint32_t xferred_bytes)
 {
   (void) xferred_bytes; // TODO may need to use this para later
 
@@ -240,7 +272,7 @@ void hidh_isr(uint8_t dev_addr, uint8_t ep_addr, xfer_result_t event, uint32_t x
   if ( ep_addr == keyboardh_data[dev_addr-1].ep_in )
   {
     tuh_hid_keyboard_isr(dev_addr, event);
-    return;
+    return true;
   }
 #endif
 
@@ -248,13 +280,15 @@ void hidh_isr(uint8_t dev_addr, uint8_t ep_addr, xfer_result_t event, uint32_t x
   if ( ep_addr == mouseh_data[dev_addr-1].ep_in )
   {
     tuh_hid_mouse_isr(dev_addr, event);
-    return;
+    return true;
   }
 #endif
 
 #if CFG_TUSB_HOST_HID_GENERIC
 
 #endif
+
+  return true;
 }
 
 void hidh_close(uint8_t dev_addr)

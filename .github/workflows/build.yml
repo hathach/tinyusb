@@ -1,6 +1,12 @@
 name: Build
 
-on: [pull_request, push, repository_dispatch]
+on:
+  pull_request:
+  push:
+  repository_dispatch:
+  release:
+    types:
+      - created
 
 jobs:
   # Unit testing with Ceedling
@@ -9,6 +15,8 @@ jobs:
     steps:
     - name: Setup Ruby
       uses: actions/setup-ruby@v1
+      with:
+        ruby-version: '2.7'
 
     - name: Checkout TinyUSB
       uses: actions/checkout@v2
@@ -20,19 +28,86 @@ jobs:
         cd test
         ceedling test:all
 
-  # Build most of the ports
-  build:
+  # build all example for each family
+  build-family:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        family:
+        # Alphabetical order
+        - 'imxrt'
+        - 'nrf'
+        - 'rp2040'
+        - 'samd11'
+        - 'samd21'
+        - 'samd51'
+        - 'stm32f4'
+        - 'stm32f7'
+    steps:
+    - name: Setup Python
+      uses: actions/setup-python@v2
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v1
+
+    - name: Install Toolchains
+      run: |
+        # ARM GCC from xpack
+        npm install --global xpm
+        xpm install --global @xpack-dev-tools/arm-none-eabi-gcc@latest
+        echo `echo $HOME/.local/xPacks/@xpack-dev-tools/arm-none-eabi-gcc/*/.content/bin` >> $GITHUB_PATH
+
+    - name: Checkout TinyUSB
+      uses: actions/checkout@v2
+      with:
+        submodules: 'true'
+
+    - name: Checkout Sub-Submodules
+      run: |
+        # some submodule has it own submodules that need to be fetched as well
+        git submodule update --init --recursive hw/mcu/microchip
+        git submodule update --init --recursive lib/FreeRTOS
+
+    - name: Build
+      run: python3 tools/build_family.py ${{ matrix.family }}
+
+    - uses: actions/upload-artifact@v2
+      with:
+        name: ${{ matrix.family }}-tinyusb-examples
+        path: _bin/
+
+    - name: Create Release Asset
+      if: ${{ github.event_name == 'release' }}
+      run: |
+        cd _bin/
+        zip -r ../${{ matrix.family }}-tinyusb-${{ github.event.release.tag_name }}-examples.zip *
+
+    - name: Upload Release Asset
+      uses: actions/upload-release-asset@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      if: ${{ github.event_name == 'release' }}
+      with:
+        upload_url: ${{ github.event.release.upload_url }}
+        asset_path: ${{ matrix.family }}-tinyusb-${{ github.event.release.tag_name }}-examples.zip
+        asset_name: ${{ matrix.family }}-tinyusb-${{ github.event.release.tag_name }}-examples.zip
+        asset_content_type: application/zip
+
+  # Build all no-family (opharned) boards
+  build-board:
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
         example:
+        # Alphabetical order
         - 'device/audio_test'
         - 'device/board_test'
         - 'device/cdc_dual_ports'
         - 'device/cdc_msc'
         - 'device/cdc_msc_freertos'
-        - 'device/dfu_rt'
+        - 'device/dfu_runtime'
         - 'device/hid_composite'
         - 'device/hid_composite_freertos'
         - 'device/hid_generic_inout'
@@ -40,70 +115,79 @@ jobs:
         - 'device/midi_test'
         - 'device/msc_dual_lun'
         - 'device/net_lwip_webserver'
+        - 'device/uac2_headset'
         - 'device/usbtmc'
         - 'device/webusb_serial'
         - 'host/cdc_msc_hid'
 
     steps:
     - name: Setup Python
-      uses: actions/setup-python@v1
+      uses: actions/setup-python@v2
 
     - name: Setup Node.js
       uses: actions/setup-node@v1
 
-    - name: Cache MSP430 Toolchain
-      id: cache-msp430
-      uses: actions/cache@v1
+    - name: Checkout TinyUSB
+      uses: actions/checkout@v2
       with:
-        path: /tmp/dl/
-        # Increment gcc version number at end when updating downloads
-        key: msp430-${{ runner.os }}-9.2.0.50
+        submodules: 'true'
+
+    - name: Checkout Sub-Submodules
+      run: |
+        # some submodule has it own submodules that need to be fetched as well
+        git submodule update --init --recursive hw/mcu/microchip
+        git submodule update --init --recursive lib/FreeRTOS
+
+        # Add msp430-gcc url to env
+        echo >> $GITHUB_ENV MSP430_GCC_URL=http://software-dl.ti.com/msp430/msp430_public_sw/mcu/msp430/MSPGCC/9_2_0_0/export/msp430-gcc-9.2.0.50_linux64.tar.bz2
+
+    - name: Cache MSP430-GCC
+      uses: actions/cache@v2
+      id: cache-msp430
+      with:
+        path: ~/cache/
+        key: ${{ runner.os }}-21-01-26-${{ env.MSP430_GCC_URL }}
+
+    - name: Install MSP430-GCC
+      if: steps.cache-msp430.outputs.cache-hit != 'true'
+      run: |
+        # MSP430 GCC
+        mkdir -p ~/cache/msp430-gcc
+        wget --progress=dot:mega $MSP430_GCC_URL -O msp430-gcc.tar.bz2
+        tar -C ~/cache/msp430-gcc -xaf msp430-gcc.tar.bz2
 
     - name: Install Toolchains
-      env:
-        MSP430GCC_URL: http://software-dl.ti.com/msp430/msp430_public_sw/mcu/msp430/MSPGCC/9_2_0_0/export/msp430-gcc-9.2.0.50_linux64.tar.bz2
       run: |
         # ARM & RISC-V GCC from xpack
         npm install --global xpm
         xpm install --global @xpack-dev-tools/arm-none-eabi-gcc@latest
         xpm install --global @xpack-dev-tools/riscv-none-embed-gcc@latest
-        echo `echo $HOME/opt/xPacks/@xpack-dev-tools/arm-none-eabi-gcc/*/.content/bin` >> $GITHUB_PATH
-        echo `echo $HOME/opt/xPacks/@xpack-dev-tools/riscv-none-embed-gcc/*/.content/bin` >> $GITHUB_PATH
-
+        echo `echo $HOME/.local/xPacks/@xpack-dev-tools/arm-none-eabi-gcc/*/.content/bin` >> $GITHUB_PATH
+        echo `echo $HOME/.local/xPacks/@xpack-dev-tools/riscv-none-embed-gcc/*/.content/bin` >> $GITHUB_PATH
+        
         # TI MSP430 GCC
-        mkdir -p /tmp/dl/
-        [ -f "/tmp/dl/msp430-gcc.tar.bz2" ] || wget --progress=dot:mega $MSP430GCC_URL -O /tmp/dl/msp430-gcc.tar.bz2
-        tar -C $HOME -xaf /tmp/dl/msp430-gcc.tar.bz2
-        echo `echo $HOME/msp430-gcc-*_linux64/bin` >> $GITHUB_PATH
-
-    - name: Checkout TinyUSB
-      uses: actions/checkout@v2
-      with:
-        # Cannot do submodule checkout here since LWIP's git server cannot checkout unadventised commits (it must use tags)
-        submodules: 'false'
-
-    - name: Checkout Submodules
-      run: |
-        git submodule sync --recursive
-        # Special case LWIP since GNU's Savannah can't do shallow checkout of non-tagged commits
-        git submodule update --init --recursive lib/lwip
-        git submodule update --init --recursive --depth 1
+        echo >> $GITHUB_PATH `echo ~/cache/msp430-gcc/msp430-gcc-*/bin`
 
     - name: Build
-      run: |
-        python3 tools/build_all.py ${{ matrix.example }}
+      run: python3 tools/build_board.py ${{ matrix.example }}
 
-  # Build ESP32S
-  build-esp32s:
+  # Build ESP32S2
+  build-esp32s2:
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        example: ['board_test', 'cdc_msc_freertos', 'hid_composite_freertos']
+        board:
+        # Alphabetical order
+        - 'adafruit_feather_esp32s2'
+        - 'adafruit_magtag_29gray'
+        - 'adafruit_metro_esp32s2'
+        - 'espressif_kaluga_1'
+        - 'espressif_saola_1'
 
     steps:
     - name: Setup Python
-      uses: actions/setup-python@v1
+      uses: actions/setup-python@v2
 
     - name: Pull ESP-IDF docker
       run: docker pull espressif/idf:latest
@@ -114,4 +198,4 @@ jobs:
         submodules: 'false'
 
     - name: Build
-      run: docker run --rm -v $PWD:/project -w /project espressif/idf:latest python3 tools/build_esp32s.py ${{ matrix.example }}
+      run: docker run --rm -v $PWD:/project -w /project espressif/idf:latest python3 tools/build_esp32s2.py ${{ matrix.board }}

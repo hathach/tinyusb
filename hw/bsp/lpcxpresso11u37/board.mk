@@ -42,5 +42,5 @@ FREERTOS_PORT = ARM_CM0
 JLINK_DEVICE = LPC11U37/401
 
 # flash using pyocd 
-flash: $(BUILD)/$(BOARD)-firmware.hex
+flash: $(BUILD)/$(PROJECT).hex
 	pyocd flash -t lpc11u37 $<

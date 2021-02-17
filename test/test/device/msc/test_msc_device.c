@@ -202,7 +202,7 @@ void setUp(void)
     tusb_init();
   }
 
-  dcd_event_bus_signal(rhport, DCD_EVENT_BUS_RESET, false);
+  dcd_event_bus_reset(rhport, TUSB_SPEED_HIGH, false);
   tud_task();
 }
 

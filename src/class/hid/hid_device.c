@@ -107,9 +107,6 @@ bool tud_hid_n_boot_mode(uint8_t itf)
   return _hidd_itf[itf].boot_mode;
 }
 
-//--------------------------------------------------------------------+
-// KEYBOARD API
-//--------------------------------------------------------------------+
 bool tud_hid_n_keyboard_report(uint8_t itf, uint8_t report_id, uint8_t modifier, uint8_t keycode[6])
 {
   hid_keyboard_report_t report;
@@ -127,10 +124,8 @@ bool tud_hid_n_keyboard_report(uint8_t itf, uint8_t report_id, uint8_t modifier,
   return tud_hid_n_report(itf, report_id, &report, sizeof(report));
 }
 
-//--------------------------------------------------------------------+
-// MOUSE APPLICATION API
-//--------------------------------------------------------------------+
-bool tud_hid_n_mouse_report(uint8_t itf, uint8_t report_id, uint8_t buttons, int8_t x, int8_t y, int8_t vertical, int8_t horizontal)
+bool tud_hid_n_mouse_report(uint8_t itf, uint8_t report_id,
+                            uint8_t buttons, int8_t x, int8_t y, int8_t vertical, int8_t horizontal)
 {
   hid_mouse_report_t report =
   {
@@ -139,6 +134,24 @@ bool tud_hid_n_mouse_report(uint8_t itf, uint8_t report_id, uint8_t buttons, int
     .y       = y,
     .wheel   = vertical,
     .pan     = horizontal
+  };
+
+  return tud_hid_n_report(itf, report_id, &report, sizeof(report));
+}
+
+bool tud_hid_n_gamepad_report(uint8_t itf, uint8_t report_id,
+                              int8_t x, int8_t y, int8_t z, int8_t rz, int8_t rx, int8_t ry, uint8_t hat, uint16_t buttons)
+{
+  hid_gamepad_report_t report =
+  {
+    .x       = x,
+    .y       = y,
+    .z       = z,
+    .rz      = rz,
+    .rx      = rx,
+    .ry      = ry,
+    .hat     = hat,
+    .buttons = buttons,
   };
 
   return tud_hid_n_report(itf, report_id, &report, sizeof(report));
@@ -211,9 +224,10 @@ uint16_t hidd_open(uint8_t rhport, tusb_desc_interface_t const * desc_itf, uint1
   return drv_len;
 }
 
-// Handle class control request
+// Invoked when a control transfer occurred on an interface of this class
+// Driver response accordingly to the request and the transfer stage (setup/data/ack)
 // return false to stall control endpoint (e.g unsupported request)
-bool hidd_control_request(uint8_t rhport, tusb_control_request_t const * request)
+bool hidd_control_xfer_cb (uint8_t rhport, uint8_t stage, tusb_control_request_t const * request)
 {
   TU_VERIFY(request->bmRequestType_bit.recipient == TUSB_REQ_RCPT_INTERFACE);
 
@@ -225,27 +239,29 @@ bool hidd_control_request(uint8_t rhport, tusb_control_request_t const * request
   if (request->bmRequestType_bit.type == TUSB_REQ_TYPE_STANDARD)
   {
     //------------- STD Request -------------//
-    uint8_t const desc_type  = tu_u16_high(request->wValue);
-    uint8_t const desc_index = tu_u16_low (request->wValue);
-    (void) desc_index;
+    if ( stage == CONTROL_STAGE_SETUP )
+    {
+      uint8_t const desc_type  = tu_u16_high(request->wValue);
+      //uint8_t const desc_index = tu_u16_low (request->wValue);
 
-    if (request->bRequest == TUSB_REQ_GET_DESCRIPTOR && desc_type == HID_DESC_TYPE_HID)
-    {
-      TU_VERIFY(p_hid->hid_descriptor != NULL);
-      TU_VERIFY(tud_control_xfer(rhport, request, (void*) p_hid->hid_descriptor, p_hid->hid_descriptor->bLength));
-    }
-    else if (request->bRequest == TUSB_REQ_GET_DESCRIPTOR && desc_type == HID_DESC_TYPE_REPORT)
-    {
-      uint8_t const * desc_report = tud_hid_descriptor_report_cb(
-          #if CFG_TUD_HID > 1
-          hid_itf // TODO for backward compatible callback, remove later when appropriate
-          #endif
-      );
-      tud_control_xfer(rhport, request, (void*) desc_report, p_hid->report_desc_len);
-    }
-    else
-    {
-      return false; // stall unsupported request
+      if (request->bRequest == TUSB_REQ_GET_DESCRIPTOR && desc_type == HID_DESC_TYPE_HID)
+      {
+        TU_VERIFY(p_hid->hid_descriptor != NULL);
+        TU_VERIFY(tud_control_xfer(rhport, request, (void*) p_hid->hid_descriptor, p_hid->hid_descriptor->bLength));
+      }
+      else if (request->bRequest == TUSB_REQ_GET_DESCRIPTOR && desc_type == HID_DESC_TYPE_REPORT)
+      {
+        uint8_t const * desc_report = tud_hid_descriptor_report_cb(
+            #if CFG_TUD_HID > 1
+            hid_itf // TODO for backward compatible callback, remove later when appropriate
+            #endif
+        );
+        tud_control_xfer(rhport, request, (void*) desc_report, p_hid->report_desc_len);
+      }
+      else
+      {
+        return false; // stall unsupported request
+      }
     }
   }
   else if (request->bmRequestType_bit.type == TUSB_REQ_TYPE_CLASS)
@@ -254,70 +270,98 @@ bool hidd_control_request(uint8_t rhport, tusb_control_request_t const * request
     switch( request->bRequest )
     {
       case HID_REQ_CONTROL_GET_REPORT:
-      {
-        // wValue = Report Type | Report ID
-        uint8_t const report_type = tu_u16_high(request->wValue);
-        uint8_t const report_id   = tu_u16_low(request->wValue);
-
-        uint16_t xferlen  = tud_hid_get_report_cb(
-            #if CFG_TUD_HID > 1
-            hid_itf, // TODO for backward compatible callback, remove later when appropriate
-            #endif
-            report_id, (hid_report_type_t) report_type, p_hid->epin_buf, request->wLength
-        );
-        TU_ASSERT( xferlen > 0 );
-
-        tud_control_xfer(rhport, request, p_hid->epin_buf, xferlen);
-      }
-      break;
-
-      case  HID_REQ_CONTROL_SET_REPORT:
-        TU_VERIFY(request->wLength <= sizeof(p_hid->epout_buf));
-        tud_control_xfer(rhport, request, p_hid->epout_buf, request->wLength);
-      break;
-
-      case HID_REQ_CONTROL_SET_IDLE:
-        p_hid->idle_rate = tu_u16_high(request->wValue);
-        if ( tud_hid_set_idle_cb )
+        if ( stage == CONTROL_STAGE_SETUP )
         {
-          // stall request if callback return false
-          TU_VERIFY( tud_hid_set_idle_cb(
-                          #if CFG_TUD_HID > 1
-                          hid_itf, // TODO for backward compatible callback, remove later when appropriate
-                          #endif
-                          p_hid->idle_rate)
-          );
-        }
+          uint8_t const report_type = tu_u16_high(request->wValue);
+          uint8_t const report_id   = tu_u16_low(request->wValue);
 
-        tud_control_status(rhport, request);
-      break;
-
-      case HID_REQ_CONTROL_GET_IDLE:
-        // TODO idle rate of report
-        tud_control_xfer(rhport, request, &p_hid->idle_rate, 1);
-      break;
-
-      case HID_REQ_CONTROL_GET_PROTOCOL:
-      {
-        uint8_t protocol = (uint8_t)(1-p_hid->boot_mode);   // 0 is Boot, 1 is Report protocol
-        tud_control_xfer(rhport, request, &protocol, 1);
-      }
-      break;
-
-      case HID_REQ_CONTROL_SET_PROTOCOL:
-        p_hid->boot_mode = 1 - request->wValue; // 0 is Boot, 1 is Report protocol
-
-        if (tud_hid_boot_mode_cb)
-        {
-          tud_hid_boot_mode_cb(
+          uint16_t xferlen  = tud_hid_get_report_cb(
               #if CFG_TUD_HID > 1
               hid_itf, // TODO for backward compatible callback, remove later when appropriate
               #endif
-              p_hid->boot_mode
+              report_id, (hid_report_type_t) report_type, p_hid->epin_buf, request->wLength
+          );
+          TU_ASSERT( xferlen > 0 );
+
+          tud_control_xfer(rhport, request, p_hid->epin_buf, xferlen);
+        }
+      break;
+
+      case  HID_REQ_CONTROL_SET_REPORT:
+        if ( stage == CONTROL_STAGE_SETUP )
+        {
+          TU_VERIFY(request->wLength <= sizeof(p_hid->epout_buf));
+          tud_control_xfer(rhport, request, p_hid->epout_buf, request->wLength);
+        }
+        else if ( stage == CONTROL_STAGE_ACK )
+        {
+          uint8_t const report_type = tu_u16_high(request->wValue);
+          uint8_t const report_id   = tu_u16_low(request->wValue);
+
+          tud_hid_set_report_cb(
+              #if CFG_TUD_HID > 1
+              hid_itf, // TODO for backward compatible callback, remove later when appropriate
+              #endif
+              report_id, (hid_report_type_t) report_type, p_hid->epout_buf, request->wLength
           );
         }
+      break;
 
-        tud_control_status(rhport, request);
+      case HID_REQ_CONTROL_SET_IDLE:
+        if ( stage == CONTROL_STAGE_SETUP )
+        {
+          p_hid->idle_rate = tu_u16_high(request->wValue);
+          if ( tud_hid_set_idle_cb )
+          {
+            // stall request if callback return false
+            TU_VERIFY( tud_hid_set_idle_cb(
+                            #if CFG_TUD_HID > 1
+                            hid_itf, // TODO for backward compatible callback, remove later when appropriate
+                            #endif
+                            p_hid->idle_rate)
+            );
+          }
+
+          tud_control_status(rhport, request);
+        }
+      break;
+
+      case HID_REQ_CONTROL_GET_IDLE:
+        if ( stage == CONTROL_STAGE_SETUP )
+        {
+          // TODO idle rate of report
+          tud_control_xfer(rhport, request, &p_hid->idle_rate, 1);
+        }
+      break;
+
+      case HID_REQ_CONTROL_GET_PROTOCOL:
+        if ( stage == CONTROL_STAGE_SETUP )
+        {
+          // 0 is Boot, 1 is Report protocol
+          uint8_t protocol = (uint8_t)(1-p_hid->boot_mode);
+          tud_control_xfer(rhport, request, &protocol, 1);
+        }
+      break;
+
+      case HID_REQ_CONTROL_SET_PROTOCOL:
+        if ( stage == CONTROL_STAGE_SETUP )
+        {
+          // 0 is Boot, 1 is Report protocol
+          p_hid->boot_mode = 1 - request->wValue;
+          tud_control_status(rhport, request);
+        }
+        else if ( stage == CONTROL_STAGE_ACK )
+        {
+          if (tud_hid_boot_mode_cb)
+          {
+            tud_hid_boot_mode_cb(
+                #if CFG_TUD_HID > 1
+                hid_itf, // TODO for backward compatible callback, remove later when appropriate
+                #endif
+                p_hid->boot_mode
+            );
+          }
+        }
       break;
 
       default: return false; // stall unsupported request
@@ -330,35 +374,6 @@ bool hidd_control_request(uint8_t rhport, tusb_control_request_t const * request
   return true;
 }
 
-// Invoked when class request DATA stage is finished.
-// return false to stall control endpoint (e.g Host send non-sense DATA)
-bool hidd_control_complete(uint8_t rhport, tusb_control_request_t const * p_request)
-{
-  (void) rhport;
-
-  uint8_t const hid_itf = get_index_by_itfnum((uint8_t) p_request->wIndex);
-  TU_VERIFY(hid_itf < CFG_TUD_HID);
-
-  hidd_interface_t* p_hid = &_hidd_itf[hid_itf];
-
-  if (p_request->bmRequestType_bit.type == TUSB_REQ_TYPE_CLASS &&
-      p_request->bRequest == HID_REQ_CONTROL_SET_REPORT)
-  {
-    // wValue = Report Type | Report ID
-    uint8_t const report_type = tu_u16_high(p_request->wValue);
-    uint8_t const report_id   = tu_u16_low(p_request->wValue);
-
-    tud_hid_set_report_cb(
-        #if CFG_TUD_HID > 1
-        hid_itf, // TODO for backward compatible callback, remove later when appropriate
-        #endif
-        report_id, (hid_report_type_t) report_type, p_hid->epout_buf, p_request->wLength
-    );
-  }
-
-  return true;
-}
-
 bool hidd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint32_t xferred_bytes)
 {
   (void) result;
@@ -366,14 +381,24 @@ bool hidd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint32_
   uint8_t itf = 0;
   hidd_interface_t * p_hid = _hidd_itf;
 
-  for ( ; ; itf++, p_hid++)
+  // Identify which interface to use
+  for (itf = 0; itf < CFG_TUD_HID; itf++)
   {
-    if (itf >= TU_ARRAY_SIZE(_hidd_itf)) return false;
-
-    if ( ep_addr == p_hid->ep_out ) break;
+    p_hid = &_hidd_itf[itf];
+    if ( (ep_addr == p_hid->ep_out) || (ep_addr == p_hid->ep_in) ) break;
   }
+  TU_ASSERT(itf < CFG_TUD_HID);
 
-  if (ep_addr == p_hid->ep_out)
+  // Sent report successfully
+  if (ep_addr == p_hid->ep_in)
+  {
+    if (tud_hid_report_complete_cb)
+    {
+      tud_hid_report_complete_cb(itf, p_hid->epin_buf, (uint8_t) xferred_bytes);
+    }
+  }
+  // Received report
+  else if (ep_addr == p_hid->ep_out)
   {
     tud_hid_set_report_cb(
         #if CFG_TUD_HID > 1

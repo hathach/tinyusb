@@ -46,5 +46,5 @@ FREERTOS_PORT = ARM_CM3
 JLINK_DEVICE = stm32f103c8
 
 # flash target ROM bootloader
-flash: $(BUILD)/$(BOARD)-firmware.bin
+flash: $(BUILD)/$(PROJECT).bin
 	dfu-util -R -a 0 --dfuse-address 0x08000000 -D $<

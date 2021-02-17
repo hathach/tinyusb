@@ -28,9 +28,9 @@ endif
 # flash target using TI MSP430-Flasher
 # http://www.ti.com/tool/MSP430-FLASHER
 # Please add its installation dir to PATH
-flash: $(BUILD)/$(BOARD)-firmware.hex
+flash: $(BUILD)/$(PROJECT).hex
 	MSP430Flasher -w $< -z [VCC]
 
 # flash target using mspdebug.
-flash-mspdebug: $(BUILD)/$(BOARD)-firmware.elf
+flash-mspdebug: $(BUILD)/$(PROJECT).elf
 	$(MSPDEBUG) tilib "prog $<" --allow-fw-update

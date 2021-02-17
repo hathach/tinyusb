@@ -104,6 +104,18 @@ enum
   #define EPNUM_MSC_OUT     0x04
   #define EPNUM_MSC_IN      0x85
 
+#elif CFG_TUSB_MCU == OPT_MCU_CXD56
+  // CXD56 doesn't support a same endpoint number with different direction IN and OUT
+  //    e.g EP1 OUT & EP1 IN cannot exist together
+  // CXD56 USB driver has fixed endpoint type (bulk/interrupt/iso) and direction (IN/OUT) by its number
+  // 0 control (IN/OUT), 1 Bulk (IN), 2 Bulk (OUT), 3 In (IN), 4 Bulk (IN), 5 Bulk (OUT), 6 In (IN)
+  #define EPNUM_CDC_NOTIF   0x83
+  #define EPNUM_CDC_OUT     0x02
+  #define EPNUM_CDC_IN      0x81
+
+  #define EPNUM_MSC_OUT     0x05
+  #define EPNUM_MSC_IN      0x84
+
 #else
   #define EPNUM_CDC_NOTIF   0x81
   #define EPNUM_CDC_OUT     0x02

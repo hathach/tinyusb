@@ -218,6 +218,9 @@ void dcd_set_address(uint8_t rhport, uint8_t dev_addr)
 void dcd_remote_wakeup(uint8_t rhport)
 {
   (void)rhport;
+
+  // TODO must manually clear this bit after 1-15 ms
+  // USB0.DCTL |= USB_RMTWKUPSIG_M;
 }
 
 // connect by enabling internal pull-up resistor on D+/D-
@@ -249,7 +252,6 @@ bool dcd_edpt_open(uint8_t rhport, tusb_desc_endpoint_t const *desc_edpt)
   uint8_t const epnum = tu_edpt_number(desc_edpt->bEndpointAddress);
   uint8_t const dir = tu_edpt_dir(desc_edpt->bEndpointAddress);
 
-  TU_ASSERT(desc_edpt->wMaxPacketSize.size <= 64);
   TU_ASSERT(epnum < EP_MAX);
 
   xfer_ctl_t *xfer = XFER_CTL_BASE(epnum, dir);
@@ -670,6 +672,7 @@ static void handle_epin_ints(void)
 static void _dcd_int_handler(void* arg)
 {
   (void) arg;
+  uint8_t const rhport = 0;
 
   const uint32_t int_status = USB0.gintsts;
   //const uint32_t int_msk = USB0.gintmsk;
@@ -695,7 +698,19 @@ static void _dcd_int_handler(void* arg)
     // the end of reset.
     USB0.gintsts = USB_ENUMDONE_M;
     enum_done_processing();
-    dcd_event_bus_signal(0, DCD_EVENT_BUS_RESET, true);
+    dcd_event_bus_reset(rhport, TUSB_SPEED_FULL, true);
+  }
+
+  if(int_status & USB_USBSUSP_M)
+  {
+    USB0.gintsts = USB_USBSUSP_M;
+    dcd_event_bus_signal(rhport, DCD_EVENT_SUSPEND, true);
+  }
+
+  if(int_status & USB_WKUPINT_M)
+  {
+    USB0.gintsts = USB_WKUPINT_M;
+    dcd_event_bus_signal(rhport, DCD_EVENT_RESUME, true);
   }
 
   if (int_status & USB_OTGINT_M)
@@ -707,7 +722,7 @@ static void _dcd_int_handler(void* arg)
 
     if (otg_int & USB_SESENDDET_M)
     {
-      dcd_event_bus_signal(0, DCD_EVENT_UNPLUGGED, true);
+      dcd_event_bus_signal(rhport, DCD_EVENT_UNPLUGGED, true);
     }
 
     USB0.gotgint = otg_int;
@@ -716,7 +731,7 @@ static void _dcd_int_handler(void* arg)
 #if USE_SOF
   if (int_status & USB_SOF_M) {
     USB0.gintsts = USB_SOF_M;
-    dcd_event_bus_signal(0, DCD_EVENT_SOF, true); // do nothing actually
+    dcd_event_bus_signal(rhport, DCD_EVENT_SOF, true); // do nothing actually
   }
 #endif
 

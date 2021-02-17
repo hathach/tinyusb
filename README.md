@@ -2,7 +2,7 @@
 
 ![tinyUSB_240x100](https://user-images.githubusercontent.com/249515/62646655-f9393200-b978-11e9-9c53-484862f15503.png)
 
-[![Build Status](https://github.com/hathach/tinyusb/workflows/Build/badge.svg)](https://github.com/hathach/tinyusb/actions) [![License](https://img.shields.io/badge/license-MIT-brightgreen.svg)](https://opensource.org/licenses/MIT) [![Coverity](https://img.shields.io/coverity/scan/458.svg)](https://scan.coverity.com/projects/tinyusb)
+[![Build Status](https://github.com/hathach/tinyusb/workflows/Build/badge.svg)](https://github.com/hathach/tinyusb/actions) [![License](https://img.shields.io/badge/license-MIT-brightgreen.svg)](https://opensource.org/licenses/MIT)
 
 TinyUSB is an open-source cross-platform USB Host/Device stack for embedded system, designed to be memory-safe with no dynamic allocation and thread-safe with all interrupt events are deferred then handled in the non-ISR task function.
 
@@ -32,12 +32,14 @@ The stack supports the following MCUs:
 
 - **Espressif:** ESP32-S2
 - **Dialog:** DA1469x
-- **MicroChip:** SAMD11, SAMD21, SAMD51, SAME5x, SAMG (device only)
+- **MicroChip:** SAMD11, SAMD21, SAMD51, SAME5x, SAMG55
 - **NordicSemi:** nRF52833, nRF52840
 - **Nuvoton:** NUC120, NUC121/NUC125, NUC126, NUC505
-- **NXP:** 
-  - LPC Series: 11Uxx, 13xx, 175x_6x, 177x_8x, 18xx, 40xx, 43xx, 51Uxx, 54xxx, 55xx
+- **NXP:**
   - iMX RT Series: RT1011, RT1015, RT1021, RT1052, RT1062, RT1064
+  - Kinetis: KL25
+  - LPC Series: 11Uxx, 13xx, 175x_6x, 177x_8x, 18xx, 40xx, 43xx, 51Uxx, 54xxx, 55xx
+- **Raspberry Pi:** RP2040
 - **Sony:** CXD56
 - **ST:** STM32 series: L0, F0, F1, F2, F3, F4, F7, H7 both FullSpeed and HighSpeed
 - **TI:** MSP430
@@ -49,7 +51,10 @@ The stack supports the following MCUs:
 
 Supports multiple device configurations by dynamically changing usb descriptors. Low power functions such like suspend, resume, and remote wakeup. Following device classes are supported:
 
+- USB Audio Class 2.0 (UAC2) still work in progress
+- Bluetooth Host Controller Interface (BTH HCI)
 - Communication Class (CDC)
+- Device Firmware Update (DFU): only Runtinme 
 - Human Interface Device (HID): Generic (In & Out), Keyboard, Mouse, Gamepad etc ...
 - Mass Storage Class (MSC): with multiple LUNs
 - Musical Instrument Digital Interface (MIDI)
@@ -94,8 +99,9 @@ TinyUSB is currently used by these other projects:
 - [Adafruit nRF52 Bootloader](https://github.com/adafruit/Adafruit_nRF52_Bootloader)
 - [Adafruit SAMD Arduino](https://github.com/adafruit/ArduinoCore-samd)
 - [CircuitPython](https://github.com/adafruit/circuitpython)
+- [Espressif IDF](https://github.com/espressif/esp-idf)
 - [MicroPython](https://github.com/micropython/micropython)
 - [mynewt](https://mynewt.apache.org)
+- [Raspberry Pi Pico SDK](https://github.com/raspberrypi/pico-sdk)
+- [TinyUF2 Bootloader](https://github.com/adafruit/tinyuf2)
 - [TinyUSB Arduino Library](https://github.com/adafruit/Adafruit_TinyUSB_Arduino)
-
-Let me know if your project also uses TinyUSB and want to share.

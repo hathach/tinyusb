@@ -43,7 +43,7 @@ bool tusb_init(void)
   if (_initialized) return true;
 
 #if TUSB_OPT_HOST_ENABLED
-  TU_ASSERT( usbh_init() ); // init host stack
+  TU_ASSERT( tuh_init() ); // init host stack
 #endif
 
 #if TUSB_OPT_DEVICE_ENABLED
@@ -52,7 +52,7 @@ bool tusb_init(void)
 
   _initialized = true;
 
-  return TUSB_ERROR_NONE;
+  return true;
 }
 
 bool tusb_inited(void)
