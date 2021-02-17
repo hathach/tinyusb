@@ -154,6 +154,14 @@ void _hw_endpoint_xfer_start(struct hw_endpoint *ep, uint8_t *buffer, uint16_t t
     ep->total_len = total_len;
     ep->len = 0;
     // FIXME: What if low speed
+    if(ep->transfer_type == TUSB_XFER_ISOCHRONOUS)
+    {
+        ep->transfer_size = total_len; //There is an assumption that the max buffer size of 1023 or 1024 was checked before this
+    }
+    else
+    {
+        ep->transfer_size = total_len > 64 ? 64 : total_len;
+    }
     ep->transfer_size = total_len > 64 ? 64 : total_len;
     ep->active = true;
     ep->user_buf = buffer;
