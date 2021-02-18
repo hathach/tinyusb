@@ -47,6 +47,7 @@
 
 #include <stdint.h>
 #include <stdbool.h>
+#include "osal/osal.h"
 
 #ifdef __cplusplus
 extern "C" {
