@@ -203,6 +203,18 @@
 
 #endif
 
+// In case PCM encoding/decoding of 24 into 32 bits, the adjustment needs to be defined
+#define CFG_TUD_AUDIO_LEFT_JUSTIFIED
+#define CFG_TUD_AUDIO_RIGHT_JUSTIFIED
+
+#ifndef CFG_TUD_AUDIO_JUSTIFICATION_RX
+#define CFG_TUD_AUDIO_JUSTIFICATION_RX     CFG_TUD_AUDIO_LEFT_JUSTIFIED
+#endif
+
+#ifndef CFG_TUD_AUDIO_JUSTIFICATION_TX
+#define CFG_TUD_AUDIO_JUSTIFICATION_TX     CFG_TUD_AUDIO_LEFT_JUSTIFIED
+#endif
+
 //static_assert(sizeof(tud_audio_desc_lengths) != CFG_TUD_AUDIO, "Supply audio function descriptor pack length!");
 
 // Supported types of this driver:

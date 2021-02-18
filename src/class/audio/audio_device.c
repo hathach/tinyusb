@@ -366,11 +366,15 @@ static bool audiod_decode_type_I_pcm(uint8_t rhport, audiod_interface_t* audio)
       // If this aborts then the target buffer is full
       TU_VERIFY(tu_fifo_read_n_into_other_fifo(&audio->ep_out_ff, &audio->rx_ff[cntChannel], 0, CFG_TUD_AUDIO_N_BYTES_PER_SAMPLE_RX));
 #else
-      // TODO: Implement a left and right justified 24 to 32 and vice versa copy process from FIFO to FIFO
       uint32_t sample = 0;
 
       // Get sample from buffer
       TU_VERIFY(tu_fifo_read_n(&audio->ep_out_ff, &sample, CFG_TUD_AUDIO_N_BYTES_PER_SAMPLE_RX));
+
+#if CFG_TUD_AUDIO_JUSTIFICATION_RX == CFG_TUD_AUDIO_LEFT_JUSTIFIED
+      sample = sample << 8;
+#endif
+
       TU_VERIFY(tu_fifo_write_n(&audio->rx_ff[cntChannel], &sample, CFG_TUD_AUDIO_RX_ITEMSIZE));
 #endif
     }
@@ -584,12 +588,14 @@ static bool audiod_encode_type_I_pcm(uint8_t rhport, audiod_interface_t* audio)
 #if CFG_TUD_AUDIO_N_BYTES_PER_SAMPLE_TX == CFG_TUD_AUDIO_TX_ITEMSIZE
       tu_fifo_read_n_into_other_fifo(&audio->tx_ff[cntChannel], &audio->ep_in_ff, 0, CFG_TUD_AUDIO_TX_ITEMSIZE);
 #else
-      // TODO: Implement a left and right justified 24 to 32 and vice versa copy process from FIFO to FIFO
       uint32_t sample = 0;
 
       // Get sample from buffer
       tu_fifo_read_n(&audio->tx_ff[cntChannel], &sample, CFG_TUD_AUDIO_N_BYTES_PER_SAMPLE_TX);
 
+#if CFG_TUD_AUDIO_JUSTIFICATION_TX == CFG_TUD_AUDIO_LEFT_JUSTIFIED
+      sample = sample << 8;
+#endif
       tu_fifo_write_n(&audio->ep_in_ff, &sample, CFG_TUD_AUDIO_TX_ITEMSIZE);
 #endif
     }
