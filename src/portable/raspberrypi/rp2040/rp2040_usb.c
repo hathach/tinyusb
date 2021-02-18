@@ -156,11 +156,11 @@ void _hw_endpoint_xfer_start(struct hw_endpoint *ep, uint8_t *buffer, uint16_t t
     // FIXME: What if low speed
     if(ep->transfer_type == TUSB_XFER_ISOCHRONOUS)
     {
-        ep->transfer_size = total_len > ep->wMaxPacketSize ? ep->wMaxPacketSize : total_len; 
+        ep->transfer_size = tu_min32(total_len, ep->wMaxPacketSize);
     }
     else
     {
-        ep->transfer_size = total_len > 64 ? 64 : total_len;
+        ep->transfer_size = tu_min32(total_len, 64);
     }
     ep->active = true;
     ep->user_buf = buffer;
@@ -243,11 +243,11 @@ bool _hw_endpoint_xfer_continue(struct hw_endpoint *ep)
 
     if(ep->transfer_type == TUSB_XFER_ISOCHRONOUS)
     {
-        ep->transfer_size = remaining_bytes > ep->wMaxPacketSize ? ep->wMaxPacketSize : remaining_bytes;
+        ep->transfer_size = tu_min32(remaining_bytes,ep->wMaxPacketSize);
     }
     else
     {
-        ep->transfer_size = remaining_bytes > 64 ? 64 : remaining_bytes;
+        ep->transfer_size = tu_min32(remaining_bytes, 64);
     }
     _hw_endpoint_update_last_buf(ep);
 
