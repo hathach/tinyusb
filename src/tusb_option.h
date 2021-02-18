@@ -197,10 +197,6 @@
   #define CFG_TUSB_OS             OPT_OS_NONE
 #endif
 
-#ifndef CFG_TUSB_ALT_BIT_PACKING_ALIGNMENT
-  #define CFG_TUSB_ALT_BIT_PACKING_ALIGNMENT 0
-#endif
-
 //--------------------------------------------------------------------
 // DEVICE OPTIONS
 //--------------------------------------------------------------------

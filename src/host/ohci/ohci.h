@@ -208,11 +208,7 @@ typedef volatile struct
       uint32_t interrupt_routing          : 1;
       uint32_t remote_wakeup_connected    : 1;
       uint32_t remote_wakeup_enale        : 1;
-#if CFG_TUSB_ALT_BIT_PACKING_ALIGNMENT
-      uint32_t unused                     : 21;
-#else
-      uint32_t                            : 0;
-#endif /* CFG_TUSB_ALT_BIT_PACKING_ALIGNMENT */
+      uint32_t TU_RESERVED                : 21;
     }control_bit;
   };
 
@@ -280,11 +276,7 @@ typedef volatile struct
       uint32_t port_suspend_status_change         : 1;
       uint32_t port_over_current_indicator_change : 1;
       uint32_t port_reset_status_change           : 1;
-#if CFG_TUSB_ALT_BIT_PACKING_ALIGNMENT
-      uint32_t unused                             : 11;
-#else
-      uint32_t                                    : 0;
-#endif /* CFG_TUSB_ALT_BIT_PACKING_ALIGNMENT */
+      uint32_t TU_RESERVED                        : 11;
     }rhport_status_bit[2];
   };
 }ohci_registers_t;

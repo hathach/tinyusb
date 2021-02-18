@@ -163,11 +163,7 @@ typedef struct {
       uint16_t high_speed             : 1;
       uint16_t port_test_mode         : 1;
       uint16_t port_indicator_control : 1;
-#if CFG_TUSB_ALT_BIT_PACKING_ALIGNMENT
-      uint16_t unused                 : 3;
-#else
-      uint16_t                        : 0;
-#endif /* CFG_TUSB_ALT_BIT_PACKING_ALIGNMENT */
+      uint16_t TU_RESERVED            : 3;
     };
 
     uint16_t value;
