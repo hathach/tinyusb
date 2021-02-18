@@ -864,7 +864,7 @@ static bool audiod_set_interface(uint8_t rhport, tusb_control_request_t const * 
 
             // Prepare for incoming data
 #if USE_EVADE_BUFFER
-            TU_VERIFY(usbd_edpt_xfer(rhport, _audiod_itf[idxDriver].ep_out, &_audiod_itf[idxDriver].evasion_buf_out, CFG_TUD_AUDIO_EPSIZE_OUT), false);
+            TU_VERIFY(usbd_edpt_xfer(rhport, _audiod_itf[idxDriver].ep_out, _audiod_itf[idxDriver].evasion_buf_out, CFG_TUD_AUDIO_EPSIZE_OUT), false);
 #else
             TU_VERIFY(usbd_edpt_iso_xfer(rhport, _audiod_itf[idxDriver].ep_out, &_audiod_itf[idxDriver].ep_out_ff, CFG_TUD_AUDIO_EPSIZE_OUT), false);
 #endif
@@ -1160,7 +1160,7 @@ bool audiod_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint3
       //      TU_VERIFY(audiod_rx_done_cb(rhport, &_audiod_itf[idxDriver], _audiod_itf[idxDriver].ep_out_buf, xferred_bytes));
 
 #if USE_EVADE_BUFFER
-      TU_VERIFY(tu_fifo_write_n(&_audiod_itf[idxDriver].ep_out_ff, &_audiod_itf[idxDriver].evasion_buf_out, (uint16_t) xferred_bytes)); // Copy data into FIFO
+      TU_VERIFY(tu_fifo_write_n(&_audiod_itf[idxDriver].ep_out_ff, _audiod_itf[idxDriver].evasion_buf_out, (uint16_t) xferred_bytes)); // Copy data into FIFO
 #endif
 
       TU_VERIFY(audiod_rx_done_cb(rhport, &_audiod_itf[idxDriver]));
