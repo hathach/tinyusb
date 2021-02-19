@@ -31,8 +31,12 @@
  extern "C" {
 #endif
 
-#define LED_PIN               14
+#define LED_PIN               13
 #define LED_STATE_ON          1
+
+#define NEOPIXEL_PIN          16
+#define NEOPIXEL_POWER_PIN    17
+#define NEOPIXEL_POWER_STATE  1
 
 // Button pin is BOOTSEL which is flash CS pin
 #define BUTTON_BOOTSEL
