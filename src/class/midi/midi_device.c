@@ -114,15 +114,15 @@ static void _prep_out_transaction (midid_interface_t* p_midi)
 //--------------------------------------------------------------------+
 // READ API
 //--------------------------------------------------------------------+
-uint32_t tud_midi_n_available(uint8_t itf, uint8_t jack_id)
+uint32_t tud_midi_n_available(uint8_t itf, uint8_t cable_num)
 {
-  (void) jack_id;
+  (void) cable_num;
   return tu_fifo_count(&_midid_itf[itf].rx_ff);
 }
 
-uint32_t tud_midi_n_read(uint8_t itf, uint8_t jack_id, void* buffer, uint32_t bufsize)
+uint32_t tud_midi_n_read(uint8_t itf, uint8_t cable_num, void* buffer, uint32_t bufsize)
 {
-  (void) jack_id;
+  (void) cable_num;
   midid_interface_t* midi = &_midid_itf[itf];
 
   // Fill empty buffer
@@ -158,9 +158,9 @@ uint32_t tud_midi_n_read(uint8_t itf, uint8_t jack_id, void* buffer, uint32_t bu
   return n;
 }
 
-void tud_midi_n_read_flush (uint8_t itf, uint8_t jack_id)
+void tud_midi_n_read_flush (uint8_t itf, uint8_t cable_num)
 {
-  (void) jack_id;
+  (void) cable_num;
   midid_interface_t* p_midi = &_midid_itf[itf];
   tu_fifo_clear(&p_midi->rx_ff);
   _prep_out_transaction(p_midi);
@@ -205,7 +205,7 @@ static uint32_t write_flush(midid_interface_t* midi)
   }
 }
 
-uint32_t tud_midi_n_write(uint8_t itf, uint8_t jack_id, uint8_t const* buffer, uint32_t bufsize)
+uint32_t tud_midi_n_write(uint8_t itf, uint8_t cable_num, uint8_t const* buffer, uint32_t bufsize)
 {
   midid_interface_t* midi = &_midid_itf[itf];
   if (midi->itf_num == 0) {
@@ -228,7 +228,7 @@ uint32_t tud_midi_n_write(uint8_t itf, uint8_t jack_id, uint8_t const* buffer, u
                 midi->write_target_length = 4;
             }
         } else if ((msg >= 0x8 && msg <= 0xB) || msg == 0xE) {
-            midi->write_buffer[0] = jack_id << 4 | msg;
+            midi->write_buffer[0] = cable_num << 4 | msg;
             midi->write_target_length = 4;
         } else if (msg == 0xf) {
             if (data == 0xf0) {
@@ -246,7 +246,7 @@ uint32_t tud_midi_n_write(uint8_t itf, uint8_t jack_id, uint8_t const* buffer, u
             }
         } else {
             // Pack individual bytes if we don't support packing them into words.
-            midi->write_buffer[0] = jack_id << 4 | 0xf;
+            midi->write_buffer[0] = cable_num << 4 | 0xf;
             midi->write_buffer[2] = 0;
             midi->write_buffer[3] = 0;
             midi->write_buffer_length = 2;
