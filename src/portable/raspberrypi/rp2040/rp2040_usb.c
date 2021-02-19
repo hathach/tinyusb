@@ -239,7 +239,6 @@ bool _hw_endpoint_xfer_continue(struct hw_endpoint *ep)
 
     // Now we have synced our state with the hardware. Is there more data to transfer?
     uint remaining_bytes = ep->total_len - ep->len;
-    // ep->transfer_size = remaining_bytes > 64 ? 64 : remaining_bytes;
 
     if(ep->transfer_type == TUSB_XFER_ISOCHRONOUS)
     {
