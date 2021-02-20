@@ -41,6 +41,7 @@ This code base already had supported for a handful of following boards (sorted a
 - [Adafruit PyPortal](https://www.adafruit.com/product/4116)
 - [Adafruit Metro M4 Express](https://www.adafruit.com/product/3382)
 - [D5035-01](https://github.com/RudolphRiedel/USB_CAN-FD)
+- [Microchip SAME54 Xplained Pro](https://www.microchip.com/developmenttools/productdetails/atsame54-xpro)
 
 ### MicroChip SAMG
 
