@@ -60,7 +60,7 @@ endif
 # Can be set by board, default to ARM GCC
 CROSS_COMPILE ?= arm-none-eabi-
 
-CC = $(CROSS_COMPILE)gcc.exe
+CC = $(CROSS_COMPILE)gcc
 CXX = $(CROSS_COMPILE)g++
 OBJCOPY = $(CROSS_COMPILE)objcopy
 SIZE = $(CROSS_COMPILE)size
