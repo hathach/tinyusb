@@ -8,7 +8,7 @@
 #define LED_STATE_ON          1
 
 
-void initialize_board_led(GPIOA_Type* port, uint8_t PinMsk, uint8_t dirmsk)
+static void initialize_board_led(GPIOA_Type* port, uint8_t PinMsk, uint8_t dirmsk)
 {
     /* Enable PortF Clock */
     SYSCTL -> RCGCGPIO |= (1<<5) ;
@@ -21,6 +21,14 @@ void initialize_board_led(GPIOA_Type* port, uint8_t PinMsk, uint8_t dirmsk)
 
 	/* Set direction */
 	port->DIR = dirmsk ;
+}
+
+static void WriteGPIOPin(GPIOA_Type* port, uint8_t PinMsk, bool state)
+{
+    if(state)
+        port->DATA |= PinMsk; 
+    else
+        port->DATA &= ~(PinMsk);
 }
 
 void board_init(void)
@@ -64,6 +72,11 @@ void board_init(void)
 
     initialize_board_led(LED_PORT,leds, dirmsk); 
 
+}
+
+void board_led_write(bool state)
+{
+    WriteGPIOPin(LED_PORT, LED_PIN_BLUE, state); 
 }
 
 #if CFG_TUSB_OS == OPT_OS_NONE

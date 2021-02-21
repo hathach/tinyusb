@@ -23,7 +23,8 @@ LD_FILE = hw/bsp/$(BOARD)/tm4c123.ld
 INC += \
      	$(CMSIS) \
       $(TI_HDR) \
-      $(TOP)/hw/bsp
+      $(TOP)/hw/bsp 
+
 
 SRC_C += \
          $(MCU_DIR)/Source/system_TM4C123.c \
