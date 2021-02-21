@@ -598,6 +598,8 @@ bool tu_fifo_clear(tu_fifo_t *f)
 {
   tu_fifo_lock(f);
   f->rd_idx = f->wr_idx = 0;
+  f->max_pointer_idx = 2*f->depth-1;
+  f->non_used_index_space = UINT16_MAX - f->max_pointer_idx;
   tu_fifo_unlock(f);
 
   return true;

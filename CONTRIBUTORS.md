@@ -47,6 +47,9 @@
   - Board support for NuTiny NUC120, NUC121s, NUC125s, NUC126V, NUC505
   - Improve multiple cdc interfaces API & add cdc_dual_ports example
 
+- **[Raspberry Pi Team](https://github.com/raspberrypi)**
+  - Add new DCD port for **Raspberry Pi RP2040**
+
 - **[Reinhard Panhuber](https://github.com/PanRe)**
   - Add new class driver for **USB Audio Class 2.0 (UAC2)**
   - Enhance tu_fifo with unmasked pointer, which better support DMA
