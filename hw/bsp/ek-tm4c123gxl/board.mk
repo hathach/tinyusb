@@ -20,13 +20,12 @@ TI_HDR=$(TOP)/hw/mcu/ti/TM4C_Tiva-C/Include/TM4C123/
 
 LD_FILE = hw/bsp/$(BOARD)/tm4c123.ld
 
-LD_FILE = hw/bsp/$(BOARD)/tm4c123.ld
-
 INC += \
      	$(CMSIS) \
 	$(TI_HDR)
 
 SRC_C += \
+         $(MCU_DIR)/Source/system_TM4C123.c \
          $(MCU_DIR)/Source/GCC/tm4c123_startup.c 
 
 # For TinyUSB port source
