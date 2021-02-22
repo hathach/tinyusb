@@ -26,25 +26,58 @@
 
 #include "tusb_option.h"
 
-#if TUSB_OPT_HOST_ENABLED && (CFG_TUSB_MCU == OPT_MCU_LPC18XX || CFG_TUSB_MCU == OPT_MCU_LPC43XX)
+// NXP Trans-Dimension USB IP implement EHCI for host functionality
 
-#include "chip.h"
+#if TUSB_OPT_HOST_ENABLED && \
+    (CFG_TUSB_MCU == OPT_MCU_LPC18XX || CFG_TUSB_MCU == OPT_MCU_LPC43XX || CFG_TUSB_MCU == OPT_MCU_MIMXRT10XX)
 
-// LPC18xx and 43xx use EHCI driver
+#if CFG_TUSB_MCU == OPT_MCU_MIMXRT10XX
+  #include "fsl_device_registers.h"
+#else
+  // LPCOpen for 18xx & 43xx
+  #include "chip.h"
+#endif
+
+typedef struct
+{
+  uint32_t regs_addr;     // registers base
+  const IRQn_Type irqnum; // IRQ number
+}hcd_controller_t;
+
+#if CFG_TUSB_MCU == OPT_MCU_MIMXRT10XX
+  static const hcd_controller_t _hcd_controller[] =
+  {
+    // RT1010 and RT1020 only has 1 USB controller
+    #if FSL_FEATURE_SOC_USBHS_COUNT == 1
+      { .regs_addr = (uint32_t) &USB->USBCMD , .irqnum = USB_OTG1_IRQn }
+    #else
+      { .regs_addr = (uint32_t) &USB1->USBCMD, .irqnum = USB_OTG1_IRQn },
+      { .regs_addr = (uint32_t) &USB2->USBCMD, .irqnum = USB_OTG2_IRQn }
+    #endif
+  };
+
+#else
+  static const hcd_controller_t _hcd_controller[] =
+  {
+    { .regs_addr = (uint32_t) &LPC_USB0->USBCMD_H, .irqnum = USB0_IRQn },
+    { .regs_addr = (uint32_t) &LPC_USB1->USBCMD_H, .irqnum = USB1_IRQn }
+  };
+#endif
+
 
 void hcd_int_enable(uint8_t rhport)
 {
-  NVIC_EnableIRQ(rhport ? USB1_IRQn : USB0_IRQn);
+  NVIC_EnableIRQ(_hcd_controller[rhport].irqnum);
 }
 
 void hcd_int_disable(uint8_t rhport)
 {
-  NVIC_DisableIRQ(rhport ? USB1_IRQn : USB0_IRQn);
+  NVIC_DisableIRQ(_hcd_controller[rhport].irqnum);
 }
 
 uint32_t hcd_ehci_register_addr(uint8_t rhport)
 {
-  return (uint32_t) (rhport ? &LPC_USB1->USBCMD_H : &LPC_USB0->USBCMD_H );
+  return _hcd_controller[rhport].regs_addr;
 }
 
 #endif
