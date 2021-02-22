@@ -65,6 +65,14 @@ typedef struct
 #endif
 
 
+// TODO better prototype later
+extern bool hcd_ehci_init (uint8_t rhport); // from ehci.c
+
+bool hcd_init(uint8_t rhport)
+{
+  return hcd_ehci_init(rhport);
+}
+
 void hcd_int_enable(uint8_t rhport)
 {
   NVIC_EnableIRQ(_hcd_controller[rhport].irqnum);
