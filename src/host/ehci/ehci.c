@@ -105,10 +105,10 @@ static bool ehci_init (uint8_t rhport);
 //--------------------------------------------------------------------+
 // HCD API
 //--------------------------------------------------------------------+
-bool hcd_init(void)
+bool hcd_init(uint8_t rhport)
 {
   tu_memclr(&ehci_data, sizeof(ehci_data_t));
-  return ehci_init(TUH_OPT_RHPORT);
+  return ehci_init(rhport);
 }
 
 uint32_t hcd_uframe_number(uint8_t rhport)
