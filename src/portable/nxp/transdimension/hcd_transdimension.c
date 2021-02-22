@@ -31,6 +31,9 @@
 #if TUSB_OPT_HOST_ENABLED && \
     (CFG_TUSB_MCU == OPT_MCU_LPC18XX || CFG_TUSB_MCU == OPT_MCU_LPC43XX || CFG_TUSB_MCU == OPT_MCU_MIMXRT10XX)
 
+//--------------------------------------------------------------------+
+// INCLUDE
+//--------------------------------------------------------------------+
 #if CFG_TUSB_MCU == OPT_MCU_MIMXRT10XX
   #include "fsl_device_registers.h"
 #else
@@ -38,9 +41,17 @@
   #include "chip.h"
 #endif
 
+#include "common/tusb_common.h"
+#include "common_transdimension.h"
+
+//--------------------------------------------------------------------+
+// MACRO CONSTANT TYPEDEF
+//--------------------------------------------------------------------+
+
+// TODO can be merged with dcd_controller_t
 typedef struct
 {
-  uint32_t regs_addr;     // registers base
+  uint32_t regs_base;     // registers base
   const IRQn_Type irqnum; // IRQ number
 }hcd_controller_t;
 
@@ -49,27 +60,49 @@ typedef struct
   {
     // RT1010 and RT1020 only has 1 USB controller
     #if FSL_FEATURE_SOC_USBHS_COUNT == 1
-      { .regs_addr = (uint32_t) &USB->USBCMD , .irqnum = USB_OTG1_IRQn }
+      { .regs_base = USB_BASE , .irqnum = USB_OTG1_IRQn }
     #else
-      { .regs_addr = (uint32_t) &USB1->USBCMD, .irqnum = USB_OTG1_IRQn },
-      { .regs_addr = (uint32_t) &USB2->USBCMD, .irqnum = USB_OTG2_IRQn }
+      { .regs_base = USB1_BASE, .irqnum = USB_OTG1_IRQn },
+      { .regs_base = USB2_BASE, .irqnum = USB_OTG2_IRQn }
     #endif
   };
 
 #else
   static const hcd_controller_t _hcd_controller[] =
   {
-    { .regs_addr = (uint32_t) &LPC_USB0->USBCMD_H, .irqnum = USB0_IRQn },
-    { .regs_addr = (uint32_t) &LPC_USB1->USBCMD_H, .irqnum = USB1_IRQn }
+    { .regs_base = LPC_USB0_BASE, .irqnum = USB0_IRQn },
+    { .regs_base = LPC_USB1_BASE, .irqnum = USB1_IRQn }
   };
 #endif
-
 
 // TODO better prototype later
 extern bool hcd_ehci_init (uint8_t rhport); // from ehci.c
 
+//--------------------------------------------------------------------+
+// Controller API
+//--------------------------------------------------------------------+
+
 bool hcd_init(uint8_t rhport)
 {
+  dcd_registers_t* dcd_reg = (dcd_registers_t*) _hcd_controller[rhport].regs_base;
+
+  // Reset controller
+  dcd_reg->USBCMD |= USBCMD_RESET;
+  while( dcd_reg->USBCMD & USBCMD_RESET ) {}
+
+  // Set mode to device, must be set immediately after reset
+#if CFG_TUSB_MCU == OPT_MCU_LPC18XX || CFG_TUSB_MCU == OPT_MCU_LPC43XX
+  // LPC18XX/43XX need to set VBUS Power Select to HIGH
+  // RHPORT1 is fullspeed only (need external PHY for Highspeed)
+  dcd_reg->USBMODE = USBMODE_CM_HOST | USBMODE_VBUS_POWER_SELECT;
+  if (rhport == 1) dcd_reg->PORTSC1 |= PORTSC1_FORCE_FULL_SPEED;
+#else
+  dcd_reg->USBMODE = USBMODE_CM_HOST;
+#endif
+
+  // FIXME force full speed, still have issue with Highspeed enumeration
+  dcd_reg->PORTSC1 |= PORTSC1_FORCE_FULL_SPEED;
+
   return hcd_ehci_init(rhport);
 }
 
@@ -85,7 +118,10 @@ void hcd_int_disable(uint8_t rhport)
 
 uint32_t hcd_ehci_register_addr(uint8_t rhport)
 {
-  return _hcd_controller[rhport].regs_addr;
+  dcd_registers_t* hcd_reg = (dcd_registers_t*) _hcd_controller[rhport].regs_base;
+
+  // EHCI USBCMD has same address within dcd_register_t
+  return (uint32_t) &hcd_reg->USBCMD;
 }
 
 #endif
