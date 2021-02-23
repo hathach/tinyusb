@@ -30,7 +30,6 @@
 
 #include <stdlib.h>
 #include "rp2040_usb.h"
-#include "hardware/clocks.h"
 
 // Direction strings for debug
 const char *ep_dir_string[] = {
@@ -153,7 +152,7 @@ void _hw_endpoint_xfer_start(struct hw_endpoint *ep, uint8_t *buffer, uint16_t t
     // Fill in info now that we're kicking off the hw
     ep->total_len = total_len;
     ep->len = 0;
-    ep->transfer_size = tu_min32(total_len, ep->wMaxPacketSize);
+    ep->transfer_size = tu_min16(total_len, ep->wMaxPacketSize);
     ep->active = true;
     ep->user_buf = buffer;
     // Recalculate if this is the last buffer
@@ -172,7 +171,7 @@ void _hw_endpoint_xfer_sync(struct hw_endpoint *ep)
     // Get the buffer state and amount of bytes we have
     // transferred
     uint32_t buf_ctrl = _hw_endpoint_buffer_control_get_value32(ep);
-    uint transferred_bytes = buf_ctrl & USB_BUF_CTRL_LEN_MASK;
+    uint16_t transferred_bytes = buf_ctrl & USB_BUF_CTRL_LEN_MASK;
 
 #ifdef RP2040_USB_HOST_MODE
     // tag::host_buf_sel_fix[]
@@ -230,8 +229,8 @@ bool _hw_endpoint_xfer_continue(struct hw_endpoint *ep)
     _hw_endpoint_xfer_sync(ep);
 
     // Now we have synced our state with the hardware. Is there more data to transfer?
-    uint remaining_bytes = ep->total_len - ep->len;
-    ep->transfer_size = tu_min32(remaining_bytes, ep->wMaxPacketSize);
+    uint16_t remaining_bytes = ep->total_len - ep->len;
+    ep->transfer_size = tu_min16(remaining_bytes, ep->wMaxPacketSize);
     _hw_endpoint_update_last_buf(ep);
 
     // Can happen because of programmer error so check for it
