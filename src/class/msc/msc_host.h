@@ -35,6 +35,15 @@
  extern "C" {
 #endif
 
+//--------------------------------------------------------------------+
+// Class Driver Configuration
+//--------------------------------------------------------------------+
+
+#ifndef CFG_TUH_MSC_MAXLUN
+#define CFG_TUH_MSC_MAXLUN  4
+#endif
+
+
 /** \addtogroup ClassDriver_MSC
  *  @{
  * \defgroup MSC_Host Host
@@ -51,11 +60,17 @@ typedef bool (*tuh_msc_complete_cb_t)(uint8_t dev_addr, msc_cbw_t const* cbw, ms
 // This function true after tuh_msc_mounted_cb() and false after tuh_msc_unmounted_cb()
 bool tuh_msc_mounted(uint8_t dev_addr);
 
-// Check if the interface is currently busy transferring data
-bool tuh_msc_is_busy(uint8_t dev_addr);
+// Check if the interface is currently ready or busy transferring data
+bool tuh_msc_ready(uint8_t dev_addr);
 
 // Get Max Lun
 uint8_t tuh_msc_get_maxlun(uint8_t dev_addr);
+
+// Get number of block
+uint32_t tuh_msc_get_block_count(uint8_t dev_addr, uint8_t lun);
+
+// Get block size in bytes
+uint32_t tuh_msc_get_block_size(uint8_t dev_addr, uint8_t lun);
 
 // Perform a full SCSI command (cbw, data, csw) in non-blocking manner.
 // Complete callback is invoked when SCSI op is complete.
@@ -74,10 +89,6 @@ bool tuh_msc_test_unit_ready(uint8_t dev_addr, uint8_t lun, tuh_msc_complete_cb_
 // Complete callback is invoked when SCSI op is complete.
 bool tuh_msc_request_sense(uint8_t dev_addr, uint8_t lun, void *resposne, tuh_msc_complete_cb_t complete_cb);
 
-// Perform SCSI Read Capacity 10 command
-// Complete callback is invoked when SCSI op is complete.
-bool tuh_msc_read_capacity(uint8_t dev_addr, uint8_t lun, scsi_read_capacity10_resp_t* response, tuh_msc_complete_cb_t complete_cb);
-
 // Perform SCSI Read 10 command. Read n blocks starting from LBA to buffer
 // Complete callback is invoked when SCSI op is complete.
 bool  tuh_msc_read10(uint8_t dev_addr, uint8_t lun, void * buffer, uint32_t lba, uint16_t block_count, tuh_msc_complete_cb_t complete_cb);
@@ -86,13 +97,19 @@ bool  tuh_msc_read10(uint8_t dev_addr, uint8_t lun, void * buffer, uint32_t lba,
 // Complete callback is invoked when SCSI op is complete.
 bool tuh_msc_write10(uint8_t dev_addr, uint8_t lun, void const * buffer, uint32_t lba, uint16_t block_count, tuh_msc_complete_cb_t complete_cb);
 
+// Perform SCSI Read Capacity 10 command
+// Complete callback is invoked when SCSI op is complete.
+// Note: during enumeration, host stack already carried out this request. Application can retrieve capacity by
+// simply call tuh_msc_get_block_count() and tuh_msc_get_block_size()
+bool tuh_msc_read_capacity(uint8_t dev_addr, uint8_t lun, scsi_read_capacity10_resp_t* response, tuh_msc_complete_cb_t complete_cb);
+
 //------------- Application Callback -------------//
 
 // Invoked when a device with MassStorage interface is mounted
-void tuh_msc_mounted_cb(uint8_t dev_addr);
+void tuh_msc_mount_cb(uint8_t dev_addr);
 
 // Invoked when a device with MassStorage interface is unmounted
-void tuh_msc_unmounted_cb(uint8_t dev_addr);
+void tuh_msc_unmount_cb(uint8_t dev_addr);
 
 //--------------------------------------------------------------------+
 // Internal Class Driver API

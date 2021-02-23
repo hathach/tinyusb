@@ -48,7 +48,7 @@ CFG_TUSB_MEM_SECTION static FATFS fatfs[CFG_TUSB_HOST_DEVICE_MAX];
 //--------------------------------------------------------------------+
 // tinyusb callbacks
 //--------------------------------------------------------------------+
-void tuh_msc_mounted_cb(uint8_t dev_addr)
+void tuh_msc_mount_cb(uint8_t dev_addr)
 {
   puts("\na MassStorage device is mounted");
 
@@ -94,7 +94,7 @@ void tuh_msc_mounted_cb(uint8_t dev_addr)
   }
 }
 
-void tuh_msc_unmounted_cb(uint8_t dev_addr)
+void tuh_msc_unmount_cb(uint8_t dev_addr)
 {
   puts("\na MassStorage device is unmounted");
 

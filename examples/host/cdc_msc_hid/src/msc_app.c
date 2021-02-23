@@ -31,31 +31,6 @@
 // MACRO TYPEDEF CONSTANT ENUM DECLARATION
 //--------------------------------------------------------------------+
 static scsi_inquiry_resp_t inquiry_resp;
-static scsi_read_capacity10_resp_t capacity_resp;
-
-uint32_t block_size;
-uint32_t block_count;
-
-bool capacity_complete_cb(uint8_t dev_addr, msc_cbw_t const* cbw, msc_csw_t const* csw)
-{
-  (void) dev_addr;
-  (void) cbw;
-
-  if (csw->status != 0)
-  {
-    printf("Read Capacity (10) failed\r\n");
-    return false;
-  }
-
-  // Capacity response field: Block size and Last LBA are both Big-Endian
-  block_count = tu_ntohl(capacity_resp.last_lba) + 1;
-  block_size = tu_ntohl(capacity_resp.block_size);
-
-  printf("Disk Size: %lu MB\r\n", block_count / ((1024*1024)/block_size));
-  printf("Block Count = %lu, Block Size: %lu\r\n", block_count, block_size);
-
-  return true;
-}
 
 bool inquiry_complete_cb(uint8_t dev_addr, msc_cbw_t const* cbw, msc_csw_t const* csw)
 {
@@ -68,18 +43,20 @@ bool inquiry_complete_cb(uint8_t dev_addr, msc_cbw_t const* cbw, msc_csw_t const
   // Print out Vendor ID, Product ID and Rev
   printf("%.8s %.16s rev %.4s\r\n", inquiry_resp.vendor_id, inquiry_resp.product_id, inquiry_resp.product_rev);
 
-  // Read capacity of device
-  tuh_msc_read_capacity(dev_addr, cbw->lun, &capacity_resp, capacity_complete_cb);
+  // Get capacity of device
+  uint32_t const block_count = tuh_msc_get_block_count(dev_addr, cbw->lun);
+  uint32_t const block_size = tuh_msc_get_block_size(dev_addr, cbw->lun);
+
+  printf("Disk Size: %lu MB\r\n", block_count / ((1024*1024)/block_size));
+  printf("Block Count = %lu, Block Size: %lu\r\n", block_count, block_size);
 
   return true;
 }
 
 //------------- IMPLEMENTATION -------------//
-void tuh_msc_mounted_cb(uint8_t dev_addr)
+void tuh_msc_mount_cb(uint8_t dev_addr)
 {
   printf("A MassStorage device is mounted\r\n");
-
-  block_size = block_count = 0;
 
   uint8_t const lun = 0;
   tuh_msc_inquiry(dev_addr, lun, &inquiry_resp, inquiry_complete_cb);
@@ -110,7 +87,7 @@ void tuh_msc_mounted_cb(uint8_t dev_addr)
 //  }
 }
 
-void tuh_msc_unmounted_cb(uint8_t dev_addr)
+void tuh_msc_unmount_cb(uint8_t dev_addr)
 {
   (void) dev_addr;
   printf("A MassStorage device is unmounted\r\n");
@@ -132,12 +109,5 @@ void tuh_msc_unmounted_cb(uint8_t dev_addr)
 //    }
 //  }
 }
-
-//void tuh_msc_scsi_complete_cb(uint8_t dev_addr, msc_cbw_t const* cbw, msc_csw_t const* csw)
-//{
-//  (void) dev_addr;
-//  (void) cbw;
-//  (void) csw;
-//}
 
 #endif
