@@ -684,7 +684,7 @@ bool dcd_edpt_iso_xfer (uint8_t rhport, uint8_t ep_addr, tu_fifo_t * ff, uint16_
   uint8_t const dir   = tu_edpt_dir(ep_addr);
 
   xfer_ctl_t * xfer = XFER_CTL_BASE(epnum, dir);
-  xfer->buffer      = NULL;                                 // Indicates a FIFO shall be used
+  xfer->buffer      = NULL;
   xfer->ff          = ff;
   xfer->total_len   = total_bytes;
 

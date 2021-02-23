@@ -135,7 +135,6 @@ typedef struct
     CFG_TUSB_MCU == OPT_MCU_RP2040                || /* Don't want to change driver */                                  \
     CFG_TUSB_MCU == OPT_MCU_VALENTYUSB_EPTRI      || /* Intermediate software buffer required */                        \
     CFG_TUSB_MCU == OPT_MCU_CXD56                 || /* No clue how driver works */                                     \
-    CFG_TUSB_MCU == OPT_MCU_DA1469X               || /* Uses DMA - Ok for FIFO, had no time for implementation */       \
     CFG_TUSB_MCU == OPT_MCU_NRF5X                 || /* Uses DMA - Ok for FIFO, had no time for implementation */       \
     CFG_TUSB_MCU == OPT_MCU_LPC11UXX              || /* Uses DMA - Ok for FIFO, had no time for implementation */       \
     CFG_TUSB_MCU == OPT_MCU_LPC13XX               || \
