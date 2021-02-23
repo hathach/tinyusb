@@ -98,7 +98,7 @@ typedef struct
   .item_size            = sizeof(_type),                    \
   .overwritable         = _overwritable,                    \
   .max_pointer_idx      = 2*(_depth)-1,                     \
-  .non_used_index_space = UINT16_MAX - (2*(_depth)-1)       \
+  .non_used_index_space = UINT16_MAX - (2*(_depth)-1),      \
   .wr_mode              = TU_FIFO_COPY_INC,                 \
   .rd_mode              = TU_FIFO_COPY_INC,                 \
 }
