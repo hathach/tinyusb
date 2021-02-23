@@ -317,7 +317,7 @@ static void fill_tx_fifo(xfer_ctl_t * xfer)
       len1--;
     }
 
-    tu_fifo_advance_read_pointer(ff, len-len1);
+    tu_fifo_advance_read_pointer(xfer->ff, len-len1);
     left_to_send -= (len-len1);
 
     // Check for wrapped part
@@ -331,7 +331,7 @@ static void fill_tx_fifo(xfer_ctl_t * xfer)
         xfer->last_packet_size++;
         len1--;
       }
-      tu_fifo_advance_read_pointer(ff, len-len1);
+      tu_fifo_advance_read_pointer(xfer->ff, len-len1);
       left_to_send -= (len-len1);
     }
   }
