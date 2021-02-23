@@ -74,20 +74,16 @@ bool tuh_msc_request_sense(uint8_t dev_addr, uint8_t lun, void *resposne, tuh_ms
 // Perform SCSI Read Capacity (10) command
 bool tuh_msc_read_capacity(uint8_t dev_addr, uint8_t lun, scsi_read_capacity10_resp_t* response, tuh_msc_complete_cb_t complete_cb);
 
-#if 0
 /** \brief 			Perform SCSI READ 10 command to read data from MassStorage device
  * \param[in]		dev_addr	device address
  * \param[in]		lun       Targeted Logical Unit
- * \param[out]	p_buffer  Buffer used to store data read from device. Must be accessible by USB controller (see \ref CFG_TUSB_MEM_SECTION)
+ * \param[out]	 p_buffer  Buffer used to store data read from device. Must be accessible by USB controller (see \ref CFG_TUSB_MEM_SECTION)
  * \param[in]		lba       Starting Logical Block Address to be read
  * \param[in]		block_count Number of Block to be read
- * \retval      TUSB_ERROR_NONE on success
- * \retval      TUSB_ERROR_INTERFACE_IS_BUSY if the interface is already transferring data with device
- * \retval      TUSB_ERROR_DEVICE_NOT_READY if device is not yet configured (by SET CONFIGURED request)
- * \retval      TUSB_ERROR_INVALID_PARA if input parameters are not correct
- * \note        This function is non-blocking and returns immediately. The result of USB transfer will be reported by the interface's callback function
+ * \retval      true on success
+ * \note        This function is non-blocking and returns immediately. The result of USB transfer will be reported by \ref complete_cb callback function
  */
-tusb_error_t tuh_msc_read10 (uint8_t dev_addr, uint8_t lun, void * p_buffer, uint32_t lba, uint16_t block_count);
+bool  tuh_msc_read10(uint8_t dev_addr, uint8_t lun, void * p_buffer, uint32_t lba, uint16_t block_count, tuh_msc_complete_cb_t complete_cb);
 
 /** \brief 			Perform SCSI WRITE 10 command to write data to MassStorage device
  * \param[in]		dev_addr	device address
@@ -95,14 +91,10 @@ tusb_error_t tuh_msc_read10 (uint8_t dev_addr, uint8_t lun, void * p_buffer, uin
  * \param[in]	  p_buffer  Buffer containing data. Must be accessible by USB controller (see \ref CFG_TUSB_MEM_SECTION)
  * \param[in]		lba       Starting Logical Block Address to be written
  * \param[in]		block_count Number of Block to be written
- * \retval      TUSB_ERROR_NONE on success
- * \retval      TUSB_ERROR_INTERFACE_IS_BUSY if the interface is already transferring data with device
- * \retval      TUSB_ERROR_DEVICE_NOT_READY if device is not yet configured (by SET CONFIGURED request)
- * \retval      TUSB_ERROR_INVALID_PARA if input parameters are not correct
- * \note        This function is non-blocking and returns immediately. The result of USB transfer will be reported by the interface's callback function
+ * \retval      true on success
+ * \note        This function is non-blocking and returns immediately. The result of USB transfer will be reported by \ref complete_cb callback function
  */
-tusb_error_t tuh_msc_write10(uint8_t dev_addr, uint8_t lun, void const * p_buffer, uint32_t lba, uint16_t block_count);
-#endif
+bool tuh_msc_write10(uint8_t dev_addr, uint8_t lun, void * p_buffer, uint32_t lba, uint16_t block_count, tuh_msc_complete_cb_t complete_cb);
 
 //------------- Application Callback -------------//
 
