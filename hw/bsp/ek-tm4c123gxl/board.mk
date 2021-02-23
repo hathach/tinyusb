@@ -12,9 +12,9 @@ CFLAGS += \
 # lpc_types.h cause following errors
 CFLAGS += -Wno-error=strict-prototypes
 
-MCU_DIR = hw/mcu/ti/TM4C_Tiva-C/
-CMSIS=$(TOP)/hw/mcu/ti/TM4C_Tiva-C/CMSIS/5.7.0/CMSIS/Include
-TI_HDR=$(TOP)/hw/mcu/ti/TM4C_Tiva-C/Include/TM4C123/
+MCU_DIR = hw/mcu/ti/tm4c123xx/
+CMSIS=$(TOP)/hw/mcu/ti/tm4c123xx/CMSIS/5.7.0/CMSIS/Include
+TI_HDR=$(TOP)/hw/mcu/ti/tm4c123xx/Include/TM4C123/
 
 # All source paths should be relative to the top level.
 
@@ -32,7 +32,7 @@ SRC_C += \
 
 # For TinyUSB port source
 VENDOR = ti
-CHIP_FAMILY = TM4C_Tiva-C
+CHIP_FAMILY = tm4c123xx
 
 # For freeRTOS port source
 FREERTOS_PORT = ARM_CM4

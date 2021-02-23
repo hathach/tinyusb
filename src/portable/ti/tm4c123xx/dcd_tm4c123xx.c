@@ -29,7 +29,7 @@
 #if TUSB_OPT_DEVICE_ENABLED && (CFG_TUSB_MCU == OPT_MCU_TM4C123)
 
 #include "device/dcd.h"
-#include "dcd_TM4C_Tiva-C.h"
+#include "dcd_tm4c123xx.h"
 #include "TM4C123.h"
 
 //--------------------------------------------------------------------+
