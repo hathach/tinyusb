@@ -99,11 +99,12 @@ bool tuh_msc_is_busy(uint8_t dev_addr)
 //--------------------------------------------------------------------+
 // PUBLIC API: SCSI COMMAND
 //--------------------------------------------------------------------+
-static inline void msc_cbw_add_signature(msc_cbw_t *p_cbw, uint8_t lun)
+static inline void cbw_init(msc_cbw_t *cbw, uint8_t lun)
 {
-  p_cbw->signature  = MSC_CBW_SIGNATURE;
-  p_cbw->tag        = 0x54555342; // TUSB
-  p_cbw->lun        = lun;
+  tu_memclr(cbw, sizeof(msc_cbw_t));
+  cbw->signature = MSC_CBW_SIGNATURE;
+  cbw->tag       = 0x54555342; // TUSB
+  cbw->lun       = lun;
 }
 
 bool tuh_msc_scsi_command(uint8_t dev_addr, msc_cbw_t const* cbw, void* data, tuh_msc_complete_cb_t complete_cb)
@@ -126,11 +127,11 @@ bool tuh_msc_scsi_command(uint8_t dev_addr, msc_cbw_t const* cbw, void* data, tu
 bool tuh_msc_read_capacity(uint8_t dev_addr, uint8_t lun, scsi_read_capacity10_resp_t* response, tuh_msc_complete_cb_t complete_cb)
 {
   msch_interface_t* p_msc = get_itf(dev_addr);
-  if ( !p_msc->mounted ) return false;
+  TU_VERIFY(p_msc->mounted);
 
-  msc_cbw_t cbw = { 0 };
+  msc_cbw_t cbw;
+  cbw_init(&cbw, lun);
 
-  msc_cbw_add_signature(&cbw, lun);
   cbw.total_bytes = sizeof(scsi_read_capacity10_resp_t);
   cbw.dir        = TUSB_DIR_IN_MASK;
   cbw.cmd_len    = sizeof(scsi_read_capacity10_t);
@@ -141,9 +142,9 @@ bool tuh_msc_read_capacity(uint8_t dev_addr, uint8_t lun, scsi_read_capacity10_r
 
 bool tuh_msc_inquiry(uint8_t dev_addr, uint8_t lun, scsi_inquiry_resp_t* response, tuh_msc_complete_cb_t complete_cb)
 {
-  msc_cbw_t cbw = { 0 };
+  msc_cbw_t cbw;
+  cbw_init(&cbw, lun);
 
-  msc_cbw_add_signature(&cbw, lun);
   cbw.total_bytes = sizeof(scsi_inquiry_resp_t);
   cbw.dir         = TUSB_DIR_IN_MASK;
   cbw.cmd_len     = sizeof(scsi_inquiry_t);
@@ -160,8 +161,8 @@ bool tuh_msc_inquiry(uint8_t dev_addr, uint8_t lun, scsi_inquiry_resp_t* respons
 
 bool tuh_msc_test_unit_ready(uint8_t dev_addr, uint8_t lun, tuh_msc_complete_cb_t complete_cb)
 {
-  msc_cbw_t cbw = { 0 };
-  msc_cbw_add_signature(&cbw, lun);
+  msc_cbw_t cbw;
+  cbw_init(&cbw, lun);
 
   cbw.total_bytes = 0; // Number of bytes
   cbw.dir        = TUSB_DIR_OUT;
@@ -174,8 +175,8 @@ bool tuh_msc_test_unit_ready(uint8_t dev_addr, uint8_t lun, tuh_msc_complete_cb_
 
 bool tuh_msc_request_sense(uint8_t dev_addr, uint8_t lun, void *resposne, tuh_msc_complete_cb_t complete_cb)
 {
-  msc_cbw_t cbw = { 0 };
-  msc_cbw_add_signature(&cbw, lun);
+  msc_cbw_t cbw;
+  cbw_init(&cbw, lun);
 
   cbw.total_bytes = 18; // TODO sense response
   cbw.dir        = TUSB_DIR_IN_MASK;
@@ -192,58 +193,52 @@ bool tuh_msc_request_sense(uint8_t dev_addr, uint8_t lun, void *resposne, tuh_ms
   return tuh_msc_scsi_command(dev_addr, &cbw, resposne, complete_cb);
 }
 
-bool  tuh_msc_read10(uint8_t dev_addr, uint8_t lun, void * p_buffer, uint32_t lba, uint16_t block_count, tuh_msc_complete_cb_t complete_cb)
+bool tuh_msc_read10(uint8_t dev_addr, uint8_t lun, void * buffer, uint32_t lba, uint16_t block_count, tuh_msc_complete_cb_t complete_cb)
 {
   msch_interface_t* p_msc = get_itf(dev_addr);
-  if ( !p_msc->mounted ){ return false;};
+  TU_VERIFY(p_msc->mounted);
 
-  msc_cbw_t cbw = { 0 };
+  msc_cbw_t cbw;
+  cbw_init(&cbw, lun);
  
-   //------------- Command Block Wrapper -------------//
-  msc_cbw_add_signature(&cbw, lun);
- 
-  cbw.total_bytes = 512*block_count; // Number of bytes
+  cbw.total_bytes = 512*block_count; // Number of bytes TODO get block size from READ CAPACITY 10
   cbw.dir        = TUSB_DIR_IN_MASK;
   cbw.cmd_len    = sizeof(scsi_read10_t);
  
-   //------------- SCSI command -------------//
   scsi_read10_t cmd_read10 =
   {
-       .cmd_code    = SCSI_CMD_READ_10,
-       .lba         = tu_htonl(lba),
-       .block_count = tu_htons(block_count)
+    .cmd_code    = SCSI_CMD_READ_10,
+    .lba         = tu_htonl(lba),
+    .block_count = tu_htons(block_count)
   };
  
   memcpy(cbw.command, &cmd_read10, cbw.cmd_len);
  
-  return tuh_msc_scsi_command(dev_addr, &cbw, p_buffer, complete_cb);
+  return tuh_msc_scsi_command(dev_addr, &cbw, buffer, complete_cb);
 }
  
-bool tuh_msc_write10(uint8_t dev_addr, uint8_t lun, void * p_buffer, uint32_t lba, uint16_t block_count, tuh_msc_complete_cb_t complete_cb)
+bool tuh_msc_write10(uint8_t dev_addr, uint8_t lun, void const * buffer, uint32_t lba, uint16_t block_count, tuh_msc_complete_cb_t complete_cb)
 {
-    msch_interface_t* p_msc = get_itf(dev_addr);
-    if ( !p_msc->mounted ){ return false;};
- 
-    msc_cbw_t cbw = { 0 };
- 
-    //------------- Command Block Wrapper -------------//
-    msc_cbw_add_signature(&cbw, lun);
- 
-    cbw.total_bytes = 512*block_count; // Number of bytes
-    cbw.dir        = TUSB_DIR_OUT;
-    cbw.cmd_len    = sizeof(scsi_write10_t);
+  msch_interface_t* p_msc = get_itf(dev_addr);
+  TU_VERIFY(p_msc->mounted);
 
-    //------------- SCSI command -------------//
-    scsi_write10_t cmd_write10 =
-    {
-       .cmd_code    = SCSI_CMD_WRITE_10,
-       .lba         = tu_htonl(lba),
-       .block_count = tu_htons(block_count)
-    };
- 
-    memcpy(cbw.command, &cmd_write10, cbw.cmd_len);
- 
-    return tuh_msc_scsi_command(dev_addr, &cbw, p_buffer, complete_cb);
+  msc_cbw_t cbw;
+  cbw_init(&cbw, lun);
+
+  cbw.total_bytes = 512*block_count; // Number of bytes TODO get block size from READ CAPACITY 10
+  cbw.dir        = TUSB_DIR_OUT;
+  cbw.cmd_len    = sizeof(scsi_write10_t);
+
+  scsi_write10_t cmd_write10 =
+  {
+    .cmd_code    = SCSI_CMD_WRITE_10,
+    .lba         = tu_htonl(lba),
+    .block_count = tu_htons(block_count)
+  };
+
+  memcpy(cbw.command, &cmd_write10, cbw.cmd_len);
+
+  return tuh_msc_scsi_command(dev_addr, &cbw, (void*) buffer, complete_cb);
 }
 
 #if 0

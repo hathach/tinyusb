@@ -58,43 +58,33 @@ bool tuh_msc_is_busy(uint8_t dev_addr);
 uint8_t tuh_msc_get_maxlun(uint8_t dev_addr);
 
 // Perform a full SCSI command (cbw, data, csw) in non-blocking manner.
-// `complete_cb` callback is invoked when SCSI op is complete.
+// Complete callback is invoked when SCSI op is complete.
 // return true if success, false if there is already pending operation.
 bool tuh_msc_scsi_command(uint8_t dev_addr, msc_cbw_t const* cbw, void* data, tuh_msc_complete_cb_t complete_cb);
 
 // Perform SCSI Inquiry command
+// Complete callback is invoked when SCSI op is complete.
 bool tuh_msc_inquiry(uint8_t dev_addr, uint8_t lun, scsi_inquiry_resp_t* response, tuh_msc_complete_cb_t complete_cb);
 
 // Perform SCSI Test Unit Ready command
+// Complete callback is invoked when SCSI op is complete.
 bool tuh_msc_test_unit_ready(uint8_t dev_addr, uint8_t lun, tuh_msc_complete_cb_t complete_cb);
 
-// Perform SCSI Request Sense (10) command
+// Perform SCSI Request Sense 10 command
+// Complete callback is invoked when SCSI op is complete.
 bool tuh_msc_request_sense(uint8_t dev_addr, uint8_t lun, void *resposne, tuh_msc_complete_cb_t complete_cb);
 
-// Perform SCSI Read Capacity (10) command
+// Perform SCSI Read Capacity 10 command
+// Complete callback is invoked when SCSI op is complete.
 bool tuh_msc_read_capacity(uint8_t dev_addr, uint8_t lun, scsi_read_capacity10_resp_t* response, tuh_msc_complete_cb_t complete_cb);
 
-/** \brief 			Perform SCSI READ 10 command to read data from MassStorage device
- * \param[in]		dev_addr	device address
- * \param[in]		lun       Targeted Logical Unit
- * \param[out]	 p_buffer  Buffer used to store data read from device. Must be accessible by USB controller (see \ref CFG_TUSB_MEM_SECTION)
- * \param[in]		lba       Starting Logical Block Address to be read
- * \param[in]		block_count Number of Block to be read
- * \retval      true on success
- * \note        This function is non-blocking and returns immediately. The result of USB transfer will be reported by \ref complete_cb callback function
- */
-bool  tuh_msc_read10(uint8_t dev_addr, uint8_t lun, void * p_buffer, uint32_t lba, uint16_t block_count, tuh_msc_complete_cb_t complete_cb);
+// Perform SCSI Read 10 command. Read n blocks starting from LBA to buffer
+// Complete callback is invoked when SCSI op is complete.
+bool  tuh_msc_read10(uint8_t dev_addr, uint8_t lun, void * buffer, uint32_t lba, uint16_t block_count, tuh_msc_complete_cb_t complete_cb);
 
-/** \brief 			Perform SCSI WRITE 10 command to write data to MassStorage device
- * \param[in]		dev_addr	device address
- * \param[in]		lun       Targeted Logical Unit
- * \param[in]	  p_buffer  Buffer containing data. Must be accessible by USB controller (see \ref CFG_TUSB_MEM_SECTION)
- * \param[in]		lba       Starting Logical Block Address to be written
- * \param[in]		block_count Number of Block to be written
- * \retval      true on success
- * \note        This function is non-blocking and returns immediately. The result of USB transfer will be reported by \ref complete_cb callback function
- */
-bool tuh_msc_write10(uint8_t dev_addr, uint8_t lun, void * p_buffer, uint32_t lba, uint16_t block_count, tuh_msc_complete_cb_t complete_cb);
+// Perform SCSI Write 10 command. Write n blocks starting from LBA to device
+// Complete callback is invoked when SCSI op is complete.
+bool tuh_msc_write10(uint8_t dev_addr, uint8_t lun, void const * buffer, uint32_t lba, uint16_t block_count, tuh_msc_complete_cb_t complete_cb);
 
 //------------- Application Callback -------------//
 
