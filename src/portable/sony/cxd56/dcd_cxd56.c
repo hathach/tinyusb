@@ -155,7 +155,24 @@ static void _dcd_disconnect(FAR struct usbdevclass_driver_s *driver, FAR struct 
 {
   (void) driver;
 
-  tusb_speed_t speed = (dev->speed == 3) ? TUSB_SPEED_HIGH : TUSB_SPEED_FULL;
+  tusb_speed_t speed;
+
+  switch (dev->speed)
+  {
+    case USB_SPEED_LOW:
+      speed = TUSB_SPEED_LOW;
+      break;
+    case USB_SPEED_FULL:
+      speed = TUSB_SPEED_FULL;
+      break;
+    case USB_SPEED_HIGH:
+      speed = TUSB_SPEED_HIGH;
+      break;
+    default:
+      speed = TUSB_SPEED_HIGH;
+      break;
+  }
+
   dcd_event_bus_reset(0, speed, true);
   DEV_CONNECT(dev);
 }

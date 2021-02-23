@@ -91,18 +91,22 @@ typedef struct
 
 } tu_fifo_t;
 
-#define TU_FIFO_DEF(_name, _depth, _type, _overwritable)                \
-    uint8_t _name##_buf[_depth*sizeof(_type)];                          \
-    tu_fifo_t _name = {                                                 \
-        .buffer                 = _name##_buf,                          \
-        .depth                  = _depth,                               \
-        .item_size              = sizeof(_type),                        \
-        .overwritable           = _overwritable,                        \
-        .max_pointer_idx        = 2*_depth-1,                           \
-        .non_used_index_space   = UINT16_MAX - (2*_depth-1),            \
-        .wr_mode                = TU_FIFO_COPY_INC,                     \
-        .rd_mode                = TU_FIFO_COPY_INC,                     \
-    }
+#define TU_FIFO_INIT(_buffer, _depth, _type, _overwritable) \
+{                                                           \
+  .buffer               = _buffer,                          \
+  .depth                = _depth,                           \
+  .item_size            = sizeof(_type),                    \
+  .overwritable         = _overwritable,                    \
+  .max_pointer_idx      = 2*(_depth)-1,                     \
+  .non_used_index_space = UINT16_MAX - (2*(_depth)-1)       \
+  .wr_mode              = TU_FIFO_COPY_INC,                 \
+  .rd_mode              = TU_FIFO_COPY_INC,                 \
+}
+
+#define TU_FIFO_DEF(_name, _depth, _type, _overwritable)                      \
+    uint8_t _name##_buf[_depth*sizeof(_type)];                                \
+    tu_fifo_t _name = TU_FIFO_INIT(_name##_buf, _depth, _type, _overwritable)
+
 
 bool tu_fifo_set_overwritable(tu_fifo_t *f, bool overwritable);
 bool tu_fifo_clear(tu_fifo_t *f);

@@ -19,9 +19,9 @@ SRC_C += \
 	src/host/hub.c \
 	src/host/usbh.c \
 	src/host/usbh_control.c \
-	src/host/ehci/ehci.c \
-	src/host/ohci/ohci.c \
-	src/portable/nxp/lpc18_43/hcd_lpc18_43.c \
+	src/portable/ehci/ehci.c \
+	src/portable/ohci/ohci.c \
+	src/portable/nxp/transdimension/hcd_transdimension.c \
 	src/portable/nxp/lpc17_40/hcd_lpc17_40.c
 
 include ../../rules.mk

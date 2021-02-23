@@ -60,13 +60,13 @@
 // CFG_TUD_MIDI > 1
 //--------------------------------------------------------------------+
 bool     tud_midi_n_mounted    (uint8_t itf);
-uint32_t tud_midi_n_available  (uint8_t itf, uint8_t jack_id);
-uint32_t tud_midi_n_read       (uint8_t itf, uint8_t jack_id, void* buffer, uint32_t bufsize);
-void     tud_midi_n_read_flush (uint8_t itf, uint8_t jack_id);
-uint32_t tud_midi_n_write      (uint8_t itf, uint8_t jack_id, uint8_t const* buffer, uint32_t bufsize);
+uint32_t tud_midi_n_available  (uint8_t itf, uint8_t cable_num);
+uint32_t tud_midi_n_read       (uint8_t itf, uint8_t cable_num, void* buffer, uint32_t bufsize);
+void     tud_midi_n_read_flush (uint8_t itf, uint8_t cable_num);
+uint32_t tud_midi_n_write      (uint8_t itf, uint8_t cable_num, uint8_t const* buffer, uint32_t bufsize);
 
 static inline
-uint32_t tud_midi_n_write24    (uint8_t itf, uint8_t jack_id, uint8_t b1, uint8_t b2, uint8_t b3);
+uint32_t tud_midi_n_write24    (uint8_t itf, uint8_t cable_num, uint8_t b1, uint8_t b2, uint8_t b3);
 
 bool tud_midi_n_receive        (uint8_t itf, uint8_t packet[4]);
 bool tud_midi_n_send           (uint8_t itf, uint8_t const packet[4]);
@@ -78,8 +78,8 @@ static inline bool     tud_midi_mounted    (void);
 static inline uint32_t tud_midi_available  (void);
 static inline uint32_t tud_midi_read       (void* buffer, uint32_t bufsize);
 static inline void     tud_midi_read_flush (void);
-static inline uint32_t tud_midi_write      (uint8_t jack_id, uint8_t const* buffer, uint32_t bufsize);
-static inline uint32_t tudi_midi_write24   (uint8_t jack_id, uint8_t b1, uint8_t b2, uint8_t b3);
+static inline uint32_t tud_midi_write      (uint8_t cable_num, uint8_t const* buffer, uint32_t bufsize);
+static inline uint32_t tud_midi_write24    (uint8_t cable_num, uint8_t b1, uint8_t b2, uint8_t b3);
 static inline bool     tud_midi_receive    (uint8_t packet[4]);
 static inline bool     tud_midi_send       (uint8_t const packet[4]);
 
@@ -92,10 +92,10 @@ TU_ATTR_WEAK void tud_midi_rx_cb(uint8_t itf);
 // Inline Functions
 //--------------------------------------------------------------------+
 
-static inline uint32_t tud_midi_n_write24 (uint8_t itf, uint8_t jack_id, uint8_t b1, uint8_t b2, uint8_t b3)
+static inline uint32_t tud_midi_n_write24 (uint8_t itf, uint8_t cable_num, uint8_t b1, uint8_t b2, uint8_t b3)
 {
   uint8_t msg[3] = { b1, b2, b3 };
-  return tud_midi_n_write(itf, jack_id, msg, 3);
+  return tud_midi_n_write(itf, cable_num, msg, 3);
 }
 
 static inline bool tud_midi_mounted (void)
@@ -118,15 +118,15 @@ static inline void tud_midi_read_flush (void)
   tud_midi_n_read_flush(0, 0);
 }
 
-static inline uint32_t tud_midi_write (uint8_t jack_id, uint8_t const* buffer, uint32_t bufsize)
+static inline uint32_t tud_midi_write (uint8_t cable_num, uint8_t const* buffer, uint32_t bufsize)
 {
-  return tud_midi_n_write(0, jack_id, buffer, bufsize);
+  return tud_midi_n_write(0, cable_num, buffer, bufsize);
 }
 
-static inline uint32_t tudi_midi_write24 (uint8_t jack_id, uint8_t b1, uint8_t b2, uint8_t b3)
+static inline uint32_t tud_midi_write24 (uint8_t cable_num, uint8_t b1, uint8_t b2, uint8_t b3)
 {
   uint8_t msg[3] = { b1, b2, b3 };
-  return tud_midi_write(jack_id, msg, 3);
+  return tud_midi_write(cable_num, msg, 3);
 }
 
 static inline bool tud_midi_receive (uint8_t packet[4])

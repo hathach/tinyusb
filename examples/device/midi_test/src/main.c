@@ -125,6 +125,9 @@ void midi_task(void)
 {
   static uint32_t start_ms = 0;
 
+  uint8_t const cable_num = 0; // MIDI jack associated with USB endpoint
+  uint8_t const channel   = 0; // 0 for channel 1
+
   // The MIDI interface always creates input and output port/jack descriptors
   // regardless of these being used or not. Therefore incoming traffic should be read
   // (possibly just discarded) to avoid the sender blocking in IO
@@ -143,10 +146,10 @@ void midi_task(void)
   if (previous < 0) previous = sizeof(note_sequence) - 1;
 
   // Send Note On for current position at full velocity (127) on channel 1.
-  tudi_midi_write24(0, 0x90, note_sequence[note_pos], 127);
+  tud_midi_write24(cable_num, 0x90 | channel, note_sequence[note_pos], 127);
 
   // Send Note Off for previous note.
-  tudi_midi_write24(0, 0x80, note_sequence[previous], 0);
+  tud_midi_write24(cable_num, 0x80 | channel, note_sequence[previous], 0);
 
   // Increment position
   note_pos++;
