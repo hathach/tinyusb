@@ -290,7 +290,6 @@ void tusb_vbus_changed(bool present)
 static void fill_tx_fifo(xfer_ctl_t * xfer)
 {
   int left_to_send;
-  uint8_t const *src;
   EPx_REGS *regs = xfer->regs;
   uint8_t const epnum = tu_edpt_number(xfer->ep_addr);
 
@@ -338,7 +337,7 @@ static void fill_tx_fifo(xfer_ctl_t * xfer)
   }
   else
   {
-    src = &xfer->buffer[xfer->transferred];
+    uint8_t const *src = &xfer->buffer[xfer->transferred];
     while ((regs->txs & USB_USB_TXS1_REG_USB_TCOUNT_Msk) > 0 && left_to_send > 0)
     {
       regs->txd = *src++;
