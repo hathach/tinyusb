@@ -141,8 +141,10 @@ static void ed_list_remove_by_addr(ohci_ed_t * p_head, uint8_t dev_addr);
 // USBH-HCD API
 //--------------------------------------------------------------------+
 // Initialization according to 5.1.1.4
-bool hcd_init(void)
+bool hcd_init(uint8_t rhport)
 {
+  (void) rhport;
+
   //------------- Data Structure init -------------//
   tu_memclr(&ohci_data, sizeof(ohci_data_t));
   for(uint8_t i=0; i<32; i++)
