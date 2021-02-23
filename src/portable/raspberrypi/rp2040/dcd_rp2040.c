@@ -48,8 +48,8 @@
 // Init these in dcd_init
 static uint8_t *next_buffer_ptr;
 
-// Endpoints 0-TUD_OPT_RP2040_USB_MAX_ENDPOINTS, direction 0 for out and 1 for in.
-static struct hw_endpoint hw_endpoints[TUD_OPT_RP2040_USB_MAX_ENDPOINTS][2] = {0};
+// USB_MAX_ENDPOINTS Endpoints, direction 0 for out and 1 for in.
+static struct hw_endpoint hw_endpoints[USB_MAX_ENDPOINTS][2] = {0};
 
 static inline struct hw_endpoint *hw_endpoint_get_by_num(uint8_t num, uint8_t in)
 {
