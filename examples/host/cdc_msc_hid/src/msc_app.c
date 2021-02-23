@@ -73,13 +73,6 @@ void tuh_msc_mount_cb(uint8_t dev_addr)
 //      return;
 //    }
 //
-//    puts("---------------------------------------------------------------------");
-//    puts("- MASSSTORAGE CLASS CLI IS A IMMATURE CODE. DISK-WRITING COMMANDS");
-//    puts("- SUCH AS cp(COPY), mkdir(MAKE DIRECTORY) ARE POTENTIAL TO DAMAGE");
-//    puts("- YOUR USB THUMBDRIVE. USING THOSE COMMANDS ARE AT YOUR OWN RISK.");
-//    puts("- THE AUTHOR HAS NO RESPONSIBILITY WITH YOUR DEVICE NOR ITS DATA");
-//    puts("---------------------------------------------------------------------");
-//
 //    f_chdrive(phy_disk); // change to newly mounted drive
 //    f_chdir("/"); // root as current dir
 //

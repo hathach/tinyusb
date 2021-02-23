@@ -35,8 +35,8 @@
 //--------------------------------------------------------------------+
 #include "osal/osal.h"
 
-#include "../hcd.h"
-#include "../usbh_hcd.h"
+#include "host/hcd.h"
+#include "host/usbh_hcd.h"
 #include "ehci.h"
 
 //--------------------------------------------------------------------+
