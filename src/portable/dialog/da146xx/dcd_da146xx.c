@@ -308,7 +308,7 @@ static void fill_tx_fifo(xfer_ctl_t * xfer)
     // As we copy from a ring buffer FIFO, a wrap might occur making it necessary to conduct two copies
     // Check for first linear part
     uint8_t * src;
-    uint16_t len = tu_fifo_get_linear_read_info(xfer->ff, 0, &((void *) src), left_to_send);  // We want to read from the FIFO
+    uint16_t len = tu_fifo_get_linear_read_info(xfer->ff, 0, (void **) &src, left_to_send);  // We want to read from the FIFO
     uint16_t len1 = len;
     while ((regs->txs & USB_USB_TXS1_REG_USB_TCOUNT_Msk) > 0 && len1 > 0)
     {
@@ -323,7 +323,7 @@ static void fill_tx_fifo(xfer_ctl_t * xfer)
     // Check for wrapped part
     if ((regs->txs & USB_USB_TXS1_REG_USB_TCOUNT_Msk) && left_to_send > 0)
     {
-      len = tu_fifo_get_linear_read_info(xfer->ff, 0, &((void *) src), left_to_send);  // We want to read from the FIFO
+      len = tu_fifo_get_linear_read_info(xfer->ff, 0, (void **) &src, left_to_send);  // We want to read from the FIFO
       len1 = len;
       while ((regs->txs & USB_USB_TXS1_REG_USB_TCOUNT_Msk) > 0 && len1 > 0)
       {
