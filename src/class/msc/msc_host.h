@@ -70,7 +70,7 @@ uint8_t tuh_msc_get_maxlun(uint8_t dev_addr);
 bool tuh_msc_scsi_command(uint8_t dev_addr, msc_cbw_t const* cbw, void* data, tuh_msc_complete_cb_t complete_cb);
 
 // Carry out SCSI INQUIRY command in non-blocking manner.
-bool tuh_msc_scsi_inquiry(uint8_t dev_addr, uint8_t lun, scsi_inquiry_resp_t* response, tuh_msc_complete_cb_t complete_cb);
+bool tuh_msc_inquiry(uint8_t dev_addr, uint8_t lun, scsi_inquiry_resp_t* response, tuh_msc_complete_cb_t complete_cb);
 
 // Carry out SCSI REQUEST SENSE (10) command in non-blocking manner.
 bool tuh_msc_test_unit_ready(uint8_t dev_addr, uint8_t lun, tuh_msc_complete_cb_t complete_cb);

@@ -82,7 +82,7 @@ void tuh_msc_mounted_cb(uint8_t dev_addr)
   block_size = block_count = 0;
 
   uint8_t const lun = 0;
-  tuh_msc_scsi_inquiry(dev_addr, lun, &inquiry_resp, inquiry_complete_cb);
+  tuh_msc_inquiry(dev_addr, lun, &inquiry_resp, inquiry_complete_cb);
 //
 //  //------------- file system (only 1 LUN support) -------------//
 //  uint8_t phy_disk = dev_addr-1;

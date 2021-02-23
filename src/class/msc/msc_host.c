@@ -139,7 +139,7 @@ bool tuh_msc_read_capacity(uint8_t dev_addr, uint8_t lun, scsi_read_capacity10_r
   return tuh_msc_scsi_command(dev_addr, &cbw, response, complete_cb);
 }
 
-bool tuh_msc_scsi_inquiry(uint8_t dev_addr, uint8_t lun, scsi_inquiry_resp_t* response, tuh_msc_complete_cb_t complete_cb)
+bool tuh_msc_inquiry(uint8_t dev_addr, uint8_t lun, scsi_inquiry_resp_t* response, tuh_msc_complete_cb_t complete_cb)
 {
   msc_cbw_t cbw = { 0 };
 
