@@ -51,34 +51,27 @@ typedef bool (*tuh_msc_complete_cb_t)(uint8_t dev_addr, msc_cbw_t const* cbw, ms
 // This function true after tuh_msc_mounted_cb() and false after tuh_msc_unmounted_cb()
 bool tuh_msc_mounted(uint8_t dev_addr);
 
-/** \brief      Check if the interface is currently busy or not
- * \param[in]   dev_addr device address
- * \retval      true if the interface is busy meaning the stack is still transferring/waiting data from/to device
- * \retval      false if the interface is not busy meaning the stack successfully transferred data from/to device
- * \note        This function is used to check if previous transfer is complete (success or error), so that the next transfer
- *              can be scheduled. User needs to make sure the corresponding interface is mounted (by \ref tuh_msc_is_mounted)
- *              before calling this function
- */
-bool          tuh_msc_is_busy(uint8_t dev_addr);
+// Check if the interface is currently busy transferring data
+bool tuh_msc_is_busy(uint8_t dev_addr);
 
 // Get Max Lun
 uint8_t tuh_msc_get_maxlun(uint8_t dev_addr);
 
-// Carry out a full SCSI command (cbw, data, csw) in non-blocking manner.
+// Perform a full SCSI command (cbw, data, csw) in non-blocking manner.
 // `complete_cb` callback is invoked when SCSI op is complete.
 // return true if success, false if there is already pending operation.
 bool tuh_msc_scsi_command(uint8_t dev_addr, msc_cbw_t const* cbw, void* data, tuh_msc_complete_cb_t complete_cb);
 
-// Carry out SCSI INQUIRY command in non-blocking manner.
+// Perform SCSI Inquiry command
 bool tuh_msc_inquiry(uint8_t dev_addr, uint8_t lun, scsi_inquiry_resp_t* response, tuh_msc_complete_cb_t complete_cb);
 
-// Carry out SCSI REQUEST SENSE (10) command in non-blocking manner.
+// Perform SCSI Test Unit Ready command
 bool tuh_msc_test_unit_ready(uint8_t dev_addr, uint8_t lun, tuh_msc_complete_cb_t complete_cb);
 
-// Carry out SCSI REQUEST SENSE (10) command in non-blocking manner.
+// Perform SCSI Request Sense (10) command
 bool tuh_msc_request_sense(uint8_t dev_addr, uint8_t lun, void *resposne, tuh_msc_complete_cb_t complete_cb);
 
-// Carry out SCSI READ CAPACITY (10) command in non-blocking manner.
+// Perform SCSI Read Capacity (10) command
 bool tuh_msc_read_capacity(uint8_t dev_addr, uint8_t lun, scsi_read_capacity10_resp_t* response, tuh_msc_complete_cb_t complete_cb);
 
 #if 0
