@@ -84,6 +84,7 @@ uint8_t const desc_hid_report[] =
 // Descriptor contents must exist long enough for transfer to complete
 uint8_t const * tud_hid_descriptor_report_cb(uint8_t itf)
 {
+  (void) itf;
   return desc_hid_report;
 }
 
