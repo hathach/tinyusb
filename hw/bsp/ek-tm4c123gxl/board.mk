@@ -35,7 +35,7 @@ VENDOR = ti
 CHIP_FAMILY = tm4c123xx
 
 # For freeRTOS port source
-FREERTOS_PORT = ARM_CM4
+FREERTOS_PORT = ARM_CM4F
 
 # For flash-jlink target
 JLINK_DEVICE = LPC1769
