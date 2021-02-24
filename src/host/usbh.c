@@ -79,7 +79,7 @@ static usbh_class_driver_t const usbh_class_drivers[] =
       DRIVER_NAME("HID")
       .class_code = TUSB_CLASS_HID,
       .init       = hidh_init,
-      .open       = hidh_open_subtask,
+      .open       = hidh_open,
       .set_config = hidh_set_config,
       .xfer_cb    = hidh_xfer_cb,
       .close      = hidh_close

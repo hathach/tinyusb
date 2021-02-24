@@ -47,12 +47,12 @@ typedef struct {
 //--------------------------------------------------------------------+
 // HID Interface common functions
 //--------------------------------------------------------------------+
-static inline bool hidh_interface_open(uint8_t rhport, uint8_t dev_addr, uint8_t interface_number, tusb_desc_endpoint_t const *p_endpoint_desc, hidh_interface_t *p_hid)
+static inline bool hidh_interface_open(uint8_t rhport, uint8_t dev_addr, uint8_t interface_number, tusb_desc_endpoint_t const *desc_ep, hidh_interface_t *p_hid)
 {
-  TU_ASSERT( usbh_edpt_open(rhport, dev_addr, p_endpoint_desc) );
+  TU_ASSERT( usbh_edpt_open(rhport, dev_addr, desc_ep) );
 
-  p_hid->ep_in       = p_endpoint_desc->bEndpointAddress;
-  p_hid->report_size = p_endpoint_desc->wMaxPacketSize.size; // TODO get size from report descriptor
+  p_hid->ep_in       = desc_ep->bEndpointAddress;
+  p_hid->report_size = desc_ep->wMaxPacketSize.size; // TODO get size from report descriptor
   p_hid->itf_num     = interface_number;
   p_hid->valid       = true;
 
@@ -161,34 +161,36 @@ void hidh_init(void)
 CFG_TUSB_MEM_SECTION uint8_t report_descriptor[256];
 #endif
 
-bool hidh_open_subtask(uint8_t rhport, uint8_t dev_addr, tusb_desc_interface_t const *p_interface_desc, uint16_t *p_length)
+bool hidh_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_interface_t const *desc_itf, uint16_t *p_length)
 {
-  uint8_t const *p_desc = (uint8_t const *) p_interface_desc;
+  TU_VERIFY(TUSB_CLASS_HID == desc_itf->bInterfaceClass);
+
+  uint8_t const *p_desc = (uint8_t const *) desc_itf;
 
   //------------- HID descriptor -------------//
-  p_desc += p_desc[DESC_OFFSET_LEN];
-  tusb_hid_descriptor_hid_t const *p_desc_hid = (tusb_hid_descriptor_hid_t const *) p_desc;
-  TU_ASSERT(HID_DESC_TYPE_HID == p_desc_hid->bDescriptorType, TUSB_ERROR_INVALID_PARA);
+  p_desc = tu_desc_next(p_desc);
+  tusb_hid_descriptor_hid_t const *desc_hid = (tusb_hid_descriptor_hid_t const *) p_desc;
+  TU_ASSERT(HID_DESC_TYPE_HID == desc_hid->bDescriptorType, TUSB_ERROR_INVALID_PARA);
 
   //------------- Endpoint Descriptor -------------//
-  p_desc += p_desc[DESC_OFFSET_LEN];
-  tusb_desc_endpoint_t const * p_endpoint_desc = (tusb_desc_endpoint_t const *) p_desc;
-  TU_ASSERT(TUSB_DESC_ENDPOINT == p_endpoint_desc->bDescriptorType, TUSB_ERROR_INVALID_PARA);
+  p_desc = tu_desc_next(p_desc);
+  tusb_desc_endpoint_t const * desc_ep = (tusb_desc_endpoint_t const *) p_desc;
+  TU_ASSERT(TUSB_DESC_ENDPOINT == desc_ep->bDescriptorType, TUSB_ERROR_INVALID_PARA);
 
-  if ( HID_SUBCLASS_BOOT == p_interface_desc->bInterfaceSubClass )
+  if ( HID_SUBCLASS_BOOT == desc_itf->bInterfaceSubClass )
   {
     #if CFG_TUH_HID_KEYBOARD
-    if ( HID_PROTOCOL_KEYBOARD == p_interface_desc->bInterfaceProtocol)
+    if ( HID_PROTOCOL_KEYBOARD == desc_itf->bInterfaceProtocol)
     {
-      TU_ASSERT( hidh_interface_open(rhport, dev_addr, p_interface_desc->bInterfaceNumber, p_endpoint_desc, &keyboardh_data[dev_addr-1]) );
+      TU_ASSERT( hidh_interface_open(rhport, dev_addr, desc_itf->bInterfaceNumber, desc_ep, &keyboardh_data[dev_addr-1]) );
       TU_LOG2_HEX(keyboardh_data[dev_addr-1].ep_in);
     } else
     #endif
 
     #if CFG_TUH_HID_MOUSE
-    if ( HID_PROTOCOL_MOUSE == p_interface_desc->bInterfaceProtocol)
+    if ( HID_PROTOCOL_MOUSE == desc_itf->bInterfaceProtocol)
     {
-      TU_ASSERT ( hidh_interface_open(rhport, dev_addr, p_interface_desc->bInterfaceNumber, p_endpoint_desc, &mouseh_data[dev_addr-1]) );
+      TU_ASSERT ( hidh_interface_open(rhport, dev_addr, desc_itf->bInterfaceNumber, desc_ep, &mouseh_data[dev_addr-1]) );
       TU_LOG2_HEX(mouseh_data[dev_addr-1].ep_in);
     } else
     #endif
