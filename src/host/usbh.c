@@ -656,7 +656,7 @@ static bool enum_new_device(hcd_event_t* event)
   //------------- connected/disconnected directly with roothub -------------//
   if (dev0->hub_addr == 0)
   {
-    // wait until device is stable
+    // wait until device is stable TODO non blocking
     osal_task_delay(RESET_DELAY);
 
     // device unplugged while delaying

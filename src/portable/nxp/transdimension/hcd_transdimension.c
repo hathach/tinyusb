@@ -43,6 +43,7 @@
 
 #include "common/tusb_common.h"
 #include "common_transdimension.h"
+#include "portable/ehci/hcd_ehci.h"
 
 //--------------------------------------------------------------------+
 // MACRO CONSTANT TYPEDEF
@@ -74,9 +75,6 @@ typedef struct
     { .regs_base = LPC_USB1_BASE, .irqnum = USB1_IRQn }
   };
 #endif
-
-// TODO better prototype later
-extern bool hcd_ehci_init (uint8_t rhport); // from ehci.c
 
 //--------------------------------------------------------------------+
 // Controller API

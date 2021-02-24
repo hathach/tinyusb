@@ -37,6 +37,7 @@
 
 #include "host/hcd.h"
 #include "host/usbh_hcd.h"
+#include "hcd_ehci.h"
 #include "ehci.h"
 
 //--------------------------------------------------------------------+
@@ -48,10 +49,6 @@
 //--------------------------------------------------------------------+
 // Periodic frame list must be 4K alignment
 CFG_TUSB_MEM_SECTION TU_ATTR_ALIGNED(4096) static ehci_data_t ehci_data;
-
-// EHCI portable
-uint32_t hcd_ehci_register_addr(uint8_t rhport);
-bool hcd_ehci_init (uint8_t rhport); // TODO move later
 
 //--------------------------------------------------------------------+
 // PROTOTYPE
