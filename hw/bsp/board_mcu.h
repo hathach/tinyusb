@@ -120,6 +120,9 @@
 #elif CFG_TUSB_MCU == OPT_MCU_RP2040
   #include "pico.h"
 
+#elif CFG_TUSB_MCU == OPT_MCU_TM4C123
+  #include "TM4C123.h"
+
 #else
   #error "Missing MCU header"
 #endif
