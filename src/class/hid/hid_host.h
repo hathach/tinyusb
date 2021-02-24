@@ -47,6 +47,16 @@
 #endif
 
 //--------------------------------------------------------------------+
+// Application API (Multiple Instances)
+// CFG_TUH_HID > 1
+//--------------------------------------------------------------------+
+
+
+//--------------------------------------------------------------------+
+// Application API (Single Instance)
+//--------------------------------------------------------------------+
+
+//--------------------------------------------------------------------+
 // KEYBOARD Application API
 //--------------------------------------------------------------------+
 /** \addtogroup ClassDriver_HID_Keyboard Keyboard
@@ -63,7 +73,7 @@ extern uint8_t const hid_keycode_to_ascii_tbl[2][128]; // TODO used weak attr if
  * \retval      true if device supports Keyboard interface
  * \retval      false if device does not support Keyboard interface or is not mounted
  */
-bool tuh_hid_keyboard_is_mounted(uint8_t dev_addr);
+bool tuh_hid_keyboard_mounted(uint8_t dev_addr);
 
 /** \brief      Check if the interface is currently busy or not
  * \param[in]   dev_addr device address
@@ -128,7 +138,7 @@ void tuh_hid_keyboard_unmounted_cb(uint8_t dev_addr);
  * \retval      true if device supports Mouse interface
  * \retval      false if device does not support Mouse interface or is not mounted
  */
-bool          tuh_hid_mouse_is_mounted(uint8_t dev_addr);
+bool          tuh_hid_mouse_mounted(uint8_t dev_addr);
 
 /** \brief      Check if the interface is currently busy or not
  * \param[in]   dev_addr device address

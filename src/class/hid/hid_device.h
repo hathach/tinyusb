@@ -50,7 +50,7 @@
 #endif
 
 //--------------------------------------------------------------------+
-// Application API (Multiple Ports)
+// Application API (Multiple Instances)
 // CFG_TUD_HID > 1
 //--------------------------------------------------------------------+
 
@@ -76,7 +76,7 @@ bool tud_hid_n_mouse_report(uint8_t itf, uint8_t report_id, uint8_t buttons, int
 bool tud_hid_n_gamepad_report(uint8_t itf, uint8_t report_id, int8_t x, int8_t y, int8_t z, int8_t rz, int8_t rx, int8_t ry, uint8_t hat, uint16_t buttons);
 
 //--------------------------------------------------------------------+
-// Application API (Single Port)
+// Application API (Single Instance)
 //--------------------------------------------------------------------+
 static inline bool tud_hid_ready(void);
 static inline bool tud_hid_boot_mode(void);

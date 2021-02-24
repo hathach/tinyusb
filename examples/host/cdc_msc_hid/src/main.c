@@ -257,7 +257,7 @@ void hid_task(void)
   uint8_t const addr = 1;
 
 #if CFG_TUH_HID_KEYBOARD
-  if ( tuh_hid_keyboard_is_mounted(addr) )
+  if ( tuh_hid_keyboard_mounted(addr) )
   {
     if ( !tuh_hid_keyboard_is_busy(addr) )
     {
@@ -268,7 +268,7 @@ void hid_task(void)
 #endif
 
 #if CFG_TUH_HID_MOUSE
-  if ( tuh_hid_mouse_is_mounted(addr) )
+  if ( tuh_hid_mouse_mounted(addr) )
   {
     if ( !tuh_hid_mouse_is_busy(addr) )
     {

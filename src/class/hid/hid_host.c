@@ -113,7 +113,7 @@ tusb_error_t hidh_interface_get_report(uint8_t dev_addr, void * report, hidh_int
 static hidh_interface_t keyboardh_data[CFG_TUSB_HOST_DEVICE_MAX]; // does not have addr0, index = dev_address-1
 
 //------------- KEYBOARD PUBLIC API (parameter validation required) -------------//
-bool  tuh_hid_keyboard_is_mounted(uint8_t dev_addr)
+bool  tuh_hid_keyboard_mounted(uint8_t dev_addr)
 {
   return tuh_device_is_configured(dev_addr) && (keyboardh_data[dev_addr-1].ep_in != 0);
 }
@@ -125,7 +125,7 @@ tusb_error_t tuh_hid_keyboard_get_report(uint8_t dev_addr, void* p_report)
 
 bool tuh_hid_keyboard_is_busy(uint8_t dev_addr)
 {
-  return  tuh_hid_keyboard_is_mounted(dev_addr) && hcd_edpt_busy(dev_addr, keyboardh_data[dev_addr-1].ep_in);
+  return  tuh_hid_keyboard_mounted(dev_addr) && hcd_edpt_busy(dev_addr, keyboardh_data[dev_addr-1].ep_in);
 }
 
 #endif
@@ -138,14 +138,14 @@ bool tuh_hid_keyboard_is_busy(uint8_t dev_addr)
 static hidh_interface_t mouseh_data[CFG_TUSB_HOST_DEVICE_MAX]; // does not have addr0, index = dev_address-1
 
 //------------- Public API -------------//
-bool tuh_hid_mouse_is_mounted(uint8_t dev_addr)
+bool tuh_hid_mouse_mounted(uint8_t dev_addr)
 {
   return tuh_device_is_configured(dev_addr) && (mouseh_data[dev_addr-1].ep_in != 0);
 }
 
 bool tuh_hid_mouse_is_busy(uint8_t dev_addr)
 {
-  return  tuh_hid_mouse_is_mounted(dev_addr) && hcd_edpt_busy(dev_addr, mouseh_data[dev_addr-1].ep_in);
+  return  tuh_hid_mouse_mounted(dev_addr) && hcd_edpt_busy(dev_addr, mouseh_data[dev_addr-1].ep_in);
 }
 
 tusb_error_t tuh_hid_mouse_get_report(uint8_t dev_addr, void * report)
