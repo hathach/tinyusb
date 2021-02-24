@@ -104,8 +104,8 @@ void board_init(void)
     GPIOD->DEN   &= ~ ( (1u<<4) | (1u<<5) ); 
     GPIOD->AMSEL |=   ( (1u<<4) | (1u<<5) );
 
-    uint8_t leds = LED_PIN_RED | LED_PIN_BLUE | LED_PIN_GREEN; 
-    uint8_t dirmsk = LED_PIN_RED | LED_PIN_BLUE | LED_PIN_GREEN; 
+    uint8_t leds = (1<<LED_PIN_RED) | (1<<LED_PIN_BLUE) | (1<<LED_PIN_GREEN) ; 
+    uint8_t dirmsk = (1<<LED_PIN_RED) | (1<<LED_PIN_BLUE) | (1<<LED_PIN_GREEN) ; 
 
     /* Configure GPIO for board LED */
     initialize_board_led(LED_PORT,leds, dirmsk); 
@@ -120,7 +120,7 @@ void board_init(void)
 
 void board_led_write(bool state)
 {
-    WriteGPIOPin(LED_PORT, LED_PIN_BLUE, state); 
+    WriteGPIOPin(LED_PORT, (1<<LED_PIN_BLUE), state); 
 }
 
 uint32_t board_button_read(void)
