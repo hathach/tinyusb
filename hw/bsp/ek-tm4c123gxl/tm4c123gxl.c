@@ -1,12 +1,37 @@
 #include <TM4C123.h>
 #include <board.h>
 
+#define BOARD_UART            UART0
+#define BOARD_UART_PORT       GPIOA
+#define BOARD_BTN_PORT        GPIOF
+#define BOARD_BTN             4
+#define BOARD_BTN_Msk         (1u<<4)
 #define LED_PORT              GPIOF
 #define LED_PIN_RED           1
 #define LED_PIN_BLUE          2
 #define LED_PIN_GREEN         3
 #define LED_STATE_ON          1
 
+static void board_uart_init(void)
+{
+    SYSCTL->RCGCUART |= (1<<0);                		   // Enable the clock to UART0
+  	SYSCTL->RCGCGPIO |= (1<<0);                       // Enable the clock to GPIOA
+
+  	GPIOA->AFSEL |= (1<<1)|(1<<0);                          // Enable the alternate function on pin PA0 & PA1
+  	GPIOA->PCTL |= (1<<0)|(1<<4);                          // Configure the GPIOPCTL register to select UART0 in PA0 and PA1
+  	GPIOA->DEN |= (1<<0)|(1<<1);                          // Enable the digital functionality in PA0 and PA1
+
+	/** BAUDRATE = 9600 bits per second, refer manual for calculation **/
+
+  	UART0->CTL &= ~(1<<0);                             // Disable UART0 by clearing UARTEN bit in the UARTCTL register
+  	UART0->IBRD = 325;                                // Write the integer portion of the BRD to the UARTIRD register
+  	UART0->FBRD = 33;                                // Write the fractional portion of the BRD to the UARTFBRD registerer
+
+  	UART0->LCRH = (0x3<<5);          		        // 8-bit, no parity, 1 stop bit
+  	UART0->CC = 0x0;                               // Configure the UART clock source as system clock
+
+  	UART0->CTL = (1<<0)|(1<<8)|(1<<9);            // UART0 Enable, Transmit Enable, Recieve Enable
+}
 
 static void initialize_board_led(GPIOA_Type* port, uint8_t PinMsk, uint8_t dirmsk)
 {
@@ -23,12 +48,24 @@ static void initialize_board_led(GPIOA_Type* port, uint8_t PinMsk, uint8_t dirms
 	port->DIR = dirmsk ;
 }
 
+static void board_switch_init(void)
+{
+    GPIOF->DIR &= ~(1<<BOARD_BTN); 
+    GPIOF->PUR |=  (1<<BOARD_BTN); 
+    GPIOF->DEN |=  (1<<BOARD_BTN); 
+}
+
 static void WriteGPIOPin(GPIOA_Type* port, uint8_t PinMsk, bool state)
 {
     if(state)
         port->DATA |= PinMsk; 
     else
         port->DATA &= ~(PinMsk);
+}
+
+static uint32_t ReadGPIOPin(GPIOA_Type *port, uint8_t pinMsk)
+{
+    return (port -> DATA & pinMsk) ;
 }
 
 void board_init(void)
@@ -70,13 +107,38 @@ void board_init(void)
     uint8_t leds = LED_PIN_RED | LED_PIN_BLUE | LED_PIN_GREEN; 
     uint8_t dirmsk = LED_PIN_RED | LED_PIN_BLUE | LED_PIN_GREEN; 
 
+    /* Configure GPIO for board LED */
     initialize_board_led(LED_PORT,leds, dirmsk); 
+
+    /* Configure GPIO for board switch */
+    board_switch_init(); 
+
+    /* Initialize board UART */
+    board_uart_init(); 
 
 }
 
 void board_led_write(bool state)
 {
     WriteGPIOPin(LED_PORT, LED_PIN_BLUE, state); 
+}
+
+uint32_t board_button_read(void)
+{
+    return ReadGPIOPin(BOARD_BTN_PORT, BOARD_BTN_Msk);
+}
+
+int board_uart_write(void const* buf, int len)
+{
+    uint8_t const* data = buf; 
+
+    for(int i=0; i<len; i++)
+    {
+        while((UART0->FR &(1<<5)) != 0);                 // Poll until previous data was shofted out
+        UART0->DR= data[i];                                   // Write UART0 DATA REGISTER 
+    }
+
+    return len;
 }
 
 #if CFG_TUSB_OS == OPT_OS_NONE
