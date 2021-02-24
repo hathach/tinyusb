@@ -7,6 +7,7 @@ CFLAGS += \
   -mfpu=fpv4-sp-d16 \
   -nostdlib \
   -DCFG_TUSB_MCU=OPT_MCU_TM4C123 \
+  -uvectors \
   -DTM4C123GH6PM
   
 # lpc_types.h cause following errors
