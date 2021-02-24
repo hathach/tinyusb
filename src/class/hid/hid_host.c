@@ -35,13 +35,40 @@
 // MACRO CONSTANT TYPEDEF
 //--------------------------------------------------------------------+
 
+/*  "KEYBOARD"               : in_len=8 , out_len=1, usage_page=0x01, usage=0x06   # Generic Desktop, Keyboard
+    "MOUSE"                  : in_len=4 , out_len=0, usage_page=0x01, usage=0x02   # Generic Desktop, Mouse
+    "CONSUMER"               : in_len=2 , out_len=0, usage_page=0x0C, usage=0x01   # Consumer, Consumer Control
+    "SYS_CONTROL"            : in_len=1 , out_len=0, usage_page=0x01, usage=0x80   # Generic Desktop, Sys Control
+    "GAMEPAD"                : in_len=6 , out_len=0, usage_page=0x01, usage=0x05   # Generic Desktop, Game Pad
+    "DIGITIZER"              : in_len=5 , out_len=0, usage_page=0x0D, usage=0x02   # Digitizers, Pen
+    "XAC_COMPATIBLE_GAMEPAD" : in_len=3 , out_len=0, usage_page=0x01, usage=0x05   # Generic Desktop, Game Pad
+    "RAW"                    : in_len=64, out_len=0, usage_page=0xFFAF, usage=0xAF # Vendor 0xFFAF "Adafruit", 0xAF
+ */
 typedef struct {
-  uint8_t  itf_num;
-  uint8_t  ep_in;
-  uint8_t  ep_out;
-  bool     valid;
+  uint8_t itf_num;
+  uint8_t ep_in;
+  uint8_t ep_out;
 
-  uint16_t report_size;
+  bool     valid;
+  uint16_t report_size;  // TODO remove later
+
+  uint8_t boot_protocol; // None, Keyboard, Mouse
+  bool    boot_mode;     // Boot or Report protocol
+  uint8_t report_count;  // Number of reports
+
+  struct {
+    uint8_t in_len;      // length of IN report
+    uint8_t out_len;     // length of OUT report
+    uint8_t usage_page;
+    uint8_t usage;
+  }reports[CFG_TUH_HID_MAX_REPORT];
+
+  // Parsed Report ID for convenient API
+  uint8_t report_id_keyboard;
+  uint8_t reprot_id_mouse;
+  uint8_t report_id_gamepad;
+  uint8_t report_id_consumer;
+  uint8_t report_id_vendor;
 }hidh_interface_t;
 
 //--------------------------------------------------------------------+
@@ -51,9 +78,9 @@ static inline bool hidh_interface_open(uint8_t rhport, uint8_t dev_addr, uint8_t
 {
   TU_ASSERT( usbh_edpt_open(rhport, dev_addr, desc_ep) );
 
+  p_hid->itf_num     = interface_number;
   p_hid->ep_in       = desc_ep->bEndpointAddress;
   p_hid->report_size = desc_ep->wMaxPacketSize.size; // TODO get size from report descriptor
-  p_hid->itf_num     = interface_number;
   p_hid->valid       = true;
 
   return true;
@@ -170,12 +197,12 @@ bool hidh_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_interface_t const *de
   //------------- HID descriptor -------------//
   p_desc = tu_desc_next(p_desc);
   tusb_hid_descriptor_hid_t const *desc_hid = (tusb_hid_descriptor_hid_t const *) p_desc;
-  TU_ASSERT(HID_DESC_TYPE_HID == desc_hid->bDescriptorType, TUSB_ERROR_INVALID_PARA);
+  TU_ASSERT(HID_DESC_TYPE_HID == desc_hid->bDescriptorType);
 
   //------------- Endpoint Descriptor -------------//
   p_desc = tu_desc_next(p_desc);
   tusb_desc_endpoint_t const * desc_ep = (tusb_desc_endpoint_t const *) p_desc;
-  TU_ASSERT(TUSB_DESC_ENDPOINT == desc_ep->bDescriptorType, TUSB_ERROR_INVALID_PARA);
+  TU_ASSERT(TUSB_DESC_ENDPOINT == desc_ep->bDescriptorType);
 
   if ( HID_SUBCLASS_BOOT == desc_itf->bInterfaceSubClass )
   {

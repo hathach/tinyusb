@@ -39,6 +39,14 @@
 #endif
 
 //--------------------------------------------------------------------+
+// Class Driver Configuration
+//--------------------------------------------------------------------+
+
+#ifndef CFG_TUH_HID_MAX_REPORT
+#define CFG_TUH_HID_MAX_REPORT 8
+#endif
+
+//--------------------------------------------------------------------+
 // KEYBOARD Application API
 //--------------------------------------------------------------------+
 /** \addtogroup ClassDriver_HID_Keyboard Keyboard
