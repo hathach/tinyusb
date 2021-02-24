@@ -152,6 +152,7 @@ void dcd_init(uint8_t rhport)
   (void)rhport;
   /* Apply D+/D- Terminations */ 
     USB0->POWER |= (1<<6); 
+
 }
 
 void dcd_int_enable(uint8_t rhport)
