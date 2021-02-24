@@ -172,25 +172,11 @@ void board_init(void)
    */
 #if CFG_TUSB_RHPORT0_MODE
   Chip_USB0_Init();
-
-  // Reset controller
-  LPC_USB0->USBCMD_D |= 0x02;
-  while( LPC_USB0->USBCMD_D & 0x02 ) {}
-
-  // Set mode
-  #if CFG_TUSB_RHPORT0_MODE & OPT_MODE_HOST
-    LPC_USB0->USBMODE_H = USBMODE_HOST | (USBMODE_VBUS_HIGH << 5);
-
-    LPC_USB0->PORTSC1_D |= (1<<24); // FIXME force full speed for debugging
-  #else // TODO OTG
-    LPC_USB0->USBMODE_D = USBMODE_DEVICE;
-    LPC_USB0->OTGSC = (1<<3) | (1<<0) /*| (1<<16)| (1<<24)| (1<<25)| (1<<26)| (1<<27)| (1<<28)| (1<<29)| (1<<30)*/;
-  #endif
 #endif
 
-  /* USB1
+  /* From EA4357 user manual
    *
-   * For USB Device:
+   * For USB1 Device:
    * - a 1.5Kohm pull-up resistor is needed on the USB DP data signal. There are two methods to create this.
    * JP15 is inserted and the pull-up resistor is always enabled. Alternatively, the pull-up resistor is activated
    * inside the USB OTG chip (U31), and this has to be done via the I2C interface of GPIO52/GPIO53. In the latter case,
@@ -200,7 +186,7 @@ void board_init(void)
    * of VBUS can be read via U31.
    * - JP16 shall not be inserted.
    *
-   * For USB Host:
+   * For USB1 Host:
    * - 15Kohm pull-down resistors are needed on the USB data signals. These are activated inside the USB OTG chip (U31),
    * and this has to be done via the I2C interface of GPIO52/GPIO53.
    * - J20 is the connector to use when USB Host is used. In order to provide +5V to the external USB
@@ -211,20 +197,6 @@ void board_init(void)
    */
 #if CFG_TUSB_RHPORT1_MODE
   Chip_USB1_Init();
-
-//  // Reset controller
-//  LPC_USB1->USBCMD_D |= 0x02;
-//  while( LPC_USB1->USBCMD_D & 0x02 ) {}
-//
-//  // Set mode
-//  #if CFG_TUSB_RHPORT1_MODE & OPT_MODE_HOST
-//    LPC_USB1->USBMODE_H = USBMODE_HOST | (USBMODE_VBUS_HIGH << 5);
-//  #else // TODO OTG
-//    LPC_USB1->USBMODE_D = USBMODE_DEVICE;
-//  #endif
-//
-//  // USB1 as fullspeed
-//  LPC_USB1->PORTSC1_D |= (1<<24);
 #endif
 
   // USB0 Vbus Power: P2_3 on EA4357 channel B U20 GPIO26 active low (base board)
