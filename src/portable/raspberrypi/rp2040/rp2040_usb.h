@@ -71,13 +71,6 @@ struct hw_endpoint
     uint len;
     // Amount of data with the hardware
     uint transfer_size;
-#ifdef RP2040_USB_HOST_MODE
-    // Only needed for host mode
-    bool last_buf;
-    // HOST BUG. Host will incorrect write status to top half of buffer
-    // control register when doing transfers > 1 packet
-    uint8_t buf_sel;
-#endif
     // User buffer in main memory
     uint8_t *user_buf;
 
@@ -87,6 +80,11 @@ struct hw_endpoint
     uint8_t transfer_type;
     
 #ifdef RP2040_USB_HOST_MODE
+    // Only needed for host mode
+    bool last_buf;
+    // HOST BUG. Host will incorrect write status to top half of buffer
+    // control register when doing transfers > 1 packet
+    uint8_t buf_sel;
     // Only needed for host
     uint8_t dev_addr;
     bool sent_setup;
