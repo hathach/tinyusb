@@ -64,7 +64,7 @@ static struct hw_endpoint *hw_endpoint_get_by_addr(uint8_t ep_addr)
 }
 static void _hw_endpoint_alloc(struct hw_endpoint *ep)
 {
-    uint16_t size = TU_MIN(64, ep->wMaxPacketSize);
+    uint16_t size = tu_min16(64, ep->wMaxPacketSize);
 
     // Assumes single buffered for now
     ep->hw_data_buf = next_buffer_ptr;
