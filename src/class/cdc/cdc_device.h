@@ -133,6 +133,9 @@ static inline bool     tud_cdc_write_clear     (void);
 // Invoked when received new data
 TU_ATTR_WEAK void tud_cdc_rx_cb(uint8_t itf);
 
+// Invoked when received send break
+TU_ATTR_WEAK void tud_cdc_send_break_cb(uint8_t itf, uint16_t wait_ms);
+
 // Invoked when received `wanted_char`
 TU_ATTR_WEAK void tud_cdc_rx_wanted_cb(uint8_t itf, char wanted_char);
 
