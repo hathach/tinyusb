@@ -329,6 +329,7 @@ bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t *buffer, uint16_t to
   {
     if (total_bytes == 0)
     {
+      usbdcd_driver.setup_processed = true;
       dcd_event_xfer_complete(0, ep_addr, 0, XFER_RESULT_SUCCESS, false);
     }
     else if (ep_addr == 0x00 && total_bytes == usbdcd_driver.outlen)
@@ -350,12 +351,15 @@ bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t *buffer, uint16_t to
       }
     }
 
-    usbdcd_driver.setup_processed = true;
     struct usb_ctrlreq_s ctrl;
 
-    if (osal_queue_receive(usbdcd_driver.setup_queue, &ctrl))
+    if (usbdcd_driver.setup_processed)
     {
-      dcd_event_setup_received(0, (uint8_t *)&ctrl, false);
+      if (osal_queue_receive(usbdcd_driver.setup_queue, &ctrl))
+      {
+        usbdcd_driver.setup_processed = false;
+        dcd_event_setup_received(0, (uint8_t *)&ctrl, false);
+      }
     }
   }
   else

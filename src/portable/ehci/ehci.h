@@ -33,8 +33,6 @@
 #ifndef _TUSB_EHCI_H_
 #define _TUSB_EHCI_H_
 
-#include "common/tusb_common.h"
-#include "../hcd.h"
 
 /* Abbreviation
  * HC: Host Controller

@@ -169,20 +169,6 @@ void board_init(void)
    */
 #if CFG_TUSB_RHPORT0_MODE
   Chip_USB0_Init();
-
-//  // Reset controller
-//  LPC_USB0->USBCMD_D |= 0x02;
-//  while( LPC_USB0->USBCMD_D & 0x02 ) {}
-//
-//  // Set mode
-//  #if CFG_TUSB_RHPORT0_MODE & OPT_MODE_HOST
-//    LPC_USB0->USBMODE_H = USBMODE_HOST | (USBMODE_VBUS_HIGH << 5);
-//
-//    LPC_USB0->PORTSC1_D |= (1<<24); // FIXME force full speed for debugging
-//  #else // TODO OTG
-//    LPC_USB0->USBMODE_D = USBMODE_DEVICE;
-//    LPC_USB0->OTGSC = (1<<3) | (1<<0) /*| (1<<16)| (1<<24)| (1<<25)| (1<<26)| (1<<27)| (1<<28)| (1<<29)| (1<<30)*/;
-//  #endif
 #endif
 
   /* USB1
@@ -205,20 +191,6 @@ void board_init(void)
    */
 #if CFG_TUSB_RHPORT1_MODE
   Chip_USB1_Init();
-
-//  // Reset controller
-//  LPC_USB1->USBCMD_D |= 0x02;
-//  while( LPC_USB1->USBCMD_D & 0x02 ) {}
-//
-//  // Set mode
-//  #if CFG_TUSB_RHPORT1_MODE & OPT_MODE_HOST
-//    LPC_USB1->USBMODE_H = USBMODE_HOST | (USBMODE_VBUS_HIGH << 5);
-//  #else // TODO OTG
-//    LPC_USB1->USBMODE_D = USBMODE_DEVICE;
-//  #endif
-//
-//  // USB1 as fullspeed
-//  LPC_USB1->PORTSC1_D |= (1<<24);
 
 //	Chip_GPIO_SetPinDIROutput(LPC_GPIO_PORT, 5, 6);							/* GPIO5[6] = USB1_PWR_EN */
 //	Chip_GPIO_SetPinState(LPC_GPIO_PORT, 5, 6, true);							/* GPIO5[6] output high */

@@ -67,15 +67,15 @@ struct hw_endpoint
 
     // Current transfer information
     bool active;
-    uint total_len;
-    uint len;
+    uint16_t total_len;
+    uint16_t len;
     // Amount of data with the hardware
-    uint transfer_size;
+    uint16_t transfer_size;
     // User buffer in main memory
     uint8_t *user_buf;
 
     // Data needed from EP descriptor
-    uint wMaxPacketSize;
+    uint16_t wMaxPacketSize;
     // Interrupt, bulk, etc
     uint8_t transfer_type;
     

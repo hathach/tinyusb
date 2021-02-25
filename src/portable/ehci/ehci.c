@@ -26,14 +26,17 @@
 
 #include "common/tusb_common.h"
 
-#if TUSB_OPT_HOST_ENABLED && (CFG_TUSB_MCU == OPT_MCU_LPC43XX || CFG_TUSB_MCU == OPT_MCU_LPC18XX)
+#if TUSB_OPT_HOST_ENABLED && \
+   (CFG_TUSB_MCU == OPT_MCU_LPC43XX || CFG_TUSB_MCU == OPT_MCU_LPC18XX || \
+    CFG_TUSB_MCU == OPT_MCU_MIMXRT10XX )
+
 //--------------------------------------------------------------------+
 // INCLUDE
 //--------------------------------------------------------------------+
 #include "osal/osal.h"
 
-#include "../hcd.h"
-#include "../usbh_hcd.h"
+#include "host/hcd.h"
+#include "host/usbh_hcd.h"
 #include "ehci.h"
 
 //--------------------------------------------------------------------+
@@ -48,6 +51,7 @@ CFG_TUSB_MEM_SECTION TU_ATTR_ALIGNED(4096) static ehci_data_t ehci_data;
 
 // EHCI portable
 uint32_t hcd_ehci_register_addr(uint8_t rhport);
+bool hcd_ehci_init (uint8_t rhport); // TODO move later
 
 //--------------------------------------------------------------------+
 // PROTOTYPE
@@ -97,16 +101,9 @@ static void qtd_init (ehci_qtd_t* p_qtd, void* buffer, uint16_t total_bytes);
 static inline void list_insert (ehci_link_t *current, ehci_link_t *new, uint8_t new_type);
 static inline ehci_link_t* list_next (ehci_link_t *p_link_pointer);
 
-static bool ehci_init (uint8_t rhport);
-
 //--------------------------------------------------------------------+
 // HCD API
 //--------------------------------------------------------------------+
-bool hcd_init(void)
-{
-  tu_memclr(&ehci_data, sizeof(ehci_data_t));
-  return ehci_init(TUH_OPT_RHPORT);
-}
 
 uint32_t hcd_uframe_number(uint8_t rhport)
 {
@@ -203,8 +200,10 @@ void hcd_device_close(uint8_t rhport, uint8_t dev_addr)
 }
 
 // EHCI controller init
-static bool ehci_init(uint8_t rhport)
+bool hcd_ehci_init(uint8_t rhport)
 {
+  tu_memclr(&ehci_data, sizeof(ehci_data_t));
+
   ehci_data.regs = (ehci_registers_t* ) hcd_ehci_register_addr(rhport);
 
   ehci_registers_t* regs = ehci_data.regs;
