@@ -363,9 +363,10 @@ static void hw_endpoint_init(uint8_t dev_addr, const tusb_desc_endpoint_t *ep_de
 //--------------------------------------------------------------------+
 // HCD API
 //--------------------------------------------------------------------+
-bool hcd_init(void)
+bool hcd_init(uint8_t rhport)
 {
-    pico_trace("hcd_init\n");
+    pico_trace("hcd_init %d\n", rhport);
+    assert(rhport == 0);
 
     // Reset any previous state
     rp2040_usb_init();
