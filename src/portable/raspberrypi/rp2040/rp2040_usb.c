@@ -43,10 +43,12 @@ static inline void _hw_endpoint_lock_update(struct hw_endpoint *ep, int delta) {
     //  sense to have worker and IRQ on same core, however I think using critsec is about equivalent.
 }
 
+#ifdef RP2040_USB_HOST_MODE
 static inline void _hw_endpoint_update_last_buf(struct hw_endpoint *ep)
 {
     ep->last_buf = ep->len + ep->transfer_size == ep->total_len;
 }
+#endif
 
 void rp2040_usb_init(void)
 {
@@ -67,7 +69,9 @@ void hw_endpoint_reset_transfer(struct hw_endpoint *ep)
 {
     ep->stalled = false;
     ep->active = false;
+#ifdef RP2040_USB_HOST_MODE
     ep->sent_setup = false;
+#endif
     ep->total_len = 0;
     ep->len = 0;
     ep->transfer_size = 0;
@@ -121,6 +125,7 @@ void _hw_endpoint_start_next_buffer(struct hw_endpoint *ep)
     val |= ep->next_pid ? USB_BUF_CTRL_DATA1_PID : USB_BUF_CTRL_DATA0_PID;
     ep->next_pid ^= 1u;
 
+#ifdef RP2040_USB_HOST_MODE
     // Is this the last buffer? Only really matters for host mode. Will trigger
     // the trans complete irq but also stop it polling. We only really care about
     // trans complete for setup packets being sent
@@ -129,6 +134,7 @@ void _hw_endpoint_start_next_buffer(struct hw_endpoint *ep)
         pico_trace("Last buf (%d bytes left)\n", ep->transfer_size);
         val |= USB_BUF_CTRL_LAST;
     }
+#endif
 
     // Finally, write to buffer_control which will trigger the transfer
     // the next time the controller polls this dpram address
@@ -155,9 +161,11 @@ void _hw_endpoint_xfer_start(struct hw_endpoint *ep, uint8_t *buffer, uint16_t t
     ep->transfer_size = tu_min16(total_len, ep->wMaxPacketSize);
     ep->active = true;
     ep->user_buf = buffer;
+#ifdef RP2040_USB_HOST_MODE
     // Recalculate if this is the last buffer
     _hw_endpoint_update_last_buf(ep);
     ep->buf_sel = 0;
+#endif
 
     _hw_endpoint_start_next_buffer(ep);
     _hw_endpoint_lock_update(ep, -1);
@@ -231,7 +239,9 @@ bool _hw_endpoint_xfer_continue(struct hw_endpoint *ep)
     // Now we have synced our state with the hardware. Is there more data to transfer?
     uint16_t remaining_bytes = ep->total_len - ep->len;
     ep->transfer_size = tu_min16(remaining_bytes, ep->wMaxPacketSize);
+#ifdef RP2040_USB_HOST_MODE
     _hw_endpoint_update_last_buf(ep);
+#endif
 
     // Can happen because of programmer error so check for it
     if (ep->len > ep->total_len)
