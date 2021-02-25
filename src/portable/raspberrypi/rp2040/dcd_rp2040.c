@@ -48,8 +48,8 @@
 // Init these in dcd_init
 static uint8_t *next_buffer_ptr;
 
-// Endpoints 0-15, direction TUSB_DIR_OUT for out and TUSB_DIR_IN for in.
-static struct hw_endpoint hw_endpoints[16][2] = {0};
+// USB_MAX_ENDPOINTS Endpoints, direction TUSB_DIR_OUT for out and TUSB_DIR_IN for in.
+static struct hw_endpoint hw_endpoints[USB_MAX_ENDPOINTS][2] = {0};
 
 static inline struct hw_endpoint *hw_endpoint_get_by_num(uint8_t num, tusb_dir_t dir)
 {
@@ -65,7 +65,7 @@ static struct hw_endpoint *hw_endpoint_get_by_addr(uint8_t ep_addr)
 
 static void _hw_endpoint_alloc(struct hw_endpoint *ep)
 {
-    uint size = TU_MIN(64, ep->wMaxPacketSize);
+    uint16_t size = tu_min16(64, ep->wMaxPacketSize);
 
     // Assumes single buffered for now
     ep->hw_data_buf = next_buffer_ptr;
@@ -100,7 +100,7 @@ static void _hw_endpoint_alloc(struct hw_endpoint *ep)
     *ep->endpoint_control = reg;
 }
 
-static void _hw_endpoint_init(struct hw_endpoint *ep, uint8_t ep_addr, uint wMaxPacketSize, uint8_t transfer_type)
+static void _hw_endpoint_init(struct hw_endpoint *ep, uint8_t ep_addr, uint16_t wMaxPacketSize, uint8_t transfer_type)
 {
     uint8_t num = tu_edpt_number(ep_addr);
     tusb_dir_t dir = tu_edpt_dir(ep_addr);
@@ -193,7 +193,7 @@ static void hw_endpoint_close(uint8_t ep_addr)
 }
 #endif
 
-static void hw_endpoint_init(uint8_t ep_addr, uint wMaxPacketSize, uint8_t bmAttributes)
+static void hw_endpoint_init(uint8_t ep_addr, uint16_t wMaxPacketSize, uint8_t bmAttributes)
 {
     struct hw_endpoint *ep = hw_endpoint_get_by_addr(ep_addr);
     _hw_endpoint_init(ep, ep_addr, wMaxPacketSize, bmAttributes);

@@ -197,7 +197,7 @@ bool tuh_init(void)
     usbh_class_drivers[drv_id].init();
   }
 
-  TU_ASSERT(hcd_init());
+  TU_ASSERT(hcd_init(TUH_OPT_RHPORT));
   hcd_int_enable(TUH_OPT_RHPORT);
 
   return true;
