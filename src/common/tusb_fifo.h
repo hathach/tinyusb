@@ -53,7 +53,6 @@ extern "C" {
 #endif
 
 #if CFG_FIFO_MUTEX
-#include "osal/osal.h"
 #define tu_fifo_mutex_t  osal_mutex_t
 #endif
 
