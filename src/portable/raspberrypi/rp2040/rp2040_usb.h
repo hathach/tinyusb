@@ -42,10 +42,6 @@ struct hw_endpoint
 {
     // Is this a valid struct
     bool configured;
-    // EP direction
-    bool in;
-    // EP num (not including direction)
-    uint8_t num;
     
     // Transfer direction (i.e. IN is rx for host but tx for device)
     // allows us to common up transfer functions

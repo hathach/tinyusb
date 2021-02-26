@@ -48,20 +48,21 @@
 // Init these in dcd_init
 static uint8_t *next_buffer_ptr;
 
-// USB_MAX_ENDPOINTS Endpoints, direction 0 for out and 1 for in.
+// USB_MAX_ENDPOINTS Endpoints, direction TUSB_DIR_OUT for out and TUSB_DIR_IN for in.
 static struct hw_endpoint hw_endpoints[USB_MAX_ENDPOINTS][2] = {0};
 
-static inline struct hw_endpoint *hw_endpoint_get_by_num(uint8_t num, uint8_t in)
+static inline struct hw_endpoint *hw_endpoint_get_by_num(uint8_t num, tusb_dir_t dir)
 {
-    return &hw_endpoints[num][in];
+    return &hw_endpoints[num][dir];
 }
 
 static struct hw_endpoint *hw_endpoint_get_by_addr(uint8_t ep_addr)
 {
     uint8_t num = tu_edpt_number(ep_addr);
-    uint8_t in = (ep_addr & TUSB_DIR_IN_MASK) ? 1 : 0;
-    return hw_endpoint_get_by_num(num, in);
+    tusb_dir_t dir = tu_edpt_dir(ep_addr);
+    return hw_endpoint_get_by_num(num, dir);
 }
+
 static void _hw_endpoint_alloc(struct hw_endpoint *ep)
 {
     uint16_t size = tu_min16(64, ep->wMaxPacketSize);
@@ -101,13 +102,11 @@ static void _hw_endpoint_alloc(struct hw_endpoint *ep)
 
 static void _hw_endpoint_init(struct hw_endpoint *ep, uint8_t ep_addr, uint16_t wMaxPacketSize, uint8_t transfer_type)
 {
-    uint8_t num = tu_edpt_number(ep_addr);
-    bool in = ep_addr & TUSB_DIR_IN_MASK;
+    const uint8_t num = tu_edpt_number(ep_addr);
+    const tusb_dir_t dir = tu_edpt_dir(ep_addr);
     ep->ep_addr = ep_addr;
-    ep->in = in;
     // For device, IN is a tx transfer and OUT is an rx transfer
-    ep->rx = in == false;
-    ep->num = num;
+    ep->rx = (dir == TUSB_DIR_OUT);
     // Response to a setup packet on EP0 starts with pid of 1
     ep->next_pid = num == 0 ? 1u : 0u;
 
@@ -131,7 +130,7 @@ static void _hw_endpoint_init(struct hw_endpoint *ep, uint8_t ep_addr, uint16_t 
     ep->transfer_type = transfer_type;
 
     // Every endpoint has a buffer control register in dpram
-    if (ep->in)
+    if (dir == TUSB_DIR_IN)
     {
         ep->buffer_control = &usb_dpram->ep_buf_ctrl[num].in;
     }
@@ -143,7 +142,7 @@ static void _hw_endpoint_init(struct hw_endpoint *ep, uint8_t ep_addr, uint16_t 
     // Clear existing buffer control state
     *ep->buffer_control = 0;
 
-    if (ep->num == 0)
+    if (num == 0)
     {
         // EP0 has no endpoint control register because
         // the buffer offsets are fixed
@@ -155,7 +154,7 @@ static void _hw_endpoint_init(struct hw_endpoint *ep, uint8_t ep_addr, uint16_t 
     else
     {
         // Set the endpoint control register (starts at EP1, hence num-1)
-        if (in)
+        if (dir == TUSB_DIR_IN)
         {
             ep->endpoint_control = &usb_dpram->ep_ctrl[num-1].in;
         }
@@ -259,10 +258,10 @@ static void ep0_0len_status(void)
 static void _hw_endpoint_stall(struct hw_endpoint *ep)
 {
     assert(!ep->stalled);
-    if (ep->num == 0)
+    if (tu_edpt_number(ep->ep_addr) == 0)
     {
         // A stall on EP0 has to be armed so it can be cleared on the next setup packet
-        usb_hw_set->ep_stall_arm = ep->in ? USB_EP_STALL_ARM_EP0_IN_BITS : USB_EP_STALL_ARM_EP0_OUT_BITS;
+        usb_hw_set->ep_stall_arm = (tu_edpt_dir(ep->ep_addr) == TUSB_DIR_IN) ? USB_EP_STALL_ARM_EP0_IN_BITS : USB_EP_STALL_ARM_EP0_OUT_BITS;
     }
     _hw_endpoint_buffer_control_set_mask32(ep, USB_BUF_CTRL_STALL);
     ep->stalled = true;
@@ -276,10 +275,10 @@ static void hw_endpoint_stall(uint8_t ep_addr)
 
 static void _hw_endpoint_clear_stall(struct hw_endpoint *ep)
 {
-    if (ep->num == 0)
+    if (tu_edpt_number(ep->ep_addr) == 0)
     {
         // Probably already been cleared but no harm
-        usb_hw_clear->ep_stall_arm = ep->in ? USB_EP_STALL_ARM_EP0_IN_BITS : USB_EP_STALL_ARM_EP0_OUT_BITS;
+        usb_hw_clear->ep_stall_arm = (tu_edpt_dir(ep->ep_addr) == TUSB_DIR_IN) ? USB_EP_STALL_ARM_EP0_IN_BITS : USB_EP_STALL_ARM_EP0_OUT_BITS;
     }
     _hw_endpoint_buffer_control_clear_mask32(ep, USB_BUF_CTRL_STALL);
     ep->stalled = false;

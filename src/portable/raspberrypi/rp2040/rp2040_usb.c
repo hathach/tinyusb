@@ -87,7 +87,7 @@ void _hw_endpoint_buffer_control_update32(struct hw_endpoint *ep, uint32_t and_m
         value |= or_mask;
         if (or_mask & USB_BUF_CTRL_AVAIL) {
             if (*ep->buffer_control & USB_BUF_CTRL_AVAIL) {
-                panic("ep %d %s was already available", ep->num, ep_dir_string[ep->in]);
+                panic("ep %d %s was already available", tu_edpt_number(ep->ep_addr), ep_dir_string[tu_edpt_dir(ep->ep_addr)]);
             }
             *ep->buffer_control = value & ~USB_BUF_CTRL_AVAIL;
             // 12 cycle delay.. (should be good for 48*12Mhz = 576Mhz)
@@ -146,11 +146,11 @@ void _hw_endpoint_start_next_buffer(struct hw_endpoint *ep)
 void _hw_endpoint_xfer_start(struct hw_endpoint *ep, uint8_t *buffer, uint16_t total_len)
 {
     _hw_endpoint_lock_update(ep, 1);
-    pico_trace("Start transfer of total len %d on ep %d %s\n", total_len, ep->num, ep_dir_string[ep->in]);
+    pico_trace("Start transfer of total len %d on ep %d %s\n", total_len, tu_edpt_number(ep->ep_addr), ep_dir_string[tu_edpt_dir(ep->ep_addr)]);
     if (ep->active)
     {
         // TODO: Is this acceptable for interrupt packets?
-        pico_warn("WARN: starting new transfer on already active ep %d %s\n", ep->num, ep_dir_string[ep->in]);
+        pico_warn("WARN: starting new transfer on already active ep %d %s\n", tu_edpt_number(ep->ep_addr), ep_dir_string[tu_edpt_dir(ep->ep_addr)]);
 
         hw_endpoint_reset_transfer(ep);
     }
@@ -230,7 +230,7 @@ bool _hw_endpoint_xfer_continue(struct hw_endpoint *ep)
     // Part way through a transfer
     if (!ep->active)
     {
-        panic("Can't continue xfer on inactive ep %d %s", ep->num, ep_dir_string);
+        panic("Can't continue xfer on inactive ep %d %s", tu_edpt_number(ep->ep_addr), ep_dir_string);
     }
 
     // Update EP struct from hardware state
@@ -253,7 +253,7 @@ bool _hw_endpoint_xfer_continue(struct hw_endpoint *ep)
     if (ep->len == ep->total_len)
     {
         pico_trace("Completed transfer of %d bytes on ep %d %s\n",
-                   ep->len, ep->num, ep_dir_string[ep->in]);
+                   ep->len, tu_edpt_number(ep->ep_addr), ep_dir_string[tu_edpt_dir(ep->ep_addr)]);
         // Notify caller we are done so it can notify the tinyusb
         // stack
         _hw_endpoint_lock_update(ep, -1);
@@ -272,7 +272,7 @@ bool _hw_endpoint_xfer_continue(struct hw_endpoint *ep)
 void _hw_endpoint_xfer(struct hw_endpoint *ep, uint8_t *buffer, uint16_t total_len, bool start)
 {
     // Trace
-    pico_trace("hw_endpoint_xfer ep %d %s", ep->num, ep_dir_string[ep->in]);
+    pico_trace("hw_endpoint_xfer ep %d %s", tu_edpt_number(ep->ep_addr), ep_dir_string[tu_edpt_dir(ep->ep_addr)]);
     pico_trace(" total_len %d, start=%d\n", total_len, start);
 
     assert(ep->configured);
