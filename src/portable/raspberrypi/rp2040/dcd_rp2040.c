@@ -102,8 +102,8 @@ static void _hw_endpoint_alloc(struct hw_endpoint *ep)
 
 static void _hw_endpoint_init(struct hw_endpoint *ep, uint8_t ep_addr, uint16_t wMaxPacketSize, uint8_t transfer_type)
 {
-    uint8_t num = tu_edpt_number(ep_addr);
-    tusb_dir_t dir = tu_edpt_dir(ep_addr);
+    const uint8_t num = tu_edpt_number(ep_addr);
+    const tusb_dir_t dir = tu_edpt_dir(ep_addr);
     ep->ep_addr = ep_addr;
     // For device, IN is a tx transfer and OUT is an rx transfer
     ep->rx = (dir == TUSB_DIR_OUT);
@@ -130,7 +130,7 @@ static void _hw_endpoint_init(struct hw_endpoint *ep, uint8_t ep_addr, uint16_t 
     ep->transfer_type = transfer_type;
 
     // Every endpoint has a buffer control register in dpram
-    if (tu_edpt_dir(ep->ep_addr) == TUSB_DIR_IN)
+    if (dir == TUSB_DIR_IN)
     {
         ep->buffer_control = &usb_dpram->ep_buf_ctrl[num].in;
     }
@@ -142,7 +142,7 @@ static void _hw_endpoint_init(struct hw_endpoint *ep, uint8_t ep_addr, uint16_t 
     // Clear existing buffer control state
     *ep->buffer_control = 0;
 
-    if (tu_edpt_number(ep->ep_addr) == 0)
+    if (num == 0)
     {
         // EP0 has no endpoint control register because
         // the buffer offsets are fixed
