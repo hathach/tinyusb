@@ -16,7 +16,7 @@ set(SRC_TINYUSB
 	${TOP}/src/host/hub.c
 	${TOP}/src/host/usbh.c
 	${TOP}/src/host/usbh_control.c
-  ${TOP}/src/class/cdc/cdc_host.c
+	${TOP}/src/class/cdc/cdc_host.c
 	${TOP}/src/class/hid/hid_host.c
 	${TOP}/src/class/msc/msc_host.c
 	${TOP}/src/portable/raspberrypi/${FAMILY}/rp2040_usb.c
