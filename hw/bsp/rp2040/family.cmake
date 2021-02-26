@@ -13,8 +13,15 @@ set(SRC_TINYUSB
 	${TOP}/src/class/net/net_device.c
 	${TOP}/src/class/usbtmc/usbtmc_device.c
 	${TOP}/src/class/vendor/vendor_device.c
-	${TOP}/src/portable/raspberrypi/${FAMILY}/dcd_rp2040.c
+	${TOP}/src/host/hub.c
+	${TOP}/src/host/usbh.c
+	${TOP}/src/host/usbh_control.c
+  ${TOP}/src/class/cdc/cdc_host.c
+	${TOP}/src/class/hid/hid_host.c
+	${TOP}/src/class/msc/msc_host.c
 	${TOP}/src/portable/raspberrypi/${FAMILY}/rp2040_usb.c
+	${TOP}/src/portable/raspberrypi/${FAMILY}/dcd_rp2040.c
+	${TOP}/src/portable/raspberrypi/${FAMILY}/hcd_rp2040.c
 )
 
 target_sources(${PROJECT} PUBLIC
