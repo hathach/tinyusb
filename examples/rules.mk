@@ -93,8 +93,7 @@ INC += $(TOP)/src
 
 CFLAGS += $(addprefix -I,$(INC))
 
-# TODO Skip nanolib for MSP430
-ifeq ($(BOARD), msp_exp430f5529lp)
+ifeq ($(findstring  msp_exp430,$(BOARD)), msp_exp430)
   LDFLAGS += $(CFLAGS) -fshort-enums -Wl,-T,$(TOP)/$(LD_FILE) -Wl,-Map=$@.map -Wl,-cref -Wl,-gc-sections
 else
   LDFLAGS += $(CFLAGS) -fshort-enums -Wl,-T,$(TOP)/$(LD_FILE) -Wl,-Map=$@.map -Wl,-cref -Wl,-gc-sections -specs=nosys.specs -specs=nano.specs
