@@ -10,9 +10,9 @@ It is relatively simple to incorporate tinyusb to your (existing) project
 - Make sure all required macros are all defined properly in tusb_config.h (configure file in demo application is sufficient, but you need to add a few more such as CFG_TUSB_MCU, CFG_TUSB_OS since they are passed by IDE/compiler to maintain a unique configure for all boards).
 - If you use the device stack, make sure you have created/modified usb descriptors for your own need. Ultimately you need to implement all **tud_descriptor_** callbacks for the stack to work.
 - Add tusb_init() call to your reset initialization code.
-- Call `tud_int_handler()` (device stack) and/or `tuh_int_handler()` in your USB IRQ Handler
+- Call `tud_int_handler()` (device) and/or `tuh_int_handler()` (host) in your USB IRQ Handler
 - Implement all enabled classes's callbacks.
-- If you don't use any RTOSes at all, you need to continuously and/or periodically call tud_task()/tuh_task() function. All of the callbacks and functionality are handled and invoke within the call of that task runner.
+- If you don't use any RTOSes at all, you need to continuously and/or periodically call tud_task()/tuh_task() function. All of the callbacks and functionality are handled and invoked within the call of that task runner.
 
 ~~~{.c}
 int main(void)
