@@ -94,6 +94,38 @@ typedef struct
 /* TODO : Remove attribute post implementation */
 __attribute__((used)) CFG_TUSB_MEM_SECTION TU_ATTR_ALIGNED(128) static dcd_data_t _dcd;
 
+//--------------------------------------------------------------------+
+// Internal IP Specific functions
+//--------------------------------------------------------------------+
+
+#define USB_IE_SUSPEND_Msk (0x01u)
+#define USB_IE_RESUME_Msk  (0x02u)
+#define USB_IE_RESET_Msk   (0x04u)
+#define USB_IE_SOF_Msk     (0x08u)
+#define USB_IE_DISCON_Msk  (0x20u)
+
+static void enable_usb_interrupts(uint32_t mask)
+{
+    USB0->IE |= mask; 
+}
+
+/* TODO : Remove attribute post implementation */
+__attribute__((used))static void disable_usb_interrupts(uint32_t mask)
+{
+    USB0->IE &= ~mask; 
+}
+
+/* TODO : Remove attribute post implementation */
+__attribute__((used))static void enable_ep_interrupts(uint32_t mask)
+{
+    USB0->TXIE |= mask; 
+    USB0->RXIE |= (mask & (~0x01));
+}
+
+static uint32_t read_ep_intr_stat(void)
+{
+    return ((USB0->RXIS << 8) | (USB0->TXIS)) ; 
+}
 
 //--------------------------------------------------------------------+
 // SIE Command
@@ -141,28 +173,65 @@ __attribute__((used)) static void set_ep_size(uint8_t ep_id, uint16_t max_packet
 //--------------------------------------------------------------------+
 // CONTROLLER API
 //--------------------------------------------------------------------+
-/* TODO : Remove attribute post implementation */
-__attribute__((used)) static void bus_reset(void)
+#if 0 
+static void bus_reset(void)
 {
 
+    /* Although the IP does all this automatically on detecing a Reset */ 
+
+    /* Clear EP Interrupts */
+    dummy = USB0->TXIS;
+    dummy = USB0->RXIS;
+
+    /* Clear USB IP Interrupts */
+    dummy = USB0->IS;
+
+    /* Enable USB Interrupts */
+    enable_usb_interrupts((1u<<0) | (1u<<1) | (1u<<2) | (1u<<3) | (1u<<5));
+
+    /* Enable Endpoint Interrupts */
+    enable_ep_interrupts(0xFF);
 }
+#endif 
 
 void dcd_init(uint8_t rhport)
 {
-  (void)rhport;
-  /* Apply D+/D- Terminations */ 
-    USB0->POWER |= (1<<6); 
+    (void)rhport;
+    
+    uint32_t dummy;
 
+    /* Set Device Mode */
+    USB0->GPCS = 0x03;
+
+    /* Clear EP Interrupts */
+    read_ep_intr_stat(); 
+
+    /* Clear USB IP Interrupts */
+    dummy = USB0->IS;
+    dummy++; 
+
+    /* Enable USB Interrupts */ 
+    enable_usb_interrupts((1u<<0) | (1u<<1) | (1u<<2) | (1u<<3) | (1u<<5));
+
+    /* Enable Endpoint Interrupts */ 
+    enable_ep_interrupts(0xFF); 
+
+    /* Apply D+/D- Terminations */ 
+    dcd_connect(0); 
+
+    NVIC_ClearPendingIRQ(USB0_IRQn);
 }
 
 void dcd_int_enable(uint8_t rhport)
 {
-  (void)rhport;
+    (void)rhport;
+    NVIC_EnableIRQ(USB0_IRQn); 
 }
 
 void dcd_int_disable(uint8_t rhport)
 {
-  (void)rhport;
+    (void)rhport;
+    NVIC_DisableIRQ(USB0_IRQn);
 }
 
 void dcd_set_address(uint8_t rhport, uint8_t dev_addr)
@@ -178,12 +247,19 @@ void dcd_remote_wakeup(uint8_t rhport)
 
 void dcd_connect(uint8_t rhport)
 {
-  (void)rhport;
+    (void)rhport;
+
+    /* Apply D+/D- Terminations */
+    USB0->POWER |= (1<<6);
 }
 
 void dcd_disconnect(uint8_t rhport)
 {
-  (void)rhport;
+    (void)rhport;
+    
+    /* Remove D+/D- Terminations */
+    USB0->POWER &= ~(1<<6);
+
 }
 
 //--------------------------------------------------------------------+
@@ -257,34 +333,73 @@ bool dcd_edpt_xfer (uint8_t rhport, uint8_t ep_addr, uint8_t* buffer, uint16_t t
 // ISR
 //--------------------------------------------------------------------+
 
-// handle control xfer (slave mode)
-/* TODO : Remove attribute post implementation */
-__attribute__((used))static void control_xfer_isr(uint8_t rhport, uint32_t ep_int_status)
+static void handle_control_ep(uint8_t rhport)
 {
+    uint32_t size=0; 
+    uint8_t control_packet[64]; 
+
+    /* Check if a packet was received */ 
+    if(USB0->CSRL0 & 0x01)
+    {
+        /* Read packet length */ 
+        size = USB0->COUNT0; 
+        
+        /* Read packet */
+        for(uint32_t i = 0; i<size; i++)
+        {
+            control_packet[i] = USB0->FIFO0; 
+        }
+    }
+   
+  (void)control_packet;
   (void)rhport;
-  (void)ep_int_status;
 }
 
 // handle bus event signal
-/* TODO : Remove attribute post implementation */
-__attribute__((used)) static void bus_event_isr(uint8_t rhport)
+
+static void bus_event_isr(uint8_t rhport)
 {
-  (void)rhport;
+    /* Check for USB Signal Interrupts */ 
+    uint32_t usb_signal_stat = USB0->IS; 
+
+    if(usb_signal_stat & USB_IE_RESET_Msk)
+    {
+        dcd_event_bus_reset(rhport, TUSB_SPEED_FULL, true);
+    }
+
+    if(usb_signal_stat & USB_IE_SUSPEND_Msk)
+    {
+        dcd_event_bus_signal(rhport, DCD_EVENT_SUSPEND, true);
+    }
+
+    if(usb_signal_stat & USB_IE_RESUME_Msk)
+    {
+        dcd_event_bus_signal(rhport, DCD_EVENT_RESUME, true);
+    }
+    
+    if(usb_signal_stat & USB_IE_SOF_Msk)
+    {
+      /* Do nothing as the stack skips it */  
+    }
+
+    if(usb_signal_stat & USB_IE_DISCON_Msk)
+    {
+        dcd_event_bus_signal(rhport, DCD_EVENT_UNPLUGGED, true);
+    }
 }
 
-
-// Helper to complete a DMA descriptor for non-control transfer
-/* TODO : Remove attribute post implementation */
-__attribute__((used)) static void dd_complete_isr(uint8_t rhport, uint8_t ep_id)
-{
-  (void)rhport;
-  (void)ep_id;
-}
 
 // main USB IRQ handler
 void dcd_int_handler(uint8_t rhport)
 {
-  (void)rhport;
+    bus_event_isr(rhport);
+    
+    uint32_t ep_intr = read_ep_intr_stat(); 
+
+    if ((ep_intr & 0x01) || (ep_intr & 0x100))
+    {
+        handle_control_ep(rhport);
+    }
 }
 
 #endif
