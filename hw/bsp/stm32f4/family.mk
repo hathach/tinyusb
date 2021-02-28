@@ -32,8 +32,7 @@ INC += \
 	$(TOP)/$(BOARD_PATH) \
 	$(TOP)/lib/CMSIS_5/CMSIS/Core/Include \
 	$(TOP)/$(ST_CMSIS)/Include \
-	$(TOP)/$(ST_HAL_DRIVER)/Inc \
-	$(TOP)/hw/bsp/$(BOARD)
+	$(TOP)/$(ST_HAL_DRIVER)/Inc
 
 # For TinyUSB port source
 VENDOR = st
