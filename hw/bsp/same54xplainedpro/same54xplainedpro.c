@@ -166,9 +166,9 @@ void board_init(void)
 #endif
 
 	// LED0 init
-	gpio_set_pin_function(BUTTON_PIN, GPIO_PIN_FUNCTION_OFF);
+	gpio_set_pin_function(LED_PIN, GPIO_PIN_FUNCTION_OFF);
 	gpio_set_pin_direction(LED_PIN, GPIO_DIRECTION_OUT);
-	gpio_set_pin_level(LED_PIN, 1);
+	board_led_write(0);
 
 #if CFG_TUSB_DEBUG >= 2
 	uart_send_str(BOARD_NAME " LED pin configured\n");
