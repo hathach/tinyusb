@@ -166,15 +166,16 @@ void board_init(void)
 #endif
 
 	// LED0 init
+	gpio_set_pin_function(BUTTON_PIN, GPIO_PIN_FUNCTION_OFF);
 	gpio_set_pin_direction(LED_PIN, GPIO_DIRECTION_OUT);
-	gpio_set_pin_level(LED_PIN, 0);
+	gpio_set_pin_level(LED_PIN, 1);
 
 #if CFG_TUSB_DEBUG >= 2
 	uart_send_str(BOARD_NAME " LED pin configured\n");
 #endif
 
 	// BTN0 init
-	gpio_set_pin_function(BUTTON_PIN, GPIO_DIRECTION_IN);
+	gpio_set_pin_function(BUTTON_PIN, GPIO_PIN_FUNCTION_OFF);
 	gpio_set_pin_direction(BUTTON_PIN, GPIO_DIRECTION_IN);
 	gpio_set_pin_pull_mode(BUTTON_PIN, GPIO_PULL_UP);
 
@@ -228,7 +229,7 @@ void board_init(void)
 
 void board_led_write(bool state)
 {
-	gpio_set_pin_level(LED_PIN, state);
+	gpio_set_pin_level(LED_PIN, !state);
 }
 
 uint32_t board_button_read(void)
