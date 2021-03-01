@@ -27,7 +27,6 @@
 #include "tusb_option.h"
 
 #if TUSB_OPT_DEVICE_ENABLED && (CFG_TUSB_MCU == OPT_MCU_TM4C123)
-
 #include "device/dcd.h"
 #include "dcd_tm4c123xx.h"
 #include "TM4C123.h"
@@ -224,6 +223,7 @@ void dcd_init(uint8_t rhport)
 
 void dcd_int_enable(uint8_t rhport)
 {
+	NVIC_ClearPendingIRQ(USB0_IRQn);
     (void)rhport;
     NVIC_EnableIRQ(USB0_IRQn); 
 }
@@ -275,8 +275,16 @@ __attribute__((used)) static inline uint8_t byte2dword(uint8_t bytes)
 /* TODO : Remove attribute post implementation */
 __attribute__((used)) static void control_ep_write(void const * buffer, uint8_t len)
 {
-  (void)buffer;
-  (void)len;
+    uint8_t const *data = buffer;
+
+    for(uint16_t i=0; i<len; i++)
+    {
+        *((volatile uint8_t*)&USB0->FIFO0) = data[i] ;
+    }
+
+    while(USB0->CSRL0 & 0x02) ;
+
+    USB0->CSRL0 = 0x0A ;
 }
 
 /* TODO : Remove attribute post implementation */
@@ -313,25 +321,40 @@ void dcd_edpt_clear_stall(uint8_t rhport, uint8_t ep_addr)
 /* TODO : Remove attribute post implementation */
 __attribute__((used))static bool control_xact(uint8_t rhport, uint8_t dir, uint8_t * buffer, uint8_t len)
 {
+    if(dir)
+    {
+        _dcd.control.in_bytes = len;
+        control_ep_write(buffer, len);
+    }
+
+    return true; 
   (void)rhport;
-  (void)buffer;
-  (void)dir;
-  (void)len;
   return 1;
 }
 
 bool dcd_edpt_xfer (uint8_t rhport, uint8_t ep_addr, uint8_t* buffer, uint16_t total_bytes)
 {
-  (void)rhport;
-  (void)ep_addr;
-  (void)buffer;
-  (void)total_bytes;
+    if( tu_edpt_number(ep_addr) == 0)
+    {
+        return control_xact(rhport, tu_edpt_dir(ep_addr), buffer, (uint8_t) total_bytes);
+    }
+
+  //(void)rhport;
+  //(void)ep_addr;
+  //(void)buffer;
+  //(void)total_bytes;
   return 1;
 }
 
 //--------------------------------------------------------------------+
 // ISR
 //--------------------------------------------------------------------+
+
+void USB0_Handler(void)
+{
+	dcd_int_handler(0);  
+}
+
 
 static void handle_control_ep(uint8_t rhport)
 {
@@ -349,10 +372,13 @@ static void handle_control_ep(uint8_t rhport)
         {
             control_packet[i] = USB0->FIFO0; 
         }
+        
+        /* ACK the data received (expecting a data stage next) */
+        USB0->CSRL0 = 0x40;
+
+        dcd_event_setup_received(rhport, control_packet, true);
     }
-   
-  (void)control_packet;
-  (void)rhport;
+
 }
 
 // handle bus event signal

@@ -10,6 +10,7 @@ SECTIONS
 {
     .text : 
     {
+        . = ALIGN(4) ;
         *(.vectors) 
         *(.text) 
         *(.text.*)
@@ -36,12 +37,12 @@ SECTIONS
 
     .bss :
     {
+        . = ALIGN(4) ;
         __start_bss = . ;
         __bss_start__ = __start_bss;
         *(.bss)
         *(.bss.*)
         *(.COMMON) 
-        . = ALIGN(4);
         __end_bss = . ;
         __bss_end__ = __end_bss;
         . = ALIGN(4);
