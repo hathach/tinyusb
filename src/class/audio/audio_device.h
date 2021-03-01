@@ -235,18 +235,18 @@ extern "C" {
 //--------------------------------------------------------------------+
 bool     tud_audio_n_mounted    (uint8_t itf);
 
-#if CFG_TUD_AUDIO_EP_OUT_SW_BUFFER_SIZE
+#if CFG_TUD_AUDIO_EP_OUT_SW_BUFFER_SIZE && !CFG_TUD_AUDIO_RX_SUPPORT_SW_FIFO_SIZE
 
 uint16_t tud_audio_n_available                    (uint8_t itf);
 uint16_t tud_audio_n_read                         (uint8_t itf, void* buffer, uint16_t bufsize);
 bool     tud_audio_n_clear_ep_out_ff              (uint8_t itf);                          // Delete all content in the EP OUT FIFO
 
-#if CFG_TUD_AUDIO_RX_SUPPORT_SW_FIFO_SIZE
+#endif
+
+#if CFG_TUD_AUDIO_RX_SUPPORT_SW_FIFO_SIZE && CFG_TUD_AUDIO_EPSIZE_OUT
 bool     tud_audio_n_clear_rx_support_ff          (uint8_t itf, uint8_t channelId);       // Delete all content in the support RX FIFOs
 uint16_t tud_audio_n_available_support_ff         (uint8_t itf, uint8_t channelId);
 uint16_t tud_audio_n_read_support_ff              (uint8_t itf, uint8_t channelId, void* buffer, uint16_t bufsize);
-#endif
-
 #endif
 
 #if CFG_TUD_AUDIO_EP_IN_SW_BUFFER_SIZE
@@ -254,7 +254,7 @@ uint16_t tud_audio_n_read_support_ff              (uint8_t itf, uint8_t channelI
 uint16_t tud_audio_n_write                        (uint8_t itf, const void * data, uint16_t len);
 bool     tud_audio_n_clear_ep_in_ff               (uint8_t itf);                          // Delete all content in the EP IN FIFO
 
-#if CFG_TUD_AUDIO_TX_SUPPORT_SW_FIFO_SIZE
+#if CFG_TUD_AUDIO_TX_SUPPORT_SW_FIFO_SIZE && CFG_TUD_AUDIO_EPSIZE_IN
 uint16_t tud_audio_n_flush_tx_support_ff          (uint8_t itf);      // Force all content in the support TX FIFOs to be written into EP SW FIFO
 bool	 tud_audio_n_clear_tx_support_ff          (uint8_t itf, uint8_t channelId);
 uint16_t tud_audio_n_write_support_ff             (uint8_t itf, uint8_t channelId, const void * data, uint16_t len);
@@ -274,33 +274,33 @@ static inline bool         tud_audio_mounted                (void);
 
 // RX API
 
-#if CFG_TUD_AUDIO_EP_OUT_SW_BUFFER_SIZE
+#if CFG_TUD_AUDIO_EP_OUT_SW_BUFFER_SIZE && !CFG_TUD_AUDIO_RX_SUPPORT_SW_FIFO_SIZE
 
 static inline uint16_t     tud_audio_available              (void);
 static inline bool         tud_audio_clear_ep_out_ff        (void);                       // Delete all content in the EP OUT FIFO
 static inline uint16_t     tud_audio_read                   (void* buffer, uint16_t bufsize);
 
-#if CFG_TUD_AUDIO_RX_SUPPORT_SW_FIFO_SIZE
+#endif
+
+#if CFG_TUD_AUDIO_RX_SUPPORT_SW_FIFO_SIZE && CFG_TUD_AUDIO_EPSIZE_OUT
 static inline bool     tud_audio_clear_rx_support_ff        (uint8_t channelId);
 static inline uint16_t tud_audio_available_support_ff       (uint8_t channelId);
 static inline uint16_t tud_audio_read_support_ff            (uint8_t channelId, void* buffer, uint16_t bufsize);
 #endif
 
-#endif
-
 // TX API
 
-#if CFG_TUD_AUDIO_EP_IN_SW_BUFFER_SIZE
+#if CFG_TUD_AUDIO_EP_IN_SW_BUFFER_SIZE && !CFG_TUD_AUDIO_TX_SUPPORT_SW_FIFO_SIZE
 
 static inline uint16_t tud_audio_write                      (const void * data, uint16_t len);
 static inline bool 	   tud_audio_clear_ep_in_ff             (void);
 
-#if CFG_TUD_AUDIO_TX_SUPPORT_SW_FIFO_SIZE
+#endif
+
+#if CFG_TUD_AUDIO_TX_SUPPORT_SW_FIFO_SIZE && CFG_TUD_AUDIO_EPSIZE_IN
 static inline uint16_t tud_audio_flush_tx_support_ff        (void);
 static inline uint16_t tud_audio_clear_tx_support_ff        (uint8_t channelId);
 static inline uint16_t tud_audio_write_support_ff           (uint8_t channelId, const void * data, uint16_t len);
-#endif
-
 #endif
 
 // INT CTR API
@@ -380,7 +380,7 @@ static inline bool tud_audio_mounted(void)
 
 // RX API
 
-#if CFG_TUD_AUDIO_EP_OUT_SW_BUFFER_SIZE
+#if CFG_TUD_AUDIO_EP_OUT_SW_BUFFER_SIZE && !CFG_TUD_AUDIO_RX_SUPPORT_SW_FIFO_SIZE
 
 static inline uint16_t     tud_audio_available              (void)
 {
@@ -397,7 +397,9 @@ static inline bool         tud_audio_clear_ep_out_ff        (void)
   return tud_audio_n_clear_ep_out_ff(0);
 }
 
-#if CFG_TUD_AUDIO_RX_SUPPORT_SW_FIFO_SIZE
+#endif
+
+#if CFG_TUD_AUDIO_RX_SUPPORT_SW_FIFO_SIZE && CFG_TUD_AUDIO_EPSIZE_OUT
 
 static inline bool     		tud_audio_clear_rx_support_ff        (uint8_t channelId)
 {
@@ -416,11 +418,9 @@ static inline uint16_t tud_audio_read_support_ff            (uint8_t channelId, 
 
 #endif
 
-#endif
-
 // TX API
 
-#if CFG_TUD_AUDIO_EP_IN_SW_BUFFER_SIZE
+#if CFG_TUD_AUDIO_EP_IN_SW_BUFFER_SIZE && !CFG_TUD_AUDIO_TX_SUPPORT_SW_FIFO_SIZE
 
 static inline uint16_t tud_audio_write                      (const void * data, uint16_t len)
 {
@@ -432,7 +432,9 @@ static inline bool tud_audio_clear_ep_in_ff             	(void)
   return tud_audio_n_clear_ep_in_ff(0);
 }
 
-#if CFG_TUD_AUDIO_TX_SUPPORT_SW_FIFO_SIZE
+#endif
+
+#if CFG_TUD_AUDIO_TX_SUPPORT_SW_FIFO_SIZE && CFG_TUD_AUDIO_EPSIZE_IN
 
 static inline uint16_t tud_audio_flush_tx_support_ff        (void)
 {
@@ -448,8 +450,6 @@ static inline uint16_t tud_audio_write_support_ff           (uint8_t channelId, 
 {
   return tud_audio_n_write_support_ff(0, channelId, data, len);
 }
-
-#endif
 
 #endif
 
