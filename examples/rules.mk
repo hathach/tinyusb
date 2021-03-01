@@ -6,7 +6,9 @@
 .DEFAULT_GOAL := all
 
 ifeq ($(FAMILY),esp32s2)
+# ---------------------------------------
 # Espressif IDF use CMake build system, this add wrapper target to call idf.py
+# ---------------------------------------
 
 .PHONY: all clean flash
 
@@ -44,6 +46,9 @@ $(BUILD)/$(PROJECT).uf2: $(BUILD)/$(PROJECT).bin
 	$(PYTHON) $(TOP)/tools/uf2/utils/uf2conv.py -f $(UF2_FAMILY_ID) -b 0x0 -c -o $@ $^
 
 else ifeq ($(FAMILY),rp2040)
+# ---------------------------------------
+# RP2040 CMake
+# ---------------------------------------
 
 ifeq ($(DEBUG), 1)
 CMAKE_DEFSYM += -DCMAKE_BUILD_TYPE=Debug
@@ -62,7 +67,9 @@ flash:
 	@$(CP) $(BUILD)/$(PROJECT).uf2 /media/$(USER)/RPI-RP2
 
 else
+# ---------------------------------------
 # GNU Make build system
+# ---------------------------------------
 
 # libc
 LIBS += -lgcc -lm -lnosys

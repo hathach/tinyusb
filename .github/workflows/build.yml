@@ -62,13 +62,14 @@ jobs:
     - name: Checkout TinyUSB
       uses: actions/checkout@v2
       with:
-        submodules: 'true'
+        submodules: 'false'
 
     - name: Checkout Sub-Submodules
       run: |
+        # Clone all submodules in lib
+        git submodule update --init --recursive lib
         # some submodule has it own submodules that need to be fetched as well
-        git submodule update --init --recursive hw/mcu/microchip
-        git submodule update --init --recursive lib/FreeRTOS
+        #git submodule update --init --recursive hw/mcu/microchip
 
     - name: Build
       run: python3 tools/build_family.py ${{ matrix.family }}

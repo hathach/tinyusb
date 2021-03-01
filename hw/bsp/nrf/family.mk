@@ -1,4 +1,5 @@
 UF2_FAMILY_ID = 0xADA52840
+FAMILY_SUBMODULES = hw/mcu/nordic/nrfx
 
 include $(TOP)/$(BOARD_PATH)/board.mk
 
