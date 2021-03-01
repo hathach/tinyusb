@@ -64,12 +64,8 @@ jobs:
       with:
         submodules: 'false'
 
-    - name: Checkout Sub-Submodules
-      run: |
-        # Clone all submodules in lib
-        git submodule update --init --recursive lib
-        # some submodule has it own submodules that need to be fetched as well
-        #git submodule update --init --recursive hw/mcu/microchip
+    - name: Checkout Submodules in lib
+      run: git submodule update --init --recursive lib
 
     - name: Build
       run: python3 tools/build_family.py ${{ matrix.family }}
@@ -96,4 +92,107 @@ jobs:
         asset_name: ${{ matrix.family }}-tinyusb-${{ github.event.release.tag_name }}-examples.zip
         asset_content_type: application/zip
 
+  # Build all no-family (opharned) boards
+  build-board:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        example:
+        # Alphabetical order
+        - 'device/audio_test'
+        - 'device/board_test'
+        - 'device/cdc_dual_ports'
+        - 'device/cdc_msc'
+        - 'device/cdc_msc_freertos'
+        - 'device/dfu_runtime'
+        - 'device/hid_composite'
+        - 'device/hid_composite_freertos'
+        - 'device/hid_generic_inout'
+        - 'device/hid_multiple_interface'
+        - 'device/midi_test'
+        - 'device/msc_dual_lun'
+        - 'device/net_lwip_webserver'
+        - 'device/uac2_headset'
+        - 'device/usbtmc'
+        - 'device/webusb_serial'
+        - 'host/cdc_msc_hid'
 
+    steps:
+    - name: Setup Python
+      uses: actions/setup-python@v2
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v1
+
+    - name: Checkout TinyUSB
+      uses: actions/checkout@v2
+      with:
+        submodules: 'true'
+
+    - name: Checkout Sub-Submodules
+      run: |
+        # some submodule has it own submodules that need to be fetched as well
+        git submodule update --init --recursive lib/FreeRTOS
+
+        # Add msp430-gcc url to env
+        echo >> $GITHUB_ENV MSP430_GCC_URL=http://software-dl.ti.com/msp430/msp430_public_sw/mcu/msp430/MSPGCC/9_2_0_0/export/msp430-gcc-9.2.0.50_linux64.tar.bz2
+
+    - name: Cache MSP430-GCC
+      uses: actions/cache@v2
+      id: cache-msp430
+      with:
+        path: ~/cache/
+        key: ${{ runner.os }}-21-01-26-${{ env.MSP430_GCC_URL }}
+
+    - name: Install MSP430-GCC
+      if: steps.cache-msp430.outputs.cache-hit != 'true'
+      run: |
+        # MSP430 GCC
+        mkdir -p ~/cache/msp430-gcc
+        wget --progress=dot:mega $MSP430_GCC_URL -O msp430-gcc.tar.bz2
+        tar -C ~/cache/msp430-gcc -xaf msp430-gcc.tar.bz2
+
+    - name: Install Toolchains
+      run: |
+        # ARM & RISC-V GCC from xpack
+        npm install --global xpm
+        xpm install --global @xpack-dev-tools/arm-none-eabi-gcc@latest
+        xpm install --global @xpack-dev-tools/riscv-none-embed-gcc@latest
+        echo `echo $HOME/.local/xPacks/@xpack-dev-tools/arm-none-eabi-gcc/*/.content/bin` >> $GITHUB_PATH
+        echo `echo $HOME/.local/xPacks/@xpack-dev-tools/riscv-none-embed-gcc/*/.content/bin` >> $GITHUB_PATH
+
+        # TI MSP430 GCC
+        echo >> $GITHUB_PATH `echo ~/cache/msp430-gcc/msp430-gcc-*/bin`
+
+    - name: Build
+      run: python3 tools/build_board.py ${{ matrix.example }}
+
+  # Build ESP32S2
+  build-esp32s2:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        board:
+        # Alphabetical order
+        - 'adafruit_feather_esp32s2'
+        - 'adafruit_magtag_29gray'
+        - 'adafruit_metro_esp32s2'
+        - 'espressif_kaluga_1'
+        - 'espressif_saola_1'
+
+    steps:
+    - name: Setup Python
+      uses: actions/setup-python@v2
+
+    - name: Pull ESP-IDF docker
+      run: docker pull espressif/idf:latest
+
+    - name: Checkout TinyUSB
+      uses: actions/checkout@v2
+      with:
+        submodules: 'false'
+
+    - name: Build
+      run: docker run --rm -v $PWD:/project -w /project espressif/idf:latest python3 tools/build_esp32s2.py ${{ matrix.board }}
