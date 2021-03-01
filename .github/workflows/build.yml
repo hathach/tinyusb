@@ -130,11 +130,8 @@ jobs:
       with:
         submodules: 'true'
 
-    - name: Checkout Sub-Submodules
+    - name: Setup Env
       run: |
-        # some submodule has it own submodules that need to be fetched as well
-        git submodule update --init --recursive lib/FreeRTOS
-
         # Add msp430-gcc url to env
         echo >> $GITHUB_ENV MSP430_GCC_URL=http://software-dl.ti.com/msp430/msp430_public_sw/mcu/msp430/MSPGCC/9_2_0_0/export/msp430-gcc-9.2.0.50_linux64.tar.bz2
 
