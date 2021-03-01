@@ -1,4 +1,5 @@
 UF2_FAMILY_ID = 0x68ed2b88
+FAMILY_SUBMODULES = hw/mcu/microchip
 
 include $(TOP)/$(BOARD_PATH)/board.mk
 
