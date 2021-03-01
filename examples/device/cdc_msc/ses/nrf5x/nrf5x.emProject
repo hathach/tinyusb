@@ -21,7 +21,7 @@
       build_treat_warnings_as_errors="Yes"
       c_additional_options="-Wno-error=undef;-Wno-error=unused-parameter;-Wno-error=cast-align;-Wno-error=cast-function-type"
       c_preprocessor_definitions="NRF52840_XXAA;__nRF_FAMILY;ARM_MATH_CM4;FLASH_PLACEMENT=1;CFG_TUSB_MCU=OPT_MCU_NRF5X;CFG_TUSB_DEBUG=1"
-      c_user_include_directories="../../src;$(rootDir)/lib/CMSIS_4/CMSIS/Include;$(rootDir)/hw;$(rootDir)/src;$(nrfxDir)/..;$(nrfxDir);$(nrfxDir)/mdk;$(nrfxDir)/hal;$(nrfxDir)/drivers/include;$(nrfxDir)/drivers/src"
+      c_user_include_directories="../../src;$(rootDir)/lib/CMSIS_5/CMSIS/Core/Include;$(rootDir)/hw;$(rootDir)/src;$(nrfxDir)/..;$(nrfxDir);$(nrfxDir)/mdk;$(nrfxDir)/hal;$(nrfxDir)/drivers/include;$(nrfxDir)/drivers/src"
       debug_register_definition_file="nrf52840_Registers.xml"
       debug_target_connection="J-Link"
       gcc_enable_all_warnings="Yes"

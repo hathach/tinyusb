@@ -22,9 +22,6 @@
 [submodule "lib/lwip"]
 	path = lib/lwip
 	url = https://github.com/lwip-tcpip/lwip.git
-[submodule "lib/CMSIS_4"]
-	path = lib/CMSIS_4
-	url = https://github.com/ARM-software/CMSIS.git
 [submodule "hw/mcu/st/cmsis_device_f4"]
 	path = hw/mcu/st/cmsis_device_f4
 	url = https://github.com/STMicroelectronics/cmsis_device_f4.git
@@ -113,7 +110,6 @@
 	path = hw/mcu/raspberrypi/pico-sdk
 	url = https://github.com/raspberrypi/pico-sdk.git
 	fetchRecurseSubmodules = false
-
 [submodule "lib/FreeRTOS-Kernel"]
 	path = lib/FreeRTOS-Kernel
 	url = https://github.com/FreeRTOS/FreeRTOS-Kernel.git

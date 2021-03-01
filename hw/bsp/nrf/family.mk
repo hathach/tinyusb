@@ -40,7 +40,7 @@ SRC_C += \
 
 INC += \
   $(TOP)/$(BOARD_PATH) \
-  $(TOP)/lib/CMSIS_4/CMSIS/Include \
+  $(TOP)/lib/CMSIS_5/CMSIS/Core/Include \
   $(TOP)/hw/mcu/nordic \
   $(TOP)/hw/mcu/nordic/nrfx \
   $(TOP)/hw/mcu/nordic/nrfx/mdk \
