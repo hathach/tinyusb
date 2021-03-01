@@ -20,19 +20,19 @@ CFLAGS += \
 LD_FILE = hw/bsp/$(BOARD)/same54p20a_flash.ld
 
 SRC_C += \
-  hw/mcu/microchip/asf4/same54/gcc/gcc/startup_same54.c \
-  hw/mcu/microchip/asf4/same54/gcc/system_same54.c \
-  hw/mcu/microchip/asf4/same54/hal/utils/src/utils_syscalls.c
+  hw/mcu/microchip/same54/gcc/gcc/startup_same54.c \
+  hw/mcu/microchip/same54/gcc/system_same54.c \
+  hw/mcu/microchip/same54/hal/utils/src/utils_syscalls.c
 
 INC += \
-	$(TOP)/hw/mcu/microchip/asf4/same54/ \
-	$(TOP)/hw/mcu/microchip/asf4/same54/config \
-	$(TOP)/hw/mcu/microchip/asf4/same54/include \
-	$(TOP)/hw/mcu/microchip/asf4/same54/hal/include \
-	$(TOP)/hw/mcu/microchip/asf4/same54/hal/utils/include \
-	$(TOP)/hw/mcu/microchip/asf4/same54/hpl/port \
-	$(TOP)/hw/mcu/microchip/asf4/same54/hri \
-	$(TOP)/hw/mcu/microchip/asf4/same54/CMSIS/Include
+	$(TOP)/hw/mcu/microchip/same54/ \
+	$(TOP)/hw/mcu/microchip/same54/config \
+	$(TOP)/hw/mcu/microchip/same54/include \
+	$(TOP)/hw/mcu/microchip/same54/hal/include \
+	$(TOP)/hw/mcu/microchip/same54/hal/utils/include \
+	$(TOP)/hw/mcu/microchip/same54/hpl/port \
+	$(TOP)/hw/mcu/microchip/same54/hri \
+	$(TOP)/hw/mcu/microchip/same54/CMSIS/Include
 
 # For TinyUSB port source
 VENDOR = microchip
