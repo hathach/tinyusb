@@ -24,7 +24,8 @@
  * This file is part of the TinyUSB stack.
  */
 
-#include "../board.h"
+#include "bsp/board.h"
+#include "board.h"
 #include "fsl_device_registers.h"
 #include "fsl_gpio.h"
 #include "fsl_power.h"
@@ -49,44 +50,22 @@ void USB1_IRQHandler(void)
 //--------------------------------------------------------------------+
 // MACRO TYPEDEF CONSTANT ENUM
 //--------------------------------------------------------------------+
-#define LED_PORT              0
-#define LED_PIN               1
-#define LED_STATE_ON          1
-
-// WAKE button
-#define BUTTON_PORT           0
-#define BUTTON_PIN            5
-#define BUTTON_STATE_ACTIVE   0
-
-// Number of neopixels
-#define NEOPIXEL_NUMBER       2
-#define NEOPIXEL_PORT         0
-#define NEOPIXEL_PIN          27
-#define NEOPIXEL_CH           6
-#define NEOPIXEL_TYPE         0  
-
-// UART
-#define UART_DEV              USART0
 
 // IOCON pin mux
-#define IOCON_PIO_DIGITAL_EN 0x0100u  /*!<@brief Enables digital function */
-#define IOCON_PIO_FUNC0 0x00u         /*!<@brief Selects pin function 0 */
-#define IOCON_PIO_FUNC1 0x01u         /*!<@brief Selects pin function 1 */
-#define IOCON_PIO_FUNC4 0x04u         /*!<@brief Selects pin function 4 */
-#define IOCON_PIO_FUNC7 0x07u         /*!<@brief Selects pin function 7 */
-#define IOCON_PIO_INV_DI 0x00u        /*!<@brief Input function is not inverted */
-#define IOCON_PIO_MODE_INACT 0x00u    /*!<@brief No addition pin function */
-#define IOCON_PIO_OPENDRAIN_DI 0x00u  /*!<@brief Open drain is disabled */
-#define IOCON_PIO_SLEW_STANDARD 0x00u /*!<@brief Standard mode, output slew rate control is enabled */
+#define IOCON_PIO_DIGITAL_EN     0x0100u /*!<@brief Enables digital function */
+#define IOCON_PIO_FUNC0          0x00u   /*!<@brief Selects pin function 0 */
+#define IOCON_PIO_FUNC1          0x01u   /*!<@brief Selects pin function 1 */
+#define IOCON_PIO_FUNC4          0x04u   /*!<@brief Selects pin function 4 */
+#define IOCON_PIO_FUNC7          0x07u   /*!<@brief Selects pin function 7 */
+#define IOCON_PIO_INV_DI         0x00u   /*!<@brief Input function is not inverted */
+#define IOCON_PIO_MODE_INACT     0x00u   /*!<@brief No addition pin function */
+#define IOCON_PIO_OPENDRAIN_DI   0x00u   /*!<@brief Open drain is disabled */
+#define IOCON_PIO_SLEW_STANDARD  0x00u   /*!<@brief Standard mode, output slew rate control is enabled */
 
 #define IOCON_PIO_DIG_FUNC0_EN   (IOCON_PIO_DIGITAL_EN | IOCON_PIO_FUNC0) /*!<@brief Digital pin function 0 enabled */
 #define IOCON_PIO_DIG_FUNC1_EN   (IOCON_PIO_DIGITAL_EN | IOCON_PIO_FUNC1) /*!<@brief Digital pin function 1 enabled */
 #define IOCON_PIO_DIG_FUNC4_EN   (IOCON_PIO_DIGITAL_EN | IOCON_PIO_FUNC4) /*!<@brief Digital pin function 2 enabled */
 #define IOCON_PIO_DIG_FUNC7_EN   (IOCON_PIO_DIGITAL_EN | IOCON_PIO_FUNC7) /*!<@brief Digital pin function 2 enabled */
-
-
-// Global Variables
-uint32_t pixelData[NEOPIXEL_NUMBER];
 
 /****************************************************************
 name: BOARD_BootClockFROHF96M
@@ -138,18 +117,20 @@ void board_init(void)
   NVIC_SetPriority(USB0_IRQn, configLIBRARY_MAX_SYSCALL_INTERRUPT_PRIORITY );
 #endif
 
+  // Init all GPIO ports
   GPIO_PortInit(GPIO, 0);
   GPIO_PortInit(GPIO, 1);
 
   // LED
-  /* PORT0 PIN1 configured as PIO0_1 */
-  IOCON_PinMuxSet(IOCON, 0U, 1U, IOCON_PIO_DIG_FUNC0_EN);
-
+  IOCON_PinMuxSet(IOCON, LED_PORT, LED_PIN, IOCON_PIO_DIG_FUNC0_EN);
   gpio_pin_config_t const led_config = { kGPIO_DigitalOutput, 1};
   GPIO_PinInit(GPIO, LED_PORT, LED_PIN, &led_config);
 
+  board_led_write(0);
+
+#ifdef NEOPIXEL_PIN
   // Neopixel
-  /* PORT0 PIN27 configured as SCT0_OUT6 */
+  static uint32_t pixelData[NEOPIXEL_NUMBER];
   IOCON_PinMuxSet(IOCON, NEOPIXEL_PORT, NEOPIXEL_PIN, IOCON_PIO_DIG_FUNC4_EN);
 
   sctpix_init(NEOPIXEL_TYPE);
@@ -157,22 +138,18 @@ void board_init(void)
   sctpix_setPixel(NEOPIXEL_CH, 0, 0x100010);
   sctpix_setPixel(NEOPIXEL_CH, 1, 0x100010);
   sctpix_show();
-
+#endif
 
   // Button
-  /* PORT0 PIN5 configured as PIO0_5 */
   IOCON_PinMuxSet(IOCON, BUTTON_PORT, BUTTON_PIN, IOCON_PIO_DIG_FUNC0_EN);
-
   gpio_pin_config_t const button_config = { kGPIO_DigitalInput, 0};
   GPIO_PinInit(GPIO, BUTTON_PORT, BUTTON_PIN, &button_config);
 
+#if defined(UART_DEV)
   // UART
-  /* PORT0 PIN29 (coords: 92) is configured as FC0_RXD_SDA_MOSI_DATA */
-  IOCON_PinMuxSet(IOCON, 0U, 29U, IOCON_PIO_DIG_FUNC1_EN);
-  /* PORT0 PIN30 (coords: 94) is configured as FC0_TXD_SCL_MISO_WS */
-  IOCON_PinMuxSet(IOCON, 0U, 30U, IOCON_PIO_DIG_FUNC1_EN);
+  IOCON_PinMuxSet(IOCON, UART_RX_PINMUX);
+  IOCON_PinMuxSet(IOCON, UART_TX_PINMUX);
 
-#if defined(UART_DEV) && CFG_TUSB_DEBUG
   // Enable UART when debug log is on
   CLOCK_AttachClk(kFRO12M_to_FLEXCOMM0);
   usart_config_t uart_config;
@@ -200,7 +177,7 @@ void board_init(void)
   RESET_PeripheralReset(kUSB1_RST_SHIFT_RSTn);
   RESET_PeripheralReset(kUSB1RAM_RST_SHIFT_RSTn);
 
-#if (defined CFG_TUSB_RHPORT1_MODE) && (CFG_TUSB_RHPORT1_MODE & OPT_MODE_DEVICE)
+#if CFG_TUSB_RHPORT1_MODE & OPT_MODE_DEVICE
   CLOCK_EnableClock(kCLOCK_Usbh1);
   /* Put PHY powerdown under software control */
   USBHSH->PORTMODE = USBHSH_PORTMODE_SW_PDCOM_MASK;
@@ -210,7 +187,7 @@ void board_init(void)
   CLOCK_DisableClock(kCLOCK_Usbh1);
 #endif
 
-#if (defined CFG_TUSB_RHPORT0_MODE) && (CFG_TUSB_RHPORT0_MODE & OPT_MODE_DEVICE)
+#if CFG_TUSB_RHPORT0_MODE & OPT_MODE_DEVICE
   // Enable USB Clock Adjustments to trim the FRO for the full speed controller
   ANACTRL->FRO192M_CTRL |= ANACTRL_FRO192M_CTRL_USBCLKADJ_MASK;
   CLOCK_SetClkDiv(kCLOCK_DivUsb0Clk, 1, false);
@@ -233,6 +210,8 @@ void board_init(void)
 void board_led_write(bool state)
 {
   GPIO_PinWrite(GPIO, LED_PORT, LED_PIN, state ? LED_STATE_ON : (1-LED_STATE_ON));
+
+#ifdef NEOPIXEL_PIN
   if (state) {
     sctpix_setPixel(NEOPIXEL_CH, 0, 0x100000);
     sctpix_setPixel(NEOPIXEL_CH, 1, 0x101010);
@@ -241,6 +220,7 @@ void board_led_write(bool state)
     sctpix_setPixel(NEOPIXEL_CH, 1, 0x000010);
   }
   sctpix_show();
+#endif
 }
 
 uint32_t board_button_read(void)

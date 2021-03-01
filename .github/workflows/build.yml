@@ -37,6 +37,7 @@ jobs:
         family:
         # Alphabetical order
         - 'imxrt'
+        - 'lpc55'
         - 'nrf'
         - 'rp2040'
         - 'samd11'
