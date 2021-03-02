@@ -25,7 +25,6 @@
  */
 
 #include "tusb_option.h"
-#include "common/tusb_fifo.h"
 
 #if TUSB_OPT_DEVICE_ENABLED && CFG_TUSB_MCU == OPT_MCU_DA1469X
 
@@ -197,7 +196,6 @@ typedef struct
 typedef struct {
   EPx_REGS * regs;
   uint8_t * buffer;
-  tu_fifo_t * ff;
   // Total length of current transfer
   uint16_t total_len;
   // Bytes transferred so far
@@ -290,9 +288,11 @@ void tusb_vbus_changed(bool present)
 static void fill_tx_fifo(xfer_ctl_t * xfer)
 {
   int left_to_send;
+  uint8_t const *src;
   EPx_REGS *regs = xfer->regs;
   uint8_t const epnum = tu_edpt_number(xfer->ep_addr);
 
+  src = &xfer->buffer[xfer->transferred];
   left_to_send = xfer->total_len - xfer->transferred;
   if (left_to_send > xfer->max_packet_size - xfer->last_packet_size)
   {
@@ -301,51 +301,12 @@ static void fill_tx_fifo(xfer_ctl_t * xfer)
 
   // Loop checks TCOUNT all the time since this value is saturated to 31
   // and can't be read just once before.
-
-  if (xfer->ff)
+  while ((regs->txs & USB_USB_TXS1_REG_USB_TCOUNT_Msk) > 0 && left_to_send > 0)
   {
-    // Since TCOUNT is to be considered, we handle the FIFO reading manually here
-    // As we copy from a ring buffer FIFO, a wrap might occur making it necessary to conduct two copies
-    // Check for first linear part
-    uint8_t * src;
-    uint16_t len = tu_fifo_get_linear_read_info(xfer->ff, 0, (void **) &src, left_to_send);  // We want to read from the FIFO
-    uint16_t len1 = len;
-    while ((regs->txs & USB_USB_TXS1_REG_USB_TCOUNT_Msk) > 0 && len1 > 0)
-    {
-      regs->txd = *src++;
-      xfer->last_packet_size++;
-      len1--;
-    }
-
-    tu_fifo_advance_read_pointer(xfer->ff, len-len1);
-    left_to_send -= (len-len1);
-
-    // Check for wrapped part
-    if ((regs->txs & USB_USB_TXS1_REG_USB_TCOUNT_Msk) && left_to_send > 0)
-    {
-      len = tu_fifo_get_linear_read_info(xfer->ff, 0, (void **) &src, left_to_send);  // We want to read from the FIFO
-      len1 = len;
-      while ((regs->txs & USB_USB_TXS1_REG_USB_TCOUNT_Msk) > 0 && len1 > 0)
-      {
-        regs->txd = *src++;
-        xfer->last_packet_size++;
-        len1--;
-      }
-      tu_fifo_advance_read_pointer(xfer->ff, len-len1);
-      left_to_send -= (len-len1);
-    }
+    regs->txd = *src++;
+    xfer->last_packet_size++;
+    left_to_send--;
   }
-  else
-  {
-    uint8_t const *src = &xfer->buffer[xfer->transferred];
-    while ((regs->txs & USB_USB_TXS1_REG_USB_TCOUNT_Msk) > 0 && left_to_send > 0)
-    {
-      regs->txd = *src++;
-      xfer->last_packet_size++;
-      left_to_send--;
-    }
-  }
-
   if (epnum != 0)
   {
     if (left_to_send > 0)
@@ -402,14 +363,13 @@ static void start_rx_packet(xfer_ctl_t *xfer)
   xfer->last_packet_size = 0;
   if (xfer->max_packet_size > FIFO_SIZE && remaining > FIFO_SIZE)
   {
-    if (try_allocate_dma(epnum, TUSB_DIR_OUT) && !xfer->ff)
+    if (try_allocate_dma(epnum, TUSB_DIR_OUT))
     {
       start_rx_dma(&xfer->regs->rxd, xfer->buffer + xfer->transferred, size);
     }
     else
     {
       // Other endpoint is using DMA in that direction, fall back to interrupts.
-      // Or if an ISO EP transfer was scheduled, currently not handled by DMA!
       // For endpoint size greater then FIFO size enable FIFO level warning interrupt
       // when FIFO has less then 17 bytes free.
       xfer->regs->rxc |= USB_USB_RXC1_REG_USB_RFWL_Msk;
@@ -449,7 +409,7 @@ static void start_tx_packet(xfer_ctl_t *xfer)
   regs->txc = USB_USB_TXC1_REG_USB_IGN_ISOMSK_Msk;
   if (xfer->data1) xfer->regs->txc |= USB_USB_TXC1_REG_USB_TOGGLE_TX_Msk;
 
-  if (xfer->max_packet_size > FIFO_SIZE && remaining > FIFO_SIZE && try_allocate_dma(epnum, TUSB_DIR_IN) && !xfer->ff)
+  if (xfer->max_packet_size > FIFO_SIZE && remaining > FIFO_SIZE && try_allocate_dma(epnum, TUSB_DIR_IN))
   {
     // Whole packet will be put in FIFO by DMA. Set LAST bit before start.
     start_tx_dma(xfer->buffer + xfer->transferred, &regs->txd, size);
@@ -470,16 +430,9 @@ static void read_rx_fifo(xfer_ctl_t *xfer, uint16_t bytes_in_fifo)
 
   if (remaining < bytes_in_fifo) receive_this_time = remaining;
 
-  if (xfer->ff)
-  {
-    tu_fifo_write_n(xfer->ff, (const void *) &regs->rxd, receive_this_time);
-  }
-  else
-  {
-    uint8_t *buf = xfer->buffer + xfer->transferred + xfer->last_packet_size;
+  uint8_t *buf = xfer->buffer + xfer->transferred + xfer->last_packet_size;
 
-    for (int i = 0; i < receive_this_time; ++i) buf[i] = regs->rxd;
-  }
+  for (int i = 0; i < receive_this_time; ++i) buf[i] = regs->rxd;
 
   xfer->last_packet_size += receive_this_time;
 }
@@ -965,45 +918,9 @@ bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t t
   (void)rhport;
 
   xfer->buffer = buffer;
-  xfer->ff     = NULL;
   xfer->total_len = total_bytes;
   xfer->last_packet_size = 0;
   xfer->transferred = 0;
-
-  if (dir == TUSB_DIR_OUT)
-  {
-    start_rx_packet(xfer);
-  }
-  else // IN
-  {
-    start_tx_packet(xfer);
-  }
-
-  return true;
-}
-
-bool dcd_edpt_iso_xfer (uint8_t rhport, uint8_t ep_addr, tu_fifo_t * ff, uint16_t total_bytes)
-{
-  uint8_t const epnum = tu_edpt_number(ep_addr);
-  uint8_t const dir   = tu_edpt_dir(ep_addr);
-  xfer_ctl_t * xfer = XFER_CTL_BASE(epnum, dir);
-
-  (void)rhport;
-
-  xfer->buffer      = NULL;
-  xfer->ff          = ff;
-  xfer->total_len = total_bytes;
-  xfer->last_packet_size = 0;
-  xfer->transferred = 0;
-
-  if (dir == TUSB_DIR_IN)
-  {
-    tu_fifo_set_copy_mode_write(ff, TU_FIFO_COPY_CST);
-  }
-  else
-  {
-    tu_fifo_set_copy_mode_read(ff, TU_FIFO_COPY_CST);
-  }
 
   if (dir == TUSB_DIR_OUT)
   {
