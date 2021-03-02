@@ -14,7 +14,9 @@ LD_FILE = hw/mcu/ti/msp430/msp430-gcc-support-files/include/msp430f5529.ld
 LDINC += $(TOP)/hw/mcu/ti/msp430/msp430-gcc-support-files/include
 LDFLAGS += $(addprefix -L,$(LDINC))
 
-INC += $(TOP)/hw/mcu/ti/msp430/msp430-gcc-support-files/include
+INC += \
+	$(TOP)/hw/mcu/ti/msp430/msp430-gcc-support-files/include \
+	$(TOP)/$(BOARD_PATH)
 
 # For TinyUSB port source
 VENDOR = ti
