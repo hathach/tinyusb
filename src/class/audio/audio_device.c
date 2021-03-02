@@ -65,6 +65,7 @@
 
   // Linear buffer in case target MCU is not capable of handling a ring buffer FIFO e.g. no hardware buffer is available or driver is would need to be changed dramatically
 #if ( CFG_TUSB_MCU == OPT_MCU_MKL25ZXX            || /* Intermediate software buffer required */                        \
+    CFG_TUSB_MCU == OPT_MCU_DA1469X               || /* Intermediate software buffer required */                        \
     CFG_TUSB_MCU == OPT_MCU_LPC18XX               || /* No clue how driver works */                                     \
     CFG_TUSB_MCU == OPT_MCU_LPC43XX               ||                                                                    \
     CFG_TUSB_MCU == OPT_MCU_MIMXRT10XX            ||                                                                    \
