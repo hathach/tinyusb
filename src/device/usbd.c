@@ -992,11 +992,15 @@ void dcd_event_handler(dcd_event_t const * event, bool in_isr)
   switch (event->event_id)
   {
     case DCD_EVENT_UNPLUGGED:
-      _usbd_dev.connected  = 0;
-      _usbd_dev.addressed  = 0;
-      _usbd_dev.cfg_num    = 0;
-      _usbd_dev.suspended  = 0;
-      osal_queue_send(_usbd_q, event, in_isr);
+      // UNPLUGGED event can be bouncing, only processing if we are currently connected
+      if ( _usbd_dev.connected )
+      {
+        _usbd_dev.connected  = 0;
+        _usbd_dev.addressed  = 0;
+        _usbd_dev.cfg_num    = 0;
+        _usbd_dev.suspended  = 0;
+        osal_queue_send(_usbd_q, event, in_isr);
+      }
     break;
 
     case DCD_EVENT_SOF:
@@ -1004,9 +1008,10 @@ void dcd_event_handler(dcd_event_t const * event, bool in_isr)
     break;
 
     case DCD_EVENT_SUSPEND:
-      // NOTE: When plugging/unplugging device, the D+/D- state are unstable and can accidentally meet the
-      // SUSPEND condition ( Idle for 3ms ). Some MCUs such as SAMD doesn't distinguish suspend vs disconnect as well.
-      // We will skip handling SUSPEND/RESUME event if not currently connected
+      // NOTE: When plugging/unplugging device, the D+/D- state are unstable and
+      // can accidentally meet the SUSPEND condition ( Bus Idle for 3ms ).
+      // In addition, some MCUs such as SAMD or boards that haven no VBUS detection cannot distinguish
+      // suspended vs disconnected. We will skip handling SUSPEND/RESUME event if not currently connected
       if ( _usbd_dev.connected )
       {
         _usbd_dev.suspended = 1;
