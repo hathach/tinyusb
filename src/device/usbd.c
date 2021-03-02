@@ -1246,7 +1246,7 @@ bool usbd_edpt_iso_xfer(uint8_t rhport, uint8_t ep_addr, tu_fifo_t * ff, uint16_
   // and usbd task can preempt and clear the busy
   _usbd_dev.ep_status[epnum][dir].busy = true;
 
-  if (dcd_edpt_iso_xfer(rhport, ep_addr, ff, total_bytes))
+  if (dcd_edpt_xfer_fifo(rhport, ep_addr, ff, total_bytes))
   {
     TU_LOG2("OK\r\n");
     return true;

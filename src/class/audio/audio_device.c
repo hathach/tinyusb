@@ -34,7 +34,7 @@
  *
  * 1. Input data -> SW-FIFO -> MCU USB
  *
- * The most easiest version, available in case the target MCU can handle the software FIFO (SW-FIFO) and if it is implemented in the device driver (if yes then dcd_edpt_iso_xfer() is available)
+ * The most easiest version, available in case the target MCU can handle the software FIFO (SW-FIFO) and if it is implemented in the device driver (if yes then dcd_edpt_xfer_fifo() is available)
  *
  * 2. Input data -> SW-FIFO -> Linear buffer -> MCU USB
  *
