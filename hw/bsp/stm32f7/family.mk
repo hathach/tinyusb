@@ -1,4 +1,5 @@
 UF2_FAMILY_ID = 0x53b80f00
+FAMILY_SUBMODULES = hw/mcu/st/cmsis_device_f7 hw/mcu/st/stm32f7xx_hal_driver
 
 include $(TOP)/$(BOARD_PATH)/board.mk
 

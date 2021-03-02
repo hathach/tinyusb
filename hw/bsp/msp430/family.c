@@ -24,8 +24,8 @@
  * This file is part of the TinyUSB stack.
  */
 
-#include "../board.h"
-
+#include "bsp/board.h"
+#include "board.h"
 #include "msp430.h"
 
 //--------------------------------------------------------------------+
@@ -39,13 +39,6 @@ void __attribute__ ((interrupt(USB_UBM_VECTOR))) USB_UBM_ISR(void)
 //--------------------------------------------------------------------+
 // MACRO TYPEDEF CONSTANT ENUM
 //--------------------------------------------------------------------+
-#define LED_PORT              P1OUT
-#define LED_PIN               BIT0
-#define LED_STATE_ON          1
-
-#define BUTTON_PORT           P1IN
-#define BUTTON_PIN            BIT1
-#define BUTTON_STATE_ACTIVE   0
 
 uint32_t cnt = 0;
 

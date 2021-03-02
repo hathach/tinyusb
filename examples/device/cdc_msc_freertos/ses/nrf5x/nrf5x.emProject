@@ -107,39 +107,39 @@
       <folder Name="FreeRTOS">
         <folder Name="Source">
           <folder Name="include">
-            <file file_name="../../../../../lib/FreeRTOS/Source/include/croutine.h" />
-            <file file_name="../../../../../lib/FreeRTOS/Source/include/deprecated_definitions.h" />
-            <file file_name="../../../../../lib/FreeRTOS/Source/include/event_groups.h" />
-            <file file_name="../../../../../lib/FreeRTOS/Source/include/FreeRTOS.h" />
-            <file file_name="../../../../../lib/FreeRTOS/Source/include/list.h" />
-            <file file_name="../../../../../lib/FreeRTOS/Source/include/message_buffer.h" />
-            <file file_name="../../../../../lib/FreeRTOS/Source/include/mpu_prototypes.h" />
-            <file file_name="../../../../../lib/FreeRTOS/Source/include/mpu_wrappers.h" />
-            <file file_name="../../../../../lib/FreeRTOS/Source/include/portable.h" />
-            <file file_name="../../../../../lib/FreeRTOS/Source/include/projdefs.h" />
-            <file file_name="../../../../../lib/FreeRTOS/Source/include/queue.h" />
-            <file file_name="../../../../../lib/FreeRTOS/Source/include/semphr.h" />
-            <file file_name="../../../../../lib/FreeRTOS/Source/include/stack_macros.h" />
-            <file file_name="../../../../../lib/FreeRTOS/Source/include/StackMacros.h" />
-            <file file_name="../../../../../lib/FreeRTOS/Source/include/stream_buffer.h" />
-            <file file_name="../../../../../lib/FreeRTOS/Source/include/task.h" />
-            <file file_name="../../../../../lib/FreeRTOS/Source/include/timers.h" />
+            <file file_name="../../../../../lib/FreeRTOS-Kernel/include/croutine.h" />
+            <file file_name="../../../../../lib/FreeRTOS-Kernel/include/deprecated_definitions.h" />
+            <file file_name="../../../../../lib/FreeRTOS-Kernel/include/event_groups.h" />
+            <file file_name="../../../../../lib/FreeRTOS-Kernel/include/FreeRTOS.h" />
+            <file file_name="../../../../../lib/FreeRTOS-Kernel/include/list.h" />
+            <file file_name="../../../../../lib/FreeRTOS-Kernel/include/message_buffer.h" />
+            <file file_name="../../../../../lib/FreeRTOS-Kernel/include/mpu_prototypes.h" />
+            <file file_name="../../../../../lib/FreeRTOS-Kernel/include/mpu_wrappers.h" />
+            <file file_name="../../../../../lib/FreeRTOS-Kernel/include/portable.h" />
+            <file file_name="../../../../../lib/FreeRTOS-Kernel/include/projdefs.h" />
+            <file file_name="../../../../../lib/FreeRTOS-Kernel/include/queue.h" />
+            <file file_name="../../../../../lib/FreeRTOS-Kernel/include/semphr.h" />
+            <file file_name="../../../../../lib/FreeRTOS-Kernel/include/stack_macros.h" />
+            <file file_name="../../../../../lib/FreeRTOS-Kernel/include/StackMacros.h" />
+            <file file_name="../../../../../lib/FreeRTOS-Kernel/include/stream_buffer.h" />
+            <file file_name="../../../../../lib/FreeRTOS-Kernel/include/task.h" />
+            <file file_name="../../../../../lib/FreeRTOS-Kernel/include/timers.h" />
           </folder>
           <folder Name="portable">
             <folder Name="GCC">
               <folder Name="ARM_CM4F">
-                <file file_name="../../../../../lib/FreeRTOS/Source/portable/GCC/ARM_CM4F/port.c" />
-                <file file_name="../../../../../lib/FreeRTOS/Source/portable/GCC/ARM_CM4F/portmacro.h" />
+                <file file_name="../../../../../lib/FreeRTOS-Kernel/portable/GCC/ARM_CM4F/port.c" />
+                <file file_name="../../../../../lib/FreeRTOS-Kernel/portable/GCC/ARM_CM4F/portmacro.h" />
               </folder>
             </folder>
             <folder Name="MemMang">
-              <file file_name="../../../../../lib/FreeRTOS/Source/portable/MemMang/heap_4.c" />
+              <file file_name="../../../../../lib/FreeRTOS-Kernel/portable/MemMang/heap_4.c" />
             </folder>
           </folder>
-          <file file_name="../../../../../lib/FreeRTOS/Source/list.c" />
-          <file file_name="../../../../../lib/FreeRTOS/Source/queue.c" />
-          <file file_name="../../../../../lib/FreeRTOS/Source/tasks.c" />
-          <file file_name="../../../../../lib/FreeRTOS/Source/timers.c" />
+          <file file_name="../../../../../lib/FreeRTOS-Kernel/list.c" />
+          <file file_name="../../../../../lib/FreeRTOS-Kernel/queue.c" />
+          <file file_name="../../../../../lib/FreeRTOS-Kernel/tasks.c" />
+          <file file_name="../../../../../lib/FreeRTOS-Kernel/timers.c" />
         </folder>
       </folder>
     </folder>

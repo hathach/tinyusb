@@ -1,4 +1,5 @@
 UF2_FAMILY_ID = 0xADA52840
+FAMILY_SUBMODULES = hw/mcu/nordic/nrfx
 
 include $(TOP)/$(BOARD_PATH)/board.mk
 
@@ -39,7 +40,7 @@ SRC_C += \
 
 INC += \
   $(TOP)/$(BOARD_PATH) \
-  $(TOP)/lib/CMSIS_4/CMSIS/Include \
+  $(TOP)/lib/CMSIS_5/CMSIS/Core/Include \
   $(TOP)/hw/mcu/nordic \
   $(TOP)/hw/mcu/nordic/nrfx \
   $(TOP)/hw/mcu/nordic/nrfx/mdk \

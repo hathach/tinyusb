@@ -37,7 +37,7 @@ void vApplicationMallocFailedHook(void)
   TU_ASSERT(false, );
 }
 
-void vApplicationStackOverflowHook(xTaskHandle pxTask, signed char *pcTaskName)
+void vApplicationStackOverflowHook(xTaskHandle pxTask, char *pcTaskName)
 {
   (void) pxTask;
   (void) pcTaskName;
