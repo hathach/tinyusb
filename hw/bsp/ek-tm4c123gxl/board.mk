@@ -3,9 +3,9 @@ CFLAGS += \
   -mthumb \
   -mabi=aapcs \
   -mcpu=cortex-m4 \
-  -mfloat-abi=soft \
+  -mfloat-abi=hard \
+  -mfpu=fpv4-sp-d16 \
   -DCFG_TUSB_MCU=OPT_MCU_TM4C123 \
-  -nostdlib -nostartfiles \
   -uvectors \
   -DTM4C123GH6PM
   

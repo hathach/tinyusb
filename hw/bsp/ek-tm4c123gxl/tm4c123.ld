@@ -1,4 +1,4 @@
-ENTRY(Reset_Handler) 
+/* ENTRY(Reset_Handler) */ 
 
 MEMORY 
 {
@@ -22,18 +22,17 @@ SECTIONS
         __end_text = . ; 
     } >FLASH
     
-    __la_data = LOADADDR(.data);
-
-    .data :
+    .data : AT(ADDR(.text) + SIZEOF(.text))
     {
         . = ALIGN(4);
         __start_data = . ; 
+        __la_data = LOADADDR(.data);
         *(.data) 
         *(.data.*)
         . = ALIGN(4);
         __end_data = . ; 
 
-    } >SRAM AT>FLASH
+    } >SRAM
 
     .bss :
     {
@@ -44,10 +43,7 @@ SECTIONS
         *(.bss.*)
         *(.COMMON) 
         __end_bss = . ;
-        __bss_end__ = __end_bss;
         . = ALIGN(4);
-        end = . ;
-        __end__ = . ;
     }>SRAM
 
 }
