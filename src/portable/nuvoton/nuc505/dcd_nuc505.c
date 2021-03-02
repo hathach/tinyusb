@@ -183,7 +183,7 @@ static void dcd_userEP_in_xfer(struct xfer_ctl_t *xfer, USBD_EP_T *ep)
   /* provided buffers are thankfully 32-bit aligned, allowing most data to be transfered as 32-bit */
   if (xfer->ff)
   {
-    tu_fifo_read_n(xfer->ff, (void *) (&ep->EPDAT_BYTE), bytes_now);
+    tu_fifo_read_n_const_addr(xfer->ff, (void *) (&ep->EPDAT_BYTE), bytes_now);
   }
   else
   {
@@ -431,12 +431,10 @@ bool dcd_edpt_xfer_fifo (uint8_t rhport, uint8_t ep_addr, tu_fifo_t * ff, uint16
 
   if (TUSB_DIR_IN == dir)
   {
-    tu_fifo_set_copy_mode_write(ff, TU_FIFO_COPY_CST);      // For the PHY in nuc505 the source and destination pointer have to be constant!
     ep->EPINTEN = USBD_EPINTEN_BUFEMPTYIEN_Msk;
   }
   else
   {
-    tu_fifo_set_copy_mode_read(ff, TU_FIFO_COPY_CST);       // For the PHY in nuc505 the source and destination pointer have to be constant!
     xfer->out_bytes_so_far = 0;
     ep->EPINTEN = USBD_EPINTEN_RXPKIEN_Msk;
   }
@@ -659,7 +657,7 @@ void dcd_int_handler(uint8_t rhport)
           /* copy the data from the PC to the previously provided buffer */
           if (xfer->ff)
           {
-            tu_fifo_write_n(xfer->ff, (const void *) &ep->EPDAT_BYTE, tu_min16(available_bytes, xfer->total_bytes - xfer->out_bytes_so_far));
+            tu_fifo_write_n_const_addr(xfer->ff, (const void *) &ep->EPDAT_BYTE, tu_min16(available_bytes, xfer->total_bytes - xfer->out_bytes_so_far));
           }
           else
           {

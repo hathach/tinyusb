@@ -365,12 +365,10 @@ bool dcd_edpt_xfer_fifo (uint8_t rhport, uint8_t ep_addr, tu_fifo_t * ff, uint16
 
   if(dir == TUSB_DIR_OUT)
   {
-    tu_fifo_set_copy_mode_read(ff, TU_FIFO_COPY_INC);       // For the PHY in msp430 the source and destination pointer have to be incremented!
     ep_regs[BCTX] &= ~NAK;
   }
   else
   {
-    tu_fifo_set_copy_mode_write(ff, TU_FIFO_COPY_INC);      // For the PHY in msp430 the source and destination pointer have to be incremented!
     USBIEPIFG |= (1 << epnum);
   }
 

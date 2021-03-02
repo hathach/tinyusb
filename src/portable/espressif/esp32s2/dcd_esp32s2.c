@@ -382,16 +382,6 @@ bool dcd_edpt_xfer_fifo (uint8_t rhport, uint8_t ep_addr, tu_fifo_t * ff, uint16
     num_packets++;
   }
 
-  // Set copy mode to constant address - required since data copied to or from the hardware USB FIFO needs to be written at a constant address
-  if (dir == TUSB_DIR_IN)
-  {
-    tu_fifo_set_copy_mode_write(ff, TU_FIFO_COPY_CST);
-  }
-  else
-  {
-    tu_fifo_set_copy_mode_read(ff, TU_FIFO_COPY_CST);
-  }
-
   ESP_LOGV(TAG, "Transfer <-> EP%i, %s, pkgs: %i, bytes: %i",
            epnum, ((dir == TUSB_DIR_IN) ? "USB0.HOST (in)" : "HOST->DEV (out)"),
            num_packets, total_bytes);
@@ -527,7 +517,7 @@ static void receive_packet(xfer_ctl_t *xfer, /* usb_out_endpoint_t * out_ep, */ 
   if (xfer->ff)
   {
     // Ring buffer
-    tu_fifo_write_n(xfer->ff, (const void *) rx_fifo, to_recv_size);
+    tu_fifo_write_n_const_addr(xfer->ff, (const void *) rx_fifo, to_recv_size);
   }
   else
   {
@@ -583,7 +573,7 @@ static void transmit_packet(xfer_ctl_t *xfer, volatile usb_in_endpoint_t *in_ep,
 
   if (xfer->ff)
   {
-    tu_fifo_read_n(xfer->ff, (void *) tx_fifo, to_xfer_size);
+    tu_fifo_read_n_const_addr(xfer->ff, (void *) tx_fifo, to_xfer_size);
   }
   else
   {

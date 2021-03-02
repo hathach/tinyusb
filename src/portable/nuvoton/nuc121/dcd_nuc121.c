@@ -320,12 +320,10 @@ bool dcd_edpt_xfer_fifo (uint8_t rhport, uint8_t ep_addr, tu_fifo_t * ff, uint16
 
   if (TUSB_DIR_IN == dir)
   {
-    tu_fifo_set_copy_mode_write(ff, TU_FIFO_COPY_INC);      // For the PHY in nuc120 the source and destination pointer have to be incremented!
     dcd_in_xfer(xfer, ep);
   }
   else
   {
-    tu_fifo_set_copy_mode_read(ff, TU_FIFO_COPY_INC);       // For the PHY in nuc120 the source and destination pointer have to be incremented!
     xfer->out_bytes_so_far = 0;
     ep->MXPLD = xfer->max_packet_size;
   }

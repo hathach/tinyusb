@@ -312,14 +312,11 @@ bool dcd_edpt_xfer_fifo (uint8_t rhport, uint8_t ep_addr, tu_fifo_t * ff, uint16
 
   if (dir == TUSB_DIR_OUT)
   {
-    tu_fifo_set_copy_mode_read(ff, TU_FIFO_COPY_CST);
-
     // Enable interrupt when starting OUT transfer
     if (epnum != 0) UDP->UDP_IER |= (1 << epnum);
   }
   else
   {
-    tu_fifo_set_copy_mode_write(ff, TU_FIFO_COPY_CST);
     tu_fifo_read_n(ff, (void *) &UDP->UDP_FDR[epnum], xfer_packet_len(xfer));
 
     // TX ready for transfer
@@ -440,7 +437,7 @@ void dcd_int_handler(uint8_t rhport)
           // write to EP fifo
           if (xfer->ff)
           {
-            tu_fifo_read_n(xfer->ff, (void *) &UDP->UDP_FDR[epnum], xact_len);
+            tu_fifo_read_n_const_addr(xfer->ff, (void *) &UDP->UDP_FDR[epnum], xact_len);
           }
           else
           {
@@ -473,7 +470,7 @@ void dcd_int_handler(uint8_t rhport)
         // Read from EP fifo
         if (xfer->ff)
         {
-          tu_fifo_write_n(xfer->ff, (const void *) &UDP->UDP_FDR[epnum], xact_len);
+          tu_fifo_write_n_const_addr(xfer->ff, (const void *) &UDP->UDP_FDR[epnum], xact_len);
         }
         else
         {
