@@ -291,14 +291,16 @@ static void _hw_endpoint_init(struct hw_endpoint *ep, uint8_t dev_addr, uint8_t 
     assert(ep->buffer_control);
     assert(ep->hw_data_buf);
 
-    uint8_t num = tu_edpt_number(ep_addr);
+    uint8_t const num = tu_edpt_number(ep_addr);
+    tusb_dir_t const dir = tu_edpt_dir(ep_addr);
+
     bool in = ep_addr & TUSB_DIR_IN_MASK;
     ep->ep_addr = ep_addr;
     ep->dev_addr = dev_addr;
-    ep->in = in;
+
     // For host, IN to host == RX, anything else rx == false
-    ep->rx = in == true;
-    ep->num = num;
+    ep->rx = (dir == TUSB_DIR_IN);
+
     // Response to a setup packet on EP0 starts with pid of 1
     ep->next_pid = num == 0 ? 1u : 0u;
     ep->wMaxPacketSize = wMaxPacketSize;
@@ -327,9 +329,9 @@ static void _hw_endpoint_init(struct hw_endpoint *ep, uint8_t dev_addr, uint8_t 
         // device address
         // endpoint number / direction
         // preamble
-        uint32_t reg = dev_addr | (ep->num << USB_ADDR_ENDP1_ENDPOINT_LSB);
+        uint32_t reg = dev_addr | (num << USB_ADDR_ENDP1_ENDPOINT_LSB);
         // Assert the interrupt endpoint is IN_TO_HOST
-        assert(ep->in);
+        assert(dir == TUSB_DIR_IN);
 
         if (need_pre(dev_addr))
         {
@@ -462,7 +464,7 @@ bool hcd_edpt_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr, uint8_t * 
     if (ep == &epx) {
         // That has set up buffer control, endpoint control etc
         // for host we have to initiate the transfer
-        usb_hw->dev_addr_ctrl = dev_addr | ep->num << USB_ADDR_ENDP_ENDPOINT_LSB;
+        usb_hw->dev_addr_ctrl = dev_addr | (tu_edpt_number(ep_addr) << USB_ADDR_ENDP_ENDPOINT_LSB);
         uint32_t flags = USB_SIE_CTRL_START_TRANS_BITS | sie_ctrl_base;
         flags |= ep->rx ? USB_SIE_CTRL_RECEIVE_DATA_BITS : USB_SIE_CTRL_SEND_DATA_BITS;
         // Set pre if we are a low speed device on full speed hub
