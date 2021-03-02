@@ -39,13 +39,13 @@ $ git clone https://github.com/hathach/tinyusb tinyusb
 $ cd tinyusb
 ```
 
-TinyUSB examples includes external repos aka submodules to provide low-level MCU peripheral's driver as well as external libraries such as FreeRTOS to compile with. Therefore we will firstly fetch those mcu driver repo by running this command in the top folder repo
+Some TinyUSB examples also requires external submodule libraries in `/lib` such as FreeRTOS, Lightweight IP to build. Run following command to fetch them 
 
 ```
-$ git submodule update --init --recursive
+$ git submodule update --init lib
 ```
 
-It will takes a bit of time due to the number of supported MCUs, luckily we only need to do this once. Or if you only want to test with a specific mcu, you could only fetch its driver submodule.
+In addition, MCU driver submodule is also needed to provide low-level MCU peripheral's driver. Luckily, it will be fetched if needed when you run the `make` to build your board.
 
 ### Build
 

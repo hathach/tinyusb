@@ -65,7 +65,7 @@ jobs:
         submodules: 'false'
 
     - name: Checkout Submodules in lib
-      run: git submodule update --init --recursive lib
+      run: git submodule update --init lib
 
     - name: Build
       run: python3 tools/build_family.py ${{ matrix.family }}
