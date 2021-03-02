@@ -75,7 +75,7 @@ struct hw_endpoint
     // Interrupt, bulk, etc
     uint8_t transfer_type;
     
-#ifdef RP2040_USB_HOST_MODE
+#if TUSB_OPT_HOST_ENABLED
     // Only needed for host mode
     bool last_buf;
     // HOST BUG. Host will incorrect write status to top half of buffer

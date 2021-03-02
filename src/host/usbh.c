@@ -157,6 +157,7 @@ tusb_speed_t tuh_device_get_speed (uint8_t const dev_addr)
   return (tusb_speed_t) _usbh_devices[dev_addr].speed;
 }
 
+#if CFG_TUSB_OS == OPT_OS_NONE
 void osal_task_delay(uint32_t msec)
 {
   (void) msec;
@@ -164,6 +165,7 @@ void osal_task_delay(uint32_t msec)
   const uint32_t start = hcd_frame_number(TUH_OPT_RHPORT);
   while ( ( hcd_frame_number(TUH_OPT_RHPORT) - start ) < msec ) {}
 }
+#endif
 
 //--------------------------------------------------------------------+
 // CLASS-USBD API (don't require to verify parameters)

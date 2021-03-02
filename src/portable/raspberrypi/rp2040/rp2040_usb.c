@@ -43,7 +43,7 @@ static inline void _hw_endpoint_lock_update(struct hw_endpoint *ep, int delta) {
     //  sense to have worker and IRQ on same core, however I think using critsec is about equivalent.
 }
 
-#ifdef RP2040_USB_HOST_MODE
+#if TUSB_OPT_HOST_ENABLED
 static inline void _hw_endpoint_update_last_buf(struct hw_endpoint *ep)
 {
     ep->last_buf = ep->len + ep->transfer_size == ep->total_len;
@@ -69,7 +69,7 @@ void hw_endpoint_reset_transfer(struct hw_endpoint *ep)
 {
     ep->stalled = false;
     ep->active = false;
-#ifdef RP2040_USB_HOST_MODE
+#if TUSB_OPT_HOST_ENABLED
     ep->sent_setup = false;
 #endif
     ep->total_len = 0;
@@ -92,7 +92,7 @@ void _hw_endpoint_buffer_control_update32(struct hw_endpoint *ep, uint32_t and_m
             *ep->buffer_control = value & ~USB_BUF_CTRL_AVAIL;
             // 12 cycle delay.. (should be good for 48*12Mhz = 576Mhz)
             // Don't need delay in host mode as host is in charge
-#ifndef RP2040_USB_HOST_MODE
+#if !TUSB_OPT_HOST_ENABLED
             __asm volatile (
                     "b 1f\n"
                     "1: b 1f\n"
@@ -125,7 +125,7 @@ void _hw_endpoint_start_next_buffer(struct hw_endpoint *ep)
     val |= ep->next_pid ? USB_BUF_CTRL_DATA1_PID : USB_BUF_CTRL_DATA0_PID;
     ep->next_pid ^= 1u;
 
-#ifdef RP2040_USB_HOST_MODE
+#if TUSB_OPT_HOST_ENABLED
     // Is this the last buffer? Only really matters for host mode. Will trigger
     // the trans complete irq but also stop it polling. We only really care about
     // trans complete for setup packets being sent
@@ -161,7 +161,7 @@ void _hw_endpoint_xfer_start(struct hw_endpoint *ep, uint8_t *buffer, uint16_t t
     ep->transfer_size = tu_min16(total_len, ep->wMaxPacketSize);
     ep->active = true;
     ep->user_buf = buffer;
-#ifdef RP2040_USB_HOST_MODE
+#if TUSB_OPT_HOST_ENABLED
     // Recalculate if this is the last buffer
     _hw_endpoint_update_last_buf(ep);
     ep->buf_sel = 0;
@@ -181,7 +181,7 @@ void _hw_endpoint_xfer_sync(struct hw_endpoint *ep)
     uint32_t buf_ctrl = _hw_endpoint_buffer_control_get_value32(ep);
     uint16_t transferred_bytes = buf_ctrl & USB_BUF_CTRL_LEN_MASK;
 
-#ifdef RP2040_USB_HOST_MODE
+#if TUSB_OPT_HOST_ENABLED
     // tag::host_buf_sel_fix[]
     if (ep->buf_sel == 1)
     {
@@ -239,7 +239,7 @@ bool _hw_endpoint_xfer_continue(struct hw_endpoint *ep)
     // Now we have synced our state with the hardware. Is there more data to transfer?
     uint16_t remaining_bytes = ep->total_len - ep->len;
     ep->transfer_size = tu_min16(remaining_bytes, ep->wMaxPacketSize);
-#ifdef RP2040_USB_HOST_MODE
+#if TUSB_OPT_HOST_ENABLED
     _hw_endpoint_update_last_buf(ep);
 #endif
 
