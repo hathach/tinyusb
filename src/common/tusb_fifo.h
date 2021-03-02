@@ -56,15 +56,6 @@ extern "C" {
 #define tu_fifo_mutex_t  osal_mutex_t
 #endif
 
-/** \enum tu_fifo_copy_mode_t
- * \brief Write modes intended to allow special read and write functions to be able to copy data to and from USB hardware FIFOs as needed for e.g. STM32s
- */
-typedef enum
-{
-  TU_FIFO_COPY_INC,                     ///< Copy from/to an increasing source/destination address - default mode
-  TU_FIFO_COPY_CST,                     ///< Copy from/to a constant source/destination address - required for e.g. STM32 to write into USB hardware FIFO
-} tu_fifo_copy_mode_t;
-
 /** \struct tu_fifo_t
  * \brief Simple Circular FIFO
  */
@@ -81,9 +72,6 @@ typedef struct
   volatile uint16_t wr_idx               ; ///< write pointer
   volatile uint16_t rd_idx               ; ///< read pointer
 
-  tu_fifo_copy_mode_t wr_mode            ; ///< write mode - default is TU_FIFO_COPY_INC
-  tu_fifo_copy_mode_t rd_mode            ; ///< read mode - default is TU_FIFO_COPY_INC
-
 #if CFG_FIFO_MUTEX
   tu_fifo_mutex_t mutex;
 #endif
@@ -98,8 +86,6 @@ typedef struct
   .overwritable         = _overwritable,                    \
   .max_pointer_idx      = 2*(_depth)-1,                     \
   .non_used_index_space = UINT16_MAX - (2*(_depth)-1),      \
-  .wr_mode              = TU_FIFO_COPY_INC,                 \
-  .rd_mode              = TU_FIFO_COPY_INC,                 \
 }
 
 #define TU_FIFO_DEF(_name, _depth, _type, _overwritable)                      \
@@ -120,9 +106,11 @@ static inline void tu_fifo_config_mutex(tu_fifo_t *f, tu_fifo_mutex_t mutex_hdl)
 
 bool     tu_fifo_write                  (tu_fifo_t* f, void const * p_data);
 uint16_t tu_fifo_write_n                (tu_fifo_t* f, void const * p_data, uint16_t n);
+uint16_t tu_fifo_write_n_const_addr              (tu_fifo_t* f, const void * data, uint16_t n);
 
 bool     tu_fifo_read                   (tu_fifo_t* f, void * p_buffer);
 uint16_t tu_fifo_read_n                 (tu_fifo_t* f, void * p_buffer, uint16_t n);
+uint16_t tu_fifo_read_n_const_addr      (tu_fifo_t* f, void * buffer, uint16_t n);
 uint16_t tu_fifo_read_n_into_other_fifo (tu_fifo_t* f, tu_fifo_t* f_target, uint16_t offset, uint16_t n);
 
 bool     tu_fifo_peek_at                (tu_fifo_t* f, uint16_t pos, void * p_buffer);
@@ -158,18 +146,6 @@ static inline bool tu_fifo_peek(tu_fifo_t* f, void * p_buffer)
 static inline uint16_t tu_fifo_depth(tu_fifo_t* f)
 {
   return f->depth;
-}
-
-// When writing into the FIFO by fifo_write_n(), rd_mode determines how the pointer read from is modified
-static inline void tu_fifo_set_copy_mode_read(tu_fifo_t* f, tu_fifo_copy_mode_t rd_mode)
-{
-  f->rd_mode = rd_mode;
-}
-
-// When reading from the FIFO by fifo_read_n() or fifo_peek_n(), wr_mode determines how the pointer written to is modified
-static inline void tu_fifo_set_copy_mode_write(tu_fifo_t* f, tu_fifo_copy_mode_t wr_mode)
-{
-  f->wr_mode = wr_mode;
 }
 
 #ifdef __cplusplus
