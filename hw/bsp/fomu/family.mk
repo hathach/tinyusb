@@ -8,16 +8,13 @@ CFLAGS += \
 # Cross Compiler for RISC-V
 CROSS_COMPILE = riscv-none-embed-
 
-MCU_DIR = hw/mcu/fomu
-BSP_DIR = hw/bsp/fomu
-
 # All source paths should be relative to the top level.
-LD_FILE = hw/bsp/$(BOARD)/fomu.ld
+LD_FILE = $(FAMILY_PATH)/fomu.ld
 
-SRC_S += hw/bsp/$(BOARD)/crt0-vexriscv.S
+SRC_S += $(FAMILY_PATH)/crt0-vexriscv.S
 
 INC += \
-	$(TOP)/$(BSP_DIR)/include
+	$(TOP)/$(FAMILY_PATH)/include
 
 # For TinyUSB port source
 VENDOR = valentyusb

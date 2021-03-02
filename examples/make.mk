@@ -19,8 +19,10 @@ __check_defined = \
 #-------------- Select the board to build for. ------------
 
 # Board without family
-BOARD_PATH := $(subst $(TOP)/,,$(wildcard $(TOP)/hw/bsp/$(BOARD)))
+ifneq ($(wildcard $(TOP)/hw/bsp/$(BOARD)/board.mk),)
+BOARD_PATH := hw/bsp/$(BOARD)
 FAMILY :=
+endif
 
 # Board within family
 ifeq ($(BOARD_PATH),)

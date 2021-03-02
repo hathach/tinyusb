@@ -28,8 +28,10 @@ jobs:
         cd test
         ceedling test:all
 
-  # build all example for each family
-  build-family:
+  # ---------------------------------------
+  # Build ARM family
+  # ---------------------------------------
+  build-arm:
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -90,32 +92,17 @@ jobs:
         asset_name: ${{ matrix.family }}-tinyusb-${{ github.event.release.tag_name }}-examples.zip
         asset_content_type: application/zip
 
-  # Build all no-family (opharned) boards
-  build-board:
+  # ---------------------------------------
+  # Build RISC-V family
+  # ---------------------------------------
+  build-riscv:
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        example:
+        family:
         # Alphabetical order
-        - 'device/audio_test'
-        - 'device/board_test'
-        - 'device/cdc_dual_ports'
-        - 'device/cdc_msc'
-        - 'device/cdc_msc_freertos'
-        - 'device/dfu_runtime'
-        - 'device/hid_composite'
-        - 'device/hid_composite_freertos'
-        - 'device/hid_generic_inout'
-        - 'device/hid_multiple_interface'
-        - 'device/midi_test'
-        - 'device/msc_dual_lun'
-        - 'device/net_lwip_webserver'
-        - 'device/uac2_headset'
-        - 'device/usbtmc'
-        - 'device/webusb_serial'
-        - 'host/cdc_msc_hid'
-
+        - 'fomu'    
     steps:
     - name: Setup Python
       uses: actions/setup-python@v2
@@ -125,22 +112,76 @@ jobs:
 
     - name: Checkout TinyUSB
       uses: actions/checkout@v2
-      with:
-        submodules: 'true'
 
-    - name: Install Toolchains
+    - name: Checkout Submodules in lib
+      run: git submodule update --init lib
+
+    - name: Install Toolchain
       run: |
-        # ARM & RISC-V GCC from xpack
+        # RISC-V GCC from xpack
         npm install --global xpm
-        xpm install --global @xpack-dev-tools/arm-none-eabi-gcc@latest
         xpm install --global @xpack-dev-tools/riscv-none-embed-gcc@latest
-        echo `echo $HOME/.local/xPacks/@xpack-dev-tools/arm-none-eabi-gcc/*/.content/bin` >> $GITHUB_PATH
         echo `echo $HOME/.local/xPacks/@xpack-dev-tools/riscv-none-embed-gcc/*/.content/bin` >> $GITHUB_PATH
 
     - name: Build
-      run: python3 tools/build_board.py ${{ matrix.example }}
+      run: python3 tools/build_family.py ${{ matrix.family }}
 
-  # build all example for each family
+    - uses: actions/upload-artifact@v2
+      with:
+        name: ${{ matrix.family }}-tinyusb-examples
+        path: _bin/
+
+    - name: Create Release Asset
+      if: ${{ github.event_name == 'release' }}
+      run: |
+        cd _bin/
+        zip -r ../${{ matrix.family }}-tinyusb-${{ github.event.release.tag_name }}-examples.zip *
+
+    - name: Upload Release Asset
+      uses: actions/upload-release-asset@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      if: ${{ github.event_name == 'release' }}
+      with:
+        upload_url: ${{ github.event.release.upload_url }}
+        asset_path: ${{ matrix.family }}-tinyusb-${{ github.event.release.tag_name }}-examples.zip
+        asset_name: ${{ matrix.family }}-tinyusb-${{ github.event.release.tag_name }}-examples.zip
+        asset_content_type: application/zip
+
+  # ---------------------------------------
+  # Build ESP32S2 family
+  # ---------------------------------------
+  build-esp32s2:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        board:
+        # Alphabetical order
+        - 'adafruit_feather_esp32s2'
+        - 'adafruit_magtag_29gray'
+        - 'adafruit_metro_esp32s2'
+        - 'espressif_kaluga_1'
+        - 'espressif_saola_1'
+
+    steps:
+    - name: Setup Python
+      uses: actions/setup-python@v2
+
+    - name: Pull ESP-IDF docker
+      run: docker pull espressif/idf:latest
+
+    - name: Checkout TinyUSB
+      uses: actions/checkout@v2
+      with:
+        submodules: 'false'
+
+    - name: Build
+      run: docker run --rm -v $PWD:/project -w /project espressif/idf:latest python3 tools/build_esp32s2.py ${{ matrix.board }}
+
+  # ---------------------------------------
+  # Build msp430 family
+  # ---------------------------------------
   build-msp430:
     runs-on: ubuntu-latest
     steps:
@@ -199,32 +240,53 @@ jobs:
         asset_path: ${{ env.family }}-tinyusb-${{ github.event.release.tag_name }}-examples.zip
         asset_name: ${{ env.family }}-tinyusb-${{ github.event.release.tag_name }}-examples.zip
         asset_content_type: application/zip
-        
-  # Build ESP32S2
-  build-esp32s2:
+
+  # ---------------------------------------
+  # Build all no-family (opharned) boards
+  # ---------------------------------------
+  build-board:
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        board:
+        example:
         # Alphabetical order
-        - 'adafruit_feather_esp32s2'
-        - 'adafruit_magtag_29gray'
-        - 'adafruit_metro_esp32s2'
-        - 'espressif_kaluga_1'
-        - 'espressif_saola_1'
+        - 'device/audio_test'
+        - 'device/board_test'
+        - 'device/cdc_dual_ports'
+        - 'device/cdc_msc'
+        - 'device/cdc_msc_freertos'
+        - 'device/dfu_runtime'
+        - 'device/hid_composite'
+        - 'device/hid_composite_freertos'
+        - 'device/hid_generic_inout'
+        - 'device/hid_multiple_interface'
+        - 'device/midi_test'
+        - 'device/msc_dual_lun'
+        - 'device/net_lwip_webserver'
+        - 'device/uac2_headset'
+        - 'device/usbtmc'
+        - 'device/webusb_serial'
+        - 'host/cdc_msc_hid'
 
     steps:
     - name: Setup Python
       uses: actions/setup-python@v2
 
-    - name: Pull ESP-IDF docker
-      run: docker pull espressif/idf:latest
+    - name: Setup Node.js
+      uses: actions/setup-node@v1
 
     - name: Checkout TinyUSB
       uses: actions/checkout@v2
       with:
-        submodules: 'false'
+        submodules: 'true'
+
+    - name: Install Toolchains
+      run: |
+        # ARM GCC from xpack
+        npm install --global xpm
+        xpm install --global @xpack-dev-tools/arm-none-eabi-gcc@latest
+        echo `echo $HOME/.local/xPacks/@xpack-dev-tools/arm-none-eabi-gcc/*/.content/bin` >> $GITHUB_PATH
 
     - name: Build
-      run: docker run --rm -v $PWD:/project -w /project espressif/idf:latest python3 tools/build_esp32s2.py ${{ matrix.board }}
+      run: python3 tools/build_board.py ${{ matrix.example }}
