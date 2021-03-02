@@ -1,3 +1,7 @@
+CROSS_COMPILE = msp430-elf-
+FAMILY_SUBMODULES = hw/mcu/ti
+SKIP_NANOLIB = 1
+
 CFLAGS += \
   -D__MSP430F5529__ \
   -DCFG_TUSB_MCU=OPT_MCU_MSP430x5xx \
@@ -6,8 +10,7 @@ CFLAGS += \
 
 #-mmcu=msp430f5529
 
-# Cross Compiler for MSP430
-CROSS_COMPILE = msp430-elf-
+
 
 # All source paths should be relative to the top level.
 LD_FILE = hw/mcu/ti/msp430/msp430-gcc-support-files/include/msp430f5529.ld

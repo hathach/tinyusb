@@ -100,12 +100,11 @@ INC += $(TOP)/src
 
 CFLAGS += $(addprefix -I,$(INC))
 
-# TODO Skip nanolib for MSP430
-ifeq ($(BOARD), msp_exp430f5529lp)
-  LDFLAGS += $(CFLAGS) -fshort-enums -Wl,-T,$(TOP)/$(LD_FILE) -Wl,-Map=$@.map -Wl,-cref -Wl,-gc-sections
-else
-  LDFLAGS += $(CFLAGS) -fshort-enums -Wl,-T,$(TOP)/$(LD_FILE) -Wl,-Map=$@.map -Wl,-cref -Wl,-gc-sections -specs=nosys.specs -specs=nano.specs
+LDFLAGS += $(CFLAGS) -fshort-enums -Wl,-T,$(TOP)/$(LD_FILE) -Wl,-Map=$@.map -Wl,-cref -Wl,-gc-sections
+ifneq ($(SKIP_NANOLIB), 1)
+LDFLAGS += -specs=nosys.specs -specs=nano.specs
 endif
+
 ASFLAGS += $(CFLAGS)
 
 # Assembly files can be name with upper case .S, convert it to .s
