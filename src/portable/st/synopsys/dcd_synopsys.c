@@ -688,16 +688,6 @@ bool dcd_edpt_xfer_fifo (uint8_t rhport, uint8_t ep_addr, tu_fifo_t * ff, uint16
   xfer->ff          = ff;
   xfer->total_len   = total_bytes;
 
-  // Set copy mode to constant address - required since data copied to or from the hardware USB FIFO needs to be written at a constant address
-  if (dir == TUSB_DIR_IN)
-  {
-    tu_fifo_set_copy_mode_write(ff, TU_FIFO_COPY_CST);
-  }
-  else
-  {
-    tu_fifo_set_copy_mode_read(ff, TU_FIFO_COPY_CST);
-  }
-
   uint16_t num_packets = (total_bytes / xfer->max_size);
   uint8_t const short_packet_size = total_bytes % xfer->max_size;
 
@@ -912,7 +902,7 @@ static void handle_rxflvl_ints(uint8_t rhport, USB_OTG_OUTEndpointTypeDef * out_
       if (xfer->ff)
       {
         // Ring buffer
-        tu_fifo_write_n(xfer->ff, (const void *) rx_fifo, bcnt);
+        tu_fifo_write_n_const_addr(xfer->ff, (const void *) rx_fifo, bcnt);
       }
       else
       {
@@ -1032,7 +1022,7 @@ static void handle_epin_ints(uint8_t rhport, USB_OTG_DeviceTypeDef * dev, USB_OT
           if (xfer->ff)
           {
             usb_fifo_t tx_fifo = FIFO_BASE(rhport, n);
-            tu_fifo_read_n(xfer->ff, (void *) tx_fifo, packet_size);
+            tu_fifo_read_n_const_addr(xfer->ff, (void *) tx_fifo, packet_size);
           }
           else
           {
