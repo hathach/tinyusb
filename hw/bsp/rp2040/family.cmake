@@ -1,3 +1,11 @@
+target_link_libraries(${PROJECT}
+  pico_stdlib
+  pico_bootsel_via_double_reset
+  pico_fix_rp2040_usb_device_enumeration
+)
+
+pico_add_extra_outputs(${PROJECT})
+
 # TinyUSB Stack source
 set(SRC_TINYUSB
 	${TOP}/src/tusb.c

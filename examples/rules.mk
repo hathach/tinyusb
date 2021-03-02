@@ -194,6 +194,8 @@ else
 	$(RM) -rf $(BUILD)
 endif
 
+endif # GNU Make
+
 # Print out the value of a make variable.
 # https://stackoverflow.com/questions/16467718/how-to-print-out-a-variable-in-makefile
 print-%:
@@ -227,7 +229,6 @@ flash-pyocd: $(BUILD)/$(PROJECT).hex
 	pyocd flash -t $(PYOCD_TARGET) $<
 	pyocd reset -t $(PYOCD_TARGET)
 
-endif # GNU Make
 
 #-------------- Artifacts --------------
 
