@@ -437,7 +437,6 @@ void dcd_disconnect(uint8_t rhport)
 {
     pico_info("dcd_disconnect %d\n", rhport);
     assert(rhport == 0);
-    //TU_LOG2("dcd_disconnect\n");
     usb_hw_clear->sie_ctrl = USB_SIE_CTRL_PULLUP_EN_BITS;
 }
 
@@ -446,7 +445,6 @@ void dcd_connect(uint8_t rhport)
 {
     pico_info("dcd_connect %d\n", rhport);
     assert(rhport == 0);
-    //TU_LOG2("dcd_connect\n");
     usb_hw_set->sie_ctrl = USB_SIE_CTRL_PULLUP_EN_BITS;
 }
 
