@@ -25,7 +25,8 @@
  */
 
 #include "chip.h"
-#include "../board.h"
+#include "bsp/board.h"
+#include "board.h"
 
 //--------------------------------------------------------------------+
 // USB Interrupt Handler
@@ -55,19 +56,6 @@ void USB1_IRQHandler(void)
 //--------------------------------------------------------------------+
 // MACRO TYPEDEF CONSTANT ENUM DECLARATION
 //--------------------------------------------------------------------+
-
-// PD_10
-#define LED_PORT      6
-#define LED_PIN       24
-
-// P4_0
-#define BUTTON_PORT   2
-#define BUTTON_PIN    0
-
-#define UART_DEV        LPC_USART3
-#define UART_PORT       0x02
-#define UART_PIN_TX     3
-#define UART_PIN_RX     4
 
 
 /* System configuration variables used by chip driver */
