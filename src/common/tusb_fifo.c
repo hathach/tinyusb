@@ -167,7 +167,7 @@ static inline void _ff_push(tu_fifo_t* f, void const * data, uint16_t wRel)
   memcpy(f->buffer + (wRel * f->item_size), data, f->item_size);
 }
 
-static inline void _ff_push_copy_fct(tu_fifo_t* f, void * dst, const void * src, uint16_t len, tu_fifo_copy_mode_t copy_mode)
+static inline void _ff_push_copy_fct(void * dst, const void * src, uint16_t len, tu_fifo_copy_mode_t copy_mode)
 {
   switch (copy_mode)
   {
@@ -181,7 +181,7 @@ static inline void _ff_push_copy_fct(tu_fifo_t* f, void * dst, const void * src,
   }
 }
 
-static inline void _ff_pull_copy_fct(tu_fifo_t* f, void * dst, const void * src, uint16_t len, tu_fifo_copy_mode_t copy_mode)
+static inline void _ff_pull_copy_fct(void * dst, const void * src, uint16_t len, tu_fifo_copy_mode_t copy_mode)
 {
   switch (copy_mode)
   {
@@ -200,17 +200,17 @@ static void _ff_push_n(tu_fifo_t* f, void const * data, uint16_t n, uint16_t wRe
 {
   if(wRel + n <= f->depth)  // Linear mode only
   {
-    _ff_push_copy_fct(f, f->buffer + (wRel * f->item_size), data, n*f->item_size, copy_mode);
+    _ff_push_copy_fct(f->buffer + (wRel * f->item_size), data, n*f->item_size, copy_mode);
   }
   else      // Wrap around
   {
     uint16_t nLin = f->depth - wRel;
 
     // Write data to linear part of buffer
-    _ff_push_copy_fct(f, f->buffer + (wRel * f->item_size), data, nLin*f->item_size, copy_mode);
+    _ff_push_copy_fct(f->buffer + (wRel * f->item_size), data, nLin*f->item_size, copy_mode);
 
     // Write data wrapped around
-    _ff_push_copy_fct(f, f->buffer, ((uint8_t const*) data) + nLin*f->item_size, (n - nLin) * f->item_size, copy_mode);
+    _ff_push_copy_fct(f->buffer, ((uint8_t const*) data) + nLin*f->item_size, (n - nLin) * f->item_size, copy_mode);
   }
 }
 
@@ -225,17 +225,17 @@ static void _ff_pull_n(tu_fifo_t* f, void * p_buffer, uint16_t n, uint16_t rRel,
 {
   if(rRel + n <= f->depth)       // Linear mode only
   {
-    _ff_pull_copy_fct(f, p_buffer, f->buffer + (rRel * f->item_size), n*f->item_size, copy_mode);
+    _ff_pull_copy_fct(p_buffer, f->buffer + (rRel * f->item_size), n*f->item_size, copy_mode);
   }
   else      // Wrap around
   {
     uint16_t nLin = f->depth - rRel;
 
     // Read data from linear part of buffer
-    _ff_pull_copy_fct(f, p_buffer, f->buffer + (rRel * f->item_size), nLin*f->item_size, copy_mode);
+    _ff_pull_copy_fct(p_buffer, f->buffer + (rRel * f->item_size), nLin*f->item_size, copy_mode);
 
     // Read data wrapped part
-    _ff_pull_copy_fct(f, (uint8_t*)p_buffer + nLin*f->item_size, f->buffer, (n - nLin) * f->item_size, copy_mode);
+    _ff_pull_copy_fct((uint8_t*)p_buffer + nLin*f->item_size, f->buffer, (n - nLin) * f->item_size, copy_mode);
   }
 }
 
