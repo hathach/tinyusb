@@ -254,6 +254,7 @@ TU_ATTR_WEAK bool tud_vendor_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb
   7, TUSB_DESC_ENDPOINT, _epin, TUSB_XFER_INTERRUPT, U16_TO_U8S_LE(_epsize), _ep_interval
 
 //------------- MIDI -------------//
+// MIDI v1.0 is based on Audio v1.0
 
 #define TUD_MIDI_DESC_HEAD_LEN (9 + 9 + 9 + 7)
 #define TUD_MIDI_DESC_HEAD(_itfnum,  _stridx, _numcables) \
@@ -291,7 +292,7 @@ TU_ATTR_WEAK bool tud_vendor_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb
 
 #define TUD_MIDI_DESC_EP_LEN(_numcables) (9 + 4 + (_numcables))
 #define TUD_MIDI_DESC_EP(_epout, _epsize, _numcables) \
-  /* Endpoint */\
+  /* Endpoint: Note Audio v1.0's endpoint has 9 bytes instead of 7 */\
   9, TUSB_DESC_ENDPOINT, _epout, TUSB_XFER_BULK, U16_TO_U8S_LE(_epsize), 0, 0, 0, \
   /* MS Endpoint (connected to embedded jack) */\
   (uint8_t)(4 + (_numcables)), TUSB_DESC_CS_ENDPOINT, MIDI_CS_ENDPOINT_GENERAL, _numcables
