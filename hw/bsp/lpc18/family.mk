@@ -36,6 +36,3 @@ CHIP_FAMILY = transdimension
 
 # For freeRTOS port source
 FREERTOS_PORT = ARM_CM3
-
-# flash using jlink
-flash: flash-jlink
