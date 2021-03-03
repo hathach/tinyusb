@@ -289,10 +289,10 @@ TU_ATTR_WEAK bool tud_vendor_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb
   /* MS Out Jack (External), connected to In Jack Embedded */\
   9, TUSB_DESC_CS_INTERFACE, MIDI_CS_INTERFACE_OUT_JACK, MIDI_JACK_EXTERNAL, TUD_MIDI_JACKID_OUT_EXT(_cablenum), 1, TUD_MIDI_JACKID_IN_EMB(_cablenum), 1, 0
 
-#define TUD_MIDI_DESC_EP_LEN(_numcables) (7 + 4 + (_numcables))
+#define TUD_MIDI_DESC_EP_LEN(_numcables) (9 + 4 + (_numcables))
 #define TUD_MIDI_DESC_EP(_epout, _epsize, _numcables) \
   /* Endpoint */\
-  7, TUSB_DESC_ENDPOINT, _epout, TUSB_XFER_BULK, U16_TO_U8S_LE(_epsize), 0,\
+  9, TUSB_DESC_ENDPOINT, _epout, TUSB_XFER_BULK, U16_TO_U8S_LE(_epsize), 0, 0, 0, \
   /* MS Endpoint (connected to embedded jack) */\
   (uint8_t)(4 + (_numcables)), TUSB_DESC_CS_ENDPOINT, MIDI_CS_ENDPOINT_GENERAL, _numcables
 
