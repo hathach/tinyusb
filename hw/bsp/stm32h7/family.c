@@ -1,8 +1,10 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2019 William D. Jones (thor0505@comcast.net),
- * Ha Thach (tinyusb.org)
+ * Copyright (c) 2019
+ *    William D. Jones (thor0505@comcast.net),
+ *    Ha Thach (tinyusb.org)
+ *    Uwe Bonnes (bon@elektron.ikp.physik.tu-darmstadt.de
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -68,6 +70,7 @@ void board_init(void)
   __HAL_RCC_GPIOG_CLK_ENABLE();
   __HAL_RCC_GPIOH_CLK_ENABLE(); // USB ULPI NXT
   __HAL_RCC_GPIOI_CLK_ENABLE(); // USB ULPI NXT
+  __HAL_RCC_GPIOJ_CLK_ENABLE();
 
   UART_CLK_EN();
 
