@@ -1,5 +1,9 @@
 UF2_FAMILY_ID = 0x57755a57
-FAMILY_SUBMODULES = hw/mcu/st/cmsis_device_f4 hw/mcu/st/stm32f4xx_hal_driver
+ST_FAMILY = f4
+FAMILY_SUBMODULES = hw/mcu/st/cmsis_device_$(ST_FAMILY) hw/mcu/st/stm32$(ST_FAMILY)xx_hal_driver
+
+ST_CMSIS = hw/mcu/st/cmsis_device_$(ST_FAMILY)
+ST_HAL_DRIVER = hw/mcu/st/stm32$(ST_FAMILY)xx_hal_driver
 
 include $(TOP)/$(BOARD_PATH)/board.mk
 
@@ -15,10 +19,6 @@ CFLAGS += \
 
 # suppress warning caused by vendor mcu driver
 CFLAGS += -Wno-error=cast-align
-
-ST_FAMILY = f4
-ST_CMSIS = hw/mcu/st/cmsis_device_$(ST_FAMILY)
-ST_HAL_DRIVER = hw/mcu/st/stm32$(ST_FAMILY)xx_hal_driver
 
 SRC_C += \
 	$(ST_CMSIS)/Source/Templates/system_stm32$(ST_FAMILY)xx.c \
