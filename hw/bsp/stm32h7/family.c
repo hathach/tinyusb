@@ -25,9 +25,9 @@
  * This file is part of the TinyUSB stack.
  */
 
-#include "../board.h"
-
 #include "stm32h7xx_hal.h"
+#include "bsp/board.h"
+#include "board.h"
 
 //--------------------------------------------------------------------+
 // Forward USB interrupt events to TinyUSB IRQ Handler
@@ -52,139 +52,24 @@ void OTG_HS_IRQHandler(void)
 // MACRO TYPEDEF CONSTANT ENUM
 //--------------------------------------------------------------------+
 
-#define LED_PORT              GPIOA
-#define LED_PIN               GPIO_PIN_4
-#define LED_STATE_ON          1
-
-// Tamper push-button
-#define BUTTON_PORT           GPIOC
-#define BUTTON_PIN            GPIO_PIN_13
-#define BUTTON_STATE_ACTIVE   0
-
-// Need to change jumper setting J7 and J8 from RS-232 to STLink
-#define UARTx                 USART1
-#define UART_GPIO_PORT        GPIOB
-#define UART_GPIO_AF          GPIO_AF4_USART1
-#define UART_TX_PIN           GPIO_PIN_14
-#define UART_RX_PIN           GPIO_PIN_15
-
 UART_HandleTypeDef UartHandle;
-
-// enable all LED, Button, Uart, USB clock
-static void all_rcc_clk_enable(void)
-{
-  __HAL_RCC_GPIOA_CLK_ENABLE();  // LED
-  __HAL_RCC_GPIOC_CLK_ENABLE();  // Button
-  __HAL_RCC_GPIOB_CLK_ENABLE();  // Uart tx, rx
-  __HAL_RCC_USART1_CLK_ENABLE(); // Uart module
-}
-
-/* PWR, RCC, GPIO (All): AHB4 (D3 domain)
-   USB{1,2} OTG_{H,F}S: AHB1 (D2 domain)
-*/
-
-/**
-  * @brief  System Clock Configuration
-  *         The system Clock is configured as follow :
-  *            System Clock source            = PLL (HSE)
-  *            SYSCLK(Hz)                     = 400000000 (CPU Clock)
-  *            HCLK(Hz)                       = 200000000 (AXI and AHBs Clock)
-  *            AHB Prescaler                  = 2
-  *            D1 APB3 Prescaler              = 2 (APB3 Clock  100MHz)
-  *            D2 APB1 Prescaler              = 2 (APB1 Clock  100MHz)
-  *            D2 APB2 Prescaler              = 2 (APB2 Clock  100MHz)
-  *            D3 APB4 Prescaler              = 2 (APB4 Clock  100MHz)
-  *            HSE Frequency(Hz)              = 25000000
-  *            PLL_M                          = 5
-  *            PLL_N                          = 160
-  *            PLL_P                          = 2
-  *            PLL_Q                          = 4
-  *            PLL_R                          = 2
-  *            PLL3_M                         = 25
-  *            PLL3_N                         = 336
-  *            PLL3_P                         = 2
-  *            PLL3_Q                         = 7
-  *            PLL3_R                         = 2
-  *            VDD(V)                         = 3.3
-  *            Flash Latency(WS)              = 4
-  * @param  None
-  * @retval None
-  */
-
-void SystemClock_Config(void)
-{
-  RCC_ClkInitTypeDef RCC_ClkInitStruct;
-  RCC_OscInitTypeDef RCC_OscInitStruct;
-  RCC_PeriphCLKInitTypeDef PeriphClkInitStruct;
-
-  /*!< Supply configuration update enable */
-  HAL_PWREx_ConfigSupply(PWR_LDO_SUPPLY);
-
-  /* The voltage scaling allows optimizing the power consumption when the device is
-     clocked below the maximum system frequency, to update the voltage scaling value
-     regarding system frequency refer to product datasheet.  */
-  __HAL_PWR_VOLTAGESCALING_CONFIG(PWR_REGULATOR_VOLTAGE_SCALE1);
-
-  while ((PWR->D3CR & (PWR_D3CR_VOSRDY)) != PWR_D3CR_VOSRDY) {}
-
-  /* Enable HSE Oscillator and activate PLL with HSE as source */
-  RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSE;
-  RCC_OscInitStruct.HSEState = RCC_HSE_ON;
-  RCC_OscInitStruct.HSIState = RCC_HSI_OFF;
-  RCC_OscInitStruct.CSIState = RCC_CSI_OFF;
-  RCC_OscInitStruct.PLL.PLLState = RCC_PLL_ON;
-  RCC_OscInitStruct.PLL.PLLSource = RCC_PLLSOURCE_HSE;
-
-  /* PLL1 for System Clock */
-  RCC_OscInitStruct.PLL.PLLM = 5;
-  RCC_OscInitStruct.PLL.PLLN = 160;
-  RCC_OscInitStruct.PLL.PLLFRACN = 0;
-  RCC_OscInitStruct.PLL.PLLP = 2;
-  RCC_OscInitStruct.PLL.PLLR = 2;
-  RCC_OscInitStruct.PLL.PLLQ = 4;
-
-  RCC_OscInitStruct.PLL.PLLVCOSEL = RCC_PLL1VCOMEDIUM;
-  RCC_OscInitStruct.PLL.PLLRGE = RCC_PLL1VCIRANGE_2;
-  HAL_RCC_OscConfig(&RCC_OscInitStruct);
-
-  /* PLL3 for USB Clock */
-  PeriphClkInitStruct.PLL3.PLL3M = 25;
-  PeriphClkInitStruct.PLL3.PLL3N = 336;
-  PeriphClkInitStruct.PLL3.PLL3FRACN = 0;
-  PeriphClkInitStruct.PLL3.PLL3P = 2;
-  PeriphClkInitStruct.PLL3.PLL3R = 2;
-  PeriphClkInitStruct.PLL3.PLL3Q = 7;
-
-  PeriphClkInitStruct.PeriphClockSelection = RCC_PERIPHCLK_USB;
-  PeriphClkInitStruct.UsbClockSelection = RCC_USBCLKSOURCE_PLL3;
-  HAL_RCCEx_PeriphCLKConfig(&PeriphClkInitStruct);
-
-  /* Select PLL as system clock source and configure  bus clocks dividers */
-  RCC_ClkInitStruct.ClockType = (RCC_CLOCKTYPE_SYSCLK | RCC_CLOCKTYPE_HCLK | RCC_CLOCKTYPE_D1PCLK1 | RCC_CLOCKTYPE_PCLK1 | \
-  RCC_CLOCKTYPE_PCLK2  | RCC_CLOCKTYPE_D3PCLK1);
-
-  RCC_ClkInitStruct.SYSCLKSource = RCC_SYSCLKSOURCE_PLLCLK;
-  RCC_ClkInitStruct.SYSCLKDivider = RCC_SYSCLK_DIV1;
-  RCC_ClkInitStruct.AHBCLKDivider = RCC_HCLK_DIV2;
-  RCC_ClkInitStruct.APB1CLKDivider = RCC_APB1_DIV2;
-  RCC_ClkInitStruct.APB2CLKDivider = RCC_APB2_DIV2;
-  RCC_ClkInitStruct.APB3CLKDivider = RCC_APB3_DIV1;
-  HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_4);
-
-  /*activate CSI clock mondatory for I/O Compensation Cell*/
-  __HAL_RCC_CSI_ENABLE() ;
-
-  /* Enable SYSCFG clock mondatory for I/O Compensation Cell */
-  __HAL_RCC_SYSCFG_CLK_ENABLE() ;
-
-  /* Enables the I/O Compensation Cell */
-  HAL_EnableCompensationCell();
-}
 
 void board_init(void)
 {
-  SystemClock_Config();
-  all_rcc_clk_enable();
+  board_stm32h7_clock_init();
+
+  // Enable All GPIOs clocks
+  __HAL_RCC_GPIOA_CLK_ENABLE();
+  __HAL_RCC_GPIOB_CLK_ENABLE(); // USB ULPI NXT
+  __HAL_RCC_GPIOC_CLK_ENABLE(); // USB ULPI NXT
+  __HAL_RCC_GPIOD_CLK_ENABLE();
+  __HAL_RCC_GPIOE_CLK_ENABLE();
+  __HAL_RCC_GPIOE_CLK_ENABLE();
+  __HAL_RCC_GPIOG_CLK_ENABLE();
+  __HAL_RCC_GPIOH_CLK_ENABLE(); // USB ULPI NXT
+  __HAL_RCC_GPIOI_CLK_ENABLE(); // USB ULPI NXT
+
+  UART_CLK_EN();
 
   // 1ms tick timer
   SysTick_Config(SystemCoreClock / 1000);
@@ -219,7 +104,7 @@ void board_init(void)
   GPIO_InitStruct.Alternate = UART_GPIO_AF;
   HAL_GPIO_Init(UART_GPIO_PORT, &GPIO_InitStruct);
 
-  UartHandle.Instance        = UARTx;
+  UartHandle.Instance        = UART_DEV;
   UartHandle.Init.BaudRate   = CFG_BOARD_UART_BAUDRATE;
   UartHandle.Init.WordLength = UART_WORDLENGTH_8B;
   UartHandle.Init.StopBits   = UART_STOPBITS_1;
@@ -234,20 +119,12 @@ void board_init(void)
   // OTG_FS is marked as RHPort0 by TinyUSB to be consistent across stm32 port
   // PA9 VUSB, PA10 ID, PA11 DM, PA12 DP
 
-  __HAL_RCC_GPIOA_CLK_ENABLE();
-
   /* Configure DM DP Pins */
   GPIO_InitStruct.Pin = GPIO_PIN_11 | GPIO_PIN_12;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_HIGH;
   GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Alternate = GPIO_AF10_OTG2_HS;
-  HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
-
-  /* Configure VBUS Pin */
-  GPIO_InitStruct.Pin = GPIO_PIN_9;
-  GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
-  GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
 
   /* This for ID line debug */
@@ -263,18 +140,27 @@ void board_init(void)
   HAL_PWREx_EnableUSBVoltageDetector();
   __HAL_RCC_USB2_OTG_FS_CLK_ENABLE();
 
+#if OTG_FS_VBUS_SENSE
+  /* Configure VBUS Pin */
+  GPIO_InitStruct.Pin = GPIO_PIN_9;
+  GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
+
   // Enable VBUS sense (B device) via pin PA9
   USB_OTG_FS->GCCFG |= USB_OTG_GCCFG_VBDEN;
+#else
+  // Disable VBUS sense (B device) via pin PA9
+  USB_OTG_FS->GCCFG &= ~USB_OTG_GCCFG_VBDEN;
+
+  // B-peripheral session valid override enable
+  USB_OTG_FS->GOTGCTL |= USB_OTG_GOTGCTL_BVALOEN;
+  USB_OTG_FS->GOTGCTL |= USB_OTG_GOTGCTL_BVALOVAL;
+#endif // vbus sense
 
 #elif BOARD_DEVICE_RHPORT_NUM == 1
-
   // Despite being call USB2_OTG
   // OTG_HS is marked as RHPort1 by TinyUSB to be consistent across stm32 port
-  __GPIOA_CLK_ENABLE();
-  __GPIOB_CLK_ENABLE();
-  __GPIOC_CLK_ENABLE();
-  __GPIOH_CLK_ENABLE();
-  __GPIOI_CLK_ENABLE();
 
   /* CLK */
   GPIO_InitStruct.Pin = GPIO_PIN_5;
@@ -320,18 +206,20 @@ void board_init(void)
   GPIO_InitStruct.Alternate = GPIO_AF10_OTG2_HS;
   HAL_GPIO_Init(GPIOI, &GPIO_InitStruct);
 
-  // Enable ULPI clock
+  // Enable USB HS & ULPI Clocks
   __HAL_RCC_USB1_OTG_HS_ULPI_CLK_ENABLE();
-
-  /* Enable USB HS Clocks */
   __HAL_RCC_USB1_OTG_HS_CLK_ENABLE();
 
+#if OTG_HS_VBUS_SENSE
+  #error OTG HS VBUS Sense enabled is not implemented
+#else
   // No VBUS sense
   USB_OTG_HS->GCCFG &= ~USB_OTG_GCCFG_VBDEN;
 
   // B-peripheral session valid override enable
   USB_OTG_HS->GOTGCTL |= USB_OTG_GOTGCTL_BVALOEN;
   USB_OTG_HS->GOTGCTL |= USB_OTG_GOTGCTL_BVALOVAL;
+#endif
 
   // Force device mode
   USB_OTG_HS->GUSBCFG &= ~USB_OTG_GUSBCFG_FHMOD;
@@ -348,7 +236,7 @@ void board_init(void)
 
 void board_led_write(bool state)
 {
-  HAL_GPIO_WritePin(LED_PORT, LED_PIN, state);
+  HAL_GPIO_WritePin(LED_PORT, LED_PIN, state ? LED_STATE_ON : (1-LED_STATE_ON));
 }
 
 uint32_t board_button_read(void)

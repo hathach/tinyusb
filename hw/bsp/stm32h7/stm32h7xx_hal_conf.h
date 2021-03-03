@@ -100,7 +100,7 @@
 /* #define HAL_SRAM_MODULE_ENABLED */
 /* #define HAL_SWPMI_MODULE_ENABLED */
 /* #define HAL_TIM_MODULE_ENABLED */
-#define HAL_UART_MODULE_ENABLED */
+#define HAL_UART_MODULE_ENABLED
 /* #define HAL_USART_MODULE_ENABLED */
 /* #define HAL_WWDG_MODULE_ENABLED */
 
@@ -111,7 +111,8 @@
   *        (when HSE is used as system clock source, directly or through the PLL).
   */
 #if !defined  (HSE_VALUE)
-#define HSE_VALUE    ((uint32_t)8000000) /*!< Value of the External oscillator in Hz */
+//#define HSE_VALUE    ((uint32_t)25000000) /*!< Value of the External oscillator in Hz */
+#error HSE_VALUE is not defined
 #endif /* HSE_VALUE */
 
 #if !defined  (HSE_STARTUP_TIMEOUT)
@@ -211,7 +212,8 @@
 #define  USE_HAL_SPI_REGISTER_CALLBACKS     0U /* SPI register callback disabled     */
 #define  USE_HAL_SWPMI_REGISTER_CALLBACKS   0U /* SWPMI register callback disabled   */
 #define  USE_HAL_TIM_REGISTER_CALLBACKS     0U /* TIM register callback disabled     */
-#define  USE_HAL_UART_REGISTER_CALLBACKS    0U /* USART register callback disabled     */
+#define  USE_HAL_UART_REGISTER_CALLBACKS    0U /* UART register callback disabled      */
+#define  USE_HAL_USART_REGISTER_CALLBACKS   0U /* USART register callback disabled     */
 #define  USE_HAL_WWDG_REGISTER_CALLBACKS    0U /* WWDG register callback disabled    */
 
 /* ########################### Ethernet Configuration ######################### */
