@@ -66,13 +66,14 @@ CXX = $(CROSS_COMPILE)g++
 OBJCOPY = $(CROSS_COMPILE)objcopy
 SIZE = $(CROSS_COMPILE)size
 MKDIR = mkdir
+
 ifeq ($(CMDEXE),1)
-CP = copy
-RM = del
+  CP = copy
+  RM = del
 else
-SED = sed
-CP = cp
-RM = rm
+  SED = sed
+  CP = cp
+  RM = rm
 endif
 
 #-------------- Source files and compiler flags --------------
@@ -80,6 +81,8 @@ endif
 # Include all source C in family & board folder
 SRC_C += hw/bsp/board.c
 SRC_C += $(subst $(TOP)/,,$(wildcard $(TOP)/$(BOARD_PATH)/*.c))
+
+INC   += $(TOP)/$(FAMILY_PATH)
 
 # Compiler Flags
 CFLAGS += \
