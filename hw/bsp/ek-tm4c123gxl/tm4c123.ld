@@ -1,4 +1,10 @@
-/* ENTRY(Reset_Handler) */ 
+ENTRY(Reset_Handler)
+
+_estack = 0x20008000;    /* end of RAM */
+/* Generate a link error if heap and stack don't fit into RAM */
+_Min_Heap_Size = 0x1000;      /* required amount of heap  */
+_Min_Stack_Size = 0x4000; /* required amount of stack */
+
 
 MEMORY 
 {
@@ -46,4 +52,14 @@ SECTIONS
         . = ALIGN(4);
     }>SRAM
 
+  /* User_heap_stack section, used to check that there is enough RAM left */
+  ._user_heap_stack :
+  {
+    . = ALIGN(8);
+    PROVIDE ( end = . );
+    PROVIDE ( _end = . );
+    . = . + _Min_Heap_Size;
+    . = . + _Min_Stack_Size;
+    . = ALIGN(8);
+  } >SRAM
 }
