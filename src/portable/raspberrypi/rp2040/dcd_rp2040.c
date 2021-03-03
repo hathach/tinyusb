@@ -317,12 +317,44 @@ static void dcd_rp2040_irq(void)
         pico_trace("BUS RESET (addr %d -> %d)\n", assigned_address, 0);
         usb_hw->dev_addr_ctrl = 0;
         handled |= USB_INTS_BUS_RESET_BITS;
-        dcd_event_bus_signal(0, DCD_EVENT_BUS_RESET, true);
+        dcd_event_bus_reset(0, TUSB_SPEED_FULL, true);
         usb_hw_clear->sie_status = USB_SIE_STATUS_BUS_RESET_BITS;
 #if TUD_OPT_RP2040_USB_DEVICE_ENUMERATION_FIX
         rp2040_usb_device_enumeration_fix();
 #endif
     }
+
+    if (status & USB_INTS_DEV_CONN_DIS_BITS)
+    {
+        handled |= USB_INTS_DEV_CONN_DIS_BITS;
+
+        if ( usb_hw->sie_status & USB_SIE_STATUS_CONNECTED_BITS )
+        {
+          // Connected: nothing to do
+        }else
+        {
+          // Disconnected
+          dcd_event_bus_signal(0, DCD_EVENT_UNPLUGGED, true);
+        }
+
+        usb_hw_clear->sie_status = USB_SIE_STATUS_CONNECTED_BITS;
+    }
+
+#if 0 // TODO Enable SUSPEND & RESUME interrupt and test later on with/without VBUS detection
+    if (status & USB_INTS_DEV_SUSPEND_BITS)
+    {
+        handled |= USB_INTS_DEV_SUSPEND_BITS;
+        dcd_event_bus_signal(0, DCD_EVENT_SUSPEND, true);
+        usb_hw_clear->sie_status = USB_SIE_STATUS_SUSPENDED_BITS;
+    }
+
+    if (status & USB_INTS_DEV_RESUME_FROM_HOST_BITS)
+    {
+        handled |= USB_INTS_DEV_RESUME_FROM_HOST_BITS;
+        dcd_event_bus_signal(0, DCD_EVENT_RESUME, true);
+        usb_hw_clear->sie_status = USB_SIE_STATUS_RESUME_BITS;
+    }
+#endif
 
     if (status ^ handled)
     {
@@ -364,8 +396,10 @@ void dcd_init (uint8_t rhport)
 
     // Enable individual controller IRQS here. Processor interrupt enable will be used
     // for the global interrupt enable...
+    // TODO Enable SUSPEND & RESUME interrupt
     usb_hw->sie_ctrl = USB_SIE_CTRL_EP0_INT_1BUF_BITS; 
-    usb_hw->inte     = USB_INTS_BUFF_STATUS_BITS | USB_INTS_BUS_RESET_BITS | USB_INTS_SETUP_REQ_BITS;
+    usb_hw->inte     = USB_INTS_BUFF_STATUS_BITS | USB_INTS_BUS_RESET_BITS | USB_INTS_SETUP_REQ_BITS |
+                       USB_INTS_DEV_CONN_DIS_BITS /* | USB_INTS_DEV_SUSPEND_BITS | USB_INTS_DEV_RESUME_FROM_HOST_BITS */  ;
 
     dcd_connect(rhport);
 }
@@ -393,8 +427,9 @@ void dcd_set_address (uint8_t rhport, uint8_t dev_addr)
 
 void dcd_remote_wakeup(uint8_t rhport)
 {
-    pico_info("dcd_remote_wakeup %d is not supported yet\n", rhport);
+    pico_info("dcd_remote_wakeup %d\n", rhport);
     assert(rhport == 0);
+    usb_hw_set->sie_ctrl = USB_SIE_CTRL_RESUME_BITS;
 }
 
 // disconnect by disabling internal pull-up resistor on D+/D-

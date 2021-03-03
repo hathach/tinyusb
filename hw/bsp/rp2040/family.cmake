@@ -1,3 +1,12 @@
+target_link_libraries(${PROJECT}
+  pico_stdlib
+  pico_bootsel_via_double_reset
+  pico_fix_rp2040_usb_device_enumeration
+)
+
+pico_add_extra_outputs(${PROJECT})
+pico_enable_stdio_uart(${PROJECT} 1)
+
 # TinyUSB Stack source
 set(SRC_TINYUSB
 	${TOP}/src/tusb.c
@@ -42,12 +51,9 @@ target_compile_definitions(${PROJECT} PUBLIC
 
 if(DEFINED LOG)
   target_compile_definitions(${PROJECT} PUBLIC CFG_TUSB_DEBUG=${LOG} )
-  pico_enable_stdio_uart(${PROJECT} 1)
 endif()
 
 if(LOGGER STREQUAL "rtt")
-  pico_enable_stdio_uart(${PROJECT} 0)
-
   target_compile_definitions(${PROJECT} PUBLIC
     LOGGER_RTT
     SEGGER_RTT_MODE_DEFAULT=SEGGER_RTT_MODE_BLOCK_IF_FIFO_FULL
