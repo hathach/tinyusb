@@ -312,18 +312,7 @@ static void dcd_rp2040_irq(void)
         hw_handle_buff_status();
     }
 
-    if (status & USB_INTS_BUS_RESET_BITS)
-    {
-        pico_trace("BUS RESET (addr %d -> %d)\n", assigned_address, 0);
-        usb_hw->dev_addr_ctrl = 0;
-        handled |= USB_INTS_BUS_RESET_BITS;
-        dcd_event_bus_reset(0, TUSB_SPEED_FULL, true);
-        usb_hw_clear->sie_status = USB_SIE_STATUS_BUS_RESET_BITS;
-#if TUD_OPT_RP2040_USB_DEVICE_ENUMERATION_FIX
-        rp2040_usb_device_enumeration_fix();
-#endif
-    }
-
+    // SE0 for 2 us or more, usually together with Bus Reset
     if (status & USB_INTS_DEV_CONN_DIS_BITS)
     {
         handled |= USB_INTS_DEV_CONN_DIS_BITS;
@@ -340,7 +329,35 @@ static void dcd_rp2040_irq(void)
         usb_hw_clear->sie_status = USB_SIE_STATUS_CONNECTED_BITS;
     }
 
-#if 0 // TODO Enable SUSPEND & RESUME interrupt and test later on with/without VBUS detection
+    // SE0 for 2.5 us or more
+    if (status & USB_INTS_BUS_RESET_BITS)
+    {
+        pico_trace("BUS RESET\n");
+        usb_hw->dev_addr_ctrl = 0;
+        handled |= USB_INTS_BUS_RESET_BITS;
+        dcd_event_bus_reset(0, TUSB_SPEED_FULL, true);
+        usb_hw_clear->sie_status = USB_SIE_STATUS_BUS_RESET_BITS;
+
+#if TUD_OPT_RP2040_USB_DEVICE_ENUMERATION_FIX
+        // Only run enumeration walk-around if pull up is enabled
+        if ( usb_hw->sie_ctrl & USB_SIE_CTRL_PULLUP_EN_BITS )
+        {
+          rp2040_usb_device_enumeration_fix();
+        }
+#endif
+    }
+
+#if 0
+    // TODO Enable SUSPEND & RESUME interrupt and test later on with/without VBUS detection
+
+    /* Note from pico datasheet 4.1.2.6.4 (v1.2)
+     * If you enable the suspend interrupt, it is likely you will see a suspend interrupt when
+     * the device is first connected but the bus is idle. The bus can be idle for a few ms before
+     * the host begins sending start of frame packets. You will also see a suspend interrupt
+     * when the device is disconnected if you do not have a VBUS detect circuit connected. This is
+     * because without VBUS detection, it is impossible to tell the difference between
+     * being disconnected and suspended.
+     */
     if (status & USB_INTS_DEV_SUSPEND_BITS)
     {
         handled |= USB_INTS_DEV_SUSPEND_BITS;
