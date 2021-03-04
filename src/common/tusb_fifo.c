@@ -438,7 +438,7 @@ static uint16_t _tu_fifo_write_n(tu_fifo_t* f, const void * data, uint16_t n, tu
 
 static uint16_t _tu_fifo_read_n(tu_fifo_t* f, void * buffer, uint16_t n, tu_fifo_copy_mode_t copy_mode)
 {
-  tu_fifo_lock_rd(f);                                          // TODO: Here we may distinguish for read and write pointer mutexes!
+  tu_fifo_lock_rd(f);
 
   // Peek the data
   n = _tu_fifo_peek_at_n(f, 0, buffer, n, f->wr_idx, f->rd_idx, copy_mode);        // f->rd_idx might get modified in case of an overflow so we can not use a local variable
@@ -576,7 +576,7 @@ void tu_fifo_correct_read_pointer(tu_fifo_t* f)
 /******************************************************************************/
 bool tu_fifo_read(tu_fifo_t* f, void * buffer)
 {
-  tu_fifo_lock_rd(f);                                          // TODO: Here we may distinguish for read and write pointer mutexes!
+  tu_fifo_lock_rd(f);
 
   // Peek the data
   bool ret = _tu_fifo_peek_at(f, 0, buffer, f->wr_idx, f->rd_idx);    // f->rd_idx might get modified in case of an overflow so we can not use a local variable
