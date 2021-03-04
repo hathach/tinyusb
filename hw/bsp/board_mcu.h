@@ -119,6 +119,9 @@
 
 #elif CFG_TUSB_MCU == OPT_MCU_RP2040
   #include "pico.h"
+  
+#elif CFG_TUSB_MCU == OPT_MCU_EFM32GG || CFG_TUSB_MCU == OPT_MCU_EFM32GG11 || CFG_TUSB_MCU == OPT_MCU_EFM32GG12
+  #include "em_device.h"
 
 #else
   #error "Missing MCU header"
