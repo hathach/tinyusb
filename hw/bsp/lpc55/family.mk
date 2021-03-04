@@ -1,5 +1,5 @@
 UF2_FAMILY_ID = 0x2abc77ec
-FAMILY_SUBMODULES = hw/mcu/nxp
+DEPS_SUBMODULES = hw/mcu/nxp
 
 include $(TOP)/$(BOARD_PATH)/board.mk
 

@@ -63,6 +63,7 @@ all: $(BUILD)
 clean:
 	$(RM) -rf $(BUILD)
 
+#flash: flash-pyocd
 flash:
 	@$(CP) $(BUILD)/$(PROJECT).uf2 /media/$(USER)/RPI-RP2
 

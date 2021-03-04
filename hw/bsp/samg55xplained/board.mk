@@ -1,4 +1,4 @@
-FAMILY_SUBMODULES = hw/mcu/microchip
+DEPS_SUBMODULES = hw/mcu/microchip
 
 CFLAGS += \
   -flto \

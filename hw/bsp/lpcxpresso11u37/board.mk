@@ -1,4 +1,4 @@
-FAMILY_SUBMODULES = hw/mcu/nxp
+DEPS_SUBMODULES = hw/mcu/nxp
 
 CFLAGS += \
   -flto \
