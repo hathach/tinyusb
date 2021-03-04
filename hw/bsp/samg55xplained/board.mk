@@ -1,3 +1,5 @@
+FAMILY_SUBMODULES = hw/mcu/microchip
+
 CFLAGS += \
   -flto \
   -mthumb \

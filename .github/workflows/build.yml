@@ -278,24 +278,12 @@ jobs:
       fail-fast: false
       matrix:
         example:
-        # Alphabetical order
-        - 'device/audio_test'
-        - 'device/board_test'
-        - 'device/cdc_dual_ports'
-        - 'device/cdc_msc'
-        - 'device/cdc_msc_freertos'
-        - 'device/dfu_runtime'
-        - 'device/hid_composite'
-        - 'device/hid_composite_freertos'
-        - 'device/hid_generic_inout'
-        - 'device/hid_multiple_interface'
-        - 'device/midi_test'
-        - 'device/msc_dual_lun'
+        # Alphabetical order, a group of 4
+        - 'device/audio_test device/board_test device/cdc_dual_ports device/cdc_msc'
+        - 'device/cdc_msc_freertos device/dfu_runtime device/hid_composite device/hid_composite_freertos'
+        - 'device/hid_generic_inout device/hid_multiple_interface device/midi_test device/msc_dual_lun'
         - 'device/net_lwip_webserver'
-        - 'device/uac2_headset'
-        - 'device/usbtmc'
-        - 'device/webusb_serial'
-        - 'host/cdc_msc_hid'
+        - 'device/uac2_headset device/usbtmc device/webusb_serial host/cdc_msc_hid'
 
     steps:
     - name: Setup Python
@@ -303,8 +291,9 @@ jobs:
 
     - name: Checkout TinyUSB
       uses: actions/checkout@v2
-      with:
-        submodules: 'true'
+
+    - name: Checkout Submodules in lib
+      run: git submodule update --init lib
 
     - name: Set Toolchain URL
       run: echo >> $GITHUB_ENV TOOLCHAIN_URL=https://github.com/xpack-dev-tools/arm-none-eabi-gcc-xpack/releases/download/v10.2.1-1.1/xpack-arm-none-eabi-gcc-10.2.1-1.1-linux-x64.tar.gz
