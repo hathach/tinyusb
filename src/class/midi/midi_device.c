@@ -387,6 +387,7 @@ uint16_t midid_open(uint8_t rhport, tusb_desc_interface_t const * desc_itf, uint
         p_midi->ep_out = ep_addr;
       }
 
+      // Class Specific MIDI Stream endpoint descriptor
       drv_len += tu_desc_len(p_desc);
       p_desc   = tu_desc_next(p_desc);
 
