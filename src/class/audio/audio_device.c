@@ -133,7 +133,7 @@ typedef struct
   tu_fifo_t ep_out_ff;
 
 #if CFG_FIFO_MUTEX
-  osal_mutex_def_t ep_out_ff_mutex;
+  osal_mutex_def_t ep_out_ff_mutex_rd;  // No need for write mutex as only USB driver writes into FIFO
 #endif
 
 #endif
@@ -149,7 +149,7 @@ typedef struct
   tu_fifo_t ep_in_ff;
 
 #if CFG_FIFO_MUTEX
-  osal_mutex_def_t ep_in_ff_mutex;
+  osal_mutex_def_t ep_in_ff_mutex_wr;   // No need for read mutex as only USB driver reads from FIFO
 #endif
 
 #endif
@@ -164,7 +164,7 @@ typedef struct
   tu_fifo_t tx_supp_ff[CFG_TUD_AUDIO_N_CHANNELS_TX];
   CFG_TUSB_MEM_ALIGN uint8_t tx_supp_ff_buf[CFG_TUD_AUDIO_N_CHANNELS_TX][CFG_TUD_AUDIO_TX_SUPPORT_SW_FIFO_SIZE];
 #if CFG_FIFO_MUTEX
-  osal_mutex_def_t tx_supp_ff_mutex[CFG_TUD_AUDIO_N_CHANNELS_TX];
+  osal_mutex_def_t tx_supp_ff_mutex_wr[CFG_TUD_AUDIO_N_CHANNELS_TX];  // No need for read mutex as only USB driver reads from FIFO
 #endif
 #endif
 
@@ -172,7 +172,7 @@ typedef struct
   tu_fifo_t rx_supp_ff[CFG_TUD_AUDIO_N_CHANNELS_RX];
   CFG_TUSB_MEM_ALIGN uint8_t rx_supp_ff_buf[CFG_TUD_AUDIO_N_CHANNELS_RX][CFG_TUD_AUDIO_RX_SUPPORT_SW_FIFO_SIZE];
 #if CFG_FIFO_MUTEX
-  osal_mutex_def_t rx_supp_ff_mutex[CFG_TUD_AUDIO_N_CHANNELS_RX];
+  osal_mutex_def_t rx_supp_ff_mutex_rd[CFG_TUD_AUDIO_N_CHANNELS_RX];  // No need for write mutex as only USB driver writes into FIFO
 #endif
 #endif
 
@@ -671,7 +671,7 @@ void audiod_init(void)
 #if CFG_TUD_AUDIO_EP_IN_SW_BUFFER_SIZE && !CFG_TUD_AUDIO_TX_SUPPORT_SW_FIFO_SIZE
     tu_fifo_config(&audio->ep_in_ff, &audio->ep_in_buf, CFG_TUD_AUDIO_EP_IN_SW_BUFFER_SIZE, 1, true);
 #if CFG_FIFO_MUTEX
-    tu_fifo_config_mutex(&audio->ep_in_ff, osal_mutex_create(&audio->ep_in_ff_mutex));
+    tu_fifo_config_mutex(&audio->ep_in_ff, osal_mutex_create(&audio->ep_in_ff_mutex_wr), NULL);
 #endif
 #endif
 
@@ -679,7 +679,7 @@ void audiod_init(void)
 #if CFG_TUD_AUDIO_EP_OUT_SW_BUFFER_SIZE && !CFG_TUD_AUDIO_RX_SUPPORT_SW_FIFO_SIZE
     tu_fifo_config(&audio->ep_out_ff, &audio->ep_out_buf, CFG_TUD_AUDIO_EP_OUT_SW_BUFFER_SIZE, 1, true);
 #if CFG_FIFO_MUTEX
-    tu_fifo_config_mutex(&audio->ep_out_ff, osal_mutex_create(&audio->ep_out_ff_mutex));
+    tu_fifo_config_mutex(&audio->ep_out_ff, NULL, osal_mutex_create(&audio->ep_out_ff_mutex_rd));
 #endif
 #endif
 
@@ -689,7 +689,7 @@ void audiod_init(void)
     {
       tu_fifo_config(&audio->tx_supp_ff[cnt], &audio->tx_supp_ff_buf[cnt], CFG_TUD_AUDIO_TX_SUPPORT_SW_FIFO_SIZE, 1, true);
 #if CFG_FIFO_MUTEX
-      tu_fifo_config_mutex(&audio->tx_supp_ff[cnt], osal_mutex_create(&audio->tx_supp_ff_mutex[cnt]));
+      tu_fifo_config_mutex(&audio->tx_supp_ff[cnt], osal_mutex_create(&audio->tx_supp_ff_mutex_wr[cnt]), NULL);
 #endif
     }
 #endif
@@ -700,7 +700,7 @@ void audiod_init(void)
     {
       tu_fifo_config(&audio->rx_supp_ff[cnt], &audio->rx_supp_ff_buf[cnt], CFG_TUD_AUDIO_RX_SUPPORT_SW_FIFO_SIZE, 1, true);
 #if CFG_FIFO_MUTEX
-      tu_fifo_config_mutex(&audio->rx_supp_ff[cnt], osal_mutex_create(&audio->rx_supp_ff_mutex[cnt]));
+      tu_fifo_config_mutex(&audio->rx_supp_ff[cnt], NULL, osal_mutex_create(&audio->rx_supp_ff_mutex_rd[cnt]));
 #endif
     }
 #endif

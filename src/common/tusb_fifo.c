@@ -39,31 +39,49 @@
 // implement mutex lock and unlock
 #if CFG_FIFO_MUTEX
 
-static void tu_fifo_lock(tu_fifo_t *f)
+static void tu_fifo_lock_wr(tu_fifo_t *f)
 {
-  if (f->mutex)
+  if (f->mutex_wr)
   {
-    osal_mutex_lock(f->mutex, OSAL_TIMEOUT_WAIT_FOREVER);
+    osal_mutex_lock(f->mutex_wr, OSAL_TIMEOUT_WAIT_FOREVER);
   }
 }
 
-static void tu_fifo_unlock(tu_fifo_t *f)
+static void tu_fifo_unlock_wr(tu_fifo_t *f)
 {
-  if (f->mutex)
+  if (f->mutex_wr)
   {
-    osal_mutex_unlock(f->mutex);
+    osal_mutex_unlock(f->mutex_wr);
+  }
+}
+
+static void tu_fifo_lock_rd(tu_fifo_t *f)
+{
+  if (f->mutex_rd)
+  {
+    osal_mutex_lock(f->mutex_rd, OSAL_TIMEOUT_WAIT_FOREVER);
+  }
+}
+
+static void tu_fifo_unlock_rd(tu_fifo_t *f)
+{
+  if (f->mutex_rd)
+  {
+    osal_mutex_unlock(f->mutex_rd);
   }
 }
 
 #else
 
-#define tu_fifo_lock(_ff)
-#define tu_fifo_unlock(_ff)
+#define tu_fifo_lock_wr(_ff)
+#define tu_fifo_unlock_wr(_ff)
+#define tu_fifo_lock_rd(_ff)
+#define tu_fifo_unlock_rd(_ff)
 
 #endif
 
 /** \enum tu_fifo_copy_mode_t
- * \brief Write modes intended to allow special read and write functions to be able to copy data to and from USB hardware FIFOs as needed for e.g. STM32s
+ * \brief Write modes intended to allow special read and write functions to be able to copy data to and from USB hardware FIFOs as needed for e.g. STM32s and others
  */
 typedef enum
 {
@@ -75,7 +93,8 @@ bool tu_fifo_config(tu_fifo_t *f, void* buffer, uint16_t depth, uint16_t item_si
 {
   if (depth > 0x8000) return false;               // Maximum depth is 2^15 items
 
-  tu_fifo_lock(f);
+  tu_fifo_lock_wr(f);
+  tu_fifo_lock_rd(f);
 
   f->buffer = (uint8_t*) buffer;
   f->depth  = depth;
@@ -87,7 +106,8 @@ bool tu_fifo_config(tu_fifo_t *f, void* buffer, uint16_t depth, uint16_t item_si
 
   f->rd_idx = f->wr_idx = 0;
 
-  tu_fifo_unlock(f);
+  tu_fifo_unlock_wr(f);
+  tu_fifo_lock_rd(f);
 
   return true;
 }
@@ -381,7 +401,7 @@ static uint16_t _tu_fifo_write_n(tu_fifo_t* f, const void * data, uint16_t n, tu
 {
   if ( n == 0 ) return 0;
 
-  tu_fifo_lock(f);
+  tu_fifo_lock_wr(f);
 
   uint16_t w = f->wr_idx, r = f->rd_idx;
   uint8_t const* buf8 = (uint8_t const*) data;
@@ -411,14 +431,14 @@ static uint16_t _tu_fifo_write_n(tu_fifo_t* f, const void * data, uint16_t n, tu
   // Advance pointer
   f->wr_idx = advance_pointer(f, w, n);
 
-  tu_fifo_unlock(f);
+  tu_fifo_unlock_wr(f);
 
   return n;
 }
 
 static uint16_t _tu_fifo_read_n(tu_fifo_t* f, void * buffer, uint16_t n, tu_fifo_copy_mode_t copy_mode)
 {
-  tu_fifo_lock(f);                                          // TODO: Here we may distinguish for read and write pointer mutexes!
+  tu_fifo_lock_rd(f);                                          // TODO: Here we may distinguish for read and write pointer mutexes!
 
   // Peek the data
   n = _tu_fifo_peek_at_n(f, 0, buffer, n, f->wr_idx, f->rd_idx, copy_mode);        // f->rd_idx might get modified in case of an overflow so we can not use a local variable
@@ -426,7 +446,7 @@ static uint16_t _tu_fifo_read_n(tu_fifo_t* f, void * buffer, uint16_t n, tu_fifo
   // Advance read pointer
   f->rd_idx = advance_pointer(f, f->rd_idx, n);
 
-  tu_fifo_unlock(f);
+  tu_fifo_unlock_rd(f);
   return n;
 }
 
@@ -533,9 +553,9 @@ bool tu_fifo_overflowed(tu_fifo_t* f)
 // Only use in case tu_fifo_overflow() returned true!
 void tu_fifo_correct_read_pointer(tu_fifo_t* f)
 {
-  tu_fifo_lock(f);
+  tu_fifo_lock_rd(f);
   _tu_fifo_correct_read_pointer(f, f->wr_idx);
-  tu_fifo_unlock(f);
+  tu_fifo_unlock_rd(f);
 }
 
 /******************************************************************************/
@@ -556,7 +576,7 @@ void tu_fifo_correct_read_pointer(tu_fifo_t* f)
 /******************************************************************************/
 bool tu_fifo_read(tu_fifo_t* f, void * buffer)
 {
-  tu_fifo_lock(f);                                          // TODO: Here we may distinguish for read and write pointer mutexes!
+  tu_fifo_lock_rd(f);                                          // TODO: Here we may distinguish for read and write pointer mutexes!
 
   // Peek the data
   bool ret = _tu_fifo_peek_at(f, 0, buffer, f->wr_idx, f->rd_idx);    // f->rd_idx might get modified in case of an overflow so we can not use a local variable
@@ -564,7 +584,7 @@ bool tu_fifo_read(tu_fifo_t* f, void * buffer)
   // Advance pointer
   f->rd_idx = advance_pointer(f, f->rd_idx, ret);
 
-  tu_fifo_unlock(f);
+  tu_fifo_unlock_rd(f);
   return ret;
 }
 
@@ -615,7 +635,8 @@ uint16_t tu_fifo_read_n_const_addr(tu_fifo_t* f, void * buffer, uint16_t n)
 /******************************************************************************/
 uint16_t tu_fifo_read_n_into_other_fifo(tu_fifo_t* f, tu_fifo_t* f_target, uint16_t offset, uint16_t n)
 {
-  tu_fifo_lock(f);            // TODO: Here we may distinguish for read and write pointer mutexes!
+  tu_fifo_lock_rd(f);
+  tu_fifo_lock_wr(f_target);
 
   // Conduct copy
   n = tu_fifo_peek_n_into_other_fifo(f, f_target, offset, n);
@@ -623,7 +644,8 @@ uint16_t tu_fifo_read_n_into_other_fifo(tu_fifo_t* f, tu_fifo_t* f_target, uint1
   // Advance read pointer
   f->rd_idx = advance_pointer(f, f->rd_idx, n);
 
-  tu_fifo_unlock(f);
+  tu_fifo_unlock_rd(f);
+  tu_fifo_unlock_wr(f_target);
 
   return n;
 }
@@ -645,9 +667,9 @@ uint16_t tu_fifo_read_n_into_other_fifo(tu_fifo_t* f, tu_fifo_t* f_target, uint1
 /******************************************************************************/
 bool tu_fifo_peek_at(tu_fifo_t* f, uint16_t offset, void * p_buffer)
 {
-  tu_fifo_lock(f);                                          // TODO: Here we may distinguish for read and write pointer mutexes!
+  tu_fifo_lock_rd(f);
   bool ret = _tu_fifo_peek_at(f, offset, p_buffer, f->wr_idx, f->rd_idx);
-  tu_fifo_unlock(f);
+  tu_fifo_unlock_rd(f);
   return ret;
 }
 
@@ -670,9 +692,9 @@ bool tu_fifo_peek_at(tu_fifo_t* f, uint16_t offset, void * p_buffer)
 /******************************************************************************/
 uint16_t tu_fifo_peek_at_n(tu_fifo_t* f, uint16_t offset, void * p_buffer, uint16_t n)
 {
-  tu_fifo_lock(f);                                          // TODO: Here we may distinguish for read and write pointer mutexes!
+  tu_fifo_lock_rd(f);
   bool ret = _tu_fifo_peek_at_n(f, offset, p_buffer, n, f->wr_idx, f->rd_idx, TU_FIFO_COPY_INC);
-  tu_fifo_unlock(f);
+  tu_fifo_unlock_rd(f);
   return ret;
 }
 
@@ -719,7 +741,7 @@ uint16_t tu_fifo_peek_n_into_other_fifo (tu_fifo_t* f, tu_fifo_t* f_target, uint
   cnt -= offset;
   if (cnt < n) n = cnt;
 
-  tu_fifo_lock(f_target);     // Lock both read and write pointers - in case of an overwritable FIFO both may be modified
+  tu_fifo_lock_wr(f_target);     // Lock both read and write pointers - in case of an overwritable FIFO both may be modified
 
   uint16_t wr_rel_tgt = get_relative_pointer(f_target, f_target->wr_idx, 0);
 
@@ -757,7 +779,7 @@ uint16_t tu_fifo_peek_n_into_other_fifo (tu_fifo_t* f, tu_fifo_t* f_target, uint
     _tu_fifo_peek_at_n(f, offset + sz, f_target->buffer, n-sz, f_wr_idx, f_rd_idx, TU_FIFO_COPY_INC);
   }
 
-  tu_fifo_unlock(f_target);
+  tu_fifo_unlock_wr(f_target);
 
   return n;
 }
@@ -780,7 +802,7 @@ uint16_t tu_fifo_peek_n_into_other_fifo (tu_fifo_t* f, tu_fifo_t* f_target, uint
 /******************************************************************************/
 bool tu_fifo_write(tu_fifo_t* f, const void * data)
 {
-  tu_fifo_lock(f);
+  tu_fifo_lock_wr(f);
 
   uint16_t w = f->wr_idx;
 
@@ -794,7 +816,7 @@ bool tu_fifo_write(tu_fifo_t* f, const void * data)
   // Advance pointer
   f->wr_idx = advance_pointer(f, w, 1);
 
-  tu_fifo_unlock(f);
+  tu_fifo_unlock_wr(f);
 
   return true;
 }
@@ -848,12 +870,13 @@ uint16_t tu_fifo_write_n_const_addr(tu_fifo_t* f, const void * data, uint16_t n)
 /******************************************************************************/
 bool tu_fifo_clear(tu_fifo_t *f)
 {
-  tu_fifo_lock(f);
+  tu_fifo_lock_wr(f);
+  tu_fifo_lock_rd(f);
   f->rd_idx = f->wr_idx = 0;
   f->max_pointer_idx = 2*f->depth-1;
   f->non_used_index_space = UINT16_MAX - f->max_pointer_idx;
-  tu_fifo_unlock(f);
-
+  tu_fifo_unlock_wr(f);
+  tu_fifo_unlock_rd(f);
   return true;
 }
 
@@ -869,11 +892,13 @@ bool tu_fifo_clear(tu_fifo_t *f)
 /******************************************************************************/
 bool tu_fifo_set_overwritable(tu_fifo_t *f, bool overwritable)
 {
-  tu_fifo_lock(f);
+  tu_fifo_lock_wr(f);
+  tu_fifo_lock_rd(f);
 
   f->overwritable = overwritable;
 
-  tu_fifo_unlock(f);
+  tu_fifo_unlock_wr(f);
+  tu_fifo_unlock_rd(f);
 
   return true;
 }
@@ -996,9 +1021,9 @@ uint16_t tu_fifo_get_linear_read_info(tu_fifo_t *f, uint16_t offset, void **ptr,
   // Check overflow and correct if required
   if (cnt > f->depth)
   {
-    tu_fifo_lock(f);
+    tu_fifo_lock_rd(f);
     _tu_fifo_correct_read_pointer(f, w);
-    tu_fifo_unlock(f);
+    tu_fifo_unlock_rd(f);
     r = f->rd_idx;
     cnt = f->depth;
   }

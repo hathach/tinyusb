@@ -73,7 +73,8 @@ typedef struct
   volatile uint16_t rd_idx               ; ///< read pointer
 
 #if CFG_FIFO_MUTEX
-  tu_fifo_mutex_t mutex;
+  tu_fifo_mutex_t mutex_wr;
+  tu_fifo_mutex_t mutex_rd;
 #endif
 
 } tu_fifo_t;
@@ -98,9 +99,10 @@ bool tu_fifo_clear(tu_fifo_t *f);
 bool tu_fifo_config(tu_fifo_t *f, void* buffer, uint16_t depth, uint16_t item_size, bool overwritable);
 
 #if CFG_FIFO_MUTEX
-static inline void tu_fifo_config_mutex(tu_fifo_t *f, tu_fifo_mutex_t mutex_hdl)
+static inline void tu_fifo_config_mutex(tu_fifo_t *f, tu_fifo_mutex_t write_mutex_hdl, tu_fifo_mutex_t read_mutex_hdl)
 {
-  f->mutex = mutex_hdl;
+  f->mutex_wr = write_mutex_hdl;
+  f->mutex_rd = read_mutex_hdl;
 }
 #endif
 
