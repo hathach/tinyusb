@@ -1,3 +1,4 @@
+DEPS_SUBMODULES = hw/mcu/microchip
 HWREV ?= 1
 
 CFLAGS += \

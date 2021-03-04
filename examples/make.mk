@@ -53,8 +53,8 @@ fetch_submodule_if_empty = \
     $(info $(shell git -C $(TOP) submodule update --init $1)) \
   endif
 
-ifdef FAMILY_SUBMODULES
-  $(foreach s,$(FAMILY_SUBMODULES),:$(call fetch_submodule_if_empty,$(s)))
+ifdef DEPS_SUBMODULES
+  $(foreach s,$(DEPS_SUBMODULES),:$(call fetch_submodule_if_empty,$(s)))
 endif
 
 #-------------- Cross Compiler  ------------

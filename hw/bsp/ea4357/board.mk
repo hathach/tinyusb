@@ -1,3 +1,5 @@
+DEPS_SUBMODULES = hw/mcu/nxp
+
 CFLAGS += \
   -flto \
   -mthumb \

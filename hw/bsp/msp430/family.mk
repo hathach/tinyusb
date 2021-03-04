@@ -1,5 +1,5 @@
 CROSS_COMPILE = msp430-elf-
-FAMILY_SUBMODULES = hw/mcu/ti
+DEPS_SUBMODULES = hw/mcu/ti
 SKIP_NANOLIB = 1
 
 CFLAGS += \
