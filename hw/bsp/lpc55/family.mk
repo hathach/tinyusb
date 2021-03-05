@@ -1,5 +1,5 @@
 UF2_FAMILY_ID = 0x2abc77ec
-DEPS_SUBMODULES = hw/mcu/nxp
+DEPS_SUBMODULES = lib/sct_neopixel hw/mcu/nxp
 
 include $(TOP)/$(BOARD_PATH)/board.mk
 
@@ -41,7 +41,7 @@ SRC_C += \
 	$(MCU_DIR)/drivers/fsl_reset.c \
 	$(MCU_DIR)/drivers/fsl_usart.c \
 	$(MCU_DIR)/drivers/fsl_flexcomm.c \
-	lib/sct_neopixel/sct_neopixel.c 
+	lib/sct_neopixel/sct_neopixel.c
 
 INC += \
 	$(TOP)/$(BOARD_PATH) \
@@ -60,10 +60,3 @@ CHIP_FAMILY = lpc_ip3511
 
 # For freeRTOS port source
 FREERTOS_PORT = ARM_CM33_NTZ/non_secure
-
-# For flash-jlink target
-#JLINK_DEVICE = LPC55S69
-
-# flash using pyocd
-#flash: $(BUILD)/$(PROJECT).hex
-#	pyocd flash -t LPC55S69 $<
