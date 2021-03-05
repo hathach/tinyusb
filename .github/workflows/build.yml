@@ -59,7 +59,7 @@ jobs:
       uses: actions/checkout@v2
 
     - name: Checkout common submodules in lib
-      run: git submodule update --init lib/FreeRTOS-Kernel lib/lwip
+      run: git submodule update --init lib/FreeRTOS-Kernel lib/lwip lib/sct_neopixel
 
     - name: Set Toolchain URL
       run: echo >> $GITHUB_ENV TOOLCHAIN_URL=https://github.com/xpack-dev-tools/arm-none-eabi-gcc-xpack/releases/download/v10.2.1-1.1/xpack-arm-none-eabi-gcc-10.2.1-1.1-linux-x64.tar.gz
@@ -197,8 +197,6 @@ jobs:
 
     - name: Checkout TinyUSB
       uses: actions/checkout@v2
-      with:
-        submodules: 'false'
 
     - name: Build
       run: docker run --rm -v $PWD:/project -w /project espressif/idf:latest python3 tools/build_esp32s2.py ${{ matrix.board }}
@@ -213,7 +211,7 @@ jobs:
       matrix:
         family:
         # Alphabetical order
-        - 'msp430'     
+        - 'msp430'
     steps:
     - name: Setup Python
       uses: actions/setup-python@v2
