@@ -1,5 +1,5 @@
 UF2_FAMILY_ID = 0x2abc77ec
-DEPS_SUBMODULES = hw/mcu/nxp
+DEPS_SUBMODULES = lib/sct_neopixel hw/mcu/nxp
 
 include $(TOP)/$(BOARD_PATH)/board.mk
 
