@@ -12,7 +12,7 @@ CFLAGS += \
 # lpc_types.h cause following errors
 CFLAGS += -Wno-error=strict-prototypes
 
-MCU_DIR = hw/mcu/ti/tm4c123xx/
+MCU_DIR=hw/mcu/ti/tm4c123xx/
 CMSIS=$(TOP)/hw/mcu/ti/tm4c123xx/CMSIS/5.7.0/CMSIS/Include
 TI_HDR=$(TOP)/hw/mcu/ti/tm4c123xx/Include/TM4C123/
 
