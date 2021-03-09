@@ -180,9 +180,9 @@ jobs:
         asset_content_type: application/zip
 
   # ---------------------------------------
-  # Build ESP32S2 family
+  # Build ESP32SX family
   # ---------------------------------------
-  build-esp32s2:
+  build-esp32sx:
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -192,6 +192,7 @@ jobs:
         - 'adafruit_feather_esp32s2'
         - 'adafruit_magtag_29gray'
         - 'adafruit_metro_esp32s2'
+        - 'espressif_addax_1'
         - 'espressif_kaluga_1'
         - 'espressif_saola_1'
 
@@ -206,7 +207,7 @@ jobs:
       uses: actions/checkout@v2
 
     - name: Build
-      run: docker run --rm -v $PWD:/project -w /project espressif/idf:latest python3 tools/build_esp32s2.py ${{ matrix.board }}
+      run: docker run --rm -v $PWD:/project -w /project espressif/idf:latest python3 tools/build_esp32sx.py ${{ matrix.board }}
 
   # ---------------------------------------
   # Build msp430 family
