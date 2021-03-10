@@ -1,3 +1,5 @@
+DEPS_SUBMODULES = hw/mcu/sony/cxd56/spresense-exported-sdk
+
 # Platforms are: Linux, Darwin, MSYS, CYGWIN
 PLATFORM := $(firstword $(subst _, ,$(shell uname -s 2>/dev/null)))
 

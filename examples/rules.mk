@@ -6,7 +6,9 @@
 .DEFAULT_GOAL := all
 
 ifeq ($(FAMILY),esp32s2)
+# ---------------------------------------
 # Espressif IDF use CMake build system, this add wrapper target to call idf.py
+# ---------------------------------------
 
 .PHONY: all clean flash
 
@@ -44,6 +46,9 @@ $(BUILD)/$(PROJECT).uf2: $(BUILD)/$(PROJECT).bin
 	$(PYTHON) $(TOP)/tools/uf2/utils/uf2conv.py -f $(UF2_FAMILY_ID) -b 0x0 -c -o $@ $^
 
 else ifeq ($(FAMILY),rp2040)
+# ---------------------------------------
+# RP2040 CMake
+# ---------------------------------------
 
 ifeq ($(DEBUG), 1)
 CMAKE_DEFSYM += -DCMAKE_BUILD_TYPE=Debug
@@ -58,11 +63,14 @@ all: $(BUILD)
 clean:
 	$(RM) -rf $(BUILD)
 
+#flash: flash-pyocd
 flash:
 	@$(CP) $(BUILD)/$(PROJECT).uf2 /media/$(USER)/RPI-RP2
 
 else
+# ---------------------------------------
 # GNU Make build system
+# ---------------------------------------
 
 # libc
 LIBS += -lgcc -lm -lnosys
@@ -93,12 +101,11 @@ INC += $(TOP)/src
 
 CFLAGS += $(addprefix -I,$(INC))
 
-# TODO Skip nanolib for MSP430
-ifeq ($(BOARD), msp_exp430f5529lp)
-  LDFLAGS += $(CFLAGS) -fshort-enums -Wl,-T,$(TOP)/$(LD_FILE) -Wl,-Map=$@.map -Wl,-cref -Wl,-gc-sections
-else
-  LDFLAGS += $(CFLAGS) -fshort-enums -Wl,-T,$(TOP)/$(LD_FILE) -Wl,-Map=$@.map -Wl,-cref -Wl,-gc-sections -specs=nosys.specs -specs=nano.specs
+LDFLAGS += $(CFLAGS) -fshort-enums -Wl,-T,$(TOP)/$(LD_FILE) -Wl,-Map=$@.map -Wl,-cref -Wl,-gc-sections
+ifneq ($(SKIP_NANOLIB), 1)
+LDFLAGS += -specs=nosys.specs -specs=nano.specs
 endif
+
 ASFLAGS += $(CFLAGS)
 
 # Assembly files can be name with upper case .S, convert it to .s
@@ -188,6 +195,8 @@ else
 	$(RM) -rf $(BUILD)
 endif
 
+endif # GNU Make
+
 # Print out the value of a make variable.
 # https://stackoverflow.com/questions/16467718/how-to-print-out-a-variable-in-makefile
 print-%:
@@ -221,7 +230,6 @@ flash-pyocd: $(BUILD)/$(PROJECT).hex
 	pyocd flash -t $(PYOCD_TARGET) $<
 	pyocd reset -t $(PYOCD_TARGET)
 
-endif # GNU Make
 
 #-------------- Artifacts --------------
 

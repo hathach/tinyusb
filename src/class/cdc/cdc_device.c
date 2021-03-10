@@ -396,6 +396,17 @@ bool cdcd_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request_t 
         if ( tud_cdc_line_state_cb ) tud_cdc_line_state_cb(itf, dtr, rts);
       }
     break;
+    case CDC_REQUEST_SEND_BREAK:
+      if (stage == CONTROL_STAGE_SETUP)
+      {
+        tud_control_status(rhport, request);
+      }
+      else if (stage == CONTROL_STAGE_ACK)
+      {
+        TU_LOG2("  Send Break\r\n");
+        if ( tud_cdc_send_break_cb ) tud_cdc_send_break_cb(itf, request->wValue);
+      }
+    break;
 
     default: return false; // stall unsupported request
   }

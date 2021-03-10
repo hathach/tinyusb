@@ -10,9 +10,9 @@ It is relatively simple to incorporate tinyusb to your (existing) project
 - Make sure all required macros are all defined properly in tusb_config.h (configure file in demo application is sufficient, but you need to add a few more such as CFG_TUSB_MCU, CFG_TUSB_OS since they are passed by IDE/compiler to maintain a unique configure for all boards).
 - If you use the device stack, make sure you have created/modified usb descriptors for your own need. Ultimately you need to implement all **tud_descriptor_** callbacks for the stack to work.
 - Add tusb_init() call to your reset initialization code.
-- Call `tud_int_handler()` (device stack) and/or `tuh_int_handler()` in your USB IRQ Handler
+- Call `tud_int_handler()` (device) and/or `tuh_int_handler()` (host) in your USB IRQ Handler
 - Implement all enabled classes's callbacks.
-- If you don't use any RTOSes at all, you need to continuously and/or periodically call tud_task()/tuh_task() function. All of the callbacks and functionality are handled and invoke within the call of that task runner.
+- If you don't use any RTOSes at all, you need to continuously and/or periodically call tud_task()/tuh_task() function. All of the callbacks and functionality are handled and invoked within the call of that task runner.
 
 ~~~{.c}
 int main(void)
@@ -39,13 +39,15 @@ $ git clone https://github.com/hathach/tinyusb tinyusb
 $ cd tinyusb
 ```
 
-TinyUSB examples includes external repos aka submodules to provide low-level MCU peripheral's driver as well as external libraries such as FreeRTOS to compile with. Therefore we will firstly fetch those mcu driver repo by running this command in the top folder repo
+Some TinyUSB examples also requires external submodule libraries in `/lib` such as FreeRTOS, Lightweight IP to build. Run following command to fetch them 
 
 ```
-$ git submodule update --init --recursive
+$ git submodule update --init lib
 ```
 
-It will takes a bit of time due to the number of supported MCUs, luckily we only need to do this once. Or if you only want to test with a specific mcu, you could only fetch its driver submodule.
+In addition, MCU driver submodule is also needed to provide low-level MCU peripheral's driver. Luckily, it will be fetched if needed when you run the `make` to build your board.
+
+Note: some examples especially those that uses Vendor class (e.g webUSB) may requires udev permission on Linux (and/or macOS) to access usb device. It depends on your OS distro, typically copy `/examples/device/99-tinyusb.rules` file to /etc/udev/rules.d/ then run `sudo udevadm control --reload-rules && sudo udevadm trigger` is good enough.
 
 ### Build
 
@@ -60,6 +62,8 @@ Then compile with `make BOARD=[board_name] all`, for example
 ```
 $ make BOARD=feather_nrf52840_express all
 ```
+
+Note: `BOARD` can be found as directory name in `hw/bsp`, either in its family/boards or directly under bsp (no family).
 
 #### Port Selection
 

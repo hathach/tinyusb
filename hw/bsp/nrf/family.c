@@ -25,7 +25,6 @@
  */
 
 #include "bsp/board.h"
-
 #include "board.h"
 
 #include "nrfx.h"

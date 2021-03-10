@@ -94,9 +94,11 @@ This code base already had supported for a handful of following boards (sorted a
 - [LPCXpresso 11u68](https://www.nxp.com/support/developer-resources/evaluation-and-development-boards/lpcxpresso-boards/lpcxpresso-board-for-lpc11u68:OM13058)
 - [LPCXpresso 1347](https://www.nxp.com/support/developer-resources/evaluation-and-development-boards/lpcxpresso-boards/lpcxpresso-board-for-lpc1347:OM13045)
 - [LPCXpresso 1769](https://www.nxp.com/support/developer-resources/evaluation-and-development-boards/lpcxpresso-boards/lpcxpresso-board-for-lpc1769:OM13000)
+- [LPCXpresso18S37 Development Board](https://www.nxp.com/products/processors-and-microcontrollers/arm-microcontrollers/general-purpose-mcus/lpc4000-cortex-m4/lpcxpresso18s37-development-board:OM13076)
 - [LPCXpresso 51U68](https://www.nxp.com/products/processors-and-microcontrollers/arm-microcontrollers/general-purpose-mcus/lpcxpresso51u68-for-the-lpc51u68-mcus:OM40005)
 - [LPCXpresso 54114](https://www.nxp.com/design/microcontrollers-developer-resources/lpcxpresso-boards/lpcxpresso54114-board:OM13089)
-- [LPCXpresso 55s69 EVK](https://www.nxp.com/products/processors-and-microcontrollers/arm-microcontrollers/general-purpose-mcus/lpc5500-cortex-m33/lpcxpresso55s69-development-board:LPC55S69-EVK)
+- [LPCXpresso 55s28 EVK](https://www.nxp.com/design/software/development-software/lpcxpresso55s28-development-board:LPC55S28-EVK)
+- [LPCXpresso 55s69 EVK](https://www.nxp.com/design/development-boards/lpcxpresso-boards/lpcxpresso55s69-development-board:LPC55S69-EVK)
 - [NGX LPC4330-Xplorer](https://www.nxp.com/design/designs/lpc4330-xplorer-board:OM13027)
 - [Double M33 Express](https://www.crowdsupply.com/steiert-solutions/double-m33-express)
 
@@ -104,7 +106,7 @@ This code base already had supported for a handful of following boards (sorted a
 
 - [Adafruit Feather RP2040](https://www.adafruit.com/product/4884)
 - [Adafruit ItsyBitsy RP2040](https://www.adafruit.com/product/4888)
-- Adafruit QT RP2040
+- [Adafruit QT Py RP2040](https://www.adafruit.com/product/4900)
 - [Raspberry Pi Pico](https://www.raspberrypi.org/products/raspberry-pi-pico/)
 
 ### Sony

@@ -20,7 +20,7 @@
       arm_target_interface_type="SWD"
       build_treat_warnings_as_errors="No"
       c_preprocessor_definitions="LPC175x_6x;__LPC1700_FAMILY;__LPC176x_SUBFAMILY;ARM_MATH_CM3;FLASH_PLACEMENT=1;CORE_M3;CFG_TUSB_MCU=OPT_MCU_LPC175X_6X"
-      c_user_include_directories=".;../../src;$(rootDir)/hw;$(rootDir)/src;$(rootDir)/hw/mcu/nxp/lpc_driver/lpc_chip_175x_6x/inc;$(rootDir)/lib/FreeRTOS/Source/include;$(rootDir)/lib/FreeRTOS/Source/portable/GCC/ARM_CM3"
+      c_user_include_directories=".;../../src;$(rootDir)/hw;$(rootDir)/src;$(rootDir)/hw/mcu/nxp/lpc_driver/lpc_chip_175x_6x/inc;$(rootDir)/lib/FreeRTOS-Kernel/include;$(rootDir)/lib/FreeRTOS-Kernel/portable/GCC/ARM_CM3"
       debug_register_definition_file="LPC176x5x_Registers.xml"
       debug_target_connection="J-Link"
       gcc_enable_all_warnings="Yes"
@@ -92,39 +92,39 @@
       <folder Name="FreeRTOS">
         <folder Name="Source">
           <folder Name="include">
-            <file file_name="../../../../../lib/FreeRTOS/Source/include/croutine.h" />
-            <file file_name="../../../../../lib/FreeRTOS/Source/include/deprecated_definitions.h" />
-            <file file_name="../../../../../lib/FreeRTOS/Source/include/event_groups.h" />
-            <file file_name="../../../../../lib/FreeRTOS/Source/include/FreeRTOS.h" />
-            <file file_name="../../../../../lib/FreeRTOS/Source/include/list.h" />
-            <file file_name="../../../../../lib/FreeRTOS/Source/include/message_buffer.h" />
-            <file file_name="../../../../../lib/FreeRTOS/Source/include/mpu_prototypes.h" />
-            <file file_name="../../../../../lib/FreeRTOS/Source/include/mpu_wrappers.h" />
-            <file file_name="../../../../../lib/FreeRTOS/Source/include/portable.h" />
-            <file file_name="../../../../../lib/FreeRTOS/Source/include/projdefs.h" />
-            <file file_name="../../../../../lib/FreeRTOS/Source/include/queue.h" />
-            <file file_name="../../../../../lib/FreeRTOS/Source/include/semphr.h" />
-            <file file_name="../../../../../lib/FreeRTOS/Source/include/stack_macros.h" />
-            <file file_name="../../../../../lib/FreeRTOS/Source/include/StackMacros.h" />
-            <file file_name="../../../../../lib/FreeRTOS/Source/include/stream_buffer.h" />
-            <file file_name="../../../../../lib/FreeRTOS/Source/include/task.h" />
-            <file file_name="../../../../../lib/FreeRTOS/Source/include/timers.h" />
+            <file file_name="../../../../../lib/FreeRTOS-Kernel/include/croutine.h" />
+            <file file_name="../../../../../lib/FreeRTOS-Kernel/include/deprecated_definitions.h" />
+            <file file_name="../../../../../lib/FreeRTOS-Kernel/include/event_groups.h" />
+            <file file_name="../../../../../lib/FreeRTOS-Kernel/include/FreeRTOS.h" />
+            <file file_name="../../../../../lib/FreeRTOS-Kernel/include/list.h" />
+            <file file_name="../../../../../lib/FreeRTOS-Kernel/include/message_buffer.h" />
+            <file file_name="../../../../../lib/FreeRTOS-Kernel/include/mpu_prototypes.h" />
+            <file file_name="../../../../../lib/FreeRTOS-Kernel/include/mpu_wrappers.h" />
+            <file file_name="../../../../../lib/FreeRTOS-Kernel/include/portable.h" />
+            <file file_name="../../../../../lib/FreeRTOS-Kernel/include/projdefs.h" />
+            <file file_name="../../../../../lib/FreeRTOS-Kernel/include/queue.h" />
+            <file file_name="../../../../../lib/FreeRTOS-Kernel/include/semphr.h" />
+            <file file_name="../../../../../lib/FreeRTOS-Kernel/include/stack_macros.h" />
+            <file file_name="../../../../../lib/FreeRTOS-Kernel/include/StackMacros.h" />
+            <file file_name="../../../../../lib/FreeRTOS-Kernel/include/stream_buffer.h" />
+            <file file_name="../../../../../lib/FreeRTOS-Kernel/include/task.h" />
+            <file file_name="../../../../../lib/FreeRTOS-Kernel/include/timers.h" />
           </folder>
           <folder Name="portable">
             <folder Name="GCC">
               <folder Name="ARM_CM3">
-                <file file_name="../../../../../lib/FreeRTOS/Source/portable/GCC/ARM_CM3/port.c" />
-                <file file_name="../../../../../lib/FreeRTOS/Source/portable/GCC/ARM_CM3/portmacro.h" />
+                <file file_name="../../../../../lib/FreeRTOS-Kernel/portable/GCC/ARM_CM3/port.c" />
+                <file file_name="../../../../../lib/FreeRTOS-Kernel/portable/GCC/ARM_CM3/portmacro.h" />
               </folder>
             </folder>
             <folder Name="MemMang">
-              <file file_name="../../../../../lib/FreeRTOS/Source/portable/MemMang/heap_4.c" />
+              <file file_name="../../../../../lib/FreeRTOS-Kernel/portable/MemMang/heap_4.c" />
             </folder>
           </folder>
-          <file file_name="../../../../../lib/FreeRTOS/Source/list.c" />
-          <file file_name="../../../../../lib/FreeRTOS/Source/queue.c" />
-          <file file_name="../../../../../lib/FreeRTOS/Source/tasks.c" />
-          <file file_name="../../../../../lib/FreeRTOS/Source/timers.c" />
+          <file file_name="../../../../../lib/FreeRTOS-Kernel/list.c" />
+          <file file_name="../../../../../lib/FreeRTOS-Kernel/queue.c" />
+          <file file_name="../../../../../lib/FreeRTOS-Kernel/tasks.c" />
+          <file file_name="../../../../../lib/FreeRTOS-Kernel/timers.c" />
         </folder>
         <file file_name="../../../../../lib/FreeRTOS/freertos_hook.c" />
       </folder>

@@ -1,3 +1,5 @@
+DEPS_SUBMODULES = hw/mcu/microchip
+
 CFLAGS += \
   -mthumb \
   -mabi=aapcs \
