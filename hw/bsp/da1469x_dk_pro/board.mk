@@ -1,4 +1,4 @@
- CFLAGS += \
+CFLAGS += \
   -flto \
   -mthumb \
   -mthumb-interwork \

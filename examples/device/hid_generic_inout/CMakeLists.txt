@@ -33,9 +33,6 @@ if(FAMILY STREQUAL "rp2040")
     CFG_TUSB_OS=OPT_OS_PICO
   )
 
-  target_link_libraries(${PROJECT} pico_stdlib pico_fix_rp2040_usb_device_enumeration)
-  pico_add_extra_outputs(${PROJECT})
-
 else()
   message(FATAL_ERROR "Invalid FAMILY specified")
 endif()

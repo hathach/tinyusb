@@ -30,7 +30,6 @@
 
 #include <stdlib.h>
 #include "rp2040_usb.h"
-#include "hardware/clocks.h"
 
 // Direction strings for debug
 const char *ep_dir_string[] = {
@@ -44,10 +43,12 @@ static inline void _hw_endpoint_lock_update(struct hw_endpoint *ep, int delta) {
     //  sense to have worker and IRQ on same core, however I think using critsec is about equivalent.
 }
 
+#if TUSB_OPT_HOST_ENABLED
 static inline void _hw_endpoint_update_last_buf(struct hw_endpoint *ep)
 {
     ep->last_buf = ep->len + ep->transfer_size == ep->total_len;
 }
+#endif
 
 void rp2040_usb_init(void)
 {
@@ -59,8 +60,11 @@ void rp2040_usb_init(void)
     memset(usb_hw, 0, sizeof(*usb_hw));
     memset(usb_dpram, 0, sizeof(*usb_dpram));
 
-    // Mux to phy
+    // Mux the controller to the onboard usb phy
     usb_hw->muxing    = USB_USB_MUXING_TO_PHY_BITS    | USB_USB_MUXING_SOFTCON_BITS;
+
+    // Force VBUS detect so the device thinks it is plugged into a host
+    // TODO support VBUs detect
     usb_hw->pwr       = USB_USB_PWR_VBUS_DETECT_BITS  | USB_USB_PWR_VBUS_DETECT_OVERRIDE_EN_BITS;
 }
 
@@ -68,7 +72,9 @@ void hw_endpoint_reset_transfer(struct hw_endpoint *ep)
 {
     ep->stalled = false;
     ep->active = false;
+#if TUSB_OPT_HOST_ENABLED
     ep->sent_setup = false;
+#endif
     ep->total_len = 0;
     ep->len = 0;
     ep->transfer_size = 0;
@@ -84,12 +90,12 @@ void _hw_endpoint_buffer_control_update32(struct hw_endpoint *ep, uint32_t and_m
         value |= or_mask;
         if (or_mask & USB_BUF_CTRL_AVAIL) {
             if (*ep->buffer_control & USB_BUF_CTRL_AVAIL) {
-                panic("ep %d %s was already available", ep->num, ep_dir_string[ep->in]);
+                panic("ep %d %s was already available", tu_edpt_number(ep->ep_addr), ep_dir_string[tu_edpt_dir(ep->ep_addr)]);
             }
             *ep->buffer_control = value & ~USB_BUF_CTRL_AVAIL;
             // 12 cycle delay.. (should be good for 48*12Mhz = 576Mhz)
             // Don't need delay in host mode as host is in charge
-#ifndef RP2040_USB_HOST_MODE
+#if !TUSB_OPT_HOST_ENABLED
             __asm volatile (
                     "b 1f\n"
                     "1: b 1f\n"
@@ -122,6 +128,7 @@ void _hw_endpoint_start_next_buffer(struct hw_endpoint *ep)
     val |= ep->next_pid ? USB_BUF_CTRL_DATA1_PID : USB_BUF_CTRL_DATA0_PID;
     ep->next_pid ^= 1u;
 
+#if TUSB_OPT_HOST_ENABLED
     // Is this the last buffer? Only really matters for host mode. Will trigger
     // the trans complete irq but also stop it polling. We only really care about
     // trans complete for setup packets being sent
@@ -130,6 +137,7 @@ void _hw_endpoint_start_next_buffer(struct hw_endpoint *ep)
         pico_trace("Last buf (%d bytes left)\n", ep->transfer_size);
         val |= USB_BUF_CTRL_LAST;
     }
+#endif
 
     // Finally, write to buffer_control which will trigger the transfer
     // the next time the controller polls this dpram address
@@ -141,11 +149,11 @@ void _hw_endpoint_start_next_buffer(struct hw_endpoint *ep)
 void _hw_endpoint_xfer_start(struct hw_endpoint *ep, uint8_t *buffer, uint16_t total_len)
 {
     _hw_endpoint_lock_update(ep, 1);
-    pico_trace("Start transfer of total len %d on ep %d %s\n", total_len, ep->num, ep_dir_string[ep->in]);
+    pico_trace("Start transfer of total len %d on ep %d %s\n", total_len, tu_edpt_number(ep->ep_addr), ep_dir_string[tu_edpt_dir(ep->ep_addr)]);
     if (ep->active)
     {
         // TODO: Is this acceptable for interrupt packets?
-        pico_warn("WARN: starting new transfer on already active ep %d %s\n", ep->num, ep_dir_string[ep->in]);
+        pico_warn("WARN: starting new transfer on already active ep %d %s\n", tu_edpt_number(ep->ep_addr), ep_dir_string[tu_edpt_dir(ep->ep_addr)]);
 
         hw_endpoint_reset_transfer(ep);
     }
@@ -153,12 +161,14 @@ void _hw_endpoint_xfer_start(struct hw_endpoint *ep, uint8_t *buffer, uint16_t t
     // Fill in info now that we're kicking off the hw
     ep->total_len = total_len;
     ep->len = 0;
-    ep->transfer_size = tu_min32(total_len, ep->wMaxPacketSize);
+    ep->transfer_size = tu_min16(total_len, ep->wMaxPacketSize);
     ep->active = true;
     ep->user_buf = buffer;
+#if TUSB_OPT_HOST_ENABLED
     // Recalculate if this is the last buffer
     _hw_endpoint_update_last_buf(ep);
     ep->buf_sel = 0;
+#endif
 
     _hw_endpoint_start_next_buffer(ep);
     _hw_endpoint_lock_update(ep, -1);
@@ -172,9 +182,9 @@ void _hw_endpoint_xfer_sync(struct hw_endpoint *ep)
     // Get the buffer state and amount of bytes we have
     // transferred
     uint32_t buf_ctrl = _hw_endpoint_buffer_control_get_value32(ep);
-    uint transferred_bytes = buf_ctrl & USB_BUF_CTRL_LEN_MASK;
+    uint16_t transferred_bytes = buf_ctrl & USB_BUF_CTRL_LEN_MASK;
 
-#ifdef RP2040_USB_HOST_MODE
+#if TUSB_OPT_HOST_ENABLED
     // tag::host_buf_sel_fix[]
     if (ep->buf_sel == 1)
     {
@@ -223,16 +233,18 @@ bool _hw_endpoint_xfer_continue(struct hw_endpoint *ep)
     // Part way through a transfer
     if (!ep->active)
     {
-        panic("Can't continue xfer on inactive ep %d %s", ep->num, ep_dir_string);
+        panic("Can't continue xfer on inactive ep %d %s", tu_edpt_number(ep->ep_addr), ep_dir_string);
     }
 
     // Update EP struct from hardware state
     _hw_endpoint_xfer_sync(ep);
 
     // Now we have synced our state with the hardware. Is there more data to transfer?
-    uint remaining_bytes = ep->total_len - ep->len;
-    ep->transfer_size = tu_min32(remaining_bytes, ep->wMaxPacketSize);
+    uint16_t remaining_bytes = ep->total_len - ep->len;
+    ep->transfer_size = tu_min16(remaining_bytes, ep->wMaxPacketSize);
+#if TUSB_OPT_HOST_ENABLED
     _hw_endpoint_update_last_buf(ep);
+#endif
 
     // Can happen because of programmer error so check for it
     if (ep->len > ep->total_len)
@@ -244,7 +256,7 @@ bool _hw_endpoint_xfer_continue(struct hw_endpoint *ep)
     if (ep->len == ep->total_len)
     {
         pico_trace("Completed transfer of %d bytes on ep %d %s\n",
-                   ep->len, ep->num, ep_dir_string[ep->in]);
+                   ep->len, tu_edpt_number(ep->ep_addr), ep_dir_string[tu_edpt_dir(ep->ep_addr)]);
         // Notify caller we are done so it can notify the tinyusb
         // stack
         _hw_endpoint_lock_update(ep, -1);
@@ -263,7 +275,7 @@ bool _hw_endpoint_xfer_continue(struct hw_endpoint *ep)
 void _hw_endpoint_xfer(struct hw_endpoint *ep, uint8_t *buffer, uint16_t total_len, bool start)
 {
     // Trace
-    pico_trace("hw_endpoint_xfer ep %d %s", ep->num, ep_dir_string[ep->in]);
+    pico_trace("hw_endpoint_xfer ep %d %s", tu_edpt_number(ep->ep_addr), ep_dir_string[tu_edpt_dir(ep->ep_addr)]);
     pico_trace(" total_len %d, start=%d\n", total_len, start);
 
     assert(ep->configured);

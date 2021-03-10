@@ -78,7 +78,10 @@ bool __no_inline_not_in_flash_func(get_bootsel_button)() {
 
 //------------- Segger RTT retarget -------------//
 #if defined(LOGGER_RTT)
+
 // Logging with RTT
+// - If RTT Control Block is not found by 'Auto Detection` try to use 'Search Range` with '0x20000000 0x10000'
+// - SWD speed is rather slow around 1000Khz
 
 #include "pico/stdio/driver.h"
 #include "SEGGER_RTT.h"

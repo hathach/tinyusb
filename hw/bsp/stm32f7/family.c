@@ -55,7 +55,7 @@ void board_init(void)
 {
   board_clock_init();
 
-  // Enable peripherals clocks
+  // Enable All GPIOs clocks
   __HAL_RCC_GPIOA_CLK_ENABLE();
   __HAL_RCC_GPIOB_CLK_ENABLE();
   __HAL_RCC_GPIOC_CLK_ENABLE();
@@ -154,7 +154,7 @@ void board_init(void)
   // B-peripheral session valid override enable
   USB_OTG_FS->GOTGCTL |= USB_OTG_GOTGCTL_BVALOEN;
   USB_OTG_FS->GOTGCTL |= USB_OTG_GOTGCTL_BVALOVAL;
-#endif
+#endif // vbus sense
 
 #else
   // OTG_HS
@@ -231,7 +231,7 @@ void board_init(void)
   HAL_GPIO_Init(GPIOI, &GPIO_InitStruct);
   #endif // USB_HS_PHYC
 
-  /* Enable USB HS & ULPI Clocks */
+  // Enable USB HS & ULPI Clocks
   __HAL_RCC_USB_OTG_HS_ULPI_CLK_ENABLE();
   __HAL_RCC_USB_OTG_HS_CLK_ENABLE();
 
@@ -260,7 +260,7 @@ void board_init(void)
 
 void board_led_write(bool state)
 {
-  HAL_GPIO_WritePin(LED_PORT, LED_PIN, state);
+  HAL_GPIO_WritePin(LED_PORT, LED_PIN, state ? LED_STATE_ON : (1-LED_STATE_ON));
 }
 
 uint32_t board_button_read(void)

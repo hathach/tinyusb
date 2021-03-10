@@ -1,3 +1,9 @@
+ST_FAMILY = f3
+DEPS_SUBMODULES = lib/CMSIS_5 hw/mcu/st/cmsis_device_$(ST_FAMILY) hw/mcu/st/stm32$(ST_FAMILY)xx_hal_driver
+
+ST_CMSIS = hw/mcu/st/cmsis_device_$(ST_FAMILY)
+ST_HAL_DRIVER = hw/mcu/st/stm32$(ST_FAMILY)xx_hal_driver
+
 CFLAGS += \
   -flto \
   -mthumb \
@@ -11,10 +17,6 @@ CFLAGS += \
 
 # mcu driver cause following warnings
 CFLAGS += -Wno-error=unused-parameter
-
-ST_FAMILY = f3
-ST_CMSIS = hw/mcu/st/cmsis_device_$(ST_FAMILY)
-ST_HAL_DRIVER = hw/mcu/st/stm32$(ST_FAMILY)xx_hal_driver
 
 # All source paths should be relative to the top level.
 LD_FILE = hw/bsp/$(BOARD)/STM32F303VCTx_FLASH.ld

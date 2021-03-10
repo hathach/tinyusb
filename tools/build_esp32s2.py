@@ -27,8 +27,8 @@ def filter_with_input(mylist):
 # Build all examples if not specified
 all_examples = []
 for entry in os.scandir("examples/device"):
-    # Only includes example with CMakeLists.txt for esp32s
-    if entry.is_dir() and os.path.exists(entry.path + "/sdkconfig.defaults"):
+    # Only includes example with CMakeLists.txt for esp32s, and skip board_test to speed up ci
+    if entry.is_dir() and os.path.exists(entry.path + "/sdkconfig.defaults") and entry.name != 'board_test':
         all_examples.append(entry.name)
 filter_with_input(all_examples)
 all_examples.sort()

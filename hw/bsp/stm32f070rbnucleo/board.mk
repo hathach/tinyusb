@@ -1,3 +1,9 @@
+ST_FAMILY = f0
+DEPS_SUBMODULES = lib/CMSIS_5 hw/mcu/st/cmsis_device_$(ST_FAMILY) hw/mcu/st/stm32$(ST_FAMILY)xx_hal_driver
+
+ST_CMSIS = hw/mcu/st/cmsis_device_$(ST_FAMILY)
+ST_HAL_DRIVER = hw/mcu/st/stm32$(ST_FAMILY)xx_hal_driver
+
 CFLAGS += \
   -flto \
   -mthumb \
@@ -12,9 +18,6 @@ CFLAGS += \
 # suppress warning caused by vendor mcu driver
 CFLAGS += -Wno-error=unused-parameter -Wno-error=cast-align
 
-ST_FAMILY = f0
-ST_CMSIS = hw/mcu/st/cmsis_device_$(ST_FAMILY)
-ST_HAL_DRIVER = hw/mcu/st/stm32$(ST_FAMILY)xx_hal_driver
 
 # All source paths should be relative to the top level.
 LD_FILE = hw/bsp/$(BOARD)/stm32F070rbtx_flash.ld
