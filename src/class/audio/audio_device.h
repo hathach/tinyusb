@@ -50,7 +50,7 @@
 #error You must define an audio class control request buffer size!
 #endif
 
-// End point sizes - Limits: Full Speed <= 1023, High Speed <= 1024
+// End point sizes IN BYTES - Limits: Full Speed <= 1023, High Speed <= 1024
 #ifndef CFG_TUD_AUDIO_EPSIZE_IN
 #define CFG_TUD_AUDIO_EPSIZE_IN 0   // TX
 #endif
@@ -76,13 +76,13 @@
 #define CFG_TUD_AUDIO_EP_OUT_SW_BUFFER_SIZE                 0
 #endif
 
-// General information of number of TX and/or RX channels - is used in case support FIFOs (see below) are used and can be used for descriptor definitions
+// General information of number of TX and/or RX channels - is used in combination with support FIFOs (see below) and can be used for descriptor definitions
 #ifndef CFG_TUD_AUDIO_N_CHANNELS_TX
-#define CFG_TUD_AUDIO_N_CHANNELS_TX                         0
+#define CFG_TUD_AUDIO_N_CHANNELS_TX                         1
 #endif
 
 #ifndef CFG_TUD_AUDIO_N_CHANNELS_RX
-#define CFG_TUD_AUDIO_N_CHANNELS_RX                         0
+#define CFG_TUD_AUDIO_N_CHANNELS_RX                         1
 #endif
 
 // Use of TX/RX support FIFOs
@@ -104,7 +104,7 @@
 // The encoding/decoding starts when the private callback functions
 // - audio_tx_done_cb()
 // - audio_rx_done_cb()
-// are invoked. If support FIFOs are used the corresponding encoding/decoding functions are called from there.
+// are invoked. If support FIFOs are used, the corresponding encoding/decoding functions are called from there.
 // Once encoding/decoding is done the result is put directly into the EP_X_SW_BUFFER_FIFOs. You can use the public callback functions
 // - tud_audio_tx_done_pre_load_cb() or tud_audio_tx_done_post_load_cb()
 // - tud_audio_rx_done_pre_read_cb() or tud_audio_rx_done_post_read_cb()
@@ -120,13 +120,31 @@
 // - audio_rx_done_cb()
 // functions.
 
-// Size of support FIFOs - if size > 0 there are as many FIFOs set up as TX/RX channels defined
+// The number of support FIFOs and number of channels is decoupled. The PCM encoding/decoding works depending on the ratio CFG_TUD_AUDIO_N_CHANNELS_XX / CFG_TUD_AUDIO_N_XX_SUPPORT_SW_FIFO, where currently 1:1 and 2:1 is implemented. The version 2:1 is useful in case of I2S for which usually 2 are channels already interleaved available.
+
+// Size of support FIFOs IN SAMPLES - if size > 0 there are as many FIFOs set up as CFG_TUD_AUDIO_N_TX_SUPPORT_SW_FIFO and CFG_TUD_AUDIO_N_RX_SUPPORT_SW_FIFO
 #ifndef CFG_TUD_AUDIO_TX_SUPPORT_SW_FIFO_SIZE
-#define CFG_TUD_AUDIO_TX_SUPPORT_SW_FIFO_SIZE  0                // Buffer size per channel - minimum size: ceil(f_s/1000)*CFG_TUD_AUDIO_N_BYTES_PER_SAMPLE_TX
+#define CFG_TUD_AUDIO_TX_SUPPORT_SW_FIFO_SIZE  0                // FIFO size - minimum size: // ceil(f_s/1000) * CFG_TUD_AUDIO_N_CHANNELS_TX / CFG_TUD_AUDIO_N_TX_SUPPORT_SW_FIFO
 #endif
 
 #ifndef CFG_TUD_AUDIO_RX_SUPPORT_SW_FIFO_SIZE
-#define CFG_TUD_AUDIO_RX_SUPPORT_SW_FIFO_SIZE  0                // Buffer size per channel - minimum size: ceil(f_s/1000)*CFG_TUD_AUDIO_N_BYTES_PER_SAMPLE_RX
+#define CFG_TUD_AUDIO_RX_SUPPORT_SW_FIFO_SIZE  0                // FIFO size - minimum size: ceil(f_s/1000) * CFG_TUD_AUDIO_N_BYTES_PER_SAMPLE_RX * CFG_TUD_AUDIO_N_CHANNELS_RX / CFG_TUD_AUDIO_N_RX_SUPPORT_SW_FIFO
+#endif
+
+#ifndef CFG_TUD_AUDIO_N_TX_SUPPORT_SW_FIFO
+#if CFG_TUD_AUDIO_TX_SUPPORT_SW_FIFO_SIZE
+#define CFG_TUD_AUDIO_N_TX_SUPPORT_SW_FIFO  CFG_TUD_AUDIO_N_CHANNELS_TX         // default size is equal to number of channels
+#else
+#define CFG_TUD_AUDIO_N_TX_SUPPORT_SW_FIFO  0
+#endif
+#endif
+
+#ifndef CFG_TUD_AUDIO_N_RX_SUPPORT_SW_FIFO
+#if CFG_TUD_AUDIO_RX_SUPPORT_SW_FIFO_SIZE
+#define CFG_TUD_AUDIO_N_RX_SUPPORT_SW_FIFO  CFG_TUD_AUDIO_N_CHANNELS_RX         // default size is equal to number of channels
+#else
+#define CFG_TUD_AUDIO_N_RX_SUPPORT_SW_FIFO  0
+#endif
 #endif
 
 // Enable/disable feedback EP (required for asynchronous RX applications)
@@ -167,20 +185,6 @@
 #define CFG_TUD_AUDIO_N_BYTES_PER_SAMPLE_TX         1
 #endif
 
-#ifndef CFG_TUD_AUDIO_TX_ITEMSIZE
-#if CFG_TUD_AUDIO_N_BYTES_PER_SAMPLE_TX == 1
-#define CFG_TUD_AUDIO_TX_ITEMSIZE 1
-#elif CFG_TUD_AUDIO_N_BYTES_PER_SAMPLE_TX == 2
-#define CFG_TUD_AUDIO_TX_ITEMSIZE 2
-#else
-#define CFG_TUD_AUDIO_TX_ITEMSIZE 4
-#endif
-#endif
-
-#if CFG_TUD_AUDIO_TX_ITEMSIZE < CFG_TUD_AUDIO_N_BYTES_PER_SAMPLE_TX
-#error FIFO element size (ITEMSIZE) must not be smaller then sample size
-#endif
-
 #endif
 
 #if CFG_TUD_AUDIO_FORMAT_TYPE_RX == AUDIO_FORMAT_TYPE_I
@@ -193,26 +197,6 @@
 #define CFG_TUD_AUDIO_N_BYTES_PER_SAMPLE_RX         1
 #endif
 
-#if CFG_TUD_AUDIO_N_BYTES_PER_SAMPLE_RX == 1
-#define CFG_TUD_AUDIO_RX_ITEMSIZE 1
-#elif CFG_TUD_AUDIO_N_BYTES_PER_SAMPLE_RX == 2
-#define CFG_TUD_AUDIO_RX_ITEMSIZE 2
-#else
-#define CFG_TUD_AUDIO_RX_ITEMSIZE 4
-#endif
-
-#endif
-
-// In case PCM encoding/decoding of 24 into 32 bits, the adjustment needs to be defined
-#define CFG_TUD_AUDIO_LEFT_JUSTIFIED
-#define CFG_TUD_AUDIO_RIGHT_JUSTIFIED
-
-#ifndef CFG_TUD_AUDIO_JUSTIFICATION_RX
-#define CFG_TUD_AUDIO_JUSTIFICATION_RX     CFG_TUD_AUDIO_LEFT_JUSTIFIED
-#endif
-
-#ifndef CFG_TUD_AUDIO_JUSTIFICATION_TX
-#define CFG_TUD_AUDIO_JUSTIFICATION_TX     CFG_TUD_AUDIO_LEFT_JUSTIFIED
 #endif
 
 //static_assert(sizeof(tud_audio_desc_lengths) != CFG_TUD_AUDIO, "Supply audio function descriptor pack length!");
@@ -256,7 +240,7 @@ bool     tud_audio_n_clear_ep_in_ff               (uint8_t itf);                
 
 #if CFG_TUD_AUDIO_TX_SUPPORT_SW_FIFO_SIZE && CFG_TUD_AUDIO_EPSIZE_IN
 uint16_t tud_audio_n_flush_tx_support_ff          (uint8_t itf);      // Force all content in the support TX FIFOs to be written into EP SW FIFO
-bool	 tud_audio_n_clear_tx_support_ff          (uint8_t itf, uint8_t channelId);
+bool	 tud_audio_n_clear_tx_support_ff        (uint8_t itf, uint8_t channelId);
 uint16_t tud_audio_n_write_support_ff             (uint8_t itf, uint8_t channelId, const void * data, uint16_t len);
 #endif
 

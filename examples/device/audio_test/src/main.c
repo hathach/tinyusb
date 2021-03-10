@@ -73,12 +73,12 @@ int main(void)
   tusb_init();
 
   // Init values
-  sampFreq = 48000;
+  sampFreq = AUDIO_SAMPLE_RATE;
   clkValid = 1;
 
   sampleFreqRng.wNumSubRanges = 1;
-  sampleFreqRng.subrange[0].bMin = 48000;
-  sampleFreqRng.subrange[0].bMax = 48000;
+  sampleFreqRng.subrange[0].bMin = AUDIO_SAMPLE_RATE;
+  sampleFreqRng.subrange[0].bMax = AUDIO_SAMPLE_RATE;
   sampleFreqRng.subrange[0].bRes = 0;
 
   while (1)

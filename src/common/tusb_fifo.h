@@ -113,11 +113,9 @@ uint16_t tu_fifo_write_n_const_addr              (tu_fifo_t* f, const void * dat
 bool     tu_fifo_read                   (tu_fifo_t* f, void * p_buffer);
 uint16_t tu_fifo_read_n                 (tu_fifo_t* f, void * p_buffer, uint16_t n);
 uint16_t tu_fifo_read_n_const_addr      (tu_fifo_t* f, void * buffer, uint16_t n);
-uint16_t tu_fifo_read_n_into_other_fifo (tu_fifo_t* f, tu_fifo_t* f_target, uint16_t offset, uint16_t n);
 
 bool     tu_fifo_peek_at                (tu_fifo_t* f, uint16_t pos, void * p_buffer);
 uint16_t tu_fifo_peek_at_n              (tu_fifo_t* f, uint16_t pos, void * p_buffer, uint16_t n);
-uint16_t tu_fifo_peek_n_into_other_fifo (tu_fifo_t* f, tu_fifo_t* f_target, uint16_t offset, uint16_t n);
 
 uint16_t tu_fifo_count                  (tu_fifo_t* f);
 bool     tu_fifo_empty                  (tu_fifo_t* f);

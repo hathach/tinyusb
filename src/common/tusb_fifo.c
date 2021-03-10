@@ -598,42 +598,6 @@ uint16_t tu_fifo_read_n_const_addr(tu_fifo_t* f, void * buffer, uint16_t n)
 
 /******************************************************************************/
 /*!
-    @brief This function will read n elements from the array index specified by
-    the read pointer and increment the read index. It copies the elements
-    into another FIFO and as such takes care of wraps etc.
-    This function checks for an overflow and corrects read pointer if required.
-
-    @param[in]  f
-                Pointer to the FIFO buffer to manipulate
-    @param[in]  f_target
-                Pointer to target FIFO i.e. to copy into
-    @param[in]  offset
-                Position to read from in the FIFO buffer with respect to read pointer
-    @param[in]  n
-                Number of items to peek
-
-    @returns number of items read from the FIFO
- */
-/******************************************************************************/
-uint16_t tu_fifo_read_n_into_other_fifo(tu_fifo_t* f, tu_fifo_t* f_target, uint16_t offset, uint16_t n)
-{
-  tu_fifo_lock(f->mutex_rd);
-  tu_fifo_lock(f_target->mutex_wr);
-
-  // Conduct copy
-  n = tu_fifo_peek_n_into_other_fifo(f, f_target, offset, n);
-
-  // Advance read pointer
-  f->rd_idx = advance_pointer(f, f->rd_idx, n);
-
-  tu_fifo_unlock(f->mutex_rd);
-  tu_fifo_unlock(f_target->mutex_wr);
-
-  return n;
-}
-
-/******************************************************************************/
-/*!
     @brief Read one item without removing it from the FIFO.
     This function checks for an overflow and corrects read pointer if required.
 
@@ -678,92 +642,6 @@ uint16_t tu_fifo_peek_at_n(tu_fifo_t* f, uint16_t offset, void * p_buffer, uint1
   bool ret = _tu_fifo_peek_at_n(f, offset, p_buffer, n, f->wr_idx, f->rd_idx, TU_FIFO_COPY_INC);
   tu_fifo_unlock(f->mutex_rd);
   return ret;
-}
-
-/******************************************************************************/
-/*!
-    @brief Read n items without removing it from the FIFO and copy them into another FIFO.
-    This function checks for an overflow and corrects read pointer if required.
-
-    @param[in]  f
-                Pointer to the FIFO buffer to manipulate
-    @param[in]  f_target
-                Pointer to target FIFO i.e. to copy into
-    @param[in]  offset
-                Position to read from in the FIFO buffer with respect to read pointer
-    @param[in]  n
-                Number of items to peek
-
-    @returns Number of bytes written to p_buffer
- */
-/******************************************************************************/
-uint16_t tu_fifo_peek_n_into_other_fifo (tu_fifo_t* f, tu_fifo_t* f_target, uint16_t offset, uint16_t n)
-{
-  // Copy is only possible if both FIFOs have common element size
-  TU_VERIFY(f->item_size == f_target->item_size);
-
-  // Work on local copies on case any pointer changes in between (only necessary if something is written into FIFO f in the meantime)
-  uint16_t f_wr_idx = f->wr_idx;
-  uint16_t f_rd_idx = f->rd_idx;
-
-  uint16_t cnt = _tu_fifo_count(f, f_wr_idx, f_rd_idx);
-
-  // Check overflow and correct if required
-  if (cnt > f->depth)
-  {
-    _tu_fifo_correct_read_pointer(f, f->wr_idx);
-    f_rd_idx = f->rd_idx;
-    cnt = f->depth;
-  }
-
-  // Skip beginning of buffer
-  if (cnt == 0 || offset >= cnt) return 0;
-
-  // Check if we can read something at and after offset - if too less is available we read what remains
-  cnt -= offset;
-  if (cnt < n) n = cnt;
-
-  tu_fifo_lock(f_target->mutex_wr);     // Lock both read and write pointers - in case of an overwritable FIFO both may be modified
-
-  uint16_t wr_rel_tgt = get_relative_pointer(f_target, f_target->wr_idx, 0);
-
-  if (!f_target->overwritable)
-  {
-    // Not overwritable limit up to full
-    n = tu_min16(n, tu_fifo_remaining(f_target));
-  }
-
-  // Advance write pointer - not required for later
-  f_target->wr_idx = advance_pointer(f_target, f_target->wr_idx, n);
-
-  if (n >= f_target->depth)
-  {
-    offset += n - f_target->depth;
-
-    // We start writing at the read pointer's position since we fill the complete
-    // buffer and we do not want to modify the read pointer within a write function!
-    // This would end up in a race condition with read functions!
-    wr_rel_tgt = get_relative_pointer(f_target, f_target->rd_idx, 0);
-
-    n = f_target->depth;
-
-    // Update write pointer
-    f_target->wr_idx = advance_pointer(f_target, f_target->rd_idx, n);
-  }
-
-  // Copy linear size
-  uint16_t sz = f_target->depth - wr_rel_tgt;
-  _tu_fifo_peek_at_n(f, offset, &f_target->buffer[wr_rel_tgt], sz, f_wr_idx, f_rd_idx, TU_FIFO_COPY_INC);
-
-  if (n > sz)
-  {
-    // Copy remaining, now wrapped part, into target buffer
-    _tu_fifo_peek_at_n(f, offset + sz, f_target->buffer, n-sz, f_wr_idx, f_rd_idx, TU_FIFO_COPY_INC);
-  }
-
-  tu_fifo_unlock(f_target->mutex_wr);
-
-  return n;
 }
 
 /******************************************************************************/
@@ -976,7 +854,7 @@ void tu_fifo_backward_read_pointer(tu_fifo_t *f, uint16_t n)
    Returns the length and pointer from which bytes can be read in a linear manner.
    This is of major interest for DMA transmissions. If returned length is zero the
    corresponding pointer is invalid. The returned length is limited to the number
-   of BYTES n which the user wants to write into the buffer.
+   of ITEMS n which the user wants to write into the buffer.
    The write pointer does NOT get advanced, use tu_fifo_advance_read_pointer() to
    do so! If the length returned is less than n i.e. len<n, then a wrap occurs
    and you need to execute this function a second time to get a pointer to the
@@ -984,13 +862,13 @@ void tu_fifo_backward_read_pointer(tu_fifo_t *f, uint16_t n)
    @param[in]       f
                     Pointer to FIFO
    @param[in]       offset
-                    Number of BYTES to ignore before start writing
+                    Number of ITEMS to ignore before start writing
    @param[out]      **ptr
                     Pointer to start writing to
    @param[in]       n
-                    Number of BYTES to read from buffer
+                    Number of ITEMS to read from buffer
    @return          len
-                    Length of linear part IN BYTES, if zero corresponding pointer ptr is invalid
+                    Length of linear part IN ITEMS, if zero corresponding pointer ptr is invalid
 */
 /******************************************************************************/
 uint16_t tu_fifo_get_linear_read_info(tu_fifo_t *f, uint16_t offset, void **ptr, uint16_t n)
@@ -1010,9 +888,6 @@ uint16_t tu_fifo_get_linear_read_info(tu_fifo_t *f, uint16_t offset, void **ptr,
     cnt = f->depth;
   }
 
-  // Convert to bytes
-  cnt = cnt * f->item_size;
-
   // Skip beginning of buffer
   if (cnt == 0 || offset >= cnt) return 0;
 
@@ -1027,15 +902,13 @@ uint16_t tu_fifo_get_linear_read_info(tu_fifo_t *f, uint16_t offset, void **ptr,
   // Check if there is a wrap around necessary
   uint16_t len;
 
-  if (w >= r) {
+  if (w > r) {
     len = w - r;
   }
   else
   {
-    len = f->depth - r;
+    len = f->depth - r;       // Also the case if FIFO was full
   }
-
-  len = len * f->item_size;
 
   // Limit to required length
   len = tu_min16(n, len);
@@ -1060,31 +933,31 @@ uint16_t tu_fifo_get_linear_read_info(tu_fifo_t *f, uint16_t offset, void **ptr,
    @param[in]       f
                     Pointer to FIFO
    @param[in]       offset
-                    Number of bytes to ignore before start writing
+                    Number of ITEMS to ignore before start writing
    @param[out]      **ptr
                     Pointer to start writing to
    @param[in]       n
-                    Number of BYTES to write into buffer
+                    Number of ITEMS to write into buffer
    @return          len
-                    Length of linear part IN BYTES, if zero corresponding pointer ptr is invalid
+                    Length of linear part IN ITEMS, if zero corresponding pointer ptr is invalid
 */
 /******************************************************************************/
 uint16_t tu_fifo_get_linear_write_info(tu_fifo_t *f, uint16_t offset, void **ptr, uint16_t n)
 {
   uint16_t w = f->wr_idx, r = f->rd_idx;
-  uint16_t free = _tu_fifo_remaining(f, w, r) * f->item_size;
+  uint16_t free = _tu_fifo_remaining(f, w, r);
 
   if (!f->overwritable)
   {
     // Not overwritable limit up to full
     n = tu_min16(n, free);
   }
-  else if (n >= f->depth * f->item_size)
+  else if (n >= f->depth)
   {
     // If overwrite is allowed it must be less than or equal to 2 x buffer length, otherwise the overflow can not be resolved by the read functions
-    TU_VERIFY(n <= 2*f->depth * f->item_size);
+    TU_VERIFY(n <= 2*f->depth);
 
-    n = f->depth * f->item_size;
+    n = f->depth;
     // We start writing at the read pointer's position since we fill the complete
     // buffer and we do not want to modify the read pointer within a write function!
     // This would end up in a race condition with read functions!
@@ -1107,8 +980,6 @@ uint16_t tu_fifo_get_linear_write_info(tu_fifo_t *f, uint16_t offset, void **ptr
   {
     len = f->depth - w;
   }
-
-  len = len * f->item_size;
 
   // Limit to required length
   len = tu_min16(n, len);

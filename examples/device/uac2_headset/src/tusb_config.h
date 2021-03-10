@@ -110,7 +110,6 @@ extern "C" {
 #define CFG_TUD_AUDIO_N_BYTES_PER_SAMPLE_TX 2
 #define CFG_TUD_AUDIO_N_CHANNELS_RX         2
 #define CFG_TUD_AUDIO_N_BYTES_PER_SAMPLE_RX 2
-#define CFG_TUD_AUDIO_RX_ITEMSIZE           2
 #define CFG_TUD_AUDIO_ENABLE_FEEDBACK_EP    0
 
 // EP and buffer size - for isochronous EP´s, the buffer and EP size are equal (different sizes would not make sense)
