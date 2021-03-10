@@ -59,7 +59,7 @@ jobs:
       uses: actions/checkout@v2
 
     - name: Checkout common submodules in lib
-      run: git submodule update --init lib/FreeRTOS-Kernel lib/lwip
+      run: git submodule update --init lib/FreeRTOS-Kernel lib/lwip lib/sct_neopixel
 
     - name: Set Toolchain URL
       run: echo >> $GITHUB_ENV TOOLCHAIN_URL=https://github.com/xpack-dev-tools/arm-none-eabi-gcc-xpack/releases/download/v10.2.1-1.1/xpack-arm-none-eabi-gcc-10.2.1-1.1-linux-x64.tar.gz
