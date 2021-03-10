@@ -47,6 +47,8 @@ $ git submodule update --init lib
 
 In addition, MCU driver submodule is also needed to provide low-level MCU peripheral's driver. Luckily, it will be fetched if needed when you run the `make` to build your board.
 
+Note: some examples especially those that uses Vendor class (e.g webUSB) may requires udev permission on Linux (and/or macOS) to access usb device. It depends on your OS distro, typically copy `/examples/device/99-tinyusb.rules` file to /etc/udev/rules.d/ then run `sudo udevadm control --reload-rules && sudo udevadm trigger` is good enough.
+
 ### Build
 
 To build example, first change directory to an example folder. 
@@ -60,6 +62,8 @@ Then compile with `make BOARD=[board_name] all`, for example
 ```
 $ make BOARD=feather_nrf52840_express all
 ```
+
+Note: `BOARD` can be found as directory name in `hw/bsp`, either in its family/boards or directly under bsp (no family).
 
 #### Port Selection
 
