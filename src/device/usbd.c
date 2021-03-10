@@ -699,13 +699,21 @@ static bool process_control_request(uint8_t rhport, tusb_control_request_t const
       // notable requests are: GET HID REPORT DESCRIPTOR, SET_INTERFACE, GET_INTERFACE
       if ( !invoke_class_control(rhport, driver, p_request) )
       {
-        // For GET_INTERFACE, it is mandatory to respond even if the class
-        // driver doesn't use alternate settings.
-        TU_VERIFY( TUSB_REQ_TYPE_STANDARD == p_request->bmRequestType_bit.type &&
-                   TUSB_REQ_GET_INTERFACE == p_request->bRequest);
+        // For GET_INTERFACE and SET_INTERFACE, it is mandatory to respond even if the class
+        // driver doesn't use alternate settings or implement this
+        TU_VERIFY(TUSB_REQ_TYPE_STANDARD == p_request->bmRequestType_bit.type);
 
-        uint8_t alternate = 0;
-        tud_control_xfer(rhport, p_request, &alternate, 1);
+        if (TUSB_REQ_GET_INTERFACE == p_request->bRequest)
+        {
+          uint8_t alternate = 0;
+          tud_control_xfer(rhport, p_request, &alternate, 1);
+        }else if (TUSB_REQ_SET_INTERFACE == p_request->bRequest)
+        {
+          tud_control_status(rhport, p_request);
+        } else
+        {
+          return false;
+        }
       }
     }
     break;
