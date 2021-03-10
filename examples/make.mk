@@ -45,16 +45,10 @@ else
   SRC_C += $(subst $(TOP)/,,$(wildcard $(TOP)/$(FAMILY_PATH)/*.c))
 endif
 
-#TODO $(call fetch_submodule_if_empty,lib/sct_neopixel)
-
 # Fetch submodules depended by family
-fetch_submodule_if_empty = \
-  ifeq ($(wildcard $(TOP)/$1/*),) \
-    $(info $(shell git -C $(TOP) submodule update --init $1)) \
-  endif
-
+fetch_submodule_if_empty = $(if $(wildcard $(TOP)/$1/*),,$(info $(shell git -C $(TOP) submodule update --init $1)))
 ifdef DEPS_SUBMODULES
-  $(foreach s,$(DEPS_SUBMODULES),:$(call fetch_submodule_if_empty,$(s)))
+  $(foreach s,$(DEPS_SUBMODULES),$(call fetch_submodule_if_empty,$(s)))
 endif
 
 #-------------- Cross Compiler  ------------
