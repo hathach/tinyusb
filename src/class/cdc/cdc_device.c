@@ -434,11 +434,10 @@ bool cdcd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint32_
   {
     tu_fifo_write_n(&p_cdc->rx_ff, &p_cdc->epout_buf, xferred_bytes);
     
-    // TODO search for wanted char first for better performance
+    // Check for wanted char and invoke callback if needed
     if (tud_cdc_rx_wanted_cb && ( ((signed char) p_cdc->wanted_char) != -1)) {
-      // Check for wanted char and invoke callback if needed
       for (uint32_t i=0; i<xferred_bytes; i++) {
-        if ( p_cdc->wanted_char == p_cdc->epout_buf[i] ) {
+        if ( p_cdc->wanted_char == p_cdc->epout_buf[i] && tu_fifo_count(&p_cdc->rx_ff) ) {
           tud_cdc_rx_wanted_cb(itf, p_cdc->wanted_char);
         }
       }
