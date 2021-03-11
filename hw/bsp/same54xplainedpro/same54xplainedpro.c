@@ -144,7 +144,7 @@ static inline void uart_init(void)
 	// BOARD_SERCOM->USART.BAUD.reg = SERCOM_USART_BAUD_FRAC_FP(0) | SERCOM_USART_BAUD_FRAC_BAUD(26); /* 48000000/(16*115200) = 26.041666667 */
 	BOARD_SERCOM->USART.BAUD.reg = SERCOM_USART_BAUD_BAUD(63019); /* 65536*(1−16*115200/48000000) */
 
-	BOARD_SERCOM->SPI.CTRLA.bit.ENABLE = 1; /* activate SERCOM */
+	BOARD_SERCOM->USART.CTRLA.bit.ENABLE = 1; /* activate SERCOM */
 	while (BOARD_SERCOM->USART.SYNCBUSY.bit.ENABLE); /* wait for SERCOM to be ready */
 }
 
@@ -152,7 +152,7 @@ static inline void uart_send_buffer(uint8_t const *text, size_t len)
 {
 	for (size_t i = 0; i < len; ++i) {
 		BOARD_SERCOM->USART.DATA.reg = text[i];
-		while((BOARD_SERCOM->USART.INTFLAG.reg & SERCOM_SPI_INTFLAG_TXC) == 0);
+		while((BOARD_SERCOM->USART.INTFLAG.reg & SERCOM_USART_INTFLAG_TXC) == 0);
 	}
 }
 
@@ -160,7 +160,7 @@ static inline void uart_send_str(const char* text)
 {
 	while (*text) {
 		BOARD_SERCOM->USART.DATA.reg = *text++;
-		while((BOARD_SERCOM->USART.INTFLAG.reg & SERCOM_SPI_INTFLAG_TXC) == 0);
+		while((BOARD_SERCOM->USART.INTFLAG.reg & SERCOM_USART_INTFLAG_TXC) == 0);
 	}
 }
 
