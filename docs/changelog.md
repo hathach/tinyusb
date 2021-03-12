@@ -74,6 +74,8 @@ MIDI
 
 #### USB Host Driver (USBH)
 
+- No noticeable changes to usbh
+
 #### Host Class Driver
 
 MSC
