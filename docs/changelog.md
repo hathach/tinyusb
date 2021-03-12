@@ -1,10 +1,105 @@
 # TinyUSB Changelog
 
-## WIP
+## 0.9.0 - 2021.03.12
+
+### Device Stack
+
+#### Device Controller Driver (DCD)
+
+RP2040
+
+- Fix endpoint buffer reallocation overrun problem
+- Fix osal_pico queue overflow in initialization
+- Fix Isochronous endpoint buffer size in transfer
+- Optimize hardware endpoint struct to reduce RAM usage
+- Fix enum walkaround forever check for SE0 when pull up is disabled
+
+Sony CXD56
+
+- Pass the correct speed on Spresense
+- Fix setup processed flag
+
+NXP Transdimention
+
+- Update dcd_init() to reset controller to device mode
+
+#### USB Device Driver (USBD)
+
+- Fix issue with status zlp (tud_control_status) is returned by class driver with SET/CLEAR_FEATURE for endpoint.
+- Correct endpoint size check for fullspeed bulk, can be 8, 16, 32, 64
+- Ack SET_INTERFACE even if it is not implemented by class driver.
+
+#### Device Class Driver
+
+DFU Runtime
+
+- rename dfu_rt to dfu_runtime for easy reading
+
+CDC
+
+- Add tud_cdc_send_break_cb() to support break request
+- Improve CDC receive, minor behavior changes: when tud_cdc_rx_wanted_cb() is invoked wanted_char may not be the last byte in the fifo 
+
+HID
+
+- [Breaking] Add itf argument to hid API to support multiple instances, follow API has signature changes
+  - tud_hid_descriptor_report_cb()
+  - tud_hid_get_report_cb()
+  - tud_hid_set_report_cb()
+  - tud_hid_boot_mode_cb()
+  - tud_hid_set_idle_cb()
+- Add report complete callback tud_hid_report_complete_cb() API
+- Add DPad/Hat support for HID Gamepad
+  - TUD_HID_REPORT_DESC_GAMEPAD() now support 16 buttons, 2 joysticks, 1 hat/dpad
+  - Add hid_gamepad_report_t along with GAMEPAD_BUTTON_ and GAMEPAD_HAT_ enum
+  - Add Gamepad to hid_composite / hid_composite_freertos example
+
+MIDI
 
 - Fix dropping MIDI sysex message when fifo is full
-- Add DPad/Hat support for HID Gamepad
-- Add tud_hid_report_complete_cb() API
+- Fix typo in tud_midi_write24(), make example less ambigous for cable and channel
+- Fix incorrect endpoint descriptor length, MIDI v1 use Audio v1 which has 9-byte endpoint descriptor (instead of 7)
+
+### Host Stack
+
+#### Host Controller Driver (HCD)
+
+- Add rhport to hcd_init()
+- Improve EHCI/OHCI driver abstraction
+  - Move echi/ohci files to portable/
+  - Rename hcd_lpc18_43 to hcd_transdimension
+  - Sub hcd API with hcd_ehci_init(), hcd_ehci_register_addr()
+- Update NXP transdimention hcd_init() to reset controller to host mode
+  - Ported hcd to rt10xx
+
+#### USB Host Driver (USBH)
+
+- No noticeable changes to usbh
+
+#### Host Class Driver
+
+MSC
+
+- Rename tuh_msc_scsi_inquiry() to tuh_msc_inquiry()
+- Rename tuh_msc_mounted_cb/tuh_msc_unmounted_cb to tuh_msc_mount_cb/tuh_msc_unmount_cb to match device stack naming
+- Change tuh_msc_is_busy() to tuh_msc_ready()
+- Add read10 and write10 function: tuh_msc_read10(), tuh_msc_write10()
+- Read_Capacity is invoked as part of enumeration process
+- Add tuh_msc_get_block_count(), tuh_msc_get_block_size()
+- Add CFG_TUH_MSC_MAXLUN (default to 4) to hold lun capacities
+
+### Others
+
+- Add basic support for rt-thread OS
+- Change zero bitfield length to more explicit padding
+- Build example now fetch required submodules on the fly while running `make` without prio submodule init for mcu drivers
+- Update pico-sdk to v1.1.0
+
+**New Boards**
+
+- Microchip SAM E54 Xplained Pro
+- LPCXpresso 55s28
+- LPCXpresso 18s37
 
 ## 0.8.0 - 2021.02.05
 
@@ -26,7 +121,7 @@
 
 ### USB Device 
 
-**UBSD**
+**USBD**
 
 - Rework usbd control transfer to have additional stage parameter for setup, data, status
 - Fix tusb_init() return true instead of TUSB_ERROR_NONE
