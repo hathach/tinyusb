@@ -432,25 +432,24 @@ bool cdcd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint32_
   // Received new data
   if ( ep_addr == p_cdc->ep_out )
   {
-    // TODO search for wanted char first for better performance
-    for(uint32_t i=0; i<xferred_bytes; i++)
-    {
-      tu_fifo_write(&p_cdc->rx_ff, &p_cdc->epout_buf[i]);
-
-      // Check for wanted char and invoke callback if needed
-      if ( tud_cdc_rx_wanted_cb && ( ((signed char) p_cdc->wanted_char) != -1 ) && ( p_cdc->wanted_char == p_cdc->epout_buf[i] ) )
-      {
-        tud_cdc_rx_wanted_cb(itf, p_cdc->wanted_char);
+    tu_fifo_write_n(&p_cdc->rx_ff, &p_cdc->epout_buf, xferred_bytes);
+    
+    // Check for wanted char and invoke callback if needed
+    if (tud_cdc_rx_wanted_cb && ( ((signed char) p_cdc->wanted_char) != -1)) {
+      for (uint32_t i=0; i<xferred_bytes; i++) {
+        if ( p_cdc->wanted_char == p_cdc->epout_buf[i] && tu_fifo_count(&p_cdc->rx_ff) ) {
+          tud_cdc_rx_wanted_cb(itf, p_cdc->wanted_char);
+        }
       }
     }
-
+    
     // invoke receive callback (if there is still data)
     if (tud_cdc_rx_cb && tu_fifo_count(&p_cdc->rx_ff) ) tud_cdc_rx_cb(itf);
-
+    
     // prepare for OUT transaction
     _prep_out_transaction(p_cdc);
   }
-
+  
   // Data sent to host, we continue to fetch from tx fifo to send.
   // Note: This will cause incorrect baudrate set in line coding.
   //       Though maybe the baudrate is not really important !!!
