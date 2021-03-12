@@ -95,7 +95,8 @@ static void _prep_out_transaction (cdcd_interface_t* p_cdc)
   // fifo can be changed before endpoint is claimed
   available = tu_fifo_remaining(&p_cdc->rx_ff);
 
-  if ( available >= sizeof(p_cdc->epout_buf) )  {
+  if ( available >= sizeof(p_cdc->epout_buf) )
+  {
     usbd_edpt_xfer(rhport, p_cdc->ep_out, p_cdc->epout_buf, sizeof(p_cdc->epout_buf));
   }else
   {
@@ -435,16 +436,19 @@ bool cdcd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint32_
     tu_fifo_write_n(&p_cdc->rx_ff, &p_cdc->epout_buf, xferred_bytes);
     
     // Check for wanted char and invoke callback if needed
-    if (tud_cdc_rx_wanted_cb && ( ((signed char) p_cdc->wanted_char) != -1)) {
-      for (uint32_t i=0; i<xferred_bytes; i++) {
-        if ( p_cdc->wanted_char == p_cdc->epout_buf[i] && tu_fifo_count(&p_cdc->rx_ff) ) {
+    if ( tud_cdc_rx_wanted_cb && (((signed char) p_cdc->wanted_char) != -1) )
+    {
+      for ( uint32_t i = 0; i < xferred_bytes; i++ )
+      {
+        if ( (p_cdc->wanted_char == p_cdc->epout_buf[i]) && !tu_fifo_empty(&p_cdc->rx_ff) )
+        {
           tud_cdc_rx_wanted_cb(itf, p_cdc->wanted_char);
         }
       }
     }
     
     // invoke receive callback (if there is still data)
-    if (tud_cdc_rx_cb && tu_fifo_count(&p_cdc->rx_ff) ) tud_cdc_rx_cb(itf);
+    if (tud_cdc_rx_cb && !tu_fifo_empty(&p_cdc->rx_ff) ) tud_cdc_rx_cb(itf);
     
     // prepare for OUT transaction
     _prep_out_transaction(p_cdc);
