@@ -1,6 +1,6 @@
 # TinyUSB Changelog
 
-## 0.9.0 - 2021.03.11
+## 0.9.0 - 2021.03.12
 
 ### Device Stack
 
@@ -38,6 +38,7 @@ DFU Runtime
 CDC
 
 - Add tud_cdc_send_break_cb() to support break request
+- Improve CDC receive, minor behavior changes: when tud_cdc_rx_wanted_cb() is invoked wanted_char may not be the last byte in the fifo 
 
 HID
 
