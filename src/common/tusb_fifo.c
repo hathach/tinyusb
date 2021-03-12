@@ -89,7 +89,7 @@ bool tu_fifo_config(tu_fifo_t *f, void* buffer, uint16_t depth, uint16_t item_si
   f->rd_idx = f->wr_idx = 0;
 
   tu_fifo_unlock(f->mutex_wr);
-  tu_fifo_lock(f->mutex_rd);
+  tu_fifo_unlock(f->mutex_rd);
 
   return true;
 }
@@ -104,9 +104,10 @@ static inline uint16_t _ff_mod(uint16_t idx, uint16_t depth)
 
 // Intended to be used to read from hardware USB FIFO in e.g. STM32 where all data is read from a constant address
 // Code adapted from dcd_synopsis.c
-static void _tu_fifo_read_from_const_src_ptr(void * __restrict dst, const void * __restrict src, uint16_t len)
+// TODO generalize with configurable 1 byte or 4 byte each read
+static void _tu_fifo_read_from_const_src_ptr(void * dst, const void * src, uint16_t len)
 {
-  uint8_t CFG_TUSB_MEM_ALIGN * dst_u8 = (uint8_t *)dst;
+  uint8_t * dst_u8 = (uint8_t *)dst;
   volatile uint32_t * rx_fifo = (volatile uint32_t *) src;
 
   // Reading full available 32 bit words from FIFO
@@ -136,15 +137,18 @@ static void _tu_fifo_read_from_const_src_ptr(void * __restrict dst, const void *
 
 // Intended to be used to write to hardware USB FIFO in e.g. STM32 where all data is written to a constant address
 // Code adapted from dcd_synopsis.c
-static void _tu_fifo_write_to_const_dst_ptr(void * __restrict dst, const void * __restrict src, uint16_t len)
+// TODO generalize with configurable 1 byte or 4 byte each write
+static void _tu_fifo_write_to_const_dst_ptr(void * dst, const void * src, uint16_t len)
 {
   volatile uint32_t * tx_fifo = (volatile uint32_t *) dst;
-  uint8_t CFG_TUSB_MEM_ALIGN * src_u8 = (uint8_t *)src;
+  uint8_t * src_u8 = (uint8_t *)src;
 
   // Pushing full available 32 bit words to FIFO
-  uint16_t full_words = len >> 2;
+  uint16_t const full_words = len >> 2;
   for(uint16_t i = 0; i < full_words; i++){
-    *tx_fifo = ((uint32_t)(src_u8[3]) << 24) | ((uint32_t)(src_u8[2]) << 16) | ((uint32_t)(src_u8[1]) << 8) | (uint32_t)src_u8[0];
+    uint32_t temp32;
+    memcpy(&temp32, src_u8, 4);
+    *tx_fifo = temp32;
     src_u8 += 4;
   }
 
@@ -200,12 +204,14 @@ static inline void _ff_pull_copy_fct(void * dst, const void * src, uint16_t len,
 // send n items to FIFO WITHOUT updating write pointer
 static void _ff_push_n(tu_fifo_t* f, void const * data, uint16_t n, uint16_t wRel, tu_fifo_copy_mode_t copy_mode)
 {
-  if(wRel + n <= f->depth)  // Linear mode only
+  if(wRel + n <= f->depth)
   {
+    // Linear mode only
     _ff_push_copy_fct(f->buffer + (wRel * f->item_size), data, n*f->item_size, copy_mode);
   }
-  else      // Wrap around
+  else
   {
+    // Wrap around
     uint16_t nLin = f->depth - wRel;
 
     // Write data to linear part of buffer
@@ -225,12 +231,14 @@ static inline void _ff_pull(tu_fifo_t* f, void * p_buffer, uint16_t rRel)
 // get n items from FIFO WITHOUT updating read pointer
 static void _ff_pull_n(tu_fifo_t* f, void * p_buffer, uint16_t n, uint16_t rRel, tu_fifo_copy_mode_t copy_mode)
 {
-  if(rRel + n <= f->depth)       // Linear mode only
+  if(rRel + n <= f->depth)
   {
+    // Linear mode only
     _ff_pull_copy_fct(p_buffer, f->buffer + (rRel * f->item_size), n*f->item_size, copy_mode);
   }
-  else      // Wrap around
+  else
   {
+    // Wrap around
     uint16_t nLin = f->depth - rRel;
 
     // Read data from linear part of buffer
