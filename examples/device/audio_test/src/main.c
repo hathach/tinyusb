@@ -34,6 +34,10 @@
 // MACRO CONSTANT TYPEDEF PROTYPES
 //--------------------------------------------------------------------+
 
+#ifndef AUDIO_SAMPLE_RATE
+#define AUDIO_SAMPLE_RATE   48000
+#endif
+
 /* Blink pattern
  * - 250 ms  : device not mounted
  * - 1000 ms : device mounted

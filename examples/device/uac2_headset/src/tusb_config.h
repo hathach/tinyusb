@@ -91,11 +91,6 @@ extern "C" {
 //--------------------------------------------------------------------
 // AUDIO CLASS DRIVER CONFIGURATION
 //--------------------------------------------------------------------
-
-#ifndef AUDIO_SAMPLE_RATE
-#define AUDIO_SAMPLE_RATE                   48000
-#endif
-
 #define CFG_TUD_AUDIO_IN_PATH               (CFG_TUD_AUDIO)
 #define CFG_TUD_AUDIO_OUT_PATH              (CFG_TUD_AUDIO)
 

@@ -91,10 +91,6 @@ extern "C" {
 // AUDIO CLASS DRIVER CONFIGURATION
 //--------------------------------------------------------------------
 
-#ifndef AUDIO_SAMPLE_RATE
-#define AUDIO_SAMPLE_RATE                                             48000
-#endif
-
 // Audio format type
 #define CFG_TUD_AUDIO_FORMAT_TYPE_TX 				AUDIO_FORMAT_TYPE_I
 
