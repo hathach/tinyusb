@@ -103,27 +103,86 @@ __attribute__((used)) CFG_TUSB_MEM_SECTION TU_ATTR_ALIGNED(128) static dcd_data_
 #define USB_IE_SOF_Msk     (0x08u)
 #define USB_IE_DISCON_Msk  (0x20u)
 
+#define USB_CSRL0_RXRDYC        0x00000040  // RXRDY Clear
+#define USB_CSRL0_STALL         0x00000020  // Send Stall
+#define USB_CSRL0_SETEND        0x00000010  // Setup End
+#define USB_CSRL0_ERROR         0x00000010  // Error
+#define USB_CSRL0_DATAEND       0x00000008  // Data End
+
+typedef enum
+{
+    //
+    // The USB device is waiting on a request from the host controller on
+    // endpoint zero.
+    //
+    EpIdle=0,
+
+    //
+    // The USB device is sending data back to the host due to an IN request.
+    //
+    EpTx,
+
+    //
+    // The USB device is receiving data from the host due to an OUT
+    // request from the host.
+    //
+    EpRx,
+
+    //
+    // The USB device has completed the IN or OUT request and is now waiting
+    // for the host to acknowledge the end of the IN/OUT transaction.  This
+    // is the status phase for a USB control transaction.
+    //
+    EpStatus,
+
+    //
+    // This endpoint has signaled a stall condition and is waiting for the
+    // stall to be acknowledged by the host controller.
+    //
+    EpStall
+}
+ep0_state_t;
+
+ep0_state_t Ep0State;
+uint32_t dev_address=0; 
+
+/* TODO : Remove attribute post implementation */
+__attribute__((used)) 
 static void enable_usb_interrupts(uint32_t mask)
 {
     USB0->IE |= mask; 
 }
 
 /* TODO : Remove attribute post implementation */
-__attribute__((used))static void disable_usb_interrupts(uint32_t mask)
+__attribute__((used)) 
+static void disable_usb_interrupts(uint32_t mask)
 {
     USB0->IE &= ~mask; 
 }
 
 /* TODO : Remove attribute post implementation */
-__attribute__((used))static void enable_ep_interrupts(uint32_t mask)
+__attribute__((used)) 
+static void enable_ep_interrupts(uint32_t mask)
 {
     USB0->TXIE |= mask; 
     USB0->RXIE |= (mask & (~0x01));
 }
 
+/* TODO : Remove attribute post implementation */
+__attribute__((used)) 
 static uint32_t read_ep_intr_stat(void)
 {
     return ((USB0->RXIS << 8) | (USB0->TXIS)) ; 
+}
+
+/* TODO : Remove attribute post implementation */
+__attribute__((used)) 
+static void ack_usb_xfer(uint8_t EpNum, bool isLast)
+{
+    if(EpNum==0)
+    {
+        USB0->CSRL0 = USB_CSRL0_RXRDYC | (isLast ? USB_CSRL0_DATAEND : 0);
+    }
 }
 
 //--------------------------------------------------------------------+
@@ -236,7 +295,9 @@ void dcd_int_disable(uint8_t rhport)
 
 void dcd_set_address(uint8_t rhport, uint8_t dev_addr)
 {
-  (void)dev_addr;
+  
+    dev_address = dev_addr | (1u<<31) ; 
+    ack_usb_xfer(0,true); 
   (void)rhport;
 }
 
@@ -272,8 +333,7 @@ __attribute__((used)) static inline uint8_t byte2dword(uint8_t bytes)
   return 1;
 }
 
-/* TODO : Remove attribute post implementation */
-__attribute__((used)) static void control_ep_write(void const * buffer, uint8_t len)
+static void control_ep_write(void const * buffer, uint8_t len)
 {
     uint8_t const *data = buffer;
 
@@ -287,11 +347,24 @@ __attribute__((used)) static void control_ep_write(void const * buffer, uint8_t 
     USB0->CSRL0 = 0x0A ;
 }
 
-/* TODO : Remove attribute post implementation */
-__attribute__((used)) static uint8_t control_ep_read(void * buffer, uint8_t len)
+
+static uint8_t control_ep_read(uint32_t * buffer)
 {
-  (void)buffer;
-  (void)len;
+    uint32_t size = 0 ; 
+    /* Check if a packet was received */ 
+    if(USB0->CSRL0 & 0x01)
+    {
+        /* Read packet length */ 
+        size = USB0->COUNT0; 
+        
+        /* Read packet */
+        for(uint32_t i = 0; i<size; i++)
+        {
+            buffer[i] = USB0->FIFO0; 
+        }
+        
+        Ep0State=EpStatus; 
+    }
   return 1;
 }
 
@@ -358,27 +431,44 @@ void USB0_Handler(void)
 
 static void handle_control_ep(uint8_t rhport)
 {
-    uint32_t size=0; 
-    uint8_t control_packet[64]; 
-
-    /* Check if a packet was received */ 
-    if(USB0->CSRL0 & 0x01)
+     
+    uint32_t control_packet[16]; 
+    
+    switch(Ep0State)
     {
-        /* Read packet length */ 
-        size = USB0->COUNT0; 
-        
-        /* Read packet */
-        for(uint32_t i = 0; i<size; i++)
+        case EpIdle:
         {
-            control_packet[i] = USB0->FIFO0; 
+            /* TODO: Add check if Setup req was received */
+            control_ep_read(control_packet);
+            
+            dcd_event_setup_received(rhport, (uint8_t*)control_packet, true);
+            
+            break; 
         }
-        
-        /* ACK the data received (expecting a data stage next) */
-        USB0->CSRL0 = 0x40;
 
-        dcd_event_setup_received(rhport, control_packet, true);
+        case EpStatus:
+        {
+            Ep0State=EpIdle; 
+
+            if(dev_address & (1u<<31))
+            {
+                USB0->FADDR = (uint8_t)dev_address; 
+                dev_address &= ~(1u<<31); 
+            }
+            else
+            {
+                /* ACK the data received (expecting a data stage next) */
+                ack_usb_xfer(0, false); 
+            }
+        }
+
+        case EpTx:
+        case EpRx:
+        case EpStall: 
+        default: break; 
+
     }
-
+                 
 }
 
 // handle bus event signal
@@ -422,7 +512,7 @@ void dcd_int_handler(uint8_t rhport)
     
     uint32_t ep_intr = read_ep_intr_stat(); 
 
-    if ((ep_intr & 0x01) || (ep_intr & 0x100))
+    if ((ep_intr & 0x01))
     {
         handle_control_ep(rhport);
     }

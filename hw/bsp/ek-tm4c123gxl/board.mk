@@ -45,4 +45,5 @@ FREERTOS_PORT = ARM_CM4F
 JLINK_DEVICE = LPC1769
 
 # flash using jlink
-flash: flash-jlink
+flash: $(BUILD)/$(PROJECT).elf
+	openocd -f board/ti_ek-tm4c123gxl.cfg  -c "program $< verify reset exit"
