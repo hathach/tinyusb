@@ -22,3 +22,4 @@ if __name__ == '__main__':
     plt.ylabel('Amplitude')
     plt.title('MicNode')
     plt.show()
+    
