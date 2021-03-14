@@ -206,6 +206,15 @@ CFG_TUSB_MEM_SECTION audiod_interface_t _audiod_itf[CFG_TUD_AUDIO];
 
 extern const uint16_t tud_audio_desc_lengths[];
 
+// bSubslotSize for PCM encoding/decoding using support FIFOs
+#if CFG_TUD_AUDIO_EPSIZE_IN && CFG_TUD_AUDIO_TX_SUPPORT_SW_FIFO_SIZE
+extern const tud_audio_n_bytes_per_sample_tx[CFG_TUD_AUDIO][CFG_TUD_AUDIO_N_AS_INT];
+#endif
+
+#if CFG_TUD_AUDIO_EPSIZE_OUT && CFG_TUD_AUDIO_RX_SUPPORT_SW_FIFO_SIZE
+extern const tud_audio_n_bytes_per_sample_rx[CFG_TUD_AUDIO][CFG_TUD_AUDIO_N_AS_INT];
+#endif
+
 #if CFG_TUD_AUDIO_EP_OUT_SW_BUFFER_SIZE
 static bool audiod_rx_done_cb(uint8_t rhport, audiod_interface_t* audio, uint16_t n_bytes_received);
 #endif
