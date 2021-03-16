@@ -131,9 +131,9 @@ typedef struct
   uint8_t ep_int_in;
   // IN buffer is only used for first packet, not the remainder
   // in order to deal with prepending header
-  uint8_t ep_bulk_in_buf[USBTMCD_MAX_PACKET_SIZE];
+  CFG_TUSB_MEM_ALIGN uint8_t ep_bulk_in_buf[USBTMCD_MAX_PACKET_SIZE];
   // OUT buffer receives one packet at a time
-  uint8_t ep_bulk_out_buf[USBTMCD_MAX_PACKET_SIZE];
+  CFG_TUSB_MEM_ALIGN uint8_t ep_bulk_out_buf[USBTMCD_MAX_PACKET_SIZE];
   uint32_t transfer_size_remaining; // also used for requested length for bulk IN.
   uint32_t transfer_size_sent;      // To keep track of data bytes that have been queued in FIFO (not header bytes)
 
