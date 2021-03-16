@@ -273,6 +273,18 @@ bool dcd_edpt_xfer (uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t 
 
   xfer_td_t* xfer = get_td(epnum, dir);
 
+  if (dir == TUSB_DIR_OUT) {
+    // hw auto ack'd xfer so wait until it's done
+    // fix for https://github.com/adafruit/Adafruit_nRF52_Bootloader/issues/195
+    // FIXME: need a cleaner way kick off DMA with write to SIZE.EPOUT when starting
+    // FIXME: a sequence of HOST->ENDPOINT transfers
+    uint32_t timeout = 0;
+    while (!xfer->data_received && (timeout < 100)) {
+      NRFX_DELAY_US(1);
+	  timeout++;
+    }
+  }
+
   xfer->buffer     = buffer;
   xfer->total_len  = total_bytes;
   xfer->actual_len = 0;
