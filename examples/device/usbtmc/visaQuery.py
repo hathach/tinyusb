@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-import visa
+import pyvisa as visa
 import time
 import sys
 
@@ -36,8 +36,8 @@ def test_trig():
 	time.sleep(0.3) # SRQ may have some delay
 	assert (inst.read_stb() & 0x40), "SRQ not set after 0.3 seconds"
 	assert (inst.read_stb() == 0)
-	
-	
+
+
 def test_mav():
 	inst.write("delay 50")
 	inst.read_stb() # clear STB
@@ -45,15 +45,15 @@ def test_mav():
 	inst.write("123")
 	time.sleep(0.3)
 	assert (inst.read_stb() & 0x10), "MAV not set after 0.5 seconds"
-	
+
 	rsp = inst.read()
 	assert(rsp == "123\r\n")
-	
-	
+
+
 def test_srq():
 	assert (inst.read_stb() == 0)
 	inst.write("123")
-	
+
 	#inst.enable_event(visa.constants.VI_EVENT_SERVICE_REQ, visa.constants.VI_QUEUE)
 	#waitrsp = inst.wait_on_event(visa.constants.VI_EVENT_SERVICE_REQ, 5000)
 	#inst.discard_events(visa.constants.VI_EVENT_SERVICE_REQ, visa.constants.VI_QUEUE)
@@ -64,7 +64,7 @@ def test_srq():
 	assert (stb == 0x50),msg
 
 	assert (inst.read_stb() == 0x10), "SRQ set at second read!"
-	
+
 	rsp = inst.read()
 	assert(rsp == "123\r\n")
 
@@ -110,14 +110,14 @@ def test_abort_in():
 	inst.timeout = 800
 	y = inst.read()
 	assert(y == "xxx\r\n")
-	
+
 def test_indicate():
 	# perform indicator pulse
 	usb_iface = inst.get_visa_attribute(visa.constants.VI_ATTR_USB_INTFC_NUM)
 	retv = inst.control_in(request_type_bitmap_field=0xA1, request_id=64, request_value=0x0000, index=usb_iface, length=0x0001)
 	assert((retv[1] == visa.constants.StatusCode(0)) and (retv[0] == b'\x01')), f"indicator pulse failed: retv={retv}"
-	
-	
+
+
 def test_multi_read():
 	old_chunk_size = inst.chunk_size
 	longstr = "0123456789abcdefghijklmnopqrstuvwxyz" * 10
@@ -129,7 +129,7 @@ def test_multi_read():
 	y = inst.read()
 	assert (x + "\r\n" == y)
 	#inst.chunk_size = old_chunk_size
-	
+
 def test_stall_ep0():
 	usb_iface = inst.get_visa_attribute(visa.constants.VI_ATTR_USB_INTFC_NUM)
 	inst.read_stb()
@@ -139,17 +139,25 @@ def test_stall_ep0():
 		assert false
 	except visa.VisaIOError:
 		pass
-	
+
 	assert (inst.read_stb() == 0)
 
+os = sys.platform
+if os == "linux" or os == "linux2":
+    rm = visa.ResourceManager("@py")
+elif os == "darwin":
+    ## Not tested
+    print("Mac not tested\n");
+    sys.exit()
+elif os == "win32":
+    rm = visa.ResourceManager("/c/Windows/system32/visa64.dll")
 
-rm = visa.ResourceManager("/c/Windows/system32/visa64.dll")
 reslist = rm.list_resources("USB?::?*::INSTR")
 print(reslist)
 
 if (len(reslist) == 0):
     sys.exit()
-	
+
 inst = rm.open_resource(reslist[0]);
 inst.timeout = 3000
 
