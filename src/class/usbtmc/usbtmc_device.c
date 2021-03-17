@@ -145,7 +145,7 @@ typedef struct
   usbtmc_capabilities_specific_t const * capabilities;
 } usbtmc_interface_state_t;
 
-static usbtmc_interface_state_t usbtmc_state =
+CFG_TUSB_MEM_SECTION static usbtmc_interface_state_t usbtmc_state =
 {
     .itf_id = 0xFF,
 };
