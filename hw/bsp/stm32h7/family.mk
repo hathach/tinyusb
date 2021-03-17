@@ -30,6 +30,7 @@ CFLAGS += -Wno-error=maybe-uninitialized -Wno-error=cast-align
 
 # All source paths should be relative to the top level.
 SRC_C += \
+  src/portable/st/synopsys/dcd_synopsys.c \
 	$(ST_CMSIS)/Source/Templates/system_stm32$(ST_FAMILY)xx.c \
 	$(ST_HAL_DRIVER)/Src/stm32$(ST_FAMILY)xx_hal.c \
 	$(ST_HAL_DRIVER)/Src/stm32$(ST_FAMILY)xx_hal_cortex.c \
@@ -44,10 +45,6 @@ INC += \
 	$(TOP)/lib/CMSIS_5/CMSIS/Core/Include \
 	$(TOP)/$(ST_CMSIS)/Include \
 	$(TOP)/$(ST_HAL_DRIVER)/Inc
-
-# For TinyUSB port source
-VENDOR = st
-CHIP_FAMILY = synopsys
 
 # For freeRTOS port source
 FREERTOS_PORT = ARM_CM7/r0p1

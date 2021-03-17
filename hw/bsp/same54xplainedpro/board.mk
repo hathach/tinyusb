@@ -12,9 +12,7 @@ CFLAGS += \
   -nostdlib -nostartfiles \
   -D__SAME54P20A__ \
   -DCONF_CPU_FREQUENCY=$(CONF_CPU_FREQUENCY) \
-  -DCFG_TUSB_MCU=OPT_MCU_SAME5X \
-
-
+  -DCFG_TUSB_MCU=OPT_MCU_SAME5X
 
 #  -DSVC_Handler=SVCall_Handler
 
@@ -22,6 +20,7 @@ CFLAGS += \
 LD_FILE = hw/bsp/$(BOARD)/same54p20a_flash.ld
 
 SRC_C += \
+	src/portable/microchip/samd/dcd_samd.c \
   hw/mcu/microchip/same54/gcc/gcc/startup_same54.c \
   hw/mcu/microchip/same54/gcc/system_same54.c \
   hw/mcu/microchip/same54/hal/utils/src/utils_syscalls.c
@@ -36,13 +35,8 @@ INC += \
 	$(TOP)/hw/mcu/microchip/same54/hri \
 	$(TOP)/hw/mcu/microchip/same54/CMSIS/Include
 
-# For TinyUSB port source
-VENDOR = microchip
-CHIP_FAMILY = samd
-
 # For freeRTOS port source
 FREERTOS_PORT = ARM_CM4F
-
 
 # For flash-jlink target
 JLINK_DEVICE = ATSAME54P20

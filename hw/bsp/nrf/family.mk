@@ -34,6 +34,7 @@ LD_FILE ?= hw/bsp/nrf/boards/$(BOARD)/nrf52840_s140_v6.ld
 LDFLAGS += -L$(TOP)/hw/mcu/nordic/nrfx/mdk
 
 SRC_C += \
+	src/portable/nordic/nrf5x/dcd_nrf5x.c \
   hw/mcu/nordic/nrfx/drivers/src/nrfx_power.c \
   hw/mcu/nordic/nrfx/drivers/src/nrfx_uarte.c \
   hw/mcu/nordic/nrfx/mdk/system_$(MCU_VARIANT).c
@@ -51,10 +52,6 @@ INC += \
 SRC_S += hw/mcu/nordic/nrfx/mdk/gcc_startup_$(MCU_VARIANT).S
 
 ASFLAGS += -D__HEAP_SIZE=0
-
-# For TinyUSB port source
-VENDOR = nordic
-CHIP_FAMILY = nrf5x
 
 # For freeRTOS port source
 FREERTOS_PORT = ARM_CM4F

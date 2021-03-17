@@ -22,6 +22,7 @@ CFLAGS += -Wno-error=unused-parameter -Wno-error=cast-align
 LD_FILE = hw/bsp/$(BOARD)/STM32F072RBTx_FLASH.ld
 
 SRC_C += \
+  src/portable/st/stm32_fsdev/dcd_stm32_fsdev.c \
   $(ST_CMSIS)/Source/Templates/system_stm32$(ST_FAMILY)xx.c \
   $(ST_HAL_DRIVER)/Src/stm32$(ST_FAMILY)xx_hal.c \
   $(ST_HAL_DRIVER)/Src/stm32$(ST_FAMILY)xx_hal_cortex.c \
@@ -38,10 +39,6 @@ INC += \
   $(TOP)/$(ST_CMSIS)/Include \
   $(TOP)/$(ST_HAL_DRIVER)/Inc \
   $(TOP)/hw/bsp/$(BOARD)
-
-# For TinyUSB port source
-VENDOR = st
-CHIP_FAMILY = stm32_fsdev
 
 # For freeRTOS port source
 FREERTOS_PORT = ARM_CM0

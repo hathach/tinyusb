@@ -39,6 +39,8 @@ CFLAGS += -Wno-error=shadow
 
 SPRESENSE_SDK = $(TOP)/hw/mcu/sony/cxd56/spresense-exported-sdk
 
+SRC_C += src/portable/sony/cxd56/dcd_cxd56.c
+
 INC += \
 	$(SPRESENSE_SDK)/nuttx/include \
 	$(SPRESENSE_SDK)/nuttx/arch \
@@ -57,11 +59,7 @@ LDFLAGS += \
 	-nostartfiles \
 	-nodefaultlibs \
 	-Wl,--gc-sections \
-	-u spresense_main \
-
-# For TinyUSB port source
-VENDOR = sony
-CHIP_FAMILY = cxd56
+	-u spresense_main
 
 $(MKSPK): $(BUILD)/$(PROJECT).elf
 	$(MAKE) -C $(TOP)/hw/mcu/sony/cxd56/mkspk

@@ -22,6 +22,7 @@ MCU_DIR = hw/mcu/nxp/lpcopen/lpc11uxx/lpc_chip_11uxx
 LD_FILE = hw/bsp/$(BOARD)/lpc11u37.ld
 
 SRC_C += \
+	src/portable/nxp/lpc_ip3511/dcd_lpc_ip3511.c \
 	$(MCU_DIR)/../gcc/cr_startup_lpc11xx.c \
 	$(MCU_DIR)/src/chip_11xx.c \
 	$(MCU_DIR)/src/clock_11xx.c \
@@ -32,10 +33,6 @@ SRC_C += \
 
 INC += \
 	$(TOP)/$(MCU_DIR)/inc
-
-# For TinyUSB port source
-VENDOR = nxp
-CHIP_FAMILY = lpc_ip3511
 
 # For freeRTOS port source
 FREERTOS_PORT = ARM_CM0
