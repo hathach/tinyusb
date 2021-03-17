@@ -20,7 +20,7 @@ CFLAGS += \
 LD_FILE = hw/bsp/$(BOARD)/same54p20a_flash.ld
 
 SRC_C += \
-	src/portable/microchip/samd/dcd_samd.c \
+  src/portable/microchip/samd/dcd_samd.c \
   hw/mcu/microchip/same54/gcc/gcc/startup_same54.c \
   hw/mcu/microchip/same54/gcc/system_same54.c \
   hw/mcu/microchip/same54/hal/utils/src/utils_syscalls.c

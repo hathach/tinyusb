@@ -34,7 +34,7 @@ LD_FILE ?= hw/bsp/nrf/boards/$(BOARD)/nrf52840_s140_v6.ld
 LDFLAGS += -L$(TOP)/hw/mcu/nordic/nrfx/mdk
 
 SRC_C += \
-	src/portable/nordic/nrf5x/dcd_nrf5x.c \
+  src/portable/nordic/nrf5x/dcd_nrf5x.c \
   hw/mcu/nordic/nrfx/drivers/src/nrfx_power.c \
   hw/mcu/nordic/nrfx/drivers/src/nrfx_uarte.c \
   hw/mcu/nordic/nrfx/mdk/system_$(MCU_VARIANT).c
