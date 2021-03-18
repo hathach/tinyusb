@@ -1,5 +1,5 @@
 UF2_FAMILY_ID = 0xADA52840
-DEPS_SUBMODULES = lib/CMSIS_5 hw/mcu/nordic/nrfx
+DEPS_SUBMODULES += lib/CMSIS_5 hw/mcu/nordic/nrfx
 
 include $(TOP)/$(BOARD_PATH)/board.mk
 

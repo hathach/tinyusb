@@ -1,4 +1,4 @@
-DEPS_SUBMODULES = hw/mcu/nxp
+DEPS_SUBMODULES += hw/mcu/nxp
 
 include $(TOP)/$(BOARD_PATH)/board.mk
 

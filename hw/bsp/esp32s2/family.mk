@@ -1,4 +1,4 @@
-#DEPS_SUBMODULES =
+#DEPS_SUBMODULES +=
 
 .PHONY: all clean flash
 

@@ -1,4 +1,4 @@
-DEPS_SUBMODULES = hw/mcu/raspberrypi/pico-sdk
+DEPS_SUBMODULES += hw/mcu/raspberrypi/pico-sdk
 
 ifeq ($(DEBUG), 1)
 CMAKE_DEFSYM += -DCMAKE_BUILD_TYPE=Debug
