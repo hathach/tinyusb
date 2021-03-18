@@ -1,3 +1,9 @@
+# Board specific define e.g boot stage2
+# PICO_DEFAULT_BOOT_STAGE2_FILE must be set before pico_sdk_init()
+include(${TOP}/hw/bsp/${FAMILY}/boards/${BOARD}/board.cmake)
+
+pico_sdk_init()
+
 target_link_libraries(${PROJECT}
   pico_stdlib
   pico_bootsel_via_double_reset
