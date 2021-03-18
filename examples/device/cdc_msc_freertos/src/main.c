@@ -179,14 +179,13 @@ void cdc_task(void* params)
 
         // read and echo back
         uint32_t count = tud_cdc_read(buf, sizeof(buf));
+        (void) count;
 
-        for(uint32_t i=0; i<count; i++)
-        {
-          tud_cdc_write_char(buf[i]);
-
-          if ( buf[i] == '\r' ) tud_cdc_write_char('\n');
-        }
-
+        // Echo back
+        // Note: Skip echo by commenting out write() and write_flush()
+        // for throughput test e.g
+        //    $ dd if=/dev/zero of=/dev/ttyACM0 count=10000
+        tud_cdc_write(buf, count);
         tud_cdc_write_flush();
       }
     }
@@ -202,12 +201,13 @@ void tud_cdc_line_state_cb(uint8_t itf, bool dtr, bool rts)
   (void) itf;
   (void) rts;
 
-  // connected
+  // TODO set some indicator
   if ( dtr )
   {
-    // print initial message when connected
-    tud_cdc_write_str("\r\nTinyUSB CDC MSC device with FreeRTOS example\r\n");
-    tud_cdc_write_flush();
+    // Terminal connected
+  }else
+  {
+    // Terminal disconnected
   }
 }
 

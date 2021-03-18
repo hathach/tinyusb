@@ -48,7 +48,6 @@ enum  {
 static uint32_t blink_interval_ms = BLINK_NOT_MOUNTED;
 
 void led_blinking_task(void);
-
 void cdc_task(void);
 
 /*------------- MAIN -------------*/
@@ -112,18 +111,16 @@ void cdc_task(void)
     // connected and there are data available
     if ( tud_cdc_available() )
     {
-      uint8_t buf[64];
-
-      // read and echo back
+      // read datas
+      char buf[64];
       uint32_t count = tud_cdc_read(buf, sizeof(buf));
+      (void) count;
 
-      for(uint32_t i=0; i<count; i++)
-      {
-        tud_cdc_write_char(buf[i]);
-
-        if ( buf[i] == '\r' ) tud_cdc_write_char('\n');
-      }
-
+      // Echo back
+      // Note: Skip echo by commenting out write() and write_flush()
+      // for throughput test e.g
+      //    $ dd if=/dev/zero of=/dev/ttyACM0 count=10000
+      tud_cdc_write(buf, count);
       tud_cdc_write_flush();
     }
   }
@@ -135,12 +132,13 @@ void tud_cdc_line_state_cb(uint8_t itf, bool dtr, bool rts)
   (void) itf;
   (void) rts;
 
-  // connected
+  // TODO set some indicator
   if ( dtr )
   {
-    // print initial message when connected
-    tud_cdc_write_str("\r\nTinyUSB CDC MSC device example\r\n");
-    tud_cdc_write_flush();
+    // Terminal connected
+  }else
+  {
+    // Terminal disconnected
   }
 }
 
