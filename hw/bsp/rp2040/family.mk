@@ -1,5 +1,8 @@
 DEPS_SUBMODULES += hw/mcu/raspberrypi/pico-sdk
 
+JLINK_DEVICE = rp2040_m0_0
+PYOCD_TARGET = rp2040
+
 ifeq ($(DEBUG), 1)
 CMAKE_DEFSYM += -DCMAKE_BUILD_TYPE=Debug
 endif
@@ -13,9 +16,6 @@ all: $(BUILD)
 clean:
 	$(RM) -rf $(BUILD)
 
-#flash: flash-pyocd
-flash:
+flash: flash-pyocd
+flash-uf2:
 	@$(CP) $(BUILD)/$(PROJECT).uf2 /media/$(USER)/RPI-RP2
-
-JLINK_DEVICE = rp2040_m0_0
-PYOCD_TARGET = rp2040
