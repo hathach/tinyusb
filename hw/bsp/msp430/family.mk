@@ -1,5 +1,5 @@
 CROSS_COMPILE = msp430-elf-
-DEPS_SUBMODULES = hw/mcu/ti
+DEPS_SUBMODULES += hw/mcu/ti
 SKIP_NANOLIB = 1
 
 CFLAGS += \
@@ -8,22 +8,16 @@ CFLAGS += \
 	-DCFG_EXAMPLE_MSC_READONLY \
 	-DCFG_TUD_ENDPOINT0_SIZE=8
 
-#-mmcu=msp430f5529
-
-
-
 # All source paths should be relative to the top level.
 LD_FILE = hw/mcu/ti/msp430/msp430-gcc-support-files/include/msp430f5529.ld
 LDINC += $(TOP)/hw/mcu/ti/msp430/msp430-gcc-support-files/include
 LDFLAGS += $(addprefix -L,$(LDINC))
 
+SRC_C += src/portable/ti/msp430x5xx/dcd_msp430x5xx.c
+
 INC += \
 	$(TOP)/hw/mcu/ti/msp430/msp430-gcc-support-files/include \
 	$(TOP)/$(BOARD_PATH)
-
-# For TinyUSB port source
-VENDOR = ti
-CHIP_FAMILY = msp430x5xx
 
 # export for libmsp430.so to same installation
 ifneq ($(OS),Windows_NT)
