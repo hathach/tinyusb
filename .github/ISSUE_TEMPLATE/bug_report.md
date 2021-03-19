@@ -1,13 +1,11 @@
 ---
 name: Bug Report
 about: Create a report to help us improve
-title: ''
+title: 'Please provide all details at least for Setup/Describe/Reproduce'
 labels: Bug 🐞
 assignees: ''
 
 ---
-
-REMOVE ME: please provide all details at least for Setup/Describe/Reproduce. 
 
 **Set Up**
 
