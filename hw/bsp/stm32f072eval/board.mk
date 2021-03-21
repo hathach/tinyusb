@@ -19,7 +19,7 @@ CFLAGS += \
 CFLAGS += -Wno-error=unused-parameter -Wno-error=cast-align
 
 # All source paths should be relative to the top level.
-LD_FILE = hw/bsp/$(BOARD)/STM32F072RBTx_FLASH.ld
+LD_FILE = hw/bsp/$(BOARD)/STM32F072VBTx_FLASH.ld
 
 SRC_C += \
   src/portable/st/stm32_fsdev/dcd_stm32_fsdev.c \
@@ -44,7 +44,7 @@ INC += \
 FREERTOS_PORT = ARM_CM0
 
 # For flash-jlink target
-JLINK_DEVICE = stm32f072rb
+JLINK_DEVICE = stm32f072vb
 
 # flash target using on-board stlink
 flash: flash-stlink

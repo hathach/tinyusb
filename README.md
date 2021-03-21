@@ -30,8 +30,8 @@ Special thanks to all the people who spent their precious time and effort to hel
 
 The stack supports the following MCUs:
 
-- **Espressif:** ESP32-S2
 - **Dialog:** DA1469x
+- **Espressif:** ESP32-S2
 - **MicroChip:** SAMD11, SAMD21, SAMD51, SAME5x, SAMG55
 - **NordicSemi:** nRF52833, nRF52840
 - **Nuvoton:** NUC120, NUC121/NUC125, NUC126, NUC505

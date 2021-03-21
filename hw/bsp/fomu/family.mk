@@ -11,14 +11,12 @@ CROSS_COMPILE = riscv-none-embed-
 # All source paths should be relative to the top level.
 LD_FILE = $(FAMILY_PATH)/fomu.ld
 
+SRC_C += src/portable/valentyusb/eptri/dcd_eptri.c
+
 SRC_S += $(FAMILY_PATH)/crt0-vexriscv.S
 
 INC += \
 	$(TOP)/$(FAMILY_PATH)/include
-
-# For TinyUSB port source
-VENDOR = valentyusb
-CHIP_FAMILY = eptri
 
 # For freeRTOS port source
 FREERTOS_PORT = RISC-V
