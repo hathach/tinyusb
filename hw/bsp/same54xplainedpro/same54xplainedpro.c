@@ -59,7 +59,19 @@ void USB_3_Handler(void)
 #define BUTTON_PIN PIN_PB31
 #define BOARD_SERCOM SERCOM2
 
-static inline void init_clock(void)
+/** Initializes the clocks from the external 12 MHz crystal
+ *
+ * The goal of this setup is to preserve the second PLL
+ * for the application code while still having a reasonable
+ * 48 MHz clock for USB / UART.
+ *
+ * GCLK0:   CONF_CPU_FREQUENCY (default 120 MHz) from PLL0
+ * GCLK1:   unused
+ * GCLK2:   12 MHz from XOSC1
+ * DFLL48M: closed loop from GLCK2
+ * GCLK3:   48 MHz
+ */
+static inline void init_clock_xtal(void)
 {
 	/* configure for a 12MHz crystal connected to XIN1/XOUT1 */
 	OSCCTRL->XOSCCTRL[1].reg =
@@ -118,13 +130,14 @@ static inline void init_clock(void)
 	while(1 == GCLK->SYNCBUSY.bit.GENCTRL3);
 }
 
+/* Initialize SERCOM2 for 115200 bps 8N1 using a 48 MHz clock */
 static inline void uart_init(void)
 {
 	gpio_set_pin_function(PIN_PB24, PINMUX_PB24D_SERCOM2_PAD1);
 	gpio_set_pin_function(PIN_PB25, PINMUX_PB25D_SERCOM2_PAD0);
 
 	MCLK->APBBMASK.bit.SERCOM2_ = 1;
-	GCLK->PCHCTRL[SERCOM2_GCLK_ID_CORE].reg = GCLK_PCHCTRL_GEN_GCLK3 | GCLK_PCHCTRL_CHEN;
+	GCLK->PCHCTRL[SERCOM2_GCLK_ID_CORE].reg = GCLK_PCHCTRL_GEN_GCLK0 | GCLK_PCHCTRL_CHEN;
 
 	BOARD_SERCOM->USART.CTRLA.bit.SWRST = 1; /* reset and disable SERCOM -> enable configuration */
 	while (BOARD_SERCOM->USART.SYNCBUSY.bit.SWRST);
@@ -167,7 +180,8 @@ static inline void uart_send_str(const char* text)
 
 void board_init(void)
 {
-	init_clock();
+	// Uncomment this line to run off the XTAL
+	// init_clock_xtal();
 
 	SystemCoreClock = CONF_CPU_FREQUENCY;
 
@@ -218,7 +232,7 @@ void board_init(void)
 	 * The USB module requires a GCLK_USB of 48 MHz ~ 0.25% clock
 	 * for low speed and full speed operation.
 	 */
-	hri_gclk_write_PCHCTRL_reg(GCLK, USB_GCLK_ID, GCLK_PCHCTRL_GEN_GCLK3_Val | GCLK_PCHCTRL_CHEN);
+	hri_gclk_write_PCHCTRL_reg(GCLK, USB_GCLK_ID, GCLK_PCHCTRL_GEN_GCLK0_Val | GCLK_PCHCTRL_CHEN);
 	hri_mclk_set_AHBMASK_USB_bit(MCLK);
 	hri_mclk_set_APBBMASK_USB_bit(MCLK);
 

@@ -1,6 +1,6 @@
 DEPS_SUBMODULES = hw/mcu/microchip
 
-CONF_CPU_FREQUENCY ?= 120000000
+CONF_CPU_FREQUENCY ?= 48000000
 
 CFLAGS += \
   -mthumb \
