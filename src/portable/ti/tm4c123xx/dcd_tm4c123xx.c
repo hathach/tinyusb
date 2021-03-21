@@ -144,7 +144,23 @@ typedef enum
 ep0_state_t;
 
 ep0_state_t Ep0State;
-uint32_t dev_address=0; 
+
+typedef struct
+{
+
+    uint8_t  bmRequestType;
+    uint8_t  bRequest;
+    uint16_t wValue;
+    uint16_t wIndex;
+    uint16_t wLength;
+
+} __attribute__((packed)) USB_Request_t ;
+
+uint32_t dev_address=0;
+uint8_t status = 0; 
+uint16_t length=0; 
+static volatile USB_Request_t* request ;
+
 
 /* TODO : Remove attribute post implementation */
 __attribute__((used)) 
@@ -333,18 +349,32 @@ __attribute__((used)) static inline uint8_t byte2dword(uint8_t bytes)
   return 1;
 }
 
-static void control_ep_write(void const * buffer, uint8_t len)
+static void control_ep_write (void* buffer, uint16_t len)
 {
     uint8_t const *data = buffer;
+    
+    if(len >= 64)
+    {
+        len = 64; 
+    }
 
     for(uint16_t i=0; i<len; i++)
     {
         *((volatile uint8_t*)&USB0->FIFO0) = data[i] ;
     }
 
-    while(USB0->CSRL0 & 0x02) ;
+    length = len;
 
-    USB0->CSRL0 = 0x0A ;
+    while(USB0->CSRL0 & 0x02) ;
+    
+    USB0->CSRL0 = 0x02 ;    
+
+    if(len>=64)
+    {
+        Ep0State=EpStatus;
+        status = 1;
+    }
+    
 }
 
 
@@ -440,14 +470,24 @@ static void handle_control_ep(uint8_t rhport)
         {
             /* TODO: Add check if Setup req was received */
             control_ep_read(control_packet);
+            request = (volatile USB_Request_t*)control_packet ;
             
-            dcd_event_setup_received(rhport, (uint8_t*)control_packet, true);
-            
+                        
+            if((request->bRequest<12))
+            {
+                dcd_event_setup_received(rhport, (uint8_t*)control_packet, true);
+            }
+
+            if(request->bRequest==9)
+            {
+                //TODO : ACK with DATAEND set 
+            }
+
             break; 
         }
 
         case EpStatus:
-        {
+        {   
             Ep0State=EpIdle; 
 
             if(dev_address & (1u<<31))
@@ -455,20 +495,33 @@ static void handle_control_ep(uint8_t rhport)
                 USB0->FADDR = (uint8_t)dev_address; 
                 dev_address &= ~(1u<<31); 
             }
+
+            else if(status==1)
+            {
+               dcd_event_xfer_complete(0, TUSB_DIR_IN_MASK, length, XFER_RESULT_SUCCESS, false);
+               status=0; 
+            }
             else
             {
                 /* ACK the data received (expecting a data stage next) */
                 ack_usb_xfer(0, false); 
             }
+            
+
+            break;
         }
 
         case EpTx:
+        {
+            break;
+        }
         case EpRx:
         case EpStall: 
         default: break; 
 
     }
-                 
+
+                    
 }
 
 // handle bus event signal
