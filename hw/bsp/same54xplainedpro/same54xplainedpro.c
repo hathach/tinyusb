@@ -180,7 +180,7 @@ static inline void uart_send_str(const char* text)
 
 void board_init(void)
 {
-	// Uncomment this line to run off the XTAL
+	// Uncomment this line and change the GCLK for UART/USB to run off the XTAL.
 	// init_clock_xtal();
 
 	SystemCoreClock = CONF_CPU_FREQUENCY;
