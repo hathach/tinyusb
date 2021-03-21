@@ -103,6 +103,9 @@
 // NXP Kinetis
 #define OPT_MCU_MKL25ZXX         1200 ///< NXP MKL25Zxx
 
+// TI TM4C_Tiva C 
+#define OPT_MCU_TM4C123          1300 ///< TI Tiva C TM4C123
+
 /** @} */
 
 /** \defgroup group_supported_os Supported RTOS
