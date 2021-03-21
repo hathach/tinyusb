@@ -18,7 +18,7 @@ CMSIS=$(TOP)/hw/mcu/ti/tm4c123xx/CMSIS/5.7.0/CMSIS/Include
 
 TI_HDR=$(TOP)/hw/mcu/ti/tm4c123xx/Include/TM4C123/
 
-DEPS_SUBMODULES=hw/mcu/ti
+DEPS_SUBMODULES+=hw/mcu/ti
 
 # All source paths should be relative to the top level.
 
