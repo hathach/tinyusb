@@ -83,8 +83,8 @@
   #define _MESS_FAILED() do {} while (0)
 #endif
 
-// Halt CPU (breakpoint) when hitting error, only apply for Cortex M3, M4, M7
-#if defined(__ARM_ARCH_7M__) || defined (__ARM_ARCH_7EM__)
+// Halt CPU (breakpoint) when hitting error, only apply for Cortex M0+, M3, M4, M7
+#if defined(__ARM_ARCH_7M__) || defined (__ARM_ARCH_7EM__) || defined(__ARM_ARCH_6M__)
   #define TU_BREAKPOINT() do                                                                                \
   {                                                                                                         \
     volatile uint32_t* ARM_CM_DHCSR =  ((volatile uint32_t*) 0xE000EDF0UL); /* Cortex M CoreDebug->DHCSR */ \
