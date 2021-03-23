@@ -902,7 +902,7 @@ static void handle_rxflvl_ints(uint8_t rhport, USB_OTG_OUTEndpointTypeDef * out_
       if (xfer->ff)
       {
         // Ring buffer
-        tu_fifo_write_n_const_addr(xfer->ff, (const void *) rx_fifo, bcnt);
+        tu_fifo_write_n_const_addr_full_words(xfer->ff, (const void *) rx_fifo, bcnt);
       }
       else
       {
@@ -1008,7 +1008,7 @@ static void handle_epin_ints(uint8_t rhport, USB_OTG_DeviceTypeDef * dev, USB_OT
 
         // Process every single packet (only whole packets can be written to fifo)
         for(uint16_t i = 0; i < remaining_packets; i++){
-          uint16_t remaining_bytes = (in_ep[n].DIEPTSIZ & USB_OTG_DIEPTSIZ_XFRSIZ_Msk) >> USB_OTG_DIEPTSIZ_XFRSIZ_Pos;
+          volatile uint16_t remaining_bytes = (in_ep[n].DIEPTSIZ & USB_OTG_DIEPTSIZ_XFRSIZ_Msk) >> USB_OTG_DIEPTSIZ_XFRSIZ_Pos;
           // Packet can not be larger than ep max size
           uint16_t packet_size = tu_min16(remaining_bytes, xfer->max_size);
 
@@ -1022,7 +1022,7 @@ static void handle_epin_ints(uint8_t rhport, USB_OTG_DeviceTypeDef * dev, USB_OT
           if (xfer->ff)
           {
             usb_fifo_t tx_fifo = FIFO_BASE(rhport, n);
-            tu_fifo_read_n_const_addr(xfer->ff, (void *) tx_fifo, packet_size);
+            tu_fifo_read_n_const_addr_full_words(xfer->ff, (void *) tx_fifo, packet_size);
           }
           else
           {

@@ -437,7 +437,7 @@ void dcd_int_handler(uint8_t rhport)
           // write to EP fifo
           if (xfer->ff)
           {
-            tu_fifo_read_n_const_addr(xfer->ff, (void *) &UDP->UDP_FDR[epnum], xact_len);
+            tu_fifo_read_n_const_addr_full_words(xfer->ff, (void *) &UDP->UDP_FDR[epnum], xact_len);
           }
           else
           {
@@ -470,7 +470,7 @@ void dcd_int_handler(uint8_t rhport)
         // Read from EP fifo
         if (xfer->ff)
         {
-          tu_fifo_write_n_const_addr(xfer->ff, (const void *) &UDP->UDP_FDR[epnum], xact_len);
+          tu_fifo_write_n_const_addr_full_words(xfer->ff, (const void *) &UDP->UDP_FDR[epnum], xact_len);
         }
         else
         {

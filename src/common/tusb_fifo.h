@@ -109,11 +109,11 @@ static inline void tu_fifo_config_mutex(tu_fifo_t *f, tu_fifo_mutex_t write_mute
 
 bool     tu_fifo_write                  (tu_fifo_t* f, void const * p_data);
 uint16_t tu_fifo_write_n                (tu_fifo_t* f, void const * p_data, uint16_t n);
-uint16_t tu_fifo_write_n_const_addr     (tu_fifo_t* f, const void * data, uint16_t n);
+uint16_t tu_fifo_write_n_const_addr_full_words    (tu_fifo_t* f, const void * data, uint16_t n);
 
 bool     tu_fifo_read                   (tu_fifo_t* f, void * p_buffer);
 uint16_t tu_fifo_read_n                 (tu_fifo_t* f, void * p_buffer, uint16_t n);
-uint16_t tu_fifo_read_n_const_addr      (tu_fifo_t* f, void * buffer, uint16_t n);
+uint16_t tu_fifo_read_n_const_addr_full_words     (tu_fifo_t* f, void * buffer, uint16_t n);
 
 bool     tu_fifo_peek_at                (tu_fifo_t* f, uint16_t pos, void * p_buffer);
 uint16_t tu_fifo_peek_at_n              (tu_fifo_t* f, uint16_t pos, void * p_buffer, uint16_t n);

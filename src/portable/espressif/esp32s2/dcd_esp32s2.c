@@ -517,7 +517,7 @@ static void receive_packet(xfer_ctl_t *xfer, /* usb_out_endpoint_t * out_ep, */ 
   if (xfer->ff)
   {
     // Ring buffer
-    tu_fifo_write_n_const_addr(xfer->ff, (const void *) rx_fifo, to_recv_size);
+    tu_fifo_write_n_const_addr_full_words(xfer->ff, (const void *) rx_fifo, to_recv_size);
   }
   else
   {
@@ -573,7 +573,7 @@ static void transmit_packet(xfer_ctl_t *xfer, volatile usb_in_endpoint_t *in_ep,
 
   if (xfer->ff)
   {
-    tu_fifo_read_n_const_addr(xfer->ff, (void *) tx_fifo, to_xfer_size);
+    tu_fifo_read_n_const_addr_full_words(xfer->ff, (void *) tx_fifo, to_xfer_size);
   }
   else
   {

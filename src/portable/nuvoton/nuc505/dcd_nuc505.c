@@ -183,7 +183,7 @@ static void dcd_userEP_in_xfer(struct xfer_ctl_t *xfer, USBD_EP_T *ep)
   /* provided buffers are thankfully 32-bit aligned, allowing most data to be transfered as 32-bit */
   if (xfer->ff)
   {
-    tu_fifo_read_n_const_addr(xfer->ff, (void *) (&ep->EPDAT_BYTE), bytes_now);
+    tu_fifo_read_n_const_addr_full_words(xfer->ff, (void *) (&ep->EPDAT_BYTE), bytes_now);
   }
   else
   {
@@ -657,7 +657,7 @@ void dcd_int_handler(uint8_t rhport)
           /* copy the data from the PC to the previously provided buffer */
           if (xfer->ff)
           {
-            tu_fifo_write_n_const_addr(xfer->ff, (const void *) &ep->EPDAT_BYTE, tu_min16(available_bytes, xfer->total_bytes - xfer->out_bytes_so_far));
+            tu_fifo_write_n_const_addr_full_words(xfer->ff, (const void *) &ep->EPDAT_BYTE, tu_min16(available_bytes, xfer->total_bytes - xfer->out_bytes_so_far));
           }
           else
           {
