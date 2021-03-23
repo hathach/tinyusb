@@ -29,7 +29,7 @@
 #include "interrupt_handlers.h"
 
 #define IRQ_PRIORITY_CMT0     5
-#define IRQ_PRIORITY_USBI0    5
+#define IRQ_PRIORITY_USBI0    6
 #define IRQ_PRIORITY_SCI0     5
 
 #define SYSTEM_PRCR_PRC1      (1<<1)
@@ -146,13 +146,17 @@ void board_init(void)
   MPC.P20PFS.BYTE  = 0b01010;
   PORT2.PMR.BIT.B1 = 1U;
   MPC.P21PFS.BYTE  = 0b01010;
-  /* USB VBUS -> P16, RXD0 => P21, TXD0 => P20 */
+  /* USB VBUS -> P16 DPUPE -> P14 */
+  PORT1.PMR.BIT.B4 = 1U;
   PORT1.PMR.BIT.B6 = 1U;
+  MPC.P14PFS.BYTE  = 0b10001;
   MPC.P16PFS.BYTE  = MPC_PFS_ISEL | 0b10001;
+  MPC.PFUSB0.BIT.PUPHZS = 1;
   /* Lock MPC registers */
   MPC.PWPR.BIT.PFSWE = 0;
   MPC.PWPR.BIT.B0WI  = 1;
 
+  IR(USB0, USBI0)  = 0;
   IPR(USB0, USBI0) = IRQ_PRIORITY_USBI0;
 
   /* Enable SCI0 */

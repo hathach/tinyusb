@@ -72,6 +72,7 @@
 #define USB_PIPECTR_SQMON     (1u<<6)
 #define USB_PIPECTR_SQCLR     (1u<<8)
 #define USB_PIPECTR_ACLRM     (1u<<9)
+#define USB_PIPECTR_INBUFM    (1u<<14)
 #define USB_PIPECTR_BSTS      (1u<<15)
 
 #define USB_FIFOCTR_DTLN     (0x1FF)
@@ -213,13 +214,29 @@ static volatile uint16_t* ep_addr_to_pipectr(uint8_t rhport, unsigned ep_addr)
   return ctr;
 }
 
+static unsigned wait_for_pipe_ready(void)
+{
+  unsigned ctr;
+  do {
+    ctr = USB0.D0FIFOCTR.WORD;
+  } while (!(ctr & USB_FIFOCTR_FRDY));
+  return ctr;
+}
+
+static unsigned select_pipe(unsigned num, unsigned attr)
+{
+  USB0.PIPESEL.WORD  = num;
+  USB0.D0FIFOSEL.WORD = num | attr;
+  while (!(USB0.D0FIFOSEL.BIT.CURPIPE != num)) ;
+  return wait_for_pipe_ready();
+}
 
 /* 1 less than 64 bytes were written
  * 2 no bytes were written
- * 0 64 bytes were written */
-static int write_fifo(volatile void *fifo, pipe_state_t* pipe, unsigned mps)
+ * 0 mps bytes were written */
+static int write_fifo(volatile void *fifo, pipe_state_t* pipe, unsigned mps, unsigned ofs)
 {
-  unsigned rem  = pipe->remaining;
+  unsigned rem  = pipe->remaining - ofs;
   if (!rem) return 2;
   unsigned len  = (rem < mps) ? rem: mps;
 
@@ -243,6 +260,35 @@ static int write_fifo(volatile void *fifo, pipe_state_t* pipe, unsigned mps)
   if (rem < mps) return 1;
   return 0;
 }
+#if 1
+static int write_fifo2(volatile void *fifo, pipe_state_t* pipe, unsigned mps)
+{
+  unsigned rem  = pipe->remaining;
+  if (!rem) return 2;
+  unsigned len  = (rem < mps) ? rem: mps;
+  pipe->remaining = rem - len;
+
+  hw_fifo_t *reg = (hw_fifo_t*)fifo;
+  uintptr_t addr = pipe->addr + pipe->length - rem;
+  if (addr & 1u) {
+    /* addr is not 2-byte aligned */
+    reg->u8 = *(const uint8_t *)addr;
+    ++addr;
+    --len;
+  }
+  while (len >= 2) {
+    reg->u16 = *(const uint16_t *)addr;
+    addr += 2;
+    len  -= 2;
+  }
+  if (len) {
+    reg->u8 = *(const uint8_t *)addr;
+    ++addr;
+  }
+  if (rem < mps) return 1;
+  return 0;
+}
+#endif
 
 /* 1 if the number of bytes read is less than 64 bytes
  * 0 otherwise */
@@ -313,7 +359,7 @@ static bool process_edpt0_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t* buffer,
     pipe->data      = USB0.DCPCTR.BIT.SQMON;
     if (ep_addr) { /* IN */
       TU_ASSERT(USB0.DCPCTR.BIT.BSTS && (USB0.USBREQ.WORD & 0x80));
-      if (write_fifo(&USB0.CFIFO.WORD, pipe, 64)) {
+      if (write_fifo(&USB0.CFIFO.WORD, pipe, 64, 0)) {
         USB0.CFIFOCTR.WORD = USB_FIFOCTR_BVAL;
       }
     }
@@ -321,11 +367,11 @@ static bool process_edpt0_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t* buffer,
     //    TU_LOG1("X %x %d\r\n", ep_addr, total_bytes);
   } else {
     /* ZLP */
-    pipe->addr      = 0;
-    pipe->length    = 0;
-    pipe->remaining = 0;
-    pipe->data      = USB0.DCPCTR.BIT.SQMON;
-    USB0.DCPCTR.WORD   = USB_PIPECTR_CCPL | USB_PIPECTR_PID_BUF;
+    pipe->addr       = 0;
+    pipe->length     = 0;
+    pipe->remaining  = 0;
+    pipe->data       = USB0.DCPCTR.BIT.SQMON;
+    USB0.DCPCTR.WORD = USB_PIPECTR_CCPL | USB_PIPECTR_PID_BUF;
     //    TU_LOG1("Z %x\r\n", USB0.DCPCTR.WORD);
   }
   return true;
@@ -338,7 +384,7 @@ static void process_edpt0_bemp(uint8_t rhport)
   if (USB0.DCPCTR.BIT.SQMON == data) {
     TU_LOG1("W %x\r\n", USB0.DCPCTR.WORD);
     /* retry transfer */
-    int r = write_fifo(&USB0.CFIFO.WORD, &_dcd.pipe[0], 64);
+    int r = write_fifo(&USB0.CFIFO.WORD, &_dcd.pipe[0], 64, 0);
     if (r) USB0.CFIFOCTR.WORD = USB_FIFOCTR_BVAL;
     return;
   }
@@ -347,7 +393,7 @@ static void process_edpt0_bemp(uint8_t rhport)
     pipe->remaining = rem - 64;
     pipe->data      = data ^ 1;
     TU_LOG1("Y %d %x\r\n", rem - 64, USB0.DCPCTR.WORD);
-    int r = write_fifo(&USB0.CFIFO.WORD, &_dcd.pipe[0], 64);
+    int r = write_fifo(&USB0.CFIFO.WORD, &_dcd.pipe[0], 64, 0);
     if (r) USB0.CFIFOCTR.WORD = USB_FIFOCTR_BVAL;
     return;
   }
@@ -393,9 +439,23 @@ static bool process_pipe_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t* buffer, 
   if (dir) { /* IN */
     USB0.D0FIFOSEL.WORD = num | USB_FIFOSEL_MBW_16;
     while (!(USB0.D0FIFOSEL.BIT.CURPIPE != num)) ;
-    if (write_fifo(&USB0.D0FIFO.WORD, pipe, mps)) {
+#if 0
+    unsigned ofs = 0;
+    if (USB0.PIPECFG.BIT.DBLB && (total_bytes > mps)) {
+      write_fifo(&USB0.D0FIFO.WORD, pipe, mps, 0);
+    }
+    if (write_fifo(&USB0.D0FIFO.WORD, pipe, mps, ofs)) {
       USB0.D0FIFOCTR.WORD = USB_FIFOCTR_BVAL;
     }
+#else
+    if (USB0.PIPECFG.BIT.DBLB && (total_bytes > mps)) {
+      write_fifo2(&USB0.D0FIFO.WORD, pipe, mps);
+      wait_for_pipe_ready();
+    }
+    if (write_fifo2(&USB0.D0FIFO.WORD, pipe, mps)) {
+      USB0.D0FIFOCTR.WORD = USB_FIFOCTR_BVAL;
+    }
+#endif
     USB0.D0FIFOSEL.WORD = 0;
   } else {
     volatile reg_pipetre_t *pt = get_pipetre(num);
@@ -411,43 +471,76 @@ static bool process_pipe_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t* buffer, 
   TU_LOG1("X %x %d\r\n", ep_addr, total_bytes);
   return true;
 }
-
+#if 0
 static void process_pipe_bemp(uint8_t rhport, unsigned num)
 {
   pipe_state_t *pipe = &_dcd.pipe[num];
-  const unsigned rem = pipe->remaining;
-  if (rem > 64) {
-    pipe->remaining = rem - 64;
-    TU_LOG1("Y %d\r\n", rem - 64);
-    USB0.PIPESEL.WORD  = num;
-    const unsigned mps = USB0.PIPEMAXP.WORD;
-    USB0.D0FIFOSEL.WORD = num | USB_FIFOSEL_MBW_16;
-    while (!(USB0.D0FIFOSEL.BIT.CURPIPE != num)) ;
-    int r = write_fifo(&USB0.D0FIFO.WORD, pipe, mps);
-    if (r) USB0.D0FIFOCTR.WORD = USB_FIFOCTR_BVAL;
-    USB0.D0FIFOSEL.WORD = 0;
+  unsigned rem = pipe->remaining;
+  USB0.PIPESEL.WORD  = num;
+  const unsigned mps = USB0.PIPEMAXP.WORD;
+
+  if (rem > mps) {
+    rem -= mps;
+    pipe->remaining = rem;
+    if (USB0.PIPECFG.BIT.DBLB) {
+      if (rem > mps) {
+	unsigned ctr = select_pipe(num, USB_FIFOSEL_MBW_16);
+	int r = write_fifo(&USB0.D0FIFO.WORD, pipe, mps, mps);
+	if (r) USB0.D0FIFOCTR.WORD = USB_FIFOCTR_BVAL;
+	USB0.D0FIFOSEL.WORD = 0;
+	TU_LOG1("< %d %x %x %d\r\n", rem, ctr, *get_pipectr(num), r);
+      }
+    } else {
+      unsigned ctr = select_pipe(num, USB_FIFOSEL_MBW_16);
+      int r = write_fifo(&USB0.D0FIFO.WORD, pipe, mps, 0);
+      if (r) USB0.D0FIFOCTR.WORD = USB_FIFOCTR_BVAL;
+      USB0.D0FIFOSEL.WORD = 0;
+      TU_LOG1("< %d %x %x %d\r\n", rem, ctr, *get_pipectr(num), r);
+    }
     return;
   }
   pipe->addr      = 0;
   pipe->remaining = 0;
+  USB0.D0FIFOSEL.WORD = 0;
   dcd_event_xfer_complete(rhport, pipe->ep, pipe->length,
 			  XFER_RESULT_SUCCESS, true);
-  //  TU_LOG1("cE\r\n");
+  TU_LOG1("cE\r\n");
 }
+#else
+static void process_pipe_bemp(uint8_t rhport, unsigned num)
+{
+  pipe_state_t *pipe = &_dcd.pipe[num];
+  const unsigned rem = pipe->remaining;
+  if (rem) {
+    USB0.PIPESEL.WORD  = num;
+    const unsigned mps = USB0.PIPEMAXP.WORD;
+    unsigned ctr = select_pipe(num, USB_FIFOSEL_MBW_16);
+    int r = write_fifo2(&USB0.D0FIFO.WORD, pipe, mps);
+    if (r) USB0.D0FIFOCTR.WORD = USB_FIFOCTR_BVAL;
+    USB0.D0FIFOSEL.WORD = 0;
+    TU_LOG1("< %d %x %x %d\r\n", rem, ctr, *get_pipectr(num), r);
+    return;
+  }
+  if (*get_pipectr(num) & USB_PIPECTR_INBUFM) {
+    TU_LOG1("< SKIP\r\n");
+    return;
+  }
+  pipe->addr      = 0;
+  pipe->remaining = 0;
+  USB0.D0FIFOSEL.WORD = 0;
+  dcd_event_xfer_complete(rhport, pipe->ep, pipe->length,
+			  XFER_RESULT_SUCCESS, true);
+  TU_LOG1("cE\r\n");
+}
+#endif
 
 static void process_pipe_brdy(uint8_t rhport, unsigned num)
 {
-  pipe_state_t *pipe  = &_dcd.pipe[num];
-  USB0.PIPESEL.WORD   = num;
-  const unsigned mps  = USB0.PIPEMAXP.WORD;
-  USB0.D0FIFOSEL.WORD = num | USB_FIFOSEL_MBW_8;
-  while (!(USB0.D0FIFOSEL.BIT.CURPIPE != num)) ;
-  unsigned ctr;
-  do {
-    ctr = USB0.D0FIFOCTR.WORD;
-  } while (!(ctr & USB_FIFOCTR_FRDY));
-  const unsigned len  = ctr & USB_FIFOCTR_DTLN;
-  TU_LOG1(">> %d %x %x\r\n", num, USB0.D0FIFOSEL.WORD, ctr);
+  const unsigned ctr = select_pipe(num, USB_FIFOSEL_MBW_8);
+  const unsigned len = ctr & USB_FIFOCTR_DTLN;
+  const unsigned mps = USB0.PIPEMAXP.WORD;
+  pipe_state_t *pipe = &_dcd.pipe[num];
+  //  TU_LOG1("> %d %x %x\r\n", num, USB0.D0FIFOSEL.WORD, ctr);
   int cplt = read_fifo(&USB0.D0FIFO.WORD, pipe, mps, len);
   if (cplt || (len < mps)) {
     if (2 != cplt) {
@@ -457,7 +550,7 @@ static void process_pipe_brdy(uint8_t rhport, unsigned num)
     dcd_event_xfer_complete(rhport, pipe->ep,
                             pipe->length - pipe->remaining,
 			    XFER_RESULT_SUCCESS, true);
-    TU_LOG1("c\r\n");
+    //    TU_LOG1("c\r\n");
   } else {
     USB0.D0FIFOSEL.WORD = 0;
   }
@@ -589,7 +682,7 @@ bool dcd_edpt_open(uint8_t rhport, tusb_desc_endpoint_t const * ep_desc)
 
   const unsigned mps = ep_desc->wMaxPacketSize.size;
   if (xfer == TUSB_XFER_ISOCHRONOUS && mps > 256) {
-    /* USBB support up to 256 bytes */
+    /* USBa supports up to 256 bytes */
     return false;
   }
 

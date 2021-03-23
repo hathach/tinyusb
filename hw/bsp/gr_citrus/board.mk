@@ -28,6 +28,7 @@ MCU_DIR = hw/mcu/renesas/rx63n
 LD_FILE = hw/bsp/$(BOARD)/r5f5631fd.ld
 
 SRC_C += \
+	src/portable/renesas/usba/dcd_usba.c \
 	$(MCU_DIR)/vects.c
 
 INC += \
@@ -35,10 +36,6 @@ INC += \
 	$(TOP)/$(MCU_DIR)
 
 SRC_S += $(MCU_DIR)/start.S
-
-# For TinyUSB port source
-VENDOR = renesas
-CHIP_FAMILY = usba
 
 # For freeRTOS port source
 FREERTOS_PORT = RX600
