@@ -103,6 +103,11 @@
 // NXP Kinetis
 #define OPT_MCU_MKL25ZXX         1200 ///< NXP MKL25Zxx
 
+// Silabs
+#define OPT_MCU_EFM32GG          1300 ///< Silabs EFM32GG
+#define OPT_MCU_EFM32GG11        1301 ///< Silabs EFM32GG11
+#define OPT_MCU_EFM32GG12        1302 ///< Silabs EFM32GG12
+
 /** @} */
 
 /** \defgroup group_supported_os Supported RTOS
