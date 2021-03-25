@@ -107,30 +107,33 @@ static inline uint16_t _ff_mod(uint16_t idx, uint16_t depth)
 // TODO generalize with configurable 1 byte or 4 byte each read
 static void _tu_fifo_read_from_const_src_ptr_in_full_words(void * dst, const void * src, uint16_t len)
 {
-  uint8_t * dst_u8 = (uint8_t *)dst;
   volatile uint32_t * rx_fifo = (volatile uint32_t *) src;
+
+  // Optimize for fast word copies
+  typedef struct{
+    uint32_t val;
+  } __attribute((__packed__)) unaligned_uint32_t;
+
+  unaligned_uint32_t* dst_una = (unaligned_uint32_t*)dst;
 
   // Reading full available 32 bit words from FIFO
   uint16_t full_words = len >> 2;
-  for(uint16_t i = 0; i < full_words; i++) {
-    uint32_t tmp = *rx_fifo;
-    dst_u8[0] = tmp & 0x000000FF;
-    dst_u8[1] = (tmp & 0x0000FF00) >> 8;
-    dst_u8[2] = (tmp & 0x00FF0000) >> 16;
-    dst_u8[3] = (tmp & 0xFF000000) >> 24;
-    dst_u8 += 4;
+  while(full_words--)
+  {
+    dst_una->val = *rx_fifo;
+    dst_una++;
   }
 
   // Read the remaining 1-3 bytes from FIFO
   uint8_t bytes_rem = len & 0x03;
   if(bytes_rem != 0) {
+    uint8_t * dst_u8 = (uint8_t *)dst_una;
     uint32_t tmp = *rx_fifo;
-    dst_u8[0] = tmp & 0x000000FF;
-    if(bytes_rem > 1) {
-      dst_u8[1] = (tmp & 0x0000FF00) >> 8;
-    }
-    if(bytes_rem > 2) {
-      dst_u8[2] = (tmp & 0x00FF0000) >> 16;
+    uint8_t * src = (uint8_t *) &tmp;
+
+    while(bytes_rem--)
+    {
+      *dst_u8++ = *src++;
     }
   }
 }
@@ -141,29 +144,34 @@ static void _tu_fifo_read_from_const_src_ptr_in_full_words(void * dst, const voi
 static void _tu_fifo_write_to_const_dst_ptr_in_full_words(void * dst, const void * src, uint16_t len)
 {
   volatile uint32_t * tx_fifo = (volatile uint32_t *) dst;
-  uint8_t * src_u8 = (uint8_t *)src;
+
+  // Optimize for fast word copies
+  typedef struct{
+      uint32_t val;
+  } __attribute((__packed__)) unaligned_uint32_t;
+
+  unaligned_uint32_t* src_una = (unaligned_uint32_t *) src;
 
   // Pushing full available 32 bit words to FIFO
-  uint16_t const full_words = len >> 2;
-  for(uint16_t i = 0; i < full_words; i++){
-    uint32_t temp32;
-    memcpy(&temp32, src_u8, 4);
-    *tx_fifo = temp32;
-    src_u8 += 4;
+  uint16_t full_words = len >> 2;
+  while(full_words--)
+  {
+    *tx_fifo = src_una->val;
+    src_una++;
   }
 
   // Write the remaining 1-3 bytes into FIFO
   uint8_t bytes_rem = len & 0x03;
   if(bytes_rem){
-    uint32_t tmp_word = 0;
-    tmp_word |= src_u8[0];
-    if(bytes_rem > 1){
-      tmp_word |= (uint32_t)(src_u8[1]) << 8;
+    uint8_t * src_u8 = (uint8_t *) src_una;
+    uint32_t tmp = 0;
+    uint8_t * dst_u8 = (uint8_t *)&tmp;
+
+    while(bytes_rem--)
+    {
+      *dst_u8++ = *src_u8++;
     }
-    if(bytes_rem > 2){
-      tmp_word |= (uint32_t)(src_u8[2]) << 16;
-    }
-    *tx_fifo = tmp_word;
+    *tx_fifo = tmp;
   }
 }
 
@@ -209,30 +217,31 @@ static void _ff_push_n(tu_fifo_t* f, void const * data, uint16_t n, uint16_t wRe
         uint16_t nLin = (f->depth - wRel) * f->item_size;
         uint16_t nWrap = (n - nLin) * f->item_size;
 
-        uint8_t * dst_u8 = (uint8_t *)(f->buffer + (wRel * f->item_size));
+        // Optimize for fast word copies
+        typedef struct{
+          uint32_t val;
+        } __attribute((__packed__)) unaligned_uint32_t;
+
+        unaligned_uint32_t* dst = (unaligned_uint32_t*)(f->buffer + (wRel * f->item_size));
         volatile uint32_t * rx_fifo = (volatile uint32_t *) data;
-        CFG_TUSB_MEM_ALIGN uint32_t tmp;
 
         // Write full words of linear part to buffer
         uint16_t full_words = nLin >> 2;
-        uint8_t rem = nLin - (full_words << 2);
         while(full_words--)
         {
-          tmp = *rx_fifo;
-          memcpy(dst_u8, &tmp, 4);
-          //          dst_u8[0] = tmp & 0x000000FF;
-          //          dst_u8[1] = (tmp & 0x0000FF00) >> 8;
-          //          dst_u8[2] = (tmp & 0x00FF0000) >> 16;
-          //          dst_u8[3] = (tmp & 0xFF000000) >> 24;
-          dst_u8 += 4;
+          dst->val = *rx_fifo;
+          dst++;
         }
 
+        uint8_t * dst_u8;
+        uint8_t rem = nLin & 0x03;
         // Handle wrap around
         if (rem > 0)
         {
+          dst_u8 = (uint8_t *)dst;
           uint8_t remrem = tu_min16(nWrap, 4-rem);
           nWrap -= remrem;
-          tmp = *rx_fifo;
+          uint32_t tmp = *rx_fifo;
           uint8_t * src_u8 = ((uint8_t *) &tmp);
           while(rem--)
           {
@@ -299,25 +308,32 @@ static void _ff_pull_n(tu_fifo_t* f, void * p_buffer, uint16_t n, uint16_t rRel,
         uint16_t nLin = (f->depth - rRel) * f->item_size;
         uint16_t nWrap = (n - nLin) * f->item_size;
 
+        // Optimize for fast word copies
+        typedef struct{
+            uint32_t val;
+        } __attribute((__packed__)) unaligned_uint32_t;
+
+        unaligned_uint32_t* src = (unaligned_uint32_t*)(f->buffer + (rRel * f->item_size));
+
         volatile uint32_t * tx_fifo = (volatile uint32_t *) p_buffer;
-        uint8_t * src_u8 = f->buffer + (rRel * f->item_size);
-        CFG_TUSB_MEM_ALIGN uint32_t tmp;
 
         // Pushing full available 32 bit words to FIFO
         uint16_t full_words = nLin >> 2;
-        uint8_t rem = nLin - (full_words << 2);
         while(full_words--)
         {
-          memcpy(&tmp, src_u8, 4);
-          *tx_fifo = tmp;
-          src_u8 += 4;
+          *tx_fifo = src->val;
+          src++;
         }
 
+        uint8_t * src_u8;
+        uint8_t rem = nLin & 0x03;
         // Handle wrap around - do it manually as these are only 4 bytes and its faster without memcpy
         if (rem > 0)
         {
+          src_u8 = (uint8_t *) src;
           uint8_t remrem = tu_min16(nWrap, 4-rem);
           nWrap -= remrem;
+          uint32_t tmp;
           uint8_t * dst_u8 = (uint8_t *)&tmp;
           while(rem--)
           {
