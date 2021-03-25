@@ -215,7 +215,9 @@ static void _ff_push_n(tu_fifo_t* f, void const * data, uint16_t n, uint16_t wRe
 
         // Write full words of linear part to buffer
         uint16_t full_words = nLin >> 2;
-        for(uint16_t i = 0; i < full_words; i++) {
+        uint8_t rem = nLin - (full_words << 2);
+        while(full_words--)
+        {
           tmp = *rx_fifo;
           memcpy(dst_u8, &tmp, 4);
           //          dst_u8[0] = tmp & 0x000000FF;
@@ -226,22 +228,29 @@ static void _ff_push_n(tu_fifo_t* f, void const * data, uint16_t n, uint16_t wRe
         }
 
         // Handle wrap around
-        uint8_t rem = nLin - (full_words << 2);
-        uint8_t remrem = 0;
         if (rem > 0)
         {
-          tmp = *rx_fifo;
-          memcpy(dst_u8, &tmp, rem);
-          remrem = tu_min16(nWrap, 4-rem);
-          memcpy(f->buffer, ((uint8_t *) &tmp) + rem, remrem);
+          uint8_t remrem = tu_min16(nWrap, 4-rem);
           nWrap -= remrem;
+          tmp = *rx_fifo;
+          uint8_t * src_u8 = ((uint8_t *) &tmp);
+          while(rem--)
+          {
+            *dst_u8++ = *src_u8++;
+          }
+          dst_u8 = f->buffer;
+          while(remrem--)
+          {
+            *dst_u8++ = *src_u8++;
+          }
+        }
+        else
+        {
+          dst_u8 = f->buffer;
         }
 
         // Final part
-        if (nWrap > 0)
-        {
-          _tu_fifo_read_from_const_src_ptr_in_full_words(f->buffer + remrem, data, nWrap);
-        }
+        if (nWrap > 0) _tu_fifo_read_from_const_src_ptr_in_full_words(dst_u8, data, nWrap);
       }
       break;
   }
@@ -295,31 +304,39 @@ static void _ff_pull_n(tu_fifo_t* f, void * p_buffer, uint16_t n, uint16_t rRel,
         CFG_TUSB_MEM_ALIGN uint32_t tmp;
 
         // Pushing full available 32 bit words to FIFO
-        uint16_t const full_words = nLin >> 2;
-        for(uint16_t i = 0; i < full_words; i++){
+        uint16_t full_words = nLin >> 2;
+        uint8_t rem = nLin - (full_words << 2);
+        while(full_words--)
+        {
           memcpy(&tmp, src_u8, 4);
           *tx_fifo = tmp;
           src_u8 += 4;
         }
 
-        // Handle wrap around
-        uint8_t rem = nLin - (full_words << 2);
-        uint8_t remrem = 0;
+        // Handle wrap around - do it manually as these are only 4 bytes and its faster without memcpy
         if (rem > 0)
         {
-          tmp = 0;
-          memcpy(&tmp, src_u8, rem);
-          remrem = tu_min16(nWrap, 4-rem);
-          memcpy(((uint8_t *) &tmp) + rem, f->buffer, remrem);
+          uint8_t remrem = tu_min16(nWrap, 4-rem);
           nWrap -= remrem;
+          uint8_t * dst_u8 = (uint8_t *)&tmp;
+          while(rem--)
+          {
+            *dst_u8++ = *src_u8++;
+          }
+          src_u8 = f->buffer;
+          while(remrem--)
+          {
+            *dst_u8++ = *src_u8++;
+          }
           *tx_fifo = tmp;
         }
-
-        // Final part
-        if (nWrap > 0)
+        else
         {
-          _tu_fifo_write_to_const_dst_ptr_in_full_words(p_buffer, f->buffer + remrem, nWrap);
+          src_u8 = f->buffer;
         }
+
+        // Final linear part
+        if (nWrap > 0) _tu_fifo_write_to_const_dst_ptr_in_full_words(p_buffer, src_u8, nWrap);
       }
       break;
   }
