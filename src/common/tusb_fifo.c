@@ -129,11 +129,11 @@ static void _tu_fifo_read_from_const_src_ptr_in_full_words(void * dst, const voi
   if(bytes_rem != 0) {
     uint8_t * dst_u8 = (uint8_t *)dst_una;
     uint32_t tmp = *rx_fifo;
-    uint8_t * src = (uint8_t *) &tmp;
+    uint8_t * src_u8 = (uint8_t *) &tmp;
 
     while(bytes_rem--)
     {
-      *dst_u8++ = *src++;
+      *dst_u8++ = *src_u8++;
     }
   }
 }
