@@ -34,34 +34,176 @@
 //--------------------------------------------------------------------+
 // MACRO CONSTANT TYPEDEF
 //--------------------------------------------------------------------+
-typedef enum {
-  DFU_REQUEST_DETACH      = 0,
-  DFU_REQUEST_DNLOAD      = 1,
-  DFU_REQUEST_UPLOAD      = 2,
-  DFU_REQUEST_GETSTATUS   = 3,
-  DFU_REQUEST_CLRSTATUS   = 4,
-  DFU_REQUEST_GETSTATE    = 5,
-  DFU_REQUEST_ABORT       = 6,
-} dfu_requests_t;
+
+//--------------------------------------------------------------------+
+// INTERNAL OBJECT & FUNCTION DECLARATION
+//--------------------------------------------------------------------+
+typedef struct TU_ATTR_PACKED
+{
+  dfu_mode_device_status_t status;
+  dfu_mode_state_t state;
+  uint8_t attrs;
+  bool blk_transfer_in_proc;
+
+  uint8_t itf_num;
+  CFG_TUSB_MEM_ALIGN uint8_t epin_buf[CFG_TUD_DFU_TRANSFER_BUFFER_SIZE];
+  CFG_TUSB_MEM_ALIGN uint8_t epout_buf[CFG_TUD_DFU_TRANSFER_BUFFER_SIZE];
+} dfu_state_ctx_t;
 
 typedef struct TU_ATTR_PACKED
 {
-  uint8_t status;
-  uint8_t poll_timeout[3];
-  uint8_t state;
-  uint8_t istring;
-} dfu_status_t;
+  uint8_t bStatus;
+  uint8_t bwPollTimeout[3];
+  uint8_t bState;
+  uint8_t iString;
+} dfu_status_req_payload_t;
+
+TU_VERIFY_STATIC( sizeof(dfu_status_req_payload_t) == 6, "size is not correct");
+
+// Only a single dfu state is allowed
+CFG_TUSB_MEM_SECTION static dfu_state_ctx_t _dfu_state_ctx;
+
+static void dfu_req_dnload_setup(uint8_t rhport, tusb_control_request_t const * request);
+static void dfu_req_getstatus_reply(uint8_t rhport, tusb_control_request_t const * request);
+static uint16_t dfu_req_upload(uint8_t rhport, tusb_control_request_t const * request, uint16_t block_num, uint16_t wLength);
+static bool dfu_state_machine(uint8_t rhport, tusb_control_request_t const * request);
+
+//--------------------------------------------------------------------+
+// Debug
+//--------------------------------------------------------------------+
+#if CFG_TUSB_DEBUG >= 2
+
+static tu_lookup_entry_t const _dfu_request_lookup[] =
+{
+  { .key = DFU_REQUEST_DETACH         , .data = "DETACH" },
+  { .key = DFU_REQUEST_DNLOAD         , .data = "DNLOAD" },
+  { .key = DFU_REQUEST_UPLOAD         , .data = "UPLOAD" },
+  { .key = DFU_REQUEST_GETSTATUS      , .data = "GETSTATUS" },
+  { .key = DFU_REQUEST_CLRSTATUS      , .data = "CLRSTATUS" },
+  { .key = DFU_REQUEST_GETSTATE       , .data = "GETSTATE" },
+  { .key = DFU_REQUEST_ABORT          , .data = "ABORT" },
+};
+
+static tu_lookup_table_t const _dfu_request_table =
+{
+  .count = TU_ARRAY_SIZE(_dfu_request_lookup),
+  .items = _dfu_request_lookup
+};
+
+static tu_lookup_entry_t const _dfu_mode_state_lookup[] =
+{
+  { .key = APP_IDLE                   , .data = "APP_IDLE" },
+  { .key = APP_DETACH                 , .data = "APP_DETACH" },
+  { .key = DFU_IDLE                   , .data = "DFU_IDLE" },
+  { .key = DFU_DNLOAD_SYNC            , .data = "DFU_DNLOAD_SYNC" },
+  { .key = DFU_DNBUSY                 , .data = "DFU_DNBUSY" },
+  { .key = DFU_DNLOAD_IDLE            , .data = "DFU_DNLOAD_IDLE" },
+  { .key = DFU_MANIFEST_SYNC          , .data = "DFU_MANIFEST_SYNC" },
+  { .key = DFU_MANIFEST               , .data = "DFU_MANIFEST" },
+  { .key = DFU_MANIFEST_WAIT_RESET    , .data = "DFU_MANIFEST_WAIT_RESET" },
+  { .key = DFU_UPLOAD_IDLE            , .data = "DFU_UPLOAD_IDLE" },
+  { .key = DFU_ERROR                  , .data = "DFU_ERROR" },
+};
+
+static tu_lookup_table_t const _dfu_mode_state_table =
+{
+  .count = TU_ARRAY_SIZE(_dfu_mode_state_lookup),
+  .items = _dfu_mode_state_lookup
+};
+
+static tu_lookup_entry_t const _dfu_mode_status_lookup[] =
+{
+  { .key = DFU_STATUS_OK              , .data = "OK" },
+  { .key = DFU_STATUS_ERRTARGET       , .data = "errTARGET" },
+  { .key = DFU_STATUS_ERRFILE         , .data = "errFILE" },
+  { .key = DFU_STATUS_ERRWRITE        , .data = "errWRITE" },
+  { .key = DFU_STATUS_ERRERASE        , .data = "errERASE" },
+  { .key = DFU_STATUS_ERRCHECK_ERASED , .data = "errCHECK_ERASED" },
+  { .key = DFU_STATUS_ERRPROG         , .data = "errPROG" },
+  { .key = DFU_STATUS_ERRVERIFY       , .data = "errVERIFY" },
+  { .key = DFU_STATUS_ERRADDRESS      , .data = "errADDRESS" },
+  { .key = DFU_STATUS_ERRNOTDONE      , .data = "errNOTDONE" },
+  { .key = DFU_STATUS_ERRFIRMWARE     , .data = "errFIRMWARE" },
+  { .key = DFU_STATUS_ERRVENDOR       , .data = "errVENDOR" },
+  { .key = DFU_STATUS_ERRUSBR         , .data = "errUSBR" },
+  { .key = DFU_STATUS_ERRPOR          , .data = "errPOR" },
+  { .key = DFU_STATUS_ERRUNKNOWN      , .data = "errUNKNOWN" },
+  { .key = DFU_STATUS_ERRSTALLEDPKT   , .data = "errSTALLEDPKT" },
+};
+
+static tu_lookup_table_t const _dfu_mode_status_table =
+{
+  .count = TU_ARRAY_SIZE(_dfu_mode_status_lookup),
+  .items = _dfu_mode_status_lookup
+};
+
+#endif
+
+#define dfu_rtd_debug_print_context()                                           \
+{                                                                               \
+  TU_LOG2("  DFU at State: %s\r\n         Status: %s\r\n",                      \
+          tu_lookup_find(&_dfu_mode_state_table, _dfu_state_ctx.state),        \
+          tu_lookup_find(&_dfu_mode_status_table, _dfu_state_ctx.status) );    \
+}
 
 //--------------------------------------------------------------------+
 // USBD Driver API
 //--------------------------------------------------------------------+
 void dfu_rtd_init(void)
 {
+  if ( tud_dfu_runtime_init_cb ) {
+    _dfu_state_ctx.state = (tud_dfu_runtime_init_cb() == DFU_PROTOCOL_DFU) ? APP_DETACH : APP_IDLE;
+  } else {
+    _dfu_state_ctx.state = APP_IDLE;
+  }
+
+  _dfu_state_ctx.status = DFU_STATUS_OK;
+  _dfu_state_ctx.attrs = tud_dfu_runtime_init_attrs_cb();
+  _dfu_state_ctx.blk_transfer_in_proc = false;
+
+  dfu_rtd_debug_print_context();
 }
 
 void dfu_rtd_reset(uint8_t rhport)
 {
-  (void) rhport;
+  if ( tud_dfu_runtime_usb_reset_cb )
+  {
+    tud_dfu_runtime_usb_reset_cb(rhport, _dfu_state_ctx.state);
+  }
+
+  switch (_dfu_state_ctx.state)
+  {
+    case APP_DETACH:
+    {
+      _dfu_state_ctx.state = DFU_IDLE;
+    }
+    break;
+
+    case DFU_IDLE:
+    case DFU_DNLOAD_SYNC:
+    case DFU_DNBUSY:
+    case DFU_DNLOAD_IDLE:
+    case DFU_MANIFEST_SYNC:
+    case DFU_MANIFEST:
+    case DFU_MANIFEST_WAIT_RESET:
+    case DFU_UPLOAD_IDLE:
+    {
+      _dfu_state_ctx.state = (tud_dfu_runtime_firmware_valid_check_cb()) ?  APP_IDLE : DFU_ERROR;
+    }
+    break;
+
+    case DFU_ERROR:
+    default:
+    {
+      _dfu_state_ctx.state = APP_IDLE;
+    }
+    break;
+  }
+
+  _dfu_state_ctx.status = DFU_STATUS_OK;
+  _dfu_state_ctx.attrs = tud_dfu_runtime_init_attrs_cb();
+  _dfu_state_ctx.blk_transfer_in_proc = false;
+  dfu_rtd_debug_print_context();
 }
 
 uint16_t dfu_rtd_open(uint8_t rhport, tusb_desc_interface_t const * itf_desc, uint16_t max_len)
@@ -69,9 +211,10 @@ uint16_t dfu_rtd_open(uint8_t rhport, tusb_desc_interface_t const * itf_desc, ui
   (void) rhport;
   (void) max_len;
 
-  // Ensure this is DFU Runtime
+  // Ensure this is DFU Runtime or Mode
   TU_VERIFY(itf_desc->bInterfaceSubClass == TUD_DFU_APP_SUBCLASS &&
-            itf_desc->bInterfaceProtocol == DFU_PROTOCOL_RT, 0);
+            ( (itf_desc->bInterfaceProtocol == DFU_PROTOCOL_RT)
+            | (itf_desc->bInterfaceProtocol == DFU_PROTOCOL_DFU) ), 0);
 
   uint8_t const * p_desc = tu_desc_next( itf_desc );
   uint16_t drv_len = sizeof(tusb_desc_interface_t);
@@ -90,8 +233,15 @@ uint16_t dfu_rtd_open(uint8_t rhport, tusb_desc_interface_t const * itf_desc, ui
 // return false to stall control endpoint (e.g unsupported request)
 bool dfu_rtd_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request_t const * request)
 {
-  // nothing to do with DATA and ACK stage
+  if ( (stage == CONTROL_STAGE_DATA) && (request->bRequest == DFU_DNLOAD_SYNC) )
+  {
+      dfu_mode_req_dnload_reply(rhport, request);
+      return true;
+  }
+
+  // nothing to do with any other DATA or ACK stage
   if ( stage != CONTROL_STAGE_SETUP ) return true;
+
 
   TU_VERIFY(request->bmRequestType_bit.recipient == TUSB_REQ_RCPT_INTERFACE);
 
@@ -106,34 +256,487 @@ bool dfu_rtd_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request
   // Handle class request only from here
   TU_VERIFY(request->bmRequestType_bit.type == TUSB_REQ_TYPE_CLASS);
 
-  switch ( request->bRequest )
+  switch (request->bRequest)
   {
     case DFU_REQUEST_DETACH:
-      tud_control_status(rhport, request);
-      tud_dfu_runtime_reboot_to_dfu_cb();
-    break;
-
+    case DFU_REQUEST_DNLOAD:
+    case DFU_REQUEST_UPLOAD:
     case DFU_REQUEST_GETSTATUS:
+    case DFU_REQUEST_CLRSTATUS:
+    case DFU_REQUEST_GETSTATE:
+    case DFU_REQUEST_ABORT:
     {
-      // status = OK, poll timeout = 0, state = app idle, istring = 0
-      uint8_t status_response[6] = { 0, 0, 0, 0, 0, 0 };
-      tud_control_xfer(rhport, request, status_response, sizeof(status_response));
+      return dfu_state_machine(rhport, request);
     }
     break;
 
-    default: return false; // stall unsupported request
+    default:
+    {
+      TU_LOG2("  DFU Nonstandard Request: %u\r\n", request->bRequest);
+      return ( tud_dfu_runtime_req_nonstandard_cb ) ? tud_dfu_runtime_req_nonstandard_cb(rhport, stage, request) : false;
+    }
+    break;
+  }
+
+  return true;
+}
+void tud_dfu_runtime_set_status(dfu_mode_device_status_t status)
+{
+  _dfu_state_ctx.status = status;
+}
+
+static uint16_t dfu_req_upload(uint8_t rhport, tusb_control_request_t const * request, uint16_t block_num, uint16_t wLength)
+{
+  TU_VERIFY( wLength <= CFG_TUD_DFU_TRANSFER_BUFFER_SIZE);
+  uint16_t retval = tud_dfu_runtime_req_upload_data_cb(block_num, (uint8_t *)&_dfu_state_ctx.epin_buf, wLength);
+  tud_control_xfer(rhport, request, &_dfu_state_ctx.epin_buf, retval);
+  return retval;
+}
+
+static void dfu_req_getstatus_reply(uint8_t rhport, tusb_control_request_t const * request)
+{
+  dfu_status_req_payload_t resp;
+
+  resp.bStatus = _dfu_state_ctx.status;
+  if ( tud_dfu_runtime_get_poll_timeout_cb )
+  {
+    tud_dfu_runtime_get_poll_timeout_cb((uint8_t *)&resp.bwPollTimeout);
+  } else {
+    memset((uint8_t *)&resp.bwPollTimeout, 0x00, 3);
+  }
+  resp.bState = _dfu_state_ctx.state;
+  resp.iString = ( tud_dfu_runtime_get_status_desc_table_index_cb ) ? tud_dfu_runtime_get_status_desc_table_index_cb() : 0;
+
+  tud_control_xfer(rhport, request, &resp, sizeof(dfu_status_req_payload_t));
+}
+
+static void dfu_req_getstate_reply(uint8_t rhport, tusb_control_request_t const * request)
+{
+  tud_control_xfer(rhport, request, &_dfu_state_ctx.state, 1);
+}
+
+static void dfu_req_dnload_setup(uint8_t rhport, tusb_control_request_t const * request)
+{
+  // TODO: add "zero" copy mode so the buffer we read into can be provided by the user
+  // if they wish, there still will be the internal control buffer copy to this buffer
+  // but this mode would provide zero copy from the class driver to the application
+
+  // setup for data phase
+  tud_control_xfer(rhport, request, &_dfu_state_ctx.epout_buf, request->wLength);
+}
+
+static void dfu_runtime_start_status_poll_timeout()
+{
+    uint8_t bwPollTimeout[3] = {0,0,0};
+
+    if ( tud_dfu_runtime_get_poll_timeout_cb )
+    {
+      tud_dfu_runtime_get_poll_timeout_cb((uint8_t *)&bwPollTimeout);
+    }
+
+    tud_dfu_runtime_start_poll_timeout_cb((uint8_t *)&bwPollTimeout);
+}
+
+void dfu_mode_req_dnload_reply(uint8_t rhport, tusb_control_request_t const * request)
+{
+  dfu_runtime_start_status_poll_timeout();
+  tud_dfu_runtime_req_dnload_data_cb(request->wValue, (uint8_t *)&_dfu_state_ctx.epout_buf, request->wLength);
+  _dfu_state_ctx.blk_transfer_in_proc = false;
+}
+
+void tud_dfu_runtime_poll_timeout_done()
+{
+  if (_dfu_state_ctx.state == DFU_DNBUSY)
+  {
+    _dfu_state_ctx.state = DFU_DNLOAD_SYNC;
+  } else if (_dfu_state_ctx.state == DFU_MANIFEST)
+  {
+    _dfu_state_ctx.state = ((_dfu_state_ctx.attrs & DFU_FUNC_ATTR_MANIFESTATION_TOLERANT_BITMASK) == 0)
+                           ? DFU_MANIFEST_WAIT_RESET : DFU_MANIFEST_SYNC;
+  }
+}
+
+static bool dfu_state_machine(uint8_t rhport, tusb_control_request_t const * request)
+{
+  TU_LOG2("  DFU Request: %s\r\n", tu_lookup_find(&_dfu_request_table, request->bRequest));
+  TU_LOG2("  DFU State Machine: %s\r\n", tu_lookup_find(&_dfu_mode_state_table, _dfu_state_ctx.state));
+
+  switch (_dfu_state_ctx.state)
+  {
+    case APP_IDLE:
+    {
+      switch (request->bRequest)
+      {
+        case DFU_REQUEST_DETACH:
+        {
+          _dfu_state_ctx.state = APP_DETACH;
+          if ((_dfu_state_ctx.attrs & DFU_FUNC_ATTR_WILL_DETACH_BITMASK) == 1)
+          {
+            tud_dfu_runtime_reboot_to_dfu_cb();
+          } else {
+            tud_dfu_runtime_detach_start_timer_cb(request->wValue);
+          }
+        }
+        break;
+
+        case DFU_REQUEST_GETSTATUS:
+        {
+          dfu_req_getstatus_reply(rhport, request);
+        }
+        break;
+
+        case DFU_REQUEST_GETSTATE:
+        {
+          dfu_req_getstate_reply(rhport, request);
+        }
+        break;
+
+        default:
+        {
+          _dfu_state_ctx.state = DFU_ERROR;
+          return false;  // stall on all other requests
+        }
+        break;
+      }
+    }
+    break;
+
+    case APP_DETACH:
+    {
+      switch (request->bRequest)
+      {
+        case DFU_REQUEST_GETSTATUS:
+        {
+          dfu_req_getstatus_reply(rhport, request);
+        }
+        break;
+
+        case DFU_REQUEST_GETSTATE:
+        {
+          dfu_req_getstate_reply(rhport, request);
+        }
+        break;
+
+        default:
+        {
+          _dfu_state_ctx.state = APP_IDLE;
+          return false;  // stall on all other requests
+        }
+        break;
+      }
+    }
+    break;
+
+    case DFU_IDLE:
+    {
+      switch (request->bRequest)
+      {
+        case DFU_REQUEST_DNLOAD:
+        {
+          if( ((_dfu_state_ctx.attrs & DFU_FUNC_ATTR_CAN_DOWNLOAD_BITMASK) != 0)
+              && (request->wLength > 0) )
+          {
+            _dfu_state_ctx.state = DFU_DNLOAD_SYNC;
+            _dfu_state_ctx.blk_transfer_in_proc = true;
+            dfu_req_dnload_setup(rhport, request);
+          } else {
+            _dfu_state_ctx.state = DFU_ERROR;
+          }
+        }
+        break;
+
+        case DFU_REQUEST_UPLOAD:
+        {
+          if( ((_dfu_state_ctx.attrs & DFU_FUNC_ATTR_CAN_UPLOAD_BITMASK) != 0) )
+          {
+            _dfu_state_ctx.state = DFU_UPLOAD_IDLE;
+            dfu_req_upload(rhport, request, request->wValue, request->wLength);
+          } else {
+            _dfu_state_ctx.state = DFU_ERROR;
+          }
+        }
+        break;
+
+        case DFU_REQUEST_GETSTATUS:
+        {
+          dfu_req_getstatus_reply(rhport, request);
+        }
+        break;
+
+        case DFU_REQUEST_GETSTATE:
+        {
+          dfu_req_getstate_reply(rhport, request);
+        }
+        break;
+
+        case DFU_REQUEST_ABORT:
+        {
+          ; // do nothing, but don't stall so continue on
+        }
+        break;
+
+        default:
+        {
+          _dfu_state_ctx.state = DFU_ERROR;
+          return false;  // stall on all other requests
+        }
+        break;
+      }
+    }
+    break;
+
+    case DFU_DNLOAD_SYNC:
+    {
+      switch (request->bRequest)
+      {
+        case DFU_REQUEST_GETSTATUS:
+        {
+          if ( _dfu_state_ctx.blk_transfer_in_proc )
+          {
+            _dfu_state_ctx.state = DFU_DNBUSY;
+            dfu_req_getstatus_reply(rhport, request);
+          } else {
+            _dfu_state_ctx.state = DFU_DNLOAD_IDLE;
+            dfu_req_getstatus_reply(rhport, request);
+          }
+        }
+        break;
+
+        case DFU_REQUEST_GETSTATE:
+        {
+          dfu_req_getstate_reply(rhport, request);
+        }
+        break;
+
+        default:
+        {
+          _dfu_state_ctx.state = DFU_ERROR;
+          return false;  // stall on all other requests
+        }
+        break;
+      }
+    }
+    break;
+
+    case DFU_DNBUSY:
+    {
+      switch (request->bRequest)
+      {
+        default:
+        {
+          _dfu_state_ctx.state = DFU_ERROR;
+          return false;  // stall on all other requests
+        }
+        break;
+      }
+    }
+    break;
+
+    case DFU_DNLOAD_IDLE:
+    {
+        switch (request->bRequest)
+        {
+          case DFU_REQUEST_DNLOAD:
+          {
+            if( ((_dfu_state_ctx.attrs & DFU_FUNC_ATTR_CAN_DOWNLOAD_BITMASK) != 0)
+                && (request->wLength > 0) )
+            {
+              _dfu_state_ctx.state = DFU_DNLOAD_SYNC;
+              _dfu_state_ctx.blk_transfer_in_proc = true;
+
+              dfu_req_dnload_setup(rhport, request);
+            } else {
+              if ( tud_dfu_runtime_device_data_done_check_cb() )
+              {
+                _dfu_state_ctx.state = DFU_MANIFEST_SYNC;
+                tud_control_status(rhport, request);
+              } else {
+                _dfu_state_ctx.state = DFU_ERROR;
+                return false;  // stall
+              }
+            }
+          }
+          break;
+
+          case DFU_REQUEST_GETSTATUS:
+          {
+            dfu_req_getstatus_reply(rhport, request);
+          }
+          break;
+
+          case DFU_REQUEST_GETSTATE:
+          {
+            dfu_req_getstate_reply(rhport, request);
+          }
+          break;
+
+          case DFU_REQUEST_ABORT:
+          {
+            if ( tud_dfu_runtime_abort_cb )
+            {
+              tud_dfu_runtime_abort_cb();
+            }
+            _dfu_state_ctx.state = DFU_IDLE;
+          }
+          break;
+
+          default:
+          {
+            _dfu_state_ctx.state = DFU_ERROR;
+            return false;  // stall on all other requests
+          }
+          break;
+        }
+    }
+    break;
+
+    case DFU_MANIFEST_SYNC:
+    {
+      switch (request->bRequest)
+      {
+        case DFU_REQUEST_GETSTATUS:
+        {
+          if ((_dfu_state_ctx.attrs & DFU_FUNC_ATTR_MANIFESTATION_TOLERANT_BITMASK) == 0)
+          {
+            _dfu_state_ctx.state = DFU_MANIFEST;
+            dfu_req_getstatus_reply(rhport, request);
+          } else {
+            if ( tud_dfu_runtime_firmware_valid_check_cb() )
+            {
+              _dfu_state_ctx.state = DFU_IDLE;
+            }
+            dfu_req_getstatus_reply(rhport, request);
+          }
+        }
+        break;
+
+        case DFU_REQUEST_GETSTATE:
+        {
+          dfu_req_getstate_reply(rhport, request);
+        }
+        break;
+
+        default:
+        {
+          _dfu_state_ctx.state = DFU_ERROR;
+          return false;  // stall on all other requests
+        }
+        break;
+      }
+    }
+    break;
+
+    case DFU_MANIFEST:
+    {
+      switch (request->bRequest)
+      {
+        default:
+        {
+          return false;  // stall on all other requests
+        }
+        break;
+      }
+    }
+    break;
+
+    case DFU_MANIFEST_WAIT_RESET:
+    {
+      // technically we should never even get here, but we will handle it just in case
+      TU_LOG2("  DFU was in DFU_MANIFEST_WAIT_RESET and got unexpected request: %u\r\n", request->bRequest);
+      switch (request->bRequest)
+      {
+        default:
+        {
+          return false;  // stall on all other requests
+        }
+        break;
+      }
+    }
+    break;
+
+    case DFU_UPLOAD_IDLE:
+    {
+      switch (request->bRequest)
+      {
+        case DFU_REQUEST_UPLOAD:
+        {
+          if (dfu_req_upload(rhport, request, request->wValue, request->wLength) != request->wLength)
+          {
+            _dfu_state_ctx.state = DFU_IDLE;
+          }
+        }
+        break;
+
+        case DFU_REQUEST_GETSTATUS:
+        {
+          dfu_req_getstatus_reply(rhport, request);
+        }
+        break;
+
+        case DFU_REQUEST_GETSTATE:
+        {
+          dfu_req_getstate_reply(rhport, request);
+        }
+        break;
+
+        case DFU_REQUEST_ABORT:
+        {
+          if (tud_dfu_runtime_abort_cb)
+          {
+            tud_dfu_runtime_abort_cb();
+          }
+          _dfu_state_ctx.state = DFU_IDLE;
+        }
+        break;
+
+        default:
+        {
+          return false;  // stall on all other requests
+        }
+        break;
+      }
+    }
+    break;
+
+    case DFU_ERROR:
+    {
+      switch (request->bRequest)
+      {
+        case DFU_REQUEST_GETSTATUS:
+        {
+          dfu_req_getstatus_reply(rhport, request);
+        }
+        break;
+
+        case DFU_REQUEST_CLRSTATUS:
+        {
+          _dfu_state_ctx.state = DFU_IDLE;
+        }
+        break;
+
+        case DFU_REQUEST_GETSTATE:
+        {
+          dfu_req_getstate_reply(rhport, request);
+        }
+        break;
+
+        default:
+        {
+          return false;  // stall on all other requests
+        }
+        break;
+      }
+    }
+    break;
+
+    default:
+      _dfu_state_ctx.state = DFU_ERROR;
+      TU_LOG2("  DFU ERROR: Unexpected state\r\nStalling control pipe\r\n");
+      return false;  // Unexpected state, stall and change to error
   }
 
   return true;
 }
 
-bool dfu_rtd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint32_t xferred_bytes)
-{
-  (void) rhport;
-  (void) ep_addr;
-  (void) result;
-  (void) xferred_bytes;
-  return true;
-}
 
 #endif
