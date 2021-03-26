@@ -66,6 +66,7 @@ CFG_TUSB_MEM_SECTION static dfu_state_ctx_t _dfu_state_ctx;
 static void dfu_req_dnload_setup(uint8_t rhport, tusb_control_request_t const * request);
 static void dfu_req_getstatus_reply(uint8_t rhport, tusb_control_request_t const * request);
 static uint16_t dfu_req_upload(uint8_t rhport, tusb_control_request_t const * request, uint16_t block_num, uint16_t wLength);
+static void dfu_mode_req_dnload_reply(uint8_t rhport, tusb_control_request_t const * request);
 static bool dfu_state_machine(uint8_t rhport, tusb_control_request_t const * request);
 
 //--------------------------------------------------------------------+
@@ -280,6 +281,7 @@ bool dfu_rtd_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request
 
   return true;
 }
+
 void tud_dfu_runtime_set_status(dfu_mode_device_status_t status)
 {
   _dfu_state_ctx.status = status;
@@ -325,21 +327,17 @@ static void dfu_req_dnload_setup(uint8_t rhport, tusb_control_request_t const * 
   tud_control_xfer(rhport, request, &_dfu_state_ctx.epout_buf, request->wLength);
 }
 
-static void dfu_runtime_start_status_poll_timeout()
+static void dfu_mode_req_dnload_reply(uint8_t rhport, tusb_control_request_t const * request)
 {
-    uint8_t bwPollTimeout[3] = {0,0,0};
+  uint8_t bwPollTimeout[3] = {0,0,0};
 
-    if ( tud_dfu_runtime_get_poll_timeout_cb )
-    {
-      tud_dfu_runtime_get_poll_timeout_cb((uint8_t *)&bwPollTimeout);
-    }
+  if ( tud_dfu_runtime_get_poll_timeout_cb )
+  {
+    tud_dfu_runtime_get_poll_timeout_cb((uint8_t *)&bwPollTimeout);
+  }
 
-    tud_dfu_runtime_start_poll_timeout_cb((uint8_t *)&bwPollTimeout);
-}
+  tud_dfu_runtime_start_poll_timeout_cb((uint8_t *)&bwPollTimeout);
 
-void dfu_mode_req_dnload_reply(uint8_t rhport, tusb_control_request_t const * request)
-{
-  dfu_runtime_start_status_poll_timeout();
   tud_dfu_runtime_req_dnload_data_cb(request->wValue, (uint8_t *)&_dfu_state_ctx.epout_buf, request->wLength);
   _dfu_state_ctx.blk_transfer_in_proc = false;
 }

@@ -138,10 +138,6 @@ void     dfu_rtd_reset(uint8_t rhport);
 uint16_t dfu_rtd_open(uint8_t rhport, tusb_desc_interface_t const * itf_desc, uint16_t max_len);
 bool     dfu_rtd_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request_t const * request);
 
-//--------------------------------------------------------------------+
-void     dfu_mode_init(void);
-void     dfu_mode_reset(uint8_t rhport);
-void     dfu_mode_req_dnload_reply(uint8_t rhport, tusb_control_request_t const * request);
 #ifdef __cplusplus
  }
 #endif
