@@ -1,5 +1,5 @@
 __USTACK_SIZE = 0x00000200;
-__ISTACK_SIZE = 0x00000100;
+__ISTACK_SIZE = 0x00000200;
 
 MEMORY
 {
@@ -112,13 +112,13 @@ SECTIONS
 		_ebss = .;
 		_end = .;
 	} > RAM
-	.ustack (COPY) :
+	.ustack :
 	{
 		. = ALIGN(8);
 		. = . + __USTACK_SIZE;
 		PROVIDE(_ustack = .);
 	} > RAM
-	.istack (COPY) :
+	.istack :
 	{
 		. = ALIGN(8);
 		. = . + __ISTACK_SIZE;
