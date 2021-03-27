@@ -2,6 +2,7 @@ CFLAGS += \
   -nostartfiles \
   -ffunction-sections \
   -fdata-sections \
+  -fshort-enums \
   -mcpu=rx610 \
   -misa=v1 \
   -mlittle-endian-data \
