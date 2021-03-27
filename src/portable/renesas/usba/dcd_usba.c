@@ -261,7 +261,7 @@ static int write_fifo(volatile void *fifo, pipe_state_t* pipe, unsigned mps)
   return 0;
 }
 
-/* 1 if the number of bytes read is less than 64 bytes
+/* 1 if the number of bytes read is less than mps bytes
  * 0 otherwise */
 static int read_fifo(volatile void *fifo, pipe_state_t* pipe, unsigned mps, size_t len)
 {
@@ -272,12 +272,14 @@ static int read_fifo(volatile void *fifo, pipe_state_t* pipe, unsigned mps, size
 
   hw_fifo_t *reg = (hw_fifo_t*)fifo;
   uintptr_t addr = pipe->addr;
-  while (len--) {
+  unsigned  loop = len;
+  while (loop--) {
     *(uint8_t *)addr = reg->u8;
     ++addr;
   }
   pipe->addr = addr;
-  if (rem < mps) return 1;
+  if (rem < mps)  return 1;
+  if (rem == len) return 2;
   return 0;
 }
 
@@ -419,7 +421,7 @@ static bool process_pipe_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t* buffer, 
       *ctr = USB_PIPECTR_PID_BUF;
     }
   }
-  //TU_LOG1("X %x %d\r\n", ep_addr, total_bytes);
+  //  TU_LOG1("X %x %d\r\n", ep_addr, total_bytes);
   return true;
 }
 
