@@ -1,6 +1,5 @@
 CFLAGS += \
   -nostartfiles \
-  -nostdinc \
   -ffunction-sections \
   -fdata-sections \
   -mcpu=rx610 \
@@ -17,10 +16,17 @@ else
 OPTLIBINC=$(shell dirname `which rx-elf-gcc`)../rx-elf/optlibinc
 endif
 
-# mcu driver cause following warnings
-CFLAGS += -isystem $(OPTLIBINC)
+ifeq ($(RX_NEWLIB),0)
+# setup for optlib
+CFLAGS += -nostdinc \
+  -isystem $(OPTLIBINC) \
+  -DLWIP_NO_INTTYPES_H
 
-LIBS += -loptm -loptc
+LIBS += -loptc -loptm
+else
+# setup for newlib
+LIBS += -lm
+endif
 
 MCU_DIR = hw/mcu/renesas/rx63n
 

@@ -218,4 +218,6 @@ uint32_t board_millis(void)
 {
   return system_ticks;
 }
+#else
+uint32_t SystemCoreClock = 96000000;
 #endif
