@@ -81,6 +81,27 @@
   #define TU_BSWAP16(u16) (__builtin_bswap16(u16))
   #define TU_BSWAP32(u32) (__builtin_bswap32(u32))
 
+  #define TU_UNALIGNED_GET(var, ptr, type)  \
+  do                                        \
+  {                                         \
+    struct __attribute__((__packed__))      \
+    {                                       \
+      type __v;                             \
+    } *__p = (void*) (ptr);                 \
+    (var) = __p->__v;                       \
+  } while(0)
+
+  #define TU_UNALIGNED_PUT(var, ptr, type)  \
+  do                                        \
+  {							                            \
+    struct __attribute__((__packed__))      \
+    {                                       \
+      type __v;                             \
+    } *__p = (void*) (ptr);                 \
+    __p->__v = (var);                       \
+    __asm__ __volatile__ ("" ::: "memory"); \
+  } while(0)
+
 #elif defined(__TI_COMPILER_VERSION__)
   #define TU_ATTR_ALIGNED(Bytes)        __attribute__ ((aligned(Bytes)))
   #define TU_ATTR_SECTION(sec_name)     __attribute__ ((section(#sec_name)))
@@ -100,6 +121,27 @@
 
   #define TU_BSWAP16(u16) (__builtin_bswap16(u16))
   #define TU_BSWAP32(u32) (__builtin_bswap32(u32))
+
+  #define TU_UNALIGNED_GET(var, ptr, type)  \
+  do                                        \
+  {                                         \
+    struct __attribute__((__packed__))      \
+    {                                       \
+      type __v;                             \
+    } *__p = (void*) (ptr);                 \
+    (var) = __p->__v;                       \
+  } while(0)
+
+  #define TU_UNALIGNED_PUT(var, ptr, type)  \
+  do                                        \
+  {							                            \
+    struct __attribute__((__packed__))      \
+    {                                       \
+      type __v;                             \
+    } *__p = (void*) (ptr);                 \
+    __p->__v = (var);                       \
+    __asm__ __volatile__ ("" ::: "memory"); \
+  } while(0)
 
 #elif defined(__ICCARM__)
   #include <intrinsics.h>
@@ -121,6 +163,23 @@
 
   #define TU_BSWAP16(u16) (__iar_builtin_REV16(u16))
   #define TU_BSWAP32(u32) (__iar_builtin_REV(u32))
+
+  #define TU_UNALIGNED_GET(var, ptr, type)   \
+  do                                         \
+  {                                          \
+    _Pragma ("diag_suppress=Pa039");         \
+    (var) = *(__packed type*)(ptr);          \
+    _Pragma ("diag_default=Pa039");          \
+  } while (0);
+    
+  #define TU_UNALIGNED_PUT(var, ptr, type)   \
+  do                                         \
+  {                                          \
+    _Pragma ("diag_suppress=Pa039");         \
+    *(__packed type*)(ptr) = (var);          \
+    _Pragma ("diag_default=Pa039");          \
+  } while (0);
+
 #else 
   #error "Compiler attribute porting is required"
 #endif
