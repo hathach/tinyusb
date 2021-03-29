@@ -35,14 +35,14 @@ endif
 MCU_DIR = hw/mcu/renesas/rx63n
 
 # All source paths should be relative to the top level.
-LD_FILE = hw/bsp/$(BOARD)/r5f5631fd.ld
+LD_FILE = $(BOARD_PATH)/r5f5631fd.ld
 
 SRC_C += \
 	src/portable/renesas/usba/dcd_usba.c \
 	$(MCU_DIR)/vects.c
 
 INC += \
-	$(TOP)/hw/bsp/$(BOARD) \
+	$(TOP)/$(BOARD_PATH) \
 	$(TOP)/$(MCU_DIR)
 
 SRC_S += $(MCU_DIR)/start.S
