@@ -127,7 +127,7 @@ uint32_t tud_midi_n_read(uint8_t itf, uint8_t cable_num, void* buffer, uint32_t 
 
   // Fill empty buffer
   if (midi->read_buffer_length == 0) {
-    if (!tud_midi_n_receive(itf, midi->read_buffer)) return 0;
+    if (!tud_midi_n_packet_read(itf, midi->read_buffer)) return 0;
 
     uint8_t code_index = midi->read_buffer[0] & 0x0f;
     // We always copy over the first byte.
@@ -166,7 +166,7 @@ void tud_midi_n_read_flush (uint8_t itf, uint8_t cable_num)
   _prep_out_transaction(p_midi);
 }
 
-bool tud_midi_n_receive (uint8_t itf, uint8_t packet[4])
+bool tud_midi_n_packet_read (uint8_t itf, uint8_t packet[4])
 {
   midid_interface_t* p_midi = &_midid_itf[itf];
   uint32_t num_read = tu_fifo_read_n(&p_midi->rx_ff, packet, 4);
@@ -278,7 +278,7 @@ uint32_t tud_midi_n_write(uint8_t itf, uint8_t cable_num, uint8_t const* buffer,
   return i;
 }
 
-bool tud_midi_n_send (uint8_t itf, uint8_t const packet[4])
+bool tud_midi_n_packet_write (uint8_t itf, uint8_t const packet[4])
 {
   midid_interface_t* midi = &_midid_itf[itf];
   if (midi->itf_num == 0) {

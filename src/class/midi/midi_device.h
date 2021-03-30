@@ -68,8 +68,8 @@ uint32_t tud_midi_n_write      (uint8_t itf, uint8_t cable_num, uint8_t const* b
 static inline
 uint32_t tud_midi_n_write24    (uint8_t itf, uint8_t cable_num, uint8_t b1, uint8_t b2, uint8_t b3);
 
-bool tud_midi_n_receive        (uint8_t itf, uint8_t packet[4]);
-bool tud_midi_n_send           (uint8_t itf, uint8_t const packet[4]);
+bool tud_midi_n_packet_read    (uint8_t itf, uint8_t packet[4]);
+bool tud_midi_n_packet_write   (uint8_t itf, uint8_t const packet[4]);
 
 //--------------------------------------------------------------------+
 // Application API (Single Interface)
@@ -80,8 +80,9 @@ static inline uint32_t tud_midi_read       (void* buffer, uint32_t bufsize);
 static inline void     tud_midi_read_flush (void);
 static inline uint32_t tud_midi_write      (uint8_t cable_num, uint8_t const* buffer, uint32_t bufsize);
 static inline uint32_t tud_midi_write24    (uint8_t cable_num, uint8_t b1, uint8_t b2, uint8_t b3);
-static inline bool     tud_midi_receive    (uint8_t packet[4]);
-static inline bool     tud_midi_send       (uint8_t const packet[4]);
+
+static inline bool     tud_midi_packet_read (uint8_t packet[4]);
+static inline bool     tud_midi_packet_write(uint8_t const packet[4]);
 
 //--------------------------------------------------------------------+
 // Application Callback API (weak is optional)
@@ -129,14 +130,14 @@ static inline uint32_t tud_midi_write24 (uint8_t cable_num, uint8_t b1, uint8_t 
   return tud_midi_write(cable_num, msg, 3);
 }
 
-static inline bool tud_midi_receive (uint8_t packet[4])
+static inline bool tud_midi_packet_read (uint8_t packet[4])
 {
-  return tud_midi_n_receive(0, packet);
+  return tud_midi_n_packet_read(0, packet);
 }
 
-static inline bool tud_midi_send (uint8_t const packet[4])
+static inline bool tud_midi_packet_write (uint8_t const packet[4])
 {
-  return tud_midi_n_send(0, packet);
+  return tud_midi_n_packet_write(0, packet);
 }
 
 //--------------------------------------------------------------------+
