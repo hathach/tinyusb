@@ -52,7 +52,8 @@ SRC_S := $(SRC_S:.S=.s)
 
 # Due to GCC LTO bug https://bugs.launchpad.net/gcc-arm-embedded/+bug/1747966
 # assembly file should be placed first in linking order
-OBJ += $(addprefix $(BUILD)/obj/, $(SRC_S:.s=.o))
+# '_asm' suffix is added to object of assembly file
+OBJ += $(addprefix $(BUILD)/obj/, $(SRC_S:.s=_asm.o))
 OBJ += $(addprefix $(BUILD)/obj/, $(SRC_C:.c=.o))
 
 # Verbose mode
@@ -111,13 +112,13 @@ $(BUILD)/obj/%.o: %.c
 
 # ASM sources lower case .s
 vpath %.s . $(TOP)
-$(BUILD)/obj/%.o: %.s
+$(BUILD)/obj/%_asm.o: %.s
 	@echo AS $(notdir $@)
 	@$(CC) -x assembler-with-cpp $(ASFLAGS) -c -o $@ $<
 
 # ASM sources upper case .S
 vpath %.S . $(TOP)
-$(BUILD)/obj/%.o: %.S
+$(BUILD)/obj/%_asm.o: %.S
 	@echo AS $(notdir $@)
 	@$(CC) -x assembler-with-cpp $(ASFLAGS) -c -o $@ $<
 
