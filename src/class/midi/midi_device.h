@@ -62,7 +62,6 @@
 bool     tud_midi_n_mounted    (uint8_t itf);
 uint32_t tud_midi_n_available  (uint8_t itf, uint8_t cable_num);
 uint32_t tud_midi_n_read       (uint8_t itf, uint8_t cable_num, void* buffer, uint32_t bufsize);
-void     tud_midi_n_read_flush (uint8_t itf, uint8_t cable_num);
 uint32_t tud_midi_n_write      (uint8_t itf, uint8_t cable_num, uint8_t const* buffer, uint32_t bufsize);
 
 static inline
@@ -77,7 +76,6 @@ bool tud_midi_n_packet_write   (uint8_t itf, uint8_t const packet[4]);
 static inline bool     tud_midi_mounted    (void);
 static inline uint32_t tud_midi_available  (void);
 static inline uint32_t tud_midi_read       (void* buffer, uint32_t bufsize);
-static inline void     tud_midi_read_flush (void);
 static inline uint32_t tud_midi_write      (uint8_t cable_num, uint8_t const* buffer, uint32_t bufsize);
 static inline uint32_t tud_midi_write24    (uint8_t cable_num, uint8_t b1, uint8_t b2, uint8_t b3);
 
@@ -112,11 +110,6 @@ static inline uint32_t tud_midi_available (void)
 static inline uint32_t tud_midi_read (void* buffer, uint32_t bufsize)
 {
   return tud_midi_n_read(0, 0, buffer, bufsize);
-}
-
-static inline void tud_midi_read_flush (void)
-{
-  tud_midi_n_read_flush(0, 0);
 }
 
 static inline uint32_t tud_midi_write (uint8_t cable_num, uint8_t const* buffer, uint32_t bufsize)

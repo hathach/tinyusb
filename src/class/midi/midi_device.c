@@ -158,14 +158,6 @@ uint32_t tud_midi_n_read(uint8_t itf, uint8_t cable_num, void* buffer, uint32_t 
   return n;
 }
 
-void tud_midi_n_read_flush (uint8_t itf, uint8_t cable_num)
-{
-  (void) cable_num;
-  midid_interface_t* p_midi = &_midid_itf[itf];
-  tu_fifo_clear(&p_midi->rx_ff);
-  _prep_out_transaction(p_midi);
-}
-
 bool tud_midi_n_packet_read (uint8_t itf, uint8_t packet[4])
 {
   midid_interface_t* p_midi = &_midid_itf[itf];
