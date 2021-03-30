@@ -200,67 +200,90 @@ static uint32_t write_flush(midid_interface_t* midi)
 uint32_t tud_midi_n_write(uint8_t itf, uint8_t cable_num, uint8_t const* buffer, uint32_t bufsize)
 {
   midid_interface_t* midi = &_midid_itf[itf];
-  if (midi->itf_num == 0) {
-    return 0;
-  }
+  TU_VERIFY(midi->itf_num, 0);
 
   uint32_t i = 0;
-  while (i < bufsize) {
+  while ( i < bufsize )
+  {
     uint8_t data = buffer[i];
-    if (midi->write_buffer_length == 0) {
-        uint8_t msg = data >> 4;
-        midi->write_buffer[1] = data;
+    if ( midi->write_buffer_length == 0 )
+    {
+      uint8_t msg = data >> 4;
+      midi->write_buffer[1] = data;
+      midi->write_buffer_length = 2;
+      // Check to see if we're still in a SysEx transmit.
+      if ( midi->write_buffer[0] == 0x4 )
+      {
+        if ( data == 0xf7 )
+        {
+          midi->write_buffer[0] = 0x5;
+          midi->write_target_length = 2;
+        }
+        else
+        {
+          midi->write_target_length = 4;
+        }
+      }
+      else if ( (msg >= 0x8 && msg <= 0xB) || msg == 0xE )
+      {
+        midi->write_buffer[0] = cable_num << 4 | msg;
+        midi->write_target_length = 4;
+      }
+      else if ( msg == 0xf )
+      {
+        if ( data == 0xf0 )
+        {
+          midi->write_buffer[0] = 0x4;
+          midi->write_target_length = 4;
+        }
+        else if ( data == 0xf1 || data == 0xf3 )
+        {
+          midi->write_buffer[0] = 0x2;
+          midi->write_target_length = 3;
+        }
+        else if ( data == 0xf2 )
+        {
+          midi->write_buffer[0] = 0x3;
+          midi->write_target_length = 4;
+        }
+        else
+        {
+          midi->write_buffer[0] = 0x5;
+          midi->write_target_length = 2;
+        }
+      }
+      else
+      {
+        // Pack individual bytes if we don't support packing them into words.
+        midi->write_buffer[0] = cable_num << 4 | 0xf;
+        midi->write_buffer[2] = 0;
+        midi->write_buffer[3] = 0;
         midi->write_buffer_length = 2;
-        // Check to see if we're still in a SysEx transmit.
-        if (midi->write_buffer[0] == 0x4) {
-            if (data == 0xf7) {
-                midi->write_buffer[0] = 0x5;
-                midi->write_target_length = 2;
-            } else {
-                midi->write_target_length = 4;
-            }
-        } else if ((msg >= 0x8 && msg <= 0xB) || msg == 0xE) {
-            midi->write_buffer[0] = cable_num << 4 | msg;
-            midi->write_target_length = 4;
-        } else if (msg == 0xf) {
-            if (data == 0xf0) {
-                midi->write_buffer[0] = 0x4;
-                midi->write_target_length = 4;
-            } else if (data == 0xf1 || data == 0xf3) {
-                midi->write_buffer[0] = 0x2;
-                midi->write_target_length = 3;
-            } else if (data == 0xf2) {
-                midi->write_buffer[0] = 0x3;
-                midi->write_target_length = 4;
-            } else {
-                midi->write_buffer[0] = 0x5;
-                midi->write_target_length = 2;
-            }
-        } else {
-            // Pack individual bytes if we don't support packing them into words.
-            midi->write_buffer[0] = cable_num << 4 | 0xf;
-            midi->write_buffer[2] = 0;
-            midi->write_buffer[3] = 0;
-            midi->write_buffer_length = 2;
-            midi->write_target_length = 2;
-        }
-    } else {
-        midi->write_buffer[midi->write_buffer_length] = data;
-        midi->write_buffer_length += 1;
-        // See if this byte ends a SysEx.
-        if (midi->write_buffer[0] == 0x4 && data == 0xf7) {
-            midi->write_buffer[0] = 0x4 + (midi->write_buffer_length - 1);
-            midi->write_target_length = midi->write_buffer_length;
-        }
+        midi->write_target_length = 2;
+      }
+    }
+    else
+    {
+      TU_ASSERT(midi->write_buffer_length < 4, 0);
+      midi->write_buffer[midi->write_buffer_length] = data;
+      midi->write_buffer_length += 1;
+      // See if this byte ends a SysEx.
+      if ( midi->write_buffer[0] == 0x4 && data == 0xf7 )
+      {
+        midi->write_buffer[0] = 0x4 + (midi->write_buffer_length - 1);
+        midi->write_target_length = midi->write_buffer_length;
+      }
     }
 
-    if (midi->write_buffer_length == midi->write_target_length) {
-        uint16_t written = tu_fifo_write_n(&midi->tx_ff, midi->write_buffer, 4);
-        if (written < 4) {
-            TU_ASSERT( written == 0 );
-            break;
-        }
-        midi->write_buffer_length = 0;
+    if ( midi->write_buffer_length == midi->write_target_length )
+    {
+      uint16_t written = tu_fifo_write_n(&midi->tx_ff, midi->write_buffer, 4);
+      if ( written < 4 )
+      {
+        TU_ASSERT(written == 0);
+        break;
+      }
+      midi->write_buffer_length = 0;
     }
     i++;
   }
