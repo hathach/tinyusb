@@ -340,7 +340,7 @@ typedef enum
 #define HID_KEY_8                         0x25
 #define HID_KEY_9                         0x26
 #define HID_KEY_0                         0x27
-#define HID_KEY_RETURN                    0x28
+#define HID_KEY_ENTER                     0x28
 #define HID_KEY_ESCAPE                    0x29
 #define HID_KEY_BACKSPACE                 0x2A
 #define HID_KEY_TAB                       0x2B
