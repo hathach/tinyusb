@@ -1,4 +1,4 @@
-DEPS_SUBMODULES += hw/mcu/renesas
+DEPS_SUBMODULES += hw/mcu/renesas/rx
 
 CFLAGS += \
   -nostartfiles \
@@ -32,7 +32,7 @@ CFLAGS += -nostdinc \
 LIBS += -loptc -loptm
 endif
 
-MCU_DIR = hw/mcu/renesas/rx63n
+MCU_DIR = hw/mcu/renesas/rx/rx63n
 
 # All source paths should be relative to the top level.
 LD_FILE = $(BOARD_PATH)/r5f5631fd.ld
