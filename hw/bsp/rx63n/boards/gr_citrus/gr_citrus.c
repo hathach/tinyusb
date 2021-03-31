@@ -24,6 +24,38 @@
  * This file is part of the TinyUSB stack.
  */
 
+/* How to connect JLink and GR-CITRUS
+ *
+ * GR-CITRUS needs to solder some pads to enable JTAG interface.
+ * - Short the following pads individually with solder.
+ *   - J4
+ *   - J5
+ * - Short EMLE pad and 3.3V(GR-CITRUS pin name) with a wire.
+ *
+ * The pads are [the back side of GR-CITRUS](https://www.slideshare.net/MinaoYamamoto/grcitrusrx631/2).
+ * 
+ * Connet the pins between GR-CITRUS and JLink as follows.
+ * 
+ * | JTAG Function | GR-CITRUS pin name| JLink pin No.| note     |
+ * |:-------------:|:-----------------:|:------------:|:--------:|
+ * | VTref         |   3.3V            |   1          |          |
+ * | TRST          |   5               |   3          |          |
+ * | GND           |   GND             |   4          |          |
+ * | TDI           |   3               |   5          |          |
+ * | TMS           |   2               |   7          |          |
+ * | TCK           |   14              |   9          | short J4 |
+ * | TDO           |   9               |  13          | short J5 |
+ * | nRES          |   RST             |  15          |          |
+ *
+ * JLink firmware needs to update to V6.96 or newer version to avoid
+ * [a bug](https://forum.segger.com/index.php/Thread/7758-SOLVED-Bug-in-JLink-from-V6-88b-regarding-RX65N)
+ * regarding downloading.
+ *
+ * When using SEGGER RTT, `RX_NEWLIB=0` should be added to make command arguments.
+ * The option is used to change the C runtime library to `optlib` from `newlib`.
+ * RTT may not work with `newlib`.
+ */
+
 #include "../board.h"
 #include "iodefine.h"
 #include "interrupt_handlers.h"
