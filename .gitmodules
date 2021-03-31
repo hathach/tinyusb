@@ -116,6 +116,3 @@
 [submodule "hw/mcu/silabs/cmsis-dfp-efm32gg12b"]
 	path = hw/mcu/silabs/cmsis-dfp-efm32gg12b
 	url = https://github.com/cmsis-packs/cmsis-dfp-efm32gg12b
-[submodule "hw/mcu/renesas"]
-	path = hw/mcu/renesas
-	url = https://github.com/kkitayam/rx_device.git
