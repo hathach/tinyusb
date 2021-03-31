@@ -93,3 +93,22 @@ void vApplicationGetTimerTaskMemory( StaticTask_t **ppxTimerTaskTCBBuffer, Stack
     configTIMER_TASK_STACK_DEPTH is specified in words, not bytes. */
   *pulTimerTaskStackSize = configTIMER_TASK_STACK_DEPTH;
 }
+
+#if CFG_TUSB_MCU == OPT_MCU_RX63X
+#include "iodefine.h"
+void vApplicationSetupTimerInterrupt(void)
+{
+  /* Enable CMT0 */
+  SYSTEM.PRCR.WORD = (0xA5u<<8) | TU_BIT(1);
+  MSTP(CMT0)       = 0;
+  SYSTEM.PRCR.WORD = (0xA5u<<8);
+
+  CMT0.CMCNT      = 0;
+  CMT0.CMCOR      = (unsigned short)(((configPERIPHERAL_CLOCK_HZ/configTICK_RATE_HZ)-1)/128);
+  CMT0.CMCR.WORD  = TU_BIT(6) | 2;
+  IR(CMT0, CMI0)  = 0;
+  IPR(CMT0, CMI0) = configKERNEL_INTERRUPT_PRIORITY;
+  IEN(CMT0, CMI0) = 1;
+  CMT.CMSTR0.BIT.STR0 = 1;
+}
+#endif
