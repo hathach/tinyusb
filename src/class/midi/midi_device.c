@@ -52,6 +52,12 @@ typedef struct
   uint8_t ep_in;
   uint8_t ep_out;
 
+  // For Stream read()/write() API
+  // Messages are always 4 bytes long, queue them for reading and writing so the
+  // callers can use the Stream interface with single-byte read/write calls.
+  midid_stream_t stream_write;
+  midid_stream_t stream_read;
+
   /*------------- From this point, data is not cleared by bus reset -------------*/
   // FIFO
   tu_fifo_t rx_ff;
@@ -63,12 +69,6 @@ typedef struct
   osal_mutex_def_t rx_ff_mutex;
   osal_mutex_def_t tx_ff_mutex;
   #endif
-
-  // For Stream read()/write() API
-  // Messages are always 4 bytes long, queue them for reading and writing so the
-  // callers can use the Stream interface with single-byte read/write calls.
-  midid_stream_t stream_write;
-  midid_stream_t stream_read;
 
   // Endpoint Transfer buffer
   CFG_TUSB_MEM_ALIGN uint8_t epout_buf[CFG_TUD_MIDI_EP_BUFSIZE];
@@ -127,58 +127,71 @@ uint32_t tud_midi_n_available(uint8_t itf, uint8_t cable_num)
 uint32_t tud_midi_n_stream_read(uint8_t itf, uint8_t cable_num, void* buffer, uint32_t bufsize)
 {
   (void) cable_num;
+  TU_VERIFY(bufsize, 0);
+
+  uint8_t* buf8 = (uint8_t*) buffer;
+
   midid_interface_t* midi = &_midid_itf[itf];
   midid_stream_t* stream = &midi->stream_read;
 
-  TU_VERIFY(bufsize, 0);
-
-  // Get new packet from fifo
-  if ( stream->total == 0 )
+  uint32_t total_read = 0;
+  while( bufsize )
   {
-    TU_VERIFY(tud_midi_n_packet_read(itf, stream->buffer), 0);
-
-    uint8_t const code_index = stream->buffer[0] & 0x0f;
-
-    // MIDI 1.0 Table 4-1: Code Index Number Classifications
-    switch(code_index)
+    // Get new packet from fifo, then set packet expected bytes
+    if ( stream->total == 0 )
     {
-      case MIDI_CIN_MISC:
-      case MIDI_CIN_CABLE_EVENT:
-        // These are reserved and unused, possibly issue somewhere, skip this packet
-        return 0;
-      break;
+      // return if there is no more data from fifo
+      if ( !tud_midi_n_packet_read(itf, stream->buffer) ) return total_read;
 
-      case MIDI_CIN_SYSEX_END_1BYTE:
-      case MIDI_CIN_1BYTE_DATA:
-        stream->total = 1;
-      break;
+      uint8_t const code_index = stream->buffer[0] & 0x0f;
 
-      case MIDI_CIN_SYSCOM_2BYTE     :
-      case MIDI_CIN_SYSEX_END_2BYTE  :
-      case MIDI_CIN_PROGRAM_CHANGE   :
-      case MIDI_CIN_CHANNEL_PRESSURE :
-        stream->total = 2;
-      break;
+      // MIDI 1.0 Table 4-1: Code Index Number Classifications
+      switch(code_index)
+      {
+        case MIDI_CIN_MISC:
+        case MIDI_CIN_CABLE_EVENT:
+          // These are reserved and unused, possibly issue somewhere, skip this packet
+          return 0;
+        break;
 
-      default:
-        stream->total = 3;
-      break;
+        case MIDI_CIN_SYSEX_END_1BYTE:
+        case MIDI_CIN_1BYTE_DATA:
+          stream->total = 1;
+        break;
+
+        case MIDI_CIN_SYSCOM_2BYTE     :
+        case MIDI_CIN_SYSEX_END_2BYTE  :
+        case MIDI_CIN_PROGRAM_CHANGE   :
+        case MIDI_CIN_CHANNEL_PRESSURE :
+          stream->total = 2;
+        break;
+
+        default:
+          stream->total = 3;
+        break;
+      }
+    }
+
+    // Copy data up to bufsize
+    uint32_t const count = tu_min32(stream->total - stream->index, bufsize);
+
+    // Skip the header (1st byte) in the buffer
+    memcpy(buf8, stream->buffer + 1 + stream->index, count);
+
+    total_read += count;
+    stream->index += count;
+    buf8 += count;
+    bufsize -= count;
+
+    // complete current event packet, reset stream
+    if ( stream->total == stream->index )
+    {
+      stream->index = 0;
+      stream->total = 0;
     }
   }
 
-  uint32_t const n = tu_min32(stream->total - stream->index, bufsize);
-
-  // Skip the header (1st byte) in the buffer
-  memcpy(buffer, stream->buffer + 1 + stream->index, n);
-  stream->index += n;
-
-  if ( stream->total == stream->index )
-  {
-    stream->index = 0;
-    stream->total = 0;
-  }
-
-  return n;
+  return total_read;
 }
 
 bool tud_midi_n_packet_read (uint8_t itf, uint8_t packet[4])
@@ -224,7 +237,7 @@ uint32_t tud_midi_n_stream_write(uint8_t itf, uint8_t cable_num, uint8_t const* 
 
   midid_stream_t* stream = &midi->stream_write;
 
-  uint32_t written = 0;
+  uint32_t total_written = 0;
   uint32_t i = 0;
   while ( i < bufsize )
   {
@@ -296,7 +309,7 @@ uint32_t tud_midi_n_stream_write(uint8_t itf, uint8_t cable_num, uint8_t const* 
     {
       // On-going (buffering) packet
 
-      TU_ASSERT(stream->index < 4, written);
+      TU_ASSERT(stream->index < 4, total_written);
       stream->buffer[stream->index] = data;
       stream->index++;
 
@@ -316,14 +329,14 @@ uint32_t tud_midi_n_stream_write(uint8_t itf, uint8_t cable_num, uint8_t const* 
 
       uint16_t const count = tu_fifo_write_n(&midi->tx_ff, stream->buffer, 4);
 
-      // reset buffer
+      // complete current event packet, reset stream
       stream->index = stream->total = 0;
 
       // fifo overflow, here we assume FIFO is multiple of 4 and didn't check remaining before writing
       if ( count != 4 ) break;
 
       // updated written if succeeded
-      written = i;
+      total_written = i;
     }
 
     i++;
@@ -331,7 +344,7 @@ uint32_t tud_midi_n_stream_write(uint8_t itf, uint8_t cable_num, uint8_t const* 
 
   write_flush(midi);
 
-  return written;
+  return total_written;
 }
 
 bool tud_midi_n_packet_write (uint8_t itf, uint8_t const packet[4])
