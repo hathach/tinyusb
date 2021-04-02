@@ -68,10 +68,7 @@ typedef struct
   // Messages are always 4 bytes long, queue them for reading and writing so the
   // callers can use the Stream interface with single-byte read/write calls.
   midid_stream_t stream_write;
-
-  uint8_t read_buffer[4];
-  uint8_t read_buffer_length;
-  uint8_t read_target_length;
+  midid_stream_t stream_read;
 
   // Endpoint Transfer buffer
   CFG_TUSB_MEM_ALIGN uint8_t epout_buf[CFG_TUD_MIDI_EP_BUFSIZE];
@@ -131,14 +128,16 @@ uint32_t tud_midi_n_stream_read(uint8_t itf, uint8_t cable_num, void* buffer, ui
 {
   (void) cable_num;
   midid_interface_t* midi = &_midid_itf[itf];
+  midid_stream_t* stream = &midi->stream_read;
 
-  // Fill empty buffer
-  if ( midi->read_buffer_length == 0 )
+  TU_VERIFY(bufsize, 0);
+
+  // Get new packet from fifo
+  if ( stream->total == 0 )
   {
-    TU_VERIFY(tud_midi_n_packet_read(itf, midi->read_buffer), 0);
+    TU_VERIFY(tud_midi_n_packet_read(itf, stream->buffer), 0);
 
-    uint8_t const code_index = midi->read_buffer[0] & 0x0f;
-    uint8_t count;
+    uint8_t const code_index = stream->buffer[0] & 0x0f;
 
     // MIDI 1.0 Table 4-1: Code Index Number Classifications
     switch(code_index)
@@ -151,34 +150,32 @@ uint32_t tud_midi_n_stream_read(uint8_t itf, uint8_t cable_num, void* buffer, ui
 
       case MIDI_CIN_SYSEX_END_1BYTE:
       case MIDI_CIN_1BYTE_DATA:
-        count = 1;
+        stream->total = 1;
       break;
 
       case MIDI_CIN_SYSCOM_2BYTE     :
       case MIDI_CIN_SYSEX_END_2BYTE  :
       case MIDI_CIN_PROGRAM_CHANGE   :
       case MIDI_CIN_CHANNEL_PRESSURE :
-        count = 2;
+        stream->total = 2;
       break;
 
       default:
-        count = 3;
+        stream->total = 3;
       break;
     }
-
-    midi->read_buffer_length = count;
   }
 
-  uint32_t n = tu_min32(midi->read_buffer_length - midi->read_target_length, bufsize);
+  uint32_t const n = tu_min32(stream->total - stream->index, bufsize);
 
-  // Skip the header in the buffer
-  memcpy(buffer, midi->read_buffer + 1 + midi->read_target_length, n);
-  midi->read_target_length += n;
+  // Skip the header (1st byte) in the buffer
+  memcpy(buffer, stream->buffer + 1 + stream->index, n);
+  stream->index += n;
 
-  if ( midi->read_target_length == midi->read_buffer_length )
+  if ( stream->total == stream->index )
   {
-    midi->read_buffer_length = 0;
-    midi->read_target_length = 0;
+    stream->index = 0;
+    stream->total = 0;
   }
 
   return n;
