@@ -103,7 +103,7 @@ CFLAGS += \
 
 # Debugging/Optimization
 ifeq ($(DEBUG), 1)
-  CFLAGS += -O0
+  CFLAGS += -Og
 else
   CFLAGS += -Os
 endif
