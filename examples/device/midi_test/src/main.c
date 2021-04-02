@@ -147,11 +147,11 @@ void midi_task(void)
 
   // Send Note On for current position at full velocity (127) on channel 1.
   uint8_t note_on[3] = { 0x90 | channel, note_sequence[note_pos], 127 };
-  tud_midi_write(cable_num, note_on, 3);
+  tud_midi_stream_write(cable_num, note_on, 3);
 
   // Send Note Off for previous note.
   uint8_t note_off[3] = { 0x80 | channel, note_sequence[previous], 0};
-  tud_midi_write(cable_num, note_off, 3);
+  tud_midi_stream_write(cable_num, note_off, 3);
 
   // Increment position
   note_pos++;

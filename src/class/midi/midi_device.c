@@ -127,7 +127,7 @@ uint32_t tud_midi_n_available(uint8_t itf, uint8_t cable_num)
   return tu_fifo_count(&_midid_itf[itf].rx_ff);
 }
 
-uint32_t tud_midi_n_read(uint8_t itf, uint8_t cable_num, void* buffer, uint32_t bufsize)
+uint32_t tud_midi_n_stream_read(uint8_t itf, uint8_t cable_num, void* buffer, uint32_t bufsize)
 {
   (void) cable_num;
   midid_interface_t* midi = &_midid_itf[itf];
@@ -220,7 +220,7 @@ static uint32_t write_flush(midid_interface_t* midi)
   }
 }
 
-uint32_t tud_midi_n_write(uint8_t itf, uint8_t cable_num, uint8_t const* buffer, uint32_t bufsize)
+uint32_t tud_midi_n_stream_write(uint8_t itf, uint8_t cable_num, uint8_t const* buffer, uint32_t bufsize)
 {
   midid_interface_t* midi = &_midid_itf[itf];
   TU_VERIFY(midi->itf_num, 0);
