@@ -72,10 +72,6 @@ uint32_t tud_midi_n_read       (uint8_t itf, uint8_t cable_num, void* buffer, ui
 // Write byte Stream (legacy)
 uint32_t tud_midi_n_write      (uint8_t itf, uint8_t cable_num, uint8_t const* buffer, uint32_t bufsize);
 
-// Write good-old 3 bytes data, this use write packet
-static inline
-uint32_t tud_midi_n_write24    (uint8_t itf, uint8_t cable_num, uint8_t b1, uint8_t b2, uint8_t b3);
-
 // Read event packet (4 bytes)
 bool     tud_midi_n_packet_read    (uint8_t itf, uint8_t packet[4]);
 
@@ -87,12 +83,25 @@ bool     tud_midi_n_packet_write   (uint8_t itf, uint8_t const packet[4]);
 //--------------------------------------------------------------------+
 static inline bool     tud_midi_mounted    (void);
 static inline uint32_t tud_midi_available  (void);
+
 static inline uint32_t tud_midi_read       (void* buffer, uint32_t bufsize);
 static inline uint32_t tud_midi_write      (uint8_t cable_num, uint8_t const* buffer, uint32_t bufsize);
-static inline uint32_t tud_midi_write24    (uint8_t cable_num, uint8_t b1, uint8_t b2, uint8_t b3);
 
 static inline bool     tud_midi_packet_read (uint8_t packet[4]);
 static inline bool     tud_midi_packet_write(uint8_t const packet[4]);
+
+// TODO remove after 0.10.0 release
+TU_ATTR_DEPRECATED("tud_midi_send() is renamed to tud_midi_packet_write()")
+static inline bool tud_midi_send(uint8_t packet[4])
+{
+  return tud_midi_packet_write(packet);
+}
+
+TU_ATTR_DEPRECATED("tud_midi_receive() is renamed to tud_midi_packet_read()")
+static inline bool tud_midi_receive(uint8_t packet[4])
+{
+  return tud_midi_packet_read(packet);
+}
 
 //--------------------------------------------------------------------+
 // Application Callback API (weak is optional)
@@ -102,12 +111,6 @@ TU_ATTR_WEAK void tud_midi_rx_cb(uint8_t itf);
 //--------------------------------------------------------------------+
 // Inline Functions
 //--------------------------------------------------------------------+
-
-static inline uint32_t tud_midi_n_write24 (uint8_t itf, uint8_t cable_num, uint8_t b1, uint8_t b2, uint8_t b3)
-{
-  uint8_t msg[3] = { b1, b2, b3 };
-  return tud_midi_n_write(itf, cable_num, msg, 3);
-}
 
 static inline bool tud_midi_mounted (void)
 {
@@ -127,12 +130,6 @@ static inline uint32_t tud_midi_read (void* buffer, uint32_t bufsize)
 static inline uint32_t tud_midi_write (uint8_t cable_num, uint8_t const* buffer, uint32_t bufsize)
 {
   return tud_midi_n_write(0, cable_num, buffer, bufsize);
-}
-
-static inline uint32_t tud_midi_write24 (uint8_t cable_num, uint8_t b1, uint8_t b2, uint8_t b3)
-{
-  uint8_t msg[3] = { b1, b2, b3 };
-  return tud_midi_write(cable_num, msg, 3);
 }
 
 static inline bool tud_midi_packet_read (uint8_t packet[4])
