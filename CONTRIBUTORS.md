@@ -63,7 +63,7 @@
   - Add new class driver for **Musical Instrument Digital Interface (MIDI)**
   - Improve USBD control transfer, MSC, CDC class driver
   - Board support for Metro M0 & M4 express
-  - Write the execellent porting.md documentation
+  - Write the excellent porting.md documentation
   - Add initial Makefile
 
 - **[Sean Cross](https://github.com/xobs)**
