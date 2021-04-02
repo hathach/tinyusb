@@ -38,6 +38,7 @@
 //--------------------------------------------------------------------+
 // MACRO CONSTANT TYPEDEF
 //--------------------------------------------------------------------+
+
 typedef struct
 {
   uint8_t itf_num;
@@ -126,16 +127,19 @@ uint32_t tud_midi_n_read(uint8_t itf, uint8_t cable_num, void* buffer, uint32_t 
   midid_interface_t* midi = &_midid_itf[itf];
 
   // Fill empty buffer
-  if (midi->read_buffer_length == 0) {
-    if (!tud_midi_n_packet_read(itf, midi->read_buffer)) return 0;
+  if ( midi->read_buffer_length == 0 )
+  {
+    if ( !tud_midi_n_packet_read(itf, midi->read_buffer) ) return 0;
 
     uint8_t code_index = midi->read_buffer[0] & 0x0f;
     // We always copy over the first byte.
     uint8_t count = 1;
     // Ignore subsequent bytes based on the code.
-    if (code_index != 0x5 && code_index != 0xf) {
+    if ( code_index != 0x5 && code_index != 0xf )
+    {
       count = 2;
-      if (code_index != 0x2 && code_index != 0x6 && code_index != 0xc && code_index != 0xd) {
+      if ( code_index != 0x2 && code_index != 0x6 && code_index != 0xc && code_index != 0xd )
+      {
         count = 3;
       }
     }
@@ -150,7 +154,8 @@ uint32_t tud_midi_n_read(uint8_t itf, uint8_t cable_num, void* buffer, uint32_t 
   memcpy(buffer, midi->read_buffer + 1 + midi->read_target_length, n);
   midi->read_target_length += n;
 
-  if (midi->read_target_length == midi->read_buffer_length) {
+  if ( midi->read_target_length == midi->read_buffer_length )
+  {
     midi->read_buffer_length = 0;
     midi->read_target_length = 0;
   }
@@ -164,10 +169,6 @@ bool tud_midi_n_packet_read (uint8_t itf, uint8_t packet[4])
   uint32_t num_read = tu_fifo_read_n(&p_midi->rx_ff, packet, 4);
   _prep_out_transaction(p_midi);
   return (num_read == 4);
-}
-
-void midi_rx_done_cb(midid_interface_t* midi, uint8_t const* buffer, uint32_t bufsize) {
-  tu_fifo_write_n(&midi->rx_ff, buffer, bufsize);
 }
 
 //--------------------------------------------------------------------+
@@ -185,7 +186,8 @@ static uint32_t write_flush(midid_interface_t* midi)
   TU_VERIFY( usbd_edpt_claim(rhport, midi->ep_in), 0 );
 
   uint16_t count = tu_fifo_read_n(&midi->tx_ff, midi->epin_buf, CFG_TUD_MIDI_EP_BUFSIZE);
-  if (count > 0)
+
+  if (count)
   {
     TU_ASSERT( usbd_edpt_xfer(rhport, midi->ep_in, midi->epin_buf, count), 0 );
     return count;
@@ -202,21 +204,26 @@ uint32_t tud_midi_n_write(uint8_t itf, uint8_t cable_num, uint8_t const* buffer,
   midid_interface_t* midi = &_midid_itf[itf];
   TU_VERIFY(midi->itf_num, 0);
 
+  uint32_t written = 0;
   uint32_t i = 0;
   while ( i < bufsize )
   {
-    uint8_t data = buffer[i];
+    uint8_t const data = buffer[i];
+
     if ( midi->write_buffer_length == 0 )
     {
-      uint8_t msg = data >> 4;
+      // new packet
+
+      uint8_t const msg = data >> 4;
       midi->write_buffer[1] = data;
       midi->write_buffer_length = 2;
+
       // Check to see if we're still in a SysEx transmit.
-      if ( midi->write_buffer[0] == 0x4 )
+      if ( midi->write_buffer[0] == MIDI_CIN_SYSEX_START )
       {
-        if ( data == 0xf7 )
+        if ( data == MIDI_STATUS_SYSEX_END )
         {
-          midi->write_buffer[0] = 0x5;
+          midi->write_buffer[0] = MIDI_CIN_SYSEX_END_1BYTE;
           midi->write_target_length = 2;
         }
         else
@@ -226,29 +233,31 @@ uint32_t tud_midi_n_write(uint8_t itf, uint8_t cable_num, uint8_t const* buffer,
       }
       else if ( (msg >= 0x8 && msg <= 0xB) || msg == 0xE )
       {
-        midi->write_buffer[0] = cable_num << 4 | msg;
+        // Channel Voice Messages
+        midi->write_buffer[0] = (cable_num << 4) | msg;
         midi->write_target_length = 4;
       }
       else if ( msg == 0xf )
       {
-        if ( data == 0xf0 )
+        // System message
+        if ( data == MIDI_STATUS_SYSEX_START )
         {
-          midi->write_buffer[0] = 0x4;
+          midi->write_buffer[0] = MIDI_CIN_SYSEX_START;
           midi->write_target_length = 4;
         }
-        else if ( data == 0xf1 || data == 0xf3 )
+        else if ( data == MIDI_STATUS_SYSCOM_TIME_CODE_QUARTER_FRAME || data == MIDI_STATUS_SYSCOM_SONG_SELECT )
         {
-          midi->write_buffer[0] = 0x2;
+          midi->write_buffer[0] = MIDI_CIN_SYSCOM_2BYTE;
           midi->write_target_length = 3;
         }
-        else if ( data == 0xf2 )
+        else if ( data == MIDI_STATUS_SYSCOM_SONG_POSITION_POINTER )
         {
-          midi->write_buffer[0] = 0x3;
+          midi->write_buffer[0] = MIDI_CIN_SYSCOM_3BYTE;
           midi->write_target_length = 4;
         }
         else
         {
-          midi->write_buffer[0] = 0x5;
+          midi->write_buffer[0] = MIDI_CIN_SYSEX_END_1BYTE;
           midi->write_target_length = 2;
         }
       }
@@ -264,33 +273,44 @@ uint32_t tud_midi_n_write(uint8_t itf, uint8_t cable_num, uint8_t const* buffer,
     }
     else
     {
+      // On-going packet
+
       TU_ASSERT(midi->write_buffer_length < 4, 0);
       midi->write_buffer[midi->write_buffer_length] = data;
-      midi->write_buffer_length += 1;
+      midi->write_buffer_length++;
+
       // See if this byte ends a SysEx.
-      if ( midi->write_buffer[0] == 0x4 && data == 0xf7 )
+      if ( midi->write_buffer[0] == MIDI_CIN_SYSEX_START && data == MIDI_STATUS_SYSEX_END )
       {
-        midi->write_buffer[0] = 0x4 + (midi->write_buffer_length - 1);
+        midi->write_buffer[0] = MIDI_CIN_SYSEX_START + (midi->write_buffer_length - 1);
         midi->write_target_length = midi->write_buffer_length;
       }
     }
 
+    // Send out packet
     if ( midi->write_buffer_length == midi->write_target_length )
     {
-      uint16_t written = tu_fifo_write_n(&midi->tx_ff, midi->write_buffer, 4);
-      if ( written < 4 )
-      {
-        TU_ASSERT(written == 0);
-        break;
-      }
-      midi->write_buffer_length = 0;
+      // zeroes unused bytes
+      for(uint8_t idx = midi->write_target_length; idx < 4; idx++) midi->write_buffer[idx] = 0;
+
+      uint16_t const count = tu_fifo_write_n(&midi->tx_ff, midi->write_buffer, 4);
+
+      // reset buffer
+      midi->write_buffer_length = midi->write_target_length = 0;
+
+      // fifo overflow, here we assume FIFO is multiple of 4 and didn't check remaining before writing
+      if ( count != 4 ) break;
+
+      // updated written if succeeded
+      written = i;
     }
+
     i++;
   }
 
   write_flush(midi);
 
-  return i;
+  return written;
 }
 
 bool tud_midi_n_packet_write (uint8_t itf, uint8_t const packet[4])
@@ -300,8 +320,7 @@ bool tud_midi_n_packet_write (uint8_t itf, uint8_t const packet[4])
     return 0;
   }
 
-  if (tu_fifo_remaining(&midi->tx_ff) < 4)
-    return false;
+  if (tu_fifo_remaining(&midi->tx_ff) < 4) return false;
 
   tu_fifo_write_n(&midi->tx_ff, packet, 4);
   write_flush(midi);
@@ -347,9 +366,9 @@ void midid_reset(uint8_t rhport)
 uint16_t midid_open(uint8_t rhport, tusb_desc_interface_t const * desc_itf, uint16_t max_len)
 {
   // 1st Interface is Audio Control v1
-  TU_VERIFY(TUSB_CLASS_AUDIO                      == desc_itf->bInterfaceClass    &&
-            AUDIO_SUBCLASS_CONTROL                == desc_itf->bInterfaceSubClass &&
-            AUDIO_FUNC_PROTOCOL_CODE_UNDEF        == desc_itf->bInterfaceProtocol, 0);
+  TU_VERIFY(TUSB_CLASS_AUDIO               == desc_itf->bInterfaceClass    &&
+            AUDIO_SUBCLASS_CONTROL         == desc_itf->bInterfaceSubClass &&
+            AUDIO_FUNC_PROTOCOL_CODE_UNDEF == desc_itf->bInterfaceProtocol, 0);
 
   uint16_t drv_len = tu_desc_len(desc_itf);
   uint8_t const * p_desc = tu_desc_next(desc_itf);
@@ -365,9 +384,9 @@ uint16_t midid_open(uint8_t rhport, tusb_desc_interface_t const * desc_itf, uint
   TU_VERIFY(TUSB_DESC_INTERFACE == tu_desc_type(p_desc), 0);
   tusb_desc_interface_t const * desc_midi = (tusb_desc_interface_t const *) p_desc;
 
-  TU_VERIFY(TUSB_CLASS_AUDIO                      == desc_midi->bInterfaceClass    &&
-            AUDIO_SUBCLASS_MIDI_STREAMING         == desc_midi->bInterfaceSubClass &&
-            AUDIO_FUNC_PROTOCOL_CODE_UNDEF        == desc_midi->bInterfaceProtocol, 0);
+  TU_VERIFY(TUSB_CLASS_AUDIO               == desc_midi->bInterfaceClass    &&
+            AUDIO_SUBCLASS_MIDI_STREAMING  == desc_midi->bInterfaceSubClass &&
+            AUDIO_FUNC_PROTOCOL_CODE_UNDEF == desc_midi->bInterfaceProtocol, 0);
 
   // Find available interface
   midid_interface_t * p_midi = NULL;

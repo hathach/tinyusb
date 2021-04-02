@@ -172,7 +172,7 @@ void midi_task(void)
   // regardless of these being used or not. Therefore incoming traffic should be read
   // (possibly just discarded) to avoid the sender blocking in IO
   uint8_t packet[4];
-  while(tud_midi_available()) tud_midi_receive(packet);
+  while( tud_midi_available() ) tud_midi_packet_read(packet);
 
   // send note every 1000 ms
   if (board_millis() - start_ms < 286) return; // not enough time

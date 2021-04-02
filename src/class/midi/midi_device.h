@@ -59,16 +59,28 @@
 // Application API (Multiple Interfaces)
 // CFG_TUD_MIDI > 1
 //--------------------------------------------------------------------+
+
+// Check if midi interface is mounted
 bool     tud_midi_n_mounted    (uint8_t itf);
+
+// Get the number of bytes available for reading
 uint32_t tud_midi_n_available  (uint8_t itf, uint8_t cable_num);
+
+// Read byte stream (legacy)
 uint32_t tud_midi_n_read       (uint8_t itf, uint8_t cable_num, void* buffer, uint32_t bufsize);
+
+// Write byte Stream (legacy)
 uint32_t tud_midi_n_write      (uint8_t itf, uint8_t cable_num, uint8_t const* buffer, uint32_t bufsize);
 
+// Write good-old 3 bytes data, this use write packet
 static inline
 uint32_t tud_midi_n_write24    (uint8_t itf, uint8_t cable_num, uint8_t b1, uint8_t b2, uint8_t b3);
 
-bool tud_midi_n_packet_read    (uint8_t itf, uint8_t packet[4]);
-bool tud_midi_n_packet_write   (uint8_t itf, uint8_t const packet[4]);
+// Read event packet (4 bytes)
+bool     tud_midi_n_packet_read    (uint8_t itf, uint8_t packet[4]);
+
+// Write event packet (4 bytes)
+bool     tud_midi_n_packet_write   (uint8_t itf, uint8_t const packet[4]);
 
 //--------------------------------------------------------------------+
 // Application API (Single Interface)
