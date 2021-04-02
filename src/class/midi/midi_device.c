@@ -41,6 +41,13 @@
 
 typedef struct
 {
+  uint8_t buffer[4];
+  uint8_t index;
+  uint8_t total;
+}midid_stream_t;
+
+typedef struct
+{
   uint8_t itf_num;
   uint8_t ep_in;
   uint8_t ep_out;
@@ -57,11 +64,14 @@ typedef struct
   osal_mutex_def_t tx_ff_mutex;
   #endif
 
+  // For Stream read()/write() API
   // Messages are always 4 bytes long, queue them for reading and writing so the
   // callers can use the Stream interface with single-byte read/write calls.
   uint8_t write_buffer[4];
   uint8_t write_buffer_length;
   uint8_t write_target_length;
+
+//  midid_stream_t stream_write;
 
   uint8_t read_buffer[4];
   uint8_t read_buffer_length;
@@ -129,26 +139,41 @@ uint32_t tud_midi_n_read(uint8_t itf, uint8_t cable_num, void* buffer, uint32_t 
   // Fill empty buffer
   if ( midi->read_buffer_length == 0 )
   {
-    if ( !tud_midi_n_packet_read(itf, midi->read_buffer) ) return 0;
+    TU_VERIFY(tud_midi_n_packet_read(itf, midi->read_buffer), 0);
 
-    uint8_t code_index = midi->read_buffer[0] & 0x0f;
-    // We always copy over the first byte.
-    uint8_t count = 1;
-    // Ignore subsequent bytes based on the code.
-    if ( code_index != 0x5 && code_index != 0xf )
+    uint8_t const code_index = midi->read_buffer[0] & 0x0f;
+    uint8_t count;
+
+    // MIDI 1.0 Table 4-1: Code Index Number Classifications
+    switch(code_index)
     {
-      count = 2;
-      if ( code_index != 0x2 && code_index != 0x6 && code_index != 0xc && code_index != 0xd )
-      {
+      case MIDI_CIN_MISC:
+      case MIDI_CIN_CABLE_EVENT:
+        // These are reserved and unused, possibly issue somewhere, skip this packet
+        return 0;
+      break;
+
+      case MIDI_CIN_SYSEX_END_1BYTE:
+      case MIDI_CIN_1BYTE_DATA:
+        count = 1;
+      break;
+
+      case MIDI_CIN_SYSCOM_2BYTE     :
+      case MIDI_CIN_SYSEX_END_2BYTE  :
+      case MIDI_CIN_PROGRAM_CHANGE   :
+      case MIDI_CIN_CHANNEL_PRESSURE :
+        count = 2;
+      break;
+
+      default:
         count = 3;
-      }
+      break;
     }
 
     midi->read_buffer_length = count;
   }
 
-  uint32_t n = midi->read_buffer_length - midi->read_target_length;
-  if (bufsize < n) n = bufsize;
+  uint32_t n = tu_min32(midi->read_buffer_length - midi->read_target_length, bufsize);
 
   // Skip the header in the buffer
   memcpy(buffer, midi->read_buffer + 1 + midi->read_target_length, n);
@@ -203,6 +228,8 @@ uint32_t tud_midi_n_write(uint8_t itf, uint8_t cable_num, uint8_t const* buffer,
 {
   midid_interface_t* midi = &_midid_itf[itf];
   TU_VERIFY(midi->itf_num, 0);
+
+//  midid_stream_t* stream = &midi->stream_write;
 
   uint32_t written = 0;
   uint32_t i = 0;
