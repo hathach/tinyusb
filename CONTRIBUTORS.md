@@ -48,10 +48,10 @@
   - Board support for NuTiny NUC120, NUC121s, NUC125s, NUC126V, NUC505
   - Improve multiple cdc interfaces API & add cdc_dual_ports example
 
-- **[Rafael Silva](https://github.com/raspberrypi)**
+- **[Rafael Silva](https://github.com/perigoso)**
   - Add new DCD port for **Silabs EFM32GG12** with SLTB009A board
 
-- **[Raspberry Pi Team](https://github.com/perigoso)**
+- **[Raspberry Pi Team](https://github.com/raspberrypi)**
   - Add new DCD port for **Raspberry Pi RP2040**
 
 - **[Reinhard Panhuber](https://github.com/PanRe)**
