@@ -102,12 +102,20 @@ This code base already had supported for a handful of following boards (sorted a
 - [NGX LPC4330-Xplorer](https://www.nxp.com/design/designs/lpc4330-xplorer-board:OM13027)
 - [Double M33 Express](https://www.crowdsupply.com/steiert-solutions/double-m33-express)
 
+### Renesas RX
+
+- [GR-CITRUS](https://www.renesas.com/us/en/products/gadget-renesas/boards/gr-citrus)
+
 ### Raspberry Pi RP2040
 
 - [Adafruit Feather RP2040](https://www.adafruit.com/product/4884)
 - [Adafruit ItsyBitsy RP2040](https://www.adafruit.com/product/4888)
 - [Adafruit QT Py RP2040](https://www.adafruit.com/product/4900)
 - [Raspberry Pi Pico](https://www.raspberrypi.org/products/raspberry-pi-pico/)
+
+### Silabs
+
+- [EFM32GG12 Thunderboard Kit (SLTB009A)](https://www.silabs.com/development-tools/thunderboard/thunderboard-gg12-kit)
 
 ### Sony
 

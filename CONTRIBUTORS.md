@@ -33,6 +33,7 @@
 
 - **[Koji KITAYAMA](https://github.com/kkitayam)**
   - Add new DCD port for **NXP Kinetis KL25**
+  - Add new DCD port for **Renesas RX63n** with GR-CITRUS board
 
 - **[Nathan Conrad](https://github.com/pigrew)**
   - Add new DCD port for **STM32 fsdev** Fullspeed device for STM32 L0, F0, F1, F3 etc ...
@@ -47,8 +48,11 @@
   - Board support for NuTiny NUC120, NUC121s, NUC125s, NUC126V, NUC505
   - Improve multiple cdc interfaces API & add cdc_dual_ports example
 
-- **[Raspberry Pi Team](https://github.com/raspberrypi)**
+- **[Rafael Silva](https://github.com/raspberrypi)**
   - Add new DCD port for **Raspberry Pi RP2040**
+
+- **[Raspberry Pi Team](https://github.com/perigoso)**
+  - Add new DCD port for **Silabs EFM32GG12** with SLTB009A board
 
 - **[Reinhard Panhuber](https://github.com/PanRe)**
   - Add new class driver for **USB Audio Class 2.0 (UAC2)**

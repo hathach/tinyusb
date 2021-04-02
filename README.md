@@ -40,6 +40,8 @@ The stack supports the following MCUs:
   - Kinetis: KL25
   - LPC Series: 11Uxx, 13xx, 175x_6x, 177x_8x, 18xx, 40xx, 43xx, 51Uxx, 54xxx, 55xx
 - **Raspberry Pi:** RP2040
+- **Renesas:** RX63N
+- **Silabs:** EFM32GG12
 - **Sony:** CXD56
 - **ST:** STM32 series: L0, F0, F1, F2, F3, F4, F7, H7 both FullSpeed and HighSpeed
 - **TI:** MSP430

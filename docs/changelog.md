@@ -1,5 +1,17 @@
 # TinyUSB Changelog
 
+## WIP
+
+- Add new port Silabs EFM32GG12, board EFM32GG12 Thunderboard Kit (SLTB009A)
+- Add new port Renesas RX63N, board GR-CITRUS
+- MIDI
+  - Fix MIDI buffer overflow issue
+  - Rename tud_midi_read() to tud_midi_stream_read()
+  - Rename tud_midi_write() to tud_midi_stream_write()
+  - Rename tud_midi_receive() to tud_midi_packet_read()
+  - Rename tud_midi_send() to tud_midi_packet_write()
+- New board stm32f072-eval
+
 ## 0.9.0 - 2021.03.12
 
 ### Device Stack
