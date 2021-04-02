@@ -49,10 +49,10 @@
   - Improve multiple cdc interfaces API & add cdc_dual_ports example
 
 - **[Rafael Silva](https://github.com/raspberrypi)**
-  - Add new DCD port for **Raspberry Pi RP2040**
+  - Add new DCD port for **Silabs EFM32GG12** with SLTB009A board
 
 - **[Raspberry Pi Team](https://github.com/perigoso)**
-  - Add new DCD port for **Silabs EFM32GG12** with SLTB009A board
+  - Add new DCD port for **Raspberry Pi RP2040**
 
 - **[Reinhard Panhuber](https://github.com/PanRe)**
   - Add new class driver for **USB Audio Class 2.0 (UAC2)**
