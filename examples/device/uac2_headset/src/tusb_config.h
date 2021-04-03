@@ -91,35 +91,31 @@ extern "C" {
 //--------------------------------------------------------------------
 // AUDIO CLASS DRIVER CONFIGURATION
 //--------------------------------------------------------------------
-#define CFG_TUD_AUDIO_IN_PATH               (CFG_TUD_AUDIO)
-#define CFG_TUD_AUDIO_OUT_PATH              (CFG_TUD_AUDIO)
-
-// Audio format type
-#define CFG_TUD_AUDIO_FORMAT_TYPE_TX        AUDIO_FORMAT_TYPE_I
-#define CFG_TUD_AUDIO_FORMAT_TYPE_RX        AUDIO_FORMAT_TYPE_I
+#define CFG_TUD_AUDIO_IN_PATH                     (CFG_TUD_AUDIO)
+#define CFG_TUD_AUDIO_OUT_PATH                    (CFG_TUD_AUDIO)
 
 // Audio format type I specifications
-#define CFG_TUD_AUDIO_FORMAT_TYPE_I_TX      AUDIO_DATA_FORMAT_TYPE_I_PCM
-#define CFG_TUD_AUDIO_FORMAT_TYPE_I_RX      AUDIO_DATA_FORMAT_TYPE_I_PCM
-#define CFG_TUD_AUDIO_N_CHANNELS_TX         1
-#define CFG_TUD_AUDIO_N_BYTES_PER_SAMPLE_TX 2
-#define CFG_TUD_AUDIO_N_CHANNELS_RX         2
-#define CFG_TUD_AUDIO_N_BYTES_PER_SAMPLE_RX 2
-#define CFG_TUD_AUDIO_ENABLE_FEEDBACK_EP    0
+#define CFG_TUD_AUDIO_FUNC_1_N_CHANNELS_TX                  1
+#define CFG_TUD_AUDIO_FUNC_1_N_BYTES_PER_SAMPLE_TX          2
+#define CFG_TUD_AUDIO_FUNC_1_N_CHANNELS_RX                  2
+#define CFG_TUD_AUDIO_FUNC_1_N_BYTES_PER_SAMPLE_RX          2
+#define CFG_TUD_AUDIO_ENABLE_FEEDBACK_EP                    0
 
 // EP and buffer size - for isochronous EP´s, the buffer and EP size are equal (different sizes would not make sense)
-#define CFG_TUD_AUDIO_EPSIZE_IN             (CFG_TUD_AUDIO_IN_PATH * (48 + 1) * (CFG_TUD_AUDIO_N_BYTES_PER_SAMPLE_TX) * (CFG_TUD_AUDIO_N_CHANNELS_TX)) // 48 Samples (48 kHz) x 2 Bytes/Sample x n Channels
-#define CFG_TUD_AUDIO_EP_IN_SW_BUFFER_SIZE  CFG_TUD_AUDIO_EPSIZE_IN
+#define CFG_TUD_AUDIO_ENABLE_EP_IN                1
+#define CFG_TUD_AUDIO_EP_SZ_IN                    (CFG_TUD_AUDIO_IN_PATH * (48 + 1) * (CFG_TUD_AUDIO_N_BYTES_PER_SAMPLE_TX) * (CFG_TUD_AUDIO_N_CHANNELS_TX)) // 48 Samples (48 kHz) x 2 Bytes/Sample x n Channels
+#define CFG_TUD_AUDIO_FUNC_1_EP_IN_SW_BUF_SZ      CFG_TUD_AUDIO_EPSIZE_IN
 
 // EP and buffer size - for isochronous EP´s, the buffer and EP size are equal (different sizes would not make sense)
-#define CFG_TUD_AUDIO_EPSIZE_OUT            (CFG_TUD_AUDIO_OUT_PATH * ((48 + CFG_TUD_AUDIO_ENABLE_FEEDBACK_EP) * (CFG_TUD_AUDIO_N_BYTES_PER_SAMPLE_RX) * (CFG_TUD_AUDIO_N_CHANNELS_RX))) // N Samples (N kHz) x 2 Bytes/Sample x n Channels
-#define CFG_TUD_AUDIO_EP_OUT_SW_BUFFER_SIZE CFG_TUD_AUDIO_EPSIZE_OUT*3
+#define CFG_TUD_AUDIO_ENABLE_EP_OUT               1
+#define CFG_TUD_AUDIO_EP_OUT_SZ                   (CFG_TUD_AUDIO_OUT_PATH * ((48 + CFG_TUD_AUDIO_ENABLE_FEEDBACK_EP) * (CFG_TUD_AUDIO_FUNC_1_N_BYTES_PER_SAMPLE_RX) * (CFG_TUD_AUDIO_N_CHANNELS_RX))) // N Samples (N kHz) x 2 Bytes/Sample x n Channels
+#define CFG_TUD_AUDIO_FUNC_1_EP_OUT_SW_BUF_SZ     CFG_TUD_AUDIO_EP_OUT_SZ*3
 
 // Number of Standard AS Interface Descriptors (4.9.1) defined per audio function - this is required to be able to remember the current alternate settings of these interfaces - We restrict us here to have a constant number for all audio functions (which means this has to be the maximum number of AS interfaces an audio function has and a second audio function with less AS interfaces just wastes a few bytes)
-#define CFG_TUD_AUDIO_N_AS_INT 			   	1
+#define CFG_TUD_AUDIO_FUNC_1_N_AS_INT 	          1
 
 // Size of control request buffer
-#define CFG_TUD_AUDIO_CTRL_BUF_SIZE 		64
+#define CFG_TUD_AUDIO_FUNC_1_CTRL_BUF_SZ	64
 
 #ifdef __cplusplus
 }

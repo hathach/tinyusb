@@ -40,49 +40,151 @@
 
 // All sizes are in bytes!
 
-// Number of Standard AS Interface Descriptors (4.9.1) defined per audio function - this is required to be able to remember the current alternate settings of these interfaces - We restrict us here to have a constant number for all audio functions (which means this has to be the maximum number of AS interfaces an audio function has and a second audio function with less AS interfaces just waste a few bytes)
-#ifndef CFG_TUD_AUDIO_N_AS_INT
-#error You must tell the driver the number of Standard AS Interface Descriptors you have defined in the descriptors!
+#ifndef CFG_TUD_AUDIO_FUNC_1_DESC_LEN
+#error You must tell the driver the length of the audio function descriptor including IAD descriptor
+#endif
+#if CFG_TUD_AUDIO > 1
+#ifndef CFG_TUD_AUDIO_FUNC_2_DESC_LEN
+#error You must tell the driver the length of the audio function descriptor including IAD descriptor
+#endif
+#endif
+#if CFG_TUD_AUDIO > 2
+#ifndef CFG_TUD_AUDIO_FUNC_3_DESC_LEN
+#error You must tell the driver the length of the audio function descriptor including IAD descriptor
+#endif
+#endif
+
+// Number of Standard AS Interface Descriptors (4.9.1) defined per audio function - this is required to be able to remember the current alternate settings of these interfaces
+#ifndef CFG_TUD_AUDIO_FUNC_1_N_AS_INT
+#error You must tell the driver the number of Standard AS Interface Descriptors you have defined in the audio function descriptor!
+#endif
+#if CFG_TUD_AUDIO > 1
+#ifndef CFG_TUD_AUDIO_FUNC_2_N_AS_INT
+#error You must tell the driver the number of Standard AS Interface Descriptors you have defined in the audio function descriptor!
+#endif
+#endif
+#if CFG_TUD_AUDIO > 2
+#ifndef CFG_TUD_AUDIO_FUNC_3_N_AS_INT
+#error You must tell the driver the number of Standard AS Interface Descriptors you have defined in the audio function descriptor!
+#endif
 #endif
 
 // Size of control buffer used to receive and send control messages via EP0 - has to be big enough to hold your biggest request structure e.g. range requests with multiple intervals defined or cluster descriptors
-#ifndef CFG_TUD_AUDIO_CTRL_BUF_SIZE
+#ifndef CFG_TUD_AUDIO_FUNC_1_CTRL_BUF_SZ
 #error You must define an audio class control request buffer size!
 #endif
 
+#if CFG_TUD_AUDIO > 1
+#ifndef CFG_TUD_AUDIO_FUNC_2_CTRL_BUF_SZ
+#error You must define an audio class control request buffer size!
+#endif
+#endif
+
+#if CFG_TUD_AUDIO > 2
+#ifndef CFG_TUD_AUDIO_FUNC_3_CTRL_BUF_SZ
+#error You must define an audio class control request buffer size!
+#endif
+#endif
+
 // End point sizes IN BYTES - Limits: Full Speed <= 1023, High Speed <= 1024
-#ifndef CFG_TUD_AUDIO_EPSIZE_IN
-#define CFG_TUD_AUDIO_EPSIZE_IN 0   // TX
+#ifndef CFG_TUD_AUDIO_ENABLE_EP_IN
+#define CFG_TUD_AUDIO_ENABLE_EP_IN 0   // TX
 #endif
 
-#ifndef CFG_TUD_AUDIO_EPSIZE_OUT
-#define CFG_TUD_AUDIO_EPSIZE_OUT 0  // RX
+#ifndef CFG_TUD_AUDIO_ENABLE_EP_OUT
+#define CFG_TUD_AUDIO_ENABLE_EP_OUT 0  // RX
 #endif
 
-// Software EP FIFO buffer sizes - must be >= EP SIZEs!
-#if CFG_TUD_AUDIO_EPSIZE_IN
-#ifndef CFG_TUD_AUDIO_EP_IN_SW_BUFFER_SIZE
-#define CFG_TUD_AUDIO_EP_IN_SW_BUFFER_SIZE CFG_TUD_AUDIO_EPSIZE_IN    // TX
+// Maximum EP sizes for all alternate AS interface settings - used for checks and buffer allocation
+#if CFG_TUD_AUDIO_ENABLE_EP_IN
+#ifndef CFG_TUD_AUDIO_FUNC_1_EP_IN_SZ_MAX
+#error You must tell the driver the biggest EP IN size!
 #endif
-#else
-#define CFG_TUD_AUDIO_EP_IN_SW_BUFFER_SIZE                  0
+#if CFG_TUD_AUDIO > 1
+#ifndef CFG_TUD_AUDIO_FUNC_2_EP_IN_SZ_MAX
+#error You must tell the driver the biggest EP IN size!
+#endif
+#endif
+#if CFG_TUD_AUDIO > 2
+#ifndef CFG_TUD_AUDIO_FUNC_3_EP_IN_SZ_MAX
+#error You must tell the driver the biggest EP IN size!
+#endif
+#endif
+#endif // CFG_TUD_AUDIO_ENABLE_EP_IN
+
+#if CFG_TUD_AUDIO_ENABLE_EP_OUT
+#ifndef CFG_TUD_AUDIO_FUNC_1_EP_OUT_SZ_MAX
+#error You must tell the driver the biggest EP OUT size!
+#endif
+#if CFG_TUD_AUDIO > 1
+#ifndef CFG_TUD_AUDIO_FUNC_2_EP_OUT_SZ_MAX
+#error You must tell the driver the biggest EP OUT size!
+#endif
+#endif
+#if CFG_TUD_AUDIO > 2
+#ifndef CFG_TUD_AUDIO_FUNC_3_EP_OUT_SZ_MAX
+#error You must tell the driver the biggest EP OUT size!
+#endif
+#endif
+#endif // CFG_TUD_AUDIO_ENABLE_EP_OUT
+
+// Software EP FIFO buffer sizes - must be >= max EP SIZEs!
+#ifndef CFG_TUD_AUDIO_FUNC_1_EP_IN_SW_BUF_SZ
+#define CFG_TUD_AUDIO_FUNC_1_EP_IN_SW_BUF_SZ                0
+#endif
+#ifndef CFG_TUD_AUDIO_FUNC_2_EP_IN_SW_BUF_SZ
+#define CFG_TUD_AUDIO_FUNC_2_EP_IN_SW_BUF_SZ                0
+#endif
+#ifndef CFG_TUD_AUDIO_FUNC_3_EP_IN_SW_BUF_SZ
+#define CFG_TUD_AUDIO_FUNC_3_EP_IN_SW_BUF_SZ                0
 #endif
 
-#if CFG_TUD_AUDIO_EPSIZE_OUT
-#ifndef CFG_TUD_AUDIO_EP_OUT_SW_BUFFER_SIZE
-#define CFG_TUD_AUDIO_EP_OUT_SW_BUFFER_SIZE CFG_TUD_AUDIO_EPSIZE_OUT  // RX
+#ifndef CFG_TUD_AUDIO_FUNC_1_EP_OUT_SW_BUF_SZ
+#define CFG_TUD_AUDIO_FUNC_1_EP_OUT_SW_BUF_SZ               0
 #endif
-#else
-#define CFG_TUD_AUDIO_EP_OUT_SW_BUFFER_SIZE                 0
+#ifndef CFG_TUD_AUDIO_FUNC_2_EP_OUT_SW_BUF_SZ
+#define CFG_TUD_AUDIO_FUNC_2_EP_OUT_SW_BUF_SZ               0
 #endif
-
-// General information of number of TX and/or RX channels - is used in combination with support FIFOs (see below) and can be used for descriptor definitions
-#ifndef CFG_TUD_AUDIO_N_CHANNELS_TX
-#define CFG_TUD_AUDIO_N_CHANNELS_TX                         1
+#ifndef CFG_TUD_AUDIO_FUNC_3_EP_OUT_SW_BUF_SZ
+#define CFG_TUD_AUDIO_FUNC_3_EP_OUT_SW_BUF_SZ               0
 #endif
 
-#ifndef CFG_TUD_AUDIO_N_CHANNELS_RX
-#define CFG_TUD_AUDIO_N_CHANNELS_RX                         1
+#if CFG_TUD_AUDIO_FUNC_1_EP_IN_SW_BUF_SZ < CFG_TUD_AUDIO_FUNC_1_EP_IN_SZ_MAX
+#error EP software buffer size MUST BE at least as big as maximum EP size
+#endif
+
+#if CFG_TUD_AUDIO_FUNC_2_EP_IN_SW_BUF_SZ < CFG_TUD_AUDIO_FUNC_2_EP_IN_SZ_MAX
+#error EP software buffer size MUST BE at least as big as maximum EP size
+#endif
+
+#if CFG_TUD_AUDIO_FUNC_3_EP_IN_SW_BUF_SZ < CFG_TUD_AUDIO_FUNC_3_EP_IN_SZ_MAX
+#error EP software buffer size MUST BE at least as big as maximum EP size
+#endif
+
+#if CFG_TUD_AUDIO_FUNC_1_EP_OUT_SW_BUF_SZ < CFG_TUD_AUDIO_FUNC_1_EP_OUT_SZ_MAX
+#error EP software buffer size MUST BE at least as big as maximum EP size
+#endif
+
+#if CFG_TUD_AUDIO_FUNC_2_EP_OUT_SW_BUF_SZ < CFG_TUD_AUDIO_FUNC_2_EP_OUT_SZ_MAX
+#error EP software buffer size MUST BE at least as big as maximum EP size
+#endif
+
+#if CFG_TUD_AUDIO_FUNC_3_EP_OUT_SW_BUF_SZ < CFG_TUD_AUDIO_FUNC_3_EP_OUT_SZ_MAX
+#error EP software buffer size MUST BE at least as big as maximum EP size
+#endif
+
+// Enable/disable feedback EP (required for asynchronous RX applications)
+#ifndef CFG_TUD_AUDIO_ENABLE_FEEDBACK_EP
+#define CFG_TUD_AUDIO_ENABLE_FEEDBACK_EP                    0                             // Feedback - 0 or 1
+#endif
+
+// Audio interrupt control EP size - disabled if 0
+#ifndef CFG_TUD_AUDIO_INT_CTR_EPSIZE_IN
+#define CFG_TUD_AUDIO_INT_CTR_EPSIZE_IN                     0                             // Audio interrupt control - if required - 6 Bytes according to UAC 2 specification (p. 74)
+#endif
+
+#ifndef CFG_TUD_AUDIO_INT_CTR_EP_IN_SW_BUFFER_SIZE
+#define CFG_TUD_AUDIO_INT_CTR_EP_IN_SW_BUFFER_SIZE          6                             // Buffer size of audio control interrupt EP - 6 Bytes according to UAC 2 specification (p. 74)
 #endif
 
 // Use of TX/RX support FIFOs
@@ -120,83 +222,100 @@
 // - audio_rx_done_cb()
 // functions.
 
-// The number of support FIFOs and number of channels is decoupled. The PCM encoding/decoding works depending on the ratio CFG_TUD_AUDIO_N_CHANNELS_XX / CFG_TUD_AUDIO_N_XX_SUPPORT_SW_FIFO, where currently 1:1 and 2:1 is implemented. The version 2:1 is useful in case of I2S for which usually 2 are channels already interleaved available.
+// Enable encoding/decodings - for these to work, support FIFOs need to be setup in appropriate numbers and size
+// The actual parameters of active encoding is parsed from the descriptors
 
-// Size of support FIFOs IN SAMPLES - if size > 0 there are as many FIFOs set up as CFG_TUD_AUDIO_N_TX_SUPPORT_SW_FIFO and CFG_TUD_AUDIO_N_RX_SUPPORT_SW_FIFO
-#ifndef CFG_TUD_AUDIO_TX_SUPPORT_SW_FIFO_SIZE
-#define CFG_TUD_AUDIO_TX_SUPPORT_SW_FIFO_SIZE  0                // FIFO size - minimum size: // ceil(f_s/1000) * CFG_TUD_AUDIO_N_CHANNELS_TX / CFG_TUD_AUDIO_N_TX_SUPPORT_SW_FIFO
-#endif
+// For PCM encoding/decoding
 
-#ifndef CFG_TUD_AUDIO_RX_SUPPORT_SW_FIFO_SIZE
-#define CFG_TUD_AUDIO_RX_SUPPORT_SW_FIFO_SIZE  0                // FIFO size - minimum size: ceil(f_s/1000) * CFG_TUD_AUDIO_N_BYTES_PER_SAMPLE_RX * CFG_TUD_AUDIO_N_CHANNELS_RX / CFG_TUD_AUDIO_N_RX_SUPPORT_SW_FIFO
+#ifndef CFG_TUD_AUDIO_ENABLE_ENCODING
+#define CFG_TUD_AUDIO_ENABLE_ENCODING                       0
 #endif
 
-#ifndef CFG_TUD_AUDIO_N_TX_SUPPORT_SW_FIFO
-#if CFG_TUD_AUDIO_TX_SUPPORT_SW_FIFO_SIZE
-#define CFG_TUD_AUDIO_N_TX_SUPPORT_SW_FIFO  CFG_TUD_AUDIO_N_CHANNELS_TX         // default size is equal to number of channels
-#else
-#define CFG_TUD_AUDIO_N_TX_SUPPORT_SW_FIFO  0
-#endif
+#ifndef CFG_TUD_AUDIO_ENABLE_DECODING
+#define CFG_TUD_AUDIO_ENABLE_DECODING                       0
 #endif
 
-#ifndef CFG_TUD_AUDIO_N_RX_SUPPORT_SW_FIFO
-#if CFG_TUD_AUDIO_RX_SUPPORT_SW_FIFO_SIZE
-#define CFG_TUD_AUDIO_N_RX_SUPPORT_SW_FIFO  CFG_TUD_AUDIO_N_CHANNELS_RX         // default size is equal to number of channels
-#else
-#define CFG_TUD_AUDIO_N_RX_SUPPORT_SW_FIFO  0
-#endif
+// This enabling allows to save the current coding parameters e.g. # of bytes per sample etc. - TYPE_I includes common PCM encoding
+#ifndef CFG_TUD_AUDIO_ENABLE_TYPE_I_ENCODING
+#define CFG_TUD_AUDIO_ENABLE_TYPE_I_ENCODING                0
 #endif
 
-// Enable/disable feedback EP (required for asynchronous RX applications)
-#ifndef CFG_TUD_AUDIO_ENABLE_FEEDBACK_EP
-#define CFG_TUD_AUDIO_ENABLE_FEEDBACK_EP 0                      // Feedback - 0 or 1
+#ifndef CFG_TUD_AUDIO_ENABLE_TYPE_I_DECODING
+#define CFG_TUD_AUDIO_ENABLE_TYPE_I_DECODING                0
 #endif
 
-// Audio interrupt control EP size - disabled if 0
-#ifndef CFG_TUD_AUDIO_INT_CTR_EPSIZE_IN
-#define CFG_TUD_AUDIO_INT_CTR_EPSIZE_IN 0                       // Audio interrupt control - if required - 6 Bytes according to UAC 2 specification (p. 74)
+// Type I Coding parameters not given within UAC2 descriptors
+// It would be possible to allow for a more flexible setting and not fix this parameter as done below. However, this is most often not needed and kept for later if really necessary. The more flexible setting could be implemented within set_interface(), however, how the values are saved per alternate setting is to be determined!
+#ifndef CFG_TUD_AUDIO_FUNC_1_CHANNEL_PER_FIFO_TX
+#error You must tell the driver the number of channels per FIFO for the interleaved encoding! E.g. for an I2S interface having two channels, CHANNEL_PER_FIFO = 2 as the I2S stream having two channels is usually saved within one FIFO
 #endif
-
-#if CFG_TUD_AUDIO_INT_CTR_EPSIZE_IN
-#ifndef CFG_TUD_AUDIO_INT_CTR_EP_IN_SW_BUFFER_SIZE
-#define CFG_TUD_AUDIO_INT_CTR_EP_IN_SW_BUFFER_SIZE   6          // Buffer size of audio control interrupt EP - 6 Bytes according to UAC 2 specification (p. 74)
+#if CFG_TUD_AUDIO > 1
+#ifndef CFG_TUD_AUDIO_FUNC_2_CHANNEL_PER_FIFO_TX
+#error You must tell the driver the number of channels per FIFO for the interleaved encoding! E.g. for an I2S interface having two channels, CHANNEL_PER_FIFO = 2 as the I2S stream having two channels is usually saved within one FIFO
+#endif
+#endif
+#if CFG_TUD_AUDIO > 2
+#ifndef CFG_TUD_AUDIO_FUNC_3_CHANNEL_PER_FIFO_TX
+#error You must tell the driver the number of channels per FIFO for the interleaved encoding! E.g. for an I2S interface having two channels, CHANNEL_PER_FIFO = 2 as the I2S stream having two channels is usually saved within one FIFO
 #endif
 #endif
 
-// Audio data format types - look in audio.h for existing types
-// Used in case support FIFOs are used
-#ifndef CFG_TUD_AUDIO_FORMAT_TYPE_TX
-#define CFG_TUD_AUDIO_FORMAT_TYPE_TX                AUDIO_FORMAT_TYPE_UNDEFINED     // If this option is used, an encoding function has to be implemented in audio_device.c
+#ifndef CFG_TUD_AUDIO_FUNC_1_CHANNEL_PER_FIFO_RX
+#error You must tell the driver the number of channels per FIFO for the interleaved encoding! E.g. for an I2S interface having two channels, CHANNEL_PER_FIFO = 2 as the I2S stream having two channels is usually saved within one FIFO
+#endif
+#if CFG_TUD_AUDIO > 1
+#ifndef CFG_TUD_AUDIO_FUNC_2_CHANNEL_PER_FIFO_RX
+#error You must tell the driver the number of channels per FIFO for the interleaved encoding! E.g. for an I2S interface having two channels, CHANNEL_PER_FIFO = 2 as the I2S stream having two channels is usually saved within one FIFO
+#endif
+#endif
+#if CFG_TUD_AUDIO > 2
+#ifndef CFG_TUD_AUDIO_FUNC_3_CHANNEL_PER_FIFO_RX
+#error You must tell the driver the number of channels per FIFO for the interleaved encoding! E.g. for an I2S interface having two channels, CHANNEL_PER_FIFO = 2 as the I2S stream having two channels is usually saved within one FIFO
+#endif
 #endif
 
-#ifndef CFG_TUD_AUDIO_FORMAT_TYPE_RX
-#define CFG_TUD_AUDIO_FORMAT_TYPE_RX                AUDIO_FORMAT_TYPE_UNDEFINED     // If this option is used, a decoding function has to be implemented in audio_device.c
+// Remaining types not support so far
+
+// Number of support FIFOs to set up - multiple channels can be handled by one FIFO - very common is two channels per FIFO stemming from one I2S interface
+#ifndef CFG_TUD_AUDIO_FUNC_1_N_TX_SUPP_SW_FIFO
+#define CFG_TUD_AUDIO_FUNC_1_N_TX_SUPP_SW_FIFO              0
+#endif
+#ifndef CFG_TUD_AUDIO_FUNC_2_N_TX_SUPP_SW_FIFO
+#define CFG_TUD_AUDIO_FUNC_2_N_TX_SUPP_SW_FIFO              0
+#endif
+#ifndef CFG_TUD_AUDIO_FUNC_3_N_TX_SUPP_SW_FIFO
+#define CFG_TUD_AUDIO_FUNC_3_N_TX_SUPP_SW_FIFO              0
 #endif
 
-// Audio data format type I specifications
-#if CFG_TUD_AUDIO_FORMAT_TYPE_TX == AUDIO_FORMAT_TYPE_I
-
-// Type definitions - for possible formats see: audio_data_format_type_I_t and further in UAC2 specifications.
-#ifndef CFG_TUD_AUDIO_FORMAT_TYPE_I_TX
-#define CFG_TUD_AUDIO_FORMAT_TYPE_I_TX              AUDIO_DATA_FORMAT_TYPE_I_PCM
+#ifndef CFG_TUD_AUDIO_FUNC_1_N_RX_SUPP_SW_FIFO
+#define CFG_TUD_AUDIO_FUNC_1_N_RX_SUPP_SW_FIFO              0
+#endif
+#ifndef CFG_TUD_AUDIO_FUNC_2_N_RX_SUPP_SW_FIFO
+#define CFG_TUD_AUDIO_FUNC_2_N_RX_SUPP_SW_FIFO              0
+#endif
+#ifndef CFG_TUD_AUDIO_FUNC_3_N_RX_SUPP_SW_FIFO
+#define CFG_TUD_AUDIO_FUNC_3_N_RX_SUPP_SW_FIFO              0
 #endif
 
-#ifndef CFG_TUD_AUDIO_N_BYTES_PER_SAMPLE_TX         // bSubslotSize
-#define CFG_TUD_AUDIO_N_BYTES_PER_SAMPLE_TX         1
+// Size of support FIFOs IN BYTES - if size > 0 there are as many FIFOs set up as CFG_TUD_AUDIO_FUNC_X_N_TX_SUPP_SW_FIFO and CFG_TUD_AUDIO_FUNC_X_N_RX_SUPP_SW_FIFO
+#ifndef CFG_TUD_AUDIO_FUNC_1_TX_SUPP_SW_FIFO_SZ
+#define CFG_TUD_AUDIO_FUNC_1_TX_SUPP_SW_FIFO_SZ             0         // FIFO size - minimum size: ceil(f_s/1000) * max(# of TX channels) / (# of TX support FIFOs) * max(# of bytes per sample)
+#endif
+#ifndef CFG_TUD_AUDIO_FUNC_2_TX_SUPP_SW_FIFO_SZ
+#define CFG_TUD_AUDIO_FUNC_2_TX_SUPP_SW_FIFO_SZ             0
+#endif
+#ifndef CFG_TUD_AUDIO_FUNC_3_TX_SUPP_SW_FIFO_SZ
+#define CFG_TUD_AUDIO_FUNC_3_TX_SUPP_SW_FIFO_SZ             0
 #endif
 
+#ifndef CFG_TUD_AUDIO_FUNC_1_RX_SUPP_SW_FIFO_SZ
+#define CFG_TUD_AUDIO_FUNC_1_RX_SUPP_SW_FIFO_SZ             0         // FIFO size - minimum size: ceil(f_s/1000) * max(# of RX channels) / (# of RX support FIFOs) * max(# of bytes per sample)
 #endif
-
-#if CFG_TUD_AUDIO_FORMAT_TYPE_RX == AUDIO_FORMAT_TYPE_I
-
-#ifndef CFG_TUD_AUDIO_FORMAT_TYPE_I_RX
-#define CFG_TUD_AUDIO_FORMAT_TYPE_I_RX              AUDIO_DATA_FORMAT_TYPE_I_PCM
+#ifndef CFG_TUD_AUDIO_FUNC_2_RX_SUPP_SW_FIFO_SZ
+#define CFG_TUD_AUDIO_FUNC_2_RX_SUPP_SW_FIFO_SZ             0
 #endif
-
-#ifndef CFG_TUD_AUDIO_N_BYTES_PER_SAMPLE_RX         // bSubslotSize
-#define CFG_TUD_AUDIO_N_BYTES_PER_SAMPLE_RX         1
-#endif
-
+#ifndef CFG_TUD_AUDIO_FUNC_3_RX_SUPP_SW_FIFO_SZ
+#define CFG_TUD_AUDIO_FUNC_3_RX_SUPP_SW_FIFO_SZ             0
 #endif
 
 //static_assert(sizeof(tud_audio_desc_lengths) != CFG_TUD_AUDIO, "Supply audio function descriptor pack length!");
@@ -219,31 +338,27 @@ extern "C" {
 //--------------------------------------------------------------------+
 bool     tud_audio_n_mounted    (uint8_t itf);
 
-#if CFG_TUD_AUDIO_EP_OUT_SW_BUFFER_SIZE && !CFG_TUD_AUDIO_RX_SUPPORT_SW_FIFO_SIZE
-
+#if CFG_TUD_AUDIO_ENABLE_EP_OUT && !CFG_TUD_AUDIO_ENABLE_DECODING
 uint16_t tud_audio_n_available                    (uint8_t itf);
 uint16_t tud_audio_n_read                         (uint8_t itf, void* buffer, uint16_t bufsize);
 bool     tud_audio_n_clear_ep_out_ff              (uint8_t itf);                          // Delete all content in the EP OUT FIFO
-
 #endif
 
-#if CFG_TUD_AUDIO_RX_SUPPORT_SW_FIFO_SIZE && CFG_TUD_AUDIO_EPSIZE_OUT
+#if CFG_TUD_AUDIO_ENABLE_EP_OUT && CFG_TUD_AUDIO_ENABLE_DECODING
 bool     tud_audio_n_clear_rx_support_ff          (uint8_t itf, uint8_t channelId);       // Delete all content in the support RX FIFOs
 uint16_t tud_audio_n_available_support_ff         (uint8_t itf, uint8_t channelId);
 uint16_t tud_audio_n_read_support_ff              (uint8_t itf, uint8_t channelId, void* buffer, uint16_t bufsize);
 #endif
 
-#if CFG_TUD_AUDIO_EP_IN_SW_BUFFER_SIZE
-
+#if CFG_TUD_AUDIO_ENABLE_EP_IN && !CFG_TUD_AUDIO_ENABLE_ENCODING
 uint16_t tud_audio_n_write                        (uint8_t itf, const void * data, uint16_t len);
 bool     tud_audio_n_clear_ep_in_ff               (uint8_t itf);                          // Delete all content in the EP IN FIFO
-
-#if CFG_TUD_AUDIO_TX_SUPPORT_SW_FIFO_SIZE && CFG_TUD_AUDIO_EPSIZE_IN
-uint16_t tud_audio_n_flush_tx_support_ff          (uint8_t itf);      // Force all content in the support TX FIFOs to be written into EP SW FIFO
-bool	 tud_audio_n_clear_tx_support_ff        (uint8_t itf, uint8_t channelId);
-uint16_t tud_audio_n_write_support_ff             (uint8_t itf, uint8_t channelId, const void * data, uint16_t len);
 #endif
 
+#if CFG_TUD_AUDIO_ENABLE_EP_IN && CFG_TUD_AUDIO_ENABLE_ENCODING
+uint16_t tud_audio_n_flush_tx_support_ff          (uint8_t itf);      // Force all content in the support TX FIFOs to be written into EP SW FIFO
+bool     tud_audio_n_clear_tx_support_ff          (uint8_t itf, uint8_t channelId);
+uint16_t tud_audio_n_write_support_ff             (uint8_t itf, uint8_t channelId, const void * data, uint16_t len);
 #endif
 
 #if CFG_TUD_AUDIO_INT_CTR_EPSIZE_IN
@@ -258,15 +373,13 @@ static inline bool         tud_audio_mounted                (void);
 
 // RX API
 
-#if CFG_TUD_AUDIO_EP_OUT_SW_BUFFER_SIZE && !CFG_TUD_AUDIO_RX_SUPPORT_SW_FIFO_SIZE
-
+#if CFG_TUD_AUDIO_ENABLE_EP_OUT && !CFG_TUD_AUDIO_ENABLE_DECODING
 static inline uint16_t     tud_audio_available              (void);
 static inline bool         tud_audio_clear_ep_out_ff        (void);                       // Delete all content in the EP OUT FIFO
 static inline uint16_t     tud_audio_read                   (void* buffer, uint16_t bufsize);
-
 #endif
 
-#if CFG_TUD_AUDIO_RX_SUPPORT_SW_FIFO_SIZE && CFG_TUD_AUDIO_EPSIZE_OUT
+#if CFG_TUD_AUDIO_ENABLE_EP_OUT && CFG_TUD_AUDIO_ENABLE_DECODING
 static inline bool     tud_audio_clear_rx_support_ff        (uint8_t channelId);
 static inline uint16_t tud_audio_available_support_ff       (uint8_t channelId);
 static inline uint16_t tud_audio_read_support_ff            (uint8_t channelId, void* buffer, uint16_t bufsize);
@@ -274,14 +387,12 @@ static inline uint16_t tud_audio_read_support_ff            (uint8_t channelId, 
 
 // TX API
 
-#if CFG_TUD_AUDIO_EP_IN_SW_BUFFER_SIZE && !CFG_TUD_AUDIO_TX_SUPPORT_SW_FIFO_SIZE
-
+#if CFG_TUD_AUDIO_ENABLE_EP_IN && !CFG_TUD_AUDIO_ENABLE_ENCODING
 static inline uint16_t tud_audio_write                      (const void * data, uint16_t len);
 static inline bool 	   tud_audio_clear_ep_in_ff             (void);
-
 #endif
 
-#if CFG_TUD_AUDIO_TX_SUPPORT_SW_FIFO_SIZE && CFG_TUD_AUDIO_EPSIZE_IN
+#if CFG_TUD_AUDIO_ENABLE_EP_IN && CFG_TUD_AUDIO_ENABLE_ENCODING
 static inline uint16_t tud_audio_flush_tx_support_ff        (void);
 static inline uint16_t tud_audio_clear_tx_support_ff        (uint8_t channelId);
 static inline uint16_t tud_audio_write_support_ff           (uint8_t channelId, const void * data, uint16_t len);
@@ -290,7 +401,7 @@ static inline uint16_t tud_audio_write_support_ff           (uint8_t channelId, 
 // INT CTR API
 
 #if CFG_TUD_AUDIO_INT_CTR_EPSIZE_IN
-static inline uint16_t     tud_audio_int_ctr_write          (uint8_t const* buffer, uint16_t len);
+static inline uint16_t tud_audio_int_ctr_write              (uint8_t const* buffer, uint16_t len);
 #endif
 
 // Buffer control EP data and schedule a transmit
@@ -305,17 +416,17 @@ bool tud_audio_buffer_and_schedule_control_xfer(uint8_t rhport, tusb_control_req
 // Application Callback API (weak is optional)
 //--------------------------------------------------------------------+
 
-#if CFG_TUD_AUDIO_EP_IN_SW_BUFFER_SIZE
+#if CFG_TUD_AUDIO_ENABLE_EP_IN
 TU_ATTR_WEAK bool tud_audio_tx_done_pre_load_cb(uint8_t rhport, uint8_t itf, uint8_t ep_in, uint8_t cur_alt_setting);
 TU_ATTR_WEAK bool tud_audio_tx_done_post_load_cb(uint8_t rhport, uint16_t n_bytes_copied, uint8_t itf, uint8_t ep_in, uint8_t cur_alt_setting);
 #endif
 
-#if CFG_TUD_AUDIO_EP_OUT_SW_BUFFER_SIZE
+#if CFG_TUD_AUDIO_ENABLE_EP_OUT
 TU_ATTR_WEAK bool tud_audio_rx_done_pre_read_cb(uint8_t rhport, uint16_t n_bytes_received, uint8_t itf, uint8_t ep_out, uint8_t cur_alt_setting);
 TU_ATTR_WEAK bool tud_audio_rx_done_post_read_cb(uint8_t rhport, uint16_t n_bytes_received, uint8_t itf, uint8_t ep_out, uint8_t cur_alt_setting);
 #endif
 
-#if CFG_TUD_AUDIO_EP_OUT_SW_BUFFER_SIZE && CFG_TUD_AUDIO_ENABLE_FEEDBACK_EP
+#if CFG_TUD_AUDIO_ENABLE_EP_OUT && CFG_TUD_AUDIO_ENABLE_FEEDBACK_EP
 TU_ATTR_WEAK bool tud_audio_fb_done_cb(uint8_t rhport);
 // User code should call this function with feedback value in 16.16 format for FS and HS.
 // Value will be corrected for FS to 10.14 format automatically.
@@ -364,7 +475,7 @@ static inline bool tud_audio_mounted(void)
 
 // RX API
 
-#if CFG_TUD_AUDIO_EP_OUT_SW_BUFFER_SIZE && !CFG_TUD_AUDIO_RX_SUPPORT_SW_FIFO_SIZE
+#if CFG_TUD_AUDIO_ENABLE_EP_OUT && !CFG_TUD_AUDIO_ENABLE_DECODING
 
 static inline uint16_t     tud_audio_available              (void)
 {
@@ -383,7 +494,7 @@ static inline bool         tud_audio_clear_ep_out_ff        (void)
 
 #endif
 
-#if CFG_TUD_AUDIO_RX_SUPPORT_SW_FIFO_SIZE && CFG_TUD_AUDIO_EPSIZE_OUT
+#if CFG_TUD_AUDIO_ENABLE_EP_OUT && CFG_TUD_AUDIO_ENABLE_DECODING
 
 static inline bool     		tud_audio_clear_rx_support_ff        (uint8_t channelId)
 {
@@ -404,7 +515,7 @@ static inline uint16_t tud_audio_read_support_ff            (uint8_t channelId, 
 
 // TX API
 
-#if CFG_TUD_AUDIO_EP_IN_SW_BUFFER_SIZE && !CFG_TUD_AUDIO_TX_SUPPORT_SW_FIFO_SIZE
+#if CFG_TUD_AUDIO_ENABLE_EP_IN && !CFG_TUD_AUDIO_ENABLE_ENCODING
 
 static inline uint16_t tud_audio_write                      (const void * data, uint16_t len)
 {
@@ -418,7 +529,7 @@ static inline bool tud_audio_clear_ep_in_ff             	(void)
 
 #endif
 
-#if CFG_TUD_AUDIO_TX_SUPPORT_SW_FIFO_SIZE && CFG_TUD_AUDIO_EPSIZE_IN
+#if CFG_TUD_AUDIO_ENABLE_EP_IN && CFG_TUD_AUDIO_ENABLE_ENCODING
 
 static inline uint16_t tud_audio_flush_tx_support_ff        (void)
 {
@@ -444,7 +555,7 @@ static inline uint16_t tud_audio_int_ctr_write(uint8_t const* buffer, uint16_t l
 }
 #endif
 
-#if CFG_TUD_AUDIO_EP_OUT_SW_BUFFER_SIZE && CFG_TUD_AUDIO_ENABLE_FEEDBACK_EP
+#if CFG_TUD_AUDIO_ENABLE_EP_OUT && CFG_TUD_AUDIO_ENABLE_FEEDBACK_EP
 static inline bool tud_audio_fb_set(uint32_t feedback)
 {
   return tud_audio_n_fb_set(0, feedback);

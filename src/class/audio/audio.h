@@ -469,44 +469,44 @@ typedef enum
 /// Additional Audio Device Class Codes - Source: Audio Data Formats
 
 /// A.1 - Audio Class-Format Type Codes UAC2
-//typedef enum
-//{
-//  AUDIO_FORMAT_TYPE_UNDEFINED     = 0x00,
-//  AUDIO_FORMAT_TYPE_I             = 0x01,
-//  AUDIO_FORMAT_TYPE_II            = 0x02,
-//  AUDIO_FORMAT_TYPE_III           = 0x03,
-//  AUDIO_FORMAT_TYPE_IV            = 0x04,
-//  AUDIO_EXT_FORMAT_TYPE_I         = 0x81,
-//  AUDIO_EXT_FORMAT_TYPE_II        = 0x82,
-//  AUDIO_EXT_FORMAT_TYPE_III       = 0x83,
-//} audio_format_type_t;
+typedef enum
+{
+  AUDIO_FORMAT_TYPE_UNDEFINED     = 0x00,
+  AUDIO_FORMAT_TYPE_I             = 0x01,
+  AUDIO_FORMAT_TYPE_II            = 0x02,
+  AUDIO_FORMAT_TYPE_III           = 0x03,
+  AUDIO_FORMAT_TYPE_IV            = 0x04,
+  AUDIO_EXT_FORMAT_TYPE_I         = 0x81,
+  AUDIO_EXT_FORMAT_TYPE_II        = 0x82,
+  AUDIO_EXT_FORMAT_TYPE_III       = 0x83,
+} audio_format_type_t;
 
-#define AUDIO_FORMAT_TYPE_UNDEFINED     0x00
-#define AUDIO_FORMAT_TYPE_I             0x01
-#define AUDIO_FORMAT_TYPE_II            0x02
-#define AUDIO_FORMAT_TYPE_III           0x03
-#define AUDIO_FORMAT_TYPE_IV            0x04
-#define AUDIO_EXT_FORMAT_TYPE_I         0x81
-#define AUDIO_EXT_FORMAT_TYPE_II        0x82
-#define AUDIO_EXT_FORMAT_TYPE_III       0x83
+//#define AUDIO_FORMAT_TYPE_UNDEFINED     0x00
+//#define AUDIO_FORMAT_TYPE_I             0x01
+//#define AUDIO_FORMAT_TYPE_II            0x02
+//#define AUDIO_FORMAT_TYPE_III           0x03
+//#define AUDIO_FORMAT_TYPE_IV            0x04
+//#define AUDIO_EXT_FORMAT_TYPE_I         0x81
+//#define AUDIO_EXT_FORMAT_TYPE_II        0x82
+//#define AUDIO_EXT_FORMAT_TYPE_III       0x83
 
-/// A.2.1 - Audio Class-Audio Data Format Type I UAC2
-//typedef enum
-//{
-//  AUDIO_DATA_FORMAT_TYPE_I_PCM            = (uint32_t) (1 << 0),
-//  AUDIO_DATA_FORMAT_TYPE_I_PCM8           = (uint32_t) (1 << 1),
-//  AUDIO_DATA_FORMAT_TYPE_I_IEEE_FLOAT     = (uint32_t) (1 << 2),
-//  AUDIO_DATA_FORMAT_TYPE_I_ALAW           = (uint32_t) (1 << 3),
-//  AUDIO_DATA_FORMAT_TYPE_I_MULAW          = (uint32_t) (1 << 4),
-//  AUDIO_DATA_FORMAT_TYPE_I_RAW_DATA       = 0x100000000,
-//} audio_data_format_type_I_t;
+// A.2.1 - Audio Class-Audio Data Format Type I UAC2
+typedef enum
+{
+  AUDIO_DATA_FORMAT_TYPE_I_PCM            = (uint32_t) (1 << 0),
+  AUDIO_DATA_FORMAT_TYPE_I_PCM8           = (uint32_t) (1 << 1),
+  AUDIO_DATA_FORMAT_TYPE_I_IEEE_FLOAT     = (uint32_t) (1 << 2),
+  AUDIO_DATA_FORMAT_TYPE_I_ALAW           = (uint32_t) (1 << 3),
+  AUDIO_DATA_FORMAT_TYPE_I_MULAW          = (uint32_t) (1 << 4),
+  AUDIO_DATA_FORMAT_TYPE_I_RAW_DATA       = 0x100000000,
+} audio_data_format_type_I_t;
 
-#define AUDIO_DATA_FORMAT_TYPE_I_PCM            ((uint32_t) (1 << 0))
-#define AUDIO_DATA_FORMAT_TYPE_I_PCM8           ((uint32_t) (1 << 1))
-#define AUDIO_DATA_FORMAT_TYPE_I_IEEE_FLOAT     ((uint32_t) (1 << 2))
-#define AUDIO_DATA_FORMAT_TYPE_I_ALAW           ((uint32_t) (1 << 3))
-#define AUDIO_DATA_FORMAT_TYPE_I_MULAW          ((uint32_t) (1 << 4))
-#define AUDIO_DATA_FORMAT_TYPE_I_RAW_DATA       0x100000000
+//#define AUDIO_DATA_FORMAT_TYPE_I_PCM            ((uint32_t) (1 << 0))
+//#define AUDIO_DATA_FORMAT_TYPE_I_PCM8           ((uint32_t) (1 << 1))
+//#define AUDIO_DATA_FORMAT_TYPE_I_IEEE_FLOAT     ((uint32_t) (1 << 2))
+//#define AUDIO_DATA_FORMAT_TYPE_I_ALAW           ((uint32_t) (1 << 3))
+//#define AUDIO_DATA_FORMAT_TYPE_I_MULAW          ((uint32_t) (1 << 4))
+//#define AUDIO_DATA_FORMAT_TYPE_I_RAW_DATA       0x100000000
 
 /// All remaining definitions are taken from the descriptor descriptions in the UAC2 main specification
 

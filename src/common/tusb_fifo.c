@@ -138,9 +138,7 @@ static void _tu_fifo_read_from_const_src_ptr_in_full_words(void * dst, const voi
   }
 }
 
-// Intended to be used to write to hardware USB FIFO in e.g. STM32 where all data is written to a constant address
-// Code adapted from dcd_synopsis.c
-// TODO generalize with configurable 1 byte or 4 byte each write
+// Intended to be used to write to hardware USB FIFO in e.g. STM32 where all data is written to a constant address in full word copies
 static void _tu_fifo_write_to_const_dst_ptr_in_full_words(void * dst, const void * src, uint16_t len)
 {
   volatile uint32_t * tx_fifo = (volatile uint32_t *) dst;
