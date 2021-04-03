@@ -11,7 +11,7 @@ TinyUSB is an open-source cross-platform USB Host/Device stack for embedded syst
 ```
 .
 ├── docs            # Documentation
-├── examples        # Sample with Makefile and Segger Embedded build support
+├── examples        # Sample with Makefile build support
 ├── hw
 │   ├── bsp         # Supported boards source files
 │   └── mcu         # Low level mcu core & peripheral drivers
@@ -30,8 +30,8 @@ Special thanks to all the people who spent their precious time and effort to hel
 
 The stack supports the following MCUs:
 
-- **Espressif:** ESP32-S2
 - **Dialog:** DA1469x
+- **Espressif:** ESP32-S2
 - **MicroChip:** SAMD11, SAMD21, SAMD51, SAME5x, SAMG55
 - **NordicSemi:** nRF52833, nRF52840
 - **Nuvoton:** NUC120, NUC121/NUC125, NUC126, NUC505
@@ -40,6 +40,8 @@ The stack supports the following MCUs:
   - Kinetis: KL25
   - LPC Series: 11Uxx, 13xx, 175x_6x, 177x_8x, 18xx, 40xx, 43xx, 51Uxx, 54xxx, 55xx
 - **Raspberry Pi:** RP2040
+- **Renesas:** RX63N
+- **Silabs:** EFM32GG12
 - **Sony:** CXD56
 - **ST:** STM32 series: L0, F0, F1, F2, F3, F4, F7, H7 both FullSpeed and HighSpeed
 - **TI:** MSP430

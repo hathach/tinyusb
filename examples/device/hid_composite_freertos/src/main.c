@@ -98,9 +98,9 @@ int main(void)
   // skip starting scheduler (and return) for ESP32-S2
 #if CFG_TUSB_MCU != OPT_MCU_ESP32S2
   vTaskStartScheduler();
-  NVIC_SystemReset();
-  return 0;
 #endif
+
+  return 0;
 }
 
 #if CFG_TUSB_MCU == OPT_MCU_ESP32S2

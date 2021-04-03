@@ -113,3 +113,9 @@
 [submodule "lib/CMSIS_5"]
 	path = lib/CMSIS_5
 	url = https://github.com/ARM-software/CMSIS_5.git
+[submodule "hw/mcu/silabs/cmsis-dfp-efm32gg12b"]
+	path = hw/mcu/silabs/cmsis-dfp-efm32gg12b
+	url = https://github.com/cmsis-packs/cmsis-dfp-efm32gg12b
+[submodule "hw/mcu/renesas/rx"]
+	path = hw/mcu/renesas/rx
+	url = https://github.com/kkitayam/rx_device.git

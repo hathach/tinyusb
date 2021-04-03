@@ -28,7 +28,7 @@
 #define _TUSB_OPTION_H_
 
 #define TUSB_VERSION_MAJOR     0
-#define TUSB_VERSION_MINOR     8
+#define TUSB_VERSION_MINOR     9
 #define TUSB_VERSION_REVISION  0
 #define TUSB_VERSION_STRING    TU_STRING(TUSB_VERSION_MAJOR) "." TU_STRING(TUSB_VERSION_MINOR) "." TU_STRING(TUSB_VERSION_REVISION)
 
@@ -102,6 +102,14 @@
 
 // NXP Kinetis
 #define OPT_MCU_MKL25ZXX         1200 ///< NXP MKL25Zxx
+
+// Silabs
+#define OPT_MCU_EFM32GG          1300 ///< Silabs EFM32GG
+#define OPT_MCU_EFM32GG11        1301 ///< Silabs EFM32GG11
+#define OPT_MCU_EFM32GG12        1302 ///< Silabs EFM32GG12
+
+// Renesas RX
+#define OPT_MCU_RX63X            1400 ///< Renesas RX63N/631
 
 /** @} */
 

@@ -1,5 +1,5 @@
 UF2_FAMILY_ID = 0x55114460
-DEPS_SUBMODULES = hw/mcu/microchip
+DEPS_SUBMODULES += hw/mcu/microchip
 
 include $(TOP)/$(BOARD_PATH)/board.mk
 
@@ -16,6 +16,7 @@ CFLAGS += \
 CFLAGS += -Wno-error=undef
 
 SRC_C += \
+	src/portable/microchip/samd/dcd_samd.c \
 	hw/mcu/microchip/samd51/gcc/gcc/startup_samd51.c \
 	hw/mcu/microchip/samd51/gcc/system_samd51.c \
 	hw/mcu/microchip/samd51/hpl/gclk/hpl_gclk.c \
@@ -34,10 +35,6 @@ INC += \
 	$(TOP)/hw/mcu/microchip/samd51/hpl/port \
 	$(TOP)/hw/mcu/microchip/samd51/hri \
 	$(TOP)/hw/mcu/microchip/samd51/CMSIS/Include
-
-# For TinyUSB port source
-VENDOR = microchip
-CHIP_FAMILY = samd
 
 # For freeRTOS port source
 FREERTOS_PORT = ARM_CM4F

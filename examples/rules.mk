@@ -5,69 +5,9 @@
 # Set all as default goal
 .DEFAULT_GOAL := all
 
-ifeq ($(FAMILY),esp32s2)
-# ---------------------------------------
-# Espressif IDF use CMake build system, this add wrapper target to call idf.py
-# ---------------------------------------
-
-.PHONY: all clean flash
-
-all:
-	idf.py -B$(BUILD) -DFAMILY=$(FAMILY) -DBOARD=$(BOARD) $(CMAKE_DEFSYM) build
-
-build: all
-
-clean:
-	idf.py -B$(BUILD) -DFAMILY=$(FAMILY) -DBOARD=$(BOARD) $(CMAKE_DEFSYM) clean
-
-fullclean:
-	idf.py -B$(BUILD) -DFAMILY=$(FAMILY) -DBOARD=$(BOARD) $(CMAKE_DEFSYM) fullclean
-
-flash:
-	idf.py -B$(BUILD) -DFAMILY=$(FAMILY) -DBOARD=$(BOARD) $(CMAKE_DEFSYM) flash
-
-bootloader-flash:
-	idf.py -B$(BUILD) -DFAMILY=$(FAMILY) -DBOARD=$(BOARD) $(CMAKE_DEFSYM) bootloader-flash
-
-app-flash:
-	idf.py -B$(BUILD) -DFAMILY=$(FAMILY) -DBOARD=$(BOARD) $(CMAKE_DEFSYM) app-flash
-
-erase:
-	idf.py -B$(BUILD) -DFAMILY=$(FAMILY) -DBOARD=$(BOARD) $(CMAKE_DEFSYM) erase_flash
-
-monitor:
-	idf.py -B$(BUILD) -DFAMILY=$(FAMILY) -DBOARD=$(BOARD) $(CMAKE_DEFSYM) monitor
-
-uf2: $(BUILD)/$(PROJECT).uf2
-
-UF2_FAMILY_ID = 0xbfdd4eee
-$(BUILD)/$(PROJECT).uf2: $(BUILD)/$(PROJECT).bin
-	@echo CREATE $@
-	$(PYTHON) $(TOP)/tools/uf2/utils/uf2conv.py -f $(UF2_FAMILY_ID) -b 0x0 -c -o $@ $^
-
-else ifeq ($(FAMILY),rp2040)
-# ---------------------------------------
-# RP2040 CMake
-# ---------------------------------------
-
-ifeq ($(DEBUG), 1)
-CMAKE_DEFSYM += -DCMAKE_BUILD_TYPE=Debug
-endif
-
-$(BUILD):
-	cmake -S . -B $(BUILD) -DFAMILY=$(FAMILY) -DBOARD=$(BOARD) -DPICO_BUILD_DOCS=0 $(CMAKE_DEFSYM)
-
-all: $(BUILD)
-	$(MAKE) -C $(BUILD)
-
-clean:
-	$(RM) -rf $(BUILD)
-
-#flash: flash-pyocd
-flash:
-	@$(CP) $(BUILD)/$(PROJECT).uf2 /media/$(USER)/RPI-RP2
-
-else
+# ESP32-S2 and RP2040 has its own CMake build system
+ifneq ($(FAMILY),esp32s2)
+ifneq ($(FAMILY),rp2040)
 # ---------------------------------------
 # GNU Make build system
 # ---------------------------------------
@@ -93,8 +33,7 @@ SRC_C += \
 	src/class/msc/msc_device.c \
 	src/class/net/net_device.c \
 	src/class/usbtmc/usbtmc_device.c \
-	src/class/vendor/vendor_device.c \
-	src/portable/$(VENDOR)/$(CHIP_FAMILY)/dcd_$(CHIP_FAMILY).c
+	src/class/vendor/vendor_device.c
 
 # TinyUSB stack include
 INC += $(TOP)/src
@@ -113,7 +52,8 @@ SRC_S := $(SRC_S:.S=.s)
 
 # Due to GCC LTO bug https://bugs.launchpad.net/gcc-arm-embedded/+bug/1747966
 # assembly file should be placed first in linking order
-OBJ += $(addprefix $(BUILD)/obj/, $(SRC_S:.s=.o))
+# '_asm' suffix is added to object of assembly file
+OBJ += $(addprefix $(BUILD)/obj/, $(SRC_S:.s=_asm.o))
 OBJ += $(addprefix $(BUILD)/obj/, $(SRC_C:.c=.o))
 
 # Verbose mode
@@ -172,13 +112,13 @@ $(BUILD)/obj/%.o: %.c
 
 # ASM sources lower case .s
 vpath %.s . $(TOP)
-$(BUILD)/obj/%.o: %.s
+$(BUILD)/obj/%_asm.o: %.s
 	@echo AS $(notdir $@)
 	@$(CC) -x assembler-with-cpp $(ASFLAGS) -c -o $@ $<
 
 # ASM sources upper case .S
 vpath %.S . $(TOP)
-$(BUILD)/obj/%.o: %.S
+$(BUILD)/obj/%_asm.o: %.S
 	@echo AS $(notdir $@)
 	@$(CC) -x assembler-with-cpp $(ASFLAGS) -c -o $@ $<
 
@@ -195,12 +135,12 @@ else
 	$(RM) -rf $(BUILD)
 endif
 
+endif
 endif # GNU Make
 
-# Print out the value of a make variable.
-# https://stackoverflow.com/questions/16467718/how-to-print-out-a-variable-in-makefile
-print-%:
-	@echo $* = $($*)
+# ---------------------------------------
+# Flash Targets
+# ---------------------------------------
 
 # Flash binary using Jlink
 ifeq ($(OS),Windows_NT)
@@ -245,3 +185,7 @@ copy-artifact: $(BIN)
 	#@$(CP) $(BUILD)/$(PROJECT).hex $(BIN)
 	#@$(CP) $(BUILD)/$(PROJECT).elf $(BIN)
 
+# Print out the value of a make variable.
+# https://stackoverflow.com/questions/16467718/how-to-print-out-a-variable-in-makefile
+print-%:
+	@echo $* = $($*)

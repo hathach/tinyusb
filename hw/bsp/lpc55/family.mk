@@ -1,5 +1,5 @@
 UF2_FAMILY_ID = 0x2abc77ec
-DEPS_SUBMODULES = lib/sct_neopixel hw/mcu/nxp
+DEPS_SUBMODULES += lib/sct_neopixel hw/mcu/nxp
 
 include $(TOP)/$(BOARD_PATH)/board.mk
 
@@ -34,6 +34,7 @@ MCU_DIR = hw/mcu/nxp/sdk/devices/$(MCU_VARIANT)
 LD_FILE ?= $(MCU_DIR)/gcc/$(MCU_CORE)_flash.ld
 
 SRC_C += \
+	src/portable/nxp/lpc_ip3511/dcd_lpc_ip3511.c \
 	$(MCU_DIR)/system_$(MCU_CORE).c \
 	$(MCU_DIR)/drivers/fsl_clock.c \
 	$(MCU_DIR)/drivers/fsl_gpio.c \
@@ -53,10 +54,6 @@ INC += \
 SRC_S += $(MCU_DIR)/gcc/startup_$(MCU_CORE).S
 
 LIBS += $(TOP)/$(MCU_DIR)/gcc/libpower_hardabi.a
-
-# For TinyUSB port source
-VENDOR = nxp
-CHIP_FAMILY = lpc_ip3511
 
 # For freeRTOS port source
 FREERTOS_PORT = ARM_CM33_NTZ/non_secure

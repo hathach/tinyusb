@@ -142,7 +142,6 @@ static uint8_t const ecm_configuration[] =
 // - Windows only works with RNDIS
 // - MacOS only works with CDC-ECM
 // - Linux will work on both
-// Note index is Num-1x
 static uint8_t const * const configuration_arr[2] =
 {
   [CONFIG_ID_RNDIS] = rndis_configuration,
