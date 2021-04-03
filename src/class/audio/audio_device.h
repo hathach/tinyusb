@@ -261,6 +261,7 @@
 
 // Type I Coding parameters not given within UAC2 descriptors
 // It would be possible to allow for a more flexible setting and not fix this parameter as done below. However, this is most often not needed and kept for later if really necessary. The more flexible setting could be implemented within set_interface(), however, how the values are saved per alternate setting is to be determined!
+#if CFG_TUD_AUDIO_ENABLE_EP_IN && CFG_TUD_AUDIO_ENABLE_ENCODING && CFG_TUD_AUDIO_ENABLE_TYPE_I_ENCODING
 #ifndef CFG_TUD_AUDIO_FUNC_1_CHANNEL_PER_FIFO_TX
 #error You must tell the driver the number of channels per FIFO for the interleaved encoding! E.g. for an I2S interface having two channels, CHANNEL_PER_FIFO = 2 as the I2S stream having two channels is usually saved within one FIFO
 #endif
@@ -274,7 +275,9 @@
 #error You must tell the driver the number of channels per FIFO for the interleaved encoding! E.g. for an I2S interface having two channels, CHANNEL_PER_FIFO = 2 as the I2S stream having two channels is usually saved within one FIFO
 #endif
 #endif
+#endif
 
+#if CFG_TUD_AUDIO_ENABLE_EP_OUT && CFG_TUD_AUDIO_ENABLE_DECODING && CFG_TUD_AUDIO_ENABLE_TYPE_I_DECODING
 #ifndef CFG_TUD_AUDIO_FUNC_1_CHANNEL_PER_FIFO_RX
 #error You must tell the driver the number of channels per FIFO for the interleaved encoding! E.g. for an I2S interface having two channels, CHANNEL_PER_FIFO = 2 as the I2S stream having two channels is usually saved within one FIFO
 #endif
@@ -286,6 +289,7 @@
 #if CFG_TUD_AUDIO > 2
 #ifndef CFG_TUD_AUDIO_FUNC_3_CHANNEL_PER_FIFO_RX
 #error You must tell the driver the number of channels per FIFO for the interleaved encoding! E.g. for an I2S interface having two channels, CHANNEL_PER_FIFO = 2 as the I2S stream having two channels is usually saved within one FIFO
+#endif
 #endif
 #endif
 
