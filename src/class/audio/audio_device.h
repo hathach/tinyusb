@@ -153,24 +153,32 @@
 #error EP software buffer size MUST BE at least as big as maximum EP size
 #endif
 
+#if CFG_TUD_AUDIO > 1
 #if CFG_TUD_AUDIO_FUNC_2_EP_IN_SW_BUF_SZ < CFG_TUD_AUDIO_FUNC_2_EP_IN_SZ_MAX
 #error EP software buffer size MUST BE at least as big as maximum EP size
 #endif
+#endif
 
+#if CFG_TUD_AUDIO > 2
 #if CFG_TUD_AUDIO_FUNC_3_EP_IN_SW_BUF_SZ < CFG_TUD_AUDIO_FUNC_3_EP_IN_SZ_MAX
 #error EP software buffer size MUST BE at least as big as maximum EP size
+#endif
 #endif
 
 #if CFG_TUD_AUDIO_FUNC_1_EP_OUT_SW_BUF_SZ < CFG_TUD_AUDIO_FUNC_1_EP_OUT_SZ_MAX
 #error EP software buffer size MUST BE at least as big as maximum EP size
 #endif
 
+#if CFG_TUD_AUDIO > 1
 #if CFG_TUD_AUDIO_FUNC_2_EP_OUT_SW_BUF_SZ < CFG_TUD_AUDIO_FUNC_2_EP_OUT_SZ_MAX
 #error EP software buffer size MUST BE at least as big as maximum EP size
 #endif
+#endif
 
+#if CFG_TUD_AUDIO > 2
 #if CFG_TUD_AUDIO_FUNC_3_EP_OUT_SW_BUF_SZ < CFG_TUD_AUDIO_FUNC_3_EP_OUT_SZ_MAX
 #error EP software buffer size MUST BE at least as big as maximum EP size
+#endif
 #endif
 
 // Enable/disable feedback EP (required for asynchronous RX applications)
@@ -187,13 +195,16 @@
 #define CFG_TUD_AUDIO_INT_CTR_EP_IN_SW_BUFFER_SIZE          6                             // Buffer size of audio control interrupt EP - 6 Bytes according to UAC 2 specification (p. 74)
 #endif
 
-// Use of TX/RX support FIFOs
+// Use software encoding/decoding
 
-// Support FIFOs are not mandatory for the audio driver, rather they are intended to be of use in
-// - TX case: CFG_TUD_AUDIO_N_CHANNELS_TX channels need to be encoded into one USB output stream (currently PCM type I is implemented)
-// - RX case: CFG_TUD_AUDIO_N_CHANNELS_RX channels need to be decoded from a single USB input stream (currently PCM type I is implemented)
+// The software coding feature of the driver is not mandatory. It is useful if, for instance, you have two I2S streams which need to be interleaved
+// into a single PCM stream as SAMPLE_1 | SAMPLE_2 | SAMPLE_3 | SAMPLE_4.
 //
-// This encoding/decoding is done in software and thus time consuming. If you can encode/decode your stream more efficiently do not use the
+// Currently, only PCM type I encoding/decoding is supported!
+//
+// If the coding feature is to be used, support FIFOs need to be configured. Their sizes and numbers are defined below.
+
+// Encoding/decoding is done in software and thus time consuming. If you can encode/decode your stream more efficiently do not use the
 // support FIFOs but write/read directly into/from the EP_X_SW_BUFFER_FIFOs using
 // - tud_audio_n_write() or
 // - tud_audio_n_read().
@@ -223,7 +234,7 @@
 // functions.
 
 // Enable encoding/decodings - for these to work, support FIFOs need to be setup in appropriate numbers and size
-// The actual parameters of active encoding is parsed from the descriptors
+// The actual coding parameters of active AS alternate interface is parsed from the descriptors
 
 // For PCM encoding/decoding
 
