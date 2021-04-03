@@ -949,7 +949,7 @@ static uint16_t audiod_encode_type_I_pcm(uint8_t rhport, audiod_interface_t* aud
   nBytesPerFFToSend = tu_min16(nBytesPerFFToSend, capPerFF);
 
   // Round to full number of samples (flooring)
-  nBytesPerFFToSend = (nBytesPerFFToSend / audio->n_channels_per_ff_tx) * audio->n_channels_per_ff_tx;
+  nBytesPerFFToSend = (nBytesPerFFToSend / nBytesToCopy) * nBytesToCopy;
 
   // Encode
   void * src;
