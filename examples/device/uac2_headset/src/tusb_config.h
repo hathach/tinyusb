@@ -113,7 +113,7 @@ extern "C" {
 #define CFG_TUD_AUDIO_ENABLE_EP_OUT               1
 #define CFG_TUD_AUDIO_EP_OUT_SZ                   (CFG_TUD_AUDIO_OUT_PATH * ((48 + CFG_TUD_AUDIO_ENABLE_FEEDBACK_EP) * (CFG_TUD_AUDIO_FUNC_1_N_BYTES_PER_SAMPLE_RX) * (CFG_TUD_AUDIO_FUNC_1_N_CHANNELS_RX))) // N Samples (N kHz) x 2 Bytes/Sample x n Channels
 #define CFG_TUD_AUDIO_FUNC_1_EP_OUT_SW_BUF_SZ     CFG_TUD_AUDIO_EP_OUT_SZ*3
-#define CFG_TUD_AUDIO_FUNC_1_EP_OUT_SZ_MAX        CFG_TUD_AUDIO_EP_SZ_OUT                 // Maximum EP IN size for all AS alternate settings used
+#define CFG_TUD_AUDIO_FUNC_1_EP_OUT_SZ_MAX        CFG_TUD_AUDIO_EP_OUT_SZ                 // Maximum EP IN size for all AS alternate settings used
 
 // Number of Standard AS Interface Descriptors (4.9.1) defined per audio function - this is required to be able to remember the current alternate settings of these interfaces - We restrict us here to have a constant number for all audio functions (which means this has to be the maximum number of AS interfaces an audio function has and a second audio function with less AS interfaces just wastes a few bytes)
 #define CFG_TUD_AUDIO_FUNC_1_N_AS_INT 	          1
