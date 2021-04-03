@@ -53,7 +53,7 @@ static uint32_t blink_interval_ms = BLINK_NOT_MOUNTED;
 
 // Audio controls
 // Current states
-bool mute[CFG_TUD_AUDIO_FUNC_1_N_CHANNELS_TX + 1]; 						// +1 for master channel 0
+bool mute[CFG_TUD_AUDIO_FUNC_1_N_CHANNELS_TX + 1]; 				          // +1 for master channel 0
 uint16_t volume[CFG_TUD_AUDIO_FUNC_1_N_CHANNELS_TX + 1]; 					// +1 for master channel 0
 uint32_t sampFreq;
 uint8_t clkValid;
@@ -379,7 +379,7 @@ bool tud_audio_tx_done_pre_load_cb(uint8_t rhport, uint8_t itf, uint8_t ep_in, u
   (void) ep_in;
   (void) cur_alt_setting;
 
-  tud_audio_write ((uint8_t *)test_buffer_audio, CFG_TUD_AUDIO_EPSIZE_IN);
+  tud_audio_write ((uint8_t *)test_buffer_audio, CFG_TUD_AUDIO_EP_SZ_IN);
 
   return true;
 }
@@ -392,7 +392,7 @@ bool tud_audio_tx_done_post_load_cb(uint8_t rhport, uint16_t n_bytes_copied, uin
   (void) ep_in;
   (void) cur_alt_setting;
 
-  for (size_t cnt = 0; cnt < CFG_TUD_AUDIO_EPSIZE_IN/2; cnt++)
+  for (size_t cnt = 0; cnt < CFG_TUD_AUDIO_EP_SZ_IN/2; cnt++)
   {
     test_buffer_audio[cnt] = startVal++;
   }
