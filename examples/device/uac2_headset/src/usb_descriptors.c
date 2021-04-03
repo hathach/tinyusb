@@ -87,6 +87,8 @@ uint8_t const * tud_descriptor_device_cb(void)
 #define EPNUM_AUDIO   0x01
 #endif
 
+#define CFG_TUD_AUDIO_FUNC_1_DESC_LEN                       TUD_AUDIO_HEADSET_STEREO_DESC_LEN
+
 uint8_t const desc_configuration[] =
 {
     // Interface count, string index, total length, attribute, power in mA

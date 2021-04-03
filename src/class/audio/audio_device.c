@@ -310,6 +310,7 @@ typedef struct
 #if CFG_TUD_AUDIO_ENABLE_TYPE_I_DECODING
   audio_data_format_type_I_t format_type_I_rx;
   uint8_t n_bytes_per_sampe_rx;
+  uint8_t n_channels_per_ff_rx;
 #endif
 #endif
 
@@ -329,12 +330,13 @@ typedef struct
 #if CFG_TUD_AUDIO_ENABLE_EP_OUT && CFG_TUD_AUDIO_ENABLE_DECODING
   tu_fifo_t * rx_supp_ff;
   uint8_t n_rx_supp_ff;
-  uint8_t n_channels_per_ff_rx;
+  uint16_t rx_supp_ff_sz_max;
 #endif
 
 #if CFG_TUD_AUDIO_ENABLE_EP_IN && CFG_TUD_AUDIO_ENABLE_ENCODING
   tu_fifo_t * tx_supp_ff;
   uint8_t n_tx_supp_ff;
+  uint16_t tx_supp_ff_sz_max;
 #endif
 
   // Linear buffer in case target MCU is not capable of handling a ring buffer FIFO e.g. no hardware buffer is available or driver is would need to be changed dramatically OR the support FIFOs are used
@@ -920,6 +922,9 @@ static inline uint8_t * audiod_interleaved_copy_bytes_fast_encode(uint16_t const
 
 static uint16_t audiod_encode_type_I_pcm(uint8_t rhport, audiod_interface_t* audio)
 {
+  // This function relies on the fact that the length of the support FIFOs was configured to be a multiple of the active sample size in bytes s.t. no sample is split within a wrap
+  // This is ensured within set_interface, where the FIFOs are reconfigured according to this size
+
   // We encode directly into IN EP's linear buffer - abort if previous transfer not complete
   TU_VERIFY(!usbd_edpt_busy(rhport, audio->ep_in));
 
@@ -1164,6 +1169,7 @@ void audiod_init(void)
       case 0:
         audio->tx_supp_ff = tx_supp_ff_1;
         audio->n_tx_supp_ff = CFG_TUD_AUDIO_FUNC_1_N_TX_SUPP_SW_FIFO;
+        audio->tx_supp_ff_sz_max = CFG_TUD_AUDIO_FUNC_1_TX_SUPP_SW_FIFO_SZ;
         for (uint8_t cnt = 0; cnt < CFG_TUD_AUDIO_FUNC_1_N_TX_SUPP_SW_FIFO; cnt++)
         {
           tu_fifo_config(&tx_supp_ff_1[cnt], tx_supp_ff_buf_1[cnt], CFG_TUD_AUDIO_FUNC_1_TX_SUPP_SW_FIFO_SZ, 1, true);
@@ -1179,6 +1185,7 @@ void audiod_init(void)
       case 1:
         audio->tx_supp_ff = tx_supp_ff_2;
         audio->n_tx_supp_ff = CFG_TUD_AUDIO_FUNC_2_N_TX_SUPP_SW_FIFO;
+        audio->tx_supp_ff_sz_max = CFG_TUD_AUDIO_FUNC_2_TX_SUPP_SW_FIFO_SZ;
         for (uint8_t cnt = 0; cnt < CFG_TUD_AUDIO_FUNC_2_N_TX_SUPP_SW_FIFO; cnt++)
         {
           tu_fifo_config(&tx_supp_ff_2[cnt], tx_supp_ff_buf_2[cnt], CFG_TUD_AUDIO_FUNC_2_TX_SUPP_SW_FIFO_SZ, 1, true);
@@ -1194,6 +1201,7 @@ void audiod_init(void)
       case 2:
         audio->tx_supp_ff = tx_supp_ff_3;
         audio->n_tx_supp_ff = CFG_TUD_AUDIO_FUNC_3_N_TX_SUPP_SW_FIFO;
+        audio->tx_supp_ff_sz_max = CFG_TUD_AUDIO_FUNC_3_TX_SUPP_SW_FIFO_SZ;
         for (uint8_t cnt = 0; cnt < CFG_TUD_AUDIO_FUNC_3_N_TX_SUPP_SW_FIFO; cnt++)
         {
           tu_fifo_config(&tx_supp_ff_3[cnt], tx_supp_ff_buf_3[cnt], CFG_TUD_AUDIO_FUNC_3_TX_SUPP_SW_FIFO_SZ, 1, true);
@@ -1238,6 +1246,7 @@ void audiod_init(void)
       case 0:
         audio->rx_supp_ff = rx_supp_ff_1;
         audio->n_rx_supp_ff = CFG_TUD_AUDIO_FUNC_1_N_RX_SUPP_SW_FIFO;
+        audio->rx_supp_ff_sz_max = CFG_TUD_AUDIO_FUNC_1_RX_SUPP_SW_FIFO_SZ;
         for (uint8_t cnt = 0; cnt < CFG_TUD_AUDIO_FUNC_1_N_RX_SUPP_SW_FIFO; cnt++)
         {
           tu_fifo_config(&rx_supp_ff_1[cnt], rx_supp_ff_buf_1[cnt], CFG_TUD_AUDIO_FUNC_1_RX_SUPP_SW_FIFO_SZ, 1, true);
@@ -1253,6 +1262,7 @@ void audiod_init(void)
       case 1:
         audio->rx_supp_ff = rx_supp_ff_2;
         audio->n_rx_supp_ff = CFG_TUD_AUDIO_FUNC_2_N_RX_SUPP_SW_FIFO;
+        audio->rx_supp_ff_sz_max = CFG_TUD_AUDIO_FUNC_2_RX_SUPP_SW_FIFO_SZ;
         for (uint8_t cnt = 0; cnt < CFG_TUD_AUDIO_FUNC_2_N_RX_SUPP_SW_FIFO; cnt++)
         {
           tu_fifo_config(&rx_supp_ff_2[cnt], rx_supp_ff_buf_2[cnt], CFG_TUD_AUDIO_FUNC_2_RX_SUPP_SW_FIFO_SZ, 1, true);
@@ -1268,6 +1278,7 @@ void audiod_init(void)
       case 2:
         audio->rx_supp_ff = rx_supp_ff_3;
         audio->n_rx_supp_ff = CFG_TUD_AUDIO_FUNC_3_N_RX_SUPP_SW_FIFO;
+        audio->rx_supp_ff_sz_max = CFG_TUD_AUDIO_FUNC_3_RX_SUPP_SW_FIFO_SZ;
         for (uint8_t cnt = 0; cnt < CFG_TUD_AUDIO_FUNC_3_N_RX_SUPP_SW_FIFO; cnt++)
         {
           tu_fifo_config(&rx_supp_ff_3[cnt], rx_supp_ff_buf_3[cnt], CFG_TUD_AUDIO_FUNC_3_RX_SUPP_SW_FIFO_SZ, 1, true);
@@ -1533,6 +1544,16 @@ static bool audiod_set_interface(uint8_t rhport, tusb_control_request_t const * 
             // If software encoding is enabled, parse for the corresponding parameters - doing this here means only AS interfaces with EPs get scanned for parameters
 #if CFG_TUD_AUDIO_ENABLE_ENCODING
             audiod_parse_for_AS_params(audio, p_desc_parse_for_params, p_desc_end, itf);
+
+            // Reconfigure size of support FIFOs - this is necessary to avoid samples to get split in case of a wrap
+#if CFG_TUD_AUDIO_ENABLE_TYPE_I_ENCODING
+            const uint16_t active_fifo_depth = (audio->tx_supp_ff_sz_max / audio->n_bytes_per_sampe_tx) * audio->n_bytes_per_sampe_tx;
+            for (uint8_t cnt = 0; cnt < audio->n_tx_supp_ff; cnt++)
+            {
+              tu_fifo_config(&audio->tx_supp_ff[cnt], audio->tx_supp_ff[cnt].buffer, active_fifo_depth, 1, true);
+            }
+#endif
+
 #endif
             // Invoke callback - can be used to trigger data sampling if not already running
             if (tud_audio_set_itf_cb) TU_VERIFY(tud_audio_set_itf_cb(rhport, p_request));
@@ -1554,6 +1575,15 @@ static bool audiod_set_interface(uint8_t rhport, tusb_control_request_t const * 
 
 #if CFG_TUD_AUDIO_ENABLE_DECODING
             audiod_parse_for_AS_params(audio, p_desc_parse_for_params, p_desc_end, itf);
+
+            // Reconfigure size of support FIFOs - this is necessary to avoid samples to get split in case of a wrap
+#if CFG_TUD_AUDIO_ENABLE_TYPE_I_DECODING
+            const uint16_t active_fifo_depth = (audio->rx_supp_ff_sz_max / audio->n_bytes_per_sampe_rx) * audio->n_bytes_per_sampe_rx;
+            for (uint8_t cnt = 0; cnt < audio->n_rx_supp_ff; cnt++)
+            {
+              tu_fifo_config(&audio->rx_supp_ff[cnt], audio->rx_supp_ff[cnt].buffer, active_fifo_depth, 1, true);
+            }
+#endif
 #endif
             // Invoke callback
             if (tud_audio_set_itf_cb) TU_VERIFY(tud_audio_set_itf_cb(rhport, p_request));
