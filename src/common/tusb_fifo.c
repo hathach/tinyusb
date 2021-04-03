@@ -87,8 +87,15 @@ bool tu_fifo_config(tu_fifo_t *f, void* buffer, uint16_t depth, uint16_t item_si
 
 static inline uint16_t _ff_mod(uint16_t idx, uint16_t depth)
 {
-  while ( idx >= depth) idx -= depth;
-  return idx;
+  //detect power of 2 case
+  if (depth & (depth-1)) {
+    return idx % depth;
+  }
+  else 
+  {
+    //power of 2 case, fast path
+    return idx & (depth-1);
+  }
 }
 
 // send one item to FIFO WITHOUT updating write pointer
