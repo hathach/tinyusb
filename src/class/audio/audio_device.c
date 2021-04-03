@@ -1174,7 +1174,7 @@ void audiod_init(void)
         {
           tu_fifo_config(&tx_supp_ff_1[cnt], tx_supp_ff_buf_1[cnt], CFG_TUD_AUDIO_FUNC_1_TX_SUPP_SW_FIFO_SZ, 1, true);
 #if CFG_FIFO_MUTEX
-          tu_fifo_config_mutex(&tx_supp_ff_1[cnt], osal_mutex_create(&tx_supp_ff_mutex_wr_1[cnt]), NULL);
+          tu_fifo_config_mutex(&tx_supp_ff_1[cnt], osal_mutex_create(tx_supp_ff_mutex_wr_1[cnt]), NULL);
 #endif
         }
 
@@ -1190,7 +1190,7 @@ void audiod_init(void)
         {
           tu_fifo_config(&tx_supp_ff_2[cnt], tx_supp_ff_buf_2[cnt], CFG_TUD_AUDIO_FUNC_2_TX_SUPP_SW_FIFO_SZ, 1, true);
 #if CFG_FIFO_MUTEX
-          tu_fifo_config_mutex(&tx_supp_ff_2[cnt], osal_mutex_create(&tx_supp_ff_mutex_wr_2[cnt]), NULL);
+          tu_fifo_config_mutex(&tx_supp_ff_2[cnt], osal_mutex_create(tx_supp_ff_mutex_wr_2[cnt]), NULL);
 #endif
         }
 
@@ -1206,7 +1206,7 @@ void audiod_init(void)
         {
           tu_fifo_config(&tx_supp_ff_3[cnt], tx_supp_ff_buf_3[cnt], CFG_TUD_AUDIO_FUNC_3_TX_SUPP_SW_FIFO_SZ, 1, true);
 #if CFG_FIFO_MUTEX
-          tu_fifo_config_mutex(&tx_supp_ff_3[cnt], osal_mutex_create(&tx_supp_ff_mutex_wr_3[cnt]), NULL);
+          tu_fifo_config_mutex(&tx_supp_ff_3[cnt], osal_mutex_create(tx_supp_ff_mutex_wr_3[cnt]), NULL);
 #endif
         }
 
@@ -1251,7 +1251,7 @@ void audiod_init(void)
         {
           tu_fifo_config(&rx_supp_ff_1[cnt], rx_supp_ff_buf_1[cnt], CFG_TUD_AUDIO_FUNC_1_RX_SUPP_SW_FIFO_SZ, 1, true);
 #if CFG_FIFO_MUTEX
-          tu_fifo_config_mutex(&rx_supp_ff_1[cnt], osal_mutex_create(&rx_supp_ff_mutex_rd_1[cnt]), NULL);
+          tu_fifo_config_mutex(&rx_supp_ff_1[cnt], osal_mutex_create(rx_supp_ff_mutex_rd_1[cnt]), NULL);
 #endif
         }
 
@@ -1267,7 +1267,7 @@ void audiod_init(void)
         {
           tu_fifo_config(&rx_supp_ff_2[cnt], rx_supp_ff_buf_2[cnt], CFG_TUD_AUDIO_FUNC_2_RX_SUPP_SW_FIFO_SZ, 1, true);
 #if CFG_FIFO_MUTEX
-          tu_fifo_config_mutex(&rx_supp_ff_2[cnt], osal_mutex_create(&rx_supp_ff_mutex_rd_2[cnt]), NULL);
+          tu_fifo_config_mutex(&rx_supp_ff_2[cnt], osal_mutex_create(rx_supp_ff_mutex_rd_2[cnt]), NULL);
 #endif
         }
 
@@ -1283,7 +1283,7 @@ void audiod_init(void)
         {
           tu_fifo_config(&rx_supp_ff_3[cnt], rx_supp_ff_buf_3[cnt], CFG_TUD_AUDIO_FUNC_3_RX_SUPP_SW_FIFO_SZ, 1, true);
 #if CFG_FIFO_MUTEX
-          tu_fifo_config_mutex(&rx_supp_ff_3[cnt], osal_mutex_create(&rx_supp_ff_mutex_rd_3[cnt]), NULL);
+          tu_fifo_config_mutex(&rx_supp_ff_3[cnt], osal_mutex_create(rx_supp_ff_mutex_rd_3[cnt]), NULL);
 #endif
         }
 
