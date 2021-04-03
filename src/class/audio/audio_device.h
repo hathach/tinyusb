@@ -149,6 +149,7 @@
 #define CFG_TUD_AUDIO_FUNC_3_EP_OUT_SW_BUF_SZ               0
 #endif
 
+#if CFG_TUD_AUDIO_ENABLE_EP_IN
 #if CFG_TUD_AUDIO_FUNC_1_EP_IN_SW_BUF_SZ < CFG_TUD_AUDIO_FUNC_1_EP_IN_SZ_MAX
 #error EP software buffer size MUST BE at least as big as maximum EP size
 #endif
@@ -164,7 +165,9 @@
 #error EP software buffer size MUST BE at least as big as maximum EP size
 #endif
 #endif
+#endif
 
+#if CFG_TUD_AUDIO_ENABLE_EP_OUT
 #if CFG_TUD_AUDIO_FUNC_1_EP_OUT_SW_BUF_SZ < CFG_TUD_AUDIO_FUNC_1_EP_OUT_SZ_MAX
 #error EP software buffer size MUST BE at least as big as maximum EP size
 #endif
@@ -178,6 +181,7 @@
 #if CFG_TUD_AUDIO > 2
 #if CFG_TUD_AUDIO_FUNC_3_EP_OUT_SW_BUF_SZ < CFG_TUD_AUDIO_FUNC_3_EP_OUT_SZ_MAX
 #error EP software buffer size MUST BE at least as big as maximum EP size
+#endif
 #endif
 #endif
 
