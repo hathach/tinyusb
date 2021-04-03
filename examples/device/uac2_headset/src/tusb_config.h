@@ -106,7 +106,7 @@ extern "C" {
 // EP and buffer size - for isochronous EP´s, the buffer and EP size are equal (different sizes would not make sense)
 #define CFG_TUD_AUDIO_ENABLE_EP_IN                1
 #define CFG_TUD_AUDIO_EP_SZ_IN                    (CFG_TUD_AUDIO_IN_PATH * (48 + 1) * (CFG_TUD_AUDIO_N_BYTES_PER_SAMPLE_TX) * (CFG_TUD_AUDIO_N_CHANNELS_TX)) // 48 Samples (48 kHz) x 2 Bytes/Sample x n Channels
-#define CFG_TUD_AUDIO_FUNC_1_EP_IN_SW_BUF_SZ      CFG_TUD_AUDIO_EPSIZE_IN
+#define CFG_TUD_AUDIO_FUNC_1_EP_IN_SW_BUF_SZ      CFG_TUD_AUDIO_EP_SZ_IN
 
 // EP and buffer size - for isochronous EP´s, the buffer and EP size are equal (different sizes would not make sense)
 #define CFG_TUD_AUDIO_ENABLE_EP_OUT               1
