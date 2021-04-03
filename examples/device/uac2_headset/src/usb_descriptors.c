@@ -87,11 +87,6 @@ uint8_t const * tud_descriptor_device_cb(void)
 #define EPNUM_AUDIO   0x01
 #endif
 
-// These variables are required by the audio driver in audio_device.c
-
-// List of audio descriptor lengths which is required by audio driver - you need as many entries as CFG_TUD_AUDIO
-const uint16_t tud_audio_desc_lengths[] = {TUD_AUDIO_HEADSET_STEREO_DESC_LEN};
-
 uint8_t const desc_configuration[] =
 {
     // Interface count, string index, total length, attribute, power in mA

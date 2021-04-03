@@ -388,7 +388,10 @@ static bool audiod_get_AS_interface_index(uint8_t itf, uint8_t *idxDriver, uint8
 static bool audiod_verify_entity_exists(uint8_t itf, uint8_t entityID, uint8_t *idxDriver);
 static bool audiod_verify_itf_exists(uint8_t itf, uint8_t *idxDriver);
 static bool audiod_verify_ep_exists(uint8_t ep, uint8_t *idxDriver);
+
+#if CFG_TUD_AUDIO_ENABLE_ENCODING || CFG_TUD_AUDIO_ENABLE_DECODING
 static void audiod_parse_for_AS_params(audiod_interface_t* audio, uint8_t const * p_desc, uint8_t const * p_desc_end, uint8_t const itf);
+#endif
 
 static inline uint8_t tu_desc_subtype(void const* desc)
 {
