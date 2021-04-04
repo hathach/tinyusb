@@ -44,7 +44,7 @@
 typedef struct
 {
   uint8_t* buffer;
-  tu_fifo_t* ff;
+  // tu_fifo_t* ff; // TODO support dcd_edpt_xfer_fifo API
   uint16_t total_len;
   volatile uint16_t actual_len;
   uint16_t  epsize;
@@ -61,7 +61,7 @@ void xfer_epsize_set(xfer_desc_t* xfer, uint16_t epsize)
 void xfer_begin(xfer_desc_t* xfer, uint8_t * buffer, uint16_t total_bytes)
 {
   xfer->buffer     = buffer;
-  xfer->ff         = NULL;
+  // xfer->ff         = NULL; // TODO support dcd_edpt_xfer_fifo API
   xfer->total_len  = total_bytes;
   xfer->actual_len = 0;
 }
@@ -69,7 +69,7 @@ void xfer_begin(xfer_desc_t* xfer, uint8_t * buffer, uint16_t total_bytes)
 void xfer_end(xfer_desc_t* xfer)
 {
   xfer->buffer     = NULL;
-  xfer->ff         = NULL;
+  // xfer->ff         = NULL; // TODO support dcd_edpt_xfer_fifo API
   xfer->total_len  = 0;
   xfer->actual_len = 0;
 }

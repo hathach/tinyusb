@@ -95,7 +95,7 @@ static uint32_t bufseg_addr;
 static struct xfer_ctl_t
 {
   uint8_t *data_ptr;         /* data_ptr tracks where to next copy data to (for OUT) or from (for IN) */
-  tu_fifo_t * ff;            /* pointer to FIFO required for dcd_edpt_xfer_fifo() */
+  // tu_fifo_t* ff; // TODO support dcd_edpt_xfer_fifo API
   union {
     uint16_t in_remaining_bytes; /* for IN endpoints, we track how many bytes are left to transfer */
     uint16_t out_bytes_so_far;   /* but for OUT endpoints, we track how many bytes we've transferred so far */
@@ -165,7 +165,7 @@ static USBD_EP_T *ep_entry(uint8_t ep_addr, bool add)
 /* perform a non-control IN endpoint transfer; this is called by the ISR  */
 static void dcd_userEP_in_xfer(struct xfer_ctl_t *xfer, USBD_EP_T *ep)
 {
-  uint16_t bytes_now = tu_min16(xfer->in_remaining_bytes, xfer->max_packet_size);
+  uint16_t const bytes_now = tu_min16(xfer->in_remaining_bytes, xfer->max_packet_size);
 
   /* precompute what amount of data will be left */
   xfer->in_remaining_bytes -= bytes_now;
@@ -181,11 +181,13 @@ static void dcd_userEP_in_xfer(struct xfer_ctl_t *xfer, USBD_EP_T *ep)
   }
 
   /* provided buffers are thankfully 32-bit aligned, allowing most data to be transfered as 32-bit */
+#if 0 // TODO support dcd_edpt_xfer_fifo API
   if (xfer->ff)
   {
     tu_fifo_read_n_const_addr_full_words(xfer->ff, (void *) (&ep->EPDAT_BYTE), bytes_now);
   }
   else
+#endif
   {
     uint16_t countdown = bytes_now;
     while (countdown > 3)
@@ -196,13 +198,12 @@ static void dcd_userEP_in_xfer(struct xfer_ctl_t *xfer, USBD_EP_T *ep)
       ep->EPDAT = u32;
       xfer->data_ptr += 4; countdown -= 4;
     }
-    while (countdown--)
-      ep->EPDAT_BYTE = *xfer->data_ptr++;
+
+    while (countdown--) ep->EPDAT_BYTE = *xfer->data_ptr++;
   }
 
   /* for short packets, we must nudge the peripheral to say 'that's all folks' */
-  if (bytes_now != xfer->max_packet_size)
-    ep->EPRSPCTL = USBD_EPRSPCTL_SHORTTXEN_Msk;
+  if (bytes_now != xfer->max_packet_size) ep->EPRSPCTL = USBD_EPRSPCTL_SHORTTXEN_Msk;
 }
 
 /* called by dcd_init() as well as by the ISR during a USB bus reset */
@@ -394,7 +395,7 @@ bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t *buffer, uint16_t to
 
     /* store away the information we'll needing now and later */
     xfer->data_ptr = buffer;
-    xfer->ff       = NULL;
+    // xfer->ff       = NULL; // TODO support dcd_edpt_xfer_fifo API
     xfer->in_remaining_bytes = total_bytes;
     xfer->total_bytes = total_bytes;
 
@@ -412,6 +413,7 @@ bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t *buffer, uint16_t to
   return true;
 }
 
+#if 0 // TODO support dcd_edpt_xfer_fifo API
 bool dcd_edpt_xfer_fifo (uint8_t rhport, uint8_t ep_addr, tu_fifo_t * ff, uint16_t total_bytes)
 {
   (void) rhport;
@@ -441,6 +443,7 @@ bool dcd_edpt_xfer_fifo (uint8_t rhport, uint8_t ep_addr, tu_fifo_t * ff, uint16
 
   return true;
 }
+#endif
 
 void dcd_edpt_stall(uint8_t rhport, uint8_t ep_addr)
 {
@@ -655,20 +658,25 @@ void dcd_int_handler(uint8_t rhport)
 #else
           uint16_t const available_bytes = ep->EPDATCNT & USBD_EPDATCNT_DATCNT_Msk;
           /* copy the data from the PC to the previously provided buffer */
+#if 0 // TODO support dcd_edpt_xfer_fifo API
           if (xfer->ff)
           {
             tu_fifo_write_n_const_addr_full_words(xfer->ff, (const void *) &ep->EPDAT_BYTE, tu_min16(available_bytes, xfer->total_bytes - xfer->out_bytes_so_far));
           }
           else
+#endif
           {
             for (int count = 0; (count < available_bytes) && (xfer->out_bytes_so_far < xfer->total_bytes); count++, xfer->out_bytes_so_far++)
+            {
               *xfer->data_ptr++ = ep->EPDAT_BYTE;
-
+            }
           }
 
           /* when the transfer is finished, alert TinyUSB; otherwise, continue accepting more data */
           if ( (xfer->total_bytes == xfer->out_bytes_so_far) || (available_bytes < xfer->max_packet_size) )
+          {
             dcd_event_xfer_complete(0, ep_addr, xfer->out_bytes_so_far, XFER_RESULT_SUCCESS, true);
+          }
 #endif
 
         }
