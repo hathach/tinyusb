@@ -241,6 +241,10 @@
   #define CFG_TUD_DFU_MODE        0
 #endif
 
+#ifndef CFG_TUD_DFU_RUNTIME_AND_MODE
+  #define CFG_TUD_DFU_RUNTIME_AND_MODE      0
+#endif
+
 #ifndef CFG_TUD_DFU_TRANSFER_BUFFER_SIZE
   #define CFG_TUD_DFU_TRANSFER_BUFFER_SIZE  64
 #endif
@@ -283,6 +287,12 @@
 //------------------------------------------------------------------
 #if CFG_TUD_ENDPOINT0_SIZE > 64
   #error Control Endpoint Max Packet Size cannot be larger than 64
+#endif
+
+#if (CFG_TUD_DFU_RUNTIME_AND_MODE && CFG_TUD_DFU_RUNTIME) \
+    || (CFG_TUD_DFU_RUNTIME_AND_MODE && CFG_TUD_DFU_MODE) \
+    || (CFG_TUD_DFU_RUNTIME && CFG_TUD_DFU_MODE)
+    #error Only one of CFG_TUD_DFU_RUNTIME_AND_MODE, CFG_TUD_DFU_RUNTIME, and CFG_TUD_DFU_MODE can be enabled in a single build
 #endif
 
 #endif /* _TUSB_OPTION_H_ */

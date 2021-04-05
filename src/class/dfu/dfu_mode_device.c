@@ -26,7 +26,7 @@
 
 #include "tusb_option.h"
 
-#if (TUSB_OPT_DEVICE_ENABLED && CFG_TUD_DFU_MODE)
+#if (TUSB_OPT_DEVICE_ENABLED && CFG_TUD_DFU_MODE) || (TUSB_OPT_DEVICE_ENABLED && CFG_TUD_DFU_RUNTIME_AND_MODE)
 
 #include "dfu_mode_device.h"
 #include "device/usbd_pvt.h"
@@ -590,4 +590,4 @@ static bool dfu_mode_state_machine(uint8_t rhport, tusb_control_request_t const 
 }
 
 
- #endif
+#endif
