@@ -46,8 +46,9 @@ typedef struct TU_ATTR_PACKED
   bool blk_transfer_in_proc;
 
   uint8_t itf_num;
-  CFG_TUSB_MEM_ALIGN uint8_t epin_buf[CFG_TUD_DFU_TRANSFER_BUFFER_SIZE];
-  CFG_TUSB_MEM_ALIGN uint8_t epout_buf[CFG_TUD_DFU_TRANSFER_BUFFER_SIZE];
+  uint16_t last_block_num;
+  uint16_t last_transfer_len;
+  CFG_TUSB_MEM_ALIGN uint8_t transfer_buf[CFG_TUD_DFU_TRANSFER_BUFFER_SIZE];
 } dfu_state_ctx_t;
 
 typedef struct TU_ATTR_PACKED
@@ -161,6 +162,8 @@ void dfu_rtd_init(void)
   _dfu_state_ctx.status = DFU_STATUS_OK;
   _dfu_state_ctx.attrs = tud_dfu_runtime_init_attrs_cb();
   _dfu_state_ctx.blk_transfer_in_proc = false;
+  _dfu_state_ctx.last_block_num = 0;
+  _dfu_state_ctx.last_transfer_len = 0;
 
   dfu_rtd_debug_print_context();
 }
@@ -204,6 +207,8 @@ void dfu_rtd_reset(uint8_t rhport)
   _dfu_state_ctx.status = DFU_STATUS_OK;
   _dfu_state_ctx.attrs = tud_dfu_runtime_init_attrs_cb();
   _dfu_state_ctx.blk_transfer_in_proc = false;
+  _dfu_state_ctx.last_block_num = 0;
+  _dfu_state_ctx.last_transfer_len = 0;
   dfu_rtd_debug_print_context();
 }
 
@@ -290,8 +295,8 @@ void tud_dfu_runtime_set_status(dfu_mode_device_status_t status)
 static uint16_t dfu_req_upload(uint8_t rhport, tusb_control_request_t const * request, uint16_t block_num, uint16_t wLength)
 {
   TU_VERIFY( wLength <= CFG_TUD_DFU_TRANSFER_BUFFER_SIZE);
-  uint16_t retval = tud_dfu_runtime_req_upload_data_cb(block_num, (uint8_t *)&_dfu_state_ctx.epin_buf, wLength);
-  tud_control_xfer(rhport, request, &_dfu_state_ctx.epin_buf, retval);
+  uint16_t retval = tud_dfu_runtime_req_upload_data_cb(block_num, (uint8_t *)&_dfu_state_ctx.transfer_buf, wLength);
+  tud_control_xfer(rhport, request, &_dfu_state_ctx.transfer_buf, retval);
   return retval;
 }
 
@@ -319,12 +324,14 @@ static void dfu_req_getstate_reply(uint8_t rhport, tusb_control_request_t const 
 
 static void dfu_req_dnload_setup(uint8_t rhport, tusb_control_request_t const * request)
 {
+  _dfu_state_ctx.last_block_num = request->wValue;
+  _dfu_state_ctx.last_transfer_len = request->wLength;
   // TODO: add "zero" copy mode so the buffer we read into can be provided by the user
   // if they wish, there still will be the internal control buffer copy to this buffer
   // but this mode would provide zero copy from the class driver to the application
 
   // setup for data phase
-  tud_control_xfer(rhport, request, &_dfu_state_ctx.epout_buf, request->wLength);
+  tud_control_xfer(rhport, request, &_dfu_state_ctx.transfer_buf, request->wLength);
 }
 
 static void dfu_mode_req_dnload_reply(uint8_t rhport, tusb_control_request_t const * request)
@@ -338,8 +345,12 @@ static void dfu_mode_req_dnload_reply(uint8_t rhport, tusb_control_request_t con
 
   tud_dfu_runtime_start_poll_timeout_cb((uint8_t *)&bwPollTimeout);
 
-  tud_dfu_runtime_req_dnload_data_cb(request->wValue, (uint8_t *)&_dfu_state_ctx.epout_buf, request->wLength);
+  // TODO: I want the real xferred len, not what is expected.  May need to change usbd.c to do this.
+  tud_dfu_runtime_req_dnload_data_cb(_dfu_state_ctx.last_block_num, (uint8_t *)&_dfu_state_ctx.transfer_buf, _dfu_state_ctx.last_transfer_len);
   _dfu_state_ctx.blk_transfer_in_proc = false;
+
+  _dfu_state_ctx.last_block_num = 0;
+  _dfu_state_ctx.last_transfer_len = 0;
 }
 
 void tud_dfu_runtime_poll_timeout_done()
