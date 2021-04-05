@@ -63,33 +63,32 @@
 // MACRO CONSTANT TYPEDEF
 //--------------------------------------------------------------------+
 
-// Linear buffer in case target MCU is not capable of handling a ring buffer FIFO e.g. no hardware buffer is available or driver is would need to be changed dramatically
-#if ( CFG_TUSB_MCU == OPT_MCU_MKL25ZXX            || /* Intermediate software buffer required */                        \
-    CFG_TUSB_MCU == OPT_MCU_DA1469X               || /* Intermediate software buffer required */                        \
-    CFG_TUSB_MCU == OPT_MCU_LPC18XX               || /* No clue how driver works */                                     \
-    CFG_TUSB_MCU == OPT_MCU_LPC43XX               ||                                                                    \
-    CFG_TUSB_MCU == OPT_MCU_MIMXRT10XX            ||                                                                    \
-    CFG_TUSB_MCU == OPT_MCU_RP2040                || /* Don't want to change driver */                                  \
-    CFG_TUSB_MCU == OPT_MCU_VALENTYUSB_EPTRI      || /* Intermediate software buffer required */                        \
-    CFG_TUSB_MCU == OPT_MCU_CXD56                 || /* No clue how driver works */                                     \
-    CFG_TUSB_MCU == OPT_MCU_NRF5X                 || /* Uses DMA - Ok for FIFO, had no time for implementation */       \
-    CFG_TUSB_MCU == OPT_MCU_LPC11UXX              || /* Uses DMA - Ok for FIFO, had no time for implementation */       \
-    CFG_TUSB_MCU == OPT_MCU_LPC13XX               || \
-    CFG_TUSB_MCU == OPT_MCU_LPC15XX               || \
-    CFG_TUSB_MCU == OPT_MCU_LPC51UXX              || \
-    CFG_TUSB_MCU == OPT_MCU_LPC54XXX              || \
-    CFG_TUSB_MCU == OPT_MCU_LPC55XX               || \
-    CFG_TUSB_MCU == OPT_MCU_LPC175X_6X            || \
-    CFG_TUSB_MCU == OPT_MCU_LPC40XX               || \
-    CFG_TUSB_MCU == OPT_MCU_SAMD11                || /* Uses DMA - Ok for FIFO, had no time for implementation */       \
-    CFG_TUSB_MCU == OPT_MCU_SAMD21                || \
-    CFG_TUSB_MCU == OPT_MCU_SAMD51                || \
-    CFG_TUSB_MCU == OPT_MCU_SAME5X )
+// Linear buffer in case target MCU is not capable of handling a ring buffer FIFO e.g. no hardware buffer
+// is available or driver is would need to be changed dramatically
 
-#define USE_LINEAR_BUFFER      1
+// Only STM32 synopsys use non-linear buffer for now
+// Synopsys detection copied from dcd_synopsys.c (refactor later on)
+#if defined (STM32F105x8) || defined (STM32F105xB) || defined (STM32F105xC) || \
+    defined (STM32F107xB) || defined (STM32F107xC)
+#define STM32F1_SYNOPSYS
+#endif
 
+#if defined (STM32L475xx) || defined (STM32L476xx) ||                          \
+    defined (STM32L485xx) || defined (STM32L486xx) || defined (STM32L496xx) || \
+    defined (STM32L4R5xx) || defined (STM32L4R7xx) || defined (STM32L4R9xx) || \
+    defined (STM32L4S5xx) || defined (STM32L4S7xx) || defined (STM32L4S9xx)
+#define STM32L4_SYNOPSYS
+#endif
+
+#if (CFG_TUSB_MCU == OPT_MCU_STM32F1 && defined(STM32F1_SYNOPSYS)) || \
+     CFG_TUSB_MCU == OPT_MCU_STM32F2                               || \
+     CFG_TUSB_MCU == OPT_MCU_STM32F4                               || \
+     CFG_TUSB_MCU == OPT_MCU_STM32F7                               || \
+     CFG_TUSB_MCU == OPT_MCU_STM32H7                               || \
+    (CFG_TUSB_MCU == OPT_MCU_STM32L4 && defined(STM32L4_SYNOPSYS))    \
+  #define  USE_LINEAR_BUFFER     0
 #else
-#define  USE_LINEAR_BUFFER     0
+  #define  USE_LINEAR_BUFFER     1
 #endif
 
 // Declaration of buffers
