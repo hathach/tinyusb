@@ -187,6 +187,18 @@ static usbd_class_driver_t const _usbd_driver[] =
   },
   #endif
 
+  #if CFG_TUD_DFU_MODE
+  {
+    DRIVER_NAME("DFU-MODE")
+    .init             = dfu_mode_init,
+    .reset            = dfu_mode_reset,
+    .open             = dfu_mode_open,
+    .control_xfer_cb  = dfu_mode_control_xfer_cb,
+    .xfer_cb          = dfu_mode_xfer_cb,
+    .sof              = NULL
+  },
+  #endif
+
   #if CFG_TUD_NET
   {
     DRIVER_NAME("NET")

@@ -100,6 +100,97 @@ typedef enum {
 #define DFU_FUNC_ATTR_MANIFESTATION_TOLERANT_BITMASK    (1 << 2)
 #define DFU_FUNC_ATTR_WILL_DETACH_BITMASK               (1 << 3)
 
+// DFU Status Request Payload
+typedef struct TU_ATTR_PACKED
+{
+  uint8_t bStatus;
+  uint8_t bwPollTimeout[3];
+  uint8_t bState;
+  uint8_t iString;
+} dfu_status_req_payload_t;
+
+TU_VERIFY_STATIC( sizeof(dfu_status_req_payload_t) == 6, "size is not correct");
+
+
+//--------------------------------------------------------------------+
+// Debug
+//--------------------------------------------------------------------+
+#if CFG_TUSB_DEBUG >= 2
+
+static tu_lookup_entry_t const _dfu_request_lookup[] =
+{
+  { .key = DFU_REQUEST_DETACH         , .data = "DETACH" },
+  { .key = DFU_REQUEST_DNLOAD         , .data = "DNLOAD" },
+  { .key = DFU_REQUEST_UPLOAD         , .data = "UPLOAD" },
+  { .key = DFU_REQUEST_GETSTATUS      , .data = "GETSTATUS" },
+  { .key = DFU_REQUEST_CLRSTATUS      , .data = "CLRSTATUS" },
+  { .key = DFU_REQUEST_GETSTATE       , .data = "GETSTATE" },
+  { .key = DFU_REQUEST_ABORT          , .data = "ABORT" },
+};
+
+static tu_lookup_table_t const _dfu_request_table =
+{
+  .count = TU_ARRAY_SIZE(_dfu_request_lookup),
+  .items = _dfu_request_lookup
+};
+
+static tu_lookup_entry_t const _dfu_mode_state_lookup[] =
+{
+  { .key = APP_IDLE                   , .data = "APP_IDLE" },
+  { .key = APP_DETACH                 , .data = "APP_DETACH" },
+  { .key = DFU_IDLE                   , .data = "DFU_IDLE" },
+  { .key = DFU_DNLOAD_SYNC            , .data = "DFU_DNLOAD_SYNC" },
+  { .key = DFU_DNBUSY                 , .data = "DFU_DNBUSY" },
+  { .key = DFU_DNLOAD_IDLE            , .data = "DFU_DNLOAD_IDLE" },
+  { .key = DFU_MANIFEST_SYNC          , .data = "DFU_MANIFEST_SYNC" },
+  { .key = DFU_MANIFEST               , .data = "DFU_MANIFEST" },
+  { .key = DFU_MANIFEST_WAIT_RESET    , .data = "DFU_MANIFEST_WAIT_RESET" },
+  { .key = DFU_UPLOAD_IDLE            , .data = "DFU_UPLOAD_IDLE" },
+  { .key = DFU_ERROR                  , .data = "DFU_ERROR" },
+};
+
+static tu_lookup_table_t const _dfu_mode_state_table =
+{
+  .count = TU_ARRAY_SIZE(_dfu_mode_state_lookup),
+  .items = _dfu_mode_state_lookup
+};
+
+static tu_lookup_entry_t const _dfu_mode_status_lookup[] =
+{
+  { .key = DFU_STATUS_OK              , .data = "OK" },
+  { .key = DFU_STATUS_ERRTARGET       , .data = "errTARGET" },
+  { .key = DFU_STATUS_ERRFILE         , .data = "errFILE" },
+  { .key = DFU_STATUS_ERRWRITE        , .data = "errWRITE" },
+  { .key = DFU_STATUS_ERRERASE        , .data = "errERASE" },
+  { .key = DFU_STATUS_ERRCHECK_ERASED , .data = "errCHECK_ERASED" },
+  { .key = DFU_STATUS_ERRPROG         , .data = "errPROG" },
+  { .key = DFU_STATUS_ERRVERIFY       , .data = "errVERIFY" },
+  { .key = DFU_STATUS_ERRADDRESS      , .data = "errADDRESS" },
+  { .key = DFU_STATUS_ERRNOTDONE      , .data = "errNOTDONE" },
+  { .key = DFU_STATUS_ERRFIRMWARE     , .data = "errFIRMWARE" },
+  { .key = DFU_STATUS_ERRVENDOR       , .data = "errVENDOR" },
+  { .key = DFU_STATUS_ERRUSBR         , .data = "errUSBR" },
+  { .key = DFU_STATUS_ERRPOR          , .data = "errPOR" },
+  { .key = DFU_STATUS_ERRUNKNOWN      , .data = "errUNKNOWN" },
+  { .key = DFU_STATUS_ERRSTALLEDPKT   , .data = "errSTALLEDPKT" },
+};
+
+static tu_lookup_table_t const _dfu_mode_status_table =
+{
+  .count = TU_ARRAY_SIZE(_dfu_mode_status_lookup),
+  .items = _dfu_mode_status_lookup
+};
+
+#endif
+
+#define dfu_debug_print_context()                                              \
+{                                                                              \
+  TU_LOG2("  DFU at State: %s\r\n         Status: %s\r\n",                     \
+          tu_lookup_find(&_dfu_mode_state_table, _dfu_state_ctx.state),        \
+          tu_lookup_find(&_dfu_mode_status_table, _dfu_state_ctx.status) );    \
+}
+
+
 #ifdef __cplusplus
  }
 #endif

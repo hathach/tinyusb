@@ -234,7 +234,11 @@
 #endif
 
 #ifndef CFG_TUD_DFU_RUNTIME
-  #define CFG_TUD_DFU_RUNTIME          0
+  #define CFG_TUD_DFU_RUNTIME     0
+#endif
+
+#ifndef CFG_TUD_DFU_MODE
+  #define CFG_TUD_DFU_MODE        0
 #endif
 
 #ifndef CFG_TUD_DFU_TRANSFER_BUFFER_SIZE
