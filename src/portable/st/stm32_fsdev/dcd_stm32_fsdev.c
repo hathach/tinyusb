@@ -166,7 +166,7 @@ TU_VERIFY_STATIC(((DCD_STM32_BTABLE_BASE) % 8) == 0, "BTABLE base must be aligne
 typedef struct
 {
   uint8_t * buffer;
-  tu_fifo_t * ff;
+  // tu_fifo_t * ff;  // TODO support dcd_edpt_xfer_fifo API
   uint16_t total_len;
   uint16_t queued_len;
   uint16_t pma_ptr;
@@ -197,9 +197,10 @@ static void dcd_pma_alloc_reset(void);
 static uint16_t dcd_pma_alloc(uint8_t ep_addr, size_t length);
 static void dcd_pma_free(uint8_t ep_addr);
 static bool dcd_write_packet_memory(uint16_t dst, const void *__restrict src, size_t wNBytes);
-static bool dcd_write_packet_memory_ff(tu_fifo_t * ff, uint16_t dst, uint16_t wNBytes);
 static bool dcd_read_packet_memory(void *__restrict dst, uint16_t src, size_t wNBytes);
-static bool dcd_read_packet_memory_ff(tu_fifo_t * ff, uint16_t src, uint16_t wNBytes);
+
+//static bool dcd_write_packet_memory_ff(tu_fifo_t * ff, uint16_t dst, uint16_t wNBytes);
+//static bool dcd_read_packet_memory_ff(tu_fifo_t * ff, uint16_t src, uint16_t wNBytes);
 
 // Using a function due to better type checks
 // This seems better than having to do type casts everywhere else
@@ -480,14 +481,15 @@ static void dcd_ep_ctr_rx_handler(uint32_t wIstr)
 
     if (count != 0U)
     {
+#if 0 // TODO support dcd_edpt_xfer_fifo API
       if (xfer->ff)
       {
         dcd_read_packet_memory_ff(xfer->ff, *pcd_ep_rx_address_ptr(USB,EPindex), count);
       }
       else
+#endif
       {
-        dcd_read_packet_memory(&(xfer->buffer[xfer->queued_len]),
-                *pcd_ep_rx_address_ptr(USB,EPindex), count);
+        dcd_read_packet_memory(&(xfer->buffer[xfer->queued_len]), *pcd_ep_rx_address_ptr(USB,EPindex), count);
       }
 
       xfer->queued_len = (uint16_t)(xfer->queued_len + count);
@@ -816,11 +818,14 @@ static void dcd_transmit_packet(xfer_ctl_t * xfer, uint16_t ep_ix)
     len = xfer->max_packet_size;
   }
   uint16_t oldAddr = *pcd_ep_tx_address_ptr(USB,ep_ix);
+
+#if 0 // TODO support dcd_edpt_xfer_fifo API
   if (xfer->ff)
   {
     dcd_write_packet_memory_ff(xfer->ff, oldAddr, len);
   }
   else
+#endif
   {
     dcd_write_packet_memory(oldAddr, &(xfer->buffer[xfer->queued_len]), len);
   }
@@ -840,7 +845,7 @@ bool dcd_edpt_xfer (uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t 
   xfer_ctl_t * xfer = xfer_ctl_ptr(epnum,dir);
 
   xfer->buffer = buffer;
-  xfer->ff     = NULL;
+  // xfer->ff     = NULL; // TODO support dcd_edpt_xfer_fifo API
   xfer->total_len = total_bytes;
   xfer->queued_len = 0;
 
@@ -867,6 +872,7 @@ bool dcd_edpt_xfer (uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t 
   return true;
 }
 
+#if 0 // TODO support dcd_edpt_xfer_fifo API
 bool dcd_edpt_xfer_fifo (uint8_t rhport, uint8_t ep_addr, tu_fifo_t * ff, uint16_t total_bytes)
 {
   (void) rhport;
@@ -877,7 +883,7 @@ bool dcd_edpt_xfer_fifo (uint8_t rhport, uint8_t ep_addr, tu_fifo_t * ff, uint16
   xfer_ctl_t * xfer = xfer_ctl_ptr(epnum,dir);
 
   xfer->buffer = NULL;
-  xfer->ff     = ff;
+  // xfer->ff     = ff; // TODO support dcd_edpt_xfer_fifo API
   xfer->total_len = total_bytes;
   xfer->queued_len = 0;
 
@@ -897,6 +903,7 @@ bool dcd_edpt_xfer_fifo (uint8_t rhport, uint8_t ep_addr, tu_fifo_t * ff, uint16
   }
   return true;
 }
+#endif
 
 void dcd_edpt_stall (uint8_t rhport, uint8_t ep_addr)
 {
@@ -971,6 +978,7 @@ static bool dcd_write_packet_memory(uint16_t dst, const void *__restrict src, si
   return true;
 }
 
+#if 0 // TODO support dcd_edpt_xfer_fifo API
 /**
   * @brief Copy from FIFO to packet memory area (PMA).
   *        Uses byte-access of system memory and 16-bit access of packet memory
@@ -1015,6 +1023,7 @@ static bool dcd_write_packet_memory_ff(tu_fifo_t * ff, uint16_t dst, uint16_t wN
 
   return true;
 }
+#endif
 
 /**
   * @brief Copy a buffer from packet memory area (PMA) to user memory area.
@@ -1051,6 +1060,7 @@ static bool dcd_read_packet_memory(void *__restrict dst, uint16_t src, size_t wN
   return true;
 }
 
+#if 0 // TODO support dcd_edpt_xfer_fifo API
 /**
   * @brief Copy a buffer from user packet memory area (PMA) to FIFO.
   *        Uses byte-access of system memory and 16-bit access of packet memory
@@ -1094,6 +1104,8 @@ static bool dcd_read_packet_memory_ff(tu_fifo_t * ff, uint16_t src, uint16_t wNB
 
   return true;
 }
+
+#endif
 
 #endif
 
