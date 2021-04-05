@@ -77,7 +77,7 @@ static bool active_ep0_xfer;
 static struct xfer_ctl_t
 {
   uint8_t *data_ptr;         /* data_ptr tracks where to next copy data to (for OUT) or from (for IN) */
-  tu_fifo_t * ff;            /* pointer to FIFO required for dcd_edpt_xfer_fifo() */
+  // tu_fifo_t * ff;         /* pointer to FIFO required for dcd_edpt_xfer_fifo() */ // TODO support dcd_edpt_xfer_fifo API
   union {
     uint16_t in_remaining_bytes; /* for IN endpoints, we track how many bytes are left to transfer */
     uint16_t out_bytes_so_far;   /* but for OUT endpoints, we track how many bytes we've transferred so far */
@@ -144,11 +144,13 @@ static void dcd_in_xfer(struct xfer_ctl_t *xfer, USBD_EP_T *ep)
 {
   uint16_t bytes_now = tu_min16(xfer->in_remaining_bytes, xfer->max_packet_size);
 
+#if 0 // TODO support dcd_edpt_xfer_fifo API
   if (xfer->ff)
   {
     tu_fifo_read_n(xfer->ff, (void *) (USBD_BUF_BASE + ep->BUFSEG), bytes_now);
   }
   else
+#endif
   {
     memcpy((uint8_t *)(USBD_BUF_BASE + ep->BUFSEG), xfer->data_ptr, bytes_now);
   }
@@ -277,7 +279,7 @@ bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t *buffer, uint16_t to
 
   /* store away the information we'll needing now and later */
   xfer->data_ptr = buffer;
-  xfer->ff       = NULL;
+  // xfer->ff       = NULL; // TODO support dcd_edpt_xfer_fifo API
   xfer->in_remaining_bytes = total_bytes;
   xfer->total_bytes = total_bytes;
 
@@ -297,6 +299,7 @@ bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t *buffer, uint16_t to
   return true;
 }
 
+#if 0 // TODO support dcd_edpt_xfer_fifo API
 bool dcd_edpt_xfer_fifo (uint8_t rhport, uint8_t ep_addr, tu_fifo_t * ff, uint16_t total_bytes)
 {
   (void) rhport;
@@ -324,6 +327,7 @@ bool dcd_edpt_xfer_fifo (uint8_t rhport, uint8_t ep_addr, tu_fifo_t * ff, uint16
 
   return true;
 }
+#endif
 
 void dcd_edpt_stall(uint8_t rhport, uint8_t ep_addr)
 {
@@ -428,11 +432,13 @@ void dcd_int_handler(uint8_t rhport)
         if (out_ep)
         {
           /* copy the data from the PC to the previously provided buffer */
+#if 0 // // TODO support dcd_edpt_xfer_fifo API
           if (xfer->ff)
           {
             tu_fifo_write_n(xfer->ff, (const void *) (USBD_BUF_BASE + ep->BUFSEG), available_bytes);
           }
           else
+#endif
           {
             memcpy(xfer->data_ptr, (uint8_t *)(USBD_BUF_BASE + ep->BUFSEG), available_bytes);
             xfer->data_ptr += available_bytes;
