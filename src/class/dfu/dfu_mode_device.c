@@ -590,14 +590,4 @@ static bool dfu_mode_state_machine(uint8_t rhport, tusb_control_request_t const 
 }
 
 
-bool dfu_mode_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint32_t xferred_bytes)
-{
-  (void) rhport;
-  (void) ep_addr;
-  (void) result;
-  (void) xferred_bytes;
-  return true;
-}
-
-
  #endif

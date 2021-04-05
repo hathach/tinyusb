@@ -122,7 +122,6 @@ void     dfu_mode_init(void);
 void     dfu_mode_reset(uint8_t rhport);
 uint16_t dfu_mode_open(uint8_t rhport, tusb_desc_interface_t const * itf_desc, uint16_t max_len);
 bool     dfu_mode_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request_t const * request);
-bool     dfu_mode_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint32_t xferred_bytes);
 
 
 #ifdef __cplusplus
