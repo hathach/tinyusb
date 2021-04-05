@@ -67,7 +67,7 @@ static bool dfu_mode_state_machine(uint8_t rhport, tusb_control_request_t const 
 //--------------------------------------------------------------------+
 void dfu_mode_init(void)
 {
-  _dfu_state_ctx.state = DFU_IDLE;
+  _dfu_state_ctx.state = APP_DETACH;    // After init, reset will occur.  We want to be in APP_DETACH to move to DFU_IDLE
   _dfu_state_ctx.status = DFU_STATUS_OK;
   _dfu_state_ctx.attrs = tud_dfu_mode_init_attrs_cb();
   _dfu_state_ctx.blk_transfer_in_proc = false;
@@ -79,31 +79,36 @@ void dfu_mode_init(void)
 
 void dfu_mode_reset(uint8_t rhport)
 {
-  if ( tud_dfu_mode_usb_reset_cb )
+  if (_dfu_state_ctx.state == APP_DETACH)
   {
-    tud_dfu_mode_usb_reset_cb(rhport, &_dfu_state_ctx.state);
+      _dfu_state_ctx.state = DFU_IDLE;
   } else {
-    switch (_dfu_state_ctx.state)
+    if ( tud_dfu_mode_usb_reset_cb )
     {
-      case DFU_IDLE:
-      case DFU_DNLOAD_SYNC:
-      case DFU_DNBUSY:
-      case DFU_DNLOAD_IDLE:
-      case DFU_MANIFEST_SYNC:
-      case DFU_MANIFEST:
-      case DFU_MANIFEST_WAIT_RESET:
-      case DFU_UPLOAD_IDLE:
+      tud_dfu_mode_usb_reset_cb(rhport, &_dfu_state_ctx.state);
+    } else {
+      switch (_dfu_state_ctx.state)
       {
-        _dfu_state_ctx.state = (tud_dfu_mode_firmware_valid_check_cb()) ?  APP_IDLE : DFU_ERROR;
-      }
-      break;
+        case DFU_IDLE:
+        case DFU_DNLOAD_SYNC:
+        case DFU_DNBUSY:
+        case DFU_DNLOAD_IDLE:
+        case DFU_MANIFEST_SYNC:
+        case DFU_MANIFEST:
+        case DFU_MANIFEST_WAIT_RESET:
+        case DFU_UPLOAD_IDLE:
+        {
+          _dfu_state_ctx.state = (tud_dfu_mode_firmware_valid_check_cb()) ?  APP_IDLE : DFU_ERROR;
+        }
+        break;
 
-      case DFU_ERROR:
-      default:
-      {
-        _dfu_state_ctx.state = APP_IDLE;
+        case DFU_ERROR:
+        default:
+        {
+          _dfu_state_ctx.state = APP_IDLE;
+        }
+        break;
       }
-      break;
     }
   }
 
