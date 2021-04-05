@@ -49,7 +49,7 @@ uint8_t _setup_packet[8];
 typedef struct
 {
   uint8_t * buffer;
-  tu_fifo_t * ff;
+  // tu_fifo_t * ff; // TODO support dcd_edpt_xfer_fifo API
   uint16_t total_len;
   uint16_t queued_len;
   uint16_t max_size;
@@ -308,7 +308,7 @@ bool dcd_edpt_xfer (uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t 
 
   xfer_ctl_t * xfer = XFER_CTL_BASE(epnum, dir);
   xfer->buffer = buffer;
-  xfer->ff     = NULL;
+  // xfer->ff     = NULL; // TODO support dcd_edpt_xfer_fifo API
   xfer->total_len = total_bytes;
   xfer->queued_len = 0;
   xfer->short_packet = false;
@@ -347,6 +347,7 @@ bool dcd_edpt_xfer (uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t 
   return true;
 }
 
+#if 0 // TODO support dcd_edpt_xfer_fifo API
 bool dcd_edpt_xfer_fifo (uint8_t rhport, uint8_t ep_addr, tu_fifo_t * ff, uint16_t total_bytes)
 {
   (void) rhport;
@@ -374,6 +375,7 @@ bool dcd_edpt_xfer_fifo (uint8_t rhport, uint8_t ep_addr, tu_fifo_t * ff, uint16
 
   return true;
 }
+#endif
 
 void dcd_edpt_stall (uint8_t rhport, uint8_t ep_addr)
 {
@@ -474,12 +476,14 @@ static void receive_packet(uint8_t ep_num)
     to_recv_size = (xfer_size > xfer->max_size) ? xfer->max_size : xfer_size;
   }
 
+#if 0 // TODO support dcd_edpt_xfer_fifo API
   if (xfer->ff)
   {
-    volatile uint8_t * ep_buf = &USBSTABUFF + (ep_regs[BBAX] << 3);
+    volatile uint8_t * ep_buf = (ep_num == 0) ? &USBOEP0BUF : (&USBSTABUFF + (ep_regs[BBAX] << 3));
     tu_fifo_write_n(xfer->ff, (const void *) ep_buf, to_recv_size);
   }
   else
+#endif
   {
     uint8_t * base = (xfer->buffer + xfer->queued_len);
 
@@ -565,11 +569,13 @@ static void transmit_packet(uint8_t ep_num)
     ep_regs_t ep_regs = EP_REGS(ep_num, TUSB_DIR_IN);
     volatile uint8_t * ep_buf = &USBSTABUFF + (ep_regs[BBAX] << 3);
 
+#if 0 // TODO support dcd_edpt_xfer_fifo API
     if (xfer->ff)
     {
       tu_fifo_read_n(xfer->ff, (void *) ep_buf, xfer_size);
     }
     else
+#endif
     {
       uint8_t * base = (xfer->buffer + xfer->queued_len);
       for(int i = 0; i < xfer_size; i++)
