@@ -82,6 +82,11 @@
 #define tu_varclr(_var)          tu_memclr(_var, sizeof(*(_var)))
 
 #if TUP_ARCH_STRICT_ALIGN
+
+typedef struct {
+  uint16_t val;
+} TU_ATTR_PACKED tu_unaligned_uint16_t;
+
 typedef struct {
   uint32_t val;
 } TU_ATTR_PACKED tu_unaligned_uint32_t;
@@ -98,6 +103,18 @@ static inline void tu_unaligned_write32(void* mem, uint32_t value)
   ua32->val = value;
 }
 
+static inline uint16_t tu_unaligned_read16(const void* mem)
+{
+  tu_unaligned_uint16_t const* ua16 = (tu_unaligned_uint16_t const*) mem;
+  return ua16->val;
+}
+
+static inline void tu_unaligned_write16(void* mem, uint16_t value)
+{
+  tu_unaligned_uint16_t const* ua16 = (tu_unaligned_uint16_t const*) mem;
+  ua16->val = value;
+}
+
 #else
 
 static inline uint32_t tu_unaligned_read32(const void* mem)
@@ -108,6 +125,16 @@ static inline uint32_t tu_unaligned_read32(const void* mem)
 static inline void tu_unaligned_write32(void* mem, uint32_t value)
 {
   *((uint32_t*) mem) = value;
+}
+
+static inline uint16_t tu_unaligned_read16(const void* mem)
+{
+  return *((uint16_t*) mem);
+}
+
+static inline void tu_unaligned_write16(void* mem, uint16_t value)
+{
+  *((uint16_t*) mem) = value;
 }
 
 #endif
