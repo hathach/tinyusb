@@ -76,12 +76,44 @@
 #include "tusb_timeout.h"
 #include "tusb_types.h"
 
-//--------------------------------------------------------------------+
-// Inline Functions
-//--------------------------------------------------------------------+
+//------------- Mem -------------//
+
 #define tu_memclr(buffer, size)  memset((buffer), 0, (size))
 #define tu_varclr(_var)          tu_memclr(_var, sizeof(*(_var)))
 
+#if TUP_ARCH_STRICT_ALIGN
+typedef struct {
+  uint32_t val;
+} TU_ATTR_PACKED tu_unaligned_uint32_t;
+
+static inline uint32_t tu_unaligned_read32(const void* mem)
+{
+  tu_unaligned_uint32_t const* ua32 = (tu_unaligned_uint32_t const*) mem;
+  return ua32->val;
+}
+
+static inline void tu_unaligned_write32(void* mem, uint32_t value)
+{
+  tu_unaligned_uint32_t* ua32 = (tu_unaligned_uint32_t*) mem;
+  ua32->val = value;
+}
+
+#else
+
+static inline uint32_t tu_unaligned_read32(const void* mem)
+{
+  return *((uint32_t*) mem);
+}
+
+static inline void tu_unaligned_write32(void* mem, uint32_t value)
+{
+  *((uint32_t*) mem) = value;
+}
+
+#endif
+
+
+//------------- Bytes -------------//
 static inline uint32_t tu_u32(uint8_t b1, uint8_t b2, uint8_t b3, uint8_t b4)
 {
   return ( ((uint32_t) b1) << 24) + ( ((uint32_t) b2) << 16) + ( ((uint32_t) b3) << 8) + b4;
@@ -95,17 +127,22 @@ static inline uint16_t tu_u16(uint8_t high, uint8_t low)
 static inline uint8_t tu_u16_high(uint16_t u16) { return (uint8_t) (((uint16_t) (u16 >> 8)) & 0x00ff); }
 static inline uint8_t tu_u16_low (uint16_t u16) { return (uint8_t) (u16 & 0x00ff); }
 
-// Min
+//------------- Bits -------------//
+static inline uint32_t tu_bit_set  (uint32_t value, uint8_t pos) { return value | TU_BIT(pos);                  }
+static inline uint32_t tu_bit_clear(uint32_t value, uint8_t pos) { return value & (~TU_BIT(pos));               }
+static inline bool     tu_bit_test (uint32_t value, uint8_t pos) { return (value & TU_BIT(pos)) ? true : false; }
+
+//------------- Min -------------//
 static inline uint8_t  tu_min8  (uint8_t  x, uint8_t y ) { return (x < y) ? x : y; }
 static inline uint16_t tu_min16 (uint16_t x, uint16_t y) { return (x < y) ? x : y; }
 static inline uint32_t tu_min32 (uint32_t x, uint32_t y) { return (x < y) ? x : y; }
 
-// Max
+//------------- Max -------------//
 static inline uint8_t  tu_max8  (uint8_t  x, uint8_t y ) { return (x > y) ? x : y; }
 static inline uint16_t tu_max16 (uint16_t x, uint16_t y) { return (x > y) ? x : y; }
 static inline uint32_t tu_max32 (uint32_t x, uint32_t y) { return (x > y) ? x : y; }
 
-// Align
+//------------- Align -------------//
 static inline uint32_t tu_align(uint32_t value, uint32_t alignment)
 {
   return value & ((uint32_t) ~(alignment-1));
@@ -119,7 +156,7 @@ static inline uint32_t tu_offset4k(uint32_t value) { return (value & 0xFFFUL); }
 //------------- Mathematics -------------//
 static inline uint32_t tu_abs(int32_t value) { return (uint32_t)((value < 0) ? (-value) : value); }
 
-/// inclusive range checking
+/// inclusive range checking TODO remove
 static inline bool tu_within(uint32_t lower, uint32_t value, uint32_t upper)
 {
   return (lower <= value) && (value <= upper);
@@ -138,11 +175,6 @@ static inline uint8_t tu_log2(uint32_t value)
   return result;
 }
 
-// Bit
-static inline uint32_t tu_bit_set  (uint32_t value, uint8_t pos) { return value | TU_BIT(pos);                  }
-static inline uint32_t tu_bit_clear(uint32_t value, uint8_t pos) { return value & (~TU_BIT(pos));               }
-static inline bool     tu_bit_test (uint32_t value, uint8_t pos) { return (value & TU_BIT(pos)) ? true : false; }
-
 /*------------------------------------------------------------------*/
 /* Count number of arguments of __VA_ARGS__
  * - reference https://groups.google.com/forum/#!topic/comp.std.c/d-6Mj5Lko_s
@@ -153,9 +185,9 @@ static inline bool     tu_bit_test (uint32_t value, uint8_t pos) { return (value
  *------------------------------------------------------------------*/
 #ifndef TU_ARGS_NUM
 
-#define TU_ARGS_NUM(...) 	 NARG_(_0, ##__VA_ARGS__,_RSEQ_N())
+#define TU_ARGS_NUM(...) 	 _TU_NARG(_0, ##__VA_ARGS__,_RSEQ_N())
 
-#define NARG_(...)        _GET_NTH_ARG(__VA_ARGS__)
+#define _TU_NARG(...)        _GET_NTH_ARG(__VA_ARGS__)
 #define _GET_NTH_ARG( \
           _1, _2, _3, _4, _5, _6, _7, _8, _9,_10, \
          _11,_12,_13,_14,_15,_16,_17,_18,_19,_20, \

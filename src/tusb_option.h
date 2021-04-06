@@ -124,15 +124,12 @@
 #define OPT_OS_RTTHREAD   6  ///< RT-Thread
 /** @} */
 
-
 // Allow to use command line to change the config name/location
 #ifdef CFG_TUSB_CONFIG_FILE
   #include CFG_TUSB_CONFIG_FILE
 #else
   #include "tusb_config.h"
 #endif
-
-
 
 /** \addtogroup group_configuration
  *  @{ */
@@ -277,6 +274,19 @@
   //------------- CLASS -------------//
 #endif // TUSB_OPT_HOST_ENABLED
 
+//--------------------------------------------------------------------+
+// Port Options
+// TUP for TinyUSB Port (can be renamed)
+//--------------------------------------------------------------------+
+
+// TUP_ARCH_STRICT_ALIGN if arch cannot access unaligned memory
+
+// ARMv7+ (M3-M7, M23-M33) can access unaligned memory
+#if (defined(__ARM_ARCH) && (__ARM_ARCH >= 7))
+  #define TUP_ARCH_STRICT_ALIGN   0
+#else
+  #define TUP_ARCH_STRICT_ALIGN   1
+#endif
 
 //------------------------------------------------------------------
 // Configuration Validation
