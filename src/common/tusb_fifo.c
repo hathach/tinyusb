@@ -139,37 +139,30 @@ static void _tu_fifo_read_from_const_src_ptr_in_full_words(void * dst, const voi
 }
 
 // Intended to be used to write to hardware USB FIFO in e.g. STM32 where all data is written to a constant address in full word copies
-static void _tu_fifo_write_to_const_dst_ptr_in_full_words(void * dst, const void * src, uint16_t len)
+static void _ff_pull_const_addr_in_full_words(void * dst, const uint8_t * src, uint16_t len)
 {
   volatile uint32_t * tx_fifo = (volatile uint32_t *) dst;
-
-  // Optimize for fast word copies
-  typedef struct{
-      uint32_t val;
-  } __attribute((__packed__)) unaligned_uint32_t;
-
-  unaligned_uint32_t* src_una = (unaligned_uint32_t *) src;
 
   // Pushing full available 32 bit words to FIFO
   uint16_t full_words = len >> 2;
   while(full_words--)
   {
-    *tx_fifo = src_una->val;
-    src_una++;
+    *tx_fifo = tu_unaligned_read32(src);
+    src += 4;
   }
 
   // Write the remaining 1-3 bytes into FIFO
   uint8_t bytes_rem = len & 0x03;
-  if(bytes_rem){
-    uint8_t * src_u8 = (uint8_t *) src_una;
-    uint32_t tmp = 0;
-    uint8_t * dst_u8 = (uint8_t *)&tmp;
+  if(bytes_rem)
+  {
+    uint32_t tmp32 = 0;
+    uint8_t* dst8 = (uint8_t*) &tmp32;
 
     while(bytes_rem--)
     {
-      *dst_u8++ = *src_u8++;
+      *dst8++ = *src++;
     }
-    *tx_fifo = tmp;
+    *tx_fifo = tmp32;
   }
 }
 
@@ -270,12 +263,12 @@ static inline void _ff_pull(tu_fifo_t* f, void * p_buffer, uint16_t rRel)
 }
 
 // get n items from FIFO WITHOUT updating read pointer
-static void _ff_pull_n(tu_fifo_t* f, void * p_buffer, uint16_t n, uint16_t rRel, tu_fifo_copy_mode_t copy_mode)
+static void _ff_pull_n(tu_fifo_t* f, uint8_t* p_buffer, uint16_t n, uint16_t rRel, tu_fifo_copy_mode_t copy_mode)
 {
   switch (copy_mode)
   {
     case TU_FIFO_COPY_INC:
-      if(n <= f->depth-rRel)
+      if ( n <= f->depth - rRel )
       {
         // Linear mode only
         memcpy(p_buffer, f->buffer + (rRel * f->item_size), n*f->item_size);
@@ -289,68 +282,60 @@ static void _ff_pull_n(tu_fifo_t* f, void * p_buffer, uint16_t n, uint16_t rRel,
         memcpy(p_buffer, f->buffer + (rRel * f->item_size), nLin*f->item_size);
 
         // Read data wrapped part
-        memcpy((uint8_t*)p_buffer + nLin*f->item_size, f->buffer, (n - nLin) * f->item_size);
+        memcpy(p_buffer + nLin*f->item_size, f->buffer, (n - nLin) * f->item_size);
       }
       break;
 
     case TU_FIFO_COPY_CST_FULL_WORDS:
-
-      if(n <= f->depth-rRel)
+      if ( n <= f->depth - rRel )
       {
         // Linear mode only
-        _tu_fifo_write_to_const_dst_ptr_in_full_words(p_buffer, f->buffer + (rRel * f->item_size), n*f->item_size);
+        _ff_pull_const_addr_in_full_words(p_buffer, f->buffer + (rRel * f->item_size), n*f->item_size);
       }
       else
       {
+        // since it is const address, we don't increase p_buffer
+        volatile uint32_t * tx_fifo = (volatile uint32_t *) p_buffer;
+        uint8_t* src = f->buffer + (rRel * f->item_size);
+
         // Wrap around case
         uint16_t nLin = (f->depth - rRel) * f->item_size;
+        uint16_t nLin_4n = nLin & 0xFFFC;
+
         uint16_t nWrap = (n - nLin) * f->item_size;
 
-        // Optimize for fast word copies
-        typedef struct{
-            uint32_t val;
-        } __attribute((__packed__)) unaligned_uint32_t;
+        // Read data from linear part of buffer
+        _ff_pull_const_addr_in_full_words(p_buffer, src, nLin_4n);
 
-        unaligned_uint32_t* src = (unaligned_uint32_t*)(f->buffer + (rRel * f->item_size));
+        src += nLin_4n;
 
-        volatile uint32_t * tx_fifo = (volatile uint32_t *) p_buffer;
-
-        // Pushing full available 32 bit words to FIFO
-        uint16_t full_words = nLin >> 2;
-        while(full_words--)
-        {
-          *tx_fifo = src->val;
-          src++;
-        }
-
-        uint8_t * src_u8;
-        uint8_t rem = nLin & 0x03;
+        // There could be odd 1-3 bytes before the wrap-around boundary
         // Handle wrap around - do it manually as these are only 4 bytes and its faster without memcpy
+        uint8_t rem = nLin & 0x03;
         if (rem > 0)
         {
-          src_u8 = (uint8_t *) src;
           uint8_t remrem = tu_min16(nWrap, 4-rem);
           nWrap -= remrem;
           uint32_t tmp;
           uint8_t * dst_u8 = (uint8_t *)&tmp;
           while(rem--)
           {
-            *dst_u8++ = *src_u8++;
+            *dst_u8++ = *src++;
           }
-          src_u8 = f->buffer;
+          src = f->buffer;
           while(remrem--)
           {
-            *dst_u8++ = *src_u8++;
+            *dst_u8++ = *src++;
           }
           *tx_fifo = tmp;
         }
         else
         {
-          src_u8 = f->buffer;
+          src = f->buffer; // wrap around to beginning
         }
 
         // Final linear part
-        if (nWrap > 0) _tu_fifo_write_to_const_dst_ptr_in_full_words(p_buffer, src_u8, nWrap);
+        if (nWrap > 0) _ff_pull_const_addr_in_full_words(p_buffer, src, nWrap);
       }
       break;
   }
@@ -482,7 +467,7 @@ static uint16_t _tu_fifo_peek_at_n(tu_fifo_t* f, uint16_t offset, void * p_buffe
   uint16_t rRel = get_relative_pointer(f, rAbs, offset);
 
   // Peek data
-  _ff_pull_n(f, p_buffer, n, rRel, copy_mode);
+  _ff_pull_n(f, (uint8_t*) p_buffer, n, rRel, copy_mode);
 
   return n;
 }
