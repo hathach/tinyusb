@@ -207,7 +207,6 @@ bool tud_audio_set_req_entity_cb(uint8_t rhport, tusb_control_request_t const * 
         mute[channelNum] = ((audio_control_cur_1_t*) pBuff)->bCur;
 
         TU_LOG2("    Set Mute: %d of channel: %u\r\n", mute[channelNum], channelNum);
-
       return true;
 
       case AUDIO_FU_CTRL_VOLUME:
@@ -217,8 +216,7 @@ bool tud_audio_set_req_entity_cb(uint8_t rhport, tusb_control_request_t const * 
         volume[channelNum] = ((audio_control_cur_2_t*) pBuff)->bCur;
 
         TU_LOG2("    Set Volume: %d dB of channel: %u\r\n", volume[channelNum], channelNum);
-
-     return true;
+      return true;
 
         // Unknown/Unsupported control
       default:
@@ -275,96 +273,110 @@ bool tud_audio_get_req_entity_cb(uint8_t rhport, tusb_control_request_t const * 
   // Input terminal (Microphone input)
   if (entityID == 1)
   {
-    switch (ctrlSel)
+    switch ( ctrlSel )
     {
-      case AUDIO_TE_CTRL_CONNECTOR:;
-      // The terminal connector control only has a get request with only the CUR attribute.
+      case AUDIO_TE_CTRL_CONNECTOR:
+      {
+        // The terminal connector control only has a get request with only the CUR attribute.
+        audio_desc_channel_cluster_t ret;
 
-      audio_desc_channel_cluster_t ret;
+        // Those are dummy values for now
+        ret.bNrChannels = 1;
+        ret.bmChannelConfig = 0;
+        ret.iChannelNames = 0;
 
-      // Those are dummy values for now
-      ret.bNrChannels = 1;
-      ret.bmChannelConfig = 0;
-      ret.iChannelNames = 0;
+        TU_LOG2("    Get terminal connector\r\n");
 
-      TU_LOG2("    Get terminal connector\r\n");
+        return tud_audio_buffer_and_schedule_control_xfer(rhport, p_request, (void*) &ret, sizeof(ret));
+      }
+      break;
 
-      return tud_audio_buffer_and_schedule_control_xfer(rhport, p_request, (void*)&ret, sizeof(ret));
-
-      // Unknown/Unsupported control selector
-      default: TU_BREAKPOINT(); return false;
+        // Unknown/Unsupported control selector
+      default:
+        TU_BREAKPOINT();
+        return false;
     }
   }
 
   // Feature unit
   if (entityID == 2)
   {
-    switch (ctrlSel)
+    switch ( ctrlSel )
     {
       case AUDIO_FU_CTRL_MUTE:
-	// Audio control mute cur parameter block consists of only one byte - we thus can send it right away
-	// There does not exist a range parameter block for mute
-	TU_LOG2("    Get Mute of channel: %u\r\n", channelNum);
-	return tud_control_xfer(rhport, p_request, &mute[channelNum], 1);
+        // Audio control mute cur parameter block consists of only one byte - we thus can send it right away
+        // There does not exist a range parameter block for mute
+        TU_LOG2("    Get Mute of channel: %u\r\n", channelNum);
+        return tud_control_xfer(rhport, p_request, &mute[channelNum], 1);
 
       case AUDIO_FU_CTRL_VOLUME:
+        switch ( p_request->bRequest )
+        {
+          case AUDIO_CS_REQ_CUR:
+            TU_LOG2("    Get Volume of channel: %u\r\n", channelNum);
+            return tud_control_xfer(rhport, p_request, &volume[channelNum], sizeof(volume[channelNum]));
 
-	switch (p_request->bRequest)
-	{
-	  case AUDIO_CS_REQ_CUR:
-	    TU_LOG2("    Get Volume of channel: %u\r\n", channelNum);
-	    return tud_control_xfer(rhport, p_request, &volume[channelNum], sizeof(volume[channelNum]));
-	  case AUDIO_CS_REQ_RANGE:
-	    TU_LOG2("    Get Volume range of channel: %u\r\n", channelNum);
+          case AUDIO_CS_REQ_RANGE:
+            TU_LOG2("    Get Volume range of channel: %u\r\n", channelNum);
 
-	    // Copy values - only for testing - better is version below
-	    audio_control_range_2_n_t(1) ret;
+            // Copy values - only for testing - better is version below
+            audio_control_range_2_n_t(1)
+            ret;
 
-	    ret.wNumSubRanges = 1;
-	    ret.subrange[0].bMin = -90; 	// -90 dB
-	    ret.subrange[0].bMax = 90;		// +90 dB
-	    ret.subrange[0].bRes = 1; 		// 1 dB steps
+            ret.wNumSubRanges = 1;
+            ret.subrange[0].bMin = -90;    // -90 dB
+            ret.subrange[0].bMax = 90;		// +90 dB
+            ret.subrange[0].bRes = 1; 		// 1 dB steps
 
-	    return tud_audio_buffer_and_schedule_control_xfer(rhport, p_request, (void*)&ret, sizeof(ret));
+            return tud_audio_buffer_and_schedule_control_xfer(rhport, p_request, (void*) &ret, sizeof(ret));
 
-	    // Unknown/Unsupported control
-	  default: TU_BREAKPOINT(); return false;
-	}
+            // Unknown/Unsupported control
+          default:
+            TU_BREAKPOINT();
+            return false;
+        }
+      break;
 
-	// Unknown/Unsupported control
-	  default: TU_BREAKPOINT(); return false;
+        // Unknown/Unsupported control
+      default:
+        TU_BREAKPOINT();
+        return false;
     }
   }
 
   // Clock Source unit
-  if (entityID == 4)
+  if ( entityID == 4 )
   {
-    switch (ctrlSel)
+    switch ( ctrlSel )
     {
       case AUDIO_CS_CTRL_SAM_FREQ:
+        // channelNum is always zero in this case
+        switch ( p_request->bRequest )
+        {
+          case AUDIO_CS_REQ_CUR:
+            TU_LOG2("    Get Sample Freq.\r\n");
+            return tud_control_xfer(rhport, p_request, &sampFreq, sizeof(sampFreq));
 
-	// channelNum is always zero in this case
+          case AUDIO_CS_REQ_RANGE:
+            TU_LOG2("    Get Sample Freq. range\r\n");
+            return tud_control_xfer(rhport, p_request, &sampleFreqRng, sizeof(sampleFreqRng));
 
-	switch (p_request->bRequest)
-	{
-	  case AUDIO_CS_REQ_CUR:
-	    TU_LOG2("    Get Sample Freq.\r\n");
-	    return tud_control_xfer(rhport, p_request, &sampFreq, sizeof(sampFreq));
-	  case AUDIO_CS_REQ_RANGE:
-	    TU_LOG2("    Get Sample Freq. range\r\n");
-	    return tud_control_xfer(rhport, p_request, &sampleFreqRng, sizeof(sampleFreqRng));
+           // Unknown/Unsupported control
+          default:
+            TU_BREAKPOINT();
+            return false;
+        }
+      break;
 
-	    // Unknown/Unsupported control
-	  default: TU_BREAKPOINT(); return false;
-	}
+      case AUDIO_CS_CTRL_CLK_VALID:
+        // Only cur attribute exists for this request
+        TU_LOG2("    Get Sample Freq. valid\r\n");
+        return tud_control_xfer(rhport, p_request, &clkValid, sizeof(clkValid));
 
-	  case AUDIO_CS_CTRL_CLK_VALID:
-	    // Only cur attribute exists for this request
-	    TU_LOG2("    Get Sample Freq. valid\r\n");
-	    return tud_control_xfer(rhport, p_request, &clkValid, sizeof(clkValid));
-
-	    // Unknown/Unsupported control
-	  default: TU_BREAKPOINT(); return false;
+      // Unknown/Unsupported control
+      default:
+        TU_BREAKPOINT();
+        return false;
     }
   }
 
