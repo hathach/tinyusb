@@ -265,68 +265,68 @@ static inline void _ff_pull(tu_fifo_t* f, void * p_buffer, uint16_t rRel)
 // get n items from FIFO WITHOUT updating read pointer
 static void _ff_pull_n(tu_fifo_t* f, uint8_t* p_buffer, uint16_t n, uint16_t rRel, tu_fifo_copy_mode_t copy_mode)
 {
+  uint16_t const nLin = f->depth - rRel;
+  uint16_t const nWrap = n - nLin; // only used if wrapped
+
   switch (copy_mode)
   {
     case TU_FIFO_COPY_INC:
-      if ( n <= f->depth - rRel )
+      if ( n <= nLin )
       {
-        // Linear mode only
+        // Linear only
         memcpy(p_buffer, f->buffer + (rRel * f->item_size), n*f->item_size);
       }
       else
       {
         // Wrap around
-        uint16_t nLin = f->depth - rRel;
 
         // Read data from linear part of buffer
         memcpy(p_buffer, f->buffer + (rRel * f->item_size), nLin*f->item_size);
 
         // Read data wrapped part
-        memcpy(p_buffer + nLin*f->item_size, f->buffer, (n - nLin) * f->item_size);
+        memcpy(p_buffer + nLin*f->item_size, f->buffer, nWrap*f->item_size);
       }
-      break;
+    break;
 
     case TU_FIFO_COPY_CST_FULL_WORDS:
-      if ( n <= f->depth - rRel )
+      if ( n <= nLin )
       {
         // Linear mode only
         _ff_pull_const_addr_in_full_words(p_buffer, f->buffer + (rRel * f->item_size), n*f->item_size);
       }
       else
       {
-        // since it is const address, we don't increase p_buffer
-        volatile uint32_t * tx_fifo = (volatile uint32_t *) p_buffer;
+        // Wrap around case
+
+        uint16_t nLin_bytes = nLin * f->item_size;
+        uint16_t nWrap_bytes = nWrap * f->item_size;
+
         uint8_t* src = f->buffer + (rRel * f->item_size);
 
-        // Wrap around case
-        uint16_t nLin = (f->depth - rRel) * f->item_size;
-        uint16_t nLin_4n = nLin & 0xFFFC;
-
-        uint16_t nWrap = (n - nLin) * f->item_size;
-
         // Read data from linear part of buffer
-        _ff_pull_const_addr_in_full_words(p_buffer, src, nLin_4n);
-
-        src += nLin_4n;
+        uint16_t nLin_4n_bytes = nLin_bytes & 0xFFFC;
+        _ff_pull_const_addr_in_full_words(p_buffer, src, nLin_4n_bytes);
+        src += nLin_4n_bytes;
 
         // There could be odd 1-3 bytes before the wrap-around boundary
         // Handle wrap around - do it manually as these are only 4 bytes and its faster without memcpy
-        uint8_t rem = nLin & 0x03;
+        volatile uint32_t * tx_fifo = (volatile uint32_t *) p_buffer;
+        uint8_t rem = nLin_bytes & 0x03;
         if (rem > 0)
         {
-          uint8_t remrem = tu_min16(nWrap, 4-rem);
-          nWrap -= remrem;
+          uint8_t remrem = tu_min16(nWrap_bytes, 4-rem);
+          nWrap_bytes -= remrem;
+
           uint32_t tmp;
           uint8_t * dst_u8 = (uint8_t *)&tmp;
-          while(rem--)
-          {
-            *dst_u8++ = *src++;
-          }
+
+          // Get 1-3 bytes before wrapped boundary
+          while(rem--) *dst_u8++ = *src++;
+
+          // Get more bytes from beginning to form a complete word
           src = f->buffer;
-          while(remrem--)
-          {
-            *dst_u8++ = *src++;
-          }
+          while(remrem--) *dst_u8++ = *src++;
+
           *tx_fifo = tmp;
         }
         else
@@ -334,10 +334,12 @@ static void _ff_pull_n(tu_fifo_t* f, uint8_t* p_buffer, uint16_t n, uint16_t rRe
           src = f->buffer; // wrap around to beginning
         }
 
-        // Final linear part
-        if (nWrap > 0) _ff_pull_const_addr_in_full_words(p_buffer, src, nWrap);
+        // Read data wrapped part
+        if (nWrap_bytes > 0) _ff_pull_const_addr_in_full_words(p_buffer, src, nWrap_bytes);
       }
-      break;
+    break;
+
+    default: break;
   }
 }
 // Advance an absolute pointer
