@@ -111,7 +111,7 @@ static inline uint16_t tu_unaligned_read16(const void* mem)
 
 static inline void tu_unaligned_write16(void* mem, uint16_t value)
 {
-  tu_unaligned_uint16_t const* ua16 = (tu_unaligned_uint16_t const*) mem;
+  tu_unaligned_uint16_t* ua16 = (tu_unaligned_uint16_t*) mem;
   ua16->val = value;
 }
 
