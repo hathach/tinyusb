@@ -496,17 +496,17 @@ static inline bool tud_audio_mounted(void)
 
 #if CFG_TUD_AUDIO_ENABLE_EP_OUT && !CFG_TUD_AUDIO_ENABLE_DECODING
 
-static inline uint16_t     tud_audio_available              (void)
+static inline uint16_t tud_audio_available(void)
 {
   return tud_audio_n_available(0);
 }
 
-static inline uint16_t     tud_audio_read                   (void* buffer, uint16_t bufsize)
+static inline uint16_t tud_audio_read(void* buffer, uint16_t bufsize)
 {
   return tud_audio_n_read(0, buffer, bufsize);
 }
 
-static inline bool         tud_audio_clear_ep_out_ff        (void)
+static inline bool tud_audio_clear_ep_out_ff(void)
 {
   return tud_audio_n_clear_ep_out_ff(0);
 }
@@ -515,17 +515,17 @@ static inline bool         tud_audio_clear_ep_out_ff        (void)
 
 #if CFG_TUD_AUDIO_ENABLE_EP_OUT && CFG_TUD_AUDIO_ENABLE_DECODING
 
-static inline bool     		tud_audio_clear_rx_support_ff        (uint8_t channelId)
+static inline bool tud_audio_clear_rx_support_ff(uint8_t channelId)
 {
   return tud_audio_n_clear_rx_support_ff(0, channelId);
 }
 
-static inline uint16_t tud_audio_available_support_ff       (uint8_t channelId)
+static inline uint16_t tud_audio_available_support_ff(uint8_t channelId)
 {
   return tud_audio_n_available_support_ff(0, channelId);
 }
 
-static inline uint16_t tud_audio_read_support_ff            (uint8_t channelId, void* buffer, uint16_t bufsize)
+static inline uint16_t tud_audio_read_support_ff(uint8_t channelId, void* buffer, uint16_t bufsize)
 {
   return tud_audio_n_read_support_ff(0, channelId, buffer, bufsize);
 }
@@ -536,12 +536,12 @@ static inline uint16_t tud_audio_read_support_ff            (uint8_t channelId, 
 
 #if CFG_TUD_AUDIO_ENABLE_EP_IN && !CFG_TUD_AUDIO_ENABLE_ENCODING
 
-static inline uint16_t tud_audio_write                      (const void * data, uint16_t len)
+static inline uint16_t tud_audio_write(const void * data, uint16_t len)
 {
   return tud_audio_n_write(0, data, len);
 }
 
-static inline bool tud_audio_clear_ep_in_ff             	(void)
+static inline bool tud_audio_clear_ep_in_ff(void)
 {
   return tud_audio_n_clear_ep_in_ff(0);
 }
@@ -550,17 +550,17 @@ static inline bool tud_audio_clear_ep_in_ff             	(void)
 
 #if CFG_TUD_AUDIO_ENABLE_EP_IN && CFG_TUD_AUDIO_ENABLE_ENCODING
 
-static inline uint16_t tud_audio_flush_tx_support_ff        (void)
+static inline uint16_t tud_audio_flush_tx_support_ff(void)
 {
   return tud_audio_n_flush_tx_support_ff(0);
 }
 
-static inline uint16_t tud_audio_clear_tx_support_ff        (uint8_t channelId)
+static inline uint16_t tud_audio_clear_tx_support_ff(uint8_t channelId)
 {
   return tud_audio_n_clear_tx_support_ff(0, channelId);
 }
 
-static inline uint16_t tud_audio_write_support_ff           (uint8_t channelId, const void * data, uint16_t len)
+static inline uint16_t tud_audio_write_support_ff(uint8_t channelId, const void * data, uint16_t len)
 {
   return tud_audio_n_write_support_ff(0, channelId, data, len);
 }
@@ -584,11 +584,11 @@ static inline bool tud_audio_fb_set(uint32_t feedback)
 //--------------------------------------------------------------------+
 // Internal Class Driver API
 //--------------------------------------------------------------------+
-void audiod_init              (void);
-void audiod_reset             (uint8_t rhport);
-uint16_t audiod_open          (uint8_t rhport, tusb_desc_interface_t const * itf_desc, uint16_t max_len);
-bool audiod_control_xfer_cb   (uint8_t rhport, uint8_t stage, tusb_control_request_t const * request);
-bool audiod_xfer_cb           (uint8_t rhport, uint8_t edpt_addr, xfer_result_t result, uint32_t xferred_bytes);
+void     audiod_init           (void);
+void     audiod_reset          (uint8_t rhport);
+uint16_t audiod_open           (uint8_t rhport, tusb_desc_interface_t const * itf_desc, uint16_t max_len);
+bool     audiod_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request_t const * request);
+bool     audiod_xfer_cb        (uint8_t rhport, uint8_t edpt_addr, xfer_result_t result, uint32_t xferred_bytes);
 
 #ifdef __cplusplus
 }
