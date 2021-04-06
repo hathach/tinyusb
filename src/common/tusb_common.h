@@ -77,68 +77,8 @@
 #include "tusb_types.h"
 
 //------------- Mem -------------//
-
 #define tu_memclr(buffer, size)  memset((buffer), 0, (size))
 #define tu_varclr(_var)          tu_memclr(_var, sizeof(*(_var)))
-
-#if TUP_ARCH_STRICT_ALIGN
-
-typedef struct {
-  uint16_t val;
-} TU_ATTR_PACKED tu_unaligned_uint16_t;
-
-typedef struct {
-  uint32_t val;
-} TU_ATTR_PACKED tu_unaligned_uint32_t;
-
-static inline uint32_t tu_unaligned_read32(const void* mem)
-{
-  tu_unaligned_uint32_t const* ua32 = (tu_unaligned_uint32_t const*) mem;
-  return ua32->val;
-}
-
-static inline void tu_unaligned_write32(void* mem, uint32_t value)
-{
-  tu_unaligned_uint32_t* ua32 = (tu_unaligned_uint32_t*) mem;
-  ua32->val = value;
-}
-
-static inline uint16_t tu_unaligned_read16(const void* mem)
-{
-  tu_unaligned_uint16_t const* ua16 = (tu_unaligned_uint16_t const*) mem;
-  return ua16->val;
-}
-
-static inline void tu_unaligned_write16(void* mem, uint16_t value)
-{
-  tu_unaligned_uint16_t* ua16 = (tu_unaligned_uint16_t*) mem;
-  ua16->val = value;
-}
-
-#else
-
-static inline uint32_t tu_unaligned_read32(const void* mem)
-{
-  return *((uint32_t*) mem);
-}
-
-static inline void tu_unaligned_write32(void* mem, uint32_t value)
-{
-  *((uint32_t*) mem) = value;
-}
-
-static inline uint16_t tu_unaligned_read16(const void* mem)
-{
-  return *((uint16_t*) mem);
-}
-
-static inline void tu_unaligned_write16(void* mem, uint16_t value)
-{
-  *((uint16_t*) mem) = value;
-}
-
-#endif
-
 
 //------------- Bytes -------------//
 static inline uint32_t tu_u32(uint8_t b1, uint8_t b2, uint8_t b3, uint8_t b4)
@@ -201,6 +141,46 @@ static inline uint8_t tu_log2(uint32_t value)
   }
   return result;
 }
+
+//------------- Unaligned Access -------------//
+#if TUP_ARCH_STRICT_ALIGN
+
+typedef struct { uint16_t val; } TU_ATTR_PACKED tu_unaligned_uint16_t;
+typedef struct { uint32_t val; } TU_ATTR_PACKED tu_unaligned_uint32_t;
+
+static inline uint32_t tu_unaligned_read32(const void* mem)
+{
+  tu_unaligned_uint32_t const* ua32 = (tu_unaligned_uint32_t const*) mem;
+  return ua32->val;
+}
+
+static inline void tu_unaligned_write32(void* mem, uint32_t value)
+{
+  tu_unaligned_uint32_t* ua32 = (tu_unaligned_uint32_t*) mem;
+  ua32->val = value;
+}
+
+static inline uint16_t tu_unaligned_read16(const void* mem)
+{
+  tu_unaligned_uint16_t const* ua16 = (tu_unaligned_uint16_t const*) mem;
+  return ua16->val;
+}
+
+static inline void tu_unaligned_write16(void* mem, uint16_t value)
+{
+  tu_unaligned_uint16_t* ua16 = (tu_unaligned_uint16_t*) mem;
+  ua16->val = value;
+}
+
+#else
+
+static inline uint32_t tu_unaligned_read32  (const void* mem           ) { return *((uint32_t*) mem);  }
+static inline uint16_t tu_unaligned_read16  (const void* mem           ) { return *((uint16_t*) mem);  }
+
+static inline void     tu_unaligned_write32 (void* mem, uint32_t value ) { *((uint32_t*) mem) = value; }
+static inline void     tu_unaligned_write16 (void* mem, uint16_t value ) { *((uint16_t*) mem) = value; }
+
+#endif
 
 /*------------------------------------------------------------------*/
 /* Count number of arguments of __VA_ARGS__
