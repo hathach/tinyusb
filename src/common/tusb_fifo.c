@@ -263,7 +263,7 @@ static inline void _ff_pull(tu_fifo_t* f, void * p_buffer, uint16_t rRel)
 }
 
 // get n items from FIFO WITHOUT updating read pointer
-static void _ff_pull_n(tu_fifo_t* f, uint8_t* p_buffer, uint16_t n, uint16_t rRel, tu_fifo_copy_mode_t copy_mode)
+static void _ff_pull_n(tu_fifo_t* f, void* p_buffer, uint16_t n, uint16_t rRel, tu_fifo_copy_mode_t copy_mode)
 {
   uint16_t const nLin = f->depth - rRel;
   uint16_t const nWrap = n - nLin; // only used if wrapped
@@ -284,7 +284,7 @@ static void _ff_pull_n(tu_fifo_t* f, uint8_t* p_buffer, uint16_t n, uint16_t rRe
         memcpy(p_buffer, f->buffer + (rRel * f->item_size), nLin*f->item_size);
 
         // Read data wrapped part
-        memcpy(p_buffer + nLin*f->item_size, f->buffer, nWrap*f->item_size);
+        memcpy((uint8_t*) p_buffer + nLin*f->item_size, f->buffer, nWrap*f->item_size);
       }
     break;
 
@@ -469,7 +469,7 @@ static uint16_t _tu_fifo_peek_at_n(tu_fifo_t* f, uint16_t offset, void * p_buffe
   uint16_t rRel = get_relative_pointer(f, rAbs, offset);
 
   // Peek data
-  _ff_pull_n(f, (uint8_t*) p_buffer, n, rRel, copy_mode);
+  _ff_pull_n(f, p_buffer, n, rRel, copy_mode);
 
   return n;
 }
