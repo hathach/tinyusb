@@ -310,6 +310,7 @@ typedef struct
   audio_data_format_type_I_t format_type_I_rx;
   uint8_t n_bytes_per_sampe_rx;
   uint8_t n_channels_per_ff_rx;
+  uint8_t n_ff_used_rx;
 #endif
 #endif
 
@@ -322,6 +323,7 @@ typedef struct
   audio_data_format_type_I_t format_type_I_tx;
   uint8_t n_bytes_per_sampe_tx;
   uint8_t n_channels_per_ff_tx;
+  uint8_t n_ff_used_tx;
 #endif
 #endif
 
@@ -625,10 +627,7 @@ static bool audiod_decode_type_I_pcm(uint8_t rhport, audiod_interface_t* audio, 
   (void) rhport;
 
   // Determine amount of samples
-  uint8_t const n_ff_used               = audio->n_channels_rx / audio->n_channels_per_ff_rx;
-
-  TU_ASSERT( n_ff_used <= audio->n_rx_supp_ff );
-
+  uint8_t const n_ff_used               = audio->n_ff_used_rx;
   uint16_t const nBytesToCopy           = audio->n_channels_per_ff_rx * audio->n_bytes_per_sampe_rx;
   uint16_t const nBytesPerFFToRead      = n_bytes_received / n_ff_used;
   uint8_t cnt_ff;
@@ -928,10 +927,7 @@ static uint16_t audiod_encode_type_I_pcm(uint8_t rhport, audiod_interface_t* aud
   TU_VERIFY(!usbd_edpt_busy(rhport, audio->ep_in));
 
   // Determine amount of samples
-  uint8_t const n_ff_used               = audio->n_channels_tx / audio->n_channels_per_ff_tx;
-
-  TU_ASSERT( n_ff_used <= audio->n_tx_supp_ff );
-
+  uint8_t const n_ff_used               = audio->n_ff_used_tx;
   uint16_t const nBytesToCopy           = audio->n_channels_per_ff_tx * audio->n_bytes_per_sampe_tx;
   uint16_t const capPerFF               = audio->ep_in_sz / n_ff_used;                                        // Sample capacity per FIFO in bytes
   uint16_t nBytesPerFFToSend            = tu_fifo_count(&audio->tx_supp_ff[0]);
@@ -1551,6 +1547,8 @@ static bool audiod_set_interface(uint8_t rhport, tusb_control_request_t const * 
             {
               tu_fifo_config(&audio->tx_supp_ff[cnt], audio->tx_supp_ff[cnt].buffer, active_fifo_depth, 1, true);
             }
+            audio->n_ff_used_tx = audio->n_channels_tx / audio->n_channels_per_ff_tx;
+            TU_ASSERT( audio->n_ff_used_tx <= audio->n_tx_supp_ff );
 #endif
 
 #endif
@@ -1582,6 +1580,8 @@ static bool audiod_set_interface(uint8_t rhport, tusb_control_request_t const * 
             {
               tu_fifo_config(&audio->rx_supp_ff[cnt], audio->rx_supp_ff[cnt].buffer, active_fifo_depth, 1, true);
             }
+            audio->n_ff_used_rx = audio->n_channels_rx / audio->n_channels_per_ff_rx;
+            TU_ASSERT( audio->n_ff_used_rx <= audio->n_rx_supp_ff );
 #endif
 #endif
             // Invoke callback

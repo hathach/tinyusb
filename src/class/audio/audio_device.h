@@ -240,6 +240,9 @@
 // Enable encoding/decodings - for these to work, support FIFOs need to be setup in appropriate numbers and size
 // The actual coding parameters of active AS alternate interface is parsed from the descriptors
 
+// The item size of the FIFO is always fixed to one i.e. bytes! Furthermore, the actively used FIFO depth is reconfigured such that the depth is a multiple of the current sample size in order to avoid samples to get split up in case of a wrap in the FIFO ring buffer (depth = (max_depth / sampe_sz) * sampe_sz)!
+// This is important to remind in case you use DMAs! If the sample sizes changes, the DMA MUST BE RECONFIGURED just like the FIFOs for a different depth!!!
+
 // For PCM encoding/decoding
 
 #ifndef CFG_TUD_AUDIO_ENABLE_ENCODING
