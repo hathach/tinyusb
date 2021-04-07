@@ -40,10 +40,10 @@
 // Application Callback API (weak is optional)
 //--------------------------------------------------------------------+
 // Invoked when a reset is received to check if firmware is valid
-bool tud_dfu_mode_firmware_valid_check_cb();
+bool tud_dfu_mode_firmware_valid_check_cb(void);
 
 // Invoked when the device must reboot to dfu runtime mode
-void tud_dfu_mode_reboot_to_rt_cb();
+void tud_dfu_mode_reboot_to_rt_cb(void);
 
 // Invoked during initialization of the dfu driver to set attributes
 // Return byte set with bitmasks:
@@ -52,11 +52,11 @@ void tud_dfu_mode_reboot_to_rt_cb();
 //   DFU_FUNC_ATTR_MANIFESTATION_TOLERANT_BITMASK
 //   DFU_FUNC_ATTR_WILL_DETACH_BITMASK
 // Note: This should match the USB descriptor
-uint8_t tud_dfu_mode_init_attrs_cb();
+uint8_t tud_dfu_mode_init_attrs_cb(void);
 
 // Invoked during a DFU_GETSTATUS request to get for the string index
 // to the status description string table.
-TU_ATTR_WEAK uint8_t tud_dfu_mode_get_status_desc_table_index_cb();
+TU_ATTR_WEAK uint8_t tud_dfu_mode_get_status_desc_table_index_cb(void);
 
 // Invoked during a USB reset
 // Lets the app perform custom behavior on a USB reset.
@@ -84,7 +84,7 @@ TU_ATTR_WEAK void tud_dfu_mode_get_poll_timeout_cb(uint8_t *ms_timeout);
 void tud_dfu_mode_start_poll_timeout_cb(uint8_t *ms_timeout);
 
 // Must be called when the poll_timeout has elapsed
-void tud_dfu_mode_poll_timeout_done();
+void tud_dfu_mode_poll_timeout_done(void);
 
 // Invoked when a DFU_DNLOAD request is received
 // This callback takes the wBlockNum chunk of length length and provides it
@@ -97,10 +97,10 @@ void tud_dfu_mode_req_dnload_data_cb(uint16_t wBlockNum, uint8_t* data, uint16_t
 // Return true if the application agrees there is no more data
 // Return false if the device disagrees, which will stall the pipe, and the Host
 //              should initiate a recovery procedure
-bool tud_dfu_mode_device_data_done_check_cb();
+bool tud_dfu_mode_device_data_done_check_cb(void);
 
 // Invoked when the Host has terminated a download or upload transfer
-TU_ATTR_WEAK void tud_dfu_mode_abort_cb();
+TU_ATTR_WEAK void tud_dfu_mode_abort_cb(void);
 
 // Invoked when a DFU_UPLOAD request is received
 // This callback must populate data with up to length bytes
@@ -114,7 +114,7 @@ TU_ATTR_WEAK bool tud_dfu_mode_req_nonstandard_cb(uint8_t rhport, uint8_t stage,
 
 // Invoked during a DFU_GETSTATUS request to get for the string index
 // to the status description string table.
-TU_ATTR_WEAK uint8_t tud_dfu_mode_get_status_desc_table_index_cb();
+TU_ATTR_WEAK uint8_t tud_dfu_mode_get_status_desc_table_index_cb(void);
 //--------------------------------------------------------------------+
 // Internal Class Driver API
 //--------------------------------------------------------------------+

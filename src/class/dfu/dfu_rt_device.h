@@ -39,7 +39,7 @@
 // Application Callback API (weak is optional)
 //--------------------------------------------------------------------+
 // Invoked when a DFU_DETACH request is received and bitWillDetach is set
-void tud_dfu_runtime_reboot_to_dfu_cb();
+void tud_dfu_runtime_reboot_to_dfu_cb(void);
 
 //--------------------------------------------------------------------+
 // Internal Class Driver API

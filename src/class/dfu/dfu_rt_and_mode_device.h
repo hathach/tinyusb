@@ -39,7 +39,7 @@
 // Application Callback API (weak is optional)
 //--------------------------------------------------------------------+
 // Invoked when the driver needs to determine the callbacks to use
-dfu_protocol_type_t tud_dfu_init_in_mode_cb();
+dfu_protocol_type_t tud_dfu_init_in_mode_cb(void);
 
 //--------------------------------------------------------------------+
 // Internal Class Driver API
