@@ -105,7 +105,7 @@ static inline uint16_t _ff_mod(uint16_t idx, uint16_t depth)
 // Intended to be used to read from hardware USB FIFO in e.g. STM32 where all data is read from a constant address
 // Code adapted from dcd_synopsis.c
 // TODO generalize with configurable 1 byte or 4 byte each read
-static void _tu_fifo_read_from_const_src_ptr_in_full_words(void * dst, const void * src, uint16_t len)
+static void _ff_push_const_addr(void * dst, const void * src, uint16_t len)
 {
   volatile uint32_t * rx_fifo = (volatile uint32_t *) src;
 
@@ -139,7 +139,7 @@ static void _tu_fifo_read_from_const_src_ptr_in_full_words(void * dst, const voi
 }
 
 // Intended to be used to write to hardware USB FIFO in e.g. STM32 where all data is written to a constant address in full word copies
-static void _ff_pull_const_addr_in_full_words(void * dst, const uint8_t * src, uint16_t len)
+static void _ff_pull_const_addr(void * dst, const uint8_t * src, uint16_t len)
 {
   volatile uint32_t * tx_fifo = (volatile uint32_t *) dst;
 
@@ -200,7 +200,7 @@ static void _ff_push_n(tu_fifo_t* f, void const * data, uint16_t n, uint16_t wRe
       if(n <= f->depth-wRel)
       {
         // Linear mode only
-        _tu_fifo_read_from_const_src_ptr_in_full_words(f->buffer + (wRel * f->item_size), data, n*f->item_size);
+        _ff_push_const_addr(f->buffer + (wRel * f->item_size), data, n*f->item_size);
       }
       else
       {
@@ -250,7 +250,7 @@ static void _ff_push_n(tu_fifo_t* f, void const * data, uint16_t n, uint16_t wRe
         }
 
         // Final part
-        if (nWrap > 0) _tu_fifo_read_from_const_src_ptr_in_full_words(dst_u8, data, nWrap);
+        if (nWrap > 0) _ff_push_const_addr(dst_u8, data, nWrap);
       }
       break;
   }
@@ -292,7 +292,7 @@ static void _ff_pull_n(tu_fifo_t* f, void* p_buffer, uint16_t n, uint16_t rRel, 
       if ( n <= nLin )
       {
         // Linear mode only
-        _ff_pull_const_addr_in_full_words(p_buffer, f->buffer + (rRel * f->item_size), n*f->item_size);
+        _ff_pull_const_addr(p_buffer, f->buffer + (rRel * f->item_size), n*f->item_size);
       }
       else
       {
@@ -305,7 +305,7 @@ static void _ff_pull_n(tu_fifo_t* f, void* p_buffer, uint16_t n, uint16_t rRel, 
 
         // Read data from linear part of buffer
         uint16_t nLin_4n_bytes = nLin_bytes & 0xFFFC;
-        _ff_pull_const_addr_in_full_words(p_buffer, src, nLin_4n_bytes);
+        _ff_pull_const_addr(p_buffer, src, nLin_4n_bytes);
         src += nLin_4n_bytes;
 
         // There could be odd 1-3 bytes before the wrap-around boundary
@@ -335,7 +335,7 @@ static void _ff_pull_n(tu_fifo_t* f, void* p_buffer, uint16_t n, uint16_t rRel, 
         }
 
         // Read data wrapped part
-        if (nWrap_bytes > 0) _ff_pull_const_addr_in_full_words(p_buffer, src, nWrap_bytes);
+        if (nWrap_bytes > 0) _ff_pull_const_addr(p_buffer, src, nWrap_bytes);
       }
     break;
 
