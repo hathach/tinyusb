@@ -65,11 +65,11 @@ static bool dfu_mode_state_machine(uint8_t rhport, tusb_control_request_t const 
 //--------------------------------------------------------------------+
 // USBD Driver API
 //--------------------------------------------------------------------+
-void dfu_mode_init(void)
+void dfu_moded_init(void)
 {
   _dfu_state_ctx.state = APP_DETACH;    // After init, reset will occur.  We want to be in APP_DETACH to move to DFU_IDLE
   _dfu_state_ctx.status = DFU_STATUS_OK;
-  _dfu_state_ctx.attrs = tud_dfu_mode_init_attrs_cb();
+  _dfu_state_ctx.attrs = 0;
   _dfu_state_ctx.blk_transfer_in_proc = false;
   _dfu_state_ctx.last_block_num = 0;
   _dfu_state_ctx.last_transfer_len = 0;
@@ -77,7 +77,7 @@ void dfu_mode_init(void)
   dfu_debug_print_context();
 }
 
-void dfu_mode_reset(uint8_t rhport)
+void dfu_moded_reset(uint8_t rhport)
 {
   if (_dfu_state_ctx.state == APP_DETACH)
   {
@@ -118,14 +118,13 @@ void dfu_mode_reset(uint8_t rhport)
   }
 
   _dfu_state_ctx.status = DFU_STATUS_OK;
-  _dfu_state_ctx.attrs = tud_dfu_mode_init_attrs_cb();
   _dfu_state_ctx.blk_transfer_in_proc = false;
   _dfu_state_ctx.last_block_num = 0;
   _dfu_state_ctx.last_transfer_len = 0;
   dfu_debug_print_context();
 }
 
-uint16_t dfu_mode_open(uint8_t rhport, tusb_desc_interface_t const * itf_desc, uint16_t max_len)
+uint16_t dfu_moded_open(uint8_t rhport, tusb_desc_interface_t const * itf_desc, uint16_t max_len)
 {
   (void) rhport;
   (void) max_len;
@@ -139,6 +138,9 @@ uint16_t dfu_mode_open(uint8_t rhport, tusb_desc_interface_t const * itf_desc, u
 
   if ( TUSB_DESC_FUNCTIONAL == tu_desc_type(p_desc) )
   {
+    tusb_desc_dfu_functional_t *dfu_desc = (tusb_desc_dfu_functional_t *)p_desc;
+    _dfu_state_ctx.attrs = (uint8_t)dfu_desc->bAttributes;
+
     drv_len += tu_desc_len(p_desc);
     p_desc   = tu_desc_next(p_desc);
   }
@@ -149,7 +151,7 @@ uint16_t dfu_mode_open(uint8_t rhport, tusb_desc_interface_t const * itf_desc, u
 // Invoked when a control transfer occurred on an interface of this class
 // Driver response accordingly to the request and the transfer stage (setup/data/ack)
 // return false to stall control endpoint (e.g unsupported request)
-bool dfu_mode_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request_t const * request)
+bool dfu_moded_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request_t const * request)
 {
   if ( (stage == CONTROL_STAGE_DATA) && (request->bRequest == DFU_DNLOAD_SYNC) )
   {
@@ -266,7 +268,7 @@ void tud_dfu_mode_poll_timeout_done()
     _dfu_state_ctx.state = DFU_DNLOAD_SYNC;
   } else if (_dfu_state_ctx.state == DFU_MANIFEST)
   {
-    _dfu_state_ctx.state = ((_dfu_state_ctx.attrs & DFU_FUNC_ATTR_MANIFESTATION_TOLERANT_BITMASK) == 0)
+    _dfu_state_ctx.state = ((_dfu_state_ctx.attrs & DFU_FUNC_ATTR_MANIFESTATION_TOLERANT_BITMASK) != 0)
                            ? DFU_MANIFEST_WAIT_RESET : DFU_MANIFEST_SYNC;
   }
 }
@@ -394,7 +396,6 @@ static bool dfu_mode_state_machine(uint8_t rhport, tusb_control_request_t const 
             {
               _dfu_state_ctx.state = DFU_DNLOAD_SYNC;
               _dfu_state_ctx.blk_transfer_in_proc = true;
-
               dfu_req_dnload_setup(rhport, request);
             } else {
               if ( tud_dfu_mode_device_data_done_check_cb() )
@@ -447,7 +448,7 @@ static bool dfu_mode_state_machine(uint8_t rhport, tusb_control_request_t const 
       {
         case DFU_REQUEST_GETSTATUS:
         {
-          if ((_dfu_state_ctx.attrs & DFU_FUNC_ATTR_MANIFESTATION_TOLERANT_BITMASK) == 0)
+          if ((_dfu_state_ctx.attrs & DFU_FUNC_ATTR_MANIFESTATION_TOLERANT_BITMASK) != 0)
           {
             _dfu_state_ctx.state = DFU_MANIFEST;
             dfu_req_getstatus_reply(rhport, request);

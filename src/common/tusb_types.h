@@ -427,13 +427,17 @@ typedef struct TU_ATTR_PACKED
   uint8_t  bLength;
   uint8_t  bDescriptorType;
 
-  struct TU_ATTR_PACKED {
-    uint8_t bitCanDnload             : 1;
-    uint8_t bitCanUpload             : 1;
-    uint8_t bitManifestationTolerant : 1;
-    uint8_t bitWillDetach            : 1;
-    uint8_t reserved                 : 4;
-  } bmAttributes;
+  union {
+    struct TU_ATTR_PACKED {
+      uint8_t bitCanDnload             : 1;
+      uint8_t bitCanUpload             : 1;
+      uint8_t bitManifestationTolerant : 1;
+      uint8_t bitWillDetach            : 1;
+      uint8_t reserved                 : 4;
+    } bmAttributes;
+
+    uint8_t bAttributes;
+  };
 
   uint16_t wDetachTimeOut;
   uint16_t wTransferSize;

@@ -38,41 +38,17 @@
 //--------------------------------------------------------------------+
 // INTERNAL OBJECT & FUNCTION DECLARATION
 //--------------------------------------------------------------------+
-typedef struct TU_ATTR_PACKED
-{
-    dfu_mode_device_status_t status;
-    dfu_mode_state_t state;
-    uint8_t attrs;
-} dfu_rt_state_ctx_t;
-
-// Only a single dfu state is allowed
-CFG_TUSB_MEM_SECTION static dfu_rt_state_ctx_t _dfu_state_ctx;
-
-static void dfu_rt_getstatus_reply(uint8_t rhport, tusb_control_request_t const * request);
 
 //--------------------------------------------------------------------+
 // USBD Driver API
 //--------------------------------------------------------------------+
 void dfu_rtd_init(void)
 {
-  _dfu_state_ctx.state = APP_IDLE;
-  _dfu_state_ctx.status = DFU_STATUS_OK;
-  _dfu_state_ctx.attrs = tud_dfu_runtime_init_attrs_cb();
-  dfu_debug_print_context();
 }
 
 void dfu_rtd_reset(uint8_t rhport)
 {
-  if (((_dfu_state_ctx.attrs & DFU_FUNC_ATTR_WILL_DETACH_BITMASK) == 0)
-     && (_dfu_state_ctx.state == DFU_REQUEST_DETACH))
-  {
-    tud_dfu_runtime_reboot_to_dfu_cb();
-  }
-
-  _dfu_state_ctx.state = APP_IDLE;
-  _dfu_state_ctx.status = DFU_STATUS_OK;
-  _dfu_state_ctx.attrs = tud_dfu_runtime_init_attrs_cb();
-  dfu_debug_print_context();
+    (void) rhport;
 }
 
 uint16_t dfu_rtd_open(uint8_t rhport, tusb_desc_interface_t const * itf_desc, uint16_t max_len)
@@ -117,67 +93,29 @@ bool dfu_rtd_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request
   // Handle class request only from here
   TU_VERIFY(request->bmRequestType_bit.type == TUSB_REQ_TYPE_CLASS);
 
-  TU_LOG2("  DFU Request: %s\r\n", tu_lookup_find(&_dfu_request_table, request->bRequest));
+  TU_LOG2("  DFU RT Request: %s\r\n", tu_lookup_find(&_dfu_request_table, request->bRequest));
   switch (request->bRequest)
   {
     case DFU_REQUEST_DETACH:
     {
-      if (_dfu_state_ctx.state == APP_IDLE)
-      {
-        _dfu_state_ctx.state = APP_DETACH;
-        if ((_dfu_state_ctx.attrs & DFU_FUNC_ATTR_WILL_DETACH_BITMASK) == 1)
-        {
-          tud_dfu_runtime_reboot_to_dfu_cb();
-        } else {
-          tud_dfu_runtime_detach_start_timer_cb(request->wValue);
-        }
-      } else {
-        TU_LOG2("  DFU Unexpected request during state %s: %u\r\n", tu_lookup_find(&_dfu_mode_state_table, _dfu_state_ctx.state), request->bRequest);
-        return false;
-      }
+      tud_control_status(rhport, request);
+      tud_dfu_runtime_reboot_to_dfu_cb();
     }
     break;
 
     case DFU_REQUEST_GETSTATUS:
     {
       dfu_status_req_payload_t resp;
-      resp.bStatus = _dfu_state_ctx.status;
-      memset((uint8_t *)&resp.bwPollTimeout, 0x00, 3);  // Value is ignored
-      resp.bState = _dfu_state_ctx.state;
-      resp.iString = ( tud_dfu_runtime_get_status_desc_table_index_cb ) ? tud_dfu_runtime_get_status_desc_table_index_cb() : 0;
-
+      // Status = OK, Poll timeout is ignored during RT, State = APP_IDLE, IString = 0
+      memset(&resp, 0x00, sizeof(dfu_status_req_payload_t));
       tud_control_xfer(rhport, request, &resp, sizeof(dfu_status_req_payload_t));
     }
     break;
 
-    case DFU_REQUEST_GETSTATE:
-    {
-      tud_control_xfer(rhport, request, &_dfu_state_ctx.state, 1);
-    }
-    break;
-
-    default:
-    {
-      TU_LOG2("  DFU Nonstandard Runtime Request: %u\r\n", request->bRequest);
-      return ( tud_dfu_runtime_req_nonstandard_cb ) ? tud_dfu_runtime_req_nonstandard_cb(rhport, stage, request) : false;
-    }
-    break;
+    default: return false; // stall unsupported request
   }
 
   return true;
-}
-
-void tud_dfu_runtime_set_status(dfu_mode_device_status_t status)
-{
-  _dfu_state_ctx.status = status;
-}
-
-void tud_dfu_runtime_detach_timer_elapsed()
-{
-  if (_dfu_state_ctx.state == DFU_REQUEST_DETACH)
-  {
-    _dfu_state_ctx.state = APP_IDLE;
-  }
 }
 
 #endif

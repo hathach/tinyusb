@@ -39,15 +39,15 @@
 // Application Callback API (weak is optional)
 //--------------------------------------------------------------------+
 // Invoked when the driver needs to determine the callbacks to use
-dfu_protocol_type_t dfu_init_in_mode_cb();
+dfu_protocol_type_t tud_dfu_init_in_mode_cb();
 
 //--------------------------------------------------------------------+
 // Internal Class Driver API
 //--------------------------------------------------------------------+
-void     dfu_init(void);
-void     dfu_reset(uint8_t rhport);
-uint16_t dfu_open(uint8_t rhport, tusb_desc_interface_t const * itf_desc, uint16_t max_len);
-bool     dfu_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request_t const * request);
+void     dfu_d_init(void);
+void     dfu_d_reset(uint8_t rhport);
+uint16_t dfu_d_open(uint8_t rhport, tusb_desc_interface_t const * itf_desc, uint16_t max_len);
+bool     dfu_d_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request_t const * request);
 
 
 #ifdef __cplusplus

@@ -118,10 +118,10 @@ TU_ATTR_WEAK uint8_t tud_dfu_mode_get_status_desc_table_index_cb();
 //--------------------------------------------------------------------+
 // Internal Class Driver API
 //--------------------------------------------------------------------+
-void     dfu_mode_init(void);
-void     dfu_mode_reset(uint8_t rhport);
-uint16_t dfu_mode_open(uint8_t rhport, tusb_desc_interface_t const * itf_desc, uint16_t max_len);
-bool     dfu_mode_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request_t const * request);
+void     dfu_moded_init(void);
+void     dfu_moded_reset(uint8_t rhport);
+uint16_t dfu_moded_open(uint8_t rhport, tusb_desc_interface_t const * itf_desc, uint16_t max_len);
+bool     dfu_moded_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request_t const * request);
 
 
 #ifdef __cplusplus

@@ -62,9 +62,9 @@ static dfu_protocol_type_t mode = 0x00;
 //--------------------------------------------------------------------+
 // USBD Driver API
 //--------------------------------------------------------------------+
-void dfu_init(void)
+void dfu_d_init(void)
 {
-  mode = dfu_init_in_mode_cb();
+  mode = tud_dfu_init_in_mode_cb();
 
   switch (mode)
   {
@@ -79,10 +79,10 @@ void dfu_init(void)
 
     case DFU_PROTOCOL_DFU:
     {
-      ctx.init             = dfu_mode_init;
-      ctx.reset            = dfu_mode_reset;
-      ctx.open             = dfu_mode_open;
-      ctx.control_xfer_cb  = dfu_mode_control_xfer_cb;
+      ctx.init             = dfu_moded_init;
+      ctx.reset            = dfu_moded_reset;
+      ctx.open             = dfu_moded_open;
+      ctx.control_xfer_cb  = dfu_moded_control_xfer_cb;
     }
     break;
 
@@ -96,17 +96,17 @@ void dfu_init(void)
   ctx.init();
 }
 
-void dfu_reset(uint8_t rhport)
+void dfu_d_reset(uint8_t rhport)
 {
   ctx.reset(rhport);
 }
 
-uint16_t dfu_open(uint8_t rhport, tusb_desc_interface_t const * itf_desc, uint16_t max_len)
+uint16_t dfu_d_open(uint8_t rhport, tusb_desc_interface_t const * itf_desc, uint16_t max_len)
 {
   return ctx.open(rhport, itf_desc, max_len);
 }
 
-bool dfu_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request_t const * request)
+bool dfu_d_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request_t const * request)
 {
   return ctx.control_xfer_cb(rhport, stage, request);
 }

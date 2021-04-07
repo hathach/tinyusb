@@ -190,10 +190,10 @@ static usbd_class_driver_t const _usbd_driver[] =
   #if CFG_TUD_DFU_MODE
   {
     DRIVER_NAME("DFU-MODE")
-    .init             = dfu_mode_init,
-    .reset            = dfu_mode_reset,
-    .open             = dfu_mode_open,
-    .control_xfer_cb  = dfu_mode_control_xfer_cb,
+    .init             = dfu_moded_init,
+    .reset            = dfu_moded_reset,
+    .open             = dfu_moded_open,
+    .control_xfer_cb  = dfu_moded_control_xfer_cb,
     .xfer_cb          = NULL,
     .sof              = NULL
   },
@@ -202,10 +202,10 @@ static usbd_class_driver_t const _usbd_driver[] =
   #if CFG_TUD_DFU_RUNTIME_AND_MODE
   {
     DRIVER_NAME("DFU-RT-MODE")
-    .init             = dfu_init,
-    .reset            = dfu_reset,
-    .open             = dfu_open,
-    .control_xfer_cb  = dfu_control_xfer_cb,
+    .init             = dfu_d_init,
+    .reset            = dfu_d_reset,
+    .open             = dfu_d_open,
+    .control_xfer_cb  = dfu_d_control_xfer_cb,
     .xfer_cb          = NULL,
     .sof              = NULL
   },
