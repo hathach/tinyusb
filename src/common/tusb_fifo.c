@@ -105,35 +105,28 @@ static inline uint16_t _ff_mod(uint16_t idx, uint16_t depth)
 // Intended to be used to read from hardware USB FIFO in e.g. STM32 where all data is read from a constant address
 // Code adapted from dcd_synopsis.c
 // TODO generalize with configurable 1 byte or 4 byte each read
-static void _ff_push_const_addr(void * dst, const void * src, uint16_t len)
+static void _ff_push_const_addr(uint8_t * dst, const void * src, uint16_t len)
 {
   volatile uint32_t * rx_fifo = (volatile uint32_t *) src;
-
-  // Optimize for fast word copies
-  typedef struct{
-    uint32_t val;
-  } __attribute((__packed__)) unaligned_uint32_t;
-
-  unaligned_uint32_t* dst_una = (unaligned_uint32_t*)dst;
 
   // Reading full available 32 bit words from FIFO
   uint16_t full_words = len >> 2;
   while(full_words--)
   {
-    dst_una->val = *rx_fifo;
-    dst_una++;
+    tu_unaligned_write32(dst, *rx_fifo);
+    dst += 4;
   }
 
   // Read the remaining 1-3 bytes from FIFO
   uint8_t bytes_rem = len & 0x03;
-  if(bytes_rem != 0) {
-    uint8_t * dst_u8 = (uint8_t *)dst_una;
-    uint32_t tmp = *rx_fifo;
-    uint8_t * src_u8 = (uint8_t *) &tmp;
+  if ( bytes_rem )
+  {
+    uint32_t tmp32 = *rx_fifo;
+    uint8_t *src_u8 = (uint8_t*) &tmp32;
 
-    while(bytes_rem--)
+    while ( bytes_rem-- )
     {
-      *dst_u8++ = *src_u8++;
+      *dst++ = *src_u8++;
     }
   }
 }
@@ -153,12 +146,12 @@ static void _ff_pull_const_addr(void * dst, const uint8_t * src, uint16_t len)
 
   // Write the remaining 1-3 bytes into FIFO
   uint8_t bytes_rem = len & 0x03;
-  if(bytes_rem)
+  if ( bytes_rem )
   {
     uint32_t tmp32 = 0;
-    uint8_t* dst8 = (uint8_t*) &tmp32;
+    uint8_t *dst8 = (uint8_t*) &tmp32;
 
-    while(bytes_rem--)
+    while ( bytes_rem-- )
     {
       *dst8++ = *src++;
     }
