@@ -128,9 +128,7 @@ void     tu_fifo_correct_read_pointer   (tu_fifo_t* f);
 // Pointer modifications intended to be used in combinations with DMAs.
 // USE WITH CARE - NO SAFTY CHECKS CONDUCTED HERE! NOT MUTEX PROTECTED!
 void     tu_fifo_advance_write_pointer  (tu_fifo_t *f, uint16_t n);
-void     tu_fifo_backward_write_pointer (tu_fifo_t *f, uint16_t n);
 void     tu_fifo_advance_read_pointer   (tu_fifo_t *f, uint16_t n);
-void     tu_fifo_backward_read_pointer  (tu_fifo_t *f, uint16_t n);
 
 // If you want to read/write from/to the FIFO by use of a DMA, you may need to conduct two copies to handle a possible wrapping part
 // This functions deliver a pointer to start reading/writing from/to and a valid linear length along which no wrap occurs.

@@ -895,48 +895,6 @@ void tu_fifo_advance_read_pointer(tu_fifo_t *f, uint16_t n)
 
 /******************************************************************************/
 /*!
-    @brief Move back write pointer - intended to be used in combination with DMA.
-    It is possible to fill the FIFO by use of a DMA in circular mode. Within
-    DMA ISRs you may update the write pointer to be able to read from the FIFO.
-    As long as the DMA is the only process writing into the FIFO this is safe
-    to use.
-
-    USE WITH CARE - WE DO NOT CONDUCT SAFTY CHECKS HERE!
-
-    @param[in]  f
-                Pointer to the FIFO buffer to manipulate
-    @param[in]  n
-                Number of items the write pointer moves backward
- */
-/******************************************************************************/
-void tu_fifo_backward_write_pointer(tu_fifo_t *f, uint16_t n)
-{
-  f->wr_idx = backward_pointer(f, f->wr_idx, n);
-}
-
-/******************************************************************************/
-/*!
-    @brief Move back read pointer - intended to be used in combination with DMA.
-    It is possible to read from the FIFO by use of a DMA in linear mode. Within
-    DMA ISRs you may update the read pointer to be able to again write into the
-    FIFO. As long as the DMA is the only process reading from the FIFO this is
-    safe to use.
-
-    USE WITH CARE - WE DO NOT CONDUCT SAFTY CHECKS HERE!
-
-    @param[in]  f
-                Pointer to the FIFO buffer to manipulate
-    @param[in]  n
-                Number of items the read pointer moves backward
- */
-/******************************************************************************/
-void tu_fifo_backward_read_pointer(tu_fifo_t *f, uint16_t n)
-{
-  f->rd_idx = backward_pointer(f, f->rd_idx, n);
-}
-
-/******************************************************************************/
-/*!
    @brief Get linear read info
 
    Returns the length and pointer from which bytes can be read in a linear manner.
