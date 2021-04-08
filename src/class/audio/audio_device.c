@@ -2085,43 +2085,67 @@ static void audiod_parse_for_AS_params(audiod_interface_t* audio, uint8_t const 
     // Look for a Class-Specific AS Interface Descriptor(4.9.2) to verify format type and format and also to get number of physical channels
     if (tu_desc_type(p_desc) == TUSB_DESC_CS_INTERFACE && tu_desc_subtype(p_desc) == AUDIO_CS_AS_INTERFACE_AS_GENERAL)
     {
+#if CFG_TUD_AUDIO_ENABLE_EP_IN && CFG_TUD_AUDIO_ENABLE_EP_OUT
       if (itf != audio->ep_in_as_intf_num && itf != audio->ep_out_as_intf_num) break;           // Abort loop, this interface has no EP, this driver does not support this currently
+#endif
+#if CFG_TUD_AUDIO_ENABLE_EP_IN && !CFG_TUD_AUDIO_ENABLE_EP_OUT
+      if (itf != audio->ep_in_as_intf_num) break;
+#endif
+#if !CFG_TUD_AUDIO_ENABLE_EP_IN && CFG_TUD_AUDIO_ENABLE_EP_OUT
+      if (itf != audio->ep_out_as_intf_num) break;
+#endif
 
+#if CFG_TUD_AUDIO_ENABLE_EP_IN
       if (itf == audio->ep_in_as_intf_num)
       {
         audio->n_channels_tx = ((audio_desc_cs_as_interface_t const * )p_desc)->bNrChannels;
         audio->format_type_tx = ((audio_desc_cs_as_interface_t const * )p_desc)->bFormatType;
 
-#if CFG_TUD_AUDIO_ENABLE_TYPE_I_ENCODING || CFG_TUD_AUDIO_ENABLE_TYPE_I_DECODING
+#if CFG_TUD_AUDIO_ENABLE_TYPE_I_ENCODING
         audio->format_type_I_tx = ((audio_desc_cs_as_interface_t const * )p_desc)->bmFormats;
 #endif
       }
+#endif
 
+#if CFG_TUD_AUDIO_ENABLE_EP_OUT
       if (itf == audio->ep_out_as_intf_num)
       {
         audio->n_channels_rx = ((audio_desc_cs_as_interface_t const * )p_desc)->bNrChannels;
         audio->format_type_rx = ((audio_desc_cs_as_interface_t const * )p_desc)->bFormatType;
-#if CFG_TUD_AUDIO_ENABLE_TYPE_I_ENCODING || CFG_TUD_AUDIO_ENABLE_TYPE_I_DECODING
+#if CFG_TUD_AUDIO_ENABLE_TYPE_I_DECODING
         audio->format_type_I_rx = ((audio_desc_cs_as_interface_t const * )p_desc)->bmFormats;
 #endif
       }
+#endif
     }
 
     // Look for a Type I Format Type Descriptor(2.3.1.6 - Audio Formats)
 #if CFG_TUD_AUDIO_ENABLE_TYPE_I_ENCODING || CFG_TUD_AUDIO_ENABLE_TYPE_I_DECODING
     if (tu_desc_type(p_desc) == TUSB_DESC_CS_INTERFACE && tu_desc_subtype(p_desc) == AUDIO_CS_AS_INTERFACE_FORMAT_TYPE && ((audio_desc_type_I_format_t const * )p_desc)->bFormatType == AUDIO_FORMAT_TYPE_I)
     {
+#if CFG_TUD_AUDIO_ENABLE_EP_IN && CFG_TUD_AUDIO_ENABLE_EP_OUT
       if (itf != audio->ep_in_as_intf_num && itf != audio->ep_out_as_intf_num) break;           // Abort loop, this interface has no EP, this driver does not support this currently
+#endif
+#if CFG_TUD_AUDIO_ENABLE_EP_IN && !CFG_TUD_AUDIO_ENABLE_EP_OUT
+      if (itf != audio->ep_in_as_intf_num) break;
+#endif
+#if !CFG_TUD_AUDIO_ENABLE_EP_IN && CFG_TUD_AUDIO_ENABLE_EP_OUT
+      if (itf != audio->ep_out_as_intf_num) break;
+#endif
 
+#if CFG_TUD_AUDIO_ENABLE_EP_IN
       if (itf == audio->ep_in_as_intf_num)
       {
         audio->n_bytes_per_sampe_tx = ((audio_desc_type_I_format_t const * )p_desc)->bSubslotSize;
       }
+#endif
 
+#if CFG_TUD_AUDIO_ENABLE_EP_OUT
       if (itf == audio->ep_out_as_intf_num)
       {
         audio->n_bytes_per_sampe_rx = ((audio_desc_type_I_format_t const * )p_desc)->bSubslotSize;
       }
+#endif
     }
 #endif
 

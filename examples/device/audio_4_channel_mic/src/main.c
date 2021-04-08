@@ -429,7 +429,6 @@ bool tud_audio_set_itf_close_EP_cb(uint8_t rhport, tusb_control_request_t const 
 {
   (void) rhport;
   (void) p_request;
-  startVal = 0;
 
   return true;
 }
