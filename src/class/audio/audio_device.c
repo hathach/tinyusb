@@ -762,13 +762,8 @@ static bool audiod_tx_done_cb(uint8_t rhport, audiod_interface_t * audio)
   uint8_t idxDriver, idxItf;
   uint8_t const *dummy2;
 
-#if CFG_TUD_AUDIO_ENABLE_ENCODING && CFG_TUD_AUDIO_ENABLE_EP_IN && CFG_TUD_AUDIO_FORMAT_TYPE_TX == AUDIO_FORMAT_TYPE_I
-  // Required in any case regardless if call backs are used - find index of audio streaming interface and index of interface
-  TU_VERIFY(audiod_get_AS_interface_index(audio->ep_in_as_intf_num, &idxDriver, &idxItf, &dummy2));
-#else
   // If a callback is used determine current alternate setting of - find index of audio streaming interface and index of interface
   if (tud_audio_tx_done_pre_load_cb || tud_audio_tx_done_post_load_cb) TU_VERIFY(audiod_get_AS_interface_index(audio->ep_in_as_intf_num, &idxDriver, &idxItf, &dummy2));
-#endif
 
   // Call a weak callback here - a possibility for user to get informed former TX was completed and data gets now loaded into EP in buffer (in case FIFOs are used) or
   // if no FIFOs are used the user may use this call back to load its data into the EP IN buffer by use of tud_audio_n_write_ep_in_buffer().
