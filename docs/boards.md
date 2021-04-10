@@ -47,6 +47,11 @@ This code base already had supported for a handful of following boards (sorted a
 
 - [Microchip SAMG55 Xplained Pro](https://www.microchip.com/DevelopmentTools/ProductDetails/PartNO/ATSAMG55-XPRO)
 
+### MicroChip SAML22
+
+- [SAML22 Feather](https://github.com/joeycastillo/Feather-Projects/tree/main/SAML22%20Feather)
+- [Sensor Watch](https://github.com/joeycastillo/Sensor-Watch)
+
 ### Nordic nRF5x
 
 - [Adafruit Circuit Playground Bluefruit](https://www.adafruit.com/product/4333)
