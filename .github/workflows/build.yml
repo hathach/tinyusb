@@ -48,6 +48,7 @@ jobs:
         - 'samd11'
         - 'samd21'
         - 'samd51'
+        - 'saml22'
         - 'stm32f4'
         - 'stm32f7'
         - 'stm32h7'
