@@ -10,9 +10,7 @@ get_filename_component(TOP "${TOP}" REALPATH)
 if(FAMILY STREQUAL "rp2040")
   cmake_minimum_required(VERSION 3.12)
   
-  set(PICO_SDK_PATH ${TOP}/hw/mcu/raspberrypi/pico-sdk)
-  include(${PICO_SDK_PATH}/pico_sdk_init.cmake)
-  
+  include(${TOP}/hw/bsp/${FAMILY}/pico_sdk_import.cmake)
   project(${PROJECT})
   add_executable(${PROJECT})
 
