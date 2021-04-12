@@ -199,18 +199,6 @@ static usbd_class_driver_t const _usbd_driver[] =
   },
   #endif
 
-  #if CFG_TUD_DFU_RUNTIME_AND_MODE
-  {
-    DRIVER_NAME("DFU-RT-MODE")
-    .init             = dfu_d_init,
-    .reset            = dfu_d_reset,
-    .open             = dfu_d_open,
-    .control_xfer_cb  = dfu_d_control_xfer_cb,
-    .xfer_cb          = NULL,
-    .sof              = NULL
-  },
-  #endif
-
   #if CFG_TUD_NET
   {
     DRIVER_NAME("NET")

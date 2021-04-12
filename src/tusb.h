@@ -100,12 +100,6 @@
     #include "class/dfu/dfu_mode_device.h"
   #endif
 
-  #if CFG_TUD_DFU_RUNTIME_AND_MODE
-    #include "class/dfu/dfu_rt_and_mode_device.h"
-    #include "class/dfu/dfu_rt_device.h"
-    #include "class/dfu/dfu_mode_device.h"
-  #endif
-
   #if CFG_TUD_NET
     #include "class/net/net_device.h"
   #endif

@@ -26,7 +26,7 @@
 
 #include "tusb_option.h"
 
-#if (TUSB_OPT_DEVICE_ENABLED && CFG_TUD_DFU_RUNTIME) || (TUSB_OPT_DEVICE_ENABLED && CFG_TUD_DFU_RUNTIME_AND_MODE)
+#if (TUSB_OPT_DEVICE_ENABLED && CFG_TUD_DFU_RUNTIME)
 
 #include "dfu_rt_device.h"
 #include "device/usbd_pvt.h"
