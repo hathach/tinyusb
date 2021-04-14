@@ -81,14 +81,14 @@
 #endif
 
 #if (CFG_TUSB_MCU == OPT_MCU_STM32F1 && defined(STM32F1_SYNOPSYS)) || \
-     CFG_TUSB_MCU == OPT_MCU_STM32F2                               || \
-     CFG_TUSB_MCU == OPT_MCU_STM32F4                               || \
-     CFG_TUSB_MCU == OPT_MCU_STM32F7                               || \
-     CFG_TUSB_MCU == OPT_MCU_STM32H7                               || \
+    CFG_TUSB_MCU == OPT_MCU_STM32F2                               || \
+    CFG_TUSB_MCU == OPT_MCU_STM32F4                               || \
+    CFG_TUSB_MCU == OPT_MCU_STM32F7                               || \
+    CFG_TUSB_MCU == OPT_MCU_STM32H7                               || \
     (CFG_TUSB_MCU == OPT_MCU_STM32L4 && defined(STM32L4_SYNOPSYS))
-  #define  USE_LINEAR_BUFFER     0
+#define  USE_LINEAR_BUFFER     0
 #else
-  #define  USE_LINEAR_BUFFER     1
+#define  USE_LINEAR_BUFFER     1
 #endif
 
 // Declaration of buffers
@@ -182,9 +182,7 @@ CFG_TUSB_MEM_ALIGN uint8_t ctrl_buf_3[CFG_TUD_AUDIO_FUNC_3_CTRL_BUF_SZ];
 #endif
 
 // Active alternate setting of interfaces
-#if CFG_TUD_AUDIO_FUNC_1_N_AS_INT > 0
 CFG_TUSB_MEM_ALIGN uint8_t alt_setting_1[CFG_TUD_AUDIO_FUNC_1_N_AS_INT];
-#endif
 #if CFG_TUD_AUDIO > 1 && CFG_TUD_AUDIO_FUNC_2_N_AS_INT > 0
 CFG_TUSB_MEM_ALIGN uint8_t alt_setting_2[CFG_TUD_AUDIO_FUNC_2_N_AS_INT];
 #endif
@@ -267,9 +265,7 @@ typedef struct
   uint8_t ep_int_ctr;           // Audio control interrupt EP.
 #endif
 
-#if CFG_TUD_AUDIO_FUNC_1_N_AS_INT > 0 || CFG_TUD_AUDIO_FUNC_2_N_AS_INT > 0 || CFG_TUD_AUDIO_FUNC_3_N_AS_INT > 0
-  uint8_t * alt_setting_ptr;   // We need to save the current alternate setting this way, because it is possible that there are AS interfaces which do not have an EP!
-#endif
+  uint8_t * alt_setting;   // We need to save the current alternate setting this way, because it is possible that there are AS interfaces which do not have an EP!
 
   /*------------- From this point, data is not cleared by bus reset -------------*/
 
@@ -486,7 +482,7 @@ static bool audiod_rx_done_cb(uint8_t rhport, audiod_interface_t* audio, uint16_
   TU_VERIFY(audiod_get_AS_interface_index(audio->ep_out_as_intf_num, &idxDriver, &idxItf, &dummy2));
 
   // Call a weak callback here - a possibility for user to get informed an audio packet was received and data gets now loaded into EP FIFO (or decoded into support RX software FIFO)
-  if (tud_audio_rx_done_pre_read_cb) TU_VERIFY(tud_audio_rx_done_pre_read_cb(rhport, n_bytes_received, idxDriver, audio->ep_out, audio->alt_setting_ptr[idxItf]));
+  if (tud_audio_rx_done_pre_read_cb) TU_VERIFY(tud_audio_rx_done_pre_read_cb(rhport, n_bytes_received, idxDriver, audio->ep_out, audio->alt_setting[idxItf]));
 
 #if CFG_TUD_AUDIO_ENABLE_DECODING && CFG_TUD_AUDIO_ENABLE_EP_OUT
 
@@ -540,7 +536,7 @@ static bool audiod_rx_done_cb(uint8_t rhport, audiod_interface_t* audio, uint16_
 #endif
 
   // Call a weak callback here - a possibility for user to get informed decoding was completed
-  if (tud_audio_rx_done_post_read_cb) TU_VERIFY(tud_audio_rx_done_post_read_cb(rhport, n_bytes_received, idxDriver, audio->ep_out, audio->alt_setting_ptr[idxItf]));
+  if (tud_audio_rx_done_post_read_cb) TU_VERIFY(tud_audio_rx_done_post_read_cb(rhport, n_bytes_received, idxDriver, audio->ep_out, audio->alt_setting[idxItf]));
 
   return true;
 }
@@ -557,12 +553,12 @@ static inline uint8_t * audiod_interleaved_copy_bytes_fast_decode(uint16_t const
 {
 
   // This function is an optimized version of
-//  while((uint8_t *)dst < dst_end)
-//  {
-//    memcpy(dst, src, nBytesToCopy);
-//    dst = (uint8_t *)dst + nBytesToCopy;
-//    src += nBytesToCopy * n_ff_used;
-//  }
+  //  while((uint8_t *)dst < dst_end)
+  //  {
+  //    memcpy(dst, src, nBytesToCopy);
+  //    dst = (uint8_t *)dst + nBytesToCopy;
+  //    src += nBytesToCopy * n_ff_used;
+  //  }
 
   // Optimize for fast half word copies
   typedef struct{
@@ -596,9 +592,9 @@ static inline uint8_t * audiod_interleaved_copy_bytes_fast_decode(uint16_t const
     case 3:
       while((uint8_t *)dst < dst_end)
       {
-//        memcpy(dst, src, 3);
-//        dst = (uint8_t *)dst + 3;
-//        src += 3 * n_ff_used;
+        //        memcpy(dst, src, 3);
+        //        dst = (uint8_t *)dst + 3;
+        //        src += 3 * n_ff_used;
 
         // TODO: Is there a faster way to copy 3 bytes?
         *(uint8_t *)dst++ = *src++;
@@ -767,7 +763,7 @@ static bool audiod_tx_done_cb(uint8_t rhport, audiod_interface_t * audio)
 
   // Call a weak callback here - a possibility for user to get informed former TX was completed and data gets now loaded into EP in buffer (in case FIFOs are used) or
   // if no FIFOs are used the user may use this call back to load its data into the EP IN buffer by use of tud_audio_n_write_ep_in_buffer().
-  if (tud_audio_tx_done_pre_load_cb) TU_VERIFY(tud_audio_tx_done_pre_load_cb(rhport, idxDriver, audio->ep_in, audio->alt_setting_ptr[idxItf]));
+  if (tud_audio_tx_done_pre_load_cb) TU_VERIFY(tud_audio_tx_done_pre_load_cb(rhport, idxDriver, audio->ep_in, audio->alt_setting[idxItf]));
 
   // Send everything in ISO EP FIFO
   uint16_t n_bytes_tx;
@@ -827,7 +823,7 @@ static bool audiod_tx_done_cb(uint8_t rhport, audiod_interface_t * audio)
 #endif
 
   // Call a weak callback here - a possibility for user to get informed former TX was completed and how many bytes were loaded for the next frame
-  if (tud_audio_tx_done_post_load_cb) TU_VERIFY(tud_audio_tx_done_post_load_cb(rhport, n_bytes_tx, idxDriver, audio->ep_in, audio->alt_setting_ptr[idxItf]));
+  if (tud_audio_tx_done_post_load_cb) TU_VERIFY(tud_audio_tx_done_post_load_cb(rhport, n_bytes_tx, idxDriver, audio->ep_in, audio->alt_setting[idxItf]));
 
   return true;
 }
@@ -887,9 +883,9 @@ static inline uint8_t * audiod_interleaved_copy_bytes_fast_encode(uint16_t const
     case 3:
       while((uint8_t *)src < src_end)
       {
-//        memcpy(dst, src, 3);
-//        src = (uint8_t *)src + 3;
-//        dst += 3 * n_ff_used;
+        //        memcpy(dst, src, 3);
+        //        src = (uint8_t *)src + 3;
+        //        dst += 3 * n_ff_used;
 
         // TODO: Is there a faster way to copy 3 bytes?
         *dst++ = *(uint8_t *)src++;
@@ -1021,26 +1017,24 @@ void audiod_init(void)
     }
 
     // Initialize active alternate interface buffers
-#if CFG_TUD_AUDIO_FUNC_1_N_AS_INT > 0 || CFG_TUD_AUDIO_FUNC_2_N_AS_INT > 0 || CFG_TUD_AUDIO_FUNC_3_N_AS_INT > 0
     switch (i)
     {
 #if CFG_TUD_AUDIO_FUNC_1_N_AS_INT > 0
       case 0:
-        audio->alt_setting_ptr = alt_setting_1;
+        audio->alt_setting = alt_setting_1;
         break;
 #endif
 #if CFG_TUD_AUDIO > 1 && CFG_TUD_AUDIO_FUNC_2_N_AS_INT > 0
       case 1:
-        audio->alt_setting_ptr = alt_setting_2;
+        audio->alt_setting = alt_setting_2;
         break;
 #endif
 #if CFG_TUD_AUDIO > 2 && CFG_TUD_AUDIO_FUNC_3_N_AS_INT > 0
       case 2:
-        audio->alt_setting_ptr = alt_setting_3;
+        audio->alt_setting = alt_setting_3;
         break;
 #endif
     }
-#endif
 
     // Initialize IN EP FIFO if required
 #if CFG_TUD_AUDIO_ENABLE_EP_IN && !CFG_TUD_AUDIO_ENABLE_ENCODING
@@ -1400,7 +1394,6 @@ uint16_t audiod_open(uint8_t rhport, tusb_desc_interface_t const * itf_desc, uin
 
 static bool audiod_get_interface(uint8_t rhport, tusb_control_request_t const * p_request)
 {
-#if CFG_TUD_AUDIO_FUNC_1_N_AS_INT > 0 || CFG_TUD_AUDIO_FUNC_2_N_AS_INT > 0 || CFG_TUD_AUDIO_FUNC_3_N_AS_INT > 0
   uint8_t const itf = tu_u16_low(p_request->wIndex);
 
   // Find index of audio streaming interface
@@ -1408,17 +1401,11 @@ static bool audiod_get_interface(uint8_t rhport, tusb_control_request_t const * 
   uint8_t const *dummy;
 
   TU_VERIFY(audiod_get_AS_interface_index(itf, &idxDriver, &idxItf, &dummy));
-  TU_VERIFY(tud_control_xfer(rhport, p_request, &_audiod_itf[idxDriver].alt_setting_ptr[idxItf], 1));
+  TU_VERIFY(tud_control_xfer(rhport, p_request, &_audiod_itf[idxDriver].alt_setting[idxItf], 1));
 
-  TU_LOG2("  Get itf: %u - current alt: %u\r\n", itf, _audiod_itf[idxDriver].alt_setting_ptr[idxItf]);
+  TU_LOG2("  Get itf: %u - current alt: %u\r\n", itf, _audiod_itf[idxDriver].alt_setting[idxItf]);
 
   return true;
-
-#else
-  (void) rhport;
-  (void) p_request;
-  return false;
-#endif
 }
 
 static bool audiod_set_interface(uint8_t rhport, tusb_control_request_t const * p_request)
@@ -1495,7 +1482,7 @@ static bool audiod_set_interface(uint8_t rhport, tusb_control_request_t const * 
 #endif
 
   // Save current alternative interface setting
-  audio->alt_setting_ptr[idxItf] = alt;
+  audio->alt_setting[idxItf] = alt;
 
   // Open new EP if necessary - EPs are only to be closed or opened for AS interfaces - Look for AS interface with correct alternate interface
   // Get pointer at end
