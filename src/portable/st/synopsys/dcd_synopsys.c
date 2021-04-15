@@ -1007,16 +1007,16 @@ static void handle_epin_ints(uint8_t rhport, USB_OTG_DeviceTypeDef * dev, USB_OT
         uint16_t remaining_packets = (in_ep[n].DIEPTSIZ & USB_OTG_DIEPTSIZ_PKTCNT_Msk) >> USB_OTG_DIEPTSIZ_PKTCNT_Pos;
 
         // Process every single packet (only whole packets can be written to fifo)
-        for(uint16_t i = 0; i < remaining_packets; i++){
-          volatile uint16_t remaining_bytes = (in_ep[n].DIEPTSIZ & USB_OTG_DIEPTSIZ_XFRSIZ_Msk) >> USB_OTG_DIEPTSIZ_XFRSIZ_Pos;
+        for(uint16_t i = 0; i < remaining_packets; i++)
+        {
+          uint16_t const remaining_bytes = (in_ep[n].DIEPTSIZ & USB_OTG_DIEPTSIZ_XFRSIZ_Msk) >> USB_OTG_DIEPTSIZ_XFRSIZ_Pos;
+
           // Packet can not be larger than ep max size
-          uint16_t packet_size = tu_min16(remaining_bytes, xfer->max_size);
+          uint16_t const packet_size = tu_min16(remaining_bytes, xfer->max_size);
 
           // It's only possible to write full packets into FIFO. Therefore DTXFSTS register of current
           // EP has to be checked if the buffer can take another WHOLE packet
-          if(packet_size > ((in_ep[n].DTXFSTS & USB_OTG_DTXFSTS_INEPTFSAV_Msk) << 2)){
-            break;
-          }
+          if(packet_size > ((in_ep[n].DTXFSTS & USB_OTG_DTXFSTS_INEPTFSAV_Msk) << 2)) break;
 
           // Push packet to Tx-FIFO
           if (xfer->ff)
