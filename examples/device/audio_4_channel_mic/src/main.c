@@ -400,7 +400,7 @@ bool tud_audio_tx_done_pre_load_cb(uint8_t rhport, uint8_t itf, uint8_t ep_in, u
 
   for (uint8_t cnt=0; cnt < CFG_TUD_AUDIO_FUNC_1_N_TX_SUPP_SW_FIFO; cnt++)
   {
-    tud_audio_write_support_ff(cnt, i2s_dummy_buffer[cnt], AUDIO_SAMPLE_RATE/1000 * CFG_TUD_AUDIO_FUNC_1_CHANNEL_PER_FIFO_TX);
+    tud_audio_write_support_ff(cnt, i2s_dummy_buffer[cnt], AUDIO_SAMPLE_RATE/1000 * CFG_TUD_AUDIO_FUNC_1_N_BYTES_PER_SAMPLE_TX * CFG_TUD_AUDIO_FUNC_1_CHANNEL_PER_FIFO_TX);
   }
 
   return true;
@@ -423,7 +423,7 @@ bool tud_audio_tx_done_post_load_cb(uint8_t rhport, uint16_t n_bytes_copied, uin
     dataVal = 1;
     for (uint16_t cnt2 = 0; cnt2 < AUDIO_SAMPLE_RATE/1000; cnt2++)
     {
-      for (uint8_t cnt3 = 0; cnt3 < CFG_TUD_AUDIO_FUNC_1_CHANNEL_PER_FIFO_TX; cnt++)
+      for (uint8_t cnt3 = 0; cnt3 < CFG_TUD_AUDIO_FUNC_1_CHANNEL_PER_FIFO_TX; cnt3++)
       {
         *p_buff++ = dataVal;
       }
