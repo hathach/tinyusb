@@ -170,6 +170,12 @@ flash-pyocd: $(BUILD)/$(PROJECT).hex
 	pyocd flash -t $(PYOCD_TARGET) $<
 	pyocd reset -t $(PYOCD_TARGET)
 
+# flash with Black Magic Probe
+flash-bmp: $(BUILD)/$(PROJECT).elf
+	$(GDB) --batch -ex 'target extended-remote /dev/ttyBmpGdb' -ex 'monitor swdp_scan' -ex 'attach 1' -ex load  $<
+
+debug-bmp: $(BUILD)/$(PROJECT).elf
+	$(GDB) -ex 'target extended-remote /dev/ttyBmpGdb' -ex 'monitor swdp_scan' -ex 'attach 1' $<
 
 #-------------- Artifacts --------------
 
