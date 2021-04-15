@@ -32,7 +32,7 @@
 #endif
 
 // LED
-#define LED_PIN               26
+#define LED_PIN               17
 #define LED_STATE_ON          1
 
 // Button
