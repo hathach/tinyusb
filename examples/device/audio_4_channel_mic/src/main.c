@@ -23,6 +23,14 @@
  *
  */
 
+/* plot_audio_samples.py requires following modules:
+ * $ sudo apt install libportaudio
+ * $ pip3 install sounddevice matplotlib
+ *
+ * Then run
+ * $ python3 plot_audio_samples.py
+ */
+
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
