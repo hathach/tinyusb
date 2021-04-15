@@ -53,7 +53,8 @@
   #include "nrf.h"
 
 #elif CFG_TUSB_MCU == OPT_MCU_SAMD11 || CFG_TUSB_MCU == OPT_MCU_SAMD21 || \
-      CFG_TUSB_MCU == OPT_MCU_SAMD51 || CFG_TUSB_MCU == OPT_MCU_SAME5X
+      CFG_TUSB_MCU == OPT_MCU_SAMD51 || CFG_TUSB_MCU == OPT_MCU_SAME5X || \
+      CFG_TUSB_MCU == OPT_MCU_SAML22
   #include "sam.h"
 
 #elif CFG_TUSB_MCU == OPT_MCU_SAMG
