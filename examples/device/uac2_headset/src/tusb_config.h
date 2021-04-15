@@ -35,6 +35,8 @@ extern "C" {
 // COMMON CONFIGURATION
 //--------------------------------------------------------------------
 
+#include "usb_descriptors.h"
+
 // defined by compiler flags for flexibility
 #ifndef CFG_TUSB_MCU
 #error CFG_TUSB_MCU must be defined
@@ -94,7 +96,8 @@ extern "C" {
 #define CFG_TUD_AUDIO_IN_PATH                     (CFG_TUD_AUDIO)
 #define CFG_TUD_AUDIO_OUT_PATH                    (CFG_TUD_AUDIO)
 
-#define CFG_TUD_AUDIO_FUNC_1_DESC_LEN                       220       // This equals TUD_AUDIO_HEADSET_STEREO_DESC_LEN, however, including it from usb_descriptors.h is not possible due to some strange include hassle
+//#define CFG_TUD_AUDIO_FUNC_1_DESC_LEN                       220       // This equals TUD_AUDIO_HEADSET_STEREO_DESC_LEN, however, including it from usb_descriptors.h is not possible due to some strange include hassle
+#define CFG_TUD_AUDIO_FUNC_1_DESC_LEN                       TUD_AUDIO_HEADSET_STEREO_DESC_LEN
 
 // Audio format type I specifications
 #define CFG_TUD_AUDIO_FUNC_1_N_CHANNELS_TX                  1
