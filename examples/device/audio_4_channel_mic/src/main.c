@@ -71,8 +71,7 @@ audio_control_range_2_n_t(1) volumeRng[CFG_TUD_AUDIO_FUNC_1_N_CHANNELS_TX+1]; 		
 audio_control_range_4_n_t(1) sampleFreqRng; 						// Sample frequency range state
 
 // Audio test data
-uint16_t test_buffer_audio[CFG_TUD_AUDIO_EP_SZ_IN/2];
-uint16_t startVal = 0;
+uint16_t i2s_dummy_buffer[CFG_TUD_AUDIO_FUNC_1_N_TX_SUPP_SW_FIFO][CFG_TUD_AUDIO_FUNC_1_TX_SUPP_SW_FIFO_SZ/2];   // Ensure half word aligned
 
 void led_blinking_task(void);
 void audio_task(void);
@@ -332,7 +331,7 @@ bool tud_audio_get_req_entity_cb(uint8_t rhport, tusb_control_request_t const * 
             ret;
 
             ret.wNumSubRanges = 1;
-            ret.subrange[0].bMin = -90;    // -90 dB
+            ret.subrange[0].bMin = -90;           // -90 dB
             ret.subrange[0].bMax = 90;		// +90 dB
             ret.subrange[0].bRes = 1; 		// 1 dB steps
 
@@ -399,7 +398,10 @@ bool tud_audio_tx_done_pre_load_cb(uint8_t rhport, uint8_t itf, uint8_t ep_in, u
   (void) ep_in;
   (void) cur_alt_setting;
 
-  tud_audio_write ((uint8_t *)test_buffer_audio, CFG_TUD_AUDIO_EP_SZ_IN);
+  for (uint8_t cnt=0; cnt < CFG_TUD_AUDIO_FUNC_1_N_TX_SUPP_SW_FIFO; cnt++)
+  {
+    tud_audio_write_support_ff(cnt, i2s_dummy_buffer[cnt], AUDIO_SAMPLE_RATE/1000 * CFG_TUD_AUDIO_FUNC_1_N_BYTES_PER_SAMPLE_TX * CFG_TUD_AUDIO_FUNC_1_CHANNEL_PER_FIFO_TX);
+  }
 
   return true;
 }
@@ -412,11 +414,22 @@ bool tud_audio_tx_done_post_load_cb(uint8_t rhport, uint16_t n_bytes_copied, uin
   (void) ep_in;
   (void) cur_alt_setting;
 
-  for (size_t cnt = 0; cnt < CFG_TUD_AUDIO_EP_SZ_IN/2; cnt++)
-  {
-    test_buffer_audio[cnt] = startVal++;
-  }
+  uint16_t dataVal;
 
+  // Generate dummy data
+  for (uint16_t cnt = 0; cnt < CFG_TUD_AUDIO_FUNC_1_N_TX_SUPP_SW_FIFO; cnt++)
+  {
+    uint16_t * p_buff = i2s_dummy_buffer[cnt];              // 2 bytes per sample
+    dataVal = 1;
+    for (uint16_t cnt2 = 0; cnt2 < AUDIO_SAMPLE_RATE/1000; cnt2++)
+    {
+      for (uint8_t cnt3 = 0; cnt3 < CFG_TUD_AUDIO_FUNC_1_CHANNEL_PER_FIFO_TX; cnt3++)
+      {
+        *p_buff++ = dataVal;
+      }
+      dataVal++;
+    }
+  }
   return true;
 }
 
@@ -424,7 +437,6 @@ bool tud_audio_set_itf_close_EP_cb(uint8_t rhport, tusb_control_request_t const 
 {
   (void) rhport;
   (void) p_request;
-  startVal = 0;
 
   return true;
 }

@@ -378,8 +378,8 @@ void midid_init(void)
     tu_fifo_config(&midi->tx_ff, midi->tx_ff_buf, CFG_TUD_MIDI_TX_BUFSIZE, 1, false); // OBVS.
 
     #if CFG_FIFO_MUTEX
-    tu_fifo_config_mutex(&midi->rx_ff, osal_mutex_create(&midi->rx_ff_mutex));
-    tu_fifo_config_mutex(&midi->tx_ff, osal_mutex_create(&midi->tx_ff_mutex));
+    tu_fifo_config_mutex(&midi->rx_ff, NULL, osal_mutex_create(&midi->rx_ff_mutex));
+    tu_fifo_config_mutex(&midi->tx_ff, osal_mutex_create(&midi->tx_ff_mutex), NULL);
     #endif
   }
 }
