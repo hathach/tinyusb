@@ -192,7 +192,7 @@ jobs:
         - 'adafruit_feather_esp32s2'
         - 'adafruit_magtag_29gray'
         - 'adafruit_metro_esp32s2'
-        - 'espressif_addax_1'
+        # - 'espressif_addax_1' # temporarily remove the board from test while espressif MR is not merged
         - 'espressif_kaluga_1'
         - 'espressif_saola_1'
 
