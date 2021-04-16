@@ -170,9 +170,11 @@ flash-pyocd: $(BUILD)/$(PROJECT).hex
 	pyocd flash -t $(PYOCD_TARGET) $<
 	pyocd reset -t $(PYOCD_TARGET)
 
-BMP ?= /dev/ttyBmpGdb # This symlink is created by https://github.com/blacksphere/blackmagic/blob/master/driver/99-blackmagic.rules
-
 # flash with Black Magic Probe
+
+# This symlink is created by https://github.com/blacksphere/blackmagic/blob/master/driver/99-blackmagic.rules
+BMP ?= /dev/ttyBmpGdb
+
 flash-bmp: $(BUILD)/$(PROJECT).elf
 	$(GDB) --batch -ex 'target extended-remote $(BMP)' -ex 'monitor swdp_scan' -ex 'attach 1' -ex load  $<
 
