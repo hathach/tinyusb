@@ -2,20 +2,11 @@ idf_component_register(SRCS "main.c" "usb_descriptors.c"
                     INCLUDE_DIRS "."
                     REQUIRES freertos soc)
 
-string(REGEX MATCH "^(esp32s[2-3])*" chip_target "$ENV{IDF_TARGET}")
+file(TO_NATIVE_PATH "${TOP}/hw/bsp/${FAMILY}/boards/${BOARD}/board.cmake" board_cmake)
 
-if(NOT chip_target)
-    message(FATAL_ERROR "Incorrect target: $ENV{IDF_TARGET}" )
-else()
-    set(chip_family "esp32sx")
+if(EXISTS ${board_cmake})
+    include(${board_cmake})
 endif()
-
-string(TOUPPER ${chip_target} upper_case_target)
-
-target_compile_options(${COMPONENT_TARGET} PUBLIC
-  "-DCFG_TUSB_MCU=OPT_MCU_${upper_case_target}"
-  "-DCFG_TUSB_OS=OPT_OS_FREERTOS"
-)
 
 idf_component_get_property( FREERTOS_ORIG_INCLUDE_PATH freertos ORIG_INCLUDE_PATH)
 target_include_directories(${COMPONENT_TARGET} PUBLIC
@@ -37,5 +28,5 @@ target_sources(${COMPONENT_TARGET} PUBLIC
   "${TOP}/src/class/net/net_device.c"
   "${TOP}/src/class/usbtmc/usbtmc_device.c"
   "${TOP}/src/class/vendor/vendor_device.c"
-  "${TOP}/src/portable/espressif/${chip_family}/dcd_${chip_family}.c"
+  "${TOP}/src/portable/espressif/esp32sx/dcd_esp32sx.c"
 )

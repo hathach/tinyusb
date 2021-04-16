@@ -7,7 +7,7 @@ set(TOP "../../..")
 get_filename_component(TOP "${TOP}" REALPATH)
 
 # Check for -DFAMILY=
-if(FAMILY STREQUAL "esp32sx")
+if(FAMILY MATCHES "^(esp32s[2-3])*")
   cmake_minimum_required(VERSION 3.5)
   include(${TOP}/hw/bsp/${FAMILY}/family.cmake)
   project(${PROJECT})
