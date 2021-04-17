@@ -27,9 +27,6 @@ endif
 # Board within family
 ifeq ($(BOARD_PATH),)
   BOARD_PATH := $(subst $(TOP)/,,$(wildcard $(TOP)/hw/bsp/*/boards/$(BOARD)))
-ifneq ($(wildcard $(TOP)/hw/bsp/*/boards/$(BOARD)/board.mk),)
-    include $(TOP)/hw/bsp/*/boards/$(BOARD)/board.mk
-endif
   FAMILY := $(word 3, $(subst /, ,$(BOARD_PATH)))
   FAMILY_PATH = hw/bsp/$(FAMILY)
 endif
