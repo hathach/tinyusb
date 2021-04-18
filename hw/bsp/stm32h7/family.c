@@ -72,6 +72,7 @@ void board_init(void)
   __HAL_RCC_GPIOI_CLK_ENABLE(); // USB ULPI NXT
   __HAL_RCC_GPIOJ_CLK_ENABLE();
 
+  // Enable UART Clock
   UART_CLK_EN();
 
   // 1ms tick timer
