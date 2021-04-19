@@ -30,4 +30,6 @@ If applicable, add screenshots, bus capture to help explain your problem.
 
 **Log**
 
-If applicable, provide the stack's log (uart/rtt/swo) where the issue occurred, best with comments to explain the actual events. To enable logging, add `LOG=2` to to the make command if building with stock examples or set `CFG_TUSB_DEBUG=2` in your tusb_config.h. More information can be found at [example's readme](/docs/getting_started.md)
+If applicable, provide the stack's log (uart/rtt/swo) where the issue occurred, best with comments to explain the actual events. If the log is too long, attach it as txt file instead.
+
+Note: To enable logging, add `LOG=2` to to the make command if building with stock examples or set `CFG_TUSB_DEBUG=2` in your tusb_config.h. More information can be found at [example's readme](/docs/getting_started.md)
