@@ -95,15 +95,15 @@ int main(void)
   // Create HID task
   (void) xTaskCreateStatic( hid_task, "hid", HID_STACK_SZIE, NULL, configMAX_PRIORITIES-2, hid_stack, &hid_taskdef);
 
-  // skip starting scheduler (and return) for ESP32-S2
-#if CFG_TUSB_MCU != OPT_MCU_ESP32S2
+  // skip starting scheduler (and return) for ESP32-S2 or ESP32-S3
+#if CFG_TUSB_MCU != OPT_MCU_ESP32S2 && CFG_TUSB_MCU != OPT_MCU_ESP32S3
   vTaskStartScheduler();
 #endif
 
   return 0;
 }
 
-#if CFG_TUSB_MCU == OPT_MCU_ESP32S2
+#if CFG_TUSB_MCU == OPT_MCU_ESP32S2 || CFG_TUSB_MCU == OPT_MCU_ESP32S3
 void app_main(void)
 {
   main();

@@ -1,12 +1,13 @@
-# FAMILY = "esp32s2"
+# FAMILY = esp32sx
 idf_component_register(SRCS "main.c"
                     INCLUDE_DIRS "."
                     REQUIRES freertos soc)
                     
-target_compile_options(${COMPONENT_TARGET} PUBLIC
-  "-DCFG_TUSB_MCU=OPT_MCU_ESP32S2"
-  "-DCFG_TUSB_OS=OPT_OS_FREERTOS"
-)
+file(TO_NATIVE_PATH "${TOP}/hw/bsp/${FAMILY}/boards/${BOARD}/board.cmake" board_cmake)
+
+if(EXISTS ${board_cmake})
+    include(${board_cmake})
+endif()
 
 idf_component_get_property( FREERTOS_ORIG_INCLUDE_PATH freertos ORIG_INCLUDE_PATH)
 target_include_directories(${COMPONENT_TARGET} PUBLIC

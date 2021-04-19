@@ -1,4 +1,4 @@
-idf_component_register(SRCS esp32s2.c
+idf_component_register(SRCS esp32s3.c
                     INCLUDE_DIRS "." "${BOARD}"
                     PRIV_REQUIRES "driver"
                     REQUIRES freertos src led_strip)

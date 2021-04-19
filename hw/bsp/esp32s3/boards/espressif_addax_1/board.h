@@ -1,7 +1,7 @@
 /* 
  * The MIT License (MIT)
  *
- * Copyright (c) 2019 Ha Thach (tinyusb.org)
+ * Copyright (c) 2020, Ha Thach (tinyusb.org)
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -21,58 +21,24 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  *
+ * This file is part of the TinyUSB stack.
  */
 
-#include <stdlib.h>
-#include <stdio.h>
-#include <string.h>
+#ifndef BOARD_H_
+#define BOARD_H_
 
-#include "bsp/board.h"
-
-//--------------------------------------------------------------------+
-// MACRO CONSTANT TYPEDEF PROTYPES
-//--------------------------------------------------------------------+
-
-/* Blink pattern
- * - 250 ms  : button is not pressed
- * - 1000 ms : button is pressed (and hold)
- */
-enum  {
-  BLINK_PRESSED = 250,
-  BLINK_UNPRESSED = 1000
-};
-
-#define HELLO_STR   "Hello from TinyUSB\r\n"
-
-int main(void)
-{
-  board_init();
-
-  uint32_t start_ms = 0;
-  bool led_state = false;
-
-  while (1)
-  {
-    uint32_t interval_ms = board_button_read() ? BLINK_PRESSED : BLINK_UNPRESSED;
-
-    // Blink every interval ms
-    if ( !(board_millis() - start_ms < interval_ms) )
-    {
-      board_uart_write(HELLO_STR, strlen(HELLO_STR));
-
-      start_ms = board_millis();
-
-      board_led_write(led_state);
-      led_state = 1 - led_state; // toggle
-    }
-  }
-
-  return 0;
-}
-
-#if CFG_TUSB_MCU == OPT_MCU_ESP32S2 || CFG_TUSB_MCU == OPT_MCU_ESP32S3
-void app_main(void)
-{
-  main();
-}
+#ifdef __cplusplus
+ extern "C" {
 #endif
+
+// Note: On the production version (v1.1) WS2812 is connected to GPIO 47
+#define NEOPIXEL_PIN          47
+
+#define BUTTON_PIN            0
+#define BUTTON_STATE_ACTIVE   0
+
+#ifdef __cplusplus
+ }
+#endif
+
+#endif /* BOARD_H_ */

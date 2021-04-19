@@ -9,10 +9,9 @@ set(TOP "../../..")
 get_filename_component(TOP "${TOP}" REALPATH)
 
 # Check for -DFAMILY=
-if(FAMILY STREQUAL "esp32s2")
+if(FAMILY MATCHES "^esp32s[2-3]")
   include(${TOP}/hw/bsp/${FAMILY}/family.cmake)
   project(${PROJECT})
-
 else()
-  message(FATAL_ERROR "Invalid FAMILY specified")
+  message(FATAL_ERROR "Invalid FAMILY specified: ${FAMILY}")
 endif()

@@ -38,7 +38,7 @@ all_examples.sort()
 # If family are not specified in arguments, build all
 all_families = []
 for entry in os.scandir("hw/bsp"):
-    if entry.is_dir() and os.path.isdir(entry.path + "/boards") and entry.name != "esp32s2":
+    if entry.is_dir() and os.path.isdir(entry.path + "/boards") and entry.name != "esp32s2" and entry.name != "esp32s3":
         all_families.append(entry.name)
             
 filter_with_input(all_families)

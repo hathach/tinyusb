@@ -115,6 +115,9 @@
 #elif CFG_TUSB_MCU == OPT_MCU_ESP32S2
   // no header needed
 
+#elif CFG_TUSB_MCU == OPT_MCU_ESP32S3
+  // no header needed
+
 #elif CFG_TUSB_MCU == OPT_MCU_DA1469X
   #include "DA1469xAB.h"
 
