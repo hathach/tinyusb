@@ -46,9 +46,11 @@ else
 endif
 
 # Fetch submodules depended by family
-fetch_submodule_if_empty = $(if $(wildcard $(TOP)/$1/*),,$(info $(shell git -C $(TOP) submodule update --init $1)))
 ifdef DEPS_SUBMODULES
-  $(foreach s,$(DEPS_SUBMODULES),$(call fetch_submodule_if_empty,$(s)))
+$(foreach s,$(DEPS_SUBMODULES), $(TOP)/$(s)/submodule.mk):
+	for module in $(DEPS_SUBMODULES); do git -C $(TOP) submodule update --init $$module && touch $(TOP)/$$module/submodule.mk; done
+
+include $(foreach s,$(DEPS_SUBMODULES), $(TOP)/$(s)/submodule.mk)
 endif
 
 #-------------- Cross Compiler  ------------
