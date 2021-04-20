@@ -22,12 +22,6 @@
 [submodule "lib/lwip"]
 	path = lib/lwip
 	url = https://github.com/lwip-tcpip/lwip.git
-[submodule "lib/FreeRTOS"]
-	path = lib/FreeRTOS
-	url = https://github.com/FreeRTOS/FreeRTOS.git
-[submodule "lib/CMSIS_4"]
-	path = lib/CMSIS_4
-	url = https://github.com/ARM-software/CMSIS.git
 [submodule "hw/mcu/st/cmsis_device_f4"]
 	path = hw/mcu/st/cmsis_device_f4
 	url = https://github.com/STMicroelectronics/cmsis_device_f4.git
@@ -106,14 +100,18 @@
 [submodule "hw/mcu/st/stm32l5xx_hal_driver"]
 	path = hw/mcu/st/stm32l5xx_hal_driver
 	url = https://github.com/STMicroelectronics/stm32l5xx_hal_driver.git
-[submodule "lib/CMSIS_5"]
-	path = lib/CMSIS_5
-	url = https://github.com/ARM-software/CMSIS_5.git
 [submodule "lib/sct_neopixel"]
 	path = lib/sct_neopixel
 	url = https://github.com/gsteiert/sct_neopixel
-[submodule "hw/mcu/raspberrypi/pico-sdk"]
-	path = hw/mcu/raspberrypi/pico-sdk
-	url = https://github.com/raspberrypi/pico-sdk.git
-	fetchRecurseSubmodules = false
-
+[submodule "lib/FreeRTOS-Kernel"]
+	path = lib/FreeRTOS-Kernel
+	url = https://github.com/FreeRTOS/FreeRTOS-Kernel.git
+[submodule "lib/CMSIS_5"]
+	path = lib/CMSIS_5
+	url = https://github.com/ARM-software/CMSIS_5.git
+[submodule "hw/mcu/silabs/cmsis-dfp-efm32gg12b"]
+	path = hw/mcu/silabs/cmsis-dfp-efm32gg12b
+	url = https://github.com/cmsis-packs/cmsis-dfp-efm32gg12b
+[submodule "hw/mcu/renesas/rx"]
+	path = hw/mcu/renesas/rx
+	url = https://github.com/kkitayam/rx_device.git

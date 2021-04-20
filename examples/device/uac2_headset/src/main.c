@@ -34,6 +34,10 @@
 // MACRO CONSTANT TYPEDEF PROTOTYPES
 //--------------------------------------------------------------------+
 
+#ifndef AUDIO_SAMPLE_RATE
+#define AUDIO_SAMPLE_RATE     48000
+#endif
+
 /* Blink pattern
  * - 25 ms   : streaming data
  * - 250 ms  : device not mounted
@@ -68,8 +72,8 @@ static uint32_t blink_interval_ms = BLINK_NOT_MOUNTED;
 
 // Audio controls
 // Current states
-int8_t mute[CFG_TUD_AUDIO_N_CHANNELS_TX + 1];       // +1 for master channel 0
-int16_t volume[CFG_TUD_AUDIO_N_CHANNELS_TX + 1];    // +1 for master channel 0
+int8_t mute[CFG_TUD_AUDIO_FUNC_1_N_CHANNELS_TX + 1];       // +1 for master channel 0
+int16_t volume[CFG_TUD_AUDIO_FUNC_1_N_CHANNELS_TX + 1];    // +1 for master channel 0
 
 // Buffer for microphone data
 int16_t mic_buf[1000];

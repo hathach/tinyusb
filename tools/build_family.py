@@ -38,7 +38,7 @@ all_examples.sort()
 # If family are not specified in arguments, build all
 all_families = []
 for entry in os.scandir("hw/bsp"):
-    if entry.is_dir() and os.path.isdir(entry.path + "/boards") and entry.name != "esp32s2":
+    if entry.is_dir() and os.path.isdir(entry.path + "/boards") and entry.name != "esp32s2" and entry.name != "esp32s3":
         all_families.append(entry.name)
             
 filter_with_input(all_families)
@@ -98,12 +98,12 @@ def build_size(example, board):
 def skip_example(example, board):
     ex_dir = 'examples/' + example
     
+    # family CMake
+    board_mk = 'hw/bsp/{}/family.cmake'.format(family)
+
     # family.mk
-    board_mk = 'hw/bsp/{}/family.mk'.format(family)
-    
-    # family.cmake
     if not os.path.exists(board_mk):
-        board_mk = 'hw/bsp/{}/family.cmake'.format(family)
+        board_mk = 'hw/bsp/{}/family.mk'.format(family)
 
     with open(board_mk) as mk:
         mk_contents = mk.read()

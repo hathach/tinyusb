@@ -155,7 +155,24 @@ static void _dcd_disconnect(FAR struct usbdevclass_driver_s *driver, FAR struct 
 {
   (void) driver;
 
-  tusb_speed_t speed = (dev->speed == 3) ? TUSB_SPEED_HIGH : TUSB_SPEED_FULL;
+  tusb_speed_t speed;
+
+  switch (dev->speed)
+  {
+    case USB_SPEED_LOW:
+      speed = TUSB_SPEED_LOW;
+      break;
+    case USB_SPEED_FULL:
+      speed = TUSB_SPEED_FULL;
+      break;
+    case USB_SPEED_HIGH:
+      speed = TUSB_SPEED_HIGH;
+      break;
+    default:
+      speed = TUSB_SPEED_HIGH;
+      break;
+  }
+
   dcd_event_bus_reset(0, speed, true);
   DEV_CONNECT(dev);
 }
@@ -312,6 +329,7 @@ bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t *buffer, uint16_t to
   {
     if (total_bytes == 0)
     {
+      usbdcd_driver.setup_processed = true;
       dcd_event_xfer_complete(0, ep_addr, 0, XFER_RESULT_SUCCESS, false);
     }
     else if (ep_addr == 0x00 && total_bytes == usbdcd_driver.outlen)
@@ -333,12 +351,15 @@ bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t *buffer, uint16_t to
       }
     }
 
-    usbdcd_driver.setup_processed = true;
     struct usb_ctrlreq_s ctrl;
 
-    if (osal_queue_receive(usbdcd_driver.setup_queue, &ctrl))
+    if (usbdcd_driver.setup_processed)
     {
-      dcd_event_setup_received(0, (uint8_t *)&ctrl, false);
+      if (osal_queue_receive(usbdcd_driver.setup_queue, &ctrl))
+      {
+        usbdcd_driver.setup_processed = false;
+        dcd_event_setup_received(0, (uint8_t *)&ctrl, false);
+      }
     }
   }
   else

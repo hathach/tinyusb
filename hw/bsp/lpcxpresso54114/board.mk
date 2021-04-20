@@ -1,3 +1,5 @@
+DEPS_SUBMODULES += hw/mcu/nxp
+
 CFLAGS += \
   -flto \
   -mthumb \
@@ -19,6 +21,7 @@ MCU_DIR = hw/mcu/nxp/sdk/devices/LPC54114
 LD_FILE = $(MCU_DIR)/gcc/LPC54114J256_cm4_flash.ld
 
 SRC_C += \
+	src/portable/nxp/lpc_ip3511/dcd_lpc_ip3511.c \
 	$(MCU_DIR)/system_LPC54114_cm4.c \
 	$(MCU_DIR)/drivers/fsl_clock.c \
 	$(MCU_DIR)/drivers/fsl_gpio.c \
@@ -33,10 +36,6 @@ INC += \
 SRC_S += $(MCU_DIR)/gcc/startup_LPC54114_cm4.S
 
 LIBS += $(TOP)/$(MCU_DIR)/gcc/libpower_cm4_hardabi.a
-
-# For TinyUSB port source
-VENDOR = nxp
-CHIP_FAMILY = lpc_ip3511
 
 # For freeRTOS port source
 FREERTOS_PORT = ARM_CM4F

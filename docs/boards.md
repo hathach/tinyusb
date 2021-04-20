@@ -9,6 +9,11 @@ The board support code is only used for self-contained examples and testing. It 
 
 This code base already had supported for a handful of following boards (sorted alphabetically)
 
+### Dialog DA146xx
+
+- [DA14695 Development Kit – USB](https://www.dialog-semiconductor.com/products/da14695-development-kit-usb)
+- [DA1469x Development Kit – Pro](https://www.dialog-semiconductor.com/products/da14695-development-kit-pro)
+
 ### Espressif ESP32-S2
 
 - Adafruit Feather ESP32-S2
@@ -16,11 +21,6 @@ This code base already had supported for a handful of following boards (sorted a
 - [Adafruit Metro ESP32-S2](https://www.adafruit.com/product/4775)
 - [ESP32-S2-Kaluga-1](https://docs.espressif.com/projects/esp-idf/en/latest/esp32s2/hw-reference/esp32s2/user-guide-esp32-s2-kaluga-1-kit.html)
 - [ESP32-S2-Saola-1](https://docs.espressif.com/projects/esp-idf/en/latest/esp32s2/hw-reference/esp32s2/user-guide-saola-1-v1.2.html)
-
-### Dialog DA146xx
-
-- [DA14695 Development Kit – USB](https://www.dialog-semiconductor.com/products/da14695-development-kit-usb)
-- [DA1469x Development Kit – Pro](https://www.dialog-semiconductor.com/products/da14695-development-kit-pro)
 
 ### MicroChip SAMD11 & SAMD21
 
@@ -41,10 +41,16 @@ This code base already had supported for a handful of following boards (sorted a
 - [Adafruit PyPortal](https://www.adafruit.com/product/4116)
 - [Adafruit Metro M4 Express](https://www.adafruit.com/product/3382)
 - [D5035-01](https://github.com/RudolphRiedel/USB_CAN-FD)
+- [Microchip SAME54 Xplained Pro](https://www.microchip.com/developmenttools/productdetails/atsame54-xpro)
 
 ### MicroChip SAMG
 
 - [Microchip SAMG55 Xplained Pro](https://www.microchip.com/DevelopmentTools/ProductDetails/PartNO/ATSAMG55-XPRO)
+
+### MicroChip SAML22
+
+- [SAML22 Feather](https://github.com/joeycastillo/Feather-Projects/tree/main/SAML22%20Feather)
+- [Sensor Watch](https://github.com/joeycastillo/Sensor-Watch)
 
 ### Nordic nRF5x
 
@@ -93,18 +99,28 @@ This code base already had supported for a handful of following boards (sorted a
 - [LPCXpresso 11u68](https://www.nxp.com/support/developer-resources/evaluation-and-development-boards/lpcxpresso-boards/lpcxpresso-board-for-lpc11u68:OM13058)
 - [LPCXpresso 1347](https://www.nxp.com/support/developer-resources/evaluation-and-development-boards/lpcxpresso-boards/lpcxpresso-board-for-lpc1347:OM13045)
 - [LPCXpresso 1769](https://www.nxp.com/support/developer-resources/evaluation-and-development-boards/lpcxpresso-boards/lpcxpresso-board-for-lpc1769:OM13000)
+- [LPCXpresso18S37 Development Board](https://www.nxp.com/products/processors-and-microcontrollers/arm-microcontrollers/general-purpose-mcus/lpc4000-cortex-m4/lpcxpresso18s37-development-board:OM13076)
 - [LPCXpresso 51U68](https://www.nxp.com/products/processors-and-microcontrollers/arm-microcontrollers/general-purpose-mcus/lpcxpresso51u68-for-the-lpc51u68-mcus:OM40005)
 - [LPCXpresso 54114](https://www.nxp.com/design/microcontrollers-developer-resources/lpcxpresso-boards/lpcxpresso54114-board:OM13089)
-- [LPCXpresso 55s69 EVK](https://www.nxp.com/products/processors-and-microcontrollers/arm-microcontrollers/general-purpose-mcus/lpc5500-cortex-m33/lpcxpresso55s69-development-board:LPC55S69-EVK)
+- [LPCXpresso 55s28 EVK](https://www.nxp.com/design/software/development-software/lpcxpresso55s28-development-board:LPC55S28-EVK)
+- [LPCXpresso 55s69 EVK](https://www.nxp.com/design/development-boards/lpcxpresso-boards/lpcxpresso55s69-development-board:LPC55S69-EVK)
 - [NGX LPC4330-Xplorer](https://www.nxp.com/design/designs/lpc4330-xplorer-board:OM13027)
 - [Double M33 Express](https://www.crowdsupply.com/steiert-solutions/double-m33-express)
+
+### Renesas RX
+
+- [GR-CITRUS](https://www.renesas.com/us/en/products/gadget-renesas/boards/gr-citrus)
 
 ### Raspberry Pi RP2040
 
 - [Adafruit Feather RP2040](https://www.adafruit.com/product/4884)
 - [Adafruit ItsyBitsy RP2040](https://www.adafruit.com/product/4888)
-- Adafruit QT RP2040
+- [Adafruit QT Py RP2040](https://www.adafruit.com/product/4900)
 - [Raspberry Pi Pico](https://www.raspberrypi.org/products/raspberry-pi-pico/)
+
+### Silabs
+
+- [EFM32GG12 Thunderboard Kit (SLTB009A)](https://www.silabs.com/development-tools/thunderboard/thunderboard-gg12-kit)
 
 ### Sony
 
@@ -118,13 +134,14 @@ This code base already had supported for a handful of following boards (sorted a
 - [STM32 L035c8 Discovery](https://www.st.com/en/evaluation-tools/32l0538discovery.html)
 - [STM32 L4R5zi Nucleo](https://www.st.com/en/evaluation-tools/nucleo-l4r5zi.html)
 - [STM32 F070rb Nucleo](https://www.st.com/en/evaluation-tools/nucleo-f070rb.html)
+- [STM32 F072 Evaluation](https://www.st.com/en/evaluation-tools/stm32072b-eval.html)
 - [STM32 F072rb Discovery](https://www.st.com/en/evaluation-tools/32f072bdiscovery.html)
 - STM32 F103c Blue Pill
 - [STM32 F207zg Nucleo](https://www.st.com/en/evaluation-tools/nucleo-f207zg.html)
 - [STM32 F303vc Discovery](https://www.st.com/en/evaluation-tools/stm32f3discovery.html)
 - STM32 F401cc Black Pill
 - [STM32 F407vg Discovery](https://www.st.com/en/evaluation-tools/stm32f4discovery.html)
-- STM32 F411ce Black Pill
+- [STM32 F411ce Black Pill](https://www.adafruit.com/product/4877)
 - [STM32 F411ve Discovery](https://www.st.com/en/evaluation-tools/32f411ediscovery.html)
 - [STM32 F412zg Discovery](https://www.st.com/en/evaluation-tools/32f412gdiscovery.html)
 - [STM32 F723e Discovery](https://www.st.com/en/evaluation-tools/32f723ediscovery.html)

@@ -1,4 +1,4 @@
- CFLAGS += \
+CFLAGS += \
   -flto \
   -mthumb \
   -mthumb-interwork \
@@ -16,7 +16,9 @@ MCU_FAMILY_DIR = hw/mcu/dialog/da1469x
 # All source paths should be relative to the top level.
 LD_FILE = hw/bsp/$(BOARD)/da1469x.ld
 
+# While this is for da1469x chip, there is chance that da1468x chip family will also work
 SRC_C += \
+	src/portable/dialog/da146xx/dcd_da146xx.c \
 	$(MCU_FAMILY_DIR)/src/system_da1469x.c \
 	$(MCU_FAMILY_DIR)/src/da1469x_clock.c \
 	$(MCU_FAMILY_DIR)/src/hal_gpio.c \
@@ -26,12 +28,7 @@ SRC_S += hw/bsp/$(BOARD)/gcc_startup_da1469x.S
 INC += \
 	$(TOP)/hw/bsp/$(BOARD) \
 	$(TOP)/$(MCU_FAMILY_DIR)/include \
-	$(TOP)/$(MCU_FAMILY_DIR)/SDK_10.0.8.105/sdk/bsp/include \
-
-# For TinyUSB port source
-VENDOR = dialog
-# While this is for da1469x chip, there is chance that da1468x chip family will also work
-CHIP_FAMILY = da146xx
+	$(TOP)/$(MCU_FAMILY_DIR)/SDK_10.0.8.105/sdk/bsp/include
 
 # For freeRTOS port source
 FREERTOS_PORT = ARM_CM33_NTZ/non_secure

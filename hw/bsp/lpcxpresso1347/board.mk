@@ -1,3 +1,5 @@
+DEPS_SUBMODULES += hw/mcu/nxp
+
 CFLAGS += \
   -flto \
   -mthumb \
@@ -20,6 +22,7 @@ MCU_DIR = hw/mcu/nxp/lpcopen/lpc13xx/lpc_chip_13xx
 LD_FILE = hw/bsp/$(BOARD)/lpc1347.ld
 
 SRC_C += \
+	src/portable/nxp/lpc_ip3511/dcd_lpc_ip3511.c \
 	$(MCU_DIR)/../gcc/cr_startup_lpc13xx.c \
 	$(MCU_DIR)/src/chip_13xx.c \
 	$(MCU_DIR)/src/clock_13xx.c \
@@ -30,10 +33,6 @@ SRC_C += \
 
 INC += \
 	$(TOP)/$(MCU_DIR)/inc
-
-# For TinyUSB port source
-VENDOR = nxp
-CHIP_FAMILY = lpc_ip3511
 
 # For freeRTOS port source
 FREERTOS_PORT = ARM_CM3

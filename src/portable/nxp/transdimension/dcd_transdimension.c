@@ -26,22 +26,22 @@
 
 #include "tusb_option.h"
 
-#if TUSB_OPT_DEVICE_ENABLED && (CFG_TUSB_MCU == OPT_MCU_LPC18XX || \
-                                CFG_TUSB_MCU == OPT_MCU_LPC43XX || \
-                                CFG_TUSB_MCU == OPT_MCU_MIMXRT10XX)
+#if TUSB_OPT_DEVICE_ENABLED && \
+    (CFG_TUSB_MCU == OPT_MCU_LPC18XX || CFG_TUSB_MCU == OPT_MCU_LPC43XX || CFG_TUSB_MCU == OPT_MCU_MIMXRT10XX)
 
 //--------------------------------------------------------------------+
 // INCLUDE
 //--------------------------------------------------------------------+
-#include "common/tusb_common.h"
-#include "device/dcd.h"
-
 #if CFG_TUSB_MCU == OPT_MCU_MIMXRT10XX
   #include "fsl_device_registers.h"
 #else
   // LPCOpen for 18xx & 43xx
   #include "chip.h"
 #endif
+
+#include "common/tusb_common.h"
+#include "device/dcd.h"
+#include "common_transdimension.h"
 
 #if defined(__CORTEX_M) && __CORTEX_M == 7 && __DCACHE_PRESENT == 1
   #define CleanInvalidateDCache_by_Addr   SCB_CleanInvalidateDCache_by_Addr
@@ -61,15 +61,6 @@ enum {
   ENDPTCTRL_ENABLE         = TU_BIT(7)
 };
 
-// USBCMD
-enum {
-  USBCMD_RUN_STOP         = TU_BIT(0),
-  USBCMD_RESET            = TU_BIT(1),
-  USBCMD_SETUP_TRIPWIRE   = TU_BIT(13),
-  USBCMD_ADD_QTD_TRIPWIRE = TU_BIT(14)  ///< This bit is used as a semaphore to ensure the to proper addition of a new dTD to an active (primed) endpoint’s linked list. This bit is set and cleared by software during the process of adding a new dTD
-};
-// Interrupt Threshold bit 23:16
-
 // USBSTS, USBINTR
 enum {
   INTR_USB         = TU_BIT(0),
@@ -80,96 +71,6 @@ enum {
   INTR_SUSPEND     = TU_BIT(8),
   INTR_NAK         = TU_BIT(16)
 };
-
-// PORTSC1
-#define PORTSC1_PORT_SPEED_POS    26
-
-enum {
-  PORTSC1_CURRENT_CONNECT_STATUS = TU_BIT(0),
-  PORTSC1_FORCE_PORT_RESUME      = TU_BIT(6),
-  PORTSC1_SUSPEND                = TU_BIT(7),
-  PORTSC1_FORCE_FULL_SPEED       = TU_BIT(24),
-  PORTSC1_PORT_SPEED             = TU_BIT(26) | TU_BIT(27)
-};
-
-// OTGSC
-enum {
-  OTGSC_VBUS_DISCHARGE          = TU_BIT(0),
-  OTGSC_VBUS_CHARGE             = TU_BIT(1),
-//  OTGSC_HWASSIST_AUTORESET    = TU_BIT(2),
-  OTGSC_OTG_TERMINATION         = TU_BIT(3), ///< Must set to 1 when OTG go to device mode
-  OTGSC_DATA_PULSING            = TU_BIT(4),
-  OTGSC_ID_PULLUP               = TU_BIT(5),
-//  OTGSC_HWASSIT_DATA_PULSE    = TU_BIT(6),
-//  OTGSC_HWASSIT_BDIS_ACONN    = TU_BIT(7),
-  OTGSC_ID                      = TU_BIT(8), ///< 0 = A device, 1 = B Device
-  OTGSC_A_VBUS_VALID            = TU_BIT(9),
-  OTGSC_A_SESSION_VALID         = TU_BIT(10),
-  OTGSC_B_SESSION_VALID         = TU_BIT(11),
-  OTGSC_B_SESSION_END           = TU_BIT(12),
-  OTGSC_1MS_TOGGLE              = TU_BIT(13),
-  OTGSC_DATA_BUS_PULSING_STATUS = TU_BIT(14),
-};
-
-// USBMode
-enum {
-  USBMODE_CM_DEVICE = 2,
-  USBMODE_CM_HOST   = 3,
-
-  USBMODE_SLOM = TU_BIT(3),
-  USBMODE_SDIS = TU_BIT(4),
-
-  USBMODE_VBUS_POWER_SELCT = TU_BIT(5), // Enable for LPC18XX/43XX in host most only
-};
-
-// Device Registers
-typedef struct
-{
-  //------------- ID + HW Parameter Registers-------------//
-  __I  uint32_t TU_RESERVED[64]; ///< For iMX RT10xx, but not used by LPC18XX/LPC43XX
-
-  //------------- Capability Registers-------------//
-  __I  uint8_t  CAPLENGTH;       ///< Capability Registers Length
-  __I  uint8_t  TU_RESERVED[1];
-  __I  uint16_t HCIVERSION;      ///< Host Controller Interface Version
-
-  __I  uint32_t HCSPARAMS;       ///< Host Controller Structural Parameters
-  __I  uint32_t HCCPARAMS;       ///< Host Controller Capability Parameters
-  __I  uint32_t TU_RESERVED[5];
-
-  __I  uint16_t DCIVERSION;      ///< Device Controller Interface Version
-  __I  uint8_t  TU_RESERVED[2];
-
-  __I  uint32_t DCCPARAMS;       ///< Device Controller Capability Parameters
-  __I  uint32_t TU_RESERVED[6];
-
-  //------------- Operational Registers -------------//
-  __IO uint32_t USBCMD;          ///< USB Command Register
-  __IO uint32_t USBSTS;          ///< USB Status Register
-  __IO uint32_t USBINTR;         ///< Interrupt Enable Register
-  __IO uint32_t FRINDEX;         ///< USB Frame Index
-  __I  uint32_t TU_RESERVED;
-  __IO uint32_t DEVICEADDR;      ///< Device Address
-  __IO uint32_t ENDPTLISTADDR;   ///< Endpoint List Address
-  __I  uint32_t TU_RESERVED;
-  __IO uint32_t BURSTSIZE;       ///< Programmable Burst Size
-  __IO uint32_t TXFILLTUNING;    ///< TX FIFO Fill Tuning
-       uint32_t TU_RESERVED[4];
-  __IO uint32_t ENDPTNAK;        ///< Endpoint NAK
-  __IO uint32_t ENDPTNAKEN;      ///< Endpoint NAK Enable
-  __I  uint32_t TU_RESERVED;
-  __IO uint32_t PORTSC1;         ///< Port Status & Control
-  __I  uint32_t TU_RESERVED[7];
-  __IO uint32_t OTGSC;           ///< On-The-Go Status & control
-  __IO uint32_t USBMODE;         ///< USB Device Mode
-  __IO uint32_t ENDPTSETUPSTAT;  ///< Endpoint Setup Status
-  __IO uint32_t ENDPTPRIME;      ///< Endpoint Prime
-  __IO uint32_t ENDPTFLUSH;      ///< Endpoint Flush
-  __I  uint32_t ENDPTSTAT;       ///< Endpoint Status
-  __IO uint32_t ENDPTCOMPLETE;   ///< Endpoint Complete
-  __IO uint32_t ENDPTCTRL[8];    ///< Endpoint Control 0 - 7
-} dcd_registers_t;
-
 
 // Queue Transfer Descriptor
 typedef struct
@@ -280,7 +181,7 @@ CFG_TUSB_MEM_SECTION TU_ATTR_ALIGNED(2048)
 static dcd_data_t _dcd_data;
 
 //--------------------------------------------------------------------+
-// CONTROLLER API
+// Controller API
 //--------------------------------------------------------------------+
 
 /// follows LPC43xx User Manual 23.10.3

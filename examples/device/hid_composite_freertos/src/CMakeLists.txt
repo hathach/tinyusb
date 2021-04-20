@@ -2,9 +2,11 @@ idf_component_register(SRCS "main.c" "usb_descriptors.c"
                     INCLUDE_DIRS "."
                     REQUIRES freertos soc)
 
-target_compile_options(${COMPONENT_TARGET} PUBLIC
-  "-DCFG_TUSB_MCU=OPT_MCU_ESP32S2"
-)
+file(TO_NATIVE_PATH "${TOP}/hw/bsp/${FAMILY}/boards/${BOARD}/board.cmake" board_cmake)
+
+if(EXISTS ${board_cmake})
+    include(${board_cmake})
+endif()
 
 idf_component_get_property( FREERTOS_ORIG_INCLUDE_PATH freertos ORIG_INCLUDE_PATH)
 target_include_directories(${COMPONENT_TARGET} PUBLIC
@@ -26,5 +28,5 @@ target_sources(${COMPONENT_TARGET} PUBLIC
   "${TOP}/src/class/net/net_device.c"
   "${TOP}/src/class/usbtmc/usbtmc_device.c"
   "${TOP}/src/class/vendor/vendor_device.c"
-  "${TOP}/src/portable/espressif/esp32s2/dcd_esp32s2.c"
+  "${TOP}/src/portable/espressif/esp32sx/dcd_esp32sx.c"
 )

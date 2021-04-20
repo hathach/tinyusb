@@ -78,7 +78,10 @@ bool __no_inline_not_in_flash_func(get_bootsel_button)() {
 
 //------------- Segger RTT retarget -------------//
 #if defined(LOGGER_RTT)
+
 // Logging with RTT
+// - If RTT Control Block is not found by 'Auto Detection` try to use 'Search Range` with '0x20000000 0x10000'
+// - SWD speed is rather slow around 1000Khz
 
 #include "pico/stdio/driver.h"
 #include "SEGGER_RTT.h"
@@ -110,8 +113,10 @@ void stdio_rtt_init(void)
 
 void board_init(void)
 {
+#ifdef LED_PIN
   gpio_init(LED_PIN);
   gpio_set_dir(LED_PIN, GPIO_OUT);
+#endif
 
   // Button
 #ifndef BUTTON_BOOTSEL
@@ -141,7 +146,9 @@ void board_init(void)
 
 void board_led_write(bool state)
 {
+#ifdef LED_PIN
   gpio_put(LED_PIN, state ? LED_STATE_ON : (1-LED_STATE_ON));
+#endif
 }
 
 uint32_t board_button_read(void)

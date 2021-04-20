@@ -29,9 +29,9 @@
 #if TUSB_OPT_DEVICE_ENABLED
 
 #include "tusb.h"
-#include "usbd.h"
+#include "device/usbd.h"
 #include "device/usbd_pvt.h"
-#include "dcd.h"
+#include "device/dcd.h"
 
 #ifndef CFG_TUD_TASK_QUEUE_SZ
 #define CFG_TUD_TASK_QUEUE_SZ   16
@@ -699,13 +699,21 @@ static bool process_control_request(uint8_t rhport, tusb_control_request_t const
       // notable requests are: GET HID REPORT DESCRIPTOR, SET_INTERFACE, GET_INTERFACE
       if ( !invoke_class_control(rhport, driver, p_request) )
       {
-        // For GET_INTERFACE, it is mandatory to respond even if the class
-        // driver doesn't use alternate settings.
-        TU_VERIFY( TUSB_REQ_TYPE_STANDARD == p_request->bmRequestType_bit.type &&
-                   TUSB_REQ_GET_INTERFACE == p_request->bRequest);
+        // For GET_INTERFACE and SET_INTERFACE, it is mandatory to respond even if the class
+        // driver doesn't use alternate settings or implement this
+        TU_VERIFY(TUSB_REQ_TYPE_STANDARD == p_request->bmRequestType_bit.type);
 
-        uint8_t alternate = 0;
-        tud_control_xfer(rhport, p_request, &alternate, 1);
+        if (TUSB_REQ_GET_INTERFACE == p_request->bRequest)
+        {
+          uint8_t alternate = 0;
+          tud_control_xfer(rhport, p_request, &alternate, 1);
+        }else if (TUSB_REQ_SET_INTERFACE == p_request->bRequest)
+        {
+          tud_control_status(rhport, p_request);
+        } else
+        {
+          return false;
+        }
       }
     }
     break;
@@ -992,11 +1000,15 @@ void dcd_event_handler(dcd_event_t const * event, bool in_isr)
   switch (event->event_id)
   {
     case DCD_EVENT_UNPLUGGED:
-      _usbd_dev.connected  = 0;
-      _usbd_dev.addressed  = 0;
-      _usbd_dev.cfg_num    = 0;
-      _usbd_dev.suspended  = 0;
-      osal_queue_send(_usbd_q, event, in_isr);
+      // UNPLUGGED event can be bouncing, only processing if we are currently connected
+      if ( _usbd_dev.connected )
+      {
+        _usbd_dev.connected  = 0;
+        _usbd_dev.addressed  = 0;
+        _usbd_dev.cfg_num    = 0;
+        _usbd_dev.suspended  = 0;
+        osal_queue_send(_usbd_q, event, in_isr);
+      }
     break;
 
     case DCD_EVENT_SOF:
@@ -1004,9 +1016,10 @@ void dcd_event_handler(dcd_event_t const * event, bool in_isr)
     break;
 
     case DCD_EVENT_SUSPEND:
-      // NOTE: When plugging/unplugging device, the D+/D- state are unstable and can accidentally meet the
-      // SUSPEND condition ( Idle for 3ms ). Some MCUs such as SAMD doesn't distinguish suspend vs disconnect as well.
-      // We will skip handling SUSPEND/RESUME event if not currently connected
+      // NOTE: When plugging/unplugging device, the D+/D- state are unstable and
+      // can accidentally meet the SUSPEND condition ( Bus Idle for 3ms ).
+      // In addition, some MCUs such as SAMD or boards that haven no VBUS detection cannot distinguish
+      // suspended vs disconnected. We will skip handling SUSPEND/RESUME event if not currently connected
       if ( _usbd_dev.connected )
       {
         _usbd_dev.suspended = 1;
@@ -1214,6 +1227,39 @@ bool usbd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t 
   _usbd_dev.ep_status[epnum][dir].busy = true;
 
   if ( dcd_edpt_xfer(rhport, ep_addr, buffer, total_bytes) )
+  {
+    TU_LOG2("OK\r\n");
+    return true;
+  }else
+  {
+    // DCD error, mark endpoint as ready to allow next transfer
+    _usbd_dev.ep_status[epnum][dir].busy = false;
+    _usbd_dev.ep_status[epnum][dir].claimed = 0;
+    TU_LOG2("failed\r\n");
+    TU_BREAKPOINT();
+    return false;
+  }
+}
+
+// The number of bytes has to be given explicitly to allow more flexible control of how many
+// bytes should be written and second to keep the return value free to give back a boolean
+// success message. If total_bytes is too big, the FIFO will copy only what is available
+// into the USB buffer!
+bool usbd_edpt_iso_xfer(uint8_t rhport, uint8_t ep_addr, tu_fifo_t * ff, uint16_t total_bytes)
+{
+  uint8_t const epnum = tu_edpt_number(ep_addr);
+  uint8_t const dir   = tu_edpt_dir(ep_addr);
+
+  TU_LOG2("  Queue ISO EP %02X with %u bytes ... ", ep_addr, total_bytes);
+
+  // Attempt to transfer on a busy endpoint, sound like an race condition !
+  TU_ASSERT(_usbd_dev.ep_status[epnum][dir].busy == 0);
+
+  // Set busy first since the actual transfer can be complete before dcd_edpt_xfer() could return
+  // and usbd task can preempt and clear the busy
+  _usbd_dev.ep_status[epnum][dir].busy = true;
+
+  if (dcd_edpt_xfer_fifo(rhport, ep_addr, ff, total_bytes))
   {
     TU_LOG2("OK\r\n");
     return true;

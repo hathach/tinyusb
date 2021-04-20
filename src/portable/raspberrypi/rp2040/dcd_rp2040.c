@@ -35,7 +35,8 @@
 #include "pico/fix/rp2040_usb_device_enumeration.h"
 #endif
 
-
+#include "osal/osal.h"
+#include "common/tusb_fifo.h"
 #include "device/dcd.h"
 
 /*------------------------------------------------------------------*/
@@ -48,23 +49,24 @@
 // Init these in dcd_init
 static uint8_t *next_buffer_ptr;
 
-// Endpoints 0-15, direction 0 for out and 1 for in.
-static struct hw_endpoint hw_endpoints[16][2] = {0};
+// USB_MAX_ENDPOINTS Endpoints, direction TUSB_DIR_OUT for out and TUSB_DIR_IN for in.
+static struct hw_endpoint hw_endpoints[USB_MAX_ENDPOINTS][2] = {0};
 
-static inline struct hw_endpoint *hw_endpoint_get_by_num(uint8_t num, uint8_t in)
+static inline struct hw_endpoint *hw_endpoint_get_by_num(uint8_t num, tusb_dir_t dir)
 {
-    return &hw_endpoints[num][in];
+    return &hw_endpoints[num][dir];
 }
 
 static struct hw_endpoint *hw_endpoint_get_by_addr(uint8_t ep_addr)
 {
     uint8_t num = tu_edpt_number(ep_addr);
-    uint8_t in = (ep_addr & TUSB_DIR_IN_MASK) ? 1 : 0;
-    return hw_endpoint_get_by_num(num, in);
+    tusb_dir_t dir = tu_edpt_dir(ep_addr);
+    return hw_endpoint_get_by_num(num, dir);
 }
+
 static void _hw_endpoint_alloc(struct hw_endpoint *ep)
 {
-    uint size = TU_MIN(64, ep->wMaxPacketSize);
+    uint16_t size = tu_min16(64, ep->wMaxPacketSize);
 
     // Assumes single buffered for now
     ep->hw_data_buf = next_buffer_ptr;
@@ -99,15 +101,13 @@ static void _hw_endpoint_alloc(struct hw_endpoint *ep)
     *ep->endpoint_control = reg;
 }
 
-static void _hw_endpoint_init(struct hw_endpoint *ep, uint8_t ep_addr, uint wMaxPacketSize, uint8_t transfer_type)
+static void _hw_endpoint_init(struct hw_endpoint *ep, uint8_t ep_addr, uint16_t wMaxPacketSize, uint8_t transfer_type)
 {
-    uint8_t num = tu_edpt_number(ep_addr);
-    bool in = ep_addr & TUSB_DIR_IN_MASK;
+    const uint8_t num = tu_edpt_number(ep_addr);
+    const tusb_dir_t dir = tu_edpt_dir(ep_addr);
     ep->ep_addr = ep_addr;
-    ep->in = in;
     // For device, IN is a tx transfer and OUT is an rx transfer
-    ep->rx = in == false;
-    ep->num = num;
+    ep->rx = (dir == TUSB_DIR_OUT);
     // Response to a setup packet on EP0 starts with pid of 1
     ep->next_pid = num == 0 ? 1u : 0u;
 
@@ -131,7 +131,7 @@ static void _hw_endpoint_init(struct hw_endpoint *ep, uint8_t ep_addr, uint wMax
     ep->transfer_type = transfer_type;
 
     // Every endpoint has a buffer control register in dpram
-    if (ep->in)
+    if (dir == TUSB_DIR_IN)
     {
         ep->buffer_control = &usb_dpram->ep_buf_ctrl[num].in;
     }
@@ -143,7 +143,7 @@ static void _hw_endpoint_init(struct hw_endpoint *ep, uint8_t ep_addr, uint wMax
     // Clear existing buffer control state
     *ep->buffer_control = 0;
 
-    if (ep->num == 0)
+    if (num == 0)
     {
         // EP0 has no endpoint control register because
         // the buffer offsets are fixed
@@ -155,7 +155,7 @@ static void _hw_endpoint_init(struct hw_endpoint *ep, uint8_t ep_addr, uint wMax
     else
     {
         // Set the endpoint control register (starts at EP1, hence num-1)
-        if (in)
+        if (dir == TUSB_DIR_IN)
         {
             ep->endpoint_control = &usb_dpram->ep_ctrl[num-1].in;
         }
@@ -194,7 +194,7 @@ static void hw_endpoint_close(uint8_t ep_addr)
 }
 #endif
 
-static void hw_endpoint_init(uint8_t ep_addr, uint wMaxPacketSize, uint8_t bmAttributes)
+static void hw_endpoint_init(uint8_t ep_addr, uint16_t wMaxPacketSize, uint8_t bmAttributes)
 {
     struct hw_endpoint *ep = hw_endpoint_get_by_addr(ep_addr);
     _hw_endpoint_init(ep, ep_addr, wMaxPacketSize, bmAttributes);
@@ -259,10 +259,10 @@ static void ep0_0len_status(void)
 static void _hw_endpoint_stall(struct hw_endpoint *ep)
 {
     assert(!ep->stalled);
-    if (ep->num == 0)
+    if (tu_edpt_number(ep->ep_addr) == 0)
     {
         // A stall on EP0 has to be armed so it can be cleared on the next setup packet
-        usb_hw_set->ep_stall_arm = ep->in ? USB_EP_STALL_ARM_EP0_IN_BITS : USB_EP_STALL_ARM_EP0_OUT_BITS;
+        usb_hw_set->ep_stall_arm = (tu_edpt_dir(ep->ep_addr) == TUSB_DIR_IN) ? USB_EP_STALL_ARM_EP0_IN_BITS : USB_EP_STALL_ARM_EP0_OUT_BITS;
     }
     _hw_endpoint_buffer_control_set_mask32(ep, USB_BUF_CTRL_STALL);
     ep->stalled = true;
@@ -276,10 +276,10 @@ static void hw_endpoint_stall(uint8_t ep_addr)
 
 static void _hw_endpoint_clear_stall(struct hw_endpoint *ep)
 {
-    if (ep->num == 0)
+    if (tu_edpt_number(ep->ep_addr) == 0)
     {
         // Probably already been cleared but no harm
-        usb_hw_clear->ep_stall_arm = ep->in ? USB_EP_STALL_ARM_EP0_IN_BITS : USB_EP_STALL_ARM_EP0_OUT_BITS;
+        usb_hw_clear->ep_stall_arm = (tu_edpt_dir(ep->ep_addr) == TUSB_DIR_IN) ? USB_EP_STALL_ARM_EP0_IN_BITS : USB_EP_STALL_ARM_EP0_OUT_BITS;
     }
     _hw_endpoint_buffer_control_clear_mask32(ep, USB_BUF_CTRL_STALL);
     ep->stalled = false;
@@ -313,17 +313,66 @@ static void dcd_rp2040_irq(void)
         hw_handle_buff_status();
     }
 
+    // SE0 for 2 us or more, usually together with Bus Reset
+    if (status & USB_INTS_DEV_CONN_DIS_BITS)
+    {
+        handled |= USB_INTS_DEV_CONN_DIS_BITS;
+
+        if ( usb_hw->sie_status & USB_SIE_STATUS_CONNECTED_BITS )
+        {
+          // Connected: nothing to do
+        }else
+        {
+          // Disconnected
+          dcd_event_bus_signal(0, DCD_EVENT_UNPLUGGED, true);
+        }
+
+        usb_hw_clear->sie_status = USB_SIE_STATUS_CONNECTED_BITS;
+    }
+
+    // SE0 for 2.5 us or more
     if (status & USB_INTS_BUS_RESET_BITS)
     {
-        pico_trace("BUS RESET (addr %d -> %d)\n", assigned_address, 0);
+        pico_trace("BUS RESET\n");
         usb_hw->dev_addr_ctrl = 0;
         handled |= USB_INTS_BUS_RESET_BITS;
-        dcd_event_bus_signal(0, DCD_EVENT_BUS_RESET, true);
+        dcd_event_bus_reset(0, TUSB_SPEED_FULL, true);
         usb_hw_clear->sie_status = USB_SIE_STATUS_BUS_RESET_BITS;
+
 #if TUD_OPT_RP2040_USB_DEVICE_ENUMERATION_FIX
-        rp2040_usb_device_enumeration_fix();
+        // Only run enumeration walk-around if pull up is enabled
+        if ( usb_hw->sie_ctrl & USB_SIE_CTRL_PULLUP_EN_BITS )
+        {
+          rp2040_usb_device_enumeration_fix();
+        }
 #endif
     }
+
+#if 0
+    // TODO Enable SUSPEND & RESUME interrupt and test later on with/without VBUS detection
+
+    /* Note from pico datasheet 4.1.2.6.4 (v1.2)
+     * If you enable the suspend interrupt, it is likely you will see a suspend interrupt when
+     * the device is first connected but the bus is idle. The bus can be idle for a few ms before
+     * the host begins sending start of frame packets. You will also see a suspend interrupt
+     * when the device is disconnected if you do not have a VBUS detect circuit connected. This is
+     * because without VBUS detection, it is impossible to tell the difference between
+     * being disconnected and suspended.
+     */
+    if (status & USB_INTS_DEV_SUSPEND_BITS)
+    {
+        handled |= USB_INTS_DEV_SUSPEND_BITS;
+        dcd_event_bus_signal(0, DCD_EVENT_SUSPEND, true);
+        usb_hw_clear->sie_status = USB_SIE_STATUS_SUSPENDED_BITS;
+    }
+
+    if (status & USB_INTS_DEV_RESUME_FROM_HOST_BITS)
+    {
+        handled |= USB_INTS_DEV_RESUME_FROM_HOST_BITS;
+        dcd_event_bus_signal(0, DCD_EVENT_RESUME, true);
+        usb_hw_clear->sie_status = USB_SIE_STATUS_RESUME_BITS;
+    }
+#endif
 
     if (status ^ handled)
     {
@@ -365,8 +414,10 @@ void dcd_init (uint8_t rhport)
 
     // Enable individual controller IRQS here. Processor interrupt enable will be used
     // for the global interrupt enable...
+    // TODO Enable SUSPEND & RESUME interrupt
     usb_hw->sie_ctrl = USB_SIE_CTRL_EP0_INT_1BUF_BITS; 
-    usb_hw->inte     = USB_INTS_BUFF_STATUS_BITS | USB_INTS_BUS_RESET_BITS | USB_INTS_SETUP_REQ_BITS;
+    usb_hw->inte     = USB_INTS_BUFF_STATUS_BITS | USB_INTS_BUS_RESET_BITS | USB_INTS_SETUP_REQ_BITS |
+                       USB_INTS_DEV_CONN_DIS_BITS /* | USB_INTS_DEV_SUSPEND_BITS | USB_INTS_DEV_RESUME_FROM_HOST_BITS */  ;
 
     dcd_connect(rhport);
 }
@@ -394,8 +445,9 @@ void dcd_set_address (uint8_t rhport, uint8_t dev_addr)
 
 void dcd_remote_wakeup(uint8_t rhport)
 {
-    pico_info("dcd_remote_wakeup %d is not supported yet\n", rhport);
+    pico_info("dcd_remote_wakeup %d\n", rhport);
     assert(rhport == 0);
+    usb_hw_set->sie_ctrl = USB_SIE_CTRL_RESUME_BITS;
 }
 
 // disconnect by disabling internal pull-up resistor on D+/D-

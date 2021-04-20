@@ -66,7 +66,6 @@ typedef void (*osal_task_func_t)( void * );
 //--------------------------------------------------------------------+
 // OSAL Porting API
 //--------------------------------------------------------------------+
-//static inline void osal_task_delay(uint32_t msec);
 
 //------------- Semaphore -------------//
 static inline osal_semaphore_t osal_semaphore_create(osal_semaphore_def_t* semdef);

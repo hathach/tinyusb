@@ -1,3 +1,9 @@
+ST_FAMILY = l4
+DEPS_SUBMODULES += lib/CMSIS_5 hw/mcu/st/cmsis_device_$(ST_FAMILY) hw/mcu/st/stm32$(ST_FAMILY)xx_hal_driver
+
+ST_CMSIS = hw/mcu/st/cmsis_device_$(ST_FAMILY)
+ST_HAL_DRIVER = hw/mcu/st/stm32$(ST_FAMILY)xx_hal_driver
+
 CFLAGS += \
   -flto \
   -mthumb \
@@ -13,14 +19,11 @@ CFLAGS += \
 # suppress warning caused by vendor mcu driver
 CFLAGS += -Wno-error=maybe-uninitialized -Wno-error=cast-align
 
-ST_FAMILY = l4
-ST_CMSIS = hw/mcu/st/cmsis_device_$(ST_FAMILY)
-ST_HAL_DRIVER = hw/mcu/st/stm32$(ST_FAMILY)xx_hal_driver
-
 # All source paths should be relative to the top level.
 LD_FILE = hw/bsp/$(BOARD)/STM32L4RXxI_FLASH.ld
 
 SRC_C += \
+	src/portable/st/synopsys/dcd_synopsys.c \
 	$(ST_CMSIS)/Source/Templates/system_stm32$(ST_FAMILY)xx.c \
 	$(ST_HAL_DRIVER)/Src/stm32$(ST_FAMILY)xx_hal.c \
 	$(ST_HAL_DRIVER)/Src/stm32$(ST_FAMILY)xx_hal_cortex.c \
@@ -39,10 +42,6 @@ INC += \
 	$(TOP)/$(ST_CMSIS)/Include \
 	$(TOP)/$(ST_HAL_DRIVER)/Inc \
 	$(TOP)/hw/bsp/$(BOARD)
-
-# For TinyUSB port source
-VENDOR = st
-CHIP_FAMILY = synopsys
 
 # For freeRTOS port source
 FREERTOS_PORT = ARM_CM4F

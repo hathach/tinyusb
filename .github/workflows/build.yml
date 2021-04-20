@@ -9,7 +9,9 @@ on:
       - created
 
 jobs:
+  # ---------------------------------------
   # Unit testing with Ceedling
+  # ---------------------------------------
   unit-test:
     runs-on: ubuntu-latest
     steps:
@@ -28,8 +30,10 @@ jobs:
         cd test
         ceedling test:all
 
-  # build all example for each family
-  build-family:
+  # ---------------------------------------
+  # Build ARM family
+  # ---------------------------------------
+  build-arm:
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -37,37 +41,53 @@ jobs:
         family:
         # Alphabetical order
         - 'imxrt'
+        - 'lpc18'
+        - 'lpc55'
         - 'nrf'
         - 'rp2040'
         - 'samd11'
         - 'samd21'
         - 'samd51'
+        - 'saml22'
+        - 'stm32f0'
         - 'stm32f4'
         - 'stm32f7'
+        - 'stm32h7'
     steps:
     - name: Setup Python
       uses: actions/setup-python@v2
 
-    - name: Setup Node.js
-      uses: actions/setup-node@v1
-
-    - name: Install Toolchains
-      run: |
-        # ARM GCC from xpack
-        npm install --global xpm
-        xpm install --global @xpack-dev-tools/arm-none-eabi-gcc@latest
-        echo `echo $HOME/.local/xPacks/@xpack-dev-tools/arm-none-eabi-gcc/*/.content/bin` >> $GITHUB_PATH
-
     - name: Checkout TinyUSB
       uses: actions/checkout@v2
-      with:
-        submodules: 'true'
 
-    - name: Checkout Sub-Submodules
+    - name: Checkout common submodules in lib
+      run: git submodule update --init lib/FreeRTOS-Kernel lib/lwip lib/sct_neopixel
+
+    - name: Checkout pico-sdk
+      if: matrix.family == 'rp2040'
       run: |
-        # some submodule has it own submodules that need to be fetched as well
-        git submodule update --init --recursive hw/mcu/microchip
-        git submodule update --init --recursive lib/FreeRTOS
+        git clone --depth 1 https://github.com/raspberrypi/pico-sdk ~/pico-sdk
+        echo >> $GITHUB_ENV PICO_SDK_PATH=~/pico-sdk
+
+    - name: Set Toolchain URL
+      run: echo >> $GITHUB_ENV TOOLCHAIN_URL=https://github.com/xpack-dev-tools/arm-none-eabi-gcc-xpack/releases/download/v10.2.1-1.1/xpack-arm-none-eabi-gcc-10.2.1-1.1-linux-x64.tar.gz
+
+    - name: Cache Toolchain
+      uses: actions/cache@v2
+      id: cache-toolchain
+      with:
+        path: ~/cache/
+        key: ${{ runner.os }}-21-03-04-${{ env.TOOLCHAIN_URL }}
+
+    - name: Install Toolchain
+      if: steps.cache-toolchain.outputs.cache-hit != 'true'
+      run: |
+        mkdir -p ~/cache/toolchain
+        wget --progress=dot:mega $TOOLCHAIN_URL -O toolchain.tar.gz
+        tar -C ~/cache/toolchain -xaf toolchain.tar.gz
+
+    - name: Set Toolchain Path
+      run: echo >> $GITHUB_PATH `echo ~/cache/toolchain/*/bin`
 
     - name: Build
       run: python3 tools/build_family.py ${{ matrix.family }}
@@ -94,96 +114,90 @@ jobs:
         asset_name: ${{ matrix.family }}-tinyusb-${{ github.event.release.tag_name }}-examples.zip
         asset_content_type: application/zip
 
-  # Build all no-family (opharned) boards
-  build-board:
+  # ---------------------------------------
+  # Build RISC-V family
+  # ---------------------------------------
+  build-riscv:
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        example:
+        family:
         # Alphabetical order
-        - 'device/audio_test'
-        - 'device/board_test'
-        - 'device/cdc_dual_ports'
-        - 'device/cdc_msc'
-        - 'device/cdc_msc_freertos'
-        - 'device/dfu_runtime'
-        - 'device/hid_composite'
-        - 'device/hid_composite_freertos'
-        - 'device/hid_generic_inout'
-        - 'device/hid_multiple_interface'
-        - 'device/midi_test'
-        - 'device/msc_dual_lun'
-        - 'device/net_lwip_webserver'
-        - 'device/uac2_headset'
-        - 'device/usbtmc'
-        - 'device/webusb_serial'
-        - 'host/cdc_msc_hid'
-
+        - 'fomu'    
     steps:
     - name: Setup Python
       uses: actions/setup-python@v2
 
-    - name: Setup Node.js
-      uses: actions/setup-node@v1
-
     - name: Checkout TinyUSB
       uses: actions/checkout@v2
-      with:
-        submodules: 'true'
 
-    - name: Checkout Sub-Submodules
-      run: |
-        # some submodule has it own submodules that need to be fetched as well
-        git submodule update --init --recursive hw/mcu/microchip
-        git submodule update --init --recursive lib/FreeRTOS
+    - name: Checkout common submodules in lib
+      run: git submodule update --init lib/FreeRTOS-Kernel lib/lwip
 
-        # Add msp430-gcc url to env
-        echo >> $GITHUB_ENV MSP430_GCC_URL=http://software-dl.ti.com/msp430/msp430_public_sw/mcu/msp430/MSPGCC/9_2_0_0/export/msp430-gcc-9.2.0.50_linux64.tar.bz2
+    - name: Set Toolchain URL
+      run: echo >> $GITHUB_ENV TOOLCHAIN_URL=https://github.com/xpack-dev-tools/riscv-none-embed-gcc-xpack/releases/download/v10.1.0-1.1/xpack-riscv-none-embed-gcc-10.1.0-1.1-linux-x64.tar.gz
 
-    - name: Cache MSP430-GCC
+    - name: Cache Toolchain
       uses: actions/cache@v2
-      id: cache-msp430
+      id: cache-toolchain
       with:
         path: ~/cache/
-        key: ${{ runner.os }}-21-01-26-${{ env.MSP430_GCC_URL }}
+        key: ${{ runner.os }}-21-03-04-${{ env.TOOLCHAIN_URL }}
 
-    - name: Install MSP430-GCC
-      if: steps.cache-msp430.outputs.cache-hit != 'true'
+    - name: Install Toolchain
+      if: steps.cache-toolchain.outputs.cache-hit != 'true'
       run: |
-        # MSP430 GCC
-        mkdir -p ~/cache/msp430-gcc
-        wget --progress=dot:mega $MSP430_GCC_URL -O msp430-gcc.tar.bz2
-        tar -C ~/cache/msp430-gcc -xaf msp430-gcc.tar.bz2
+        mkdir -p ~/cache/toolchain
+        wget --progress=dot:mega $TOOLCHAIN_URL -O toolchain.tar.gz
+        tar -C ~/cache/toolchain -xaf toolchain.tar.gz
 
-    - name: Install Toolchains
-      run: |
-        # ARM & RISC-V GCC from xpack
-        npm install --global xpm
-        xpm install --global @xpack-dev-tools/arm-none-eabi-gcc@latest
-        xpm install --global @xpack-dev-tools/riscv-none-embed-gcc@latest
-        echo `echo $HOME/.local/xPacks/@xpack-dev-tools/arm-none-eabi-gcc/*/.content/bin` >> $GITHUB_PATH
-        echo `echo $HOME/.local/xPacks/@xpack-dev-tools/riscv-none-embed-gcc/*/.content/bin` >> $GITHUB_PATH
-        
-        # TI MSP430 GCC
-        echo >> $GITHUB_PATH `echo ~/cache/msp430-gcc/msp430-gcc-*/bin`
+    - name: Set Toolchain Path
+      run: echo >> $GITHUB_PATH `echo ~/cache/toolchain/*/bin`
 
     - name: Build
-      run: python3 tools/build_board.py ${{ matrix.example }}
+      run: python3 tools/build_family.py ${{ matrix.family }}
 
-  # Build ESP32S2
-  build-esp32s2:
+    - uses: actions/upload-artifact@v2
+      with:
+        name: ${{ matrix.family }}-tinyusb-examples
+        path: _bin/
+
+    - name: Create Release Asset
+      if: ${{ github.event_name == 'release' }}
+      run: |
+        cd _bin/
+        zip -r ../${{ matrix.family }}-tinyusb-${{ github.event.release.tag_name }}-examples.zip *
+
+    - name: Upload Release Asset
+      uses: actions/upload-release-asset@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      if: ${{ github.event_name == 'release' }}
+      with:
+        upload_url: ${{ github.event.release.upload_url }}
+        asset_path: ${{ matrix.family }}-tinyusb-${{ github.event.release.tag_name }}-examples.zip
+        asset_name: ${{ matrix.family }}-tinyusb-${{ github.event.release.tag_name }}-examples.zip
+        asset_content_type: application/zip
+
+  # ---------------------------------------
+  # Build ESP32SX family
+  # ---------------------------------------
+  build-esp32sx:
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
         board:
         # Alphabetical order
+        # ESP32-S2
         - 'adafruit_feather_esp32s2'
         - 'adafruit_magtag_29gray'
         - 'adafruit_metro_esp32s2'
         - 'espressif_kaluga_1'
         - 'espressif_saola_1'
+        # ESP32-S3
+        # - 'espressif_addax_1' # temporarily remove the board from test while espressif MR is not merged
 
     steps:
     - name: Setup Python
@@ -194,8 +208,188 @@ jobs:
 
     - name: Checkout TinyUSB
       uses: actions/checkout@v2
-      with:
-        submodules: 'false'
 
     - name: Build
-      run: docker run --rm -v $PWD:/project -w /project espressif/idf:latest python3 tools/build_esp32s2.py ${{ matrix.board }}
+      run: docker run --rm -v $PWD:/project -w /project espressif/idf:latest python3 tools/build_esp32sx.py ${{ matrix.board }}
+
+  # ---------------------------------------
+  # Build msp430 family
+  # ---------------------------------------
+  build-msp430:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        family:
+        # Alphabetical order
+        - 'msp430'
+    steps:
+    - name: Setup Python
+      uses: actions/setup-python@v2
+
+    - name: Checkout TinyUSB
+      uses: actions/checkout@v2
+
+    - name: Checkout common submodules in lib
+      run: git submodule update --init lib/FreeRTOS-Kernel lib/lwip
+
+    - name: Set Toolchain URL
+      run: echo >> $GITHUB_ENV TOOLCHAIN_URL=http://software-dl.ti.com/msp430/msp430_public_sw/mcu/msp430/MSPGCC/9_2_0_0/export/msp430-gcc-9.2.0.50_linux64.tar.bz2
+
+    - name: Cache Toolchain
+      uses: actions/cache@v2
+      id: cache-toolchain
+      with:
+        path: ~/cache/
+        key: ${{ runner.os }}-21-03-04-${{ env.TOOLCHAIN_URL }}
+
+    - name: Install Toolchain
+      if: steps.cache-toolchain.outputs.cache-hit != 'true'
+      run: |
+        mkdir -p ~/cache/toolchain
+        wget --progress=dot:mega $TOOLCHAIN_URL -O toolchain.tar.bz2
+        tar -C ~/cache/toolchain -xaf toolchain.tar.bz2
+
+    - name: Set Toolchain Path
+      run: echo >> $GITHUB_PATH `echo ~/cache/toolchain/*/bin`
+
+    - name: Build
+      run: python3 tools/build_family.py ${{ matrix.family }}
+
+    - uses: actions/upload-artifact@v2
+      with:
+        name: ${{ matrix.family }}-tinyusb-examples
+        path: _bin/
+
+    - name: Create Release Asset
+      if: ${{ github.event_name == 'release' }}
+      run: |
+        cd _bin/
+        zip -r ../${{ matrix.family }}-tinyusb-${{ github.event.release.tag_name }}-examples.zip *
+
+    - name: Upload Release Asset
+      uses: actions/upload-release-asset@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      if: ${{ github.event_name == 'release' }}
+      with:
+        upload_url: ${{ github.event.release.upload_url }}
+        asset_path: ${{ matrix.family }}-tinyusb-${{ github.event.release.tag_name }}-examples.zip
+        asset_name: ${{ matrix.family }}-tinyusb-${{ github.event.release.tag_name }}-examples.zip
+        asset_content_type: application/zip
+
+  # ---------------------------------------
+  # Build Renesas family
+  # ---------------------------------------
+  build-renesas:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        family:
+        # Alphabetical order
+        - 'rx63n'
+    steps:
+    - name: Setup Python
+      uses: actions/setup-python@v2
+
+    - name: Checkout TinyUSB
+      uses: actions/checkout@v2
+
+    - name: Checkout common submodules in lib
+      run: git submodule update --init lib/FreeRTOS-Kernel lib/lwip
+
+    - name: Set Toolchain URL
+      run: echo >> $GITHUB_ENV TOOLCHAIN_URL=http://gcc-renesas.com/downloads/get.php?f=rx/8.3.0.202004-gnurx/gcc-8.3.0.202004-GNURX-ELF.run
+
+    - name: Cache Toolchain
+      uses: actions/cache@v2
+      id: cache-toolchain
+      with:
+        path: ~/cache/
+        key: ${{ runner.os }}-21-03-30-${{ env.TOOLCHAIN_URL }}
+
+    - name: Install Toolchain
+      if: steps.cache-toolchain.outputs.cache-hit != 'true'
+      run: |
+        mkdir -p ~/cache/toolchain/gnurx
+        wget --progress=dot:mega $TOOLCHAIN_URL -O toolchain.run
+        chmod +x toolchain.run
+        ./toolchain.run -p ~/cache/toolchain/gnurx -y
+
+    - name: Set Toolchain Path
+      run: echo >> $GITHUB_PATH `echo ~/cache/toolchain/*/bin`
+
+    - name: Build
+      run: python3 tools/build_family.py ${{ matrix.family }}
+
+    - uses: actions/upload-artifact@v2
+      with:
+        name: ${{ matrix.family }}-tinyusb-examples
+        path: _bin/
+
+    - name: Create Release Asset
+      if: ${{ github.event_name == 'release' }}
+      run: |
+        cd _bin/
+        zip -r ../${{ matrix.family }}-tinyusb-${{ github.event.release.tag_name }}-examples.zip *
+
+    - name: Upload Release Asset
+      uses: actions/upload-release-asset@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      if: ${{ github.event_name == 'release' }}
+      with:
+        upload_url: ${{ github.event.release.upload_url }}
+        asset_path: ${{ matrix.family }}-tinyusb-${{ github.event.release.tag_name }}-examples.zip
+        asset_name: ${{ matrix.family }}-tinyusb-${{ github.event.release.tag_name }}-examples.zip
+        asset_content_type: application/zip
+
+  # ---------------------------------------
+  # Build all no-family (opharned) boards
+  # ---------------------------------------
+  build-board:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        example:
+        # Alphabetical order, a group of 4
+        - 'device/audio_test device/board_test device/cdc_dual_ports device/cdc_msc'
+        - 'device/cdc_msc_freertos device/dfu_runtime device/hid_composite device/hid_composite_freertos'
+        - 'device/hid_generic_inout device/hid_multiple_interface device/midi_test device/msc_dual_lun'
+        - 'device/net_lwip_webserver'
+        - 'device/uac2_headset device/usbtmc device/webusb_serial host/cdc_msc_hid'
+
+    steps:
+    - name: Setup Python
+      uses: actions/setup-python@v2
+
+    - name: Checkout TinyUSB
+      uses: actions/checkout@v2
+
+    - name: Checkout common submodules in lib
+      run: git submodule update --init lib/FreeRTOS-Kernel lib/lwip
+
+    - name: Set Toolchain URL
+      run: echo >> $GITHUB_ENV TOOLCHAIN_URL=https://github.com/xpack-dev-tools/arm-none-eabi-gcc-xpack/releases/download/v10.2.1-1.1/xpack-arm-none-eabi-gcc-10.2.1-1.1-linux-x64.tar.gz
+
+    - name: Cache Toolchain
+      uses: actions/cache@v2
+      id: cache-toolchain
+      with:
+        path: ~/cache/
+        key: ${{ runner.os }}-21-03-04-${{ env.TOOLCHAIN_URL }}
+
+    - name: Install Toolchain
+      if: steps.cache-toolchain.outputs.cache-hit != 'true'
+      run: |
+        mkdir -p ~/cache/toolchain
+        wget --progress=dot:mega $TOOLCHAIN_URL -O toolchain.tar.gz
+        tar -C ~/cache/toolchain -xaf toolchain.tar.gz
+
+    - name: Set Toolchain Path
+      run: echo >> $GITHUB_PATH `echo ~/cache/toolchain/*/bin`
+
+    - name: Build
+      run: python3 tools/build_board.py ${{ matrix.example }}

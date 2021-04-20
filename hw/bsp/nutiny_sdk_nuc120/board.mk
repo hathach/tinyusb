@@ -1,3 +1,5 @@
+DEPS_SUBMODULES += hw/mcu/nuvoton
+
 CFLAGS += \
   -flto \
   -mthumb \
@@ -10,6 +12,7 @@ CFLAGS += \
 LD_FILE = hw/bsp/nutiny_sdk_nuc120/nuc120_flash.ld
 
 SRC_C += \
+  src/portable/nuvoton/nuc120/dcd_nuc120.c \
   hw/mcu/nuvoton/nuc100_120/Device/Nuvoton/NUC100Series/Source/system_NUC100Series.c \
   hw/mcu/nuvoton/nuc100_120/StdDriver/src/acmp.c \
   hw/mcu/nuvoton/nuc100_120/StdDriver/src/adc.c \
@@ -39,10 +42,6 @@ INC += \
   $(TOP)/hw/mcu/nuvoton/nuc100_120/Device/Nuvoton/NUC100Series/Include \
   $(TOP)/hw/mcu/nuvoton/nuc100_120/StdDriver/inc \
   $(TOP)/hw/mcu/nuvoton/nuc100_120/CMSIS/Include
-
-# For TinyUSB port source
-VENDOR = nuvoton
-CHIP_FAMILY = nuc120
 
 # For freeRTOS port source
 FREERTOS_PORT = ARM_CM0
