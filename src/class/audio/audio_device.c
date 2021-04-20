@@ -347,7 +347,7 @@ typedef struct
 #define USE_LINEAR_BUFFER_TX   1
 #endif
 
-} audiod_interface_t;
+} audiod_function_t;
 
 #ifndef USE_LINEAR_BUFFER_TX
 #define USE_LINEAR_BUFFER_TX   0
@@ -357,39 +357,41 @@ typedef struct
 #define USE_LINEAR_BUFFER_RX   0
 #endif
 
-#define ITF_MEM_RESET_SIZE   offsetof(audiod_interface_t, ctrl_buf)
+#define ITF_MEM_RESET_SIZE   offsetof(audiod_function_t, ctrl_buf)
 
 //--------------------------------------------------------------------+
 // INTERNAL OBJECT & FUNCTION DECLARATION
 //--------------------------------------------------------------------+
-CFG_TUSB_MEM_SECTION audiod_interface_t _audiod_itf[CFG_TUD_AUDIO];
+CFG_TUSB_MEM_SECTION audiod_function_t _audiod_fct[CFG_TUD_AUDIO];
 
 #if CFG_TUD_AUDIO_ENABLE_EP_OUT
-static bool audiod_rx_done_cb(uint8_t rhport, audiod_interface_t* audio, uint16_t n_bytes_received);
+static bool audiod_rx_done_cb(uint8_t rhport, audiod_function_t* audio, uint16_t n_bytes_received);
 #endif
 
 #if CFG_TUD_AUDIO_ENABLE_DECODING && CFG_TUD_AUDIO_ENABLE_EP_OUT
-static bool audiod_decode_type_I_pcm(uint8_t rhport, audiod_interface_t* audio, uint16_t n_bytes_received);
+static bool audiod_decode_type_I_pcm(uint8_t rhport, audiod_function_t* audio, uint16_t n_bytes_received);
 #endif
 
 #if CFG_TUD_AUDIO_ENABLE_EP_IN
-static bool audiod_tx_done_cb(uint8_t rhport, audiod_interface_t* audio);
+static bool audiod_tx_done_cb(uint8_t rhport, audiod_function_t* audio);
 #endif
 
 #if CFG_TUD_AUDIO_ENABLE_ENCODING && CFG_TUD_AUDIO_ENABLE_EP_IN
-static uint16_t audiod_encode_type_I_pcm(uint8_t rhport, audiod_interface_t* audio);
+static uint16_t audiod_encode_type_I_pcm(uint8_t rhport, audiod_function_t* audio);
 #endif
 
 static bool audiod_get_interface(uint8_t rhport, tusb_control_request_t const * p_request);
 static bool audiod_set_interface(uint8_t rhport, tusb_control_request_t const * p_request);
 
-static bool audiod_get_AS_interface_index(uint8_t itf, uint8_t *idxDriver, uint8_t *idxItf, uint8_t const **pp_desc_int);
+static bool audiod_get_AS_interface_index_global(uint8_t itf, uint8_t *idxDriver, uint8_t *idxItf, uint8_t const **pp_desc_int);
+static bool audiod_get_AS_interface_index(uint8_t itf, audiod_function_t * audio, uint8_t *idxItf, uint8_t const **pp_desc_int);
 static bool audiod_verify_entity_exists(uint8_t itf, uint8_t entityID, uint8_t *idxDriver);
 static bool audiod_verify_itf_exists(uint8_t itf, uint8_t *idxDriver);
 static bool audiod_verify_ep_exists(uint8_t ep, uint8_t *idxDriver);
+static uint8_t audiod_get_audio_fct_idx(audiod_function_t * audio);
 
 #if CFG_TUD_AUDIO_ENABLE_ENCODING || CFG_TUD_AUDIO_ENABLE_DECODING
-static void audiod_parse_for_AS_params(audiod_interface_t* audio, uint8_t const * p_desc, uint8_t const * p_desc_end, uint8_t const itf);
+static void audiod_parse_for_AS_params(audiod_function_t* audio, uint8_t const * p_desc, uint8_t const * p_desc_end, uint8_t const itf);
 #endif
 
 static inline uint8_t tu_desc_subtype(void const* desc)
@@ -400,7 +402,7 @@ static inline uint8_t tu_desc_subtype(void const* desc)
 bool tud_audio_n_mounted(uint8_t itf)
 {
   TU_VERIFY(itf < CFG_TUD_AUDIO);
-  audiod_interface_t* audio = &_audiod_itf[itf];
+  audiod_function_t* audio = &_audiod_fct[itf];
 
 #if CFG_TUD_AUDIO_ENABLE_EP_OUT
   if (audio->ep_out == 0) return false;
@@ -429,20 +431,20 @@ bool tud_audio_n_mounted(uint8_t itf)
 
 uint16_t tud_audio_n_available(uint8_t itf)
 {
-  TU_VERIFY(itf < CFG_TUD_AUDIO && _audiod_itf[itf].p_desc != NULL);
-  return tu_fifo_count(&_audiod_itf[itf].ep_out_ff);
+  TU_VERIFY(itf < CFG_TUD_AUDIO && _audiod_fct[itf].p_desc != NULL);
+  return tu_fifo_count(&_audiod_fct[itf].ep_out_ff);
 }
 
 uint16_t tud_audio_n_read(uint8_t itf, void* buffer, uint16_t bufsize)
 {
-  TU_VERIFY(itf < CFG_TUD_AUDIO && _audiod_itf[itf].p_desc != NULL);
-  return tu_fifo_read_n(&_audiod_itf[itf].ep_out_ff, buffer, bufsize);
+  TU_VERIFY(itf < CFG_TUD_AUDIO && _audiod_fct[itf].p_desc != NULL);
+  return tu_fifo_read_n(&_audiod_fct[itf].ep_out_ff, buffer, bufsize);
 }
 
 bool tud_audio_n_clear_ep_out_ff(uint8_t itf)
 {
-  TU_VERIFY(itf < CFG_TUD_AUDIO && _audiod_itf[itf].p_desc != NULL);
-  return tu_fifo_clear(&_audiod_itf[itf].ep_out_ff);
+  TU_VERIFY(itf < CFG_TUD_AUDIO && _audiod_fct[itf].p_desc != NULL);
+  return tu_fifo_clear(&_audiod_fct[itf].ep_out_ff);
 }
 
 #endif
@@ -451,20 +453,20 @@ bool tud_audio_n_clear_ep_out_ff(uint8_t itf)
 // Delete all content in the support RX FIFOs
 bool tud_audio_n_clear_rx_support_ff(uint8_t itf, uint8_t channelId)
 {
-  TU_VERIFY(itf < CFG_TUD_AUDIO && _audiod_itf[itf].p_desc != NULL, channelId < _audiod_itf[itf].n_rx_supp_ff);
-  return tu_fifo_clear(&_audiod_itf[itf].rx_supp_ff[channelId]);
+  TU_VERIFY(itf < CFG_TUD_AUDIO && _audiod_fct[itf].p_desc != NULL, channelId < _audiod_fct[itf].n_rx_supp_ff);
+  return tu_fifo_clear(&_audiod_fct[itf].rx_supp_ff[channelId]);
 }
 
 uint16_t tud_audio_n_available_support_ff(uint8_t itf, uint8_t channelId)
 {
-  TU_VERIFY(itf < CFG_TUD_AUDIO && _audiod_itf[itf].p_desc != NULL, channelId < _audiod_itf[itf].n_rx_supp_ff);
-  return tu_fifo_count(&_audiod_itf[itf].rx_supp_ff[channelId]);
+  TU_VERIFY(itf < CFG_TUD_AUDIO && _audiod_fct[itf].p_desc != NULL, channelId < _audiod_fct[itf].n_rx_supp_ff);
+  return tu_fifo_count(&_audiod_fct[itf].rx_supp_ff[channelId]);
 }
 
 uint16_t tud_audio_n_read_support_ff(uint8_t itf, uint8_t channelId, void* buffer, uint16_t bufsize)
 {
-  TU_VERIFY(itf < CFG_TUD_AUDIO && _audiod_itf[itf].p_desc != NULL, channelId < _audiod_itf[itf].n_rx_supp_ff);
-  return tu_fifo_read_n(&_audiod_itf[itf].rx_supp_ff[channelId], buffer, bufsize);
+  TU_VERIFY(itf < CFG_TUD_AUDIO && _audiod_fct[itf].p_desc != NULL, channelId < _audiod_fct[itf].n_rx_supp_ff);
+  return tu_fifo_read_n(&_audiod_fct[itf].rx_supp_ff[channelId], buffer, bufsize);
 }
 #endif
 
@@ -473,16 +475,20 @@ uint16_t tud_audio_n_read_support_ff(uint8_t itf, uint8_t channelId, void* buffe
 
 #if CFG_TUD_AUDIO_ENABLE_EP_OUT
 
-static bool audiod_rx_done_cb(uint8_t rhport, audiod_interface_t* audio, uint16_t n_bytes_received)
+static bool audiod_rx_done_cb(uint8_t rhport, audiod_function_t* audio, uint16_t n_bytes_received)
 {
-  uint8_t idxDriver, idxItf;
+  uint8_t idxItf;
   uint8_t const *dummy2;
+  uint8_t idx_audio_fct = 0;
 
-  // Find index of audio streaming interface and index of interface
-  TU_VERIFY(audiod_get_AS_interface_index(audio->ep_out_as_intf_num, &idxDriver, &idxItf, &dummy2));
+  if (tud_audio_rx_done_pre_read_cb || tud_audio_rx_done_post_read_cb)
+  {
+    idx_audio_fct = audiod_get_audio_fct_idx(audio);
+    TU_VERIFY(audiod_get_AS_interface_index(audio->ep_in_as_intf_num, audio, &idxItf, &dummy2));
+  }
 
   // Call a weak callback here - a possibility for user to get informed an audio packet was received and data gets now loaded into EP FIFO (or decoded into support RX software FIFO)
-  if (tud_audio_rx_done_pre_read_cb) TU_VERIFY(tud_audio_rx_done_pre_read_cb(rhport, n_bytes_received, idxDriver, audio->ep_out, audio->alt_setting[idxItf]));
+  if (tud_audio_rx_done_pre_read_cb) TU_VERIFY(tud_audio_rx_done_pre_read_cb(rhport, n_bytes_received, idx_audio_fct, audio->ep_out, audio->alt_setting[idxItf]));
 
 #if CFG_TUD_AUDIO_ENABLE_DECODING && CFG_TUD_AUDIO_ENABLE_EP_OUT
 
@@ -536,7 +542,7 @@ static bool audiod_rx_done_cb(uint8_t rhport, audiod_interface_t* audio, uint16_
 #endif
 
   // Call a weak callback here - a possibility for user to get informed decoding was completed
-  if (tud_audio_rx_done_post_read_cb) TU_VERIFY(tud_audio_rx_done_post_read_cb(rhport, n_bytes_received, idxDriver, audio->ep_out, audio->alt_setting[idxItf]));
+  if (tud_audio_rx_done_post_read_cb) TU_VERIFY(tud_audio_rx_done_post_read_cb(rhport, n_bytes_received, idx_audio_fct, audio->ep_out, audio->alt_setting[idxItf]));
 
   return true;
 }
@@ -618,7 +624,7 @@ static inline uint8_t * audiod_interleaved_copy_bytes_fast_decode(uint16_t const
   return src;
 }
 
-static bool audiod_decode_type_I_pcm(uint8_t rhport, audiod_interface_t* audio, uint16_t n_bytes_received)
+static bool audiod_decode_type_I_pcm(uint8_t rhport, audiod_function_t* audio, uint16_t n_bytes_received)
 {
   (void) rhport;
 
@@ -683,14 +689,14 @@ static bool audiod_decode_type_I_pcm(uint8_t rhport, audiod_interface_t* audio, 
  */
 uint16_t tud_audio_n_write(uint8_t itf, const void * data, uint16_t len)
 {
-  TU_VERIFY(itf < CFG_TUD_AUDIO && _audiod_itf[itf].p_desc != NULL);
-  return tu_fifo_write_n(&_audiod_itf[itf].ep_in_ff, data, len);
+  TU_VERIFY(itf < CFG_TUD_AUDIO && _audiod_fct[itf].p_desc != NULL);
+  return tu_fifo_write_n(&_audiod_fct[itf].ep_in_ff, data, len);
 }
 
 bool tud_audio_n_clear_ep_in_ff(uint8_t itf)                          // Delete all content in the EP IN FIFO
 {
-  TU_VERIFY(itf < CFG_TUD_AUDIO && _audiod_itf[itf].p_desc != NULL);
-  return tu_fifo_clear(&_audiod_itf[itf].ep_in_ff);
+  TU_VERIFY(itf < CFG_TUD_AUDIO && _audiod_fct[itf].p_desc != NULL);
+  return tu_fifo_clear(&_audiod_fct[itf].ep_in_ff);
 }
 
 #endif
@@ -698,8 +704,8 @@ bool tud_audio_n_clear_ep_in_ff(uint8_t itf)                          // Delete 
 #if CFG_TUD_AUDIO_ENABLE_ENCODING && CFG_TUD_AUDIO_ENABLE_EP_IN
 uint16_t tud_audio_n_flush_tx_support_ff(uint8_t itf)                 // Force all content in the support TX FIFOs to be written into linear buffer and schedule a transmit
 {
-  TU_VERIFY(itf < CFG_TUD_AUDIO && _audiod_itf[itf].p_desc != NULL);
-  audiod_interface_t* audio = &_audiod_itf[itf];
+  TU_VERIFY(itf < CFG_TUD_AUDIO && _audiod_fct[itf].p_desc != NULL);
+  audiod_function_t* audio = &_audiod_fct[itf];
 
   uint16_t n_bytes_copied = tu_fifo_count(&audio->tx_supp_ff[0]);
 
@@ -713,14 +719,14 @@ uint16_t tud_audio_n_flush_tx_support_ff(uint8_t itf)                 // Force a
 
 bool tud_audio_n_clear_tx_support_ff(uint8_t itf, uint8_t channelId)
 {
-  TU_VERIFY(itf < CFG_TUD_AUDIO && _audiod_itf[itf].p_desc != NULL, channelId < _audiod_itf[itf].n_tx_supp_ff);
-  return tu_fifo_clear(&_audiod_itf[itf].tx_supp_ff[channelId]);
+  TU_VERIFY(itf < CFG_TUD_AUDIO && _audiod_fct[itf].p_desc != NULL, channelId < _audiod_fct[itf].n_tx_supp_ff);
+  return tu_fifo_clear(&_audiod_fct[itf].tx_supp_ff[channelId]);
 }
 
 uint16_t tud_audio_n_write_support_ff(uint8_t itf, uint8_t channelId, const void * data, uint16_t len)
 {
-  TU_VERIFY(itf < CFG_TUD_AUDIO && _audiod_itf[itf].p_desc != NULL, channelId < _audiod_itf[itf].n_tx_supp_ff);
-  return tu_fifo_write_n(&_audiod_itf[itf].tx_supp_ff[channelId], data, len);
+  TU_VERIFY(itf < CFG_TUD_AUDIO && _audiod_fct[itf].p_desc != NULL, channelId < _audiod_fct[itf].n_tx_supp_ff);
+  return tu_fifo_write_n(&_audiod_fct[itf].tx_supp_ff[channelId], data, len);
 }
 #endif
 
@@ -730,18 +736,18 @@ uint16_t tud_audio_n_write_support_ff(uint8_t itf, uint8_t channelId, const void
 // If no interrupt transmit is pending bytes get written into buffer and a transmit is scheduled - once transmit completed tud_audio_int_ctr_done_cb() is called in inform user
 uint16_t tud_audio_int_ctr_n_write(uint8_t itf, uint8_t const* buffer, uint16_t len)
 {
-  TU_VERIFY(itf < CFG_TUD_AUDIO && _audiod_itf[itf].p_desc != NULL);
+  TU_VERIFY(itf < CFG_TUD_AUDIO && _audiod_fct[itf].p_desc != NULL);
 
   // We write directly into the EP's buffer - abort if previous transfer not complete
-  TU_VERIFY(!usbd_edpt_busy(_audiod_itf[itf].rhport, _audiod_itf[itf].ep_int_ctr));
+  TU_VERIFY(!usbd_edpt_busy(_audiod_fct[itf].rhport, _audiod_fct[itf].ep_int_ctr));
 
   // Check length
   TU_VERIFY(len <= CFG_TUD_AUDIO_INT_CTR_EP_IN_SW_BUFFER_SIZE);
 
-  memcpy(_audiod_itf[itf].ep_int_ctr_buf, buffer, len);
+  memcpy(_audiod_fct[itf].ep_int_ctr_buf, buffer, len);
 
   // Schedule transmit
-  TU_VERIFY(usbd_edpt_xfer(_audiod_itf[itf].rhport, _audiod_itf[itf].ep_int_ctr, _audiod_itf[itf].ep_int_ctr_buf, len));
+  TU_VERIFY(usbd_edpt_xfer(_audiod_fct[itf].rhport, _audiod_fct[itf].ep_int_ctr, _audiod_fct[itf].ep_int_ctr_buf, len));
 
   return true;
 }
@@ -753,20 +759,20 @@ uint16_t tud_audio_int_ctr_n_write(uint8_t itf, uint8_t const* buffer, uint16_t 
 
 // n_bytes_copied - Informs caller how many bytes were loaded. In case n_bytes_copied = 0, a ZLP is scheduled to inform host no data is available for current frame.
 #if CFG_TUD_AUDIO_ENABLE_EP_IN
-static bool audiod_tx_done_cb(uint8_t rhport, audiod_interface_t * audio)
+static bool audiod_tx_done_cb(uint8_t rhport, audiod_function_t * audio)
 {
-  uint8_t idxDriver, idxItf;
+  uint8_t idxItf;
   uint8_t const *dummy2;
 
-  // If a callback is used determine current alternate setting of - find index of audio streaming interface and index of interface
-  TU_VERIFY(audiod_get_AS_interface_index(audio->ep_in_as_intf_num, &idxDriver, &idxItf, &dummy2));
+  uint8_t idx_audio_fct = audiod_get_audio_fct_idx(audio);
+  TU_VERIFY(audiod_get_AS_interface_index(audio->ep_in_as_intf_num, audio, &idxItf, &dummy2));
 
   // Only send something if current alternate interface is not 0 as in this case nothing is to be sent due to UAC2 specifications
   if (audio->alt_setting[idxItf] == 0) return false;
 
   // Call a weak callback here - a possibility for user to get informed former TX was completed and data gets now loaded into EP in buffer (in case FIFOs are used) or
   // if no FIFOs are used the user may use this call back to load its data into the EP IN buffer by use of tud_audio_n_write_ep_in_buffer().
-  if (tud_audio_tx_done_pre_load_cb) TU_VERIFY(tud_audio_tx_done_pre_load_cb(rhport, idxDriver, audio->ep_in, audio->alt_setting[idxItf]));
+  if (tud_audio_tx_done_pre_load_cb) TU_VERIFY(tud_audio_tx_done_pre_load_cb(rhport, idx_audio_fct, audio->ep_in, audio->alt_setting[idxItf]));
 
   // Send everything in ISO EP FIFO
   uint16_t n_bytes_tx;
@@ -826,7 +832,7 @@ static bool audiod_tx_done_cb(uint8_t rhport, audiod_interface_t * audio)
 #endif
 
   // Call a weak callback here - a possibility for user to get informed former TX was completed and how many bytes were loaded for the next frame
-  if (tud_audio_tx_done_post_load_cb) TU_VERIFY(tud_audio_tx_done_post_load_cb(rhport, n_bytes_tx, idxDriver, audio->ep_in, audio->alt_setting[idxItf]));
+  if (tud_audio_tx_done_post_load_cb) TU_VERIFY(tud_audio_tx_done_post_load_cb(rhport, n_bytes_tx, idx_audio_fct, audio->ep_in, audio->alt_setting[idxItf]));
 
   return true;
 }
@@ -912,7 +918,7 @@ static inline uint8_t * audiod_interleaved_copy_bytes_fast_encode(uint16_t const
   return dst;
 }
 
-static uint16_t audiod_encode_type_I_pcm(uint8_t rhport, audiod_interface_t* audio)
+static uint16_t audiod_encode_type_I_pcm(uint8_t rhport, audiod_function_t* audio)
 {
   // This function relies on the fact that the length of the support FIFOs was configured to be a multiple of the active sample size in bytes s.t. no sample is split within a wrap
   // This is ensured within set_interface, where the FIFOs are reconfigured according to this size
@@ -981,7 +987,7 @@ static uint16_t audiod_encode_type_I_pcm(uint8_t rhport, audiod_interface_t* aud
 // This function is called once a transmit of a feedback packet was successfully completed. Here, we get the next feedback value to be sent
 
 #if CFG_TUD_AUDIO_ENABLE_EP_OUT && CFG_TUD_AUDIO_ENABLE_FEEDBACK_EP
-static inline bool audiod_fb_send(uint8_t rhport, audiod_interface_t *audio)
+static inline bool audiod_fb_send(uint8_t rhport, audiod_function_t *audio)
 {
   return usbd_edpt_xfer(rhport, audio->ep_fb, (uint8_t *) &audio->fb_val, 4);
 }
@@ -992,11 +998,11 @@ static inline bool audiod_fb_send(uint8_t rhport, audiod_interface_t *audio)
 //--------------------------------------------------------------------+
 void audiod_init(void)
 {
-  tu_memclr(_audiod_itf, sizeof(_audiod_itf));
+  tu_memclr(_audiod_fct, sizeof(_audiod_fct));
 
   for(uint8_t i=0; i<CFG_TUD_AUDIO; i++)
   {
-    audiod_interface_t* audio = &_audiod_itf[i];
+    audiod_function_t* audio = &_audiod_fct[i];
 
     // Initialize control buffers
     switch (i)
@@ -1309,7 +1315,7 @@ void audiod_reset(uint8_t rhport)
 
   for(uint8_t i=0; i<CFG_TUD_AUDIO; i++)
   {
-    audiod_interface_t* audio = &_audiod_itf[i];
+    audiod_function_t* audio = &_audiod_fct[i];
     tu_memclr(audio, ITF_MEM_RESET_SIZE);
 
 #if CFG_TUD_AUDIO_ENABLE_EP_IN && !CFG_TUD_AUDIO_ENABLE_ENCODING
@@ -1359,25 +1365,25 @@ uint16_t audiod_open(uint8_t rhport, tusb_desc_interface_t const * itf_desc, uin
   uint8_t i;
   for (i = 0; i < CFG_TUD_AUDIO; i++)
   {
-    if (!_audiod_itf[i].p_desc)
+    if (!_audiod_fct[i].p_desc)
     {
-      _audiod_itf[i].p_desc = (uint8_t const *)itf_desc;    // Save pointer to AC descriptor which is by specification always the first one
-      _audiod_itf[i].rhport = rhport;
+      _audiod_fct[i].p_desc = (uint8_t const *)itf_desc;    // Save pointer to AC descriptor which is by specification always the first one
+      _audiod_fct[i].rhport = rhport;
 
       // Setup descriptor lengths
       switch (i)
       {
         case 0:
-          _audiod_itf[i].desc_length = CFG_TUD_AUDIO_FUNC_1_DESC_LEN;
+          _audiod_fct[i].desc_length = CFG_TUD_AUDIO_FUNC_1_DESC_LEN;
           break;
 #if CFG_TUD_AUDIO > 1
         case 1:
-          _audiod_itf[i].desc_length = CFG_TUD_AUDIO_FUNC_2_DESC_LEN;
+          _audiod_fct[i].desc_length = CFG_TUD_AUDIO_FUNC_2_DESC_LEN;
           break;
 #endif
 #if CFG_TUD_AUDIO > 2
         case 2:
-          _audiod_itf[i].desc_length = CFG_TUD_AUDIO_FUNC_3_DESC_LEN;
+          _audiod_fct[i].desc_length = CFG_TUD_AUDIO_FUNC_3_DESC_LEN;
           break;
 #endif
       }
@@ -1390,7 +1396,7 @@ uint16_t audiod_open(uint8_t rhport, tusb_desc_interface_t const * itf_desc, uin
   TU_ASSERT( i < CFG_TUD_AUDIO );
 
   // This is all we need so far - the EPs are setup by a later set_interface request (as per UAC2 specification)
-  uint16_t drv_len = _audiod_itf[i].desc_length - TUD_AUDIO_DESC_IAD_LEN;    // - TUD_AUDIO_DESC_IAD_LEN since tinyUSB already handles the IAD descriptor
+  uint16_t drv_len = _audiod_fct[i].desc_length - TUD_AUDIO_DESC_IAD_LEN;    // - TUD_AUDIO_DESC_IAD_LEN since tinyUSB already handles the IAD descriptor
 
   return drv_len;
 }
@@ -1403,10 +1409,10 @@ static bool audiod_get_interface(uint8_t rhport, tusb_control_request_t const * 
   uint8_t idxDriver, idxItf;
   uint8_t const *dummy;
 
-  TU_VERIFY(audiod_get_AS_interface_index(itf, &idxDriver, &idxItf, &dummy));
-  TU_VERIFY(tud_control_xfer(rhport, p_request, &_audiod_itf[idxDriver].alt_setting[idxItf], 1));
+  TU_VERIFY(audiod_get_AS_interface_index_global(itf, &idxDriver, &idxItf, &dummy));
+  TU_VERIFY(tud_control_xfer(rhport, p_request, &_audiod_fct[idxDriver].alt_setting[idxItf], 1));
 
-  TU_LOG2("  Get itf: %u - current alt: %u\r\n", itf, _audiod_itf[idxDriver].alt_setting[idxItf]);
+  TU_LOG2("  Get itf: %u - current alt: %u\r\n", itf, _audiod_fct[idxDriver].alt_setting[idxItf]);
 
   return true;
 }
@@ -1434,9 +1440,9 @@ static bool audiod_set_interface(uint8_t rhport, tusb_control_request_t const * 
   // Find index of audio streaming interface and index of interface
   uint8_t idxDriver, idxItf;
   uint8_t const *p_desc;
-  TU_VERIFY(audiod_get_AS_interface_index(itf, &idxDriver, &idxItf, &p_desc));
+  TU_VERIFY(audiod_get_AS_interface_index_global(itf, &idxDriver, &idxItf, &p_desc));
 
-  audiod_interface_t* audio = &_audiod_itf[idxDriver];
+  audiod_function_t* audio = &_audiod_fct[idxDriver];
 
   // Look if there is an EP to be closed - for this driver, there are only 3 possible EPs which may be closed (only AS related EPs can be closed, AC EP (if present) is always open)
 #if CFG_TUD_AUDIO_ENABLE_EP_IN
@@ -1542,7 +1548,7 @@ static bool audiod_set_interface(uint8_t rhport, tusb_control_request_t const * 
 
             // Schedule first transmit if alternate interface is not zero i.e. streaming is disabled - in case no sample data is available a ZLP is loaded
             // It is necessary to trigger this here since the refill is done with an RX FIFO empty interrupt which can only trigger if something was in there
-            TU_VERIFY(audiod_tx_done_cb(rhport, &_audiod_itf[idxDriver]));
+            TU_VERIFY(audiod_tx_done_cb(rhport, &_audiod_fct[idxDriver]));
           }
 #endif // CFG_TUD_AUDIO_ENABLE_EP_IN
 
@@ -1635,7 +1641,7 @@ static bool audiod_control_complete(uint8_t rhport, tusb_control_request_t const
           TU_VERIFY(audiod_verify_entity_exists(itf, entityID, &idxDriver));
 
           // Invoke callback
-          return tud_audio_set_req_entity_cb(rhport, p_request, _audiod_itf[idxDriver].ctrl_buf);
+          return tud_audio_set_req_entity_cb(rhport, p_request, _audiod_fct[idxDriver].ctrl_buf);
         }
         else
         {
@@ -1651,7 +1657,7 @@ static bool audiod_control_complete(uint8_t rhport, tusb_control_request_t const
           TU_VERIFY(audiod_verify_itf_exists(itf, &idxDriver));
 
           // Invoke callback
-          return tud_audio_set_req_itf_cb(rhport, p_request, _audiod_itf[idxDriver].ctrl_buf);
+          return tud_audio_set_req_itf_cb(rhport, p_request, _audiod_fct[idxDriver].ctrl_buf);
         }
         else
         {
@@ -1672,7 +1678,7 @@ static bool audiod_control_complete(uint8_t rhport, tusb_control_request_t const
         TU_VERIFY(audiod_verify_ep_exists(ep, &idxDriver));
 
         // Invoke callback
-        return tud_audio_set_req_ep_cb(rhport, p_request, _audiod_itf[idxDriver].ctrl_buf);
+        return tud_audio_set_req_ep_cb(rhport, p_request, _audiod_fct[idxDriver].ctrl_buf);
       }
       else
       {
@@ -1790,7 +1796,7 @@ static bool audiod_control_request(uint8_t rhport, tusb_control_request_t const 
     }
 
     // If we end here, the received request is a set request - we schedule a receive for the data stage and return true here. We handle the rest later in audiod_control_complete() once the data stage was finished
-    TU_VERIFY(tud_control_xfer(rhport, p_request, _audiod_itf[idxDriver].ctrl_buf, _audiod_itf[idxDriver].ctrl_buf_sz));
+    TU_VERIFY(tud_control_xfer(rhport, p_request, _audiod_fct[idxDriver].ctrl_buf, _audiod_fct[idxDriver].ctrl_buf_sz));
     return true;
   }
 
@@ -1826,7 +1832,7 @@ bool audiod_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint3
 #if CFG_TUD_AUDIO_INT_CTR_EPSIZE_IN
 
     // Data transmission of control interrupt finished
-    if (_audiod_itf[idxDriver].ep_int_ctr == ep_addr)
+    if (_audiod_fct[idxDriver].ep_int_ctr == ep_addr)
     {
       // According to USB2 specification, maximum payload of interrupt EP is 8 bytes on low speed, 64 bytes on full speed, and 1024 bytes on high speed (but only if an alternate interface other than 0 is used - see specification p. 49)
       // In case there is nothing to send we have to return a NAK - this is taken care of by PHY ???
@@ -1843,7 +1849,7 @@ bool audiod_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint3
 #if CFG_TUD_AUDIO_ENABLE_EP_IN
 
     // Data transmission of audio packet finished
-    if (_audiod_itf[idxDriver].ep_in == ep_addr && _audiod_itf[idxDriver].alt_setting != 0)
+    if (_audiod_fct[idxDriver].ep_in == ep_addr && _audiod_fct[idxDriver].alt_setting != 0)
     {
       // USB 2.0, section 5.6.4, third paragraph, states "An isochronous endpoint must specify its required bus access period. However, an isochronous endpoint must be prepared to handle poll rates faster than the one specified."
       // That paragraph goes on to say "An isochronous IN endpoint must return a zero-length packet whenever data is requested at a faster interval than the specified interval and data is not available."
@@ -1854,7 +1860,7 @@ bool audiod_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint3
       // This is the only place where we can fill something into the EPs buffer!
 
       // Load new data
-      TU_VERIFY(audiod_tx_done_cb(rhport, &_audiod_itf[idxDriver]));
+      TU_VERIFY(audiod_tx_done_cb(rhport, &_audiod_fct[idxDriver]));
 
       // Transmission of ZLP is done by audiod_tx_done_cb()
       return true;
@@ -1864,21 +1870,21 @@ bool audiod_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint3
 #if CFG_TUD_AUDIO_ENABLE_EP_OUT
 
     // New audio packet received
-    if (_audiod_itf[idxDriver].ep_out == ep_addr)
+    if (_audiod_fct[idxDriver].ep_out == ep_addr)
     {
-      TU_VERIFY(audiod_rx_done_cb(rhport, &_audiod_itf[idxDriver], (uint16_t) xferred_bytes));
+      TU_VERIFY(audiod_rx_done_cb(rhport, &_audiod_fct[idxDriver], (uint16_t) xferred_bytes));
       return true;
     }
 
 
 #if CFG_TUD_AUDIO_ENABLE_FEEDBACK_EP
     // Transmission of feedback EP finished
-    if (_audiod_itf[idxDriver].ep_fb == ep_addr)
+    if (_audiod_fct[idxDriver].ep_fb == ep_addr)
     {
       if (tud_audio_fb_done_cb) TU_VERIFY(tud_audio_fb_done_cb(rhport));
 
       // Schedule next transmission - value is changed bytud_audio_n_fb_set() in the meantime or the old value gets sent
-      return audiod_fb_send(rhport, &_audiod_itf[idxDriver]);
+      return audiod_fb_send(rhport, &_audiod_fct[idxDriver]);
     }
 #endif
 #endif
@@ -1929,49 +1935,61 @@ bool tud_audio_buffer_and_schedule_control_xfer(uint8_t rhport, tusb_control_req
   }
 
   // Crop length
-  if (len > _audiod_itf[idxDriver].ctrl_buf_sz) len = _audiod_itf[idxDriver].ctrl_buf_sz;
+  if (len > _audiod_fct[idxDriver].ctrl_buf_sz) len = _audiod_fct[idxDriver].ctrl_buf_sz;
 
   // Copy into buffer
-  memcpy((void *)_audiod_itf[idxDriver].ctrl_buf, data, (size_t)len);
+  memcpy((void *)_audiod_fct[idxDriver].ctrl_buf, data, (size_t)len);
 
   // Schedule transmit
-  return tud_control_xfer(rhport, p_request, (void*)_audiod_itf[idxDriver].ctrl_buf, len);
+  return tud_control_xfer(rhport, p_request, (void*)_audiod_fct[idxDriver].ctrl_buf, len);
+}
+
+// This helper function finds for a given audio function and AS interface number the index of the attached driver structure, the index of the interface in the audio function
+// (e.g. the std. AS interface with interface number 15 is the first AS interface for the given audio function and thus gets index zero), and
+// finally a pointer to the std. AS interface, where the pointer always points to the first alternate setting i.e. alternate interface zero.
+static bool audiod_get_AS_interface_index(uint8_t itf, audiod_function_t * audio, uint8_t *idxItf, uint8_t const **pp_desc_int)
+{
+  if (audio->p_desc)
+  {
+    // Get pointer at end
+    uint8_t const *p_desc_end = audio->p_desc + audio->desc_length - TUD_AUDIO_DESC_IAD_LEN;
+
+    // Advance past AC descriptors
+    uint8_t const *p_desc = tu_desc_next(audio->p_desc);
+    p_desc += ((audio_desc_cs_ac_interface_t const *)p_desc)->wTotalLength;
+
+    uint8_t tmp = 0;
+    while (p_desc < p_desc_end)
+    {
+      // We assume the number of alternate settings is increasing thus we return the index of alternate setting zero!
+      if (tu_desc_type(p_desc) == TUSB_DESC_INTERFACE && ((tusb_desc_interface_t const * )p_desc)->bInterfaceNumber == itf)
+      {
+        *idxItf = tmp;
+        *pp_desc_int = p_desc;
+        return true;
+      }
+
+      // Increase index, bytes read, and pointer
+      tmp++;
+      p_desc = tu_desc_next(p_desc);
+    }
+  }
+  return false;
 }
 
 // This helper function finds for a given AS interface number the index of the attached driver structure, the index of the interface in the audio function
 // (e.g. the std. AS interface with interface number 15 is the first AS interface for the given audio function and thus gets index zero), and
 // finally a pointer to the std. AS interface, where the pointer always points to the first alternate setting i.e. alternate interface zero.
-static bool audiod_get_AS_interface_index(uint8_t itf, uint8_t *idxDriver, uint8_t *idxItf, uint8_t const **pp_desc_int)
+static bool audiod_get_AS_interface_index_global(uint8_t itf, uint8_t *idxDriver, uint8_t *idxItf, uint8_t const **pp_desc_int)
 {
   // Loop over audio driver interfaces
   uint8_t i;
   for (i = 0; i < CFG_TUD_AUDIO; i++)
   {
-    if (_audiod_itf[i].p_desc)
+    if (audiod_get_AS_interface_index(itf, &_audiod_fct[i], idxItf, pp_desc_int))
     {
-      // Get pointer at end
-      uint8_t const *p_desc_end = _audiod_itf[i].p_desc + _audiod_itf[i].desc_length - TUD_AUDIO_DESC_IAD_LEN;
-
-      // Advance past AC descriptors
-      uint8_t const *p_desc = tu_desc_next(_audiod_itf[i].p_desc);
-      p_desc += ((audio_desc_cs_ac_interface_t const *)p_desc)->wTotalLength;
-
-      uint8_t tmp = 0;
-      while (p_desc < p_desc_end)
-      {
-        // We assume the number of alternate settings is increasing thus we return the index of alternate setting zero!
-        if (tu_desc_type(p_desc) == TUSB_DESC_INTERFACE && ((tusb_desc_interface_t const * )p_desc)->bInterfaceNumber == itf)
-        {
-          *idxItf = tmp;
-          *idxDriver = i;
-          *pp_desc_int = p_desc;
-          return true;
-        }
-
-        // Increase index, bytes read, and pointer
-        tmp++;
-        p_desc = tu_desc_next(p_desc);
-      }
+      *idxDriver = i;
+      return true;
     }
   }
 
@@ -1985,10 +2003,10 @@ static bool audiod_verify_entity_exists(uint8_t itf, uint8_t entityID, uint8_t *
   for (i = 0; i < CFG_TUD_AUDIO; i++)
   {
     // Look for the correct driver by checking if the unique standard AC interface number fits
-    if (_audiod_itf[i].p_desc && ((tusb_desc_interface_t const *)_audiod_itf[i].p_desc)->bInterfaceNumber == itf)
+    if (_audiod_fct[i].p_desc && ((tusb_desc_interface_t const *)_audiod_fct[i].p_desc)->bInterfaceNumber == itf)
     {
       // Get pointers after class specific AC descriptors and end of AC descriptors - entities are defined in between
-      uint8_t const *p_desc = tu_desc_next(_audiod_itf[i].p_desc);                                          // Points to CS AC descriptor
+      uint8_t const *p_desc = tu_desc_next(_audiod_fct[i].p_desc);                                          // Points to CS AC descriptor
       uint8_t const *p_desc_end = ((audio_desc_cs_ac_interface_t const *)p_desc)->wTotalLength + p_desc;
       p_desc = tu_desc_next(p_desc);                                                                            // Get past CS AC descriptor
 
@@ -2011,15 +2029,15 @@ static bool audiod_verify_itf_exists(uint8_t itf, uint8_t *idxDriver)
   uint8_t i;
   for (i = 0; i < CFG_TUD_AUDIO; i++)
   {
-    if (_audiod_itf[i].p_desc)
+    if (_audiod_fct[i].p_desc)
     {
       // Get pointer at beginning and end
-      uint8_t const *p_desc = _audiod_itf[i].p_desc;
-      uint8_t const *p_desc_end = _audiod_itf[i].p_desc + _audiod_itf[i].desc_length - TUD_AUDIO_DESC_IAD_LEN;
+      uint8_t const *p_desc = _audiod_fct[i].p_desc;
+      uint8_t const *p_desc_end = _audiod_fct[i].p_desc + _audiod_fct[i].desc_length - TUD_AUDIO_DESC_IAD_LEN;
 
       while (p_desc < p_desc_end)
       {
-        if (tu_desc_type(p_desc) == TUSB_DESC_INTERFACE && ((tusb_desc_interface_t const *)_audiod_itf[i].p_desc)->bInterfaceNumber == itf)
+        if (tu_desc_type(p_desc) == TUSB_DESC_INTERFACE && ((tusb_desc_interface_t const *)_audiod_fct[i].p_desc)->bInterfaceNumber == itf)
         {
           *idxDriver = i;
           return true;
@@ -2036,13 +2054,13 @@ static bool audiod_verify_ep_exists(uint8_t ep, uint8_t *idxDriver)
   uint8_t i;
   for (i = 0; i < CFG_TUD_AUDIO; i++)
   {
-    if (_audiod_itf[i].p_desc)
+    if (_audiod_fct[i].p_desc)
     {
       // Get pointer at end
-      uint8_t const *p_desc_end = _audiod_itf[i].p_desc + _audiod_itf[i].desc_length;
+      uint8_t const *p_desc_end = _audiod_fct[i].p_desc + _audiod_fct[i].desc_length;
 
       // Advance past AC descriptors - EP we look for are streaming EPs
-      uint8_t const *p_desc = tu_desc_next(_audiod_itf[i].p_desc);
+      uint8_t const *p_desc = tu_desc_next(_audiod_fct[i].p_desc);
       p_desc += ((audio_desc_cs_ac_interface_t const *)p_desc)->wTotalLength;
 
       while (p_desc < p_desc_end)
@@ -2063,7 +2081,7 @@ static bool audiod_verify_ep_exists(uint8_t ep, uint8_t *idxDriver)
 // p_desc points to the AS interface of alternate setting zero
 // itf is the interface number of the corresponding interface - we check if the interface belongs to EP in or EP out to see if it is a TX or RX parameter
 // Currently, only AS interfaces with an EP (in or out) are supposed to be parsed for!
-static void audiod_parse_for_AS_params(audiod_interface_t* audio, uint8_t const * p_desc, uint8_t const * p_desc_end, uint8_t const itf)
+static void audiod_parse_for_AS_params(audiod_function_t* audio, uint8_t const * p_desc, uint8_t const * p_desc_end, uint8_t const itf)
 {
   p_desc = tu_desc_next(p_desc);    // Exclude standard AS interface descriptor of current alternate interface descriptor
 
@@ -2151,12 +2169,12 @@ static void audiod_parse_for_AS_params(audiod_interface_t* audio, uint8_t const 
 // Input value feedback has to be in 16.16 format - the format will be converted according to speed settings automatically
 bool tud_audio_n_fb_set(uint8_t itf, uint32_t feedback)
 {
-  TU_VERIFY(itf < CFG_TUD_AUDIO && _audiod_itf[itf].p_desc != NULL);
+  TU_VERIFY(itf < CFG_TUD_AUDIO && _audiod_fct[itf].p_desc != NULL);
 
   // Format the feedback value
-  if (_audiod_itf[itf].rhport == 0)
+  if (_audiod_fct[itf].rhport == 0)
   {
-    uint8_t * fb = (uint8_t *) &_audiod_itf[itf].fb_val;
+    uint8_t * fb = (uint8_t *) &_audiod_fct[itf].fb_val;
 
     // For FS format is 10.14
     *(fb++) = (feedback >> 2) & 0xFF;
@@ -2168,17 +2186,27 @@ bool tud_audio_n_fb_set(uint8_t itf, uint32_t feedback)
   else
   {
     // For HS format is 16.16 as originally demanded
-    _audiod_itf[itf].fb_val = feedback;
+    _audiod_fct[itf].fb_val = feedback;
   }
 
   // Schedule a transmit with the new value if EP is not busy - this triggers repetitive scheduling of the feedback value
-  if (!usbd_edpt_busy(_audiod_itf[itf].rhport, _audiod_itf[itf].ep_fb))
+  if (!usbd_edpt_busy(_audiod_fct[itf].rhport, _audiod_fct[itf].ep_fb))
   {
-    return audiod_fb_send(_audiod_itf[itf].rhport, &_audiod_itf[itf]);
+    return audiod_fb_send(_audiod_fct[itf].rhport, &_audiod_fct[itf]);
   }
 
   return true;
 }
 #endif
+
+// No security checks here - internal function only which should always succeed
+uint8_t audiod_get_audio_fct_idx(audiod_function_t * audio)
+{
+  for (uint8_t cnt=0; cnt < CFG_TUD_AUDIO; cnt++)
+  {
+    if (&_audiod_fct[cnt] == audio) return cnt;
+  }
+  return 0;
+}
 
 #endif //TUSB_OPT_DEVICE_ENABLED && CFG_TUD_AUDIO
