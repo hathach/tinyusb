@@ -1,8 +1,11 @@
+UF2_FAMILY_ID = 0x647824b6
 ST_FAMILY = f0
 DEPS_SUBMODULES += lib/CMSIS_5 hw/mcu/st/cmsis_device_$(ST_FAMILY) hw/mcu/st/stm32$(ST_FAMILY)xx_hal_driver
 
 ST_CMSIS = hw/mcu/st/cmsis_device_$(ST_FAMILY)
 ST_HAL_DRIVER = hw/mcu/st/stm32$(ST_FAMILY)xx_hal_driver
+
+include $(TOP)/$(BOARD_PATH)/board.mk
 
 CFLAGS += \
   -flto \
@@ -11,15 +14,11 @@ CFLAGS += \
   -mcpu=cortex-m0 \
   -mfloat-abi=soft \
   -nostdlib -nostartfiles \
-  -DSTM32F072xB \
   -DCFG_EXAMPLE_MSC_READONLY \
   -DCFG_TUSB_MCU=OPT_MCU_STM32F0
 
 # suppress warning caused by vendor mcu driver
 CFLAGS += -Wno-error=unused-parameter -Wno-error=cast-align
-
-# All source paths should be relative to the top level.
-LD_FILE = hw/bsp/$(BOARD)/STM32F072RBTx_FLASH.ld
 
 SRC_C += \
   src/portable/st/stm32_fsdev/dcd_stm32_fsdev.c \
@@ -31,20 +30,11 @@ SRC_C += \
   $(ST_HAL_DRIVER)/Src/stm32$(ST_FAMILY)xx_hal_gpio.c \
   $(ST_HAL_DRIVER)/Src/stm32$(ST_FAMILY)xx_hal_uart.c
 
-SRC_S += \
-  $(ST_CMSIS)/Source/Templates/gcc/startup_stm32f072xb.s
-
 INC += \
+	$(TOP)/$(BOARD_PATH) \
   $(TOP)/lib/CMSIS_5/CMSIS/Core/Include \
   $(TOP)/$(ST_CMSIS)/Include \
-  $(TOP)/$(ST_HAL_DRIVER)/Inc \
-  $(TOP)/hw/bsp/$(BOARD)
+  $(TOP)/$(ST_HAL_DRIVER)/Inc
 
 # For freeRTOS port source
 FREERTOS_PORT = ARM_CM0
-
-# For flash-jlink target
-JLINK_DEVICE = stm32f072rb
-
-# flash target using on-board stlink
-flash: flash-stlink

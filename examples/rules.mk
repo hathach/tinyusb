@@ -5,8 +5,9 @@
 # Set all as default goal
 .DEFAULT_GOAL := all
 
-# ESP32-S2 and RP2040 has its own CMake build system
+# ESP32-SX and RP2040 has its own CMake build system
 ifneq ($(FAMILY),esp32s2)
+ifneq ($(FAMILY),esp32s3)
 ifneq ($(FAMILY),rp2040)
 # ---------------------------------------
 # GNU Make build system
@@ -135,6 +136,7 @@ else
 	$(RM) -rf $(BUILD)
 endif
 
+endif
 endif
 endif # GNU Make
 

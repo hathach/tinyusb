@@ -24,8 +24,9 @@
  * This file is part of the TinyUSB stack.
  */
 
-#include "../board.h"
 #include "stm32f0xx_hal.h"
+#include "bsp/board.h"
+#include "board.h"
 
 //--------------------------------------------------------------------+
 // Forward USB interrupt events to TinyUSB IRQ Handler
@@ -38,79 +39,29 @@ void USB_IRQHandler(void)
 //--------------------------------------------------------------------+
 // MACRO TYPEDEF CONSTANT ENUM
 //--------------------------------------------------------------------+
-#define LED_PORT              GPIOC
-#define LED_PIN               GPIO_PIN_6
-#define LED_STATE_ON          1
-
-#define BUTTON_PORT           GPIOA
-#define BUTTON_PIN            GPIO_PIN_0
-#define BUTTON_STATE_ACTIVE   1
-
-#define UARTx                 USART1
-#define UART_GPIO_PORT        GPIOA
-#define UART_GPIO_AF          GPIO_AF1_USART1
-#define UART_TX_PIN           GPIO_PIN_9
-#define UART_RX_PIN           GPIO_PIN_10
-
 UART_HandleTypeDef UartHandle;
-
-
-// enable all LED, Button, Uart, USB clock
-static void all_rcc_clk_enable(void)
-{
-  __HAL_RCC_GPIOA_CLK_ENABLE();  // USB D+, D-
-  __HAL_RCC_GPIOC_CLK_ENABLE();  // LED
-  //__HAL_RCC_GPIOA_CLK_ENABLE();  // Button
-  //__HAL_RCC_GPIOA_CLK_ENABLE();  // Uart tx, rx
-  __HAL_RCC_USART1_CLK_ENABLE(); // Uart module
-}
-
-/**
-  * @brief  System Clock Configuration
-  *         The system Clock is configured as follow :
-  *            System Clock source            = PLL (HSI48)
-  *            SYSCLK(Hz)                     = 48000000
-  *            HCLK(Hz)                       = 48000000
-  *            AHB Prescaler                  = 1
-  *            APB1 Prescaler                 = 1
-  *            HSI Frequency(Hz)              = 48000000
-  *            PREDIV                         = 2
-  *            PLLMUL                         = 2
-  *            Flash Latency(WS)              = 1
-  * @param  None
-  * @retval None
-  */
-static void SystemClock_Config(void)
-{
-  RCC_ClkInitTypeDef RCC_ClkInitStruct;
-  RCC_OscInitTypeDef RCC_OscInitStruct;
-
-  /* Select HSI48 Oscillator as PLL source */
-  RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSI48;
-  RCC_OscInitStruct.HSI48State = RCC_HSI48_ON;
-  RCC_OscInitStruct.PLL.PLLState = RCC_PLL_ON;
-  RCC_OscInitStruct.PLL.PLLSource = RCC_PLLSOURCE_HSI48;
-  RCC_OscInitStruct.PLL.PREDIV = RCC_PREDIV_DIV2;
-  RCC_OscInitStruct.PLL.PLLMUL = RCC_PLL_MUL2;
-  HAL_RCC_OscConfig(&RCC_OscInitStruct);
-
-  /* Select PLL as system clock source and configure the HCLK and PCLK1 clocks dividers */
-  RCC_ClkInitStruct.ClockType = (RCC_CLOCKTYPE_SYSCLK | RCC_CLOCKTYPE_HCLK | RCC_CLOCKTYPE_PCLK1);
-  RCC_ClkInitStruct.SYSCLKSource = RCC_SYSCLKSOURCE_PLLCLK;
-  RCC_ClkInitStruct.AHBCLKDivider = RCC_SYSCLK_DIV1;
-  RCC_ClkInitStruct.APB1CLKDivider = RCC_HCLK_DIV1;
-  HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_1);
-}
 
 void board_init(void)
 {
-  SystemClock_Config();
-  all_rcc_clk_enable();
+  board_stm32f0_clock_init();
 
-  #if CFG_TUSB_OS  == OPT_OS_NONE
+  // Enable All GPIOs clocks
+  __HAL_RCC_GPIOA_CLK_ENABLE();
+  __HAL_RCC_GPIOB_CLK_ENABLE();
+  __HAL_RCC_GPIOC_CLK_ENABLE();
+  __HAL_RCC_GPIOD_CLK_ENABLE();
+  __HAL_RCC_GPIOF_CLK_ENABLE();
+
+  // Enable UART Clock
+  UART_CLK_EN();
+
   // 1ms tick timer
   SysTick_Config(SystemCoreClock / 1000);
-  #endif
+
+#if CFG_TUSB_OS == OPT_OS_FREERTOS
+  // If freeRTOS is used, IRQ priority is limit by max syscall ( smaller is higher )
+  NVIC_SetPriority(USB_IRQn, configLIBRARY_MAX_SYSCALL_INTERRUPT_PRIORITY );
+#endif
 
   // LED
   GPIO_InitTypeDef  GPIO_InitStruct;
@@ -135,7 +86,7 @@ void board_init(void)
   GPIO_InitStruct.Alternate = UART_GPIO_AF;
   HAL_GPIO_Init(UART_GPIO_PORT, &GPIO_InitStruct);
 
-  UartHandle.Instance        = UARTx;
+  UartHandle.Instance        = UART_DEV;
   UartHandle.Init.BaudRate   = CFG_BOARD_UART_BAUDRATE;
   UartHandle.Init.WordLength = UART_WORDLENGTH_8B;
   UartHandle.Init.StopBits   = UART_STOPBITS_1;

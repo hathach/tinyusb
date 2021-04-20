@@ -38,6 +38,9 @@ all_boards = []
 for entry in os.scandir("hw/bsp/esp32s2/boards"):
     if entry.is_dir():
         all_boards.append(entry.name)
+for entry in os.scandir("hw/bsp/esp32s3/boards"):
+    if entry.is_dir():
+        all_boards.append(entry.name)
 filter_with_input(all_boards)
 all_boards.sort()
 

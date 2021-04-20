@@ -29,14 +29,14 @@
 #include "tusb_option.h"
 #include "common/tusb_fifo.h"
 
-#if CFG_TUSB_MCU == OPT_MCU_ESP32S2 && TUSB_OPT_DEVICE_ENABLED
+#if (((CFG_TUSB_MCU == OPT_MCU_ESP32S2) ||  (CFG_TUSB_MCU == OPT_MCU_ESP32S3)) && TUSB_OPT_DEVICE_ENABLED)
 
 // Espressif
 #include "driver/periph_ctrl.h"
 #include "freertos/xtensa_api.h"
 #include "esp_intr_alloc.h"
 #include "esp_log.h"
-#include "esp32s2/rom/gpio.h"
+#include "driver/gpio.h"
 #include "soc/dport_reg.h"
 #include "soc/gpio_sig_map.h"
 #include "soc/usb_periph.h"
@@ -254,6 +254,7 @@ bool dcd_edpt_open(uint8_t rhport, tusb_desc_endpoint_t const *desc_edpt)
   uint8_t const epnum = tu_edpt_number(desc_edpt->bEndpointAddress);
   uint8_t const dir = tu_edpt_dir(desc_edpt->bEndpointAddress);
 
+  TU_ASSERT(desc_edpt->wMaxPacketSize.size <= 64);
   TU_ASSERT(epnum < EP_MAX);
 
   xfer_ctl_t *xfer = XFER_CTL_BASE(epnum, dir);
@@ -863,5 +864,5 @@ void dcd_int_disable (uint8_t rhport)
   esp_intr_free(usb_ih);
 }
 
-#endif // OPT_MCU_ESP32S2
+#endif // #if OPT_MCU_ESP32S2 || OPT_MCU_ESP32S3
 

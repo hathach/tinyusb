@@ -1,4 +1,6 @@
-# use directory name for project id
+cmake_minimum_required(VERSION 3.5)
+
+# use BOARD-Directory name for project id
 get_filename_component(PROJECT ${CMAKE_CURRENT_SOURCE_DIR} NAME)
 set(PROJECT ${BOARD}-${PROJECT})
 
@@ -7,7 +9,7 @@ set(TOP "../../..")
 get_filename_component(TOP "${TOP}" REALPATH)
 
 # Check for -DFAMILY=
-if(FAMILY STREQUAL "esp32s2")
+if(FAMILY MATCHES "^esp32s[2-3]")
   cmake_minimum_required(VERSION 3.5)
 
   include(${TOP}/hw/bsp/${FAMILY}/family.cmake)
@@ -38,5 +40,5 @@ elseif(FAMILY STREQUAL "rp2040")
   )
 
 else()
-  message(FATAL_ERROR "Invalid FAMILY specified")
+  message(FATAL_ERROR "Invalid FAMILY specified: ${FAMILY}")
 endif()

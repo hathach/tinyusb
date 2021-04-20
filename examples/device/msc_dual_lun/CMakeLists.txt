@@ -34,5 +34,5 @@ if(FAMILY STREQUAL "rp2040")
   )
 
 else()
-  message(FATAL_ERROR "Invalid FAMILY specified")
+  message(FATAL_ERROR "Invalid FAMILY specified: ${FAMILY}")
 endif()

@@ -34,7 +34,7 @@
 // LED
 #define LED_PORT              GPIOC
 #define LED_PIN               GPIO_PIN_13
-#define LED_STATE_ON          1
+#define LED_STATE_ON          0
 
 // Button
 #define BUTTON_PORT           GPIOA
