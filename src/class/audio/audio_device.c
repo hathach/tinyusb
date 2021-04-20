@@ -265,16 +265,16 @@ typedef struct
   uint8_t ep_int_ctr;           // Audio control interrupt EP.
 #endif
 
-  uint8_t * alt_setting;   // We need to save the current alternate setting this way, because it is possible that there are AS interfaces which do not have an EP!
-
   /*------------- From this point, data is not cleared by bus reset -------------*/
 
-  //
   uint16_t desc_length;         // Length of audio function descriptor
 
   // Buffer for control requests
   uint8_t * ctrl_buf;
   uint8_t ctrl_buf_sz;
+
+  // Current active alternate settings
+  uint8_t * alt_setting;   // We need to save the current alternate setting this way, because it is possible that there are AS interfaces which do not have an EP!
 
   // EP Transfer buffers and FIFOs
 #if CFG_TUD_AUDIO_ENABLE_EP_OUT
@@ -759,7 +759,10 @@ static bool audiod_tx_done_cb(uint8_t rhport, audiod_interface_t * audio)
   uint8_t const *dummy2;
 
   // If a callback is used determine current alternate setting of - find index of audio streaming interface and index of interface
-  if (tud_audio_tx_done_pre_load_cb || tud_audio_tx_done_post_load_cb) TU_VERIFY(audiod_get_AS_interface_index(audio->ep_in_as_intf_num, &idxDriver, &idxItf, &dummy2));
+  TU_VERIFY(audiod_get_AS_interface_index(audio->ep_in_as_intf_num, &idxDriver, &idxItf, &dummy2));
+
+  // Only send something if current alternate interface is not 0 as in this case nothing is to be sent due to UAC2 specifications
+  if (audio->alt_setting[idxItf] == 0) return false;
 
   // Call a weak callback here - a possibility for user to get informed former TX was completed and data gets now loaded into EP in buffer (in case FIFOs are used) or
   // if no FIFOs are used the user may use this call back to load its data into the EP IN buffer by use of tud_audio_n_write_ep_in_buffer().
@@ -1424,7 +1427,7 @@ static bool audiod_set_interface(uint8_t rhport, tusb_control_request_t const * 
   // 3. Open new EP
 
   uint8_t const itf = tu_u16_low(p_request->wIndex);
-  uint8_t const alt = tu_u16_low(p_request->wValue);
+  volatile uint8_t const alt = tu_u16_low(p_request->wValue);
 
   TU_LOG2("  Set itf: %u - alt: %u\r\n", itf, alt);
 
@@ -1537,7 +1540,7 @@ static bool audiod_set_interface(uint8_t rhport, tusb_control_request_t const * 
             // Invoke callback - can be used to trigger data sampling if not already running
             if (tud_audio_set_itf_cb) TU_VERIFY(tud_audio_set_itf_cb(rhport, p_request));
 
-            // Schedule first transmit - in case no sample data is available a ZLP is loaded
+            // Schedule first transmit if alternate interface is not zero i.e. streaming is disabled - in case no sample data is available a ZLP is loaded
             // It is necessary to trigger this here since the refill is done with an RX FIFO empty interrupt which can only trigger if something was in there
             TU_VERIFY(audiod_tx_done_cb(rhport, &_audiod_itf[idxDriver]));
           }
@@ -1840,7 +1843,7 @@ bool audiod_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint3
 #if CFG_TUD_AUDIO_ENABLE_EP_IN
 
     // Data transmission of audio packet finished
-    if (_audiod_itf[idxDriver].ep_in == ep_addr)
+    if (_audiod_itf[idxDriver].ep_in == ep_addr && _audiod_itf[idxDriver].alt_setting != 0)
     {
       // USB 2.0, section 5.6.4, third paragraph, states "An isochronous endpoint must specify its required bus access period. However, an isochronous endpoint must be prepared to handle poll rates faster than the one specified."
       // That paragraph goes on to say "An isochronous IN endpoint must return a zero-length packet whenever data is requested at a faster interval than the specified interval and data is not available."
