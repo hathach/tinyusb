@@ -358,33 +358,33 @@ extern "C" {
 // Application API (Multiple Interfaces)
 // CFG_TUD_AUDIO > 1
 //--------------------------------------------------------------------+
-bool     tud_audio_n_mounted    (uint8_t audio_fct_idx);
+bool     tud_audio_n_mounted    (uint8_t func_id);
 
 #if CFG_TUD_AUDIO_ENABLE_EP_OUT && !CFG_TUD_AUDIO_ENABLE_DECODING
-uint16_t tud_audio_n_available                    (uint8_t audio_fct_idx);
-uint16_t tud_audio_n_read                         (uint8_t audio_fct_idx, void* buffer, uint16_t bufsize);
-bool     tud_audio_n_clear_ep_out_ff              (uint8_t audio_fct_idx);                          // Delete all content in the EP OUT FIFO
+uint16_t tud_audio_n_available                    (uint8_t func_id);
+uint16_t tud_audio_n_read                         (uint8_t func_id, void* buffer, uint16_t bufsize);
+bool     tud_audio_n_clear_ep_out_ff              (uint8_t func_id);                          // Delete all content in the EP OUT FIFO
 #endif
 
 #if CFG_TUD_AUDIO_ENABLE_EP_OUT && CFG_TUD_AUDIO_ENABLE_DECODING
-bool     tud_audio_n_clear_rx_support_ff          (uint8_t audio_fct_idx, uint8_t ff_idx);       // Delete all content in the support RX FIFOs
-uint16_t tud_audio_n_available_support_ff         (uint8_t audio_fct_idx, uint8_t ff_idx);
-uint16_t tud_audio_n_read_support_ff              (uint8_t audio_fct_idx, uint8_t ff_idx, void* buffer, uint16_t bufsize);
+bool     tud_audio_n_clear_rx_support_ff          (uint8_t func_id, uint8_t ff_idx);       // Delete all content in the support RX FIFOs
+uint16_t tud_audio_n_available_support_ff         (uint8_t func_id, uint8_t ff_idx);
+uint16_t tud_audio_n_read_support_ff              (uint8_t func_id, uint8_t ff_idx, void* buffer, uint16_t bufsize);
 #endif
 
 #if CFG_TUD_AUDIO_ENABLE_EP_IN && !CFG_TUD_AUDIO_ENABLE_ENCODING
-uint16_t tud_audio_n_write                        (uint8_t audio_fct_idx, const void * data, uint16_t len);
-bool     tud_audio_n_clear_ep_in_ff               (uint8_t audio_fct_idx);                          // Delete all content in the EP IN FIFO
+uint16_t tud_audio_n_write                        (uint8_t func_id, const void * data, uint16_t len);
+bool     tud_audio_n_clear_ep_in_ff               (uint8_t func_id);                          // Delete all content in the EP IN FIFO
 #endif
 
 #if CFG_TUD_AUDIO_ENABLE_EP_IN && CFG_TUD_AUDIO_ENABLE_ENCODING
-uint16_t tud_audio_n_flush_tx_support_ff          (uint8_t audio_fct_idx);      // Force all content in the support TX FIFOs to be written into EP SW FIFO
-bool     tud_audio_n_clear_tx_support_ff          (uint8_t audio_fct_idx, uint8_t ff_idx);
-uint16_t tud_audio_n_write_support_ff             (uint8_t audio_fct_idx, uint8_t ff_idx, const void * data, uint16_t len);
+uint16_t tud_audio_n_flush_tx_support_ff          (uint8_t func_id);      // Force all content in the support TX FIFOs to be written into EP SW FIFO
+bool     tud_audio_n_clear_tx_support_ff          (uint8_t func_id, uint8_t ff_idx);
+uint16_t tud_audio_n_write_support_ff             (uint8_t func_id, uint8_t ff_idx, const void * data, uint16_t len);
 #endif
 
 #if CFG_TUD_AUDIO_INT_CTR_EPSIZE_IN
-uint16_t    tud_audio_int_ctr_n_write             (uint8_t audio_fct_idx, uint8_t const* buffer, uint16_t len);
+uint16_t    tud_audio_int_ctr_n_write             (uint8_t func_id, uint8_t const* buffer, uint16_t len);
 #endif
 
 //--------------------------------------------------------------------+
@@ -439,13 +439,13 @@ bool tud_audio_buffer_and_schedule_control_xfer(uint8_t rhport, tusb_control_req
 //--------------------------------------------------------------------+
 
 #if CFG_TUD_AUDIO_ENABLE_EP_IN
-TU_ATTR_WEAK bool tud_audio_tx_done_pre_load_cb(uint8_t rhport, uint8_t audio_fct_idx, uint8_t ep_in, uint8_t cur_alt_setting);
-TU_ATTR_WEAK bool tud_audio_tx_done_post_load_cb(uint8_t rhport, uint16_t n_bytes_copied, uint8_t audio_fct_idx, uint8_t ep_in, uint8_t cur_alt_setting);
+TU_ATTR_WEAK bool tud_audio_tx_done_pre_load_cb(uint8_t rhport, uint8_t func_id, uint8_t ep_in, uint8_t cur_alt_setting);
+TU_ATTR_WEAK bool tud_audio_tx_done_post_load_cb(uint8_t rhport, uint16_t n_bytes_copied, uint8_t func_id, uint8_t ep_in, uint8_t cur_alt_setting);
 #endif
 
 #if CFG_TUD_AUDIO_ENABLE_EP_OUT
-TU_ATTR_WEAK bool tud_audio_rx_done_pre_read_cb(uint8_t rhport, uint16_t n_bytes_received, uint8_t audio_fct_idx, uint8_t ep_out, uint8_t cur_alt_setting);
-TU_ATTR_WEAK bool tud_audio_rx_done_post_read_cb(uint8_t rhport, uint16_t n_bytes_received, uint8_t audio_fct_idx, uint8_t ep_out, uint8_t cur_alt_setting);
+TU_ATTR_WEAK bool tud_audio_rx_done_pre_read_cb(uint8_t rhport, uint16_t n_bytes_received, uint8_t func_id, uint8_t ep_out, uint8_t cur_alt_setting);
+TU_ATTR_WEAK bool tud_audio_rx_done_post_read_cb(uint8_t rhport, uint16_t n_bytes_received, uint8_t func_id, uint8_t ep_out, uint8_t cur_alt_setting);
 #endif
 
 #if CFG_TUD_AUDIO_ENABLE_EP_OUT && CFG_TUD_AUDIO_ENABLE_FEEDBACK_EP
@@ -454,7 +454,7 @@ TU_ATTR_WEAK bool tud_audio_fb_done_cb(uint8_t rhport);
 // Value will be corrected for FS to 10.14 format automatically.
 // (see Universal Serial Bus Specification Revision 2.0 5.12.4.2).
 // Feedback value will be sent at FB endpoint interval till it's changed.
-bool tud_audio_n_fb_set(uint8_t audio_fct_idx, uint32_t feedback);
+bool tud_audio_n_fb_set(uint8_t func_id, uint32_t feedback);
 static inline bool tud_audio_fb_set(uint32_t feedback);
 #endif
 
