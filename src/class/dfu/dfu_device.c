@@ -292,7 +292,7 @@ static void dfu_req_getstatus_reply(uint8_t rhport, tusb_control_request_t const
     memset((uint8_t *)&resp.bwPollTimeout, 0x00, 3);
   }
   resp.bState = _dfu_state_ctx.state;
-  resp.iString = ( tud_dfu_get_status_desc_table_index_cb ) ? tud_dfu_get_status_desc_table_index_cb() : 0;
+  resp.iString = 0;
 
   tud_control_xfer(rhport, request, &resp, sizeof(dfu_status_req_payload_t));
 }
