@@ -160,32 +160,27 @@ void dfu_moded_reset(uint8_t rhport)
   {
       _dfu_state_ctx.state = DFU_IDLE;
   } else {
-    if ( tud_dfu_usb_reset_cb )
+    switch (_dfu_state_ctx.state)
     {
-      tud_dfu_usb_reset_cb(rhport, &_dfu_state_ctx.state);
-    } else {
-      switch (_dfu_state_ctx.state)
+      case DFU_IDLE:
+      case DFU_DNLOAD_SYNC:
+      case DFU_DNBUSY:
+      case DFU_DNLOAD_IDLE:
+      case DFU_MANIFEST_SYNC:
+      case DFU_MANIFEST:
+      case DFU_MANIFEST_WAIT_RESET:
+      case DFU_UPLOAD_IDLE:
       {
-        case DFU_IDLE:
-        case DFU_DNLOAD_SYNC:
-        case DFU_DNBUSY:
-        case DFU_DNLOAD_IDLE:
-        case DFU_MANIFEST_SYNC:
-        case DFU_MANIFEST:
-        case DFU_MANIFEST_WAIT_RESET:
-        case DFU_UPLOAD_IDLE:
-        {
-          _dfu_state_ctx.state = (tud_dfu_firmware_valid_check_cb()) ?  APP_IDLE : DFU_ERROR;
-        }
-        break;
-
-        case DFU_ERROR:
-        default:
-        {
-          _dfu_state_ctx.state = APP_IDLE;
-        }
-        break;
+        _dfu_state_ctx.state = (tud_dfu_firmware_valid_check_cb()) ?  APP_IDLE : DFU_ERROR;
       }
+      break;
+
+      case DFU_ERROR:
+      default:
+      {
+        _dfu_state_ctx.state = APP_IDLE;
+      }
+      break;
     }
   }
 

@@ -58,14 +58,6 @@ uint8_t tud_dfu_init_attrs_cb(void);
 // to the status description string table.
 TU_ATTR_WEAK uint8_t tud_dfu_get_status_desc_table_index_cb(void);
 
-// Invoked during a USB reset
-// Lets the app perform custom behavior on a USB reset.
-// If not defined, the default behavior remains the DFU specification of
-// Checking the firmware valid and changing to the error state or rebooting to runtime
-// Note: If used, the application must perform the reset logic for all states.
-// Changing the state to APP_IDLE will result in tud_dfu_reboot_to_rt_cb being called
-TU_ATTR_WEAK void tud_dfu_usb_reset_cb(uint8_t rhport, dfu_state_t *state);
-
 // Invoked during a DFU_GETSTATUS request to set the timeout in ms to use
 // before the subsequent DFU_GETSTATUS requests.
 // The purpose of this value is to allow the device to tell the host
