@@ -158,7 +158,7 @@ void dfu_moded_reset(uint8_t rhport)
 {
   if (_dfu_state_ctx.state == APP_DETACH)
   {
-      _dfu_state_ctx.state = DFU_IDLE;
+    _dfu_state_ctx.state = DFU_IDLE;
   } else {
     switch (_dfu_state_ctx.state)
     {
@@ -210,7 +210,7 @@ uint16_t dfu_moded_open(uint8_t rhport, tusb_desc_interface_t const * itf_desc, 
 
   if ( TUSB_DESC_FUNCTIONAL == tu_desc_type(p_desc) )
   {
-    tusb_desc_dfu_functional_t *dfu_desc = (tusb_desc_dfu_functional_t *)p_desc;
+    tusb_desc_dfu_functional_t const *dfu_desc = (tusb_desc_dfu_functional_t const *)p_desc;
     _dfu_state_ctx.attrs = (uint8_t)dfu_desc->bAttributes;
 
     drv_len += tu_desc_len(p_desc);
