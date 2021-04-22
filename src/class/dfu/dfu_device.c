@@ -269,7 +269,7 @@ bool dfu_moded_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_reque
     default:
     {
       TU_LOG2("  DFU Nonstandard Request: %u\r\n", request->bRequest);
-      return ( tud_dfu_req_nonstandard_cb ) ? tud_dfu_req_nonstandard_cb(rhport, stage, request) : false;
+      return false; // stall unsupported request
     }
     break;
   }

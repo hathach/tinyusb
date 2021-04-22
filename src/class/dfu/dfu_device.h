@@ -107,11 +107,6 @@ TU_ATTR_WEAK void tud_dfu_abort_cb(void);
 // Return the number of bytes to write
 uint16_t tud_dfu_req_upload_data_cb(uint16_t block_num, uint8_t* data, uint16_t length);
 
-// Invoked when a nonstandard request is received
-// Use may be vendor specific.
-// Return false to stall
-TU_ATTR_WEAK bool tud_dfu_req_nonstandard_cb(uint8_t rhport, uint8_t stage, tusb_control_request_t const * request);
-
 // Invoked during a DFU_GETSTATUS request to get for the string index
 // to the status description string table.
 TU_ATTR_WEAK uint8_t tud_dfu_get_status_desc_table_index_cb(void);
