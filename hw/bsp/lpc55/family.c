@@ -35,19 +35,6 @@
 #include "sct_neopixel.h"
 
 //--------------------------------------------------------------------+
-// Forward USB interrupt events to TinyUSB IRQ Handler
-//--------------------------------------------------------------------+
-void USB0_IRQHandler(void)
-{
-  tud_int_handler(0);
-}
-
-void USB1_IRQHandler(void)
-{
-  tud_int_handler(1);
-}
-
-//--------------------------------------------------------------------+
 // MACRO TYPEDEF CONSTANT ENUM
 //--------------------------------------------------------------------+
 
@@ -66,6 +53,19 @@ void USB1_IRQHandler(void)
 #define IOCON_PIO_DIG_FUNC1_EN   (IOCON_PIO_DIGITAL_EN | IOCON_PIO_FUNC1) /*!<@brief Digital pin function 1 enabled */
 #define IOCON_PIO_DIG_FUNC4_EN   (IOCON_PIO_DIGITAL_EN | IOCON_PIO_FUNC4) /*!<@brief Digital pin function 2 enabled */
 #define IOCON_PIO_DIG_FUNC7_EN   (IOCON_PIO_DIGITAL_EN | IOCON_PIO_FUNC7) /*!<@brief Digital pin function 2 enabled */
+
+//--------------------------------------------------------------------+
+// Forward USB interrupt events to TinyUSB IRQ Handler
+//--------------------------------------------------------------------+
+void USB0_IRQHandler(void)
+{
+  tud_int_handler(0);
+}
+
+void USB1_IRQHandler(void)
+{
+  tud_int_handler(1);
+}
 
 /****************************************************************
 name: BOARD_BootClockFROHF96M
@@ -109,10 +109,10 @@ void board_init(void)
   // Init 96 MHz clock
   BootClockFROHF96M();
 
-#if CFG_TUSB_OS == OPT_OS_NONE
   // 1ms tick timer
   SysTick_Config(SystemCoreClock / 1000);
-#elif CFG_TUSB_OS == OPT_OS_FREERTOS
+
+#if CFG_TUSB_OS == OPT_OS_FREERTOS
   // If freeRTOS is used, IRQ priority is limit by max syscall ( smaller is higher )
   NVIC_SetPriority(USB0_IRQn, configLIBRARY_MAX_SYSCALL_INTERRUPT_PRIORITY );
 #endif
@@ -145,7 +145,7 @@ void board_init(void)
   gpio_pin_config_t const button_config = { kGPIO_DigitalInput, 0};
   GPIO_PinInit(GPIO, BUTTON_PORT, BUTTON_PIN, &button_config);
 
-#if defined(UART_DEV)
+#ifdef UART_DEV
   // UART
   IOCON_PinMuxSet(IOCON, UART_RX_PINMUX);
   IOCON_PinMuxSet(IOCON, UART_TX_PINMUX);
@@ -237,8 +237,8 @@ int board_uart_read(uint8_t* buf, int len)
 
 int board_uart_write(void const * buf, int len)
 {
-  (void) buf; (void) len;
-  return 0;
+  USART_WriteBlocking(UART_DEV, (uint8_t *)buf, len);
+  return len;
 }
 
 #if CFG_TUSB_OS == OPT_OS_NONE

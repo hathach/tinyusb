@@ -42,9 +42,9 @@
 #define BUTTON_STATE_ACTIVE   0
 
 // UART
-//#define UART_DEV              USART0
-//#define UART_RX_PINMUX        0U, 29U, IOCON_PIO_DIG_FUNC1_EN
-//#define UART_TX_PINMUX        0U, 30U, IOCON_PIO_DIG_FUNC1_EN
+#define UART_DEV              USART0
+#define UART_RX_PINMUX        0, 29, IOCON_PIO_DIG_FUNC1_EN
+#define UART_TX_PINMUX        0, 30, IOCON_PIO_DIG_FUNC1_EN
 
 #ifdef __cplusplus
  }
