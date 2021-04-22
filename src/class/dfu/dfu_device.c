@@ -44,10 +44,6 @@ typedef struct TU_ATTR_PACKED
     dfu_state_t state;
     uint8_t attrs;
     bool blk_transfer_in_proc;
-
-    uint8_t itf_num;
-    uint16_t last_block_num;
-    uint16_t last_transfer_len;
     CFG_TUSB_MEM_ALIGN uint8_t transfer_buf[CFG_TUD_DFU_TRANSFER_BUFFER_SIZE];
 } dfu_state_ctx_t;
 
@@ -58,7 +54,7 @@ CFG_TUSB_MEM_SECTION static dfu_state_ctx_t _dfu_state_ctx;
 static void dfu_req_dnload_setup(uint8_t rhport, tusb_control_request_t const * request);
 static void dfu_req_getstatus_reply(uint8_t rhport, tusb_control_request_t const * request);
 static uint16_t dfu_req_upload(uint8_t rhport, tusb_control_request_t const * request, uint16_t block_num, uint16_t wLength);
-static void dfu_req_dnload_reply(void);
+static void dfu_req_dnload_reply(uint8_t rhport, tusb_control_request_t const * request);
 static bool dfu_state_machine(uint8_t rhport, tusb_control_request_t const * request);
 
 //--------------------------------------------------------------------+
@@ -148,8 +144,6 @@ void dfu_moded_init(void)
   _dfu_state_ctx.status = DFU_STATUS_OK;
   _dfu_state_ctx.attrs = 0;
   _dfu_state_ctx.blk_transfer_in_proc = false;
-  _dfu_state_ctx.last_block_num = 0;
-  _dfu_state_ctx.last_transfer_len = 0;
 
   dfu_debug_print_context();
 }
@@ -191,8 +185,6 @@ void dfu_moded_reset(uint8_t rhport)
 
   _dfu_state_ctx.status = DFU_STATUS_OK;
   _dfu_state_ctx.blk_transfer_in_proc = false;
-  _dfu_state_ctx.last_block_num = 0;
-  _dfu_state_ctx.last_transfer_len = 0;
   dfu_debug_print_context();
 }
 
@@ -225,23 +217,20 @@ uint16_t dfu_moded_open(uint8_t rhport, tusb_desc_interface_t const * itf_desc, 
 // return false to stall control endpoint (e.g unsupported request)
 bool dfu_moded_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request_t const * request)
 {
-  if ( (stage == CONTROL_STAGE_DATA) && (_dfu_state_ctx.state == DFU_DNLOAD_SYNC) )
-  {
-      dfu_req_dnload_reply();
-      return true;
-  }
-
-  // nothing to do with any other DATA or ACK stage
-  if ( stage != CONTROL_STAGE_SETUP ) return true;
+  // nothing to do with DATA stage
+  if ( stage == CONTROL_STAGE_DATA ) return true;
 
   TU_VERIFY(request->bmRequestType_bit.recipient == TUSB_REQ_RCPT_INTERFACE);
 
-  // dfu-util will try to claim the interface with SET_INTERFACE request before sending DFU request
-  if ( TUSB_REQ_TYPE_STANDARD == request->bmRequestType_bit.type &&
-       TUSB_REQ_SET_INTERFACE == request->bRequest )
+  if(stage == CONTROL_STAGE_SETUP)
   {
-    tud_control_status(rhport, request);
-    return true;
+    // dfu-util will try to claim the interface with SET_INTERFACE request before sending DFU request
+    if ( TUSB_REQ_TYPE_STANDARD == request->bmRequestType_bit.type &&
+         TUSB_REQ_SET_INTERFACE == request->bRequest )
+    {
+      tud_control_status(rhport, request);
+      return true;
+    }
   }
 
   // Handle class request only from here
@@ -249,15 +238,27 @@ bool dfu_moded_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_reque
 
   switch (request->bRequest)
   {
-    case DFU_REQUEST_DETACH:
     case DFU_REQUEST_DNLOAD:
+    {
+      if ( (stage == CONTROL_STAGE_ACK)
+           && ((_dfu_state_ctx.attrs & DFU_FUNC_ATTR_CAN_DOWNLOAD_BITMASK) != 0)
+           && (_dfu_state_ctx.state == DFU_DNLOAD_SYNC))
+      {
+        dfu_req_dnload_reply(rhport, request);
+        return true;
+      }
+    } // fallthrough
+    case DFU_REQUEST_DETACH:
     case DFU_REQUEST_UPLOAD:
     case DFU_REQUEST_GETSTATUS:
     case DFU_REQUEST_CLRSTATUS:
     case DFU_REQUEST_GETSTATE:
     case DFU_REQUEST_ABORT:
     {
-      return dfu_state_machine(rhport, request);
+      if(stage == CONTROL_STAGE_SETUP)
+      {
+        return dfu_state_machine(rhport, request);
+      }
     }
     break;
 
@@ -285,12 +286,7 @@ static void dfu_req_getstatus_reply(uint8_t rhport, tusb_control_request_t const
   dfu_status_req_payload_t resp;
 
   resp.bStatus = _dfu_state_ctx.status;
-  if ( tud_dfu_get_poll_timeout_cb )
-  {
-    tud_dfu_get_poll_timeout_cb((uint8_t *)&resp.bwPollTimeout);
-  } else {
-    memset((uint8_t *)&resp.bwPollTimeout, 0x00, 3);
-  }
+  memset((uint8_t *)&resp.bwPollTimeout, 0x00, 3);
   resp.bState = _dfu_state_ctx.state;
   resp.iString = 0;
 
@@ -304,8 +300,6 @@ static void dfu_req_getstate_reply(uint8_t rhport, tusb_control_request_t const 
 
 static void dfu_req_dnload_setup(uint8_t rhport, tusb_control_request_t const * request)
 {
-  _dfu_state_ctx.last_block_num = request->wValue;
-  _dfu_state_ctx.last_transfer_len = request->wLength;
   // TODO: add "zero" copy mode so the buffer we read into can be provided by the user
   // if they wish, there still will be the internal control buffer copy to this buffer
   // but this mode would provide zero copy from the class driver to the application
@@ -314,26 +308,14 @@ static void dfu_req_dnload_setup(uint8_t rhport, tusb_control_request_t const * 
   tud_control_xfer(rhport, request, &_dfu_state_ctx.transfer_buf, request->wLength);
 }
 
-static void dfu_req_dnload_reply(void)
+static void dfu_req_dnload_reply(uint8_t rhport, tusb_control_request_t const * request)
 {
-  uint8_t bwPollTimeout[3] = {0,0,0};
-
-  if ( tud_dfu_get_poll_timeout_cb )
-  {
-    tud_dfu_get_poll_timeout_cb((uint8_t *)&bwPollTimeout);
-  }
-
-  tud_dfu_start_poll_timeout_cb((uint8_t *)&bwPollTimeout);
-
-  // TODO: I want the real xferred len, not what is expected.  May need to change usbd.c to do this.
-  tud_dfu_req_dnload_data_cb(_dfu_state_ctx.last_block_num, (uint8_t *)&_dfu_state_ctx.transfer_buf, _dfu_state_ctx.last_transfer_len);
+  (void) rhport;
+  tud_dfu_req_dnload_data_cb(request->wValue, (uint8_t *)&_dfu_state_ctx.transfer_buf, request->wLength);
   _dfu_state_ctx.blk_transfer_in_proc = false;
-
-  _dfu_state_ctx.last_block_num = 0;
-  _dfu_state_ctx.last_transfer_len = 0;
 }
 
-void tud_dfu_poll_timeout_done(void)
+void tud_dfu_dnload_complete(void)
 {
   if (_dfu_state_ctx.state == DFU_DNBUSY)
   {

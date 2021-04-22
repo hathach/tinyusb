@@ -45,35 +45,15 @@ bool tud_dfu_firmware_valid_check_cb(void);
 // Invoked when the device must reboot to dfu runtime mode
 void tud_dfu_reboot_to_rt_cb(void);
 
-// Invoked during a DFU_GETSTATUS request to get for the string index
-// to the status description string table.
-TU_ATTR_WEAK uint8_t tud_dfu_get_status_desc_table_index_cb(void);
-
-// Invoked during a DFU_GETSTATUS request to set the timeout in ms to use
-// before the subsequent DFU_GETSTATUS requests.
-// The purpose of this value is to allow the device to tell the host
-// how long to wait between the DFU_DNLOAD and DFU_GETSTATUS checks
-// to allow the device to have time to erase, write memory, etc.
-// ms_timeout is a pointer to array of length 3.
-// Refer to the USB DFU class specification for more details
-TU_ATTR_WEAK void tud_dfu_get_poll_timeout_cb(uint8_t *ms_timeout);
-
-// Invoked when a DFU_DNLOAD request is received
-// This should start a timer for ms_timeout ms
-// When the timer has elapsed, tud_dfu_runtime_poll_timeout_done must be called
-// NOTE: This callback should return immediately, and not implement the delay
-// internally, as this will hold up the class stack from receiving any packets
-// during the DFU_DNLOAD_SYNC and DFU_DNBUSY states
-void tud_dfu_start_poll_timeout_cb(uint8_t *ms_timeout);
-
-// Must be called when the poll_timeout has elapsed
-void tud_dfu_poll_timeout_done(void);
-
 // Invoked when a DFU_DNLOAD request is received
 // This callback takes the wBlockNum chunk of length length and provides it
 // to the application at the data pointer.  This data is only valid for this
 // call, so the app must use it not or copy it.
 void tud_dfu_req_dnload_data_cb(uint16_t wBlockNum, uint8_t* data, uint16_t length);
+
+// Must be called when the application is done using the last block of data
+// provided by tud_dfu_req_dnload_data_cb
+void tud_dfu_dnload_complete(void);
 
 // Invoked during the last DFU_DNLOAD request, signifying that the host believes
 // it is done transmitting data.
