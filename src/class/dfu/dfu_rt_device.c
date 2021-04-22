@@ -93,11 +93,11 @@ bool dfu_rtd_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request
   // Handle class request only from here
   TU_VERIFY(request->bmRequestType_bit.type == TUSB_REQ_TYPE_CLASS);
 
-  TU_LOG2("  DFU RT Request: %s\r\n", tu_lookup_find(&_dfu_request_table, request->bRequest));
   switch (request->bRequest)
   {
     case DFU_REQUEST_DETACH:
     {
+      TU_LOG2("  DFU RT Request: DETACH\r\n");
       tud_control_status(rhport, request);
       tud_dfu_runtime_reboot_to_dfu_cb();
     }
@@ -105,6 +105,7 @@ bool dfu_rtd_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request
 
     case DFU_REQUEST_GETSTATUS:
     {
+      TU_LOG2("  DFU RT Request: GETSTATUS\r\n");
       dfu_status_req_payload_t resp;
       // Status = OK, Poll timeout is ignored during RT, State = APP_IDLE, IString = 0
       memset(&resp, 0x00, sizeof(dfu_status_req_payload_t));
@@ -112,7 +113,11 @@ bool dfu_rtd_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request
     }
     break;
 
-    default: return false; // stall unsupported request
+    default:
+    {
+      TU_LOG2("  DFU RT Unexpected Request: %d\r\n", request->bRequest);
+      return false; // stall unsupported request
+    }
   }
 
   return true;
