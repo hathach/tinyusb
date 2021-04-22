@@ -24,8 +24,8 @@
  * This file is part of the TinyUSB stack.
  */
 
-#ifndef _TUSB_DFU_MODE_DEVICE_H_
-#define _TUSB_DFU_MODE_DEVICE_H_
+#ifndef _TUSB_DFU_DEVICE_H_
+#define _TUSB_DFU_DEVICE_H_
 
 #include "common/tusb_common.h"
 #include "device/usbd.h"
@@ -40,10 +40,10 @@
 // Application Callback API (weak is optional)
 //--------------------------------------------------------------------+
 // Invoked when a reset is received to check if firmware is valid
-bool tud_dfu_mode_firmware_valid_check_cb(void);
+bool tud_dfu_firmware_valid_check_cb(void);
 
 // Invoked when the device must reboot to dfu runtime mode
-void tud_dfu_mode_reboot_to_rt_cb(void);
+void tud_dfu_reboot_to_rt_cb(void);
 
 // Invoked during initialization of the dfu driver to set attributes
 // Return byte set with bitmasks:
@@ -52,19 +52,19 @@ void tud_dfu_mode_reboot_to_rt_cb(void);
 //   DFU_FUNC_ATTR_MANIFESTATION_TOLERANT_BITMASK
 //   DFU_FUNC_ATTR_WILL_DETACH_BITMASK
 // Note: This should match the USB descriptor
-uint8_t tud_dfu_mode_init_attrs_cb(void);
+uint8_t tud_dfu_init_attrs_cb(void);
 
 // Invoked during a DFU_GETSTATUS request to get for the string index
 // to the status description string table.
-TU_ATTR_WEAK uint8_t tud_dfu_mode_get_status_desc_table_index_cb(void);
+TU_ATTR_WEAK uint8_t tud_dfu_get_status_desc_table_index_cb(void);
 
 // Invoked during a USB reset
 // Lets the app perform custom behavior on a USB reset.
 // If not defined, the default behavior remains the DFU specification of
 // Checking the firmware valid and changing to the error state or rebooting to runtime
 // Note: If used, the application must perform the reset logic for all states.
-// Changing the state to APP_IDLE will result in tud_dfu_mode_reboot_to_rt_cb being called
-TU_ATTR_WEAK void tud_dfu_mode_usb_reset_cb(uint8_t rhport, dfu_mode_state_t *state);
+// Changing the state to APP_IDLE will result in tud_dfu_reboot_to_rt_cb being called
+TU_ATTR_WEAK void tud_dfu_usb_reset_cb(uint8_t rhport, dfu_state_t *state);
 
 // Invoked during a DFU_GETSTATUS request to set the timeout in ms to use
 // before the subsequent DFU_GETSTATUS requests.
@@ -73,7 +73,7 @@ TU_ATTR_WEAK void tud_dfu_mode_usb_reset_cb(uint8_t rhport, dfu_mode_state_t *st
 // to allow the device to have time to erase, write memory, etc.
 // ms_timeout is a pointer to array of length 3.
 // Refer to the USB DFU class specification for more details
-TU_ATTR_WEAK void tud_dfu_mode_get_poll_timeout_cb(uint8_t *ms_timeout);
+TU_ATTR_WEAK void tud_dfu_get_poll_timeout_cb(uint8_t *ms_timeout);
 
 // Invoked when a DFU_DNLOAD request is received
 // This should start a timer for ms_timeout ms
@@ -81,40 +81,40 @@ TU_ATTR_WEAK void tud_dfu_mode_get_poll_timeout_cb(uint8_t *ms_timeout);
 // NOTE: This callback should return immediately, and not implement the delay
 // internally, as this will hold up the class stack from receiving any packets
 // during the DFU_DNLOAD_SYNC and DFU_DNBUSY states
-void tud_dfu_mode_start_poll_timeout_cb(uint8_t *ms_timeout);
+void tud_dfu_start_poll_timeout_cb(uint8_t *ms_timeout);
 
 // Must be called when the poll_timeout has elapsed
-void tud_dfu_mode_poll_timeout_done(void);
+void tud_dfu_poll_timeout_done(void);
 
 // Invoked when a DFU_DNLOAD request is received
 // This callback takes the wBlockNum chunk of length length and provides it
 // to the application at the data pointer.  This data is only valid for this
 // call, so the app must use it not or copy it.
-void tud_dfu_mode_req_dnload_data_cb(uint16_t wBlockNum, uint8_t* data, uint16_t length);
+void tud_dfu_req_dnload_data_cb(uint16_t wBlockNum, uint8_t* data, uint16_t length);
 
 // Invoked during the last DFU_DNLOAD request, signifying that the host believes
 // it is done transmitting data.
 // Return true if the application agrees there is no more data
 // Return false if the device disagrees, which will stall the pipe, and the Host
 //              should initiate a recovery procedure
-bool tud_dfu_mode_device_data_done_check_cb(void);
+bool tud_dfu_device_data_done_check_cb(void);
 
 // Invoked when the Host has terminated a download or upload transfer
-TU_ATTR_WEAK void tud_dfu_mode_abort_cb(void);
+TU_ATTR_WEAK void tud_dfu_abort_cb(void);
 
 // Invoked when a DFU_UPLOAD request is received
 // This callback must populate data with up to length bytes
 // Return the number of bytes to write
-uint16_t tud_dfu_mode_req_upload_data_cb(uint16_t block_num, uint8_t* data, uint16_t length);
+uint16_t tud_dfu_req_upload_data_cb(uint16_t block_num, uint8_t* data, uint16_t length);
 
 // Invoked when a nonstandard request is received
 // Use may be vendor specific.
 // Return false to stall
-TU_ATTR_WEAK bool tud_dfu_mode_req_nonstandard_cb(uint8_t rhport, uint8_t stage, tusb_control_request_t const * request);
+TU_ATTR_WEAK bool tud_dfu_req_nonstandard_cb(uint8_t rhport, uint8_t stage, tusb_control_request_t const * request);
 
 // Invoked during a DFU_GETSTATUS request to get for the string index
 // to the status description string table.
-TU_ATTR_WEAK uint8_t tud_dfu_mode_get_status_desc_table_index_cb(void);
+TU_ATTR_WEAK uint8_t tud_dfu_get_status_desc_table_index_cb(void);
 //--------------------------------------------------------------------+
 // Internal Class Driver API
 //--------------------------------------------------------------------+

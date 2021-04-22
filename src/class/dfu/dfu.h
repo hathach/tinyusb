@@ -73,7 +73,7 @@ typedef enum {
   DFU_MANIFEST_WAIT_RESET    = 8,
   DFU_UPLOAD_IDLE            = 9,
   DFU_ERROR                  = 10,
-} dfu_mode_state_t;
+} dfu_state_t;
 
 // DFU Status
 typedef enum {
@@ -93,7 +93,7 @@ typedef enum {
   DFU_STATUS_ERRPOR          = 0x0D,
   DFU_STATUS_ERRUNKNOWN      = 0x0E,
   DFU_STATUS_ERRSTALLEDPKT   = 0x0F,
-} dfu_mode_device_status_t;
+} dfu_device_status_t;
 
 #define DFU_FUNC_ATTR_CAN_DOWNLOAD_BITMASK              (1 << 0)
 #define DFU_FUNC_ATTR_CAN_UPLOAD_BITMASK                (1 << 1)
@@ -134,7 +134,7 @@ static tu_lookup_table_t const _dfu_request_table =
   .items = _dfu_request_lookup
 };
 
-static tu_lookup_entry_t const _dfu_mode_state_lookup[] =
+static tu_lookup_entry_t const _dfu_state_lookup[] =
 {
   { .key = APP_IDLE                   , .data = "APP_IDLE" },
   { .key = APP_DETACH                 , .data = "APP_DETACH" },
@@ -149,13 +149,13 @@ static tu_lookup_entry_t const _dfu_mode_state_lookup[] =
   { .key = DFU_ERROR                  , .data = "DFU_ERROR" },
 };
 
-static tu_lookup_table_t const _dfu_mode_state_table =
+static tu_lookup_table_t const _dfu_state_table =
 {
-  .count = TU_ARRAY_SIZE(_dfu_mode_state_lookup),
-  .items = _dfu_mode_state_lookup
+  .count = TU_ARRAY_SIZE(_dfu_state_lookup),
+  .items = _dfu_state_lookup
 };
 
-static tu_lookup_entry_t const _dfu_mode_status_lookup[] =
+static tu_lookup_entry_t const _dfu_status_lookup[] =
 {
   { .key = DFU_STATUS_OK              , .data = "OK" },
   { .key = DFU_STATUS_ERRTARGET       , .data = "errTARGET" },
@@ -175,10 +175,10 @@ static tu_lookup_entry_t const _dfu_mode_status_lookup[] =
   { .key = DFU_STATUS_ERRSTALLEDPKT   , .data = "errSTALLEDPKT" },
 };
 
-static tu_lookup_table_t const _dfu_mode_status_table =
+static tu_lookup_table_t const _dfu_status_table =
 {
-  .count = TU_ARRAY_SIZE(_dfu_mode_status_lookup),
-  .items = _dfu_mode_status_lookup
+  .count = TU_ARRAY_SIZE(_dfu_status_lookup),
+  .items = _dfu_status_lookup
 };
 
 #endif
@@ -186,8 +186,8 @@ static tu_lookup_table_t const _dfu_mode_status_table =
 #define dfu_debug_print_context()                                              \
 {                                                                              \
   TU_LOG2("  DFU at State: %s\r\n         Status: %s\r\n",                     \
-          tu_lookup_find(&_dfu_mode_state_table, _dfu_state_ctx.state),        \
-          tu_lookup_find(&_dfu_mode_status_table, _dfu_state_ctx.status) );    \
+          tu_lookup_find(&_dfu_state_table, _dfu_state_ctx.state),        \
+          tu_lookup_find(&_dfu_status_table, _dfu_state_ctx.status) );    \
 }
 
 

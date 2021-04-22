@@ -97,7 +97,7 @@
   #endif
 
   #if CFG_TUD_DFU_MODE
-    #include "class/dfu/dfu_mode_device.h"
+    #include "class/dfu/dfu_device.h"
   #endif
 
   #if CFG_TUD_NET

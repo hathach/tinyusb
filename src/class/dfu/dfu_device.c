@@ -28,7 +28,7 @@
 
 #if (TUSB_OPT_DEVICE_ENABLED && CFG_TUD_DFU_MODE)
 
-#include "dfu_mode_device.h"
+#include "dfu_device.h"
 #include "device/usbd_pvt.h"
 
 //--------------------------------------------------------------------+
@@ -40,8 +40,8 @@
 //--------------------------------------------------------------------+
 typedef struct TU_ATTR_PACKED
 {
-    dfu_mode_device_status_t status;
-    dfu_mode_state_t state;
+    dfu_device_status_t status;
+    dfu_state_t state;
     uint8_t attrs;
     bool blk_transfer_in_proc;
 
@@ -49,17 +49,17 @@ typedef struct TU_ATTR_PACKED
     uint16_t last_block_num;
     uint16_t last_transfer_len;
     CFG_TUSB_MEM_ALIGN uint8_t transfer_buf[CFG_TUD_DFU_TRANSFER_BUFFER_SIZE];
-} dfu_mode_state_ctx_t;
+} dfu_state_ctx_t;
 
 // Only a single dfu state is allowed
-CFG_TUSB_MEM_SECTION static dfu_mode_state_ctx_t _dfu_state_ctx;
+CFG_TUSB_MEM_SECTION static dfu_state_ctx_t _dfu_state_ctx;
 
 
 static void dfu_req_dnload_setup(uint8_t rhport, tusb_control_request_t const * request);
 static void dfu_req_getstatus_reply(uint8_t rhport, tusb_control_request_t const * request);
 static uint16_t dfu_req_upload(uint8_t rhport, tusb_control_request_t const * request, uint16_t block_num, uint16_t wLength);
-static void dfu_mode_req_dnload_reply(uint8_t rhport, tusb_control_request_t const * request);
-static bool dfu_mode_state_machine(uint8_t rhport, tusb_control_request_t const * request);
+static void dfu_req_dnload_reply(uint8_t rhport, tusb_control_request_t const * request);
+static bool dfu_state_machine(uint8_t rhport, tusb_control_request_t const * request);
 
 
 //--------------------------------------------------------------------+
@@ -83,9 +83,9 @@ void dfu_moded_reset(uint8_t rhport)
   {
       _dfu_state_ctx.state = DFU_IDLE;
   } else {
-    if ( tud_dfu_mode_usb_reset_cb )
+    if ( tud_dfu_usb_reset_cb )
     {
-      tud_dfu_mode_usb_reset_cb(rhport, &_dfu_state_ctx.state);
+      tud_dfu_usb_reset_cb(rhport, &_dfu_state_ctx.state);
     } else {
       switch (_dfu_state_ctx.state)
       {
@@ -98,7 +98,7 @@ void dfu_moded_reset(uint8_t rhport)
         case DFU_MANIFEST_WAIT_RESET:
         case DFU_UPLOAD_IDLE:
         {
-          _dfu_state_ctx.state = (tud_dfu_mode_firmware_valid_check_cb()) ?  APP_IDLE : DFU_ERROR;
+          _dfu_state_ctx.state = (tud_dfu_firmware_valid_check_cb()) ?  APP_IDLE : DFU_ERROR;
         }
         break;
 
@@ -114,7 +114,7 @@ void dfu_moded_reset(uint8_t rhport)
 
   if(_dfu_state_ctx.state == APP_IDLE)
   {
-    tud_dfu_mode_reboot_to_rt_cb();
+    tud_dfu_reboot_to_rt_cb();
   }
 
   _dfu_state_ctx.status = DFU_STATUS_OK;
@@ -155,7 +155,7 @@ bool dfu_moded_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_reque
 {
   if ( (stage == CONTROL_STAGE_DATA) && (request->bRequest == DFU_DNLOAD_SYNC) )
   {
-      dfu_mode_req_dnload_reply(rhport, request);
+      dfu_req_dnload_reply(rhport, request);
       return true;
   }
 
@@ -185,14 +185,14 @@ bool dfu_moded_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_reque
     case DFU_REQUEST_GETSTATE:
     case DFU_REQUEST_ABORT:
     {
-      return dfu_mode_state_machine(rhport, request);
+      return dfu_state_machine(rhport, request);
     }
     break;
 
     default:
     {
       TU_LOG2("  DFU Nonstandard Request: %u\r\n", request->bRequest);
-      return ( tud_dfu_mode_req_nonstandard_cb ) ? tud_dfu_mode_req_nonstandard_cb(rhport, stage, request) : false;
+      return ( tud_dfu_req_nonstandard_cb ) ? tud_dfu_req_nonstandard_cb(rhport, stage, request) : false;
     }
     break;
   }
@@ -203,7 +203,7 @@ bool dfu_moded_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_reque
 static uint16_t dfu_req_upload(uint8_t rhport, tusb_control_request_t const * request, uint16_t block_num, uint16_t wLength)
 {
   TU_VERIFY( wLength <= CFG_TUD_DFU_TRANSFER_BUFFER_SIZE);
-  uint16_t retval = tud_dfu_mode_req_upload_data_cb(block_num, (uint8_t *)&_dfu_state_ctx.transfer_buf, wLength);
+  uint16_t retval = tud_dfu_req_upload_data_cb(block_num, (uint8_t *)&_dfu_state_ctx.transfer_buf, wLength);
   tud_control_xfer(rhport, request, &_dfu_state_ctx.transfer_buf, retval);
   return retval;
 }
@@ -213,14 +213,14 @@ static void dfu_req_getstatus_reply(uint8_t rhport, tusb_control_request_t const
   dfu_status_req_payload_t resp;
 
   resp.bStatus = _dfu_state_ctx.status;
-  if ( tud_dfu_mode_get_poll_timeout_cb )
+  if ( tud_dfu_get_poll_timeout_cb )
   {
-    tud_dfu_mode_get_poll_timeout_cb((uint8_t *)&resp.bwPollTimeout);
+    tud_dfu_get_poll_timeout_cb((uint8_t *)&resp.bwPollTimeout);
   } else {
     memset((uint8_t *)&resp.bwPollTimeout, 0x00, 3);
   }
   resp.bState = _dfu_state_ctx.state;
-  resp.iString = ( tud_dfu_mode_get_status_desc_table_index_cb ) ? tud_dfu_mode_get_status_desc_table_index_cb() : 0;
+  resp.iString = ( tud_dfu_get_status_desc_table_index_cb ) ? tud_dfu_get_status_desc_table_index_cb() : 0;
 
   tud_control_xfer(rhport, request, &resp, sizeof(dfu_status_req_payload_t));
 }
@@ -242,26 +242,26 @@ static void dfu_req_dnload_setup(uint8_t rhport, tusb_control_request_t const * 
   tud_control_xfer(rhport, request, &_dfu_state_ctx.transfer_buf, request->wLength);
 }
 
-static void dfu_mode_req_dnload_reply(uint8_t rhport, tusb_control_request_t const * request)
+static void dfu_req_dnload_reply(uint8_t rhport, tusb_control_request_t const * request)
 {
   uint8_t bwPollTimeout[3] = {0,0,0};
 
-  if ( tud_dfu_mode_get_poll_timeout_cb )
+  if ( tud_dfu_get_poll_timeout_cb )
   {
-    tud_dfu_mode_get_poll_timeout_cb((uint8_t *)&bwPollTimeout);
+    tud_dfu_get_poll_timeout_cb((uint8_t *)&bwPollTimeout);
   }
 
-  tud_dfu_mode_start_poll_timeout_cb((uint8_t *)&bwPollTimeout);
+  tud_dfu_start_poll_timeout_cb((uint8_t *)&bwPollTimeout);
 
   // TODO: I want the real xferred len, not what is expected.  May need to change usbd.c to do this.
-  tud_dfu_mode_req_dnload_data_cb(_dfu_state_ctx.last_block_num, (uint8_t *)&_dfu_state_ctx.transfer_buf, _dfu_state_ctx.last_transfer_len);
+  tud_dfu_req_dnload_data_cb(_dfu_state_ctx.last_block_num, (uint8_t *)&_dfu_state_ctx.transfer_buf, _dfu_state_ctx.last_transfer_len);
   _dfu_state_ctx.blk_transfer_in_proc = false;
 
   _dfu_state_ctx.last_block_num = 0;
   _dfu_state_ctx.last_transfer_len = 0;
 }
 
-void tud_dfu_mode_poll_timeout_done()
+void tud_dfu_poll_timeout_done()
 {
   if (_dfu_state_ctx.state == DFU_DNBUSY)
   {
@@ -273,10 +273,10 @@ void tud_dfu_mode_poll_timeout_done()
   }
 }
 
-static bool dfu_mode_state_machine(uint8_t rhport, tusb_control_request_t const * request)
+static bool dfu_state_machine(uint8_t rhport, tusb_control_request_t const * request)
 {
   TU_LOG2("  DFU Request: %s\r\n", tu_lookup_find(&_dfu_request_table, request->bRequest));
-  TU_LOG2("  DFU State Machine: %s\r\n", tu_lookup_find(&_dfu_mode_state_table, _dfu_state_ctx.state));
+  TU_LOG2("  DFU State Machine: %s\r\n", tu_lookup_find(&_dfu_state_table, _dfu_state_ctx.state));
 
   switch (_dfu_state_ctx.state)
   {
@@ -398,7 +398,7 @@ static bool dfu_mode_state_machine(uint8_t rhport, tusb_control_request_t const 
               _dfu_state_ctx.blk_transfer_in_proc = true;
               dfu_req_dnload_setup(rhport, request);
             } else {
-              if ( tud_dfu_mode_device_data_done_check_cb() )
+              if ( tud_dfu_device_data_done_check_cb() )
               {
                 _dfu_state_ctx.state = DFU_MANIFEST_SYNC;
                 tud_control_status(rhport, request);
@@ -424,9 +424,9 @@ static bool dfu_mode_state_machine(uint8_t rhport, tusb_control_request_t const 
 
           case DFU_REQUEST_ABORT:
           {
-            if ( tud_dfu_mode_abort_cb )
+            if ( tud_dfu_abort_cb )
             {
-              tud_dfu_mode_abort_cb();
+              tud_dfu_abort_cb();
             }
             _dfu_state_ctx.state = DFU_IDLE;
           }
@@ -453,7 +453,7 @@ static bool dfu_mode_state_machine(uint8_t rhport, tusb_control_request_t const 
             _dfu_state_ctx.state = DFU_MANIFEST;
             dfu_req_getstatus_reply(rhport, request);
           } else {
-            if ( tud_dfu_mode_firmware_valid_check_cb() )
+            if ( tud_dfu_firmware_valid_check_cb() )
             {
               _dfu_state_ctx.state = DFU_IDLE;
             }
@@ -533,9 +533,9 @@ static bool dfu_mode_state_machine(uint8_t rhport, tusb_control_request_t const 
 
         case DFU_REQUEST_ABORT:
         {
-          if (tud_dfu_mode_abort_cb)
+          if (tud_dfu_abort_cb)
           {
-            tud_dfu_mode_abort_cb();
+            tud_dfu_abort_cb();
           }
           _dfu_state_ctx.state = DFU_IDLE;
         }
