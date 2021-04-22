@@ -58,7 +58,7 @@ CFG_TUSB_MEM_SECTION static dfu_state_ctx_t _dfu_state_ctx;
 static void dfu_req_dnload_setup(uint8_t rhport, tusb_control_request_t const * request);
 static void dfu_req_getstatus_reply(uint8_t rhport, tusb_control_request_t const * request);
 static uint16_t dfu_req_upload(uint8_t rhport, tusb_control_request_t const * request, uint16_t block_num, uint16_t wLength);
-static void dfu_req_dnload_reply(uint8_t rhport, tusb_control_request_t const * request);
+static void dfu_req_dnload_reply(void);
 static bool dfu_state_machine(uint8_t rhport, tusb_control_request_t const * request);
 
 //--------------------------------------------------------------------+
@@ -225,9 +225,9 @@ uint16_t dfu_moded_open(uint8_t rhport, tusb_desc_interface_t const * itf_desc, 
 // return false to stall control endpoint (e.g unsupported request)
 bool dfu_moded_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request_t const * request)
 {
-  if ( (stage == CONTROL_STAGE_DATA) && (request->bRequest == DFU_DNLOAD_SYNC) )
+  if ( (stage == CONTROL_STAGE_DATA) && (_dfu_state_ctx.state == DFU_DNLOAD_SYNC) )
   {
-      dfu_req_dnload_reply(rhport, request);
+      dfu_req_dnload_reply();
       return true;
   }
 
@@ -314,7 +314,7 @@ static void dfu_req_dnload_setup(uint8_t rhport, tusb_control_request_t const * 
   tud_control_xfer(rhport, request, &_dfu_state_ctx.transfer_buf, request->wLength);
 }
 
-static void dfu_req_dnload_reply(uint8_t rhport, tusb_control_request_t const * request)
+static void dfu_req_dnload_reply(void)
 {
   uint8_t bwPollTimeout[3] = {0,0,0};
 
@@ -333,7 +333,7 @@ static void dfu_req_dnload_reply(uint8_t rhport, tusb_control_request_t const * 
   _dfu_state_ctx.last_transfer_len = 0;
 }
 
-void tud_dfu_poll_timeout_done()
+void tud_dfu_poll_timeout_done(void)
 {
   if (_dfu_state_ctx.state == DFU_DNBUSY)
   {
