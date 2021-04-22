@@ -45,15 +45,6 @@ bool tud_dfu_firmware_valid_check_cb(void);
 // Invoked when the device must reboot to dfu runtime mode
 void tud_dfu_reboot_to_rt_cb(void);
 
-// Invoked during initialization of the dfu driver to set attributes
-// Return byte set with bitmasks:
-//   DFU_FUNC_ATTR_CAN_DOWNLOAD_BITMASK
-//   DFU_FUNC_ATTR_CAN_UPLOAD_BITMASK
-//   DFU_FUNC_ATTR_MANIFESTATION_TOLERANT_BITMASK
-//   DFU_FUNC_ATTR_WILL_DETACH_BITMASK
-// Note: This should match the USB descriptor
-uint8_t tud_dfu_init_attrs_cb(void);
-
 // Invoked during a DFU_GETSTATUS request to get for the string index
 // to the status description string table.
 TU_ATTR_WEAK uint8_t tud_dfu_get_status_desc_table_index_cb(void);
