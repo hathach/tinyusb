@@ -647,26 +647,26 @@ static bool audiod_decode_type_I_pcm(uint8_t rhport, audiod_function_t* audio, u
   uint8_t cnt_ff;
 
   // Decode
-  void * dst, * dst_wrap;
   uint8_t * src;
   uint8_t * dst_end;
-  uint16_t len, len_wrap = 0;
+
+  tu_fifo_linear_wr_info info;
 
   for (cnt_ff = 0; cnt_ff < n_ff_used; cnt_ff++)
   {
     src = &audio->lin_buf_out[cnt_ff*audio->n_channels_per_ff_rx * audio->n_bytes_per_sampe_rx];
-    len = tu_fifo_get_linear_write_info(&audio->rx_supp_ff[cnt_ff], 0, nBytesPerFFToRead, &dst, &len_wrap, &dst_wrap);
+    info = tu_fifo_get_linear_write_info(&audio->rx_supp_ff[cnt_ff], 0, nBytesPerFFToRead);
 
-    dst_end = dst + len;
-    src = audiod_interleaved_copy_bytes_fast_decode(nBytesToCopy, dst, dst_end, src, n_ff_used);
+    dst_end = info.ptr_lin + info.len_lin;
+    src = audiod_interleaved_copy_bytes_fast_decode(nBytesToCopy, info.ptr_lin, dst_end, src, n_ff_used);
 
     // Handle wrapped part of FIFO
-    if (len_wrap != 0)
+    if (info.len_wrap != 0)
     {
-      dst_end = dst_wrap + len_wrap;
-      audiod_interleaved_copy_bytes_fast_decode(nBytesToCopy, dst_wrap, dst_end, src, n_ff_used);
+      dst_end = info.ptr_wrap + info.len_wrap;
+      audiod_interleaved_copy_bytes_fast_decode(nBytesToCopy, info.ptr_wrap, dst_end, src, n_ff_used);
     }
-    tu_fifo_advance_write_pointer(&audio->rx_supp_ff[cnt_ff], len + len_wrap);
+    tu_fifo_advance_write_pointer(&audio->rx_supp_ff[cnt_ff], info.len_lin + info.len_wrap);
   }
 
   // Number of bytes should be a multiple of CFG_TUD_AUDIO_N_BYTES_PER_SAMPLE_RX * CFG_TUD_AUDIO_N_CHANNELS_RX but checking makes no sense - no way to correct it
@@ -973,28 +973,28 @@ static uint16_t audiod_encode_type_I_pcm(uint8_t rhport, audiod_function_t* audi
   nBytesPerFFToSend = (nBytesPerFFToSend / nBytesToCopy) * nBytesToCopy;
 
   // Encode
-  void * src, * src_wrap;
   uint8_t * dst;
   uint8_t * src_end;
-  uint16_t len, len_wrap = 0;           // Give len_wrap a value such that compiler does not complain - although it gets initialized in any case...
+
+  tu_fifo_linear_wr_info info;
 
   for (cnt_ff = 0; cnt_ff < n_ff_used; cnt_ff++)
   {
     dst = &audio->lin_buf_in[cnt_ff*audio->n_channels_per_ff_tx*audio->n_bytes_per_sampe_tx];
 
-    len = tu_fifo_get_linear_read_info(&audio->tx_supp_ff[cnt_ff], 0, nBytesPerFFToSend, &src, &len_wrap, &src_wrap);
+    info = tu_fifo_get_linear_read_info(&audio->tx_supp_ff[cnt_ff], 0, nBytesPerFFToSend);
 
-    src_end = src + len;
-    dst = audiod_interleaved_copy_bytes_fast_encode(nBytesToCopy, src, src_end, dst, n_ff_used);
+    src_end = info.ptr_lin + info.len_lin;
+    dst = audiod_interleaved_copy_bytes_fast_encode(nBytesToCopy, info.ptr_lin, src_end, dst, n_ff_used);
 
     // Handle wrapped part of FIFO
-    if (len_wrap != 0)
+    if (info.len_wrap != 0)
     {
-      src_end = src_wrap + len_wrap;
-      audiod_interleaved_copy_bytes_fast_encode(nBytesToCopy, src_wrap, src_end, dst, n_ff_used);
+      src_end = info.ptr_wrap + info.len_wrap;
+      audiod_interleaved_copy_bytes_fast_encode(nBytesToCopy, info.ptr_wrap, src_end, dst, n_ff_used);
     }
 
-    tu_fifo_advance_read_pointer(&audio->tx_supp_ff[cnt_ff], len + len_wrap);
+    tu_fifo_advance_read_pointer(&audio->tx_supp_ff[cnt_ff], info.len_lin + info.len_wrap);
   }
 
   return nBytesPerFFToSend * n_ff_used;

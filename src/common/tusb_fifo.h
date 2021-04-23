@@ -80,6 +80,14 @@ typedef struct
 
 } tu_fifo_t;
 
+typedef struct
+{
+  uint16_t len_lin                      ; ///< linear length in item size
+  uint16_t len_wrap                     ; ///< wrapped length in item size
+  void * ptr_lin                        ; ///< linear part start pointer
+  void * ptr_wrap                       ; ///< wrapped part start pointer
+} tu_fifo_linear_wr_info;
+
 #define TU_FIFO_INIT(_buffer, _depth, _type, _overwritable) \
 {                                                           \
   .buffer               = _buffer,                          \
@@ -136,8 +144,8 @@ void     tu_fifo_advance_read_pointer   (tu_fifo_t *f, uint16_t n);
 // tu_fifo_advance_read_pointer()/tu_fifo_advance_write_pointer and conduct a second read/write operation
 // TODO - update comments
 
-uint16_t tu_fifo_get_linear_read_info(tu_fifo_t *f, uint16_t offset, uint16_t n, void **ptr_lin, uint16_t *len_wrap, void **ptr_wrap);
-uint16_t tu_fifo_get_linear_write_info(tu_fifo_t *f, uint16_t offset, uint16_t n, void **ptr_lin, uint16_t *len_wrap, void **ptr_wrap);
+tu_fifo_linear_wr_info tu_fifo_get_linear_read_info(tu_fifo_t *f, uint16_t offset, uint16_t n);
+tu_fifo_linear_wr_info tu_fifo_get_linear_write_info(tu_fifo_t *f, uint16_t offset, uint16_t n);
 
 static inline bool tu_fifo_peek(tu_fifo_t* f, void * p_buffer)
 {
