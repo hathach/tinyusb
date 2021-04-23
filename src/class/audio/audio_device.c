@@ -650,7 +650,7 @@ static bool audiod_decode_type_I_pcm(uint8_t rhport, audiod_function_t* audio, u
   void * dst, * dst_wrap;
   uint8_t * src;
   uint8_t * dst_end;
-  uint16_t len, len_wrap;
+  uint16_t len, len_wrap = 0;
 
   for (cnt_ff = 0; cnt_ff < n_ff_used; cnt_ff++)
   {
@@ -976,7 +976,7 @@ static uint16_t audiod_encode_type_I_pcm(uint8_t rhport, audiod_function_t* audi
   void * src, * src_wrap;
   uint8_t * dst;
   uint8_t * src_end;
-  uint16_t len, len_wrap;
+  uint16_t len, len_wrap = 0;           // Give len_wrap a value such that compiler does not complain - although it gets initialized in any case...
 
   for (cnt_ff = 0; cnt_ff < n_ff_used; cnt_ff++)
   {
