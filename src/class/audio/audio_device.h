@@ -33,7 +33,7 @@
 #include "device/usbd.h"
 
 #include "audio.h"
-#include "tusb_fifo.h"
+#include "common/tusb_fifo.h"
 
 //--------------------------------------------------------------------+
 // Class Driver Configuration
