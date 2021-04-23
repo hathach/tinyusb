@@ -993,7 +993,7 @@ static bool dcd_write_packet_memory_ff(tu_fifo_t * ff, uint16_t dst, uint16_t wN
   // Since we copy from a ring buffer FIFO, a wrap might occur making it necessary to conduct two copies
   // Check for first linear part
   void * src;
-  uint16_t len = tu_fifo_get_linear_read_info(ff, 0, &src, wNBytes);  // We want to read from the FIFO
+  uint16_t len = tu_fifo_get_linear_read_info(ff, 0, &src, wNBytes);  // We want to read from the FIFO        - THIS FUNCTION CHANGED!!!
   TU_VERIFY(len && dcd_write_packet_memory(dst, src, len));           // and write it into the PMA
   tu_fifo_advance_read_pointer(ff, len);
 
@@ -1075,7 +1075,7 @@ static bool dcd_read_packet_memory_ff(tu_fifo_t * ff, uint16_t src, uint16_t wNB
   // Since we copy into a ring buffer FIFO, a wrap might occur making it necessary to conduct two copies
   // Check for first linear part
   void * dst;
-  uint16_t len = tu_fifo_get_linear_write_info(ff, 0, &dst, wNBytes);
+  uint16_t len = tu_fifo_get_linear_write_info(ff, 0, &dst, wNBytes);           // THIS FUNCTION CHANGED!!!!
   TU_VERIFY(len && dcd_read_packet_memory(dst, src, len));
   tu_fifo_advance_write_pointer(ff, len);
 

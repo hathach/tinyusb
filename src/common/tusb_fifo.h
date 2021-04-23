@@ -134,8 +134,10 @@ void     tu_fifo_advance_read_pointer   (tu_fifo_t *f, uint16_t n);
 // This functions deliver a pointer to start reading/writing from/to and a valid linear length along which no wrap occurs.
 // In case not all of your data is available within one read/write, update the read/write pointer by
 // tu_fifo_advance_read_pointer()/tu_fifo_advance_write_pointer and conduct a second read/write operation
-uint16_t tu_fifo_get_linear_read_info   (tu_fifo_t *f, uint16_t offset, void **ptr, uint16_t n);
-uint16_t tu_fifo_get_linear_write_info  (tu_fifo_t *f, uint16_t offset, void **ptr, uint16_t n);
+// TODO - update comments
+
+uint16_t tu_fifo_get_linear_read_info(tu_fifo_t *f, uint16_t offset, uint16_t n, void **ptr_lin, uint16_t *len_wrap, void **ptr_wrap);
+uint16_t tu_fifo_get_linear_write_info(tu_fifo_t *f, uint16_t offset, uint16_t n, void **ptr_lin, uint16_t *len_wrap, void **ptr_wrap);
 
 static inline bool tu_fifo_peek(tu_fifo_t* f, void * p_buffer)
 {

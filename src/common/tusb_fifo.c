@@ -905,7 +905,7 @@ void tu_fifo_advance_read_pointer(tu_fifo_t *f, uint16_t n)
                     Length of linear part IN ITEMS, if zero corresponding pointer ptr is invalid
  */
 /******************************************************************************/
-uint16_t tu_fifo_get_linear_read_info(tu_fifo_t *f, uint16_t offset, void **ptr, uint16_t n)
+uint16_t tu_fifo_get_linear_read_info(tu_fifo_t *f, uint16_t offset, uint16_t n, void **ptr_lin, uint16_t *len_wrap, void **ptr_wrap)
 {
   // Operate on temporary values in case they change in between
   uint16_t w = f->wr_idx, r = f->rd_idx;
@@ -933,22 +933,25 @@ uint16_t tu_fifo_get_linear_read_info(tu_fifo_t *f, uint16_t offset, void **ptr,
   w = get_relative_pointer(f, w, 0);
   r = get_relative_pointer(f, r, offset);
 
+  // Copy pointer to buffer to start reading from
+  *ptr_lin = &f->buffer[r];
+  *ptr_wrap = f->buffer;
+
   // Check if there is a wrap around necessary
   uint16_t len;
 
   if (w > r) {
+    // Non wrapping case
     len = w - r;
+    len = tu_min16(n, len);     // Limit to required length
+    *len_wrap = 0;
   }
   else
   {
     len = f->depth - r;       // Also the case if FIFO was full
+    len = tu_min16(n, len);
+    *len_wrap = n-len;        // n was already limited to what is available
   }
-
-  // Limit to required length
-  len = tu_min16(n, len);
-
-  // Copy pointer to buffer to start reading from
-  *ptr = &f->buffer[r];
 
   return len;
 }
@@ -976,7 +979,7 @@ uint16_t tu_fifo_get_linear_read_info(tu_fifo_t *f, uint16_t offset, void **ptr,
                     Length of linear part IN ITEMS, if zero corresponding pointer ptr is invalid
  */
 /******************************************************************************/
-uint16_t tu_fifo_get_linear_write_info(tu_fifo_t *f, uint16_t offset, void **ptr, uint16_t n)
+uint16_t tu_fifo_get_linear_write_info(tu_fifo_t *f, uint16_t offset, uint16_t n, void **ptr_lin, uint16_t *len_wrap, void **ptr_wrap)
 {
   uint16_t w = f->wr_idx, r = f->rd_idx;
   uint16_t free = _tu_fifo_remaining(f, w, r);
@@ -1004,22 +1007,26 @@ uint16_t tu_fifo_get_linear_write_info(tu_fifo_t *f, uint16_t offset, void **ptr
   // Get relative pointers
   w = get_relative_pointer(f, w, offset);
   r = get_relative_pointer(f, r, 0);
+
+  // Copy pointer to buffer to start writing to
+  *ptr_lin = &f->buffer[w];
+  *ptr_wrap = f->buffer;      // Always start of buffer
+
   uint16_t len;
 
   if (w < r)
   {
+    // Non wrapping case
     len = r-w;
+    len = tu_min16(n, len);   // Limit to required length
+    *len_wrap = 0;
   }
   else
   {
     len = f->depth - w;
+    len = tu_min16(n, len);   // Limit to required length
+    *len_wrap = n-len;        // Remaining length - n already was limited to free or FIFO depth
   }
-
-  // Limit to required length
-  len = tu_min16(n, len);
-
-  // Copy pointer to buffer to start reading from
-  *ptr = &f->buffer[w];
 
   return len;
 }
