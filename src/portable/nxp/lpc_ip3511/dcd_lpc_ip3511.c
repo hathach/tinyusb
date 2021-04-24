@@ -56,11 +56,6 @@
 
 #include "device/dcd.h"
 
-// only SRAM1 & USB RAM can be used for transfer.
-// Used to set DATABUFSTART which is 22-bit aligned
-// 2000 0000 to 203F FFFF
-#define SRAM_REGION   0x20000000
-
 //--------------------------------------------------------------------+
 // IP3511 Registers
 //--------------------------------------------------------------------+
@@ -161,6 +156,9 @@ typedef struct
 }dcd_data_t;
 
 // EP list must be 256-byte aligned
+//    Some MCU controller may require this variable to be placed in specific SRAM region.
+//    For example: LPC55s69 port1 Highspeed must be USB_RAM (0x40100000)
+//    Use CFG_TUSB_MEM_SECTION to place it accordingly.
 CFG_TUSB_MEM_SECTION TU_ATTR_ALIGNED(256) static dcd_data_t _dcd;
 
 //--------------------------------------------------------------------+
@@ -179,7 +177,7 @@ typedef struct
   static const dcd_controller_t _dcd_controller[] =
   {
       { .regs = (dcd_registers_t*) USB0_BASE  , .max_speed = TUSB_SPEED_FULL, .irqnum = USB0_IRQn, .ep_pairs = FSL_FEATURE_USB_EP_NUM    },
-    #if FSL_FEATURE_SOC_USBHSD_COUNT
+    #if defined(FSL_FEATURE_SOC_USBHSD_COUNT) && FSL_FEATURE_SOC_USBHSD_COUNT
       { .regs = (dcd_registers_t*) USBHSD_BASE, .max_speed = TUSB_SPEED_HIGH, .irqnum = USB1_IRQn, .ep_pairs = FSL_FEATURE_USBHSD_EP_NUM }
     #endif
   };
@@ -203,9 +201,9 @@ static inline uint16_t get_buf_offset(void const * buffer)
   return ( (addr >> 6) & 0xFFFFUL ) ;
 }
 
-static inline uint8_t ep_addr2id(uint8_t endpoint_addr)
+static inline uint8_t ep_addr2id(uint8_t ep_addr)
 {
-  return 2*(endpoint_addr & 0x0F) + ((endpoint_addr & TUSB_DIR_IN_MASK) ? 1 : 0);
+  return 2*(ep_addr & 0x0F) + ((ep_addr & TUSB_DIR_IN_MASK) ? 1 : 0);
 }
 
 //--------------------------------------------------------------------+
@@ -216,8 +214,7 @@ void dcd_init(uint8_t rhport)
   dcd_registers_t* dcd_reg = _dcd_controller[rhport].regs;
 
   dcd_reg->EPLISTSTART  = (uint32_t) _dcd.ep;
-  dcd_reg->DATABUFSTART = SRAM_REGION; // 22-bit alignment
-
+  dcd_reg->DATABUFSTART = tu_align((uint32_t) &_dcd, 22); // 22-bit alignment
   dcd_reg->INTSTAT      = dcd_reg->INTSTAT; // clear all pending interrupt
   dcd_reg->INTEN        = INT_DEVICE_STATUS_MASK;
   dcd_reg->DEVCMDSTAT  |= CMDSTAT_DEVICE_ENABLE_MASK | CMDSTAT_DEVICE_CONNECT_MASK |
