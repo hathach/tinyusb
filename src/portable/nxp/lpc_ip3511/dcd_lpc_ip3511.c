@@ -136,6 +136,9 @@ typedef struct
   uint16_t xferred_bytes;
 
   uint16_t nbytes;
+
+  // prevent unaligned access on Highspeed port on USB_SRAM
+  uint16_t TU_RESERVED;
 }xfer_dma_t;
 
 // Absolute max of endpoints pairs for all port
@@ -324,7 +327,7 @@ bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t* buffer, uint16_t to
 
   uint8_t const ep_id = ep_addr2id(ep_addr);
 
-  tu_varclr(&_dcd.dma[ep_id]);
+  tu_memclr(&_dcd.dma[ep_id], sizeof(xfer_dma_t));
   _dcd.dma[ep_id].total_bytes = total_bytes;
 
   prepare_ep_xfer(ep_id, get_buf_offset(buffer), total_bytes);
