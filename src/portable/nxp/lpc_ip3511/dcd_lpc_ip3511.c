@@ -33,11 +33,7 @@
  * - LPC51U68
  * - LPC54114
  * - LPC55s69
- *
- * For similar controller of other families, this file may require some minimal changes to work with.
- * Previous MCUs such as LPC17xx, LPC40xx, LPC18xx, LPC43xx have their own driver implementation.
  */
-
 #if TUSB_OPT_DEVICE_ENABLED && ( CFG_TUSB_MCU == OPT_MCU_LPC11UXX || \
                                  CFG_TUSB_MCU == OPT_MCU_LPC13XX  || \
                                  CFG_TUSB_MCU == OPT_MCU_LPC15XX  || \
@@ -45,29 +41,71 @@
                                  CFG_TUSB_MCU == OPT_MCU_LPC54XXX || \
                                  CFG_TUSB_MCU == OPT_MCU_LPC55XX)
 
+//--------------------------------------------------------------------+
+// INCLUDE
+//--------------------------------------------------------------------+
+
 #if CFG_TUSB_MCU == OPT_MCU_LPC11UXX || CFG_TUSB_MCU == OPT_MCU_LPC13XX || CFG_TUSB_MCU == OPT_MCU_LPC15XX
-  // LPC 11Uxx, 13xx, 15xx use lpcopen
+  // LPCOpen
   #include "chip.h"
-  #define DCD_REGS        LPC_USB
-
-#elif CFG_TUSB_MCU == OPT_MCU_LPC51UXX || CFG_TUSB_MCU == OPT_MCU_LPC54XXX || \
-      CFG_TUSB_MCU == OPT_MCU_LPC55XX // TODO 55xx has dual usb controllers
+#else
+  // SDK
   #include "fsl_device_registers.h"
-  #define DCD_REGS        USB0
-
+  #define INCLUDE_FSL_DEVICE_REGISTERS
 #endif
 
 #include "device/dcd.h"
 
-//--------------------------------------------------------------------+
-// MACRO CONSTANT TYPEDEF
-//--------------------------------------------------------------------+
+
+typedef struct {
+  __IO uint32_t DEVCMDSTAT;    // Device Command/Status register, offset: 0x0
+  __I  uint32_t INFO;          // Info register, offset: 0x4
+  __IO uint32_t EPLISTSTART;   // EP Command/Status List start address, offset: 0x8
+  __IO uint32_t DATABUFSTART;  // Data buffer start address, offset: 0xC
+  __IO uint32_t LPM;           // Link Power Management register, offset: 0x10
+  __IO uint32_t EPSKIP;        // Endpoint skip, offset: 0x14
+  __IO uint32_t EPINUSE;       // Endpoint Buffer in use, offset: 0x18
+  __IO uint32_t EPBUFCFG;      // Endpoint Buffer Configuration register, offset: 0x1C
+  __IO uint32_t INTSTAT;       // interrupt status register, offset: 0x20
+  __IO uint32_t INTEN;         // interrupt enable register, offset: 0x24
+  __IO uint32_t INTSETSTAT;    // set interrupt status register, offset: 0x28
+       uint8_t RESERVED_0[8];
+  __I  uint32_t EPTOGGLE;      // Endpoint toggle register, offset: 0x34
+} dcd_registers_t;
+
+typedef struct
+{
+  dcd_registers_t* regs;  // registers
+  const IRQn_Type irqnum; // IRQ number
+  const uint8_t ep_count; // Max bi-directional Endpoints
+}dcd_controller_t;
 
 // Number of endpoints
 // - 11 13 15 51 54 has 5x2 endpoints
-// - 18/43 usb0 & 55s usb1 (HS) has 6x2 endpoints
-// - 18/43 usb1 & 55s usb0 (FS) has 4x2 endpoints
+// - 55 usb0 (FS) has 5x2 endpoints, usb1 (HS) has 6x2 endpoints
 #define EP_COUNT 10
+
+
+#ifdef INCLUDE_FSL_DEVICE_REGISTERS
+  static const dcd_controller_t _dcd_controller[] =
+  {
+      { .regs = (dcd_registers_t*) USB0_BASE  , .irqnum = USB0_IRQn, .ep_count = FSL_FEATURE_USB_EP_NUM    },
+    #if FSL_FEATURE_SOC_USBHSD_COUNT
+      { .regs = (dcd_registers_t*) USBHSD_BASE, .irqnum = USB1_IRQn, .ep_count = FSL_FEATURE_USBHSD_EP_NUM }
+    #endif
+  };
+
+#else
+  static const dcd_controller_t _dcd_controller[] =
+  {
+    { .regs = (dcd_registers_t*) LPC_USB0_BASE, .irqnum = USB0_IRQn, .ep_count = 5 },
+  };
+
+#endif
+
+//--------------------------------------------------------------------+
+// MACRO CONSTANT TYPEDEF
+//--------------------------------------------------------------------+
 
 // only SRAM1 & USB RAM can be used for transfer.
 // Used to set DATABUFSTART which is 22-bit aligned
@@ -164,14 +202,14 @@ static inline uint8_t ep_addr2id(uint8_t endpoint_addr)
 //--------------------------------------------------------------------+
 void dcd_init(uint8_t rhport)
 {
-  (void) rhport;
+  dcd_registers_t* dcd_reg = _dcd_controller[rhport].regs;
 
-  DCD_REGS->EPLISTSTART  = (uint32_t) _dcd.ep;
-  DCD_REGS->DATABUFSTART = SRAM_REGION; // 22-bit alignment
+  dcd_reg->EPLISTSTART  = (uint32_t) _dcd.ep;
+  dcd_reg->DATABUFSTART = SRAM_REGION; // 22-bit alignment
 
-  DCD_REGS->INTSTAT      = DCD_REGS->INTSTAT; // clear all pending interrupt
-  DCD_REGS->INTEN        = INT_DEVICE_STATUS_MASK;
-  DCD_REGS->DEVCMDSTAT  |= CMDSTAT_DEVICE_ENABLE_MASK | CMDSTAT_DEVICE_CONNECT_MASK |
+  dcd_reg->INTSTAT      = dcd_reg->INTSTAT; // clear all pending interrupt
+  dcd_reg->INTEN        = INT_DEVICE_STATUS_MASK;
+  dcd_reg->DEVCMDSTAT  |= CMDSTAT_DEVICE_ENABLE_MASK | CMDSTAT_DEVICE_CONNECT_MASK |
                            CMDSTAT_RESET_CHANGE_MASK | CMDSTAT_CONNECT_CHANGE_MASK | CMDSTAT_SUSPEND_CHANGE_MASK;
 
   NVIC_ClearPendingIRQ(USB0_IRQn);
@@ -191,11 +229,13 @@ void dcd_int_disable(uint8_t rhport)
 
 void dcd_set_address(uint8_t rhport, uint8_t dev_addr)
 {
+  dcd_registers_t* dcd_reg = _dcd_controller[rhport].regs;
+
   // Response with status first before changing device address
   dcd_edpt_xfer(rhport, tu_edpt_addr(0, TUSB_DIR_IN), NULL, 0);
 
-  DCD_REGS->DEVCMDSTAT &= ~CMDSTAT_DEVICE_ADDR_MASK;
-  DCD_REGS->DEVCMDSTAT |= dev_addr;
+  dcd_reg->DEVCMDSTAT &= ~CMDSTAT_DEVICE_ADDR_MASK;
+  dcd_reg->DEVCMDSTAT |= dev_addr;
 }
 
 void dcd_remote_wakeup(uint8_t rhport)
@@ -205,14 +245,14 @@ void dcd_remote_wakeup(uint8_t rhport)
 
 void dcd_connect(uint8_t rhport)
 {
-  (void) rhport;
-  DCD_REGS->DEVCMDSTAT |= CMDSTAT_DEVICE_CONNECT_MASK;
+  dcd_registers_t* dcd_reg = _dcd_controller[rhport].regs;
+  dcd_reg->DEVCMDSTAT |= CMDSTAT_DEVICE_CONNECT_MASK;
 }
 
 void dcd_disconnect(uint8_t rhport)
 {
-  (void) rhport;
-  DCD_REGS->DEVCMDSTAT &= ~CMDSTAT_DEVICE_CONNECT_MASK;
+  dcd_registers_t* dcd_reg = _dcd_controller[rhport].regs;
+  dcd_reg->DEVCMDSTAT &= ~CMDSTAT_DEVICE_CONNECT_MASK;
 }
 
 //--------------------------------------------------------------------+
@@ -255,7 +295,8 @@ bool dcd_edpt_open(uint8_t rhport, tusb_desc_endpoint_t const * p_endpoint_desc)
   _dcd.ep[ep_id][0].is_iso = (p_endpoint_desc->bmAttributes.xfer == TUSB_XFER_ISOCHRONOUS);
 
   // Enable EP interrupt
-  DCD_REGS->INTEN |= TU_BIT(ep_id);
+  dcd_registers_t* dcd_reg = _dcd_controller[rhport].regs;
+  dcd_reg->INTEN |= TU_BIT(ep_id);
 
   return true;
 }
@@ -288,7 +329,7 @@ bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t* buffer, uint16_t to
 //--------------------------------------------------------------------+
 // IRQ
 //--------------------------------------------------------------------+
-static void bus_reset(void)
+static void bus_reset(uint8_t rhport)
 {
   tu_memclr(&_dcd, sizeof(dcd_data_t));
 
@@ -300,13 +341,15 @@ static void bus_reset(void)
 
   _dcd.ep[0][1].buffer_offset = get_buf_offset(_dcd.setup_packet);
 
-  DCD_REGS->EPINUSE      = 0;
-  DCD_REGS->EPBUFCFG     = 0;
-  DCD_REGS->EPSKIP       = 0xFFFFFFFF;
+  dcd_registers_t* dcd_reg = _dcd_controller[rhport].regs;
 
-  DCD_REGS->INTSTAT      = DCD_REGS->INTSTAT; // clear all pending interrupt
-  DCD_REGS->DEVCMDSTAT  |= CMDSTAT_SETUP_RECEIVED_MASK; // clear setup received interrupt
-  DCD_REGS->INTEN        = INT_DEVICE_STATUS_MASK | TU_BIT(0) | TU_BIT(1); // enable device status & control endpoints
+  dcd_reg->EPINUSE      = 0;
+  dcd_reg->EPBUFCFG     = 0;
+  dcd_reg->EPSKIP       = 0xFFFFFFFF;
+
+  dcd_reg->INTSTAT      = dcd_reg->INTSTAT;                               // clear all pending interrupt
+  dcd_reg->DEVCMDSTAT  |= CMDSTAT_SETUP_RECEIVED_MASK;                    // clear setup received interrupt
+  dcd_reg->INTEN        = INT_DEVICE_STATUS_MASK | TU_BIT(0) | TU_BIT(1); // enable device status & control endpoints
 }
 
 static void process_xfer_isr(uint32_t int_status)
@@ -341,22 +384,22 @@ static void process_xfer_isr(uint32_t int_status)
 
 void dcd_int_handler(uint8_t rhport)
 {
-  (void) rhport; // TODO support multiple USB on supported mcu such as LPC55s69
+  dcd_registers_t* dcd_reg = _dcd_controller[rhport].regs;
 
-  uint32_t const cmd_stat = DCD_REGS->DEVCMDSTAT;
+  uint32_t const cmd_stat = dcd_reg->DEVCMDSTAT;
 
-  uint32_t int_status = DCD_REGS->INTSTAT & DCD_REGS->INTEN;
-  DCD_REGS->INTSTAT = int_status; // Acknowledge handled interrupt
+  uint32_t int_status = dcd_reg->INTSTAT & dcd_reg->INTEN;
+  dcd_reg->INTSTAT = int_status; // Acknowledge handled interrupt
 
   if (int_status == 0) return;
 
   //------------- Device Status -------------//
   if ( int_status & INT_DEVICE_STATUS_MASK )
   {
-    DCD_REGS->DEVCMDSTAT |= CMDSTAT_RESET_CHANGE_MASK | CMDSTAT_CONNECT_CHANGE_MASK | CMDSTAT_SUSPEND_CHANGE_MASK;
+    dcd_reg->DEVCMDSTAT |= CMDSTAT_RESET_CHANGE_MASK | CMDSTAT_CONNECT_CHANGE_MASK | CMDSTAT_SUSPEND_CHANGE_MASK;
     if ( cmd_stat & CMDSTAT_RESET_CHANGE_MASK) // bus reset
     {
-      bus_reset();
+      bus_reset(rhport);
       dcd_event_bus_reset(0, TUSB_SPEED_FULL, true);
     }
 
@@ -396,7 +439,7 @@ void dcd_int_handler(uint8_t rhport)
     _dcd.ep[0][0].active = _dcd.ep[1][0].active = 0;
     _dcd.ep[0][0].stall = _dcd.ep[1][0].stall = 0;
 
-    DCD_REGS->DEVCMDSTAT |= CMDSTAT_SETUP_RECEIVED_MASK;
+    dcd_reg->DEVCMDSTAT |= CMDSTAT_SETUP_RECEIVED_MASK;
 
     dcd_event_setup_received(0, _dcd.setup_packet, true);
 
