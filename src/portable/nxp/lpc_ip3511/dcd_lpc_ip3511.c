@@ -56,6 +56,19 @@
 
 #include "device/dcd.h"
 
+// only SRAM1 & USB RAM can be used for transfer.
+// Used to set DATABUFSTART which is 22-bit aligned
+// 2000 0000 to 203F FFFF
+#define SRAM_REGION   0x20000000
+
+// Absolute max of endpoints pairs for all port
+// - 11 13 15 51 54 has 5x2 endpoints
+// - 55 usb0 (FS) has 5x2 endpoints, usb1 (HS) has 6x2 endpoints
+#define MAX_EP_PAIRS  6
+
+//--------------------------------------------------------------------+
+// IP3511 Registers
+//--------------------------------------------------------------------+
 
 typedef struct {
   __IO uint32_t DEVCMDSTAT;    // Device Command/Status register, offset: 0x0
@@ -72,45 +85,6 @@ typedef struct {
        uint8_t RESERVED_0[8];
   __I  uint32_t EPTOGGLE;      // Endpoint toggle register, offset: 0x34
 } dcd_registers_t;
-
-typedef struct
-{
-  dcd_registers_t* regs;  // registers
-  const IRQn_Type irqnum; // IRQ number
-  const uint8_t ep_count; // Max bi-directional Endpoints
-}dcd_controller_t;
-
-// Number of endpoints
-// - 11 13 15 51 54 has 5x2 endpoints
-// - 55 usb0 (FS) has 5x2 endpoints, usb1 (HS) has 6x2 endpoints
-#define EP_COUNT 10
-
-
-#ifdef INCLUDE_FSL_DEVICE_REGISTERS
-  static const dcd_controller_t _dcd_controller[] =
-  {
-      { .regs = (dcd_registers_t*) USB0_BASE  , .irqnum = USB0_IRQn, .ep_count = FSL_FEATURE_USB_EP_NUM    },
-    #if FSL_FEATURE_SOC_USBHSD_COUNT
-      { .regs = (dcd_registers_t*) USBHSD_BASE, .irqnum = USB1_IRQn, .ep_count = FSL_FEATURE_USBHSD_EP_NUM }
-    #endif
-  };
-
-#else
-  static const dcd_controller_t _dcd_controller[] =
-  {
-    { .regs = (dcd_registers_t*) LPC_USB0_BASE, .irqnum = USB0_IRQn, .ep_count = 5 },
-  };
-
-#endif
-
-//--------------------------------------------------------------------+
-// MACRO CONSTANT TYPEDEF
-//--------------------------------------------------------------------+
-
-// only SRAM1 & USB RAM can be used for transfer.
-// Used to set DATABUFSTART which is 22-bit aligned
-// 2000 0000 to 203F FFFF
-#define SRAM_REGION   0x20000000
 
 /* Although device controller are the same. Somehow only LPC134x can execute
  * DMA with 1023 bytes for Bulk/Control. Others (11u, 51u, 54xxx) can only work
@@ -140,6 +114,10 @@ enum {
   CMDSTAT_RESET_CHANGE_MASK   = TU_BIT(26),
   CMDSTAT_VBUS_DEBOUNCED_MASK = TU_BIT(28),
 };
+
+//--------------------------------------------------------------------+
+// Endpoint Command/Status List
+//--------------------------------------------------------------------+
 
 typedef struct TU_ATTR_PACKED
 {
@@ -171,19 +149,46 @@ typedef struct
 {
   // 256 byte aligned, 2 for double buffer (not used)
   // Each cmd_sts can only transfer up to DMA_NBYTES_MAX bytes each
-  ep_cmd_sts_t ep[EP_COUNT][2];
+  ep_cmd_sts_t ep[2*MAX_EP_PAIRS][2];
 
-  xfer_dma_t dma[EP_COUNT];
-
+  xfer_dma_t dma[2*MAX_EP_PAIRS];
   TU_ATTR_ALIGNED(64) uint8_t setup_packet[8];
 }dcd_data_t;
+
+// EP list must be 256-byte aligned
+CFG_TUSB_MEM_SECTION TU_ATTR_ALIGNED(256) static dcd_data_t _dcd;
+
+//--------------------------------------------------------------------+
+// Multiple Controllers
+//--------------------------------------------------------------------+
+
+typedef struct
+{
+  dcd_registers_t* regs;  // registers
+  const IRQn_Type irqnum; // IRQ number
+  const uint8_t ep_pairs; // Max bi-directional Endpoints
+}dcd_controller_t;
+
+#ifdef INCLUDE_FSL_DEVICE_REGISTERS
+  static const dcd_controller_t _dcd_controller[] =
+  {
+      { .regs = (dcd_registers_t*) USB0_BASE  , .irqnum = USB0_IRQn, .ep_pairs = FSL_FEATURE_USB_EP_NUM    },
+    #if FSL_FEATURE_SOC_USBHSD_COUNT
+      { .regs = (dcd_registers_t*) USBHSD_BASE, .irqnum = USB1_IRQn, .ep_pairs = FSL_FEATURE_USBHSD_EP_NUM }
+    #endif
+  };
+
+#else
+  static const dcd_controller_t _dcd_controller[] =
+  {
+    { .regs = (dcd_registers_t*) LPC_USB0_BASE, .irqnum = USB0_IRQn, .ep_pairs = 5 },
+  };
+
+#endif
 
 //--------------------------------------------------------------------+
 // INTERNAL OBJECT & FUNCTION DECLARATION
 //--------------------------------------------------------------------+
-
-// EP list must be 256-byte aligned
-CFG_TUSB_MEM_SECTION TU_ATTR_ALIGNED(256) static dcd_data_t _dcd;
 
 static inline uint16_t get_buf_offset(void const * buffer)
 {
@@ -212,19 +217,17 @@ void dcd_init(uint8_t rhport)
   dcd_reg->DEVCMDSTAT  |= CMDSTAT_DEVICE_ENABLE_MASK | CMDSTAT_DEVICE_CONNECT_MASK |
                            CMDSTAT_RESET_CHANGE_MASK | CMDSTAT_CONNECT_CHANGE_MASK | CMDSTAT_SUSPEND_CHANGE_MASK;
 
-  NVIC_ClearPendingIRQ(USB0_IRQn);
+  NVIC_ClearPendingIRQ(_dcd_controller[rhport].irqnum);
 }
 
 void dcd_int_enable(uint8_t rhport)
 {
-  (void) rhport;
-  NVIC_EnableIRQ(USB0_IRQn);
+  NVIC_EnableIRQ(_dcd_controller[rhport].irqnum);
 }
 
 void dcd_int_disable(uint8_t rhport)
 {
-  (void) rhport;
-  NVIC_DisableIRQ(USB0_IRQn);
+  NVIC_DisableIRQ(_dcd_controller[rhport].irqnum);
 }
 
 void dcd_set_address(uint8_t rhport, uint8_t dev_addr)
@@ -334,7 +337,7 @@ static void bus_reset(uint8_t rhport)
   tu_memclr(&_dcd, sizeof(dcd_data_t));
 
   // disable all non-control endpoints on bus reset
-  for(uint8_t ep_id = 2; ep_id < EP_COUNT; ep_id++)
+  for(uint8_t ep_id = 2; ep_id < 2*MAX_EP_PAIRS; ep_id++)
   {
     _dcd.ep[ep_id][0].disable = _dcd.ep[ep_id][1].disable = 1;
   }
@@ -352,9 +355,11 @@ static void bus_reset(uint8_t rhport)
   dcd_reg->INTEN        = INT_DEVICE_STATUS_MASK | TU_BIT(0) | TU_BIT(1); // enable device status & control endpoints
 }
 
-static void process_xfer_isr(uint32_t int_status)
+static void process_xfer_isr(uint8_t rhport, uint32_t int_status)
 {
-  for(uint8_t ep_id = 0; ep_id < EP_COUNT; ep_id++ )
+  uint8_t const max_ep = 2*_dcd_controller[rhport].ep_pairs;
+
+  for(uint8_t ep_id = 0; ep_id < max_ep; ep_id++ )
   {
     if ( tu_bit_test(int_status, ep_id) )
     {
@@ -373,10 +378,10 @@ static void process_xfer_isr(uint32_t int_status)
       {
         xfer_dma->total_bytes = xfer_dma->xferred_bytes;
 
-        uint8_t const ep_addr = (ep_id / 2) | ((ep_id & 0x01) ? TUSB_DIR_IN_MASK : 0);
+        uint8_t const ep_addr = tu_edpt_addr(ep_id / 2, ep_id & 0x01);
 
         // TODO no way determine if the transfer is failed or not
-        dcd_event_xfer_complete(0, ep_addr, xfer_dma->xferred_bytes, XFER_RESULT_SUCCESS, true);
+        dcd_event_xfer_complete(rhport, ep_addr, xfer_dma->xferred_bytes, XFER_RESULT_SUCCESS, true);
       }
     }
   }
@@ -400,7 +405,7 @@ void dcd_int_handler(uint8_t rhport)
     if ( cmd_stat & CMDSTAT_RESET_CHANGE_MASK) // bus reset
     {
       bus_reset(rhport);
-      dcd_event_bus_reset(0, TUSB_SPEED_FULL, true);
+      dcd_event_bus_reset(rhport, TUSB_SPEED_FULL, true);
     }
 
     if (cmd_stat & CMDSTAT_CONNECT_CHANGE_MASK)
@@ -409,7 +414,7 @@ void dcd_int_handler(uint8_t rhport)
       if (cmd_stat & CMDSTAT_DEVICE_ADDR_MASK)
       {
         // debouncing as this can be set when device is powering
-        dcd_event_bus_signal(0, DCD_EVENT_UNPLUGGED, true);
+        dcd_event_bus_signal(rhport, DCD_EVENT_UNPLUGGED, true);
       }
     }
 
@@ -421,13 +426,13 @@ void dcd_int_handler(uint8_t rhport)
         // Note: Host may delay more than 3 ms before and/or after bus reset before doing enumeration.
         if (cmd_stat & CMDSTAT_DEVICE_ADDR_MASK)
         {
-          dcd_event_bus_signal(0, DCD_EVENT_SUSPEND, true);
+          dcd_event_bus_signal(rhport, DCD_EVENT_SUSPEND, true);
         }
       }
     }
 //        else
 //      { // resume signal
-//    dcd_event_bus_signal(0, DCD_EVENT_RESUME, true);
+//    dcd_event_bus_signal(rhport, DCD_EVENT_RESUME, true);
 //      }
 //    }
   }
@@ -441,7 +446,7 @@ void dcd_int_handler(uint8_t rhport)
 
     dcd_reg->DEVCMDSTAT |= CMDSTAT_SETUP_RECEIVED_MASK;
 
-    dcd_event_setup_received(0, _dcd.setup_packet, true);
+    dcd_event_setup_received(rhport, _dcd.setup_packet, true);
 
     // keep waiting for next setup
     _dcd.ep[0][1].buffer_offset = get_buf_offset(_dcd.setup_packet);
@@ -451,7 +456,7 @@ void dcd_int_handler(uint8_t rhport)
   }
 
   // Endpoint transfer complete interrupt
-  process_xfer_isr(int_status);
+  process_xfer_isr(rhport, int_status);
 }
 
 #endif
