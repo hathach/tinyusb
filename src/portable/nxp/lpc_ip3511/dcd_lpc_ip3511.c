@@ -61,11 +61,6 @@
 // 2000 0000 to 203F FFFF
 #define SRAM_REGION   0x20000000
 
-// Absolute max of endpoints pairs for all port
-// - 11 13 15 51 54 has 5x2 endpoints
-// - 55 usb0 (FS) has 5x2 endpoints, usb1 (HS) has 6x2 endpoints
-#define MAX_EP_PAIRS  6
-
 //--------------------------------------------------------------------+
 // IP3511 Registers
 //--------------------------------------------------------------------+
@@ -107,12 +102,17 @@ enum {
   CMDSTAT_DEVICE_ADDR_MASK    = TU_BIT(7 )-1,
   CMDSTAT_DEVICE_ENABLE_MASK  = TU_BIT(7 ),
   CMDSTAT_SETUP_RECEIVED_MASK = TU_BIT(8 ),
-  CMDSTAT_DEVICE_CONNECT_MASK = TU_BIT(16), ///< reflect the soft-connect only, does not reflect the actual attached state
+  CMDSTAT_DEVICE_CONNECT_MASK = TU_BIT(16), // reflect the soft-connect only, does not reflect the actual attached state
   CMDSTAT_DEVICE_SUSPEND_MASK = TU_BIT(17),
+                                            // 23-22 is link speed (only available for HighSpeed port)
   CMDSTAT_CONNECT_CHANGE_MASK = TU_BIT(24),
   CMDSTAT_SUSPEND_CHANGE_MASK = TU_BIT(25),
   CMDSTAT_RESET_CHANGE_MASK   = TU_BIT(26),
   CMDSTAT_VBUS_DEBOUNCED_MASK = TU_BIT(28),
+};
+
+enum {
+  CMDSTAT_SPEED_SHIFT = 22
 };
 
 //--------------------------------------------------------------------+
@@ -143,6 +143,11 @@ typedef struct
   uint16_t nbytes;
 }xfer_dma_t;
 
+// Absolute max of endpoints pairs for all port
+// - 11 13 15 51 54 has 5x2 endpoints
+// - 55 usb0 (FS) has 5x2 endpoints, usb1 (HS) has 6x2 endpoints
+#define MAX_EP_PAIRS  6
+
 // NOTE data will be transferred as soon as dcd get request by dcd_pipe(_queue)_xfer using double buffering.
 // current_td is used to keep track of number of remaining & xferred bytes of the current request.
 typedef struct
@@ -150,8 +155,8 @@ typedef struct
   // 256 byte aligned, 2 for double buffer (not used)
   // Each cmd_sts can only transfer up to DMA_NBYTES_MAX bytes each
   ep_cmd_sts_t ep[2*MAX_EP_PAIRS][2];
-
   xfer_dma_t dma[2*MAX_EP_PAIRS];
+
   TU_ATTR_ALIGNED(64) uint8_t setup_packet[8];
 }dcd_data_t;
 
@@ -164,24 +169,25 @@ CFG_TUSB_MEM_SECTION TU_ATTR_ALIGNED(256) static dcd_data_t _dcd;
 
 typedef struct
 {
-  dcd_registers_t* regs;  // registers
-  const IRQn_Type irqnum; // IRQ number
-  const uint8_t ep_pairs; // Max bi-directional Endpoints
+  dcd_registers_t* regs;        // registers
+  const tusb_speed_t max_speed; // max link speed
+  const IRQn_Type irqnum;       // IRQ number
+  const uint8_t ep_pairs;       // Max bi-directional Endpoints
 }dcd_controller_t;
 
 #ifdef INCLUDE_FSL_DEVICE_REGISTERS
   static const dcd_controller_t _dcd_controller[] =
   {
-      { .regs = (dcd_registers_t*) USB0_BASE  , .irqnum = USB0_IRQn, .ep_pairs = FSL_FEATURE_USB_EP_NUM    },
+      { .regs = (dcd_registers_t*) USB0_BASE  , .max_speed = TUSB_SPEED_FULL, .irqnum = USB0_IRQn, .ep_pairs = FSL_FEATURE_USB_EP_NUM    },
     #if FSL_FEATURE_SOC_USBHSD_COUNT
-      { .regs = (dcd_registers_t*) USBHSD_BASE, .irqnum = USB1_IRQn, .ep_pairs = FSL_FEATURE_USBHSD_EP_NUM }
+      { .regs = (dcd_registers_t*) USBHSD_BASE, .max_speed = TUSB_SPEED_HIGH, .irqnum = USB1_IRQn, .ep_pairs = FSL_FEATURE_USBHSD_EP_NUM }
     #endif
   };
 
 #else
   static const dcd_controller_t _dcd_controller[] =
   {
-    { .regs = (dcd_registers_t*) LPC_USB0_BASE, .irqnum = USB0_IRQn, .ep_pairs = 5 },
+    { .regs = (dcd_registers_t*) LPC_USB0_BASE, .max_speed = TUSB_SPEED_FULL, .irqnum = USB0_IRQn, .ep_pairs = 5 },
   };
 
 #endif
@@ -405,7 +411,19 @@ void dcd_int_handler(uint8_t rhport)
     if ( cmd_stat & CMDSTAT_RESET_CHANGE_MASK) // bus reset
     {
       bus_reset(rhport);
-      dcd_event_bus_reset(rhport, TUSB_SPEED_FULL, true);
+
+      tusb_speed_t speed = TUSB_SPEED_FULL;
+
+      if (_dcd_controller[rhport].max_speed == TUSB_SPEED_HIGH)
+      {
+        // 0 : reserved, 1 : full, 2 : high, 3: super
+        if ( 2 == ((cmd_stat >> CMDSTAT_SPEED_SHIFT) & 0x3UL) )
+        {
+          speed= TUSB_SPEED_HIGH;
+        }
+      }
+
+      dcd_event_bus_reset(rhport, speed, true);
     }
 
     if (cmd_stat & CMDSTAT_CONNECT_CHANGE_MASK)

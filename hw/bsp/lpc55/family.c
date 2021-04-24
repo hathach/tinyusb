@@ -164,43 +164,71 @@ void board_init(void)
   /* PORT0 PIN22 configured as USB0_VBUS */
   IOCON_PinMuxSet(IOCON, 0U, 22U, IOCON_PIO_DIG_FUNC7_EN);
 
-  // USB Controller
-  POWER_DisablePD(kPDRUNCFG_PD_USB0_PHY); /*Turn on USB0 Phy */
-  POWER_DisablePD(kPDRUNCFG_PD_USB1_PHY); /*< Turn on USB1 Phy */
+#if CFG_TUSB_RHPORT0_MODE & OPT_MODE_DEVICE
+  // Port0 is Full Speed
+
+  /* Turn on USB0 Phy */
+  POWER_DisablePD(kPDRUNCFG_PD_USB0_PHY);
 
   /* reset the IP to make sure it's in reset state. */
   RESET_PeripheralReset(kUSB0D_RST_SHIFT_RSTn);
   RESET_PeripheralReset(kUSB0HSL_RST_SHIFT_RSTn);
   RESET_PeripheralReset(kUSB0HMR_RST_SHIFT_RSTn);
+
+  // Enable USB Clock Adjustments to trim the FRO for the full speed controller
+  ANACTRL->FRO192M_CTRL |= ANACTRL_FRO192M_CTRL_USBCLKADJ_MASK;
+  CLOCK_SetClkDiv(kCLOCK_DivUsb0Clk, 1, false);
+  CLOCK_AttachClk(kFRO_HF_to_USB0_CLK);
+
+  /*According to reference mannual, device mode setting has to be set by access usb host register */
+  CLOCK_EnableClock(kCLOCK_Usbhsl0);  // enable usb0 host clock
+  USBFSH->PORTMODE |= USBFSH_PORTMODE_DEV_ENABLE_MASK;
+  CLOCK_DisableClock(kCLOCK_Usbhsl0); // disable usb0 host clock
+
+  /* enable USB Device clock */
+  CLOCK_EnableUsbfs0DeviceClock(kCLOCK_UsbfsSrcFro, CLOCK_GetFreq(kCLOCK_FroHf));
+#endif
+
+#if CFG_TUSB_RHPORT1_MODE & OPT_MODE_DEVICE
+  // Port1 is High Speed
+
+  /* Turn on USB1 Phy */
+  POWER_DisablePD(kPDRUNCFG_PD_USB1_PHY);
+
+  /* reset the IP to make sure it's in reset state. */
   RESET_PeripheralReset(kUSB1H_RST_SHIFT_RSTn);
   RESET_PeripheralReset(kUSB1D_RST_SHIFT_RSTn);
   RESET_PeripheralReset(kUSB1_RST_SHIFT_RSTn);
   RESET_PeripheralReset(kUSB1RAM_RST_SHIFT_RSTn);
 
-#if CFG_TUSB_RHPORT1_MODE & OPT_MODE_DEVICE
-  CLOCK_EnableClock(kCLOCK_Usbh1);
-  /* Put PHY powerdown under software control */
-  USBHSH->PORTMODE = USBHSH_PORTMODE_SW_PDCOM_MASK;
   /* According to reference mannual, device mode setting has to be set by access usb host register */
+  CLOCK_EnableClock(kCLOCK_Usbh1); // enable usb0 host clock
+
+  USBHSH->PORTMODE = USBHSH_PORTMODE_SW_PDCOM_MASK; // Put PHY powerdown under software control
   USBHSH->PORTMODE |= USBHSH_PORTMODE_DEV_ENABLE_MASK;
-  /* enable usb1 host clock */
-  CLOCK_DisableClock(kCLOCK_Usbh1);
-#endif
 
-#if CFG_TUSB_RHPORT0_MODE & OPT_MODE_DEVICE
-  // Enable USB Clock Adjustments to trim the FRO for the full speed controller
-  ANACTRL->FRO192M_CTRL |= ANACTRL_FRO192M_CTRL_USBCLKADJ_MASK;
-  CLOCK_SetClkDiv(kCLOCK_DivUsb0Clk, 1, false);
-  CLOCK_AttachClk(kFRO_HF_to_USB0_CLK);
-  /* enable usb0 host clock */
-  CLOCK_EnableClock(kCLOCK_Usbhsl0);
-  /*According to reference mannual, device mode setting has to be set by access usb host register */
-  USBFSH->PORTMODE |= USBFSH_PORTMODE_DEV_ENABLE_MASK;
-  /* disable usb0 host clock */
-  CLOCK_DisableClock(kCLOCK_Usbhsl0);
-  CLOCK_EnableUsbfs0DeviceClock(kCLOCK_UsbfsSrcFro, CLOCK_GetFreq(kCLOCK_FroHf)); /* enable USB Device clock */
-#endif
+  CLOCK_DisableClock(kCLOCK_Usbh1); // disable usb0 host clock
 
+  /* enable USB Device clock */
+  CLOCK_EnableUsbhs0PhyPllClock(kCLOCK_UsbPhySrcExt, XTAL0_CLK_HZ);
+  CLOCK_EnableUsbhs0DeviceClock(kCLOCK_UsbSrcUnused, 0U);
+  //USB_EhciPhyInit(CONTROLLER_ID, BOARD_XTAL0_CLK_HZ, NULL);
+
+  // Enable PHY support for Low speed device + LS via FS Hub
+  USBPHY->CTRL |= USBPHY_CTRL_SET_ENUTMILEVEL2_MASK | USBPHY_CTRL_SET_ENUTMILEVEL3_MASK;
+
+  // Enable all power for normal operation
+  USBPHY->PWD = 0;
+
+  USBPHY->CTRL_SET = USBPHY_CTRL_SET_ENAUTOCLR_CLKGATE_MASK;
+  USBPHY->CTRL_SET = USBPHY_CTRL_SET_ENAUTOCLR_PHY_PWD_MASK;
+
+  // TX Timing
+//  uint32_t phytx = USBPHY->TX;
+//  phytx &= ~(USBPHY_TX_D_CAL_MASK | USBPHY_TX_TXCAL45DM_MASK | USBPHY_TX_TXCAL45DP_MASK);
+//  phytx |= USBPHY_TX_D_CAL(0x0C) | USBPHY_TX_TXCAL45DP(0x06) | USBPHY_TX_TXCAL45DM(0x06);
+//  USBPHY->TX = phytx;
+#endif
 }
 
 //--------------------------------------------------------------------+
