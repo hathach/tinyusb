@@ -194,19 +194,21 @@ typedef struct
 }dcd_controller_t;
 
 #ifdef INCLUDE_FSL_DEVICE_REGISTERS
-  static const dcd_controller_t _dcd_controller[] =
-  {
-      { .regs = (dcd_registers_t*) USB0_BASE  , .max_speed = TUSB_SPEED_FULL, .irqnum = USB0_IRQn, .ep_pairs = FSL_FEATURE_USB_EP_NUM    },
-    #if defined(FSL_FEATURE_SOC_USBHSD_COUNT) && FSL_FEATURE_SOC_USBHSD_COUNT
-      { .regs = (dcd_registers_t*) USBHSD_BASE, .max_speed = TUSB_SPEED_HIGH, .irqnum = USB1_IRQn, .ep_pairs = FSL_FEATURE_USBHSD_EP_NUM }
-    #endif
-  };
+
+static const dcd_controller_t _dcd_controller[] =
+{
+    { .regs = (dcd_registers_t*) USB0_BASE  , .max_speed = TUSB_SPEED_FULL, .irqnum = USB0_IRQn, .ep_pairs = FSL_FEATURE_USB_EP_NUM    },
+  #if defined(FSL_FEATURE_SOC_USBHSD_COUNT) && FSL_FEATURE_SOC_USBHSD_COUNT
+    { .regs = (dcd_registers_t*) USBHSD_BASE, .max_speed = TUSB_SPEED_HIGH, .irqnum = USB1_IRQn, .ep_pairs = FSL_FEATURE_USBHSD_EP_NUM }
+  #endif
+};
 
 #else
-  static const dcd_controller_t _dcd_controller[] =
-  {
-    { .regs = (dcd_registers_t*) LPC_USB0_BASE, .max_speed = TUSB_SPEED_FULL, .irqnum = USB0_IRQn, .ep_pairs = 5 },
-  };
+
+static const dcd_controller_t _dcd_controller[] =
+{
+  { .regs = (dcd_registers_t*) LPC_USB0_BASE, .max_speed = TUSB_SPEED_FULL, .irqnum = USB0_IRQn, .ep_pairs = 5 },
+};
 
 #endif
 
@@ -457,8 +459,6 @@ void dcd_int_handler(uint8_t rhport)
 
   uint32_t int_status = dcd_reg->INTSTAT & dcd_reg->INTEN;
   dcd_reg->INTSTAT = int_status; // Acknowledge handled interrupt
-
-  TU_LOG2_HEX(int_status);
 
   if (int_status == 0) return;
 
