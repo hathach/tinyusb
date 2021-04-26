@@ -26,7 +26,7 @@ idf_component_register (SRCS "main.c" "usb_descriptors.c"
                                 "${TOP}/src/class/cdc/cdc_host.c"
                                 "${TOP}/src/class/hid/hid_host.c"
                                 "${TOP}/src/class/msc/msc_host.c"
-                                "${TOP}/src/portable/espressif/esp32s2/dcd_esp32s2.c"
+                                "${TOP}/src/portable/espressif/esp32sx/dcd_esp32sx.c"
                         INCLUDE_DIRS "." 
                                      $ENV{IDF_PATH}
                                      "${TOP}/hw" "${TOP}/src" 
