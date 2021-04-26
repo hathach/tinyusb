@@ -212,7 +212,7 @@ void board_init(void)
   /* enable USB Device clock */
   CLOCK_EnableUsbhs0PhyPllClock(kCLOCK_UsbPhySrcExt, XTAL0_CLK_HZ);
   CLOCK_EnableUsbhs0DeviceClock(kCLOCK_UsbSrcUnused, 0U);
-  //USB_EhciPhyInit(CONTROLLER_ID, BOARD_XTAL0_CLK_HZ, NULL);
+  CLOCK_EnableClock(kCLOCK_UsbRam1);
 
   // Enable PHY support for Low speed device + LS via FS Hub
   USBPHY->CTRL |= USBPHY_CTRL_SET_ENUTMILEVEL2_MASK | USBPHY_CTRL_SET_ENUTMILEVEL3_MASK;

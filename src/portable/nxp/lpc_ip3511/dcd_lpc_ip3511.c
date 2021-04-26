@@ -114,22 +114,39 @@ enum {
 // Endpoint Command/Status List
 //--------------------------------------------------------------------+
 
-typedef struct TU_ATTR_PACKED
+// Endpoint Command/Status
+typedef union TU_ATTR_PACKED
 {
-  // Bits 21:6 (aligned 64) used in conjunction with bit 31:22 of DATABUFSTART
-  volatile uint16_t buffer_offset;
+  // Full and High speed has different bit layout for buffer_offset and nbytes
 
-  volatile uint16_t nbytes : 10 ;
-  uint16_t is_iso          : 1  ;
-  uint16_t toggle_mode     : 1  ;
-  uint16_t toggle_reset    : 1  ;
-  uint16_t stall           : 1  ;
-  uint16_t disable         : 1  ;
-  volatile uint16_t active : 1  ;
+  // Buffer (aligned 64) = DATABUFSTART [31:22]  | buffer_offset [21:6]
+  volatile struct {
+    uint32_t offset      : 16;
+    uint32_t nbytes      : 10;
+    uint32_t TU_RESERVED : 6;
+  } buffer_fs;
+
+  // Buffer (aligned 64) = USB_RAM [31:17] | buffer_offset [16:6]
+  volatile struct {
+    uint32_t offset      : 11 ;
+    uint32_t nbytes      : 15 ;
+    uint32_t TU_RESERVED : 6  ;
+  } buffer_hs;
+
+  volatile struct {
+    uint32_t TU_RESERVED  : 26;
+    uint32_t is_iso       : 1 ;
+    uint32_t toggle_mode  : 1 ;
+    uint32_t toggle_reset : 1 ;
+    uint32_t stall        : 1 ;
+    uint32_t disable      : 1 ;
+    uint32_t active       : 1 ;
+  };
 }ep_cmd_sts_t;
 
 TU_VERIFY_STATIC( sizeof(ep_cmd_sts_t) == 4, "size is not correct" );
 
+// Software transfer management
 typedef struct
 {
   uint16_t total_bytes;
@@ -217,8 +234,8 @@ void dcd_init(uint8_t rhport)
   dcd_registers_t* dcd_reg = _dcd_controller[rhport].regs;
 
   dcd_reg->EPLISTSTART  = (uint32_t) _dcd.ep;
-  dcd_reg->DATABUFSTART = tu_align((uint32_t) &_dcd, 22); // 22-bit alignment
-  dcd_reg->INTSTAT      = dcd_reg->INTSTAT; // clear all pending interrupt
+  dcd_reg->DATABUFSTART = tu_align((uint32_t) &_dcd, TU_BIT(22)); // 22-bit alignment
+  dcd_reg->INTSTAT     |= dcd_reg->INTSTAT; // clear all pending interrupt
   dcd_reg->INTEN        = INT_DEVICE_STATUS_MASK;
   dcd_reg->DEVCMDSTAT  |= CMDSTAT_DEVICE_ENABLE_MASK | CMDSTAT_DEVICE_CONNECT_MASK |
                            CMDSTAT_RESET_CHANGE_MASK | CMDSTAT_CONNECT_CHANGE_MASK | CMDSTAT_SUSPEND_CHANGE_MASK;
@@ -310,15 +327,34 @@ bool dcd_edpt_open(uint8_t rhport, tusb_desc_endpoint_t const * p_endpoint_desc)
   return true;
 }
 
-static void prepare_ep_xfer(uint8_t ep_id, uint16_t buf_offset, uint16_t total_bytes)
+static void prepare_setup_packet(uint8_t rhport)
+{
+  if (_dcd_controller[rhport].max_speed == TUSB_SPEED_FULL )
+  {
+    _dcd.ep[0][1].buffer_fs.offset = get_buf_offset(_dcd.setup_packet);;
+  }else
+  {
+    _dcd.ep[0][1].buffer_hs.offset = get_buf_offset(_dcd.setup_packet);;
+  }
+}
+
+static void prepare_ep_xfer(uint8_t rhport, uint8_t ep_id, uint16_t buf_offset, uint16_t total_bytes)
 {
   uint16_t const nbytes = tu_min16(total_bytes, DMA_NBYTES_MAX);
 
   _dcd.dma[ep_id].nbytes = nbytes;
 
-  _dcd.ep[ep_id][0].buffer_offset = buf_offset;
-  _dcd.ep[ep_id][0].nbytes        = nbytes;
-  _dcd.ep[ep_id][0].active        = 1;
+  if (_dcd_controller[rhport].max_speed == TUSB_SPEED_FULL )
+  {
+    _dcd.ep[ep_id][0].buffer_fs.offset = buf_offset;
+    _dcd.ep[ep_id][0].buffer_fs.nbytes        = nbytes;
+  }else
+  {
+    _dcd.ep[ep_id][0].buffer_hs.offset = buf_offset;
+    _dcd.ep[ep_id][0].buffer_hs.nbytes        = nbytes;
+  }
+
+  _dcd.ep[ep_id][0].active = 1;
 }
 
 bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t* buffer, uint16_t total_bytes)
@@ -330,7 +366,7 @@ bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t* buffer, uint16_t to
   tu_memclr(&_dcd.dma[ep_id], sizeof(xfer_dma_t));
   _dcd.dma[ep_id].total_bytes = total_bytes;
 
-  prepare_ep_xfer(ep_id, get_buf_offset(buffer), total_bytes);
+  prepare_ep_xfer(rhport, ep_id, get_buf_offset(buffer), total_bytes);
 
   return true;
 }
@@ -348,7 +384,7 @@ static void bus_reset(uint8_t rhport)
     _dcd.ep[ep_id][0].disable = _dcd.ep[ep_id][1].disable = 1;
   }
 
-  _dcd.ep[0][1].buffer_offset = get_buf_offset(_dcd.setup_packet);
+  prepare_setup_packet(rhport);
 
   dcd_registers_t* dcd_reg = _dcd_controller[rhport].regs;
 
@@ -372,16 +408,36 @@ static void process_xfer_isr(uint8_t rhport, uint32_t int_status)
       ep_cmd_sts_t * ep_cs = &_dcd.ep[ep_id][0];
       xfer_dma_t* xfer_dma = &_dcd.dma[ep_id];
 
-      xfer_dma->xferred_bytes += xfer_dma->nbytes - ep_cs->nbytes;
+      if ( ep_id == 0 || ep_id == 1)
+      {
+        // For control endpoint, we need to manually clear Active bit
+        ep_cs->active = 0;
+      }
 
-      if ( (ep_cs->nbytes == 0) && (xfer_dma->total_bytes > xfer_dma->xferred_bytes) )
+      uint16_t buf_offset;
+      uint16_t buf_nbytes;
+
+      if (_dcd_controller[rhport].max_speed == TUSB_SPEED_FULL)
+      {
+        buf_offset = ep_cs->buffer_fs.offset;
+        buf_nbytes = ep_cs->buffer_fs.nbytes;
+      }else
+      {
+        buf_offset = ep_cs->buffer_hs.offset;
+        buf_nbytes = ep_cs->buffer_hs.nbytes;
+      }
+
+      xfer_dma->xferred_bytes += xfer_dma->nbytes - buf_nbytes;
+
+      if ( (buf_nbytes == 0) && (xfer_dma->total_bytes > xfer_dma->xferred_bytes) )
       {
         // There is more data to transfer
         // buff_offset has been already increased by hw to correct value for next transfer
-        prepare_ep_xfer(ep_id, ep_cs->buffer_offset, xfer_dma->total_bytes - xfer_dma->xferred_bytes);
+        prepare_ep_xfer(rhport, ep_id, buf_offset, xfer_dma->total_bytes - xfer_dma->xferred_bytes);
       }
       else
       {
+        // for detecting ZLP
         xfer_dma->total_bytes = xfer_dma->xferred_bytes;
 
         uint8_t const ep_addr = tu_edpt_addr(ep_id / 2, ep_id & 0x01);
@@ -402,12 +458,15 @@ void dcd_int_handler(uint8_t rhport)
   uint32_t int_status = dcd_reg->INTSTAT & dcd_reg->INTEN;
   dcd_reg->INTSTAT = int_status; // Acknowledge handled interrupt
 
+  TU_LOG2_HEX(int_status);
+
   if (int_status == 0) return;
 
   //------------- Device Status -------------//
   if ( int_status & INT_DEVICE_STATUS_MASK )
   {
     dcd_reg->DEVCMDSTAT |= CMDSTAT_RESET_CHANGE_MASK | CMDSTAT_CONNECT_CHANGE_MASK | CMDSTAT_SUSPEND_CHANGE_MASK;
+
     if ( cmd_stat & CMDSTAT_RESET_CHANGE_MASK) // bus reset
     {
       bus_reset(rhport);
@@ -467,7 +526,7 @@ void dcd_int_handler(uint8_t rhport)
     dcd_event_setup_received(rhport, _dcd.setup_packet, true);
 
     // keep waiting for next setup
-    _dcd.ep[0][1].buffer_offset = get_buf_offset(_dcd.setup_packet);
+    prepare_setup_packet(rhport);
 
     // clear bit0
     int_status = tu_bit_clear(int_status, 0);
