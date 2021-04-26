@@ -77,28 +77,19 @@ static void proc_write10_cmd(uint8_t rhport, mscd_interface_t* p_msc);
 
 static inline uint32_t rdwr10_get_lba(uint8_t const command[])
 {
-  // read10 & write10 has the same format
-  scsi_write10_t* p_rdwr10 = (scsi_write10_t*) command;
+  // use offsetof to avoid pointer to the odd/unaligned address
+  uint32_t const lba = tu_unaligned_read32(command + offsetof(scsi_write10_t, lba));
 
-  // copy first to prevent mis-aligned access
-  uint32_t lba;
-  // use offsetof to avoid pointer to the odd/misaligned address
-  memcpy(&lba, (uint8_t*) p_rdwr10 + offsetof(scsi_write10_t, lba), 4);
-
-  // lba is in Big Endian format
+  // lba is in Big Endian
   return tu_ntohl(lba);
 }
 
 static inline uint16_t rdwr10_get_blockcount(uint8_t const command[])
 {
-  // read10 & write10 has the same format
-  scsi_write10_t* p_rdwr10 = (scsi_write10_t*) command;
-
-  // copy first to prevent mis-aligned access
-  uint16_t block_count;
   // use offsetof to avoid pointer to the odd/misaligned address
-  memcpy(&block_count, (uint8_t*) p_rdwr10 + offsetof(scsi_write10_t, block_count), 2);
+  uint16_t const block_count = tu_unaligned_read16(command + offsetof(scsi_write10_t, block_count));
 
+  // block count is in Big Endian
   return tu_ntohs(block_count);
 }
 

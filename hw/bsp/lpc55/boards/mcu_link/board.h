@@ -32,22 +32,22 @@
 #endif
 
 // LED
-#define LED_PORT              1
-#define LED_PIN               6
+#define LED_PORT              0
+#define LED_PIN               5
 #define LED_STATE_ON          0
 
-// WAKE button
-#define BUTTON_PORT           1
-#define BUTTON_PIN            18
+// WAKE button (Dummy, use unused pin
+#define BUTTON_PORT           0
+#define BUTTON_PIN            30
 #define BUTTON_STATE_ACTIVE   0
 
 // UART
 #define UART_DEV              USART0
-#define UART_RX_PINMUX        0, 29, IOCON_PIO_DIG_FUNC1_EN
-#define UART_TX_PINMUX        0, 30, IOCON_PIO_DIG_FUNC1_EN
+#define UART_RX_PINMUX        0, 24, IOCON_PIO_DIG_FUNC1_EN
+#define UART_TX_PINMUX        0, 25, IOCON_PIO_DIG_FUNC1_EN
 
 // XTAL
-#define XTAL0_CLK_HZ          16000000U
+#define XTAL0_CLK_HZ          (16 * 1000 * 1000U)
 
 #ifdef __cplusplus
  }

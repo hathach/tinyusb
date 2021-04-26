@@ -34,6 +34,7 @@
 //--------------------------------------------------------------------+
 #if CFG_TUSB_MCU == OPT_MCU_MIMXRT10XX
   #include "fsl_device_registers.h"
+  #define INCLUDE_FSL_DEVICE_REGISTERS
 #else
   // LPCOpen for 18xx & 43xx
   #include "chip.h"

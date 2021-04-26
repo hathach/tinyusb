@@ -14,13 +14,15 @@ CFLAGS += \
   -mfloat-abi=hard \
   -mfpu=fpv5-sp-d16 \
   -DCFG_TUSB_MCU=OPT_MCU_LPC55XX \
-  -DCFG_TUSB_MEM_SECTION='__attribute__((section(".data")))' \
   -DCFG_TUSB_MEM_ALIGN='__attribute__((aligned(64)))' \
   -DBOARD_DEVICE_RHPORT_NUM=$(PORT)
 
 ifeq ($(PORT), 1)
-  CFLAGS += -DBOARD_DEVICE_RHPORT_SPEED=OPT_MODE_HIGH_SPEED
   $(info "PORT1 High Speed")
+  CFLAGS += -DBOARD_DEVICE_RHPORT_SPEED=OPT_MODE_HIGH_SPEED
+
+  # LPC55 Highspeed Port1 can only write to USB_SRAM region
+  CFLAGS += -DCFG_TUSB_MEM_SECTION='__attribute__((section("m_usb_global")))'
 else
   $(info "PORT0 Full Speed")
 endif
