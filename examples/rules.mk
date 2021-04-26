@@ -172,9 +172,6 @@ flash-pyocd: $(BUILD)/$(PROJECT).hex
 	pyocd flash -t $(PYOCD_TARGET) $<
 	pyocd reset -t $(PYOCD_TARGET)
 
-flash-idf: $(BUILD)/$(PROJECT).bin
-	idf.py -p 0 -B_build/espressif_saola_1 -DFAMILY=esp32s2 -DBOARD=espressif_saola_1 flash 
-
 # flash with Black Magic Probe
 
 # This symlink is created by https://github.com/blacksphere/blackmagic/blob/master/driver/99-blackmagic.rules
