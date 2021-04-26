@@ -76,16 +76,10 @@ typedef struct {
   __I  uint32_t EPTOGGLE;      // Endpoint toggle register, offset: 0x34
 } dcd_registers_t;
 
-/* Although device controller are the same. Somehow only LPC134x can execute
- * DMA with 1023 bytes for Bulk/Control. Others (11u, 51u, 54xxx) can only work
- * with max 64 bytes
- */
+// Max nbytes for each control/bulk/interrupt transfer
 enum {
-  #if CFG_TUSB_MCU == OPT_MCU_LPC13XX
-    DMA_NBYTES_MAX = 1023
-  #else
-    DMA_NBYTES_MAX = 64
-  #endif
+  NBYTES_CBI_FULLSPEED_MAX = 64,
+  NBYTES_CBI_HIGHSPEED_MAX = 32767 // can be up to all 15-bit, but only tested with 4096
 };
 
 enum {
@@ -342,19 +336,22 @@ static void prepare_setup_packet(uint8_t rhport)
 
 static void prepare_ep_xfer(uint8_t rhport, uint8_t ep_id, uint16_t buf_offset, uint16_t total_bytes)
 {
-  uint16_t const nbytes = tu_min16(total_bytes, DMA_NBYTES_MAX);
-
-  _dcd.dma[ep_id].nbytes = nbytes;
+  uint16_t nbytes;
 
   if (_dcd_controller[rhport].max_speed == TUSB_SPEED_FULL )
   {
+    // TODO ISO FullSpeed can have up to 1023 bytes
+    nbytes = tu_min16(total_bytes, NBYTES_CBI_FULLSPEED_MAX);
     _dcd.ep[ep_id][0].buffer_fs.offset = buf_offset;
-    _dcd.ep[ep_id][0].buffer_fs.nbytes        = nbytes;
+    _dcd.ep[ep_id][0].buffer_fs.nbytes = nbytes;
   }else
   {
+    nbytes = tu_min16(total_bytes, NBYTES_CBI_HIGHSPEED_MAX);
     _dcd.ep[ep_id][0].buffer_hs.offset = buf_offset;
-    _dcd.ep[ep_id][0].buffer_hs.nbytes        = nbytes;
+    _dcd.ep[ep_id][0].buffer_hs.nbytes = nbytes;
   }
+
+  _dcd.dma[ep_id].nbytes = nbytes;
 
   _dcd.ep[ep_id][0].active = 1;
 }
