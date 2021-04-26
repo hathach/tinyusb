@@ -52,6 +52,7 @@ typedef enum
 
   // Not an DCD event, just a convenient way to defer ISR function
   USBD_EVENT_FUNC_CALL,
+  USBD_EVENT_DATA_AVAIL,
 
   DCD_EVENT_COUNT
 } dcd_eventid_t;

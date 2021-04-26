@@ -282,7 +282,8 @@ static char const* const _usbd_event_str[DCD_EVENT_COUNT] =
   "Resume"         ,
   "Setup Received" ,
   "Xfer Complete"  ,
-  "Func Call"
+  "Func Call"      ,
+  "Data Avail"
 };
 
 static char const* const _tusb_std_request_str[] =
@@ -460,11 +461,14 @@ void tud_task (void)
 
 #if CFG_TUSB_DEBUG >= 2
     if (event.event_id == DCD_EVENT_SETUP_RECEIVED) TU_LOG2("\r\n"); // extra line for setup
-    TU_LOG2("USBD %s ", event.event_id < DCD_EVENT_COUNT ? _usbd_event_str[event.event_id] : "CORRUPTED");
+    TU_LOG2("USBD %d %s ", event.event_id, event.event_id < DCD_EVENT_COUNT ? _usbd_event_str[event.event_id] : "CORRUPTED");
 #endif
 
     switch ( event.event_id )
     {
+      case USBD_EVENT_DATA_AVAIL:
+        return;
+
       case DCD_EVENT_BUS_RESET:
         TU_LOG2(": %s Speed\r\n", _tusb_speed_str[event.bus_reset.speed]);
         usbd_reset(event.rhport);

@@ -43,6 +43,9 @@
 
 #include "device/dcd.h"
 
+#undef ESP_EARLY_LOGV
+#define ESP_EARLY_LOGV(x,y, ...)
+
 // Since TinyUSB doesn't use SOF for now, and this interrupt too often (1ms interval)
 // We disable SOF for now until needed later on
 #define USE_SOF     0
@@ -335,9 +338,9 @@ bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t *buffer, uint16_t to
     num_packets++;
   }
 
-  ESP_LOGV(TAG, "Transfer <-> EP%i, %s, pkgs: %i, bytes: %i",
+  /*ESP_LOGV(TAG, "Transfer <-> EP%i, %s, pkgs: %i, bytes: %i",
            epnum, ((dir == TUSB_DIR_IN) ? "USB0.HOST (in)" : "HOST->DEV (out)"),
-           num_packets, total_bytes);
+           num_packets, total_bytes);*/
 
   // IN and OUT endpoint xfers are interrupt-driven, we just schedule them
   // here.
@@ -384,9 +387,9 @@ bool dcd_edpt_xfer_fifo (uint8_t rhport, uint8_t ep_addr, tu_fifo_t * ff, uint16
     num_packets++;
   }
 
-  ESP_LOGV(TAG, "Transfer <-> EP%i, %s, pkgs: %i, bytes: %i",
+  /*ESP_LOGV(TAG, "Transfer <-> EP%i, %s, pkgs: %i, bytes: %i",
            epnum, ((dir == TUSB_DIR_IN) ? "USB0.HOST (in)" : "HOST->DEV (out)"),
-           num_packets, total_bytes);
+           num_packets, total_bytes);*/
 
   // IN and OUT endpoint xfers are interrupt-driven, we just schedule them
   // here.
