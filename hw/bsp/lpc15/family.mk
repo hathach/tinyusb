@@ -1,5 +1,7 @@
 DEPS_SUBMODULES += hw/mcu/nxp
 
+include $(TOP)/$(BOARD_PATH)/board.mk
+
 CFLAGS += \
   -flto \
   -mthumb \
@@ -17,9 +19,6 @@ CFLAGS += -Wno-error=strict-prototypes -Wno-error=unused-parameter -Wno-error=un
 
 MCU_DIR = hw/mcu/nxp/lpcopen/lpc15xx/lpc_chip_15xx
 
-# All source paths should be relative to the top level.
-LD_FILE = hw/bsp/$(BOARD)/lpc1549.ld
-
 SRC_C += \
 	src/portable/nxp/lpc_ip3511/dcd_lpc_ip3511.c \
 	$(MCU_DIR)/../gcc/cr_startup_lpc15xx.c \
@@ -33,13 +32,8 @@ SRC_C += \
 	$(MCU_DIR)/src/sysinit_15xx.c
 
 INC += \
+	$(TOP)/$(BOARD_PATH) \
 	$(TOP)/$(MCU_DIR)/inc
 
 # For freeRTOS port source
 FREERTOS_PORT = ARM_CM3
-
-# For flash-jlink target
-JLINK_DEVICE = LPC1549
-
-# flash using jlink
-flash: flash-jlink
