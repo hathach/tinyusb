@@ -115,3 +115,6 @@
 [submodule "hw/mcu/nxp/lpcopen"]
 	path = hw/mcu/nxp/lpcopen
 	url = https://github.com/hathach/nxp_lpcopen.git
+[submodule "hw/mcu/nxp/mcux-sdk"]
+	path = hw/mcu/nxp/mcux-sdk
+	url = https://github.com/NXPmicro/mcux-sdk.git
