@@ -47,7 +47,7 @@
 #define UART_TX_PINMUX        0, 30, IOCON_PIO_DIG_FUNC1_EN
 
 // XTAL
-#define XTAL0_CLK_HZ          16000000U
+#define XTAL0_CLK_HZ          (16 * 1000 * 1000U)
 
 #ifdef __cplusplus
  }

@@ -1,4 +1,4 @@
-DEPS_SUBMODULES += hw/mcu/nxp
+DEPS_SUBMODULES += hw/mcu/nxp/lpcopen
 
 CFLAGS += \
   -flto \

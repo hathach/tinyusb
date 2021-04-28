@@ -39,20 +39,20 @@
 //--------------------------------------------------------------------+
 
 // IOCON pin mux
-#define IOCON_PIO_DIGITAL_EN     0x0100u /*!<@brief Enables digital function */
-#define IOCON_PIO_FUNC0          0x00u   /*!<@brief Selects pin function 0 */
-#define IOCON_PIO_FUNC1          0x01u   /*!<@brief Selects pin function 1 */
-#define IOCON_PIO_FUNC4          0x04u   /*!<@brief Selects pin function 4 */
-#define IOCON_PIO_FUNC7          0x07u   /*!<@brief Selects pin function 7 */
-#define IOCON_PIO_INV_DI         0x00u   /*!<@brief Input function is not inverted */
-#define IOCON_PIO_MODE_INACT     0x00u   /*!<@brief No addition pin function */
-#define IOCON_PIO_OPENDRAIN_DI   0x00u   /*!<@brief Open drain is disabled */
-#define IOCON_PIO_SLEW_STANDARD  0x00u   /*!<@brief Standard mode, output slew rate control is enabled */
+#define IOCON_PIO_DIGITAL_EN     0x0100u // Enables digital function
+#define IOCON_PIO_FUNC0          0x00u   // Selects pin function 0
+#define IOCON_PIO_FUNC1          0x01u   // Selects pin function 1
+#define IOCON_PIO_FUNC4          0x04u   // Selects pin function 4
+#define IOCON_PIO_FUNC7          0x07u   // Selects pin function 7
+#define IOCON_PIO_INV_DI         0x00u   // Input function is not inverted
+#define IOCON_PIO_MODE_INACT     0x00u   // No addition pin function
+#define IOCON_PIO_OPENDRAIN_DI   0x00u   // Open drain is disabled
+#define IOCON_PIO_SLEW_STANDARD  0x00u   // Standard mode, output slew rate control is enabled
 
-#define IOCON_PIO_DIG_FUNC0_EN   (IOCON_PIO_DIGITAL_EN | IOCON_PIO_FUNC0) /*!<@brief Digital pin function 0 enabled */
-#define IOCON_PIO_DIG_FUNC1_EN   (IOCON_PIO_DIGITAL_EN | IOCON_PIO_FUNC1) /*!<@brief Digital pin function 1 enabled */
-#define IOCON_PIO_DIG_FUNC4_EN   (IOCON_PIO_DIGITAL_EN | IOCON_PIO_FUNC4) /*!<@brief Digital pin function 2 enabled */
-#define IOCON_PIO_DIG_FUNC7_EN   (IOCON_PIO_DIGITAL_EN | IOCON_PIO_FUNC7) /*!<@brief Digital pin function 2 enabled */
+#define IOCON_PIO_DIG_FUNC0_EN   (IOCON_PIO_DIGITAL_EN | IOCON_PIO_FUNC0) // Digital pin function 0 enabled
+#define IOCON_PIO_DIG_FUNC1_EN   (IOCON_PIO_DIGITAL_EN | IOCON_PIO_FUNC1) // Digital pin function 1 enabled
+#define IOCON_PIO_DIG_FUNC4_EN   (IOCON_PIO_DIGITAL_EN | IOCON_PIO_FUNC4) // Digital pin function 2 enabled
+#define IOCON_PIO_DIG_FUNC7_EN   (IOCON_PIO_DIGITAL_EN | IOCON_PIO_FUNC7) // Digital pin function 2 enabled
 
 //--------------------------------------------------------------------+
 // Forward USB interrupt events to TinyUSB IRQ Handler

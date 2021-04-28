@@ -1,4 +1,5 @@
-DEPS_SUBMODULES += hw/mcu/nxp
+SDK_DIR = hw/mcu/nxp/nxp_sdk
+DEPS_SUBMODULES += $(SDK_DIR)
 
 CFLAGS += \
   -mthumb \
@@ -10,7 +11,7 @@ CFLAGS += \
 # mcu driver cause following warnings
 CFLAGS += -Wno-error=unused-parameter
 
-MCU_DIR = hw/mcu/nxp/sdk/devices/MKL25Z4
+MCU_DIR = $(SDK_DIR)/devices/MKL25Z4
 
 # All source paths should be relative to the top level.
 LD_FILE = $(MCU_DIR)/gcc/MKL25Z128xxx4_flash.ld
@@ -25,7 +26,7 @@ SRC_C += \
 
 INC += \
 	$(TOP)/hw/bsp/$(BOARD) \
-	$(TOP)/$(MCU_DIR)/../../CMSIS/Include \
+	$(TOP)/$(SDK_DIR)/CMSIS/Include \
 	$(TOP)/$(MCU_DIR) \
 	$(TOP)/$(MCU_DIR)/drivers \
 	$(TOP)/$(MCU_DIR)/project_template \

@@ -1,22 +1,17 @@
-UF2_FAMILY_ID = 0x2abc77ec
 SDK_DIR = hw/mcu/nxp/mcux-sdk
-DEPS_SUBMODULES += lib/sct_neopixel $(SDK_DIR)
+DEPS_SUBMODULES += $(SDK_DIR)
 
 include $(TOP)/$(BOARD_PATH)/board.mk
-
-# Default to Highspeed PORT1
-PORT ?= 1
 
 CFLAGS += \
   -flto \
   -mthumb \
   -mabi=aapcs \
-  -mcpu=cortex-m33 \
+  -mcpu=cortex-m4 \
   -mfloat-abi=hard \
-  -mfpu=fpv5-sp-d16 \
-  -DCFG_TUSB_MCU=OPT_MCU_LPC55XX \
-  -DCFG_TUSB_MEM_ALIGN='__attribute__((aligned(64)))' \
-  -DBOARD_DEVICE_RHPORT_NUM=$(PORT)
+  -mfpu=fpv4-sp-d16 \
+  -DCFG_TUSB_MCU=OPT_MCU_LPC54XXX \
+  -DCFG_TUSB_MEM_ALIGN='__attribute__((aligned(64)))' 
 
 ifeq ($(PORT), 1)
   $(info "PORT1 High Speed")
@@ -29,12 +24,9 @@ else
 endif
 
 # mcu driver cause following warnings
-CFLAGS += -Wno-error=unused-parameter -Wno-error=float-equal
+CFLAGS += -Wno-error=unused-parameter
 
 MCU_DIR = $(SDK_DIR)/devices/$(MCU_VARIANT)
-
-# All source paths should be relative to the top level.
-LD_FILE ?= $(MCU_DIR)/gcc/$(MCU_CORE)_flash.ld
 
 SRC_C += \
 	src/portable/nxp/lpc_ip3511/dcd_lpc_ip3511.c \
@@ -44,24 +36,19 @@ SRC_C += \
 	$(MCU_DIR)/drivers/fsl_reset.c \
 	$(SDK_DIR)/drivers/lpc_gpio/fsl_gpio.c \
 	$(SDK_DIR)/drivers/flexcomm/fsl_flexcomm.c \
-	$(SDK_DIR)/drivers/flexcomm/fsl_usart.c \
-	lib/sct_neopixel/sct_neopixel.c
+	$(SDK_DIR)/drivers/flexcomm/fsl_usart.c
 
 INC += \
 	$(TOP)/$(BOARD_PATH) \
-	$(TOP)/lib/sct_neopixel \
 	$(TOP)/$(MCU_DIR)/../../CMSIS/Include \
 	$(TOP)/$(MCU_DIR) \
 	$(TOP)/$(MCU_DIR)/drivers \
 	$(TOP)/$(SDK_DIR)/drivers/common \
 	$(TOP)/$(SDK_DIR)/drivers/flexcomm \
 	$(TOP)/$(SDK_DIR)/drivers/lpc_iocon \
-	$(TOP)/$(SDK_DIR)/drivers/lpc_gpio \
-	$(TOP)/$(SDK_DIR)/drivers/sctimer
+	$(TOP)/$(SDK_DIR)/drivers/lpc_gpio
 
 SRC_S += $(MCU_DIR)/gcc/startup_$(MCU_CORE).S
 
-LIBS += $(TOP)/$(MCU_DIR)/gcc/libpower_hardabi.a
-
 # For freeRTOS port source
-FREERTOS_PORT = ARM_CM33_NTZ/non_secure
+FREERTOS_PORT = ARM_CM4F

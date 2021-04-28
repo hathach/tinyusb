@@ -10,9 +10,6 @@
 [submodule "hw/mcu/ti"]
 	path = hw/mcu/ti
 	url = https://github.com/hathach/ti_driver.git
-[submodule "hw/mcu/nxp"]
-	path = hw/mcu/nxp
-	url = https://github.com/hathach/nxp_driver.git
 [submodule "hw/mcu/microchip"]
 	path = hw/mcu/microchip
 	url = https://github.com/hathach/microchip_driver.git
@@ -115,3 +112,12 @@
 [submodule "hw/mcu/renesas/rx"]
 	path = hw/mcu/renesas/rx
 	url = https://github.com/kkitayam/rx_device.git
+[submodule "hw/mcu/nxp/lpcopen"]
+	path = hw/mcu/nxp/lpcopen
+	url = https://github.com/hathach/nxp_lpcopen.git
+[submodule "hw/mcu/nxp/mcux-sdk"]
+	path = hw/mcu/nxp/mcux-sdk
+	url = https://github.com/NXPmicro/mcux-sdk.git
+[submodule "hw/mcu/nxp/nxp_sdk"]
+	path = hw/mcu/nxp/nxp_sdk
+	url = https://github.com/hathach/nxp_sdk.git

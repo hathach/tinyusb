@@ -1,4 +1,4 @@
-DEPS_SUBMODULES += hw/mcu/nxp
+DEPS_SUBMODULES += hw/mcu/nxp/lpcopen
 
 include $(TOP)/$(BOARD_PATH)/board.mk
 

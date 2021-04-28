@@ -32,29 +32,25 @@
 #endif
 
 // LED
-#define LED_PORT              0
-#define LED_PIN               1
-#define LED_STATE_ON          1
+#define LED_PORT              2
+#define LED_PIN               2
+#define LED_STATE_ON          0
 
 // WAKE button
-#define BUTTON_PORT           0
-#define BUTTON_PIN            5
+#define BUTTON_PORT           1
+#define BUTTON_PIN            1
 #define BUTTON_STATE_ACTIVE   0
-
-// Number of neopixels
-#define NEOPIXEL_NUMBER       2
-#define NEOPIXEL_PORT         0
-#define NEOPIXEL_PIN          27
-#define NEOPIXEL_CH           6
-#define NEOPIXEL_TYPE         0
 
 // UART
 #define UART_DEV              USART0
-#define UART_RX_PINMUX        0U, 29U, IOCON_PIO_DIG_FUNC1_EN
-#define UART_TX_PINMUX        0U, 30U, IOCON_PIO_DIG_FUNC1_EN
+#define UART_RX_PINMUX        0, 29, IOCON_PIO_DIG_FUNC1_EN
+#define UART_TX_PINMUX        0, 30, IOCON_PIO_DIG_FUNC1_EN
+
+// USB0 VBUS
+#define USB0_VBUS_PINMUX      0, 22, IOCON_PIO_DIG_FUNC7_EN
 
 // XTAL
-#define XTAL0_CLK_HZ          (16 * 1000 * 1000U)
+//#define XTAL0_CLK_HZ          (16 * 1000 * 1000U)
 
 #ifdef __cplusplus
  }

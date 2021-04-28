@@ -24,11 +24,36 @@
  * This file is part of the TinyUSB stack.
  */
 
-#include "../board.h"
 #include "fsl_device_registers.h"
 #include "fsl_gpio.h"
 #include "fsl_power.h"
 #include "fsl_iocon.h"
+#include "fsl_usart.h"
+
+#include "bsp/board.h"
+#include "board.h"
+
+//--------------------------------------------------------------------+
+// MACRO TYPEDEF CONSTANT ENUM
+//--------------------------------------------------------------------+
+
+// IOCON pin mux
+#define IOCON_PIO_DIGITAL_EN     0x80u   // Enables digital function
+#define IOCON_PIO_FUNC0          0x00u
+#define IOCON_PIO_FUNC1          0x01u   // Selects pin function 1
+#define IOCON_PIO_FUNC7          0x07u   // Selects pin function 7
+#define IOCON_PIO_INPFILT_OFF    0x0100u // Input filter disabled
+#define IOCON_PIO_INV_DI         0x00u   // Input function is not inverted
+#define IOCON_PIO_MODE_INACT     0x00u   // No addition pin function
+#define IOCON_PIO_MODE_PULLUP    0x10u
+#define IOCON_PIO_OPENDRAIN_DI   0x00u   // Open drain is disabled
+#define IOCON_PIO_SLEW_STANDARD  0x00u   // Standard mode, output slew rate control is enabled
+
+// Digital pin function n enabled
+#define IOCON_PIO_DIG_FUNC0_EN   (IOCON_PIO_DIGITAL_EN | IOCON_PIO_INPFILT_OFF | IOCON_PIO_FUNC0)
+#define IOCON_PIO_DIG_FUNC1_EN   (IOCON_PIO_DIGITAL_EN | IOCON_PIO_INPFILT_OFF | IOCON_PIO_FUNC1)
+#define IOCON_PIO_DIG_FUNC4_EN   (IOCON_PIO_DIGITAL_EN | IOCON_PIO_INPFILT_OFF | IOCON_PIO_FUNC4)
+#define IOCON_PIO_DIG_FUNC7_EN   (IOCON_PIO_DIGITAL_EN | IOCON_PIO_INPFILT_OFF | IOCON_PIO_FUNC7)
 
 //--------------------------------------------------------------------+
 // Forward USB interrupt events to TinyUSB IRQ Handler
@@ -38,28 +63,10 @@ void USB0_IRQHandler(void)
   tud_int_handler(0);
 }
 
-//--------------------------------------------------------------------+
-// MACRO TYPEDEF CONSTANT ENUM
-//--------------------------------------------------------------------+
-#define LED_PORT      0
-#define LED_PIN       29
-#define LED_STATE_ON  0
-
-// WAKE button
-#define BUTTON_PORT   0
-#define BUTTON_PIN    24
-
-// IOCON pin mux
-#define IOCON_PIO_DIGITAL_EN     0x80u   /*!<@brief Enables digital function */
-#define IOCON_PIO_FUNC0          0x00u
-#define IOCON_PIO_FUNC1          0x01u   /*!<@brief Selects pin function 1 */
-#define IOCON_PIO_FUNC7          0x07u   /*!<@brief Selects pin function 7 */
-#define IOCON_PIO_INPFILT_OFF    0x0100u /*!<@brief Input filter disabled */
-#define IOCON_PIO_INV_DI         0x00u   /*!<@brief Input function is not inverted */
-#define IOCON_PIO_MODE_INACT     0x00u   /*!<@brief No addition pin function */
-#define IOCON_PIO_MODE_PULLUP    0x10u
-#define IOCON_PIO_OPENDRAIN_DI   0x00u   /*!<@brief Open drain is disabled */
-#define IOCON_PIO_SLEW_STANDARD  0x00u   /*!<@brief Standard mode, output slew rate control is enabled */
+void USB1_IRQHandler(void)
+{
+  tud_int_handler(1);
+}
 
 /****************************************************************
 name: BOARD_BootClockFROHF96M
@@ -98,45 +105,86 @@ void board_init(void)
   // Enable IOCON clock
   CLOCK_EnableClock(kCLOCK_Iocon);
 
-  // Enable GPIO0 clock
-  CLOCK_EnableClock(kCLOCK_Gpio0);
-
   // Init 96 MHz clock
   BootClockFROHF96M();
 
-#if CFG_TUSB_OS == OPT_OS_NONE
   // 1ms tick timer
   SysTick_Config(SystemCoreClock / 1000);
-#elif CFG_TUSB_OS == OPT_OS_FREERTOS
+
+#if CFG_TUSB_OS == OPT_OS_FREERTOS
   // If freeRTOS is used, IRQ priority is limit by max syscall ( smaller is higher )
   NVIC_SetPriority(USB0_IRQn, configLIBRARY_MAX_SYSCALL_INTERRUPT_PRIORITY );
 #endif
 
+  // Init all GPIO ports 54114 only has 2 ports.
   GPIO_PortInit(GPIO, LED_PORT);
   GPIO_PortInit(GPIO, BUTTON_PORT);
 
   // LED
+  IOCON_PinMuxSet(IOCON, LED_PORT, LED_PIN, IOCON_PIO_DIG_FUNC0_EN);
   gpio_pin_config_t const led_config = { kGPIO_DigitalOutput, 0};
   GPIO_PinInit(GPIO, LED_PORT, LED_PIN, &led_config);
-  board_led_write(true);
+
+  board_led_write(0);
 
   // Button
+  IOCON_PinMuxSet(IOCON, BUTTON_PORT, BUTTON_PIN, IOCON_PIO_DIG_FUNC0_EN | IOCON_PIO_MODE_PULLUP);
   gpio_pin_config_t const button_config = { kGPIO_DigitalInput, 0};
   GPIO_PinInit(GPIO, BUTTON_PORT, BUTTON_PIN, &button_config);
 
-  // USB
-  const uint32_t port1_pin6_config = (
-    IOCON_PIO_FUNC7       | /* Pin is configured as USB0_VBUS */
-    IOCON_PIO_MODE_INACT  | /* No addition pin function */
-    IOCON_PIO_INV_DI      | /* Input function is not inverted */
-    IOCON_PIO_DIGITAL_EN  | /* Enables digital function */
-    IOCON_PIO_INPFILT_OFF | /* Input filter disabled */
-    IOCON_PIO_OPENDRAIN_DI  /* Open drain is disabled */
-  );
-  IOCON_PinMuxSet(IOCON, 1, 6, port1_pin6_config); /* PORT1 PIN6 (coords: 26) is configured as USB0_VBUS */
+#ifdef UART_DEV
+  // UART
+  IOCON_PinMuxSet(IOCON, UART_RX_PINMUX);
+  IOCON_PinMuxSet(IOCON, UART_TX_PINMUX);
 
-  POWER_DisablePD(kPDRUNCFG_PD_USB0_PHY); /*Turn on USB Phy */
+  // Enable UART when debug log is on
+  CLOCK_AttachClk(kFRO12M_to_FLEXCOMM0);
+  usart_config_t uart_config;
+  USART_GetDefaultConfig(&uart_config);
+  uart_config.baudRate_Bps = CFG_BOARD_UART_BAUDRATE;
+  uart_config.enableTx     = true;
+  uart_config.enableRx     = true;
+  USART_Init(UART_DEV, &uart_config, 12000000);
+#endif
+
+  // USB
+  IOCON_PinMuxSet(IOCON, USB0_VBUS_PINMUX);
+
+#if defined(FSL_FEATURE_SOC_USBHSD_COUNT) && FSL_FEATURE_SOC_USBHSD_COUNT
+  // LPC546xx and LPC540xx has OTG 1 FS + 1 HS rhports
+
+  #if CFG_TUSB_RHPORT0_MODE & OPT_MODE_DEVICE
+    // Port0 is Full Speed
+    POWER_DisablePD(kPDRUNCFG_PD_USB0_PHY); /*< Turn on USB Phy */
+    CLOCK_SetClkDiv(kCLOCK_DivUsb0Clk, 1, false);
+    CLOCK_AttachClk(kFRO_HF_to_USB0_CLK);
+
+    /*According to reference mannual, device mode setting has to be set by access usb host register */
+    CLOCK_EnableClock(kCLOCK_Usbhsl0); /* enable usb0 host clock */
+    USBFSH->PORTMODE |= USBFSH_PORTMODE_DEV_ENABLE_MASK;
+    CLOCK_DisableClock(kCLOCK_Usbhsl0); /* disable usb0 host clock */
+
+    CLOCK_EnableUsbfs0DeviceClock(kCLOCK_UsbSrcFro, CLOCK_GetFroHfFreq());
+  #endif
+
+  #if CFG_TUSB_RHPORT1_MODE & OPT_MODE_DEVICE
+    // Port1 is High Speed
+    POWER_DisablePD(kPDRUNCFG_PD_USB1_PHY);
+
+    /*According to reference mannual, device mode setting has to be set by access usb host register */
+    CLOCK_EnableClock(kCLOCK_Usbh1); /* enable usb1 host clock */
+    USBHSH->PORTMODE |= USBHSH_PORTMODE_DEV_ENABLE_MASK;
+    CLOCK_DisableClock(kCLOCK_Usbh1); /* enable usb1 host clock */
+
+    CLOCK_EnableUsbhs0DeviceClock(kCLOCK_UsbSrcUsbPll, 0U);
+  #endif
+
+#else
+  // LPC5411x series only has full speed device
+
+  POWER_DisablePD(kPDRUNCFG_PD_USB0_PHY); // Turn on USB Phy
   CLOCK_EnableUsbfs0Clock(kCLOCK_UsbSrcFro, CLOCK_GetFreq(kCLOCK_FroHf)); /* enable USB IP clock */
+#endif
 }
 
 //--------------------------------------------------------------------+
@@ -151,7 +199,7 @@ void board_led_write(bool state)
 uint32_t board_button_read(void)
 {
   // active low
-  return 1-GPIO_PinRead(GPIO, BUTTON_PORT, BUTTON_PIN);
+  return BUTTON_STATE_ACTIVE == GPIO_PinRead(GPIO, BUTTON_PORT, BUTTON_PIN);
 }
 
 int board_uart_read(uint8_t* buf, int len)
@@ -162,7 +210,7 @@ int board_uart_read(uint8_t* buf, int len)
 
 int board_uart_write(void const * buf, int len)
 {
-  (void) buf; (void) len;
+  USART_WriteBlocking(UART_DEV, (uint8_t *)buf, len);
   return 0;
 }
 
