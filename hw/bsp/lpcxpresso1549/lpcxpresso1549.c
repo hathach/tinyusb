@@ -45,20 +45,26 @@ void USB_IRQHandler(void)
 #define BUTTON_PORT   0
 #define BUTTON_PIN    17
 
+#define UART_PORT     LPC_USART0
+
 /* System oscillator rate and RTC oscillator rate */
 const uint32_t OscRateIn = 12000000;
 const uint32_t RTCOscRateIn = 32768;
 
-/* Pin muxing table, only items that need changing from their default pin
-   state are in this table. */
+// Pinmux
 static const PINMUX_GRP_T pinmuxing[] =
 {
-  {1,  11,  (IOCON_MODE_PULLDOWN | IOCON_DIGMODE_EN)},	/* PIO1_11-ISP_1 (VBUS) */
+  {0, 25, (IOCON_MODE_INACT    | IOCON_DIGMODE_EN)}, // PIO0_25-BREAK_CTRL-RED (low enable)
+  {0, 13, (IOCON_MODE_INACT    | IOCON_DIGMODE_EN)}, // PIO0_13-ISP_RX
+  {0, 18, (IOCON_MODE_INACT    | IOCON_DIGMODE_EN)}, // PIO0_18-ISP_TX
+  {1, 11, (IOCON_MODE_PULLDOWN | IOCON_DIGMODE_EN)}, // PIO1_11-ISP_1 (VBUS)
 };
 
 // Invoked by startup code
 void SystemInit(void)
 {
+  Chip_Clock_EnablePeriphClock(SYSCTL_CLOCK_SRAM1);
+  Chip_Clock_EnablePeriphClock(SYSCTL_CLOCK_SRAM2);
   Chip_Clock_EnablePeriphClock(SYSCTL_CLOCK_IOCON);
   Chip_Clock_EnablePeriphClock(SYSCTL_CLOCK_SWM);
   Chip_SYSCTL_PeriphReset(RESET_IOCON);
@@ -66,17 +72,25 @@ void SystemInit(void)
   // Pin Mux
   Chip_IOCON_SetPinMuxing(LPC_IOCON, pinmuxing, sizeof(pinmuxing) / sizeof(PINMUX_GRP_T));
 
+  // SWIM
+  Chip_SWM_MovablePortPinAssign(SWM_USB_VBUS_I , 1, 11);
+  Chip_SWM_MovablePortPinAssign(SWM_UART0_RXD_I, 0, 13);
+  Chip_SWM_MovablePortPinAssign(SWM_UART0_TXD_O, 0, 18);
+
   Chip_SetupXtalClocking();
+
+  // USB: Setup PLL clock, and power
+  Chip_USB_Init();
 }
 
 void board_init(void)
 {
   SystemCoreClockUpdate();
 
-#if CFG_TUSB_OS == OPT_OS_NONE
   // 1ms tick timer
   SysTick_Config(SystemCoreClock / 1000);
-#elif CFG_TUSB_OS == OPT_OS_FREERTOS
+
+#if CFG_TUSB_OS == OPT_OS_FREERTOS
   // If freeRTOS is used, IRQ priority is limit by max syscall ( smaller is higher )
   NVIC_SetPriority(USB0_IRQn, configLIBRARY_MAX_SYSCALL_INTERRUPT_PRIORITY );
 #endif
@@ -89,27 +103,18 @@ void board_init(void)
   // Button
   Chip_GPIO_SetPinDIRInput(LPC_GPIO, BUTTON_PORT, BUTTON_PIN);
 
-  // USB: Setup PLL clock, and power
-  Chip_SWM_MovablePortPinAssign(SWM_USB_VBUS_I, 1, 11);
-  Chip_USB_Init();
+	// UART
+	Chip_Clock_SetUARTBaseClockRate(Chip_Clock_GetMainClockRate(), false);
+	Chip_UART_Init(UART_PORT);
+	Chip_UART_ConfigData(UART_PORT, UART_CFG_DATALEN_8 | UART_CFG_PARITY_NONE | UART_CFG_STOPLEN_1);
+	Chip_UART_SetBaud(UART_PORT, CFG_BOARD_UART_BAUDRATE);
+	Chip_UART_Enable(UART_PORT);
+	Chip_UART_TXEnable(UART_PORT);
 }
 
 //--------------------------------------------------------------------+
 // Board porting API
 //--------------------------------------------------------------------+
-
-#if CFG_TUSB_OS == OPT_OS_NONE
-volatile uint32_t system_ticks = 0;
-void SysTick_Handler (void)
-{
-  system_ticks++;
-}
-
-uint32_t board_millis(void)
-{
-  return system_ticks;
-}
-#endif
 
 void board_led_write(bool state)
 {
@@ -130,6 +135,18 @@ int board_uart_read(uint8_t* buf, int len)
 
 int board_uart_write(void const * buf, int len)
 {
-  (void) buf; (void) len;
-  return 0;
+  return Chip_UART_SendBlocking(UART_PORT, buf, len);
 }
+
+#if CFG_TUSB_OS == OPT_OS_NONE
+volatile uint32_t system_ticks = 0;
+void SysTick_Handler (void)
+{
+  system_ticks++;
+}
+
+uint32_t board_millis(void)
+{
+  return system_ticks;
+}
+#endif
