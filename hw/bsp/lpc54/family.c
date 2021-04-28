@@ -24,22 +24,18 @@
  * This file is part of the TinyUSB stack.
  */
 
-#include "../board.h"
 #include "fsl_device_registers.h"
 #include "fsl_gpio.h"
 #include "fsl_power.h"
 #include "fsl_iocon.h"
+#include "fsl_usart.h"
+
+#include "bsp/board.h"
+#include "board.h"
 
 //--------------------------------------------------------------------+
 // MACRO TYPEDEF CONSTANT ENUM
 //--------------------------------------------------------------------+
-#define LED_PORT      0
-#define LED_PIN       29
-#define LED_STATE_ON  0
-
-// WAKE button
-#define BUTTON_PORT   0
-#define BUTTON_PIN    24
 
 // IOCON pin mux
 #define IOCON_PIO_DIGITAL_EN     0x80u   // Enables digital function
@@ -52,6 +48,12 @@
 #define IOCON_PIO_MODE_PULLUP    0x10u
 #define IOCON_PIO_OPENDRAIN_DI   0x00u   // Open drain is disabled
 #define IOCON_PIO_SLEW_STANDARD  0x00u   // Standard mode, output slew rate control is enabled
+
+// Digital pin function n enabled
+#define IOCON_PIO_DIG_FUNC0_EN   (IOCON_PIO_DIGITAL_EN | IOCON_PIO_INPFILT_OFF | IOCON_PIO_FUNC0)
+#define IOCON_PIO_DIG_FUNC1_EN   (IOCON_PIO_DIGITAL_EN | IOCON_PIO_INPFILT_OFF | IOCON_PIO_FUNC1)
+#define IOCON_PIO_DIG_FUNC4_EN   (IOCON_PIO_DIGITAL_EN | IOCON_PIO_INPFILT_OFF | IOCON_PIO_FUNC4)
+#define IOCON_PIO_DIG_FUNC7_EN   (IOCON_PIO_DIGITAL_EN | IOCON_PIO_INPFILT_OFF | IOCON_PIO_FUNC7)
 
 //--------------------------------------------------------------------+
 // Forward USB interrupt events to TinyUSB IRQ Handler
@@ -112,8 +114,9 @@ void board_init(void)
   NVIC_SetPriority(USB0_IRQn, configLIBRARY_MAX_SYSCALL_INTERRUPT_PRIORITY );
 #endif
 
-  GPIO_PortInit(GPIO, LED_PORT);
-  GPIO_PortInit(GPIO, BUTTON_PORT);
+  // Init all GPIO ports
+  GPIO_PortInit(GPIO, 0);
+  GPIO_PortInit(GPIO, 1);
 
   // LED
   gpio_pin_config_t const led_config = { kGPIO_DigitalOutput, 0};
@@ -124,16 +127,23 @@ void board_init(void)
   gpio_pin_config_t const button_config = { kGPIO_DigitalInput, 0};
   GPIO_PinInit(GPIO, BUTTON_PORT, BUTTON_PIN, &button_config);
 
+#ifdef UART_DEV
+  // UART
+  IOCON_PinMuxSet(IOCON, UART_RX_PINMUX);
+  IOCON_PinMuxSet(IOCON, UART_TX_PINMUX);
+
+  // Enable UART when debug log is on
+  CLOCK_AttachClk(kFRO12M_to_FLEXCOMM0);
+  usart_config_t uart_config;
+  USART_GetDefaultConfig(&uart_config);
+  uart_config.baudRate_Bps = CFG_BOARD_UART_BAUDRATE;
+  uart_config.enableTx     = true;
+  uart_config.enableRx     = true;
+  USART_Init(UART_DEV, &uart_config, 12000000);
+#endif
+
   // USB
-  const uint32_t port1_pin6_config = (
-    IOCON_PIO_FUNC7       | /* Pin is configured as USB0_VBUS */
-    IOCON_PIO_MODE_INACT  | /* No addition pin function */
-    IOCON_PIO_INV_DI      | /* Input function is not inverted */
-    IOCON_PIO_DIGITAL_EN  | /* Enables digital function */
-    IOCON_PIO_INPFILT_OFF | /* Input filter disabled */
-    IOCON_PIO_OPENDRAIN_DI  /* Open drain is disabled */
-  );
-  IOCON_PinMuxSet(IOCON, 1, 6, port1_pin6_config); /* PORT1 PIN6 (coords: 26) is configured as USB0_VBUS */
+  IOCON_PinMuxSet(IOCON, USB0_VBUS_PINMUX);
 
   POWER_DisablePD(kPDRUNCFG_PD_USB0_PHY); /*Turn on USB Phy */
   CLOCK_EnableUsbfs0Clock(kCLOCK_UsbSrcFro, CLOCK_GetFreq(kCLOCK_FroHf)); /* enable USB IP clock */
@@ -151,7 +161,7 @@ void board_led_write(bool state)
 uint32_t board_button_read(void)
 {
   // active low
-  return 1-GPIO_PinRead(GPIO, BUTTON_PORT, BUTTON_PIN);
+  return BUTTON_STATE_ACTIVE == GPIO_PinRead(GPIO, BUTTON_PORT, BUTTON_PIN);
 }
 
 int board_uart_read(uint8_t* buf, int len)
@@ -162,7 +172,7 @@ int board_uart_read(uint8_t* buf, int len)
 
 int board_uart_write(void const * buf, int len)
 {
-  (void) buf; (void) len;
+  USART_WriteBlocking(UART_DEV, (uint8_t *)buf, len);
   return 0;
 }
 

@@ -17,11 +17,11 @@ CFLAGS += \
 # mcu driver cause following warnings
 CFLAGS += -Wno-error=unused-parameter
 
-MCU_DIR = $(SDK_DIR)/devices/LPC54114
+MCU_DIR = $(SDK_DIR)/devices/$(MCU_VARIANT)
 
 SRC_C += \
 	src/portable/nxp/lpc_ip3511/dcd_lpc_ip3511.c \
-	$(MCU_DIR)/system_LPC54114_cm4.c \
+	$(MCU_DIR)/system_$(MCU_CORE).c \
 	$(MCU_DIR)/drivers/fsl_clock.c \
 	$(MCU_DIR)/drivers/fsl_power.c \
 	$(MCU_DIR)/drivers/fsl_reset.c \
@@ -39,7 +39,7 @@ INC += \
 	$(TOP)/$(SDK_DIR)/drivers/lpc_iocon \
 	$(TOP)/$(SDK_DIR)/drivers/lpc_gpio
 
-SRC_S += $(MCU_DIR)/gcc/startup_LPC54114_cm4.S
+SRC_S += $(MCU_DIR)/gcc/startup_$(MCU_CORE).S
 
 LIBS += $(TOP)/$(MCU_DIR)/gcc/libpower_cm4_hardabi.a
 
