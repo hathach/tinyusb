@@ -1,10 +1,11 @@
 UF2_FAMILY_ID = 0x2abc77ec
-DEPS_SUBMODULES += lib/sct_neopixel hw/mcu/nxp/mcux-sdk
+SDK_DIR = hw/mcu/nxp/mcux-sdk
+DEPS_SUBMODULES += lib/sct_neopixel $(SDK_DIR)
 
 include $(TOP)/$(BOARD_PATH)/board.mk
 
-# TODO change Default to Highspeed PORT1
-PORT ?= 0
+# Default to Highspeed PORT1
+PORT ?= 1
 
 CFLAGS += \
   -flto \
@@ -30,7 +31,7 @@ endif
 # mcu driver cause following warnings
 CFLAGS += -Wno-error=unused-parameter -Wno-error=float-equal
 
-MCU_DIR = hw/mcu/nxp/mcux-sdk/devices/$(MCU_VARIANT)
+MCU_DIR = $(SDK_DIR)/devices/$(MCU_VARIANT)
 
 # All source paths should be relative to the top level.
 LD_FILE ?= $(MCU_DIR)/gcc/$(MCU_CORE)_flash.ld
@@ -39,11 +40,11 @@ SRC_C += \
 	src/portable/nxp/lpc_ip3511/dcd_lpc_ip3511.c \
 	$(MCU_DIR)/system_$(MCU_CORE).c \
 	$(MCU_DIR)/drivers/fsl_clock.c \
-	$(MCU_DIR)/drivers/fsl_gpio.c \
 	$(MCU_DIR)/drivers/fsl_power.c \
 	$(MCU_DIR)/drivers/fsl_reset.c \
-	$(MCU_DIR)/drivers/fsl_usart.c \
-	$(MCU_DIR)/drivers/fsl_flexcomm.c \
+	$(SDK_DIR)/drivers/lpc_gpio/fsl_gpio.c \
+	$(SDK_DIR)/drivers/flexcomm/fsl_flexcomm.c \
+	$(SDK_DIR)/drivers/flexcomm/fsl_usart.c \
 	lib/sct_neopixel/sct_neopixel.c
 
 INC += \
@@ -51,7 +52,12 @@ INC += \
 	$(TOP)/lib/sct_neopixel \
 	$(TOP)/$(MCU_DIR)/../../CMSIS/Include \
 	$(TOP)/$(MCU_DIR) \
-	$(TOP)/$(MCU_DIR)/drivers
+	$(TOP)/$(MCU_DIR)/drivers \
+	$(TOP)/$(SDK_DIR)/drivers/common \
+	$(TOP)/$(SDK_DIR)/drivers/flexcomm \
+	$(TOP)/$(SDK_DIR)/drivers/lpc_iocon \
+	$(TOP)/$(SDK_DIR)/drivers/lpc_gpio \
+	$(TOP)/$(SDK_DIR)/drivers/sctimer
 
 SRC_S += $(MCU_DIR)/gcc/startup_$(MCU_CORE).S
 
