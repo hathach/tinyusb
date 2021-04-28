@@ -26,7 +26,7 @@ SRC_C += \
 
 INC += \
 	$(TOP)/hw/bsp/$(BOARD) \
-	$(TOP)/hw/mcu/nxp/mcux-sdk/CMSIS/Include \
+	$(TOP)/$(SDK_DIR)/CMSIS/Include \
 	$(TOP)/$(MCU_DIR) \
 	$(TOP)/$(MCU_DIR)/drivers \
 	$(TOP)/$(MCU_DIR)/project_template \
