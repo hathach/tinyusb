@@ -55,9 +55,9 @@
 //--------------------------------------------------------------------+
 // INCLUDE
 //--------------------------------------------------------------------+
-#include "audio_device.h"
-#include "class/audio/audio.h"
 #include "device/usbd_pvt.h"
+#include "audio_device.h"
+//#include "common/tusb_fifo.h"
 
 //--------------------------------------------------------------------+
 // MACRO CONSTANT TYPEDEF
