@@ -112,3 +112,6 @@
 [submodule "hw/mcu/renesas/rx"]
 	path = hw/mcu/renesas/rx
 	url = https://github.com/kkitayam/rx_device.git
+[submodule "hw/mcu/nxp/lpcopen"]
+	path = hw/mcu/nxp/lpcopen
+	url = https://github.com/hathach/nxp_lpcopen.git
