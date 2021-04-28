@@ -38,7 +38,7 @@ The stack supports the following MCUs:
 - **NXP:**
   - iMX RT Series: RT1011, RT1015, RT1021, RT1052, RT1062, RT1064
   - Kinetis: KL25
-  - LPC Series: 11Uxx, 13xx, 175x_6x, 177x_8x, 18xx, 40xx, 43xx, 51Uxx, 54xxx, 55xx
+  - LPC Series: 11u, 13, 15, 17, 18, 40, 43, 51u, 54, 55
 - **Raspberry Pi:** RP2040
 - **Renesas:** RX63N
 - **Silabs:** EFM32GG12
