@@ -43,6 +43,7 @@ jobs:
         - 'imxrt'
         - 'lpc15'
         - 'lpc18'
+        - 'lpc54'
         - 'lpc55'
         - 'nrf'
         - 'rp2040'
