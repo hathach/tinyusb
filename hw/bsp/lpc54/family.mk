@@ -11,7 +11,6 @@ CFLAGS += \
   -mfloat-abi=hard \
   -mfpu=fpv4-sp-d16 \
   -DCFG_TUSB_MCU=OPT_MCU_LPC54XXX \
-  -DCFG_TUSB_MEM_SECTION='__attribute__((section(".data")))' \
   -DCFG_TUSB_MEM_ALIGN='__attribute__((aligned(64)))' 
 
 # mcu driver cause following warnings
@@ -40,8 +39,6 @@ INC += \
 	$(TOP)/$(SDK_DIR)/drivers/lpc_gpio
 
 SRC_S += $(MCU_DIR)/gcc/startup_$(MCU_CORE).S
-
-LIBS += $(TOP)/$(MCU_DIR)/gcc/libpower_cm4_hardabi.a
 
 # For freeRTOS port source
 FREERTOS_PORT = ARM_CM4F

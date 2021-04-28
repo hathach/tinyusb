@@ -100,9 +100,6 @@ void board_init(void)
   // Enable IOCON clock
   CLOCK_EnableClock(kCLOCK_Iocon);
 
-  // Enable GPIO0 clock
-  CLOCK_EnableClock(kCLOCK_Gpio0);
-
   // Init 96 MHz clock
   BootClockFROHF96M();
 
@@ -114,16 +111,19 @@ void board_init(void)
   NVIC_SetPriority(USB0_IRQn, configLIBRARY_MAX_SYSCALL_INTERRUPT_PRIORITY );
 #endif
 
-  // Init all GPIO ports
+  // Init all GPIO ports 54114 only has 2 ports.
   GPIO_PortInit(GPIO, 0);
   GPIO_PortInit(GPIO, 1);
+  //GPIO_PortInit(GPIO, 2);
 
   // LED
+  IOCON_PinMuxSet(IOCON, LED_PORT, LED_PIN, IOCON_PIO_DIG_FUNC0_EN);
   gpio_pin_config_t const led_config = { kGPIO_DigitalOutput, 0};
   GPIO_PinInit(GPIO, LED_PORT, LED_PIN, &led_config);
   board_led_write(true);
 
   // Button
+  IOCON_PinMuxSet(IOCON, BUTTON_PORT, BUTTON_PIN, IOCON_PIO_DIG_FUNC0_EN | IOCON_PIO_MODE_PULLUP);
   gpio_pin_config_t const button_config = { kGPIO_DigitalInput, 0};
   GPIO_PinInit(GPIO, BUTTON_PORT, BUTTON_PIN, &button_config);
 
