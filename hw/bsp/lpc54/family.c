@@ -63,6 +63,11 @@ void USB0_IRQHandler(void)
   tud_int_handler(0);
 }
 
+void USB1_IRQHandler(void)
+{
+  tud_int_handler(1);
+}
+
 /****************************************************************
 name: BOARD_BootClockFROHF96M
 outputs:
@@ -112,15 +117,15 @@ void board_init(void)
 #endif
 
   // Init all GPIO ports 54114 only has 2 ports.
-  GPIO_PortInit(GPIO, 0);
-  GPIO_PortInit(GPIO, 1);
-  //GPIO_PortInit(GPIO, 2);
+  GPIO_PortInit(GPIO, LED_PORT);
+  GPIO_PortInit(GPIO, BUTTON_PORT);
 
   // LED
   IOCON_PinMuxSet(IOCON, LED_PORT, LED_PIN, IOCON_PIO_DIG_FUNC0_EN);
   gpio_pin_config_t const led_config = { kGPIO_DigitalOutput, 0};
   GPIO_PinInit(GPIO, LED_PORT, LED_PIN, &led_config);
-  board_led_write(true);
+
+  board_led_write(0);
 
   // Button
   IOCON_PinMuxSet(IOCON, BUTTON_PORT, BUTTON_PIN, IOCON_PIO_DIG_FUNC0_EN | IOCON_PIO_MODE_PULLUP);
@@ -145,8 +150,41 @@ void board_init(void)
   // USB
   IOCON_PinMuxSet(IOCON, USB0_VBUS_PINMUX);
 
-  POWER_DisablePD(kPDRUNCFG_PD_USB0_PHY); /*Turn on USB Phy */
+#if defined(FSL_FEATURE_SOC_USBHSD_COUNT) && FSL_FEATURE_SOC_USBHSD_COUNT
+  // LPC546xx and LPC540xx has OTG 1 FS + 1 HS rhports
+
+  #if CFG_TUSB_RHPORT0_MODE & OPT_MODE_DEVICE
+    // Port0 is Full Speed
+    POWER_DisablePD(kPDRUNCFG_PD_USB0_PHY); /*< Turn on USB Phy */
+    CLOCK_SetClkDiv(kCLOCK_DivUsb0Clk, 1, false);
+    CLOCK_AttachClk(kFRO_HF_to_USB0_CLK);
+
+    /*According to reference mannual, device mode setting has to be set by access usb host register */
+    CLOCK_EnableClock(kCLOCK_Usbhsl0); /* enable usb0 host clock */
+    USBFSH->PORTMODE |= USBFSH_PORTMODE_DEV_ENABLE_MASK;
+    CLOCK_DisableClock(kCLOCK_Usbhsl0); /* disable usb0 host clock */
+
+    CLOCK_EnableUsbfs0DeviceClock(kCLOCK_UsbSrcFro, CLOCK_GetFroHfFreq());
+  #endif
+
+  #if CFG_TUSB_RHPORT1_MODE & OPT_MODE_DEVICE
+    // Port1 is High Speed
+    POWER_DisablePD(kPDRUNCFG_PD_USB1_PHY);
+
+    /*According to reference mannual, device mode setting has to be set by access usb host register */
+    CLOCK_EnableClock(kCLOCK_Usbh1); /* enable usb1 host clock */
+    USBHSH->PORTMODE |= USBHSH_PORTMODE_DEV_ENABLE_MASK;
+    CLOCK_DisableClock(kCLOCK_Usbh1); /* enable usb1 host clock */
+
+    CLOCK_EnableUsbhs0DeviceClock(kCLOCK_UsbSrcUsbPll, 0U);
+  #endif
+
+#else
+  // LPC5411x series only has full speed device
+
+  POWER_DisablePD(kPDRUNCFG_PD_USB0_PHY); // Turn on USB Phy
   CLOCK_EnableUsbfs0Clock(kCLOCK_UsbSrcFro, CLOCK_GetFreq(kCLOCK_FroHf)); /* enable USB IP clock */
+#endif
 }
 
 //--------------------------------------------------------------------+
