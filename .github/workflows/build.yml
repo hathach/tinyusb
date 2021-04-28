@@ -41,6 +41,7 @@ jobs:
         family:
         # Alphabetical order
         - 'imxrt'
+        - 'lpc15'
         - 'lpc18'
         - 'lpc55'
         - 'nrf'
