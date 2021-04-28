@@ -31,14 +31,6 @@
 #include "fsl_iocon.h"
 
 //--------------------------------------------------------------------+
-// Forward USB interrupt events to TinyUSB IRQ Handler
-//--------------------------------------------------------------------+
-void USB0_IRQHandler(void)
-{
-  tud_int_handler(0);
-}
-
-//--------------------------------------------------------------------+
 // MACRO TYPEDEF CONSTANT ENUM
 //--------------------------------------------------------------------+
 #define LED_PORT      0
@@ -50,16 +42,24 @@ void USB0_IRQHandler(void)
 #define BUTTON_PIN    24
 
 // IOCON pin mux
-#define IOCON_PIO_DIGITAL_EN     0x80u   /*!<@brief Enables digital function */
+#define IOCON_PIO_DIGITAL_EN     0x80u   // Enables digital function
 #define IOCON_PIO_FUNC0          0x00u
-#define IOCON_PIO_FUNC1          0x01u   /*!<@brief Selects pin function 1 */
-#define IOCON_PIO_FUNC7          0x07u   /*!<@brief Selects pin function 7 */
-#define IOCON_PIO_INPFILT_OFF    0x0100u /*!<@brief Input filter disabled */
-#define IOCON_PIO_INV_DI         0x00u   /*!<@brief Input function is not inverted */
-#define IOCON_PIO_MODE_INACT     0x00u   /*!<@brief No addition pin function */
+#define IOCON_PIO_FUNC1          0x01u   // Selects pin function 1
+#define IOCON_PIO_FUNC7          0x07u   // Selects pin function 7
+#define IOCON_PIO_INPFILT_OFF    0x0100u // Input filter disabled
+#define IOCON_PIO_INV_DI         0x00u   // Input function is not inverted
+#define IOCON_PIO_MODE_INACT     0x00u   // No addition pin function
 #define IOCON_PIO_MODE_PULLUP    0x10u
-#define IOCON_PIO_OPENDRAIN_DI   0x00u   /*!<@brief Open drain is disabled */
-#define IOCON_PIO_SLEW_STANDARD  0x00u   /*!<@brief Standard mode, output slew rate control is enabled */
+#define IOCON_PIO_OPENDRAIN_DI   0x00u   // Open drain is disabled
+#define IOCON_PIO_SLEW_STANDARD  0x00u   // Standard mode, output slew rate control is enabled
+
+//--------------------------------------------------------------------+
+// Forward USB interrupt events to TinyUSB IRQ Handler
+//--------------------------------------------------------------------+
+void USB0_IRQHandler(void)
+{
+  tud_int_handler(0);
+}
 
 /****************************************************************
 name: BOARD_BootClockFROHF96M
@@ -104,10 +104,10 @@ void board_init(void)
   // Init 96 MHz clock
   BootClockFROHF96M();
 
-#if CFG_TUSB_OS == OPT_OS_NONE
   // 1ms tick timer
   SysTick_Config(SystemCoreClock / 1000);
-#elif CFG_TUSB_OS == OPT_OS_FREERTOS
+
+#if CFG_TUSB_OS == OPT_OS_FREERTOS
   // If freeRTOS is used, IRQ priority is limit by max syscall ( smaller is higher )
   NVIC_SetPriority(USB0_IRQn, configLIBRARY_MAX_SYSCALL_INTERRUPT_PRIORITY );
 #endif

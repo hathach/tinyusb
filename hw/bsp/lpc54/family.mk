@@ -1,5 +1,7 @@
 DEPS_SUBMODULES += hw/mcu/nxp
 
+include $(TOP)/$(BOARD_PATH)/board.mk
+
 CFLAGS += \
   -flto \
   -mthumb \
@@ -7,7 +9,6 @@ CFLAGS += \
   -mcpu=cortex-m4 \
   -mfloat-abi=hard \
   -mfpu=fpv4-sp-d16 \
-  -DCPU_LPC54114J256BD64_cm4 \
   -DCFG_TUSB_MCU=OPT_MCU_LPC54XXX \
   -DCFG_TUSB_MEM_SECTION='__attribute__((section(".data")))' \
   -DCFG_TUSB_MEM_ALIGN='__attribute__((aligned(64)))' 
@@ -16,9 +17,6 @@ CFLAGS += \
 CFLAGS += -Wno-error=unused-parameter
 
 MCU_DIR = hw/mcu/nxp/sdk/devices/LPC54114
-
-# All source paths should be relative to the top level.
-LD_FILE = $(MCU_DIR)/gcc/LPC54114J256_cm4_flash.ld
 
 SRC_C += \
 	src/portable/nxp/lpc_ip3511/dcd_lpc_ip3511.c \
@@ -29,6 +27,7 @@ SRC_C += \
 	$(MCU_DIR)/drivers/fsl_reset.c
 
 INC += \
+	$(TOP)/$(BOARD_PATH) \
 	$(TOP)/$(MCU_DIR)/../../CMSIS/Include \
 	$(TOP)/$(MCU_DIR) \
 	$(TOP)/$(MCU_DIR)/drivers
@@ -39,10 +38,3 @@ LIBS += $(TOP)/$(MCU_DIR)/gcc/libpower_cm4_hardabi.a
 
 # For freeRTOS port source
 FREERTOS_PORT = ARM_CM4F
-
-# For flash-jlink target
-JLINK_DEVICE = LPC54114J256_M4
-
-# flash using pyocd
-flash: $(BUILD)/$(PROJECT).hex
-	pyocd flash -t LPC54114 $<
