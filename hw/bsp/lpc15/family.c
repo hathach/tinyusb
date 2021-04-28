@@ -26,6 +26,7 @@
 
 #include "chip.h"
 #include "bsp/board.h"
+#include "board.h"
 
 //--------------------------------------------------------------------+
 // Forward USB interrupt events to TinyUSB IRQ Handler
@@ -38,27 +39,10 @@ void USB_IRQHandler(void)
 //--------------------------------------------------------------------+
 // MACRO TYPEDEF CONSTANT ENUM
 //--------------------------------------------------------------------+
-#define LED_PORT      0
-#define LED_PIN       25
-
-// Wake Switch
-#define BUTTON_PORT   0
-#define BUTTON_PIN    17
-
-#define UART_PORT     LPC_USART0
 
 /* System oscillator rate and RTC oscillator rate */
-const uint32_t OscRateIn = 12000000;
-const uint32_t RTCOscRateIn = 32768;
-
-// Pinmux
-static const PINMUX_GRP_T pinmuxing[] =
-{
-  {0, 25, (IOCON_MODE_INACT    | IOCON_DIGMODE_EN)}, // PIO0_25-BREAK_CTRL-RED (low enable)
-  {0, 13, (IOCON_MODE_INACT    | IOCON_DIGMODE_EN)}, // PIO0_13-ISP_RX
-  {0, 18, (IOCON_MODE_INACT    | IOCON_DIGMODE_EN)}, // PIO0_18-ISP_TX
-  {1, 11, (IOCON_MODE_PULLDOWN | IOCON_DIGMODE_EN)}, // PIO1_11-ISP_1 (VBUS)
-};
+const uint32_t OscRateIn = XTAL_OscRateIn;
+const uint32_t RTCOscRateIn = XTAL_RTCOscRateIn;
 
 // Invoked by startup code
 void SystemInit(void)
@@ -69,18 +53,9 @@ void SystemInit(void)
   Chip_Clock_EnablePeriphClock(SYSCTL_CLOCK_SWM);
   Chip_SYSCTL_PeriphReset(RESET_IOCON);
 
-  // Pin Mux
-  Chip_IOCON_SetPinMuxing(LPC_IOCON, pinmuxing, sizeof(pinmuxing) / sizeof(PINMUX_GRP_T));
-
-  // SWIM
-  Chip_SWM_MovablePortPinAssign(SWM_USB_VBUS_I , 1, 11);
-  Chip_SWM_MovablePortPinAssign(SWM_UART0_RXD_I, 0, 13);
-  Chip_SWM_MovablePortPinAssign(SWM_UART0_TXD_O, 0, 18);
+  board_lpc15_pinmux_swm_init();
 
   Chip_SetupXtalClocking();
-
-  // USB: Setup PLL clock, and power
-  Chip_USB_Init();
 }
 
 void board_init(void)
@@ -110,6 +85,9 @@ void board_init(void)
 	Chip_UART_SetBaud(UART_PORT, CFG_BOARD_UART_BAUDRATE);
 	Chip_UART_Enable(UART_PORT);
 	Chip_UART_TXEnable(UART_PORT);
+
+  // USB: Setup PLL clock, and power
+  Chip_USB_Init();
 }
 
 //--------------------------------------------------------------------+
