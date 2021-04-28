@@ -1,5 +1,5 @@
 UF2_FAMILY_ID = 0x4fb2d5bd
-DEPS_SUBMODULES += hw/mcu/nxp
+DEPS_SUBMODULES += hw/mcu/nxp/mcux-sdk
 
 include $(TOP)/$(BOARD_PATH)/board.mk
 
@@ -17,7 +17,7 @@ CFLAGS += \
 # mcu driver cause following warnings
 CFLAGS += -Wno-error=unused-parameter -Wno-error=implicit-fallthrough=
 
-MCU_DIR = hw/mcu/nxp/sdk/devices/$(MCU_VARIANT)
+MCU_DIR = hw/mcu/nxp/mcux-sdk/devices/$(MCU_VARIANT)
 
 # All source paths should be relative to the top level.
 LD_FILE = $(MCU_DIR)/gcc/$(MCU_VARIANT)xxxxx_flexspi_nor.ld

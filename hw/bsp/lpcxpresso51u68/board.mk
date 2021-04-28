@@ -1,4 +1,4 @@
-DEPS_SUBMODULES += hw/mcu/nxp
+DEPS_SUBMODULES += hw/mcu/nxp/mcux-sdk
 
 CFLAGS += \
   -flto \
@@ -13,7 +13,7 @@ CFLAGS += \
 # mcu driver cause following warnings
 CFLAGS += -Wno-error=unused-parameter
 
-MCU_DIR = hw/mcu/nxp/sdk/devices/LPC51U68
+MCU_DIR = hw/mcu/nxp/mcux-sdk/devices/LPC51U68
 
 # All source paths should be relative to the top level.
 LD_FILE = $(MCU_DIR)/gcc/LPC51U68_flash.ld

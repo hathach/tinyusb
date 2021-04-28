@@ -1,4 +1,4 @@
-DEPS_SUBMODULES += hw/mcu/nxp
+DEPS_SUBMODULES += hw/mcu/nxp/mcux-sdk
 
 CFLAGS += \
   -mthumb \
@@ -10,7 +10,7 @@ CFLAGS += \
 # mcu driver cause following warnings
 CFLAGS += -Wno-error=unused-parameter
 
-MCU_DIR = hw/mcu/nxp/sdk/devices/MKL25Z4
+MCU_DIR = hw/mcu/nxp/mcux-sdk/devices/MKL25Z4
 
 # All source paths should be relative to the top level.
 LD_FILE = $(MCU_DIR)/gcc/MKL25Z128xxx4_flash.ld

@@ -1,4 +1,4 @@
-DEPS_SUBMODULES += hw/mcu/nxp
+DEPS_SUBMODULES += hw/mcu/nxp/mcux-sdk
 
 include $(TOP)/$(BOARD_PATH)/board.mk
 
@@ -16,7 +16,7 @@ CFLAGS += \
 # mcu driver cause following warnings
 CFLAGS += -Wno-error=unused-parameter
 
-MCU_DIR = hw/mcu/nxp/sdk/devices/LPC54114
+MCU_DIR = hw/mcu/nxp/mcux-sdk/devices/LPC54114
 
 SRC_C += \
 	src/portable/nxp/lpc_ip3511/dcd_lpc_ip3511.c \
