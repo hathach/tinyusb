@@ -118,3 +118,6 @@
 [submodule "hw/mcu/nxp/mcux-sdk"]
 	path = hw/mcu/nxp/mcux-sdk
 	url = https://github.com/NXPmicro/mcux-sdk.git
+[submodule "hw/mcu/nxp/nxp_sdk"]
+	path = hw/mcu/nxp/nxp_sdk
+	url = https://github.com/hathach/nxp_sdk.git
