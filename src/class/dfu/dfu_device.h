@@ -42,9 +42,6 @@
 // Invoked when a reset is received to check if firmware is valid
 bool tud_dfu_firmware_valid_check_cb(void);
 
-// Invoked when the device must reboot to dfu runtime mode
-void tud_dfu_reboot_to_rt_cb(void);
-
 // Invoked when a DFU_DNLOAD request is received
 // This callback takes the wBlockNum chunk of length length and provides it
 // to the application at the data pointer.  This data is only valid for this

@@ -140,7 +140,7 @@ static tu_lookup_table_t const _dfu_status_table =
 //--------------------------------------------------------------------+
 void dfu_moded_init(void)
 {
-  _dfu_state_ctx.state = APP_DETACH;    // After init, reset will occur.  We want to be in APP_DETACH to move to DFU_IDLE
+  _dfu_state_ctx.state = DFU_IDLE;
   _dfu_state_ctx.status = DFU_STATUS_OK;
   _dfu_state_ctx.attrs = 0;
   _dfu_state_ctx.blk_transfer_in_proc = false;
@@ -150,39 +150,7 @@ void dfu_moded_init(void)
 
 void dfu_moded_reset(uint8_t rhport)
 {
-  if (_dfu_state_ctx.state == APP_DETACH)
-  {
-    _dfu_state_ctx.state = DFU_IDLE;
-  } else {
-    switch (_dfu_state_ctx.state)
-    {
-      case DFU_IDLE:
-      case DFU_DNLOAD_SYNC:
-      case DFU_DNBUSY:
-      case DFU_DNLOAD_IDLE:
-      case DFU_MANIFEST_SYNC:
-      case DFU_MANIFEST:
-      case DFU_MANIFEST_WAIT_RESET:
-      case DFU_UPLOAD_IDLE:
-      {
-        _dfu_state_ctx.state = (tud_dfu_firmware_valid_check_cb()) ?  APP_IDLE : DFU_ERROR;
-      }
-      break;
-
-      case DFU_ERROR:
-      default:
-      {
-        _dfu_state_ctx.state = APP_IDLE;
-      }
-      break;
-    }
-  }
-
-  if(_dfu_state_ctx.state == APP_IDLE)
-  {
-    tud_dfu_reboot_to_rt_cb();
-  }
-
+  _dfu_state_ctx.state = DFU_IDLE;
   _dfu_state_ctx.status = DFU_STATUS_OK;
   _dfu_state_ctx.blk_transfer_in_proc = false;
   dfu_debug_print_context();
@@ -276,8 +244,8 @@ bool dfu_moded_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_reque
 static uint16_t dfu_req_upload(uint8_t rhport, tusb_control_request_t const * request, uint16_t block_num, uint16_t wLength)
 {
   TU_VERIFY( wLength <= CFG_TUD_DFU_TRANSFER_BUFFER_SIZE);
-  uint16_t retval = tud_dfu_req_upload_data_cb(block_num, (uint8_t *)&_dfu_state_ctx.transfer_buf, wLength);
-  tud_control_xfer(rhport, request, &_dfu_state_ctx.transfer_buf, retval);
+  uint16_t retval = tud_dfu_req_upload_data_cb(block_num, (uint8_t *)_dfu_state_ctx.transfer_buf, wLength);
+  tud_control_xfer(rhport, request, _dfu_state_ctx.transfer_buf, retval);
   return retval;
 }
 
@@ -305,13 +273,13 @@ static void dfu_req_dnload_setup(uint8_t rhport, tusb_control_request_t const * 
   // but this mode would provide zero copy from the class driver to the application
 
   // setup for data phase
-  tud_control_xfer(rhport, request, &_dfu_state_ctx.transfer_buf, request->wLength);
+  tud_control_xfer(rhport, request, _dfu_state_ctx.transfer_buf, request->wLength);
 }
 
 static void dfu_req_dnload_reply(uint8_t rhport, tusb_control_request_t const * request)
 {
   (void) rhport;
-  tud_dfu_req_dnload_data_cb(request->wValue, (uint8_t *)&_dfu_state_ctx.transfer_buf, request->wLength);
+  tud_dfu_req_dnload_data_cb(request->wValue, (uint8_t *)_dfu_state_ctx.transfer_buf, request->wLength);
   _dfu_state_ctx.blk_transfer_in_proc = false;
 }
 
