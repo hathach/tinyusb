@@ -950,11 +950,9 @@ void tu_fifo_get_read_info(tu_fifo_t *f, tu_fifo_buffer_info_t *info)
 
    Returns the length and pointer to which bytes can be written into FIFO in a linear manner.
    This is of major interest for DMA transmissions not using circular mode. If a returned length is zero the
-   corresponding pointer is invalid. The returned length is limited to the number of BYTES n which the user
-   wants to write into the buffer.
-   The write pointer does NOT get advanced, use tu_fifo_advance_write_pointer() to do so! If the length
-   returned is less than n i.e. len<n, then a wrap occurs and you need to execute this function a second
-   time to get a pointer to the wrapped part!
+   corresponding pointer is invalid. The returned lengths summed up are the currently free space in the FIFO.
+   The write pointer does NOT get advanced, use tu_fifo_advance_write_pointer() to do so!
+   TAKE CARE TO NOT OVERFLOW THE BUFFER MORE THAN TWO TIMES THE FIFO DEPTH - IT CAN NOT RECOVERE OTHERWISE!
    @param[in]       f
                     Pointer to FIFO
    @param[out]      *info
@@ -963,33 +961,18 @@ void tu_fifo_get_read_info(tu_fifo_t *f, tu_fifo_buffer_info_t *info)
                     Number of ITEMS to write into buffer
  */
 /******************************************************************************/
-void tu_fifo_get_write_info(tu_fifo_t *f, tu_fifo_buffer_info_t *info, uint16_t n)
+void tu_fifo_get_write_info(tu_fifo_t *f, tu_fifo_buffer_info_t *info)
 {
   uint16_t w = f->wr_idx, r = f->rd_idx;
   uint16_t free = _tu_fifo_remaining(f, w, r);
 
-  if (free == 0 || n > 2*f->depth)      // If overwrite is allowed it must be less than or equal to 2 x buffer length, otherwise the overflow can not be resolved by the read functions
+  if (free == 0)
   {
     info->len_lin = 0;
     info->len_wrap = 0;
     info->ptr_lin = NULL;
     info->ptr_wrap = NULL;
     return;
-  }
-
-  // We need n here because we must enforce the read and write pointers to be not more separated than 2*depth!
-  if (!f->overwritable)
-  {
-    // Not overwritable limit up to full
-    n = tu_min16(n, free);
-  }
-  else if (n >= f->depth)
-  {
-    n = f->depth;
-    // We start writing at the read pointer's position since we fill the complete
-    // buffer and we do not want to modify the read pointer within a write function!
-    // This would end up in a race condition with read functions!
-    w = r;
   }
 
   // Get relative pointers
@@ -1002,14 +985,14 @@ void tu_fifo_get_write_info(tu_fifo_t *f, tu_fifo_buffer_info_t *info, uint16_t 
   if (w < r)
   {
     // Non wrapping case
-    info->len_lin = tu_min16(n, r-w);                       // Limit to required length
+    info->len_lin = r-w;                                    // Limit to required length
     info->len_wrap = 0;
     info->ptr_wrap = NULL;
   }
   else
   {
-    info->len_lin = tu_min16(n, f->depth - w);              // Limit to required length
-    info->len_wrap = n-info->len_lin;                       // Remaining length - n already was limited to free or FIFO depth
+    info->len_lin = f->depth - w;
+    info->len_wrap = free - info->len_lin;                  // Remaining length - n already was limited to free or FIFO depth
     info->ptr_wrap = f->buffer;                             // Always start of buffer
   }
 

@@ -142,7 +142,7 @@ void     tu_fifo_advance_read_pointer   (tu_fifo_t *f, uint16_t n);
 // This functions deliver a pointer to start reading/writing from/to and a valid linear length along which no wrap occurs.
 
 void tu_fifo_get_read_info(tu_fifo_t *f, tu_fifo_buffer_info_t *info);
-void tu_fifo_get_write_info(tu_fifo_t *f, tu_fifo_buffer_info_t *info, uint16_t n);
+void tu_fifo_get_write_info(tu_fifo_t *f, tu_fifo_buffer_info_t *info);
 
 static inline uint16_t tu_fifo_depth(tu_fifo_t* f)
 {
