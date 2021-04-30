@@ -144,7 +144,7 @@ void     tu_fifo_advance_read_pointer   (tu_fifo_t *f, uint16_t n);
 // tu_fifo_advance_read_pointer()/tu_fifo_advance_write_pointer and conduct a second read/write operation
 // TODO - update comments
 
-void tu_fifo_get_read_info(tu_fifo_t *f, tu_fifo_buffer_info_t *info, uint16_t n);
+void tu_fifo_get_read_info(tu_fifo_t *f, tu_fifo_buffer_info_t *info);
 void tu_fifo_get_write_info(tu_fifo_t *f, tu_fifo_buffer_info_t *info, uint16_t n);
 
 static inline uint16_t tu_fifo_depth(tu_fifo_t* f)

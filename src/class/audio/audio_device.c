@@ -985,12 +985,18 @@ static uint16_t audiod_encode_type_I_pcm(uint8_t rhport, audiod_function_t* audi
   {
     dst = &audio->lin_buf_in[cnt_ff*audio->n_channels_per_ff_tx*audio->n_bytes_per_sampe_tx];
 
-    tu_fifo_get_read_info(&audio->tx_supp_ff[cnt_ff], &info, nBytesPerFFToSend);
+    tu_fifo_get_read_info(&audio->tx_supp_ff[cnt_ff], &info);
 
-    if (info.ptr_lin != 0)
+    // Limit up to desired length
+    info.len_lin = tu_min16(nBytesPerFFToSend, info.len_lin);
+
+    if (info.len_lin != 0)
     {
       src_end = info.ptr_lin + info.len_lin;
       dst = audiod_interleaved_copy_bytes_fast_encode(nBytesToCopy, info.ptr_lin, src_end, dst, n_ff_used);
+
+      // Limit up to desired length
+      info.len_wrap = tu_min16(nBytesPerFFToSend - info.len_lin, info.len_wrap);
 
       // Handle wrapped part of FIFO
       if (info.len_wrap != 0)

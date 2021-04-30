@@ -896,7 +896,7 @@ void tu_fifo_advance_read_pointer(tu_fifo_t *f, uint16_t n)
                     Pointer to struct which holds the desired infos
  */
 /******************************************************************************/
-void tu_fifo_get_read_info(tu_fifo_t *f, tu_fifo_buffer_info_t *info, uint16_t n)
+void tu_fifo_get_read_info(tu_fifo_t *f, tu_fifo_buffer_info_t *info)
 {
   // Operate on temporary values in case they change in between
   uint16_t w = f->wr_idx, r = f->rd_idx;
@@ -923,8 +923,6 @@ void tu_fifo_get_read_info(tu_fifo_t *f, tu_fifo_buffer_info_t *info, uint16_t n
     return;
   }
 
-  if (cnt < n) n = cnt;
-
   // Get relative pointers
   w = get_relative_pointer(f, w);
   r = get_relative_pointer(f, r);
@@ -935,14 +933,14 @@ void tu_fifo_get_read_info(tu_fifo_t *f, tu_fifo_buffer_info_t *info, uint16_t n
   // Check if there is a wrap around necessary
   if (w > r) {
     // Non wrapping case
-    info->len_lin = tu_min16(n, w - r);            // Limit to required length
+    info->len_lin = cnt;
     info->len_wrap = 0;
     info->ptr_wrap = NULL;
   }
   else
   {
-    info->len_lin = tu_min16(n, f->depth - r);   // Also the case if FIFO was full
-    info->len_wrap = n-info->len_lin;
+    info->len_lin = f->depth - r;                 // Also the case if FIFO was full
+    info->len_wrap = cnt - info->len_lin;
     info->ptr_wrap = f->buffer;
   }
 
