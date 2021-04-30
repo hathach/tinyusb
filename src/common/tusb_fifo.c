@@ -396,7 +396,7 @@ static inline void _tu_fifo_correct_read_pointer(tu_fifo_t* f, uint16_t wAbs)
 
 // Works on local copies of w and r
 // Must be protected by mutexes since in case of an overflow read pointer gets modified
-static bool _tu_fifo_peek_at(tu_fifo_t* f, void * p_buffer, uint16_t wAbs, uint16_t rAbs)
+static bool _tu_fifo_peek(tu_fifo_t* f, void * p_buffer, uint16_t wAbs, uint16_t rAbs)
 {
   uint16_t cnt = _tu_fifo_count(f, wAbs, rAbs);
 
@@ -420,7 +420,7 @@ static bool _tu_fifo_peek_at(tu_fifo_t* f, void * p_buffer, uint16_t wAbs, uint1
 
 // Works on local copies of w and r
 // Must be protected by mutexes since in case of an overflow read pointer gets modified
-static uint16_t _tu_fifo_peek_at_n(tu_fifo_t* f, void * p_buffer, uint16_t n, uint16_t wAbs, uint16_t rAbs, tu_fifo_copy_mode_t copy_mode)
+static uint16_t _tu_fifo_peek_n(tu_fifo_t* f, void * p_buffer, uint16_t n, uint16_t wAbs, uint16_t rAbs, tu_fifo_copy_mode_t copy_mode)
 {
   uint16_t cnt = _tu_fifo_count(f, wAbs, rAbs);
 
@@ -496,7 +496,7 @@ static uint16_t _tu_fifo_read_n(tu_fifo_t* f, void * buffer, uint16_t n, tu_fifo
   _ff_lock(f->mutex_rd);
 
   // Peek the data
-  n = _tu_fifo_peek_at_n(f, buffer, n, f->wr_idx, f->rd_idx, copy_mode);        // f->rd_idx might get modified in case of an overflow so we can not use a local variable
+  n = _tu_fifo_peek_n(f, buffer, n, f->wr_idx, f->rd_idx, copy_mode);        // f->rd_idx might get modified in case of an overflow so we can not use a local variable
 
   // Advance read pointer
   f->rd_idx = advance_pointer(f, f->rd_idx, n);
@@ -634,7 +634,7 @@ bool tu_fifo_read(tu_fifo_t* f, void * buffer)
   _ff_lock(f->mutex_rd);
 
   // Peek the data
-  bool ret = _tu_fifo_peek_at(f, buffer, f->wr_idx, f->rd_idx);    // f->rd_idx might get modified in case of an overflow so we can not use a local variable
+  bool ret = _tu_fifo_peek(f, buffer, f->wr_idx, f->rd_idx);    // f->rd_idx might get modified in case of an overflow so we can not use a local variable
 
   // Advance pointer
   f->rd_idx = advance_pointer(f, f->rd_idx, ret);
@@ -684,10 +684,10 @@ uint16_t tu_fifo_read_n_const_addr_full_words(tu_fifo_t* f, void * buffer, uint1
     @returns TRUE if the queue is not empty
  */
 /******************************************************************************/
-bool tu_fifo_peek_at(tu_fifo_t* f, void * p_buffer)
+bool tu_fifo_peek(tu_fifo_t* f, void * p_buffer)
 {
   _ff_lock(f->mutex_rd);
-  bool ret = _tu_fifo_peek_at(f, p_buffer, f->wr_idx, f->rd_idx);
+  bool ret = _tu_fifo_peek(f, p_buffer, f->wr_idx, f->rd_idx);
   _ff_unlock(f->mutex_rd);
   return ret;
 }
@@ -707,10 +707,10 @@ bool tu_fifo_peek_at(tu_fifo_t* f, void * p_buffer)
     @returns Number of bytes written to p_buffer
  */
 /******************************************************************************/
-uint16_t tu_fifo_peek_at_n(tu_fifo_t* f, void * p_buffer, uint16_t n)
+uint16_t tu_fifo_peek_n(tu_fifo_t* f, void * p_buffer, uint16_t n)
 {
   _ff_lock(f->mutex_rd);
-  bool ret = _tu_fifo_peek_at_n(f, p_buffer, n, f->wr_idx, f->rd_idx, TU_FIFO_COPY_INC);
+  bool ret = _tu_fifo_peek_n(f, p_buffer, n, f->wr_idx, f->rd_idx, TU_FIFO_COPY_INC);
   _ff_unlock(f->mutex_rd);
   return ret;
 }

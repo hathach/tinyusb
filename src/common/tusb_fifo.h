@@ -123,8 +123,8 @@ bool     tu_fifo_read                   (tu_fifo_t* f, void * p_buffer);
 uint16_t tu_fifo_read_n                 (tu_fifo_t* f, void * p_buffer, uint16_t n);
 uint16_t tu_fifo_read_n_const_addr_full_words     (tu_fifo_t* f, void * buffer, uint16_t n);
 
-bool     tu_fifo_peek_at                (tu_fifo_t* f, void * p_buffer);
-uint16_t tu_fifo_peek_at_n              (tu_fifo_t* f, void * p_buffer, uint16_t n);
+bool     tu_fifo_peek                   (tu_fifo_t* f, void * p_buffer);
+uint16_t tu_fifo_peek_n                 (tu_fifo_t* f, void * p_buffer, uint16_t n);
 
 uint16_t tu_fifo_count                  (tu_fifo_t* f);
 bool     tu_fifo_empty                  (tu_fifo_t* f);
@@ -146,11 +146,6 @@ void     tu_fifo_advance_read_pointer   (tu_fifo_t *f, uint16_t n);
 
 void tu_fifo_get_read_info(tu_fifo_t *f, tu_fifo_buffer_info_t *info, uint16_t n);
 void tu_fifo_get_write_info(tu_fifo_t *f, tu_fifo_buffer_info_t *info, uint16_t n);
-
-static inline bool tu_fifo_peek(tu_fifo_t* f, void * p_buffer)
-{
-  return tu_fifo_peek_at(f, p_buffer);
-}
 
 static inline uint16_t tu_fifo_depth(tu_fifo_t* f)
 {

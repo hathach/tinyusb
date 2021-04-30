@@ -45,7 +45,7 @@ bool     tud_vendor_n_mounted         (uint8_t itf);
 
 uint32_t tud_vendor_n_available       (uint8_t itf);
 uint32_t tud_vendor_n_read            (uint8_t itf, void* buffer, uint32_t bufsize);
-bool     tud_vendor_n_peek            (uint8_t itf, int pos, uint8_t* u8);
+bool     tud_vendor_n_peek            (uint8_t itf, uint8_t* u8);
 
 uint32_t tud_vendor_n_write           (uint8_t itf, void const* buffer, uint32_t bufsize);
 uint32_t tud_vendor_n_write_available (uint8_t itf);

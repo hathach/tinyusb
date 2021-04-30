@@ -150,9 +150,6 @@ void test_peek(void)
 
   tu_fifo_peek(&ff, &temp);
   TEST_ASSERT_EQUAL(10, temp);
-
-  tu_fifo_peek_at(&ff, 1, &temp);
-  TEST_ASSERT_EQUAL(20, temp);
 }
 
 void test_empty(void)
