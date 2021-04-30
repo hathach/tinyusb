@@ -209,7 +209,7 @@ static inline void tud_cdc_read_flush (void)
 
 static inline bool tud_cdc_peek (uint8_t* u8)
 {
-  return tud_cdc_n_peek(u8);
+  return tud_cdc_n_peek(0, u8);
 }
 
 static inline uint32_t tud_cdc_write_char (char ch)
