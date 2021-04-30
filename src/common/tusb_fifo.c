@@ -884,12 +884,9 @@ void tu_fifo_advance_read_pointer(tu_fifo_t *f, uint16_t n)
 
    Returns the length and pointer from which bytes can be read in a linear manner.
    This is of major interest for DMA transmissions. If returned length is zero the
-   corresponding pointer is invalid. The returned length is limited to the number
-   of ITEMS n which the user wants to write into the buffer.
-   The write pointer does NOT get advanced, use tu_fifo_advance_read_pointer() to
-   do so! If the length returned is less than n i.e. len<n, then a wrap occurs
-   and you need to execute this function a second time to get a pointer to the
-   wrapped part!
+   corresponding pointer is invalid.
+   The read pointer does NOT get advanced, use tu_fifo_advance_read_pointer() to
+   do so!
    @param[in]       f
                     Pointer to FIFO
    @param[out]      *info
@@ -951,8 +948,8 @@ void tu_fifo_get_read_info(tu_fifo_t *f, tu_fifo_buffer_info_t *info)
 /*!
    @brief Get linear write info
 
-   Returns the length and pointer from which bytes can be written into buffer array in a linear manner.
-   This is of major interest for DMA transmissions not using circular mode. If returned length is zero the
+   Returns the length and pointer to which bytes can be written into FIFO in a linear manner.
+   This is of major interest for DMA transmissions not using circular mode. If a returned length is zero the
    corresponding pointer is invalid. The returned length is limited to the number of BYTES n which the user
    wants to write into the buffer.
    The write pointer does NOT get advanced, use tu_fifo_advance_write_pointer() to do so! If the length
@@ -979,7 +976,6 @@ void tu_fifo_get_write_info(tu_fifo_t *f, tu_fifo_buffer_info_t *info, uint16_t 
     info->ptr_wrap = NULL;
     return;
   }
-
 
   // We need n here because we must enforce the read and write pointers to be not more separated than 2*depth!
   if (!f->overwritable)

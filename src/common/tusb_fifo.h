@@ -140,9 +140,6 @@ void     tu_fifo_advance_read_pointer   (tu_fifo_t *f, uint16_t n);
 
 // If you want to read/write from/to the FIFO by use of a DMA, you may need to conduct two copies to handle a possible wrapping part
 // This functions deliver a pointer to start reading/writing from/to and a valid linear length along which no wrap occurs.
-// In case not all of your data is available within one read/write, update the read/write pointer by
-// tu_fifo_advance_read_pointer()/tu_fifo_advance_write_pointer and conduct a second read/write operation
-// TODO - update comments
 
 void tu_fifo_get_read_info(tu_fifo_t *f, tu_fifo_buffer_info_t *info);
 void tu_fifo_get_write_info(tu_fifo_t *f, tu_fifo_buffer_info_t *info, uint16_t n);
