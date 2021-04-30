@@ -117,7 +117,7 @@ static inline uint32_t tud_cdc_available       (void);
 static inline int32_t  tud_cdc_read_char       (void);
 static inline uint32_t tud_cdc_read            (void* buffer, uint32_t bufsize);
 static inline void     tud_cdc_read_flush      (void);
-static inline bool     tud_cdc_peek            (int pos, uint8_t* u8);
+static inline bool     tud_cdc_peek            (uint8_t* u8);
 
 static inline uint32_t tud_cdc_write_char      (char ch);
 static inline uint32_t tud_cdc_write           (void const* buffer, uint32_t bufsize);
@@ -207,9 +207,9 @@ static inline void tud_cdc_read_flush (void)
   tud_cdc_n_read_flush(0);
 }
 
-static inline bool tud_cdc_peek (int pos, uint8_t* u8)
+static inline bool tud_cdc_peek (uint8_t* u8)
 {
-  return tud_cdc_n_peek(0, pos, u8);
+  return tud_cdc_n_peek(u8);
 }
 
 static inline uint32_t tud_cdc_write_char (char ch)
