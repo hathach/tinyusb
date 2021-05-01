@@ -121,6 +121,8 @@ enum { CONFIG_NUM = 1 }; // default to use configuration 1
 // INTERNAL OBJECT & FUNCTION DECLARATION
 //--------------------------------------------------------------------+
 
+static bool _initialized = false;
+
 // including zero-address
 CFG_TUSB_MEM_SECTION usbh_device_t _usbh_devices[CFG_TUSB_HOST_DEVICE_MAX+1];
 
@@ -170,8 +172,19 @@ void osal_task_delay(uint32_t msec)
 //--------------------------------------------------------------------+
 // CLASS-USBD API (don't require to verify parameters)
 //--------------------------------------------------------------------+
+
+bool tuh_inited(void)
+{
+  return _initialized;
+}
+
 bool tuh_init(void)
 {
+  // skip if already initialized
+  if (_initialized) return _initialized;
+
+  TU_LOG2("USBH init\r\n");
+
   tu_memclr(_usbh_devices, sizeof(usbh_device_t)*(CFG_TUSB_HOST_DEVICE_MAX+1));
 
   //------------- Enumeration & Reporter Task init -------------//
@@ -202,6 +215,7 @@ bool tuh_init(void)
   TU_ASSERT(hcd_init(TUH_OPT_RHPORT));
   hcd_int_enable(TUH_OPT_RHPORT);
 
+  _initialized = true;
   return true;
 }
 

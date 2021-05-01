@@ -44,6 +44,10 @@
 //--------------------------------------------------------------------+
 // Device Data
 //--------------------------------------------------------------------+
+
+// Invalid driver ID in itf2drv[] ep2drv[][] mapping
+enum { DRVID_INVALID = 0xFFu };
+
 typedef struct
 {
   struct TU_ATTR_PACKED
@@ -75,9 +79,6 @@ typedef struct
 }usbd_device_t;
 
 static usbd_device_t _usbd_dev;
-
-// Invalid driver ID in itf2drv[] ep2drv[][] mapping
-enum { DRVID_INVALID = 0xFFu };
 
 //--------------------------------------------------------------------+
 // Class Driver
@@ -241,6 +242,8 @@ static inline usbd_class_driver_t const * get_driver(uint8_t drvid)
 // DCD Event
 //--------------------------------------------------------------------+
 
+static bool _initialized = false;
+
 // Event queue
 // OPT_MODE_DEVICE is used by OS NONE for mutex (disable usb isr)
 OSAL_QUEUE_DEF(OPT_MODE_DEVICE, _usbd_qdef, CFG_TUD_TASK_QUEUE_SZ, dcd_event_t);
@@ -368,8 +371,16 @@ bool tud_connect(void)
 //--------------------------------------------------------------------+
 // USBD Task
 //--------------------------------------------------------------------+
+bool tud_inited(void)
+{
+  return _initialized;
+}
+
 bool tud_init (void)
 {
+  // skip if already initialized
+  if (_initialized) return _initialized;
+
   TU_LOG2("USBD init\r\n");
 
   tu_varclr(&_usbd_dev);
@@ -401,6 +412,8 @@ bool tud_init (void)
   // Init device controller driver
   dcd_init(TUD_OPT_RHPORT);
   dcd_int_enable(TUD_OPT_RHPORT);
+
+  _initialized = true;
 
   return true;
 }

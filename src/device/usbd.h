@@ -43,6 +43,9 @@ extern "C" {
 // Init device stack
 bool tud_init (void);
 
+// Check if device stack is already initialized
+bool tud_inited(void);
+
 // Task function should be called in main/rtos loop
 void tud_task (void);
 
