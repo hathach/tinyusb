@@ -11,6 +11,9 @@
   - Rename tud_midi_receive() to tud_midi_packet_read()
   - Rename tud_midi_send() to tud_midi_packet_write()
 - New board stm32f072-eval
+- Breaking changes
+  - tud_cdc_peek(), tud_vendor_peek() dropped position parameter. If needed, tu_fifo_get_read_info() can be used to peek
+    at random offset.
 
 ## 0.9.0 - 2021.03.12
 
