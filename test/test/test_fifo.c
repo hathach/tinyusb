@@ -24,15 +24,19 @@
  * This file is part of the TinyUSB stack.
  */
 
+#include <string.h>
 #include "unity.h"
 #include "tusb_fifo.h"
 
 #define FIFO_SIZE 10
-TU_FIFO_DEF(ff, FIFO_SIZE, uint8_t, false);
+TU_FIFO_DEF(tu_ff, FIFO_SIZE, uint8_t, false);
+tu_fifo_t* ff = &tu_ff;
+tu_fifo_buffer_info_t info;
 
 void setUp(void)
 {
-  tu_fifo_clear(&ff);
+  tu_fifo_clear(ff);
+  memset(&info, 0, sizeof(tu_fifo_buffer_info_t));
 }
 
 void tearDown(void)
@@ -44,12 +48,12 @@ void tearDown(void)
 //--------------------------------------------------------------------+
 void test_normal(void)
 {
-  for(uint8_t i=0; i < FIFO_SIZE; i++) tu_fifo_write(&ff, &i);
+  for(uint8_t i=0; i < FIFO_SIZE; i++) tu_fifo_write(ff, &i);
 
   for(uint8_t i=0; i < FIFO_SIZE; i++)
   {
     uint8_t c;
-    tu_fifo_read(&ff, &c);
+    tu_fifo_read(ff, &c);
     TEST_ASSERT_EQUAL(i, c);
   }
 }
@@ -86,30 +90,30 @@ void test_read_n(void)
   uint8_t data[20];
   for(int i=0; i<sizeof(data); i++) data[i] = i;
 
-  for(uint8_t i=0; i < FIFO_SIZE; i++) tu_fifo_write(&ff, data+i);
+  for(uint8_t i=0; i < FIFO_SIZE; i++) tu_fifo_write(ff, data+i);
 
   uint8_t rd[10];
   uint16_t rd_count;
 
   // case 1: Read index + count < depth
   // read 0 -> 4
-  rd_count = tu_fifo_read_n(&ff, rd, 5);
+  rd_count = tu_fifo_read_n(ff, rd, 5);
   TEST_ASSERT_EQUAL( 5, rd_count );
   TEST_ASSERT_EQUAL_MEMORY( data, rd, rd_count ); // 0 -> 4
 
   // case 2: Read index + count > depth
   // write 10, 11, 12
-  tu_fifo_write(&ff, data+10);
-  tu_fifo_write(&ff, data+11);
-  tu_fifo_write(&ff, data+12);
+  tu_fifo_write(ff, data+10);
+  tu_fifo_write(ff, data+11);
+  tu_fifo_write(ff, data+12);
 
-  rd_count = tu_fifo_read_n(&ff, rd, 7);
+  rd_count = tu_fifo_read_n(ff, rd, 7);
   TEST_ASSERT_EQUAL( 7, rd_count );
 
   TEST_ASSERT_EQUAL_MEMORY( data+5, rd, rd_count ); // 5 -> 11
 
   // Should only read until empty
-  TEST_ASSERT_EQUAL( 1, tu_fifo_read_n(&ff, rd, 100) );
+  TEST_ASSERT_EQUAL( 1, tu_fifo_read_n(ff, rd, 100) );
 }
 
 void test_write_n(void)
@@ -119,55 +123,172 @@ void test_write_n(void)
   for(int i=0; i<sizeof(data); i++) data[i] = i;
 
   // case 1: wr + count < depth
-  tu_fifo_write_n(&ff, data, 8); // wr = 8, count = 8
+  tu_fifo_write_n(ff, data, 8); // wr = 8, count = 8
 
   uint8_t rd[10];
   uint16_t rd_count;
 
-  rd_count = tu_fifo_read_n(&ff, rd, 5); // wr = 8, count = 3
+  rd_count = tu_fifo_read_n(ff, rd, 5); // wr = 8, count = 3
   TEST_ASSERT_EQUAL( 5, rd_count );
   TEST_ASSERT_EQUAL_MEMORY( data, rd, rd_count ); // 0 -> 4
 
   // case 2: wr + count > depth
-  tu_fifo_write_n(&ff, data+8, 6); // wr = 3, count = 9
+  tu_fifo_write_n(ff, data+8, 6); // wr = 3, count = 9
 
-  for(rd_count=0; rd_count<7; rd_count++) tu_fifo_read(&ff, rd+rd_count); // wr = 3, count = 2
+  for(rd_count=0; rd_count<7; rd_count++) tu_fifo_read(ff, rd+rd_count); // wr = 3, count = 2
 
   TEST_ASSERT_EQUAL_MEMORY( data+5, rd, rd_count); // 5 -> 11
 
-  TEST_ASSERT_EQUAL(2, tu_fifo_count(&ff));
+  TEST_ASSERT_EQUAL(2, tu_fifo_count(ff));
 }
 
 void test_peek(void)
 {
   uint8_t temp;
 
-  temp = 10; tu_fifo_write(&ff, &temp);
-  temp = 20; tu_fifo_write(&ff, &temp);
-  temp = 30; tu_fifo_write(&ff, &temp);
+  temp = 10; tu_fifo_write(ff, &temp);
+  temp = 20; tu_fifo_write(ff, &temp);
+  temp = 30; tu_fifo_write(ff, &temp);
 
   temp = 0;
 
-  tu_fifo_peek(&ff, &temp);
+  tu_fifo_peek(ff, &temp);
   TEST_ASSERT_EQUAL(10, temp);
 
-  tu_fifo_peek_at(&ff, 1, &temp);
-  TEST_ASSERT_EQUAL(20, temp);
+  tu_fifo_read(ff, &temp);
+  tu_fifo_read(ff, &temp);
+
+  tu_fifo_peek(ff, &temp);
+  TEST_ASSERT_EQUAL(30, temp);
+}
+
+void test_get_read_info_when_no_wrap()
+{
+  uint8_t ch = 1;
+
+  // write 6 items
+  for(uint8_t i=0; i < 6; i++) tu_fifo_write(ff, &ch);
+
+  // read 2 items
+  tu_fifo_read(ff, &ch);
+  tu_fifo_read(ff, &ch);
+
+  tu_fifo_get_read_info(ff, &info);
+
+  TEST_ASSERT_EQUAL(4, info.len_lin);
+  TEST_ASSERT_EQUAL(0, info.len_wrap);
+
+  TEST_ASSERT_EQUAL_PTR(ff->buffer+2, info.ptr_lin);
+  TEST_ASSERT_NULL(info.ptr_wrap);
+}
+
+void test_get_read_info_when_wrapped()
+{
+  uint8_t ch = 1;
+
+  // make fifo full
+  for(uint8_t i=0; i < FIFO_SIZE; i++) tu_fifo_write(ff, &ch);
+
+  // read 6 items
+  for(uint8_t i=0; i < 6; i++) tu_fifo_read(ff, &ch);
+
+  // write 2 items
+  tu_fifo_write(ff, &ch);
+  tu_fifo_write(ff, &ch);
+
+  tu_fifo_get_read_info(ff, &info);
+
+  TEST_ASSERT_EQUAL(FIFO_SIZE-6, info.len_lin);
+  TEST_ASSERT_EQUAL(2, info.len_wrap);
+
+  TEST_ASSERT_EQUAL_PTR(ff->buffer+6, info.ptr_lin);
+  TEST_ASSERT_EQUAL_PTR(ff->buffer, info.ptr_wrap);
+}
+
+void test_get_write_info_when_no_wrap()
+{
+  uint8_t ch = 1;
+
+  // write 2 items
+  tu_fifo_write(ff, &ch);
+  tu_fifo_write(ff, &ch);
+
+  tu_fifo_get_write_info(ff, &info);
+
+  TEST_ASSERT_EQUAL(FIFO_SIZE-2, info.len_lin);
+  TEST_ASSERT_EQUAL(0, info.len_wrap);
+
+  TEST_ASSERT_EQUAL_PTR(ff->buffer+2, info .ptr_lin);
+  // application should check len instead of ptr.
+  // TEST_ASSERT_NULL(info.ptr_wrap);
+}
+
+void test_get_write_info_when_wrapped()
+{
+  uint8_t ch = 1;
+
+  // write 6 items
+  for(uint8_t i=0; i < 6; i++) tu_fifo_write(ff, &ch);
+
+  // read 2 items
+  tu_fifo_read(ff, &ch);
+  tu_fifo_read(ff, &ch);
+
+  tu_fifo_get_write_info(ff, &info);
+
+  TEST_ASSERT_EQUAL(FIFO_SIZE-6, info.len_lin);
+  TEST_ASSERT_EQUAL(2, info.len_wrap);
+
+  TEST_ASSERT_EQUAL_PTR(ff->buffer+6, info .ptr_lin);
+  TEST_ASSERT_EQUAL_PTR(ff->buffer, info.ptr_wrap);
 }
 
 void test_empty(void)
 {
   uint8_t temp;
-  TEST_ASSERT_TRUE(tu_fifo_empty(&ff));
-  tu_fifo_write(&ff, &temp);
-  TEST_ASSERT_FALSE(tu_fifo_empty(&ff));
+  TEST_ASSERT_TRUE(tu_fifo_empty(ff));
+
+  // read info
+  tu_fifo_get_read_info(ff, &info);
+
+  TEST_ASSERT_EQUAL(0, info.len_lin);
+  TEST_ASSERT_EQUAL(0, info.len_wrap);
+
+  TEST_ASSERT_NULL(info.ptr_lin);
+  TEST_ASSERT_NULL(info.ptr_wrap);
+
+  // write info
+  tu_fifo_get_write_info(ff, &info);
+
+  TEST_ASSERT_EQUAL(FIFO_SIZE, info.len_lin);
+  TEST_ASSERT_EQUAL(0, info.len_wrap);
+
+  TEST_ASSERT_EQUAL_PTR(ff->buffer, info .ptr_lin);
+  // application should check len instead of ptr.
+  // TEST_ASSERT_NULL(info.ptr_wrap);
+
+  // write 1 then re-check empty
+  tu_fifo_write(ff, &temp);
+  TEST_ASSERT_FALSE(tu_fifo_empty(ff));
 }
 
 void test_full(void)
 {
-  TEST_ASSERT_FALSE(tu_fifo_full(&ff));
+  TEST_ASSERT_FALSE(tu_fifo_full(ff));
 
-  for(uint8_t i=0; i < FIFO_SIZE; i++) tu_fifo_write(&ff, &i);
+  for(uint8_t i=0; i < FIFO_SIZE; i++) tu_fifo_write(ff, &i);
 
-  TEST_ASSERT_TRUE(tu_fifo_full(&ff));
+  TEST_ASSERT_TRUE(tu_fifo_full(ff));
+
+  // read info
+  tu_fifo_get_read_info(ff, &info);
+
+  TEST_ASSERT_EQUAL(FIFO_SIZE, info.len_lin);
+  TEST_ASSERT_EQUAL(0, info.len_wrap);
+
+  TEST_ASSERT_EQUAL_PTR(ff->buffer, info.ptr_lin);
+  // skip this, application must check len instead of buffer
+  // TEST_ASSERT_NULL(info.ptr_wrap);
+
+  // write info
 }

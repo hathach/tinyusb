@@ -146,9 +146,9 @@ uint32_t tud_cdc_n_read(uint8_t itf, void* buffer, uint32_t bufsize)
   return num_read;
 }
 
-bool tud_cdc_n_peek(uint8_t itf, int pos, uint8_t* chr)
+bool tud_cdc_n_peek(uint8_t itf, uint8_t* chr)
 {
-  return tu_fifo_peek_at(&_cdcd_itf[itf].rx_ff, pos, chr);
+  return tu_fifo_peek(&_cdcd_itf[itf].rx_ff, chr);
 }
 
 void tud_cdc_n_read_flush (uint8_t itf)

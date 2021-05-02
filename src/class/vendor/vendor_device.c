@@ -72,9 +72,9 @@ uint32_t tud_vendor_n_available (uint8_t itf)
   return tu_fifo_count(&_vendord_itf[itf].rx_ff);
 }
 
-bool tud_vendor_n_peek(uint8_t itf, int pos, uint8_t* u8)
+bool tud_vendor_n_peek(uint8_t itf, uint8_t* u8)
 {
-  return tu_fifo_peek_at(&_vendord_itf[itf].rx_ff, pos, u8);
+  return tu_fifo_peek(&_vendord_itf[itf].rx_ff, u8);
 }
 
 //--------------------------------------------------------------------+
