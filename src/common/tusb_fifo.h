@@ -25,10 +25,6 @@
  * This file is part of the TinyUSB stack.
  */
 
-/** \ingroup Group_Common
- * \defgroup group_fifo fifo
- *  @{ */
-
 #ifndef _TUSB_FIFO_H_
 #define _TUSB_FIFO_H_
 
@@ -62,16 +58,16 @@ extern "C" {
  */
 typedef struct
 {
-  uint8_t* buffer                        ; ///< buffer pointer
-  uint16_t depth                         ; ///< max items
-  uint16_t item_size                     ; ///< size of each item
-  bool overwritable                      ;
+  uint8_t* buffer               ; ///< buffer pointer
+  uint16_t depth                ; ///< max items
+  uint16_t item_size            ; ///< size of each item
+  bool overwritable             ;
 
-  uint16_t non_used_index_space          ; ///< required for non-power-of-two buffer length
-  uint16_t max_pointer_idx               ; ///< maximum absolute pointer index
+  uint16_t non_used_index_space ; ///< required for non-power-of-two buffer length
+  uint16_t max_pointer_idx      ; ///< maximum absolute pointer index
 
-  volatile uint16_t wr_idx               ; ///< write pointer
-  volatile uint16_t rd_idx               ; ///< read pointer
+  volatile uint16_t wr_idx      ; ///< write pointer
+  volatile uint16_t rd_idx      ; ///< read pointer
 
 #if CFG_FIFO_MUTEX
   tu_fifo_mutex_t mutex_wr;
@@ -82,10 +78,10 @@ typedef struct
 
 typedef struct
 {
-  uint16_t len_lin                      ; ///< linear length in item size
-  uint16_t len_wrap                     ; ///< wrapped length in item size
-  void * ptr_lin                        ; ///< linear part start pointer
-  void * ptr_wrap                       ; ///< wrapped part start pointer
+  uint16_t len_lin  ; ///< linear length in item size
+  uint16_t len_wrap ; ///< wrapped length in item size
+  void * ptr_lin    ; ///< linear part start pointer
+  void * ptr_wrap   ; ///< wrapped part start pointer
 } tu_fifo_buffer_info_t;
 
 #define TU_FIFO_INIT(_buffer, _depth, _type, _overwritable) \
@@ -133,21 +129,22 @@ uint16_t tu_fifo_remaining              (tu_fifo_t* f);
 bool     tu_fifo_overflowed             (tu_fifo_t* f);
 void     tu_fifo_correct_read_pointer   (tu_fifo_t* f);
 
+static inline uint16_t tu_fifo_depth(tu_fifo_t* f)
+{
+  return f->depth;
+}
+
 // Pointer modifications intended to be used in combinations with DMAs.
 // USE WITH CARE - NO SAFTY CHECKS CONDUCTED HERE! NOT MUTEX PROTECTED!
 void     tu_fifo_advance_write_pointer  (tu_fifo_t *f, uint16_t n);
 void     tu_fifo_advance_read_pointer   (tu_fifo_t *f, uint16_t n);
 
-// If you want to read/write from/to the FIFO by use of a DMA, you may need to conduct two copies to handle a possible wrapping part
-// This functions deliver a pointer to start reading/writing from/to and a valid linear length along which no wrap occurs.
-
-void tu_fifo_get_read_info(tu_fifo_t *f, tu_fifo_buffer_info_t *info);
+// If you want to read/write from/to the FIFO by use of a DMA, you may need to conduct two copies
+// to handle a possible wrapping part. These functions deliver a pointer to start
+// reading/writing from/to and a valid linear length along which no wrap occurs.
+void tu_fifo_get_read_info (tu_fifo_t *f, tu_fifo_buffer_info_t *info);
 void tu_fifo_get_write_info(tu_fifo_t *f, tu_fifo_buffer_info_t *info);
 
-static inline uint16_t tu_fifo_depth(tu_fifo_t* f)
-{
-  return f->depth;
-}
 
 #ifdef __cplusplus
 }

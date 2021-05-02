@@ -57,7 +57,8 @@ static inline void _ff_unlock(tu_fifo_mutex_t mutex)
 #endif
 
 /** \enum tu_fifo_copy_mode_t
- * \brief Write modes intended to allow special read and write functions to be able to copy data to and from USB hardware FIFOs as needed for e.g. STM32s and others
+ * \brief Write modes intended to allow special read and write functions to be able to
+ *        copy data to and from USB hardware FIFOs as needed for e.g. STM32s and others
  */
 typedef enum
 {
@@ -77,7 +78,10 @@ bool tu_fifo_config(tu_fifo_t *f, void* buffer, uint16_t depth, uint16_t item_si
   f->item_size = item_size;
   f->overwritable = overwritable;
 
-  f->max_pointer_idx = 2*depth - 1;               // Limit index space to 2*depth - this allows for a fast "modulo" calculation but limits the maximum depth to 2^16/2 = 2^15 and buffer overflows are detectable only if overflow happens once (important for unsupervised DMA applications)
+  // Limit index space to 2*depth - this allows for a fast "modulo" calculation
+  // but limits the maximum depth to 2^16/2 = 2^15 and buffer overflows are detectable
+  // only if overflow happens once (important for unsupervised DMA applications)
+  f->max_pointer_idx = 2*depth - 1;
   f->non_used_index_space = UINT16_MAX - f->max_pointer_idx;
 
   f->rd_idx = f->wr_idx = 0;
@@ -319,7 +323,8 @@ static void _ff_pull_n(tu_fifo_t* f, void* app_buf, uint16_t n, uint16_t rel, tu
 static uint16_t advance_pointer(tu_fifo_t* f, uint16_t p, uint16_t offset)
 {
   // We limit the index space of p such that a correct wrap around happens
-  // Check for a wrap around or if we are in unused index space - This has to be checked first!! We are exploiting the wrap around to the correct index
+  // Check for a wrap around or if we are in unused index space - This has to be checked first!!
+  // We are exploiting the wrap around to the correct index
   if ((p > p + offset) || (p + offset > f->max_pointer_idx))
   {
     p = (p + offset) + f->non_used_index_space;
@@ -335,7 +340,8 @@ static uint16_t advance_pointer(tu_fifo_t* f, uint16_t p, uint16_t offset)
 static uint16_t backward_pointer(tu_fifo_t* f, uint16_t p, uint16_t offset)
 {
   // We limit the index space of p such that a correct wrap around happens
-  // Check for a wrap around or if we are in unused index space - This has to be checked first!! We are exploiting the wrap around to the correct index
+  // Check for a wrap around or if we are in unused index space - This has to be checked first!!
+  // We are exploiting the wrap around to the correct index
   if ((p < p - offset) || (p - offset > f->max_pointer_idx))
   {
     p = (p - offset) - f->non_used_index_space;
@@ -496,7 +502,8 @@ static uint16_t _tu_fifo_read_n(tu_fifo_t* f, void * buffer, uint16_t n, tu_fifo
   _ff_lock(f->mutex_rd);
 
   // Peek the data
-  n = _tu_fifo_peek_n(f, buffer, n, f->wr_idx, f->rd_idx, copy_mode);        // f->rd_idx might get modified in case of an overflow so we can not use a local variable
+  // f->rd_idx might get modified in case of an overflow so we can not use a local variable
+  n = _tu_fifo_peek_n(f, buffer, n, f->wr_idx, f->rd_idx, copy_mode);
 
   // Advance read pointer
   f->rd_idx = advance_pointer(f, f->rd_idx, n);
@@ -634,7 +641,8 @@ bool tu_fifo_read(tu_fifo_t* f, void * buffer)
   _ff_lock(f->mutex_rd);
 
   // Peek the data
-  bool ret = _tu_fifo_peek(f, buffer, f->wr_idx, f->rd_idx);    // f->rd_idx might get modified in case of an overflow so we can not use a local variable
+  // f->rd_idx might get modified in case of an overflow so we can not use a local variable
+  bool ret = _tu_fifo_peek(f, buffer, f->wr_idx, f->rd_idx);
 
   // Advance pointer
   f->rd_idx = advance_pointer(f, f->rd_idx, ret);
@@ -910,12 +918,12 @@ void tu_fifo_get_read_info(tu_fifo_t *f, tu_fifo_buffer_info_t *info)
     cnt = f->depth;
   }
 
-  // Skip beginning of buffer
+  // Check if fifo is empty
   if (cnt == 0)
   {
-    info->len_lin = 0;
+    info->len_lin  = 0;
     info->len_wrap = 0;
-    info->ptr_lin = NULL;
+    info->ptr_lin  = NULL;
     info->ptr_wrap = NULL;
     return;
   }
@@ -930,18 +938,16 @@ void tu_fifo_get_read_info(tu_fifo_t *f, tu_fifo_buffer_info_t *info)
   // Check if there is a wrap around necessary
   if (w > r) {
     // Non wrapping case
-    info->len_lin = cnt;
+    info->len_lin  = cnt;
     info->len_wrap = 0;
     info->ptr_wrap = NULL;
   }
   else
   {
-    info->len_lin = f->depth - r;                 // Also the case if FIFO was full
+    info->len_lin  = f->depth - r;         // Also the case if FIFO was full
     info->len_wrap = cnt - info->len_lin;
     info->ptr_wrap = f->buffer;
   }
-
-  return;
 }
 
 /******************************************************************************/
@@ -957,8 +963,6 @@ void tu_fifo_get_read_info(tu_fifo_t *f, tu_fifo_buffer_info_t *info)
                     Pointer to FIFO
    @param[out]      *info
                     Pointer to struct which holds the desired infos
-   @param[in]       n
-                    Number of ITEMS to write into buffer
  */
 /******************************************************************************/
 void tu_fifo_get_write_info(tu_fifo_t *f, tu_fifo_buffer_info_t *info)
@@ -985,16 +989,14 @@ void tu_fifo_get_write_info(tu_fifo_t *f, tu_fifo_buffer_info_t *info)
   if (w < r)
   {
     // Non wrapping case
-    info->len_lin = r-w;                                    // Limit to required length
+    info->len_lin = r-w;
     info->len_wrap = 0;
     info->ptr_wrap = NULL;
   }
   else
   {
     info->len_lin = f->depth - w;
-    info->len_wrap = free - info->len_lin;                  // Remaining length - n already was limited to free or FIFO depth
-    info->ptr_wrap = f->buffer;                             // Always start of buffer
+    info->len_wrap = free - info->len_lin; // Remaining length - n already was limited to free or FIFO depth
+    info->ptr_wrap = f->buffer;            // Always start of buffer
   }
-
-  return;
 }
