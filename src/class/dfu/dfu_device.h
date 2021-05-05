@@ -39,7 +39,8 @@
 //--------------------------------------------------------------------+
 // Application Callback API (weak is optional)
 //--------------------------------------------------------------------+
-// Invoked when a reset is received to check if firmware is valid
+// Invoked during DFU_MANIFEST_SYNC get status request to check if firmware
+// is valid
 bool tud_dfu_firmware_valid_check_cb(void);
 
 // Invoked when a DFU_DNLOAD request is received
