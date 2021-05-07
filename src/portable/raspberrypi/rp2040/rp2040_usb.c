@@ -161,7 +161,10 @@ void _hw_endpoint_xfer_start(struct hw_endpoint *ep, uint8_t *buffer, uint16_t t
     // Fill in info now that we're kicking off the hw
     ep->total_len = total_len;
     ep->len = 0;
-    ep->transfer_size = tu_min16(total_len, ep->wMaxPacketSize);
+    // The following limits the TOTAL transfer size to 64 bytes.
+    // This is not the maximum size of the individual data packets,
+    // so it does not need to be limited to 8 for low-speed devices.
+    ep->transfer_size = total_len > 64 ? 64 : total_len;
     ep->active = true;
     ep->user_buf = buffer;
 #if TUSB_OPT_HOST_ENABLED
