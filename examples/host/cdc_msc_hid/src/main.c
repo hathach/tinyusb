@@ -310,6 +310,10 @@ void print_greeting(void)
   {
       [OPT_OS_NONE]      = "None",
       [OPT_OS_FREERTOS]  = "FreeRTOS",
+      [OPT_OS_MYNEWT]    = "Mynewt OS",
+      [OPT_OS_CUSTOM]    = "Custom OS implemnted by application",
+      [OPT_OS_PICO]      = "Raspberry Pi Pico SDK",
+      [OPT_OS_RTTHREAD]  = "RT-Thread"
   };
 
   printf("--------------------------------------------------------------------\r\n");
