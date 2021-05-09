@@ -262,7 +262,7 @@ void hid_task(void)
     if ( !tuh_hid_keyboard_is_busy(addr) )
     {
       process_kbd_report(&usb_keyboard_report);
-      tuh_hid_keyboard_get_report(addr, &usb_mouse_report);
+      tuh_hid_keyboard_get_report(addr, &usb_keyboard_report);
     }
   }
 #endif
