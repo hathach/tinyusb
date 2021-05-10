@@ -25,10 +25,10 @@
  */
 
 #include "tusb_option.h"
-#include "common/tusb_fifo.h"
 
 #if CFG_TUSB_MCU == OPT_MCU_NONE
 
+#include "common/tusb_fifo.h"
 #include "device/dcd.h"
 
 //--------------------------------------------------------------------+

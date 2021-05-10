@@ -102,7 +102,6 @@
  */
 
 #include "tusb_option.h"
-#include "common/tusb_fifo.h"
 
 #if defined(STM32F102x6) || defined(STM32F102xB) || \
     defined(STM32F103x6) || defined(STM32F103xB) || \
@@ -121,6 +120,7 @@
 // Some definitions are copied to our private include file.
 #undef USE_HAL_DRIVER
 
+#include "common/tusb_fifo.h"
 #include "device/dcd.h"
 #include "portable/st/stm32_fsdev/dcd_stm32_fsdev_pvt_st.h"
 
