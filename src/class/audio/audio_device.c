@@ -496,7 +496,7 @@ static bool audiod_rx_done_cb(uint8_t rhport, audiod_function_t* audio, uint16_t
   if (tud_audio_rx_done_pre_read_cb || tud_audio_rx_done_post_read_cb)
   {
     idx_audio_fct = audiod_get_audio_fct_idx(audio);
-    TU_VERIFY(audiod_get_AS_interface_index(audio->ep_in_as_intf_num, audio, &idxItf, &dummy2));
+    TU_VERIFY(audiod_get_AS_interface_index(audio->ep_out_as_intf_num, audio, &idxItf, &dummy2));
   }
 
   // Call a weak callback here - a possibility for user to get informed an audio packet was received and data gets now loaded into EP FIFO (or decoded into support RX software FIFO)
