@@ -25,11 +25,11 @@
  */
 
 #include "tusb_option.h"
-#include "common/tusb_fifo.h"
 
 #if CFG_TUSB_MCU == OPT_MCU_SAMG
 
 #include "sam.h"
+#include "common/tusb_fifo.h"
 #include "device/dcd.h"
 
 // TODO should support (SAM3S || SAM4S || SAM4E || SAMG55)
