@@ -833,9 +833,8 @@ void tusb_hal_nrf_power_event (uint32_t event)
         NRF_USBD->EVENTCAUSE = USBD_EVENTCAUSE_READY_Msk;
         __ISB(); __DSB(); // for sync
 
-        /* Enable the peripheral */
+#ifdef NRF52_SERIES
         // ERRATA 171, 187, 166
-
         if ( nrfx_usbd_errata_187() )
         {
           // CRITICAL_REGION_ENTER();
@@ -867,7 +866,9 @@ void tusb_hal_nrf_power_event (uint32_t event)
           }
           // CRITICAL_REGION_EXIT();
         }
+#endif
 
+        /* Enable the peripheral */
         NRF_USBD->ENABLE = 1;
         __ISB(); __DSB(); // for sync
 
@@ -889,6 +890,7 @@ void tusb_hal_nrf_power_event (uint32_t event)
       NRF_USBD->EVENTCAUSE = USBD_EVENTCAUSE_READY_Msk;
       __ISB(); __DSB(); // for sync
 
+#ifdef NRF52_SERIES
       if ( nrfx_usbd_errata_171() )
       {
         // CRITICAL_REGION_ENTER();
@@ -924,11 +926,12 @@ void tusb_hal_nrf_power_event (uint32_t event)
 
       if ( nrfx_usbd_errata_166() )
       {
-        *((volatile uint32_t *) ((uint8_t *) (NRF_USBD) + 0x800)) = 0x7E3;
-        *((volatile uint32_t *) ((uint8_t *) (NRF_USBD) + 0x804)) = 0x40;
+        *((volatile uint32_t *) (NRF_USBD_BASE + 0x800)) = 0x7E3;
+        *((volatile uint32_t *) (NRF_USBD_BASE + 0x804)) = 0x40;
 
         __ISB(); __DSB();
       }
+#endif
 
       // ISO buffer Lower half for IN, upper half for OUT
       NRF_USBD->ISOSPLIT = USBD_ISOSPLIT_SPLIT_HalfIN;
