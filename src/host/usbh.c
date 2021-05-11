@@ -121,7 +121,7 @@ enum { CONFIG_NUM = 1 }; // default to use configuration 1
 // INTERNAL OBJECT & FUNCTION DECLARATION
 //--------------------------------------------------------------------+
 
-static bool _initialized = false;
+static bool _usbh_initialized = false;
 
 // including zero-address
 CFG_TUSB_MEM_SECTION usbh_device_t _usbh_devices[CFG_TUSB_HOST_DEVICE_MAX+1];
@@ -175,13 +175,13 @@ void osal_task_delay(uint32_t msec)
 
 bool tuh_inited(void)
 {
-  return _initialized;
+  return _usbh_initialized;
 }
 
-bool tuh_init(void)
+bool tuh_init(uint8_t rhport)
 {
   // skip if already initialized
-  if (_initialized) return _initialized;
+  if (_usbh_initialized) return _usbh_initialized;
 
   TU_LOG2("USBH init\r\n");
 
@@ -212,10 +212,10 @@ bool tuh_init(void)
     usbh_class_drivers[drv_id].init();
   }
 
-  TU_ASSERT(hcd_init(TUH_OPT_RHPORT));
-  hcd_int_enable(TUH_OPT_RHPORT);
+  TU_ASSERT(hcd_init(rhport));
+  hcd_int_enable(rhport);
 
-  _initialized = true;
+  _usbh_initialized = true;
   return true;
 }
 

@@ -30,8 +30,6 @@
 
 #include "tusb.h"
 
-static bool _initialized = false;
-
 // TODO clean up
 #if TUSB_OPT_DEVICE_ENABLED
 #include "device/usbd_pvt.h"
@@ -39,25 +37,30 @@ static bool _initialized = false;
 
 bool tusb_init(void)
 {
-  // skip if already initialized
-  if (_initialized) return true;
+#if TUSB_OPT_DEVICE_ENABLED
+  TU_ASSERT ( tud_init(TUD_OPT_RHPORT) ); // init device stack
+#endif
 
 #if TUSB_OPT_HOST_ENABLED
-  TU_ASSERT( tuh_init() ); // init host stack
+  TU_ASSERT( tuh_init(TUH_OPT_RHPORT) ); // init host stack
 #endif
-
-#if TUSB_OPT_DEVICE_ENABLED
-  TU_ASSERT ( tud_init() ); // init device stack
-#endif
-
-  _initialized = true;
 
   return true;
 }
 
 bool tusb_inited(void)
 {
-  return _initialized;
+  bool ret = false;
+
+#if TUSB_OPT_DEVICE_ENABLED
+  ret = ret || tud_inited();
+#endif
+
+#if TUSB_OPT_HOST_ENABLED
+  ret = ret || tuh_inited();
+#endif
+
+  return ret;
 }
 
 /*------------------------------------------------------------------*/

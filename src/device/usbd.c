@@ -242,7 +242,7 @@ static inline usbd_class_driver_t const * get_driver(uint8_t drvid)
 // DCD Event
 //--------------------------------------------------------------------+
 
-static bool _initialized = false;
+static bool _usbd_initialized = false;
 
 // Event queue
 // OPT_MODE_DEVICE is used by OS NONE for mutex (disable usb isr)
@@ -373,13 +373,13 @@ bool tud_connect(void)
 //--------------------------------------------------------------------+
 bool tud_inited(void)
 {
-  return _initialized;
+  return _usbd_initialized;
 }
 
-bool tud_init (void)
+bool tud_init (uint8_t rhport)
 {
   // skip if already initialized
-  if (_initialized) return _initialized;
+  if (_usbd_initialized) return _usbd_initialized;
 
   TU_LOG2("USBD init\r\n");
 
@@ -410,10 +410,10 @@ bool tud_init (void)
   }
 
   // Init device controller driver
-  dcd_init(TUD_OPT_RHPORT);
-  dcd_int_enable(TUD_OPT_RHPORT);
+  dcd_init(rhport);
+  dcd_int_enable(rhport);
 
-  _initialized = true;
+  _usbd_initialized = true;
 
   return true;
 }

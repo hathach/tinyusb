@@ -76,7 +76,7 @@ typedef bool (*tuh_control_complete_cb_t)(uint8_t dev_addr, tusb_control_request
 //--------------------------------------------------------------------+
 
 // Init host stack
-bool tuh_init(void);
+bool tuh_init(uint8_t rhport);
 
 // Check if host stack is already initialized
 bool tuh_inited(void);
