@@ -80,6 +80,7 @@ bool tuh_control_xfer (uint8_t dev_addr, tusb_control_request_t const* request, 
 
 static void _xfer_complete(uint8_t dev_addr, xfer_result_t result)
 {
+  TU_LOG2("\r\n");
   if (_ctrl_xfer.complete_cb) _ctrl_xfer.complete_cb(dev_addr, &_ctrl_xfer.request, result);
 }
 

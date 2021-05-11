@@ -626,9 +626,10 @@ static bool enum_hub_get_status0_complete(uint8_t dev_addr, tusb_control_request
 static bool enum_request_set_addr(void)
 {
   // Set Address
-  TU_LOG2("Set Address \r\n");
   uint8_t const new_addr = get_new_address();
   TU_ASSERT(new_addr <= CFG_TUSB_HOST_DEVICE_MAX); // TODO notify application we reach max devices
+
+  TU_LOG2("Set Address = %d\r\n", new_addr);
 
   usbh_device_t* dev0    = &_usbh_devices[0];
   usbh_device_t* new_dev = &_usbh_devices[new_addr];
@@ -783,6 +784,7 @@ static bool enum_set_address_complete(uint8_t dev_addr, tusb_control_request_t c
   TU_ASSERT ( usbh_pipe_control_open(new_addr, new_dev->ep0_packet_size) );
 
   // Get full device descriptor
+  TU_LOG2("Get Device Descriptor\r\n");
   tusb_control_request_t const new_request =
   {
     .bmRequestType_bit =
@@ -849,7 +851,8 @@ static bool enum_get_9byte_config_desc_complete(uint8_t dev_addr, tusb_control_r
 
   TU_ASSERT(total_len <= CFG_TUSB_HOST_ENUM_BUFFER_SIZE);
 
-  //Get full configuration descriptor
+  // Get full configuration descriptor
+  TU_LOG2("Get Configuration Descriptor\r\n");
   tusb_control_request_t const new_request =
   {
     .bmRequestType_bit =
@@ -879,7 +882,7 @@ static bool enum_get_config_desc_complete(uint8_t dev_addr, tusb_control_request
   // Driver open aren't allowed to make any usb transfer yet
   parse_configuration_descriptor(dev_addr, (tusb_desc_configuration_t*) _usbh_ctrl_buf);
 
-  TU_LOG2("Set Configuration Descriptor\r\n");
+  TU_LOG2("Set Configuration = %d\r\n", CONFIG_NUM);
   tusb_control_request_t const new_request =
   {
     .bmRequestType_bit =
