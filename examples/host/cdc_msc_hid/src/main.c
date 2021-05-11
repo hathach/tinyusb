@@ -316,23 +316,12 @@ void print_greeting(void)
       [OPT_OS_RTTHREAD]  = "RT-Thread"
   };
 
-  printf("--------------------------------------------------------------------\r\n");
-  printf("- Host example\r\n");
-  printf("- if you find any bugs or get any questions, feel free to file an\r\n");
-  printf("- issue at https://github.com/hathach/tinyusb\r\n");
-  printf("--------------------------------------------------------------------\r\n\r\n");
+  printf("----------------------------------------------------\r\n");
+  printf("TinyUSB Host Example\r\n");
+  printf("If you find any bugs or problems, feel free to open\r\n");
+  printf("an issue at https://github.com/hathach/tinyusb\r\n");
+  printf("----------------------------------------------------\r\n\r\n");
 
   printf("This Host demo is configured to support:\r\n");
   printf("  - RTOS = %s\r\n", rtos_name[CFG_TUSB_OS]);
-
-#if CFG_TUH_CDC
-  printf("  - Communication Device Class\r\n");
-#endif
-
-#if CFG_TUH_MSC
-  printf("  - Mass Storage\r\n");
-#endif
-
-//  if (CFG_TUH_HID_KEYBOARD ) puts("  - HID Keyboard");
-//  if (CFG_TUH_HID_MOUSE    ) puts("  - HID Mouse");
 }
