@@ -162,17 +162,10 @@ void tuh_hid_mounted_cb(uint8_t dev_addr)
   tuh_hid_keyboard_get_report(dev_addr, &usb_keyboard_report);
 }
 
-void tuh_hid_keyboard_unmounted_cb(uint8_t dev_addr)
+void tuh_hid_unmounted_cb(uint8_t dev_addr)
 {
   // application tear-down
   printf("A Keyboard device (address %d) is unmounted\r\n", dev_addr);
-}
-
-// invoked ISR context
-void tuh_hid_keyboard_isr(uint8_t dev_addr, xfer_result_t event)
-{
-  (void) dev_addr;
-  (void) event;
 }
 
 #endif
@@ -242,12 +235,6 @@ void tuh_hid_mouse_unmounted_cb(uint8_t dev_addr)
   printf("A Mouse device (address %d) is unmounted\r\n", dev_addr);
 }
 
-// invoked ISR context
-void tuh_hid_mouse_isr(uint8_t dev_addr, xfer_result_t event)
-{
-  (void) dev_addr;
-  (void) event;
-}
 #endif
 
 
@@ -257,7 +244,7 @@ void hid_task(void)
   uint8_t const addr = 1;
 
 #if CFG_TUH_HID_KEYBOARD
-  if ( tuh_hid_keyboard_mounted(addr) )
+  if ( tuh_n_hid_n_keyboard_mounted(addr, 0) )
   {
     if ( !tuh_hid_keyboard_is_busy(addr) )
     {

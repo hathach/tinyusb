@@ -46,21 +46,50 @@
 #define CFG_TUH_HID_REPORT_MAX 4
 #endif
 
-//--------------------------------------------------------------------+
-// Application API (Multiple Instances)
-// CFG_TUH_HID > 1
-//--------------------------------------------------------------------+
-
+#ifndef CFG_TUH_HID_REPORT_DESCRIPTOR_BUFSIZE
+#define CFG_TUH_HID_REPORT_DESCRIPTOR_BUFSIZE 256
+#endif
 
 //--------------------------------------------------------------------+
-// Application API (Single Instance)
+// Application API (Multiple devices)
+// Note:
+//  - tud_n   : is multiple devices API
+//  - class_n : is multiple instances API
 //--------------------------------------------------------------------+
 
-// tuh_hid_instance_count()
+// Get the number of HID instances
+uint8_t tuh_n_hid_instance_count(uint8_t daddr);
+
+// Check if HID instance support keyboard
+bool tuh_n_hid_n_keyboard_mounted(uint8_t daddr, uint8_t instance);
+
+
+
+//--------------------------------------------------------------------+
+// Application API (Single device)
+//--------------------------------------------------------------------+
+
+// Get the number of HID instances
+TU_ATTR_ALWAYS_INLINE static inline
+uint8_t tuh_hid_instance_count(void)
+{
+  return tuh_n_hid_instance_count(1);
+}
+
 //bool tuh_hid_get_report(uint8_t dev_addr, uint8_t report_id, void * p_report, uint8_t len);
+
+//--------------------------------------------------------------------+
+// Callbacks (Weak is optional)
+//--------------------------------------------------------------------+
+
+// Invoked when report descriptor is received
+// Note: enumeration is still not complete yet
+TU_ATTR_WEAK void tuh_hid_descriptor_report_cb(uint8_t daddr, uint8_t instance, uint8_t const* report_desc, uint16_t desc_len);
 
 TU_ATTR_WEAK void tuh_hid_mounted_cb(uint8_t dev_addr);
 TU_ATTR_WEAK void tuh_hid_unmounted_cb(uint8_t dev_addr);
+
+
 
 //--------------------------------------------------------------------+
 // KEYBOARD Application API
@@ -192,31 +221,6 @@ void tuh_hid_mouse_mounted_cb(uint8_t dev_addr);
  * \note        This callback should be used by Application to tear-down interface-related data
  */
 void tuh_hid_mouse_unmounted_cb(uint8_t dev_addr);
-
-/** @} */ // Mouse_Host
-/** @} */ // ClassDriver_HID_Mouse
-
-//--------------------------------------------------------------------+
-// GENERIC Application API
-//--------------------------------------------------------------------+
-/** \addtogroup ClassDriver_HID_Generic Generic (not supported yet)
- *  @{ */
-
-/** \defgroup Generic_Host Host
- *  The interface API includes status checking function, data transferring function and callback functions
- *  @{ */
-
-bool          tuh_hid_generic_is_mounted(uint8_t dev_addr);
-tusb_error_t  tuh_hid_generic_get_report(uint8_t dev_addr, void* p_report, bool int_on_complete);
-tusb_error_t  tuh_hid_generic_set_report(uint8_t dev_addr, void* p_report, bool int_on_complete);
-tusb_interface_status_t tuh_hid_generic_get_status(uint8_t dev_addr);
-tusb_interface_status_t tuh_hid_generic_set_status(uint8_t dev_addr);
-
-//------------- Application Callback -------------//
-void tuh_hid_generic_isr(uint8_t dev_addr, xfer_result_t event);
-
-/** @} */ // Generic_Host
-/** @} */ // ClassDriver_HID_Generic
 
 //--------------------------------------------------------------------+
 // Internal Class Driver API
