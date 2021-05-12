@@ -60,7 +60,7 @@
 // Get the number of HID instances
 uint8_t tuh_n_hid_instance_count(uint8_t daddr);
 
-// Check if HID instance support keyboard
+// Check if HID instance has keyboard
 bool tuh_n_hid_n_keyboard_mounted(uint8_t daddr, uint8_t instance);
 
 
@@ -86,8 +86,8 @@ uint8_t tuh_hid_instance_count(void)
 // Note: enumeration is still not complete yet
 TU_ATTR_WEAK void tuh_hid_descriptor_report_cb(uint8_t daddr, uint8_t instance, uint8_t const* report_desc, uint16_t desc_len);
 
-TU_ATTR_WEAK void tuh_hid_mounted_cb(uint8_t dev_addr);
-TU_ATTR_WEAK void tuh_hid_unmounted_cb(uint8_t dev_addr);
+TU_ATTR_WEAK void tuh_hid_mounted_cb  (uint8_t dev_addr, uint8_t instance);
+TU_ATTR_WEAK void tuh_hid_unmounted_cb(uint8_t dev_addr, uint8_t instance);
 
 
 

@@ -74,7 +74,7 @@ static usbh_class_driver_t const usbh_class_drivers[] =
     },
   #endif
 
-  #if HOST_CLASS_HID
+  #if CFG_TUH_HID
     {
       DRIVER_NAME("HID")
       .class_code = TUSB_CLASS_HID,

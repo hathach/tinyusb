@@ -26,7 +26,7 @@
 
 #include "tusb_option.h"
 
-#if (TUSB_OPT_HOST_ENABLED && HOST_CLASS_HID)
+#if (TUSB_OPT_HOST_ENABLED && CFG_TUH_HID)
 
 #include "common/tusb_common.h"
 #include "hid_host.h"
@@ -76,8 +76,8 @@ typedef struct
 
 typedef struct
 {
-  uint8_t itf_count;
-  hidh_interface_t interface[CFG_TUH_HID];
+  uint8_t inst_count;
+  hidh_interface_t instances[CFG_TUH_HID];
 } hidh_device_t;
 
 static hidh_device_t _hidh_dev[CFG_TUSB_HOST_DEVICE_MAX-1];
@@ -93,15 +93,28 @@ TU_ATTR_ALWAYS_INLINE static inline hidh_device_t* get_dev(uint8_t dev_addr)
 // Get Interface by instance number
 TU_ATTR_ALWAYS_INLINE static inline hidh_interface_t* get_instance(uint8_t dev_addr, uint8_t instance)
 {
-  return &_hidh_dev[dev_addr-1].interface[instance];
+  return &_hidh_dev[dev_addr-1].instances[instance];
+}
+
+// Get instance ID by interface number
+static uint8_t get_instance_id(uint8_t dev_addr, uint8_t itf)
+{
+  for ( uint8_t inst = 0; inst < CFG_TUH_HID; inst++ )
+  {
+    hidh_interface_t *hid = get_instance(dev_addr, inst);
+
+    if ( (hid->itf_num == itf) && (hid->ep_in != 0) ) return inst;
+  }
+
+  return 0xff;
 }
 
 // Get Interface by interface number
 static hidh_interface_t* get_interface(uint8_t dev_addr, uint8_t itf)
 {
-  for(uint8_t inst=0; inst<CFG_TUH_HID; inst++)
+  for ( uint8_t inst = 0; inst < CFG_TUH_HID; inst++ )
   {
-    hidh_interface_t* hid = get_instance(dev_addr, inst);
+    hidh_interface_t *hid = get_instance(dev_addr, inst);
 
     if ( (hid->itf_num == itf) && (hid->ep_in != 0) ) return hid;
   }
@@ -114,17 +127,12 @@ static hidh_interface_t* get_interface(uint8_t dev_addr, uint8_t itf)
 //--------------------------------------------------------------------+
 uint8_t tuh_n_hid_instance_count(uint8_t daddr)
 {
-  return get_dev(daddr)->itf_count;
+  return get_dev(daddr)->inst_count;
 }
 
 //--------------------------------------------------------------------+
 // HID Interface common functions
 //--------------------------------------------------------------------+
-
-static inline void hidh_interface_close(hidh_interface_t *p_hid)
-{
-  tu_memclr(p_hid, sizeof(hidh_interface_t));
-}
 
 // called from public API need to validate parameters
 tusb_error_t hidh_interface_get_report(uint8_t dev_addr, void * report, hidh_interface_t *p_hid)
@@ -234,19 +242,13 @@ bool hidh_xfer_cb(uint8_t dev_addr, uint8_t ep_addr, xfer_result_t event, uint32
 
 void hidh_close(uint8_t dev_addr)
 {
-  uint8_t itf = 0;
-  hidh_interface_t* hid_itf = get_instance(dev_addr, itf);
-
-  if (tuh_hid_unmounted_cb) tuh_hid_unmounted_cb(dev_addr);
-  hidh_interface_close(hid_itf);
-
-#if CFG_TUH_HID_MOUSE
-  if( mouseh_data[dev_addr-1].ep_in != 0 )
+  hidh_device_t* hid_dev = get_dev(dev_addr);
+  if (tuh_hid_unmounted_cb)
   {
-    hidh_interface_close(&mouseh_data[dev_addr-1]);
-    tuh_hid_mouse_unmounted_cb( dev_addr );
+    for ( uint8_t inst = 0; inst < hid_dev->inst_count; inst++) tuh_hid_unmounted_cb(dev_addr, inst);
   }
-#endif
+
+  tu_memclr(hid_dev, sizeof(hidh_device_t));
 }
 
 //--------------------------------------------------------------------+
@@ -270,7 +272,7 @@ bool hidh_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_interface_t const *de
   // not enough interface, try to increase CFG_TUH_HID
   // TODO multiple devices
   hidh_device_t* hid_dev = get_dev(dev_addr);
-  TU_ASSERT(hid_dev->itf_count < CFG_TUH_HID);
+  TU_ASSERT(hid_dev->inst_count < CFG_TUH_HID);
 
   //------------- Endpoint Descriptor -------------//
   p_desc = tu_desc_next(p_desc);
@@ -280,8 +282,8 @@ bool hidh_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_interface_t const *de
   // TODO also open endpoint OUT
   TU_ASSERT( usbh_edpt_open(rhport, dev_addr, desc_ep) );
 
-  hidh_interface_t* hid_itf = get_instance(dev_addr, hid_dev->itf_count);
-  hid_dev->itf_count++;
+  hidh_interface_t* hid_itf = get_instance(dev_addr, hid_dev->inst_count);
+  hid_dev->inst_count++;
 
   hid_itf->itf_num     = desc_itf->bInterfaceNumber;
   hid_itf->ep_in       = desc_ep->bEndpointAddress;
@@ -393,14 +395,18 @@ bool config_get_report_desc_complete(uint8_t dev_addr, tusb_control_request_t co
 {
   TU_ASSERT(XFER_RESULT_SUCCESS == result);
   uint8_t const itf_num = (uint8_t) request->wIndex;
-  hidh_interface_t* hid_itf = get_interface(dev_addr, itf_num);
+  uint8_t const inst = get_instance_id(dev_addr, itf_num);
+  //hidh_interface_t* hid_itf = get_instance(dev_addr, inst);
 
-  if (tuh_hid_descriptor_report_cb) tuh_hid_descriptor_report_cb(dev_addr, hid_itf->itf_num, usbh_get_enum_buf(), request->wLength);
+  if (tuh_hid_descriptor_report_cb)
+  {
+    tuh_hid_descriptor_report_cb(dev_addr, inst, usbh_get_enum_buf(), request->wLength);
+  }
 
   // TODO Report descriptor parser
 
   // enumeration is complete
-  if (tuh_hid_mounted_cb) tuh_hid_mounted_cb(dev_addr);
+  if (tuh_hid_mounted_cb) tuh_hid_mounted_cb(dev_addr, inst);
 
   // notify usbh that driver enumeration is complete
   usbh_driver_set_config_complete(dev_addr, itf_num);
