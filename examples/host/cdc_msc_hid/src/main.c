@@ -268,12 +268,22 @@ void hid_task(void)
 #endif
 
 #if CFG_TUH_HID_MOUSE
+
+  static bool boot_protocol_set = false;
+
   if ( tuh_hid_mouse_is_mounted(addr) )
   {
     if ( !tuh_hid_mouse_is_busy(addr) )
     {
-      process_mouse_report(&usb_mouse_report);
-      tuh_hid_mouse_get_report(addr, &usb_mouse_report);
+      if (boot_protocol_set) 
+      {
+        process_mouse_report(&usb_mouse_report);
+        tuh_hid_mouse_get_report(addr, &usb_mouse_report);
+      } 
+      else 
+      {
+        boot_protocol_set = tuh_hid_mouse_set_protocol(addr,true);
+      }
     }
   }
 #endif

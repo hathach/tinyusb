@@ -78,6 +78,30 @@ tusb_error_t hidh_interface_get_report(uint8_t dev_addr, void * report, hidh_int
   return TUSB_ERROR_NONE;
 }
 
+// called from public API need to validate parameters
+static bool hidh_interface_set_protocol(uint8_t dev_addr, bool boot)
+{
+  TU_ASSERT(tuh_device_is_configured(dev_addr), TUSB_ERROR_DEVICE_NOT_READY);
+
+  tusb_control_request_t const new_request =
+  {
+    .bmRequestType_bit =
+    {
+      .recipient = TUSB_REQ_RCPT_INTERFACE,
+      .type      = TUSB_REQ_TYPE_CLASS,
+      .direction = TUSB_DIR_OUT
+    },
+    .bRequest = HID_REQ_CONTROL_SET_PROTOCOL,
+    .wValue   = boot ? 0 : 1, 
+    .wIndex   = 0,
+    .wLength  = 0
+  };
+
+  TU_ASSERT( tuh_control_xfer(dev_addr, &new_request, NULL, NULL) );
+
+  return true;
+}
+
 //--------------------------------------------------------------------+
 // KEYBOARD
 //--------------------------------------------------------------------+
@@ -99,6 +123,11 @@ tusb_error_t tuh_hid_keyboard_get_report(uint8_t dev_addr, void* p_report)
 bool tuh_hid_keyboard_is_busy(uint8_t dev_addr)
 {
   return  tuh_hid_keyboard_is_mounted(dev_addr) && hcd_edpt_busy(dev_addr, keyboardh_data[dev_addr-1].ep_in);
+}
+
+bool tuh_hid_keyboard_set_protocol(uint8_t dev_addr, bool boot)
+{
+  return hidh_interface_set_protocol(dev_addr, boot);    
 }
 
 #endif
@@ -124,6 +153,11 @@ bool tuh_hid_mouse_is_busy(uint8_t dev_addr)
 tusb_error_t tuh_hid_mouse_get_report(uint8_t dev_addr, void * report)
 {
   return hidh_interface_get_report(dev_addr, report, &mouseh_data[dev_addr-1]);
+}
+
+bool tuh_hid_mouse_set_protocol(uint8_t dev_addr, bool boot)
+{
+  return hidh_interface_set_protocol(dev_addr, boot);    
 }
 
 #endif

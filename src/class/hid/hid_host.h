@@ -78,6 +78,16 @@ bool tuh_hid_keyboard_is_busy(uint8_t dev_addr);
  */
 tusb_error_t  tuh_hid_keyboard_get_report(uint8_t dev_addr, void * p_report);
 
+/** \brief        Perform a set the report format for the keyboard (BOOT or REPORT)
+ * \param[in]		  dev_addr device address
+ * \param[in]     boot true for the simple standard keyboard report, false for the device specific report defined by the report descriptor   
+ * \returns       \ref tusb_error_t type to indicate success or error condition.
+ * \retval        true if device is configured and the Set Protoocol was sent
+ * \retval        false if the device is not configured or some other issue
+ * \note          This function is non-blocking and returns immediately. The function does not have a callback implemented
+*/
+bool tuh_hid_keyboard_set_protocol(uint8_t dev_addr, bool boot);
+
 //------------- Application Callback -------------//
 /** \brief      Callback function that is invoked when an transferring event occurred
  * \param[in]		dev_addr	Address of device
@@ -142,6 +152,16 @@ bool          tuh_hid_mouse_is_busy(uint8_t dev_addr);
  * \note          This function is non-blocking and returns immediately. The result of usb transfer will be reported by the interface's callback function
  */
 tusb_error_t  tuh_hid_mouse_get_report(uint8_t dev_addr, void* p_report);
+
+/** \brief        Perform a set the report format for the mouse (BOOT or REPORT)
+ * \param[in]		  dev_addr device address
+ * \param[in]     boot true for the simple standard mouse report, false for the device specific report defined by the report descriptor   
+ * \returns       \ref tusb_error_t type to indicate success or error condition.
+ * \retval        true if device is configured and the Set Protoocol was sent
+ * \retval        false if the device is not configured or some other issue
+ * \note          This function is non-blocking and returns immediately. The function does not have a callback implemented
+*/
+bool tuh_hid_mouse_set_protocol(uint8_t dev_addr, bool boot);
 
 //------------- Application Callback -------------//
 /** \brief      Callback function that is invoked when an transferring event occurred
