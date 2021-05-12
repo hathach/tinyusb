@@ -282,7 +282,7 @@ bool usbh_edpt_xfer(uint8_t dev_addr, uint8_t ep_addr, uint8_t * buffer, uint16_
   return hcd_edpt_xfer(dev->rhport, dev_addr, ep_addr, buffer, total_bytes);
 }
 
-bool usbh_pipe_control_open(uint8_t dev_addr, uint8_t max_packet_size)
+bool usbh_edpt_control_open(uint8_t dev_addr, uint8_t max_packet_size)
 {
   tusb_desc_endpoint_t ep0_desc =
   {
@@ -297,9 +297,11 @@ bool usbh_pipe_control_open(uint8_t dev_addr, uint8_t max_packet_size)
   return hcd_edpt_open(_usbh_devices[dev_addr].rhport, dev_addr, &ep0_desc);
 }
 
-bool usbh_edpt_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_endpoint_t const * ep_desc)
+bool usbh_edpt_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_endpoint_t const * desc_ep)
 {
-  bool ret = hcd_edpt_open(rhport, dev_addr, ep_desc);
+  TU_LOG2("  Open EP %02X with Size = %u\r\n", desc_ep->bEndpointAddress, desc_ep->wMaxPacketSize.size);
+
+  bool ret = hcd_edpt_open(rhport, dev_addr, desc_ep);
 
   if (ret)
   {
@@ -315,7 +317,7 @@ bool usbh_edpt_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_endpoint_t const
     }
     TU_ASSERT(drvid < USBH_CLASS_DRIVER_COUNT);
 
-    uint8_t const ep_addr = ep_desc->bEndpointAddress;
+    uint8_t const ep_addr = desc_ep->bEndpointAddress;
     dev->ep2drv[tu_edpt_number(ep_addr)][tu_edpt_dir(ep_addr)] = drvid;
   }
 
@@ -526,7 +528,7 @@ void usbh_driver_set_config_complete(uint8_t dev_addr, uint8_t itf_num)
     if (drv_id != 0xff)
     {
       usbh_class_driver_t const * driver = &usbh_class_drivers[drv_id];
-      TU_LOG2("%s set config itf = %u\r\n", driver->name, itf_num);
+      TU_LOG2("%s set config: itf = %u\r\n", driver->name, itf_num);
       driver->set_config(dev_addr, itf_num);
       break;
     }
@@ -702,7 +704,7 @@ static bool enum_new_device(hcd_event_t* event)
 static bool enum_request_addr0_device_desc(void)
 {
   // TODO probably doesn't need to open/close each enumeration
-  TU_ASSERT( usbh_pipe_control_open(0, 8) );
+  TU_ASSERT( usbh_edpt_control_open(0, 8) );
 
   //------------- Get first 8 bytes of device descriptor to get Control Endpoint Size -------------//
   TU_LOG2("Get 8 byte of Device Descriptor\r\n");
@@ -786,7 +788,7 @@ static bool enum_set_address_complete(uint8_t dev_addr, tusb_control_request_t c
   dev0->state = TUSB_DEVICE_STATE_UNPLUG;
 
   // open control pipe for new address
-  TU_ASSERT ( usbh_pipe_control_open(new_addr, new_dev->ep0_packet_size) );
+  TU_ASSERT ( usbh_edpt_control_open(new_addr, new_dev->ep0_packet_size) );
 
   // Get full device descriptor
   TU_LOG2("Get Device Descriptor\r\n");

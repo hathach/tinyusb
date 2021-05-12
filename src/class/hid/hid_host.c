@@ -82,45 +82,10 @@ typedef struct
 
 static hidh_device_t _hidh_dev[CFG_TUSB_HOST_DEVICE_MAX-1];
 
-CFG_TUSB_MEM_SECTION CFG_TUSB_MEM_ALIGN uint8_t _report_desc_buf[256];
-
-// Get Device by address
-TU_ATTR_ALWAYS_INLINE static inline hidh_device_t* get_dev(uint8_t dev_addr)
-{
-  return &_hidh_dev[dev_addr-1];
-}
-
-// Get Interface by instance number
-TU_ATTR_ALWAYS_INLINE static inline hidh_interface_t* get_instance(uint8_t dev_addr, uint8_t instance)
-{
-  return &_hidh_dev[dev_addr-1].instances[instance];
-}
-
-// Get instance ID by interface number
-static uint8_t get_instance_id(uint8_t dev_addr, uint8_t itf)
-{
-  for ( uint8_t inst = 0; inst < CFG_TUH_HID; inst++ )
-  {
-    hidh_interface_t *hid = get_instance(dev_addr, inst);
-
-    if ( (hid->itf_num == itf) && (hid->ep_in != 0) ) return inst;
-  }
-
-  return 0xff;
-}
-
-// Get Interface by interface number
-static hidh_interface_t* get_interface(uint8_t dev_addr, uint8_t itf)
-{
-  for ( uint8_t inst = 0; inst < CFG_TUH_HID; inst++ )
-  {
-    hidh_interface_t *hid = get_instance(dev_addr, inst);
-
-    if ( (hid->itf_num == itf) && (hid->ep_in != 0) ) return hid;
-  }
-
-  return NULL;
-}
+TU_ATTR_ALWAYS_INLINE static inline hidh_device_t* get_dev(uint8_t dev_addr);
+TU_ATTR_ALWAYS_INLINE static inline hidh_interface_t* get_instance(uint8_t dev_addr, uint8_t instance);
+static uint8_t get_instance_id(uint8_t dev_addr, uint8_t itf);
+static hidh_interface_t* get_interface(uint8_t dev_addr, uint8_t itf);
 
 //--------------------------------------------------------------------+
 // Application API
@@ -290,8 +255,6 @@ bool hidh_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_interface_t const *de
   hid_itf->report_size = desc_ep->wMaxPacketSize.size; // TODO get size from report descriptor
   hid_itf->valid       = true;
 
-  TU_LOG2_HEX(hid_itf->ep_in);
-
   // Assume bNumDescriptors = 1
   hid_itf->report_desc_type = desc_hid->bReportType;
   hid_itf->report_desc_len = tu_unaligned_read16(&desc_hid->wReportLength);
@@ -412,6 +375,48 @@ bool config_get_report_desc_complete(uint8_t dev_addr, tusb_control_request_t co
   usbh_driver_set_config_complete(dev_addr, itf_num);
 
   return true;
+}
+
+//--------------------------------------------------------------------+
+// Instance helper
+//--------------------------------------------------------------------+
+
+// Get Device by address
+TU_ATTR_ALWAYS_INLINE static inline hidh_device_t* get_dev(uint8_t dev_addr)
+{
+  return &_hidh_dev[dev_addr-1];
+}
+
+// Get Interface by instance number
+TU_ATTR_ALWAYS_INLINE static inline hidh_interface_t* get_instance(uint8_t dev_addr, uint8_t instance)
+{
+  return &_hidh_dev[dev_addr-1].instances[instance];
+}
+
+// Get instance ID by interface number
+static uint8_t get_instance_id(uint8_t dev_addr, uint8_t itf)
+{
+  for ( uint8_t inst = 0; inst < CFG_TUH_HID; inst++ )
+  {
+    hidh_interface_t *hid = get_instance(dev_addr, inst);
+
+    if ( (hid->itf_num == itf) && (hid->ep_in != 0) ) return inst;
+  }
+
+  return 0xff;
+}
+
+// Get Interface by interface number
+static hidh_interface_t* get_interface(uint8_t dev_addr, uint8_t itf)
+{
+  for ( uint8_t inst = 0; inst < CFG_TUH_HID; inst++ )
+  {
+    hidh_interface_t *hid = get_instance(dev_addr, inst);
+
+    if ( (hid->itf_num == itf) && (hid->ep_in != 0) ) return hid;
+  }
+
+  return NULL;
 }
 
 #endif
