@@ -152,10 +152,9 @@ uint8_t* usbh_get_enum_buf(void)
 //--------------------------------------------------------------------+
 // PUBLIC API (Parameter Verification is required)
 //--------------------------------------------------------------------+
-tusb_device_state_t tuh_device_get_state (uint8_t const dev_addr)
+bool tuh_device_configured(uint8_t dev_addr)
 {
-  TU_ASSERT( dev_addr <= CFG_TUSB_HOST_DEVICE_MAX, TUSB_DEVICE_STATE_UNPLUG);
-  return (tusb_device_state_t) _usbh_devices[dev_addr].state;
+  return _usbh_devices[dev_addr].configured;
 }
 
 tusb_speed_t tuh_device_get_speed (uint8_t const dev_addr)

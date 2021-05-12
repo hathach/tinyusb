@@ -60,10 +60,14 @@
 // Get the number of HID instances
 uint8_t tuh_n_hid_instance_count(uint8_t daddr);
 
-// Check if HID instance has keyboard
+// Check if HID instance is mounted
+//bool tuh_n_hid_n_mounted(uint8_t daddr, uint8_t instance);
+
+// Check if HID instance with Keyboard is mounted
 bool tuh_n_hid_n_keyboard_mounted(uint8_t daddr, uint8_t instance);
 
-
+// Check if HID instance with Mouse is mounted
+bool tuh_n_hid_n_mouse_mounted(uint8_t dev_addr, uint8_t instance);
 
 //--------------------------------------------------------------------+
 // Application API (Single device)
@@ -100,10 +104,6 @@ TU_ATTR_WEAK void tuh_hid_unmounted_cb(uint8_t dev_addr, uint8_t instance);
 /** \defgroup Keyboard_Host Host
  *  The interface API includes status checking function, data transferring function and callback functions
  *  @{ */
-
-// TODO used weak attr if build failed without KEYBOARD enabled
-// TODO remove
-extern uint8_t const hid_keycode_to_ascii_tbl[2][128];
 
 /** \brief      Check if device supports Keyboard interface or not
  * \param[in]   dev_addr    device address
@@ -169,13 +169,6 @@ void tuh_hid_keyboard_unmounted_cb(uint8_t dev_addr);
 /** \defgroup Mouse_Host Host
  *  The interface API includes status checking function, data transferring function and callback functions
  *  @{ */
-
-/** \brief      Check if device supports Mouse interface or not
- * \param[in]   dev_addr    device address
- * \retval      true if device supports Mouse interface
- * \retval      false if device does not support Mouse interface or is not mounted
- */
-bool          tuh_hid_mouse_mounted(uint8_t dev_addr);
 
 /** \brief      Check if the interface is currently busy or not
  * \param[in]   dev_addr device address

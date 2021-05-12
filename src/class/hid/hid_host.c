@@ -104,7 +104,7 @@ tusb_error_t hidh_interface_get_report(uint8_t dev_addr, void * report, hidh_int
 {
   //------------- parameters validation -------------//
   // TODO change to use is configured function
-  TU_ASSERT(TUSB_DEVICE_STATE_CONFIGURED == tuh_device_get_state(dev_addr), TUSB_ERROR_DEVICE_NOT_READY);
+  TU_ASSERT(tuh_device_configured(dev_addr), TUSB_ERROR_DEVICE_NOT_READY);
   TU_VERIFY(report, TUSB_ERROR_INVALID_PARA);
   TU_VERIFY(!hcd_edpt_busy(dev_addr, p_hid->ep_in), TUSB_ERROR_INTERFACE_IS_BUSY);
 
@@ -113,32 +113,45 @@ tusb_error_t hidh_interface_get_report(uint8_t dev_addr, void * report, hidh_int
   return TUSB_ERROR_NONE;
 }
 
+//bool tuh_n_hid_n_mounted(uint8_t daddr, uint8_t instance)
+//{
+//
+//}
+
 //--------------------------------------------------------------------+
 // KEYBOARD
 //--------------------------------------------------------------------+
 
-bool tuh_n_hid_n_keyboard_mounted(uint8_t dev_addr, uint8_t instance)
+bool tuh_n_hid_n_mounted(uint8_t daddr, uint8_t instance)
 {
-  hidh_interface_t* hid_itf = get_instance(dev_addr, instance);
+  hidh_interface_t* hid_itf = get_instance(daddr, instance);
 
   // TODO check rid_keyboard
-  return tuh_device_is_configured(dev_addr) && (hid_itf->ep_in != 0);
+  return tuh_device_configured(daddr) && (hid_itf->ep_in != 0);
+}
+
+bool tuh_n_hid_n_keyboard_mounted(uint8_t daddr, uint8_t instance)
+{
+  hidh_interface_t* hid_itf = get_instance(daddr, instance);
+
+  // TODO check rid_keyboard
+  return tuh_device_configured(daddr) && (hid_itf->ep_in != 0);
 }
 
 tusb_error_t tuh_hid_keyboard_get_report(uint8_t dev_addr, void* buffer)
 {
-  uint8_t itf = 0;
-  hidh_interface_t* hid_itf = get_instance(dev_addr, itf);
+  uint8_t inst = 0;
+  hidh_interface_t* hid_itf = get_instance(dev_addr, inst);
 
   return hidh_interface_get_report(dev_addr, buffer, hid_itf);
 }
 
 bool tuh_hid_keyboard_is_busy(uint8_t dev_addr)
 {
-  uint8_t instance = 0;
-  hidh_interface_t* hid_itf = get_instance(dev_addr, instance);
+  uint8_t inst = 0;
+  hidh_interface_t* hid_itf = get_instance(dev_addr, inst);
 
-  return tuh_n_hid_n_keyboard_mounted(dev_addr, instance) && hcd_edpt_busy(dev_addr, hid_itf->ep_in);
+  return tuh_n_hid_n_keyboard_mounted(dev_addr, inst) && hcd_edpt_busy(dev_addr, hid_itf->ep_in);
 }
 
 //--------------------------------------------------------------------+
@@ -149,14 +162,15 @@ bool tuh_hid_keyboard_is_busy(uint8_t dev_addr)
 static hidh_interface_t mouseh_data[CFG_TUSB_HOST_DEVICE_MAX]; // does not have addr0, index = dev_address-1
 
 //------------- Public API -------------//
-bool tuh_hid_mouse_mounted(uint8_t dev_addr)
+bool tuh_n_hid_n_mouse_mounted(uint8_t dev_addr, uint8_t instance)
 {
-  return tuh_device_is_configured(dev_addr) && (mouseh_data[dev_addr-1].ep_in != 0);
+//  hidh_interface_t* hid_itf = get_instance(dev_addr, instance);
+  return tuh_device_configured(dev_addr) && (mouseh_data[dev_addr-1].ep_in != 0);
 }
 
 bool tuh_hid_mouse_is_busy(uint8_t dev_addr)
 {
-  return  tuh_hid_mouse_mounted(dev_addr) && hcd_edpt_busy(dev_addr, mouseh_data[dev_addr-1].ep_in);
+  return  tuh_n_hid_n_mouse_mounted(dev_addr, 0) && hcd_edpt_busy(dev_addr, mouseh_data[dev_addr-1].ep_in);
 }
 
 tusb_error_t tuh_hid_mouse_get_report(uint8_t dev_addr, void * report)

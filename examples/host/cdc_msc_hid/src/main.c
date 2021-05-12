@@ -156,16 +156,18 @@ static inline void process_kbd_report(hid_keyboard_report_t const *p_new_report)
 
 void tuh_hid_mounted_cb(uint8_t dev_addr, uint8_t instance)
 {
-  // application set-up
-  printf("A Keyboard device (address %d) is mounted\r\n", dev_addr);
+  printf("HID device address = %d, instance = %d is mounted\r\n", dev_addr, instance);
+//  printf("A Keyboard device (address %d) is mounted\r\n", dev_addr);
 
+  if (instance == 0) {
   tuh_hid_keyboard_get_report(dev_addr, &usb_keyboard_report);
+  }
 }
 
 void tuh_hid_unmounted_cb(uint8_t dev_addr, uint8_t instance)
 {
-  // application tear-down
-  printf("A Keyboard device (address %d) is unmounted\r\n", dev_addr);
+  printf("HID device address = %d, instance = %d is unmounted\r\n", dev_addr, instance);
+//  printf("A Keyboard device (address %d) is unmounted\r\n", dev_addr);
 }
 
 #endif
@@ -255,7 +257,7 @@ void hid_task(void)
 #endif
 
 #if CFG_TUH_HID_MOUSE
-  if ( tuh_hid_mouse_mounted(addr) )
+  if ( tuh_n_hid_n_mouse_mounted(addr, 0) )
   {
     if ( !tuh_hid_mouse_is_busy(addr) )
     {

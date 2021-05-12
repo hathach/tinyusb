@@ -88,13 +88,9 @@ void tuh_task(void);
 extern void hcd_int_handler(uint8_t rhport);
 #define tuh_int_handler   hcd_int_handler
 
-tusb_device_state_t tuh_device_get_state (uint8_t dev_addr);
 tusb_speed_t tuh_device_get_speed (uint8_t dev_addr);
-static inline bool tuh_device_is_configured(uint8_t dev_addr)
-{
-  return tuh_device_get_state(dev_addr) == TUSB_DEVICE_STATE_CONFIGURED;
-}
 
+bool tuh_device_configured(uint8_t dev_addr);
 bool tuh_control_xfer (uint8_t dev_addr, tusb_control_request_t const* request, void* buffer, tuh_control_complete_cb_t complete_cb);
 
 //--------------------------------------------------------------------+
