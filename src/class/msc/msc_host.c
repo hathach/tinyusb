@@ -287,7 +287,7 @@ bool tuh_msc_reset(uint8_t dev_addr)
 #endif
 
 //--------------------------------------------------------------------+
-// CLASS-USBH API (don't require to verify parameters)
+// CLASS-USBH API
 //--------------------------------------------------------------------+
 void msch_init(void)
 {
@@ -298,7 +298,9 @@ void msch_close(uint8_t dev_addr)
 {
   msch_interface_t* p_msc = get_itf(dev_addr);
   tu_memclr(p_msc, sizeof(msch_interface_t));
-  tuh_msc_unmount_cb(dev_addr); // invoke Application Callback
+
+  // invoke Application Callback
+  if (tuh_msc_unmount_cb) tuh_msc_unmount_cb(dev_addr);
 }
 
 bool msch_xfer_cb(uint8_t dev_addr, uint8_t ep_addr, xfer_result_t event, uint32_t xferred_bytes)
@@ -471,8 +473,9 @@ static bool config_read_capacity_complete(uint8_t dev_addr, msc_cbw_t const* cbw
 
   // Mark enumeration is complete
   p_msc->mounted = true;
-  tuh_msc_mount_cb(dev_addr);
+  if (tuh_msc_mount_cb) tuh_msc_mount_cb(dev_addr);
 
+  // notify usbh that driver enumeration is complete
   usbh_driver_set_config_complete(dev_addr, p_msc->itf_num);
 
   return true;
