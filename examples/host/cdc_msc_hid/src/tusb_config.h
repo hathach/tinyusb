@@ -71,6 +71,9 @@
 // CONFIGURATION
 //--------------------------------------------------------------------
 
+// Size of buffer to hold descriptors and other data used for enumeration
+#define CFG_TUH_ENUMERATION_BUFSZIE 256
+
 #define CFG_TUH_HUB                 1
 #define CFG_TUH_CDC                 1
 
@@ -84,6 +87,16 @@
 #define CFG_TUH_VENDOR              0
 
 #define CFG_TUSB_HOST_DEVICE_MAX    (CFG_TUH_HUB ? 5 : 1) // normal hub has 4 ports
+
+//------------- HID -------------//
+
+// Max number of reports per interface
+// E.g composite HID with keyboard + mouse + gamepad will have 3 reports
+#define CFG_TUH_HID_REPORT_MAX                4
+
+// Max buffer
+#define CFG_TUH_HID_REPORT_DESCRIPTOR_BUFSIZE 256
+
 
 #ifdef __cplusplus
  }

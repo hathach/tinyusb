@@ -131,7 +131,7 @@ CFG_TUSB_MEM_SECTION usbh_device_t _usbh_devices[CFG_TUSB_HOST_DEVICE_MAX+1];
 OSAL_QUEUE_DEF(OPT_MODE_HOST, _usbh_qdef, CFG_TUH_TASK_QUEUE_SZ, hcd_event_t);
 static osal_queue_t _usbh_q;
 
-CFG_TUSB_MEM_SECTION TU_ATTR_ALIGNED(4) static uint8_t _usbh_ctrl_buf[CFG_TUSB_HOST_ENUM_BUFFER_SIZE];
+CFG_TUSB_MEM_SECTION CFG_TUSB_MEM_ALIGN static uint8_t _usbh_ctrl_buf[CFG_TUH_ENUMERATION_BUFSZIE];
 
 //------------- Helper Function Prototypes -------------//
 static bool enum_new_device(hcd_event_t* event);
@@ -142,6 +142,11 @@ extern bool usbh_control_xfer_cb (uint8_t dev_addr, uint8_t ep_addr, xfer_result
 uint8_t usbh_get_rhport(uint8_t dev_addr)
 {
   return _usbh_devices[dev_addr].rhport;
+}
+
+uint8_t* usbh_get_enum_buf(void)
+{
+  return _usbh_ctrl_buf;
 }
 
 //--------------------------------------------------------------------+
@@ -849,7 +854,7 @@ static bool enum_get_9byte_config_desc_complete(uint8_t dev_addr, tusb_control_r
   // Use offsetof to avoid pointer to the odd/misaligned address
   memcpy(&total_len, (uint8_t*) desc_config + offsetof(tusb_desc_configuration_t, wTotalLength), 2);
 
-  TU_ASSERT(total_len <= CFG_TUSB_HOST_ENUM_BUFFER_SIZE);
+  TU_ASSERT(total_len <= CFG_TUH_ENUMERATION_BUFSZIE);
 
   // Get full configuration descriptor
   TU_LOG2("Get Configuration Descriptor\r\n");
