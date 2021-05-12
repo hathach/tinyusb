@@ -44,10 +44,13 @@
     "XAC_COMPATIBLE_GAMEPAD" : in_len=3 , out_len=0, usage_page=0x01, usage=0x05   # Generic Desktop, Game Pad
     "RAW"                    : in_len=64, out_len=0, usage_page=0xFFAF, usage=0xAF # Vendor 0xFFAF "Adafruit", 0xAF
  */
-typedef struct {
+typedef struct
+{
   uint8_t itf_num;
   uint8_t ep_in;
   uint8_t ep_out;
+
+  uint16_t report_desc_len;
 
   bool     valid;
   uint16_t report_size;  // TODO remove later
@@ -61,15 +64,37 @@ typedef struct {
     uint8_t out_len;     // length of OUT report
     uint8_t usage_page;
     uint8_t usage;
-  }reports[CFG_TUH_HID_MAX_REPORT];
+  }reports[CFG_TUH_HID_REPORT_MAX];
 
   // Parsed Report ID for convenient API
-  uint8_t report_id_keyboard;
-  uint8_t reprot_id_mouse;
-  uint8_t report_id_gamepad;
-  uint8_t report_id_consumer;
-  uint8_t report_id_vendor;
+  uint8_t rid_keyboard;
+  uint8_t rid_mouse;
+  uint8_t rid_gamepad;
+  uint8_t rid_consumer;
 }hidh_interface_t;
+
+typedef struct
+{
+  uint8_t inst_count;
+  hidh_interface_t instance[CFG_TUH_HID];
+} hidh_device_t;
+
+static hidh_device_t _hidh_dev[CFG_TUSB_HOST_DEVICE_MAX-1];
+
+#if 0
+CFG_TUSB_MEM_SECTION uint8_t report_descriptor[256];
+#endif
+
+TU_ATTR_ALWAYS_INLINE static inline hidh_device_t* get_dev(uint8_t dev_addr)
+{
+  return &_hidh_dev[dev_addr-1];
+}
+
+TU_ATTR_ALWAYS_INLINE static inline hidh_interface_t* get_instance(uint8_t dev_addr, uint8_t inst)
+{
+  return &_hidh_dev[dev_addr-1].instance[inst];
+}
+
 
 //--------------------------------------------------------------------+
 // HID Interface common functions
@@ -108,27 +133,32 @@ tusb_error_t hidh_interface_get_report(uint8_t dev_addr, void * report, hidh_int
 //--------------------------------------------------------------------+
 // KEYBOARD
 //--------------------------------------------------------------------+
-#if CFG_TUH_HID_KEYBOARD
 
-static hidh_interface_t keyboardh_data[CFG_TUSB_HOST_DEVICE_MAX]; // does not have addr0, index = dev_address-1
-
-//------------- KEYBOARD PUBLIC API (parameter validation required) -------------//
-bool  tuh_hid_keyboard_mounted(uint8_t dev_addr)
+bool tuh_hid_keyboard_mounted(uint8_t dev_addr)
 {
-  return tuh_device_is_configured(dev_addr) && (keyboardh_data[dev_addr-1].ep_in != 0);
+  uint8_t itf = 0;
+  hidh_interface_t* hid_itf = get_instance(dev_addr, itf);
+
+  // TODO check rid_keyboard
+  return tuh_device_is_configured(dev_addr) && (hid_itf->ep_in != 0);
 }
 
-tusb_error_t tuh_hid_keyboard_get_report(uint8_t dev_addr, void* p_report)
+tusb_error_t tuh_hid_keyboard_get_report(uint8_t dev_addr, void* buffer)
 {
-  return hidh_interface_get_report(dev_addr, p_report, &keyboardh_data[dev_addr-1]);
+  uint8_t itf = 0;
+  hidh_interface_t* hid_itf = get_instance(dev_addr, itf);
+
+  return hidh_interface_get_report(dev_addr, buffer, hid_itf);
 }
 
 bool tuh_hid_keyboard_is_busy(uint8_t dev_addr)
 {
-  return  tuh_hid_keyboard_mounted(dev_addr) && hcd_edpt_busy(dev_addr, keyboardh_data[dev_addr-1].ep_in);
+  uint8_t itf = 0;
+  hidh_interface_t* hid_itf = get_instance(dev_addr, itf);
+
+  return  tuh_hid_keyboard_mounted(dev_addr) && hcd_edpt_busy(dev_addr, hid_itf->ep_in);
 }
 
-#endif
 
 //--------------------------------------------------------------------+
 // MOUSE
@@ -158,35 +188,19 @@ tusb_error_t tuh_hid_mouse_get_report(uint8_t dev_addr, void * report)
 //--------------------------------------------------------------------+
 // GENERIC
 //--------------------------------------------------------------------+
-#if CFG_TUSB_HOST_HID_GENERIC
 
-//STATIC_ struct {
-//  hidh_interface_info_t
-//} generic_data[CFG_TUSB_HOST_DEVICE_MAX];
-
-#endif
 
 //--------------------------------------------------------------------+
 // CLASS-USBH API (don't require to verify parameters)
 //--------------------------------------------------------------------+
 void hidh_init(void)
 {
-#if CFG_TUH_HID_KEYBOARD
-  tu_memclr(&keyboardh_data, sizeof(hidh_interface_t)*CFG_TUSB_HOST_DEVICE_MAX);
-#endif
+  tu_memclr(_hidh_dev, sizeof(_hidh_dev));
 
 #if CFG_TUH_HID_MOUSE
   tu_memclr(&mouseh_data, sizeof(hidh_interface_t)*CFG_TUSB_HOST_DEVICE_MAX);
 #endif
-
-#if CFG_TUSB_HOST_HID_GENERIC
-  hidh_generic_init();
-#endif
 }
-
-#if 0
-CFG_TUSB_MEM_SECTION uint8_t report_descriptor[256];
-#endif
 
 bool hidh_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_interface_t const *desc_itf, uint16_t *p_length)
 {
@@ -199,6 +213,18 @@ bool hidh_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_interface_t const *de
   tusb_hid_descriptor_hid_t const *desc_hid = (tusb_hid_descriptor_hid_t const *) p_desc;
   TU_ASSERT(HID_DESC_TYPE_HID == desc_hid->bDescriptorType);
 
+  // not enough interface, try to increase CFG_TUH_HID
+  // TODO multiple devices
+  hidh_device_t* hid_dev = get_dev(dev_addr);
+  TU_ASSERT(hid_dev->inst_count < CFG_TUH_HID);
+
+  hidh_interface_t* hid_itf = get_instance(dev_addr, hid_dev->inst_count);
+  hid_dev->inst_count++;
+
+  hid_itf->itf_num = desc_itf->bInterfaceNumber;
+  hid_itf->boot_mode = false; // default is report mode
+  hid_itf->report_desc_len = tu_unaligned_read16(&desc_hid->wReportLength);
+
   //------------- Endpoint Descriptor -------------//
   p_desc = tu_desc_next(p_desc);
   tusb_desc_endpoint_t const * desc_ep = (tusb_desc_endpoint_t const *) p_desc;
@@ -206,11 +232,20 @@ bool hidh_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_interface_t const *de
 
   if ( HID_SUBCLASS_BOOT == desc_itf->bInterfaceSubClass )
   {
+    hid_itf->boot_protocol = desc_itf->bInterfaceProtocol;
+
     #if CFG_TUH_HID_KEYBOARD
     if ( HID_PROTOCOL_KEYBOARD == desc_itf->bInterfaceProtocol)
     {
-      TU_ASSERT( hidh_interface_open(rhport, dev_addr, desc_itf->bInterfaceNumber, desc_ep, &keyboardh_data[dev_addr-1]) );
-      TU_LOG2_HEX(keyboardh_data[dev_addr-1].ep_in);
+      TU_ASSERT( hidh_interface_open(rhport, dev_addr, desc_itf->bInterfaceNumber, desc_ep, hid_itf) );
+      TU_LOG2_HEX(hid_itf->ep_in);
+
+      hid_itf->report_count = 1;
+
+      hid_itf->reports[0].usage_page = HID_USAGE_PAGE_DESKTOP;
+      hid_itf->reports[0].usage = HID_USAGE_DESKTOP_KEYBOARD;
+      hid_itf->reports[0].in_len = 8;
+      hid_itf->reports[0].out_len = 1;
     } else
     #endif
 
@@ -226,13 +261,9 @@ bool hidh_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_interface_t const *de
       // Not supported protocol
       return false;
     }
-  }else
-  {
-    // Not supported subclass
-    return false;
   }
 
-  *p_length = sizeof(tusb_desc_interface_t) + sizeof(tusb_hid_descriptor_hid_t) + sizeof(tusb_desc_endpoint_t);
+  *p_length = sizeof(tusb_desc_interface_t) + sizeof(tusb_hid_descriptor_hid_t) + desc_itf->bNumEndpoints*sizeof(tusb_desc_endpoint_t);
 
   return true;
 }
@@ -276,12 +307,13 @@ bool hidh_set_config(uint8_t dev_addr, uint8_t itf_num)
 
   usbh_driver_set_config_complete(dev_addr, itf_num);
 
-#if CFG_TUH_HID_KEYBOARD
-  if (( keyboardh_data[dev_addr-1].itf_num == itf_num) && keyboardh_data[dev_addr-1].valid)
-  {
-    tuh_hid_keyboard_mounted_cb(dev_addr);
+//  uint8_t itf = 0;
+//  hidh_interface_t* hid_itf = &_hidh_itf[itf];
+
+
+  if (itf_num == 0 ) {
+  if (tuh_hid_mounted_cb) tuh_hid_mounted_cb(dev_addr);
   }
-#endif
 
 #if CFG_TUH_HID_MOUSE
   if (( mouseh_data[dev_addr-1].ep_in == itf_num ) &&  mouseh_data[dev_addr-1].valid)
@@ -297,12 +329,15 @@ bool hidh_xfer_cb(uint8_t dev_addr, uint8_t ep_addr, xfer_result_t event, uint32
 {
   (void) xferred_bytes; // TODO may need to use this para later
 
+//  uint8_t itf = 0;
+//  hidh_interface_t* hid_itf = &_hidh_itf[itf];
+
 #if CFG_TUH_HID_KEYBOARD
-  if ( ep_addr == keyboardh_data[dev_addr-1].ep_in )
-  {
-    tuh_hid_keyboard_isr(dev_addr, event);
-    return true;
-  }
+//  if ( ep_addr == keyboardh_data[dev_addr-1].ep_in )
+//  {
+//    tuh_hid_keyboard_isr(dev_addr, event);
+//    return true;
+//  }
 #endif
 
 #if CFG_TUH_HID_MOUSE
@@ -313,22 +348,16 @@ bool hidh_xfer_cb(uint8_t dev_addr, uint8_t ep_addr, xfer_result_t event, uint32
   }
 #endif
 
-#if CFG_TUSB_HOST_HID_GENERIC
-
-#endif
-
   return true;
 }
 
 void hidh_close(uint8_t dev_addr)
 {
-#if CFG_TUH_HID_KEYBOARD
-  if ( keyboardh_data[dev_addr-1].ep_in != 0 )
-  {
-    hidh_interface_close(&keyboardh_data[dev_addr-1]);
-    tuh_hid_keyboard_unmounted_cb(dev_addr);
-  }
-#endif
+  uint8_t itf = 0;
+  hidh_interface_t* hid_itf = get_instance(dev_addr, itf);
+
+  if (tuh_hid_unmounted_cb) tuh_hid_unmounted_cb(dev_addr);
+  hidh_interface_close(hid_itf);
 
 #if CFG_TUH_HID_MOUSE
   if( mouseh_data[dev_addr-1].ep_in != 0 )
@@ -337,12 +366,6 @@ void hidh_close(uint8_t dev_addr)
     tuh_hid_mouse_unmounted_cb( dev_addr );
   }
 #endif
-
-#if CFG_TUSB_HOST_HID_GENERIC
-  hidh_generic_close(dev_addr);
-#endif
 }
-
-
 
 #endif

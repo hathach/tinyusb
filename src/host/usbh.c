@@ -915,6 +915,7 @@ static bool enum_set_config_complete(uint8_t dev_addr, tusb_control_request_t co
   // Start the Set Configuration process for interfaces (itf = 0xff)
   // Since driver can perform control transfer within its set_config, this is done asynchronously.
   // The process continue with next interface when class driver complete its sequence with usbh_driver_set_config_complete()
+  // TODO use separated API instead of usig 0xff
   usbh_driver_set_config_complete(dev_addr, 0xff);
 
   return true;

@@ -42,8 +42,8 @@
 // Class Driver Configuration
 //--------------------------------------------------------------------+
 
-#ifndef CFG_TUH_HID_MAX_REPORT
-#define CFG_TUH_HID_MAX_REPORT 8
+#ifndef CFG_TUH_HID_REPORT_MAX
+#define CFG_TUH_HID_REPORT_MAX 4
 #endif
 
 //--------------------------------------------------------------------+
@@ -56,6 +56,12 @@
 // Application API (Single Instance)
 //--------------------------------------------------------------------+
 
+// tuh_hid_instance_count()
+//bool tuh_hid_get_report(uint8_t dev_addr, uint8_t report_id, void * p_report, uint8_t len);
+
+TU_ATTR_WEAK void tuh_hid_mounted_cb(uint8_t dev_addr);
+TU_ATTR_WEAK void tuh_hid_unmounted_cb(uint8_t dev_addr);
+
 //--------------------------------------------------------------------+
 // KEYBOARD Application API
 //--------------------------------------------------------------------+
@@ -66,7 +72,9 @@
  *  The interface API includes status checking function, data transferring function and callback functions
  *  @{ */
 
-extern uint8_t const hid_keycode_to_ascii_tbl[2][128]; // TODO used weak attr if build failed without KEYBOARD enabled
+// TODO used weak attr if build failed without KEYBOARD enabled
+// TODO remove
+extern uint8_t const hid_keycode_to_ascii_tbl[2][128];
 
 /** \brief      Check if device supports Keyboard interface or not
  * \param[in]   dev_addr    device address

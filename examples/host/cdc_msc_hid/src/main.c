@@ -154,7 +154,7 @@ static inline void process_kbd_report(hid_keyboard_report_t const *p_new_report)
   prev_report = *p_new_report;
 }
 
-void tuh_hid_keyboard_mounted_cb(uint8_t dev_addr)
+void tuh_hid_mounted_cb(uint8_t dev_addr)
 {
   // application set-up
   printf("A Keyboard device (address %d) is mounted\r\n", dev_addr);
