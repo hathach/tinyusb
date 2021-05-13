@@ -51,14 +51,13 @@ int main(void)
   {
     // tinyusb host task
     tuh_task();
-
     led_blinking_task();
 
 #if CFG_TUH_CDC
     cdc_task();
 #endif
 
-#if CFG_TUH_HID_KEYBOARD || CFG_TUH_HID_MOUSE
+#if CFG_TUH_HID
     hid_task();
 #endif
   }
@@ -109,8 +108,6 @@ void cdc_task(void)
 //--------------------------------------------------------------------+
 // USB HID
 //--------------------------------------------------------------------+
-#if CFG_TUH_HID_KEYBOARD
-
 CFG_TUSB_MEM_SECTION static hid_keyboard_report_t usb_keyboard_report;
 uint8_t const keycode2ascii[128][2] =  { HID_KEYCODE_TO_ASCII };
 
@@ -158,6 +155,7 @@ void tuh_hid_mounted_cb(uint8_t dev_addr, uint8_t instance)
 {
   printf("HID device address = %d, instance = %d is mounted\r\n", dev_addr, instance);
 //  printf("A Keyboard device (address %d) is mounted\r\n", dev_addr);
+//  printf("A Mouse device (address %d) is mounted\r\n", dev_addr);
 
   if (instance == 0) {
   tuh_n_hid_n_get_report(dev_addr, instance, &usb_keyboard_report, sizeof(usb_keyboard_report));
@@ -168,11 +166,9 @@ void tuh_hid_unmounted_cb(uint8_t dev_addr, uint8_t instance)
 {
   printf("HID device address = %d, instance = %d is unmounted\r\n", dev_addr, instance);
 //  printf("A Keyboard device (address %d) is unmounted\r\n", dev_addr);
+//  printf("A Mouse device (address %d) is unmounted\r\n", dev_addr);
 }
 
-#endif
-
-#if CFG_TUH_HID_MOUSE
 
 CFG_TUSB_MEM_SECTION static hid_mouse_report_t usb_mouse_report;
 
@@ -225,28 +221,12 @@ static inline void process_mouse_report(hid_mouse_report_t const * p_report)
 }
 
 
-void tuh_hid_mouse_mounted_cb(uint8_t dev_addr)
-{
-  // application set-up
-  printf("A Mouse device (address %d) is mounted\r\n", dev_addr);
-}
-
-void tuh_hid_mouse_unmounted_cb(uint8_t dev_addr)
-{
-  // application tear-down
-  printf("A Mouse device (address %d) is unmounted\r\n", dev_addr);
-}
-
-#endif
-
-
 
 void hid_task(void)
 {
   uint8_t const daddr = 1;
   uint8_t const instance = 0;
 
-#if CFG_TUH_HID_KEYBOARD
   if ( tuh_n_hid_n_keyboard_mounted(daddr, instance) )
   {
     if ( tuh_n_hid_n_ready(daddr, instance) )
@@ -255,9 +235,8 @@ void hid_task(void)
       tuh_n_hid_n_get_report(daddr, instance, &usb_keyboard_report, sizeof(usb_keyboard_report));
     }
   }
-#endif
 
-#if CFG_TUH_HID_MOUSE
+// #if CFG_TUH_HID_MOUSE
   (void) usb_mouse_report;
 //  if ( tuh_n_hid_n_mouse_mounted(daddr, instance) )
 //  {
@@ -267,7 +246,6 @@ void hid_task(void)
 //      tuh_n_hid_n_get_report(daddr, instance, &usb_mouse_report, sizeof(usb_mouse_report));
 //    }
 //  }
-#endif
 }
 
 //--------------------------------------------------------------------+

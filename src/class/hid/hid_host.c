@@ -140,8 +140,8 @@ bool tuh_n_hid_n_keyboard_mounted(uint8_t dev_addr, uint8_t instance)
 //--------------------------------------------------------------------+
 // MOUSE
 //--------------------------------------------------------------------+
-#if CFG_TUH_HID_MOUSE
 
+// TODO remove
 static hidh_interface_t mouseh_data[CFG_TUSB_HOST_DEVICE_MAX]; // does not have addr0, index = dev_address-1
 
 //------------- Public API -------------//
@@ -150,8 +150,6 @@ bool tuh_n_hid_n_mouse_mounted(uint8_t dev_addr, uint8_t instance)
 //  hidh_interface_t* hid_itf = get_instance(dev_addr, instance);
   return tuh_device_ready(dev_addr) && (mouseh_data[dev_addr-1].ep_in != 0);
 }
-
-#endif
 
 //--------------------------------------------------------------------+
 // USBH API
