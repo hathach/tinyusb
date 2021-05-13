@@ -135,19 +135,10 @@ CFG_TUSB_MEM_SECTION CFG_TUSB_MEM_ALIGN static uint8_t _usbh_ctrl_buf[CFG_TUH_EN
 
 //------------- Helper Function Prototypes -------------//
 static bool enum_new_device(hcd_event_t* event);
+static void process_device_unplugged(uint8_t rhport, uint8_t hub_addr, uint8_t hub_port);
 
 // from usbh_control.c
 extern bool usbh_control_xfer_cb (uint8_t dev_addr, uint8_t ep_addr, xfer_result_t result, uint32_t xferred_bytes);
-
-uint8_t usbh_get_rhport(uint8_t dev_addr)
-{
-  return _usbh_devices[dev_addr].rhport;
-}
-
-uint8_t* usbh_get_enum_buf(void)
-{
-  return _usbh_ctrl_buf;
-}
 
 //--------------------------------------------------------------------+
 // PUBLIC API (Parameter Verification is required)
@@ -223,6 +214,109 @@ bool tuh_init(uint8_t rhport)
   return true;
 }
 
+/* USB Host Driver task
+ * This top level thread manages all host controller event and delegates events to class-specific drivers.
+ * This should be called periodically within the mainloop or rtos thread.
+ *
+   @code
+    int main(void)
+    {
+      application_init();
+      tusb_init();
+
+      while(1) // the mainloop
+      {
+        application_code();
+        tuh_task(); // tinyusb host task
+      }
+    }
+    @endcode
+ */
+void tuh_task(void)
+{
+  // Skip if stack is not initialized
+  if ( !tusb_inited() ) return;
+
+  // Loop until there is no more events in the queue
+  while (1)
+  {
+    hcd_event_t event;
+    if ( !osal_queue_receive(_usbh_q, &event) ) return;
+
+    switch (event.event_id)
+    {
+      case HCD_EVENT_DEVICE_ATTACH:
+        // TODO due to the shared _usbh_ctrl_buf, we must complete enumerating
+        // one device before enumerating another one.
+        TU_LOG2("USBH DEVICE ATTACH\r\n");
+        enum_new_device(&event);
+      break;
+
+      case HCD_EVENT_DEVICE_REMOVE:
+        TU_LOG2("USBH DEVICE REMOVED\r\n");
+        process_device_unplugged(event.rhport, event.connection.hub_addr, event.connection.hub_port);
+
+        #if CFG_TUH_HUB
+        // TODO remove
+        if ( event.connection.hub_addr != 0)
+        {
+          // done with hub, waiting for next data on status pipe
+          (void) hub_status_pipe_queue( event.connection.hub_addr );
+        }
+        #endif
+      break;
+
+      case HCD_EVENT_XFER_COMPLETE:
+      {
+        usbh_device_t* dev = &_usbh_devices[event.dev_addr];
+        uint8_t const ep_addr = event.xfer_complete.ep_addr;
+        uint8_t const epnum   = tu_edpt_number(ep_addr);
+        uint8_t const ep_dir  = tu_edpt_dir(ep_addr);
+
+        TU_LOG2("on EP %02X with %u bytes\r\n", ep_addr, (unsigned int) event.xfer_complete.len);
+
+        dev->ep_status[epnum][ep_dir].busy = false;
+        dev->ep_status[epnum][ep_dir].claimed = 0;
+
+        if ( 0 == epnum )
+        {
+          usbh_control_xfer_cb(event.dev_addr, ep_addr, event.xfer_complete.result, event.xfer_complete.len);
+        }else
+        {
+          uint8_t drv_id = dev->ep2drv[epnum][ep_dir];
+          TU_ASSERT(drv_id < USBH_CLASS_DRIVER_COUNT, );
+
+          TU_LOG2("%s xfer callback\r\n", usbh_class_drivers[drv_id].name);
+          usbh_class_drivers[drv_id].xfer_cb(event.dev_addr, ep_addr, event.xfer_complete.result, event.xfer_complete.len);
+        }
+      }
+      break;
+
+      case USBH_EVENT_FUNC_CALL:
+        if ( event.func_call.func ) event.func_call.func(event.func_call.param);
+      break;
+
+      default: break;
+    }
+  }
+}
+
+//--------------------------------------------------------------------+
+// USBH API For Class Driver
+//--------------------------------------------------------------------+
+
+uint8_t usbh_get_rhport(uint8_t dev_addr)
+{
+  return _usbh_devices[dev_addr].rhport;
+}
+
+uint8_t* usbh_get_enum_buf(void)
+{
+  return _usbh_ctrl_buf;
+}
+
+//------------- Endpoint API -------------//
+
 bool usbh_edpt_claim(uint8_t dev_addr, uint8_t ep_addr)
 {
   uint8_t const epnum = tu_edpt_number(ep_addr);
@@ -278,6 +372,7 @@ bool usbh_edpt_release(uint8_t dev_addr, uint8_t ep_addr)
 bool usbh_edpt_xfer(uint8_t dev_addr, uint8_t ep_addr, uint8_t * buffer, uint16_t total_bytes)
 {
   usbh_device_t* dev = &_usbh_devices[dev_addr];
+  TU_LOG2("  Queue EP %02X with %u bytes ... OK\r\n", ep_addr, total_bytes);
   return hcd_edpt_xfer(dev->rhport, dev_addr, ep_addr, buffer, total_bytes);
 }
 
@@ -387,7 +482,7 @@ void hcd_event_device_remove(uint8_t hostid, bool in_isr)
 
 // a device unplugged on hostid, hub_addr, hub_port
 // return true if found and unmounted device, false if cannot find
-static void usbh_device_unplugged(uint8_t rhport, uint8_t hub_addr, uint8_t hub_port)
+void process_device_unplugged(uint8_t rhport, uint8_t hub_addr, uint8_t hub_port)
 {
   //------------- find the all devices (star-network) under port that is unplugged -------------//
   for (uint8_t dev_addr = 0; dev_addr <= CFG_TUSB_HOST_DEVICE_MAX; dev_addr ++)
@@ -416,90 +511,6 @@ static void usbh_device_unplugged(uint8_t rhport, uint8_t hub_addr, uint8_t hub_
       hcd_device_close(rhport, dev_addr);
 
       dev->state = TUSB_DEVICE_STATE_UNPLUG;
-    }
-  }
-}
-
-/* USB Host Driver task
- * This top level thread manages all host controller event and delegates events to class-specific drivers.
- * This should be called periodically within the mainloop or rtos thread.
- *
-   @code
-    int main(void)
-    {
-      application_init();
-      tusb_init();
-
-      while(1) // the mainloop
-      {
-        application_code();
-        tuh_task(); // tinyusb host task
-      }
-    }
-    @endcode
- */
-void tuh_task(void)
-{
-  // Skip if stack is not initialized
-  if ( !tusb_inited() ) return;
-
-  // Loop until there is no more events in the queue
-  while (1)
-  {
-    hcd_event_t event;
-    if ( !osal_queue_receive(_usbh_q, &event) ) return;
-
-    switch (event.event_id)
-    {
-      case HCD_EVENT_DEVICE_ATTACH:
-        // TODO due to the shared _usbh_ctrl_buf, we must complete enumerating
-        // one device before enumerating another one.
-        TU_LOG2("USBH DEVICE ATTACH\r\n");
-        enum_new_device(&event);
-      break;
-
-      case HCD_EVENT_DEVICE_REMOVE:
-        TU_LOG2("USBH DEVICE REMOVED\r\n");
-        usbh_device_unplugged(event.rhport, event.connection.hub_addr, event.connection.hub_port);
-
-        #if CFG_TUH_HUB
-        // TODO remove
-        if ( event.connection.hub_addr != 0)
-        {
-          // done with hub, waiting for next data on status pipe
-          (void) hub_status_pipe_queue( event.connection.hub_addr );
-        }
-        #endif
-      break;
-
-      case HCD_EVENT_XFER_COMPLETE:
-      {
-        usbh_device_t* dev = &_usbh_devices[event.dev_addr];
-        uint8_t const ep_addr = event.xfer_complete.ep_addr;
-        uint8_t const epnum   = tu_edpt_number(ep_addr);
-        uint8_t const ep_dir  = tu_edpt_dir(ep_addr);
-
-        TU_LOG2("on EP %02X with %u bytes\r\n", ep_addr, (unsigned int) event.xfer_complete.len);
-
-        if ( 0 == epnum )
-        {
-          usbh_control_xfer_cb(event.dev_addr, ep_addr, event.xfer_complete.result, event.xfer_complete.len);
-        }else
-        {
-          uint8_t drv_id = dev->ep2drv[epnum][ep_dir];
-          TU_ASSERT(drv_id < USBH_CLASS_DRIVER_COUNT, );
-
-          TU_LOG2("%s xfer callback\r\n", usbh_class_drivers[drv_id].name);
-          usbh_class_drivers[drv_id].xfer_cb(event.dev_addr, ep_addr, event.xfer_complete.result, event.xfer_complete.len);
-        }
-      }
-      break;
-
-      case USBH_EVENT_FUNC_CALL:
-        if ( event.func_call.func ) event.func_call.func(event.func_call.param);
-      break;
-
-      default: break;
     }
   }
 }

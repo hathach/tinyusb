@@ -1090,7 +1090,7 @@ void dcd_event_xfer_complete (uint8_t rhport, uint8_t ep_addr, uint32_t xferred_
 }
 
 //--------------------------------------------------------------------+
-// Helper
+// USBD API For Class Driver
 //--------------------------------------------------------------------+
 
 // Parse consecutive endpoint descriptors (IN & OUT)
@@ -1184,7 +1184,6 @@ bool usbd_edpt_claim(uint8_t rhport, uint8_t ep_addr)
 #if CFG_TUSB_OS != OPT_OS_NONE
   // pre-check to help reducing mutex lock
   TU_VERIFY((_usbd_dev.ep_status[epnum][dir].busy == 0) && (_usbd_dev.ep_status[epnum][dir].claimed == 0));
-
   osal_mutex_lock(_usbd_mutex, OSAL_TIMEOUT_WAIT_FOREVER);
 #endif
 
