@@ -35,14 +35,15 @@
 // MACRO CONSTANT TYPEDEF
 //--------------------------------------------------------------------+
 
-/*  "KEYBOARD"               : in_len=8 , out_len=1, usage_page=0x01, usage=0x06   # Generic Desktop, Keyboard
-    "MOUSE"                  : in_len=4 , out_len=0, usage_page=0x01, usage=0x02   # Generic Desktop, Mouse
-    "CONSUMER"               : in_len=2 , out_len=0, usage_page=0x0C, usage=0x01   # Consumer, Consumer Control
-    "SYS_CONTROL"            : in_len=1 , out_len=0, usage_page=0x01, usage=0x80   # Generic Desktop, Sys Control
-    "GAMEPAD"                : in_len=6 , out_len=0, usage_page=0x01, usage=0x05   # Generic Desktop, Game Pad
-    "DIGITIZER"              : in_len=5 , out_len=0, usage_page=0x0D, usage=0x02   # Digitizers, Pen
-    "XAC_COMPATIBLE_GAMEPAD" : in_len=3 , out_len=0, usage_page=0x01, usage=0x05   # Generic Desktop, Game Pad
-    "RAW"                    : in_len=64, out_len=0, usage_page=0xFFAF, usage=0xAF # Vendor 0xFFAF "Adafruit", 0xAF
+/*
+ "KEYBOARD"               : in_len=8 , out_len=1, usage_page=0x01, usage=0x06   # Generic Desktop, Keyboard
+ "MOUSE"                  : in_len=4 , out_len=0, usage_page=0x01, usage=0x02   # Generic Desktop, Mouse
+ "CONSUMER"               : in_len=2 , out_len=0, usage_page=0x0C, usage=0x01   # Consumer, Consumer Control
+ "SYS_CONTROL"            : in_len=1 , out_len=0, usage_page=0x01, usage=0x80   # Generic Desktop, Sys Control
+ "GAMEPAD"                : in_len=6 , out_len=0, usage_page=0x01, usage=0x05   # Generic Desktop, Game Pad
+ "DIGITIZER"              : in_len=5 , out_len=0, usage_page=0x0D, usage=0x02   # Digitizers, Pen
+ "XAC_COMPATIBLE_GAMEPAD" : in_len=3 , out_len=0, usage_page=0x01, usage=0x05   # Generic Desktop, Game Pad
+ "RAW"                    : in_len=64, out_len=0, usage_page=0xFFAF, usage=0xAF # Vendor 0xFFAF "Adafruit", 0xAF
  */
 typedef struct
 {
@@ -57,22 +58,14 @@ typedef struct
   uint8_t boot_protocol; // None, Keyboard, Mouse
   bool    boot_mode;     // Boot or Report protocol
 
-  uint8_t report_count;  // Number of reports
-  struct {
-    uint8_t usage_page;
-    uint8_t usage;
-
-    // TODO just use the endpint size for now
-    uint8_t in_len;      // length of IN report
-    uint8_t out_len;     // length of OUT report
-  }reports[CFG_TUH_HID_REPORT_MAX];
+  tuh_hid_report_info_t report_info;
 
   // Parsed Report ID for convenient API
   uint8_t rid_keyboard;
   uint8_t rid_mouse;
   uint8_t rid_gamepad;
   uint8_t rid_consumer;
-}hidh_interface_t;
+} hidh_interface_t;
 
 typedef struct
 {
@@ -102,6 +95,23 @@ bool tuh_n_hid_n_mounted(uint8_t dev_addr, uint8_t instance)
 {
   hidh_interface_t* hid_itf = get_instance(dev_addr, instance);
   return (hid_itf->ep_in != 0) || (hid_itf->ep_out != 0);
+}
+
+uint8_t tuh_n_hid_n_boot_protocol(uint8_t dev_addr, uint8_t instance)
+{
+  hidh_interface_t* hid_itf = get_instance(dev_addr, instance);
+  return hid_itf->boot_protocol;
+}
+
+bool tuh_n_hid_n_boot_mode(uint8_t dev_addr, uint8_t instance)
+{
+  hidh_interface_t* hid_itf = get_instance(dev_addr, instance);
+  return hid_itf->boot_mode;
+}
+
+tuh_hid_report_info_t const* tuh_n_hid_n_get_report_info(uint8_t dev_addr, uint8_t instance)
+{
+  return &get_instance(dev_addr, instance)->report_info;
 }
 
 bool tuh_n_hid_n_ready(uint8_t dev_addr, uint8_t instance)
@@ -190,6 +200,7 @@ void hidh_close(uint8_t dev_addr)
 // Enumeration
 //--------------------------------------------------------------------+
 
+static void parse_report_descriptor(hidh_interface_t* hid_itf, uint8_t const* desc_report, uint16_t desc_len);
 static bool config_set_idle_complete(uint8_t dev_addr, tusb_control_request_t const * request, xfer_result_t result);
 static bool config_get_report_desc_complete(uint8_t dev_addr, tusb_control_request_t const * request, xfer_result_t result);
 
@@ -235,23 +246,25 @@ bool hidh_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_interface_t const *de
 
     if ( HID_PROTOCOL_KEYBOARD == desc_itf->bInterfaceProtocol)
     {
+      TU_LOG2("  Boot Keyboard\r\n");
       // TODO boot protocol may still have more report in report mode
-      hid_itf->report_count = 1;
+      hid_itf->report_info.count = 1;
 
-      hid_itf->reports[0].usage_page = HID_USAGE_PAGE_DESKTOP;
-      hid_itf->reports[0].usage = HID_USAGE_DESKTOP_KEYBOARD;
-      hid_itf->reports[0].in_len = 8;
-      hid_itf->reports[0].out_len = 1;
+      hid_itf->report_info.info[0].usage_page = HID_USAGE_PAGE_DESKTOP;
+      hid_itf->report_info.info[0].usage = HID_USAGE_DESKTOP_KEYBOARD;
+      hid_itf->report_info.info[0].in_len = 8;
+      hid_itf->report_info.info[0].out_len = 1;
     }
     else if ( HID_PROTOCOL_MOUSE == desc_itf->bInterfaceProtocol)
     {
+      TU_LOG2("  Boot Mouse\r\n");
       // TODO boot protocol may still have more report in report mode
-      hid_itf->report_count = 1;
+      hid_itf->report_info.count = 1;
 
-      hid_itf->reports[0].usage_page = HID_USAGE_PAGE_DESKTOP;
-      hid_itf->reports[0].usage = HID_USAGE_DESKTOP_MOUSE;
-      hid_itf->reports[0].in_len = 8;
-      hid_itf->reports[0].out_len = 1;
+      hid_itf->report_info.info[0].usage_page = HID_USAGE_PAGE_DESKTOP;
+      hid_itf->report_info.info[0].usage = HID_USAGE_DESKTOP_MOUSE;
+      hid_itf->report_info.info[0].in_len = 5;
+      hid_itf->report_info.info[0].out_len = 0;
     }
     else
     {
@@ -326,19 +339,23 @@ bool config_set_idle_complete(uint8_t dev_addr, tusb_control_request_t const * r
 bool config_get_report_desc_complete(uint8_t dev_addr, tusb_control_request_t const * request, xfer_result_t result)
 {
   TU_ASSERT(XFER_RESULT_SUCCESS == result);
-  uint8_t const itf_num = (uint8_t) request->wIndex;
-  uint8_t const inst = get_instance_id_by_itfnum(dev_addr, itf_num);
-  //hidh_interface_t* hid_itf = get_instance(dev_addr, inst);
+
+  uint8_t const itf_num     = (uint8_t) request->wIndex;
+  uint8_t const instance    = get_instance_id_by_itfnum(dev_addr, itf_num);
+  hidh_interface_t* hid_itf = get_instance(dev_addr, instance);
+
+  uint8_t const* desc_report = usbh_get_enum_buf();
+  uint16_t const desc_len    = request->wLength;
 
   if (tuh_hid_descriptor_report_cb)
   {
-    tuh_hid_descriptor_report_cb(dev_addr, inst, usbh_get_enum_buf(), request->wLength);
+    tuh_hid_descriptor_report_cb(dev_addr, instance, desc_report, desc_len);
   }
 
-  // TODO Report descriptor parser
+  parse_report_descriptor(hid_itf, desc_report, desc_len);
 
   // enumeration is complete
-  if (tuh_hid_mounted_cb) tuh_hid_mounted_cb(dev_addr, inst);
+  if (tuh_hid_mounted_cb) tuh_hid_mounted_cb(dev_addr, instance);
 
   // notify usbh that driver enumeration is complete
   usbh_driver_set_config_complete(dev_addr, itf_num);
@@ -346,8 +363,69 @@ bool config_get_report_desc_complete(uint8_t dev_addr, tusb_control_request_t co
   return true;
 }
 
+// Parse Report Descriptor to tuh_hid_report_info_t
+static void parse_report_descriptor(hidh_interface_t* hid_itf, uint8_t const* desc_report, uint16_t desc_len)
+{
+  enum
+  {
+    USAGE_PAGE = 0x05,
+    USAGE = 0x09,
+    USAGE_MIN = 0x19,
+    USAGE_MAX = 0x29,
+    LOGICAL_MIN = 0x15,
+    LOGICAL_MAX = 0x25,
+    REPORT_SIZE = 0x75,
+    REPORT_COUNT = 0x95
+  };
+
+  // Short Item 6.2.2.2 USB HID 1.11
+  union TU_ATTR_PACKED
+  {
+    uint8_t byte;
+    struct TU_ATTR_PACKED
+    {
+        uint8_t size : 2;
+        uint8_t type : 2;
+        uint8_t tag  : 4;
+    };
+  } header;
+
+  while(desc_len)
+  {
+    header.byte = *desc_report++;
+
+    uint8_t const tag = header.tag;
+    uint8_t const type = header.type;
+    uint8_t const size = header.size;
+
+    desc_len--;
+
+    TU_LOG2("tag = %d, type = %d, size = %d, data = ", tag, type, size);
+    for(uint32_t i=0; i<size; i++) TU_LOG2("%02X ", desc_report[i]);
+    TU_LOG2("\r\n");
+
+    switch(type)
+    {
+      case RI_TYPE_MAIN:
+      break;
+
+      case RI_TYPE_GLOBAL:
+      break;
+
+      case RI_TYPE_LOCAL:
+      break;
+
+      // error
+      default: break;
+    }
+
+    desc_report += size;
+    desc_len -= size;
+  }
+}
+
 //--------------------------------------------------------------------+
-// Instance helper
+// Helper
 //--------------------------------------------------------------------+
 
 // Get Device by address

@@ -479,6 +479,7 @@ typedef enum
 //--------------------------------------------------------------------+
 // REPORT DESCRIPTOR
 //--------------------------------------------------------------------+
+
 //------------- ITEM & TAG -------------//
 #define HID_REPORT_DATA_0(data)
 #define HID_REPORT_DATA_1(data) , data
@@ -488,18 +489,31 @@ typedef enum
 #define HID_REPORT_ITEM(data, tag, type, size) \
   (((tag) << 4) | ((type) << 2) | (size)) HID_REPORT_DATA_##size(data)
 
-#define RI_TYPE_MAIN   0
-#define RI_TYPE_GLOBAL 1
-#define RI_TYPE_LOCAL  2
+// Report Item Types
+enum {
+  RI_TYPE_MAIN   = 0,
+  RI_TYPE_GLOBAL = 1,
+  RI_TYPE_LOCAL  = 2
+};
 
-//------------- MAIN ITEMS 6.2.2.4 -------------//
+//------------- Main Items - HID 1.11 section 6.2.2.4 -------------//
+
+// Report Item Main group
+enum {
+  RI_MAIN_INPUT          = 8,
+  RI_MAIN_OUTPUT         = 9,
+  RI_MAIN_COLLECTION     = 10,
+  RI_MAIN_FEATURE        = 11,
+  RI_MAIN_COLLECTION_END = 12
+};
+
 #define HID_INPUT(x)           HID_REPORT_ITEM(x,  8, RI_TYPE_MAIN, 1)
 #define HID_OUTPUT(x)          HID_REPORT_ITEM(x,  9, RI_TYPE_MAIN, 1)
 #define HID_COLLECTION(x)      HID_REPORT_ITEM(x, 10, RI_TYPE_MAIN, 1)
 #define HID_FEATURE(x)         HID_REPORT_ITEM(x, 11, RI_TYPE_MAIN, 1)
 #define HID_COLLECTION_END     HID_REPORT_ITEM(x, 12, RI_TYPE_MAIN, 0)
 
-//------------- INPUT, OUTPUT, FEATURE 6.2.2.5 -------------//
+//------------- Input, Output, Feature - HID 1.11 section 6.2.2.5 -------------//
 #define HID_DATA             (0<<0)
 #define HID_CONSTANT         (1<<0)
 
@@ -527,7 +541,7 @@ typedef enum
 #define HID_BITFIELD         (0<<8)
 #define HID_BUFFERED_BYTES   (1<<8)
 
-//------------- COLLECTION ITEM 6.2.2.6 -------------//
+//------------- Collection Item - HID 1.11 section 6.2.2.6 -------------//
 enum {
   HID_COLLECTION_PHYSICAL = 0,
   HID_COLLECTION_APPLICATION,
@@ -538,7 +552,24 @@ enum {
   HID_COLLECTION_USAGE_MODIFIER
 };
 
-//------------- GLOBAL ITEMS 6.2.2.7 -------------//
+//------------- Global Items - HID 1.11 section 6.2.2.7 -------------//
+
+// Report Item Global group
+enum {
+  RI_GLOBAL_USAGE_PAGE    = 0,
+  RI_GLOBAL_LOGICAL_MIN   = 1,
+  RI_GLOBAL_LOGICAL_MAX   = 2,
+  RI_GLOBAL_PHYSICAL_MIN  = 3,
+  RI_GLOBAL_PHYSICAL_MAX  = 4,
+  RI_GLOBAL_UNIT_EXPONENT = 5,
+  RI_GLOBAL_UNIT          = 6,
+  RI_GLOBAL_REPORT_SIZE   = 7,
+  RI_GLOBAL_REPORT_ID     = 8,
+  RI_GLOBAL_REPORT_COUNT  = 9,
+  RI_GLOBAL_PUSH          = 10,
+  RI_GLOBAL_POP           = 11
+};
+
 #define HID_USAGE_PAGE(x)         HID_REPORT_ITEM(x, 0, RI_TYPE_GLOBAL, 1)
 #define HID_USAGE_PAGE_N(x, n)    HID_REPORT_ITEM(x, 0, RI_TYPE_GLOBAL, n)
 
@@ -573,6 +604,21 @@ enum {
 #define HID_POP                   HID_REPORT_ITEM(x, 11, RI_TYPE_GLOBAL, 0)
 
 //------------- LOCAL ITEMS 6.2.2.8 -------------//
+
+enum {
+  RI_LOCAL_USAGE            = 0,
+  RI_LOCAL_USAGE_MIN        = 1,
+  RI_LOCAL_USAGE_MAX        = 2,
+  RI_LOCAL_DESIGNATOR_INDEX = 3,
+  RI_LOCAL_DESIGNATOR_MIN   = 4,
+  RI_LOCAL_DESIGNATOR_MAX   = 5,
+  // 6 is reserved
+  RI_LOCAL_STRING_INDEX     = 7,
+  RI_LOCAL_STRING_MIN       = 8,
+  RI_LOCAL_STRING_MAX       = 9,
+  RI_LOCAL_DELIMITER        = 10,
+};
+
 #define HID_USAGE(x)              HID_REPORT_ITEM(x, 0, RI_TYPE_LOCAL, 1)
 #define HID_USAGE_N(x, n)         HID_REPORT_ITEM(x, 0, RI_TYPE_LOCAL, n)
 
