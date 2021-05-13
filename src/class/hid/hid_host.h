@@ -61,13 +61,19 @@
 uint8_t tuh_n_hid_instance_count(uint8_t daddr);
 
 // Check if HID instance is mounted
-//bool tuh_n_hid_n_mounted(uint8_t daddr, uint8_t instance);
+bool tuh_n_hid_n_mounted(uint8_t daddr, uint8_t instance);
+
+// Check if the interface is ready to use
+bool tuh_n_hid_n_ready(uint8_t dev_addr, uint8_t instance);
+
+bool tuh_n_hid_n_get_report(uint8_t daddr, uint8_t instance, void* report, uint16_t len);
 
 // Check if HID instance with Keyboard is mounted
 bool tuh_n_hid_n_keyboard_mounted(uint8_t daddr, uint8_t instance);
 
 // Check if HID instance with Mouse is mounted
 bool tuh_n_hid_n_mouse_mounted(uint8_t dev_addr, uint8_t instance);
+
 
 //--------------------------------------------------------------------+
 // Application API (Single device)
@@ -119,19 +125,6 @@ bool tuh_hid_keyboard_mounted(uint8_t dev_addr);
  * \note        This function is primarily used for polling/waiting result after \ref tuh_hid_keyboard_get_report.
  *              Alternatively, asynchronous event API can be used
  */
-bool tuh_hid_keyboard_is_busy(uint8_t dev_addr);
-
-/** \brief        Perform a get report from Keyboard interface
- * \param[in]		  dev_addr device address
- * \param[in,out] p_report address that is used to store data from device. Must be accessible by usb controller (see \ref CFG_TUSB_MEM_SECTION)
- * \returns       \ref tusb_error_t type to indicate success or error condition.
- * \retval        TUSB_ERROR_NONE on success
- * \retval        TUSB_ERROR_INTERFACE_IS_BUSY if the interface is already transferring data with device
- * \retval        TUSB_ERROR_DEVICE_NOT_READY if device is not yet configured (by SET CONFIGURED request)
- * \retval        TUSB_ERROR_INVALID_PARA if input parameters are not correct
- * \note          This function is non-blocking and returns immediately. The result of usb transfer will be reported by the interface's callback function
- */
-tusb_error_t  tuh_hid_keyboard_get_report(uint8_t dev_addr, void * p_report);
 
 //------------- Application Callback -------------//
 /** \brief      Callback function that is invoked when an transferring event occurred
@@ -169,27 +162,6 @@ void tuh_hid_keyboard_unmounted_cb(uint8_t dev_addr);
 /** \defgroup Mouse_Host Host
  *  The interface API includes status checking function, data transferring function and callback functions
  *  @{ */
-
-/** \brief      Check if the interface is currently busy or not
- * \param[in]   dev_addr device address
- * \retval      true if the interface is busy meaning the stack is still transferring/waiting data from/to device
- * \retval      false if the interface is not busy meaning the stack successfully transferred data from/to device
- * \note        This function is primarily used for polling/waiting result after \ref tuh_hid_mouse_get_report.
- *              Alternatively, asynchronous event API can be used
- */
-bool          tuh_hid_mouse_is_busy(uint8_t dev_addr);
-
-/** \brief        Perform a get report from Mouse interface
- * \param[in]		  dev_addr device address
- * \param[in,out] p_report address that is used to store data from device. Must be accessible by usb controller (see \ref CFG_TUSB_MEM_SECTION)
- * \returns       \ref tusb_error_t type to indicate success or error condition.
- * \retval        TUSB_ERROR_NONE on success
- * \retval        TUSB_ERROR_INTERFACE_IS_BUSY if the interface is already transferring data with device
- * \retval        TUSB_ERROR_DEVICE_NOT_READY if device is not yet configured (by SET CONFIGURED request)
- * \retval        TUSB_ERROR_INVALID_PARA if input parameters are not correct
- * \note          This function is non-blocking and returns immediately. The result of usb transfer will be reported by the interface's callback function
- */
-tusb_error_t  tuh_hid_mouse_get_report(uint8_t dev_addr, void* p_report);
 
 //------------- Application Callback -------------//
 /** \brief      Callback function that is invoked when an transferring event occurred

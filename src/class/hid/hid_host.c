@@ -52,19 +52,19 @@ typedef struct
 
   uint8_t  report_desc_type;
   uint16_t report_desc_len;
-
-  bool     valid;
-  uint16_t report_size;  // TODO remove later
+  uint16_t ep_size;
 
   uint8_t boot_protocol; // None, Keyboard, Mouse
   bool    boot_mode;     // Boot or Report protocol
-  uint8_t report_count;  // Number of reports
 
+  uint8_t report_count;  // Number of reports
   struct {
-    uint8_t in_len;      // length of IN report
-    uint8_t out_len;     // length of OUT report
     uint8_t usage_page;
     uint8_t usage;
+
+    // TODO just use the endpint size for now
+    uint8_t in_len;      // length of IN report
+    uint8_t out_len;     // length of OUT report
   }reports[CFG_TUH_HID_REPORT_MAX];
 
   // Parsed Report ID for convenient API
@@ -99,59 +99,43 @@ uint8_t tuh_n_hid_instance_count(uint8_t daddr)
 // HID Interface common functions
 //--------------------------------------------------------------------+
 
-// called from public API need to validate parameters
-tusb_error_t hidh_interface_get_report(uint8_t dev_addr, void * report, hidh_interface_t *p_hid)
+bool tuh_n_hid_n_mounted(uint8_t daddr, uint8_t instance)
 {
-  //------------- parameters validation -------------//
-  // TODO change to use is configured function
-  TU_ASSERT(tuh_device_configured(dev_addr), TUSB_ERROR_DEVICE_NOT_READY);
-  TU_VERIFY(report, TUSB_ERROR_INVALID_PARA);
-  TU_VERIFY(!hcd_edpt_busy(dev_addr, p_hid->ep_in), TUSB_ERROR_INTERFACE_IS_BUSY);
-
-  TU_ASSERT( usbh_edpt_xfer(dev_addr, p_hid->ep_in, report, p_hid->report_size) ) ;
-
-  return TUSB_ERROR_NONE;
+  hidh_interface_t* hid_itf = get_instance(daddr, instance);
+  return (hid_itf->ep_in != 0) || (hid_itf->ep_out != 0);
 }
 
-//bool tuh_n_hid_n_mounted(uint8_t daddr, uint8_t instance)
-//{
-//
-//}
+bool tuh_n_hid_n_ready(uint8_t dev_addr, uint8_t instance)
+{
+  TU_VERIFY(tuh_n_hid_n_mounted(dev_addr, instance));
+
+  hidh_interface_t* hid_itf = get_instance(dev_addr, instance);
+  return !hcd_edpt_busy(dev_addr, hid_itf->ep_in);
+}
+
+bool tuh_n_hid_n_get_report(uint8_t daddr, uint8_t instance, void* report, uint16_t len)
+{
+  TU_VERIFY( tuh_device_ready(daddr) && report && len);
+  hidh_interface_t* hid_itf = get_instance(daddr, instance);
+
+  // TODO change to claim endpoint
+  TU_VERIFY( !hcd_edpt_busy(daddr, hid_itf->ep_in) );
+
+  len = tu_min16(len, hid_itf->ep_size);
+
+  return usbh_edpt_xfer(daddr, hid_itf->ep_in, report, len);
+}
 
 //--------------------------------------------------------------------+
 // KEYBOARD
 //--------------------------------------------------------------------+
-
-bool tuh_n_hid_n_mounted(uint8_t daddr, uint8_t instance)
-{
-  hidh_interface_t* hid_itf = get_instance(daddr, instance);
-
-  // TODO check rid_keyboard
-  return tuh_device_configured(daddr) && (hid_itf->ep_in != 0);
-}
 
 bool tuh_n_hid_n_keyboard_mounted(uint8_t daddr, uint8_t instance)
 {
   hidh_interface_t* hid_itf = get_instance(daddr, instance);
 
   // TODO check rid_keyboard
-  return tuh_device_configured(daddr) && (hid_itf->ep_in != 0);
-}
-
-tusb_error_t tuh_hid_keyboard_get_report(uint8_t dev_addr, void* buffer)
-{
-  uint8_t inst = 0;
-  hidh_interface_t* hid_itf = get_instance(dev_addr, inst);
-
-  return hidh_interface_get_report(dev_addr, buffer, hid_itf);
-}
-
-bool tuh_hid_keyboard_is_busy(uint8_t dev_addr)
-{
-  uint8_t inst = 0;
-  hidh_interface_t* hid_itf = get_instance(dev_addr, inst);
-
-  return tuh_n_hid_n_keyboard_mounted(dev_addr, inst) && hcd_edpt_busy(dev_addr, hid_itf->ep_in);
+  return tuh_device_ready(daddr) && (hid_itf->ep_in != 0);
 }
 
 //--------------------------------------------------------------------+
@@ -165,25 +149,10 @@ static hidh_interface_t mouseh_data[CFG_TUSB_HOST_DEVICE_MAX]; // does not have 
 bool tuh_n_hid_n_mouse_mounted(uint8_t dev_addr, uint8_t instance)
 {
 //  hidh_interface_t* hid_itf = get_instance(dev_addr, instance);
-  return tuh_device_configured(dev_addr) && (mouseh_data[dev_addr-1].ep_in != 0);
-}
-
-bool tuh_hid_mouse_is_busy(uint8_t dev_addr)
-{
-  return  tuh_n_hid_n_mouse_mounted(dev_addr, 0) && hcd_edpt_busy(dev_addr, mouseh_data[dev_addr-1].ep_in);
-}
-
-tusb_error_t tuh_hid_mouse_get_report(uint8_t dev_addr, void * report)
-{
-  return hidh_interface_get_report(dev_addr, report, &mouseh_data[dev_addr-1]);
+  return tuh_device_ready(dev_addr) && (mouseh_data[dev_addr-1].ep_in != 0);
 }
 
 #endif
-
-//--------------------------------------------------------------------+
-// GENERIC
-//--------------------------------------------------------------------+
-
 
 //--------------------------------------------------------------------+
 // USBH API
@@ -264,10 +233,9 @@ bool hidh_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_interface_t const *de
   hidh_interface_t* hid_itf = get_instance(dev_addr, hid_dev->inst_count);
   hid_dev->inst_count++;
 
-  hid_itf->itf_num     = desc_itf->bInterfaceNumber;
-  hid_itf->ep_in       = desc_ep->bEndpointAddress;
-  hid_itf->report_size = desc_ep->wMaxPacketSize.size; // TODO get size from report descriptor
-  hid_itf->valid       = true;
+  hid_itf->itf_num = desc_itf->bInterfaceNumber;
+  hid_itf->ep_in   = desc_ep->bEndpointAddress;
+  hid_itf->ep_size = desc_ep->wMaxPacketSize.size;
 
   // Assume bNumDescriptors = 1
   hid_itf->report_desc_type = desc_hid->bReportType;
