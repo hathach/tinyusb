@@ -61,7 +61,7 @@ bool tud_hid_n_ready(uint8_t itf);
 bool tud_hid_n_boot_mode(uint8_t itf);
 
 // Send report to host
-bool tud_hid_n_report(uint8_t itf, uint8_t report_id, void const* report, uint8_t len);
+bool tud_hid_n_report(uint8_t itf, uint8_t report_id, void const* report, uint16_t len);
 
 // KEYBOARD: convenient helper to send keyboard report if application
 // use template layout report as defined by hid_keyboard_report_t
@@ -128,7 +128,7 @@ static inline bool tud_hid_boot_mode(void)
   return tud_hid_n_boot_mode(0);
 }
 
-static inline bool tud_hid_report(uint8_t report_id, void const* report, uint8_t len)
+static inline bool tud_hid_report(uint8_t report_id, void const* report, uint16_t len)
 {
   return tud_hid_n_report(0, report_id, report, len);
 }

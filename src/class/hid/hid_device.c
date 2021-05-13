@@ -76,7 +76,7 @@ bool tud_hid_n_ready(uint8_t itf)
   return tud_ready() && (ep_in != 0) && !usbd_edpt_busy(TUD_OPT_RHPORT, ep_in);
 }
 
-bool tud_hid_n_report(uint8_t itf, uint8_t report_id, void const* report, uint8_t len)
+bool tud_hid_n_report(uint8_t itf, uint8_t report_id, void const* report, uint16_t len)
 {
   uint8_t const rhport = 0;
   hidd_interface_t * p_hid = &_hidd_itf[itf];
@@ -87,7 +87,7 @@ bool tud_hid_n_report(uint8_t itf, uint8_t report_id, void const* report, uint8_
   // prepare data
   if (report_id)
   {
-    len = tu_min8(len, CFG_TUD_HID_EP_BUFSIZE-1);
+    len = tu_min16(len, CFG_TUD_HID_EP_BUFSIZE-1);
 
     p_hid->epin_buf[0] = report_id;
     memcpy(p_hid->epin_buf+1, report, len);
@@ -95,7 +95,7 @@ bool tud_hid_n_report(uint8_t itf, uint8_t report_id, void const* report, uint8_
   }else
   {
     // If report id = 0, skip ID field
-    len = tu_min8(len, CFG_TUD_HID_EP_BUFSIZE);
+    len = tu_min16(len, CFG_TUD_HID_EP_BUFSIZE);
     memcpy(p_hid->epin_buf, report, len);
   }
 
