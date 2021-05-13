@@ -58,22 +58,46 @@
 //--------------------------------------------------------------------+
 
 // Get the number of HID instances
-uint8_t tuh_n_hid_instance_count(uint8_t daddr);
+uint8_t tuh_n_hid_instance_count(uint8_t dev_addr);
 
 // Check if HID instance is mounted
-bool tuh_n_hid_n_mounted(uint8_t daddr, uint8_t instance);
+bool tuh_n_hid_n_mounted(uint8_t dev_addr, uint8_t instance);
 
 // Check if the interface is ready to use
 bool tuh_n_hid_n_ready(uint8_t dev_addr, uint8_t instance);
 
-bool tuh_n_hid_n_get_report(uint8_t daddr, uint8_t instance, void* report, uint16_t len);
+// Get Report from device
+bool tuh_n_hid_n_get_report(uint8_t dev_addr, uint8_t instance, void* report, uint16_t len);
+
+
+
+//-------------  -------------//
 
 // Check if HID instance with Keyboard is mounted
-bool tuh_n_hid_n_keyboard_mounted(uint8_t daddr, uint8_t instance);
+bool tuh_n_hid_n_keyboard_mounted(uint8_t dev_addr, uint8_t instance);
 
 // Check if HID instance with Mouse is mounted
 bool tuh_n_hid_n_mouse_mounted(uint8_t dev_addr, uint8_t instance);
 
+//--------------------------------------------------------------------+
+// Callbacks (Weak is optional)
+//--------------------------------------------------------------------+
+
+// Invoked when report descriptor is received
+// Note: enumeration is still not complete yet at this time
+TU_ATTR_WEAK void tuh_hid_descriptor_report_cb(uint8_t dev_addr, uint8_t instance, uint8_t const* report_desc, uint16_t desc_len);
+
+// Invoked when device with hid interface is mounted
+TU_ATTR_WEAK void tuh_hid_mounted_cb  (uint8_t dev_addr, uint8_t instance);
+
+// Invoked when device with hid interface is un-mounted
+TU_ATTR_WEAK void tuh_hid_unmounted_cb(uint8_t dev_addr, uint8_t instance);
+
+// Invoked when received Report from device
+TU_ATTR_WEAK void tuh_hid_get_report_complete_cb(uint8_t dev_addr, uint8_t instance, uint8_t xferred_bytes);
+
+// Invoked when Sent Report to device
+TU_ATTR_WEAK void tuh_hid_set_report_complete_cb(uint8_t dev_addr, uint8_t instance, uint8_t xferred_bytes);
 
 //--------------------------------------------------------------------+
 // Application API (Single device)
@@ -86,106 +110,6 @@ uint8_t tuh_hid_instance_count(void)
   return tuh_n_hid_instance_count(1);
 }
 
-//bool tuh_hid_get_report(uint8_t dev_addr, uint8_t report_id, void * p_report, uint8_t len);
-
-//--------------------------------------------------------------------+
-// Callbacks (Weak is optional)
-//--------------------------------------------------------------------+
-
-// Invoked when report descriptor is received
-// Note: enumeration is still not complete yet
-TU_ATTR_WEAK void tuh_hid_descriptor_report_cb(uint8_t daddr, uint8_t instance, uint8_t const* report_desc, uint16_t desc_len);
-
-TU_ATTR_WEAK void tuh_hid_mounted_cb  (uint8_t dev_addr, uint8_t instance);
-TU_ATTR_WEAK void tuh_hid_unmounted_cb(uint8_t dev_addr, uint8_t instance);
-
-
-
-//--------------------------------------------------------------------+
-// KEYBOARD Application API
-//--------------------------------------------------------------------+
-/** \addtogroup ClassDriver_HID_Keyboard Keyboard
- *  @{ */
-
-/** \defgroup Keyboard_Host Host
- *  The interface API includes status checking function, data transferring function and callback functions
- *  @{ */
-
-/** \brief      Check if device supports Keyboard interface or not
- * \param[in]   dev_addr    device address
- * \retval      true if device supports Keyboard interface
- * \retval      false if device does not support Keyboard interface or is not mounted
- */
-bool tuh_hid_keyboard_mounted(uint8_t dev_addr);
-
-/** \brief      Check if the interface is currently busy or not
- * \param[in]   dev_addr device address
- * \retval      true if the interface is busy meaning the stack is still transferring/waiting data from/to device
- * \retval      false if the interface is not busy meaning the stack successfully transferred data from/to device
- * \note        This function is primarily used for polling/waiting result after \ref tuh_hid_keyboard_get_report.
- *              Alternatively, asynchronous event API can be used
- */
-
-//------------- Application Callback -------------//
-/** \brief      Callback function that is invoked when an transferring event occurred
- * \param[in]		dev_addr	Address of device
- * \param[in]   event an value from \ref xfer_result_t
- * \note        event can be one of following
- *              - XFER_RESULT_SUCCESS : previously scheduled transfer completes successfully.
- *              - XFER_RESULT_FAILED   : previously scheduled transfer encountered a transaction error.
- *              - XFER_RESULT_STALLED : previously scheduled transfer is stalled by device.
- * \note        Application should schedule the next report by calling \ref tuh_hid_keyboard_get_report within this callback
- */
-void tuh_hid_keyboard_isr(uint8_t dev_addr, xfer_result_t event);
-
-/** \brief 			Callback function that will be invoked when a device with Keyboard interface is mounted
- * \param[in] 	dev_addr Address of newly mounted device
- * \note        This callback should be used by Application to set-up interface-related data
- */
-void tuh_hid_keyboard_mounted_cb(uint8_t dev_addr);
-
-/** \brief 			Callback function that will be invoked when a device with Keyboard interface is unmounted
- * \param[in] 	dev_addr Address of newly unmounted device
- * \note        This callback should be used by Application to tear-down interface-related data
- */
-void tuh_hid_keyboard_unmounted_cb(uint8_t dev_addr);
-
-/** @} */ // Keyboard_Host
-/** @} */ // ClassDriver_HID_Keyboard
-
-//--------------------------------------------------------------------+
-// MOUSE Application API
-//--------------------------------------------------------------------+
-/** \addtogroup ClassDriver_HID_Mouse Mouse
- *  @{ */
-
-/** \defgroup Mouse_Host Host
- *  The interface API includes status checking function, data transferring function and callback functions
- *  @{ */
-
-//------------- Application Callback -------------//
-/** \brief      Callback function that is invoked when an transferring event occurred
- * \param[in]		dev_addr	Address of device
- * \param[in]   event an value from \ref xfer_result_t
- * \note        event can be one of following
- *              - XFER_RESULT_SUCCESS : previously scheduled transfer completes successfully.
- *              - XFER_RESULT_FAILED   : previously scheduled transfer encountered a transaction error.
- *              - XFER_RESULT_STALLED : previously scheduled transfer is stalled by device.
- * \note        Application should schedule the next report by calling \ref tuh_hid_mouse_get_report within this callback
- */
-void tuh_hid_mouse_isr(uint8_t dev_addr, xfer_result_t event);
-
-/** \brief 			Callback function that will be invoked when a device with Mouse interface is mounted
- * \param[in]	  dev_addr Address of newly mounted device
- * \note        This callback should be used by Application to set-up interface-related data
- */
-void tuh_hid_mouse_mounted_cb(uint8_t dev_addr);
-
-/** \brief 			Callback function that will be invoked when a device with Mouse interface is unmounted
- * \param[in] 	dev_addr Address of newly unmounted device
- * \note        This callback should be used by Application to tear-down interface-related data
- */
-void tuh_hid_mouse_unmounted_cb(uint8_t dev_addr);
 
 //--------------------------------------------------------------------+
 // Internal Class Driver API

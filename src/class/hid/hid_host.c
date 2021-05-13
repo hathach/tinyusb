@@ -82,26 +82,25 @@ typedef struct
 
 static hidh_device_t _hidh_dev[CFG_TUSB_HOST_DEVICE_MAX-1];
 
+//------------- Internal prototypes -------------//
 TU_ATTR_ALWAYS_INLINE static inline hidh_device_t* get_dev(uint8_t dev_addr);
 TU_ATTR_ALWAYS_INLINE static inline hidh_interface_t* get_instance(uint8_t dev_addr, uint8_t instance);
-static uint8_t get_instance_id(uint8_t dev_addr, uint8_t itf);
-static hidh_interface_t* get_interface(uint8_t dev_addr, uint8_t itf);
+static uint8_t get_instance_id_by_itfnum(uint8_t dev_addr, uint8_t itf);
+static hidh_interface_t* get_instance_by_itfnum(uint8_t dev_addr, uint8_t itf);
+static uint8_t get_instance_id_by_epaddr(uint8_t dev_addr, uint8_t ep_addr);
 
 //--------------------------------------------------------------------+
 // Application API
 //--------------------------------------------------------------------+
-uint8_t tuh_n_hid_instance_count(uint8_t daddr)
+
+uint8_t tuh_n_hid_instance_count(uint8_t dev_addr)
 {
-  return get_dev(daddr)->inst_count;
+  return get_dev(dev_addr)->inst_count;
 }
 
-//--------------------------------------------------------------------+
-// HID Interface common functions
-//--------------------------------------------------------------------+
-
-bool tuh_n_hid_n_mounted(uint8_t daddr, uint8_t instance)
+bool tuh_n_hid_n_mounted(uint8_t dev_addr, uint8_t instance)
 {
-  hidh_interface_t* hid_itf = get_instance(daddr, instance);
+  hidh_interface_t* hid_itf = get_instance(dev_addr, instance);
   return (hid_itf->ep_in != 0) || (hid_itf->ep_out != 0);
 }
 
@@ -113,29 +112,29 @@ bool tuh_n_hid_n_ready(uint8_t dev_addr, uint8_t instance)
   return !hcd_edpt_busy(dev_addr, hid_itf->ep_in);
 }
 
-bool tuh_n_hid_n_get_report(uint8_t daddr, uint8_t instance, void* report, uint16_t len)
+bool tuh_n_hid_n_get_report(uint8_t dev_addr, uint8_t instance, void* report, uint16_t len)
 {
-  TU_VERIFY( tuh_device_ready(daddr) && report && len);
-  hidh_interface_t* hid_itf = get_instance(daddr, instance);
+  TU_VERIFY( tuh_device_ready(dev_addr) && report && len);
+  hidh_interface_t* hid_itf = get_instance(dev_addr, instance);
 
   // TODO change to claim endpoint
-  TU_VERIFY( !hcd_edpt_busy(daddr, hid_itf->ep_in) );
+  TU_VERIFY( !hcd_edpt_busy(dev_addr, hid_itf->ep_in) );
 
   len = tu_min16(len, hid_itf->ep_size);
 
-  return usbh_edpt_xfer(daddr, hid_itf->ep_in, report, len);
+  return usbh_edpt_xfer(dev_addr, hid_itf->ep_in, report, len);
 }
 
 //--------------------------------------------------------------------+
 // KEYBOARD
 //--------------------------------------------------------------------+
 
-bool tuh_n_hid_n_keyboard_mounted(uint8_t daddr, uint8_t instance)
+bool tuh_n_hid_n_keyboard_mounted(uint8_t dev_addr, uint8_t instance)
 {
-  hidh_interface_t* hid_itf = get_instance(daddr, instance);
+  hidh_interface_t* hid_itf = get_instance(dev_addr, instance);
 
   // TODO check rid_keyboard
-  return tuh_device_ready(daddr) && (hid_itf->ep_in != 0);
+  return tuh_device_ready(dev_addr) && (hid_itf->ep_in != 0);
 }
 
 //--------------------------------------------------------------------+
@@ -164,26 +163,16 @@ void hidh_init(void)
 
 bool hidh_xfer_cb(uint8_t dev_addr, uint8_t ep_addr, xfer_result_t event, uint32_t xferred_bytes)
 {
-  (void) xferred_bytes; // TODO may need to use this para later
+  uint8_t const dir = tu_edpt_dir(ep_addr);
+  uint8_t const instance = get_instance_id_by_epaddr(dev_addr, ep_addr);
 
-//  uint8_t itf = 0;
-//  hidh_interface_t* hid_itf = &_hidh_itf[itf];
-
-#if CFG_TUH_HID_KEYBOARD
-//  if ( ep_addr == keyboardh_data[dev_addr-1].ep_in )
-//  {
-//    tuh_hid_keyboard_isr(dev_addr, event);
-//    return true;
-//  }
-#endif
-
-#if CFG_TUH_HID_MOUSE
-//  if ( ep_addr == mouseh_data[dev_addr-1].ep_in )
-//  {
-//    tuh_hid_mouse_isr(dev_addr, event);
-//    return true;
-//  }
-#endif
+  if ( dir == TUSB_DIR_IN )
+  {
+    if (tuh_hid_get_report_complete_cb) tuh_hid_get_report_complete_cb(dev_addr, instance, xferred_bytes);
+  }else
+  {
+    if (tuh_hid_set_report_complete_cb) tuh_hid_set_report_complete_cb(dev_addr, instance, xferred_bytes);
+  }
 
   return true;
 }
@@ -311,7 +300,7 @@ bool config_set_idle_complete(uint8_t dev_addr, tusb_control_request_t const * r
 
   uint8_t const itf_num = (uint8_t) request->wIndex;
 
-  hidh_interface_t* hid_itf = get_interface(dev_addr, itf_num);
+  hidh_interface_t* hid_itf = get_instance_by_itfnum(dev_addr, itf_num);
 
   // Get Report Descriptor
   // using usbh enumeration buffer since report descriptor can be very long
@@ -340,7 +329,7 @@ bool config_get_report_desc_complete(uint8_t dev_addr, tusb_control_request_t co
 {
   TU_ASSERT(XFER_RESULT_SUCCESS == result);
   uint8_t const itf_num = (uint8_t) request->wIndex;
-  uint8_t const inst = get_instance_id(dev_addr, itf_num);
+  uint8_t const inst = get_instance_id_by_itfnum(dev_addr, itf_num);
   //hidh_interface_t* hid_itf = get_instance(dev_addr, inst);
 
   if (tuh_hid_descriptor_report_cb)
@@ -375,30 +364,43 @@ TU_ATTR_ALWAYS_INLINE static inline hidh_interface_t* get_instance(uint8_t dev_a
   return &_hidh_dev[dev_addr-1].instances[instance];
 }
 
-// Get instance ID by interface number
-static uint8_t get_instance_id(uint8_t dev_addr, uint8_t itf)
+// Get instance by interface number
+static hidh_interface_t* get_instance_by_itfnum(uint8_t dev_addr, uint8_t itf)
 {
   for ( uint8_t inst = 0; inst < CFG_TUH_HID; inst++ )
   {
     hidh_interface_t *hid = get_instance(dev_addr, inst);
 
-    if ( (hid->itf_num == itf) && (hid->ep_in != 0) ) return inst;
+    if ( (hid->itf_num == itf) && (hid->ep_in || hid->ep_out) ) return hid;
+  }
+
+  return NULL;
+}
+
+// Get instance ID by interface number
+static uint8_t get_instance_id_by_itfnum(uint8_t dev_addr, uint8_t itf)
+{
+  for ( uint8_t inst = 0; inst < CFG_TUH_HID; inst++ )
+  {
+    hidh_interface_t *hid = get_instance(dev_addr, inst);
+
+    if ( (hid->itf_num == itf) && (hid->ep_in || hid->ep_out) ) return inst;
   }
 
   return 0xff;
 }
 
-// Get Interface by interface number
-static hidh_interface_t* get_interface(uint8_t dev_addr, uint8_t itf)
+// Get instance ID by endpoint address
+static uint8_t get_instance_id_by_epaddr(uint8_t dev_addr, uint8_t ep_addr)
 {
   for ( uint8_t inst = 0; inst < CFG_TUH_HID; inst++ )
   {
     hidh_interface_t *hid = get_instance(dev_addr, inst);
 
-    if ( (hid->itf_num == itf) && (hid->ep_in != 0) ) return hid;
+    if ( (ep_addr == hid->ep_in) || ( ep_addr == hid->ep_out) ) return inst;
   }
 
-  return NULL;
+  return 0xff;
 }
 
 #endif
