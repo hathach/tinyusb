@@ -53,7 +53,9 @@ typedef struct
 
   uint8_t  report_desc_type;
   uint16_t report_desc_len;
-  uint16_t ep_size;
+
+  uint16_t epin_size;
+  uint16_t epout_size;
 
   uint8_t boot_protocol; // None, Keyboard, Mouse
   bool    boot_mode;     // Boot or Report protocol
@@ -65,6 +67,9 @@ typedef struct
   uint8_t rid_mouse;
   uint8_t rid_gamepad;
   uint8_t rid_consumer;
+
+  uint8_t epin_buf[CFG_TUH_HID_EP_BUFSIZE];
+  uint8_t epout_buf[CFG_TUH_HID_EP_BUFSIZE];
 } hidh_interface_t;
 
 typedef struct
@@ -81,6 +86,11 @@ TU_ATTR_ALWAYS_INLINE static inline hidh_interface_t* get_instance(uint8_t dev_a
 static uint8_t get_instance_id_by_itfnum(uint8_t dev_addr, uint8_t itf);
 static hidh_interface_t* get_instance_by_itfnum(uint8_t dev_addr, uint8_t itf);
 static uint8_t get_instance_id_by_epaddr(uint8_t dev_addr, uint8_t ep_addr);
+
+TU_ATTR_ALWAYS_INLINE static inline bool hidh_get_report(uint8_t dev_addr, hidh_interface_t* hid_itf)
+{
+  return usbh_edpt_xfer(dev_addr, hid_itf->ep_in, hid_itf->epin_buf, hid_itf->epin_size);
+}
 
 //--------------------------------------------------------------------+
 // Application API
@@ -122,19 +132,6 @@ bool tuh_n_hid_n_ready(uint8_t dev_addr, uint8_t instance)
   return !hcd_edpt_busy(dev_addr, hid_itf->ep_in);
 }
 
-bool tuh_n_hid_n_get_report(uint8_t dev_addr, uint8_t instance, void* report, uint16_t len)
-{
-  TU_VERIFY( tuh_device_ready(dev_addr) && report && len);
-  hidh_interface_t* hid_itf = get_instance(dev_addr, instance);
-
-  // TODO change to claim endpoint
-  TU_VERIFY( !hcd_edpt_busy(dev_addr, hid_itf->ep_in) );
-
-  len = tu_min16(len, hid_itf->ep_size);
-
-  return usbh_edpt_xfer(dev_addr, hid_itf->ep_in, report, len);
-}
-
 //--------------------------------------------------------------------+
 // KEYBOARD
 //--------------------------------------------------------------------+
@@ -147,18 +144,11 @@ bool tuh_n_hid_n_keyboard_mounted(uint8_t dev_addr, uint8_t instance)
   return tuh_device_ready(dev_addr) && (hid_itf->ep_in != 0);
 }
 
-//--------------------------------------------------------------------+
-// MOUSE
-//--------------------------------------------------------------------+
-
 // TODO remove
-static hidh_interface_t mouseh_data[CFG_TUSB_HOST_DEVICE_MAX]; // does not have addr0, index = dev_address-1
-
-//------------- Public API -------------//
 bool tuh_n_hid_n_mouse_mounted(uint8_t dev_addr, uint8_t instance)
 {
-//  hidh_interface_t* hid_itf = get_instance(dev_addr, instance);
-  return tuh_device_ready(dev_addr) && (mouseh_data[dev_addr-1].ep_in != 0);
+  hidh_interface_t* hid_itf = get_instance(dev_addr, instance);
+  return tuh_device_ready(dev_addr) && (hid_itf->ep_in != 0);
 }
 
 //--------------------------------------------------------------------+
@@ -173,10 +163,17 @@ bool hidh_xfer_cb(uint8_t dev_addr, uint8_t ep_addr, xfer_result_t event, uint32
 {
   uint8_t const dir = tu_edpt_dir(ep_addr);
   uint8_t const instance = get_instance_id_by_epaddr(dev_addr, ep_addr);
+  hidh_interface_t* hid_itf = get_instance(dev_addr, instance);
 
   if ( dir == TUSB_DIR_IN )
   {
-    if (tuh_hid_get_report_complete_cb) tuh_hid_get_report_complete_cb(dev_addr, instance, xferred_bytes);
+    if (tuh_hid_get_report_cb)
+    {
+      tuh_hid_get_report_cb(dev_addr, instance, hid_itf->epin_buf, xferred_bytes);
+    }
+
+    // queue next report
+    hidh_get_report(dev_addr, hid_itf);
   }else
   {
     if (tuh_hid_set_report_complete_cb) tuh_hid_set_report_complete_cb(dev_addr, instance, xferred_bytes);
@@ -233,7 +230,7 @@ bool hidh_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_interface_t const *de
 
   hid_itf->itf_num = desc_itf->bInterfaceNumber;
   hid_itf->ep_in   = desc_ep->bEndpointAddress;
-  hid_itf->ep_size = desc_ep->wMaxPacketSize.size;
+  hid_itf->epin_size = desc_ep->wMaxPacketSize.size;
 
   // Assume bNumDescriptors = 1
   hid_itf->report_desc_type = desc_hid->bReportType;
@@ -357,6 +354,9 @@ bool config_get_report_desc_complete(uint8_t dev_addr, tusb_control_request_t co
   // enumeration is complete
   if (tuh_hid_mounted_cb) tuh_hid_mounted_cb(dev_addr, instance);
 
+  // queue transfer for IN endpoint
+  hidh_get_report(dev_addr, hid_itf);
+
   // notify usbh that driver enumeration is complete
   usbh_driver_set_config_complete(dev_addr, itf_num);
 
@@ -381,12 +381,11 @@ static void parse_report_descriptor(hidh_interface_t* hid_itf, uint8_t const* de
   while(desc_len)
   {
     header.byte = *desc_report++;
+    desc_len--;
 
-    uint8_t const tag = header.tag;
+    uint8_t const tag  = header.tag;
     uint8_t const type = header.type;
     uint8_t const size = header.size;
-
-    desc_len--;
 
     TU_LOG2("tag = %d, type = %d, size = %d, data = ", tag, type, size);
     for(uint32_t i=0; i<size; i++) TU_LOG2("%02X ", desc_report[i]);

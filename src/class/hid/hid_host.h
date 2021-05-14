@@ -46,6 +46,11 @@
 #define CFG_TUH_HID_REPORT_MAX 4
 #endif
 
+// TODO Highspeed interrupt can be up to 512 bytes
+#ifndef CFG_TUH_HID_EP_BUFSIZE
+#define CFG_TUH_HID_EP_BUFSIZE 64
+#endif
+
 typedef struct
 {
   uint8_t count;        // number of info
@@ -88,9 +93,6 @@ tuh_hid_report_info_t const* tuh_n_hid_n_get_report_info(uint8_t dev_addr, uint8
 // Check if the interface is ready to use
 bool tuh_n_hid_n_ready(uint8_t dev_addr, uint8_t instance);
 
-// Get Report from device
-bool tuh_n_hid_n_get_report(uint8_t dev_addr, uint8_t instance, void* report, uint16_t len);
-
 // Set Report using control endpoint
 //bool tuh_n_hid_n_set_report_control(uint8_t dev_addr, uint8_t instance, void* report, uint16_t len);
 
@@ -117,7 +119,7 @@ TU_ATTR_WEAK void tuh_hid_mounted_cb  (uint8_t dev_addr, uint8_t instance);
 TU_ATTR_WEAK void tuh_hid_unmounted_cb(uint8_t dev_addr, uint8_t instance);
 
 // Invoked when received Report from device via either regular or control endpoint
-TU_ATTR_WEAK void tuh_hid_get_report_complete_cb(uint8_t dev_addr, uint8_t instance, uint8_t xferred_bytes);
+TU_ATTR_WEAK void tuh_hid_get_report_cb(uint8_t dev_addr, uint8_t instance, uint8_t const* report, uint16_t len);
 
 // Invoked when Sent Report to device via either regular or control endpoint
 TU_ATTR_WEAK void tuh_hid_set_report_complete_cb(uint8_t dev_addr, uint8_t instance, uint8_t xferred_bytes);

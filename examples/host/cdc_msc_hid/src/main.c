@@ -108,7 +108,6 @@ void cdc_task(void)
 //--------------------------------------------------------------------+
 // USB HID
 //--------------------------------------------------------------------+
-CFG_TUSB_MEM_SECTION static hid_keyboard_report_t usb_keyboard_report;
 uint8_t const keycode2ascii[128][2] =  { HID_KEYCODE_TO_ASCII };
 
 // look up new key in previous keys
@@ -156,10 +155,6 @@ void tuh_hid_mounted_cb(uint8_t dev_addr, uint8_t instance)
   printf("HID device address = %d, instance = %d is mounted\r\n", dev_addr, instance);
 //  printf("A Keyboard device (address %d) is mounted\r\n", dev_addr);
 //  printf("A Mouse device (address %d) is mounted\r\n", dev_addr);
-
-  if (instance == 0) {
-  tuh_n_hid_n_get_report(dev_addr, instance, &usb_keyboard_report, sizeof(usb_keyboard_report));
-  }
 }
 
 void tuh_hid_unmounted_cb(uint8_t dev_addr, uint8_t instance)
@@ -168,9 +163,6 @@ void tuh_hid_unmounted_cb(uint8_t dev_addr, uint8_t instance)
 //  printf("A Keyboard device (address %d) is unmounted\r\n", dev_addr);
 //  printf("A Mouse device (address %d) is unmounted\r\n", dev_addr);
 }
-
-
-CFG_TUSB_MEM_SECTION static hid_mouse_report_t usb_mouse_report;
 
 void cursor_movement(int8_t x, int8_t y, int8_t wheel)
 {
@@ -220,32 +212,13 @@ static inline void process_mouse_report(hid_mouse_report_t const * p_report)
   cursor_movement(p_report->x, p_report->y, p_report->wheel);
 }
 
-
+void tuh_hid_get_report_cb(uint8_t dev_addr, uint8_t instance, uint8_t const* report, uint16_t len)
+{
+  process_kbd_report( (hid_keyboard_report_t*) report );
+}
 
 void hid_task(void)
 {
-  uint8_t const daddr = 1;
-  uint8_t const instance = 0;
-
-  if ( tuh_n_hid_n_keyboard_mounted(daddr, instance) )
-  {
-    if ( tuh_n_hid_n_ready(daddr, instance) )
-    {
-      process_kbd_report(&usb_keyboard_report);
-      tuh_n_hid_n_get_report(daddr, instance, &usb_keyboard_report, sizeof(usb_keyboard_report));
-    }
-  }
-
-// #if CFG_TUH_HID_MOUSE
-  (void) usb_mouse_report;
-//  if ( tuh_n_hid_n_mouse_mounted(daddr, instance) )
-//  {
-//    if ( tuh_n_hid_n_ready(daddr, instance) )
-//    {
-//      process_mouse_report(&usb_mouse_report);
-//      tuh_n_hid_n_get_report(daddr, instance, &usb_mouse_report, sizeof(usb_mouse_report));
-//    }
-//  }
 }
 
 //--------------------------------------------------------------------+
