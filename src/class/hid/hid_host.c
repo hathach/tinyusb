@@ -366,19 +366,7 @@ bool config_get_report_desc_complete(uint8_t dev_addr, tusb_control_request_t co
 // Parse Report Descriptor to tuh_hid_report_info_t
 static void parse_report_descriptor(hidh_interface_t* hid_itf, uint8_t const* desc_report, uint16_t desc_len)
 {
-  enum
-  {
-    USAGE_PAGE = 0x05,
-    USAGE = 0x09,
-    USAGE_MIN = 0x19,
-    USAGE_MAX = 0x29,
-    LOGICAL_MIN = 0x15,
-    LOGICAL_MAX = 0x25,
-    REPORT_SIZE = 0x75,
-    REPORT_COUNT = 0x95
-  };
-
-  // Short Item 6.2.2.2 USB HID 1.11
+  // Report Item 6.2.2.2 USB HID 1.11
   union TU_ATTR_PACKED
   {
     uint8_t byte;
@@ -407,12 +395,53 @@ static void parse_report_descriptor(hidh_interface_t* hid_itf, uint8_t const* de
     switch(type)
     {
       case RI_TYPE_MAIN:
+        switch (tag)
+        {
+          case RI_MAIN_INPUT: break;
+          case RI_MAIN_OUTPUT: break;
+          case RI_MAIN_FEATURE: break;
+          case RI_MAIN_COLLECTION: break;
+          case RI_MAIN_COLLECTION_END: break;
+
+          default: break;
+        }
       break;
 
       case RI_TYPE_GLOBAL:
+        switch(tag)
+        {
+          case RI_GLOBAL_USAGE_PAGE    : break;
+          case RI_GLOBAL_LOGICAL_MIN   : break;
+          case RI_GLOBAL_LOGICAL_MAX   : break;
+          case RI_GLOBAL_PHYSICAL_MIN  : break;
+          case RI_GLOBAL_PHYSICAL_MAX  : break;
+          case RI_GLOBAL_UNIT_EXPONENT : break;
+          case RI_GLOBAL_UNIT          : break;
+          case RI_GLOBAL_REPORT_SIZE   : break;
+          case RI_GLOBAL_REPORT_ID     : break;
+          case RI_GLOBAL_REPORT_COUNT  : break;
+          case RI_GLOBAL_PUSH          : break;
+          case RI_GLOBAL_POP           : break;
+
+          default: break;
+        }
       break;
 
       case RI_TYPE_LOCAL:
+        switch(tag)
+        {
+          case RI_LOCAL_USAGE            : break;
+          case RI_LOCAL_USAGE_MIN        : break;
+          case RI_LOCAL_USAGE_MAX        : break;
+          case RI_LOCAL_DESIGNATOR_INDEX : break;
+          case RI_LOCAL_DESIGNATOR_MIN   : break;
+          case RI_LOCAL_DESIGNATOR_MAX   : break;
+          case RI_LOCAL_STRING_INDEX     : break;
+          case RI_LOCAL_STRING_MIN       : break;
+          case RI_LOCAL_STRING_MAX       : break;
+          case RI_LOCAL_DELIMITER        : break;
+          default: break;
+        }
       break;
 
       // error
