@@ -80,7 +80,7 @@ bool tud_hid_n_gamepad_report(uint8_t itf, uint8_t report_id, int8_t x, int8_t y
 //--------------------------------------------------------------------+
 static inline bool tud_hid_ready(void);
 static inline bool tud_hid_boot_mode(void);
-static inline bool tud_hid_report(uint8_t report_id, void const* report, uint8_t len);
+static inline bool tud_hid_report(uint8_t report_id, void const* report, uint16_t len);
 static inline bool tud_hid_keyboard_report(uint8_t report_id, uint8_t modifier, uint8_t keycode[6]);
 static inline bool tud_hid_mouse_report(uint8_t report_id, uint8_t buttons, int8_t x, int8_t y, int8_t vertical, int8_t horizontal);
 
