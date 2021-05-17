@@ -1105,7 +1105,6 @@ void dcd_int_handler(uint8_t rhport)
   {
 #if CFG_TUSB_USB3340_PHY
     if(!suspended){
-      cusb_reset(false);
       suspended = true;
     }
 #endif
