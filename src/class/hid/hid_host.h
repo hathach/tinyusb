@@ -53,17 +53,12 @@
 
 typedef struct
 {
-  uint8_t count;        // number of info
+  uint16_t usage_page;
+  uint8_t usage;
 
-  struct
-  {
-    uint8_t usage_page;
-    uint8_t usage;
-
-    // TODO still use the endpoint size for now
-    uint8_t in_len;      // length of IN report
-    uint8_t out_len;     // length of OUT report
-  } info[CFG_TUH_HID_REPORT_MAX];
+  // TODO still use the endpoint size for now
+//  uint8_t in_len;      // length of IN report
+//  uint8_t out_len;     // length of OUT report
 } tuh_hid_report_info_t;
 
 //--------------------------------------------------------------------+
@@ -79,47 +74,44 @@ uint8_t tuh_n_hid_instance_count(uint8_t dev_addr);
 // Check if HID instance is mounted
 bool tuh_n_hid_n_mounted(uint8_t dev_addr, uint8_t instance);
 
-// Get boot protocol check out hid_protocol_type_t for possible value
-uint8_t tuh_n_hid_n_boot_protocol(uint8_t dev_addr, uint8_t instance);
+// Get boot interface protocol check out hid_protocol_type_t for possible value
+uint8_t tuh_n_hid_n_interface_protocol(uint8_t dev_addr, uint8_t instance);
 
-// Check if current mode is Boot (true) or Report (false)
-bool tuh_n_hid_n_boot_mode(uint8_t dev_addr, uint8_t instance);
+// Get current protocol mode: Boot (true) or Report (false)
+// By HID spec, device will be initialized in Report mode
+bool tuh_n_hid_n_get_protocol(uint8_t dev_addr, uint8_t instance);
 
-// Get Report information parsed from report descriptor. Data must not be modified by application
-// If report information does not match the actual device descriptor, that is because the built-in parser
-// has its limit. Application could use tuh_hid_descriptor_report_cb() callback to parse descriptor by itself.
-tuh_hid_report_info_t const* tuh_n_hid_n_get_report_info(uint8_t dev_addr, uint8_t instance);
+// Set protocol to Boot or Report mode.
+// This function is only supported by Boot interface tuh_n_hid_n_boot_interface()
+bool tuh_n_hid_n_set_protocol(uint8_t dev_addr, uint8_t instance, bool boot_mode);
+
+// Parse report descriptor into array of report_info struct and return number of reports.
+// If return 0, this is a ingle report, otherwise it is composite report with 1st byte as ID.
+// For complicated report, application should write its own parser.
+uint8_t tuh_hid_parse_report_descriptor(tuh_hid_report_info_t* report_info, uint8_t arr_count, uint8_t const* desc_report, uint16_t desc_len) TU_ATTR_UNUSED;
 
 // Check if the interface is ready to use
-bool tuh_n_hid_n_ready(uint8_t dev_addr, uint8_t instance);
+//bool tuh_n_hid_n_ready(uint8_t dev_addr, uint8_t instance);
 
 // Set Report using control endpoint
 //bool tuh_n_hid_n_set_report_control(uint8_t dev_addr, uint8_t instance, void* report, uint16_t len);
 
 //-------------  -------------//
 
-// Check if HID instance with Keyboard is mounted
-bool tuh_n_hid_n_keyboard_mounted(uint8_t dev_addr, uint8_t instance);
-
-// Check if HID instance with Mouse is mounted
-bool tuh_n_hid_n_mouse_mounted(uint8_t dev_addr, uint8_t instance);
-
 //--------------------------------------------------------------------+
 // Callbacks (Weak is optional)
 //--------------------------------------------------------------------+
 
-// Invoked when report descriptor is received
-// Note: enumeration is still not complete yet at this time
-TU_ATTR_WEAK void tuh_hid_descriptor_report_cb(uint8_t dev_addr, uint8_t instance, uint8_t const* report_desc, uint16_t desc_len);
-
 // Invoked when device with hid interface is mounted
-TU_ATTR_WEAK void tuh_hid_mounted_cb  (uint8_t dev_addr, uint8_t instance);
+// Report descriptor is also available for use. tuh_hid_parse_report_descriptor()
+// can be used to parse common/simple enough descriptor.
+void tuh_hid_mounted_cb(uint8_t dev_addr, uint8_t instance, uint8_t const* report_desc, uint16_t desc_len);
 
 // Invoked when device with hid interface is un-mounted
 TU_ATTR_WEAK void tuh_hid_unmounted_cb(uint8_t dev_addr, uint8_t instance);
 
 // Invoked when received Report from device via either regular or control endpoint
-TU_ATTR_WEAK void tuh_hid_get_report_cb(uint8_t dev_addr, uint8_t instance, uint8_t const* report, uint16_t len);
+void tuh_hid_get_report_cb(uint8_t dev_addr, uint8_t instance, uint8_t const* report, uint16_t len);
 
 // Invoked when Sent Report to device via either regular or control endpoint
 TU_ATTR_WEAK void tuh_hid_set_report_complete_cb(uint8_t dev_addr, uint8_t instance, uint8_t xferred_bytes);

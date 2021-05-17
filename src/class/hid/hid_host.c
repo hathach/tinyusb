@@ -57,16 +57,8 @@ typedef struct
   uint16_t epin_size;
   uint16_t epout_size;
 
-  uint8_t boot_protocol; // None, Keyboard, Mouse
-  bool    boot_mode;     // Boot or Report protocol
-
-  tuh_hid_report_info_t report_info;
-
-  // Parsed Report ID for convenient API
-  uint8_t rid_keyboard;
-  uint8_t rid_mouse;
-  uint8_t rid_gamepad;
-  uint8_t rid_consumer;
+  uint8_t boot_interface; // None, Keyboard, Mouse
+  bool    boot_mode;      // Boot or Report protocol
 
   uint8_t epin_buf[CFG_TUH_HID_EP_BUFSIZE];
   uint8_t epout_buf[CFG_TUH_HID_EP_BUFSIZE];
@@ -107,49 +99,30 @@ bool tuh_n_hid_n_mounted(uint8_t dev_addr, uint8_t instance)
   return (hid_itf->ep_in != 0) || (hid_itf->ep_out != 0);
 }
 
-uint8_t tuh_n_hid_n_boot_protocol(uint8_t dev_addr, uint8_t instance)
+uint8_t tuh_n_hid_n_interface_protocol(uint8_t dev_addr, uint8_t instance)
 {
   hidh_interface_t* hid_itf = get_instance(dev_addr, instance);
-  return hid_itf->boot_protocol;
+  return hid_itf->boot_interface;
 }
 
-bool tuh_n_hid_n_boot_mode(uint8_t dev_addr, uint8_t instance)
+bool tuh_n_hid_n_get_protocol(uint8_t dev_addr, uint8_t instance)
 {
   hidh_interface_t* hid_itf = get_instance(dev_addr, instance);
   return hid_itf->boot_mode;
 }
 
-tuh_hid_report_info_t const* tuh_n_hid_n_get_report_info(uint8_t dev_addr, uint8_t instance)
-{
-  return &get_instance(dev_addr, instance)->report_info;
-}
+//bool tuh_n_hid_n_set_protocol(uint8_t dev_addr, uint8_t instance, bool boot_mode)
+//{
+//
+//}
 
-bool tuh_n_hid_n_ready(uint8_t dev_addr, uint8_t instance)
-{
-  TU_VERIFY(tuh_n_hid_n_mounted(dev_addr, instance));
-
-  hidh_interface_t* hid_itf = get_instance(dev_addr, instance);
-  return !hcd_edpt_busy(dev_addr, hid_itf->ep_in);
-}
-
-//--------------------------------------------------------------------+
-// KEYBOARD
-//--------------------------------------------------------------------+
-
-bool tuh_n_hid_n_keyboard_mounted(uint8_t dev_addr, uint8_t instance)
-{
-  hidh_interface_t* hid_itf = get_instance(dev_addr, instance);
-
-  // TODO check rid_keyboard
-  return tuh_device_ready(dev_addr) && (hid_itf->ep_in != 0);
-}
-
-// TODO remove
-bool tuh_n_hid_n_mouse_mounted(uint8_t dev_addr, uint8_t instance)
-{
-  hidh_interface_t* hid_itf = get_instance(dev_addr, instance);
-  return tuh_device_ready(dev_addr) && (hid_itf->ep_in != 0);
-}
+//bool tuh_n_hid_n_ready(uint8_t dev_addr, uint8_t instance)
+//{
+//  TU_VERIFY(tuh_n_hid_n_mounted(dev_addr, instance));
+//
+//  hidh_interface_t* hid_itf = get_instance(dev_addr, instance);
+//  return !hcd_edpt_busy(dev_addr, hid_itf->ep_in);
+//}
 
 //--------------------------------------------------------------------+
 // USBH API
@@ -167,10 +140,9 @@ bool hidh_xfer_cb(uint8_t dev_addr, uint8_t ep_addr, xfer_result_t event, uint32
 
   if ( dir == TUSB_DIR_IN )
   {
-    if (tuh_hid_get_report_cb)
-    {
-      tuh_hid_get_report_cb(dev_addr, instance, hid_itf->epin_buf, xferred_bytes);
-    }
+    TU_LOG2("  Get Report callback (%u, %u)\r\n", dev_addr, instance);
+    TU_LOG1_MEM(hid_itf->epin_buf, 8, 2);
+    tuh_hid_get_report_cb(dev_addr, instance, hid_itf->epin_buf, xferred_bytes);
 
     // queue next report
     hidh_get_report(dev_addr, hid_itf);
@@ -197,7 +169,6 @@ void hidh_close(uint8_t dev_addr)
 // Enumeration
 //--------------------------------------------------------------------+
 
-static void parse_report_descriptor(hidh_interface_t* hid_itf, uint8_t const* desc_report, uint16_t desc_len);
 static bool config_set_idle_complete(uint8_t dev_addr, tusb_control_request_t const * request, xfer_result_t result);
 static bool config_get_report_desc_complete(uint8_t dev_addr, tusb_control_request_t const * request, xfer_result_t result);
 
@@ -228,40 +199,40 @@ bool hidh_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_interface_t const *de
   hidh_interface_t* hid_itf = get_instance(dev_addr, hid_dev->inst_count);
   hid_dev->inst_count++;
 
-  hid_itf->itf_num = desc_itf->bInterfaceNumber;
-  hid_itf->ep_in   = desc_ep->bEndpointAddress;
+  hid_itf->itf_num   = desc_itf->bInterfaceNumber;
+  hid_itf->ep_in     = desc_ep->bEndpointAddress;
   hid_itf->epin_size = desc_ep->wMaxPacketSize.size;
 
   // Assume bNumDescriptors = 1
   hid_itf->report_desc_type = desc_hid->bReportType;
-  hid_itf->report_desc_len = tu_unaligned_read16(&desc_hid->wReportLength);
+  hid_itf->report_desc_len  = tu_unaligned_read16(&desc_hid->wReportLength);
 
   hid_itf->boot_mode = false; // default is report mode
   if ( HID_SUBCLASS_BOOT == desc_itf->bInterfaceSubClass )
   {
-    hid_itf->boot_protocol = desc_itf->bInterfaceProtocol;
+    hid_itf->boot_interface = desc_itf->bInterfaceProtocol;
 
     if ( HID_PROTOCOL_KEYBOARD == desc_itf->bInterfaceProtocol)
     {
       TU_LOG2("  Boot Keyboard\r\n");
       // TODO boot protocol may still have more report in report mode
-      hid_itf->report_info.count = 1;
+//      hid_itf->report_info.count = 1;
 
-      hid_itf->report_info.info[0].usage_page = HID_USAGE_PAGE_DESKTOP;
-      hid_itf->report_info.info[0].usage = HID_USAGE_DESKTOP_KEYBOARD;
-      hid_itf->report_info.info[0].in_len = 8;
-      hid_itf->report_info.info[0].out_len = 1;
+//      hid_itf->report_info.info[0].usage_page = HID_USAGE_PAGE_DESKTOP;
+//      hid_itf->report_info.info[0].usage = HID_USAGE_DESKTOP_KEYBOARD;
+//      hid_itf->report_info.info[0].in_len = 8;
+//      hid_itf->report_info.info[0].out_len = 1;
     }
     else if ( HID_PROTOCOL_MOUSE == desc_itf->bInterfaceProtocol)
     {
       TU_LOG2("  Boot Mouse\r\n");
       // TODO boot protocol may still have more report in report mode
-      hid_itf->report_info.count = 1;
+//      hid_itf->report_info.count = 1;
 
-      hid_itf->report_info.info[0].usage_page = HID_USAGE_PAGE_DESKTOP;
-      hid_itf->report_info.info[0].usage = HID_USAGE_DESKTOP_MOUSE;
-      hid_itf->report_info.info[0].in_len = 5;
-      hid_itf->report_info.info[0].out_len = 0;
+//      hid_itf->report_info.info[0].usage_page = HID_USAGE_PAGE_DESKTOP;
+//      hid_itf->report_info.info[0].usage = HID_USAGE_DESKTOP_MOUSE;
+//      hid_itf->report_info.info[0].in_len = 5;
+//      hid_itf->report_info.info[0].out_len = 0;
     }
     else
     {
@@ -344,15 +315,8 @@ bool config_get_report_desc_complete(uint8_t dev_addr, tusb_control_request_t co
   uint8_t const* desc_report = usbh_get_enum_buf();
   uint16_t const desc_len    = request->wLength;
 
-  if (tuh_hid_descriptor_report_cb)
-  {
-    tuh_hid_descriptor_report_cb(dev_addr, instance, desc_report, desc_len);
-  }
-
-  parse_report_descriptor(hid_itf, desc_report, desc_len);
-
   // enumeration is complete
-  if (tuh_hid_mounted_cb) tuh_hid_mounted_cb(dev_addr, instance);
+  tuh_hid_mounted_cb(dev_addr, instance, desc_report, desc_len);
 
   // queue transfer for IN endpoint
   hidh_get_report(dev_addr, hid_itf);
@@ -363,8 +327,11 @@ bool config_get_report_desc_complete(uint8_t dev_addr, tusb_control_request_t co
   return true;
 }
 
-// Parse Report Descriptor to tuh_hid_report_info_t
-static void parse_report_descriptor(hidh_interface_t* hid_itf, uint8_t const* desc_report, uint16_t desc_len)
+//--------------------------------------------------------------------+
+// Report Descriptor Parser
+//--------------------------------------------------------------------+
+
+uint8_t tuh_hid_parse_report_descriptor(tuh_hid_report_info_t* report_info, uint8_t arr_count, uint8_t const* desc_report, uint16_t desc_len)
 {
   // Report Item 6.2.2.2 USB HID 1.11
   union TU_ATTR_PACKED
@@ -378,7 +345,20 @@ static void parse_report_descriptor(hidh_interface_t* hid_itf, uint8_t const* de
     };
   } header;
 
-  while(desc_len)
+  uint8_t report_num = 0;
+  tuh_hid_report_info_t* info = report_info;
+
+  tu_memclr(report_info, arr_count*sizeof(tuh_hid_report_info_t));
+
+  // current parsed report count & size from descriptor
+//  uint8_t ri_report_count = 0;
+//  uint8_t ri_report_size = 0;
+
+  uint8_t ri_collection_depth = 0;
+  uint16_t ri_usage_page = 0;
+  uint8_t ri_usage = 0;
+
+  while(desc_len && report_num < arr_count)
   {
     header.byte = *desc_report++;
     desc_len--;
@@ -386,6 +366,8 @@ static void parse_report_descriptor(hidh_interface_t* hid_itf, uint8_t const* de
     uint8_t const tag  = header.tag;
     uint8_t const type = header.type;
     uint8_t const size = header.size;
+
+    uint8_t const data8 = desc_report[0];
 
     TU_LOG2("tag = %d, type = %d, size = %d, data = ", tag, type, size);
     for(uint32_t i=0; i<size; i++) TU_LOG2("%02X ", desc_report[i]);
@@ -399,8 +381,14 @@ static void parse_report_descriptor(hidh_interface_t* hid_itf, uint8_t const* de
           case RI_MAIN_INPUT: break;
           case RI_MAIN_OUTPUT: break;
           case RI_MAIN_FEATURE: break;
-          case RI_MAIN_COLLECTION: break;
-          case RI_MAIN_COLLECTION_END: break;
+
+          case RI_MAIN_COLLECTION:
+            ri_collection_depth++;
+          break;
+
+          case RI_MAIN_COLLECTION_END:
+            ri_collection_depth--;
+          break;
 
           default: break;
         }
@@ -409,16 +397,49 @@ static void parse_report_descriptor(hidh_interface_t* hid_itf, uint8_t const* de
       case RI_TYPE_GLOBAL:
         switch(tag)
         {
-          case RI_GLOBAL_USAGE_PAGE    : break;
+          case RI_GLOBAL_USAGE_PAGE:
+            // only take in account the "usage page" before starting COLLECTION
+            if ( ri_collection_depth == 0)
+            {
+              memcpy(&ri_usage_page, desc_report, size);
+            }
+          break;
+
           case RI_GLOBAL_LOGICAL_MIN   : break;
           case RI_GLOBAL_LOGICAL_MAX   : break;
           case RI_GLOBAL_PHYSICAL_MIN  : break;
           case RI_GLOBAL_PHYSICAL_MAX  : break;
+
+          case RI_GLOBAL_REPORT_ID:
+            report_num++;
+            if (data8 <= arr_count)
+            {
+              uint8_t const idx = data8 - 1;
+              if ( info != &report_info[idx] )
+              {
+                // copy info so far to its correct report ID, and update info pointer
+                report_info[idx] = *info;
+                info = &report_info[idx];
+              }
+
+              info->usage_page = ri_usage_page;
+              info->usage = ri_usage;
+            }else
+            {
+              TU_LOG2("HID Skip a report with ID (%u) larger than array count (%u)\r\n", data8, arr_count);
+            }
+          break;
+
+          case RI_GLOBAL_REPORT_SIZE:
+//            ri_report_size = data8;
+          break;
+
+          case RI_GLOBAL_REPORT_COUNT:
+//            ri_report_count = data8;
+          break;
+
           case RI_GLOBAL_UNIT_EXPONENT : break;
           case RI_GLOBAL_UNIT          : break;
-          case RI_GLOBAL_REPORT_SIZE   : break;
-          case RI_GLOBAL_REPORT_ID     : break;
-          case RI_GLOBAL_REPORT_COUNT  : break;
           case RI_GLOBAL_PUSH          : break;
           case RI_GLOBAL_POP           : break;
 
@@ -429,7 +450,11 @@ static void parse_report_descriptor(hidh_interface_t* hid_itf, uint8_t const* de
       case RI_TYPE_LOCAL:
         switch(tag)
         {
-          case RI_LOCAL_USAGE            : break;
+          case RI_LOCAL_USAGE:
+            // only take in account the "usage" before starting COLLECTION
+            if ( ri_collection_depth == 0) ri_usage = data8;
+          break;
+
           case RI_LOCAL_USAGE_MIN        : break;
           case RI_LOCAL_USAGE_MAX        : break;
           case RI_LOCAL_DESIGNATOR_INDEX : break;
@@ -448,8 +473,22 @@ static void parse_report_descriptor(hidh_interface_t* hid_itf, uint8_t const* de
     }
 
     desc_report += size;
-    desc_len -= size;
+    desc_len    -= size;
   }
+
+  if ( report_num == 0 )
+  {
+    report_info[0].usage_page = ri_usage_page;
+    report_info[0].usage = ri_usage;
+  }
+
+  for ( uint8_t i = 0; (i < report_num) || (!i && !report_num); i++ )
+  {
+    info = report_info+i;
+    TU_LOG2("%u: usage_page = %u, usage = %u\r\n", i, info->usage_page, info->usage);
+  }
+
+  return report_num;
 }
 
 //--------------------------------------------------------------------+

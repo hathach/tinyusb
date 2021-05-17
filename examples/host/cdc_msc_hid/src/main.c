@@ -37,7 +37,7 @@ void print_greeting(void);
 void led_blinking_task(void);
 
 extern void cdc_task(void);
-extern void hid_task(void);
+extern void hid_app_task(void);
 
 /*------------- MAIN -------------*/
 int main(void)
@@ -58,7 +58,7 @@ int main(void)
 #endif
 
 #if CFG_TUH_HID
-    hid_task();
+    hid_app_task();
 #endif
   }
 
@@ -106,127 +106,11 @@ void cdc_task(void)
 #endif
 
 //--------------------------------------------------------------------+
-// USB HID
-//--------------------------------------------------------------------+
-uint8_t const keycode2ascii[128][2] =  { HID_KEYCODE_TO_ASCII };
-
-// look up new key in previous keys
-static inline bool find_key_in_report(hid_keyboard_report_t const *p_report, uint8_t keycode)
-{
-  for(uint8_t i=0; i<6; i++)
-  {
-    if (p_report->keycode[i] == keycode)  return true;
-  }
-
-  return false;
-}
-
-static inline void process_kbd_report(hid_keyboard_report_t const *p_new_report)
-{
-  static hid_keyboard_report_t prev_report = { 0, 0, {0} }; // previous report to check key released
-
-  //------------- example code ignore control (non-printable) key affects -------------//
-  for(uint8_t i=0; i<6; i++)
-  {
-    if ( p_new_report->keycode[i] )
-    {
-      if ( find_key_in_report(&prev_report, p_new_report->keycode[i]) )
-      {
-        // exist in previous report means the current key is holding
-      }else
-      {
-        // not existed in previous report means the current key is pressed
-        bool const is_shift =  p_new_report->modifier & (KEYBOARD_MODIFIER_LEFTSHIFT | KEYBOARD_MODIFIER_RIGHTSHIFT);
-        uint8_t ch = keycode2ascii[p_new_report->keycode[i]][is_shift ? 1 : 0];
-        putchar(ch);
-        if ( ch == '\r' ) putchar('\n'); // added new line for enter key
-
-        fflush(stdout); // flush right away, else nanolib will wait for newline
-      }
-    }
-    // TODO example skips key released
-  }
-
-  prev_report = *p_new_report;
-}
-
-void tuh_hid_mounted_cb(uint8_t dev_addr, uint8_t instance)
-{
-  printf("HID device address = %d, instance = %d is mounted\r\n", dev_addr, instance);
-//  printf("A Keyboard device (address %d) is mounted\r\n", dev_addr);
-//  printf("A Mouse device (address %d) is mounted\r\n", dev_addr);
-}
-
-void tuh_hid_unmounted_cb(uint8_t dev_addr, uint8_t instance)
-{
-  printf("HID device address = %d, instance = %d is unmounted\r\n", dev_addr, instance);
-//  printf("A Keyboard device (address %d) is unmounted\r\n", dev_addr);
-//  printf("A Mouse device (address %d) is unmounted\r\n", dev_addr);
-}
-
-void cursor_movement(int8_t x, int8_t y, int8_t wheel)
-{
-  //------------- X -------------//
-  if ( x < 0)
-  {
-    printf(ANSI_CURSOR_BACKWARD(%d), (-x)); // move left
-  }else if ( x > 0)
-  {
-    printf(ANSI_CURSOR_FORWARD(%d), x); // move right
-  }else { }
-
-  //------------- Y -------------//
-  if ( y < 0)
-  {
-    printf(ANSI_CURSOR_UP(%d), (-y)); // move up
-  }else if ( y > 0)
-  {
-    printf(ANSI_CURSOR_DOWN(%d), y); // move down
-  }else { }
-
-  //------------- wheel -------------//
-  if (wheel < 0)
-  {
-    printf(ANSI_SCROLL_UP(%d), (-wheel)); // scroll up
-  }else if (wheel > 0)
-  {
-    printf(ANSI_SCROLL_DOWN(%d), wheel); // scroll down
-  }else { }
-}
-
-static inline void process_mouse_report(hid_mouse_report_t const * p_report)
-{
-  static hid_mouse_report_t prev_report = { 0 };
-
-  //------------- button state  -------------//
-  uint8_t button_changed_mask = p_report->buttons ^ prev_report.buttons;
-  if ( button_changed_mask & p_report->buttons)
-  {
-    printf(" %c%c%c ",
-       p_report->buttons & MOUSE_BUTTON_LEFT   ? 'L' : '-',
-       p_report->buttons & MOUSE_BUTTON_MIDDLE ? 'M' : '-',
-       p_report->buttons & MOUSE_BUTTON_RIGHT  ? 'R' : '-');
-  }
-
-  //------------- cursor movement -------------//
-  cursor_movement(p_report->x, p_report->y, p_report->wheel);
-}
-
-void tuh_hid_get_report_cb(uint8_t dev_addr, uint8_t instance, uint8_t const* report, uint16_t len)
-{
-  process_kbd_report( (hid_keyboard_report_t*) report );
-}
-
-void hid_task(void)
-{
-}
-
-//--------------------------------------------------------------------+
-// tinyusb callbacks
+// TinyUSB Callbacks
 //--------------------------------------------------------------------+
 
 //--------------------------------------------------------------------+
-// BLINKING TASK
+// Blinking Task
 //--------------------------------------------------------------------+
 void led_blinking_task(void)
 {
