@@ -134,7 +134,7 @@ static inline uint8_t tud_hid_interface_protocol(void)
   return tud_hid_n_interface_protocol(0);
 }
 
-static inline bool tud_hid_get_protocol(void)
+static inline uint8_t tud_hid_get_protocol(void)
 {
   return tud_hid_n_get_protocol(0);
 }
@@ -156,7 +156,7 @@ static inline bool tud_hid_mouse_report(uint8_t report_id, uint8_t buttons, int8
 
 static inline bool  tud_hid_gamepad_report(uint8_t report_id, int8_t x, int8_t y, int8_t z, int8_t rz, int8_t rx, int8_t ry, uint8_t hat, uint16_t buttons)
 {
-  return tud_hid_n_gamepad_report(0, x, y, z, rz, rx, ry, hat, buttons);
+  return tud_hid_n_gamepad_report(0, report_id, x, y, z, rz, rx, ry, hat, buttons);
 }
 
 /* --------------------------------------------------------------------+

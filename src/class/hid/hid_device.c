@@ -110,7 +110,7 @@ uint8_t tud_hid_n_interface_protocol(uint8_t instance)
   return _hidd_itf[instance].itf_protocol;
 }
 
-bool tud_hid_n_get_protocol(uint8_t instance)
+uint8_t tud_hid_n_get_protocol(uint8_t instance)
 {
   return _hidd_itf[instance].boot_mode ? HID_PROTOCOL_BOOT : HID_PROTOCOL_REPORT;
 }

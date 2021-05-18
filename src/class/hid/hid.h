@@ -87,7 +87,7 @@ typedef enum
   HID_REPORT_TYPE_INPUT,      ///< Input
   HID_REPORT_TYPE_OUTPUT,     ///< Output
   HID_REPORT_TYPE_FEATURE     ///< Feature
-}hid_report_enum_t;
+}hid_report_type_t;
 
 /// HID Class Specific Control Request
 typedef enum
