@@ -132,8 +132,10 @@ void hidh_init(void)
   tu_memclr(_hidh_dev, sizeof(_hidh_dev));
 }
 
-bool hidh_xfer_cb(uint8_t dev_addr, uint8_t ep_addr, xfer_result_t event, uint32_t xferred_bytes)
+bool hidh_xfer_cb(uint8_t dev_addr, uint8_t ep_addr, xfer_result_t result, uint32_t xferred_bytes)
 {
+  (void) result;
+
   uint8_t const dir = tu_edpt_dir(ep_addr);
   uint8_t const instance = get_instance_id_by_epaddr(dev_addr, ep_addr);
   hidh_interface_t* hid_itf = get_instance(dev_addr, instance);
@@ -212,7 +214,7 @@ bool hidh_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_interface_t const *de
   {
     hid_itf->boot_interface = desc_itf->bInterfaceProtocol;
 
-    if ( HID_PROTOCOL_KEYBOARD == desc_itf->bInterfaceProtocol)
+    if ( HID_ITF_PROTOCOL_KEYBOARD == desc_itf->bInterfaceProtocol)
     {
       TU_LOG2("  Boot Keyboard\r\n");
       // TODO boot protocol may still have more report in report mode
@@ -223,7 +225,7 @@ bool hidh_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_interface_t const *de
 //      hid_itf->report_info.info[0].in_len = 8;
 //      hid_itf->report_info.info[0].out_len = 1;
     }
-    else if ( HID_PROTOCOL_MOUSE == desc_itf->bInterfaceProtocol)
+    else if ( HID_ITF_PROTOCOL_MOUSE == desc_itf->bInterfaceProtocol)
     {
       TU_LOG2("  Boot Mouse\r\n");
       // TODO boot protocol may still have more report in report mode

@@ -75,6 +75,8 @@ void tuh_hid_unmounted_cb(uint8_t dev_addr, uint8_t instance)
 
 void tuh_hid_get_report_cb(uint8_t dev_addr, uint8_t instance, uint8_t const* report, uint16_t len)
 {
+  (void) dev_addr;
+
   uint8_t const rpt_count = _report_count[instance];
   tuh_hid_report_info_t* rpt_info;
 
@@ -86,6 +88,7 @@ void tuh_hid_get_report_cb(uint8_t dev_addr, uint8_t instance, uint8_t const* re
     rpt_info = &_report_info[instance][idx];
 
     report++;
+    len--;
   }else
   {
     rpt_info = &_report_info[instance][0];
