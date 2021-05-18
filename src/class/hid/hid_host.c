@@ -178,7 +178,7 @@ bool hidh_open_subtask(uint8_t rhport, uint8_t dev_addr, tusb_desc_interface_t c
   if ( HID_SUBCLASS_BOOT == p_interface_desc->bInterfaceSubClass )
   {
     #if CFG_TUH_HID_KEYBOARD
-    if ( HID_PROTOCOL_KEYBOARD == p_interface_desc->bInterfaceProtocol)
+    if ( HID_ITF_PROTOCOL_KEYBOARD == p_interface_desc->bInterfaceProtocol)
     {
       TU_ASSERT( hidh_interface_open(rhport, dev_addr, p_interface_desc->bInterfaceNumber, p_endpoint_desc, &keyboardh_data[dev_addr-1]) );
       TU_LOG2_HEX(keyboardh_data[dev_addr-1].ep_in);
@@ -186,7 +186,7 @@ bool hidh_open_subtask(uint8_t rhport, uint8_t dev_addr, tusb_desc_interface_t c
     #endif
 
     #if CFG_TUH_HID_MOUSE
-    if ( HID_PROTOCOL_MOUSE == p_interface_desc->bInterfaceProtocol)
+    if ( HID_ITF_PROTOCOL_MOUSE == p_interface_desc->bInterfaceProtocol)
     {
       TU_ASSERT ( hidh_interface_open(rhport, dev_addr, p_interface_desc->bInterfaceNumber, p_endpoint_desc, &mouseh_data[dev_addr-1]) );
       TU_LOG2_HEX(mouseh_data[dev_addr-1].ep_in);
