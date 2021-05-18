@@ -142,11 +142,11 @@ typedef enum
 } hid_local_enum_t;
 
 // HID protocol value used by GetProtocol / SetProtocol
-enum
+typedef enum
 {
   HID_PROTOCOL_BOOT = 0,
   HID_PROTOCOL_REPORT = 1
-};
+} hid_protocol_mode_enum_t;
 
 /** @} */
 

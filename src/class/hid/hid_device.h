@@ -60,8 +60,8 @@ bool tud_hid_n_ready(uint8_t instance);
 // Get interface supported protocol (bInterfaceProtocol) check out hid_interface_protocol_enum_t for possible value
 uint8_t tud_hid_n_interface_protocol(uint8_t instance);
 
-// Check if active protocol is Boot (true) or Report (false)
-bool tud_hid_n_get_protocol(uint8_t instance);
+// Get current active protocol: HID_PROTOCOL_BOOT (0) or HID_PROTOCOL_REPORT (1)
+uint8_t tud_hid_n_get_protocol(uint8_t instance);
 
 // Send report to host
 bool tud_hid_n_report(uint8_t instance, uint8_t report_id, void const* report, uint8_t len);
@@ -83,7 +83,7 @@ bool tud_hid_n_gamepad_report(uint8_t instance, uint8_t report_id, int8_t x, int
 //--------------------------------------------------------------------+
 static inline bool    tud_hid_ready(void);
 static inline uint8_t tud_hid_interface_protocol(void);
-static inline bool    tud_hid_get_protocol(void);
+static inline uint8_t tud_hid_get_protocol(void);
 static inline bool    tud_hid_report(uint8_t report_id, void const* report, uint8_t len);
 static inline bool    tud_hid_keyboard_report(uint8_t report_id, uint8_t modifier, uint8_t keycode[6]);
 static inline bool    tud_hid_mouse_report(uint8_t report_id, uint8_t buttons, int8_t x, int8_t y, int8_t vertical, int8_t horizontal);
@@ -106,8 +106,9 @@ uint16_t tud_hid_get_report_cb(uint8_t instance, uint8_t report_id, hid_report_t
 // received data on OUT endpoint ( Report ID = 0, Type = 0 )
 void tud_hid_set_report_cb(uint8_t instance, uint8_t report_id, hid_report_type_t report_type, uint8_t const* buffer, uint16_t bufsize);
 
-// Invoked when received SET_PROTOCOL request ( mode switch Boot <-> Report )
-TU_ATTR_WEAK void tud_hid_set_protocol_cb(uint8_t instance, bool boot_mode);
+// Invoked when received SET_PROTOCOL request
+// protocol is either HID_PROTOCOL_BOOT (0) or HID_PROTOCOL_REPORT (1)
+TU_ATTR_WEAK void tud_hid_set_protocol_cb(uint8_t instance, uint8_t protocol);
 
 // Invoked when received SET_IDLE request. return false will stall the request
 // - Idle Rate = 0 : only send report if there is changes, i.e skip duplication

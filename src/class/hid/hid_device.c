@@ -112,7 +112,7 @@ uint8_t tud_hid_n_interface_protocol(uint8_t instance)
 
 bool tud_hid_n_get_protocol(uint8_t instance)
 {
-  return _hidd_itf[instance].boot_mode;
+  return _hidd_itf[instance].boot_mode ? HID_PROTOCOL_BOOT : HID_PROTOCOL_REPORT;
 }
 
 bool tud_hid_n_keyboard_report(uint8_t instance, uint8_t report_id, uint8_t modifier, uint8_t keycode[6])
@@ -334,14 +334,14 @@ bool hidd_control_xfer_cb (uint8_t rhport, uint8_t stage, tusb_control_request_t
       case HID_REQ_CONTROL_SET_PROTOCOL:
         if ( stage == CONTROL_STAGE_SETUP )
         {
-          p_hid->boot_mode = (request->wValue == HID_PROTOCOL_BOOT);
           tud_control_status(rhport, request);
         }
         else if ( stage == CONTROL_STAGE_ACK )
         {
+          p_hid->boot_mode = (request->wValue == HID_PROTOCOL_BOOT);
           if (tud_hid_set_protocol_cb)
           {
-            tud_hid_set_protocol_cb(hid_itf, p_hid->boot_mode);
+            tud_hid_set_protocol_cb(hid_itf, (uint8_t) request->wValue);
           }
         }
       break;
