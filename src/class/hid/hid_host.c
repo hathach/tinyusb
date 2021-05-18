@@ -57,8 +57,8 @@ typedef struct
   uint16_t epin_size;
   uint16_t epout_size;
 
-  uint8_t boot_interface; // None, Keyboard, Mouse
-  bool    boot_mode;      // Boot or Report protocol
+  uint8_t itf_protocol; // None, Keyboard, Mouse
+  bool    boot_mode;    // Boot or Report protocol
 
   uint8_t epin_buf[CFG_TUH_HID_EP_BUFSIZE];
   uint8_t epout_buf[CFG_TUH_HID_EP_BUFSIZE];
@@ -102,16 +102,16 @@ bool tuh_n_hid_n_mounted(uint8_t dev_addr, uint8_t instance)
 uint8_t tuh_n_hid_n_interface_protocol(uint8_t dev_addr, uint8_t instance)
 {
   hidh_interface_t* hid_itf = get_instance(dev_addr, instance);
-  return hid_itf->boot_interface;
+  return hid_itf->itf_protocol;
 }
 
 bool tuh_n_hid_n_get_protocol(uint8_t dev_addr, uint8_t instance)
 {
   hidh_interface_t* hid_itf = get_instance(dev_addr, instance);
-  return hid_itf->boot_mode;
+  return hid_itf->boot_mode ? HID_PROTOCOL_BOOT : HID_PROTOCOL_REPORT;
 }
 
-//bool tuh_n_hid_n_set_protocol(uint8_t dev_addr, uint8_t instance, bool boot_mode)
+// bool tuh_n_hid_n_set_protocol(uint8_t dev_addr, uint8_t instance, uint8_t protocol)
 //{
 //
 //}
@@ -212,7 +212,7 @@ bool hidh_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_interface_t const *de
   hid_itf->boot_mode = false; // default is report mode
   if ( HID_SUBCLASS_BOOT == desc_itf->bInterfaceSubClass )
   {
-    hid_itf->boot_interface = desc_itf->bInterfaceProtocol;
+    hid_itf->itf_protocol = desc_itf->bInterfaceProtocol;
 
     if ( HID_ITF_PROTOCOL_KEYBOARD == desc_itf->bInterfaceProtocol)
     {
