@@ -199,7 +199,7 @@ jobs:
         - 'espressif_kaluga_1'
         - 'espressif_saola_1'
         # ESP32-S3
-        # - 'espressif_addax_1' # temporarily remove the board from test while espressif MR is not merged
+        - 'espressif_addax_1'
 
     steps:
     - name: Setup Python
