@@ -149,7 +149,7 @@ typedef struct TU_ATTR_PACKED
     uint8_t bmRequestType;
   };
 
-  audio_cs_req_t bRequest;
+  uint8_t bRequest;  ///< Request type audio_cs_req_t
   uint8_t bChannelNumber;
   uint8_t bControlSelector;
   union
