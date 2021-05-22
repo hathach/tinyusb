@@ -63,9 +63,7 @@ typedef struct
 
 //--------------------------------------------------------------------+
 // Application API (Multiple devices)
-// Note:
-//  - tud_n   : is multiple devices API
-//  - class_n : is multiple instances API
+// - tud_n   : is multiple devices API
 //--------------------------------------------------------------------+
 
 // Get the number of HID instances

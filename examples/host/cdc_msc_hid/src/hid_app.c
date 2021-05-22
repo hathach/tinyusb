@@ -29,6 +29,10 @@
 //--------------------------------------------------------------------+
 // MACRO TYPEDEF CONSTANT ENUM DECLARATION
 //--------------------------------------------------------------------+
+
+// If your host terminal support ansi escape code, it can be use to simulate mouse cursor
+#define USE_ANSI_ESCAPE   0
+
 #define MAX_REPORT  4
 
 static uint8_t const keycode2ascii[128][2] =  { HID_KEYCODE_TO_ASCII };
@@ -165,6 +169,7 @@ static void process_kbd_report(hid_keyboard_report_t const *report)
 
 void cursor_movement(int8_t x, int8_t y, int8_t wheel)
 {
+#if USE_ANSI_ESCAPE
   // Move X using ansi escape
   if ( x < 0)
   {
@@ -191,6 +196,11 @@ void cursor_movement(int8_t x, int8_t y, int8_t wheel)
   {
     printf(ANSI_SCROLL_DOWN(%d), wheel); // scroll down
   }
+
+  printf("\r\n");
+#else
+  printf("(%d %d %d)\r\n", x, y, wheel);
+#endif
 }
 
 static void process_mouse_report(hid_mouse_report_t const * report)
