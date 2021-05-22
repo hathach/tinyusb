@@ -44,6 +44,10 @@
 //--------------------------------------------------------------------+
 // Device Data
 //--------------------------------------------------------------------+
+
+// Invalid driver ID in itf2drv[] ep2drv[][] mapping
+enum { DRVID_INVALID = 0xFFu };
+
 typedef struct
 {
   struct TU_ATTR_PACKED
@@ -75,9 +79,6 @@ typedef struct
 }usbd_device_t;
 
 static usbd_device_t _usbd_dev;
-
-// Invalid driver ID in itf2drv[] ep2drv[][] mapping
-enum { DRVID_INVALID = 0xFFu };
 
 //--------------------------------------------------------------------+
 // Class Driver
@@ -241,6 +242,8 @@ static inline usbd_class_driver_t const * get_driver(uint8_t drvid)
 // DCD Event
 //--------------------------------------------------------------------+
 
+static bool _usbd_initialized = false;
+
 // Event queue
 // OPT_MODE_DEVICE is used by OS NONE for mutex (disable usb isr)
 OSAL_QUEUE_DEF(OPT_MODE_DEVICE, _usbd_qdef, CFG_TUD_TASK_QUEUE_SZ, dcd_event_t);
@@ -368,8 +371,16 @@ bool tud_connect(void)
 //--------------------------------------------------------------------+
 // USBD Task
 //--------------------------------------------------------------------+
-bool tud_init (void)
+bool tud_inited(void)
 {
+  return _usbd_initialized;
+}
+
+bool tud_init (uint8_t rhport)
+{
+  // skip if already initialized
+  if (_usbd_initialized) return _usbd_initialized;
+
   TU_LOG2("USBD init\r\n");
 
   tu_varclr(&_usbd_dev);
@@ -399,8 +410,10 @@ bool tud_init (void)
   }
 
   // Init device controller driver
-  dcd_init(TUD_OPT_RHPORT);
-  dcd_int_enable(TUD_OPT_RHPORT);
+  dcd_init(rhport);
+  dcd_int_enable(rhport);
+
+  _usbd_initialized = true;
 
   return true;
 }
@@ -1077,7 +1090,7 @@ void dcd_event_xfer_complete (uint8_t rhport, uint8_t ep_addr, uint32_t xferred_
 }
 
 //--------------------------------------------------------------------+
-// Helper
+// USBD API For Class Driver
 //--------------------------------------------------------------------+
 
 // Parse consecutive endpoint descriptors (IN & OUT)
@@ -1171,7 +1184,6 @@ bool usbd_edpt_claim(uint8_t rhport, uint8_t ep_addr)
 #if CFG_TUSB_OS != OPT_OS_NONE
   // pre-check to help reducing mutex lock
   TU_VERIFY((_usbd_dev.ep_status[epnum][dir].busy == 0) && (_usbd_dev.ep_status[epnum][dir].claimed == 0));
-
   osal_mutex_lock(_usbd_mutex, OSAL_TIMEOUT_WAIT_FOREVER);
 #endif
 

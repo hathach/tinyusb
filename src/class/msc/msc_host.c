@@ -287,7 +287,7 @@ bool tuh_msc_reset(uint8_t dev_addr)
 #endif
 
 //--------------------------------------------------------------------+
-// CLASS-USBH API (don't require to verify parameters)
+// CLASS-USBH API
 //--------------------------------------------------------------------+
 void msch_init(void)
 {
@@ -298,7 +298,9 @@ void msch_close(uint8_t dev_addr)
 {
   msch_interface_t* p_msc = get_itf(dev_addr);
   tu_memclr(p_msc, sizeof(msch_interface_t));
-  tuh_msc_unmount_cb(dev_addr); // invoke Application Callback
+
+  // invoke Application Callback
+  if (tuh_msc_umount_cb) tuh_msc_umount_cb(dev_addr);
 }
 
 bool msch_xfer_cb(uint8_t dev_addr, uint8_t ep_addr, xfer_result_t event, uint32_t xferred_bytes)
@@ -357,15 +359,13 @@ static bool config_test_unit_ready_complete(uint8_t dev_addr, msc_cbw_t const* c
 static bool config_request_sense_complete(uint8_t dev_addr, msc_cbw_t const* cbw, msc_csw_t const* csw);
 static bool config_read_capacity_complete(uint8_t dev_addr, msc_cbw_t const* cbw, msc_csw_t const* csw);
 
-bool msch_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_interface_t const *itf_desc, uint16_t *p_length)
+bool msch_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_interface_t const *desc_itf, uint16_t *p_length)
 {
-  TU_VERIFY (MSC_SUBCLASS_SCSI == itf_desc->bInterfaceSubClass &&
-             MSC_PROTOCOL_BOT  == itf_desc->bInterfaceProtocol);
+  TU_VERIFY (MSC_SUBCLASS_SCSI == desc_itf->bInterfaceSubClass &&
+             MSC_PROTOCOL_BOT  == desc_itf->bInterfaceProtocol);
 
   msch_interface_t* p_msc = get_itf(dev_addr);
-
-  //------------- Open Data Pipe -------------//
-  tusb_desc_endpoint_t const * ep_desc = (tusb_desc_endpoint_t const *) tu_desc_next(itf_desc);
+  tusb_desc_endpoint_t const * ep_desc = (tusb_desc_endpoint_t const *) tu_desc_next(desc_itf);
 
   for(uint32_t i=0; i<2; i++)
   {
@@ -383,7 +383,7 @@ bool msch_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_interface_t const *it
     ep_desc = (tusb_desc_endpoint_t const *) tu_desc_next(ep_desc);
   }
 
-  p_msc->itf_num = itf_desc->bInterfaceNumber;
+  p_msc->itf_num = desc_itf->bInterfaceNumber;
   (*p_length) += sizeof(tusb_desc_interface_t) + 2*sizeof(tusb_desc_endpoint_t);
 
   return true;
@@ -473,8 +473,9 @@ static bool config_read_capacity_complete(uint8_t dev_addr, msc_cbw_t const* cbw
 
   // Mark enumeration is complete
   p_msc->mounted = true;
-  tuh_msc_mount_cb(dev_addr);
+  if (tuh_msc_mount_cb) tuh_msc_mount_cb(dev_addr);
 
+  // notify usbh that driver enumeration is complete
   usbh_driver_set_config_complete(dev_addr, p_msc->itf_num);
 
   return true;

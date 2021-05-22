@@ -37,6 +37,7 @@
 
 #include "host/hcd.h"
 #include "host/usbh_hcd.h"
+#include "hcd_ehci.h"
 #include "ehci.h"
 
 //--------------------------------------------------------------------+
@@ -48,10 +49,6 @@
 //--------------------------------------------------------------------+
 // Periodic frame list must be 4K alignment
 CFG_TUSB_MEM_SECTION TU_ATTR_ALIGNED(4096) static ehci_data_t ehci_data;
-
-// EHCI portable
-uint32_t hcd_ehci_register_addr(uint8_t rhport);
-bool hcd_ehci_init (uint8_t rhport); // TODO move later
 
 //--------------------------------------------------------------------+
 // PROTOTYPE
@@ -516,18 +513,19 @@ static void qhd_xfer_complete_isr(ehci_qhd_t * p_qhd)
   // free all TDs from the head td to the first active TD
   while(p_qhd->p_qtd_list_head != NULL && !p_qhd->p_qtd_list_head->active)
   {
-    // TD need to be freed and removed from qhd, before invoking callback
-    bool is_ioc = (p_qhd->p_qtd_list_head->int_on_complete != 0);
-    p_qhd->total_xferred_bytes += p_qhd->p_qtd_list_head->expected_bytes - p_qhd->p_qtd_list_head->total_bytes;
+    ehci_qtd_t * volatile qtd = (ehci_qtd_t * volatile) p_qhd->p_qtd_list_head;
+    bool const is_ioc = (qtd->int_on_complete != 0);
+    uint8_t const ep_addr = tu_edpt_addr(p_qhd->ep_number, qtd->pid == EHCI_PID_IN ? 1 : 0);
 
-    p_qhd->p_qtd_list_head->used = 0; // free QTD
+    p_qhd->total_xferred_bytes += qtd->expected_bytes - qtd->total_bytes;
+
+    // TD need to be freed and removed from qhd, before invoking callback
+    qtd->used = 0; // free QTD
     qtd_remove_1st_from_qhd(p_qhd);
 
     if (is_ioc)
     {
-      // end of request
-      // call USBH callback
-      hcd_event_xfer_complete(p_qhd->dev_addr, tu_edpt_addr(p_qhd->ep_number, p_qhd->pid == EHCI_PID_IN ? 1 : 0), p_qhd->total_xferred_bytes, XFER_RESULT_SUCCESS, true);
+      hcd_event_xfer_complete(p_qhd->dev_addr, ep_addr, p_qhd->total_xferred_bytes, XFER_RESULT_SUCCESS, true);
       p_qhd->total_xferred_bytes = 0;
     }
   }

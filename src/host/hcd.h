@@ -85,9 +85,8 @@ typedef struct
 #if TUSB_OPT_HOST_ENABLED
 // Max number of endpoints per device
 enum {
-  HCD_MAX_ENDPOINT = CFG_TUSB_HOST_DEVICE_MAX*(CFG_TUH_HUB + CFG_TUH_HID_KEYBOARD + CFG_TUH_HID_MOUSE + CFG_TUSB_HOST_HID_GENERIC +
-                     CFG_TUH_MSC*2 + CFG_TUH_CDC*3),
-
+  // TODO better computation
+  HCD_MAX_ENDPOINT = CFG_TUSB_HOST_DEVICE_MAX*(CFG_TUH_HUB + CFG_TUH_HID*2 + CFG_TUH_MSC*2 + CFG_TUH_CDC*3),
   HCD_MAX_XFER     = HCD_MAX_ENDPOINT*2,
 };
 

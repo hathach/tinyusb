@@ -50,14 +50,14 @@
 #endif
 
 //--------------------------------------------------------------------+
-// Application API (Multiple Ports)
+// Application API (Multiple Instances)
 // CFG_TUD_HID > 1
 //--------------------------------------------------------------------+
 
 // Check if the interface is ready to use
 bool tud_hid_n_ready(uint8_t instance);
 
-// Get interface supported protocol (bInterfaceProtocol) check out hid_interface_protocol_enum_t for possible value
+// Get interface supported protocol (bInterfaceProtocol) check out hid_interface_protocol_enum_t for possible values
 uint8_t tud_hid_n_interface_protocol(uint8_t instance);
 
 // Get current active protocol: HID_PROTOCOL_BOOT (0) or HID_PROTOCOL_REPORT (1)

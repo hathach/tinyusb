@@ -50,7 +50,7 @@ typedef struct
 static usbh_control_xfer_t _ctrl_xfer;
 
 //CFG_TUSB_MEM_SECTION CFG_TUSB_MEM_ALIGN
-//static uint8_t _tuh_ctrl_buf[CFG_TUSB_HOST_ENUM_BUFFER_SIZE];
+//static uint8_t _tuh_ctrl_buf[CFG_TUH_ENUMERATION_BUFSZIE];
 
 //--------------------------------------------------------------------+
 // MACRO TYPEDEF CONSTANT ENUM DECLARATION
@@ -80,6 +80,7 @@ bool tuh_control_xfer (uint8_t dev_addr, tusb_control_request_t const* request, 
 
 static void _xfer_complete(uint8_t dev_addr, xfer_result_t result)
 {
+  TU_LOG2("\r\n");
   if (_ctrl_xfer.complete_cb) _ctrl_xfer.complete_cb(dev_addr, &_ctrl_xfer.request, result);
 }
 

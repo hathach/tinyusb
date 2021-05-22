@@ -266,11 +266,8 @@
     #error there is no benefit enable hub with max device is 1. Please disable hub or increase CFG_TUSB_HOST_DEVICE_MAX
   #endif
 
-  //------------- HID CLASS -------------//
-  #define HOST_CLASS_HID   ( CFG_TUH_HID_KEYBOARD + CFG_TUH_HID_MOUSE + CFG_TUSB_HOST_HID_GENERIC )
-
-  #ifndef CFG_TUSB_HOST_ENUM_BUFFER_SIZE
-    #define CFG_TUSB_HOST_ENUM_BUFFER_SIZE 256
+  #ifndef CFG_TUH_ENUMERATION_BUFSZIE
+    #define CFG_TUH_ENUMERATION_BUFSZIE 256
   #endif
 
   //------------- CLASS -------------//
