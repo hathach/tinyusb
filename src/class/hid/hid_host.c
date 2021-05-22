@@ -51,14 +51,14 @@ typedef struct
   uint8_t ep_in;
   uint8_t ep_out;
 
+  uint8_t itf_protocol;   // None, Keyboard, Mouse
+  uint8_t protocol_mode;  // Boot (0) or Report protocol (1)
+
   uint8_t  report_desc_type;
   uint16_t report_desc_len;
 
   uint16_t epin_size;
   uint16_t epout_size;
-
-  uint8_t itf_protocol; // None, Keyboard, Mouse
-  bool    boot_mode;    // Boot or Report protocol
 
   uint8_t epin_buf[CFG_TUH_HID_EP_BUFSIZE];
   uint8_t epout_buf[CFG_TUH_HID_EP_BUFSIZE];
@@ -76,7 +76,6 @@ static hidh_device_t _hidh_dev[CFG_TUSB_HOST_DEVICE_MAX-1];
 TU_ATTR_ALWAYS_INLINE static inline hidh_device_t* get_dev(uint8_t dev_addr);
 TU_ATTR_ALWAYS_INLINE static inline hidh_interface_t* get_instance(uint8_t dev_addr, uint8_t instance);
 static uint8_t get_instance_id_by_itfnum(uint8_t dev_addr, uint8_t itf);
-static hidh_interface_t* get_instance_by_itfnum(uint8_t dev_addr, uint8_t itf);
 static uint8_t get_instance_id_by_epaddr(uint8_t dev_addr, uint8_t ep_addr);
 
 TU_ATTR_ALWAYS_INLINE static inline bool hidh_get_report(uint8_t dev_addr, hidh_interface_t* hid_itf)
@@ -93,28 +92,64 @@ uint8_t tuh_n_hid_instance_count(uint8_t dev_addr)
   return get_dev(dev_addr)->inst_count;
 }
 
-bool tuh_n_hid_n_mounted(uint8_t dev_addr, uint8_t instance)
+bool tuh_n_hid_mounted(uint8_t dev_addr, uint8_t instance)
 {
   hidh_interface_t* hid_itf = get_instance(dev_addr, instance);
   return (hid_itf->ep_in != 0) || (hid_itf->ep_out != 0);
 }
 
-uint8_t tuh_n_hid_n_interface_protocol(uint8_t dev_addr, uint8_t instance)
+uint8_t tuh_n_hid_interface_protocol(uint8_t dev_addr, uint8_t instance)
 {
   hidh_interface_t* hid_itf = get_instance(dev_addr, instance);
   return hid_itf->itf_protocol;
 }
 
-bool tuh_n_hid_n_get_protocol(uint8_t dev_addr, uint8_t instance)
+bool tuh_n_hid_get_protocol(uint8_t dev_addr, uint8_t instance)
 {
   hidh_interface_t* hid_itf = get_instance(dev_addr, instance);
-  return hid_itf->boot_mode ? HID_PROTOCOL_BOOT : HID_PROTOCOL_REPORT;
+  return hid_itf->protocol_mode;
 }
 
-// bool tuh_n_hid_n_set_protocol(uint8_t dev_addr, uint8_t instance, uint8_t protocol)
-//{
-//
-//}
+static bool set_protocol_complete(uint8_t dev_addr, tusb_control_request_t const * request, xfer_result_t result)
+{
+  uint8_t const itf_num     = (uint8_t) request->wIndex;
+  uint8_t const instance    = get_instance_id_by_itfnum(dev_addr, itf_num);
+  hidh_interface_t* hid_itf = get_instance(dev_addr, instance);
+
+  if (XFER_RESULT_SUCCESS == result) hid_itf->protocol_mode = (uint8_t) request->wValue;
+
+  if (tuh_hid_set_protocol_complete_cb)
+  {
+    tuh_hid_set_protocol_complete_cb(dev_addr, instance, hid_itf->protocol_mode);
+  }
+
+  return true;
+}
+
+bool tuh_n_hid_set_protocol(uint8_t dev_addr, uint8_t instance, uint8_t protocol)
+{
+  hidh_interface_t* hid_itf = get_instance(dev_addr, instance);
+  TU_VERIFY(hid_itf->itf_protocol != HID_ITF_PROTOCOL_NONE);
+
+  TU_LOG2("Set Protocol = %d\r\n", protocol);
+
+  tusb_control_request_t const request =
+  {
+    .bmRequestType_bit =
+    {
+      .recipient = TUSB_REQ_RCPT_INTERFACE,
+      .type      = TUSB_REQ_TYPE_CLASS,
+      .direction = TUSB_DIR_OUT
+    },
+    .bRequest = HID_REQ_CONTROL_SET_PROTOCOL,
+    .wValue   = protocol,
+    .wIndex   = hid_itf->itf_num,
+    .wLength  = 0
+  };
+
+  TU_ASSERT( tuh_control_xfer(dev_addr, &request, NULL, set_protocol_complete) );
+  return true;
+}
 
 //bool tuh_n_hid_n_ready(uint8_t dev_addr, uint8_t instance)
 //{
@@ -209,39 +244,8 @@ bool hidh_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_interface_t const *de
   hid_itf->report_desc_type = desc_hid->bReportType;
   hid_itf->report_desc_len  = tu_unaligned_read16(&desc_hid->wReportLength);
 
-  hid_itf->boot_mode = false; // default is report mode
-  if ( HID_SUBCLASS_BOOT == desc_itf->bInterfaceSubClass )
-  {
-    hid_itf->itf_protocol = desc_itf->bInterfaceProtocol;
-
-    if ( HID_ITF_PROTOCOL_KEYBOARD == desc_itf->bInterfaceProtocol)
-    {
-      TU_LOG2("  Boot Keyboard\r\n");
-      // TODO boot protocol may still have more report in report mode
-//      hid_itf->report_info.count = 1;
-
-//      hid_itf->report_info.info[0].usage_page = HID_USAGE_PAGE_DESKTOP;
-//      hid_itf->report_info.info[0].usage = HID_USAGE_DESKTOP_KEYBOARD;
-//      hid_itf->report_info.info[0].in_len = 8;
-//      hid_itf->report_info.info[0].out_len = 1;
-    }
-    else if ( HID_ITF_PROTOCOL_MOUSE == desc_itf->bInterfaceProtocol)
-    {
-      TU_LOG2("  Boot Mouse\r\n");
-      // TODO boot protocol may still have more report in report mode
-//      hid_itf->report_info.count = 1;
-
-//      hid_itf->report_info.info[0].usage_page = HID_USAGE_PAGE_DESKTOP;
-//      hid_itf->report_info.info[0].usage = HID_USAGE_DESKTOP_MOUSE;
-//      hid_itf->report_info.info[0].in_len = 5;
-//      hid_itf->report_info.info[0].out_len = 0;
-    }
-    else
-    {
-      // Unknown protocol
-      TU_ASSERT(false);
-    }
-  }
+  hid_itf->protocol_mode = HID_PROTOCOL_REPORT; // Per Specs: default is report mode
+  if ( HID_SUBCLASS_BOOT == desc_itf->bInterfaceSubClass ) hid_itf->itf_protocol = desc_itf->bInterfaceProtocol;
 
   *p_length = sizeof(tusb_desc_interface_t) + sizeof(tusb_hid_descriptor_hid_t) + desc_itf->bNumEndpoints*sizeof(tusb_desc_endpoint_t);
 
@@ -279,9 +283,9 @@ bool config_set_idle_complete(uint8_t dev_addr, tusb_control_request_t const * r
   // Stall is a valid response for SET_IDLE, therefore we could ignore its result
   (void) result;
 
-  uint8_t const itf_num = (uint8_t) request->wIndex;
-
-  hidh_interface_t* hid_itf = get_instance_by_itfnum(dev_addr, itf_num);
+  uint8_t const itf_num     = (uint8_t) request->wIndex;
+  uint8_t const instance    = get_instance_id_by_itfnum(dev_addr, itf_num);
+  hidh_interface_t* hid_itf = get_instance(dev_addr, instance);
 
   // Get Report Descriptor
   // using usbh enumeration buffer since report descriptor can be very long
@@ -507,19 +511,6 @@ TU_ATTR_ALWAYS_INLINE static inline hidh_device_t* get_dev(uint8_t dev_addr)
 TU_ATTR_ALWAYS_INLINE static inline hidh_interface_t* get_instance(uint8_t dev_addr, uint8_t instance)
 {
   return &_hidh_dev[dev_addr-1].instances[instance];
-}
-
-// Get instance by interface number
-static hidh_interface_t* get_instance_by_itfnum(uint8_t dev_addr, uint8_t itf)
-{
-  for ( uint8_t inst = 0; inst < CFG_TUH_HID; inst++ )
-  {
-    hidh_interface_t *hid = get_instance(dev_addr, inst);
-
-    if ( (hid->itf_num == itf) && (hid->ep_in || hid->ep_out) ) return hid;
-  }
-
-  return NULL;
 }
 
 // Get instance ID by interface number

@@ -72,18 +72,18 @@ typedef struct
 uint8_t tuh_n_hid_instance_count(uint8_t dev_addr);
 
 // Check if HID instance is mounted
-bool tuh_n_hid_n_mounted(uint8_t dev_addr, uint8_t instance);
+bool tuh_n_hid_mounted(uint8_t dev_addr, uint8_t instance);
 
 // Get interface supported protocol (bInterfaceProtocol) check out hid_interface_protocol_enum_t for possible values
-uint8_t tuh_n_hid_n_interface_protocol(uint8_t dev_addr, uint8_t instance);
+uint8_t tuh_n_hid_interface_protocol(uint8_t dev_addr, uint8_t instance);
 
 // Get current active protocol: HID_PROTOCOL_BOOT (0) or HID_PROTOCOL_REPORT (1)
 // Note: as HID spec, device will be initialized in Report mode
-bool tuh_n_hid_n_get_protocol(uint8_t dev_addr, uint8_t instance);
+bool tuh_n_hid_get_protocol(uint8_t dev_addr, uint8_t instance);
 
 // Set protocol to HID_PROTOCOL_BOOT (0) or HID_PROTOCOL_REPORT (1)
-// This function is only supported by Boot interface tuh_n_hid_n_boot_interface()
-bool tuh_n_hid_n_set_protocol(uint8_t dev_addr, uint8_t instance, uint8_t protocol);
+// This function is only supported by Boot interface (tuh_n_hid_interface_protocol() != NONE)
+bool tuh_n_hid_set_protocol(uint8_t dev_addr, uint8_t instance, uint8_t protocol);
 
 // Parse report descriptor into array of report_info struct and return number of reports.
 // If return 0, this is a ingle report, otherwise it is composite report with 1st byte as ID.
@@ -115,6 +115,9 @@ void tuh_hid_get_report_cb(uint8_t dev_addr, uint8_t instance, uint8_t const* re
 
 // Invoked when Sent Report to device via either regular or control endpoint
 TU_ATTR_WEAK void tuh_hid_set_report_complete_cb(uint8_t dev_addr, uint8_t instance, uint8_t xferred_bytes);
+
+// Invoked when Set Protocol request is complete
+TU_ATTR_WEAK void tuh_hid_set_protocol_complete_cb(uint8_t dev_addr, uint8_t instance, uint8_t protocol);
 
 //--------------------------------------------------------------------+
 // Application API (Single device)
