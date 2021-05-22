@@ -87,24 +87,24 @@ TU_ATTR_ALWAYS_INLINE static inline bool hidh_get_report(uint8_t dev_addr, hidh_
 // Application API
 //--------------------------------------------------------------------+
 
-uint8_t tuh_n_hid_instance_count(uint8_t dev_addr)
+uint8_t tuh_hid_instance_count(uint8_t dev_addr)
 {
   return get_dev(dev_addr)->inst_count;
 }
 
-bool tuh_n_hid_mounted(uint8_t dev_addr, uint8_t instance)
+bool tuh_hid_mounted(uint8_t dev_addr, uint8_t instance)
 {
   hidh_interface_t* hid_itf = get_instance(dev_addr, instance);
   return (hid_itf->ep_in != 0) || (hid_itf->ep_out != 0);
 }
 
-uint8_t tuh_n_hid_interface_protocol(uint8_t dev_addr, uint8_t instance)
+uint8_t tuh_hid_interface_protocol(uint8_t dev_addr, uint8_t instance)
 {
   hidh_interface_t* hid_itf = get_instance(dev_addr, instance);
   return hid_itf->itf_protocol;
 }
 
-bool tuh_n_hid_get_protocol(uint8_t dev_addr, uint8_t instance)
+bool tuh_hid_get_protocol(uint8_t dev_addr, uint8_t instance)
 {
   hidh_interface_t* hid_itf = get_instance(dev_addr, instance);
   return hid_itf->protocol_mode;
@@ -126,7 +126,7 @@ static bool set_protocol_complete(uint8_t dev_addr, tusb_control_request_t const
   return true;
 }
 
-bool tuh_n_hid_set_protocol(uint8_t dev_addr, uint8_t instance, uint8_t protocol)
+bool tuh_hid_set_protocol(uint8_t dev_addr, uint8_t instance, uint8_t protocol)
 {
   hidh_interface_t* hid_itf = get_instance(dev_addr, instance);
   TU_VERIFY(hid_itf->itf_protocol != HID_ITF_PROTOCOL_NONE);

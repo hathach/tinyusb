@@ -68,7 +68,7 @@ void tuh_hid_mounted_cb(uint8_t dev_addr, uint8_t instance, uint8_t const* desc_
 
   // Interface protocol
   const char* protocol_str[] = { "None", "Keyboard", "Mouse" }; // hid_protocol_type_t
-  uint8_t const interface_protocol = tuh_n_hid_interface_protocol(dev_addr, instance);
+  uint8_t const interface_protocol = tuh_hid_interface_protocol(dev_addr, instance);
   printf(", Interface protocol = %s, ", protocol_str[interface_protocol]);
 }
 

@@ -62,26 +62,25 @@ typedef struct
 } tuh_hid_report_info_t;
 
 //--------------------------------------------------------------------+
-// Application API (Multiple devices)
-// - tud_n   : is multiple devices API
+// Application API
 //--------------------------------------------------------------------+
 
 // Get the number of HID instances
-uint8_t tuh_n_hid_instance_count(uint8_t dev_addr);
+uint8_t tuh_hid_instance_count(uint8_t dev_addr);
 
 // Check if HID instance is mounted
-bool tuh_n_hid_mounted(uint8_t dev_addr, uint8_t instance);
+bool tuh_hid_mounted(uint8_t dev_addr, uint8_t instance);
 
 // Get interface supported protocol (bInterfaceProtocol) check out hid_interface_protocol_enum_t for possible values
-uint8_t tuh_n_hid_interface_protocol(uint8_t dev_addr, uint8_t instance);
+uint8_t tuh_hid_interface_protocol(uint8_t dev_addr, uint8_t instance);
 
 // Get current active protocol: HID_PROTOCOL_BOOT (0) or HID_PROTOCOL_REPORT (1)
 // Note: as HID spec, device will be initialized in Report mode
-bool tuh_n_hid_get_protocol(uint8_t dev_addr, uint8_t instance);
+bool tuh_hid_get_protocol(uint8_t dev_addr, uint8_t instance);
 
 // Set protocol to HID_PROTOCOL_BOOT (0) or HID_PROTOCOL_REPORT (1)
 // This function is only supported by Boot interface (tuh_n_hid_interface_protocol() != NONE)
-bool tuh_n_hid_set_protocol(uint8_t dev_addr, uint8_t instance, uint8_t protocol);
+bool tuh_hid_set_protocol(uint8_t dev_addr, uint8_t instance, uint8_t protocol);
 
 // Parse report descriptor into array of report_info struct and return number of reports.
 // If return 0, this is a ingle report, otherwise it is composite report with 1st byte as ID.
@@ -93,8 +92,6 @@ uint8_t tuh_hid_parse_report_descriptor(tuh_hid_report_info_t* report_info, uint
 
 // Set Report using control endpoint
 //bool tuh_n_hid_n_set_report_control(uint8_t dev_addr, uint8_t instance, void* report, uint16_t len);
-
-//-------------  -------------//
 
 //--------------------------------------------------------------------+
 // Callbacks (Weak is optional)
@@ -116,18 +113,6 @@ TU_ATTR_WEAK void tuh_hid_set_report_complete_cb(uint8_t dev_addr, uint8_t insta
 
 // Invoked when Set Protocol request is complete
 TU_ATTR_WEAK void tuh_hid_set_protocol_complete_cb(uint8_t dev_addr, uint8_t instance, uint8_t protocol);
-
-//--------------------------------------------------------------------+
-// Application API (Single device)
-//--------------------------------------------------------------------+
-
-// Get the number of HID instances
-TU_ATTR_ALWAYS_INLINE static inline
-uint8_t tuh_hid_instance_count(void)
-{
-  return tuh_n_hid_instance_count(1);
-}
-
 
 //--------------------------------------------------------------------+
 // Internal Class Driver API
