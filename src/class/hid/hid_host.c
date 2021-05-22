@@ -190,7 +190,7 @@ bool tuh_hid_set_report(uint8_t dev_addr, uint8_t instance, uint8_t report_id, u
     .wLength  = len
   };
 
-  TU_ASSERT( tuh_control_xfer(dev_addr, &request, NULL, set_report_complete) );
+  TU_ASSERT( tuh_control_xfer(dev_addr, &request, report, set_report_complete) );
   return true;
 }
 
