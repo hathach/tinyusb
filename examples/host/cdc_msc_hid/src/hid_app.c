@@ -53,6 +53,9 @@ void hid_app_task(void)
 // TinyUSB Callbacks
 //--------------------------------------------------------------------+
 
+// Invoked when device with hid interface is mounted
+// Report descriptor is also available for use. tuh_hid_parse_report_descriptor()
+// can be used to parse common/simple enough descriptor.
 void tuh_hid_mount_cb(uint8_t dev_addr, uint8_t instance, uint8_t const* desc_report, uint16_t desc_len)
 {
   printf("HID device address = %d, instance = %d is mounted\r\n", dev_addr, instance);
@@ -66,12 +69,14 @@ void tuh_hid_mount_cb(uint8_t dev_addr, uint8_t instance, uint8_t const* desc_re
   printf("HID has %u reports and interface protocol = %s\r\n", _report_count[instance], protocol_str[interface_protocol]);
 }
 
+// Invoked when device with hid interface is un-mounted
 void tuh_hid_umount_cb(uint8_t dev_addr, uint8_t instance)
 {
   printf("HID device address = %d, instance = %d is unmounted\r\n", dev_addr, instance);
 }
 
-void tuh_hid_get_report_cb(uint8_t dev_addr, uint8_t instance, uint8_t const* report, uint16_t len)
+// Invoked when received Report from device via either regular endpoint
+void tuh_hid_report_received_cb(uint8_t dev_addr, uint8_t instance, uint8_t const* report, uint16_t len)
 {
   (void) dev_addr;
 

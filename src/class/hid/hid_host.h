@@ -102,8 +102,8 @@ void tuh_hid_mount_cb(uint8_t dev_addr, uint8_t instance, uint8_t const* report_
 // Invoked when device with hid interface is un-mounted
 TU_ATTR_WEAK void tuh_hid_umount_cb(uint8_t dev_addr, uint8_t instance);
 
-// Invoked when received Report from device via either regular or control endpoint
-void tuh_hid_get_report_cb(uint8_t dev_addr, uint8_t instance, uint8_t const* report, uint16_t len);
+// Invoked when received Report from device via either regular endpoint
+void tuh_hid_report_received_cb(uint8_t dev_addr, uint8_t instance, uint8_t const* report, uint16_t len);
 
 // Invoked when Sent Report to device via either control endpoint
 // len = 0 indicate there is error in the transfer e.g stalled response

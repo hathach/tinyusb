@@ -223,7 +223,7 @@ bool hidh_xfer_cb(uint8_t dev_addr, uint8_t ep_addr, xfer_result_t result, uint3
   {
     TU_LOG2("  Get Report callback (%u, %u)\r\n", dev_addr, instance);
     TU_LOG1_MEM(hid_itf->epin_buf, 8, 2);
-    tuh_hid_get_report_cb(dev_addr, instance, hid_itf->epin_buf, xferred_bytes);
+    tuh_hid_report_received_cb(dev_addr, instance, hid_itf->epin_buf, xferred_bytes);
 
     // queue next report
     hidh_get_report(dev_addr, hid_itf);
