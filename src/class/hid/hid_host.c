@@ -251,8 +251,9 @@ void hidh_close(uint8_t dev_addr)
 // Enumeration
 //--------------------------------------------------------------------+
 
-static bool config_set_idle_complete(uint8_t dev_addr, tusb_control_request_t const * request, xfer_result_t result);
-static bool config_get_report_desc_complete(uint8_t dev_addr, tusb_control_request_t const * request, xfer_result_t result);
+static bool config_get_protocol             (uint8_t dev_addr, tusb_control_request_t const * request, xfer_result_t result);
+static bool config_get_report_desc          (uint8_t dev_addr, tusb_control_request_t const * request, xfer_result_t result);
+static bool config_get_report_desc_complete (uint8_t dev_addr, tusb_control_request_t const * request, xfer_result_t result);
 
 bool hidh_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_interface_t const *desc_itf, uint16_t *p_length)
 {
@@ -299,11 +300,14 @@ bool hidh_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_interface_t const *de
 
 bool hidh_set_config(uint8_t dev_addr, uint8_t itf_num)
 {
+  uint8_t const instance    = get_instance_id_by_itfnum(dev_addr, itf_num);
+  hidh_interface_t* hid_itf = get_instance(dev_addr, instance);
+
   // Idle rate = 0 mean only report when there is changes
   uint16_t const idle_rate = 0;
 
   // SET IDLE request, device can stall if not support this request
-  TU_LOG2("Set Idle \r\n");
+  TU_LOG2("HID Set Idle \r\n");
   tusb_control_request_t const request =
   {
     .bmRequestType_bit =
@@ -318,14 +322,42 @@ bool hidh_set_config(uint8_t dev_addr, uint8_t itf_num)
     .wLength  = 0
   };
 
-  TU_ASSERT( tuh_control_xfer(dev_addr, &request, NULL, config_set_idle_complete) );
+  TU_ASSERT( tuh_control_xfer(dev_addr, &request, NULL, (hid_itf->itf_protocol != HID_ITF_PROTOCOL_NONE) ? config_get_protocol : config_get_report_desc) );
 
   return true;
 }
 
-bool config_set_idle_complete(uint8_t dev_addr, tusb_control_request_t const * request, xfer_result_t result)
+static bool config_get_protocol(uint8_t dev_addr, tusb_control_request_t const * request, xfer_result_t result)
 {
-  // Stall is a valid response for SET_IDLE, therefore we could ignore its result
+  // Stall is a valid response for SET_IDLE GET_PROTOCOL, therefore we could ignore its result
+  (void) result;
+
+  uint8_t const itf_num     = (uint8_t) request->wIndex;
+  uint8_t const instance    = get_instance_id_by_itfnum(dev_addr, itf_num);
+  hidh_interface_t* hid_itf = get_instance(dev_addr, instance);
+
+  TU_LOG2("HID Get Protocol\r\n");
+  tusb_control_request_t const new_request =
+  {
+    .bmRequestType_bit =
+    {
+      .recipient = TUSB_REQ_RCPT_INTERFACE,
+      .type      = TUSB_REQ_TYPE_CLASS,
+      .direction = TUSB_DIR_IN
+    },
+    .bRequest = HID_REQ_CONTROL_GET_PROTOCOL,
+    .wValue   = 0,
+    .wIndex   = hid_itf->itf_num,
+    .wLength  = 1
+  };
+
+  TU_ASSERT( tuh_control_xfer(dev_addr, &new_request, &hid_itf->protocol_mode, config_get_report_desc) );
+  return false;
+}
+
+static bool config_get_report_desc(uint8_t dev_addr, tusb_control_request_t const * request, xfer_result_t result)
+{
+  // Stall is a valid response for SET_IDLE GET_PROTOCOL, therefore we could ignore its result
   (void) result;
 
   uint8_t const itf_num     = (uint8_t) request->wIndex;
@@ -355,7 +387,7 @@ bool config_set_idle_complete(uint8_t dev_addr, tusb_control_request_t const * r
   return true;
 }
 
-bool config_get_report_desc_complete(uint8_t dev_addr, tusb_control_request_t const * request, xfer_result_t result)
+static bool config_get_report_desc_complete(uint8_t dev_addr, tusb_control_request_t const * request, xfer_result_t result)
 {
   TU_ASSERT(XFER_RESULT_SUCCESS == result);
 
