@@ -337,7 +337,7 @@ bool config_get_report_desc_complete(uint8_t dev_addr, tusb_control_request_t co
 // Report Descriptor Parser
 //--------------------------------------------------------------------+
 
-uint8_t tuh_hid_parse_report_descriptor(tuh_hid_report_info_t* report_info, uint8_t arr_count, uint8_t const* desc_report, uint16_t desc_len)
+uint8_t tuh_hid_parse_report_descriptor(tuh_hid_report_info_t* report_info_arr, uint8_t arr_count, uint8_t const* desc_report, uint16_t desc_len)
 {
   // Report Item 6.2.2.2 USB HID 1.11
   union TU_ATTR_PACKED
@@ -351,18 +351,16 @@ uint8_t tuh_hid_parse_report_descriptor(tuh_hid_report_info_t* report_info, uint
     };
   } header;
 
-  uint8_t report_num = 0;
-  tuh_hid_report_info_t* info = report_info;
+  tu_memclr(report_info_arr, arr_count*sizeof(tuh_hid_report_info_t));
 
-  tu_memclr(report_info, arr_count*sizeof(tuh_hid_report_info_t));
+  uint8_t report_num = 0;
+  tuh_hid_report_info_t* info = report_info_arr;
 
   // current parsed report count & size from descriptor
 //  uint8_t ri_report_count = 0;
 //  uint8_t ri_report_size = 0;
 
   uint8_t ri_collection_depth = 0;
-  uint16_t ri_usage_page = 0;
-  uint8_t ri_usage = 0;
 
   while(desc_len && report_num < arr_count)
   {
@@ -394,6 +392,11 @@ uint8_t tuh_hid_parse_report_descriptor(tuh_hid_report_info_t* report_info, uint
 
           case RI_MAIN_COLLECTION_END:
             ri_collection_depth--;
+            if (ri_collection_depth == 0)
+            {
+              info++;
+              report_num++;
+            }
           break;
 
           default: break;
@@ -404,11 +407,8 @@ uint8_t tuh_hid_parse_report_descriptor(tuh_hid_report_info_t* report_info, uint
         switch(tag)
         {
           case RI_GLOBAL_USAGE_PAGE:
-            // only take in account the "usage page" before starting COLLECTION
-            if ( ri_collection_depth == 0)
-            {
-              memcpy(&ri_usage_page, desc_report, size);
-            }
+            // only take in account the "usage page" before REPORT ID
+            if ( ri_collection_depth == 0 ) memcpy(&info->usage_page, desc_report, size);
           break;
 
           case RI_GLOBAL_LOGICAL_MIN   : break;
@@ -417,23 +417,7 @@ uint8_t tuh_hid_parse_report_descriptor(tuh_hid_report_info_t* report_info, uint
           case RI_GLOBAL_PHYSICAL_MAX  : break;
 
           case RI_GLOBAL_REPORT_ID:
-            report_num++;
-            if (data8 <= arr_count)
-            {
-              uint8_t const idx = data8 - 1;
-              if ( info != &report_info[idx] )
-              {
-                // copy info so far to its correct report ID, and update info pointer
-                report_info[idx] = *info;
-                info = &report_info[idx];
-              }
-
-              info->usage_page = ri_usage_page;
-              info->usage = ri_usage;
-            }else
-            {
-              TU_LOG2("HID Skip a report with ID (%u) larger than array count (%u)\r\n", data8, arr_count);
-            }
+            info->report_id = data8;
           break;
 
           case RI_GLOBAL_REPORT_SIZE:
@@ -457,8 +441,8 @@ uint8_t tuh_hid_parse_report_descriptor(tuh_hid_report_info_t* report_info, uint
         switch(tag)
         {
           case RI_LOCAL_USAGE:
-            // only take in account the "usage" before starting COLLECTION
-            if ( ri_collection_depth == 0) ri_usage = data8;
+            // only take in account the "usage" before starting REPORT ID
+            if ( ri_collection_depth == 0 ) info->usage = data8;
           break;
 
           case RI_LOCAL_USAGE_MIN        : break;
@@ -482,16 +466,10 @@ uint8_t tuh_hid_parse_report_descriptor(tuh_hid_report_info_t* report_info, uint
     desc_len    -= size;
   }
 
-  if ( report_num == 0 )
+  for ( uint8_t i = 0; i < report_num; i++ )
   {
-    report_info[0].usage_page = ri_usage_page;
-    report_info[0].usage = ri_usage;
-  }
-
-  for ( uint8_t i = 0; (i < report_num) || (!i && !report_num); i++ )
-  {
-    info = report_info+i;
-    TU_LOG2("%u: usage_page = %u, usage = %u\r\n", i, info->usage_page, info->usage);
+    info = report_info_arr+i;
+    TU_LOG2("%u: id = %u, usage_page = %u, usage = %u\r\n", i, info->report_id, info->usage_page, info->usage);
   }
 
   return report_num;

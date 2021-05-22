@@ -53,8 +53,9 @@
 
 typedef struct
 {
+  uint8_t  report_id;
+  uint8_t  usage;
   uint16_t usage_page;
-  uint8_t usage;
 
   // TODO still use the endpoint size for now
 //  uint8_t in_len;      // length of IN report
@@ -83,9 +84,8 @@ bool tuh_hid_get_protocol(uint8_t dev_addr, uint8_t instance);
 bool tuh_hid_set_protocol(uint8_t dev_addr, uint8_t instance, uint8_t protocol);
 
 // Parse report descriptor into array of report_info struct and return number of reports.
-// If return 0, this is a ingle report, otherwise it is composite report with 1st byte as ID.
 // For complicated report, application should write its own parser.
-uint8_t tuh_hid_parse_report_descriptor(tuh_hid_report_info_t* report_info, uint8_t arr_count, uint8_t const* desc_report, uint16_t desc_len) TU_ATTR_UNUSED;
+uint8_t tuh_hid_parse_report_descriptor(tuh_hid_report_info_t* reports_info_arr, uint8_t arr_count, uint8_t const* desc_report, uint16_t desc_len) TU_ATTR_UNUSED;
 
 // Check if the interface is ready to use
 //bool tuh_n_hid_n_ready(uint8_t dev_addr, uint8_t instance);
