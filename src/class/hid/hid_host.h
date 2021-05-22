@@ -42,10 +42,6 @@
 // Class Driver Configuration
 //--------------------------------------------------------------------+
 
-#ifndef CFG_TUH_HID_REPORT_MAX
-#define CFG_TUH_HID_REPORT_MAX 4
-#endif
-
 // TODO Highspeed interrupt can be up to 512 bytes
 #ifndef CFG_TUH_HID_EP_BUFSIZE
 #define CFG_TUH_HID_EP_BUFSIZE 64

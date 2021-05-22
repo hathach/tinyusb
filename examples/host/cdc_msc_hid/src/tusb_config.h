@@ -86,10 +86,6 @@
 
 #define CFG_TUH_HID_EP_BUFSIZE      64
 
-// Max number of reports per interface
-// E.g composite HID with keyboard + mouse + gamepad will have 3 reports
-#define CFG_TUH_HID_REPORT_MAX      4
-
 #ifdef __cplusplus
  }
 #endif
