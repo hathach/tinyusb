@@ -79,15 +79,16 @@ bool tuh_hid_get_protocol(uint8_t dev_addr, uint8_t instance);
 // This function is only supported by Boot interface (tuh_n_hid_interface_protocol() != NONE)
 bool tuh_hid_set_protocol(uint8_t dev_addr, uint8_t instance, uint8_t protocol);
 
+// Set Report using control endpoint
+// report_type is either Intput, Output or Feature, (value from hid_report_type_t)
+bool tuh_hid_set_report(uint8_t dev_addr, uint8_t instance, uint8_t report_id, uint8_t report_type, void* report, uint16_t len);
+
 // Parse report descriptor into array of report_info struct and return number of reports.
 // For complicated report, application should write its own parser.
 uint8_t tuh_hid_parse_report_descriptor(tuh_hid_report_info_t* reports_info_arr, uint8_t arr_count, uint8_t const* desc_report, uint16_t desc_len) TU_ATTR_UNUSED;
 
 // Check if the interface is ready to use
 //bool tuh_n_hid_n_ready(uint8_t dev_addr, uint8_t instance);
-
-// Set Report using control endpoint
-//bool tuh_n_hid_n_set_report_control(uint8_t dev_addr, uint8_t instance, void* report, uint16_t len);
 
 //--------------------------------------------------------------------+
 // Callbacks (Weak is optional)
@@ -96,16 +97,17 @@ uint8_t tuh_hid_parse_report_descriptor(tuh_hid_report_info_t* reports_info_arr,
 // Invoked when device with hid interface is mounted
 // Report descriptor is also available for use. tuh_hid_parse_report_descriptor()
 // can be used to parse common/simple enough descriptor.
-void tuh_hid_mounted_cb(uint8_t dev_addr, uint8_t instance, uint8_t const* report_desc, uint16_t desc_len);
+void tuh_hid_mount_cb(uint8_t dev_addr, uint8_t instance, uint8_t const* report_desc, uint16_t desc_len);
 
 // Invoked when device with hid interface is un-mounted
-TU_ATTR_WEAK void tuh_hid_unmounted_cb(uint8_t dev_addr, uint8_t instance);
+TU_ATTR_WEAK void tuh_hid_umount_cb(uint8_t dev_addr, uint8_t instance);
 
 // Invoked when received Report from device via either regular or control endpoint
 void tuh_hid_get_report_cb(uint8_t dev_addr, uint8_t instance, uint8_t const* report, uint16_t len);
 
-// Invoked when Sent Report to device via either regular or control endpoint
-TU_ATTR_WEAK void tuh_hid_set_report_complete_cb(uint8_t dev_addr, uint8_t instance, uint8_t xferred_bytes);
+// Invoked when Sent Report to device via either control endpoint
+// len = 0 indicate there is error in the transfer e.g stalled response
+TU_ATTR_WEAK void tuh_hid_set_report_complete_cb(uint8_t dev_addr, uint8_t instance, uint8_t report_id, uint8_t report_type, uint16_t len);
 
 // Invoked when Set Protocol request is complete
 TU_ATTR_WEAK void tuh_hid_set_protocol_complete_cb(uint8_t dev_addr, uint8_t instance, uint8_t protocol);

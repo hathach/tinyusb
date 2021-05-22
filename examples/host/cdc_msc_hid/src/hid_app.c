@@ -53,7 +53,7 @@ void hid_app_task(void)
 // TinyUSB Callbacks
 //--------------------------------------------------------------------+
 
-void tuh_hid_mounted_cb(uint8_t dev_addr, uint8_t instance, uint8_t const* desc_report, uint16_t desc_len)
+void tuh_hid_mount_cb(uint8_t dev_addr, uint8_t instance, uint8_t const* desc_report, uint16_t desc_len)
 {
   printf("HID device address = %d, instance = %d is mounted\r\n", dev_addr, instance);
 
@@ -66,7 +66,7 @@ void tuh_hid_mounted_cb(uint8_t dev_addr, uint8_t instance, uint8_t const* desc_
   printf("HID has %u reports and interface protocol = %s\r\n", _report_count[instance], protocol_str[interface_protocol]);
 }
 
-void tuh_hid_unmounted_cb(uint8_t dev_addr, uint8_t instance)
+void tuh_hid_umount_cb(uint8_t dev_addr, uint8_t instance)
 {
   printf("HID device address = %d, instance = %d is unmounted\r\n", dev_addr, instance);
 }

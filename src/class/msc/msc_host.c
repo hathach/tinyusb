@@ -300,7 +300,7 @@ void msch_close(uint8_t dev_addr)
   tu_memclr(p_msc, sizeof(msch_interface_t));
 
   // invoke Application Callback
-  if (tuh_msc_unmount_cb) tuh_msc_unmount_cb(dev_addr);
+  if (tuh_msc_umount_cb) tuh_msc_umount_cb(dev_addr);
 }
 
 bool msch_xfer_cb(uint8_t dev_addr, uint8_t ep_addr, xfer_result_t event, uint32_t xferred_bytes)
