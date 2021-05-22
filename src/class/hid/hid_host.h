@@ -90,6 +90,10 @@ uint8_t tuh_hid_parse_report_descriptor(tuh_hid_report_info_t* reports_info_arr,
 // Check if the interface is ready to use
 //bool tuh_n_hid_n_ready(uint8_t dev_addr, uint8_t instance);
 
+// Send report using interrupt endpoint
+// If report_id > 0 (composite), it will be sent as 1st byte, then report contents. Otherwise only report content is sent.
+//void tuh_hid_send_report(uint8_t dev_addr, uint8_t instance, uint8_t report_id, uint8_t const* report, uint16_t len);
+
 //--------------------------------------------------------------------+
 // Callbacks (Weak is optional)
 //--------------------------------------------------------------------+
@@ -102,8 +106,12 @@ void tuh_hid_mount_cb(uint8_t dev_addr, uint8_t instance, uint8_t const* report_
 // Invoked when device with hid interface is un-mounted
 TU_ATTR_WEAK void tuh_hid_umount_cb(uint8_t dev_addr, uint8_t instance);
 
-// Invoked when received Report from device via either regular endpoint
+// Invoked when received report from device via interrupt endpoint
+// Note: if there is report ID (composite), it is 1st byte of report
 void tuh_hid_report_received_cb(uint8_t dev_addr, uint8_t instance, uint8_t const* report, uint16_t len);
+
+// Invoked when sent report to device successfully via interrupt endpoint
+TU_ATTR_WEAK void tuh_hid_report_sent_cb(uint8_t dev_addr, uint8_t instance, uint8_t const* report, uint16_t len);
 
 // Invoked when Sent Report to device via either control endpoint
 // len = 0 indicate there is error in the transfer e.g stalled response

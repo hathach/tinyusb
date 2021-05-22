@@ -171,7 +171,6 @@ static bool set_report_complete(uint8_t dev_addr, tusb_control_request_t const *
   return true;
 }
 
-
 bool tuh_hid_set_report(uint8_t dev_addr, uint8_t instance, uint8_t report_id, uint8_t report_type, void* report, uint16_t len)
 {
   hidh_interface_t* hid_itf = get_instance(dev_addr, instance);
@@ -203,6 +202,8 @@ bool tuh_hid_set_report(uint8_t dev_addr, uint8_t instance, uint8_t report_id, u
 //  return !hcd_edpt_busy(dev_addr, hid_itf->ep_in);
 //}
 
+//void tuh_hid_send_report(uint8_t dev_addr, uint8_t instance, uint8_t report_id, uint8_t const* report, uint16_t len);
+
 //--------------------------------------------------------------------+
 // USBH API
 //--------------------------------------------------------------------+
@@ -229,7 +230,7 @@ bool hidh_xfer_cb(uint8_t dev_addr, uint8_t ep_addr, xfer_result_t result, uint3
     hidh_get_report(dev_addr, hid_itf);
   }else
   {
-//    if (tuh_hid_set_report_complete_cb) tuh_hid_set_report_complete_cb(dev_addr, instance, xferred_bytes);
+    if (tuh_hid_report_sent_cb) tuh_hid_report_sent_cb(dev_addr, instance, hid_itf->epout_buf, xferred_bytes);
   }
 
   return true;
