@@ -297,10 +297,11 @@ void msch_init(void)
 void msch_close(uint8_t dev_addr)
 {
   msch_interface_t* p_msc = get_itf(dev_addr);
-  tu_memclr(p_msc, sizeof(msch_interface_t));
 
   // invoke Application Callback
-  if (tuh_msc_umount_cb) tuh_msc_umount_cb(dev_addr);
+  if (p_msc->mounted && tuh_msc_umount_cb) tuh_msc_umount_cb(dev_addr);
+
+  tu_memclr(p_msc, sizeof(msch_interface_t));
 }
 
 bool msch_xfer_cb(uint8_t dev_addr, uint8_t ep_addr, xfer_result_t event, uint32_t xferred_bytes)
