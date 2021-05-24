@@ -45,7 +45,7 @@ typedef struct
   uint8_t ep_out;        // optional Out endpoint
   uint8_t itf_protocol;  // Boot mouse or keyboard
 
-  bool    boot_mode;     // default = false (Report)
+  uint8_t protocol_mode; // Boot (0) or Report protocol (1)
   uint8_t idle_rate;     // up to application to handle idle rate
   uint16_t report_desc_len;
 
@@ -112,7 +112,7 @@ uint8_t tud_hid_n_interface_protocol(uint8_t instance)
 
 uint8_t tud_hid_n_get_protocol(uint8_t instance)
 {
-  return _hidd_itf[instance].boot_mode ? HID_PROTOCOL_BOOT : HID_PROTOCOL_REPORT;
+  return _hidd_itf[instance].protocol_mode;
 }
 
 bool tud_hid_n_keyboard_report(uint8_t instance, uint8_t report_id, uint8_t modifier, uint8_t keycode[6])
@@ -213,7 +213,7 @@ uint16_t hidd_open(uint8_t rhport, tusb_desc_interface_t const * desc_itf, uint1
 
   if ( desc_itf->bInterfaceSubClass == HID_SUBCLASS_BOOT ) p_hid->itf_protocol = desc_itf->bInterfaceProtocol;
 
-  p_hid->boot_mode = false; // default mode is REPORT
+  p_hid->protocol_mode = HID_PROTOCOL_REPORT; // Per Specs: default is report mode
   p_hid->itf_num   = desc_itf->bInterfaceNumber;
 
   // Use offsetof to avoid pointer to the odd/misaligned address
@@ -326,8 +326,7 @@ bool hidd_control_xfer_cb (uint8_t rhport, uint8_t stage, tusb_control_request_t
       case HID_REQ_CONTROL_GET_PROTOCOL:
         if ( stage == CONTROL_STAGE_SETUP )
         {
-          uint8_t protocol = (p_hid->boot_mode ? HID_PROTOCOL_BOOT : HID_PROTOCOL_REPORT);
-          tud_control_xfer(rhport, request, &protocol, 1);
+          tud_control_xfer(rhport, request, &p_hid->protocol_mode, 1);
         }
       break;
 
@@ -338,10 +337,10 @@ bool hidd_control_xfer_cb (uint8_t rhport, uint8_t stage, tusb_control_request_t
         }
         else if ( stage == CONTROL_STAGE_ACK )
         {
-          p_hid->boot_mode = (request->wValue == HID_PROTOCOL_BOOT);
+          p_hid->protocol_mode = (uint8_t) request->wValue;
           if (tud_hid_set_protocol_cb)
           {
-            tud_hid_set_protocol_cb(hid_itf, (uint8_t) request->wValue);
+            tud_hid_set_protocol_cb(hid_itf, p_hid->protocol_mode);
           }
         }
       break;
