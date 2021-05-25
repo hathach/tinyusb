@@ -34,10 +34,10 @@
 */
 
 #include "tusb_option.h"
-#include "common/tusb_fifo.h"
 
 #if TUSB_OPT_DEVICE_ENABLED && (CFG_TUSB_MCU == OPT_MCU_NUC505)
 
+#include "common/tusb_fifo.h"
 #include "device/dcd.h"
 #include "NUC505Series.h"
 

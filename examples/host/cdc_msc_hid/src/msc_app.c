@@ -80,7 +80,7 @@ void tuh_msc_mount_cb(uint8_t dev_addr)
 //  }
 }
 
-void tuh_msc_unmount_cb(uint8_t dev_addr)
+void tuh_msc_umount_cb(uint8_t dev_addr)
 {
   (void) dev_addr;
   printf("A MassStorage device is unmounted\r\n");

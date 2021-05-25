@@ -28,7 +28,6 @@
  */
 
 #include "tusb_option.h"
-#include "common/tusb_fifo.h"
 
 // Since TinyUSB doesn't use SOF for now, and this interrupt too often (1ms interval)
 // We disable SOF for now until needed later on
@@ -98,6 +97,7 @@
 
 #endif
 
+#include "common/tusb_fifo.h"
 #include "device/dcd.h"
 
 //--------------------------------------------------------------------+

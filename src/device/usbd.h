@@ -41,7 +41,10 @@ extern "C" {
 //--------------------------------------------------------------------+
 
 // Init device stack
-bool tud_init (void);
+bool tud_init (uint8_t rhport);
+
+// Check if device stack is already initialized
+bool tud_inited(void);
 
 // Task function should be called in main/rtos loop
 void tud_task (void);
@@ -67,6 +70,7 @@ bool tud_mounted(void);
 bool tud_suspended(void);
 
 // Check if device is ready to transfer
+TU_ATTR_ALWAYS_INLINE
 static inline bool tud_ready(void)
 {
   return tud_mounted() && !tud_suspended();

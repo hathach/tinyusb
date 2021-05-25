@@ -306,8 +306,8 @@ static void _hw_endpoint_init(struct hw_endpoint *ep, uint8_t dev_addr, uint8_t 
     ep->wMaxPacketSize = wMaxPacketSize;
     ep->transfer_type = transfer_type;
 
-    pico_trace("hw_endpoint_init dev %d ep %d %s xfer %d\n", ep->dev_addr, ep->num, ep_dir_string[ep->in], ep->transfer_type);
-    pico_trace("dev %d ep %d %s setup buffer @ 0x%p\n", ep->dev_addr, ep->num, ep_dir_string[ep->in], ep->hw_data_buf);
+    pico_trace("hw_endpoint_init dev %d ep %d %s xfer %d\n", ep->dev_addr, tu_edpt_number(ep->ep_addr), ep_dir_string[tu_edpt_dir(ep->ep_addr)], ep->transfer_type);
+    pico_trace("dev %d ep %d %s setup buffer @ 0x%p\n", ep->dev_addr, tu_edpt_number(ep->ep_addr), ep_dir_string[tu_edpt_dir(ep->ep_addr)], ep->hw_data_buf);
     uint dpram_offset = hw_data_offset(ep->hw_data_buf);
     // Bits 0-5 should be 0
     assert(!(dpram_offset & 0b111111));
@@ -487,7 +487,6 @@ bool hcd_setup_send(uint8_t rhport, uint8_t dev_addr, uint8_t const setup_packet
     // EP0 out
     _hw_endpoint_init(ep, dev_addr, 0x00, ep->wMaxPacketSize, 0, 0);
     assert(ep->configured);
-    assert(ep->num == 0 && !ep->in);
     ep->total_len = 8;
     ep->transfer_size = 8;
     ep->active = true;
