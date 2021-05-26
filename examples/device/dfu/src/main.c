@@ -126,21 +126,20 @@ void tud_dfu_runtime_reboot_to_dfu_cb(void)
 //--------------------------------------------------------------------+
 bool tud_dfu_firmware_valid_check_cb(void)
 {
-  TU_LOG2("    Firmware check\r\n");
+  printf("    Firmware check\r\n");
   return true;
 }
 
 void tud_dfu_req_dnload_data_cb(uint16_t wBlockNum, uint8_t* data, uint16_t length)
 {
-  TU_LOG2("    Received BlockNum %u of length %u\r\n", wBlockNum, length);
+  (void) data;
+  printf("    Received BlockNum %u of length %u\r\n", wBlockNum, length);
 
 #if DFU_VERBOSE
   for(uint16_t i=0; i<length; i++)
   {
-    TU_LOG2("    [%u][%u]: %x\r\n", wBlockNum, i, (uint8_t)data[i]);
+    printf("    [%u][%u]: %x\r\n", wBlockNum, i, (uint8_t)data[i]);
   }
-#else
-  (void) data;
 #endif
 
   tud_dfu_dnload_complete();
@@ -148,17 +147,17 @@ void tud_dfu_req_dnload_data_cb(uint16_t wBlockNum, uint8_t* data, uint16_t leng
 
 bool tud_dfu_device_data_done_check_cb(void)
 {
-  TU_LOG2("    Host said no more data... Returning true\r\n");
+  printf("    Host said no more data... Returning true\r\n");
   return true;
 }
 
 void tud_dfu_abort_cb(void)
 {
-  TU_LOG2("    Host aborted transfer\r\n");
+  printf("    Host aborted transfer\r\n");
 }
 
 #define UPLOAD_SIZE (29)
-const uint8_t upload_test[UPLOAD_SIZE] = "Hello world from TinyUSB DFU!"
+const uint8_t upload_test[UPLOAD_SIZE] = "Hello world from TinyUSB DFU!";
 
 uint16_t tud_dfu_req_upload_data_cb(uint16_t block_num, uint8_t* data, uint16_t length)
 {

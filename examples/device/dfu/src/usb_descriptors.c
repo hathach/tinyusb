@@ -83,7 +83,7 @@ uint8_t const * tud_descriptor_device_cb(void)
 
 enum
 {
-  ITF1_NUM_DFU_MODE,
+  ITF_NUM_DFU_MODE,
   ITF_NUM_TOTAL
 };
 
@@ -94,10 +94,10 @@ enum
 uint8_t const desc_configuration[] =
 {
   // Config number, interface count, string index, total length, attribute, power in mA
-  TUD_CONFIG_DESCRIPTOR(1, ITF1_NUM_TOTAL, 0, CONFIG_TOTAL_LEN, TUSB_DESC_CONFIG_ATT_REMOTE_WAKEUP, 100),
+  TUD_CONFIG_DESCRIPTOR(1, ITF_NUM_TOTAL, 0, CONFIG_TOTAL_LEN, TUSB_DESC_CONFIG_ATT_REMOTE_WAKEUP, 100),
 
   // Interface number, string index, attributes, detach timeout, transfer size */
-  TUD_DFU_MODE_DESCRIPTOR(ITF1_NUM_DFU_MODE, 0, FUNC_ATTRS, 1000, CFG_TUD_DFU_TRANSFER_BUFFER_SIZE),
+  TUD_DFU_MODE_DESCRIPTOR(ITF_NUM_DFU_MODE, 0, FUNC_ATTRS, 1000, CFG_TUD_DFU_TRANSFER_BUFFER_SIZE),
 };
 
 // Invoked when received GET CONFIGURATION DESCRIPTOR

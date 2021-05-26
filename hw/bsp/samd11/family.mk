@@ -3,8 +3,9 @@ DEPS_SUBMODULES += hw/mcu/microchip
 include $(TOP)/$(BOARD_PATH)/board.mk
 
 CFLAGS += \
+	-flto \
   -mthumb \
-  -mabi=aapcs-linux \
+  -mabi=aapcs \
   -mcpu=cortex-m0plus \
   -nostdlib -nostartfiles \
   -DCONF_DFLL_OVERWRITE_CALIBRATION=0 \

@@ -21,6 +21,7 @@ set(SRC_TINYUSB
 	${TOP}/src/device/usbd_control.c
 	${TOP}/src/class/audio/audio_device.c
 	${TOP}/src/class/cdc/cdc_device.c
+	${TOP}/src/class/dfu/dfu_device.c
 	${TOP}/src/class/dfu/dfu_rt_device.c
 	${TOP}/src/class/hid/hid_device.c
 	${TOP}/src/class/midi/midi_device.c

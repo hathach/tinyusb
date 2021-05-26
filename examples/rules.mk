@@ -28,6 +28,7 @@ SRC_C += \
 	src/device/usbd_control.c \
 	src/class/audio/audio_device.c \
 	src/class/cdc/cdc_device.c \
+	src/class/dfu/dfu_device.c \
 	src/class/dfu/dfu_rt_device.c \
 	src/class/hid/hid_device.c \
 	src/class/midi/midi_device.c \
@@ -41,7 +42,7 @@ INC += $(TOP)/src
 
 CFLAGS += $(addprefix -I,$(INC))
 
-LDFLAGS += $(CFLAGS) -fshort-enums -Wl,-T,$(TOP)/$(LD_FILE) -Wl,-Map=$@.map -Wl,-cref -Wl,-gc-sections
+LDFLAGS += $(CFLAGS) -Wl,-T,$(TOP)/$(LD_FILE) -Wl,-Map=$@.map -Wl,-cref -Wl,-gc-sections
 ifneq ($(SKIP_NANOLIB), 1)
 LDFLAGS += -specs=nosys.specs -specs=nano.specs
 endif

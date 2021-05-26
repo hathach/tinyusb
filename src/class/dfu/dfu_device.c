@@ -150,6 +150,8 @@ void dfu_moded_init(void)
 
 void dfu_moded_reset(uint8_t rhport)
 {
+  (void) rhport;
+
   _dfu_state_ctx.state = DFU_IDLE;
   _dfu_state_ctx.status = DFU_STATUS_OK;
   _dfu_state_ctx.blk_transfer_in_proc = false;
