@@ -107,7 +107,7 @@ bool tud_control_xfer(uint8_t rhport, tusb_control_request_t const * request, vo
   _ctrl_xfer.buffer        = (uint8_t*) buffer;
   _ctrl_xfer.total_xferred = 0U;
   _ctrl_xfer.data_len      = tu_min16(len, request->wLength);
-  
+
   if (request->wLength > 0U)
   {
     if(_ctrl_xfer.data_len > 0U)

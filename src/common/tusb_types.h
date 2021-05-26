@@ -423,6 +423,29 @@ typedef struct TU_ATTR_PACKED
   char    url[];
 } tusb_desc_webusb_url_t;
 
+// DFU Functional Descriptor
+typedef struct TU_ATTR_PACKED
+{
+  uint8_t  bLength;
+  uint8_t  bDescriptorType;
+
+  union {
+    struct TU_ATTR_PACKED {
+      uint8_t bitCanDnload             : 1;
+      uint8_t bitCanUpload             : 1;
+      uint8_t bitManifestationTolerant : 1;
+      uint8_t bitWillDetach            : 1;
+      uint8_t reserved                 : 4;
+    } bmAttributes;
+
+    uint8_t bAttributes;
+  };
+
+  uint16_t wDetachTimeOut;
+  uint16_t wTransferSize;
+  uint16_t bcdDFUVersion;
+} tusb_desc_dfu_functional_t;
+
 /*------------------------------------------------------------------*/
 /* Types
  *------------------------------------------------------------------*/

@@ -1,4 +1,4 @@
-/* 
+/*
  * The MIT License (MIT)
  *
  * Copyright (c) 2019 Ha Thach (tinyusb.org)
@@ -94,6 +94,10 @@
 
   #if CFG_TUD_DFU_RUNTIME
     #include "class/dfu/dfu_rt_device.h"
+  #endif
+
+  #if CFG_TUD_DFU_MODE
+    #include "class/dfu/dfu_device.h"
   #endif
 
   #if CFG_TUD_NET

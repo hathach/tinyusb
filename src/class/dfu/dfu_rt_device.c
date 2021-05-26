@@ -34,23 +34,10 @@
 //--------------------------------------------------------------------+
 // MACRO CONSTANT TYPEDEF
 //--------------------------------------------------------------------+
-typedef enum {
-  DFU_REQUEST_DETACH      = 0,
-  DFU_REQUEST_DNLOAD      = 1,
-  DFU_REQUEST_UPLOAD      = 2,
-  DFU_REQUEST_GETSTATUS   = 3,
-  DFU_REQUEST_CLRSTATUS   = 4,
-  DFU_REQUEST_GETSTATE    = 5,
-  DFU_REQUEST_ABORT       = 6,
-} dfu_requests_t;
 
-typedef struct TU_ATTR_PACKED
-{
-  uint8_t status;
-  uint8_t poll_timeout[3];
-  uint8_t state;
-  uint8_t istring;
-} dfu_status_t;
+//--------------------------------------------------------------------+
+// INTERNAL OBJECT & FUNCTION DECLARATION
+//--------------------------------------------------------------------+
 
 //--------------------------------------------------------------------+
 // USBD Driver API
@@ -61,7 +48,7 @@ void dfu_rtd_init(void)
 
 void dfu_rtd_reset(uint8_t rhport)
 {
-  (void) rhport;
+    (void) rhport;
 }
 
 uint16_t dfu_rtd_open(uint8_t rhport, tusb_desc_interface_t const * itf_desc, uint16_t max_len)
@@ -70,8 +57,8 @@ uint16_t dfu_rtd_open(uint8_t rhport, tusb_desc_interface_t const * itf_desc, ui
   (void) max_len;
 
   // Ensure this is DFU Runtime
-  TU_VERIFY(itf_desc->bInterfaceSubClass == TUD_DFU_APP_SUBCLASS &&
-            itf_desc->bInterfaceProtocol == DFU_PROTOCOL_RT, 0);
+  TU_VERIFY((itf_desc->bInterfaceSubClass == TUD_DFU_APP_SUBCLASS) &&
+            (itf_desc->bInterfaceProtocol == DFU_PROTOCOL_RT), 0);
 
   uint8_t const * p_desc = tu_desc_next( itf_desc );
   uint16_t drv_len = sizeof(tusb_desc_interface_t);
@@ -90,7 +77,7 @@ uint16_t dfu_rtd_open(uint8_t rhport, tusb_desc_interface_t const * itf_desc, ui
 // return false to stall control endpoint (e.g unsupported request)
 bool dfu_rtd_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request_t const * request)
 {
-  // nothing to do with DATA and ACK stage
+  // nothing to do with DATA or ACK stage
   if ( stage != CONTROL_STAGE_SETUP ) return true;
 
   TU_VERIFY(request->bmRequestType_bit.recipient == TUSB_REQ_RCPT_INTERFACE);
@@ -106,33 +93,33 @@ bool dfu_rtd_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request
   // Handle class request only from here
   TU_VERIFY(request->bmRequestType_bit.type == TUSB_REQ_TYPE_CLASS);
 
-  switch ( request->bRequest )
+  switch (request->bRequest)
   {
     case DFU_REQUEST_DETACH:
+    {
+      TU_LOG2("  DFU RT Request: DETACH\r\n");
       tud_control_status(rhport, request);
       tud_dfu_runtime_reboot_to_dfu_cb();
+    }
     break;
 
     case DFU_REQUEST_GETSTATUS:
     {
-      // status = OK, poll timeout = 0, state = app idle, istring = 0
-      uint8_t status_response[6] = { 0, 0, 0, 0, 0, 0 };
-      tud_control_xfer(rhport, request, status_response, sizeof(status_response));
+      TU_LOG2("  DFU RT Request: GETSTATUS\r\n");
+      dfu_status_req_payload_t resp;
+      // Status = OK, Poll timeout is ignored during RT, State = APP_IDLE, IString = 0
+      memset(&resp, 0x00, sizeof(dfu_status_req_payload_t));
+      tud_control_xfer(rhport, request, &resp, sizeof(dfu_status_req_payload_t));
     }
     break;
 
-    default: return false; // stall unsupported request
+    default:
+    {
+      TU_LOG2("  DFU RT Unexpected Request: %d\r\n", request->bRequest);
+      return false; // stall unsupported request
+    }
   }
 
-  return true;
-}
-
-bool dfu_rtd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint32_t xferred_bytes)
-{
-  (void) rhport;
-  (void) ep_addr;
-  (void) result;
-  (void) xferred_bytes;
   return true;
 }
 
