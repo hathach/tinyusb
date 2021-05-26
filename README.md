@@ -77,7 +77,7 @@ Supports multiple device configurations by dynamically changing usb descriptors.
 
 TinyUSB is completely thread-safe by pushing all ISR events into a central queue, then process it later in the non-ISR context task function. It also uses semaphore/mutex to access shared resources such as CDC FIFO. Therefore the stack needs to use some of OS's basic APIs. Following OSes are already supported out of the box.
 
-- **No OS** : Disabling USB IRQ is used as way to provide mutex
+- **No OS**
 - **FreeRTOS**
 - **Mynewt** Due to the newt package build system, Mynewt examples are better to be on its [own repo](https://github.com/hathach/mynewt-tinyusb-example) 
 
