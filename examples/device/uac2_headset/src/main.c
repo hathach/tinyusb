@@ -332,13 +332,14 @@ bool tud_audio_set_itf_cb(uint8_t rhport, tusb_control_request_t const * p_reque
   return true;
 }
 
-bool tud_audio_rx_done_cb(uint8_t rhport, uint8_t *buffer, uint16_t buf_size)
+bool tud_audio_rx_done_pre_read_cb(uint8_t rhport, uint16_t n_bytes_received, uint8_t func_id, uint8_t ep_out, uint8_t cur_alt_setting)
 {
   (void)rhport;
+  (void)func_id;
+  (void)ep_out;
+  (void)cur_alt_setting;
 
-  spk_data_size = buf_size;
-  memcpy(spk_buf, buffer, buf_size);
-
+  spk_data_size = tud_audio_read(spk_buf, n_bytes_received);
   return true;
 }
 
