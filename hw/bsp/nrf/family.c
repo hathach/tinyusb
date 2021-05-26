@@ -55,7 +55,9 @@ static nrfx_uarte_t _uart_id = NRFX_UARTE_INSTANCE(0);
 // We must call it within SD's SOC event handler, or set it as power event handler if SD is not enabled.
 extern void tusb_hal_nrf_power_event(uint32_t event);
 
-static void power_event_handler(nrfx_power_usb_evt_t event)
+
+// nrf power callback, could be unused if SD is enabled or usb is disabled (board_test example)
+TU_ATTR_UNUSED static void power_event_handler(nrfx_power_usb_evt_t event)
 {
   tusb_hal_nrf_power_event((uint32_t) event);
 }
