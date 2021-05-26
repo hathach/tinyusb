@@ -1,0 +1,35 @@
+name: Build ESP
+
+on:
+  pull_request:
+  push:
+  release:
+    types:
+      - created
+
+jobs:
+  build-esp:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        board:
+        # Alphabetical order
+        # ESP32-S2
+        - 'adafruit_metro_esp32s2'
+        - 'espressif_saola_1'
+        # ESP32-S3
+        - 'espressif_addax_1'
+
+    steps:
+    - name: Setup Python
+      uses: actions/setup-python@v2
+
+    - name: Pull ESP-IDF docker
+      run: docker pull espressif/idf:latest
+
+    - name: Checkout TinyUSB
+      uses: actions/checkout@v2
+
+    - name: Build
+      run: docker run --rm -v $PWD:/project -w /project espressif/idf:latest python3 tools/build_esp32sx.py ${{ matrix.board }}

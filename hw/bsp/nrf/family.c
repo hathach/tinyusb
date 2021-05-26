@@ -55,6 +55,13 @@ static nrfx_uarte_t _uart_id = NRFX_UARTE_INSTANCE(0);
 // We must call it within SD's SOC event handler, or set it as power event handler if SD is not enabled.
 extern void tusb_hal_nrf_power_event(uint32_t event);
 
+
+// nrf power callback, could be unused if SD is enabled or usb is disabled (board_test example)
+TU_ATTR_UNUSED static void power_event_handler(nrfx_power_usb_evt_t event)
+{
+  tusb_hal_nrf_power_event((uint32_t) event);
+}
+
 void board_init(void)
 {
   // stop LF clock just in case we jump from application without reset
@@ -121,7 +128,7 @@ void board_init(void)
 
     // Register tusb function as USB power handler
     // cause cast-function-type warning
-    const nrfx_power_usbevt_config_t config = { .handler = ((nrfx_power_usb_event_handler_t) tusb_hal_nrf_power_event) };
+    const nrfx_power_usbevt_config_t config = { .handler = power_event_handler };
     nrfx_power_usbevt_init(&config);
 
     nrfx_power_usbevt_enable();

@@ -1,0 +1,51 @@
+name: Build Renesas
+
+on:
+  pull_request:
+  push:
+  release:
+    types:
+      - created
+
+jobs:
+  build-rx:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        family:
+        # Alphabetical order
+        - 'rx63n'
+    steps:
+    - name: Setup Python
+      uses: actions/setup-python@v2
+
+    - name: Checkout TinyUSB
+      uses: actions/checkout@v2
+
+    - name: Checkout common submodules in lib
+      run: git submodule update --init lib/FreeRTOS-Kernel lib/lwip
+
+    - name: Set Toolchain URL
+      run: echo >> $GITHUB_ENV TOOLCHAIN_URL=http://gcc-renesas.com/downloads/get.php?f=rx/8.3.0.202004-gnurx/gcc-8.3.0.202004-GNURX-ELF.run
+
+    - name: Cache Toolchain
+      uses: actions/cache@v2
+      id: cache-toolchain
+      with:
+        path: ~/cache/
+        key: ${{ runner.os }}-21-03-30-${{ env.TOOLCHAIN_URL }}
+
+    - name: Install Toolchain
+      if: steps.cache-toolchain.outputs.cache-hit != 'true'
+      run: |
+        mkdir -p ~/cache/toolchain/gnurx
+        wget --progress=dot:mega $TOOLCHAIN_URL -O toolchain.run
+        chmod +x toolchain.run
+        ./toolchain.run -p ~/cache/toolchain/gnurx -y
+
+    - name: Set Toolchain Path
+      run: echo >> $GITHUB_PATH `echo ~/cache/toolchain/*/bin`
+
+    - name: Build
+      run: python3 tools/build_family.py ${{ matrix.family }}
