@@ -53,10 +53,10 @@ The stack supports the following MCUs:
 
 Supports multiple device configurations by dynamically changing usb descriptors. Low power functions such like suspend, resume, and remote wakeup. Following device classes are supported:
 
-- USB Audio Class 2.0 (UAC2) still work in progress
+- Audio Class 2.0 (UAC2) still work in progress
 - Bluetooth Host Controller Interface (BTH HCI)
 - Communication Class (CDC)
-- Device Firmware Update (DFU): only Runtinme 
+- Device Firmware Update (DFU): DFU mode (WIP) and Runtinme 
 - Human Interface Device (HID): Generic (In & Out), Keyboard, Mouse, Gamepad etc ...
 - Mass Storage Class (MSC): with multiple LUNs
 - Musical Instrument Digital Interface (MIDI)
