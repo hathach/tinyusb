@@ -1,4 +1,4 @@
-name: Build MSP430
+name: Build RISC-V
 
 on:
   pull_request:
@@ -7,15 +7,15 @@ on:
     types:
       - created
 
-jobs:  
-  build-msp430:
+jobs:
+  build-riscv:
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
         family:
         # Alphabetical order
-        - 'msp430'
+        - 'fomu'
     steps:
     - name: Setup Python
       uses: actions/setup-python@v2
@@ -27,7 +27,7 @@ jobs:
       run: git submodule update --init lib/FreeRTOS-Kernel lib/lwip
 
     - name: Set Toolchain URL
-      run: echo >> $GITHUB_ENV TOOLCHAIN_URL=http://software-dl.ti.com/msp430/msp430_public_sw/mcu/msp430/MSPGCC/9_2_0_0/export/msp430-gcc-9.2.0.50_linux64.tar.bz2
+      run: echo >> $GITHUB_ENV TOOLCHAIN_URL=https://github.com/xpack-dev-tools/riscv-none-embed-gcc-xpack/releases/download/v10.1.0-1.1/xpack-riscv-none-embed-gcc-10.1.0-1.1-linux-x64.tar.gz
 
     - name: Cache Toolchain
       uses: actions/cache@v2
@@ -40,8 +40,8 @@ jobs:
       if: steps.cache-toolchain.outputs.cache-hit != 'true'
       run: |
         mkdir -p ~/cache/toolchain
-        wget --progress=dot:mega $TOOLCHAIN_URL -O toolchain.tar.bz2
-        tar -C ~/cache/toolchain -xaf toolchain.tar.bz2
+        wget --progress=dot:mega $TOOLCHAIN_URL -O toolchain.tar.gz
+        tar -C ~/cache/toolchain -xaf toolchain.tar.gz
 
     - name: Set Toolchain Path
       run: echo >> $GITHUB_PATH `echo ~/cache/toolchain/*/bin`
