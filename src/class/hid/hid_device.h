@@ -200,9 +200,9 @@ static inline bool  tud_hid_gamepad_report(uint8_t report_id, int8_t x, int8_t y
     /* 6-byte Keycodes */ \
     HID_USAGE_PAGE ( HID_USAGE_PAGE_KEYBOARD )                     ,\
       HID_USAGE_MIN    ( 0                                   )     ,\
-      HID_USAGE_MAX    ( 255                                 )     ,\
+      HID_USAGE_MAX_N  ( 255, 2                              )     ,\
       HID_LOGICAL_MIN  ( 0                                   )     ,\
-      HID_LOGICAL_MAX  ( 255                                 )     ,\
+      HID_LOGICAL_MAX_N( 255, 2                              )     ,\
       HID_REPORT_COUNT ( 6                                   )     ,\
       HID_REPORT_SIZE  ( 8                                   )     ,\
       HID_INPUT        ( HID_DATA | HID_ARRAY | HID_ABSOLUTE )     ,\
@@ -288,7 +288,7 @@ static inline bool  tud_hid_gamepad_report(uint8_t report_id, int8_t x, int8_t y
  * 0x00 - do nothing
  * 0x01 - Power Off
  * 0x02 - Standby
- * 0x04 - Wake Host
+ * 0x03 - Wake Host
  */
 #define TUD_HID_REPORT_DESC_SYSTEM_CONTROL(...) \
   HID_USAGE_PAGE ( HID_USAGE_PAGE_DESKTOP           )        ,\
@@ -301,8 +301,8 @@ static inline bool  tud_hid_gamepad_report(uint8_t report_id, int8_t x, int8_t y
     HID_LOGICAL_MAX  ( 3                                   ) ,\
     HID_REPORT_COUNT ( 1                                   ) ,\
     HID_REPORT_SIZE  ( 2                                   ) ,\
-    HID_USAGE        ( HID_USAGE_DESKTOP_SYSTEM_SLEEP      ) ,\
     HID_USAGE        ( HID_USAGE_DESKTOP_SYSTEM_POWER_DOWN ) ,\
+    HID_USAGE        ( HID_USAGE_DESKTOP_SYSTEM_SLEEP      ) ,\
     HID_USAGE        ( HID_USAGE_DESKTOP_SYSTEM_WAKE_UP    ) ,\
     HID_INPUT        ( HID_DATA | HID_ARRAY | HID_ABSOLUTE ) ,\
     /* 6 bit padding */ \
