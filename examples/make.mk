@@ -88,6 +88,7 @@ CFLAGS += \
   -fno-strict-aliasing \
   -Wdouble-promotion \
   -Wstrict-prototypes \
+  -Wstrict-overflow \
   -Wall \
   -Wextra \
   -Werror \
@@ -100,7 +101,8 @@ CFLAGS += \
   -Wsign-compare \
   -Wmissing-format-attribute \
   -Wunreachable-code \
-  -Wcast-align
+  -Wcast-align \
+  -Wcast-function-type
 
 # Debugging/Optimization
 ifeq ($(DEBUG), 1)
