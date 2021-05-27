@@ -35,8 +35,6 @@
 #include "pico/fix/rp2040_usb_device_enumeration.h"
 #endif
 
-#include "osal/osal.h"
-#include "common/tusb_fifo.h"
 #include "device/dcd.h"
 
 /*------------------------------------------------------------------*/

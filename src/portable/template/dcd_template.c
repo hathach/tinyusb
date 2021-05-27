@@ -28,7 +28,6 @@
 
 #if CFG_TUSB_MCU == OPT_MCU_NONE
 
-#include "common/tusb_fifo.h"
 #include "device/dcd.h"
 
 //--------------------------------------------------------------------+

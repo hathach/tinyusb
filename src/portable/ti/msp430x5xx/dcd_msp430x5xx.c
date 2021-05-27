@@ -30,7 +30,6 @@
 #if TUSB_OPT_DEVICE_ENABLED && ( CFG_TUSB_MCU == OPT_MCU_MSP430x5xx )
 
 #include "msp430.h"
-#include "common/tusb_fifo.h"
 #include "device/dcd.h"
 
 /*------------------------------------------------------------------*/

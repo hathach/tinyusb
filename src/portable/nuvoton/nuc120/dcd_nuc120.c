@@ -37,7 +37,6 @@
 
 #if TUSB_OPT_DEVICE_ENABLED && (CFG_TUSB_MCU == OPT_MCU_NUC120)
 
-#include "common/tusb_fifo.h"
 #include "device/dcd.h"
 #include "NUC100Series.h"
 

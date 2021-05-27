@@ -40,7 +40,6 @@
 #include "soc/gpio_sig_map.h"
 #include "soc/usb_periph.h"
 
-#include "common/tusb_fifo.h"
 #include "device/dcd.h"
 
 // Since TinyUSB doesn't use SOF for now, and this interrupt too often (1ms interval)
