@@ -77,14 +77,10 @@
 
 #if (TUSB_OPT_DEVICE_ENABLED && CFG_TUD_USBTMC)
 
-#include <string.h>
-#include "usbtmc.h"
-#include "usbtmc_device.h"
 #include "device/usbd.h"
-#include "osal/osal.h"
-
-// FIXME: I shouldn't need to include _pvt headers, but it is necessary for usbd_edpt_xfer, _stall, and _busy
 #include "device/usbd_pvt.h"
+
+#include "usbtmc_device.h"
 
 #ifdef xDEBUG
 #include "uart_util.h"

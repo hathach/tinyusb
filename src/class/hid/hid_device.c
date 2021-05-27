@@ -31,9 +31,10 @@
 //--------------------------------------------------------------------+
 // INCLUDE
 //--------------------------------------------------------------------+
-#include "common/tusb_common.h"
-#include "hid_device.h"
+#include "device/usbd.h"
 #include "device/usbd_pvt.h"
+
+#include "hid_device.h"
 
 //--------------------------------------------------------------------+
 // MACRO CONSTANT TYPEDEF

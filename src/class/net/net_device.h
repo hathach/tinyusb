@@ -28,7 +28,6 @@
 #ifndef _TUSB_NET_DEVICE_H_
 #define _TUSB_NET_DEVICE_H_
 
-#include "common/tusb_common.h"
 #include "device/usbd.h"
 #include "class/cdc/cdc.h"
 
