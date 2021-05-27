@@ -55,9 +55,10 @@
 //--------------------------------------------------------------------+
 // INCLUDE
 //--------------------------------------------------------------------+
+#include "device/usbd.h"
 #include "device/usbd_pvt.h"
+
 #include "audio_device.h"
-//#include "common/tusb_fifo.h"
 
 //--------------------------------------------------------------------+
 // MACRO CONSTANT TYPEDEF
@@ -548,7 +549,7 @@ static bool audiod_rx_done_cb(uint8_t rhport, audiod_function_t* audio, uint16_t
   TU_VERIFY(usbd_edpt_xfer(rhport, audio->ep_out, audio->lin_buf_out, audio->ep_out_sz), false);
 #else
   // Data is already placed in EP FIFO, schedule for next receive
-  TU_VERIFY(usbd_edpt_iso_xfer(rhport, audio->ep_out, &audio->ep_out_ff, audio->ep_out_sz), false);
+  TU_VERIFY(usbd_edpt_xfer_fifo(rhport, audio->ep_out, &audio->ep_out_ff, audio->ep_out_sz), false);
 #endif
 
 #endif
@@ -852,7 +853,7 @@ static bool audiod_tx_done_cb(uint8_t rhport, audiod_function_t * audio)
   TU_VERIFY(usbd_edpt_xfer(rhport, audio->ep_in, audio->lin_buf_in, n_bytes_tx));
 #else
   // Send everything in ISO EP FIFO
-  TU_VERIFY(usbd_edpt_iso_xfer(rhport, audio->ep_in, &audio->ep_in_ff, n_bytes_tx));
+  TU_VERIFY(usbd_edpt_xfer_fifo(rhport, audio->ep_in, &audio->ep_in_ff, n_bytes_tx));
 #endif
 
 #endif
@@ -1611,7 +1612,7 @@ static bool audiod_set_interface(uint8_t rhport, tusb_control_request_t const * 
 #if USE_LINEAR_BUFFER_RX
             TU_VERIFY(usbd_edpt_xfer(rhport, audio->ep_out, audio->lin_buf_out, audio->ep_out_sz), false);
 #else
-            TU_VERIFY(usbd_edpt_iso_xfer(rhport, audio->ep_out, &audio->ep_out_ff, audio->ep_out_sz), false);
+            TU_VERIFY(usbd_edpt_xfer_fifo(rhport, audio->ep_out, &audio->ep_out_ff, audio->ep_out_sz), false);
 #endif
           }
 

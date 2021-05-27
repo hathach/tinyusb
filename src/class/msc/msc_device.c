@@ -28,10 +28,11 @@
 
 #if (TUSB_OPT_DEVICE_ENABLED && CFG_TUD_MSC)
 
-#include "common/tusb_common.h"
-#include "msc_device.h"
+#include "device/usbd.h"
 #include "device/usbd_pvt.h"
 #include "device/dcd.h"         // for faking dcd_event_xfer_complete
+
+#include "msc_device.h"
 
 //--------------------------------------------------------------------+
 // MACRO CONSTANT TYPEDEF

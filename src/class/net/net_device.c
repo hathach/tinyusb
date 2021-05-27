@@ -29,8 +29,10 @@
 
 #if ( TUSB_OPT_DEVICE_ENABLED && CFG_TUD_NET )
 
-#include "net_device.h"
+#include "device/usbd.h"
 #include "device/usbd_pvt.h"
+
+#include "net_device.h"
 #include "rndis_protocol.h"
 
 void rndis_class_set_handler(uint8_t *data, int size); /* found in ./misc/networking/rndis_reports.c */

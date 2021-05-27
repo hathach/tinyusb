@@ -28,7 +28,7 @@
 
 #if (TUSB_OPT_HOST_ENABLED && CFG_TUH_CDC)
 
-#include "common/tusb_common.h"
+#include "host/usbh.h"
 #include "cdc_host.h"
 
 //--------------------------------------------------------------------+

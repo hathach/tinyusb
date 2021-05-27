@@ -28,8 +28,10 @@
 
 #if (TUSB_OPT_DEVICE_ENABLED && CFG_TUD_CDC)
 
-#include "cdc_device.h"
+#include "device/usbd.h"
 #include "device/usbd_pvt.h"
+
+#include "cdc_device.h"
 
 //--------------------------------------------------------------------+
 // MACRO CONSTANT TYPEDEF

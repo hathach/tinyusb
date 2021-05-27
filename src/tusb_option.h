@@ -55,11 +55,11 @@
 #define OPT_MCU_NRF5X             100 ///< Nordic nRF5x series
 
 // SAM
-#define OPT_MCU_SAMD11            204 ///< MicroChip SAMD11
 #define OPT_MCU_SAMD21            200 ///< MicroChip SAMD21
 #define OPT_MCU_SAMD51            201 ///< MicroChip SAMD51
-#define OPT_MCU_SAME5X            203 ///< MicroChip SAM E5x
 #define OPT_MCU_SAMG              202 ///< MicroChip SAMDG series
+#define OPT_MCU_SAME5X            203 ///< MicroChip SAM E5x
+#define OPT_MCU_SAMD11            204 ///< MicroChip SAMD11
 #define OPT_MCU_SAML22            205 ///< MicroChip SAML22
 
 // STM32

@@ -31,9 +31,10 @@
 //--------------------------------------------------------------------+
 // INCLUDE
 //--------------------------------------------------------------------+
-#include "midi_device.h"
-#include "class/audio/audio.h"
+#include "device/usbd.h"
 #include "device/usbd_pvt.h"
+
+#include "midi_device.h"
 
 //--------------------------------------------------------------------+
 // MACRO CONSTANT TYPEDEF

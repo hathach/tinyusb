@@ -2,18 +2,65 @@
 
 ## WIP
 
-- Add new port Silabs EFM32GG12, board EFM32GG12 Thunderboard Kit (SLTB009A)
-- Add new port Renesas RX63N, board GR-CITRUS
-- MIDI
-  - Fix MIDI buffer overflow issue
+- Rework tu_fifo_t with separated mutex for read and write, better support DMA with read/write buffer info. And constant address mode
+- Improve audio_test example and add audio_4_channel_mic example
+- Add new dfu example
+- Remove pico-sdk from submodule
+
+### Device Controller Driver (DCD)
+
+- Add new DCD port for Silabs EFM32GG12 with board Thunderboard Kit (SLTB009A)
+- Add new DCD port Renesas RX63N, board GR-CITRUS
+- Add new (optional) endpoint API dcd_edpt_xfer_fifo 
+- Fix build with nRF5340
+- Fix build with lpc15 and lpc54
+- Fix build with lpc177x_8x
+- STM32 Synopsys: greatly improve Isochronous transfer with edpt_xfer_fifo API
+- Support LPC55 port1 highspeed
+- Add support for Espressif esp32s3
+- nRF: fix race condition that could cause drop packet of Bulk OUT transfer
+
+### USB Device Driver (USBD)
+
+- Add new (optional) endpoint ADPI usbd_edpt_xfer_fifo
+
+### Device Class Driver
+
+CDC
+
+- [Breaking] tud_cdc_peek(), tud_vendor_peek() dropped position parameter. If needed, tu_fifo_get_read_info() can be used to peek at random offset.
+
+DFU
+
+- Add new DFU 1.1 class driver (WIP)
+
+HID
+
+- Fix keyboard report descriptor template
+- Add more hid keys constant from 0x6B to 0xA4
+- [Breaking] rename API
+  - HID_PROTOCOL_NONE/KEYBOARD/MOUST to HID_ITF_PROTOCOL_NONE/KEYBOARD/MOUSE
+  - tud_hid_boot_mode() to tud_hid_get_protocol()
+  - tud_hid_boot_mode_cb() to tud_hid_set_protocol_cb()
+
+MIDI
+
+- Fix MIDI buffer overflow issue
+- [Breaking] rename API
   - Rename tud_midi_read() to tud_midi_stream_read()
   - Rename tud_midi_write() to tud_midi_stream_write()
   - Rename tud_midi_receive() to tud_midi_packet_read()
   - Rename tud_midi_send() to tud_midi_packet_write()
-- New board stm32f072-eval
-- Breaking changes
-  - tud_cdc_peek(), tud_vendor_peek() dropped position parameter. If needed, tu_fifo_get_read_info() can be used to peek
-    at random offset.
+
+### Host Controller Driver (HCD)
+
+### USB Host Driver (USBH)
+
+### Host Class Driver
+
+HID
+
+- Rework host hid driver, basically everything changes
 
 ## 0.9.0 - 2021.03.12
 
