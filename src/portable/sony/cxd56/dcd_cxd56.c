@@ -33,7 +33,6 @@
 #include <nuttx/arch.h>
 
 #include "device/dcd.h"
-#include "osal/osal.h"
 
 #define CXD56_EPNUM (7)
 #define CXD56_SETUP_QUEUE_DEPTH (4)
