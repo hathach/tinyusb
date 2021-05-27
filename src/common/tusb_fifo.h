@@ -28,6 +28,10 @@
 #ifndef _TUSB_FIFO_H_
 #define _TUSB_FIFO_H_
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 // Due to the use of unmasked pointers, this FIFO does not suffer from loosing
 // one item slice. Furthermore, write and read operations are completely
 // decoupled as write and read functions do not modify a common state. Henceforth,
@@ -37,16 +41,11 @@
 // read pointers can be updated from within a DMA ISR. Overflows are detectable
 // within a certain number (see tu_fifo_overflow()).
 
+#include "common/tusb_common.h"
+
 // mutex is only needed for RTOS
 // for OS None, we don't get preempted
 #define CFG_FIFO_MUTEX      (CFG_TUSB_OS != OPT_OS_NONE)
-
-#include <stdint.h>
-#include <stdbool.h>
-
-#ifdef __cplusplus
-extern "C" {
-#endif
 
 #if CFG_FIFO_MUTEX
 #include "osal/osal.h"
@@ -127,7 +126,7 @@ uint16_t tu_fifo_remaining              (tu_fifo_t* f);
 bool     tu_fifo_overflowed             (tu_fifo_t* f);
 void     tu_fifo_correct_read_pointer   (tu_fifo_t* f);
 
-static inline
+TU_ATTR_ALWAYS_INLINE static inline
 uint16_t tu_fifo_depth(tu_fifo_t* f)
 {
   return f->depth;
