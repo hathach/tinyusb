@@ -1,6 +1,6 @@
 # TinyUSB Changelog
 
-## WIP
+## 0.10.0 - 2021.05.28
 
 - Rework tu_fifo_t with separated mutex for read and write, better support DMA with read/write buffer info. And constant address mode
 - Improve audio_test example and add audio_4_channel_mic example
@@ -28,7 +28,7 @@
 
 CDC
 
-- [Breaking] tud_cdc_peek(), tud_vendor_peek() dropped position parameter. If needed, tu_fifo_get_read_info() can be used to peek at random offset.
+- [Breaking] tud_cdc_peek(), tud_vendor_peek() no longer support random offset and dropped position parameter.
 
 DFU
 
@@ -54,13 +54,15 @@ MIDI
 
 ### Host Controller Driver (HCD)
 
+- No noticable changes
+
 ### USB Host Driver (USBH)
+
+- No noticable changes
 
 ### Host Class Driver
 
-HID
-
-- Rework host hid driver, basically everything changes
+- HID: Rework host hid driver, basically everything changes
 
 ## 0.9.0 - 2021.03.12
 
