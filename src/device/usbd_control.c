@@ -36,6 +36,10 @@
 extern void usbd_driver_print_control_complete_name(usbd_control_xfer_cb_t callback);
 #endif
 
+#if defined(TU_HAS_NO_ATTR_WEAK)
+static void (*const MAKE_WEAK_FUNC(dcd_edpt0_status_complete))(uint8_t, tusb_control_request_t const *) = DCD_EDPT0_STATUS_COMPLETE;
+#endif
+
 enum
 {
   EDPT_CTRL_OUT = 0x00,
@@ -55,8 +59,17 @@ typedef struct
 
 static usbd_control_xfer_t _ctrl_xfer;
 
+#if defined(TU_HAS_NO_ATTR_ALIGNED)
+// Helper union to overcome the lack of the alignment attribute/pragma
+static union {
+  uint16_t : (sizeof(uint16_t) * 8);  // Alignment of at least the size of the used type
+  uint8_t _usbd_ctrl_buf[CFG_TUD_ENDPOINT0_SIZE];
+} Align_usbd_ctrl_buf_;
+static uint8_t *_usbd_ctrl_buf = (uint8_t*)&Align_usbd_ctrl_buf_;
+#else
 CFG_TUSB_MEM_SECTION CFG_TUSB_MEM_ALIGN
 static uint8_t _usbd_ctrl_buf[CFG_TUD_ENDPOINT0_SIZE];
+#endif
 
 //--------------------------------------------------------------------+
 // Application API
@@ -171,7 +184,7 @@ bool usbd_control_xfer_cb (uint8_t rhport, uint8_t ep_addr, xfer_result_t result
     TU_ASSERT(0 == xferred_bytes);
 
     // invoke optional dcd hook if available
-    if (dcd_edpt0_status_complete) dcd_edpt0_status_complete(rhport, &_ctrl_xfer.request);
+    if (MAKE_WEAK_FUNC(dcd_edpt0_status_complete)) MAKE_WEAK_FUNC(dcd_edpt0_status_complete)(rhport, &_ctrl_xfer.request);
 
     if (_ctrl_xfer.complete_cb)
     {

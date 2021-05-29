@@ -33,6 +33,19 @@
 #include "device/usbd_pvt.h"
 #include "device/dcd.h"
 
+#if defined(TU_HAS_NO_ATTR_WEAK)
+static uint8_t const* (*const MAKE_WEAK_FUNC(tud_descriptor_bos_cb))(void) = TUD_DESCRIPTOR_BOS_CB;
+static uint8_t const* (*const MAKE_WEAK_FUNC(tud_descriptor_device_qualifier_cb))(void) = TUD_DESCRIPTOR_DEVICE_QUALIFIER_CB;
+static void (*const MAKE_WEAK_FUNC(tud_mount_cb))(void) = TUD_MOUNT_CB;
+static void (*const MAKE_WEAK_FUNC(tud_umount_cb))(void) = TUD_UMOUNT_CB;
+static void (*const MAKE_WEAK_FUNC(tud_suspend_cb))(_Bool) = TUD_SUSPEND_CB;
+static void (*const MAKE_WEAK_FUNC(tud_resume_cb))(void) = TUD_RESUME_CB;
+static _Bool (*const MAKE_WEAK_FUNC(tud_vendor_control_xfer_cb))(uint8_t, uint8_t, tusb_control_request_t const *) = TUD_RESUME_CB;
+static usbd_class_driver_t const* (*const MAKE_WEAK_FUNC(usbd_app_driver_get_cb))(uint8_t*) = USBD_APP_DRIVER_GET_CB;
+static bool (*const MAKE_WEAK_FUNC(dcd_edpt_xfer_fifo))(uint8_t, uint8_t, tu_fifo_t *, uint16_t) = DCD_EDPT_XFER_FIFO;
+static void (*const MAKE_WEAK_FUNC(dcd_edpt_close))(uint8_t, uint8_t) = DCD_EDPT_CLOSE;
+#endif
+
 #ifndef CFG_TUD_TASK_QUEUE_SZ
 #define CFG_TUD_TASK_QUEUE_SZ   16
 #endif
@@ -50,6 +63,8 @@ enum { DRVID_INVALID = 0xFFu };
 
 typedef struct
 {
+  TU_PACK_STRUCT_BEGIN
+  TU_BIT_FIELD_ORDER_BEGIN
   struct TU_ATTR_PACKED
   {
     volatile uint8_t connected    : 1;
@@ -60,6 +75,8 @@ typedef struct
     uint8_t remote_wakeup_support : 1; // configuration descriptor's attribute
     uint8_t self_powered          : 1; // configuration descriptor's attribute
   };
+  TU_BIT_FIELD_ORDER_END
+  TU_PACK_STRUCT_END
 
   volatile uint8_t cfg_num; // current active configuration (0x00 is not configured)
   uint8_t speed;
@@ -67,6 +84,8 @@ typedef struct
   uint8_t itf2drv[16];     // map interface number to driver (0xff is invalid)
   uint8_t ep2drv[CFG_TUD_EP_MAX][2]; // map endpoint to driver ( 0xff is invalid )
 
+  TU_PACK_STRUCT_BEGIN
+  TU_BIT_FIELD_ORDER_BEGIN
   struct TU_ATTR_PACKED
   {
     volatile bool busy    : 1;
@@ -75,6 +94,8 @@ typedef struct
 
     // TODO merge ep2drv here, 4-bit should be sufficient
   }ep_status[CFG_TUD_EP_MAX][2];
+  TU_BIT_FIELD_ORDER_END
+  TU_PACK_STRUCT_END
 
 }usbd_device_t;
 
@@ -236,7 +257,7 @@ static uint8_t _app_driver_count = 0;
 static inline usbd_class_driver_t const * get_driver(uint8_t drvid)
 {
   // Application drivers
-  if ( usbd_app_driver_get_cb )
+  if ( MAKE_WEAK_FUNC(usbd_app_driver_get_cb) )
   {
     if ( drvid < _app_driver_count ) return &_app_driver[drvid];
     drvid -= _app_driver_count;
@@ -408,9 +429,9 @@ bool tud_init (uint8_t rhport)
   TU_ASSERT(_usbd_q);
 
   // Get application driver if available
-  if ( usbd_app_driver_get_cb )
+  if ( MAKE_WEAK_FUNC(usbd_app_driver_get_cb) )
   {
-    _app_driver = usbd_app_driver_get_cb(&_app_driver_count);
+    _app_driver = MAKE_WEAK_FUNC(usbd_app_driver_get_cb)(&_app_driver_count);
   }
 
   // Init class drivers
@@ -501,7 +522,7 @@ void tud_task (void)
         usbd_reset(event.rhport);
 
         // invoke callback
-        if (tud_umount_cb) tud_umount_cb();
+        if (MAKE_WEAK_FUNC(tud_umount_cb)) MAKE_WEAK_FUNC(tud_umount_cb)();
       break;
 
       case DCD_EVENT_SETUP_RECEIVED:
@@ -557,12 +578,12 @@ void tud_task (void)
 
       case DCD_EVENT_SUSPEND:
         TU_LOG2("\r\n");
-        if (tud_suspend_cb) tud_suspend_cb(_usbd_dev.remote_wakeup_en);
+        if (MAKE_WEAK_FUNC(tud_suspend_cb)) MAKE_WEAK_FUNC(tud_suspend_cb)(_usbd_dev.remote_wakeup_en);
       break;
 
       case DCD_EVENT_RESUME:
         TU_LOG2("\r\n");
-        if (tud_resume_cb) tud_resume_cb();
+        if (MAKE_WEAK_FUNC(tud_resume_cb)) MAKE_WEAK_FUNC(tud_resume_cb)();
       break;
 
       case DCD_EVENT_SOF:
@@ -609,10 +630,10 @@ static bool process_control_request(uint8_t rhport, tusb_control_request_t const
   // Vendor request
   if ( p_request->bmRequestType_bit.type == TUSB_REQ_TYPE_VENDOR )
   {
-    TU_VERIFY(tud_vendor_control_xfer_cb);
+    TU_VERIFY(MAKE_WEAK_FUNC(tud_vendor_control_xfer_cb));
 
-    usbd_control_set_complete_callback(tud_vendor_control_xfer_cb);
-    return tud_vendor_control_xfer_cb(rhport, CONTROL_STAGE_SETUP, p_request);
+    usbd_control_set_complete_callback(MAKE_WEAK_FUNC(tud_vendor_control_xfer_cb));
+    return MAKE_WEAK_FUNC(tud_vendor_control_xfer_cb)(rhport, CONTROL_STAGE_SETUP, p_request);
   }
 
 #if CFG_TUSB_DEBUG >= 2
@@ -831,7 +852,7 @@ static bool process_set_config(uint8_t rhport, uint8_t cfg_num)
 
   // Parse interface descriptor
   uint8_t const * p_desc   = ((uint8_t const*) desc_cfg) + sizeof(tusb_desc_configuration_t);
-  uint8_t const * desc_end = ((uint8_t const*) desc_cfg) + desc_cfg->wTotalLength;
+  uint8_t const * desc_end = ((uint8_t const*) desc_cfg) + tu_le16toh(desc_cfg->wTotalLength);
 
   while( p_desc < desc_end )
   {
@@ -892,7 +913,7 @@ static bool process_set_config(uint8_t rhport, uint8_t cfg_num)
   }
 
   // invoke callback
-  if (tud_mount_cb) tud_mount_cb();
+  if (MAKE_WEAK_FUNC(tud_mount_cb)) MAKE_WEAK_FUNC(tud_mount_cb)();
 
   return true;
 }
@@ -949,15 +970,15 @@ static bool process_get_descriptor(uint8_t rhport, tusb_control_request_t const 
       TU_LOG2(" BOS\r\n");
 
       // requested by host if USB > 2.0 ( i.e 2.1 or 3.x )
-      if (!tud_descriptor_bos_cb) return false;
+      if (!MAKE_WEAK_FUNC(tud_descriptor_bos_cb)) return false;
 
-      tusb_desc_bos_t const* desc_bos = (tusb_desc_bos_t const*) tud_descriptor_bos_cb();
+      tusb_desc_bos_t const* desc_bos = (tusb_desc_bos_t const*)MAKE_WEAK_FUNC(tud_descriptor_bos_cb)();
 
       uint16_t total_len;
       // Use offsetof to avoid pointer to the odd/misaligned address
       memcpy(&total_len, (uint8_t*) desc_bos + offsetof(tusb_desc_bos_t, wTotalLength), 2);
 
-      return tud_control_xfer(rhport, p_request, (void*) desc_bos, total_len);
+      return tud_control_xfer(rhport, p_request, (void*) desc_bos, tu_le16toh(total_len));
     }
     break;
 
@@ -972,7 +993,7 @@ static bool process_get_descriptor(uint8_t rhport, tusb_control_request_t const 
       // Use offsetof to avoid pointer to the odd/misaligned address
       memcpy(&total_len, (uint8_t*) desc_config + offsetof(tusb_desc_configuration_t, wTotalLength), 2);
 
-      return tud_control_xfer(rhport, p_request, (void*) desc_config, total_len);
+      return tud_control_xfer(rhport, p_request, (void*) desc_config, tu_le16toh(total_len));
     }
     break;
 
@@ -995,9 +1016,9 @@ static bool process_get_descriptor(uint8_t rhport, tusb_control_request_t const 
       // Host sends this request to ask why our device with USB BCD from 2.0
       // but is running at Full/Low Speed. If not highspeed capable stall this request,
       // otherwise return the descriptor that could work in highspeed mode
-      if ( tud_descriptor_device_qualifier_cb )
+      if (MAKE_WEAK_FUNC(tud_descriptor_device_qualifier_cb))
       {
-        uint8_t const* desc_qualifier = tud_descriptor_device_qualifier_cb();
+        uint8_t const* desc_qualifier = MAKE_WEAK_FUNC(tud_descriptor_device_qualifier_cb)();
         TU_ASSERT(desc_qualifier);
 
         // first byte of descriptor is its size
@@ -1165,18 +1186,18 @@ bool usbd_edpt_open(uint8_t rhport, tusb_desc_endpoint_t const * desc_ep)
       if (_usbd_dev.speed == TUSB_SPEED_HIGH)
       {
         // Bulk highspeed must be EXACTLY 512
-        TU_ASSERT(desc_ep->wMaxPacketSize.size == 512);
+        TU_ASSERT(tu_le16toh(desc_ep->wMaxPacketSize.size) == 512);
       }else
       {
         // TODO Bulk fullspeed can only be 8, 16, 32, 64
-        TU_ASSERT(desc_ep->wMaxPacketSize.size <= 64);
+        TU_ASSERT(tu_le16toh(desc_ep->wMaxPacketSize.size) <= 64);
       }
     break;
 
     case TUSB_XFER_INTERRUPT:
     {
       uint16_t const max_epsize = (_usbd_dev.speed == TUSB_SPEED_HIGH ? 1024 : 64);
-      TU_ASSERT(desc_ep->wMaxPacketSize.size <= max_epsize);
+      TU_ASSERT(tu_le16toh(desc_ep->wMaxPacketSize.size) <= max_epsize);
     }
     break;
 
@@ -1285,7 +1306,7 @@ bool usbd_edpt_iso_xfer(uint8_t rhport, uint8_t ep_addr, tu_fifo_t * ff, uint16_
   // and usbd task can preempt and clear the busy
   _usbd_dev.ep_status[epnum][dir].busy = true;
 
-  if (dcd_edpt_xfer_fifo(rhport, ep_addr, ff, total_bytes))
+  if (MAKE_WEAK_FUNC(dcd_edpt_xfer_fifo)(rhport, ep_addr, ff, total_bytes))
   {
     TU_LOG2("OK\r\n");
     return true;
@@ -1348,10 +1369,10 @@ bool usbd_edpt_stalled(uint8_t rhport, uint8_t ep_addr)
  */
 void usbd_edpt_close(uint8_t rhport, uint8_t ep_addr)
 {
-  TU_ASSERT(dcd_edpt_close, /**/);
+  TU_ASSERT(MAKE_WEAK_FUNC(dcd_edpt_close), /**/);
   TU_LOG2("  CLOSING Endpoint: 0x%02X\r\n", ep_addr);
 
-  dcd_edpt_close(rhport, ep_addr);
+  MAKE_WEAK_FUNC(dcd_edpt_close(rhport, ep_addr));
 
   return;
 }

@@ -216,6 +216,7 @@ typedef enum
 //--------------------------------------------------------------------+
 
 /// Header Functional Descriptor (Communication Interface)
+TU_PACK_STRUCT_BEGIN
 typedef struct TU_ATTR_PACKED
 {
   uint8_t bLength            ; ///< Size of this descriptor in bytes.
@@ -223,8 +224,10 @@ typedef struct TU_ATTR_PACKED
   uint8_t bDescriptorSubType ; ///< Descriptor SubType one of above CDC_FUNC_DESC_
   uint16_t bcdCDC            ; ///< CDC release number in Binary-Coded Decimal
 }cdc_desc_func_header_t;
+TU_PACK_STRUCT_END
 
 /// Union Functional Descriptor (Communication Interface)
+TU_PACK_STRUCT_BEGIN
 typedef struct TU_ATTR_PACKED
 {
   uint8_t bLength                  ; ///< Size of this descriptor in bytes.
@@ -233,17 +236,21 @@ typedef struct TU_ATTR_PACKED
   uint8_t bControlInterface        ; ///< Interface number of Communication Interface
   uint8_t bSubordinateInterface    ; ///< Array of Interface number of Data Interface
 }cdc_desc_func_union_t;
+TU_PACK_STRUCT_END
 
 #define cdc_desc_func_union_n_t(no_slave)\
- struct TU_ATTR_PACKED { \
+ TU_PACK_STRUCT_BEGIN                      \
+ struct TU_ATTR_PACKED {                   \
   uint8_t bLength                         ;\
   uint8_t bDescriptorType                 ;\
   uint8_t bDescriptorSubType              ;\
   uint8_t bControlInterface               ;\
   uint8_t bSubordinateInterface[no_slave] ;\
-}
+}                                          \
+TU_PACK_STRUCT_END
 
 /// Country Selection Functional Descriptor (Communication Interface)
+TU_PACK_STRUCT_BEGIN
 typedef struct TU_ATTR_PACKED
 {
   uint8_t bLength             ; ///< Size of this descriptor in bytes.
@@ -252,15 +259,18 @@ typedef struct TU_ATTR_PACKED
   uint8_t iCountryCodeRelDate ; ///< Index of a string giving the release date for the implemented ISO 3166 Country Codes.
   uint16_t wCountryCode       ; ///< Country code in the format as defined in [ISO3166], release date as specified inoffset 3 for the first supported country.
 }cdc_desc_func_country_selection_t;
+TU_PACK_STRUCT_END
 
 #define cdc_desc_func_country_selection_n_t(no_country) \
-  struct TU_ATTR_PACKED {\
+  TU_PACK_STRUCT_BEGIN               \
+  struct TU_ATTR_PACKED {            \
   uint8_t bLength                   ;\
   uint8_t bDescriptorType           ;\
   uint8_t bDescriptorSubType        ;\
   uint8_t iCountryCodeRelDate       ;\
   uint16_t wCountryCode[no_country] ;\
-}
+}                                    \
+TU_PACK_STRUCT_END
 
 //--------------------------------------------------------------------+
 // PUBLIC SWITCHED TELEPHONE NETWORK (PSTN) SUBCLASS
@@ -268,22 +278,28 @@ typedef struct TU_ATTR_PACKED
 
 /// \brief Call Management Functional Descriptor
 /// \details This functional descriptor describes the processing of calls for the Communications Class interface.
+TU_PACK_STRUCT_BEGIN
 typedef struct TU_ATTR_PACKED
 {
   uint8_t bLength            ; ///< Size of this descriptor in bytes.
   uint8_t bDescriptorType    ; ///< Descriptor Type, must be Class-Specific
   uint8_t bDescriptorSubType ; ///< Descriptor SubType one of above CDC_FUCN_DESC_
 
+  TU_BIT_FIELD_ORDER_BEGIN
   struct {
     uint8_t handle_call    : 1; ///< 0 - Device sends/receives call management information only over the Communications Class interface. 1 - Device can send/receive call management information over a Data Class interface.
     uint8_t send_recv_call : 1; ///< 0 - Device does not handle call management itself. 1 - Device handles call management itself.
     uint8_t TU_RESERVED    : 6;
   } bmCapabilities;
+  TU_BIT_FIELD_ORDER_END
 
   uint8_t bDataInterface;
 }cdc_desc_func_call_management_t;
+TU_PACK_STRUCT_END
 
 
+TU_PACK_STRUCT_BEGIN
+TU_BIT_FIELD_ORDER_BEGIN
 typedef struct TU_ATTR_PACKED
 {
   uint8_t support_comm_request                    : 1; ///< Device supports the request combination of Set_Comm_Feature, Clear_Comm_Feature, and Get_Comm_Feature.
@@ -292,11 +308,14 @@ typedef struct TU_ATTR_PACKED
   uint8_t support_notification_network_connection : 1; ///< Device supports the notification Network_Connection.
   uint8_t TU_RESERVED                             : 4;
 }cdc_acm_capability_t;
+TU_BIT_FIELD_ORDER_END
+TU_PACK_STRUCT_END
 
 TU_VERIFY_STATIC(sizeof(cdc_acm_capability_t) == 1, "mostly problem with compiler");
 
 /// \brief Abstract Control Management Functional Descriptor
 /// \details This functional descriptor describes the commands supported by by the Communications Class interface with SubClass code of \ref CDC_COMM_SUBCLASS_ABSTRACT_CONTROL_MODEL
+TU_PACK_STRUCT_BEGIN
 typedef struct TU_ATTR_PACKED
 {
   uint8_t bLength                  ; ///< Size of this descriptor in bytes.
@@ -304,25 +323,31 @@ typedef struct TU_ATTR_PACKED
   uint8_t bDescriptorSubType       ; ///< Descriptor SubType one of above CDC_FUCN_DESC_
   cdc_acm_capability_t bmCapabilities ;
 }cdc_desc_func_acm_t;
+TU_PACK_STRUCT_END
 
 /// \brief Direct Line Management Functional Descriptor
 /// \details This functional descriptor describes the commands supported by the Communications Class interface with SubClass code of \ref CDC_FUNC_DESC_DIRECT_LINE_MANAGEMENT
+TU_PACK_STRUCT_BEGIN
 typedef struct TU_ATTR_PACKED
 {
   uint8_t bLength            ; ///< Size of this descriptor in bytes.
   uint8_t bDescriptorType    ; ///< Descriptor Type, must be Class-Specific
   uint8_t bDescriptorSubType ; ///< Descriptor SubType one of above CDC_FUCN_DESC_
+  TU_BIT_FIELD_ORDER_BEGIN
   struct {
     uint8_t require_pulse_setup   : 1; ///< Device requires extra Pulse_Setup request during pulse dialing sequence to disengage holding circuit.
     uint8_t support_aux_request   : 1; ///< Device supports the request combination of Set_Aux_Line_State, Ring_Aux_Jack, and notification Aux_Jack_Hook_State.
     uint8_t support_pulse_request : 1; ///< Device supports the request combination of Pulse_Setup, Send_Pulse, and Set_Pulse_Time.
     uint8_t TU_RESERVED           : 5;
   } bmCapabilities;
+  TU_BIT_FIELD_ORDER_END
 }cdc_desc_func_direct_line_management_t;
+TU_PACK_STRUCT_END
 
 /// \brief Telephone Ringer Functional Descriptor
 /// \details The Telephone Ringer functional descriptor describes the ringer capabilities supported by the Communications Class interface,
 /// with the SubClass code of \ref CDC_COMM_SUBCLASS_TELEPHONE_CONTROL_MODEL
+TU_PACK_STRUCT_BEGIN
 typedef struct TU_ATTR_PACKED
 {
   uint8_t bLength            ; ///< Size of this descriptor in bytes.
@@ -331,31 +356,38 @@ typedef struct TU_ATTR_PACKED
   uint8_t bRingerVolSteps    ;
   uint8_t bNumRingerPatterns ;
 }cdc_desc_func_telephone_ringer_t;
+TU_PACK_STRUCT_END
 
 /// \brief Telephone Operational Modes Functional Descriptor
 /// \details The Telephone Operational Modes functional descriptor describes the operational modes supported by
 /// the Communications Class interface, with the SubClass code of \ref CDC_COMM_SUBCLASS_TELEPHONE_CONTROL_MODEL
+TU_PACK_STRUCT_BEGIN
 typedef struct TU_ATTR_PACKED
 {
   uint8_t bLength            ; ///< Size of this descriptor in bytes.
   uint8_t bDescriptorType    ; ///< Descriptor Type, must be Class-Specific
   uint8_t bDescriptorSubType ; ///< Descriptor SubType one of above CDC_FUCN_DESC_
+  TU_BIT_FIELD_ORDER_BEGIN
   struct {
     uint8_t simple_mode           : 1;
     uint8_t standalone_mode       : 1;
     uint8_t computer_centric_mode : 1;
     uint8_t TU_RESERVED           : 5;
   } bmCapabilities;
+  TU_BIT_FIELD_ORDER_END
 }cdc_desc_func_telephone_operational_modes_t;
+TU_PACK_STRUCT_END
 
 /// \brief Telephone Call and Line State Reporting Capabilities Descriptor
 /// \details The Telephone Call and Line State Reporting Capabilities functional descriptor describes the abilities of a
 /// telephone device to report optional call and line states.
+TU_PACK_STRUCT_BEGIN
 typedef struct TU_ATTR_PACKED
 {
   uint8_t bLength            ; ///< Size of this descriptor in bytes.
   uint8_t bDescriptorType    ; ///< Descriptor Type, must be Class-Specific
   uint8_t bDescriptorSubType ; ///< Descriptor SubType one of above CDC_FUCN_DESC_
+  TU_BIT_FIELD_ORDER_BEGIN
   struct {
     uint32_t interrupted_dialtone   : 1; ///< 0 : Reports only dialtone (does not differentiate between normal and interrupted dialtone). 1 : Reports interrupted dialtone in addition to normal dialtone
     uint32_t ringback_busy_fastbusy : 1; ///< 0 : Reports only dialing state. 1 : Reports ringback, busy, and fast busy states.
@@ -365,7 +397,9 @@ typedef struct TU_ATTR_PACKED
     uint32_t line_state_change      : 1; ///< 0 : Does not support line state change notification. 1 : Does support line state change notification
     uint32_t TU_RESERVED            : 26;
   } bmCapabilities;
+  TU_BIT_FIELD_ORDER_END
 }cdc_desc_func_telephone_call_state_reporting_capabilities_t;
+TU_PACK_STRUCT_END
 
 static inline uint8_t cdc_functional_desc_typeof(uint8_t const * p_desc)
 {
@@ -375,6 +409,7 @@ static inline uint8_t cdc_functional_desc_typeof(uint8_t const * p_desc)
 //--------------------------------------------------------------------+
 // Requests
 //--------------------------------------------------------------------+
+TU_PACK_STRUCT_BEGIN
 typedef struct TU_ATTR_PACKED
 {
   uint32_t bit_rate;
@@ -382,15 +417,20 @@ typedef struct TU_ATTR_PACKED
   uint8_t  parity;    ///< 0: None - 1: Odd - 2: Even - 3: Mark - 4: Space
   uint8_t  data_bits; ///< can be 5, 6, 7, 8 or 16
 } cdc_line_coding_t;
+TU_PACK_STRUCT_END
 
 TU_VERIFY_STATIC(sizeof(cdc_line_coding_t) == 7, "size is not correct");
 
+TU_PACK_STRUCT_BEGIN
+TU_BIT_FIELD_ORDER_BEGIN
 typedef struct TU_ATTR_PACKED
 {
   uint16_t dte_is_present : 1; ///< Indicates to DCE if DTE is presentor not. This signal corresponds to V.24 signal 108/2 and RS-232 signal DTR.
   uint16_t half_duplex_carrier_control : 1;
   uint16_t : 14;
 } cdc_line_control_state_t;
+TU_BIT_FIELD_ORDER_END
+TU_PACK_STRUCT_END
 
 TU_VERIFY_STATIC(sizeof(cdc_line_control_state_t) == 2, "size is not correct");
 

@@ -51,6 +51,7 @@ static inline void osal_task_delay(uint32_t msec)
 typedef StaticSemaphore_t osal_semaphore_def_t;
 typedef SemaphoreHandle_t osal_semaphore_t;
 
+#if (configSUPPORT_STATIC_ALLOCATION == 1)  //FIXME Only static API supported
 static inline osal_semaphore_t osal_semaphore_create(osal_semaphore_def_t* semdef)
 {
   return xSemaphoreCreateBinaryStatic(semdef);
@@ -76,6 +77,7 @@ static inline bool osal_semaphore_post(osal_semaphore_t sem_hdl, bool in_isr)
     return res != 0;
   }
 }
+#endif
 
 static inline bool osal_semaphore_wait (osal_semaphore_t sem_hdl, uint32_t msec)
 {
@@ -96,7 +98,12 @@ typedef SemaphoreHandle_t osal_mutex_t;
 
 static inline osal_mutex_t osal_mutex_create(osal_mutex_def_t* mdef)
 {
+#if (configSUPPORT_STATIC_ALLOCATION == 0) //FIXME Only static API supported
+  (void)mdef;
+  return xSemaphoreCreateMutex();
+#else
   return xSemaphoreCreateMutexStatic(mdef);
+#endif
 }
 
 static inline bool osal_mutex_lock (osal_mutex_t mutex_hdl, uint32_t msec)
@@ -131,7 +138,11 @@ typedef QueueHandle_t osal_queue_t;
 
 static inline osal_queue_t osal_queue_create(osal_queue_def_t* qdef)
 {
+#if defined(__Tx36V5_Maincard__)
+  return xQueueCreate(qdef->depth, qdef->item_sz);
+#else
   return xQueueCreateStatic(qdef->depth, qdef->item_sz, (uint8_t*) qdef->buf, &qdef->sq);
+#endif
 }
 
 static inline bool osal_queue_receive(osal_queue_t qhdl, void* data)
@@ -139,6 +150,19 @@ static inline bool osal_queue_receive(osal_queue_t qhdl, void* data)
   return xQueueReceive(qhdl, data, portMAX_DELAY);
 }
 
+#if defined(__Tx36V5_Maincard__)
+extern BaseType_t UsbTaskWoken;
+static inline bool osal_queue_send(osal_queue_t qhdl, void const * data, bool in_isr)
+{
+  if (!in_isr) {
+    return(xQueueSendToBack(qhdl, data, OSAL_TIMEOUT_WAIT_FOREVER));
+
+  } else {
+    BaseType_t res = xQueueSendToBackFromISR(qhdl, data, &UsbTaskWoken);
+    return(res != 0);
+  }
+}
+#else
 static inline bool osal_queue_send(osal_queue_t qhdl, void const * data, bool in_isr)
 {
   if ( !in_isr )
@@ -159,6 +183,7 @@ static inline bool osal_queue_send(osal_queue_t qhdl, void const * data, bool in
     return res != 0;
   }
 }
+#endif
 
 static inline bool osal_queue_empty(osal_queue_t qhdl)
 {

@@ -130,6 +130,7 @@ static inline bool     tud_cdc_write_clear     (void);
 // Application Callback API (weak is optional)
 //--------------------------------------------------------------------+
 
+#if !defined(TU_HAS_NO_ATTR_WEAK)
 // Invoked when received new data
 TU_ATTR_WEAK void tud_cdc_rx_cb(uint8_t itf);
 
@@ -147,6 +148,62 @@ TU_ATTR_WEAK void tud_cdc_line_coding_cb(uint8_t itf, cdc_line_coding_t const* p
 
 // Invoked when received send break
 TU_ATTR_WEAK void tud_cdc_send_break_cb(uint8_t itf, uint16_t duration_ms);
+
+#else
+ #if  ADD_WEAK_FUNC_TUD_CDC_RX_CB
+  #define TUD_CDC_RX_CB  tud_cdc_rx_cb
+ #endif
+ #ifndef TUD_CDC_RX_CB
+  #define TUD_CDC_RX_CB    NULL
+ #else
+  extern void TUD_CDC_RX_CB(uint8_t itf);
+ #endif
+
+ #if ADD_WEAK_FUNC_TUD_CDC_RX_WANTED_CB
+  #define TUD_CDC_RX_WANTED_CB  tud_cdc_rx_wanted_cb
+ #endif
+ #ifndef TUD_CDC_RX_WANTED_CB
+  #define TUD_CDC_RX_WANTED_CB    NULL
+ #else
+  extern void TUD_CDC_RX_WANTED_CB(uint8_t itf, char wanted_char);
+ #endif
+
+ #if ADD_WEAK_FUNC_TUD_CDC_TX_COMPLETE_CB
+  #define TUD_CDC_TX_COMPLETE_CB  tud_cdc_tx_complete_cb
+ #endif
+ #ifndef TUD_CDC_TX_COMPLETE_CB
+  #define TUD_CDC_TX_COMPLETE_CB    NULL
+ #else
+  extern void TUD_CDC_TX_COMPLETE_CB(uint8_t itf);
+ #endif
+
+ #if ADD_WEAK_FUNC_TUD_CDC_LINE_STATE_CB
+  #define TUD_CDC_LINE_STATE_CB  tud_cdc_line_state_cb
+ #endif
+ #ifndef TUD_CDC_LINE_STATE_CB
+  #define TUD_CDC_LINE_STATE_CB    NULL
+ #else
+  extern void TUD_CDC_LINE_STATE_CB(uint8_t itf, bool dtr, bool rts);
+ #endif
+
+ #if ADD_WEAK_FUNC_TUD_CDC_LINE_CODING_CB
+  #define TUD_CDC_LINE_CODING_CB  tud_cdc_line_coding_cb
+ #endif
+ #ifndef TUD_CDC_LINE_CODING_CB
+  #define TUD_CDC_LINE_CODING_CB    NULL
+ #else
+  extern void TUD_CDC_LINE_CODING_CB(uint8_t itf, cdc_line_coding_t const* p_line_coding);
+ #endif
+
+ #if ADD_WEAK_FUNC_TUD_CDC_SEND_BREAK_CB
+  #define TUD_CDC_SEND_BREAK_CB  tud_cdc_send_break_cb
+ #endif
+ #ifndef TUD_CDC_SEND_BREAK_CB
+  #define TUD_CDC_SEND_BREAK_CB    NULL
+ #else
+  extern void TUD_CDC_SEND_BREAK_CB(uint8_t itf, uint16_t duration_ms);
+ #endif
+#endif
 
 //--------------------------------------------------------------------+
 // Inline Functions
