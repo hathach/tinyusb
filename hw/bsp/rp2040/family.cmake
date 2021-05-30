@@ -1,77 +1,69 @@
-# Board specific define e.g boot stage2
-# PICO_DEFAULT_BOOT_STAGE2_FILE must be set before pico_sdk_init()
-include(${TOP}/hw/bsp/${FAMILY}/boards/${BOARD}/board.cmake)
+cmake_minimum_required(VERSION 3.13)
+if (NOT TARGET _rp2040_family_inclusion_marker)
+	add_library(_rp2040_family_inclusion_marker INTERFACE)
 
-pico_sdk_init()
+	# include basic family CMake functionality
+	set(FAMILY_MCUS RP2040 rp2040)
+	include(${CMAKE_CURRENT_LIST_DIR}/../family.cmake)
 
-target_link_libraries(${PROJECT}
-  pico_stdlib
-  pico_bootsel_via_double_reset
-  pico_fix_rp2040_usb_device_enumeration
-)
+	if (BOARD AND NOT PICO_BOARD)
+		message("Defaulting PICO_BOARD from BOARD ('${BOARD}')")
+		set(PICO_BOARD ${BOARD})
+	endif()
 
-pico_add_extra_outputs(${PROJECT})
-pico_enable_stdio_uart(${PROJECT} 1)
+	# add the SDK in case we are standalone tinyusb example (noop if already present)
+	include(${CMAKE_CURRENT_LIST_DIR}/pico_sdk_import.cmake)
+	set(BOARD ${PICO_BOARD})
 
-# TinyUSB Stack source
-set(SRC_TINYUSB
-	${TOP}/src/tusb.c
-	${TOP}/src/common/tusb_fifo.c
-	${TOP}/src/device/usbd.c
-	${TOP}/src/device/usbd_control.c
-	${TOP}/src/class/audio/audio_device.c
-	${TOP}/src/class/cdc/cdc_device.c
-	${TOP}/src/class/dfu/dfu_device.c
-	${TOP}/src/class/dfu/dfu_rt_device.c
-	${TOP}/src/class/hid/hid_device.c
-	${TOP}/src/class/midi/midi_device.c
-	${TOP}/src/class/msc/msc_device.c
-	${TOP}/src/class/net/net_device.c
-	${TOP}/src/class/usbtmc/usbtmc_device.c
-	${TOP}/src/class/vendor/vendor_device.c
-	${TOP}/src/host/hub.c
-	${TOP}/src/host/usbh.c
-	${TOP}/src/host/usbh_control.c
-	${TOP}/src/class/cdc/cdc_host.c
-	${TOP}/src/class/hid/hid_host.c
-	${TOP}/src/class/msc/msc_host.c
-	${TOP}/src/portable/raspberrypi/${FAMILY}/rp2040_usb.c
-	${TOP}/src/portable/raspberrypi/${FAMILY}/dcd_rp2040.c
-	${TOP}/src/portable/raspberrypi/${FAMILY}/hcd_rp2040.c
-)
+	# TOP is absolute path to root directory of TinyUSB git repo
+	set(TOP "../../..")
+	get_filename_component(TOP "${TOP}" REALPATH)
 
-target_sources(${PROJECT} PUBLIC
-  ${TOP}/hw/bsp/${FAMILY}/family.c
-  ${SRC_TINYUSB}
-)
+	# tinyusb_additions will hold our extra settings libraries
+	add_library(tinyusb_additions INTERFACE)
 
-target_include_directories(${PROJECT} PUBLIC
-  ${TOP}/hw
-  ${TOP}/src
-  ${TOP}/hw/bsp/${FAMILY}/boards/${BOARD}
-)
+	target_compile_definitions(tinyusb_additions INTERFACE
+		PICO_RP2040_USB_DEVICE_ENUMERATION_FIX=1
+	)
 
-target_compile_definitions(${PROJECT} PUBLIC
-  CFG_TUSB_MCU=OPT_MCU_RP2040
-  PICO_RP2040_USB_DEVICE_ENUMERATION_FIX=1
-)
+	if(DEFINED LOG)
+	  target_compile_definitions(tinyusb_additions INTERFACE CFG_TUSB_DEBUG=${LOG} )
+	endif()
 
-if(DEFINED LOG)
-  target_compile_definitions(${PROJECT} PUBLIC CFG_TUSB_DEBUG=${LOG} )
+	if(LOGGER STREQUAL "rtt")
+	  target_compile_definitions(tinyusb_additions INTERFACE
+		LOGGER_RTT
+		SEGGER_RTT_MODE_DEFAULT=SEGGER_RTT_MODE_BLOCK_IF_FIFO_FULL
+	  )
+
+	  target_sources(tinyusb_additions INTERFACE
+		${TOP}/lib/SEGGER_RTT/RTT/SEGGER_RTT.c
+	  )
+
+	  target_include_directories(tinyusb_additions INTERFACE
+		${TOP}/lib/SEGGER_RTT/RTT
+	  )
+	endif()
+
+	function(family_configure_target TARGET)
+		pico_add_extra_outputs(${TARGET})
+		pico_enable_stdio_uart(${TARGET} 1)
+		target_link_libraries(${TARGET} PUBLIC pico_stdlib pico_bootsel_via_double_reset tinyusb_board tinyusb_additions)
+	endfunction()
+
+	function(family_configure_device_example TARGET)
+		family_configure_target(${TARGET})
+		target_link_libraries(${TARGET} PUBLIC pico_stdlib tinyusb_device)
+	endfunction()
+
+	function(family_configure_host_example TARGET)
+		family_configure_target(${TARGET})
+		target_link_libraries(${TARGET} PUBLIC pico_stdlib tinyusb_host)
+	endfunction()
+
+	function(family_initialize_project PROJECT DIR)
+		_family_initialize_project(${PROJECT} ${DIR})
+		enable_language(C CXX ASM)
+		pico_sdk_init()
+	endfunction()
 endif()
-
-if(LOGGER STREQUAL "rtt")
-  target_compile_definitions(${PROJECT} PUBLIC
-    LOGGER_RTT
-    SEGGER_RTT_MODE_DEFAULT=SEGGER_RTT_MODE_BLOCK_IF_FIFO_FULL
-  )
-
-  target_sources(${PROJECT} PUBLIC
-    ${TOP}/lib/SEGGER_RTT/RTT/SEGGER_RTT.c
-  )
-
-  target_include_directories(${PROJECT} PUBLIC
-    ${TOP}/lib/SEGGER_RTT/RTT
-  )
-endif()
-
