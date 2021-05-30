@@ -210,6 +210,7 @@ void _hw_endpoint_xfer_sync(struct hw_endpoint *ep)
     uint16_t transferred_bytes = buf_ctrl & USB_BUF_CTRL_LEN_MASK;
 
 #if TUSB_OPT_HOST_ENABLED
+    // RP2040-E4
     // tag::host_buf_sel_fix[]
     // TODO need changes to support double buffering
     if (ep->buf_sel == 1)
