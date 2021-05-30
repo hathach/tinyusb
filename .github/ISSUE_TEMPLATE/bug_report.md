@@ -11,6 +11,7 @@ assignees: ''
 
 - **PC OS** e.g Ubuntu 20.04 / Windows 10/ macOS 10.15
 - **Board** e.g Feather nRF52840 Express (if custom specify your MCUs)
+- **TinyUSB version** relase version or git hash (preferrably running with master for lastest code) 
 - **Firmware** e.g examples/device/cdc_msc
 
 **Describe The Bug**
