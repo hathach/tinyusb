@@ -136,6 +136,7 @@ void _hw_endpoint_start_next_buffer(struct hw_endpoint *ep)
     // Special case with control status stage where PID is always DATA1
     if ( ep->transfer_size == 0 )
     {
+      // ZLP also toggle data
       ep->next_pid ^= 1u;
     }else
     {
