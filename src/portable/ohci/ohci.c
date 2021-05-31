@@ -123,6 +123,23 @@ enum {
   OHCI_INT_ON_COMPLETE_YES = 0,
   OHCI_INT_ON_COMPLETE_NO  = TU_BIN8(111)
 };
+
+enum {
+  GTD_DT_TOGGLE_CARRY = 0,
+  GTD_DT_DATA0 = TU_BIT(1) | 0,
+  GTD_DT_DATA1 = TU_BIT(1) | 1,
+};
+
+enum {
+  PID_SETUP = 0,
+  PID_OUT,
+  PID_IN,
+};
+
+enum {
+  PID_FROM_TD = 0,
+};
+
 //--------------------------------------------------------------------+
 // INTERNAL OBJECT & FUNCTION DECLARATION
 //--------------------------------------------------------------------+
@@ -185,10 +202,10 @@ bool hcd_init(uint8_t rhport)
   return true;
 }
 
-uint32_t hcd_uframe_number(uint8_t rhport)
+uint32_t hcd_frame_number(uint8_t rhport)
 {
   (void) rhport;
-  return (ohci_data.frame_number_hi << 16 | OHCI_REG->frame_number) << 3;
+  return (ohci_data.frame_number_hi << 16) | OHCI_REG->frame_number;
 }
 
 
@@ -248,12 +265,12 @@ void hcd_device_close(uint8_t rhport, uint8_t dev_addr)
 //--------------------------------------------------------------------+
 static inline tusb_xfer_type_t ed_get_xfer_type(ohci_ed_t const * const p_ed)
 {
-  return (p_ed->ep_number == 0 ) ? TUSB_XFER_CONTROL     :
-         (p_ed->is_iso               ) ? TUSB_XFER_ISOCHRONOUS :
-         (p_ed->is_interrupt_xfer    ) ? TUSB_XFER_INTERRUPT   : TUSB_XFER_BULK;
+  return (p_ed->ep_number == 0   ) ? TUSB_XFER_CONTROL     :
+         (p_ed->is_iso           ) ? TUSB_XFER_ISOCHRONOUS :
+         (p_ed->is_interrupt_xfer) ? TUSB_XFER_INTERRUPT   : TUSB_XFER_BULK;
 }
 
-static void ed_init(ohci_ed_t *p_ed, uint8_t dev_addr, uint16_t max_packet_size, uint8_t endpoint_addr, uint8_t xfer_type, uint8_t interval)
+static void ed_init(ohci_ed_t *p_ed, uint8_t dev_addr, uint16_t ep_size, uint8_t ep_addr, uint8_t xfer_type, uint8_t interval)
 {
   (void) interval;
 
@@ -263,18 +280,18 @@ static void ed_init(ohci_ed_t *p_ed, uint8_t dev_addr, uint16_t max_packet_size,
     tu_memclr(p_ed, sizeof(ohci_ed_t));
   }
 
-  p_ed->dev_addr    = dev_addr;
-  p_ed->ep_number   = endpoint_addr & 0x0F;
-  p_ed->pid         = (xfer_type == TUSB_XFER_CONTROL) ? OHCI_PID_SETUP : ( (endpoint_addr & TUSB_DIR_IN_MASK) ? OHCI_PID_IN : OHCI_PID_OUT );
+  p_ed->dev_addr          = dev_addr;
+  p_ed->ep_number         = ep_addr & 0x0F;
+  p_ed->pid               = (xfer_type == TUSB_XFER_CONTROL) ? PID_FROM_TD : (tu_edpt_dir(ep_addr) ? PID_IN : PID_OUT);
   p_ed->speed             = _usbh_devices[dev_addr].speed;
   p_ed->is_iso            = (xfer_type == TUSB_XFER_ISOCHRONOUS) ? 1 : 0;
-  p_ed->max_packet_size  = max_packet_size;
+  p_ed->max_packet_size   = ep_size;
 
   p_ed->used              = 1;
   p_ed->is_interrupt_xfer = (xfer_type == TUSB_XFER_INTERRUPT ? 1 : 0);
 }
 
-static void gtd_init(ohci_gtd_t* p_td, void* data_ptr, uint16_t total_bytes)
+static void gtd_init(ohci_gtd_t* p_td, uint8_t* data_ptr, uint16_t total_bytes)
 {
   tu_memclr(p_td, sizeof(ohci_gtd_t));
 
@@ -286,28 +303,7 @@ static void gtd_init(ohci_gtd_t* p_td, void* data_ptr, uint16_t total_bytes)
   p_td->condition_code         = OHCI_CCODE_NOT_ACCESSED;
 
   p_td->current_buffer_pointer = data_ptr;
-  p_td->buffer_end             = total_bytes ? (((uint8_t*) data_ptr) + total_bytes-1) : NULL;
-}
-
-bool hcd_setup_send(uint8_t rhport, uint8_t dev_addr, uint8_t const setup_packet[8])
-{
-  (void) rhport;
-
-  ohci_ed_t* p_ed = &ohci_data.control[dev_addr].ed;
-  ohci_gtd_t *p_setup  = &ohci_data.control[dev_addr].gtd;
-
-  gtd_init(p_setup, (void*) setup_packet, 8);
-  p_setup->index       = dev_addr;
-  p_setup->pid         = OHCI_PID_SETUP;
-  p_setup->data_toggle = TU_BIN8(10); // DATA0
-  p_setup->delay_interrupt = OHCI_INT_ON_COMPLETE_YES;
-
-  //------------- Attach TDs list to Control Endpoint -------------//
-  p_ed->td_head.address = (uint32_t) p_setup;
-
-  OHCI_REG->command_status_bit.control_list_filled = 1;
-
-  return true;
+  p_td->buffer_end             = total_bytes ? (data_ptr + total_bytes-1) : data_ptr;
 }
 
 static ohci_ed_t * ed_from_addr(uint8_t dev_addr, uint8_t ep_addr)
@@ -319,7 +315,7 @@ static ohci_ed_t * ed_from_addr(uint8_t dev_addr, uint8_t ep_addr)
   for(uint32_t i=0; i<HCD_MAX_ENDPOINT; i++)
   {
     if ( (ed_pool[i].dev_addr == dev_addr) &&
-          ep_addr == tu_edpt_addr(ed_pool[i].ep_number, ed_pool[i].pid == OHCI_PID_IN) )
+          ep_addr == tu_edpt_addr(ed_pool[i].ep_number, ed_pool[i].pid == PID_IN) )
     {
       return &ed_pool[i];
     }
@@ -430,6 +426,27 @@ bool hcd_edpt_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_endpoint_t const 
   return true;
 }
 
+bool hcd_setup_send(uint8_t rhport, uint8_t dev_addr, uint8_t const setup_packet[8])
+{
+  (void) rhport;
+
+  ohci_ed_t* ed   = &ohci_data.control[dev_addr].ed;
+  ohci_gtd_t *qtd = &ohci_data.control[dev_addr].gtd;
+
+  gtd_init(qtd, (uint8_t*) setup_packet, 8);
+  qtd->index           = dev_addr;
+  qtd->pid             = PID_SETUP;
+  qtd->data_toggle     = GTD_DT_DATA0;
+  qtd->delay_interrupt = 0;
+
+  //------------- Attach TDs list to Control Endpoint -------------//
+  ed->td_head.address = (uint32_t) qtd;
+
+  OHCI_REG->command_status_bit.control_list_filled = 1;
+
+  return true;
+}
+
 bool hcd_edpt_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr, uint8_t * buffer, uint16_t buflen)
 {
   (void) rhport;
@@ -437,7 +454,6 @@ bool hcd_edpt_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr, uint8_t * 
   uint8_t const epnum = tu_edpt_number(ep_addr);
   uint8_t const dir   = tu_edpt_dir(ep_addr);
 
-  // FIXME control only for now
   if ( epnum == 0 )
   {
     ohci_ed_t*  ed  = &ohci_data.control[dev_addr].ed;
@@ -446,9 +462,9 @@ bool hcd_edpt_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr, uint8_t * 
     gtd_init(gtd, buffer, buflen);
 
     gtd->index           = dev_addr;
-    gtd->pid             = dir ? OHCI_PID_IN : OHCI_PID_OUT;
-    gtd->data_toggle     = 3; // Both Data and Ack stage start with DATA1
-    gtd->delay_interrupt = OHCI_INT_ON_COMPLETE_YES;
+    gtd->pid             = dir ? PID_IN : PID_OUT;
+    gtd->data_toggle     = GTD_DT_DATA1; // Both Data and Ack stage start with DATA1
+    gtd->delay_interrupt = 0;
 
     ed->td_head.address = (uint32_t) gtd;
 
@@ -462,7 +478,7 @@ bool hcd_edpt_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr, uint8_t * 
 
     gtd_init(gtd, buffer, buflen);
     gtd->index = ed-ohci_data.ed_pool;
-    gtd->delay_interrupt = OHCI_INT_ON_COMPLETE_YES;
+    gtd->delay_interrupt = 0;
 
     td_insert_to_ed(ed, gtd);
 
@@ -539,7 +555,12 @@ static inline ohci_ed_t* gtd_get_ed(ohci_gtd_t const * const p_qtd)
 }
 
 static inline uint32_t gtd_xfer_byte_left(uint32_t buffer_end, uint32_t current_buffer)
-{ // 5.2.9 OHCI sample code
+{
+  // 5.2.9 OHCI sample code
+
+  // CBP is 0 mean all data is transferred
+  if (current_buffer == 0) return 0;
+
   return (tu_align4k(buffer_end ^ current_buffer) ? 0x1000 : 0) +
       tu_offset4k(buffer_end) - tu_offset4k(current_buffer) + 1;
 }
@@ -555,16 +576,16 @@ static void done_queue_isr(uint8_t hostid)
   {
     // TODO check if td_head is iso td
     //------------- Non ISO transfer -------------//
-    ohci_gtd_t * const p_qtd = (ohci_gtd_t *) td_head;
-    xfer_result_t const event = (p_qtd->condition_code == OHCI_CCODE_NO_ERROR) ? XFER_RESULT_SUCCESS :
-                                (p_qtd->condition_code == OHCI_CCODE_STALL) ? XFER_RESULT_STALLED : XFER_RESULT_FAILED;
+    ohci_gtd_t * const qtd = (ohci_gtd_t *) td_head;
+    xfer_result_t const event = (qtd->condition_code == OHCI_CCODE_NO_ERROR) ? XFER_RESULT_SUCCESS :
+                                (qtd->condition_code == OHCI_CCODE_STALL) ? XFER_RESULT_STALLED : XFER_RESULT_FAILED;
 
-    p_qtd->used = 0; // free TD
-    if ( (p_qtd->delay_interrupt == OHCI_INT_ON_COMPLETE_YES) || (event != XFER_RESULT_SUCCESS) )
+    qtd->used = 0; // free TD
+    if ( (qtd->delay_interrupt == OHCI_INT_ON_COMPLETE_YES) || (event != XFER_RESULT_SUCCESS) )
     {
-      ohci_ed_t * const p_ed  = gtd_get_ed(p_qtd);
+      ohci_ed_t * const ed  = gtd_get_ed(qtd);
 
-      uint32_t const xferred_bytes = p_qtd->expected_bytes - gtd_xfer_byte_left((uint32_t) p_qtd->buffer_end, (uint32_t) p_qtd->current_buffer_pointer);
+      uint32_t const xferred_bytes = qtd->expected_bytes - gtd_xfer_byte_left((uint32_t) qtd->buffer_end, (uint32_t) qtd->current_buffer_pointer);
 
       // NOTE Assuming the current list is BULK and there is no other EDs in the list has queued TDs.
       // When there is a error resulting this ED is halted, and this EP still has other queued TD
@@ -575,14 +596,14 @@ static void done_queue_isr(uint8_t hostid)
       // the TailP must be set back to NULL for processing remaining TDs
       if ((event != XFER_RESULT_SUCCESS))
       {
-        p_ed->td_tail &= 0x0Ful;
-        p_ed->td_tail |= tu_align16(p_ed->td_head.address); // mark halted EP as empty queue
-        if ( event == XFER_RESULT_STALLED ) p_ed->is_stalled = 1;
+        ed->td_tail &= 0x0Ful;
+        ed->td_tail |= tu_align16(ed->td_head.address); // mark halted EP as empty queue
+        if ( event == XFER_RESULT_STALLED ) ed->is_stalled = 1;
       }
 
-      hcd_event_xfer_complete(p_ed->dev_addr,
-                              tu_edpt_addr(p_ed->ep_number, p_ed->pid == OHCI_PID_IN),
-                              xferred_bytes, event, true);
+      uint8_t dir = (ed->ep_number == 0) ? (qtd->pid == PID_IN) : (ed->pid == PID_IN);
+
+      hcd_event_xfer_complete(ed->dev_addr, tu_edpt_addr(ed->ep_number, dir), xferred_bytes, event, true);
     }
 
     td_head = (ohci_td_item_t*) td_head->next;
@@ -631,7 +652,7 @@ void hcd_int_handler(uint8_t hostid)
   }
 
   //------------- Transfer Complete -------------//
-  if ( int_status & OHCI_INT_WRITEBACK_DONEHEAD_MASK)
+  if (int_status & OHCI_INT_WRITEBACK_DONEHEAD_MASK)
   {
     done_queue_isr(hostid);
   }
