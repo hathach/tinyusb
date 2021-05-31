@@ -42,13 +42,30 @@ typedef struct
   uint8_t status_change; // data from status change interrupt endpoint
 
   hub_port_status_response_t port_status;
-}usbh_hub_t;
+} hub_interface_t;
 
-CFG_TUSB_MEM_SECTION static usbh_hub_t hub_data[CFG_TUSB_HOST_DEVICE_MAX];
+CFG_TUSB_MEM_SECTION static hub_interface_t hub_data[CFG_TUSB_HOST_DEVICE_MAX];
 TU_ATTR_ALIGNED(4) CFG_TUSB_MEM_SECTION static uint8_t _hub_buffer[sizeof(descriptor_hub_desc_t)];
 
-//OSAL_SEM_DEF(hub_enum_semaphore);
-//static osal_semaphore_handle_t hub_enum_sem_hdl;
+#if CFG_TUSB_DEBUG
+static char const* const _hub_feature_str[] =
+{
+  [HUB_FEATURE_PORT_CONNECTION          ] = "PORT_CONNECTION",
+  [HUB_FEATURE_PORT_ENABLE              ] = "PORT_ENABLE",
+  [HUB_FEATURE_PORT_SUSPEND             ] = "PORT_SUSPEND",
+  [HUB_FEATURE_PORT_OVER_CURRENT        ] = "PORT_OVER_CURRENT",
+  [HUB_FEATURE_PORT_RESET               ] = "PORT_RESET",
+  [HUB_FEATURE_PORT_POWER               ] = "PORT_POWER",
+  [HUB_FEATURE_PORT_LOW_SPEED           ] = "PORT_LOW_SPEED",
+  [HUB_FEATURE_PORT_CONNECTION_CHANGE   ] = "PORT_CONNECTION_CHANGE",
+  [HUB_FEATURE_PORT_ENABLE_CHANGE       ] = "PORT_ENABLE_CHANGE",
+  [HUB_FEATURE_PORT_SUSPEND_CHANGE      ] = "PORT_SUSPEND_CHANGE",
+  [HUB_FEATURE_PORT_OVER_CURRENT_CHANGE ] = "PORT_OVER_CURRENT_CHANGE",
+  [HUB_FEATURE_PORT_RESET_CHANGE        ] = "PORT_RESET_CHANGE",
+  [HUB_FEATURE_PORT_TEST                ] = "PORT_TEST",
+  [HUB_FEATURE_PORT_INDICATOR           ] = "PORT_INDICATOR",
+};
+#endif
 
 //--------------------------------------------------------------------+
 // HUB
@@ -69,9 +86,35 @@ bool hub_port_clear_feature(uint8_t hub_addr, uint8_t hub_port, uint8_t feature,
     .wLength  = 0
   };
 
-  TU_LOG2("HUB Clear Port Feature: addr = %u port = %u, feature = %u\r\n", hub_addr, hub_port, feature);
+  TU_LOG2("HUB Clear Feature: %s, addr = %u port = %u\r\n", _hub_feature_str[feature], hub_addr, hub_port);
   TU_ASSERT( tuh_control_xfer(hub_addr, &request, NULL, complete_cb) );
   return true;
+}
+
+bool hub_port_set_feature(uint8_t hub_addr, uint8_t hub_port, uint8_t feature, tuh_control_complete_cb_t complete_cb)
+{
+  tusb_control_request_t const request =
+  {
+    .bmRequestType_bit =
+    {
+      .recipient = TUSB_REQ_RCPT_OTHER,
+      .type      = TUSB_REQ_TYPE_CLASS,
+      .direction = TUSB_DIR_OUT
+    },
+    .bRequest = HUB_REQUEST_SET_FEATURE,
+    .wValue   = feature,
+    .wIndex   = hub_port,
+    .wLength  = 0
+  };
+
+  TU_LOG2("HUB Set Feature: %s, addr = %u port = %u\r\n", _hub_feature_str[feature], hub_addr, hub_port);
+  TU_ASSERT( tuh_control_xfer(hub_addr, &request, NULL, complete_cb) );
+  return true;
+}
+
+bool hub_port_reset(uint8_t hub_addr, uint8_t hub_port, tuh_control_complete_cb_t complete_cb)
+{
+  return hub_port_set_feature(hub_addr, hub_port, HUB_FEATURE_PORT_RESET, complete_cb);
 }
 
 bool hub_port_get_status(uint8_t hub_addr, uint8_t hub_port, void* resp, tuh_control_complete_cb_t complete_cb)
@@ -95,33 +138,12 @@ bool hub_port_get_status(uint8_t hub_addr, uint8_t hub_port, void* resp, tuh_con
   return true;
 }
 
-bool hub_port_reset(uint8_t hub_addr, uint8_t hub_port, tuh_control_complete_cb_t complete_cb)
-{
-  tusb_control_request_t const request =
-  {
-    .bmRequestType_bit =
-    {
-      .recipient = TUSB_REQ_RCPT_OTHER,
-      .type      = TUSB_REQ_TYPE_CLASS,
-      .direction = TUSB_DIR_OUT
-    },
-    .bRequest = HUB_REQUEST_SET_FEATURE,
-    .wValue   = HUB_FEATURE_PORT_RESET,
-    .wIndex   = hub_port,
-    .wLength  = 0
-  };
-
-  TU_LOG2("HUB Reset Port: addr = %u port = %u\r\n", hub_addr, hub_port);
-  TU_ASSERT( tuh_control_xfer(hub_addr, &request, NULL, complete_cb) );
-  return true;
-}
-
 //--------------------------------------------------------------------+
 // CLASS-USBH API (don't require to verify parameters)
 //--------------------------------------------------------------------+
 void hub_init(void)
 {
-  tu_memclr(hub_data, CFG_TUSB_HOST_DEVICE_MAX*sizeof(usbh_hub_t));
+  tu_memclr(hub_data, CFG_TUSB_HOST_DEVICE_MAX*sizeof( hub_interface_t));
 //  hub_enum_sem_hdl = osal_semaphore_create( OSAL_SEM_REF(hub_enum_semaphore) );
 }
 
@@ -147,6 +169,10 @@ bool hub_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_interface_t const *itf
   return true;
 }
 
+//--------------------------------------------------------------------+
+// Set Configure
+//--------------------------------------------------------------------+
+
 static bool config_get_hub_desc_complete (uint8_t dev_addr, tusb_control_request_t const * request, xfer_result_t result);
 static bool config_port_power_complete (uint8_t dev_addr, tusb_control_request_t const * request, xfer_result_t result);
 
@@ -155,7 +181,7 @@ static bool config_get_hub_desc_complete (uint8_t dev_addr, tusb_control_request
   (void) request;
   TU_ASSERT(XFER_RESULT_SUCCESS == result);
 
-  usbh_hub_t* p_hub = &hub_data[dev_addr-1];
+   hub_interface_t* p_hub = &hub_data[dev_addr-1];
 
   // only use number of ports in hub descriptor
   descriptor_hub_desc_t const* desc_hub = (descriptor_hub_desc_t const*) _hub_buffer;
@@ -163,7 +189,7 @@ static bool config_get_hub_desc_complete (uint8_t dev_addr, tusb_control_request
 
   // May need to GET_STATUS
 
-  // Ports must be powered on to be able to detect connection
+  // Set Port Power to be able to detect connection
   tusb_control_request_t const new_request =
   {
     .bmRequestType_bit =
@@ -178,6 +204,8 @@ static bool config_get_hub_desc_complete (uint8_t dev_addr, tusb_control_request
     .wLength  = 0
   };
 
+  TU_LOG(2, "HUB Set Port Power: port = %u\r\n", new_request.wIndex);
+
   TU_ASSERT( tuh_control_xfer(dev_addr, &new_request, NULL, config_port_power_complete) );
 
   return true;
@@ -186,7 +214,7 @@ static bool config_get_hub_desc_complete (uint8_t dev_addr, tusb_control_request
 static bool config_port_power_complete (uint8_t dev_addr, tusb_control_request_t const * request, xfer_result_t result)
 {
   TU_ASSERT(XFER_RESULT_SUCCESS == result);
-  usbh_hub_t* p_hub = &hub_data[dev_addr-1];
+   hub_interface_t* p_hub = &hub_data[dev_addr-1];
 
   if (request->wIndex == p_hub->port_count)
   {
@@ -200,6 +228,8 @@ static bool config_port_power_complete (uint8_t dev_addr, tusb_control_request_t
     tusb_control_request_t new_request = *request;
     new_request.wIndex++; // power next port
 
+    TU_LOG(2, "HUB Set Port Power: port = %u\r\n", new_request.wIndex);
+
     TU_ASSERT( tuh_control_xfer(dev_addr, &new_request, NULL, config_port_power_complete) );
   }
 
@@ -208,7 +238,7 @@ static bool config_port_power_complete (uint8_t dev_addr, tusb_control_request_t
 
 bool hub_set_config(uint8_t dev_addr, uint8_t itf_num)
 {
-  usbh_hub_t* p_hub = &hub_data[dev_addr-1];
+   hub_interface_t* p_hub = &hub_data[dev_addr-1];
   TU_ASSERT(itf_num == p_hub->itf_num);
 
   //------------- Get Hub Descriptor -------------//
@@ -230,6 +260,10 @@ bool hub_set_config(uint8_t dev_addr, uint8_t itf_num)
 
   return true;
 }
+
+//--------------------------------------------------------------------+
+// Connection Changes
+//--------------------------------------------------------------------+
 
 static bool connection_clear_conn_change_complete (uint8_t dev_addr, tusb_control_request_t const * request, xfer_result_t result);
 static bool connection_get_status_complete (uint8_t dev_addr, tusb_control_request_t const * request, xfer_result_t result);
@@ -263,7 +297,7 @@ static bool connection_clear_conn_change_complete (uint8_t dev_addr, tusb_contro
 {
   TU_ASSERT(result == XFER_RESULT_SUCCESS);
 
-  usbh_hub_t * p_hub = &hub_data[dev_addr-1];
+  hub_interface_t * p_hub = &hub_data[dev_addr-1];
   uint8_t const port_num = (uint8_t) request->wIndex;
 
   if ( p_hub->port_status.status.connection )
@@ -293,7 +327,7 @@ static bool connection_clear_conn_change_complete (uint8_t dev_addr, tusb_contro
 static bool connection_get_status_complete (uint8_t dev_addr, tusb_control_request_t const * request, xfer_result_t result)
 {
   TU_ASSERT(result == XFER_RESULT_SUCCESS);
-  usbh_hub_t * p_hub = &hub_data[dev_addr-1];
+  hub_interface_t * p_hub = &hub_data[dev_addr-1];
   uint8_t const port_num = (uint8_t) request->wIndex;
 
   // Connection change
@@ -325,12 +359,13 @@ bool hub_xfer_cb(uint8_t dev_addr, uint8_t ep_addr, xfer_result_t result, uint32
   (void) ep_addr;
   TU_ASSERT( result == XFER_RESULT_SUCCESS);
 
-  usbh_hub_t * p_hub = &hub_data[dev_addr-1];
+  hub_interface_t * p_hub = &hub_data[dev_addr-1];
 
-  TU_LOG2("Port Status Change = 0x%02X\r\n", p_hub->status_change);
+  TU_LOG2("  Port Status Change = 0x%02X\r\n", p_hub->status_change);
+
+  // Hub ignore bit0 in status change
   for (uint8_t port=1; port <= p_hub->port_count; port++)
   {
-    // TODO HUB ignore bit0 hub_status_change
     if ( tu_bit_test(p_hub->status_change, port) )
     {
       hub_port_get_status(dev_addr, port, &p_hub->port_status, connection_get_status_complete);
@@ -345,13 +380,12 @@ bool hub_xfer_cb(uint8_t dev_addr, uint8_t ep_addr, xfer_result_t result, uint32
 
 void hub_close(uint8_t dev_addr)
 {
-  tu_memclr(&hub_data[dev_addr-1], sizeof(usbh_hub_t));
-//  osal_semaphore_reset(hub_enum_sem_hdl);
+  tu_memclr(&hub_data[dev_addr-1], sizeof( hub_interface_t));
 }
 
 bool hub_status_pipe_queue(uint8_t dev_addr)
 {
-  usbh_hub_t * p_hub = &hub_data[dev_addr-1];
+  hub_interface_t * p_hub = &hub_data[dev_addr-1];
   return usbh_edpt_xfer(dev_addr, p_hub->ep_in, &p_hub->status_change, 1);
 }
 
