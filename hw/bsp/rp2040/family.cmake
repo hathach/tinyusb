@@ -3,17 +3,18 @@ if (NOT TARGET _rp2040_family_inclusion_marker)
 	add_library(_rp2040_family_inclusion_marker INTERFACE)
 
 	# include basic family CMake functionality
-	set(FAMILY_MCUS RP2040 rp2040)
-	include(${CMAKE_CURRENT_LIST_DIR}/../family.cmake)
-
-	if (BOARD AND NOT PICO_BOARD)
-		message("Defaulting PICO_BOARD from BOARD ('${BOARD}')")
-		set(PICO_BOARD ${BOARD})
-	endif()
+	set(FAMILY_MCUS RP2040)
 
 	# add the SDK in case we are standalone tinyusb example (noop if already present)
 	include(${CMAKE_CURRENT_LIST_DIR}/pico_sdk_import.cmake)
-	set(BOARD ${PICO_BOARD})
+
+	include(${CMAKE_CURRENT_LIST_DIR}/../family.cmake)
+
+	# todo should we default to pico_sdk?
+	if (NOT BOARD)
+		message(FATAL_ERROR "BOARD must be specified")
+	endif()
+	include(${CMAKE_CURRENT_LIST_DIR}/boards/${BOARD}/board.cmake)
 
 	# TOP is absolute path to root directory of TinyUSB git repo
 	set(TOP "../../..")
@@ -24,6 +25,7 @@ if (NOT TARGET _rp2040_family_inclusion_marker)
 
 	target_compile_definitions(tinyusb_additions INTERFACE
 		PICO_RP2040_USB_DEVICE_ENUMERATION_FIX=1
+		CFG_TUSB_MCU=OPT_MCU_RP2040 # this is already included in the SDK, but needed here for build_family.py grep
 	)
 
 	if(DEFINED LOG)

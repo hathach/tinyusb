@@ -17,11 +17,13 @@ if(FAMILY MATCHES "^esp32s[2-3]")
 
 else()
 
-  # Family chooses name based on passed name and vars (e.g. <BOARD>-<DIR_NAME>)
-  get_filename_component(DIR_NAME ${CMAKE_CURRENT_SOURCE_DIR} NAME)
-  family_get_project_name(PROJECT "${DIR_NAME}")
+  # gets PROJECT name for the example (e.g. <BOARD>-<DIR_NAME>)
+  family_get_project_name(PROJECT ${CMAKE_CURRENT_LIST_DIR})
 
   project(${PROJECT})
+
+  # Checks this example is valid for the family and initializes the project
+  family_initialize_project(${PROJECT} ${CMAKE_CURRENT_LIST_DIR})
 
   add_executable(${PROJECT})
 

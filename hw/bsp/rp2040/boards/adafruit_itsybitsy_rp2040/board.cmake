@@ -1,0 +1,1 @@
+set(PICO_BOARD adafruit_itsybitsy_rp2040)

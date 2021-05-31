@@ -6,5 +6,5 @@ include($ENV{IDF_PATH}/tools/cmake/project.cmake)
 set(SUPPORTED_TARGETS esp32s2)
 
 # include basic family CMake functionality
-set(FAMILY_MCUS esp32s2 ESP32S2)
+set(FAMILY_MCUS ESP32S2)
 include(${CMAKE_CURRENT_LIST_DIR}/../family.cmake)
