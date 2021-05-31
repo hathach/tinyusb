@@ -455,7 +455,7 @@ void hcd_event_device_attach(uint8_t rhport, bool in_isr)
 {
   hcd_event_t event =
   {
-    .rhport = rhport,
+    .rhport   = rhport,
     .event_id = HCD_EVENT_DEVICE_ATTACH
   };
 
@@ -469,7 +469,7 @@ void hcd_event_device_remove(uint8_t hostid, bool in_isr)
 {
   hcd_event_t event =
   {
-    .rhport = hostid,
+    .rhport   = hostid,
     .event_id = HCD_EVENT_DEVICE_REMOVE
   };
 
