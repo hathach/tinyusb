@@ -352,7 +352,7 @@ void hub_close(uint8_t dev_addr)
 bool hub_status_pipe_queue(uint8_t dev_addr)
 {
   usbh_hub_t * p_hub = &hub_data[dev_addr-1];
-  return hcd_pipe_xfer(dev_addr, p_hub->ep_in, &p_hub->status_change, 1, true);
+  return usbh_edpt_xfer(dev_addr, p_hub->ep_in, &p_hub->status_change, 1);
 }
 
 

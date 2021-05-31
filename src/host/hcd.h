@@ -143,20 +143,11 @@ void hcd_device_close(uint8_t rhport, uint8_t dev_addr);
 
 bool hcd_setup_send(uint8_t rhport, uint8_t dev_addr, uint8_t const setup_packet[8]);
 bool hcd_edpt_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_endpoint_t const * ep_desc);
+bool hcd_edpt_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr, uint8_t * buffer, uint16_t buflen);
 
 bool hcd_edpt_busy(uint8_t dev_addr, uint8_t ep_addr);
 bool hcd_edpt_stalled(uint8_t dev_addr, uint8_t ep_addr);
 bool hcd_edpt_clear_stall(uint8_t dev_addr, uint8_t ep_addr);
-
-// TODO merge with pipe_xfer
-bool hcd_edpt_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr, uint8_t * buffer, uint16_t buflen);
-
-//--------------------------------------------------------------------+
-// PIPE API - TODO remove later
-//--------------------------------------------------------------------+
-// TODO control xfer should be used via usbh layer
-bool hcd_pipe_queue_xfer(uint8_t dev_addr, uint8_t ep_addr, uint8_t buffer[], uint16_t total_bytes); // only queue, not transferring yet
-bool hcd_pipe_xfer(uint8_t dev_addr, uint8_t ep_addr, uint8_t buffer[], uint16_t total_bytes, bool int_on_complete);
 
 //--------------------------------------------------------------------+
 // Event API (implemented by stack)

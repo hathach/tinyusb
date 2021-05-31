@@ -293,8 +293,31 @@ static void ehci_stop(uint8_t rhport)
 #endif
 
 //--------------------------------------------------------------------+
-// CONTROL PIPE API
+// Endpoint API
 //--------------------------------------------------------------------+
+
+bool hcd_setup_send(uint8_t rhport, uint8_t dev_addr, uint8_t const setup_packet[8])
+{
+  (void) rhport;
+
+  ehci_qhd_t* qhd = &ehci_data.control[dev_addr].qhd;
+  ehci_qtd_t* td  = &ehci_data.control[dev_addr].qtd;
+
+  qtd_init(td, (void*) setup_packet, 8);
+  td->pid          = EHCI_PID_SETUP;
+  td->int_on_complete = 1;
+  td->next.terminate  = 1;
+
+  // sw region
+  qhd->p_qtd_list_head = td;
+  qhd->p_qtd_list_tail = td;
+
+  // attach TD
+  qhd->qtd_overlay.next.address = (uint32_t) td;
+
+  return true;
+}
+
 bool hcd_edpt_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr, uint8_t * buffer, uint16_t buflen)
 {
   (void) rhport;
@@ -342,31 +365,6 @@ bool hcd_edpt_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr, uint8_t * 
   return true;
 }
 
-bool hcd_setup_send(uint8_t rhport, uint8_t dev_addr, uint8_t const setup_packet[8])
-{
-  (void) rhport;
-
-  ehci_qhd_t* qhd = &ehci_data.control[dev_addr].qhd;
-  ehci_qtd_t* td  = &ehci_data.control[dev_addr].qtd;
-
-  qtd_init(td, (void*) setup_packet, 8);
-  td->pid          = EHCI_PID_SETUP;
-  td->int_on_complete = 1;
-  td->next.terminate  = 1;
-
-  // sw region
-  qhd->p_qtd_list_head = td;
-  qhd->p_qtd_list_tail = td;
-
-  // attach TD
-  qhd->qtd_overlay.next.address = (uint32_t) td;
-
-  return true;
-}
-
-//--------------------------------------------------------------------+
-// BULK/INT/ISO PIPE API
-//--------------------------------------------------------------------+
 bool hcd_edpt_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_endpoint_t const * ep_desc)
 {
   (void) rhport;
@@ -416,38 +414,6 @@ bool hcd_edpt_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_endpoint_t const 
 
   // TODO might need to disable async/period list
   list_insert(list_head, (ehci_link_t*) p_qhd, EHCI_QTYPE_QHD);
-
-  return true;
-}
-
-bool hcd_pipe_queue_xfer(uint8_t dev_addr, uint8_t ep_addr, uint8_t buffer[], uint16_t total_bytes)
-{
-  //------------- set up QTD -------------//
-  ehci_qhd_t *p_qhd = qhd_get_from_addr(dev_addr, ep_addr);
-  ehci_qtd_t *p_qtd = qtd_find_free();
-
-  TU_ASSERT(p_qtd);
-
-  qtd_init(p_qtd, buffer, total_bytes);
-  p_qtd->pid = p_qhd->pid;
-
-  //------------- insert TD to TD list -------------//
-  qtd_insert_to_qhd(p_qhd, p_qtd);
-
-  return true;
-}
-
-bool hcd_pipe_xfer(uint8_t dev_addr, uint8_t ep_addr, uint8_t buffer[], uint16_t total_bytes, bool int_on_complete)
-{
-  TU_ASSERT ( hcd_pipe_queue_xfer(dev_addr, ep_addr, buffer, total_bytes) );
-
-  ehci_qhd_t *p_qhd = qhd_get_from_addr(dev_addr, ep_addr);
-
-  if ( int_on_complete )
-  { // the just added qtd is pointed by list_tail
-    p_qhd->p_qtd_list_tail->int_on_complete = 1;
-  }
-  p_qhd->qtd_overlay.next.address = (uint32_t) p_qhd->p_qtd_list_head; // attach head QTD to QHD start transferring
 
   return true;
 }

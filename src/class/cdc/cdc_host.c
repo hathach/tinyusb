@@ -96,24 +96,26 @@ bool tuh_cdc_serial_is_mounted(uint8_t dev_addr)
 
 bool tuh_cdc_send(uint8_t dev_addr, void const * p_data, uint32_t length, bool is_notify)
 {
+  (void) is_notify;
   TU_VERIFY( tuh_cdc_mounted(dev_addr) );
   TU_VERIFY( p_data != NULL && length, TUSB_ERROR_INVALID_PARA);
 
   uint8_t const ep_out = cdch_data[dev_addr-1].ep_out;
   if ( hcd_edpt_busy(dev_addr, ep_out) ) return false;
 
-  return hcd_pipe_xfer(dev_addr, ep_out, (void *) p_data, length, is_notify);
+  return usbh_edpt_xfer(dev_addr, ep_out, (void *) p_data, length);
 }
 
 bool tuh_cdc_receive(uint8_t dev_addr, void * p_buffer, uint32_t length, bool is_notify)
 {
+  (void) is_notify;
   TU_VERIFY( tuh_cdc_mounted(dev_addr) );
   TU_VERIFY( p_buffer != NULL && length, TUSB_ERROR_INVALID_PARA);
 
   uint8_t const ep_in = cdch_data[dev_addr-1].ep_in;
   if ( hcd_edpt_busy(dev_addr, ep_in) ) return false;
 
-  return hcd_pipe_xfer(dev_addr, ep_in, p_buffer, length, is_notify);
+  return usbh_edpt_xfer(dev_addr, ep_in, p_buffer, length);
 }
 
 bool tuh_cdc_set_control_line_state(uint8_t dev_addr, bool dtr, bool rts, tuh_control_complete_cb_t complete_cb)

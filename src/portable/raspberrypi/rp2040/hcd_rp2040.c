@@ -543,14 +543,4 @@ bool hcd_edpt_clear_stall(uint8_t dev_addr, uint8_t ep_addr)
     return true;
 }
 
-bool hcd_pipe_xfer(uint8_t dev_addr, uint8_t ep_addr, uint8_t buffer[], uint16_t total_bytes, bool int_on_complete)
-{
-    pico_trace("hcd_pipe_xfer dev_addr %d, ep_addr 0x%x, total_bytes %d, int_on_complete %d\n",
-        dev_addr, ep_addr, total_bytes, int_on_complete);
-
-    // Same logic as hcd_edpt_xfer as far as I am concerned
-    hcd_edpt_xfer(0, dev_addr, ep_addr, buffer, total_bytes);
-
-    return true;
-}
 #endif
