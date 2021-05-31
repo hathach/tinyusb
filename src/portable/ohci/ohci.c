@@ -84,23 +84,23 @@ enum {
 };
 
 enum {
-  OHCI_RHPORT_CURRENT_CONNECT_STATUS_MASK      = TU_BIT(0),
-  OHCI_RHPORT_PORT_ENABLE_STATUS_MASK          = TU_BIT(1),
-  OHCI_RHPORT_PORT_SUSPEND_STATUS_MASK         = TU_BIT(2),
-  OHCI_RHPORT_PORT_OVER_CURRENT_INDICATOR_MASK = TU_BIT(3),
-  OHCI_RHPORT_PORT_RESET_STATUS_MASK           = TU_BIT(4), ///< write '1' to reset port
+  RHPORT_CURRENT_CONNECT_STATUS_MASK      = TU_BIT(0),
+  RHPORT_PORT_ENABLE_STATUS_MASK          = TU_BIT(1),
+  RHPORT_PORT_SUSPEND_STATUS_MASK         = TU_BIT(2),
+  RHPORT_PORT_OVER_CURRENT_INDICATOR_MASK = TU_BIT(3),
+  RHPORT_PORT_RESET_STATUS_MASK           = TU_BIT(4), ///< write '1' to reset port
 
-  OHCI_RHPORT_PORT_POWER_STATUS_MASK           = TU_BIT(8),
-  OHCI_RHPORT_LOW_SPEED_DEVICE_ATTACHED_MASK   = TU_BIT(9),
+  RHPORT_PORT_POWER_STATUS_MASK           = TU_BIT(8),
+  RHPORT_LOW_SPEED_DEVICE_ATTACHED_MASK   = TU_BIT(9),
 
-  OHCI_RHPORT_CONNECT_STATUS_CHANGE_MASK       = TU_BIT(16),
-  OHCI_RHPORT_PORT_ENABLE_CHANGE_MASK          = TU_BIT(17),
-  OHCI_RHPORT_PORT_SUSPEND_CHANGE_MASK         = TU_BIT(18),
-  OHCI_RHPORT_OVER_CURRENT_CHANGE_MASK         = TU_BIT(19),
-  OHCI_RHPORT_PORT_RESET_CHANGE_MASK           = TU_BIT(20),
+  RHPORT_CONNECT_STATUS_CHANGE_MASK       = TU_BIT(16),
+  RHPORT_PORT_ENABLE_CHANGE_MASK          = TU_BIT(17),
+  RHPORT_PORT_SUSPEND_CHANGE_MASK         = TU_BIT(18),
+  RHPORT_OVER_CURRENT_CHANGE_MASK         = TU_BIT(19),
+  RHPORT_PORT_RESET_CHANGE_MASK           = TU_BIT(20),
 
-  OHCI_RHPORT_ALL_CHANGE_MASK = OHCI_RHPORT_CONNECT_STATUS_CHANGE_MASK | OHCI_RHPORT_PORT_ENABLE_CHANGE_MASK |
-    OHCI_RHPORT_PORT_SUSPEND_CHANGE_MASK | OHCI_RHPORT_OVER_CURRENT_CHANGE_MASK | OHCI_RHPORT_PORT_RESET_CHANGE_MASK
+  RHPORT_ALL_CHANGE_MASK = RHPORT_CONNECT_STATUS_CHANGE_MASK | RHPORT_PORT_ENABLE_CHANGE_MASK |
+    RHPORT_PORT_SUSPEND_CHANGE_MASK | RHPORT_OVER_CURRENT_CHANGE_MASK | RHPORT_PORT_RESET_CHANGE_MASK
 };
 
 enum {
@@ -215,7 +215,7 @@ uint32_t hcd_frame_number(uint8_t rhport)
 void hcd_port_reset(uint8_t hostid)
 {
   (void) hostid;
-  OHCI_REG->rhport_status[0] = OHCI_RHPORT_PORT_RESET_STATUS_MASK;
+  OHCI_REG->rhport_status[0] = RHPORT_PORT_RESET_STATUS_MASK;
 }
 
 bool hcd_port_connect_status(uint8_t hostid)
@@ -626,16 +626,16 @@ void hcd_int_handler(uint8_t hostid)
   //------------- RootHub status -------------//
   if ( int_status & OHCI_INT_RHPORT_STATUS_CHANGE_MASK )
   {
-    uint32_t const rhport_status = OHCI_REG->rhport_status[0] & OHCI_RHPORT_ALL_CHANGE_MASK;
+    uint32_t const rhport_status = OHCI_REG->rhport_status[0] & RHPORT_ALL_CHANGE_MASK;
 
     // TODO dual port is not yet supported
-    if ( rhport_status & OHCI_RHPORT_CONNECT_STATUS_CHANGE_MASK )
+    if ( rhport_status & RHPORT_CONNECT_STATUS_CHANGE_MASK )
     {
       // TODO check if remote wake-up
       if ( OHCI_REG->rhport_status_bit[0].current_connect_status )
       {
         // TODO reset port immediately, without this controller will got 2-3 (debouncing connection status change)
-        OHCI_REG->rhport_status[0] = OHCI_RHPORT_PORT_RESET_STATUS_MASK;
+        OHCI_REG->rhport_status[0] = RHPORT_PORT_RESET_STATUS_MASK;
         hcd_event_device_attach(hostid, true);
       }else
       {
@@ -643,7 +643,7 @@ void hcd_int_handler(uint8_t hostid)
       }
     }
 
-    if ( rhport_status & OHCI_RHPORT_PORT_SUSPEND_CHANGE_MASK)
+    if ( rhport_status & RHPORT_PORT_SUSPEND_CHANGE_MASK)
     {
 
     }
