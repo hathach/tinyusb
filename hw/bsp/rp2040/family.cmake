@@ -20,6 +20,10 @@ if (NOT TARGET _rp2040_family_inclusion_marker)
 	set(TOP "../../..")
 	get_filename_component(TOP "${TOP}" REALPATH)
 
+	if (NOT PICO_TINYUSB_PATH)
+		set(PICO_TINYUSB_PATH ${TOP})
+	endif()
+
 	# tinyusb_additions will hold our extra settings libraries
 	add_library(tinyusb_additions INTERFACE)
 
