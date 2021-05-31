@@ -302,7 +302,6 @@ bool hcd_edpt_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr, uint8_t * 
   uint8_t const epnum = tu_edpt_number(ep_addr);
   uint8_t const dir   = tu_edpt_dir(ep_addr);
 
-  // FIXME control only for now
   if ( epnum == 0 )
   {
     ehci_qhd_t* qhd = qhd_control(dev_addr);
