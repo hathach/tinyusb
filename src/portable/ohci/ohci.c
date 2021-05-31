@@ -27,7 +27,7 @@
 #include <common/tusb_common.h>
 
 #if TUSB_OPT_HOST_ENABLED && \
-    (CFG_TUSB_MCU == OPT_MCU_LPC175X_6X || CFG_TUSB_MCU == OPT_MCU_LPC40XX)
+    (CFG_TUSB_MCU == OPT_MCU_LPC175X_6X || CFG_TUSB_MCU == OPT_MCU_LPC177X_8X || CFG_TUSB_MCU == OPT_MCU_LPC40XX)
 
 //--------------------------------------------------------------------+
 // INCLUDE
@@ -244,7 +244,7 @@ void hcd_device_close(uint8_t rhport, uint8_t dev_addr)
 //--------------------------------------------------------------------+
 
 //--------------------------------------------------------------------+
-// CONTROL PIPE API
+// List Helper
 //--------------------------------------------------------------------+
 static inline tusb_xfer_type_t ed_get_xfer_type(ohci_ed_t const * const p_ed)
 {
@@ -310,57 +310,6 @@ bool hcd_setup_send(uint8_t rhport, uint8_t dev_addr, uint8_t const setup_packet
   return true;
 }
 
-// TODO move around
-static ohci_ed_t * ed_from_addr(uint8_t dev_addr, uint8_t ep_addr);
-static ohci_gtd_t * gtd_find_free(void);
-static void td_insert_to_ed(ohci_ed_t* p_ed, ohci_gtd_t * p_gtd);
-
-bool hcd_edpt_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr, uint8_t * buffer, uint16_t buflen)
-{
-  (void) rhport;
-
-  uint8_t const epnum = tu_edpt_number(ep_addr);
-  uint8_t const dir   = tu_edpt_dir(ep_addr);
-
-  // FIXME control only for now
-  if ( epnum == 0 )
-  {
-    ohci_ed_t* const p_ed = &ohci_data.control[dev_addr].ed;
-    ohci_gtd_t *p_data  = &ohci_data.control[dev_addr].gtd;
-
-    gtd_init(p_data, buffer, buflen);
-
-    p_data->index       = dev_addr;
-    p_data->pid         = dir ? OHCI_PID_IN : OHCI_PID_OUT;
-    p_data->data_toggle = TU_BIN8(11); // DATA1
-    p_data->delay_interrupt = OHCI_INT_ON_COMPLETE_YES;
-
-    p_ed->td_head.address = (uint32_t) p_data;
-
-    OHCI_REG->command_status_bit.control_list_filled = 1;
-  }else
-  {
-    ohci_ed_t * p_ed = ed_from_addr(dev_addr, ep_addr);
-    ohci_gtd_t* p_gtd = gtd_find_free();
-
-    TU_ASSERT(p_gtd);
-
-    gtd_init(p_gtd, buffer, buflen);
-    p_gtd->index = p_ed-ohci_data.ed_pool;
-    p_gtd->delay_interrupt = OHCI_INT_ON_COMPLETE_YES;
-
-    td_insert_to_ed(p_ed, p_gtd);
-
-    tusb_xfer_type_t xfer_type = ed_get_xfer_type( ed_from_addr(dev_addr, ep_addr) );
-    if (TUSB_XFER_BULK == xfer_type) OHCI_REG->command_status_bit.bulk_list_filled = 1;
-  }
-
-  return true;
-}
-
-//--------------------------------------------------------------------+
-// BULK/INT/ISO PIPE API
-//--------------------------------------------------------------------+
 static ohci_ed_t * ed_from_addr(uint8_t dev_addr, uint8_t ep_addr)
 {
   if ( tu_edpt_number(ep_addr) == 0 ) return &ohci_data.control[dev_addr].ed;
@@ -420,9 +369,36 @@ static void ed_list_remove_by_addr(ohci_ed_t * p_head, uint8_t dev_addr)
   }
 }
 
+static ohci_gtd_t * gtd_find_free(void)
+{
+  for(uint8_t i=0; i < HCD_MAX_XFER; i++)
+  {
+    if ( !ohci_data.gtd_pool[i].used ) return &ohci_data.gtd_pool[i];
+  }
+
+  return NULL;
+}
+
+static void td_insert_to_ed(ohci_ed_t* p_ed, ohci_gtd_t * p_gtd)
+{
+  // tail is always NULL
+  if ( tu_align16(p_ed->td_head.address) == 0 )
+  { // TD queue is empty --> head = TD
+    p_ed->td_head.address |= (uint32_t) p_gtd;
+  }
+  else
+  { // TODO currently only support queue up to 2 TD each endpoint at a time
+    ((ohci_gtd_t*) tu_align16(p_ed->td_head.address))->next = (uint32_t) p_gtd;
+  }
+}
+
+//--------------------------------------------------------------------+
+// Endpoint API
+//--------------------------------------------------------------------+
+
 bool hcd_edpt_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_endpoint_t const * ep_desc)
 {
-  (void) rhport; 
+  (void) rhport;
 
   // TODO iso support
   TU_ASSERT(ep_desc->bmAttributes.xfer != TUSB_XFER_ISOCHRONOUS);
@@ -454,62 +430,45 @@ bool hcd_edpt_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_endpoint_t const 
   return true;
 }
 
-static ohci_gtd_t * gtd_find_free(void)
+bool hcd_edpt_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr, uint8_t * buffer, uint16_t buflen)
 {
-  for(uint8_t i=0; i < HCD_MAX_XFER; i++)
+  (void) rhport;
+
+  uint8_t const epnum = tu_edpt_number(ep_addr);
+  uint8_t const dir   = tu_edpt_dir(ep_addr);
+
+  // FIXME control only for now
+  if ( epnum == 0 )
   {
-    if ( !ohci_data.gtd_pool[i].used ) return &ohci_data.gtd_pool[i];
+    ohci_ed_t*  ed  = &ohci_data.control[dev_addr].ed;
+    ohci_gtd_t* gtd = &ohci_data.control[dev_addr].gtd;
+
+    gtd_init(gtd, buffer, buflen);
+
+    gtd->index           = dev_addr;
+    gtd->pid             = dir ? OHCI_PID_IN : OHCI_PID_OUT;
+    gtd->data_toggle     = 3; // Both Data and Ack stage start with DATA1
+    gtd->delay_interrupt = OHCI_INT_ON_COMPLETE_YES;
+
+    ed->td_head.address = (uint32_t) gtd;
+
+    OHCI_REG->command_status_bit.control_list_filled = 1;
+  }else
+  {
+    ohci_ed_t * ed = ed_from_addr(dev_addr, ep_addr);
+    ohci_gtd_t* gtd = gtd_find_free();
+
+    TU_ASSERT(gtd);
+
+    gtd_init(gtd, buffer, buflen);
+    gtd->index = ed-ohci_data.ed_pool;
+    gtd->delay_interrupt = OHCI_INT_ON_COMPLETE_YES;
+
+    td_insert_to_ed(ed, gtd);
+
+    tusb_xfer_type_t xfer_type = ed_get_xfer_type( ed_from_addr(dev_addr, ep_addr) );
+    if (TUSB_XFER_BULK == xfer_type) OHCI_REG->command_status_bit.bulk_list_filled = 1;
   }
-
-  return NULL;
-}
-
-static void td_insert_to_ed(ohci_ed_t* p_ed, ohci_gtd_t * p_gtd)
-{
-  // tail is always NULL
-  if ( tu_align16(p_ed->td_head.address) == 0 )
-  { // TD queue is empty --> head = TD
-    p_ed->td_head.address |= (uint32_t) p_gtd;
-  }
-  else
-  { // TODO currently only support queue up to 2 TD each endpoint at a time
-    ((ohci_gtd_t*) tu_align16(p_ed->td_head.address))->next = (uint32_t) p_gtd;
-  }
-}
-
-static bool pipe_queue_xfer(uint8_t dev_addr, uint8_t ep_addr, uint8_t buffer[], uint16_t total_bytes, bool int_on_complete)
-{
-  ohci_ed_t* const p_ed = ed_from_addr(dev_addr, ep_addr);
-
-  // not support ISO yet
-  TU_VERIFY ( !p_ed->is_iso );
-
-  ohci_gtd_t * const p_gtd = gtd_find_free();
-  TU_ASSERT(p_gtd); // not enough gtd
-
-  gtd_init(p_gtd, buffer, total_bytes);
-  p_gtd->index = p_ed-ohci_data.ed_pool;
-
-  if ( int_on_complete )  p_gtd->delay_interrupt = OHCI_INT_ON_COMPLETE_YES;
-
-  td_insert_to_ed(p_ed, p_gtd);
-
-  return true;
-}
-
-bool hcd_pipe_queue_xfer(uint8_t dev_addr, uint8_t ep_addr, uint8_t buffer[], uint16_t total_bytes)
-{
-  return pipe_queue_xfer(dev_addr, ep_addr, buffer, total_bytes, false);
-}
-
-bool  hcd_pipe_xfer(uint8_t dev_addr, uint8_t ep_addr, uint8_t buffer[], uint16_t total_bytes, bool int_on_complete)
-{
-  (void) int_on_complete;
-  TU_ASSERT( pipe_queue_xfer(dev_addr, ep_addr, buffer, total_bytes, true) );
-
-  tusb_xfer_type_t xfer_type = ed_get_xfer_type( ed_from_addr(dev_addr, ep_addr) );
-
-  if (TUSB_XFER_BULK == xfer_type) OHCI_REG->command_status_bit.bulk_list_filled = 1;
 
   return true;
 }
