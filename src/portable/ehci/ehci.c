@@ -65,7 +65,6 @@ typedef struct
 
   volatile uint32_t uframe_number;
 }ehci_data_t;
-
 //--------------------------------------------------------------------+
 // INTERNAL OBJECT & FUNCTION DECLARATION
 //--------------------------------------------------------------------+
@@ -125,10 +124,10 @@ static inline ehci_link_t* list_next (ehci_link_t *p_link_pointer);
 // HCD API
 //--------------------------------------------------------------------+
 
-uint32_t hcd_uframe_number(uint8_t rhport)
+uint32_t hcd_frame_number(uint8_t rhport)
 {
   (void) rhport;
-  return ehci_data.uframe_number + ehci_data.regs->frame_index;
+  return (ehci_data.uframe_number + ehci_data.regs->frame_index) >> 3;
 }
 
 void hcd_port_reset(uint8_t rhport)

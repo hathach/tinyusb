@@ -504,10 +504,9 @@ bool hcd_setup_send(uint8_t rhport, uint8_t dev_addr, uint8_t const setup_packet
     return true;
 }
 
-uint32_t hcd_uframe_number(uint8_t rhport)
+uint32_t hcd_frame_number(uint8_t rhport)
 {
-    // Microframe number is (125us) but we are max full speed so return miliseconds * 8
-    return usb_hw->sof_rd * 8;
+    return usb_hw->sof_rd;
 }
 
 bool hcd_edpt_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_endpoint_t const * ep_desc)

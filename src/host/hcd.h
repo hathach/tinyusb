@@ -108,15 +108,8 @@ void hcd_int_enable (uint8_t rhport);
 // Disable USB interrupt
 void hcd_int_disable(uint8_t rhport);
 
-// Get micro frame number (125 us)
-uint32_t hcd_uframe_number(uint8_t rhport);
-
 // Get frame number (1ms)
-TU_ATTR_ALWAYS_INLINE static inline
-uint32_t hcd_frame_number(uint8_t rhport)
-{
-  return hcd_uframe_number(rhport) >> 3;
-}
+uint32_t hcd_frame_number(uint8_t rhport);
 
 //--------------------------------------------------------------------+
 // Port API
