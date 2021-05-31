@@ -44,6 +44,28 @@
 // MACRO CONSTANT TYPEDEF
 //--------------------------------------------------------------------+
 
+typedef struct
+{
+  ehci_link_t period_framelist[EHCI_FRAMELIST_SIZE];
+
+  // for NXP ECHI, only implement 1 ms & 2 ms & 4 ms, 8 ms (framelist)
+  // [0] : 1ms, [1] : 2ms, [2] : 4ms, [3] : 8 ms
+  ehci_qhd_t period_head_arr[4];
+
+  // Note control qhd of dev0 is used as head of async list
+  struct {
+    ehci_qhd_t qhd;
+    ehci_qtd_t qtd;
+  }control[CFG_TUSB_HOST_DEVICE_MAX+1];
+
+  ehci_qhd_t qhd_pool[HCD_MAX_ENDPOINT];
+  ehci_qtd_t qtd_pool[HCD_MAX_XFER] TU_ATTR_ALIGNED(32);
+
+  ehci_registers_t* regs;
+
+  volatile uint32_t uframe_number;
+}ehci_data_t;
+
 //--------------------------------------------------------------------+
 // INTERNAL OBJECT & FUNCTION DECLARATION
 //--------------------------------------------------------------------+
@@ -67,7 +89,8 @@ static inline ehci_qhd_t* qhd_control(uint8_t dev_addr)
 static inline ehci_qhd_t* qhd_async_head(uint8_t rhport)
 {
   (void) rhport;
-  return qhd_control(0); // control qhd of dev0 is used as async head
+  // control qhd of dev0 is used as async head
+  return qhd_control(0);
 }
 
 static inline ehci_qtd_t* qtd_control(uint8_t dev_addr)
@@ -296,6 +319,59 @@ static void ehci_stop(uint8_t rhport)
 // Endpoint API
 //--------------------------------------------------------------------+
 
+bool hcd_edpt_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_endpoint_t const * ep_desc)
+{
+  (void) rhport;
+
+  // TODO not support ISO yet
+  TU_ASSERT (ep_desc->bmAttributes.xfer != TUSB_XFER_ISOCHRONOUS);
+
+  //------------- Prepare Queue Head -------------//
+  ehci_qhd_t * p_qhd;
+
+  if ( ep_desc->bEndpointAddress == 0 )
+  {
+    p_qhd = qhd_control(dev_addr);
+  }else
+  {
+    p_qhd = qhd_find_free();
+  }
+  TU_ASSERT(p_qhd);
+
+  qhd_init(p_qhd, dev_addr, ep_desc);
+
+  // control of dev0 is always present as async head
+  if ( dev_addr == 0 ) return true;
+
+  // Insert to list
+  ehci_link_t * list_head = NULL;
+
+  switch (ep_desc->bmAttributes.xfer)
+  {
+    case TUSB_XFER_CONTROL:
+    case TUSB_XFER_BULK:
+      list_head = (ehci_link_t*) qhd_async_head(rhport);
+    break;
+
+    case TUSB_XFER_INTERRUPT:
+      list_head = get_period_head(rhport, p_qhd->interval_ms);
+    break;
+
+    case TUSB_XFER_ISOCHRONOUS:
+      // TODO iso is not supported
+    break;
+
+    default: break;
+  }
+
+  TU_ASSERT(list_head);
+
+  // TODO might need to disable async/period list
+  list_insert(list_head, (ehci_link_t*) p_qhd, EHCI_QTYPE_QHD);
+
+  return true;
+}
+
 bool hcd_setup_send(uint8_t rhport, uint8_t dev_addr, uint8_t const setup_packet[8])
 {
   (void) rhport;
@@ -361,59 +437,6 @@ bool hcd_edpt_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr, uint8_t * 
     // attach head QTD to QHD start transferring
     p_qhd->qtd_overlay.next.address = (uint32_t) p_qhd->p_qtd_list_head;
   }
-
-  return true;
-}
-
-bool hcd_edpt_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_endpoint_t const * ep_desc)
-{
-  (void) rhport;
-
-  // TODO not support ISO yet
-  TU_ASSERT (ep_desc->bmAttributes.xfer != TUSB_XFER_ISOCHRONOUS);
-
-  //------------- Prepare Queue Head -------------//
-  ehci_qhd_t * p_qhd;
-
-  if ( ep_desc->bEndpointAddress == 0 )
-  {
-    p_qhd = qhd_control(dev_addr);
-  }else
-  {
-    p_qhd = qhd_find_free();
-  }
-  TU_ASSERT(p_qhd);
-
-  qhd_init(p_qhd, dev_addr, ep_desc);
-
-  // control of dev0 is always present as async head
-  if ( dev_addr == 0 ) return true;
-
-  // Insert to list
-  ehci_link_t * list_head = NULL;
-
-  switch (ep_desc->bmAttributes.xfer)
-  {
-    case TUSB_XFER_CONTROL:
-    case TUSB_XFER_BULK:
-      list_head = (ehci_link_t*) qhd_async_head(rhport);
-    break;
-
-    case TUSB_XFER_INTERRUPT:
-      list_head = get_period_head(rhport, p_qhd->interval_ms);
-    break;
-
-    case TUSB_XFER_ISOCHRONOUS:
-      // TODO iso is not supported
-    break;
-
-    default: break;
-  }
-
-  TU_ASSERT(list_head);
-
-  // TODO might need to disable async/period list
-  list_insert(list_head, (ehci_link_t*) p_qhd, EHCI_QTYPE_QHD);
 
   return true;
 }

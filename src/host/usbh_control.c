@@ -108,7 +108,7 @@ bool usbh_control_xfer_cb (uint8_t dev_addr, uint8_t ep_addr, xfer_result_t resu
         _ctrl_xfer.stage = STAGE_DATA;
         if (request->wLength)
         {
-          // Note: initial data toggle is always 1
+          // DATA stage: initial data toggle is always 1
           hcd_edpt_xfer(rhport, dev_addr, tu_edpt_addr(0, request->bmRequestType_bit.direction), _ctrl_xfer.buffer, request->wLength);
           return true;
         }
@@ -123,7 +123,7 @@ bool usbh_control_xfer_cb (uint8_t dev_addr, uint8_t ep_addr, xfer_result_t resu
           TU_LOG2_MEM(_ctrl_xfer.buffer, request->wLength, 2);
         }
 
-        // data toggle is always 1
+        // ACK stage: toggle is always 1
         hcd_edpt_xfer(rhport, dev_addr, tu_edpt_addr(0, 1-request->bmRequestType_bit.direction), NULL, 0);
       break;
 
