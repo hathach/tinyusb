@@ -236,6 +236,10 @@
   #define CFG_TUD_VENDOR          0
 #endif
 
+#ifndef CFG_TUD_VENDOR_CUSTOM
+  #define CFG_TUD_VENDOR_CUSTOM   0
+#endif
+
 #ifndef CFG_TUD_USBTMC
   #define CFG_TUD_USBTMC          0
 #endif
