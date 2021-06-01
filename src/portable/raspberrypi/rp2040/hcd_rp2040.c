@@ -212,6 +212,7 @@ static void hcd_rp2040_irq(void)
     if (status & USB_INTS_BUFF_STATUS_BITS)
     {
         handled |= USB_INTS_BUFF_STATUS_BITS;
+        // print_bufctrl32(*epx.buffer_control);
         hw_handle_buff_status();
     }
 
@@ -233,6 +234,7 @@ static void hcd_rp2040_irq(void)
     if (status & USB_INTS_ERROR_DATA_SEQ_BITS)
     {
         usb_hw_clear->sie_status = USB_SIE_STATUS_DATA_SEQ_ERROR_BITS;
+        // print_bufctrl32(*epx.buffer_control);
         panic("Data Seq Error \n");
     }
 
@@ -452,6 +454,7 @@ bool hcd_edpt_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr, uint8_t * 
     if (ep_addr != ep->ep_addr)
     {
         // Direction has flipped so re init it but with same properties
+        // TODO treat IN and OUT as invidual endpoints
         _hw_endpoint_init(ep, dev_addr, ep_addr, ep->wMaxPacketSize, ep->transfer_type, 0);
     }
 
@@ -531,6 +534,7 @@ bool hcd_edpt_busy(uint8_t dev_addr, uint8_t ep_addr)
 bool hcd_edpt_stalled(uint8_t dev_addr, uint8_t ep_addr)
 {
     panic("hcd_pipe_stalled");
+    return false;
 }
 
 bool hcd_edpt_clear_stall(uint8_t dev_addr, uint8_t ep_addr)
