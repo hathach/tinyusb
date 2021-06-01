@@ -42,15 +42,28 @@ try modifying ./examples/devices/net_lwip_webserver/usb_descriptors.c so that CO
 The smartphone may be artificially picky about which Ethernet MAC address to recognize; if this happens, 
 try changing the first byte of tud_network_mac_address[] below from 0x02 to 0x00 (clearing bit 1).
 */
+#include "components/lwip/port/esp32/include/lwipopts.h"
+#include "sdkconfig.h"
+#include "lwip/opt.h"
 
 #include "bsp/board.h"
 #include "tusb.h"
+#include "unistd.h"
 
 #include "dhserver.h"
 #include "dnserver.h"
 #include "lwip/init.h"
 #include "lwip/timeouts.h"
-#include "httpd.h"
+
+#if (CFG_TUSB_MCU != OPT_MCU_ESP32S2)
+  #include "httpd.h"
+#else
+  #include "esp_http_server.h"
+  #include "device/dcd.h"
+
+  #include "lwip/ip4_addr.h"
+  #include "esp_netif.h"
+#endif
 
 /* lwip context */
 static struct netif netif_data;
@@ -108,7 +121,7 @@ static err_t linkoutput_fn(struct netif *netif, struct pbuf *p)
   }
 }
 
-static err_t output_fn(struct netif *netif, struct pbuf *p, const ip_addr_t *addr)
+static err_t output_fn(struct netif *netif, struct pbuf *p, const ip4_addr_t *addr)
 {
   return etharp_output(netif, p, addr);
 }
@@ -130,26 +143,32 @@ static void init_lwip(void)
 {
   struct netif *netif = &netif_data;
 
-  lwip_init();
+  //lwip_init();
 
   /* the lwip virtual MAC address must be different from the host's; to ensure this, we toggle the LSbit */
   netif->hwaddr_len = sizeof(tud_network_mac_address);
   memcpy(netif->hwaddr, tud_network_mac_address, sizeof(tud_network_mac_address));
   netif->hwaddr[5] ^= 0x01;
 
-  netif = netif_add(netif, &ipaddr, &netmask, &gateway, NULL, netif_init_cb, ip_input);
+  netif = netif_add(netif, &ipaddr.u_addr.ip4, &netmask.u_addr.ip4, &gateway.u_addr.ip4, NULL, netif_init_cb, ip_input);
   netif_set_default(netif);
 }
 
 /* handle any DNS requests from dns-server */
-bool dns_query_proc(const char *name, ip_addr_t *addr)
+bool dns_query_proc(const char *name, ip4_addr_t *addr)
 {
   if (0 == strcmp(name, "tiny.usb"))
   {
-    *addr = ipaddr;
+    *addr = ipaddr.u_addr.ip4;
     return true;
   }
   return false;
+}
+
+void send_bus_signal (void)
+{
+  dcd_event_t event = { .rhport = 0, .event_id = USBD_EVENT_DATA_AVAIL };
+  dcd_event_handler(&event, false);
 }
 
 bool tud_network_recv_cb(const uint8_t *src, uint16_t size)
@@ -169,6 +188,8 @@ bool tud_network_recv_cb(const uint8_t *src, uint16_t size)
 
       /* store away the pointer for service_traffic() to later handle */
       received_frame = p;
+
+      send_bus_signal();
     }
   }
 
@@ -201,7 +222,10 @@ static void service_traffic(void)
   if (received_frame)
   {
     ethernet_input(received_frame, &netif_data);
-    pbuf_free(received_frame);
+    if (received_frame->ref > 0) 
+    { 
+      pbuf_free(received_frame); 
+    }
     received_frame = NULL;
     tud_network_recv_renew();
   }
@@ -219,18 +243,33 @@ void tud_network_init_cb(void)
   }
 }
 
+#if (CFG_TUSB_MCU == OPT_MCU_ESP32S2)
+int app_main(void)
+#else
 int main(void)
+#endif
 {
   /* initialize TinyUSB */
   board_init();
   tusb_init();
 
+  esp_netif_init();
+
   /* initialize lwip, dhcp-server, dns-server, and http */
   init_lwip();
+ 
   while (!netif_is_up(&netif_data));
   while (dhserv_init(&dhcp_config) != ERR_OK);
-  while (dnserv_init(&ipaddr, 53, dns_query_proc) != ERR_OK);
-  httpd_init();
+  while (dnserv_init(&ipaddr, 53, dns_query_proc) != ERR_OK) {};
+
+  #if (0)
+    httpd_init();
+  #else
+    //httpd_config_t config = HTTPD_DEFAULT_CONFIG();
+    //httpd_handle_t server;
+  
+    //httpd_start(&server, &config);
+  #endif
 
   while (1)
   {
@@ -241,6 +280,7 @@ int main(void)
   return 0;
 }
 
+#if (CFG_TUSB_MCU != OPT_MCU_ESP32S2)
 /* lwip has provision for using a mutex, when applicable */
 sys_prot_t sys_arch_protect(void)
 {
@@ -256,3 +296,4 @@ uint32_t sys_now(void)
 {
   return board_millis();
 }
+#endif

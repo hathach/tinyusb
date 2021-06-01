@@ -7,7 +7,13 @@ set(TOP "../../..")
 get_filename_component(TOP "${TOP}" REALPATH)
 
 # Check for -DFAMILY=
-if(FAMILY STREQUAL "rp2040")
+if (FAMILY STREQUAL "esp32s2")
+  cmake_minimum_required(VERSION 3.5)
+
+  include(${TOP}/hw/bsp/${FAMILY}/family.cmake)
+  project(${PROJECT})
+
+elseif(FAMILY STREQUAL "rp2040")
   cmake_minimum_required(VERSION 3.12)
   
   include(${TOP}/hw/bsp/${FAMILY}/pico_sdk_import.cmake)

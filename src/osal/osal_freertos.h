@@ -28,10 +28,10 @@
 #define _TUSB_OSAL_FREERTOS_H_
 
 // FreeRTOS Headers
-#include "FreeRTOS.h"
-#include "semphr.h"
-#include "queue.h"
-#include "task.h"
+#include "freertos/FreeRTOS.h"
+#include "freertos/semphr.h"
+#include "freertos/queue.h"
+#include "freertos/task.h"
 
 #ifdef __cplusplus
 extern "C" {

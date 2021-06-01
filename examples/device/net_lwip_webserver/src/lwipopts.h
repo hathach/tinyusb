@@ -29,6 +29,7 @@
  * Author: Simon Goldschmidt
  *
  */
+#if (CFG_TUSB_MCU != OPT_MCU_ESP32S2)
 #ifndef __LWIPOPTS_H__
 #define __LWIPOPTS_H__
 
@@ -57,3 +58,4 @@
 #define LWIP_SINGLE_NETIF               1
 
 #endif /* __LWIPOPTS_H__ */
+#endif
