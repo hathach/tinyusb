@@ -378,6 +378,8 @@ bool usbh_edpt_xfer(uint8_t dev_addr, uint8_t ep_addr, uint8_t * buffer, uint16_
 
 bool usbh_edpt_control_open(uint8_t dev_addr, uint8_t max_packet_size)
 {
+  TU_LOG2("Open EP Control with Size = %u\r\n", max_packet_size);
+
   tusb_desc_endpoint_t ep0_desc =
   {
     .bLength          = sizeof(tusb_desc_endpoint_t),
@@ -455,7 +457,7 @@ void hcd_event_device_attach(uint8_t rhport, bool in_isr)
 {
   hcd_event_t event =
   {
-    .rhport = rhport,
+    .rhport   = rhport,
     .event_id = HCD_EVENT_DEVICE_ATTACH
   };
 
@@ -469,7 +471,7 @@ void hcd_event_device_remove(uint8_t hostid, bool in_isr)
 {
   hcd_event_t event =
   {
-    .rhport = hostid,
+    .rhport   = hostid,
     .event_id = HCD_EVENT_DEVICE_REMOVE
   };
 

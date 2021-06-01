@@ -504,10 +504,9 @@ bool hcd_setup_send(uint8_t rhport, uint8_t dev_addr, uint8_t const setup_packet
     return true;
 }
 
-uint32_t hcd_uframe_number(uint8_t rhport)
+uint32_t hcd_frame_number(uint8_t rhport)
 {
-    // Microframe number is (125us) but we are max full speed so return miliseconds * 8
-    return usb_hw->sof_rd * 8;
+    return usb_hw->sof_rd;
 }
 
 bool hcd_edpt_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_endpoint_t const * ep_desc)
@@ -543,14 +542,4 @@ bool hcd_edpt_clear_stall(uint8_t dev_addr, uint8_t ep_addr)
     return true;
 }
 
-bool hcd_pipe_xfer(uint8_t dev_addr, uint8_t ep_addr, uint8_t buffer[], uint16_t total_bytes, bool int_on_complete)
-{
-    pico_trace("hcd_pipe_xfer dev_addr %d, ep_addr 0x%x, total_bytes %d, int_on_complete %d\n",
-        dev_addr, ep_addr, total_bytes, int_on_complete);
-
-    // Same logic as hcd_edpt_xfer as far as I am concerned
-    hcd_edpt_xfer(0, dev_addr, ep_addr, buffer, total_bytes);
-
-    return true;
-}
 #endif

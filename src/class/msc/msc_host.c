@@ -71,7 +71,8 @@ CFG_TUSB_MEM_SECTION static msch_interface_t _msch_itf[CFG_TUSB_HOST_DEVICE_MAX]
 
 // buffer used to read scsi information when mounted
 // largest response data currently is inquiry TODO Inquiry is not part of enum anymore
-CFG_TUSB_MEM_SECTION TU_ATTR_ALIGNED(4) static uint8_t _msch_buffer[sizeof(scsi_inquiry_resp_t)];
+CFG_TUSB_MEM_SECTION TU_ATTR_ALIGNED(4)
+static uint8_t _msch_buffer[sizeof(scsi_inquiry_resp_t)];
 
 static inline msch_interface_t* get_itf(uint8_t dev_addr)
 {
@@ -438,7 +439,7 @@ static bool config_test_unit_ready_complete(uint8_t dev_addr, msc_cbw_t const* c
   {
     // Unit is ready, read its capacity
     TU_LOG2("SCSI Read Capacity\r\n");
-    tuh_msc_read_capacity(dev_addr, cbw->lun, (scsi_read_capacity10_resp_t*) _msch_buffer, config_read_capacity_complete);
+    tuh_msc_read_capacity(dev_addr, cbw->lun, (scsi_read_capacity10_resp_t*) ((void*) _msch_buffer), config_read_capacity_complete);
   }else
   {
     // Note: During enumeration, some device fails Test Unit Ready and require a few retries
@@ -465,7 +466,7 @@ static bool config_read_capacity_complete(uint8_t dev_addr, msc_cbw_t const* cbw
   msch_interface_t* p_msc = get_itf(dev_addr);
 
   // Capacity response field: Block size and Last LBA are both Big-Endian
-  scsi_read_capacity10_resp_t* resp = (scsi_read_capacity10_resp_t*) _msch_buffer;
+  scsi_read_capacity10_resp_t* resp = (scsi_read_capacity10_resp_t*) ((void*) _msch_buffer);
   p_msc->capacity[cbw->lun].block_count = tu_ntohl(resp->last_lba) + 1;
   p_msc->capacity[cbw->lun].block_size = tu_ntohl(resp->block_size);
 
