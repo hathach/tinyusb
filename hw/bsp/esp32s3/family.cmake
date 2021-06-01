@@ -7,4 +7,4 @@ set(SUPPORTED_TARGETS esp32s3)
 
 # include basic family CMake functionality
 set(FAMILY_MCUS ESP32S3)
-include(${CMAKE_CURRENT_LIST_DIR}/../family.cmake)
+include(${CMAKE_CURRENT_LIST_DIR}/../family_common.cmake)

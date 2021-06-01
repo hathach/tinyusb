@@ -8,7 +8,7 @@ if (NOT TARGET _rp2040_family_inclusion_marker)
 	# add the SDK in case we are standalone tinyusb example (noop if already present)
 	include(${CMAKE_CURRENT_LIST_DIR}/pico_sdk_import.cmake)
 
-	include(${CMAKE_CURRENT_LIST_DIR}/../family.cmake)
+	include(${CMAKE_CURRENT_LIST_DIR}/../family_common.cmake)
 
 	# todo should we default to pico_sdk?
 	if (NOT BOARD)
@@ -68,6 +68,7 @@ if (NOT TARGET _rp2040_family_inclusion_marker)
 	endfunction()
 
 	function(family_initialize_project PROJECT DIR)
+		# call the original version of this function from family_common.cmake
 		_family_initialize_project(${PROJECT} ${DIR})
 		enable_language(C CXX ASM)
 		pico_sdk_init()
