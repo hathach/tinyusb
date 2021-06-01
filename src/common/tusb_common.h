@@ -372,8 +372,6 @@ static inline const char* tu_lookup_find(tu_lookup_table_t const* p_table, uint3
   #define TU_LOG1_VAR(...)
   #define TU_LOG1_INT(...)
   #define TU_LOG1_HEX(...)
-  #define TU_LOG1_LOCATION()
-  #define TU_LOG1_FAILED()
 #endif
 
 #ifndef TU_LOG2
@@ -382,7 +380,6 @@ static inline const char* tu_lookup_find(tu_lookup_table_t const* p_table, uint3
   #define TU_LOG2_VAR(...)
   #define TU_LOG2_INT(...)
   #define TU_LOG2_HEX(...)
-  #define TU_LOG2_LOCATION()
 #endif
 
 #ifndef TU_LOG3
@@ -391,7 +388,6 @@ static inline const char* tu_lookup_find(tu_lookup_table_t const* p_table, uint3
   #define TU_LOG3_VAR(...)
   #define TU_LOG3_INT(...)
   #define TU_LOG3_HEX(...)
-  #define TU_LOG3_LOCATION()
 #endif
 
 #ifdef __cplusplus

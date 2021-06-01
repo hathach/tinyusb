@@ -172,7 +172,7 @@ uint16_t mscd_open(uint8_t rhport, tusb_desc_interface_t const * itf_desc, uint1
   // Prepare for Command Block Wrapper
   if ( !usbd_edpt_xfer(rhport, p_msc->ep_out, (uint8_t*) &p_msc->cbw, sizeof(msc_cbw_t)) )
   {
-    TU_LOG1_FAILED();
+    TU_LOG_FAILED();
     TU_BREAKPOINT();
   }
 
