@@ -1,3 +1,0 @@
-#!/bin/bash
-
-ruby vendor/ceedling/bin/ceedling $*
