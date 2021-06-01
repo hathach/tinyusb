@@ -65,6 +65,8 @@ Supports multiple device configurations by dynamically changing usb descriptors.
 - Vendor-specific class support with generic In & Out endpoints. Can be used with MS OS 2.0 compatible descriptor to load winUSB driver without INF file.
 - [WebUSB](https://github.com/WICG/webusb) with vendor-specific class
 
+If you have special need, `usbd_app_driver_get_cb()` can be used to write your own class driver without modifying the stack. Here is how RPi team add their reset interface [raspberrypi/pico-sdk#197](https://github.com/raspberrypi/pico-sdk/pull/197)
+
 ## Host Stack
 
 **Most active development is on the Device stack. The Host stack is under rework and largely untested.**
