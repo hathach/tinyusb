@@ -1,9 +1,9 @@
 cmake_minimum_required(VERSION 3.5)
 
-if (EXISTS ${TOP}/lib/lwip/src)
-    set(TOP "../../..")
-    get_filename_component(TOP "${TOP}" REALPATH)
+set(TOP "../../..")
+get_filename_component(TOP "${TOP}" REALPATH)
 
+if (EXISTS ${TOP}/lib/lwip/src)
     include(${TOP}/hw/bsp/${FAMILY}/family.cmake)
 
     # gets PROJECT name for the example (e.g. <BOARD>-<DIR_NAME>)
@@ -73,12 +73,9 @@ if (EXISTS ${TOP}/lib/lwip/src)
             PBUF_POOL_SIZE=2
             TCP_WND=2*TCP_MSS
             HTTPD_USE_CUSTOM_FSDATA=0
-    )
+            )
 
     # Configure compilation flags and libraries for the example... see the corresponding function
     # in hw/bsp/FAMILY/family.cmake for details.
     family_configure_device_example(${PROJECT})
 endif()
-
-
-
