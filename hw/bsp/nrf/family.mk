@@ -1,4 +1,5 @@
 UF2_FAMILY_ID = 0xADA52840
+DEPS_SUBMODULES += lib/CMSIS_5 hw/mcu/nordic/nrfx
 
 include $(TOP)/$(BOARD_PATH)/board.mk
 
@@ -33,13 +34,14 @@ LD_FILE ?= hw/bsp/nrf/boards/$(BOARD)/nrf52840_s140_v6.ld
 LDFLAGS += -L$(TOP)/hw/mcu/nordic/nrfx/mdk
 
 SRC_C += \
+  src/portable/nordic/nrf5x/dcd_nrf5x.c \
   hw/mcu/nordic/nrfx/drivers/src/nrfx_power.c \
   hw/mcu/nordic/nrfx/drivers/src/nrfx_uarte.c \
   hw/mcu/nordic/nrfx/mdk/system_$(MCU_VARIANT).c
 
 INC += \
   $(TOP)/$(BOARD_PATH) \
-  $(TOP)/lib/CMSIS_4/CMSIS/Include \
+  $(TOP)/lib/CMSIS_5/CMSIS/Core/Include \
   $(TOP)/hw/mcu/nordic \
   $(TOP)/hw/mcu/nordic/nrfx \
   $(TOP)/hw/mcu/nordic/nrfx/mdk \
@@ -50,10 +52,6 @@ INC += \
 SRC_S += hw/mcu/nordic/nrfx/mdk/gcc_startup_$(MCU_VARIANT).S
 
 ASFLAGS += -D__HEAP_SIZE=0
-
-# For TinyUSB port source
-VENDOR = nordic
-CHIP_FAMILY = nrf5x
 
 # For freeRTOS port source
 FREERTOS_PORT = ARM_CM4F

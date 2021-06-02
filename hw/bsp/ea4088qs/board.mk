@@ -1,3 +1,5 @@
+DEPS_SUBMODULES += hw/mcu/nxp
+
 CFLAGS += \
   -flto \
   -mthumb \
@@ -20,6 +22,7 @@ MCU_DIR = hw/mcu/nxp/lpcopen/lpc40xx/lpc_chip_40xx
 LD_FILE = hw/bsp/$(BOARD)/lpc4088.ld
 
 SRC_C += \
+	src/portable/nxp/lpc17_40/dcd_lpc17_40.c \
 	$(MCU_DIR)/../gcc/cr_startup_lpc40xx.c \
 	$(MCU_DIR)/src/chip_17xx_40xx.c \
 	$(MCU_DIR)/src/clock_17xx_40xx.c \
@@ -32,10 +35,6 @@ SRC_C += \
 
 INC += \
 	$(TOP)/$(MCU_DIR)/inc
-
-# For TinyUSB port source
-VENDOR = nxp
-CHIP_FAMILY = lpc17_40
 
 # For freeRTOS port source
 FREERTOS_PORT = ARM_CM4F

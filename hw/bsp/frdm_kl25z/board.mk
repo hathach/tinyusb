@@ -1,3 +1,5 @@
+DEPS_SUBMODULES += hw/mcu/nxp
+
 CFLAGS += \
   -mthumb \
   -mabi=aapcs \
@@ -14,6 +16,7 @@ MCU_DIR = hw/mcu/nxp/sdk/devices/MKL25Z4
 LD_FILE = $(MCU_DIR)/gcc/MKL25Z128xxx4_flash.ld
 
 SRC_C += \
+	src/portable/nxp/khci/dcd_khci.c \
 	$(MCU_DIR)/system_MKL25Z4.c \
 	$(MCU_DIR)/project_template/clock_config.c \
 	$(MCU_DIR)/drivers/fsl_clock.c \
@@ -28,10 +31,6 @@ INC += \
 	$(TOP)/$(MCU_DIR)/project_template \
 
 SRC_S += $(MCU_DIR)/gcc/startup_MKL25Z4.S
-
-# For TinyUSB port source
-VENDOR = nxp
-CHIP_FAMILY = khci
 
 # For freeRTOS port source
 FREERTOS_PORT = ARM_CM0

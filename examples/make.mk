@@ -15,24 +15,14 @@ check_defined = \
 __check_defined = \
     $(if $(value $1),, \
     $(error Undefined make flag: $1$(if $2, ($2))))
-    
-# TODO Check if submodule haven't checkout yet
-fetch_submodule_if_empty = \
-  ifeq ($(wildcard $(TOP)/$1/*),) \
-    $(info $(shell git -C $(TOP) submodule update --init)) \
-  endif
 
 #-------------- Select the board to build for. ------------
-#BOARD_LIST = $(sort $(subst /.,,$(subst $(TOP)/hw/bsp/,,$(wildcard $(TOP)/hw/bsp/*/.))))
-#ifeq ($(filter $(BOARD),$(BOARD_LIST)),)
-#  $(info You must provide a BOARD parameter with 'BOARD=', supported boards are:)
-#  $(foreach b,$(BOARD_LIST),$(info - $(b)))
-#  $(error Invalid BOARD specified)
-#endif
 
 # Board without family
-BOARD_PATH := $(subst $(TOP)/,,$(wildcard $(TOP)/hw/bsp/$(BOARD)))
+ifneq ($(wildcard $(TOP)/hw/bsp/$(BOARD)/board.mk),)
+BOARD_PATH := hw/bsp/$(BOARD)
 FAMILY :=
+endif
 
 # Board within family
 ifeq ($(BOARD_PATH),)
@@ -42,6 +32,7 @@ ifeq ($(BOARD_PATH),)
 endif
 
 ifeq ($(BOARD_PATH),)
+  $(info You must provide a BOARD parameter with 'BOARD=')
   $(error Invalid BOARD specified)
 endif
 
@@ -49,12 +40,16 @@ ifeq ($(FAMILY),)
   include $(TOP)/hw/bsp/$(BOARD)/board.mk
 else
   # Include Family and Board specific defs
-  -include $(TOP)/$(FAMILY_PATH)/family.mk
+  include $(TOP)/$(FAMILY_PATH)/family.mk
 
   SRC_C += $(subst $(TOP)/,,$(wildcard $(TOP)/$(FAMILY_PATH)/*.c))
 endif
 
-#TODO $(call fetch_submodule_if_empty,lib/sct_neopixel)
+# Fetch submodules depended by family
+fetch_submodule_if_empty = $(if $(wildcard $(TOP)/$1/*),,$(info $(shell git -C $(TOP) submodule update --init $1)))
+ifdef DEPS_SUBMODULES
+  $(foreach s,$(DEPS_SUBMODULES),$(call fetch_submodule_if_empty,$(s)))
+endif
 
 #-------------- Cross Compiler  ------------
 # Can be set by board, default to ARM GCC
@@ -62,16 +57,18 @@ CROSS_COMPILE ?= arm-none-eabi-
 
 CC = $(CROSS_COMPILE)gcc
 CXX = $(CROSS_COMPILE)g++
+GDB = $(CROSS_COMPILE)gdb
 OBJCOPY = $(CROSS_COMPILE)objcopy
 SIZE = $(CROSS_COMPILE)size
 MKDIR = mkdir
+
 ifeq ($(CMDEXE),1)
-CP = copy
-RM = del
+  CP = copy
+  RM = del
 else
-SED = sed
-CP = cp
-RM = rm
+  SED = sed
+  CP = cp
+  RM = rm
 endif
 
 #-------------- Source files and compiler flags --------------
@@ -79,6 +76,8 @@ endif
 # Include all source C in family & board folder
 SRC_C += hw/bsp/board.c
 SRC_C += $(subst $(TOP)/,,$(wildcard $(TOP)/$(BOARD_PATH)/*.c))
+
+INC   += $(TOP)/$(FAMILY_PATH)
 
 # Compiler Flags
 CFLAGS += \

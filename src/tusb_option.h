@@ -28,7 +28,7 @@
 #define _TUSB_OPTION_H_
 
 #define TUSB_VERSION_MAJOR     0
-#define TUSB_VERSION_MINOR     8
+#define TUSB_VERSION_MINOR     9
 #define TUSB_VERSION_REVISION  0
 #define TUSB_VERSION_STRING    TU_STRING(TUSB_VERSION_MAJOR) "." TU_STRING(TUSB_VERSION_MINOR) "." TU_STRING(TUSB_VERSION_REVISION)
 
@@ -60,6 +60,7 @@
 #define OPT_MCU_SAMD51            201 ///< MicroChip SAMD51
 #define OPT_MCU_SAME5X            203 ///< MicroChip SAM E5x
 #define OPT_MCU_SAMG              202 ///< MicroChip SAMDG series
+#define OPT_MCU_SAML22            205 ///< MicroChip SAML22
 
 // STM32
 #define OPT_MCU_STM32F0           300 ///< ST STM32F0
@@ -93,6 +94,7 @@
 
 // Espressif
 #define OPT_MCU_ESP32S2           900 ///< Espressif ESP32-S2
+#define OPT_MCU_ESP32S3           901 ///< Espressif ESP32-S3
 
 // Dialog
 #define OPT_MCU_DA1469X          1000 ///< Dialog Semiconductor DA1469x
@@ -102,6 +104,14 @@
 
 // NXP Kinetis
 #define OPT_MCU_MKL25ZXX         1200 ///< NXP MKL25Zxx
+
+// Silabs
+#define OPT_MCU_EFM32GG          1300 ///< Silabs EFM32GG
+#define OPT_MCU_EFM32GG11        1301 ///< Silabs EFM32GG11
+#define OPT_MCU_EFM32GG12        1302 ///< Silabs EFM32GG12
+
+// Renesas RX
+#define OPT_MCU_RX63X            1400 ///< Renesas RX63N/631
 
 /** @} */
 
@@ -116,15 +126,12 @@
 #define OPT_OS_RTTHREAD   6  ///< RT-Thread
 /** @} */
 
-
 // Allow to use command line to change the config name/location
 #ifdef CFG_TUSB_CONFIG_FILE
   #include CFG_TUSB_CONFIG_FILE
 #else
   #include "tusb_config.h"
 #endif
-
-
 
 /** \addtogroup group_configuration
  *  @{ */
@@ -269,6 +276,19 @@
   //------------- CLASS -------------//
 #endif // TUSB_OPT_HOST_ENABLED
 
+//--------------------------------------------------------------------+
+// Port Options
+// TUP for TinyUSB Port (can be renamed)
+//--------------------------------------------------------------------+
+
+// TUP_ARCH_STRICT_ALIGN if arch cannot access unaligned memory
+
+// ARMv7+ (M3-M7, M23-M33) can access unaligned memory
+#if (defined(__ARM_ARCH) && (__ARM_ARCH >= 7))
+  #define TUP_ARCH_STRICT_ALIGN   0
+#else
+  #define TUP_ARCH_STRICT_ALIGN   1
+#endif
 
 //------------------------------------------------------------------
 // Configuration Validation

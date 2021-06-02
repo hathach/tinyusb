@@ -48,7 +48,7 @@ static DSTATUS disk_state[CFG_TUSB_HOST_DEVICE_MAX];
 static DRESULT wait_for_io_complete(uint8_t usb_addr)
 {
   // TODO with RTOS, this should use semaphore instead of blocking
-  while ( tuh_msc_is_busy(usb_addr) )
+  while ( !tuh_msc_ready(usb_addr) )
   {
     // TODO should have timeout here
     #if CFG_TUSB_OS != OPT_OS_NONE

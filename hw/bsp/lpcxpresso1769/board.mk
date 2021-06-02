@@ -1,3 +1,5 @@
+DEPS_SUBMODULES += hw/mcu/nxp
+
 CFLAGS += \
   -flto \
   -mthumb \
@@ -18,6 +20,7 @@ MCU_DIR = hw/mcu/nxp/lpcopen/lpc175x_6x/lpc_chip_175x_6x
 LD_FILE = hw/bsp/$(BOARD)/lpc1769.ld
 
 SRC_C += \
+	src/portable/nxp/lpc17_40/dcd_lpc17_40.c \
 	$(MCU_DIR)/../gcc/cr_startup_lpc175x_6x.c \
 	$(MCU_DIR)/src/chip_17xx_40xx.c \
 	$(MCU_DIR)/src/clock_17xx_40xx.c \
@@ -29,10 +32,6 @@ SRC_C += \
 
 INC += \
 	$(TOP)/$(MCU_DIR)/inc
-
-# For TinyUSB port source
-VENDOR = nxp
-CHIP_FAMILY = lpc17_40
 
 # For freeRTOS port source
 FREERTOS_PORT = ARM_CM3

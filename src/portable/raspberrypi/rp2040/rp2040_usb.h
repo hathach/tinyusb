@@ -42,10 +42,6 @@ struct hw_endpoint
 {
     // Is this a valid struct
     bool configured;
-    // EP direction
-    bool in;
-    // EP num (not including direction)
-    uint8_t num;
     
     // Transfer direction (i.e. IN is rx for host but tx for device)
     // allows us to common up transfer functions
@@ -67,28 +63,30 @@ struct hw_endpoint
 
     // Current transfer information
     bool active;
-    uint total_len;
-    uint len;
+    uint16_t total_len;
+    uint16_t len;
     // Amount of data with the hardware
-    uint transfer_size;
+    uint16_t transfer_size;
+    // User buffer in main memory
+    uint8_t *user_buf;
+
+    // Data needed from EP descriptor
+    uint16_t wMaxPacketSize;
+    // Interrupt, bulk, etc
+    uint8_t transfer_type;
+    
+#if TUSB_OPT_HOST_ENABLED
     // Only needed for host mode
     bool last_buf;
     // HOST BUG. Host will incorrect write status to top half of buffer
     // control register when doing transfers > 1 packet
     uint8_t buf_sel;
-    // User buffer in main memory
-    uint8_t *user_buf;
-
-    // Data needed from EP descriptor
-    uint wMaxPacketSize;
-    // Interrupt, bulk, etc
-    uint8_t transfer_type;
-    
     // Only needed for host
     uint8_t dev_addr;
     bool sent_setup;
     // If interrupt endpoint
     uint8_t interrupt_num;
+#endif
 };
 
 void rp2040_usb_init(void);

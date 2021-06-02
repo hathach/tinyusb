@@ -1,4 +1,5 @@
 UF2_FAMILY_ID = 0x4fb2d5bd
+DEPS_SUBMODULES += hw/mcu/nxp
 
 include $(TOP)/$(BOARD_PATH)/board.mk
 
@@ -26,6 +27,7 @@ LDFLAGS += \
 	-Wl,--defsym,__stack_size__=0x800 \
 
 SRC_C += \
+	src/portable/nxp/transdimension/dcd_transdimension.c \
 	$(MCU_DIR)/system_$(MCU_VARIANT).c \
 	$(MCU_DIR)/xip/fsl_flexspi_nor_boot.c \
 	$(MCU_DIR)/project_template/clock_config.c \
@@ -42,10 +44,6 @@ INC += \
 	$(TOP)/$(MCU_DIR)/project_template \
 
 SRC_S += $(MCU_DIR)/gcc/startup_$(MCU_VARIANT).S
-
-# For TinyUSB port source
-VENDOR = nxp
-CHIP_FAMILY = transdimension
 
 # For freeRTOS port source
 FREERTOS_PORT = ARM_CM7/r0p1

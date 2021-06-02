@@ -1,3 +1,5 @@
+DEPS_SUBMODULES += hw/mcu/nxp
+
 CFLAGS += \
   -flto \
   -mthumb \
@@ -17,6 +19,7 @@ MCU_DIR = hw/mcu/nxp/sdk/devices/LPC51U68
 LD_FILE = $(MCU_DIR)/gcc/LPC51U68_flash.ld
 
 SRC_C += \
+	src/portable/nxp/lpc_ip3511/dcd_lpc_ip3511.c \
 	$(MCU_DIR)/system_LPC51U68.c \
 	$(MCU_DIR)/drivers/fsl_clock.c \
 	$(MCU_DIR)/drivers/fsl_gpio.c \
@@ -31,10 +34,6 @@ INC += \
 SRC_S += $(MCU_DIR)/gcc/startup_LPC51U68.S
 
 LIBS += $(TOP)/$(MCU_DIR)/gcc/libpower.a
-
-# For TinyUSB port source
-VENDOR = nxp
-CHIP_FAMILY = lpc_ip3511
 
 # For freeRTOS port source
 FREERTOS_PORT = ARM_CM0

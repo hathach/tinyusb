@@ -1,3 +1,5 @@
+DEPS_SUBMODULES += hw/mcu/nxp
+
 CFLAGS += \
   -flto \
   -mthumb \
@@ -19,6 +21,7 @@ MCU_DIR = hw/mcu/nxp/lpcopen/lpc43xx/lpc_chip_43xx
 LD_FILE = hw/bsp/$(BOARD)/lpc4357.ld
 
 SRC_C += \
+	src/portable/nxp/transdimension/dcd_transdimension.c \
 	$(MCU_DIR)/../gcc/cr_startup_lpc43xx.c \
 	$(MCU_DIR)/src/chip_18xx_43xx.c \
 	$(MCU_DIR)/src/clock_18xx_43xx.c \
@@ -32,10 +35,6 @@ SRC_C += \
 INC += \
 	$(TOP)/$(MCU_DIR)/inc \
 	$(TOP)/$(MCU_DIR)/inc/config_43xx
-
-# For TinyUSB port source
-VENDOR = nxp
-CHIP_FAMILY = transdimension
 
 # For freeRTOS port source
 FREERTOS_PORT = ARM_CM4F

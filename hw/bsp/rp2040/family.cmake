@@ -1,3 +1,18 @@
+# Board specific define e.g boot stage2
+# PICO_DEFAULT_BOOT_STAGE2_FILE must be set before pico_sdk_init()
+include(${TOP}/hw/bsp/${FAMILY}/boards/${BOARD}/board.cmake)
+
+pico_sdk_init()
+
+target_link_libraries(${PROJECT}
+  pico_stdlib
+  pico_bootsel_via_double_reset
+  pico_fix_rp2040_usb_device_enumeration
+)
+
+pico_add_extra_outputs(${PROJECT})
+pico_enable_stdio_uart(${PROJECT} 1)
+
 # TinyUSB Stack source
 set(SRC_TINYUSB
 	${TOP}/src/tusb.c
@@ -13,8 +28,15 @@ set(SRC_TINYUSB
 	${TOP}/src/class/net/net_device.c
 	${TOP}/src/class/usbtmc/usbtmc_device.c
 	${TOP}/src/class/vendor/vendor_device.c
-	${TOP}/src/portable/raspberrypi/${FAMILY}/dcd_rp2040.c
+	${TOP}/src/host/hub.c
+	${TOP}/src/host/usbh.c
+	${TOP}/src/host/usbh_control.c
+	${TOP}/src/class/cdc/cdc_host.c
+	${TOP}/src/class/hid/hid_host.c
+	${TOP}/src/class/msc/msc_host.c
 	${TOP}/src/portable/raspberrypi/${FAMILY}/rp2040_usb.c
+	${TOP}/src/portable/raspberrypi/${FAMILY}/dcd_rp2040.c
+	${TOP}/src/portable/raspberrypi/${FAMILY}/hcd_rp2040.c
 )
 
 target_sources(${PROJECT} PUBLIC
@@ -35,12 +57,9 @@ target_compile_definitions(${PROJECT} PUBLIC
 
 if(DEFINED LOG)
   target_compile_definitions(${PROJECT} PUBLIC CFG_TUSB_DEBUG=${LOG} )
-  pico_enable_stdio_uart(${PROJECT} 1)
 endif()
 
 if(LOGGER STREQUAL "rtt")
-  pico_enable_stdio_uart(${PROJECT} 0)
-
   target_compile_definitions(${PROJECT} PUBLIC
     LOGGER_RTT
     SEGGER_RTT_MODE_DEFAULT=SEGGER_RTT_MODE_BLOCK_IF_FIFO_FULL

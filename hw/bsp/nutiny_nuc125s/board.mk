@@ -1,3 +1,5 @@
+DEPS_SUBMODULES += hw/mcu/nuvoton
+
 CFLAGS += \
   -flto \
   -mthumb \
@@ -12,9 +14,10 @@ CFLAGS += \
 LD_FILE = hw/bsp/$(BOARD)/nuc125_flash.ld
 
 SRC_C += \
+  src/portable/nuvoton/nuc121/dcd_nuc121.c \
   hw/mcu/nuvoton/nuc121_125/Device/Nuvoton/NUC121/Source/system_NUC121.c \
   hw/mcu/nuvoton/nuc121_125/StdDriver/src/clk.c \
-    hw/mcu/nuvoton/nuc121_125/StdDriver/src/gpio.c
+  hw/mcu/nuvoton/nuc121_125/StdDriver/src/gpio.c
 
 SRC_S += \
   hw/mcu/nuvoton/nuc121_125/Device/Nuvoton/NUC121/Source/GCC/startup_NUC121.S
@@ -23,10 +26,6 @@ INC += \
   $(TOP)/hw/mcu/nuvoton/nuc121_125/Device/Nuvoton/NUC121/Include \
   $(TOP)/hw/mcu/nuvoton/nuc121_125/StdDriver/inc \
   $(TOP)/hw/mcu/nuvoton/nuc121_125/CMSIS/Include
-
-# For TinyUSB port source
-VENDOR = nuvoton
-CHIP_FAMILY = nuc121
 
 # For freeRTOS port source
 FREERTOS_PORT = ARM_CM0

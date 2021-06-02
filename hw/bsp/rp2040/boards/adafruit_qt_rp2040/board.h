@@ -35,6 +35,10 @@
 #define LED_PIN               11
 #define LED_STATE_ON          1
 
+#define NEOPIXEL_PIN          12
+#define NEOPIXEL_POWER_PIN    11
+#define NEOPIXEL_POWER_STATE  1
+
 // Button pin is BOOTSEL which is flash CS pin
 #define BUTTON_BOOTSEL
 #define BUTTON_STATE_ACTIVE   0
