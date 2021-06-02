@@ -2,9 +2,6 @@ cmake_minimum_required(VERSION 3.13)
 if (NOT TARGET _rp2040_family_inclusion_marker)
 	add_library(_rp2040_family_inclusion_marker INTERFACE)
 
-	# include basic family CMake functionality
-	set(FAMILY_MCUS RP2040)
-
 	if (NOT BOARD)
 		message(FATAL_ERROR "BOARD must be specified")
 	endif()
@@ -12,6 +9,8 @@ if (NOT TARGET _rp2040_family_inclusion_marker)
 	# add the SDK in case we are standalone tinyusb example (noop if already present)
 	include(${CMAKE_CURRENT_LIST_DIR}/pico_sdk_import.cmake)
 
+	# include basic family CMake functionality
+	set(FAMILY_MCUS RP2040)
 	include(${CMAKE_CURRENT_LIST_DIR}/../family_common.cmake)
 
 	include(${CMAKE_CURRENT_LIST_DIR}/boards/${BOARD}/board.cmake)
