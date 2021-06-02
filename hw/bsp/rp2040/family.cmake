@@ -19,8 +19,8 @@ if (NOT TARGET _rp2040_family_inclusion_marker)
 	set(TOP "${CMAKE_CURRENT_LIST_DIR}/../../..")
 	get_filename_component(TOP "${TOP}" REALPATH)
 
-	if (NOT TOP)
-		set(TOP ${TOP})
+	if (NOT PICO_TINYUSB_PATH)
+		set(PICO_TINYUSB_PATH ${TOP})
 	endif()
 
 	# Base config for both device and host; wrapped by SDK's tinyusb_common
