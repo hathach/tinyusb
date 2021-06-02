@@ -276,6 +276,30 @@ static void pipe_read_packet(void *buf, volatile void *fifo, unsigned len)
   while (len--) *p++ = *reg;
 }
 
+static void pipe_read_write_packet_ff(tu_fifo_t *f, volatile void *fifo, unsigned len, unsigned dir)
+{
+  static const struct {
+    void (*tu_fifo_get_info)(tu_fifo_t *f, tu_fifo_buffer_info_t *info);
+    void (*tu_fifo_advance)(tu_fifo_t *f, uint16_t n);
+    void (*pipe_read_write)(void *buf, volatile void *fifo, unsigned len);
+  } ops[] = {
+    /* OUT */ {tu_fifo_get_write_info,tu_fifo_advance_write_pointer,pipe_read_packet},
+    /* IN  */ {tu_fifo_get_read_info, tu_fifo_advance_read_pointer, pipe_write_packet},
+  };
+  tu_fifo_buffer_info_t info;
+  ops[dir].tu_fifo_get_info(f, &info);
+  unsigned total_len = len;
+  len = TU_MIN(total_len, info.len_lin);
+  ops[dir].pipe_read_write(info.ptr_lin, fifo, len);
+  unsigned rem = total_len - len;
+  if (rem) {
+    len = TU_MIN(rem, info.len_wrap);
+    ops[dir].pipe_read_write(info.ptr_wrap, fifo, len);
+    rem -= len;
+  }
+  ops[dir].tu_fifo_advance(f, total_len - rem);
+}
+
 static bool pipe0_xfer_in(void)
 {
   pipe_state_t *pipe = &_dcd.pipe[0];
@@ -289,7 +313,7 @@ static bool pipe0_xfer_in(void)
   void          *buf = pipe->buf;
   if (len) {
     if (pipe->ff) {
-      tu_fifo_read_n_const_addr_full_words(buf, (void*)&USB0.CFIFO.WORD, len);
+      pipe_read_write_packet_ff((tu_fifo_t*)buf, &USB0.CFIFO.WORD, len, TUSB_DIR_IN);
     } else {
       pipe_write_packet(buf, &USB0.CFIFO.WORD, len);
       pipe->buf = (uint8_t*)buf + len;
@@ -311,7 +335,7 @@ static bool pipe0_xfer_out(void)
   void          *buf = pipe->buf;
   if (len) {
     if (pipe->ff) {
-      tu_fifo_write_n_const_addr_full_words(buf, (void*)&USB0.CFIFO.WORD, len);
+      pipe_read_write_packet_ff((tu_fifo_t*)buf, &USB0.CFIFO.WORD, len, TUSB_DIR_OUT);
     } else {
       pipe_read_packet(buf, &USB0.CFIFO.WORD, len);
       pipe->buf = (uint8_t*)buf + len;
@@ -343,7 +367,7 @@ static bool pipe_xfer_in(unsigned num)
   void          *buf  = pipe->buf;
   if (len) {
     if (pipe->ff) {
-      tu_fifo_read_n_const_addr_full_words(buf, (void*)&USB0.D0FIFO.WORD, len);
+      pipe_read_write_packet_ff((tu_fifo_t*)buf, &USB0.D0FIFO.WORD, len, TUSB_DIR_IN);
     } else {
       pipe_write_packet(buf, &USB0.D0FIFO.WORD, len);
       pipe->buf = (uint8_t*)buf + len;
@@ -369,7 +393,7 @@ static bool pipe_xfer_out(unsigned num)
   void          *buf  = pipe->buf;
   if (len) {
     if (pipe->ff) {
-      tu_fifo_write_n_const_addr_full_words(buf, (void*)&USB0.D0FIFO.WORD, len);
+      pipe_read_write_packet_ff((tu_fifo_t*)buf, &USB0.D0FIFO.WORD, len, TUSB_DIR_OUT);
     } else {
       pipe_read_packet(buf, &USB0.D0FIFO.WORD, len);
       pipe->buf = (uint8_t*)buf + len;
@@ -477,7 +501,7 @@ static bool process_pipe_xfer(int buffer_type, uint8_t ep_addr, void* buffer, ui
       *ctr = USB_PIPECTR_PID_BUF;
     }
   }
-  //  TU_LOG1("X %x %d\r\n", ep_addr, total_bytes);
+  //  TU_LOG1("X %x %d %d\r\n", ep_addr, total_bytes, buffer_type);
   return true;
 }
 
