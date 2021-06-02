@@ -566,9 +566,9 @@ void dcd_init(uint8_t rhport)
   USB0.SYSCFG.BIT.DCFM = 0;
   USB0.SYSCFG.BIT.USBE = 1;
 
-  USB0.PHYSLEW.LONG = 0x5;
   USB.DPUSR0R.BIT.FIXPHY0 = 0u;    /* USB0 Transceiver Output fixed */
 #if ( CFG_TUSB_MCU == OPT_MCU_RX72N )
+  USB0.PHYSLEW.LONG = 0x5;
   IR(PERIB, INTB185) = 0;
 #else
   IR(USB0, USBI0)   = 0;
