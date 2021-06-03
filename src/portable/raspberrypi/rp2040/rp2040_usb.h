@@ -134,11 +134,11 @@ typedef union TU_ATTR_PACKED
 
 TU_VERIFY_STATIC(sizeof(rp2040_buffer_control_t) == 2, "size is not correct");
 
-static inline void print_bufctrl16(uint32_t u16)
+static inline void print_bufctrl16(uint32_t __unused u16)
 {
-  rp2040_buffer_control_t bufctrl;
-
-  bufctrl.u16 = u16;
+  rp2040_buffer_control_t __unused bufctrl = {
+      .u16 = u16
+  };
 
   TU_LOG(2, "len = %u, available = %u, stall = %u, reset = %u, toggle = %u, last = %u, full = %u\r\n",
          bufctrl.xfer_len, bufctrl.available, bufctrl.stall, bufctrl.reset_bufsel, bufctrl.data_toggle, bufctrl.last_buf, bufctrl.full);
