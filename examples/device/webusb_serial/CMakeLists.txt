@@ -1,37 +1,28 @@
-# use directory name for project id
-get_filename_component(PROJECT ${CMAKE_CURRENT_SOURCE_DIR} NAME)
-set(PROJECT ${BOARD}-${PROJECT})
+cmake_minimum_required(VERSION 3.5)
 
-# TOP is absolute path to root directory of TinyUSB git repo
-set(TOP "../../..")
-get_filename_component(TOP "${TOP}" REALPATH)
+include(${CMAKE_CURRENT_SOURCE_DIR}/../../../hw/bsp/${FAMILY}/family.cmake)
 
-# Check for -DFAMILY=
-if(FAMILY STREQUAL "rp2040")
-  cmake_minimum_required(VERSION 3.12)
-  
-  include(${TOP}/hw/bsp/${FAMILY}/pico_sdk_import.cmake)
-  project(${PROJECT})
-  add_executable(${PROJECT})
+# gets PROJECT name for the example (e.g. <BOARD>-<DIR_NAME>)
+family_get_project_name(PROJECT ${CMAKE_CURRENT_LIST_DIR})
 
-  include(${TOP}/hw/bsp/${FAMILY}/family.cmake)
+project(${PROJECT})
 
-  # Example source
-  target_sources(${PROJECT} PUBLIC
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/main.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/usb_descriptors.c
-  )
+# Checks this example is valid for the family and initializes the project
+family_initialize_project(${PROJECT} ${CMAKE_CURRENT_LIST_DIR})
 
-  # Example include
-  target_include_directories(${PROJECT} PUBLIC
-    ${CMAKE_CURRENT_SOURCE_DIR}/src
-  )
+add_executable(${PROJECT})
 
-  # Example defines
-  target_compile_definitions(${PROJECT} PUBLIC
-    CFG_TUSB_OS=OPT_OS_PICO
-  )
+# Example source
+target_sources(${PROJECT} PUBLIC
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/main.c
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/usb_descriptors.c
+        )
 
-else()
-  message(FATAL_ERROR "Invalid FAMILY specified: ${FAMILY}")
-endif()
+# Example include
+target_include_directories(${PROJECT} PUBLIC
+        ${CMAKE_CURRENT_SOURCE_DIR}/src
+        )
+
+# Configure compilation flags and libraries for the example... see the corresponding function
+# in hw/bsp/FAMILY/family.cmake for details.
+family_configure_device_example(${PROJECT})

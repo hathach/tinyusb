@@ -28,8 +28,10 @@
 
 #if (TUSB_OPT_DEVICE_ENABLED && CFG_TUD_CDC)
 
-#include "cdc_device.h"
+#include "device/usbd.h"
 #include "device/usbd_pvt.h"
+
+#include "cdc_device.h"
 
 #if defined(TU_HAS_NO_ATTR_WEAK)
 static void (*const MAKE_WEAK_FUNC(tud_cdc_rx_cb))(uint8_t) = TUD_CDC_RX_CB;

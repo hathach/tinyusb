@@ -212,6 +212,7 @@ static void hcd_rp2040_irq(void)
     if (status & USB_INTS_BUFF_STATUS_BITS)
     {
         handled |= USB_INTS_BUFF_STATUS_BITS;
+        // print_bufctrl32(*epx.buffer_control);
         hw_handle_buff_status();
     }
 
@@ -233,6 +234,7 @@ static void hcd_rp2040_irq(void)
     if (status & USB_INTS_ERROR_DATA_SEQ_BITS)
     {
         usb_hw_clear->sie_status = USB_SIE_STATUS_DATA_SEQ_ERROR_BITS;
+        // print_bufctrl32(*epx.buffer_control);
         panic("Data Seq Error \n");
     }
 
@@ -294,7 +296,6 @@ static void _hw_endpoint_init(struct hw_endpoint *ep, uint8_t dev_addr, uint8_t 
     uint8_t const num = tu_edpt_number(ep_addr);
     tusb_dir_t const dir = tu_edpt_dir(ep_addr);
 
-    bool in = ep_addr & TUSB_DIR_IN_MASK;
     ep->ep_addr = ep_addr;
     ep->dev_addr = dev_addr;
 
@@ -452,6 +453,7 @@ bool hcd_edpt_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr, uint8_t * 
     if (ep_addr != ep->ep_addr)
     {
         // Direction has flipped so re init it but with same properties
+        // TODO treat IN and OUT as invidual endpoints
         _hw_endpoint_init(ep, dev_addr, ep_addr, ep->wMaxPacketSize, ep->transfer_type, 0);
     }
 
@@ -501,10 +503,9 @@ bool hcd_setup_send(uint8_t rhport, uint8_t dev_addr, uint8_t const setup_packet
     return true;
 }
 
-uint32_t hcd_uframe_number(uint8_t rhport)
+uint32_t hcd_frame_number(uint8_t rhport)
 {
-    // Microframe number is (125us) but we are max full speed so return miliseconds * 8
-    return usb_hw->sof_rd * 8;
+    return usb_hw->sof_rd;
 }
 
 bool hcd_edpt_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_endpoint_t const * ep_desc)
@@ -531,6 +532,7 @@ bool hcd_edpt_busy(uint8_t dev_addr, uint8_t ep_addr)
 bool hcd_edpt_stalled(uint8_t dev_addr, uint8_t ep_addr)
 {
     panic("hcd_pipe_stalled");
+    return false;
 }
 
 bool hcd_edpt_clear_stall(uint8_t dev_addr, uint8_t ep_addr)
@@ -539,14 +541,4 @@ bool hcd_edpt_clear_stall(uint8_t dev_addr, uint8_t ep_addr)
     return true;
 }
 
-bool hcd_pipe_xfer(uint8_t dev_addr, uint8_t ep_addr, uint8_t buffer[], uint16_t total_bytes, bool int_on_complete)
-{
-    pico_trace("hcd_pipe_xfer dev_addr %d, ep_addr 0x%x, total_bytes %d, int_on_complete %d\n",
-        dev_addr, ep_addr, total_bytes, int_on_complete);
-
-    // Same logic as hcd_edpt_xfer as far as I am concerned
-    hcd_edpt_xfer(0, dev_addr, ep_addr, buffer, total_bytes);
-
-    return true;
-}
 #endif

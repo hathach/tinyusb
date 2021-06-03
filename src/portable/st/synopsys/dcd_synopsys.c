@@ -94,10 +94,8 @@
 
 #else
 #error "Unsupported MCUs"
-
 #endif
 
-#include "common/tusb_fifo.h"
 #include "device/dcd.h"
 
 //--------------------------------------------------------------------+

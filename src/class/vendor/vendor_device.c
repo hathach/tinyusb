@@ -28,8 +28,10 @@
 
 #if (TUSB_OPT_DEVICE_ENABLED && CFG_TUD_VENDOR)
 
-#include "vendor_device.h"
+#include "device/usbd.h"
 #include "device/usbd_pvt.h"
+
+#include "vendor_device.h"
 
 //--------------------------------------------------------------------+
 // MACRO CONSTANT TYPEDEF
@@ -193,7 +195,7 @@ uint16_t vendord_open(uint8_t rhport, tusb_desc_interface_t const * itf_desc, ui
   // Prepare for incoming data
   if ( !usbd_edpt_xfer(rhport, p_vendor->ep_out, p_vendor->epout_buf, sizeof(p_vendor->epout_buf)) )
   {
-    TU_LOG1_FAILED();
+    TU_LOG_FAILED();
     TU_BREAKPOINT();
   }
 

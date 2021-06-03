@@ -46,7 +46,7 @@ static inline void _hw_endpoint_lock_update(struct hw_endpoint *ep, int delta) {
 #if TUSB_OPT_HOST_ENABLED
 static inline void _hw_endpoint_update_last_buf(struct hw_endpoint *ep)
 {
-    ep->last_buf = ep->len + ep->transfer_size == ep->total_len;
+    ep->last_buf = (ep->len + ep->transfer_size == ep->total_len);
 }
 #endif
 
@@ -126,7 +126,29 @@ void _hw_endpoint_start_next_buffer(struct hw_endpoint *ep)
 
     // PID
     val |= ep->next_pid ? USB_BUF_CTRL_DATA1_PID : USB_BUF_CTRL_DATA0_PID;
+
+#if TUSB_OPT_DEVICE_ENABLED
     ep->next_pid ^= 1u;
+
+#else
+    // For Host (also device but since we dictate the endpoint size, following scenario does not occur)
+    // Next PID depends on the number of packet in case wMaxPacketSize < 64 (e.g Interrupt Endpoint 8, or 12)
+    // Special case with control status stage where PID is always DATA1
+    if ( ep->transfer_size == 0 )
+    {
+      // ZLP also toggle data
+      ep->next_pid ^= 1u;
+    }else
+    {
+      uint32_t packet_count = 1 + ((ep->transfer_size - 1) / ep->wMaxPacketSize);
+
+      if ( packet_count & 0x01 )
+      {
+        ep->next_pid ^= 1u;
+      }
+    }
+#endif
+
 
 #if TUSB_OPT_HOST_ENABLED
     // Is this the last buffer? Only really matters for host mode. Will trigger
@@ -143,6 +165,7 @@ void _hw_endpoint_start_next_buffer(struct hw_endpoint *ep)
     // the next time the controller polls this dpram address
     _hw_endpoint_buffer_control_set_value32(ep, val);
     pico_trace("buffer control (0x%p) <- 0x%x\n", ep->buffer_control, val);
+    //print_bufctrl16(val);
 }
 
 
@@ -161,7 +184,10 @@ void _hw_endpoint_xfer_start(struct hw_endpoint *ep, uint8_t *buffer, uint16_t t
     // Fill in info now that we're kicking off the hw
     ep->total_len = total_len;
     ep->len = 0;
-    ep->transfer_size = tu_min16(total_len, ep->wMaxPacketSize);
+
+    // Limit by packet size but not less 64 (i.e low speed 8 bytes EP0)
+    ep->transfer_size = tu_min16(total_len, tu_max16(64, ep->wMaxPacketSize));
+
     ep->active = true;
     ep->user_buf = buffer;
 #if TUSB_OPT_HOST_ENABLED
@@ -185,11 +211,16 @@ void _hw_endpoint_xfer_sync(struct hw_endpoint *ep)
     uint16_t transferred_bytes = buf_ctrl & USB_BUF_CTRL_LEN_MASK;
 
 #if TUSB_OPT_HOST_ENABLED
+    // RP2040-E4
     // tag::host_buf_sel_fix[]
+    // TODO need changes to support double buffering
     if (ep->buf_sel == 1)
     {
         // Host can erroneously write status to top half of buf_ctrl register
         buf_ctrl = buf_ctrl >> 16;
+
+        // update buf1 -> buf0 to prevent panic with "already available"
+        *ep->buffer_control = buf_ctrl;
     }
     // Flip buf sel for host
     ep->buf_sel ^= 1u;
@@ -240,8 +271,9 @@ bool _hw_endpoint_xfer_continue(struct hw_endpoint *ep)
     _hw_endpoint_xfer_sync(ep);
 
     // Now we have synced our state with the hardware. Is there more data to transfer?
+    // Limit by packet size but not less 64 (i.e low speed 8 bytes EP0)
     uint16_t remaining_bytes = ep->total_len - ep->len;
-    ep->transfer_size = tu_min16(remaining_bytes, ep->wMaxPacketSize);
+    ep->transfer_size = tu_min16(remaining_bytes, tu_max16(64, ep->wMaxPacketSize));
 #if TUSB_OPT_HOST_ENABLED
     _hw_endpoint_update_last_buf(ep);
 #endif

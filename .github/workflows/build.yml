@@ -67,7 +67,7 @@ jobs:
     - name: Checkout pico-sdk
       if: matrix.family == 'rp2040'
       run: |
-        git clone --depth 1 https://github.com/raspberrypi/pico-sdk ~/pico-sdk
+        git clone --depth 1 -b develop https://github.com/raspberrypi/pico-sdk ~/pico-sdk
         echo >> $GITHUB_ENV PICO_SDK_PATH=~/pico-sdk
 
     - name: Set Toolchain URL

@@ -28,8 +28,10 @@
 
 #if (TUSB_OPT_DEVICE_ENABLED && CFG_TUD_DFU_RUNTIME)
 
-#include "dfu_rt_device.h"
+#include "device/usbd.h"
 #include "device/usbd_pvt.h"
+
+#include "dfu_rt_device.h"
 
 //--------------------------------------------------------------------+
 // MACRO CONSTANT TYPEDEF

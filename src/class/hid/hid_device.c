@@ -31,9 +31,10 @@
 //--------------------------------------------------------------------+
 // INCLUDE
 //--------------------------------------------------------------------+
-#include "common/tusb_common.h"
-#include "hid_device.h"
+#include "device/usbd.h"
 #include "device/usbd_pvt.h"
+
+#include "hid_device.h"
 
 //--------------------------------------------------------------------+
 // MACRO CONSTANT TYPEDEF
@@ -224,7 +225,7 @@ uint16_t hidd_open(uint8_t rhport, tusb_desc_interface_t const * desc_itf, uint1
   {
     if ( !usbd_edpt_xfer(rhport, p_hid->ep_out, p_hid->epout_buf, sizeof(p_hid->epout_buf)) )
     {
-      TU_LOG1_FAILED();
+      TU_LOG_FAILED();
       TU_BREAKPOINT();
     }
   }

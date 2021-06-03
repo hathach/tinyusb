@@ -25,6 +25,10 @@
   - Improve Audio driver and add uac2_headset example
   - Improve STM32 Synopsys DCD with various PRs
 
+- **[J McCarthy](https://github.com/xmos-jmccarthy)**
+  - Add new DFU 1.1 class driver
+  - Add new example for dfu
+
 - **[Kamil Tomaszewski](https://github.com/kamtom480)**
   - Add new DCD port for **Sony CXD56** (spresnese board)
 
@@ -53,10 +57,14 @@
 
 - **[Raspberry Pi Team](https://github.com/raspberrypi)**
   - Add new DCD port for **Raspberry Pi RP2040**
+  - Add new HCD port for **Raspberry Pi RP2040**
 
 - **[Reinhard Panhuber](https://github.com/PanRe)**
   - Add new class driver for **USB Audio Class 2.0 (UAC2)**
-  - Enhance tu_fifo with unmasked pointer, which better support DMA
+  - Rework tu_fifo with unmasked pointer, add DMA support, and constant address support
+  - Add new DCD/USBD edpt_xfer_fifo() API for optimizing endpoint transfer
+  - Add and greatly improve Isochronous transfer
+  - Add new audio examples: audio_test and audio_4_channel_mic
 
 - **[Scott Shawcroft](https://github.com/tannewt)**
   - Add new DCD port for **SAMD21 and SAMD51**

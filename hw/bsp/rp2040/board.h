@@ -31,20 +31,20 @@
  extern "C" {
 #endif
 
-#define LED_PIN               13
-#define LED_STATE_ON          1
-
-#define NEOPIXEL_PIN          16
-#define NEOPIXEL_POWER_PIN    17
-#define NEOPIXEL_POWER_STATE  1
+#ifdef PICO_DEFAULT_LED_PIN
+#define LED_PIN               PICO_DEFAULT_LED_PIN
+#define LED_STATE_ON          (!(PICO_DEFAULT_LED_PIN_INVERTED))
+#endif
 
 // Button pin is BOOTSEL which is flash CS pin
 #define BUTTON_BOOTSEL
 #define BUTTON_STATE_ACTIVE   0
 
-#define UART_DEV              uart0
-#define UART_TX_PIN           0
-#define UART_RX_PIN           1
+#if defined(PICO_DEFAULT_UART_TX_PIN) && defined(PICO_DEFAULT_UART_RX_PIN) && defined(PICO_DEFAULT_UART)
+#define UART_DEV              PICO_DEFAULT_UART
+#define UART_TX_PIN           PICO_DEFAULT_UART_TX_PIN
+#define UART_RX_PIN           PICO_DEFAULT_UART_RX_PIN
+#endif
 
 #ifdef __cplusplus
  }

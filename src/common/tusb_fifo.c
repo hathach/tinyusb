@@ -25,8 +25,6 @@
  * This file is part of the TinyUSB stack.
  */
 
-#include <string.h>
-
 #include "osal/osal.h"
 #include "tusb_fifo.h"
 

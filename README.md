@@ -65,6 +65,8 @@ Supports multiple device configurations by dynamically changing usb descriptors.
 - Vendor-specific class support with generic In & Out endpoints. Can be used with MS OS 2.0 compatible descriptor to load winUSB driver without INF file.
 - [WebUSB](https://github.com/WICG/webusb) with vendor-specific class
 
+If you have special need, `usbd_app_driver_get_cb()` can be used to write your own class driver without modifying the stack. Here is how RPi team add their reset interface [raspberrypi/pico-sdk#197](https://github.com/raspberrypi/pico-sdk/pull/197)
+
 ## Host Stack
 
 **Most active development is on the Device stack. The Host stack is under rework and largely untested.**
@@ -77,7 +79,7 @@ Supports multiple device configurations by dynamically changing usb descriptors.
 
 TinyUSB is completely thread-safe by pushing all ISR events into a central queue, then process it later in the non-ISR context task function. It also uses semaphore/mutex to access shared resources such as CDC FIFO. Therefore the stack needs to use some of OS's basic APIs. Following OSes are already supported out of the box.
 
-- **No OS** : Disabling USB IRQ is used as way to provide mutex
+- **No OS**
 - **FreeRTOS**
 - **Mynewt** Due to the newt package build system, Mynewt examples are better to be on its [own repo](https://github.com/hathach/mynewt-tinyusb-example) 
 
