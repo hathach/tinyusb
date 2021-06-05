@@ -1,5 +1,17 @@
 # TinyUSB Changelog
 
+## 0.10.1 - 2021.06.03
+
+- rework rp2040 examples and CMake build, allow better integration with pico-sdk
+
+### Host Controller Driver (HCD)
+
+- Fix rp2040 host driver: incorrect PID with low speed device with max packet size of 8 bytes
+- Improve hub driver
+- Remove obsolete hcd_pipe_queue_xfer()/hcd_pipe_xfer()
+- Use hcd_frame_number() instead of micro frame
+- Fix OHCI endpoint address and xferred_bytes in xfer complete event
+
 ## 0.10.0 - 2021.05.28
 
 - Rework tu_fifo_t with separated mutex for read and write, better support DMA with read/write buffer info. And constant address mode

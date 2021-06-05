@@ -26,6 +26,7 @@
  */
 
 #include "pico/stdlib.h"
+#include "pico/binary_info.h"
 #include "hardware/gpio.h"
 #include "hardware/sync.h"
 #include "hardware/structs/ioqspi.h"
@@ -110,10 +111,14 @@ void stdio_rtt_init(void)
 
 #endif
 
+#ifdef UART_DEV
+static uart_inst_t *uart_inst;
+#endif
 
 void board_init(void)
 {
 #ifdef LED_PIN
+  bi_decl(bi_1pin_with_name(LED_PIN, "LED"));
   gpio_init(LED_PIN);
   gpio_set_dir(LED_PIN, GPIO_OUT);
 #endif
@@ -122,8 +127,10 @@ void board_init(void)
 #ifndef BUTTON_BOOTSEL
 #endif
 
-#ifdef UART_DEV
-  stdio_uart_init_full(UART_DEV, CFG_BOARD_UART_BAUDRATE, UART_TX_PIN, UART_RX_PIN);
+#if defined(UART_DEV) && defined(LIB_PICO_STDIO_UART)
+  bi_decl(bi_2pins_with_func(UART_TX_PIN, UART_TX_PIN, GPIO_FUNC_UART));
+  uart_inst = uart_get_instance(UART_DEV);
+  stdio_uart_init_full(uart_inst, CFG_BOARD_UART_BAUDRATE, UART_TX_PIN, UART_RX_PIN);
 #endif
 
 #if defined(LOGGER_RTT)
@@ -164,7 +171,7 @@ int board_uart_read(uint8_t* buf, int len)
 {
 #ifdef UART_DEV
   for(int i=0;i<len;i++) {
-    buf[i] = uart_getc(UART_DEV);
+    buf[i] = uart_getc(uart_inst);
   }
   return len;
 #else
@@ -175,9 +182,9 @@ int board_uart_read(uint8_t* buf, int len)
 int board_uart_write(void const * buf, int len)
 {
 #ifdef UART_DEV
-  char const* bufch = (uint8_t const*) buf;
+  char const* bufch = (char const*) buf;
   for(int i=0;i<len;i++) {
-    uart_putc(UART_DEV, bufch[i]);
+    uart_putc(uart_inst, bufch[i]);
   }
   return len;
 #else

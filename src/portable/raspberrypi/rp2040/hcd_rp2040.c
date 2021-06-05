@@ -296,7 +296,6 @@ static void _hw_endpoint_init(struct hw_endpoint *ep, uint8_t dev_addr, uint8_t 
     uint8_t const num = tu_edpt_number(ep_addr);
     tusb_dir_t const dir = tu_edpt_dir(ep_addr);
 
-    bool in = ep_addr & TUSB_DIR_IN_MASK;
     ep->ep_addr = ep_addr;
     ep->dev_addr = dev_addr;
 
