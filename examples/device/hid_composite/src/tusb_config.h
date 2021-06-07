@@ -104,6 +104,10 @@
 // HID buffer size Should be sufficient to hold ID (if any) + Data
 #define CFG_TUD_HID_EP_BUFSIZE    16
 
+// Number of button on the gamepad 16 or 32
+#define CFG_TUD_MAX_BUTTONS       16
+
+
 #ifdef __cplusplus
  }
 #endif
