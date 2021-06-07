@@ -33,11 +33,9 @@
 
 #include "common/tusb_common.h"
 
-
 #ifdef __cplusplus
  extern "C" {
 #endif
-
 
 //--------------------------------------------------------------------+
 // Common Definitions
