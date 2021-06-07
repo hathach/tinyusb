@@ -1,19 +1,28 @@
-////////////////////////////////////////////////////////////////////////////////
-/// @file     dcd_mm32f327x_otg.c
-/// @author   SE TEAM
-/// @brief    tinyusb driver.
-////////////////////////////////////////////////////////////////////////////////
-/// @attention
-///
-/// THE EXISTING FIRMWARE IS ONLY FOR REFERENCE, WHICH IS DESIGNED TO PROVIDE
-/// CUSTOMERS WITH CODING INFORMATION ABOUT THEIR PRODUCTS SO THEY CAN SAVE
-/// TIME. THEREFORE, MINDMOTION SHALL NOT BE LIABLE FOR ANY DIRECT, INDIRECT OR
-/// CONSEQUENTIAL DAMAGES ABOUT ANY CLAIMS ARISING OUT OF THE CONTENT OF SUCH
-/// HARDWARE AND/OR THE USE OF THE CODING INFORMATION CONTAINED HEREIN IN
-/// CONNECTION WITH PRODUCTS MADE BY CUSTOMERS.
-///
-/// <H2><CENTER>&COPY; COPYRIGHT MINDMOTION </CENTER></H2>
-////////////////////////////////////////////////////////////////////////////////
+/* 
+ * The MIT License (MIT)
+ *
+ * Copyright (c) 2020 SE TEAM
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+ * THE SOFTWARE.
+ *
+ * This file is part of the TinyUSB stack.
+ */
 
 #include "tusb_option.h"
 #include "reg_usb_otg_fs.h"
