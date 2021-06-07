@@ -1,4 +1,4 @@
-/* 
+/*
  * The MIT License (MIT)
  *
  * Copyright (c) 2020 SE TEAM
@@ -25,12 +25,12 @@
  */
 
 #include "tusb_option.h"
-#include "reg_usb_otg_fs.h"
-#include "mm32_device.h"
-#include "hal_conf.h"
 
 #if TUSB_OPT_DEVICE_ENABLED && ( CFG_TUSB_MCU == OPT_MCU_MM32F327X )
 
+#include "reg_usb_otg_fs.h"
+#include "mm32_device.h"
+#include "hal_conf.h"
 #include "device/dcd.h"
 
 //--------------------------------------------------------------------+
