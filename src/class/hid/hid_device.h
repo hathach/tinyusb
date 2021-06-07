@@ -43,9 +43,8 @@
   #define CFG_TUD_HID_EP_BUFSIZE  CFG_TUD_HID_BUFSIZE
 #endif
 
-#ifndef CFG_TUD_HID_EP_BUFSIZE
-  #define CFG_TUD_HID_EP_BUFSIZE     64
-#endif
+
+
 
 //--------------------------------------------------------------------+
 // Application API (Multiple Instances)
@@ -344,10 +343,10 @@ static inline bool  tud_hid_gamepad_report(uint8_t report_id, int8_t x, int8_t y
     /* 16 bit Button Map */ \
     HID_USAGE_PAGE   ( HID_USAGE_PAGE_BUTTON                  ) ,\
     HID_USAGE_MIN    ( 1                                      ) ,\
-    HID_USAGE_MAX    ( 16                                     ) ,\
+    HID_USAGE_MAX    ( CFG_TUSB_MAX_BUTTONS                   ) ,\
     HID_LOGICAL_MIN  ( 0                                      ) ,\
     HID_LOGICAL_MAX  ( 1                                      ) ,\
-    HID_REPORT_COUNT ( 16                                     ) ,\
+    HID_REPORT_COUNT ( CFG_TUSB_MAX_BUTTONS                   ) ,\
     HID_REPORT_SIZE  ( 1                                      ) ,\
     HID_INPUT        ( HID_DATA | HID_VARIABLE | HID_ABSOLUTE ) ,\
   HID_COLLECTION_END \

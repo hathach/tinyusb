@@ -316,6 +316,12 @@
   #error Control Endpoint Max Packet Size cannot be larger than 64
 #endif
 
+#ifndef TUD_OPT_GAMEPAD_32_BUTTONS
+  #define CFG_TUSB_MAX_BUTTONS  16
+#else
+  #define CFG_TUSB_MAX_BUTTONS  32
+#endif
+
 #endif /* _TUSB_OPTION_H_ */
 
 /** @} */
