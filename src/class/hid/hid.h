@@ -152,20 +152,16 @@ typedef enum
 
 /** @} */
 
-#ifndef CFG_TUD_HID_EP_BUFSIZE
-  #define CFG_TUD_HID_EP_BUFSIZE     64
+#ifndef CFG_TUD_MAX_BUTTONS
+  #define CFG_TUD_MAX_BUTTONS     16
 #endif
 
-#ifndef CFG_TUSB_MAX_BUTTONS
-  #define CFG_TUSB_MAX_BUTTONS       16
-#endif
-
-#if (CFG_TUSB_MAX_BUTTONS == 16)
+#if (CFG_TUD_MAX_BUTTONS == 16)
   typedef uint16_t hid_gamepad_buttons_t;
-#elif (CFG_TUSB_MAX_BUTTONS == 32)
+#elif (CFG_TUD_MAX_BUTTONS == 32)
   typedef uint32_t hid_gamepad_buttons_t;
 #else
-  #error "Invalid CFG_TUSB_MAX_BUTTONS value."
+  #error "Invalid CFG_TUD_MAX_BUTTONS value."
 #endif
 
 //--------------------------------------------------------------------+
@@ -241,7 +237,7 @@ typedef enum
   GAMEPAD_BUTTON_THUMBL = TU_BIT(13), ///< L3 button
   GAMEPAD_BUTTON_THUMBR = TU_BIT(14), ///< R3 button
   GAMEPAD_BUTTON_15     = TU_BIT(15), ///< Button 15
-#ifdef CFG_TUSB_MAX_BUTTONS_32
+#if (CFG_TUD_MAX_BUTTONS > 16)
   GAMEPAD_BUTTON_17     = TU_BIT(16), ///< Button 17
   GAMEPAD_BUTTON_18     = TU_BIT(17), ///< Button 16
   GAMEPAD_BUTTON_19     = TU_BIT(18), ///< Button 16
