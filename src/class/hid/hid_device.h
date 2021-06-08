@@ -43,8 +43,9 @@
   #define CFG_TUD_HID_EP_BUFSIZE  CFG_TUD_HID_BUFSIZE
 #endif
 
-
-
+#ifndef CFG_TUD_HID_EP_BUFSIZE
+  #define CFG_TUD_HID_EP_BUFSIZE     64
+#endif
 
 //--------------------------------------------------------------------+
 // Application API (Multiple Instances)
