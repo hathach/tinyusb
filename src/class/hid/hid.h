@@ -217,7 +217,7 @@ typedef enum
   GAMEPAD_BUTTON_TR     = TU_BIT(7),  ///< R1 button
   GAMEPAD_BUTTON_TL2    = TU_BIT(8),  ///< L2 button
   GAMEPAD_BUTTON_TR2    = TU_BIT(9),  ///< R2 button
- GAMEPAD_BUTTON_SELECT = TU_BIT(10), ///< Select button
+  GAMEPAD_BUTTON_SELECT = TU_BIT(10), ///< Select button
   GAMEPAD_BUTTON_START  = TU_BIT(11), ///< Start button
   GAMEPAD_BUTTON_MODE   = TU_BIT(12), ///< Mode button
   GAMEPAD_BUTTON_THUMBL = TU_BIT(13), ///< L3 button
