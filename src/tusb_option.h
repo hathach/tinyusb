@@ -309,25 +309,11 @@
   #define TUP_MCU_STRICT_ALIGN   0
 #endif
 
-//--------------------------------------------------------------------+
-// HID Gamepad options
-//--------------------------------------------------------------------+
-
-// CFG_TUD_MAX_BUTTONS lets you choose if you want 16 or 32 buttons  on you HID gamepad
-#ifndef CFG_TUD_MAX_BUTTONS
-  #define CFG_TUD_MAX_BUTTONS  16
-#endif
-
 //------------------------------------------------------------------
 // Configuration Validation
 //------------------------------------------------------------------
 #if CFG_TUD_ENDPOINT0_SIZE > 64
   #error Control Endpoint Max Packet Size cannot be larger than 64
-#endif
-
-
-#if (CFG_TUD_MAX_BUTTONS != 16 && CFG_TUD_MAX_BUTTONS != 32)
-  #error "Unsupported CFG_TUD_MAX_BUTTONS"
 #endif
 
 #endif /* _TUSB_OPTION_H_ */
