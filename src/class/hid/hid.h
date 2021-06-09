@@ -222,6 +222,7 @@ typedef enum
   GAMEPAD_BUTTON_MODE   = TU_BIT(12), ///< Mode button
   GAMEPAD_BUTTON_THUMBL = TU_BIT(13), ///< L3 button
   GAMEPAD_BUTTON_THUMBR = TU_BIT(14), ///< R3 button
+  // Note: Button number start from 1 on host OS
   GAMEPAD_BUTTON_16     = TU_BIT(15), ///< Button 16
   GAMEPAD_BUTTON_17     = TU_BIT(16), ///< Button 17
   GAMEPAD_BUTTON_18     = TU_BIT(17), ///< Button 18
