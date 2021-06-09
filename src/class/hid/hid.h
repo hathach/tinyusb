@@ -222,24 +222,23 @@ typedef enum
   GAMEPAD_BUTTON_MODE   = TU_BIT(12), ///< Mode button
   GAMEPAD_BUTTON_THUMBL = TU_BIT(13), ///< L3 button
   GAMEPAD_BUTTON_THUMBR = TU_BIT(14), ///< R3 button
-  // Note: Button number start from 1 on host OS
-  GAMEPAD_BUTTON_16     = TU_BIT(15), ///< Button 16
-  GAMEPAD_BUTTON_17     = TU_BIT(16), ///< Button 17
-  GAMEPAD_BUTTON_18     = TU_BIT(17), ///< Button 18
-  GAMEPAD_BUTTON_19     = TU_BIT(18), ///< Button 19
-  GAMEPAD_BUTTON_20     = TU_BIT(19), ///< Button 20
-  GAMEPAD_BUTTON_21     = TU_BIT(20), ///< Button 21
-  GAMEPAD_BUTTON_22     = TU_BIT(21), ///< Button 22
-  GAMEPAD_BUTTON_23     = TU_BIT(22), ///< Button 23
-  GAMEPAD_BUTTON_24     = TU_BIT(23), ///< Button 24
-  GAMEPAD_BUTTON_25     = TU_BIT(24), ///< Button 25
-  GAMEPAD_BUTTON_26     = TU_BIT(25), ///< Button 26
-  GAMEPAD_BUTTON_27     = TU_BIT(26), ///< Button 27
-  GAMEPAD_BUTTON_28     = TU_BIT(27), ///< Button 28
-  GAMEPAD_BUTTON_29     = TU_BIT(28), ///< Button 29
-  GAMEPAD_BUTTON_30     = TU_BIT(29), ///< Button 30
-  GAMEPAD_BUTTON_31     = TU_BIT(30), ///< Button 31
-  GAMEPAD_BUTTON_32     = TU_BIT(31), ///< Button 32
+  GAMEPAD_BUTTON_15     = TU_BIT(15), ///< Button 15
+  GAMEPAD_BUTTON_16     = TU_BIT(16), ///< Button 16
+  GAMEPAD_BUTTON_17     = TU_BIT(17), ///< Button 17
+  GAMEPAD_BUTTON_18     = TU_BIT(18), ///< Button 18
+  GAMEPAD_BUTTON_19     = TU_BIT(19), ///< Button 19
+  GAMEPAD_BUTTON_20     = TU_BIT(20), ///< Button 20
+  GAMEPAD_BUTTON_21     = TU_BIT(21), ///< Button 21
+  GAMEPAD_BUTTON_22     = TU_BIT(22), ///< Button 22
+  GAMEPAD_BUTTON_23     = TU_BIT(23), ///< Button 23
+  GAMEPAD_BUTTON_24     = TU_BIT(24), ///< Button 24
+  GAMEPAD_BUTTON_25     = TU_BIT(25), ///< Button 25
+  GAMEPAD_BUTTON_26     = TU_BIT(26), ///< Button 26
+  GAMEPAD_BUTTON_27     = TU_BIT(27), ///< Button 27
+  GAMEPAD_BUTTON_28     = TU_BIT(28), ///< Button 28
+  GAMEPAD_BUTTON_29     = TU_BIT(29), ///< Button 29
+  GAMEPAD_BUTTON_30     = TU_BIT(30), ///< Button 30
+  GAMEPAD_BUTTON_31     = TU_BIT(31), ///< Button 31
 }hid_gamepad_button_bm_t;
 
 /// Standard Gamepad HAT/DPAD Buttons (from Linux input event codes)
