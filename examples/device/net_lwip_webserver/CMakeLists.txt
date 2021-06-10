@@ -4,7 +4,7 @@ set(TOP "../../..")
 get_filename_component(TOP "${TOP}" REALPATH)
 
 if (EXISTS ${TOP}/lib/lwip/src)
-    include(${TOP}/hw/bsp/${FAMILY}/family.cmake)
+    include(${TOP}/hw/bsp/family_support.cmake)
 
     # gets PROJECT name for the example (e.g. <BOARD>-<DIR_NAME>)
     family_get_project_name(PROJECT ${CMAKE_CURRENT_LIST_DIR})
