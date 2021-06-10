@@ -420,7 +420,16 @@ tusb_speed_t hcd_port_speed_get(uint8_t rhport)
 // Close all opened endpoint belong to this device
 void hcd_device_close(uint8_t rhport, uint8_t dev_addr)
 {
+    (void) rhport;
+    (void) dev_addr;
+
     pico_trace("hcd_device_close %d\n", dev_addr);
+}
+
+uint32_t hcd_frame_number(uint8_t rhport)
+{
+    (void) rhport;
+    return usb_hw->sof_rd;
 }
 
 void hcd_int_enable(uint8_t rhport)
@@ -436,10 +445,37 @@ void hcd_int_disable(uint8_t rhport)
     irq_set_enabled(USBCTRL_IRQ, false);
 }
 
+bool hcd_edpt_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_endpoint_t const * ep_desc)
+{
+    (void) rhport;
+
+    pico_trace("hcd_edpt_open dev_addr %d, ep_addr %d\n", dev_addr, ep_desc->bEndpointAddress);
+
+    // Allocated differently based on if it's an interrupt endpoint or not
+    struct hw_endpoint *ep = _hw_endpoint_allocate(ep_desc->bmAttributes.xfer);
+
+    _hw_endpoint_init(ep,
+        dev_addr,
+        ep_desc->bEndpointAddress,
+        ep_desc->wMaxPacketSize.size,
+        ep_desc->bmAttributes.xfer,
+        ep_desc->bInterval);
+
+    // Map this struct to ep@device address
+    set_dev_ep(dev_addr, ep_desc->bEndpointAddress, ep);
+
+    return true;
+}
+
 bool hcd_edpt_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr, uint8_t * buffer, uint16_t buflen)
 {
+    (void) rhport;
+
     pico_trace("hcd_edpt_xfer dev_addr %d, ep_addr 0x%x, len %d\n", dev_addr, ep_addr, buflen);
     
+    uint8_t const ep_num = tu_edpt_number(ep_addr);
+    tusb_dir_t const ep_dir = tu_edpt_dir(ep_addr);
+
     // Get appropriate ep. Either EPX or interrupt endpoint
     struct hw_endpoint *ep = get_dev_ep(dev_addr, ep_addr);
     assert(ep);
@@ -450,7 +486,7 @@ bool hcd_edpt_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr, uint8_t * 
         _hw_endpoint_init(ep, dev_addr, ep_addr, ep->wMaxPacketSize, ep->transfer_type, 0);
     }
 
-    // True indicates this is the start of the transfer
+    // Start the transfer
     _hw_endpoint_xfer_start(ep, buffer, buflen);
 
     // If a normal transfer (non-interrupt) then initiate using
@@ -459,11 +495,13 @@ bool hcd_edpt_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr, uint8_t * 
     if (ep == &epx) {
         // That has set up buffer control, endpoint control etc
         // for host we have to initiate the transfer
-        usb_hw->dev_addr_ctrl = dev_addr | (tu_edpt_number(ep_addr) << USB_ADDR_ENDP_ENDPOINT_LSB);
-        uint32_t flags = USB_SIE_CTRL_START_TRANS_BITS | sie_ctrl_base;
-        flags |= ep->rx ? USB_SIE_CTRL_RECEIVE_DATA_BITS : USB_SIE_CTRL_SEND_DATA_BITS;
+        usb_hw->dev_addr_ctrl = dev_addr | (ep_num << USB_ADDR_ENDP_ENDPOINT_LSB);
+
+        uint32_t flags = USB_SIE_CTRL_START_TRANS_BITS | sie_ctrl_base |
+                         (ep_dir ? USB_SIE_CTRL_RECEIVE_DATA_BITS : USB_SIE_CTRL_SEND_DATA_BITS);
         // Set pre if we are a low speed device on full speed hub
         flags |= need_pre(dev_addr) ? USB_SIE_CTRL_PREAMBLE_EN_BITS : 0;
+
         usb_hw->sie_ctrl = flags;
     }
 
@@ -472,6 +510,8 @@ bool hcd_edpt_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr, uint8_t * 
 
 bool hcd_setup_send(uint8_t rhport, uint8_t dev_addr, uint8_t const setup_packet[8])
 {
+    (void) rhport;
+
     // Copy data into setup packet buffer
     memcpy((void*)&usbh_dpram->setup_packet[0], setup_packet, 8);
 
@@ -499,32 +539,6 @@ bool hcd_setup_send(uint8_t rhport, uint8_t dev_addr, uint8_t const setup_packet
     return true;
 }
 
-uint32_t hcd_frame_number(uint8_t rhport)
-{
-    return usb_hw->sof_rd;
-}
-
-bool hcd_edpt_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_endpoint_t const * ep_desc)
-{
-    (void) rhport;
-
-    pico_trace("hcd_edpt_open dev_addr %d, ep_addr %d\n", dev_addr, ep_desc->bEndpointAddress);
-
-    // Allocated differently based on if it's an interrupt endpoint or not
-    struct hw_endpoint *ep = _hw_endpoint_allocate(ep_desc->bmAttributes.xfer);
-
-    _hw_endpoint_init(ep,
-        dev_addr,
-        ep_desc->bEndpointAddress,
-        ep_desc->wMaxPacketSize.size,
-        ep_desc->bmAttributes.xfer,
-        ep_desc->bInterval);
-
-    // Map this struct to ep@device address
-    set_dev_ep(dev_addr, ep_desc->bEndpointAddress, ep);
-
-    return true;
-}
 
 //bool hcd_edpt_busy(uint8_t dev_addr, uint8_t ep_addr)
 //{
@@ -542,6 +556,9 @@ bool hcd_edpt_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_endpoint_t const 
 
 bool hcd_edpt_clear_stall(uint8_t dev_addr, uint8_t ep_addr)
 {
+    (void) rhport;
+    (void) dev_addr;
+
     panic("hcd_clear_stall");
     return true;
 }

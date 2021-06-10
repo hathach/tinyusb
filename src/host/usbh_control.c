@@ -68,7 +68,7 @@ bool tuh_control_xfer (uint8_t dev_addr, tusb_control_request_t const* request, 
   _ctrl_xfer.stage       = STAGE_SETUP;
   _ctrl_xfer.complete_cb = complete_cb;
 
-  TU_LOG2("Control Setup: ");
+  TU_LOG2("Send Setup to address %u: ", dev_addr);
   TU_LOG2_VAR(request);
   TU_LOG2("\r\n");
 
