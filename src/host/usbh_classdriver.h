@@ -52,22 +52,29 @@ typedef struct {
   void (* const close      )(uint8_t dev_addr);
 } usbh_class_driver_t;
 
+// Call by class driver to tell USBH that it has complete the enumeration
+void usbh_driver_set_config_complete(uint8_t dev_addr, uint8_t itf_num);
+
+uint8_t usbh_get_rhport(uint8_t dev_addr);
+
+uint8_t* usbh_get_enum_buf(void);
+
 //--------------------------------------------------------------------+
 // USBH Endpoint API
 //--------------------------------------------------------------------+
 
-bool usbh_edpt_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_endpoint_t const * ep_desc);
+// Open an endpoint
+bool usbh_edpt_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_endpoint_t const * desc_ep);
+
+// Submit a usb transfer
 bool usbh_edpt_xfer(uint8_t dev_addr, uint8_t ep_addr, uint8_t * buffer, uint16_t total_bytes);
 
 // Claim an endpoint before submitting a transfer.
 // If caller does not make any transfer, it must release endpoint for others.
 bool usbh_edpt_claim(uint8_t dev_addr, uint8_t ep_addr);
 
-void usbh_driver_set_config_complete(uint8_t dev_addr, uint8_t itf_num);
-
-uint8_t usbh_get_rhport(uint8_t dev_addr);
-
-uint8_t* usbh_get_enum_buf(void);
+// Check if endpoint transferring is complete
+bool usbh_edpt_busy(uint8_t dev_addr, uint8_t ep_addr);
 
 #ifdef __cplusplus
  }
