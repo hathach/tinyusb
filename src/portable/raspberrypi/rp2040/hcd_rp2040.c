@@ -529,12 +529,6 @@ bool hcd_edpt_busy(uint8_t dev_addr, uint8_t ep_addr)
     return busy;
 }
 
-bool hcd_edpt_stalled(uint8_t dev_addr, uint8_t ep_addr)
-{
-    panic("hcd_pipe_stalled");
-    return false;
-}
-
 bool hcd_edpt_clear_stall(uint8_t dev_addr, uint8_t ep_addr)
 {
     panic("hcd_clear_stall");

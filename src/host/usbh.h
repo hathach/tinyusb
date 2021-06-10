@@ -24,9 +24,6 @@
  * This file is part of the TinyUSB stack.
  */
 
-/** \ingroup group_usbh USB Host Core (USBH)
- *  @{ */
-
 #ifndef _TUSB_USBH_H_
 #define _TUSB_USBH_H_
 
@@ -90,6 +87,4 @@ TU_ATTR_WEAK void tuh_umount_cb(uint8_t dev_addr);
  }
 #endif
 
-#endif /* _TUSB_USBH_H_ */
-
-/** @} */
+#endif

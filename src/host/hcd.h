@@ -139,7 +139,6 @@ bool hcd_edpt_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_endpoint_t const 
 bool hcd_edpt_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr, uint8_t * buffer, uint16_t buflen);
 
 bool hcd_edpt_busy(uint8_t dev_addr, uint8_t ep_addr);
-bool hcd_edpt_stalled(uint8_t dev_addr, uint8_t ep_addr);
 bool hcd_edpt_clear_stall(uint8_t dev_addr, uint8_t ep_addr);
 
 //--------------------------------------------------------------------+
