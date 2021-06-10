@@ -29,6 +29,8 @@
 #if TUSB_OPT_HOST_ENABLED & CFG_TUH_MSC
 
 #include "host/usbh.h"
+#include "host/usbh_classdriver.h"
+
 #include "msc_host.h"
 
 //--------------------------------------------------------------------+
@@ -109,7 +111,7 @@ bool tuh_msc_mounted(uint8_t dev_addr)
 bool tuh_msc_ready(uint8_t dev_addr)
 {
   msch_interface_t* p_msc = get_itf(dev_addr);
-  return p_msc->mounted && !hcd_edpt_busy(dev_addr, p_msc->ep_in);
+  return p_msc->mounted && !usbh_edpt_busy(dev_addr, p_msc->ep_in);
 }
 
 //--------------------------------------------------------------------+

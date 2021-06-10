@@ -515,25 +515,19 @@ bool hcd_edpt_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_endpoint_t const 
     return true;
 }
 
-bool hcd_edpt_busy(uint8_t dev_addr, uint8_t ep_addr)
-{
-    // EPX is shared, so multiple device addresses and endpoint addresses share that
-    // so if any transfer is active on epx, we are busy. Interrupt endpoints have their own
-    // EPX so ep->active will only be busy if there is a pending transfer on that interrupt endpoint
-    // on that device
-    pico_trace("hcd_edpt_busy dev addr %d ep_addr 0x%x\n", dev_addr, ep_addr);
-    struct hw_endpoint *ep = get_dev_ep(dev_addr, ep_addr);
-    assert(ep);
-    bool busy = ep->active;
-    pico_trace("busy == %d\n", busy);
-    return busy;
-}
-
-bool hcd_edpt_stalled(uint8_t dev_addr, uint8_t ep_addr)
-{
-    panic("hcd_pipe_stalled");
-    return false;
-}
+//bool hcd_edpt_busy(uint8_t dev_addr, uint8_t ep_addr)
+//{
+//    // EPX is shared, so multiple device addresses and endpoint addresses share that
+//    // so if any transfer is active on epx, we are busy. Interrupt endpoints have their own
+//    // EPX so ep->active will only be busy if there is a pending transfer on that interrupt endpoint
+//    // on that device
+//    pico_trace("hcd_edpt_busy dev addr %d ep_addr 0x%x\n", dev_addr, ep_addr);
+//    struct hw_endpoint *ep = get_dev_ep(dev_addr, ep_addr);
+//    assert(ep);
+//    bool busy = ep->active;
+//    pico_trace("busy == %d\n", busy);
+//    return busy;
+//}
 
 bool hcd_edpt_clear_stall(uint8_t dev_addr, uint8_t ep_addr)
 {
