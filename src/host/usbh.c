@@ -24,7 +24,7 @@
  * This file is part of the TinyUSB stack.
  */
 
-#include "common/tusb_common.h"
+#include "tusb_option.h"
 
 #if TUSB_OPT_HOST_ENABLED
 
@@ -32,10 +32,9 @@
 #define CFG_TUH_TASK_QUEUE_SZ   16
 #endif
 
-//--------------------------------------------------------------------+
-// INCLUDE
-//--------------------------------------------------------------------+
 #include "tusb.h"
+#include "host/usbh.h"
+#include "host/usbh_classdriver.h"
 #include "hub.h"
 #include "usbh_hcd.h"
 

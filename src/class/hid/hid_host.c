@@ -29,6 +29,8 @@
 #if (TUSB_OPT_HOST_ENABLED && CFG_TUH_HID)
 
 #include "host/usbh.h"
+#include "host/usbh_classdriver.h"
+
 #include "hid_host.h"
 
 //--------------------------------------------------------------------+
