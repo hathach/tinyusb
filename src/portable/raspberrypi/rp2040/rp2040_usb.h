@@ -17,7 +17,7 @@
 #endif
 
 
-#if false && !defined(NDEBUG)
+#if true || false && !defined(NDEBUG)
 #define pico_trace(format,args...) printf(format, ## args)
 #else
 #define pico_trace(format,...) ((void)0)
@@ -50,6 +50,7 @@ struct hw_endpoint
 
     // Endpoint control register
     io_rw_32 *endpoint_control;
+
     // Buffer control register
     io_rw_32 *buffer_control;
 
@@ -63,8 +64,11 @@ struct hw_endpoint
     bool active;
     uint16_t total_len;
     uint16_t len;
+
     // Amount of data with the hardware
-    uint16_t transfer_size;
+    uint16_t transfer_size; // buf0_len;
+    uint16_t buf_1_len;
+
     // User buffer in main memory
     uint8_t *user_buf;
 
@@ -76,6 +80,7 @@ struct hw_endpoint
 #if TUSB_OPT_HOST_ENABLED
     // Only needed for host mode
     bool last_buf;
+
     // RP2040-E4: HOST BUG. Host will incorrect write status to top half of buffer
     // control register when doing transfers > 1 packet
     uint8_t buf_sel;
@@ -90,11 +95,11 @@ struct hw_endpoint
 void rp2040_usb_init(void);
 
 void hw_endpoint_reset_transfer(struct hw_endpoint *ep);
-void _hw_endpoint_xfer(struct hw_endpoint *ep, uint8_t *buffer, uint16_t total_len, bool start);
 void _hw_endpoint_start_next_buffer(struct hw_endpoint *ep);
 void _hw_endpoint_xfer_start(struct hw_endpoint *ep, uint8_t *buffer, uint16_t total_len);
 void _hw_endpoint_xfer_sync(struct hw_endpoint *ep);
 bool _hw_endpoint_xfer_continue(struct hw_endpoint *ep);
+
 void _hw_endpoint_buffer_control_update32(struct hw_endpoint *ep, uint32_t and_mask, uint32_t or_mask);
 static inline uint32_t _hw_endpoint_buffer_control_get_value32(struct hw_endpoint *ep) {
     return *ep->buffer_control;
@@ -149,11 +154,11 @@ static inline void print_bufctrl32(uint32_t u32)
   uint16_t u16;
 
   u16 = u32 >> 16;
-  TU_LOG(2, "Buffer Control 1 0x%x: ", u16);
+  TU_LOG(2, "  Buffer Control 1 0x%x: ", u16);
   print_bufctrl16(u16);
 
   u16 = u32 & 0x0000ffff;
-  TU_LOG(2, "Buffer Control 0 0x%x: ", u16);
+  TU_LOG(2, "  Buffer Control 0 0x%x: ", u16);
   print_bufctrl16(u16);
 }
 

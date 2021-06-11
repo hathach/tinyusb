@@ -198,10 +198,10 @@ static void hw_endpoint_init(uint8_t ep_addr, uint16_t wMaxPacketSize, uint8_t b
     _hw_endpoint_init(ep, ep_addr, wMaxPacketSize, bmAttributes);
 }
 
-static void hw_endpoint_xfer(uint8_t ep_addr, uint8_t *buffer, uint16_t total_bytes, bool start)
+static void hw_endpoint_xfer(uint8_t ep_addr, uint8_t *buffer, uint16_t total_bytes)
 {
     struct hw_endpoint *ep = hw_endpoint_get_by_addr(ep_addr);
-    _hw_endpoint_xfer(ep, buffer, total_bytes, start);
+    _hw_endpoint_xfer_start(ep, buffer, total_bytes);
 }
 
 static void hw_handle_buff_status(void)
@@ -251,7 +251,7 @@ static void ep0_0len_status(void)
 {
     // Send 0len complete response on EP0 IN
     reset_ep0();
-    hw_endpoint_xfer(0x80, NULL, 0, true);
+    hw_endpoint_xfer(0x80, NULL, 0);
 }
 
 static void _hw_endpoint_stall(struct hw_endpoint *ep)
@@ -477,7 +477,7 @@ void dcd_edpt0_status_complete(uint8_t rhport, tusb_control_request_t const * re
         request->bmRequestType_bit.type == TUSB_REQ_TYPE_STANDARD &&
         request->bRequest == TUSB_REQ_SET_ADDRESS)
     {
-        pico_trace("Set HW address %d\n", assigned_address);
+        pico_trace("Set HW address %d\n", request->wValue);
         usb_hw->dev_addr_ctrl = (uint8_t) request->wValue;
     }
 
@@ -496,7 +496,7 @@ bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t t
 {
     assert(rhport == 0);
     // True means start new xfer
-    hw_endpoint_xfer(ep_addr, buffer, total_bytes, true);
+    hw_endpoint_xfer(ep_addr, buffer, total_bytes);
     return true;
 }
 

@@ -115,9 +115,9 @@ static void hw_xfer_complete(struct hw_endpoint *ep, xfer_result_t xfer_result)
     // Mark transfer as done before we tell the tinyusb stack
     uint8_t dev_addr = ep->dev_addr;
     uint8_t ep_addr = ep->ep_addr;
-    uint total_len = ep->total_len;
+    uint xferred_len = ep->len;
     hw_endpoint_reset_transfer(ep);
-    hcd_event_xfer_complete(dev_addr, ep_addr, total_len, xfer_result, true);
+    hcd_event_xfer_complete(dev_addr, ep_addr, xferred_len, xfer_result, true);
 }
 
 static void _handle_buff_status_bit(uint bit, struct hw_endpoint *ep)
@@ -141,6 +141,20 @@ static void hw_handle_buff_status(void)
     {
         remaining_buffers &= ~bit;
         struct hw_endpoint *ep = &epx;
+
+        uint32_t ep_ctrl = *ep->endpoint_control;
+        if (ep_ctrl & EP_CTRL_DOUBLE_BUFFERED_BITS)
+        {
+          TU_LOG(2, "Double Buffered ");
+        }else
+        {
+          TU_LOG(2, "Single Buffered ");
+        }
+
+        if (ep_ctrl & EP_CTRL_INTERRUPT_PER_DOUBLE_BUFFER) TU_LOG(2, "Interrupt per double ");
+        if (ep_ctrl & EP_CTRL_INTERRUPT_PER_BUFFER) TU_LOG(2, "Interrupt per single ");
+        TU_LOG_HEX(2, ep_ctrl);
+
         _handle_buff_status_bit(bit, ep);
     }
 
@@ -277,11 +291,11 @@ static struct hw_endpoint *_hw_endpoint_allocate(uint8_t transfer_type)
         assert(ep);
         ep->buffer_control = &usbh_dpram->int_ep_buffer_ctrl[ep->interrupt_num].ctrl;
         ep->endpoint_control = &usbh_dpram->int_ep_ctrl[ep->interrupt_num].ctrl;
-        // 0x180 for epx
-        // 0x1c0 for intep0
-        // 0x200 for intep1
+        // 0 for epx (double buffered): TODO increase to 1024 for ISO
+        // 2x64 for intep0
+        // 3x64 for intep1
         // etc
-        ep->hw_data_buf = &usbh_dpram->epx_data[64 * (ep->interrupt_num + 1)];
+        ep->hw_data_buf = &usbh_dpram->epx_data[64 * (ep->interrupt_num + 2)];
     }
     else
     {
@@ -311,7 +325,7 @@ static void _hw_endpoint_init(struct hw_endpoint *ep, uint8_t dev_addr, uint8_t 
     ep->rx = (dir == TUSB_DIR_IN);
 
     // Response to a setup packet on EP0 starts with pid of 1
-    ep->next_pid = num == 0 ? 1u : 0u;
+    ep->next_pid = (num == 0 ? 1u : 0u);
     ep->wMaxPacketSize = wMaxPacketSize;
     ep->transfer_type = transfer_type;
 
@@ -340,6 +354,7 @@ static void _hw_endpoint_init(struct hw_endpoint *ep, uint8_t dev_addr, uint8_t 
         // preamble
         uint32_t reg = dev_addr | (num << USB_ADDR_ENDP1_ENDPOINT_LSB);
         // Assert the interrupt endpoint is IN_TO_HOST
+        // TODO Interrupt can also be OUT
         assert(dir == TUSB_DIR_IN);
 
         if (need_pre(dev_addr))
@@ -402,7 +417,6 @@ bool hcd_port_connect_status(uint8_t rhport)
 
 tusb_speed_t hcd_port_speed_get(uint8_t rhport)
 {
-    pico_trace("hcd_port_speed_get\n");
     assert(rhport == 0);
     // TODO: Should enumval this register
     switch (dev_speed())
@@ -445,6 +459,10 @@ void hcd_int_disable(uint8_t rhport)
     irq_set_enabled(USBCTRL_IRQ, false);
 }
 
+//--------------------------------------------------------------------+
+// Endpoint API
+//--------------------------------------------------------------------+
+
 bool hcd_edpt_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_endpoint_t const * ep_desc)
 {
     (void) rhport;
@@ -467,6 +485,65 @@ bool hcd_edpt_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_endpoint_t const 
     return true;
 }
 
+// return true if double buffered
+static bool xfer_start(struct hw_endpoint *ep, uint8_t *buffer, uint16_t total_len)
+{
+  // Fill in info now that we're kicking off the hw
+  ep->total_len = total_len;
+  ep->len = 0;
+
+  // Limit by packet size
+  ep->user_buf = buffer;
+
+  // Buffer 0
+  ep->transfer_size = tu_min16(total_len, ep->wMaxPacketSize);
+  total_len -= ep->transfer_size;
+
+  // Buffer 1
+  ep->buf_1_len = tu_min16(total_len, ep->wMaxPacketSize);
+  total_len -= ep->buf_1_len;
+
+  ep->active = true;
+
+  // Write buffer control
+
+  // Buffer 0
+  uint32_t bufctrl = ep->transfer_size  | USB_BUF_CTRL_AVAIL;
+
+  // Copy data to DPB if tx
+  if (!ep->rx)
+  {
+    // Copy data from user buffer to hw buffer
+    memcpy(ep->hw_data_buf, ep->user_buf, ep->transfer_size + ep->buf_1_len);
+
+    // Mark as full
+    bufctrl |= USB_BUF_CTRL_FULL | (ep->buf_1_len ? (USB_BUF_CTRL_FULL << 16) : 0);
+  }
+
+  // PID
+  bufctrl |= ep->next_pid ? USB_BUF_CTRL_DATA1_PID : USB_BUF_CTRL_DATA0_PID;
+  ep->next_pid ^= 1u;
+
+  if (ep->buf_1_len)
+  {
+    bufctrl |= (ep->buf_1_len | USB_BUF_CTRL_AVAIL) << 16;
+    bufctrl |= (ep->next_pid ? USB_BUF_CTRL_DATA1_PID : USB_BUF_CTRL_DATA0_PID) << 16;
+    ep->next_pid ^= 1u;
+  }
+
+  // determine which buffer is last
+  if (total_len == 0)
+  {
+    bufctrl |= USB_BUF_CTRL_LAST << (ep->buf_1_len ? 16 : 0);
+  }
+
+  print_bufctrl32(bufctrl);
+
+  _hw_endpoint_buffer_control_set_value32(ep, bufctrl);
+
+  return ep->buf_1_len > 0;
+}
+
 bool hcd_edpt_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr, uint8_t * buffer, uint16_t buflen)
 {
     (void) rhport;
@@ -486,13 +563,12 @@ bool hcd_edpt_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr, uint8_t * 
         _hw_endpoint_init(ep, dev_addr, ep_addr, ep->wMaxPacketSize, ep->transfer_type, 0);
     }
 
-    // Start the transfer
-    _hw_endpoint_xfer_start(ep, buffer, buflen);
-
     // If a normal transfer (non-interrupt) then initiate using
     // sie ctrl registers. Otherwise interrupt ep registers should
     // already be configured
     if (ep == &epx) {
+        _hw_endpoint_xfer_start(ep, buffer, buflen);
+
         // That has set up buffer control, endpoint control etc
         // for host we have to initiate the transfer
         usb_hw->dev_addr_ctrl = dev_addr | (ep_num << USB_ADDR_ENDP_ENDPOINT_LSB);
@@ -503,6 +579,9 @@ bool hcd_edpt_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr, uint8_t * 
         flags |= need_pre(dev_addr) ? USB_SIE_CTRL_PREAMBLE_EN_BITS : 0;
 
         usb_hw->sie_ctrl = flags;
+    }else
+    {
+      _hw_endpoint_xfer_start(ep, buffer, buflen);
     }
 
     return true;
@@ -556,8 +635,8 @@ bool hcd_setup_send(uint8_t rhport, uint8_t dev_addr, uint8_t const setup_packet
 
 bool hcd_edpt_clear_stall(uint8_t dev_addr, uint8_t ep_addr)
 {
-    (void) rhport;
     (void) dev_addr;
+    (void) ep_addr;
 
     panic("hcd_clear_stall");
     return true;

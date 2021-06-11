@@ -61,11 +61,11 @@ void rp2040_usb_init(void)
     memset(usb_dpram, 0, sizeof(*usb_dpram));
 
     // Mux the controller to the onboard usb phy
-    usb_hw->muxing    = USB_USB_MUXING_TO_PHY_BITS    | USB_USB_MUXING_SOFTCON_BITS;
+    usb_hw->muxing = USB_USB_MUXING_TO_PHY_BITS    | USB_USB_MUXING_SOFTCON_BITS;
 
     // Force VBUS detect so the device thinks it is plugged into a host
     // TODO support VBUs detect
-    usb_hw->pwr       = USB_USB_PWR_VBUS_DETECT_BITS  | USB_USB_PWR_VBUS_DETECT_OVERRIDE_EN_BITS;
+    usb_hw->pwr    = USB_USB_PWR_VBUS_DETECT_BITS  | USB_USB_PWR_VBUS_DETECT_OVERRIDE_EN_BITS;
 }
 
 void hw_endpoint_reset_transfer(struct hw_endpoint *ep)
@@ -111,150 +111,157 @@ void _hw_endpoint_buffer_control_update32(struct hw_endpoint *ep, uint32_t and_m
     *ep->buffer_control = value;
 }
 
+// Prepare buffer control register value
 void _hw_endpoint_start_next_buffer(struct hw_endpoint *ep)
 {
-    // Prepare buffer control register value
-    uint32_t val = ep->transfer_size | USB_BUF_CTRL_AVAIL;
+  uint16_t remaining = ep->total_len - ep->len;
+  uint32_t ep_ctrl = *ep->endpoint_control;
+  uint32_t buf_ctrl;
 
-    if (!ep->rx)
-    {
-        // Copy data from user buffer to hw buffer
-        memcpy(ep->hw_data_buf, &ep->user_buf[ep->len], ep->transfer_size);
-        // Mark as full
-        val |= USB_BUF_CTRL_FULL;
-    }
+  // Buffer 0
+  ep->transfer_size = tu_min16(remaining, ep->wMaxPacketSize);
+  remaining -= ep->transfer_size;
 
-    // PID
-    val |= ep->next_pid ? USB_BUF_CTRL_DATA1_PID : USB_BUF_CTRL_DATA0_PID;
+  buf_ctrl = ep->transfer_size | USB_BUF_CTRL_AVAIL;
+  if ( !ep->rx )
+  {
+    // Copy data from user buffer to hw buffer
+    memcpy(ep->hw_data_buf, ep->user_buf+ep->len, ep->transfer_size);
 
-#if TUSB_OPT_DEVICE_ENABLED
+    // Mark as full
+    buf_ctrl |= USB_BUF_CTRL_FULL;
+  }
+
+  // PID
+  buf_ctrl |= ep->next_pid ? USB_BUF_CTRL_DATA1_PID : USB_BUF_CTRL_DATA0_PID;
+  ep->next_pid ^= 1u;
+
+  // Buffer 1
+  ep->buf_1_len = tu_min16(remaining, ep->wMaxPacketSize);
+  remaining -= ep->buf_1_len;
+
+  if (ep->buf_1_len)
+  {
+    buf_ctrl |= (ep->buf_1_len | USB_BUF_CTRL_AVAIL) << 16;
+    buf_ctrl |= (ep->next_pid ? USB_BUF_CTRL_DATA1_PID : USB_BUF_CTRL_DATA0_PID) << 16;
     ep->next_pid ^= 1u;
 
-#else
-    // For Host (also device but since we dictate the endpoint size, following scenario does not occur)
-    // Next PID depends on the number of packet in case wMaxPacketSize < 64 (e.g Interrupt Endpoint 8, or 12)
-    // Special case with control status stage where PID is always DATA1
-    if ( ep->transfer_size == 0 )
+    if ( !ep->rx )
     {
-      // ZLP also toggle data
-      ep->next_pid ^= 1u;
-    }else
-    {
-      uint32_t packet_count = 1 + ((ep->transfer_size - 1) / ep->wMaxPacketSize);
-
-      if ( packet_count & 0x01 )
-      {
-        ep->next_pid ^= 1u;
-      }
+      // Copy data from user buffer to hw buffer
+      memcpy(ep->hw_data_buf+64, ep->user_buf+ep->len+ep->transfer_size, ep->buf_1_len);
     }
-#endif
 
+    // Set endpoint control double buffered bit if needed
+    ep_ctrl &= ~EP_CTRL_INTERRUPT_PER_BUFFER;
+    ep_ctrl |= EP_CTRL_DOUBLE_BUFFERED_BITS | EP_CTRL_INTERRUPT_PER_DOUBLE_BUFFER;
+  }else
+  {
+    ep_ctrl &= ~(EP_CTRL_DOUBLE_BUFFERED_BITS | EP_CTRL_INTERRUPT_PER_DOUBLE_BUFFER);
+    ep_ctrl |= EP_CTRL_INTERRUPT_PER_BUFFER;
+  }
+
+  *ep->endpoint_control = ep_ctrl;
 
 #if TUSB_OPT_HOST_ENABLED
-    // Is this the last buffer? Only really matters for host mode. Will trigger
-    // the trans complete irq but also stop it polling. We only really care about
-    // trans complete for setup packets being sent
-    if (ep->last_buf)
-    {
-        pico_trace("Last buf (%d bytes left)\n", ep->transfer_size);
-        val |= USB_BUF_CTRL_LAST;
-    }
+  // Is this the last buffer? Only really matters for host mode. Will trigger
+  // the trans complete irq but also stop it polling. We only really care about
+  // trans complete for setup packets being sent
+  if (remaining == 0)
+  {
+    buf_ctrl |= USB_BUF_CTRL_LAST << (ep->buf_1_len ? 16 : 0);
+  }
 #endif
 
-    // Finally, write to buffer_control which will trigger the transfer
-    // the next time the controller polls this dpram address
-    _hw_endpoint_buffer_control_set_value32(ep, val);
-    pico_trace("buffer control (0x%p) <- 0x%x\n", ep->buffer_control, val);
-    //print_bufctrl16(val);
+  print_bufctrl32(buf_ctrl);
+
+  // Finally, write to buffer_control which will trigger the transfer
+  // the next time the controller polls this dpram address
+  _hw_endpoint_buffer_control_set_value32(ep, buf_ctrl);
 }
 
 
 void _hw_endpoint_xfer_start(struct hw_endpoint *ep, uint8_t *buffer, uint16_t total_len)
 {
-    _hw_endpoint_lock_update(ep, 1);
-    pico_trace("Start transfer of total len %d on ep %d %s\n", total_len, tu_edpt_number(ep->ep_addr), ep_dir_string[tu_edpt_dir(ep->ep_addr)]);
-    if (ep->active)
-    {
-        // TODO: Is this acceptable for interrupt packets?
-        pico_warn("WARN: starting new transfer on already active ep %d %s\n", tu_edpt_number(ep->ep_addr), ep_dir_string[tu_edpt_dir(ep->ep_addr)]);
+  _hw_endpoint_lock_update(ep, 1);
+  pico_trace("Start transfer of total len %d on ep %d %s\n", total_len, tu_edpt_number(ep->ep_addr),
+             ep_dir_string[tu_edpt_dir(ep->ep_addr)]);
+  if ( ep->active )
+  {
+    // TODO: Is this acceptable for interrupt packets?
+    pico_warn("WARN: starting new transfer on already active ep %d %s\n", tu_edpt_number(ep->ep_addr),
+              ep_dir_string[tu_edpt_dir(ep->ep_addr)]);
 
-        hw_endpoint_reset_transfer(ep);
-    }
+    hw_endpoint_reset_transfer(ep);
+  }
 
-    // Fill in info now that we're kicking off the hw
-    ep->total_len = total_len;
-    ep->len = 0;
+  // Fill in info now that we're kicking off the hw
+  ep->total_len = total_len;
+  ep->len       = 0;
+  ep->active    = true;
+  ep->user_buf  = buffer;
 
-    // Limit by packet size but not less 64 (i.e low speed 8 bytes EP0)
-    ep->transfer_size = tu_min16(total_len, tu_max16(64, ep->wMaxPacketSize));
-
-    ep->active = true;
-    ep->user_buf = buffer;
-#if TUSB_OPT_HOST_ENABLED
-    // Recalculate if this is the last buffer
-    _hw_endpoint_update_last_buf(ep);
-    ep->buf_sel = 0;
-#endif
-
-    _hw_endpoint_start_next_buffer(ep);
-    _hw_endpoint_lock_update(ep, -1);
+  _hw_endpoint_start_next_buffer(ep);
+  _hw_endpoint_lock_update(ep, -1);
 }
 
-void _hw_endpoint_xfer_sync(struct hw_endpoint *ep)
+void _hw_endpoint_xfer_sync (struct hw_endpoint *ep)
 {
-    // Update hw endpoint struct with info from hardware
-    // after a buff status interrupt
+  // Update hw endpoint struct with info from hardware
+  // after a buff status interrupt
 
-    uint32_t buf_ctrl = _hw_endpoint_buffer_control_get_value32(ep);
+  uint32_t const buf_ctrl = _hw_endpoint_buffer_control_get_value32(ep);
+  print_bufctrl32(buf_ctrl);
 
-#if TUSB_OPT_HOST_ENABLED
-    // RP2040-E4
-    // tag::host_buf_sel_fix[]
-    // TODO need changes to support double buffering
-    if (ep->buf_sel == 1)
+  // Transferred bytes for each buffer
+  uint16_t xferred_bytes[2];
+
+  xferred_bytes[0] = buf_ctrl & USB_BUF_CTRL_LEN_MASK;
+
+  // double buffered: take buffer1 into account as well
+  if ( (*ep->endpoint_control) & EP_CTRL_DOUBLE_BUFFERED_BITS )
+  {
+    xferred_bytes[1] = (buf_ctrl >> 16) & USB_BUF_CTRL_LEN_MASK;
+  }else
+  {
+    xferred_bytes[1] = 0;
+  }
+
+  TU_LOG_INT(2, xferred_bytes[0]);
+  TU_LOG_INT(2, xferred_bytes[1]);
+
+  // We are continuing a transfer here. If we are TX, we have successfully
+  // sent some data can increase the length we have sent
+  if ( !ep->rx )
+  {
+    assert(!(buf_ctrl & USB_BUF_CTRL_FULL));
+    ep->len += xferred_bytes[0] + xferred_bytes[1];
+  }
+  else
+  {
+    // If we are OUT we have recieved some data, so can increase the length
+    // we have recieved AFTER we have copied it to the user buffer at the appropriate offset
+    assert(buf_ctrl & USB_BUF_CTRL_FULL);
+
+    memcpy(&ep->user_buf[ep->len], ep->hw_data_buf, xferred_bytes[0]);
+    ep->len += xferred_bytes[0];
+
+    if (xferred_bytes[1])
     {
-        // Host can erroneously write status to top half of buf_ctrl register
-        buf_ctrl = buf_ctrl >> 16;
-
-        // update buf1 -> buf0 to prevent panic with "already available"
-        *ep->buffer_control = buf_ctrl;
+      memcpy(&ep->user_buf[ep->len], ep->hw_data_buf+64, xferred_bytes[1]);
+      ep->len += xferred_bytes[1];
     }
-    // Flip buf sel for host
-    ep->buf_sel ^= 1u;
-    // end::host_buf_sel_fix[]
-#endif
+  }
 
-    // Get tranferred bytes after adjusted buf sel
-    uint16_t const transferred_bytes = buf_ctrl & USB_BUF_CTRL_LEN_MASK;
-
-    // We are continuing a transfer here. If we are TX, we have successfullly
-    // sent some data can increase the length we have sent
-    if (!ep->rx)
-    {
-        assert(!(buf_ctrl & USB_BUF_CTRL_FULL));
-        pico_trace("tx %d bytes (buf_ctrl 0x%08x)\n", transferred_bytes, buf_ctrl);
-        ep->len += transferred_bytes;
-    }
-    else
-    {
-        // If we are OUT we have recieved some data, so can increase the length
-        // we have recieved AFTER we have copied it to the user buffer at the appropriate
-        // offset
-        pico_trace("rx %d bytes (buf_ctrl 0x%08x)\n", transferred_bytes, buf_ctrl);
-        assert(buf_ctrl & USB_BUF_CTRL_FULL);
-        memcpy(&ep->user_buf[ep->len], ep->hw_data_buf, transferred_bytes);
-        ep->len += transferred_bytes;
-    }
-
-    // Sometimes the host will send less data than we expect...
-    // If this is a short out transfer update the total length of the transfer
-    // to be the current length
-    if ((ep->rx) && (transferred_bytes < ep->wMaxPacketSize))
-    {
-        pico_trace("Short rx transfer\n");
-        // Reduce total length as this is last packet
-        ep->total_len = ep->len;
-    }
+  // Sometimes the host will send less data than we expect...
+  // If this is a short out transfer update the total length of the transfer
+  // to be the current length
+  if ( (ep->rx) && ((xferred_bytes[0] < ep->wMaxPacketSize) || (xferred_bytes[1] && (xferred_bytes[1] < ep->wMaxPacketSize))) )
+  {
+    pico_trace("Short rx transfer\n");
+    // Reduce total length as this is last packet
+    ep->total_len = ep->len;
+  }
 }
 
 // Returns true if transfer is complete
@@ -271,12 +278,11 @@ bool _hw_endpoint_xfer_continue(struct hw_endpoint *ep)
     _hw_endpoint_xfer_sync(ep);
 
     // Now we have synced our state with the hardware. Is there more data to transfer?
-    // Limit by packet size but not less 64 (i.e low speed 8 bytes EP0)
+    // Limit by packet size
     uint16_t remaining_bytes = ep->total_len - ep->len;
-    ep->transfer_size = tu_min16(remaining_bytes, tu_max16(64, ep->wMaxPacketSize));
-#if TUSB_OPT_HOST_ENABLED
-    _hw_endpoint_update_last_buf(ep);
-#endif
+    ep->transfer_size = tu_min16(remaining_bytes, ep->wMaxPacketSize);
+
+    TU_LOG_INT(2, ep->transfer_size);
 
     // Can happen because of programmer error so check for it
     if (ep->len > ep->total_len)
@@ -301,25 +307,6 @@ bool _hw_endpoint_xfer_continue(struct hw_endpoint *ep)
     _hw_endpoint_lock_update(ep, -1);
     // More work to do
     return false;
-}
-
-void _hw_endpoint_xfer(struct hw_endpoint *ep, uint8_t *buffer, uint16_t total_len, bool start)
-{
-    // Trace
-    pico_trace("hw_endpoint_xfer ep %d %s", tu_edpt_number(ep->ep_addr), ep_dir_string[tu_edpt_dir(ep->ep_addr)]);
-    pico_trace(" total_len %d, start=%d\n", total_len, start);
-
-    assert(ep->configured);
-
-
-    if (start)
-    {
-        _hw_endpoint_xfer_start(ep, buffer, total_len);
-    }
-    else
-    {
-        _hw_endpoint_xfer_continue(ep);
-    }
 }
 
 #endif
