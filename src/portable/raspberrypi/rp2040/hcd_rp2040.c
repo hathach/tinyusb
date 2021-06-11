@@ -115,7 +115,7 @@ static void hw_xfer_complete(struct hw_endpoint *ep, xfer_result_t xfer_result)
     // Mark transfer as done before we tell the tinyusb stack
     uint8_t dev_addr = ep->dev_addr;
     uint8_t ep_addr = ep->ep_addr;
-    uint xferred_len = ep->len;
+    uint xferred_len = ep->xferred_len;
     hw_endpoint_reset_transfer(ep);
     hcd_event_xfer_complete(dev_addr, ep_addr, xferred_len, xfer_result, true);
 }
@@ -542,7 +542,7 @@ bool hcd_setup_send(uint8_t rhport, uint8_t dev_addr, uint8_t const setup_packet
     _hw_endpoint_init(ep, dev_addr, 0x00, ep->wMaxPacketSize, 0, 0);
     assert(ep->configured);
 
-    ep->total_len     = 8;
+    ep->remaining_len = 8;
     ep->transfer_size = 8;
     ep->active        = true;
     ep->sent_setup    = true;

@@ -43,19 +43,12 @@ static inline void _hw_endpoint_lock_update(struct hw_endpoint *ep, int delta) {
     //  sense to have worker and IRQ on same core, however I think using critsec is about equivalent.
 }
 
-#if TUSB_OPT_HOST_ENABLED
-static inline void _hw_endpoint_update_last_buf(struct hw_endpoint *ep)
-{
-    ep->last_buf = (ep->len + ep->transfer_size == ep->total_len);
-}
-#endif
+void _hw_endpoint_xfer_sync(struct hw_endpoint *ep);
+void _hw_endpoint_start_next_buffer(struct hw_endpoint *ep);
 
 //--------------------------------------------------------------------+
 //
 //--------------------------------------------------------------------+
-
-void _hw_endpoint_xfer_sync(struct hw_endpoint *ep);
-void _hw_endpoint_start_next_buffer(struct hw_endpoint *ep);
 
 void rp2040_usb_init(void)
 {
@@ -82,8 +75,8 @@ void hw_endpoint_reset_transfer(struct hw_endpoint *ep)
 #if TUSB_OPT_HOST_ENABLED
     ep->sent_setup = false;
 #endif
-    ep->total_len = 0;
-    ep->len = 0;
+    ep->remaining_len = 0;
+    ep->xferred_len = 0;
     ep->transfer_size = 0;
     ep->user_buf = 0;
 }
@@ -118,22 +111,29 @@ void _hw_endpoint_buffer_control_update32(struct hw_endpoint *ep, uint32_t and_m
     *ep->buffer_control = value;
 }
 
+//static void prepare_ep_buf(struct hw_endpoint *ep, uint8_t buf_id)
+//{
+//  uint16_t buflen = tu_min16(ep->remaining_len, ep->wMaxPacketSize);
+//
+//
+//}
+
 // Prepare buffer control register value
 void _hw_endpoint_start_next_buffer(struct hw_endpoint *ep)
 {
-  uint16_t remaining = ep->total_len - ep->len;
   uint32_t ep_ctrl = *ep->endpoint_control;
   uint32_t buf_ctrl;
 
   // Buffer 0
-  ep->transfer_size = tu_min16(remaining, ep->wMaxPacketSize);
-  remaining -= ep->transfer_size;
+  ep->transfer_size = tu_min16(ep->remaining_len, ep->wMaxPacketSize);
+  ep->remaining_len -= ep->transfer_size;
 
   buf_ctrl = ep->transfer_size | USB_BUF_CTRL_AVAIL;
   if ( !ep->rx )
   {
     // Copy data from user buffer to hw buffer
-    memcpy(ep->hw_data_buf, ep->user_buf+ep->len, ep->transfer_size);
+    memcpy(ep->hw_data_buf, ep->user_buf, ep->transfer_size);
+    ep->user_buf += ep->transfer_size;
 
     // Mark as full
     buf_ctrl |= USB_BUF_CTRL_FULL;
@@ -144,8 +144,8 @@ void _hw_endpoint_start_next_buffer(struct hw_endpoint *ep)
   ep->next_pid ^= 1u;
 
   // Buffer 1
-  ep->buf_1_len = tu_min16(remaining, ep->wMaxPacketSize);
-  remaining -= ep->buf_1_len;
+  ep->buf_1_len = tu_min16(ep->remaining_len, ep->wMaxPacketSize);
+  ep->remaining_len -= ep->buf_1_len;
 
   if (ep->buf_1_len)
   {
@@ -156,7 +156,8 @@ void _hw_endpoint_start_next_buffer(struct hw_endpoint *ep)
     if ( !ep->rx )
     {
       // Copy data from user buffer to hw buffer
-      memcpy(ep->hw_data_buf+64, ep->user_buf+ep->len+ep->transfer_size, ep->buf_1_len);
+      memcpy(ep->hw_data_buf+64, ep->user_buf, ep->buf_1_len);
+      ep->user_buf += ep->buf_1_len;
     }
 
     // Set endpoint control double buffered bit if needed
@@ -174,7 +175,7 @@ void _hw_endpoint_start_next_buffer(struct hw_endpoint *ep)
   // Is this the last buffer? Only really matters for host mode. Will trigger
   // the trans complete irq but also stop it polling. We only really care about
   // trans complete for setup packets being sent
-  if (remaining == 0)
+  if (ep->remaining_len == 0)
   {
     buf_ctrl |= USB_BUF_CTRL_LAST << (ep->buf_1_len ? 16 : 0);
   }
@@ -202,16 +203,16 @@ void hw_endpoint_xfer_start(struct hw_endpoint *ep, uint8_t *buffer, uint16_t to
   }
 
   // Fill in info now that we're kicking off the hw
-  ep->total_len = total_len;
-  ep->len       = 0;
-  ep->active    = true;
-  ep->user_buf  = buffer;
+  ep->remaining_len = total_len;
+  ep->xferred_len           = 0;
+  ep->active        = true;
+  ep->user_buf      = buffer;
 
   _hw_endpoint_start_next_buffer(ep);
   _hw_endpoint_lock_update(ep, -1);
 }
 
-static void ep_sync_buf(struct hw_endpoint *ep, uint8_t buf_id)
+static void sync_ep_buf(struct hw_endpoint *ep, uint8_t buf_id)
 {
   uint32_t buf_ctrl = _hw_endpoint_buffer_control_get_value32(ep);
   if (buf_id)  buf_ctrl = buf_ctrl >> 16;
@@ -224,15 +225,16 @@ static void ep_sync_buf(struct hw_endpoint *ep, uint8_t buf_id)
     // sent some data can increase the length we have sent
     assert(!(buf_ctrl & USB_BUF_CTRL_FULL));
 
-    ep->len += xferred_bytes;
+    ep->xferred_len += xferred_bytes;
   }else
   {
     // If we have received some data, so can increase the length
     // we have received AFTER we have copied it to the user buffer at the appropriate offset
     assert(buf_ctrl & USB_BUF_CTRL_FULL);
 
-    memcpy(&ep->user_buf[ep->len], ep->hw_data_buf + buf_id*64, xferred_bytes);
-    ep->len += xferred_bytes;
+    memcpy(ep->user_buf, ep->hw_data_buf + buf_id*64, xferred_bytes);
+    ep->xferred_len += xferred_bytes;
+    ep->user_buf += xferred_bytes;
   }
 
   // Short packet
@@ -242,7 +244,7 @@ static void ep_sync_buf(struct hw_endpoint *ep, uint8_t buf_id)
   {
     pico_trace("Short rx transfer\n");
     // Reduce total length as this is last packet
-    ep->total_len = ep->len;
+    ep->remaining_len = 0;
   }
 }
 
@@ -252,12 +254,12 @@ void _hw_endpoint_xfer_sync (struct hw_endpoint *ep)
   // after a buff status interrupt
 
   // always sync buffer 0
-  ep_sync_buf(ep, 0);
+  sync_ep_buf(ep, 0);
 
   // sync buffer 1 if double buffered
   if ( (*ep->endpoint_control) & EP_CTRL_DOUBLE_BUFFERED_BITS )
   {
-    ep_sync_buf(ep, 1);
+    sync_ep_buf(ep, 1);
   }
 }
 
@@ -275,23 +277,11 @@ bool hw_endpoint_xfer_continue(struct hw_endpoint *ep)
     _hw_endpoint_xfer_sync(ep);
 
     // Now we have synced our state with the hardware. Is there more data to transfer?
-    // Limit by packet size
-    uint16_t remaining_bytes = ep->total_len - ep->len;
-    ep->transfer_size = tu_min16(remaining_bytes, ep->wMaxPacketSize);
-
-    TU_LOG_INT(2, ep->transfer_size);
-
-    // Can happen because of programmer error so check for it
-    if (ep->len > ep->total_len)
-    {
-        panic("Transferred more data than expected");
-    }
-
     // If we are done then notify tinyusb
-    if (ep->len == ep->total_len)
+    if (ep->remaining_len == 0)
     {
         pico_trace("Completed transfer of %d bytes on ep %d %s\n",
-                   ep->len, tu_edpt_number(ep->ep_addr), ep_dir_string[tu_edpt_dir(ep->ep_addr)]);
+                   ep->xferred_len, tu_edpt_number(ep->ep_addr), ep_dir_string[tu_edpt_dir(ep->ep_addr)]);
         // Notify caller we are done so it can notify the tinyusb stack
         _hw_endpoint_lock_update(ep, -1);
         return true;

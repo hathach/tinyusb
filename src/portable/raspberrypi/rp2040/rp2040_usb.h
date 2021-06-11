@@ -62,10 +62,12 @@ struct hw_endpoint
 
     // Current transfer information
     bool active;
-    uint16_t total_len;
-    uint16_t len;
+    uint16_t remaining_len;
+    uint16_t xferred_len;
 
     // Amount of data with the hardware
+    uint16_t buflen[2];
+
     uint16_t transfer_size; // buf0_len;
     uint16_t buf_1_len;
 
