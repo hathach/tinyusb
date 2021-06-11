@@ -17,17 +17,8 @@
 #endif
 
 
-#if true || false && !defined(NDEBUG)
-#define pico_trace(format,args...) printf(format, ## args)
-#else
-#define pico_trace(format,...) ((void)0)
-#endif
-
-#if false && !defined(NDEBUG)
-#define pico_info(format,args...) printf(format, ## args)
-#else
-#define pico_info(format,...) ((void)0)
-#endif
+#define pico_info(...)  TU_LOG(2, __VA_ARGS__)
+#define pico_trace(...) TU_LOG(3, __VA_ARGS__)
 
 // Hardware information per endpoint
 struct hw_endpoint
