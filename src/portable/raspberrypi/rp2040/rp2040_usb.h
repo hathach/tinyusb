@@ -65,12 +65,6 @@ struct hw_endpoint
     uint16_t remaining_len;
     uint16_t xferred_len;
 
-    // Amount of data with the hardware
-    uint16_t buflen[2];
-
-    uint16_t transfer_size; // buf0_len;
-    uint16_t buf_1_len;
-
     // User buffer in main memory
     uint8_t *user_buf;
 
@@ -80,12 +74,6 @@ struct hw_endpoint
     uint8_t transfer_type;
     
 #if TUSB_OPT_HOST_ENABLED
-    // Only needed for host mode
-    bool last_buf;
-
-    // RP2040-E4: HOST BUG. Host will incorrect write status to top half of buffer
-    // control register when doing transfers > 1 packet
-    uint8_t buf_sel;
     // Only needed for host
     uint8_t dev_addr;
     bool sent_setup;

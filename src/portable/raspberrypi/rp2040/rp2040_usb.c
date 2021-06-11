@@ -2,6 +2,7 @@
  * The MIT License (MIT)
  *
  * Copyright (c) 2020 Raspberry Pi (Trading) Ltd.
+ * Copyright (c) 2021 Ha Thach (tinyusb.org) for Double Buffered
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -43,8 +44,8 @@ static inline void _hw_endpoint_lock_update(struct hw_endpoint *ep, int delta) {
     //  sense to have worker and IRQ on same core, however I think using critsec is about equivalent.
 }
 
-void _hw_endpoint_xfer_sync(struct hw_endpoint *ep);
-void _hw_endpoint_start_next_buffer(struct hw_endpoint *ep);
+static void _hw_endpoint_xfer_sync(struct hw_endpoint *ep);
+static void _hw_endpoint_start_next_buffer(struct hw_endpoint *ep);
 
 //--------------------------------------------------------------------+
 //
@@ -77,7 +78,6 @@ void hw_endpoint_reset_transfer(struct hw_endpoint *ep)
 #endif
   ep->remaining_len = 0;
   ep->xferred_len = 0;
-  ep->transfer_size = 0;
   ep->user_buf = 0;
 }
 
@@ -111,7 +111,7 @@ void _hw_endpoint_buffer_control_update32(struct hw_endpoint *ep, uint32_t and_m
     *ep->buffer_control = value;
 }
 
-static uint32_t compute_ep_buf(struct hw_endpoint *ep, uint8_t buf_id)
+static uint32_t compute_buffer_control(struct hw_endpoint *ep, uint8_t buf_id)
 {
   uint16_t const buflen = tu_min16(ep->remaining_len, ep->wMaxPacketSize);
   ep->remaining_len -= buflen;
@@ -148,19 +148,19 @@ static uint32_t compute_ep_buf(struct hw_endpoint *ep, uint8_t buf_id)
 }
 
 // Prepare buffer control register value
-void _hw_endpoint_start_next_buffer(struct hw_endpoint *ep)
+static void _hw_endpoint_start_next_buffer(struct hw_endpoint *ep)
 {
   uint32_t ep_ctrl = *ep->endpoint_control;
 
   // always compute buffer 0
-  uint32_t buf_ctrl = compute_ep_buf(ep, 0);
+  uint32_t buf_ctrl = compute_buffer_control(ep, 0);
 
   if(ep->remaining_len)
   {
     // Use buffer 1 (double buffered) if there is still data
     // TODO: Isochronous for buffer1 bit-field is different than CBI (control bulk, interrupt)
 
-    buf_ctrl |= compute_ep_buf(ep, 1);
+    buf_ctrl |= compute_buffer_control(ep, 1);
 
     // Set endpoint control double buffered bit if needed
     ep_ctrl &= ~EP_CTRL_INTERRUPT_PER_BUFFER;
@@ -205,7 +205,7 @@ void hw_endpoint_xfer_start(struct hw_endpoint *ep, uint8_t *buffer, uint16_t to
   _hw_endpoint_lock_update(ep, -1);
 }
 
-static void sync_ep_buf(struct hw_endpoint *ep, uint8_t buf_id)
+static void sync_ep_buffer(struct hw_endpoint *ep, uint8_t buf_id)
 {
   uint32_t buf_ctrl = _hw_endpoint_buffer_control_get_value32(ep);
   if (buf_id)  buf_ctrl = buf_ctrl >> 16;
@@ -241,18 +241,18 @@ static void sync_ep_buf(struct hw_endpoint *ep, uint8_t buf_id)
   }
 }
 
-void _hw_endpoint_xfer_sync (struct hw_endpoint *ep)
+static void _hw_endpoint_xfer_sync (struct hw_endpoint *ep)
 {
   // Update hw endpoint struct with info from hardware
   // after a buff status interrupt
 
   // always sync buffer 0
-  sync_ep_buf(ep, 0);
+  sync_ep_buffer(ep, 0);
 
   // sync buffer 1 if double buffered
   if ( (*ep->endpoint_control) & EP_CTRL_DOUBLE_BUFFERED_BITS )
   {
-    sync_ep_buf(ep, 1);
+    sync_ep_buffer(ep, 1);
   }
 }
 

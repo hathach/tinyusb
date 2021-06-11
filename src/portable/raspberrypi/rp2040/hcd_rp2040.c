@@ -2,6 +2,7 @@
  * The MIT License (MIT)
  *
  * Copyright (c) 2020 Raspberry Pi (Trading) Ltd.
+ * Copyright (c) 2021 Ha Thach (tinyusb.org) for Double Buffered
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -220,20 +221,20 @@ static void hcd_rp2040_irq(void)
         usb_hw_clear->sie_status = USB_SIE_STATUS_SPEED_BITS;
     }
 
+    if (status & USB_INTS_BUFF_STATUS_BITS)
+    {
+        handled |= USB_INTS_BUFF_STATUS_BITS;
+        TU_LOG(2, "Buffer complete\n");
+        // print_bufctrl32(*epx.buffer_control);
+        hw_handle_buff_status();
+    }
+
     if (status & USB_INTS_TRANS_COMPLETE_BITS)
     {
         handled |= USB_INTS_TRANS_COMPLETE_BITS;
         usb_hw_clear->sie_status = USB_SIE_STATUS_TRANS_COMPLETE_BITS;
         TU_LOG(2, "Transfer complete\n");
         hw_trans_complete();
-    }
-
-    if (status & USB_INTS_BUFF_STATUS_BITS)
-    {
-        handled |= USB_INTS_BUFF_STATUS_BITS;
-        TU_LOG(2, "Buffer complete\n");
-        print_bufctrl32(*epx.buffer_control);
-        hw_handle_buff_status();
     }
 
     if (status & USB_INTS_STALL_BITS)
@@ -543,7 +544,6 @@ bool hcd_setup_send(uint8_t rhport, uint8_t dev_addr, uint8_t const setup_packet
     assert(ep->configured);
 
     ep->remaining_len = 8;
-    ep->transfer_size = 8;
     ep->active        = true;
     ep->sent_setup    = true;
 
