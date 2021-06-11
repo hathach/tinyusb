@@ -990,13 +990,14 @@ static bool parse_configuration_descriptor(uint8_t dev_addr, tusb_desc_configura
   // parse each interfaces
   while( p_desc < _usbh_ctrl_buf + desc_cfg->wTotalLength )
   {
-    tusb_desc_interface_assoc_t const * desc_itf_assoc = NULL;
+    // TODO Do we need to use IAD
+    // tusb_desc_interface_assoc_t const * desc_itf_assoc = NULL;
 
     // Class will always starts with Interface Association (if any) and then Interface descriptor
     if ( TUSB_DESC_INTERFACE_ASSOCIATION == tu_desc_type(p_desc) )
     {
-      desc_itf_assoc = (tusb_desc_interface_assoc_t const *) p_desc;
-      p_desc = tu_desc_next(p_desc); // next to Interface
+      // desc_itf_assoc = (tusb_desc_interface_assoc_t const *) p_desc;
+      p_desc = tu_desc_next(p_desc);
     }
 
     TU_ASSERT( TUSB_DESC_INTERFACE == tu_desc_type(p_desc) );

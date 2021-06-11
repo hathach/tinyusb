@@ -151,7 +151,6 @@ static void hw_handle_buff_status(void)
         {
           TU_LOG(3, "Single Buffered: ");
         }
-
         TU_LOG_HEX(3, ep_ctrl);
 
         _handle_buff_status_bit(bit, ep);
