@@ -50,6 +50,13 @@ static inline void _hw_endpoint_update_last_buf(struct hw_endpoint *ep)
 }
 #endif
 
+//--------------------------------------------------------------------+
+//
+//--------------------------------------------------------------------+
+
+void _hw_endpoint_xfer_sync(struct hw_endpoint *ep);
+void _hw_endpoint_start_next_buffer(struct hw_endpoint *ep);
+
 void rp2040_usb_init(void)
 {
     // Reset usb controller
@@ -180,8 +187,7 @@ void _hw_endpoint_start_next_buffer(struct hw_endpoint *ep)
   _hw_endpoint_buffer_control_set_value32(ep, buf_ctrl);
 }
 
-
-void _hw_endpoint_xfer_start(struct hw_endpoint *ep, uint8_t *buffer, uint16_t total_len)
+void hw_endpoint_xfer_start(struct hw_endpoint *ep, uint8_t *buffer, uint16_t total_len)
 {
   _hw_endpoint_lock_update(ep, 1);
   pico_trace("Start transfer of total len %d on ep %d %s\n", total_len, tu_edpt_number(ep->ep_addr),
@@ -205,58 +211,34 @@ void _hw_endpoint_xfer_start(struct hw_endpoint *ep, uint8_t *buffer, uint16_t t
   _hw_endpoint_lock_update(ep, -1);
 }
 
-void _hw_endpoint_xfer_sync (struct hw_endpoint *ep)
+static void ep_sync_buf(struct hw_endpoint *ep, uint8_t buf_id)
 {
-  // Update hw endpoint struct with info from hardware
-  // after a buff status interrupt
+  uint32_t buf_ctrl = _hw_endpoint_buffer_control_get_value32(ep);
+  if (buf_id)  buf_ctrl = buf_ctrl >> 16;
 
-  uint32_t const buf_ctrl = _hw_endpoint_buffer_control_get_value32(ep);
-  print_bufctrl32(buf_ctrl);
+  uint16_t xferred_bytes = buf_ctrl & USB_BUF_CTRL_LEN_MASK;
 
-  // Transferred bytes for each buffer
-  uint16_t xferred_bytes[2];
-
-  xferred_bytes[0] = buf_ctrl & USB_BUF_CTRL_LEN_MASK;
-
-  // double buffered: take buffer1 into account as well
-  if ( (*ep->endpoint_control) & EP_CTRL_DOUBLE_BUFFERED_BITS )
-  {
-    xferred_bytes[1] = (buf_ctrl >> 16) & USB_BUF_CTRL_LEN_MASK;
-  }else
-  {
-    xferred_bytes[1] = 0;
-  }
-
-  TU_LOG_INT(2, xferred_bytes[0]);
-  TU_LOG_INT(2, xferred_bytes[1]);
-
-  // We are continuing a transfer here. If we are TX, we have successfully
-  // sent some data can increase the length we have sent
   if ( !ep->rx )
   {
+    // We are continuing a transfer here. If we are TX, we have successfully
+    // sent some data can increase the length we have sent
     assert(!(buf_ctrl & USB_BUF_CTRL_FULL));
-    ep->len += xferred_bytes[0] + xferred_bytes[1];
-  }
-  else
+
+    ep->len += xferred_bytes;
+  }else
   {
-    // If we are OUT we have recieved some data, so can increase the length
-    // we have recieved AFTER we have copied it to the user buffer at the appropriate offset
+    // If we have received some data, so can increase the length
+    // we have received AFTER we have copied it to the user buffer at the appropriate offset
     assert(buf_ctrl & USB_BUF_CTRL_FULL);
 
-    memcpy(&ep->user_buf[ep->len], ep->hw_data_buf, xferred_bytes[0]);
-    ep->len += xferred_bytes[0];
-
-    if (xferred_bytes[1])
-    {
-      memcpy(&ep->user_buf[ep->len], ep->hw_data_buf+64, xferred_bytes[1]);
-      ep->len += xferred_bytes[1];
-    }
+    memcpy(&ep->user_buf[ep->len], ep->hw_data_buf + buf_id*64, xferred_bytes);
+    ep->len += xferred_bytes;
   }
 
-  // Sometimes the host will send less data than we expect...
-  // If this is a short out transfer update the total length of the transfer
-  // to be the current length
-  if ( (ep->rx) && ((xferred_bytes[0] < ep->wMaxPacketSize) || (xferred_bytes[1] && (xferred_bytes[1] < ep->wMaxPacketSize))) )
+  // Short packet
+  // TODO what if we prepare double buffered but receive short packet on buffer 0 !!!
+  // would the buffer status  or trans complete interrupt is triggered
+  if (xferred_bytes < ep->wMaxPacketSize)
   {
     pico_trace("Short rx transfer\n");
     // Reduce total length as this is last packet
@@ -264,8 +246,23 @@ void _hw_endpoint_xfer_sync (struct hw_endpoint *ep)
   }
 }
 
+void _hw_endpoint_xfer_sync (struct hw_endpoint *ep)
+{
+  // Update hw endpoint struct with info from hardware
+  // after a buff status interrupt
+
+  // always sync buffer 0
+  ep_sync_buf(ep, 0);
+
+  // sync buffer 1 if double buffered
+  if ( (*ep->endpoint_control) & EP_CTRL_DOUBLE_BUFFERED_BITS )
+  {
+    ep_sync_buf(ep, 1);
+  }
+}
+
 // Returns true if transfer is complete
-bool _hw_endpoint_xfer_continue(struct hw_endpoint *ep)
+bool hw_endpoint_xfer_continue(struct hw_endpoint *ep)
 {
     _hw_endpoint_lock_update(ep, 1);
     // Part way through a transfer

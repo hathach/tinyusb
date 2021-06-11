@@ -123,7 +123,7 @@ static void hw_xfer_complete(struct hw_endpoint *ep, xfer_result_t xfer_result)
 static void _handle_buff_status_bit(uint bit, struct hw_endpoint *ep)
 {
     usb_hw_clear->buf_status = bit;
-    bool done = _hw_endpoint_xfer_continue(ep);
+    bool done = hw_endpoint_xfer_continue(ep);
     if (done)
     {
         hw_xfer_complete(ep, XFER_RESULT_SUCCESS);
@@ -485,65 +485,6 @@ bool hcd_edpt_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_endpoint_t const 
     return true;
 }
 
-// return true if double buffered
-static bool xfer_start(struct hw_endpoint *ep, uint8_t *buffer, uint16_t total_len)
-{
-  // Fill in info now that we're kicking off the hw
-  ep->total_len = total_len;
-  ep->len = 0;
-
-  // Limit by packet size
-  ep->user_buf = buffer;
-
-  // Buffer 0
-  ep->transfer_size = tu_min16(total_len, ep->wMaxPacketSize);
-  total_len -= ep->transfer_size;
-
-  // Buffer 1
-  ep->buf_1_len = tu_min16(total_len, ep->wMaxPacketSize);
-  total_len -= ep->buf_1_len;
-
-  ep->active = true;
-
-  // Write buffer control
-
-  // Buffer 0
-  uint32_t bufctrl = ep->transfer_size  | USB_BUF_CTRL_AVAIL;
-
-  // Copy data to DPB if tx
-  if (!ep->rx)
-  {
-    // Copy data from user buffer to hw buffer
-    memcpy(ep->hw_data_buf, ep->user_buf, ep->transfer_size + ep->buf_1_len);
-
-    // Mark as full
-    bufctrl |= USB_BUF_CTRL_FULL | (ep->buf_1_len ? (USB_BUF_CTRL_FULL << 16) : 0);
-  }
-
-  // PID
-  bufctrl |= ep->next_pid ? USB_BUF_CTRL_DATA1_PID : USB_BUF_CTRL_DATA0_PID;
-  ep->next_pid ^= 1u;
-
-  if (ep->buf_1_len)
-  {
-    bufctrl |= (ep->buf_1_len | USB_BUF_CTRL_AVAIL) << 16;
-    bufctrl |= (ep->next_pid ? USB_BUF_CTRL_DATA1_PID : USB_BUF_CTRL_DATA0_PID) << 16;
-    ep->next_pid ^= 1u;
-  }
-
-  // determine which buffer is last
-  if (total_len == 0)
-  {
-    bufctrl |= USB_BUF_CTRL_LAST << (ep->buf_1_len ? 16 : 0);
-  }
-
-  print_bufctrl32(bufctrl);
-
-  _hw_endpoint_buffer_control_set_value32(ep, bufctrl);
-
-  return ep->buf_1_len > 0;
-}
-
 bool hcd_edpt_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr, uint8_t * buffer, uint16_t buflen)
 {
     (void) rhport;
@@ -567,7 +508,7 @@ bool hcd_edpt_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr, uint8_t * 
     // sie ctrl registers. Otherwise interrupt ep registers should
     // already be configured
     if (ep == &epx) {
-        _hw_endpoint_xfer_start(ep, buffer, buflen);
+        hw_endpoint_xfer_start(ep, buffer, buflen);
 
         // That has set up buffer control, endpoint control etc
         // for host we have to initiate the transfer
@@ -581,7 +522,7 @@ bool hcd_edpt_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr, uint8_t * 
         usb_hw->sie_ctrl = flags;
     }else
     {
-      _hw_endpoint_xfer_start(ep, buffer, buflen);
+      hw_endpoint_xfer_start(ep, buffer, buflen);
     }
 
     return true;

@@ -201,7 +201,7 @@ static void hw_endpoint_init(uint8_t ep_addr, uint16_t wMaxPacketSize, uint8_t b
 static void hw_endpoint_xfer(uint8_t ep_addr, uint8_t *buffer, uint16_t total_bytes)
 {
     struct hw_endpoint *ep = hw_endpoint_get_by_addr(ep_addr);
-    _hw_endpoint_xfer_start(ep, buffer, total_bytes);
+    hw_endpoint_xfer_start(ep, buffer, total_bytes);
 }
 
 static void hw_handle_buff_status(void)
@@ -221,7 +221,7 @@ static void hw_handle_buff_status(void)
             // IN transfer for even i, OUT transfer for odd i
             struct hw_endpoint *ep = hw_endpoint_get_by_num(i >> 1u, !(i & 1u));
             // Continue xfer
-            bool done = _hw_endpoint_xfer_continue(ep);
+            bool done = hw_endpoint_xfer_continue(ep);
             if (done)
             {
                 // Notify
