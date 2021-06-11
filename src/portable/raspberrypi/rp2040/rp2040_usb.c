@@ -189,7 +189,7 @@ void hw_endpoint_xfer_start(struct hw_endpoint *ep, uint8_t *buffer, uint16_t to
   if ( ep->active )
   {
     // TODO: Is this acceptable for interrupt packets?
-    pico_warn("WARN: starting new transfer on already active ep %d %s\n", tu_edpt_number(ep->ep_addr),
+    TU_LOG(1, "WARN: starting new transfer on already active ep %d %s\n", tu_edpt_number(ep->ep_addr),
               ep_dir_string[tu_edpt_dir(ep->ep_addr)]);
 
     hw_endpoint_reset_transfer(ep);

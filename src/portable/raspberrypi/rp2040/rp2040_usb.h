@@ -29,12 +29,6 @@
 #define pico_info(format,...) ((void)0)
 #endif
 
-#if false && !defined(NDEBUG)
-#define pico_warn(format,args...) printf(format, ## args)
-#else
-#define pico_warn(format,...) ((void)0)
-#endif
-
 // Hardware information per endpoint
 struct hw_endpoint
 {
@@ -127,13 +121,14 @@ typedef union TU_ATTR_PACKED
 
 TU_VERIFY_STATIC(sizeof(rp2040_buffer_control_t) == 2, "size is not correct");
 
-static inline void print_bufctrl16(uint32_t __unused u16)
+#if CFG_TUSB_DEBUG >= 3
+static inline void print_bufctrl16(uint32_t u16)
 {
-  rp2040_buffer_control_t __unused bufctrl = {
+  rp2040_buffer_control_t bufctrl = {
       .u16 = u16
   };
 
-  TU_LOG(2, "len = %u, available = %u, stall = %u, reset = %u, toggle = %u, last = %u, full = %u\r\n",
+  TU_LOG(3, "len = %u, available = %u, stall = %u, reset = %u, toggle = %u, last = %u, full = %u\r\n",
          bufctrl.xfer_len, bufctrl.available, bufctrl.stall, bufctrl.reset_bufsel, bufctrl.data_toggle, bufctrl.last_buf, bufctrl.full);
 }
 
@@ -142,12 +137,19 @@ static inline void print_bufctrl32(uint32_t u32)
   uint16_t u16;
 
   u16 = u32 >> 16;
-  TU_LOG(2, "  Buffer Control 1 0x%x: ", u16);
+  TU_LOG(3, "  Buffer Control 1 0x%x: ", u16);
   print_bufctrl16(u16);
 
   u16 = u32 & 0x0000ffff;
-  TU_LOG(2, "  Buffer Control 0 0x%x: ", u16);
+  TU_LOG(3, "  Buffer Control 0 0x%x: ", u16);
   print_bufctrl16(u16);
 }
+
+#else
+
+#define print_bufctrl16(u16)
+#define print_bufctrl32(u32)
+
+#endif
 
 #endif
