@@ -442,9 +442,9 @@ uint8_t tuh_hid_parse_report_descriptor(tuh_hid_report_info_t* report_info_arr, 
 
     uint8_t const data8 = desc_report[0];
 
-    TU_LOG2("tag = %d, type = %d, size = %d, data = ", tag, type, size);
-    for(uint32_t i=0; i<size; i++) TU_LOG2("%02X ", desc_report[i]);
-    TU_LOG2("\r\n");
+    TU_LOG(3, "tag = %d, type = %d, size = %d, data = ", tag, type, size);
+    for(uint32_t i=0; i<size; i++) TU_LOG(3, "%02X ", desc_report[i]);
+    TU_LOG(3, "\r\n");
 
     switch(type)
     {

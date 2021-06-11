@@ -146,15 +146,13 @@ static void hw_handle_buff_status(void)
         uint32_t ep_ctrl = *ep->endpoint_control;
         if (ep_ctrl & EP_CTRL_DOUBLE_BUFFERED_BITS)
         {
-          TU_LOG(2, "Double Buffered ");
+          TU_LOG(3, "Double Buffered: ");
         }else
         {
-          TU_LOG(2, "Single Buffered ");
+          TU_LOG(3, "Single Buffered: ");
         }
 
-        if (ep_ctrl & EP_CTRL_INTERRUPT_PER_DOUBLE_BUFFER) TU_LOG(2, "Interrupt per double ");
-        if (ep_ctrl & EP_CTRL_INTERRUPT_PER_BUFFER) TU_LOG(2, "Interrupt per single ");
-        TU_LOG_HEX(2, ep_ctrl);
+        TU_LOG_HEX(3, ep_ctrl);
 
         _handle_buff_status_bit(bit, ep);
     }
