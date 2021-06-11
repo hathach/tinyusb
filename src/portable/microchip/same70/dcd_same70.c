@@ -233,7 +233,7 @@ static void dcd_ep_handler(uint8_t ep_ix)
         dcd_event_setup_received(0, ptr, true);
       }
       // Acknowledge the interrupt 
-      USBHS->USBHS_DEVEPTICR[0] = USBHS_DEVEPTICR_RXSTPIC;
+      USBHS->USBHS_DEVEPTICR[0] = USBHS_DEVEPTICR_CTRL_RXSTPIC;
     }
     if (int_status & USBHS_DEVEPTISR_RXOUTI)
     {
@@ -474,11 +474,11 @@ bool dcd_edpt_open (uint8_t rhport, tusb_desc_endpoint_t const * ep_desc)
        USBHS_DEVEPTCFG_ALLOC
       );
     USBHS->USBHS_DEVEPTIER[0] = USBHS_DEVEPTIER_RSTDTS;
-    USBHS->USBHS_DEVEPTIDR[0] = USBHS_DEVEPTIDR_STALLRQC;
+    USBHS->USBHS_DEVEPTIDR[0] = USBHS_DEVEPTIDR_CTRL_STALLRQC;
     if (USBHS_DEVEPTISR_CFGOK == (USBHS->USBHS_DEVEPTISR[0] & USBHS_DEVEPTISR_CFGOK))
     {
       // Endpoint configuration is successful 
-      USBHS->USBHS_DEVEPTIER[0] = USBHS_DEVEPTIER_RXSTPES;
+      USBHS->USBHS_DEVEPTIER[0] = USBHS_DEVEPTIER_CTRL_RXSTPES;
       // Enable Endpoint 0 Interrupts 
       USBHS->USBHS_DEVIER = USBHS_DEVIER_PEP_0;
       return true;
@@ -512,7 +512,7 @@ bool dcd_edpt_open (uint8_t rhport, tusb_desc_endpoint_t const * ep_desc)
 #endif
     USBHS->USBHS_DEVEPTCFG[epnum] |= USBHS_DEVEPTCFG_ALLOC;
     USBHS->USBHS_DEVEPTIER[epnum] = USBHS_DEVEPTIER_RSTDTS;
-    USBHS->USBHS_DEVEPTIDR[epnum] = USBHS_DEVEPTIDR_STALLRQC;
+    USBHS->USBHS_DEVEPTIDR[epnum] = USBHS_DEVEPTIDR_CTRL_STALLRQC;
     if (USBHS_DEVEPTISR_CFGOK == (USBHS->USBHS_DEVEPTISR[epnum] & USBHS_DEVEPTISR_CFGOK))
     {
       USBHS->USBHS_DEVIER = ((0x01 << epnum) << USBHS_DEVIER_PEP_0_Pos);
@@ -693,7 +693,7 @@ void dcd_edpt_stall (uint8_t rhport, uint8_t ep_addr)
 {
   (void) rhport;
   uint8_t const epnum = tu_edpt_number(ep_addr);
-  USBHS->USBHS_DEVEPTIER[epnum] = USBHS_DEVEPTIER_STALLRQS;
+  USBHS->USBHS_DEVEPTIER[epnum] = USBHS_DEVEPTIER_CTRL_STALLRQS;
 }
 
 // clear stall, data toggle is also reset to DATA0
@@ -701,7 +701,7 @@ void dcd_edpt_clear_stall (uint8_t rhport, uint8_t ep_addr)
 {
   (void) rhport;
   uint8_t const epnum = tu_edpt_number(ep_addr);
-  USBHS->USBHS_DEVEPTIDR[epnum] = USBHS_DEVEPTIDR_STALLRQC;
+  USBHS->USBHS_DEVEPTIDR[epnum] = USBHS_DEVEPTIDR_CTRL_STALLRQC;
   USBHS->USBHS_DEVEPTIER[epnum] = USBHS_HSTPIPIER_RSTDTS;
 }
 
