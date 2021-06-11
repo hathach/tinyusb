@@ -111,7 +111,6 @@ uint8_t const * tud_descriptor_configuration_cb(uint8_t index);
 // Application return pointer to descriptor, whose contents must exist long enough for transfer to complete
 uint16_t const* tud_descriptor_string_cb(uint8_t index, uint16_t langid);
 
-#if !defined(TU_HAS_NO_ATTR_WEAK)
 // Invoked when received GET BOS DESCRIPTOR request
 // Application return pointer to descriptor
 TU_ATTR_WEAK uint8_t const * tud_descriptor_bos_cb(void);
@@ -135,71 +134,6 @@ TU_ATTR_WEAK void tud_resume_cb(void);
 
 // Invoked when received control request with VENDOR TYPE
 TU_ATTR_WEAK bool tud_vendor_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request_t const * request);
-
-#else
- #if ADD_WEAK_FUNC_TUD_DESCRIPTOR_BOS_CB
-  #define TUD_DESCRIPTOR_BOS_CB  tud_descriptor_bos_cb
- #endif
- #ifndef TUD_DESCRIPTOR_BOS_CB
-  #define TUD_DESCRIPTOR_BOS_CB    NULL
- #else
-  extern uint8_t const* TUD_DESCRIPTOR_BOS_CB(void);
- #endif
-
- #if ADD_WEAK_FUNC_TUD_DESCRIPTOR_DEVICE_QUALIFIER_CB
-  #define TUD_DESCRIPTOR_DEVICE_QUALIFIER_CB  tud_descriptor_device_qualifier_cb
- #endif
- #ifndef TUD_DESCRIPTOR_DEVICE_QUALIFIER_CB
-  #define TUD_DESCRIPTOR_DEVICE_QUALIFIER_CB    NULL
- #else
-  extern uint8_t const* TUD_DESCRIPTOR_DEVICE_QUALIFIER_CB(void);
- #endif
-
- #if ADD_WEAK_FUNC_TUD_MOUNT_CB
-  #define TUD_MOUNT_CB  tud_mount_cb
- #endif
- #ifndef TUD_MOUNT_CB
-  #define TUD_MOUNT_CB    NULL
- #else
-  extern void TUD_MOUNT_CB(void);
- #endif
-
- #if ADD_WEAK_FUNC_TUD_UMOUNT_CB
-  #define TUD_UMOUNT_CB  tud_umount_cb
- #endif
- #ifndef TUD_UMOUNT_CB
-  #define TUD_UMOUNT_CB    NULL
- #else
-  extern void TUD_UMOUNT_CB(void);
- #endif
-
- #if ADD_WEAK_FUNC_TUD_SUSPEND_CB
-  #define TUD_SUSPEND_CB  tud_suspend_cb
- #endif
- #ifndef TUD_SUSPEND_CB
-  #define TUD_SUSPEND_CB    NULL
- #else
-  extern void TUD_SUSPEND_CB(bool remote_wakeup_en);
- #endif
-
- #if ADD_WEAK_FUNC_TUD_RESUME_CB
-  #define TUD_RESUME_CB  tud_resume_cb
- #endif
- #ifndef TUD_RESUME_CB
-  #define TUD_RESUME_CB    NULL
- #else
-  extern void TUD_RESUME_CB(void);
- #endif
-
- #if ADD_WEAK_FUNC_TUD_VENDOR_CONTROL_XFER_CB
-  #define TUD_VENDOR_CONTROL_XFER_CB  tud_vendor_control_xfer_cb
- #endif
- #ifndef TUD_VENDOR_CONTROL_XFER_CB
-  #define TUD_VENDOR_CONTROL_XFER_CB    NULL
- #else
-  extern bool TUD_VENDOR_CONTROL_XFER_CB(uint8_t rhport, uint8_t stage, tusb_control_request_t const * request);
- #endif
-#endif
 
 //--------------------------------------------------------------------+
 // Binary Device Object Store (BOS) Descriptor Templates

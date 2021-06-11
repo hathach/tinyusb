@@ -64,9 +64,6 @@
 // Compiler porting with Attribute and Endian
 //--------------------------------------------------------------------+
 
-// define the standard definition of this macro to construct a "weak" function name
-#define MAKE_WEAK_FUNC(func_name)  func_name
-
 // TODO refactor since __attribute__ is supported across many compiler
 #if defined(__GNUC__)
   #define TU_ATTR_ALIGNED(Bytes)        __attribute__ ((aligned(Bytes)))
@@ -170,42 +167,6 @@
   /* activate the "aligned" emulation, because this toolchain does not know
      the aligned attribute (or something similar yet) */
   #define TU_HAS_NO_ATTR_ALIGNED
-
-  /* activate the "weak" function emulation, because this toolchain does not
-     know the weak attribute (or something similar yet) */
-  #define TU_HAS_NO_ATTR_WEAK
-
-  // make sure to define away the standard definition of this macro
-  #undef MAKE_WEAK_FUNC
-  // Helper macro to construct a "weak" function name
-  #define MAKE_WEAK_FUNC(func_name)  weak_ ## func_name
-
-  #if defined(TU_HAS_NO_ATTR_WEAK)
-  // "Weak function" emulation defined in cdc_device.h
-  #define ADD_WEAK_FUNC_TUD_CDC_RX_CB           0
-  #define ADD_WEAK_FUNC_TUD_CDC_RX_WANTED_CB    0
-  #define ADD_WEAK_FUNC_TUD_CDC_TX_COMPLETE_CB  0
-  #define ADD_WEAK_FUNC_TUD_CDC_LINE_STATE_CB   0
-  #define ADD_WEAK_FUNC_TUD_CDC_LINE_CODING_CB  0
-  #define ADD_WEAK_FUNC_TUD_CDC_SEND_BREAK_CB   0
-
-  // "Weak function" emulation defined in usbd_pvt.h
-  #define ADD_WEAK_FUNC_USBD_APP_DRIVER_GET_CB  0
-
-  // "Weak function" emulation defined in usbd.h
-  #define ADD_WEAK_FUNC_TUD_DESCRIPTOR_BOS_CB               0
-  #define ADD_WEAK_FUNC_TUD_DESCRIPTOR_DEVICE_QUALIFIER_CB  0
-  #define ADD_WEAK_FUNC_TUD_MOUNT_CB                        0
-  #define ADD_WEAK_FUNC_TUD_UMOUNT_CB                       0
-  #define ADD_WEAK_FUNC_TUD_SUSPEND_CB                      0
-  #define ADD_WEAK_FUNC_TUD_RESUME_CB                       0
-  #define ADD_WEAK_FUNC_TUD_VENDOR_CONTROL_XFER_CB          0
-
-  // "Weak function" emulation defined in dcd.h
-  #define ADD_WEAK_FUNC_DCD_EDPT0_STATUS_COMPLETE  0
-  #define ADD_WEAK_FUNC_DCD_EDPT_CLOSE             0
-  #define ADD_WEAK_FUNC_DCD_EDPT_XFER_FIFO         0
-  #endif
 
 #else 
   #error "Compiler attribute porting is required"

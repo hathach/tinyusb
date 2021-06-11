@@ -90,45 +90,47 @@
 #define FIFO_REQ_CLR         (1u)
 #define FIFO_COMPLETE        (1u<<1)
 
+TU_BIT_FIELD_ORDER_BEGIN
 typedef struct {
   union {
-    TU_BIT_FIELD_ORDER_BEGIN
     struct {
       uint16_t      : 8;
       uint16_t TRCLR: 1;
       uint16_t TRENB: 1;
       uint16_t      : 0;
     };
-    TU_BIT_FIELD_ORDER_END
     uint16_t TRE;
   };
   uint16_t TRN;
 } reg_pipetre_t;
+TU_BIT_FIELD_ORDER_END
 
+TU_BIT_FIELD_ORDER_BEGIN
 typedef union {
-  TU_BIT_FIELD_ORDER_BEGIN
   struct {
     volatile uint16_t u8: 8;
     volatile uint16_t   : 0;
   };
-  TU_BIT_FIELD_ORDER_END
   volatile uint16_t u16;
 } hw_fifo_t;
+TU_BIT_FIELD_ORDER_END
 
-TU_PACK_STRUCT_BEGIN
+TU_PACK_STRUCT_BEGIN  // Start of definition of packed structs (used by the CCRX toolchain)
+
+TU_BIT_FIELD_ORDER_BEGIN
 typedef struct TU_ATTR_PACKED
 {
   uintptr_t addr;      /* the start address of a transfer data buffer */
   uint16_t  length;    /* the number of bytes in the buffer */
   uint16_t  remaining; /* the number of bytes remaining in the buffer */
-  TU_BIT_FIELD_ORDER_BEGIN
   struct {
     uint32_t ep  : 8;  /* an assigned endpoint address */
     uint32_t     : 0;
   };
-  TU_BIT_FIELD_ORDER_END
 } pipe_state_t;
-TU_PACK_STRUCT_END
+TU_BIT_FIELD_ORDER_END
+
+TU_PACK_STRUCT_END  // End of definition of packed structs (used by the CCRX toolchain)
 
 typedef struct
 {
@@ -259,12 +261,6 @@ static int fifo_write(volatile void *fifo, pipe_state_t* pipe, unsigned mps)
 
   hw_fifo_t *reg = (hw_fifo_t*)fifo;
   uintptr_t addr = pipe->addr + pipe->length - rem;
-  if (addr & 1u) {
-    /* addr is not 2-byte aligned */
-    reg->u8 = *(const uint8_t *)addr;
-    ++addr;
-    --len;
-  }
   while (len >= 2) {
     reg->u16 = *(const uint16_t *)addr;
     addr += 2;
@@ -306,17 +302,10 @@ static void process_setup_packet(uint8_t rhport)
   uint16_t setup_packet[4];
   if (0 == (USB0.INTSTS0.WORD & USB_IS0_VALID)) return;
   USB0.CFIFOCTR.WORD = USB_FIFOCTR_BCLR;
-  setup_packet[0] = USB0.USBREQ.WORD;
+  setup_packet[0] = tu_le16toh(USB0.USBREQ.WORD);
   setup_packet[1] = USB0.USBVAL;
   setup_packet[2] = USB0.USBINDX;
   setup_packet[3] = USB0.USBLENG;
-#if TU_BYTE_ORDER==TU_BIG_ENDIAN
- #if defined(__CCRX__)
-  setup_packet[0] = tu_le16toh(setup_packet[0]);
- #else
- //FIXME needs to implemented for other tool chains
- #endif
-#endif
   USB0.INTSTS0.WORD = ~USB_IS0_VALID;
   dcd_event_setup_received(rhport, (const uint8_t*)&setup_packet[0], true);
 }

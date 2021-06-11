@@ -262,8 +262,9 @@ enum
 // USB Descriptors
 //--------------------------------------------------------------------+
 
+TU_PACK_STRUCT_BEGIN  // Start of definition of packed structs (used by the CCRX toolchain)
+
 /// USB Device Descriptor
-TU_PACK_STRUCT_BEGIN
 typedef struct TU_ATTR_PACKED
 {
   uint8_t  bLength            ; ///< Size of this descriptor in bytes.
@@ -284,12 +285,10 @@ typedef struct TU_ATTR_PACKED
 
   uint8_t  bNumConfigurations ; ///< Number of possible configurations.
 } tusb_desc_device_t;
-TU_PACK_STRUCT_END
 
 TU_VERIFY_STATIC( sizeof(tusb_desc_device_t) == 18, "size is not correct");
 
 // USB Binary Device Object Store (BOS) Descriptor
-TU_PACK_STRUCT_BEGIN
 typedef struct TU_ATTR_PACKED
 {
   uint8_t  bLength         ; ///< Size of this descriptor in bytes
@@ -297,10 +296,8 @@ typedef struct TU_ATTR_PACKED
   uint16_t wTotalLength    ; ///< Total length of data returned for this descriptor
   uint8_t  bNumDeviceCaps  ; ///< Number of device capability descriptors in the BOS
 } tusb_desc_bos_t;
-TU_PACK_STRUCT_END
 
 /// USB Configuration Descriptor
-TU_PACK_STRUCT_BEGIN
 typedef struct TU_ATTR_PACKED
 {
   uint8_t  bLength             ; ///< Size of this descriptor in bytes
@@ -313,10 +310,8 @@ typedef struct TU_ATTR_PACKED
   uint8_t  bmAttributes        ; ///< Configuration characteristics \n D7: Reserved (set to one)\n D6: Self-powered \n D5: Remote Wakeup \n D4...0: Reserved (reset to zero) \n D7 is reserved and must be set to one for historical reasons. \n A device configuration that uses power from the bus and a local source reports a non-zero value in bMaxPower to indicate the amount of bus power required and sets D6. The actual power source at runtime may be determined using the GetStatus(DEVICE) request (see USB 2.0 spec Section 9.4.5). \n If a device configuration supports remote wakeup, D5 is set to one.
   uint8_t  bMaxPower           ; ///< Maximum power consumption of the USB device from the bus in this specific configuration when the device is fully operational. Expressed in 2 mA units (i.e., 50 = 100 mA).
 } tusb_desc_configuration_t;
-TU_PACK_STRUCT_END
 
 /// USB Interface Descriptor
-TU_PACK_STRUCT_BEGIN
 typedef struct TU_ATTR_PACKED
 {
   uint8_t  bLength            ; ///< Size of this descriptor in bytes
@@ -330,10 +325,9 @@ typedef struct TU_ATTR_PACKED
   uint8_t  bInterfaceProtocol ; ///< Protocol code (assigned by the USB). \n These codes are qualified by the value of the bInterfaceClass and the bInterfaceSubClass fields. If an interface supports class-specific requests, this code identifies the protocols that the device uses as defined by the specification of the device class. \li If this field is reset to zero, the device does not use a class-specific protocol on this interface. \li If this field is set to FFH, the device uses a vendor-specific protocol for this interface.
   uint8_t  iInterface         ; ///< Index of string descriptor describing this interface
 } tusb_desc_interface_t;
-TU_PACK_STRUCT_END
 
 /// USB Endpoint Descriptor
-TU_PACK_STRUCT_BEGIN
+TU_BIT_FIELD_ORDER_BEGIN
 typedef struct TU_ATTR_PACKED
 {
   uint8_t  bLength          ; ///< Size of this descriptor in bytes
@@ -341,14 +335,12 @@ typedef struct TU_ATTR_PACKED
 
   uint8_t  bEndpointAddress ; ///< The address of the endpoint on the USB device described by this descriptor. The address is encoded as follows: \n Bit 3...0: The endpoint number \n Bit 6...4: Reserved, reset to zero \n Bit 7: Direction, ignored for control endpoints 0 = OUT endpoint 1 = IN endpoint.
 
-  TU_BIT_FIELD_ORDER_BEGIN
   struct TU_ATTR_PACKED {
     uint8_t xfer  : 2;
     uint8_t sync  : 2;
     uint8_t usage : 2;
     uint8_t       : 2;
   } bmAttributes     ; ///< This field describes the endpoint's attributes when it is configured using the bConfigurationValue. \n Bits 1..0: Transfer Type \n- 00 = Control \n- 01 = Isochronous \n- 10 = Bulk \n- 11 = Interrupt \n If not an isochronous endpoint, bits 5..2 are reserved and must be set to zero. If isochronous, they are defined as follows: \n Bits 3..2: Synchronization Type \n- 00 = No Synchronization \n- 01 = Asynchronous \n- 10 = Adaptive \n- 11 = Synchronous \n Bits 5..4: Usage Type \n- 00 = Data endpoint \n- 01 = Feedback endpoint \n- 10 = Implicit feedback Data endpoint \n- 11 = Reserved \n Refer to Chapter 5 of USB 2.0 specification for more information. \n All other bits are reserved and must be reset to zero. Reserved bits must be ignored by the host.
-  TU_BIT_FIELD_ORDER_END
 
   struct TU_ATTR_PACKED {
 #if defined(__CCRX__)
@@ -363,10 +355,9 @@ typedef struct TU_ATTR_PACKED
 
   uint8_t  bInterval        ; ///< Interval for polling endpoint for data transfers. Expressed in frames or microframes depending on the device operating speed (i.e., either 1 millisecond or 125 us units). \n- For full-/high-speed isochronous endpoints, this value must be in the range from 1 to 16. The bInterval value is used as the exponent for a \f$ 2^(bInterval-1) \f$ value; e.g., a bInterval of 4 means a period of 8 (\f$ 2^(4-1) \f$). \n- For full-/low-speed interrupt endpoints, the value of this field may be from 1 to 255. \n- For high-speed interrupt endpoints, the bInterval value is used as the exponent for a \f$ 2^(bInterval-1) \f$ value; e.g., a bInterval of 4 means a period of 8 (\f$ 2^(4-1) \f$) . This value must be from 1 to 16. \n- For high-speed bulk/control OUT endpoints, the bInterval must specify the maximum NAK rate of the endpoint. A value of 0 indicates the endpoint never NAKs. Other values indicate at most 1 NAK each bInterval number of microframes. This value must be in the range from 0 to 255. \n Refer to Chapter 5 of USB 2.0 specification for more information.
 } tusb_desc_endpoint_t;
-TU_PACK_STRUCT_END
+TU_BIT_FIELD_ORDER_END
 
 /// USB Other Speed Configuration Descriptor
-TU_PACK_STRUCT_BEGIN
 typedef struct TU_ATTR_PACKED
 {
   uint8_t  bLength             ; ///< Size of descriptor
@@ -379,10 +370,8 @@ typedef struct TU_ATTR_PACKED
   uint8_t  bmAttributes        ; ///< Same as Configuration descriptor
   uint8_t  bMaxPower           ; ///< Same as Configuration descriptor
 } tusb_desc_other_speed_t;
-TU_PACK_STRUCT_END
 
 /// USB Device Qualifier Descriptor
-TU_PACK_STRUCT_BEGIN
 typedef struct TU_ATTR_PACKED
 {
   uint8_t  bLength            ; ///< Size of descriptor
@@ -396,10 +385,8 @@ typedef struct TU_ATTR_PACKED
   uint8_t  bNumConfigurations ; ///< Number of Other-speed Configurations
   uint8_t  bReserved          ; ///< Reserved for future use, must be zero
 } tusb_desc_device_qualifier_t;
-TU_PACK_STRUCT_END
 
 /// USB Interface Association Descriptor (IAD ECN)
-TU_PACK_STRUCT_BEGIN
 typedef struct TU_ATTR_PACKED
 {
   uint8_t bLength           ; ///< Size of descriptor
@@ -414,20 +401,16 @@ typedef struct TU_ATTR_PACKED
 
   uint8_t iFunction         ; ///< Index of the string descriptor describing the interface association.
 } tusb_desc_interface_assoc_t;
-TU_PACK_STRUCT_END
 
 // USB String Descriptor
-TU_PACK_STRUCT_BEGIN
 typedef struct TU_ATTR_PACKED
 {
   uint8_t  bLength         ; ///< Size of this descriptor in bytes
   uint8_t  bDescriptorType ; ///< Descriptor Type
   uint16_t unicode_string[];
 } tusb_desc_string_t;
-TU_PACK_STRUCT_END
 
 // USB Binary Device Object Store (BOS)
-TU_PACK_STRUCT_BEGIN
 typedef struct TU_ATTR_PACKED
 {
   uint8_t bLength;
@@ -437,10 +420,8 @@ typedef struct TU_ATTR_PACKED
   uint8_t PlatformCapabilityUUID[16];
   uint8_t CapabilityData[];
 } tusb_desc_bos_platform_t;
-TU_PACK_STRUCT_END
 
 // USB WebuSB URL Descriptor
-TU_PACK_STRUCT_BEGIN
 typedef struct TU_ATTR_PACKED
 {
   uint8_t bLength;
@@ -448,17 +429,15 @@ typedef struct TU_ATTR_PACKED
   uint8_t bScheme;
   char    url[];
 } tusb_desc_webusb_url_t;
-TU_PACK_STRUCT_END
 
 // DFU Functional Descriptor
-TU_PACK_STRUCT_BEGIN
+TU_BIT_FIELD_ORDER_BEGIN
 typedef struct TU_ATTR_PACKED
 {
   uint8_t  bLength;
   uint8_t  bDescriptorType;
 
   union {
-    TU_BIT_FIELD_ORDER_BEGIN
     struct TU_ATTR_PACKED {
       uint8_t bitCanDnload             : 1;
       uint8_t bitCanUpload             : 1;
@@ -466,7 +445,6 @@ typedef struct TU_ATTR_PACKED
       uint8_t bitWillDetach            : 1;
       uint8_t reserved                 : 4;
     } bmAttributes;
-    TU_BIT_FIELD_ORDER_END
 
     uint8_t bAttributes;
   };
@@ -475,21 +453,19 @@ typedef struct TU_ATTR_PACKED
   uint16_t wTransferSize;
   uint16_t bcdDFUVersion;
 } tusb_desc_dfu_functional_t;
-TU_PACK_STRUCT_END
+TU_BIT_FIELD_ORDER_END
 
 /*------------------------------------------------------------------*/
 /* Types
  *------------------------------------------------------------------*/
-TU_PACK_STRUCT_BEGIN
+TU_BIT_FIELD_ORDER_BEGIN
 typedef struct TU_ATTR_PACKED{
   union {
-    TU_BIT_FIELD_ORDER_BEGIN
     struct TU_ATTR_PACKED {
       uint8_t recipient :  5; ///< Recipient type tusb_request_recipient_t.
       uint8_t type      :  2; ///< Request type tusb_request_type_t.
       uint8_t direction :  1; ///< Direction type. tusb_dir_t
     } bmRequestType_bit;
-    TU_BIT_FIELD_ORDER_END
 
     uint8_t bmRequestType;
   };
@@ -499,7 +475,9 @@ typedef struct TU_ATTR_PACKED{
   uint16_t wIndex;
   uint16_t wLength;
 } tusb_control_request_t;
-TU_PACK_STRUCT_END
+TU_BIT_FIELD_ORDER_END
+
+TU_PACK_STRUCT_END  // End of definition of packed structs (used by the CCRX toolchain)
 
 TU_VERIFY_STATIC( sizeof(tusb_control_request_t) == 8, "size is not correct");
 

@@ -117,7 +117,6 @@ void dcd_disconnect(uint8_t rhport) TU_ATTR_WEAK;
 // Endpoint API
 //--------------------------------------------------------------------+
 
-#if !defined(TU_HAS_NO_ATTR_WEAK)
 // Invoked when a control transfer's status stage is complete.
 // May help DCD to prepare for next control transfer, this API is optional.
 void dcd_edpt0_status_complete(uint8_t rhport, tusb_control_request_t const * request) TU_ATTR_WEAK;
@@ -129,35 +128,6 @@ void dcd_edpt_close           (uint8_t rhport, uint8_t ep_addr) TU_ATTR_WEAK;
 // Submit an transfer using fifo, When complete dcd_event_xfer_complete() is invoked to notify the stack
 // This API is optional, may be useful for register-based for transferring data.
 bool dcd_edpt_xfer_fifo       (uint8_t rhport, uint8_t ep_addr, tu_fifo_t * ff, uint16_t total_bytes) TU_ATTR_WEAK;
-
-#else
- #if ADD_WEAK_FUNC_DCD_EDPT0_STATUS_COMPLETE
-  #define DCD_EDPT0_STATUS_COMPLETE  dcd_edpt0_status_complete
- #endif
- #ifndef DCD_EDPT0_STATUS_COMPLETE
-  #define DCD_EDPT0_STATUS_COMPLETE    NULL
- #else
-  extern void DCD_EDPT0_STATUS_COMPLETE(uint8_t rhport, tusb_control_request_t const * request);
- #endif
-
- #if ADD_WEAK_FUNC_DCD_EDPT_CLOSE
-  #define DCD_EDPT_CLOSE  dcd_edpt_close
- #endif
- #ifndef DCD_EDPT_CLOSE
-  #define DCD_EDPT_CLOSE    NULL
- #else
-  extern void DCD_EDPT_CLOSE(uint8_t rhport, uint8_t ep_addr);
- #endif
-
- #if ADD_WEAK_FUNC_DCD_EDPT_XFER_FIFO
-  #define DCD_EDPT_XFER_FIFO  dcd_edpt_xfer_fifo
- #endif
- #ifndef DCD_EDPT_XFER_FIFO
-  #define DCD_EDPT_XFER_FIFO    NULL
- #else
-  extern void DCD_EDPT_XFER_FIFO(uint8_t rhport, uint8_t ep_addr, tu_fifo_t * ff, uint16_t total_bytes);
- #endif
-#endif
 
 // Configure endpoint's registers according to descriptor
 bool dcd_edpt_open            (uint8_t rhport, tusb_desc_endpoint_t const * p_endpoint_desc);

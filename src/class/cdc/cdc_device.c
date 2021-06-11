@@ -33,15 +33,6 @@
 
 #include "cdc_device.h"
 
-#if defined(TU_HAS_NO_ATTR_WEAK)
-static void (*const MAKE_WEAK_FUNC(tud_cdc_rx_cb))(uint8_t) = TUD_CDC_RX_CB;
-static void (*const MAKE_WEAK_FUNC(tud_cdc_rx_wanted_cb))(uint8_t, char) = TUD_CDC_RX_WANTED_CB;
-static void (*const MAKE_WEAK_FUNC(tud_cdc_tx_complete_cb))(uint8_t) = TUD_CDC_TX_COMPLETE_CB;
-static void (*const MAKE_WEAK_FUNC(tud_cdc_line_state_cb))(uint8_t, bool, bool) = TUD_CDC_LINE_STATE_CB;
-static void (*const MAKE_WEAK_FUNC(tud_cdc_line_coding_cb))(uint8_t, cdc_line_coding_t const*) = TUD_CDC_LINE_CODING_CB;
-static void (*const MAKE_WEAK_FUNC(tud_cdc_send_break_cb))(uint8_t, uint16_t) = TUD_CDC_SEND_BREAK_CB;
-#endif
-
 //--------------------------------------------------------------------+
 // MACRO CONSTANT TYPEDEF
 //--------------------------------------------------------------------+
@@ -370,7 +361,7 @@ bool cdcd_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request_t 
       }
       else if ( stage == CONTROL_STAGE_ACK)
       {
-        if ( MAKE_WEAK_FUNC(tud_cdc_line_coding_cb) ) MAKE_WEAK_FUNC(tud_cdc_line_coding_cb)(itf, &p_cdc->line_coding);
+        if ( tud_cdc_line_coding_cb ) tud_cdc_line_coding_cb(itf, &p_cdc->line_coding);
       }
     break;
 
@@ -405,7 +396,7 @@ bool cdcd_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request_t 
         TU_LOG2("  Set Control Line State: DTR = %d, RTS = %d\r\n", dtr, rts);
 
         // Invoke callback
-        if ( MAKE_WEAK_FUNC(tud_cdc_line_state_cb) ) MAKE_WEAK_FUNC(tud_cdc_line_state_cb)(itf, dtr, rts);
+        if ( tud_cdc_line_state_cb ) tud_cdc_line_state_cb(itf, dtr, rts);
       }
     break;
     case CDC_REQUEST_SEND_BREAK:
@@ -416,7 +407,7 @@ bool cdcd_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request_t 
       else if (stage == CONTROL_STAGE_ACK)
       {
         TU_LOG2("  Send Break\r\n");
-        if ( MAKE_WEAK_FUNC(tud_cdc_send_break_cb) ) MAKE_WEAK_FUNC(tud_cdc_send_break_cb)(itf, request->wValue);
+        if ( tud_cdc_send_break_cb ) tud_cdc_send_break_cb(itf, request->wValue);
       }
     break;
 
@@ -447,19 +438,19 @@ bool cdcd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint32_
     tu_fifo_write_n(&p_cdc->rx_ff, &p_cdc->epout_buf, xferred_bytes);
     
     // Check for wanted char and invoke callback if needed
-    if ( MAKE_WEAK_FUNC(tud_cdc_rx_wanted_cb) && (((signed char) p_cdc->wanted_char) != -1) )
+    if ( tud_cdc_rx_wanted_cb && (((signed char) p_cdc->wanted_char) != -1) )
     {
       for ( uint32_t i = 0; i < xferred_bytes; i++ )
       {
         if ( (p_cdc->wanted_char == p_cdc->epout_buf[i]) && !tu_fifo_empty(&p_cdc->rx_ff) )
         {
-          MAKE_WEAK_FUNC(tud_cdc_rx_wanted_cb)(itf, p_cdc->wanted_char);
+          tud_cdc_rx_wanted_cb(itf, p_cdc->wanted_char);
         }
       }
     }
     
     // invoke receive callback (if there is still data)
-    if (MAKE_WEAK_FUNC(tud_cdc_rx_cb) && !tu_fifo_empty(&p_cdc->rx_ff) ) MAKE_WEAK_FUNC(tud_cdc_rx_cb)(itf);
+    if (tud_cdc_rx_cb && !tu_fifo_empty(&p_cdc->rx_ff) ) tud_cdc_rx_cb(itf);
     
     // prepare for OUT transaction
     _prep_out_transaction(p_cdc);
@@ -471,7 +462,7 @@ bool cdcd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint32_
   if ( ep_addr == p_cdc->ep_in )
   {
     // invoke transmit callback to possibly refill tx fifo
-    if ( MAKE_WEAK_FUNC(tud_cdc_tx_complete_cb) ) MAKE_WEAK_FUNC(tud_cdc_tx_complete_cb)(itf);
+    if ( tud_cdc_tx_complete_cb ) tud_cdc_tx_complete_cb(itf);
 
     if ( 0 == tud_cdc_n_write_flush(itf) )
     {

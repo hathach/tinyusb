@@ -36,10 +36,6 @@
 extern void usbd_driver_print_control_complete_name(usbd_control_xfer_cb_t callback);
 #endif
 
-#if defined(TU_HAS_NO_ATTR_WEAK)
-static void (*const MAKE_WEAK_FUNC(dcd_edpt0_status_complete))(uint8_t, tusb_control_request_t const *) = DCD_EDPT0_STATUS_COMPLETE;
-#endif
-
 enum
 {
   EDPT_CTRL_OUT = 0x00,
@@ -184,7 +180,7 @@ bool usbd_control_xfer_cb (uint8_t rhport, uint8_t ep_addr, xfer_result_t result
     TU_ASSERT(0 == xferred_bytes);
 
     // invoke optional dcd hook if available
-    if (MAKE_WEAK_FUNC(dcd_edpt0_status_complete)) MAKE_WEAK_FUNC(dcd_edpt0_status_complete)(rhport, &_ctrl_xfer.request);
+    if (dcd_edpt0_status_complete) dcd_edpt0_status_complete(rhport, &_ctrl_xfer.request);
 
     if (_ctrl_xfer.complete_cb)
     {
