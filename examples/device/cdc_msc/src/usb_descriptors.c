@@ -94,7 +94,7 @@ enum
   #define EPNUM_MSC_OUT     0x05
   #define EPNUM_MSC_IN      0x85
 
-#elif CFG_TUSB_MCU == OPT_MCU_SAMG  || CFG_TUSB_MCU ==  OPT_MCU_SAME70
+#elif CFG_TUSB_MCU == OPT_MCU_SAMG  || CFG_TUSB_MCU ==  OPT_MCU_SAM7X
   // SAMG & SAME70 don't support a same endpoint number with different direction IN and OUT
   //    e.g EP1 OUT & EP1 IN cannot exist together
   #define EPNUM_CDC_NOTIF   0x81

@@ -8,7 +8,7 @@ CFLAGS += \
   -mfpu=fpv4-sp-d16 \
   -nostdlib -nostartfiles \
   -D__SAME70Q21B__ \
-  -DCFG_TUSB_MCU=OPT_MCU_SAME70
+  -DCFG_TUSB_MCU=OPT_MCU_SAM7X
 
 # suppress following warnings from mcu driver
 CFLAGS += -Wno-error=unused-parameter -Wno-error=cast-align
@@ -19,7 +19,7 @@ ASF_DIR = hw/mcu/microchip/same70
 LD_FILE = $(ASF_DIR)/same70b/gcc/gcc/same70q21b_flash.ld
 
 SRC_C += \
-	src/portable/microchip/same70/dcd_same70.c \
+	src/portable/microchip/sam7x/dcd_sam7x.c \
 	$(ASF_DIR)/same70b/gcc/gcc/startup_same70q21b.c \
 	$(ASF_DIR)/same70b/gcc/system_same70q21b.c \
 	$(ASF_DIR)/hpl/core/hpl_init.c \

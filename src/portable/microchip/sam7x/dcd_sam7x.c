@@ -27,7 +27,7 @@
 
 #include "tusb_option.h"
 
-#if CFG_TUSB_MCU == OPT_MCU_SAME70
+#if TUSB_OPT_DEVICE_ENABLED && CFG_TUSB_MCU == OPT_MCU_SAM7X
 
 #include "device/dcd.h"
 
@@ -43,7 +43,7 @@
 #endif
 
 // Dual bank can imporve performance, but need 2 times bigger packet buffer
-// As SAME70 has only 4KB packet buffer, use with caution !
+// As SAM7x has only 4KB packet buffer, use with caution !
 // Enable in FS mode as packets are smaller
 #ifndef USE_DUAL_BANK
 #  if TUD_OPT_HIGH_SPEED
