@@ -114,6 +114,9 @@
 #define OPT_MCU_RX63X            1400 ///< Renesas RX63N/631
 #define OPT_MCU_RX72N            1401 ///< Renesas RX72N
 
+// Mind Motion
+#define OPT_MCU_MM32F327X        1500 ///< Mind Motion MM32F327
+
 /** @} */
 
 /** \defgroup group_supported_os Supported RTOS

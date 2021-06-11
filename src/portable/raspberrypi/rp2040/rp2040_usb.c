@@ -205,10 +205,7 @@ void _hw_endpoint_xfer_sync(struct hw_endpoint *ep)
     // Update hw endpoint struct with info from hardware
     // after a buff status interrupt
 
-    // Get the buffer state and amount of bytes we have
-    // transferred
     uint32_t buf_ctrl = _hw_endpoint_buffer_control_get_value32(ep);
-    uint16_t transferred_bytes = buf_ctrl & USB_BUF_CTRL_LEN_MASK;
 
 #if TUSB_OPT_HOST_ENABLED
     // RP2040-E4
@@ -226,6 +223,9 @@ void _hw_endpoint_xfer_sync(struct hw_endpoint *ep)
     ep->buf_sel ^= 1u;
     // end::host_buf_sel_fix[]
 #endif
+
+    // Get tranferred bytes after adjusted buf sel
+    uint16_t const transferred_bytes = buf_ctrl & USB_BUF_CTRL_LEN_MASK;
 
     // We are continuing a transfer here. If we are TX, we have successfullly
     // sent some data can increase the length we have sent
@@ -249,7 +249,7 @@ void _hw_endpoint_xfer_sync(struct hw_endpoint *ep)
     // Sometimes the host will send less data than we expect...
     // If this is a short out transfer update the total length of the transfer
     // to be the current length
-    if ((ep->rx) && (transferred_bytes < ep->transfer_size))
+    if ((ep->rx) && (transferred_bytes < ep->wMaxPacketSize))
     {
         pico_trace("Short rx transfer\n");
         // Reduce total length as this is last packet
@@ -289,8 +289,7 @@ bool _hw_endpoint_xfer_continue(struct hw_endpoint *ep)
     {
         pico_trace("Completed transfer of %d bytes on ep %d %s\n",
                    ep->len, tu_edpt_number(ep->ep_addr), ep_dir_string[tu_edpt_dir(ep->ep_addr)]);
-        // Notify caller we are done so it can notify the tinyusb
-        // stack
+        // Notify caller we are done so it can notify the tinyusb stack
         _hw_endpoint_lock_update(ep, -1);
         return true;
     }

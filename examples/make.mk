@@ -5,7 +5,7 @@
 # Build directory
 BUILD := _build/$(BOARD)
 
-PROJECT := $(BOARD)-$(notdir $(CURDIR))
+PROJECT := $(notdir $(CURDIR))
 BIN := $(TOP)/_bin/$(BOARD)/$(notdir $(CURDIR))
 
 # Handy check parameter function

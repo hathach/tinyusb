@@ -29,6 +29,8 @@
 #if (TUSB_OPT_HOST_ENABLED && CFG_TUH_CDC)
 
 #include "host/usbh.h"
+#include "host/usbh_classdriver.h"
+
 #include "cdc_host.h"
 
 //--------------------------------------------------------------------+
@@ -71,13 +73,13 @@ bool tuh_cdc_is_busy(uint8_t dev_addr, cdc_pipeid_t pipeid)
   switch (pipeid)
   {
     case CDC_PIPE_NOTIFICATION:
-      return hcd_edpt_busy(dev_addr, p_cdc->ep_notif );
+      return usbh_edpt_busy(dev_addr, p_cdc->ep_notif );
 
     case CDC_PIPE_DATA_IN:
-      return hcd_edpt_busy(dev_addr, p_cdc->ep_in );
+      return usbh_edpt_busy(dev_addr, p_cdc->ep_in );
 
     case CDC_PIPE_DATA_OUT:
-      return hcd_edpt_busy(dev_addr, p_cdc->ep_out );
+      return usbh_edpt_busy(dev_addr, p_cdc->ep_out );
 
     default:
       return false;
@@ -101,7 +103,7 @@ bool tuh_cdc_send(uint8_t dev_addr, void const * p_data, uint32_t length, bool i
   TU_VERIFY( p_data != NULL && length, TUSB_ERROR_INVALID_PARA);
 
   uint8_t const ep_out = cdch_data[dev_addr-1].ep_out;
-  if ( hcd_edpt_busy(dev_addr, ep_out) ) return false;
+  if ( usbh_edpt_busy(dev_addr, ep_out) ) return false;
 
   return usbh_edpt_xfer(dev_addr, ep_out, (void *) p_data, length);
 }
@@ -113,7 +115,7 @@ bool tuh_cdc_receive(uint8_t dev_addr, void * p_buffer, uint32_t length, bool is
   TU_VERIFY( p_buffer != NULL && length, TUSB_ERROR_INVALID_PARA);
 
   uint8_t const ep_in = cdch_data[dev_addr-1].ep_in;
-  if ( hcd_edpt_busy(dev_addr, ep_in) ) return false;
+  if ( usbh_edpt_busy(dev_addr, ep_in) ) return false;
 
   return usbh_edpt_xfer(dev_addr, ep_in, p_buffer, length);
 }

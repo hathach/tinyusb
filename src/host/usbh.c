@@ -24,7 +24,7 @@
  * This file is part of the TinyUSB stack.
  */
 
-#include "common/tusb_common.h"
+#include "tusb_option.h"
 
 #if TUSB_OPT_HOST_ENABLED
 
@@ -32,10 +32,9 @@
 #define CFG_TUH_TASK_QUEUE_SZ   16
 #endif
 
-//--------------------------------------------------------------------+
-// INCLUDE
-//--------------------------------------------------------------------+
 #include "tusb.h"
+#include "host/usbh.h"
+#include "host/usbh_classdriver.h"
 #include "hub.h"
 #include "usbh_hcd.h"
 
@@ -315,8 +314,11 @@ uint8_t* usbh_get_enum_buf(void)
   return _usbh_ctrl_buf;
 }
 
-//------------- Endpoint API -------------//
+//--------------------------------------------------------------------+
+// Endpoint API
+//--------------------------------------------------------------------+
 
+// TODO has some duplication code with device, refactor later
 bool usbh_edpt_claim(uint8_t dev_addr, uint8_t ep_addr)
 {
   uint8_t const epnum = tu_edpt_number(ep_addr);
@@ -344,6 +346,7 @@ bool usbh_edpt_claim(uint8_t dev_addr, uint8_t ep_addr)
   return ret;
 }
 
+// TODO has some duplication code with device, refactor later
 bool usbh_edpt_release(uint8_t dev_addr, uint8_t ep_addr)
 {
   uint8_t const epnum = tu_edpt_number(ep_addr);
@@ -369,11 +372,36 @@ bool usbh_edpt_release(uint8_t dev_addr, uint8_t ep_addr)
   return ret;
 }
 
+// TODO has some duplication code with device, refactor later
 bool usbh_edpt_xfer(uint8_t dev_addr, uint8_t ep_addr, uint8_t * buffer, uint16_t total_bytes)
 {
+  uint8_t const epnum = tu_edpt_number(ep_addr);
+  uint8_t const dir   = tu_edpt_dir(ep_addr);
+
   usbh_device_t* dev = &_usbh_devices[dev_addr];
-  TU_LOG2("  Queue EP %02X with %u bytes ... OK\r\n", ep_addr, total_bytes);
-  return hcd_edpt_xfer(dev->rhport, dev_addr, ep_addr, buffer, total_bytes);
+
+  TU_LOG2("  Queue EP %02X with %u bytes ... ", ep_addr, total_bytes);
+
+  // Attempt to transfer on a busy endpoint, sound like an race condition !
+  TU_ASSERT(dev->ep_status[epnum][dir].busy == 0);
+
+  // Set busy first since the actual transfer can be complete before hcd_edpt_xfer()
+  // could return and USBH task can preempt and clear the busy
+  dev->ep_status[epnum][dir].busy = true;
+
+  if ( hcd_edpt_xfer(dev->rhport, dev_addr, ep_addr, buffer, total_bytes) )
+  {
+    TU_LOG2("OK\r\n");
+    return true;
+  }else
+  {
+    // HCD error, mark endpoint as ready to allow next transfer
+    dev->ep_status[epnum][dir].busy = false;
+    dev->ep_status[epnum][dir].claimed = 0;
+    TU_LOG2("failed\r\n");
+    TU_BREAKPOINT();
+    return false;
+  }
 }
 
 bool usbh_edpt_control_open(uint8_t dev_addr, uint8_t max_packet_size)
@@ -419,6 +447,17 @@ bool usbh_edpt_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_endpoint_t const
 
   return ret;
 }
+
+bool usbh_edpt_busy(uint8_t dev_addr, uint8_t ep_addr)
+{
+  uint8_t const epnum = tu_edpt_number(ep_addr);
+  uint8_t const dir   = tu_edpt_dir(ep_addr);
+
+  usbh_device_t* dev = &_usbh_devices[dev_addr];
+
+  return dev->ep_status[epnum][dir].busy;
+}
+
 
 //--------------------------------------------------------------------+
 // HCD Event Handler

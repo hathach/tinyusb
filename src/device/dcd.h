@@ -121,19 +121,19 @@ void dcd_disconnect(uint8_t rhport) TU_ATTR_WEAK;
 // May help DCD to prepare for next control transfer, this API is optional.
 void dcd_edpt0_status_complete(uint8_t rhport, tusb_control_request_t const * request) TU_ATTR_WEAK;
 
+// Configure endpoint's registers according to descriptor
+bool dcd_edpt_open            (uint8_t rhport, tusb_desc_endpoint_t const * desc_ep);
+
 // Close an endpoint.
 // Since it is weak, caller must TU_ASSERT this function's existence before calling it.
 void dcd_edpt_close           (uint8_t rhport, uint8_t ep_addr) TU_ATTR_WEAK;
 
+// Submit a transfer, When complete dcd_event_xfer_complete() is invoked to notify the stack
+bool dcd_edpt_xfer            (uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t total_bytes);
+
 // Submit an transfer using fifo, When complete dcd_event_xfer_complete() is invoked to notify the stack
 // This API is optional, may be useful for register-based for transferring data.
 bool dcd_edpt_xfer_fifo       (uint8_t rhport, uint8_t ep_addr, tu_fifo_t * ff, uint16_t total_bytes) TU_ATTR_WEAK;
-
-// Configure endpoint's registers according to descriptor
-bool dcd_edpt_open            (uint8_t rhport, tusb_desc_endpoint_t const * p_endpoint_desc);
-
-// Submit a transfer, When complete dcd_event_xfer_complete() is invoked to notify the stack
-bool dcd_edpt_xfer            (uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t total_bytes);
 
 // Stall endpoint
 void dcd_edpt_stall           (uint8_t rhport, uint8_t ep_addr);
