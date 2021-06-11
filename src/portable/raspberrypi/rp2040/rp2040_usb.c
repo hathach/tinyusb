@@ -52,33 +52,33 @@ void _hw_endpoint_start_next_buffer(struct hw_endpoint *ep);
 
 void rp2040_usb_init(void)
 {
-    // Reset usb controller
-    reset_block(RESETS_RESET_USBCTRL_BITS);
-    unreset_block_wait(RESETS_RESET_USBCTRL_BITS);
+  // Reset usb controller
+  reset_block(RESETS_RESET_USBCTRL_BITS);
+  unreset_block_wait(RESETS_RESET_USBCTRL_BITS);
 
-    // Clear any previous state just in case
-    memset(usb_hw, 0, sizeof(*usb_hw));
-    memset(usb_dpram, 0, sizeof(*usb_dpram));
+  // Clear any previous state just in case
+  memset(usb_hw, 0, sizeof(*usb_hw));
+  memset(usb_dpram, 0, sizeof(*usb_dpram));
 
-    // Mux the controller to the onboard usb phy
-    usb_hw->muxing = USB_USB_MUXING_TO_PHY_BITS    | USB_USB_MUXING_SOFTCON_BITS;
+  // Mux the controller to the onboard usb phy
+  usb_hw->muxing = USB_USB_MUXING_TO_PHY_BITS    | USB_USB_MUXING_SOFTCON_BITS;
 
-    // Force VBUS detect so the device thinks it is plugged into a host
-    // TODO support VBUs detect
-    usb_hw->pwr    = USB_USB_PWR_VBUS_DETECT_BITS  | USB_USB_PWR_VBUS_DETECT_OVERRIDE_EN_BITS;
+  // Force VBUS detect so the device thinks it is plugged into a host
+  // TODO support VBUs detect
+  usb_hw->pwr    = USB_USB_PWR_VBUS_DETECT_BITS  | USB_USB_PWR_VBUS_DETECT_OVERRIDE_EN_BITS;
 }
 
 void hw_endpoint_reset_transfer(struct hw_endpoint *ep)
 {
-    ep->stalled = false;
-    ep->active = false;
+  ep->stalled = false;
+  ep->active = false;
 #if TUSB_OPT_HOST_ENABLED
-    ep->sent_setup = false;
+  ep->sent_setup = false;
 #endif
-    ep->remaining_len = 0;
-    ep->xferred_len = 0;
-    ep->transfer_size = 0;
-    ep->user_buf = 0;
+  ep->remaining_len = 0;
+  ep->xferred_len = 0;
+  ep->transfer_size = 0;
+  ep->user_buf = 0;
 }
 
 void _hw_endpoint_buffer_control_update32(struct hw_endpoint *ep, uint32_t and_mask, uint32_t or_mask) {
@@ -111,65 +111,26 @@ void _hw_endpoint_buffer_control_update32(struct hw_endpoint *ep, uint32_t and_m
     *ep->buffer_control = value;
 }
 
-//static void prepare_ep_buf(struct hw_endpoint *ep, uint8_t buf_id)
-//{
-//  uint16_t buflen = tu_min16(ep->remaining_len, ep->wMaxPacketSize);
-//
-//
-//}
-
-// Prepare buffer control register value
-void _hw_endpoint_start_next_buffer(struct hw_endpoint *ep)
+static uint32_t compute_ep_buf(struct hw_endpoint *ep, uint8_t buf_id)
 {
-  uint32_t ep_ctrl = *ep->endpoint_control;
-  uint32_t buf_ctrl;
+  uint16_t const buflen = tu_min16(ep->remaining_len, ep->wMaxPacketSize);
+  ep->remaining_len -= buflen;
 
-  // Buffer 0
-  ep->transfer_size = tu_min16(ep->remaining_len, ep->wMaxPacketSize);
-  ep->remaining_len -= ep->transfer_size;
-
-  buf_ctrl = ep->transfer_size | USB_BUF_CTRL_AVAIL;
-  if ( !ep->rx )
-  {
-    // Copy data from user buffer to hw buffer
-    memcpy(ep->hw_data_buf, ep->user_buf, ep->transfer_size);
-    ep->user_buf += ep->transfer_size;
-
-    // Mark as full
-    buf_ctrl |= USB_BUF_CTRL_FULL;
-  }
+  uint32_t buf_ctrl = buflen | USB_BUF_CTRL_AVAIL;
 
   // PID
   buf_ctrl |= ep->next_pid ? USB_BUF_CTRL_DATA1_PID : USB_BUF_CTRL_DATA0_PID;
   ep->next_pid ^= 1u;
 
-  // Buffer 1
-  ep->buf_1_len = tu_min16(ep->remaining_len, ep->wMaxPacketSize);
-  ep->remaining_len -= ep->buf_1_len;
-
-  if (ep->buf_1_len)
+  if ( !ep->rx )
   {
-    buf_ctrl |= (ep->buf_1_len | USB_BUF_CTRL_AVAIL) << 16;
-    buf_ctrl |= (ep->next_pid ? USB_BUF_CTRL_DATA1_PID : USB_BUF_CTRL_DATA0_PID) << 16;
-    ep->next_pid ^= 1u;
+    // Copy data from user buffer to hw buffer
+    memcpy(ep->hw_data_buf, ep->user_buf, buflen);
+    ep->user_buf += buflen;
 
-    if ( !ep->rx )
-    {
-      // Copy data from user buffer to hw buffer
-      memcpy(ep->hw_data_buf+64, ep->user_buf, ep->buf_1_len);
-      ep->user_buf += ep->buf_1_len;
-    }
-
-    // Set endpoint control double buffered bit if needed
-    ep_ctrl &= ~EP_CTRL_INTERRUPT_PER_BUFFER;
-    ep_ctrl |= EP_CTRL_DOUBLE_BUFFERED_BITS | EP_CTRL_INTERRUPT_PER_DOUBLE_BUFFER;
-  }else
-  {
-    ep_ctrl &= ~(EP_CTRL_DOUBLE_BUFFERED_BITS | EP_CTRL_INTERRUPT_PER_DOUBLE_BUFFER);
-    ep_ctrl |= EP_CTRL_INTERRUPT_PER_BUFFER;
+    // Mark as full
+    buf_ctrl |= USB_BUF_CTRL_FULL;
   }
-
-  *ep->endpoint_control = ep_ctrl;
 
 #if TUSB_OPT_HOST_ENABLED
   // Is this the last buffer? Only really matters for host mode. Will trigger
@@ -177,9 +138,41 @@ void _hw_endpoint_start_next_buffer(struct hw_endpoint *ep)
   // trans complete for setup packets being sent
   if (ep->remaining_len == 0)
   {
-    buf_ctrl |= USB_BUF_CTRL_LAST << (ep->buf_1_len ? 16 : 0);
+    buf_ctrl |= USB_BUF_CTRL_LAST;
   }
 #endif
+
+  if (buf_id) buf_ctrl = buf_ctrl << 16;
+
+  return buf_ctrl;
+}
+
+// Prepare buffer control register value
+void _hw_endpoint_start_next_buffer(struct hw_endpoint *ep)
+{
+  uint32_t ep_ctrl = *ep->endpoint_control;
+
+  // always compute buffer 0
+  uint32_t buf_ctrl = compute_ep_buf(ep, 0);
+
+  if(ep->remaining_len)
+  {
+    // Use buffer 1 (double buffered) if there is still data
+    // TODO: Isochronous for buffer1 bit-field is different than CBI (control bulk, interrupt)
+
+    buf_ctrl |= compute_ep_buf(ep, 1);
+
+    // Set endpoint control double buffered bit if needed
+    ep_ctrl &= ~EP_CTRL_INTERRUPT_PER_BUFFER;
+    ep_ctrl |= EP_CTRL_DOUBLE_BUFFERED_BITS | EP_CTRL_INTERRUPT_PER_DOUBLE_BUFFER;
+  }else
+  {
+    // Single buffered since 1 is enough
+    ep_ctrl &= ~(EP_CTRL_DOUBLE_BUFFERED_BITS | EP_CTRL_INTERRUPT_PER_DOUBLE_BUFFER);
+    ep_ctrl |= EP_CTRL_INTERRUPT_PER_BUFFER;
+  }
+
+  *ep->endpoint_control = ep_ctrl;
 
   print_bufctrl32(buf_ctrl);
 
@@ -266,34 +259,34 @@ void _hw_endpoint_xfer_sync (struct hw_endpoint *ep)
 // Returns true if transfer is complete
 bool hw_endpoint_xfer_continue(struct hw_endpoint *ep)
 {
-    _hw_endpoint_lock_update(ep, 1);
-    // Part way through a transfer
-    if (!ep->active)
-    {
-        panic("Can't continue xfer on inactive ep %d %s", tu_edpt_number(ep->ep_addr), ep_dir_string);
-    }
+  _hw_endpoint_lock_update(ep, 1);
+  // Part way through a transfer
+  if (!ep->active)
+  {
+    panic("Can't continue xfer on inactive ep %d %s", tu_edpt_number(ep->ep_addr), ep_dir_string);
+  }
 
-    // Update EP struct from hardware state
-    _hw_endpoint_xfer_sync(ep);
+  // Update EP struct from hardware state
+  _hw_endpoint_xfer_sync(ep);
 
-    // Now we have synced our state with the hardware. Is there more data to transfer?
-    // If we are done then notify tinyusb
-    if (ep->remaining_len == 0)
-    {
-        pico_trace("Completed transfer of %d bytes on ep %d %s\n",
-                   ep->xferred_len, tu_edpt_number(ep->ep_addr), ep_dir_string[tu_edpt_dir(ep->ep_addr)]);
-        // Notify caller we are done so it can notify the tinyusb stack
-        _hw_endpoint_lock_update(ep, -1);
-        return true;
-    }
-    else
-    {
-        _hw_endpoint_start_next_buffer(ep);
-    }
-
+  // Now we have synced our state with the hardware. Is there more data to transfer?
+  // If we are done then notify tinyusb
+  if (ep->remaining_len == 0)
+  {
+    pico_trace("Completed transfer of %d bytes on ep %d %s\n",
+               ep->xferred_len, tu_edpt_number(ep->ep_addr), ep_dir_string[tu_edpt_dir(ep->ep_addr)]);
+    // Notify caller we are done so it can notify the tinyusb stack
     _hw_endpoint_lock_update(ep, -1);
-    // More work to do
-    return false;
+    return true;
+  }
+  else
+  {
+    _hw_endpoint_start_next_buffer(ep);
+  }
+
+  _hw_endpoint_lock_update(ep, -1);
+  // More work to do
+  return false;
 }
 
 #endif
