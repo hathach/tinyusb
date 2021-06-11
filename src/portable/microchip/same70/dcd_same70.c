@@ -134,6 +134,7 @@ void dcd_int_disable (uint8_t rhport)
 // Receive Set Address request, mcu port must also include status IN response
 void dcd_set_address (uint8_t rhport, uint8_t dev_addr)
 {
+  (void) dev_addr;
   // DCD can only set address after status for this request is complete
   // do it at dcd_edpt0_status_complete()
   
@@ -151,6 +152,7 @@ void dcd_remote_wakeup (uint8_t rhport)
 // Connect by enabling internal pull-up resistor on D+/D-
 void dcd_connect(uint8_t rhport)
 {
+  (void) rhport;
   uint32_t irq_state = __get_PRIMASK();
   __disable_irq();
   // Enable USB clock
