@@ -430,7 +430,7 @@ void dcd_edpt0_status_complete(uint8_t rhport, tusb_control_request_t const * re
 
   if (request->bmRequestType_bit.recipient == TUSB_REQ_RCPT_DEVICE &&
       request->bmRequestType_bit.type == TUSB_REQ_TYPE_STANDARD &&
-      request->bRequest == TUSB_REQ_SET_ADDRESS )
+        request->bRequest == TUSB_REQ_SET_ADDRESS )
   {
     uint8_t const dev_addr = (uint8_t) request->wValue;
 
@@ -474,7 +474,7 @@ bool dcd_edpt_open (uint8_t rhport, tusb_desc_endpoint_t const * ep_desc)
        USBHS_DEVEPTCFG_EPTYPE(TUSB_XFER_CONTROL) |
        USBHS_DEVEPTCFG_EPBK(USBHS_DEVEPTCFG_EPBK_1_BANK) |
        USBHS_DEVEPTCFG_ALLOC
-      );
+       );
     USBHS->USBHS_DEVEPTIER[0] = USBHS_DEVEPTIER_RSTDTS;
     USBHS->USBHS_DEVEPTIDR[0] = USBHS_DEVEPTIDR_CTRL_STALLRQC;
     if (USBHS_DEVEPTISR_CFGOK == (USBHS->USBHS_DEVEPTISR[0] & USBHS_DEVEPTISR_CFGOK))
@@ -501,7 +501,7 @@ bool dcd_edpt_open (uint8_t rhport, tusb_desc_endpoint_t const * ep_desc)
        USBHS_DEVEPTCFG_EPBK(USBHS_DEVEPTCFG_EPBK_1_BANK) |
        USBHS_DEVEPTCFG_AUTOSW |
        ((dir & 0x01) << USBHS_DEVEPTCFG_EPDIR_Pos)
-      );
+       );
     if (eptype == TUSB_XFER_ISOCHRONOUS)
     {
       USBHS->USBHS_DEVEPTCFG[epnum] |= USBHS_DEVEPTCFG_NBTRANS(1);
@@ -570,7 +570,7 @@ bool dcd_edpt_xfer (uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t 
   xfer->queued_len = 0;
   xfer->fifo = NULL;
 
-  if(EP_DMA_SUPPORT(epnum) && total_bytes != 0)
+  if (EP_DMA_SUPPORT(epnum) && total_bytes != 0)
   {
     uint32_t udd_dma_ctrl = USBHS_DEVDMACONTROL_BUFF_LENGTH(total_bytes);
     if (dir == TUSB_DIR_OUT)
@@ -579,24 +579,24 @@ bool dcd_edpt_xfer (uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t 
     } else {
       udd_dma_ctrl |= USBHS_DEVDMACONTROL_END_B_EN;
     }
-		USBHS->UsbhsDevdma[epnum - 1].USBHS_DEVDMAADDRESS = (uint32_t)buffer;
-		udd_dma_ctrl |= USBHS_DEVDMACONTROL_END_BUFFIT | USBHS_DEVDMACONTROL_CHANN_ENB;
+    USBHS->UsbhsDevdma[epnum - 1].USBHS_DEVDMAADDRESS = (uint32_t)buffer;
+    udd_dma_ctrl |= USBHS_DEVDMACONTROL_END_BUFFIT | USBHS_DEVDMACONTROL_CHANN_ENB;
     // Disable IRQs to have a short sequence
-		// between read of EOT_STA and DMA enable
-		uint32_t irq_state = __get_PRIMASK();
+    // between read of EOT_STA and DMA enable
+    uint32_t irq_state = __get_PRIMASK();
     __disable_irq();
-		if (!(USBHS->UsbhsDevdma[epnum - 1].USBHS_DEVDMASTATUS & USBHS_DEVDMASTATUS_END_TR_ST))
+    if (!(USBHS->UsbhsDevdma[epnum - 1].USBHS_DEVDMASTATUS & USBHS_DEVDMASTATUS_END_TR_ST))
     {
       USBHS->UsbhsDevdma[epnum - 1].USBHS_DEVDMACONTROL = udd_dma_ctrl;
-			USBHS->USBHS_DEVIER = USBHS_DEVIER_DMA_1 << (epnum - 1);
-			__set_PRIMASK(irq_state);
-			return true;
-		}
-		__set_PRIMASK(irq_state);
+      USBHS->USBHS_DEVIER = USBHS_DEVIER_DMA_1 << (epnum - 1);
+      __set_PRIMASK(irq_state);
+      return true;
+    }
+    __set_PRIMASK(irq_state);
 
-		// Here a ZLP has been recieved
-		// and the DMA transfer must be not started.
-		// It is the end of transfer
+    // Here a ZLP has been recieved
+    // and the DMA transfer must be not started.
+    // It is the end of transfer
     return false;
   } else {
     if (dir == TUSB_DIR_OUT)
@@ -661,23 +661,23 @@ bool dcd_edpt_xfer_fifo (uint8_t rhport, uint8_t ep_addr, tu_fifo_t * ff, uint16
     } else {
       udd_dma_ctrl_lin |= USBHS_DEVDMACONTROL_END_BUFFIT;
     }
-		udd_dma_ctrl_lin |= USBHS_DEVDMACONTROL_BUFF_LENGTH(info.len_lin);
+    udd_dma_ctrl_lin |= USBHS_DEVDMACONTROL_BUFF_LENGTH(info.len_lin);
     // Disable IRQs to have a short sequence
-		// between read of EOT_STA and DMA enable
-		uint32_t irq_state = __get_PRIMASK();
+    // between read of EOT_STA and DMA enable
+    uint32_t irq_state = __get_PRIMASK();
     __disable_irq();
-		if (!(USBHS->UsbhsDevdma[epnum - 1].USBHS_DEVDMASTATUS & USBHS_DEVDMASTATUS_END_TR_ST))
+    if (!(USBHS->UsbhsDevdma[epnum - 1].USBHS_DEVDMASTATUS & USBHS_DEVDMASTATUS_END_TR_ST))
     {
       USBHS->UsbhsDevdma[epnum - 1].USBHS_DEVDMACONTROL = udd_dma_ctrl_lin;
-			USBHS->USBHS_DEVIER = USBHS_DEVIER_DMA_1 << (epnum - 1);
-			__set_PRIMASK(irq_state);
-			return true;
-		}
-		__set_PRIMASK(irq_state);
+      USBHS->USBHS_DEVIER = USBHS_DEVIER_DMA_1 << (epnum - 1);
+      __set_PRIMASK(irq_state);
+      return true;
+    }
+    __set_PRIMASK(irq_state);
 
-		// Here a ZLP has been recieved
-		// and the DMA transfer must be not started.
-		// It is the end of transfer
+    // Here a ZLP has been recieved
+    // and the DMA transfer must be not started.
+    // It is the end of transfer
     return false;
   } else {
     if (dir == TUSB_DIR_OUT)
