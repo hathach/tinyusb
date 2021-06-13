@@ -170,6 +170,7 @@ static void _hw_endpoint_start_next_buffer(struct hw_endpoint *ep)
 
   *ep->endpoint_control = ep_ctrl;
 
+  TU_LOG(3, "Prepare Buffer Control:\r\n");
   print_bufctrl32(buf_ctrl);
 
   // Finally, write to buffer_control which will trigger the transfer
@@ -201,7 +202,8 @@ void hw_endpoint_xfer_start(struct hw_endpoint *ep, uint8_t *buffer, uint16_t to
   _hw_endpoint_lock_update(ep, -1);
 }
 
-static void sync_ep_buffer(struct hw_endpoint *ep, uint8_t buf_id)
+// sync endpoint buffer and return transferred bytes
+static uint16_t sync_ep_buffer(struct hw_endpoint *ep, uint8_t buf_id)
 {
   uint32_t buf_ctrl = _hw_endpoint_buffer_control_get_value32(ep);
   if (buf_id)  buf_ctrl = buf_ctrl >> 16;
@@ -227,14 +229,14 @@ static void sync_ep_buffer(struct hw_endpoint *ep, uint8_t buf_id)
   }
 
   // Short packet
-  // TODO what if we prepare double buffered but receive short packet on buffer 0 !!!
-  // would the buffer status  or trans complete interrupt is triggered
   if (xferred_bytes < ep->wMaxPacketSize)
   {
-    pico_trace("Short rx transfer\n");
+    pico_trace("Short rx transfer on buffer %d with %u bytes\n", buf_id, xferred_bytes);
     // Reduce total length as this is last packet
     ep->remaining_len = 0;
   }
+
+  return xferred_bytes;
 }
 
 static void _hw_endpoint_xfer_sync (struct hw_endpoint *ep)
@@ -242,11 +244,15 @@ static void _hw_endpoint_xfer_sync (struct hw_endpoint *ep)
   // Update hw endpoint struct with info from hardware
   // after a buff status interrupt
 
-  // always sync buffer 0
-  sync_ep_buffer(ep, 0);
+  uint32_t buf_ctrl = _hw_endpoint_buffer_control_get_value32(ep);
+  TU_LOG(3, "_hw_endpoint_xfer_sync:\r\n");
+  print_bufctrl32(buf_ctrl);
 
-  // sync buffer 1 if double buffered
-  if ( (*ep->endpoint_control) & EP_CTRL_DOUBLE_BUFFERED_BITS )
+  // always sync buffer 0
+  uint16_t buf0_bytes = sync_ep_buffer(ep, 0);
+
+  // sync buffer 1 if double buffered and buffer 0 is not short packet
+  if ( ((*ep->endpoint_control) & EP_CTRL_DOUBLE_BUFFERED_BITS) && (buf0_bytes == ep->wMaxPacketSize) )
   {
     sync_ep_buffer(ep, 1);
   }

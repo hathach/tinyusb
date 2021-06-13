@@ -67,8 +67,11 @@ static void _hw_endpoint_alloc(struct hw_endpoint *ep)
   // size must be multiple of 64
   uint16_t size = tu_div_ceil(ep->wMaxPacketSize, 64) * 64u;
 
-  // double buffered for non-ISO endpoint
-  if ( ep->transfer_type != TUSB_XFER_ISOCHRONOUS ) size *= 2u;
+  // double buffered for Control and Bulk endpoint
+  if ( ep->transfer_type == TUSB_XFER_CONTROL || ep->transfer_type == TUSB_XFER_BULK)
+  {
+    size *= 2u;
+  }
 
   ep->hw_data_buf = next_buffer_ptr;
   next_buffer_ptr += size;
@@ -445,18 +448,17 @@ void dcd_connect(uint8_t rhport)
 
 void dcd_edpt0_status_complete(uint8_t rhport, tusb_control_request_t const * request)
 {
-    pico_trace("dcd_edpt0_status_complete %d\n", rhport);
-    assert(rhport == 0);
+  (void) rhport;
 
-    if (request->bmRequestType_bit.recipient == TUSB_REQ_RCPT_DEVICE &&
-        request->bmRequestType_bit.type == TUSB_REQ_TYPE_STANDARD &&
-        request->bRequest == TUSB_REQ_SET_ADDRESS)
-    {
-        pico_trace("Set HW address %d\n", request->wValue);
-        usb_hw->dev_addr_ctrl = (uint8_t) request->wValue;
-    }
+  if ( request->bmRequestType_bit.recipient == TUSB_REQ_RCPT_DEVICE &&
+       request->bmRequestType_bit.type == TUSB_REQ_TYPE_STANDARD &&
+       request->bRequest == TUSB_REQ_SET_ADDRESS )
+  {
+    pico_trace("Set HW address %d\n", request->wValue);
+    usb_hw->dev_addr_ctrl = (uint8_t) request->wValue;
+  }
 
-    reset_ep0();
+  reset_ep0();
 }
 
 bool dcd_edpt_open (uint8_t rhport, tusb_desc_endpoint_t const * desc_edpt)
