@@ -55,13 +55,14 @@ struct hw_endpoint
 
     // Data needed from EP descriptor
     uint16_t wMaxPacketSize;
+
     // Interrupt, bulk, etc
     uint8_t transfer_type;
     
 #if TUSB_OPT_HOST_ENABLED
     // Only needed for host
     uint8_t dev_addr;
-    bool sent_setup;
+
     // If interrupt endpoint
     uint8_t interrupt_num;
 #endif

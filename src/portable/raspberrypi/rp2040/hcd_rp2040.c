@@ -161,19 +161,19 @@ static void hw_handle_buff_status(void)
 
 static void hw_trans_complete(void)
 {
-    struct hw_endpoint *ep = &epx;
-    assert(ep->active);
+  struct hw_endpoint *ep = &epx;
+  assert(ep->active);
 
-    if (ep->sent_setup)
-    {
-        pico_trace("Sent setup packet\n");
-        hw_xfer_complete(ep, XFER_RESULT_SUCCESS);
-    }
-    else
-    {
-        // Don't care. Will handle this in buff status
-        return;
-    }
+  if (usb_hw->sie_ctrl & USB_SIE_CTRL_SEND_SETUP_BITS)
+  {
+    pico_trace("Sent setup packet\n");
+    hw_xfer_complete(ep, XFER_RESULT_SUCCESS);
+  }
+  else
+  {
+    // Don't care. Will handle this in buff status
+    return;
+  }
 }
 
 static void hcd_rp2040_irq(void)
@@ -473,10 +473,13 @@ bool hcd_edpt_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr, uint8_t * 
     struct hw_endpoint *ep = get_dev_ep(dev_addr, ep_addr);
     assert(ep);
 
-    if (ep_addr != ep->ep_addr)
+    // Control endpoint can change direction 0x00 <-> 0x80
+    if ( ep_addr != ep->ep_addr )
     {
-        // Direction has flipped on endpoint control so re init it but with same properties
-        _hw_endpoint_init(ep, dev_addr, ep_addr, ep->wMaxPacketSize, ep->transfer_type, 0);
+      assert(ep_num == 0);
+
+      // Direction has flipped on endpoint control so re init it but with same properties
+      _hw_endpoint_init(ep, dev_addr, ep_addr, ep->wMaxPacketSize, ep->transfer_type, 0);
     }
 
     // If a normal transfer (non-interrupt) then initiate using
@@ -519,7 +522,6 @@ bool hcd_setup_send(uint8_t rhport, uint8_t dev_addr, uint8_t const setup_packet
 
     ep->remaining_len = 8;
     ep->active        = true;
-    ep->sent_setup    = true;
 
     // Set device address
     usb_hw->dev_addr_ctrl = dev_addr;

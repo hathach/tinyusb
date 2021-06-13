@@ -73,9 +73,6 @@ void hw_endpoint_reset_transfer(struct hw_endpoint *ep)
 {
   ep->stalled = false;
   ep->active = false;
-#if TUSB_OPT_HOST_ENABLED
-  ep->sent_setup = false;
-#endif
   ep->remaining_len = 0;
   ep->xferred_len = 0;
   ep->user_buf = 0;
