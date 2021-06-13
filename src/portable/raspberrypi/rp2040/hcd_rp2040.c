@@ -59,44 +59,24 @@ static struct hw_endpoint ep_pool[1 + PICO_USB_HOST_INTERRUPT_ENDPOINTS];
 #define usb_hw_set   hw_set_alias(usb_hw)
 #define usb_hw_clear hw_clear_alias(usb_hw)
 
-// todo still a bit wasteful
-// top bit set if valid
-uint8_t dev_ep_map[CFG_TUSB_HOST_DEVICE_MAX][1 + PICO_USB_HOST_INTERRUPT_ENDPOINTS][2];
-
 // Flags we set by default in sie_ctrl (we add other bits on top)
 enum {
-  sie_ctrl_base = USB_SIE_CTRL_SOF_EN_BITS        |
-                  USB_SIE_CTRL_KEEP_ALIVE_EN_BITS |
-                  USB_SIE_CTRL_PULLDOWN_EN_BITS   |
-                  USB_SIE_CTRL_EP0_INT_1BUF_BITS
+  SIE_CTRL_BASE = USB_SIE_CTRL_SOF_EN_BITS        | USB_SIE_CTRL_KEEP_ALIVE_EN_BITS |
+                  USB_SIE_CTRL_PULLDOWN_EN_BITS   | USB_SIE_CTRL_EP0_INT_1BUF_BITS
 };
 
 static struct hw_endpoint *get_dev_ep(uint8_t dev_addr, uint8_t ep_addr)
 {
-    uint8_t num = tu_edpt_number(ep_addr);
-    if (num == 0) {
-        return &epx;
-    }
-    uint8_t in = (ep_addr & TUSB_DIR_IN_MASK) ? 1 : 0;
-    uint mapping = dev_ep_map[dev_addr-1][num][in];
-    pico_trace("Get dev addr %d ep %d = %d\n", dev_addr, ep_addr, mapping);
-    return mapping >= 128 ? ep_pool + (mapping & 0x7fu) : NULL;
-}
+  uint8_t num = tu_edpt_number(ep_addr);
+  if ( num == 0 ) return &epx;
 
-static void set_dev_ep(uint8_t dev_addr, uint8_t ep_addr, struct hw_endpoint *ep)
-{
-    uint8_t num = tu_edpt_number(ep_addr);
-    uint8_t in = (uint8_t) tu_edpt_dir(ep_addr);
+  for ( uint32_t i = 1; i < TU_ARRAY_SIZE(ep_pool); i++ )
+  {
+    struct hw_endpoint *ep = &ep_pool[i];
+    if ( ep->configured && (ep->dev_addr == dev_addr) && (ep->ep_addr == ep_addr) ) return ep;
+  }
 
-    uint32_t index = ep - ep_pool;
-    hard_assert(index < TU_ARRAY_SIZE(ep_pool));
-
-    // todo revisit why dev_addr can be 0 here
-    if (dev_addr) {
-        dev_ep_map[dev_addr-1][num][in] = 128u | index;
-    }
-
-    pico_trace("Set dev addr %d ep %d = %d\n", dev_addr, ep_addr, index);
+  return NULL;
 }
 
 static inline uint8_t dev_speed(void)
@@ -387,7 +367,7 @@ bool hcd_init(uint8_t rhport)
 
     // Enable in host mode with SOF / Keep alive on
     usb_hw->main_ctrl = USB_MAIN_CTRL_CONTROLLER_EN_BITS | USB_MAIN_CTRL_HOST_NDEVICE_BITS;
-    usb_hw->sie_ctrl = sie_ctrl_base;
+    usb_hw->sie_ctrl = SIE_CTRL_BASE;
     usb_hw->inte = USB_INTE_BUFF_STATUS_BITS      | 
                    USB_INTE_HOST_CONN_DIS_BITS    | 
                    USB_INTE_HOST_RESUME_BITS      | 
@@ -477,9 +457,6 @@ bool hcd_edpt_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_endpoint_t const 
         ep_desc->bmAttributes.xfer,
         ep_desc->bInterval);
 
-    // Map this struct to ep@device address
-    set_dev_ep(dev_addr, ep_desc->bEndpointAddress, ep);
-
     return true;
 }
 
@@ -512,7 +489,7 @@ bool hcd_edpt_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr, uint8_t * 
         // for host we have to initiate the transfer
         usb_hw->dev_addr_ctrl = dev_addr | (ep_num << USB_ADDR_ENDP_ENDPOINT_LSB);
 
-        uint32_t flags = USB_SIE_CTRL_START_TRANS_BITS | sie_ctrl_base |
+        uint32_t flags = USB_SIE_CTRL_START_TRANS_BITS | SIE_CTRL_BASE |
                          (ep_dir ? USB_SIE_CTRL_RECEIVE_DATA_BITS : USB_SIE_CTRL_SEND_DATA_BITS);
         // Set pre if we are a low speed device on full speed hub
         flags |= need_pre(dev_addr) ? USB_SIE_CTRL_PREAMBLE_EN_BITS : 0;
@@ -548,7 +525,7 @@ bool hcd_setup_send(uint8_t rhport, uint8_t dev_addr, uint8_t const setup_packet
     usb_hw->dev_addr_ctrl = dev_addr;
 
     // Set pre if we are a low speed device on full speed hub
-    uint32_t const flags = sie_ctrl_base | USB_SIE_CTRL_SEND_SETUP_BITS | USB_SIE_CTRL_START_TRANS_BITS |
+    uint32_t const flags = SIE_CTRL_BASE | USB_SIE_CTRL_SEND_SETUP_BITS | USB_SIE_CTRL_START_TRANS_BITS |
                            (need_pre(dev_addr) ? USB_SIE_CTRL_PREAMBLE_EN_BITS : 0);
 
     usb_hw->sie_ctrl = flags;
