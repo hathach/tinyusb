@@ -108,7 +108,8 @@ void _hw_endpoint_buffer_control_update32(struct hw_endpoint *ep, uint32_t and_m
     *ep->buffer_control = value;
 }
 
-static uint32_t compute_buffer_control(struct hw_endpoint *ep, uint8_t buf_id)
+// prepare buffer, return buffer control
+static uint32_t prepare_ep_buffer(struct hw_endpoint *ep, uint8_t buf_id)
 {
   uint16_t const buflen = tu_min16(ep->remaining_len, ep->wMaxPacketSize);
   ep->remaining_len -= buflen;
@@ -122,14 +123,13 @@ static uint32_t compute_buffer_control(struct hw_endpoint *ep, uint8_t buf_id)
   if ( !ep->rx )
   {
     // Copy data from user buffer to hw buffer
-    memcpy(ep->hw_data_buf, ep->user_buf, buflen);
+    memcpy(ep->hw_data_buf + buf_id*64, ep->user_buf, buflen);
     ep->user_buf += buflen;
 
     // Mark as full
     buf_ctrl |= USB_BUF_CTRL_FULL;
   }
 
-#if TUSB_OPT_HOST_ENABLED
   // Is this the last buffer? Only really matters for host mode. Will trigger
   // the trans complete irq but also stop it polling. We only really care about
   // trans complete for setup packets being sent
@@ -137,7 +137,6 @@ static uint32_t compute_buffer_control(struct hw_endpoint *ep, uint8_t buf_id)
   {
     buf_ctrl |= USB_BUF_CTRL_LAST;
   }
-#endif
 
   if (buf_id) buf_ctrl = buf_ctrl << 16;
 
@@ -150,14 +149,14 @@ static void _hw_endpoint_start_next_buffer(struct hw_endpoint *ep)
   uint32_t ep_ctrl = *ep->endpoint_control;
 
   // always compute buffer 0
-  uint32_t buf_ctrl = compute_buffer_control(ep, 0);
+  uint32_t buf_ctrl = prepare_ep_buffer(ep, 0);
 
   if(ep->remaining_len)
   {
     // Use buffer 1 (double buffered) if there is still data
     // TODO: Isochronous for buffer1 bit-field is different than CBI (control bulk, interrupt)
 
-    buf_ctrl |= compute_buffer_control(ep, 1);
+    buf_ctrl |= prepare_ep_buffer(ep, 1);
 
     // Set endpoint control double buffered bit if needed
     ep_ctrl &= ~EP_CTRL_INTERRUPT_PER_BUFFER;

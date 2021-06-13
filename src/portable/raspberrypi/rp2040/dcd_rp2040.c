@@ -64,40 +64,30 @@ static struct hw_endpoint *hw_endpoint_get_by_addr(uint8_t ep_addr)
 
 static void _hw_endpoint_alloc(struct hw_endpoint *ep)
 {
-    uint16_t size = tu_min16(64, ep->wMaxPacketSize);
+  // size must be multiple of 64
+  uint16_t size = tu_div_ceil(ep->wMaxPacketSize, 64) * 64u;
 
-    // Assumes single buffered for now
-    ep->hw_data_buf = next_buffer_ptr;
-    next_buffer_ptr += size;
+  // double buffered for non-ISO endpoint
+  if ( ep->transfer_type != TUSB_XFER_ISOCHRONOUS ) size *= 2u;
 
-    // Bits 0-5 are ignored by the controller so make sure these are 0
-    if ((uintptr_t)next_buffer_ptr & 0b111111u)
-    {
-        // Round up to the next 64
-        uint32_t fixptr = (uintptr_t)next_buffer_ptr;
-        fixptr &= ~0b111111u;
-        fixptr += 64;
-        pico_info("Rounding non 64 byte boundary buffer up from %x to %x\n", (uintptr_t)next_buffer_ptr, fixptr);
-        next_buffer_ptr = (uint8_t*)fixptr;
-    }
-    assert(((uintptr_t)next_buffer_ptr & 0b111111u) == 0);
-    uint dpram_offset = hw_data_offset(ep->hw_data_buf);
-    assert(hw_data_offset(next_buffer_ptr) <= USB_DPRAM_MAX);
+  ep->hw_data_buf = next_buffer_ptr;
+  next_buffer_ptr += size;
 
-    pico_info("Alloced %d bytes at offset 0x%x (0x%p) for ep %d %s\n",
-                size,
-                dpram_offset,
-                ep->hw_data_buf,
-                tu_edpt_number(ep->ep_addr),
-                ep_dir_string[tu_edpt_dir(ep->ep_addr)]);
+  assert(((uintptr_t )next_buffer_ptr & 0b111111u) == 0);
+  uint dpram_offset = hw_data_offset(ep->hw_data_buf);
+  assert(hw_data_offset(next_buffer_ptr) <= USB_DPRAM_MAX);
 
-    // Fill in endpoint control register with buffer offset
-    uint32_t reg =  EP_CTRL_ENABLE_BITS
-                  | EP_CTRL_INTERRUPT_PER_BUFFER
-                  | (ep->transfer_type << EP_CTRL_BUFFER_TYPE_LSB)
-                  | dpram_offset;
+  pico_info("Alloced %d bytes at offset 0x%x (0x%p) for ep %d %s\n",
+            size,
+            dpram_offset,
+            ep->hw_data_buf,
+            tu_edpt_number(ep->ep_addr),
+            ep_dir_string[tu_edpt_dir(ep->ep_addr)]);
 
-    *ep->endpoint_control = reg;
+  // Fill in endpoint control register with buffer offset
+  uint32_t const reg = EP_CTRL_ENABLE_BITS | (ep->transfer_type << EP_CTRL_BUFFER_TYPE_LSB) | dpram_offset;
+
+  *ep->endpoint_control = reg;
 }
 
 static void _hw_endpoint_init(struct hw_endpoint *ep, uint8_t ep_addr, uint16_t wMaxPacketSize, uint8_t transfer_type)

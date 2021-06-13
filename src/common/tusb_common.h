@@ -123,7 +123,7 @@ TU_ATTR_ALWAYS_INLINE static inline uint32_t tu_align4k (uint32_t value) { retur
 TU_ATTR_ALWAYS_INLINE static inline uint32_t tu_offset4k(uint32_t value) { return (value & 0xFFFUL); }
 
 //------------- Mathematics -------------//
-TU_ATTR_ALWAYS_INLINE static inline uint32_t tu_abs(int32_t value) { return (uint32_t)((value < 0) ? (-value) : value); }
+TU_ATTR_ALWAYS_INLINE static inline uint32_t tu_div_ceil(uint32_t v, uint32_t d) { return (v + d -1)/d; }
 
 /// inclusive range checking TODO remove
 TU_ATTR_ALWAYS_INLINE static inline bool tu_within(uint32_t lower, uint32_t value, uint32_t upper)
