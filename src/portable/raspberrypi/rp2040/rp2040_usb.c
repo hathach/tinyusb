@@ -194,7 +194,7 @@ void hw_endpoint_xfer_start(struct hw_endpoint *ep, uint8_t *buffer, uint16_t to
 
   // Fill in info now that we're kicking off the hw
   ep->remaining_len = total_len;
-  ep->xferred_len           = 0;
+  ep->xferred_len   = 0;
   ep->active        = true;
   ep->user_buf      = buffer;
 

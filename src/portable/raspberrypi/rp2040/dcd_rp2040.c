@@ -69,6 +69,7 @@ static void _hw_endpoint_alloc(struct hw_endpoint *ep)
     // Assumes single buffered for now
     ep->hw_data_buf = next_buffer_ptr;
     next_buffer_ptr += size;
+
     // Bits 0-5 are ignored by the controller so make sure these are 0
     if ((uintptr_t)next_buffer_ptr & 0b111111u)
     {
@@ -87,8 +88,8 @@ static void _hw_endpoint_alloc(struct hw_endpoint *ep)
                 size,
                 dpram_offset,
                 ep->hw_data_buf,
-                ep->num,
-                ep_dir_string[ep->in]);
+                tu_edpt_number(ep->ep_addr),
+                ep_dir_string[tu_edpt_dir(ep->ep_addr)]);
 
     // Fill in endpoint control register with buffer offset
     uint32_t reg =  EP_CTRL_ENABLE_BITS
@@ -103,27 +104,14 @@ static void _hw_endpoint_init(struct hw_endpoint *ep, uint8_t ep_addr, uint16_t 
 {
     const uint8_t num = tu_edpt_number(ep_addr);
     const tusb_dir_t dir = tu_edpt_dir(ep_addr);
+
     ep->ep_addr = ep_addr;
+
     // For device, IN is a tx transfer and OUT is an rx transfer
     ep->rx = (dir == TUSB_DIR_OUT);
+
     // Response to a setup packet on EP0 starts with pid of 1
     ep->next_pid = num == 0 ? 1u : 0u;
-
-    // Add some checks around the max packet size
-    if (transfer_type == TUSB_XFER_ISOCHRONOUS)
-    {
-        if (wMaxPacketSize > USB_MAX_ISO_PACKET_SIZE)
-        {
-            panic("Isochronous wMaxPacketSize %d too large", wMaxPacketSize);
-        }
-    }
-    else
-    {
-        if (wMaxPacketSize > USB_MAX_PACKET_SIZE)
-        {
-            panic("Isochronous wMaxPacketSize %d too large", wMaxPacketSize);
-        }
-    }
 
     ep->wMaxPacketSize = wMaxPacketSize;
     ep->transfer_type = transfer_type;
@@ -339,10 +327,7 @@ static void dcd_rp2040_irq(void)
 
 #if TUD_OPT_RP2040_USB_DEVICE_ENUMERATION_FIX
         // Only run enumeration walk-around if pull up is enabled
-        if ( usb_hw->sie_ctrl & USB_SIE_CTRL_PULLUP_EN_BITS )
-        {
-          rp2040_usb_device_enumeration_fix();
-        }
+        if ( usb_hw->sie_ctrl & USB_SIE_CTRL_PULLUP_EN_BITS ) rp2040_usb_device_enumeration_fix();
 #endif
     }
 
@@ -402,9 +387,9 @@ void dcd_init (uint8_t rhport)
 
     // EP0 always exists so init it now
     // EP0 OUT
-    hw_endpoint_init(0x0, 64, 0);
+    hw_endpoint_init(0x0, 64, TUSB_XFER_CONTROL);
     // EP0 IN
-    hw_endpoint_init(0x80, 64, 0);
+    hw_endpoint_init(0x80, 64, TUSB_XFER_CONTROL);
 
     // Initializes the USB peripheral for device mode and enables it.
     // Don't need to enable the pull up here. Force VBUS
@@ -495,7 +480,6 @@ bool dcd_edpt_open (uint8_t rhport, tusb_desc_endpoint_t const * desc_edpt)
 bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t total_bytes)
 {
     assert(rhport == 0);
-    // True means start new xfer
     hw_endpoint_xfer(ep_addr, buffer, total_bytes);
     return true;
 }
@@ -519,7 +503,6 @@ void dcd_edpt_close (uint8_t rhport, uint8_t ep_addr)
 {
     // usbd.c says: In progress transfers on this EP may be delivered after this call
     pico_trace("dcd_edpt_close %d %02x\n", rhport, ep_addr);
-
 }
 
 void dcd_int_handler(uint8_t rhport)
