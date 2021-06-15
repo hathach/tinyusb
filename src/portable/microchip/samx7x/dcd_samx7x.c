@@ -238,8 +238,13 @@ static void dcd_ep_handler(uint8_t ep_ix)
     if (int_status & USBHS_DEVEPTISR_RXOUTI)
     {
       xfer_ctl_t *xfer = &xfer_status[0];
-      if (count)
+      if (count && xfer->total_len)
       {
+        uint16_t remain = xfer->total_len - xfer->queued_len;
+        if (count > remain)
+        {
+          count = remain;
+        }
         uint8_t *ptr = EP_GET_FIFO_PTR(0,8);
         if (xfer->buffer)
         {
@@ -256,7 +261,7 @@ static void dcd_ep_handler(uint8_t ep_ix)
       if ((count < xfer->max_packet_size) || (xfer->queued_len == xfer->total_len))
       {
         // RX COMPLETE
-        dcd_event_xfer_complete(0, 0, xfer->queued_len, XFER_RESULT_SUCCESS, true);
+        dcd_event_xfer_complete(0, 0, xfer->total_len, XFER_RESULT_SUCCESS, true);
         // Disable the interrupt
         USBHS->USBHS_DEVEPTIDR[0] = USBHS_DEVEPTIDR_RXOUTEC;
         // Though the host could still send, we don't know.
@@ -280,8 +285,13 @@ static void dcd_ep_handler(uint8_t ep_ix)
     if (int_status & USBHS_DEVEPTISR_RXOUTI)
     {
       xfer_ctl_t *xfer = &xfer_status[ep_ix];
-      if (count)
+      if (count && xfer->total_len)
       {
+        uint16_t remain = xfer->total_len - xfer->queued_len;
+        if (count > remain)
+        {
+          count = remain;
+        }
         uint8_t *ptr = EP_GET_FIFO_PTR(ep_ix,8);
         if (xfer->buffer)
         {
