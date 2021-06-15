@@ -49,7 +49,7 @@
 #  if TUD_OPT_HIGH_SPEED
 #    define USE_DUAL_BANK   0
 #  else
-#    define USE_DUAL_BANK   1
+#    define USE_DUAL_BANK   0
 #  endif
 #endif
 
@@ -108,12 +108,10 @@ void dcd_init (uint8_t rhport)
   PMC->CKGR_UCKR = CKGR_UCKR_UPLLEN | CKGR_UCKR_UPLLCOUNT(0x3fU);
   // Wait until USB UTMI stabilize
   while (!(PMC->PMC_SR & PMC_SR_LOCKU));
-#if !TUD_OPT_HIGH_SPEED
   // Enable USB FS clk
   PMC->PMC_MCKR &= ~PMC_MCKR_UPLLDIV2;
   PMC->PMC_USB = PMC_USB_USBS | PMC_USB_USBDIV(10 - 1);
   PMC->PMC_SCER = PMC_SCER_USBCLK;
-#endif
   dcd_connect(rhport);
 }
 
@@ -346,6 +344,7 @@ void dcd_int_handler(uint8_t rhport)
 {
   (void) rhport;
   uint32_t int_status = USBHS->USBHS_DEVISR;
+  int_status &= USBHS->USBHS_DEVIMR;
   // End of reset interrupt
   if (int_status & USBHS_DEVISR_EORST)
   {
