@@ -243,7 +243,9 @@ static void dcd_ep_handler(uint8_t ep_ix)
         uint8_t *ptr = EP_GET_FIFO_PTR(0,8);
         if (xfer->buffer)
         {
-          memcpy(xfer->buffer + xfer->queued_len, ptr, count);
+          //memcpy(xfer->buffer + xfer->queued_len, ptr, count);
+          for(int i = 0; i < count; i++)
+            xfer->buffer[i + xfer->queued_len] = ptr[i];
         } else {
           tu_fifo_write_n(xfer->fifo, ptr, count);
         }
@@ -283,7 +285,9 @@ static void dcd_ep_handler(uint8_t ep_ix)
         uint8_t *ptr = EP_GET_FIFO_PTR(ep_ix,8);
         if (xfer->buffer)
         {
-          memcpy(xfer->buffer + xfer->queued_len, ptr, count);
+          //memcpy(xfer->buffer + xfer->queued_len, ptr, count);
+          for(int i = 0; i < count; i++)
+            xfer->buffer[i + xfer->queued_len] = ptr[i];
         } else {
           tu_fifo_write_n(xfer->fifo, ptr, count);
         }
@@ -535,7 +539,9 @@ static void dcd_transmit_packet(xfer_ctl_t * xfer, uint8_t ep_ix)
   uint8_t *ptr = EP_GET_FIFO_PTR(ep_ix,8);
   if(xfer->buffer)
   {
-    memcpy(ptr, xfer->buffer + xfer->queued_len, len);
+    //memcpy(ptr, xfer->buffer + xfer->queued_len, len);
+    for(int i = 0; i < len; i++)
+      ptr[i] = xfer->buffer[i + xfer->queued_len];
   }
   else {
     tu_fifo_read_n(xfer->fifo, ptr, len);
@@ -569,6 +575,11 @@ bool dcd_edpt_xfer (uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t 
   xfer->queued_len = 0;
   xfer->fifo = NULL;
 
+  TU_LOG3("Xfer: ");
+  for(int i = 0; i < total_bytes; i++)
+    TU_LOG3("%02X ", buffer[i]);
+  TU_LOG3("\r\n");
+  
   if (EP_DMA_SUPPORT(epnum) && total_bytes != 0)
   {
     uint32_t udd_dma_ctrl = USBHS_DEVDMACONTROL_BUFF_LENGTH(total_bytes);
