@@ -244,9 +244,7 @@ static void dcd_ep_handler(uint8_t ep_ix)
         uint8_t *ptr = EP_GET_FIFO_PTR(0,8);
         if (xfer->buffer)
         {
-          //memcpy(xfer->buffer + xfer->queued_len, ptr, count);
-          for(int i = 0; i < count; i++)
-            xfer->buffer[i + xfer->queued_len] = ptr[i];
+          memcpy(xfer->buffer + xfer->queued_len, ptr, count);
         } else {
           tu_fifo_write_n(xfer->fifo, ptr, count);
         }
@@ -291,9 +289,7 @@ static void dcd_ep_handler(uint8_t ep_ix)
         uint8_t *ptr = EP_GET_FIFO_PTR(ep_ix,8);
         if (xfer->buffer)
         {
-          //memcpy(xfer->buffer + xfer->queued_len, ptr, count);
-          for(int i = 0; i < count; i++)
-            xfer->buffer[i + xfer->queued_len] = ptr[i];
+          memcpy(xfer->buffer + xfer->queued_len, ptr, count);
         } else {
           tu_fifo_write_n(xfer->fifo, ptr, count);
         }
@@ -538,26 +534,28 @@ bool dcd_edpt_open (uint8_t rhport, tusb_desc_endpoint_t const * ep_desc)
 static void dcd_transmit_packet(xfer_ctl_t * xfer, uint8_t ep_ix)
 {
   uint16_t len = (uint16_t)(xfer->total_len - xfer->queued_len);
-  if (len > xfer->max_packet_size)
+  if (len)
   {
-    len = xfer->max_packet_size;
+    if (len > xfer->max_packet_size)
+    {
+      len = xfer->max_packet_size;
+    }
+    uint8_t *ptr = EP_GET_FIFO_PTR(ep_ix,8);
+    if(xfer->buffer)
+    {
+      memcpy(ptr, xfer->buffer + xfer->queued_len, len);
+    }
+    else {
+      tu_fifo_read_n(xfer->fifo, ptr, len);
+    }
+    __DSB();
+    __ISB();
+    xfer->queued_len = (uint16_t)(xfer->queued_len + len);
   }
-  uint8_t *ptr = EP_GET_FIFO_PTR(ep_ix,8);
-  if(xfer->buffer)
-  {
-    //memcpy(ptr, xfer->buffer + xfer->queued_len, len);
-    for(int i = 0; i < len; i++)
-      ptr[i] = xfer->buffer[i + xfer->queued_len];
-  }
-  else {
-    tu_fifo_read_n(xfer->fifo, ptr, len);
-  }
-  xfer->queued_len = (uint16_t)(xfer->queued_len + len);
   if (ep_ix == 0U)
   {
     // Control endpoint: clear the interrupt flag to send the data
     USBHS->USBHS_DEVEPTICR[0] = USBHS_DEVEPTICR_TXINIC;
-
   } else {
     // Other endpoint types: clear the FIFO control flag to send the data
     USBHS->USBHS_DEVEPTIDR[ep_ix] = USBHS_DEVEPTIDR_FIFOCONC;
