@@ -49,7 +49,7 @@
 #  if TUD_OPT_HIGH_SPEED
 #    define USE_DUAL_BANK   0
 #  else
-#    define USE_DUAL_BANK   0
+#    define USE_DUAL_BANK   1
 #  endif
 #endif
 
@@ -151,8 +151,7 @@ void dcd_remote_wakeup (uint8_t rhport)
 void dcd_connect(uint8_t rhport)
 {
   (void) rhport;
-  uint32_t irq_state = __get_PRIMASK();
-  __disable_irq();
+  dcd_int_disable(rhport);
   // Enable USB clock
   PMC->PMC_PCER1 = 1 << (ID_USBHS - 32);
   // Enable the USB controller in device mode
@@ -178,15 +177,13 @@ void dcd_connect(uint8_t rhport)
   USBHS->USBHS_DEVCTRL &= ~USBHS_DEVCTRL_DETACH;
   // Freeze USB clock
   USBHS->USBHS_CTRL |= USBHS_CTRL_FRZCLK;
-  __set_PRIMASK(irq_state);
 }
 
 // Disconnect by disabling internal pull-up resistor on D+/D-
 void dcd_disconnect(uint8_t rhport)
 {
   (void) rhport;
-  uint32_t irq_state = __get_PRIMASK();
-  __disable_irq();
+  dcd_int_disable(rhport);
   // Disable all endpoints
   USBHS->USBHS_DEVEPT &= ~(0x3FF << USBHS_DEVEPT_EPEN0_Pos);
   // Unfreeze USB clock
@@ -200,7 +197,6 @@ void dcd_disconnect(uint8_t rhport)
   USBHS->USBHS_DEVCTRL |= USBHS_DEVCTRL_DETACH;
   // Disable the device address
   USBHS->USBHS_DEVCTRL &=~(USBHS_DEVCTRL_ADDEN | USBHS_DEVCTRL_UADD_Msk);
-  __set_PRIMASK(irq_state);
 }
 
 static tusb_speed_t get_speed(void)
@@ -584,11 +580,6 @@ bool dcd_edpt_xfer (uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t 
   xfer->total_len = total_bytes;
   xfer->queued_len = 0;
   xfer->fifo = NULL;
-
-  TU_LOG3("Xfer: ");
-  for(int i = 0; i < total_bytes; i++)
-    TU_LOG3("%02X ", buffer[i]);
-  TU_LOG3("\r\n");
   
   if (EP_DMA_SUPPORT(epnum) && total_bytes != 0)
   {
