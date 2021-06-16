@@ -148,10 +148,15 @@ static void _hw_endpoint_start_next_buffer(struct hw_endpoint *ep)
 {
   uint32_t ep_ctrl = *ep->endpoint_control;
 
-  // always compute buffer 0
-  uint32_t buf_ctrl = prepare_ep_buffer(ep, 0);
+  // always compute and start with buffer 0
+  uint32_t buf_ctrl = prepare_ep_buffer(ep, 0) | USB_BUF_CTRL_SEL;
 
-  if(ep->remaining_len)
+  // For now: skip double buffered for Device mode, OUT endpoint since
+  // host could send < 64 bytes and cause short packet on buffer0
+  // NOTE this could happen to Host mode IN endpoint
+  bool const force_single = !(usb_hw->main_ctrl & USB_MAIN_CTRL_HOST_NDEVICE_BITS) && !tu_edpt_dir(ep->ep_addr);
+
+  if(ep->remaining_len && !force_single)
   {
     // Use buffer 1 (double buffered) if there is still data
     // TODO: Isochronous for buffer1 bit-field is different than CBI (control bulk, interrupt)
@@ -181,8 +186,7 @@ static void _hw_endpoint_start_next_buffer(struct hw_endpoint *ep)
 void hw_endpoint_xfer_start(struct hw_endpoint *ep, uint8_t *buffer, uint16_t total_len)
 {
   _hw_endpoint_lock_update(ep, 1);
-  pico_trace("Start transfer of total len %d on ep %d %s\n", total_len, tu_edpt_number(ep->ep_addr),
-             ep_dir_string[tu_edpt_dir(ep->ep_addr)]);
+
   if ( ep->active )
   {
     // TODO: Is this acceptable for interrupt packets?
@@ -251,10 +255,42 @@ static void _hw_endpoint_xfer_sync (struct hw_endpoint *ep)
   // always sync buffer 0
   uint16_t buf0_bytes = sync_ep_buffer(ep, 0);
 
-  // sync buffer 1 if double buffered and buffer 0 is not short packet
-  if ( ((*ep->endpoint_control) & EP_CTRL_DOUBLE_BUFFERED_BITS) && (buf0_bytes == ep->wMaxPacketSize) )
+  // sync buffer 1 if double buffered
+  if ( (*ep->endpoint_control) & EP_CTRL_DOUBLE_BUFFERED_BITS )
   {
-    sync_ep_buffer(ep, 1);
+    if (buf0_bytes == ep->wMaxPacketSize)
+    {
+      // sync buffer 1 if not short packet
+      sync_ep_buffer(ep, 1);
+    }else
+    {
+      // short packet on buffer 0
+      // TODO couldn't figure out how to handle this case which happen with net_lwip_webserver example
+      // At this time (currently trigger per 2 buffer), the buffer1 is probably filled with data from
+      // the next transfer (not current one). For now we disable double buffered for device OUT
+      // NOTE this could happen to Host IN
+#if 0
+      uint8_t const ep_num = tu_edpt_number(ep->ep_addr);
+      uint8_t const dir =  (uint8_t) tu_edpt_dir(ep->ep_addr);
+      uint8_t const ep_id = 2*ep_num + (dir ? 0 : 1);
+
+      // abort queued transfer on buffer 1
+      usb_hw->abort |= TU_BIT(ep_id);
+
+      while ( !(usb_hw->abort_done & TU_BIT(ep_id)) ) {}
+
+      uint32_t ep_ctrl = *ep->endpoint_control;
+      ep_ctrl &= ~(EP_CTRL_DOUBLE_BUFFERED_BITS | EP_CTRL_INTERRUPT_PER_DOUBLE_BUFFER);
+      ep_ctrl |= EP_CTRL_INTERRUPT_PER_BUFFER;
+
+      _hw_endpoint_buffer_control_set_value32(ep, 0);
+
+      usb_hw->abort &= ~TU_BIT(ep_id);
+
+      TU_LOG(3, "----SHORT PACKET buffer0 on EP %02X:\r\n", ep->ep_addr);
+      print_bufctrl32(buf_ctrl);
+#endif
+    }
   }
 }
 

@@ -120,8 +120,8 @@ static inline void print_bufctrl16(uint32_t u16)
       .u16 = u16
   };
 
-  TU_LOG(3, "len = %u, available = %u, stall = %u, reset = %u, toggle = %u, last = %u, full = %u\r\n",
-         bufctrl.xfer_len, bufctrl.available, bufctrl.stall, bufctrl.reset_bufsel, bufctrl.data_toggle, bufctrl.last_buf, bufctrl.full);
+  TU_LOG(3, "len = %u, available = %u, full = %u, last = %u, stall = %u, reset = %u, toggle = %u\r\n",
+         bufctrl.xfer_len, bufctrl.available, bufctrl.full, bufctrl.last_buf, bufctrl.stall, bufctrl.reset_bufsel, bufctrl.data_toggle);
 }
 
 static inline void print_bufctrl32(uint32_t u32)

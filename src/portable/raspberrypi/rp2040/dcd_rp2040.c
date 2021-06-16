@@ -145,6 +145,7 @@ static void _hw_endpoint_init(struct hw_endpoint *ep, uint8_t ep_addr, uint16_t 
 
         // Now if it hasn't already been done
         //alloc a buffer and fill in endpoint control register
+        // TODO device may change configuration (dynamic), should clear and reallocate
         if(!(ep->configured))
         {
             _hw_endpoint_alloc(ep);
@@ -194,9 +195,6 @@ static void hw_handle_buff_status(void)
     {
         if (remaining_buffers & bit)
         {
-            uint __unused which = (usb_hw->buf_cpu_should_handle & bit) ? 1 : 0;
-            // Should be single buffered
-            assert(which == 0);
             // clear this in advance
             usb_hw_clear->buf_status = bit;
             // IN transfer for even i, OUT transfer for odd i
@@ -463,7 +461,7 @@ void dcd_edpt0_status_complete(uint8_t rhport, tusb_control_request_t const * re
 
 bool dcd_edpt_open (uint8_t rhport, tusb_desc_endpoint_t const * desc_edpt)
 {
-    pico_info("dcd_edpt_open %d %02x\n", rhport, desc_edpt->bEndpointAddress);
+    pico_info("dcd_edpt_open %02x\n", desc_edpt->bEndpointAddress);
     assert(rhport == 0);
     hw_endpoint_init(desc_edpt->bEndpointAddress, desc_edpt->wMaxPacketSize.size, desc_edpt->bmAttributes.xfer);
     return true;
@@ -478,14 +476,14 @@ bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t t
 
 void dcd_edpt_stall (uint8_t rhport, uint8_t ep_addr)
 {
-    pico_trace("dcd_edpt_stall %d %02x\n", rhport, ep_addr);
+    pico_trace("dcd_edpt_stall %02x\n", ep_addr);
     assert(rhport == 0);
     hw_endpoint_stall(ep_addr);
 }
 
 void dcd_edpt_clear_stall (uint8_t rhport, uint8_t ep_addr)
 {
-    pico_trace("dcd_edpt_clear_stall %d %02x\n", rhport, ep_addr);
+    pico_trace("dcd_edpt_clear_stall %02x\n", ep_addr);
     assert(rhport == 0);
     hw_endpoint_clear_stall(ep_addr);
 }
@@ -493,8 +491,11 @@ void dcd_edpt_clear_stall (uint8_t rhport, uint8_t ep_addr)
 
 void dcd_edpt_close (uint8_t rhport, uint8_t ep_addr)
 {
+    (void) rhport;
+    (void) ep_addr;
+
     // usbd.c says: In progress transfers on this EP may be delivered after this call
-    pico_trace("dcd_edpt_close %d %02x\n", rhport, ep_addr);
+    pico_trace("dcd_edpt_close %02x\n", ep_addr);
 }
 
 void dcd_int_handler(uint8_t rhport)
