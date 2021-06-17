@@ -360,18 +360,22 @@ static bool config_test_unit_ready_complete(uint8_t dev_addr, msc_cbw_t const* c
 static bool config_request_sense_complete(uint8_t dev_addr, msc_cbw_t const* cbw, msc_csw_t const* csw);
 static bool config_read_capacity_complete(uint8_t dev_addr, msc_cbw_t const* cbw, msc_csw_t const* csw);
 
-bool msch_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_interface_t const *desc_itf, uint16_t *p_length)
+uint16_t msch_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_interface_t const *desc_itf, uint16_t max_len)
 {
   TU_VERIFY (MSC_SUBCLASS_SCSI == desc_itf->bInterfaceSubClass &&
              MSC_PROTOCOL_BOT  == desc_itf->bInterfaceProtocol);
+
+  // msc driver length is fixed
+  uint16_t const drv_len = sizeof(tusb_desc_interface_t) + 2*sizeof(tusb_desc_endpoint_t);
+  TU_ASSERT(drv_len <= max_len, 0);
 
   msch_interface_t* p_msc = get_itf(dev_addr);
   tusb_desc_endpoint_t const * ep_desc = (tusb_desc_endpoint_t const *) tu_desc_next(desc_itf);
 
   for(uint32_t i=0; i<2; i++)
   {
-    TU_ASSERT(TUSB_DESC_ENDPOINT == ep_desc->bDescriptorType && TUSB_XFER_BULK == ep_desc->bmAttributes.xfer);
-    TU_ASSERT(usbh_edpt_open(rhport, dev_addr, ep_desc));
+    TU_ASSERT(TUSB_DESC_ENDPOINT == ep_desc->bDescriptorType && TUSB_XFER_BULK == ep_desc->bmAttributes.xfer, 0);
+    TU_ASSERT(usbh_edpt_open(rhport, dev_addr, ep_desc), 0);
 
     if ( tu_edpt_dir(ep_desc->bEndpointAddress) == TUSB_DIR_IN )
     {
@@ -385,9 +389,8 @@ bool msch_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_interface_t const *de
   }
 
   p_msc->itf_num = desc_itf->bInterfaceNumber;
-  (*p_length) += sizeof(tusb_desc_interface_t) + 2*sizeof(tusb_desc_endpoint_t);
 
-  return true;
+  return drv_len;
 }
 
 bool msch_set_config(uint8_t dev_addr, uint8_t itf_num)
