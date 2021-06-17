@@ -67,7 +67,8 @@ bool tuh_hid_mounted(uint8_t dev_addr, uint8_t instance);
 uint8_t tuh_hid_interface_protocol(uint8_t dev_addr, uint8_t instance);
 
 // Get current protocol: HID_PROTOCOL_BOOT (0) or HID_PROTOCOL_REPORT (1)
-// Note: device will be initialized in Boot protocol for simplicity.
+// Note: Device will be initialized in Boot protocol for simplicity.
+//       Application can use set_protocol() to switch back to Report protocol.
 uint8_t tuh_hid_get_protocol(uint8_t dev_addr, uint8_t instance);
 
 // Set protocol to HID_PROTOCOL_BOOT (0) or HID_PROTOCOL_REPORT (1)
