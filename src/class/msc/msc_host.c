@@ -366,7 +366,7 @@ uint16_t msch_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_interface_t const
              MSC_PROTOCOL_BOT  == desc_itf->bInterfaceProtocol);
 
   // msc driver length is fixed
-  uint16_t const drv_len = sizeof(tusb_desc_interface_t) + 2*sizeof(tusb_desc_endpoint_t);
+  uint16_t const drv_len = sizeof(tusb_desc_interface_t) + desc_itf->bNumEndpoints*sizeof(tusb_desc_endpoint_t);
   TU_ASSERT(drv_len <= max_len, 0);
 
   msch_interface_t* p_msc = get_itf(dev_addr);
