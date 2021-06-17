@@ -489,18 +489,6 @@ bool hcd_edpt_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr, uint8_t * 
   return true;
 }
 
-bool hcd_edpt_busy(uint8_t dev_addr, uint8_t ep_addr)
-{
-  ohci_ed_t const * const p_ed = ed_from_addr(dev_addr, ep_addr);
-  return tu_align16(p_ed->td_head.address) != tu_align16(p_ed->td_tail);
-}
-
-bool hcd_edpt_stalled(uint8_t dev_addr, uint8_t ep_addr)
-{
-  ohci_ed_t const * const p_ed = ed_from_addr(dev_addr, ep_addr);
-  return p_ed->td_head.halted && p_ed->is_stalled;
-}
-
 bool hcd_edpt_clear_stall(uint8_t dev_addr, uint8_t ep_addr)
 {
   ohci_ed_t * const p_ed = ed_from_addr(dev_addr, ep_addr);

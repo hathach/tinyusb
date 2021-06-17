@@ -29,6 +29,8 @@
 #if (TUSB_OPT_HOST_ENABLED && CFG_TUH_HID)
 
 #include "host/usbh.h"
+#include "host/usbh_classdriver.h"
+
 #include "hid_host.h"
 
 //--------------------------------------------------------------------+
@@ -199,7 +201,7 @@ bool tuh_hid_set_report(uint8_t dev_addr, uint8_t instance, uint8_t report_id, u
 //  TU_VERIFY(tuh_n_hid_n_mounted(dev_addr, instance));
 //
 //  hidh_interface_t* hid_itf = get_instance(dev_addr, instance);
-//  return !hcd_edpt_busy(dev_addr, hid_itf->ep_in);
+//  return !usbh_edpt_busy(dev_addr, hid_itf->ep_in);
 //}
 
 //void tuh_hid_send_report(uint8_t dev_addr, uint8_t instance, uint8_t report_id, uint8_t const* report, uint16_t len);

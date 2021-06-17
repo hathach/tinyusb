@@ -440,18 +440,6 @@ bool hcd_edpt_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr, uint8_t * 
   return true;
 }
 
-bool hcd_edpt_busy(uint8_t dev_addr, uint8_t ep_addr)
-{
-  ehci_qhd_t *p_qhd = qhd_get_from_addr(dev_addr, ep_addr);
-  return !p_qhd->qtd_overlay.halted && (p_qhd->p_qtd_list_head != NULL);
-}
-
-bool hcd_edpt_stalled(uint8_t dev_addr, uint8_t ep_addr)
-{
-  ehci_qhd_t *p_qhd = qhd_get_from_addr(dev_addr, ep_addr);
-  return p_qhd->qtd_overlay.halted && !qhd_has_xact_error(p_qhd);
-}
-
 bool hcd_edpt_clear_stall(uint8_t dev_addr, uint8_t ep_addr)
 {
   ehci_qhd_t *p_qhd = qhd_get_from_addr(dev_addr, ep_addr);
