@@ -98,7 +98,7 @@ uint8_t tuh_hid_interface_protocol(uint8_t dev_addr, uint8_t instance)
   return hid_itf->itf_protocol;
 }
 
-bool tuh_hid_get_protocol(uint8_t dev_addr, uint8_t instance)
+uint8_t tuh_hid_get_protocol(uint8_t dev_addr, uint8_t instance)
 {
   hidh_interface_t* hid_itf = get_instance(dev_addr, instance);
   return hid_itf->protocol_mode;
@@ -243,7 +243,7 @@ void hidh_close(uint8_t dev_addr)
 // Enumeration
 //--------------------------------------------------------------------+
 
-static bool config_get_protocol             (uint8_t dev_addr, tusb_control_request_t const * request, xfer_result_t result);
+static bool config_set_protocol             (uint8_t dev_addr, tusb_control_request_t const * request, xfer_result_t result);
 static bool config_get_report_desc          (uint8_t dev_addr, tusb_control_request_t const * request, xfer_result_t result);
 static bool config_get_report_desc_complete (uint8_t dev_addr, tusb_control_request_t const * request, xfer_result_t result);
 
@@ -286,7 +286,8 @@ uint16_t hidh_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_interface_t const
   hid_itf->report_desc_type = desc_hid->bReportType;
   hid_itf->report_desc_len  = tu_unaligned_read16(&desc_hid->wReportLength);
 
-  hid_itf->protocol_mode = HID_PROTOCOL_REPORT; // Per Specs: default is report mode
+  // Per HID Specs: default is Report protocol, though we will force Boot protocol when set_config
+  hid_itf->protocol_mode = HID_PROTOCOL_BOOT;
   if ( HID_SUBCLASS_BOOT == desc_itf->bInterfaceSubClass ) hid_itf->itf_protocol = desc_itf->bInterfaceProtocol;
 
   drv_len += desc_itf->bNumEndpoints*sizeof(tusb_desc_endpoint_t);
@@ -318,42 +319,44 @@ bool hidh_set_config(uint8_t dev_addr, uint8_t itf_num)
     .wLength  = 0
   };
 
-  TU_ASSERT( tuh_control_xfer(dev_addr, &request, NULL, (hid_itf->itf_protocol != HID_ITF_PROTOCOL_NONE) ? config_get_protocol : config_get_report_desc) );
+  TU_ASSERT( tuh_control_xfer(dev_addr, &request, NULL, (hid_itf->itf_protocol != HID_ITF_PROTOCOL_NONE) ? config_set_protocol : config_get_report_desc) );
 
   return true;
 }
 
-static bool config_get_protocol(uint8_t dev_addr, tusb_control_request_t const * request, xfer_result_t result)
+// Force device to work in BOOT protocol
+static bool config_set_protocol(uint8_t dev_addr, tusb_control_request_t const * request, xfer_result_t result)
 {
-  // Stall is a valid response for SET_IDLE GET_PROTOCOL, therefore we could ignore its result
+  // Stall is a valid response for SET_PROTOCOL, therefore we could ignore its result
   (void) result;
 
   uint8_t const itf_num     = (uint8_t) request->wIndex;
   uint8_t const instance    = get_instance_id_by_itfnum(dev_addr, itf_num);
   hidh_interface_t* hid_itf = get_instance(dev_addr, instance);
 
-  TU_LOG2("HID Get Protocol\r\n");
+  TU_LOG2("HID Set Protocol\r\n");
+  hid_itf->protocol_mode = HID_PROTOCOL_BOOT;
   tusb_control_request_t const new_request =
   {
     .bmRequestType_bit =
     {
       .recipient = TUSB_REQ_RCPT_INTERFACE,
       .type      = TUSB_REQ_TYPE_CLASS,
-      .direction = TUSB_DIR_IN
+      .direction = TUSB_DIR_OUT
     },
-    .bRequest = HID_REQ_CONTROL_GET_PROTOCOL,
-    .wValue   = 0,
+    .bRequest = HID_REQ_CONTROL_SET_PROTOCOL,
+    .wValue   = HID_PROTOCOL_BOOT,
     .wIndex   = hid_itf->itf_num,
     .wLength  = 1
   };
 
-  TU_ASSERT( tuh_control_xfer(dev_addr, &new_request, &hid_itf->protocol_mode, config_get_report_desc) );
+  TU_ASSERT( tuh_control_xfer(dev_addr, &new_request, NULL, config_get_report_desc) );
   return false;
 }
 
 static bool config_get_report_desc(uint8_t dev_addr, tusb_control_request_t const * request, xfer_result_t result)
 {
-  // Stall is a valid response for SET_IDLE GET_PROTOCOL, therefore we could ignore its result
+  // Stall is a valid response for SET_IDLE, therefore we could ignore its result
   (void) result;
 
   uint8_t const itf_num     = (uint8_t) request->wIndex;

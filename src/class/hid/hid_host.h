@@ -66,9 +66,9 @@ bool tuh_hid_mounted(uint8_t dev_addr, uint8_t instance);
 // Get interface supported protocol (bInterfaceProtocol) check out hid_interface_protocol_enum_t for possible values
 uint8_t tuh_hid_interface_protocol(uint8_t dev_addr, uint8_t instance);
 
-// Get current active protocol: HID_PROTOCOL_BOOT (0) or HID_PROTOCOL_REPORT (1)
-// Note: as HID spec, device will be initialized in Report mode
-bool tuh_hid_get_protocol(uint8_t dev_addr, uint8_t instance);
+// Get current protocol: HID_PROTOCOL_BOOT (0) or HID_PROTOCOL_REPORT (1)
+// Note: device will be initialized in Boot protocol for simplicity.
+uint8_t tuh_hid_get_protocol(uint8_t dev_addr, uint8_t instance);
 
 // Set protocol to HID_PROTOCOL_BOOT (0) or HID_PROTOCOL_REPORT (1)
 // This function is only supported by Boot interface (tuh_n_hid_interface_protocol() != NONE)
