@@ -45,7 +45,12 @@
 // Include MCU header
 #include "bsp/board_mcu.h"
 
+// TODO fix later
+#if CFG_TUSB_MCU == OPT_MCU_MM32F327X
+extern u32 SystemCoreClock;
+#else
 extern uint32_t SystemCoreClock;
+#endif
 
 /* Cortex M23/M33 port configuration. */
 #define configENABLE_MPU								        0

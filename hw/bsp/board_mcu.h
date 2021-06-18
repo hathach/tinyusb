@@ -130,6 +130,8 @@
 #elif CFG_TUSB_MCU == OPT_MCU_RX63X
   // no header needed
 
+#elif CFG_TUSB_MCU == OPT_MCU_MM32F327X
+  #include "mm32_device.h"
 #else
   #error "Missing MCU header"
 #endif
