@@ -29,7 +29,7 @@
 #if TUSB_OPT_DEVICE_ENABLED && \
     (CFG_TUSB_MCU == OPT_MCU_SAMD11 || CFG_TUSB_MCU == OPT_MCU_SAMD21 || \
      CFG_TUSB_MCU == OPT_MCU_SAMD51 || CFG_TUSB_MCU == OPT_MCU_SAME5X || \
-     CFG_TUSB_MCU == OPT_MCU_SAML22)
+     CFG_TUSB_MCU == OPT_MCU_SAML22 || CFG_TUSB_MCU == OPT_MCU_SAML21)
 
 #include "sam.h"
 #include "device/dcd.h"
@@ -125,7 +125,7 @@ void dcd_int_disable(uint8_t rhport)
 }
 
 #elif CFG_TUSB_MCU == OPT_MCU_SAMD11 || CFG_TUSB_MCU == OPT_MCU_SAMD21 || \
-      CFG_TUSB_MCU == OPT_MCU_SAML22
+      CFG_TUSB_MCU == OPT_MCU_SAML22 || CFG_TUSB_MCU == OPT_MCU_SAML21
 
 void dcd_int_enable(uint8_t rhport)
 {
