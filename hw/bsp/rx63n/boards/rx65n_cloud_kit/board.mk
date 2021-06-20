@@ -1,9 +1,7 @@
-DEPS_SUBMODULES += hw/mcu/renesas/rx
-
 CFLAGS += \
-  -mcpu=rx610 \
-  -misa=v1 \
-  -DCFG_TUSB_MCU=OPT_MCU_RX63X
+  -mcpu=rx64m \
+  -misa=v2 \
+  -DCFG_TUSB_MCU=OPT_MCU_RX65X
 
 RX_NEWLIB ?= 1
 
@@ -24,10 +22,10 @@ CFLAGS += -nostdinc \
 LIBS += -loptc -loptm
 endif
 
-MCU_DIR = hw/mcu/renesas/rx/rx63n
+MCU_DIR = hw/mcu/renesas/rx/rx65n
 
 # All source paths should be relative to the top level.
-LD_FILE = $(BOARD_PATH)/r5f5631fd.ld
+LD_FILE = $(BOARD_PATH)/r5f565ne.ld
 
 SRC_C += \
 	src/portable/renesas/usba/dcd_usba.c \
@@ -43,11 +41,12 @@ SRC_S += $(MCU_DIR)/start.S
 FREERTOS_PORT = RX600
 
 # For flash-jlink target
-JLINK_DEVICE = R5F5631F
+JLINK_DEVICE = R5F565NE
 JLINK_IF     = JTAG
 
 # For flash-pyocd target
 PYOCD_TARGET =
 
-# flash using jlink
-flash: flash-jlink
+# flash using rfp-cli
+flash: $(BUILD)/$(PROJECT).mot
+	rfp-cli -device rx65x -tool e2l -auto $^
