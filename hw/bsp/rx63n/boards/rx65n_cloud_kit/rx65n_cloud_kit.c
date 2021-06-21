@@ -30,17 +30,17 @@
 
 #define IRQ_PRIORITY_CMT0     5
 #define IRQ_PRIORITY_USBI0    6
-#define IRQ_PRIORITY_SCI0     5
+#define IRQ_PRIORITY_SCI5     5
 
 #define SYSTEM_PRCR_PRC1      (1<<1)
 #define SYSTEM_PRCR_PRKEY     (0xA5u<<8)
 
-#define CMT_PCLK              48000000
+#define CMT_PCLK              60000000
 #define CMT_CMCR_CKS_DIV_128  2
 #define CMT_CMCR_CMIE         (1<<6)
 #define MPC_PFS_ISEL          (1<<6)
 
-#define SCI_PCLK              48000000
+#define SCI_PCLK              60000000
 #define SCI_SSR_FER           (1<<4)
 #define SCI_SSR_ORER          (1<<5)
 
@@ -49,83 +49,103 @@
 #define SCI_SCR_TE            (1u<<5)
 #define SCI_SCR_RIE           (1u<<6)
 #define SCI_SCR_TIE           (1u<<7)
+#define INT_Excep_SCI5_TEI5   INT_Excep_ICU_GROUPBL0
+
+#define IRQ_USB0_USBI0        62
+#define IEN_USB0_USBI0        IEN_PERIB_INTB185
+#define VECT_USB0_USBI0       VECT_PERIB_INTB185
+#define IR_USB0_USBI0         IR_PERIB_INTB185
+#define IER_USB0_USBI0        IER_PERIB_INTB185
+#define IPR_USB0_USBI0        IPR_PERIB_INTB185
+#define INT_Excep_USB0_USBI0  INT_Excep_PERIB_INTB185
 
 void HardwareSetup(void)
 {
-/*
- BSC.CS0MOD.WORD = 0x1234;
- BSC.CS7CNT.WORD = 0x5678;
+  FLASH.ROMCIV.WORD = 1;
+  while (FLASH.ROMCIV.WORD) ;
+  FLASH.ROMCE.WORD = 1;
+  while (!FLASH.ROMCE.WORD) ;
 
- SCI0.SCR.BIT.TE  = 0;
- SCI0.SCR.BIT.RE  = 0;
- SCI0.SCR.BIT.TE  = 1;
- SCI2.SSR.BIT.PER = 0;
+  SYSTEM.PRCR.WORD = 0xA503u;
+  if (!SYSTEM.RSTSR1.BYTE) {
+    RTC.RCR4.BYTE = 0;
+    RTC.RCR3.BYTE = 12;
+    while (12 != RTC.RCR3.BYTE) ;
+  }
+  SYSTEM.SOSCCR.BYTE = 1;
 
- TMR0.TCR.BYTE = 0x12;
- TMR1.TCR.BYTE = 0x12;
- TMR2.TCR.BYTE = 0x12;
+  if (SYSTEM.HOCOCR.BYTE) {
+    SYSTEM.HOCOCR.BYTE = 0;
+    while (!SYSTEM.OSCOVFSR.BIT.HCOVF) ;
+  }
+  SYSTEM.PLLCR.WORD  = 0x1D10u; /* HOCO x 15 */
+  SYSTEM.PLLCR2.BYTE = 0;
+  while (!SYSTEM.OSCOVFSR.BIT.PLOVF) ;
 
- P0.DDR.BYTE = 0x12;
- P1.DDR.BYTE = 0x12;
-*/
+  SYSTEM.SCKCR.LONG  = 0x21C11222u;
+  SYSTEM.SCKCR2.WORD = 0x0041u;
+  SYSTEM.ROMWT.BYTE  = 0x02u;
+  while (0x02u != SYSTEM.ROMWT.BYTE) ;
+  SYSTEM.SCKCR3.WORD = 0x400u;
+  SYSTEM.PRCR.WORD   = 0xA500u;
 }
 
 //--------------------------------------------------------------------+
-// SCI0 handling
+// SCI handling
 //--------------------------------------------------------------------+
 typedef struct {
   uint8_t *buf;
   uint32_t cnt;
 } sci_buf_t;
-static volatile sci_buf_t sci0_buf[2];
+static volatile sci_buf_t sci_buf[2];
 
-void INT_Excep_SCI0_TXI0(void)
+void INT_Excep_SCI5_TXI5(void)
 {
-  uint8_t *buf = sci0_buf[0].buf;
-  uint32_t cnt = sci0_buf[0].cnt;
+  uint8_t *buf = sci_buf[0].buf;
+  uint32_t cnt = sci_buf[0].cnt;
   
   if (!buf || !cnt) {
-    SCI0.SCR.BYTE &= ~(SCI_SCR_TEIE | SCI_SCR_TE | SCI_SCR_TIE);
+    SCI5.SCR.BYTE &= ~(SCI_SCR_TEIE | SCI_SCR_TE | SCI_SCR_TIE);
     return;
   }
-  SCI0.TDR = *buf;
+  SCI5.TDR = *buf;
   if (--cnt) {
     ++buf;
   } else {
     buf = NULL;
-    SCI0.SCR.BIT.TIE  = 0;
-    SCI0.SCR.BIT.TEIE = 1;
+    SCI5.SCR.BIT.TIE  = 0;
+    SCI5.SCR.BIT.TEIE = 1;
   }
-  sci0_buf[0].buf = buf;
-  sci0_buf[0].cnt = cnt;
+  sci_buf[0].buf = buf;
+  sci_buf[0].cnt = cnt;
 }
 
-void INT_Excep_SCI0_TEI0(void)
+void INT_Excep_SCI5_TEI5(void)
 {
-  SCI0.SCR.BYTE &= ~(SCI_SCR_TEIE | SCI_SCR_TE | SCI_SCR_TIE);
+  SCI5.SCR.BYTE &= ~(SCI_SCR_TEIE | SCI_SCR_TE | SCI_SCR_TIE);
 }
 
-void INT_Excep_SCI0_RXI0(void)
+void INT_Excep_SCI5_RXI5(void)
 {
-  uint8_t *buf = sci0_buf[1].buf;
-  uint32_t cnt = sci0_buf[1].cnt;
+  uint8_t *buf = sci_buf[1].buf;
+  uint32_t cnt = sci_buf[1].cnt;
 
   if (!buf || !cnt ||
-      (SCI0.SSR.BYTE & (SCI_SSR_FER | SCI_SSR_ORER))) {
-    sci0_buf[1].buf = NULL;
-    SCI0.SSR.BYTE   = 0;
-    SCI0.SCR.BYTE  &= ~(SCI_SCR_RE | SCI_SCR_RIE);
+      (SCI5.SSR.BYTE & (SCI_SSR_FER | SCI_SSR_ORER))) {
+    sci_buf[1].buf = NULL;
+    SCI5.SSR.BYTE   = 0;
+    SCI5.SCR.BYTE  &= ~(SCI_SCR_RE | SCI_SCR_RIE);
     return;
   }
-  *buf = SCI0.RDR;
+  *buf = SCI5.RDR;
   if (--cnt) {
     ++buf;
   } else {
     buf = NULL;
-    SCI0.SCR.BYTE &= ~(SCI_SCR_RE | SCI_SCR_RIE);
+    SCI5.SCR.BYTE &= ~(SCI_SCR_RE | SCI_SCR_RIE);
   }
-  sci0_buf[1].buf = buf;
-  sci0_buf[1].cnt = cnt;
+  sci_buf[1].buf = buf;
+  sci_buf[1].cnt = cnt;
 }
 
 //--------------------------------------------------------------------+
@@ -156,43 +176,47 @@ void board_init(void)
   /* Unlock MPC registers */
   MPC.PWPR.BIT.B0WI  = 0;
   MPC.PWPR.BIT.PFSWE = 1;
-  /* LED PA0 */
-  PORTA.PMR.BIT.B0  = 0U;
-  PORTA.PODR.BIT.B0 = 0U;
-  PORTA.PDR.BIT.B0  = 1U;
-  /* UART TXD0 => P20, RXD0 => P21 */
-  PORT2.PMR.BIT.B0 = 1U;
-  PORT2.PCR.BIT.B0 = 1U;
-  MPC.P20PFS.BYTE  = 0b01010;
-  PORT2.PMR.BIT.B1 = 1U;
-  MPC.P21PFS.BYTE  = 0b01010;
-  /* USB VBUS -> P16 DPUPE -> P14 */
-  PORT1.PMR.BIT.B4 = 1U;
+  // SW PB1
+  PORTB.PMR.BIT.B1 = 0U;
+  PORTB.PDR.BIT.B1 = 0U;
+  // LED PD6
+  PORTD.PODR.BIT.B6 = 1U;
+  PORTD.ODR1.BIT.B4 = 1U;
+  PORTD.PMR.BIT.B6  = 0U;
+  PORTD.PDR.BIT.B6  = 1U;
+  /* UART TXD5 => PA4, RXD5 => PA3 */
+  PORTA.PMR.BIT.B4 = 1U;
+  PORTA.PCR.BIT.B4 = 1U;
+  MPC.PA4PFS.BYTE  = 0b01010;
+  PORTA.PMR.BIT.B3 = 1U;
+  MPC.PA5PFS.BYTE  = 0b01010;
+  /* USB VBUS -> P16 */
   PORT1.PMR.BIT.B6 = 1U;
-  MPC.P14PFS.BYTE  = 0b10001;
   MPC.P16PFS.BYTE  = MPC_PFS_ISEL | 0b10001;
-//  MPC.PFUSB0.BIT.PUPHZS = 1;
   /* Lock MPC registers */
   MPC.PWPR.BIT.PFSWE = 0;
   MPC.PWPR.BIT.B0WI  = 1;
 
-//  IR(USB0, USBI0)  = 0;
-//  IPR(USB0, USBI0) = IRQ_PRIORITY_USBI0;
-
-  /* Enable SCI0 */
+  /* Enable SCI5 */
   SYSTEM.PRCR.WORD = SYSTEM_PRCR_PRKEY | SYSTEM_PRCR_PRC1;
-  MSTP(SCI0) = 0;
-  SYSTEM.PRCR.WORD = SYSTEM_PRCR_PRKEY;
-  SCI0.BRR = (SCI_PCLK / (32 * 115200)) - 1;
-//  IR(SCI0,  RXI0)  = 0;
-//  IR(SCI0,  TXI0)  = 0;
-//  IR(SCI0,  TEI0)  = 0;
-//  IPR(SCI0, RXI0) = IRQ_PRIORITY_SCI0;
-//  IPR(SCI0, TXI0) = IRQ_PRIORITY_SCI0;
-//  IPR(SCI0, TEI0) = IRQ_PRIORITY_SCI0;
-//  IEN(SCI0, RXI0) = 1;
-//  IEN(SCI0, TXI0) = 1;
-//  IEN(SCI0, TEI0) = 1;
+  MSTP(SCI5) = 0;
+  SYSTEM.PRCR.WORD  = SYSTEM_PRCR_PRKEY;
+  SCI5.BRR = ((SCI_PCLK * 1.0) / (32.0 * 115200.0)) - 1;
+  IR(SCI5,  RXI5)   = 0;
+  IR(SCI5,  TXI5)   = 0;
+  IS(SCI5,  TEI5)   = 0;
+  IR(ICU, GROUPBL0) = 0;
+  IPR(SCI5, RXI5)   = IRQ_PRIORITY_SCI5;
+  IPR(SCI5, TXI5)   = IRQ_PRIORITY_SCI5;
+  IPR(ICU,GROUPBL0) = IRQ_PRIORITY_SCI5;
+  IEN(SCI5, RXI5)   = 1;
+  IEN(SCI5, TXI5)   = 1;
+  IEN(ICU,GROUPBL0) = 1;
+  EN(SCI5, TEI5)    = 1;
+
+  /* setup USBI0 interrupt. Group B edge */
+  IR(USB0, USBI0)  = 0;
+  IPR(USB0, USBI0) = IRQ_PRIORITY_USBI0;
 }
 
 //--------------------------------------------------------------------+
@@ -201,29 +225,29 @@ void board_init(void)
 
 void board_led_write(bool state)
 {
-  PORTA.PODR.BIT.B0 = state ? 1 : 0;
+  PORTD.PODR.BIT.B6 = state ? 0 : 1;
 }
 
 uint32_t board_button_read(void)
 {
-  return 0;
+  return PORTB.PIDR.BIT.B1 ? 0 : 1;
 }
 
 int board_uart_read(uint8_t* buf, int len)
 {
-  sci0_buf[1].buf = buf;
-  sci0_buf[1].cnt = len;
-  SCI0.SCR.BYTE |= SCI_SCR_RE | SCI_SCR_RIE;
-  while (SCI0.SCR.BIT.RE) ;
-  return len - sci0_buf[1].cnt;
+  sci_buf[1].buf = buf;
+  sci_buf[1].cnt = len;
+  SCI5.SCR.BYTE |= SCI_SCR_RE | SCI_SCR_RIE;
+  while (SCI5.SCR.BIT.RE) ;
+  return len - sci_buf[1].cnt;
 }
 
 int board_uart_write(void const *buf, int len)
 {
-  sci0_buf[0].buf = (uint8_t*)buf;
-  sci0_buf[0].cnt = len;
-  SCI0.SCR.BYTE |= SCI_SCR_TE | SCI_SCR_TIE;
-  while (SCI0.SCR.BIT.TE) ;
+  sci_buf[0].buf = (uint8_t*)buf;
+  sci_buf[0].cnt = len;
+  SCI5.SCR.BYTE |= SCI_SCR_TE | SCI_SCR_TIE;
+  while (SCI5.SCR.BIT.TE) ;
   return len;
 }
 
@@ -239,5 +263,5 @@ uint32_t board_millis(void)
   return system_ticks;
 }
 #else
-uint32_t SystemCoreClock = 96000000;
+uint32_t SystemCoreClock = 120000000;
 #endif

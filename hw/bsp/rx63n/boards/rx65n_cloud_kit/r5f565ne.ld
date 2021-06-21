@@ -1,16 +1,21 @@
+__USTACK_SIZE = 0x00000200;
+__ISTACK_SIZE = 0x00000200;
+
 MEMORY
 {
-	RAM : ORIGIN = 0x0, LENGTH = 262144
-	RAM2 : ORIGIN = 0x00800000, LENGTH = 393216
-	ROM : ORIGIN = 0xFFE00000, LENGTH = 2097152
-	OFS : ORIGIN = 0xFE7F5D00, LENGTH = 128
+	RAM  : ORIGIN = 0x4,        LENGTH = 0x3fffc
+	RAM2 : ORIGIN = 0x00800000, LENGTH = 0x60000
+	OFS  : ORIGIN = 0xFE7F5D00, LENGTH = 128
+	ROM  : ORIGIN = 0xFFE00000, LENGTH = 0x200000
 }
 SECTIONS
 {
 	.exvectors 0xFFFFFF80: AT(0xFFFFFF80)
 	{
+		"_exvectors_start" = .;
 		KEEP(*(.exvectors))
-	} > ROM
+		"_exvectors_end" = .;
+	} >ROM
 	.fvectors 0xFFFFFFFC: AT(0xFFFFFFFC)
 	{
 		KEEP(*(.fvectors))
@@ -20,6 +25,7 @@ SECTIONS
 		*(.text)
 		*(.text.*)
 		*(P)
+		KEEP(*(.text.*_isr))
 		etext = .;
 	} > ROM
 	.rvectors ALIGN(4):
@@ -89,15 +95,7 @@ SECTIONS
 		. = ALIGN(2);
 		_mdata = .;
 	} > ROM
-	.ustack 0x200: AT(0x200)
-	{
-		_ustack = .;
-	} > RAM
-	.istack 0x100: AT(0x100)
-	{
-		_istack = .;
-	} > RAM
-	.data 0x204: AT(_mdata)
+	.data : AT(_mdata)
 	{
 		_data = .;
 		*(.data)
@@ -122,6 +120,18 @@ SECTIONS
 		*(B_2)
 		_ebss = .;
 		_end = .;
+	} > RAM
+	.ustack :
+	{
+		. = ALIGN(8);
+		. = . + __USTACK_SIZE;
+		PROVIDE(_ustack = .);
+	} > RAM
+	.istack :
+	{
+		. = ALIGN(8);
+		. = . + __ISTACK_SIZE;
+		PROVIDE(_istack = .);
 	} > RAM
 	.ofs1 0xFE7F5D00: AT(0xFE7F5D00)
 	{
