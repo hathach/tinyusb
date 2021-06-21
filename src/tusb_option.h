@@ -278,8 +278,8 @@
     #error there is no benefit enable hub with max device is 1. Please disable hub or increase CFG_TUSB_HOST_DEVICE_MAX
   #endif
 
-  #ifndef CFG_TUH_ENUMERATION_BUFSZIE
-    #define CFG_TUH_ENUMERATION_BUFSZIE 256
+  #ifndef CFG_TUH_ENUMERATION_BUFSIZE
+    #define CFG_TUH_ENUMERATION_BUFSIZE 256
   #endif
 
   //------------- CLASS -------------//
