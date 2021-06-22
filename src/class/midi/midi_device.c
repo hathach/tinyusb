@@ -197,9 +197,11 @@ uint32_t tud_midi_n_stream_read(uint8_t itf, uint8_t cable_num, void* buffer, ui
 
 bool tud_midi_n_packet_read (uint8_t itf, uint8_t packet[4])
 {
-  midid_interface_t* p_midi = &_midid_itf[itf];
-  uint32_t num_read = tu_fifo_read_n(&p_midi->rx_ff, packet, 4);
-  _prep_out_transaction(p_midi);
+  midid_interface_t* midi = &_midid_itf[itf];
+  TU_VERIFY(midi->ep_out);
+
+  uint32_t const num_read = tu_fifo_read_n(&midi->rx_ff, packet, 4);
+  _prep_out_transaction(midi);
   return (num_read == 4);
 }
 
@@ -234,7 +236,7 @@ static uint32_t write_flush(midid_interface_t* midi)
 uint32_t tud_midi_n_stream_write(uint8_t itf, uint8_t cable_num, uint8_t const* buffer, uint32_t bufsize)
 {
   midid_interface_t* midi = &_midid_itf[itf];
-  TU_VERIFY(midi->itf_num, 0);
+  TU_VERIFY(midi->ep_in, 0);
 
   midid_stream_t* stream = &midi->stream_write;
 
@@ -351,9 +353,7 @@ uint32_t tud_midi_n_stream_write(uint8_t itf, uint8_t cable_num, uint8_t const* 
 bool tud_midi_n_packet_write (uint8_t itf, uint8_t const packet[4])
 {
   midid_interface_t* midi = &_midid_itf[itf];
-  if (midi->itf_num == 0) {
-    return 0;
-  }
+  TU_VERIFY(midi->ep_in);
 
   if (tu_fifo_remaining(&midi->tx_ff) < 4) return false;
 
@@ -435,6 +435,7 @@ uint16_t midid_open(uint8_t rhport, tusb_desc_interface_t const * desc_itf, uint
   }
 
   p_midi->itf_num = desc_midi->bInterfaceNumber;
+  (void) p_midi->itf_num;
 
   // next descriptor
   drv_len += tu_desc_len(p_desc);

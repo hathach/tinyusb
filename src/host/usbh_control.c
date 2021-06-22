@@ -50,7 +50,7 @@ typedef struct
 static usbh_control_xfer_t _ctrl_xfer;
 
 //CFG_TUSB_MEM_SECTION CFG_TUSB_MEM_ALIGN
-//static uint8_t _tuh_ctrl_buf[CFG_TUH_ENUMERATION_BUFSZIE];
+//static uint8_t _tuh_ctrl_buf[CFG_TUH_ENUMERATION_BUFSIZE];
 
 //--------------------------------------------------------------------+
 // MACRO TYPEDEF CONSTANT ENUM DECLARATION

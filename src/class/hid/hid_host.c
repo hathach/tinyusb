@@ -368,7 +368,7 @@ static bool config_get_report_desc(uint8_t dev_addr, tusb_control_request_t cons
 
   // Get Report Descriptor
   // using usbh enumeration buffer since report descriptor can be very long
-  TU_ASSERT( hid_itf->report_desc_len <= CFG_TUH_ENUMERATION_BUFSZIE );
+  TU_ASSERT( hid_itf->report_desc_len <= CFG_TUH_ENUMERATION_BUFSIZE );
 
   TU_LOG2("HID Get Report Descriptor\r\n");
   tusb_control_request_t const new_request =
