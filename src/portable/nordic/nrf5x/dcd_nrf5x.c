@@ -108,13 +108,21 @@ static inline uint32_t NVIC_GetEnableIRQ(IRQn_Type IRQn)
 }
 #endif
 
+// check if we are in ISR
+TU_ATTR_ALWAYS_INLINE static inline bool is_in_isr(void)
+{
+  return (SCB->ICSR & SCB_ICSR_VECTACTIVE_Msk) ? true : false;
+}
+
 // helper to start DMA
+// TODO use Cortex M4 LDREX and STREX command (atomic) to have better mutex access to EasyDMA
+// since current implementation does not 100% guarded against race condition
 static void edpt_dma_start(volatile uint32_t* reg_startep)
 {
   // Only one dma can be active
   if ( _dcd.dma_pending )
   {
-    if (SCB->ICSR & SCB_ICSR_VECTACTIVE_Msk)
+    if (is_in_isr())
     {
       // Called within ISR, use usbd task to defer later
       usbd_defer_func( (osal_task_func_t) edpt_dma_start, (void*) reg_startep, true );
@@ -157,6 +165,17 @@ static void edpt_dma_end(void)
 {
   TU_ASSERT(_dcd.dma_pending, );
   _dcd.dma_pending = 0;
+}
+
+// helper to set TASKS_EP0STATUS / TASKS_EP0RCVOUT since they also need EasyDMA
+// However TASKS_EP0STATUS doesn't trigger any DMA transfer and got ENDED event subsequently
+// Therefore dma_running state will be corrected right away
+void start_ep0_task(volatile uint32_t* reg_task)
+{
+  edpt_dma_start(reg_task);
+
+  // correct the dma_running++ in dma start
+  if (_dcd.dma_pending) _dcd.dma_pending--;
 }
 
 // helper getting td
@@ -407,21 +426,18 @@ bool dcd_edpt_xfer (uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t 
 
   if ( control_status )
   {
-    // Status Phase also requires Easy DMA has to be available as well !!!!
-    // However TASKS_EP0STATUS doesn't trigger any DMA transfer and got ENDED event subsequently
-    // Therefore dma_running state will be corrected right away
-    edpt_dma_start(&NRF_USBD->TASKS_EP0STATUS);
-    if (_dcd.dma_pending) _dcd.dma_pending--; // correct the dma_running++ in dma start
+    // Status Phase also requires EasyDMA has to be available as well !!!!
+    start_ep0_task(&NRF_USBD->TASKS_EP0STATUS);
 
     // The nRF doesn't interrupt on status transmit so we queue up a success response.
-    dcd_event_xfer_complete(0, ep_addr, 0, XFER_RESULT_SUCCESS, false);
+    dcd_event_xfer_complete(0, ep_addr, 0, XFER_RESULT_SUCCESS, is_in_isr());
   }
   else if ( dir == TUSB_DIR_OUT )
   {
     if ( epnum == 0 )
     {
-      // Accept next Control Out packet
-      NRF_USBD->TASKS_EP0RCVOUT = 1;
+      // Accept next Control Out packet. TASKS_EP0RCVOUT also require EasyDMA
+      start_ep0_task(&NRF_USBD->TASKS_EP0RCVOUT);
     }else
     {
       if ( xfer->data_received )
@@ -581,12 +597,6 @@ void dcd_int_handler(uint8_t rhport)
     }
   }
 
-  if ( int_status & EDPT_END_ALL_MASK )
-  {
-    // DMA complete move data from SRAM -> Endpoint
-    edpt_dma_end();
-  }
- 
   // Setup tokens are specific to the Control endpoint.
   if ( int_status & USBD_INTEN_EP0SETUP_Msk )
   {
@@ -605,6 +615,12 @@ void dcd_int_handler(uint8_t rhport)
     {
       dcd_event_setup_received(0, setup, true);
     }
+  }
+
+  if ( int_status & EDPT_END_ALL_MASK )
+  {
+    // DMA complete move data from SRAM -> Endpoint
+    edpt_dma_end();
   }
 
   //--------------------------------------------------------------------+
@@ -655,8 +671,15 @@ void dcd_int_handler(uint8_t rhport)
       {
         if ( epnum == 0 )
         {
-          // Accept next Control Out packet
-          NRF_USBD->TASKS_EP0RCVOUT = 1;
+          // Accept next Control Out packet. TASKS_EP0RCVOUT also require EasyDMA
+          if ( _dcd.dma_pending )
+          {
+            // use usbd task to defer later
+            usbd_defer_func( (osal_task_func_t) start_ep0_task, (void*) &NRF_USBD->TASKS_EP0RCVOUT, true );
+          }else
+          {
+            start_ep0_task(&NRF_USBD->TASKS_EP0RCVOUT);
+          }
         }else
         {
           // nRF auto accept next Bulk/Interrupt OUT packet
@@ -973,7 +996,7 @@ void tusb_hal_nrf_power_event (uint32_t event)
 
         hfclk_disable();
 
-        dcd_event_bus_signal(0, DCD_EVENT_UNPLUGGED, (SCB->ICSR & SCB_ICSR_VECTACTIVE_Msk) ? true : false);
+        dcd_event_bus_signal(0, DCD_EVENT_UNPLUGGED, is_in_isr());
       }
     break;
 
