@@ -518,22 +518,13 @@ static void process_set_address(uint8_t rhport)
 {
   const uint32_t addr = USB0.USBADDR.BIT.USBADDR;
   if (!addr) return;
-#if defined(__CCRX__)
-  tusb_control_request_t setup_packet;
-  setup_packet.bmRequestType = 0;
-  setup_packet.bRequest = 5;
-  setup_packet.wValue = addr;
-  setup_packet.wIndex = 0;
-  setup_packet.wLength = 0;
-#else
   const tusb_control_request_t setup_packet = {
-      .bmRequestType = 0,
+      .bmRequestType = { 0 },  /* Note: CCRX needs the braces over this struct member */
       .bRequest      = 5,
       .wValue        = addr,
       .wIndex        = 0,
       .wLength       = 0,
     };
-#endif
   dcd_event_setup_received(rhport, (const uint8_t*)&setup_packet, true);
 }
 

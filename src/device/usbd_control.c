@@ -55,17 +55,9 @@ typedef struct
 
 static usbd_control_xfer_t _ctrl_xfer;
 
-#if defined(TU_HAS_NO_ATTR_ALIGNED)
-// Helper union to overcome the lack of the alignment attribute/pragma
-static union {
-  uint16_t : (sizeof(uint16_t) * 8);  // Alignment of at least the size of the used type
-  uint8_t _usbd_ctrl_buf[CFG_TUD_ENDPOINT0_SIZE];
-} Align_usbd_ctrl_buf_;
-static uint8_t *_usbd_ctrl_buf = (uint8_t*)&Align_usbd_ctrl_buf_;
-#else
 CFG_TUSB_MEM_SECTION CFG_TUSB_MEM_ALIGN
 static uint8_t _usbd_ctrl_buf[CFG_TUD_ENDPOINT0_SIZE];
-#endif
+
 
 //--------------------------------------------------------------------+
 // Application API

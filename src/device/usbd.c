@@ -1156,14 +1156,14 @@ void usbd_defer_func(osal_task_func_t func, void* param, bool in_isr)
 
 bool usbd_edpt_open(uint8_t rhport, tusb_desc_endpoint_t const * desc_ep)
 {
-  TU_LOG2("  Open EP %02X with Size = %u\r\n", desc_ep->bEndpointAddress, desc_ep->wMaxPacketSize.size);
+  TU_LOG2("  Open EP %02X with Size = %u\r\n", desc_ep->bEndpointAddress, tu_le16toh(desc_ep->wMaxPacketSize.size));
 
   switch (desc_ep->bmAttributes.xfer)
   {
     case TUSB_XFER_ISOCHRONOUS:
     {
       uint16_t const max_epsize = (_usbd_dev.speed == TUSB_SPEED_HIGH ? 1024 : 1023);
-      TU_ASSERT(desc_ep->wMaxPacketSize.size <= max_epsize);
+      TU_ASSERT(tu_le16toh(desc_ep->wMaxPacketSize.size) <= max_epsize);
     }
     break;
 

@@ -84,8 +84,6 @@
   // Endian conversion use well-known host to network (big endian) naming
   #if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
     #define TU_BYTE_ORDER TU_LITTLE_ENDIAN
-    #define TU_ENDIAN_LITTLE_BEGIN
-    #define TU_ENDIAN_LITTLE_END
   #else
     #define TU_BYTE_ORDER TU_BIG_ENDIAN
   #endif
@@ -153,20 +151,12 @@
   // Endian conversion use well-known host to network (big endian) naming
   #if defined(__LIT)
     #define TU_BYTE_ORDER TU_LITTLE_ENDIAN
-    #define TU_ENDIAN_LITTLE_BEGIN
-    #define TU_ENDIAN_LITTLE_END
   #else
     #define TU_BYTE_ORDER TU_BIG_ENDIAN
-    #define TU_ENDIAN_LITTLE_BEGIN _Pragma("endian little")
-    #define TU_ENDIAN_LITTLE_END _Pragma("endian")
   #endif
 
   #define TU_BSWAP16(u16) ((unsigned short)_builtin_revw((unsigned long)u16))
   #define TU_BSWAP32(u32) (_builtin_revl(u32))
-
-  /* activate the "aligned" emulation, because this toolchain does not know
-     the aligned attribute (or something similar yet) */
-  #define TU_HAS_NO_ATTR_ALIGNED
 
 #else 
   #error "Compiler attribute porting is required"
