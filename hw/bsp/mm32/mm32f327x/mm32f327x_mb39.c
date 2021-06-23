@@ -52,9 +52,7 @@ void USB_DeviceClockInit(void)
 //--------------------------------------------------------------------+
 // LED
 
-void board_led_write(bool state);
 extern u32 SystemCoreClock;
-const int baudrate = 115200;
 
 void board_init(void)
 {
@@ -91,7 +89,7 @@ void board_init(void)
 
 
 	UART_StructInit(&UART_InitStruct);
-	UART_InitStruct.UART_BaudRate = baudrate;
+	UART_InitStruct.UART_BaudRate = CFG_BOARD_UART_BAUDRATE;
 	UART_InitStruct.UART_WordLength = UART_WordLength_8b;
 	UART_InitStruct.UART_StopBits = UART_StopBits_1;//one stopbit
 	UART_InitStruct.UART_Parity = UART_Parity_No;//none odd-even  verify bit
@@ -109,7 +107,7 @@ void board_init(void)
 	GPIO_Init(GPIOA, &GPIO_InitStruct);
 
 	//UART1_RX    GPIOA.10
-	GPIO_InitStruct.GPIO_Pin = GPIO_Pin_5;
+	GPIO_InitStruct.GPIO_Pin = GPIO_Pin_10;
 	GPIO_InitStruct.GPIO_Mode = GPIO_Mode_IPU;
 	GPIO_Init(GPIOA, &GPIO_InitStruct);
 
