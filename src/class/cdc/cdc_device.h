@@ -104,6 +104,12 @@ uint32_t tud_cdc_n_write_available (uint8_t itf);
 // Clear the transmit FIFO
 bool tud_cdc_n_write_clear (uint8_t itf);
 
+// Get the Receive FIFO (for DMA transfer)
+tu_fifo_t* tud_cdc_n_get_rx_ff (uint8_t itf);
+
+// Get the transmit FIFO (for DMA transfer)
+tu_fifo_t* tud_cdc_n_get_tx_ff (uint8_t itf);
+
 //--------------------------------------------------------------------+
 // Application API (Single Port)
 //--------------------------------------------------------------------+
@@ -239,6 +245,18 @@ static inline uint32_t tud_cdc_write_available(void)
 static inline bool tud_cdc_write_clear(void)
 {
   return tud_cdc_n_write_clear(0);
+}
+
+// Get the Receive FIFO
+static inline tu_fifo_t* tud_cdc_get_rx_ff (uint8_t itf)
+{
+  return tud_cdc_n_get_rx_ff(0);
+}
+
+// Get the transmit FIFO
+static inline tu_fifo_t* tud_cdc_get_tx_ff (uint8_t itf)
+{
+  return tud_cdc_n_get_tx_ff(0);
 }
 
 /** @} */
