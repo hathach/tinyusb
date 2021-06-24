@@ -481,4 +481,18 @@ bool cdcd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint32_
   return true;
 }
 
+// Get the Receive FIFO (for DMA transfer)
+tu_fifo_t* tud_cdc_n_get_rx_ff (uint8_t itf)
+{
+  TU_ASSERT(itf < CFG_TUD_CDC);
+  return &_cdcd_itf[itf].rx_ff;
+}
+
+// Get the transmit FIFO (for DMA transfer)
+tu_fifo_t* tud_cdc_n_get_tx_ff (uint8_t itf)
+{
+  TU_ASSERT(itf < CFG_TUD_CDC);
+  return &_cdcd_itf[itf].tx_ff;
+}
+
 #endif
