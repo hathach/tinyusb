@@ -248,13 +248,13 @@ static inline bool tud_cdc_write_clear(void)
 }
 
 // Get the Receive FIFO
-static inline tu_fifo_t* tud_cdc_get_rx_ff (uint8_t itf)
+static inline tu_fifo_t* tud_cdc_get_rx_ff (void)
 {
   return tud_cdc_n_get_rx_ff(0);
 }
 
 // Get the transmit FIFO
-static inline tu_fifo_t* tud_cdc_get_tx_ff (uint8_t itf)
+static inline tu_fifo_t* tud_cdc_get_tx_ff (void)
 {
   return tud_cdc_n_get_tx_ff(0);
 }
