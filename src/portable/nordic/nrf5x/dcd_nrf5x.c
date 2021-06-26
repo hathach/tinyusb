@@ -787,7 +787,7 @@ static bool hfclk_running(void)
 #ifdef SOFTDEVICE_PRESENT
   if ( is_sd_enabled() )
   {
-    uint32_t is_running;
+    uint32_t is_running = 0;
     (void) sd_clock_hfclk_is_running(&is_running);
     return (is_running ? true : false);
   }
