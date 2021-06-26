@@ -110,6 +110,7 @@ tu_fifo_t* tud_cdc_n_get_rx_ff (uint8_t itf);
 // Get the transmit FIFO (for DMA transfer)
 tu_fifo_t* tud_cdc_n_get_tx_ff (uint8_t itf);
 
+void tud_cdc_n_rx_ff_read_done (uint8_t itf);
 //--------------------------------------------------------------------+
 // Application API (Single Port)
 //--------------------------------------------------------------------+
@@ -257,6 +258,11 @@ static inline tu_fifo_t* tud_cdc_get_rx_ff (uint8_t itf)
 static inline tu_fifo_t* tud_cdc_get_tx_ff (uint8_t itf)
 {
   return tud_cdc_n_get_tx_ff(0);
+}
+
+static inline void tud_cdc_rx_ff_read_done (void)
+{
+  tud_cdc_n_rx_ff_read_done(0);
 }
 
 /** @} */

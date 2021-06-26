@@ -36,10 +36,59 @@
 //--------------------------------------------------------------------+
 // MACRO CONSTANT TYPEDEF
 //--------------------------------------------------------------------+
+
+// For MCUs who can handle a circuler buffer USE_LINEAR_BUFFER can be disable to increase throughput,
+// However more might be need due to alignment and minimum buffer size requirement
+
+// Only STM32 synopsys & NXP Transdimension use non-linear buffer for now
+// Synopsys detection copied from dcd_synopsys.c (refactor later on)
+#if defined (STM32F105x8) || defined (STM32F105xB) || defined (STM32F105xC) || \
+    defined (STM32F107xB) || defined (STM32F107xC)
+#define STM32F1_SYNOPSYS
+#endif
+
+#if defined (STM32L475xx) || defined (STM32L476xx) ||                          \
+    defined (STM32L485xx) || defined (STM32L486xx) || defined (STM32L496xx) || \
+    defined (STM32L4R5xx) || defined (STM32L4R7xx) || defined (STM32L4R9xx) || \
+    defined (STM32L4S5xx) || defined (STM32L4S7xx) || defined (STM32L4S9xx)
+#define STM32L4_SYNOPSYS
+#endif
+
+#if ((CFG_TUSB_MCU == OPT_MCU_STM32F1 && defined(STM32F1_SYNOPSYS))|| \
+    CFG_TUSB_MCU == OPT_MCU_STM32F2                                || \
+    CFG_TUSB_MCU == OPT_MCU_STM32F4                                || \
+    CFG_TUSB_MCU == OPT_MCU_STM32F7                                || \
+    CFG_TUSB_MCU == OPT_MCU_STM32H7                                || \
+    (CFG_TUSB_MCU == OPT_MCU_STM32L4 && defined(STM32L4_SYNOPSYS)) || \
+    CFG_TUSB_MCU == OPT_MCU_LPC18XX                                || \
+    CFG_TUSB_MCU == OPT_MCU_LPC43XX                                || \
+    CFG_TUSB_MCU == OPT_MCU_MIMXRT10XX)                            && \
+    (defined(TUD_CDC_BYPASS_LINEAR_BUFFER) && TUD_CDC_BYPASS_LINEAR_BUFFER)
+#define  USE_LINEAR_BUFFER     0
+#else
+#define  USE_LINEAR_BUFFER     1
+#endif
+
 enum
 {
   BULK_PACKET_SIZE = (TUD_OPT_HIGH_SPEED ? 512 : 64)
 };
+
+// Separate buffers in order to save RAM when align is applied,
+// since struct always aligned to most aligned member
+typedef struct
+{
+#if USE_LINEAR_BUFFER
+  uint8_t rx_ff_buf[CFG_TUD_CDC_RX_BUFSIZE];
+  uint8_t tx_ff_buf[CFG_TUD_CDC_TX_BUFSIZE];
+  // Endpoint Transfer buffer
+  CFG_TUSB_MEM_ALIGN uint8_t epout_buf[CFG_TUD_CDC_EP_BUFSIZE];
+  CFG_TUSB_MEM_ALIGN uint8_t epin_buf[CFG_TUD_CDC_EP_BUFSIZE];
+#else
+  CFG_TUSB_MEM_ALIGN uint8_t rx_ff_buf[CFG_TUD_CDC_RX_BUFSIZE];
+  CFG_TUSB_MEM_ALIGN uint8_t tx_ff_buf[CFG_TUD_CDC_TX_BUFSIZE];
+#endif
+}cdcd_intf_buf_t;
 
 typedef struct
 {
@@ -58,19 +107,12 @@ typedef struct
   // FIFO
   tu_fifo_t rx_ff;
   tu_fifo_t tx_ff;
-
-  uint8_t rx_ff_buf[CFG_TUD_CDC_RX_BUFSIZE];
-  uint8_t tx_ff_buf[CFG_TUD_CDC_TX_BUFSIZE];
-
+  
+  cdcd_intf_buf_t * intf_buf;
 #if CFG_FIFO_MUTEX
   osal_mutex_def_t rx_ff_mutex;
   osal_mutex_def_t tx_ff_mutex;
 #endif
-
-  // Endpoint Transfer buffer
-  CFG_TUSB_MEM_ALIGN uint8_t epout_buf[CFG_TUD_CDC_EP_BUFSIZE];
-  CFG_TUSB_MEM_ALIGN uint8_t epin_buf[CFG_TUD_CDC_EP_BUFSIZE];
-
 }cdcd_interface_t;
 
 #define ITF_MEM_RESET_SIZE   offsetof(cdcd_interface_t, wanted_char)
@@ -79,17 +121,19 @@ typedef struct
 // INTERNAL OBJECT & FUNCTION DECLARATION
 //--------------------------------------------------------------------+
 CFG_TUSB_MEM_SECTION static cdcd_interface_t _cdcd_itf[CFG_TUD_CDC];
+CFG_TUSB_MEM_SECTION static cdcd_intf_buf_t  _cdcd_buf[CFG_TUD_CDC];
 
 static void _prep_out_transaction (cdcd_interface_t* p_cdc)
 {
   uint8_t const rhport = TUD_OPT_RHPORT;
   uint16_t available = tu_fifo_remaining(&p_cdc->rx_ff);
 
+#if USE_LINEAR_BUFFER
   // Prepare for incoming data but only allow what we can store in the ring buffer.
   // TODO Actually we can still carry out the transfer, keeping count of received bytes
   // and slowly move it to the FIFO when read().
   // This pre-check reduces endpoint claiming
-  TU_VERIFY(available >= sizeof(p_cdc->epout_buf), );
+  TU_VERIFY(available >= sizeof(p_cdc->intf_buf->epout_buf), );
 
   // claim endpoint
   TU_VERIFY(usbd_edpt_claim(rhport, p_cdc->ep_out), );
@@ -97,14 +141,34 @@ static void _prep_out_transaction (cdcd_interface_t* p_cdc)
   // fifo can be changed before endpoint is claimed
   available = tu_fifo_remaining(&p_cdc->rx_ff);
 
-  if ( available >= sizeof(p_cdc->epout_buf) )
+  if ( available >= sizeof(p_cdc->intf_buf->epout_buf) )
   {
-    usbd_edpt_xfer(rhport, p_cdc->ep_out, p_cdc->epout_buf, sizeof(p_cdc->epout_buf));
+    usbd_edpt_xfer(rhport, p_cdc->ep_out, p_cdc->intf_buf->epout_buf, sizeof(p_cdc->intf_buf->epout_buf));
   }else
   {
     // Release endpoint since we don't make any transfer
     usbd_edpt_release(rhport, p_cdc->ep_out);
   }
+#else
+  TU_VERIFY(available >= BULK_PACKET_SIZE, );
+  
+  // claim endpoint
+  TU_VERIFY(usbd_edpt_claim(rhport, p_cdc->ep_out), );
+
+    // fifo can be changed before endpoint is claimed
+  available = tu_fifo_remaining(&p_cdc->rx_ff);
+  
+  if ( available >= BULK_PACKET_SIZE )
+  {
+    uint16_t xfer_size  = BULK_PACKET_SIZE;
+    while(xfer_size < available) xfer_size <<= 1;
+    usbd_edpt_xfer_fifo(rhport, p_cdc->ep_out, &p_cdc->rx_ff, xfer_size);
+  }else
+  {
+    // Release endpoint since we don't make any transfer
+    usbd_edpt_release(rhport, p_cdc->ep_out);
+  }
+#endif
 }
 
 //--------------------------------------------------------------------+
@@ -192,12 +256,13 @@ uint32_t tud_cdc_n_write_flush (uint8_t itf)
   // Claim the endpoint
   TU_VERIFY( usbd_edpt_claim(rhport, p_cdc->ep_in), 0 );
 
+#if USE_LINEAR_BUFFER
   // Pull data from FIFO
-  uint16_t const count = tu_fifo_read_n(&p_cdc->tx_ff, p_cdc->epin_buf, sizeof(p_cdc->epin_buf));
+  uint16_t const count = tu_fifo_read_n(&p_cdc->tx_ff, p_cdc->intf_buf->epin_buf, sizeof(p_cdc->intf_buf->epin_buf));
 
   if ( count )
   {
-    TU_ASSERT( usbd_edpt_xfer(rhport, p_cdc->ep_in, p_cdc->epin_buf, count), 0 );
+    TU_ASSERT( usbd_edpt_xfer(rhport, p_cdc->ep_in, p_cdc->intf_buf->epin_buf, count), 0 );
     return count;
   }else
   {
@@ -206,6 +271,21 @@ uint32_t tud_cdc_n_write_flush (uint8_t itf)
     usbd_edpt_release(rhport, p_cdc->ep_in);
     return 0;
   }
+#else
+  uint16_t const count = tu_fifo_count(&p_cdc->tx_ff);
+
+  if ( count )
+  {
+    TU_ASSERT( usbd_edpt_xfer_fifo(rhport, p_cdc->ep_in, &p_cdc->tx_ff, count), 0 );
+    return count;
+  }else
+  {
+    // Release endpoint since we don't make any transfer
+    // Note: data is dropped if terminal is not connected
+    usbd_edpt_release(rhport, p_cdc->ep_in);
+    return 0;
+  }
+#endif
 }
 
 uint32_t tud_cdc_n_write_available (uint8_t itf)
@@ -223,6 +303,7 @@ bool tud_cdc_n_write_clear (uint8_t itf)
 //--------------------------------------------------------------------+
 void cdcd_init(void)
 {
+  
   tu_memclr(_cdcd_itf, sizeof(_cdcd_itf));
 
   for(uint8_t i=0; i<CFG_TUD_CDC; i++)
@@ -237,13 +318,15 @@ void cdcd_init(void)
     p_cdc->line_coding.parity    = 0;
     p_cdc->line_coding.data_bits = 8;
 
+    p_cdc->intf_buf = &_cdcd_buf[i];
+
     // Config RX fifo
-    tu_fifo_config(&p_cdc->rx_ff, p_cdc->rx_ff_buf, TU_ARRAY_SIZE(p_cdc->rx_ff_buf), 1, false);
+    tu_fifo_config(&p_cdc->rx_ff, p_cdc->intf_buf->rx_ff_buf, TU_ARRAY_SIZE(p_cdc->intf_buf->rx_ff_buf), 1, false);
 
     // Config TX fifo as overwritable at initialization and will be changed to non-overwritable
     // if terminal supports DTR bit. Without DTR we do not know if data is actually polled by terminal.
     // In this way, the most current data is prioritized.
-    tu_fifo_config(&p_cdc->tx_ff, p_cdc->tx_ff_buf, TU_ARRAY_SIZE(p_cdc->tx_ff_buf), 1, true);
+    tu_fifo_config(&p_cdc->tx_ff, p_cdc->intf_buf->tx_ff_buf, TU_ARRAY_SIZE(p_cdc->intf_buf->tx_ff_buf), 1, true);
 
 #if CFG_FIFO_MUTEX
     tu_fifo_config_mutex(&p_cdc->rx_ff, NULL, osal_mutex_create(&p_cdc->rx_ff_mutex));
@@ -433,20 +516,37 @@ bool cdcd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint32_
   // Received new data
   if ( ep_addr == p_cdc->ep_out )
   {
-    tu_fifo_write_n(&p_cdc->rx_ff, &p_cdc->epout_buf, xferred_bytes);
-    
+#if USE_LINEAR_BUFFER
+    tu_fifo_write_n(&p_cdc->rx_ff, &p_cdc->intf_buf->epout_buf, xferred_bytes);
+
     // Check for wanted char and invoke callback if needed
     if ( tud_cdc_rx_wanted_cb && (((signed char) p_cdc->wanted_char) != -1) )
     {
       for ( uint32_t i = 0; i < xferred_bytes; i++ )
       {
-        if ( (p_cdc->wanted_char == p_cdc->epout_buf[i]) && !tu_fifo_empty(&p_cdc->rx_ff) )
+        if ( (p_cdc->wanted_char == p_cdc->intf_buf->epout_buf[i]) && !tu_fifo_empty(&p_cdc->rx_ff) )
         {
           tud_cdc_rx_wanted_cb(itf, p_cdc->wanted_char);
         }
       }
     }
-    
+#else
+    // Check for wanted char and invoke callback if needed
+    if ( tud_cdc_rx_wanted_cb && (((signed char) p_cdc->wanted_char) != -1) )
+    {
+      tu_fifo_buffer_info_t fifo_info;
+      tu_fifo_get_read_info(&p_cdc->rx_ff, &fifo_info);
+// WIP
+      // Backward write pointer to search newest data
+//      for ( uint32_t i = 0; i < xferred_bytes; i++ )
+//      {
+//        if ( (p_cdc->wanted_char == p_cdc->epout_buf[i]) && !tu_fifo_empty(&p_cdc->rx_ff) )
+//        {
+//          tud_cdc_rx_wanted_cb(itf, p_cdc->wanted_char);
+//        }
+//      }
+    }
+#endif
     // invoke receive callback (if there is still data)
     if (tud_cdc_rx_cb && !tu_fifo_empty(&p_cdc->rx_ff) ) tud_cdc_rx_cb(itf);
     
@@ -493,6 +593,12 @@ tu_fifo_t* tud_cdc_n_get_tx_ff (uint8_t itf)
 {
   TU_ASSERT(itf < CFG_TUD_CDC);
   return &_cdcd_itf[itf].tx_ff;
+}
+
+void tud_cdc_n_rx_ff_read_done (uint8_t itf)
+{
+  cdcd_interface_t* p_cdc = &_cdcd_itf[itf];
+  _prep_out_transaction(p_cdc);
 }
 
 #endif
