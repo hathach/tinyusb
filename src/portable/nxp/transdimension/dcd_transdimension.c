@@ -128,7 +128,8 @@ typedef struct
   /// Due to the fact QHD is 64 bytes aligned but occupies only 48 bytes
   /// thus there are 16 bytes padding free that we can make use of.
   //--------------------------------------------------------------------+
-  uint8_t reserved[16];
+  tu_fifo_t * ff;
+  uint8_t reserved[12];
 } dcd_qhd_t;
 
 TU_VERIFY_STATIC( sizeof(dcd_qhd_t) == 64, "size is not correct");
@@ -314,6 +315,39 @@ static void qtd_init(dcd_qtd_t* p_qtd, void * data_ptr, uint16_t total_bytes)
   }
 }
 
+static void qtd_init_fifo(dcd_qtd_t* p_qtd, tu_fifo_buffer_info_t *info, uint16_t total_bytes)
+{
+  tu_memclr(p_qtd, sizeof(dcd_qtd_t));
+
+  p_qtd->next        = QTD_NEXT_INVALID;
+  p_qtd->active      = 1;
+  p_qtd->total_bytes = p_qtd->expected_bytes = total_bytes;
+
+  // Fifo length has been trimmed to total_bytes
+  int16_t len_lin  = info->len_lin;
+
+  if (len_lin != 0)
+  {
+    p_qtd->buffer[0]   = (uint32_t) info->ptr_lin;
+                
+    len_lin -= 4096 - ((uint32_t) info->ptr_lin - tu_align4k((uint32_t) info->ptr_lin));
+    
+    // Set linear part
+    uint8_t i = 1;
+    for(; i<5; i++)
+    {
+      if (len_lin <= 0) break;
+      p_qtd->buffer[i] |= tu_align4k( p_qtd->buffer[i-1] ) + 4096;
+      len_lin -= 4096;  
+    }
+    // Set wrapped part
+    for(uint8_t page = 0; i<5; i++, page++)
+    {
+      p_qtd->buffer[i] |= (uint32_t) info->ptr_wrap + 4096 * page;
+    }  
+  }
+}
+
 //--------------------------------------------------------------------+
 // DCD Endpoint Port
 //--------------------------------------------------------------------+
@@ -407,6 +441,67 @@ bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t t
   return true;
 }
 
+// fifo has to be aligned to 4k boundary
+bool dcd_edpt_xfer_fifo (uint8_t rhport, uint8_t ep_addr, tu_fifo_t * ff, uint16_t total_bytes) 
+{
+  dcd_registers_t* dcd_reg = _dcd_controller[rhport].regs;
+  uint8_t const epnum = tu_edpt_number(ep_addr);
+  uint8_t const dir   = tu_edpt_dir(ep_addr);
+  uint8_t const ep_idx = 2*epnum + dir;
+
+  if ( epnum == 0 )
+  {
+    // follows UM 24.10.8.1.1 Setup packet handling using setup lockout mechanism
+    // wait until ENDPTSETUPSTAT before priming data/status in response TODO add time out
+    while(dcd_reg->ENDPTSETUPSTAT & TU_BIT(0)) {}
+  }
+
+  dcd_qhd_t * p_qhd      = &_dcd_data.qhd[ep_idx];
+  dcd_qtd_t * p_qtd      = &_dcd_data.qtd[ep_idx];
+
+  tu_fifo_buffer_info_t fifo_info;
+    
+  if(dir == TUSB_DIR_IN)
+  {
+    tu_fifo_get_read_info(ff, &fifo_info);
+  }
+  else
+  {
+    tu_fifo_get_write_info(ff, &fifo_info);
+  }
+    
+  if(total_bytes <= fifo_info.len_lin)
+  {
+    // Limit transfer length to total_bytes
+    fifo_info.len_wrap = 0;
+    fifo_info.len_lin = total_bytes;
+  }
+  else
+  {
+    // Class driver ensure at least total_bytes elements in fifo
+    fifo_info.len_wrap = total_bytes - fifo_info.len_lin;
+  }
+  // Force the CPU to flush the buffer. We increase the size by 32 because the call aligns the
+  // address to 32-byte boundaries.
+  // void* cast to suppress cast-align warning, buffer must be
+  CleanInvalidateDCache_by_Addr((uint32_t*) tu_align((uint32_t) fifo_info.ptr_lin, 4), fifo_info.len_lin + 31);
+  if(fifo_info.len_wrap > 0)
+     CleanInvalidateDCache_by_Addr((uint32_t*) tu_align((uint32_t) fifo_info.ptr_wrap, 4), fifo_info.len_wrap + 31);
+
+  //------------- Prepare qtd -------------//
+  qtd_init_fifo(p_qtd, &fifo_info, total_bytes);
+  p_qtd->int_on_complete = true;
+  p_qhd->qtd_overlay.next = (uint32_t) p_qtd; // link qtd to qhd
+  p_qhd->ff = ff;
+
+  CleanInvalidateDCache_by_Addr((uint32_t*) &_dcd_data, sizeof(dcd_data_t));
+
+  // start transfer
+  dcd_reg->ENDPTPRIME = TU_BIT( ep_idx2bit(ep_idx) ) ;
+
+  return true;
+}
+
 //--------------------------------------------------------------------+
 // ISR
 //--------------------------------------------------------------------+
@@ -474,13 +569,28 @@ void dcd_int_handler(uint8_t rhport)
         if ( tu_bit_test(edpt_complete, ep_idx2bit(ep_idx)) )
         {
           // 23.10.12.3 Failed QTD also get ENDPTCOMPLETE set
+          dcd_qhd_t * p_qhd = &_dcd_data.qhd[ep_idx];
           dcd_qtd_t * p_qtd = &_dcd_data.qtd[ep_idx];
 
           uint8_t result = p_qtd->halted  ? XFER_RESULT_STALLED :
               ( p_qtd->xact_err ||p_qtd->buffer_err ) ? XFER_RESULT_FAILED : XFER_RESULT_SUCCESS;
 
           uint8_t const ep_addr = (ep_idx/2) | ( (ep_idx & 0x01) ? TUSB_DIR_IN_MASK : 0 );
-          dcd_event_xfer_complete(rhport, ep_addr, p_qtd->expected_bytes - p_qtd->total_bytes, result, true); // only number of bytes in the IOC qtd
+            
+          uint16_t xferred_bytes = p_qtd->expected_bytes - p_qtd->total_bytes;
+
+          if (p_qhd->ff)
+          {
+            if(tu_edpt_dir(ep_addr) == TUSB_DIR_IN)
+            {
+              tu_fifo_advance_read_pointer(p_qhd->ff, xferred_bytes);
+            }
+            else
+            {
+              tu_fifo_advance_write_pointer(p_qhd->ff, xferred_bytes);
+            }
+          }  
+          dcd_event_xfer_complete(rhport, ep_addr, xferred_bytes, result, true); // only number of bytes in the IOC qtd
         }
       }
     }
