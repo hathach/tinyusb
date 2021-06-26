@@ -75,7 +75,7 @@ enum
 };
 
 // Separate buffers in order to save RAM when align is applied,
-// since struct always aligned to most aligned member
+// as space between 2 elements of _cdcd_itf[] is wasted
 typedef struct
 {
 #if USE_LINEAR_BUFFER
@@ -120,7 +120,7 @@ typedef struct
 //--------------------------------------------------------------------+
 // INTERNAL OBJECT & FUNCTION DECLARATION
 //--------------------------------------------------------------------+
-CFG_TUSB_MEM_SECTION static cdcd_interface_t _cdcd_itf[CFG_TUD_CDC];
+static cdcd_interface_t _cdcd_itf[CFG_TUD_CDC];
 CFG_TUSB_MEM_SECTION static cdcd_intf_buf_t  _cdcd_buf[CFG_TUD_CDC];
 
 static void _prep_out_transaction (cdcd_interface_t* p_cdc)
@@ -595,6 +595,7 @@ tu_fifo_t* tud_cdc_n_get_tx_ff (uint8_t itf)
   return &_cdcd_itf[itf].tx_ff;
 }
 
+// Need to be called when fifo read is finished, in order to schedule next transfer
 void tud_cdc_n_rx_ff_read_done (uint8_t itf)
 {
   cdcd_interface_t* p_cdc = &_cdcd_itf[itf];
