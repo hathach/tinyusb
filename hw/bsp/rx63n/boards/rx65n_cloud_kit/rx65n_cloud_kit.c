@@ -52,10 +52,7 @@
 #define INT_Excep_SCI5_TEI5   INT_Excep_ICU_GROUPBL0
 
 #define IRQ_USB0_USBI0        62
-#define IEN_USB0_USBI0        IEN_PERIB_INTB185
-#define VECT_USB0_USBI0       VECT_PERIB_INTB185
-#define IR_USB0_USBI0         IR_PERIB_INTB185
-#define IER_USB0_USBI0        IER_PERIB_INTB185
+#define SLIBR_USBI0           SLIBR185
 #define IPR_USB0_USBI0        IPR_PERIB_INTB185
 #define INT_Excep_USB0_USBI0  INT_Excep_PERIB_INTB185
 
@@ -158,6 +155,10 @@ void INT_Excep_USB0_USBI0(void)
 
 void board_init(void)
 {
+  /* setup software configurable interrupts */
+  ICU.SLIBR_USBI0.BYTE = IRQ_USB0_USBI0;
+  ICU.SLIPRCR.BYTE     = 1;
+
 #if CFG_TUSB_OS == OPT_OS_NONE
   /* Enable CMT0 */
   SYSTEM.PRCR.WORD = SYSTEM_PRCR_PRKEY | SYSTEM_PRCR_PRC1;
@@ -216,7 +217,7 @@ void board_init(void)
   IEN(ICU,GROUPBL0)  = 1;
   EN(SCI5, TEI5)     = 1;
 
-  /* setup USBI0 interrupt. Group B edge */
+  /* setup USBI0 interrupt. */
   IR(USB0, USBI0)  = 0;
   IPR(USB0, USBI0) = IRQ_PRIORITY_USBI0;
 }
