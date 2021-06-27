@@ -1,7 +1,10 @@
 CFLAGS += \
   -mcpu=rx64m \
   -misa=v2 \
-  -DCFG_TUSB_MCU=OPT_MCU_RX65X
+  -DCFG_TUSB_MCU=OPT_MCU_RX65X \
+  -DIR_USB0_USBI0=IR_PERIB_INTB185 \
+  -DIER_USB0_USBI0=IER_PERIB_INTB185 \
+  -DIEN_USB0_USBI0=IEN_PERIB_INTB185
 
 RX_NEWLIB ?= 1
 
@@ -49,4 +52,4 @@ PYOCD_TARGET =
 
 # flash using rfp-cli
 flash: $(BUILD)/$(PROJECT).mot
-	rfp-cli -device rx65x -tool e2l -auto $^
+	rfp-cli -device rx65x -tool e2l -if fine -fo id FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF -auth id FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF -auto $^
