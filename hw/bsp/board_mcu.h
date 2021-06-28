@@ -127,7 +127,7 @@
 #elif CFG_TUSB_MCU == OPT_MCU_EFM32GG || CFG_TUSB_MCU == OPT_MCU_EFM32GG11 || CFG_TUSB_MCU == OPT_MCU_EFM32GG12
   #include "em_device.h"
 
-#elif CFG_TUSB_MCU == OPT_MCU_RX63X
+#elif CFG_TUSB_MCU == OPT_MCU_RX63X || CFG_TUSB_MCU == OPT_MCU_RX65X
   // no header needed
 
 #else
