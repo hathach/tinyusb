@@ -16,7 +16,6 @@ jobs:
         board:
         # Alphabetical order
         # ESP32-S2
-        - 'adafruit_metro_esp32s2'
         - 'espressif_saola_1'
         # ESP32-S3
         - 'espressif_addax_1'
