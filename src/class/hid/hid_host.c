@@ -351,7 +351,7 @@ static bool config_set_protocol(uint8_t dev_addr, tusb_control_request_t const *
   };
 
   TU_ASSERT( tuh_control_xfer(dev_addr, &new_request, NULL, config_get_report_desc) );
-  return false;
+  return true;
 }
 
 static bool config_get_report_desc(uint8_t dev_addr, tusb_control_request_t const * request, xfer_result_t result)
