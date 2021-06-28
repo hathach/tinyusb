@@ -32,7 +32,9 @@ body:
   - type: textarea
     attributes:
       label: Firmware
-      placeholder: e.g examples/device/cdc_msc. If it is custom firmware, please provide links to your minimal sources or as attached files.
+      placeholder: |
+        e.g examples/device/cdc_msc.
+        If it is custom firmware, please provide links to your minimal sources or as attached files.
     validations:
       required: true
 
@@ -64,6 +66,7 @@ body:
 
   - type: textarea
     attributes:
-      label: Screenshots (if any)
+      label: Screenshots
+      description: If applicable, add screenshots to help explain your problem.
     validations:
       required: false
