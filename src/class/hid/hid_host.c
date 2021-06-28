@@ -327,7 +327,7 @@ bool hidh_set_config(uint8_t dev_addr, uint8_t itf_num)
 // Force device to work in BOOT protocol
 static bool config_set_protocol(uint8_t dev_addr, tusb_control_request_t const * request, xfer_result_t result)
 {
-  // Stall is a valid response for SET_PROTOCOL, therefore we could ignore its result
+  // Stall is a valid response for SET_IDLE, therefore we could ignore its result
   (void) result;
 
   uint8_t const itf_num     = (uint8_t) request->wIndex;
@@ -347,7 +347,7 @@ static bool config_set_protocol(uint8_t dev_addr, tusb_control_request_t const *
     .bRequest = HID_REQ_CONTROL_SET_PROTOCOL,
     .wValue   = HID_PROTOCOL_BOOT,
     .wIndex   = hid_itf->itf_num,
-    .wLength  = 1
+    .wLength  = 0
   };
 
   TU_ASSERT( tuh_control_xfer(dev_addr, &new_request, NULL, config_get_report_desc) );
@@ -356,8 +356,12 @@ static bool config_set_protocol(uint8_t dev_addr, tusb_control_request_t const *
 
 static bool config_get_report_desc(uint8_t dev_addr, tusb_control_request_t const * request, xfer_result_t result)
 {
-  // Stall is a valid response for SET_IDLE, therefore we could ignore its result
-  (void) result;
+  // We can be here after SET_IDLE or SET_PROTOCOL (boot device)
+  // Trigger assert if result is not successful with set protocol
+  if ( request->bRequest != HID_REQ_CONTROL_SET_IDLE )
+  {
+    TU_ASSERT(result == XFER_RESULT_SUCCESS);
+  }
 
   uint8_t const itf_num     = (uint8_t) request->wIndex;
   uint8_t const instance    = get_instance_id_by_itfnum(dev_addr, itf_num);
