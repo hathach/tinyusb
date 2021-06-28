@@ -60,7 +60,9 @@ body:
       label: Debug Log
       placeholder: |
         TinyUSB debug log where the issue occurred as attached txt file, best with comments to explain the actual events.
-        Note: To enable logging, add `LOG=3` to to the make command if building with stock examples or set `CFG_TUSB_DEBUG=3` in your tusb_config.h. More information can be found at [example's readme](/docs/getting_started.md)
+        
+        Note: To enable logging, add `LOG=3` to to the make command if building with stock examples or set `CFG_TUSB_DEBUG=3` in your tusb_config.h. 
+        More information can be found at [example's readme](https://github.com/hathach/tinyusb/blob/master/docs/getting_started.md)
     validations:
       required: false
 
