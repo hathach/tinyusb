@@ -37,16 +37,6 @@
 // MACRO CONSTANT TYPEDEF
 //--------------------------------------------------------------------+
 
-/*
- "KEYBOARD"               : in_len=8 , out_len=1, usage_page=0x01, usage=0x06   # Generic Desktop, Keyboard
- "MOUSE"                  : in_len=4 , out_len=0, usage_page=0x01, usage=0x02   # Generic Desktop, Mouse
- "CONSUMER"               : in_len=2 , out_len=0, usage_page=0x0C, usage=0x01   # Consumer, Consumer Control
- "SYS_CONTROL"            : in_len=1 , out_len=0, usage_page=0x01, usage=0x80   # Generic Desktop, Sys Control
- "GAMEPAD"                : in_len=6 , out_len=0, usage_page=0x01, usage=0x05   # Generic Desktop, Game Pad
- "DIGITIZER"              : in_len=5 , out_len=0, usage_page=0x0D, usage=0x02   # Digitizers, Pen
- "XAC_COMPATIBLE_GAMEPAD" : in_len=3 , out_len=0, usage_page=0x01, usage=0x05   # Generic Desktop, Game Pad
- "RAW"                    : in_len=64, out_len=0, usage_page=0xFFAF, usage=0xAF # Vendor 0xFFAF "Adafruit", 0xAF
- */
 typedef struct
 {
   uint8_t itf_num;
@@ -452,9 +442,9 @@ uint8_t tuh_hid_parse_report_descriptor(tuh_hid_report_info_t* report_info_arr, 
 
     uint8_t const data8 = desc_report[0];
 
-    TU_LOG2("tag = %d, type = %d, size = %d, data = ", tag, type, size);
-    for(uint32_t i=0; i<size; i++) TU_LOG2("%02X ", desc_report[i]);
-    TU_LOG2("\r\n");
+    TU_LOG(3, "tag = %d, type = %d, size = %d, data = ", tag, type, size);
+    for(uint32_t i=0; i<size; i++) TU_LOG(3, "%02X ", desc_report[i]);
+    TU_LOG(3, "\r\n");
 
     switch(type)
     {
