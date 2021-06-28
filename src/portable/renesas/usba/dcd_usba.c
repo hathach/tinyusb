@@ -2,6 +2,7 @@
  * The MIT License (MIT)
  *
  * Copyright (c) 2020 Koji Kitayama
+ * Portions copyrighted (c) 2021 Roland Winistoerfer
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -26,13 +27,9 @@
 
 #include "tusb_option.h"
 
-<<<<<<< HEAD
-#if TUSB_OPT_DEVICE_ENABLED && (( CFG_TUSB_MCU == OPT_MCU_RX63X ) || ( CFG_TUSB_MCU == OPT_MCU_RX72N ))
-
-=======
 #if TUSB_OPT_DEVICE_ENABLED && ( CFG_TUSB_MCU == OPT_MCU_RX63X || \
-                                 CFG_TUSB_MCU == OPT_MCU_RX65X)
->>>>>>> origin/master
+                                 CFG_TUSB_MCU == OPT_MCU_RX65X || \
+                                 CFG_TUSB_MCU == OPT_MCU_RX72N )
 #include "device/dcd.h"
 #include "iodefine.h"
 
@@ -524,7 +521,11 @@ static void process_set_address(uint8_t rhport)
   const uint32_t addr = USB0.USBADDR.BIT.USBADDR;
   if (!addr) return;
   const tusb_control_request_t setup_packet = {
+#if defined(__GNUC__)
+      .bmRequestType = 0,
+#else
       .bmRequestType = { 0 },  /* Note: CCRX needs the braces over this struct member */
+#endif
       .bRequest      = 5,
       .wValue        = addr,
       .wIndex        = 0,
