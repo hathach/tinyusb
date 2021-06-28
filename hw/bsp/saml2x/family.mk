@@ -1,7 +1,9 @@
 UF2_FAMILY_ID = 0x68ed2b88
-DEPS_SUBMODULES += hw/mcu/microchip
+DEPS_SUBMODULES += lib/CMSIS_5 hw/mcu/microchip
 
 include $(TOP)/$(BOARD_PATH)/board.mk
+
+MCU_DIR = hw/mcu/microchip/$(SAML_VARIANT)
 
 CFLAGS += \
   -mthumb \
@@ -13,29 +15,25 @@ CFLAGS += \
 
 SRC_C += \
 	src/portable/microchip/samd/dcd_samd.c \
-	hw/mcu/microchip/saml22/gcc/gcc/startup_saml22.c \
-	hw/mcu/microchip/saml22/gcc/system_saml22.c \
-	hw/mcu/microchip/saml22/hpl/gclk/hpl_gclk.c \
-	hw/mcu/microchip/saml22/hpl/mclk/hpl_mclk.c \
-	hw/mcu/microchip/saml22/hpl/pm/hpl_pm.c \
-	hw/mcu/microchip/saml22/hpl/osc32kctrl/hpl_osc32kctrl.c \
-	hw/mcu/microchip/saml22/hpl/oscctrl/hpl_oscctrl.c \
-	hw/mcu/microchip/saml22/hal/src/hal_atomic.c
+	$(MCU_DIR)/gcc/gcc/startup_$(SAML_VARIANT).c \
+	$(MCU_DIR)/gcc/system_$(SAML_VARIANT).c \
+	$(MCU_DIR)/hpl/gclk/hpl_gclk.c \
+	$(MCU_DIR)/hpl/mclk/hpl_mclk.c \
+	$(MCU_DIR)/hpl/pm/hpl_pm.c \
+	$(MCU_DIR)/hpl/osc32kctrl/hpl_osc32kctrl.c \
+	$(MCU_DIR)/hpl/oscctrl/hpl_oscctrl.c \
+	$(MCU_DIR)/hal/src/hal_atomic.c
 
 INC += \
 	$(TOP)/$(BOARD_PATH) \
-	$(TOP)/hw/mcu/microchip/saml22/ \
-	$(TOP)/hw/mcu/microchip/saml22/config \
-	$(TOP)/hw/mcu/microchip/saml22/include \
-	$(TOP)/hw/mcu/microchip/saml22/hal/include \
-	$(TOP)/hw/mcu/microchip/saml22/hal/utils/include \
-	$(TOP)/hw/mcu/microchip/saml22/hpl/port \
-	$(TOP)/hw/mcu/microchip/saml22/hri \
-	$(TOP)/hw/mcu/microchip/saml22/CMSIS/Core/Include
-
-# For TinyUSB port source 
-VENDOR = microchip
-CHIP_FAMILY = samd
+	$(TOP)/$(MCU_DIR)/ \
+	$(TOP)/$(MCU_DIR)/config \
+	$(TOP)/$(MCU_DIR)/include \
+	$(TOP)/$(MCU_DIR)/hal/include \
+	$(TOP)/$(MCU_DIR)/hal/utils/include \
+	$(TOP)/$(MCU_DIR)/hpl/port \
+	$(TOP)/$(MCU_DIR)/hri \
+	$(TOP)/lib/CMSIS_5/CMSIS/Core/Include
 
 # For freeRTOS port source
 FREERTOS_PORT = ARM_CM0

@@ -108,13 +108,13 @@ void board_init(void)
   gpio_set_pin_function(PIN_PA25, PINMUX_PA25G_USB_DP);
 
   // Output 500hz PWM on PB23 (TCC0 WO[3]) so we can validate the GCLK1 clock speed
-  hri_mclk_set_APBCMASK_TCC0_bit(MCLK);
-  TCC0->PER.bit.PER = 48000000 / 1000;
-  TCC0->CC[3].bit.CC = 48000000 / 2000;
-  TCC0->CTRLA.bit.ENABLE = true;
-
-  gpio_set_pin_function(PIN_PB23, PINMUX_PB23F_TCC0_WO3);
-  hri_gclk_write_PCHCTRL_reg(GCLK, TCC0_GCLK_ID, GCLK_PCHCTRL_GEN_GCLK1_Val | GCLK_PCHCTRL_CHEN);
+//  hri_mclk_set_APBCMASK_TCC0_bit(MCLK);
+//  TCC0->PER.bit.PER = 48000000 / 1000;
+//  TCC0->CC[3].bit.CC = 48000000 / 2000;
+//  TCC0->CTRLA.bit.ENABLE = true;
+//
+//  gpio_set_pin_function(PIN_PB23, PINMUX_PB23F_TCC0_WO3);
+//  hri_gclk_write_PCHCTRL_reg(GCLK, TCC0_GCLK_ID, GCLK_PCHCTRL_GEN_GCLK1_Val | GCLK_PCHCTRL_CHEN);
 }
 
 //--------------------------------------------------------------------+
