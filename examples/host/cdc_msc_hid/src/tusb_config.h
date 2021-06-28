@@ -76,7 +76,7 @@
 
 #define CFG_TUH_HUB                 1
 #define CFG_TUH_CDC                 1
-#define CFG_TUH_HID                 2
+#define CFG_TUH_HID                 4
 #define CFG_TUH_MSC                 1
 #define CFG_TUH_VENDOR              0
 

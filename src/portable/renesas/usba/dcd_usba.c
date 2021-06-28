@@ -26,8 +26,13 @@
 
 #include "tusb_option.h"
 
+<<<<<<< HEAD
 #if TUSB_OPT_DEVICE_ENABLED && (( CFG_TUSB_MCU == OPT_MCU_RX63X ) || ( CFG_TUSB_MCU == OPT_MCU_RX72N ))
 
+=======
+#if TUSB_OPT_DEVICE_ENABLED && ( CFG_TUSB_MCU == OPT_MCU_RX63X || \
+                                 CFG_TUSB_MCU == OPT_MCU_RX65X)
+>>>>>>> origin/master
 #include "device/dcd.h"
 #include "iodefine.h"
 

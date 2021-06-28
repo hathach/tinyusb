@@ -15,7 +15,7 @@ jobs:
       matrix:
         family:
         # Alphabetical order
-        - 'rx63n'
+        - 'rx'
     steps:
     - name: Setup Python
       uses: actions/setup-python@v2

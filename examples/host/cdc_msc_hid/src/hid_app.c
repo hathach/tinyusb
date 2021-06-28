@@ -30,7 +30,8 @@
 // MACRO TYPEDEF CONSTANT ENUM DECLARATION
 //--------------------------------------------------------------------+
 
-// If your host terminal support ansi escape code, it can be use to simulate mouse cursor
+// If your host terminal support ansi escape code such as TeraTerm
+// it can be use to simulate mouse cursor movement within terminal
 #define USE_ANSI_ESCAPE   0
 
 #define MAX_REPORT  4
@@ -113,6 +114,13 @@ void tuh_hid_report_received_cb(uint8_t dev_addr, uint8_t instance, uint8_t cons
     return;
   }
 
+  // For complete list of Usage Page & Usage checkout src/class/hid/hid.h. For examples:
+  // - Keyboard                     : Desktop, Keyboard
+  // - Mouse                        : Desktop, Mouse
+  // - Gamepad                      : Desktop, Gamepad
+  // - Consumer Control (Media Key) : Consumer, Consumer Control
+  // - System Control (Power key)   : Desktop, System Control
+  // - Generic (vendor)             : 0xFFxx, xx
   if ( rpt_info->usage_page == HID_USAGE_PAGE_DESKTOP )
   {
     switch (rpt_info->usage)
@@ -164,7 +172,7 @@ static void process_kbd_report(hid_keyboard_report_t const *report)
       }else
       {
         // not existed in previous report means the current key is pressed
-        bool const is_shift =  report->modifier & (KEYBOARD_MODIFIER_LEFTSHIFT | KEYBOARD_MODIFIER_RIGHTSHIFT);
+        bool const is_shift = report->modifier & (KEYBOARD_MODIFIER_LEFTSHIFT | KEYBOARD_MODIFIER_RIGHTSHIFT);
         uint8_t ch = keycode2ascii[report->keycode[i]][is_shift ? 1 : 0];
         putchar(ch);
         if ( ch == '\r' ) putchar('\n'); // added new line for enter key
