@@ -44,3 +44,7 @@ SRC_S += $(MCU_DIR)/start.S
 $(BUILD)/$(PROJECT).mot: $(BUILD)/$(PROJECT).elf
 	@echo CREATE $@
 	$(OBJCOPY) -O srec -I elf32-rx-be-ns $^ $@
+
+# flash using rfp-cli
+flash-rfp: $(BUILD)/$(PROJECT).mot
+	rfp-cli -device rx65x -tool e2l -if fine -fo id FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF -auth id FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF -auto $^

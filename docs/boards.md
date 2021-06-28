@@ -126,6 +126,7 @@ This code base already had supported for a handful of following boards (sorted a
 ### Renesas RX
 
 - [GR-CITRUS](https://www.renesas.com/us/en/products/gadget-renesas/boards/gr-citrus)
+- [Renesas RX65N Cloud Kit](https://www.renesas.com/us/en/products/microcontrollers-microprocessors/rx-32-bit-performance-efficiency-mcus/rx65n-cloud-kit-renesas-rx65n-cloud-kit)
 
 ### Raspberry Pi RP2040
 

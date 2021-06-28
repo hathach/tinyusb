@@ -22,5 +22,4 @@ JLINK_IF     = JTAG
 PYOCD_TARGET =
 
 # flash using rfp-cli
-flash: $(BUILD)/$(PROJECT).mot
-	rfp-cli -device rx65x -tool e2l -if fine -fo id FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF -auth id FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF -auto $^
+flash: flash-rfp
