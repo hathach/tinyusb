@@ -7,11 +7,10 @@ body:
       value: |
         Thanks for taking the time to fill out this bug report!
         It's okay to leave some blank if it doesn't apply to your problem.
+
   - type: dropdown
     attributes:
       label: Operating System
-    validations:
-      required: true
       options:
               - Linux
               - MacOS
@@ -20,24 +19,30 @@ body:
               - Windows 10
               - Windows 11
               - Others
+    validations:
+      required: true
+
   - type: input
     attributes:
       label: Board
       placeholder: e.g Feather nRF52840 Express
     validations:
       required: true
+
   - type: textarea
     attributes:
       label: Firmware
       placeholder: e.g examples/device/cdc_msc. If it is custom firmware, please provide links to your minimal sources or as attached files.
     validations:
       required: true
+
   - type: textarea
     attributes:
       label: What happened ?
       placeholder: A clear and concise description of what the bug is.
     validations:
       required: true
+
   - type: textarea
     attributes:
       label: How to reproduce ?
@@ -47,6 +52,7 @@ body:
         3. See error      
     validations:
       required: true
+
   - type: textarea
     attributes:
       label: Debug Log
@@ -55,6 +61,7 @@ body:
         Note: To enable logging, add `LOG=3` to to the make command if building with stock examples or set `CFG_TUSB_DEBUG=3` in your tusb_config.h. More information can be found at [example's readme](/docs/getting_started.md)
     validations:
       required: false
+
   - type: textarea
     attributes:
       label: Screenshots (if any)
