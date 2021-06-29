@@ -83,6 +83,10 @@
   #define TU_BSWAP16(u16) (__builtin_bswap16(u16))
   #define TU_BSWAP32(u32) (__builtin_bswap32(u32))
 
+  // List of obsolete callback function that is renamed and should not be defined.
+  // Put it here since only gcc support this pragma
+  #pragma GCC poison tud_vendor_control_request_cb
+
 #elif defined(__TI_COMPILER_VERSION__)
   #define TU_ATTR_ALIGNED(Bytes)        __attribute__ ((aligned(Bytes)))
   #define TU_ATTR_SECTION(sec_name)     __attribute__ ((section(#sec_name)))
