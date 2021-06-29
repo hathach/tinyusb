@@ -885,7 +885,7 @@ range [-1, +1)
  * */
 
 // Helper function
-static inline uint8_t * audiod_interleaved_copy_bytes_fast_encode(uint16_t const nBytesToCopy, void * src, uint8_t * src_end, uint8_t * dst, uint8_t const n_ff_used)
+static inline uint8_t * audiod_interleaved_copy_bytes_fast_encode(uint16_t const nBytesToCopy, uint8_t * src, uint8_t * src_end, uint8_t * dst, uint8_t const n_ff_used)
 {
   // Optimize for fast half word copies
   typedef struct{
@@ -900,15 +900,15 @@ static inline uint8_t * audiod_interleaved_copy_bytes_fast_encode(uint16_t const
   switch (nBytesToCopy)
   {
     case 1:
-      while((uint8_t *)src < src_end)
+      while(src < src_end)
       {
-        *dst = *(uint8_t *)src++;
+        *dst = *src++;
         dst += n_ff_used;
       }
       break;
 
     case 2:
-      while((uint8_t *)src < src_end)
+      while(src < src_end)
       {
         *(unaligned_uint16_t*)dst = *(unaligned_uint16_t*)src;
         src += 2;
@@ -917,23 +917,23 @@ static inline uint8_t * audiod_interleaved_copy_bytes_fast_encode(uint16_t const
       break;
 
     case 3:
-      while((uint8_t *)src < src_end)
+      while(src < src_end)
       {
         //        memcpy(dst, src, 3);
         //        src = (uint8_t *)src + 3;
         //        dst += 3 * n_ff_used;
 
         // TODO: Is there a faster way to copy 3 bytes?
-        *dst++ = *(uint8_t *)src++;
-        *dst++ = *(uint8_t *)src++;
-        *dst++ = *(uint8_t *)src++;
+        *dst++ = *src++;
+        *dst++ = *src++;
+        *dst++ = *src++;
 
         dst += 3 * (n_ff_used - 1);
       }
       break;
 
     case 4:
-      while((uint8_t *)src < src_end)
+      while(src < src_end)
       {
         *(unaligned_uint32_t*)dst = *(unaligned_uint32_t*)src;
         src += 4;
@@ -993,7 +993,7 @@ static uint16_t audiod_encode_type_I_pcm(uint8_t rhport, audiod_function_t* audi
     if (info.len_lin != 0)
     {
       info.len_lin = tu_min16(nBytesPerFFToSend, info.len_lin);       // Limit up to desired length
-      src_end = info.ptr_lin + info.len_lin;
+      src_end = (uint8_t *)info.ptr_lin + info.len_lin;
       dst = audiod_interleaved_copy_bytes_fast_encode(nBytesToCopy, info.ptr_lin, src_end, dst, n_ff_used);
 
       // Limit up to desired length
@@ -1002,7 +1002,7 @@ static uint16_t audiod_encode_type_I_pcm(uint8_t rhport, audiod_function_t* audi
       // Handle wrapped part of FIFO
       if (info.len_wrap != 0)
       {
-        src_end = info.ptr_wrap + info.len_wrap;
+        src_end = (uint8_t *)info.ptr_wrap + info.len_wrap;
         audiod_interleaved_copy_bytes_fast_encode(nBytesToCopy, info.ptr_wrap, src_end, dst, n_ff_used);
       }
 
@@ -1956,7 +1956,7 @@ bool tud_audio_buffer_and_schedule_control_xfer(uint8_t rhport, tusb_control_req
     }
     break;
 
-    case TUSB_REQ_RCPT_ENDPOINT: ;      // The semicolon is there to enable a declaration right after the label
+    case TUSB_REQ_RCPT_ENDPOINT:
     {
       uint8_t ep = TU_U16_LOW(p_request->wIndex);
 
@@ -2142,10 +2142,10 @@ static void audiod_parse_for_AS_params(audiod_function_t* audio, uint8_t const *
       if (as_itf == audio->ep_in_as_intf_num)
       {
         audio->n_channels_tx = ((audio_desc_cs_as_interface_t const * )p_desc)->bNrChannels;
-        audio->format_type_tx = ((audio_desc_cs_as_interface_t const * )p_desc)->bFormatType;
+        audio->format_type_tx = (audio_format_type_t)(((audio_desc_cs_as_interface_t const * )p_desc)->bFormatType);
 
 #if CFG_TUD_AUDIO_ENABLE_TYPE_I_ENCODING
-        audio->format_type_I_tx = ((audio_desc_cs_as_interface_t const * )p_desc)->bmFormats;
+        audio->format_type_I_tx = (audio_data_format_type_I_t)(((audio_desc_cs_as_interface_t const * )p_desc)->bmFormats);
 #endif
       }
 #endif
