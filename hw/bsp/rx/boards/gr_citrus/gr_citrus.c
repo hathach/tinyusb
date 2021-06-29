@@ -34,7 +34,7 @@
  *
  * The pads are [the back side of GR-CITRUS](https://www.slideshare.net/MinaoYamamoto/grcitrusrx631/2).
  * 
- * Connet the pins between GR-CITRUS and JLink as follows.
+ * Connect the pins between GR-CITRUS and JLink as follows.
  * 
  * | JTAG Function | GR-CITRUS pin name| JLink pin No.| note     |
  * |:-------------:|:-----------------:|:------------:|:--------:|
