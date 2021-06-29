@@ -1997,15 +1997,17 @@ static bool audiod_get_AS_interface_index(uint8_t itf, audiod_function_t * audio
     while (p_desc < p_desc_end)
     {
       // We assume the number of alternate settings is increasing thus we return the index of alternate setting zero!
-      if (tu_desc_type(p_desc) == TUSB_DESC_INTERFACE && ((tusb_desc_interface_t const * )p_desc)->bInterfaceNumber == itf)
+      if (tu_desc_type(p_desc) == TUSB_DESC_INTERFACE && ((tusb_desc_interface_t const * )p_desc)->bAlternateSetting == 0)
       {
-        *idxItf = tmp;
-        *pp_desc_int = p_desc;
-        return true;
+        if (((tusb_desc_interface_t const * )p_desc)->bInterfaceNumber == itf)
+        {
+          *idxItf = tmp;
+          *pp_desc_int = p_desc;
+          return true;
+        }
+        // Increase index, bytes read, and pointer
+        tmp++;
       }
-
-      // Increase index, bytes read, and pointer
-      tmp++;
       p_desc = tu_desc_next(p_desc);
     }
   }
