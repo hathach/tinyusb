@@ -521,10 +521,10 @@ static void process_set_address(uint8_t rhport)
   const uint32_t addr = USB0.USBADDR.BIT.USBADDR;
   if (!addr) return;
   const tusb_control_request_t setup_packet = {
-#if defined(__GNUC__)
-      .bmRequestType = 0,
-#else
+#if defined(__CCRX__)
       .bmRequestType = { 0 },  /* Note: CCRX needs the braces over this struct member */
+#else
+      .bmRequestType = 0,
 #endif
       .bRequest      = 5,
       .wValue        = addr,
