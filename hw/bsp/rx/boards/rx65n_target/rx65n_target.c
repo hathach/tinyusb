@@ -24,6 +24,37 @@
  * This file is part of the TinyUSB stack.
  */
 
+/* How to connect JLink and RX65n Target and option board
+ * (For original comment https://github.com/hathach/tinyusb/pull/922#issuecomment-869786131)
+ *
+ * To enable JTAG, RX65N requires following connections on main board.
+ * - short EJ2 jumper header, to disable onboard E2L.
+ * - short EMLE(J1-2) and 3V3(J1-14 or J2-10), to enable In-Circuit Emulator.
+ *
+ * Note: For RX65N-Cloud-Kit, the option board's JTAG pins to some switches or floating.
+ * To use JLink with the option board, I think some further modifications will be necessary.
+ *
+ * | Function  | RX65N pin  | main board | option board | JLink connector |
+ * |:---------:|:----------:|:----------:|:------------:|:---------------:|
+ * | 3V3       | VCC        |   J1-14    | CN5-6        |    1            |
+ * | TRST      | P34        |   J1-16    | CN5-7        |    3            |
+ * | GND       | VSS        |   J1-12    | CN5-5        |    4            |
+ * | TDI       | P30        |   J1-20    | CN5-10       |    5            |
+ * | TMS       | P31        |   J1-19    | USER_SW      |    7            |
+ * | TCK/FINEC | P27        |   J1-21    | N/A          |    9            |
+ * | TDO       | P26        |   J1-22    | CN5-9        |   13            |
+ * | nRES      | RES#       |   J1-10    | RESET_SW     |   15            |
+ *
+ * JLink firmware needs to update to V6.96 or newer version to avoid
+ * [a bug](https://forum.segger.com/index.php/Thread/7758-SOLVED-Bug-in-JLink-from-V6-88b-regarding-RX65N)
+ * regarding downloading.
+ *
+ * When using SEGGER RTT, `RX_NEWLIB=0` should be added to make command arguments.
+ * The option is used to change the C runtime library to `optlib` from `newlib`.
+ * RTT may not work with `newlib`.
+ *
+ */
+
 #include "bsp/board.h"
 #include "iodefine.h"
 #include "interrupt_handlers.h"
