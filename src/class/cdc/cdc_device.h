@@ -104,14 +104,18 @@ uint32_t tud_cdc_n_write_available (uint8_t itf);
 // Clear the transmit FIFO
 bool tud_cdc_n_write_clear (uint8_t itf);
 
-// Get the Receive FIFO (for DMA transfer)
-tu_fifo_t* tud_cdc_n_get_rx_ff (uint8_t itf);
+// Get the Receive buffer infomation (for DMA transfer)
+void tud_cdc_n_get_read_buffer (uint8_t itf, tu_fifo_buffer_info_t * info);
 
-// Get the transmit FIFO (for DMA transfer)
-tu_fifo_t* tud_cdc_n_get_tx_ff (uint8_t itf);
+// Get the transmit buffer infomation (for DMA transfer)
+void tud_cdc_n_get_write_buffer (uint8_t itf, tu_fifo_buffer_info_t * info);
 
-// Need to be called when fifo read is finished, in order to schedule next transfer
-void tud_cdc_n_rx_ff_read_done (uint8_t itf);
+// Need to be called when buffer read is finished, in order to schedule next transfer
+void tud_cdc_n_read_buffer_done (uint8_t itf, uint32_t readsize);
+
+// Need to be called when buffer write is finished
+void tud_cdc_n_write_buffer_done (uint8_t itf, uint32_t readsize);
+
 //--------------------------------------------------------------------+
 // Application API (Single Port)
 //--------------------------------------------------------------------+
@@ -249,19 +253,24 @@ static inline bool tud_cdc_write_clear(void)
   return tud_cdc_n_write_clear(0);
 }
 
-static inline tu_fifo_t* tud_cdc_get_rx_ff (void)
+static inline void tud_cdc_get_read_buffer (tu_fifo_buffer_info_t * info)
 {
-  return tud_cdc_n_get_rx_ff(0);
+  tud_cdc_n_get_read_buffer(0, info);
 }
 
-static inline tu_fifo_t* tud_cdc_get_tx_ff (void)
+static inline void tud_cdc_get_write_buffer (tu_fifo_buffer_info_t * info)
 {
-  return tud_cdc_n_get_tx_ff(0);
+  tud_cdc_n_get_write_buffer(0, info);
 }
 
-static inline void tud_cdc_rx_ff_read_done (void)
+static inline void tud_cdc_read_buffer_done (uint32_t readsize)
 {
-  tud_cdc_n_rx_ff_read_done(0);
+  tud_cdc_n_read_buffer_done(0, readsize);
+}
+
+static inline void tud_cdc_write_buffer_done (uint32_t readsize)
+{
+  tud_cdc_n_write_buffer_done(0, readsize);
 }
 
 /** @} */
