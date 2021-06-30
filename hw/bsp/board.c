@@ -25,7 +25,7 @@
 
 #include "board.h"
 
-#if defined(__MSP430__)
+#if defined(__MSP430__) || defined(__RX__)
   #define sys_write   write
   #define sys_read    read
 #else
