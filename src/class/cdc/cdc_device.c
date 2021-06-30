@@ -107,7 +107,7 @@ typedef struct
   // FIFO
   tu_fifo_t rx_ff;
   tu_fifo_t tx_ff;
-  
+
   cdcd_intf_buf_t * intf_buf;
 #if CFG_FIFO_MUTEX
   osal_mutex_def_t rx_ff_mutex;
@@ -167,7 +167,7 @@ static void _prep_out_transaction (cdcd_interface_t* p_cdc)
   {
     // Release endpoint since we don't make any transfer
     usbd_edpt_release(rhport, p_cdc->ep_out);
-  }
+}
 #endif
 }
 
@@ -284,7 +284,7 @@ uint32_t tud_cdc_n_write_flush (uint8_t itf)
     // Note: data is dropped if terminal is not connected
     usbd_edpt_release(rhport, p_cdc->ep_in);
     return 0;
-  }
+}
 #endif
 }
 
@@ -581,24 +581,36 @@ bool cdcd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint32_
   return true;
 }
 
-// Get the Receive FIFO (for DMA transfer)
-tu_fifo_t* tud_cdc_n_get_rx_ff (uint8_t itf)
+// Get the Receive buffer infomation (for DMA transfer)
+void tud_cdc_n_get_read_buffer (uint8_t itf, tu_fifo_buffer_info_t * info)
 {
-  TU_ASSERT(itf < CFG_TUD_CDC);
-  return &_cdcd_itf[itf].rx_ff;
+  tu_fifo_get_read_info(&_cdcd_itf[itf].rx_ff, info);
 }
 
-// Get the transmit FIFO (for DMA transfer)
-tu_fifo_t* tud_cdc_n_get_tx_ff (uint8_t itf)
+// Get the transmit buffer infomation (for DMA transfer)
+void tud_cdc_n_get_write_buffer (uint8_t itf, tu_fifo_buffer_info_t * info)
 {
-  TU_ASSERT(itf < CFG_TUD_CDC);
-  return &_cdcd_itf[itf].tx_ff;
+  tu_fifo_get_write_info(&_cdcd_itf[itf].tx_ff, info);
 }
 
-// Need to be called when fifo read is finished, in order to schedule next transfer
-void tud_cdc_n_rx_ff_read_done (uint8_t itf)
+// Need to be called when buffer write is finished
+void tud_cdc_n_write_buffer_done (uint8_t itf, uint32_t readsize)
 {
   cdcd_interface_t* p_cdc = &_cdcd_itf[itf];
+  tu_fifo_advance_write_pointer(&p_cdc->tx_ff, readsize);
+  
+   // flush if queue more than packet size
+  if ( tu_fifo_count(&p_cdc->tx_ff) >= BULK_PACKET_SIZE )
+  {
+    tud_cdc_n_write_flush(itf);
+  }
+}
+
+// Need to be called when buffer read is finished, in order to schedule next transfer
+void tud_cdc_n_read_buffer_done (uint8_t itf, uint32_t readsize)
+{
+  cdcd_interface_t* p_cdc = &_cdcd_itf[itf];
+  tu_fifo_advance_read_pointer(&p_cdc->rx_ff, readsize);
   _prep_out_transaction(p_cdc);
 }
 
