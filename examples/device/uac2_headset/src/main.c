@@ -423,7 +423,7 @@ void audio_task(void)
         // Combine two channels into one
         int32_t left = *src++;
         int32_t right = *src++;
-        *dst++ = (int16_t)((left + right) / 2);
+        *dst++ = (left >> 1) + (right >> 1);
       }
       tud_audio_write((uint8_t *)mic_buf, spk_data_size / 2);
       spk_data_size = 0;
@@ -438,7 +438,7 @@ void audio_task(void)
         // Combine two channels into one
         int32_t left = *src++;
         int32_t right = *src++;
-        *dst++ = (int32_t)((left + right) / 2) & 0xffffff00;
+        *dst++ = ((left >> 1) + (right >> 1)) & 0xffffff00;
       }
       tud_audio_write((uint8_t *)mic_buf, spk_data_size / 2);
       spk_data_size = 0;
