@@ -78,9 +78,9 @@ int8_t mute[CFG_TUD_AUDIO_FUNC_1_N_CHANNELS_TX + 1];       // +1 for master chan
 int16_t volume[CFG_TUD_AUDIO_FUNC_1_N_CHANNELS_TX + 1];    // +1 for master channel 0
 
 // Buffer for microphone data
-uint8_t mic_buf[CFG_TUD_AUDIO_FUNC_1_EP_OUT_SW_BUF_SZ];
+int32_t mic_buf[CFG_TUD_AUDIO_FUNC_1_EP_IN_SW_BUF_SZ / 4];
 // Buffer for speaker data
-uint8_t spk_buf[CFG_TUD_AUDIO_FUNC_1_EP_OUT_SW_BUF_SZ];
+int32_t spk_buf[CFG_TUD_AUDIO_FUNC_1_EP_OUT_SW_BUF_SZ / 4];
 // Speaker data size received in the last frame
 int spk_data_size;
 // Resolution per format
@@ -430,14 +430,14 @@ void audio_task(void)
     }
     else if (current_resolution == 24)
     {
-      int32_t *src = (int32_t*)spk_buf;
-      int32_t *limit = (int32_t*)spk_buf + spk_data_size / 4;
-      int32_t *dst = (int32_t*)mic_buf;
+      int32_t *src = spk_buf;
+      int32_t *limit = spk_buf + spk_data_size / 4;
+      int32_t *dst = mic_buf;
       while (src < limit)
       {
         // Combine two channels into one
-        int32_t left = (*src++);
-        int32_t right = (*src++);
+        int32_t left = *src++;
+        int32_t right = *src++;
         *dst++ = (int32_t)((left + right) / 2) & 0xffffff00;
       }
       tud_audio_write((uint8_t *)mic_buf, spk_data_size / 2);
