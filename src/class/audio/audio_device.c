@@ -1481,6 +1481,9 @@ static bool audiod_set_interface(uint8_t rhport, tusb_control_request_t const * 
     audio->ep_in_as_intf_num = 0;
     usbd_edpt_close(rhport, audio->ep_in);
 
+    // Clear FIFOs, since data is no longer valid
+    tu_fifo_clear(&audio->ep_in_ff);
+    
     // Invoke callback - can be used to stop data sampling
     if (tud_audio_set_itf_close_EP_cb) TU_VERIFY(tud_audio_set_itf_close_EP_cb(rhport, p_request));
 
@@ -1502,6 +1505,13 @@ static bool audiod_set_interface(uint8_t rhport, tusb_control_request_t const * 
   {
     audio->ep_out_as_intf_num = 0;
     usbd_edpt_close(rhport, audio->ep_out);
+
+    // Clear FIFOs, since data is no longer valid
+    tu_fifo_clear(&audio->ep_out_ff);
+
+    // Invoke callback - can be used to stop data sampling
+    if (tud_audio_set_itf_close_EP_cb) TU_VERIFY(tud_audio_set_itf_close_EP_cb(rhport, p_request));
+
     audio->ep_out = 0;                          // Necessary?
 
     // Clear support FIFOs if used
