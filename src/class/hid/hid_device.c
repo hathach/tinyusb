@@ -316,7 +316,7 @@ bool hidd_control_xfer_cb (uint8_t rhport, uint8_t stage, tusb_control_request_t
           uint16_t report_len = request->wLength;
 
           // If host request a specific Report ID, extract report ID in buffer before invoking callback
-          if ( (report_id != HID_REPORT_TYPE_INVALID) && (report_len > 1) && (report_id == p_hid->epout_buf[0]) )
+          if ( (report_id != HID_REPORT_TYPE_INVALID) && (report_len > 1) && (report_id == report_buf[0]) )
           {
             report_buf++;
             report_len--;
