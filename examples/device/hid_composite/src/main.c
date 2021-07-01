@@ -274,7 +274,8 @@ void tud_hid_set_report_cb(uint8_t itf, uint8_t report_id, hid_report_type_t rep
         board_led_write(true);
       }else
       {
-        // Caplocks Off: back to normal link
+        // Caplocks Off: back to normal blink
+        board_led_write(false);
         blink_interval_ms = BLINK_MOUNTED;
       }
     }
