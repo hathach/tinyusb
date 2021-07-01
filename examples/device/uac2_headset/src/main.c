@@ -38,7 +38,7 @@
 const uint32_t sample_rates[]       = {44100, 48000, 88200, 96000};
 uint32_t       current_sample_rate  = 44100;
 
-#define N_SAMPLE_RATES  (sizeof(sample_rates) / 4)
+#define N_SAMPLE_RATES  TU_ARRAY_SIZE(sample_rates)
 
 /* Blink pattern
  * - 25 ms   : streaming data
@@ -78,11 +78,16 @@ int8_t mute[CFG_TUD_AUDIO_FUNC_1_N_CHANNELS_TX + 1];       // +1 for master chan
 int16_t volume[CFG_TUD_AUDIO_FUNC_1_N_CHANNELS_TX + 1];    // +1 for master channel 0
 
 // Buffer for microphone data
-int16_t mic_buf[1000];
+uint8_t mic_buf[CFG_TUD_AUDIO_FUNC_1_EP_OUT_SW_BUF_SZ];
 // Buffer for speaker data
-int16_t spk_buf[1000];
+uint8_t spk_buf[CFG_TUD_AUDIO_FUNC_1_EP_OUT_SW_BUF_SZ];
 // Speaker data size received in the last frame
 int spk_data_size;
+// Resolution per format
+const uint8_t resolutions_per_format[CFG_TUD_AUDIO_FUNC_1_N_FORMATS] = {CFG_TUD_AUDIO_FUNC_1_FORMAT_1_RESOLUTION_RX,
+                                                                        CFG_TUD_AUDIO_FUNC_1_FORMAT_2_RESOLUTION_RX};
+// Current resolution, update on format change
+uint8_t current_resolution;
 
 void led_blinking_task(void);
 void audio_task(void);
@@ -364,6 +369,13 @@ bool tud_audio_set_itf_cb(uint8_t rhport, tusb_control_request_t const * p_reque
   if (ITF_NUM_AUDIO_STREAMING_SPK == itf && alt != 0)
       blink_interval_ms = BLINK_STREAMING;
 
+  // Clear buffer when streaming format is changed
+  spk_data_size = 0;
+  if(alt != 0)
+  {
+    current_resolution = resolutions_per_format[alt-1];
+  }
+
   return true;
 }
 
@@ -397,20 +409,40 @@ void audio_task(void)
 {
   // When new data arrived, copy data from speaker buffer, to microphone buffer
   // and send it over
+  // Only support speaker & headphone both have the same resolution
+  // If one is 16bit another is 24bit be care of LOUD noise !
   if (spk_data_size)
   {
-    int16_t *src = spk_buf;
-    int16_t *limit = spk_buf + spk_data_size / 2;
-    int16_t *dst = mic_buf;
-    while (src < limit)
+    if (current_resolution == 16)
     {
-      // Combine two channels into one
-      int32_t left = *src++;
-      int32_t right = *src++;
-      *dst++ = (int16_t)((left + right) / 2);
+      int16_t *src = (int16_t*)spk_buf;
+      int16_t *limit = (int16_t*)spk_buf + spk_data_size / 2;
+      int16_t *dst = (int16_t*)mic_buf;
+      while (src < limit)
+      {
+        // Combine two channels into one
+        int32_t left = *src++;
+        int32_t right = *src++;
+        *dst++ = (int16_t)((left + right) / 2);
+      }
+      tud_audio_write((uint8_t *)mic_buf, spk_data_size / 2);
+      spk_data_size = 0;
     }
-    tud_audio_write((uint8_t *)mic_buf, spk_data_size / 2);
-    spk_data_size = 0;
+    else if (current_resolution == 24)
+    {
+      int32_t *src = (int32_t*)spk_buf;
+      int32_t *limit = (int32_t*)spk_buf + spk_data_size / 4;
+      int32_t *dst = (int32_t*)mic_buf;
+      while (src < limit)
+      {
+        // Combine two channels into one
+        int32_t left = (*src++);
+        int32_t right = (*src++);
+        *dst++ = (int32_t)((left + right) / 2) & 0xffffff00;
+      }
+      tud_audio_write((uint8_t *)mic_buf, spk_data_size / 2);
+      spk_data_size = 0;
+    }
   }
 }
 
