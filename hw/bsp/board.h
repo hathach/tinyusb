@@ -54,6 +54,10 @@ void board_init(void);
 // Turn LED on or off
 void board_led_write(bool state);
 
+// Control led pattern using phase duration in ms.
+// For each phase, LED is toggle then repeated, board_led_task() is required to be called
+//void board_led_pattern(uint32_t const phase_ms[], uint8_t count);
+
 // Get the current state of button
 // a '1' means active (pressed), a '0' means inactive.
 uint32_t board_button_read(void);
@@ -81,11 +85,12 @@ int board_uart_write(void const * buf, int len);
   }
 
 #elif CFG_TUSB_OS == OPT_OS_PICO
-#include "pico/time.h"
-static inline uint32_t board_millis(void)
+  #include "pico/time.h"
+  static inline uint32_t board_millis(void)
   {
     return to_ms_since_boot(get_absolute_time());
   }
+
 #elif CFG_TUSB_OS == OPT_OS_RTTHREAD
   static inline uint32_t board_millis(void)
   {
