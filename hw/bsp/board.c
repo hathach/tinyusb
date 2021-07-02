@@ -72,14 +72,13 @@ void board_led_task(void)
     board_led_on();
   }
 }
-
 #endif
 
 //--------------------------------------------------------------------+
 // newlib read()/write() retarget
 //--------------------------------------------------------------------+
 
-#if defined(__MSP430__)
+#if defined(__MSP430__) || defined(__RX__)
   #define sys_write   write
   #define sys_read    read
 #else
