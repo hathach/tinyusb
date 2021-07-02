@@ -2223,22 +2223,19 @@ bool tud_audio_n_fb_set(uint8_t func_id, uint32_t feedback)
   TU_VERIFY(func_id < CFG_TUD_AUDIO && _audiod_fct[func_id].p_desc != NULL);
 
   // Format the feedback value
-  if (_audiod_fct[func_id].rhport == 0)
-  {
-    uint8_t * fb = (uint8_t *) &_audiod_fct[func_id].fb_val;
+#if !TUD_OPT_HIGH_SPEED
+  uint8_t * fb = (uint8_t *) &_audiod_fct[func_id].fb_val;
 
-    // For FS format is 10.14
-    *(fb++) = (feedback >> 2) & 0xFF;
-    *(fb++) = (feedback >> 10) & 0xFF;
-    *(fb++) = (feedback >> 18) & 0xFF;
-    // 4th byte is needed to work correctly with MS Windows
-    *fb = 0;
-  }
-  else
-  {
-    // For HS format is 16.16 as originally demanded
-    _audiod_fct[func_id].fb_val = feedback;
-  }
+  // For FS format is 10.14
+  *(fb++) = (feedback >> 2) & 0xFF;
+  *(fb++) = (feedback >> 10) & 0xFF;
+  *(fb++) = (feedback >> 18) & 0xFF;
+  // 4th byte is needed to work correctly with MS Windows
+  *fb = 0;
+#else
+  // For HS format is 16.16 as originally demanded
+  _audiod_fct[func_id].fb_val = feedback;
+#endif
 
   // Schedule a transmit with the new value if EP is not busy - this triggers repetitive scheduling of the feedback value
   if (!usbd_edpt_busy(_audiod_fct[func_id].rhport, _audiod_fct[func_id].ep_fb))
