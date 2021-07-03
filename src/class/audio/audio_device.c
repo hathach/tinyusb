@@ -1619,9 +1619,17 @@ static bool audiod_set_interface(uint8_t rhport, tusb_control_request_t const * 
             TU_ASSERT( audio->n_ff_used_rx <= audio->n_rx_supp_ff );
 #endif
 #endif
+
+#if CFG_TUD_AUDIO_ENABLE_FEEDBACK_EP
+            // In case of asynchronous EP, call Cb after ep_fb is set
+            if (((tusb_desc_endpoint_t const *) p_desc)->bmAttributes.sync != 0x01)
+            {
+              if (tud_audio_set_itf_cb) TU_VERIFY(tud_audio_set_itf_cb(rhport, p_request));
+            }
+#else
             // Invoke callback
             if (tud_audio_set_itf_cb) TU_VERIFY(tud_audio_set_itf_cb(rhport, p_request));
-
+#endif
             // Prepare for incoming data
 #if USE_LINEAR_BUFFER_RX
             TU_VERIFY(usbd_edpt_xfer(rhport, audio->ep_out, audio->lin_buf_out, audio->ep_out_sz), false);
