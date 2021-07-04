@@ -1622,7 +1622,7 @@ static bool audiod_set_interface(uint8_t rhport, tusb_control_request_t const * 
 
 #if CFG_TUD_AUDIO_ENABLE_FEEDBACK_EP
             // In case of asynchronous EP, call Cb after ep_fb is set
-            if (((tusb_desc_endpoint_t const *) p_desc)->bmAttributes.sync != 0x01)
+            if (!(((tusb_desc_endpoint_t const *) p_desc)->bmAttributes.sync == 0x01 && audio->ep_fb == 0))
             {
               if (tud_audio_set_itf_cb) TU_VERIFY(tud_audio_set_itf_cb(rhport, p_request));
             }
@@ -1643,8 +1643,11 @@ static bool audiod_set_interface(uint8_t rhport, tusb_control_request_t const * 
           {
             audio->ep_fb = ep_addr;
 
-            // Invoke callback
-            if (tud_audio_set_itf_cb) TU_VERIFY(tud_audio_set_itf_cb(rhport, p_request));
+            // Invoke callback after ep_out is set
+            if (audio->ep_out != 0)
+            {
+              if (tud_audio_set_itf_cb) TU_VERIFY(tud_audio_set_itf_cb(rhport, p_request));
+            }
           }
 #endif
 #endif // CFG_TUD_AUDIO_ENABLE_EP_OUT
@@ -1938,8 +1941,12 @@ bool audiod_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint3
     {
       if (tud_audio_fb_done_cb) TU_VERIFY(tud_audio_fb_done_cb(rhport));
 
-      // Schedule next transmission - value is changed bytud_audio_n_fb_set() in the meantime or the old value gets sent
-      return audiod_fb_send(rhport, &_audiod_fct[func_id]);
+      // Schedule a transmit with the new value if EP is not busy 
+      if (!usbd_edpt_busy(rhport, _audiod_fct[func_id].ep_fb))
+      {
+        // Schedule next transmission - value is changed bytud_audio_n_fb_set() in the meantime or the old value gets sent
+        return audiod_fb_send(rhport, &_audiod_fct[func_id]);
+      }
     }
 #endif
 #endif
