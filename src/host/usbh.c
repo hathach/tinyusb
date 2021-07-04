@@ -984,11 +984,12 @@ static bool enum_set_config_complete(uint8_t dev_addr, tusb_control_request_t co
 static bool parse_configuration_descriptor(uint8_t dev_addr, tusb_desc_configuration_t const* desc_cfg)
 {
   usbh_device_t* dev = &_usbh_devices[dev_addr];
-  uint8_t const* p_desc = (uint8_t const*) desc_cfg;
-  p_desc = tu_desc_next(p_desc);
+
+  uint8_t const* desc_end = ((uint8_t const*) desc_cfg) + tu_le16toh(desc_cfg->wTotalLength);
+  uint8_t const* p_desc   = tu_desc_next(desc_cfg);
 
   // parse each interfaces
-  while( p_desc < _usbh_ctrl_buf + desc_cfg->wTotalLength )
+  while( p_desc < desc_end )
   {
     // TODO Do we need to use IAD
     // tusb_desc_interface_assoc_t const * desc_itf_assoc = NULL;
@@ -1003,8 +1004,9 @@ static bool parse_configuration_descriptor(uint8_t dev_addr, tusb_desc_configura
     TU_ASSERT( TUSB_DESC_INTERFACE == tu_desc_type(p_desc) );
 
     tusb_desc_interface_t const* desc_itf = (tusb_desc_interface_t const*) p_desc;
+    uint16_t const remaining_len = desc_end-p_desc;
 
-    // Check if class is supported
+    // Check if class is supported TODO drop class_code
     uint8_t drv_id;
     for (drv_id = 0; drv_id < USBH_CLASS_DRIVER_COUNT; drv_id++)
     {
@@ -1034,9 +1036,8 @@ static bool parse_configuration_descriptor(uint8_t dev_addr, tusb_desc_configura
       {
         TU_LOG2("%s open\r\n", driver->name);
 
-        uint16_t itf_len = 0;
-        TU_ASSERT( driver->open(dev->rhport, dev_addr, desc_itf, &itf_len) );
-        TU_ASSERT( itf_len >= sizeof(tusb_desc_interface_t) );
+        uint16_t const itf_len = driver->open(dev->rhport, dev_addr, desc_itf, remaining_len);
+        TU_ASSERT( sizeof(tusb_desc_interface_t) <= itf_len && itf_len <= remaining_len);
         p_desc += itf_len;
       }
     }

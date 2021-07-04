@@ -273,9 +273,6 @@ uint16_t cdcd_open(uint8_t rhport, tusb_desc_interface_t const * itf_desc, uint1
   TU_VERIFY( TUSB_CLASS_CDC                           == itf_desc->bInterfaceClass &&
              CDC_COMM_SUBCLASS_ABSTRACT_CONTROL_MODEL == itf_desc->bInterfaceSubClass, 0);
 
-  // Note: 0xFF can be used with RNDIS
-  TU_VERIFY(tu_within(CDC_COMM_PROTOCOL_NONE, itf_desc->bInterfaceProtocol, CDC_COMM_PROTOCOL_ATCOMMAND_CDMA), 0);
-
   // Find available interface
   cdcd_interface_t * p_cdc = NULL;
   for(uint8_t cdc_id=0; cdc_id<CFG_TUD_CDC; cdc_id++)
@@ -303,10 +300,11 @@ uint16_t cdcd_open(uint8_t rhport, tusb_desc_interface_t const * itf_desc, uint1
 
   if ( TUSB_DESC_ENDPOINT == tu_desc_type(p_desc) )
   {
-    // notification endpoint if any
-    TU_ASSERT( usbd_edpt_open(rhport, (tusb_desc_endpoint_t const *) p_desc), 0 );
+    // notification endpoint
+    tusb_desc_endpoint_t const * desc_ep = (tusb_desc_endpoint_t const *) p_desc;
 
-    p_cdc->ep_notif = ((tusb_desc_endpoint_t const *) p_desc)->bEndpointAddress;
+    TU_ASSERT( usbd_edpt_open(rhport, desc_ep), 0 );
+    p_cdc->ep_notif = desc_ep->bEndpointAddress;
 
     drv_len += tu_desc_len(p_desc);
     p_desc   = tu_desc_next(p_desc);
