@@ -46,6 +46,7 @@ typedef struct TU_ATTR_PACKED
     dfu_state_t state;
     uint8_t attrs;
     bool blk_transfer_in_proc;
+    uint8_t alt;
     CFG_TUSB_MEM_ALIGN uint8_t transfer_buf[CFG_TUD_DFU_TRANSFER_BUFFER_SIZE];
 } dfu_state_ctx_t;
 
@@ -165,22 +166,29 @@ uint16_t dfu_moded_open(uint8_t rhport, tusb_desc_interface_t const * itf_desc, 
   (void) rhport;
   (void) max_len;
 
-  // Ensure this is DFU Mode
-  TU_VERIFY((itf_desc->bInterfaceSubClass == TUD_DFU_APP_SUBCLASS) &&
-            (itf_desc->bInterfaceProtocol == DFU_PROTOCOL_DFU), 0);
+  uint16_t drv_len = 0;
+  uint8_t const * p_desc = (uint8_t*)itf_desc;
 
-  uint8_t const * p_desc = tu_desc_next( itf_desc );
-  uint16_t drv_len = sizeof(tusb_desc_interface_t);
-
-  if ( TUSB_DESC_FUNCTIONAL == tu_desc_type(p_desc) )
+  while (max_len)
   {
-    tusb_desc_dfu_functional_t const *dfu_desc = (tusb_desc_dfu_functional_t const *)p_desc;
-    _dfu_state_ctx.attrs = (uint8_t)dfu_desc->bAttributes;
-
+    // Ensure this is DFU Mode
+    TU_VERIFY((((tusb_desc_interface_t const *)p_desc)->bInterfaceSubClass == TUD_DFU_APP_SUBCLASS) &&
+              (((tusb_desc_interface_t const *)p_desc)->bInterfaceProtocol == DFU_PROTOCOL_DFU), drv_len);
+  
+    p_desc = tu_desc_next( p_desc );
     drv_len += tu_desc_len(p_desc);
-    p_desc   = tu_desc_next(p_desc);
-  }
 
+    if ( TUSB_DESC_FUNCTIONAL == tu_desc_type(p_desc) )
+    {
+      tusb_desc_dfu_functional_t const *dfu_desc = (tusb_desc_dfu_functional_t const *)p_desc;
+      _dfu_state_ctx.attrs = (uint8_t)dfu_desc->bAttributes;
+
+      drv_len += tu_desc_len(p_desc);
+      p_desc   = tu_desc_next(p_desc);
+    }
+
+    max_len -= drv_len;
+  }
   return drv_len;
 }
 
@@ -200,6 +208,8 @@ bool dfu_moded_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_reque
     if ( TUSB_REQ_TYPE_STANDARD == request->bmRequestType_bit.type &&
          TUSB_REQ_SET_INTERFACE == request->bRequest )
     {
+      // Save Alt interface
+      _dfu_state_ctx.alt = request->wValue;
       tud_control_status(rhport, request);
       return true;
     }
@@ -248,7 +258,11 @@ bool dfu_moded_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_reque
 static uint16_t dfu_req_upload(uint8_t rhport, tusb_control_request_t const * request, uint16_t block_num, uint16_t wLength)
 {
   TU_VERIFY( wLength <= CFG_TUD_DFU_TRANSFER_BUFFER_SIZE, 0);
-  uint16_t retval = tud_dfu_req_upload_data_cb(block_num, (uint8_t *)_dfu_state_ctx.transfer_buf, wLength);
+  uint16_t retval = 0;
+  if (tud_dfu_req_upload_data_cb)
+  {
+    tud_dfu_req_upload_data_cb(_dfu_state_ctx.alt, block_num, (uint8_t *)_dfu_state_ctx.transfer_buf, wLength);
+  }
   tud_control_xfer(rhport, request, _dfu_state_ctx.transfer_buf, retval);
   return retval;
 }
@@ -285,7 +299,7 @@ static void dfu_req_dnload_reply(uint8_t rhport, tusb_control_request_t const * 
 {
   (void) rhport;
   TU_VERIFY( request->wLength <= CFG_TUD_DFU_TRANSFER_BUFFER_SIZE, );
-  tud_dfu_req_dnload_data_cb(request->wValue, (uint8_t *)_dfu_state_ctx.transfer_buf, request->wLength);
+  tud_dfu_req_dnload_data_cb(_dfu_state_ctx.alt, request->wValue, (uint8_t *)_dfu_state_ctx.transfer_buf, request->wLength);
   _dfu_state_ctx.blk_transfer_in_proc = false;
 }
 
@@ -426,7 +440,7 @@ static bool dfu_state_machine(uint8_t rhport, tusb_control_request_t const * req
               _dfu_state_ctx.blk_transfer_in_proc = true;
               dfu_req_dnload_setup(rhport, request);
             } else {
-              if ( tud_dfu_device_data_done_check_cb() )
+              if ( tud_dfu_device_data_done_check_cb(_dfu_state_ctx.alt) )
               {
                 _dfu_state_ctx.state = DFU_MANIFEST_SYNC;
                 tud_control_status(rhport, request);
@@ -481,7 +495,7 @@ static bool dfu_state_machine(uint8_t rhport, tusb_control_request_t const * req
             _dfu_state_ctx.state = DFU_MANIFEST;
             dfu_req_getstatus_reply(rhport, request);
           } else {
-            if ( tud_dfu_firmware_valid_check_cb() )
+            if ( tud_dfu_firmware_valid_check_cb(_dfu_state_ctx.alt) )
             {
               _dfu_state_ctx.state = DFU_IDLE;
             }
