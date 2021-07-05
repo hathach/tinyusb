@@ -37,10 +37,19 @@
 // MACRO CONSTANT TYPEDEF
 //--------------------------------------------------------------------+
 
-// For MCUs who can handle a circuler buffer USE_LINEAR_BUFFER can be disable to increase throughput,
-// However more might be need due to alignment and minimum buffer size requirement
+// Use ring buffer if it's available, some MCUs need extra RAM requirements
+#ifndef TUD_CDC_PREFER_RING_BUFFER
+#if CFG_TUSB_MCU == OPT_MCU_LPC43XX || CFG_TUSB_MCU == OPT_MCU_LPC18XX || CFG_TUSB_MCU == OPT_MCU_MIMXRT10XX
+#define TUD_CDC_PREFER_RING_BUFFER 0
+#else
+#define TUD_CDC_PREFER_RING_BUFFER 1
+#endif
+#endif
 
-// Only STM32 synopsys & NXP Transdimension use non-linear buffer for now
+// Linear buffer in case target MCU is not capable of handling a ring buffer FIFO e.g. no hardware buffer
+// is available or driver is would need to be changed dramatically
+
+// Only STM32 synopsys and dcd_transdimension use non-linear buffer for now
 // Synopsys detection copied from dcd_synopsys.c (refactor later on)
 #if defined (STM32F105x8) || defined (STM32F105xB) || defined (STM32F105xC) || \
     defined (STM32F107xB) || defined (STM32F107xC)
@@ -54,7 +63,7 @@
 #define STM32L4_SYNOPSYS
 #endif
 
-#if ((CFG_TUSB_MCU == OPT_MCU_STM32F1 && defined(STM32F1_SYNOPSYS))|| \
+#if (CFG_TUSB_MCU == OPT_MCU_STM32F1 && defined(STM32F1_SYNOPSYS)) || \
     CFG_TUSB_MCU == OPT_MCU_STM32F2                                || \
     CFG_TUSB_MCU == OPT_MCU_STM32F4                                || \
     CFG_TUSB_MCU == OPT_MCU_STM32F7                                || \
@@ -62,9 +71,12 @@
     (CFG_TUSB_MCU == OPT_MCU_STM32L4 && defined(STM32L4_SYNOPSYS)) || \
     CFG_TUSB_MCU == OPT_MCU_LPC18XX                                || \
     CFG_TUSB_MCU == OPT_MCU_LPC43XX                                || \
-    CFG_TUSB_MCU == OPT_MCU_MIMXRT10XX)                            && \
-    (defined(TUD_CDC_BYPASS_LINEAR_BUFFER) && TUD_CDC_BYPASS_LINEAR_BUFFER)
+    CFG_TUSB_MCU == OPT_MCU_MIMXRT10XX
+#if TUD_CDC_PREFER_RING_BUFFER
 #define  USE_LINEAR_BUFFER     0
+#else
+#define  USE_LINEAR_BUFFER     1
+#endif
 #else
 #define  USE_LINEAR_BUFFER     1
 #endif
@@ -593,25 +605,25 @@ void tud_cdc_n_get_write_buffer (uint8_t itf, tu_fifo_buffer_info_t * info)
   tu_fifo_get_write_info(&_cdcd_itf[itf].tx_ff, info);
 }
 
-// Need to be called when buffer write is finished
-void tud_cdc_n_write_buffer_done (uint8_t itf, uint32_t readsize)
-{
-  cdcd_interface_t* p_cdc = &_cdcd_itf[itf];
-  tu_fifo_advance_write_pointer(&p_cdc->tx_ff, readsize);
-  
-   // flush if queue more than packet size
-  if ( tu_fifo_count(&p_cdc->tx_ff) >= BULK_PACKET_SIZE )
-  {
-    tud_cdc_n_write_flush(itf);
-  }
-}
-
 // Need to be called when buffer read is finished, in order to schedule next transfer
 void tud_cdc_n_read_buffer_done (uint8_t itf, uint32_t readsize)
 {
   cdcd_interface_t* p_cdc = &_cdcd_itf[itf];
   tu_fifo_advance_read_pointer(&p_cdc->rx_ff, readsize);
   _prep_out_transaction(p_cdc);
+}
+
+// Need to be called when buffer write is finished
+void tud_cdc_n_write_buffer_done (uint8_t itf, uint32_t writesize)
+{
+  cdcd_interface_t* p_cdc = &_cdcd_itf[itf];
+  tu_fifo_advance_write_pointer(&p_cdc->tx_ff, writesize);
+  
+   // flush if queue more than packet size
+  if ( tu_fifo_count(&p_cdc->tx_ff) >= BULK_PACKET_SIZE )
+  {
+    tud_cdc_n_write_flush(itf);
+  }
 }
 
 #endif
