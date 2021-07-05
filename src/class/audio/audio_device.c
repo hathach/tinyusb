@@ -183,12 +183,12 @@ CFG_TUSB_MEM_SECTION CFG_TUSB_MEM_ALIGN uint8_t ctrl_buf_3[CFG_TUD_AUDIO_FUNC_3_
 #endif
 
 // Active alternate setting of interfaces
-CFG_TUSB_MEM_SECTION CFG_TUSB_MEM_ALIGN uint8_t alt_setting_1[CFG_TUD_AUDIO_FUNC_1_N_AS_INT];
+uint8_t alt_setting_1[CFG_TUD_AUDIO_FUNC_1_N_AS_INT];
 #if CFG_TUD_AUDIO > 1 && CFG_TUD_AUDIO_FUNC_2_N_AS_INT > 0
-CFG_TUSB_MEM_SECTION CFG_TUSB_MEM_ALIGN uint8_t alt_setting_2[CFG_TUD_AUDIO_FUNC_2_N_AS_INT];
+uint8_t alt_setting_2[CFG_TUD_AUDIO_FUNC_2_N_AS_INT];
 #endif
 #if CFG_TUD_AUDIO > 2 && CFG_TUD_AUDIO_FUNC_3_N_AS_INT > 0
-CFG_TUSB_MEM_SECTION CFG_TUSB_MEM_ALIGN uint8_t alt_setting_3[CFG_TUD_AUDIO_FUNC_3_N_AS_INT];
+uint8_t alt_setting_3[CFG_TUD_AUDIO_FUNC_3_N_AS_INT];
 #endif
 
 // Software encoding/decoding support FIFOs
