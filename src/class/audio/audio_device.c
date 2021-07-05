@@ -1481,23 +1481,20 @@ static bool audiod_set_interface(uint8_t rhport, tusb_control_request_t const * 
     audio->ep_in_as_intf_num = 0;
     usbd_edpt_close(rhport, audio->ep_in);
 
-#if !CFG_TUD_AUDIO_ENABLE_ENCODING
     // Clear FIFOs, since data is no longer valid
+#if !CFG_TUD_AUDIO_ENABLE_ENCODING
     tu_fifo_clear(&audio->ep_in_ff);
+#else
+    for (uint8_t cnt = 0; cnt < audio->n_tx_supp_ff; cnt++)
+    {
+      tu_fifo_clear(&audio->tx_supp_ff[cnt]);
+    }
 #endif
     
     // Invoke callback - can be used to stop data sampling
     if (tud_audio_set_itf_close_EP_cb) TU_VERIFY(tud_audio_set_itf_close_EP_cb(rhport, p_request));
 
     audio->ep_in = 0;                           // Necessary?
-
-    // Clear support FIFOs if used
-#if CFG_TUD_AUDIO_ENABLE_ENCODING
-    for (uint8_t cnt = 0; cnt < audio->n_tx_supp_ff; cnt++)
-    {
-      tu_fifo_clear(&audio->tx_supp_ff[cnt]);
-    }
-#endif
 
   }
 #endif
@@ -1508,23 +1505,20 @@ static bool audiod_set_interface(uint8_t rhport, tusb_control_request_t const * 
     audio->ep_out_as_intf_num = 0;
     usbd_edpt_close(rhport, audio->ep_out);
 
-#if !CFG_TUD_AUDIO_ENABLE_ENCODING
     // Clear FIFOs, since data is no longer valid
+#if !CFG_TUD_AUDIO_ENABLE_DECODING
     tu_fifo_clear(&audio->ep_out_ff);
+#else
+    for (uint8_t cnt = 0; cnt < audio->n_rx_supp_ff; cnt++)
+    {
+      tu_fifo_clear(&audio->rx_supp_ff[cnt]);
+    }
 #endif
 
     // Invoke callback - can be used to stop data sampling
     if (tud_audio_set_itf_close_EP_cb) TU_VERIFY(tud_audio_set_itf_close_EP_cb(rhport, p_request));
 
     audio->ep_out = 0;                          // Necessary?
-
-    // Clear support FIFOs if used
-#if CFG_TUD_AUDIO_ENABLE_DECODING
-    for (uint8_t cnt = 0; cnt < audio->n_rx_supp_ff; cnt++)
-    {
-      tu_fifo_clear(&audio->rx_supp_ff[cnt]);
-    }
-#endif
 
     // Close corresponding feedback EP
 #if CFG_TUD_AUDIO_ENABLE_FEEDBACK_EP
