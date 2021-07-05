@@ -247,7 +247,7 @@ bool dfu_moded_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_reque
 
 static uint16_t dfu_req_upload(uint8_t rhport, tusb_control_request_t const * request, uint16_t block_num, uint16_t wLength)
 {
-  TU_VERIFY( wLength <= CFG_TUD_DFU_TRANSFER_BUFFER_SIZE);
+  TU_VERIFY( wLength <= CFG_TUD_DFU_TRANSFER_BUFFER_SIZE, 0);
   uint16_t retval = tud_dfu_req_upload_data_cb(block_num, (uint8_t *)_dfu_state_ctx.transfer_buf, wLength);
   tud_control_xfer(rhport, request, _dfu_state_ctx.transfer_buf, retval);
   return retval;
@@ -276,6 +276,7 @@ static void dfu_req_dnload_setup(uint8_t rhport, tusb_control_request_t const * 
   // if they wish, there still will be the internal control buffer copy to this buffer
   // but this mode would provide zero copy from the class driver to the application
 
+  TU_VERIFY( request->wLength <= CFG_TUD_DFU_TRANSFER_BUFFER_SIZE, );
   // setup for data phase
   tud_control_xfer(rhport, request, _dfu_state_ctx.transfer_buf, request->wLength);
 }
@@ -283,6 +284,7 @@ static void dfu_req_dnload_setup(uint8_t rhport, tusb_control_request_t const * 
 static void dfu_req_dnload_reply(uint8_t rhport, tusb_control_request_t const * request)
 {
   (void) rhport;
+  TU_VERIFY( request->wLength <= CFG_TUD_DFU_TRANSFER_BUFFER_SIZE, );
   tud_dfu_req_dnload_data_cb(request->wValue, (uint8_t *)_dfu_state_ctx.transfer_buf, request->wLength);
   _dfu_state_ctx.blk_transfer_in_proc = false;
 }

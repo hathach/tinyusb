@@ -186,6 +186,7 @@ bool usbd_control_xfer_cb (uint8_t rhport, uint8_t ep_addr, xfer_result_t result
   {
     TU_VERIFY(_ctrl_xfer.buffer);
     memcpy(_ctrl_xfer.buffer, _usbd_ctrl_buf, xferred_bytes);
+    TU_LOG_MEM(2, _usbd_ctrl_buf, xferred_bytes, 2);
   }
 
   _ctrl_xfer.total_xferred += xferred_bytes;

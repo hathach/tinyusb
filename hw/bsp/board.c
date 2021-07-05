@@ -25,17 +25,66 @@
 
 #include "board.h"
 
-#if defined(__MSP430__)
+#if 0
+#define LED_PHASE_MAX   8
+
+static struct
+{
+  uint32_t phase[LED_PHASE_MAX];
+  uint8_t phase_count;
+
+  bool led_state;
+  uint8_t current_phase;
+  uint32_t current_ms;
+}led_pattern;
+
+void board_led_pattern(uint32_t const phase_ms[], uint8_t count)
+{
+  memcpy(led_pattern.phase, phase_ms, 4*count);
+  led_pattern.phase_count = count;
+
+  // reset with 1st phase is on
+  led_pattern.current_ms = board_millis();
+  led_pattern.current_phase = 0;
+  led_pattern.led_state = true;
+  board_led_on();
+}
+
+void board_led_task(void)
+{
+  if ( led_pattern.phase_count == 0 ) return;
+
+  uint32_t const duration = led_pattern.phase[led_pattern.current_phase];
+
+  // return if not enough time
+  if (board_millis() - led_pattern.current_ms < duration) return;
+
+  led_pattern.led_state = !led_pattern.led_state;
+  board_led_write(led_pattern.led_state);
+
+  led_pattern.current_ms += duration;
+  led_pattern.current_phase++;
+
+  if (led_pattern.current_phase == led_pattern.phase_count)
+  {
+    led_pattern.current_phase = 0;
+    led_pattern.led_state = true;
+    board_led_on();
+  }
+}
+#endif
+
+//--------------------------------------------------------------------+
+// newlib read()/write() retarget
+//--------------------------------------------------------------------+
+
+#if defined(__MSP430__) || defined(__RX__)
   #define sys_write   write
   #define sys_read    read
 #else
   #define sys_write   _write
   #define sys_read    _read
 #endif
-
-//--------------------------------------------------------------------+
-// newlib read()/write() retarget
-//--------------------------------------------------------------------+
 
 #if defined(LOGGER_RTT)
 // Logging with RTT

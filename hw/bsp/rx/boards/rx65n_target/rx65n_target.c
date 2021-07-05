@@ -48,11 +48,6 @@
  * JLink firmware needs to update to V6.96 or newer version to avoid
  * [a bug](https://forum.segger.com/index.php/Thread/7758-SOLVED-Bug-in-JLink-from-V6-88b-regarding-RX65N)
  * regarding downloading.
- *
- * When using SEGGER RTT, `RX_NEWLIB=0` should be added to make command arguments.
- * The option is used to change the C runtime library to `optlib` from `newlib`.
- * RTT may not work with `newlib`.
- *
  */
 
 #include "bsp/board.h"
@@ -299,3 +294,27 @@ uint32_t board_millis(void)
 #else
 uint32_t SystemCoreClock = 120000000;
 #endif
+
+int close(int fd)
+{
+    (void)fd;
+    return -1;
+}
+int fstat(int fd, void *pstat)
+{
+    (void)fd;
+    (void)pstat;
+    return 0;
+}
+off_t lseek(int fd, off_t pos, int whence)
+{
+    (void)fd;
+    (void)pos;
+    (void)whence;
+    return 0;
+}
+int isatty(int fd)
+{
+    (void)fd;
+    return 1;
+}
