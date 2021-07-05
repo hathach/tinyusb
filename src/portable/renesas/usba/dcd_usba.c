@@ -553,7 +553,6 @@ void dcd_remote_wakeup(uint8_t rhport)
 {
   (void)rhport;
   USB0.DVSTCTR0.BIT.WKUP = 1;
-  while (USB0.DVSTCTR0.BIT.WKUP) ;
 }
 
 void dcd_connect(uint8_t rhport)
@@ -701,6 +700,11 @@ void dcd_int_handler(uint8_t rhport)
   }
   if (is0 & USB_IS0_SOFR) {
     if (_dcd.suspended) {
+      /* When USB host resumes caused by `dcd_remote_wakeup()`,
+       * RESM interrupt does not rise.
+       * Therefore we need to manually send resume event.
+       * Of course, when USB host resumes on its own,
+       * RESM interrupt rise properly, then this statements are ignored. */
       dcd_event_bus_signal(rhport, DCD_EVENT_RESUME, true);
       _dcd.suspended = 0;
     }
