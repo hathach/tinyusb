@@ -37,10 +37,19 @@
 // MACRO CONSTANT TYPEDEF
 //--------------------------------------------------------------------+
 
-// For MCUs who can handle a circuler buffer USE_LINEAR_BUFFER can be disable to increase throughput,
-// However more might be need due to alignment and minimum buffer size requirement
+// Use ring buffer if it's available, some MCUs need extra RAM requirements
+#ifndef TUD_AUDIO_PREFER_RING_BUFFER
+#if CFG_TUSB_MCU == OPT_MCU_LPC43XX || CFG_TUSB_MCU == OPT_MCU_LPC18XX || CFG_TUSB_MCU == OPT_MCU_MIMXRT10XX
+#define TUD_AUDIO_PREFER_RING_BUFFER 0
+#else
+#define TUD_AUDIO_PREFER_RING_BUFFER 1
+#endif
+#endif
 
-// Only STM32 synopsys & NXP Transdimension use non-linear buffer for now
+// Linear buffer in case target MCU is not capable of handling a ring buffer FIFO e.g. no hardware buffer
+// is available or driver is would need to be changed dramatically
+
+// Only STM32 synopsys and dcd_transdimension use non-linear buffer for now
 // Synopsys detection copied from dcd_synopsys.c (refactor later on)
 #if defined (STM32F105x8) || defined (STM32F105xB) || defined (STM32F105xC) || \
     defined (STM32F107xB) || defined (STM32F107xC)
@@ -54,7 +63,7 @@
 #define STM32L4_SYNOPSYS
 #endif
 
-#if ((CFG_TUSB_MCU == OPT_MCU_STM32F1 && defined(STM32F1_SYNOPSYS))|| \
+#if (CFG_TUSB_MCU == OPT_MCU_STM32F1 && defined(STM32F1_SYNOPSYS)) || \
     CFG_TUSB_MCU == OPT_MCU_STM32F2                                || \
     CFG_TUSB_MCU == OPT_MCU_STM32F4                                || \
     CFG_TUSB_MCU == OPT_MCU_STM32F7                                || \
@@ -62,9 +71,12 @@
     (CFG_TUSB_MCU == OPT_MCU_STM32L4 && defined(STM32L4_SYNOPSYS)) || \
     CFG_TUSB_MCU == OPT_MCU_LPC18XX                                || \
     CFG_TUSB_MCU == OPT_MCU_LPC43XX                                || \
-    CFG_TUSB_MCU == OPT_MCU_MIMXRT10XX)                            && \
-    (defined(TUD_CDC_BYPASS_LINEAR_BUFFER) && TUD_CDC_BYPASS_LINEAR_BUFFER)
+    CFG_TUSB_MCU == OPT_MCU_MIMXRT10XX
+#if TUD_AUDIO_PREFER_RING_BUFFER
 #define  USE_LINEAR_BUFFER     0
+#else
+#define  USE_LINEAR_BUFFER     1
+#endif
 #else
 #define  USE_LINEAR_BUFFER     1
 #endif
