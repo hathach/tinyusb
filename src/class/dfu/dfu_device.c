@@ -310,7 +310,7 @@ void tud_dfu_dnload_complete(void)
     _dfu_state_ctx.state = DFU_DNLOAD_SYNC;
   } else if (_dfu_state_ctx.state == DFU_MANIFEST)
   {
-    _dfu_state_ctx.state = ((_dfu_state_ctx.attrs & DFU_FUNC_ATTR_MANIFESTATION_TOLERANT_BITMASK) != 0)
+    _dfu_state_ctx.state = ((_dfu_state_ctx.attrs & DFU_FUNC_ATTR_MANIFESTATION_TOLERANT_BITMASK) == 0)
                            ? DFU_MANIFEST_WAIT_RESET : DFU_MANIFEST_SYNC;
   }
 }
@@ -490,7 +490,7 @@ static bool dfu_state_machine(uint8_t rhport, tusb_control_request_t const * req
       {
         case DFU_REQUEST_GETSTATUS:
         {
-          if ((_dfu_state_ctx.attrs & DFU_FUNC_ATTR_MANIFESTATION_TOLERANT_BITMASK) != 0)
+          if ((_dfu_state_ctx.attrs & DFU_FUNC_ATTR_MANIFESTATION_TOLERANT_BITMASK) == 0)
           {
             _dfu_state_ctx.state = DFU_MANIFEST;
             dfu_req_getstatus_reply(rhport, request);
