@@ -114,7 +114,7 @@ void tud_cdc_n_get_write_buffer (uint8_t itf, tu_fifo_buffer_info_t * info);
 void tud_cdc_n_read_buffer_done (uint8_t itf, uint32_t readsize);
 
 // Need to be called when buffer write is finished
-void tud_cdc_n_write_buffer_done (uint8_t itf, uint32_t readsize);
+void tud_cdc_n_write_buffer_done (uint8_t itf, uint32_t writesize);
 
 //--------------------------------------------------------------------+
 // Application API (Single Port)
@@ -268,9 +268,9 @@ static inline void tud_cdc_read_buffer_done (uint32_t readsize)
   tud_cdc_n_read_buffer_done(0, readsize);
 }
 
-static inline void tud_cdc_write_buffer_done (uint32_t readsize)
+static inline void tud_cdc_write_buffer_done (uint32_t writesize)
 {
-  tud_cdc_n_write_buffer_done(0, readsize);
+  tud_cdc_n_write_buffer_done(0, writesize);
 }
 
 /** @} */
