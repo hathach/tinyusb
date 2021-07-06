@@ -283,7 +283,7 @@ void dcd_set_address(uint8_t rhport, uint8_t dev_addr)
   /* Response with status first before changing device address */
   dcd_edpt_xfer(rhport, tu_edpt_addr(0, TUSB_DIR_IN), NULL, 0);
 }
-extern u32 SystemCoreClock ;
+extern u32 SystemCoreClock;
 void dcd_remote_wakeup(uint8_t rhport)
 {
   (void) rhport;
