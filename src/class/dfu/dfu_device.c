@@ -147,6 +147,7 @@ void dfu_moded_init(void)
   _dfu_state_ctx.status = DFU_STATUS_OK;
   _dfu_state_ctx.attrs = 0;
   _dfu_state_ctx.blk_transfer_in_proc = false;
+  _dfu_state_ctx.alt = 0;
 
   dfu_debug_print_context();
 }
@@ -158,6 +159,8 @@ void dfu_moded_reset(uint8_t rhport)
   _dfu_state_ctx.state = DFU_IDLE;
   _dfu_state_ctx.status = DFU_STATUS_OK;
   _dfu_state_ctx.blk_transfer_in_proc = false;
+  _dfu_state_ctx.alt = 0;
+
   dfu_debug_print_context();
 }
 

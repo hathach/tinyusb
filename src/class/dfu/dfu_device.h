@@ -33,6 +33,13 @@
   extern "C" {
 #endif
 
+//--------------------------------------------------------------------+
+// Class Driver Default Configure & Validation
+//--------------------------------------------------------------------+
+
+#if !defined(CFG_TUD_DFU_TRANSFER_BUFFER_SIZE)
+  #error " CFG_TUD_DFU_TRANSFER_BUFFER_SIZE must be defined, it have to be set to the largest buffer size used by an any given storage type"
+#endif
 
 //--------------------------------------------------------------------+
 // Application Callback API (weak is optional)
@@ -45,7 +52,7 @@ bool tud_dfu_firmware_valid_check_cb(uint8_t alt);
 // This callback takes the wBlockNum chunk of length length and provides it
 // to the application at the data pointer.  This data is only valid for this
 // call, so the app must use it not or copy it.
-// alt is used as the partition number, in order to multiple partitions like FLASH, EEPROM, etc.
+// alt is used as the partition number, in order to support multiple partitions like FLASH, EEPROM, etc.
 void tud_dfu_req_dnload_data_cb(uint8_t alt, uint16_t wBlockNum, uint8_t* data, uint16_t length);
 
 // Must be called when the application is done using the last block of data
@@ -65,7 +72,7 @@ TU_ATTR_WEAK void tud_dfu_abort_cb(void);
 // Invoked when a DFU_UPLOAD request is received
 // This callback must populate data with up to length bytes
 // Return the number of bytes to write
-// alt is used as the partition number, in order to multiple partitions like FLASH, EEPROM, etc.
+// alt is used as the partition number, in order to support multiple partitions like FLASH, EEPROM, etc.
 TU_ATTR_WEAK uint16_t tud_dfu_req_upload_data_cb(uint8_t alt, uint16_t block_num, uint8_t* data, uint16_t length);
 
 //--------------------------------------------------------------------+

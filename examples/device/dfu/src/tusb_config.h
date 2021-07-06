@@ -76,6 +76,7 @@
 #define CFG_TUD_ENDPOINT0_SIZE    64
 #endif
 
+// DFU buffer size, must to be set to the largest buffer size used by an any given storage type
 #define CFG_TUD_DFU_TRANSFER_BUFFER_SIZE    4096
 
 //------------- CLASS -------------//
