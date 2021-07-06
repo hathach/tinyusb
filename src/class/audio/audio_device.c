@@ -643,7 +643,6 @@ static bool audiod_decode_type_I_pcm(uint8_t rhport, audiod_function_t* audio, u
 
   // Determine amount of samples
   uint8_t const n_ff_used               = audio->n_ff_used_rx;
-  uint16_t const nBytesToCopy           = audio->n_channels_per_ff_rx * audio->n_bytes_per_sampe_rx;
   uint16_t const nBytesPerFFToRead      = n_bytes_received / n_ff_used;
   uint8_t cnt_ff;
 
@@ -662,14 +661,14 @@ static bool audiod_decode_type_I_pcm(uint8_t rhport, audiod_function_t* audio, u
       info.len_lin = tu_min16(nBytesPerFFToRead, info.len_lin);
       src = &audio->lin_buf_out[cnt_ff*audio->n_channels_per_ff_rx * audio->n_bytes_per_sampe_rx];
       dst_end = info.ptr_lin + info.len_lin;
-      src = audiod_interleaved_copy_bytes_fast_decode(nBytesToCopy, info.ptr_lin, dst_end, src, n_ff_used);
+      src = audiod_interleaved_copy_bytes_fast_decode(audio->n_bytes_per_sampe_rx, info.ptr_lin, dst_end, src, n_ff_used);
 
       // Handle wrapped part of FIFO
       info.len_wrap = tu_min16(nBytesPerFFToRead - info.len_lin, info.len_wrap);
       if (info.len_wrap != 0)
       {
         dst_end = info.ptr_wrap + info.len_wrap;
-        audiod_interleaved_copy_bytes_fast_decode(nBytesToCopy, info.ptr_wrap, dst_end, src, n_ff_used);
+        audiod_interleaved_copy_bytes_fast_decode(audio->n_bytes_per_sampe_rx, info.ptr_wrap, dst_end, src, n_ff_used);
       }
       tu_fifo_advance_write_pointer(&audio->rx_supp_ff[cnt_ff], info.len_lin + info.len_wrap);
     }
@@ -994,7 +993,7 @@ static uint16_t audiod_encode_type_I_pcm(uint8_t rhport, audiod_function_t* audi
     {
       info.len_lin = tu_min16(nBytesPerFFToSend, info.len_lin);       // Limit up to desired length
       src_end = (uint8_t *)info.ptr_lin + info.len_lin;
-      dst = audiod_interleaved_copy_bytes_fast_encode(nBytesToCopy, info.ptr_lin, src_end, dst, n_ff_used);
+      dst = audiod_interleaved_copy_bytes_fast_encode(audio->n_bytes_per_sampe_tx, info.ptr_lin, src_end, dst, n_ff_used);
 
       // Limit up to desired length
       info.len_wrap = tu_min16(nBytesPerFFToSend - info.len_lin, info.len_wrap);
@@ -1003,7 +1002,7 @@ static uint16_t audiod_encode_type_I_pcm(uint8_t rhport, audiod_function_t* audi
       if (info.len_wrap != 0)
       {
         src_end = (uint8_t *)info.ptr_wrap + info.len_wrap;
-        audiod_interleaved_copy_bytes_fast_encode(nBytesToCopy, info.ptr_wrap, src_end, dst, n_ff_used);
+        audiod_interleaved_copy_bytes_fast_encode(audio->n_bytes_per_sampe_tx, info.ptr_wrap, src_end, dst, n_ff_used);
       }
 
       tu_fifo_advance_read_pointer(&audio->tx_supp_ff[cnt_ff], info.len_lin + info.len_wrap);
