@@ -49,15 +49,15 @@
 //--------------------------------------------------------------------+
 // Application Callback API (weak is optional)
 //--------------------------------------------------------------------+
-// Invoked during DFU_MANIFEST_SYNC get status request to check if firmware
-// is valid
+// Invoked during DFU_MANIFEST_SYNC get status request to check if firmware is valid
+// alt is used as the partition number, in order to support multiple partitions like FLASH, EEPROM, etc.
 bool tud_dfu_firmware_valid_check_cb(uint8_t alt);
 
 // Invoked when a DFU_DNLOAD request is received
+// alt is used as the partition number, in order to support multiple partitions like FLASH, EEPROM, etc.
 // This callback takes the wBlockNum chunk of length length and provides it
 // to the application at the data pointer.  This data is only valid for this
 // call, so the app must use it not or copy it.
-// alt is used as the partition number, in order to support multiple partitions like FLASH, EEPROM, etc.
 void tud_dfu_req_dnload_data_cb(uint8_t alt, uint16_t wBlockNum, uint8_t* data, uint16_t length);
 
 // Must be called when the application is done using the last block of data
@@ -66,6 +66,7 @@ void tud_dfu_dnload_complete(void);
 
 // Invoked during the last DFU_DNLOAD request, signifying that the host believes
 // it is done transmitting data.
+// alt is used as the partition number, in order to support multiple partitions like FLASH, EEPROM, etc.
 // Return true if the application agrees there is no more data
 // Return false if the device disagrees, which will stall the pipe, and the Host
 //              should initiate a recovery procedure
@@ -75,9 +76,9 @@ bool tud_dfu_device_data_done_check_cb(uint8_t alt);
 TU_ATTR_WEAK void tud_dfu_abort_cb(void);
 
 // Invoked when a DFU_UPLOAD request is received
+// alt is used as the partition number, in order to support multiple partitions like FLASH, EEPROM, etc.
 // This callback must populate data with up to length bytes
 // Return the number of bytes to write
-// alt is used as the partition number, in order to support multiple partitions like FLASH, EEPROM, etc.
 TU_ATTR_WEAK uint16_t tud_dfu_req_upload_data_cb(uint8_t alt, uint16_t block_num, uint8_t* data, uint16_t length);
 
 //--------------------------------------------------------------------+
