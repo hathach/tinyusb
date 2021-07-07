@@ -37,13 +37,8 @@
 // Class Driver Default Configure & Validation
 //--------------------------------------------------------------------+
 
-// Maximum alternate settings (used for different partitons) supported
-#if !defined(CFG_TUD_DFU_ATL_MAX)
-  #define  CFG_TUD_DFU_ATL_MAX  2
-#endif
-
 #if !defined(CFG_TUD_DFU_TRANSFER_BUFFER_SIZE)
-  #error "CFG_TUD_DFU_TRANSFER_BUFFER_SIZE must be defined, it has to be set to the largest buffer size used by an any given storage type"
+  #error "CFG_TUD_DFU_TRANSFER_BUFFER_SIZE must be defined, it has to be set to the buffer size used in TUD_DFU_MODE_DESCRIPTOR"
 #endif
 
 //--------------------------------------------------------------------+

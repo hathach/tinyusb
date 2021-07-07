@@ -87,7 +87,7 @@ enum
   ITF_NUM_TOTAL
 };
 
-#define CONFIG_TOTAL_LEN    (TUD_CONFIG_DESC_LEN + 2 * TUD_DFU_MODE_DESC_LEN)
+#define CONFIG_TOTAL_LEN    (TUD_CONFIG_DESC_LEN + TUD_DFU_MODE_DESC_LEN)
 
 #define FUNC_ATTRS (DFU_FUNC_ATTR_CAN_UPLOAD_BITMASK | DFU_FUNC_ATTR_CAN_DOWNLOAD_BITMASK)
 
@@ -96,9 +96,8 @@ uint8_t const desc_configuration[] =
   // Config number, interface count, string index, total length, attribute, power in mA
   TUD_CONFIG_DESCRIPTOR(1, ITF_NUM_TOTAL, 0, CONFIG_TOTAL_LEN, TUSB_DESC_CONFIG_ATT_REMOTE_WAKEUP, 100),
 
-  // Interface number, string index, attributes, detach timeout, transfer size */
-  TUD_DFU_MODE_DESCRIPTOR(ITF_NUM_DFU_MODE, 0, 4, FUNC_ATTRS, 1000, CFG_TUD_DFU_TRANSFER_BUFFER_SIZE),
-  TUD_DFU_MODE_DESCRIPTOR(ITF_NUM_DFU_MODE, 1, 5, FUNC_ATTRS, 1000, CFG_TUD_DFU_TRANSFER_BUFFER_SIZE),
+  // Interface number, attributes, detach timeout, transfer size, string index 0, [string index 1 ... string index n]
+  TUD_DFU_MODE_DESCRIPTOR(ITF_NUM_DFU_MODE, FUNC_ATTRS, 1000, CFG_TUD_DFU_TRANSFER_BUFFER_SIZE, 4, 5),
 };
 
 // Invoked when received GET CONFIGURATION DESCRIPTOR
