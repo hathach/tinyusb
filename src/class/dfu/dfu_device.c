@@ -263,6 +263,12 @@ bool dfu_moded_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_reque
 
   switch (request->bRequest)
   {
+    case DFU_REQUEST_DETACH:
+    {
+      tud_control_status(rhport, request);
+      if (tud_dfu_reboot_cb) tud_dfu_reboot_cb();
+      break;
+    }
     case DFU_REQUEST_DNLOAD:
     {
       if ( (stage == CONTROL_STAGE_ACK)
@@ -273,7 +279,6 @@ bool dfu_moded_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_reque
         return true;
       }
     } // fallthrough
-    case DFU_REQUEST_DETACH:
     case DFU_REQUEST_UPLOAD:
     case DFU_REQUEST_GETSTATUS:
     case DFU_REQUEST_CLRSTATUS:
