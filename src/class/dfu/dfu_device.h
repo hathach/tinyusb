@@ -48,6 +48,11 @@
 // alt is used as the partition number, in order to support multiple partitions like FLASH, EEPROM, etc.
 bool tud_dfu_firmware_valid_check_cb(uint8_t alt);
 
+// Invoked when a DFU_GETSTATUS request is received in DFU_DNBUSY state
+// Used to set the bwPollTimeout value, useful for slow Flash in order to make host wait longer 
+// alt is used as the partition number, in order to support multiple partitions like FLASH, EEPROM, etc.
+TU_ATTR_WEAK uint16_t tud_dfu_set_timeout_cb(uint8_t alt);
+
 // Invoked when a DFU_DNLOAD request is received
 // alt is used as the partition number, in order to support multiple partitions like FLASH, EEPROM, etc.
 // This callback takes the wBlockNum chunk of length length and provides it

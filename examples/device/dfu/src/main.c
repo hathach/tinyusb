@@ -125,6 +125,13 @@ bool tud_dfu_firmware_valid_check_cb(uint8_t alt)
   return true;
 }
 
+uint16_t tud_dfu_set_timeout_cb(uint8_t alt)
+{
+  // For example Alt1 (EEPROM) is slow, add 2000ms timeout
+  if (alt == 1) return 2000;
+  return 0;
+}
+
 void tud_dfu_req_dnload_data_cb(uint8_t alt, uint16_t wBlockNum, uint8_t* data, uint16_t length)
 {
   (void) data;

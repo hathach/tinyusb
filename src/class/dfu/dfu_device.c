@@ -270,7 +270,6 @@ bool dfu_moded_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_reque
            && ((_dfu_state_ctx.attrs & DFU_FUNC_ATTR_CAN_DOWNLOAD_BITMASK) != 0)
            && (_dfu_state_ctx.state == DFU_DNLOAD_SYNC))
       {
-        dfu_req_dnload_reply(rhport, request);
         return true;
       }
     } // fallthrough
@@ -314,8 +313,16 @@ static void dfu_req_getstatus_reply(uint8_t rhport, tusb_control_request_t const
 {
   dfu_status_req_payload_t resp;
 
+  uint16_t timeout = 0;
   resp.bStatus = _dfu_state_ctx.status;
-  memset((uint8_t *)&resp.bwPollTimeout, 0x00, 3);
+  if(_dfu_state_ctx.state == DFU_DNBUSY && tud_dfu_set_timeout_cb)
+  {
+    timeout = tud_dfu_set_timeout_cb(_dfu_state_ctx.alt);
+    
+  }
+  resp.bwPollTimeout[0] = TU_U16_LOW(timeout);
+  resp.bwPollTimeout[1] = TU_U16_HIGH(timeout);
+  resp.bwPollTimeout[2] = 0;
   resp.bState = _dfu_state_ctx.state;
   resp.iString = 0;
 
@@ -433,6 +440,7 @@ static bool dfu_state_machine(uint8_t rhport, tusb_control_request_t const * req
           {
             _dfu_state_ctx.state = DFU_DNBUSY;
             dfu_req_getstatus_reply(rhport, request);
+            dfu_req_dnload_reply(rhport, request);
           } else {
             _dfu_state_ctx.state = DFU_DNLOAD_IDLE;
             dfu_req_getstatus_reply(rhport, request);
@@ -537,7 +545,8 @@ static bool dfu_state_machine(uint8_t rhport, tusb_control_request_t const * req
           {
             _dfu_state_ctx.state = DFU_MANIFEST;
             dfu_req_getstatus_reply(rhport, request);
-          } else {
+          } else 
+          {
             if ( tud_dfu_firmware_valid_check_cb(_dfu_state_ctx.alt) )
             {
               _dfu_state_ctx.state = DFU_IDLE;
