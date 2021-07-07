@@ -204,14 +204,14 @@ uint16_t dfu_moded_open(uint8_t rhport, tusb_desc_interface_t const * itf_desc, 
     else
     {
       // Only one DFU interface is supported
-      TU_ASSERT(_dfu_state_ctx.intf == intf);
+      TU_ASSERT(_dfu_state_ctx.intf == intf, 0);
     }
 
     // CFG_TUD_DFU_ATL_MAX should big enough to hold all alt settings
-    TU_ASSERT(alt < CFG_TUD_DFU_ATL_MAX);
+    TU_ASSERT(alt < CFG_TUD_DFU_ATL_MAX, 0);
 
     // Alt should increse by one every time
-    TU_ASSERT(alt == last_alt++);
+    TU_ASSERT(alt == last_alt++, 0);
 
     //------------- DFU descriptor -------------//
     p_desc = tu_desc_next(p_desc);
@@ -220,7 +220,7 @@ uint16_t dfu_moded_open(uint8_t rhport, tusb_desc_interface_t const * itf_desc, 
     _dfu_state_ctx.attrs[alt] = ((tusb_desc_dfu_functional_t const *)p_desc)->bAttributes;
 
     // CFG_TUD_DFU_TRANSFER_BUFFER_SIZE has to be set to the largest buffer size used by all alt settings
-    TU_ASSERT(((tusb_desc_dfu_functional_t const *)p_desc)->wTransferSize <= CFG_TUD_DFU_TRANSFER_BUFFER_SIZE);
+    TU_ASSERT(((tusb_desc_dfu_functional_t const *)p_desc)->wTransferSize <= CFG_TUD_DFU_TRANSFER_BUFFER_SIZE, 0);
 
     p_desc = tu_desc_next(p_desc);
     max_len -= drv_len;
