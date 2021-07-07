@@ -50,6 +50,8 @@ typedef struct TU_ATTR_PACKED
     bool blk_transfer_in_proc;
     uint8_t alt;
     uint8_t intf;
+    uint16_t block;
+    uint16_t length;
     CFG_TUSB_MEM_ALIGN uint8_t transfer_buf[CFG_TUD_DFU_TRANSFER_BUFFER_SIZE];
 } dfu_state_ctx_t;
 
@@ -270,6 +272,8 @@ bool dfu_moded_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_reque
            && ((_dfu_state_ctx.attrs & DFU_FUNC_ATTR_CAN_DOWNLOAD_BITMASK) != 0)
            && (_dfu_state_ctx.state == DFU_DNLOAD_SYNC))
       {
+        _dfu_state_ctx.block = request->wValue;
+        _dfu_state_ctx.length = request->wLength;
         return true;
       }
     } // fallthrough
@@ -349,7 +353,7 @@ static void dfu_req_dnload_reply(uint8_t rhport, tusb_control_request_t const * 
 {
   (void) rhport;
   TU_VERIFY( request->wLength <= CFG_TUD_DFU_TRANSFER_BUFFER_SIZE, );
-  tud_dfu_req_dnload_data_cb(_dfu_state_ctx.alt, request->wValue, (uint8_t *)_dfu_state_ctx.transfer_buf, request->wLength);
+  tud_dfu_req_dnload_data_cb(_dfu_state_ctx.alt,_dfu_state_ctx.block, (uint8_t *)_dfu_state_ctx.transfer_buf, _dfu_state_ctx.length);
   _dfu_state_ctx.blk_transfer_in_proc = false;
 }
 
