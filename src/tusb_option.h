@@ -118,6 +118,9 @@
 // Mind Motion
 #define OPT_MCU_MM32F327X        1500 ///< Mind Motion MM32F327
 
+// GigaDevice
+#define OPT_MCU_GD32VF103        1600 ///< GigaDevice GD32VF103
+
 /** @} */
 
 /** \defgroup group_supported_os Supported RTOS
@@ -293,6 +296,7 @@
 
 // TUP_ARCH_STRICT_ALIGN if arch cannot access unaligned memory
 
+  #define TUP_ARCH_STRICT_ALIGN   1
 
 // ARMv7+ (M3-M7, M23-M33) can access unaligned memory
 #if (defined(__ARM_ARCH) && (__ARM_ARCH >= 7))
