@@ -51,6 +51,7 @@ INC += \
 #FREERTOS_PORT = ARM_CM3
 
 # For flash-jlink target
+JLINK_IF = jtag
 JLINK_DEVICE = gd32vf103cbt6 # Longan Nano 128k ROM 32k RAM
 #JLINK_DEVICE = gd32vf103c8t6 # Longan Nano Lite 64k ROM 20k RAM
 
