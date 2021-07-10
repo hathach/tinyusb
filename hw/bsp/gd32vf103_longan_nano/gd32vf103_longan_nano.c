@@ -39,7 +39,7 @@ void USBFS_IRQHandler(void) { tud_int_handler(0); }
 
 #define HXTAL_VALUE \
   ((uint32_t)8000000) /*!< value of the external oscillator in Hz */
-#define USB_NO_VBUS_PIN 1
+#define USB_NO_VBUS_PIN
 
 //--------------------------------------------------------------------+
 // LED
@@ -61,16 +61,6 @@ void USBFS_IRQHandler(void) { tud_int_handler(0); }
 #define UART_GPIO_PORT GPIOA
 #define UART_TX_PIN GPIO_PIN_9
 #define UART_RX_PIN GPIO_PIN_10
-
-/* sipeed longan nano board UART com port */
-#define GD32_COM0 USART0
-#define GD32_COM_CLK RCU_USART0
-#define GD32_COM_TX_PIN GPIO_PIN_9
-#define GD32_COM_RX_PIN GPIO_PIN_10
-#define GD32_COM_TX_GPIO_PORT GPIOA
-#define GD32_COM_RX_GPIO_PORT GPIOA
-#define GD32_COM_TX_GPIO_CLK RCU_GPIOA
-#define GD32_COM_RX_GPIO_CLK RCU_GPIOA
 
 void board_init(void) {
   /* Disable interrupts during init */
@@ -117,7 +107,7 @@ void board_init(void) {
   board_led_write(0);
 #endif
 
-#if defined(UART_DEV) && CFG_TUSB_DEBUG
+#if defined(UART_DEV)
   /* enable GPIO TX and RX clock */
   rcu_periph_clock_enable(GD32_COM_TX_GPIO_CLK);
   rcu_periph_clock_enable(GD32_COM_RX_GPIO_CLK);
@@ -214,8 +204,7 @@ uint32_t board_button_read(void) {
 }
 
 int board_uart_read(uint8_t* buf, int len) {
-#if defined(UART_DEV) && CFG_TUSB_DEBUG
-
+#if defined(UART_DEV)
   int rxsize = len;
   while (rxsize--) {
     *(uint8_t*)buf = usart_read(UART_DEV);
@@ -230,8 +219,7 @@ int board_uart_read(uint8_t* buf, int len) {
 }
 
 int board_uart_write(void const* buf, int len) {
-#if defined(UART_DEV) && CFG_TUSB_DEBUG
-
+#if defined(UART_DEV)
   int txsize = len;
   while (txsize--) {
     usart_write(UART_DEV, *(uint8_t*)buf);

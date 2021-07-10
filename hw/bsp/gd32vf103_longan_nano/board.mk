@@ -21,15 +21,14 @@ CFLAGS += \
 #CFLAGS += -Wno-error=unused-parameter
 
 # All source paths should be relative to the top level.
-LD_FILE = hw/bsp/$(BOARD)/gcc_gd32vf103xb_flashxip.ld # 128kb ROM 32kb RAM
-# LD_FILE = hw/bsp/$(BOARD)/gcc_gd32vf103x8_flashxip.ld # 64kb ROM 20kb RAM Longan Nano Lite
+LD_FILE = hw/bsp/$(BOARD)/gcc_gd32vf103xb_flashxip.ld # Longan Nano 128k ROM 32k RAM
+# LD_FILE = hw/bsp/$(BOARD)/gcc_gd32vf103x8_flashxip.ld # Longan Nano Lite 64k ROM 20k RAM 
 
 SRC_C += \
   src/portable/st/synopsys/dcd_synopsys.c \
 	$(GD32VF103_SDK_DRIVER)/gd32vf103_rcu.c \
 	$(GD32VF103_SDK_DRIVER)/gd32vf103_gpio.c \
 	$(GD32VF103_SDK_DRIVER)/Usb/gd32vf103_usb_hw.c \
-	$(GD32VF103_SDK_DRIVER)/gd32vf103_fmc.c \
 	$(GD32VF103_SDK_DRIVER)/gd32vf103_usart.c \
 	$(GD32VF103_SDK_SOC_COMMON)/Source/Stubs/sbrk.c \
 	$(GD32VF103_SDK_SOC_COMMON)/Source/Stubs/close.c \
@@ -52,7 +51,8 @@ INC += \
 #FREERTOS_PORT = ARM_CM3
 
 # For flash-jlink target
-JLINK_DEVICE = gd32vf103cb
+JLINK_DEVICE = gd32vf103cbt6 # Longan Nano 128k ROM 32k RAM
+#JLINK_DEVICE = gd32vf103c8t6 # Longan Nano Lite 64k ROM 20k RAM
 
 # flash target ROM bootloader
 flash: $(BUILD)/$(PROJECT).bin

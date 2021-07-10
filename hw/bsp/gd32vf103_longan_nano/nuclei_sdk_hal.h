@@ -12,7 +12,16 @@
 extern "C" {
 #endif
 
+/* sipeed longan nano board UART com port */
 #define SOC_DEBUG_UART      USART0
+#define GD32_COM0 USART0
+#define GD32_COM_CLK RCU_USART0
+#define GD32_COM_TX_PIN GPIO_PIN_9
+#define GD32_COM_RX_PIN GPIO_PIN_10
+#define GD32_COM_TX_GPIO_PORT GPIOA
+#define GD32_COM_RX_GPIO_PORT GPIOA
+#define GD32_COM_TX_GPIO_CLK RCU_GPIOA
+#define GD32_COM_RX_GPIO_CLK RCU_GPIOA
 
 #ifdef __cplusplus
 }
