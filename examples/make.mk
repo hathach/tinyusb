@@ -91,7 +91,6 @@ CFLAGS += \
   -Wstrict-overflow \
   -Wall \
   -Wextra \
-  -Werror \
   -Wfatal-errors \
   -Werror-implicit-function-declaration \
   -Wfloat-equal \
@@ -102,7 +101,8 @@ CFLAGS += \
   -Wmissing-format-attribute \
   -Wunreachable-code \
   -Wcast-align \
-  -Wcast-function-type
+  -Wcast-function-type \
+  # -Werror disable for now\
 
 # Debugging/Optimization
 ifeq ($(DEBUG), 1)
