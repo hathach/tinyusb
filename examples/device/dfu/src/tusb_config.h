@@ -83,7 +83,7 @@
 
 // Count of all alt settings, typically it's the partition count (Flash, EEPROM, etc.)
 #define CFG_TUD_DFU_ALT_COUNT               2
-// DFU buffer size, it has to be set to the buffer size used in TUD_DFU_MODE_DESCRIPTOR
+// DFU buffer size, it has to be set to the buffer size used in TUD_DFU_DESCRIPTOR
 #define CFG_TUD_DFU_TRANSFER_BUFFER_SIZE    4096
 
 #ifdef __cplusplus

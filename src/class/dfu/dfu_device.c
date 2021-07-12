@@ -200,7 +200,7 @@ uint16_t dfu_moded_open(uint8_t rhport, tusb_desc_interface_t const * itf_desc, 
 
   _dfu_state_ctx.attrs = func_desc->bAttributes;
 
-  // CFG_TUD_DFU_TRANSFER_BUFFER_SIZE has to be set to the buffer size used in TUD_DFU_MODE_DESCRIPTOR
+  // CFG_TUD_DFU_TRANSFER_BUFFER_SIZE has to be set to the buffer size used in TUD_DFU_DESCRIPTOR
   uint16_t const transfer_size = tu_le16toh( tu_unaligned_read16(&func_desc->wTransferSize) );
   TU_ASSERT(transfer_size <= CFG_TUD_DFU_TRANSFER_BUFFER_SIZE, drv_len);
 

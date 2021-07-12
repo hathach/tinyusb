@@ -646,7 +646,7 @@ TU_ATTR_WEAK bool tud_vendor_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb
   TU_XSTRCAT(TUD_DFU_MODE_ALT_, CFG_TUD_DFU_ALT_COUNT)(_itfnum, __VA_ARGS__)
 
 // Interface number, attributes, detach timeout, transfer size, string index 0, [string index 1, string index n]
-#define TUD_DFU_MODE_DESCRIPTOR(_itfnum, _attr, _timeout, _xfer_size, _stridx, ...) \
+#define TUD_DFU_DESCRIPTOR(_itfnum, _attr, _timeout, _xfer_size, _stridx, ...) \
   TUD_DFU_MODE_ALTS(_itfnum, _TUD_DFU_COMBINE(_stridx, __VA_ARGS__)) \
   TUD_DFU_MODE_FUNC(_attr, _timeout, _xfer_size)
 

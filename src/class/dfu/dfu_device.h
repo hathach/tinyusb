@@ -38,7 +38,7 @@
 //--------------------------------------------------------------------+
 
 #if !defined(CFG_TUD_DFU_TRANSFER_BUFFER_SIZE)
-  #error "CFG_TUD_DFU_TRANSFER_BUFFER_SIZE must be defined, it has to be set to the buffer size used in TUD_DFU_MODE_DESCRIPTOR"
+  #error "CFG_TUD_DFU_TRANSFER_BUFFER_SIZE must be defined, it has to be set to the buffer size used in TUD_DFU_DESCRIPTOR"
 #endif
 
 //--------------------------------------------------------------------+
