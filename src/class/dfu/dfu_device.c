@@ -503,7 +503,7 @@ static bool dfu_state_machine(uint8_t rhport, tusb_control_request_t const * req
           {
             if ( tud_dfu_abort_cb )
             {
-              tud_dfu_abort_cb();
+              tud_dfu_abort_cb(_dfu_state_ctx.alt);
             }
             _dfu_state_ctx.state = DFU_IDLE;
           }
@@ -613,7 +613,7 @@ static bool dfu_state_machine(uint8_t rhport, tusb_control_request_t const * req
         {
           if (tud_dfu_abort_cb)
           {
-            tud_dfu_abort_cb();
+            tud_dfu_abort_cb(_dfu_state_ctx.alt);
           }
           _dfu_state_ctx.state = DFU_IDLE;
         }

@@ -73,7 +73,7 @@ void tud_dfu_dnload_complete(void);
 bool tud_dfu_device_data_done_check_cb(uint8_t alt);
 
 // Invoked when the Host has terminated a download or upload transfer
-TU_ATTR_WEAK void tud_dfu_abort_cb(void);
+TU_ATTR_WEAK void tud_dfu_abort_cb(uint8_t alt);
 
 // Invoked when a DFU_UPLOAD request is received
 // alt is used as the partition number, in order to support multiple partitions like FLASH, EEPROM, etc.
