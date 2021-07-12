@@ -33,19 +33,32 @@
   extern "C" {
 #endif
 
+//--------------------------------------------------------------------+
+// Class Driver Default Configure & Validation
+//--------------------------------------------------------------------+
+
+#if !defined(CFG_TUD_DFU_TRANSFER_BUFFER_SIZE)
+  #error "CFG_TUD_DFU_TRANSFER_BUFFER_SIZE must be defined, it has to be set to the buffer size used in TUD_DFU_MODE_DESCRIPTOR"
+#endif
 
 //--------------------------------------------------------------------+
 // Application Callback API (weak is optional)
 //--------------------------------------------------------------------+
-// Invoked during DFU_MANIFEST_SYNC get status request to check if firmware
-// is valid
-bool tud_dfu_firmware_valid_check_cb(void);
+// Invoked during DFU_MANIFEST_SYNC get status request to check if firmware is valid
+// alt is used as the partition number, in order to support multiple partitions like FLASH, EEPROM, etc.
+bool tud_dfu_firmware_valid_check_cb(uint8_t alt);
+
+// Invoked when a DFU_GETSTATUS request is received in DFU_DNBUSY state
+// Used to set the bwPollTimeout value, useful for slow Flash in order to make host wait longer 
+// alt is used as the partition number, in order to support multiple partitions like FLASH, EEPROM, etc.
+TU_ATTR_WEAK uint16_t tud_dfu_set_timeout_cb(uint8_t alt);
 
 // Invoked when a DFU_DNLOAD request is received
+// alt is used as the partition number, in order to support multiple partitions like FLASH, EEPROM, etc.
 // This callback takes the wBlockNum chunk of length length and provides it
 // to the application at the data pointer.  This data is only valid for this
 // call, so the app must use it not or copy it.
-void tud_dfu_req_dnload_data_cb(uint16_t wBlockNum, uint8_t* data, uint16_t length);
+void tud_dfu_req_dnload_data_cb(uint8_t alt, uint16_t wBlockNum, uint8_t* data, uint16_t length);
 
 // Must be called when the application is done using the last block of data
 // provided by tud_dfu_req_dnload_data_cb
@@ -53,19 +66,23 @@ void tud_dfu_dnload_complete(void);
 
 // Invoked during the last DFU_DNLOAD request, signifying that the host believes
 // it is done transmitting data.
+// alt is used as the partition number, in order to support multiple partitions like FLASH, EEPROM, etc.
 // Return true if the application agrees there is no more data
 // Return false if the device disagrees, which will stall the pipe, and the Host
 //              should initiate a recovery procedure
-bool tud_dfu_device_data_done_check_cb(void);
+bool tud_dfu_device_data_done_check_cb(uint8_t alt);
 
 // Invoked when the Host has terminated a download or upload transfer
 TU_ATTR_WEAK void tud_dfu_abort_cb(void);
 
 // Invoked when a DFU_UPLOAD request is received
+// alt is used as the partition number, in order to support multiple partitions like FLASH, EEPROM, etc.
 // This callback must populate data with up to length bytes
 // Return the number of bytes to write
-uint16_t tud_dfu_req_upload_data_cb(uint16_t block_num, uint8_t* data, uint16_t length);
+TU_ATTR_WEAK uint16_t tud_dfu_req_upload_data_cb(uint8_t alt, uint16_t block_num, uint8_t* data, uint16_t length);
 
+// Invoked when a DFU_DETACH request is received
+TU_ATTR_WEAK void tud_dfu_reboot_cb(void);
 //--------------------------------------------------------------------+
 // Internal Class Driver API
 //--------------------------------------------------------------------+

@@ -115,25 +115,27 @@ void tud_resume_cb(void)
   blink_interval_ms = BLINK_MOUNTED;
 }
 
-// Invoked on DFU_DETACH request to reboot to the bootloader
-void tud_dfu_runtime_reboot_to_dfu_cb(void)
-{
-  blink_interval_ms = BLINK_DFU_MODE;
-}
-
 //--------------------------------------------------------------------+
 // Class callbacks
 //--------------------------------------------------------------------+
-bool tud_dfu_firmware_valid_check_cb(void)
+bool tud_dfu_firmware_valid_check_cb(uint8_t alt)
 {
+  (void) alt;
   printf("    Firmware check\r\n");
   return true;
 }
 
-void tud_dfu_req_dnload_data_cb(uint16_t wBlockNum, uint8_t* data, uint16_t length)
+uint16_t tud_dfu_set_timeout_cb(uint8_t alt)
+{
+  // For example Alt1 (EEPROM) is slow, add 2000ms timeout
+  if (alt == 1) return 2000;
+  return 0;
+}
+
+void tud_dfu_req_dnload_data_cb(uint8_t alt, uint16_t wBlockNum, uint8_t* data, uint16_t length)
 {
   (void) data;
-  printf("    Received BlockNum %u of length %u\r\n", wBlockNum, length);
+  printf("    Received Alt %u BlockNum %u of length %u\r\n", alt, wBlockNum, length);
 
 #if DFU_VERBOSE
   for(uint16_t i=0; i<length; i++)
@@ -145,8 +147,9 @@ void tud_dfu_req_dnload_data_cb(uint16_t wBlockNum, uint8_t* data, uint16_t leng
   tud_dfu_dnload_complete();
 }
 
-bool tud_dfu_device_data_done_check_cb(void)
+bool tud_dfu_device_data_done_check_cb(uint8_t alt)
 {
+  (void) alt;
   printf("    Host said no more data... Returning true\r\n");
   return true;
 }
@@ -156,15 +159,16 @@ void tud_dfu_abort_cb(void)
   printf("    Host aborted transfer\r\n");
 }
 
-#define UPLOAD_SIZE (29)
-const uint8_t upload_test[UPLOAD_SIZE] = "Hello world from TinyUSB DFU!";
+#define UPLOAD_SIZE 43
+const uint8_t upload_test[2][UPLOAD_SIZE] = {"Hello world from TinyUSB DFU! - Partition 0",
+                                             "Hello world from TinyUSB DFU! - Partition 1"};
 
-uint16_t tud_dfu_req_upload_data_cb(uint16_t block_num, uint8_t* data, uint16_t length)
+uint16_t tud_dfu_req_upload_data_cb(uint8_t alt, uint16_t block_num, uint8_t* data, uint16_t length)
 {
   (void) block_num;
   (void) length;
 
-  memcpy(data, upload_test, UPLOAD_SIZE);
+  memcpy(data, upload_test[alt], UPLOAD_SIZE);
 
   return UPLOAD_SIZE;
 }

@@ -605,17 +605,50 @@ TU_ATTR_WEAK bool tud_vendor_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb
   /* Function */ \
   9, DFU_DESC_FUNCTIONAL, _attr, U16_TO_U8S_LE(_timeout), U16_TO_U8S_LE(_xfer_size), U16_TO_U8S_LE(0x0101)
 
-// Length of template descriptr: 18 bytes
-#define TUD_DFU_MODE_DESC_LEN (9 + 9)
+// Maximum alternate settings (used for different partitons) supported
+#ifndef CFG_TUD_DFU_ALT_COUNT
+#define CFG_TUD_DFU_ALT_COUNT 1
+#endif
 
-// DFU runtime descriptor
-// Interface number, string index, attributes, detach timeout, transfer size
-#define TUD_DFU_MODE_DESCRIPTOR(_itfnum, _stridx, _attr, _timeout, _xfer_size) \
-  /* Interface */ \
-  9, TUSB_DESC_INTERFACE, _itfnum, 0, 0, TUD_DFU_APP_CLASS, TUD_DFU_APP_SUBCLASS, DFU_PROTOCOL_DFU, _stridx, \
+// Length of template descriptor: 18 bytes + number of alternatives * 9
+#define TUD_DFU_MODE_DESC_LEN (9 + (CFG_TUD_DFU_ALT_COUNT) * 9)
+
+/* Primary Interface */
+#define TUD_DFU_MODE_FUNC(_attr, _timeout, _xfer_size) \
   /* Function */ \
   9, DFU_DESC_FUNCTIONAL, _attr, U16_TO_U8S_LE(_timeout), U16_TO_U8S_LE(_xfer_size), U16_TO_U8S_LE(0x0101)
 
+#define TUD_DFU_MODE_ALT(_itfnum, _alt, _stridx) \
+  /* Interface */ \
+  9, TUSB_DESC_INTERFACE, _itfnum, _alt, 0, TUD_DFU_APP_CLASS, TUD_DFU_APP_SUBCLASS, DFU_PROTOCOL_DFU, _stridx, \
+
+#define _TUD_DFU_FIRST(a, ...) a
+#define _TUD_DFU_REST(a, ...) __VA_ARGS__
+#define _TUD_DFU_COMBINE(...) __VA_ARGS__
+
+#define TUD_DFU_MODE_ALT_1(_itfnum, ...) TUD_DFU_MODE_ALT(_itfnum, (CFG_TUD_DFU_ALT_COUNT) - 1, _TUD_DFU_FIRST(__VA_ARGS__))
+#define TUD_DFU_MODE_ALT_2(_itfnum, ...) TUD_DFU_MODE_ALT(_itfnum, (CFG_TUD_DFU_ALT_COUNT) - 2, _TUD_DFU_FIRST(__VA_ARGS__)) \
+  TUD_DFU_MODE_ALT_1(_itfnum, _TUD_DFU_REST(__VA_ARGS__))
+#define TUD_DFU_MODE_ALT_3(_itfnum, ...) TUD_DFU_MODE_ALT(_itfnum, (CFG_TUD_DFU_ALT_COUNT) - 3, _TUD_DFU_FIRST(__VA_ARGS__)) \
+  TUD_DFU_MODE_ALT_2(_itfnum, _TUD_DFU_REST(__VA_ARGS__))
+#define TUD_DFU_MODE_ALT_4(_itfnum, ...) TUD_DFU_MODE_ALT(_itfnum, (CFG_TUD_DFU_ALT_COUNT) - 4, _TUD_DFU_FIRST(__VA_ARGS__)) \
+  TUD_DFU_MODE_ALT_3(_itfnum, _TUD_DFU_REST(__VA_ARGS__))
+#define TUD_DFU_MODE_ALT_5(_itfnum, ...) TUD_DFU_MODE_ALT(_itfnum, (CFG_TUD_DFU_ALT_COUNT) - 5, _TUD_DFU_FIRST(__VA_ARGS__)) \
+  TUD_DFU_MODE_ALT_4(_itfnum, _TUD_DFU_REST(__VA_ARGS__))
+#define TUD_DFU_MODE_ALT_6(_itfnum, ...) TUD_DFU_MODE_ALT(_itfnum, (CFG_TUD_DFU_ALT_COUNT) - 6, _TUD_DFU_FIRST(__VA_ARGS__)) \
+  TUD_DFU_MODE_ALT_5(_itfnum, _TUD_DFU_REST(__VA_ARGS__))
+#define TUD_DFU_MODE_ALT_7(_itfnum, ...) TUD_DFU_MODE_ALT(_itfnum, (CFG_TUD_DFU_ALT_COUNT) - 7, _TUD_DFU_FIRST(__VA_ARGS__)) \
+  TUD_DFU_MODE_ALT_6(_itfnum, _TUD_DFU_REST(__VA_ARGS__))
+#define TUD_DFU_MODE_ALT_8(_itfnum, ...) TUD_DFU_MODE_ALT(_itfnum, (CFG_TUD_DFU_ALT_COUNT) - 8, _TUD_DFU_FIRST(__VA_ARGS__)) \
+  TUD_DFU_MODE_ALT_7(_itfnum, _TUD_DFU_REST(__VA_ARGS__))
+
+#define TUD_DFU_MODE_ALTS(_itfnum, ...) \
+  TU_XSTRCAT(TUD_DFU_MODE_ALT_, CFG_TUD_DFU_ALT_COUNT)(_itfnum, __VA_ARGS__)
+
+// Interface number, attributes, detach timeout, transfer size, string index 0, [string index 1, string index n]
+#define TUD_DFU_MODE_DESCRIPTOR(_itfnum, _attr, _timeout, _xfer_size, _stridx, ...) \
+  TUD_DFU_MODE_ALTS(_itfnum, _TUD_DFU_COMBINE(_stridx, __VA_ARGS__)) \
+  TUD_DFU_MODE_FUNC(_attr, _timeout, _xfer_size)
 
 //------------- CDC-ECM -------------//
 

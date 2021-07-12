@@ -37,6 +37,8 @@
 // MACRO CONSTANT TYPEDEF
 //--------------------------------------------------------------------+
 
+#define DFU_INTF_UNUSED 0xFF
+
 //--------------------------------------------------------------------+
 // INTERNAL OBJECT & FUNCTION DECLARATION
 //--------------------------------------------------------------------+
@@ -46,6 +48,10 @@ typedef struct TU_ATTR_PACKED
     dfu_state_t state;
     uint8_t attrs;
     bool blk_transfer_in_proc;
+    uint8_t alt;
+    uint8_t intf;
+    uint16_t block;
+    uint16_t length;
     CFG_TUSB_MEM_ALIGN uint8_t transfer_buf[CFG_TUD_DFU_TRANSFER_BUFFER_SIZE];
 } dfu_state_ctx_t;
 
@@ -146,6 +152,8 @@ void dfu_moded_init(void)
   _dfu_state_ctx.status = DFU_STATUS_OK;
   _dfu_state_ctx.attrs = 0;
   _dfu_state_ctx.blk_transfer_in_proc = false;
+  _dfu_state_ctx.alt = 0;
+  _dfu_state_ctx.intf = DFU_INTF_UNUSED;
 
   dfu_debug_print_context();
 }
@@ -156,32 +164,67 @@ void dfu_moded_reset(uint8_t rhport)
 
   _dfu_state_ctx.state = DFU_IDLE;
   _dfu_state_ctx.status = DFU_STATUS_OK;
+  _dfu_state_ctx.attrs = 0;
   _dfu_state_ctx.blk_transfer_in_proc = false;
+  _dfu_state_ctx.alt = 0;
+  _dfu_state_ctx.intf = DFU_INTF_UNUSED;
+
   dfu_debug_print_context();
 }
 
 uint16_t dfu_moded_open(uint8_t rhport, tusb_desc_interface_t const * itf_desc, uint16_t max_len)
 {
   (void) rhport;
-  (void) max_len;
 
-  // Ensure this is DFU Mode
-  TU_VERIFY((itf_desc->bInterfaceSubClass == TUD_DFU_APP_SUBCLASS) &&
-            (itf_desc->bInterfaceProtocol == DFU_PROTOCOL_DFU), 0);
+  uint16_t const drv_len = sizeof(tusb_desc_interface_t);
 
-  uint8_t const * p_desc = tu_desc_next( itf_desc );
-  uint16_t drv_len = sizeof(tusb_desc_interface_t);
+  uint8_t const *p_desc = (uint8_t const *)itf_desc;
 
-  if ( TUSB_DESC_FUNCTIONAL == tu_desc_type(p_desc) )
+  uint16_t total_len = 0;
+
+  uint8_t last_alt = 0;
+
+  while(max_len > drv_len)
   {
-    tusb_desc_dfu_functional_t const *dfu_desc = (tusb_desc_dfu_functional_t const *)p_desc;
-    _dfu_state_ctx.attrs = (uint8_t)dfu_desc->bAttributes;
+    // Ensure this is DFU Mode
+    TU_VERIFY((((tusb_desc_interface_t const *)p_desc)->bInterfaceSubClass == TUD_DFU_APP_SUBCLASS) &&
+              (((tusb_desc_interface_t const *)p_desc)->bInterfaceProtocol == DFU_PROTOCOL_DFU), 0);
 
-    drv_len += tu_desc_len(p_desc);
-    p_desc   = tu_desc_next(p_desc);
+    uint8_t const alt = ((tusb_desc_interface_t const *)p_desc)->bAlternateSetting;
+    uint8_t const intf = ((tusb_desc_interface_t const *)p_desc)->bInterfaceNumber;
+
+    if (_dfu_state_ctx.intf == DFU_INTF_UNUSED)
+    {
+      _dfu_state_ctx.intf = intf;
+    }
+    else
+    {
+      // Only one DFU interface is supported
+      TU_ASSERT(_dfu_state_ctx.intf == intf, 0);
+    }
+
+    // CFG_TUD_DFU_ATL_MAX should big enough to hold all alt settings
+    TU_ASSERT(alt < CFG_TUD_DFU_ALT_COUNT, 0);
+
+    // Alt should increse by one every time
+    TU_ASSERT(alt == last_alt++, 0);
+
+    p_desc = tu_desc_next(p_desc);
+    max_len -= drv_len;
+    total_len += drv_len;
   }
 
-  return drv_len;
+  //------------- DFU descriptor -------------//
+  TU_ASSERT(tu_desc_type(p_desc) == TUSB_DESC_FUNCTIONAL, 0);
+
+  _dfu_state_ctx.attrs = ((tusb_desc_dfu_functional_t const *)p_desc)->bAttributes;
+
+  // CFG_TUD_DFU_TRANSFER_BUFFER_SIZE has to be set to the buffer size used in TUD_DFU_MODE_DESCRIPTOR
+  TU_ASSERT(((tusb_desc_dfu_functional_t const *)p_desc)->wTransferSize <= CFG_TUD_DFU_TRANSFER_BUFFER_SIZE, 0);
+
+  total_len += sizeof(tusb_desc_dfu_functional_t); 
+
+  return total_len;
 }
 
 // Invoked when a control transfer occurred on an interface of this class
@@ -197,9 +240,16 @@ bool dfu_moded_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_reque
   if(stage == CONTROL_STAGE_SETUP)
   {
     // dfu-util will try to claim the interface with SET_INTERFACE request before sending DFU request
-    if ( TUSB_REQ_TYPE_STANDARD == request->bmRequestType_bit.type &&
-         TUSB_REQ_SET_INTERFACE == request->bRequest )
+    if (request->bmRequestType_bit.type == TUSB_REQ_TYPE_STANDARD && request->bRequest == TUSB_REQ_SET_INTERFACE)
     {
+      // Switch Alt interface
+      _dfu_state_ctx.alt = request->wValue;
+
+      // Re-initalise state machine (Necessary ?)
+      _dfu_state_ctx.state = DFU_IDLE;
+      _dfu_state_ctx.status = DFU_STATUS_OK;
+      _dfu_state_ctx.blk_transfer_in_proc = false;
+
       tud_control_status(rhport, request);
       return true;
     }
@@ -210,17 +260,23 @@ bool dfu_moded_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_reque
 
   switch (request->bRequest)
   {
+    case DFU_REQUEST_DETACH:
+    {
+      tud_control_status(rhport, request);
+      if (tud_dfu_reboot_cb) tud_dfu_reboot_cb();
+      break;
+    }
     case DFU_REQUEST_DNLOAD:
     {
       if ( (stage == CONTROL_STAGE_ACK)
            && ((_dfu_state_ctx.attrs & DFU_FUNC_ATTR_CAN_DOWNLOAD_BITMASK) != 0)
            && (_dfu_state_ctx.state == DFU_DNLOAD_SYNC))
       {
-        dfu_req_dnload_reply(rhport, request);
+        _dfu_state_ctx.block = request->wValue;
+        _dfu_state_ctx.length = request->wLength;
         return true;
       }
     } // fallthrough
-    case DFU_REQUEST_DETACH:
     case DFU_REQUEST_UPLOAD:
     case DFU_REQUEST_GETSTATUS:
     case DFU_REQUEST_CLRSTATUS:
@@ -248,7 +304,11 @@ bool dfu_moded_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_reque
 static uint16_t dfu_req_upload(uint8_t rhport, tusb_control_request_t const * request, uint16_t block_num, uint16_t wLength)
 {
   TU_VERIFY( wLength <= CFG_TUD_DFU_TRANSFER_BUFFER_SIZE, 0);
-  uint16_t retval = tud_dfu_req_upload_data_cb(block_num, (uint8_t *)_dfu_state_ctx.transfer_buf, wLength);
+  uint16_t retval = 0;
+  if (tud_dfu_req_upload_data_cb)
+  {
+    tud_dfu_req_upload_data_cb(_dfu_state_ctx.alt, block_num, (uint8_t *)_dfu_state_ctx.transfer_buf, wLength);
+  }
   tud_control_xfer(rhport, request, _dfu_state_ctx.transfer_buf, retval);
   return retval;
 }
@@ -257,8 +317,16 @@ static void dfu_req_getstatus_reply(uint8_t rhport, tusb_control_request_t const
 {
   dfu_status_req_payload_t resp;
 
+  uint16_t timeout = 0;
   resp.bStatus = _dfu_state_ctx.status;
-  memset((uint8_t *)&resp.bwPollTimeout, 0x00, 3);
+  if(_dfu_state_ctx.state == DFU_DNBUSY && tud_dfu_set_timeout_cb)
+  {
+    timeout = tud_dfu_set_timeout_cb(_dfu_state_ctx.alt);
+    
+  }
+  resp.bwPollTimeout[0] = TU_U16_LOW(timeout);
+  resp.bwPollTimeout[1] = TU_U16_HIGH(timeout);
+  resp.bwPollTimeout[2] = 0;
   resp.bState = _dfu_state_ctx.state;
   resp.iString = 0;
 
@@ -285,7 +353,7 @@ static void dfu_req_dnload_reply(uint8_t rhport, tusb_control_request_t const * 
 {
   (void) rhport;
   TU_VERIFY( request->wLength <= CFG_TUD_DFU_TRANSFER_BUFFER_SIZE, );
-  tud_dfu_req_dnload_data_cb(request->wValue, (uint8_t *)_dfu_state_ctx.transfer_buf, request->wLength);
+  tud_dfu_req_dnload_data_cb(_dfu_state_ctx.alt,_dfu_state_ctx.block, (uint8_t *)_dfu_state_ctx.transfer_buf, _dfu_state_ctx.length);
   _dfu_state_ctx.blk_transfer_in_proc = false;
 }
 
@@ -296,7 +364,7 @@ void tud_dfu_dnload_complete(void)
     _dfu_state_ctx.state = DFU_DNLOAD_SYNC;
   } else if (_dfu_state_ctx.state == DFU_MANIFEST)
   {
-    _dfu_state_ctx.state = ((_dfu_state_ctx.attrs & DFU_FUNC_ATTR_MANIFESTATION_TOLERANT_BITMASK) != 0)
+    _dfu_state_ctx.state = ((_dfu_state_ctx.attrs & DFU_FUNC_ATTR_MANIFESTATION_TOLERANT_BITMASK) == 0)
                            ? DFU_MANIFEST_WAIT_RESET : DFU_MANIFEST_SYNC;
   }
 }
@@ -376,6 +444,7 @@ static bool dfu_state_machine(uint8_t rhport, tusb_control_request_t const * req
           {
             _dfu_state_ctx.state = DFU_DNBUSY;
             dfu_req_getstatus_reply(rhport, request);
+            dfu_req_dnload_reply(rhport, request);
           } else {
             _dfu_state_ctx.state = DFU_DNLOAD_IDLE;
             dfu_req_getstatus_reply(rhport, request);
@@ -426,7 +495,7 @@ static bool dfu_state_machine(uint8_t rhport, tusb_control_request_t const * req
               _dfu_state_ctx.blk_transfer_in_proc = true;
               dfu_req_dnload_setup(rhport, request);
             } else {
-              if ( tud_dfu_device_data_done_check_cb() )
+              if ( tud_dfu_device_data_done_check_cb(_dfu_state_ctx.alt) )
               {
                 _dfu_state_ctx.state = DFU_MANIFEST_SYNC;
                 tud_control_status(rhport, request);
@@ -476,12 +545,13 @@ static bool dfu_state_machine(uint8_t rhport, tusb_control_request_t const * req
       {
         case DFU_REQUEST_GETSTATUS:
         {
-          if ((_dfu_state_ctx.attrs & DFU_FUNC_ATTR_MANIFESTATION_TOLERANT_BITMASK) != 0)
+          if ((_dfu_state_ctx.attrs & DFU_FUNC_ATTR_MANIFESTATION_TOLERANT_BITMASK) == 0)
           {
             _dfu_state_ctx.state = DFU_MANIFEST;
             dfu_req_getstatus_reply(rhport, request);
-          } else {
-            if ( tud_dfu_firmware_valid_check_cb() )
+          } else 
+          {
+            if ( tud_dfu_firmware_valid_check_cb(_dfu_state_ctx.alt) )
             {
               _dfu_state_ctx.state = DFU_IDLE;
             }
