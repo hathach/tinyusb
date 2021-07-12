@@ -42,7 +42,7 @@
 //--------------------------------------------------------------------+
 // INTERNAL OBJECT & FUNCTION DECLARATION
 //--------------------------------------------------------------------+
-typedef struct TU_ATTR_PACKED
+typedef struct
 {
     dfu_device_status_t status;
     dfu_state_t state;
