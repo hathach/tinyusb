@@ -81,13 +81,16 @@ uint8_t const * tud_descriptor_device_cb(void)
 // Configuration Descriptor
 //--------------------------------------------------------------------+
 
+// Number of Alternate Interface (each for 1 flash partition)
+#define ALT_COUNT   2
+
 enum
 {
   ITF_NUM_DFU_MODE,
   ITF_NUM_TOTAL
 };
 
-#define CONFIG_TOTAL_LEN    (TUD_CONFIG_DESC_LEN + TUD_DFU_MODE_DESC_LEN)
+#define CONFIG_TOTAL_LEN    (TUD_CONFIG_DESC_LEN + TUD_DFU_DESC_LEN(ALT_COUNT))
 
 #define FUNC_ATTRS (DFU_FUNC_ATTR_CAN_UPLOAD_BITMASK | DFU_FUNC_ATTR_CAN_DOWNLOAD_BITMASK)
 
@@ -96,8 +99,8 @@ uint8_t const desc_configuration[] =
   // Config number, interface count, string index, total length, attribute, power in mA
   TUD_CONFIG_DESCRIPTOR(1, ITF_NUM_TOTAL, 0, CONFIG_TOTAL_LEN, TUSB_DESC_CONFIG_ATT_REMOTE_WAKEUP, 100),
 
-  // Interface number, attributes, detach timeout, transfer size, string index 0, [string index 1 ... string index n]
-  TUD_DFU_DESCRIPTOR(ITF_NUM_DFU_MODE, FUNC_ATTRS, 1000, CFG_TUD_DFU_TRANSFER_BUFFER_SIZE, 4, 5),
+  // Interface number, Alternate count, starting string index, attributes, detach timeout, transfer size
+  TUD_DFU_DESCRIPTOR(ITF_NUM_DFU_MODE, ALT_COUNT, 4, FUNC_ATTRS, 1000, CFG_TUD_DFU_TRANSFER_BUFFER_SIZE),
 };
 
 // Invoked when received GET CONFIGURATION DESCRIPTOR

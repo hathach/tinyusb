@@ -154,8 +154,9 @@ bool tud_dfu_device_data_done_check_cb(uint8_t alt)
   return true;
 }
 
-void tud_dfu_abort_cb(void)
+void tud_dfu_abort_cb(uint8_t alt)
 {
+  (void) alt;
   printf("    Host aborted transfer\r\n");
 }
 
