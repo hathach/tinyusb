@@ -49,7 +49,6 @@ typedef struct TU_ATTR_PACKED
     uint8_t attrs;
     bool blk_transfer_in_proc;
     uint8_t alt;
-    uint8_t intf;
     uint16_t block;
     uint16_t length;
     CFG_TUSB_MEM_ALIGN uint8_t transfer_buf[CFG_TUD_DFU_TRANSFER_BUFFER_SIZE];
@@ -153,7 +152,6 @@ void dfu_moded_init(void)
   _dfu_state_ctx.attrs = 0;
   _dfu_state_ctx.blk_transfer_in_proc = false;
   _dfu_state_ctx.alt = 0;
-  _dfu_state_ctx.intf = DFU_INTF_UNUSED;
 
   dfu_debug_print_context();
 }
@@ -167,7 +165,6 @@ void dfu_moded_reset(uint8_t rhport)
   _dfu_state_ctx.attrs = 0;
   _dfu_state_ctx.blk_transfer_in_proc = false;
   _dfu_state_ctx.alt = 0;
-  _dfu_state_ctx.intf = DFU_INTF_UNUSED;
 
   dfu_debug_print_context();
 }
@@ -176,55 +173,38 @@ uint16_t dfu_moded_open(uint8_t rhport, tusb_desc_interface_t const * itf_desc, 
 {
   (void) rhport;
 
-  uint16_t const drv_len = sizeof(tusb_desc_interface_t);
+  //------------- Interface (with Alt) descriptor -------------//
+  uint8_t const itf_num = itf_desc->bInterfaceNumber;
+  uint8_t alt_count = 0;
 
-  uint8_t const *p_desc = (uint8_t const *)itf_desc;
-
-  uint16_t total_len = 0;
-
-  uint8_t last_alt = 0;
-
-  while(max_len > drv_len)
+  uint16_t drv_len = 0;
+  while(itf_desc->bInterfaceSubClass == TUD_DFU_APP_SUBCLASS && itf_desc->bInterfaceProtocol == DFU_PROTOCOL_DFU)
   {
-    // Ensure this is DFU Mode
-    TU_VERIFY((((tusb_desc_interface_t const *)p_desc)->bInterfaceSubClass == TUD_DFU_APP_SUBCLASS) &&
-              (((tusb_desc_interface_t const *)p_desc)->bInterfaceProtocol == DFU_PROTOCOL_DFU), 0);
+    TU_ASSERT(max_len > drv_len, 0);
 
-    uint8_t const alt = ((tusb_desc_interface_t const *)p_desc)->bAlternateSetting;
-    uint8_t const intf = ((tusb_desc_interface_t const *)p_desc)->bInterfaceNumber;
+    // Alternate must have the same interface number
+    TU_ASSERT(itf_desc->bInterfaceNumber == itf_num, 0);
 
-    if (_dfu_state_ctx.intf == DFU_INTF_UNUSED)
-    {
-      _dfu_state_ctx.intf = intf;
-    }
-    else
-    {
-      // Only one DFU interface is supported
-      TU_ASSERT(_dfu_state_ctx.intf == intf, 0);
-    }
+    // Alt should increase by one every time
+    TU_ASSERT(itf_desc->bAlternateSetting == alt_count, 0);
+    alt_count++;
 
-    // CFG_TUD_DFU_ATL_MAX should big enough to hold all alt settings
-    TU_ASSERT(alt < CFG_TUD_DFU_ALT_COUNT, 0);
-
-    // Alt should increse by one every time
-    TU_ASSERT(alt == last_alt++, 0);
-
-    p_desc = tu_desc_next(p_desc);
-    max_len -= drv_len;
-    total_len += drv_len;
+    drv_len += tu_desc_len(itf_desc);
+    itf_desc = (tusb_desc_interface_t const *) tu_desc_next(itf_desc);
   }
 
-  //------------- DFU descriptor -------------//
-  TU_ASSERT(tu_desc_type(p_desc) == TUSB_DESC_FUNCTIONAL, 0);
+  //------------- DFU Functional descriptor -------------//
+  tusb_desc_dfu_functional_t const *func_desc = (tusb_desc_dfu_functional_t const *) itf_desc;
+  TU_ASSERT(tu_desc_type(func_desc) == TUSB_DESC_FUNCTIONAL, 0);
+  drv_len += sizeof(tusb_desc_dfu_functional_t);
 
-  _dfu_state_ctx.attrs = ((tusb_desc_dfu_functional_t const *)p_desc)->bAttributes;
+  _dfu_state_ctx.attrs = func_desc->bAttributes;
 
   // CFG_TUD_DFU_TRANSFER_BUFFER_SIZE has to be set to the buffer size used in TUD_DFU_MODE_DESCRIPTOR
-  TU_ASSERT(((tusb_desc_dfu_functional_t const *)p_desc)->wTransferSize <= CFG_TUD_DFU_TRANSFER_BUFFER_SIZE, 0);
+  uint16_t const transfer_size = tu_le16toh( tu_unaligned_read16(&func_desc->wTransferSize) );
+  TU_ASSERT(transfer_size <= CFG_TUD_DFU_TRANSFER_BUFFER_SIZE, drv_len);
 
-  total_len += sizeof(tusb_desc_dfu_functional_t); 
-
-  return total_len;
+  return drv_len;
 }
 
 // Invoked when a control transfer occurred on an interface of this class
