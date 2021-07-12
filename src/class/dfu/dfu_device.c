@@ -293,18 +293,17 @@ static uint16_t dfu_req_upload(uint8_t rhport, tusb_control_request_t const * re
 
 static void dfu_req_getstatus_reply(uint8_t rhport, tusb_control_request_t const * request)
 {
-  dfu_status_req_payload_t resp;
-
-  uint16_t timeout = 0;
-  resp.bStatus = _dfu_state_ctx.status;
-  if(_dfu_state_ctx.state == DFU_DNBUSY && tud_dfu_set_timeout_cb)
+  uint32_t timeout = 0;
+  if ( tud_dfu_get_status_cb )
   {
-    timeout = tud_dfu_set_timeout_cb(_dfu_state_ctx.alt);
-    
+    timeout = tud_dfu_get_status_cb(_dfu_state_ctx.alt, _dfu_state_ctx.state);
   }
-  resp.bwPollTimeout[0] = TU_U16_LOW(timeout);
-  resp.bwPollTimeout[1] = TU_U16_HIGH(timeout);
-  resp.bwPollTimeout[2] = 0;
+
+  dfu_status_req_payload_t resp;
+  resp.bStatus = _dfu_state_ctx.status;
+  resp.bwPollTimeout[0] = TU_U32_BYTE0(timeout);
+  resp.bwPollTimeout[1] = TU_U32_BYTE1(timeout);
+  resp.bwPollTimeout[2] = TU_U32_BYTE2(timeout);
   resp.bState = _dfu_state_ctx.state;
   resp.iString = 0;
 

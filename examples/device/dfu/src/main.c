@@ -125,10 +125,13 @@ bool tud_dfu_firmware_valid_check_cb(uint8_t alt)
   return true;
 }
 
-uint16_t tud_dfu_set_timeout_cb(uint8_t alt)
+uint32_t tud_dfu_get_status_cb(uint8_t alt, uint8_t state)
 {
   // For example Alt1 (EEPROM) is slow, add 2000ms timeout
-  if (alt == 1) return 2000;
+  if ( state == DFU_DNBUSY )
+  {
+    if (alt == 1) return 2000;
+  }
   return 0;
 }
 
