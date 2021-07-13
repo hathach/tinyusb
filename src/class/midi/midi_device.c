@@ -240,15 +240,15 @@ uint32_t tud_midi_n_stream_write(uint8_t itf, uint8_t cable_num, uint8_t const* 
 
   midid_stream_t* stream = &midi->stream_write;
 
-  uint32_t total_written = 0;
   uint32_t i = 0;
-  while ( i < bufsize )
+  while ( (i < bufsize) && (tu_fifo_remaining(&midi->tx_ff) >= 4) )
   {
     uint8_t const data = buffer[i];
+    i++;
 
     if ( stream->index == 0 )
     {
-      // new event packet
+      //------------- New event packet -------------//
 
       uint8_t const msg = data >> 4;
 
@@ -310,9 +310,9 @@ uint32_t tud_midi_n_stream_write(uint8_t itf, uint8_t cable_num, uint8_t const* 
     }
     else
     {
-      // On-going (buffering) packet
+      //------------- On-going (buffering) packet -------------//
 
-      TU_ASSERT(stream->index < 4, total_written);
+      TU_ASSERT(stream->index < 4, i);
       stream->buffer[stream->index] = data;
       stream->index++;
 
@@ -335,19 +335,14 @@ uint32_t tud_midi_n_stream_write(uint8_t itf, uint8_t cable_num, uint8_t const* 
       // complete current event packet, reset stream
       stream->index = stream->total = 0;
 
-      // fifo overflow, here we assume FIFO is multiple of 4 and didn't check remaining before writing
-      if ( count != 4 ) break;
-
-      // updated written if succeeded
-      total_written = i;
+      // FIFO overflown, since we already check fifo remaining. It is probably race condition
+      TU_ASSERT(count == 4, i);
     }
-
-    i++;
   }
 
   write_flush(midi);
 
-  return total_written;
+  return i;
 }
 
 bool tud_midi_n_packet_write (uint8_t itf, uint8_t const packet[4])
