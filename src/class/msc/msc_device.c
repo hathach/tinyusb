@@ -37,6 +37,10 @@
 //--------------------------------------------------------------------+
 // MACRO CONSTANT TYPEDEF
 //--------------------------------------------------------------------+
+
+// Can be selectively disabled to reduce logging when troubleshooting other driver
+#define MSC_DEBUG   2
+
 enum
 {
   MSC_STAGE_CMD  = 0,
@@ -99,7 +103,7 @@ static inline uint16_t rdwr10_get_blockcount(uint8_t const command[])
 //--------------------------------------------------------------------+
 #if CFG_TUSB_DEBUG >= 2
 
-static tu_lookup_entry_t const _msc_scsi_cmd_lookup[] =
+TU_ATTR_UNUSED static tu_lookup_entry_t const _msc_scsi_cmd_lookup[] =
 {
   { .key = SCSI_CMD_TEST_UNIT_READY              , .data = "Test Unit Ready" },
   { .key = SCSI_CMD_INQUIRY                      , .data = "Inquiry" },
@@ -114,7 +118,7 @@ static tu_lookup_entry_t const _msc_scsi_cmd_lookup[] =
   { .key = SCSI_CMD_WRITE_10                     , .data = "Write10" }
 };
 
-static tu_lookup_table_t const _msc_scsi_cmd_table =
+TU_ATTR_UNUSED static tu_lookup_table_t const _msc_scsi_cmd_table =
 {
   .count = TU_ARRAY_SIZE(_msc_scsi_cmd_lookup),
   .items = _msc_scsi_cmd_lookup
@@ -232,8 +236,8 @@ bool mscd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t event, uint32_t
       TU_ASSERT( event == XFER_RESULT_SUCCESS &&
                  xferred_bytes == sizeof(msc_cbw_t) && p_cbw->signature == MSC_CBW_SIGNATURE );
 
-      TU_LOG2("  SCSI Command: %s\r\n", tu_lookup_find(&_msc_scsi_cmd_table, p_cbw->command[0]));
-      // TU_LOG2_MEM(p_cbw, xferred_bytes, 2);
+      TU_LOG(MSC_DEBUG, "  SCSI Command: %s\r\n", tu_lookup_find(&_msc_scsi_cmd_table, p_cbw->command[0]));
+      // TU_LOG_MEM(MSC_DEBUG, p_cbw, xferred_bytes, 2);
 
       p_csw->signature    = MSC_CSW_SIGNATURE;
       p_csw->tag          = p_cbw->tag;
@@ -305,8 +309,8 @@ bool mscd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t event, uint32_t
     break;
 
     case MSC_STAGE_DATA:
-      TU_LOG2("  SCSI Data\r\n");
-      //TU_LOG2_MEM(_mscd_buf, xferred_bytes, 2);
+      TU_LOG(MSC_DEBUG, "  SCSI Data\r\n");
+      //TU_LOG_MEM(MSC_DEBUG, _mscd_buf, xferred_bytes, 2);
 
       // OUT transfer, invoke callback if needed
       if ( !tu_bit_test(p_cbw->dir, 7) )
@@ -402,8 +406,8 @@ bool mscd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t event, uint32_t
       // Wait for the Status phase to complete
       if( (ep_addr == p_msc->ep_in) && (xferred_bytes == sizeof(msc_csw_t)) )
       {
-        TU_LOG2("  SCSI Status: %u\r\n", p_csw->status);
-        // TU_LOG2_MEM(p_csw, xferred_bytes, 2);
+        TU_LOG(MSC_DEBUG, "  SCSI Status: %u\r\n", p_csw->status);
+        // TU_LOG_MEM(MSC_DEBUG, p_csw, xferred_bytes, 2);
 
         // Invoke complete callback if defined
         // Note: There is racing issue with samd51 + qspi flash testing with arduino

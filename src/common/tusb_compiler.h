@@ -32,10 +32,14 @@
 #ifndef _TUSB_COMPILER_H_
 #define _TUSB_COMPILER_H_
 
-#define TU_STRING(x)      #x              ///< stringify without expand
-#define TU_XSTRING(x)     TU_STRING(x)    ///< expand then stringify
-#define TU_STRCAT(a, b)   a##b            ///< concat without expand
-#define TU_XSTRCAT(a, b)  TU_STRCAT(a, b) ///< expand then concat
+#define TU_STRING(x)          #x                  ///< stringify without expand
+#define TU_XSTRING(x)         TU_STRING(x)        ///< expand then stringify
+
+#define TU_STRCAT(a, b)       a##b                ///< concat without expand
+#define TU_STRCAT3(a, b, c)   a##b##c             ///< concat without expand
+
+#define TU_XSTRCAT(a, b)      TU_STRCAT(a, b)     ///< expand then concat
+#define TU_XSTRCAT3(a, b, c)  TU_STRCAT3(a, b, c) ///< expand then concat 3 tokens
 
 #if defined __COUNTER__ && __COUNTER__ != __COUNTER__
   #define _TU_COUNTER_ __COUNTER__
