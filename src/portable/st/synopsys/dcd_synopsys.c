@@ -34,7 +34,7 @@
 #define USE_SOF     0
 
 #if defined (STM32F105x8) || defined (STM32F105xB) || defined (STM32F105xC) || \
-    defined (STM32F107xB) || defined (STM32F107xC)
+    defined (STM32F107xB) || defined (STM32F107xC) || defined (GD32VF103)
 #define STM32F1_SYNOPSYS
 #endif
 
@@ -51,7 +51,8 @@
        CFG_TUSB_MCU == OPT_MCU_STM32F4                               || \
        CFG_TUSB_MCU == OPT_MCU_STM32F7                               || \
        CFG_TUSB_MCU == OPT_MCU_STM32H7                               || \
-      (CFG_TUSB_MCU == OPT_MCU_STM32L4 && defined(STM32L4_SYNOPSYS))    \
+      (CFG_TUSB_MCU == OPT_MCU_STM32L4 && defined(STM32L4_SYNOPSYS)  || \
+       CFG_TUSB_MCU == OPT_MCU_GD32VF103 )                           \
     )
 
 // EP_MAX       : Max number of bi-directional endpoints including EP0
@@ -91,6 +92,18 @@
 #include "stm32l4xx.h"
 #define EP_MAX_FS       6
 #define EP_FIFO_SIZE_FS 1280
+
+#elif CFG_TUSB_MCU == OPT_MCU_GD32VF103
+#define STM32F1_SYNOPSYS
+#include "gd32vf103.h"
+#include "nmsis_core.h"
+#include "core_feature_eclic.h"
+#include "synopsys_common.h"
+#define EP_MAX_FS       4
+#define EP_FIFO_SIZE_FS 1280
+#define OTG_FS_IRQn USBFS_IRQn
+#define NVIC_EnableIRQ ECLIC_EnableIRQ
+#define NVIC_DisableIRQ ECLIC_DisableIRQ
 
 #else
 #error "Unsupported MCUs"

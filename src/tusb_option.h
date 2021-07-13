@@ -118,6 +118,9 @@
 // Mind Motion
 #define OPT_MCU_MM32F327X        1500 ///< Mind Motion MM32F327
 
+// GigaDevice
+#define OPT_MCU_GD32VF103        1600 ///< GigaDevice GD32VF103
+
 /** @} */
 
 /** \defgroup group_supported_os Supported RTOS
