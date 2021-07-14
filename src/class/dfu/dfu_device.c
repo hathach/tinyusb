@@ -259,6 +259,19 @@ bool dfu_moded_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_reque
         }
       break;
 
+      case DFU_REQUEST_ABORT:
+        if ( stage == CONTROL_STAGE_SETUP )
+        {
+          if (tud_dfu_abort_cb) tud_dfu_abort_cb(_dfu_ctx.alt_num);
+
+          _dfu_ctx.state = DFU_IDLE;
+          _dfu_ctx.status = DFU_STATUS_OK;
+          _dfu_ctx.blk_transfer_in_proc = false;
+
+          tud_control_status(rhport, request);
+        }
+      break;
+
       case DFU_REQUEST_UPLOAD:
         if ( stage == CONTROL_STAGE_SETUP )
         {
@@ -287,7 +300,6 @@ bool dfu_moded_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_reque
       case DFU_REQUEST_GETSTATUS:
       case DFU_REQUEST_CLRSTATUS:
       case DFU_REQUEST_GETSTATE:
-      case DFU_REQUEST_ABORT:
       {
         if(stage == CONTROL_STAGE_SETUP)
         {
@@ -297,10 +309,7 @@ bool dfu_moded_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_reque
       break;
 
       default:
-      {
-        TU_LOG2("  DFU Nonstandard Request: %u\r\n", request->bRequest);
         return false; // stall unsupported request
-      }
       break;
     }
   }else
@@ -399,10 +408,6 @@ static bool dfu_state_machine(uint8_t rhport, tusb_control_request_t const * req
           dfu_req_getstate_reply(rhport, request);
         break;
 
-        case DFU_REQUEST_ABORT:
-          ; // do nothing, but don't stall so continue on
-        break;
-
         default:
           _dfu_ctx.state = DFU_ERROR;
           return false;  // stall on all other requests
@@ -486,14 +491,6 @@ static bool dfu_state_machine(uint8_t rhport, tusb_control_request_t const * req
             dfu_req_getstate_reply(rhport, request);
           break;
 
-          case DFU_REQUEST_ABORT:
-            if ( tud_dfu_abort_cb )
-            {
-              tud_dfu_abort_cb(_dfu_ctx.alt_num);
-            }
-            _dfu_ctx.state = DFU_IDLE;
-          break;
-
           default:
             _dfu_ctx.state = DFU_ERROR;
             return false;  // stall on all other requests
@@ -570,16 +567,6 @@ static bool dfu_state_machine(uint8_t rhport, tusb_control_request_t const * req
 
         case DFU_REQUEST_GETSTATE:
           dfu_req_getstate_reply(rhport, request);
-        break;
-
-        case DFU_REQUEST_ABORT:
-        {
-          if (tud_dfu_abort_cb)
-          {
-            tud_dfu_abort_cb(_dfu_ctx.alt_num);
-          }
-          _dfu_ctx.state = DFU_IDLE;
-        }
         break;
 
         default:
