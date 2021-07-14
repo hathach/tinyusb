@@ -53,14 +53,14 @@ typedef struct
 } dfu_state_ctx_t;
 
 // Only a single dfu state is allowed
-CFG_TUSB_MEM_SECTION static dfu_state_ctx_t _dfu_state_ctx;
+CFG_TUSB_MEM_SECTION static dfu_state_ctx_t _dfu_ctx;
 
 
-static void dfu_req_dnload_setup(uint8_t rhport, tusb_control_request_t const * request);
-static void dfu_req_getstatus_reply(uint8_t rhport, tusb_control_request_t const * request);
+static void     dfu_req_dnload_setup(uint8_t rhport, tusb_control_request_t const * request);
+static void     dfu_req_getstatus_reply(uint8_t rhport, tusb_control_request_t const * request);
 static uint16_t dfu_req_upload(uint8_t rhport, tusb_control_request_t const * request, uint16_t block_num, uint16_t wLength);
-static void dfu_req_dnload_reply(uint8_t rhport, tusb_control_request_t const * request);
-static bool dfu_state_machine(uint8_t rhport, tusb_control_request_t const * request);
+static void     dfu_req_dnload_reply(uint8_t rhport, tusb_control_request_t const * request);
+static bool     dfu_state_machine(uint8_t rhport, tusb_control_request_t const * request);
 
 //--------------------------------------------------------------------+
 // Debug
@@ -136,8 +136,8 @@ static tu_lookup_table_t const _dfu_status_table =
 #define dfu_debug_print_context()                                              \
 {                                                                              \
   TU_LOG2("  DFU at State: %s\r\n         Status: %s\r\n",                     \
-          tu_lookup_find(&_dfu_state_table, _dfu_state_ctx.state),        \
-          tu_lookup_find(&_dfu_status_table, _dfu_state_ctx.status) );    \
+          tu_lookup_find(&_dfu_state_table, _dfu_ctx.state),        \
+          tu_lookup_find(&_dfu_status_table, _dfu_ctx.status) );    \
 }
 
 //--------------------------------------------------------------------+
@@ -145,11 +145,11 @@ static tu_lookup_table_t const _dfu_status_table =
 //--------------------------------------------------------------------+
 void dfu_moded_init(void)
 {
-  _dfu_state_ctx.state = DFU_IDLE;
-  _dfu_state_ctx.status = DFU_STATUS_OK;
-  _dfu_state_ctx.attrs = 0;
-  _dfu_state_ctx.blk_transfer_in_proc = false;
-  _dfu_state_ctx.alt_num = 0;
+  _dfu_ctx.state = DFU_IDLE;
+  _dfu_ctx.status = DFU_STATUS_OK;
+  _dfu_ctx.attrs = 0;
+  _dfu_ctx.blk_transfer_in_proc = false;
+  _dfu_ctx.alt_num = 0;
 
   dfu_debug_print_context();
 }
@@ -158,11 +158,11 @@ void dfu_moded_reset(uint8_t rhport)
 {
   (void) rhport;
 
-  _dfu_state_ctx.state = DFU_IDLE;
-  _dfu_state_ctx.status = DFU_STATUS_OK;
-  _dfu_state_ctx.attrs = 0;
-  _dfu_state_ctx.blk_transfer_in_proc = false;
-  _dfu_state_ctx.alt_num = 0;
+  _dfu_ctx.state = DFU_IDLE;
+  _dfu_ctx.status = DFU_STATUS_OK;
+  _dfu_ctx.attrs = 0;
+  _dfu_ctx.blk_transfer_in_proc = false;
+  _dfu_ctx.alt_num = 0;
 
   dfu_debug_print_context();
 }
@@ -196,7 +196,7 @@ uint16_t dfu_moded_open(uint8_t rhport, tusb_desc_interface_t const * itf_desc, 
   TU_ASSERT(tu_desc_type(func_desc) == TUSB_DESC_FUNCTIONAL, 0);
   drv_len += sizeof(tusb_desc_dfu_functional_t);
 
-  _dfu_state_ctx.attrs = func_desc->bAttributes;
+  _dfu_ctx.attrs = func_desc->bAttributes;
 
   // CFG_TUD_DFU_TRANSFER_BUFFER_SIZE has to be set to the buffer size used in TUD_DFU_DESCRIPTOR
   uint16_t const transfer_size = tu_le16toh( tu_unaligned_read16(&func_desc->wTransferSize) );
@@ -215,67 +215,76 @@ bool dfu_moded_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_reque
 
   TU_VERIFY(request->bmRequestType_bit.recipient == TUSB_REQ_RCPT_INTERFACE);
 
-  if(stage == CONTROL_STAGE_SETUP)
+  if ( request->bmRequestType_bit.type == TUSB_REQ_TYPE_STANDARD )
   {
-    // dfu-util will try to claim the interface with SET_INTERFACE request before sending DFU request
-    if (request->bmRequestType_bit.type == TUSB_REQ_TYPE_STANDARD && request->bRequest == TUSB_REQ_SET_INTERFACE)
+    // Standard request include GET/SET_INTERFACE
+    switch (request->bRequest )
     {
-      // Switch Alt interface
-      _dfu_state_ctx.alt_num = (uint8_t) request->wValue;
+      case TUSB_REQ_SET_INTERFACE:
+        // Switch Alt interface and  Re-initalize state machine
+        _dfu_ctx.alt_num = (uint8_t) request->wValue;
+        _dfu_ctx.state = DFU_IDLE;
+        _dfu_ctx.status = DFU_STATUS_OK;
+        _dfu_ctx.blk_transfer_in_proc = false;
 
-      // Re-initalise state machine (Necessary ?)
-      _dfu_state_ctx.state = DFU_IDLE;
-      _dfu_state_ctx.status = DFU_STATUS_OK;
-      _dfu_state_ctx.blk_transfer_in_proc = false;
+        return tud_control_status(rhport, request);
+      break;
 
-      tud_control_status(rhport, request);
-      return true;
+      case TUSB_REQ_GET_INTERFACE:
+        return tud_control_xfer(rhport, request, &_dfu_ctx.alt_num, 1);
+      break;
+
+      // unsupported request
+      default: return false;
     }
   }
-
-  // Handle class request only from here
-  TU_VERIFY(request->bmRequestType_bit.type == TUSB_REQ_TYPE_CLASS);
-
-  switch (request->bRequest)
+  else if (request->bmRequestType_bit.type == TUSB_REQ_TYPE_CLASS)
   {
-    case DFU_REQUEST_DETACH:
+    // Class request
+    switch (request->bRequest)
     {
-      tud_control_status(rhport, request);
-      if (tud_dfu_detach_cb) tud_dfu_detach_cb();
+      case DFU_REQUEST_DETACH:
+      {
+        tud_control_status(rhport, request);
+        if (tud_dfu_detach_cb) tud_dfu_detach_cb();
+        break;
+      }
+
+      case DFU_REQUEST_DNLOAD:
+      {
+        if ( (stage == CONTROL_STAGE_ACK)
+             && ((_dfu_ctx.attrs & DFU_FUNC_ATTR_CAN_DOWNLOAD_BITMASK) != 0)
+             && (_dfu_ctx.state == DFU_DNLOAD_SYNC))
+        {
+          _dfu_ctx.block = request->wValue;
+          _dfu_ctx.length = request->wLength;
+          return true;
+        }
+      }
+      // fallthrough
+      case DFU_REQUEST_UPLOAD:
+      case DFU_REQUEST_GETSTATUS:
+      case DFU_REQUEST_CLRSTATUS:
+      case DFU_REQUEST_GETSTATE:
+      case DFU_REQUEST_ABORT:
+      {
+        if(stage == CONTROL_STAGE_SETUP)
+        {
+          return dfu_state_machine(rhport, request);
+        }
+      }
+      break;
+
+      default:
+      {
+        TU_LOG2("  DFU Nonstandard Request: %u\r\n", request->bRequest);
+        return false; // stall unsupported request
+      }
       break;
     }
-
-    case DFU_REQUEST_DNLOAD:
-    {
-      if ( (stage == CONTROL_STAGE_ACK)
-           && ((_dfu_state_ctx.attrs & DFU_FUNC_ATTR_CAN_DOWNLOAD_BITMASK) != 0)
-           && (_dfu_state_ctx.state == DFU_DNLOAD_SYNC))
-      {
-        _dfu_state_ctx.block = request->wValue;
-        _dfu_state_ctx.length = request->wLength;
-        return true;
-      }
-    }
-    // fallthrough
-    case DFU_REQUEST_UPLOAD:
-    case DFU_REQUEST_GETSTATUS:
-    case DFU_REQUEST_CLRSTATUS:
-    case DFU_REQUEST_GETSTATE:
-    case DFU_REQUEST_ABORT:
-    {
-      if(stage == CONTROL_STAGE_SETUP)
-      {
-        return dfu_state_machine(rhport, request);
-      }
-    }
-    break;
-
-    default:
-    {
-      TU_LOG2("  DFU Nonstandard Request: %u\r\n", request->bRequest);
-      return false; // stall unsupported request
-    }
-    break;
+  }else
+  {
+    return false; // unsupported request
   }
 
   return true;
@@ -287,9 +296,9 @@ static uint16_t dfu_req_upload(uint8_t rhport, tusb_control_request_t const * re
   uint16_t retval = 0;
   if (tud_dfu_upload_cb)
   {
-    tud_dfu_upload_cb(_dfu_state_ctx.alt_num, block_num, (uint8_t *)_dfu_state_ctx.transfer_buf, wLength);
+    tud_dfu_upload_cb(_dfu_ctx.alt_num, block_num, (uint8_t *)_dfu_ctx.transfer_buf, wLength);
   }
-  tud_control_xfer(rhport, request, _dfu_state_ctx.transfer_buf, retval);
+  tud_control_xfer(rhport, request, _dfu_ctx.transfer_buf, retval);
   return retval;
 }
 
@@ -298,15 +307,15 @@ static void dfu_req_getstatus_reply(uint8_t rhport, tusb_control_request_t const
   uint32_t timeout = 0;
   if ( tud_dfu_get_status_cb )
   {
-    timeout = tud_dfu_get_status_cb(_dfu_state_ctx.alt_num, _dfu_state_ctx.state);
+    timeout = tud_dfu_get_status_cb(_dfu_ctx.alt_num, _dfu_ctx.state);
   }
 
   dfu_status_req_payload_t resp;
-  resp.bStatus = _dfu_state_ctx.status;
+  resp.bStatus = _dfu_ctx.status;
   resp.bwPollTimeout[0] = TU_U32_BYTE0(timeout);
   resp.bwPollTimeout[1] = TU_U32_BYTE1(timeout);
   resp.bwPollTimeout[2] = TU_U32_BYTE2(timeout);
-  resp.bState = _dfu_state_ctx.state;
+  resp.bState = _dfu_ctx.state;
   resp.iString = 0;
 
   tud_control_xfer(rhport, request, &resp, sizeof(dfu_status_req_payload_t));
@@ -314,7 +323,7 @@ static void dfu_req_getstatus_reply(uint8_t rhport, tusb_control_request_t const
 
 static void dfu_req_getstate_reply(uint8_t rhport, tusb_control_request_t const * request)
 {
-  tud_control_xfer(rhport, request, &_dfu_state_ctx.state, 1);
+  tud_control_xfer(rhport, request, &_dfu_ctx.state, 1);
 }
 
 static void dfu_req_dnload_setup(uint8_t rhport, tusb_control_request_t const * request)
@@ -325,25 +334,25 @@ static void dfu_req_dnload_setup(uint8_t rhport, tusb_control_request_t const * 
 
   TU_VERIFY( request->wLength <= CFG_TUD_DFU_TRANSFER_BUFFER_SIZE, );
   // setup for data phase
-  tud_control_xfer(rhport, request, _dfu_state_ctx.transfer_buf, request->wLength);
+  tud_control_xfer(rhport, request, _dfu_ctx.transfer_buf, request->wLength);
 }
 
 static void dfu_req_dnload_reply(uint8_t rhport, tusb_control_request_t const * request)
 {
   (void) rhport;
   TU_VERIFY( request->wLength <= CFG_TUD_DFU_TRANSFER_BUFFER_SIZE, );
-  tud_dfu_download_cb(_dfu_state_ctx.alt_num,_dfu_state_ctx.block, (uint8_t *)_dfu_state_ctx.transfer_buf, _dfu_state_ctx.length);
-  _dfu_state_ctx.blk_transfer_in_proc = false;
+  tud_dfu_download_cb(_dfu_ctx.alt_num,_dfu_ctx.block, (uint8_t *)_dfu_ctx.transfer_buf, _dfu_ctx.length);
+  _dfu_ctx.blk_transfer_in_proc = false;
 }
 
 void tud_dfu_download_complete(void)
 {
-  if (_dfu_state_ctx.state == DFU_DNBUSY)
+  if (_dfu_ctx.state == DFU_DNBUSY)
   {
-    _dfu_state_ctx.state = DFU_DNLOAD_SYNC;
-  } else if (_dfu_state_ctx.state == DFU_MANIFEST)
+    _dfu_ctx.state = DFU_DNLOAD_SYNC;
+  } else if (_dfu_ctx.state == DFU_MANIFEST)
   {
-    _dfu_state_ctx.state = ((_dfu_state_ctx.attrs & DFU_FUNC_ATTR_MANIFESTATION_TOLERANT_BITMASK) == 0)
+    _dfu_ctx.state = ((_dfu_ctx.attrs & DFU_FUNC_ATTR_MANIFESTATION_TOLERANT_BITMASK) == 0)
                            ? DFU_MANIFEST_WAIT_RESET : DFU_MANIFEST_SYNC;
   }
 }
@@ -351,9 +360,9 @@ void tud_dfu_download_complete(void)
 static bool dfu_state_machine(uint8_t rhport, tusb_control_request_t const * request)
 {
   TU_LOG2("  DFU Request: %s\r\n", tu_lookup_find(&_dfu_request_table, request->bRequest));
-  TU_LOG2("  DFU State Machine: %s\r\n", tu_lookup_find(&_dfu_state_table, _dfu_state_ctx.state));
+  TU_LOG2("  DFU State Machine: %s\r\n", tu_lookup_find(&_dfu_state_table, _dfu_ctx.state));
 
-  switch (_dfu_state_ctx.state)
+  switch (_dfu_ctx.state)
   {
     case DFU_IDLE:
     {
@@ -361,26 +370,26 @@ static bool dfu_state_machine(uint8_t rhport, tusb_control_request_t const * req
       {
         case DFU_REQUEST_DNLOAD:
         {
-          if( ((_dfu_state_ctx.attrs & DFU_FUNC_ATTR_CAN_DOWNLOAD_BITMASK) != 0)
+          if( ((_dfu_ctx.attrs & DFU_FUNC_ATTR_CAN_DOWNLOAD_BITMASK) != 0)
               && (request->wLength > 0) )
           {
-            _dfu_state_ctx.state = DFU_DNLOAD_SYNC;
-            _dfu_state_ctx.blk_transfer_in_proc = true;
+            _dfu_ctx.state = DFU_DNLOAD_SYNC;
+            _dfu_ctx.blk_transfer_in_proc = true;
             dfu_req_dnload_setup(rhport, request);
           } else {
-            _dfu_state_ctx.state = DFU_ERROR;
+            _dfu_ctx.state = DFU_ERROR;
           }
         }
         break;
 
         case DFU_REQUEST_UPLOAD:
         {
-          if( ((_dfu_state_ctx.attrs & DFU_FUNC_ATTR_CAN_UPLOAD_BITMASK) != 0) )
+          if( ((_dfu_ctx.attrs & DFU_FUNC_ATTR_CAN_UPLOAD_BITMASK) != 0) )
           {
-            _dfu_state_ctx.state = DFU_UPLOAD_IDLE;
+            _dfu_ctx.state = DFU_UPLOAD_IDLE;
             dfu_req_upload(rhport, request, request->wValue, request->wLength);
           } else {
-            _dfu_state_ctx.state = DFU_ERROR;
+            _dfu_ctx.state = DFU_ERROR;
           }
         }
         break;
@@ -398,7 +407,7 @@ static bool dfu_state_machine(uint8_t rhport, tusb_control_request_t const * req
         break;
 
         default:
-          _dfu_state_ctx.state = DFU_ERROR;
+          _dfu_ctx.state = DFU_ERROR;
           return false;  // stall on all other requests
         break;
       }
@@ -411,13 +420,13 @@ static bool dfu_state_machine(uint8_t rhport, tusb_control_request_t const * req
       {
         case DFU_REQUEST_GETSTATUS:
         {
-          if ( _dfu_state_ctx.blk_transfer_in_proc )
+          if ( _dfu_ctx.blk_transfer_in_proc )
           {
-            _dfu_state_ctx.state = DFU_DNBUSY;
+            _dfu_ctx.state = DFU_DNBUSY;
             dfu_req_getstatus_reply(rhport, request);
             dfu_req_dnload_reply(rhport, request);
           } else {
-            _dfu_state_ctx.state = DFU_DNLOAD_IDLE;
+            _dfu_ctx.state = DFU_DNLOAD_IDLE;
             dfu_req_getstatus_reply(rhport, request);
           }
         }
@@ -428,7 +437,7 @@ static bool dfu_state_machine(uint8_t rhport, tusb_control_request_t const * req
         break;
 
         default:
-          _dfu_state_ctx.state = DFU_ERROR;
+          _dfu_ctx.state = DFU_ERROR;
           return false;  // stall on all other requests
         break;
       }
@@ -440,7 +449,7 @@ static bool dfu_state_machine(uint8_t rhport, tusb_control_request_t const * req
       switch (request->bRequest)
       {
         default:
-          _dfu_state_ctx.state = DFU_ERROR;
+          _dfu_ctx.state = DFU_ERROR;
           return false;  // stall on all other requests
         break;
       }
@@ -453,19 +462,19 @@ static bool dfu_state_machine(uint8_t rhport, tusb_control_request_t const * req
         {
           case DFU_REQUEST_DNLOAD:
           {
-            if( ((_dfu_state_ctx.attrs & DFU_FUNC_ATTR_CAN_DOWNLOAD_BITMASK) != 0)
+            if( ((_dfu_ctx.attrs & DFU_FUNC_ATTR_CAN_DOWNLOAD_BITMASK) != 0)
                 && (request->wLength > 0) )
             {
-              _dfu_state_ctx.state = DFU_DNLOAD_SYNC;
-              _dfu_state_ctx.blk_transfer_in_proc = true;
+              _dfu_ctx.state = DFU_DNLOAD_SYNC;
+              _dfu_ctx.blk_transfer_in_proc = true;
               dfu_req_dnload_setup(rhport, request);
             } else {
-              if ( tud_dfu_device_data_done_check_cb(_dfu_state_ctx.alt_num) )
+              if ( tud_dfu_device_data_done_check_cb(_dfu_ctx.alt_num) )
               {
-                _dfu_state_ctx.state = DFU_MANIFEST_SYNC;
+                _dfu_ctx.state = DFU_MANIFEST_SYNC;
                 tud_control_status(rhport, request);
               } else {
-                _dfu_state_ctx.state = DFU_ERROR;
+                _dfu_ctx.state = DFU_ERROR;
                 return false;  // stall
               }
             }
@@ -483,13 +492,13 @@ static bool dfu_state_machine(uint8_t rhport, tusb_control_request_t const * req
           case DFU_REQUEST_ABORT:
             if ( tud_dfu_abort_cb )
             {
-              tud_dfu_abort_cb(_dfu_state_ctx.alt_num);
+              tud_dfu_abort_cb(_dfu_ctx.alt_num);
             }
-            _dfu_state_ctx.state = DFU_IDLE;
+            _dfu_ctx.state = DFU_IDLE;
           break;
 
           default:
-            _dfu_state_ctx.state = DFU_ERROR;
+            _dfu_ctx.state = DFU_ERROR;
             return false;  // stall on all other requests
           break;
         }
@@ -502,15 +511,15 @@ static bool dfu_state_machine(uint8_t rhport, tusb_control_request_t const * req
       {
         case DFU_REQUEST_GETSTATUS:
         {
-          if ((_dfu_state_ctx.attrs & DFU_FUNC_ATTR_MANIFESTATION_TOLERANT_BITMASK) == 0)
+          if ((_dfu_ctx.attrs & DFU_FUNC_ATTR_MANIFESTATION_TOLERANT_BITMASK) == 0)
           {
-            _dfu_state_ctx.state = DFU_MANIFEST;
+            _dfu_ctx.state = DFU_MANIFEST;
             dfu_req_getstatus_reply(rhport, request);
           } else 
           {
-            if ( tud_dfu_firmware_valid_check_cb(_dfu_state_ctx.alt_num) )
+            if ( tud_dfu_firmware_valid_check_cb(_dfu_ctx.alt_num) )
             {
-              _dfu_state_ctx.state = DFU_IDLE;
+              _dfu_ctx.state = DFU_IDLE;
             }
             dfu_req_getstatus_reply(rhport, request);
           }
@@ -522,7 +531,7 @@ static bool dfu_state_machine(uint8_t rhport, tusb_control_request_t const * req
         break;
 
         default:
-          _dfu_state_ctx.state = DFU_ERROR;
+          _dfu_ctx.state = DFU_ERROR;
           return false;  // stall on all other requests
         break;
       }
@@ -562,7 +571,7 @@ static bool dfu_state_machine(uint8_t rhport, tusb_control_request_t const * req
         {
           if (dfu_req_upload(rhport, request, request->wValue, request->wLength) != request->wLength)
           {
-            _dfu_state_ctx.state = DFU_IDLE;
+            _dfu_ctx.state = DFU_IDLE;
           }
         }
         break;
@@ -579,9 +588,9 @@ static bool dfu_state_machine(uint8_t rhport, tusb_control_request_t const * req
         {
           if (tud_dfu_abort_cb)
           {
-            tud_dfu_abort_cb(_dfu_state_ctx.alt_num);
+            tud_dfu_abort_cb(_dfu_ctx.alt_num);
           }
-          _dfu_state_ctx.state = DFU_IDLE;
+          _dfu_ctx.state = DFU_IDLE;
         }
         break;
 
@@ -601,7 +610,7 @@ static bool dfu_state_machine(uint8_t rhport, tusb_control_request_t const * req
         break;
 
         case DFU_REQUEST_CLRSTATUS:
-          _dfu_state_ctx.state = DFU_IDLE;
+          _dfu_ctx.state = DFU_IDLE;
         break;
 
         case DFU_REQUEST_GETSTATE:
@@ -616,7 +625,7 @@ static bool dfu_state_machine(uint8_t rhport, tusb_control_request_t const * req
     break;
 
     default:
-      _dfu_state_ctx.state = DFU_ERROR;
+      _dfu_ctx.state = DFU_ERROR;
       TU_LOG2("  DFU ERROR: Unexpected state\r\nStalling control pipe\r\n");
       return false;  // Unexpected state, stall and change to error
   }

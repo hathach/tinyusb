@@ -28,11 +28,13 @@
   *
   * To transfer firmware from host to device:
   *
-  * $ dfu-util -D [filename]
+  * $ dfu-util -d cafe -a 0 -D [filename]
+  * $ dfu-util -d cafe -a 1 -D [filename]
   *
   * To transfer firmware from device to host:
   *
-  * $ dfu-util -U [filename]
+  * $ dfu-util -d cafe -a 0 -U [filename]
+  * $ dfu-util -d cafe -a 1 -U [filename]
   *
   */
 
@@ -138,12 +140,12 @@ uint32_t tud_dfu_get_status_cb(uint8_t alt, uint8_t state)
 void tud_dfu_download_cb(uint8_t alt, uint16_t wBlockNum, uint8_t* data, uint16_t length)
 {
   (void) data;
-  printf("    Received Alt %u BlockNum %u of length %u\r\n", alt, wBlockNum, length);
+  printf("Received Alt %u BlockNum %u of length %u\r\n", alt, wBlockNum, length);
 
 #if DFU_VERBOSE
   for(uint16_t i=0; i<length; i++)
   {
-    printf("    [%u][%u]: %x\r\n", wBlockNum, i, (uint8_t)data[i]);
+    printf("  [%u][%u]: %x\r\n", wBlockNum, i, (uint8_t)data[i]);
   }
 #endif
 
@@ -153,14 +155,14 @@ void tud_dfu_download_cb(uint8_t alt, uint16_t wBlockNum, uint8_t* data, uint16_
 bool tud_dfu_device_data_done_check_cb(uint8_t alt)
 {
   (void) alt;
-  printf("    Host said no more data... Returning true\r\n");
+  printf("Host said no more data... Returning true\r\n");
   return true;
 }
 
 void tud_dfu_abort_cb(uint8_t alt)
 {
   (void) alt;
-  printf("    Host aborted transfer\r\n");
+  printf("Host aborted transfer\r\n");
 }
 
 #define UPLOAD_SIZE 43
