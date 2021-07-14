@@ -241,7 +241,7 @@ bool dfu_moded_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_reque
     case DFU_REQUEST_DETACH:
     {
       tud_control_status(rhport, request);
-      if (tud_dfu_reboot_cb) tud_dfu_reboot_cb();
+      if (tud_dfu_detach_cb) tud_dfu_detach_cb();
       break;
     }
 

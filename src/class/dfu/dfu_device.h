@@ -82,7 +82,8 @@ TU_ATTR_WEAK void tud_dfu_abort_cb(uint8_t alt);
 TU_ATTR_WEAK uint16_t tud_dfu_upload_cb(uint8_t alt, uint16_t block_num, uint8_t* data, uint16_t length);
 
 // Invoked when a DFU_DETACH request is received
-TU_ATTR_WEAK void tud_dfu_reboot_cb(void);
+TU_ATTR_WEAK void tud_dfu_detach_cb(void);
+
 //--------------------------------------------------------------------+
 // Internal Class Driver API
 //--------------------------------------------------------------------+
