@@ -58,7 +58,6 @@ CFG_TUSB_MEM_SECTION static dfu_state_ctx_t _dfu_ctx;
 
 static void     dfu_req_dnload_setup(uint8_t rhport, tusb_control_request_t const * request);
 static void     dfu_req_getstatus_reply(uint8_t rhport, tusb_control_request_t const * request);
-static uint16_t dfu_req_upload(uint8_t rhport, tusb_control_request_t const * request, uint16_t block_num, uint16_t wLength);
 static void     dfu_req_dnload_reply(uint8_t rhport, tusb_control_request_t const * request);
 static bool     dfu_state_machine(uint8_t rhport, tusb_control_request_t const * request);
 
@@ -218,37 +217,60 @@ bool dfu_moded_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_reque
   if ( request->bmRequestType_bit.type == TUSB_REQ_TYPE_STANDARD )
   {
     // Standard request include GET/SET_INTERFACE
-    switch (request->bRequest )
+    switch ( request->bRequest )
     {
       case TUSB_REQ_SET_INTERFACE:
-        // Switch Alt interface and  Re-initalize state machine
-        _dfu_ctx.alt_num = (uint8_t) request->wValue;
-        _dfu_ctx.state = DFU_IDLE;
-        _dfu_ctx.status = DFU_STATUS_OK;
-        _dfu_ctx.blk_transfer_in_proc = false;
+        if ( stage == CONTROL_STAGE_SETUP )
+        {
+          // Switch Alt interface and  Re-initalize state machine
+          _dfu_ctx.alt_num = (uint8_t) request->wValue;
+          _dfu_ctx.state = DFU_IDLE;
+          _dfu_ctx.status = DFU_STATUS_OK;
+          _dfu_ctx.blk_transfer_in_proc = false;
 
-        return tud_control_status(rhport, request);
+          return tud_control_status(rhport, request);
+        }
       break;
 
       case TUSB_REQ_GET_INTERFACE:
-        return tud_control_xfer(rhport, request, &_dfu_ctx.alt_num, 1);
+        if(stage == CONTROL_STAGE_SETUP)
+        {
+          return tud_control_xfer(rhport, request, &_dfu_ctx.alt_num, 1);
+        }
       break;
 
       // unsupported request
       default: return false;
     }
   }
-  else if (request->bmRequestType_bit.type == TUSB_REQ_TYPE_CLASS)
+  else if ( request->bmRequestType_bit.type == TUSB_REQ_TYPE_CLASS )
   {
     // Class request
-    switch (request->bRequest)
+    switch ( request->bRequest )
     {
       case DFU_REQUEST_DETACH:
-      {
-        tud_control_status(rhport, request);
-        if (tud_dfu_detach_cb) tud_dfu_detach_cb();
-        break;
-      }
+        if ( stage == CONTROL_STAGE_SETUP )
+        {
+          tud_control_status(rhport, request);
+        }
+        else if ( stage == CONTROL_STAGE_ACK )
+        {
+          if (tud_dfu_detach_cb) tud_dfu_detach_cb();
+        }
+      break;
+
+      case DFU_REQUEST_UPLOAD:
+        if ( stage == CONTROL_STAGE_SETUP )
+        {
+          TU_VERIFY(_dfu_ctx.attrs & DFU_FUNC_ATTR_CAN_UPLOAD_BITMASK);
+          TU_VERIFY(tud_dfu_upload_cb);
+          TU_VERIFY(request->wLength <= CFG_TUD_DFU_TRANSFER_BUFFER_SIZE);
+
+          uint16_t const xfer_len = tud_dfu_upload_cb(_dfu_ctx.alt_num, request->wValue, _dfu_ctx.transfer_buf, request->wLength);
+
+          tud_control_xfer(rhport, request, _dfu_ctx.transfer_buf, xfer_len);
+        }
+      break;
 
       case DFU_REQUEST_DNLOAD:
       {
@@ -262,7 +284,6 @@ bool dfu_moded_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_reque
         }
       }
       // fallthrough
-      case DFU_REQUEST_UPLOAD:
       case DFU_REQUEST_GETSTATUS:
       case DFU_REQUEST_CLRSTATUS:
       case DFU_REQUEST_GETSTATE:
@@ -288,18 +309,6 @@ bool dfu_moded_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_reque
   }
 
   return true;
-}
-
-static uint16_t dfu_req_upload(uint8_t rhport, tusb_control_request_t const * request, uint16_t block_num, uint16_t wLength)
-{
-  TU_VERIFY( wLength <= CFG_TUD_DFU_TRANSFER_BUFFER_SIZE, 0);
-  uint16_t retval = 0;
-  if (tud_dfu_upload_cb)
-  {
-    tud_dfu_upload_cb(_dfu_ctx.alt_num, block_num, (uint8_t *)_dfu_ctx.transfer_buf, wLength);
-  }
-  tud_control_xfer(rhport, request, _dfu_ctx.transfer_buf, retval);
-  return retval;
 }
 
 static void dfu_req_getstatus_reply(uint8_t rhport, tusb_control_request_t const * request)
@@ -376,18 +385,6 @@ static bool dfu_state_machine(uint8_t rhport, tusb_control_request_t const * req
             _dfu_ctx.state = DFU_DNLOAD_SYNC;
             _dfu_ctx.blk_transfer_in_proc = true;
             dfu_req_dnload_setup(rhport, request);
-          } else {
-            _dfu_ctx.state = DFU_ERROR;
-          }
-        }
-        break;
-
-        case DFU_REQUEST_UPLOAD:
-        {
-          if( ((_dfu_ctx.attrs & DFU_FUNC_ATTR_CAN_UPLOAD_BITMASK) != 0) )
-          {
-            _dfu_ctx.state = DFU_UPLOAD_IDLE;
-            dfu_req_upload(rhport, request, request->wValue, request->wLength);
           } else {
             _dfu_ctx.state = DFU_ERROR;
           }
@@ -567,15 +564,6 @@ static bool dfu_state_machine(uint8_t rhport, tusb_control_request_t const * req
     {
       switch (request->bRequest)
       {
-        case DFU_REQUEST_UPLOAD:
-        {
-          if (dfu_req_upload(rhport, request, request->wValue, request->wLength) != request->wLength)
-          {
-            _dfu_ctx.state = DFU_IDLE;
-          }
-        }
-        break;
-
         case DFU_REQUEST_GETSTATUS:
           dfu_req_getstatus_reply(rhport, request);
         break;

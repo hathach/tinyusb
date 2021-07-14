@@ -95,10 +95,10 @@ typedef enum {
   DFU_STATUS_ERRSTALLEDPKT   = 0x0F,
 } dfu_device_status_t;
 
-#define DFU_FUNC_ATTR_CAN_DOWNLOAD_BITMASK              (1 << 0)
-#define DFU_FUNC_ATTR_CAN_UPLOAD_BITMASK                (1 << 1)
-#define DFU_FUNC_ATTR_MANIFESTATION_TOLERANT_BITMASK    (1 << 2)
-#define DFU_FUNC_ATTR_WILL_DETACH_BITMASK               (1 << 3)
+#define DFU_FUNC_ATTR_CAN_DOWNLOAD_BITMASK              (1u << 0)
+#define DFU_FUNC_ATTR_CAN_UPLOAD_BITMASK                (1u << 1)
+#define DFU_FUNC_ATTR_MANIFESTATION_TOLERANT_BITMASK    (1u << 2)
+#define DFU_FUNC_ATTR_WILL_DETACH_BITMASK               (1u << 3)
 
 // DFU Status Request Payload
 typedef struct TU_ATTR_PACKED
