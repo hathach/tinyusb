@@ -61,6 +61,13 @@ static void     dfu_req_getstatus_reply(uint8_t rhport, tusb_control_request_t c
 static void     dfu_req_dnload_reply(uint8_t rhport, tusb_control_request_t const * request);
 static bool     dfu_state_machine(uint8_t rhport, tusb_control_request_t const * request);
 
+static void reset_state(void)
+{
+  _dfu_ctx.state = DFU_IDLE;
+  _dfu_ctx.status = DFU_STATUS_OK;
+  _dfu_ctx.blk_transfer_in_proc = false;
+}
+
 //--------------------------------------------------------------------+
 // Debug
 //--------------------------------------------------------------------+
@@ -224,10 +231,7 @@ bool dfu_moded_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_reque
         {
           // Switch Alt interface and  Re-initalize state machine
           _dfu_ctx.alt_num = (uint8_t) request->wValue;
-          _dfu_ctx.state = DFU_IDLE;
-          _dfu_ctx.status = DFU_STATUS_OK;
-          _dfu_ctx.blk_transfer_in_proc = false;
-
+          reset_state();
           return tud_control_status(rhport, request);
         }
       break;
@@ -264,11 +268,23 @@ bool dfu_moded_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_reque
         {
           if (tud_dfu_abort_cb) tud_dfu_abort_cb(_dfu_ctx.alt_num);
 
-          _dfu_ctx.state = DFU_IDLE;
-          _dfu_ctx.status = DFU_STATUS_OK;
-          _dfu_ctx.blk_transfer_in_proc = false;
-
+          reset_state();
           tud_control_status(rhport, request);
+        }
+      break;
+
+      case DFU_REQUEST_CLRSTATUS:
+        if ( stage == CONTROL_STAGE_SETUP )
+        {
+          reset_state();
+          tud_control_status(rhport, request);
+        }
+      break;
+
+      case DFU_REQUEST_GETSTATE:
+        if ( stage == CONTROL_STAGE_SETUP )
+        {
+          tud_control_xfer(rhport, request, &_dfu_ctx.state, 1);
         }
       break;
 
@@ -298,8 +314,7 @@ bool dfu_moded_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_reque
       }
       // fallthrough
       case DFU_REQUEST_GETSTATUS:
-      case DFU_REQUEST_CLRSTATUS:
-      case DFU_REQUEST_GETSTATE:
+
       {
         if(stage == CONTROL_STAGE_SETUP)
         {
@@ -337,11 +352,6 @@ static void dfu_req_getstatus_reply(uint8_t rhport, tusb_control_request_t const
   resp.iString = 0;
 
   tud_control_xfer(rhport, request, &resp, sizeof(dfu_status_req_payload_t));
-}
-
-static void dfu_req_getstate_reply(uint8_t rhport, tusb_control_request_t const * request)
-{
-  tud_control_xfer(rhport, request, &_dfu_ctx.state, 1);
 }
 
 static void dfu_req_dnload_setup(uint8_t rhport, tusb_control_request_t const * request)
@@ -404,10 +414,6 @@ static bool dfu_state_machine(uint8_t rhport, tusb_control_request_t const * req
           dfu_req_getstatus_reply(rhport, request);
         break;
 
-        case DFU_REQUEST_GETSTATE:
-          dfu_req_getstate_reply(rhport, request);
-        break;
-
         default:
           _dfu_ctx.state = DFU_ERROR;
           return false;  // stall on all other requests
@@ -432,10 +438,6 @@ static bool dfu_state_machine(uint8_t rhport, tusb_control_request_t const * req
             dfu_req_getstatus_reply(rhport, request);
           }
         }
-        break;
-
-        case DFU_REQUEST_GETSTATE:
-          dfu_req_getstate_reply(rhport, request);
         break;
 
         default:
@@ -487,10 +489,6 @@ static bool dfu_state_machine(uint8_t rhport, tusb_control_request_t const * req
             dfu_req_getstatus_reply(rhport, request);
           break;
 
-          case DFU_REQUEST_GETSTATE:
-            dfu_req_getstate_reply(rhport, request);
-          break;
-
           default:
             _dfu_ctx.state = DFU_ERROR;
             return false;  // stall on all other requests
@@ -518,10 +516,6 @@ static bool dfu_state_machine(uint8_t rhport, tusb_control_request_t const * req
             dfu_req_getstatus_reply(rhport, request);
           }
         }
-        break;
-
-        case DFU_REQUEST_GETSTATE:
-          dfu_req_getstate_reply(rhport, request);
         break;
 
         default:
@@ -565,10 +559,6 @@ static bool dfu_state_machine(uint8_t rhport, tusb_control_request_t const * req
           dfu_req_getstatus_reply(rhport, request);
         break;
 
-        case DFU_REQUEST_GETSTATE:
-          dfu_req_getstate_reply(rhport, request);
-        break;
-
         default:
           return false;  // stall on all other requests
         break;
@@ -582,14 +572,6 @@ static bool dfu_state_machine(uint8_t rhport, tusb_control_request_t const * req
       {
         case DFU_REQUEST_GETSTATUS:
           dfu_req_getstatus_reply(rhport, request);
-        break;
-
-        case DFU_REQUEST_CLRSTATUS:
-          _dfu_ctx.state = DFU_IDLE;
-        break;
-
-        case DFU_REQUEST_GETSTATE:
-          dfu_req_getstate_reply(rhport, request);
         break;
 
         default:
