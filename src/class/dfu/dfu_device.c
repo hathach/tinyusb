@@ -46,7 +46,7 @@ typedef struct
     dfu_state_t state;
     uint8_t attrs;
     bool blk_transfer_in_proc;
-    uint8_t alt;
+    uint8_t alt_num;
     uint16_t block;
     uint16_t length;
     CFG_TUSB_MEM_ALIGN uint8_t transfer_buf[CFG_TUD_DFU_TRANSFER_BUFFER_SIZE];
@@ -149,7 +149,7 @@ void dfu_moded_init(void)
   _dfu_state_ctx.status = DFU_STATUS_OK;
   _dfu_state_ctx.attrs = 0;
   _dfu_state_ctx.blk_transfer_in_proc = false;
-  _dfu_state_ctx.alt = 0;
+  _dfu_state_ctx.alt_num = 0;
 
   dfu_debug_print_context();
 }
@@ -162,7 +162,7 @@ void dfu_moded_reset(uint8_t rhport)
   _dfu_state_ctx.status = DFU_STATUS_OK;
   _dfu_state_ctx.attrs = 0;
   _dfu_state_ctx.blk_transfer_in_proc = false;
-  _dfu_state_ctx.alt = 0;
+  _dfu_state_ctx.alt_num = 0;
 
   dfu_debug_print_context();
 }
@@ -221,7 +221,7 @@ bool dfu_moded_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_reque
     if (request->bmRequestType_bit.type == TUSB_REQ_TYPE_STANDARD && request->bRequest == TUSB_REQ_SET_INTERFACE)
     {
       // Switch Alt interface
-      _dfu_state_ctx.alt = request->wValue;
+      _dfu_state_ctx.alt_num = (uint8_t) request->wValue;
 
       // Re-initalise state machine (Necessary ?)
       _dfu_state_ctx.state = DFU_IDLE;
@@ -244,6 +244,7 @@ bool dfu_moded_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_reque
       if (tud_dfu_reboot_cb) tud_dfu_reboot_cb();
       break;
     }
+
     case DFU_REQUEST_DNLOAD:
     {
       if ( (stage == CONTROL_STAGE_ACK)
@@ -254,7 +255,8 @@ bool dfu_moded_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_reque
         _dfu_state_ctx.length = request->wLength;
         return true;
       }
-    } // fallthrough
+    }
+    // fallthrough
     case DFU_REQUEST_UPLOAD:
     case DFU_REQUEST_GETSTATUS:
     case DFU_REQUEST_CLRSTATUS:
@@ -285,7 +287,7 @@ static uint16_t dfu_req_upload(uint8_t rhport, tusb_control_request_t const * re
   uint16_t retval = 0;
   if (tud_dfu_upload_cb)
   {
-    tud_dfu_upload_cb(_dfu_state_ctx.alt, block_num, (uint8_t *)_dfu_state_ctx.transfer_buf, wLength);
+    tud_dfu_upload_cb(_dfu_state_ctx.alt_num, block_num, (uint8_t *)_dfu_state_ctx.transfer_buf, wLength);
   }
   tud_control_xfer(rhport, request, _dfu_state_ctx.transfer_buf, retval);
   return retval;
@@ -296,7 +298,7 @@ static void dfu_req_getstatus_reply(uint8_t rhport, tusb_control_request_t const
   uint32_t timeout = 0;
   if ( tud_dfu_get_status_cb )
   {
-    timeout = tud_dfu_get_status_cb(_dfu_state_ctx.alt, _dfu_state_ctx.state);
+    timeout = tud_dfu_get_status_cb(_dfu_state_ctx.alt_num, _dfu_state_ctx.state);
   }
 
   dfu_status_req_payload_t resp;
@@ -330,7 +332,7 @@ static void dfu_req_dnload_reply(uint8_t rhport, tusb_control_request_t const * 
 {
   (void) rhport;
   TU_VERIFY( request->wLength <= CFG_TUD_DFU_TRANSFER_BUFFER_SIZE, );
-  tud_dfu_download_cb(_dfu_state_ctx.alt,_dfu_state_ctx.block, (uint8_t *)_dfu_state_ctx.transfer_buf, _dfu_state_ctx.length);
+  tud_dfu_download_cb(_dfu_state_ctx.alt_num,_dfu_state_ctx.block, (uint8_t *)_dfu_state_ctx.transfer_buf, _dfu_state_ctx.length);
   _dfu_state_ctx.blk_transfer_in_proc = false;
 }
 
@@ -384,28 +386,20 @@ static bool dfu_state_machine(uint8_t rhport, tusb_control_request_t const * req
         break;
 
         case DFU_REQUEST_GETSTATUS:
-        {
           dfu_req_getstatus_reply(rhport, request);
-        }
         break;
 
         case DFU_REQUEST_GETSTATE:
-        {
           dfu_req_getstate_reply(rhport, request);
-        }
         break;
 
         case DFU_REQUEST_ABORT:
-        {
           ; // do nothing, but don't stall so continue on
-        }
         break;
 
         default:
-        {
           _dfu_state_ctx.state = DFU_ERROR;
           return false;  // stall on all other requests
-        }
         break;
       }
     }
@@ -430,16 +424,12 @@ static bool dfu_state_machine(uint8_t rhport, tusb_control_request_t const * req
         break;
 
         case DFU_REQUEST_GETSTATE:
-        {
           dfu_req_getstate_reply(rhport, request);
-        }
         break;
 
         default:
-        {
           _dfu_state_ctx.state = DFU_ERROR;
           return false;  // stall on all other requests
-        }
         break;
       }
     }
@@ -450,10 +440,8 @@ static bool dfu_state_machine(uint8_t rhport, tusb_control_request_t const * req
       switch (request->bRequest)
       {
         default:
-        {
           _dfu_state_ctx.state = DFU_ERROR;
           return false;  // stall on all other requests
-        }
         break;
       }
     }
@@ -472,7 +460,7 @@ static bool dfu_state_machine(uint8_t rhport, tusb_control_request_t const * req
               _dfu_state_ctx.blk_transfer_in_proc = true;
               dfu_req_dnload_setup(rhport, request);
             } else {
-              if ( tud_dfu_device_data_done_check_cb(_dfu_state_ctx.alt) )
+              if ( tud_dfu_device_data_done_check_cb(_dfu_state_ctx.alt_num) )
               {
                 _dfu_state_ctx.state = DFU_MANIFEST_SYNC;
                 tud_control_status(rhport, request);
@@ -485,32 +473,24 @@ static bool dfu_state_machine(uint8_t rhport, tusb_control_request_t const * req
           break;
 
           case DFU_REQUEST_GETSTATUS:
-          {
             dfu_req_getstatus_reply(rhport, request);
-          }
           break;
 
           case DFU_REQUEST_GETSTATE:
-          {
             dfu_req_getstate_reply(rhport, request);
-          }
           break;
 
           case DFU_REQUEST_ABORT:
-          {
             if ( tud_dfu_abort_cb )
             {
-              tud_dfu_abort_cb(_dfu_state_ctx.alt);
+              tud_dfu_abort_cb(_dfu_state_ctx.alt_num);
             }
             _dfu_state_ctx.state = DFU_IDLE;
-          }
           break;
 
           default:
-          {
             _dfu_state_ctx.state = DFU_ERROR;
             return false;  // stall on all other requests
-          }
           break;
         }
     }
@@ -528,7 +508,7 @@ static bool dfu_state_machine(uint8_t rhport, tusb_control_request_t const * req
             dfu_req_getstatus_reply(rhport, request);
           } else 
           {
-            if ( tud_dfu_firmware_valid_check_cb(_dfu_state_ctx.alt) )
+            if ( tud_dfu_firmware_valid_check_cb(_dfu_state_ctx.alt_num) )
             {
               _dfu_state_ctx.state = DFU_IDLE;
             }
@@ -538,16 +518,12 @@ static bool dfu_state_machine(uint8_t rhport, tusb_control_request_t const * req
         break;
 
         case DFU_REQUEST_GETSTATE:
-        {
           dfu_req_getstate_reply(rhport, request);
-        }
         break;
 
         default:
-        {
           _dfu_state_ctx.state = DFU_ERROR;
           return false;  // stall on all other requests
-        }
         break;
       }
     }
@@ -557,10 +533,9 @@ static bool dfu_state_machine(uint8_t rhport, tusb_control_request_t const * req
     {
       switch (request->bRequest)
       {
+        // stall on all other requests
         default:
-        {
-          return false;  // stall on all other requests
-        }
+          return false;
         break;
       }
     }
@@ -573,9 +548,7 @@ static bool dfu_state_machine(uint8_t rhport, tusb_control_request_t const * req
       switch (request->bRequest)
       {
         default:
-        {
           return false;  // stall on all other requests
-        }
         break;
       }
     }
@@ -595,31 +568,25 @@ static bool dfu_state_machine(uint8_t rhport, tusb_control_request_t const * req
         break;
 
         case DFU_REQUEST_GETSTATUS:
-        {
           dfu_req_getstatus_reply(rhport, request);
-        }
         break;
 
         case DFU_REQUEST_GETSTATE:
-        {
           dfu_req_getstate_reply(rhport, request);
-        }
         break;
 
         case DFU_REQUEST_ABORT:
         {
           if (tud_dfu_abort_cb)
           {
-            tud_dfu_abort_cb(_dfu_state_ctx.alt);
+            tud_dfu_abort_cb(_dfu_state_ctx.alt_num);
           }
           _dfu_state_ctx.state = DFU_IDLE;
         }
         break;
 
         default:
-        {
           return false;  // stall on all other requests
-        }
         break;
       }
     }
@@ -630,27 +597,19 @@ static bool dfu_state_machine(uint8_t rhport, tusb_control_request_t const * req
       switch (request->bRequest)
       {
         case DFU_REQUEST_GETSTATUS:
-        {
           dfu_req_getstatus_reply(rhport, request);
-        }
         break;
 
         case DFU_REQUEST_CLRSTATUS:
-        {
           _dfu_state_ctx.state = DFU_IDLE;
-        }
         break;
 
         case DFU_REQUEST_GETSTATE:
-        {
           dfu_req_getstate_reply(rhport, request);
-        }
         break;
 
         default:
-        {
           return false;  // stall on all other requests
-        }
         break;
       }
     }
