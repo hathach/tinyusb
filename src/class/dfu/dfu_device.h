@@ -58,11 +58,11 @@ TU_ATTR_WEAK uint32_t tud_dfu_get_status_cb(uint8_t alt, uint8_t state);
 // This callback takes the wBlockNum chunk of length length and provides it
 // to the application at the data pointer.  This data is only valid for this
 // call, so the app must use it not or copy it.
-void tud_dfu_req_dnload_data_cb(uint8_t alt, uint16_t wBlockNum, uint8_t* data, uint16_t length);
+void tud_dfu_download_cb(uint8_t alt, uint16_t wBlockNum, uint8_t* data, uint16_t length);
 
 // Must be called when the application is done using the last block of data
-// provided by tud_dfu_req_dnload_data_cb
-void tud_dfu_dnload_complete(void);
+// provided by tud_dfu_download_cb
+void tud_dfu_download_complete(void);
 
 // Invoked during the last DFU_DNLOAD request, signifying that the host believes
 // it is done transmitting data.
@@ -79,7 +79,7 @@ TU_ATTR_WEAK void tud_dfu_abort_cb(uint8_t alt);
 // alt is used as the partition number, in order to support multiple partitions like FLASH, EEPROM, etc.
 // This callback must populate data with up to length bytes
 // Return the number of bytes to write
-TU_ATTR_WEAK uint16_t tud_dfu_req_upload_data_cb(uint8_t alt, uint16_t block_num, uint8_t* data, uint16_t length);
+TU_ATTR_WEAK uint16_t tud_dfu_upload_cb(uint8_t alt, uint16_t block_num, uint8_t* data, uint16_t length);
 
 // Invoked when a DFU_DETACH request is received
 TU_ATTR_WEAK void tud_dfu_reboot_cb(void);

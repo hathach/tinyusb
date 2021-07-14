@@ -135,7 +135,7 @@ uint32_t tud_dfu_get_status_cb(uint8_t alt, uint8_t state)
   return 0;
 }
 
-void tud_dfu_req_dnload_data_cb(uint8_t alt, uint16_t wBlockNum, uint8_t* data, uint16_t length)
+void tud_dfu_download_cb(uint8_t alt, uint16_t wBlockNum, uint8_t* data, uint16_t length)
 {
   (void) data;
   printf("    Received Alt %u BlockNum %u of length %u\r\n", alt, wBlockNum, length);
@@ -147,7 +147,7 @@ void tud_dfu_req_dnload_data_cb(uint8_t alt, uint16_t wBlockNum, uint8_t* data, 
   }
 #endif
 
-  tud_dfu_dnload_complete();
+  tud_dfu_download_complete();
 }
 
 bool tud_dfu_device_data_done_check_cb(uint8_t alt)
@@ -167,7 +167,7 @@ void tud_dfu_abort_cb(uint8_t alt)
 const uint8_t upload_test[2][UPLOAD_SIZE] = {"Hello world from TinyUSB DFU! - Partition 0",
                                              "Hello world from TinyUSB DFU! - Partition 1"};
 
-uint16_t tud_dfu_req_upload_data_cb(uint8_t alt, uint16_t block_num, uint8_t* data, uint16_t length)
+uint16_t tud_dfu_upload_cb(uint8_t alt, uint16_t block_num, uint8_t* data, uint16_t length)
 {
   (void) block_num;
   (void) length;

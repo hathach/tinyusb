@@ -283,9 +283,9 @@ static uint16_t dfu_req_upload(uint8_t rhport, tusb_control_request_t const * re
 {
   TU_VERIFY( wLength <= CFG_TUD_DFU_TRANSFER_BUFFER_SIZE, 0);
   uint16_t retval = 0;
-  if (tud_dfu_req_upload_data_cb)
+  if (tud_dfu_upload_cb)
   {
-    tud_dfu_req_upload_data_cb(_dfu_state_ctx.alt, block_num, (uint8_t *)_dfu_state_ctx.transfer_buf, wLength);
+    tud_dfu_upload_cb(_dfu_state_ctx.alt, block_num, (uint8_t *)_dfu_state_ctx.transfer_buf, wLength);
   }
   tud_control_xfer(rhport, request, _dfu_state_ctx.transfer_buf, retval);
   return retval;
@@ -330,11 +330,11 @@ static void dfu_req_dnload_reply(uint8_t rhport, tusb_control_request_t const * 
 {
   (void) rhport;
   TU_VERIFY( request->wLength <= CFG_TUD_DFU_TRANSFER_BUFFER_SIZE, );
-  tud_dfu_req_dnload_data_cb(_dfu_state_ctx.alt,_dfu_state_ctx.block, (uint8_t *)_dfu_state_ctx.transfer_buf, _dfu_state_ctx.length);
+  tud_dfu_download_cb(_dfu_state_ctx.alt,_dfu_state_ctx.block, (uint8_t *)_dfu_state_ctx.transfer_buf, _dfu_state_ctx.length);
   _dfu_state_ctx.blk_transfer_in_proc = false;
 }
 
-void tud_dfu_dnload_complete(void)
+void tud_dfu_download_complete(void)
 {
   if (_dfu_state_ctx.state == DFU_DNBUSY)
   {

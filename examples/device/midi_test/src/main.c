@@ -134,10 +134,13 @@ void midi_task(void)
   uint8_t packet[4];
   while ( tud_midi_available() ) tud_midi_packet_read(packet);
 
-  // send note every 1000 ms
-  if (board_millis() - start_ms < 286) return; // not enough time
-  start_ms += 286;
+  // send note periodically
+  if (board_millis() - start_ms < 1000) return; // not enough time
+  start_ms += 1000;
 
+#if 1
+
+#else
   // Previous positions in the note sequence.
   int previous = note_pos - 1;
 
@@ -158,6 +161,7 @@ void midi_task(void)
 
   // If we are at the end of the sequence, start over.
   if (note_pos >= sizeof(note_sequence)) note_pos = 0;
+#endif
 }
 
 //--------------------------------------------------------------------+
