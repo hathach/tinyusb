@@ -86,7 +86,8 @@
     CFG_TUSB_MCU == OPT_MCU_STM32F4                               || \
     CFG_TUSB_MCU == OPT_MCU_STM32F7                               || \
     CFG_TUSB_MCU == OPT_MCU_STM32H7                               || \
-    (CFG_TUSB_MCU == OPT_MCU_STM32L4 && defined(STM32L4_SYNOPSYS))
+    (CFG_TUSB_MCU == OPT_MCU_STM32L4 && defined(STM32L4_SYNOPSYS)) || \
+    CFG_TUSB_MCU == OPT_MCU_RX63X
 #define  USE_LINEAR_BUFFER     0
 #else
 #define  USE_LINEAR_BUFFER     1
