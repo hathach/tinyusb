@@ -26,7 +26,7 @@
  /*
   * After device is enumerated in dfu mode run the following commands
   *
-  * To transfer firmware from host to device:
+  * To transfer firmware from host to device (best to test with text file)
   *
   * $ dfu-util -d cafe -a 0 -D [filename]
   * $ dfu-util -d cafe -a 1 -D [filename]
@@ -45,22 +45,21 @@
 #include "bsp/board.h"
 #include "tusb.h"
 
-
 //--------------------------------------------------------------------+
 // MACRO CONSTANT TYPEDEF PROTYPES
 //--------------------------------------------------------------------+
-#ifndef DFU_VERBOSE
-#define DFU_VERBOSE 0
-#endif
+const char* upload_image[2]=
+{
+  "Hello world from TinyUSB DFU! - Partition 0",
+  "Hello world from TinyUSB DFU! - Partition 1"
+};
 
 /* Blink pattern
- * - 1000 ms : device should reboot
  * - 250 ms  : device not mounted
  * - 1000 ms : device mounted
  * - 2500 ms : device is suspended
  */
 enum  {
-  BLINK_DFU_MODE = 100,
   BLINK_NOT_MOUNTED = 250,
   BLINK_MOUNTED = 1000,
   BLINK_SUSPENDED = 2500,
@@ -118,65 +117,87 @@ void tud_resume_cb(void)
 }
 
 //--------------------------------------------------------------------+
-// Class callbacks
+// DFU callbacks
+// Note: alt is used as the partition number, in order to support multiple partitions like FLASH, EEPROM, etc.
 //--------------------------------------------------------------------+
-bool tud_dfu_firmware_valid_check_cb(uint8_t alt)
-{
-  (void) alt;
-  printf("    Firmware check\r\n");
-  return true;
-}
 
-uint32_t tud_dfu_get_status_cb(uint8_t alt, uint8_t state)
+// Invoked right before tud_dfu_download_cb() (state=DFU_DNBUSY) or tud_dfu_manifest_cb() (state=DFU_MANIFEST)
+// Application return timeout in milliseconds (bwPollTimeout) for the next download/manifest operation.
+// During this period, USB host won't try to communicate with us.
+uint32_t tud_dfu_get_timeout_cb(uint8_t alt, uint8_t state)
 {
-  // For example Alt1 (EEPROM) is slow, add 2000ms timeout
   if ( state == DFU_DNBUSY )
   {
-    if (alt == 1) return 2000;
+    // For this example
+    // - Atl0 Flash is fast : 1   ms
+    // - Alt1 EEPROM is slow: 100 ms
+    return (alt == 0) ? 1 : 100;
   }
+  else if (state == DFU_MANIFEST)
+  {
+    // since we don't buffer entire image and do any flashing in manifest stage
+    return 0;
+  }
+
   return 0;
 }
 
-void tud_dfu_download_cb(uint8_t alt, uint16_t wBlockNum, uint8_t* data, uint16_t length)
+// Invoked when received DFU_DNLOAD (wLength>0) following by DFU_GETSTATUS (state=DFU_DNBUSY) requests
+// This callback could be returned before flashing op is complete (async).
+// Once finished flashing, application must call tud_dfu_finish_flashing()
+void tud_dfu_download_cb(uint8_t alt, uint16_t wBlockNum, uint8_t const* data, uint16_t length)
 {
   (void) data;
-  printf("Received Alt %u BlockNum %u of length %u\r\n", alt, wBlockNum, length);
+  printf("\r\nReceived Alt %u BlockNum %u of length %u\r\n", alt, wBlockNum, length);
 
-#if DFU_VERBOSE
   for(uint16_t i=0; i<length; i++)
   {
-    printf("  [%u][%u]: %x\r\n", wBlockNum, i, (uint8_t)data[i]);
+    // printf("  [%u][%u]: %x\r\n", wBlockNum, i, (uint8_t)data[i]);
+    printf("%c", data[i]);
   }
-#endif
 
-  tud_dfu_download_complete();
+  // flashing op for download complete without error
+  tud_dfu_finish_flashing(DFU_STATUS_OK);
 }
 
-bool tud_dfu_device_data_done_check_cb(uint8_t alt)
+// Invoked when download process is complete, received DFU_DNLOAD (wLength=0) following by DFU_GETSTATUS (state=Manifest)
+// Application can do checksum, or actual flashing if buffered entire image previously.
+// Once finished flashing, application must call tud_dfu_finish_flashing()
+void tud_dfu_manifest_cb(uint8_t alt)
 {
   (void) alt;
-  printf("Host said no more data... Returning true\r\n");
-  return true;
+  printf("Download completed, enter manifestation\r\n");
+
+  // flashing op for manifest is complete without error
+  // Application can perform checksum, should it fail, use appropriate status such as errVERIFY.
+  tud_dfu_finish_flashing(DFU_STATUS_OK);
 }
 
+// Invoked when received DFU_UPLOAD request
+// Application must populate data with up to length bytes and
+// Return the number of written bytes
+uint16_t tud_dfu_upload_cb(uint8_t alt, uint16_t block_num, uint8_t* data, uint16_t length)
+{
+  (void) block_num;
+  (void) length;
+
+  uint16_t const xfer_len = (uint16_t) strlen(upload_image[alt]);
+  memcpy(data, upload_image[alt], xfer_len);
+
+  return xfer_len;
+}
+
+// Invoked when the Host has terminated a download or upload transfer
 void tud_dfu_abort_cb(uint8_t alt)
 {
   (void) alt;
   printf("Host aborted transfer\r\n");
 }
 
-#define UPLOAD_SIZE 43
-const uint8_t upload_test[2][UPLOAD_SIZE] = {"Hello world from TinyUSB DFU! - Partition 0",
-                                             "Hello world from TinyUSB DFU! - Partition 1"};
-
-uint16_t tud_dfu_upload_cb(uint8_t alt, uint16_t block_num, uint8_t* data, uint16_t length)
+// Invoked when a DFU_DETACH request is received
+void tud_dfu_detach_cb(void)
 {
-  (void) block_num;
-  (void) length;
-
-  memcpy(data, upload_test[alt], UPLOAD_SIZE);
-
-  return UPLOAD_SIZE;
+  printf("Host detach, we should probably reboot\r\n");
 }
 
 //--------------------------------------------------------------------+

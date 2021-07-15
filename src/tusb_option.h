@@ -253,10 +253,6 @@
   #define CFG_TUD_DFU_MODE        0
 #endif
 
-#ifndef CFG_TUD_DFU_TRANSFER_BUFFER_SIZE
-  #define CFG_TUD_DFU_TRANSFER_BUFFER_SIZE  64
-#endif
-
 #ifndef CFG_TUD_NET
   #define CFG_TUD_NET             0
 #endif
