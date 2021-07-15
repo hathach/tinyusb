@@ -249,8 +249,8 @@
   #define CFG_TUD_DFU_RUNTIME     0
 #endif
 
-#ifndef CFG_TUD_DFU_MODE
-  #define CFG_TUD_DFU_MODE        0
+#ifndef CFG_TUD_DFU
+  #define CFG_TUD_DFU             0
 #endif
 
 #ifndef CFG_TUD_NET
