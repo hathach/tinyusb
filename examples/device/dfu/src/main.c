@@ -145,14 +145,15 @@ uint32_t tud_dfu_get_timeout_cb(uint8_t alt, uint8_t state)
 // Invoked when received DFU_DNLOAD (wLength>0) following by DFU_GETSTATUS (state=DFU_DNBUSY) requests
 // This callback could be returned before flashing op is complete (async).
 // Once finished flashing, application must call tud_dfu_finish_flashing()
-void tud_dfu_download_cb(uint8_t alt, uint16_t wBlockNum, uint8_t const* data, uint16_t length)
+void tud_dfu_download_cb(uint8_t alt, uint16_t block_num, uint8_t const* data, uint16_t length)
 {
-  (void) data;
+  (void) alt;
+  (void) block_num;
+
   //printf("\r\nReceived Alt %u BlockNum %u of length %u\r\n", alt, wBlockNum, length);
 
   for(uint16_t i=0; i<length; i++)
   {
-    // printf("  [%u][%u]: %x\r\n", wBlockNum, i, (uint8_t)data[i]);
     printf("%c", data[i]);
   }
 
