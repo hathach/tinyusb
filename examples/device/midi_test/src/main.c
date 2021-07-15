@@ -138,9 +138,6 @@ void midi_task(void)
   if (board_millis() - start_ms < 1000) return; // not enough time
   start_ms += 1000;
 
-#if 1
-
-#else
   // Previous positions in the note sequence.
   int previous = note_pos - 1;
 
@@ -161,7 +158,6 @@ void midi_task(void)
 
   // If we are at the end of the sequence, start over.
   if (note_pos >= sizeof(note_sequence)) note_pos = 0;
-#endif
 }
 
 //--------------------------------------------------------------------+
