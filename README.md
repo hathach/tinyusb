@@ -106,6 +106,7 @@ TinyUSB is currently used by these other projects:
 - [Espressif IDF](https://github.com/espressif/esp-idf)
 - [MicroPython](https://github.com/micropython/micropython)
 - [mynewt](https://mynewt.apache.org)
+- [openinput](https://github.com/openinput-fw/openinput)
 - [Raspberry Pi Pico SDK](https://github.com/raspberrypi/pico-sdk)
 - [TinyUF2 Bootloader](https://github.com/adafruit/tinyuf2)
 - [TinyUSB Arduino Library](https://github.com/adafruit/Adafruit_TinyUSB_Arduino)
