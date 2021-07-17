@@ -52,6 +52,7 @@ static volatile bool uart_busy = false;
 
 static void tx_cb_EDBG_COM(const struct usart_async_descriptor *const io_descr)
 {
+  (void) io_descr;
   uart_busy = false;
 }
 

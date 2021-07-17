@@ -62,6 +62,7 @@
 #define OPT_MCU_SAMD11            204 ///< MicroChip SAMD11
 #define OPT_MCU_SAML22            205 ///< MicroChip SAML22
 #define OPT_MCU_SAML21            206 ///< MicroChip SAML21
+#define OPT_MCU_SAMX7X            207 ///< MicroChip SAME70, S70, V70, V71 family
 
 // STM32
 #define OPT_MCU_STM32F0           300 ///< ST STM32F0
