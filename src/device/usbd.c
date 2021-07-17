@@ -188,9 +188,9 @@ static usbd_class_driver_t const _usbd_driver[] =
   },
   #endif
 
-  #if CFG_TUD_DFU_MODE
+  #if CFG_TUD_DFU
   {
-    DRIVER_NAME("DFU-MODE")
+    DRIVER_NAME("DFU")
     .init             = dfu_moded_init,
     .reset            = dfu_moded_reset,
     .open             = dfu_moded_open,

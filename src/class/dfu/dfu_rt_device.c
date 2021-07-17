@@ -108,10 +108,10 @@ bool dfu_rtd_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request
     case DFU_REQUEST_GETSTATUS:
     {
       TU_LOG2("  DFU RT Request: GETSTATUS\r\n");
-      dfu_status_req_payload_t resp;
+      dfu_status_response_t resp;
       // Status = OK, Poll timeout is ignored during RT, State = APP_IDLE, IString = 0
-      memset(&resp, 0x00, sizeof(dfu_status_req_payload_t));
-      tud_control_xfer(rhport, request, &resp, sizeof(dfu_status_req_payload_t));
+      memset(&resp, 0x00, sizeof(dfu_status_response_t));
+      tud_control_xfer(rhport, request, &resp, sizeof(dfu_status_response_t));
     }
     break;
 

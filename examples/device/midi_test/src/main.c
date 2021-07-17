@@ -134,7 +134,7 @@ void midi_task(void)
   uint8_t packet[4];
   while ( tud_midi_available() ) tud_midi_packet_read(packet);
 
-  // send note every 1000 ms
+  // send note periodically
   if (board_millis() - start_ms < 286) return; // not enough time
   start_ms += 286;
 
