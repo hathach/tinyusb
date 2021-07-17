@@ -531,7 +531,7 @@ bool dcd_edpt_open (uint8_t rhport, tusb_desc_endpoint_t const * ep_desc)
 void dcd_edpt_close(uint8_t rhport, uint8_t ep_addr)
 {
   uint8_t const epnum  = tu_edpt_number(ep_addr);
-  uint8_t const dir    = tu_edpt_dir(ep_addr);
+  (void) ep_addr;
 
   // Disable endpoint interrupt
   USBHS->USBHS_DEVIDR = 1 << (USBHS_DEVIDR_PEP_0_Pos + epnum);
