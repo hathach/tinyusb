@@ -83,11 +83,8 @@ typedef struct {
 static tusb_speed_t get_speed(void);
 static void dcd_transmit_packet(xfer_ctl_t * xfer, uint8_t ep_ix);
 
-// DMA descriptors shouldn't be placed in ITCM
-#if defined(USB_DMA_DESC_SECTION)
-TU_ATTR_SECTION(TU_XSTRING(USB_DMA_DESC_SECTION))
-#endif
-dma_desc_t dma_desc[6];
+// DMA descriptors shouldn't be placed in ITCM !
+CFG_TUSB_MEM_SECTION dma_desc_t dma_desc[6];
 
 xfer_ctl_t xfer_status[EP_MAX+1];
 
@@ -529,6 +526,17 @@ bool dcd_edpt_open (uint8_t rhport, tusb_desc_endpoint_t const * ep_desc)
       return false;
     }
   }
+}
+
+void dcd_edpt_close(uint8_t rhport, uint8_t ep_addr)
+{
+  uint8_t const epnum  = tu_edpt_number(ep_addr);
+  uint8_t const dir    = tu_edpt_dir(ep_addr);
+
+  // Disable endpoint interrupt
+  USBHS->USBHS_DEVIDR = 1 << (USBHS_DEVIDR_PEP_0_Pos + epnum);
+  // Disable EP
+  USBHS->USBHS_DEVEPT &=~(1 << (USBHS_DEVEPT_EPEN0_Pos + epnum));
 }
 
 static void dcd_transmit_packet(xfer_ctl_t * xfer, uint8_t ep_ix)
