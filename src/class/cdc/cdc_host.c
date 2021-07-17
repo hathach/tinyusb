@@ -149,29 +149,27 @@ void cdch_init(void)
   tu_memclr(cdch_data, sizeof(cdch_data_t)*CFG_TUSB_HOST_DEVICE_MAX);
 }
 
-bool cdch_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_interface_t const *itf_desc, uint16_t *p_length)
+uint16_t cdch_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_interface_t const *itf_desc, uint16_t max_len)
 {
-  // Only support ACM
-  TU_VERIFY( CDC_COMM_SUBCLASS_ABSTRACT_CONTROL_MODEL == itf_desc->bInterfaceSubClass);
+  (void) max_len;
 
-  // Only support AT commands, no protocol and vendor specific commands.
-  TU_VERIFY(tu_within(CDC_COMM_PROTOCOL_NONE, itf_desc->bInterfaceProtocol, CDC_COMM_PROTOCOL_ATCOMMAND_CDMA) ||
-            0xff == itf_desc->bInterfaceProtocol);
+  // Only support ACM subclass
+  // Protocol 0xFF can be RNDIS device for windows XP
+  TU_VERIFY( TUSB_CLASS_CDC                           == itf_desc->bInterfaceClass &&
+             CDC_COMM_SUBCLASS_ABSTRACT_CONTROL_MODEL == itf_desc->bInterfaceSubClass &&
+             0xFF                                     != itf_desc->bInterfaceProtocol, 0);
 
-  uint8_t const * p_desc;
-  cdch_data_t * p_cdc;
+  cdch_data_t * p_cdc = get_itf(dev_addr);
 
-  p_desc = tu_desc_next(itf_desc);
-  p_cdc  = get_itf(dev_addr);
-
-  p_cdc->itf_num   = itf_desc->bInterfaceNumber;
-  p_cdc->itf_protocol = itf_desc->bInterfaceProtocol; // TODO 0xff is consider as rndis candidate, other is virtual Com
+  p_cdc->itf_num      = itf_desc->bInterfaceNumber;
+  p_cdc->itf_protocol = itf_desc->bInterfaceProtocol;
 
   //------------- Communication Interface -------------//
-  (*p_length) = sizeof(tusb_desc_interface_t);
+  uint16_t drv_len = tu_desc_len(itf_desc);
+  uint8_t const * p_desc = tu_desc_next(itf_desc);
 
   // Communication Functional Descriptors
-  while( TUSB_DESC_CS_INTERFACE == p_desc[DESC_OFFSET_TYPE] )
+  while( TUSB_DESC_CS_INTERFACE == tu_desc_type(p_desc) && drv_len <= max_len )
   {
     if ( CDC_FUNC_DESC_ABSTRACT_CONTROL_MANAGEMENT == cdc_functional_desc_typeof(p_desc) )
     {
@@ -179,52 +177,52 @@ bool cdch_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_interface_t const *it
       p_cdc->acm_capability = ((cdc_desc_func_acm_t const *) p_desc)->bmCapabilities;
     }
 
-    (*p_length) += p_desc[DESC_OFFSET_LEN];
+    drv_len += tu_desc_len(p_desc);
     p_desc = tu_desc_next(p_desc);
   }
 
-  if ( TUSB_DESC_ENDPOINT == p_desc[DESC_OFFSET_TYPE])
+  if ( TUSB_DESC_ENDPOINT == tu_desc_type(p_desc) )
   {
     // notification endpoint
-    tusb_desc_endpoint_t const * ep_desc = (tusb_desc_endpoint_t const *) p_desc;
+    tusb_desc_endpoint_t const * desc_ep = (tusb_desc_endpoint_t const *) p_desc;
 
-    TU_ASSERT( usbh_edpt_open(rhport, dev_addr, ep_desc) );
-    p_cdc->ep_notif = ep_desc->bEndpointAddress;
+    TU_ASSERT( usbh_edpt_open(rhport, dev_addr, desc_ep), 0 );
+    p_cdc->ep_notif = desc_ep->bEndpointAddress;
 
-    (*p_length) += p_desc[DESC_OFFSET_LEN];
+    drv_len += tu_desc_len(p_desc);
     p_desc = tu_desc_next(p_desc);
   }
 
   //------------- Data Interface (if any) -------------//
-  if ( (TUSB_DESC_INTERFACE == p_desc[DESC_OFFSET_TYPE]) &&
+  if ( (TUSB_DESC_INTERFACE == tu_desc_type(p_desc)) &&
        (TUSB_CLASS_CDC_DATA == ((tusb_desc_interface_t const *) p_desc)->bInterfaceClass) )
   {
-    (*p_length) += p_desc[DESC_OFFSET_LEN];
+    // next to endpoint descriptor
+    drv_len += tu_desc_len(p_desc);
     p_desc = tu_desc_next(p_desc);
 
     // data endpoints expected to be in pairs
     for(uint32_t i=0; i<2; i++)
     {
-      tusb_desc_endpoint_t const *ep_desc = (tusb_desc_endpoint_t const *) p_desc;
-      TU_ASSERT(TUSB_DESC_ENDPOINT == ep_desc->bDescriptorType);
-      TU_ASSERT(TUSB_XFER_BULK == ep_desc->bmAttributes.xfer);
+      tusb_desc_endpoint_t const *desc_ep = (tusb_desc_endpoint_t const *) p_desc;
+      TU_ASSERT(TUSB_DESC_ENDPOINT == desc_ep->bDescriptorType && TUSB_XFER_BULK == desc_ep->bmAttributes.xfer, 0);
 
-      TU_ASSERT(usbh_edpt_open(rhport, dev_addr, ep_desc));
+      TU_ASSERT(usbh_edpt_open(rhport, dev_addr, desc_ep), 0);
 
-      if ( tu_edpt_dir(ep_desc->bEndpointAddress) ==  TUSB_DIR_IN )
+      if ( tu_edpt_dir(desc_ep->bEndpointAddress) == TUSB_DIR_IN )
       {
-        p_cdc->ep_in = ep_desc->bEndpointAddress;
+        p_cdc->ep_in = desc_ep->bEndpointAddress;
       }else
       {
-        p_cdc->ep_out = ep_desc->bEndpointAddress;
+        p_cdc->ep_out = desc_ep->bEndpointAddress;
       }
 
-      (*p_length) += p_desc[DESC_OFFSET_LEN];
+      drv_len += tu_desc_len(p_desc);
       p_desc = tu_desc_next( p_desc );
     }
   }
 
-  return true;
+  return drv_len;
 }
 
 bool cdch_set_config(uint8_t dev_addr, uint8_t itf_num)

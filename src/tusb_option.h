@@ -64,7 +64,6 @@
 #define OPT_MCU_SAML21            206 ///< MicroChip SAML21
 #define OPT_MCU_SAMX7X            207 ///< MicroChip SAME70, S70, V70, V71 family
 
-
 // STM32
 #define OPT_MCU_STM32F0           300 ///< ST STM32F0
 #define OPT_MCU_STM32F1           301 ///< ST STM32F1
@@ -115,6 +114,7 @@
 
 // Renesas RX
 #define OPT_MCU_RX63X            1400 ///< Renesas RX63N/631
+#define OPT_MCU_RX65X            1401 ///< Renesas RX65N/RX651
 
 // Mind Motion
 #define OPT_MCU_MM32F327X        1500 ///< Mind Motion MM32F327
@@ -280,8 +280,8 @@
     #error there is no benefit enable hub with max device is 1. Please disable hub or increase CFG_TUSB_HOST_DEVICE_MAX
   #endif
 
-  #ifndef CFG_TUH_ENUMERATION_BUFSZIE
-    #define CFG_TUH_ENUMERATION_BUFSZIE 256
+  #ifndef CFG_TUH_ENUMERATION_BUFSIZE
+    #define CFG_TUH_ENUMERATION_BUFSIZE 256
   #endif
 
   //------------- CLASS -------------//

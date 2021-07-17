@@ -1,14 +1,22 @@
-__USTACK_SIZE = 0x00000200;
-__ISTACK_SIZE = 0x00000200;
+__USTACK_SIZE = 0x00000400;
+__ISTACK_SIZE = 0x00000400;
 
 MEMORY
 {
-	RAM : ORIGIN = 0x4,        LENGTH = 0x3fffc
-	ROM : ORIGIN = 0xFFE00000, LENGTH = 0x200000
+	RAM  : ORIGIN = 0x4,        LENGTH = 0x3fffc
+	RAM2 : ORIGIN = 0x00800000, LENGTH = 0x60000
+	OFS  : ORIGIN = 0xFE7F5D00, LENGTH = 128
+	ROM  : ORIGIN = 0xFFE00000, LENGTH = 0x200000
 }
 SECTIONS
 {
-	.fvectors 0xFFFFFF80: AT(0xFFFFFF80)
+	.exvectors 0xFFFFFF80: AT(0xFFFFFF80)
+	{
+		"_exvectors_start" = .;
+		KEEP(*(.exvectors))
+		"_exvectors_end" = .;
+	} >ROM
+	.fvectors 0xFFFFFFFC: AT(0xFFFFFFFC)
 	{
 		KEEP(*(.fvectors))
 	} > ROM
@@ -17,6 +25,7 @@ SECTIONS
 		*(.text)
 		*(.text.*)
 		*(P)
+		KEEP(*(.text.*_isr))
 		etext = .;
 	} > ROM
 	.rvectors ALIGN(4):
@@ -124,4 +133,36 @@ SECTIONS
 		. = . + __ISTACK_SIZE;
 		PROVIDE(_istack = .);
 	} > RAM
+	.ofs1 0xFE7F5D00: AT(0xFE7F5D00)
+	{
+		KEEP(*(.ofs1))
+	} > OFS
+	.ofs2 0xFE7F5D10: AT(0xFE7F5D10)
+	{
+		KEEP(*(.ofs2))
+	} > OFS
+	.ofs3 0xFE7F5D20: AT(0xFE7F5D20)
+	{
+		KEEP(*(.ofs3))
+	} > OFS
+	.ofs4 0xFE7F5D40: AT(0xFE7F5D40)
+	{
+		KEEP(*(.ofs4))
+	} > OFS
+	.ofs5 0xFE7F5D48: AT(0xFE7F5D48)
+	{
+		KEEP(*(.ofs5))
+	} > OFS
+	.ofs6 0xFE7F5D50: AT(0xFE7F5D50)
+	{
+		KEEP(*(.ofs6))
+	} > OFS
+	.ofs7 0xFE7F5D64: AT(0xFE7F5D64)
+	{
+		KEEP(*(.ofs7))
+	} > OFS
+	.ofs8 0xFE7F5D70: AT(0xFE7F5D70)
+	{
+		KEEP(*(.ofs8))
+	} > OFS
 }

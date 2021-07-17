@@ -280,7 +280,21 @@ bool hidd_control_xfer_cb (uint8_t rhport, uint8_t stage, tusb_control_request_t
           uint8_t const report_type = tu_u16_high(request->wValue);
           uint8_t const report_id   = tu_u16_low(request->wValue);
 
-          uint16_t xferlen = tud_hid_get_report_cb(hid_itf, report_id, (hid_report_type_t) report_type, p_hid->epin_buf, request->wLength);
+          uint8_t* report_buf = p_hid->epin_buf;
+          uint16_t req_len = request->wLength;
+
+          uint16_t xferlen = 0;
+
+          // If host request a specific Report ID, add ID to as 1 byte of response
+          if ( (report_id != HID_REPORT_TYPE_INVALID) && (req_len > 1) )
+          {
+            *report_buf++ = report_id;
+            req_len--;
+
+            xferlen++;
+          }
+
+          xferlen += tud_hid_get_report_cb(hid_itf, report_id, (hid_report_type_t) report_type, report_buf, req_len);
           TU_ASSERT( xferlen > 0 );
 
           tud_control_xfer(rhport, request, p_hid->epin_buf, xferlen);
@@ -298,7 +312,17 @@ bool hidd_control_xfer_cb (uint8_t rhport, uint8_t stage, tusb_control_request_t
           uint8_t const report_type = tu_u16_high(request->wValue);
           uint8_t const report_id   = tu_u16_low(request->wValue);
 
-          tud_hid_set_report_cb(hid_itf, report_id, (hid_report_type_t) report_type, p_hid->epout_buf, request->wLength);
+          uint8_t const* report_buf = p_hid->epout_buf;
+          uint16_t report_len = request->wLength;
+
+          // If host request a specific Report ID, extract report ID in buffer before invoking callback
+          if ( (report_id != HID_REPORT_TYPE_INVALID) && (report_len > 1) && (report_id == report_buf[0]) )
+          {
+            report_buf++;
+            report_len--;
+          }
+
+          tud_hid_set_report_cb(hid_itf, report_id, (hid_report_type_t) report_type, report_buf, report_len);
         }
       break;
 

@@ -32,7 +32,7 @@ The stack supports the following MCUs:
 
 - **Dialog:** DA1469x
 - **Espressif:** ESP32-S2, ESP32-S3
-- **MicroChip:** SAMD11, SAMD21, SAMD51, SAME5x, SAMG55
+- **MicroChip:** SAMD11, SAMD21, SAMD51, SAME5x, SAMG55, SAML21, SAML22
 - **NordicSemi:** nRF52833, nRF52840
 - **Nuvoton:** NUC120, NUC121/NUC125, NUC126, NUC505
 - **NXP:**
@@ -40,7 +40,7 @@ The stack supports the following MCUs:
   - Kinetis: KL25
   - LPC Series: 11u, 13, 15, 17, 18, 40, 43, 51u, 54, 55
 - **Raspberry Pi:** RP2040
-- **Renesas:** RX63N
+- **Renesas:** RX63N, RX65N
 - **Silabs:** EFM32GG12
 - **Sony:** CXD56
 - **ST:** STM32 series: L0, F0, F1, F2, F3, F4, F7, H7 both FullSpeed and HighSpeed
@@ -106,6 +106,7 @@ TinyUSB is currently used by these other projects:
 - [Espressif IDF](https://github.com/espressif/esp-idf)
 - [MicroPython](https://github.com/micropython/micropython)
 - [mynewt](https://mynewt.apache.org)
+- [openinput](https://github.com/openinput-fw/openinput)
 - [Raspberry Pi Pico SDK](https://github.com/raspberrypi/pico-sdk)
 - [TinyUF2 Bootloader](https://github.com/adafruit/tinyuf2)
 - [TinyUSB Arduino Library](https://github.com/adafruit/Adafruit_TinyUSB_Arduino)

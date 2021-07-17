@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.5)
 
-include(${CMAKE_CURRENT_SOURCE_DIR}/../../../hw/bsp/${FAMILY}/family.cmake)
+include(${CMAKE_CURRENT_SOURCE_DIR}/../../../hw/bsp/family_support.cmake)
 
 # Check for -DFAMILY=
 if(FAMILY MATCHES "^esp32s[2-3]")
@@ -12,7 +12,6 @@ if(FAMILY MATCHES "^esp32s[2-3]")
   set(TOP "../../..")
   get_filename_component(TOP "${TOP}" REALPATH)
 
-  include(${TOP}/hw/bsp/${FAMILY}/family.cmake)
   project(${PROJECT})
 
 else()

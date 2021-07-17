@@ -144,29 +144,32 @@ bool hub_port_get_status(uint8_t hub_addr, uint8_t hub_port, void* resp, tuh_con
 //--------------------------------------------------------------------+
 void hub_init(void)
 {
-  tu_memclr(hub_data, CFG_TUSB_HOST_DEVICE_MAX*sizeof( hub_interface_t));
+  tu_memclr(hub_data, CFG_TUSB_HOST_DEVICE_MAX*sizeof(hub_interface_t));
 }
 
-bool hub_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_interface_t const *itf_desc, uint16_t *p_length)
+uint16_t hub_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_interface_t const *itf_desc, uint16_t max_len)
 {
-  // not support multiple TT yet
-  if ( itf_desc->bInterfaceProtocol > 1 ) return false;
+  // hub driver does not support multiple TT yet
+  TU_VERIFY(TUSB_CLASS_HUB == itf_desc->bInterfaceClass &&
+            0              == itf_desc->bInterfaceSubClass &&
+            1              <= itf_desc->bInterfaceProtocol, 0);
 
-  //------------- Open Interrupt Status Pipe -------------//
-  tusb_desc_endpoint_t const *ep_desc;
-  ep_desc = (tusb_desc_endpoint_t const *) tu_desc_next(itf_desc);
+  // msc driver length is fixed
+  uint16_t const drv_len = sizeof(tusb_desc_interface_t) + sizeof(tusb_desc_endpoint_t);
+  TU_ASSERT(drv_len <= max_len, 0);
 
-  TU_ASSERT(TUSB_DESC_ENDPOINT == ep_desc->bDescriptorType);
-  TU_ASSERT(TUSB_XFER_INTERRUPT == ep_desc->bmAttributes.xfer);
+  //------------- Interrupt Status endpoint -------------//
+  tusb_desc_endpoint_t const *desc_ep = (tusb_desc_endpoint_t const *) tu_desc_next(itf_desc);
+
+  TU_ASSERT(TUSB_DESC_ENDPOINT  == desc_ep->bDescriptorType &&
+            TUSB_XFER_INTERRUPT == desc_ep->bmAttributes.xfer, 0);
   
-  TU_ASSERT(usbh_edpt_open(rhport, dev_addr, ep_desc));
+  TU_ASSERT(usbh_edpt_open(rhport, dev_addr, desc_ep));
 
   hub_data[dev_addr-1].itf_num = itf_desc->bInterfaceNumber;
-  hub_data[dev_addr-1].ep_in   = ep_desc->bEndpointAddress;
+  hub_data[dev_addr-1].ep_in   = desc_ep->bEndpointAddress;
 
-  (*p_length) = sizeof(tusb_desc_interface_t) + sizeof(tusb_desc_endpoint_t);
-
-  return true;
+  return drv_len;
 }
 
 void hub_close(uint8_t dev_addr)

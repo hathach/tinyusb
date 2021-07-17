@@ -292,3 +292,27 @@ void test_full(void)
 
   // write info
 }
+
+void test_rd_idx_wrap()
+{
+  tu_fifo_t ff10;
+  uint8_t buf[10];
+  uint8_t dst[10];
+
+  tu_fifo_config(&ff10, buf, 10, 1, 1);
+
+  uint16_t n;
+
+  ff10.wr_idx = 6;
+  ff10.rd_idx = 15;
+
+  n = tu_fifo_read_n(&ff10, dst, 4);
+  TEST_ASSERT_EQUAL(n, 4);
+  TEST_ASSERT_EQUAL(ff10.rd_idx, 0);
+  n = tu_fifo_read_n(&ff10, dst, 4);
+  TEST_ASSERT_EQUAL(n, 4);
+  TEST_ASSERT_EQUAL(ff10.rd_idx, 4);
+  n = tu_fifo_read_n(&ff10, dst, 4);
+  TEST_ASSERT_EQUAL(n, 2);
+  TEST_ASSERT_EQUAL(ff10.rd_idx, 6);
+}

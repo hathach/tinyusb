@@ -130,7 +130,7 @@ CFG_TUSB_MEM_SECTION usbh_device_t _usbh_devices[CFG_TUSB_HOST_DEVICE_MAX+1];
 OSAL_QUEUE_DEF(OPT_MODE_HOST, _usbh_qdef, CFG_TUH_TASK_QUEUE_SZ, hcd_event_t);
 static osal_queue_t _usbh_q;
 
-CFG_TUSB_MEM_SECTION CFG_TUSB_MEM_ALIGN static uint8_t _usbh_ctrl_buf[CFG_TUH_ENUMERATION_BUFSZIE];
+CFG_TUSB_MEM_SECTION CFG_TUSB_MEM_ALIGN static uint8_t _usbh_ctrl_buf[CFG_TUH_ENUMERATION_BUFSIZE];
 
 //------------- Helper Function Prototypes -------------//
 static bool enum_new_device(hcd_event_t* event);
@@ -795,6 +795,8 @@ static bool enum_get_addr0_device_desc_complete(uint8_t dev_addr, tusb_control_r
     return false;
   }
 
+  TU_ASSERT(tu_desc_type(_usbh_ctrl_buf) == TUSB_DESC_DEVICE);
+
   // Reset device again before Set Address
   TU_LOG2("Port reset \r\n");
 
@@ -907,7 +909,7 @@ static bool enum_get_9byte_config_desc_complete(uint8_t dev_addr, tusb_control_r
   // Use offsetof to avoid pointer to the odd/misaligned address
   memcpy(&total_len, (uint8_t*) desc_config + offsetof(tusb_desc_configuration_t, wTotalLength), 2);
 
-  TU_ASSERT(total_len <= CFG_TUH_ENUMERATION_BUFSZIE);
+  TU_ASSERT(total_len <= CFG_TUH_ENUMERATION_BUFSIZE);
 
   // Get full configuration descriptor
   TU_LOG2("Get Configuration Descriptor\r\n");
@@ -938,7 +940,7 @@ static bool enum_get_config_desc_complete(uint8_t dev_addr, tusb_control_request
 
   // Parse configuration & set up drivers
   // Driver open aren't allowed to make any usb transfer yet
-  parse_configuration_descriptor(dev_addr, (tusb_desc_configuration_t*) _usbh_ctrl_buf);
+  TU_ASSERT( parse_configuration_descriptor(dev_addr, (tusb_desc_configuration_t*) _usbh_ctrl_buf) );
 
   TU_LOG2("Set Configuration = %d\r\n", CONFIG_NUM);
   tusb_control_request_t const new_request =
@@ -982,55 +984,61 @@ static bool enum_set_config_complete(uint8_t dev_addr, tusb_control_request_t co
 static bool parse_configuration_descriptor(uint8_t dev_addr, tusb_desc_configuration_t const* desc_cfg)
 {
   usbh_device_t* dev = &_usbh_devices[dev_addr];
-  uint8_t const* p_desc = (uint8_t const*) desc_cfg;
-  p_desc = tu_desc_next(p_desc);
+
+  uint8_t const* desc_end = ((uint8_t const*) desc_cfg) + tu_le16toh(desc_cfg->wTotalLength);
+  uint8_t const* p_desc   = tu_desc_next(desc_cfg);
 
   // parse each interfaces
-  while( p_desc < _usbh_ctrl_buf + desc_cfg->wTotalLength )
+  while( p_desc < desc_end )
   {
-    // skip until we see interface descriptor
-    if ( TUSB_DESC_INTERFACE != tu_desc_type(p_desc) )
-    {
-      p_desc = tu_desc_next(p_desc); // skip the descriptor, increase by the descriptor's length
-    }else
-    {
-      tusb_desc_interface_t const* desc_itf = (tusb_desc_interface_t const*) p_desc;
+    // TODO Do we need to use IAD
+    // tusb_desc_interface_assoc_t const * desc_itf_assoc = NULL;
 
-      // Check if class is supported
-      uint8_t drv_id;
-      for (drv_id = 0; drv_id < USBH_CLASS_DRIVER_COUNT; drv_id++)
-      {
-        if ( usbh_class_drivers[drv_id].class_code == desc_itf->bInterfaceClass ) break;
-      }
+    // Class will always starts with Interface Association (if any) and then Interface descriptor
+    if ( TUSB_DESC_INTERFACE_ASSOCIATION == tu_desc_type(p_desc) )
+    {
+      // desc_itf_assoc = (tusb_desc_interface_assoc_t const *) p_desc;
+      p_desc = tu_desc_next(p_desc);
+    }
 
-      if( drv_id >= USBH_CLASS_DRIVER_COUNT )
+    TU_ASSERT( TUSB_DESC_INTERFACE == tu_desc_type(p_desc) );
+
+    tusb_desc_interface_t const* desc_itf = (tusb_desc_interface_t const*) p_desc;
+    uint16_t const remaining_len = desc_end-p_desc;
+
+    // Check if class is supported TODO drop class_code
+    uint8_t drv_id;
+    for (drv_id = 0; drv_id < USBH_CLASS_DRIVER_COUNT; drv_id++)
+    {
+      if ( usbh_class_drivers[drv_id].class_code == desc_itf->bInterfaceClass ) break;
+    }
+
+    if( drv_id >= USBH_CLASS_DRIVER_COUNT )
+    {
+      // skip unsupported class
+      p_desc = tu_desc_next(p_desc);
+    }
+    else
+    {
+      usbh_class_driver_t const * driver = &usbh_class_drivers[drv_id];
+
+      // Interface number must not be used already TODO alternate interface
+      TU_ASSERT( dev->itf2drv[desc_itf->bInterfaceNumber] == 0xff );
+      dev->itf2drv[desc_itf->bInterfaceNumber] = drv_id;
+
+      if (desc_itf->bInterfaceClass == TUSB_CLASS_HUB && dev->hub_addr != 0)
       {
-        // skip unsupported class
+        // TODO Attach hub to Hub is not currently supported
+        // skip this interface
         p_desc = tu_desc_next(p_desc);
       }
       else
       {
-        usbh_class_driver_t const * driver = &usbh_class_drivers[drv_id];
+        TU_LOG2("%s open\r\n", driver->name);
 
-        // Interface number must not be used already TODO alternate interface
-        TU_ASSERT( dev->itf2drv[desc_itf->bInterfaceNumber] == 0xff );
-        dev->itf2drv[desc_itf->bInterfaceNumber] = drv_id;
-
-        if (desc_itf->bInterfaceClass == TUSB_CLASS_HUB && dev->hub_addr != 0)
-        {
-          // TODO Attach hub to Hub is not currently supported
-          // skip this interface
-          p_desc = tu_desc_next(p_desc);
-        }
-        else
-        {
-          TU_LOG2("%s open\r\n", driver->name);
-
-          uint16_t itf_len = 0;
-          TU_ASSERT( driver->open(dev->rhport, dev_addr, desc_itf, &itf_len) );
-          TU_ASSERT( itf_len >= sizeof(tusb_desc_interface_t) );
-          p_desc += itf_len;
-        }
+        uint16_t const itf_len = driver->open(dev->rhport, dev_addr, desc_itf, remaining_len);
+        TU_ASSERT( sizeof(tusb_desc_interface_t) <= itf_len && itf_len <= remaining_len);
+        p_desc += itf_len;
       }
     }
   }

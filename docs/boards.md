@@ -47,8 +47,9 @@ This code base already had supported for a handful of following boards (sorted a
 
 - [Microchip SAMG55 Xplained Pro](https://www.microchip.com/DevelopmentTools/ProductDetails/PartNO/ATSAMG55-XPRO)
 
-### MicroChip SAML22
+### MicroChip SAML2x
 
+- [SAML21 Xplaind Pro](https://www.microchip.com/DevelopmentTools/ProductDetails/ATSAML21-XPRO-B)
 - [SAML22 Feather](https://github.com/joeycastillo/Feather-Projects/tree/main/SAML22%20Feather)
 - [Sensor Watch](https://github.com/joeycastillo/Sensor-Watch)
 
@@ -126,6 +127,7 @@ This code base already had supported for a handful of following boards (sorted a
 ### Renesas RX
 
 - [GR-CITRUS](https://www.renesas.com/us/en/products/gadget-renesas/boards/gr-citrus)
+- [Renesas RX65N Target Board](https://www.renesas.com/us/en/products/microcontrollers-microprocessors/rx-32-bit-performance-efficiency-mcus/rtk5rx65n0c00000br-target-board-rx65n)
 
 ### Raspberry Pi RP2040
 
