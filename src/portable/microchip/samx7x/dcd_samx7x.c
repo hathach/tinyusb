@@ -60,7 +60,8 @@
 #define EP_GET_FIFO_PTR(ep, scale) (((TU_XSTRCAT(TU_STRCAT(uint, scale),_t) (*)[0x8000 / ((scale) / 8)])USBHS_RAM_ADDR)[(ep)])
 
 // Errata: The DMA feature is not available for Pipe/Endpoint 7
-#define EP_DMA_SUPPORT(epnum) (epnum >= 1 && epnum <= 6)
+// #define EP_DMA_SUPPORT(epnum) (epnum >= 1 && epnum <= 6)
+#define EP_DMA_SUPPORT(epnum) 0
 
 // DMA Channel Transfer Descriptor
 typedef struct {
@@ -294,8 +295,6 @@ static void dcd_ep_handler(uint8_t ep_ix)
       }
       // Acknowledge the interrupt
       USBHS->USBHS_DEVEPTICR[ep_ix] = USBHS_DEVEPTICR_RXOUTIC;
-      // Clear the FIFO control flag to receive more data.
-      USBHS->USBHS_DEVEPTIDR[ep_ix] = USBHS_DEVEPTIDR_FIFOCONC;
       if ((count < xfer->max_packet_size) || (xfer->queued_len == xfer->total_len))
       {
         // RX COMPLETE
@@ -314,10 +313,10 @@ static void dcd_ep_handler(uint8_t ep_ix)
       {
         // TX not complete
         dcd_transmit_packet(xfer, ep_ix);
-      } else {
+      } else 
+      {
         // TX complete
         dcd_event_xfer_complete(0, 0x80 + ep_ix, xfer->total_len, XFER_RESULT_SUCCESS, true);
-        USBHS->USBHS_DEVEPTIDR[ep_ix] = USBHS_DEVEPTIDR_TXINEC;
       }
     }
   }
@@ -338,7 +337,8 @@ static void dcd_dma_handler(uint8_t ep_ix)
   if(USBHS->USBHS_DEVEPTCFG[ep_ix] & USBHS_DEVEPTCFG_EPDIR)
   {
     dcd_event_xfer_complete(0, 0x80 + ep_ix, count, XFER_RESULT_SUCCESS, true);
-  } else {
+  } else 
+  {
     dcd_event_xfer_complete(0, ep_ix, count, XFER_RESULT_SUCCESS, true);
   }
 }
@@ -483,14 +483,17 @@ bool dcd_edpt_open (uint8_t rhport, tusb_desc_endpoint_t const * ep_desc)
     {
       // Endpoint configuration is successful
       USBHS->USBHS_DEVEPTIER[0] = USBHS_DEVEPTIER_CTRL_RXSTPES;
+      USBHS->USBHS_DEVEPTIER[0] = USBHS_DEVEPTIER_RXOUTES;
       // Enable Endpoint 0 Interrupts
       USBHS->USBHS_DEVIER = USBHS_DEVIER_PEP_0;
       return true;
-    } else {
+    } else 
+    {
       // Endpoint configuration is not successful
       return false;
     }
-  } else {
+  } else 
+  {
     // Enable the endpoint
     USBHS->USBHS_DEVEPT |= ((0x01 << epnum) << USBHS_DEVEPT_EPEN0_Pos);
     // Set up the maxpacket size, fifo start address fifosize
@@ -520,8 +523,17 @@ bool dcd_edpt_open (uint8_t rhport, tusb_desc_endpoint_t const * ep_desc)
     if (USBHS_DEVEPTISR_CFGOK == (USBHS->USBHS_DEVEPTISR[epnum] & USBHS_DEVEPTISR_CFGOK))
     {
       USBHS->USBHS_DEVIER = ((0x01 << epnum) << USBHS_DEVIER_PEP_0_Pos);
+      if (dir)
+      {
+        USBHS->USBHS_DEVEPTICR[epnum] = USBHS_DEVEPTICR_TXINIC;
+		USBHS->USBHS_DEVEPTIER[epnum] = USBHS_DEVEPTIER_TXINES;
+      } else
+      {
+        USBHS->USBHS_DEVEPTIER[epnum] = USBHS_DEVEPTIER_RXOUTES;
+      }
       return true;
-    } else {
+    } else 
+    {
       // Endpoint configuration is not successful
       return false;
     }
@@ -553,7 +565,8 @@ static void dcd_transmit_packet(xfer_ctl_t * xfer, uint8_t ep_ix)
     {
       memcpy(ptr, xfer->buffer + xfer->queued_len, len);
     }
-    else {
+    else 
+    {
       tu_fifo_read_n(xfer->fifo, ptr, len);
     }
     __DSB();
@@ -564,11 +577,12 @@ static void dcd_transmit_packet(xfer_ctl_t * xfer, uint8_t ep_ix)
   {
     // Control endpoint: clear the interrupt flag to send the data
     USBHS->USBHS_DEVEPTICR[0] = USBHS_DEVEPTICR_TXINIC;
-  } else {
+    USBHS->USBHS_DEVEPTIER[0] = USBHS_DEVEPTIER_TXINES;
+  } else 
+  {
     // Other endpoint types: clear the FIFO control flag to send the data
     USBHS->USBHS_DEVEPTIDR[ep_ix] = USBHS_DEVEPTIDR_FIFOCONC;
   }
-  USBHS->USBHS_DEVEPTIER[ep_ix] = USBHS_DEVEPTIER_TXINES;
 }
 
 // Submit a transfer, When complete dcd_event_xfer_complete() is invoked to notify the stack
@@ -615,11 +629,14 @@ bool dcd_edpt_xfer (uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t 
     // and the DMA transfer must be not started.
     // It is the end of transfer
     return false;
-  } else {
+  } else 
+  {
     if (dir == TUSB_DIR_OUT)
     {
-      USBHS->USBHS_DEVEPTIER[epnum] = USBHS_DEVEPTIER_RXOUTES;
-    } else {
+      // Clear the FIFO control flag to receive more data.
+      USBHS->USBHS_DEVEPTIDR[epnum] = USBHS_DEVEPTIDR_FIFOCONC;
+    } else 
+    {
       dcd_transmit_packet(xfer,epnum);
     }
   }
@@ -696,11 +713,13 @@ bool dcd_edpt_xfer_fifo (uint8_t rhport, uint8_t ep_addr, tu_fifo_t * ff, uint16
     // and the DMA transfer must be not started.
     // It is the end of transfer
     return false;
-  } else {
+  } else
+  {
     if (dir == TUSB_DIR_OUT)
     {
       USBHS->USBHS_DEVEPTIER[epnum] = USBHS_DEVEPTIER_RXOUTES;
-    } else {
+    } else 
+    {
       dcd_transmit_packet(xfer,epnum);
     }
   }
