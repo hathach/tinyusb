@@ -43,11 +43,6 @@ INC += \
 	$(TOP)/$(ASF_DIR)/hri \
 	$(TOP)/$(ASF_DIR)/CMSIS/Core/Include
 
-# For TinyUSB port source
-#SRC_C += src/portable/template/dcd_template.c
-VENDOR = .
-CHIP_FAMILY = template
-
 # For freeRTOS port source
 FREERTOS_PORT = ARM_CM7
 
