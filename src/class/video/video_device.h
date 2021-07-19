@@ -28,11 +28,20 @@
 #ifndef TUSB_VIDEO_DEVICE_H_
 #define TUSB_VIDEO_DEVICE_H_
 
-#include "video_device.h"
-
 #ifdef __cplusplus
  extern "C" {
 #endif
+
+//--------------------------------------------------------------------+
+// Application Callback API (weak is optional)
+//--------------------------------------------------------------------+
+
+// Invoked when GET_INFO request received
+TU_ATTR_WEAK bool tud_video_get_info_cb(uint8_t rhport, tusb_control_request_t const *request, uint8_t const *itf_desc);
+// Invoked when GET_INFO request received
+TU_ATTR_WEAK bool tud_video_set_cur_cb(uint8_t rhport, tusb_control_request_t const *request);
+// Invoked when GET_CUR request received
+TU_ATTR_WEAK bool tud_video_get_info_cb(uint8_t rhport, tusb_control_request_t const *request);
 
 //--------------------------------------------------------------------+
 // INTERNAL USBD-CLASS DRIVER API

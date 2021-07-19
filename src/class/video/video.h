@@ -103,6 +103,14 @@ typedef enum
   VIDEO_REQUEST_GET_DEF_ALL = 0x97
 } video_control_request_t;
 
+/* A.9 */
+typedef enum
+{
+  VIDEO_CTL_SEL_UNDEF = 0x00,
+  VIDEO_CTL_SEL_VIDEO_POWER_MODE_CONTROL,
+  VIDEO_CTL_SEL_REQUEST_ERROR_CODE_CONTROL,
+} video_interface_control_selector_t;
+
 /* B. Terminal Types */
 typedef enum
 {
@@ -130,7 +138,7 @@ typedef struct TU_ATTR_PACKED {
   uint32_t dwClockFrequency;
   uint8_t  bInCollection;
   uint8_t  baInterfaceNr[];
-} tusb_desc_video_control_interface_t;
+} tusb_desc_cs_video_ctl_itf_hdr_t;
 
 /* 3.9.2.1 */
 typedef struct TU_ATTR_PACKED {
@@ -147,7 +155,7 @@ typedef struct TU_ATTR_PACKED {
   uint8_t  bTriggerUsage;
   uint8_t  bControlSize;
   uint8_t  bmaControls[];
-} tusb_desc_video_streaming_interface_input_t;
+} tusb_desc_cs_video_stm_itf_in_hdr_t;
 
 /* 3.9.2.2 */
 typedef struct TU_ATTR_PACKED {
@@ -160,7 +168,7 @@ typedef struct TU_ATTR_PACKED {
   uint8_t  bTerminalLink;
   uint8_t  bControlSize;
   uint8_t  bmaControls[];
-} tusb_desc_video_streaming_interface_output_t;
+} tusb_desc_cs_video_stm_itf_out_hdr_t;
 
 typedef struct TU_ATTR_PACKED {
   uint8_t  bLength;
@@ -178,14 +186,14 @@ typedef struct TU_ATTR_PACKED {
       uint8_t  bTriggerUsage;
       uint8_t  bControlSize;
       uint8_t  bmaControls[];
-    } in;
+    } input;
     struct {
       uint8_t  bEndpointAddress;
       uint8_t  bTerminalLink;
       uint8_t  bControlSize;
       uint8_t  bmaControls[];
-    } out;
-} tusb_desc_video_streaming_interface_t;
+    } output;
+} tusb_desc_cs_video_stm_itf_hdr_t;
 
 #define TUD_VIDEO_DESC_IAD_LEN                    8
 #define TUD_VIDEO_DESC_STD_VC_LEN                 9
