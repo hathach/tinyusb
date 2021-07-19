@@ -102,14 +102,14 @@ static const tusb_desc_endpoint_t ep0_desc =
 // Initialize controller to device mode
 void dcd_init (uint8_t rhport)
 {
-  // Enable USBPLL
-  PMC->CKGR_UCKR = CKGR_UCKR_UPLLEN | CKGR_UCKR_UPLLCOUNT(0x3fU);
-  // Wait until USB UTMI stabilize
-  while (!(PMC->PMC_SR & PMC_SR_LOCKU));
-  // Enable USB FS clk
-  PMC->PMC_MCKR &= ~PMC_MCKR_UPLLDIV2;
-  PMC->PMC_USB = PMC_USB_USBS | PMC_USB_USBDIV(10 - 1);
-  PMC->PMC_SCER = PMC_SCER_USBCLK;
+//  // Enable USBPLL
+//  PMC->CKGR_UCKR = CKGR_UCKR_UPLLEN | CKGR_UCKR_UPLLCOUNT(0x3fU);
+//  // Wait until USB UTMI stabilize
+//  while (!(PMC->PMC_SR & PMC_SR_LOCKU));
+//  // Enable USB FS clk
+//  PMC->PMC_MCKR &= ~PMC_MCKR_UPLLDIV2;
+//  PMC->PMC_USB = PMC_USB_USBS | PMC_USB_USBDIV(10 - 1);
+//  PMC->PMC_SCER = PMC_SCER_USBCLK;
   dcd_connect(rhport);
 }
 
