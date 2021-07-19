@@ -656,7 +656,7 @@ bool dcd_edpt_xfer (uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t 
   }
 
   uint16_t num_packets = (total_bytes / xfer->max_size);
-  uint8_t const short_packet_size = total_bytes % xfer->max_size;
+  uint16_t const short_packet_size = total_bytes % xfer->max_size;
 
   // Zero-size packet is special case.
   if(short_packet_size > 0 || (total_bytes == 0)) {
@@ -687,7 +687,7 @@ bool dcd_edpt_xfer_fifo (uint8_t rhport, uint8_t ep_addr, tu_fifo_t * ff, uint16
   xfer->total_len   = total_bytes;
 
   uint16_t num_packets = (total_bytes / xfer->max_size);
-  uint8_t const short_packet_size = total_bytes % xfer->max_size;
+  uint16_t const short_packet_size = total_bytes % xfer->max_size;
 
   // Zero-size packet is special case.
   if(short_packet_size > 0 || (total_bytes == 0)) num_packets++;
