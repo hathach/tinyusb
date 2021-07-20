@@ -86,7 +86,7 @@ static void dcd_transmit_packet(xfer_ctl_t * xfer, uint8_t ep_ix);
 // DMA descriptors shouldn't be placed in ITCM !
 CFG_TUSB_MEM_SECTION dma_desc_t dma_desc[6];
 
-xfer_ctl_t xfer_status[EP_MAX+1];
+xfer_ctl_t xfer_status[EP_MAX];
 
 static const tusb_desc_endpoint_t ep0_desc =
 {
@@ -205,29 +205,32 @@ static void dcd_ep_handler(uint8_t ep_ix)
 {
   uint32_t int_status = USBHS->USBHS_DEVEPTISR[ep_ix];
   int_status &= USBHS->USBHS_DEVEPTIMR[ep_ix];
+
   uint16_t count = (USBHS->USBHS_DEVEPTISR[ep_ix] &
                     USBHS_DEVEPTISR_BYCT_Msk) >> USBHS_DEVEPTISR_BYCT_Pos;
+  xfer_ctl_t *xfer = &xfer_status[ep_ix];
+
   if (ep_ix == 0U)
   {
+    static uint8_t ctrl_dir;
+
     if (int_status & USBHS_DEVEPTISR_CTRL_RXSTPI)
     {
+      ctrl_dir = (USBHS->USBHS_DEVEPTISR[0] & USBHS_DEVEPTISR_CTRL_CTRLDIR_Msk) >> USBHS_DEVEPTISR_CTRL_CTRLDIR_Pos;
       // Setup packet should always be 8 bytes. If not, ignore it, and try again.
       if (count == 8)
       {
         uint8_t *ptr = EP_GET_FIFO_PTR(0,8);
         dcd_event_setup_received(0, ptr, true);
       }
-      // Acknowledge the interrupt
+      // Ack and disable SETUP interrupt
       USBHS->USBHS_DEVEPTICR[0] = USBHS_DEVEPTICR_CTRL_RXSTPIC;
-      // Workaround :
-      // Clear spurious OUT irq
-      USBHS->USBHS_DEVEPTIDR[0] = USBHS_DEVEPTIDR_RXOUTEC;
-      int_status &=~USBHS_DEVEPTISR_RXOUTI;
+      USBHS->USBHS_DEVEPTIDR[0] = USBHS_DEVEPTIDR_CTRL_RXSTPEC;
     }
     if (int_status & USBHS_DEVEPTISR_RXOUTI)
     {
       uint8_t *ptr = EP_GET_FIFO_PTR(0,8);
-      xfer_ctl_t *xfer = &xfer_status[0];
+      
       if (count && xfer->total_len)
       {
         uint16_t remain = xfer->total_len - xfer->queued_len;
@@ -252,14 +255,17 @@ static void dcd_ep_handler(uint8_t ep_ix)
         dcd_event_xfer_complete(0, 0, xfer->queued_len, XFER_RESULT_SUCCESS, true);
         // Disable the interrupt
         USBHS->USBHS_DEVEPTIDR[0] = USBHS_DEVEPTIDR_RXOUTEC;
-        // Though the host could still send, we don't know.
+        // Re-enable SETUP interrupt
+        if (ctrl_dir == 1)
+        {
+          USBHS->USBHS_DEVEPTIER[0] = USBHS_DEVEPTIER_CTRL_RXSTPES;
+        }
       }
     }
     if (int_status & USBHS_DEVEPTISR_TXINI)
     {
       // Disable the interrupt
       USBHS->USBHS_DEVEPTIDR[0] = USBHS_DEVEPTIDR_TXINEC;
-      xfer_ctl_t * xfer = &xfer_status[EP_MAX];
       if ((xfer->total_len != xfer->queued_len))
       {
         // TX not complete
@@ -268,13 +274,17 @@ static void dcd_ep_handler(uint8_t ep_ix)
       {
         // TX complete
         dcd_event_xfer_complete(0, 0x80 + 0, xfer->total_len, XFER_RESULT_SUCCESS, true);
+        // Re-enable SETUP interrupt
+        if (ctrl_dir == 0)
+        {
+          USBHS->USBHS_DEVEPTIER[0] = USBHS_DEVEPTIER_CTRL_RXSTPES;
+        }
       }
     }
   } else 
   {
     if (int_status & USBHS_DEVEPTISR_RXOUTI)
     {
-      xfer_ctl_t *xfer = &xfer_status[ep_ix];
       if (count && xfer->total_len)
       {
         uint16_t remain = xfer->total_len - xfer->queued_len;
@@ -308,7 +318,6 @@ static void dcd_ep_handler(uint8_t ep_ix)
     {
       // Acknowledge the interrupt
       USBHS->USBHS_DEVEPTICR[ep_ix] = USBHS_DEVEPTICR_TXINIC;
-      xfer_ctl_t * xfer = &xfer_status[ep_ix];;
       if ((xfer->total_len != xfer->queued_len))
       {
         // TX not complete
@@ -466,7 +475,6 @@ bool dcd_edpt_open (uint8_t rhport, tusb_desc_endpoint_t const * ep_desc)
 
   if (epnum == 0)
   {
-    xfer_status[EP_MAX].max_packet_size = epMaxPktSize;
     // Enable the control endpoint - Endpoint 0
     USBHS->USBHS_DEVEPT |= USBHS_DEVEPT_EPEN0;
     // Configure the Endpoint 0 configuration register
@@ -591,8 +599,6 @@ bool dcd_edpt_xfer (uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t 
   uint8_t const dir   = tu_edpt_dir(ep_addr);
 
   xfer_ctl_t * xfer = &xfer_status[epnum];
-  if(ep_addr == 0x80)
-    xfer = &xfer_status[EP_MAX];
 
   xfer->buffer = buffer;
   xfer->total_len = total_bytes;
