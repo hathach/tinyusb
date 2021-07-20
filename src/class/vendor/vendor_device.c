@@ -61,6 +61,8 @@ typedef struct
 
 CFG_TUSB_MEM_SECTION static vendord_interface_t _vendord_itf[CFG_TUD_VENDOR];
 
+CFG_TUSB_MEM_SECTION static bool last_in_transfer_was_epsize = false;
+
 #define ITF_MEM_RESET_SIZE   offsetof(vendord_interface_t, rx_ff)
 
 
@@ -112,10 +114,11 @@ static bool maybe_transmit(vendord_interface_t* p_itf)
   TU_VERIFY( !usbd_edpt_busy(TUD_OPT_RHPORT, p_itf->ep_in) );
 
   uint16_t count = tu_fifo_read_n(&p_itf->tx_ff, p_itf->epin_buf, CFG_TUD_VENDOR_EPSIZE);
-  if (count > 0)
+  if (count > 0 || last_in_transfer_was_epsize)
   {
     TU_ASSERT( usbd_edpt_xfer(TUD_OPT_RHPORT, p_itf->ep_in, p_itf->epin_buf, count) );
   }
+  last_in_transfer_was_epsize = count && (count == CFG_TUD_VENDOR_EPSIZE);
   return true;
 }
 
