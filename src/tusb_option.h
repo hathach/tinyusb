@@ -210,6 +210,10 @@
 // DEVICE OPTIONS
 //--------------------------------------------------------------------
 
+#ifndef CFG_TUD_ENDPOINT0_SIZE
+  #define CFG_TUD_ENDPOINT0_SIZE  64
+#endif
+
 #ifndef CFG_TUD_CDC
   #define CFG_TUD_CDC             0
 #endif

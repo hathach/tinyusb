@@ -37,16 +37,8 @@
 // USBD Configuration
 //--------------------------------------------------------------------+
 
-#ifndef CFG_TUD_ENDPOINT0_SIZE
-  #define CFG_TUD_ENDPOINT0_SIZE  64
-#endif
-
 #ifndef CFG_TUD_TASK_QUEUE_SZ
   #define CFG_TUD_TASK_QUEUE_SZ   16
-#endif
-
-#ifndef CFG_TUD_ENDPPOINT_MAX
-  #define CFG_TUD_ENDPPOINT_MAX   DCD_ATTR_ENDPOINT_MAX
 #endif
 
 //--------------------------------------------------------------------+

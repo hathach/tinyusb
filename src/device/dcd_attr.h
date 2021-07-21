@@ -33,6 +33,7 @@
 // - ENDPOINT_MAX: max (logical) number of endpoint
 // - ENDPOINT_EXCLUSIVE_NUMBER: endpoint number with different direction IN and OUT aren't allowed,
 //                              e.g EP1 OUT & EP1 IN cannot exist together
+// - PORT_HIGHSPEED: mask to indicate which port support highspeed mode, bit0 for port0 and so on.
 
 //------------- NXP -------------//
 #if   TU_CHECK_MCU(LPC11UXX) || TU_CHECK_MCU(LPC13XX) || TU_CHECK_MCU(LPC15XX)
@@ -48,7 +49,11 @@
 #elif TU_CHECK_MCU(LPC51UXX)
    #define DCD_ATTR_ENDPOINT_MAX   5
 
-#elif TU_CHECK_MCU(LPC54XXX) || TU_CHECK_MCU(LPC55XX)
+#elif TU_CHECK_MCU(LPC54XXX)
+  // TODO USB0 has 5, USB1 has 6
+  #define DCD_ATTR_ENDPOINT_MAX   6
+
+#elif TU_CHECK_MCU(LPC55XX)
   // TODO USB0 has 5, USB1 has 6
   #define DCD_ATTR_ENDPOINT_MAX   6
 
@@ -142,5 +147,10 @@
   #warning "DCD_ATTR_ENDPOINT_MAX is not defined for this MCU, default to 8"
   #define DCD_ATTR_ENDPOINT_MAX   8
 #endif
+
+// Default to fullspeed if not defined
+//#ifndef PORT_HIGHSPEED
+//  #define DCD_ATTR_PORT_HIGHSPEED 0x00
+//#endif
 
 #endif
