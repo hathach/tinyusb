@@ -530,13 +530,6 @@ bool dcd_edpt_open (uint8_t rhport, tusb_desc_endpoint_t const * ep_desc)
     if (USBHS_DEVEPTISR_CFGOK == (USBHS->USBHS_DEVEPTISR[epnum] & USBHS_DEVEPTISR_CFGOK))
     {
       USBHS->USBHS_DEVIER = ((0x01 << epnum) << USBHS_DEVIER_PEP_0_Pos);
-      if (dir)
-      {
-        USBHS->USBHS_DEVEPTICR[epnum] = USBHS_DEVEPTICR_TXINIC;
-		USBHS->USBHS_DEVEPTIER[epnum] = USBHS_DEVEPTIER_TXINES;
-      } else
-      {
-      }
       return true;
     } else 
     {
