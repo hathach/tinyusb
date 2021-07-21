@@ -107,8 +107,8 @@ uint8_t const * tud_descriptor_device_cb(void)
   #define EPNUM_NET_OUT     0x02
   #define EPNUM_NET_IN      0x82
 
-#elif CFG_TUSB_MCU == OPT_MCU_SAMG
-  // SAMG doesn't support a same endpoint number with different direction IN and OUT
+#elif CFG_TUSB_MCU == OPT_MCU_SAMG  || CFG_TUSB_MCU ==  OPT_MCU_SAMX7X
+  // SAMG & SAME70 don't support a same endpoint number with different direction IN and OUT
   //    e.g EP1 OUT & EP1 IN cannot exist together
   #define EPNUM_NET_NOTIF   0x81
   #define EPNUM_NET_OUT     0x02
