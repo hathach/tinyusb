@@ -31,6 +31,8 @@
 #include "osal/osal.h"
 #include "common/tusb_fifo.h"
 
+#include "dcd_attr.h"
+
 #ifdef __cplusplus
  extern "C" {
 #endif

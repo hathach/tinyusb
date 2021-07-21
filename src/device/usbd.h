@@ -24,9 +24,6 @@
  * This file is part of the TinyUSB stack.
  */
 
-/** \ingroup group_usbd
- *  @{ */
-
 #ifndef _TUSB_USBD_H_
 #define _TUSB_USBD_H_
 
