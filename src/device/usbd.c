@@ -33,12 +33,12 @@
 #include "device/usbd_pvt.h"
 #include "device/dcd.h"
 
-#ifndef CFG_TUD_TASK_QUEUE_SZ
-#define CFG_TUD_TASK_QUEUE_SZ   16
-#endif
+//--------------------------------------------------------------------+
+// USBD Configuration
+//--------------------------------------------------------------------+
 
-#ifndef CFG_TUD_EP_MAX
-#define CFG_TUD_EP_MAX          9
+#ifndef CFG_TUD_TASK_QUEUE_SZ
+  #define CFG_TUD_TASK_QUEUE_SZ   16
 #endif
 
 //--------------------------------------------------------------------+
@@ -65,7 +65,7 @@ typedef struct
   uint8_t speed;
 
   uint8_t itf2drv[16];     // map interface number to driver (0xff is invalid)
-  uint8_t ep2drv[CFG_TUD_EP_MAX][2]; // map endpoint to driver ( 0xff is invalid )
+  uint8_t ep2drv[CFG_TUD_ENDPPOINT_MAX][2]; // map endpoint to driver ( 0xff is invalid )
 
   struct TU_ATTR_PACKED
   {
@@ -74,7 +74,7 @@ typedef struct
     volatile bool claimed : 1;
 
     // TODO merge ep2drv here, 4-bit should be sufficient
-  }ep_status[CFG_TUD_EP_MAX][2];
+  }ep_status[CFG_TUD_ENDPPOINT_MAX][2];
 
 }usbd_device_t;
 
@@ -1151,6 +1151,7 @@ void usbd_defer_func(osal_task_func_t func, void* param, bool in_isr)
 bool usbd_edpt_open(uint8_t rhport, tusb_desc_endpoint_t const * desc_ep)
 {
   TU_LOG2("  Open EP %02X with Size = %u\r\n", desc_ep->bEndpointAddress, desc_ep->wMaxPacketSize.size);
+  TU_ASSERT(tu_edpt_number(desc_ep->bEndpointAddress) < DCD_ATTR_ENDPOINT_MAX);
 
   switch (desc_ep->bmAttributes.xfer)
   {

@@ -24,17 +24,14 @@
  * This file is part of the TinyUSB stack.
  */
 
-/** \ingroup group_usbd
- *  @{ */
-
 #ifndef _TUSB_USBD_H_
 #define _TUSB_USBD_H_
+
+#include "common/tusb_common.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
-
-#include "common/tusb_common.h"
 
 //--------------------------------------------------------------------+
 // Application API
