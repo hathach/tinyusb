@@ -728,6 +728,11 @@ void dcd_edpt_stall (uint8_t rhport, uint8_t ep_addr)
   (void) rhport;
   uint8_t const epnum = tu_edpt_number(ep_addr);
   USBHS->USBHS_DEVEPTIER[epnum] = USBHS_DEVEPTIER_CTRL_STALLRQS;
+  // Re-enable SETUP interrupt
+  if (epnum == 0)
+  {
+    USBHS->USBHS_DEVEPTIER[0] = USBHS_DEVEPTIER_CTRL_RXSTPES;
+  }
 }
 
 // clear stall, data toggle is also reset to DATA0
