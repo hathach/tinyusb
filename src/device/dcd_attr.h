@@ -133,7 +133,7 @@
   #define DCD_ATTR_ENDPOINT_MAX   16
 
 //------------- Silabs -------------//
-#elif TU_CHECK_MCU(EFM32GG)
+#elif TU_CHECK_MCU(EFM32GG) || TU_CHECK_MCU(OPT_MCU_EFM32GG11) || TU_CHECK_MCU(OPT_MCU_EFM32GG12)
   #define DCD_ATTR_ENDPOINT_MAX   7
 
 //------------- Renesas -------------//
