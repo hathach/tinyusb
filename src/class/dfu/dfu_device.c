@@ -52,7 +52,7 @@ typedef struct
   uint16_t block;
   uint16_t length;
 
-  CFG_TUSB_MEM_ALIGN uint8_t transfer_buf[CFG_TUD_DFU_TRANSFER_BUFSIZE];
+  CFG_TUSB_MEM_ALIGN uint8_t transfer_buf[CFG_TUD_DFU_XFER_BUFSIZE];
 } dfu_state_ctx_t;
 
 // Only a single dfu state is allowed
@@ -189,9 +189,9 @@ uint16_t dfu_moded_open(uint8_t rhport, tusb_desc_interface_t const * itf_desc, 
 
   _dfu_ctx.attrs = func_desc->bAttributes;
 
-  // CFG_TUD_DFU_TRANSFER_BUFSIZE has to be set to the buffer size used in TUD_DFU_DESCRIPTOR
+  // CFG_TUD_DFU_XFER_BUFSIZE has to be set to the buffer size used in TUD_DFU_DESCRIPTOR
   uint16_t const transfer_size = tu_le16toh( tu_unaligned_read16(&func_desc->wTransferSize) );
-  TU_ASSERT(transfer_size <= CFG_TUD_DFU_TRANSFER_BUFSIZE, drv_len);
+  TU_ASSERT(transfer_size <= CFG_TUD_DFU_XFER_BUFSIZE, drv_len);
 
   return drv_len;
 }
@@ -281,7 +281,7 @@ bool dfu_moded_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_reque
         {
           TU_VERIFY(_dfu_ctx.attrs & DFU_ATTR_CAN_UPLOAD);
           TU_VERIFY(tud_dfu_upload_cb);
-          TU_VERIFY(request->wLength <= CFG_TUD_DFU_TRANSFER_BUFSIZE);
+          TU_VERIFY(request->wLength <= CFG_TUD_DFU_XFER_BUFSIZE);
 
           uint16_t const xfer_len = tud_dfu_upload_cb(_dfu_ctx.alt, request->wValue, _dfu_ctx.transfer_buf, request->wLength);
 
@@ -294,7 +294,7 @@ bool dfu_moded_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_reque
         {
           TU_VERIFY(_dfu_ctx.attrs & DFU_ATTR_CAN_DOWNLOAD);
           TU_VERIFY(_dfu_ctx.state == DFU_IDLE || _dfu_ctx.state == DFU_DNLOAD_IDLE);
-          TU_VERIFY(request->wLength <= CFG_TUD_DFU_TRANSFER_BUFSIZE);
+          TU_VERIFY(request->wLength <= CFG_TUD_DFU_XFER_BUFSIZE);
 
           // set to true for both download and manifest
           _dfu_ctx.flashing_in_progress = true;
@@ -454,238 +454,5 @@ static bool reply_getstatus(uint8_t rhport, tusb_control_request_t const * reque
 
   return tud_control_xfer(rhport, request, &resp, sizeof(dfu_status_response_t));
 }
-
-
-#if 0
-
-static void dfu_req_dnload_setup(uint8_t rhport, tusb_control_request_t const * request);
-static void dfu_req_dnload_reply(uint8_t rhport, tusb_control_request_t const * request);
-static bool dfu_state_machine(uint8_t rhport, tusb_control_request_t const * request);
-
-static void dfu_req_dnload_setup(uint8_t rhport, tusb_control_request_t const * request)
-{
-  // TODO: add "zero" copy mode so the buffer we read into can be provided by the user
-  // if they wish, there still will be the internal control buffer copy to this buffer
-  // but this mode would provide zero copy from the class driver to the application
-
-  TU_VERIFY( request->wLength <= CFG_TUD_DFU_TRANSFER_BUFSIZE, );
-  // setup for data phase
-  tud_control_xfer(rhport, request, _dfu_ctx.transfer_buf, request->wLength);
-}
-
-static void dfu_req_dnload_reply(uint8_t rhport, tusb_control_request_t const * request)
-{
-  (void) rhport;
-  TU_VERIFY( request->wLength <= CFG_TUD_DFU_TRANSFER_BUFSIZE, );
-  tud_dfu_download_cb(_dfu_ctx.alt,_dfu_ctx.block, (uint8_t *)_dfu_ctx.transfer_buf, _dfu_ctx.length);
-  _dfu_ctx.flashing_in_progress = false;
-}
-
-static bool dfu_state_machine(uint8_t rhport, tusb_control_request_t const * request)
-{
-  TU_LOG2("  DFU Request: %s\r\n", tu_lookup_find(&_dfu_request_table, request->bRequest));
-  TU_LOG2("  DFU State Machine: %s\r\n", tu_lookup_find(&_dfu_state_table, _dfu_ctx.state));
-
-  switch (_dfu_ctx.state)
-  {
-    case DFU_IDLE:
-    {
-      switch (request->bRequest)
-      {
-        case DFU_REQUEST_DNLOAD:
-        {
-          if( ((_dfu_ctx.attrs & DFU_ATTR_CAN_DOWNLOAD) != 0)
-              && (request->wLength > 0) )
-          {
-            _dfu_ctx.state = DFU_DNLOAD_SYNC;
-            _dfu_ctx.flashing_in_progress = true;
-            dfu_req_dnload_setup(rhport, request);
-          } else {
-            _dfu_ctx.state = DFU_ERROR;
-          }
-        }
-        break;
-
-        case DFU_REQUEST_GETSTATUS:
-          reply_getstatus(rhport, request);
-        break;
-
-        default:
-          _dfu_ctx.state = DFU_ERROR;
-          return false;  // stall on all other requests
-        break;
-      }
-    }
-    break;
-
-    case DFU_DNLOAD_SYNC:
-    {
-      switch (request->bRequest)
-      {
-        case DFU_REQUEST_GETSTATUS:
-        {
-          if ( _dfu_ctx.flashing_in_progress )
-          {
-            _dfu_ctx.state = DFU_DNBUSY;
-            reply_getstatus(rhport, request);
-            dfu_req_dnload_reply(rhport, request);
-          } else {
-            _dfu_ctx.state = DFU_DNLOAD_IDLE;
-            reply_getstatus(rhport, request);
-          }
-        }
-        break;
-
-        default:
-          _dfu_ctx.state = DFU_ERROR;
-          return false;  // stall on all other requests
-        break;
-      }
-    }
-    break;
-
-    case DFU_DNBUSY:
-    {
-      switch (request->bRequest)
-      {
-        default:
-          _dfu_ctx.state = DFU_ERROR;
-          return false;  // stall on all other requests
-        break;
-      }
-    }
-    break;
-
-    case DFU_DNLOAD_IDLE:
-    {
-        switch (request->bRequest)
-        {
-          case DFU_REQUEST_DNLOAD:
-          {
-            if( ((_dfu_ctx.attrs & DFU_ATTR_CAN_DOWNLOAD) != 0)
-                && (request->wLength > 0) )
-            {
-              _dfu_ctx.state = DFU_DNLOAD_SYNC;
-              _dfu_ctx.flashing_in_progress = true;
-              dfu_req_dnload_setup(rhport, request);
-            } else {
-              if ( tud_dfu_download_complete_cb(_dfu_ctx.alt) )
-              {
-                _dfu_ctx.state = DFU_MANIFEST_SYNC;
-                tud_control_status(rhport, request);
-              } else {
-                _dfu_ctx.state = DFU_ERROR;
-                return false;  // stall
-              }
-            }
-          }
-          break;
-
-          case DFU_REQUEST_GETSTATUS:
-            reply_getstatus(rhport, request);
-          break;
-
-          default:
-            _dfu_ctx.state = DFU_ERROR;
-            return false;  // stall on all other requests
-          break;
-        }
-    }
-    break;
-
-    case DFU_MANIFEST_SYNC:
-    {
-      switch (request->bRequest)
-      {
-        case DFU_REQUEST_GETSTATUS:
-        {
-          if ((_dfu_ctx.attrs & DFU_ATTR_MANIFESTATION_TOLERANT) == 0)
-          {
-            _dfu_ctx.state = DFU_MANIFEST;
-            reply_getstatus(rhport, request);
-          } else 
-          {
-            if ( tud_dfu_manifest_cb(_dfu_ctx.alt) )
-            {
-              _dfu_ctx.state = DFU_IDLE;
-            }
-            reply_getstatus(rhport, request);
-          }
-        }
-        break;
-
-        default:
-          _dfu_ctx.state = DFU_ERROR;
-          return false;  // stall on all other requests
-        break;
-      }
-    }
-    break;
-
-    case DFU_MANIFEST:
-    {
-      switch (request->bRequest)
-      {
-        // stall on all other requests
-        default:
-          return false;
-        break;
-      }
-    }
-    break;
-
-    case DFU_MANIFEST_WAIT_RESET:
-    {
-      // technically we should never even get here, but we will handle it just in case
-      TU_LOG2("  DFU was in DFU_MANIFEST_WAIT_RESET and got unexpected request: %u\r\n", request->bRequest);
-      switch (request->bRequest)
-      {
-        default:
-          return false;  // stall on all other requests
-        break;
-      }
-    }
-    break;
-
-    case DFU_UPLOAD_IDLE:
-    {
-      switch (request->bRequest)
-      {
-        case DFU_REQUEST_GETSTATUS:
-          reply_getstatus(rhport, request);
-        break;
-
-        default:
-          return false;  // stall on all other requests
-        break;
-      }
-    }
-    break;
-
-    case DFU_ERROR:
-    {
-      switch (request->bRequest)
-      {
-        case DFU_REQUEST_GETSTATUS:
-          reply_getstatus(rhport, request);
-        break;
-
-        default:
-          return false;  // stall on all other requests
-        break;
-      }
-    }
-    break;
-
-    default:
-      _dfu_ctx.state = DFU_ERROR;
-      TU_LOG2("  DFU ERROR: Unexpected state\r\nStalling control pipe\r\n");
-      return false;  // Unexpected state, stall and change to error
-  }
-
-  return true;
-}
-
-#endif
 
 #endif

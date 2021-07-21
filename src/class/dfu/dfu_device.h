@@ -37,8 +37,8 @@
 // Class Driver Default Configure & Validation
 //--------------------------------------------------------------------+
 
-#if !defined(CFG_TUD_DFU_TRANSFER_BUFSIZE)
-  #error "CFG_TUD_DFU_TRANSFER_BUFSIZE must be defined, it has to be set to the buffer size used in TUD_DFU_DESCRIPTOR"
+#if !defined(CFG_TUD_DFU_XFER_BUFSIZE)
+  #error "CFG_TUD_DFU_XFER_BUFSIZE must be defined, it has to be set to the buffer size used in TUD_DFU_DESCRIPTOR"
 #endif
 
 //--------------------------------------------------------------------+
