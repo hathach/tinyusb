@@ -326,6 +326,8 @@ static void dcd_ep_handler(uint8_t ep_ix)
       {
         // TX complete
         dcd_event_xfer_complete(0, 0x80 + ep_ix, xfer->total_len, XFER_RESULT_SUCCESS, true);
+        // Disable the interrupt
+        USBHS->USBHS_DEVEPTIDR[ep_ix] = USBHS_DEVEPTIDR_TXINEC;
       }
     }
   }
@@ -576,12 +578,12 @@ static void dcd_transmit_packet(xfer_ctl_t * xfer, uint8_t ep_ix)
   {
     // Control endpoint: clear the interrupt flag to send the data
     USBHS->USBHS_DEVEPTICR[0] = USBHS_DEVEPTICR_TXINIC;
-    USBHS->USBHS_DEVEPTIER[0] = USBHS_DEVEPTIER_TXINES;
   } else 
   {
     // Other endpoint types: clear the FIFO control flag to send the data
     USBHS->USBHS_DEVEPTIDR[ep_ix] = USBHS_DEVEPTIDR_FIFOCONC;
   }
+  USBHS->USBHS_DEVEPTIER[ep_ix] = USBHS_DEVEPTIER_TXINES;
 }
 
 // Submit a transfer, When complete dcd_event_xfer_complete() is invoked to notify the stack
