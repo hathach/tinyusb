@@ -3,7 +3,7 @@ set(TOP "../../../..")
 get_filename_component(TOP "${TOP}" REALPATH)
 get_filename_component(PROJECT ${CMAKE_CURRENT_SOURCE_DIR} NAME)
 
-idf_component_register (SRCS "main.c" "usb_descriptors.c" 
+idf_component_register (SRCS "main.c" "usb_descriptors.c" "esp_usb.c" "esp_usb_netif_glue.c"
                                 "${TOP}/lib/networking/dhserver.c" 
                                 "${TOP}/lib/networking/dnserver.c" 
                                 "${TOP}/lib/networking/rndis_reports.c"
@@ -32,7 +32,7 @@ idf_component_register (SRCS "main.c" "usb_descriptors.c"
                                      "${TOP}/hw" "${TOP}/src" 
                                      ${CMAKE_CURRENT_SOURCE_DIR} 
                                      ${TOP}/lib/networking
-                        REQUIRES freertos esp_netif lwip esp_http_server)
+                        REQUIRES freertos esp_netif lwip nvs_flash esp_http_server)
 
 target_compile_options(${COMPONENT_TARGET} PUBLIC
   "-DCFG_TUSB_MCU=OPT_MCU_ESP32S2"

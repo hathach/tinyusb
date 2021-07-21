@@ -26,3 +26,6 @@ cov-int
 # cppcheck build directories
 *-build-dir
 /_bin/
+/.vscode
+examples/device/net_lwip_webserver/sdkconfig.old
+examples/device/net_lwip_webserver/src/build
