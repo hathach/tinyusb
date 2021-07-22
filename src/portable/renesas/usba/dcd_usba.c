@@ -63,7 +63,10 @@
 #define USB_IS0_CTSQ_SETUP   (1u)
 #define USB_IS0_DVSQ_DEF     (1u<<4)
 #define USB_IS0_DVSQ_ADDR    (2u<<4)
-#define USB_IS0_DVSQ_SUSP    (4u<<4)
+#define USB_IS0_DVSQ_SUSP0   (4u<<4)
+#define USB_IS0_DVSQ_SUSP1   (5u<<4)
+#define USB_IS0_DVSQ_SUSP2   (6u<<4)
+#define USB_IS0_DVSQ_SUSP3   (7u<<4)
 
 #define USB_PIPECTR_PID_NAK   (0u)
 #define USB_PIPECTR_PID_BUF   (1u)
@@ -125,6 +128,7 @@ typedef struct
 {
   pipe_state_t pipe[9];
   uint8_t ep[2][16];   /* a lookup table for a pipe index from an endpoint address */
+  uint8_t suspended;
 } dcd_data_t;
 
 //--------------------------------------------------------------------+
@@ -517,7 +521,8 @@ void dcd_init(uint8_t rhport)
 
   /* Setup default control pipe */
   USB0.DCPMAXP.BIT.MXPS  = 64;
-  USB0.INTENB0.WORD = USB_IS0_VBINT | USB_IS0_BRDY | USB_IS0_BEMP | USB_IS0_DVST | USB_IS0_CTRT;
+  USB0.INTENB0.WORD = USB_IS0_VBINT | USB_IS0_BRDY | USB_IS0_BEMP |
+    USB_IS0_DVST | USB_IS0_CTRT | USB_IS0_SOFR | USB_IS0_RESM;
   USB0.BEMPENB.WORD = 1;
   USB0.BRDYENB.WORD = 1;
 
@@ -547,7 +552,7 @@ void dcd_set_address(uint8_t rhport, uint8_t dev_addr)
 void dcd_remote_wakeup(uint8_t rhport)
 {
   (void)rhport;
-  /* TODO */
+  USB0.DVSTCTR0.BIT.WKUP = 1;
 }
 
 void dcd_connect(uint8_t rhport)
@@ -689,6 +694,22 @@ void dcd_int_handler(uint8_t rhport)
       dcd_disconnect(rhport);
     }
   }
+  if (is0 & USB_IS0_RESM) {
+    dcd_event_bus_signal(rhport, DCD_EVENT_RESUME, true);
+    _dcd.suspended = 0;
+  }
+  if (is0 & USB_IS0_SOFR) {
+    if (_dcd.suspended) {
+      /* When USB host resumes caused by `dcd_remote_wakeup()`,
+       * RESM interrupt does not rise.
+       * Therefore we need to manually send resume event.
+       * Of course, when USB host resumes on its own,
+       * RESM interrupt rise properly, then this statements are ignored. */
+      dcd_event_bus_signal(rhport, DCD_EVENT_RESUME, true);
+      _dcd.suspended = 0;
+    }
+    dcd_event_bus_signal(rhport, DCD_EVENT_SOF, true);
+  }
   if (is0 & USB_IS0_DVST) {
     switch (is0 & USB_IS0_DVSQ) {
     case USB_IS0_DVSQ_DEF:
@@ -697,6 +718,12 @@ void dcd_int_handler(uint8_t rhport)
     case USB_IS0_DVSQ_ADDR:
       process_set_address(rhport);
       break;
+    case USB_IS0_DVSQ_SUSP0:
+    case USB_IS0_DVSQ_SUSP1:
+    case USB_IS0_DVSQ_SUSP2:
+    case USB_IS0_DVSQ_SUSP3:
+       dcd_event_bus_signal(rhport, DCD_EVENT_SUSPEND, true);
+       _dcd.suspended = 1;
     default:
       break;
     }
