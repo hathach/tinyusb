@@ -32,7 +32,7 @@ The stack supports the following MCUs:
 
 - **Dialog:** DA1469x
 - **Espressif:** ESP32-S2, ESP32-S3
-- **MicroChip:** SAMD11, SAMD21, SAMD51, SAME5x, SAMG55, SAML21, SAML22
+- **MicroChip:** SAMD11, SAMD21, SAMD51, SAME5x, SAMG55, SAML21, SAML22, SAMx7x
 - **NordicSemi:** nRF52833, nRF52840
 - **Nuvoton:** NUC120, NUC121/NUC125, NUC126, NUC505
 - **NXP:**
@@ -53,7 +53,7 @@ The stack supports the following MCUs:
 
 Supports multiple device configurations by dynamically changing usb descriptors. Low power functions such like suspend, resume, and remote wakeup. Following device classes are supported:
 
-- Audio Class 2.0 (UAC2) still work in progress
+- Audio Class 2.0 (UAC2)
 - Bluetooth Host Controller Interface (BTH HCI)
 - Communication Class (CDC)
 - Device Firmware Update (DFU): DFU mode (WIP) and Runtinme 
