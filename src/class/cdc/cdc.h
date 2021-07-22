@@ -215,7 +215,7 @@ typedef enum
 // Class Specific Functional Descriptor (Communication Interface)
 //--------------------------------------------------------------------+
 
-TU_PACK_STRUCT_BEGIN  // Start of definition of packed structs (used by the CCRX toolchain)
+TU_ATTR_PACKED_BEGIN  // Start of definition of packed structs (used by the CCRX toolchain)
 
 /// Header Functional Descriptor (Communication Interface)
 typedef struct TU_ATTR_PACKED
@@ -236,10 +236,10 @@ typedef struct TU_ATTR_PACKED
   uint8_t bSubordinateInterface    ; ///< Array of Interface number of Data Interface
 }cdc_desc_func_union_t;
 
-TU_PACK_STRUCT_END  // End of definition of packed structs (used by the CCRX toolchain)
+TU_ATTR_PACKED_END  // End of definition of packed structs (used by the CCRX toolchain)
 
 #define cdc_desc_func_union_n_t(no_slave)\
- TU_PACK_STRUCT_BEGIN                      \
+ TU_ATTR_PACKED_BEGIN                      \
  struct TU_ATTR_PACKED {                   \
   uint8_t bLength                         ;\
   uint8_t bDescriptorType                 ;\
@@ -247,10 +247,10 @@ TU_PACK_STRUCT_END  // End of definition of packed structs (used by the CCRX too
   uint8_t bControlInterface               ;\
   uint8_t bSubordinateInterface[no_slave] ;\
 }                                          \
-TU_PACK_STRUCT_END
+TU_ATTR_PACKED_END
 
 
-TU_PACK_STRUCT_BEGIN  // Start of definition of packed structs (used by the CCRX toolchain)
+TU_ATTR_PACKED_BEGIN  // Start of definition of packed structs (used by the CCRX toolchain)
 
 /// Country Selection Functional Descriptor (Communication Interface)
 typedef struct TU_ATTR_PACKED
@@ -262,10 +262,10 @@ typedef struct TU_ATTR_PACKED
   uint16_t wCountryCode       ; ///< Country code in the format as defined in [ISO3166], release date as specified inoffset 3 for the first supported country.
 }cdc_desc_func_country_selection_t;
 
-TU_PACK_STRUCT_END  // End of definition of packed structs (used by the CCRX toolchain)
+TU_ATTR_PACKED_END  // End of definition of packed structs (used by the CCRX toolchain)
 
 #define cdc_desc_func_country_selection_n_t(no_country) \
-  TU_PACK_STRUCT_BEGIN               \
+  TU_ATTR_PACKED_BEGIN               \
   struct TU_ATTR_PACKED {            \
   uint8_t bLength                   ;\
   uint8_t bDescriptorType           ;\
@@ -273,13 +273,13 @@ TU_PACK_STRUCT_END  // End of definition of packed structs (used by the CCRX too
   uint8_t iCountryCodeRelDate       ;\
   uint16_t wCountryCode[no_country] ;\
 }                                    \
-TU_PACK_STRUCT_END
+TU_ATTR_PACKED_END
 
 //--------------------------------------------------------------------+
 // PUBLIC SWITCHED TELEPHONE NETWORK (PSTN) SUBCLASS
 //--------------------------------------------------------------------+
 
-TU_PACK_STRUCT_BEGIN  // Start of definition of packed structs (used by the CCRX toolchain)
+TU_ATTR_PACKED_BEGIN  // Start of definition of packed structs (used by the CCRX toolchain)
 
 /// \brief Call Management Functional Descriptor
 /// \details This functional descriptor describes the processing of calls for the Communications Class interface.
@@ -419,7 +419,7 @@ typedef struct TU_ATTR_PACKED
 } cdc_line_control_state_t;
 TU_BIT_FIELD_ORDER_END
 
-TU_PACK_STRUCT_END  // End of definition of packed structs (used by the CCRX toolchain)
+TU_ATTR_PACKED_END  // End of definition of packed structs (used by the CCRX toolchain)
 
 
 TU_VERIFY_STATIC(sizeof(cdc_line_control_state_t) == 2, "size is not correct");

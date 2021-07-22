@@ -262,7 +262,7 @@ enum
 // USB Descriptors
 //--------------------------------------------------------------------+
 
-TU_PACK_STRUCT_BEGIN  // Start of definition of packed structs (used by the CCRX toolchain)
+TU_ATTR_PACKED_BEGIN  // Start of definition of packed structs (used by the CCRX toolchain)
 
 /// USB Device Descriptor
 typedef struct TU_ATTR_PACKED
@@ -479,7 +479,7 @@ typedef struct TU_ATTR_PACKED{
 } tusb_control_request_t;
 TU_BIT_FIELD_ORDER_END
 
-TU_PACK_STRUCT_END  // End of definition of packed structs (used by the CCRX toolchain)
+TU_ATTR_PACKED_END  // End of definition of packed structs (used by the CCRX toolchain)
 
 TU_VERIFY_STATIC( sizeof(tusb_control_request_t) == 8, "size is not correct");
 

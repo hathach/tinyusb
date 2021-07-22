@@ -79,8 +79,8 @@
   #define TU_ATTR_UNUSED                __attribute__ ((unused))           // Function/Variable is meant to be possibly unused
   #define TU_ATTR_USED                  __attribute__ ((used))             // Function/Variable is meant to be used
 
-  #define TU_PACK_STRUCT_BEGIN
-  #define TU_PACK_STRUCT_END
+  #define TU_ATTR_PACKED_BEGIN
+  #define TU_ATTR_PACKED_END
 
   #define TU_BIT_FIELD_ORDER_BEGIN
   #define TU_BIT_FIELD_ORDER_END
@@ -150,8 +150,8 @@
   #define TU_ATTR_UNUSED
   #define TU_ATTR_USED
 
-  #define TU_PACK_STRUCT_BEGIN _Pragma("pack")
-  #define TU_PACK_STRUCT_END _Pragma("packoption")
+  #define TU_ATTR_PACKED_BEGIN _Pragma("pack")
+  #define TU_ATTR_PACKED_END _Pragma("packoption")
 
   #define TU_BIT_FIELD_ORDER_BEGIN _Pragma("bit_order right")
   #define TU_BIT_FIELD_ORDER_END _Pragma("bit_order")

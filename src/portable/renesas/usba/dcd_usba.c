@@ -120,7 +120,7 @@ typedef union {
 } hw_fifo_t;
 TU_BIT_FIELD_ORDER_END
 
-TU_PACK_STRUCT_BEGIN  // Start of definition of packed structs (used by the CCRX toolchain)
+TU_ATTR_PACKED_BEGIN  // Start of definition of packed structs (used by the CCRX toolchain)
 
 TU_BIT_FIELD_ORDER_BEGIN
 typedef struct TU_ATTR_PACKED
@@ -135,7 +135,7 @@ typedef struct TU_ATTR_PACKED
 } pipe_state_t;
 TU_BIT_FIELD_ORDER_END
 
-TU_PACK_STRUCT_END  // End of definition of packed structs (used by the CCRX toolchain)
+TU_ATTR_PACKED_END  // End of definition of packed structs (used by the CCRX toolchain)
 
 typedef struct
 {
