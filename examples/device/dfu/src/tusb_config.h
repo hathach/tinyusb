@@ -76,12 +76,11 @@
 #define CFG_TUD_ENDPOINT0_SIZE    64
 #endif
 
-#define CFG_TUD_DFU_TRANSFER_BUFFER_SIZE    4096
-
 //------------- CLASS -------------//
+#define CFG_TUD_DFU    1
 
-#define CFG_TUD_DFU_RUNTIME 0
-#define CFG_TUD_DFU_MODE    1
+// DFU buffer size, it has to be set to the buffer size used in TUD_DFU_DESCRIPTOR
+#define CFG_TUD_DFU_XFER_BUFSIZE    512
 
 #ifdef __cplusplus
  }
