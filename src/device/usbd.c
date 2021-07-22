@@ -831,7 +831,7 @@ static bool process_set_config(uint8_t rhport, uint8_t cfg_num)
 
   // Parse interface descriptor
   uint8_t const * p_desc   = ((uint8_t const*) desc_cfg) + sizeof(tusb_desc_configuration_t);
-  uint8_t const * desc_end = ((uint8_t const*) desc_cfg) + desc_cfg->wTotalLength;
+  uint8_t const * desc_end = ((uint8_t const*) desc_cfg) + tu_le16toh(desc_cfg->wTotalLength);
 
   while( p_desc < desc_end )
   {
@@ -957,7 +957,7 @@ static bool process_get_descriptor(uint8_t rhport, tusb_control_request_t const 
       // Use offsetof to avoid pointer to the odd/misaligned address
       memcpy(&total_len, (uint8_t*) desc_bos + offsetof(tusb_desc_bos_t, wTotalLength), 2);
 
-      return tud_control_xfer(rhport, p_request, (void*) desc_bos, total_len);
+      return tud_control_xfer(rhport, p_request, (void*) desc_bos, tu_le16toh(total_len));
     }
     break;
 
@@ -972,7 +972,7 @@ static bool process_get_descriptor(uint8_t rhport, tusb_control_request_t const 
       // Use offsetof to avoid pointer to the odd/misaligned address
       memcpy(&total_len, (uint8_t*) desc_config + offsetof(tusb_desc_configuration_t, wTotalLength), 2);
 
-      return tud_control_xfer(rhport, p_request, (void*) desc_config, total_len);
+      return tud_control_xfer(rhport, p_request, (void*) desc_config, tu_le16toh(total_len));
     }
     break;
 
@@ -1150,7 +1150,7 @@ void usbd_defer_func(osal_task_func_t func, void* param, bool in_isr)
 
 bool usbd_edpt_open(uint8_t rhport, tusb_desc_endpoint_t const * desc_ep)
 {
-  TU_LOG2("  Open EP %02X with Size = %u\r\n", desc_ep->bEndpointAddress, desc_ep->wMaxPacketSize.size);
+  TU_LOG2("  Open EP %02X with Size = %u\r\n", desc_ep->bEndpointAddress, tu_le16toh(desc_ep->wMaxPacketSize.size));
   TU_ASSERT(tu_edpt_number(desc_ep->bEndpointAddress) < DCD_ATTR_ENDPOINT_MAX);
 
   switch (desc_ep->bmAttributes.xfer)
@@ -1158,7 +1158,7 @@ bool usbd_edpt_open(uint8_t rhport, tusb_desc_endpoint_t const * desc_ep)
     case TUSB_XFER_ISOCHRONOUS:
     {
       uint16_t const max_epsize = (_usbd_dev.speed == TUSB_SPEED_HIGH ? 1024 : 1023);
-      TU_ASSERT(desc_ep->wMaxPacketSize.size <= max_epsize);
+      TU_ASSERT(tu_le16toh(desc_ep->wMaxPacketSize.size) <= max_epsize);
     }
     break;
 
@@ -1166,18 +1166,18 @@ bool usbd_edpt_open(uint8_t rhport, tusb_desc_endpoint_t const * desc_ep)
       if (_usbd_dev.speed == TUSB_SPEED_HIGH)
       {
         // Bulk highspeed must be EXACTLY 512
-        TU_ASSERT(desc_ep->wMaxPacketSize.size == 512);
+        TU_ASSERT(tu_le16toh(desc_ep->wMaxPacketSize.size) == 512);
       }else
       {
         // TODO Bulk fullspeed can only be 8, 16, 32, 64
-        TU_ASSERT(desc_ep->wMaxPacketSize.size <= 64);
+        TU_ASSERT(tu_le16toh(desc_ep->wMaxPacketSize.size) <= 64);
       }
     break;
 
     case TUSB_XFER_INTERRUPT:
     {
       uint16_t const max_epsize = (_usbd_dev.speed == TUSB_SPEED_HIGH ? 1024 : 64);
-      TU_ASSERT(desc_ep->wMaxPacketSize.size <= max_epsize);
+      TU_ASSERT(tu_le16toh(desc_ep->wMaxPacketSize.size) <= max_epsize);
     }
     break;
 
