@@ -82,8 +82,8 @@
   #define TU_ATTR_PACKED_BEGIN
   #define TU_ATTR_PACKED_END
 
-  #define TU_BIT_FIELD_ORDER_BEGIN
-  #define TU_BIT_FIELD_ORDER_END
+  #define TU_ATTR_BIT_FIELD_ORDER_BEGIN
+  #define TU_ATTR_BIT_FIELD_ORDER_END
 
   // Endian conversion use well-known host to network (big endian) naming
   #if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
@@ -153,8 +153,8 @@
   #define TU_ATTR_PACKED_BEGIN _Pragma("pack")
   #define TU_ATTR_PACKED_END _Pragma("packoption")
 
-  #define TU_BIT_FIELD_ORDER_BEGIN _Pragma("bit_order right")
-  #define TU_BIT_FIELD_ORDER_END _Pragma("bit_order")
+  #define TU_ATTR_BIT_FIELD_ORDER_BEGIN _Pragma("bit_order right")
+  #define TU_ATTR_BIT_FIELD_ORDER_END _Pragma("bit_order")
 
   // Endian conversion use well-known host to network (big endian) naming
   #if defined(__LIT)

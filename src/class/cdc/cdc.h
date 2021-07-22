@@ -215,7 +215,9 @@ typedef enum
 // Class Specific Functional Descriptor (Communication Interface)
 //--------------------------------------------------------------------+
 
-TU_ATTR_PACKED_BEGIN  // Start of definition of packed structs (used by the CCRX toolchain)
+// Start of all packed definitions for compiler without per-type packed
+TU_ATTR_PACKED_BEGIN
+TU_ATTR_BIT_FIELD_ORDER_BEGIN
 
 /// Header Functional Descriptor (Communication Interface)
 typedef struct TU_ATTR_PACKED
@@ -236,10 +238,7 @@ typedef struct TU_ATTR_PACKED
   uint8_t bSubordinateInterface    ; ///< Array of Interface number of Data Interface
 }cdc_desc_func_union_t;
 
-TU_ATTR_PACKED_END  // End of definition of packed structs (used by the CCRX toolchain)
-
 #define cdc_desc_func_union_n_t(no_slave)\
- TU_ATTR_PACKED_BEGIN                      \
  struct TU_ATTR_PACKED {                   \
   uint8_t bLength                         ;\
   uint8_t bDescriptorType                 ;\
@@ -247,10 +246,6 @@ TU_ATTR_PACKED_END  // End of definition of packed structs (used by the CCRX too
   uint8_t bControlInterface               ;\
   uint8_t bSubordinateInterface[no_slave] ;\
 }                                          \
-TU_ATTR_PACKED_END
-
-
-TU_ATTR_PACKED_BEGIN  // Start of definition of packed structs (used by the CCRX toolchain)
 
 /// Country Selection Functional Descriptor (Communication Interface)
 typedef struct TU_ATTR_PACKED
@@ -262,10 +257,7 @@ typedef struct TU_ATTR_PACKED
   uint16_t wCountryCode       ; ///< Country code in the format as defined in [ISO3166], release date as specified inoffset 3 for the first supported country.
 }cdc_desc_func_country_selection_t;
 
-TU_ATTR_PACKED_END  // End of definition of packed structs (used by the CCRX toolchain)
-
 #define cdc_desc_func_country_selection_n_t(no_country) \
-  TU_ATTR_PACKED_BEGIN               \
   struct TU_ATTR_PACKED {            \
   uint8_t bLength                   ;\
   uint8_t bDescriptorType           ;\
@@ -273,17 +265,13 @@ TU_ATTR_PACKED_END  // End of definition of packed structs (used by the CCRX too
   uint8_t iCountryCodeRelDate       ;\
   uint16_t wCountryCode[no_country] ;\
 }                                    \
-TU_ATTR_PACKED_END
 
 //--------------------------------------------------------------------+
 // PUBLIC SWITCHED TELEPHONE NETWORK (PSTN) SUBCLASS
 //--------------------------------------------------------------------+
 
-TU_ATTR_PACKED_BEGIN  // Start of definition of packed structs (used by the CCRX toolchain)
-
 /// \brief Call Management Functional Descriptor
 /// \details This functional descriptor describes the processing of calls for the Communications Class interface.
-TU_BIT_FIELD_ORDER_BEGIN
 typedef struct TU_ATTR_PACKED
 {
   uint8_t bLength            ; ///< Size of this descriptor in bytes.
@@ -298,10 +286,7 @@ typedef struct TU_ATTR_PACKED
 
   uint8_t bDataInterface;
 }cdc_desc_func_call_management_t;
-TU_BIT_FIELD_ORDER_END
 
-
-TU_BIT_FIELD_ORDER_BEGIN
 typedef struct TU_ATTR_PACKED
 {
   uint8_t support_comm_request                    : 1; ///< Device supports the request combination of Set_Comm_Feature, Clear_Comm_Feature, and Get_Comm_Feature.
@@ -310,12 +295,11 @@ typedef struct TU_ATTR_PACKED
   uint8_t support_notification_network_connection : 1; ///< Device supports the notification Network_Connection.
   uint8_t TU_RESERVED                             : 4;
 }cdc_acm_capability_t;
-TU_BIT_FIELD_ORDER_END
 
 TU_VERIFY_STATIC(sizeof(cdc_acm_capability_t) == 1, "mostly problem with compiler");
 
-/// \brief Abstract Control Management Functional Descriptor
-/// \details This functional descriptor describes the commands supported by by the Communications Class interface with SubClass code of \ref CDC_COMM_SUBCLASS_ABSTRACT_CONTROL_MODEL
+/// Abstract Control Management Functional Descriptor
+/// This functional descriptor describes the commands supported by by the Communications Class interface with SubClass code of \ref CDC_COMM_SUBCLASS_ABSTRACT_CONTROL_MODEL
 typedef struct TU_ATTR_PACKED
 {
   uint8_t bLength                  ; ///< Size of this descriptor in bytes.
@@ -326,7 +310,6 @@ typedef struct TU_ATTR_PACKED
 
 /// \brief Direct Line Management Functional Descriptor
 /// \details This functional descriptor describes the commands supported by the Communications Class interface with SubClass code of \ref CDC_FUNC_DESC_DIRECT_LINE_MANAGEMENT
-TU_BIT_FIELD_ORDER_BEGIN
 typedef struct TU_ATTR_PACKED
 {
   uint8_t bLength            ; ///< Size of this descriptor in bytes.
@@ -339,7 +322,6 @@ typedef struct TU_ATTR_PACKED
     uint8_t TU_RESERVED           : 5;
   } bmCapabilities;
 }cdc_desc_func_direct_line_management_t;
-TU_BIT_FIELD_ORDER_END
 
 /// \brief Telephone Ringer Functional Descriptor
 /// \details The Telephone Ringer functional descriptor describes the ringer capabilities supported by the Communications Class interface,
@@ -356,7 +338,6 @@ typedef struct TU_ATTR_PACKED
 /// \brief Telephone Operational Modes Functional Descriptor
 /// \details The Telephone Operational Modes functional descriptor describes the operational modes supported by
 /// the Communications Class interface, with the SubClass code of \ref CDC_COMM_SUBCLASS_TELEPHONE_CONTROL_MODEL
-TU_BIT_FIELD_ORDER_BEGIN
 typedef struct TU_ATTR_PACKED
 {
   uint8_t bLength            ; ///< Size of this descriptor in bytes.
@@ -369,12 +350,10 @@ typedef struct TU_ATTR_PACKED
     uint8_t TU_RESERVED           : 5;
   } bmCapabilities;
 }cdc_desc_func_telephone_operational_modes_t;
-TU_BIT_FIELD_ORDER_END
 
 /// \brief Telephone Call and Line State Reporting Capabilities Descriptor
 /// \details The Telephone Call and Line State Reporting Capabilities functional descriptor describes the abilities of a
 /// telephone device to report optional call and line states.
-TU_BIT_FIELD_ORDER_BEGIN
 typedef struct TU_ATTR_PACKED
 {
   uint8_t bLength            ; ///< Size of this descriptor in bytes.
@@ -390,8 +369,8 @@ typedef struct TU_ATTR_PACKED
     uint32_t TU_RESERVED            : 26;
   } bmCapabilities;
 }cdc_desc_func_telephone_call_state_reporting_capabilities_t;
-TU_BIT_FIELD_ORDER_END
 
+// TODO remove
 static inline uint8_t cdc_functional_desc_typeof(uint8_t const * p_desc)
 {
   return p_desc[2];
@@ -410,21 +389,17 @@ typedef struct TU_ATTR_PACKED
 
 TU_VERIFY_STATIC(sizeof(cdc_line_coding_t) == 7, "size is not correct");
 
-TU_BIT_FIELD_ORDER_BEGIN
 typedef struct TU_ATTR_PACKED
 {
   uint16_t dte_is_present : 1; ///< Indicates to DCE if DTE is presentor not. This signal corresponds to V.24 signal 108/2 and RS-232 signal DTR.
   uint16_t half_duplex_carrier_control : 1;
   uint16_t : 14;
 } cdc_line_control_state_t;
-TU_BIT_FIELD_ORDER_END
-
-TU_ATTR_PACKED_END  // End of definition of packed structs (used by the CCRX toolchain)
-
 
 TU_VERIFY_STATIC(sizeof(cdc_line_control_state_t) == 2, "size is not correct");
 
-/** @} */
+TU_ATTR_PACKED_END  // End of all packed definitions
+TU_ATTR_BIT_FIELD_ORDER_END
 
 #ifdef __cplusplus
  }

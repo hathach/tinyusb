@@ -262,7 +262,9 @@ enum
 // USB Descriptors
 //--------------------------------------------------------------------+
 
-TU_ATTR_PACKED_BEGIN  // Start of definition of packed structs (used by the CCRX toolchain)
+// Start of all packed definitions for compiler without per-type packed
+TU_ATTR_PACKED_BEGIN
+TU_ATTR_BIT_FIELD_ORDER_BEGIN
 
 /// USB Device Descriptor
 typedef struct TU_ATTR_PACKED
@@ -297,6 +299,8 @@ typedef struct TU_ATTR_PACKED
   uint8_t  bNumDeviceCaps  ; ///< Number of device capability descriptors in the BOS
 } tusb_desc_bos_t;
 
+TU_VERIFY_STATIC( sizeof(tusb_desc_bos_t) == 5, "size is not correct");
+
 /// USB Configuration Descriptor
 typedef struct TU_ATTR_PACKED
 {
@@ -328,8 +332,9 @@ typedef struct TU_ATTR_PACKED
   uint8_t  iInterface         ; ///< Index of string descriptor describing this interface
 } tusb_desc_interface_t;
 
+TU_VERIFY_STATIC( sizeof(tusb_desc_interface_t) == 9, "size is not correct");
+
 /// USB Endpoint Descriptor
-TU_BIT_FIELD_ORDER_BEGIN
 typedef struct TU_ATTR_PACKED
 {
   uint8_t  bLength          ; ///< Size of this descriptor in bytes
@@ -357,7 +362,6 @@ typedef struct TU_ATTR_PACKED
 
   uint8_t  bInterval        ; ///< Interval for polling endpoint for data transfers. Expressed in frames or microframes depending on the device operating speed (i.e., either 1 millisecond or 125 us units). \n- For full-/high-speed isochronous endpoints, this value must be in the range from 1 to 16. The bInterval value is used as the exponent for a \f$ 2^(bInterval-1) \f$ value; e.g., a bInterval of 4 means a period of 8 (\f$ 2^(4-1) \f$). \n- For full-/low-speed interrupt endpoints, the value of this field may be from 1 to 255. \n- For high-speed interrupt endpoints, the bInterval value is used as the exponent for a \f$ 2^(bInterval-1) \f$ value; e.g., a bInterval of 4 means a period of 8 (\f$ 2^(4-1) \f$) . This value must be from 1 to 16. \n- For high-speed bulk/control OUT endpoints, the bInterval must specify the maximum NAK rate of the endpoint. A value of 0 indicates the endpoint never NAKs. Other values indicate at most 1 NAK each bInterval number of microframes. This value must be in the range from 0 to 255. \n Refer to Chapter 5 of USB 2.0 specification for more information.
 } tusb_desc_endpoint_t;
-TU_BIT_FIELD_ORDER_END
 
 /// USB Other Speed Configuration Descriptor
 typedef struct TU_ATTR_PACKED
@@ -433,7 +437,6 @@ typedef struct TU_ATTR_PACKED
 } tusb_desc_webusb_url_t;
 
 // DFU Functional Descriptor
-TU_BIT_FIELD_ORDER_BEGIN
 typedef struct TU_ATTR_PACKED
 {
   uint8_t  bLength;
@@ -455,12 +458,10 @@ typedef struct TU_ATTR_PACKED
   uint16_t wTransferSize;
   uint16_t bcdDFUVersion;
 } tusb_desc_dfu_functional_t;
-TU_BIT_FIELD_ORDER_END
 
 /*------------------------------------------------------------------*/
 /* Types
  *------------------------------------------------------------------*/
-TU_BIT_FIELD_ORDER_BEGIN
 typedef struct TU_ATTR_PACKED{
   union {
     struct TU_ATTR_PACKED {
@@ -477,17 +478,12 @@ typedef struct TU_ATTR_PACKED{
   uint16_t wIndex;
   uint16_t wLength;
 } tusb_control_request_t;
-TU_BIT_FIELD_ORDER_END
-
-TU_ATTR_PACKED_END  // End of definition of packed structs (used by the CCRX toolchain)
 
 TU_VERIFY_STATIC( sizeof(tusb_control_request_t) == 8, "size is not correct");
 
-// TODO move to somewhere suitable
-static inline uint8_t bm_request_type(uint8_t direction, uint8_t type, uint8_t recipient)
-{
-  return ((uint8_t) (direction << 7)) | ((uint8_t) (type << 5)) | (recipient);
-}
+
+TU_ATTR_PACKED_END  // End of all packed definitions
+TU_ATTR_BIT_FIELD_ORDER_END
 
 //--------------------------------------------------------------------+
 // Endpoint helper

@@ -95,7 +95,7 @@
 #define FIFO_REQ_CLR         (1u)
 #define FIFO_COMPLETE        (1u<<1)
 
-TU_BIT_FIELD_ORDER_BEGIN
+TU_ATTR_BIT_FIELD_ORDER_BEGIN
 typedef struct {
   union {
     struct {
@@ -108,9 +108,9 @@ typedef struct {
   };
   uint16_t TRN;
 } reg_pipetre_t;
-TU_BIT_FIELD_ORDER_END
+TU_ATTR_BIT_FIELD_ORDER_END
 
-TU_BIT_FIELD_ORDER_BEGIN
+TU_ATTR_BIT_FIELD_ORDER_BEGIN
 typedef union {
   struct {
     volatile uint16_t u8: 8;
@@ -118,11 +118,11 @@ typedef union {
   };
   volatile uint16_t u16;
 } hw_fifo_t;
-TU_BIT_FIELD_ORDER_END
+TU_ATTR_BIT_FIELD_ORDER_END
 
 TU_ATTR_PACKED_BEGIN  // Start of definition of packed structs (used by the CCRX toolchain)
 
-TU_BIT_FIELD_ORDER_BEGIN
+TU_ATTR_BIT_FIELD_ORDER_BEGIN
 typedef struct TU_ATTR_PACKED
 {
   uintptr_t addr;      /* the start address of a transfer data buffer */
@@ -133,7 +133,7 @@ typedef struct TU_ATTR_PACKED
     uint32_t     : 0;
   };
 } pipe_state_t;
-TU_BIT_FIELD_ORDER_END
+TU_ATTR_BIT_FIELD_ORDER_END
 
 TU_ATTR_PACKED_END  // End of definition of packed structs (used by the CCRX toolchain)
 
