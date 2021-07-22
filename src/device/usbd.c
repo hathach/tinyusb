@@ -953,11 +953,10 @@ static bool process_get_descriptor(uint8_t rhport, tusb_control_request_t const 
 
       tusb_desc_bos_t const* desc_bos = (tusb_desc_bos_t const*) tud_descriptor_bos_cb();
 
-      uint16_t total_len;
       // Use offsetof to avoid pointer to the odd/misaligned address
-      memcpy(&total_len, (uint8_t*) desc_bos + offsetof(tusb_desc_bos_t, wTotalLength), 2);
+      uint16_t const total_len = tu_le16toh( tu_unaligned_read16((uint8_t*) desc_bos + offsetof(tusb_desc_bos_t, wTotalLength)) );
 
-      return tud_control_xfer(rhport, p_request, (void*) desc_bos, tu_le16toh(total_len));
+      return tud_control_xfer(rhport, p_request, (void*) desc_bos, total_len);
     }
     break;
 
@@ -968,11 +967,10 @@ static bool process_get_descriptor(uint8_t rhport, tusb_control_request_t const 
       tusb_desc_configuration_t const* desc_config = (tusb_desc_configuration_t const*) tud_descriptor_configuration_cb(desc_index);
       TU_ASSERT(desc_config);
 
-      uint16_t total_len;
       // Use offsetof to avoid pointer to the odd/misaligned address
-      memcpy(&total_len, (uint8_t*) desc_config + offsetof(tusb_desc_configuration_t, wTotalLength), 2);
+      uint16_t const total_len = tu_le16toh( tu_unaligned_read16((uint8_t*) desc_config + offsetof(tusb_desc_configuration_t, wTotalLength)) );
 
-      return tud_control_xfer(rhport, p_request, (void*) desc_config, tu_le16toh(total_len));
+      return tud_control_xfer(rhport, p_request, (void*) desc_config, total_len);
     }
     break;
 
