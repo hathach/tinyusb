@@ -334,11 +334,7 @@ static bool process_edpt0_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t* buffer,
   pipe_state_t *pipe = &_dcd.pipe[0];
   /* configure fifo direction and access unit settings */
   if (ep_addr) { /* IN, 2 bytes */
-#if TU_BYTE_ORDER == TU_BIG_ENDIAN
-    USB0.CFIFOSEL.WORD = USB_FIFOSEL_TX | USB_FIFOSEL_MBW_16 | USB_FIFOSEL_BIGEND;
-#else
-    USB0.CFIFOSEL.WORD = USB_FIFOSEL_TX | USB_FIFOSEL_MBW_16;
-#endif
+    USB0.CFIFOSEL.WORD = USB_FIFOSEL_TX | USB_FIFOSEL_MBW_16 | (TU_BYTE_ORDER == TU_BIG_ENDIAN ? USB_FIFOSEL_BIGEND : 0);
     while (!(USB0.CFIFOSEL.WORD & USB_FIFOSEL_TX)) ;
   } else {       /* OUT, a byte */
     USB0.CFIFOSEL.WORD = USB_FIFOSEL_MBW_8;
@@ -413,11 +409,7 @@ static bool process_pipe_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t* buffer, 
   USB0.PIPESEL.WORD  = num;
   const unsigned mps = USB0.PIPEMAXP.WORD;
   if (dir) { /* IN */
-#if TU_BYTE_ORDER == TU_BIG_ENDIAN
-    USB0.D0FIFOSEL.WORD = num | USB_FIFOSEL_MBW_16 | USB_FIFOSEL_BIGEND;
-#else
-    USB0.D0FIFOSEL.WORD = num | USB_FIFOSEL_MBW_16;
-#endif
+    USB0.D0FIFOSEL.WORD = num | USB_FIFOSEL_MBW_16 | (TU_BYTE_ORDER == TU_BIG_ENDIAN ? USB_FIFOSEL_BIGEND : 0);
     while (USB0.D0FIFOSEL.BIT.CURPIPE != num) ;
     int r = fifo_write((void*)&USB0.D0FIFO.WORD, pipe, mps);
     if (r) USB0.D0FIFOCTR.WORD = USB_FIFOCTR_BVAL;
@@ -442,11 +434,7 @@ static void process_pipe_brdy(uint8_t rhport, unsigned num)
 {
   pipe_state_t *pipe = &_dcd.pipe[num];
   if (tu_edpt_dir(pipe->ep)) { /* IN */
-#if TU_BYTE_ORDER == TU_BIG_ENDIAN
-    select_pipe(num, USB_FIFOSEL_MBW_16 | USB_FIFOSEL_BIGEND);
-#else
-    select_pipe(num, USB_FIFOSEL_MBW_16);
-#endif
+    select_pipe(num, USB_FIFOSEL_MBW_16 | (TU_BYTE_ORDER == TU_BIG_ENDIAN ? USB_FIFOSEL_BIGEND : 0));
     const unsigned mps = USB0.PIPEMAXP.WORD;
     unsigned rem       = pipe->remaining;
     rem               -= TU_MIN(rem, mps);
@@ -527,7 +515,7 @@ static void process_set_address(uint8_t rhport)
 #else
       .bmRequestType = 0,
 #endif
-      .bRequest      = 5,
+      .bRequest      = TUSB_REQ_SET_ADDRESS,
       .wValue        = addr,
       .wIndex        = 0,
       .wLength       = 0,

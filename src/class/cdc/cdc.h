@@ -245,7 +245,7 @@ typedef struct TU_ATTR_PACKED
   uint8_t bDescriptorSubType              ;\
   uint8_t bControlInterface               ;\
   uint8_t bSubordinateInterface[no_slave] ;\
-}                                          \
+}
 
 /// Country Selection Functional Descriptor (Communication Interface)
 typedef struct TU_ATTR_PACKED
@@ -264,7 +264,7 @@ typedef struct TU_ATTR_PACKED
   uint8_t bDescriptorSubType        ;\
   uint8_t iCountryCodeRelDate       ;\
   uint16_t wCountryCode[no_country] ;\
-}                                    \
+}
 
 //--------------------------------------------------------------------+
 // PUBLIC SWITCHED TELEPHONE NETWORK (PSTN) SUBCLASS

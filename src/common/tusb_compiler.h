@@ -81,7 +81,6 @@
 
   #define TU_ATTR_PACKED_BEGIN
   #define TU_ATTR_PACKED_END
-
   #define TU_ATTR_BIT_FIELD_ORDER_BEGIN
   #define TU_ATTR_BIT_FIELD_ORDER_END
 
@@ -109,6 +108,11 @@
   #define TU_ATTR_UNUSED                __attribute__ ((unused))           // Function/Variable is meant to be possibly unused
   #define TU_ATTR_USED                  __attribute__ ((used))
 
+  #define TU_ATTR_PACKED_BEGIN
+  #define TU_ATTR_PACKED_END
+  #define TU_ATTR_BIT_FIELD_ORDER_BEGIN
+  #define TU_ATTR_BIT_FIELD_ORDER_END
+
   // __BYTE_ORDER is defined in the TI ARM compiler, but not MSP430 (which is little endian)
   #if ((__BYTE_ORDER__) == (__ORDER_LITTLE_ENDIAN__)) || defined(__MSP430__)
     #define TU_BYTE_ORDER TU_LITTLE_ENDIAN
@@ -130,6 +134,11 @@
   #define TU_ATTR_UNUSED                __attribute__ ((unused))           // Function/Variable is meant to be possibly unused
   #define TU_ATTR_USED                  __attribute__ ((used))             // Function/Variable is meant to be used
 
+  #define TU_ATTR_PACKED_BEGIN
+  #define TU_ATTR_PACKED_END
+  #define TU_ATTR_BIT_FIELD_ORDER_BEGIN
+  #define TU_ATTR_BIT_FIELD_ORDER_END
+
   // Endian conversion use well-known host to network (big endian) naming
   #if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
     #define TU_BYTE_ORDER TU_LITTLE_ENDIAN
@@ -150,11 +159,10 @@
   #define TU_ATTR_UNUSED
   #define TU_ATTR_USED
 
-  #define TU_ATTR_PACKED_BEGIN _Pragma("pack")
-  #define TU_ATTR_PACKED_END _Pragma("packoption")
-
+  #define TU_ATTR_PACKED_BEGIN          _Pragma("pack")
+  #define TU_ATTR_PACKED_END            _Pragma("packoption")
   #define TU_ATTR_BIT_FIELD_ORDER_BEGIN _Pragma("bit_order right")
-  #define TU_ATTR_BIT_FIELD_ORDER_END _Pragma("bit_order")
+  #define TU_ATTR_BIT_FIELD_ORDER_END   _Pragma("bit_order")
 
   // Endian conversion use well-known host to network (big endian) naming
   #if defined(__LIT)
