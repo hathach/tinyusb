@@ -32,7 +32,7 @@ The stack supports the following MCUs:
 
 - **Dialog:** DA1469x
 - **Espressif:** ESP32-S2, ESP32-S3
-- **MicroChip:** SAMD11, SAMD21, SAMD51, SAME5x, SAMG55, SAML21, SAML22, SAMx7x
+- **MicroChip:** SAMD11, SAMD21, SAMD51, SAME5x, SAMG55, SAML21, SAML22, SAME7x
 - **NordicSemi:** nRF52833, nRF52840
 - **Nuvoton:** NUC120, NUC121/NUC125, NUC126, NUC505
 - **NXP:**
