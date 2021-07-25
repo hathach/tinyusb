@@ -35,6 +35,7 @@ SRC_C += \
 	src/class/msc/msc_device.c \
 	src/class/net/net_device.c \
 	src/class/usbtmc/usbtmc_device.c \
+	src/class/video/video_device.c \
 	src/class/vendor/vendor_device.c
 
 # TinyUSB stack include

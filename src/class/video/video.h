@@ -29,6 +29,20 @@
 
 #include "common/tusb_common.h"
 
+/* 4.2.1.2 */
+typedef enum {
+  VIDEO_NO_ERROR = 0, /* The request succeeded. */
+  VIDEO_NOT_READY,
+  VIDEO_WRONG_STATE,
+  VIDEO_POWER,
+  VIDEO_OUT_OF_RANGE,
+  VIDEO_INVALID_UNIT,
+  VIDEO_INVALID_CONTROL,
+  VIDEO_INVALID_REQUEST,
+  VIDEO_INVALID_VALUE_WITHIN_RANGE,
+  VIDEO_UNKNOWN = 0xFF,
+} video_error_code_t;
+
 /* A.2 */
 typedef enum {
   VIDEO_SUBCLASS_UNDEFINED = 0x00,
@@ -103,13 +117,28 @@ typedef enum
   VIDEO_REQUEST_GET_DEF_ALL = 0x97
 } video_control_request_t;
 
-/* A.9 */
+/* A.9.1 */
 typedef enum
 {
-  VIDEO_CTL_SEL_UNDEF = 0x00,
-  VIDEO_CTL_SEL_VIDEO_POWER_MODE_CONTROL,
-  VIDEO_CTL_SEL_REQUEST_ERROR_CODE_CONTROL,
+  VIDEO_VC_CTL_UNDEF = 0x00,
+  VIDEO_VC_CTL_VIDEO_POWER_MODE,
+  VIDEO_VC_CTL_REQUEST_ERROR_CODE,
 } video_interface_control_selector_t;
+
+/* A.9.8 */
+typedef enum
+{
+  VIDEO_VS_CTL_UNDEF = 0x00,
+  VIDEO_VS_CTL_PROBE,
+  VIDEO_VS_CTL_COMMIT,
+  VIDEO_VS_CTL_STILL_PROBE,
+  VIDEO_VS_CTL_STILL_COMMIT,
+  VIDEO_VS_CTL_STILL_IMAGE_TRIGGER,
+  VIDEO_VS_CTL_STREAM_ERROR_CODE,
+  VIDEO_VS_CTL_GENERATE_KEY_FRAME,
+  VIDEO_VS_CTL_UPDATE_FRAME_SEGMENT,
+  VIDEO_VS_CTL_SYNCH_DELAY_CONTROL,
+} video_interface_streaming_selector_t;
 
 /* B. Terminal Types */
 typedef enum
@@ -193,7 +222,36 @@ typedef struct TU_ATTR_PACKED {
       uint8_t  bControlSize;
       uint8_t  bmaControls[];
     } output;
+  };
 } tusb_desc_cs_video_stm_itf_hdr_t;
+
+//--------------------------------------------------------------------+
+// Requests
+//--------------------------------------------------------------------+
+typedef struct TU_ATTR_PACKED {
+  uint16_t bmHint;
+  uint8_t  bFormatIndex;
+  uint8_t  bFrameIndex;
+  uint32_t dwFrameInterval;
+  uint16_t wKeyFrameRate;
+  uint16_t wPFrameRate;
+  uint16_t wCompQuality;
+  uint16_t wCompWindowSize;
+  uint16_t wDelay;
+  uint32_t dwMaxVideoFrameSize;
+  uint32_t dwMaxPayloadTransferSize;
+  uint32_t dwClockFrequency;
+  uint8_t  bmFramingInfo;
+  uint8_t  bPreferedVersion;
+  uint8_t  bMinVersion;
+  uint8_t  bMaxVersion;
+  uint8_t  bUsage;
+  uint8_t  bBitDepthLum;
+  uint8_t  bmSettings;
+  uint8_t  bMaxNumberOfRefFramesPlus1;
+  uint16_t bmRateControlModes;
+  uint64_t bmLayoutPerStream;
+} video_probe_and_commit_t;
 
 #define TUD_VIDEO_DESC_IAD_LEN                    8
 #define TUD_VIDEO_DESC_STD_VC_LEN                 9
@@ -225,18 +283,18 @@ typedef struct TU_ATTR_PACKED {
 /* 3.7.2 */
 #define TUD_VIDEO_DESC_CS_VC(_bcdUVC, _totallen, _clkfreq, _coll, ...)	\
   TUD_VIDEO_DESC_CS_VC_LEN + _coll, TUSB_DESC_CS_INTERFACE, VIDEO_CS_VC_INTERFACE_HEADER, \
-  U16_TO_U8S_LE(_bcdUVC), U16_TO_U8S_LE(_totallen + TUD_VIDEO_DESC_CS_AC_LEN), \
+  U16_TO_U8S_LE(_bcdUVC), U16_TO_U8S_LE(_totallen + TUD_VIDEO_DESC_CS_VC_LEN), \
   U32_TO_U8S_LE(_clkfreq), _coll, __VA_ARGS__
 
 /* 3.7.2.1 */
 #define TUD_VIDEO_DESC_INPUT_TERM(_tid, _tt, _at, _stridx) \
   TUD_VIDEO_DESC_INPUT_TERM_LEN, TUSB_DESC_CS_INTERFACE, VIDEO_CS_VC_INTERFACE_INPUT_TERMINAL, \
-    _tid, U16_TO_U8S_LE(_tt), _at, _ti
+    _tid, U16_TO_U8S_LE(_tt), _at, _stridx
 
 /* 3.7.2.2 */
 #define TUD_VIDEO_DESC_OUTPUT_TERM(_tid, _tt, _at, _srcid, _stridx) \
   TUD_VIDEO_DESC_INPUT_TERM_LEN, TUSB_DESC_CS_INTERFACE, VIDEO_CS_VC_INTERFACE_OUTPUT_TERMINAL, \
-    _tid, U16_TO_U8S_LE(_tt), _at, _ti
+    _tid, U16_TO_U8S_LE(_tt), _at, _stridx
 
 /* 3.9.1 */
 #define TUD_VIDEO_DESC_STD_VS(_itfnum, _alt, _epn, _stridx)   \
@@ -258,13 +316,14 @@ typedef struct TU_ATTR_PACKED {
   _epn, _inf, _termlnk,  _trgusg, _ctlsz, __VA_ARGS__
 
 /* Uncompressed 3.1.1 */
+#define TUD_VIDEO_GUID(_g0,_g1,_g2,_g3,_g4,_g5,_g6,_g7,_g8,_g9,_g10,_g11,_g12,_g13,_g14,_g15) _g0,_g1,_g2,_g3,_g4,_g5,_g6,_g7,_g8,_g9,_g10,_g11,_g12,_g13,_g14,_g15
 #define TUD_VIDEO_DESC_CS_VS_FMT_UNCOMPR(_fmtidx, _numfrmdesc, \
-  _g0,_g1,_g2,_g3,_g4,_g5,_g6,_g7,_g8,_g9,_g10,_g11,_g12,_g13,_g14,_g15, \
-  _bitsperpix, _frmidx, _asrx, _asry, _interlace, _cp) \
+  _guid, _bitsperpix, _frmidx, _asrx, _asry, _interlace, _cp) \
   TUD_VIDEO_DESC_CS_VS_FMT_UNCOMPR_LEN, TUSB_DESC_CS_INTERFACE, VIDEO_CS_VS_INTERFACE_FORMAT_UNCOMPRESSED, \
-  _fmtidx, _numfrmdesc,\
-  _g0,_g1,_g2,_g3,_g4,_g5,_g6,_g7,_g8,_g9,_g10,_g11,_g12,_g13,_g14,_g15,\
+  _fmtidx, _numfrmdesc, TUD_VIDEO_GUID(_guid), \
   _bitsperpix, _frmidx, _asrx,  _asry, _interlace, _cp
+
+//  _g0,_g1,_g2,_g3,_g4,_g5,_g6,_g7,_g8,_g9,_g10,_g11,_g12,_g13,_g14,_g15,
 
 /* Uncompressed 3.1.2 Table 3-3 */
 #define TUD_VIDEO_DESC_CS_VS_FRM_UNCOMPR_CONT(_frmidx, _cap, _width, _height, _minbr, _maxbr, _maxfrmbufsz, _frminterval, _minfrminterval, _maxfrminterval, _frmintervalstep) \
@@ -281,12 +340,12 @@ typedef struct TU_ATTR_PACKED {
   U32_TO_U8S_LE(_maxfrmbufsz), U32_TO_U8S_LE(_frminterval), _numfrminterval, __VA_ARGS__
 
 /* 3.10.1.1 */
-#define TUD_VIDEO_DESC_EP_ISO(_ep, _epsize, _ep_interval)
+#define TUD_VIDEO_DESC_EP_ISO(_ep, _epsize, _ep_interval) \
   7, TUSB_DESC_ENDPOINT, _ep, TUSB_XFER_ISOCHRONOUS | TUSB_ISO_EP_ATT_ASYNCHRONOUS,\
   U16_TO_U8S_LE(_epsize), _ep_interval
 
 /* 3.10.1.2 */
-#define TUD_VIDEO_DESC_EP_BULK(_ep, _epsize, _ep_interval)
+#define TUD_VIDEO_DESC_EP_BULK(_ep, _epsize, _ep_interval) \
   7, TUSB_DESC_ENDPOINT, _ep, TUSB_XFER_BULK, U16_TO_U8S_LE(_epsize), _ep_interval
 
 #endif
