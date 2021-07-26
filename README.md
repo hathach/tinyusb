@@ -1,6 +1,4 @@
-# TinyUSB
-
-![TinyUSB](https://user-images.githubusercontent.com/2847802/108847382-a0a6a580-75ad-11eb-96d9-280c79389281.png)
+![TinyUSB](docs/assets/logo.svg)
 
 [![Build Status](https://github.com/hathach/tinyusb/workflows/Build/badge.svg)](https://github.com/hathach/tinyusb/actions) [![License](https://img.shields.io/badge/license-MIT-brightgreen.svg)](https://opensource.org/licenses/MIT)
 
