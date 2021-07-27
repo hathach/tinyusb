@@ -104,6 +104,7 @@ Notable contributors
 ----------------------------------------------
 
 -  Add new DCD port for Silabs EFM32GG12 with SLTB009A board
+-  Rewrite documentation in rst and setup for readthedocs
 
 
 `Raspberry Pi Team <https://github.com/raspberrypi>`__
