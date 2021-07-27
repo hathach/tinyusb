@@ -100,12 +100,14 @@
 #define OTG_FS_VBUS_SENSE 1
 #define OTG_HS_VBUS_SENSE 0
 
+
 //--------------------------------------------------------------------+
 // MACRO TYPEDEF CONSTANT ENUM
 //--------------------------------------------------------------------+
 
 UART_HandleTypeDef uartHandle;
 TIM_HandleTypeDef tim2Handle;
+
 
 //--------------------------------------------------------------------+
 // Forward USB interrupt events to TinyUSB IRQ Handler
@@ -124,6 +126,7 @@ void OTG_HS_IRQHandler(void)
 {
   tud_int_handler(1);
 }
+
 
 //--------------------------------------------------------------------+
 // RCC Clock
@@ -230,17 +233,19 @@ static void init_timer(void)
   return;
 }
 
-//Custom board delay implementation using timer ticks
+
+// Custom board delay implementation using timer ticks
 static inline void timer_board_delay(uint32_t ms)
 {
   uint32_t startMs = __HAL_TIM_GET_COUNTER(&tim2Handle);
   while ((__HAL_TIM_GET_COUNTER(&tim2Handle) - startMs) < ms)
   {
-    asm("nop");
+    asm("nop"); //do nothing
   }
 }
 
 
+//Board initialisation
 void board_init(void)
 {
   GPIO_InitTypeDef GPIO_InitStruct;
@@ -418,11 +423,11 @@ void board_init(void)
 
 #endif // rhport = 1
 
-  //Disable the timer use for delays
+  //Disable the timer used for delays
   HAL_TIM_Base_Stop(&tim2Handle);
   __HAL_RCC_TIM2_CLK_DISABLE();
 
-  // 1ms tick timer
+  // Configure systick 1ms tick timer
   SysTick_Config(SystemCoreClock / 1000);
 
   //Enable systick
@@ -431,19 +436,21 @@ void board_init(void)
   return;
 }
 
+
 //--------------------------------------------------------------------+
 // Board porting API
 //--------------------------------------------------------------------+
-
 void board_led_write(bool state)
 {
   HAL_GPIO_WritePin(LED_PORT, LED_PIN, state ? LED_STATE_ON : (1 - LED_STATE_ON));
 }
 
+
 uint32_t board_button_read(void)
 {
   return (BUTTON_STATE_ACTIVE == HAL_GPIO_ReadPin(BUTTON_PORT, BUTTON_PIN)) ? 1 : 0;
 }
+
 
 int board_uart_read(uint8_t *buf, int len)
 {
@@ -452,11 +459,13 @@ int board_uart_read(uint8_t *buf, int len)
   return 0;
 }
 
+
 int board_uart_write(void const *buf, int len)
 {
   HAL_UART_Transmit(&uartHandle, (uint8_t *)buf, len, 0xffff);
   return len;
 }
+
 
 #if CFG_TUSB_OS == OPT_OS_NONE
 volatile uint32_t system_ticks = 0;
@@ -465,16 +474,19 @@ void SysTick_Handler(void)
   system_ticks++;
 }
 
+
 uint32_t board_millis(void)
 {
   return system_ticks;
 }
 #endif
 
+
 void HardFault_Handler(void)
 {
   asm("bkpt");
 }
+
 
 // Required by __libc_init_array in startup code if we are compiling using
 // -nostdlib/-nostartfiles.
