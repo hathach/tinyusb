@@ -1,20 +1,25 @@
-.. TinyUSB documentation master file, created by
-   sphinx-quickstart on Mon Jul 26 17:17:52 2021.
-   You can adapt this file completely to your liking, but it should at least
-   contain the root `toctree` directive.
+:hide-toc:
 
-Welcome to TinyUSB's documentation!
-===================================
+*********
+TinyUSB
+*********
+
+TinyUSB is an open-source cross-platform USB Host/Device stack for embedded systems,
+designed to be memory-safe with no dynamic allocation and thread-safe with all interrupt events being deferred and then handled in the non-ISR task function.
+
 
 .. toctree::
-   :maxdepth: 2
-   :caption: Contents:
+   :caption: Index
+   :hidden:
 
+   Info <info/index>
+   Reference <reference/index>
+   Contributing <contributing/index>
 
+.. toctree::
+   :caption: External Links
+   :hidden:
 
-Indices and tables
-==================
-
-* :ref:`genindex`
-* :ref:`modindex`
-* :ref:`search`
+   Source Code <https://github.com/hathach/tinyusb>
+   Issue Tracker <https://github.com/hathach/tinyusb/issues>
+   Discussions <https://github.com/hathach/tinyusb/discussions>
