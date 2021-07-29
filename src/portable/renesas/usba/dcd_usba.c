@@ -2,6 +2,7 @@
  * The MIT License (MIT)
  *
  * Copyright (c) 2020 Koji Kitayama
+ * Portions copyrighted (c) 2021 Roland Winistoerfer
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -27,7 +28,8 @@
 #include "tusb_option.h"
 
 #if TUSB_OPT_DEVICE_ENABLED && ( CFG_TUSB_MCU == OPT_MCU_RX63X || \
-                                 CFG_TUSB_MCU == OPT_MCU_RX65X)
+                                 CFG_TUSB_MCU == OPT_MCU_RX65X || \
+                                 CFG_TUSB_MCU == OPT_MCU_RX72N )
 #include "device/dcd.h"
 #include "iodefine.h"
 
@@ -38,6 +40,7 @@
 #define SYSTEM_PRCR_PRKEY    (0xA5u<<8)
 
 #define USB_FIFOSEL_TX       ((uint16_t)(1u<<5))
+#define USB_FIFOSEL_BIGEND   ((uint16_t)(1u<<8))
 #define USB_FIFOSEL_MBW_8    ((uint16_t)(0u<<10))
 #define USB_FIFOSEL_MBW_16   ((uint16_t)(1u<<10))
 #define USB_IS0_CTSQ         ((uint16_t)(7u))
@@ -92,6 +95,10 @@
 #define FIFO_REQ_CLR         (1u)
 #define FIFO_COMPLETE        (1u<<1)
 
+// Start of definition of packed structs (used by the CCRX toolchain)
+TU_ATTR_PACKED_BEGIN
+TU_ATTR_BIT_FIELD_ORDER_BEGIN
+
 typedef struct {
   union {
     struct {
@@ -124,9 +131,12 @@ typedef struct TU_ATTR_PACKED
   };
 } pipe_state_t;
 
+TU_ATTR_PACKED_END  // End of definition of packed structs (used by the CCRX toolchain)
+TU_ATTR_BIT_FIELD_ORDER_END
+
 typedef struct
 {
-  pipe_state_t pipe[9];
+  pipe_state_t pipe[10];
   uint8_t ep[2][16];   /* a lookup table for a pipe index from an endpoint address */
   uint8_t suspended;
 } dcd_data_t;
@@ -134,19 +144,28 @@ typedef struct
 //--------------------------------------------------------------------+
 // INTERNAL OBJECT & FUNCTION DECLARATION
 //--------------------------------------------------------------------+
-CFG_TUSB_MEM_SECTION static dcd_data_t _dcd;
+static dcd_data_t _dcd;
 
 static uint32_t disable_interrupt(void)
 {
   uint32_t pswi;
+#if defined(__CCRX__)
+  pswi = get_psw() & 0x010000;
+  clrpsw_i();
+#else
   pswi = __builtin_rx_mvfc(0) & 0x010000;
   __builtin_rx_clrpsw('I');
+#endif
   return pswi;
 }
 
 static void enable_interrupt(uint32_t pswi)
 {
+#if defined(__CCRX__)
+  set_psw(get_psw() | pswi);
+#else
   __builtin_rx_mvtc(0, __builtin_rx_mvfc(0) | pswi);
+#endif
 }
 
 static unsigned find_pipe(unsigned xfer)
@@ -230,7 +249,7 @@ static unsigned select_pipe(unsigned num, unsigned attr)
 {
   USB0.PIPESEL.WORD  = num;
   USB0.D0FIFOSEL.WORD = num | attr;
-  while (!(USB0.D0FIFOSEL.BIT.CURPIPE != num)) ;
+  while (USB0.D0FIFOSEL.BIT.CURPIPE != num) ;
   return wait_for_pipe_ready();
 }
 
@@ -245,12 +264,6 @@ static int fifo_write(volatile void *fifo, pipe_state_t* pipe, unsigned mps)
 
   hw_fifo_t *reg = (hw_fifo_t*)fifo;
   uintptr_t addr = pipe->addr + pipe->length - rem;
-  if (addr & 1u) {
-    /* addr is not 2-byte aligned */
-    reg->u8 = *(const uint8_t *)addr;
-    ++addr;
-    --len;
-  }
   while (len >= 2) {
     reg->u16 = *(const uint16_t *)addr;
     addr += 2;
@@ -274,11 +287,11 @@ static int fifo_read(volatile void *fifo, pipe_state_t* pipe, unsigned mps, size
   if (rem < len) len = rem;
   pipe->remaining = rem - len;
 
-  hw_fifo_t *reg = (hw_fifo_t*)fifo;
+  uint8_t *reg = (uint8_t*)fifo;  /* byte access is always at base register address */
   uintptr_t addr = pipe->addr;
   unsigned  loop = len;
   while (loop--) {
-    *(uint8_t *)addr = reg->u8;
+    *(uint8_t *)addr = *reg;
     ++addr;
   }
   pipe->addr = addr;
@@ -292,7 +305,7 @@ static void process_setup_packet(uint8_t rhport)
   uint16_t setup_packet[4];
   if (0 == (USB0.INTSTS0.WORD & USB_IS0_VALID)) return;
   USB0.CFIFOCTR.WORD = USB_FIFOCTR_BCLR;
-  setup_packet[0] = USB0.USBREQ.WORD;
+  setup_packet[0] = tu_le16toh(USB0.USBREQ.WORD);
   setup_packet[1] = USB0.USBVAL;
   setup_packet[2] = USB0.USBINDX;
   setup_packet[3] = USB0.USBLENG;
@@ -321,7 +334,7 @@ static bool process_edpt0_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t* buffer,
   pipe_state_t *pipe = &_dcd.pipe[0];
   /* configure fifo direction and access unit settings */
   if (ep_addr) { /* IN, 2 bytes */
-    USB0.CFIFOSEL.WORD = USB_FIFOSEL_TX | USB_FIFOSEL_MBW_16;
+    USB0.CFIFOSEL.WORD = USB_FIFOSEL_TX | USB_FIFOSEL_MBW_16 | (TU_BYTE_ORDER == TU_BIG_ENDIAN ? USB_FIFOSEL_BIGEND : 0);
     while (!(USB0.CFIFOSEL.WORD & USB_FIFOSEL_TX)) ;
   } else {       /* OUT, a byte */
     USB0.CFIFOSEL.WORD = USB_FIFOSEL_MBW_8;
@@ -333,7 +346,7 @@ static bool process_edpt0_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t* buffer,
     pipe->remaining = total_bytes;
     if (ep_addr) { /* IN */
       TU_ASSERT(USB0.DCPCTR.BIT.BSTS && (USB0.USBREQ.WORD & 0x80));
-      if (fifo_write(&USB0.CFIFO.WORD, pipe, 64)) {
+      if (fifo_write((void*)&USB0.CFIFO.WORD, pipe, 64)) {
         USB0.CFIFOCTR.WORD = USB_FIFOCTR_BVAL;
       }
     }
@@ -354,7 +367,7 @@ static void process_edpt0_bemp(uint8_t rhport)
   const unsigned rem = pipe->remaining;
   if (rem > 64) {
     pipe->remaining = rem - 64;
-    int r = fifo_write(&USB0.CFIFO.WORD, &_dcd.pipe[0], 64);
+    int r = fifo_write((void*)&USB0.CFIFO.WORD, &_dcd.pipe[0], 64);
     if (r) USB0.CFIFOCTR.WORD = USB_FIFOCTR_BVAL;
     return;
   }
@@ -367,7 +380,7 @@ static void process_edpt0_bemp(uint8_t rhport)
 static void process_edpt0_brdy(uint8_t rhport)
 {
   size_t len = USB0.CFIFOCTR.BIT.DTLN;
-  int cplt = fifo_read(&USB0.CFIFO.WORD, &_dcd.pipe[0], 64, len);
+  int cplt = fifo_read((void*)&USB0.CFIFO.WORD, &_dcd.pipe[0], 64, len);
   if (cplt || (len < 64)) {
     if (2 != cplt) {
       USB0.CFIFOCTR.WORD = USB_FIFOCTR_BCLR;
@@ -396,11 +409,12 @@ static bool process_pipe_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t* buffer, 
   USB0.PIPESEL.WORD  = num;
   const unsigned mps = USB0.PIPEMAXP.WORD;
   if (dir) { /* IN */
-    USB0.D0FIFOSEL.WORD = num | USB_FIFOSEL_MBW_16;
-    while (!(USB0.D0FIFOSEL.BIT.CURPIPE != num)) ;
-    int r = fifo_write(&USB0.D0FIFO.WORD, pipe, mps);
+    USB0.D0FIFOSEL.WORD = num | USB_FIFOSEL_MBW_16 | (TU_BYTE_ORDER == TU_BIG_ENDIAN ? USB_FIFOSEL_BIGEND : 0);
+    while (USB0.D0FIFOSEL.BIT.CURPIPE != num) ;
+    int r = fifo_write((void*)&USB0.D0FIFO.WORD, pipe, mps);
     if (r) USB0.D0FIFOCTR.WORD = USB_FIFOCTR_BVAL;
     USB0.D0FIFOSEL.WORD = 0;
+    while (USB0.D0FIFOSEL.BIT.CURPIPE) ; /* if CURPIPE bits changes, check written value */
   } else {
     volatile reg_pipetre_t *pt = get_pipetre(num);
     if (pt) {
@@ -420,19 +434,21 @@ static void process_pipe_brdy(uint8_t rhport, unsigned num)
 {
   pipe_state_t *pipe = &_dcd.pipe[num];
   if (tu_edpt_dir(pipe->ep)) { /* IN */
-    select_pipe(num, USB_FIFOSEL_MBW_16);
+    select_pipe(num, USB_FIFOSEL_MBW_16 | (TU_BYTE_ORDER == TU_BIG_ENDIAN ? USB_FIFOSEL_BIGEND : 0));
     const unsigned mps = USB0.PIPEMAXP.WORD;
     unsigned rem       = pipe->remaining;
     rem               -= TU_MIN(rem, mps);
     pipe->remaining    = rem;
     if (rem) {
       int r = 0;
-      r = fifo_write(&USB0.D0FIFO.WORD, pipe, mps);
+      r = fifo_write((void*)&USB0.D0FIFO.WORD, pipe, mps);
       if (r) USB0.D0FIFOCTR.WORD = USB_FIFOCTR_BVAL;
       USB0.D0FIFOSEL.WORD = 0;
+      while (USB0.D0FIFOSEL.BIT.CURPIPE) ; /* if CURPIPE bits changes, check written value */
       return;
     }
     USB0.D0FIFOSEL.WORD = 0;
+    while (USB0.D0FIFOSEL.BIT.CURPIPE) ; /* if CURPIPE bits changes, check written value */
     pipe->addr      = 0;
     pipe->remaining = 0;
     dcd_event_xfer_complete(rhport, pipe->ep, pipe->length,
@@ -441,18 +457,20 @@ static void process_pipe_brdy(uint8_t rhport, unsigned num)
     const unsigned ctr = select_pipe(num, USB_FIFOSEL_MBW_8);
     const unsigned len = ctr & USB_FIFOCTR_DTLN;
     const unsigned mps = USB0.PIPEMAXP.WORD;
-    int cplt = fifo_read(&USB0.D0FIFO.WORD, pipe, mps, len);
+    int cplt = fifo_read((void*)&USB0.D0FIFO.WORD, pipe, mps, len);
     if (cplt || (len < mps)) {
       if (2 != cplt) {
         USB0.D0FIFO.WORD = USB_FIFOCTR_BCLR;
       }
       USB0.D0FIFOSEL.WORD = 0;
+      while (USB0.D0FIFOSEL.BIT.CURPIPE) ; /* if CURPIPE bits changes, check written value */
       dcd_event_xfer_complete(rhport, pipe->ep,
                               pipe->length - pipe->remaining,
                               XFER_RESULT_SUCCESS, true);
       return;
     }
     USB0.D0FIFOSEL.WORD = 0;
+    while (USB0.D0FIFOSEL.BIT.CURPIPE) ; /* if CURPIPE bits changes, check written value */
   }
 }
 
@@ -462,7 +480,9 @@ static void process_bus_reset(uint8_t rhport)
   USB0.BRDYENB.WORD   = 1;
   USB0.CFIFOCTR.WORD  = USB_FIFOCTR_BCLR;
   USB0.D0FIFOSEL.WORD = 0;
+  while (USB0.D0FIFOSEL.BIT.CURPIPE) ; /* if CURPIPE bits changes, check written value */
   USB0.D1FIFOSEL.WORD = 0;
+  while (USB0.D1FIFOSEL.BIT.CURPIPE) ; /* if CURPIPE bits changes, check written value */
   volatile uint16_t *ctr = (volatile uint16_t*)((uintptr_t)(&USB0.PIPE1CTR.WORD));
   volatile uint16_t *tre = (volatile uint16_t*)((uintptr_t)(&USB0.PIPE1TRE.WORD));
   for (int i = 1; i <= 5; ++i) {
@@ -490,12 +510,16 @@ static void process_set_address(uint8_t rhport)
   const uint32_t addr = USB0.USBADDR.BIT.USBADDR;
   if (!addr) return;
   const tusb_control_request_t setup_packet = {
-    .bmRequestType = 0,
-    .bRequest      = 5,
-    .wValue        = addr,
-    .wIndex        = 0,
-    .wLength       = 0,
-  };
+#if defined(__CCRX__)
+      .bmRequestType = { 0 },  /* Note: CCRX needs the braces over this struct member */
+#else
+      .bmRequestType = 0,
+#endif
+      .bRequest      = TUSB_REQ_SET_ADDRESS,
+      .wValue        = addr,
+      .wIndex        = 0,
+      .wLength       = 0,
+    };
   dcd_event_setup_received(rhport, (const uint8_t*)&setup_packet, true);
 }
 
@@ -517,7 +541,13 @@ void dcd_init(uint8_t rhport)
   USB0.SYSCFG.BIT.DCFM = 0;
   USB0.SYSCFG.BIT.USBE = 1;
 
+  USB.DPUSR0R.BIT.FIXPHY0 = 0u;    /* USB0 Transceiver Output fixed */
+#if ( CFG_TUSB_MCU == OPT_MCU_RX72N )
+  USB0.PHYSLEW.LONG = 0x5;
+  IR(PERIB, INTB185) = 0;
+#else
   IR(USB0, USBI0)   = 0;
+#endif
 
   /* Setup default control pipe */
   USB0.DCPMAXP.BIT.MXPS  = 64;
@@ -534,13 +564,21 @@ void dcd_init(uint8_t rhport)
 void dcd_int_enable(uint8_t rhport)
 {
   (void)rhport;
+#if ( CFG_TUSB_MCU == OPT_MCU_RX72N )
+  IEN(PERIB, INTB185) = 1;
+#else
   IEN(USB0, USBI0) = 1;
+#endif
 }
 
 void dcd_int_disable(uint8_t rhport)
 {
   (void)rhport;
+#if ( CFG_TUSB_MCU == OPT_MCU_RX72N )
+  IEN(PERIB, INTB185) = 0;
+#else
   IEN(USB0, USBI0) = 0;
+#endif
 }
 
 void dcd_set_address(uint8_t rhport, uint8_t dev_addr)
@@ -579,7 +617,7 @@ bool dcd_edpt_open(uint8_t rhport, tusb_desc_endpoint_t const * ep_desc)
   const unsigned dir     = tu_edpt_dir(ep_addr);
   const unsigned xfer    = ep_desc->bmAttributes.xfer;
 
-  const unsigned mps = ep_desc->wMaxPacketSize.size;
+  const unsigned mps = tu_le16toh(ep_desc->wMaxPacketSize.size);
   if (xfer == TUSB_XFER_ISOCHRONOUS && mps > 256) {
     /* USBa supports up to 256 bytes */
     return false;
@@ -685,8 +723,8 @@ void dcd_int_handler(uint8_t rhport)
   (void)rhport;
 
   unsigned is0 = USB0.INTSTS0.WORD;
-  /* clear bits except VALID */
-  USB0.INTSTS0.WORD = USB_IS0_VALID;
+  /* clear active bits except VALID (don't write 0 to already cleared bits according to the HW manual) */
+  USB0.INTSTS0.WORD = ~((USB_IS0_CTRT | USB_IS0_DVST | USB_IS0_SOFR | USB_IS0_RESM | USB_IS0_VBINT) & is0) | USB_IS0_VALID;
   if (is0 & USB_IS0_VBINT) {
     if (USB0.INTSTS0.BIT.VBSTS) {
       dcd_connect(rhport);
@@ -747,13 +785,24 @@ void dcd_int_handler(uint8_t rhport)
   if (is0 & USB_IS0_BRDY) {
     const unsigned m = USB0.BRDYENB.WORD;
     unsigned s       = USB0.BRDYSTS.WORD & m;
-    USB0.BRDYSTS.WORD = 0;
+    /* clear active bits (don't write 0 to already cleared bits according to the HW manual) */
+    USB0.BRDYSTS.WORD = ~s;
     if (s & 1) {
       process_edpt0_brdy(rhport);
       s &= ~1;
     }
     while (s) {
+#if defined(__CCRX__)
+      static const int Mod37BitPosition[] = {
+        -1, 0, 1, 26, 2, 23, 27, 0, 3, 16, 24, 30, 28, 11, 0, 13, 4,
+        7, 17, 0, 25, 22, 31, 15, 29, 10, 12, 6, 0, 21, 14, 9, 5,
+        20, 8, 19, 18
+      };
+
+      const unsigned num = Mod37BitPosition[(-s & s) % 37];
+#else
       const unsigned num = __builtin_ctz(s);
+#endif
       process_pipe_brdy(rhport, num);
       s &= ~TU_BIT(num);
     }
