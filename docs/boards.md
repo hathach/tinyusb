@@ -170,6 +170,7 @@ This code base already had supported for a handful of following boards (sorted a
 - [STM32 H743zi Nucleo](https://www.st.com/en/evaluation-tools/nucleo-h743zi.html)
 - [STM32 H743i Evaluation](https://www.st.com/en/evaluation-tools/stm32h743i-eval.html)
 - [STM32 H745i Discovery](https://www.st.com/en/evaluation-tools/stm32h745i-disco.html)
+- [Waveshare OpenH743I-C](https://www.waveshare.com/openh743i-c-standard.htm)
 
 ### TI
 
