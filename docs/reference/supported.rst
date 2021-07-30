@@ -323,6 +323,7 @@ ST STM32
 -  `STM32 H743zi Nucleo <https://www.st.com/en/evaluation-tools/nucleo-h743zi.html>`__
 -  `STM32 H743i Evaluation <https://www.st.com/en/evaluation-tools/stm32h743i-eval.html>`__
 -  `STM32 H745i Discovery <https://www.st.com/en/evaluation-tools/stm32h745i-disco.html>`__
+-  `Waveshare OpenH743I-C <https://www.waveshare.com/openh743i-c-standard.htm>`__
 
 TI
 --
