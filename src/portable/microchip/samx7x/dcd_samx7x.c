@@ -94,6 +94,18 @@ static const tusb_desc_endpoint_t ep0_desc =
   .wMaxPacketSize   = { .size = CFG_TUD_ENDPOINT0_SIZE },
 };
 
+TU_ATTR_ALWAYS_INLINE static inline void CleanInValidateCache(uint32_t *addr, int32_t size)
+{
+  if (SCB->CCR & SCB_CCR_DC_Msk)
+  {
+    SCB_CleanInvalidateDCache_by_Addr(addr, size);
+  }
+  else
+  {
+    __DSB();
+    __ISB();
+  }
+}
 //------------------------------------------------------------------
 // Device API
 //------------------------------------------------------------------
@@ -141,8 +153,6 @@ void dcd_connect(uint8_t rhport)
 {
   (void) rhport;
   dcd_int_disable(rhport);
-  // Enable USB clock
-  PMC->PMC_PCER1 = 1 << (ID_USBHS - 32);
   // Enable the USB controller in device mode
   USBHS->USBHS_CTRL = USBHS_CTRL_UIMOD | USBHS_CTRL_USBE;
   while (USBHS_SR_CLKUSABLE != (USBHS->USBHS_SR & USBHS_SR_CLKUSABLE));
@@ -602,6 +612,9 @@ bool dcd_edpt_xfer (uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t 
   
   if (EP_DMA_SUPPORT(epnum) && total_bytes != 0)
   {
+    // Force the CPU to flush the buffer. We increase the size by 32 because the call aligns the
+    // address to 32-byte boundaries.
+    CleanInValidateCache((uint32_t*) tu_align((uint32_t) buffer, 4), total_bytes + 31);
     uint32_t udd_dma_ctrl = USBHS_DEVDMACONTROL_BUFF_LENGTH(total_bytes);
     if (dir == TUSB_DIR_OUT)
     {
@@ -679,16 +692,23 @@ bool dcd_edpt_xfer_fifo (uint8_t rhport, uint8_t ep_addr, tu_fifo_t * ff, uint16
       udd_dma_ctrl_wrap |= USBHS_DEVDMACONTROL_END_B_EN;
     }
 
+    // Clean invalidate cache of linear part
+    CleanInValidateCache((uint32_t*) tu_align((uint32_t) info.ptr_lin, 4), info.len_lin + 31);
+    
     USBHS->UsbhsDevdma[epnum - 1].USBHS_DEVDMAADDRESS = (uint32_t)info.ptr_lin;
     if (info.len_wrap)
     {
+      // Clean invalidate cache of wrapped part
+      CleanInValidateCache((uint32_t*) tu_align((uint32_t) info.ptr_wrap, 4), info.len_wrap + 31);
+      
       dma_desc[epnum - 1].next_desc = 0;
       dma_desc[epnum - 1].buff_addr = (uint32_t)info.ptr_wrap;
       dma_desc[epnum - 1].chnl_ctrl =
         udd_dma_ctrl_wrap | USBHS_DEVDMACONTROL_BUFF_LENGTH(info.len_wrap);
+      // Clean cache of wrapped DMA descriptor
+      CleanInValidateCache((uint32_t*)&dma_desc[epnum - 1], sizeof(dma_desc_t));
+      
       udd_dma_ctrl_lin |= USBHS_DEVDMASTATUS_DESC_LDST;
-      __DSB();
-      __ISB();
       USBHS->UsbhsDevdma[epnum - 1].USBHS_DEVDMANXTDSC = (uint32_t)&dma_desc[epnum - 1];
     } else {
       udd_dma_ctrl_lin |= USBHS_DEVDMACONTROL_END_BUFFIT;
