@@ -313,9 +313,9 @@ static bool pipe0_xfer_in(void)
   void          *buf = pipe->buf;
   if (len) {
     if (pipe->ff) {
-      pipe_read_write_packet_ff((tu_fifo_t*)buf, &USB0.CFIFO.WORD, len, TUSB_DIR_IN);
+      pipe_read_write_packet_ff((tu_fifo_t*)buf, (volatile void*)&USB0.CFIFO.WORD, len, TUSB_DIR_IN);
     } else {
-      pipe_write_packet(buf, &USB0.CFIFO.WORD, len);
+      pipe_write_packet(buf, (volatile void*)&USB0.CFIFO.WORD, len);
       pipe->buf = (uint8_t*)buf + len;
     }
   }
@@ -335,9 +335,9 @@ static bool pipe0_xfer_out(void)
   void          *buf = pipe->buf;
   if (len) {
     if (pipe->ff) {
-      pipe_read_write_packet_ff((tu_fifo_t*)buf, &USB0.CFIFO.WORD, len, TUSB_DIR_OUT);
+      pipe_read_write_packet_ff((tu_fifo_t*)buf, (volatile void*)&USB0.CFIFO.WORD, len, TUSB_DIR_OUT);
     } else {
-      pipe_read_packet(buf, &USB0.CFIFO.WORD, len);
+      pipe_read_packet(buf, (volatile void*)&USB0.CFIFO.WORD, len);
       pipe->buf = (uint8_t*)buf + len;
     }
   }
@@ -360,16 +360,16 @@ static bool pipe_xfer_in(unsigned num)
     return true;
   }
 
-  USB0.D0FIFOSEL.WORD = num | USB_FIFOSEL_MBW_16;
+  USB0.D0FIFOSEL.WORD = num | USB_FIFOSEL_MBW_16 | (TU_BYTE_ORDER == TU_BIG_ENDIAN ? USB_FIFOSEL_BIGEND : 0);
   const unsigned mps  = edpt_max_packet_size(num);
   pipe_wait_for_ready(num);
   const unsigned len  = TU_MIN(rem, mps);
   void          *buf  = pipe->buf;
   if (len) {
     if (pipe->ff) {
-      pipe_read_write_packet_ff((tu_fifo_t*)buf, &USB0.D0FIFO.WORD, len, TUSB_DIR_IN);
+      pipe_read_write_packet_ff((tu_fifo_t*)buf, (volatile void*)&USB0.D0FIFO.WORD, len, TUSB_DIR_IN);
     } else {
-      pipe_write_packet(buf, &USB0.D0FIFO.WORD, len);
+      pipe_write_packet(buf, (volatile void*)&USB0.D0FIFO.WORD, len);
       pipe->buf = (uint8_t*)buf + len;
     }
   }
@@ -393,9 +393,9 @@ static bool pipe_xfer_out(unsigned num)
   void          *buf  = pipe->buf;
   if (len) {
     if (pipe->ff) {
-      pipe_read_write_packet_ff((tu_fifo_t*)buf, &USB0.D0FIFO.WORD, len, TUSB_DIR_OUT);
+      pipe_read_write_packet_ff((tu_fifo_t*)buf, (volatile void*)&USB0.D0FIFO.WORD, len, TUSB_DIR_OUT);
     } else {
-      pipe_read_packet(buf, &USB0.D0FIFO.WORD, len);
+      pipe_read_packet(buf, (volatile void*)&USB0.D0FIFO.WORD, len);
       pipe->buf = (uint8_t*)buf + len;
     }
   }
@@ -488,6 +488,7 @@ static bool process_pipe_xfer(int buffer_type, uint8_t ep_addr, void* buffer, ui
       pipe_wait_for_ready(num);
       USB0.D0FIFOCTR.WORD = USB_FIFOCTR_BVAL;
       USB0.D0FIFOSEL.WORD = 0;
+      while (USB0.D0FIFOSEL.BIT.CURPIPE) ; /* if CURPIPE bits changes, check written value */
     }
   } else {
     volatile reg_pipetre_t *pt = get_pipetre(num);
