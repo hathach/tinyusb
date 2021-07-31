@@ -46,6 +46,8 @@ TU_ATTR_WEAK bool tud_video_set_cur_cb(uint8_t rhport, tusb_control_request_t co
 // Invoked when GET_CUR request received
 TU_ATTR_WEAK bool tud_video_get_cur_cb(uint8_t rhport, tusb_control_request_t const *request);
 
+/* @return video_error_code_t */
+TU_ATTR_WEAK int tud_video_power_mode_cb(unsigned itf, uint8_t power_mod);
 //--------------------------------------------------------------------+
 // INTERNAL USBD-CLASS DRIVER API
 //--------------------------------------------------------------------+

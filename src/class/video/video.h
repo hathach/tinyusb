@@ -228,8 +228,17 @@ typedef struct TU_ATTR_PACKED {
 //--------------------------------------------------------------------+
 // Requests
 //--------------------------------------------------------------------+
+
+/* 4.3.1.1 */
 typedef struct TU_ATTR_PACKED {
-  uint16_t bmHint;
+  struct TU_ATTR_PACKEDt {
+    uint16_t dwFrameInterval: 1;
+    uint16_t wKeyFrameRatel : 1;
+    uint16_t wPFrameRate    : 1;
+    uint16_t wCompQuality   : 1;
+    uint16_t wCompWindowSize: 1;
+    uint16_t                : 0;
+  } bmHint;
   uint8_t  bFormatIndex;
   uint8_t  bFrameIndex;
   uint32_t dwFrameInterval;
@@ -241,7 +250,12 @@ typedef struct TU_ATTR_PACKED {
   uint32_t dwMaxVideoFrameSize;
   uint32_t dwMaxPayloadTransferSize;
   uint32_t dwClockFrequency;
-  uint8_t  bmFramingInfo;
+  struct TU_ATTR_PACKED {
+    uint8_t FrameID   : 1;
+    uint8_t EndOfFrame: 1;
+    uint8_t EndOfSlice: 1;
+    uint8_t           : 0;
+  } bmFramingInfo;
   uint8_t  bPreferedVersion;
   uint8_t  bMinVersion;
   uint8_t  bMaxVersion;
