@@ -619,7 +619,7 @@ void dcd_int_handler(uint8_t rhport)
   }
 
   if (int_status & INTR_NAK) {}
-  if (int_status & INTR_ERROR) {}
+  if (int_status & INTR_ERROR) TU_ASSERT(false, );
 }
 
 #endif
