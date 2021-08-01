@@ -183,7 +183,7 @@ static void const* _find_desc_itf(void const *beg, void const *end, unsigned itf
 static void const* _find_desc_entity(tusb_desc_vc_itf_t const *vc, unsigned entityid)
 {
   void const *beg = (void const*)vc;
-  void const *end = beg + vc->std.bLength + vc->ctl.bLength + vc->ctl.wTotalLength;
+  void const *end = beg + vc->std.bLength + vc->ctl.wTotalLength;
   for (void const *cur = beg; cur < end; cur = _find_desc(cur, end, TUSB_DESC_CS_INTERFACE)) {
     tusb_desc_cs_video_entity_itf_t const *itf = (tusb_desc_cs_video_entity_itf_t const *)cur;
     if ((VIDEO_CS_VC_INTERFACE_INPUT_TERMINAL  == itf->bDescriptorSubtype ||
@@ -206,7 +206,7 @@ static bool _close_vc_itf(uint8_t rhport, videod_interface_t *self)
   /* The next descriptor after the class-specific VC interface header descriptor. */
   void const *cur = (void const*)vc + vc->std.bLength + vc->ctl.bLength;
   /* The end of the video control interface descriptor. */
-  void const *end = cur + vc->ctl.wTotalLength;
+  void const *end = (void const*)vc + vc->std.bLength + vc->ctl.wTotalLength;
   if (vc->std.bNumEndpoints) {
     /* Find the notification endpoint descriptor. */
     cur = _find_desc(cur, end, TUSB_DESC_ENDPOINT);
@@ -224,21 +224,25 @@ static bool _close_vc_itf(uint8_t rhport, videod_interface_t *self)
  * @param[in]     altnum   The target alternate setting number. */
 static bool _open_vc_itf(uint8_t rhport, videod_interface_t *self, unsigned altnum)
 {
+  TU_LOG2("    open VC %d\r\n", altnum);
   void const *beg = self->beg;
   void const *end = beg + self->len;
   /* The first descriptor is a video control interface descriptor. */
   unsigned itfnum = ((tusb_desc_interface_t const *)beg)->bInterfaceNumber;
   void const *cur = _find_desc_itf(beg, end, itfnum, altnum);
+  TU_LOG2("    cur %ld\r\n", cur - beg);
   TU_VERIFY(cur < end);
 
   tusb_desc_vc_itf_t const *vc = (tusb_desc_vc_itf_t const *)cur;
+  TU_LOG2("    bInCollection %d\r\n", vc->ctl.bInCollection);
   /* Support for up to 2 streaming interfaces only. */
   TU_ASSERT(vc->ctl.bInCollection < 3);
 
+  /* Update to point the end of the video control interface descriptor. */
+  end  = cur + vc->std.bLength + vc->ctl.wTotalLength;
   /* Advance to the next descriptor after the class-specific VC interface header descriptor. */
   cur += vc->std.bLength + vc->ctl.bLength;
-  /* Update to point the end of the video control interface descriptor. */
-  end  = cur + vc->ctl.wTotalLength;
+  TU_LOG2("    bNumEndpoints %d\r\n", vc->std.bNumEndpoints);
   /* Open the notification endpoint if it exist. */
   if (vc->std.bNumEndpoints) {
     /* Support for 1 endpoint only. */
@@ -266,7 +270,7 @@ static bool _close_vs_itf(uint8_t rhport, videod_interface_t *self, unsigned itf
   /* The next of the video streaming interface header descriptor. */
   void const *cur = (void const*)vs + vs->std.bLength + vs->stm.bLength;
   /* The end of the video streaming interface descriptor. */
-  void const *end = cur + vs->stm.wTotalLength;
+  void const *end = (void const*)vs + vs->std.bLength + vs->stm.wTotalLength;
   for (unsigned i = 0; i < vs->std.bNumEndpoints; ++i) {
     cur = _find_desc(cur, end, TUSB_DESC_ENDPOINT);
     TU_ASSERT(cur < end);
@@ -285,6 +289,7 @@ static bool _close_vs_itf(uint8_t rhport, videod_interface_t *self, unsigned itf
  * @param[in]     altnum   The target alternate setting number. */
 static bool _open_vs_itf(uint8_t rhport, videod_interface_t *self, unsigned itfnum, unsigned altnum)
 {
+  TU_LOG2("    open VS %d,%d\r\n", itfnum, altnum);
   uint16_t   *ofs = NULL;
   for (unsigned i = 1; i < sizeof(self->ofs)/sizeof(self->ofs[0]); ++i) {
     if (!self->ofs[i]) {
@@ -297,17 +302,17 @@ static bool _open_vs_itf(uint8_t rhport, videod_interface_t *self, unsigned itfn
   tusb_desc_vc_itf_t const *vc = _get_desc_vc(self);
   void const *end = self->beg + self->len;
   /* Set the end of the video control interface descriptor. */
-  void const *cur = (void const*)vc + vc->std.bLength + vc->ctl.bLength + vc->ctl.wTotalLength;
+  void const *cur = (void const*)vc + vc->std.bLength + vc->ctl.wTotalLength;
 
   cur = _find_desc_itf(cur, end, itfnum, altnum);
   TU_VERIFY(cur < end);
   tusb_desc_vs_itf_t const *vs = (tusb_desc_vs_itf_t const*)cur;
   /* Support for up to 2 endpoint only. */
   TU_ASSERT(vs->std.bNumEndpoints < 3);
+  /* Update to point the end of the video control interface descriptor. */
+  end  = cur + vs->std.bLength + vs->stm.wTotalLength;
   /* Advance to the next descriptor after the class-specific VS interface header descriptor. */
   cur += vs->std.bLength + vs->stm.bLength;
-  /* Update to point the end of the video control interface descriptor. */
-  end  = cur + vs->stm.wTotalLength;
   for (unsigned i = 0; i < vs->std.bNumEndpoints; ++i) {
     cur = _find_desc(cur, end, TUSB_DESC_ENDPOINT);
     TU_VERIFY(cur < end);
@@ -612,7 +617,7 @@ uint16_t videod_open(uint8_t rhport, tusb_desc_interface_t const * itf_desc, uin
     itfnum = vc->ctl.baInterfaceNr[i];
     if (!_open_vs_itf(rhport, self, itfnum, 0)) return 0;
   }
-  return end - cur;
+  return (uintptr_t)cur - (uintptr_t)itf_desc;
 }
 
 // Invoked when a control transfer occurred on an interface of this class

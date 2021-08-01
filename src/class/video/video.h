@@ -29,6 +29,35 @@
 
 #include "common/tusb_common.h"
 
+typedef enum {
+  VIDEO_COLOR_PRIMARIES_UNDEFINED = 0x00,
+  VIDEO_COLOR_PRIMARIES_BT709,
+  VIDEO_COLOR_PRIMARIES_BT470_2M,
+  VIDEO_COLOR_PRIMARIES_BT470_2BG,
+  VIDEO_COLOR_PRIMARIES_SMPTE170M,
+  VIDEO_COLOR_PRIMARIES_SMPTE240M,
+} video_color_primaries_t;
+
+typedef enum {
+  VIDEO_COLOR_XFER_CH_UNDEFINED = 0x00,
+  VIDEO_COLOR_XFER_CH_BT709,
+  VIDEO_COLOR_XFER_CH_BT470_2M,
+  VIDEO_COLOR_XFER_CH_BT470_2BG,
+  VIDEO_COLOR_XFER_CH_SMPTE170M,
+  VIDEO_COLOR_XFER_CH_SMPTE240M,
+  VIDEO_COLOR_XFER_CH_LINEAR,
+  VIDEO_COLOR_XFER_CH_SRGB,
+} video_color_transfer_characteristics_t;
+
+typedef enum {
+  VIDEO_COLOR_COEF_UNDEFINED = 0x00,
+  VIDEO_COLOR_COEF_BT709,
+  VIDEO_COLOR_COEF_FCC,
+  VIDEO_COLOR_COEF_BT470_2BG,
+  VIDEO_COLOR_COEF_SMPTE170M,
+  VIDEO_COLOR_COEF_SMPTE240M,
+} video_color_matrix_coefficients_t;
+
 /* 4.2.1.2 */
 typedef enum {
   VIDEO_NO_ERROR = 0, /* The request succeeded. */
@@ -69,7 +98,7 @@ typedef enum
   VIDEO_CS_VC_INTERFACE_PROCESSING_UNIT,
   VIDEO_CS_VC_INTERFACE_EXTENSION_UNIT,
   VIDEO_CS_VC_INTERFACE_ENCODING_UNIT,
-} vide_cs_vc_interface_subtype_t;
+} video_cs_vc_interface_subtype_t;
 
 /* A.6 */
 typedef enum
@@ -278,6 +307,7 @@ typedef struct TU_ATTR_PACKED {
 #define TUD_VIDEO_DESC_CS_VS_FMT_UNCOMPR_LEN      27
 #define TUD_VIDEO_DESC_CS_VS_FRM_UNCOMPR_CONT_LEN 38
 #define TUD_VIDEO_DESC_CS_VS_FRM_UNCOMPR_DISC_LEN 26
+#define TUD_VIDEO_DESC_CS_VS_COLOR_MATCHING_LEN   6
 
 /* 2.2 compression formats */
 #define TUD_VIDEO_GUID_YUY2   0x59,0x55,0x59,0x32,0x00,0x00,0x10,0x00,0x00,0x80,0x71,0x9B,0x38,0x00,0xAA,0x00
@@ -296,8 +326,8 @@ typedef struct TU_ATTR_PACKED {
 
 /* 3.7.2 */
 #define TUD_VIDEO_DESC_CS_VC(_bcdUVC, _totallen, _clkfreq, _coll, ...)	\
-  TUD_VIDEO_DESC_CS_VC_LEN + _coll, TUSB_DESC_CS_INTERFACE, VIDEO_CS_VC_INTERFACE_HEADER, \
-  U16_TO_U8S_LE(_bcdUVC), U16_TO_U8S_LE(_totallen + TUD_VIDEO_DESC_CS_VC_LEN), \
+  TUD_VIDEO_DESC_CS_VC_LEN + (_coll), TUSB_DESC_CS_INTERFACE, VIDEO_CS_VC_INTERFACE_HEADER, \
+  U16_TO_U8S_LE(_bcdUVC), U16_TO_U8S_LE((_totallen) + TUD_VIDEO_DESC_CS_VC_LEN + (_coll)), \
   U32_TO_U8S_LE(_clkfreq), _coll, __VA_ARGS__
 
 /* 3.7.2.1 */
@@ -307,30 +337,31 @@ typedef struct TU_ATTR_PACKED {
 
 /* 3.7.2.2 */
 #define TUD_VIDEO_DESC_OUTPUT_TERM(_tid, _tt, _at, _srcid, _stridx) \
-  TUD_VIDEO_DESC_INPUT_TERM_LEN, TUSB_DESC_CS_INTERFACE, VIDEO_CS_VC_INTERFACE_OUTPUT_TERMINAL, \
-    _tid, U16_TO_U8S_LE(_tt), _at, _stridx
+  TUD_VIDEO_DESC_OUTPUT_TERM_LEN, TUSB_DESC_CS_INTERFACE, VIDEO_CS_VC_INTERFACE_OUTPUT_TERMINAL, \
+    _tid, U16_TO_U8S_LE(_tt), _at, _srcid, _stridx
 
 /* 3.9.1 */
-#define TUD_VIDEO_DESC_STD_VS(_itfnum, _alt, _epn, _stridx)   \
-  TUD_VIDEO_DESC_STD_VC_LEN, TUSB_DESC_INTERFACE, _itfnum, _alt, \
+#define TUD_VIDEO_DESC_STD_VS(_itfnum, _alt, _epn, _stridx) \
+  TUD_VIDEO_DESC_STD_VS_LEN, TUSB_DESC_INTERFACE, _itfnum, _alt, \
   _epn, TUSB_CLASS_VIDEO, VIDEO_SUBCLASS_STREAMING, VIDEO_INT_PROTOCOL_CODE_15, _stridx
 
 /* 3.9.2.1 */
-#define TUD_VIDEO_DESC_CS_VS_INPUT(_numfmt, _totlen, _epn, _inf, _termlnk, _sticaptmeth, _trgspt, _trgusg, _ctlsz, ...) \
+#define TUD_VIDEO_DESC_CS_VS_INPUT(_numfmt, _totallen, _ep, _inf, _termlnk, _sticaptmeth, _trgspt, _trgusg, _ctlsz, ...) \
   TUD_VIDEO_DESC_CS_VS_IN_LEN + (_numfmt) * (_ctlsz), TUSB_DESC_CS_INTERFACE, \
   VIDEO_CS_VS_INTERFACE_INPUT_HEADER, _numfmt, \
-  U16_TO_U8S_LE(_totlen + TUD_VIDEO_DESC_CS_VS_IN_LEN + (_numfmt) * (_ctlsz)), \
-  _epn, _inf, _termlnk, _sticaptmeth, _trgspt, _trgusg, _ctlsz, __VA_ARGS__
+  U16_TO_U8S_LE((_totallen) + TUD_VIDEO_DESC_CS_VS_IN_LEN + (_numfmt) * (_ctlsz)), \
+  _ep, _inf, _termlnk, _sticaptmeth, _trgspt, _trgusg, _ctlsz, __VA_ARGS__
 
 /* 3.9.2.2 */
-#define TUD_VIDEO_DESC_CS_VS_OUTPUT(_numfmt, _totlen, _epn, _inf, _termlnk, _ctlsz, ...) \
+#define TUD_VIDEO_DESC_CS_VS_OUTPUT(_numfmt, _totallen, _ep, _inf, _termlnk, _ctlsz, ...) \
   TUD_VIDEO_DESC_CS_VS_OUT_LEN + (_numfmt) * (_ctlsz), TUSB_DESC_CS_INTERFACE, \
   VIDEO_CS_VS_INTERFACE_OUTPUT_HEADER, _numfmt, \
-  U16_TO_U8S_LE(_totlen + TUD_VIDEO_DESC_CS_VS_OUT_LEN + (_numfmt) * (_ctlsz)), \
-  _epn, _inf, _termlnk,  _trgusg, _ctlsz, __VA_ARGS__
+  U16_TO_U8S_LE((_totallen) + TUD_VIDEO_DESC_CS_VS_OUT_LEN + (_numfmt) * (_ctlsz)), \
+  _ep, _inf, _termlnk, _ctlsz, __VA_ARGS__
 
 /* Uncompressed 3.1.1 */
 #define TUD_VIDEO_GUID(_g0,_g1,_g2,_g3,_g4,_g5,_g6,_g7,_g8,_g9,_g10,_g11,_g12,_g13,_g14,_g15) _g0,_g1,_g2,_g3,_g4,_g5,_g6,_g7,_g8,_g9,_g10,_g11,_g12,_g13,_g14,_g15
+
 #define TUD_VIDEO_DESC_CS_VS_FMT_UNCOMPR(_fmtidx, _numfrmdesc, \
   _guid, _bitsperpix, _frmidx, _asrx, _asry, _interlace, _cp) \
   TUD_VIDEO_DESC_CS_VS_FMT_UNCOMPR_LEN, TUSB_DESC_CS_INTERFACE, VIDEO_CS_VS_INTERFACE_FORMAT_UNCOMPRESSED, \
@@ -352,6 +383,12 @@ typedef struct TU_ATTR_PACKED {
   TUSB_DESC_CS_INTERFACE, VIDEO_CS_VS_INTERFACE_FRAME_UNCOMPRESSED, \
   _frmidx, _cap, U16_TO_U8S_LE(_width), U16_TO_U8S_LE(_height), U32_TO_U8S_LE(_minbr), U32_TO_U8S_LE(_maxbr), \
   U32_TO_U8S_LE(_maxfrmbufsz), U32_TO_U8S_LE(_frminterval), _numfrminterval, __VA_ARGS__
+
+/* 3.9.2.6 */
+#define TUD_VIDEO_DESC_CS_VS_COLOR_MATCHING(_color, _trns, _mat) \
+  TUD_VIDEO_DESC_CS_VS_COLOR_MATCHING_LEN, \
+  TUSB_DESC_CS_INTERFACE, VIDEO_CS_VS_INTERFACE_COLORFORMAT, \
+  _color, _trns, _mat
 
 /* 3.10.1.1 */
 #define TUD_VIDEO_DESC_EP_ISO(_ep, _epsize, _ep_interval) \

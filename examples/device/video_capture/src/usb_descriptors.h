@@ -39,18 +39,27 @@ enum {
   ITF_NUM_TOTAL
 };
 
-#define TUD_VIDEO_CAPTURE_DESC_LEN (TUD_VIDEO_DESC_IAD_LEN\
+#define TUD_VIDEO_CAPTURE_DESC_LEN (\
+    TUD_VIDEO_DESC_IAD_LEN\
     /* control */\
     + TUD_VIDEO_DESC_STD_VC_LEN\
-    + TUD_VIDEO_DESC_CS_VC_LEN\
+    + (TUD_VIDEO_DESC_CS_VC_LEN + 1/*bInCollection*/)\
     + TUD_VIDEO_DESC_INPUT_TERM_LEN\
     + TUD_VIDEO_DESC_OUTPUT_TERM_LEN\
     /* Interface 1, Alternate 0 */\
     + TUD_VIDEO_DESC_STD_VS_LEN\
-    + TUD_VIDEO_DESC_CS_VS_IN_LEN\
+    + (TUD_VIDEO_DESC_CS_VS_IN_LEN + 1/*bNumFormats x bControlSize*/)\
     + TUD_VIDEO_DESC_CS_VS_FMT_UNCOMPR_LEN\
-    + TUD_VIDEO_DESC_CS_VS_FRM_UNCOMPR_CONT_LEN)
+    + TUD_VIDEO_DESC_CS_VS_FRM_UNCOMPR_CONT_LEN\
+    + TUD_VIDEO_DESC_CS_VS_COLOR_MATCHING_LEN\
+  )
 
+#if 0
+    /* Interface 1, Alternate 1 */\
+    + TUD_VIDEO_DESC_STD_VS_LEN\
+    + 7/* Endpoint */\
+
+#endif
 
 #define TUD_VIDEO_DESC_CS_VS_FMT_YUY2(_fmtidx, _numfmtdesc, _frmidx, _asrx, _asry, _interlace, _cp) \
   TUD_VIDEO_DESC_CS_VS_FMT_UNCOMPR(_fmtidx, _numfmtdesc, TUD_VIDEO_GUID_YUY2, 16, _frmidx, _asrx, _asry, _interlace, _cp)
@@ -64,34 +73,40 @@ enum {
 #define TUD_VIDEO_CAPTURE_DESCRIPTOR(_stridx, _epin, _width, _height, _fps) \
   TUD_VIDEO_DESC_IAD(ITF_NUM_VIDEO_CONTROL, ITF_NUM_TOTAL, _stridx), \
     /* Video control 0 */ \
-    TUD_VIDEO_DESC_STD_VC(ITF_NUM_VIDEO_CONTROL, 0, 0), \
+    TUD_VIDEO_DESC_STD_VC(ITF_NUM_VIDEO_CONTROL, 0, _stridx), \
       TUD_VIDEO_DESC_CS_VC( /* UVC 1.5*/ 0x0150, \
-           TUD_VIDEO_DESC_INPUT_TERM_LEN + \
-           TUD_VIDEO_DESC_OUTPUT_TERM_LEN, \
+           /* wTotalLength - bLength */ \
+           TUD_VIDEO_DESC_INPUT_TERM_LEN + TUD_VIDEO_DESC_OUTPUT_TERM_LEN, \
            UVC_CLOCK_FREQUENCY, 1, 1), \
         TUD_VIDEO_DESC_INPUT_TERM(UVC_ENTITY_CAP_INPUT_TERMINAL,\
                                    VIDEO_TT_COMPOSITE_CONNECTOR, 0, 0), \
         TUD_VIDEO_DESC_OUTPUT_TERM(UVC_ENTITY_CAP_OUTPUT_TERMINAL,\
-                                   VIDEO_TT_STREAMING, 0, 1, 0),   \
+                                   VIDEO_TT_STREAMING, 0, 1, 0), \
     /* Video stream alt. 0 */ \
     TUD_VIDEO_DESC_STD_VS( 1, 0, 0, 0), \
       /* Video stream header for without still image capture */ \
-      TUD_VIDEO_DESC_CS_VS_INPUT(1, \
-          TUD_VIDEO_DESC_CS_VS_FMT_UNCOMPR_LEN + \
-          TUD_VIDEO_DESC_CS_VS_FRM_UNCOMPR_CONT_LEN,\
-          _epin, /*bmInfo*/ 0, UVC_ENTITY_CAP_OUTPUT_TERMINAL, \
-          0, 2, 0, 0, 0, 1, 0), \
+      TUD_VIDEO_DESC_CS_VS_INPUT( /*bNumFormats*/1, \
+          /*wTotalLength - bLength */\
+          TUD_VIDEO_DESC_CS_VS_FMT_UNCOMPR_LEN\
+          + TUD_VIDEO_DESC_CS_VS_FRM_UNCOMPR_CONT_LEN\
+          + TUD_VIDEO_DESC_CS_VS_COLOR_MATCHING_LEN,\
+          _epin, /*bmInfo*/0, /*bTerminalLink*/UVC_ENTITY_CAP_OUTPUT_TERMINAL, \
+          /*bStillCaptureMethod*/0, /*bTriggerSupport*/0, /*bTriggerUsage*/0, \
+          /*bControlSize*/1, /*bmaControls(1)*/0), \
         /* Video stream format */ \
-        TUD_VIDEO_DESC_CS_VS_FMT_I420(0, 1, 0, 1, 1, 0, 0), \
+        TUD_VIDEO_DESC_CS_VS_FMT_I420(/*bFormatIndex*/1, /*bNumFrameDescriptors*/1,\
+          /*bDefaultFrameIndex*/1, 1, 1, 0, /*bCopyProtect*/0), \
           /* Video stream frame format */ \
-          TUD_VIDEO_DESC_CS_VS_FRM_UNCOMPR_CONT( 1, 0, _width, _height, \
-                                                 _width * _height * 12, _width * _height * 12 * _fps, \
-                                                 _width * _height * 12, \
-                                                 (10000000/_fps), (10000000/1), (10000000/_fps), 166666), \
-    /* VS alt 1 */ \
-    TUD_VIDEO_DESC_STD_VS( 1, 1, 1, 0), \
-    /* EP */ \
-    TUD_VIDEO_DESC_EP_ISO(_epin, (_width * _height * 12 / 8) * _fps, 1)
+          TUD_VIDEO_DESC_CS_VS_FRM_UNCOMPR_CONT(/*bFrameIndex */1, 0, _width, _height, \
+              _width * _height * 12, _width * _height * 12 * _fps, \
+              _width * _height * 12, \
+              (10000000/_fps), (10000000/1), (10000000/_fps), 166666), \
+        TUD_VIDEO_DESC_CS_VS_COLOR_MATCHING(VIDEO_COLOR_PRIMARIES_BT709,\
+           VIDEO_COLOR_XFER_CH_BT709, VIDEO_COLOR_COEF_SMPTE170M), \
+    /* VS alt 1 */\
+    TUD_VIDEO_DESC_STD_VS(1, 1, 1, 0), \
+      /* EP */ \
+      TUD_VIDEO_DESC_EP_ISO(_epin, (_width * _height * 12 / 8) * _fps, 1)
 
 
 #endif
