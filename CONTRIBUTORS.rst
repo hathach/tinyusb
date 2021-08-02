@@ -177,5 +177,13 @@ Notable contributors
    v1.1, msp\_exp430f5529lp etc ...
 
 
+`Zixun Li <https://github.com/HiFiPhile>`__
+-----------------------------------------------
+
+-  Add new DCD port for Microchip SAMx7x
+-  Add IAR compiler support
+-  Improve UAC2, CDC, DFU class driver
+
+
 `Full contributors list <https://github.com/hathach/tinyusb/contributors>`__
 ============================================================================
