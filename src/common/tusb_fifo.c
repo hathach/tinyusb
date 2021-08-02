@@ -323,8 +323,6 @@ static uint16_t advance_pointer(tu_fifo_t* f, uint16_t p, uint16_t offset)
   // We limit the index space of p such that a correct wrap around happens
   // Check for a wrap around or if we are in unused index space - This has to be checked first!!
   // We are exploiting the wrap around to the correct index
-
-  // TODO warning: assuming signed overflow does not occur when assuming that (X + c) < X is always false [-Wstrict-overflow]
   if ((p > (uint16_t)(p + offset)) || ((uint16_t)(p + offset) > f->max_pointer_idx))
   {
     p = (p + offset) + f->non_used_index_space;

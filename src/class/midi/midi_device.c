@@ -122,7 +122,12 @@ static void _prep_out_transaction (midid_interface_t* p_midi)
 uint32_t tud_midi_n_available(uint8_t itf, uint8_t cable_num)
 {
   (void) cable_num;
-  return tu_fifo_count(&_midid_itf[itf].rx_ff);
+
+  midid_interface_t* midi = &_midid_itf[itf];
+  midid_stream_t const* stream = &midi->stream_read;
+
+  // when using with packet API stream total & index are both zero
+  return tu_fifo_count(&midi->rx_ff) + (stream->total - stream->index);
 }
 
 uint32_t tud_midi_n_stream_read(uint8_t itf, uint8_t cable_num, void* buffer, uint32_t bufsize)
