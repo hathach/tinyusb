@@ -123,7 +123,7 @@ uint32_t tud_midi_n_available(uint8_t itf, uint8_t cable_num)
 {
   (void) cable_num;
 
-  midid_interface_t const* midi = &_midid_itf[itf];
+  midid_interface_t* midi = &_midid_itf[itf];
   midid_stream_t const* stream = &midi->stream_read;
 
   // when using with packet API stream total & index are both zero
