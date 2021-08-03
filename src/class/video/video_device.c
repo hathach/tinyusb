@@ -321,6 +321,7 @@ static bool _open_vs_itf(uint8_t rhport, videod_interface_t *self, unsigned itfn
     cur += tu_desc_len(cur);
   }
   *ofs = (void const*)vs - self->beg;
+  TU_LOG2("    done\r\n");
   return true;
 }
 
@@ -626,6 +627,7 @@ uint16_t videod_open(uint8_t rhport, tusb_desc_interface_t const * itf_desc, uin
 bool videod_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request_t const * request)
 {
   int err;
+  int (*handle_video_req)(uint8_t rhport, uint8_t stage, tusb_control_request_t const *request, unsigned itf) = NULL;
   if (request->bmRequestType_bit.recipient != TUSB_REQ_RCPT_INTERFACE) {
     return false;
   }
@@ -635,20 +637,21 @@ bool videod_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request_
   tusb_desc_vc_itf_t const *vc = NULL;
   for (itf = 0; itf < CFG_TUD_VIDEO; ++itf) {
     vc = _get_desc_vc(&_videod_itf[itf]);
-    unsigned beg_itfnum = vc->std.bInterfaceNumber;
-    unsigned end_itfnum = vc->ctl.bInCollection;
-    if (beg_itfnum <= itfnum && itfnum < end_itfnum)
+    if (itfnum == vc->std.bInterfaceNumber) {
+      handle_video_req = handle_video_ctl_req;
       break;
+    }
+    int i;
+    int bInCollection = vc->ctl.bInCollection;
+    for (i = 0; i < bInCollection && itfnum != vc->ctl.baInterfaceNr[i]; ++i) ;
+    if (i < bInCollection) {
+      handle_video_req = handle_video_stm_req;
+      break;
+    }
   }
   if (itf == CFG_TUD_VIDEO) return false;
 
-  if (itfnum == vc->std.bInterfaceNumber) {
-    /* To video control interface */
-    err = handle_video_ctl_req(rhport, stage, request, itf);
-  } else {
-    /* To video streaming interface */
-    err = handle_video_stm_req(rhport, stage, request, itf);
-  }
+  err = handle_video_req(rhport, stage, request, itf);
   _videod_itf[itf].error_code = (uint8_t)err;
   if (err) return false;
   return true;

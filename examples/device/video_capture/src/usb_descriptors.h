@@ -56,6 +56,9 @@ enum {
     + 7/* Endpoint */\
   )
 
+/* Windows support YUV2 and NV12
+ * https://docs.microsoft.com/en-us/windows-hardware/drivers/stream/usb-video-class-driver-overview */
+
 #define TUD_VIDEO_DESC_CS_VS_FMT_YUY2(_fmtidx, _numfmtdesc, _frmidx, _asrx, _asry, _interlace, _cp) \
   TUD_VIDEO_DESC_CS_VS_FMT_UNCOMPR(_fmtidx, _numfmtdesc, TUD_VIDEO_GUID_YUY2, 16, _frmidx, _asrx, _asry, _interlace, _cp)
 #define TUD_VIDEO_DESC_CS_VS_FMT_NV12(_fmtidx, _numfmtdesc, _frmidx, _asrx, _asry, _interlace, _cp) \
@@ -88,7 +91,7 @@ enum {
           /*bStillCaptureMethod*/0, /*bTriggerSupport*/0, /*bTriggerUsage*/0, \
           /*bControlSize*/1, /*bmaControls(1)*/0), \
         /* Video stream format */ \
-        TUD_VIDEO_DESC_CS_VS_FMT_I420(/*bFormatIndex*/1, /*bNumFrameDescriptors*/1,\
+        TUD_VIDEO_DESC_CS_VS_FMT_NV12(/*bFormatIndex*/1, /*bNumFrameDescriptors*/1,\
           /*bDefaultFrameIndex*/1, 0, 0, 0, /*bCopyProtect*/0), \
           /* Video stream frame format */ \
           TUD_VIDEO_DESC_CS_VS_FRM_UNCOMPR_CONT(/*bFrameIndex */1, 0, _width, _height, \
