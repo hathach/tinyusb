@@ -2,7 +2,7 @@
 Reference
 *********
 
-.. figure:: ../assets/stack.png
+.. figure:: ../assets/stack.svg
    :width: 1600px
    :alt: stackup
 
@@ -29,11 +29,6 @@ If you have special need, `usbd_app_driver_get_cb()` can be used to write your o
 
 Host Stack
 ==========
-
-.. admonition:: Warning
-   :class: warning
-
-   Most active development is on the Device stack. The Host stack is under rework and largely untested.
 
 - Human Interface Device (HID): Keyboard, Mouse, Generic
 - Mass Storage Class (MSC)
