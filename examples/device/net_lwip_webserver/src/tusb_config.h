@@ -101,6 +101,7 @@
 #define CFG_TUD_MIDI              0
 #define CFG_TUD_VENDOR            0
 #define CFG_TUD_NET               1
+#define CFG_TUD_NCM               0
 
 #ifdef __cplusplus
  }

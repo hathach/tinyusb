@@ -38,6 +38,22 @@
 #define CFG_TUD_NET_MTU           1514
 #endif
 
+#ifndef CFG_TUD_NCM_IN_NTB_MAX_SIZE
+#define CFG_TUD_NCM_IN_NTB_MAX_SIZE 3200
+#endif
+
+#ifndef CFG_TUD_NCM_OUT_NTB_MAX_SIZE
+#define CFG_TUD_NCM_OUT_NTB_MAX_SIZE 3200
+#endif
+
+#ifndef CFG_TUD_NCM_MAX_DATAGRAMS_PER_NTB
+#define CFG_TUD_NCM_MAX_DATAGRAMS_PER_NTB 8
+#endif
+
+#ifndef CFG_TUD_NCM_ALIGNMENT
+#define CFG_TUD_NCM_ALIGNMENT 4
+#endif
+
 #ifdef __cplusplus
  extern "C" {
 #endif
@@ -63,10 +79,13 @@ extern const uint8_t tud_network_mac_address[6];
 void tud_network_recv_renew(void);
 
 // poll network driver for its ability to accept another packet to transmit
-bool tud_network_can_xmit(void);
+bool tud_network_can_xmit(uint16_t size);
 
 // if network_can_xmit() returns true, network_xmit() can be called once
 void tud_network_xmit(void *ref, uint16_t arg);
+
+// callback to client providing optional indication of internal state of network driver
+void tud_network_link_state_cb(bool state);
 
 //--------------------------------------------------------------------+
 // INTERNAL USBD-CLASS DRIVER API

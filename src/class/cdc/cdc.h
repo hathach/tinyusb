@@ -69,7 +69,8 @@ typedef enum
   CDC_COMM_SUBCLASS_DEVICE_MANAGEMENT                 , ///< Device Management  [USBWMC1.1]
   CDC_COMM_SUBCLASS_MOBILE_DIRECT_LINE_MODEL          , ///< Mobile Direct Line Model  [USBWMC1.1]
   CDC_COMM_SUBCLASS_OBEX                              , ///< OBEX  [USBWMC1.1]
-  CDC_COMM_SUBCLASS_ETHERNET_EMULATION_MODEL            ///< Ethernet Emulation Model  [USBEEM1.0]
+  CDC_COMM_SUBCLASS_ETHERNET_EMULATION_MODEL          , ///< Ethernet Emulation Model  [USBEEM1.0]
+  CDC_COMM_SUBCLASS_NETWORK_CONTROL_MODEL               ///< Network Control Model  [USBNCM1.0]
 } cdc_comm_sublcass_type_t;
 
 /// Communication Interface Protocol Codes
@@ -114,7 +115,8 @@ typedef enum
   CDC_FUNC_DESC_COMMAND_SET                                      = 0x16 , ///< Command Set Functional Descriptor
   CDC_FUNC_DESC_COMMAND_SET_DETAIL                               = 0x17 , ///< Command Set Detail Functional Descriptor
   CDC_FUNC_DESC_TELEPHONE_CONTROL_MODEL                          = 0x18 , ///< Telephone Control Model Functional Descriptor
-  CDC_FUNC_DESC_OBEX_SERVICE_IDENTIFIER                          = 0x19   ///< OBEX Service Identifier Functional Descriptor
+  CDC_FUNC_DESC_OBEX_SERVICE_IDENTIFIER                          = 0x19 , ///< OBEX Service Identifier Functional Descriptor
+  CDC_FUNC_DESC_NCM                                              = 0x1A , ///< NCM Functional Descriptor
 }cdc_func_desc_type_t;
 
 //--------------------------------------------------------------------+
