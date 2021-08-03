@@ -1,29 +1,45 @@
+/**
+  ******************************************************************************
+  * @file    synopsys_common.h
+  * @author  MCD Application Team
+  * @brief   CMSIS Cortex-M3 Device USB OTG peripheral Header File. 
+  *          This file contains the USB OTG peripheral register's definitions, bits 
+  *          definitions and memory mapping for STM32F1xx devices.
+  *            
+  *          This file contains:
+  *           - Data structures and the address mapping for the USB OTG peripheral
+  *           - The Peripheral's registers declarations and bits definition
+  *           - Macros to access the peripheral's registers hardware
+  *  
+  ******************************************************************************
+  * @attention
+  *
+  * <h2><center>&copy; Copyright (c) 2017 STMicroelectronics.
+  * All rights reserved.</center></h2>
+  *
+  * This software component is licensed by ST under BSD 3-Clause license,
+  * the "License"; You may not use this file except in compliance with the
+  * License. You may obtain a copy of the License at:
+  *                        opensource.org/licenses/BSD-3-Clause
+  *
+  ******************************************************************************
+  */
+
 #include "stdint.h"
 
 #pragma once
 
-/* IO definitions (access restrictions to peripheral registers) */
-/**
-    \defgroup CMSIS_glob_defs CMSIS Global Defines
-
-    <strong>IO Type Qualifiers</strong> are used
-    \li to specify the access to peripheral variables.
-    \li for automatic generation of peripheral register debug information.
-*/
 #ifdef __cplusplus
-  #define   __I     volatile             /*!< Defines 'read only' permissions */
+  #define   __I   volatile
 #else
-  #define   __I     volatile const       /*!< Defines 'read only' permissions */
+  #define   __I   volatile const
 #endif
-#define     __O     volatile             /*!< Defines 'write only' permissions */
-#define     __IO    volatile             /*!< Defines 'read / write' permissions */
+#define     __O   volatile
+#define     __IO  volatile
+#define     __IM  volatile const
+#define     __OM  volatile
+#define     __IOM volatile
 
-/* following defines should be used for structure members */
-#define     __IM     volatile const      /*! Defines 'read only' structure member permissions */
-#define     __OM     volatile            /*! Defines 'write only' structure member permissions */
-#define     __IOM    volatile            /*! Defines 'read / write' structure member permissions */
-
-/*@} end of group Cortex_M3 */
 /** 
   * @brief __USB_OTG_Core_register
   */
@@ -154,7 +170,6 @@ typedef struct
 #define USB_OTG_PCGCCTL_BASE                 0x00000E00UL
 #define USB_OTG_FIFO_BASE                    0x00001000UL
 #define USB_OTG_FIFO_SIZE                    0x00001000UL
-
 
 /******************************************************************************/
 /*                                                                            */
@@ -1446,3 +1461,5 @@ typedef struct
 #define USB_OTG_FRMNUM_1                        (0x2UL << USB_OTG_FRMNUM_Pos)   /*!< 0x00400000 */
 #define USB_OTG_FRMNUM_2                        (0x4UL << USB_OTG_FRMNUM_Pos)   /*!< 0x00800000 */
 #define USB_OTG_FRMNUM_3                        (0x8UL << USB_OTG_FRMNUM_Pos)   /*!< 0x01000000 */
+
+/************************ (C) COPYRIGHT STMicroelectronics *****END OF FILE****/
