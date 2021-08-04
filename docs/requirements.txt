@@ -1,0 +1,4 @@
+sphinx~=3.0
+furo>=2020.12.30.b24
+sphinxemoji>=0.1.8
+sphinx-autodoc-typehints>=1.10
