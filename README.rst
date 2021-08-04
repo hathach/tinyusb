@@ -8,7 +8,7 @@ embedded system, designed to be memory-safe with no dynamic allocation
 and thread-safe with all interrupt events are deferred then handled in
 the non-ISR task function.
 
-Please take a look at the online `documentation <www.tinyusb.org>`__.
+Please take a look at the online `documentation <https://www.tinyusb.org/>`__.
 
 .. figure:: docs/assets/stack.svg
    :width: 500px
