@@ -39,7 +39,4 @@ html_theme_options = {
     'sidebar_hide_name': True,
 }
 
-# examples for webusb
-html_extra_path = ['html_extra']
-
 todo_include_todos = True
