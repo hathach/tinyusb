@@ -8,7 +8,7 @@ embedded system, designed to be memory-safe with no dynamic allocation
 and thread-safe with all interrupt events are deferred then handled in
 the non-ISR task function.
 
-Please take a look at the online `documentation <https://www.tinyusb.org/>`__.
+Please take a look at the online `documentation <https://docs.tinyusb.org/>`__.
 
 .. figure:: docs/assets/stack.svg
    :width: 500px
@@ -122,7 +122,7 @@ in your project.
 .. |Build Status| image:: https://github.com/hathach/tinyusb/workflows/Build/badge.svg
    :target: https://github.com/hathach/tinyusb/actions
 .. |Documentation Status| image:: https://readthedocs.org/projects/tinyusb/badge/?version=latest
-   :target: https://tinyusb.readthedocs.io/en/latest/?badge=latest
+   :target: https://docs.tinyusb.org/en/latest/?badge=latest
 .. |License| image:: https://img.shields.io/badge/license-MIT-brightgreen.svg
    :target: https://opensource.org/licenses/MIT
 
