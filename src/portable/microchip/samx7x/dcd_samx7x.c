@@ -77,9 +77,9 @@ static tusb_speed_t get_speed(void);
 static void dcd_transmit_packet(xfer_ctl_t * xfer, uint8_t ep_ix);
 
 // DMA descriptors shouldn't be placed in ITCM !
-CFG_TUSB_MEM_SECTION dma_desc_t dma_desc[6];
+CFG_TUSB_MEM_SECTION static dma_desc_t dma_desc[6];
 
-xfer_ctl_t xfer_status[EP_MAX];
+static xfer_ctl_t xfer_status[EP_MAX];
 
 static const tusb_desc_endpoint_t ep0_desc =
 {
@@ -148,7 +148,7 @@ void dcd_connect(uint8_t rhport)
   dcd_int_disable(rhport);
   // Enable the USB controller in device mode
   USB_REG->CTRL = CTRL_UIMOD | CTRL_USBE;
-  while (SR_CLKUSABLE != (USB_REG->SR & SR_CLKUSABLE));
+  while (!(USB_REG->SR & SR_CLKUSABLE));
 #if TUD_OPT_HIGH_SPEED
   USB_REG->DEVCTRL &= ~DEVCTRL_SPDCONF;
 #else
@@ -180,7 +180,7 @@ void dcd_disconnect(uint8_t rhport)
   USB_REG->DEVEPT &= ~(0x3FF << DEVEPT_EPEN0_Pos);
   // Unfreeze USB clock
   USB_REG->CTRL &= ~CTRL_FRZCLK;
-  while (SR_CLKUSABLE != (USB_REG->SR & SR_CLKUSABLE));
+  while (!(USB_REG->SR & SR_CLKUSABLE));
   // Clear all the pending interrupts
   USB_REG->DEVICR = DEVICR_Msk;
   // Disable all interrupts
@@ -193,7 +193,7 @@ void dcd_disconnect(uint8_t rhport)
 
 static tusb_speed_t get_speed(void)
 {
-  switch ((USB_REG->SR & SR_SPEED) >> SR_SPEED_Pos) {
+  switch (USB_REG->SR & SR_SPEED) {
   case SR_SPEED_FULL_SPEED:
   default:
     return TUSB_SPEED_FULL;
@@ -367,7 +367,7 @@ void dcd_int_handler(uint8_t rhport)
   {
     // Unfreeze USB clock
     USB_REG->CTRL &= ~CTRL_FRZCLK;
-    while(SR_CLKUSABLE != (USB_REG->SR & SR_CLKUSABLE));
+    while(!(USB_REG->SR & SR_CLKUSABLE));
     // Reset all endpoints
     for (int ep_ix = 1; ep_ix < EP_MAX; ep_ix++)
     {
@@ -386,7 +386,7 @@ void dcd_int_handler(uint8_t rhport)
   if (int_status & DEVISR_WAKEUP)
   {
     USB_REG->CTRL &= ~CTRL_FRZCLK;
-    while (SR_CLKUSABLE != (USB_REG->SR & SR_CLKUSABLE));
+    while (!(USB_REG->SR & SR_CLKUSABLE));
     USB_REG->DEVICR = DEVICR_WAKEUPC;
     USB_REG->DEVIDR = DEVIDR_WAKEUPEC;
     USB_REG->DEVIER = DEVIER_SUSPES;
@@ -398,7 +398,7 @@ void dcd_int_handler(uint8_t rhport)
   {
     // Unfreeze USB clock
     USB_REG->CTRL &= ~CTRL_FRZCLK;
-    while (SR_CLKUSABLE != (USB_REG->SR & SR_CLKUSABLE));
+    while (!(USB_REG->SR & SR_CLKUSABLE));
     USB_REG->DEVICR = DEVICR_SUSPC;
     USB_REG->DEVIDR = DEVIDR_SUSPEC;
     USB_REG->DEVIER = DEVIER_WAKEUPES;
