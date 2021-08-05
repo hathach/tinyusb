@@ -122,7 +122,7 @@ in your project.
 .. |Build Status| image:: https://github.com/hathach/tinyusb/workflows/Build/badge.svg
    :target: https://github.com/hathach/tinyusb/actions
 .. |Documentation Status| image:: https://readthedocs.org/projects/tinyusb/badge/?version=latest
-   :target: https://openinput.readthedocs.io/en/latest/?badge=latest
+   :target: https://tinyusb.readthedocs.io/en/latest/?badge=latest
 .. |License| image:: https://img.shields.io/badge/license-MIT-brightgreen.svg
    :target: https://opensource.org/licenses/MIT
 
