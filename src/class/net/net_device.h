@@ -45,6 +45,7 @@
 //--------------------------------------------------------------------+
 // Application API
 //--------------------------------------------------------------------+
+TU_ATTR_WEAK void tud_network_idle_status_change_cb(bool idle);
 
 // client must provide this: initialize any network state back to the beginning
 void tud_network_init_cb(void);

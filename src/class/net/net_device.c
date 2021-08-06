@@ -114,6 +114,11 @@ void tud_network_recv_renew(void)
 static void do_in_xfer(uint8_t *buf, uint16_t len)
 {
   can_xmit = false;
+
+  if (tud_network_idle_status_change_cb) {
+    tud_network_idle_status_change_cb(can_xmit);
+  }
+
   usbd_edpt_xfer(TUD_OPT_RHPORT, _netd_itf.ep_in, buf, len);
 }
 
@@ -212,6 +217,9 @@ uint16_t netd_open(uint8_t rhport, tusb_desc_interface_t const * itf_desc, uint1
 
     // we are ready to transmit a packet
     can_xmit = true;
+    if (tud_network_idle_status_change_cb) {
+      tud_network_idle_status_change_cb(can_xmit);
+    }
 
     // prepare for incoming packets
     tud_network_recv_renew();
@@ -276,6 +284,9 @@ bool netd_control_xfer_cb (uint8_t rhport, uint8_t stage, tusb_control_request_t
                 // Also should have opposite callback for application to disable network !!
                 tud_network_init_cb();
                 can_xmit = true; // we are ready to transmit a packet
+                if (tud_network_idle_status_change_cb) {
+                  tud_network_idle_status_change_cb(can_xmit);
+                }
                 tud_network_recv_renew(); // prepare for incoming packets
               }
             }else
@@ -396,6 +407,9 @@ bool netd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint32_
     {
       /* we're finally finished */
       can_xmit = true;
+      if (tud_network_idle_status_change_cb) {
+        tud_network_idle_status_change_cb(can_xmit);
+      }
     }
   }
 
