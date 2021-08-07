@@ -34,7 +34,7 @@
 #define USE_SOF     0
 
 #if defined (STM32F105x8) || defined (STM32F105xB) || defined (STM32F105xC) || \
-    defined (STM32F107xB) || defined (STM32F107xC) || defined (GD32VF103)
+    defined (STM32F107xB) || defined (STM32F107xC)
 #define STM32F1_SYNOPSYS
 #endif
 
