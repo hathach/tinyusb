@@ -33,74 +33,36 @@ OF SUCH DAMAGE.
 */
 
 /* This file refers the RISC-V standard, some adjustments are made according to GigaDevice chips */
-
-#include "gd32vf103_libopt.h"
+#include "nuclei_sdk_hal.h"
 
 /* system frequency define */
 #define __IRC8M           (IRC8M_VALUE)            /* internal 8 MHz RC oscillator frequency */
 #define __HXTAL           (HXTAL_VALUE)            /* high speed crystal oscillator frequency */
 #define __SYS_OSC_CLK     (__IRC8M)                /* main oscillator frequency */
+#define __SYSTEM_CLOCK_HXTAL                    (HXTAL_VALUE)
 
-/* select a system clock by uncommenting the following line */
-/* use IRC8M */
-//#define __SYSTEM_CLOCK_48M_PLL_IRC8M            (uint32_t)(48000000)
-//#define __SYSTEM_CLOCK_72M_PLL_IRC8M            (uint32_t)(72000000)
-//#define __SYSTEM_CLOCK_108M_PLL_IRC8M           (uint32_t)(108000000)
+#if !defined(__SYSTEM_CLOCK)
+#define __SYSTEM_CLOCK 72000000
+#endif
 
-/********************************************************************/
-//#define __SYSTEM_CLOCK_HXTAL                    (HXTAL_VALUE)
-//#define __SYSTEM_CLOCK_24M_PLL_HXTAL            (uint32_t)(24000000)
-/********************************************************************/
+#if __SYSTEM_CLOCK == 48000000
+  #define __SYSTEM_CLOCK_48M_PLL_HXTAL            (uint32_t)(48000000)
+  uint32_t SystemCoreClock = __SYSTEM_CLOCK_48M_PLL_HXTAL;
+  static void system_clock_48m_hxtal(void);
 
-//#define __SYSTEM_CLOCK_36M_PLL_HXTAL            (uint32_t)(36000000)
-//#define __SYSTEM_CLOCK_48M_PLL_HXTAL            (uint32_t)(48000000)
-//#define __SYSTEM_CLOCK_56M_PLL_HXTAL            (uint32_t)(56000000)
-//#define __SYSTEM_CLOCK_72M_PLL_HXTAL            (uint32_t)(72000000)
-#define __SYSTEM_CLOCK_96M_PLL_HXTAL            (uint32_t)(96000000)
-//#define __SYSTEM_CLOCK_108M_PLL_HXTAL           (uint32_t)(108000000)
+#elif __SYSTEM_CLOCK == 72000000
+  #define __SYSTEM_CLOCK_72M_PLL_HXTAL            (uint32_t)(72000000)
+  uint32_t SystemCoreClock = __SYSTEM_CLOCK_72M_PLL_HXTAL;
+  static void system_clock_72m_hxtal(void);
 
-/*#define SEL_IRC8M       0x00U
-#define SEL_HXTAL       0x01U
-#define SEL_PLL         0x02U*/
+#elif __SYSTEM_CLOCK == 96000000
+  #define __SYSTEM_CLOCK_96M_PLL_HXTAL            (uint32_t)(96000000)
+  uint32_t SystemCoreClock = __SYSTEM_CLOCK_96M_PLL_HXTAL;
+  static void system_clock_96m_hxtal(void);
 
-/* set the system clock frequency and declare the system clock configuration function */
-#ifdef __SYSTEM_CLOCK_48M_PLL_IRC8M
-uint32_t SystemCoreClock = __SYSTEM_CLOCK_48M_PLL_IRC8M;
-static void system_clock_48m_irc8m(void);
-#elif defined (__SYSTEM_CLOCK_72M_PLL_IRC8M)
-uint32_t SystemCoreClock = __SYSTEM_CLOCK_72M_PLL_IRC8M;
-static void system_clock_72m_irc8m(void);
-#elif defined (__SYSTEM_CLOCK_108M_PLL_IRC8M)
-uint32_t SystemCoreClock = __SYSTEM_CLOCK_108M_PLL_IRC8M;
-static void system_clock_108m_irc8m(void);
-
-#elif defined (__SYSTEM_CLOCK_HXTAL)
-uint32_t SystemCoreClock = __SYSTEM_CLOCK_HXTAL;
-static void system_clock_hxtal(void);
-#elif defined (__SYSTEM_CLOCK_24M_PLL_HXTAL)
-uint32_t SystemCoreClock = __SYSTEM_CLOCK_24M_PLL_HXTAL;
-static void system_clock_24m_hxtal(void);
-#elif defined (__SYSTEM_CLOCK_36M_PLL_HXTAL)
-uint32_t SystemCoreClock = __SYSTEM_CLOCK_36M_PLL_HXTAL;
-static void system_clock_36m_hxtal(void);
-#elif defined (__SYSTEM_CLOCK_48M_PLL_HXTAL)
-uint32_t SystemCoreClock = __SYSTEM_CLOCK_48M_PLL_HXTAL;
-static void system_clock_48m_hxtal(void);
-#elif defined (__SYSTEM_CLOCK_56M_PLL_HXTAL)
-uint32_t SystemCoreClock = __SYSTEM_CLOCK_56M_PLL_HXTAL;
-static void system_clock_56m_hxtal(void);
-#elif defined (__SYSTEM_CLOCK_72M_PLL_HXTAL)
-uint32_t SystemCoreClock = __SYSTEM_CLOCK_72M_PLL_HXTAL;
-static void system_clock_72m_hxtal(void);
-#elif defined (__SYSTEM_CLOCK_96M_PLL_HXTAL)
-uint32_t SystemCoreClock = __SYSTEM_CLOCK_96M_PLL_HXTAL;
-static void system_clock_96m_hxtal(void);
-#elif defined (__SYSTEM_CLOCK_108M_PLL_HXTAL)
-uint32_t SystemCoreClock = __SYSTEM_CLOCK_108M_PLL_HXTAL;
-static void system_clock_108m_hxtal(void);
 #else
-uint32_t SystemCoreClock = IRC8M_VALUE;
-#endif /* __SYSTEM_CLOCK_48M_PLL_IRC8M */
+#error No valid system clock configuration set!
+#endif
 
 /* configure the system clock */
 static void system_clock_config(void);
@@ -113,29 +75,12 @@ static void system_clock_config(void);
 */
 static void system_clock_config(void)
 {
-#ifdef __SYSTEM_CLOCK_HXTAL
-    system_clock_hxtal();
-#elif defined (__SYSTEM_CLOCK_24M_PLL_HXTAL)
-    system_clock_24m_hxtal();
-#elif defined (__SYSTEM_CLOCK_36M_PLL_HXTAL)
-    system_clock_36m_hxtal();
-#elif defined (__SYSTEM_CLOCK_48M_PLL_HXTAL)
+#if defined (__SYSTEM_CLOCK_48M_PLL_HXTAL)
     system_clock_48m_hxtal();
-#elif defined (__SYSTEM_CLOCK_56M_PLL_HXTAL)
-    system_clock_56m_hxtal();
 #elif defined (__SYSTEM_CLOCK_72M_PLL_HXTAL)
     system_clock_72m_hxtal();
 #elif defined (__SYSTEM_CLOCK_96M_PLL_HXTAL)
     system_clock_96m_hxtal();
-#elif defined (__SYSTEM_CLOCK_108M_PLL_HXTAL)
-    system_clock_108m_hxtal();
-
-#elif defined (__SYSTEM_CLOCK_48M_PLL_IRC8M)
-    system_clock_48m_irc8m();
-#elif defined (__SYSTEM_CLOCK_72M_PLL_IRC8M)
-    system_clock_72m_irc8m();
-#elif defined (__SYSTEM_CLOCK_108M_PLL_IRC8M)
-    system_clock_108m_irc8m();
 #endif /* __SYSTEM_CLOCK_HXTAL */
 }
 
@@ -259,192 +204,7 @@ void SystemCoreClockUpdate(void)
     }
 }
 
-#ifdef __SYSTEM_CLOCK_HXTAL
-/*!
-    \brief      configure the system clock to HXTAL
-    \param[in]  none
-    \param[out] none
-    \retval     none
-*/
-static void system_clock_hxtal(void)
-{
-    uint32_t timeout = 0U;
-    uint32_t stab_flag = 0U;
-    
-    /* enable HXTAL */
-    RCU_CTL |= RCU_CTL_HXTALEN;
-    
-    /* wait until HXTAL is stable or the startup time is longer than HXTAL_STARTUP_TIMEOUT */
-    do{
-        timeout++;
-        stab_flag = (RCU_CTL & RCU_CTL_HXTALSTB);
-    }while((0U == stab_flag) && (HXTAL_STARTUP_TIMEOUT != timeout));
-    
-    /* if fail */
-    if(0U == (RCU_CTL & RCU_CTL_HXTALSTB)){
-        while(1){
-        }
-    }
-    
-    /* AHB = SYSCLK */
-    RCU_CFG0 |= RCU_AHB_CKSYS_DIV1;
-    /* APB2 = AHB/1 */
-    RCU_CFG0 |= RCU_APB2_CKAHB_DIV1;
-    /* APB1 = AHB/2 */
-    RCU_CFG0 |= RCU_APB1_CKAHB_DIV2;
-    
-    /* select HXTAL as system clock */
-    RCU_CFG0 &= ~RCU_CFG0_SCS;
-    RCU_CFG0 |= RCU_CKSYSSRC_HXTAL;
-    
-    /* wait until HXTAL is selected as system clock */
-    while(0 == (RCU_CFG0 & RCU_SCSS_HXTAL)){
-    }
-}
-
-#elif defined (__SYSTEM_CLOCK_24M_PLL_HXTAL)
-/*!
-    \brief      configure the system clock to 24M by PLL which selects HXTAL(MD/HD/XD:8M; CL:25M) as its clock source
-    \param[in]  none
-    \param[out] none
-    \retval     none
-*/
-static void system_clock_24m_hxtal(void)
-{
-    uint32_t timeout = 0U;
-    uint32_t stab_flag = 0U;
-
-    /* enable HXTAL */
-    RCU_CTL |= RCU_CTL_HXTALEN;
-
-    /* wait until HXTAL is stable or the startup time is longer than HXTAL_STARTUP_TIMEOUT */
-    do{
-        timeout++;
-        stab_flag = (RCU_CTL & RCU_CTL_HXTALSTB);
-    }while((0U == stab_flag) && (HXTAL_STARTUP_TIMEOUT != timeout));
-
-    /* if fail */
-    if(0U == (RCU_CTL & RCU_CTL_HXTALSTB)){
-        while(1){
-        }
-    }
-
-    /* HXTAL is stable */
-    /* AHB = SYSCLK */
-    RCU_CFG0 |= RCU_AHB_CKSYS_DIV1;
-    /* APB2 = AHB/1 */
-    RCU_CFG0 |= RCU_APB2_CKAHB_DIV1;
-    /* APB1 = AHB/2 */
-    RCU_CFG0 |= RCU_APB1_CKAHB_DIV2;
-
-    /* CK_PLL = (CK_PREDIV0) * 6 = 24 MHz */
-    RCU_CFG0 &= ~(RCU_CFG0_PLLMF | RCU_CFG0_PLLMF_4);
-    RCU_CFG0 |= (RCU_PLLSRC_HXTAL | RCU_PLL_MUL6);
-
-    if(HXTAL_VALUE==25000000){
-        /* CK_PREDIV0 = (CK_HXTAL)/5 *8 /10 = 4 MHz */
-        RCU_CFG1 &= ~(RCU_CFG1_PREDV0SEL | RCU_CFG1_PLL1MF | RCU_CFG1_PREDV1 | RCU_CFG1_PREDV0);
-        RCU_CFG1 |= (RCU_PREDV0SRC_CKPLL1 | RCU_PLL1_MUL8 | RCU_PREDV1_DIV5 | RCU_PREDV0_DIV10);
-
-        /* enable PLL1 */
-        RCU_CTL |= RCU_CTL_PLL1EN;
-        /* wait till PLL1 is ready */
-        while((RCU_CTL & RCU_CTL_PLL1STB) == 0){
-        }
-
-    }else if(HXTAL_VALUE==8000000){
-        RCU_CFG1 &= ~(RCU_CFG1_PREDV0SEL | RCU_CFG1_PREDV1 | RCU_CFG1_PLL1MF | RCU_CFG1_PREDV0);
-        RCU_CFG1 |= (RCU_PREDV0SRC_HXTAL | RCU_PREDV0_DIV2 );
-    }
-
-    /* enable PLL */
-    RCU_CTL |= RCU_CTL_PLLEN;
-
-    /* wait until PLL is stable */
-    while(0U == (RCU_CTL & RCU_CTL_PLLSTB)){
-    }
-
-    /* select PLL as system clock */
-    RCU_CFG0 &= ~RCU_CFG0_SCS;
-    RCU_CFG0 |= RCU_CKSYSSRC_PLL;
-
-    /* wait until PLL is selected as system clock */
-    while(0U == (RCU_CFG0 & RCU_SCSS_PLL)){
-    }
-}
-
-#elif defined (__SYSTEM_CLOCK_36M_PLL_HXTAL)
-/*!
-    \brief      configure the system clock to 36M by PLL which selects HXTAL(MD/HD/XD:8M; CL:25M) as its clock source
-    \param[in]  none
-    \param[out] none
-    \retval     none
-*/
-static void system_clock_36m_hxtal(void)
-{
-    uint32_t timeout = 0U;
-    uint32_t stab_flag = 0U;
-
-    /* enable HXTAL */
-    RCU_CTL |= RCU_CTL_HXTALEN;
-
-    /* wait until HXTAL is stable or the startup time is longer than HXTAL_STARTUP_TIMEOUT */
-    do{
-        timeout++;
-        stab_flag = (RCU_CTL & RCU_CTL_HXTALSTB);
-    }while((0U == stab_flag) && (HXTAL_STARTUP_TIMEOUT != timeout));
-
-    /* if fail */
-    if(0U == (RCU_CTL & RCU_CTL_HXTALSTB)){
-        while(1){
-        }
-    }
-
-    /* HXTAL is stable */
-    /* AHB = SYSCLK */
-    RCU_CFG0 |= RCU_AHB_CKSYS_DIV1;
-    /* APB2 = AHB/1 */
-    RCU_CFG0 |= RCU_APB2_CKAHB_DIV1;
-    /* APB1 = AHB/2 */
-    RCU_CFG0 |= RCU_APB1_CKAHB_DIV2;
-
-    /* CK_PLL = (CK_PREDIV0) * 9 = 36 MHz */
-    RCU_CFG0 &= ~(RCU_CFG0_PLLMF | RCU_CFG0_PLLMF_4);
-    RCU_CFG0 |= (RCU_PLLSRC_HXTAL | RCU_PLL_MUL9);
-
-    if(HXTAL_VALUE==25000000){
-        /* CK_PREDIV0 = (CK_HXTAL)/5 *8 /10 = 4 MHz */
-        RCU_CFG1 &= ~(RCU_CFG1_PREDV0SEL | RCU_CFG1_PLL1MF | RCU_CFG1_PREDV1 | RCU_CFG1_PREDV0);
-        RCU_CFG1 |= (RCU_PREDV0SRC_CKPLL1 | RCU_PLL1_MUL8 | RCU_PREDV1_DIV5 | RCU_PREDV0_DIV10);
-
-        /* enable PLL1 */
-        RCU_CTL |= RCU_CTL_PLL1EN;
-        /* wait till PLL1 is ready */
-        while((RCU_CTL & RCU_CTL_PLL1STB) == 0){
-        }
-
-    }else if(HXTAL_VALUE==8000000){
-        RCU_CFG1 &= ~(RCU_CFG1_PREDV0SEL | RCU_CFG1_PREDV1 | RCU_CFG1_PLL1MF | RCU_CFG1_PREDV0);
-        RCU_CFG1 |= (RCU_PREDV0SRC_HXTAL | RCU_PREDV0_DIV2 );
-    }
-
-    /* enable PLL */
-    RCU_CTL |= RCU_CTL_PLLEN;
-
-    /* wait until PLL is stable */
-    while(0U == (RCU_CTL & RCU_CTL_PLLSTB)){
-    }
-
-    /* select PLL as system clock */
-    RCU_CFG0 &= ~RCU_CFG0_SCS;
-    RCU_CFG0 |= RCU_CKSYSSRC_PLL;
-
-    /* wait until PLL is selected as system clock */
-    while(0U == (RCU_CFG0 & RCU_SCSS_PLL)){
-    }
-}
-
-#elif defined (__SYSTEM_CLOCK_48M_PLL_HXTAL)
+#if defined (__SYSTEM_CLOCK_48M_PLL_HXTAL)
 /*!
     \brief      configure the system clock to 48M by PLL which selects HXTAL(MD/HD/XD:8M; CL:25M) as its clock source
     \param[in]  none
@@ -501,78 +261,6 @@ static void system_clock_48m_hxtal(void)
     }
 
 
-
-    /* enable PLL */
-    RCU_CTL |= RCU_CTL_PLLEN;
-
-    /* wait until PLL is stable */
-    while(0U == (RCU_CTL & RCU_CTL_PLLSTB)){
-    }
-
-    /* select PLL as system clock */
-    RCU_CFG0 &= ~RCU_CFG0_SCS;
-    RCU_CFG0 |= RCU_CKSYSSRC_PLL;
-
-    /* wait until PLL is selected as system clock */
-    while(0U == (RCU_CFG0 & RCU_SCSS_PLL)){
-    }
-}
-
-#elif defined (__SYSTEM_CLOCK_56M_PLL_HXTAL)
-/*!
-    \brief      configure the system clock to 56M by PLL which selects HXTAL(MD/HD/XD:8M; CL:25M) as its clock source
-    \param[in]  none
-    \param[out] none
-    \retval     none
-*/
-static void system_clock_56m_hxtal(void)
-{
-    uint32_t timeout = 0U;
-    uint32_t stab_flag = 0U;
-
-    /* enable HXTAL */
-    RCU_CTL |= RCU_CTL_HXTALEN;
-
-    /* wait until HXTAL is stable or the startup time is longer than HXTAL_STARTUP_TIMEOUT */
-    do{
-        timeout++;
-        stab_flag = (RCU_CTL & RCU_CTL_HXTALSTB);
-    }while((0U == stab_flag) && (HXTAL_STARTUP_TIMEOUT != timeout));
-
-    /* if fail */
-    if(0U == (RCU_CTL & RCU_CTL_HXTALSTB)){
-        while(1){
-        }
-    }
-
-    /* HXTAL is stable */
-    /* AHB = SYSCLK */
-    RCU_CFG0 |= RCU_AHB_CKSYS_DIV1;
-    /* APB2 = AHB/1 */
-    RCU_CFG0 |= RCU_APB2_CKAHB_DIV1;
-    /* APB1 = AHB/2 */
-    RCU_CFG0 |= RCU_APB1_CKAHB_DIV2;
-
-    /* CK_PLL = (CK_PREDIV0) * 14 = 56 MHz */
-    RCU_CFG0 &= ~(RCU_CFG0_PLLMF | RCU_CFG0_PLLMF_4);
-    RCU_CFG0 |= (RCU_PLLSRC_HXTAL | RCU_PLL_MUL14);
-
-    if(HXTAL_VALUE==25000000){
-
-        /* CK_PREDIV0 = (CK_HXTAL)/5 *8 /10 = 4 MHz */
-        RCU_CFG1 &= ~(RCU_CFG1_PREDV0SEL | RCU_CFG1_PLL1MF | RCU_CFG1_PREDV1 | RCU_CFG1_PREDV0);
-        RCU_CFG1 |= (RCU_PREDV0SRC_CKPLL1 | RCU_PLL1_MUL8 | RCU_PREDV1_DIV5 | RCU_PREDV0_DIV10);
-
-        /* enable PLL1 */
-        RCU_CTL |= RCU_CTL_PLL1EN;
-        /* wait till PLL1 is ready */
-        while((RCU_CTL & RCU_CTL_PLL1STB) == 0){
-        }
-
-    }else if(HXTAL_VALUE==8000000){
-        RCU_CFG1 &= ~(RCU_CFG1_PREDV0SEL | RCU_CFG1_PREDV1 | RCU_CFG1_PLL1MF | RCU_CFG1_PREDV0);
-        RCU_CFG1 |= (RCU_PREDV0SRC_HXTAL | RCU_PREDV0_DIV2 );
-    }
 
     /* enable PLL */
     RCU_CTL |= RCU_CTL_PLLEN;
@@ -738,263 +426,6 @@ static void system_clock_96m_hxtal(void)
     }
 }
 
-#elif defined (__SYSTEM_CLOCK_108M_PLL_HXTAL)
-/*!
-    \brief      configure the system clock to 108M by PLL which selects HXTAL(MD/HD/XD:8M; CL:25M) as its clock source
-    \param[in]  none
-    \param[out] none
-    \retval     none
-*/
-
-static void system_clock_108m_hxtal(void)
-{
-    uint32_t timeout   = 0U;
-    uint32_t stab_flag = 0U;
-
-    /* enable HXTAL */
-    RCU_CTL |= RCU_CTL_HXTALEN;
-
-    /* wait until HXTAL is stable or the startup time is longer than HXTAL_STARTUP_TIMEOUT */
-    do{
-        timeout++;
-        stab_flag = (RCU_CTL & RCU_CTL_HXTALSTB);
-    }while((0U == stab_flag) && (HXTAL_STARTUP_TIMEOUT != timeout));
-
-    /* if fail */
-    if(0U == (RCU_CTL & RCU_CTL_HXTALSTB)){
-        while(1){
-        }
-    }
-
-    /* HXTAL is stable */
-    /* AHB = SYSCLK */
-    RCU_CFG0 |= RCU_AHB_CKSYS_DIV1;
-    /* APB2 = AHB/1 */
-    RCU_CFG0 |= RCU_APB2_CKAHB_DIV1;
-    /* APB1 = AHB/2 */
-    RCU_CFG0 |= RCU_APB1_CKAHB_DIV2;
-
-    /* CK_PLL = (CK_PREDIV0) * 27 = 108 MHz */ 
-    RCU_CFG0 &= ~(RCU_CFG0_PLLMF | RCU_CFG0_PLLMF_4);
-    RCU_CFG0 |= (RCU_PLLSRC_HXTAL | RCU_PLL_MUL27);
-
-    if(HXTAL_VALUE==25000000){
-        /* CK_PREDIV0 = (CK_HXTAL)/5 *8 /10 = 4 MHz */
-        RCU_CFG1 &= ~(RCU_CFG1_PREDV0SEL | RCU_CFG1_PREDV1 | RCU_CFG1_PLL1MF | RCU_CFG1_PREDV0);
-        RCU_CFG1 |= (RCU_PREDV0SRC_CKPLL1 | RCU_PREDV1_DIV5 | RCU_PLL1_MUL8 | RCU_PREDV0_DIV10);
-
-        /* enable PLL1 */
-        RCU_CTL |= RCU_CTL_PLL1EN;
-        /* wait till PLL1 is ready */
-        while(0U == (RCU_CTL & RCU_CTL_PLL1STB)){
-        }
-
-        /* enable PLL1 */
-        RCU_CTL |= RCU_CTL_PLL2EN;
-        /* wait till PLL1 is ready */
-        while(0U == (RCU_CTL & RCU_CTL_PLL2STB)){
-        }
-    }else if(HXTAL_VALUE==8000000){
-        RCU_CFG1 &= ~(RCU_CFG1_PREDV0SEL | RCU_CFG1_PREDV1 | RCU_CFG1_PLL1MF | RCU_CFG1_PREDV0);
-        RCU_CFG1 |= (RCU_PREDV0SRC_HXTAL | RCU_PREDV0_DIV2 | RCU_PREDV1_DIV2 | RCU_PLL1_MUL20 | RCU_PLL2_MUL20);
-
-        /* enable PLL1 */
-        RCU_CTL |= RCU_CTL_PLL1EN;
-        /* wait till PLL1 is ready */
-        while(0U == (RCU_CTL & RCU_CTL_PLL1STB)){
-        }
-
-        /* enable PLL2 */
-        RCU_CTL |= RCU_CTL_PLL2EN;
-        /* wait till PLL1 is ready */
-        while(0U == (RCU_CTL & RCU_CTL_PLL2STB)){
-        }
-
-    }
-    /* enable PLL */
-    RCU_CTL |= RCU_CTL_PLLEN;
-
-    /* wait until PLL is stable */
-    while(0U == (RCU_CTL & RCU_CTL_PLLSTB)){
-    }
-
-    /* select PLL as system clock */
-    RCU_CFG0 &= ~RCU_CFG0_SCS;
-    RCU_CFG0 |= RCU_CKSYSSRC_PLL;
-
-    /* wait until PLL is selected as system clock */
-    while(0U == (RCU_CFG0 & RCU_SCSS_PLL)){
-    }
-}
-
-#elif defined (__SYSTEM_CLOCK_48M_PLL_IRC8M)
-/*!
-    \brief      configure the system clock to 48M by PLL which selects IRC8M as its clock source
-    \param[in]  none
-    \param[out] none
-    \retval     none
-*/
-static void system_clock_48m_irc8m(void)
-{
-    uint32_t timeout = 0U;
-    uint32_t stab_flag = 0U;
-    
-    /* enable IRC8M */
-    RCU_CTL |= RCU_CTL_IRC8MEN;
-
-    /* wait until IRC8M is stable or the startup time is longer than IRC8M_STARTUP_TIMEOUT */
-    do{
-        timeout++;
-        stab_flag = (RCU_CTL & RCU_CTL_IRC8MSTB);
-    }
-    while((0U == stab_flag) && (IRC8M_STARTUP_TIMEOUT != timeout));
-
-    /* if fail */
-    if(0U == (RCU_CTL & RCU_CTL_IRC8MSTB)){
-      while(1){
-      }
-    }
-
-    /* IRC8M is stable */
-    /* AHB = SYSCLK */
-    RCU_CFG0 |= RCU_AHB_CKSYS_DIV1;
-    /* APB2 = AHB/1 */
-    RCU_CFG0 |= RCU_APB2_CKAHB_DIV1;
-    /* APB1 = AHB/2 */
-    RCU_CFG0 |= RCU_APB1_CKAHB_DIV2;
-
-    /* CK_PLL = (CK_IRC8M/2) * 12 = 48 MHz */
-    RCU_CFG0 &= ~(RCU_CFG0_PLLMF | RCU_CFG0_PLLMF_4);
-    RCU_CFG0 |= RCU_PLL_MUL12;
-
-    /* enable PLL */
-    RCU_CTL |= RCU_CTL_PLLEN;
-
-    /* wait until PLL is stable */
-    while(0U == (RCU_CTL & RCU_CTL_PLLSTB)){
-    }
-
-    /* select PLL as system clock */
-    RCU_CFG0 &= ~RCU_CFG0_SCS;
-    RCU_CFG0 |= RCU_CKSYSSRC_PLL;
-
-    /* wait until PLL is selected as system clock */
-    while(0U == (RCU_CFG0 & RCU_SCSS_PLL)){
-    }
-}
-
-#elif defined (__SYSTEM_CLOCK_72M_PLL_IRC8M)
-/*!
-    \brief      configure the system clock to 72M by PLL which selects IRC8M as its clock source
-    \param[in]  none
-    \param[out] none
-    \retval     none
-*/
-static void system_clock_72m_irc8m(void)
-{
-    uint32_t timeout = 0U;
-    uint32_t stab_flag = 0U;
-    
-    /* enable IRC8M */
-    RCU_CTL |= RCU_CTL_IRC8MEN;
-
-    /* wait until IRC8M is stable or the startup time is longer than IRC8M_STARTUP_TIMEOUT */
-    do{
-        timeout++;
-        stab_flag = (RCU_CTL & RCU_CTL_IRC8MSTB);
-    }
-    while((0U == stab_flag) && (IRC8M_STARTUP_TIMEOUT != timeout));
-
-    /* if fail */
-    if(0U == (RCU_CTL & RCU_CTL_IRC8MSTB)){
-      while(1){
-      }
-    }
-
-    /* IRC8M is stable */
-    /* AHB = SYSCLK */
-    RCU_CFG0 |= RCU_AHB_CKSYS_DIV1;
-    /* APB2 = AHB/1 */
-    RCU_CFG0 |= RCU_APB2_CKAHB_DIV1;
-    /* APB1 = AHB/2 */
-    RCU_CFG0 |= RCU_APB1_CKAHB_DIV2;
-
-    /* CK_PLL = (CK_IRC8M/2) * 18 = 72 MHz */
-    RCU_CFG0 &= ~(RCU_CFG0_PLLMF | RCU_CFG0_PLLMF_4);
-    RCU_CFG0 |= RCU_PLL_MUL18;
-
-    /* enable PLL */
-    RCU_CTL |= RCU_CTL_PLLEN;
-
-    /* wait until PLL is stable */
-    while(0U == (RCU_CTL & RCU_CTL_PLLSTB)){
-    }
-
-    /* select PLL as system clock */
-    RCU_CFG0 &= ~RCU_CFG0_SCS;
-    RCU_CFG0 |= RCU_CKSYSSRC_PLL;
-
-    /* wait until PLL is selected as system clock */
-    while(0U == (RCU_CFG0 & RCU_SCSS_PLL)){
-    }
-}
-
-#elif defined (__SYSTEM_CLOCK_108M_PLL_IRC8M)
-/*!
-    \brief      configure the system clock to 108M by PLL which selects IRC8M as its clock source
-    \param[in]  none
-    \param[out] none
-    \retval     none
-*/
-static void system_clock_108m_irc8m(void)
-{
-    uint32_t timeout = 0U;
-    uint32_t stab_flag = 0U;
-    
-    /* enable IRC8M */
-    RCU_CTL |= RCU_CTL_IRC8MEN;
-
-    /* wait until IRC8M is stable or the startup time is longer than IRC8M_STARTUP_TIMEOUT */
-    do{
-        timeout++;
-        stab_flag = (RCU_CTL & RCU_CTL_IRC8MSTB);
-    }
-    while((0U == stab_flag) && (IRC8M_STARTUP_TIMEOUT != timeout));
-
-    /* if fail */
-    if(0U == (RCU_CTL & RCU_CTL_IRC8MSTB)){
-      while(1){
-      }
-    }
-
-    /* IRC8M is stable */
-    /* AHB = SYSCLK */
-    RCU_CFG0 |= RCU_AHB_CKSYS_DIV1;
-    /* APB2 = AHB/1 */
-    RCU_CFG0 |= RCU_APB2_CKAHB_DIV1;
-    /* APB1 = AHB/2 */
-    RCU_CFG0 |= RCU_APB1_CKAHB_DIV2;
-
-    /* CK_PLL = (CK_IRC8M/2) * 27 = 108 MHz */
-    RCU_CFG0 &= ~(RCU_CFG0_PLLMF | RCU_CFG0_PLLMF_4);
-    RCU_CFG0 |= RCU_PLL_MUL27;
-
-    /* enable PLL */
-    RCU_CTL |= RCU_CTL_PLLEN;
-
-    /* wait until PLL is stable */
-    while(0U == (RCU_CTL & RCU_CTL_PLLSTB)){
-    }
-
-    /* select PLL as system clock */
-    RCU_CFG0 &= ~RCU_CFG0_SCS;
-    RCU_CFG0 |= RCU_CKSYSSRC_PLL;
-
-    /* wait until PLL is selected as system clock */
-    while(0U == (RCU_CFG0 & RCU_SCSS_PLL)){
-    }
-}
-
 #endif
 
 /**
@@ -1122,19 +553,6 @@ uint32_t core_exception_handler(unsigned long mcause, unsigned long sp)
 }
 /** @} */ /* End of Doxygen Group NMSIS_Core_ExceptionAndNMI */
 
-void SystemBannerPrint(void)
-{
-#if defined(NUCLEI_BANNER) && (NUCLEI_BANNER == 1)
-#ifndef DOWNLOAD_MODE
-#error DOWNLOAD_MODE is not defined via build system, please check!
-#endif
-    const char* download_modes[] = {"FLASHXIP", "FLASH", "ILM", "DDR"};
-    printf("Nuclei SDK Build Time: %s, %s\r\n", __DATE__, __TIME__);
-    printf("Download Mode: %s\r\n", download_modes[DOWNLOAD_MODE]);
-    printf("CPU Frequency %d Hz\r\n", SystemCoreClock);
-#endif
-}
-
 /**
  * \brief initialize eclic config
  * \details
@@ -1199,12 +617,6 @@ int32_t ECLIC_Register_IRQ(IRQn_Type IRQn, uint8_t shv, ECLIC_TRIGGER_Type trig_
  */
 void _premain_init(void)
 {
-    /* TODO: Add your own initialization code here, called before main */
-    //SystemCoreClock = get_cpu_freq();
-    /* configure USART */
-    /*gd_com_init(SOC_DEBUG_UART);*/
-    /* Display banner after UART initialized */
-    /*SystemBannerPrint();*/
     /* Initialize exception default handlers */
     Exception_Init();
     /* ECLIC initialization, mainly MTH and NLBIT */
