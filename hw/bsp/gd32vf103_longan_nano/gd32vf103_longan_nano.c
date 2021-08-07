@@ -46,6 +46,7 @@ void USBFS_IRQHandler(void) { tud_int_handler(0); }
 #define UART_DEV SOC_DEBUG_UART
 
 #define LED_PIN LED_R
+
 #define TIMER_TICKS (SystemCoreClock / 1000)
 
 void board_init(void) {
@@ -126,11 +127,7 @@ void gd32vf103_reset(void) {
 //--------------------------------------------------------------------+
 
 void board_led_write(bool state) {
-  if (state) {
-    gd_led_on(LED_PIN);
-  } else {
-    gd_led_off(LED_PIN);
-  }
+  state ? gd_led_on(LED_PIN) : gd_led_off(LED_PIN);
 }
 
 uint32_t board_button_read(void) {
