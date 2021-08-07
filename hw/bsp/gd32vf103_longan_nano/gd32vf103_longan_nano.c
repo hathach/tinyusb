@@ -67,12 +67,7 @@ void board_init(void) {
   SystemCoreClockUpdate();
 
 #if CFG_TUSB_OS == OPT_OS_NONE
-  SysTimer_SetLoadValue(0);
-  SysTimer_SetCompareValue(SystemCoreClock / 1000);
-  ECLIC_SetLevelIRQ(SysTimer_IRQn, 3);
-  ECLIC_SetTrigIRQ(SysTimer_IRQn, ECLIC_POSTIVE_EDGE_TRIGGER);
-  ECLIC_EnableIRQ(SysTimer_IRQn);
-  SysTimer_Start();
+  SysTick_Config(TIMER_TICKS);
 #endif
 
   rcu_periph_clock_enable(RCU_GPIOA);
@@ -188,7 +183,10 @@ int board_uart_write(void const* buf, int len) {
 
 #if CFG_TUSB_OS == OPT_OS_NONE
 volatile uint32_t system_ticks = 0;
-void eclic_mtip_handler(void) { system_ticks++; }
+void eclic_mtip_handler(void) {
+  system_ticks++;
+  SysTick_Reload(TIMER_TICKS);
+}
 uint32_t board_millis(void) { return system_ticks; }
 #endif
 
@@ -209,7 +207,3 @@ void assert_failed(char* file, uint32_t line) {
   /* USER CODE END 6 */
 }
 #endif /* USE_FULL_ASSERT */
-
-// Required by __libc_init_array in startup code if we are compiling using
-// -nostdlib/-nostartfiles.
-// void _init(void) {}
