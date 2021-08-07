@@ -39,15 +39,15 @@ void USBFS_IRQHandler(void) { tud_int_handler(0); }
 
 #define USB_NO_VBUS_PIN
 
-#define BUTTON_PORT GPIOA
-#define BUTTON_PIN GPIO_PIN_0
+#define TIMER_TICKS         (SystemCoreClock / 1000)
+
+#define BUTTON_PORT         GPIOA
+#define BUTTON_PIN          GPIO_PIN_0
 #define BUTTON_STATE_ACTIVE 1
 
-#define UART_DEV SOC_DEBUG_UART
+#define UART_DEV            SOC_DEBUG_UART
 
-#define LED_PIN LED_R
-
-#define TIMER_TICKS (SystemCoreClock / 1000)
+#define LED_PIN             LED_R
 
 void board_init(void) {
   /* Disable interrupts during init */
