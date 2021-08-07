@@ -94,16 +94,28 @@
 #define EP_FIFO_SIZE_FS 1280
 
 #elif CFG_TUSB_MCU == OPT_MCU_GD32VF103
-#define STM32F1_SYNOPSYS
-#include "gd32vf103.h"
-#include "nmsis_core.h"
-#include "core_feature_eclic.h"
 #include "synopsys_common.h"
+
+// These numbers are the same for the whole GD32VF103 family.
+#define OTG_FS_IRQn     86
 #define EP_MAX_FS       4
 #define EP_FIFO_SIZE_FS 1280
-#define OTG_FS_IRQn USBFS_IRQn
-#define NVIC_EnableIRQ ECLIC_EnableIRQ
-#define NVIC_DisableIRQ ECLIC_DisableIRQ
+
+// The GD32VF103 is a RISC-V MCU, which implements the ECLIC Core-Local
+// Interrupt Controller by Nuclei. It is nearly API compatible to the
+// NVIC used by ARM MCUs.
+#define ECLIC_INTERRUPT_ENABLE_BASE 0xD2001001UL
+
+#define NVIC_EnableIRQ __eclic_enable_interrupt
+#define NVIC_DisableIRQ __eclic_disable_interrupt
+
+static inline void __eclic_enable_interrupt (uint32_t irq) {
+  *(volatile uint8_t*)(ECLIC_INTERRUPT_ENABLE_BASE + (irq * 4)) = 1;
+}
+
+static inline void __eclic_disable_interrupt (uint32_t irq){
+  *(volatile uint8_t*)(ECLIC_INTERRUPT_ENABLE_BASE + (irq * 4)) = 0;
+}
 
 #else
 #error "Unsupported MCUs"
