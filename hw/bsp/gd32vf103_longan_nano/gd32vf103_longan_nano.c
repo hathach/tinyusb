@@ -39,32 +39,18 @@ void USBFS_IRQHandler(void) { tud_int_handler(0); }
 
 #define USB_NO_VBUS_PIN
 
-#define BUTTON_PORT         GPIOA
-#define BUTTON_PIN          GPIO_PIN_0
+#define BUTTON_PORT GPIOA
+#define BUTTON_PIN GPIO_PIN_0
 #define BUTTON_STATE_ACTIVE 1
 
-#define UART_DEV            SOC_DEBUG_UART
+#define UART_DEV SOC_DEBUG_UART
 
-#define LED_PIN             LED_R
+#define LED_PIN LED_R
+#define TIMER_TICKS (SystemCoreClock / 1000)
 
 void board_init(void) {
   /* Disable interrupts during init */
   __disable_irq();
-
-  ECLIC_Init();
-
-  /* Reset eclic interrupt registers */
-  for (int32_t i = 0; i < SOC_INT_MAX; i++) {
-    ECLIC->CTRL[0].INTIP = 0;
-    ECLIC->CTRL[0].INTIE = 0;
-    ECLIC->CTRL[0].INTATTR = 0;
-    ECLIC->CTRL[0].INTCTRL = 0;
-  }
-
-  /* Set 4 bits for interrupt level and 0 bits for priority */
-  __ECLIC_SetCfgNlbits(4);
-
-  SystemCoreClockUpdate();
 
 #if CFG_TUSB_OS == OPT_OS_NONE
   SysTick_Config(TIMER_TICKS);
@@ -104,9 +90,9 @@ void board_init(void) {
   rcu_periph_reset_enable(RCU_USBFSRST);
   rcu_periph_reset_disable(RCU_USBFSRST);
 
-  /* Set IRQ priority and trigger */
-  ECLIC_SetLevelIRQ(USBFS_IRQn, 3);
-  ECLIC_SetTrigIRQ(USBFS_IRQn, ECLIC_POSTIVE_EDGE_TRIGGER);
+  /* Configure USBFS IRQ */
+  ECLIC_Register_IRQ(USBFS_IRQn, ECLIC_NON_VECTOR_INTERRUPT,
+                     ECLIC_POSTIVE_EDGE_TRIGGER, 3, 0, NULL);
 
   /* Retrieve otg core registers */
   usb_gr* otg_core_regs = (usb_gr*)(USBFS_REG_BASE + USB_REG_OFFSET_CORE);
