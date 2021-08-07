@@ -1,29 +1,19 @@
-// See LICENSE for license details.
 #ifndef _NUCLEI_SDK_HAL_H
 #define _NUCLEI_SDK_HAL_H
 
-#include "nmsis_gcc.h"
-#include "gd32vf103.h"
-#include "gd32vf103_libopt.h"
+#include "gd32vf103c_longan_nano.h"
 #include "drv_usb_hw.h"
 #include "drv_usb_dev.h"
 
-#ifdef __cplusplus
-extern "C" {
-#endif
+// 4 bits for interrupt level, 0 for priority.
+// level 0 = lowest priority, level 15 = highest priority.
+#define __ECLIC_INTCTLBITS 4
 
-/* sipeed longan nano board UART com port */
-#define SOC_DEBUG_UART      USART0
-#define GD32_COM0 USART0
-#define GD32_COM_CLK RCU_USART0
-#define GD32_COM_TX_PIN GPIO_PIN_9
-#define GD32_COM_RX_PIN GPIO_PIN_10
-#define GD32_COM_TX_GPIO_PORT GPIOA
-#define GD32_COM_RX_GPIO_PORT GPIOA
-#define GD32_COM_TX_GPIO_CLK RCU_GPIOA
-#define GD32_COM_RX_GPIO_CLK RCU_GPIOA
+#define SOC_DEBUG_UART GD32_COM0
 
-#ifdef __cplusplus
-}
-#endif
+#define DBG_KEY_UNLOCK 0x4B5A6978
+#define DBG_CMD_RESET  0x1
+#define DBG_KEY        REG32(DBG + 0x0C)
+#define DBG_CMD        REG32(DBG + 0x08)
+
 #endif

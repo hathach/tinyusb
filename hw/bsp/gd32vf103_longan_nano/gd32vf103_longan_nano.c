@@ -37,38 +37,21 @@ void USBFS_IRQHandler(void) { tud_int_handler(0); }
 // MACRO TYPEDEF CONSTANT ENUM
 //--------------------------------------------------------------------+
 
-#define HXTAL_VALUE \
-  ((uint32_t)8000000) /*!< value of the external oscillator in Hz */
 #define USB_NO_VBUS_PIN
 
-//--------------------------------------------------------------------+
-// LED
-//--------------------------------------------------------------------+
-
-#define LED_PORT GPIOC
-#define LED_PIN GPIO_PIN_13
-#define LED_STATE_ON 1
-
-#define BUTTON_PORT GPIOA
-#define BUTTON_PIN GPIO_PIN_0
+#define BUTTON_PORT         GPIOA
+#define BUTTON_PIN          GPIO_PIN_0
 #define BUTTON_STATE_ACTIVE 1
 
-//--------------------------------------------------------------------+
-// UART
-//--------------------------------------------------------------------+
+#define UART_DEV            SOC_DEBUG_UART
 
-#define UART_DEV USART0
-#define UART_GPIO_PORT GPIOA
-#define UART_TX_PIN GPIO_PIN_9
-#define UART_RX_PIN GPIO_PIN_10
+#define LED_PIN             LED_R
 
 void board_init(void) {
   /* Disable interrupts during init */
   __disable_irq();
 
-  /* Reset eclic configuration registers */
-  ECLIC->CFG = 0;
-  ECLIC->MTH = 0;
+  ECLIC_Init();
 
   /* Reset eclic interrupt registers */
   for (int32_t i = 0; i < SOC_INT_MAX; i++) {
@@ -103,37 +86,11 @@ void board_init(void) {
 #endif
 
 #ifdef LED_PIN
-  gpio_init(LED_PORT, GPIO_MODE_OUT_PP, GPIO_OSPEED_50MHZ, LED_PIN);
-  board_led_write(0);
+  gd_led_init(LED_PIN);
 #endif
 
 #if defined(UART_DEV)
-  /* enable GPIO TX and RX clock */
-  rcu_periph_clock_enable(GD32_COM_TX_GPIO_CLK);
-  rcu_periph_clock_enable(GD32_COM_RX_GPIO_CLK);
-
-  /* enable USART clock */
-  rcu_periph_clock_enable(GD32_COM_CLK);
-
-  /* connect port to USARTx_Tx */
-  gpio_init(GD32_COM_TX_GPIO_PORT, GPIO_MODE_AF_PP, GPIO_OSPEED_50MHZ,
-            GD32_COM_TX_PIN);
-
-  /* connect port to USARTx_Rx */
-  gpio_init(GD32_COM_RX_GPIO_PORT, GPIO_MODE_IN_FLOATING, GPIO_OSPEED_50MHZ,
-            GD32_COM_RX_PIN);
-
-  /* USART configure */
-  usart_deinit(UART_DEV);
-  usart_baudrate_set(UART_DEV, 115200U);
-  usart_word_length_set(UART_DEV, USART_WL_8BIT);
-  usart_stop_bit_set(UART_DEV, USART_STB_1BIT);
-  usart_parity_config(UART_DEV, USART_PM_NONE);
-  usart_hardware_flow_rts_config(UART_DEV, USART_RTS_DISABLE);
-  usart_hardware_flow_cts_config(UART_DEV, USART_CTS_DISABLE);
-  usart_receive_config(UART_DEV, USART_RECEIVE_ENABLE);
-  usart_transmit_config(UART_DEV, USART_TRANSMIT_ENABLE);
-  usart_enable(UART_DEV);
+  gd_com_init(UART_DEV);
 #endif
 
   /* USB D+ and D- pins don't need to be configured. */
@@ -153,7 +110,7 @@ void board_init(void) {
   rcu_periph_reset_disable(RCU_USBFSRST);
 
   /* Set IRQ priority and trigger */
-  ECLIC_SetLevelIRQ(USBFS_IRQn, 15);
+  ECLIC_SetLevelIRQ(USBFS_IRQn, 3);
   ECLIC_SetTrigIRQ(USBFS_IRQn, ECLIC_POSTIVE_EDGE_TRIGGER);
 
   /* Retrieve otg core registers */
@@ -172,14 +129,6 @@ void board_init(void) {
   __enable_irq();
 }
 
-#include "gd32vf103_dbg.h"
-
-#define DBG_KEY_UNLOCK 0x4B5A6978
-#define DBG_CMD_RESET 0x1
-
-#define DBG_KEY REG32(DBG + 0x0C)
-#define DBG_CMD REG32(DBG + 0x08)
-
 void gd32vf103_reset(void) {
   /* The MTIMER unit of the GD32VF103 doesn't have the MSFRST
    * register to generate a software reset request.
@@ -196,7 +145,11 @@ void gd32vf103_reset(void) {
 //--------------------------------------------------------------------+
 
 void board_led_write(bool state) {
-  gpio_bit_write(LED_PORT, LED_PIN, state ? LED_STATE_ON : (1 - LED_STATE_ON));
+  if (state) {
+    gd_led_on(LED_PIN);
+  } else {
+    gd_led_off(LED_PIN);
+  }
 }
 
 uint32_t board_button_read(void) {
