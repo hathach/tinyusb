@@ -89,7 +89,8 @@
     (CFG_TUSB_MCU == OPT_MCU_STM32L4 && defined(STM32L4_SYNOPSYS)) || \
     CFG_TUSB_MCU == OPT_MCU_RX63X                                 || \
     CFG_TUSB_MCU == OPT_MCU_RX65X                                 || \
-    CFG_TUSB_MCU == OPT_MCU_RX72N
+    CFG_TUSB_MCU == OPT_MCU_RX72N                                 || \
+    CFG_TUSB_MCU == OPT_MCU_GD32VF103
 #define  USE_LINEAR_BUFFER     0
 #else
 #define  USE_LINEAR_BUFFER     1
