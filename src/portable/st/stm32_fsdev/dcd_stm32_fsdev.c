@@ -113,7 +113,8 @@
       (CFG_TUSB_MCU == OPT_MCU_STM32F0                          ) || \
       (CFG_TUSB_MCU == OPT_MCU_STM32F1 && defined(STM32F1_FSDEV)) || \
       (CFG_TUSB_MCU == OPT_MCU_STM32F3                          ) || \
-      (CFG_TUSB_MCU == OPT_MCU_STM32L0                          ) \
+	  (CFG_TUSB_MCU == OPT_MCU_STM32L0                          ) || \
+      (CFG_TUSB_MCU == OPT_MCU_STM32L1                          ) \
     )
 
 // In order to reduce the dependance on HAL, we undefine this.
@@ -273,6 +274,20 @@ void dcd_connect(uint8_t rhport)
   USB->BCDR |= USB_BCDR_DPPU;
 }
 
+#elif defined(SYSCFG_PMC_USB_PU) // works e.g. on STM32L151
+// Disable internal D+ PU
+void dcd_disconnect(uint8_t rhport)
+{
+  (void) rhport;
+  SYSCFG->PMC &= ~(SYSCFG_PMC_USB_PU);
+}
+
+// Enable internal D+ PU
+void dcd_connect(uint8_t rhport)
+{
+  (void) rhport;
+  SYSCFG->PMC |= SYSCFG_PMC_USB_PU;
+}
 #endif
 
 // Enable device interrupt
@@ -284,6 +299,8 @@ void dcd_int_enable (uint8_t rhport)
   __ISB();
 #if CFG_TUSB_MCU == OPT_MCU_STM32F0 || CFG_TUSB_MCU == OPT_MCU_STM32L0
   NVIC_EnableIRQ(USB_IRQn);
+#elif CFG_TUSB_MCU == OPT_MCU_STM32L1
+  NVIC_EnableIRQ(USB_LP_IRQn);
 #elif CFG_TUSB_MCU == OPT_MCU_STM32F3
   // Some STM32F302/F303 devices allow to remap the USB interrupt vectors from
   // shared USB/CAN IRQs to separate CAN and USB IRQs.
@@ -318,6 +335,8 @@ void dcd_int_disable(uint8_t rhport)
 
 #if CFG_TUSB_MCU == OPT_MCU_STM32F0 || CFG_TUSB_MCU == OPT_MCU_STM32L0
   NVIC_DisableIRQ(USB_IRQn);
+#elif CFG_TUSB_MCU == OPT_MCU_STM32L1
+  NVIC_DisableIRQ(USB_LP_IRQn);
 #elif CFG_TUSB_MCU == OPT_MCU_STM32F3
   // Some STM32F302/F303 devices allow to remap the USB interrupt vectors from
   // shared USB/CAN IRQs to separate CAN and USB IRQs.
