@@ -321,7 +321,6 @@ static bool _open_vs_itf(uint8_t rhport, videod_interface_t *self, unsigned itfn
     cur += tu_desc_len(cur);
   }
   *ofs = (void const*)vs - self->beg;
-  TU_LOG2("    done\r\n");
   return true;
 }
 
@@ -346,6 +345,7 @@ static int handle_video_ctl_std_req(uint8_t rhport, uint8_t stage, tusb_control_
       return VIDEO_UNKNOWN;
     if (!_open_vc_itf(rhport, &_videod_itf[itf], request->wValue))
       return VIDEO_UNKNOWN;
+    tud_control_status(rhport, request);
     return VIDEO_NO_ERROR;
   default: /* Unknown/Unsupported request */
     TU_BREAKPOINT();
@@ -457,6 +457,7 @@ static int handle_video_stm_std_req(uint8_t rhport, uint8_t stage, tusb_control_
       return VIDEO_UNKNOWN;
     if (!_open_vs_itf(rhport, &_videod_itf[itf], itfnum, request->wValue))
       return VIDEO_UNKNOWN;
+    tud_control_status(rhport, request);
     return VIDEO_NO_ERROR;
   default: /* Unknown/Unsupported request */
     TU_BREAKPOINT();
@@ -612,12 +613,6 @@ uint16_t videod_open(uint8_t rhport, tusb_desc_interface_t const * itf_desc, uin
     cur = _next_desc_itf(cur, end);
   }
   self->len = (uintptr_t)cur - (uintptr_t)itf_desc;
-  /*------------- Video Stream Interface -------------*/
-  unsigned itfnum = 0;
-  for (unsigned i = 0; i < bInCollection; ++i) {
-    itfnum = vc->ctl.baInterfaceNr[i];
-    if (!_open_vs_itf(rhport, self, itfnum, 0)) return 0;
-  }
   return (uintptr_t)cur - (uintptr_t)itf_desc;
 }
 

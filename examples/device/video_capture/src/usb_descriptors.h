@@ -51,6 +51,7 @@ enum {
     + (TUD_VIDEO_DESC_CS_VS_IN_LEN + 1/*bNumFormats x bControlSize*/)\
     + TUD_VIDEO_DESC_CS_VS_FMT_UNCOMPR_LEN\
     + TUD_VIDEO_DESC_CS_VS_FRM_UNCOMPR_CONT_LEN\
+    + TUD_VIDEO_DESC_CS_VS_COLOR_MATCHING_LEN\
     /* Interface 1, Alternate 1 */\
     + TUD_VIDEO_DESC_STD_VS_LEN\
     + 7/* Endpoint */\
@@ -75,7 +76,7 @@ enum {
       TUD_VIDEO_DESC_CS_VC( /* UVC 1.5*/ 0x0150, \
            /* wTotalLength - bLength */ \
            TUD_VIDEO_DESC_INPUT_TERM_LEN + TUD_VIDEO_DESC_OUTPUT_TERM_LEN, \
-           UVC_CLOCK_FREQUENCY, 1, 1), \
+           UVC_CLOCK_FREQUENCY, 1), \
         TUD_VIDEO_DESC_INPUT_TERM(UVC_ENTITY_CAP_INPUT_TERMINAL,\
                                    VIDEO_TT_COMPOSITE_CONNECTOR, 0, 0), \
         TUD_VIDEO_DESC_OUTPUT_TERM(UVC_ENTITY_CAP_OUTPUT_TERMINAL,\
@@ -86,10 +87,11 @@ enum {
       TUD_VIDEO_DESC_CS_VS_INPUT( /*bNumFormats*/1, \
           /*wTotalLength - bLength */\
           TUD_VIDEO_DESC_CS_VS_FMT_UNCOMPR_LEN\
-          + TUD_VIDEO_DESC_CS_VS_FRM_UNCOMPR_CONT_LEN, \
+          + TUD_VIDEO_DESC_CS_VS_FRM_UNCOMPR_CONT_LEN\
+          + TUD_VIDEO_DESC_CS_VS_COLOR_MATCHING_LEN,\
           _epin, /*bmInfo*/0, /*bTerminalLink*/UVC_ENTITY_CAP_OUTPUT_TERMINAL, \
           /*bStillCaptureMethod*/0, /*bTriggerSupport*/0, /*bTriggerUsage*/0, \
-          /*bControlSize*/1, /*bmaControls(1)*/0), \
+          /*bmaControls(1)*/0), \
         /* Video stream format */ \
         TUD_VIDEO_DESC_CS_VS_FMT_NV12(/*bFormatIndex*/1, /*bNumFrameDescriptors*/1,\
           /*bDefaultFrameIndex*/1, 0, 0, 0, /*bCopyProtect*/0), \
@@ -97,7 +99,8 @@ enum {
           TUD_VIDEO_DESC_CS_VS_FRM_UNCOMPR_CONT(/*bFrameIndex */1, 0, _width, _height, \
               _width * _height * 12, _width * _height * 12 * _fps, \
               _width * _height * 12, \
-              (10000000/_fps), (10000000/1), (10000000/_fps), 166666), \
+              (10000000/_fps), (10000000/_fps), (10000000/_fps)*_fps, (10000000/_fps)), \
+          TUD_VIDEO_DESC_CS_VS_COLOR_MATCHING(VIDEO_COLOR_PRIMARIES_BT709, VIDEO_COLOR_XFER_CH_BT709, VIDEO_COLOR_COEF_SMPTE170M), \
     /* VS alt 1 */\
     TUD_VIDEO_DESC_STD_VS(1, 1, 1, 0), \
       /* EP */ \
