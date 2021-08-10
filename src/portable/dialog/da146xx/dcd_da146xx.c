@@ -28,7 +28,7 @@
 
 #if TUSB_OPT_DEVICE_ENABLED && CFG_TUSB_MCU == OPT_MCU_DA1469X
 
-#include "DA1469xAB.h"
+#include "mcu/mcu.h"
 
 #include "device/dcd.h"
 
