@@ -46,6 +46,14 @@ void USB_IRQHandler(void)
 
 #define BUTTON_PIN      6
 
+extern void tusb_vbus_changed(bool present);
+
+void VBUS_IRQHandler(void)
+{
+  CRG_TOP->VBUS_IRQ_CLEAR_REG = 1;
+  tusb_vbus_changed((CRG_TOP->ANA_STATUS_REG & CRG_TOP_ANA_STATUS_REG_VBUS_AVAILABLE_Msk) != 0);
+}
+
 void UnhandledIRQ(void)
 {
   CRG_TOP->SYS_CTRL_REG = 0x80;
@@ -75,6 +83,12 @@ void board_init(void)
   /* Setup USB IRQ */
   NVIC_SetPriority(USB_IRQn, 2);
   NVIC_EnableIRQ(USB_IRQn);
+
+  /* Setup VBUS IRQ */
+  CRG_TOP->VBUS_IRQ_MASK_REG = CRG_TOP_VBUS_IRQ_MASK_REG_VBUS_IRQ_EN_FALL_Msk |
+                               CRG_TOP_VBUS_IRQ_MASK_REG_VBUS_IRQ_EN_RISE_Msk;
+  NVIC_SetPriority(VBUS_IRQn, 3);
+  NVIC_EnableIRQ(VBUS_IRQn);
 
   /* Use PLL96 / 2 clock not HCLK */
   CRG_TOP->CLK_CTRL_REG &= ~CRG_TOP_CLK_CTRL_REG_USB_CLK_SRC_Msk;

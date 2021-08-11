@@ -277,6 +277,7 @@ void tusb_vbus_changed(bool present)
                            USB_USB_MAMSK_REG_USB_M_ALT_Msk |
                            USB_USB_MAMSK_REG_USB_M_WARN_Msk;
       USB->USB_ALTMSK_REG = USB_USB_ALTMSK_REG_USB_M_RESET_Msk;
+      dcd_connect(0);
     }
     else
     {
@@ -762,10 +763,9 @@ static void handle_ep0_nak(void)
  *------------------------------------------------------------------*/
 void dcd_init(uint8_t rhport)
 {
-  USB->USB_MCTRL_REG = USB_USB_MCTRL_REG_USBEN_Msk;
-  tusb_vbus_changed((CRG_TOP->ANA_STATUS_REG & CRG_TOP_ANA_STATUS_REG_VBUS_AVAILABLE_Msk) != 0);
+  (void)rhport;
 
-  dcd_connect(rhport);
+  tusb_vbus_changed((CRG_TOP->ANA_STATUS_REG & CRG_TOP_ANA_STATUS_REG_VBUS_AVAILABLE_Msk) != 0);
 }
 
 void dcd_int_enable(uint8_t rhport)
