@@ -37,6 +37,14 @@
 
 #include "device/dcd.h"
 
+// Current implementation force vbus detection as always present, causing device think it is always plugged into host.
+// Therefore it cannot detect disconnect event, mistaken it as suspend.
+// Note: won't work if change to 0 (for now)
+//
+// Note: Line state when disconnected is very sensitive, in actual testing,
+// it can toggles between J-state (idle) and SE1 if cable still connected to rp2040 (not connected to host)
+#define FORCE_VBUS_DETECT   1
+
 /*------------------------------------------------------------------*/
 /* Low level controller
  *------------------------------------------------------------------*/
@@ -52,14 +60,14 @@ static struct hw_endpoint hw_endpoints[USB_MAX_ENDPOINTS][2] = {0};
 
 static inline struct hw_endpoint *hw_endpoint_get_by_num(uint8_t num, tusb_dir_t dir)
 {
-    return &hw_endpoints[num][dir];
+  return &hw_endpoints[num][dir];
 }
 
 static struct hw_endpoint *hw_endpoint_get_by_addr(uint8_t ep_addr)
 {
-    uint8_t num = tu_edpt_number(ep_addr);
-    tusb_dir_t dir = tu_edpt_dir(ep_addr);
-    return hw_endpoint_get_by_num(num, dir);
+  uint8_t num = tu_edpt_number(ep_addr);
+  tusb_dir_t dir = tu_edpt_dir(ep_addr);
+  return hw_endpoint_get_by_num(num, dir);
 }
 
 static void _hw_endpoint_alloc(struct hw_endpoint *ep)
@@ -290,7 +298,9 @@ static void dcd_rp2040_irq(void)
         hw_handle_buff_status();
     }
 
-    // SE0 for 2 us or more, usually together with Bus Reset
+#if FORCE_VBUS_DETECT == 0
+    // Since we force VBUS detect On, device will always think it is connected and
+    // couldn't distinguish between disconnect and suspend
     if (status & USB_INTS_DEV_CONN_DIS_BITS)
     {
         handled |= USB_INTS_DEV_CONN_DIS_BITS;
@@ -306,6 +316,7 @@ static void dcd_rp2040_irq(void)
 
         usb_hw_clear->sie_status = USB_SIE_STATUS_CONNECTED_BITS;
     }
+#endif
 
     // SE0 for 2.5 us or more
     if (status & USB_INTS_BUS_RESET_BITS)
@@ -322,7 +333,7 @@ static void dcd_rp2040_irq(void)
 #endif
     }
 
-#if 0
+#if 1
     // TODO Enable SUSPEND & RESUME interrupt and test later on with/without VBUS detection
 
     /* Note from pico datasheet 4.1.2.6.4 (v1.2)
@@ -364,36 +375,43 @@ static void dcd_rp2040_irq(void)
 /*------------------------------------------------------------------*/
 /* Controller API
  *------------------------------------------------------------------*/
+
 void dcd_init (uint8_t rhport)
 {
-    pico_trace("dcd_init %d\n", rhport);
-    assert(rhport == 0);
+  pico_trace("dcd_init %d\n", rhport);
+  assert(rhport == 0);
 
-    // Reset hardware to default state
-    rp2040_usb_init();
+  // Reset hardware to default state
+  rp2040_usb_init();
 
-    irq_set_exclusive_handler(USBCTRL_IRQ, dcd_rp2040_irq);
-    memset(hw_endpoints, 0, sizeof(hw_endpoints));
-    next_buffer_ptr = &usb_dpram->epx_data[0];
+#if FORCE_VBUS_DETECT
+  // Force VBUS detect so the device thinks it is plugged into a host
+  usb_hw->pwr = USB_USB_PWR_VBUS_DETECT_BITS | USB_USB_PWR_VBUS_DETECT_OVERRIDE_EN_BITS;
+#endif
 
-    // EP0 always exists so init it now
-    // EP0 OUT
-    hw_endpoint_init(0x0, 64, TUSB_XFER_CONTROL);
-    // EP0 IN
-    hw_endpoint_init(0x80, 64, TUSB_XFER_CONTROL);
+  irq_set_exclusive_handler(USBCTRL_IRQ, dcd_rp2040_irq);
+  memset(hw_endpoints, 0, sizeof(hw_endpoints));
+  next_buffer_ptr = &usb_dpram->epx_data[0];
 
-    // Initializes the USB peripheral for device mode and enables it.
-    // Don't need to enable the pull up here. Force VBUS
-    usb_hw->main_ctrl = USB_MAIN_CTRL_CONTROLLER_EN_BITS;
+  // EP0 always exists so init it now
+  // EP0 OUT
+  hw_endpoint_init(0x0, 64, TUSB_XFER_CONTROL);
+  // EP0 IN
+  hw_endpoint_init(0x80, 64, TUSB_XFER_CONTROL);
 
-    // Enable individual controller IRQS here. Processor interrupt enable will be used
-    // for the global interrupt enable...
-    // TODO Enable SUSPEND & RESUME interrupt
-    usb_hw->sie_ctrl = USB_SIE_CTRL_EP0_INT_1BUF_BITS; 
-    usb_hw->inte     = USB_INTS_BUFF_STATUS_BITS | USB_INTS_BUS_RESET_BITS | USB_INTS_SETUP_REQ_BITS |
-                       USB_INTS_DEV_CONN_DIS_BITS /* | USB_INTS_DEV_SUSPEND_BITS | USB_INTS_DEV_RESUME_FROM_HOST_BITS */  ;
+  // Initializes the USB peripheral for device mode and enables it.
+  // Don't need to enable the pull up here. Force VBUS
+  usb_hw->main_ctrl = USB_MAIN_CTRL_CONTROLLER_EN_BITS;
 
-    dcd_connect(rhport);
+  // Enable individual controller IRQS here. Processor interrupt enable will be used
+  // for the global interrupt enable...
+  // Note: Force VBUS detect cause disconnection not detectable
+  usb_hw->sie_ctrl = USB_SIE_CTRL_EP0_INT_1BUF_BITS;
+  usb_hw->inte     = USB_INTS_BUFF_STATUS_BITS | USB_INTS_BUS_RESET_BITS | USB_INTS_SETUP_REQ_BITS |
+                     USB_INTS_DEV_SUSPEND_BITS | USB_INTS_DEV_RESUME_FROM_HOST_BITS |
+                     (FORCE_VBUS_DETECT ? 0 : USB_INTS_DEV_CONN_DIS_BITS);
+
+  dcd_connect(rhport);
 }
 
 void dcd_int_enable(uint8_t rhport)
