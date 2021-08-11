@@ -258,33 +258,6 @@ static const tusb_desc_endpoint_t ep0IN_desc =
 
 #define XFER_CTL_BASE(_ep, _dir) &_dcd.xfer_status[_ep][_dir]
 
-// Function could be called when VBUS change was detected.
-void tusb_vbus_changed(bool present)
-{
-  if (present != _dcd.vbus_present)
-  {
-    _dcd.vbus_present = present;
-    if (present)
-    {
-      USB->USB_MCTRL_REG = USB_USB_MCTRL_REG_USBEN_Msk;
-      USB->USB_NFSR_REG = 0;
-      USB->USB_FAR_REG = 0x80;
-      USB->USB_NFSR_REG = NFSR_NODE_RESET;
-      USB->USB_TXMSK_REG = 0;
-      USB->USB_RXMSK_REG = 0;
-
-      USB->USB_MAMSK_REG = USB_USB_MAMSK_REG_USB_M_INTR_Msk |
-                           USB_USB_MAMSK_REG_USB_M_ALT_Msk |
-                           USB_USB_MAMSK_REG_USB_M_WARN_Msk;
-      USB->USB_ALTMSK_REG = USB_USB_ALTMSK_REG_USB_M_RESET_Msk;
-    }
-    else
-    {
-      USB->USB_MCTRL_REG = 0;
-    }
-  }
-}
-
 static void fill_tx_fifo(xfer_ctl_t * xfer)
 {
   int left_to_send;
@@ -763,7 +736,16 @@ static void handle_ep0_nak(void)
 void dcd_init(uint8_t rhport)
 {
   USB->USB_MCTRL_REG = USB_USB_MCTRL_REG_USBEN_Msk;
-  tusb_vbus_changed((CRG_TOP->ANA_STATUS_REG & CRG_TOP_ANA_STATUS_REG_VBUS_AVAILABLE_Msk) != 0);
+  USB->USB_NFSR_REG = 0;
+  USB->USB_FAR_REG = 0x80;
+  USB->USB_NFSR_REG = NFSR_NODE_RESET;
+  USB->USB_TXMSK_REG = 0;
+  USB->USB_RXMSK_REG = 0;
+
+  USB->USB_MAMSK_REG = USB_USB_MAMSK_REG_USB_M_INTR_Msk |
+                       USB_USB_MAMSK_REG_USB_M_ALT_Msk |
+                       USB_USB_MAMSK_REG_USB_M_WARN_Msk;
+  USB->USB_ALTMSK_REG = USB_USB_ALTMSK_REG_USB_M_RESET_Msk;
 
   dcd_connect(rhport);
 }
