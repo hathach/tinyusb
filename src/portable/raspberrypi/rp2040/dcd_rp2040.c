@@ -230,7 +230,6 @@ static void reset_ep0(void)
     {
         struct hw_endpoint *ep = hw_endpoint_get_by_addr(addrs[i]);
         ep->next_pid = 1u;
-        ep->stalled  = 0;
     }
 }
 
@@ -241,39 +240,9 @@ static void ep0_0len_status(void)
     hw_endpoint_xfer(0x80, NULL, 0);
 }
 
-static void _hw_endpoint_stall(struct hw_endpoint *ep)
+static void bus_reset(void)
 {
-    assert(!ep->stalled);
-    if (tu_edpt_number(ep->ep_addr) == 0)
-    {
-        // A stall on EP0 has to be armed so it can be cleared on the next setup packet
-        usb_hw_set->ep_stall_arm = (tu_edpt_dir(ep->ep_addr) == TUSB_DIR_IN) ? USB_EP_STALL_ARM_EP0_IN_BITS : USB_EP_STALL_ARM_EP0_OUT_BITS;
-    }
-    _hw_endpoint_buffer_control_set_mask32(ep, USB_BUF_CTRL_STALL);
-    ep->stalled = true;
-}
 
-static void hw_endpoint_stall(uint8_t ep_addr)
-{
-    struct hw_endpoint *ep = hw_endpoint_get_by_addr(ep_addr);
-    _hw_endpoint_stall(ep);
-}
-
-static void _hw_endpoint_clear_stall(struct hw_endpoint *ep)
-{
-    if (tu_edpt_number(ep->ep_addr) == 0)
-    {
-        // Probably already been cleared but no harm
-        usb_hw_clear->ep_stall_arm = (tu_edpt_dir(ep->ep_addr) == TUSB_DIR_IN) ? USB_EP_STALL_ARM_EP0_IN_BITS : USB_EP_STALL_ARM_EP0_OUT_BITS;
-    }
-    _hw_endpoint_buffer_control_clear_mask32(ep, USB_BUF_CTRL_STALL);
-    ep->stalled = false;
-}
-
-static void hw_endpoint_clear_stall(uint8_t ep_addr)
-{
-    struct hw_endpoint *ep = hw_endpoint_get_by_addr(ep_addr);
-    _hw_endpoint_clear_stall(ep);
 }
 
 static void dcd_rp2040_irq(void)
@@ -322,9 +291,13 @@ static void dcd_rp2040_irq(void)
     if (status & USB_INTS_BUS_RESET_BITS)
     {
         pico_trace("BUS RESET\n");
-        usb_hw->dev_addr_ctrl = 0;
+
         handled |= USB_INTS_BUS_RESET_BITS;
+
+        usb_hw->dev_addr_ctrl = 0;
+        bus_reset();
         dcd_event_bus_reset(0, TUSB_SPEED_FULL, true);
+
         usb_hw_clear->sie_status = USB_SIE_STATUS_BUS_RESET_BITS;
 
 #if TUD_OPT_RP2040_USB_DEVICE_ENUMERATION_FIX
@@ -492,20 +465,37 @@ bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t t
     return true;
 }
 
-void dcd_edpt_stall (uint8_t rhport, uint8_t ep_addr)
+void dcd_edpt_stall(uint8_t rhport, uint8_t ep_addr)
 {
-    pico_trace("dcd_edpt_stall %02x\n", ep_addr);
-    assert(rhport == 0);
-    hw_endpoint_stall(ep_addr);
+  pico_trace("dcd_edpt_stall %02x\n", ep_addr);
+  assert(rhport == 0);
+
+  if ( tu_edpt_number(ep_addr) == 0 )
+  {
+    // A stall on EP0 has to be armed so it can be cleared on the next setup packet
+    usb_hw_set->ep_stall_arm = (tu_edpt_dir(ep_addr) == TUSB_DIR_IN) ? USB_EP_STALL_ARM_EP0_IN_BITS : USB_EP_STALL_ARM_EP0_OUT_BITS;
+  }
+
+  struct hw_endpoint *ep = hw_endpoint_get_by_addr(ep_addr);
+
+  // TODO check with double buffered
+  _hw_endpoint_buffer_control_set_mask32(ep, USB_BUF_CTRL_STALL);
 }
 
-void dcd_edpt_clear_stall (uint8_t rhport, uint8_t ep_addr)
+void dcd_edpt_clear_stall(uint8_t rhport, uint8_t ep_addr)
 {
-    pico_trace("dcd_edpt_clear_stall %02x\n", ep_addr);
-    assert(rhport == 0);
-    hw_endpoint_clear_stall(ep_addr);
-}
+  pico_trace("dcd_edpt_clear_stall %02x\n", ep_addr);
+  assert(rhport == 0);
 
+  if (tu_edpt_number(ep_addr))
+  {
+    struct hw_endpoint *ep = hw_endpoint_get_by_addr(ep_addr);
+
+    // clear stall also reset toggle to DATA0
+    // TODO check with double buffered
+    _hw_endpoint_buffer_control_clear_mask32(ep, USB_BUF_CTRL_STALL | USB_BUF_CTRL_DATA1_PID);
+  }
+}
 
 void dcd_edpt_close (uint8_t rhport, uint8_t ep_addr)
 {
@@ -518,8 +508,8 @@ void dcd_edpt_close (uint8_t rhport, uint8_t ep_addr)
 
 void dcd_int_handler(uint8_t rhport)
 {
-    (void) rhport;
-    dcd_rp2040_irq();
+  (void) rhport;
+  dcd_rp2040_irq();
 }
 
 #endif
