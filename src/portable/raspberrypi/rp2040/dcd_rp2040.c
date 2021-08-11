@@ -70,13 +70,13 @@ static struct hw_endpoint *hw_endpoint_get_by_addr(uint8_t ep_addr)
   return hw_endpoint_get_by_num(num, dir);
 }
 
-static void _hw_endpoint_alloc(struct hw_endpoint *ep)
+static void _hw_endpoint_alloc(struct hw_endpoint *ep, uint8_t transfer_type)
 {
   // size must be multiple of 64
   uint16_t size = tu_div_ceil(ep->wMaxPacketSize, 64) * 64u;
 
   // double buffered for Control and Bulk endpoint
-  if ( ep->transfer_type == TUSB_XFER_CONTROL || ep->transfer_type == TUSB_XFER_BULK)
+  if ( transfer_type == TUSB_XFER_CONTROL || transfer_type == TUSB_XFER_BULK )
   {
     size *= 2u;
   }
@@ -96,7 +96,7 @@ static void _hw_endpoint_alloc(struct hw_endpoint *ep)
             ep_dir_string[tu_edpt_dir(ep->ep_addr)]);
 
   // Fill in endpoint control register with buffer offset
-  uint32_t const reg = EP_CTRL_ENABLE_BITS | (ep->transfer_type << EP_CTRL_BUFFER_TYPE_LSB) | dpram_offset;
+  uint32_t const reg = EP_CTRL_ENABLE_BITS | (transfer_type << EP_CTRL_BUFFER_TYPE_LSB) | dpram_offset;
 
   *ep->endpoint_control = reg;
 }
@@ -122,66 +122,66 @@ static void hw_endpoint_close(uint8_t ep_addr)
 
 static void hw_endpoint_init(uint8_t ep_addr, uint16_t wMaxPacketSize, uint8_t transfer_type)
 {
-    struct hw_endpoint *ep = hw_endpoint_get_by_addr(ep_addr);
+  struct hw_endpoint *ep = hw_endpoint_get_by_addr(ep_addr);
 
-    const uint8_t num = tu_edpt_number(ep_addr);
-    const tusb_dir_t dir = tu_edpt_dir(ep_addr);
+  const uint8_t num = tu_edpt_number(ep_addr);
+  const tusb_dir_t dir = tu_edpt_dir(ep_addr);
 
-    ep->ep_addr = ep_addr;
+  ep->ep_addr = ep_addr;
 
-    // For device, IN is a tx transfer and OUT is an rx transfer
-    ep->rx = (dir == TUSB_DIR_OUT);
+  // For device, IN is a tx transfer and OUT is an rx transfer
+  ep->rx = (dir == TUSB_DIR_OUT);
 
-    // Response to a setup packet on EP0 starts with pid of 1
-    ep->next_pid = (num == 0 ? 1u : 0u);
+  // Response to a setup packet on EP0 starts with pid of 1
+  ep->next_pid = (num == 0 ? 1u : 0u);
 
-    ep->wMaxPacketSize = wMaxPacketSize;
-    ep->transfer_type = transfer_type;
+  ep->wMaxPacketSize = wMaxPacketSize;
+  ep->transfer_type = transfer_type;
 
-    // Every endpoint has a buffer control register in dpram
-    if (dir == TUSB_DIR_IN)
+  // Every endpoint has a buffer control register in dpram
+  if ( dir == TUSB_DIR_IN )
+  {
+    ep->buffer_control = &usb_dpram->ep_buf_ctrl[num].in;
+  }
+  else
+  {
+    ep->buffer_control = &usb_dpram->ep_buf_ctrl[num].out;
+  }
+
+  // Clear existing buffer control state
+  *ep->buffer_control = 0;
+
+  if ( num == 0 )
+  {
+    // EP0 has no endpoint control register because
+    // the buffer offsets are fixed
+    ep->endpoint_control = NULL;
+
+    // Buffer offset is fixed
+    ep->hw_data_buf = (uint8_t*) &usb_dpram->ep0_buf_a[0];
+  }
+  else
+  {
+    // Set the endpoint control register (starts at EP1, hence num-1)
+    if ( dir == TUSB_DIR_IN )
     {
-        ep->buffer_control = &usb_dpram->ep_buf_ctrl[num].in;
+      ep->endpoint_control = &usb_dpram->ep_ctrl[num - 1].in;
     }
     else
     {
-        ep->buffer_control = &usb_dpram->ep_buf_ctrl[num].out;
+      ep->endpoint_control = &usb_dpram->ep_ctrl[num - 1].out;
     }
 
-    // Clear existing buffer control state
-    *ep->buffer_control = 0;
-
-    if (num == 0)
+    // Now if it hasn't already been done
+    // alloc a buffer and fill in endpoint control register
+    // TODO device may change configuration (dynamic), should clear and reallocate
+    if ( !(ep->configured) )
     {
-        // EP0 has no endpoint control register because
-        // the buffer offsets are fixed
-        ep->endpoint_control = NULL;
-
-        // Buffer offset is fixed
-        ep->hw_data_buf = (uint8_t*)&usb_dpram->ep0_buf_a[0];
+      _hw_endpoint_alloc(ep, transfer_type);
     }
-    else
-    {
-        // Set the endpoint control register (starts at EP1, hence num-1)
-        if (dir == TUSB_DIR_IN)
-        {
-            ep->endpoint_control = &usb_dpram->ep_ctrl[num-1].in;
-        }
-        else
-        {
-            ep->endpoint_control = &usb_dpram->ep_ctrl[num-1].out;
-        }
+  }
 
-        // Now if it hasn't already been done
-        // alloc a buffer and fill in endpoint control register
-        // TODO device may change configuration (dynamic), should clear and reallocate
-        if(!(ep->configured))
-        {
-            _hw_endpoint_alloc(ep);
-        }
-    }
-
-    ep->configured = true;
+  ep->configured = true;
 }
 
 static void hw_endpoint_xfer(uint8_t ep_addr, uint8_t *buffer, uint16_t total_bytes)
