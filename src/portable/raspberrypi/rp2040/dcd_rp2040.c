@@ -101,8 +101,29 @@ static void _hw_endpoint_alloc(struct hw_endpoint *ep)
   *ep->endpoint_control = reg;
 }
 
-static void _hw_endpoint_init(struct hw_endpoint *ep, uint8_t ep_addr, uint16_t wMaxPacketSize, uint8_t transfer_type)
+#if 0 // todo unused
+static void _hw_endpoint_close(struct hw_endpoint *ep)
 {
+    // Clear hardware registers and then zero the struct
+    // Clears endpoint enable
+    *ep->endpoint_control = 0;
+    // Clears buffer available, etc
+    *ep->buffer_control = 0;
+    // Clear any endpoint state
+    memset(ep, 0, sizeof(struct hw_endpoint));
+}
+
+static void hw_endpoint_close(uint8_t ep_addr)
+{
+    struct hw_endpoint *ep = hw_endpoint_get_by_addr(ep_addr);
+    _hw_endpoint_close(ep);
+}
+#endif
+
+static void hw_endpoint_init(uint8_t ep_addr, uint16_t wMaxPacketSize, uint8_t transfer_type)
+{
+    struct hw_endpoint *ep = hw_endpoint_get_by_addr(ep_addr);
+
     const uint8_t num = tu_edpt_number(ep_addr);
     const tusb_dir_t dir = tu_edpt_dir(ep_addr);
 
@@ -112,7 +133,7 @@ static void _hw_endpoint_init(struct hw_endpoint *ep, uint8_t ep_addr, uint16_t 
     ep->rx = (dir == TUSB_DIR_OUT);
 
     // Response to a setup packet on EP0 starts with pid of 1
-    ep->next_pid = num == 0 ? 1u : 0u;
+    ep->next_pid = (num == 0 ? 1u : 0u);
 
     ep->wMaxPacketSize = wMaxPacketSize;
     ep->transfer_type = transfer_type;
@@ -152,7 +173,7 @@ static void _hw_endpoint_init(struct hw_endpoint *ep, uint8_t ep_addr, uint16_t 
         }
 
         // Now if it hasn't already been done
-        //alloc a buffer and fill in endpoint control register
+        // alloc a buffer and fill in endpoint control register
         // TODO device may change configuration (dynamic), should clear and reallocate
         if(!(ep->configured))
         {
@@ -161,31 +182,6 @@ static void _hw_endpoint_init(struct hw_endpoint *ep, uint8_t ep_addr, uint16_t 
     }
 
     ep->configured = true;
-}
-
-#if 0 // todo unused
-static void _hw_endpoint_close(struct hw_endpoint *ep)
-{
-    // Clear hardware registers and then zero the struct
-    // Clears endpoint enable
-    *ep->endpoint_control = 0;
-    // Clears buffer available, etc
-    *ep->buffer_control = 0;
-    // Clear any endpoint state
-    memset(ep, 0, sizeof(struct hw_endpoint));
-}
-
-static void hw_endpoint_close(uint8_t ep_addr)
-{
-    struct hw_endpoint *ep = hw_endpoint_get_by_addr(ep_addr);
-    _hw_endpoint_close(ep);
-}
-#endif
-
-static void hw_endpoint_init(uint8_t ep_addr, uint16_t wMaxPacketSize, uint8_t bmAttributes)
-{
-    struct hw_endpoint *ep = hw_endpoint_get_by_addr(ep_addr);
-    _hw_endpoint_init(ep, ep_addr, wMaxPacketSize, bmAttributes);
 }
 
 static void hw_endpoint_xfer(uint8_t ep_addr, uint8_t *buffer, uint16_t total_bytes)
@@ -290,7 +286,6 @@ static void dcd_rp2040_irq(void)
         usb_hw->dev_addr_ctrl = 0;
         bus_reset();
         dcd_event_bus_reset(0, TUSB_SPEED_FULL, true);
-
         usb_hw_clear->sie_status = USB_SIE_STATUS_BUS_RESET_BITS;
 
 #if TUD_OPT_RP2040_USB_DEVICE_ENUMERATION_FIX
@@ -394,13 +389,13 @@ void dcd_int_disable(uint8_t rhport)
 
 void dcd_set_address (uint8_t rhport, uint8_t dev_addr)
 {
-    pico_trace("dcd_set_address %d %d\n", rhport, dev_addr);
-    assert(rhport == 0);
+  pico_trace("dcd_set_address %d %d\n", rhport, dev_addr);
+  assert(rhport == 0);
 
-    // Can't set device address in hardware until status xfer has complete
-    // Send 0len complete response on EP0 IN
-    reset_ep0();
-    hw_endpoint_xfer(0x80, NULL, 0);
+  // Can't set device address in hardware until status xfer has complete
+  // Send 0len complete response on EP0 IN
+  reset_ep0();
+  hw_endpoint_xfer(0x80, NULL, 0);
 }
 
 void dcd_remote_wakeup(uint8_t rhport)
