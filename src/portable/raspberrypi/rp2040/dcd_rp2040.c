@@ -233,13 +233,6 @@ static void reset_ep0(void)
     }
 }
 
-static void ep0_0len_status(void)
-{
-    // Send 0len complete response on EP0 IN
-    reset_ep0();
-    hw_endpoint_xfer(0x80, NULL, 0);
-}
-
 static void bus_reset(void)
 {
 
@@ -405,7 +398,9 @@ void dcd_set_address (uint8_t rhport, uint8_t dev_addr)
     assert(rhport == 0);
 
     // Can't set device address in hardware until status xfer has complete
-    ep0_0len_status();
+    // Send 0len complete response on EP0 IN
+    reset_ep0();
+    hw_endpoint_xfer(0x80, NULL, 0);
 }
 
 void dcd_remote_wakeup(uint8_t rhport)
