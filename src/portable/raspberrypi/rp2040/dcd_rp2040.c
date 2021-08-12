@@ -284,9 +284,6 @@ static void dcd_rp2040_irq(void)
 #endif
     }
 
-#if 1
-    // TODO Enable SUSPEND & RESUME interrupt and test later on with/without VBUS detection
-
     /* Note from pico datasheet 4.1.2.6.4 (v1.2)
      * If you enable the suspend interrupt, it is likely you will see a suspend interrupt when
      * the device is first connected but the bus is idle. The bus can be idle for a few ms before
@@ -308,7 +305,6 @@ static void dcd_rp2040_irq(void)
         dcd_event_bus_signal(0, DCD_EVENT_RESUME, true);
         usb_hw_clear->sie_status = USB_SIE_STATUS_RESUME_BITS;
     }
-#endif
 
     if (status ^ handled)
     {
