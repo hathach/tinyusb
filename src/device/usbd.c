@@ -1191,7 +1191,8 @@ bool usbd_edpt_claim(uint8_t rhport, uint8_t ep_addr)
 {
   (void) rhport;
 
-  TU_VERIFY(tud_ready());
+  // TODO add this check later, also make sure we don't starve an out endpoint while suspending
+  // TU_VERIFY(tud_ready());
 
   uint8_t const epnum = tu_edpt_number(ep_addr);
   uint8_t const dir   = tu_edpt_dir(ep_addr);
