@@ -40,9 +40,6 @@
 // Current implementation force vbus detection as always present, causing device think it is always plugged into host.
 // Therefore it cannot detect disconnect event, mistaken it as suspend.
 // Note: won't work if change to 0 (for now)
-//
-// Note: Line state when disconnected is very sensitive, in actual testing,
-// it can toggles between J-state (idle) and SE1 if cable still connected to rp2040 (not connected to host)
 #define FORCE_VBUS_DETECT   1
 
 /*------------------------------------------------------------------*/
@@ -56,7 +53,7 @@
 static uint8_t *next_buffer_ptr;
 
 // USB_MAX_ENDPOINTS Endpoints, direction TUSB_DIR_OUT for out and TUSB_DIR_IN for in.
-static struct hw_endpoint hw_endpoints[USB_MAX_ENDPOINTS][2] = {0};
+static struct hw_endpoint hw_endpoints[USB_MAX_ENDPOINTS][2];
 
 static inline struct hw_endpoint *hw_endpoint_get_by_num(uint8_t num, tusb_dir_t dir)
 {
@@ -75,8 +72,8 @@ static void _hw_endpoint_alloc(struct hw_endpoint *ep, uint8_t transfer_type)
   // size must be multiple of 64
   uint16_t size = tu_div_ceil(ep->wMaxPacketSize, 64) * 64u;
 
-  // double buffered for Control and Bulk endpoint
-  if ( transfer_type == TUSB_XFER_CONTROL || transfer_type == TUSB_XFER_BULK )
+  // double buffered Bulk endpoint
+  if ( transfer_type == TUSB_XFER_BULK )
   {
     size *= 2u;
   }
@@ -88,12 +85,7 @@ static void _hw_endpoint_alloc(struct hw_endpoint *ep, uint8_t transfer_type)
   uint dpram_offset = hw_data_offset(ep->hw_data_buf);
   assert(hw_data_offset(next_buffer_ptr) <= USB_DPRAM_MAX);
 
-  pico_info("Alloced %d bytes at offset 0x%x (0x%p) for ep %d %s\n",
-            size,
-            dpram_offset,
-            ep->hw_data_buf,
-            tu_edpt_number(ep->ep_addr),
-            ep_dir_string[tu_edpt_dir(ep->ep_addr)]);
+  pico_info("  Alloced %d bytes at offset 0x%x (0x%p)\r\n", size, dpram_offset, ep->hw_data_buf);
 
   // Fill in endpoint control register with buffer offset
   uint32_t const reg = EP_CTRL_ENABLE_BITS | (transfer_type << EP_CTRL_BUFFER_TYPE_LSB) | dpram_offset;
@@ -157,7 +149,7 @@ static void hw_endpoint_init(uint8_t ep_addr, uint16_t wMaxPacketSize, uint8_t t
     // the buffer offsets are fixed
     ep->endpoint_control = NULL;
 
-    // Buffer offset is fixed
+    // Buffer offset is fixed (also double buffered)
     ep->hw_data_buf = (uint8_t*) &usb_dpram->ep0_buf_a[0];
   }
   else
@@ -172,16 +164,9 @@ static void hw_endpoint_init(uint8_t ep_addr, uint16_t wMaxPacketSize, uint8_t t
       ep->endpoint_control = &usb_dpram->ep_ctrl[num - 1].out;
     }
 
-    // Now if it hasn't already been done
     // alloc a buffer and fill in endpoint control register
-    // TODO device may change configuration (dynamic), should clear and reallocate
-    if ( !(ep->configured) )
-    {
-      _hw_endpoint_alloc(ep, transfer_type);
-    }
+    _hw_endpoint_alloc(ep, transfer_type);
   }
-
-  ep->configured = true;
 }
 
 static void hw_endpoint_xfer(uint8_t ep_addr, uint8_t *buffer, uint16_t total_bytes)
@@ -229,14 +214,19 @@ static void reset_ep0(void)
     }
 }
 
-static void bus_reset(void)
+static void reset_all_endpoints(void)
 {
+  memset(hw_endpoints, 0, sizeof(hw_endpoints));
+  next_buffer_ptr = &usb_dpram->epx_data[0];
 
+  // Init Control endpoint out & in
+  hw_endpoint_init(0x0, 64, TUSB_XFER_CONTROL);
+  hw_endpoint_init(0x80, 64, TUSB_XFER_CONTROL);
 }
 
 static void dcd_rp2040_irq(void)
 {
-    uint32_t status = usb_hw->ints;
+    uint32_t const status = usb_hw->ints;
     uint32_t handled = 0;
 
     if (status & USB_INTS_SETUP_REQ_BITS)
@@ -276,7 +266,7 @@ static void dcd_rp2040_irq(void)
     }
 #endif
 
-    // SE0 for 2.5 us or more
+    // SE0 for 2.5 us or more (will last at least 10ms)
     if (status & USB_INTS_BUS_RESET_BITS)
     {
         pico_trace("BUS RESET\n");
@@ -284,7 +274,7 @@ static void dcd_rp2040_irq(void)
         handled |= USB_INTS_BUS_RESET_BITS;
 
         usb_hw->dev_addr_ctrl = 0;
-        bus_reset();
+        reset_all_endpoints();
         dcd_event_bus_reset(0, TUSB_SPEED_FULL, true);
         usb_hw_clear->sie_status = USB_SIE_STATUS_BUS_RESET_BITS;
 
@@ -351,14 +341,9 @@ void dcd_init (uint8_t rhport)
 #endif
 
   irq_set_exclusive_handler(USBCTRL_IRQ, dcd_rp2040_irq);
-  memset(hw_endpoints, 0, sizeof(hw_endpoints));
-  next_buffer_ptr = &usb_dpram->epx_data[0];
 
-  // EP0 always exists so init it now
-  // EP0 OUT
-  hw_endpoint_init(0x0, 64, TUSB_XFER_CONTROL);
-  // EP0 IN
-  hw_endpoint_init(0x80, 64, TUSB_XFER_CONTROL);
+  // reset endpoints
+  reset_all_endpoints();
 
   // Initializes the USB peripheral for device mode and enables it.
   // Don't need to enable the pull up here. Force VBUS
@@ -442,7 +427,6 @@ void dcd_edpt0_status_complete(uint8_t rhport, tusb_control_request_t const * re
 
 bool dcd_edpt_open (uint8_t rhport, tusb_desc_endpoint_t const * desc_edpt)
 {
-    pico_info("dcd_edpt_open %02x\n", desc_edpt->bEndpointAddress);
     assert(rhport == 0);
     hw_endpoint_init(desc_edpt->bEndpointAddress, desc_edpt->wMaxPacketSize.size, desc_edpt->bmAttributes.xfer);
     return true;
