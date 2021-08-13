@@ -192,6 +192,10 @@ static void bus_reset(uint8_t rhport)
     out_ep[n].DOEPCTL |= USB_OTG_DOEPCTL_SNAK;
   }
 
+  // clear device address
+  dev->DCFG &= ~USB_OTG_DCFG_DAD_Msk;
+
+  // TODO should probably assign value when reset rather than OR
   dev->DAINTMSK |= (1 << USB_OTG_DAINTMSK_OEPM_Pos) | (1 << USB_OTG_DAINTMSK_IEPM_Pos);
   dev->DOEPMSK |= USB_OTG_DOEPMSK_STUPM | USB_OTG_DOEPMSK_XFRCM;
   dev->DIEPMSK |= USB_OTG_DIEPMSK_TOM | USB_OTG_DIEPMSK_XFRCM;
@@ -519,7 +523,7 @@ void dcd_int_disable (uint8_t rhport)
 void dcd_set_address (uint8_t rhport, uint8_t dev_addr)
 {
   USB_OTG_DeviceTypeDef * dev = DEVICE_BASE(rhport);
-  dev->DCFG |= (dev_addr << USB_OTG_DCFG_DAD_Pos) & USB_OTG_DCFG_DAD_Msk;
+  dev->DCFG = (dev->DCFG & ~USB_OTG_DCFG_DAD_Msk) | (dev_addr << USB_OTG_DCFG_DAD_Pos);
 
   // Response with status after changing device address
   dcd_edpt_xfer(rhport, tu_edpt_addr(0, TUSB_DIR_IN), NULL, 0);
