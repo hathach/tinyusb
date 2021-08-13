@@ -192,6 +192,10 @@ static void bus_reset(uint8_t rhport)
     out_ep[n].DOEPCTL |= USB_OTG_DOEPCTL_SNAK;
   }
 
+  // clear device address
+  dev->DCFG &= ~USB_OTG_DCFG_DAD_Msk;
+
+  // TODO should probably assign value when reset rather than OR
   dev->DAINTMSK |= (1 << USB_OTG_DAINTMSK_OEPM_Pos) | (1 << USB_OTG_DAINTMSK_IEPM_Pos);
   dev->DOEPMSK |= USB_OTG_DOEPMSK_STUPM | USB_OTG_DOEPMSK_XFRCM;
   dev->DIEPMSK |= USB_OTG_DIEPMSK_TOM | USB_OTG_DIEPMSK_XFRCM;
