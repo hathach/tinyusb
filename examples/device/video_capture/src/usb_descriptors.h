@@ -29,7 +29,7 @@
 
 /* Time stamp base clock. It is a deprecated parameter. */
 #define UVC_CLOCK_FREQUENCY    27000000
-// video capture path
+/* video capture path */
 #define UVC_ENTITY_CAP_INPUT_TERMINAL  0x01
 #define UVC_ENTITY_CAP_OUTPUT_TERMINAL 0x02
 

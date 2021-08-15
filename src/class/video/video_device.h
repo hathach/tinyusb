@@ -48,6 +48,12 @@ TU_ATTR_WEAK bool tud_video_get_cur_cb(uint8_t rhport, tusb_control_request_t co
 
 /* @return video_error_code_t */
 TU_ATTR_WEAK int tud_video_power_mode_cb(unsigned itf, uint8_t power_mod);
+
+/* @return video_error_code_t */
+TU_ATTR_WEAK int tud_video_probe_set_cb(unsigned itf, video_probe_and_commit_control_t const *settings);
+
+/* @return video_error_code_t */
+TU_ATTR_WEAK int tud_video_commit_set_cb(unsigned itf, video_probe_and_commit_control_t const *settings);
 //--------------------------------------------------------------------+
 // INTERNAL USBD-CLASS DRIVER API
 //--------------------------------------------------------------------+

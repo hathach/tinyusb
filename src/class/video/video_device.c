@@ -65,20 +65,35 @@ typedef struct TU_ATTR_PACKED {
   uint8_t bEntityId;
 } tusb_desc_cs_video_entity_itf_t;
 
-typedef struct
-{
+
+typedef struct {
+  void const *beg;  /* The head of the first video control interface descriptor */
+  uint16_t length;  /* Byte length of the video control interface descriptors */
+  uint16_t offset;  /* offset bytes for the current video control interface descripter */
+  uint8_t  error_code;  /* error code set by previous transaction */
+  uint8_t  power_mode;  /* current power mode */
+} videod_control_interface_t;
+
+typedef struct {
+  tusb_desc_vs_itf_t const *descriptor; /* video streaming interface descriptor */
+  uint16_t    offset;     /* video streaming interface descriptor */
+  video_probe_and_commit_control_t settings;  /* last video streaming interface descriptor */
+  uint8_t error_code;
+} videod_streaming_interface_t;
+
+typedef struct {
   void const *beg;  /* The head of the first video control interface descriptor */
   uint16_t    len;  /* Byte length of the descriptors */
   uint16_t    ofs[3];  /* offsets for video control/streaming interface. 0:control 1:streaming 2:streaming */
+  uint8_t error_code[3];  /* error code for video control/streaming interface. 0:control 1:streaming 2:streaming */
   uint8_t power_mode;
-  uint8_t error_code;
 
   /*------------- From this point, data is not cleared by bus reset -------------*/
 
   // Endpoint Transfer buffer
   //  CFG_TUSB_MEM_ALIGN uint8_t epout_buf[CFG_TUD_CDC_EP_BUFSIZE];
   //  CFG_TUSB_MEM_ALIGN uint8_t epin_buf[CFG_TUD_CDC_EP_BUFSIZE];
-  uint8_t ctl_buf;
+  uint8_t ctl_buf[64];
 
 } videod_interface_t;
 
@@ -91,6 +106,30 @@ CFG_TUSB_MEM_SECTION static videod_interface_t _videod_itf[CFG_TUD_VIDEO];
 
 static uint8_t const _cap_get     = 0x1u; /* support for GET */
 static uint8_t const _cap_get_set = 0x3u; /* support for GET and SET */
+static video_probe_and_commit_control_t const def_stm_settings = {
+  .bmHint = 0,
+  .bFormatIndex = 1,
+  .bFrameIndex = 1,
+  .dwFrameInterval = (10000000/15),
+  .wKeyFrameRate = 1,
+  .wPFrameRate = 0,
+  .wCompQuality = 1, /* 1 to 10000 */
+  .wCompWindowSize = 1, /* Maybe it is match to GOP size */
+  .wDelay = 240, /* milliseconds */
+  .dwMaxVideoFrameSize = 128 * 96 * 12 / 8,
+  .dwMaxPayloadTransferSize = 256, /* Maybe it is the maximum packet size under this settings */
+  .dwClockFrequency = 27000000, /* same as MPEG-2 system time clock  */
+  .bmFramingInfo = 0,
+  .bPreferedVersion = 1,
+  .bMinVersion = 1,
+  .bMaxVersion = 1,
+  .bUsage = 0,
+  .bBitDepthLuma = 8,
+  .bmSettings = 0,
+  .bMaxNumberOfRefFramesPlus1 = 0,
+  .bmRateControlModes = 0,
+  .bmLayoutPerStream = 0
+};
 
 static tusb_desc_vc_itf_t const* _get_desc_vc(videod_interface_t const *self)
 {
@@ -115,7 +154,6 @@ static tusb_desc_vs_itf_t const *_get_desc_vs(videod_interface_t const *self, un
   if (!ofs) return NULL;
   return (tusb_desc_vs_itf_t const*)(self->beg + *ofs);
 }
-
 
 /** Find the first descriptor with the specified descriptor type.
  *
@@ -146,7 +184,7 @@ static void const* _next_desc_itf(void const *beg, void const *end)
   void const *cur = beg;
   unsigned itfnum = ((tusb_desc_interface_t const*)cur)->bInterfaceNumber;
   while ((cur < end) &&
-	 (itfnum == ((tusb_desc_interface_t const*)cur)->bInterfaceNumber)) {
+         (itfnum == ((tusb_desc_interface_t const*)cur)->bInterfaceNumber)) {
     cur = _find_desc(tu_desc_next(cur), end, TUSB_DESC_INTERFACE);
   }
   return cur;
@@ -186,9 +224,9 @@ static void const* _find_desc_entity(tusb_desc_vc_itf_t const *vc, unsigned enti
   void const *end = beg + vc->std.bLength + vc->ctl.wTotalLength;
   for (void const *cur = beg; cur < end; cur = _find_desc(cur, end, TUSB_DESC_CS_INTERFACE)) {
     tusb_desc_cs_video_entity_itf_t const *itf = (tusb_desc_cs_video_entity_itf_t const *)cur;
-    if ((VIDEO_CS_VC_INTERFACE_INPUT_TERMINAL  == itf->bDescriptorSubtype ||
-         VIDEO_CS_VC_INTERFACE_OUTPUT_TERMINAL == itf->bDescriptorSubtype) &&
-        itf->bEntityId == entityid) {
+    if ((VIDEO_CS_VC_INTERFACE_INPUT_TERMINAL  <= itf->bDescriptorSubtype
+         && itf->bDescriptorSubtype < VIDEO_CS_VC_INTERFACE_MAX)
+        && itf->bEntityId == entityid) {
       return itf;
     }
     cur = tu_desc_next(cur);
@@ -334,8 +372,8 @@ static int handle_video_ctl_std_req(uint8_t rhport, uint8_t stage, tusb_control_
     tusb_desc_vc_itf_t const *vc = _get_desc_vc(&_videod_itf[itf]);
     if (!vc) return VIDEO_UNKNOWN;
     if (tud_control_xfer(rhport, request,
-			 (void*)&vc->std.bAlternateSetting,
-			 sizeof(vc->std.bAlternateSetting)))
+                         (void*)&vc->std.bAlternateSetting,
+                         sizeof(vc->std.bAlternateSetting)))
       return VIDEO_NO_ERROR;
     return VIDEO_UNKNOWN;
   case TUSB_REQ_SET_INTERFACE:
@@ -359,10 +397,11 @@ static int handle_video_ctl_cs_req(uint8_t rhport, uint8_t stage, tusb_control_r
   /* 4.2.1 Interface Control Request */
   switch (TU_U16_HIGH(request->wValue)) {
   case VIDEO_VC_CTL_VIDEO_POWER_MODE:
+    TU_LOG2("    Power Mode ");
     switch (request->bRequest) {
     case VIDEO_REQUEST_SET_CUR:
       if (stage == CONTROL_STAGE_SETUP) {
-        TU_LOG2("  Set Power Mode\r\n");
+        TU_LOG2("Set\r\n");
         TU_VERIFY(1 == request->wLength, VIDEO_UNKNOWN);
         if (!tud_control_xfer(rhport, request, &self->power_mode, sizeof(self->power_mode)))
           return VIDEO_UNKNOWN;
@@ -371,39 +410,36 @@ static int handle_video_ctl_cs_req(uint8_t rhport, uint8_t stage, tusb_control_r
       }
       return VIDEO_NO_ERROR;
     case VIDEO_REQUEST_GET_CUR:
-      if (stage == CONTROL_STAGE_SETUP) {
-        TU_LOG2("  Get Power Mode\r\n");
-        TU_VERIFY(1 == request->wLength, VIDEO_UNKNOWN);
-        if (!tud_control_xfer(rhport, request, &self->power_mode, sizeof(self->power_mode)))
-          return VIDEO_UNKNOWN;
-      }
+      if (stage != CONTROL_STAGE_SETUP) return VIDEO_NO_ERROR;
+      TU_LOG2("Get\r\n");
+      TU_VERIFY(1 == request->wLength, VIDEO_UNKNOWN);
+      if (!tud_control_xfer(rhport, request, &self->power_mode, sizeof(self->power_mode)))
+        return VIDEO_UNKNOWN;
       return VIDEO_NO_ERROR;
     case VIDEO_REQUEST_GET_INFO:
-      if (stage == CONTROL_STAGE_SETUP) {
-        TU_LOG2("  Get Info Power Mode\r\n");
-        TU_VERIFY(1 == request->wLength, VIDEO_UNKNOWN);
-        if (!tud_control_xfer(rhport, request, (uint8_t*)&_cap_get_set, sizeof(_cap_get_set)))
-          return VIDEO_UNKNOWN;
-      }
+      if (stage != CONTROL_STAGE_SETUP) return VIDEO_NO_ERROR;
+      TU_LOG2("GetInfo\r\n");
+      TU_VERIFY(1 == request->wLength, VIDEO_UNKNOWN);
+      if (!tud_control_xfer(rhport, request, (uint8_t*)&_cap_get_set, sizeof(_cap_get_set)))
+        return VIDEO_UNKNOWN;
       return VIDEO_NO_ERROR;
     default: break;
     }
     break;
   case VIDEO_VC_CTL_REQUEST_ERROR_CODE:
+    TU_LOG2("  Error Code");
     switch (request->bRequest) {
     case VIDEO_REQUEST_GET_CUR:
-      if (stage == CONTROL_STAGE_SETUP) {
-        TU_LOG2("  Get Error Code\r\n");
-        if (!tud_control_xfer(rhport, request, &self->error_code, sizeof(self->error_code)))
-          return VIDEO_UNKNOWN;
-      }
+      if (stage != CONTROL_STAGE_SETUP) return VIDEO_NO_ERROR;
+      TU_LOG2(" Get\r\n");
+      if (!tud_control_xfer(rhport, request, &self->error_code[0], sizeof(uint8_t)))
+        return VIDEO_UNKNOWN;
       return VIDEO_NO_ERROR;
     case VIDEO_REQUEST_GET_INFO:
-      if (stage == CONTROL_STAGE_SETUP) {
-        TU_LOG2("  Get Info Error Code\r\n");
-        if (tud_control_xfer(rhport, request, (uint8_t*)&_cap_get, sizeof(_cap_get)))
-          return VIDEO_UNKNOWN;
-      }
+      if (stage != CONTROL_STAGE_SETUP) return VIDEO_NO_ERROR;
+      TU_LOG2(" GetInfo\r\n");
+      if (tud_control_xfer(rhport, request, (uint8_t*)&_cap_get, sizeof(_cap_get)))
+        return VIDEO_UNKNOWN;
       return VIDEO_NO_ERROR;
     default: break;
     }
@@ -427,7 +463,7 @@ static int handle_video_ctl_req(uint8_t rhport, uint8_t stage, tusb_control_requ
       return handle_video_ctl_cs_req(rhport, stage, request, itf);
     } else {
       if (!_find_desc_entity(_get_desc_vc(&_videod_itf[itf]), entity_id))
-	return VIDEO_INVALID_REQUEST;
+        return VIDEO_INVALID_REQUEST;
       return VIDEO_INVALID_REQUEST;
     }
   default:
@@ -446,8 +482,8 @@ static int handle_video_stm_std_req(uint8_t rhport, uint8_t stage, tusb_control_
     tusb_desc_vs_itf_t const *vs = _get_desc_vs(&_videod_itf[itf], itfnum);
     if (!vs) return VIDEO_UNKNOWN;
     if (tud_control_xfer(rhport, request,
-			 (void*)&vs->std.bAlternateSetting,
-			 sizeof(vs->std.bAlternateSetting)))
+                         (void*)&vs->std.bAlternateSetting,
+                         sizeof(vs->std.bAlternateSetting)))
       return VIDEO_NO_ERROR;
     return VIDEO_UNKNOWN;
   case TUSB_REQ_SET_INTERFACE:
@@ -467,54 +503,112 @@ static int handle_video_stm_std_req(uint8_t rhport, uint8_t stage, tusb_control_
 
 static int handle_video_stm_cs_req(uint8_t rhport, uint8_t stage, tusb_control_request_t const *request, unsigned itf)
 {
-  //  videod_interface_t *self = &_videod_itf[itf];
-  (void)rhport; (void)stage; (void)itf;
+  (void)rhport;
+  videod_interface_t *self = &_videod_itf[itf];
   /* 4.2.1 Interface Control Request */
   switch (TU_U16_HIGH(request->wValue)) {
+  case VIDEO_VS_CTL_STREAM_ERROR_CODE:
+    TU_LOG2("    Error Code ");
+    switch (request->bRequest) {
+    case VIDEO_REQUEST_GET_CUR:
+      if (stage != CONTROL_STAGE_SETUP) return VIDEO_NO_ERROR;
+      TU_LOG2("Get\r\n");
+      /* TODO */
+      if (!tud_control_xfer(rhport, request, &self->error_code[0], sizeof(uint8_t)))
+        return VIDEO_UNKNOWN;
+      return VIDEO_NO_ERROR;
+    case VIDEO_REQUEST_GET_INFO:
+      if (stage != CONTROL_STAGE_SETUP) return VIDEO_NO_ERROR;
+      TU_LOG2("GetInfo\r\n");
+      if (tud_control_xfer(rhport, request, (uint8_t*)&_cap_get, sizeof(_cap_get)))
+        return VIDEO_UNKNOWN;
+      return VIDEO_NO_ERROR;
+    default: break;
+    }
+    break;
   case VIDEO_VS_CTL_PROBE:
-    TU_LOG2("  Probe ");
     switch (request->bRequest) {
     case VIDEO_REQUEST_SET_CUR:
-      TU_LOG2("Set\r\n");
-      return VIDEO_UNKNOWN;
+      if (stage == CONTROL_STAGE_SETUP) {
+        TU_VERIFY(sizeof(video_probe_and_commit_control_t) == request->wLength, VIDEO_UNKNOWN);
+        if (!tud_control_xfer(rhport, request, self->ctl_buf, sizeof(video_probe_and_commit_control_t)))
+          return VIDEO_UNKNOWN;
+      } else if (stage == CONTROL_STAGE_ACK) {
+        if (tud_video_probe_set_cb)
+          return tud_video_probe_set_cb(itf, (video_probe_and_commit_control_t const*)self->ctl_buf);
+      }
+      return VIDEO_NO_ERROR;
     case VIDEO_REQUEST_GET_CUR:
-      TU_LOG2("Get\r\n");
+      if (stage != CONTROL_STAGE_SETUP) return VIDEO_NO_ERROR;
+      TU_VERIFY(request->wLength, VIDEO_UNKNOWN);
+      if (tud_control_xfer(rhport, request, (void*)&def_stm_settings,
+                           sizeof(video_probe_and_commit_control_t)))
+        return VIDEO_NO_ERROR;
       return VIDEO_UNKNOWN;
     case VIDEO_REQUEST_GET_MIN:
-      TU_LOG2("Get Min\r\n");
+      if (stage != CONTROL_STAGE_SETUP) return VIDEO_NO_ERROR;
+      TU_VERIFY(request->wLength, VIDEO_UNKNOWN);
+      if (tud_control_xfer(rhport, request, (void*)&def_stm_settings,
+                           sizeof(video_probe_and_commit_control_t)))
+        return VIDEO_NO_ERROR;
       return VIDEO_UNKNOWN;
     case VIDEO_REQUEST_GET_MAX:
-      TU_LOG2("Get Man\r\n");
+      if (stage != CONTROL_STAGE_SETUP) return VIDEO_NO_ERROR;
+      TU_VERIFY(request->wLength, VIDEO_UNKNOWN);
+      if (tud_control_xfer(rhport, request, (void*)&def_stm_settings,
+                           sizeof(video_probe_and_commit_control_t)))
+        return VIDEO_NO_ERROR;
       return VIDEO_UNKNOWN;
     case VIDEO_REQUEST_GET_RES:
-      TU_LOG2("Get Res\r\n");
       return VIDEO_UNKNOWN;
     case VIDEO_REQUEST_GET_DEF:
-      TU_LOG2("Get Def\r\n");
       return VIDEO_UNKNOWN;
     case VIDEO_REQUEST_GET_LEN:
-      TU_LOG2("Get Len\r\n");
       return VIDEO_UNKNOWN;
     case VIDEO_REQUEST_GET_INFO:
-      TU_LOG2("Get Info\r\n");
+      if (stage != CONTROL_STAGE_SETUP) return VIDEO_NO_ERROR;
+      TU_VERIFY(1 == request->wLength, VIDEO_UNKNOWN);
+      if (tud_control_xfer(rhport, request, (uint8_t*)&_cap_get_set, sizeof(_cap_get_set)))
+        return VIDEO_NO_ERROR;
       return VIDEO_UNKNOWN;
     default: break;
     }
     break;
   case VIDEO_VS_CTL_COMMIT:
-    TU_LOG2("  Commit ");
     switch (request->bRequest) {
     case VIDEO_REQUEST_SET_CUR:
-      TU_LOG2("Set\r\n");
-      return VIDEO_UNKNOWN;
+      if (stage == CONTROL_STAGE_SETUP) {
+        TU_VERIFY(sizeof(video_probe_and_commit_control_t) == request->wLength, VIDEO_UNKNOWN);
+        if (!tud_control_xfer(rhport, request, self->ctl_buf, sizeof(video_probe_and_commit_control_t)))
+          return VIDEO_UNKNOWN;
+      } else if (stage == CONTROL_STAGE_ACK) {
+        if (tud_video_commit_set_cb)
+          return tud_video_commit_set_cb(itf, (video_probe_and_commit_control_t const*)self->ctl_buf);
+      }
+      return VIDEO_NO_ERROR;
     case VIDEO_REQUEST_GET_CUR:
-      TU_LOG2("Get\r\n");
+      if (stage != CONTROL_STAGE_SETUP) return VIDEO_NO_ERROR;
+      TU_VERIFY(request->wLength, VIDEO_UNKNOWN);
+      if (tud_control_xfer(rhport, request, (void*)&def_stm_settings,
+                           sizeof(video_probe_and_commit_control_t)))
+        return VIDEO_NO_ERROR;
       return VIDEO_UNKNOWN;
     case VIDEO_REQUEST_GET_INFO:
-      TU_LOG2("Get Info\r\n");
+      if (stage != CONTROL_STAGE_SETUP) return VIDEO_NO_ERROR;
+      TU_VERIFY(1 == request->wLength, VIDEO_UNKNOWN);
+      if (tud_control_xfer(rhport, request, (uint8_t*)&_cap_get_set, sizeof(_cap_get_set)))
+        return VIDEO_NO_ERROR;
       return VIDEO_UNKNOWN;
     default: break;
     }
+    break;
+  case VIDEO_VS_CTL_STILL_PROBE:
+  case VIDEO_VS_CTL_STILL_COMMIT:
+  case VIDEO_VS_CTL_STILL_IMAGE_TRIGGER:
+  case VIDEO_VS_CTL_GENERATE_KEY_FRAME:
+  case VIDEO_VS_CTL_UPDATE_FRAME_SEGMENT:
+  case VIDEO_VS_CTL_SYNCH_DELAY_CONTROL:
+    /* TODO */
     break;
   default: break;
   }
@@ -587,8 +681,8 @@ void videod_reset(uint8_t rhport)
 uint16_t videod_open(uint8_t rhport, tusb_desc_interface_t const * itf_desc, uint16_t max_len)
 {
   TU_VERIFY((TUSB_CLASS_VIDEO           == itf_desc->bInterfaceClass) &&
-	    (VIDEO_SUBCLASS_CONTROL     == itf_desc->bInterfaceSubClass) &&
-	    (VIDEO_INT_PROTOCOL_CODE_15 == itf_desc->bInterfaceProtocol), 0);
+            (VIDEO_SUBCLASS_CONTROL     == itf_desc->bInterfaceSubClass) &&
+            (VIDEO_INT_PROTOCOL_CODE_15 == itf_desc->bInterfaceProtocol), 0);
 
   /* Find available interface */
   videod_interface_t *self = NULL;
@@ -607,7 +701,7 @@ uint16_t videod_open(uint8_t rhport, tusb_desc_interface_t const * itf_desc, uin
   if (!_open_vc_itf(rhport, self, 0)) return 0;
   tusb_desc_vc_itf_t const *vc = _get_desc_vc(self);
   unsigned bInCollection       = vc->ctl.bInCollection;
-  /* Update end */
+  /* Find the end of the video interface descriptor */
   void const *cur = _next_desc_itf(itf_desc, end);
   for (unsigned i = 0; i < bInCollection; ++i) {
     cur = _next_desc_itf(cur, end);
@@ -623,6 +717,7 @@ bool videod_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request_
 {
   int err;
   int (*handle_video_req)(uint8_t rhport, uint8_t stage, tusb_control_request_t const *request, unsigned itf) = NULL;
+  uint8_t *error_code;
   if (request->bmRequestType_bit.recipient != TUSB_REQ_RCPT_INTERFACE) {
     return false;
   }
@@ -634,6 +729,7 @@ bool videod_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request_
     vc = _get_desc_vc(&_videod_itf[itf]);
     if (itfnum == vc->std.bInterfaceNumber) {
       handle_video_req = handle_video_ctl_req;
+      error_code = &_videod_itf[itf].error_code[0];
       break;
     }
     int i;
@@ -641,13 +737,14 @@ bool videod_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request_
     for (i = 0; i < bInCollection && itfnum != vc->ctl.baInterfaceNr[i]; ++i) ;
     if (i < bInCollection) {
       handle_video_req = handle_video_stm_req;
+      error_code = &_videod_itf[itf].error_code[1 + i];
       break;
     }
   }
   if (itf == CFG_TUD_VIDEO) return false;
 
   err = handle_video_req(rhport, stage, request, itf);
-  _videod_itf[itf].error_code = (uint8_t)err;
+  *error_code = (uint8_t)err;
   if (err) return false;
   return true;
 }

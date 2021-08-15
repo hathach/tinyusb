@@ -81,15 +81,13 @@ typedef enum {
 } video_subclass_type_t;
 
 /* A.3 */
-typedef enum
-{
+typedef enum {
   VIDEO_INT_PROTOCOL_CODE_UNDEF = 0x00,
   VIDEO_INT_PROTOCOL_CODE_15,
 } video_interface_protocol_code_t;
 
 /* A.5 */
-typedef enum
-{
+typedef enum {
   VIDEO_CS_VC_INTERFACE_VC_DESCRIPTOR_UNDEF = 0x00,
   VIDEO_CS_VC_INTERFACE_HEADER,
   VIDEO_CS_VC_INTERFACE_INPUT_TERMINAL,
@@ -98,11 +96,11 @@ typedef enum
   VIDEO_CS_VC_INTERFACE_PROCESSING_UNIT,
   VIDEO_CS_VC_INTERFACE_EXTENSION_UNIT,
   VIDEO_CS_VC_INTERFACE_ENCODING_UNIT,
+  VIDEO_CS_VC_INTERFACE_MAX,
 } video_cs_vc_interface_subtype_t;
 
 /* A.6 */
-typedef enum
-{
+typedef enum {
   VIDEO_CS_VS_INTERFACE_VS_DESCRIPTOR_UNDEF = 0x00,
   VIDEO_CS_VS_INTERFACE_INPUT_HEADER,
   VIDEO_CS_VS_INTERFACE_OUTPUT_HEADER,
@@ -126,8 +124,7 @@ typedef enum
 } video_cs_vs_interface_subtype_t;
 
 /* A.8 */
-typedef enum
-{
+typedef enum {
   VIDEO_REQUEST_UNDEF = 0x00,
   VIDEO_REQUEST_SET_CUR,
   VIDEO_REQUEST_SET_CUR_ALL = 0x11,
@@ -147,16 +144,14 @@ typedef enum
 } video_control_request_t;
 
 /* A.9.1 */
-typedef enum
-{
+typedef enum {
   VIDEO_VC_CTL_UNDEF = 0x00,
   VIDEO_VC_CTL_VIDEO_POWER_MODE,
   VIDEO_VC_CTL_REQUEST_ERROR_CODE,
 } video_interface_control_selector_t;
 
 /* A.9.8 */
-typedef enum
-{
+typedef enum {
   VIDEO_VS_CTL_UNDEF = 0x00,
   VIDEO_VS_CTL_PROBE,
   VIDEO_VS_CTL_COMMIT,
@@ -170,8 +165,7 @@ typedef enum
 } video_interface_streaming_selector_t;
 
 /* B. Terminal Types */
-typedef enum
-{
+typedef enum {
   VIDEO_TT_VENDOR_SPECIFIC         = 0x0100,
   VIDEO_TT_STREAMING,
   VIDEO_ITT_VENDOR_SPECIFIC        = 0x0200,
@@ -254,20 +248,53 @@ typedef struct TU_ATTR_PACKED {
   };
 } tusb_desc_cs_video_stm_itf_hdr_t;
 
+typedef struct TU_ATTR_PACKED {
+  uint8_t bLength;
+  uint8_t bDescriptorType;
+  uint8_t bDescriptorSubType;
+  uint8_t bFormatIndex;
+  uint8_t bNumFrameDescriptors;
+  uint8_t guidFormat[16];
+  uint8_t bBitsPerPixel;
+  uint8_t bDefaultFrameIndex;
+  uint8_t bAspectRatioX;
+  uint8_t bAspectRatioY;
+  uint8_t bmInterlaceFlags;
+  uint8_t bCopyProtect;
+} tusb_desc_cs_video_fmt_uncompressed_t;
+
+typedef struct TU_ATTR_PACKED {
+  uint8_t bLength;
+  uint8_t bDescriptorType;
+  uint8_t bDescriptorSubType;
+  uint8_t bFrameIndex;
+  uint8_t bNumFrameDescriptors;
+  uint8_t guidFormat[16];
+  uint8_t bBitsPerPixel;
+  uint8_t bDefaultFrameIndex;
+  uint8_t bAspectRatioX;
+  uint8_t bAspectRatioY;
+  uint8_t bmInterlaceFlags;
+  uint8_t bCopyProtect;
+} tusb_desc_cs_video_frm_uncompressed_t;
+
 //--------------------------------------------------------------------+
 // Requests
 //--------------------------------------------------------------------+
 
 /* 4.3.1.1 */
 typedef struct TU_ATTR_PACKED {
-  struct TU_ATTR_PACKEDt {
-    uint16_t dwFrameInterval: 1;
-    uint16_t wKeyFrameRatel : 1;
-    uint16_t wPFrameRate    : 1;
-    uint16_t wCompQuality   : 1;
-    uint16_t wCompWindowSize: 1;
-    uint16_t                : 0;
-  } bmHint;
+  union {
+    uint8_t bmHint;
+    struct TU_ATTR_PACKED {
+      uint16_t dwFrameInterval: 1;
+      uint16_t wKeyFrameRatel : 1;
+      uint16_t wPFrameRate    : 1;
+      uint16_t wCompQuality   : 1;
+      uint16_t wCompWindowSize: 1;
+      uint16_t                : 0;
+    } Hint;
+  };
   uint8_t  bFormatIndex;
   uint8_t  bFrameIndex;
   uint32_t dwFrameInterval;
@@ -279,22 +306,27 @@ typedef struct TU_ATTR_PACKED {
   uint32_t dwMaxVideoFrameSize;
   uint32_t dwMaxPayloadTransferSize;
   uint32_t dwClockFrequency;
-  struct TU_ATTR_PACKED {
-    uint8_t FrameID   : 1;
-    uint8_t EndOfFrame: 1;
-    uint8_t EndOfSlice: 1;
-    uint8_t           : 0;
-  } bmFramingInfo;
+  union {
+    uint8_t bmFramingInfo;
+    struct TU_ATTR_PACKED {
+      uint8_t FrameID   : 1;
+      uint8_t EndOfFrame: 1;
+      uint8_t EndOfSlice: 1;
+      uint8_t           : 0;
+    } FramingInfo;
+  };
   uint8_t  bPreferedVersion;
   uint8_t  bMinVersion;
   uint8_t  bMaxVersion;
   uint8_t  bUsage;
-  uint8_t  bBitDepthLum;
+  uint8_t  bBitDepthLuma;
   uint8_t  bmSettings;
   uint8_t  bMaxNumberOfRefFramesPlus1;
   uint16_t bmRateControlModes;
   uint64_t bmLayoutPerStream;
-} video_probe_and_commit_t;
+} video_probe_and_commit_control_t;
+
+TU_VERIFY_STATIC( sizeof(video_probe_and_commit_control_t) == 48, "size is not correct");
 
 #define TUD_VIDEO_DESC_IAD_LEN                    8
 #define TUD_VIDEO_DESC_STD_VC_LEN                 9
