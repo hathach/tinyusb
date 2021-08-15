@@ -2,10 +2,10 @@
 #CROSS_COMPILE ?= riscv32-unknown-elf-
 
 # Toolchain from https://nucleisys.com/download.php
-CROSS_COMPILE ?= riscv-nuclei-elf-
+#CROSS_COMPILE ?= riscv-nuclei-elf-
 
 # Toolchain from https://github.com/xpack-dev-tools/riscv-none-embed-gcc-xpack
-#CROSS_COMPILE ?= riscv-none-embed-
+CROSS_COMPILE ?= riscv-none-embed-
 
 # Submodules
 NUCLEI_SDK = hw/mcu/gd/nuclei-sdk
