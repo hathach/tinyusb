@@ -130,6 +130,9 @@
 #elif CFG_TUSB_MCU == OPT_MCU_RX63X || CFG_TUSB_MCU == OPT_MCU_RX65X
   // no header needed
 
+#elif CFG_TUSB_MCU == OPT_MCU_GD32VF103
+  #include "gd32vf103.h"
+
 #else
   #error "Missing MCU header"
 #endif

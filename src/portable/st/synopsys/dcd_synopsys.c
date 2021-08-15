@@ -51,7 +51,8 @@
        CFG_TUSB_MCU == OPT_MCU_STM32F4                               || \
        CFG_TUSB_MCU == OPT_MCU_STM32F7                               || \
        CFG_TUSB_MCU == OPT_MCU_STM32H7                               || \
-      (CFG_TUSB_MCU == OPT_MCU_STM32L4 && defined(STM32L4_SYNOPSYS))    \
+      (CFG_TUSB_MCU == OPT_MCU_STM32L4 && defined(STM32L4_SYNOPSYS)  || \
+       CFG_TUSB_MCU == OPT_MCU_GD32VF103 )                           \
     )
 
 // EP_MAX       : Max number of bi-directional endpoints including EP0
@@ -91,6 +92,30 @@
 #include "stm32l4xx.h"
 #define EP_MAX_FS       6
 #define EP_FIFO_SIZE_FS 1280
+
+#elif CFG_TUSB_MCU == OPT_MCU_GD32VF103
+#include "synopsys_common.h"
+
+// These numbers are the same for the whole GD32VF103 family.
+#define OTG_FS_IRQn     86
+#define EP_MAX_FS       4
+#define EP_FIFO_SIZE_FS 1280
+
+// The GD32VF103 is a RISC-V MCU, which implements the ECLIC Core-Local
+// Interrupt Controller by Nuclei. It is nearly API compatible to the
+// NVIC used by ARM MCUs.
+#define ECLIC_INTERRUPT_ENABLE_BASE 0xD2001001UL
+
+#define NVIC_EnableIRQ __eclic_enable_interrupt
+#define NVIC_DisableIRQ __eclic_disable_interrupt
+
+static inline void __eclic_enable_interrupt (uint32_t irq) {
+  *(volatile uint8_t*)(ECLIC_INTERRUPT_ENABLE_BASE + (irq * 4)) = 1;
+}
+
+static inline void __eclic_disable_interrupt (uint32_t irq){
+  *(volatile uint8_t*)(ECLIC_INTERRUPT_ENABLE_BASE + (irq * 4)) = 0;
+}
 
 #else
 #error "Unsupported MCUs"
@@ -281,6 +306,8 @@ static void set_turnaround(USB_OTG_GlobalTypeDef * usb_otg, tusb_speed_t speed)
   {
     // Turnaround timeout depends on the MCU clock
     uint32_t turnaround;
+
+    TU_LOG_INT(2, SystemCoreClock);
 
     if ( SystemCoreClock >= 32000000U )
       turnaround = 0x6U;
@@ -624,6 +651,8 @@ bool dcd_edpt_open (uint8_t rhport, tusb_desc_endpoint_t const * desc_edpt)
     TU_ASSERT(_allocated_fifo_words_tx + fifo_size + usb_otg->GRXFSIZ <= EP_FIFO_SIZE/4);
 
     _allocated_fifo_words_tx += fifo_size;
+
+    TU_LOG(2, "    Allocated %u bytes at offset %u", fifo_size*4, EP_FIFO_SIZE-_allocated_fifo_words_tx*4);
 
     // DIEPTXF starts at FIFO #1.
     // Both TXFD and TXSA are in unit of 32-bit words.

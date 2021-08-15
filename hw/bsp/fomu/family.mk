@@ -5,7 +5,7 @@ CFLAGS += \
   -nostdlib \
   -DCFG_TUSB_MCU=OPT_MCU_VALENTYUSB_EPTRI
 
-# Cross Compiler for RISC-V
+# Toolchain from https://github.com/xpack-dev-tools/riscv-none-embed-gcc-xpack
 CROSS_COMPILE = riscv-none-embed-
 
 # All source paths should be relative to the top level.
