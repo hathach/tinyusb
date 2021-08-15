@@ -2,8 +2,6 @@
 #define _NUCLEI_SDK_HAL_H
 
 #include "gd32vf103c_longan_nano.h"
-#include "drv_usb_hw.h"
-#include "drv_usb_dev.h"
 
 // 4 bits for interrupt level, 0 for priority.
 // level 0 = lowest priority, level 15 = highest priority.

@@ -1,16 +1,23 @@
-CROSS_COMPILE = riscv32-unknown-elf-
+# https://www.embecosm.com/resources/tool-chain-downloads/#riscv-stable
+#CROSS_COMPILE ?= riscv32-unknown-elf-
+
+# Toolchain from https://nucleisys.com/download.php
+CROSS_COMPILE ?= riscv-nuclei-elf-
+
+# Toolchain from https://github.com/xpack-dev-tools/riscv-none-embed-gcc-xpack
+#CROSS_COMPILE ?= riscv-none-embed-
 
 # Submodules
-DEPS_SUBMODULES += hw/mcu/gd/nuclei-sdk
 NUCLEI_SDK = hw/mcu/gd/nuclei-sdk
+DEPS_SUBMODULES += $(NUCLEI_SDK)
 
 # Nuclei-SDK paths
 GD32VF103_SDK_SOC = $(NUCLEI_SDK)/SoC/gd32vf103
 GD32VF103_SDK_DRIVER = $(GD32VF103_SDK_SOC)/Common/Source/Drivers
-LONGAN_NANO_SDK_BSP = $(GD32VF103_SDK_SOC)/Board/gd32vf103c_longan_nano
-LINKER_SCRIPTS = $(LONGAN_NANO_SDK_BSP)/Source/GCC
 LIBC_STUBS = $(GD32VF103_SDK_SOC)/Common/Source/Stubs
 STARTUP_ASM = $(GD32VF103_SDK_SOC)/Common/Source/GCC
+
+include $(TOP)/$(BOARD_PATH)/board.mk
 
 SKIP_NANOLIB = 1
 
@@ -27,17 +34,12 @@ CFLAGS += \
 # mcu driver cause following warnings
 CFLAGS += -Wno-error=unused-parameter
 
-# All source paths should be relative to the top level.
-LD_FILE = $(LINKER_SCRIPTS)/gcc_gd32vf103xb_flashxip.ld # Longan Nano 128k ROM 32k RAM
-#LD_FILE = $(LINKER_SCRIPTS)/gcc_gd32vf103x8_flashxip.ld # Longan Nano Lite 64k ROM 20k RAM 
-
 SRC_C += \
 	src/portable/st/synopsys/dcd_synopsys.c \
 	$(GD32VF103_SDK_DRIVER)/gd32vf103_rcu.c \
 	$(GD32VF103_SDK_DRIVER)/gd32vf103_gpio.c \
 	$(GD32VF103_SDK_DRIVER)/Usb/gd32vf103_usb_hw.c \
 	$(GD32VF103_SDK_DRIVER)/gd32vf103_usart.c \
-	$(LONGAN_NANO_SDK_BSP)/Source/gd32vf103c_longan_nano.c \
 	$(LIBC_STUBS)/sbrk.c \
 	$(LIBC_STUBS)/close.c \
 	$(LIBC_STUBS)/isatty.c \
@@ -50,19 +52,16 @@ SRC_S += \
 	$(STARTUP_ASM)/intexc_gd32vf103.S
 
 INC += \
-	$(TOP)/hw/bsp/$(BOARD) \
+	$(TOP)/$(BOARD_PATH) \
 	$(TOP)/$(NUCLEI_SDK)/NMSIS/Core/Include \
 	$(TOP)/$(GD32VF103_SDK_SOC)/Common/Include \
-	$(TOP)/$(GD32VF103_SDK_SOC)/Common/Include/Usb \
-	$(TOP)/$(LONGAN_NANO_SDK_BSP)/Include
+	$(TOP)/$(GD32VF103_SDK_SOC)/Common/Include/Usb
 
 # For freeRTOS port source
 FREERTOS_PORT = RISC-V
 
 # For flash-jlink target
 JLINK_IF = jtag
-JLINK_DEVICE = gd32vf103cbt6 # Longan Nano 128k ROM 32k RAM
-#JLINK_DEVICE = gd32vf103c8t6 # Longan Nano Lite 64k ROM 20k RAM
 
 # flash target ROM bootloader
 flash: $(BUILD)/$(PROJECT).bin

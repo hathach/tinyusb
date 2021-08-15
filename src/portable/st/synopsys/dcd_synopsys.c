@@ -303,6 +303,8 @@ static void set_turnaround(USB_OTG_GlobalTypeDef * usb_otg, tusb_speed_t speed)
     // Turnaround timeout depends on the MCU clock
     uint32_t turnaround;
 
+    TU_LOG_INT(2, SystemCoreClock);
+
     if ( SystemCoreClock >= 32000000U )
       turnaround = 0x6U;
     else if ( SystemCoreClock >= 27500000U )
@@ -645,6 +647,8 @@ bool dcd_edpt_open (uint8_t rhport, tusb_desc_endpoint_t const * desc_edpt)
     TU_ASSERT(_allocated_fifo_words_tx + fifo_size + usb_otg->GRXFSIZ <= EP_FIFO_SIZE/4);
 
     _allocated_fifo_words_tx += fifo_size;
+
+    TU_LOG(2, "    Allocated %u bytes at offset %u", fifo_size*4, EP_FIFO_SIZE-_allocated_fifo_words_tx*4);
 
     // DIEPTXF starts at FIFO #1.
     // Both TXFD and TXSA are in unit of 32-bit words.

@@ -33,7 +33,7 @@ OF SUCH DAMAGE.
 */
 
 /* This file refers the RISC-V standard, some adjustments are made according to GigaDevice chips */
-#include "nuclei_sdk_hal.h"
+#include "board.h"
 
 /* system frequency define */
 #define __IRC8M           (IRC8M_VALUE)            /* internal 8 MHz RC oscillator frequency */
