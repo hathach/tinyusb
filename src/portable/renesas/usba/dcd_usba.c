@@ -824,6 +824,8 @@ void dcd_int_handler(uint8_t rhport)
        * Therefore we need to manually send resume event.
        * Of course, when USB host resumes on its own,
        * RESM interrupt rise properly, then this statements are ignored. */
+      // TODO can be dropped since this logic is implemented by usbd
+      // USBD will exit suspended mode when SOF event is received
       dcd_event_bus_signal(rhport, DCD_EVENT_RESUME, true);
       _dcd.suspended = 0;
     }
