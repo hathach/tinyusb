@@ -37,6 +37,9 @@
 // USBD Configuration
 //--------------------------------------------------------------------+
 
+// Debug level of USBD
+#define USBD_DBG_LVL   2
+
 #ifndef CFG_TUD_TASK_QUEUE_SZ
   #define CFG_TUD_TASK_QUEUE_SZ   16
 #endif
@@ -556,7 +559,7 @@ void tud_task (void)
       break;
 
       case DCD_EVENT_SUSPEND:
-        TU_LOG2("\r\n");
+        TU_LOG2(": Remote Wakeup = %u\r\n", _usbd_dev.remote_wakeup_en);
         if (tud_suspend_cb) tud_suspend_cb(_usbd_dev.remote_wakeup_en);
       break;
 
@@ -684,6 +687,8 @@ static bool process_control_request(uint8_t rhport, tusb_control_request_t const
           // Only support remote wakeup for device feature
           TU_VERIFY(TUSB_REQ_FEATURE_REMOTE_WAKEUP == p_request->wValue);
 
+          TU_LOG(USBD_DBG_LVL, "    Enable Remote Wakeup\r\n");
+
           // Host may enable remote wake up before suspending especially HID device
           _usbd_dev.remote_wakeup_en = true;
           tud_control_status(rhport, p_request);
@@ -692,6 +697,8 @@ static bool process_control_request(uint8_t rhport, tusb_control_request_t const
         case TUSB_REQ_CLEAR_FEATURE:
           // Only support remote wakeup for device feature
           TU_VERIFY(TUSB_REQ_FEATURE_REMOTE_WAKEUP == p_request->wValue);
+
+          TU_LOG(USBD_DBG_LVL, "    Disable Remote Wakeup\r\n");
 
           // Host may disable remote wake up after resuming
           _usbd_dev.remote_wakeup_en = false;
@@ -1036,10 +1043,6 @@ void dcd_event_handler(dcd_event_t const * event, bool in_isr)
       }
     break;
 
-    case DCD_EVENT_SOF:
-      return;   // skip SOF event for now
-    break;
-
     case DCD_EVENT_SUSPEND:
       // NOTE: When plugging/unplugging device, the D+/D- state are unstable and
       // can accidentally meet the SUSPEND condition ( Bus Idle for 3ms ).
@@ -1058,6 +1061,17 @@ void dcd_event_handler(dcd_event_t const * event, bool in_isr)
       {
         _usbd_dev.suspended = 0;
         osal_queue_send(_usbd_q, event, in_isr);
+      }
+    break;
+
+    case DCD_EVENT_SOF:
+      // Some MCUs after running dcd_remote_wakeup() does not have way to detect the end of remote wakeup
+      // which last 1-15 ms. DCD can use SOF as a clear indicator that bus is back to operational
+      if ( _usbd_dev.suspended )
+      {
+        _usbd_dev.suspended = 0;
+        dcd_event_t const event_resume = { .rhport = event->rhport, .event_id = DCD_EVENT_RESUME };
+        osal_queue_send(_usbd_q, &event_resume, in_isr);
       }
     break;
 
@@ -1312,6 +1326,8 @@ bool usbd_edpt_busy(uint8_t rhport, uint8_t ep_addr)
 
 void usbd_edpt_stall(uint8_t rhport, uint8_t ep_addr)
 {
+  TU_LOG(USBD_DBG_LVL, "    Stall EP %02X", ep_addr);
+
   uint8_t const epnum = tu_edpt_number(ep_addr);
   uint8_t const dir   = tu_edpt_dir(ep_addr);
 
@@ -1322,8 +1338,11 @@ void usbd_edpt_stall(uint8_t rhport, uint8_t ep_addr)
 
 void usbd_edpt_clear_stall(uint8_t rhport, uint8_t ep_addr)
 {
+  TU_LOG(USBD_DBG_LVL, "    Clear Stall EP %02X", ep_addr);
+
   uint8_t const epnum = tu_edpt_number(ep_addr);
   uint8_t const dir   = tu_edpt_dir(ep_addr);
+
 
   dcd_edpt_clear_stall(rhport, ep_addr);
   _usbd_dev.ep_status[epnum][dir].stalled = false;
