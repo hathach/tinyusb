@@ -101,6 +101,11 @@ static void usb_detach(void)
   USBD->SE0 |= USBD_SE0_SE0_Msk;
 }
 
+static void usb_memcpy(uint8_t *dest, uint8_t *src, uint16_t size)
+{
+  while(size--) *dest++ = *src++;
+}
+
 static void usb_control_send_zlp(void)
 {
   USBD->EP[PERIPH_EP0].CFG |= USBD_CFG_DSQSYNC_Msk;
@@ -153,7 +158,7 @@ static void dcd_in_xfer(struct xfer_ctl_t *xfer, USBD_EP_T *ep)
   else
 #endif
   {
-    memcpy((uint8_t *)(USBD_BUF_BASE + ep->BUFSEG), xfer->data_ptr, bytes_now);
+    usb_memcpy((uint8_t *)(USBD_BUF_BASE + ep->BUFSEG), xfer->data_ptr, bytes_now);
   }
 
   ep->MXPLD = bytes_now;
@@ -252,7 +257,7 @@ bool dcd_edpt_open(uint8_t rhport, tusb_desc_endpoint_t const * p_endpoint_desc)
   /* mine the data for the information we need */
   int const dir = tu_edpt_dir(p_endpoint_desc->bEndpointAddress);
   int const size = p_endpoint_desc->wMaxPacketSize.size;
-  tusb_xfer_type_t const type = p_endpoint_desc->bmAttributes.xfer;
+  tusb_xfer_type_t const type = (tusb_xfer_type_t)p_endpoint_desc->bmAttributes.xfer;
   struct xfer_ctl_t *xfer = &xfer_table[ep - USBD->EP];
 
   /* allocate buffer from USB RAM */
@@ -450,7 +455,7 @@ void dcd_int_handler(uint8_t rhport)
           else
 #endif
           {
-            memcpy(xfer->data_ptr, (uint8_t *)(USBD_BUF_BASE + ep->BUFSEG), available_bytes);
+            usb_memcpy(xfer->data_ptr, (uint8_t *)(USBD_BUF_BASE + ep->BUFSEG), available_bytes);
             xfer->data_ptr += available_bytes;
           }
 
