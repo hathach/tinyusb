@@ -181,9 +181,7 @@ uint16_t tud_network_xmit_cb(uint8_t *dst, void *ref, uint16_t arg)
 
   (void)arg; /* unused for this example */
 
-  pbuf_copy_partial(p, dst, p->tot_len, 0);
-
-  return p->tot_len;
+  return pbuf_copy_partial(p, dst, p->tot_len, 0);
 }
 
 static void service_traffic(void)
