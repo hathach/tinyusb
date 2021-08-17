@@ -178,21 +178,10 @@ bool tud_network_recv_cb(const uint8_t *src, uint16_t size)
 uint16_t tud_network_xmit_cb(uint8_t *dst, void *ref, uint16_t arg)
 {
   struct pbuf *p = (struct pbuf *)ref;
-  struct pbuf *q;
-  uint16_t len = 0;
 
   (void)arg; /* unused for this example */
 
-  /* traverse the "pbuf chain"; see ./lwip/src/core/pbuf.c for more info */
-  for(q = p; q != NULL; q = q->next)
-  {
-    memcpy(dst, (char *)q->payload, q->len);
-    dst += q->len;
-    len += q->len;
-    if (q->len == q->tot_len) break;
-  }
-
-  return len;
+  return pbuf_copy_partial(p, dst, p->tot_len, 0);
 }
 
 static void service_traffic(void)
