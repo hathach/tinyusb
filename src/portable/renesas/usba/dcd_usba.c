@@ -139,7 +139,6 @@ typedef struct
 {
   pipe_state_t pipe[10];
   uint8_t ep[2][16];   /* a lookup table for a pipe index from an endpoint address */
-  uint8_t suspended;
 } dcd_data_t;
 
 //--------------------------------------------------------------------+
@@ -815,20 +814,9 @@ void dcd_int_handler(uint8_t rhport)
   }
   if (is0 & USB_IS0_RESM) {
     dcd_event_bus_signal(rhport, DCD_EVENT_RESUME, true);
-    _dcd.suspended = 0;
   }
   if (is0 & USB_IS0_SOFR) {
-    if (_dcd.suspended) {
-      /* When USB host resumes caused by `dcd_remote_wakeup()`,
-       * RESM interrupt does not rise.
-       * Therefore we need to manually send resume event.
-       * Of course, when USB host resumes on its own,
-       * RESM interrupt rise properly, then this statements are ignored. */
-      // TODO can be dropped since this logic is implemented by usbd
-      // USBD will exit suspended mode when SOF event is received
-      dcd_event_bus_signal(rhport, DCD_EVENT_RESUME, true);
-      _dcd.suspended = 0;
-    }
+    // USBD will exit suspended mode when SOF event is received
     dcd_event_bus_signal(rhport, DCD_EVENT_SOF, true);
   }
   if (is0 & USB_IS0_DVST) {
@@ -844,7 +832,6 @@ void dcd_int_handler(uint8_t rhport)
     case USB_IS0_DVSQ_SUSP2:
     case USB_IS0_DVSQ_SUSP3:
        dcd_event_bus_signal(rhport, DCD_EVENT_SUSPEND, true);
-       _dcd.suspended = 1;
     default:
       break;
     }
