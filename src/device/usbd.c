@@ -559,13 +559,28 @@ void tud_task (void)
       break;
 
       case DCD_EVENT_SUSPEND:
-        TU_LOG2(": Remote Wakeup = %u\r\n", _usbd_dev.remote_wakeup_en);
-        if (tud_suspend_cb) tud_suspend_cb(_usbd_dev.remote_wakeup_en);
+        // NOTE: When plugging/unplugging device, the D+/D- state are unstable and
+        // can accidentally meet the SUSPEND condition ( Bus Idle for 3ms ), which result in a series of event
+        // e.g suspend -> resume -> unplug/plug. Skip suspend/resume if not connected
+        if ( _usbd_dev.connected )
+        {
+          TU_LOG2(": Remote Wakeup = %u\r\n", _usbd_dev.remote_wakeup_en);
+          if (tud_suspend_cb) tud_suspend_cb(_usbd_dev.remote_wakeup_en);
+        }else
+        {
+          TU_LOG2(" Skipped\r\n");
+        }
       break;
 
       case DCD_EVENT_RESUME:
-        TU_LOG2("\r\n");
-        if (tud_resume_cb) tud_resume_cb();
+        if ( _usbd_dev.connected )
+        {
+          TU_LOG2("\r\n");
+          if (tud_resume_cb) tud_resume_cb();
+        }else
+        {
+          TU_LOG2(" Skipped\r\n");
+        }
       break;
 
       case DCD_EVENT_SOF:
