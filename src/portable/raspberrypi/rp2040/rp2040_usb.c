@@ -62,11 +62,7 @@ void rp2040_usb_init(void)
   memset(usb_dpram, 0, sizeof(*usb_dpram));
 
   // Mux the controller to the onboard usb phy
-  usb_hw->muxing = USB_USB_MUXING_TO_PHY_BITS    | USB_USB_MUXING_SOFTCON_BITS;
-
-  // Force VBUS detect so the device thinks it is plugged into a host
-  // TODO support VBUs detect
-  usb_hw->pwr    = USB_USB_PWR_VBUS_DETECT_BITS  | USB_USB_PWR_VBUS_DETECT_OVERRIDE_EN_BITS;
+  usb_hw->muxing = USB_USB_MUXING_TO_PHY_BITS | USB_USB_MUXING_SOFTCON_BITS;
 }
 
 void hw_endpoint_reset_transfer(struct hw_endpoint *ep)
