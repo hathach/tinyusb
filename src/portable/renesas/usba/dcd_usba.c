@@ -27,6 +27,10 @@
 
 #include "tusb_option.h"
 
+// Since TinyUSB doesn't use SOF for now, and this interrupt too often (1ms interval)
+// We disable SOF for now until needed later on
+#define USE_SOF     0
+
 #if TUSB_OPT_DEVICE_ENABLED && ( CFG_TUSB_MCU == OPT_MCU_RX63X || \
                                  CFG_TUSB_MCU == OPT_MCU_RX65X || \
                                  CFG_TUSB_MCU == OPT_MCU_RX72N )
@@ -626,7 +630,7 @@ void dcd_init(uint8_t rhport)
   /* Setup default control pipe */
   USB0.DCPMAXP.BIT.MXPS  = 64;
   USB0.INTENB0.WORD = USB_IS0_VBINT | USB_IS0_BRDY | USB_IS0_BEMP |
-    USB_IS0_DVST | USB_IS0_CTRT | USB_IS0_SOFR | USB_IS0_RESM;
+    USB_IS0_DVST | USB_IS0_CTRT | (USE_SOF ? USB_IS0_SOFR: 0) | USB_IS0_RESM;
   USB0.BEMPENB.WORD = 1;
   USB0.BRDYENB.WORD = 1;
 
@@ -814,10 +818,16 @@ void dcd_int_handler(uint8_t rhport)
   }
   if (is0 & USB_IS0_RESM) {
     dcd_event_bus_signal(rhport, DCD_EVENT_RESUME, true);
+#if (0==USE_SOF)
+    USB0.INTENB0.BIT.SOFE = 0;
+#endif
   }
-  if (is0 & USB_IS0_SOFR) {
+  if ((is0 & USB_IS0_SOFR) && USB0.INTENB0.BIT.SOFE) {
     // USBD will exit suspended mode when SOF event is received
     dcd_event_bus_signal(rhport, DCD_EVENT_SOF, true);
+#if (0==USE_SOF)
+    USB0.INTENB0.BIT.SOFE = 0;
+#endif
   }
   if (is0 & USB_IS0_DVST) {
     switch (is0 & USB_IS0_DVSQ) {
@@ -832,6 +842,9 @@ void dcd_int_handler(uint8_t rhport)
     case USB_IS0_DVSQ_SUSP2:
     case USB_IS0_DVSQ_SUSP3:
        dcd_event_bus_signal(rhport, DCD_EVENT_SUSPEND, true);
+#if (0==USE_SOF)
+       USB0.INTENB0.BIT.SOFE = 1;
+#endif
     default:
       break;
     }
