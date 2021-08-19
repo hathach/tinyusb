@@ -307,10 +307,11 @@ ST STM32
 -  `STM32 F070rb Nucleo <https://www.st.com/en/evaluation-tools/nucleo-f070rb.html>`__
 -  `STM32 F072 Evaluation <https://www.st.com/en/evaluation-tools/stm32072b-eval.html>`__
 -  `STM32 F072rb Discovery <https://www.st.com/en/evaluation-tools/32f072bdiscovery.html>`__
--  STM32 F103c Blue Pill
+-  `STM32 F103c8 Blue Pill <https://stm32-base.org/boards/STM32F103C8T6-Blue-Pill>`__
+-  `STM32 F103rc Mini v2.0 <https://stm32-base.org/boards/STM32F103RCT6-STM32-Mini-V2.0>`__
 -  `STM32 F207zg Nucleo <https://www.st.com/en/evaluation-tools/nucleo-f207zg.html>`__
 -  `STM32 F303vc Discovery <https://www.st.com/en/evaluation-tools/stm32f3discovery.html>`__
--  STM32 F401cc Black Pill
+-  `STM32 F401cc Black Pill <https://stm32-base.org/boards/STM32F401CCU6-WeAct-Black-Pill-V1.2>`__
 -  `STM32 F407vg Discovery <https://www.st.com/en/evaluation-tools/stm32f4discovery.html>`__
 -  `STM32 F411ce Black Pill <https://www.adafruit.com/product/4877>`__
 -  `STM32 F411ve Discovery <https://www.st.com/en/evaluation-tools/32f411ediscovery.html>`__
