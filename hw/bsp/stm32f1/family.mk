@@ -29,7 +29,7 @@ SRC_C += \
   $(ST_HAL_DRIVER)/Src/stm32$(ST_FAMILY)xx_hal_gpio.c
 
 INC += \
-	$(TOP)/$(BOARD_PATH) \
+  $(TOP)/$(BOARD_PATH) \
   $(TOP)/lib/CMSIS_5/CMSIS/Core/Include \
   $(TOP)/$(ST_CMSIS)/Include \
   $(TOP)/$(ST_HAL_DRIVER)/Inc
