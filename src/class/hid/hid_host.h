@@ -97,6 +97,8 @@ uint8_t tuh_hid_parse_report_descriptor(tuh_hid_report_info_t* reports_info_arr,
 // Invoked when device with hid interface is mounted
 // Report descriptor is also available for use. tuh_hid_parse_report_descriptor()
 // can be used to parse common/simple enough descriptor.
+// Note: if report descriptor length > CFG_TUH_ENUMERATION_BUFSIZE, it will be skipped
+// therefore report_desc = NULL, desc_len = 0
 void tuh_hid_mount_cb(uint8_t dev_addr, uint8_t instance, uint8_t const* report_desc, uint16_t desc_len);
 
 // Invoked when device with hid interface is un-mounted
@@ -119,11 +121,11 @@ TU_ATTR_WEAK void tuh_hid_set_protocol_complete_cb(uint8_t dev_addr, uint8_t ins
 //--------------------------------------------------------------------+
 // Internal Class Driver API
 //--------------------------------------------------------------------+
-void     hidh_init       (void);
-uint16_t hidh_open       (uint8_t rhport, uint8_t dev_addr, tusb_desc_interface_t const *desc_itf, uint16_t max_len);
-bool     hidh_set_config (uint8_t dev_addr, uint8_t itf_num);
-bool     hidh_xfer_cb    (uint8_t dev_addr, uint8_t ep_addr, xfer_result_t result, uint32_t xferred_bytes);
-void     hidh_close      (uint8_t dev_addr);
+void hidh_init       (void);
+bool hidh_open       (uint8_t rhport, uint8_t dev_addr, tusb_desc_interface_t const *desc_itf, uint16_t max_len);
+bool hidh_set_config (uint8_t dev_addr, uint8_t itf_num);
+bool hidh_xfer_cb    (uint8_t dev_addr, uint8_t ep_addr, xfer_result_t result, uint32_t xferred_bytes);
+void hidh_close      (uint8_t dev_addr);
 
 #ifdef __cplusplus
 }

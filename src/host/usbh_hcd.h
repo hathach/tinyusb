@@ -73,9 +73,9 @@ typedef struct {
     uint8_t suspended    : 1;
   };
 
-  volatile uint8_t state;             // device state, value from enum tusbh_device_state_t
+  volatile uint8_t state;            // device state, value from enum tusbh_device_state_t
 
-  uint8_t itf2drv[16];  // map interface number to driver (0xff is invalid)
+  uint8_t itf2drv[16];               // map interface number to driver (0xff is invalid)
   uint8_t ep2drv[CFG_TUH_EP_MAX][2]; // map endpoint to driver ( 0xff is invalid )
 
   struct TU_ATTR_PACKED
