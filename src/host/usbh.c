@@ -892,8 +892,6 @@ static bool parse_configuration_descriptor(uint8_t dev_addr, tusb_desc_configura
       p_desc = tu_desc_next(p_desc);
     }
 
-    TU_LOG_INT(2, p_desc - (uint8_t*) desc_cfg);
-    TU_LOG_INT(2, tu_desc_type(p_desc));
     TU_ASSERT( TUSB_DESC_INTERFACE == tu_desc_type(p_desc) );
 
     tusb_desc_interface_t const* desc_itf = (tusb_desc_interface_t const*) p_desc;
