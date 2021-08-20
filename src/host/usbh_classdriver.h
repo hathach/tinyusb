@@ -73,6 +73,8 @@ bool usbh_edpt_xfer(uint8_t dev_addr, uint8_t ep_addr, uint8_t * buffer, uint16_
 // If caller does not make any transfer, it must release endpoint for others.
 bool usbh_edpt_claim(uint8_t dev_addr, uint8_t ep_addr);
 
+bool usbh_edpt_release(uint8_t dev_addr, uint8_t ep_addr);
+
 // Check if endpoint transferring is complete
 bool usbh_edpt_busy(uint8_t dev_addr, uint8_t ep_addr);
 

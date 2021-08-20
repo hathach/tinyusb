@@ -73,6 +73,20 @@
 #include "tusb_error.h"   // TODO remove
 #include "tusb_timeout.h" // TODO remove
 
+//--------------------------------------------------------------------+
+// Internal Helper used by Host and Device Stack
+//--------------------------------------------------------------------+
+
+// Check if endpoint descriptor is valid per USB specs
+bool tu_edpt_validate(tusb_desc_endpoint_t const * desc_ep, tusb_speed_t speed);
+
+// Bind all endpoint of a interface descriptor to class driver
+void tu_edpt_bind_driver(uint8_t ep2drv[][2], tusb_desc_interface_t const* p_desc, uint16_t desc_len, uint8_t driver_id);
+
+//--------------------------------------------------------------------+
+// Internal Inline Functions
+//--------------------------------------------------------------------+
+
 //------------- Mem -------------//
 #define tu_memclr(buffer, size)  memset((buffer), 0, (size))
 #define tu_varclr(_var)          tu_memclr(_var, sizeof(*(_var)))

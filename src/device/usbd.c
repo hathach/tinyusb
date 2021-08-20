@@ -274,7 +274,6 @@ static osal_mutex_t _usbd_mutex;
 //--------------------------------------------------------------------+
 // Prototypes
 //--------------------------------------------------------------------+
-static void mark_interface_endpoint(uint8_t ep2drv[][2], uint8_t const* p_desc, uint16_t desc_len, uint8_t driver_id);
 static bool process_control_request(uint8_t rhport, tusb_control_request_t const * p_request);
 static bool process_set_config(uint8_t rhport, uint8_t cfg_num);
 static bool process_get_descriptor(uint8_t rhport, tusb_control_request_t const * p_request);
@@ -901,7 +900,8 @@ static bool process_set_config(uint8_t rhport, uint8_t cfg_num)
           }
         }
 
-        mark_interface_endpoint(_usbd_dev.ep2drv, p_desc, drv_len, drv_id); // TODO refactor
+        // bind all endpoints for this driver
+        tu_edpt_bind_driver(_usbd_dev.ep2drv, desc_itf, drv_len, drv_id);
 
         p_desc += drv_len; // next interface
 
@@ -917,25 +917,6 @@ static bool process_set_config(uint8_t rhport, uint8_t cfg_num)
   if (tud_mount_cb) tud_mount_cb();
 
   return true;
-}
-
-// Helper marking endpoint of interface belongs to class driver
-static void mark_interface_endpoint(uint8_t ep2drv[][2], uint8_t const* p_desc, uint16_t desc_len, uint8_t driver_id)
-{
-  uint16_t len = 0;
-
-  while( len < desc_len )
-  {
-    if ( TUSB_DESC_ENDPOINT == tu_desc_type(p_desc) )
-    {
-      uint8_t const ep_addr = ((tusb_desc_endpoint_t const*) p_desc)->bEndpointAddress;
-
-      ep2drv[tu_edpt_number(ep_addr)][tu_edpt_dir(ep_addr)] = driver_id;
-    }
-
-    len   = (uint16_t)(len + tu_desc_len(p_desc));
-    p_desc = tu_desc_next(p_desc);
-  }
 }
 
 // return descriptor's buffer and update desc_len
@@ -1177,41 +1158,8 @@ void usbd_defer_func(osal_task_func_t func, void* param, bool in_isr)
 
 bool usbd_edpt_open(uint8_t rhport, tusb_desc_endpoint_t const * desc_ep)
 {
-  uint16_t const max_packet_size = tu_le16toh(desc_ep->wMaxPacketSize.size);
-
-  TU_LOG2("  Open EP %02X with Size = %u\r\n", desc_ep->bEndpointAddress, max_packet_size);
   TU_ASSERT(tu_edpt_number(desc_ep->bEndpointAddress) < CFG_TUD_ENDPPOINT_MAX);
-
-  switch (desc_ep->bmAttributes.xfer)
-  {
-    case TUSB_XFER_ISOCHRONOUS:
-    {
-      uint16_t const spec_size = (_usbd_dev.speed == TUSB_SPEED_HIGH ? 1024 : 1023);
-      TU_ASSERT(max_packet_size <= spec_size);
-    }
-    break;
-
-    case TUSB_XFER_BULK:
-      if (_usbd_dev.speed == TUSB_SPEED_HIGH)
-      {
-        // Bulk highspeed must be EXACTLY 512
-        TU_ASSERT(max_packet_size == 512);
-      }else
-      {
-        // TODO Bulk fullspeed can only be 8, 16, 32, 64
-        TU_ASSERT(max_packet_size <= 64);
-      }
-    break;
-
-    case TUSB_XFER_INTERRUPT:
-    {
-      uint16_t const spec_size = (_usbd_dev.speed == TUSB_SPEED_HIGH ? 1024 : 64);
-      TU_ASSERT(max_packet_size <= spec_size);
-    }
-    break;
-
-    default: return false;
-  }
+  TU_ASSERT(tu_edpt_validate(desc_ep, (tusb_speed_t) _usbd_dev.speed));
 
   return dcd_edpt_open(rhport, desc_ep);
 }
