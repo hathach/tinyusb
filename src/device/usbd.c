@@ -856,12 +856,12 @@ static bool process_set_config(uint8_t rhport, uint8_t cfg_num)
 
   while( p_desc < desc_end )
   {
-    tusb_desc_interface_assoc_t const * desc_itf_assoc = NULL;
+    tusb_desc_interface_assoc_t const * desc_iad = NULL;
 
     // Class will always starts with Interface Association (if any) and then Interface descriptor
     if ( TUSB_DESC_INTERFACE_ASSOCIATION == tu_desc_type(p_desc) )
     {
-      desc_itf_assoc = (tusb_desc_interface_assoc_t const *) p_desc;
+      desc_iad = (tusb_desc_interface_assoc_t const *) p_desc;
       p_desc = tu_desc_next(p_desc); // next to Interface
     }
 
@@ -870,6 +870,13 @@ static bool process_set_config(uint8_t rhport, uint8_t cfg_num)
     tusb_desc_interface_t const * desc_itf = (tusb_desc_interface_t const*) p_desc;
     uint16_t const remaining_len = desc_end-p_desc;
 
+    // Interface number must not be used already
+    TU_ASSERT(DRVID_INVALID == _usbd_dev.itf2drv[desc_itf->bInterfaceNumber]);
+
+    // TODO usbd can calculate the total length used for driver --> driver open() does not need to calculate it
+    // uint16_t const drv_len = tu_desc_get_interface_total_len(desc_itf, desc_iad ? desc_iad->bInterfaceCount : 1, desc_end-p_desc);
+
+    // Find driver for this interface
     uint8_t drv_id;
     for (drv_id = 0; drv_id < TOTAL_DRIVER_COUNT; drv_id++)
     {
@@ -881,31 +888,30 @@ static bool process_set_config(uint8_t rhport, uint8_t cfg_num)
         // Open successfully, check if length is correct
         TU_ASSERT( sizeof(tusb_desc_interface_t) <= drv_len && drv_len <= remaining_len);
 
-        // Interface number must not be used already
-        TU_ASSERT(DRVID_INVALID == _usbd_dev.itf2drv[desc_itf->bInterfaceNumber]);
-
         TU_LOG2("  %s opened\r\n", driver->name);
+
+        // bind interface to found driver
         _usbd_dev.itf2drv[desc_itf->bInterfaceNumber] = drv_id;
 
-        // If IAD exist, assign all interfaces to the same driver
-        if (desc_itf_assoc)
+        // If using IAD, bind all interfaces to the same driver
+        if (desc_iad)
         {
           // IAD's first interface number and class should match with opened interface
-          TU_ASSERT(desc_itf_assoc->bFirstInterface == desc_itf->bInterfaceNumber &&
-                    desc_itf_assoc->bFunctionClass  == desc_itf->bInterfaceClass);
+          TU_ASSERT(desc_iad->bFirstInterface == desc_itf->bInterfaceNumber &&
+                    desc_iad->bFunctionClass  == desc_itf->bInterfaceClass);
 
-          for(uint8_t i=1; i<desc_itf_assoc->bInterfaceCount; i++)
+          for(uint8_t i=1; i<desc_iad->bInterfaceCount; i++)
           {
             _usbd_dev.itf2drv[desc_itf->bInterfaceNumber+i] = drv_id;
           }
         }
 
-        // bind all endpoints for this driver
+        // bind all endpoints to found driver
         tu_edpt_bind_driver(_usbd_dev.ep2drv, desc_itf, drv_len, drv_id);
 
         p_desc += drv_len; // next interface
 
-        break;
+        break; // exit driver find loop
       }
     }
 
