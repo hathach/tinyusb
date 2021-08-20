@@ -48,6 +48,10 @@
 //--------------------------------------------------------------------+
 // MACRO CONSTANT TYPEDEF
 //--------------------------------------------------------------------+
+
+// Invalid driver ID in itf2drv[] ep2drv[][] mapping
+enum { DRVID_INVALID = 0xFFu };
+
 #if CFG_TUSB_DEBUG >= 2
   #define DRIVER_NAME(_name)    .name = _name,
 #else
@@ -59,7 +63,6 @@ static usbh_class_driver_t const usbh_class_drivers[] =
   #if CFG_TUH_CDC
     {
       DRIVER_NAME("CDC")
-      .class_code = TUSB_CLASS_CDC,
       .init       = cdch_init,
       .open       = cdch_open,
       .set_config = cdch_set_config,
@@ -71,7 +74,6 @@ static usbh_class_driver_t const usbh_class_drivers[] =
   #if CFG_TUH_MSC
     {
       DRIVER_NAME("MSC")
-      .class_code = TUSB_CLASS_MSC,
       .init       = msch_init,
       .open       = msch_open,
       .set_config = msch_set_config,
@@ -83,7 +85,6 @@ static usbh_class_driver_t const usbh_class_drivers[] =
   #if CFG_TUH_HID
     {
       DRIVER_NAME("HID")
-      .class_code = TUSB_CLASS_HID,
       .init       = hidh_init,
       .open       = hidh_open,
       .set_config = hidh_set_config,
@@ -95,7 +96,6 @@ static usbh_class_driver_t const usbh_class_drivers[] =
   #if CFG_TUH_HUB
     {
       DRIVER_NAME("HUB")
-      .class_code = TUSB_CLASS_HUB,
       .init       = hub_init,
       .open       = hub_open,
       .set_config = hub_set_config,
@@ -107,7 +107,6 @@ static usbh_class_driver_t const usbh_class_drivers[] =
   #if CFG_TUH_VENDOR
     {
       DRIVER_NAME("VENDOR")
-      .class_code = TUSB_CLASS_VENDOR_SPECIFIC,
       .init       = cush_init,
       .open       = cush_open_subtask,
       .xfer_cb    = cush_isr,
@@ -203,8 +202,8 @@ bool tuh_init(uint8_t rhport)
     TU_ASSERT(dev->mutex);
 #endif
 
-    memset(dev->itf2drv, 0xff, sizeof(dev->itf2drv)); // invalid mapping
-    memset(dev->ep2drv , 0xff, sizeof(dev->ep2drv )); // invalid mapping
+    memset(dev->itf2drv, DRVID_INVALID, sizeof(dev->itf2drv)); // invalid mapping
+    memset(dev->ep2drv , DRVID_INVALID, sizeof(dev->ep2drv )); // invalid mapping
   }
 
   // Class drivers init
@@ -336,7 +335,6 @@ void hcd_event_handler(hcd_event_t const* event, bool in_isr)
   }
 }
 
-// interrupt caused by a TD (with IOC=1) in pipe of class class_code
 void hcd_event_xfer_complete(uint8_t dev_addr, uint8_t ep_addr, uint32_t xferred_bytes, xfer_result_t result, bool in_isr)
 {
   hcd_event_t event =
@@ -409,8 +407,8 @@ void process_device_unplugged(uint8_t rhport, uint8_t hub_addr, uint8_t hub_port
         usbh_class_drivers[drv_id].close(dev_addr);
       }
 
-      memset(dev->itf2drv, 0xff, sizeof(dev->itf2drv)); // invalid mapping
-      memset(dev->ep2drv , 0xff, sizeof(dev->ep2drv )); // invalid mapping
+      memset(dev->itf2drv, DRVID_INVALID, sizeof(dev->itf2drv)); // invalid mapping
+      memset(dev->ep2drv , DRVID_INVALID, sizeof(dev->ep2drv )); // invalid mapping
 
       hcd_device_close(rhport, dev_addr);
 
@@ -439,7 +437,7 @@ void usbh_driver_set_config_complete(uint8_t dev_addr, uint8_t itf_num)
   {
     // continue with next valid interface
     uint8_t const drv_id = dev->itf2drv[itf_num];
-    if (drv_id != 0xff)
+    if (drv_id != DRVID_INVALID)
     {
       usbh_class_driver_t const * driver = &usbh_class_drivers[drv_id];
       TU_LOG2("%s set config: itf = %u\r\n", driver->name, itf_num);
@@ -835,41 +833,13 @@ static bool enum_set_config_complete(uint8_t dev_addr, tusb_control_request_t co
   dev->configured = 1;
   dev->state = TUSB_DEVICE_STATE_CONFIGURED;
 
-  // Start the Set Configuration process for interfaces (itf = 0xff)
+  // Start the Set Configuration process for interfaces (itf = DRVID_INVALID)
   // Since driver can perform control transfer within its set_config, this is done asynchronously.
   // The process continue with next interface when class driver complete its sequence with usbh_driver_set_config_complete()
-  // TODO use separated API instead of usig 0xff
-  usbh_driver_set_config_complete(dev_addr, 0xff);
+  // TODO use separated API instead of using DRVID_INVALID
+  usbh_driver_set_config_complete(dev_addr, DRVID_INVALID);
 
   return true;
-}
-
-// Get total length of n interface (depending on IAD)
-static uint16_t get_interface_length(tusb_desc_interface_t const* desc_itf, uint8_t itf_count, uint16_t max_len)
-{
-  uint8_t const* p_desc = (uint8_t const*) desc_itf;
-  uint16_t len = 0;
-
-  while (itf_count--)
-  {
-    // Next on interface desc
-    len += tu_desc_len(desc_itf);
-    p_desc = tu_desc_next(p_desc);
-
-    while (len < max_len)
-    {
-      // return on IAD regardless of itf count
-      if ( tu_desc_type(p_desc) == TUSB_DESC_INTERFACE_ASSOCIATION ) return len;
-
-      if ( (tu_desc_type(p_desc) == TUSB_DESC_INTERFACE) &&
-          ((tusb_desc_interface_t const*) p_desc)->bAlternateSetting == 0 ) break;
-
-      len += tu_desc_len(p_desc);
-      p_desc = tu_desc_next(p_desc);
-    }
-  }
-
-  return len;
 }
 
 static bool parse_configuration_descriptor(uint8_t dev_addr, tusb_desc_configuration_t const* desc_cfg)
@@ -895,53 +865,64 @@ static bool parse_configuration_descriptor(uint8_t dev_addr, tusb_desc_configura
     TU_ASSERT( TUSB_DESC_INTERFACE == tu_desc_type(p_desc) );
 
     tusb_desc_interface_t const* desc_itf = (tusb_desc_interface_t const*) p_desc;
-    uint16_t const remaining_len = desc_end-p_desc;
 
-    uint16_t const drv_len = get_interface_length(desc_itf, desc_iad ? desc_iad->bInterfaceCount : 1, remaining_len);
+    // Interface number must not be used already
+    TU_ASSERT( dev->itf2drv[desc_itf->bInterfaceNumber] == DRVID_INVALID );
+
+    uint16_t const drv_len = tu_desc_get_interface_total_len(desc_itf, desc_iad ? desc_iad->bInterfaceCount : 1, desc_end-p_desc);
     TU_ASSERT(drv_len);
 
-    // Check if class is supported TODO drop class_code
-    uint8_t drv_id;
-    for (drv_id = 0; drv_id < USBH_CLASS_DRIVER_COUNT; drv_id++)
+    if (desc_itf->bInterfaceClass == TUSB_CLASS_HUB && dev->hub_addr != 0)
     {
-      if ( usbh_class_drivers[drv_id].class_code == desc_itf->bInterfaceClass ) break;
-    }
-
-    if( drv_id >= USBH_CLASS_DRIVER_COUNT )
-    {
-      TU_LOG(USBH_DBG_LVL, "Interface %u: class = %u subclass = %u protocol = %u is not supported\r\n",
-             desc_itf->bInterfaceNumber, desc_itf->bInterfaceClass, desc_itf->bInterfaceSubClass, desc_itf->bInterfaceProtocol);
-
-      // skip unsupported class until next Interface or IAD descriptor
-      p_desc += drv_len;
+      // TODO Attach hub to Hub is not currently supported
+      // skip this interface
+      TU_LOG(USBH_DBG_LVL, "Only 1 level of HUB is supported\r\n");
     }
     else
     {
-      usbh_class_driver_t const * driver = &usbh_class_drivers[drv_id];
-
-      // Interface number must not be used already TODO alternate interface
-      TU_ASSERT( dev->itf2drv[desc_itf->bInterfaceNumber] == 0xff );
-      dev->itf2drv[desc_itf->bInterfaceNumber] = drv_id;
-
-      if (desc_itf->bInterfaceClass == TUSB_CLASS_HUB && dev->hub_addr != 0)
+      // Find driver for this interface
+      uint8_t drv_id;
+      for (drv_id = 0; drv_id < USBH_CLASS_DRIVER_COUNT; drv_id++)
       {
-        // TODO Attach hub to Hub is not currently supported
-        // skip this interface
-        p_desc = tu_desc_next(p_desc);
+        usbh_class_driver_t const * driver = &usbh_class_drivers[drv_id];
+
+        if ( driver->open(dev->rhport, dev_addr, desc_itf, drv_len) )
+        {
+          // open successfully
+          TU_LOG2("%s opened\r\n", driver->name);
+
+          // bind interface to found driver
+          dev->itf2drv[desc_itf->bInterfaceNumber] = drv_id;
+
+          // If using IAD, bind all interfaces to the same driver
+          if (desc_iad)
+          {
+            // IAD's first interface number and class should match with opened interface
+            TU_ASSERT(desc_iad->bFirstInterface == desc_itf->bInterfaceNumber &&
+                      desc_iad->bFunctionClass  == desc_itf->bInterfaceClass);
+
+            for(uint8_t i=1; i<desc_iad->bInterfaceCount; i++)
+            {
+              dev->itf2drv[desc_itf->bInterfaceNumber+i] = drv_id;
+            }
+          }
+
+          // bind all endpoints to found driver
+          tu_edpt_bind_driver(dev->ep2drv, desc_itf, drv_len, drv_id);
+
+          break; // exit driver find loop
+        }
       }
-      else
+
+      if( drv_id >= USBH_CLASS_DRIVER_COUNT )
       {
-        TU_LOG2("%s open\r\n", driver->name);
-
-        uint16_t const itf_len = driver->open(dev->rhport, dev_addr, desc_itf, remaining_len);
-        TU_ASSERT( sizeof(tusb_desc_interface_t) <= itf_len && itf_len <= remaining_len);
-
-        // bind all endpoints for this driver
-        tu_edpt_bind_driver(dev->ep2drv, desc_itf, drv_len, drv_id);
-
-        p_desc += itf_len;
+        TU_LOG(USBH_DBG_LVL, "Interface %u: class = %u subclass = %u protocol = %u is not supported\r\n",
+               desc_itf->bInterfaceNumber, desc_itf->bInterfaceClass, desc_itf->bInterfaceSubClass, desc_itf->bInterfaceProtocol);
       }
     }
+
+    // next Interface or IAD descriptor
+    p_desc += drv_len;
   }
 
   return true;
