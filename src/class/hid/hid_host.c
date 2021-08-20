@@ -249,19 +249,22 @@ static bool config_get_report_desc_complete (uint8_t dev_addr, tusb_control_requ
 
 static void config_driver_mount_complete(uint8_t dev_addr, uint8_t instance, uint8_t const* desc_report, uint16_t desc_len);
 
-uint16_t hidh_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_interface_t const *desc_itf, uint16_t max_len)
+bool hidh_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_interface_t const *desc_itf, uint16_t max_len)
 {
   (void) max_len;
 
-  TU_VERIFY(TUSB_CLASS_HID == desc_itf->bInterfaceClass, 0);
+  TU_VERIFY(TUSB_CLASS_HID == desc_itf->bInterfaceClass);
 
-  uint16_t drv_len = sizeof(tusb_desc_interface_t);
+  // len = interface + hid + n*endpoints
+  uint16_t const drv_len = sizeof(tusb_desc_interface_t) + sizeof(tusb_hid_descriptor_hid_t) + desc_itf->bNumEndpoints*sizeof(tusb_desc_endpoint_t);
+  TU_ASSERT(max_len >= drv_len);
+
   uint8_t const *p_desc = (uint8_t const *) desc_itf;
 
   //------------- HID descriptor -------------//
   p_desc = tu_desc_next(p_desc);
   tusb_hid_descriptor_hid_t const *desc_hid = (tusb_hid_descriptor_hid_t const *) p_desc;
-  TU_ASSERT(HID_DESC_TYPE_HID == desc_hid->bDescriptorType, 0);
+  TU_ASSERT(HID_DESC_TYPE_HID == desc_hid->bDescriptorType);
 
   // not enough interface, try to increase CFG_TUH_HID
   // TODO multiple devices
@@ -269,13 +272,12 @@ uint16_t hidh_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_interface_t const
   TU_ASSERT(hid_dev->inst_count < CFG_TUH_HID, 0);
 
   //------------- Endpoint Descriptor -------------//
-  drv_len += tu_desc_len(p_desc);
   p_desc = tu_desc_next(p_desc);
   tusb_desc_endpoint_t const * desc_ep = (tusb_desc_endpoint_t const *) p_desc;
-  TU_ASSERT(TUSB_DESC_ENDPOINT == desc_ep->bDescriptorType, 0);
+  TU_ASSERT(TUSB_DESC_ENDPOINT == desc_ep->bDescriptorType);
 
   // TODO also open endpoint OUT
-  TU_ASSERT( usbh_edpt_open(rhport, dev_addr, desc_ep), 0 );
+  TU_ASSERT( usbh_edpt_open(rhport, dev_addr, desc_ep) );
 
   hidh_interface_t* hid_itf = get_instance(dev_addr, hid_dev->inst_count);
   hid_dev->inst_count++;
@@ -292,9 +294,7 @@ uint16_t hidh_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_interface_t const
   hid_itf->protocol_mode = HID_PROTOCOL_BOOT;
   if ( HID_SUBCLASS_BOOT == desc_itf->bInterfaceSubClass ) hid_itf->itf_protocol = desc_itf->bInterfaceProtocol;
 
-  drv_len += desc_itf->bNumEndpoints*sizeof(tusb_desc_endpoint_t);
-
-  return drv_len;
+  return true;
 }
 
 bool hidh_set_config(uint8_t dev_addr, uint8_t itf_num)
