@@ -245,6 +245,7 @@ void dcd_int_disable(uint8_t rhport)
 void dcd_set_address(uint8_t rhport, uint8_t dev_addr)
 {
   (void) rhport;
+  (void) dev_addr;
   usb_control_send_zlp(); /* SET_ADDRESS is the one exception where TinyUSB doesn't use dcd_edpt_xfer() to generate a ZLP */
 
   // DCD can only set address after status for this request is complete.
