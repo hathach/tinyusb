@@ -40,6 +40,12 @@
 #include "device/dcd.h"
 #include "NuMicro.h"
 
+// Since TinyUSB doesn't use SOF for now, and this interrupt too often (1ms interval)
+// We disable SOF for now until needed later on
+#ifndef USE_SOF
+#  define USE_SOF     0
+#endif
+
 /* allocation of USBD RAM for Setup, EP0_IN, and and EP_OUT */
 #define PERIPH_SETUP_BUF_BASE  0
 #define PERIPH_SETUP_BUF_LEN   8
@@ -64,9 +70,6 @@ enum ep_enum
   PERIPH_EP7 = 7,
   PERIPH_MAX_EP,
 };
-
-/* set by dcd_set_address() */
-static volatile uint8_t assigned_address;
 
 /* reset by dcd_init(), this is used by dcd_edpt_open() to assign USBD peripheral buffer addresses */
 static uint32_t bufseg_addr;
@@ -197,7 +200,11 @@ static void bus_reset(void)
 }
 
 /* centralized location for USBD interrupt enable bit mask */
+#if USE_SOF
 static const uint32_t enabled_irqs = USBD_INTSTS_VBDETIF_Msk | USBD_INTSTS_BUSIF_Msk | USBD_INTSTS_SETUP_Msk | USBD_INTSTS_USBIF_Msk | USBD_INTSTS_SOFIF_Msk;
+#else
+static const uint32_t enabled_irqs = USBD_INTSTS_VBDETIF_Msk | USBD_INTSTS_BUSIF_Msk | USBD_INTSTS_SETUP_Msk | USBD_INTSTS_USBIF_Msk;
+#endif
 
 /*
   NUC121/NUC125/NUC126 TinyUSB API driver implementation
@@ -239,7 +246,9 @@ void dcd_set_address(uint8_t rhport, uint8_t dev_addr)
 {
   (void) rhport;
   usb_control_send_zlp(); /* SET_ADDRESS is the one exception where TinyUSB doesn't use dcd_edpt_xfer() to generate a ZLP */
-  assigned_address = dev_addr;
+
+  // DCD can only set address after status for this request is complete.
+  // do it at dcd_edpt0_status_complete()
 }
 
 void dcd_remote_wakeup(uint8_t rhport)
@@ -420,9 +429,6 @@ void dcd_int_handler(uint8_t rhport)
   {
     if (status & USBD_INTSTS_EPEVT0_Msk) /* PERIPH_EP0 (EP0_IN) event: this is treated separately from the rest */
     {
-      /* given ACK from host has happened, we can now set the address (if not already done) */
-      if((USBD->FADDR != assigned_address) && (USBD->FADDR == 0)) USBD->FADDR = assigned_address;
-
       uint16_t const available_bytes = USBD->EP[PERIPH_EP0].MXPLD;
 
       active_ep0_xfer = (available_bytes == xfer_table[PERIPH_EP0].max_packet_size);
@@ -493,6 +499,23 @@ void dcd_int_handler(uint8_t rhport)
 
   /* acknowledge all interrupts */
   USBD->INTSTS = status & enabled_irqs;
+}
+
+// Invoked when a control transfer's status stage is complete.
+// May help DCD to prepare for next control transfer, this API is optional.
+void dcd_edpt0_status_complete(uint8_t rhport, tusb_control_request_t const * request)
+{
+  (void) rhport;
+
+  if (request->bmRequestType_bit.recipient == TUSB_REQ_RCPT_DEVICE &&
+      request->bmRequestType_bit.type == TUSB_REQ_TYPE_STANDARD &&
+      request->bRequest == TUSB_REQ_SET_ADDRESS )
+  {
+    uint8_t const dev_addr = (uint8_t) request->wValue;
+
+    // Setting new address after the whole request is complete
+    USBD->FADDR = dev_addr;
+  }
 }
 
 void dcd_disconnect(uint8_t rhport)
