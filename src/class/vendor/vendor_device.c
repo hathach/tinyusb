@@ -103,6 +103,13 @@ uint32_t tud_vendor_n_read (uint8_t itf, void* buffer, uint32_t bufsize)
   return num_read;
 }
 
+void tud_vendor_n_read_flush (uint8_t itf)
+{
+  vendord_interface_t* p_itf = &_vendord_itf[itf];
+  tu_fifo_clear(&p_itf->rx_ff);
+  _prep_out_transaction(p_itf);
+}
+
 //--------------------------------------------------------------------+
 // Write API
 //--------------------------------------------------------------------+
@@ -198,6 +205,8 @@ uint16_t vendord_open(uint8_t rhport, tusb_desc_interface_t const * itf_desc, ui
     TU_LOG_FAILED();
     TU_BREAKPOINT();
   }
+
+  maybe_transmit(p_vendor);
 
   return drv_len;
 }
