@@ -32,11 +32,15 @@
 #include "host/usbh.h"
 #include "host/usbh_classdriver.h"
 #include "hub.h"
-#include "usbh_hcd.h"
 
 //--------------------------------------------------------------------+
 // USBH Configuration
 //--------------------------------------------------------------------+
+
+// TODO remove,update
+#ifndef CFG_TUH_EP_MAX
+#define CFG_TUH_EP_MAX          9
+#endif
 
 #ifndef CFG_TUH_TASK_QUEUE_SZ
 #define CFG_TUH_TASK_QUEUE_SZ   16
@@ -44,6 +48,57 @@
 
 // Debug level of USBD
 #define USBH_DBG_LVL   2
+
+//--------------------------------------------------------------------+
+// USBH-HCD common data structure
+//--------------------------------------------------------------------+
+
+typedef struct {
+  //------------- port -------------//
+  uint8_t rhport;
+  uint8_t hub_addr;
+  uint8_t hub_port;
+  uint8_t speed;
+
+  //------------- device descriptor -------------//
+  uint16_t vendor_id;
+  uint16_t product_id;
+  uint8_t  ep0_packet_size;
+
+  //------------- configuration descriptor -------------//
+  // uint8_t interface_count; // bNumInterfaces alias
+
+  //------------- device -------------//
+  struct TU_ATTR_PACKED
+  {
+    uint8_t connected    : 1;
+    uint8_t addressed    : 1;
+    uint8_t configured   : 1;
+    uint8_t suspended    : 1;
+  };
+
+  volatile uint8_t state;            // device state, value from enum tusbh_device_state_t
+
+  uint8_t itf2drv[16];               // map interface number to driver (0xff is invalid)
+  uint8_t ep2drv[CFG_TUH_EP_MAX][2]; // map endpoint to driver ( 0xff is invalid )
+
+  struct TU_ATTR_PACKED
+  {
+    volatile bool busy    : 1;
+    volatile bool stalled : 1;
+    volatile bool claimed : 1;
+
+    // TODO merge ep2drv here, 4-bit should be sufficient
+  }ep_status[CFG_TUH_EP_MAX][2];
+
+  // Mutex for claiming endpoint, only needed when using with preempted RTOS
+#if CFG_TUSB_OS != OPT_OS_NONE
+  osal_mutex_def_t mutexdef;
+  osal_mutex_t mutex;
+#endif
+
+} usbh_device_t;
+
 
 //--------------------------------------------------------------------+
 // MACRO CONSTANT TYPEDEF
@@ -130,7 +185,7 @@ static bool _usbh_initialized = false;
 
 // all devices including hub and zero-address TODO exclude device0 to save space
 // hub address start from CFG_TUH_DEVICE_MAX
-CFG_TUSB_MEM_SECTION usbh_device_t _usbh_devices[CFG_TUH_DEVICE_MAX+1];
+CFG_TUSB_MEM_SECTION usbh_device_t _usbh_devices[1+CFG_TUH_DEVICE_MAX+CFG_TUH_HUB];
 
 // Event queue
 // role device/host is used by OS NONE for mutex (disable usb isr)
@@ -139,7 +194,14 @@ static osal_queue_t _usbh_q;
 
 CFG_TUSB_MEM_SECTION CFG_TUSB_MEM_ALIGN static uint8_t _usbh_ctrl_buf[CFG_TUH_ENUMERATION_BUFSIZE];
 
-//------------- Helper Function Prototypes -------------//
+//------------- Helper Function -------------//
+
+TU_ATTR_ALWAYS_INLINE
+static inline usbh_device_t* get_device(uint8_t dev_addr)
+{
+  return &_usbh_devices[dev_addr];
+}
+
 static bool enum_new_device(hcd_event_t* event);
 static void process_device_unplugged(uint8_t rhport, uint8_t hub_addr, uint8_t hub_port);
 static bool usbh_edpt_control_open(uint8_t dev_addr, uint8_t max_packet_size);
@@ -325,6 +387,16 @@ uint8_t* usbh_get_enum_buf(void)
 //--------------------------------------------------------------------+
 // HCD Event Handler
 //--------------------------------------------------------------------+
+
+void hcd_devtree_get_info(uint8_t dev_addr, hcd_devtree_info_t* devtree_info)
+{
+  usbh_device_t const* dev = get_device(dev_addr);
+
+  devtree_info->rhport   = dev->rhport;
+  devtree_info->hub_addr = dev->hub_addr;
+  devtree_info->hub_port = dev->hub_port;
+  devtree_info->speed    = dev->speed;
+}
 
 void hcd_event_handler(hcd_event_t const* event, bool in_isr)
 {
