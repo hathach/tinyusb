@@ -186,7 +186,7 @@ bool tuh_init(uint8_t rhport)
 
   TU_LOG2("USBH init\r\n");
 
-  tu_memclr(_usbh_devices, sizeof(usbh_device_t)*(CFG_TUSB_HOST_DEVICE_MAX+1));
+  tu_memclr(_usbh_devices, sizeof(_usbh_devices));
 
   //------------- Enumeration & Reporter Task init -------------//
   _usbh_q = osal_queue_create( &_usbh_qdef );
@@ -436,6 +436,7 @@ void usbh_driver_set_config_complete(uint8_t dev_addr, uint8_t itf_num)
   for(itf_num++; itf_num < sizeof(dev->itf2drv); itf_num++)
   {
     // continue with next valid interface
+    // TODO skip IAD binding interface such as CDCs
     uint8_t const drv_id = dev->itf2drv[itf_num];
     if (drv_id != DRVID_INVALID)
     {
@@ -474,6 +475,7 @@ static bool enum_get_config_desc_complete       (uint8_t dev_addr, tusb_control_
 static bool enum_set_config_complete            (uint8_t dev_addr, tusb_control_request_t const * request, xfer_result_t result);
 static bool parse_configuration_descriptor      (uint8_t dev_addr, tusb_desc_configuration_t const* desc_cfg);
 
+#if CFG_TUH_HUB
 static bool enum_hub_clear_reset0_complete(uint8_t dev_addr, tusb_control_request_t const * request, xfer_result_t result)
 {
   (void) dev_addr; (void) request;
@@ -540,7 +542,7 @@ static bool enum_hub_get_status0_complete(uint8_t dev_addr, tusb_control_request
 
   return true;
 }
-
+#endif
 
 static bool enum_request_set_addr(void)
 {
@@ -889,7 +891,7 @@ static bool parse_configuration_descriptor(uint8_t dev_addr, tusb_desc_configura
         if ( driver->open(dev->rhport, dev_addr, desc_itf, drv_len) )
         {
           // open successfully
-          TU_LOG2("%s opened\r\n", driver->name);
+          TU_LOG2("  Opened successfully\r\n");
 
           // bind interface to found driver
           dev->itf2drv[desc_itf->bInterfaceNumber] = drv_id;

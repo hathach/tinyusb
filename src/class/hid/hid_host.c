@@ -52,8 +52,8 @@ typedef struct
   uint16_t epin_size;
   uint16_t epout_size;
 
-  uint8_t epin_buf[CFG_TUH_HID_EP_BUFSIZE];
-  uint8_t epout_buf[CFG_TUH_HID_EP_BUFSIZE];
+  uint8_t epin_buf[CFG_TUH_HID_EPIN_BUFSIZE];
+  uint8_t epout_buf[CFG_TUH_HID_EPOUT_BUFSIZE];
 } hidh_interface_t;
 
 typedef struct
@@ -72,13 +72,8 @@ TU_ATTR_ALWAYS_INLINE static inline hidh_interface_t* get_instance(uint8_t dev_a
 static uint8_t get_instance_id_by_itfnum(uint8_t dev_addr, uint8_t itf);
 static uint8_t get_instance_id_by_epaddr(uint8_t dev_addr, uint8_t ep_addr);
 
-TU_ATTR_ALWAYS_INLINE static inline bool hidh_get_report(uint8_t dev_addr, hidh_interface_t* hid_itf)
-{
-  return usbh_edpt_xfer(dev_addr, hid_itf->ep_in, hid_itf->epin_buf, hid_itf->epin_size);
-}
-
 //--------------------------------------------------------------------+
-// Application API
+// Interface API
 //--------------------------------------------------------------------+
 
 uint8_t tuh_hid_instance_count(uint8_t dev_addr)
@@ -97,6 +92,10 @@ uint8_t tuh_hid_interface_protocol(uint8_t dev_addr, uint8_t instance)
   hidh_interface_t* hid_itf = get_instance(dev_addr, instance);
   return hid_itf->itf_protocol;
 }
+
+//--------------------------------------------------------------------+
+// Control Endpoint API
+//--------------------------------------------------------------------+
 
 uint8_t tuh_hid_get_protocol(uint8_t dev_addr, uint8_t instance)
 {
@@ -186,6 +185,20 @@ bool tuh_hid_set_report(uint8_t dev_addr, uint8_t instance, uint8_t report_id, u
   return true;
 }
 
+//--------------------------------------------------------------------+
+// Interrupt Endpoint API
+//--------------------------------------------------------------------+
+
+bool tuh_hid_receive_report(uint8_t dev_addr, uint8_t instance)
+{
+  hidh_interface_t* hid_itf = get_instance(dev_addr, instance);
+
+  // claim endpoint
+  TU_VERIFY( usbh_edpt_claim(dev_addr, hid_itf->ep_in) );
+
+  return usbh_edpt_xfer(dev_addr, hid_itf->ep_in, hid_itf->epin_buf, hid_itf->epin_size);
+}
+
 //bool tuh_n_hid_n_ready(uint8_t dev_addr, uint8_t instance)
 //{
 //  TU_VERIFY(tuh_n_hid_n_mounted(dev_addr, instance));
@@ -217,9 +230,6 @@ bool hidh_xfer_cb(uint8_t dev_addr, uint8_t ep_addr, xfer_result_t result, uint3
     TU_LOG2("  Get Report callback (%u, %u)\r\n", dev_addr, instance);
     TU_LOG1_MEM(hid_itf->epin_buf, 8, 2);
     tuh_hid_report_received_cb(dev_addr, instance, hid_itf->epin_buf, xferred_bytes);
-
-    // queue next report
-    hidh_get_report(dev_addr, hid_itf);
   }else
   {
     if (tuh_hid_report_sent_cb) tuh_hid_report_sent_cb(dev_addr, instance, hid_itf->epout_buf, xferred_bytes);
@@ -254,6 +264,8 @@ bool hidh_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_interface_t const *de
   (void) max_len;
 
   TU_VERIFY(TUSB_CLASS_HID == desc_itf->bInterfaceClass);
+
+  TU_LOG2("HID opening Interface %u (addr = %u)\r\n", desc_itf->bInterfaceNumber, dev_addr);
 
   // len = interface + hid + n*endpoints
   uint16_t const drv_len = sizeof(tusb_desc_interface_t) + sizeof(tusb_hid_descriptor_hid_t) + desc_itf->bNumEndpoints*sizeof(tusb_desc_endpoint_t);
@@ -336,7 +348,7 @@ static bool config_set_protocol(uint8_t dev_addr, tusb_control_request_t const *
   uint8_t const instance    = get_instance_id_by_itfnum(dev_addr, itf_num);
   hidh_interface_t* hid_itf = get_instance(dev_addr, instance);
 
-  TU_LOG2("HID Set Protocol\r\n");
+  TU_LOG2("HID Set Protocol to Boot Mode\r\n");
   hid_itf->protocol_mode = HID_PROTOCOL_BOOT;
   tusb_control_request_t const new_request =
   {
@@ -421,9 +433,6 @@ static void config_driver_mount_complete(uint8_t dev_addr, uint8_t instance, uin
 
   // enumeration is complete
   tuh_hid_mount_cb(dev_addr, instance, desc_report, desc_len);
-
-  // queue transfer for IN endpoint
-  hidh_get_report(dev_addr, hid_itf);
 
   // notify usbh that driver enumeration is complete
   usbh_driver_set_config_complete(dev_addr, hid_itf->itf_num);

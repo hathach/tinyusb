@@ -76,15 +76,15 @@
 
 #define CFG_TUH_HUB                 1
 #define CFG_TUH_CDC                 1
-#define CFG_TUH_HID                 4
+#define CFG_TUH_HID                 4 // typical keyboard + mouse device can have 3-4 HID interfaces
 #define CFG_TUH_MSC                 1
 #define CFG_TUH_VENDOR              0
 
 #define CFG_TUSB_HOST_DEVICE_MAX    (CFG_TUH_HUB ? 5 : 1) // normal hub has 4 ports
 
 //------------- HID -------------//
-
-#define CFG_TUH_HID_EP_BUFSIZE      64
+#define CFG_TUH_HID_EPIN_BUFSIZE    64
+#define CFG_TUH_HID_EPOUT_BUFSIZE   64
 
 #ifdef __cplusplus
  }
