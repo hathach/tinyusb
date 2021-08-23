@@ -24,9 +24,6 @@
  * This file is part of the TinyUSB stack.
  */
 
-/** \ingroup group_usbh USB Host Core (USBH)
- *  @{ */
-
 #ifndef _TUSB_USBH_H_
 #define _TUSB_USBH_H_
 
@@ -34,70 +31,60 @@
  extern "C" {
 #endif
 
-//--------------------------------------------------------------------+
-// INCLUDE
-//--------------------------------------------------------------------+
-#include "osal/osal.h" // TODO refractor move to common.h ?
+#include "common/tusb_common.h"
 #include "hcd.h"
 
 //--------------------------------------------------------------------+
 // MACRO CONSTANT TYPEDEF
 //--------------------------------------------------------------------+
-typedef enum tusb_interface_status_{
-  TUSB_INTERFACE_STATUS_READY = 0,
-  TUSB_INTERFACE_STATUS_BUSY,
-  TUSB_INTERFACE_STATUS_COMPLETE,
-  TUSB_INTERFACE_STATUS_ERROR,
-  TUSB_INTERFACE_STATUS_INVALID_PARA
-} tusb_interface_status_t;
 
-typedef struct {
-  uint8_t class_code;
-
-  void (* const init) (void);
-  bool (* const open)(uint8_t rhport, uint8_t dev_addr, tusb_desc_interface_t const * itf_desc, uint16_t* outlen);
-  void (* const isr) (uint8_t dev_addr, uint8_t ep_addr, xfer_result_t result, uint32_t len);
-  void (* const close) (uint8_t);
-} host_class_driver_t;
-//--------------------------------------------------------------------+
-// INTERNAL OBJECT & FUNCTION DECLARATION
-//--------------------------------------------------------------------+
+typedef bool (*tuh_control_complete_cb_t)(uint8_t dev_addr, tusb_control_request_t const * request, xfer_result_t result);
 
 //--------------------------------------------------------------------+
 // APPLICATION API
 //--------------------------------------------------------------------+
+
+// Init host stack
+bool tuh_init(uint8_t rhport);
+
+// Check if host stack is already initialized
+bool tuh_inited(void);
+
+// Task function should be called in main/rtos loop
 void tuh_task(void);
 
 // Interrupt handler, name alias to HCD
-#define tuh_isr   hcd_isr
+extern void hcd_int_handler(uint8_t rhport);
+#define tuh_int_handler   hcd_int_handler
 
-tusb_device_state_t tuh_device_get_state (uint8_t dev_addr);
-static inline bool tuh_device_is_configured(uint8_t dev_addr)
+tusb_speed_t tuh_device_get_speed (uint8_t dev_addr);
+
+// Check if device is configured
+bool tuh_device_configured(uint8_t dev_addr);
+
+// Check if device is ready to communicate with
+TU_ATTR_ALWAYS_INLINE
+static inline bool tuh_device_ready(uint8_t dev_addr)
 {
-  return tuh_device_get_state(dev_addr) == TUSB_DEVICE_STATE_CONFIGURED;
+  return tuh_device_configured(dev_addr);
 }
+
+// Carry out control transfer
+bool tuh_control_xfer (uint8_t dev_addr, tusb_control_request_t const* request, void* buffer, tuh_control_complete_cb_t complete_cb);
 
 //--------------------------------------------------------------------+
 // APPLICATION CALLBACK
 //--------------------------------------------------------------------+
-TU_ATTR_WEAK uint8_t tuh_device_attached_cb (tusb_desc_device_t const *p_desc_device);
+//TU_ATTR_WEAK uint8_t tuh_attach_cb (tusb_desc_device_t const *desc_device);
 
-/** Callback invoked when device is mounted (configured) */
+// Invoked when device is mounted (configured)
 TU_ATTR_WEAK void tuh_mount_cb (uint8_t dev_addr);
 
-/** Callback invoked when device is unmounted (bus reset/unplugged) */
+/// Invoked when device is unmounted (bus reset/unplugged)
 TU_ATTR_WEAK void tuh_umount_cb(uint8_t dev_addr);
-
-//--------------------------------------------------------------------+
-// CLASS-USBH & INTERNAL API
-//--------------------------------------------------------------------+
-bool usbh_init(void);
-bool usbh_control_xfer (uint8_t dev_addr, tusb_control_request_t* request, uint8_t* data);
 
 #ifdef __cplusplus
  }
 #endif
 
-#endif /* _TUSB_USBH_H_ */
-
-/** @} */
+#endif

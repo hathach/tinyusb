@@ -36,12 +36,12 @@
 
 #include "common/tusb_common.h"
 
-enum
-{
-  OSAL_TIMEOUT_NOTIMEOUT    = 0,      // return immediately
-  OSAL_TIMEOUT_NORMAL       = 10,     // default timeout
-  OSAL_TIMEOUT_WAIT_FOREVER = 0xFFFFFFFFUL
-};
+// Return immediately
+#define OSAL_TIMEOUT_NOTIMEOUT     (0)
+// Default timeout
+#define OSAL_TIMEOUT_NORMAL        (10)
+// Wait forever
+#define OSAL_TIMEOUT_WAIT_FOREVER  (UINT32_MAX)
 
 #define OSAL_TIMEOUT_CONTROL_XFER  OSAL_TIMEOUT_WAIT_FOREVER
 
@@ -53,6 +53,12 @@ typedef void (*osal_task_func_t)( void * );
   #include "osal_freertos.h"
 #elif CFG_TUSB_OS == OPT_OS_MYNEWT
   #include "osal_mynewt.h"
+#elif CFG_TUSB_OS == OPT_OS_PICO
+  #include "osal_pico.h"
+#elif CFG_TUSB_OS == OPT_OS_RTTHREAD
+  #include "osal_rtthread.h"
+#elif CFG_TUSB_OS == OPT_OS_CUSTOM
+  #include "tusb_os_custom.h" // implemented by application
 #else
   #error OS is not supported yet
 #endif
@@ -60,7 +66,6 @@ typedef void (*osal_task_func_t)( void * );
 //--------------------------------------------------------------------+
 // OSAL Porting API
 //--------------------------------------------------------------------+
-static inline void osal_task_delay(uint32_t msec);
 
 //------------- Semaphore -------------//
 static inline osal_semaphore_t osal_semaphore_create(osal_semaphore_def_t* semdef);
@@ -76,8 +81,9 @@ static inline bool osal_mutex_unlock(osal_mutex_t mutex_hdl);
 
 //------------- Queue -------------//
 static inline osal_queue_t osal_queue_create(osal_queue_def_t* qdef);
-static inline bool osal_queue_receive(osal_queue_t const qhdl, void* data);
-static inline bool osal_queue_send(osal_queue_t const qhdl, void const * data, bool in_isr);
+static inline bool osal_queue_receive(osal_queue_t qhdl, void* data);
+static inline bool osal_queue_send(osal_queue_t qhdl, void const * data, bool in_isr);
+static inline bool osal_queue_empty(osal_queue_t qhdl);
 
 #if 0  // TODO remove subtask related macros later
 // Sub Task

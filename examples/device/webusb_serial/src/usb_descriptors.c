@@ -86,23 +86,34 @@ enum
 #if CFG_TUSB_MCU == OPT_MCU_LPC175X_6X || CFG_TUSB_MCU == OPT_MCU_LPC177X_8X || CFG_TUSB_MCU == OPT_MCU_LPC40XX
   // LPC 17xx and 40xx endpoint type (bulk/interrupt/iso) are fixed by its number
   // 0 control, 1 In, 2 Bulk, 3 Iso, 4 In etc ...
-  #define EPNUM_CDC     2
-  #define EPNUM_VENDOR  5
+  #define EPNUM_CDC_IN     2
+  #define EPNUM_CDC_OUT    2
+  #define EPNUM_VENDOR_IN  5
+  #define EPNUM_VENDOR_OUT 5
+#elif CFG_TUSB_MCU == OPT_MCU_SAMG || CFG_TUSB_MCU ==  OPT_MCU_SAMX7X
+  // SAMG & SAME70 don't support a same endpoint number with different direction IN and OUT
+  //    e.g EP1 OUT & EP1 IN cannot exist together
+  #define EPNUM_CDC_IN     2
+  #define EPNUM_CDC_OUT    3
+  #define EPNUM_VENDOR_IN  4
+  #define EPNUM_VENDOR_OUT 5
 #else
-  #define EPNUM_CDC     2
-  #define EPNUM_VENDOR  3
+  #define EPNUM_CDC_IN     2
+  #define EPNUM_CDC_OUT    2
+  #define EPNUM_VENDOR_IN  3
+  #define EPNUM_VENDOR_OUT 3
 #endif
 
 uint8_t const desc_configuration[] =
 {
-  // Interface count, string index, total length, attribute, power in mA
-  TUD_CONFIG_DESCRIPTOR(ITF_NUM_TOTAL, 0, CONFIG_TOTAL_LEN, TUSB_DESC_CONFIG_ATT_REMOTE_WAKEUP, 100),
+  // Config number, interface count, string index, total length, attribute, power in mA
+  TUD_CONFIG_DESCRIPTOR(1, ITF_NUM_TOTAL, 0, CONFIG_TOTAL_LEN, TUSB_DESC_CONFIG_ATT_REMOTE_WAKEUP, 100),
 
   // Interface number, string index, EP notification address and size, EP data address (out, in) and size.
-  TUD_CDC_DESCRIPTOR(ITF_NUM_CDC, 4, 0x81, 8, EPNUM_CDC, 0x80 | EPNUM_CDC, 64),
+  TUD_CDC_DESCRIPTOR(ITF_NUM_CDC, 4, 0x81, 8, EPNUM_CDC_OUT, 0x80 | EPNUM_CDC_IN, TUD_OPT_HIGH_SPEED ? 512 : 64),
 
   // Interface number, string index, EP Out & IN address, EP size
-  TUD_VENDOR_DESCRIPTOR(ITF_NUM_VENDOR, 5, EPNUM_VENDOR, 0x80 | EPNUM_VENDOR, 64)
+  TUD_VENDOR_DESCRIPTOR(ITF_NUM_VENDOR, 5, EPNUM_VENDOR_OUT, 0x80 | EPNUM_VENDOR_IN, TUD_OPT_HIGH_SPEED ? 512 : 64)
 };
 
 // Invoked when received GET CONFIGURATION DESCRIPTOR
@@ -204,8 +215,10 @@ static uint16_t _desc_str[32];
 
 // Invoked when received GET STRING DESCRIPTOR request
 // Application return pointer to descriptor, whose contents must exist long enough for transfer to complete
-uint16_t const* tud_descriptor_string_cb(uint8_t index)
+uint16_t const* tud_descriptor_string_cb(uint8_t index, uint16_t langid)
 {
+  (void) langid;
+
   uint8_t chr_count;
 
   if ( index == 0)
@@ -214,7 +227,8 @@ uint16_t const* tud_descriptor_string_cb(uint8_t index)
     chr_count = 1;
   }else
   {
-    // Convert ASCII string into UTF-16
+    // Note: the 0xEE index string is a Microsoft OS 1.0 Descriptors.
+    // https://docs.microsoft.com/en-us/windows-hardware/drivers/usbcon/microsoft-defined-usb-descriptors
 
     if ( !(index < sizeof(string_desc_arr)/sizeof(string_desc_arr[0])) ) return NULL;
 
@@ -224,6 +238,7 @@ uint16_t const* tud_descriptor_string_cb(uint8_t index)
     chr_count = strlen(str);
     if ( chr_count > 31 ) chr_count = 31;
 
+    // Convert ASCII string into UTF-16
     for(uint8_t i=0; i<chr_count; i++)
     {
       _desc_str[1+i] = str[i];

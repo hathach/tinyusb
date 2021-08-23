@@ -43,6 +43,7 @@
 typedef struct
 {
   uint8_t* buffer;
+  // tu_fifo_t* ff; // TODO support dcd_edpt_xfer_fifo API
   uint16_t total_len;
   volatile uint16_t actual_len;
   uint16_t  epsize;
@@ -59,6 +60,7 @@ void xfer_epsize_set(xfer_desc_t* xfer, uint16_t epsize)
 void xfer_begin(xfer_desc_t* xfer, uint8_t * buffer, uint16_t total_bytes)
 {
   xfer->buffer     = buffer;
+  // xfer->ff         = NULL; // TODO support dcd_edpt_xfer_fifo API
   xfer->total_len  = total_bytes;
   xfer->actual_len = 0;
 }
@@ -66,6 +68,7 @@ void xfer_begin(xfer_desc_t* xfer, uint8_t * buffer, uint16_t total_bytes)
 void xfer_end(xfer_desc_t* xfer)
 {
   xfer->buffer     = NULL;
+  // xfer->ff         = NULL; // TODO support dcd_edpt_xfer_fifo API
   xfer->total_len  = 0;
   xfer->actual_len = 0;
 }
@@ -104,6 +107,32 @@ static void xact_ep_read(uint8_t epnum, uint8_t* buffer, uint16_t xact_len)
   }
 }
 
+
+//! Bitmap for all status bits in CSR that are not affected by a value 1.
+#define CSR_NO_EFFECT_1_ALL (UDP_CSR_RX_DATA_BK0 | UDP_CSR_RX_DATA_BK1 | UDP_CSR_STALLSENT | UDP_CSR_RXSETUP | UDP_CSR_TXCOMP)
+
+// Per Specs: CSR need synchronization each write
+static inline void csr_write(uint8_t epnum, uint32_t value)
+{
+  uint32_t const csr = value;
+  UDP->UDP_CSR[epnum] = csr;
+
+  volatile uint32_t nop_count;
+  for (nop_count = 0; nop_count < 20; nop_count ++) __NOP();
+}
+
+// Per Specs: CSR need synchronization each write
+static inline void csr_set(uint8_t epnum, uint32_t mask)
+{
+  csr_write(epnum, UDP->UDP_CSR[epnum] | CSR_NO_EFFECT_1_ALL | mask);
+}
+
+// Per Specs: CSR need synchronization each write
+static inline void csr_clear(uint8_t epnum, uint32_t mask)
+{
+  csr_write(epnum, (UDP->UDP_CSR[epnum] | CSR_NO_EFFECT_1_ALL) & ~mask);
+}
+
 /*------------------------------------------------------------------*/
 /* Device API
  *------------------------------------------------------------------*/
@@ -116,7 +145,7 @@ static void bus_reset(void)
   xfer_epsize_set(&_dcd_xfer[0], CFG_TUD_ENDPOINT0_SIZE);
 
   // Enable EP0 control
-  UDP->UDP_CSR[0] = UDP_CSR_EPEDS_Msk;
+  csr_write(0, UDP_CSR_EPEDS_Msk);
 
   // Enable interrupt : EP0, Suspend, Resume, Wakeup
   UDP->UDP_IER = UDP_IER_EP0INT_Msk | UDP_IER_RXSUSP_Msk | UDP_IER_RXRSM_Msk | UDP_IER_WAKEUP_Msk;
@@ -128,12 +157,8 @@ static void bus_reset(void)
 // Initialize controller to device mode
 void dcd_init (uint8_t rhport)
 {
-  (void) rhport;
-
   tu_memclr(_dcd_xfer, sizeof(_dcd_xfer));
-
-  // Enable pull-up, disable transceiver
-  UDP->UDP_TXVC = UDP_TXVC_PUON | UDP_TXVC_TXVDIS_Msk;
+  dcd_connect(rhport);
 }
 
 // Enable device interrupt
@@ -163,20 +188,26 @@ void dcd_set_address (uint8_t rhport, uint8_t dev_addr)
   // do it at dcd_edpt0_status_complete()
 }
 
-// Receive Set Configure request
-void dcd_set_config (uint8_t rhport, uint8_t config_num)
-{
-  (void) rhport;
-  (void) config_num;
-
-  // Configured State
-//  UDP->UDP_GLB_STAT |= UDP_GLB_STAT_CONFG_Msk;
-}
-
 // Wake up host
 void dcd_remote_wakeup (uint8_t rhport)
 {
   (void) rhport;
+}
+
+void dcd_connect(uint8_t rhport)
+{
+  (void) rhport;
+
+  // Enable pull-up, disable transceiver
+  UDP->UDP_TXVC = UDP_TXVC_PUON | UDP_TXVC_TXVDIS_Msk;
+}
+
+void dcd_disconnect(uint8_t rhport)
+{
+  (void) rhport;
+
+  // disable both pullup and transceiver
+  UDP->UDP_TXVC = UDP_TXVC_TXVDIS_Msk;
 }
 
 //--------------------------------------------------------------------+
@@ -201,7 +232,8 @@ void dcd_edpt0_status_complete(uint8_t rhport, tusb_control_request_t const * re
 
       // Set new address & Function enable bit
       UDP->UDP_FADDR = UDP_FADDR_FEN_Msk | UDP_FADDR_FADD(dev_addr);
-    }else if (request->bRequest == TUSB_REQ_SET_CONFIGURATION)
+    }
+    else if (request->bRequest == TUSB_REQ_SET_CONFIGURATION)
     {
       // Configured State
       UDP->UDP_GLB_STAT |= UDP_GLB_STAT_CONFG_Msk;
@@ -228,8 +260,8 @@ bool dcd_edpt_open (uint8_t rhport, tusb_desc_endpoint_t const * ep_desc)
 
   xfer_epsize_set(&_dcd_xfer[epnum], ep_desc->wMaxPacketSize.size);
 
-  // Configure type and eanble EP
-  UDP->UDP_CSR[epnum] = UDP_CSR_EPEDS_Msk | UDP_CSR_EPTYPE(ep_desc->bmAttributes.xfer + 4*dir);
+  // Configure type and enable EP
+  csr_write(epnum, UDP_CSR_EPEDS_Msk | UDP_CSR_EPTYPE(ep_desc->bmAttributes.xfer + 4*dir));
 
   // Enable EP Interrupt for IN
   if (dir == TUSB_DIR_IN) UDP->UDP_IER |= (1 << epnum);
@@ -248,62 +280,43 @@ bool dcd_edpt_xfer (uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t 
   xfer_desc_t* xfer = &_dcd_xfer[epnum];
   xfer_begin(xfer, buffer, total_bytes);
 
-  if (dir == TUSB_DIR_IN)
+  if (dir == TUSB_DIR_OUT)
   {
-    // Set DIR bit for EP0
-    if ( epnum == 0 ) UDP->UDP_CSR[epnum] |= UDP_CSR_DIR_Msk;
-
-    xact_ep_write(epnum, xfer->buffer, xfer_packet_len(xfer));
-
-    // TX ready for transfer
-    UDP->UDP_CSR[epnum] |= UDP_CSR_TXPKTRDY_Msk;
+    // Enable interrupt when starting OUT transfer
+    if (epnum != 0) UDP->UDP_IER |= (1 << epnum);
   }
   else
   {
-    // Clear DIR bit for EP0
-    if ( epnum == 0 ) UDP->UDP_CSR[epnum] &= ~UDP_CSR_DIR_Msk;
+    xact_ep_write(epnum, xfer->buffer, xfer_packet_len(xfer));
 
-    // OUT Data may already received and acked by hardware
-    // Read it as 1st packet then continue with transfer if needed
-    if ( UDP->UDP_CSR[epnum] & (UDP_CSR_RX_DATA_BK0_Msk | UDP_CSR_RX_DATA_BK1_Msk) )
-    {
-//      uint16_t const xact_len = (uint16_t) ((UDP->UDP_CSR[epnum] & UDP_CSR_RXBYTECNT_Msk) >> UDP_CSR_RXBYTECNT_Pos);
-
-//      TU_LOG2("xact_len = %d\r", xact_len);
-
-//      // Read from EP fifo
-//      xact_ep_read(epnum, xfer->buffer, xact_len);
-//      xfer_packet_done(xfer);
-//
-//      // Clear DATA Bank0 bit
-//      UDP->UDP_CSR[epnum] &= ~UDP_CSR_RX_DATA_BK0_Msk;
-//
-//      if ( 0 == xfer_packet_len(xfer) )
-//      {
-//        // Disable OUT EP interrupt when transfer is complete
-//        UDP->UDP_IER &= ~(1 << epnum);
-//
-//        dcd_event_xfer_complete(rhport, epnum, xact_len, XFER_RESULT_SUCCESS, false);
-//        return true; // complete
-//      }
-    }
-
-    // Enable interrupt when starting OUT transfer
-    if (epnum != 0) UDP->UDP_IER |= (1 << epnum);
+    // TX ready for transfer
+    csr_set(epnum, UDP_CSR_TXPKTRDY_Msk);
   }
 
   return true;
 }
+
+#if 0 // TODO support dcd_edpt_xfer_fifo API
+bool dcd_edpt_xfer_fifo (uint8_t rhport, uint8_t ep_addr, tu_fifo_t * ff, uint16_t total_bytes)
+{
+  (void) rhport;
+  return true;
+}
+#endif
 
 // Stall endpoint
 void dcd_edpt_stall (uint8_t rhport, uint8_t ep_addr)
 {
   (void) rhport;
 
+  // For EP0 USBD will stall both EP0 Out and In with 0x00 and 0x80
+  // only handle one by skipping 0x80
+  if ( ep_addr == tu_edpt_addr(0, TUSB_DIR_IN_MASK) ) return;
+
   uint8_t const epnum = tu_edpt_number(ep_addr);
 
   // Set force stall bit
-  UDP->UDP_CSR[epnum] |= UDP_CSR_FORCESTALL_Msk;
+  csr_set(epnum, UDP_CSR_FORCESTALL_Msk);
 }
 
 // clear stall, data toggle is also reset to DATA0
@@ -314,17 +327,17 @@ void dcd_edpt_clear_stall (uint8_t rhport, uint8_t ep_addr)
   uint8_t const epnum = tu_edpt_number(ep_addr);
 
   // clear stall
-  UDP->UDP_CSR[epnum] &= ~UDP_CSR_FORCESTALL_Msk;
+  csr_clear(epnum, UDP_CSR_FORCESTALL_Msk);
 
   // must also reset EP to clear data toggle
-  UDP->UDP_RST_EP = tu_bit_set(UDP->UDP_RST_EP, epnum);
-  UDP->UDP_RST_EP = tu_bit_clear(UDP->UDP_RST_EP, epnum);
+  UDP->UDP_RST_EP |= (1 << epnum);
+  UDP->UDP_RST_EP &= ~(1 << epnum);
 }
 
 //--------------------------------------------------------------------+
 // ISR
 //--------------------------------------------------------------------+
-void dcd_isr(uint8_t rhport)
+void dcd_int_handler(uint8_t rhport)
 {
   uint32_t const intr_mask   = UDP->UDP_IMR;
   uint32_t const intr_status = UDP->UDP_ISR & intr_mask;
@@ -336,27 +349,27 @@ void dcd_isr(uint8_t rhport)
   if (intr_status & UDP_ISR_ENDBUSRES_Msk)
   {
     bus_reset();
-    dcd_event_bus_signal(rhport, DCD_EVENT_BUS_RESET, true);
+    dcd_event_bus_reset(rhport, TUSB_SPEED_FULL, true);
   }
 
   // SOF
 //  if (intr_status & UDP_ISR_SOFINT_Msk) dcd_event_bus_signal(rhport, DCD_EVENT_SOF, true);
 
   // Suspend
-//  if (intr_status & UDP_ISR_RXSUSP_Msk) dcd_event_bus_signal(rhport, DCD_EVENT_SUSPEND, true);
+  if (intr_status & UDP_ISR_RXSUSP_Msk) dcd_event_bus_signal(rhport, DCD_EVENT_SUSPEND, true);
 
   // Resume
-//  if (intr_status & UDP_ISR_RXRSM_Msk)  dcd_event_bus_signal(rhport, DCD_EVENT_RESUME, true);
+  if (intr_status & UDP_ISR_RXRSM_Msk)  dcd_event_bus_signal(rhport, DCD_EVENT_RESUME, true);
 
   // Wakeup
-//  if (intr_status & UDP_ISR_WAKEUP_Msk)  dcd_event_bus_signal(rhport, DCD_EVENT_RESUME, true);
+  if (intr_status & UDP_ISR_WAKEUP_Msk)  dcd_event_bus_signal(rhport, DCD_EVENT_RESUME, true);
 
   //------------- Endpoints -------------//
 
   if ( intr_status & TU_BIT(0) )
   {
     // setup packet
-    if (UDP->UDP_CSR[0] & UDP_CSR_RXSETUP)
+    if ( UDP->UDP_CSR[0] & UDP_CSR_RXSETUP )
     {
       // get setup from FIFO
       uint8_t setup[8];
@@ -368,10 +381,19 @@ void dcd_isr(uint8_t rhport)
       // notify usbd
       dcd_event_setup_received(rhport, setup, true);
 
-      // Clear Setup bit
-      UDP->UDP_CSR[0] &= ~UDP_CSR_RXSETUP_Msk;
+      // Set EP direction bit according to DATA stage
+      // MUST only be set before RXSETUP is clear per specs
+      if ( tu_edpt_dir(setup[0]) )
+      {
+        csr_set(0, UDP_CSR_DIR_Msk);
+      }
+      else
+      {
+        csr_clear(0, UDP_CSR_DIR_Msk);
+      }
 
-      return;
+      // Clear Setup, stall and other on-going transfer bits
+      csr_clear(0, UDP_CSR_RXSETUP_Msk | UDP_CSR_TXPKTRDY_Msk | UDP_CSR_TXCOMP_Msk | UDP_CSR_RX_DATA_BK0 | UDP_CSR_RX_DATA_BK1 | UDP_CSR_STALLSENT_Msk | UDP_CSR_FORCESTALL_Msk);
     }
   }
 
@@ -381,7 +403,7 @@ void dcd_isr(uint8_t rhport)
     {
       xfer_desc_t* xfer = &_dcd_xfer[epnum];
 
-      // Endpoint IN
+      //------------- Endpoint IN -------------//
       if (UDP->UDP_CSR[epnum] & UDP_CSR_TXCOMP_Msk)
       {
         xfer_packet_done(xfer);
@@ -391,31 +413,52 @@ void dcd_isr(uint8_t rhport)
         if (xact_len)
         {
           // write to EP fifo
-          xact_ep_write(epnum, xfer->buffer, xact_len);
+#if 0 // TODO support dcd_edpt_xfer_fifo
+          if (xfer->ff)
+          {
+            tu_fifo_read_n_const_addr_full_words(xfer->ff, (void *) &UDP->UDP_FDR[epnum], xact_len);
+          }
+          else
+#endif
+          {
+            xact_ep_write(epnum, xfer->buffer, xact_len);
+          }
 
           // TX ready for transfer
-          UDP->UDP_CSR[epnum] |= UDP_CSR_TXPKTRDY_Msk;
+          csr_set(epnum, UDP_CSR_TXPKTRDY_Msk);
         }else
         {
           // xfer is complete
           dcd_event_xfer_complete(rhport, epnum | TUSB_DIR_IN_MASK, xfer->actual_len, XFER_RESULT_SUCCESS, true);
+
+          // Required since control OUT can happen right after before stack handle this event
+          xfer_end(xfer);
         }
 
         // Clear TX Complete bit
-        UDP->UDP_CSR[epnum] &= ~UDP_CSR_TXCOMP_Msk;
+        csr_clear(epnum, UDP_CSR_TXCOMP_Msk);
       }
 
-      // Endpoint OUT
-      // Ping-Pong is a must for Bulk/Iso
-      // When both Bank0 and Bank1 are both set, there is not way to know which one comes first
-      if (UDP->UDP_CSR[epnum] & (UDP_CSR_RX_DATA_BK0_Msk | UDP_CSR_RX_DATA_BK1_Msk))
+      //------------- Endpoint OUT -------------//
+      // Ping-Pong is a MUST for Bulk/Iso
+      // NOTE: When both Bank0 and Bank1 are both set, there is no way to know which one comes first
+      uint32_t const banks_complete = UDP->UDP_CSR[epnum] & (UDP_CSR_RX_DATA_BK0_Msk | UDP_CSR_RX_DATA_BK1_Msk);
+      if (banks_complete)
       {
         uint16_t const xact_len = (uint16_t) ((UDP->UDP_CSR[epnum] & UDP_CSR_RXBYTECNT_Msk) >> UDP_CSR_RXBYTECNT_Pos);
 
-        //if (epnum != 0) TU_LOG2("xact_len = %d\r", xact_len);
-
         // Read from EP fifo
-        xact_ep_read(epnum, xfer->buffer, xact_len);
+#if 0 // TODO support dcd_edpt_xfer_fifo API
+        if (xfer->ff)
+        {
+          tu_fifo_write_n_const_addr_full_words(xfer->ff, (const void *) &UDP->UDP_FDR[epnum], xact_len);
+        }
+        else
+#endif
+        {
+          xact_ep_read(epnum, xfer->buffer, xact_len);
+        }
+
         xfer_packet_done(xfer);
 
         if ( 0 == xfer_packet_len(xfer) )
@@ -423,18 +466,18 @@ void dcd_isr(uint8_t rhport)
           // Disable OUT EP interrupt when transfer is complete
           if (epnum != 0) UDP->UDP_IDR |= (1 << epnum);
 
-          dcd_event_xfer_complete(rhport, epnum, xact_len, XFER_RESULT_SUCCESS, true);
-//          xfer_end(xfer);
+          dcd_event_xfer_complete(rhport, epnum, xfer->actual_len, XFER_RESULT_SUCCESS, true);
+          xfer_end(xfer);
         }
 
-        // Clear DATA Bank0 bit
-        UDP->UDP_CSR[epnum] &= ~(UDP_CSR_RX_DATA_BK0_Msk | UDP_CSR_RX_DATA_BK1_Msk);
+        // Clear DATA Bank0/1 bit
+        csr_clear(epnum, banks_complete);
       }
 
       // Stall sent to host
       if (UDP->UDP_CSR[epnum] & UDP_CSR_STALLSENT_Msk)
       {
-        UDP->UDP_CSR[epnum] &= ~UDP_CSR_STALLSENT_Msk;
+        csr_clear(epnum, UDP_CSR_STALLSENT_Msk);
       }
     }
   }

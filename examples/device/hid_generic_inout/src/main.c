@@ -36,16 +36,24 @@
  *
  * There are 2 ways to test the sketch
  * 1. Using nodejs
- *    - Install nodejs and nmp to your PC
- *    - Install execellent node-hid (https://github.com/node-hid/node-hid) by
- *      $ npm install node-hid
- *    - Run provided hid test script
- *      $ node hid_test.js
+ * - Install nodejs and npm to your PC
  *
- * 2. Using python hidRun
- *    - Python and `hid` package is required, for installation please follow https://pypi.org/project/hid/
- *    - Run provided hid test script to send and receive data to this device.
- *      $ python3 hid_test.py
+ * - Install excellent node-hid (https://github.com/node-hid/node-hid) by
+ *   $ npm install node-hid
+ *
+ * - Run provided hid test script
+ *   $ node hid_test.js
+ *
+ * 2. Using python
+ * - Install `hid` package (https://pypi.org/project/hid/) by
+ *   $ pip install hid
+ *
+ * - hid package replies on hidapi (https://github.com/libusb/hidapi) for backend,
+ *   which already available in Linux. However on windows, you may need to download its dlls from their release page and
+ *   copy it over to folder where python is installed.
+ *
+ * - Run provided hid test script to send and receive data to this device.
+ *   $ python3 hid_test.py
  */
 
 //--------------------------------------------------------------------+
@@ -121,9 +129,10 @@ void tud_resume_cb(void)
 // Invoked when received GET_REPORT control request
 // Application must fill buffer report's content and return its length.
 // Return zero will cause the stack to STALL request
-uint16_t tud_hid_get_report_cb(uint8_t report_id, hid_report_type_t report_type, uint8_t* buffer, uint16_t reqlen)
+uint16_t tud_hid_get_report_cb(uint8_t itf, uint8_t report_id, hid_report_type_t report_type, uint8_t* buffer, uint16_t reqlen)
 {
   // TODO not Implemented
+  (void) itf;
   (void) report_id;
   (void) report_type;
   (void) buffer;
@@ -134,9 +143,10 @@ uint16_t tud_hid_get_report_cb(uint8_t report_id, hid_report_type_t report_type,
 
 // Invoked when received SET_REPORT control request or
 // received data on OUT endpoint ( Report ID = 0, Type = 0 )
-void tud_hid_set_report_cb(uint8_t report_id, hid_report_type_t report_type, uint8_t const* buffer, uint16_t bufsize)
+void tud_hid_set_report_cb(uint8_t itf, uint8_t report_id, hid_report_type_t report_type, uint8_t const* buffer, uint16_t bufsize)
 {
   // This example doesn't use multiple report and report ID
+  (void) itf;
   (void) report_id;
   (void) report_type;
 

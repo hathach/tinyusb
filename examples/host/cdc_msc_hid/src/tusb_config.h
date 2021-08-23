@@ -21,7 +21,6 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  *
- * This file is part of the TinyUSB stack.
  */
 
 #ifndef _TUSB_CONFIG_H_
@@ -41,12 +40,14 @@
 #endif
 
 #if CFG_TUSB_MCU == OPT_MCU_LPC43XX || CFG_TUSB_MCU == OPT_MCU_LPC18XX || CFG_TUSB_MCU == OPT_MCU_MIMXRT10XX
-#define CFG_TUSB_RHPORT0_MODE       (OPT_MODE_HOST | OPT_MODE_HIGH_SPEED)
+  #define CFG_TUSB_RHPORT0_MODE       (OPT_MODE_HOST | OPT_MODE_HIGH_SPEED)
 #else
-#define CFG_TUSB_RHPORT0_MODE       OPT_MODE_HOST
+  #define CFG_TUSB_RHPORT0_MODE       OPT_MODE_HOST
 #endif
 
+#ifndef CFG_TUSB_OS
 #define CFG_TUSB_OS                 OPT_OS_NONE
+#endif
 
 // CFG_TUSB_DEBUG is defined by compiler in DEBUG build
 // #define CFG_TUSB_DEBUG           0
@@ -70,28 +71,20 @@
 // CONFIGURATION
 //--------------------------------------------------------------------
 
+// Size of buffer to hold descriptors and other data used for enumeration
+#define CFG_TUH_ENUMERATION_BUFSIZE 256
+
 #define CFG_TUH_HUB                 1
 #define CFG_TUH_CDC                 1
-#define CFG_TUH_HID_KEYBOARD        0
-#define CFG_TUH_HID_MOUSE           0
-#define CFG_TUSB_HOST_HID_GENERIC   0 // (not yet supported)
-#define CFG_TUH_MSC                 0
+#define CFG_TUH_HID                 4
+#define CFG_TUH_MSC                 1
+#define CFG_TUH_VENDOR              0
 
 #define CFG_TUSB_HOST_DEVICE_MAX    (CFG_TUH_HUB ? 5 : 1) // normal hub has 4 ports
 
-//------------- CLASS -------------//
-#define CFG_TUD_CDC                 0
-#define CFG_TUD_MSC                 0
-#define CFG_TUD_HID                 0
-#define CFG_TUD_VENDOR              0
+//------------- HID -------------//
 
-// CDC FIFO size of TX and RX
-#define CFG_TUD_CDC_RX_BUFSIZE      64
-#define CFG_TUD_CDC_TX_BUFSIZE      64
-
-// MSC Buffer size of Device Mass storage
-#define CFG_TUD_MSC_BUFSIZE         512
-
+#define CFG_TUH_HID_EP_BUFSIZE      64
 
 #ifdef __cplusplus
  }

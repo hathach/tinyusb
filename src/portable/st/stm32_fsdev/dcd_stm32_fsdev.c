@@ -63,19 +63,16 @@
  * Current driver limitations (i.e., a list of features for you to add):
  * - STALL handled, but not tested.
  *   - Does it work? No clue.
- * - All EP BTABLE buffers are created as max 64 bytes.
- *   - Smaller can be requested, but it has to be an even number.
+ * - All EP BTABLE buffers are created based on max packet size of first EP opened with that address.
  * - No isochronous endpoints
  * - Endpoint index is the ID of the endpoint
  *   - This means that priority is given to endpoints with lower ID numbers
  *   - Code is mixing up EP IX with EP ID. Everywhere.
- * - No way to close endpoints; Can a device be reconfigured without a reset?
  * - Packet buffer memory is copied in the interrupt.
  *   - This is better for performance, but means interrupts are disabled for longer
  *   - DMA may be the best choice, but it could also be pushed to the USBD task.
  * - No double-buffering
  * - No DMA
- * - No provision to control the D+ pull-up using GPIO on devices without an internal pull-up.
  * - Minimal error handling
  *   - Perhaps error interrupts should be reported to the stack, or cause a device reset?
  * - Assumes a single USB peripheral; I think that no hardware has multiple so this is fine.
@@ -116,7 +113,8 @@
       (CFG_TUSB_MCU == OPT_MCU_STM32F0                          ) || \
       (CFG_TUSB_MCU == OPT_MCU_STM32F1 && defined(STM32F1_FSDEV)) || \
       (CFG_TUSB_MCU == OPT_MCU_STM32F3                          ) || \
-      (CFG_TUSB_MCU == OPT_MCU_STM32L0                          ) \
+	  (CFG_TUSB_MCU == OPT_MCU_STM32L0                          ) || \
+      (CFG_TUSB_MCU == OPT_MCU_STM32L1                          ) \
     )
 
 // In order to reduce the dependance on HAL, we undefine this.
@@ -131,19 +129,26 @@
  * Configuration
  *****************************************************/
 
-// HW supports max of 8 endpoints, but this can be reduced to save RAM
+// HW supports max of 8 bidirectional endpoints, but this can be reduced to save RAM
+// (8u here would mean 8 IN and 8 OUT)
 #ifndef MAX_EP_COUNT
-#  define MAX_EP_COUNT 8u
+#  define MAX_EP_COUNT 8U
 #endif
 
 // If sharing with CAN, one can set this to be non-zero to give CAN space where it wants it
 // Both of these MUST be a multiple of 2, and are in byte units.
 #ifndef DCD_STM32_BTABLE_BASE
-#  define DCD_STM32_BTABLE_BASE 0u
+#  define DCD_STM32_BTABLE_BASE 0U
 #endif
 
 #ifndef DCD_STM32_BTABLE_LENGTH
 #  define DCD_STM32_BTABLE_LENGTH (PMA_LENGTH - DCD_STM32_BTABLE_BASE)
+#endif
+
+// Since TinyUSB doesn't use SOF for now, and this interrupt too often (1ms interval)
+// We disable SOF for now until needed later on
+#ifndef USE_SOF
+#  define USE_SOF     0
 #endif
 
 /***************************************************
@@ -161,9 +166,12 @@ TU_VERIFY_STATIC(((DCD_STM32_BTABLE_BASE) % 8) == 0, "BTABLE base must be aligne
 typedef struct
 {
   uint8_t * buffer;
+  // tu_fifo_t * ff;  // TODO support dcd_edpt_xfer_fifo API
   uint16_t total_len;
   uint16_t queued_len;
-  uint16_t max_packet_size;
+  uint16_t pma_ptr;
+  uint8_t max_packet_size;
+  uint8_t pma_alloc_size;
 } xfer_ctl_t;
 
 static xfer_ctl_t xfer_status[MAX_EP_COUNT][2];
@@ -177,15 +185,22 @@ static TU_ATTR_ALIGNED(4) uint32_t _setup_packet[6];
 
 static uint8_t remoteWakeCountdown; // When wake is requested
 
-// EP Buffers assigned from end of memory location, to minimize their chance of crashing
 // into the stack.
-static uint16_t ep_buf_ptr;
 static void dcd_handle_bus_reset(void);
+static void dcd_transmit_packet(xfer_ctl_t * xfer, uint16_t ep_ix);
+static void dcd_ep_ctr_handler(void);
+
+// PMA allocation/access 
+static uint8_t open_ep_count;
+static uint16_t ep_buf_ptr; ///< Points to first free memory location
+static void dcd_pma_alloc_reset(void);
+static uint16_t dcd_pma_alloc(uint8_t ep_addr, size_t length);
+static void dcd_pma_free(uint8_t ep_addr);
 static bool dcd_write_packet_memory(uint16_t dst, const void *__restrict src, size_t wNBytes);
 static bool dcd_read_packet_memory(void *__restrict dst, uint16_t src, size_t wNBytes);
-static void dcd_transmit_packet(xfer_ctl_t * xfer, uint16_t ep_ix);
-static uint16_t dcd_ep_ctr_handler(void);
 
+//static bool dcd_write_packet_memory_ff(tu_fifo_t * ff, uint16_t dst, uint16_t wNBytes);
+//static bool dcd_read_packet_memory_ff(tu_fifo_t * ff, uint16_t src, uint16_t wNBytes);
 
 // Using a function due to better type checks
 // This seems better than having to do type casts everywhere else
@@ -193,9 +208,13 @@ static inline void reg16_clear_bits(__IO uint16_t *reg, uint16_t mask) {
   *reg = (uint16_t)(*reg & ~mask);
 }
 
+// Bits in ISTR are cleared upon writing 0
+static inline void clear_istr_bits(uint16_t mask) {
+  USB->ISTR = ~mask;
+}
+
 void dcd_init (uint8_t rhport)
 {
-  (void)rhport;
   /* Clocks should already be enabled */
   /* Use __HAL_RCC_USB_CLK_ENABLE(); to enable the clocks before calling this function */
 
@@ -219,10 +238,10 @@ void dcd_init (uint8_t rhport)
     asm("NOP");
   }
   USB->CNTR = 0; // Enable USB
-
+  
   USB->BTABLE = DCD_STM32_BTABLE_BASE;
 
-  reg16_clear_bits(&USB->ISTR, USB_ISTR_ALL_EVENTS); // Clear pending interrupts
+  USB->ISTR = 0; // Clear pending interrupts
 
   // Reset endpoints to disabled
   for(uint32_t i=0; i<STFSDEV_EP_COUNT; i++)
@@ -231,24 +250,45 @@ void dcd_init (uint8_t rhport)
     pcd_set_endpoint(USB,i,0u);
   }
 
-  // Initialize the BTABLE for EP0 at this point (though setting up the EP0R is unneeded)
-  // This is actually not necessary, but helps debugging to start with a blank RAM area
-  for(uint32_t i=0;i<(DCD_STM32_BTABLE_LENGTH>>1); i++)
-  {
-    pma[PMA_STRIDE*(DCD_STM32_BTABLE_BASE + i)] = 0u;
-  }
-  USB->CNTR |= USB_CNTR_RESETM | USB_CNTR_SOFM | USB_CNTR_ESOFM | USB_CNTR_CTRM | USB_CNTR_SUSPM | USB_CNTR_WKUPM;
+  USB->CNTR |= USB_CNTR_RESETM | (USE_SOF ? USB_CNTR_SOFM : 0) | USB_CNTR_ESOFM | USB_CNTR_CTRM | USB_CNTR_SUSPM | USB_CNTR_WKUPM;
   dcd_handle_bus_reset();
-
-  // And finally enable pull-up, which may trigger the RESET IRQ if the host is connected.
-  // (if this MCU has an internal pullup)
-#if defined(USB_BCDR_DPPU)
-  USB->BCDR |= USB_BCDR_DPPU;
-#else
-  // FIXME: callback to the user to ask them to twiddle a GPIO to disable/enable D+???
-#endif
-
+  
+  // Enable pull-up if supported
+  if ( dcd_connect ) dcd_connect(rhport);
 }
+
+// Define only on MCU with internal pull-up. BSP can define on MCU without internal PU.
+#if defined(USB_BCDR_DPPU)
+
+// Disable internal D+ PU
+void dcd_disconnect(uint8_t rhport)
+{
+  (void) rhport;
+  USB->BCDR &= ~(USB_BCDR_DPPU);
+}
+
+// Enable internal D+ PU
+void dcd_connect(uint8_t rhport)
+{
+  (void) rhport;
+  USB->BCDR |= USB_BCDR_DPPU;
+}
+
+#elif defined(SYSCFG_PMC_USB_PU) // works e.g. on STM32L151
+// Disable internal D+ PU
+void dcd_disconnect(uint8_t rhport)
+{
+  (void) rhport;
+  SYSCFG->PMC &= ~(SYSCFG_PMC_USB_PU);
+}
+
+// Enable internal D+ PU
+void dcd_connect(uint8_t rhport)
+{
+  (void) rhport;
+  SYSCFG->PMC |= SYSCFG_PMC_USB_PU;
+}
+#endif
 
 // Enable device interrupt
 void dcd_int_enable (uint8_t rhport)
@@ -259,10 +299,26 @@ void dcd_int_enable (uint8_t rhport)
   __ISB();
 #if CFG_TUSB_MCU == OPT_MCU_STM32F0 || CFG_TUSB_MCU == OPT_MCU_STM32L0
   NVIC_EnableIRQ(USB_IRQn);
+#elif CFG_TUSB_MCU == OPT_MCU_STM32L1
+  NVIC_EnableIRQ(USB_LP_IRQn);
 #elif CFG_TUSB_MCU == OPT_MCU_STM32F3
-  NVIC_EnableIRQ(USB_HP_CAN_TX_IRQn);
-  NVIC_EnableIRQ(USB_LP_CAN_RX0_IRQn);
-  NVIC_EnableIRQ(USBWakeUp_IRQn);
+  // Some STM32F302/F303 devices allow to remap the USB interrupt vectors from
+  // shared USB/CAN IRQs to separate CAN and USB IRQs.
+  // This dynamically checks if this remap is active to enable the right IRQs.
+  #ifdef SYSCFG_CFGR1_USB_IT_RMP
+  if (SYSCFG->CFGR1 & SYSCFG_CFGR1_USB_IT_RMP)
+  {
+    NVIC_EnableIRQ(USB_HP_IRQn);
+    NVIC_EnableIRQ(USB_LP_IRQn);
+    NVIC_EnableIRQ(USBWakeUp_RMP_IRQn);
+  }
+  else
+  #endif
+  {
+    NVIC_EnableIRQ(USB_HP_CAN_TX_IRQn);
+    NVIC_EnableIRQ(USB_LP_CAN_RX0_IRQn);
+    NVIC_EnableIRQ(USBWakeUp_IRQn);
+  }
 #elif CFG_TUSB_MCU == OPT_MCU_STM32F1
   NVIC_EnableIRQ(USB_HP_CAN1_TX_IRQn);
   NVIC_EnableIRQ(USB_LP_CAN1_RX0_IRQn);
@@ -279,10 +335,26 @@ void dcd_int_disable(uint8_t rhport)
 
 #if CFG_TUSB_MCU == OPT_MCU_STM32F0 || CFG_TUSB_MCU == OPT_MCU_STM32L0
   NVIC_DisableIRQ(USB_IRQn);
+#elif CFG_TUSB_MCU == OPT_MCU_STM32L1
+  NVIC_DisableIRQ(USB_LP_IRQn);
 #elif CFG_TUSB_MCU == OPT_MCU_STM32F3
-  NVIC_DisableIRQ(USB_HP_CAN_TX_IRQn);
-  NVIC_DisableIRQ(USB_LP_CAN_RX0_IRQn);
-  NVIC_DisableIRQ(USBWakeUp_IRQn);
+  // Some STM32F302/F303 devices allow to remap the USB interrupt vectors from
+  // shared USB/CAN IRQs to separate CAN and USB IRQs.
+  // This dynamically checks if this remap is active to disable the right IRQs.
+  #ifdef SYSCFG_CFGR1_USB_IT_RMP
+  if (SYSCFG->CFGR1 & SYSCFG_CFGR1_USB_IT_RMP)
+  {
+    NVIC_DisableIRQ(USB_HP_IRQn);
+    NVIC_DisableIRQ(USB_LP_IRQn);
+    NVIC_DisableIRQ(USBWakeUp_RMP_IRQn);
+  }
+  else
+  #endif
+  {
+    NVIC_DisableIRQ(USB_HP_CAN_TX_IRQn);
+    NVIC_DisableIRQ(USB_LP_CAN_RX0_IRQn);
+    NVIC_DisableIRQ(USBWakeUp_IRQn);
+  }
 #elif CFG_TUSB_MCU == OPT_MCU_STM32F1
   NVIC_DisableIRQ(USB_HP_CAN1_TX_IRQn);
   NVIC_DisableIRQ(USB_LP_CAN1_RX0_IRQn);
@@ -307,14 +379,6 @@ void dcd_set_address(uint8_t rhport, uint8_t dev_addr)
   // do it at dcd_edpt0_status_complete()
 }
 
-// Receive Set Config request
-void dcd_set_config (uint8_t rhport, uint8_t config_num)
-{
-  (void) rhport;
-  (void) config_num;
-  // Nothing to do? Handled by stack.
-}
-
 void dcd_remote_wakeup(uint8_t rhport)
 {
   (void) rhport;
@@ -323,29 +387,27 @@ void dcd_remote_wakeup(uint8_t rhport)
   remoteWakeCountdown = 4u; // required to be 1 to 15 ms, ESOF should trigger every 1ms.
 }
 
-// I'm getting a weird warning about missing braces here that I don't
-// know how to fix.
-#if defined(__GNUC__) && (__GNUC__ >= 7)
-#  pragma GCC diagnostic push
-#  pragma GCC diagnostic ignored "-Wmissing-braces"
-#endif
 static const tusb_desc_endpoint_t ep0OUT_desc =
 {
-    .wMaxPacketSize = CFG_TUD_ENDPOINT0_SIZE,
-    .bDescriptorType = TUSB_XFER_CONTROL,
-    .bEndpointAddress = 0x00
+  .bLength          = sizeof(tusb_desc_endpoint_t),
+  .bDescriptorType  = TUSB_DESC_ENDPOINT,
+
+  .bEndpointAddress = 0x00,
+  .bmAttributes     = { .xfer = TUSB_XFER_CONTROL },
+  .wMaxPacketSize   = { .size = CFG_TUD_ENDPOINT0_SIZE },
+  .bInterval        = 0
 };
 
 static const tusb_desc_endpoint_t ep0IN_desc =
 {
-    .wMaxPacketSize = CFG_TUD_ENDPOINT0_SIZE,
-    .bDescriptorType = TUSB_XFER_CONTROL,
-    .bEndpointAddress = 0x80
-};
+  .bLength          = sizeof(tusb_desc_endpoint_t),
+  .bDescriptorType  = TUSB_DESC_ENDPOINT,
 
-#if defined(__GNUC__) && (__GNUC__ >= 7)
-#pragma GCC diagnostic pop
-#endif
+  .bEndpointAddress = 0x80,
+  .bmAttributes     = { .xfer = TUSB_XFER_CONTROL },
+  .wMaxPacketSize   = { .size = CFG_TUD_ENDPOINT0_SIZE },
+  .bInterval        = 0
+};
 
 static void dcd_handle_bus_reset(void)
 {
@@ -358,173 +420,151 @@ static void dcd_handle_bus_reset(void)
     pcd_set_endpoint(USB,i,0u);
   }
 
-  ep_buf_ptr = DCD_STM32_BTABLE_BASE + 8*MAX_EP_COUNT; // 8 bytes per endpoint (two TX and two RX words, each)
+  dcd_pma_alloc_reset();
   dcd_edpt_open (0, &ep0OUT_desc);
   dcd_edpt_open (0, &ep0IN_desc);
 
   USB->DADDR = USB_DADDR_EF; // Set enable flag, and leaving the device address as zero.
 }
 
-// FIXME: Defined to return uint16 so that ASSERT can be used, even though a return value is not needed.
-static uint16_t dcd_ep_ctr_handler(void)
+// Handle CTR interrupt for the TX/IN direction
+//
+// Upon call, (wIstr & USB_ISTR_DIR) == 0U
+static void dcd_ep_ctr_tx_handler(uint32_t wIstr)
 {
-  uint32_t count=0U;
-  uint8_t EPindex;
-  __IO uint16_t wIstr;
-  __IO uint16_t wEPVal = 0U;
+  uint32_t EPindex = wIstr & USB_ISTR_EP_ID;
+  uint32_t wEPRegVal = pcd_get_endpoint(USB, EPindex);
 
-  // stack variables to pass to USBD
+  // Verify the CTR_TX bit is set. This was in the ST Micro code,
+  // but I'm not sure it's actually necessary?
+  if((wEPRegVal & USB_EP_CTR_TX) == 0U)
+  {
+    return;
+  }
+
+  /* clear int flag */
+  pcd_clear_tx_ep_ctr(USB, EPindex);
+
+  xfer_ctl_t * xfer = xfer_ctl_ptr(EPindex,TUSB_DIR_IN);
+  if((xfer->total_len != xfer->queued_len)) /* TX not complete */
+  {
+      dcd_transmit_packet(xfer, EPindex);
+  }
+  else /* TX Complete */
+  {
+    dcd_event_xfer_complete(0, (uint8_t)(0x80 + EPindex), xfer->total_len, XFER_RESULT_SUCCESS, true);
+  }
+}
+
+// Handle CTR interrupt for the RX/OUT direction
+//
+// Upon call, (wIstr & USB_ISTR_DIR) == 0U
+static void dcd_ep_ctr_rx_handler(uint32_t wIstr)
+{
+  uint32_t EPindex = wIstr & USB_ISTR_EP_ID;
+  uint32_t wEPRegVal = pcd_get_endpoint(USB, EPindex);
+  uint32_t count = pcd_get_ep_rx_cnt(USB,EPindex);
+
+  xfer_ctl_t *xfer = xfer_ctl_ptr(EPindex,TUSB_DIR_OUT);
+
+  // Verify the CTR_RX bit is set. This was in the ST Micro code,
+  // but I'm not sure it's actually necessary?
+  if((wEPRegVal & USB_EP_CTR_RX) == 0U)
+  {
+    return;
+  }
+  
+  if((EPindex == 0U) && ((wEPRegVal & USB_EP_SETUP) != 0U)) /* Setup packet */
+  {
+    // The setup_received function uses memcpy, so this must first copy the setup data into
+    // user memory, to allow for the 32-bit access that memcpy performs.
+    uint8_t userMemBuf[8];
+    /* Get SETUP Packet*/
+    if(count == 8) // Setup packet should always be 8 bytes. If not, ignore it, and try again.
+    {
+      // Must reset EP to NAK (in case it had been stalling) (though, maybe too late here)
+      pcd_set_ep_rx_status(USB,0u,USB_EP_RX_NAK);
+      pcd_set_ep_tx_status(USB,0u,USB_EP_TX_NAK);
+      dcd_read_packet_memory(userMemBuf, *pcd_ep_rx_address_ptr(USB,EPindex), 8);
+      dcd_event_setup_received(0, (uint8_t*)userMemBuf, true);
+    }
+  }
+  else
+  {
+    // Clear RX CTR interrupt flag
+    if(EPindex != 0u)
+    {
+      pcd_clear_rx_ep_ctr(USB, EPindex);
+    }
+
+    if (count != 0U)
+    {
+#if 0 // TODO support dcd_edpt_xfer_fifo API
+      if (xfer->ff)
+      {
+        dcd_read_packet_memory_ff(xfer->ff, *pcd_ep_rx_address_ptr(USB,EPindex), count);
+      }
+      else
+#endif
+      {
+        dcd_read_packet_memory(&(xfer->buffer[xfer->queued_len]), *pcd_ep_rx_address_ptr(USB,EPindex), count);
+      }
+
+      xfer->queued_len = (uint16_t)(xfer->queued_len + count);
+    }
+
+    if ((count < xfer->max_packet_size) || (xfer->queued_len == xfer->total_len))
+    {
+      /* RX COMPLETE */
+      dcd_event_xfer_complete(0, EPindex, xfer->queued_len, XFER_RESULT_SUCCESS, true);
+      // Though the host could still send, we don't know.
+      // Does the bulk pipe need to be reset to valid to allow for a ZLP?
+    }
+    else
+    {
+      uint32_t remaining = (uint32_t)xfer->total_len - (uint32_t)xfer->queued_len;
+      if(remaining >= xfer->max_packet_size) {
+        pcd_set_ep_rx_cnt(USB, EPindex,xfer->max_packet_size);
+      } else {
+        pcd_set_ep_rx_cnt(USB, EPindex,remaining);
+      }
+      pcd_set_ep_rx_status(USB, EPindex, USB_EP_RX_VALID);
+    }
+  }
+
+  // For EP0, prepare to receive another SETUP packet.
+  // Clear CTR last so that a new packet does not overwrite the packing being read.
+  // (Based on the docs, it seems SETUP will always be accepted after CTR is cleared)
+  if(EPindex == 0u)
+  {
+      // Always be prepared for a status packet...
+    pcd_set_ep_rx_cnt(USB, EPindex, CFG_TUD_ENDPOINT0_SIZE);
+    pcd_clear_rx_ep_ctr(USB, EPindex);
+  }
+}
+
+static void dcd_ep_ctr_handler(void)
+{
+  uint32_t wIstr;
 
   /* stay in loop while pending interrupts */
   while (((wIstr = USB->ISTR) & USB_ISTR_CTR) != 0U)
   {
-    /* extract highest priority endpoint index */
-    EPindex = (uint8_t)(wIstr & USB_ISTR_EP_ID);
 
-    if (EPindex == 0U)
+    if ((wIstr & USB_ISTR_DIR) == 0U) /* TX/IN */
     {
-      /* Decode and service control endpoint interrupt */
-
-      /* DIR bit = origin of the interrupt */
-      if ((wIstr & USB_ISTR_DIR) == 0U)
-      {
-        /* DIR = 0  => IN  int */
-        /* DIR = 0 implies that (EP_CTR_TX = 1) always  */
-        pcd_clear_tx_ep_ctr(USB, 0);
-
-        xfer_ctl_t * xfer = xfer_ctl_ptr(EPindex,TUSB_DIR_IN);
-
-        if((xfer->total_len == xfer->queued_len))
-        {
-          dcd_event_xfer_complete(0u, (uint8_t)(0x80 + EPindex), xfer->total_len, XFER_RESULT_SUCCESS, true);
-
-          if(xfer->total_len == 0) // Probably a status message?
-          {
-            pcd_clear_rx_dtog(USB,EPindex);
-          }
-        }
-        else
-        {
-          dcd_transmit_packet(xfer,EPindex);
-        }
-      }
-      else
-      {
-        /* DIR = 1 & CTR_RX       => SETUP or OUT int */
-        /* DIR = 1 & (CTR_TX | CTR_RX) => 2 int pending */
-
-        xfer_ctl_t *xfer = xfer_ctl_ptr(EPindex,TUSB_DIR_OUT);
-
-        //ep = &hpcd->OUT_ep[0];
-        wEPVal = pcd_get_endpoint(USB, EPindex);
-
-        if ((wEPVal & USB_EP_SETUP) != 0U) // SETUP
-        {
-          // The setup_received function uses memcpy, so this must first copy the setup data into
-          // user memory, to allow for the 32-bit access that memcpy performs.
-          uint8_t userMemBuf[8];
-          /* Get SETUP Packet*/
-          count = pcd_get_ep_rx_cnt(USB, EPindex);
-          if(count == 8) // Setup packet should always be 8 bytes. If not, ignore it, and try again.
-          {
-            // Must reset EP to NAK (in case it had been stalling) (though, maybe too late here)
-            pcd_set_ep_rx_status(USB,0u,USB_EP_RX_NAK);
-            pcd_set_ep_tx_status(USB,0u,USB_EP_TX_NAK);
-            dcd_read_packet_memory(userMemBuf, *pcd_ep_rx_address_ptr(USB,EPindex), 8);
-            dcd_event_setup_received(0, (uint8_t*)userMemBuf, true);
-          }
-          /* SETUP bit kept frozen while CTR_RX = 1*/
-          pcd_clear_rx_ep_ctr(USB, EPindex);
-        }
-        else if ((wEPVal & USB_EP_CTR_RX) != 0U) // OUT
-        {
-
-          pcd_clear_rx_ep_ctr(USB, EPindex);
-
-          /* Get Control Data OUT Packet */
-          count = pcd_get_ep_rx_cnt(USB,EPindex);
-
-          if (count != 0U)
-          {
-            dcd_read_packet_memory(xfer->buffer, *pcd_ep_rx_address_ptr(USB,EPindex), count);
-            xfer->queued_len = (uint16_t)(xfer->queued_len + count);
-          }
-
-          /* Process Control Data OUT status Packet*/
-          dcd_event_xfer_complete(0, EPindex, xfer->total_len, XFER_RESULT_SUCCESS, true);
-
-          pcd_set_ep_rx_cnt(USB, EPindex, CFG_TUD_ENDPOINT0_SIZE);
-          if(EPindex == 0u && xfer->total_len == 0u)
-          {
-            pcd_set_ep_rx_status(USB, EPindex, USB_EP_RX_VALID);// Await next SETUP
-          }
-        }
-      }
+      dcd_ep_ctr_tx_handler(wIstr);
     }
-    else /* Decode and service non control endpoints interrupt  */
+    else /* RX/OUT*/
     {
-      /* process related endpoint register */
-      wEPVal = pcd_get_endpoint(USB, EPindex);
-      if ((wEPVal & USB_EP_CTR_RX) != 0U) // OUT
-      {
-        /* clear int flag */
-        pcd_clear_rx_ep_ctr(USB, EPindex);
-
-        xfer_ctl_t * xfer = xfer_ctl_ptr(EPindex,TUSB_DIR_OUT);
-
-        //ep = &hpcd->OUT_ep[EPindex];
-
-        count = pcd_get_ep_rx_cnt(USB, EPindex);
-        if (count != 0U)
-        {
-          dcd_read_packet_memory(&(xfer->buffer[xfer->queued_len]),
-              *pcd_ep_rx_address_ptr(USB,EPindex), count);
-        }
-
-        /*multi-packet on the NON control OUT endpoint */
-        xfer->queued_len = (uint16_t)(xfer->queued_len + count);
-
-        if ((count < xfer->max_packet_size) || (xfer->queued_len == xfer->total_len))
-        {
-          /* RX COMPLETE */
-          dcd_event_xfer_complete(0, EPindex, xfer->queued_len, XFER_RESULT_SUCCESS, true);
-          // Though the host could still send, we don't know.
-          // Does the bulk pipe need to be reset to valid to allow for a ZLP?
-        }
-        else
-        {
-          uint32_t remaining = (uint32_t)xfer->total_len - (uint32_t)xfer->queued_len;
-          if(remaining >= xfer->max_packet_size) {
-            pcd_set_ep_rx_cnt(USB, EPindex,xfer->max_packet_size);
-          } else {
-            pcd_set_ep_rx_cnt(USB, EPindex,remaining);
-          }
-
-          pcd_set_ep_rx_status(USB, EPindex, USB_EP_RX_VALID);
-        }
-
-      } /* if((wEPVal & EP_CTR_RX) */
-
-      if ((wEPVal & USB_EP_CTR_TX) != 0U) // IN
-      {
-        /* clear int flag */
-        pcd_clear_tx_ep_ctr(USB, EPindex);
-
-        xfer_ctl_t * xfer = xfer_ctl_ptr(EPindex,TUSB_DIR_IN);
-
-        if (xfer->queued_len  != xfer->total_len) // data remaining in transfer?
-        {
-          dcd_transmit_packet(xfer, EPindex);
-        } else {
-          dcd_event_xfer_complete(0, (uint8_t)(0x80 + EPindex), xfer->total_len, XFER_RESULT_SUCCESS, true);
-        }
-      }
+      dcd_ep_ctr_rx_handler(wIstr);
     }
   }
-  return 0;
 }
 
-static void dcd_fs_irqHandler(void) {
+void dcd_int_handler(uint8_t rhport) {
+
+  (void) rhport;
 
   uint32_t int_status = USB->ISTR;
   //const uint32_t handled_ints = USB_ISTR_CTR | USB_ISTR_RESET | USB_ISTR_WKUP
@@ -537,9 +577,9 @@ static void dcd_fs_irqHandler(void) {
 
   if(int_status & USB_ISTR_RESET) {
     // USBRST is start of reset.
-    reg16_clear_bits(&USB->ISTR, USB_ISTR_RESET);
+    clear_istr_bits(USB_ISTR_RESET);
     dcd_handle_bus_reset();
-    dcd_event_bus_signal(0, DCD_EVENT_BUS_RESET, true);
+    dcd_event_bus_reset(0, TUSB_SPEED_FULL, true);
     return; // Don't do the rest of the things here; perhaps they've been cleared?
   }
 
@@ -548,14 +588,13 @@ static void dcd_fs_irqHandler(void) {
     /* servicing of the endpoint correct transfer interrupt */
     /* clear of the CTR flag into the sub */
     dcd_ep_ctr_handler();
-    reg16_clear_bits(&USB->ISTR, USB_ISTR_CTR);
   }
 
   if (int_status & USB_ISTR_WKUP)
   {
     reg16_clear_bits(&USB->CNTR, USB_CNTR_LPMODE);
     reg16_clear_bits(&USB->CNTR, USB_CNTR_FSUSP);
-    reg16_clear_bits(&USB->ISTR, USB_ISTR_WKUP);
+    clear_istr_bits(USB_ISTR_WKUP);
     dcd_event_bus_signal(0, DCD_EVENT_RESUME, true);
   }
 
@@ -569,14 +608,16 @@ static void dcd_fs_irqHandler(void) {
     USB->CNTR |= USB_CNTR_LPMODE;
 
     /* clear of the ISTR bit must be done after setting of CNTR_FSUSP */
-    reg16_clear_bits(&USB->ISTR, USB_ISTR_SUSP);
+    clear_istr_bits(USB_ISTR_SUSP);
     dcd_event_bus_signal(0, DCD_EVENT_SUSPEND, true);
   }
 
+#if USE_SOF
   if(int_status & USB_ISTR_SOF) {
-    reg16_clear_bits(&USB->ISTR, USB_ISTR_SOF);
+    clear_istr_bits(USB_ISTR_SOF);
     dcd_event_bus_signal(0, DCD_EVENT_SOF, true);
   }
+#endif 
 
   if(int_status & USB_ISTR_ESOF) {
     if(remoteWakeCountdown == 1u)
@@ -587,7 +628,7 @@ static void dcd_fs_irqHandler(void) {
     {
       remoteWakeCountdown--;
     }
-    reg16_clear_bits(&USB->ISTR, USB_ISTR_ESOF);
+    clear_istr_bits(USB_ISTR_ESOF);
   }
 }
 
@@ -613,6 +654,85 @@ void dcd_edpt0_status_complete(uint8_t rhport, tusb_control_request_t const * re
   }
 }
 
+static void dcd_pma_alloc_reset(void)
+{
+  ep_buf_ptr = DCD_STM32_BTABLE_BASE + 8*MAX_EP_COUNT; // 8 bytes per endpoint (two TX and two RX words, each)
+  //TU_LOG2("dcd_pma_alloc_reset()\r\n");
+  for(uint32_t i=0; i<MAX_EP_COUNT; i++)
+  {
+    xfer_ctl_ptr(i,TUSB_DIR_OUT)->pma_alloc_size = 0U;
+    xfer_ctl_ptr(i,TUSB_DIR_IN)->pma_alloc_size = 0U;
+    xfer_ctl_ptr(i,TUSB_DIR_OUT)->pma_ptr = 0U;
+    xfer_ctl_ptr(i,TUSB_DIR_IN)->pma_ptr = 0U;
+  }
+}
+
+/***
+ * Allocate a section of PMA
+ * 
+ * If the EP number has already been allocated, and the new allocation
+ * is larger than the old allocation, then this will fail with a TU_ASSERT.
+ * (This is done to simplify the code. More complicated algorithms could be used)
+ * 
+ * During failure, TU_ASSERT is used. If this happens, rework/reallocate memory manually.
+ */
+static uint16_t dcd_pma_alloc(uint8_t ep_addr, size_t length)
+{
+  uint8_t const epnum = tu_edpt_number(ep_addr);
+  uint8_t const dir   = tu_edpt_dir(ep_addr);
+  xfer_ctl_t* epXferCtl = xfer_ctl_ptr(epnum,dir);
+
+  if(epXferCtl->pma_alloc_size != 0U)
+  {
+    //TU_LOG2("dcd_pma_alloc(%x,%x)=%x (cached)\r\n",ep_addr,length,epXferCtl->pma_ptr);
+    // Previously allocated
+    TU_ASSERT(length <= epXferCtl->pma_alloc_size, 0xFFFF);  // Verify no larger than previous alloc
+    return epXferCtl->pma_ptr;
+  }
+  
+  uint16_t addr = ep_buf_ptr; 
+  ep_buf_ptr = (uint16_t)(ep_buf_ptr + length); // increment buffer pointer
+  
+  // Verify no overflow
+  TU_ASSERT(ep_buf_ptr <= PMA_LENGTH, 0xFFFF);
+  
+  epXferCtl->pma_ptr = addr;
+  epXferCtl->pma_alloc_size = length;
+  //TU_LOG2("dcd_pma_alloc(%x,%x)=%x\r\n",ep_addr,length,addr);
+
+  return addr;
+}
+
+/***
+ * Free a block of PMA space
+ */
+static void dcd_pma_free(uint8_t ep_addr)
+{
+  uint8_t const epnum = tu_edpt_number(ep_addr);
+  uint8_t const dir   = tu_edpt_dir(ep_addr);
+
+  // Presently, this should never be called for EP0 IN/OUT
+  TU_ASSERT(open_ep_count > 2, /**/);
+  TU_ASSERT(xfer_ctl_ptr(epnum,dir)->max_packet_size != 0, /**/);
+  open_ep_count--;
+
+  // If count is 2, only EP0 should be open, so allocations can be mostly reset.
+
+  if(open_ep_count == 2)
+  {
+    ep_buf_ptr = DCD_STM32_BTABLE_BASE + 8*MAX_EP_COUNT + 2*CFG_TUD_ENDPOINT0_SIZE; // 8 bytes per endpoint (two TX and two RX words, each), and EP0
+
+    // Skip EP0
+    for(uint32_t i=1; i<MAX_EP_COUNT; i++)
+    {
+      xfer_ctl_ptr(i,TUSB_DIR_OUT)->pma_alloc_size = 0U;
+      xfer_ctl_ptr(i,TUSB_DIR_IN)->pma_alloc_size = 0U;
+      xfer_ctl_ptr(i,TUSB_DIR_OUT)->pma_ptr = 0U;
+      xfer_ctl_ptr(i,TUSB_DIR_IN)->pma_ptr = 0U;
+    }
+  }
+}
+
 // The STM32F0 doesn't seem to like |= or &= to manipulate the EP#R registers,
 // so I'm using the #define from HAL here, instead.
 
@@ -622,59 +742,87 @@ bool dcd_edpt_open (uint8_t rhport, tusb_desc_endpoint_t const * p_endpoint_desc
   uint8_t const epnum = tu_edpt_number(p_endpoint_desc->bEndpointAddress);
   uint8_t const dir   = tu_edpt_dir(p_endpoint_desc->bEndpointAddress);
   const uint16_t epMaxPktSize = p_endpoint_desc->wMaxPacketSize.size;
+  uint16_t pma_addr;
+  uint32_t wType;
+  
   // Isochronous not supported (yet), and some other driver assumptions.
-
   TU_ASSERT(p_endpoint_desc->bmAttributes.xfer != TUSB_XFER_ISOCHRONOUS);
   TU_ASSERT(epnum < MAX_EP_COUNT);
 
   // Set type
   switch(p_endpoint_desc->bmAttributes.xfer) {
   case TUSB_XFER_CONTROL:
-    pcd_set_eptype(USB, epnum, USB_EP_CONTROL);
+    wType = USB_EP_CONTROL;
     break;
 #if (0)
   case TUSB_XFER_ISOCHRONOUS: // FIXME: Not yet supported
-    pcd_set_eptype(USB, epnum, USB_EP_ISOCHRONOUS); break;
+    wType = USB_EP_ISOCHRONOUS;
     break;
 #endif
 
   case TUSB_XFER_BULK:
-    pcd_set_eptype(USB, epnum, USB_EP_BULK);
+    wType = USB_EP_CONTROL;
     break;
 
   case TUSB_XFER_INTERRUPT:
-    pcd_set_eptype(USB, epnum, USB_EP_INTERRUPT);
+    wType = USB_EP_INTERRUPT;
     break;
 
   default:
     TU_ASSERT(false);
-    return false;
   }
 
+  pcd_set_eptype(USB, epnum, wType);
   pcd_set_ep_address(USB, epnum, epnum);
   // Be normal, for now, instead of only accepting zero-byte packets (on control endpoint)
   // or being double-buffered (bulk endpoints)
   pcd_clear_ep_kind(USB,0);
 
+  pma_addr = dcd_pma_alloc(p_endpoint_desc->bEndpointAddress, p_endpoint_desc->wMaxPacketSize.size);
+
   if(dir == TUSB_DIR_IN)
   {
-    *pcd_ep_tx_address_ptr(USB, epnum) = ep_buf_ptr;
+    *pcd_ep_tx_address_ptr(USB, epnum) = pma_addr;
     pcd_set_ep_tx_cnt(USB, epnum, p_endpoint_desc->wMaxPacketSize.size);
     pcd_clear_tx_dtog(USB, epnum);
     pcd_set_ep_tx_status(USB,epnum,USB_EP_TX_NAK);
   }
   else
   {
-    *pcd_ep_rx_address_ptr(USB, epnum) = ep_buf_ptr;
+    *pcd_ep_rx_address_ptr(USB, epnum) = pma_addr;
     pcd_set_ep_rx_cnt(USB, epnum, p_endpoint_desc->wMaxPacketSize.size);
     pcd_clear_rx_dtog(USB, epnum);
     pcd_set_ep_rx_status(USB, epnum, USB_EP_RX_NAK);
   }
 
   xfer_ctl_ptr(epnum, dir)->max_packet_size = epMaxPktSize;
-  ep_buf_ptr = (uint16_t)(ep_buf_ptr + p_endpoint_desc->wMaxPacketSize.size); // increment buffer pointer
 
   return true;
+}
+
+/**
+ * Close an endpoint.
+ * 
+ * This function may be called with interrupts enabled or disabled.
+ * 
+ * This also clears transfers in progress, should there be any.
+ */
+void dcd_edpt_close (uint8_t rhport, uint8_t ep_addr)
+{
+  (void)rhport;
+  uint32_t const epnum = tu_edpt_number(ep_addr);
+  uint32_t const dir   = tu_edpt_dir(ep_addr);
+  
+  if(dir == TUSB_DIR_IN)
+  {
+    pcd_set_ep_tx_status(USB,epnum,USB_EP_TX_DIS);
+  }
+  else
+  {
+    pcd_set_ep_rx_status(USB, epnum, USB_EP_RX_DIS);
+  }
+
+  dcd_pma_free(ep_addr);
 }
 
 // Currently, single-buffered, and only 64 bytes at a time (max)
@@ -688,7 +836,17 @@ static void dcd_transmit_packet(xfer_ctl_t * xfer, uint16_t ep_ix)
     len = xfer->max_packet_size;
   }
   uint16_t oldAddr = *pcd_ep_tx_address_ptr(USB,ep_ix);
-  dcd_write_packet_memory(oldAddr, &(xfer->buffer[xfer->queued_len]), len);
+
+#if 0 // TODO support dcd_edpt_xfer_fifo API
+  if (xfer->ff)
+  {
+    dcd_write_packet_memory_ff(xfer->ff, oldAddr, len);
+  }
+  else
+#endif
+  {
+    dcd_write_packet_memory(oldAddr, &(xfer->buffer[xfer->queued_len]), len);
+  }
   xfer->queued_len = (uint16_t)(xfer->queued_len + len);
 
   pcd_set_ep_tx_cnt(USB,ep_ix,len);
@@ -705,6 +863,7 @@ bool dcd_edpt_xfer (uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t 
   xfer_ctl_t * xfer = xfer_ctl_ptr(epnum,dir);
 
   xfer->buffer = buffer;
+  // xfer->ff     = NULL; // TODO support dcd_edpt_xfer_fifo API
   xfer->total_len = total_bytes;
   xfer->queued_len = 0;
 
@@ -730,6 +889,39 @@ bool dcd_edpt_xfer (uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t 
   }
   return true;
 }
+
+#if 0 // TODO support dcd_edpt_xfer_fifo API
+bool dcd_edpt_xfer_fifo (uint8_t rhport, uint8_t ep_addr, tu_fifo_t * ff, uint16_t total_bytes)
+{
+  (void) rhport;
+
+  uint8_t const epnum = tu_edpt_number(ep_addr);
+  uint8_t const dir   = tu_edpt_dir(ep_addr);
+
+  xfer_ctl_t * xfer = xfer_ctl_ptr(epnum,dir);
+
+  xfer->buffer = NULL;
+  // xfer->ff     = ff; // TODO support dcd_edpt_xfer_fifo API
+  xfer->total_len = total_bytes;
+  xfer->queued_len = 0;
+
+  if ( dir == TUSB_DIR_OUT )
+  {
+    if(total_bytes > xfer->max_packet_size)
+    {
+      pcd_set_ep_rx_cnt(USB,epnum,xfer->max_packet_size);
+    } else {
+      pcd_set_ep_rx_cnt(USB,epnum,total_bytes);
+    }
+    pcd_set_ep_rx_status(USB, epnum, USB_EP_RX_VALID);
+  }
+  else // IN
+  {
+    dcd_transmit_packet(xfer,epnum);
+  }
+  return true;
+}
+#endif
 
 void dcd_edpt_stall (uint8_t rhport, uint8_t ep_addr)
 {
@@ -804,8 +996,55 @@ static bool dcd_write_packet_memory(uint16_t dst, const void *__restrict src, si
   return true;
 }
 
+#if 0 // TODO support dcd_edpt_xfer_fifo API
 /**
-  * @brief Copy a buffer from user memory area to packet memory area (PMA).
+  * @brief Copy from FIFO to packet memory area (PMA).
+  *        Uses byte-access of system memory and 16-bit access of packet memory
+  * @param   wNBytes no. of bytes to be copied.
+  * @retval None
+  */
+
+// THIS FUNCTION IS UNTESTED
+
+static bool dcd_write_packet_memory_ff(tu_fifo_t * ff, uint16_t dst, uint16_t wNBytes)
+{
+  // Since we copy from a ring buffer FIFO, a wrap might occur making it necessary to conduct two copies
+  // Check for first linear part
+  void * src;
+  uint16_t len = tu_fifo_get_linear_read_info(ff, 0, &src, wNBytes);  // We want to read from the FIFO        - THIS FUNCTION CHANGED!!!
+  TU_VERIFY(len && dcd_write_packet_memory(dst, src, len));           // and write it into the PMA
+  tu_fifo_advance_read_pointer(ff, len);
+
+  // Check for wrapped part
+  if (len < wNBytes)
+  {
+    // Get remaining wrapped length
+    uint16_t len2 = tu_fifo_get_linear_read_info(ff, 0, &src, wNBytes - len);
+    TU_VERIFY(len2);
+
+    // Update destination pointer
+    dst += len;
+
+    // Since PMA is accessed 16-bit wise we need to handle the case when a 16 bit value was split
+    if (len % 2)    // If len is uneven there is a byte left to copy
+    {
+      // Since PMA can accessed only 16 bit-wise we copy the last byte again
+      tu_fifo_backward_read_pointer(ff, 1);                 // Move one byte back and copy two bytes for the PMA
+      tu_fifo_read_n(ff, (void *) &pma[PMA_STRIDE*(dst>>1)], 2);     // Since EP FIFOs must be of item size 1 this is safe to do
+      dst++;
+      len2--;
+    }
+
+    TU_VERIFY(dcd_write_packet_memory(dst, src, len2));
+    tu_fifo_advance_write_pointer(ff, len2);
+  }
+
+  return true;
+}
+#endif
+
+/**
+  * @brief Copy a buffer from packet memory area (PMA) to user memory area.
   *        Uses byte-access of system memory and 16-bit access of packet memory
   * @param   wNBytes no. of bytes to be copied.
   * @retval None
@@ -839,56 +1078,51 @@ static bool dcd_read_packet_memory(void *__restrict dst, uint16_t src, size_t wN
   return true;
 }
 
+#if 0 // TODO support dcd_edpt_xfer_fifo API
+/**
+  * @brief Copy a buffer from user packet memory area (PMA) to FIFO.
+  *        Uses byte-access of system memory and 16-bit access of packet memory
+  * @param   wNBytes no. of bytes to be copied.
+  * @retval None
+  */
 
-// Interrupt handlers
-#if CFG_TUSB_MCU == OPT_MCU_STM32F0 || CFG_TUSB_MCU == OPT_MCU_STM32L0
-void USB_IRQHandler(void)
-{
-  dcd_fs_irqHandler();
-}
+// THIS FUNCTION IS UNTESTED
 
-#elif CFG_TUSB_MCU == OPT_MCU_STM32F1
-void USB_HP_IRQHandler(void)
+static bool dcd_read_packet_memory_ff(tu_fifo_t * ff, uint16_t src, uint16_t wNBytes)
 {
-  dcd_fs_irqHandler();
-}
-void USB_LP_IRQHandler(void)
-{
-  dcd_fs_irqHandler();
-}
-void USBWakeUp_IRQHandler(void)
-{
-  dcd_fs_irqHandler();
-}
+  // Since we copy into a ring buffer FIFO, a wrap might occur making it necessary to conduct two copies
+  // Check for first linear part
+  void * dst;
+  uint16_t len = tu_fifo_get_linear_write_info(ff, 0, &dst, wNBytes);           // THIS FUNCTION CHANGED!!!!
+  TU_VERIFY(len && dcd_read_packet_memory(dst, src, len));
+  tu_fifo_advance_write_pointer(ff, len);
 
-#elif (CFG_TUSB_MCU) == (OPT_MCU_STM32F3)
-// USB defaults to using interrupts 19, 20, and 42 (based on SYSCFG_CFGR1.USB_IT_RMP)
-// FIXME: Do all three need to be handled, or just the LP one?
-// USB high-priority interrupt (Channel 19): Triggered only by a correct
-// transfer event for isochronous and double-buffer bulk transfer to reach
-// the highest possible transfer rate.
-void USB_HP_CAN_TX_IRQHandler(void)
-{
-  dcd_fs_irqHandler();
-}
+  // Check for wrapped part
+  if (len < wNBytes)
+  {
+    // Get remaining wrapped length
+    uint16_t len2 = tu_fifo_get_linear_write_info(ff, 0, &dst, wNBytes - len);
+    TU_VERIFY(len2);
 
-// USB low-priority interrupt (Channel 20): Triggered by all USB events
-// (Correct transfer, USB reset, etc.). The firmware has to check the
-// interrupt source before serving the interrupt.
-void USB_LP_CAN_RX0_IRQHandler(void)
-{
-  dcd_fs_irqHandler();
-}
+    // Update source pointer
+    src += len;
 
-// USB wakeup interrupt (Channel 42): Triggered by the wakeup event from the USB
-// Suspend mode.
-void USBWakeUp_IRQHandler(void)
-{
-  dcd_fs_irqHandler();
+    // Since PMA is accessed 16-bit wise we need to handle the case when a 16 bit value was split
+    if (len % 2)    // If len is uneven there is a byte left to copy
+    {
+      uint32_t temp = pma[PMA_STRIDE*(src>>1)];
+      *((uint8_t *)dst++) = ((temp >> 8) & 0xFF);
+      src++;
+      len2--;
+    }
+
+    TU_VERIFY(dcd_read_packet_memory(dst, src, len2));
+    tu_fifo_advance_write_pointer(ff, len2);
+  }
+
+  return true;
 }
 
-#else
-  #error Which IRQ handler do you need?
 #endif
 
 #endif

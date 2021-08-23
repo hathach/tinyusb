@@ -1,14 +1,24 @@
-name: Build
+name: Build ARM
 
-on: [pull_request, push]
+on:
+  pull_request:
+  push:
+  release:
+    types:
+      - created
 
 jobs:
+  # ---------------------------------------
+  # Unit testing with Ceedling
+  # ---------------------------------------
   unit-test:
-    runs-on: ubuntu-latest    
+    runs-on: ubuntu-latest
     steps:
     - name: Setup Ruby
-      uses: actions/setup-ruby@v1.0.0
-      
+      uses: actions/setup-ruby@v1
+      with:
+        ruby-version: '2.7'
+
     - name: Checkout TinyUSB
       uses: actions/checkout@v2
 
@@ -19,38 +29,116 @@ jobs:
         cd test
         ceedling test:all
 
-  build:
+  # ---------------------------------------
+  # Build ARM family
+  # ---------------------------------------
+  build-arm:
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        example: ['board_test', 'cdc_dual_ports', 'cdc_msc', 'dfu_rt', 'hid_composite', 
-                  'hid_generic_inout', 'midi_test', 'msc_dual_lun', 'usbtmc', 'webusb_serial']
+        family:
+        # Alphabetical order
+        - 'imxrt'
+        - 'lpc15'
+        - 'lpc18'
+        - 'lpc54'
+        - 'lpc55'
+        - 'nrf'
+        - 'rp2040'
+        - 'samd11'
+        - 'samd21'
+        - 'samd51'
+        - 'saml2x'
+        - 'stm32f0'
+        - 'stm32f1'
+        - 'stm32f4'
+        - 'stm32f7'
+        - 'stm32h7'
     steps:
     - name: Setup Python
-      uses: actions/setup-python@v1
+      uses: actions/setup-python@v2
 
-    - name: Setup Node.js
-      uses: actions/setup-node@v1.1.0
-      
-    - name: Install Toolchains
-      run: |
-        npm install --global xpm
-        xpm install --global @xpack-dev-tools/arm-none-eabi-gcc@latest
-        xpm install --global @xpack-dev-tools/riscv-none-embed-gcc@latest
-        echo "::add-path::`echo $HOME/opt/xPacks/@xpack-dev-tools/arm-none-eabi-gcc/*/.content/bin`"
-        echo "::add-path::`echo $HOME/opt/xPacks/@xpack-dev-tools/riscv-none-embed-gcc/*/.content/bin`"
-      
     - name: Checkout TinyUSB
       uses: actions/checkout@v2
-    
-    - name: Checkout submodules
-      shell: bash
-      run: |
-        auth_header="$(git config --local --get http.https://github.com/.extraheader)"
-        git submodule sync --recursive
-        git -c "http.extraheader=$auth_header" -c protocol.version=2 submodule update --init --force --recursive
-    
-    - name: Build
-      run: python3 tools/build_all.py ${{ matrix.example }}
 
+    - name: Checkout common submodules in lib
+      run: git submodule update --init lib/FreeRTOS-Kernel lib/lwip lib/sct_neopixel
+
+    - name: Checkout pico-sdk
+      if: matrix.family == 'rp2040'
+      run: |
+        git clone --depth 1 -b develop https://github.com/raspberrypi/pico-sdk ~/pico-sdk
+        echo >> $GITHUB_ENV PICO_SDK_PATH=~/pico-sdk
+
+    - name: Set Toolchain URL
+      run: echo >> $GITHUB_ENV TOOLCHAIN_URL=https://github.com/xpack-dev-tools/arm-none-eabi-gcc-xpack/releases/download/v10.2.1-1.1/xpack-arm-none-eabi-gcc-10.2.1-1.1-linux-x64.tar.gz
+
+    - name: Cache Toolchain
+      uses: actions/cache@v2
+      id: cache-toolchain
+      with:
+        path: ~/cache/
+        key: ${{ runner.os }}-21-03-04-${{ env.TOOLCHAIN_URL }}
+
+    - name: Install Toolchain
+      if: steps.cache-toolchain.outputs.cache-hit != 'true'
+      run: |
+        mkdir -p ~/cache/toolchain
+        wget --progress=dot:mega $TOOLCHAIN_URL -O toolchain.tar.gz
+        tar -C ~/cache/toolchain -xaf toolchain.tar.gz
+
+    - name: Set Toolchain Path
+      run: echo >> $GITHUB_PATH `echo ~/cache/toolchain/*/bin`
+
+    - name: Build
+      run: python3 tools/build_family.py ${{ matrix.family }}
+
+  # ---------------------------------------
+  # Build all no-family (opharned) boards
+  # ---------------------------------------
+  build-board:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        example:
+        # Alphabetical order, a group of 4
+        - 'device/audio_test device/board_test device/cdc_dual_ports device/cdc_msc'
+        - 'device/cdc_msc_freertos device/dfu_runtime device/hid_composite device/hid_composite_freertos'
+        - 'device/hid_generic_inout device/hid_multiple_interface device/midi_test device/msc_dual_lun'
+        - 'device/net_lwip_webserver'
+        - 'device/uac2_headset device/usbtmc device/webusb_serial host/cdc_msc_hid'
+
+    steps:
+    - name: Setup Python
+      uses: actions/setup-python@v2
+
+    - name: Checkout TinyUSB
+      uses: actions/checkout@v2
+
+    - name: Checkout common submodules in lib
+      run: git submodule update --init lib/FreeRTOS-Kernel lib/lwip
+
+    - name: Set Toolchain URL
+      run: echo >> $GITHUB_ENV TOOLCHAIN_URL=https://github.com/xpack-dev-tools/arm-none-eabi-gcc-xpack/releases/download/v10.2.1-1.1/xpack-arm-none-eabi-gcc-10.2.1-1.1-linux-x64.tar.gz
+
+    - name: Cache Toolchain
+      uses: actions/cache@v2
+      id: cache-toolchain
+      with:
+        path: ~/cache/
+        key: ${{ runner.os }}-21-03-04-${{ env.TOOLCHAIN_URL }}
+
+    - name: Install Toolchain
+      if: steps.cache-toolchain.outputs.cache-hit != 'true'
+      run: |
+        mkdir -p ~/cache/toolchain
+        wget --progress=dot:mega $TOOLCHAIN_URL -O toolchain.tar.gz
+        tar -C ~/cache/toolchain -xaf toolchain.tar.gz
+
+    - name: Set Toolchain Path
+      run: echo >> $GITHUB_PATH `echo ~/cache/toolchain/*/bin`
+
+    - name: Build
+      run: python3 tools/build_board.py ${{ matrix.example }}

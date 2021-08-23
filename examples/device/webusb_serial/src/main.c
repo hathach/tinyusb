@@ -23,6 +23,26 @@
  *
  */
 
+/* This example demonstrates WebUSB as web serial with browser with WebUSB support (e.g Chrome).
+ * After enumerated successfully, browser will pop-up notification
+ * with URL to landing page, click on it to test
+ *  - Click "Connect" and select device, When connected the on-board LED will litted up.
+ *  - Any charters received from either webusb/Serial will be echo back to webusb and Serial
+ *
+ * Note:
+ * - The WebUSB landing page notification is currently disabled in Chrome
+ * on Windows due to Chromium issue 656702 (https://crbug.com/656702). You have to
+ * go to landing page (below) to test
+ *
+ * - On Windows 7 and prior: You need to use Zadig tool to manually bind the
+ * WebUSB interface with the WinUSB driver for Chrome to access. From windows 8 and 10, this
+ * is done automatically by firmware.
+ *
+ * - On Linux/macOS, udev permission may need to be updated by
+ *   - copying '/examples/device/99-tinyusb.rules' file to /etc/udev/rules.d/ then
+ *   - run 'sudo udevadm control --reload-rules && sudo udevadm trigger'
+ */
+
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
@@ -51,7 +71,7 @@ enum  {
 
 static uint32_t blink_interval_ms = BLINK_NOT_MOUNTED;
 
-#define URL  "www.tinyusb.org/examples/webusb-serial"
+#define URL  "example.tinyusb.org/webusb-serial/"
 
 const tusb_desc_webusb_url_t desc_url =
 {
@@ -143,65 +163,69 @@ void tud_resume_cb(void)
 // WebUSB use vendor class
 //--------------------------------------------------------------------+
 
-// Invoked when received VENDOR control request
-bool tud_vendor_control_request_cb(uint8_t rhport, tusb_control_request_t const * request)
+// Invoked when a control transfer occurred on an interface of this class
+// Driver response accordingly to the request and the transfer stage (setup/data/ack)
+// return false to stall control endpoint (e.g unsupported request)
+bool tud_vendor_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request_t const * request)
 {
-  switch (request->bRequest)
+  // nothing to with DATA & ACK stage
+  if (stage != CONTROL_STAGE_SETUP) return true;
+
+  switch (request->bmRequestType_bit.type)
   {
-    case VENDOR_REQUEST_WEBUSB:
-      // match vendor request in BOS descriptor
-      // Get landing page url
-      return tud_control_xfer(rhport, request, (void*) &desc_url, desc_url.bLength);
-
-    case VENDOR_REQUEST_MICROSOFT:
-      if ( request->wIndex == 7 )
+    case TUSB_REQ_TYPE_VENDOR:
+      switch (request->bRequest)
       {
-        // Get Microsoft OS 2.0 compatible descriptor
-        uint16_t total_len;
-        memcpy(&total_len, desc_ms_os_20+8, 2);
+        case VENDOR_REQUEST_WEBUSB:
+          // match vendor request in BOS descriptor
+          // Get landing page url
+          return tud_control_xfer(rhport, request, (void*) &desc_url, desc_url.bLength);
 
-        return tud_control_xfer(rhport, request, (void*) desc_ms_os_20, total_len);
-      }else
-      {
-        return false;
+        case VENDOR_REQUEST_MICROSOFT:
+          if ( request->wIndex == 7 )
+          {
+            // Get Microsoft OS 2.0 compatible descriptor
+            uint16_t total_len;
+            memcpy(&total_len, desc_ms_os_20+8, 2);
+
+            return tud_control_xfer(rhport, request, (void*) desc_ms_os_20, total_len);
+          }else
+          {
+            return false;
+          }
+
+        default: break;
       }
+    break;
 
-    case 0x22:
-      // Webserial simulate the CDC_REQUEST_SET_CONTROL_LINE_STATE (0x22) to
-      // connect and disconnect.
-      web_serial_connected = (request->wValue != 0);
-
-      // Always lit LED if connected
-      if ( web_serial_connected )
+    case TUSB_REQ_TYPE_CLASS:
+      if (request->bRequest == 0x22)
       {
-        board_led_write(true);
-        blink_interval_ms = BLINK_ALWAYS_ON;
+        // Webserial simulate the CDC_REQUEST_SET_CONTROL_LINE_STATE (0x22) to connect and disconnect.
+        web_serial_connected = (request->wValue != 0);
 
-        tud_vendor_write_str("\r\nTinyUSB WebUSB device example\r\n");
-      }else
-      {
-        blink_interval_ms = BLINK_MOUNTED;
+        // Always lit LED if connected
+        if ( web_serial_connected )
+        {
+          board_led_write(true);
+          blink_interval_ms = BLINK_ALWAYS_ON;
+
+          tud_vendor_write_str("\r\nTinyUSB WebUSB device example\r\n");
+        }else
+        {
+          blink_interval_ms = BLINK_MOUNTED;
+        }
+
+        // response with status OK
+        return tud_control_status(rhport, request);
       }
+    break;
 
-      // response with status OK
-      return tud_control_status(rhport, request);
-
-    default:
-      // stall unknown request
-      return false;
+    default: break;
   }
 
-  return true;
-}
-
-// Invoked when DATA Stage of VENDOR's request is complete
-bool tud_vendor_control_complete_cb(uint8_t rhport, tusb_control_request_t const * request)
-{
-  (void) rhport;
-  (void) request;
-
-  // nothing to do
-  return true;
+  // stall unknown request
+  return false;
 }
 
 void webserial_task(void)

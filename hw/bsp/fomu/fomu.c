@@ -26,15 +26,13 @@
 
 #include <stdint.h>
 #include <stdbool.h>
-#include "common/tusb_common.h"
+#include "../board.h"
 #include "csr.h"
 #include "irq.h"
 
 //--------------------------------------------------------------------+
 // Board porting API
 //--------------------------------------------------------------------+
-
-void hal_dcd_isr(uint8_t rhport);
 
 void fomu_error(uint32_t line)
 {
@@ -65,7 +63,7 @@ void isr(void)
 
 #if CFG_TUSB_RHPORT0_MODE == OPT_MODE_DEVICE
   if (irqs & (1 << USB_INTERRUPT)) {
-    hal_dcd_isr(0);
+    tud_int_handler(0);
   }
 #endif
   if (irqs & (1 << TIMER0_INTERRUPT)) {

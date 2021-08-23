@@ -21,7 +21,6 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  *
- * This file is part of the TinyUSB stack.
  */
 
 #include <stdlib.h>
@@ -38,7 +37,7 @@ void print_greeting(void);
 void led_blinking_task(void);
 
 extern void cdc_task(void);
-extern void hid_task(void);
+extern void hid_app_task(void);
 
 /*------------- MAIN -------------*/
 int main(void)
@@ -52,15 +51,14 @@ int main(void)
   {
     // tinyusb host task
     tuh_task();
-
     led_blinking_task();
 
 #if CFG_TUH_CDC
     cdc_task();
 #endif
 
-#if CFG_TUD_HID
-    hid_task();
+#if CFG_TUH_HID
+    hid_app_task();
 #endif
   }
 
@@ -76,7 +74,7 @@ CFG_TUSB_MEM_SECTION static char serial_in_buffer[64] = { 0 };
 void tuh_mount_cb(uint8_t dev_addr)
 {
   // application set-up
-  printf("\na CDC device  (address %d) is mounted\n", dev_addr);
+  printf("A device with address %d is mounted\r\n", dev_addr);
 
   tuh_cdc_receive(dev_addr, serial_in_buffer, sizeof(serial_in_buffer), true); // schedule first transfer
 }
@@ -84,7 +82,7 @@ void tuh_mount_cb(uint8_t dev_addr)
 void tuh_umount_cb(uint8_t dev_addr)
 {
   // application tear-down
-  printf("\na CDC device (address %d) is unmounted \n", dev_addr);
+  printf("A device with address %d is unmounted \r\n", dev_addr);
 }
 
 // invoked ISR context
@@ -108,59 +106,11 @@ void cdc_task(void)
 #endif
 
 //--------------------------------------------------------------------+
-// USB HID
-//--------------------------------------------------------------------+
-#if CFG_TUH_HID_KEYBOARD
-void hid_task(void)
-{
-
-}
-
-void tuh_hid_keyboard_mounted_cb(uint8_t dev_addr)
-{
-  // application set-up
-  printf("\na Keyboard device (address %d) is mounted\n", dev_addr);
-}
-
-void tuh_hid_keyboard_unmounted_cb(uint8_t dev_addr)
-{
-  // application tear-down
-  printf("\na Keyboard device (address %d) is unmounted\n", dev_addr);
-}
-
-// invoked ISR context
-void tuh_hid_keyboard_isr(uint8_t dev_addr, xfer_result_t event)
-{
-
-}
-
-#endif
-
-#if CFG_TUH_HID_MOUSE
-void tuh_hid_mouse_mounted_cb(uint8_t dev_addr)
-{
-  // application set-up
-  printf("\na Mouse device (address %d) is mounted\n", dev_addr);
-}
-
-void tuh_hid_mouse_unmounted_cb(uint8_t dev_addr)
-{
-  // application tear-down
-  printf("\na Mouse device (address %d) is unmounted\n", dev_addr);
-}
-
-// invoked ISR context
-void tuh_hid_mouse_isr(uint8_t dev_addr, xfer_result_t event)
-{
-}
-#endif
-
-//--------------------------------------------------------------------+
-// tinyusb callbacks
+// TinyUSB Callbacks
 //--------------------------------------------------------------------+
 
 //--------------------------------------------------------------------+
-// BLINKING TASK
+// Blinking Task
 //--------------------------------------------------------------------+
 void led_blinking_task(void)
 {
@@ -186,18 +136,18 @@ void print_greeting(void)
   {
       [OPT_OS_NONE]      = "None",
       [OPT_OS_FREERTOS]  = "FreeRTOS",
+      [OPT_OS_MYNEWT]    = "Mynewt OS",
+      [OPT_OS_CUSTOM]    = "Custom OS implemnted by application",
+      [OPT_OS_PICO]      = "Raspberry Pi Pico SDK",
+      [OPT_OS_RTTHREAD]  = "RT-Thread"
   };
 
-  printf("\n--------------------------------------------------------------------\n");
-  printf("- Host example\n");
-  printf("- if you find any bugs or get any questions, feel free to file an\n");
-  printf("- issue at https://github.com/hathach/tinyusb\n");
-  printf("--------------------------------------------------------------------\n\n");
+  printf("----------------------------------------------------\r\n");
+  printf("TinyUSB Host Example\r\n");
+  printf("If you find any bugs or problems, feel free to open\r\n");
+  printf("an issue at https://github.com/hathach/tinyusb\r\n");
+  printf("----------------------------------------------------\r\n\r\n");
 
-  printf("This Host demo is configured to support:");
-  printf("  - RTOS = %s\n", rtos_name[CFG_TUSB_OS]);
-//  if (CFG_TUH_CDC          ) puts("  - Communication Device Class");
-//  if (CFG_TUH_MSC          ) puts("  - Mass Storage");
-//  if (CFG_TUH_HID_KEYBOARD ) puts("  - HID Keyboard");
-//  if (CFG_TUH_HID_MOUSE    ) puts("  - HID Mouse");
+  printf("This Host demo is configured to support:\r\n");
+  printf("  - RTOS = %s\r\n", rtos_name[CFG_TUSB_OS]);
 }

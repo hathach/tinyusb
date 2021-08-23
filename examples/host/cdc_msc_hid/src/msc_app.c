@@ -21,7 +21,6 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  *
- * This file is part of the TinyUSB stack.
  */
 
 #include "tusb.h"
@@ -31,28 +30,36 @@
 //--------------------------------------------------------------------+
 // MACRO TYPEDEF CONSTANT ENUM DECLARATION
 //--------------------------------------------------------------------+
+static scsi_inquiry_resp_t inquiry_resp;
 
+bool inquiry_complete_cb(uint8_t dev_addr, msc_cbw_t const* cbw, msc_csw_t const* csw)
+{
+  if (csw->status != 0)
+  {
+    printf("Inquiry failed\r\n");
+    return false;
+  }
+
+  // Print out Vendor ID, Product ID and Rev
+  printf("%.8s %.16s rev %.4s\r\n", inquiry_resp.vendor_id, inquiry_resp.product_id, inquiry_resp.product_rev);
+
+  // Get capacity of device
+  uint32_t const block_count = tuh_msc_get_block_count(dev_addr, cbw->lun);
+  uint32_t const block_size = tuh_msc_get_block_size(dev_addr, cbw->lun);
+
+  printf("Disk Size: %lu MB\r\n", block_count / ((1024*1024)/block_size));
+  printf("Block Count = %lu, Block Size: %lu\r\n", block_count, block_size);
+
+  return true;
+}
 
 //------------- IMPLEMENTATION -------------//
-void tuh_msc_mounted_cb(uint8_t dev_addr)
+void tuh_msc_mount_cb(uint8_t dev_addr)
 {
-  puts("\na MassStorage device is mounted");
+  printf("A MassStorage device is mounted\r\n");
 
-//  //------------- Disk Information -------------//
-//  // SCSI VendorID[8] & ProductID[16] from Inquiry Command
-//  uint8_t const* p_vendor  = tuh_msc_get_vendor_name(dev_addr);
-//  uint8_t const* p_product = tuh_msc_get_product_name(dev_addr);
-//
-//  for(uint8_t i=0; i<8; i++) putchar(p_vendor[i]);
-//
-//  putchar(' ');
-//  for(uint8_t i=0; i<16; i++) putchar(p_product[i]);
-//  putchar('\n');
-//
-//  uint32_t last_lba, block_size;
-//  tuh_msc_get_capacity(dev_addr, &last_lba, &block_size);
-//  printf("Disk Size: %d MB\n", (last_lba+1)/ ((1024*1024)/block_size) );
-//  printf("LBA 0-0x%X  Block Size: %d\n", last_lba, block_size);
+  uint8_t const lun = 0;
+  tuh_msc_inquiry(dev_addr, lun, &inquiry_resp, inquiry_complete_cb);
 //
 //  //------------- file system (only 1 LUN support) -------------//
 //  uint8_t phy_disk = dev_addr-1;
@@ -66,13 +73,6 @@ void tuh_msc_mounted_cb(uint8_t dev_addr)
 //      return;
 //    }
 //
-//    puts("---------------------------------------------------------------------");
-//    puts("- MASSSTORAGE CLASS CLI IS A IMMATURE CODE. DISK-WRITING COMMANDS");
-//    puts("- SUCH AS cp(COPY), mkdir(MAKE DIRECTORY) ARE POTENTIAL TO DAMAGE");
-//    puts("- YOUR USB THUMBDRIVE. USING THOSE COMMANDS ARE AT YOUR OWN RISK.");
-//    puts("- THE AUTHOR HAS NO RESPONSIBILITY WITH YOUR DEVICE NOR ITS DATA");
-//    puts("---------------------------------------------------------------------");
-//
 //    f_chdrive(phy_disk); // change to newly mounted drive
 //    f_chdir("/"); // root as current dir
 //
@@ -80,9 +80,10 @@ void tuh_msc_mounted_cb(uint8_t dev_addr)
 //  }
 }
 
-void tuh_msc_unmounted_cb(uint8_t dev_addr)
+void tuh_msc_umount_cb(uint8_t dev_addr)
 {
-  puts("\na MassStorage device is unmounted");
+  (void) dev_addr;
+  printf("A MassStorage device is unmounted\r\n");
 
 //  uint8_t phy_disk = dev_addr-1;
 //
@@ -100,14 +101,6 @@ void tuh_msc_unmounted_cb(uint8_t dev_addr)
 //      }
 //    }
 //  }
-}
-
-// invoked ISR context
-void tuh_msc_isr(uint8_t dev_addr, xfer_result_t event, uint32_t xferred_bytes)
-{
-  (void) dev_addr;
-  (void) event;
-  (void) xferred_bytes;
 }
 
 #endif

@@ -27,48 +27,25 @@
 #ifndef _TUSB_DFU_RT_DEVICE_H_
 #define _TUSB_DFU_RT_DEVICE_H_
 
-#include "common/tusb_common.h"
-#include "device/usbd.h"
+#include "dfu.h"
 
 #ifdef __cplusplus
  extern "C" {
 #endif
 
-
-//--------------------------------------------------------------------+
-// Common Definitions
-//--------------------------------------------------------------------+
-
-// DFU Protocol
-typedef enum
-{
-  DFU_PROTOCOL_RT  = 1,
-  DFU_PROTOCOL_DFU = 2,
-} dfu_protocol_type_t;
-
-// DFU Descriptor Type
-typedef enum
-{
-  DFU_DESC_FUNCTIONAL = 0x21,
-} dfu_descriptor_type_t;
-
-
 //--------------------------------------------------------------------+
 // Application Callback API (weak is optional)
 //--------------------------------------------------------------------+
-
-// Invoked when received new data
-TU_ATTR_WEAK void tud_dfu_rt_reboot_to_dfu(void);
+// Invoked when a DFU_DETACH request is received and bitWillDetach is set
+void tud_dfu_runtime_reboot_to_dfu_cb(void);
 
 //--------------------------------------------------------------------+
 // Internal Class Driver API
 //--------------------------------------------------------------------+
-void dfu_rtd_init(void);
-void dfu_rtd_reset(uint8_t rhport);
-bool dfu_rtd_open(uint8_t rhport, tusb_desc_interface_t const * itf_desc, uint16_t *p_length);
-bool dfu_rtd_control_request(uint8_t rhport, tusb_control_request_t const * request);
-bool dfu_rtd_control_complete(uint8_t rhport, tusb_control_request_t const * request);
-bool dfu_rtd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t event, uint32_t xferred_bytes);
+void     dfu_rtd_init(void);
+void     dfu_rtd_reset(uint8_t rhport);
+uint16_t dfu_rtd_open(uint8_t rhport, tusb_desc_interface_t const * itf_desc, uint16_t max_len);
+bool     dfu_rtd_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request_t const * request);
 
 #ifdef __cplusplus
  }

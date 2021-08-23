@@ -71,11 +71,17 @@ static const PINMUX_GRP_T pinmuxing[] =
 };
 
 // Invoked by startup code
-extern void (* const g_pfnVectors[])(void);
 void SystemInit(void)
 {
-  // Remap isr vector
-	*((uint32_t *) 0xE000ED08) = (uint32_t) &g_pfnVectors;
+#ifdef __USE_LPCOPEN
+	extern void (* const g_pfnVectors[])(void);
+  unsigned int *pSCB_VTOR = (unsigned int *) 0xE000ED08;
+	*pSCB_VTOR = (unsigned int) g_pfnVectors;
+
+#if __FPU_USED == 1
+	fpuInit();
+#endif
+#endif // __USE_LPCOPEN
 
 	// Set up pinmux
 	Chip_SCU_SetPinMuxing(pinmuxing, sizeof(pinmuxing) / sizeof(PINMUX_GRP_T));
@@ -163,20 +169,6 @@ void board_init(void)
    */
 #if CFG_TUSB_RHPORT0_MODE
   Chip_USB0_Init();
-
-//  // Reset controller
-//  LPC_USB0->USBCMD_D |= 0x02;
-//  while( LPC_USB0->USBCMD_D & 0x02 ) {}
-//
-//  // Set mode
-//  #if CFG_TUSB_RHPORT0_MODE & OPT_MODE_HOST
-//    LPC_USB0->USBMODE_H = USBMODE_HOST | (USBMODE_VBUS_HIGH << 5);
-//
-//    LPC_USB0->PORTSC1_D |= (1<<24); // FIXME force full speed for debugging
-//  #else // TODO OTG
-//    LPC_USB0->USBMODE_D = USBMODE_DEVICE;
-//    LPC_USB0->OTGSC = (1<<3) | (1<<0) /*| (1<<16)| (1<<24)| (1<<25)| (1<<26)| (1<<27)| (1<<28)| (1<<29)| (1<<30)*/;
-//  #endif
 #endif
 
   /* USB1
@@ -200,20 +192,6 @@ void board_init(void)
 #if CFG_TUSB_RHPORT1_MODE
   Chip_USB1_Init();
 
-//  // Reset controller
-//  LPC_USB1->USBCMD_D |= 0x02;
-//  while( LPC_USB1->USBCMD_D & 0x02 ) {}
-//
-//  // Set mode
-//  #if CFG_TUSB_RHPORT1_MODE & OPT_MODE_HOST
-//    LPC_USB1->USBMODE_H = USBMODE_HOST | (USBMODE_VBUS_HIGH << 5);
-//  #else // TODO OTG
-//    LPC_USB1->USBMODE_D = USBMODE_DEVICE;
-//  #endif
-//
-//  // USB1 as fullspeed
-//  LPC_USB1->PORTSC1_D |= (1<<24);
-
 //	Chip_GPIO_SetPinDIROutput(LPC_GPIO_PORT, 5, 6);							/* GPIO5[6] = USB1_PWR_EN */
 //	Chip_GPIO_SetPinState(LPC_GPIO_PORT, 5, 6, true);							/* GPIO5[6] output high */
 #endif
@@ -225,22 +203,22 @@ void board_init(void)
 void USB0_IRQHandler(void)
 {
   #if CFG_TUSB_RHPORT0_MODE & OPT_MODE_HOST
-    tuh_isr(0);
+    tuh_int_handler(0);
   #endif
 
   #if CFG_TUSB_RHPORT0_MODE & OPT_MODE_DEVICE
-    tud_isr(0);
+    tud_int_handler(0);
   #endif
 }
 
 void USB1_IRQHandler(void)
 {
   #if CFG_TUSB_RHPORT1_MODE & OPT_MODE_HOST
-    tuh_isr(1);
+    tuh_int_handler(1);
   #endif
 
   #if CFG_TUSB_RHPORT1_MODE & OPT_MODE_DEVICE
-    tud_isr(1);
+    tud_int_handler(1);
   #endif
 }
 

@@ -24,13 +24,6 @@
  * This file is part of the TinyUSB stack.
  */
 
-/** \ingroup group_class
- *  \defgroup ClassDriver_MSC MassStorage (MSC)
- *  @{ */
-
-/**  \defgroup ClassDriver_MSC_Common Common Definitions
- *  @{ */
-
 #ifndef _TUSB_MSC_H_
 #define _TUSB_MSC_H_
 
@@ -255,7 +248,7 @@ typedef struct TU_ATTR_PACKED
 
   uint8_t : 3;
   uint8_t disable_block_descriptor : 1;
-  uint8_t : 0;
+  uint8_t : 4;
 
   uint8_t page_code : 6;
   uint8_t page_control : 2;
@@ -387,6 +380,3 @@ TU_VERIFY_STATIC(sizeof(scsi_write10_t) == 10, "size is not correct");
 #endif
 
 #endif /* _TUSB_MSC_H_ */
-
-/// @}
-/// @}

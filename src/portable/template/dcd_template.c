@@ -64,15 +64,20 @@ void dcd_set_address (uint8_t rhport, uint8_t dev_addr)
   (void) dev_addr;
 }
 
-// Receive Set Configure request
-void dcd_set_config (uint8_t rhport, uint8_t config_num)
-{
-  (void) rhport;
-  (void) config_num;
-}
-
 // Wake up host
 void dcd_remote_wakeup (uint8_t rhport)
+{
+  (void) rhport;
+}
+
+// Connect by enabling internal pull-up resistor on D+/D-
+void dcd_connect(uint8_t rhport)
+{
+  (void) rhport;
+}
+
+// Disconnect by disabling internal pull-up resistor on D+/D-
+void dcd_disconnect(uint8_t rhport)
 {
   (void) rhport;
 }
@@ -95,6 +100,16 @@ bool dcd_edpt_xfer (uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t 
   (void) rhport;
   (void) ep_addr;
   (void) buffer;
+  (void) total_bytes;
+  return false;
+}
+
+// Submit a transfer where is managed by FIFO, When complete dcd_event_xfer_complete() is invoked to notify the stack - optional, however, must be listed in usbd.c
+bool dcd_edpt_xfer_fifo (uint8_t rhport, uint8_t ep_addr, tu_fifo_t * ff, uint16_t total_bytes)
+{
+  (void) rhport;
+  (void) ep_addr;
+  (void) ff;
   (void) total_bytes;
   return false;
 }

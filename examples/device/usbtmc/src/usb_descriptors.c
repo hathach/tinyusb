@@ -45,18 +45,9 @@ tusb_desc_device_t const desc_device =
     .bLength            = sizeof(tusb_desc_device_t),
     .bDescriptorType    = TUSB_DESC_DEVICE,
     .bcdUSB             = 0x0200,
-
-  #if CFG_TUD_CDC
-    // Use Interface Association Descriptor (IAD) for CDC
-    // As required by USB Specs IAD's subclass must be common class (2) and protocol must be IAD (1)
-    .bDeviceClass       = TUSB_CLASS_MISC,
-    .bDeviceSubClass    = MISC_SUBCLASS_COMMON,
-    .bDeviceProtocol    = MISC_PROTOCOL_IAD,
-  #else
     .bDeviceClass       = 0x00,
     .bDeviceSubClass    = 0x00,
     .bDeviceProtocol    = 0x00,
-  #endif
 
     .bMaxPacketSize0    = CFG_TUD_ENDPOINT0_SIZE,
 
@@ -79,27 +70,6 @@ uint8_t const * tud_descriptor_device_cb(void)
 }
 
 //--------------------------------------------------------------------+
-// HID Report Descriptor
-//--------------------------------------------------------------------+
-#if CFG_TUD_HID
-
-uint8_t const desc_hid_report[] =
-{
-  TUD_HID_REPORT_DESC_KEYBOARD( HID_REPORT_ID(REPORT_ID_KEYBOARD), ),
-  TUD_HID_REPORT_DESC_MOUSE   ( HID_REPORT_ID(REPORT_ID_MOUSE), )
-};
-
-// Invoked when received GET HID REPORT DESCRIPTOR
-// Application return pointer to descriptor
-// Descriptor contents must exist long enough for transfer to complete
-uint8_t const * tud_hid_descriptor_report_cb(void)
-{
-  return desc_hid_report;
-}
-
-#endif
-
-//--------------------------------------------------------------------+
 // Configuration Descriptor
 //--------------------------------------------------------------------+
 
@@ -109,18 +79,19 @@ uint8_t const * tud_hid_descriptor_report_cb(void)
      TUD_USBTMC_IF_DESCRIPTOR(_itfnum, _bNumEndpoints,  /*_stridx = */ 4u, TUD_USBTMC_PROTOCOL_USB488), \
      TUD_USBTMC_BULK_DESCRIPTORS(/* OUT = */0x01, /* IN = */ 0x81, /* packet size = */USBTMCD_MAX_PACKET_SIZE)
 
-#if defined(CFG_TUD_USBTMC_ENABLE_INT_EP)
-// Interrupt endpoint should be 2 bytes on a FS USB link
+#if CFG_TUD_USBTMC_ENABLE_INT_EP
+// USBTMC Interrupt xfer always has length of 2, but we use epMaxSize=8 for
+//  compatibility with mcus that only allow 8, 16, 32 or 64 for FS endpoints
 #  define TUD_USBTMC_DESC(_itfnum) \
      TUD_USBTMC_DESC_MAIN(_itfnum, /* _epCount = */ 3), \
-     TUD_USBTMC_INT_DESCRIPTOR(/* INT ep # */ 0x82, /* epMaxSize = */ 2, /* bInterval = */16u )
-#  define USBTMC_DESC_LEN (TUD_USBTMC_IF_DESCRIPTOR_LEN + TUD_USBTMC_BULK_DESCRIPTORS_LEN + TUD_USBTMC_INT_DESCRIPTOR_LEN)
+     TUD_USBTMC_INT_DESCRIPTOR(/* INT ep # */ 0x82, /* epMaxSize = */ 8, /* bInterval = */16u )
+#  define TUD_USBTMC_DESC_LEN (TUD_USBTMC_IF_DESCRIPTOR_LEN + TUD_USBTMC_BULK_DESCRIPTORS_LEN + TUD_USBTMC_INT_DESCRIPTOR_LEN)
 
 #else
 
-#  define USBTMC_DESC(_itfnum) \
-     USBTMC_DESC_MAIN(_itfnum, /* _epCount = */ 2u)
-#  define USBTMC_DESC_LEN (USBTMC_IF_DESCRIPTOR_LEN + USBTMC_BULK_DESCRIPTORS_LEN)
+#  define TUD_USBTMC_DESC(_itfnum) \
+     TUD_USBTMC_DESC_MAIN(_itfnum, /* _epCount = */ 2u)
+#  define TUD_USBTMC_DESC_LEN (TUD_USBTMC_IF_DESCRIPTOR_LEN + TUD_USBTMC_BULK_DESCRIPTORS_LEN)
 
 #endif /* CFG_TUD_USBTMC_ENABLE_INT_EP */
 
@@ -130,27 +101,12 @@ uint8_t const * tud_hid_descriptor_report_cb(void)
 
 enum
 {
-#if CFG_TUD_CDC
-  ITF_NUM_CDC = 0,
-  ITF_NUM_CDC_DATA,
-#endif
-
-#if CFG_TUD_MSC
-  ITF_NUM_MSC,
-#endif
-
-#if CFG_TUD_HID
-  ITF_NUM_HID,
-#endif
-#if CFG_TUD_USBTMC
   ITF_NUM_USBTMC,
-#endif
   ITF_NUM_TOTAL
 };
 
 
-#define CONFIG_TOTAL_LEN    (TUD_CONFIG_DESC_LEN + CFG_TUD_CDC*TUD_CDC_DESC_LEN + CFG_TUD_MSC*TUD_MSC_DESC_LEN +  \
-    CFG_TUD_HID*TUD_HID_DESC_LEN  + (CFG_TUD_USBTMC)*USBTMC_DESC_LEN)
+#define CONFIG_TOTAL_LEN    (TUD_CONFIG_DESC_LEN + TUD_USBTMC_DESC_LEN)
 
 #if CFG_TUSB_MCU == OPT_MCU_LPC175X_6X || CFG_TUSB_MCU == OPT_MCU_LPC177X_8X || CFG_TUSB_MCU == OPT_MCU_LPC40XX
   // LPC 17xx and 40xx endpoint type (bulk/interrupt/iso) are fixed by its number
@@ -165,29 +121,11 @@ enum
 
 uint8_t const desc_configuration[] =
 {
-  // Interface count, string index, total length, attribute, power in mA
-  TUD_CONFIG_DESCRIPTOR(ITF_NUM_TOTAL, 0, CONFIG_TOTAL_LEN, TUSB_DESC_CONFIG_ATT_REMOTE_WAKEUP, 100),
+  // Config number, interface count, string index, total length, attribute, power in mA
+  TUD_CONFIG_DESCRIPTOR(1, ITF_NUM_TOTAL, 0, CONFIG_TOTAL_LEN, TUSB_DESC_CONFIG_ATT_REMOTE_WAKEUP, 100),
 
-#if CFG_TUD_CDC
-  // Interface number, string index, EP notification address and size, EP data address (out, in) and size.
-  TUD_CDC_DESCRIPTOR(ITF_NUM_CDC, 1, 0x81, 8, 0x02, 0x82, 64),
-#endif
-
-#if CFG_TUD_USBTMC
   TUD_USBTMC_DESC(ITF_NUM_USBTMC),
-#endif
-
-#if CFG_TUD_MSC
-  // Interface number, string index, EP Out & EP In address, EP size
-  TUD_MSC_DESCRIPTOR(ITF_NUM_MSC, 5, EPNUM_MSC, 0x80 | EPNUM_MSC, (CFG_TUSB_RHPORT0_MODE & OPT_MODE_HIGH_SPEED) ? 512 : 64),
-#endif
-
-#if CFG_TUD_HID
-  // Interface number, string index, protocol, report descriptor len, EP In address, size & polling interval
-  TUD_HID_DESCRIPTOR(ITF_NUM_HID, 6, HID_PROTOCOL_NONE, sizeof(desc_hid_report), 0x84, 16, 10)
-#endif
 };
-
 
 // Invoked when received GET CONFIGURATION DESCRIPTOR
 // Application return pointer to descriptor
@@ -216,8 +154,10 @@ static uint16_t _desc_str[32];
 
 // Invoked when received GET STRING DESCRIPTOR request
 // Application return pointer to descriptor, whose contents must exist long enough for transfer to complete
-uint16_t const* tud_descriptor_string_cb(uint8_t index)
+uint16_t const* tud_descriptor_string_cb(uint8_t index, uint16_t langid)
 {
+  (void) langid;
+
   size_t chr_count;
 
   if ( index == 0)
@@ -227,7 +167,8 @@ uint16_t const* tud_descriptor_string_cb(uint8_t index)
   }
   else
   {
-    // Convert ASCII string into UTF-16
+    // Note: the 0xEE index string is a Microsoft OS 1.0 Descriptors.
+    // https://docs.microsoft.com/en-us/windows-hardware/drivers/usbcon/microsoft-defined-usb-descriptors
 
     if ( !(index < sizeof(string_desc_arr)/sizeof(string_desc_arr[0])) ) return NULL;
 
@@ -239,6 +180,7 @@ uint16_t const* tud_descriptor_string_cb(uint8_t index)
       chr_count = 31;
     }
 
+    // Convert ASCII string into UTF-16
     for(uint8_t i=0; i<chr_count; i++)
     {
       _desc_str[1+i] = str[i];

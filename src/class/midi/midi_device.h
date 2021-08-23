@@ -27,17 +27,20 @@
 #ifndef _TUSB_MIDI_DEVICE_H_
 #define _TUSB_MIDI_DEVICE_H_
 
-#include "common/tusb_common.h"
-#include "device/usbd.h"
-
 #include "class/audio/audio.h"
 #include "midi.h"
 
 //--------------------------------------------------------------------+
 // Class Driver Configuration
 //--------------------------------------------------------------------+
-#ifndef CFG_TUD_MIDI_EPSIZE
-#define CFG_TUD_MIDI_EPSIZE 64
+
+#if !defined(CFG_TUD_MIDI_EP_BUFSIZE) && defined(CFG_TUD_MIDI_EPSIZE)
+  #warning CFG_TUD_MIDI_EPSIZE is renamed to CFG_TUD_MIDI_EP_BUFSIZE, please update to use the new name
+  #define CFG_TUD_MIDI_EP_BUFSIZE    CFG_TUD_MIDI_EPSIZE
+#endif
+
+#ifndef CFG_TUD_MIDI_EP_BUFSIZE
+  #define CFG_TUD_MIDI_EP_BUFSIZE     (TUD_OPT_HIGH_SPEED ? 512 : 64)
 #endif
 
 #ifdef __cplusplus
@@ -53,24 +56,64 @@
 // Application API (Multiple Interfaces)
 // CFG_TUD_MIDI > 1
 //--------------------------------------------------------------------+
-bool     tud_midi_n_mounted    (uint8_t itf);
-uint32_t tud_midi_n_available  (uint8_t itf, uint8_t jack_id);
-uint32_t tud_midi_n_read       (uint8_t itf, uint8_t jack_id, void* buffer, uint32_t bufsize);
-void     tud_midi_n_read_flush (uint8_t itf, uint8_t jack_id);
-uint32_t tud_midi_n_write      (uint8_t itf, uint8_t jack_id, uint8_t const* buffer, uint32_t bufsize);
 
-static inline
-uint32_t tud_midi_n_write24    (uint8_t itf, uint8_t jack_id, uint8_t b1, uint8_t b2, uint8_t b3);
+// Check if midi interface is mounted
+bool     tud_midi_n_mounted      (uint8_t itf);
+
+// Get the number of bytes available for reading
+uint32_t tud_midi_n_available    (uint8_t itf, uint8_t cable_num);
+
+// Read byte stream              (legacy)
+uint32_t tud_midi_n_stream_read  (uint8_t itf, uint8_t cable_num, void* buffer, uint32_t bufsize);
+
+// Write byte Stream             (legacy)
+uint32_t tud_midi_n_stream_write (uint8_t itf, uint8_t cable_num, uint8_t const* buffer, uint32_t bufsize);
+
+// Read event packet             (4 bytes)
+bool     tud_midi_n_packet_read  (uint8_t itf, uint8_t packet[4]);
+
+// Write event packet            (4 bytes)
+bool     tud_midi_n_packet_write (uint8_t itf, uint8_t const packet[4]);
 
 //--------------------------------------------------------------------+
-// Application API (Interface0)
+// Application API (Single Interface)
 //--------------------------------------------------------------------+
-static inline bool     tud_midi_mounted    (void);
-static inline uint32_t tud_midi_available  (void);
-static inline uint32_t tud_midi_read       (void* buffer, uint32_t bufsize);
-static inline void     tud_midi_read_flush (void);
-static inline uint32_t tud_midi_write      (uint8_t jack_id, uint8_t const* buffer, uint32_t bufsize);
-static inline uint32_t tudi_midi_write24   (uint8_t jack_id, uint8_t b1, uint8_t b2, uint8_t b3);
+static inline bool     tud_midi_mounted      (void);
+static inline uint32_t tud_midi_available    (void);
+
+static inline uint32_t tud_midi_stream_read  (void* buffer, uint32_t bufsize);
+static inline uint32_t tud_midi_stream_write (uint8_t cable_num, uint8_t const* buffer, uint32_t bufsize);
+
+static inline bool     tud_midi_packet_read  (uint8_t packet[4]);
+static inline bool     tud_midi_packet_write (uint8_t const packet[4]);
+
+//------------- Deprecated API name  -------------//
+// TODO remove after 0.10.0 release
+
+TU_ATTR_DEPRECATED("tud_midi_read() is renamed to tud_midi_stream_read()")
+static inline uint32_t tud_midi_read (void* buffer, uint32_t bufsize)
+{
+  return tud_midi_stream_read(buffer, bufsize);
+}
+
+TU_ATTR_DEPRECATED("tud_midi_write() is renamed to tud_midi_stream_write()")
+static inline uint32_t tud_midi_write(uint8_t cable_num, uint8_t const* buffer, uint32_t bufsize)
+{
+  return tud_midi_stream_write(cable_num, buffer, bufsize);
+}
+
+
+TU_ATTR_DEPRECATED("tud_midi_send() is renamed to tud_midi_packet_write()")
+static inline bool tud_midi_send(uint8_t packet[4])
+{
+  return tud_midi_packet_write(packet);
+}
+
+TU_ATTR_DEPRECATED("tud_midi_receive() is renamed to tud_midi_packet_read()")
+static inline bool tud_midi_receive(uint8_t packet[4])
+{
+  return tud_midi_packet_read(packet);
+}
 
 //--------------------------------------------------------------------+
 // Application Callback API (weak is optional)
@@ -80,12 +123,6 @@ TU_ATTR_WEAK void tud_midi_rx_cb(uint8_t itf);
 //--------------------------------------------------------------------+
 // Inline Functions
 //--------------------------------------------------------------------+
-
-static inline uint32_t tud_midi_n_write24 (uint8_t itf, uint8_t jack_id, uint8_t b1, uint8_t b2, uint8_t b3)
-{
-  uint8_t msg[3] = { b1, b2, b3 };
-  return tud_midi_n_write(itf, jack_id, msg, 3);
-}
 
 static inline bool tud_midi_mounted (void)
 {
@@ -97,36 +134,34 @@ static inline uint32_t tud_midi_available (void)
   return tud_midi_n_available(0, 0);
 }
 
-static inline uint32_t tud_midi_read (void* buffer, uint32_t bufsize)
+static inline uint32_t tud_midi_stream_read (void* buffer, uint32_t bufsize)
 {
-  return tud_midi_n_read(0, 0, buffer, bufsize);
+  return tud_midi_n_stream_read(0, 0, buffer, bufsize);
 }
 
-static inline void tud_midi_read_flush (void)
+static inline uint32_t tud_midi_stream_write (uint8_t cable_num, uint8_t const* buffer, uint32_t bufsize)
 {
-  tud_midi_n_read_flush(0, 0);
+  return tud_midi_n_stream_write(0, cable_num, buffer, bufsize);
 }
 
-static inline uint32_t tud_midi_write (uint8_t jack_id, uint8_t const* buffer, uint32_t bufsize)
+static inline bool tud_midi_packet_read (uint8_t packet[4])
 {
-  return tud_midi_n_write(0, jack_id, buffer, bufsize);
+  return tud_midi_n_packet_read(0, packet);
 }
 
-static inline uint32_t tudi_midi_write24 (uint8_t jack_id, uint8_t b1, uint8_t b2, uint8_t b3)
+static inline bool tud_midi_packet_write (uint8_t const packet[4])
 {
-  uint8_t msg[3] = { b1, b2, b3 };
-  return tud_midi_write(jack_id, msg, 3);
+  return tud_midi_n_packet_write(0, packet);
 }
 
 //--------------------------------------------------------------------+
 // Internal Class Driver API
 //--------------------------------------------------------------------+
-void midid_init             (void);
-void midid_reset            (uint8_t rhport);
-bool midid_open             (uint8_t rhport, tusb_desc_interface_t const * itf_desc, uint16_t *p_length);
-bool midid_control_request  (uint8_t rhport, tusb_control_request_t const * request);
-bool midid_control_complete (uint8_t rhport, tusb_control_request_t const * request);
-bool midid_xfer_cb          (uint8_t rhport, uint8_t edpt_addr, xfer_result_t result, uint32_t xferred_bytes);
+void     midid_init            (void);
+void     midid_reset           (uint8_t rhport);
+uint16_t midid_open            (uint8_t rhport, tusb_desc_interface_t const * itf_desc, uint16_t max_len);
+bool     midid_control_xfer_cb (uint8_t rhport, uint8_t stage, tusb_control_request_t const * request);
+bool     midid_xfer_cb         (uint8_t rhport, uint8_t edpt_addr, xfer_result_t result, uint32_t xferred_bytes);
 
 #ifdef __cplusplus
  }

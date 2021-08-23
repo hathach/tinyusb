@@ -1,23 +1,14 @@
-#
+# ---------------------------------------
 # Common make definition for all examples
-#
+# ---------------------------------------
 
-# Compiler
-ifeq ($(BOARD), fomu)
-CROSS_COMPILE = riscv-none-embed-
-else
-CROSS_COMPILE = arm-none-eabi-
-endif
-CC = $(CROSS_COMPILE)gcc
-CXX = $(CROSS_COMPILE)g++
-OBJCOPY = $(CROSS_COMPILE)objcopy
-SIZE = $(CROSS_COMPILE)size
-MKDIR = mkdir
-SED = sed
-CP = cp
-RM = rm
-PYTHON ?= python
+# Build directory
+BUILD := _build/$(BOARD)
 
+PROJECT := $(notdir $(CURDIR))
+BIN := $(TOP)/_bin/$(BOARD)/$(notdir $(CURDIR))
+
+# Handy check parameter function
 check_defined = \
     $(strip $(foreach 1,$1, \
     $(call __check_defined,$1,$(strip $(value 2)))))
@@ -25,70 +16,117 @@ __check_defined = \
     $(if $(value $1),, \
     $(error Undefined make flag: $1$(if $2, ($2))))
 
+#-------------- Select the board to build for. ------------
 
-define newline
-
-
-endef
-
-# Select the board to build for.
-ifeq ($(BOARD),)
-  $(info You must provide a BOARD parameter with 'BOARD=')
-  $(info Supported boards are:)
-  $(info $(sort $(subst /.,,$(subst $(TOP)/hw/bsp/, $(newline)-,$(wildcard $(TOP)/hw/bsp/*/.)))))
-  $(error BOARD not defined)
-else
-  ifeq ($(wildcard $(TOP)/hw/bsp/$(BOARD)/.),)
-    $(error Invalid BOARD specified)
-  endif
+# Board without family
+ifneq ($(wildcard $(TOP)/hw/bsp/$(BOARD)/board.mk),)
+BOARD_PATH := hw/bsp/$(BOARD)
+FAMILY :=
 endif
 
-# Build directory
-BUILD = _build/build-$(BOARD)
+# Board within family
+ifeq ($(BOARD_PATH),)
+  BOARD_PATH := $(subst $(TOP)/,,$(wildcard $(TOP)/hw/bsp/*/boards/$(BOARD)))
+  FAMILY := $(word 3, $(subst /, ,$(BOARD_PATH)))
+  FAMILY_PATH = hw/bsp/$(FAMILY)
+endif
 
-# Board specific
-include $(TOP)/hw/bsp/$(BOARD)/board.mk
+ifeq ($(BOARD_PATH),)
+  $(info You must provide a BOARD parameter with 'BOARD=')
+  $(error Invalid BOARD specified)
+endif
 
-# Include all source C in board folder
+ifeq ($(FAMILY),)
+  include $(TOP)/hw/bsp/$(BOARD)/board.mk
+else
+  # Include Family and Board specific defs
+  include $(TOP)/$(FAMILY_PATH)/family.mk
+
+  SRC_C += $(subst $(TOP)/,,$(wildcard $(TOP)/$(FAMILY_PATH)/*.c))
+endif
+
+# Fetch submodules depended by family
+fetch_submodule_if_empty = $(if $(wildcard $(TOP)/$1/*),,$(info $(shell git -C $(TOP) submodule update --init $1)))
+ifdef DEPS_SUBMODULES
+  $(foreach s,$(DEPS_SUBMODULES),$(call fetch_submodule_if_empty,$(s)))
+endif
+
+#-------------- Cross Compiler  ------------
+# Can be set by board, default to ARM GCC
+CROSS_COMPILE ?= arm-none-eabi-
+
+CC = $(CROSS_COMPILE)gcc
+CXX = $(CROSS_COMPILE)g++
+GDB = $(CROSS_COMPILE)gdb
+OBJCOPY = $(CROSS_COMPILE)objcopy
+SIZE = $(CROSS_COMPILE)size
+MKDIR = mkdir
+
+ifeq ($(CMDEXE),1)
+  CP = copy
+  RM = del
+else
+  SED = sed
+  CP = cp
+  RM = rm
+endif
+
+#-------------- Source files and compiler flags --------------
+
+# Include all source C in family & board folder
 SRC_C += hw/bsp/board.c
-SRC_C += $(subst $(TOP)/,,$(wildcard $(TOP)/hw/bsp/$(BOARD)/*.c))
+SRC_C += $(subst $(TOP)/,,$(wildcard $(TOP)/$(BOARD_PATH)/*.c))
+
+INC   += $(TOP)/$(FAMILY_PATH)
 
 # Compiler Flags
 CFLAGS += \
-	-fsingle-precision-constant \
-	-fno-strict-aliasing \
-	-Wdouble-promotion \
-	-Wno-endif-labels \
-	-Wstrict-prototypes \
-	-Wall \
-	-Wextra \
-	-Werror \
-	-Werror-implicit-function-declaration \
-	-Wfatal-errors \
-	-Wfloat-equal \
-	-Wundef \
-	-Wshadow \
-	-Wwrite-strings \
-	-Wsign-compare \
-	-Wmissing-format-attribute \
-	-Wno-deprecated-declarations \
-	-Wnested-externs \
-	-Wunreachable-code \
-	-Wno-error=lto-type-mismatch \
-	-ffunction-sections \
-	-fdata-sections
-
-# This causes lots of warning with nrf5x build due to nrfx code
-# CFLAGS += -Wcast-align
+  -ggdb \
+  -fdata-sections \
+  -ffunction-sections \
+  -fsingle-precision-constant \
+  -fno-strict-aliasing \
+  -Wdouble-promotion \
+  -Wstrict-prototypes \
+  -Wstrict-overflow \
+  -Wall \
+  -Wextra \
+  -Werror \
+  -Wfatal-errors \
+  -Werror-implicit-function-declaration \
+  -Wfloat-equal \
+  -Wundef \
+  -Wshadow \
+  -Wwrite-strings \
+  -Wsign-compare \
+  -Wmissing-format-attribute \
+  -Wunreachable-code \
+  -Wcast-align \
+  -Wcast-function-type
 
 # Debugging/Optimization
 ifeq ($(DEBUG), 1)
-  CFLAGS += -Og -ggdb
+  CFLAGS += -Og
 else
-	CFLAGS += -Os
+  CFLAGS += -Os
 endif
 
-# TUSB Logging option
+# Log level is mapped to TUSB DEBUG option
 ifneq ($(LOG),)
+  CMAKE_DEFSYM +=	-DLOG=$(LOG)
   CFLAGS += -DCFG_TUSB_DEBUG=$(LOG)
+endif
+
+# Logger: default is uart, can be set to rtt or swo
+ifneq ($(LOGGER),)
+	CMAKE_DEFSYM +=	-DLOGGER=$(LOGGER)
+endif
+
+ifeq ($(LOGGER),rtt)
+  CFLAGS += -DLOGGER_RTT -DSEGGER_RTT_MODE_DEFAULT=SEGGER_RTT_MODE_BLOCK_IF_FIFO_FULL
+  RTT_SRC = lib/SEGGER_RTT
+  INC   += $(TOP)/$(RTT_SRC)/RTT
+  SRC_C += $(RTT_SRC)/RTT/SEGGER_RTT.c
+else ifeq ($(LOGGER),swo)
+  CFLAGS += -DLOGGER_SWO
 endif

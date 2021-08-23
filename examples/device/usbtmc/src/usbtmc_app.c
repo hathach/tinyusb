@@ -303,7 +303,7 @@ bool tud_usbtmc_check_abort_bulk_out_cb(usbtmc_check_abort_bulk_rsp_t *rsp)
 void tud_usbtmc_bulkIn_clearFeature_cb(void)
 {
 }
-void tud_usmtmc_bulkOut_clearFeature_cb(void)
+void tud_usbtmc_bulkOut_clearFeature_cb(void)
 {
   tud_usbtmc_start_bus_read();
 }

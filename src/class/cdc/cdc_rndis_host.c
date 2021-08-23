@@ -239,7 +239,7 @@ static tusb_error_t send_message_get_response_subtask( uint8_t dev_addr, cdch_da
   if ( TUSB_ERROR_NONE != error )   STASK_RETURN(error);
 
   //------------- waiting for Response Available notification -------------//
-  (void) hcd_pipe_xfer(p_cdc->pipe_notification, msg_notification[dev_addr-1], 8, true);
+  (void) usbh_edpt_xfer(p_cdc->pipe_notification, msg_notification[dev_addr-1], 8);
   osal_semaphore_wait(rndish_data[dev_addr-1].sem_notification_hdl, OSAL_TIMEOUT_NORMAL, &error);
   if ( TUSB_ERROR_NONE != error )   STASK_RETURN(error);
   STASK_ASSERT(msg_notification[dev_addr-1][0] == 1);

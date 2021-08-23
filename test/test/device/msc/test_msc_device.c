@@ -62,11 +62,11 @@ enum
 
 uint8_t const data_desc_configuration[] =
 {
-  // Interface count, string index, total length, attribute, power in mA
-  TUD_CONFIG_DESCRIPTOR(ITF_NUM_TOTAL, 0, CONFIG_TOTAL_LEN, TUSB_DESC_CONFIG_ATT_REMOTE_WAKEUP, 100),
+  // Config number, interface count, string index, total length, attribute, power in mA
+  TUD_CONFIG_DESCRIPTOR(1, ITF_NUM_TOTAL, 0, CONFIG_TOTAL_LEN, TUSB_DESC_CONFIG_ATT_REMOTE_WAKEUP, 100),
 
   // Interface number, string index, EP Out & EP In address, EP size
-  TUD_MSC_DESCRIPTOR(ITF_NUM_MSC, 0, EDPT_MSC_OUT, EDPT_MSC_IN, (CFG_TUSB_RHPORT0_MODE & OPT_MODE_HIGH_SPEED) ? 512 : 64),
+  TUD_MSC_DESCRIPTOR(ITF_NUM_MSC, 0, EDPT_MSC_OUT, EDPT_MSC_IN, TUD_OPT_HIGH_SPEED ? 512 : 64),
 };
 
 tusb_control_request_t const request_set_configuration =
@@ -184,8 +184,10 @@ uint8_t const * tud_descriptor_configuration_cb(uint8_t index)
   return desc_configuration;
 }
 
-uint16_t const* tud_descriptor_string_cb(uint8_t index)
+uint16_t const* tud_descriptor_string_cb(uint8_t index, uint16_t langid)
 {
+  (void) langid;
+
   return NULL;
 }
 
@@ -200,7 +202,7 @@ void setUp(void)
     tusb_init();
   }
 
-  dcd_event_bus_signal(rhport, DCD_EVENT_BUS_RESET, false);
+  dcd_event_bus_reset(rhport, TUSB_SPEED_HIGH, false);
   tud_task();
 }
 
@@ -237,8 +239,6 @@ void test_msc(void)
   uint8_t const* desc_ep = tu_desc_next(tu_desc_next(desc_configuration));
 
   dcd_event_setup_received(rhport, (uint8_t*) &request_set_configuration, false);
-
-  dcd_set_config_Expect(rhport, 1);
 
   // open endpoints
   dcd_edpt_open_ExpectAndReturn(rhport, (tusb_desc_endpoint_t const *) desc_ep, true);

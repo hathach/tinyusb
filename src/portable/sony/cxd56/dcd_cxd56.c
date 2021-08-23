@@ -1,4 +1,4 @@
-/* 
+/*
  * The MIT License (MIT)
  *
  * Copyright 2019 Sony Semiconductor Solutions Corporation
@@ -35,33 +35,41 @@
 #include "device/dcd.h"
 
 #define CXD56_EPNUM (7)
+#define CXD56_SETUP_QUEUE_DEPTH (4)
+#define CXD56_MAX_DATA_OUT_SIZE (64)
+
+OSAL_QUEUE_DEF(OPT_MODE_DEVICE, _setup_queue_def, CXD56_SETUP_QUEUE_DEPTH, struct usb_ctrlreq_s);
 
 struct usbdcd_driver_s
 {
   struct usbdevclass_driver_s usbdevclass_driver;
   FAR struct usbdev_ep_s *ep[CXD56_EPNUM];
   FAR struct usbdev_req_s *req[CXD56_EPNUM];
+  osal_queue_t setup_queue;
+  bool setup_processed;
+  FAR uint8_t dataout[CXD56_MAX_DATA_OUT_SIZE];
+  size_t outlen;
 };
 
 static struct usbdcd_driver_s usbdcd_driver;
 static struct usbdev_s *usbdev;
 
-static int dcd_bind(FAR struct usbdevclass_driver_s *driver, FAR struct usbdev_s *dev);
-static void dcd_unbind(FAR struct usbdevclass_driver_s *driver, FAR struct usbdev_s *dev);
-static int dcd_setup(FAR struct usbdevclass_driver_s *driver, FAR struct usbdev_s *dev,
-                     FAR const struct usb_ctrlreq_s *ctrl, FAR uint8_t *dataout, size_t outlen);
-static void dcd_disconnect(FAR struct usbdevclass_driver_s *driver, FAR struct usbdev_s *dev);
-static void dcd_suspend(FAR struct usbdevclass_driver_s *driver, FAR struct usbdev_s *dev);
-static void dcd_resume(FAR struct usbdevclass_driver_s *driver, FAR struct usbdev_s *dev);
+static int  _dcd_bind       (FAR struct usbdevclass_driver_s *driver, FAR struct usbdev_s *dev);
+static void _dcd_unbind     (FAR struct usbdevclass_driver_s *driver, FAR struct usbdev_s *dev);
+static int  _dcd_setup      (FAR struct usbdevclass_driver_s *driver, FAR struct usbdev_s *dev,
+                             FAR const struct usb_ctrlreq_s *ctrl, FAR uint8_t *dataout, size_t outlen);
+static void _dcd_disconnect (FAR struct usbdevclass_driver_s *driver, FAR struct usbdev_s *dev);
+static void _dcd_suspend    (FAR struct usbdevclass_driver_s *driver, FAR struct usbdev_s *dev);
+static void _dcd_resume     (FAR struct usbdevclass_driver_s *driver, FAR struct usbdev_s *dev);
 
 static const struct usbdevclass_driverops_s g_driverops =
 {
-  dcd_bind,       /* bind */
-  dcd_unbind,     /* unbind */
-  dcd_setup,      /* setup */
-  dcd_disconnect, /* disconnect */
-  dcd_suspend,    /* suspend */
-  dcd_resume,     /* resume */
+  _dcd_bind,       /* bind */
+  _dcd_unbind,     /* unbind */
+  _dcd_setup,      /* setup */
+  _dcd_disconnect, /* disconnect */
+  _dcd_suspend,    /* suspend */
+  _dcd_resume,     /* resume */
 };
 
 static void usbdcd_ep0incomplete(FAR struct usbdev_ep_s *ep, FAR struct usbdev_req_s *req)
@@ -86,7 +94,7 @@ static void usbdcd_ep0incomplete(FAR struct usbdev_ep_s *ep, FAR struct usbdev_r
   }
 }
 
-static int dcd_bind(FAR struct usbdevclass_driver_s *driver, FAR struct usbdev_s *dev)
+static int _dcd_bind(FAR struct usbdevclass_driver_s *driver, FAR struct usbdev_s *dev)
 {
   (void) driver;
 
@@ -111,34 +119,64 @@ static int dcd_bind(FAR struct usbdevclass_driver_s *driver, FAR struct usbdev_s
   return 0;
 }
 
-static void dcd_unbind(FAR struct usbdevclass_driver_s *driver, FAR struct usbdev_s *dev)
+static void _dcd_unbind(FAR struct usbdevclass_driver_s *driver, FAR struct usbdev_s *dev)
 {
   (void) driver;
   (void) dev;
 }
 
-static int dcd_setup(FAR struct usbdevclass_driver_s *driver, FAR struct usbdev_s *dev,
-                     FAR const struct usb_ctrlreq_s *ctrl, FAR uint8_t *dataout, size_t outlen)
+static int _dcd_setup(FAR struct usbdevclass_driver_s *driver, FAR struct usbdev_s *dev,
+                      FAR const struct usb_ctrlreq_s *ctrl, FAR uint8_t *dataout, size_t outlen)
 {
   (void) driver;
   (void) dev;
-  (void) dataout;
-  (void) outlen;
 
-  dcd_event_setup_received(0, (uint8_t *)ctrl, true);
+  if (usbdcd_driver.setup_processed)
+  {
+    usbdcd_driver.setup_processed = false;
+    dcd_event_setup_received(0, (uint8_t *) ctrl, true);
+  }
+  else
+  {
+    osal_queue_send(usbdcd_driver.setup_queue, ctrl, true);
+  }
+
+  if (outlen > 0 && outlen <= CXD56_MAX_DATA_OUT_SIZE)
+  {
+    memcpy(usbdcd_driver.dataout, dataout, outlen);
+    usbdcd_driver.outlen = outlen;
+  }
 
   return 0;
 }
 
-static void dcd_disconnect(FAR struct usbdevclass_driver_s *driver, FAR struct usbdev_s *dev)
+static void _dcd_disconnect(FAR struct usbdevclass_driver_s *driver, FAR struct usbdev_s *dev)
 {
   (void) driver;
 
-  dcd_event_bus_signal(0, DCD_EVENT_BUS_RESET, true);
+  tusb_speed_t speed;
+
+  switch (dev->speed)
+  {
+    case USB_SPEED_LOW:
+      speed = TUSB_SPEED_LOW;
+      break;
+    case USB_SPEED_FULL:
+      speed = TUSB_SPEED_FULL;
+      break;
+    case USB_SPEED_HIGH:
+      speed = TUSB_SPEED_HIGH;
+      break;
+    default:
+      speed = TUSB_SPEED_HIGH;
+      break;
+  }
+
+  dcd_event_bus_reset(0, speed, true);
   DEV_CONNECT(dev);
 }
 
-static void dcd_suspend(FAR struct usbdevclass_driver_s *driver, FAR struct usbdev_s *dev)
+static void _dcd_suspend(FAR struct usbdevclass_driver_s *driver, FAR struct usbdev_s *dev)
 {
   (void) driver;
   (void) dev;
@@ -146,7 +184,7 @@ static void dcd_suspend(FAR struct usbdevclass_driver_s *driver, FAR struct usbd
   dcd_event_bus_signal(0, DCD_EVENT_SUSPEND, true);
 }
 
-static void dcd_resume(FAR struct usbdevclass_driver_s *driver, FAR struct usbdev_s *dev)
+static void _dcd_resume(FAR struct usbdevclass_driver_s *driver, FAR struct usbdev_s *dev)
 {
   (void) driver;
   (void) dev;
@@ -160,6 +198,8 @@ void dcd_init(uint8_t rhport)
 
   usbdcd_driver.usbdevclass_driver.speed = USB_SPEED_HIGH;
   usbdcd_driver.usbdevclass_driver.ops = &g_driverops;
+  usbdcd_driver.setup_processed = true;
+  usbdcd_driver.setup_queue = osal_queue_create(&_setup_queue_def);
 
   usbdev_register(&usbdcd_driver.usbdevclass_driver);
 }
@@ -187,18 +227,23 @@ void dcd_set_address(uint8_t rhport, uint8_t dev_addr)
   (void) dev_addr;
 }
 
-// Receive Set Config request
-void dcd_set_config(uint8_t rhport, uint8_t config_num)
-{
-  (void) rhport;
-  (void) config_num;
-}
-
 void dcd_remote_wakeup(uint8_t rhport)
 {
   (void) rhport;
-  
+
   DEV_WAKEUP(usbdev);
+}
+
+void dcd_connect(uint8_t rhport)
+{
+  (void) rhport;
+  DEV_CONNECT(usbdev);
+}
+
+void dcd_disconnect(uint8_t rhport)
+{
+  (void) rhport;
+  DEV_DISCONNECT(usbdev);
 }
 
 //--------------------------------------------------------------------+
@@ -271,6 +316,7 @@ bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t *buffer, uint16_t to
 {
   (void) rhport;
 
+  bool ret = true;
   uint8_t epnum = tu_edpt_number(ep_addr);
 
   if (epnum >= CXD56_EPNUM)
@@ -278,25 +324,57 @@ bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t *buffer, uint16_t to
     return false;
   }
 
-  usbdcd_driver.req[epnum]->len = total_bytes;
-  usbdcd_driver.req[epnum]->priv = (void *)((uint32_t)ep_addr);
-  usbdcd_driver.req[epnum]->flags = 0;
-
-  if (total_bytes)
+  if (epnum == 0)
   {
-    usbdcd_driver.req[epnum]->buf = buffer;
+    if (total_bytes == 0)
+    {
+      usbdcd_driver.setup_processed = true;
+      dcd_event_xfer_complete(0, ep_addr, 0, XFER_RESULT_SUCCESS, false);
+    }
+    else if (ep_addr == 0x00 && total_bytes == usbdcd_driver.outlen)
+    {
+      memcpy(buffer, usbdcd_driver.dataout, usbdcd_driver.outlen);
+      dcd_event_xfer_complete(0, ep_addr, total_bytes, XFER_RESULT_SUCCESS, false);
+      usbdcd_driver.outlen = 0;
+    }
+    else
+    {
+      usbdcd_driver.req[epnum]->len = total_bytes;
+      usbdcd_driver.req[epnum]->priv = (void *)((uint32_t)ep_addr);
+      usbdcd_driver.req[epnum]->flags = total_bytes < usbdcd_driver.ep[epnum]->maxpacket ? USBDEV_REQFLAGS_NULLPKT : 0;
+      usbdcd_driver.req[epnum]->buf = buffer;
+
+      if (EP_SUBMIT(usbdcd_driver.ep[epnum], usbdcd_driver.req[epnum]) < 0)
+      {
+        ret = false;
+      }
+    }
+
+    struct usb_ctrlreq_s ctrl;
+
+    if (usbdcd_driver.setup_processed)
+    {
+      if (osal_queue_receive(usbdcd_driver.setup_queue, &ctrl))
+      {
+        usbdcd_driver.setup_processed = false;
+        dcd_event_setup_received(0, (uint8_t *)&ctrl, false);
+      }
+    }
   }
   else
   {
-    return true;
+    usbdcd_driver.req[epnum]->len = total_bytes;
+    usbdcd_driver.req[epnum]->priv = (void *)((uint32_t)ep_addr);
+    usbdcd_driver.req[epnum]->flags = total_bytes < usbdcd_driver.ep[epnum]->maxpacket ? USBDEV_REQFLAGS_NULLPKT : 0;
+    usbdcd_driver.req[epnum]->buf = buffer;
+
+    if (EP_SUBMIT(usbdcd_driver.ep[epnum], usbdcd_driver.req[epnum]) < 0)
+    {
+      ret = false;
+    }
   }
 
-  if (EP_SUBMIT(usbdcd_driver.ep[epnum], usbdcd_driver.req[epnum]) < 0)
-  {
-    return false;
-  }
-
-  return true;
+  return ret;
 }
 
 void dcd_edpt_stall(uint8_t rhport, uint8_t ep_addr)
@@ -316,7 +394,7 @@ void dcd_edpt_stall(uint8_t rhport, uint8_t ep_addr)
 void dcd_edpt_clear_stall(uint8_t rhport, uint8_t ep_addr)
 {
   (void) rhport;
-  
+
   uint8_t epnum = tu_edpt_number(ep_addr);
 
   if (epnum >= CXD56_EPNUM)

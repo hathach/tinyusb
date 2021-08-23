@@ -26,22 +26,23 @@
 
 #include "tusb_option.h"
 
-#if TUSB_OPT_DEVICE_ENABLED && (CFG_TUSB_MCU == OPT_MCU_LPC18XX || \
-                                CFG_TUSB_MCU == OPT_MCU_LPC43XX || \
-                                CFG_TUSB_MCU == OPT_MCU_MIMXRT10XX)
+#if TUSB_OPT_DEVICE_ENABLED && \
+    (CFG_TUSB_MCU == OPT_MCU_LPC18XX || CFG_TUSB_MCU == OPT_MCU_LPC43XX || CFG_TUSB_MCU == OPT_MCU_MIMXRT10XX)
 
 //--------------------------------------------------------------------+
 // INCLUDE
 //--------------------------------------------------------------------+
-#include "common/tusb_common.h"
-#include "device/dcd.h"
-
 #if CFG_TUSB_MCU == OPT_MCU_MIMXRT10XX
   #include "fsl_device_registers.h"
+  #define INCLUDE_FSL_DEVICE_REGISTERS
 #else
   // LPCOpen for 18xx & 43xx
   #include "chip.h"
 #endif
+
+#include "common/tusb_common.h"
+#include "device/dcd.h"
+#include "common_transdimension.h"
 
 #if defined(__CORTEX_M) && __CORTEX_M == 7 && __DCACHE_PRESENT == 1
   #define CleanInvalidateDCache_by_Addr   SCB_CleanInvalidateDCache_by_Addr
@@ -61,15 +62,6 @@ enum {
   ENDPTCTRL_ENABLE         = TU_BIT(7)
 };
 
-// USBCMD
-enum {
-  USBCMD_RUN_STOP         = TU_BIT(0),
-  USBCMD_RESET            = TU_BIT(1),
-  USBCMD_SETUP_TRIPWIRE   = TU_BIT(13),
-  USBCMD_ADD_QTD_TRIPWIRE = TU_BIT(14)  ///< This bit is used as a semaphore to ensure the to proper addition of a new dTD to an active (primed) endpoint’s linked list. This bit is set and cleared by software during the process of adding a new dTD
-};
-// Interrupt Threshold bit 23:16
-
 // USBSTS, USBINTR
 enum {
   INTR_USB         = TU_BIT(0),
@@ -80,93 +72,6 @@ enum {
   INTR_SUSPEND     = TU_BIT(8),
   INTR_NAK         = TU_BIT(16)
 };
-
-// PORTSC1
-enum {
-  PORTSC1_CURRENT_CONNECT_STATUS = TU_BIT(0),
-  PORTSC1_FORCE_PORT_RESUME      = TU_BIT(6),
-  PORTSC1_SUSPEND                = TU_BIT(7),
-  PORTSC1_FORCE_FULL_SPEED       = TU_BIT(24),
-};
-
-// OTGSC
-enum {
-  OTGSC_VBUS_DISCHARGE          = TU_BIT(0),
-  OTGSC_VBUS_CHARGE             = TU_BIT(1),
-//  OTGSC_HWASSIST_AUTORESET    = TU_BIT(2),
-  OTGSC_OTG_TERMINATION         = TU_BIT(3), ///< Must set to 1 when OTG go to device mode
-  OTGSC_DATA_PULSING            = TU_BIT(4),
-  OTGSC_ID_PULLUP               = TU_BIT(5),
-//  OTGSC_HWASSIT_DATA_PULSE    = TU_BIT(6),
-//  OTGSC_HWASSIT_BDIS_ACONN    = TU_BIT(7),
-  OTGSC_ID                      = TU_BIT(8), ///< 0 = A device, 1 = B Device
-  OTGSC_A_VBUS_VALID            = TU_BIT(9),
-  OTGSC_A_SESSION_VALID         = TU_BIT(10),
-  OTGSC_B_SESSION_VALID         = TU_BIT(11),
-  OTGSC_B_SESSION_END           = TU_BIT(12),
-  OTGSC_1MS_TOGGLE              = TU_BIT(13),
-  OTGSC_DATA_BUS_PULSING_STATUS = TU_BIT(14),
-};
-
-// USBMode
-enum {
-  USBMODE_CM_DEVICE = 2,
-  USBMODE_CM_HOST   = 3,
-
-  USBMODE_SLOM = TU_BIT(3),
-  USBMODE_SDIS = TU_BIT(4),
-
-  USBMODE_VBUS_POWER_SELCT = TU_BIT(5), // Enable for LPC18XX/43XX in host most only
-};
-
-// Device Registers
-typedef struct
-{
-  //------------- ID + HW Parameter Registers-------------//
-  __I  uint32_t TU_RESERVED[64]; ///< For iMX RT10xx, but not used by LPC18XX/LPC43XX
-
-  //------------- Capability Registers-------------//
-  __I  uint8_t  CAPLENGTH;       ///< Capability Registers Length
-  __I  uint8_t  TU_RESERVED[1];
-  __I  uint16_t HCIVERSION;      ///< Host Controller Interface Version
-
-  __I  uint32_t HCSPARAMS;       ///< Host Controller Structural Parameters
-  __I  uint32_t HCCPARAMS;       ///< Host Controller Capability Parameters
-  __I  uint32_t TU_RESERVED[5];
-
-  __I  uint16_t DCIVERSION;      ///< Device Controller Interface Version
-  __I  uint8_t  TU_RESERVED[2];
-
-  __I  uint32_t DCCPARAMS;       ///< Device Controller Capability Parameters
-  __I  uint32_t TU_RESERVED[6];
-
-  //------------- Operational Registers -------------//
-  __IO uint32_t USBCMD;          ///< USB Command Register
-  __IO uint32_t USBSTS;          ///< USB Status Register
-  __IO uint32_t USBINTR;         ///< Interrupt Enable Register
-  __IO uint32_t FRINDEX;         ///< USB Frame Index
-  __I  uint32_t TU_RESERVED;
-  __IO uint32_t DEVICEADDR;      ///< Device Address
-  __IO uint32_t ENDPTLISTADDR;   ///< Endpoint List Address
-  __I  uint32_t TU_RESERVED;
-  __IO uint32_t BURSTSIZE;       ///< Programmable Burst Size
-  __IO uint32_t TXFILLTUNING;    ///< TX FIFO Fill Tuning
-       uint32_t TU_RESERVED[4];
-  __IO uint32_t ENDPTNAK;        ///< Endpoint NAK
-  __IO uint32_t ENDPTNAKEN;      ///< Endpoint NAK Enable
-  __I  uint32_t TU_RESERVED;
-  __IO uint32_t PORTSC1;         ///< Port Status & Control
-  __I  uint32_t TU_RESERVED[7];
-  __IO uint32_t OTGSC;           ///< On-The-Go Status & control
-  __IO uint32_t USBMODE;         ///< USB Device Mode
-  __IO uint32_t ENDPTSETUPSTAT;  ///< Endpoint Setup Status
-  __IO uint32_t ENDPTPRIME;      ///< Endpoint Prime
-  __IO uint32_t ENDPTFLUSH;      ///< Endpoint Flush
-  __I  uint32_t ENDPTSTAT;       ///< Endpoint Status
-  __IO uint32_t ENDPTCOMPLETE;   ///< Endpoint Complete
-  __IO uint32_t ENDPTCTRL[8];    ///< Endpoint Control 0 - 7
-} dcd_registers_t;
-
 
 // Queue Transfer Descriptor
 typedef struct
@@ -236,7 +141,7 @@ typedef struct
 {
   dcd_registers_t* regs;  // registers
   const IRQn_Type irqnum; // IRQ number
-  const uint8_t ep_count;   // Max bi-directional Endpoints
+  const uint8_t ep_count; // Max bi-directional Endpoints
 }dcd_controller_t;
 
 #if CFG_TUSB_MCU == OPT_MCU_MIMXRT10XX
@@ -244,7 +149,7 @@ typedef struct
   // Therefore QHD_MAX is 2 x max endpoint count
   #define QHD_MAX  (8*2)
 
-  dcd_controller_t _dcd_controller[] =
+  static const dcd_controller_t _dcd_controller[] =
   {
     // RT1010 and RT1020 only has 1 USB controller
     #if FSL_FEATURE_SOC_USBHS_COUNT == 1
@@ -258,7 +163,7 @@ typedef struct
 #else
   #define QHD_MAX (6*2)
 
-  dcd_controller_t _dcd_controller[] =
+  static const dcd_controller_t _dcd_controller[] =
   {
     { .regs = (dcd_registers_t*) LPC_USB0_BASE, .irqnum = USB0_IRQn, .ep_count = 6 },
     { .regs = (dcd_registers_t*) LPC_USB1_BASE, .irqnum = USB1_IRQn, .ep_count = 4 }
@@ -273,10 +178,11 @@ typedef struct {
   dcd_qtd_t qtd[QHD_MAX] TU_ATTR_ALIGNED(32); // for portability, TinyUSB only queue 1 TD for each Qhd
 }dcd_data_t;
 
-static dcd_data_t _dcd_data CFG_TUSB_MEM_SECTION TU_ATTR_ALIGNED(2048);
+CFG_TUSB_MEM_SECTION TU_ATTR_ALIGNED(2048)
+static dcd_data_t _dcd_data;
 
 //--------------------------------------------------------------------+
-// CONTROLLER API
+// Controller API
 //--------------------------------------------------------------------+
 
 /// follows LPC43xx User Manual 23.10.3
@@ -322,7 +228,7 @@ void dcd_init(uint8_t rhport)
 {
   tu_memclr(&_dcd_data, sizeof(dcd_data_t));
 
-  dcd_registers_t* const dcd_reg = _dcd_controller[rhport].regs;
+  dcd_registers_t* dcd_reg = _dcd_controller[rhport].regs;
 
   // Reset controller
   dcd_reg->USBCMD |= USBCMD_RESET;
@@ -341,8 +247,8 @@ void dcd_init(uint8_t rhport)
   dcd_reg->USBSTS  = dcd_reg->USBSTS;
   dcd_reg->USBINTR = INTR_USB | INTR_ERROR | INTR_PORT_CHANGE | INTR_RESET | INTR_SUSPEND /*| INTR_SOF*/;
 
-  dcd_reg->USBCMD &= ~0x00FF0000; // Interrupt Threshold Interval = 0
-  dcd_reg->USBCMD |= TU_BIT(0); // connect
+  dcd_reg->USBCMD &= ~0x00FF0000;     // Interrupt Threshold Interval = 0
+  dcd_reg->USBCMD |= USBCMD_RUN_STOP; // Connect
 }
 
 void dcd_int_enable(uint8_t rhport)
@@ -364,16 +270,21 @@ void dcd_set_address(uint8_t rhport, uint8_t dev_addr)
   dcd_reg->DEVICEADDR = (dev_addr << 25) | TU_BIT(24);
 }
 
-void dcd_set_config(uint8_t rhport, uint8_t config_num)
-{
-  (void) rhport;
-  (void) config_num;
-  // nothing to do
-}
-
 void dcd_remote_wakeup(uint8_t rhport)
 {
   (void) rhport;
+}
+
+void dcd_connect(uint8_t rhport)
+{
+  dcd_registers_t* dcd_reg = _dcd_controller[rhport].regs;
+  dcd_reg->USBCMD |= USBCMD_RUN_STOP;
+}
+
+void dcd_disconnect(uint8_t rhport)
+{
+  dcd_registers_t* dcd_reg = _dcd_controller[rhport].regs;
+  dcd_reg->USBCMD &= ~USBCMD_RUN_STOP;
 }
 
 //--------------------------------------------------------------------+
@@ -474,7 +385,8 @@ bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t t
 
   // Force the CPU to flush the buffer. We increase the size by 32 because the call aligns the
   // address to 32-byte boundaries.
-  CleanInvalidateDCache_by_Addr((uint32_t*) buffer, total_bytes + 31);
+  // void* cast to suppress cast-align warning, buffer must be
+  CleanInvalidateDCache_by_Addr((uint32_t*) tu_align((uint32_t) buffer, 4), total_bytes + 31);
 
   //------------- Prepare qtd -------------//
   qtd_init(p_qtd, buffer, total_bytes);
@@ -492,7 +404,7 @@ bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t t
 //--------------------------------------------------------------------+
 // ISR
 //--------------------------------------------------------------------+
-void dcd_isr(uint8_t rhport)
+void dcd_int_handler(uint8_t rhport)
 {
   dcd_registers_t* const dcd_reg = _dcd_controller[rhport].regs;
 
@@ -506,7 +418,8 @@ void dcd_isr(uint8_t rhport)
   if (int_status & INTR_RESET)
   {
     bus_reset(rhport);
-    dcd_event_bus_signal(rhport, DCD_EVENT_BUS_RESET, true);
+    uint32_t speed = (dcd_reg->PORTSC1 & PORTSC1_PORT_SPEED) >> PORTSC1_PORT_SPEED_POS;
+    dcd_event_bus_reset(rhport, (tusb_speed_t) speed, true);
   }
 
   if (int_status & INTR_SUSPEND)

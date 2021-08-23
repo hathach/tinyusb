@@ -36,7 +36,6 @@
  * as C++ for the sake of code simplicity. Beware of a headache macro
  * manipulation that you are told to stay away.
  *
- *
  * This contains macros for both VERIFY and ASSERT:
  * 
  *   VERIFY: Used when there is an error condition which is not the
@@ -50,9 +49,8 @@
  *           quickly. One example would be adding assertions in library
  *           function calls to confirm a function's (untainted)
  *           parameters are valid.
- *
  * 
- * The difference in behaviour is that ASSERT triggers a breakpoint while
+ * The difference in behavior is that ASSERT triggers a breakpoint while
  * verify does not.
  *
  *   #define TU_VERIFY(cond)                  if(cond) return false;
@@ -76,11 +74,11 @@
 
 #if CFG_TUSB_DEBUG
   #include <stdio.h>
-  #define _MESS_ERR(_err)   printf("%s %d: failed, error = %s\n", __func__, __LINE__, tusb_strerr[_err])
-  #define _MESS_FAILED()    printf("%s %d: assert failed\n", __func__, __LINE__)
+  #define _MESS_ERR(_err)   tu_printf("%s %d: failed, error = %s\r\n", __func__, __LINE__, tusb_strerr[_err])
+  #define _MESS_FAILED()    tu_printf("%s %d: ASSERT FAILED\r\n", __func__, __LINE__)
 #else
-  #define _MESS_ERR(_err)
-  #define _MESS_FAILED()
+  #define _MESS_ERR(_err) do {} while (0)
+  #define _MESS_FAILED() do {} while (0)
 #endif
 
 // Halt CPU (breakpoint) when hitting error, only apply for Cortex M3, M4, M7
@@ -90,12 +88,12 @@
     volatile uint32_t* ARM_CM_DHCSR =  ((volatile uint32_t*) 0xE000EDF0UL); /* Cortex M CoreDebug->DHCSR */ \
     if ( (*ARM_CM_DHCSR) & 1UL ) __asm("BKPT #0\n"); /* Only halt mcu if debugger is attached */            \
   } while(0)
-#else
-#if defined(__riscv)
+
+#elif defined(__riscv)
   #define TU_BREAKPOINT() do { __asm("ebreak\n"); } while(0)
+
 #else
-  #define TU_BREAKPOINT()
-#endif
+  #define TU_BREAKPOINT() do {} while (0)
 #endif
 
 /*------------------------------------------------------------------*/
@@ -142,7 +140,9 @@
 #define ASSERT_1ARGS(_cond)            TU_VERIFY_DEFINE(_cond, _MESS_FAILED(); TU_BREAKPOINT(), false)
 #define ASSERT_2ARGS(_cond, _ret)      TU_VERIFY_DEFINE(_cond, _MESS_FAILED(); TU_BREAKPOINT(), _ret)
 
+#ifndef TU_ASSERT
 #define TU_ASSERT(...)             GET_3RD_ARG(__VA_ARGS__, ASSERT_2ARGS, ASSERT_1ARGS,UNUSED)(__VA_ARGS__)
+#endif
 
 // TODO remove TU_ASSERT_ERR() later
 
@@ -163,10 +163,12 @@
 /* ASSERT Error
  * basically TU_VERIFY Error with TU_BREAKPOINT() as handler
  *------------------------------------------------------------------*/
-#define ASERT_ERR_1ARGS(_error)         TU_VERIFY_ERR_DEF2(_error, TU_BREAKPOINT())
-#define ASERT_ERR_2ARGS(_error, _ret)   TU_VERIFY_ERR_DEF3(_error, TU_BREAKPOINT(), _ret)
+#define ASSERT_ERR_1ARGS(_error)         TU_VERIFY_ERR_DEF2(_error, TU_BREAKPOINT())
+#define ASSERT_ERR_2ARGS(_error, _ret)   TU_VERIFY_ERR_DEF3(_error, TU_BREAKPOINT(), _ret)
 
-#define TU_ASSERT_ERR(...)         GET_3RD_ARG(__VA_ARGS__, ASERT_ERR_2ARGS, ASERT_ERR_1ARGS,UNUSED)(__VA_ARGS__)
+#ifndef TU_ASSERT_ERR
+#define TU_ASSERT_ERR(...)         GET_3RD_ARG(__VA_ARGS__, ASSERT_ERR_2ARGS, ASSERT_ERR_1ARGS,UNUSED)(__VA_ARGS__)
+#endif
 
 /*------------------------------------------------------------------*/
 /* ASSERT HDLR

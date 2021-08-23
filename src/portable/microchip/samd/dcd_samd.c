@@ -26,7 +26,10 @@
 
 #include "tusb_option.h"
 
-#if TUSB_OPT_DEVICE_ENABLED && (CFG_TUSB_MCU == OPT_MCU_SAMD51 || CFG_TUSB_MCU == OPT_MCU_SAMD21)
+#if TUSB_OPT_DEVICE_ENABLED && \
+    (CFG_TUSB_MCU == OPT_MCU_SAMD11 || CFG_TUSB_MCU == OPT_MCU_SAMD21 || \
+     CFG_TUSB_MCU == OPT_MCU_SAMD51 || CFG_TUSB_MCU == OPT_MCU_SAME5X || \
+     CFG_TUSB_MCU == OPT_MCU_SAML22 || CFG_TUSB_MCU == OPT_MCU_SAML21)
 
 #include "sam.h"
 #include "device/dcd.h"
@@ -35,15 +38,23 @@
 /* MACRO TYPEDEF CONSTANT ENUM
  *------------------------------------------------------------------*/
 static TU_ATTR_ALIGNED(4) UsbDeviceDescBank sram_registers[8][2];
-static TU_ATTR_ALIGNED(4) uint8_t _setup_packet[8];
 
+// Setup packet is only 8 bytes in length. However under certain scenario,
+// USB DMA controller may decide to overwrite/overflow the buffer  with
+// 2 extra bytes of CRC. From datasheet's "Management of SETUP Transactions" section
+//    If the number of received data bytes is the maximum data payload specified by
+//    PCKSIZE.SIZE minus one, only the first CRC data is written to the data buffer.
+//    If the number of received data is equal or less than the data payload specified
+//    by PCKSIZE.SIZE minus two, both CRC data bytes are written to the data buffer.
+// Therefore we will need to increase it to 10 bytes here.
+static TU_ATTR_ALIGNED(4) uint8_t _setup_packet[8+2];
 
 // ready for receiving SETUP packet
 static inline void prepare_setup(void)
 {
   // Only make sure the EP0 OUT buffer is ready
   sram_registers[0][0].ADDR.reg = (uint32_t) _setup_packet;
-  sram_registers[0][0].PCKSIZE.bit.MULTI_PACKET_SIZE = sizeof(_setup_packet);
+  sram_registers[0][0].PCKSIZE.bit.MULTI_PACKET_SIZE = sizeof(tusb_control_request_t);
   sram_registers[0][0].PCKSIZE.bit.BYTE_COUNT = 0;
 }
 
@@ -63,7 +74,6 @@ static void bus_reset(void)
   // Prepare for setup packet
   prepare_setup();
 }
-
 
 /*------------------------------------------------------------------*/
 /* Controller API
@@ -94,7 +104,7 @@ void dcd_init (uint8_t rhport)
   USB->DEVICE.INTENSET.reg = /* USB_DEVICE_INTENSET_SOF | */ USB_DEVICE_INTENSET_EORST;
 }
 
-#if CFG_TUSB_MCU == OPT_MCU_SAMD51
+#if CFG_TUSB_MCU == OPT_MCU_SAMD51 || CFG_TUSB_MCU == OPT_MCU_SAME5X
 
 void dcd_int_enable(uint8_t rhport)
 {
@@ -114,7 +124,8 @@ void dcd_int_disable(uint8_t rhport)
   NVIC_DisableIRQ(USB_0_IRQn);
 }
 
-#elif CFG_TUSB_MCU == OPT_MCU_SAMD21
+#elif CFG_TUSB_MCU == OPT_MCU_SAMD11 || CFG_TUSB_MCU == OPT_MCU_SAMD21 || \
+      CFG_TUSB_MCU == OPT_MCU_SAML22 || CFG_TUSB_MCU == OPT_MCU_SAML21
 
 void dcd_int_enable(uint8_t rhport)
 {
@@ -127,6 +138,11 @@ void dcd_int_disable(uint8_t rhport)
   (void) rhport;
   NVIC_DisableIRQ(USB_IRQn);
 }
+
+#else
+
+#error "No implementation available for dcd_int_enable / dcd_int_disable"
+
 #endif
 
 void dcd_set_address (uint8_t rhport, uint8_t dev_addr)
@@ -144,18 +160,24 @@ void dcd_set_address (uint8_t rhport, uint8_t dev_addr)
   USB->DEVICE.INTENSET.reg = USB_DEVICE_INTENSET_SUSPEND;
 }
 
-void dcd_set_config (uint8_t rhport, uint8_t config_num)
-{
-  (void) rhport;
-  (void) config_num;
-  // Nothing to do
-}
-
 void dcd_remote_wakeup(uint8_t rhport)
 {
   (void) rhport;
-
   USB->DEVICE.CTRLB.bit.UPRSM = 1;
+}
+
+// disconnect by disabling internal pull-up resistor on D+/D-
+void dcd_disconnect(uint8_t rhport)
+{
+  (void) rhport;
+  USB->DEVICE.CTRLB.reg |= USB_DEVICE_CTRLB_DETACH;
+}
+
+// connect by enabling internal pull-up resistor on D+/D-
+void dcd_connect(uint8_t rhport)
+{
+  (void) rhport;
+   USB->DEVICE.CTRLB.reg &= ~USB_DEVICE_CTRLB_DETACH;
 }
 
 /*------------------------------------------------------------------*/
@@ -177,7 +199,7 @@ void dcd_edpt0_status_complete(uint8_t rhport, tusb_control_request_t const * re
   }
 
   // Just finished status stage, prepare for next setup packet
-  // Note: we may already prepare setup when the last EP0 OUT complete.
+  // Note: we may already prepare setup when queueing the control status.
   // but it has no harm to do it again here
   prepare_setup();
 }
@@ -229,6 +251,14 @@ bool dcd_edpt_xfer (uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t 
   UsbDeviceEndpoint* ep = &USB->DEVICE.DeviceEndpoint[epnum];
 
   bank->ADDR.reg = (uint32_t) buffer;
+
+  // A SETUP token can occur immediately after an ZLP Status.
+  // So make sure we have a valid buffer for setup packet.
+  //   Status = ZLP EP0 with direction opposite to one in the dir bit of current setup
+  if ( (epnum == 0) && (buffer == NULL) && (total_bytes == 0) && (dir != tu_edpt_dir(_setup_packet[0])) ) {
+    prepare_setup();
+  }
+
   if ( dir == TUSB_DIR_OUT )
   {
     bank->PCKSIZE.bit.MULTI_PACKET_SIZE = total_bytes;
@@ -291,7 +321,7 @@ void maybe_transfer_complete(void) {
     // Handle IN completions
     if ((epintflag & USB_DEVICE_EPINTFLAG_TRCPT1) != 0) {
       UsbDeviceDescBank* bank = &sram_registers[epnum][TUSB_DIR_IN];
-      uint16_t total_transfer_size = bank->PCKSIZE.bit.BYTE_COUNT;
+      uint16_t const total_transfer_size = bank->PCKSIZE.bit.BYTE_COUNT;
 
       dcd_event_xfer_complete(0, epnum | TUSB_DIR_IN_MASK, total_transfer_size, XFER_RESULT_SUCCESS, true);
 
@@ -300,15 +330,8 @@ void maybe_transfer_complete(void) {
 
     // Handle OUT completions
     if ((epintflag & USB_DEVICE_EPINTFLAG_TRCPT0) != 0) {
-
       UsbDeviceDescBank* bank = &sram_registers[epnum][TUSB_DIR_OUT];
-      uint16_t total_transfer_size = bank->PCKSIZE.bit.BYTE_COUNT;
-
-      // A SETUP token can occur immediately after an OUT packet
-      // so make sure we have a valid buffer for the control endpoint.
-      if (epnum == 0) {
-        prepare_setup();
-      }
+      uint16_t const total_transfer_size = bank->PCKSIZE.bit.BYTE_COUNT;
 
       dcd_event_xfer_complete(0, epnum, total_transfer_size, XFER_RESULT_SUCCESS, true);
 
@@ -318,13 +341,13 @@ void maybe_transfer_complete(void) {
 }
 
 
-void dcd_isr (uint8_t rhport)
+void dcd_int_handler (uint8_t rhport)
 {
   (void) rhport;
 
   uint32_t int_status = USB->DEVICE.INTFLAG.reg & USB->DEVICE.INTENSET.reg;
 
-  /*------------- Interrupt Processing -------------*/
+  // Start of Frame
   if ( int_status & USB_DEVICE_INTFLAG_SOF )
   {
     USB->DEVICE.INTFLAG.reg = USB_DEVICE_INTFLAG_SOF;
@@ -357,6 +380,7 @@ void dcd_isr (uint8_t rhport)
     dcd_event_bus_signal(0, DCD_EVENT_RESUME, true);
   }
 
+  // Enable of Reset
   if ( int_status & USB_DEVICE_INTFLAG_EORST )
   {
     USB->DEVICE.INTFLAG.reg = USB_DEVICE_INTFLAG_EORST;
@@ -365,7 +389,7 @@ void dcd_isr (uint8_t rhport)
     USB->DEVICE.INTENCLR.reg = USB_DEVICE_INTFLAG_WAKEUP | USB_DEVICE_INTFLAG_SUSPEND;
 
     bus_reset();
-    dcd_event_bus_signal(0, DCD_EVENT_BUS_RESET, true);
+    dcd_event_bus_reset(0, TUSB_SPEED_FULL, true);
   }
 
   // Handle SETUP packet
@@ -374,62 +398,14 @@ void dcd_isr (uint8_t rhport)
     // This copies the data elsewhere so we can reuse the buffer.
     dcd_event_setup_received(0, _setup_packet, true);
 
-    USB->DEVICE.DeviceEndpoint[0].EPINTFLAG.reg = USB_DEVICE_EPINTFLAG_RXSTP;
+    // Although Setup packet only set RXSTP bit,
+    // TRCPT0 bit could already be set by previous ZLP OUT Status (not handled until now).
+    // Since control status complete event is optional, we can just clear TRCPT0 and skip the status event
+    USB->DEVICE.DeviceEndpoint[0].EPINTFLAG.reg = USB_DEVICE_EPINTFLAG_RXSTP | USB_DEVICE_EPINTFLAG_TRCPT0;
   }
 
   // Handle complete transfer
   maybe_transfer_complete();
 }
-
-#if CFG_TUSB_MCU == OPT_MCU_SAMD51
-
-/*
- *------------------------------------------------------------------*/
-/* USB_EORSM_DNRSM, USB_EORST_RST, USB_LPMSUSP_DDISC, USB_LPM_DCONN,
-USB_MSOF, USB_RAMACER, USB_RXSTP_TXSTP_0, USB_RXSTP_TXSTP_1,
-USB_RXSTP_TXSTP_2, USB_RXSTP_TXSTP_3, USB_RXSTP_TXSTP_4,
-USB_RXSTP_TXSTP_5, USB_RXSTP_TXSTP_6, USB_RXSTP_TXSTP_7,
-USB_STALL0_STALL_0, USB_STALL0_STALL_1, USB_STALL0_STALL_2,
-USB_STALL0_STALL_3, USB_STALL0_STALL_4, USB_STALL0_STALL_5,
-USB_STALL0_STALL_6, USB_STALL0_STALL_7, USB_STALL1_0, USB_STALL1_1,
-USB_STALL1_2, USB_STALL1_3, USB_STALL1_4, USB_STALL1_5, USB_STALL1_6,
-USB_STALL1_7, USB_SUSPEND, USB_TRFAIL0_TRFAIL_0, USB_TRFAIL0_TRFAIL_1,
-USB_TRFAIL0_TRFAIL_2, USB_TRFAIL0_TRFAIL_3, USB_TRFAIL0_TRFAIL_4,
-USB_TRFAIL0_TRFAIL_5, USB_TRFAIL0_TRFAIL_6, USB_TRFAIL0_TRFAIL_7,
-USB_TRFAIL1_PERR_0, USB_TRFAIL1_PERR_1, USB_TRFAIL1_PERR_2,
-USB_TRFAIL1_PERR_3, USB_TRFAIL1_PERR_4, USB_TRFAIL1_PERR_5,
-USB_TRFAIL1_PERR_6, USB_TRFAIL1_PERR_7, USB_UPRSM, USB_WAKEUP */
-void USB_0_Handler(void) {
-  dcd_isr(0);
-}
-
-/* USB_SOF_HSOF */
-void USB_1_Handler(void) {
-  dcd_isr(0);
-}
-
-// Bank zero is for OUT and SETUP transactions.
-/* USB_TRCPT0_0, USB_TRCPT0_1, USB_TRCPT0_2,
-USB_TRCPT0_3, USB_TRCPT0_4, USB_TRCPT0_5,
-USB_TRCPT0_6, USB_TRCPT0_7 */
-void USB_2_Handler(void) {
-  dcd_isr(0);
-}
-
-// Bank one is used for IN transactions.
-/* USB_TRCPT1_0, USB_TRCPT1_1, USB_TRCPT1_2,
-USB_TRCPT1_3, USB_TRCPT1_4, USB_TRCPT1_5,
-USB_TRCPT1_6, USB_TRCPT1_7 */
-void USB_3_Handler(void) {
-  dcd_isr(0);
-}
-
-#elif CFG_TUSB_MCU == OPT_MCU_SAMD21
-
-void USB_Handler(void) {
-  dcd_isr(0);
-}
-
-#endif
 
 #endif

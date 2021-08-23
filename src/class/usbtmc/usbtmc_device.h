@@ -69,7 +69,7 @@ void tud_usbtmc_open_cb(uint8_t interface_id);
 bool tud_usbtmc_msgBulkOut_start_cb(usbtmc_msg_request_dev_dep_out const * msgHeader);
 // transfer_complete does not imply that a message is complete.
 bool tud_usbtmc_msg_data_cb( void *data, size_t len, bool transfer_complete);
-void tud_usmtmc_bulkOut_clearFeature_cb(void); // Notice to clear and abort the pending BULK out transfer
+void tud_usbtmc_bulkOut_clearFeature_cb(void); // Notice to clear and abort the pending BULK out transfer
 
 bool tud_usbtmc_msgBulkIn_request_cb(usbtmc_msg_request_dev_dep_in const * request);
 bool tud_usbtmc_msgBulkIn_complete_cb(void);
@@ -108,12 +108,11 @@ bool tud_usbtmc_start_bus_read(void);
 
 /* "callbacks" from USB device core */
 
-bool usbtmcd_open_cb(uint8_t rhport, tusb_desc_interface_t const * itf_desc, uint16_t *p_length);
-void usbtmcd_reset_cb(uint8_t rhport);
-bool usbtmcd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint32_t xferred_bytes);
-bool usbtmcd_control_request_cb(uint8_t rhport, tusb_control_request_t const * request);
-bool usbtmcd_control_complete_cb(uint8_t rhport, tusb_control_request_t const * request);
-void usbtmcd_init_cb(void);
+uint16_t usbtmcd_open_cb(uint8_t rhport, tusb_desc_interface_t const * itf_desc, uint16_t max_len);
+void     usbtmcd_reset_cb(uint8_t rhport);
+bool     usbtmcd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint32_t xferred_bytes);
+bool     usbtmcd_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request_t const * request);
+void     usbtmcd_init_cb(void);
 
 /************************************************************
  * USBTMC Descriptor Templates

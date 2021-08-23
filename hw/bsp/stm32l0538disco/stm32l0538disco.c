@@ -25,10 +25,19 @@
  */
 
 #include "../board.h"
+#include "stm32l0xx_hal.h"
 
-#include "stm32l0xx.h"
-#include "stm32l0xx_hal_conf.h"
+//--------------------------------------------------------------------+
+// Forward USB interrupt events to TinyUSB IRQ Handler
+//--------------------------------------------------------------------+
+void USB_IRQHandler(void)
+{
+  tud_int_handler(0);
+}
 
+//--------------------------------------------------------------------+
+// MACRO TYPEDEF CONSTANT ENUM
+//--------------------------------------------------------------------+
 #define LED_PORT              GPIOA
 #define LED_PIN               GPIO_PIN_5
 #define LED_STATE_ON          1
@@ -101,6 +110,8 @@ static void SystemClock_Config(void)
 
 void board_init(void)
 {
+  SystemClock_Config();
+
 #if CFG_TUSB_OS  == OPT_OS_NONE
   // 1ms tick timer
   SysTick_Config(SystemCoreClock / 1000);
@@ -109,11 +120,6 @@ void board_init(void)
   //NVIC_SetPriority(USB0_IRQn, configLIBRARY_MAX_SYSCALL_INTERRUPT_PRIORITY );
 #endif
 
-  SystemClock_Config();
-
-  // Notify runtime of frequency change.
-  SystemCoreClockUpdate();
-
   GPIO_InitTypeDef  GPIO_InitStruct;
 
   // LED
@@ -121,7 +127,7 @@ void board_init(void)
   GPIO_InitStruct.Pin = LED_PIN;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_PULLUP;
-  GPIO_InitStruct.Speed = GPIO_SPEED_FAST;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_HIGH;
   HAL_GPIO_Init(LED_PORT, &GPIO_InitStruct);
 
   board_led_write(false);
@@ -131,7 +137,7 @@ void board_init(void)
   GPIO_InitStruct.Pin = BUTTON_PIN;
   GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
   GPIO_InitStruct.Pull = GPIO_PULLDOWN;
-  GPIO_InitStruct.Speed = GPIO_SPEED_FAST;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_HIGH;
   HAL_GPIO_Init(BUTTON_PORT, &GPIO_InitStruct);
 
   // USB

@@ -28,13 +28,15 @@
 #define _TUSB_OPTION_H_
 
 #define TUSB_VERSION_MAJOR     0
-#define TUSB_VERSION_MINOR     5
-#define TUSB_VERSION_REVISION  0
+#define TUSB_VERSION_MINOR     10
+#define TUSB_VERSION_REVISION  1
 #define TUSB_VERSION_STRING    TU_STRING(TUSB_VERSION_MAJOR) "." TU_STRING(TUSB_VERSION_MINOR) "." TU_STRING(TUSB_VERSION_REVISION)
 
-/** \defgroup group_mcu Supported MCU
- * \ref CFG_TUSB_MCU must be defined to one of these
- *  @{ */
+//--------------------------------------------------------------------+
+// Supported MCUs
+// CFG_TUSB_MCU must be defined to one of following value
+//--------------------------------------------------------------------+
+#define TU_CHECK_MCU(_m)            (CFG_TUSB_MCU == OPT_MCU_##_m)
 
 #define OPT_MCU_NONE                0
 
@@ -58,6 +60,11 @@
 #define OPT_MCU_SAMD21            200 ///< MicroChip SAMD21
 #define OPT_MCU_SAMD51            201 ///< MicroChip SAMD51
 #define OPT_MCU_SAMG              202 ///< MicroChip SAMDG series
+#define OPT_MCU_SAME5X            203 ///< MicroChip SAM E5x
+#define OPT_MCU_SAMD11            204 ///< MicroChip SAMD11
+#define OPT_MCU_SAML22            205 ///< MicroChip SAML22
+#define OPT_MCU_SAML21            206 ///< MicroChip SAML21
+#define OPT_MCU_SAMX7X            207 ///< MicroChip SAME70, S70, V70, V71 family
 
 // STM32
 #define OPT_MCU_STM32F0           300 ///< ST STM32F0
@@ -71,78 +78,115 @@
 #define OPT_MCU_STM32L1           308 ///< ST STM32L1
 #define OPT_MCU_STM32L4           309 ///< ST STM32L4
 
+// Sony
 #define OPT_MCU_CXD56             400 ///< SONY CXD56
 
+// TI MSP430
+#define OPT_MCU_MSP430x5xx        500 ///< TI MSP430x5xx
+
+// ValentyUSB eptri
 #define OPT_MCU_VALENTYUSB_EPTRI  600 ///< Fomu eptri config
 
+// NXP iMX RT
 #define OPT_MCU_MIMXRT10XX        700 ///< NXP iMX RT10xx
 
+// Nuvoton
 #define OPT_MCU_NUC121            800
 #define OPT_MCU_NUC126            801
+#define OPT_MCU_NUC120            802
+#define OPT_MCU_NUC505            803
 
-/** @} */
+// Espressif
+#define OPT_MCU_ESP32S2           900 ///< Espressif ESP32-S2
+#define OPT_MCU_ESP32S3           901 ///< Espressif ESP32-S3
 
-/** \defgroup group_supported_os Supported RTOS
- *  \ref CFG_TUSB_OS must be defined to one of these
- *  @{ */
-#define OPT_OS_NONE       1 ///< No RTOS
-#define OPT_OS_FREERTOS   2 ///< FreeRTOS
-#define OPT_OS_MYNEWT     3 ///< Mynewt OS
-/** @} */
+// Dialog
+#define OPT_MCU_DA1469X          1000 ///< Dialog Semiconductor DA1469x
 
+// Raspberry Pi
+#define OPT_MCU_RP2040           1100 ///< Raspberry Pi RP2040
+
+// NXP Kinetis
+#define OPT_MCU_MKL25ZXX         1200 ///< NXP MKL25Zxx
+
+// Silabs
+#define OPT_MCU_EFM32GG          1300 ///< Silabs EFM32GG
+#define OPT_MCU_EFM32GG11        1301 ///< Silabs EFM32GG11
+#define OPT_MCU_EFM32GG12        1302 ///< Silabs EFM32GG12
+
+// Renesas RX
+#define OPT_MCU_RX63X            1400 ///< Renesas RX63N/631
+#define OPT_MCU_RX65X            1401 ///< Renesas RX65N/RX651
+#define OPT_MCU_RX72N            1402 ///< Renesas RX72N
+
+// Mind Motion
+#define OPT_MCU_MM32F327X        1500 ///< Mind Motion MM32F327
+
+// GigaDevice
+#define OPT_MCU_GD32VF103        1600 ///< GigaDevice GD32VF103
+
+//--------------------------------------------------------------------+
+// Supported OS
+//--------------------------------------------------------------------+
+
+#define OPT_OS_NONE       1  ///< No RTOS
+#define OPT_OS_FREERTOS   2  ///< FreeRTOS
+#define OPT_OS_MYNEWT     3  ///< Mynewt OS
+#define OPT_OS_CUSTOM     4  ///< Custom OS is implemented by application
+#define OPT_OS_PICO       5  ///< Raspberry Pi Pico SDK
+#define OPT_OS_RTTHREAD   6  ///< RT-Thread
 
 // Allow to use command line to change the config name/location
-#ifndef CFG_TUSB_CONFIG_FILE
-  #define CFG_TUSB_CONFIG_FILE "tusb_config.h"
+#ifdef CFG_TUSB_CONFIG_FILE
+  #include CFG_TUSB_CONFIG_FILE
+#else
+  #include "tusb_config.h"
 #endif
 
-#include CFG_TUSB_CONFIG_FILE
-
-/** \addtogroup group_configuration
- *  @{ */
-
 //--------------------------------------------------------------------
-// CONTROLLER
-// Only 1 roothub port can be configured to be device and/or host.
-// tinyusb does not support dual devices or dual host configuration
+// RootHub Mode Configuration
+// CFG_TUSB_RHPORTx_MODE contains operation mode and speed for that port
 //--------------------------------------------------------------------
-/** \defgroup group_mode Controller Mode Selection
- * \brief CFG_TUSB_CONTROLLER_N_MODE must be defined with these
- *  @{ */
+
+// Lower 4-bit is operational mode
 #define OPT_MODE_NONE         0x00 ///< Disabled
 #define OPT_MODE_DEVICE       0x01 ///< Device Mode
 #define OPT_MODE_HOST         0x02 ///< Host Mode
-#define OPT_MODE_HIGH_SPEED   0x10 ///< High speed
-/** @} */
+
+// Higher 4-bit is max operational speed (corresponding to tusb_speed_t)
+#define OPT_MODE_FULL_SPEED   0x00 ///< Max Full Speed
+#define OPT_MODE_LOW_SPEED    0x10 ///< Max Low Speed
+#define OPT_MODE_HIGH_SPEED   0x20 ///< Max High Speed
+
 
 #ifndef CFG_TUSB_RHPORT0_MODE
   #define CFG_TUSB_RHPORT0_MODE OPT_MODE_NONE
 #endif
 
+
 #ifndef CFG_TUSB_RHPORT1_MODE
   #define CFG_TUSB_RHPORT1_MODE OPT_MODE_NONE
 #endif
 
-#if ((CFG_TUSB_RHPORT0_MODE & OPT_MODE_HOST) && (CFG_TUSB_RHPORT1_MODE & OPT_MODE_HOST)) || \
-    ((CFG_TUSB_RHPORT0_MODE & OPT_MODE_DEVICE) && (CFG_TUSB_RHPORT1_MODE & OPT_MODE_DEVICE))
-  #error "tinyusb does not support same modes on more than 1 roothub port"
+#if (((CFG_TUSB_RHPORT0_MODE) & OPT_MODE_HOST  ) && ((CFG_TUSB_RHPORT1_MODE) & OPT_MODE_HOST  )) || \
+    (((CFG_TUSB_RHPORT0_MODE) & OPT_MODE_DEVICE) && ((CFG_TUSB_RHPORT1_MODE) & OPT_MODE_DEVICE))
+  #error "TinyUSB currently does not support same modes on more than 1 roothub port"
 #endif
 
 // Which roothub port is configured as host
-#define TUH_OPT_RHPORT          ( (CFG_TUSB_RHPORT0_MODE & OPT_MODE_HOST) ? 0 : ((CFG_TUSB_RHPORT1_MODE & OPT_MODE_HOST) ? 1 : -1) )
+#define TUH_OPT_RHPORT          ( ((CFG_TUSB_RHPORT0_MODE) & OPT_MODE_HOST) ? 0 : (((CFG_TUSB_RHPORT1_MODE) & OPT_MODE_HOST) ? 1 : -1) )
 #define TUSB_OPT_HOST_ENABLED   ( TUH_OPT_RHPORT >= 0 )
 
 // Which roothub port is configured as device
-#define TUD_OPT_RHPORT          ( (CFG_TUSB_RHPORT0_MODE & OPT_MODE_DEVICE) ? 0 : ((CFG_TUSB_RHPORT1_MODE & OPT_MODE_DEVICE) ? 1 : -1) )
+#define TUD_OPT_RHPORT          ( ((CFG_TUSB_RHPORT0_MODE) & OPT_MODE_DEVICE) ? 0 : (((CFG_TUSB_RHPORT1_MODE) & OPT_MODE_DEVICE) ? 1 : -1) )
 
 #if TUD_OPT_RHPORT == 0
-#define TUD_OPT_HIGH_SPEED      ( CFG_TUSB_RHPORT0_MODE & OPT_MODE_HIGH_SPEED )
+#define TUD_OPT_HIGH_SPEED      ( (CFG_TUSB_RHPORT0_MODE) & OPT_MODE_HIGH_SPEED )
 #else
-#define TUD_OPT_HIGH_SPEED      ( CFG_TUSB_RHPORT1_MODE & OPT_MODE_HIGH_SPEED )
+#define TUD_OPT_HIGH_SPEED      ( (CFG_TUSB_RHPORT1_MODE) & OPT_MODE_HIGH_SPEED )
 #endif
 
 #define TUSB_OPT_DEVICE_ENABLED ( TUD_OPT_RHPORT >= 0 )
-
 
 //--------------------------------------------------------------------+
 // COMMON OPTIONS
@@ -155,15 +199,15 @@
 
 // place data in accessible RAM for usb controller
 #ifndef CFG_TUSB_MEM_SECTION
-#define CFG_TUSB_MEM_SECTION
+  #define CFG_TUSB_MEM_SECTION
 #endif
 
 #ifndef CFG_TUSB_MEM_ALIGN
-#define CFG_TUSB_MEM_ALIGN        TU_ATTR_ALIGNED(4)
+  #define CFG_TUSB_MEM_ALIGN      TU_ATTR_ALIGNED(4)
 #endif
 
 #ifndef CFG_TUSB_OS
-#define CFG_TUSB_OS               OPT_OS_NONE
+  #define CFG_TUSB_OS             OPT_OS_NONE
 #endif
 
 //--------------------------------------------------------------------
@@ -171,7 +215,7 @@
 //--------------------------------------------------------------------
 
 #ifndef CFG_TUD_ENDPOINT0_SIZE
-  #define CFG_TUD_ENDPOINT0_SIZE   64
+  #define CFG_TUD_ENDPOINT0_SIZE  64
 #endif
 
 #ifndef CFG_TUD_CDC
@@ -186,6 +230,10 @@
   #define CFG_TUD_HID             0
 #endif
 
+#ifndef CFG_TUD_AUDIO
+  #define CFG_TUD_AUDIO           0
+#endif
+
 #ifndef CFG_TUD_MIDI
   #define CFG_TUD_MIDI            0
 #endif
@@ -198,10 +246,21 @@
   #define CFG_TUD_USBTMC          0
 #endif
 
-#ifndef CFG_TUD_DFU_RT
-  #define CFG_TUD_DFU_RT          0
+#ifndef CFG_TUD_DFU_RUNTIME
+  #define CFG_TUD_DFU_RUNTIME     0
 #endif
 
+#ifndef CFG_TUD_DFU
+  #define CFG_TUD_DFU             0
+#endif
+
+#ifndef CFG_TUD_NET
+  #define CFG_TUD_NET             0
+#endif
+
+#ifndef CFG_TUD_BTH
+  #define CFG_TUD_BTH             0
+#endif
 
 //--------------------------------------------------------------------
 // HOST OPTIONS
@@ -214,18 +273,39 @@
 
   //------------- HUB CLASS -------------//
   #if CFG_TUH_HUB && (CFG_TUSB_HOST_DEVICE_MAX == 1)
-    #error there is no benefit enable hub with max device is 1. Please disable hub or increase CFG_TUSB_HOST_DEVICE_MAX
+    #error There is no benefit enable hub with max device is 1. Please disable hub or increase CFG_TUSB_HOST_DEVICE_MAX
   #endif
 
-  //------------- HID CLASS -------------//
-  #define HOST_CLASS_HID   ( CFG_TUH_HID_KEYBOARD + CFG_TUH_HID_MOUSE + CFG_TUSB_HOST_HID_GENERIC )
-
-  #ifndef CFG_TUSB_HOST_ENUM_BUFFER_SIZE
-    #define CFG_TUSB_HOST_ENUM_BUFFER_SIZE 256
+  #ifndef CFG_TUH_ENUMERATION_BUFSIZE
+    #define CFG_TUH_ENUMERATION_BUFSIZE 256
   #endif
 
   //------------- CLASS -------------//
 #endif // TUSB_OPT_HOST_ENABLED
+
+//--------------------------------------------------------------------+
+// Port Specific
+// TUP stand for TinyUSB Port (can be renamed)
+//--------------------------------------------------------------------+
+
+//------------- Unaligned Memory -------------//
+
+// ARMv7+ (M3-M7, M23-M33) can access unaligned memory
+#if (defined(__ARM_ARCH) && (__ARM_ARCH >= 7))
+  #define TUP_ARCH_STRICT_ALIGN   0
+#else
+  #define TUP_ARCH_STRICT_ALIGN   1
+#endif
+
+// TUP_MCU_STRICT_ALIGN will overwrite TUP_ARCH_STRICT_ALIGN.
+// In case TUP_MCU_STRICT_ALIGN = 1 and TUP_ARCH_STRICT_ALIGN =0, we will not reply on compiler
+// to generate unaligned access code.
+// LPC_IP3511 Highspeed cannot access unaligned memory on USB_RAM
+#if TUD_OPT_HIGH_SPEED && (CFG_TUSB_MCU == OPT_MCU_LPC54XXX || CFG_TUSB_MCU == OPT_MCU_LPC55XX)
+  #define TUP_MCU_STRICT_ALIGN   1
+#else
+  #define TUP_MCU_STRICT_ALIGN   0
+#endif
 
 
 //------------------------------------------------------------------

@@ -65,6 +65,12 @@ static const PINMUX_GRP_T pin_usb_mux[] =
 // Invoked by startup code
 void SystemInit(void)
 {
+#ifdef __USE_LPCOPEN
+	extern void (* const g_pfnVectors[])(void);
+  unsigned int *pSCB_VTOR = (unsigned int *) 0xE000ED08;
+	*pSCB_VTOR = (unsigned int) g_pfnVectors;
+#endif
+
   Chip_IOCON_Init(LPC_IOCON);
   Chip_IOCON_SetPinMuxing(LPC_IOCON, pinmuxing, sizeof(pinmuxing) / sizeof(PINMUX_GRP_T));
   Chip_SetupXtalClocking();
@@ -141,11 +147,11 @@ void board_init(void)
 void USB_IRQHandler(void)
 {
   #if CFG_TUSB_RHPORT0_MODE & OPT_MODE_HOST
-    tuh_isr(0);
+    tuh_int_handler(0);
   #endif
 
   #if CFG_TUSB_RHPORT0_MODE & OPT_MODE_DEVICE
-    tud_isr(0);
+    tud_int_handler(0);
   #endif
 }
 

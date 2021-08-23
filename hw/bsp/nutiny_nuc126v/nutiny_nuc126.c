@@ -29,6 +29,18 @@
 #include "clk.h"
 #include "sys.h"
 
+
+//--------------------------------------------------------------------+
+// Forward USB interrupt events to TinyUSB IRQ Handler
+//--------------------------------------------------------------------+
+void USBD_IRQHandler(void)
+{
+  tud_int_handler(0);
+}
+
+//--------------------------------------------------------------------+
+// MACRO TYPEDEF CONSTANT ENUM
+//--------------------------------------------------------------------+
 #define LED_PORT              PC
 #define LED_PIN               9
 #define LED_PIN_IO            PC9

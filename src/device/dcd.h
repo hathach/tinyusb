@@ -24,18 +24,29 @@
  * This file is part of the TinyUSB stack.
  */
 
-/** \ingroup group_usbd
- * \defgroup group_dcd Device Controller Driver (DCD)
- *  @{ */
-
 #ifndef _TUSB_DCD_H_
 #define _TUSB_DCD_H_
 
 #include "common/tusb_common.h"
+#include "osal/osal.h"
+#include "common/tusb_fifo.h"
+#include "dcd_attr.h"
 
 #ifdef __cplusplus
  extern "C" {
 #endif
+
+//--------------------------------------------------------------------+
+// Configuration
+//--------------------------------------------------------------------+
+
+#ifndef CFG_TUD_ENDPPOINT_MAX
+  #define CFG_TUD_ENDPPOINT_MAX   DCD_ATTR_ENDPOINT_MAX
+#endif
+
+//--------------------------------------------------------------------+
+// MACRO CONSTANT TYPEDEF PROTYPES
+//--------------------------------------------------------------------+
 
 typedef enum
 {
@@ -60,18 +71,24 @@ typedef struct TU_ATTR_ALIGNED(4)
   uint8_t rhport;
   uint8_t event_id;
 
-  union {
-    // USBD_EVT_SETUP_RECEIVED
+  union
+  {
+    // BUS RESET
+    struct {
+      tusb_speed_t speed;
+    } bus_reset;
+
+    // SETUP_RECEIVED
     tusb_control_request_t setup_received;
 
-    // USBD_EVT_XFER_COMPLETE
+    // XFER_COMPLETE
     struct {
       uint8_t  ep_addr;
       uint8_t  result;
       uint32_t len;
     }xfer_complete;
 
-    // USBD_EVENT_FUNC_CALL
+    // FUNC_CALL
     struct {
       void (*func) (void*);
       void* param;
@@ -81,15 +98,15 @@ typedef struct TU_ATTR_ALIGNED(4)
 
 //TU_VERIFY_STATIC(sizeof(dcd_event_t) <= 12, "size is not correct");
 
-/*------------------------------------------------------------------*/
-/* Device API
- *------------------------------------------------------------------*/
+//--------------------------------------------------------------------+
+// Controller API
+//--------------------------------------------------------------------+
 
 // Initialize controller to device mode
 void dcd_init       (uint8_t rhport);
 
 // Interrupt Handler
-void dcd_isr        (uint8_t rhport);
+void dcd_int_handler(uint8_t rhport);
 
 // Enable device interrupt
 void dcd_int_enable (uint8_t rhport);
@@ -100,11 +117,14 @@ void dcd_int_disable(uint8_t rhport);
 // Receive Set Address request, mcu port must also include status IN response
 void dcd_set_address(uint8_t rhport, uint8_t dev_addr);
 
-// Receive Set Configure request
-void dcd_set_config (uint8_t rhport, uint8_t config_num);
-
 // Wake up host
 void dcd_remote_wakeup(uint8_t rhport);
+
+// Connect by enabling internal pull-up resistor on D+/D-
+void dcd_connect(uint8_t rhport) TU_ATTR_WEAK;
+
+// Disconnect by disabling internal pull-up resistor on D+/D-
+void dcd_disconnect(uint8_t rhport) TU_ATTR_WEAK;
 
 //--------------------------------------------------------------------+
 // Endpoint API
@@ -115,19 +135,28 @@ void dcd_remote_wakeup(uint8_t rhport);
 void dcd_edpt0_status_complete(uint8_t rhport, tusb_control_request_t const * request) TU_ATTR_WEAK;
 
 // Configure endpoint's registers according to descriptor
-bool dcd_edpt_open        (uint8_t rhport, tusb_desc_endpoint_t const * p_endpoint_desc);
+bool dcd_edpt_open            (uint8_t rhport, tusb_desc_endpoint_t const * desc_ep);
+
+// Close an endpoint.
+// Since it is weak, caller must TU_ASSERT this function's existence before calling it.
+void dcd_edpt_close           (uint8_t rhport, uint8_t ep_addr) TU_ATTR_WEAK;
 
 // Submit a transfer, When complete dcd_event_xfer_complete() is invoked to notify the stack
-bool dcd_edpt_xfer        (uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t total_bytes);
+bool dcd_edpt_xfer            (uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t total_bytes);
+
+// Submit an transfer using fifo, When complete dcd_event_xfer_complete() is invoked to notify the stack
+// This API is optional, may be useful for register-based for transferring data.
+bool dcd_edpt_xfer_fifo       (uint8_t rhport, uint8_t ep_addr, tu_fifo_t * ff, uint16_t total_bytes) TU_ATTR_WEAK;
 
 // Stall endpoint
-void dcd_edpt_stall       (uint8_t rhport, uint8_t ep_addr);
+void dcd_edpt_stall           (uint8_t rhport, uint8_t ep_addr);
 
 // clear stall, data toggle is also reset to DATA0
-void dcd_edpt_clear_stall (uint8_t rhport, uint8_t ep_addr);
+// This API never calls with control endpoints, since it is auto cleared when receiving setup packet
+void dcd_edpt_clear_stall     (uint8_t rhport, uint8_t ep_addr);
 
 //--------------------------------------------------------------------+
-// Event API (Implemented by device stack)
+// Event API (implemented by stack)
 //--------------------------------------------------------------------+
 
 // Called by DCD to notify device stack
@@ -135,6 +164,9 @@ extern void dcd_event_handler(dcd_event_t const * event, bool in_isr);
 
 // helper to send bus signal event
 extern void dcd_event_bus_signal (uint8_t rhport, dcd_eventid_t eid, bool in_isr);
+
+// helper to send bus reset event
+extern void dcd_event_bus_reset (uint8_t rhport, tusb_speed_t speed, bool in_isr);
 
 // helper to send setup received
 extern void dcd_event_setup_received(uint8_t rhport, uint8_t const * setup, bool in_isr);
@@ -147,5 +179,3 @@ extern void dcd_event_xfer_complete (uint8_t rhport, uint8_t ep_addr, uint32_t x
 #endif
 
 #endif /* _TUSB_DCD_H_ */
-
-/// @}

@@ -1,4 +1,4 @@
-/* 
+/*
  * The MIT License (MIT)
  *
  * Copyright (c) 2019 Ha Thach (tinyusb.org)
@@ -63,7 +63,7 @@ typedef enum
   CDC_COMM_SUBCLASS_TELEPHONE_CONTROL_MODEL           , ///< Telephone Control Model  [USBPSTN1.2]
   CDC_COMM_SUBCLASS_MULTICHANNEL_CONTROL_MODEL        , ///< Multi-Channel Control Model  [USBISDN1.2]
   CDC_COMM_SUBCLASS_CAPI_CONTROL_MODEL                , ///< CAPI Control Model  [USBISDN1.2]
-  CDC_COMM_SUBCLASS_ETHERNET_NETWORKING_CONTROL_MODEL , ///< Ethernet Networking Control Model  [USBECM1.2]
+  CDC_COMM_SUBCLASS_ETHERNET_CONTROL_MODEL            , ///< Ethernet Networking Control Model  [USBECM1.2]
   CDC_COMM_SUBCLASS_ATM_NETWORKING_CONTROL_MODEL      , ///< ATM Networking Control Model  [USBATM1.2]
   CDC_COMM_SUBCLASS_WIRELESS_HANDSET_CONTROL_MODEL    , ///< Wireless Handset Control Model  [USBWMC1.1]
   CDC_COMM_SUBCLASS_DEVICE_MANAGEMENT                 , ///< Device Management  [USBWMC1.1]
@@ -215,6 +215,10 @@ typedef enum
 // Class Specific Functional Descriptor (Communication Interface)
 //--------------------------------------------------------------------+
 
+// Start of all packed definitions for compiler without per-type packed
+TU_ATTR_PACKED_BEGIN
+TU_ATTR_BIT_FIELD_ORDER_BEGIN
+
 /// Header Functional Descriptor (Communication Interface)
 typedef struct TU_ATTR_PACKED
 {
@@ -235,7 +239,7 @@ typedef struct TU_ATTR_PACKED
 }cdc_desc_func_union_t;
 
 #define cdc_desc_func_union_n_t(no_slave)\
- struct TU_ATTR_PACKED { \
+ struct TU_ATTR_PACKED {                   \
   uint8_t bLength                         ;\
   uint8_t bDescriptorType                 ;\
   uint8_t bDescriptorSubType              ;\
@@ -254,7 +258,7 @@ typedef struct TU_ATTR_PACKED
 }cdc_desc_func_country_selection_t;
 
 #define cdc_desc_func_country_selection_n_t(no_country) \
-  struct TU_ATTR_PACKED {\
+  struct TU_ATTR_PACKED {            \
   uint8_t bLength                   ;\
   uint8_t bDescriptorType           ;\
   uint8_t bDescriptorSubType        ;\
@@ -277,12 +281,11 @@ typedef struct TU_ATTR_PACKED
   struct {
     uint8_t handle_call    : 1; ///< 0 - Device sends/receives call management information only over the Communications Class interface. 1 - Device can send/receive call management information over a Data Class interface.
     uint8_t send_recv_call : 1; ///< 0 - Device does not handle call management itself. 1 - Device handles call management itself.
-    uint8_t : 0;
+    uint8_t TU_RESERVED    : 6;
   } bmCapabilities;
 
   uint8_t bDataInterface;
 }cdc_desc_func_call_management_t;
-
 
 typedef struct TU_ATTR_PACKED
 {
@@ -290,13 +293,13 @@ typedef struct TU_ATTR_PACKED
   uint8_t support_line_request                    : 1; ///< Device supports the request combination of Set_Line_Coding, Set_Control_Line_State, Get_Line_Coding, and the notification Serial_State.
   uint8_t support_send_break                      : 1; ///< Device supports the request Send_Break
   uint8_t support_notification_network_connection : 1; ///< Device supports the notification Network_Connection.
-  uint8_t : 0;
+  uint8_t TU_RESERVED                             : 4;
 }cdc_acm_capability_t;
 
 TU_VERIFY_STATIC(sizeof(cdc_acm_capability_t) == 1, "mostly problem with compiler");
 
-/// \brief Abstract Control Management Functional Descriptor
-/// \details This functional descriptor describes the commands supported by by the Communications Class interface with SubClass code of \ref CDC_COMM_SUBCLASS_ABSTRACT_CONTROL_MODEL
+/// Abstract Control Management Functional Descriptor
+/// This functional descriptor describes the commands supported by by the Communications Class interface with SubClass code of \ref CDC_COMM_SUBCLASS_ABSTRACT_CONTROL_MODEL
 typedef struct TU_ATTR_PACKED
 {
   uint8_t bLength                  ; ///< Size of this descriptor in bytes.
@@ -316,7 +319,7 @@ typedef struct TU_ATTR_PACKED
     uint8_t require_pulse_setup   : 1; ///< Device requires extra Pulse_Setup request during pulse dialing sequence to disengage holding circuit.
     uint8_t support_aux_request   : 1; ///< Device supports the request combination of Set_Aux_Line_State, Ring_Aux_Jack, and notification Aux_Jack_Hook_State.
     uint8_t support_pulse_request : 1; ///< Device supports the request combination of Pulse_Setup, Send_Pulse, and Set_Pulse_Time.
-    uint8_t : 0;
+    uint8_t TU_RESERVED           : 5;
   } bmCapabilities;
 }cdc_desc_func_direct_line_management_t;
 
@@ -344,7 +347,7 @@ typedef struct TU_ATTR_PACKED
     uint8_t simple_mode           : 1;
     uint8_t standalone_mode       : 1;
     uint8_t computer_centric_mode : 1;
-    uint8_t : 0;
+    uint8_t TU_RESERVED           : 5;
   } bmCapabilities;
 }cdc_desc_func_telephone_operational_modes_t;
 
@@ -363,10 +366,11 @@ typedef struct TU_ATTR_PACKED
     uint32_t incoming_distinctive   : 1; ///< 0 : Reports only incoming ringing. 1 : Reports incoming distinctive ringing patterns.
     uint32_t dual_tone_multi_freq   : 1; ///< 0 : Cannot report dual tone multi-frequency (DTMF) digits input remotely over the telephone line. 1 : Can report DTMF digits input remotely over the telephone line.
     uint32_t line_state_change      : 1; ///< 0 : Does not support line state change notification. 1 : Does support line state change notification
-    uint32_t : 0;
+    uint32_t TU_RESERVED            : 26;
   } bmCapabilities;
 }cdc_desc_func_telephone_call_state_reporting_capabilities_t;
 
+// TODO remove
 static inline uint8_t cdc_functional_desc_typeof(uint8_t const * p_desc)
 {
   return p_desc[2];
@@ -394,7 +398,8 @@ typedef struct TU_ATTR_PACKED
 
 TU_VERIFY_STATIC(sizeof(cdc_line_control_state_t) == 2, "size is not correct");
 
-/** @} */
+TU_ATTR_PACKED_END  // End of all packed definitions
+TU_ATTR_BIT_FIELD_ORDER_END
 
 #ifdef __cplusplus
  }

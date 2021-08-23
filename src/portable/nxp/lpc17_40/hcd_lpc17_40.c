@@ -26,7 +26,8 @@
 
 #include "tusb_option.h"
 
-#if (CFG_TUSB_MCU == OPT_MCU_LPC175X_6X || CFG_TUSB_MCU == OPT_MCU_LPC40XX)
+#if TUSB_OPT_HOST_ENABLED && \
+    (CFG_TUSB_MCU == OPT_MCU_LPC175X_6X || CFG_TUSB_MCU == OPT_MCU_LPC177X_8X || CFG_TUSB_MCU == OPT_MCU_LPC40XX)
 
 #include "chip.h"
 

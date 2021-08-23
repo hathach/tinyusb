@@ -1,3 +1,5 @@
+DEPS_SUBMODULES += hw/mcu/nxp/lpcopen
+
 CFLAGS += \
   -flto \
   -mthumb \
@@ -12,14 +14,15 @@ CFLAGS += \
   -DCFG_TUSB_MEM_ALIGN='__attribute__((aligned(64)))' 
 
 # startup.c and lpc_types.h cause following errors
-CFLAGS += -Wno-error=nested-externs -Wno-error=strict-prototypes
+CFLAGS += -Wno-error=strict-prototypes
 
 MCU_DIR = hw/mcu/nxp/lpcopen/lpc13xx/lpc_chip_13xx
 
 # All source paths should be relative to the top level.
-LD_FILE = hw/bsp/lpcxpresso1347/lpc1347.ld
+LD_FILE = hw/bsp/$(BOARD)/lpc1347.ld
 
 SRC_C += \
+	src/portable/nxp/lpc_ip3511/dcd_lpc_ip3511.c \
 	$(MCU_DIR)/../gcc/cr_startup_lpc13xx.c \
 	$(MCU_DIR)/src/chip_13xx.c \
 	$(MCU_DIR)/src/clock_13xx.c \
@@ -31,16 +34,11 @@ SRC_C += \
 INC += \
 	$(TOP)/$(MCU_DIR)/inc
 
-# For TinyUSB port source
-VENDOR = nxp
-CHIP_FAMILY = lpc_ip3511
-
 # For freeRTOS port source
 FREERTOS_PORT = ARM_CM3
 
 # For flash-jlink target
 JLINK_DEVICE = LPC1347
-JLINK_IF = swd
 
 # flash using jlink
 flash: flash-jlink
