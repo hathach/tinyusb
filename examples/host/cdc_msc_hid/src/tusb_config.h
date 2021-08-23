@@ -80,7 +80,8 @@
 #define CFG_TUH_MSC                 1
 #define CFG_TUH_VENDOR              0
 
-#define CFG_TUH_DEVICE_MAX          (CFG_TUH_HUB ? 5 : 1) // normal hub has 4 ports
+// max device support (excluding hub device)
+#define CFG_TUH_DEVICE_MAX          (CFG_TUH_HUB ? 4 : 1) // hub typically has 4 ports
 
 //------------- HID -------------//
 #define CFG_TUH_HID_EPIN_BUFSIZE    64

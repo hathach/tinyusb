@@ -71,7 +71,7 @@ typedef struct
   struct {
     ehci_qhd_t qhd;
     ehci_qtd_t qtd;
-  }control[CFG_TUH_DEVICE_MAX+1];
+  }control[CFG_TUH_DEVICE_MAX+CFG_TUH_HUB+1];
 
   ehci_qhd_t qhd_pool[HCD_MAX_ENDPOINT];
   ehci_qtd_t qtd_pool[HCD_MAX_XFER] TU_ATTR_ALIGNED(32);

@@ -240,6 +240,8 @@ bool cdch_xfer_cb(uint8_t dev_addr, uint8_t ep_addr, xfer_result_t event, uint32
 
 void cdch_close(uint8_t dev_addr)
 {
+  TU_VERIFY(dev_addr <= CFG_TUH_DEVICE_MAX, );
+
   cdch_data_t * p_cdc = get_itf(dev_addr);
   tu_memclr(p_cdc, sizeof(cdch_data_t));
 }

@@ -62,7 +62,7 @@ typedef struct
   hidh_interface_t instances[CFG_TUH_HID];
 } hidh_device_t;
 
-static hidh_device_t _hidh_dev[CFG_TUH_DEVICE_MAX-1];
+static hidh_device_t _hidh_dev[CFG_TUH_DEVICE_MAX];
 
 //------------- Internal prototypes -------------//
 
@@ -240,6 +240,8 @@ bool hidh_xfer_cb(uint8_t dev_addr, uint8_t ep_addr, xfer_result_t result, uint3
 
 void hidh_close(uint8_t dev_addr)
 {
+  TU_VERIFY(dev_addr <= CFG_TUH_DEVICE_MAX, );
+
   hidh_device_t* hid_dev = get_dev(dev_addr);
   if (tuh_hid_umount_cb)
   {
