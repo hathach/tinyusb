@@ -113,7 +113,7 @@ License
 =======
 
 All TinyUSB sources in the ``src`` folder are licensed under MIT
-license, `Full license is here <LICENSE>`__. However, each file can be
+license, the `Full license is here <LICENSE>`__. However, each file can be
 individually licensed especially those in ``lib`` and ``hw/mcu`` folder.
 Please make sure you understand all the license term for files you use
 in your project.
@@ -132,7 +132,7 @@ in your project.
 .. _Contributors: CONTRIBUTORS.rst
 .. _Reference: docs/reference/index.rst
 .. _Supported Devices: docs/reference/supported.rst
-.. _Gettin Started: docs/reference/getting_started.rst
+.. _Getting Started: docs/reference/getting_started.rst
 .. _Concurrency: docs/reference/concurrency.rst
 .. _Contributing: docs/contributing/index.rst
 .. _Code of Conduct: CODE_OF_CONDUCT.rst
