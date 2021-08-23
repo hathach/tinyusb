@@ -24,11 +24,9 @@
  * This file is part of the TinyUSB stack.
  */
 
-#include "common/tusb_common.h"
+#include "host/hcd_attr.h"
 
-#if TUSB_OPT_HOST_ENABLED && \
-   (CFG_TUSB_MCU == OPT_MCU_LPC43XX || CFG_TUSB_MCU == OPT_MCU_LPC18XX || \
-    CFG_TUSB_MCU == OPT_MCU_MIMXRT10XX )
+#if TUSB_OPT_HOST_ENABLED && defined(HCD_ATTR_EHCI_TRANSDIMENSION)
 
 //--------------------------------------------------------------------+
 // INCLUDE
@@ -47,21 +45,27 @@
 // Debug level of EHCI
 #define EHCI_DBG     2
 
-// Framelist size as small as possible
-// - Standard EHCI : 256 elements
-// - NXP Transdimension:  8 elements
-#define	EHCI_CFG_FRAMELIST_SIZE_BITS		7
-#define EHCI_FRAMELIST_SIZE             (1024 >> EHCI_CFG_FRAMELIST_SIZE_BITS)
+// Framelist size as small as possible to save SRAM
+#ifdef HCD_ATTR_EHCI_TRANSDIMENSION
+  // NXP Transdimension: 8 elements
+  #define FRAMELIST_SIZE_BIT_VALUE      7u
+  #define FRAMELIST_SIZE_USBCMD_VALUE   (((FRAMELIST_SIZE_BIT_VALUE &  3) << EHCI_USBCMD_POS_FRAMELIST_SIZE) | \
+                                         ((FRAMELIST_SIZE_BIT_VALUE >> 2) << EHCI_USBCMD_POS_NXP_FRAMELIST_SIZE_MSB))
+#else
+  // STD EHCI: 256 elements
+  #define FRAMELIST_SIZE_BIT_VALUE      2u
+  #define FRAMELIST_SIZE_USBCMD_VALUE   ((FRAMELIST_SIZE_BIT_VALUE &  3) << EHCI_USBCMD_POS_FRAMELIST_SIZE)
+#endif
 
-TU_VERIFY_STATIC(EHCI_CFG_FRAMELIST_SIZE_BITS <= 7, "incorrect value");
-
+#define FRAMELIST_SIZE                  (1024 >> FRAMELIST_SIZE_BIT_VALUE)
 
 typedef struct
 {
-  ehci_link_t period_framelist[EHCI_FRAMELIST_SIZE];
+  ehci_link_t period_framelist[FRAMELIST_SIZE];
 
-  // for NXP ECHI, only implement 1 ms & 2 ms & 4 ms, 8 ms (framelist)
+  // TODO only implement 1 ms & 2 ms & 4 ms, 8 ms (framelist)
   // [0] : 1ms, [1] : 2ms, [2] : 4ms, [3] : 8 ms
+  // TODO better implementation without dummy head to save SRAM
   ehci_qhd_t period_head_arr[4];
 
   // Note control qhd of dev0 is used as head of async list
@@ -84,10 +88,10 @@ CFG_TUSB_MEM_SECTION TU_ATTR_ALIGNED(4096) static ehci_data_t ehci_data;
 //--------------------------------------------------------------------+
 // PROTOTYPE
 //--------------------------------------------------------------------+
-static inline ehci_link_t* get_period_head(uint8_t rhport, uint8_t interval_ms)
+static inline ehci_link_t* get_period_head(uint8_t rhport, uint32_t interval_ms)
 {
   (void) rhport;
-  return (ehci_link_t*) &ehci_data.period_head_arr[ tu_log2( tu_min8(EHCI_FRAMELIST_SIZE, interval_ms) ) ];
+  return (ehci_link_t*) &ehci_data.period_head_arr[ tu_log2( tu_min32(FRAMELIST_SIZE, interval_ms) ) ];
 }
 
 static inline ehci_qhd_t* qhd_control(uint8_t dev_addr)
@@ -260,37 +264,38 @@ bool ehci_init(uint8_t rhport, uint32_t capability_reg, uint32_t operatial_reg)
 
   //------------- Periodic List -------------//
   // Build the polling interval tree with 1 ms, 2 ms, 4 ms and 8 ms (framesize) only
-  for(uint32_t i=0; i<4; i++)
+  for ( uint32_t i = 0; i < TU_ARRAY_SIZE(ehci_data.period_head_arr); i++ )
   {
-    ehci_data.period_head_arr[i].int_smask    = 1; // queue head in period list must have smask non-zero
+    ehci_data.period_head_arr[i].int_smask          = 1; // queue head in period list must have smask non-zero
     ehci_data.period_head_arr[i].qtd_overlay.halted = 1; // dummy node, always inactive
   }
 
   ehci_link_t * const framelist  = ehci_data.period_framelist;
-  ehci_link_t * const period_1ms = get_period_head(rhport, 1);
+  ehci_link_t * const period_1ms = get_period_head(rhport, 1u);
+
   // all links --> period_head_arr[0] (1ms)
   // 0, 2, 4, 6 etc --> period_head_arr[1] (2ms)
   // 1, 5 --> period_head_arr[2] (4ms)
   // 3 --> period_head_arr[3] (8ms)
 
   // TODO EHCI_FRAMELIST_SIZE with other size than 8
-  for(uint32_t i=0; i<EHCI_FRAMELIST_SIZE; i++)
+  for(uint32_t i=0; i<FRAMELIST_SIZE; i++)
   {
     framelist[i].address = (uint32_t) period_1ms;
     framelist[i].type    = EHCI_QTYPE_QHD;
   }
 
-  for(uint32_t i=0; i<EHCI_FRAMELIST_SIZE; i+=2)
+  for(uint32_t i=0; i<FRAMELIST_SIZE; i+=2)
   {
-    list_insert(framelist + i, get_period_head(rhport, 2), EHCI_QTYPE_QHD);
+    list_insert(framelist + i, get_period_head(rhport, 2u), EHCI_QTYPE_QHD);
   }
 
-  for(uint32_t i=1; i<EHCI_FRAMELIST_SIZE; i+=4)
+  for(uint32_t i=1; i<FRAMELIST_SIZE; i+=4)
   {
-    list_insert(framelist + i, get_period_head(rhport, 4), EHCI_QTYPE_QHD);
+    list_insert(framelist + i, get_period_head(rhport, 4u), EHCI_QTYPE_QHD);
   }
 
-  list_insert(framelist+3, get_period_head(rhport, 8), EHCI_QTYPE_QHD);
+  list_insert(framelist+3, get_period_head(rhport, 8u), EHCI_QTYPE_QHD);
 
   period_1ms->terminate    = 1;
 
@@ -300,10 +305,9 @@ bool ehci_init(uint8_t rhport, uint32_t capability_reg, uint32_t operatial_reg)
   regs->nxp_tt_control = 0;
 
   //------------- USB CMD Register -------------//
-  regs->command |= TU_BIT(EHCI_USBCMD_POS_RUN_STOP) | TU_BIT(EHCI_USBCMD_POS_ASYNC_ENABLE)
-                | TU_BIT(EHCI_USBCMD_POS_PERIOD_ENABLE) // TODO enable period list only there is int/iso endpoint
-                | ((EHCI_CFG_FRAMELIST_SIZE_BITS & TU_BIN8(011)) << EHCI_USBCMD_POS_FRAMELIST_SZIE)
-                | ((EHCI_CFG_FRAMELIST_SIZE_BITS >> 2) << EHCI_USBCMD_POS_NXP_FRAMELIST_SIZE_MSB);
+  regs->command |= TU_BIT(EHCI_USBCMD_POS_RUN_STOP) | TU_BIT(EHCI_USBCMD_POS_ASYNC_ENABLE) |
+                   TU_BIT(EHCI_USBCMD_POS_PERIOD_ENABLE) |  // TODO enable period list only there is int/iso endpoint
+                   FRAMELIST_SIZE_USBCMD_VALUE;
 
   //------------- ConfigFlag Register (skip) -------------//
   regs->portsc_bm.port_power = 1; // enable port power
@@ -530,10 +534,10 @@ static void async_list_xfer_complete_isr(ehci_qhd_t * const async_head)
   }while(p_qhd != async_head); // async list traversal, stop if loop around
 }
 
-static void period_list_xfer_complete_isr(uint8_t hostid, uint8_t interval_ms)
+static void period_list_xfer_complete_isr(uint8_t hostid, uint32_t interval_ms)
 {
   uint16_t max_loop = 0;
-  uint32_t const period_1ms_addr = (uint32_t) get_period_head(hostid, 1);
+  uint32_t const period_1ms_addr = (uint32_t) get_period_head(hostid, 1u);
   ehci_link_t next_item = * get_period_head(hostid, interval_ms);
 
   // TODO abstract max loop guard for period
@@ -616,8 +620,8 @@ static void xfer_error_isr(uint8_t hostid)
   }while(p_qhd != async_head); // async list traversal, stop if loop around
 
   //------------- TODO refractor period list -------------//
-  uint32_t const period_1ms_addr = (uint32_t) get_period_head(hostid, 1);
-  for (uint8_t interval_ms=1; interval_ms <= EHCI_FRAMELIST_SIZE; interval_ms *= 2)
+  uint32_t const period_1ms_addr = (uint32_t) get_period_head(hostid, 1u);
+  for (uint32_t interval_ms=1; interval_ms <= FRAMELIST_SIZE; interval_ms *= 2)
   {
     ehci_link_t next_item = * get_period_head(hostid, interval_ms);
 
@@ -660,7 +664,7 @@ void hcd_int_handler(uint8_t rhport)
 
   if (int_status & EHCI_INT_MASK_FRAMELIST_ROLLOVER)
   {
-    ehci_data.uframe_number += (EHCI_FRAMELIST_SIZE << 3);
+    ehci_data.uframe_number += (FRAMELIST_SIZE << 3);
   }
 
   if (int_status & EHCI_INT_MASK_PORT_CHANGE)
@@ -690,7 +694,7 @@ void hcd_int_handler(uint8_t rhport)
 
   if (int_status & EHCI_INT_MASK_NXP_PERIODIC)
   {
-    for (uint8_t i=1; i <= EHCI_FRAMELIST_SIZE; i *= 2)
+    for (uint32_t i=1; i <= FRAMELIST_SIZE; i *= 2)
     {
       period_list_xfer_complete_isr( rhport, i );
     }

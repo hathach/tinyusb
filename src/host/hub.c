@@ -45,8 +45,8 @@ typedef struct
   hub_port_status_response_t port_status;
 } hub_interface_t;
 
-CFG_TUSB_MEM_SECTION static hub_interface_t hub_data[CFG_TUH_DEVICE_MAX];
-TU_ATTR_ALIGNED(4) CFG_TUSB_MEM_SECTION static uint8_t _hub_buffer[sizeof(descriptor_hub_desc_t)];
+CFG_TUSB_MEM_SECTION static hub_interface_t hub_data[CFG_TUH_HUB];
+CFG_TUSB_MEM_SECTION TU_ATTR_ALIGNED(4) static uint8_t _hub_buffer[sizeof(descriptor_hub_desc_t)];
 
 #if CFG_TUSB_DEBUG
 static char const* const _hub_feature_str[] =
@@ -144,7 +144,7 @@ bool hub_port_get_status(uint8_t hub_addr, uint8_t hub_port, void* resp, tuh_con
 //--------------------------------------------------------------------+
 void hub_init(void)
 {
-  tu_memclr(hub_data, CFG_TUH_DEVICE_MAX*sizeof(hub_interface_t));
+  tu_memclr(hub_data, sizeof(hub_data));
 }
 
 bool hub_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_interface_t const *itf_desc, uint16_t max_len)

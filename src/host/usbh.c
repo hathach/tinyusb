@@ -128,7 +128,8 @@ enum { CONFIG_NUM = 1 }; // default to use configuration 1
 
 static bool _usbh_initialized = false;
 
-// including zero-address
+// all devices including hub and zero-address TODO exclude device0 to save space
+// hub address start from CFG_TUH_DEVICE_MAX
 CFG_TUSB_MEM_SECTION usbh_device_t _usbh_devices[CFG_TUH_DEVICE_MAX+1];
 
 // Event queue

@@ -30,6 +30,7 @@
 #include "common/tusb_common.h"
 #include "osal/osal.h"
 #include "common/tusb_fifo.h"
+#include "hcd_attr.h"
 
 #ifdef __cplusplus
  extern "C" {
@@ -62,6 +63,7 @@ typedef struct
     struct {
       uint8_t hub_addr;
       uint8_t hub_port;
+      uint8_t speed;
     } connection;
 
     // XFER_COMPLETE
@@ -140,7 +142,7 @@ bool hcd_edpt_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr, uint8_t * 
 bool hcd_edpt_clear_stall(uint8_t dev_addr, uint8_t ep_addr);
 
 //--------------------------------------------------------------------+
-// Event API (implemented by stack)
+// USBH implemented API
 //--------------------------------------------------------------------+
 
 // Called by HCD to notify stack
