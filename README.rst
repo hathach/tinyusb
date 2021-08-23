@@ -100,7 +100,7 @@ Local Docs
 - `Reference`_
 
   - `Supported Devices`_
-  - `Gettin Started`_
+  - `Getting Started`_
   - `Concurrency`_
 
 - `Contributing`_
