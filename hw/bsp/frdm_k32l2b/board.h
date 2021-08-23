@@ -31,16 +31,14 @@
 #include "fsl_device_registers.h"
 
 // LED
-//#define LED_PINMUX            IOMUXC_GPIO_11_GPIOMUX_IO11
-//#define LED_PIN_CLOCK         kCLOCK_PortB
+#define LED_PIN_CLOCK         kCLOCK_PortD
 #define LED_GPIO              GPIOD
 #define LED_PORT              PORTD
 #define LED_PIN               5
 #define LED_STATE_ON          0
 
 // SW3 button1
-//#define BUTTON_PINMUX         IOMUXC_GPIO_SD_05_GPIO2_IO05
-//#define BUTTON_PIN_CLOCK      kCLOCK_PortC
+#define BUTTON_PIN_CLOCK      kCLOCK_PortC
 #define BUTTON_GPIO           GPIOC
 #define BUTTON_PORT           PORTC
 #define BUTTON_PIN            3
@@ -48,7 +46,7 @@
 
 // UART
 #define UART_PORT             LPUART0
-//#define UART_PIN_CLOCK        kCLOCK_PortA
+#define UART_PIN_CLOCK        kCLOCK_PortA
 #define UART_PIN_PORT         PORTA
 #define UART_PIN_RX           1u
 #define UART_PIN_TX           2u

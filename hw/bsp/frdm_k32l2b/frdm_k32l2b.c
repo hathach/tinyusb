@@ -42,44 +42,12 @@ void USB0_IRQHandler(void)
   tud_int_handler(0);
 }
 
-//--------------------------------------------------------------------+
-// MACRO TYPEDEF CONSTANT ENUM DECLARATION
-//--------------------------------------------------------------------+
-// LED
-/*
-//#define LED_PINMUX            IOMUXC_GPIO_AD_B0_09_GPIO1_IO09
-#define LED_PORT              GPIOB
-#define LED_PIN_CLOCK         kCLOCK_PortD
-#define LED_PIN_PORT          PORTD
-#define LED_PIN               5U
-#define LED_PIN_FUNCTION      kPORT_MuxAsGpio
-#define LED_STATE_ON          0
-
-// UART
-#define UART_PORT             LPUART0
-#define UART_PIN_CLOCK        kCLOCK_PortA
-#define UART_PIN_PORT         PORTA
-#define UART_PIN_RX           1u
-#define UART_PIN_TX           2u
-#define UART_PIN_FUNCTION     kPORT_MuxAlt2
-*/
-//#define SOPT5_UART0RXSRC_UART_RX      0x00u   /*!< UART0 receive data source select: UART0_RX pin */
-//#define SOPT5_UART0TXSRC_UART_TX      0x00u   /*!< UART0 transmit data source select: UART0_TX pin */
-
-//const uint8_t dcd_data[] = { 0x00 };
-
 void board_init(void)
 {
-  /* Port A Clock Gate Control: Clock enabled */
-  CLOCK_EnableClock(kCLOCK_PortA);
-  /* Port B Clock Gate Control: Clock enabled */
-  CLOCK_EnableClock(kCLOCK_PortB);
-  /* Port C Clock Gate Control: Clock enabled */
-  CLOCK_EnableClock(kCLOCK_PortC);
-  /* Port D Clock Gate Control: Clock enabled */
-  CLOCK_EnableClock(kCLOCK_PortD);
-  /* Port E Clock Gate Control: Clock enabled */
-  CLOCK_EnableClock(kCLOCK_PortE);
+  /* Enable port clocks for UART/LED/Button pins */
+  CLOCK_EnableClock(UART_PIN_CLOCK);
+  CLOCK_EnableClock(LED_PIN_CLOCK);
+  CLOCK_EnableClock(BUTTON_PIN_CLOCK);
 
   gpio_pin_config_t led_config = { kGPIO_DigitalOutput, 0 };
   GPIO_PinInit(LED_GPIO, LED_PIN, &led_config);
@@ -129,9 +97,7 @@ void board_init(void)
   LPUART_Init(UART_PORT, &uart_config, CLOCK_GetFreq(kCLOCK_McgIrc48MClk));
 
   // USB
-//  SystemCoreClockUpdate();
   CLOCK_EnableUsbfs0Clock(kCLOCK_UsbSrcIrc48M, 48000000U);
-//  CLOCK_EnableUsbfs0Clock(kCLOCK_UsbSrcPll0, CLOCK_GetFreq(kCLOCK_PllFllSelClk));
 }
 
 //--------------------------------------------------------------------+
