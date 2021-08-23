@@ -95,7 +95,7 @@ typedef struct {
 
 } usbh_device_t;
 
-extern usbh_device_t _usbh_devices[CFG_TUSB_HOST_DEVICE_MAX+1]; // including zero-address
+extern usbh_device_t _usbh_devices[CFG_TUH_DEVICE_MAX+1]; // including zero-address
 
 #ifdef __cplusplus
  }

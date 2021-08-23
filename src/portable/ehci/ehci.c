@@ -56,7 +56,7 @@ typedef struct
   struct {
     ehci_qhd_t qhd;
     ehci_qtd_t qtd;
-  }control[CFG_TUSB_HOST_DEVICE_MAX+1];
+  }control[CFG_TUH_DEVICE_MAX+1];
 
   ehci_qhd_t qhd_pool[HCD_MAX_ENDPOINT];
   ehci_qtd_t qtd_pool[HCD_MAX_XFER] TU_ATTR_ALIGNED(32);
@@ -528,7 +528,7 @@ static void period_list_xfer_complete_isr(uint8_t hostid, uint8_t interval_ms)
   // TODO abstract max loop guard for period
   while( !next_item.terminate &&
       !(interval_ms > 1 && period_1ms_addr == tu_align32(next_item.address)) &&
-      max_loop < (HCD_MAX_ENDPOINT + EHCI_MAX_ITD + EHCI_MAX_SITD)*CFG_TUSB_HOST_DEVICE_MAX)
+      max_loop < (HCD_MAX_ENDPOINT + EHCI_MAX_ITD + EHCI_MAX_SITD)*CFG_TUH_DEVICE_MAX)
   {
     switch ( next_item.type )
     {

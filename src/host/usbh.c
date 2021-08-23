@@ -129,7 +129,7 @@ enum { CONFIG_NUM = 1 }; // default to use configuration 1
 static bool _usbh_initialized = false;
 
 // including zero-address
-CFG_TUSB_MEM_SECTION usbh_device_t _usbh_devices[CFG_TUSB_HOST_DEVICE_MAX+1];
+CFG_TUSB_MEM_SECTION usbh_device_t _usbh_devices[CFG_TUH_DEVICE_MAX+1];
 
 // Event queue
 // role device/host is used by OS NONE for mutex (disable usb isr)
@@ -156,7 +156,7 @@ bool tuh_device_configured(uint8_t dev_addr)
 
 tusb_speed_t tuh_device_get_speed (uint8_t const dev_addr)
 {
-  TU_ASSERT( dev_addr <= CFG_TUSB_HOST_DEVICE_MAX, TUSB_SPEED_INVALID);
+  TU_ASSERT( dev_addr <= CFG_TUH_DEVICE_MAX, TUSB_SPEED_INVALID);
   return (tusb_speed_t) _usbh_devices[dev_addr].speed;
 }
 
@@ -193,7 +193,7 @@ bool tuh_init(uint8_t rhport)
   TU_ASSERT(_usbh_q != NULL);
 
   //------------- Semaphore, Mutex for Control Pipe -------------//
-  for(uint8_t i=0; i<CFG_TUSB_HOST_DEVICE_MAX+1; i++) // including address zero
+  for(uint8_t i=0; i<CFG_TUH_DEVICE_MAX+1; i++) // including address zero
   {
     usbh_device_t * const dev = &_usbh_devices[i];
 
@@ -387,7 +387,7 @@ void hcd_event_device_remove(uint8_t hostid, bool in_isr)
 void process_device_unplugged(uint8_t rhport, uint8_t hub_addr, uint8_t hub_port)
 {
   //------------- find the all devices (star-network) under port that is unplugged -------------//
-  for (uint8_t dev_addr = 0; dev_addr <= CFG_TUSB_HOST_DEVICE_MAX; dev_addr ++)
+  for (uint8_t dev_addr = 0; dev_addr <= CFG_TUH_DEVICE_MAX; dev_addr ++)
   {
     usbh_device_t* dev = &_usbh_devices[dev_addr];
 
@@ -422,11 +422,11 @@ void process_device_unplugged(uint8_t rhport, uint8_t hub_addr, uint8_t hub_port
 //--------------------------------------------------------------------+
 static uint8_t get_new_address(void)
 {
-  for (uint8_t addr=1; addr <= CFG_TUSB_HOST_DEVICE_MAX; addr++)
+  for (uint8_t addr=1; addr <= CFG_TUH_DEVICE_MAX; addr++)
   {
     if (_usbh_devices[addr].state == TUSB_DEVICE_STATE_UNPLUG) return addr;
   }
-  return CFG_TUSB_HOST_DEVICE_MAX+1;
+  return CFG_TUH_DEVICE_MAX+1;
 }
 
 void usbh_driver_set_config_complete(uint8_t dev_addr, uint8_t itf_num)
@@ -548,7 +548,7 @@ static bool enum_request_set_addr(void)
 {
   // Set Address
   uint8_t const new_addr = get_new_address();
-  TU_ASSERT(new_addr <= CFG_TUSB_HOST_DEVICE_MAX); // TODO notify application we reach max devices
+  TU_ASSERT(new_addr <= CFG_TUH_DEVICE_MAX); // TODO notify application we reach max devices
 
   TU_LOG2("Set Address = %d\r\n", new_addr);
 

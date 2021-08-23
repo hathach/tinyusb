@@ -84,7 +84,7 @@ typedef struct
 // Max number of endpoints per device
 enum {
   // TODO better computation
-  HCD_MAX_ENDPOINT = CFG_TUSB_HOST_DEVICE_MAX*(CFG_TUH_HUB + CFG_TUH_HID*2 + CFG_TUH_MSC*2 + CFG_TUH_CDC*3),
+  HCD_MAX_ENDPOINT = CFG_TUH_DEVICE_MAX*(CFG_TUH_HUB + CFG_TUH_HID*2 + CFG_TUH_MSC*2 + CFG_TUH_CDC*3),
   HCD_MAX_XFER     = HCD_MAX_ENDPOINT*2,
 };
 
