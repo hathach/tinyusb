@@ -243,9 +243,10 @@ void hidh_close(uint8_t dev_addr)
   TU_VERIFY(dev_addr <= CFG_TUH_DEVICE_MAX, );
 
   hidh_device_t* hid_dev = get_dev(dev_addr);
+
   if (tuh_hid_umount_cb)
   {
-    for ( uint8_t inst = 0; inst < hid_dev->inst_count; inst++ ) tuh_hid_umount_cb(dev_addr, inst);
+    for (uint8_t inst = 0; inst < hid_dev->inst_count; inst++ ) tuh_hid_umount_cb(dev_addr, inst);
   }
 
   tu_memclr(hid_dev, sizeof(hidh_device_t));

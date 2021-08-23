@@ -146,7 +146,7 @@ bool tuh_cdc_set_control_line_state(uint8_t dev_addr, bool dtr, bool rts, tuh_co
 //--------------------------------------------------------------------+
 void cdch_init(void)
 {
-  tu_memclr(cdch_data, sizeof(cdch_data_t)*CFG_TUH_DEVICE_MAX);
+  tu_memclr(cdch_data, sizeof(cdch_data));
 }
 
 bool cdch_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_interface_t const *itf_desc, uint16_t max_len)
