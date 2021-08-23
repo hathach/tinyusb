@@ -37,12 +37,24 @@
 
 #include "host/hcd.h"
 #include "host/usbh_hcd.h"
-#include "hcd_ehci.h"
+#include "ehci_api.h"
 #include "ehci.h"
 
 //--------------------------------------------------------------------+
 // MACRO CONSTANT TYPEDEF
 //--------------------------------------------------------------------+
+
+// Debug level of EHCI
+#define EHCI_DBG     2
+
+// Framelist size as small as possible
+// - Standard EHCI : 256 elements
+// - NXP Transdimension:  8 elements
+#define	EHCI_CFG_FRAMELIST_SIZE_BITS		7
+#define EHCI_FRAMELIST_SIZE             (1024 >> EHCI_CFG_FRAMELIST_SIZE_BITS)
+
+TU_VERIFY_STATIC(EHCI_CFG_FRAMELIST_SIZE_BITS <= 7, "incorrect value");
+
 
 typedef struct
 {
@@ -65,9 +77,7 @@ typedef struct
 
   volatile uint32_t uframe_number;
 }ehci_data_t;
-//--------------------------------------------------------------------+
-// INTERNAL OBJECT & FUNCTION DECLARATION
-//--------------------------------------------------------------------+
+
 // Periodic frame list must be 4K alignment
 CFG_TUSB_MEM_SECTION TU_ATTR_ALIGNED(4096) static ehci_data_t ehci_data;
 
@@ -109,7 +119,7 @@ static inline bool qhd_has_xact_error (ehci_qhd_t * p_qhd)
   //p_qhd->qtd_overlay.non_hs_period_missed_uframe || p_qhd->qtd_overlay.pingstate_err TODO split transaction error
 }
 
-static void qhd_init (ehci_qhd_t *p_qhd, uint8_t dev_addr, tusb_desc_endpoint_t const * ep_desc);
+static void qhd_init(ehci_qhd_t *p_qhd, uint8_t dev_addr, tusb_desc_endpoint_t const * ep_desc);
 
 static inline ehci_qtd_t* qtd_find_free (void);
 static inline ehci_qtd_t* qtd_next (ehci_qtd_t const * p_qtd);
@@ -218,12 +228,13 @@ void hcd_device_close(uint8_t rhport, uint8_t dev_addr)
   ehci_data.regs->command_bm.async_adv_doorbell = 1;
 }
 
-// EHCI controller init
-bool hcd_ehci_init(uint8_t rhport)
+bool ehci_init(uint8_t rhport, uint32_t capability_reg, uint32_t operatial_reg)
 {
+  (void) capability_reg; // not used yet
+
   tu_memclr(&ehci_data, sizeof(ehci_data_t));
 
-  ehci_data.regs = (ehci_registers_t* ) hcd_ehci_register_addr(rhport);
+  ehci_data.regs = (ehci_registers_t* ) operatial_reg;
 
   ehci_registers_t* regs = ehci_data.regs;
 
@@ -470,16 +481,16 @@ static void async_advance_isr(uint8_t rhport)
   }
 }
 
-static void port_connect_status_change_isr(uint8_t hostid)
+static void port_connect_status_change_isr(uint8_t rhport)
 {
   // NOTE There is an sequence plug->unplug->…..-> plug if device is powering with pre-plugged device
   if (ehci_data.regs->portsc_bm.current_connect_status)
   {
-    hcd_port_reset(hostid);
-    hcd_event_device_attach(hostid, true);
+    hcd_port_reset(rhport);
+    hcd_event_device_attach(rhport, true);
   }else // device unplugged
   {
-    hcd_event_device_remove(hostid, true);
+    hcd_event_device_remove(rhport, true);
   }
 }
 
@@ -655,6 +666,8 @@ void hcd_int_handler(uint8_t rhport)
   if (int_status & EHCI_INT_MASK_PORT_CHANGE)
   {
     uint32_t port_status = regs->portsc & EHCI_PORTSC_MASK_ALL;
+
+    TU_LOG_HEX(EHCI_DBG, regs->portsc);
 
     if (regs->portsc_bm.connect_status_change)
     {
