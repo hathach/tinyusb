@@ -108,6 +108,7 @@
 
 // NXP Kinetis
 #define OPT_MCU_MKL25ZXX         1200 ///< NXP MKL25Zxx
+#define OPT_MCU_K32L2BXX         1201 ///< NXP K32L2Bxx
 
 // Silabs
 #define OPT_MCU_EFM32GG          1300 ///< Silabs EFM32GG
