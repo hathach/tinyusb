@@ -61,9 +61,13 @@ typedef struct {
   uint8_t speed;
 
   //------------- device descriptor -------------//
-  uint16_t vendor_id;
-  uint16_t product_id;
-  uint8_t  ep0_packet_size;
+  uint16_t vid;
+  uint16_t pid;
+
+  uint8_t  ep0_size;
+  uint8_t  i_manufacturer;
+  uint8_t  i_product;
+  uint8_t  i_serial;
 
   //------------- configuration descriptor -------------//
   // uint8_t interface_count; // bNumInterfaces alias
@@ -105,6 +109,8 @@ typedef struct
   uint8_t hub_addr;
   uint8_t hub_port;
   uint8_t speed;
+
+  volatile uint8_t connected;
 } usbh_dev0_t;
 
 
@@ -230,9 +236,22 @@ bool tuh_mounted(uint8_t dev_addr)
   return get_device(dev_addr)->configured;
 }
 
-tusb_speed_t tuh_speed_get (uint8_t const dev_addr)
+bool tuh_vid_pid_get(uint8_t dev_addr, uint16_t* vid, uint16_t* pid)
 {
-  TU_ASSERT( dev_addr <= CFG_TUH_DEVICE_MAX + CFG_TUH_HUB, TUSB_SPEED_INVALID);
+  *vid = *pid = 0;
+
+  TU_VERIFY(tuh_mounted(dev_addr));
+
+  usbh_device_t const* dev = get_device(dev_addr);
+
+  *vid = dev->vid;
+  *pid = dev->pid;
+
+  return true;
+}
+
+tusb_speed_t tuh_speed_get (uint8_t dev_addr)
+{
   return (tusb_speed_t) get_device(dev_addr)->speed;
 }
 
@@ -652,45 +671,6 @@ static bool enum_hub_get_status0_complete(uint8_t dev_addr, tusb_control_request
 }
 #endif
 
-static bool enum_request_set_addr(void)
-{
-  uint8_t const addr0 = 0;
-  tusb_desc_device_t const * desc_device = (tusb_desc_device_t const*) _usbh_ctrl_buf;
-
-  // Get new address
-  uint8_t const new_addr = get_new_address(desc_device->bDeviceClass == TUSB_CLASS_HUB);
-  TU_ASSERT(new_addr != ADDR_INVALID);
-
-  TU_LOG2("Set Address = %d\r\n", new_addr);
-
-  usbh_device_t* new_dev = get_device(new_addr);
-
-  new_dev->rhport          = _dev0.rhport;
-  new_dev->hub_addr        = _dev0.hub_addr;
-  new_dev->hub_port        = _dev0.hub_port;
-  new_dev->speed           = _dev0.speed;
-  new_dev->connected       = 1;
-  new_dev->ep0_packet_size = desc_device->bMaxPacketSize0;
-
-  tusb_control_request_t const new_request =
-  {
-    .bmRequestType_bit =
-    {
-      .recipient = TUSB_REQ_RCPT_DEVICE,
-      .type      = TUSB_REQ_TYPE_STANDARD,
-      .direction = TUSB_DIR_OUT
-    },
-    .bRequest = TUSB_REQ_SET_ADDRESS,
-    .wValue   = new_addr,
-    .wIndex   = 0,
-    .wLength  = 0
-  };
-
-  TU_ASSERT( tuh_control_xfer(addr0, &new_request, NULL, enum_set_address_complete) );
-
-  return true;
-}
-
 static bool enum_new_device(hcd_event_t* event)
 {
   _dev0.rhport   = event->rhport; // TODO refractor integrate to device_pool
@@ -795,6 +775,45 @@ static bool enum_get_addr0_device_desc_complete(uint8_t dev_addr, tusb_control_r
   return true;
 }
 
+static bool enum_request_set_addr(void)
+{
+  uint8_t const addr0 = 0;
+  tusb_desc_device_t const * desc_device = (tusb_desc_device_t const*) _usbh_ctrl_buf;
+
+  // Get new address
+  uint8_t const new_addr = get_new_address(desc_device->bDeviceClass == TUSB_CLASS_HUB);
+  TU_ASSERT(new_addr != ADDR_INVALID);
+
+  TU_LOG2("Set Address = %d\r\n", new_addr);
+
+  usbh_device_t* new_dev = get_device(new_addr);
+
+  new_dev->rhport    = _dev0.rhport;
+  new_dev->hub_addr  = _dev0.hub_addr;
+  new_dev->hub_port  = _dev0.hub_port;
+  new_dev->speed     = _dev0.speed;
+  new_dev->connected = 1;
+  new_dev->ep0_size  = desc_device->bMaxPacketSize0;
+
+  tusb_control_request_t const new_request =
+  {
+    .bmRequestType_bit =
+    {
+      .recipient = TUSB_REQ_RCPT_DEVICE,
+      .type      = TUSB_REQ_TYPE_STANDARD,
+      .direction = TUSB_DIR_OUT
+    },
+    .bRequest = TUSB_REQ_SET_ADDRESS,
+    .wValue   = new_addr,
+    .wIndex   = 0,
+    .wLength  = 0
+  };
+
+  TU_ASSERT( tuh_control_xfer(addr0, &new_request, NULL, enum_set_address_complete) );
+
+  return true;
+}
+
 // After SET_ADDRESS is complete
 static bool enum_set_address_complete(uint8_t dev_addr, tusb_control_request_t const * request, xfer_result_t result)
 {
@@ -810,7 +829,7 @@ static bool enum_set_address_complete(uint8_t dev_addr, tusb_control_request_t c
   hcd_device_close(_dev0.rhport, 0);
 
   // open control pipe for new address
-  TU_ASSERT( usbh_edpt_control_open(new_addr, new_dev->ep0_packet_size) );
+  TU_ASSERT( usbh_edpt_control_open(new_addr, new_dev->ep0_size) );
 
   // Get full device descriptor
   TU_LOG2("Get Device Descriptor\r\n");
@@ -841,8 +860,11 @@ static bool enum_get_device_desc_complete(uint8_t dev_addr, tusb_control_request
   tusb_desc_device_t const * desc_device = (tusb_desc_device_t const*) _usbh_ctrl_buf;
   usbh_device_t* dev = get_device(dev_addr);
 
-  dev->vendor_id  = desc_device->idVendor;
-  dev->product_id = desc_device->idProduct;
+  dev->vid            = desc_device->idVendor;
+  dev->pid            = desc_device->idProduct;
+  dev->i_manufacturer = desc_device->iManufacturer;
+  dev->i_product      = desc_device->iProduct;
+  dev->i_serial       = desc_device->iSerialNumber;
 
 //  if (tuh_attach_cb) tuh_attach_cb((tusb_desc_device_t*) _usbh_ctrl_buf);
 

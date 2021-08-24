@@ -228,7 +228,7 @@ bool hidh_xfer_cb(uint8_t dev_addr, uint8_t ep_addr, xfer_result_t result, uint3
   if ( dir == TUSB_DIR_IN )
   {
     TU_LOG2("  Get Report callback (%u, %u)\r\n", dev_addr, instance);
-    TU_LOG1_MEM(hid_itf->epin_buf, 8, 2);
+    TU_LOG3_MEM(hid_itf->epin_buf, xferred_bytes, 2);
     tuh_hid_report_received_cb(dev_addr, instance, hid_itf->epin_buf, xferred_bytes);
   }else
   {
