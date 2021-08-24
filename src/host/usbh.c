@@ -211,6 +211,7 @@ CFG_TUSB_MEM_SECTION CFG_TUSB_MEM_ALIGN static uint8_t _usbh_ctrl_buf[CFG_TUH_EN
 TU_ATTR_ALWAYS_INLINE
 static inline usbh_device_t* get_device(uint8_t dev_addr)
 {
+  TU_ASSERT(dev_addr, NULL);
   return &_usbh_devices[dev_addr-1];
 }
 
@@ -350,26 +351,35 @@ void tuh_task(void)
 
       case HCD_EVENT_XFER_COMPLETE:
       {
-        usbh_device_t* dev    = get_device(event.dev_addr);
         uint8_t const ep_addr = event.xfer_complete.ep_addr;
         uint8_t const epnum   = tu_edpt_number(ep_addr);
         uint8_t const ep_dir  = tu_edpt_dir(ep_addr);
 
         TU_LOG2("on EP %02X with %u bytes\r\n", ep_addr, (unsigned int) event.xfer_complete.len);
 
-        dev->ep_status[epnum][ep_dir].busy = false;
-        dev->ep_status[epnum][ep_dir].claimed = 0;
-
-        if ( 0 == epnum )
+        if (event.dev_addr == 0)
         {
+          // device 0 only has control endpoint
+          TU_ASSERT(epnum == 0, );
           usbh_control_xfer_cb(event.dev_addr, ep_addr, event.xfer_complete.result, event.xfer_complete.len);
-        }else
+        }
+        else
         {
-          uint8_t drv_id = dev->ep2drv[epnum][ep_dir];
-          TU_ASSERT(drv_id < USBH_CLASS_DRIVER_COUNT, );
+          usbh_device_t* dev = get_device(event.dev_addr);
+          dev->ep_status[epnum][ep_dir].busy = false;
+          dev->ep_status[epnum][ep_dir].claimed = 0;
 
-          TU_LOG2("%s xfer callback\r\n", usbh_class_drivers[drv_id].name);
-          usbh_class_drivers[drv_id].xfer_cb(event.dev_addr, ep_addr, event.xfer_complete.result, event.xfer_complete.len);
+          if ( 0 == epnum )
+          {
+            usbh_control_xfer_cb(event.dev_addr, ep_addr, event.xfer_complete.result, event.xfer_complete.len);
+          }else
+          {
+            uint8_t drv_id = dev->ep2drv[epnum][ep_dir];
+            TU_ASSERT(drv_id < USBH_CLASS_DRIVER_COUNT, );
+
+            TU_LOG2("%s xfer callback\r\n", usbh_class_drivers[drv_id].name);
+            usbh_class_drivers[drv_id].xfer_cb(event.dev_addr, ep_addr, event.xfer_complete.result, event.xfer_complete.len);
+          }
         }
       }
       break;
@@ -389,7 +399,7 @@ void tuh_task(void)
 
 uint8_t usbh_get_rhport(uint8_t dev_addr)
 {
-  return get_device(dev_addr)->rhport;
+  return (dev_addr == 0) ? _dev0.rhport : get_device(dev_addr)->rhport;
 }
 
 uint8_t* usbh_get_enum_buf(void)
@@ -403,12 +413,21 @@ uint8_t* usbh_get_enum_buf(void)
 
 void hcd_devtree_get_info(uint8_t dev_addr, hcd_devtree_info_t* devtree_info)
 {
-  usbh_device_t const* dev = get_device(dev_addr);
+  if (dev_addr)
+  {
+    usbh_device_t const* dev = get_device(dev_addr);
 
-  devtree_info->rhport   = dev->rhport;
-  devtree_info->hub_addr = dev->hub_addr;
-  devtree_info->hub_port = dev->hub_port;
-  devtree_info->speed    = dev->speed;
+    devtree_info->rhport   = dev->rhport;
+    devtree_info->hub_addr = dev->hub_addr;
+    devtree_info->hub_port = dev->hub_port;
+    devtree_info->speed    = dev->speed;
+  }else
+  {
+    devtree_info->rhport   = _dev0.rhport;
+    devtree_info->hub_addr = _dev0.hub_addr;
+    devtree_info->hub_port = _dev0.hub_port;
+    devtree_info->speed    = _dev0.speed;
+  }
 }
 
 void hcd_event_handler(hcd_event_t const* event, bool in_isr)
@@ -473,6 +492,7 @@ void hcd_event_device_remove(uint8_t hostid, bool in_isr)
 void process_device_unplugged(uint8_t rhport, uint8_t hub_addr, uint8_t hub_port)
 {
   //------------- find the all devices (star-network) under port that is unplugged -------------//
+  // TODO mark as disconnected in ISR, also handle dev0
   for ( uint8_t dev_id = 0; dev_id < TU_ARRAY_SIZE(_usbh_devices); dev_id++ )
   {
     usbh_device_t* dev = &_usbh_devices[dev_id];
@@ -634,6 +654,7 @@ static bool enum_hub_get_status0_complete(uint8_t dev_addr, tusb_control_request
 
 static bool enum_request_set_addr(void)
 {
+  uint8_t const addr0 = 0;
   tusb_desc_device_t const * desc_device = (tusb_desc_device_t const*) _usbh_ctrl_buf;
 
   // Get new address
@@ -665,7 +686,7 @@ static bool enum_request_set_addr(void)
     .wLength  = 0
   };
 
-  TU_ASSERT( tuh_control_xfer(0, &new_request, NULL, enum_set_address_complete) );
+  TU_ASSERT( tuh_control_xfer(addr0, &new_request, NULL, enum_set_address_complete) );
 
   return true;
 }
@@ -705,7 +726,8 @@ static bool enum_new_device(hcd_event_t* event)
 static bool enum_request_addr0_device_desc(void)
 {
   // TODO probably doesn't need to open/close each enumeration
-  TU_ASSERT( usbh_edpt_control_open(0, 8) );
+  uint8_t const addr0 = 0;
+  TU_ASSERT( usbh_edpt_control_open(addr0, 8) );
 
   //------------- Get first 8 bytes of device descriptor to get Control Endpoint Size -------------//
   TU_LOG2("Get 8 byte of Device Descriptor\r\n");
@@ -722,7 +744,7 @@ static bool enum_request_addr0_device_desc(void)
     .wIndex   = 0,
     .wLength  = 8
   };
-  TU_ASSERT( tuh_control_xfer(0, &request, _usbh_ctrl_buf, enum_get_addr0_device_desc_complete) );
+  TU_ASSERT( tuh_control_xfer(addr0, &request, _usbh_ctrl_buf, enum_get_addr0_device_desc_complete) );
 
   return true;
 }
@@ -1106,7 +1128,7 @@ bool usbh_edpt_xfer(uint8_t dev_addr, uint8_t ep_addr, uint8_t * buffer, uint16_
 
 static bool usbh_edpt_control_open(uint8_t dev_addr, uint8_t max_packet_size)
 {
-  TU_LOG2("Open EP Control with Size = %u\r\n", max_packet_size);
+  TU_LOG2("Open EP0 with Size = %u (addr = %u)\r\n", max_packet_size, dev_addr);
 
   tusb_desc_endpoint_t ep0_desc =
   {
@@ -1118,7 +1140,7 @@ static bool usbh_edpt_control_open(uint8_t dev_addr, uint8_t max_packet_size)
     .bInterval        = 0
   };
 
-  return hcd_edpt_open(get_device(dev_addr)->rhport, dev_addr, &ep0_desc);
+  return hcd_edpt_open(usbh_get_rhport(dev_addr), dev_addr, &ep0_desc);
 }
 
 bool usbh_edpt_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_endpoint_t const * desc_ep)
