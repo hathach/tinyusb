@@ -225,12 +225,12 @@ extern bool usbh_control_xfer_cb (uint8_t dev_addr, uint8_t ep_addr, xfer_result
 //--------------------------------------------------------------------+
 // PUBLIC API (Parameter Verification is required)
 //--------------------------------------------------------------------+
-bool tuh_device_configured(uint8_t dev_addr)
+bool tuh_mounted(uint8_t dev_addr)
 {
   return get_device(dev_addr)->configured;
 }
 
-tusb_speed_t tuh_device_get_speed (uint8_t const dev_addr)
+tusb_speed_t tuh_speed_get (uint8_t const dev_addr)
 {
   TU_ASSERT( dev_addr <= CFG_TUH_DEVICE_MAX + CFG_TUH_HUB, TUSB_SPEED_INVALID);
   return (tusb_speed_t) get_device(dev_addr)->speed;

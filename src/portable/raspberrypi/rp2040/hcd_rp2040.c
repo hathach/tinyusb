@@ -87,7 +87,7 @@ static bool need_pre(uint8_t dev_addr)
 {
     // If this device is different to the speed of the root device
     // (i.e. is a low speed device on a full speed hub) then need pre
-    return hcd_port_speed_get(0) != tuh_device_get_speed(dev_addr);
+    return hcd_port_speed_get(0) != tuh_speed_get(dev_addr);
 }
 
 static void hw_xfer_complete(struct hw_endpoint *ep, xfer_result_t xfer_result)
