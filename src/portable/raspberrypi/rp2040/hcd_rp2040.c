@@ -39,7 +39,6 @@
 
 #include "host/hcd.h"
 #include "host/usbh.h"
-#include "host/usbh_hcd.h"
 
 #define ROOT_PORT 0
 

@@ -267,14 +267,8 @@
 // HOST OPTIONS
 //--------------------------------------------------------------------
 #if TUSB_OPT_HOST_ENABLED
-  #ifndef CFG_TUSB_HOST_DEVICE_MAX
-    #define CFG_TUSB_HOST_DEVICE_MAX 1
-    #warning CFG_TUSB_HOST_DEVICE_MAX is not defined, default value is 1
-  #endif
-
-  //------------- HUB CLASS -------------//
-  #if CFG_TUH_HUB && (CFG_TUSB_HOST_DEVICE_MAX == 1)
-    #error There is no benefit enable hub with max device is 1. Please disable hub or increase CFG_TUSB_HOST_DEVICE_MAX
+  #ifndef CFG_TUH_DEVICE_MAX
+    #define CFG_TUH_DEVICE_MAX 1
   #endif
 
   #ifndef CFG_TUH_ENUMERATION_BUFSIZE

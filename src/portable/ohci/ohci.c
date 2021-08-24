@@ -24,10 +24,9 @@
  * This file is part of the TinyUSB stack.
  */
 
-#include <common/tusb_common.h>
+#include "host/hcd_attr.h"
 
-#if TUSB_OPT_HOST_ENABLED && \
-    (CFG_TUSB_MCU == OPT_MCU_LPC175X_6X || CFG_TUSB_MCU == OPT_MCU_LPC177X_8X || CFG_TUSB_MCU == OPT_MCU_LPC40XX)
+#if TUSB_OPT_HOST_ENABLED && defined(HCD_ATTR_OHCI)
 
 //--------------------------------------------------------------------+
 // INCLUDE
@@ -35,7 +34,6 @@
 #include "osal/osal.h"
 
 #include "host/hcd.h"
-#include "host/usbh_hcd.h"
 #include "ohci.h"
 
 // TODO remove
@@ -280,10 +278,13 @@ static void ed_init(ohci_ed_t *p_ed, uint8_t dev_addr, uint16_t ep_size, uint8_t
     tu_memclr(p_ed, sizeof(ohci_ed_t));
   }
 
+  hcd_devtree_info_t devtree_info;
+  hcd_devtree_get_info(dev_addr, &devtree_info);
+
   p_ed->dev_addr          = dev_addr;
   p_ed->ep_number         = ep_addr & 0x0F;
   p_ed->pid               = (xfer_type == TUSB_XFER_CONTROL) ? PID_FROM_TD : (tu_edpt_dir(ep_addr) ? PID_IN : PID_OUT);
-  p_ed->speed             = _usbh_devices[dev_addr].speed;
+  p_ed->speed             = devtree_info.speed;
   p_ed->is_iso            = (xfer_type == TUSB_XFER_ISOCHRONOUS) ? 1 : 0;
   p_ed->max_packet_size   = ep_size;
 

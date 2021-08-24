@@ -69,13 +69,14 @@ typedef struct
   msc_csw_t csw;
 }msch_interface_t;
 
-CFG_TUSB_MEM_SECTION static msch_interface_t _msch_itf[CFG_TUSB_HOST_DEVICE_MAX];
+CFG_TUSB_MEM_SECTION static msch_interface_t _msch_itf[CFG_TUH_DEVICE_MAX];
 
 // buffer used to read scsi information when mounted
 // largest response data currently is inquiry TODO Inquiry is not part of enum anymore
 CFG_TUSB_MEM_SECTION TU_ATTR_ALIGNED(4)
 static uint8_t _msch_buffer[sizeof(scsi_inquiry_resp_t)];
 
+TU_ATTR_ALWAYS_INLINE
 static inline msch_interface_t* get_itf(uint8_t dev_addr)
 {
   return &_msch_itf[dev_addr-1];
@@ -291,11 +292,13 @@ bool tuh_msc_reset(uint8_t dev_addr)
 //--------------------------------------------------------------------+
 void msch_init(void)
 {
-  tu_memclr(_msch_itf, sizeof(msch_interface_t)*CFG_TUSB_HOST_DEVICE_MAX);
+  tu_memclr(_msch_itf, sizeof(_msch_itf));
 }
 
 void msch_close(uint8_t dev_addr)
 {
+  TU_VERIFY(dev_addr <= CFG_TUH_DEVICE_MAX, );
+
   msch_interface_t* p_msc = get_itf(dev_addr);
 
   // invoke Application Callback

@@ -29,7 +29,7 @@
 #if TUSB_OPT_HOST_ENABLED
 
 #include "tusb.h"
-#include "usbh_hcd.h"
+#include "usbh_classdriver.h"
 
 enum
 {
@@ -59,9 +59,7 @@ static usbh_control_xfer_t _ctrl_xfer;
 bool tuh_control_xfer (uint8_t dev_addr, tusb_control_request_t const* request, void* buffer, tuh_control_complete_cb_t complete_cb)
 {
   // TODO need to claim the endpoint first
-
-  usbh_device_t* dev = &_usbh_devices[dev_addr];
-  const uint8_t rhport = dev->rhport;
+  const uint8_t rhport = usbh_get_rhport(dev_addr);
 
   _ctrl_xfer.request     = (*request);
   _ctrl_xfer.buffer      = buffer;
@@ -89,8 +87,7 @@ bool usbh_control_xfer_cb (uint8_t dev_addr, uint8_t ep_addr, xfer_result_t resu
   (void) ep_addr;
   (void) xferred_bytes;
 
-  usbh_device_t* dev = &_usbh_devices[dev_addr];
-  const uint8_t rhport = dev->rhport;
+  const uint8_t rhport = usbh_get_rhport(dev_addr);
 
   tusb_control_request_t const * request = &_ctrl_xfer.request;
 
