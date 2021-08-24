@@ -252,7 +252,7 @@ bool tuh_vid_pid_get(uint8_t dev_addr, uint16_t* vid, uint16_t* pid)
 
 tusb_speed_t tuh_speed_get (uint8_t dev_addr)
 {
-  return (tusb_speed_t) get_device(dev_addr)->speed;
+  return (tusb_speed_t) (dev_addr ? get_device(dev_addr)->speed : _dev0.speed);
 }
 
 #if CFG_TUSB_OS == OPT_OS_NONE

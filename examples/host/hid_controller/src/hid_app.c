@@ -64,7 +64,7 @@
 // Sony DS4 report layout detail https://www.psdevwiki.com/ps4/DS4-USB
 typedef struct TU_ATTR_PACKED
 {
-  int8_t x, y, z, rz; // joystick
+  uint8_t x, y, z, rz; // joystick
 
   struct {
     uint8_t dpad     : 4; // (hat format, 0x08 is released, 0=N, 1=NE, 2=E, 3=SE, 4=S, 5=SW, 6=W, 7=NW)
@@ -160,7 +160,7 @@ void tuh_hid_umount_cb(uint8_t dev_addr, uint8_t instance)
 }
 
 // check if different than 2
-bool diff_than_2(int8_t x, int8_t y)
+bool diff_than_2(uint8_t x, uint8_t y)
 {
   return (x - y > 2) || (y - x > 2);
 }
@@ -205,7 +205,7 @@ void process_sony_ds4(uint8_t const* report, uint16_t len)
     // We need more than memcmp to check if report is different enough
     if ( diff_report(&prev_report, &ds4_report) )
     {
-      printf("(x, y, z, rz) = (%d, %d, %d, %d)\r\n", ds4_report.x, ds4_report.y, ds4_report.z, ds4_report.rz);
+      printf("(x, y, z, rz) = (%u, %u, %u, %u)\r\n", ds4_report.x, ds4_report.y, ds4_report.z, ds4_report.rz);
       printf("DPad = %s ", dpad_str[ds4_report.dpad]);
 
       if (ds4_report.square   ) printf("Square ");
@@ -213,15 +213,15 @@ void process_sony_ds4(uint8_t const* report, uint16_t len)
       if (ds4_report.circle   ) printf("Circle ");
       if (ds4_report.triangle ) printf("Triangle ");
 
-      if (ds4_report.l1) printf("L1 ");
-      if (ds4_report.r1) printf("R1 ");
-      if (ds4_report.l2) printf("L2 ");
-      if (ds4_report.r2) printf("R2 ");
+      if (ds4_report.l1       ) printf("L1 ");
+      if (ds4_report.r1       ) printf("R1 ");
+      if (ds4_report.l2       ) printf("L2 ");
+      if (ds4_report.r2       ) printf("R2 ");
 
-      if (ds4_report.share) printf("Share ");
-      if (ds4_report.option) printf("Option ");
-      if (ds4_report.l3) printf("L3 ");
-      if (ds4_report.r3) printf("R3 ");
+      if (ds4_report.share    ) printf("Share ");
+      if (ds4_report.option   ) printf("Option ");
+      if (ds4_report.l3       ) printf("L3 ");
+      if (ds4_report.r3       ) printf("R3 ");
 
       if (ds4_report.ps       ) printf("PS ");
       if (ds4_report.tpad     ) printf("TPad ");
