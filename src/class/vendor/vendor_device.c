@@ -247,6 +247,7 @@ bool vendord_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint
   }
   else if ( ep_addr == p_itf->ep_in )
   {
+    if (tud_vendor_tx_cb) tud_vendor_tx_cb(itf, xferred_bytes);
     // Send complete, try to send more if possible
     maybe_transmit(p_itf);
   }

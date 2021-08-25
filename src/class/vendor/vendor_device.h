@@ -71,6 +71,8 @@ static inline uint32_t tud_vendor_write_available (void);
 
 // Invoked when received new data
 TU_ATTR_WEAK void tud_vendor_rx_cb(uint8_t itf);
+// Invoked when last rx transfer finished
+TU_ATTR_WEAK void tud_vendor_tx_cb(uint8_t itf, uint32_t sent_bytes);
 
 //--------------------------------------------------------------------+
 // Inline Functions
