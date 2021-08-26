@@ -170,7 +170,7 @@ flash-stlink: $(BUILD)/$(PROJECT).elf
 
 # flash with pyocd
 flash-pyocd: $(BUILD)/$(PROJECT).hex
-	pyocd flash -t $(PYOCD_TARGET) -O dap_protocol=swd $<
+	pyocd flash -t $(PYOCD_TARGET) $(PYOCD_OPTION) $<
 	pyocd reset -t $(PYOCD_TARGET)
 
 # flash with Black Magic Probe

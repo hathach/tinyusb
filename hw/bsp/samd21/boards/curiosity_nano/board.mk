@@ -10,4 +10,5 @@ JLINK_DEVICE = atsamd21g17a
 #flash: flash-jlink
 
 PYOCD_TARGET = atsamd21g17a
+PYOCD_OPTION = -O dap_protocol=swd
 flash: flash-pyocd
