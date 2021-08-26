@@ -24,27 +24,19 @@
  * This file is part of the TinyUSB stack.
  */
 
-#ifndef _TUSB_HCD_EHCI_H_
-#define _TUSB_HCD_EHCI_H_
+#ifndef _TUSB_EHCI_API_H_
+#define _TUSB_EHCI_API_H_
 
 #ifdef __cplusplus
  extern "C" {
 #endif
-
-
-//--------------------------------------------------------------------+
-// API Implemented by HCD
-//--------------------------------------------------------------------+
-
-// Get operational address i.e EHCI Command register
-uint32_t hcd_ehci_register_addr(uint8_t rhport);
 
 //--------------------------------------------------------------------+
 // API Implemented by EHCI
 //--------------------------------------------------------------------+
 
 // Initialize EHCI driver
-extern bool hcd_ehci_init (uint8_t rhport);
+bool ehci_init(uint8_t rhport, uint32_t capability_reg, uint32_t operatial_reg);
 
 #ifdef __cplusplus
  }

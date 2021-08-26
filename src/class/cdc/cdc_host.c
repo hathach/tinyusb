@@ -51,7 +51,7 @@ typedef struct {
 //--------------------------------------------------------------------+
 // INTERNAL OBJECT & FUNCTION DECLARATION
 //--------------------------------------------------------------------+
-static cdch_data_t cdch_data[CFG_TUSB_HOST_DEVICE_MAX];
+static cdch_data_t cdch_data[CFG_TUH_DEVICE_MAX];
 
 static inline cdch_data_t* get_itf(uint8_t dev_addr)
 {
@@ -146,7 +146,7 @@ bool tuh_cdc_set_control_line_state(uint8_t dev_addr, bool dtr, bool rts, tuh_co
 //--------------------------------------------------------------------+
 void cdch_init(void)
 {
-  tu_memclr(cdch_data, sizeof(cdch_data_t)*CFG_TUSB_HOST_DEVICE_MAX);
+  tu_memclr(cdch_data, sizeof(cdch_data));
 }
 
 bool cdch_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_interface_t const *itf_desc, uint16_t max_len)
@@ -240,6 +240,8 @@ bool cdch_xfer_cb(uint8_t dev_addr, uint8_t ep_addr, xfer_result_t event, uint32
 
 void cdch_close(uint8_t dev_addr)
 {
+  TU_VERIFY(dev_addr <= CFG_TUH_DEVICE_MAX, );
+
   cdch_data_t * p_cdc = get_itf(dev_addr);
   tu_memclr(p_cdc, sizeof(cdch_data_t));
 }

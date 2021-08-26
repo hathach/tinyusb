@@ -92,7 +92,7 @@ void tuh_msc_umount_cb(uint8_t dev_addr)
 //
 //  if ( phy_disk == f_get_current_drive() )
 //  { // active drive is unplugged --> change to other drive
-//    for(uint8_t i=0; i<CFG_TUSB_HOST_DEVICE_MAX; i++)
+//    for(uint8_t i=0; i<CFG_TUH_DEVICE_MAX; i++)
 //    {
 //      if ( disk_is_ready(i) )
 //      {

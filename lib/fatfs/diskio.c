@@ -36,7 +36,7 @@
 // MACRO CONSTANT TYPEDEF
 //--------------------------------------------------------------------+
 // TODO change it to portable init
-static DSTATUS disk_state[CFG_TUSB_HOST_DEVICE_MAX];
+static DSTATUS disk_state[CFG_TUH_DEVICE_MAX];
 
 //--------------------------------------------------------------------+
 // INTERNAL OBJECT & FUNCTION DECLARATION
@@ -61,7 +61,7 @@ static DRESULT wait_for_io_complete(uint8_t usb_addr)
 
 void diskio_init(void)
 {
-  memset(disk_state, STA_NOINIT, CFG_TUSB_HOST_DEVICE_MAX);
+  memset(disk_state, STA_NOINIT, CFG_TUH_DEVICE_MAX);
 }
 
 //pdrv Specifies the physical drive number.
