@@ -751,16 +751,24 @@ static bool process_control_request(uint8_t rhport, tusb_control_request_t const
         // driver doesn't use alternate settings or implement this
         TU_VERIFY(TUSB_REQ_TYPE_STANDARD == p_request->bmRequestType_bit.type);
 
-        if (TUSB_REQ_GET_INTERFACE == p_request->bRequest)
+        switch(p_request->bRequest)
         {
-          uint8_t alternate = 0;
-          tud_control_xfer(rhport, p_request, &alternate, 1);
-        }else if (TUSB_REQ_SET_INTERFACE == p_request->bRequest)
-        {
-          tud_control_status(rhport, p_request);
-        } else
-        {
-          return false;
+          case TUSB_REQ_GET_INTERFACE:
+          case TUSB_REQ_SET_INTERFACE:
+            // Clear complete callback if driver set since it can also stall the request.
+            usbd_control_set_complete_callback(NULL);
+
+            if (TUSB_REQ_GET_INTERFACE == p_request->bRequest)
+            {
+              uint8_t alternate = 0;
+              tud_control_xfer(rhport, p_request, &alternate, 1);
+            }else
+            {
+              tud_control_status(rhport, p_request);
+            }
+          break;
+
+          default: return false;
         }
       }
     }
