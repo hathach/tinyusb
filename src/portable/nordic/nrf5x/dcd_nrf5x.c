@@ -306,8 +306,9 @@ bool dcd_edpt_open (uint8_t rhport, tusb_desc_endpoint_t const * desc_edpt)
 {
   (void) rhport;
 
-  uint8_t const epnum = tu_edpt_number(desc_edpt->bEndpointAddress);
-  uint8_t const dir   = tu_edpt_dir(desc_edpt->bEndpointAddress);
+  uint8_t const ep_addr = desc_edpt->bEndpointAddress;
+  uint8_t const epnum   = tu_edpt_number(ep_addr);
+  uint8_t const dir     = tu_edpt_dir(ep_addr);
 
   _dcd.xfer[epnum][dir].mps = desc_edpt->wMaxPacketSize.size;
 
@@ -359,6 +360,11 @@ bool dcd_edpt_open (uint8_t rhport, tusb_desc_endpoint_t const * desc_edpt)
       NRF_USBD->EPINEN  |= USBD_EPINEN_ISOIN_Msk;
     }
   }
+
+  // clear stall and reset DataToggle
+  NRF_USBD->EPSTALL = (USBD_EPSTALL_STALL_UnStall << USBD_EPSTALL_STALL_Pos) | ep_addr;
+  NRF_USBD->DTOGGLE = (USBD_DTOGGLE_VALUE_Data0 << USBD_DTOGGLE_VALUE_Pos) | ep_addr;
+
   __ISB(); __DSB();
 
   return true;
