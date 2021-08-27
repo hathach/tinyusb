@@ -366,8 +366,34 @@ bool dcd_edpt_open (uint8_t rhport, tusb_desc_endpoint_t const * desc_edpt)
 
 void dcd_edpt_close_all (uint8_t rhport)
 {
-  (void) rhport;
-  // TODO implement dcd_edpt_close_all()
+  // disable interrupt to prevent race condition
+  dcd_int_disable(rhport);
+
+  // disable all non-control (bulk + interrupt) endpoints
+  for ( uint8_t ep = 1; ep < EP_CBI_COUNT; ep++ )
+  {
+    NRF_USBD->INTENCLR = TU_BIT(USBD_INTEN_ENDEPOUT0_Pos + ep) | TU_BIT(USBD_INTEN_ENDEPIN0_Pos + ep);
+
+    NRF_USBD->TASKS_STARTEPIN[ep] = 0;
+    NRF_USBD->TASKS_STARTEPOUT[ep] = 0;
+
+    tu_memclr(_dcd.xfer[ep], 2*sizeof(xfer_td_t));
+  }
+
+  // disable both ISO
+  NRF_USBD->INTENCLR = USBD_INTENCLR_SOF_Msk | USBD_INTENCLR_ENDISOOUT_Msk | USBD_INTENCLR_ENDISOIN_Msk;
+  NRF_USBD->ISOSPLIT = USBD_ISOSPLIT_SPLIT_OneDir;
+
+  NRF_USBD->TASKS_STARTISOIN  = 0;
+  NRF_USBD->TASKS_STARTISOOUT = 0;
+
+  tu_memclr(_dcd.xfer[EP_ISO_NUM], 2*sizeof(xfer_td_t));
+
+  // de-activate all non-control
+  NRF_USBD->EPOUTEN = 1UL;
+  NRF_USBD->EPINEN = 1UL;
+
+  dcd_int_enable(rhport);
 }
 
 void dcd_edpt_close (uint8_t rhport, uint8_t ep_addr)
@@ -514,7 +540,9 @@ void dcd_edpt_clear_stall (uint8_t rhport, uint8_t ep_addr)
 void bus_reset(void)
 {
   // 6.35.6 USB controller automatically disabled all endpoints (except control)
-  // i.e EPOUTEN and EPINEN and reset USBADDR to 0
+  NRF_USBD->EPOUTEN = 1UL;
+  NRF_USBD->EPINEN = 1UL;
+
   for(int i=0; i<8; i++)
   {
     NRF_USBD->TASKS_STARTEPIN[i] = 0;
