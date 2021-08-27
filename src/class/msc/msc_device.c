@@ -430,32 +430,6 @@ bool mscd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t event, uint32_t
           TU_BREAKPOINT();
         }
       }
-
-//      // Accumulate data so far
-//      p_msc->xferred_len += xferred_bytes;
-//
-//      if ( p_msc->xferred_len >= p_msc->total_len )
-//      {
-//        // Data Stage is complete
-//        p_msc->stage = MSC_STAGE_STATUS;
-//      }
-//      else
-//      {
-//        // READ10 & WRITE10 Can be executed with large bulk of data e.g write 8K bytes (several flash write)
-//        // We break it into multiple smaller command whose data size is up to CFG_TUD_MSC_EP_BUFSIZE
-//        if (SCSI_CMD_READ_10 == p_cbw->command[0])
-//        {
-//          proc_read10_cmd(rhport, p_msc);
-//        }
-//        else if (SCSI_CMD_WRITE_10 == p_cbw->command[0])
-//        {
-//          proc_write10_cmd(rhport, p_msc);
-//        }else
-//        {
-//          // No other command take more than one transfer yet -> unlikely error
-//          TU_BREAKPOINT();
-//        }
-//      }
     break;
 
     case MSC_STAGE_STATUS:
@@ -714,7 +688,13 @@ static void proc_read10_cmd(uint8_t rhport, mscd_interface_t* p_msc)
   msc_cbw_t const * p_cbw = &p_msc->cbw;
 
   uint16_t const block_sz = rdwr10_get_blocksize(p_cbw);
-  TU_ASSERT(block_sz, ); // prevent div by zero
+
+  if ( block_sz == 0 )
+  {
+    // 6.7.1 BOT The 13 Cases: case 2 and 3 when cbw->total_bytes == 0
+    fail_scsi_op(rhport, p_msc, MSC_CSW_STATUS_FAILED);
+    return;
+  }
 
   // Adjust lba with transferred bytes
   uint32_t const lba = rdwr10_get_lba(p_cbw->command) + (p_msc->xferred_len / block_sz);
