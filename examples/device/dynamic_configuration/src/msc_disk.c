@@ -208,7 +208,7 @@ int32_t tud_msc_scsi_cb (uint8_t lun, uint8_t const scsi_cmd[16], void* buffer, 
   // read10 & write10 has their own callback and MUST not be handled here
 
   void const* response = NULL;
-  uint16_t resplen = 0;
+  int32_t resplen = 0;
 
   // most scsi handled is input
   bool in_xfer = true;
