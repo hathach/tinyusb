@@ -99,6 +99,18 @@ static inline uint16_t rdwr10_get_blockcount(uint8_t const command[])
   return tu_ntohs(block_count);
 }
 
+static inline bool send_csw(uint8_t rhport, mscd_interface_t* p_msc)
+{
+  p_msc->stage = MSC_STAGE_STATUS_SENT;
+  return usbd_edpt_xfer(rhport, p_msc->ep_in , (uint8_t*) &p_msc->csw, sizeof(msc_csw_t));
+}
+
+static inline bool prepare_cbw(uint8_t rhport, mscd_interface_t* p_msc)
+{
+  p_msc->stage = MSC_STAGE_CMD;
+  return usbd_edpt_xfer(rhport, p_msc->ep_out, (uint8_t*) &p_msc->cbw, sizeof(msc_cbw_t));
+}
+
 //--------------------------------------------------------------------+
 // Debug
 //--------------------------------------------------------------------+
@@ -175,12 +187,12 @@ uint16_t mscd_open(uint8_t rhport, tusb_desc_interface_t const * itf_desc, uint1
   TU_ASSERT( usbd_open_edpt_pair(rhport, tu_desc_next(itf_desc), 2, TUSB_XFER_BULK, &p_msc->ep_out, &p_msc->ep_in), 0 );
 
   // Prepare for Command Block Wrapper
-  TU_ASSERT( usbd_edpt_xfer(rhport, p_msc->ep_out, (uint8_t*) &p_msc->cbw, sizeof(msc_cbw_t)), drv_len);
+  TU_ASSERT( prepare_cbw(rhport, p_msc), drv_len);
 
   return drv_len;
 }
 
-static void process_bot_reset(mscd_interface_t* p_msc)
+static void proc_bot_reset(mscd_interface_t* p_msc)
 {
   p_msc->stage       = MSC_STAGE_CMD;
   p_msc->total_len   = 0;
@@ -190,7 +202,6 @@ static void process_bot_reset(mscd_interface_t* p_msc)
   p_msc->add_sense_code      = 0;
   p_msc->add_sense_qualifier = 0;
 }
-
 
 // Invoked when a control transfer occurred on an interface of this class
 // Driver response accordingly to the request and the transfer stage (setup/data/ack)
@@ -223,8 +234,7 @@ bool mscd_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request_t 
         if ( p_msc->stage == MSC_STAGE_STATUS )
         {
           // resume sending SCSI status if we are in this stage previously before stalled
-          p_msc->stage = MSC_STAGE_STATUS_SENT;
-          TU_ASSERT( usbd_edpt_xfer(rhport, p_msc->ep_in , (uint8_t*) &p_msc->csw, sizeof(msc_csw_t)) );
+          TU_ASSERT( send_csw(rhport, p_msc) );
         }
       }
       else if ( ep_addr == p_msc->ep_out )
@@ -232,7 +242,7 @@ bool mscd_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request_t 
         if ( p_msc->stage == MSC_STAGE_CMD )
         {
           // part of reset recovery (probably due to invalid CBW) -> prepare for new command
-          TU_ASSERT( usbd_edpt_xfer(rhport, p_msc->ep_out, (uint8_t*) &p_msc->cbw, sizeof(msc_cbw_t)) );
+          TU_ASSERT( prepare_cbw(rhport, p_msc) );
         }
       }
     }
@@ -250,7 +260,7 @@ bool mscd_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request_t 
       TU_VERIFY(request->wValue == 0 && request->wLength == 0);
 
       // driver state reset
-      process_bot_reset(p_msc);
+      proc_bot_reset(p_msc);
 
       tud_control_status(rhport, request);
     break;
@@ -495,11 +505,7 @@ bool mscd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t event, uint32_t
           break;
         }
 
-        // Move to default CMD stage
-        p_msc->stage = MSC_STAGE_CMD;
-
-        // Queue for the next CBW
-        TU_ASSERT( usbd_edpt_xfer(rhport, p_msc->ep_out, (uint8_t*) &p_msc->cbw, sizeof(msc_cbw_t)) );
+        TU_ASSERT( prepare_cbw(rhport, p_msc) );
       }
     break;
 
@@ -511,11 +517,7 @@ bool mscd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t event, uint32_t
     // skip status if epin is currently stalled, will do it when received Clear Stall request
     if ( !usbd_edpt_stalled(rhport,  p_msc->ep_in) )
     {
-      // Move to Status Sent stage
-      p_msc->stage = MSC_STAGE_STATUS_SENT;
-
-      // Send SCSI Status
-      TU_ASSERT(usbd_edpt_xfer(rhport, p_msc->ep_in , (uint8_t*) &p_msc->csw, sizeof(msc_csw_t)));
+      TU_ASSERT( send_csw(rhport, p_msc) );
     }
   }
 
