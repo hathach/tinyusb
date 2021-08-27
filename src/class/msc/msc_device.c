@@ -79,25 +79,9 @@ CFG_TUSB_MEM_SECTION CFG_TUSB_MEM_ALIGN static uint8_t _mscd_buf[CFG_TUD_MSC_EP_
 //--------------------------------------------------------------------+
 static int32_t proc_builtin_scsi(uint8_t lun, uint8_t const scsi_cmd[16], uint8_t* buffer, uint32_t bufsize);
 static void proc_read10_cmd(uint8_t rhport, mscd_interface_t* p_msc);
+
 static void proc_write10_cmd(uint8_t rhport, mscd_interface_t* p_msc);
-
-static inline uint32_t rdwr10_get_lba(uint8_t const command[])
-{
-  // use offsetof to avoid pointer to the odd/unaligned address
-  uint32_t const lba = tu_unaligned_read32(command + offsetof(scsi_write10_t, lba));
-
-  // lba is in Big Endian
-  return tu_ntohl(lba);
-}
-
-static inline uint16_t rdwr10_get_blockcount(uint8_t const command[])
-{
-  // use offsetof to avoid pointer to the odd/misaligned address
-  uint16_t const block_count = tu_unaligned_read16(command + offsetof(scsi_write10_t, block_count));
-
-  // block count is in Big Endian
-  return tu_ntohs(block_count);
-}
+static void proc_write10_new_data(uint8_t rhport, mscd_interface_t* p_msc, uint32_t xferred_bytes);
 
 static inline bool send_csw(uint8_t rhport, mscd_interface_t* p_msc)
 {
@@ -109,6 +93,20 @@ static inline bool prepare_cbw(uint8_t rhport, mscd_interface_t* p_msc)
 {
   p_msc->stage = MSC_STAGE_CMD;
   return usbd_edpt_xfer(rhport, p_msc->ep_out, (uint8_t*) &p_msc->cbw, sizeof(msc_cbw_t));
+}
+
+static void fail_scsi_op(uint8_t rhport, mscd_interface_t* p_msc, uint8_t status)
+{
+  msc_cbw_t const * p_cbw = &p_msc->cbw;
+  msc_csw_t       * p_csw = &p_msc->csw;
+
+  p_csw->status       = status;
+  p_csw->data_residue = p_cbw->total_bytes - p_msc->xferred_len;
+
+  p_msc->stage = MSC_STAGE_STATUS;
+
+  // failed but sense key is not set: default to Illegal Request
+  if ( p_msc->sense_key == 0 ) tud_msc_set_sense(p_cbw->lun, SCSI_SENSE_ILLEGAL_REQUEST, 0x20, 0x00);
 }
 
 //--------------------------------------------------------------------+
@@ -358,12 +356,7 @@ bool mscd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t event, uint32_t
 
           if ( resplen < 0 )
           {
-            p_msc->total_len = 0;
-            p_csw->status = MSC_CSW_STATUS_FAILED;
-            p_msc->stage = MSC_STAGE_STATUS;
-
-            // failed but senskey is not set: default to Illegal Request
-            if ( p_msc->sense_key == 0 ) tud_msc_set_sense(p_cbw->lun, SCSI_SENSE_ILLEGAL_REQUEST, 0x20, 0x00);
+            fail_scsi_op(rhport, p_msc, MSC_CSW_STATUS_FAILED);
 
             // Stall bulk In if needed
             if (p_cbw->total_bytes) usbd_edpt_stall(rhport, p_msc->ep_in);
@@ -390,10 +383,27 @@ bool mscd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t event, uint32_t
       TU_LOG(MSC_DEBUG, "  SCSI Data\r\n");
       //TU_LOG_MEM(MSC_DEBUG, _mscd_buf, xferred_bytes, 2);
 
-      // OUT transfer, invoke callback if needed
-      if ( !tu_bit_test(p_cbw->dir, 7) )
+      if (SCSI_CMD_READ_10 == p_cbw->command[0])
       {
-        if ( SCSI_CMD_WRITE_10 != p_cbw->command[0] )
+        p_msc->xferred_len += xferred_bytes;
+
+        if ( p_msc->xferred_len >= p_msc->total_len )
+        {
+          // Data Stage is complete
+          p_msc->stage = MSC_STAGE_STATUS;
+        }else
+        {
+          proc_read10_cmd(rhport, p_msc);
+        }
+      }
+      else if (SCSI_CMD_WRITE_10 == p_cbw->command[0])
+      {
+        proc_write10_new_data(rhport, p_msc, xferred_bytes);
+      }
+      else
+      {
+        // OUT transfer, invoke callback if needed
+        if ( !tu_bit_test(p_cbw->dir, 7) )
         {
           int32_t cb_result = tud_msc_scsi_cb(p_cbw->lun, p_cbw->command, _mscd_buf, p_msc->total_len);
 
@@ -406,74 +416,46 @@ bool mscd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t event, uint32_t
             p_csw->status = MSC_CSW_STATUS_PASSED;
           }
         }
+
+        p_msc->xferred_len += xferred_bytes;
+
+        if ( p_msc->xferred_len >= p_msc->total_len )
+        {
+          // Data Stage is complete
+          p_msc->stage = MSC_STAGE_STATUS;
+        }
         else
         {
-          uint16_t const block_sz = p_cbw->total_bytes / rdwr10_get_blockcount(p_cbw->command);
-
-          // Adjust lba with transferred bytes
-          uint32_t const lba = rdwr10_get_lba(p_cbw->command) + (p_msc->xferred_len / block_sz);
-
-          // Application can consume smaller bytes
-          int32_t nbytes = tud_msc_write10_cb(p_cbw->lun, lba, p_msc->xferred_len % block_sz, _mscd_buf, xferred_bytes);
-
-          if ( nbytes < 0 )
-          {
-            // negative means error -> skip to status phase, status in CSW set to failed
-            p_csw->data_residue = p_cbw->total_bytes - p_msc->xferred_len;
-            p_csw->status       = MSC_CSW_STATUS_FAILED;
-            p_msc->stage        = MSC_STAGE_STATUS;
-
-            tud_msc_set_sense(p_cbw->lun, SCSI_SENSE_ILLEGAL_REQUEST, 0x20, 0x00); // Sense = Invalid Command Operation
-            break;
-          }else
-          {
-            // Application consume less than what we got (including zero)
-            if ( nbytes < (int32_t) xferred_bytes )
-            {
-              if ( nbytes > 0 )
-              {
-                p_msc->xferred_len += nbytes;
-                memmove(_mscd_buf, _mscd_buf+nbytes, xferred_bytes-nbytes);
-              }
-
-              // simulate an transfer complete with adjusted parameters --> this driver callback will fired again
-              dcd_event_xfer_complete(rhport, p_msc->ep_out, xferred_bytes-nbytes, XFER_RESULT_SUCCESS, false);
-
-              return true; // skip the rest
-            }
-            else
-            {
-              // Application consume all bytes in our buffer. Nothing to do, process with normal flow
-            }
-          }
-        }
-      }
-
-      // Accumulate data so far
-      p_msc->xferred_len += xferred_bytes;
-
-      if ( p_msc->xferred_len >= p_msc->total_len )
-      {
-        // Data Stage is complete
-        p_msc->stage = MSC_STAGE_STATUS;
-      }
-      else
-      {
-        // READ10 & WRITE10 Can be executed with large bulk of data e.g write 8K bytes (several flash write)
-        // We break it into multiple smaller command whose data size is up to CFG_TUD_MSC_EP_BUFSIZE
-        if (SCSI_CMD_READ_10 == p_cbw->command[0])
-        {
-          proc_read10_cmd(rhport, p_msc);
-        }
-        else if (SCSI_CMD_WRITE_10 == p_cbw->command[0])
-        {
-          proc_write10_cmd(rhport, p_msc);
-        }else
-        {
-          // No other command take more than one transfer yet -> unlikely error
+          // No command take more than one transfer yet -> unlikely error
           TU_BREAKPOINT();
         }
       }
+
+//      // Accumulate data so far
+//      p_msc->xferred_len += xferred_bytes;
+//
+//      if ( p_msc->xferred_len >= p_msc->total_len )
+//      {
+//        // Data Stage is complete
+//        p_msc->stage = MSC_STAGE_STATUS;
+//      }
+//      else
+//      {
+//        // READ10 & WRITE10 Can be executed with large bulk of data e.g write 8K bytes (several flash write)
+//        // We break it into multiple smaller command whose data size is up to CFG_TUD_MSC_EP_BUFSIZE
+//        if (SCSI_CMD_READ_10 == p_cbw->command[0])
+//        {
+//          proc_read10_cmd(rhport, p_msc);
+//        }
+//        else if (SCSI_CMD_WRITE_10 == p_cbw->command[0])
+//        {
+//          proc_write10_cmd(rhport, p_msc);
+//        }else
+//        {
+//          // No other command take more than one transfer yet -> unlikely error
+//          TU_BREAKPOINT();
+//        }
+//      }
     break;
 
     case MSC_STAGE_STATUS:
@@ -535,6 +517,8 @@ static int32_t proc_builtin_scsi(uint8_t lun, uint8_t const scsi_cmd[16], uint8_
   (void) bufsize; // TODO refractor later
   int32_t resplen;
 
+  mscd_interface_t* p_msc = &_mscd_itf;
+
   switch ( scsi_cmd[0] )
   {
     case SCSI_CMD_TEST_UNIT_READY:
@@ -545,7 +529,7 @@ static int32_t proc_builtin_scsi(uint8_t lun, uint8_t const scsi_cmd[16], uint8_
         resplen = - 1;
 
         // If sense key is not set by callback, default to Logical Unit Not Ready, Cause Not Reportable
-        if ( _mscd_itf.sense_key == 0 ) tud_msc_set_sense(lun, SCSI_SENSE_NOT_READY, 0x04, 0x00);
+        if ( p_msc->sense_key == 0 ) tud_msc_set_sense(lun, SCSI_SENSE_NOT_READY, 0x04, 0x00);
       }
     break;
 
@@ -561,7 +545,7 @@ static int32_t proc_builtin_scsi(uint8_t lun, uint8_t const scsi_cmd[16], uint8_
           resplen = - 1;
 
           // If sense key is not set by callback, default to Logical Unit Not Ready, Cause Not Reportable
-          if ( _mscd_itf.sense_key == 0 ) tud_msc_set_sense(lun, SCSI_SENSE_NOT_READY, 0x04, 0x00);
+          if ( p_msc->sense_key == 0 ) tud_msc_set_sense(lun, SCSI_SENSE_NOT_READY, 0x04, 0x00);
         }
       }
     break;
@@ -582,7 +566,7 @@ static int32_t proc_builtin_scsi(uint8_t lun, uint8_t const scsi_cmd[16], uint8_
         resplen = -1;
 
         // If sense key is not set by callback, default to Logical Unit Not Ready, Cause Not Reportable
-        if ( _mscd_itf.sense_key == 0 ) tud_msc_set_sense(lun, SCSI_SENSE_NOT_READY, 0x04, 0x00);
+        if ( p_msc->sense_key == 0 ) tud_msc_set_sense(lun, SCSI_SENSE_NOT_READY, 0x04, 0x00);
       }else
       {
         scsi_read_capacity10_resp_t read_capa10;
@@ -618,7 +602,7 @@ static int32_t proc_builtin_scsi(uint8_t lun, uint8_t const scsi_cmd[16], uint8_
         resplen = -1;
 
         // If sense key is not set by callback, default to Logical Unit Not Ready, Cause Not Reportable
-        if ( _mscd_itf.sense_key == 0 ) tud_msc_set_sense(lun, SCSI_SENSE_NOT_READY, 0x04, 0x00);
+        if ( p_msc->sense_key == 0 ) tud_msc_set_sense(lun, SCSI_SENSE_NOT_READY, 0x04, 0x00);
       }else
       {
         read_fmt_capa.block_num = tu_htonl(block_count);
@@ -685,9 +669,9 @@ static int32_t proc_builtin_scsi(uint8_t lun, uint8_t const scsi_cmd[16], uint8_
 
       sense_rsp.add_sense_len = sizeof(scsi_sense_fixed_resp_t) - 8;
 
-      sense_rsp.sense_key           = _mscd_itf.sense_key;
-      sense_rsp.add_sense_code      = _mscd_itf.add_sense_code;
-      sense_rsp.add_sense_qualifier = _mscd_itf.add_sense_qualifier;
+      sense_rsp.sense_key           = p_msc->sense_key;
+      sense_rsp.add_sense_code      = p_msc->add_sense_code;
+      sense_rsp.add_sense_qualifier = p_msc->add_sense_qualifier;
 
       resplen = sizeof(sense_rsp);
       memcpy(buffer, &sense_rsp, resplen);
@@ -703,15 +687,33 @@ static int32_t proc_builtin_scsi(uint8_t lun, uint8_t const scsi_cmd[16], uint8_
   return resplen;
 }
 
+
+static inline uint32_t rdwr10_get_lba(uint8_t const command[])
+{
+  // use offsetof to avoid pointer to the odd/unaligned address
+  uint32_t const lba = tu_unaligned_read32(command + offsetof(scsi_write10_t, lba));
+
+  // lba is in Big Endian
+  return tu_ntohl(lba);
+}
+
+static inline uint16_t rdwr10_get_blocksize(msc_cbw_t const* cbw)
+{
+  // first extract block count in the command
+  uint16_t block_count = tu_unaligned_read16(cbw->command + offsetof(scsi_write10_t, block_count));
+  block_count = tu_ntohs(block_count);
+
+  // invalid block count
+  if (block_count == 0) return 0;
+
+  return cbw->total_bytes / block_count;
+}
+
 static void proc_read10_cmd(uint8_t rhport, mscd_interface_t* p_msc)
 {
   msc_cbw_t const * p_cbw = &p_msc->cbw;
-  msc_csw_t       * p_csw = &p_msc->csw;
 
-  uint16_t const block_cnt = rdwr10_get_blockcount(p_cbw->command);
-  TU_ASSERT(block_cnt, ); // prevent div by zero
-
-  uint16_t const block_sz = p_cbw->total_bytes / block_cnt;
+  uint16_t const block_sz = rdwr10_get_blocksize(p_cbw);
   TU_ASSERT(block_sz, ); // prevent div by zero
 
   // Adjust lba with transferred bytes
@@ -726,11 +728,11 @@ static void proc_read10_cmd(uint8_t rhport, mscd_interface_t* p_msc)
   if ( nbytes < 0 )
   {
     // negative means error -> endpoint is stalled & status in CSW set to failed
-    p_msc->stage = MSC_STAGE_STATUS;
-    p_csw->data_residue = p_cbw->total_bytes - p_msc->xferred_len;
-    p_csw->status       = MSC_CSW_STATUS_FAILED;
 
-    tud_msc_set_sense(p_cbw->lun, SCSI_SENSE_ILLEGAL_REQUEST, 0x20, 0x00); // Sense = Invalid Command Operation
+    // Sense = Flash not ready for access
+    tud_msc_set_sense(p_cbw->lun, SCSI_SENSE_MEDIUM_ERROR, 0x33, 0x00);
+
+    fail_scsi_op(rhport, p_msc, MSC_CSW_STATUS_FAILED);
     usbd_edpt_stall(rhport, p_msc->ep_in);
   }
   else if ( nbytes == 0 )
@@ -757,13 +759,10 @@ static void proc_write10_cmd(uint8_t rhport, mscd_interface_t* p_msc)
   if ( !writable )
   {
     // Not writable, complete this SCSI op with error
-    msc_csw_t *p_csw = &p_msc->csw;
+    // Sense = Write protected
+    tud_msc_set_sense(p_cbw->lun, SCSI_SENSE_DATA_PROTECT, 0x27, 0x00);
 
-    p_msc->stage = MSC_STAGE_STATUS;
-    p_csw->status = MSC_CSW_STATUS_FAILED;
-    p_csw->data_residue = p_cbw->total_bytes;
-
-    tud_msc_set_sense(p_cbw->lun, SCSI_SENSE_DATA_PROTECT, 0x27, 0x00);    // Sense = Write protected
+    fail_scsi_op(rhport, p_msc, MSC_CSW_STATUS_FAILED);
     usbd_edpt_stall(rhport, p_msc->ep_out);
     return;
   }
@@ -773,6 +772,60 @@ static void proc_write10_cmd(uint8_t rhport, mscd_interface_t* p_msc)
 
   // Write10 callback will be called later when usb transfer complete
   TU_ASSERT( usbd_edpt_xfer(rhport, p_msc->ep_out, _mscd_buf, nbytes), );
+}
+
+// process new data arrived from WRITE10
+static void proc_write10_new_data(uint8_t rhport, mscd_interface_t* p_msc, uint32_t xferred_bytes)
+{
+  msc_cbw_t const * p_cbw = &p_msc->cbw;
+
+  uint16_t const block_sz = rdwr10_get_blocksize(p_cbw);
+  TU_ASSERT(block_sz, ); // prevent div by zero
+
+  // Adjust lba with transferred bytes
+  uint32_t const lba = rdwr10_get_lba(p_cbw->command) + (p_msc->xferred_len / block_sz);
+
+  // Application can consume smaller bytes
+  int32_t nbytes = tud_msc_write10_cb(p_cbw->lun, lba, p_msc->xferred_len % block_sz, _mscd_buf, xferred_bytes);
+
+  if ( nbytes < 0 )
+  {
+    // negative means error -> failed this scsi op
+
+    // Sense = Flash not ready for access
+    tud_msc_set_sense(p_cbw->lun, SCSI_SENSE_MEDIUM_ERROR, 0x33, 0x00);
+
+    fail_scsi_op(rhport, p_msc, MSC_CSW_STATUS_FAILED);
+    usbd_edpt_stall(rhport, p_msc->ep_out);
+  }else
+  {
+    // Application consume less than what we got (including zero)
+    if ( nbytes < (int32_t) xferred_bytes )
+    {
+      if ( nbytes > 0 )
+      {
+        p_msc->xferred_len += nbytes;
+        memmove(_mscd_buf, _mscd_buf+nbytes, xferred_bytes-nbytes);
+      }
+
+      // simulate an transfer complete with adjusted parameters --> this driver callback will fired again
+      dcd_event_xfer_complete(rhport, p_msc->ep_out, xferred_bytes-nbytes, XFER_RESULT_SUCCESS, false);
+    }
+    else
+    {
+      // Application consume all bytes in our buffer, prepare to receive more data from host
+      p_msc->xferred_len += xferred_bytes;
+
+      if ( p_msc->xferred_len >= p_msc->total_len )
+      {
+        // Data Stage is complete
+        p_msc->stage = MSC_STAGE_STATUS;
+      }else
+      {
+        proc_write10_cmd(rhport, p_msc);
+      }
+    }
+  }
 }
 
 #endif
