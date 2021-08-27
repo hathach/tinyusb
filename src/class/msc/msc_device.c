@@ -357,17 +357,25 @@ bool mscd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t event, uint32_t
       p_msc->total_len = p_cbw->total_bytes;
       p_msc->xferred_len = 0;
 
-      if (SCSI_CMD_READ_10 == p_cbw->command[0] || SCSI_CMD_WRITE_10 == p_cbw->command[0])
+      if ( SCSI_CMD_READ_10 == p_cbw->command[0] )
       {
-        if ( rdwr10_get_blocksize(p_cbw) == 0 )
+        // Invalid CBW length == 0 or Direction bit is incorrect
+        // 6.7 The 13 Cases: case 2, case 3, case 10 -> phase error
+        if ( rdwr10_get_blocksize(p_cbw) == 0 || !tu_bit_test(p_cbw->dir, 7) )
         {
-          // Invalid CBW length == 0 (not match SCSI command block count)
-          // 6.7.1 BOT The 13 Cases: case 2 and case 3 -> phase error
           fail_scsi_op(rhport, p_msc, MSC_CSW_STATUS_PHASE_ERROR);
-        }
-        else if (SCSI_CMD_READ_10 == p_cbw->command[0])
+        }else
         {
           proc_read10_cmd(rhport, p_msc);
+        }
+      }
+      else if (SCSI_CMD_WRITE_10 == p_cbw->command[0])
+      {
+        // Invalid CBW length == 0 or Direction bit is incorrect
+        // 6.7 The 13 Cases: case 2, case 3, case 8 -> phase error
+        if ( rdwr10_get_blocksize(p_cbw) == 0 || tu_bit_test(p_cbw->dir, 7) )
+        {
+          fail_scsi_op(rhport, p_msc, MSC_CSW_STATUS_PHASE_ERROR);
         }else
         {
           proc_write10_cmd(rhport, p_msc);
