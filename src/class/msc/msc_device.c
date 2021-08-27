@@ -121,6 +121,27 @@ static void fail_scsi_op(uint8_t rhport, mscd_interface_t* p_msc, uint8_t status
   }
 }
 
+static inline uint32_t rdwr10_get_lba(uint8_t const command[])
+{
+  // use offsetof to avoid pointer to the odd/unaligned address
+  uint32_t const lba = tu_unaligned_read32(command + offsetof(scsi_write10_t, lba));
+
+  // lba is in Big Endian
+  return tu_ntohl(lba);
+}
+
+static inline uint16_t rdwr10_get_blocksize(msc_cbw_t const* cbw)
+{
+  // first extract block count in the command
+  uint16_t block_count = tu_unaligned_read16(cbw->command + offsetof(scsi_write10_t, block_count));
+  block_count = tu_ntohs(block_count);
+
+  // invalid block count
+  if (block_count == 0) return 0;
+
+  return cbw->total_bytes / block_count;
+}
+
 //--------------------------------------------------------------------+
 // Debug
 //--------------------------------------------------------------------+
@@ -336,13 +357,21 @@ bool mscd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t event, uint32_t
       p_msc->total_len = p_cbw->total_bytes;
       p_msc->xferred_len = 0;
 
-      if (SCSI_CMD_READ_10 == p_cbw->command[0])
+      if (SCSI_CMD_READ_10 == p_cbw->command[0] || SCSI_CMD_WRITE_10 == p_cbw->command[0])
       {
-        proc_read10_cmd(rhport, p_msc);
-      }
-      else if (SCSI_CMD_WRITE_10 == p_cbw->command[0])
-      {
-        proc_write10_cmd(rhport, p_msc);
+        if ( rdwr10_get_blocksize(p_cbw) == 0 )
+        {
+          // Invalid CBW length == 0 (not match SCSI command block count)
+          // 6.7.1 BOT The 13 Cases: case 2 and case 3 -> phase error
+          fail_scsi_op(rhport, p_msc, MSC_CSW_STATUS_PHASE_ERROR);
+        }
+        else if (SCSI_CMD_READ_10 == p_cbw->command[0])
+        {
+          proc_read10_cmd(rhport, p_msc);
+        }else
+        {
+          proc_write10_cmd(rhport, p_msc);
+        }
       }
       else
       {
@@ -669,40 +698,12 @@ static int32_t proc_builtin_scsi(uint8_t lun, uint8_t const scsi_cmd[16], uint8_
   return resplen;
 }
 
-
-static inline uint32_t rdwr10_get_lba(uint8_t const command[])
-{
-  // use offsetof to avoid pointer to the odd/unaligned address
-  uint32_t const lba = tu_unaligned_read32(command + offsetof(scsi_write10_t, lba));
-
-  // lba is in Big Endian
-  return tu_ntohl(lba);
-}
-
-static inline uint16_t rdwr10_get_blocksize(msc_cbw_t const* cbw)
-{
-  // first extract block count in the command
-  uint16_t block_count = tu_unaligned_read16(cbw->command + offsetof(scsi_write10_t, block_count));
-  block_count = tu_ntohs(block_count);
-
-  // invalid block count
-  if (block_count == 0) return 0;
-
-  return cbw->total_bytes / block_count;
-}
-
 static void proc_read10_cmd(uint8_t rhport, mscd_interface_t* p_msc)
 {
   msc_cbw_t const * p_cbw = &p_msc->cbw;
 
+  // block size already verified not zero
   uint16_t const block_sz = rdwr10_get_blocksize(p_cbw);
-
-  if ( block_sz == 0 )
-  {
-    // 6.7.1 BOT The 13 Cases: case 2 and 3 when cbw->total_bytes == 0
-    fail_scsi_op(rhport, p_msc, MSC_CSW_STATUS_PHASE_ERROR);
-    return;
-  }
 
   // Adjust lba with transferred bytes
   uint32_t const lba = rdwr10_get_lba(p_cbw->command) + (p_msc->xferred_len / block_sz);
@@ -764,13 +765,8 @@ static void proc_write10_new_data(uint8_t rhport, mscd_interface_t* p_msc, uint3
 {
   msc_cbw_t const * p_cbw = &p_msc->cbw;
 
+  // block size already verified not zero
   uint16_t const block_sz = rdwr10_get_blocksize(p_cbw);
-  if ( block_sz == 0 )
-  {
-    // 6.7.1 BOT The 13 Cases: case 2 and 3 when cbw->total_bytes == 0
-    fail_scsi_op(rhport, p_msc, MSC_CSW_STATUS_PHASE_ERROR);
-    return;
-  }
 
   // Adjust lba with transferred bytes
   uint32_t const lba = rdwr10_get_lba(p_cbw->command) + (p_msc->xferred_len / block_sz);
