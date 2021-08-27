@@ -107,6 +107,18 @@ static void fail_scsi_op(uint8_t rhport, mscd_interface_t* p_msc, uint8_t status
 
   // failed but sense key is not set: default to Illegal Request
   if ( p_msc->sense_key == 0 ) tud_msc_set_sense(p_cbw->lun, SCSI_SENSE_ILLEGAL_REQUEST, 0x20, 0x00);
+
+  // If there is data stage, stall it
+  if ( p_cbw->total_bytes )
+  {
+    if ( tu_bit_test(p_cbw->dir, 7) )
+    {
+      usbd_edpt_stall(rhport, p_msc->ep_in);
+    }else
+    {
+      usbd_edpt_stall(rhport, p_msc->ep_out);
+    }
+  }
 }
 
 //--------------------------------------------------------------------+
@@ -343,12 +355,10 @@ bool mscd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t event, uint32_t
           TU_ASSERT( usbd_edpt_xfer(rhport, p_msc->ep_out, _mscd_buf, p_msc->total_len) );
         }else
         {
-          int32_t resplen;
-
           // First process if it is a built-in commands
-          resplen = proc_builtin_scsi(p_cbw->lun, p_cbw->command, _mscd_buf, sizeof(_mscd_buf));
+          int32_t resplen = proc_builtin_scsi(p_cbw->lun, p_cbw->command, _mscd_buf, sizeof(_mscd_buf));
 
-          // Not built-in, invoke user callback
+          // Invoke user callback if not built-in
           if ( (resplen < 0) && (p_msc->sense_key == 0) )
           {
             resplen = tud_msc_scsi_cb(p_cbw->lun, p_cbw->command, _mscd_buf, p_msc->total_len);
@@ -356,10 +366,8 @@ bool mscd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t event, uint32_t
 
           if ( resplen < 0 )
           {
+            // unsupported command
             fail_scsi_op(rhport, p_msc, MSC_CSW_STATUS_FAILED);
-
-            // Stall bulk In if needed
-            if (p_cbw->total_bytes) usbd_edpt_stall(rhport, p_msc->ep_in);
           }
           else
           {
@@ -692,7 +700,7 @@ static void proc_read10_cmd(uint8_t rhport, mscd_interface_t* p_msc)
   if ( block_sz == 0 )
   {
     // 6.7.1 BOT The 13 Cases: case 2 and 3 when cbw->total_bytes == 0
-    fail_scsi_op(rhport, p_msc, MSC_CSW_STATUS_FAILED);
+    fail_scsi_op(rhport, p_msc, MSC_CSW_STATUS_PHASE_ERROR);
     return;
   }
 
@@ -713,7 +721,6 @@ static void proc_read10_cmd(uint8_t rhport, mscd_interface_t* p_msc)
     tud_msc_set_sense(p_cbw->lun, SCSI_SENSE_MEDIUM_ERROR, 0x33, 0x00);
 
     fail_scsi_op(rhport, p_msc, MSC_CSW_STATUS_FAILED);
-    usbd_edpt_stall(rhport, p_msc->ep_in);
   }
   else if ( nbytes == 0 )
   {
@@ -741,9 +748,7 @@ static void proc_write10_cmd(uint8_t rhport, mscd_interface_t* p_msc)
     // Not writable, complete this SCSI op with error
     // Sense = Write protected
     tud_msc_set_sense(p_cbw->lun, SCSI_SENSE_DATA_PROTECT, 0x27, 0x00);
-
     fail_scsi_op(rhport, p_msc, MSC_CSW_STATUS_FAILED);
-    usbd_edpt_stall(rhport, p_msc->ep_out);
     return;
   }
 
@@ -760,7 +765,12 @@ static void proc_write10_new_data(uint8_t rhport, mscd_interface_t* p_msc, uint3
   msc_cbw_t const * p_cbw = &p_msc->cbw;
 
   uint16_t const block_sz = rdwr10_get_blocksize(p_cbw);
-  TU_ASSERT(block_sz, ); // prevent div by zero
+  if ( block_sz == 0 )
+  {
+    // 6.7.1 BOT The 13 Cases: case 2 and 3 when cbw->total_bytes == 0
+    fail_scsi_op(rhport, p_msc, MSC_CSW_STATUS_PHASE_ERROR);
+    return;
+  }
 
   // Adjust lba with transferred bytes
   uint32_t const lba = rdwr10_get_lba(p_cbw->command) + (p_msc->xferred_len / block_sz);
@@ -776,7 +786,6 @@ static void proc_write10_new_data(uint8_t rhport, mscd_interface_t* p_msc, uint3
     tud_msc_set_sense(p_cbw->lun, SCSI_SENSE_MEDIUM_ERROR, 0x33, 0x00);
 
     fail_scsi_op(rhport, p_msc, MSC_CSW_STATUS_FAILED);
-    usbd_edpt_stall(rhport, p_msc->ep_out);
   }else
   {
     // Application consume less than what we got (including zero)
