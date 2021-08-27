@@ -369,12 +369,17 @@ typedef struct
 
 static inline const char* tu_lookup_find(tu_lookup_table_t const* p_table, uint32_t key)
 {
+  static char not_found[10];
+
   for(uint16_t i=0; i<p_table->count; i++)
   {
     if (p_table->items[i].key == key) return p_table->items[i].data;
   }
 
-  return NULL;
+  // not found return the key value in hex
+  sprintf(not_found, "0x%08lX", key);
+
+  return not_found;
 }
 
 #endif // CFG_TUSB_DEBUG

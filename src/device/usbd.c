@@ -695,7 +695,7 @@ static bool process_control_request(uint8_t rhport, tusb_control_request_t const
             if ( _usbd_dev.cfg_num )
             {
               // already configured: need to clear all endpoints and driver first
-              TU_LOG(USBD_DBG, "Clear current config (%u) before switching\r\n", _usbd_dev.cfg_num);
+              TU_LOG(USBD_DBG, "  Clear current Configuration (%u) before switching\r\n", _usbd_dev.cfg_num);
 
               // close all non-control endpoints, cancel all pending transfers if any
               dcd_edpt_close_all(rhport);
@@ -1333,7 +1333,7 @@ bool usbd_edpt_busy(uint8_t rhport, uint8_t ep_addr)
 
 void usbd_edpt_stall(uint8_t rhport, uint8_t ep_addr)
 {
-  TU_LOG(USBD_DBG, "    Stall EP %02X", ep_addr);
+  TU_LOG(USBD_DBG, "    Stall EP %02X\r\n", ep_addr);
 
   uint8_t const epnum = tu_edpt_number(ep_addr);
   uint8_t const dir   = tu_edpt_dir(ep_addr);
@@ -1345,11 +1345,10 @@ void usbd_edpt_stall(uint8_t rhport, uint8_t ep_addr)
 
 void usbd_edpt_clear_stall(uint8_t rhport, uint8_t ep_addr)
 {
-  TU_LOG(USBD_DBG, "    Clear Stall EP %02X", ep_addr);
+  TU_LOG(USBD_DBG, "    Clear Stall EP %02X\r\n", ep_addr);
 
   uint8_t const epnum = tu_edpt_number(ep_addr);
   uint8_t const dir   = tu_edpt_dir(ep_addr);
-
 
   dcd_edpt_clear_stall(rhport, ep_addr);
   _usbd_dev.ep_status[epnum][dir].stalled = false;

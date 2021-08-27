@@ -46,7 +46,8 @@ enum
   MSC_STAGE_CMD  = 0,
   MSC_STAGE_DATA,
   MSC_STAGE_STATUS,
-  MSC_STAGE_STATUS_SENT
+  MSC_STAGE_STATUS_SENT,
+  MSC_STAGE_NEED_RESET,
 };
 
 typedef struct
@@ -174,35 +175,91 @@ uint16_t mscd_open(uint8_t rhport, tusb_desc_interface_t const * itf_desc, uint1
   TU_ASSERT( usbd_open_edpt_pair(rhport, tu_desc_next(itf_desc), 2, TUSB_XFER_BULK, &p_msc->ep_out, &p_msc->ep_in), 0 );
 
   // Prepare for Command Block Wrapper
-  if ( !usbd_edpt_xfer(rhport, p_msc->ep_out, (uint8_t*) &p_msc->cbw, sizeof(msc_cbw_t)) )
-  {
-    TU_LOG_FAILED();
-    TU_BREAKPOINT();
-  }
+  TU_ASSERT( usbd_edpt_xfer(rhport, p_msc->ep_out, (uint8_t*) &p_msc->cbw, sizeof(msc_cbw_t)), drv_len);
 
   return drv_len;
 }
 
+static void process_bot_reset(mscd_interface_t* p_msc)
+{
+  p_msc->stage       = MSC_STAGE_CMD;
+  p_msc->total_len   = 0;
+  p_msc->xferred_len = 0;
+
+  p_msc->sense_key           = 0;
+  p_msc->add_sense_code      = 0;
+  p_msc->add_sense_qualifier = 0;
+}
+
+
 // Invoked when a control transfer occurred on an interface of this class
 // Driver response accordingly to the request and the transfer stage (setup/data/ack)
 // return false to stall control endpoint (e.g unsupported request)
-bool mscd_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request_t const * p_request)
+bool mscd_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request_t const * request)
 {
   // nothing to do with DATA & ACK stage
   if (stage != CONTROL_STAGE_SETUP) return true;
 
-  // Handle class request only
-  TU_VERIFY(p_request->bmRequestType_bit.type == TUSB_REQ_TYPE_CLASS);
+  mscd_interface_t* p_msc = &_mscd_itf;
 
-  switch ( p_request->bRequest )
+  // Clear Endpoint Feature (stall) for recovery
+  if ( TUSB_REQ_TYPE_STANDARD     == request->bmRequestType_bit.type      &&
+       TUSB_REQ_RCPT_ENDPOINT     == request->bmRequestType_bit.recipient &&
+       TUSB_REQ_CLEAR_FEATURE     == request->bRequest                    &&
+       TUSB_REQ_FEATURE_EDPT_HALT == request->wValue )
+  {
+    uint8_t const ep_addr = tu_u16_low(request->wIndex);
+
+    if ( p_msc->stage == MSC_STAGE_NEED_RESET )
+    {
+      // reset recovery is required to recover from this stage
+      // Clear Stall request cannot resolve this -> continue to stall endpoint
+      usbd_edpt_stall(rhport, ep_addr);
+    }
+    else
+    {
+      if ( ep_addr == p_msc->ep_in )
+      {
+        if ( p_msc->stage == MSC_STAGE_STATUS )
+        {
+          // resume sending SCSI status if we are in this stage previously before stalled
+          p_msc->stage = MSC_STAGE_STATUS_SENT;
+          TU_ASSERT( usbd_edpt_xfer(rhport, p_msc->ep_in , (uint8_t*) &p_msc->csw, sizeof(msc_csw_t)) );
+        }
+      }
+      else if ( ep_addr == p_msc->ep_out )
+      {
+        if ( p_msc->stage == MSC_STAGE_CMD )
+        {
+          // part of reset recovery (probably due to invalid CBW) -> prepare for new command
+          TU_ASSERT( usbd_edpt_xfer(rhport, p_msc->ep_out, (uint8_t*) &p_msc->cbw, sizeof(msc_cbw_t)) );
+        }
+      }
+    }
+
+    return true;
+  }
+
+  // From this point only handle class request only
+  TU_VERIFY(request->bmRequestType_bit.type == TUSB_REQ_TYPE_CLASS);
+
+  switch ( request->bRequest )
   {
     case MSC_REQ_RESET:
-      // TODO: Actually reset interface.
-      tud_control_status(rhport, p_request);
+      TU_LOG(MSC_DEBUG, "  MSC BOT Reset\r\n");
+      TU_VERIFY(request->wValue == 0 && request->wLength == 0);
+
+      // driver state reset
+      process_bot_reset(p_msc);
+
+      tud_control_status(rhport, request);
     break;
 
     case MSC_REQ_GET_MAX_LUN:
     {
+      TU_LOG(MSC_DEBUG, "  MSC Get Max Lun\r\n");
+      TU_VERIFY(request->wValue == 0 && request->wLength == 1);
+
       uint8_t maxlun = 1;
       if (tud_msc_get_maxlun_cb) maxlun = tud_msc_get_maxlun_cb();
       TU_VERIFY(maxlun);
@@ -210,7 +267,7 @@ bool mscd_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request_t 
       // MAX LUN is minus 1 by specs
       maxlun--;
 
-      tud_control_xfer(rhport, p_request, &maxlun, 1);
+      tud_control_xfer(rhport, request, &maxlun, 1);
     }
     break;
 
@@ -222,6 +279,8 @@ bool mscd_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request_t 
 
 bool mscd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t event, uint32_t xferred_bytes)
 {
+  (void) event;
+
   mscd_interface_t* p_msc = &_mscd_itf;
   msc_cbw_t const * p_cbw = &p_msc->cbw;
   msc_csw_t       * p_csw = &p_msc->csw;
@@ -233,11 +292,20 @@ bool mscd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t event, uint32_t
       // Complete IN while waiting for CMD is usually Status of previous SCSI op, ignore it
       if(ep_addr != p_msc->ep_out) return true;
 
-      TU_ASSERT( event == XFER_RESULT_SUCCESS &&
-                 xferred_bytes == sizeof(msc_cbw_t) && p_cbw->signature == MSC_CBW_SIGNATURE );
+      if ( !(xferred_bytes == sizeof(msc_cbw_t) && p_cbw->signature == MSC_CBW_SIGNATURE) )
+      {
+        // BOT 6.6.1 If CBW is not valid stall both endpoints until reset recovery
+        p_msc->stage = MSC_STAGE_NEED_RESET;
+
+        // invalid CBW stall both endpoints
+        usbd_edpt_stall(rhport, p_msc->ep_in);
+        usbd_edpt_stall(rhport, p_msc->ep_out);
+
+        return false;
+      }
 
       TU_LOG(MSC_DEBUG, "  SCSI Command: %s\r\n", tu_lookup_find(&_msc_scsi_cmd_table, p_cbw->command[0]));
-      // TU_LOG_MEM(MSC_DEBUG, p_cbw, xferred_bytes, 2);
+      //TU_LOG_MEM(MSC_DEBUG, p_cbw, xferred_bytes, 2);
 
       p_csw->signature    = MSC_CSW_SIGNATURE;
       p_csw->tag          = p_cbw->tag;
@@ -440,15 +508,8 @@ bool mscd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t event, uint32_t
 
   if ( p_msc->stage == MSC_STAGE_STATUS )
   {
-    // Either endpoints is stalled, need to wait until it is cleared by host
-    if ( usbd_edpt_stalled(rhport,  p_msc->ep_in) || usbd_edpt_stalled(rhport,  p_msc->ep_out) )
-    {
-      // simulate an transfer complete with adjusted parameters --> this driver callback will fired again
-      // and response with status phase after halted endpoints are cleared.
-      // note: use ep_out to prevent confusing with STATUS complete
-      dcd_event_xfer_complete(rhport, p_msc->ep_out, 0, XFER_RESULT_SUCCESS, false);
-    }
-    else
+    // skip status if epin is currently stalled, will do it when received Clear Stall request
+    if ( !usbd_edpt_stalled(rhport,  p_msc->ep_in) )
     {
       // Move to Status Sent stage
       p_msc->stage = MSC_STAGE_STATUS_SENT;
@@ -600,9 +661,11 @@ static int32_t proc_builtin_scsi(uint8_t lun, uint8_t const scsi_cmd[16], uint8_
       };
 
       bool writable = true;
-      if (tud_msc_is_writable_cb) {
-          writable = tud_msc_is_writable_cb(lun);
+      if ( tud_msc_is_writable_cb )
+      {
+        writable = tud_msc_is_writable_cb(lun);
       }
+
       mode_resp.write_protected = !writable;
 
       resplen = sizeof(mode_resp);
@@ -660,7 +723,8 @@ static void proc_read10_cmd(uint8_t rhport, mscd_interface_t* p_msc)
 
   if ( nbytes < 0 )
   {
-    // negative means error -> pipe is stalled & status in CSW set to failed
+    // negative means error -> endpoint is stalled & status in CSW set to failed
+    p_msc->stage = MSC_STAGE_STATUS;
     p_csw->data_residue = p_cbw->total_bytes - p_msc->xferred_len;
     p_csw->status       = MSC_CSW_STATUS_FAILED;
 
@@ -682,15 +746,22 @@ static void proc_write10_cmd(uint8_t rhport, mscd_interface_t* p_msc)
 {
   msc_cbw_t const * p_cbw = &p_msc->cbw;
   bool writable = true;
-  if (tud_msc_is_writable_cb) {
+
+  if ( tud_msc_is_writable_cb )
+  {
     writable = tud_msc_is_writable_cb(p_cbw->lun);
   }
-  if (!writable) {
-    msc_csw_t* p_csw = &p_msc->csw;
-    p_csw->data_residue = p_cbw->total_bytes;
-    p_csw->status       = MSC_CSW_STATUS_FAILED;
 
-    tud_msc_set_sense(p_cbw->lun, SCSI_SENSE_DATA_PROTECT, 0x27, 0x00); // Sense = Write protected
+  if ( !writable )
+  {
+    // Not writable, complete this SCSI op with error
+    msc_csw_t *p_csw = &p_msc->csw;
+
+    p_msc->stage = MSC_STAGE_STATUS;
+    p_csw->status = MSC_CSW_STATUS_FAILED;
+    p_csw->data_residue = p_cbw->total_bytes;
+
+    tud_msc_set_sense(p_cbw->lun, SCSI_SENSE_DATA_PROTECT, 0x27, 0x00);    // Sense = Write protected
     usbd_edpt_stall(rhport, p_msc->ep_out);
     return;
   }
