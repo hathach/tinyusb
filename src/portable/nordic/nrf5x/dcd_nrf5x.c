@@ -206,7 +206,8 @@ static void xact_out_dma(uint8_t epnum)
   }
   else
   {
-    xact_len = (uint8_t)NRF_USBD->SIZE.EPOUT[epnum];
+    // limit xact len to remaining length
+    xact_len = tu_min16((uint16_t) NRF_USBD->SIZE.EPOUT[epnum], xfer->total_len - xfer->actual_len);
 
     // Trigger DMA move data from Endpoint -> SRAM
     NRF_USBD->EPOUT[epnum].PTR = (uint32_t) xfer->buffer;
@@ -480,10 +481,9 @@ bool dcd_edpt_xfer (uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t 
     {
       if ( xfer->data_received )
       {
-        // Data may already be received previously
-        xfer->data_received = false;
-
+        // Data is already received previously
         // start DMA to copy to SRAM
+        xfer->data_received = false;
         xact_out_dma(epnum);
       }
       else
@@ -505,7 +505,11 @@ bool dcd_edpt_xfer (uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t 
 void dcd_edpt_stall (uint8_t rhport, uint8_t ep_addr)
 {
   (void) rhport;
+
   uint8_t const epnum = tu_edpt_number(ep_addr);
+  uint8_t const dir   = tu_edpt_dir(ep_addr);
+
+  xfer_td_t* xfer = get_td(epnum, dir);
 
   if ( epnum == 0 )
   {
@@ -513,6 +517,15 @@ void dcd_edpt_stall (uint8_t rhport, uint8_t ep_addr)
   }else if (epnum != EP_ISO_NUM)
   {
     NRF_USBD->EPSTALL = (USBD_EPSTALL_STALL_Stall << USBD_EPSTALL_STALL_Pos) | ep_addr;
+
+    // Note: nRF can auto ACK packet OUT before get stalled.
+    // There maybe data in endpoint fifo already, we need to pull it out
+    if ( (dir == TUSB_DIR_OUT) && xfer->data_received )
+    {
+      TU_LOG_LOCATION();
+      xfer->data_received = false;
+      xact_out_dma(epnum);
+    }
   }
 
   __ISB(); __DSB();
@@ -533,7 +546,6 @@ void dcd_edpt_clear_stall (uint8_t rhport, uint8_t ep_addr)
     NRF_USBD->DTOGGLE = (USBD_DTOGGLE_VALUE_Data0 << USBD_DTOGGLE_VALUE_Pos) | ep_addr;
 
     // Write any value to SIZE register will allow nRF to ACK/accept data
-    // Drop any pending data
     if (dir == TUSB_DIR_OUT) NRF_USBD->SIZE.EPOUT[epnum] = 0;
 
     __ISB(); __DSB();
