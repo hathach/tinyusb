@@ -62,7 +62,7 @@ typedef struct
 
   // Bulk Only Transfer (BOT) Protocol
   uint8_t  stage;
-  uint32_t total_len;
+  uint32_t total_len;   // byte to be transferred, can be smaller than total_bytes in cbw
   uint32_t xferred_len; // numbered of bytes transferred so far in the Data Stage
 
   // Sense Response Data
@@ -83,8 +83,16 @@ static void proc_read10_cmd(uint8_t rhport, mscd_interface_t* p_msc);
 static void proc_write10_cmd(uint8_t rhport, mscd_interface_t* p_msc);
 static void proc_write10_new_data(uint8_t rhport, mscd_interface_t* p_msc, uint32_t xferred_bytes);
 
+TU_ATTR_ALWAYS_INLINE static inline bool is_data_in(uint8_t dir)
+{
+  return tu_bit_test(dir, 7);
+}
+
 static inline bool send_csw(uint8_t rhport, mscd_interface_t* p_msc)
 {
+  // Data residue is always = host expect - actual transferred
+  p_msc->csw.data_residue = p_msc->cbw.total_bytes - p_msc->xferred_len;
+
   p_msc->stage = MSC_STAGE_STATUS_SENT;
   return usbd_edpt_xfer(rhport, p_msc->ep_in , (uint8_t*) &p_msc->csw, sizeof(msc_csw_t));
 }
@@ -100,10 +108,9 @@ static void fail_scsi_op(uint8_t rhport, mscd_interface_t* p_msc, uint8_t status
   msc_cbw_t const * p_cbw = &p_msc->cbw;
   msc_csw_t       * p_csw = &p_msc->csw;
 
-  p_csw->status       = status;
-  p_csw->data_residue = p_cbw->total_bytes - p_msc->xferred_len;
-
-  p_msc->stage = MSC_STAGE_STATUS;
+  // data_residue will be calculated before sending out csw
+  p_csw->status = status;
+  p_msc->stage  = MSC_STAGE_STATUS;
 
   // failed but sense key is not set: default to Illegal Request
   if ( p_msc->sense_key == 0 ) tud_msc_set_sense(p_cbw->lun, SCSI_SENSE_ILLEGAL_REQUEST, 0x20, 0x00);
@@ -111,7 +118,7 @@ static void fail_scsi_op(uint8_t rhport, mscd_interface_t* p_msc, uint8_t status
   // If there is data stage, stall it
   if ( p_cbw->total_bytes )
   {
-    if ( tu_bit_test(p_cbw->dir, 7) )
+    if ( is_data_in(p_cbw->dir) )
     {
       usbd_edpt_stall(rhport, p_msc->ep_in);
     }else
@@ -335,6 +342,8 @@ bool mscd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t event, uint32_t
 
       if ( !(xferred_bytes == sizeof(msc_cbw_t) && p_cbw->signature == MSC_CBW_SIGNATURE) )
       {
+        TU_LOG(MSC_DEBUG, "  SCSI CBW is not valid\r\n");
+
         // BOT 6.6.1 If CBW is not valid stall both endpoints until reset recovery
         p_msc->stage = MSC_STAGE_NEED_RESET;
 
@@ -351,6 +360,7 @@ bool mscd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t event, uint32_t
       p_csw->signature    = MSC_CSW_SIGNATURE;
       p_csw->tag          = p_cbw->tag;
       p_csw->data_residue = 0;
+      p_csw->status       = MSC_CSW_STATUS_PASSED;
 
       /*------------- Parse command and prepare DATA -------------*/
       p_msc->stage = MSC_STAGE_DATA;
@@ -360,9 +370,10 @@ bool mscd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t event, uint32_t
       if ( SCSI_CMD_READ_10 == p_cbw->command[0] )
       {
         // Invalid CBW length == 0 or Direction bit is incorrect
-        // 6.7 The 13 Cases: case 2, case 3, case 10 -> phase error
-        if ( rdwr10_get_blocksize(p_cbw) == 0 || !tu_bit_test(p_cbw->dir, 7) )
+        // 6.7 The 13 Cases: case 2 (Hn < Di), case 3 (Hn < Do), case 10 (Ho <> Di) -> phase error
+        if ( rdwr10_get_blocksize(p_cbw) == 0 || !is_data_in(p_cbw->dir) )
         {
+          TU_LOG(MSC_DEBUG, "  SCSI ase 2 (Hn < Di), case 3 (Hn < Do), case 10 (Ho <> Di)\r\n");
           fail_scsi_op(rhport, p_msc, MSC_CSW_STATUS_PHASE_ERROR);
         }else
         {
@@ -372,9 +383,10 @@ bool mscd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t event, uint32_t
       else if (SCSI_CMD_WRITE_10 == p_cbw->command[0])
       {
         // Invalid CBW length == 0 or Direction bit is incorrect
-        // 6.7 The 13 Cases: case 2, case 3, case 8 -> phase error
-        if ( rdwr10_get_blocksize(p_cbw) == 0 || tu_bit_test(p_cbw->dir, 7) )
+        // 6.7 The 13 Cases: case 2 (Hn < Do), case 3 (Hn < Do), case 8 (Hi <> Do) -> phase error
+        if ( rdwr10_get_blocksize(p_cbw) == 0 || is_data_in(p_cbw->dir) )
         {
+          TU_LOG(MSC_DEBUG, "  SCSI ase 2 (Hn < Di), case 3 (Hn < Do), case 8 (Hi <> Do)\r\n");
           fail_scsi_op(rhport, p_msc, MSC_CSW_STATUS_PHASE_ERROR);
         }else
         {
@@ -386,9 +398,12 @@ bool mscd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t event, uint32_t
         // For other SCSI commands
         // 1. OUT : queue transfer (invoke app callback after done)
         // 2. IN & Zero: Process if is built-in, else Invoke app callback. Skip DATA if zero length
-        if ( (p_cbw->total_bytes > 0 ) && !tu_bit_test(p_cbw->dir, 7) )
+        if ( (p_cbw->total_bytes > 0 ) && !is_data_in(p_cbw->dir) )
         {
-          // queue transfer
+          // Didn't check for case 9 (Ho > Dn), which requires examining scsi command first
+          // but it is OK to just receive data then responded with failed status
+
+          // Prepare for Data stage
           TU_ASSERT( usbd_edpt_xfer(rhport, p_msc->ep_out, _mscd_buf, p_msc->total_len) );
         }else
         {
@@ -404,20 +419,34 @@ bool mscd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t event, uint32_t
           if ( resplen < 0 )
           {
             // unsupported command
+            TU_LOG(MSC_DEBUG, "  SCSI unsupported command\r\n");
             fail_scsi_op(rhport, p_msc, MSC_CSW_STATUS_FAILED);
+          }
+          else if (resplen == 0)
+          {
+            if (p_cbw->total_bytes)
+            {
+              // 6.7 The 13 Cases: case 4 (Hi > Dn)
+              TU_LOG(MSC_DEBUG, "  SCSI case 4 (Hi > Dn): %lu\r\n", p_cbw->total_bytes);
+              fail_scsi_op(rhport, p_msc, MSC_CSW_STATUS_FAILED);
+            }else
+            {
+              // case 1 Hn = Dn: all good
+              p_msc->stage = MSC_STAGE_STATUS;
+            }
           }
           else
           {
-            p_msc->total_len = (uint32_t) resplen;
-            p_csw->status = MSC_CSW_STATUS_PASSED;
-
-            if (p_msc->total_len)
+            if ( p_cbw->total_bytes == 0 )
             {
-              TU_ASSERT( p_cbw->total_bytes >= p_msc->total_len ); // cannot return more than host expect
-              TU_ASSERT( usbd_edpt_xfer(rhport, p_msc->ep_in, _mscd_buf, p_msc->total_len) );
+              // 6.7 The 13 Cases: case 2 (Hn < Di)
+              TU_LOG(MSC_DEBUG, "  SCSI case 2 (Hn < Di): %lu\r\n", p_cbw->total_bytes);
+              fail_scsi_op(rhport, p_msc, MSC_CSW_STATUS_FAILED);
             }else
             {
-              p_msc->stage = MSC_STAGE_STATUS;
+              // cannot return more than host expect
+              p_msc->total_len = tu_min32((uint32_t) resplen, p_cbw->total_bytes);
+              TU_ASSERT( usbd_edpt_xfer(rhport, p_msc->ep_in, _mscd_buf, p_msc->total_len) );
             }
           }
         }
@@ -448,7 +477,7 @@ bool mscd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t event, uint32_t
       else
       {
         // OUT transfer, invoke callback if needed
-        if ( !tu_bit_test(p_cbw->dir, 7) )
+        if ( !is_data_in(p_cbw->dir) )
         {
           int32_t cb_result = tud_msc_scsi_cb(p_cbw->lun, p_cbw->command, _mscd_buf, p_msc->total_len);
 
@@ -485,7 +514,7 @@ bool mscd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t event, uint32_t
       // Wait for the Status phase to complete
       if( (ep_addr == p_msc->ep_in) && (xferred_bytes == sizeof(msc_csw_t)) )
       {
-        TU_LOG(MSC_DEBUG, "  SCSI Status: %u\r\n", p_csw->status);
+        TU_LOG(MSC_DEBUG, "  SCSI Status = %u\r\n", p_csw->status);
         // TU_LOG_MEM(MSC_DEBUG, p_csw, xferred_bytes, 2);
 
         // Invoke complete callback if defined
@@ -507,6 +536,10 @@ bool mscd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t event, uint32_t
         }
 
         TU_ASSERT( prepare_cbw(rhport, p_msc) );
+      }else
+      {
+        // Any xfer ended here is consider unknown error, ignore it
+        TU_LOG1("  Warning expect SCSI Status but received unknown data\r\n");
       }
     break;
 
@@ -518,7 +551,15 @@ bool mscd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t event, uint32_t
     // skip status if epin is currently stalled, will do it when received Clear Stall request
     if ( !usbd_edpt_stalled(rhport,  p_msc->ep_in) )
     {
-      TU_ASSERT( send_csw(rhport, p_msc) );
+      if ( (p_cbw->total_bytes > p_msc->xferred_len) && is_data_in(p_cbw->dir) )
+      {
+        // 6.7 The 13 Cases: case 5 (Hi > Di): STALL before status
+        TU_LOG(MSC_DEBUG, "  SCSI case 5 (Hi > Di): %lu > %lu\r\n", p_cbw->total_bytes, p_msc->xferred_len);
+        usbd_edpt_stall(rhport, p_msc->ep_in);
+      }else
+      {
+        TU_ASSERT( send_csw(rhport, p_msc) );
+      }
     }
   }
 
@@ -725,6 +766,7 @@ static void proc_read10_cmd(uint8_t rhport, mscd_interface_t* p_msc)
   if ( nbytes < 0 )
   {
     // negative means error -> endpoint is stalled & status in CSW set to failed
+    TU_LOG(MSC_DEBUG, "  tud_msc_read10_cb() return -1\r\n");
 
     // Sense = Flash not ready for access
     tud_msc_set_sense(p_cbw->lun, SCSI_SENSE_MEDIUM_ERROR, 0x33, 0x00);
@@ -785,6 +827,7 @@ static void proc_write10_new_data(uint8_t rhport, mscd_interface_t* p_msc, uint3
   if ( nbytes < 0 )
   {
     // negative means error -> failed this scsi op
+    TU_LOG(MSC_DEBUG, "  tud_msc_write10_cb() return -1\r\n");
 
     // Sense = Flash not ready for access
     tud_msc_set_sense(p_cbw->lun, SCSI_SENSE_MEDIUM_ERROR, 0x33, 0x00);
