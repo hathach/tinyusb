@@ -268,6 +268,9 @@ bool tud_msc_start_stop_cb(uint8_t lun, uint8_t power_condition, bool start, boo
 // Copy disk's data to buffer (up to bufsize) and return number of copied bytes.
 int32_t tud_msc_read10_cb(uint8_t lun, uint32_t lba, uint32_t offset, void* buffer, uint32_t bufsize)
 {
+  // out of ramdisk
+  if ( lba >= DISK_BLOCK_NUM ) return -1;
+
   uint8_t const* addr = (lun ? msc_disk1[lba] : msc_disk0[lba]) + offset;
   memcpy(buffer, addr, bufsize);
 
@@ -289,6 +292,9 @@ bool tud_msc_is_writable_cb (uint8_t lun)
 // Process data in buffer to disk's storage and return number of written bytes
 int32_t tud_msc_write10_cb(uint8_t lun, uint32_t lba, uint32_t offset, uint8_t* buffer, uint32_t bufsize)
 {
+  // out of ramdisk
+  if ( lba >= DISK_BLOCK_NUM ) return -1;
+
 #ifndef CFG_EXAMPLE_MSC_READONLY
   uint8_t* addr = (lun ? msc_disk1[lba] : msc_disk0[lba])  + offset;
   memcpy(addr, buffer, bufsize);
