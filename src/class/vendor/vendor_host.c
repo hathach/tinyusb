@@ -41,7 +41,7 @@
 //--------------------------------------------------------------------+
 // INTERNAL OBJECT & FUNCTION DECLARATION
 //--------------------------------------------------------------------+
-custom_interface_info_t custom_interface[CFG_TUSB_HOST_DEVICE_MAX];
+custom_interface_info_t custom_interface[CFG_TUH_DEVICE_MAX];
 
 static tusb_error_t cush_validate_paras(uint8_t dev_addr, uint16_t vendor_id, uint16_t product_id, void * p_buffer, uint16_t length)
 {
@@ -90,7 +90,7 @@ tusb_error_t tusbh_custom_write(uint8_t dev_addr, uint16_t vendor_id, uint16_t p
 //--------------------------------------------------------------------+
 void cush_init(void)
 {
-  tu_memclr(&custom_interface, sizeof(custom_interface_info_t) * CFG_TUSB_HOST_DEVICE_MAX);
+  tu_memclr(&custom_interface, sizeof(custom_interface_info_t) * CFG_TUH_DEVICE_MAX);
 }
 
 tusb_error_t cush_open_subtask(uint8_t dev_addr, tusb_desc_interface_t const *p_interface_desc, uint16_t *p_length)

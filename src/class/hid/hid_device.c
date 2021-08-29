@@ -121,6 +121,7 @@ bool tud_hid_n_keyboard_report(uint8_t instance, uint8_t report_id, uint8_t modi
   hid_keyboard_report_t report;
 
   report.modifier = modifier;
+  report.reserved = 0;
 
   if ( keycode )
   {

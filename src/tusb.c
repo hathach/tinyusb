@@ -63,6 +63,99 @@ bool tusb_inited(void)
   return ret;
 }
 
+//--------------------------------------------------------------------+
+// Internal Helper for both Host and Device stack
+//--------------------------------------------------------------------+
+
+bool tu_edpt_validate(tusb_desc_endpoint_t const * desc_ep, tusb_speed_t speed)
+{
+  uint16_t const max_packet_size = tu_le16toh(desc_ep->wMaxPacketSize.size);
+  TU_LOG2("  Open EP %02X with Size = %u\r\n", desc_ep->bEndpointAddress, max_packet_size);
+
+  switch (desc_ep->bmAttributes.xfer)
+  {
+    case TUSB_XFER_ISOCHRONOUS:
+    {
+      uint16_t const spec_size = (speed == TUSB_SPEED_HIGH ? 1024 : 1023);
+      TU_ASSERT(max_packet_size <= spec_size);
+    }
+    break;
+
+    case TUSB_XFER_BULK:
+      if (speed == TUSB_SPEED_HIGH)
+      {
+        // Bulk highspeed must be EXACTLY 512
+        TU_ASSERT(max_packet_size == 512);
+      }else
+      {
+        // TODO Bulk fullspeed can only be 8, 16, 32, 64
+        TU_ASSERT(max_packet_size <= 64);
+      }
+    break;
+
+    case TUSB_XFER_INTERRUPT:
+    {
+      uint16_t const spec_size = (speed == TUSB_SPEED_HIGH ? 1024 : 64);
+      TU_ASSERT(max_packet_size <= spec_size);
+    }
+    break;
+
+    default: return false;
+  }
+
+  return true;
+}
+
+void tu_edpt_bind_driver(uint8_t ep2drv[][2], tusb_desc_interface_t const* desc_itf, uint16_t desc_len, uint8_t driver_id)
+{
+  uint8_t const* p_desc = (uint8_t const*) desc_itf;
+  uint16_t len = 0;
+
+  while( len < desc_len )
+  {
+    if ( TUSB_DESC_ENDPOINT == tu_desc_type(p_desc) )
+    {
+      uint8_t const ep_addr = ((tusb_desc_endpoint_t const*) p_desc)->bEndpointAddress;
+
+      TU_LOG(2, "  Bind EP %02x to driver id %u\r\n", ep_addr, driver_id);
+      ep2drv[tu_edpt_number(ep_addr)][tu_edpt_dir(ep_addr)] = driver_id;
+    }
+
+    len    = (uint16_t)(len + tu_desc_len(p_desc));
+    p_desc = tu_desc_next(p_desc);
+  }
+}
+
+uint16_t tu_desc_get_interface_total_len(tusb_desc_interface_t const* desc_itf, uint8_t itf_count, uint16_t max_len)
+{
+  uint8_t const* p_desc = (uint8_t const*) desc_itf;
+  uint16_t len = 0;
+
+  while (itf_count--)
+  {
+    // Next on interface desc
+    len += tu_desc_len(desc_itf);
+    p_desc = tu_desc_next(p_desc);
+
+    while (len < max_len)
+    {
+      // return on IAD regardless of itf count
+      if ( tu_desc_type(p_desc) == TUSB_DESC_INTERFACE_ASSOCIATION ) return len;
+
+      if ( (tu_desc_type(p_desc) == TUSB_DESC_INTERFACE) &&
+           ((tusb_desc_interface_t const*) p_desc)->bAlternateSetting == 0 )
+      {
+        break;
+      }
+
+      len += tu_desc_len(p_desc);
+      p_desc = tu_desc_next(p_desc);
+    }
+  }
+
+  return len;
+}
+
 /*------------------------------------------------------------------*/
 /* Debug
  *------------------------------------------------------------------*/

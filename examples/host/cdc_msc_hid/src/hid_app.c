@@ -61,6 +61,8 @@ void hid_app_task(void)
 // Invoked when device with hid interface is mounted
 // Report descriptor is also available for use. tuh_hid_parse_report_descriptor()
 // can be used to parse common/simple enough descriptor.
+// Note: if report descriptor length > CFG_TUH_ENUMERATION_BUFSIZE, it will be skipped
+// therefore report_desc = NULL, desc_len = 0
 void tuh_hid_mount_cb(uint8_t dev_addr, uint8_t instance, uint8_t const* desc_report, uint16_t desc_len)
 {
   printf("HID device address = %d, instance = %d is mounted\r\n", dev_addr, instance);
@@ -77,6 +79,13 @@ void tuh_hid_mount_cb(uint8_t dev_addr, uint8_t instance, uint8_t const* desc_re
   {
     hid_info[instance].report_count = tuh_hid_parse_report_descriptor(hid_info[instance].report_info, MAX_REPORT, desc_report, desc_len);
     printf("HID has %u reports \r\n", hid_info[instance].report_count);
+  }
+
+  // request to receive report
+  // tuh_hid_report_received_cb() will be invoked when report is available
+  if ( !tuh_hid_receive_report(dev_addr, instance) )
+  {
+    printf("Error: cannot request to receive report\r\n");
   }
 }
 
@@ -107,6 +116,12 @@ void tuh_hid_report_received_cb(uint8_t dev_addr, uint8_t instance, uint8_t cons
       // Generic report requires matching ReportID and contents with previous parsed report info
       process_generic_report(dev_addr, instance, report, len);
     break;
+  }
+
+  // continue to request to receive report
+  if ( !tuh_hid_receive_report(dev_addr, instance) )
+  {
+    printf("Error: cannot request to receive report\r\n");
   }
 }
 

@@ -60,7 +60,7 @@
 #elif TU_CHECK_MCU(MIMXRT10XX)
   #define DCD_ATTR_ENDPOINT_MAX   8
 
-#elif TU_CHECK_MCU(MKL25ZXX)
+#elif TU_CHECK_MCU(MKL25ZXX) || TU_CHECK_MCU(K32L2BXX)
   #define DCD_ATTR_ENDPOINT_MAX   16
 
 //------------- Nordic -------------//
