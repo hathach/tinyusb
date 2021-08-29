@@ -373,7 +373,7 @@ bool mscd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t event, uint32_t
         // 6.7 The 13 Cases: case 2 (Hn < Di), case 3 (Hn < Do), case 10 (Ho <> Di) -> phase error
         if ( rdwr10_get_blocksize(p_cbw) == 0 || !is_data_in(p_cbw->dir) )
         {
-          TU_LOG(MSC_DEBUG, "  SCSI ase 2 (Hn < Di), case 3 (Hn < Do), case 10 (Ho <> Di)\r\n");
+          TU_LOG(MSC_DEBUG, "  SCSI case 2 (Hn < Di), case 3 (Hn < Do), case 10 (Ho <> Di)\r\n");
           fail_scsi_op(rhport, p_msc, MSC_CSW_STATUS_PHASE_ERROR);
         }else
         {
@@ -386,7 +386,7 @@ bool mscd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t event, uint32_t
         // 6.7 The 13 Cases: case 2 (Hn < Do), case 3 (Hn < Do), case 8 (Hi <> Do) -> phase error
         if ( rdwr10_get_blocksize(p_cbw) == 0 || is_data_in(p_cbw->dir) )
         {
-          TU_LOG(MSC_DEBUG, "  SCSI ase 2 (Hn < Di), case 3 (Hn < Do), case 8 (Hi <> Do)\r\n");
+          TU_LOG(MSC_DEBUG, "  SCSI case 2 (Hn < Di), case 3 (Hn < Do), case 8 (Hi <> Do)\r\n");
           fail_scsi_op(rhport, p_msc, MSC_CSW_STATUS_PHASE_ERROR);
         }else
         {
@@ -400,11 +400,16 @@ bool mscd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t event, uint32_t
         // 2. IN & Zero: Process if is built-in, else Invoke app callback. Skip DATA if zero length
         if ( (p_cbw->total_bytes > 0 ) && !is_data_in(p_cbw->dir) )
         {
-          // Didn't check for case 9 (Ho > Dn), which requires examining scsi command first
-          // but it is OK to just receive data then responded with failed status
-
-          // Prepare for Data stage
-          TU_ASSERT( usbd_edpt_xfer(rhport, p_msc->ep_out, _mscd_buf, p_msc->total_len) );
+          if (p_cbw->total_bytes > sizeof(_mscd_buf))
+          {
+            TU_LOG(MSC_DEBUG, "  SCSI reject non READ10/WRITE10 with large data\r\n");
+            fail_scsi_op(rhport, p_msc, MSC_CSW_STATUS_FAILED);
+          }else
+          {
+            // Didn't check for case 9 (Ho > Dn), which requires examining scsi command first
+            // but it is OK to just receive data then responded with failed status
+            TU_ASSERT( usbd_edpt_xfer(rhport, p_msc->ep_out, _mscd_buf, p_msc->total_len) );
+          }
         }else
         {
           // First process if it is a built-in commands
@@ -483,11 +488,12 @@ bool mscd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t event, uint32_t
 
           if ( cb_result < 0 )
           {
-            p_csw->status = MSC_CSW_STATUS_FAILED;
-            tud_msc_set_sense(p_cbw->lun, SCSI_SENSE_ILLEGAL_REQUEST, 0x20, 0x00); // Sense = Invalid Command Operation
+            // unsupported command
+            TU_LOG(MSC_DEBUG, "  SCSI unsupported command\r\n");
+            fail_scsi_op(rhport, p_msc, MSC_CSW_STATUS_FAILED);
           }else
           {
-            p_csw->status = MSC_CSW_STATUS_PASSED;
+            // TODO haven't implement this scenario any further yet
           }
         }
 
@@ -500,7 +506,7 @@ bool mscd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t event, uint32_t
         }
         else
         {
-          // No command take more than one transfer yet -> unlikely error
+          // This scenario with command that take more than one transfer is already rejected at Command stage
           TU_BREAKPOINT();
         }
       }
