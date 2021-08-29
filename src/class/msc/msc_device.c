@@ -108,20 +108,21 @@ static void fail_scsi_op(uint8_t rhport, mscd_interface_t* p_msc, uint8_t status
   msc_cbw_t const * p_cbw = &p_msc->cbw;
   msc_csw_t       * p_csw = &p_msc->csw;
 
-  // data_residue will be calculated before sending out csw
-  p_csw->status = status;
-  p_msc->stage  = MSC_STAGE_STATUS;
+  p_csw->status       = status;
+  p_csw->data_residue = p_msc->cbw.total_bytes - p_msc->xferred_len;
+  p_msc->stage        = MSC_STAGE_STATUS;
 
   // failed but sense key is not set: default to Illegal Request
   if ( p_msc->sense_key == 0 ) tud_msc_set_sense(p_cbw->lun, SCSI_SENSE_ILLEGAL_REQUEST, 0x20, 0x00);
 
-  // If there is data stage, stall it
-  if ( p_cbw->total_bytes )
+  // If there is data stage and not yet complete, stall it
+  if ( p_cbw->total_bytes && p_csw->data_residue )
   {
     if ( is_data_in(p_cbw->dir) )
     {
       usbd_edpt_stall(rhport, p_msc->ep_in);
-    }else
+    }
+    else
     {
       usbd_edpt_stall(rhport, p_msc->ep_out);
     }
@@ -481,6 +482,8 @@ bool mscd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t event, uint32_t
       }
       else
       {
+        p_msc->xferred_len += xferred_bytes;
+
         // OUT transfer, invoke callback if needed
         if ( !is_data_in(p_cbw->dir) )
         {
@@ -496,8 +499,6 @@ bool mscd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t event, uint32_t
             // TODO haven't implement this scenario any further yet
           }
         }
-
-        p_msc->xferred_len += xferred_bytes;
 
         if ( p_msc->xferred_len >= p_msc->total_len )
         {
@@ -767,7 +768,8 @@ static void proc_read10_cmd(uint8_t rhport, mscd_interface_t* p_msc)
   int32_t nbytes = (int32_t) tu_min32(sizeof(_mscd_buf), p_cbw->total_bytes-p_msc->xferred_len);
 
   // Application can consume smaller bytes
-  nbytes = tud_msc_read10_cb(p_cbw->lun, lba, p_msc->xferred_len % block_sz, _mscd_buf, (uint32_t) nbytes);
+  uint32_t const offset = p_msc->xferred_len % block_sz;
+  nbytes = tud_msc_read10_cb(p_cbw->lun, lba, offset, _mscd_buf, (uint32_t) nbytes);
 
   if ( nbytes < 0 )
   {
@@ -827,13 +829,17 @@ static void proc_write10_new_data(uint8_t rhport, mscd_interface_t* p_msc, uint3
   // Adjust lba with transferred bytes
   uint32_t const lba = rdwr10_get_lba(p_cbw->command) + (p_msc->xferred_len / block_sz);
 
-  // Application can consume smaller bytes
-  int32_t nbytes = tud_msc_write10_cb(p_cbw->lun, lba, p_msc->xferred_len % block_sz, _mscd_buf, xferred_bytes);
+  // Invoke callback to consume new data
+  uint32_t const offset = p_msc->xferred_len % block_sz;
+  int32_t nbytes = tud_msc_write10_cb(p_cbw->lun, lba, offset, _mscd_buf, xferred_bytes);
 
   if ( nbytes < 0 )
   {
     // negative means error -> failed this scsi op
     TU_LOG(MSC_DEBUG, "  tud_msc_write10_cb() return -1\r\n");
+
+    // update actual byte before failed
+    p_msc->xferred_len += xferred_bytes;
 
     // Sense = Flash not ready for access
     tud_msc_set_sense(p_cbw->lun, SCSI_SENSE_MEDIUM_ERROR, 0x33, 0x00);
@@ -842,7 +848,7 @@ static void proc_write10_new_data(uint8_t rhport, mscd_interface_t* p_msc, uint3
   }else
   {
     // Application consume less than what we got (including zero)
-    if ( nbytes < (int32_t) xferred_bytes )
+    if ( (uint32_t) nbytes < xferred_bytes )
     {
       if ( nbytes > 0 )
       {
@@ -850,12 +856,12 @@ static void proc_write10_new_data(uint8_t rhport, mscd_interface_t* p_msc, uint3
         memmove(_mscd_buf, _mscd_buf+nbytes, xferred_bytes-nbytes);
       }
 
-      // simulate an transfer complete with adjusted parameters --> this driver callback will fired again
+      // simulate an transfer complete with adjusted parameters --> callback will be invoked with adjusted parameter
       dcd_event_xfer_complete(rhport, p_msc->ep_out, xferred_bytes-nbytes, XFER_RESULT_SUCCESS, false);
     }
     else
     {
-      // Application consume all bytes in our buffer, prepare to receive more data from host
+      // Application consume all bytes in our buffer
       p_msc->xferred_len += xferred_bytes;
 
       if ( p_msc->xferred_len >= p_msc->total_len )
@@ -864,6 +870,7 @@ static void proc_write10_new_data(uint8_t rhport, mscd_interface_t* p_msc, uint3
         p_msc->stage = MSC_STAGE_STATUS;
       }else
       {
+        // prepare to receive more data from host
         proc_write10_cmd(rhport, p_msc);
       }
     }
