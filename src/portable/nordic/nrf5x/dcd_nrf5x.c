@@ -539,11 +539,14 @@ void dcd_edpt_clear_stall (uint8_t rhport, uint8_t ep_addr)
 
   if ( epnum != 0 && epnum != EP_ISO_NUM )
   {
+    // reset data toggle to DATA0
+    // First write this register with VALUE=Nop to select the endpoint, then either read it to get the status from
+    // VALUE, or write it again with VALUE=Data0 or Data1
+    NRF_USBD->DTOGGLE = ep_addr;
+    NRF_USBD->DTOGGLE = (USBD_DTOGGLE_VALUE_Data0 << USBD_DTOGGLE_VALUE_Pos) | ep_addr;
+
     // clear stall
     NRF_USBD->EPSTALL = (USBD_EPSTALL_STALL_UnStall << USBD_EPSTALL_STALL_Pos) | ep_addr;
-
-    // reset data toggle to DATA0
-    NRF_USBD->DTOGGLE = (USBD_DTOGGLE_VALUE_Data0 << USBD_DTOGGLE_VALUE_Pos) | ep_addr;
 
     // Write any value to SIZE register will allow nRF to ACK/accept data
     if (dir == TUSB_DIR_OUT) NRF_USBD->SIZE.EPOUT[epnum] = 0;
