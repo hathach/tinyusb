@@ -98,21 +98,28 @@ def build_size(example, board):
 def skip_example(example, board):
     ex_dir = 'examples/' + example
     
+    # Check if example is skipped by family or board directory
+    skip_file = ".skip." + example.replace('/', '.');
+    if os.path.isfile("hw/bsp/{}/{}".format(family, skip_file)) or os.path.isfile("hw/bsp/{}/boards/{}/{}".format(family, board, skip_file)):
+        return 1
+
+    # Otherwise check if mcu is excluded by example directory
+
     # family CMake
-    board_mk = 'hw/bsp/{}/family.cmake'.format(family)
+    family_mk = 'hw/bsp/{}/family.cmake'.format(family)
 
     # family.mk
-    if not os.path.exists(board_mk):
-        board_mk = 'hw/bsp/{}/family.mk'.format(family)
+    if not os.path.exists(family_mk):
+        family_mk = 'hw/bsp/{}/family.mk'.format(family)
 
-    with open(board_mk) as mk:
+    with open(family_mk) as mk:
         mk_contents = mk.read()
 
         # Skip all OPT_MCU_NONE these are WIP port
         if 'CFG_TUSB_MCU=OPT_MCU_NONE' in mk_contents:
             return 1
 
-        # Skip if CFG_TUSB_MCU in board.mk to match skip file
+        # Skip if CFG_TUSB_MCU in family.mk to match skip file
         for skip_file in glob.iglob(ex_dir + '/.skip.MCU_*'):
             mcu_cflag = 'CFG_TUSB_MCU=OPT_' + os.path.basename(skip_file).split('.')[2]
             if mcu_cflag in mk_contents:

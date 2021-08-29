@@ -169,6 +169,7 @@ flash-stlink: $(BUILD)/$(PROJECT).elf
 	STM32_Programmer_CLI --connect port=swd --write $< --go
 
 # flash with pyocd
+PYOCD_OPTION ?=
 flash-pyocd: $(BUILD)/$(PROJECT).hex
 	pyocd flash -t $(PYOCD_TARGET) $(PYOCD_OPTION) $<
 	pyocd reset -t $(PYOCD_TARGET)
