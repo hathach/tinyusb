@@ -138,16 +138,58 @@ static inline uint32_t rdwr10_get_lba(uint8_t const command[])
   return tu_ntohl(lba);
 }
 
+static inline uint16_t rdwr10_get_blockcount(msc_cbw_t const* cbw)
+{
+  uint16_t const block_count = tu_unaligned_read16(cbw->command + offsetof(scsi_write10_t, block_count));
+  return tu_ntohs(block_count);
+}
+
 static inline uint16_t rdwr10_get_blocksize(msc_cbw_t const* cbw)
 {
   // first extract block count in the command
-  uint16_t block_count = tu_unaligned_read16(cbw->command + offsetof(scsi_write10_t, block_count));
-  block_count = tu_ntohs(block_count);
+  uint16_t const block_count = rdwr10_get_blockcount(cbw);
 
   // invalid block count
   if (block_count == 0) return 0;
 
   return cbw->total_bytes / block_count;
+}
+
+uint8_t rdwr10_validate_cmd(msc_cbw_t const* cbw)
+{
+  uint8_t status = MSC_CSW_STATUS_PASSED;
+  uint16_t const block_count = rdwr10_get_blockcount(cbw);
+
+  if ( cbw->total_bytes == 0 )
+  {
+    if ( block_count )
+    {
+      TU_LOG(MSC_DEBUG, "  SCSI case 2 (Hn < Di) or case 3 (Hn < Do) \r\n");
+      status = MSC_CSW_STATUS_PHASE_ERROR;
+    }else
+    {
+      // no data transfer, only exist in complaint test suite
+    }
+  }else
+  {
+    if ( SCSI_CMD_READ_10 == cbw->command[0] && !is_data_in(cbw->dir) )
+    {
+      TU_LOG(MSC_DEBUG, "  SCSI case 10 (Ho <> Di)\r\n");
+      status = MSC_CSW_STATUS_PHASE_ERROR;
+    }
+    else if ( SCSI_CMD_WRITE_10 == cbw->command[0] && is_data_in(cbw->dir) )
+    {
+      TU_LOG(MSC_DEBUG, "  SCSI case 8 (Hi <> Do)\r\n");
+      status = MSC_CSW_STATUS_PHASE_ERROR;
+    }
+    else if ( !block_count )
+    {
+      TU_LOG(MSC_DEBUG, "  SCSI case 4 Hi > Dn\r\n");
+      status =  MSC_CSW_STATUS_FAILED;
+    }
+  }
+
+  return status;
 }
 
 //--------------------------------------------------------------------+
@@ -368,30 +410,27 @@ bool mscd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t event, uint32_t
       p_msc->total_len = p_cbw->total_bytes;
       p_msc->xferred_len = 0;
 
-      if ( SCSI_CMD_READ_10 == p_cbw->command[0] )
+      // Read10 or Write10
+      if ( (SCSI_CMD_READ_10 == p_cbw->command[0]) || (SCSI_CMD_WRITE_10 == p_cbw->command[0]) )
       {
-        // Invalid CBW length == 0 or Direction bit is incorrect
-        // 6.7 The 13 Cases: case 2 (Hn < Di), case 3 (Hn < Do), case 10 (Ho <> Di) -> phase error
-        if ( rdwr10_get_blocksize(p_cbw) == 0 || !is_data_in(p_cbw->dir) )
+        uint8_t const status = rdwr10_validate_cmd(p_cbw);
+
+        if ( status != MSC_CSW_STATUS_PASSED)
         {
-          TU_LOG(MSC_DEBUG, "  SCSI case 2 (Hn < Di), case 3 (Hn < Do), case 10 (Ho <> Di)\r\n");
-          fail_scsi_op(rhport, p_msc, MSC_CSW_STATUS_PHASE_ERROR);
+          fail_scsi_op(rhport, p_msc, status);
+        }else if ( p_cbw->total_bytes )
+        {
+          if (SCSI_CMD_READ_10 == p_cbw->command[0])
+          {
+            proc_read10_cmd(rhport, p_msc);
+          }else
+          {
+            proc_write10_cmd(rhport, p_msc);
+          }
         }else
         {
-          proc_read10_cmd(rhport, p_msc);
-        }
-      }
-      else if (SCSI_CMD_WRITE_10 == p_cbw->command[0])
-      {
-        // Invalid CBW length == 0 or Direction bit is incorrect
-        // 6.7 The 13 Cases: case 2 (Hn < Do), case 3 (Hn < Do), case 8 (Hi <> Do) -> phase error
-        if ( rdwr10_get_blocksize(p_cbw) == 0 || is_data_in(p_cbw->dir) )
-        {
-          TU_LOG(MSC_DEBUG, "  SCSI case 2 (Hn < Di), case 3 (Hn < Do), case 8 (Hi <> Do)\r\n");
-          fail_scsi_op(rhport, p_msc, MSC_CSW_STATUS_PHASE_ERROR);
-        }else
-        {
-          proc_write10_cmd(rhport, p_msc);
+          // no data transfer, only exist in complaint test suite
+          p_msc->stage = MSC_STAGE_STATUS;
         }
       }
       else
