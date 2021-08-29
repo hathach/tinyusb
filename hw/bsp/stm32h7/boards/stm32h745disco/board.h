@@ -127,6 +127,11 @@ static inline void board_stm32h7_clock_init(void)
   HAL_EnableCompensationCell();
 }
 
+static inline void board_stm32h7_post_init(void)
+{
+  // For this board does nothing
+}
+
 #ifdef __cplusplus
  }
 #endif
