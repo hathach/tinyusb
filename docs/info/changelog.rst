@@ -2,7 +2,7 @@
 Changelog
 *********
 
-0.11.0 (29-08-2021)
+0.11.0 (2021-08-29)
 ===================
 
 - Add host/hid_controller example: only worked/tested with Sony PS4 DualShock controller
@@ -103,7 +103,7 @@ Host Stack
 - Rework and major update to HID driver. Will default to enable boot interface if available
 - Sepearate CFG_TUH_DEVICE_MAX and CFG_TUH_HUB for better management and reduce SRAM usage
 
-0.10.1 (03-06-2021)
+0.10.1 (2021-06-03)
 ===================
 
 - rework rp2040 examples and CMake build, allow better integration with pico-sdk
@@ -117,7 +117,7 @@ Host Controller Driver (HCD)
 - Use hcd_frame_number() instead of micro frame
 - Fix OHCI endpoint address and xferred_bytes in xfer complete event
 
-0.10.0 (28-05-2021)
+0.10.0 (2021-05-28)
 ===================
 
 - Rework tu_fifo_t with separated mutex for read and write, better support DMA with read/write buffer info. And constant address mode
@@ -191,7 +191,7 @@ Host Class Driver
 - HID: Rework host hid driver, basically everything changes
 
 
-0.9.0 (12-03-2021)
+0.9.0 (2021-03-12)
 ==================
 
 Device Stack
@@ -309,7 +309,7 @@ Others
 - LPCXpresso 18s37
 
 
-0.8.0 (05-02-2021)
+0.8.0 (2021-02-05)
 ==================
 
 Device Controller Driver
@@ -388,7 +388,7 @@ New Boards
 - Great Scott Gadgets' LUNA D11 & D21
 
 
-0.7.0 (08-11-2020)
+0.7.0 (2020-11-08)
 ==================
 
 Device Controller Driver
@@ -518,7 +518,7 @@ New Boards
 - nRF: ItsyBitsy nRF52840
 
 
-0.6.0 (30-03-2020)
+0.6.0 (2020-03-30)
 ==================
 
 Added **CONTRIBUTORS.md** to give proper credit for contributors to the stack. Special thanks to `Nathan Conrad <https://github.com/pigrew>`__ , `Peter Lawrence <https://github.com/majbthrd>`__ , `William D. Jones <https://github.com/cr1901>`__ and `Sean Cross <https://github.com/xobs>`__ and others for spending their precious time to add lots of features and ports for this release.
@@ -580,7 +580,7 @@ Changed
 - Fixed cdc_msc_freertos example build for all MCUs
 
 
-0.5.0 (06-2019)
+0.5.0 (2019-06)
 ===============
 
 First release, device stack works great, host stack works but still need improvement.
