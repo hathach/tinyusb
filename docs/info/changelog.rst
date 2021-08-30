@@ -40,15 +40,6 @@ RP2040
 - Add RP2040 suspend & resume support
 - Implement double buffer for both host and device (#891). Howver device EPOUT is still single bufferred due to techinical issue with short packet 
 
-Host Controller Driver (HCD)
-----------------------------
-
-RP2040
-^^^^^^
-
-- Implement double bufferred to fix E4 errata and boost performance
-- Lots of rp2040 update and enhancment
-
 Device Stack
 ------------
 
@@ -94,6 +85,15 @@ Vendor
 
 - Fix vendor fifo deadlock in certain case
 - Add tud_vendor_n_read_flush
+
+Host Controller Driver (HCD)
+----------------------------
+
+RP2040
+^^^^^^
+
+- Implement double bufferred to fix E4 errata and boost performance
+- Lots of rp2040 update and enhancment
 
 Host Stack
 ----------
