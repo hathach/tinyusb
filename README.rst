@@ -40,14 +40,14 @@ The stack supports the following MCUs:
 - **NXP:**
 
   - iMX RT Series: RT1011, RT1015, RT1021, RT1052, RT1062, RT1064
-  - Kinetis: KL25
+  - Kinetis: KL25, K32L2Bxx
   - LPC Series: 11u, 13, 15, 17, 18, 40, 43, 51u, 54, 55
 
 - **Raspberry Pi:** RP2040
 - **Renesas:** RX63N, RX65N
 - **Silabs:** EFM32GG12
 - **Sony:** CXD56
-- **ST:** STM32 series: L0, F0, F1, F2, F3, F4, F7, H7 both FullSpeed and HighSpeed
+- **ST:** STM32 series: L0, L1, F0, F1, F2, F3, F4, F7, H7 both FullSpeed and HighSpeed
 - **TI:** MSP430
 - **ValentyUSB:** eptri
 
