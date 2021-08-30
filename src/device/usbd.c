@@ -38,7 +38,7 @@
 //--------------------------------------------------------------------+
 
 // Debug level of USBD
-#define USBD_DBG_LVL   2
+#define USBD_DBG   2
 
 #ifndef CFG_TUD_TASK_QUEUE_SZ
   #define CFG_TUD_TASK_QUEUE_SZ   16
@@ -432,19 +432,22 @@ bool tud_init (uint8_t rhport)
   return true;
 }
 
-static void usbd_reset(uint8_t rhport)
+static void configuration_reset(uint8_t rhport)
 {
-  tu_varclr(&_usbd_dev);
-
-  memset(_usbd_dev.itf2drv, DRVID_INVALID, sizeof(_usbd_dev.itf2drv)); // invalid mapping
-  memset(_usbd_dev.ep2drv , DRVID_INVALID, sizeof(_usbd_dev.ep2drv )); // invalid mapping
-
-  usbd_control_reset();
-
   for ( uint8_t i = 0; i < TOTAL_DRIVER_COUNT; i++ )
   {
     get_driver(i)->reset(rhport);
   }
+
+  tu_varclr(&_usbd_dev);
+  memset(_usbd_dev.itf2drv, DRVID_INVALID, sizeof(_usbd_dev.itf2drv)); // invalid mapping
+  memset(_usbd_dev.ep2drv , DRVID_INVALID, sizeof(_usbd_dev.ep2drv )); // invalid mapping
+}
+
+static void usbd_reset(uint8_t rhport)
+{
+  configuration_reset(rhport);
+  usbd_control_reset();
 }
 
 bool tud_task_event_ready(void)
@@ -686,9 +689,29 @@ static bool process_control_request(uint8_t rhport, tusb_control_request_t const
         {
           uint8_t const cfg_num = (uint8_t) p_request->wValue;
 
-          if ( !_usbd_dev.cfg_num && cfg_num ) TU_ASSERT( process_set_config(rhport, cfg_num) );
-          _usbd_dev.cfg_num = cfg_num;
+          // Only process if new configure is different
+          if (_usbd_dev.cfg_num != cfg_num)
+          {
+            if ( _usbd_dev.cfg_num )
+            {
+              // already configured: need to clear all endpoints and driver first
+              TU_LOG(USBD_DBG, "  Clear current Configuration (%u) before switching\r\n", _usbd_dev.cfg_num);
 
+              // close all non-control endpoints, cancel all pending transfers if any
+              dcd_edpt_close_all(rhport);
+
+              // close all drivers and current configured state except bus speed
+              uint8_t const speed = _usbd_dev.speed;
+              configuration_reset(rhport);
+
+              _usbd_dev.speed = speed; // restore speed
+            }
+
+            // switch to new configuration if not zero
+            if ( cfg_num ) TU_ASSERT( process_set_config(rhport, cfg_num) );
+          }
+
+          _usbd_dev.cfg_num = cfg_num;
           tud_control_status(rhport, p_request);
         }
         break;
@@ -701,7 +724,7 @@ static bool process_control_request(uint8_t rhport, tusb_control_request_t const
           // Only support remote wakeup for device feature
           TU_VERIFY(TUSB_REQ_FEATURE_REMOTE_WAKEUP == p_request->wValue);
 
-          TU_LOG(USBD_DBG_LVL, "    Enable Remote Wakeup\r\n");
+          TU_LOG(USBD_DBG, "    Enable Remote Wakeup\r\n");
 
           // Host may enable remote wake up before suspending especially HID device
           _usbd_dev.remote_wakeup_en = true;
@@ -712,7 +735,7 @@ static bool process_control_request(uint8_t rhport, tusb_control_request_t const
           // Only support remote wakeup for device feature
           TU_VERIFY(TUSB_REQ_FEATURE_REMOTE_WAKEUP == p_request->wValue);
 
-          TU_LOG(USBD_DBG_LVL, "    Disable Remote Wakeup\r\n");
+          TU_LOG(USBD_DBG, "    Disable Remote Wakeup\r\n");
 
           // Host may disable remote wake up after resuming
           _usbd_dev.remote_wakeup_en = false;
@@ -751,16 +774,24 @@ static bool process_control_request(uint8_t rhport, tusb_control_request_t const
         // driver doesn't use alternate settings or implement this
         TU_VERIFY(TUSB_REQ_TYPE_STANDARD == p_request->bmRequestType_bit.type);
 
-        if (TUSB_REQ_GET_INTERFACE == p_request->bRequest)
+        switch(p_request->bRequest)
         {
-          uint8_t alternate = 0;
-          tud_control_xfer(rhport, p_request, &alternate, 1);
-        }else if (TUSB_REQ_SET_INTERFACE == p_request->bRequest)
-        {
-          tud_control_status(rhport, p_request);
-        } else
-        {
-          return false;
+          case TUSB_REQ_GET_INTERFACE:
+          case TUSB_REQ_SET_INTERFACE:
+            // Clear complete callback if driver set since it can also stall the request.
+            usbd_control_set_complete_callback(NULL);
+
+            if (TUSB_REQ_GET_INTERFACE == p_request->bRequest)
+            {
+              uint8_t alternate = 0;
+              tud_control_xfer(rhport, p_request, &alternate, 1);
+            }else
+            {
+              tud_control_status(rhport, p_request);
+            }
+          break;
+
+          default: return false;
         }
       }
     }
@@ -843,7 +874,8 @@ static bool process_control_request(uint8_t rhport, tusb_control_request_t const
 // This function parse configuration descriptor & open drivers accordingly
 static bool process_set_config(uint8_t rhport, uint8_t cfg_num)
 {
-  tusb_desc_configuration_t const * desc_cfg = (tusb_desc_configuration_t const *) tud_descriptor_configuration_cb(cfg_num-1); // index is cfg_num-1
+  // index is cfg_num-1
+  tusb_desc_configuration_t const * desc_cfg = (tusb_desc_configuration_t const *) tud_descriptor_configuration_cb(cfg_num-1);
   TU_ASSERT(desc_cfg != NULL && desc_cfg->bDescriptorType == TUSB_DESC_CONFIGURATION);
 
   // Parse configuration descriptor
@@ -1301,7 +1333,7 @@ bool usbd_edpt_busy(uint8_t rhport, uint8_t ep_addr)
 
 void usbd_edpt_stall(uint8_t rhport, uint8_t ep_addr)
 {
-  TU_LOG(USBD_DBG_LVL, "    Stall EP %02X", ep_addr);
+  TU_LOG(USBD_DBG, "    Stall EP %02X\r\n", ep_addr);
 
   uint8_t const epnum = tu_edpt_number(ep_addr);
   uint8_t const dir   = tu_edpt_dir(ep_addr);
@@ -1313,11 +1345,10 @@ void usbd_edpt_stall(uint8_t rhport, uint8_t ep_addr)
 
 void usbd_edpt_clear_stall(uint8_t rhport, uint8_t ep_addr)
 {
-  TU_LOG(USBD_DBG_LVL, "    Clear Stall EP %02X", ep_addr);
+  TU_LOG(USBD_DBG, "    Clear Stall EP %02X\r\n", ep_addr);
 
   uint8_t const epnum = tu_edpt_number(ep_addr);
   uint8_t const dir   = tu_edpt_dir(ep_addr);
-
 
   dcd_edpt_clear_stall(rhport, ep_addr);
   _usbd_dev.ep_status[epnum][dir].stalled = false;

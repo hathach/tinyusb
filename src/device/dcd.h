@@ -137,6 +137,11 @@ void dcd_edpt0_status_complete(uint8_t rhport, tusb_control_request_t const * re
 // Configure endpoint's registers according to descriptor
 bool dcd_edpt_open            (uint8_t rhport, tusb_desc_endpoint_t const * desc_ep);
 
+// Close all non-control endpoints, cancel all pending transfers if any.
+// Invoked when switching from a non-zero Configuration by SET_CONFIGURE therefore
+// required for multiple configuration support.
+void dcd_edpt_close_all       (uint8_t rhport);
+
 // Close an endpoint.
 // Since it is weak, caller must TU_ASSERT this function's existence before calling it.
 void dcd_edpt_close           (uint8_t rhport, uint8_t ep_addr) TU_ATTR_WEAK;

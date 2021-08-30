@@ -206,7 +206,8 @@ static void xact_out_dma(uint8_t epnum)
   }
   else
   {
-    xact_len = (uint8_t)NRF_USBD->SIZE.EPOUT[epnum];
+    // limit xact len to remaining length
+    xact_len = tu_min16((uint16_t) NRF_USBD->SIZE.EPOUT[epnum], xfer->total_len - xfer->actual_len);
 
     // Trigger DMA move data from Endpoint -> SRAM
     NRF_USBD->EPOUT[epnum].PTR = (uint32_t) xfer->buffer;
@@ -306,8 +307,9 @@ bool dcd_edpt_open (uint8_t rhport, tusb_desc_endpoint_t const * desc_edpt)
 {
   (void) rhport;
 
-  uint8_t const epnum = tu_edpt_number(desc_edpt->bEndpointAddress);
-  uint8_t const dir   = tu_edpt_dir(desc_edpt->bEndpointAddress);
+  uint8_t const ep_addr = desc_edpt->bEndpointAddress;
+  uint8_t const epnum   = tu_edpt_number(ep_addr);
+  uint8_t const dir     = tu_edpt_dir(ep_addr);
 
   _dcd.xfer[epnum][dir].mps = desc_edpt->wMaxPacketSize.size;
 
@@ -359,9 +361,46 @@ bool dcd_edpt_open (uint8_t rhport, tusb_desc_endpoint_t const * desc_edpt)
       NRF_USBD->EPINEN  |= USBD_EPINEN_ISOIN_Msk;
     }
   }
+
+  // clear stall and reset DataToggle
+  NRF_USBD->EPSTALL = (USBD_EPSTALL_STALL_UnStall << USBD_EPSTALL_STALL_Pos) | ep_addr;
+  NRF_USBD->DTOGGLE = (USBD_DTOGGLE_VALUE_Data0 << USBD_DTOGGLE_VALUE_Pos) | ep_addr;
+
   __ISB(); __DSB();
 
   return true;
+}
+
+void dcd_edpt_close_all (uint8_t rhport)
+{
+  // disable interrupt to prevent race condition
+  dcd_int_disable(rhport);
+
+  // disable all non-control (bulk + interrupt) endpoints
+  for ( uint8_t ep = 1; ep < EP_CBI_COUNT; ep++ )
+  {
+    NRF_USBD->INTENCLR = TU_BIT(USBD_INTEN_ENDEPOUT0_Pos + ep) | TU_BIT(USBD_INTEN_ENDEPIN0_Pos + ep);
+
+    NRF_USBD->TASKS_STARTEPIN[ep] = 0;
+    NRF_USBD->TASKS_STARTEPOUT[ep] = 0;
+
+    tu_memclr(_dcd.xfer[ep], 2*sizeof(xfer_td_t));
+  }
+
+  // disable both ISO
+  NRF_USBD->INTENCLR = USBD_INTENCLR_SOF_Msk | USBD_INTENCLR_ENDISOOUT_Msk | USBD_INTENCLR_ENDISOIN_Msk;
+  NRF_USBD->ISOSPLIT = USBD_ISOSPLIT_SPLIT_OneDir;
+
+  NRF_USBD->TASKS_STARTISOIN  = 0;
+  NRF_USBD->TASKS_STARTISOOUT = 0;
+
+  tu_memclr(_dcd.xfer[EP_ISO_NUM], 2*sizeof(xfer_td_t));
+
+  // de-activate all non-control
+  NRF_USBD->EPOUTEN = 1UL;
+  NRF_USBD->EPINEN = 1UL;
+
+  dcd_int_enable(rhport);
 }
 
 void dcd_edpt_close (uint8_t rhport, uint8_t ep_addr)
@@ -442,10 +481,9 @@ bool dcd_edpt_xfer (uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t 
     {
       if ( xfer->data_received )
       {
-        // Data may already be received previously
-        xfer->data_received = false;
-
+        // Data is already received previously
         // start DMA to copy to SRAM
+        xfer->data_received = false;
         xact_out_dma(epnum);
       }
       else
@@ -467,7 +505,11 @@ bool dcd_edpt_xfer (uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t 
 void dcd_edpt_stall (uint8_t rhport, uint8_t ep_addr)
 {
   (void) rhport;
+
   uint8_t const epnum = tu_edpt_number(ep_addr);
+  uint8_t const dir   = tu_edpt_dir(ep_addr);
+
+  xfer_td_t* xfer = get_td(epnum, dir);
 
   if ( epnum == 0 )
   {
@@ -475,6 +517,15 @@ void dcd_edpt_stall (uint8_t rhport, uint8_t ep_addr)
   }else if (epnum != EP_ISO_NUM)
   {
     NRF_USBD->EPSTALL = (USBD_EPSTALL_STALL_Stall << USBD_EPSTALL_STALL_Pos) | ep_addr;
+
+    // Note: nRF can auto ACK packet OUT before get stalled.
+    // There maybe data in endpoint fifo already, we need to pull it out
+    if ( (dir == TUSB_DIR_OUT) && xfer->data_received )
+    {
+      TU_LOG_LOCATION();
+      xfer->data_received = false;
+      xact_out_dma(epnum);
+    }
   }
 
   __ISB(); __DSB();
@@ -488,14 +539,16 @@ void dcd_edpt_clear_stall (uint8_t rhport, uint8_t ep_addr)
 
   if ( epnum != 0 && epnum != EP_ISO_NUM )
   {
+    // reset data toggle to DATA0
+    // First write this register with VALUE=Nop to select the endpoint, then either read it to get the status from
+    // VALUE, or write it again with VALUE=Data0 or Data1
+    NRF_USBD->DTOGGLE = ep_addr;
+    NRF_USBD->DTOGGLE = (USBD_DTOGGLE_VALUE_Data0 << USBD_DTOGGLE_VALUE_Pos) | ep_addr;
+
     // clear stall
     NRF_USBD->EPSTALL = (USBD_EPSTALL_STALL_UnStall << USBD_EPSTALL_STALL_Pos) | ep_addr;
 
-    // reset data toggle to DATA0
-    NRF_USBD->DTOGGLE = (USBD_DTOGGLE_VALUE_Data0 << USBD_DTOGGLE_VALUE_Pos) | ep_addr;
-
     // Write any value to SIZE register will allow nRF to ACK/accept data
-    // Drop any pending data
     if (dir == TUSB_DIR_OUT) NRF_USBD->SIZE.EPOUT[epnum] = 0;
 
     __ISB(); __DSB();
@@ -508,7 +561,9 @@ void dcd_edpt_clear_stall (uint8_t rhport, uint8_t ep_addr)
 void bus_reset(void)
 {
   // 6.35.6 USB controller automatically disabled all endpoints (except control)
-  // i.e EPOUTEN and EPINEN and reset USBADDR to 0
+  NRF_USBD->EPOUTEN = 1UL;
+  NRF_USBD->EPINEN = 1UL;
+
   for(int i=0; i<8; i++)
   {
     NRF_USBD->TASKS_STARTEPIN[i] = 0;
