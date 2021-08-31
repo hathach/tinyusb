@@ -128,7 +128,7 @@
 / Physical Drive Configurations
 /----------------------------------------------------------------------------*/
 
-#define _VOLUMES	CFG_TUSB_HOST_DEVICE_MAX
+#define _VOLUMES	CFG_TUH_DEVICE_MAX
 /* Number of volumes (logical drives) to be used. */
 
 

@@ -52,6 +52,12 @@
 #define OTG_FS_VBUS_SENSE     1
 #define OTG_HS_VBUS_SENSE     0
 
+// USB HS External PHY Pin: CLK, STP, DIR, NXT, D0-D7
+#define ULPI_PINS \
+  {GPIOA, GPIO_PIN_3 }, {GPIOA, GPIO_PIN_5 }, {GPIOB, GPIO_PIN_0 }, {GPIOB, GPIO_PIN_1 }, \
+  {GPIOB, GPIO_PIN_5 }, {GPIOB, GPIO_PIN_10}, {GPIOB, GPIO_PIN_11}, {GPIOB, GPIO_PIN_12}, \
+  {GPIOB, GPIO_PIN_13}, {GPIOC, GPIO_PIN_0 }, {GPIOH, GPIO_PIN_4 }, {GPIOI, GPIO_PIN_11}
+
 //--------------------------------------------------------------------+
 // RCC Clock
 //--------------------------------------------------------------------+
@@ -123,6 +129,11 @@ static inline void board_stm32h7_clock_init(void)
 
   /* Enables the I/O Compensation Cell */
   HAL_EnableCompensationCell();
+}
+
+static inline void board_stm32h7_post_init(void)
+{
+  // For this board does nothing
 }
 
 #ifdef __cplusplus

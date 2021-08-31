@@ -8,7 +8,7 @@ CFLAGS += \
   -mfpu=fpv4-sp-d16 \
   -nostdlib -nostartfiles \
   -D__SAME70Q21B__ \
-  -DCFG_TUSB_MCU=OPT_MCU_NONE
+  -DCFG_TUSB_MCU=OPT_MCU_SAMX7X
 
 # suppress following warnings from mcu driver
 CFLAGS += -Wno-error=unused-parameter -Wno-error=cast-align
@@ -19,7 +19,7 @@ ASF_DIR = hw/mcu/microchip/same70
 LD_FILE = $(ASF_DIR)/same70b/gcc/gcc/same70q21b_flash.ld
 
 SRC_C += \
-	src/portable/template/dcd_template.c \
+	src/portable/microchip/samx7x/dcd_samx7x.c \
 	$(ASF_DIR)/same70b/gcc/gcc/startup_same70q21b.c \
 	$(ASF_DIR)/same70b/gcc/system_same70q21b.c \
 	$(ASF_DIR)/hpl/core/hpl_init.c \
@@ -42,11 +42,6 @@ INC += \
 	$(TOP)/$(ASF_DIR)/hpl/pmc \
 	$(TOP)/$(ASF_DIR)/hri \
 	$(TOP)/$(ASF_DIR)/CMSIS/Core/Include
-
-# For TinyUSB port source
-#SRC_C += src/portable/template/dcd_template.c
-VENDOR = .
-CHIP_FAMILY = template
 
 # For freeRTOS port source
 FREERTOS_PORT = ARM_CM7

@@ -34,9 +34,15 @@
 // MACRO CONSTANT TYPEDEF PROTOTYPES
 //--------------------------------------------------------------------+
 
-#ifndef AUDIO_SAMPLE_RATE
-#define AUDIO_SAMPLE_RATE     48000
+// List of supported sample rates
+#if defined(__RX__)
+const uint32_t sample_rates[]       = {44100, 48000};
+#else
+const uint32_t sample_rates[]       = {44100, 48000, 88200, 96000};
 #endif
+uint32_t       current_sample_rate  = 44100;
+
+#define N_SAMPLE_RATES  TU_ARRAY_SIZE(sample_rates)
 
 /* Blink pattern
  * - 25 ms   : streaming data
@@ -76,11 +82,16 @@ int8_t mute[CFG_TUD_AUDIO_FUNC_1_N_CHANNELS_TX + 1];       // +1 for master chan
 int16_t volume[CFG_TUD_AUDIO_FUNC_1_N_CHANNELS_TX + 1];    // +1 for master channel 0
 
 // Buffer for microphone data
-int16_t mic_buf[1000];
+int32_t mic_buf[CFG_TUD_AUDIO_FUNC_1_EP_IN_SW_BUF_SZ / 4];
 // Buffer for speaker data
-int16_t spk_buf[1000];
+int32_t spk_buf[CFG_TUD_AUDIO_FUNC_1_EP_OUT_SW_BUF_SZ / 4];
 // Speaker data size received in the last frame
 int spk_data_size;
+// Resolution per format
+const uint8_t resolutions_per_format[CFG_TUD_AUDIO_FUNC_1_N_FORMATS] = {CFG_TUD_AUDIO_FUNC_1_FORMAT_1_RESOLUTION_RX,
+                                                                        CFG_TUD_AUDIO_FUNC_1_FORMAT_2_RESOLUTION_RX};
+// Current resolution, update on format change
+uint8_t current_resolution;
 
 void led_blinking_task(void);
 void audio_task(void);
@@ -135,55 +146,35 @@ void tud_resume_cb(void)
   blink_interval_ms = BLINK_MOUNTED;
 }
 
-typedef struct TU_ATTR_PACKED
-{
-  union
-  {
-    struct TU_ATTR_PACKED
-    {
-      uint8_t recipient :  5; ///< Recipient type tusb_request_recipient_t.
-      uint8_t type      :  2; ///< Request type tusb_request_type_t.
-      uint8_t direction :  1; ///< Direction type. tusb_dir_t
-    } bmRequestType_bit;
-
-    uint8_t bmRequestType;
-  };
-
-  uint8_t bRequest;  ///< Request type audio_cs_req_t
-  uint8_t bChannelNumber;
-  uint8_t bControlSelector;
-  union
-  {
-    uint8_t bInterface;
-    uint8_t bEndpoint;
-  };
-  uint8_t bEntityID;
-  uint16_t wLength;
-} audio_control_request_t;
-
 // Helper for clock get requests
 static bool tud_audio_clock_get_request(uint8_t rhport, audio_control_request_t const *request)
 {
   TU_ASSERT(request->bEntityID == UAC2_ENTITY_CLOCK);
 
-  // Example supports only single frequency, same value will be used for current value and range
   if (request->bControlSelector == AUDIO_CS_CTRL_SAM_FREQ)
   {
     if (request->bRequest == AUDIO_CS_REQ_CUR)
     {
-      TU_LOG2("Clock get current freq %u\r\n", AUDIO_SAMPLE_RATE);
+      TU_LOG1("Clock get current freq %u\r\n", current_sample_rate);
 
-      audio_control_cur_4_t curf = { tu_htole32(AUDIO_SAMPLE_RATE) };
+      audio_control_cur_4_t curf = { tu_htole32(current_sample_rate) };
       return tud_audio_buffer_and_schedule_control_xfer(rhport, (tusb_control_request_t const *)request, &curf, sizeof(curf));
     }
     else if (request->bRequest == AUDIO_CS_REQ_RANGE)
     {
-      audio_control_range_4_n_t(1) rangef =
+      audio_control_range_4_n_t(N_SAMPLE_RATES) rangef =
       {
-        .wNumSubRanges = tu_htole16(1),
-        .subrange[0] = { tu_htole32(AUDIO_SAMPLE_RATE), tu_htole32(AUDIO_SAMPLE_RATE), 0}
+        .wNumSubRanges = tu_htole16(N_SAMPLE_RATES)
       };
-      TU_LOG2("Clock get freq range (%d, %d, %d)\r\n", (int)rangef.subrange[0].bMin, (int)rangef.subrange[0].bMax, (int)rangef.subrange[0].bRes);
+      TU_LOG1("Clock get %d freq ranges\r\n", N_SAMPLE_RATES);
+      for(uint8_t i = 0; i < N_SAMPLE_RATES; i++)
+      {
+        rangef.subrange[i].bMin = sample_rates[i];
+        rangef.subrange[i].bMax = sample_rates[i];
+        rangef.subrange[i].bRes = 0;
+        TU_LOG1("Range %d (%d, %d, %d)\r\n", i, (int)rangef.subrange[i].bMin, (int)rangef.subrange[i].bMax, (int)rangef.subrange[i].bRes);
+      }
+      
       return tud_audio_buffer_and_schedule_control_xfer(rhport, (tusb_control_request_t const *)request, &rangef, sizeof(rangef));
     }
   }
@@ -191,12 +182,38 @@ static bool tud_audio_clock_get_request(uint8_t rhport, audio_control_request_t 
            request->bRequest == AUDIO_CS_REQ_CUR)
   {
     audio_control_cur_1_t cur_valid = { .bCur = 1 };
-    TU_LOG2("Clock get is valid %u\r\n", cur_valid.bCur);
+    TU_LOG1("Clock get is valid %u\r\n", cur_valid.bCur);
     return tud_audio_buffer_and_schedule_control_xfer(rhport, (tusb_control_request_t const *)request, &cur_valid, sizeof(cur_valid));
   }
   TU_LOG1("Clock get request not supported, entity = %u, selector = %u, request = %u\r\n",
           request->bEntityID, request->bControlSelector, request->bRequest);
   return false;
+}
+
+// Helper for clock set requests
+static bool tud_audio_clock_set_request(uint8_t rhport, audio_control_request_t const *request, uint8_t const *buf)
+{
+  (void)rhport;
+
+  TU_ASSERT(request->bEntityID == UAC2_ENTITY_CLOCK);
+  TU_VERIFY(request->bRequest == AUDIO_CS_REQ_CUR);
+
+  if (request->bControlSelector == AUDIO_CS_CTRL_SAM_FREQ)
+  {
+    TU_VERIFY(request->wLength == sizeof(audio_control_cur_4_t));
+
+    current_sample_rate = ((audio_control_cur_4_t *)buf)->bCur;
+
+    TU_LOG1("Clock set current freq: %d\r\n", current_sample_rate);
+
+    return true;
+  }
+  else
+  {
+    TU_LOG1("Clock set request not supported, entity = %u, selector = %u, request = %u\r\n",
+            request->bEntityID, request->bControlSelector, request->bRequest);
+    return false;
+  }
 }
 
 // Helper for feature unit get requests
@@ -207,7 +224,7 @@ static bool tud_audio_feature_unit_get_request(uint8_t rhport, audio_control_req
   if (request->bControlSelector == AUDIO_FU_CTRL_MUTE && request->bRequest == AUDIO_CS_REQ_CUR)
   {
     audio_control_cur_1_t mute1 = { .bCur = mute[request->bChannelNumber] };
-    TU_LOG2("Get channel %u mute %d\r\n", request->bChannelNumber, mute1.bCur);
+    TU_LOG1("Get channel %u mute %d\r\n", request->bChannelNumber, mute1.bCur);
     return tud_audio_buffer_and_schedule_control_xfer(rhport, (tusb_control_request_t const *)request, &mute1, sizeof(mute1));
   }
   else if (UAC2_ENTITY_SPK_FEATURE_UNIT && request->bControlSelector == AUDIO_FU_CTRL_VOLUME)
@@ -218,14 +235,14 @@ static bool tud_audio_feature_unit_get_request(uint8_t rhport, audio_control_req
         .wNumSubRanges = tu_htole16(1),
         .subrange[0] = { .bMin = tu_htole16(-VOLUME_CTRL_50_DB), tu_htole16(VOLUME_CTRL_0_DB), tu_htole16(256) }
       };
-      TU_LOG2("Get channel %u volume range (%d, %d, %u) dB\r\n", request->bChannelNumber,
+      TU_LOG1("Get channel %u volume range (%d, %d, %u) dB\r\n", request->bChannelNumber,
               range_vol.subrange[0].bMin / 256, range_vol.subrange[0].bMax / 256, range_vol.subrange[0].bRes / 256);
       return tud_audio_buffer_and_schedule_control_xfer(rhport, (tusb_control_request_t const *)request, &range_vol, sizeof(range_vol));
     }
     else if (request->bRequest == AUDIO_CS_REQ_CUR)
     {
       audio_control_cur_2_t cur_vol = { .bCur = tu_htole16(volume[request->bChannelNumber]) };
-      TU_LOG2("Get channel %u volume %u dB\r\n", request->bChannelNumber, cur_vol.bCur);
+      TU_LOG1("Get channel %u volume %d dB\r\n", request->bChannelNumber, cur_vol.bCur / 256);
       return tud_audio_buffer_and_schedule_control_xfer(rhport, (tusb_control_request_t const *)request, &cur_vol, sizeof(cur_vol));
     }
   }
@@ -249,7 +266,7 @@ static bool tud_audio_feature_unit_set_request(uint8_t rhport, audio_control_req
 
     mute[request->bChannelNumber] = ((audio_control_cur_1_t *)buf)->bCur;
 
-    TU_LOG2("Set channel %d Mute: %d\r\n", request->bChannelNumber, mute[request->bChannelNumber]);
+    TU_LOG1("Set channel %d Mute: %d\r\n", request->bChannelNumber, mute[request->bChannelNumber]);
 
     return true;
   }
@@ -259,7 +276,7 @@ static bool tud_audio_feature_unit_set_request(uint8_t rhport, audio_control_req
 
     volume[request->bChannelNumber] = ((audio_control_cur_2_t const *)buf)->bCur;
 
-    TU_LOG2("Set channel %d volume: %d dB\r\n", request->bChannelNumber, volume[request->bChannelNumber] / 256);
+    TU_LOG1("Set channel %d volume: %d dB\r\n", request->bChannelNumber, volume[request->bChannelNumber] / 256);
 
     return true;
   }
@@ -299,7 +316,8 @@ bool tud_audio_set_req_entity_cb(uint8_t rhport, tusb_control_request_t const *p
 
   if (request->bEntityID == UAC2_ENTITY_SPK_FEATURE_UNIT)
     return tud_audio_feature_unit_set_request(rhport, request, buf);
-
+  if (request->bEntityID == UAC2_ENTITY_CLOCK)
+    return tud_audio_clock_set_request(rhport, request, buf);
   TU_LOG1("Set request not handled, entity = %d, selector = %d, request = %d\r\n",
           request->bEntityID, request->bControlSelector, request->bRequest);
 
@@ -328,6 +346,13 @@ bool tud_audio_set_itf_cb(uint8_t rhport, tusb_control_request_t const * p_reque
   TU_LOG2("Set interface %d alt %d\r\n", itf, alt);
   if (ITF_NUM_AUDIO_STREAMING_SPK == itf && alt != 0)
       blink_interval_ms = BLINK_STREAMING;
+
+  // Clear buffer when streaming format is changed
+  spk_data_size = 0;
+  if(alt != 0)
+  {
+    current_resolution = resolutions_per_format[alt-1];
+  }
 
   return true;
 }
@@ -362,20 +387,40 @@ void audio_task(void)
 {
   // When new data arrived, copy data from speaker buffer, to microphone buffer
   // and send it over
+  // Only support speaker & headphone both have the same resolution
+  // If one is 16bit another is 24bit be care of LOUD noise !
   if (spk_data_size)
   {
-    int16_t *src = spk_buf;
-    int16_t *limit = spk_buf + spk_data_size / 2;
-    int16_t *dst = mic_buf;
-    while (src < limit)
+    if (current_resolution == 16)
     {
-      // Combine two channels into one
-      int32_t left = *src++;
-      int32_t right = *src++;
-      *dst++ = (int16_t)((left + right) / 2);
+      int16_t *src = (int16_t*)spk_buf;
+      int16_t *limit = (int16_t*)spk_buf + spk_data_size / 2;
+      int16_t *dst = (int16_t*)mic_buf;
+      while (src < limit)
+      {
+        // Combine two channels into one
+        int32_t left = *src++;
+        int32_t right = *src++;
+        *dst++ = (left >> 1) + (right >> 1);
+      }
+      tud_audio_write((uint8_t *)mic_buf, spk_data_size / 2);
+      spk_data_size = 0;
     }
-    tud_audio_write((uint8_t *)mic_buf, spk_data_size / 2);
-    spk_data_size = 0;
+    else if (current_resolution == 24)
+    {
+      int32_t *src = spk_buf;
+      int32_t *limit = spk_buf + spk_data_size / 4;
+      int32_t *dst = mic_buf;
+      while (src < limit)
+      {
+        // Combine two channels into one
+        int32_t left = *src++;
+        int32_t right = *src++;
+        *dst++ = ((left >> 1) + (right >> 1)) & 0xffffff00;
+      }
+      tud_audio_write((uint8_t *)mic_buf, spk_data_size / 2);
+      spk_data_size = 0;
+    }
   }
 }
 

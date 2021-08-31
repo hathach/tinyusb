@@ -75,10 +75,14 @@ void board_init(void)
   // Enable UART Clock
   UART_CLK_EN();
 
+#if CFG_TUSB_OS == OPT_OS_NONE
   // 1ms tick timer
   SysTick_Config(SystemCoreClock / 1000);
 
-#if CFG_TUSB_OS == OPT_OS_FREERTOS
+#elif CFG_TUSB_OS == OPT_OS_FREERTOS
+  // Explicitly disable systick to prevent its ISR runs before scheduler start
+  SysTick->CTRL &= ~1U;
+
   // If freeRTOS is used, IRQ priority is limit by max syscall ( smaller is higher )
   NVIC_SetPriority(OTG_FS_IRQn, configLIBRARY_MAX_SYSCALL_INTERRUPT_PRIORITY );
   NVIC_SetPriority(OTG_HS_IRQn, configLIBRARY_MAX_SYSCALL_INTERRUPT_PRIORITY );
@@ -123,7 +127,7 @@ void board_init(void)
   // OTG_FS is marked as RHPort0 by TinyUSB to be consistent across stm32 port
   // PA9 VUSB, PA10 ID, PA11 DM, PA12 DP
 
-  /* Configure DM DP Pins */
+  // Configure DM DP Pins
   GPIO_InitStruct.Pin = GPIO_PIN_11 | GPIO_PIN_12;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_HIGH;
   GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
@@ -131,7 +135,7 @@ void board_init(void)
   GPIO_InitStruct.Alternate = GPIO_AF10_OTG2_HS;
   HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
 
-  /* This for ID line debug */
+  // This for ID line debug
   GPIO_InitStruct.Pin = GPIO_PIN_10;
   GPIO_InitStruct.Mode = GPIO_MODE_AF_OD;
   GPIO_InitStruct.Pull = GPIO_PULLUP;
@@ -145,7 +149,7 @@ void board_init(void)
   __HAL_RCC_USB2_OTG_FS_CLK_ENABLE();
 
 #if OTG_FS_VBUS_SENSE
-  /* Configure VBUS Pin */
+  // Configure VBUS Pin
   GPIO_InitStruct.Pin = GPIO_PIN_9;
   GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
@@ -166,49 +170,23 @@ void board_init(void)
   // Despite being call USB2_OTG
   // OTG_HS is marked as RHPort1 by TinyUSB to be consistent across stm32 port
 
-  /* CLK */
-  GPIO_InitStruct.Pin = GPIO_PIN_5;
-  GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
-  GPIO_InitStruct.Pull = GPIO_NOPULL;
-  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_VERY_HIGH;
-  GPIO_InitStruct.Alternate = GPIO_AF10_OTG2_HS;
-  HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
+  struct {
+    GPIO_TypeDef* port;
+    uint32_t pin;
+  } const ulpi_pins[] =
+  {
+    ULPI_PINS
+  };
 
-  /* D0 */
-  GPIO_InitStruct.Pin = GPIO_PIN_3;
-  GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
-  GPIO_InitStruct.Pull = GPIO_NOPULL;
-  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_VERY_HIGH;
-  GPIO_InitStruct.Alternate = GPIO_AF10_OTG2_HS;
-  HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
-
-  /* D1 D2 D3 D4 D5 D6 D7 */
-  GPIO_InitStruct.Pin = GPIO_PIN_0 | GPIO_PIN_1 | GPIO_PIN_5 | GPIO_PIN_10 | GPIO_PIN_11 | GPIO_PIN_12 | GPIO_PIN_13;
-  GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
-  GPIO_InitStruct.Pull = GPIO_NOPULL;
-  GPIO_InitStruct.Alternate = GPIO_AF10_OTG2_HS;
-  HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
-
-  /* STP */
-  GPIO_InitStruct.Pin = GPIO_PIN_0;
-  GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
-  GPIO_InitStruct.Pull = GPIO_NOPULL;
-  GPIO_InitStruct.Alternate = GPIO_AF10_OTG2_HS;
-  HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
-
-  /* NXT */
-  GPIO_InitStruct.Pin = GPIO_PIN_4;
-  GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
-  GPIO_InitStruct.Pull = GPIO_NOPULL;
-  GPIO_InitStruct.Alternate = GPIO_AF10_OTG2_HS;
-  HAL_GPIO_Init(GPIOH, &GPIO_InitStruct);
-
-  /* DIR */
-  GPIO_InitStruct.Pin = GPIO_PIN_11;
-  GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
-  GPIO_InitStruct.Pull = GPIO_NOPULL;
-  GPIO_InitStruct.Alternate = GPIO_AF10_OTG2_HS;
-  HAL_GPIO_Init(GPIOI, &GPIO_InitStruct);
+  for (uint8_t i=0; i < sizeof(ulpi_pins)/sizeof(ulpi_pins[0]); i++)
+  {
+    GPIO_InitStruct.Pin       = ulpi_pins[i].pin;
+    GPIO_InitStruct.Mode      = GPIO_MODE_AF_PP;
+    GPIO_InitStruct.Pull      = GPIO_NOPULL;
+    GPIO_InitStruct.Speed     = GPIO_SPEED_FREQ_VERY_HIGH;
+    GPIO_InitStruct.Alternate = GPIO_AF10_OTG2_HS;
+    HAL_GPIO_Init(ulpi_pins[i].port, &GPIO_InitStruct);
+  }
 
   // Enable USB HS & ULPI Clocks
   __HAL_RCC_USB1_OTG_HS_ULPI_CLK_ENABLE();
@@ -230,6 +208,9 @@ void board_init(void)
   USB_OTG_HS->GUSBCFG |= USB_OTG_GUSBCFG_FDMOD;
 
   HAL_PWREx_EnableUSBVoltageDetector();
+
+  // For waveshare openh743 ULPI PHY reset walkaround
+  board_stm32h7_post_init();
 #endif // rhport = 1
 
 }
@@ -263,7 +244,7 @@ int board_uart_write(void const * buf, int len)
 
 #if CFG_TUSB_OS == OPT_OS_NONE
 volatile uint32_t system_ticks = 0;
-void SysTick_Handler (void)
+void SysTick_Handler(void)
 {
   system_ticks++;
 }
@@ -274,7 +255,7 @@ uint32_t board_millis(void)
 }
 #endif
 
-void HardFault_Handler (void)
+void HardFault_Handler(void)
 {
   asm("bkpt");
 }

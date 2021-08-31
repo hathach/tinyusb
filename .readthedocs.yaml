@@ -1,0 +1,18 @@
+# .readthedocs.yaml
+# Read the Docs configuration file
+# See https://docs.readthedocs.io/en/stable/config-file/v2.html for details
+
+version: 2
+
+sphinx:
+   configuration: docs/conf.py
+
+python:
+  version: 3.8
+  install:
+    - requirements: docs/requirements.txt
+
+submodules:
+  include: []
+  recursive: false
+    

@@ -91,13 +91,17 @@
 #endif
 
 #if (CFG_TUSB_MCU == OPT_MCU_STM32F1 && defined(STM32F1_SYNOPSYS)) || \
-    CFG_TUSB_MCU == OPT_MCU_STM32F2                                || \
-    CFG_TUSB_MCU == OPT_MCU_STM32F4                                || \
-    CFG_TUSB_MCU == OPT_MCU_STM32F7                                || \
-    CFG_TUSB_MCU == OPT_MCU_STM32H7                                || \
+    CFG_TUSB_MCU == OPT_MCU_STM32F2                               || \
+    CFG_TUSB_MCU == OPT_MCU_STM32F4                               || \
+    CFG_TUSB_MCU == OPT_MCU_STM32F7                               || \
+    CFG_TUSB_MCU == OPT_MCU_STM32H7                               || \
     (CFG_TUSB_MCU == OPT_MCU_STM32L4 && defined(STM32L4_SYNOPSYS)) || \
-    CFG_TUSB_MCU == OPT_MCU_LPC18XX                                || \
-    CFG_TUSB_MCU == OPT_MCU_LPC43XX                                || \
+    CFG_TUSB_MCU == OPT_MCU_RX63X                                 || \
+    CFG_TUSB_MCU == OPT_MCU_RX65X                                 || \
+    CFG_TUSB_MCU == OPT_MCU_RX72N                                 || \
+    CFG_TUSB_MCU == OPT_MCU_GD32VF103                             || \
+    CFG_TUSB_MCU == OPT_MCU_LPC18XX                               || \
+    CFG_TUSB_MCU == OPT_MCU_LPC43XX                               || \
     CFG_TUSB_MCU == OPT_MCU_MIMXRT10XX
 #if TUD_AUDIO_PREFER_RING_BUFFER
 #define  USE_LINEAR_BUFFER     0
@@ -118,19 +122,19 @@
 // EP IN software buffers and mutexes
 #if CFG_TUD_AUDIO_ENABLE_EP_IN && !CFG_TUD_AUDIO_ENABLE_ENCODING
 #if CFG_TUD_AUDIO_FUNC_1_EP_IN_SW_BUF_SZ > 0
-CFG_TUSB_MEM_ALIGN uint8_t audio_ep_in_sw_buf_1[CFG_TUD_AUDIO_FUNC_1_EP_IN_SW_BUF_SZ];
+CFG_TUSB_MEM_SECTION CFG_TUSB_MEM_ALIGN uint8_t audio_ep_in_sw_buf_1[CFG_TUD_AUDIO_FUNC_1_EP_IN_SW_BUF_SZ];
 #if CFG_FIFO_MUTEX
 osal_mutex_def_t ep_in_ff_mutex_wr_1;                                                             // No need for read mutex as only USB driver reads from FIFO
 #endif
 #endif // CFG_TUD_AUDIO_FUNC_1_EP_IN_SW_BUF_SZ > 0
 #if CFG_TUD_AUDIO > 1 && CFG_TUD_AUDIO_FUNC_2_EP_IN_SW_BUF_SZ > 0
-CFG_TUSB_MEM_ALIGN uint8_t audio_ep_in_sw_buf_2[CFG_TUD_AUDIO_FUNC_2_EP_IN_SW_BUF_SZ];
+CFG_TUSB_MEM_SECTION CFG_TUSB_MEM_ALIGN uint8_t audio_ep_in_sw_buf_2[CFG_TUD_AUDIO_FUNC_2_EP_IN_SW_BUF_SZ];
 #if CFG_FIFO_MUTEX
 osal_mutex_def_t ep_in_ff_mutex_wr_2;                                                             // No need for read mutex as only USB driver reads from FIFO
 #endif
 #endif // CFG_TUD_AUDIO > 1 && CFG_TUD_AUDIO_FUNC_2_EP_IN_SW_BUF_SZ > 0
 #if CFG_TUD_AUDIO > 2 && CFG_TUD_AUDIO_FUNC_3_EP_IN_SW_BUF_SZ > 0
-CFG_TUSB_MEM_ALIGN uint8_t audio_ep_in_sw_buf_3[CFG_TUD_AUDIO_FUNC_3_EP_IN_SW_BUF_SZ];
+CFG_TUSB_MEM_SECTION CFG_TUSB_MEM_ALIGN uint8_t audio_ep_in_sw_buf_3[CFG_TUD_AUDIO_FUNC_3_EP_IN_SW_BUF_SZ];
 #if CFG_FIFO_MUTEX
 osal_mutex_def_t ep_in_ff_mutex_wr_3;                                                             // No need for read mutex as only USB driver reads from FIFO
 #endif
@@ -142,32 +146,32 @@ osal_mutex_def_t ep_in_ff_mutex_wr_3;                                           
 // - the software encoding is used - in this case the linear buffers serve as a target memory where logical channels are encoded into
 #if CFG_TUD_AUDIO_ENABLE_EP_IN && (USE_LINEAR_BUFFER || CFG_TUD_AUDIO_ENABLE_ENCODING)
 #if CFG_TUD_AUDIO_FUNC_1_EP_IN_SZ_MAX > 0
-CFG_TUSB_MEM_ALIGN uint8_t lin_buf_in_1[CFG_TUD_AUDIO_FUNC_1_EP_IN_SZ_MAX];
+CFG_TUSB_MEM_SECTION CFG_TUSB_MEM_ALIGN uint8_t lin_buf_in_1[CFG_TUD_AUDIO_FUNC_1_EP_IN_SZ_MAX];
 #endif
 #if CFG_TUD_AUDIO > 1 && CFG_TUD_AUDIO_FUNC_2_EP_IN_SZ_MAX > 0
-CFG_TUSB_MEM_ALIGN uint8_t lin_buf_in_2[CFG_TUD_AUDIO_FUNC_2_EP_IN_SZ_MAX];
+CFG_TUSB_MEM_SECTION CFG_TUSB_MEM_ALIGN uint8_t lin_buf_in_2[CFG_TUD_AUDIO_FUNC_2_EP_IN_SZ_MAX];
 #endif
 #if CFG_TUD_AUDIO > 2 && CFG_TUD_AUDIO_FUNC_3_EP_IN_SZ_MAX > 0
-CFG_TUSB_MEM_ALIGN uint8_t lin_buf_in_3[CFG_TUD_AUDIO_FUNC_3_EP_IN_SZ_MAX];
+CFG_TUSB_MEM_SECTION CFG_TUSB_MEM_ALIGN uint8_t lin_buf_in_3[CFG_TUD_AUDIO_FUNC_3_EP_IN_SZ_MAX];
 #endif
 #endif // CFG_TUD_AUDIO_ENABLE_EP_IN && (USE_LINEAR_BUFFER || CFG_TUD_AUDIO_ENABLE_DECODING)
 
 // EP OUT software buffers and mutexes
 #if CFG_TUD_AUDIO_ENABLE_EP_OUT && !CFG_TUD_AUDIO_ENABLE_DECODING
 #if CFG_TUD_AUDIO_FUNC_1_EP_OUT_SW_BUF_SZ > 0
-CFG_TUSB_MEM_ALIGN uint8_t audio_ep_out_sw_buf_1[CFG_TUD_AUDIO_FUNC_1_EP_OUT_SW_BUF_SZ];
+CFG_TUSB_MEM_SECTION CFG_TUSB_MEM_ALIGN uint8_t audio_ep_out_sw_buf_1[CFG_TUD_AUDIO_FUNC_1_EP_OUT_SW_BUF_SZ];
 #if CFG_FIFO_MUTEX
 osal_mutex_def_t ep_out_ff_mutex_rd_1;                                                            // No need for write mutex as only USB driver writes into FIFO
 #endif
 #endif // CFG_TUD_AUDIO_FUNC_1_EP_OUT_SW_BUF_SZ > 0
 #if CFG_TUD_AUDIO > 1 && CFG_TUD_AUDIO_FUNC_2_EP_OUT_SW_BUF_SZ > 0
-CFG_TUSB_MEM_ALIGN uint8_t audio_ep_out_sw_buf_2[CFG_TUD_AUDIO_FUNC_2_EP_OUT_SW_BUF_SZ];
+CFG_TUSB_MEM_SECTION CFG_TUSB_MEM_ALIGN uint8_t audio_ep_out_sw_buf_2[CFG_TUD_AUDIO_FUNC_2_EP_OUT_SW_BUF_SZ];
 #if CFG_FIFO_MUTEX
 osal_mutex_def_t ep_out_ff_mutex_rd_2;                                                            // No need for write mutex as only USB driver writes into FIFO
 #endif
 #endif // CFG_TUD_AUDIO > 1 && CFG_TUD_AUDIO_FUNC_2_EP_OUT_SW_BUF_SZ > 0
 #if CFG_TUD_AUDIO > 2 && CFG_TUD_AUDIO_FUNC_3_EP_OUT_SW_BUF_SZ > 0
-CFG_TUSB_MEM_ALIGN uint8_t audio_ep_out_sw_buf_3[CFG_TUD_AUDIO_FUNC_3_EP_OUT_SW_BUF_SZ];
+CFG_TUSB_MEM_SECTION CFG_TUSB_MEM_ALIGN uint8_t audio_ep_out_sw_buf_3[CFG_TUD_AUDIO_FUNC_3_EP_OUT_SW_BUF_SZ];
 #if CFG_FIFO_MUTEX
 osal_mutex_def_t ep_out_ff_mutex_rd_3;                                                            // No need for write mutex as only USB driver writes into FIFO
 #endif
@@ -179,52 +183,52 @@ osal_mutex_def_t ep_out_ff_mutex_rd_3;                                          
 // - the software encoding is used - in this case the linear buffers serve as a target memory where logical channels are encoded into
 #if CFG_TUD_AUDIO_ENABLE_EP_OUT && (USE_LINEAR_BUFFER || CFG_TUD_AUDIO_ENABLE_DECODING)
 #if CFG_TUD_AUDIO_FUNC_1_EP_OUT_SZ_MAX > 0
-CFG_TUSB_MEM_ALIGN uint8_t lin_buf_out_1[CFG_TUD_AUDIO_FUNC_1_EP_OUT_SZ_MAX];
+CFG_TUSB_MEM_SECTION CFG_TUSB_MEM_ALIGN uint8_t lin_buf_out_1[CFG_TUD_AUDIO_FUNC_1_EP_OUT_SZ_MAX];
 #endif
 #if CFG_TUD_AUDIO > 1 && CFG_TUD_AUDIO_FUNC_2_EP_OUT_SZ_MAX > 0
-CFG_TUSB_MEM_ALIGN uint8_t lin_buf_out_2[CFG_TUD_AUDIO_FUNC_2_EP_OUT_SZ_MAX];
+CFG_TUSB_MEM_SECTION CFG_TUSB_MEM_ALIGN uint8_t lin_buf_out_2[CFG_TUD_AUDIO_FUNC_2_EP_OUT_SZ_MAX];
 #endif
 #if CFG_TUD_AUDIO > 2 && CFG_TUD_AUDIO_FUNC_3_EP_OUT_SZ_MAX > 0
-CFG_TUSB_MEM_ALIGN uint8_t lin_buf_out_3[CFG_TUD_AUDIO_FUNC_3_EP_OUT_SZ_MAX];
+CFG_TUSB_MEM_SECTION CFG_TUSB_MEM_ALIGN uint8_t lin_buf_out_3[CFG_TUD_AUDIO_FUNC_3_EP_OUT_SZ_MAX];
 #endif
 #endif // CFG_TUD_AUDIO_ENABLE_EP_OUT && (USE_LINEAR_BUFFER || CFG_TUD_AUDIO_ENABLE_DECODING)
 
 // Control buffers
-CFG_TUSB_MEM_ALIGN uint8_t ctrl_buf_1[CFG_TUD_AUDIO_FUNC_1_CTRL_BUF_SZ];
+CFG_TUSB_MEM_SECTION CFG_TUSB_MEM_ALIGN uint8_t ctrl_buf_1[CFG_TUD_AUDIO_FUNC_1_CTRL_BUF_SZ];
 #if CFG_TUD_AUDIO > 1
-CFG_TUSB_MEM_ALIGN uint8_t ctrl_buf_2[CFG_TUD_AUDIO_FUNC_2_CTRL_BUF_SZ];
+CFG_TUSB_MEM_SECTION CFG_TUSB_MEM_ALIGN uint8_t ctrl_buf_2[CFG_TUD_AUDIO_FUNC_2_CTRL_BUF_SZ];
 #endif
 #if CFG_TUD_AUDIO > 2
-CFG_TUSB_MEM_ALIGN uint8_t ctrl_buf_3[CFG_TUD_AUDIO_FUNC_3_CTRL_BUF_SZ];
+CFG_TUSB_MEM_SECTION CFG_TUSB_MEM_ALIGN uint8_t ctrl_buf_3[CFG_TUD_AUDIO_FUNC_3_CTRL_BUF_SZ];
 #endif
 
 // Active alternate setting of interfaces
-CFG_TUSB_MEM_ALIGN uint8_t alt_setting_1[CFG_TUD_AUDIO_FUNC_1_N_AS_INT];
+uint8_t alt_setting_1[CFG_TUD_AUDIO_FUNC_1_N_AS_INT];
 #if CFG_TUD_AUDIO > 1 && CFG_TUD_AUDIO_FUNC_2_N_AS_INT > 0
-CFG_TUSB_MEM_ALIGN uint8_t alt_setting_2[CFG_TUD_AUDIO_FUNC_2_N_AS_INT];
+uint8_t alt_setting_2[CFG_TUD_AUDIO_FUNC_2_N_AS_INT];
 #endif
 #if CFG_TUD_AUDIO > 2 && CFG_TUD_AUDIO_FUNC_3_N_AS_INT > 0
-CFG_TUSB_MEM_ALIGN uint8_t alt_setting_3[CFG_TUD_AUDIO_FUNC_3_N_AS_INT];
+uint8_t alt_setting_3[CFG_TUD_AUDIO_FUNC_3_N_AS_INT];
 #endif
 
 // Software encoding/decoding support FIFOs
 #if CFG_TUD_AUDIO_ENABLE_EP_IN && CFG_TUD_AUDIO_ENABLE_ENCODING
 #if CFG_TUD_AUDIO_FUNC_1_TX_SUPP_SW_FIFO_SZ > 0
-CFG_TUSB_MEM_ALIGN uint8_t tx_supp_ff_buf_1[CFG_TUD_AUDIO_FUNC_1_N_TX_SUPP_SW_FIFO][CFG_TUD_AUDIO_FUNC_1_TX_SUPP_SW_FIFO_SZ];
+CFG_TUSB_MEM_SECTION CFG_TUSB_MEM_ALIGN uint8_t tx_supp_ff_buf_1[CFG_TUD_AUDIO_FUNC_1_N_TX_SUPP_SW_FIFO][CFG_TUD_AUDIO_FUNC_1_TX_SUPP_SW_FIFO_SZ];
 tu_fifo_t tx_supp_ff_1[CFG_TUD_AUDIO_FUNC_1_N_TX_SUPP_SW_FIFO];
 #if CFG_FIFO_MUTEX
 osal_mutex_def_t tx_supp_ff_mutex_wr_1[CFG_TUD_AUDIO_FUNC_1_N_TX_SUPP_SW_FIFO];                   // No need for read mutex as only USB driver reads from FIFO
 #endif
 #endif
 #if CFG_TUD_AUDIO > 1 && CFG_TUD_AUDIO_FUNC_2_TX_SUPP_SW_FIFO_SZ > 0
-CFG_TUSB_MEM_ALIGN uint8_t tx_supp_ff_buf_2[CFG_TUD_AUDIO_FUNC_2_N_TX_SUPP_SW_FIFO][CFG_TUD_AUDIO_FUNC_2_TX_SUPP_SW_FIFO_SZ];
+CFG_TUSB_MEM_SECTION CFG_TUSB_MEM_ALIGN uint8_t tx_supp_ff_buf_2[CFG_TUD_AUDIO_FUNC_2_N_TX_SUPP_SW_FIFO][CFG_TUD_AUDIO_FUNC_2_TX_SUPP_SW_FIFO_SZ];
 tu_fifo_t tx_supp_ff_2[CFG_TUD_AUDIO_FUNC_2_N_TX_SUPP_SW_FIFO];
 #if CFG_FIFO_MUTEX
 osal_mutex_def_t tx_supp_ff_mutex_wr_2[CFG_TUD_AUDIO_FUNC_2_N_TX_SUPP_SW_FIFO];                   // No need for read mutex as only USB driver reads from FIFO
 #endif
 #endif
 #if CFG_TUD_AUDIO > 2 && CFG_TUD_AUDIO_FUNC_3_TX_SUPP_SW_FIFO_SZ > 0
-CFG_TUSB_MEM_ALIGN uint8_t tx_supp_ff_buf_3[CFG_TUD_AUDIO_FUNC_3_N_TX_SUPP_SW_FIFO][CFG_TUD_AUDIO_FUNC_3_TX_SUPP_SW_FIFO_SZ];
+CFG_TUSB_MEM_SECTION CFG_TUSB_MEM_ALIGN uint8_t tx_supp_ff_buf_3[CFG_TUD_AUDIO_FUNC_3_N_TX_SUPP_SW_FIFO][CFG_TUD_AUDIO_FUNC_3_TX_SUPP_SW_FIFO_SZ];
 tu_fifo_t tx_supp_ff_3[CFG_TUD_AUDIO_FUNC_3_N_TX_SUPP_SW_FIFO];
 #if CFG_FIFO_MUTEX
 osal_mutex_def_t tx_supp_ff_mutex_wr_3[CFG_TUD_AUDIO_FUNC_3_N_TX_SUPP_SW_FIFO];                   // No need for read mutex as only USB driver reads from FIFO
@@ -234,21 +238,21 @@ osal_mutex_def_t tx_supp_ff_mutex_wr_3[CFG_TUD_AUDIO_FUNC_3_N_TX_SUPP_SW_FIFO]; 
 
 #if CFG_TUD_AUDIO_ENABLE_EP_OUT && CFG_TUD_AUDIO_ENABLE_DECODING
 #if CFG_TUD_AUDIO_FUNC_1_RX_SUPP_SW_FIFO_SZ > 0
-CFG_TUSB_MEM_ALIGN uint8_t rx_supp_ff_buf_1[CFG_TUD_AUDIO_FUNC_1_N_RX_SUPP_SW_FIFO][CFG_TUD_AUDIO_FUNC_1_RX_SUPP_SW_FIFO_SZ];
+CFG_TUSB_MEM_SECTION CFG_TUSB_MEM_ALIGN uint8_t rx_supp_ff_buf_1[CFG_TUD_AUDIO_FUNC_1_N_RX_SUPP_SW_FIFO][CFG_TUD_AUDIO_FUNC_1_RX_SUPP_SW_FIFO_SZ];
 tu_fifo_t rx_supp_ff_1[CFG_TUD_AUDIO_FUNC_1_N_RX_SUPP_SW_FIFO];
 #if CFG_FIFO_MUTEX
 osal_mutex_def_t rx_supp_ff_mutex_rd_1[CFG_TUD_AUDIO_FUNC_1_N_RX_SUPP_SW_FIFO];                   // No need for write mutex as only USB driver writes into FIFO
 #endif
 #endif
 #if CFG_TUD_AUDIO > 1 && CFG_TUD_AUDIO_FUNC_2_RX_SUPP_SW_FIFO_SZ > 0
-CFG_TUSB_MEM_ALIGN uint8_t rx_supp_ff_buf_2[CFG_TUD_AUDIO_FUNC_2_N_RX_SUPP_SW_FIFO][CFG_TUD_AUDIO_FUNC_2_RX_SUPP_SW_FIFO_SZ];
+CFG_TUSB_MEM_SECTION CFG_TUSB_MEM_ALIGN uint8_t rx_supp_ff_buf_2[CFG_TUD_AUDIO_FUNC_2_N_RX_SUPP_SW_FIFO][CFG_TUD_AUDIO_FUNC_2_RX_SUPP_SW_FIFO_SZ];
 tu_fifo_t rx_supp_ff_2[CFG_TUD_AUDIO_FUNC_2_N_RX_SUPP_SW_FIFO];
 #if CFG_FIFO_MUTEX
 osal_mutex_def_t rx_supp_ff_mutex_rd_2[CFG_TUD_AUDIO_FUNC_2_N_RX_SUPP_SW_FIFO];                   // No need for write mutex as only USB driver writes into FIFO
 #endif
 #endif
 #if CFG_TUD_AUDIO > 2 && CFG_TUD_AUDIO_FUNC_3_RX_SUPP_SW_FIFO_SZ > 0
-CFG_TUSB_MEM_ALIGN uint8_t rx_supp_ff_buf_3[CFG_TUD_AUDIO_FUNC_3_N_RX_SUPP_SW_FIFO][CFG_TUD_AUDIO_FUNC_3_RX_SUPP_SW_FIFO_SZ];
+CFG_TUSB_MEM_SECTION CFG_TUSB_MEM_ALIGN uint8_t rx_supp_ff_buf_3[CFG_TUD_AUDIO_FUNC_3_N_RX_SUPP_SW_FIFO][CFG_TUD_AUDIO_FUNC_3_RX_SUPP_SW_FIFO_SZ];
 tu_fifo_t rx_supp_ff_3[CFG_TUD_AUDIO_FUNC_3_N_RX_SUPP_SW_FIFO];
 #if CFG_FIFO_MUTEX
 osal_mutex_def_t rx_supp_ff_mutex_rd_3[CFG_TUD_AUDIO_FUNC_3_N_RX_SUPP_SW_FIFO];                   // No need for write mutex as only USB driver writes into FIFO
@@ -310,7 +314,7 @@ typedef struct
 
   // Audio control interrupt buffer - no FIFO - 6 Bytes according to UAC 2 specification (p. 74)
 #if CFG_TUD_AUDIO_INT_CTR_EPSIZE_IN
-  CFG_TUSB_MEM_ALIGN uint8_t ep_int_ctr_buf[CFG_TUD_AUDIO_INT_CTR_EP_IN_SW_BUFFER_SIZE];
+  CFG_TUSB_MEM_SECTION CFG_TUSB_MEM_ALIGN uint8_t ep_int_ctr_buf[CFG_TUD_AUDIO_INT_CTR_EP_IN_SW_BUFFER_SIZE];
 #endif
 
   // Decoding parameters - parameters are set when alternate AS interface is set by host
@@ -659,7 +663,6 @@ static bool audiod_decode_type_I_pcm(uint8_t rhport, audiod_function_t* audio, u
 
   // Determine amount of samples
   uint8_t const n_ff_used               = audio->n_ff_used_rx;
-  uint16_t const nBytesToCopy           = audio->n_channels_per_ff_rx * audio->n_bytes_per_sampe_rx;
   uint16_t const nBytesPerFFToRead      = n_bytes_received / n_ff_used;
   uint8_t cnt_ff;
 
@@ -678,14 +681,14 @@ static bool audiod_decode_type_I_pcm(uint8_t rhport, audiod_function_t* audio, u
       info.len_lin = tu_min16(nBytesPerFFToRead, info.len_lin);
       src = &audio->lin_buf_out[cnt_ff*audio->n_channels_per_ff_rx * audio->n_bytes_per_sampe_rx];
       dst_end = info.ptr_lin + info.len_lin;
-      src = audiod_interleaved_copy_bytes_fast_decode(nBytesToCopy, info.ptr_lin, dst_end, src, n_ff_used);
+      src = audiod_interleaved_copy_bytes_fast_decode(audio->n_bytes_per_sampe_rx, info.ptr_lin, dst_end, src, n_ff_used);
 
       // Handle wrapped part of FIFO
       info.len_wrap = tu_min16(nBytesPerFFToRead - info.len_lin, info.len_wrap);
       if (info.len_wrap != 0)
       {
         dst_end = info.ptr_wrap + info.len_wrap;
-        audiod_interleaved_copy_bytes_fast_decode(nBytesToCopy, info.ptr_wrap, dst_end, src, n_ff_used);
+        audiod_interleaved_copy_bytes_fast_decode(audio->n_bytes_per_sampe_rx, info.ptr_wrap, dst_end, src, n_ff_used);
       }
       tu_fifo_advance_write_pointer(&audio->rx_supp_ff[cnt_ff], info.len_lin + info.len_wrap);
     }
@@ -1010,7 +1013,7 @@ static uint16_t audiod_encode_type_I_pcm(uint8_t rhport, audiod_function_t* audi
     {
       info.len_lin = tu_min16(nBytesPerFFToSend, info.len_lin);       // Limit up to desired length
       src_end = (uint8_t *)info.ptr_lin + info.len_lin;
-      dst = audiod_interleaved_copy_bytes_fast_encode(nBytesToCopy, info.ptr_lin, src_end, dst, n_ff_used);
+      dst = audiod_interleaved_copy_bytes_fast_encode(audio->n_bytes_per_sampe_tx, info.ptr_lin, src_end, dst, n_ff_used);
 
       // Limit up to desired length
       info.len_wrap = tu_min16(nBytesPerFFToSend - info.len_lin, info.len_wrap);
@@ -1019,7 +1022,7 @@ static uint16_t audiod_encode_type_I_pcm(uint8_t rhport, audiod_function_t* audi
       if (info.len_wrap != 0)
       {
         src_end = (uint8_t *)info.ptr_wrap + info.len_wrap;
-        audiod_interleaved_copy_bytes_fast_encode(nBytesToCopy, info.ptr_wrap, src_end, dst, n_ff_used);
+        audiod_interleaved_copy_bytes_fast_encode(audio->n_bytes_per_sampe_tx, info.ptr_wrap, src_end, dst, n_ff_used);
       }
 
       tu_fifo_advance_read_pointer(&audio->tx_supp_ff[cnt_ff], info.len_lin + info.len_wrap);
@@ -1497,18 +1500,20 @@ static bool audiod_set_interface(uint8_t rhport, tusb_control_request_t const * 
     audio->ep_in_as_intf_num = 0;
     usbd_edpt_close(rhport, audio->ep_in);
 
-    // Invoke callback - can be used to stop data sampling
-    if (tud_audio_set_itf_close_EP_cb) TU_VERIFY(tud_audio_set_itf_close_EP_cb(rhport, p_request));
-
-    audio->ep_in = 0;                           // Necessary?
-
-    // Clear support FIFOs if used
-#if CFG_TUD_AUDIO_ENABLE_ENCODING
+    // Clear FIFOs, since data is no longer valid
+#if !CFG_TUD_AUDIO_ENABLE_ENCODING
+    tu_fifo_clear(&audio->ep_in_ff);
+#else
     for (uint8_t cnt = 0; cnt < audio->n_tx_supp_ff; cnt++)
     {
       tu_fifo_clear(&audio->tx_supp_ff[cnt]);
     }
 #endif
+    
+    // Invoke callback - can be used to stop data sampling
+    if (tud_audio_set_itf_close_EP_cb) TU_VERIFY(tud_audio_set_itf_close_EP_cb(rhport, p_request));
+
+    audio->ep_in = 0;                           // Necessary?
 
   }
 #endif
@@ -1518,15 +1523,21 @@ static bool audiod_set_interface(uint8_t rhport, tusb_control_request_t const * 
   {
     audio->ep_out_as_intf_num = 0;
     usbd_edpt_close(rhport, audio->ep_out);
-    audio->ep_out = 0;                          // Necessary?
 
-    // Clear support FIFOs if used
-#if CFG_TUD_AUDIO_ENABLE_DECODING
+    // Clear FIFOs, since data is no longer valid
+#if !CFG_TUD_AUDIO_ENABLE_DECODING
+    tu_fifo_clear(&audio->ep_out_ff);
+#else
     for (uint8_t cnt = 0; cnt < audio->n_rx_supp_ff; cnt++)
     {
       tu_fifo_clear(&audio->rx_supp_ff[cnt]);
     }
 #endif
+
+    // Invoke callback - can be used to stop data sampling
+    if (tud_audio_set_itf_close_EP_cb) TU_VERIFY(tud_audio_set_itf_close_EP_cb(rhport, p_request));
+
+    audio->ep_out = 0;                          // Necessary?
 
     // Close corresponding feedback EP
 #if CFG_TUD_AUDIO_ENABLE_FEEDBACK_EP
@@ -1621,9 +1632,17 @@ static bool audiod_set_interface(uint8_t rhport, tusb_control_request_t const * 
             TU_ASSERT( audio->n_ff_used_rx <= audio->n_rx_supp_ff );
 #endif
 #endif
+
+#if CFG_TUD_AUDIO_ENABLE_FEEDBACK_EP
+            // In case of asynchronous EP, call Cb after ep_fb is set
+            if (!(((tusb_desc_endpoint_t const *) p_desc)->bmAttributes.sync == 0x01 && audio->ep_fb == 0))
+            {
+              if (tud_audio_set_itf_cb) TU_VERIFY(tud_audio_set_itf_cb(rhport, p_request));
+            }
+#else
             // Invoke callback
             if (tud_audio_set_itf_cb) TU_VERIFY(tud_audio_set_itf_cb(rhport, p_request));
-
+#endif
             // Prepare for incoming data
 #if USE_LINEAR_BUFFER_RX
             TU_VERIFY(usbd_edpt_xfer(rhport, audio->ep_out, audio->lin_buf_out, audio->ep_out_sz), false);
@@ -1637,8 +1656,11 @@ static bool audiod_set_interface(uint8_t rhport, tusb_control_request_t const * 
           {
             audio->ep_fb = ep_addr;
 
-            // Invoke callback
-            if (tud_audio_set_itf_cb) TU_VERIFY(tud_audio_set_itf_cb(rhport, p_request));
+            // Invoke callback after ep_out is set
+            if (audio->ep_out != 0)
+            {
+              if (tud_audio_set_itf_cb) TU_VERIFY(tud_audio_set_itf_cb(rhport, p_request));
+            }
           }
 #endif
 #endif // CFG_TUD_AUDIO_ENABLE_EP_OUT
@@ -1932,8 +1954,12 @@ bool audiod_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint3
     {
       if (tud_audio_fb_done_cb) TU_VERIFY(tud_audio_fb_done_cb(rhport));
 
-      // Schedule next transmission - value is changed bytud_audio_n_fb_set() in the meantime or the old value gets sent
-      return audiod_fb_send(rhport, &_audiod_fct[func_id]);
+      // Schedule a transmit with the new value if EP is not busy 
+      if (!usbd_edpt_busy(rhport, _audiod_fct[func_id].ep_fb))
+      {
+        // Schedule next transmission - value is changed bytud_audio_n_fb_set() in the meantime or the old value gets sent
+        return audiod_fb_send(rhport, &_audiod_fct[func_id]);
+      }
     }
 #endif
 #endif
@@ -2013,15 +2039,17 @@ static bool audiod_get_AS_interface_index(uint8_t itf, audiod_function_t * audio
     while (p_desc < p_desc_end)
     {
       // We assume the number of alternate settings is increasing thus we return the index of alternate setting zero!
-      if (tu_desc_type(p_desc) == TUSB_DESC_INTERFACE && ((tusb_desc_interface_t const * )p_desc)->bInterfaceNumber == itf)
+      if (tu_desc_type(p_desc) == TUSB_DESC_INTERFACE && ((tusb_desc_interface_t const * )p_desc)->bAlternateSetting == 0)
       {
-        *idxItf = tmp;
-        *pp_desc_int = p_desc;
-        return true;
+        if (((tusb_desc_interface_t const * )p_desc)->bInterfaceNumber == itf)
+        {
+          *idxItf = tmp;
+          *pp_desc_int = p_desc;
+          return true;
+        }
+        // Increase index, bytes read, and pointer
+        tmp++;
       }
-
-      // Increase index, bytes read, and pointer
-      tmp++;
       p_desc = tu_desc_next(p_desc);
     }
   }
@@ -2223,22 +2251,19 @@ bool tud_audio_n_fb_set(uint8_t func_id, uint32_t feedback)
   TU_VERIFY(func_id < CFG_TUD_AUDIO && _audiod_fct[func_id].p_desc != NULL);
 
   // Format the feedback value
-  if (_audiod_fct[func_id].rhport == 0)
-  {
-    uint8_t * fb = (uint8_t *) &_audiod_fct[func_id].fb_val;
+#if !TUD_OPT_HIGH_SPEED
+  uint8_t * fb = (uint8_t *) &_audiod_fct[func_id].fb_val;
 
-    // For FS format is 10.14
-    *(fb++) = (feedback >> 2) & 0xFF;
-    *(fb++) = (feedback >> 10) & 0xFF;
-    *(fb++) = (feedback >> 18) & 0xFF;
-    // 4th byte is needed to work correctly with MS Windows
-    *fb = 0;
-  }
-  else
-  {
-    // For HS format is 16.16 as originally demanded
-    _audiod_fct[func_id].fb_val = feedback;
-  }
+  // For FS format is 10.14
+  *(fb++) = (feedback >> 2) & 0xFF;
+  *(fb++) = (feedback >> 10) & 0xFF;
+  *(fb++) = (feedback >> 18) & 0xFF;
+  // 4th byte is needed to work correctly with MS Windows
+  *fb = 0;
+#else
+  // For HS format is 16.16 as originally demanded
+  _audiod_fct[func_id].fb_val = feedback;
+#endif
 
   // Schedule a transmit with the new value if EP is not busy - this triggers repetitive scheduling of the feedback value
   if (!usbd_edpt_busy(_audiod_fct[func_id].rhport, _audiod_fct[func_id].ep_fb))

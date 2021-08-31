@@ -6,7 +6,10 @@ repo.versions:
     "0.7.0": "0.7.0"
     "0.8.0": "0.8.0"
     "0.9.0": "0.9.0"
+    "0.10.0": "0.10.0"
+    "0.10.1": "0.10.1"
+    "0.11.0": "0.11.0"
 
     "0-dev": "0.0.0"        # master
-    "0-latest": "0.9.0"     # latest stable release
+    "0-latest": "0.11.0"     # latest stable release
 

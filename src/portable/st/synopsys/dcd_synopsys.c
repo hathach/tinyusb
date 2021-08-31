@@ -51,7 +51,8 @@
        CFG_TUSB_MCU == OPT_MCU_STM32F4                               || \
        CFG_TUSB_MCU == OPT_MCU_STM32F7                               || \
        CFG_TUSB_MCU == OPT_MCU_STM32H7                               || \
-      (CFG_TUSB_MCU == OPT_MCU_STM32L4 && defined(STM32L4_SYNOPSYS))    \
+      (CFG_TUSB_MCU == OPT_MCU_STM32L4 && defined(STM32L4_SYNOPSYS)  || \
+       CFG_TUSB_MCU == OPT_MCU_GD32VF103 )                           \
     )
 
 // EP_MAX       : Max number of bi-directional endpoints including EP0
@@ -91,6 +92,30 @@
 #include "stm32l4xx.h"
 #define EP_MAX_FS       6
 #define EP_FIFO_SIZE_FS 1280
+
+#elif CFG_TUSB_MCU == OPT_MCU_GD32VF103
+#include "synopsys_common.h"
+
+// These numbers are the same for the whole GD32VF103 family.
+#define OTG_FS_IRQn     86
+#define EP_MAX_FS       4
+#define EP_FIFO_SIZE_FS 1280
+
+// The GD32VF103 is a RISC-V MCU, which implements the ECLIC Core-Local
+// Interrupt Controller by Nuclei. It is nearly API compatible to the
+// NVIC used by ARM MCUs.
+#define ECLIC_INTERRUPT_ENABLE_BASE 0xD2001001UL
+
+#define NVIC_EnableIRQ __eclic_enable_interrupt
+#define NVIC_DisableIRQ __eclic_disable_interrupt
+
+static inline void __eclic_enable_interrupt (uint32_t irq) {
+  *(volatile uint8_t*)(ECLIC_INTERRUPT_ENABLE_BASE + (irq * 4)) = 1;
+}
+
+static inline void __eclic_disable_interrupt (uint32_t irq){
+  *(volatile uint8_t*)(ECLIC_INTERRUPT_ENABLE_BASE + (irq * 4)) = 0;
+}
 
 #else
 #error "Unsupported MCUs"
@@ -192,6 +217,10 @@ static void bus_reset(uint8_t rhport)
     out_ep[n].DOEPCTL |= USB_OTG_DOEPCTL_SNAK;
   }
 
+  // clear device address
+  dev->DCFG &= ~USB_OTG_DCFG_DAD_Msk;
+
+  // TODO should probably assign value when reset rather than OR
   dev->DAINTMSK |= (1 << USB_OTG_DAINTMSK_OEPM_Pos) | (1 << USB_OTG_DAINTMSK_IEPM_Pos);
   dev->DOEPMSK |= USB_OTG_DOEPMSK_STUPM | USB_OTG_DOEPMSK_XFRCM;
   dev->DIEPMSK |= USB_OTG_DIEPMSK_TOM | USB_OTG_DIEPMSK_XFRCM;
@@ -277,6 +306,8 @@ static void set_turnaround(USB_OTG_GlobalTypeDef * usb_otg, tusb_speed_t speed)
   {
     // Turnaround timeout depends on the MCU clock
     uint32_t turnaround;
+
+    TU_LOG_INT(2, SystemCoreClock);
 
     if ( SystemCoreClock >= 32000000U )
       turnaround = 0x6U;
@@ -519,7 +550,7 @@ void dcd_int_disable (uint8_t rhport)
 void dcd_set_address (uint8_t rhport, uint8_t dev_addr)
 {
   USB_OTG_DeviceTypeDef * dev = DEVICE_BASE(rhport);
-  dev->DCFG |= (dev_addr << USB_OTG_DCFG_DAD_Pos) & USB_OTG_DCFG_DAD_Msk;
+  dev->DCFG = (dev->DCFG & ~USB_OTG_DCFG_DAD_Msk) | (dev_addr << USB_OTG_DCFG_DAD_Pos);
 
   // Response with status after changing device address
   dcd_edpt_xfer(rhport, tu_edpt_addr(0, TUSB_DIR_IN), NULL, 0);
@@ -621,6 +652,8 @@ bool dcd_edpt_open (uint8_t rhport, tusb_desc_endpoint_t const * desc_edpt)
 
     _allocated_fifo_words_tx += fifo_size;
 
+    TU_LOG(2, "    Allocated %u bytes at offset %u", fifo_size*4, EP_FIFO_SIZE-_allocated_fifo_words_tx*4);
+
     // DIEPTXF starts at FIFO #1.
     // Both TXFD and TXSA are in unit of 32-bit words.
     usb_otg->DIEPTXF[epnum - 1] = (fifo_size << USB_OTG_DIEPTXF_INEPTXFD_Pos) | (EP_FIFO_SIZE/4 - _allocated_fifo_words_tx);
@@ -635,6 +668,12 @@ bool dcd_edpt_open (uint8_t rhport, tusb_desc_endpoint_t const * desc_edpt)
   }
 
   return true;
+}
+
+void dcd_edpt_close_all (uint8_t rhport)
+{
+  (void) rhport;
+  // TODO implement dcd_edpt_close_all()
 }
 
 bool dcd_edpt_xfer (uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t total_bytes)
@@ -656,7 +695,7 @@ bool dcd_edpt_xfer (uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t 
   }
 
   uint16_t num_packets = (total_bytes / xfer->max_size);
-  uint8_t const short_packet_size = total_bytes % xfer->max_size;
+  uint16_t const short_packet_size = total_bytes % xfer->max_size;
 
   // Zero-size packet is special case.
   if(short_packet_size > 0 || (total_bytes == 0)) {
@@ -687,7 +726,7 @@ bool dcd_edpt_xfer_fifo (uint8_t rhport, uint8_t ep_addr, tu_fifo_t * ff, uint16
   xfer->total_len   = total_bytes;
 
   uint16_t num_packets = (total_bytes / xfer->max_size);
-  uint8_t const short_packet_size = total_bytes % xfer->max_size;
+  uint16_t const short_packet_size = total_bytes % xfer->max_size;
 
   // Zero-size packet is special case.
   if(short_packet_size > 0 || (total_bytes == 0)) num_packets++;

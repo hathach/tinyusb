@@ -71,7 +71,7 @@ enum  {
 
 static uint32_t blink_interval_ms = BLINK_NOT_MOUNTED;
 
-#define URL  "www.tinyusb.org/examples/webusb-serial"
+#define URL  "example.tinyusb.org/webusb-serial/"
 
 const tusb_desc_webusb_url_t desc_url =
 {

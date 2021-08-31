@@ -43,7 +43,7 @@
 
 #include "common/tusb_common.h"
 #include "common_transdimension.h"
-#include "portable/ehci/hcd_ehci.h"
+#include "portable/ehci/ehci_api.h"
 
 //--------------------------------------------------------------------+
 // MACRO CONSTANT TYPEDEF
@@ -82,26 +82,26 @@ typedef struct
 
 bool hcd_init(uint8_t rhport)
 {
-  dcd_registers_t* dcd_reg = (dcd_registers_t*) _hcd_controller[rhport].regs_base;
+  hcd_registers_t* hcd_reg = (hcd_registers_t*) _hcd_controller[rhport].regs_base;
 
   // Reset controller
-  dcd_reg->USBCMD |= USBCMD_RESET;
-  while( dcd_reg->USBCMD & USBCMD_RESET ) {}
+  hcd_reg->USBCMD |= USBCMD_RESET;
+  while( hcd_reg->USBCMD & USBCMD_RESET ) {}
 
   // Set mode to device, must be set immediately after reset
 #if CFG_TUSB_MCU == OPT_MCU_LPC18XX || CFG_TUSB_MCU == OPT_MCU_LPC43XX
   // LPC18XX/43XX need to set VBUS Power Select to HIGH
   // RHPORT1 is fullspeed only (need external PHY for Highspeed)
-  dcd_reg->USBMODE = USBMODE_CM_HOST | USBMODE_VBUS_POWER_SELECT;
-  if (rhport == 1) dcd_reg->PORTSC1 |= PORTSC1_FORCE_FULL_SPEED;
+  hcd_reg->USBMODE = USBMODE_CM_HOST | USBMODE_VBUS_POWER_SELECT;
+  if (rhport == 1) hcd_reg->PORTSC1 |= PORTSC1_FORCE_FULL_SPEED;
 #else
-  dcd_reg->USBMODE = USBMODE_CM_HOST;
+  hcd_reg->USBMODE = USBMODE_CM_HOST;
 #endif
 
   // FIXME force full speed, still have issue with Highspeed enumeration
-  dcd_reg->PORTSC1 |= PORTSC1_FORCE_FULL_SPEED;
+  hcd_reg->PORTSC1 |= PORTSC1_FORCE_FULL_SPEED;
 
-  return hcd_ehci_init(rhport);
+  return ehci_init(rhport, (uint32_t) &hcd_reg->CAPLENGTH, (uint32_t) &hcd_reg->USBCMD);
 }
 
 void hcd_int_enable(uint8_t rhport)
@@ -112,14 +112,6 @@ void hcd_int_enable(uint8_t rhport)
 void hcd_int_disable(uint8_t rhport)
 {
   NVIC_DisableIRQ(_hcd_controller[rhport].irqnum);
-}
-
-uint32_t hcd_ehci_register_addr(uint8_t rhport)
-{
-  dcd_registers_t* hcd_reg = (dcd_registers_t*) _hcd_controller[rhport].regs_base;
-
-  // EHCI USBCMD has same address within dcd_register_t
-  return (uint32_t) &hcd_reg->USBCMD;
 }
 
 #endif

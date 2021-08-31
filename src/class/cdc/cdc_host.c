@@ -51,7 +51,7 @@ typedef struct {
 //--------------------------------------------------------------------+
 // INTERNAL OBJECT & FUNCTION DECLARATION
 //--------------------------------------------------------------------+
-static cdch_data_t cdch_data[CFG_TUSB_HOST_DEVICE_MAX];
+static cdch_data_t cdch_data[CFG_TUH_DEVICE_MAX];
 
 static inline cdch_data_t* get_itf(uint8_t dev_addr)
 {
@@ -146,10 +146,10 @@ bool tuh_cdc_set_control_line_state(uint8_t dev_addr, bool dtr, bool rts, tuh_co
 //--------------------------------------------------------------------+
 void cdch_init(void)
 {
-  tu_memclr(cdch_data, sizeof(cdch_data_t)*CFG_TUSB_HOST_DEVICE_MAX);
+  tu_memclr(cdch_data, sizeof(cdch_data));
 }
 
-uint16_t cdch_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_interface_t const *itf_desc, uint16_t max_len)
+bool cdch_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_interface_t const *itf_desc, uint16_t max_len)
 {
   (void) max_len;
 
@@ -157,7 +157,7 @@ uint16_t cdch_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_interface_t const
   // Protocol 0xFF can be RNDIS device for windows XP
   TU_VERIFY( TUSB_CLASS_CDC                           == itf_desc->bInterfaceClass &&
              CDC_COMM_SUBCLASS_ABSTRACT_CONTROL_MODEL == itf_desc->bInterfaceSubClass &&
-             0xFF                                     != itf_desc->bInterfaceProtocol, 0);
+             0xFF                                     != itf_desc->bInterfaceProtocol);
 
   cdch_data_t * p_cdc = get_itf(dev_addr);
 
@@ -186,7 +186,7 @@ uint16_t cdch_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_interface_t const
     // notification endpoint
     tusb_desc_endpoint_t const * desc_ep = (tusb_desc_endpoint_t const *) p_desc;
 
-    TU_ASSERT( usbh_edpt_open(rhport, dev_addr, desc_ep), 0 );
+    TU_ASSERT( usbh_edpt_open(rhport, dev_addr, desc_ep) );
     p_cdc->ep_notif = desc_ep->bEndpointAddress;
 
     drv_len += tu_desc_len(p_desc);
@@ -205,9 +205,9 @@ uint16_t cdch_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_interface_t const
     for(uint32_t i=0; i<2; i++)
     {
       tusb_desc_endpoint_t const *desc_ep = (tusb_desc_endpoint_t const *) p_desc;
-      TU_ASSERT(TUSB_DESC_ENDPOINT == desc_ep->bDescriptorType && TUSB_XFER_BULK == desc_ep->bmAttributes.xfer, 0);
+      TU_ASSERT(TUSB_DESC_ENDPOINT == desc_ep->bDescriptorType && TUSB_XFER_BULK == desc_ep->bmAttributes.xfer);
 
-      TU_ASSERT(usbh_edpt_open(rhport, dev_addr, desc_ep), 0);
+      TU_ASSERT(usbh_edpt_open(rhport, dev_addr, desc_ep));
 
       if ( tu_edpt_dir(desc_ep->bEndpointAddress) == TUSB_DIR_IN )
       {
@@ -222,7 +222,7 @@ uint16_t cdch_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_interface_t const
     }
   }
 
-  return drv_len;
+  return true;
 }
 
 bool cdch_set_config(uint8_t dev_addr, uint8_t itf_num)
@@ -240,6 +240,8 @@ bool cdch_xfer_cb(uint8_t dev_addr, uint8_t ep_addr, xfer_result_t event, uint32
 
 void cdch_close(uint8_t dev_addr)
 {
+  TU_VERIFY(dev_addr <= CFG_TUH_DEVICE_MAX, );
+
   cdch_data_t * p_cdc = get_itf(dev_addr);
   tu_memclr(p_cdc, sizeof(cdch_data_t));
 }

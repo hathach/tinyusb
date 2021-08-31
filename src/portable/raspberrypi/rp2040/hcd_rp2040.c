@@ -39,7 +39,6 @@
 
 #include "host/hcd.h"
 #include "host/usbh.h"
-#include "host/usbh_hcd.h"
 
 #define ROOT_PORT 0
 
@@ -61,8 +60,8 @@ static struct hw_endpoint ep_pool[1 + PICO_USB_HOST_INTERRUPT_ENDPOINTS];
 
 // Flags we set by default in sie_ctrl (we add other bits on top)
 enum {
-  SIE_CTRL_BASE = USB_SIE_CTRL_SOF_EN_BITS        | USB_SIE_CTRL_KEEP_ALIVE_EN_BITS |
-                  USB_SIE_CTRL_PULLDOWN_EN_BITS   | USB_SIE_CTRL_EP0_INT_1BUF_BITS
+  SIE_CTRL_BASE = USB_SIE_CTRL_SOF_EN_BITS      | USB_SIE_CTRL_KEEP_ALIVE_EN_BITS |
+                  USB_SIE_CTRL_PULLDOWN_EN_BITS | USB_SIE_CTRL_EP0_INT_1BUF_BITS
 };
 
 static struct hw_endpoint *get_dev_ep(uint8_t dev_addr, uint8_t ep_addr)
@@ -88,7 +87,7 @@ static bool need_pre(uint8_t dev_addr)
 {
     // If this device is different to the speed of the root device
     // (i.e. is a low speed device on a full speed hub) then need pre
-    return hcd_port_speed_get(0) != tuh_device_get_speed(dev_addr);
+    return hcd_port_speed_get(0) != tuh_speed_get(dev_addr);
 }
 
 static void hw_xfer_complete(struct hw_endpoint *ep, xfer_result_t xfer_result)
@@ -359,6 +358,9 @@ bool hcd_init(uint8_t rhport)
 
     // Reset any previous state
     rp2040_usb_init();
+
+    // Force VBUS detect to always present, for now we assume vbus is always provided (without using VBUS En)
+    usb_hw->pwr = USB_USB_PWR_VBUS_DETECT_BITS | USB_USB_PWR_VBUS_DETECT_OVERRIDE_EN_BITS;
 
     irq_set_exclusive_handler(USBCTRL_IRQ, hcd_rp2040_irq);
 

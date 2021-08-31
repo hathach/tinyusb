@@ -33,7 +33,6 @@
 //--------------------------------------------------------------------+
 // MACRO CONSTANT TYPEDEF PROTYPES
 //--------------------------------------------------------------------+
-void print_greeting(void);
 void led_blinking_task(void);
 
 extern void cdc_task(void);
@@ -43,7 +42,8 @@ extern void hid_app_task(void);
 int main(void)
 {
   board_init();
-  print_greeting();
+
+  printf("TinyUSB Host CDC MSC HID Example\r\n");
 
   tusb_init();
 
@@ -125,29 +125,4 @@ void led_blinking_task(void)
 
   board_led_write(led_state);
   led_state = 1 - led_state; // toggle
-}
-
-//--------------------------------------------------------------------+
-// HELPER FUNCTION
-//--------------------------------------------------------------------+
-void print_greeting(void)
-{
-  char const * const rtos_name[] =
-  {
-      [OPT_OS_NONE]      = "None",
-      [OPT_OS_FREERTOS]  = "FreeRTOS",
-      [OPT_OS_MYNEWT]    = "Mynewt OS",
-      [OPT_OS_CUSTOM]    = "Custom OS implemnted by application",
-      [OPT_OS_PICO]      = "Raspberry Pi Pico SDK",
-      [OPT_OS_RTTHREAD]  = "RT-Thread"
-  };
-
-  printf("----------------------------------------------------\r\n");
-  printf("TinyUSB Host Example\r\n");
-  printf("If you find any bugs or problems, feel free to open\r\n");
-  printf("an issue at https://github.com/hathach/tinyusb\r\n");
-  printf("----------------------------------------------------\r\n\r\n");
-
-  printf("This Host demo is configured to support:\r\n");
-  printf("  - RTOS = %s\r\n", rtos_name[CFG_TUSB_OS]);
 }
