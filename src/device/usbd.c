@@ -1214,12 +1214,12 @@ bool usbd_edpt_claim(uint8_t rhport, uint8_t ep_addr)
 
 #if CFG_TUSB_OS != OPT_OS_NONE
   // pre-check to help reducing mutex lock
-  TU_VERIFY((_usbd_dev.ep_status[epnum][dir].busy == 0) && (_usbd_dev.ep_status[epnum][dir].claimed == 0));
+  TU_VERIFY( usbd_edpt_ready(rhport, ep_addr) && (_usbd_dev.ep_status[epnum][dir].claimed == 0));
   osal_mutex_lock(_usbd_mutex, OSAL_TIMEOUT_WAIT_FOREVER);
 #endif
 
   // can only claim the endpoint if it is not busy and not claimed yet.
-  bool const ret = (_usbd_dev.ep_status[epnum][dir].busy == 0) && (_usbd_dev.ep_status[epnum][dir].claimed == 0);
+  bool const ret = usbd_edpt_ready(rhport, ep_addr) && (_usbd_dev.ep_status[epnum][dir].claimed == 0);
   if (ret)
   {
     _usbd_dev.ep_status[epnum][dir].claimed = 1;
@@ -1340,7 +1340,6 @@ void usbd_edpt_stall(uint8_t rhport, uint8_t ep_addr)
 
   dcd_edpt_stall(rhport, ep_addr);
   _usbd_dev.ep_status[epnum][dir].stalled = true;
-  _usbd_dev.ep_status[epnum][dir].busy = true;
 }
 
 void usbd_edpt_clear_stall(uint8_t rhport, uint8_t ep_addr)
@@ -1352,7 +1351,6 @@ void usbd_edpt_clear_stall(uint8_t rhport, uint8_t ep_addr)
 
   dcd_edpt_clear_stall(rhport, ep_addr);
   _usbd_dev.ep_status[epnum][dir].stalled = false;
-  _usbd_dev.ep_status[epnum][dir].busy = false;
 }
 
 bool usbd_edpt_stalled(uint8_t rhport, uint8_t ep_addr)
