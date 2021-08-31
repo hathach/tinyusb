@@ -389,17 +389,15 @@ void dcd_remote_wakeup(uint8_t rhport)
 // disconnect by disabling internal pull-up resistor on D+/D-
 void dcd_disconnect(uint8_t rhport)
 {
-    pico_info("dcd_disconnect %d\n", rhport);
-    assert(rhport == 0);
-    usb_hw_clear->sie_ctrl = USB_SIE_CTRL_PULLUP_EN_BITS;
+  (void) rhport;
+  usb_hw_clear->sie_ctrl = USB_SIE_CTRL_PULLUP_EN_BITS;
 }
 
 // connect by enabling internal pull-up resistor on D+/D-
 void dcd_connect(uint8_t rhport)
 {
-    pico_info("dcd_connect %d\n", rhport);
-    assert(rhport == 0);
-    usb_hw_set->sie_ctrl = USB_SIE_CTRL_PULLUP_EN_BITS;
+  (void) rhport;
+  usb_hw_set->sie_ctrl = USB_SIE_CTRL_PULLUP_EN_BITS;
 }
 
 /*------------------------------------------------------------------*/
