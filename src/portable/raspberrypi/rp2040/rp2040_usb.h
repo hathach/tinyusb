@@ -42,9 +42,6 @@ struct hw_endpoint
     // Buffer pointer in usb dpram
     uint8_t *hw_data_buf;
 
-    // Have we been stalled TODO remove later
-    bool stalled;
-
     // Current transfer information
     bool active;
     uint16_t remaining_len;
@@ -95,53 +92,5 @@ static inline uintptr_t hw_data_offset(uint8_t *buf)
 }
 
 extern const char *ep_dir_string[];
-
-typedef union TU_ATTR_PACKED
-{
-  uint16_t u16;
-  struct TU_ATTR_PACKED
-  {
-    uint16_t xfer_len     : 10;
-    uint16_t available    : 1;
-    uint16_t stall        : 1;
-    uint16_t reset_bufsel : 1;
-    uint16_t data_toggle  : 1;
-    uint16_t last_buf     : 1;
-    uint16_t full         : 1;
-  };
-} rp2040_buffer_control_t;
-
-TU_VERIFY_STATIC(sizeof(rp2040_buffer_control_t) == 2, "size is not correct");
-
-#if CFG_TUSB_DEBUG >= 3
-static inline void print_bufctrl16(uint32_t u16)
-{
-  rp2040_buffer_control_t bufctrl = {
-      .u16 = u16
-  };
-
-  TU_LOG(3, "len = %u, available = %u, full = %u, last = %u, stall = %u, reset = %u, toggle = %u\r\n",
-         bufctrl.xfer_len, bufctrl.available, bufctrl.full, bufctrl.last_buf, bufctrl.stall, bufctrl.reset_bufsel, bufctrl.data_toggle);
-}
-
-static inline void print_bufctrl32(uint32_t u32)
-{
-  uint16_t u16;
-
-  u16 = u32 >> 16;
-  TU_LOG(3, "  Buffer Control 1 0x%x: ", u16);
-  print_bufctrl16(u16);
-
-  u16 = u32 & 0x0000ffff;
-  TU_LOG(3, "  Buffer Control 0 0x%x: ", u16);
-  print_bufctrl16(u16);
-}
-
-#else
-
-#define print_bufctrl16(u16)
-#define print_bufctrl32(u32)
-
-#endif
 
 #endif
