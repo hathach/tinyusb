@@ -323,11 +323,7 @@ bool mscd_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request_t 
         if ( p_msc->stage == MSC_STAGE_CMD )
         {
           // part of reset recovery (probably due to invalid CBW) -> prepare for new command
-          // Note: skip if already queued previously
-          if ( usbd_edpt_ready(rhport, p_msc->ep_out) )
-          {
-            TU_ASSERT( prepare_cbw(rhport, p_msc) );
-          }
+          TU_ASSERT( prepare_cbw(rhport, p_msc) );
         }
       }
     }
