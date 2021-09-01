@@ -1333,26 +1333,33 @@ bool usbd_edpt_busy(uint8_t rhport, uint8_t ep_addr)
 
 void usbd_edpt_stall(uint8_t rhport, uint8_t ep_addr)
 {
-  TU_LOG(USBD_DBG, "    Stall EP %02X\r\n", ep_addr);
 
   uint8_t const epnum = tu_edpt_number(ep_addr);
   uint8_t const dir   = tu_edpt_dir(ep_addr);
 
-  dcd_edpt_stall(rhport, ep_addr);
-  _usbd_dev.ep_status[epnum][dir].stalled = true;
-  _usbd_dev.ep_status[epnum][dir].busy = true;
+  // only stalled if currently cleared
+  if ( !_usbd_dev.ep_status[epnum][dir].stalled )
+  {
+    TU_LOG(USBD_DBG, "    Stall EP %02X\r\n", ep_addr);
+    dcd_edpt_stall(rhport, ep_addr);
+    _usbd_dev.ep_status[epnum][dir].stalled = true;
+    _usbd_dev.ep_status[epnum][dir].busy = true;
+  }
 }
 
 void usbd_edpt_clear_stall(uint8_t rhport, uint8_t ep_addr)
 {
-  TU_LOG(USBD_DBG, "    Clear Stall EP %02X\r\n", ep_addr);
-
   uint8_t const epnum = tu_edpt_number(ep_addr);
   uint8_t const dir   = tu_edpt_dir(ep_addr);
 
-  dcd_edpt_clear_stall(rhport, ep_addr);
-  _usbd_dev.ep_status[epnum][dir].stalled = false;
-  _usbd_dev.ep_status[epnum][dir].busy = false;
+  // only clear if currently stalled
+  if ( _usbd_dev.ep_status[epnum][dir].stalled )
+  {
+    TU_LOG(USBD_DBG, "    Clear Stall EP %02X\r\n", ep_addr);
+    dcd_edpt_clear_stall(rhport, ep_addr);
+    _usbd_dev.ep_status[epnum][dir].stalled = false;
+    _usbd_dev.ep_status[epnum][dir].busy = false;
+  }
 }
 
 bool usbd_edpt_stalled(uint8_t rhport, uint8_t ep_addr)

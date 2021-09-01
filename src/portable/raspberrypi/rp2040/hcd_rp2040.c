@@ -201,7 +201,6 @@ static void hcd_rp2040_irq(void)
     {
         handled |= USB_INTS_BUFF_STATUS_BITS;
         TU_LOG(2, "Buffer complete\n");
-        // print_bufctrl32(*epx.buffer_control);
         hw_handle_buff_status();
     }
 
@@ -231,7 +230,7 @@ static void hcd_rp2040_irq(void)
     if (status & USB_INTS_ERROR_DATA_SEQ_BITS)
     {
         usb_hw_clear->sie_status = USB_SIE_STATUS_DATA_SEQ_ERROR_BITS;
-        print_bufctrl32(*epx.buffer_control);
+        TU_LOG(3, "  Seq Error: [0] = 0x%04u  [1] = 0x%04x\r\n", tu_u32_low16(*epx.buffer_control), tu_u32_high16(*epx.buffer_control));
         panic("Data Seq Error \n");
     }
 
