@@ -124,9 +124,7 @@ static void hw_endpoint_init(uint8_t ep_addr, uint16_t wMaxPacketSize, uint8_t t
   // For device, IN is a tx transfer and OUT is an rx transfer
   ep->rx = (dir == TUSB_DIR_OUT);
 
-  // Response to a setup packet on EP0 starts with pid of 1
-  ep->next_pid = (num == 0 ? 1u : 0u);
-
+  ep->next_pid = 0u;
   ep->wMaxPacketSize = wMaxPacketSize;
   ep->transfer_type = transfer_type;
 
@@ -203,7 +201,7 @@ static void hw_handle_buff_status(void)
     }
 }
 
-static void reset_ep0(void)
+static void reset_ep0_pid(void)
 {
     // If we have finished this transfer on EP0 set pid back to 1 for next
     // setup transfer. Also clear a stall in case
@@ -215,14 +213,18 @@ static void reset_ep0(void)
     }
 }
 
-static void reset_all_endpoints(void)
+static void reset_non_control_endpoints(void)
 {
-  memset(hw_endpoints, 0, sizeof(hw_endpoints));
-  next_buffer_ptr = &usb_dpram->epx_data[0];
+  // Disable all non-control
+  for ( uint8_t i = 0; i < USB_MAX_ENDPOINTS-1; i++ )
+  {
+    usb_dpram->ep_ctrl[i].in = 0;
+    usb_dpram->ep_ctrl[i].out = 0;
+  }
 
-  // Init Control endpoint out & in
-  hw_endpoint_init(0x0, 64, TUSB_XFER_CONTROL);
-  hw_endpoint_init(0x80, 64, TUSB_XFER_CONTROL);
+  // clear non-control hw endpoints
+  tu_memclr(hw_endpoints[1], sizeof(hw_endpoints) - 2*sizeof(hw_endpoint_t));
+  next_buffer_ptr = &usb_dpram->epx_data[0];
 }
 
 static void dcd_rp2040_irq(void)
@@ -234,8 +236,10 @@ static void dcd_rp2040_irq(void)
     {
         handled |= USB_INTS_SETUP_REQ_BITS;
         uint8_t const *setup = (uint8_t const *)&usb_dpram->setup_packet;
-        // Clear stall bits and reset pid
-        reset_ep0();
+
+        // reset pid to both 1 (data and ack)
+        reset_ep0_pid();
+
         // Pass setup packet to tiny usb
         dcd_event_setup_received(0, setup, true);
         usb_hw_clear->sie_status = USB_SIE_STATUS_SETUP_REC_BITS;
@@ -275,7 +279,7 @@ static void dcd_rp2040_irq(void)
         handled |= USB_INTS_BUS_RESET_BITS;
 
         usb_hw->dev_addr_ctrl = 0;
-        reset_all_endpoints();
+        reset_non_control_endpoints();
         dcd_event_bus_reset(0, TUSB_SPEED_FULL, true);
         usb_hw_clear->sie_status = USB_SIE_STATUS_BUS_RESET_BITS;
 
@@ -338,8 +342,13 @@ void dcd_init (uint8_t rhport)
 
   irq_set_exclusive_handler(USBCTRL_IRQ, dcd_rp2040_irq);
 
-  // reset endpoints
-  reset_all_endpoints();
+  // Init control endpoints
+  tu_memclr(hw_endpoints[0], 2*sizeof(hw_endpoint_t));
+  hw_endpoint_init(0x0, 64, TUSB_XFER_CONTROL);
+  hw_endpoint_init(0x80, 64, TUSB_XFER_CONTROL);
+
+  // Init non-control endpoints
+  reset_non_control_endpoints();
 
   // Initializes the USB peripheral for device mode and enables it.
   // Don't need to enable the pull up here. Force VBUS
@@ -374,7 +383,6 @@ void dcd_set_address (uint8_t rhport, uint8_t dev_addr)
 
   // Can't set device address in hardware until status xfer has complete
   // Send 0len complete response on EP0 IN
-  reset_ep0();
   hw_endpoint_xfer(0x80, NULL, 0);
 }
 
@@ -413,8 +421,6 @@ void dcd_edpt0_status_complete(uint8_t rhport, tusb_control_request_t const * re
   {
     usb_hw->dev_addr_ctrl = (uint8_t) request->wValue;
   }
-
-  reset_ep0();
 }
 
 bool dcd_edpt_open (uint8_t rhport, tusb_desc_endpoint_t const * desc_edpt)
@@ -427,7 +433,9 @@ bool dcd_edpt_open (uint8_t rhport, tusb_desc_endpoint_t const * desc_edpt)
 void dcd_edpt_close_all (uint8_t rhport)
 {
   (void) rhport;
-  // reset_all_endpoints(); TODO double check endpoint control
+
+  // may need to use EP Abort
+  reset_non_control_endpoints();
 }
 
 bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t total_bytes)

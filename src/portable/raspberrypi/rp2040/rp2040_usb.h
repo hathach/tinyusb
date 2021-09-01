@@ -21,7 +21,7 @@
 #define pico_trace(...) TU_LOG(3, __VA_ARGS__)
 
 // Hardware information per endpoint
-struct hw_endpoint
+typedef struct hw_endpoint
 {
     // Is this a valid struct
     bool configured;
@@ -63,7 +63,7 @@ struct hw_endpoint
     // If interrupt endpoint
     uint8_t interrupt_num;
 #endif
-};
+} hw_endpoint_t;
 
 void rp2040_usb_init(void);
 
