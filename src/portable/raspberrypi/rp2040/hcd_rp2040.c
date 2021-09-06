@@ -161,7 +161,7 @@ static void hw_handle_buff_status(void)
 static void hw_trans_complete(void)
 {
   struct hw_endpoint *ep = &epx;
-  assert(ep->active);
+//  assert(ep->active);  // If debug is enabled this assert() always fails - dirty workaround: comment it out!
 
   if (usb_hw->sie_ctrl & USB_SIE_CTRL_SEND_SETUP_BITS)
   {

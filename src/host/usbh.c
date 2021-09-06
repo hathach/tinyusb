@@ -130,6 +130,17 @@ enum { ADDR_INVALID  = 0xFFu };
 
 static usbh_class_driver_t const usbh_class_drivers[] =
 {
+  #if CFG_TUH_RAW
+    {
+      DRIVER_NAME("RAW")
+      .init       = raw_init,
+      .open       = raw_open,
+      .set_config = raw_set_config,
+      .xfer_cb    = raw_xfer_cb,
+      .close      = raw_close
+    },
+  #endif
+
   #if CFG_TUH_CDC
     {
       DRIVER_NAME("CDC")
@@ -608,6 +619,7 @@ static bool parse_configuration_descriptor      (uint8_t dev_addr, tusb_desc_con
 #if CFG_TUH_HUB
 static bool enum_hub_clear_reset0_complete(uint8_t dev_addr, tusb_control_request_t const * request, xfer_result_t result)
 {
+printf("- 123\r\n");
   (void) dev_addr; (void) request;
   TU_ASSERT(XFER_RESULT_SUCCESS == result);
   enum_request_addr0_device_desc();
@@ -673,6 +685,7 @@ static bool enum_hub_get_status0_complete(uint8_t dev_addr, tusb_control_request
 
 static bool enum_new_device(hcd_event_t* event)
 {
+printf("- enum_new_device\r\n");
   _dev0.rhport   = event->rhport; // TODO refractor integrate to device_pool
   _dev0.hub_addr = event->connection.hub_addr;
   _dev0.hub_port = event->connection.hub_port;
@@ -705,6 +718,7 @@ static bool enum_new_device(hcd_event_t* event)
 
 static bool enum_request_addr0_device_desc(void)
 {
+printf("- enum_request_addr0_device_desc\r\n");
   // TODO probably doesn't need to open/close each enumeration
   uint8_t const addr0 = 0;
   TU_ASSERT( usbh_edpt_control_open(addr0, 8) );
@@ -732,6 +746,7 @@ static bool enum_request_addr0_device_desc(void)
 // After Get Device Descriptor of Address 0
 static bool enum_get_addr0_device_desc_complete(uint8_t dev_addr, tusb_control_request_t const * request, xfer_result_t result)
 {
+printf("- enum_get_addr0_device_desc_complete\r\n");
   (void) request;
   TU_ASSERT(0 == dev_addr);
 
@@ -777,6 +792,7 @@ static bool enum_get_addr0_device_desc_complete(uint8_t dev_addr, tusb_control_r
 
 static bool enum_request_set_addr(void)
 {
+printf("- enum_request_set_addr\r\n");
   uint8_t const addr0 = 0;
   tusb_desc_device_t const * desc_device = (tusb_desc_device_t const*) _usbh_ctrl_buf;
 
@@ -817,6 +833,7 @@ static bool enum_request_set_addr(void)
 // After SET_ADDRESS is complete
 static bool enum_set_address_complete(uint8_t dev_addr, tusb_control_request_t const * request, xfer_result_t result)
 {
+printf("- enum_set_address_complete\r\n");
   TU_ASSERT(0 == dev_addr);
   TU_ASSERT(XFER_RESULT_SUCCESS == result);
 
@@ -854,6 +871,7 @@ static bool enum_set_address_complete(uint8_t dev_addr, tusb_control_request_t c
 
 static bool enum_get_device_desc_complete(uint8_t dev_addr, tusb_control_request_t const * request, xfer_result_t result)
 {
+printf("- enum_get_device_desc_complete\r\n");
   (void) request;
   TU_ASSERT(XFER_RESULT_SUCCESS == result);
 
@@ -865,6 +883,7 @@ static bool enum_get_device_desc_complete(uint8_t dev_addr, tusb_control_request
   dev->i_manufacturer = desc_device->iManufacturer;
   dev->i_product      = desc_device->iProduct;
   dev->i_serial       = desc_device->iSerialNumber;
+printf("- Setup Complete\r\n");
 
 //  if (tuh_attach_cb) tuh_attach_cb((tusb_desc_device_t*) _usbh_ctrl_buf);
 
