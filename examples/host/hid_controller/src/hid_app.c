@@ -113,6 +113,7 @@ static inline bool is_sony_ds4(uint8_t dev_addr)
 
   return ( (vid == 0x054c && (pid == 0x09cc || pid == 0x05c4)) // Sony DualShock4 
            || (vid == 0x0f0d && pid == 0x005e)                 // Hori FC4 
+           || (vid == 0x1f4f && pid == 0x1002)                 // ASW GG xrd controller
          );
 }
 
