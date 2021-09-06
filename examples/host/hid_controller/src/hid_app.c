@@ -111,7 +111,9 @@ static inline bool is_sony_ds4(uint8_t dev_addr)
   uint16_t vid, pid;
   tuh_vid_pid_get(dev_addr, &vid, &pid);
 
-  return ( (vid == 0x054c && (pid == 0x09cc || pid == 0x05c4)) ); // Sony DualShock4 
+  return ( (vid == 0x054c && (pid == 0x09cc || pid == 0x05c4)) // Sony DualShock4 
+           || (vid == 0x0f0d && pid == 0x005e)                 // Hori FC4 
+         );
 }
 
 //--------------------------------------------------------------------+
