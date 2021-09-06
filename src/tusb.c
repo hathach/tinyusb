@@ -69,15 +69,18 @@ bool tusb_inited(void)
 
 bool tu_edpt_validate(tusb_desc_endpoint_t const * desc_ep, tusb_speed_t speed)
 {
-  uint16_t const max_packet_size = tu_le16toh(desc_ep->wMaxPacketSize.size);
-  TU_LOG2("  Open EP %02X with Size = %u\r\n", desc_ep->bEndpointAddress, max_packet_size);
+  wMaxPacketSize_t wMaxPacketSize = desc_ep->wMaxPacketSize;
+
+  /* if required, keep track of correct endian handling of the end point descriptor (is always little endian) */
+  *(uint16_t*)&wMaxPacketSize = tu_le16toh(*(uint16_t*)&wMaxPacketSize);
+  TU_LOG2("  Open EP %02X with Size = %u\r\n", desc_ep->bEndpointAddress, wMaxPacketSize.size);
 
   switch (desc_ep->bmAttributes.xfer)
   {
     case TUSB_XFER_ISOCHRONOUS:
     {
       uint16_t const spec_size = (speed == TUSB_SPEED_HIGH ? 1024 : 1023);
-      TU_ASSERT(max_packet_size <= spec_size);
+      TU_ASSERT(wMaxPacketSize.size <= spec_size);
     }
     break;
 
@@ -85,18 +88,18 @@ bool tu_edpt_validate(tusb_desc_endpoint_t const * desc_ep, tusb_speed_t speed)
       if (speed == TUSB_SPEED_HIGH)
       {
         // Bulk highspeed must be EXACTLY 512
-        TU_ASSERT(max_packet_size == 512);
+        TU_ASSERT(wMaxPacketSize.size == 512);
       }else
       {
         // TODO Bulk fullspeed can only be 8, 16, 32, 64
-        TU_ASSERT(max_packet_size <= 64);
+        TU_ASSERT(wMaxPacketSize.size <= 64);
       }
     break;
 
     case TUSB_XFER_INTERRUPT:
     {
       uint16_t const spec_size = (speed == TUSB_SPEED_HIGH ? 1024 : 64);
-      TU_ASSERT(max_packet_size <= spec_size);
+      TU_ASSERT(wMaxPacketSize.size <= spec_size);
     }
     break;
 

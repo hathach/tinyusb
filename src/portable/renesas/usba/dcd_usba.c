@@ -694,9 +694,11 @@ bool dcd_edpt_open(uint8_t rhport, tusb_desc_endpoint_t const * ep_desc)
   const unsigned epn     = tu_edpt_number(ep_addr);
   const unsigned dir     = tu_edpt_dir(ep_addr);
   const unsigned xfer    = ep_desc->bmAttributes.xfer;
+  wMaxPacketSize_t wMaxPacketSize = ep_desc->wMaxPacketSize;
 
-  const unsigned mps = tu_le16toh(ep_desc->wMaxPacketSize.size);
-  if (xfer == TUSB_XFER_ISOCHRONOUS && mps > 256) {
+  /* if required, keep track of correct endian handling of the end point descriptor (is always little endian) */
+  *(uint16_t*)&wMaxPacketSize = tu_le16toh(*(uint16_t*)&wMaxPacketSize);
+  if ((xfer == TUSB_XFER_ISOCHRONOUS) && (wMaxPacketSize.size > 256)) {
     /* USBa supports up to 256 bytes */
     return false;
   }
@@ -709,7 +711,7 @@ bool dcd_edpt_open(uint8_t rhport, tusb_desc_endpoint_t const * ep_desc)
   /* setup pipe */
   dcd_int_disable(rhport);
   USB0.PIPESEL.WORD  = num;
-  USB0.PIPEMAXP.WORD = mps;
+  USB0.PIPEMAXP.WORD = wMaxPacketSize.size;
   volatile uint16_t *ctr = get_pipectr(num);
   *ctr = USB_PIPECTR_ACLRM | USB_PIPECTR_SQCLR;
   *ctr = 0;
