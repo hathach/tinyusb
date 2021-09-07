@@ -5,7 +5,7 @@ import xml.dom.minidom as XML
 
 # Read base configuration
 base = ""
-with open("iar.ipcf") as f:
+with open("iar_template.ipcf") as f:
     base = f.read()
 
 # Enumerate all device/host examples
