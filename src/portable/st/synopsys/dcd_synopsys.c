@@ -213,17 +213,18 @@ static void bus_reset(uint8_t rhport)
   tu_memclr(xfer_status, sizeof(xfer_status));
   _out_ep_closed = false;
 
+  // clear device address
+  dev->DCFG &= ~USB_OTG_DCFG_DAD_Msk;
+
+  // 1. NAK for all OUT endpoints
   for(uint8_t n = 0; n < EP_MAX; n++) {
     out_ep[n].DOEPCTL |= USB_OTG_DOEPCTL_SNAK;
   }
 
-  // clear device address
-  dev->DCFG &= ~USB_OTG_DCFG_DAD_Msk;
-
-  // TODO should probably assign value when reset rather than OR
-  dev->DAINTMSK |= (1 << USB_OTG_DAINTMSK_OEPM_Pos) | (1 << USB_OTG_DAINTMSK_IEPM_Pos);
-  dev->DOEPMSK |= USB_OTG_DOEPMSK_STUPM | USB_OTG_DOEPMSK_XFRCM;
-  dev->DIEPMSK |= USB_OTG_DIEPMSK_TOM | USB_OTG_DIEPMSK_XFRCM;
+  // 2. Un-mask interrupt bits
+  dev->DAINTMSK = (1 << USB_OTG_DAINTMSK_OEPM_Pos) | (1 << USB_OTG_DAINTMSK_IEPM_Pos);
+  dev->DOEPMSK = USB_OTG_DOEPMSK_STUPM | USB_OTG_DOEPMSK_XFRCM;
+  dev->DIEPMSK = USB_OTG_DIEPMSK_TOM | USB_OTG_DIEPMSK_XFRCM;
 
   // "USB Data FIFOs" section in reference manual
   // Peripheral FIFO architecture
@@ -306,8 +307,6 @@ static void set_turnaround(USB_OTG_GlobalTypeDef * usb_otg, tusb_speed_t speed)
   {
     // Turnaround timeout depends on the MCU clock
     uint32_t turnaround;
-
-    TU_LOG_INT(2, SystemCoreClock);
 
     if ( SystemCoreClock >= 32000000U )
       turnaround = 0x6U;
@@ -618,8 +617,9 @@ bool dcd_edpt_open (uint8_t rhport, tusb_desc_endpoint_t const * desc_edpt)
       usb_otg->GRXFSIZ = sz;
     }
 
-    out_ep[epnum].DOEPCTL |= (1 << USB_OTG_DOEPCTL_USBAEP_Pos) |
-        (desc_edpt->bmAttributes.xfer << USB_OTG_DOEPCTL_EPTYP_Pos) |
+    out_ep[epnum].DOEPCTL |= (1 << USB_OTG_DOEPCTL_USBAEP_Pos)        |
+        (desc_edpt->bmAttributes.xfer << USB_OTG_DOEPCTL_EPTYP_Pos)   |
+        (desc_edpt->bmAttributes.xfer != TUSB_XFER_ISOCHRONOUS ? USB_OTG_DOEPCTL_SD0PID_SEVNFRM : 0) |
         (desc_edpt->wMaxPacketSize.size << USB_OTG_DOEPCTL_MPSIZ_Pos);
 
     dev->DAINTMSK |= (1 << (USB_OTG_DAINTMSK_OEPM_Pos + epnum));
@@ -661,7 +661,7 @@ bool dcd_edpt_open (uint8_t rhport, tusb_desc_endpoint_t const * desc_edpt)
     in_ep[epnum].DIEPCTL |= (1 << USB_OTG_DIEPCTL_USBAEP_Pos) |
         (epnum << USB_OTG_DIEPCTL_TXFNUM_Pos) |
         (desc_edpt->bmAttributes.xfer << USB_OTG_DIEPCTL_EPTYP_Pos) |
-        (desc_edpt->bmAttributes.xfer != TUSB_XFER_ISOCHRONOUS ? USB_OTG_DOEPCTL_SD0PID_SEVNFRM : 0) |
+        (desc_edpt->bmAttributes.xfer != TUSB_XFER_ISOCHRONOUS ? USB_OTG_DIEPCTL_SD0PID_SEVNFRM : 0) |
         (desc_edpt->wMaxPacketSize.size << USB_OTG_DIEPCTL_MPSIZ_Pos);
 
     dev->DAINTMSK |= (1 << (USB_OTG_DAINTMSK_IEPM_Pos + epnum));
@@ -670,10 +670,32 @@ bool dcd_edpt_open (uint8_t rhport, tusb_desc_endpoint_t const * desc_edpt)
   return true;
 }
 
+// Close all non-control endpoints, cancel all pending transfers if any.
 void dcd_edpt_close_all (uint8_t rhport)
 {
   (void) rhport;
-  // TODO implement dcd_edpt_close_all()
+
+//  USB_OTG_GlobalTypeDef * usb_otg = GLOBAL_BASE(rhport);
+  USB_OTG_DeviceTypeDef * dev = DEVICE_BASE(rhport);
+  USB_OTG_OUTEndpointTypeDef * out_ep = OUT_EP_BASE(rhport);
+  USB_OTG_INEndpointTypeDef * in_ep = IN_EP_BASE(rhport);
+
+  // Disable non-control interrupt
+  dev->DAINTMSK = (1 << USB_OTG_DAINTMSK_OEPM_Pos) | (1 << USB_OTG_DAINTMSK_IEPM_Pos);
+
+  for(uint8_t n = 1; n < EP_MAX; n++)
+  {
+    // disable OUT endpoint
+    out_ep[n].DOEPCTL = 0;
+    xfer_status[n][TUSB_DIR_OUT].max_size = 0;
+
+    // disable IN endpoint
+    in_ep[n].DIEPCTL = 0;
+    xfer_status[n][TUSB_DIR_IN].max_size = 0;
+  }
+
+  // reset allocated fifo IN
+  _allocated_fifo_words_tx = 16;
 }
 
 bool dcd_edpt_xfer (uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t total_bytes)
@@ -835,22 +857,13 @@ void dcd_edpt_clear_stall (uint8_t rhport, uint8_t ep_addr)
   uint8_t const epnum = tu_edpt_number(ep_addr);
   uint8_t const dir   = tu_edpt_dir(ep_addr);
 
+  // Clear stall and reset data toggle
   if(dir == TUSB_DIR_IN) {
     in_ep[epnum].DIEPCTL &= ~USB_OTG_DIEPCTL_STALL;
-
-    uint8_t eptype = (in_ep[epnum].DIEPCTL & USB_OTG_DIEPCTL_EPTYP_Msk) >> USB_OTG_DIEPCTL_EPTYP_Pos;
-    // Required by USB spec to reset DATA toggle bit to DATA0 on interrupt and bulk endpoints.
-    if(eptype == 2 || eptype == 3) {
-      in_ep[epnum].DIEPCTL |= USB_OTG_DIEPCTL_SD0PID_SEVNFRM;
-    }
+    in_ep[epnum].DIEPCTL |= USB_OTG_DIEPCTL_SD0PID_SEVNFRM;
   } else {
     out_ep[epnum].DOEPCTL &= ~USB_OTG_DOEPCTL_STALL;
-
-    uint8_t eptype = (out_ep[epnum].DOEPCTL & USB_OTG_DOEPCTL_EPTYP_Msk) >> USB_OTG_DOEPCTL_EPTYP_Pos;
-    // Required by USB spec to reset DATA toggle bit to DATA0 on interrupt and bulk endpoints.
-    if(eptype == 2 || eptype == 3) {
-      out_ep[epnum].DOEPCTL |= USB_OTG_DOEPCTL_SD0PID_SEVNFRM;
-    }
+    out_ep[epnum].DOEPCTL |= USB_OTG_DOEPCTL_SD0PID_SEVNFRM;
   }
 }
 
