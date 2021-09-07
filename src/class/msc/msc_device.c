@@ -611,6 +611,17 @@ bool mscd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t event, uint32_t
         TU_ASSERT( send_csw(rhport, p_msc) );
       }
     }
+
+    #if TU_CHECK_MCU(CXD56)
+    // WORKAROUND: cxd56 has its own nuttx usb stack which does not forward Set/ClearFeature(Endpoint) to DCD.
+    // There is no way for us to know when EP is un-stall, therefore we will unconditionally un-stall here and
+    // hope everything will work
+    if ( usbd_edpt_stalled(rhport, p_msc->ep_in) )
+    {
+      usbd_edpt_clear_stall(rhport, p_msc->ep_in);
+      send_csw(rhport, p_msc);
+    }
+    #endif
   }
 
   return true;

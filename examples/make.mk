@@ -61,6 +61,7 @@ GDB = $(CROSS_COMPILE)gdb
 OBJCOPY = $(CROSS_COMPILE)objcopy
 SIZE = $(CROSS_COMPILE)size
 MKDIR = mkdir
+PYTHON = python
 
 ifeq ($(CMDEXE),1)
   CP = copy
