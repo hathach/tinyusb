@@ -555,13 +555,31 @@ void dcd_set_address (uint8_t rhport, uint8_t dev_addr)
   dcd_edpt_xfer(rhport, tu_edpt_addr(0, TUSB_DIR_IN), NULL, 0);
 }
 
+static void remote_wakeup_delay(void)
+{
+  // try to delay for 1 ms
+  uint32_t count = SystemCoreClock / 1000;
+  while(count--) __NOP();
+}
+
 void dcd_remote_wakeup(uint8_t rhport)
 {
   (void) rhport;
 
-  // TODO must manually clear this bit after 1-15 ms
-  // USB_OTG_DeviceTypeDef * dev = DEVICE_BASE(rhport);
-  // dev->DCTL |= USB_OTG_DCTL_RWUSIG;
+  USB_OTG_GlobalTypeDef * usb_otg = GLOBAL_BASE(rhport);
+  USB_OTG_DeviceTypeDef * dev = DEVICE_BASE(rhport);
+
+  // set remote wakeup
+  dev->DCTL |= USB_OTG_DCTL_RWUSIG;
+
+  // enable SOF to detect bus resume
+  usb_otg->GINTSTS = USB_OTG_GINTSTS_SOF;
+  usb_otg->GINTMSK |= USB_OTG_GINTMSK_SOFM;
+
+  // Per specs: remote wakeup signal bit must be clear within 1-15ms
+  remote_wakeup_delay();
+
+  dev->DCTL &= ~USB_OTG_DCTL_RWUSIG;
 }
 
 void dcd_connect(uint8_t rhport)
@@ -1100,7 +1118,7 @@ void dcd_int_handler(uint8_t rhport)
   USB_OTG_OUTEndpointTypeDef * out_ep = OUT_EP_BASE(rhport);
   USB_OTG_INEndpointTypeDef * in_ep = IN_EP_BASE(rhport);
 
-  uint32_t int_status = usb_otg->GINTSTS;
+  uint32_t const int_status = usb_otg->GINTSTS & usb_otg->GINTMSK;
 
   if(int_status & USB_OTG_GINTSTS_USBRST)
   {
@@ -1133,6 +1151,9 @@ void dcd_int_handler(uint8_t rhport)
     dcd_event_bus_signal(rhport, DCD_EVENT_RESUME, true);
   }
 
+  // TODO check USB_OTG_GINTSTS_DISCINT for disconnect detection
+  // if(int_status & USB_OTG_GINTSTS_DISCINT)
+
   if(int_status & USB_OTG_GINTSTS_OTGINT)
   {
     // OTG INT bit is read-only
@@ -1146,13 +1167,15 @@ void dcd_int_handler(uint8_t rhport)
     usb_otg->GOTGINT = otg_int;
   }
 
-#if USE_SOF
   if(int_status & USB_OTG_GINTSTS_SOF)
   {
     usb_otg->GINTSTS = USB_OTG_GINTSTS_SOF;
+
+    // Disable SOF interrupt since currently only used for remote wakeup detection
+    usb_otg->GINTMSK &= ~USB_OTG_GINTMSK_SOFM;
+
     dcd_event_bus_signal(rhport, DCD_EVENT_SOF, true);
   }
-#endif
 
   // RxFIFO non-empty interrupt handling.
   if(int_status & USB_OTG_GINTSTS_RXFLVL)
@@ -1166,8 +1189,7 @@ void dcd_int_handler(uint8_t rhport)
     do
     {
       handle_rxflvl_ints(rhport, out_ep);
-      int_status = usb_otg->GINTSTS;
-    } while(int_status & USB_OTG_GINTSTS_RXFLVL);
+    } while(usb_otg->GINTSTS & USB_OTG_GINTSTS_RXFLVL);
 
     // Manage RX FIFO size
     if (_out_ep_closed)
