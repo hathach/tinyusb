@@ -601,16 +601,27 @@ bool mscd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t event, uint32_t
     // skip status if epin is currently stalled, will do it when received Clear Stall request
     if ( !usbd_edpt_stalled(rhport,  p_msc->ep_in) )
     {
-      if ( (p_msc->total_len > p_msc->xferred_len) && is_data_in(p_cbw->dir) )
+      if ( (p_cbw->total_bytes > p_msc->xferred_len) && is_data_in(p_cbw->dir) )
       {
         // 6.7 The 13 Cases: case 5 (Hi > Di): STALL before status
-        TU_LOG(MSC_DEBUG, "  SCSI case 5 (Hi > Di): %lu > %lu\r\n", p_msc->total_len, p_msc->xferred_len);
+        TU_LOG(MSC_DEBUG, "  SCSI case 5 (Hi > Di): %lu > %lu\r\n", p_cbw->total_bytes, p_msc->xferred_len);
         usbd_edpt_stall(rhport, p_msc->ep_in);
       }else
       {
         TU_ASSERT( send_csw(rhport, p_msc) );
       }
     }
+
+    #if TU_CHECK_MCU(CXD56)
+    // WORKAROUND: cxd56 has its own nuttx usb stack which does not forward Set/ClearFeature(Endpoint) to DCD.
+    // There is no way for us to know when EP is un-stall, therefore we will unconditionally un-stall here and
+    // hope everything will work
+    if ( usbd_edpt_stalled(rhport, p_msc->ep_in) )
+    {
+      usbd_edpt_clear_stall(rhport, p_msc->ep_in);
+      send_csw(rhport, p_msc);
+    }
+    #endif
   }
 
   return true;

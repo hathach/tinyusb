@@ -65,10 +65,12 @@ MKDIR = mkdir
 ifeq ($(CMDEXE),1)
   CP = copy
   RM = del
+  PYTHON = python
 else
   SED = sed
   CP = cp
   RM = rm
+  PYTHON = python3
 endif
 
 #-------------- Source files and compiler flags --------------
