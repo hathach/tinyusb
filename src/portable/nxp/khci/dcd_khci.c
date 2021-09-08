@@ -121,7 +121,7 @@ static void prepare_next_setup_packet(uint8_t rhport)
   const unsigned out_odd = _dcd.endpoint[0][0].odd;
   const unsigned in_odd  = _dcd.endpoint[0][1].odd;
   if (_dcd.bdt[0][0][out_odd].own) {
-    TU_LOG1("DCD fail to prepare the next SETUP %d %d\r\n", out_odd, in_odd);
+    //    TU_LOG1("DCD fail to prepare the next SETUP %d %d\r\n", out_odd, in_odd);
     return;
   }
   _dcd.bdt[0][0][out_odd].data     = 0;
@@ -162,9 +162,6 @@ static void process_tokdne(uint8_t rhport)
     dcd_event_setup_received(rhport, bd->addr, true);
     KHCI->CTL &= ~USB_CTL_TXSUSPENDTOKENBUSY_MASK;
     return;
-  }
-  if (s >> 4) {
-    TU_LOG1("TKDNE %x\r\n", s);
   }
 
   const unsigned bc = bd->bc;
@@ -321,8 +318,8 @@ bool dcd_edpt_open(uint8_t rhport, tusb_desc_endpoint_t const * ep_desc)
   (void) rhport;
 
   const unsigned ep_addr  = ep_desc->bEndpointAddress;
-  const unsigned epn      = ep_addr & 0xFu;
-  const unsigned dir      = (ep_addr & TUSB_DIR_IN_MASK) ? TUSB_DIR_IN : TUSB_DIR_OUT;
+  const unsigned epn      = tu_edpt_number(ep_addr);
+  const unsigned dir      = tu_edpt_dir(ep_addr);
   const unsigned xfer     = ep_desc->bmAttributes.xfer;
   endpoint_state_t *ep    = &_dcd.endpoint[epn][dir];
   const unsigned odd      = ep->odd;
@@ -373,8 +370,8 @@ void dcd_edpt_close(uint8_t rhport, uint8_t ep_addr)
 {
   (void) rhport;
 
-  const unsigned epn      = ep_addr & 0xFu;
-  const unsigned dir      = (ep_addr & TUSB_DIR_IN_MASK) ? TUSB_DIR_IN : TUSB_DIR_OUT;
+  const unsigned epn      = tu_edpt_number(ep_addr);
+  const unsigned dir      = tu_edpt_dir(ep_addr);
   endpoint_state_t *ep    = &_dcd.endpoint[epn][dir];
   buffer_descriptor_t *bd = &_dcd.bdt[epn][dir][0];
   const unsigned msk      = dir ? USB_ENDPT_EPTXEN_MASK : USB_ENDPT_EPRXEN_MASK;
@@ -388,18 +385,15 @@ void dcd_edpt_close(uint8_t rhport, uint8_t ep_addr)
 bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t* buffer, uint16_t total_bytes)
 {
   (void) rhport;
-  const unsigned ie  = NVIC_GetEnableIRQ(USB0_IRQn);
-  NVIC_DisableIRQ(USB0_IRQn);
-  const unsigned epn = ep_addr & 0xFu;
-  const unsigned dir = (ep_addr & TUSB_DIR_IN_MASK) ? TUSB_DIR_IN : TUSB_DIR_OUT;
+  const unsigned epn      = tu_edpt_number(ep_addr);
+  const unsigned dir      = tu_edpt_dir(ep_addr);
   endpoint_state_t    *ep = &_dcd.endpoint[epn][dir];
   buffer_descriptor_t *bd = &_dcd.bdt[epn][dir][ep->odd];
+  TU_ASSERT(0 == bd->own);
 
-  if (bd->own) {
-    TU_LOG1("DCD XFER fail %x %d %lx %lx\r\n", ep_addr, total_bytes, ep->state, bd->head);
-    if (ie) NVIC_EnableIRQ(USB0_IRQn);
-    return false; /* The last transfer has not completed */
-  }
+  const unsigned ie = NVIC_GetEnableIRQ(USB0_IRQn);
+  NVIC_DisableIRQ(USB0_IRQn);
+
   ep->length    = total_bytes;
   ep->remaining = total_bytes;
 
@@ -412,10 +406,10 @@ bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t* buffer, uint16_t to
     next->addr = buffer + mps;
     next->own  = 1;
   }
-  bd->bc        = total_bytes >= mps ? mps: total_bytes;
-  bd->addr      = buffer;
+  bd->bc   = total_bytes >= mps ? mps: total_bytes;
+  bd->addr = buffer;
   __DSB();
-  bd->own  = 1; /* the own bit must set after addr */
+  bd->own  = 1; /* This bit must be set last */
   if (ie) NVIC_EnableIRQ(USB0_IRQn);
   return true;
 }
@@ -423,31 +417,38 @@ bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t* buffer, uint16_t to
 void dcd_edpt_stall(uint8_t rhport, uint8_t ep_addr)
 {
   (void) rhport;
-  const unsigned epn = ep_addr & 0xFu;
+  const unsigned epn = tu_edpt_number(ep_addr);
   if (0 == epn) {
     KHCI->ENDPOINT[epn].ENDPT |=  USB_ENDPT_EPSTALL_MASK;
   } else {
-    const unsigned dir      = (ep_addr & TUSB_DIR_IN_MASK) ? TUSB_DIR_IN : TUSB_DIR_OUT;
-    buffer_descriptor_t *bd = _dcd.bdt[epn][dir];
-    bd[0].bdt_stall = 1;
-    bd[1].bdt_stall = 1;
+    const unsigned dir      = tu_edpt_dir(ep_addr);
+    endpoint_state_t    *ep = &_dcd.endpoint[epn][dir];
+    buffer_descriptor_t *bd = &_dcd.bdt[epn][dir][ep->odd];
+    TU_ASSERT(0 == bd->own,);
+    const unsigned ie       = NVIC_GetEnableIRQ(USB0_IRQn);
+    NVIC_DisableIRQ(USB0_IRQn);
+    bd->bdt_stall = 1;
+    __DSB();
+    bd->own       = 1; /* This bit must be set last */
+    if (ie) NVIC_EnableIRQ(USB0_IRQn);
   }
 }
 
 void dcd_edpt_clear_stall(uint8_t rhport, uint8_t ep_addr)
 {
   (void) rhport;
-  const unsigned epn      = ep_addr & 0xFu;
-  const unsigned dir      = (ep_addr & TUSB_DIR_IN_MASK) ? TUSB_DIR_IN : TUSB_DIR_OUT;
-  const unsigned odd      = _dcd.endpoint[epn][dir].odd;
-  buffer_descriptor_t *bd = _dcd.bdt[epn][dir];
-
-  bd[odd ^ 1].own       = 0;
-  bd[odd ^ 1].data      = 1;
-  bd[odd ^ 1].bdt_stall = 0;
-  bd[odd].own           = 0;
-  bd[odd].data          = 0;
-  bd[odd].bdt_stall     = 0;
+  const unsigned epn      = tu_edpt_number(ep_addr);
+  TU_VERIFY(epn,);
+  const unsigned dir      = tu_edpt_dir(ep_addr);
+  endpoint_state_t    *ep = &_dcd.endpoint[epn][dir];
+  buffer_descriptor_t *bd = &_dcd.bdt[epn][dir][ep->odd];
+  TU_ASSERT(bd->own,);
+  const unsigned ie       = NVIC_GetEnableIRQ(USB0_IRQn);
+  NVIC_DisableIRQ(USB0_IRQn);
+  bd->own       = 0;
+  __DSB();
+  bd->bdt_stall = 0;
+  if (ie) NVIC_EnableIRQ(USB0_IRQn);
 }
 
 //--------------------------------------------------------------------+
