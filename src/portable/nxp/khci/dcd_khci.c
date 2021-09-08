@@ -347,10 +347,26 @@ bool dcd_edpt_open(uint8_t rhport, tusb_desc_endpoint_t const * ep_desc)
   return true;
 }
 
-void dcd_edpt_close_all (uint8_t rhport)
+void dcd_edpt_close_all(uint8_t rhport)
 {
   (void) rhport;
-  // TODO implement dcd_edpt_close_all()
+  const unsigned ie = NVIC_GetEnableIRQ(USB0_IRQn);
+  NVIC_DisableIRQ(USB0_IRQn);
+  for (unsigned i = 1; i < 16; ++i) {
+    KHCI->ENDPOINT[i].ENDPT = 0;
+  }
+  if (ie) NVIC_EnableIRQ(USB0_IRQn);
+  buffer_descriptor_t *bd = _dcd.bdt[1][0];
+  for (unsigned i = 2; i < sizeof(_dcd.bdt)/sizeof(*bd); ++i, ++bd) {
+    bd->head = 0;
+  }
+  endpoint_state_t *ep = &_dcd.endpoint[1][0];
+  for (unsigned i = 2; i < sizeof(_dcd.endpoint)/sizeof(*ep); ++i, ++ep) {
+    /* Clear except the odd */
+    ep->max_packet_size = 0;
+    ep->length          = 0;
+    ep->remaining       = 0;
+  }
 }
 
 void dcd_edpt_close(uint8_t rhport, uint8_t ep_addr)
@@ -372,6 +388,7 @@ void dcd_edpt_close(uint8_t rhport, uint8_t ep_addr)
 bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t* buffer, uint16_t total_bytes)
 {
   (void) rhport;
+  const unsigned ie  = NVIC_GetEnableIRQ(USB0_IRQn);
   NVIC_DisableIRQ(USB0_IRQn);
   const unsigned epn = ep_addr & 0xFu;
   const unsigned dir = (ep_addr & TUSB_DIR_IN_MASK) ? TUSB_DIR_IN : TUSB_DIR_OUT;
@@ -380,6 +397,7 @@ bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t* buffer, uint16_t to
 
   if (bd->own) {
     TU_LOG1("DCD XFER fail %x %d %lx %lx\r\n", ep_addr, total_bytes, ep->state, bd->head);
+    if (ie) NVIC_EnableIRQ(USB0_IRQn);
     return false; /* The last transfer has not completed */
   }
   ep->length    = total_bytes;
@@ -398,7 +416,7 @@ bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t* buffer, uint16_t to
   bd->addr      = buffer;
   __DSB();
   bd->own  = 1; /* the own bit must set after addr */
-  NVIC_EnableIRQ(USB0_IRQn);
+  if (ie) NVIC_EnableIRQ(USB0_IRQn);
   return true;
 }
 
