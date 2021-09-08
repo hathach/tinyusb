@@ -56,6 +56,18 @@ static usbh_control_xfer_t _ctrl_xfer;
 // MACRO TYPEDEF CONSTANT ENUM DECLARATION
 //--------------------------------------------------------------------+
 
+void  usbh_hexdump (char* dir,  uint16_t len,  uint8_t const* buf)
+{
+	printf("%s[%04X]", dir, len);
+	for (uint16_t i = 0;  i < len;  i++) {
+		if      (!(i&0xF))  printf("\r\n   %04X:  ", i) ;
+		else if (!(i&0x7))  printf("  ") ;
+		else if (!(i&0x3))  printf(" ") ;
+		printf("%02x ", buf[i]);
+	}
+	printf("\r\n");
+}
+
 bool tuh_control_xfer (uint8_t dev_addr, tusb_control_request_t const* request, void* buffer, tuh_control_complete_cb_t complete_cb)
 {
   // TODO need to claim the endpoint first
@@ -80,15 +92,7 @@ static void _xfer_complete(uint8_t dev_addr, xfer_result_t result)
 {
   TU_LOG2("\r\n");
   if (_ctrl_xfer.complete_cb) _ctrl_xfer.complete_cb(dev_addr, &_ctrl_xfer.request, result);
-
-	printf("[%04X] xfer complete", _ctrl_xfer.request.wLength);
-	for (int i = 0;  i < _ctrl_xfer.request.wLength;  i++) {
-		if      (!(i&0xF))  printf("\r\n   %04X:  ", i) ;
-		else if (!(i&0x7))  printf("  ") ;
-		else if (!(i&0x3))  printf(" ") ;
-		printf("%02x ", _ctrl_xfer.buffer[i]);
-	}
-	printf("\r\n");
+  usbh_hexdump("<--", _ctrl_xfer.request.wLength, _ctrl_xfer.buffer);
 }
 
 bool usbh_control_xfer_cb (uint8_t dev_addr, uint8_t ep_addr, xfer_result_t result, uint32_t xferred_bytes)
@@ -116,6 +120,8 @@ bool usbh_control_xfer_cb (uint8_t dev_addr, uint8_t ep_addr, xfer_result_t resu
         {
           // DATA stage: initial data toggle is always 1
           hcd_edpt_xfer(rhport, dev_addr, tu_edpt_addr(0, request->bmRequestType_bit.direction), _ctrl_xfer.buffer, request->wLength);
+          usbh_hexdump("-->", request->wLength, _ctrl_xfer.buffer);
+
           return true;
         }
         __attribute__((fallthrough));
