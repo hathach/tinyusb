@@ -49,6 +49,7 @@ int main(void)
   board_init();
 
   printf("TinyUSB Host HID Controller Example\r\n");
+  printf("Note: Events only displayed for explictly supported controllers\r\n");
 
   tusb_init();
 
