@@ -711,7 +711,7 @@ bool dcd_edpt_open(uint8_t rhport, tusb_desc_endpoint_t const * ep_desc)
   USB0.PIPESEL.WORD  = num;
   USB0.PIPEMAXP.WORD = mps;
   volatile uint16_t *ctr = get_pipectr(num);
-  *ctr = USB_PIPECTR_ACLRM;
+  *ctr = USB_PIPECTR_ACLRM | USB_PIPECTR_SQCLR;
   *ctr = 0;
   unsigned cfg = (dir << 4) | epn;
   if (xfer == TUSB_XFER_BULK) {
