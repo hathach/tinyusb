@@ -96,6 +96,9 @@
 #elif CFG_TUSB_MCU == OPT_MCU_GD32VF103
 #include "synopsys_common.h"
 
+// for remote wakeup delay
+#define __NOP()   __asm volatile ("nop")
+
 // These numbers are the same for the whole GD32VF103 family.
 #define OTG_FS_IRQn     86
 #define EP_MAX_FS       4
@@ -559,7 +562,10 @@ static void remote_wakeup_delay(void)
 {
   // try to delay for 1 ms
   uint32_t count = SystemCoreClock / 1000;
-  while(count--) __NOP();
+  while ( count-- )
+  {
+    __NOP();
+  }
 }
 
 void dcd_remote_wakeup(uint8_t rhport)
