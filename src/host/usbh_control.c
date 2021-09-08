@@ -80,6 +80,15 @@ static void _xfer_complete(uint8_t dev_addr, xfer_result_t result)
 {
   TU_LOG2("\r\n");
   if (_ctrl_xfer.complete_cb) _ctrl_xfer.complete_cb(dev_addr, &_ctrl_xfer.request, result);
+
+	printf("[%04X] xfer complete", _ctrl_xfer.request.wLength);
+	for (int i = 0;  i < _ctrl_xfer.request.wLength;  i++) {
+		if      (!(i&0xF))  printf("\r\n   %04X:  ", i) ;
+		else if (!(i&0x7))  printf("  ") ;
+		else if (!(i&0x3))  printf(" ") ;
+		printf("%02x ", _ctrl_xfer.buffer[i]);
+	}
+	printf("\r\n");
 }
 
 bool usbh_control_xfer_cb (uint8_t dev_addr, uint8_t ep_addr, xfer_result_t result, uint32_t xferred_bytes)
