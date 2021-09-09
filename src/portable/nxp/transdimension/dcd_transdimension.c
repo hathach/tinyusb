@@ -245,7 +245,7 @@ void dcd_init(uint8_t rhport)
 
   dcd_reg->ENDPTLISTADDR = (uint32_t) _dcd_data.qhd; // Endpoint List Address has to be 2K alignment
   dcd_reg->USBSTS  = dcd_reg->USBSTS;
-  dcd_reg->USBINTR = INTR_USB | INTR_ERROR | INTR_PORT_CHANGE | INTR_RESET | INTR_SUSPEND /*| INTR_SOF*/;
+  dcd_reg->USBINTR = INTR_USB | INTR_ERROR | INTR_PORT_CHANGE | INTR_RESET | INTR_SUSPEND;
 
   dcd_reg->USBCMD &= ~0x00FF0000;     // Interrupt Threshold Interval = 0
   dcd_reg->USBCMD |= USBCMD_RUN_STOP; // Connect
@@ -272,7 +272,9 @@ void dcd_set_address(uint8_t rhport, uint8_t dev_addr)
 
 void dcd_remote_wakeup(uint8_t rhport)
 {
-  (void) rhport;
+  dcd_registers_t* dcd_reg = _dcd_controller[rhport].regs;
+  (void) dcd_reg;
+//  dcd_reg->PORTSC1 =
 }
 
 void dcd_connect(uint8_t rhport)
@@ -412,7 +414,7 @@ bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t t
 //--------------------------------------------------------------------+
 void dcd_int_handler(uint8_t rhport)
 {
-  dcd_registers_t* const dcd_reg = _dcd_controller[rhport].regs;
+  dcd_registers_t* dcd_reg = _dcd_controller[rhport].regs;
 
   uint32_t const int_enable = dcd_reg->USBINTR;
   uint32_t const int_status = dcd_reg->USBSTS & int_enable;
@@ -433,6 +435,7 @@ void dcd_int_handler(uint8_t rhport)
     if (dcd_reg->PORTSC1 & PORTSC1_SUSPEND)
     {
       // Note: Host may delay more than 3 ms before and/or after bus reset before doing enumeration.
+      // Skip suspend event if we are not addressed
       if ((dcd_reg->DEVICEADDR >> 25) & 0x0f)
       {
         dcd_event_bus_signal(rhport, DCD_EVENT_SUSPEND, true);
@@ -440,18 +443,17 @@ void dcd_int_handler(uint8_t rhport)
     }
   }
 
+  // Set if the port controller enters the full or high-speed operational state.
+	if (int_status & INTR_PORT_CHANGE)
+	{
+	  if ( !(dcd_reg->PORTSC1 & PORTSC1_CURRENT_CONNECT_STATUS) )
+	  {
+      dcd_event_bus_signal(rhport, DCD_EVENT_UNPLUGGED, true);
+	  }
+	}
+
   // Make sure we read the latest version of _dcd_data.
   CleanInvalidateDCache_by_Addr((uint32_t*) &_dcd_data, sizeof(dcd_data_t));
-
-  // TODO disconnection does not generate interrupt !!!!!!
-//	if (int_status & INTR_PORT_CHANGE)
-//	{
-//	  if ( !(dcd_reg->PORTSC1 & PORTSC1_CURRENT_CONNECT_STATUS) )
-//	  {
-//      dcd_event_t event = { .rhport = rhport, .event_id = DCD_EVENT_UNPLUGGED };
-//      dcd_event_handler(&event, true);
-//	  }
-//	}
 
   if (int_status & INTR_USB)
   {

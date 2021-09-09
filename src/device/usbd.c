@@ -1064,15 +1064,11 @@ void dcd_event_handler(dcd_event_t const * event, bool in_isr)
   switch (event->event_id)
   {
     case DCD_EVENT_UNPLUGGED:
-      // UNPLUGGED event can be bouncing, only processing if we are currently connected
-      if ( _usbd_dev.connected )
-      {
-        _usbd_dev.connected  = 0;
-        _usbd_dev.addressed  = 0;
-        _usbd_dev.cfg_num    = 0;
-        _usbd_dev.suspended  = 0;
-        osal_queue_send(_usbd_q, event, in_isr);
-      }
+      _usbd_dev.connected  = 0;
+      _usbd_dev.addressed  = 0;
+      _usbd_dev.cfg_num    = 0;
+      _usbd_dev.suspended  = 0;
+      osal_queue_send(_usbd_q, event, in_isr);
     break;
 
     case DCD_EVENT_SUSPEND:
