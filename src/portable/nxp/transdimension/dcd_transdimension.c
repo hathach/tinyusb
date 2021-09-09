@@ -245,7 +245,7 @@ void dcd_init(uint8_t rhport)
 
   dcd_reg->ENDPTLISTADDR = (uint32_t) _dcd_data.qhd; // Endpoint List Address has to be 2K alignment
   dcd_reg->USBSTS  = dcd_reg->USBSTS;
-  dcd_reg->USBINTR = INTR_USB | INTR_ERROR | INTR_PORT_CHANGE | INTR_RESET | INTR_SUSPEND;
+  dcd_reg->USBINTR = INTR_USB | INTR_ERROR | INTR_PORT_CHANGE | INTR_SUSPEND;
 
   dcd_reg->USBCMD &= ~0x00FF0000;     // Interrupt Threshold Interval = 0
   dcd_reg->USBCMD |= USBCMD_RUN_STOP; // Connect
@@ -273,8 +273,7 @@ void dcd_set_address(uint8_t rhport, uint8_t dev_addr)
 void dcd_remote_wakeup(uint8_t rhport)
 {
   dcd_registers_t* dcd_reg = _dcd_controller[rhport].regs;
-  (void) dcd_reg;
-//  dcd_reg->PORTSC1 =
+  dcd_reg->PORTSC1 |= PORTSC1_FORCE_PORT_RESUME;
 }
 
 void dcd_connect(uint8_t rhport)
@@ -423,15 +422,42 @@ void dcd_int_handler(uint8_t rhport)
   // disabled interrupt sources
   if (int_status == 0) return;
 
-  if (int_status & INTR_RESET)
-  {
-    bus_reset(rhport);
-    uint32_t speed = (dcd_reg->PORTSC1 & PORTSC1_PORT_SPEED) >> PORTSC1_PORT_SPEED_POS;
-    dcd_event_bus_reset(rhport, (tusb_speed_t) speed, true);
-  }
+  // Set if the port controller enters the full or high-speed operational state.
+  // either from Bus Reset or Suspended state
+	if (int_status & INTR_PORT_CHANGE)
+	{
+	  // TU_LOG2("PortChange %08lx\r\n", dcd_reg->PORTSC1);
+
+	  // Reset interrupt is not enabled, we manually check if Port Change is due
+	  // to connection / disconnection
+	  if ( dcd_reg->USBSTS & INTR_RESET )
+	  {
+	    dcd_reg->USBSTS = INTR_RESET;
+
+	    if (dcd_reg->PORTSC1 & PORTSC1_CURRENT_CONNECT_STATUS)
+	    {
+	      uint32_t const speed = (dcd_reg->PORTSC1 & PORTSC1_PORT_SPEED) >> PORTSC1_PORT_SPEED_POS;
+	      bus_reset(rhport);
+	      dcd_event_bus_reset(rhport, (tusb_speed_t) speed, true);
+	    }else
+	    {
+	      dcd_event_bus_signal(rhport, DCD_EVENT_UNPLUGGED, true);
+	    }
+	  }
+	  else
+	  {
+	    // Triggered by resuming from suspended state
+	    if ( !(dcd_reg->PORTSC1 & PORTSC1_SUSPEND) )
+	    {
+	      dcd_event_bus_signal(rhport, DCD_EVENT_RESUME, true);
+	    }
+	  }
+	}
 
   if (int_status & INTR_SUSPEND)
   {
+    // TU_LOG2("Suspend %08lx\r\n", dcd_reg->PORTSC1);
+
     if (dcd_reg->PORTSC1 & PORTSC1_SUSPEND)
     {
       // Note: Host may delay more than 3 ms before and/or after bus reset before doing enumeration.
@@ -442,15 +468,6 @@ void dcd_int_handler(uint8_t rhport)
       }
     }
   }
-
-  // Set if the port controller enters the full or high-speed operational state.
-	if (int_status & INTR_PORT_CHANGE)
-	{
-	  if ( !(dcd_reg->PORTSC1 & PORTSC1_CURRENT_CONNECT_STATUS) )
-	  {
-      dcd_event_bus_signal(rhport, DCD_EVENT_UNPLUGGED, true);
-	  }
-	}
 
   // Make sure we read the latest version of _dcd_data.
   CleanInvalidateDCache_by_Addr((uint32_t*) &_dcd_data, sizeof(dcd_data_t));
