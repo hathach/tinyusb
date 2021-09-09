@@ -323,7 +323,7 @@ bool dcd_edpt_open(uint8_t rhport, tusb_desc_endpoint_t const * ep_desc)
   const unsigned xfer     = ep_desc->bmAttributes.xfer;
   endpoint_state_t *ep    = &_dcd.endpoint[epn][dir];
   const unsigned odd      = ep->odd;
-  buffer_descriptor_t *bd = &_dcd.bdt[epn][dir][0];
+  buffer_descriptor_t *bd = _dcd.bdt[epn][dir];
 
   /* No support for control transfer */
   TU_ASSERT(epn && (xfer != TUSB_XFER_CONTROL));
@@ -373,13 +373,17 @@ void dcd_edpt_close(uint8_t rhport, uint8_t ep_addr)
   const unsigned epn      = tu_edpt_number(ep_addr);
   const unsigned dir      = tu_edpt_dir(ep_addr);
   endpoint_state_t *ep    = &_dcd.endpoint[epn][dir];
-  buffer_descriptor_t *bd = &_dcd.bdt[epn][dir][0];
+  buffer_descriptor_t *bd = _dcd.bdt[epn][dir];
   const unsigned msk      = dir ? USB_ENDPT_EPTXEN_MASK : USB_ENDPT_EPRXEN_MASK;
+  const unsigned ie       = NVIC_GetEnableIRQ(USB0_IRQn);
+  NVIC_DisableIRQ(USB0_IRQn);
   KHCI->ENDPOINT[epn].ENDPT &= ~msk;
   ep->max_packet_size = 0;
   ep->length          = 0;
   ep->remaining       = 0;
-  bd->head            = 0;
+  bd[0].head          = 0;
+  bd[1].head          = 0;
+  if (ie) NVIC_EnableIRQ(USB0_IRQn);
 }
 
 bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t* buffer, uint16_t total_bytes)
@@ -422,9 +426,9 @@ void dcd_edpt_stall(uint8_t rhport, uint8_t ep_addr)
     KHCI->ENDPOINT[epn].ENDPT |=  USB_ENDPT_EPSTALL_MASK;
   } else {
     const unsigned dir      = tu_edpt_dir(ep_addr);
-    endpoint_state_t    *ep = &_dcd.endpoint[epn][dir];
-    buffer_descriptor_t *bd = &_dcd.bdt[epn][dir][ep->odd];
-    TU_ASSERT(0 == bd->own,);
+    const unsigned odd      = _dcd.endpoint[epn][dir].odd;
+    buffer_descriptor_t *bd = &_dcd.bdt[epn][dir][odd];
+    TU_VERIFY(0 == bd->own,);
     const unsigned ie       = NVIC_GetEnableIRQ(USB0_IRQn);
     NVIC_DisableIRQ(USB0_IRQn);
     bd->bdt_stall = 1;
@@ -440,14 +444,18 @@ void dcd_edpt_clear_stall(uint8_t rhport, uint8_t ep_addr)
   const unsigned epn      = tu_edpt_number(ep_addr);
   TU_VERIFY(epn,);
   const unsigned dir      = tu_edpt_dir(ep_addr);
-  endpoint_state_t    *ep = &_dcd.endpoint[epn][dir];
-  buffer_descriptor_t *bd = &_dcd.bdt[epn][dir][ep->odd];
-  TU_ASSERT(bd->own,);
+  const unsigned odd      = _dcd.endpoint[epn][dir].odd;
+  buffer_descriptor_t *bd = _dcd.bdt[epn][dir];
+  TU_VERIFY(bd[odd].own,);
   const unsigned ie       = NVIC_GetEnableIRQ(USB0_IRQn);
   NVIC_DisableIRQ(USB0_IRQn);
-  bd->own       = 0;
+  bd[odd].own = 0;
   __DSB();
-  bd->bdt_stall = 0;
+  bd[odd].bdt_stall  = 0;
+  if (bd[odd].data) {
+    bd[odd    ].data = 0;
+    bd[odd ^ 1].data = 1;
+  }
   if (ie) NVIC_EnableIRQ(USB0_IRQn);
 }
 
