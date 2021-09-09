@@ -145,10 +145,6 @@ typedef struct
 }dcd_controller_t;
 
 #if CFG_TUSB_MCU == OPT_MCU_MIMXRT10XX
-  // Each endpoint with direction (IN/OUT) occupies a queue head
-  // Therefore QHD_MAX is 2 x max endpoint count
-  #define QHD_MAX  (8*2)
-
   static const dcd_controller_t _dcd_controller[] =
   {
     // RT1010 and RT1020 only has 1 USB controller
@@ -161,8 +157,6 @@ typedef struct
   };
 
 #else
-  #define QHD_MAX (6*2)
-
   static const dcd_controller_t _dcd_controller[] =
   {
     { .regs = (dcd_registers_t*) LPC_USB0_BASE, .irqnum = USB0_IRQn, .ep_count = 6 },
@@ -174,8 +168,10 @@ typedef struct
 
 typedef struct {
   // Must be at 2K alignment
-  dcd_qhd_t qhd[QHD_MAX] TU_ATTR_ALIGNED(64);
-  dcd_qtd_t qtd[QHD_MAX] TU_ATTR_ALIGNED(32); // for portability, TinyUSB only queue 1 TD for each Qhd
+  // Each endpoint with direction (IN/OUT) occupies a queue head
+  // for portability, TinyUSB only queue 1 TD for each Qhd
+  dcd_qhd_t qhd[DCD_ATTR_ENDPOINT_MAX][2] TU_ATTR_ALIGNED(64);
+  dcd_qtd_t qtd[DCD_ATTR_ENDPOINT_MAX][2] TU_ATTR_ALIGNED(32);
 }dcd_data_t;
 
 CFG_TUSB_MEM_SECTION TU_ATTR_ALIGNED(2048)
@@ -217,11 +213,11 @@ static void bus_reset(uint8_t rhport)
   tu_memclr(&_dcd_data, sizeof(dcd_data_t));
 
   //------------- Set up Control Endpoints (0 OUT, 1 IN) -------------//
-  _dcd_data.qhd[0].zero_length_termination = _dcd_data.qhd[1].zero_length_termination = 1;
-  _dcd_data.qhd[0].max_package_size = _dcd_data.qhd[1].max_package_size = CFG_TUD_ENDPOINT0_SIZE;
-  _dcd_data.qhd[0].qtd_overlay.next = _dcd_data.qhd[1].qtd_overlay.next = QTD_NEXT_INVALID;
+  _dcd_data.qhd[0][0].zero_length_termination = _dcd_data.qhd[0][1].zero_length_termination = 1;
+  _dcd_data.qhd[0][0].max_package_size = _dcd_data.qhd[0][1].max_package_size = CFG_TUD_ENDPOINT0_SIZE;
+  _dcd_data.qhd[0][0].qtd_overlay.next = _dcd_data.qhd[0][1].qtd_overlay.next = QTD_NEXT_INVALID;
 
-  _dcd_data.qhd[0].int_on_setup = 1; // OUT only
+  _dcd_data.qhd[0][0].int_on_setup = 1; // OUT only
 }
 
 void dcd_init(uint8_t rhport)
@@ -291,11 +287,6 @@ void dcd_disconnect(uint8_t rhport)
 //--------------------------------------------------------------------+
 // HELPER
 //--------------------------------------------------------------------+
-// index to bit position in register
-static inline uint8_t ep_idx2bit(uint8_t ep_idx)
-{
-  return ep_idx/2 + ( (ep_idx%2) ? 16 : 0);
-}
 
 static void qtd_init(dcd_qtd_t* p_qtd, void * data_ptr, uint16_t total_bytes)
 {
@@ -325,12 +316,15 @@ void dcd_edpt_stall(uint8_t rhport, uint8_t ep_addr)
 
   dcd_registers_t* dcd_reg = _dcd_controller[rhport].regs;
   dcd_reg->ENDPTCTRL[epnum] |= ENDPTCTRL_STALL << (dir ? 16 : 0);
+
+  // flush to abort any primed buffer
+  dcd_reg->ENDPTFLUSH = TU_BIT(epnum + (dir ? 16 : 0));
 }
 
 void dcd_edpt_clear_stall(uint8_t rhport, uint8_t ep_addr)
 {
-  uint8_t const epnum  = tu_edpt_number(ep_addr);
-  uint8_t const dir    = tu_edpt_dir(ep_addr);
+  uint8_t const epnum = tu_edpt_number(ep_addr);
+  uint8_t const dir   = tu_edpt_dir(ep_addr);
 
   // data toggle also need to be reset
   dcd_registers_t* dcd_reg = _dcd_controller[rhport].regs;
@@ -343,15 +337,14 @@ bool dcd_edpt_open(uint8_t rhport, tusb_desc_endpoint_t const * p_endpoint_desc)
   // TODO not support ISO yet
   TU_VERIFY ( p_endpoint_desc->bmAttributes.xfer != TUSB_XFER_ISOCHRONOUS);
 
-  uint8_t const epnum  = tu_edpt_number(p_endpoint_desc->bEndpointAddress);
-  uint8_t const dir    = tu_edpt_dir(p_endpoint_desc->bEndpointAddress);
-  uint8_t const ep_idx = 2*epnum + dir;
+  uint8_t const epnum = tu_edpt_number(p_endpoint_desc->bEndpointAddress);
+  uint8_t const dir   = tu_edpt_dir(p_endpoint_desc->bEndpointAddress);
 
   // Must not exceed max endpoint number
   TU_ASSERT( epnum < _dcd_controller[rhport].ep_count );
 
   //------------- Prepare Queue Head -------------//
-  dcd_qhd_t * p_qhd = &_dcd_data.qhd[ep_idx];
+  dcd_qhd_t * p_qhd = &_dcd_data.qhd[epnum][dir];
   tu_memclr(p_qhd, sizeof(dcd_qhd_t));
 
   p_qhd->zero_length_termination = 1;
@@ -378,7 +371,6 @@ bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t t
   dcd_registers_t* dcd_reg = _dcd_controller[rhport].regs;
   uint8_t const epnum = tu_edpt_number(ep_addr);
   uint8_t const dir   = tu_edpt_dir(ep_addr);
-  uint8_t const ep_idx = 2*epnum + dir;
 
   if ( epnum == 0 )
   {
@@ -387,8 +379,8 @@ bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t t
     while(dcd_reg->ENDPTSETUPSTAT & TU_BIT(0)) {}
   }
 
-  dcd_qhd_t * p_qhd = &_dcd_data.qhd[ep_idx];
-  dcd_qtd_t * p_qtd = &_dcd_data.qtd[ep_idx];
+  dcd_qhd_t * p_qhd = &_dcd_data.qhd[epnum][dir];
+  dcd_qtd_t * p_qtd = &_dcd_data.qtd[epnum][dir];
 
   // Force the CPU to flush the buffer. We increase the size by 32 because the call aligns the
   // address to 32-byte boundaries.
@@ -403,7 +395,7 @@ bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t t
   CleanInvalidateDCache_by_Addr((uint32_t*) &_dcd_data, sizeof(dcd_data_t));
 
   // start transfer
-  dcd_reg->ENDPTPRIME = TU_BIT( ep_idx2bit(ep_idx) ) ;
+  dcd_reg->ENDPTPRIME = TU_BIT(epnum + (dir ? 16 : 0));
 
   return true;
 }
@@ -411,6 +403,18 @@ bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t t
 //--------------------------------------------------------------------+
 // ISR
 //--------------------------------------------------------------------+
+
+static void process_edpt_complete_isr(uint8_t rhport, uint8_t ep_num, uint8_t dir)
+{
+  dcd_qtd_t * p_qtd = &_dcd_data.qtd[ep_num][dir];
+
+  uint8_t result = p_qtd->halted ? XFER_RESULT_STALLED :
+      ( p_qtd->xact_err || p_qtd->buffer_err ) ? XFER_RESULT_FAILED : XFER_RESULT_SUCCESS;
+
+  // only number of bytes in the IOC qtd
+  dcd_event_xfer_complete(rhport, tu_edpt_addr(ep_num, dir), p_qtd->expected_bytes - p_qtd->total_bytes, result, true);
+}
+
 void dcd_int_handler(uint8_t rhport)
 {
   dcd_registers_t* dcd_reg = _dcd_controller[rhport].regs;
@@ -481,26 +485,24 @@ void dcd_int_handler(uint8_t rhport)
     {
       //------------- Set up Received -------------//
       // 23.10.10.2 Operational model for setup transfers
-      dcd_reg->ENDPTSETUPSTAT = dcd_reg->ENDPTSETUPSTAT;// acknowledge
+      dcd_reg->ENDPTSETUPSTAT = dcd_reg->ENDPTSETUPSTAT;
 
-      dcd_event_setup_received(rhport, (uint8_t*) &_dcd_data.qhd[0].setup_request, true);
+      dcd_event_setup_received(rhport, (uint8_t*) &_dcd_data.qhd[0][0].setup_request, true);
+    }
+
+    // 23.10.12.3 Failed QTD also get ENDPTCOMPLETE set
+    if (int_status & INTR_ERROR)
+    {
+      TU_LOG_HEX(1, int_status);
+      TU_LOG_HEX(1, edpt_complete);
     }
 
     if ( edpt_complete )
     {
-      for(uint8_t ep_idx = 0; ep_idx < QHD_MAX; ep_idx++)
+      for(uint8_t ep_num = 0; ep_num < DCD_ATTR_ENDPOINT_MAX; ep_num++)
       {
-        if ( tu_bit_test(edpt_complete, ep_idx2bit(ep_idx)) )
-        {
-          // 23.10.12.3 Failed QTD also get ENDPTCOMPLETE set
-          dcd_qtd_t * p_qtd = &_dcd_data.qtd[ep_idx];
-
-          uint8_t result = p_qtd->halted  ? XFER_RESULT_STALLED :
-              ( p_qtd->xact_err ||p_qtd->buffer_err ) ? XFER_RESULT_FAILED : XFER_RESULT_SUCCESS;
-
-          uint8_t const ep_addr = (ep_idx/2) | ( (ep_idx & 0x01) ? TUSB_DIR_IN_MASK : 0 );
-          dcd_event_xfer_complete(rhport, ep_addr, p_qtd->expected_bytes - p_qtd->total_bytes, result, true); // only number of bytes in the IOC qtd
-        }
+        if ( tu_bit_test(edpt_complete, ep_num)    ) process_edpt_complete_isr(rhport, ep_num, TUSB_DIR_OUT);
+        if ( tu_bit_test(edpt_complete, ep_num+16) ) process_edpt_complete_isr(rhport, ep_num, TUSB_DIR_IN);
       }
     }
   }
@@ -509,9 +511,6 @@ void dcd_int_handler(uint8_t rhport)
   {
     dcd_event_bus_signal(rhport, DCD_EVENT_SOF, true);
   }
-
-  if (int_status & INTR_NAK) {}
-  if (int_status & INTR_ERROR) TU_ASSERT(false, );
 }
 
 #endif
