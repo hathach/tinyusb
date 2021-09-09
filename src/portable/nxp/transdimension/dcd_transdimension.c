@@ -494,7 +494,7 @@ bool dcd_edpt_xfer_fifo (uint8_t rhport, uint8_t ep_addr, tu_fifo_t * ff, uint16
     tu_fifo_get_write_info(ff, &fifo_info);
   }
 
-  if(total_bytes <= fifo_info.len_lin)
+  if (total_bytes <= fifo_info.len_lin)
   {
     // Limit transfer length to total_bytes
     fifo_info.len_wrap = 0;
@@ -508,12 +508,20 @@ bool dcd_edpt_xfer_fifo (uint8_t rhport, uint8_t ep_addr, tu_fifo_t * ff, uint16
   // address to 32-byte boundaries.
   // void* cast to suppress cast-align warning, buffer must be
   CleanInvalidateDCache_by_Addr((uint32_t*) tu_align((uint32_t) fifo_info.ptr_lin, 4), fifo_info.len_lin + 31);
-  if (fifo_info.len_wrap > 0)
-  {
-     CleanInvalidateDCache_by_Addr((uint32_t*) tu_align((uint32_t) fifo_info.ptr_wrap, 4), fifo_info.len_wrap + 31);
-  }
+
   //------------- Prepare qtd -------------//
-  qtd_init_fifo(p_qtd, &fifo_info, total_bytes);
+
+  // In case of : wrapped part is present & buffer is aligned to 4k & buffer size is multiple of 4k
+  if (total_bytes > fifo_info.len_lin && (uint32_t)fifo_info.ptr_wrap == tu_align4k((uint32_t)fifo_info.ptr_wrap) && tu_fifo_depth(ff) == tu_align4k(tu_fifo_depth(ff)))
+  {
+    CleanInvalidateDCache_by_Addr((uint32_t*) tu_align((uint32_t) fifo_info.ptr_wrap, 4), fifo_info.len_wrap + 31);
+    qtd_init_fifo(p_qtd, &fifo_info, total_bytes);
+  }
+  else
+  {
+    qtd_init(p_qtd, fifo_info.ptr_lin, total_bytes);
+  }
+
   p_qtd->int_on_complete = true;
   p_qhd->qtd_overlay.next = (uint32_t) p_qtd; // link qtd to qhd
   p_qhd->ff = ff;
