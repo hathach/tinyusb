@@ -15,6 +15,7 @@ latex
 .idea/
 .gdb_history
 /examples/*/*/build*
+/examples/*/*/b/
 test_old/
 tests_obsolete/
 _build
