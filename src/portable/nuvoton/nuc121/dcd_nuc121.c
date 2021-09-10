@@ -252,10 +252,23 @@ void dcd_set_address(uint8_t rhport, uint8_t dev_addr)
   // do it at dcd_edpt0_status_complete()
 }
 
+static void remote_wakeup_delay(void)
+{
+  // try to delay for 1 ms
+  uint32_t count = SystemCoreClock / 1000;
+  while(count--) __NOP();
+}
+
 void dcd_remote_wakeup(uint8_t rhport)
 {
   (void) rhport;
-  USBD->ATTR = USBD_ATTR_RWAKEUP_Msk;
+  // Enable PHY before sending Resume('K') state
+  USBD->ATTR |= USBD_ATTR_PHYEN_Msk;
+  USBD->ATTR |= USBD_ATTR_RWAKEUP_Msk;
+
+  // Per specs: remote wakeup signal bit must be clear within 1-15ms
+  remote_wakeup_delay();
+  USBD->ATTR &=~USBD_ATTR_RWAKEUP_Msk;
 }
 
 bool dcd_edpt_open(uint8_t rhport, tusb_desc_endpoint_t const * p_endpoint_desc)
@@ -374,7 +387,8 @@ void dcd_int_handler(uint8_t rhport)
 {
   (void) rhport;
 
-  uint32_t status = USBD->INTSTS;
+  // Mask non-enabled irqs, ex. SOF
+  uint32_t status = USBD->INTSTS & (enabled_irqs | 0xffffff00);
 #ifdef SUPPORT_LPM
   uint32_t state = USBD->ATTR & 0x300f;
 #else
