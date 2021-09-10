@@ -512,7 +512,7 @@ bool dcd_edpt_xfer_fifo (uint8_t rhport, uint8_t ep_addr, tu_fifo_t * ff, uint16
   //------------- Prepare qtd -------------//
 
   // In case of : wrapped part is present & buffer is aligned to 4k & buffer size is multiple of 4k
-  if (total_bytes > fifo_info.len_lin && (uint32_t)fifo_info.ptr_wrap == tu_align4k((uint32_t)fifo_info.ptr_wrap) && tu_fifo_depth(ff) == tu_align4k(tu_fifo_depth(ff)))
+  if (total_bytes > fifo_info.len_lin && !tu_offset4k((uint32_t)fifo_info.ptr_wrap) && !tu_offset4k(tu_fifo_depth(ff)))
   {
     CleanInvalidateDCache_by_Addr((uint32_t*) tu_align((uint32_t) fifo_info.ptr_wrap, 4), fifo_info.len_wrap + 31);
     qtd_init_fifo(p_qtd, &fifo_info, total_bytes);
