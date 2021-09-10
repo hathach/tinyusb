@@ -381,6 +381,7 @@ void dcd_edpt_clear_stall(uint8_t rhport, uint8_t ep_addr)
   (void) rhport;
   USBD_EP_T *ep = ep_entry(ep_addr, false);
   ep->CFG |= USBD_CFG_CSTALL_Msk;
+  ep->CFG &=~USBD_CFG_DSQSYNC_Msk;
 }
 
 void dcd_int_handler(uint8_t rhport)
