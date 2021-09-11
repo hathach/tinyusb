@@ -91,12 +91,15 @@ typedef struct
   uint32_t                      : 3  ;
   uint32_t int_on_complete      : 1  ;
   volatile uint32_t total_bytes : 15 ;
-  uint32_t                      : 0  ;
+  uint32_t                      : 1  ;
 
   // Word 2-6: Buffer Page Pointer List, Each element in the list is a 4K page aligned, physical memory address. The lower 12 bits in each pointer are reserved (except for the first one) as each memory pointer must reference the start of a 4K page
   uint32_t buffer[5]; ///< buffer1 has frame_n for TODO Isochronous
 
-  //------------- DCD Area -------------//
+  //--------------------------------------------------------------------+
+  // TD is 32 bytes aligned but occupies only 28 bytes
+  // Therefore there are 4 bytes padding that we can use.
+  //--------------------------------------------------------------------+
   uint16_t expected_bytes;
   uint8_t reserved[2];
 } dcd_qtd_t;
@@ -109,11 +112,10 @@ typedef struct
   // Word 0: Capabilities and Characteristics
   uint32_t                         : 15 ; ///< Number of packets executed per transaction descriptor 00 - Execute N transactions as demonstrated by the USB variable length protocol where N is computed using Max_packet_length and the Total_bytes field in the dTD. 01 - Execute one transaction 10 - Execute two transactions 11 - Execute three transactions Remark: Non-isochronous endpoints must set MULT = 00. Remark: Isochronous endpoints must set MULT = 01, 10, or 11 as needed.
   uint32_t int_on_setup            : 1  ; ///< Interrupt on setup This bit is used on control type endpoints to indicate if USBINT is set in response to a setup being received.
-  uint32_t max_package_size        : 11 ; ///< This directly corresponds to the maximum packet size of the associated endpoint (wMaxPacketSize)
+  uint32_t max_packet_size         : 11 ; ///< Endpoint's wMaxPacketSize
   uint32_t                         : 2  ;
   uint32_t zero_length_termination : 1  ; ///< This bit is used for non-isochronous endpoints to indicate when a zero-length packet is received to terminate transfers in case the total transfer length is “multiple”. 0 - Enable zero-length packet to terminate transfers equal to a multiple of Max_packet_length (default). 1 - Disable zero-length packet on transfers that are equal in length to a multiple Max_packet_length.
   uint32_t iso_mult                : 2  ; ///<
-  uint32_t                         : 0  ;
 
   // Word 1: Current qTD Pointer
   volatile uint32_t qtd_addr;
@@ -125,8 +127,8 @@ typedef struct
   volatile tusb_control_request_t setup_request;
 
   //--------------------------------------------------------------------+
-  /// Due to the fact QHD is 64 bytes aligned but occupies only 48 bytes
-  /// thus there are 16 bytes padding free that we can make use of.
+  // QHD is 64 bytes aligned but occupies only 48 bytes
+  // Therefore there are 16 bytes padding that we can use.
   //--------------------------------------------------------------------+
   uint8_t reserved[16];
 } dcd_qhd_t;
@@ -214,7 +216,7 @@ static void bus_reset(uint8_t rhport)
 
   //------------- Set up Control Endpoints (0 OUT, 1 IN) -------------//
   _dcd_data.qhd[0][0].zero_length_termination = _dcd_data.qhd[0][1].zero_length_termination = 1;
-  _dcd_data.qhd[0][0].max_package_size = _dcd_data.qhd[0][1].max_package_size = CFG_TUD_ENDPOINT0_SIZE;
+  _dcd_data.qhd[0][0].max_packet_size  = _dcd_data.qhd[0][1].max_packet_size  = CFG_TUD_ENDPOINT0_SIZE;
   _dcd_data.qhd[0][0].qtd_overlay.next = _dcd_data.qhd[0][1].qtd_overlay.next = QTD_NEXT_INVALID;
 
   _dcd_data.qhd[0][0].int_on_setup = 1; // OUT only
@@ -348,7 +350,7 @@ bool dcd_edpt_open(uint8_t rhport, tusb_desc_endpoint_t const * p_endpoint_desc)
   tu_memclr(p_qhd, sizeof(dcd_qhd_t));
 
   p_qhd->zero_length_termination = 1;
-  p_qhd->max_package_size        = p_endpoint_desc->wMaxPacketSize.size;
+  p_qhd->max_packet_size         = p_endpoint_desc->wMaxPacketSize.size;
   p_qhd->qtd_overlay.next        = QTD_NEXT_INVALID;
 
   CleanInvalidateDCache_by_Addr((uint32_t*) &_dcd_data, sizeof(dcd_data_t));
@@ -390,7 +392,9 @@ bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t t
   //------------- Prepare qtd -------------//
   qtd_init(p_qtd, buffer, total_bytes);
   p_qtd->int_on_complete = true;
-  p_qhd->qtd_overlay.next = (uint32_t) p_qtd; // link qtd to qhd
+
+  p_qhd->qtd_overlay.halted = false;            // clear any previous error
+  p_qhd->qtd_overlay.next   = (uint32_t) p_qtd; // activate by linking qtd to qhd
 
   CleanInvalidateDCache_by_Addr((uint32_t*) &_dcd_data, sizeof(dcd_data_t));
 
@@ -404,15 +408,22 @@ bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t t
 // ISR
 //--------------------------------------------------------------------+
 
-static void process_edpt_complete_isr(uint8_t rhport, uint8_t ep_num, uint8_t dir)
+static void process_edpt_complete_isr(uint8_t rhport, uint8_t epnum, uint8_t dir)
 {
-  dcd_qtd_t * p_qtd = &_dcd_data.qtd[ep_num][dir];
+  dcd_qtd_t * p_qtd = &_dcd_data.qtd[epnum][dir];
 
   uint8_t result = p_qtd->halted ? XFER_RESULT_STALLED :
       ( p_qtd->xact_err || p_qtd->buffer_err ) ? XFER_RESULT_FAILED : XFER_RESULT_SUCCESS;
 
+  if ( result != XFER_RESULT_SUCCESS )
+  {
+    dcd_registers_t* dcd_reg = _dcd_controller[rhport].regs;
+    // flush to abort error buffer
+    dcd_reg->ENDPTFLUSH = TU_BIT(epnum + (dir ? 16 : 0));
+  }
+
   // only number of bytes in the IOC qtd
-  dcd_event_xfer_complete(rhport, tu_edpt_addr(ep_num, dir), p_qtd->expected_bytes - p_qtd->total_bytes, result, true);
+  dcd_event_xfer_complete(rhport, tu_edpt_addr(epnum, dir), p_qtd->expected_bytes - p_qtd->total_bytes, result, true);
 }
 
 void dcd_int_handler(uint8_t rhport)
@@ -473,11 +484,11 @@ void dcd_int_handler(uint8_t rhport)
     }
   }
 
-  // Make sure we read the latest version of _dcd_data.
-  CleanInvalidateDCache_by_Addr((uint32_t*) &_dcd_data, sizeof(dcd_data_t));
-
   if (int_status & INTR_USB)
   {
+    // Make sure we read the latest version of _dcd_data.
+    CleanInvalidateDCache_by_Addr((uint32_t*) &_dcd_data, sizeof(dcd_data_t));
+
     uint32_t const edpt_complete = dcd_reg->ENDPTCOMPLETE;
     dcd_reg->ENDPTCOMPLETE = edpt_complete; // acknowledge
 
@@ -491,18 +502,15 @@ void dcd_int_handler(uint8_t rhport)
     }
 
     // 23.10.12.3 Failed QTD also get ENDPTCOMPLETE set
-    if (int_status & INTR_ERROR)
-    {
-      TU_LOG_HEX(1, int_status);
-      TU_LOG_HEX(1, edpt_complete);
-    }
+    // nothing to do, we will submit xfer as error to usbd
+    // if (int_status & INTR_ERROR) { }
 
     if ( edpt_complete )
     {
-      for(uint8_t ep_num = 0; ep_num < DCD_ATTR_ENDPOINT_MAX; ep_num++)
+      for(uint8_t epnum = 0; epnum < DCD_ATTR_ENDPOINT_MAX; epnum++)
       {
-        if ( tu_bit_test(edpt_complete, ep_num)    ) process_edpt_complete_isr(rhport, ep_num, TUSB_DIR_OUT);
-        if ( tu_bit_test(edpt_complete, ep_num+16) ) process_edpt_complete_isr(rhport, ep_num, TUSB_DIR_IN);
+        if ( tu_bit_test(edpt_complete, epnum)    ) process_edpt_complete_isr(rhport, epnum, TUSB_DIR_OUT);
+        if ( tu_bit_test(edpt_complete, epnum+16) ) process_edpt_complete_isr(rhport, epnum, TUSB_DIR_IN);
       }
     }
   }
