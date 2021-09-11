@@ -57,9 +57,13 @@
 // ENDPTCTRL
 enum {
   ENDPTCTRL_STALL          = TU_BIT(0),
-  ENDPTCTRL_TOGGLE_INHIBIT = TU_BIT(5), ///< used for test only
+  ENDPTCTRL_TOGGLE_INHIBIT = TU_BIT(5), // used for test only
   ENDPTCTRL_TOGGLE_RESET   = TU_BIT(6),
   ENDPTCTRL_ENABLE         = TU_BIT(7)
+};
+
+enum {
+  ENDPTCTRL_TYPE_POS  = 2, // Endpoint type is 2-bit field
 };
 
 // USBSTS, USBINTR
@@ -193,9 +197,9 @@ static void bus_reset(uint8_t rhport)
   // endpoint type of the unused direction must be changed from the control type to any other
   // type (e.g. bulk). Leaving an un-configured endpoint control will cause undefined behavior
   // for the data PID tracking on the active endpoint.
-  for( int i=1; i < _dcd_controller[rhport].ep_count; i++)
+  for( uint8_t i=1; i < _dcd_controller[rhport].ep_count; i++)
   {
-    dcd_reg->ENDPTCTRL[i] = (TUSB_XFER_BULK << 2) | (TUSB_XFER_BULK << 18);
+    dcd_reg->ENDPTCTRL[i] = (TUSB_XFER_BULK << ENDPTCTRL_TYPE_POS) | (TUSB_XFER_BULK << (16+ENDPTCTRL_TYPE_POS));
   }
 
   //------------- Clear All Registers -------------//
@@ -364,8 +368,17 @@ bool dcd_edpt_open(uint8_t rhport, tusb_desc_endpoint_t const * p_endpoint_desc)
 
 void dcd_edpt_close_all (uint8_t rhport)
 {
-  (void) rhport;
-  // TODO implement dcd_edpt_close_all()
+  dcd_registers_t* dcd_reg = _dcd_controller[rhport].regs;
+
+  // Disable all non-control endpoints
+  for( uint8_t epnum=1; epnum < _dcd_controller[rhport].ep_count; epnum++)
+  {
+    _dcd_data.qhd[epnum][TUSB_DIR_OUT].qtd_overlay.halted = 1;
+    _dcd_data.qhd[epnum][TUSB_DIR_IN ].qtd_overlay.halted = 1;
+
+    dcd_reg->ENDPTFLUSH = TU_BIT(epnum) |  TU_BIT(epnum+16);
+    dcd_reg->ENDPTCTRL[epnum] = (TUSB_XFER_BULK << ENDPTCTRL_TYPE_POS) | (TUSB_XFER_BULK << (16+ENDPTCTRL_TYPE_POS));
+  }
 }
 
 bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t total_bytes)
