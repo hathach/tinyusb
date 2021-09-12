@@ -372,7 +372,7 @@ typedef struct
 
 static inline const char* tu_lookup_find(tu_lookup_table_t const* p_table, uint32_t key)
 {
-  static char not_found[10];
+  static char not_found[11];
 
   for(uint16_t i=0; i<p_table->count; i++)
   {

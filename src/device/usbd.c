@@ -1002,10 +1002,22 @@ static bool process_get_descriptor(uint8_t rhport, tusb_control_request_t const 
     break;
 
     case TUSB_DESC_CONFIGURATION:
+    case TUSB_DESC_OTHER_SPEED_CONFIG:
     {
-      TU_LOG2(" Configuration[%u]\r\n", desc_index);
+      tusb_desc_configuration_t const* desc_config;
 
-      tusb_desc_configuration_t const* desc_config = (tusb_desc_configuration_t const*) tud_descriptor_configuration_cb(desc_index);
+      if ( desc_type == TUSB_DESC_CONFIGURATION )
+      {
+        TU_LOG2(" Configuration[%u]\r\n", desc_index);
+        desc_config = (tusb_desc_configuration_t const*) tud_descriptor_configuration_cb(desc_index);
+      }else
+      {
+        // Host only request this after getting Device Qualifier descriptor
+        TU_LOG2(" Other Speed Configuration\r\n");
+        TU_VERIFY( tud_descriptor_other_speed_configuration_cb );
+        desc_config = (tusb_desc_configuration_t const*) tud_descriptor_other_speed_configuration_cb(desc_index);
+      }
+
       TU_ASSERT(desc_config);
 
       // Use offsetof to avoid pointer to the odd/misaligned address
@@ -1031,27 +1043,13 @@ static bool process_get_descriptor(uint8_t rhport, tusb_control_request_t const 
     case TUSB_DESC_DEVICE_QUALIFIER:
       TU_LOG2(" Device Qualifier\r\n");
 
-      // Host sends this request to ask why our device with USB BCD from 2.0
-      // but is running at Full/Low Speed. If not highspeed capable stall this request,
-      // otherwise return the descriptor that could work in highspeed mode
-      if ( tud_descriptor_device_qualifier_cb )
-      {
-        uint8_t const* desc_qualifier = tud_descriptor_device_qualifier_cb();
-        TU_ASSERT(desc_qualifier);
+      TU_VERIFY( tud_descriptor_device_qualifier_cb );
 
-        // first byte of descriptor is its size
-        return tud_control_xfer(rhport, p_request, (void*) desc_qualifier, desc_qualifier[0]);
-      }else
-      {
-        return false;
-      }
-    break;
+      uint8_t const* desc_qualifier = tud_descriptor_device_qualifier_cb();
+      TU_VERIFY(desc_qualifier);
 
-    case TUSB_DESC_OTHER_SPEED_CONFIG:
-      TU_LOG2(" Other Speed Configuration\r\n");
-
-      // After Device Qualifier descriptor is received host will ask for this descriptor
-      return false; // not supported
+      // first byte of descriptor is its size
+      return tud_control_xfer(rhport, p_request, (void*) desc_qualifier, desc_qualifier[0]);
     break;
 
     default: return false;
@@ -1066,15 +1064,11 @@ void dcd_event_handler(dcd_event_t const * event, bool in_isr)
   switch (event->event_id)
   {
     case DCD_EVENT_UNPLUGGED:
-      // UNPLUGGED event can be bouncing, only processing if we are currently connected
-      if ( _usbd_dev.connected )
-      {
-        _usbd_dev.connected  = 0;
-        _usbd_dev.addressed  = 0;
-        _usbd_dev.cfg_num    = 0;
-        _usbd_dev.suspended  = 0;
-        osal_queue_send(_usbd_q, event, in_isr);
-      }
+      _usbd_dev.connected  = 0;
+      _usbd_dev.addressed  = 0;
+      _usbd_dev.cfg_num    = 0;
+      _usbd_dev.suspended  = 0;
+      osal_queue_send(_usbd_q, event, in_isr);
     break;
 
     case DCD_EVENT_SUSPEND:
