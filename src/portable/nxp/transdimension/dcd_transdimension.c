@@ -134,7 +134,8 @@ typedef struct
   // QHD is 64 bytes aligned but occupies only 48 bytes
   // Therefore there are 16 bytes padding that we can use.
   //--------------------------------------------------------------------+
-  uint8_t reserved[16];
+  tu_fifo_t * ff;
+  uint8_t reserved[12];
 } dcd_qhd_t;
 
 TU_VERIFY_STATIC( sizeof(dcd_qhd_t) == 64, "size is not correct");
@@ -240,8 +241,9 @@ void dcd_init(uint8_t rhport)
   dcd_reg->USBMODE = USBMODE_CM_DEVICE;
   dcd_reg->OTGSC = OTGSC_VBUS_DISCHARGE | OTGSC_OTG_TERMINATION;
 
-  // TODO Force fullspeed on non-highspeed port
-  // dcd_reg->PORTSC1 = PORTSC1_FORCE_FULL_SPEED;
+#if !TUD_OPT_HIGH_SPEED
+  dcd_reg->PORTSC1 = PORTSC1_FORCE_FULL_SPEED;
+#endif
 
   CleanInvalidateDCache_by_Addr((uint32_t*) &_dcd_data, sizeof(dcd_data_t));
 
@@ -312,6 +314,39 @@ static void qtd_init(dcd_qtd_t* p_qtd, void * data_ptr, uint16_t total_bytes)
   }
 }
 
+static void qtd_init_fifo(dcd_qtd_t* p_qtd, tu_fifo_buffer_info_t *info, uint16_t total_bytes)
+{
+  tu_memclr(p_qtd, sizeof(dcd_qtd_t));
+
+  p_qtd->next        = QTD_NEXT_INVALID;
+  p_qtd->active      = 1;
+  p_qtd->total_bytes = p_qtd->expected_bytes = total_bytes;
+
+  // Fifo length has been trimmed to total_bytes
+  int16_t len_lin  = info->len_lin;
+
+  if (len_lin != 0)
+  {
+    p_qtd->buffer[0]   = (uint32_t) info->ptr_lin;
+
+    len_lin -= 4096 - ((uint32_t) info->ptr_lin - tu_align4k((uint32_t) info->ptr_lin));
+
+    // Set linear part
+    uint8_t i = 1;
+    for(; i<5; i++)
+    {
+      if (len_lin <= 0) break;
+      p_qtd->buffer[i] |= tu_align4k( p_qtd->buffer[i-1] ) + 4096;
+      len_lin -= 4096;
+    }
+    // Set wrapped part
+    for(uint8_t page = 0; i<5; i++, page++)
+    {
+      p_qtd->buffer[i] |= (uint32_t) info->ptr_wrap + 4096 * page;
+    }
+  }
+}
+
 //--------------------------------------------------------------------+
 // DCD Endpoint Port
 //--------------------------------------------------------------------+
@@ -340,9 +375,6 @@ void dcd_edpt_clear_stall(uint8_t rhport, uint8_t ep_addr)
 
 bool dcd_edpt_open(uint8_t rhport, tusb_desc_endpoint_t const * p_endpoint_desc)
 {
-  // TODO not support ISO yet
-  TU_VERIFY ( p_endpoint_desc->bmAttributes.xfer != TUSB_XFER_ISOCHRONOUS);
-
   uint8_t const epnum = tu_edpt_number(p_endpoint_desc->bEndpointAddress);
   uint8_t const dir   = tu_edpt_dir(p_endpoint_desc->bEndpointAddress);
 
@@ -355,13 +387,27 @@ bool dcd_edpt_open(uint8_t rhport, tusb_desc_endpoint_t const * p_endpoint_desc)
 
   p_qhd->zero_length_termination = 1;
   p_qhd->max_packet_size         = p_endpoint_desc->wMaxPacketSize.size;
+  if (p_endpoint_desc->bmAttributes.xfer == TUSB_XFER_ISOCHRONOUS)
+  {
+    p_qhd->iso_mult = 1;
+  }
+
   p_qhd->qtd_overlay.next        = QTD_NEXT_INVALID;
 
   CleanInvalidateDCache_by_Addr((uint32_t*) &_dcd_data, sizeof(dcd_data_t));
 
   // Enable EP Control
   dcd_registers_t* dcd_reg = _dcd_controller[rhport].regs;
-  dcd_reg->ENDPTCTRL[epnum] |= ((p_endpoint_desc->bmAttributes.xfer << 2) | ENDPTCTRL_ENABLE | ENDPTCTRL_TOGGLE_RESET) << (dir ? 16 : 0);
+
+  uint32_t const epctrl = (p_endpoint_desc->bmAttributes.xfer << ENDPTCTRL_TYPE_POS) | ENDPTCTRL_ENABLE | ENDPTCTRL_TOGGLE_RESET;
+
+  if ( dir == TUSB_DIR_OUT )
+  {
+    dcd_reg->ENDPTCTRL[epnum] = (dcd_reg->ENDPTCTRL[epnum] & 0xFFFF0000u) | epctrl;
+  }else
+  {
+    dcd_reg->ENDPTCTRL[epnum] = (dcd_reg->ENDPTCTRL[epnum] & 0x0000FFFFu) | (epctrl << 16);
+  }
 
   return true;
 }
@@ -379,6 +425,24 @@ void dcd_edpt_close_all (uint8_t rhport)
     dcd_reg->ENDPTFLUSH = TU_BIT(epnum) |  TU_BIT(epnum+16);
     dcd_reg->ENDPTCTRL[epnum] = (TUSB_XFER_BULK << ENDPTCTRL_TYPE_POS) | (TUSB_XFER_BULK << (16+ENDPTCTRL_TYPE_POS));
   }
+}
+
+void dcd_edpt_close(uint8_t rhport, uint8_t ep_addr)
+{
+  uint8_t const epnum  = tu_edpt_number(ep_addr);
+  uint8_t const dir    = tu_edpt_dir(ep_addr);
+
+  dcd_registers_t* dcd_reg = _dcd_controller[rhport].regs;
+
+  _dcd_data.qhd[epnum][dir].qtd_overlay.halted = 1;
+
+  // Flush EP
+  uint32_t const flush_mask = TU_BIT(epnum + (dir ? 16 : 0));
+  dcd_reg->ENDPTFLUSH = flush_mask;
+  while(dcd_reg->ENDPTFLUSH & flush_mask);
+
+  // Clear EP enable
+  dcd_reg->ENDPTCTRL[epnum] &=~(ENDPTCTRL_ENABLE << (dir ? 16 : 0));
 }
 
 bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t total_bytes)
@@ -406,8 +470,76 @@ bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t t
   qtd_init(p_qtd, buffer, total_bytes);
   p_qtd->int_on_complete = true;
 
+  p_qhd->ff = NULL;
   p_qhd->qtd_overlay.halted = false;            // clear any previous error
   p_qhd->qtd_overlay.next   = (uint32_t) p_qtd; // activate by linking qtd to qhd
+
+  CleanInvalidateDCache_by_Addr((uint32_t*) &_dcd_data, sizeof(dcd_data_t));
+
+  // start transfer
+  dcd_reg->ENDPTPRIME = TU_BIT(epnum + (dir ? 16 : 0));
+
+  return true;
+}
+
+// fifo has to be aligned to 4k boundary
+bool dcd_edpt_xfer_fifo (uint8_t rhport, uint8_t ep_addr, tu_fifo_t * ff, uint16_t total_bytes)
+{
+  dcd_registers_t* dcd_reg = _dcd_controller[rhport].regs;
+  uint8_t const epnum = tu_edpt_number(ep_addr);
+  uint8_t const dir   = tu_edpt_dir(ep_addr);
+
+  if ( epnum == 0 )
+  {
+    // follows UM 24.10.8.1.1 Setup packet handling using setup lockout mechanism
+    // wait until ENDPTSETUPSTAT before priming data/status in response TODO add time out
+    while(dcd_reg->ENDPTSETUPSTAT & TU_BIT(0)) {}
+  }
+
+  dcd_qhd_t * p_qhd = &_dcd_data.qhd[epnum][dir];
+  dcd_qtd_t * p_qtd = &_dcd_data.qtd[epnum][dir];
+
+  tu_fifo_buffer_info_t fifo_info;
+
+  if (dir)
+  {
+    tu_fifo_get_read_info(ff, &fifo_info);
+  } else
+  {
+    tu_fifo_get_write_info(ff, &fifo_info);
+  }
+
+  if (total_bytes <= fifo_info.len_lin)
+  {
+    // Limit transfer length to total_bytes
+    fifo_info.len_wrap = 0;
+    fifo_info.len_lin = total_bytes;
+  } else
+  {
+    // Class driver need to ensure at least total_bytes elements in fifo
+    fifo_info.len_wrap = total_bytes - fifo_info.len_lin;
+  }
+  // Force the CPU to flush the buffer. We increase the size by 32 because the call aligns the
+  // address to 32-byte boundaries.
+  // void* cast to suppress cast-align warning, buffer must be
+  CleanInvalidateDCache_by_Addr((uint32_t*) tu_align((uint32_t) fifo_info.ptr_lin, 4), fifo_info.len_lin + 31);
+
+  //------------- Prepare qtd -------------//
+
+  // In case of : wrapped part is present & buffer is aligned to 4k & buffer size is multiple of 4k
+  if (total_bytes > fifo_info.len_lin && !tu_offset4k((uint32_t)fifo_info.ptr_wrap) && !tu_offset4k(tu_fifo_depth(ff)))
+  {
+    CleanInvalidateDCache_by_Addr((uint32_t*) tu_align((uint32_t) fifo_info.ptr_wrap, 4), fifo_info.len_wrap + 31);
+    qtd_init_fifo(p_qtd, &fifo_info, total_bytes);
+  }
+  else
+  {
+    qtd_init(p_qtd, fifo_info.ptr_lin, total_bytes);
+  }
+
+  p_qtd->int_on_complete = true;
+  p_qhd->qtd_overlay.next = (uint32_t) p_qtd; // link qtd to qhd
+  p_qhd->ff = ff;
 
   CleanInvalidateDCache_by_Addr((uint32_t*) &_dcd_data, sizeof(dcd_data_t));
 
@@ -423,6 +555,7 @@ bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t t
 
 static void process_edpt_complete_isr(uint8_t rhport, uint8_t epnum, uint8_t dir)
 {
+  dcd_qhd_t * p_qhd = &_dcd_data.qhd[epnum][dir];
   dcd_qtd_t * p_qtd = &_dcd_data.qtd[epnum][dir];
 
   uint8_t result = p_qtd->halted ? XFER_RESULT_STALLED :
@@ -435,8 +568,21 @@ static void process_edpt_complete_isr(uint8_t rhport, uint8_t epnum, uint8_t dir
     dcd_reg->ENDPTFLUSH = TU_BIT(epnum + (dir ? 16 : 0));
   }
 
+  uint16_t const xferred_bytes = p_qtd->expected_bytes - p_qtd->total_bytes;
+
+  if (p_qhd->ff)
+  {
+    if (dir == TUSB_DIR_IN)
+    {
+      tu_fifo_advance_read_pointer(p_qhd->ff, xferred_bytes);
+    } else
+    {
+      tu_fifo_advance_write_pointer(p_qhd->ff, xferred_bytes);
+    }
+  }
+  
   // only number of bytes in the IOC qtd
-  dcd_event_xfer_complete(rhport, tu_edpt_addr(epnum, dir), p_qtd->expected_bytes - p_qtd->total_bytes, result, true);
+  dcd_event_xfer_complete(rhport, tu_edpt_addr(epnum, dir), xferred_bytes, result, true);
 }
 
 void dcd_int_handler(uint8_t rhport)
