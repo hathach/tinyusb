@@ -298,51 +298,30 @@ void dcd_disconnect(uint8_t rhport)
 
 static void qtd_init(dcd_qtd_t* p_qtd, void * data_ptr, uint16_t total_bytes)
 {
+  // Force the CPU to flush the buffer. We increase the size by 31 because the call aligns the
+  // address to 32-byte boundaries. Buffer must be word aligned
+  CleanInvalidateDCache_by_Addr((uint32_t*) tu_align((uint32_t) data_ptr, 4), total_bytes + 31);
+
   tu_memclr(p_qtd, sizeof(dcd_qtd_t));
 
-  p_qtd->next        = QTD_NEXT_INVALID;
-  p_qtd->active      = 1;
-  p_qtd->total_bytes = p_qtd->expected_bytes = total_bytes;
+  p_qtd->next            = QTD_NEXT_INVALID;
+  p_qtd->active          = 1;
+  p_qtd->total_bytes     = p_qtd->expected_bytes = total_bytes;
+  p_qtd->int_on_complete = true;
 
   if (data_ptr != NULL)
   {
-    p_qtd->buffer[0]   = (uint32_t) data_ptr;
+    p_qtd->buffer[0] = (uint32_t) data_ptr;
+
+    uint32_t const bufend = p_qtd->buffer[0] + total_bytes;
     for(uint8_t i=1; i<5; i++)
     {
-      p_qtd->buffer[i] |= tu_align4k( p_qtd->buffer[i-1] ) + 4096;
-    }
-  }
-}
+      uint32_t const next_page = tu_align4k( p_qtd->buffer[i-1] ) + 4096;
+      if ( bufend <= next_page ) break;
 
-static void qtd_init_fifo(dcd_qtd_t* p_qtd, tu_fifo_buffer_info_t *info, uint16_t total_bytes)
-{
-  tu_memclr(p_qtd, sizeof(dcd_qtd_t));
+      p_qtd->buffer[i] = next_page;
 
-  p_qtd->next        = QTD_NEXT_INVALID;
-  p_qtd->active      = 1;
-  p_qtd->total_bytes = p_qtd->expected_bytes = total_bytes;
-
-  // Fifo length has been trimmed to total_bytes
-  int16_t len_lin  = info->len_lin;
-
-  if (len_lin != 0)
-  {
-    p_qtd->buffer[0]   = (uint32_t) info->ptr_lin;
-
-    len_lin -= 4096 - ((uint32_t) info->ptr_lin - tu_align4k((uint32_t) info->ptr_lin));
-
-    // Set linear part
-    uint8_t i = 1;
-    for(; i<5; i++)
-    {
-      if (len_lin <= 0) break;
-      p_qtd->buffer[i] |= tu_align4k( p_qtd->buffer[i-1] ) + 4096;
-      len_lin -= 4096;
-    }
-    // Set wrapped part
-    for(uint8_t page = 0; i<5; i++, page++)
-    {
-      p_qtd->buffer[i] |= (uint32_t) info->ptr_wrap + 4096 * page;
+      // TODO page[1] FRAME_N for ISO transfer
     }
   }
 }
@@ -445,11 +424,17 @@ void dcd_edpt_close(uint8_t rhport, uint8_t ep_addr)
   dcd_reg->ENDPTCTRL[epnum] &=~(ENDPTCTRL_ENABLE << (dir ? 16 : 0));
 }
 
-bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t total_bytes)
+static void qhd_start_xfer(uint8_t rhport, uint8_t epnum, uint8_t dir)
 {
   dcd_registers_t* dcd_reg = _dcd_controller[rhport].regs;
-  uint8_t const epnum = tu_edpt_number(ep_addr);
-  uint8_t const dir   = tu_edpt_dir(ep_addr);
+  dcd_qhd_t* p_qhd = &_dcd_data.qhd[epnum][dir];
+  dcd_qtd_t* p_qtd = &_dcd_data.qtd[epnum][dir];
+
+  p_qhd->qtd_overlay.halted = false;            // clear any previous error
+  p_qhd->qtd_overlay.next   = (uint32_t) p_qtd; // link qtd to qhd
+
+  // flush cache
+  CleanInvalidateDCache_by_Addr((uint32_t*) &_dcd_data, sizeof(dcd_data_t));
 
   if ( epnum == 0 )
   {
@@ -458,26 +443,24 @@ bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t t
     while(dcd_reg->ENDPTSETUPSTAT & TU_BIT(0)) {}
   }
 
-  dcd_qhd_t * p_qhd = &_dcd_data.qhd[epnum][dir];
-  dcd_qtd_t * p_qtd = &_dcd_data.qtd[epnum][dir];
-
-  // Force the CPU to flush the buffer. We increase the size by 32 because the call aligns the
-  // address to 32-byte boundaries.
-  // void* cast to suppress cast-align warning, buffer must be
-  CleanInvalidateDCache_by_Addr((uint32_t*) tu_align((uint32_t) buffer, 4), total_bytes + 31);
-
-  //------------- Prepare qtd -------------//
-  qtd_init(p_qtd, buffer, total_bytes);
-  p_qtd->int_on_complete = true;
-
-  p_qhd->ff = NULL;
-  p_qhd->qtd_overlay.halted = false;            // clear any previous error
-  p_qhd->qtd_overlay.next   = (uint32_t) p_qtd; // activate by linking qtd to qhd
-
-  CleanInvalidateDCache_by_Addr((uint32_t*) &_dcd_data, sizeof(dcd_data_t));
-
   // start transfer
   dcd_reg->ENDPTPRIME = TU_BIT(epnum + (dir ? 16 : 0));
+}
+
+bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t total_bytes)
+{
+  uint8_t const epnum = tu_edpt_number(ep_addr);
+  uint8_t const dir   = tu_edpt_dir(ep_addr);
+
+  dcd_qhd_t* p_qhd = &_dcd_data.qhd[epnum][dir];
+  dcd_qtd_t* p_qtd = &_dcd_data.qtd[epnum][dir];
+
+  // Prepare qtd
+  qtd_init(p_qtd, buffer, total_bytes);
+
+  // Start qhd transfer
+  p_qhd->ff = NULL;
+  qhd_start_xfer(rhport, epnum, dir);
 
   return true;
 }
@@ -485,16 +468,8 @@ bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t t
 // fifo has to be aligned to 4k boundary
 bool dcd_edpt_xfer_fifo (uint8_t rhport, uint8_t ep_addr, tu_fifo_t * ff, uint16_t total_bytes)
 {
-  dcd_registers_t* dcd_reg = _dcd_controller[rhport].regs;
   uint8_t const epnum = tu_edpt_number(ep_addr);
   uint8_t const dir   = tu_edpt_dir(ep_addr);
-
-  if ( epnum == 0 )
-  {
-    // follows UM 24.10.8.1.1 Setup packet handling using setup lockout mechanism
-    // wait until ENDPTSETUPSTAT before priming data/status in response TODO add time out
-    while(dcd_reg->ENDPTSETUPSTAT & TU_BIT(0)) {}
-  }
 
   dcd_qhd_t * p_qhd = &_dcd_data.qhd[epnum][dir];
   dcd_qtd_t * p_qtd = &_dcd_data.qtd[epnum][dir];
@@ -509,42 +484,45 @@ bool dcd_edpt_xfer_fifo (uint8_t rhport, uint8_t ep_addr, tu_fifo_t * ff, uint16
     tu_fifo_get_write_info(ff, &fifo_info);
   }
 
-  if (total_bytes <= fifo_info.len_lin)
+  if ( fifo_info.len_lin >= total_bytes )
   {
-    // Limit transfer length to total_bytes
-    fifo_info.len_wrap = 0;
-    fifo_info.len_lin = total_bytes;
-  } else
-  {
-    // Class driver need to ensure at least total_bytes elements in fifo
-    fifo_info.len_wrap = total_bytes - fifo_info.len_lin;
-  }
-  // Force the CPU to flush the buffer. We increase the size by 32 because the call aligns the
-  // address to 32-byte boundaries.
-  // void* cast to suppress cast-align warning, buffer must be
-  CleanInvalidateDCache_by_Addr((uint32_t*) tu_align((uint32_t) fifo_info.ptr_lin, 4), fifo_info.len_lin + 31);
-
-  //------------- Prepare qtd -------------//
-
-  // In case of : wrapped part is present & buffer is aligned to 4k & buffer size is multiple of 4k
-  if (total_bytes > fifo_info.len_lin && !tu_offset4k((uint32_t)fifo_info.ptr_wrap) && !tu_offset4k(tu_fifo_depth(ff)))
-  {
-    CleanInvalidateDCache_by_Addr((uint32_t*) tu_align((uint32_t) fifo_info.ptr_wrap, 4), fifo_info.len_wrap + 31);
-    qtd_init_fifo(p_qtd, &fifo_info, total_bytes);
+    // Linear length is enough for this transfer
+    qtd_init(p_qtd, fifo_info.ptr_lin, total_bytes);
   }
   else
   {
-    qtd_init(p_qtd, fifo_info.ptr_lin, total_bytes);
+    // linear part is not enough
+
+    // prepare TD up to linear length
+    qtd_init(p_qtd, fifo_info.ptr_lin, fifo_info.len_lin);
+
+    if ( !tu_offset4k((uint32_t) fifo_info.ptr_wrap) && !tu_offset4k(tu_fifo_depth(ff)) )
+    {
+      // If buffer is aligned to 4K & buffer size is multiple of 4K
+      // We can make use of buffer page array to also combine the linear + wrapped length
+      p_qtd->total_bytes = p_qtd->expected_bytes = total_bytes;
+
+      for(uint8_t i = 1, page = 0; i < 5; i++)
+      {
+        // pick up buffer array where linear ends
+        if (p_qtd->buffer[i] == 0)
+        {
+          p_qtd->buffer[i] = (uint32_t) fifo_info.ptr_wrap + 4096 * page;
+          page++;
+        }
+      }
+
+      CleanInvalidateDCache_by_Addr((uint32_t*) tu_align((uint32_t) fifo_info.ptr_wrap, 4), total_bytes - fifo_info.len_wrap + 31);
+    }
+    else
+    {
+      // TODO we need to carry the wrapped length after the linear part complete
+    }
   }
 
-  p_qtd->int_on_complete = true;
-  p_qhd->qtd_overlay.next = (uint32_t) p_qtd; // link qtd to qhd
+  // Start qhd transfer
   p_qhd->ff = ff;
-
-  CleanInvalidateDCache_by_Addr((uint32_t*) &_dcd_data, sizeof(dcd_data_t));
-
-  // start transfer
-  dcd_reg->ENDPTPRIME = TU_BIT(epnum + (dir ? 16 : 0));
+  qhd_start_xfer(rhport, epnum, dir);
 
   return true;
 }
@@ -582,6 +560,7 @@ static void process_edpt_complete_isr(uint8_t rhport, uint8_t epnum, uint8_t dir
   }
   
   // only number of bytes in the IOC qtd
+  // TODO there is still a case with xfer_fifo with additional wrapped buffer to fullfil the requested length
   dcd_event_xfer_complete(rhport, tu_edpt_addr(epnum, dir), xferred_bytes, result, true);
 }
 
