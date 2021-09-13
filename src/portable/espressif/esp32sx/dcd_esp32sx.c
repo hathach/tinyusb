@@ -42,10 +42,6 @@
 
 #include "device/dcd.h"
 
-// Since TinyUSB doesn't use SOF for now, and this interrupt too often (1ms interval)
-// We disable SOF for now until needed later on
-#define USE_SOF     0
-
 // Max number of bi-directional endpoints including EP0
 // Note: ESP32S2 specs say there are only up to 5 IN active endpoints include EP0
 // We should probably prohibit enabling Endpoint IN > 4 (not done yet)
@@ -194,9 +190,6 @@ void dcd_init(uint8_t rhport)
   USB0.gintsts = ~0U; //clear pending ints
   USB0.gintmsk = USB_OTGINTMSK_M   |
                  USB_MODEMISMSK_M  |
-          #if USE_SOF
-                 USB_SOFMSK_M      |
-          #endif
                  USB_RXFLVIMSK_M   |
                  USB_ERLYSUSPMSK_M |
                  USB_USBSUSPMSK_M  |
@@ -221,8 +214,17 @@ void dcd_remote_wakeup(uint8_t rhport)
 {
   (void)rhport;
 
-  // TODO must manually clear this bit after 1-15 ms
-  // USB0.DCTL |= USB_RMTWKUPSIG_M;
+  // set remote wakeup
+  USB0.dctl |= USB_RMTWKUPSIG_M;
+
+  // enable SOF to detect bus resume
+  USB0.gintsts = USB_SOF_M;
+  USB0.gintmsk |= USB_SOFMSK_M;
+
+  // Per specs: remote wakeup signal bit must be clear within 1-15ms
+  vTaskDelay(pdMS_TO_TICKS(1));
+
+  USB0.dctl &= ~USB_RMTWKUPSIG_M;
 }
 
 // connect by enabling internal pull-up resistor on D+/D-
@@ -731,8 +733,8 @@ static void _dcd_int_handler(void* arg)
   (void) arg;
   uint8_t const rhport = 0;
 
-  const uint32_t int_status = USB0.gintsts;
-  //const uint32_t int_msk = USB0.gintmsk;
+  const uint32_t int_msk = USB0.gintmsk;
+  const uint32_t int_status = USB0.gintsts & int_msk;
 
   if (int_status & USB_USBRST_M) {
     // start of reset
@@ -785,12 +787,15 @@ static void _dcd_int_handler(void* arg)
     USB0.gotgint = otg_int;
   }
 
-#if USE_SOF
   if (int_status & USB_SOF_M) {
     USB0.gintsts = USB_SOF_M;
-    dcd_event_bus_signal(rhport, DCD_EVENT_SOF, true); // do nothing actually
+
+    // Disable SOF interrupt since currently only used for remote wakeup detection
+    USB0.gintmsk &= ~USB_SOFMSK_M;
+
+    dcd_event_bus_signal(rhport, DCD_EVENT_SOF, true);
   }
-#endif
+
 
   if (int_status & USB_RXFLVI_M) {
     // RXFLVL bit is read-only
