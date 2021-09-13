@@ -380,7 +380,7 @@ static inline const char* tu_lookup_find(tu_lookup_table_t const* p_table, uint3
   }
 
   // not found return the key value in hex
-  sprintf(not_found, "0x%08lX", key);
+  sprintf(not_found, "0x%08lX", (unsigned long) key);
 
   return not_found;
 }
