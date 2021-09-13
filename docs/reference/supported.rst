@@ -316,6 +316,7 @@ ST STM32
 -  `STM32 F411ce Black Pill <https://www.adafruit.com/product/4877>`__
 -  `STM32 F411ve Discovery <https://www.st.com/en/evaluation-tools/32f411ediscovery.html>`__
 -  `STM32 F412zg Discovery <https://www.st.com/en/evaluation-tools/32f412gdiscovery.html>`__
+-  `STM32 F412zg Nucleo <https://www.st.com/en/evaluation-tools/nucleo-f412zg.html>`__
 -  `STM32 F723e Discovery <https://www.st.com/en/evaluation-tools/32f723ediscovery.html>`__
 -  `STM32 F746zg Nucleo <https://www.st.com/en/evaluation-tools/nucleo-f746zg.html>`__
 -  `STM32 F746g Discovery <https://www.st.com/en/evaluation-tools/32f746gdiscovery.html>`__
