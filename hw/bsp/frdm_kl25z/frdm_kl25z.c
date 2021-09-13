@@ -84,7 +84,7 @@ void board_init(void)
   PORT_SetPinMux(LED_PIN_PORT, LED_PIN, LED_PIN_FUNCTION);
   gpio_pin_config_t led_config = { kGPIO_DigitalOutput, 0 };
   GPIO_PinInit(LED_PORT, LED_PIN, &led_config);
-  board_led_write(true);
+  board_led_write(false);
 
   // UART
   CLOCK_EnableClock(UART_PIN_CLOCK);
