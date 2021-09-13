@@ -516,7 +516,8 @@ bool dcd_edpt_xfer_fifo (uint8_t rhport, uint8_t ep_addr, tu_fifo_t * ff, uint16
     }
     else
     {
-      // TODO we need to carry the wrapped length after the linear part complete
+      // TODO we may need to carry the wrapped length after the linear part complete
+      // for now only transfer up to linear part
     }
   }
 
@@ -560,7 +561,6 @@ static void process_edpt_complete_isr(uint8_t rhport, uint8_t epnum, uint8_t dir
   }
   
   // only number of bytes in the IOC qtd
-  // TODO there is still a case with xfer_fifo with additional wrapped buffer to fullfil the requested length
   dcd_event_xfer_complete(rhport, tu_edpt_addr(epnum, dir), xferred_bytes, result, true);
 }
 
