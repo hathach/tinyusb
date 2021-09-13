@@ -200,11 +200,10 @@ static void bus_reset(void)
 }
 
 /* centralized location for USBD interrupt enable bit mask */
-#if USE_SOF
-static const uint32_t enabled_irqs = USBD_INTSTS_VBDETIF_Msk | USBD_INTSTS_BUSIF_Msk | USBD_INTSTS_SETUP_Msk | USBD_INTSTS_USBIF_Msk | USBD_INTSTS_SOFIF_Msk;
-#else
-static const uint32_t enabled_irqs = USBD_INTSTS_VBDETIF_Msk | USBD_INTSTS_BUSIF_Msk | USBD_INTSTS_SETUP_Msk | USBD_INTSTS_USBIF_Msk;
-#endif
+enum {
+  ENABLED_IRQS = USBD_INTSTS_VBDETIF_Msk | USBD_INTSTS_BUSIF_Msk | USBD_INTSTS_SETUP_Msk |
+                 USBD_INTSTS_USBIF_Msk   | (USE_SOF ? USBD_INTSTS_SOFIF_Msk : 0)
+};
 
 /*
   NUC121/NUC125/NUC126 TinyUSB API driver implementation
@@ -226,8 +225,8 @@ void dcd_init(uint8_t rhport)
 
   usb_attach();
 
-  USBD->INTSTS = enabled_irqs;
-  USBD->INTEN  = enabled_irqs;
+  USBD->INTSTS = ENABLED_IRQS;
+  USBD->INTEN  = ENABLED_IRQS;
 }
 
 void dcd_int_enable(uint8_t rhport)
@@ -380,8 +379,7 @@ void dcd_edpt_clear_stall(uint8_t rhport, uint8_t ep_addr)
 {
   (void) rhport;
   USBD_EP_T *ep = ep_entry(ep_addr, false);
-  ep->CFG |= USBD_CFG_CSTALL_Msk;
-  ep->CFG &=~USBD_CFG_DSQSYNC_Msk;
+  ep->CFG = (ep->CFG & ~USBD_CFG_DSQSYNC_Msk) | USBD_CFG_CSTALL_Msk;
 }
 
 void dcd_int_handler(uint8_t rhport)
@@ -389,7 +387,8 @@ void dcd_int_handler(uint8_t rhport)
   (void) rhport;
 
   // Mask non-enabled irqs, ex. SOF
-  uint32_t status = USBD->INTSTS & (enabled_irqs | 0xffffff00);
+  uint32_t status = USBD->INTSTS & (ENABLED_IRQS | 0xffffff00);
+
 #ifdef SUPPORT_LPM
   uint32_t state = USBD->ATTR & 0x300f;
 #else
@@ -520,7 +519,7 @@ void dcd_int_handler(uint8_t rhport)
   }
 
   /* acknowledge all interrupts */
-  USBD->INTSTS = status & enabled_irqs;
+  USBD->INTSTS = status & ENABLED_IRQS;
 }
 
 // Invoked when a control transfer's status stage is complete.
