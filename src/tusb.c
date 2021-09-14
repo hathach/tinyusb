@@ -121,7 +121,7 @@ void tu_edpt_bind_driver(uint8_t ep2drv[][2], tusb_desc_interface_t const* desc_
       ep2drv[tu_edpt_number(ep_addr)][tu_edpt_dir(ep_addr)] = driver_id;
     }
 
-    len    = (uint16_t)(len + tu_desc_len(p_desc));
+    len   += (uint16_t) tu_desc_len(p_desc);
     p_desc = tu_desc_next(p_desc);
   }
 }

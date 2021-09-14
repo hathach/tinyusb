@@ -982,24 +982,40 @@ static bool parse_configuration_descriptor(uint8_t dev_addr, tusb_desc_configura
   // parse each interfaces
   while( p_desc < desc_end )
   {
-    // TODO Do we need to use IAD
-     tusb_desc_interface_assoc_t const * desc_iad = NULL;
+    uint8_t assoc_itf_count = 1;
 
     // Class will always starts with Interface Association (if any) and then Interface descriptor
     if ( TUSB_DESC_INTERFACE_ASSOCIATION == tu_desc_type(p_desc) )
     {
-      desc_iad = (tusb_desc_interface_assoc_t const *) p_desc;
+      tusb_desc_interface_assoc_t const * desc_iad = (tusb_desc_interface_assoc_t const *) p_desc;
+      assoc_itf_count = desc_iad->bInterfaceCount;
+
       p_desc = tu_desc_next(p_desc); // next to Interface
+
+      // IAD's first interface number and class should match with opened interface
+      //TU_ASSERT(desc_iad->bFirstInterface == desc_itf->bInterfaceNumber &&
+      //          desc_iad->bFunctionClass  == desc_itf->bInterfaceClass);
     }
 
     TU_ASSERT( TUSB_DESC_INTERFACE == tu_desc_type(p_desc) );
-
     tusb_desc_interface_t const* desc_itf = (tusb_desc_interface_t const*) p_desc;
 
     // Interface number must not be used already
-    TU_ASSERT( dev->itf2drv[desc_itf->bInterfaceNumber] == DRVID_INVALID );
+    TU_ASSERT( DRVID_INVALID == dev->itf2drv[desc_itf->bInterfaceNumber] );
 
-    uint16_t const drv_len = tu_desc_get_interface_total_len(desc_itf, desc_iad ? desc_iad->bInterfaceCount : 1, desc_end-p_desc);
+#if CFG_TUH_MIDI
+    // MIDI has 2 interfaces (Audio Control v1 + MIDIStreaming) but does not have IAD
+    // manually increase the associated count
+    if (1                              == assoc_itf_count              &&
+        TUSB_CLASS_AUDIO               == desc_itf->bInterfaceClass    &&
+        AUDIO_SUBCLASS_CONTROL         == desc_itf->bInterfaceSubClass &&
+        AUDIO_FUNC_PROTOCOL_CODE_UNDEF == desc_itf->bInterfaceProtocol)
+    {
+      assoc_itf_count = 2;
+    }
+#endif
+
+    uint16_t const drv_len = tu_desc_get_interface_total_len(desc_itf, assoc_itf_count, desc_end-p_desc);
     TU_ASSERT(drv_len);
 
     if (desc_itf->bInterfaceClass == TUSB_CLASS_HUB && dev->hub_addr != 0)
@@ -1019,22 +1035,12 @@ static bool parse_configuration_descriptor(uint8_t dev_addr, tusb_desc_configura
         if ( driver->open(dev->rhport, dev_addr, desc_itf, drv_len) )
         {
           // open successfully
-          TU_LOG2("  Opened successfully\r\n");
+          TU_LOG2("  %s opened\r\n", driver->name);
 
-          // bind interface to found driver
-          dev->itf2drv[desc_itf->bInterfaceNumber] = drv_id;
-
-          // If using IAD, bind all interfaces to the same driver
-          if (desc_iad)
+          // bind (associated) interfaces to found driver
+          for(uint8_t i=0; i<assoc_itf_count; i++)
           {
-            // IAD's first interface number and class should match with opened interface
-            TU_ASSERT(desc_iad->bFirstInterface == desc_itf->bInterfaceNumber &&
-                      desc_iad->bFunctionClass  == desc_itf->bInterfaceClass);
-
-            for(uint8_t i=1; i<desc_iad->bInterfaceCount; i++)
-            {
-              dev->itf2drv[desc_itf->bInterfaceNumber+i] = drv_id;
-            }
+            dev->itf2drv[desc_itf->bInterfaceNumber+i] = drv_id;
           }
 
           // bind all endpoints to found driver
