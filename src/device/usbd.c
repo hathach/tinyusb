@@ -921,6 +921,17 @@ static bool process_set_config(uint8_t rhport, uint8_t cfg_num)
     }
 #endif
 
+#if CFG_TUD_BTH && CFG_TUD_BTH_ISO_ALT_COUNT
+    // BTH implementation currently does not use IAD. TODO should also use IAD for composite device
+    if (1                                  == assoc_itf_count              &&
+        TUD_BT_APP_CLASS                   == desc_itf->bInterfaceClass    &&
+        TUD_BT_APP_SUBCLASS                == desc_itf->bInterfaceSubClass &&
+        TUD_BT_PROTOCOL_PRIMARY_CONTROLLER == desc_itf->bInterfaceProtocol)
+    {
+      assoc_itf_count = 2;
+    }
+#endif
+
     uint16_t const drv_len = tu_desc_get_interface_total_len(desc_itf, assoc_itf_count, desc_end-p_desc);
     TU_ASSERT(drv_len >= sizeof(tusb_desc_interface_t));
 
