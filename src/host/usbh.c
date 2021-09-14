@@ -1016,7 +1016,7 @@ static bool parse_configuration_descriptor(uint8_t dev_addr, tusb_desc_configura
 #endif
 
     uint16_t const drv_len = tu_desc_get_interface_total_len(desc_itf, assoc_itf_count, desc_end-p_desc);
-    TU_ASSERT(drv_len);
+    TU_ASSERT(drv_len >= sizeof(tusb_desc_interface_t));
 
     if (desc_itf->bInterfaceClass == TUSB_CLASS_HUB && dev->hub_addr != 0)
     {

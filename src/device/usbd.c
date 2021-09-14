@@ -922,7 +922,7 @@ static bool process_set_config(uint8_t rhport, uint8_t cfg_num)
 #endif
 
     uint16_t const drv_len = tu_desc_get_interface_total_len(desc_itf, assoc_itf_count, desc_end-p_desc);
-    TU_ASSERT(drv_len);
+    TU_ASSERT(drv_len >= sizeof(tusb_desc_interface_t));
 
     // Find driver for this interface
     uint8_t drv_id;
