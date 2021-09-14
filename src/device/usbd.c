@@ -1041,6 +1041,7 @@ static bool process_get_descriptor(uint8_t rhport, tusb_control_request_t const 
     break;
 
     case TUSB_DESC_DEVICE_QUALIFIER:
+    {
       TU_LOG2(" Device Qualifier\r\n");
 
       TU_VERIFY( tud_descriptor_device_qualifier_cb );
@@ -1050,6 +1051,7 @@ static bool process_get_descriptor(uint8_t rhport, tusb_control_request_t const 
 
       // first byte of descriptor is its size
       return tud_control_xfer(rhport, p_request, (void*) desc_qualifier, desc_qualifier[0]);
+    }
     break;
 
     default: return false;
