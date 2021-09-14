@@ -880,7 +880,7 @@ static bool process_set_config(uint8_t rhport, uint8_t cfg_num)
 
   // Parse configuration descriptor
   _usbd_dev.remote_wakeup_support = (desc_cfg->bmAttributes & TUSB_DESC_CONFIG_ATT_REMOTE_WAKEUP) ? 1 : 0;
-  _usbd_dev.self_powered = (desc_cfg->bmAttributes & TUSB_DESC_CONFIG_ATT_SELF_POWERED) ? 1 : 0;
+  _usbd_dev.self_powered          = (desc_cfg->bmAttributes & TUSB_DESC_CONFIG_ATT_SELF_POWERED ) ? 1 : 0;
 
   // Parse interface descriptor
   uint8_t const * p_desc   = ((uint8_t const*) desc_cfg) + sizeof(tusb_desc_configuration_t);
@@ -900,26 +900,22 @@ static bool process_set_config(uint8_t rhport, uint8_t cfg_num)
     TU_ASSERT( TUSB_DESC_INTERFACE == tu_desc_type(p_desc) );
 
     tusb_desc_interface_t const * desc_itf = (tusb_desc_interface_t const*) p_desc;
-    uint16_t const remaining_len = desc_end-p_desc;
 
     // Interface number must not be used already
     TU_ASSERT(DRVID_INVALID == _usbd_dev.itf2drv[desc_itf->bInterfaceNumber]);
 
-    // TODO usbd can calculate the total length used for driver --> driver open() does not need to calculate it
-    // uint16_t const drv_len = tu_desc_get_interface_total_len(desc_itf, desc_iad ? desc_iad->bInterfaceCount : 1, desc_end-p_desc);
+    uint16_t const drv_len = tu_desc_get_interface_total_len(desc_itf, desc_iad ? desc_iad->bInterfaceCount : 1, desc_end-p_desc);
+    TU_ASSERT(drv_len);
 
     // Find driver for this interface
     uint8_t drv_id;
     for (drv_id = 0; drv_id < TOTAL_DRIVER_COUNT; drv_id++)
     {
       usbd_class_driver_t const *driver = get_driver(drv_id);
-      uint16_t const drv_len = driver->open(rhport, desc_itf, remaining_len);
 
-      if ( drv_len > 0 )
+      if ( driver->open(rhport, desc_itf, drv_len) )
       {
         // Open successfully, check if length is correct
-        TU_ASSERT( sizeof(tusb_desc_interface_t) <= drv_len && drv_len <= remaining_len);
-
         TU_LOG2("  %s opened\r\n", driver->name);
 
         // bind interface to found driver
@@ -941,14 +937,16 @@ static bool process_set_config(uint8_t rhport, uint8_t cfg_num)
         // bind all endpoints to found driver
         tu_edpt_bind_driver(_usbd_dev.ep2drv, desc_itf, drv_len, drv_id);
 
-        p_desc += drv_len; // next interface
 
         break; // exit driver find loop
       }
     }
 
-    // Failed if cannot find supported driver
+    // Failed if there is no supported drivers
     TU_ASSERT(drv_id < TOTAL_DRIVER_COUNT);
+
+    // next Interface or IAD descriptor
+    p_desc += drv_len;
   }
 
   // invoke callback
