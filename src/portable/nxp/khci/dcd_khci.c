@@ -52,23 +52,23 @@ typedef struct TU_ATTR_PACKED
     struct {
       union {
         struct {
-          uint16_t          :  2;
-          uint16_t tok_pid  :  4;
-          uint16_t data     :  1;
-          uint16_t own      :  1;
-          uint16_t          :  8;
+               uint16_t           :  2;
+          __IO uint16_t tok_pid   :  4;
+               uint16_t data      :  1;
+          __IO uint16_t own       :  1;
+               uint16_t           :  8;
         };
         struct {
-          uint16_t          :  2;
-          uint16_t bdt_stall:  1;
-          uint16_t dts      :  1;
-          uint16_t ninc     :  1;
-          uint16_t keep     :  1;
-          uint16_t          : 10;
+               uint16_t           :  2;
+               uint16_t bdt_stall :  1;
+               uint16_t dts       :  1;
+               uint16_t ninc      :  1;
+               uint16_t keep      :  1;
+               uint16_t           : 10;
         };
       };
-      uint16_t bc          : 10;
-      uint16_t             :  6;
+      __IO uint16_t bc : 10;
+           uint16_t    :  6;
     };
   };
   uint8_t *addr;
@@ -145,12 +145,17 @@ static void process_tokdne(uint8_t rhport)
 {
   const unsigned s = KHCI->STAT;
   KHCI->ISTAT = USB_ISTAT_TOKDNE_MASK; /* fetch the next token if received */
+
+  uint8_t const epnum = (s >> USB_STAT_ENDP_SHIFT);
+  uint8_t const dir   = (s & USB_STAT_TX_MASK) >> USB_STAT_TX_SHIFT;
+
   buffer_descriptor_t *bd = (buffer_descriptor_t *)&_dcd.bda[s];
   endpoint_state_t    *ep = &_dcd.endpoint_unified[s >> 3];
   unsigned odd = (s & USB_STAT_ODD_MASK) ? 1 : 0;
 
   /* fetch pid before discarded by the next steps */
   const unsigned pid = bd->tok_pid;
+
   /* reset values for a next transfer */
   bd->bdt_stall = 0;
   bd->dts       = 1;
@@ -181,7 +186,7 @@ static void process_tokdne(uint8_t rhport)
   }
   const unsigned length = ep->length;
   dcd_event_xfer_complete(rhport,
-                          ((s & USB_STAT_TX_MASK) << 4) | (s >> USB_STAT_ENDP_SHIFT),
+                          tu_edpt_addr(epnum, dir),
                           length - remaining, XFER_RESULT_SUCCESS, true);
   if (0 == (s & USB_STAT_ENDP_MASK) && 0 == length) {
     /* After completion a ZLP of control transfer,
@@ -414,6 +419,7 @@ bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t* buffer, uint16_t to
   bd->addr = buffer;
   __DSB();
   bd->own  = 1; /* This bit must be set last */
+
   if (ie) NVIC_EnableIRQ(USB0_IRQn);
   return true;
 }
@@ -422,18 +428,22 @@ void dcd_edpt_stall(uint8_t rhport, uint8_t ep_addr)
 {
   (void) rhport;
   const unsigned epn = tu_edpt_number(ep_addr);
+
   if (0 == epn) {
     KHCI->ENDPOINT[epn].ENDPT |=  USB_ENDPT_EPSTALL_MASK;
   } else {
     const unsigned dir      = tu_edpt_dir(ep_addr);
     const unsigned odd      = _dcd.endpoint[epn][dir].odd;
     buffer_descriptor_t *bd = &_dcd.bdt[epn][dir][odd];
-    TU_VERIFY(0 == bd->own,);
+    TU_ASSERT(0 == bd->own,);
+
     const unsigned ie       = NVIC_GetEnableIRQ(USB0_IRQn);
     NVIC_DisableIRQ(USB0_IRQn);
+
     bd->bdt_stall = 1;
     __DSB();
     bd->own       = 1; /* This bit must be set last */
+
     if (ie) NVIC_EnableIRQ(USB0_IRQn);
   }
 }
@@ -447,15 +457,20 @@ void dcd_edpt_clear_stall(uint8_t rhport, uint8_t ep_addr)
   const unsigned odd      = _dcd.endpoint[epn][dir].odd;
   buffer_descriptor_t *bd = _dcd.bdt[epn][dir];
   TU_VERIFY(bd[odd].own,);
+
   const unsigned ie       = NVIC_GetEnableIRQ(USB0_IRQn);
   NVIC_DisableIRQ(USB0_IRQn);
+
   bd[odd].own = 0;
   __DSB();
+
+  // clear stall
   bd[odd].bdt_stall  = 0;
-  if (bd[odd].data) {
-    bd[odd    ].data = 0;
-    bd[odd ^ 1].data = 1;
-  }
+
+  // Reset data toggle
+  bd[odd    ].data = 0;
+  bd[odd ^ 1].data = 1;
+
   if (ie) NVIC_EnableIRQ(USB0_IRQn);
 }
 
@@ -470,6 +485,7 @@ void dcd_int_handler(uint8_t rhport)
   uint32_t msk = KHCI->INTEN;
   KHCI->ISTAT = is & ~msk;
   is &= msk;
+
   if (is & USB_ISTAT_ERROR_MASK) {
     /* TODO: */
     uint32_t es = KHCI->ERRSTAT;
@@ -483,26 +499,31 @@ void dcd_int_handler(uint8_t rhport)
     process_bus_reset(rhport);
     return;
   }
+
   if (is & USB_ISTAT_SLEEP_MASK) {
     KHCI->ISTAT = USB_ISTAT_SLEEP_MASK;
     process_bus_inactive(rhport);
     return;
   }
+
   if (is & USB_ISTAT_RESUME_MASK) {
     KHCI->ISTAT = USB_ISTAT_RESUME_MASK;
     process_bus_active(rhport);
     return;
   }
+
   if (is & USB_ISTAT_SOFTOK_MASK) {
     KHCI->ISTAT = USB_ISTAT_SOFTOK_MASK;
     dcd_event_bus_signal(rhport, DCD_EVENT_SOF, true);
     return;
   }
+
   if (is & USB_ISTAT_STALL_MASK) {
     KHCI->ISTAT = USB_ISTAT_STALL_MASK;
     process_stall(rhport);
     return;
   }
+
   if (is & USB_ISTAT_TOKDNE_MASK) {
     process_tokdne(rhport);
     return;
