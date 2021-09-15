@@ -134,10 +134,20 @@ static void prepare_next_setup_packet(uint8_t rhport)
 
 static void process_stall(uint8_t rhport)
 {
-  if (KHCI->ENDPOINT[0].ENDPT & USB_ENDPT_EPSTALL_MASK) {
+  unsigned endpt;
+  endpt = KHCI->ENDPOINT[0].ENDPT;
+  if (endpt & USB_ENDPT_EPSTALL_MASK) {
     /* clear stall condition of the control pipe */
     prepare_next_setup_packet(rhport);
-    KHCI->ENDPOINT[0].ENDPT &= ~USB_ENDPT_EPSTALL_MASK;
+    KHCI->ENDPOINT[0].ENDPT = endpt & ~USB_ENDPT_EPSTALL_MASK;
+    return;
+  }
+  for (int i = 1; i < 16; ++i) {
+    endpt = KHCI->ENDPOINT[i].ENDPT;
+    if (endpt & USB_ENDPT_EPSTALL_MASK) {
+      KHCI->ENDPOINT[i].ENDPT = endpt & ~USB_ENDPT_EPSTALL_MASK;
+      return;
+    }
   }
 }
 
@@ -471,6 +481,9 @@ void dcd_edpt_clear_stall(uint8_t rhport, uint8_t ep_addr)
   bd[odd    ].data = 0;
   bd[odd ^ 1].data = 1;
 
+  const unsigned endpt = KHCI->ENDPOINT[epn].ENDPT;
+  if (endpt & USB_ENDPT_EPSTALL_MASK)
+    KHCI->ENDPOINT[epn].ENDPT = endpt & ~USB_ENDPT_EPSTALL_MASK;
   if (ie) NVIC_EnableIRQ(USB0_IRQn);
 }
 
