@@ -1041,6 +1041,7 @@ static bool process_get_descriptor(uint8_t rhport, tusb_control_request_t const 
     break;
 
     case TUSB_DESC_DEVICE_QUALIFIER:
+    {
       TU_LOG2(" Device Qualifier\r\n");
 
       TU_VERIFY( tud_descriptor_device_qualifier_cb );
@@ -1050,6 +1051,7 @@ static bool process_get_descriptor(uint8_t rhport, tusb_control_request_t const 
 
       // first byte of descriptor is its size
       return tud_control_xfer(rhport, p_request, (void*) desc_qualifier, desc_qualifier[0]);
+    }
     break;
 
     default: return false;
@@ -1377,7 +1379,13 @@ void usbd_edpt_close(uint8_t rhport, uint8_t ep_addr)
   TU_ASSERT(dcd_edpt_close, /**/);
   TU_LOG2("  CLOSING Endpoint: 0x%02X\r\n", ep_addr);
 
+  uint8_t const epnum = tu_edpt_number(ep_addr);
+  uint8_t const dir   = tu_edpt_dir(ep_addr);
+
   dcd_edpt_close(rhport, ep_addr);
+  _usbd_dev.ep_status[epnum][dir].stalled = false;
+  _usbd_dev.ep_status[epnum][dir].busy = false;
+  _usbd_dev.ep_status[epnum][dir].claimed = false;
 
   return;
 }
