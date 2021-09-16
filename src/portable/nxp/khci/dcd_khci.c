@@ -192,7 +192,7 @@ static void process_tokdne(uint8_t rhport)
   dcd_event_xfer_complete(rhport,
                           tu_edpt_addr(epnum, dir),
                           length - remaining, XFER_RESULT_SUCCESS, true);
-  if (0 == (s & USB_STAT_ENDP_MASK) && 0 == length) {
+  if (0 == epnum && 0 == length) {
     /* After completion a ZLP of control transfer,
      * it prepares for the next steup transfer. */
     if (_dcd.addr) {
