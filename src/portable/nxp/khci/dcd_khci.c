@@ -120,10 +120,8 @@ static void prepare_next_setup_packet(uint8_t rhport)
 {
   const unsigned out_odd = _dcd.endpoint[0][0].odd;
   const unsigned in_odd  = _dcd.endpoint[0][1].odd;
-  if (_dcd.bdt[0][0][out_odd].own) {
-    //    TU_LOG1("DCD fail to prepare the next SETUP %d %d\r\n", out_odd, in_odd);
-    return;
-  }
+  TU_ASSERT(0 == _dcd.bdt[0][0][out_odd].own, );
+
   _dcd.bdt[0][0][out_odd].data     = 0;
   _dcd.bdt[0][0][out_odd ^ 1].data = 1;
   _dcd.bdt[0][1][in_odd].data      = 1;
@@ -134,19 +132,15 @@ static void prepare_next_setup_packet(uint8_t rhport)
 
 static void process_stall(uint8_t rhport)
 {
-  unsigned endpt;
-  endpt = KHCI->ENDPOINT[0].ENDPT;
-  if (endpt & USB_ENDPT_EPSTALL_MASK) {
-    /* clear stall condition of the control pipe */
-    prepare_next_setup_packet(rhport);
-    KHCI->ENDPOINT[0].ENDPT = endpt & ~USB_ENDPT_EPSTALL_MASK;
-    return;
-  }
-  for (int i = 1; i < 16; ++i) {
-    endpt = KHCI->ENDPOINT[i].ENDPT;
+  for (int i = 0; i < 16; ++i) {
+    unsigned const endpt = KHCI->ENDPOINT[i].ENDPT;
+
     if (endpt & USB_ENDPT_EPSTALL_MASK) {
+      // prepare next setup if endpoint0
+      if ( i == 0 ) prepare_next_setup_packet(rhport);
+
+      // clear stall bit
       KHCI->ENDPOINT[i].ENDPT = endpt & ~USB_ENDPT_EPSTALL_MASK;
-      return;
     }
   }
 }
@@ -158,10 +152,10 @@ static void process_tokdne(uint8_t rhport)
 
   uint8_t const epnum = (s >> USB_STAT_ENDP_SHIFT);
   uint8_t const dir   = (s & USB_STAT_TX_MASK) >> USB_STAT_TX_SHIFT;
+  unsigned const odd  = (s & USB_STAT_ODD_MASK) ? 1 : 0;
 
   buffer_descriptor_t *bd = (buffer_descriptor_t *)&_dcd.bda[s];
   endpoint_state_t    *ep = &_dcd.endpoint_unified[s >> 3];
-  unsigned odd = (s & USB_STAT_ODD_MASK) ? 1 : 0;
 
   /* fetch pid before discarded by the next steps */
   const unsigned pid = bd->tok_pid;
@@ -241,21 +235,27 @@ static void process_bus_reset(uint8_t rhport)
   dcd_event_bus_reset(rhport, TUSB_SPEED_FULL, true);
 }
 
-static void process_bus_inactive(uint8_t rhport)
+static void process_bus_sleep(uint8_t rhport)
 {
-  (void) rhport;
+  // Enable resume & disable suspend interrupt
   const unsigned inten = KHCI->INTEN;
+
   KHCI->INTEN    = (inten & ~USB_INTEN_SLEEPEN_MASK) | USB_INTEN_RESUMEEN_MASK;
+  //KHCI->USBTRC0 |= USB_USBTRC0_USBRESMEN_MASK;
   KHCI->USBCTRL |= USB_USBCTRL_SUSP_MASK;
+
   dcd_event_bus_signal(rhport, DCD_EVENT_SUSPEND, true);
 }
 
-static void process_bus_active(uint8_t rhport)
+static void process_bus_resume(uint8_t rhport)
 {
-  (void) rhport;
-  KHCI->USBCTRL &= ~USB_USBCTRL_SUSP_MASK;
+  // Enable suspend & disable resume interrupt
   const unsigned inten = KHCI->INTEN;
+
+  KHCI->USBCTRL &= ~USB_USBCTRL_SUSP_MASK;
+  //KHCI->USBTRC0 &= ~USB_USBTRC0_USBRESMEN_MASK;
   KHCI->INTEN    = (inten & ~USB_INTEN_RESUMEEN_MASK) | USB_INTEN_SLEEPEN_MASK;
+
   dcd_event_bus_signal(rhport, DCD_EVENT_RESUME, true);
 }
 
@@ -268,11 +268,15 @@ void dcd_init(uint8_t rhport)
 
   KHCI->USBTRC0 |= USB_USBTRC0_USBRESET_MASK;
   while (KHCI->USBTRC0 & USB_USBTRC0_USBRESET_MASK);
+
   tu_memclr(&_dcd, sizeof(_dcd));
   KHCI->USBTRC0 |= TU_BIT(6); /* software must set this bit to 1 */
   KHCI->BDTPAGE1 = (uint8_t)((uintptr_t)_dcd.bdt >>  8);
   KHCI->BDTPAGE2 = (uint8_t)((uintptr_t)_dcd.bdt >> 16);
   KHCI->BDTPAGE3 = (uint8_t)((uintptr_t)_dcd.bdt >> 24);
+
+  KHCI->INTEN = USB_INTEN_USBRSTEN_MASK | USB_INTEN_TOKDNEEN_MASK |
+    USB_INTEN_SLEEPEN_MASK | USB_INTEN_ERROREN_MASK | USB_INTEN_STALLEN_MASK;
 
   dcd_connect(rhport);
   NVIC_ClearPendingIRQ(USB0_IRQn);
@@ -281,8 +285,6 @@ void dcd_init(uint8_t rhport)
 void dcd_int_enable(uint8_t rhport)
 {
   (void) rhport;
-  KHCI->INTEN = USB_INTEN_USBRSTEN_MASK | USB_INTEN_TOKDNEEN_MASK |
-    USB_INTEN_SLEEPEN_MASK | USB_INTEN_ERROREN_MASK | USB_INTEN_STALLEN_MASK;
   NVIC_EnableIRQ(USB0_IRQn);
 }
 
@@ -290,23 +292,24 @@ void dcd_int_disable(uint8_t rhport)
 {
   (void) rhport;
   NVIC_DisableIRQ(USB0_IRQn);
-  KHCI->INTEN = 0;
 }
 
 void dcd_set_address(uint8_t rhport, uint8_t dev_addr)
 {
-  (void) rhport;
-  _dcd.addr = dev_addr & 0x7F;
-  /* Response with status first before changing device address */
+  _dcd.addr = dev_addr & 0x7F; 
+ /* Response with status first before changing device address */
   dcd_edpt_xfer(rhport, tu_edpt_addr(0, TUSB_DIR_IN), NULL, 0);
 }
 
 void dcd_remote_wakeup(uint8_t rhport)
 {
   (void) rhport;
-  unsigned cnt = SystemCoreClock / 100;
+
   KHCI->CTL |= USB_CTL_RESUME_MASK;
+
+  unsigned cnt = SystemCoreClock / 1000;
   while (cnt--) __NOP();
+
   KHCI->CTL &= ~USB_CTL_RESUME_MASK;
 }
 
@@ -481,9 +484,12 @@ void dcd_edpt_clear_stall(uint8_t rhport, uint8_t ep_addr)
   bd[odd    ].data = 0;
   bd[odd ^ 1].data = 1;
 
+  // We already cleared this in ISR, but just clear it here to be safe
   const unsigned endpt = KHCI->ENDPOINT[epn].ENDPT;
-  if (endpt & USB_ENDPT_EPSTALL_MASK)
+  if (endpt & USB_ENDPT_EPSTALL_MASK) {
     KHCI->ENDPOINT[epn].ENDPT = endpt & ~USB_ENDPT_EPSTALL_MASK;
+  }
+
   if (ie) NVIC_EnableIRQ(USB0_IRQn);
 }
 
@@ -492,10 +498,10 @@ void dcd_edpt_clear_stall(uint8_t rhport, uint8_t ep_addr)
 //--------------------------------------------------------------------+
 void dcd_int_handler(uint8_t rhport)
 {
-  (void) rhport;
-
   uint32_t is  = KHCI->ISTAT;
   uint32_t msk = KHCI->INTEN;
+
+  // clear non-enabled interrupts
   KHCI->ISTAT = is & ~msk;
   is &= msk;
 
@@ -504,42 +510,39 @@ void dcd_int_handler(uint8_t rhport)
     uint32_t es = KHCI->ERRSTAT;
     KHCI->ERRSTAT = es;
     KHCI->ISTAT   = is; /* discard any pending events */
-    return;
   }
 
   if (is & USB_ISTAT_USBRST_MASK) {
     KHCI->ISTAT = is; /* discard any pending events */
     process_bus_reset(rhport);
-    return;
   }
 
   if (is & USB_ISTAT_SLEEP_MASK) {
+    TU_LOG_LOCATION();
+    TU_LOG2_HEX(is);
     KHCI->ISTAT = USB_ISTAT_SLEEP_MASK;
-    process_bus_inactive(rhport);
-    return;
+    process_bus_sleep(rhport);
   }
 
   if (is & USB_ISTAT_RESUME_MASK) {
+    TU_LOG_LOCATION();
+    TU_LOG2_HEX(is);
     KHCI->ISTAT = USB_ISTAT_RESUME_MASK;
-    process_bus_active(rhport);
-    return;
+    process_bus_resume(rhport);
   }
 
   if (is & USB_ISTAT_SOFTOK_MASK) {
     KHCI->ISTAT = USB_ISTAT_SOFTOK_MASK;
     dcd_event_bus_signal(rhport, DCD_EVENT_SOF, true);
-    return;
   }
 
   if (is & USB_ISTAT_STALL_MASK) {
     KHCI->ISTAT = USB_ISTAT_STALL_MASK;
     process_stall(rhport);
-    return;
   }
 
   if (is & USB_ISTAT_TOKDNE_MASK) {
     process_tokdne(rhport);
-    return;
   }
 }
 
