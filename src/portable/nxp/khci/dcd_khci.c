@@ -210,7 +210,8 @@ static void process_bus_reset(uint8_t rhport)
   KHCI->USBCTRL &= ~USB_USBCTRL_SUSP_MASK;
   KHCI->CTL     |= USB_CTL_ODDRST_MASK;
   KHCI->ADDR     = 0;
-  KHCI->INTEN    = (KHCI->INTEN & ~USB_INTEN_RESUMEEN_MASK) | USB_INTEN_SLEEPEN_MASK;
+  KHCI->INTEN    = USB_INTEN_USBRSTEN_MASK | USB_INTEN_TOKDNEEN_MASK | USB_INTEN_SLEEPEN_MASK |
+                   USB_INTEN_ERROREN_MASK  | USB_INTEN_STALLEN_MASK;
 
   KHCI->ENDPOINT[0].ENDPT = USB_ENDPT_EPHSHK_MASK | USB_ENDPT_EPRXEN_MASK | USB_ENDPT_EPTXEN_MASK;
   for (unsigned i = 1; i < 16; ++i) {
@@ -241,7 +242,7 @@ static void process_bus_sleep(uint8_t rhport)
   const unsigned inten = KHCI->INTEN;
 
   KHCI->INTEN    = (inten & ~USB_INTEN_SLEEPEN_MASK) | USB_INTEN_RESUMEEN_MASK;
-  //KHCI->USBTRC0 |= USB_USBTRC0_USBRESMEN_MASK;
+  KHCI->USBTRC0 |= USB_USBTRC0_USBRESMEN_MASK;
   KHCI->USBCTRL |= USB_USBCTRL_SUSP_MASK;
 
   dcd_event_bus_signal(rhport, DCD_EVENT_SUSPEND, true);
@@ -252,8 +253,8 @@ static void process_bus_resume(uint8_t rhport)
   // Enable suspend & disable resume interrupt
   const unsigned inten = KHCI->INTEN;
 
-  KHCI->USBCTRL &= ~USB_USBCTRL_SUSP_MASK;
-  //KHCI->USBTRC0 &= ~USB_USBTRC0_USBRESMEN_MASK;
+  KHCI->USBCTRL &= ~USB_USBCTRL_SUSP_MASK; // will also clear USB_USBTRC0_USB_RESUME_INT_MASK
+  KHCI->USBTRC0 &= ~USB_USBTRC0_USBRESMEN_MASK;
   KHCI->INTEN    = (inten & ~USB_INTEN_RESUMEEN_MASK) | USB_INTEN_SLEEPEN_MASK;
 
   dcd_event_bus_signal(rhport, DCD_EVENT_RESUME, true);
@@ -275,8 +276,7 @@ void dcd_init(uint8_t rhport)
   KHCI->BDTPAGE2 = (uint8_t)((uintptr_t)_dcd.bdt >> 16);
   KHCI->BDTPAGE3 = (uint8_t)((uintptr_t)_dcd.bdt >> 24);
 
-  KHCI->INTEN = USB_INTEN_USBRSTEN_MASK | USB_INTEN_TOKDNEEN_MASK |
-    USB_INTEN_SLEEPEN_MASK | USB_INTEN_ERROREN_MASK | USB_INTEN_STALLEN_MASK;
+  KHCI->INTEN = USB_INTEN_USBRSTEN_MASK;
 
   dcd_connect(rhport);
   NVIC_ClearPendingIRQ(USB0_IRQn);
@@ -297,7 +297,7 @@ void dcd_int_disable(uint8_t rhport)
 void dcd_set_address(uint8_t rhport, uint8_t dev_addr)
 {
   _dcd.addr = dev_addr & 0x7F; 
- /* Response with status first before changing device address */
+  /* Response with status first before changing device address */
   dcd_edpt_xfer(rhport, tu_edpt_addr(0, TUSB_DIR_IN), NULL, 0);
 }
 
@@ -518,16 +518,24 @@ void dcd_int_handler(uint8_t rhport)
   }
 
   if (is & USB_ISTAT_SLEEP_MASK) {
-    TU_LOG_LOCATION();
-    TU_LOG2_HEX(is);
+    // TU_LOG2("Suspend: "); TU_LOG2_HEX(is);
+
+    // Note Host usually has extra delay after bus reset (without SOF), which could falsely 
+    // detected as Sleep event. Though usbd has debouncing logic so we are good
     KHCI->ISTAT = USB_ISTAT_SLEEP_MASK;
     process_bus_sleep(rhport);
   }
 
+#if 0 // ISTAT_RESUME never trigger, probably for host mode ?
   if (is & USB_ISTAT_RESUME_MASK) {
-    TU_LOG_LOCATION();
-    TU_LOG2_HEX(is);
+    // TU_LOG2("ISTAT Resume: "); TU_LOG2_HEX(is);
     KHCI->ISTAT = USB_ISTAT_RESUME_MASK;
+    process_bus_resume(rhport);
+  }
+#endif
+
+  if (KHCI->USBTRC0 & USB_USBTRC0_USB_RESUME_INT_MASK) {
+     // TU_LOG2("USBTRC0 Resume: "); TU_LOG2_HEX(is); TU_LOG2_HEX(KHCI->USBTRC0);
     process_bus_resume(rhport);
   }
 
