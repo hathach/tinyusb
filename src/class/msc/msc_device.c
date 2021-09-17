@@ -476,7 +476,7 @@ bool mscd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t event, uint32_t
             if (p_cbw->total_bytes)
             {
               // 6.7 The 13 Cases: case 4 (Hi > Dn)
-              TU_LOG(MSC_DEBUG, "  SCSI case 4 (Hi > Dn): %lu\r\n", p_cbw->total_bytes);
+              // TU_LOG(MSC_DEBUG, "  SCSI case 4 (Hi > Dn): %lu\r\n", p_cbw->total_bytes);
               fail_scsi_op(rhport, p_msc, MSC_CSW_STATUS_FAILED);
             }else
             {
@@ -489,7 +489,7 @@ bool mscd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t event, uint32_t
             if ( p_cbw->total_bytes == 0 )
             {
               // 6.7 The 13 Cases: case 2 (Hn < Di)
-              TU_LOG(MSC_DEBUG, "  SCSI case 2 (Hn < Di): %lu\r\n", p_cbw->total_bytes);
+              // TU_LOG(MSC_DEBUG, "  SCSI case 2 (Hn < Di): %lu\r\n", p_cbw->total_bytes);
               fail_scsi_op(rhport, p_msc, MSC_CSW_STATUS_FAILED);
             }else
             {
@@ -604,7 +604,7 @@ bool mscd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t event, uint32_t
       if ( (p_cbw->total_bytes > p_msc->xferred_len) && is_data_in(p_cbw->dir) )
       {
         // 6.7 The 13 Cases: case 5 (Hi > Di): STALL before status
-        TU_LOG(MSC_DEBUG, "  SCSI case 5 (Hi > Di): %lu > %lu\r\n", p_cbw->total_bytes, p_msc->xferred_len);
+        // TU_LOG(MSC_DEBUG, "  SCSI case 5 (Hi > Di): %lu > %lu\r\n", p_cbw->total_bytes, p_msc->xferred_len);
         usbd_edpt_stall(rhport, p_msc->ep_in);
       }else
       {
