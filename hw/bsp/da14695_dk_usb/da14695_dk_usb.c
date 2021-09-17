@@ -53,6 +53,9 @@ void UnhandledIRQ(void)
   while(1);
 }
 
+// DA146xx driver function that must be called whenever VBUS changes.
+extern void tusb_vbus_changed(bool present);
+
 void board_init(void)
 {
   // LED
@@ -70,7 +73,10 @@ void board_init(void)
   // 1ms tick timer
   SysTick_Config(SystemCoreClock / 1000);
 
-  NVIC_SetPriority(USB_IRQn, 2);
+#if TUSB_OPT_DEVICE_ENABLED
+  // This board is USB powered there is no need to monitor
+  // VBUS line.  Notify driver that VBUS is present.
+  tusb_vbus_changed(true);
 
   /* Setup USB IRQ */
   NVIC_SetPriority(USB_IRQn, 2);
@@ -81,6 +87,7 @@ void board_init(void)
 
   mcu_gpio_set_pin_function(14, MCU_GPIO_MODE_INPUT, MCU_GPIO_FUNC_USB);
   mcu_gpio_set_pin_function(15, MCU_GPIO_MODE_INPUT, MCU_GPIO_FUNC_USB);
+#endif
 }
 
 //--------------------------------------------------------------------+
