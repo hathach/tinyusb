@@ -217,6 +217,7 @@ typedef struct {
 static struct
 {
   bool vbus_present;
+  bool init_called;
   bool in_reset;
   xfer_ctl_t xfer_status[EP_MAX][2];
   // Endpoints that use DMA, one for each direction
@@ -224,6 +225,7 @@ static struct
 } _dcd =
 {
   .vbus_present = false,
+  .init_called = false,
   .xfer_status =
   {
     { { .regs = EP_REGS(USB_EPC0_REG) }, { .regs = EP_REGS(USB_EPC0_REG) } },
@@ -735,19 +737,13 @@ static void handle_ep0_nak(void)
  *------------------------------------------------------------------*/
 void dcd_init(uint8_t rhport)
 {
-  USB->USB_MCTRL_REG = USB_USB_MCTRL_REG_USBEN_Msk;
-  USB->USB_NFSR_REG = 0;
-  USB->USB_FAR_REG = 0x80;
-  USB->USB_NFSR_REG = NFSR_NODE_RESET;
-  USB->USB_TXMSK_REG = 0;
-  USB->USB_RXMSK_REG = 0;
+  (void) rhport;
 
-  USB->USB_MAMSK_REG = USB_USB_MAMSK_REG_USB_M_INTR_Msk |
-                       USB_USB_MAMSK_REG_USB_M_ALT_Msk |
-                       USB_USB_MAMSK_REG_USB_M_WARN_Msk;
-  USB->USB_ALTMSK_REG = USB_USB_ALTMSK_REG_USB_M_RESET_Msk;
-
-  dcd_connect(rhport);
+  _dcd.init_called = true;
+  if (_dcd.vbus_present)
+  {
+    dcd_connect(rhport);
+  }
 }
 
 void dcd_int_enable(uint8_t rhport)
@@ -783,10 +779,25 @@ void dcd_connect(uint8_t rhport)
 {
   (void)rhport;
 
-  REG_SET_BIT(USB_MCTRL_REG, USB_NAT);
+  if (GET_BIT(USB->USB_MCTRL_REG, USB_USB_MCTRL_REG_USB_NAT) == 0)
+  {
+    USB->USB_MCTRL_REG = USB_USB_MCTRL_REG_USBEN_Msk;
+    USB->USB_NFSR_REG = 0;
+    USB->USB_FAR_REG = 0x80;
+    USB->USB_NFSR_REG = NFSR_NODE_RESET;
+    USB->USB_TXMSK_REG = 0;
+    USB->USB_RXMSK_REG = 0;
 
-  // Select chosen DMA to be triggered by USB.
-  DMA->DMA_REQ_MUX_REG = (DMA->DMA_REQ_MUX_REG & ~DA146XX_DMA_USB_MUX_MASK) | DA146XX_DMA_USB_MUX;
+    USB->USB_MAMSK_REG = USB_USB_MAMSK_REG_USB_M_INTR_Msk |
+                         USB_USB_MAMSK_REG_USB_M_ALT_Msk |
+                         USB_USB_MAMSK_REG_USB_M_WARN_Msk;
+    USB->USB_ALTMSK_REG = USB_USB_ALTMSK_REG_USB_M_RESET_Msk;
+
+    REG_SET_BIT(USB_MCTRL_REG, USB_NAT);
+
+    // Select chosen DMA to be triggered by USB.
+    DMA->DMA_REQ_MUX_REG = (DMA->DMA_REQ_MUX_REG & ~DA146XX_DMA_USB_MUX_MASK) | DA146XX_DMA_USB_MUX;
+  }
 }
 
 void dcd_disconnect(uint8_t rhport)
@@ -796,6 +807,30 @@ void dcd_disconnect(uint8_t rhport)
   REG_CLR_BIT(USB_MCTRL_REG, USB_NAT);
 }
 
+TU_ATTR_ALWAYS_INLINE static inline bool is_in_isr(void)
+{
+  return (SCB->ICSR & SCB_ICSR_VECTACTIVE_Msk) != 0;
+}
+
+void tusb_vbus_changed(bool present)
+{
+  if (present && !_dcd.vbus_present)
+  {
+    _dcd.vbus_present = true;
+    // If power event happened before USB started, delay dcd_connect
+    // until dcd_init is called.
+    if (_dcd.init_called)
+    {
+      dcd_connect(0);
+    }
+  }
+  else if (!present && _dcd.vbus_present)
+  {
+    _dcd.vbus_present = false;
+    USB->USB_MCTRL_REG = 0;
+    dcd_event_bus_signal(0, DCD_EVENT_UNPLUGGED, is_in_isr());
+  }
+}
 
 /*------------------------------------------------------------------*/
 /* DCD Endpoint port
