@@ -52,67 +52,56 @@ static volatile bool uart_busy = false;
 
 static void tx_cb_EDBG_COM(const struct usart_async_descriptor *const io_descr)
 {
+  (void) io_descr;
   uart_busy = false;
 }
 
 //------------- IMPLEMENTATION -------------//
 void board_init(void)
 {
-	init_mcu();
+  init_mcu();
 
-	/* Disable Watchdog */
-	hri_wdt_set_MR_WDDIS_bit(WDT);
+  /* Disable Watchdog */
+  hri_wdt_set_MR_WDDIS_bit(WDT);
 
-	// LED
-	_pmc_enable_periph_clock(ID_PIOC);
-	gpio_set_pin_level(LED_PIN, false);
-	gpio_set_pin_direction(LED_PIN, GPIO_DIRECTION_OUT);
-	gpio_set_pin_function(LED_PIN, GPIO_PIN_FUNCTION_OFF);
+  // LED
+  _pmc_enable_periph_clock(ID_PIOC);
+  gpio_set_pin_level(LED_PIN, false);
+  gpio_set_pin_direction(LED_PIN, GPIO_DIRECTION_OUT);
+  gpio_set_pin_function(LED_PIN, GPIO_PIN_FUNCTION_OFF);
 
-	// Button
-	_pmc_enable_periph_clock(ID_PIOA);
-	gpio_set_pin_direction(BUTTON_PIN, GPIO_DIRECTION_IN);
-	gpio_set_pin_pull_mode(BUTTON_PIN, GPIO_PULL_UP);
-	gpio_set_pin_function(BUTTON_PIN, GPIO_PIN_FUNCTION_OFF);
+  // Button
+  _pmc_enable_periph_clock(ID_PIOA);
+  gpio_set_pin_direction(BUTTON_PIN, GPIO_DIRECTION_IN);
+  gpio_set_pin_pull_mode(BUTTON_PIN, GPIO_PULL_UP);
+  gpio_set_pin_function(BUTTON_PIN, GPIO_PIN_FUNCTION_OFF);
 
-	// Uart via EDBG Com
-	_pmc_enable_periph_clock(ID_USART1);
-	gpio_set_pin_function(UART_RX_PIN, MUX_PA21A_USART1_RXD1);
-	gpio_set_pin_function(UART_TX_PIN, MUX_PB4D_USART1_TXD1);
+  // Uart via EDBG Com
+  _pmc_enable_periph_clock(ID_USART1);
+  gpio_set_pin_function(UART_RX_PIN, MUX_PA21A_USART1_RXD1);
+  gpio_set_pin_function(UART_TX_PIN, MUX_PB4D_USART1_TXD1);
 
-	usart_async_init(&edbg_com, USART1, edbg_com_buffer, sizeof(edbg_com_buffer), _usart_get_usart_async());
-	usart_async_set_baud_rate(&edbg_com, CFG_BOARD_UART_BAUDRATE);
-	usart_async_register_callback(&edbg_com, USART_ASYNC_TXC_CB, tx_cb_EDBG_COM);
-//	usart_async_register_callback(&EDBG_COM, USART_ASYNC_RXC_CB, rx_cb_EDBG_COM);
-	usart_async_enable(&edbg_com);
+  usart_async_init(&edbg_com, USART1, edbg_com_buffer, sizeof(edbg_com_buffer), _usart_get_usart_async());
+  usart_async_set_baud_rate(&edbg_com, CFG_BOARD_UART_BAUDRATE);
+  usart_async_register_callback(&edbg_com, USART_ASYNC_TXC_CB, tx_cb_EDBG_COM);
+  usart_async_enable(&edbg_com);
 
 #if CFG_TUSB_OS  == OPT_OS_NONE
   // 1ms tick timer (samd SystemCoreClock may not correct)
   SysTick_Config(CONF_CPU_FREQUENCY / 1000);
 #endif
 
-#if 0
-  // USB Pin, Clock init
+  // Enable USB clock
+  _pmc_enable_periph_clock(ID_USBHS);
 
-  /* Clear SYSIO 10 & 11 for USB DM & DP */
-  hri_matrix_clear_CCFG_SYSIO_reg(MATRIX, CCFG_SYSIO_SYSIO10 | CCFG_SYSIO_SYSIO11);
-
-  // Enable clock
-  _pmc_enable_periph_clock(ID_UDP);
-
-	/* USB Device mode & Transceiver active */
-	hri_matrix_write_CCFG_USBMR_reg(MATRIX, CCFG_USBMR_USBMODE);
-#endif
 }
 
 //--------------------------------------------------------------------+
 // USB Interrupt Handler
 //--------------------------------------------------------------------+
-void UDP_Handler(void)
+void USBHS_Handler(void)
 {
-  #if CFG_TUSB_RHPORT0_MODE & OPT_MODE_DEVICE
-    tud_int_handler(0);
-  #endif
+  tud_int_handler(0);
 }
 
 //--------------------------------------------------------------------+

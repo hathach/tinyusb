@@ -1,1 +1,0 @@
-include $(TOP)/$(BOARD_PATH)/board.mk

@@ -5,8 +5,6 @@ var HID = require('node-hid');
 var os = require('os')
 // list of supported devices
 var boards = require('./boards.js')
-
-var isWin = (os.platform() === 'win32');
 var devices = HID.devices();
 
 // this will choose any device found in the boards.js file
@@ -19,10 +17,8 @@ var message = "Hello World!"
 // This means if you have characters in your string that are not Latin-1 you will have to add additional logic for character codes above 255
 var messageBuffer = Array.from(message, function(c){return c.charCodeAt(0)});
 
-// Windows wants you to prepend a 0 to whatever you send
-if(isWin){
-	messageBuffer.unshift(0)
-}
+// HIDAPI requires us to prepend a 0 for single hid report as dummy reportID
+messageBuffer.unshift(0)
 
 // Some OSes expect that you always send a buffer that equals your report length
 // So lets fill up the rest of the buffer with zeros
@@ -66,6 +62,7 @@ function anySupportedBoard(d) {
 
 
 function isDevice(board,d){
-	return d.vendorId==board[0] && d.productId==board[1];
+	// product id 0xff is matches all
+	return d.vendorId==board[0] && (d.productId==board[1] || board[1] == 0xFFFF);
 }
 

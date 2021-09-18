@@ -155,11 +155,14 @@ extern uint32_t SystemCoreClock;
 //--------------------------------------------------------------------+
 // Interrupt nesting behavior configuration.
 //--------------------------------------------------------------------+
-/* Cortex-M specific definitions. __NVIC_PRIO_BITS is defined in core_cmx.h */
-#ifdef __NVIC_PRIO_BITS
+#if defined(__NVIC_PRIO_BITS)
+  // For Cortex-M specific: __NVIC_PRIO_BITS is defined in core_cmx.h
 	#define configPRIO_BITS       __NVIC_PRIO_BITS
+#elif defined(__ECLIC_INTCTLBITS)
+  // RISC-V Bumblebee core from nuclei
+  #define configPRIO_BITS       __ECLIC_INTCTLBITS
 #else
-  #error "This port requires __NVIC_PRIO_BITS to be defined"
+  #error "FreeRTOS configPRIO_BITS to be defined"
 #endif
 
 /* The lowest interrupt priority that can be used in a call to a "set priority" function. */

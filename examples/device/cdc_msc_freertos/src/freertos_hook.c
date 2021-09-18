@@ -94,7 +94,7 @@ void vApplicationGetTimerTaskMemory( StaticTask_t **ppxTimerTaskTCBBuffer, Stack
   *pulTimerTaskStackSize = configTIMER_TASK_STACK_DEPTH;
 }
 
-#if CFG_TUSB_MCU == OPT_MCU_RX63X
+#if CFG_TUSB_MCU == OPT_MCU_RX63X | CFG_TUSB_MCU == OPT_MCU_RX65X
 #include "iodefine.h"
 void vApplicationSetupTimerInterrupt(void)
 {

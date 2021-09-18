@@ -29,7 +29,7 @@
 #if TUSB_OPT_DEVICE_ENABLED && \
     (CFG_TUSB_MCU == OPT_MCU_SAMD11 || CFG_TUSB_MCU == OPT_MCU_SAMD21 || \
      CFG_TUSB_MCU == OPT_MCU_SAMD51 || CFG_TUSB_MCU == OPT_MCU_SAME5X || \
-     CFG_TUSB_MCU == OPT_MCU_SAML22)
+     CFG_TUSB_MCU == OPT_MCU_SAML22 || CFG_TUSB_MCU == OPT_MCU_SAML21)
 
 #include "sam.h"
 #include "device/dcd.h"
@@ -125,7 +125,7 @@ void dcd_int_disable(uint8_t rhport)
 }
 
 #elif CFG_TUSB_MCU == OPT_MCU_SAMD11 || CFG_TUSB_MCU == OPT_MCU_SAMD21 || \
-      CFG_TUSB_MCU == OPT_MCU_SAML22
+      CFG_TUSB_MCU == OPT_MCU_SAML22 || CFG_TUSB_MCU == OPT_MCU_SAML21
 
 void dcd_int_enable(uint8_t rhport)
 {
@@ -230,14 +230,22 @@ bool dcd_edpt_open (uint8_t rhport, tusb_desc_endpoint_t const * desc_edpt)
   if ( dir == TUSB_DIR_OUT )
   {
     ep->EPCFG.bit.EPTYPE0 = desc_edpt->bmAttributes.xfer + 1;
+    ep->EPSTATUSCLR.reg = USB_DEVICE_EPSTATUSCLR_STALLRQ0 | USB_DEVICE_EPSTATUSCLR_DTGLOUT; // clear stall & dtoggle
     ep->EPINTENSET.bit.TRCPT0 = true;
   }else
   {
     ep->EPCFG.bit.EPTYPE1 = desc_edpt->bmAttributes.xfer + 1;
+    ep->EPSTATUSCLR.reg = USB_DEVICE_EPSTATUSCLR_STALLRQ1 | USB_DEVICE_EPSTATUSCLR_DTGLIN; // clear stall & dtoggle
     ep->EPINTENSET.bit.TRCPT1 = true;
   }
 
   return true;
+}
+
+void dcd_edpt_close_all (uint8_t rhport)
+{
+  (void) rhport;
+  // TODO implement dcd_edpt_close_all()
 }
 
 bool dcd_edpt_xfer (uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t total_bytes)

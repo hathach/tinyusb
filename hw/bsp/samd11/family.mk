@@ -3,7 +3,6 @@ DEPS_SUBMODULES += hw/mcu/microchip
 include $(TOP)/$(BOARD_PATH)/board.mk
 
 CFLAGS += \
-	-flto \
   -mthumb \
   -mabi=aapcs \
   -mcpu=cortex-m0plus \

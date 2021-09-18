@@ -268,16 +268,33 @@ bool tud_msc_start_stop_cb(uint8_t lun, uint8_t power_condition, bool start, boo
 // Copy disk's data to buffer (up to bufsize) and return number of copied bytes.
 int32_t tud_msc_read10_cb(uint8_t lun, uint32_t lba, uint32_t offset, void* buffer, uint32_t bufsize)
 {
+  // out of ramdisk
+  if ( lba >= DISK_BLOCK_NUM ) return -1;
+
   uint8_t const* addr = (lun ? msc_disk1[lba] : msc_disk0[lba]) + offset;
   memcpy(buffer, addr, bufsize);
 
   return bufsize;
 }
 
+bool tud_msc_is_writable_cb (uint8_t lun)
+{
+  (void) lun;
+
+#ifdef CFG_EXAMPLE_MSC_READONLY
+  return false;
+#else
+  return true;
+#endif
+}
+
 // Callback invoked when received WRITE10 command.
 // Process data in buffer to disk's storage and return number of written bytes
 int32_t tud_msc_write10_cb(uint8_t lun, uint32_t lba, uint32_t offset, uint8_t* buffer, uint32_t bufsize)
 {
+  // out of ramdisk
+  if ( lba >= DISK_BLOCK_NUM ) return -1;
+
 #ifndef CFG_EXAMPLE_MSC_READONLY
   uint8_t* addr = (lun ? msc_disk1[lba] : msc_disk0[lba])  + offset;
   memcpy(addr, buffer, bufsize);
@@ -296,7 +313,7 @@ int32_t tud_msc_scsi_cb (uint8_t lun, uint8_t const scsi_cmd[16], void* buffer, 
   // read10 & write10 has their own callback and MUST not be handled here
 
   void const* response = NULL;
-  uint16_t resplen = 0;
+  int32_t resplen = 0;
 
   // most scsi handled is input
   bool in_xfer = true;

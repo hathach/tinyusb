@@ -35,8 +35,8 @@
 #define LED_PIN               16
 #define LED_STATE_ON          1
 
-// Button
-#define BUTTON_PIN            (32+14) // D5
+// Button: D5
+#define BUTTON_PIN            (32+14)
 #define BUTTON_STATE_ACTIVE   0
 
 // UART

@@ -36,6 +36,9 @@
 #define USB_PID           (0x4000 | _PID_MAP(CDC, 0) | _PID_MAP(MSC, 1) | _PID_MAP(HID, 2) | \
                            _PID_MAP(MIDI, 3) | _PID_MAP(VENDOR, 4) )
 
+#define USB_VID   0xCafe
+#define USB_BCD   0x0200
+
 //--------------------------------------------------------------------+
 // Device Descriptors
 //--------------------------------------------------------------------+
@@ -43,13 +46,13 @@ tusb_desc_device_t const desc_device =
 {
     .bLength            = sizeof(tusb_desc_device_t),
     .bDescriptorType    = TUSB_DESC_DEVICE,
-    .bcdUSB             = 0x0200,
+    .bcdUSB             = USB_BCD,
     .bDeviceClass       = 0x00,
     .bDeviceSubClass    = 0x00,
     .bDeviceProtocol    = 0x00,
     .bMaxPacketSize0    = CFG_TUD_ENDPOINT0_SIZE,
 
-    .idVendor           = 0xCafe,
+    .idVendor           = USB_VID,
     .idProduct          = USB_PID,
     .bcdDevice          = 0x0100,
 
@@ -82,9 +85,9 @@ uint8_t const desc_hid_report[] =
 // Invoked when received GET HID REPORT DESCRIPTOR
 // Application return pointer to descriptor
 // Descriptor contents must exist long enough for transfer to complete
-uint8_t const * tud_hid_descriptor_report_cb(uint8_t itf)
+uint8_t const * tud_hid_descriptor_report_cb(uint8_t instance)
 {
-  (void) itf;
+  (void) instance;
   return desc_hid_report;
 }
 
@@ -111,12 +114,62 @@ uint8_t const desc_configuration[] =
   TUD_HID_DESCRIPTOR(ITF_NUM_HID, 0, HID_ITF_PROTOCOL_NONE, sizeof(desc_hid_report), EPNUM_HID, CFG_TUD_HID_EP_BUFSIZE, 5)
 };
 
+#if TUD_OPT_HIGH_SPEED
+// Per USB specs: high speed capable device must report device_qualifier and other_speed_configuration
+
+// other speed configuration
+uint8_t desc_other_speed_config[CONFIG_TOTAL_LEN];
+
+// device qualifier is mostly similar to device descriptor since we don't change configuration based on speed
+tusb_desc_device_qualifier_t const desc_device_qualifier =
+{
+  .bLength            = sizeof(tusb_desc_device_qualifier_t),
+  .bDescriptorType    = TUSB_DESC_DEVICE_QUALIFIER,
+  .bcdUSB             = USB_BCD,
+
+  .bDeviceClass       = 0x00,
+  .bDeviceSubClass    = 0x00,
+  .bDeviceProtocol    = 0x00,
+
+  .bMaxPacketSize0    = CFG_TUD_ENDPOINT0_SIZE,
+  .bNumConfigurations = 0x01,
+  .bReserved          = 0x00
+};
+
+// Invoked when received GET DEVICE QUALIFIER DESCRIPTOR request
+// Application return pointer to descriptor, whose contents must exist long enough for transfer to complete.
+// device_qualifier descriptor describes information about a high-speed capable device that would
+// change if the device were operating at the other speed. If not highspeed capable stall this request.
+uint8_t const* tud_descriptor_device_qualifier_cb(void)
+{
+  return (uint8_t const*) &desc_device_qualifier;
+}
+
+// Invoked when received GET OTHER SEED CONFIGURATION DESCRIPTOR request
+// Application return pointer to descriptor, whose contents must exist long enough for transfer to complete
+// Configuration descriptor in the other speed e.g if high speed then this is for full speed and vice versa
+uint8_t const* tud_descriptor_other_speed_configuration_cb(uint8_t index)
+{
+  (void) index; // for multiple configurations
+
+  // other speed config is basically configuration with type = OHER_SPEED_CONFIG
+  memcpy(desc_other_speed_config, desc_configuration, CONFIG_TOTAL_LEN);
+  desc_other_speed_config[1] = TUSB_DESC_OTHER_SPEED_CONFIG;
+
+  // this example use the same configuration for both high and full speed mode
+  return desc_other_speed_config;
+}
+
+#endif // highspeed
+
 // Invoked when received GET CONFIGURATION DESCRIPTOR
 // Application return pointer to descriptor
 // Descriptor contents must exist long enough for transfer to complete
 uint8_t const * tud_descriptor_configuration_cb(uint8_t index)
 {
   (void) index; // for multiple configurations
+
+  // This example use the same configuration for both high and full speed mode
   return desc_configuration;
 }
 

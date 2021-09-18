@@ -40,6 +40,12 @@
 #include "device/dcd.h"
 #include "NuMicro.h"
 
+// Since TinyUSB doesn't use SOF for now, and this interrupt too often (1ms interval)
+// We disable SOF for now until needed later on
+#ifndef USE_SOF
+#  define USE_SOF     0
+#endif
+
 /* allocation of USBD RAM for Setup, EP0_IN, and and EP_OUT */
 #define PERIPH_SETUP_BUF_BASE  0
 #define PERIPH_SETUP_BUF_LEN   8
@@ -64,9 +70,6 @@ enum ep_enum
   PERIPH_EP7 = 7,
   PERIPH_MAX_EP,
 };
-
-/* set by dcd_set_address() */
-static volatile uint8_t assigned_address;
 
 /* reset by dcd_init(), this is used by dcd_edpt_open() to assign USBD peripheral buffer addresses */
 static uint32_t bufseg_addr;
@@ -99,6 +102,11 @@ static void usb_attach(void)
 static void usb_detach(void)
 {
   USBD->SE0 |= USBD_SE0_SE0_Msk;
+}
+
+static inline void usb_memcpy(uint8_t *dest, uint8_t *src, uint16_t size)
+{
+  while(size--) *dest++ = *src++;
 }
 
 static void usb_control_send_zlp(void)
@@ -153,7 +161,8 @@ static void dcd_in_xfer(struct xfer_ctl_t *xfer, USBD_EP_T *ep)
   else
 #endif
   {
-    memcpy((uint8_t *)(USBD_BUF_BASE + ep->BUFSEG), xfer->data_ptr, bytes_now);
+    // USB SRAM seems to only support byte access and memcpy could possibly do it by words
+    usb_memcpy((uint8_t *)(USBD_BUF_BASE + ep->BUFSEG), xfer->data_ptr, bytes_now);
   }
 
   ep->MXPLD = bytes_now;
@@ -191,7 +200,10 @@ static void bus_reset(void)
 }
 
 /* centralized location for USBD interrupt enable bit mask */
-static const uint32_t enabled_irqs = USBD_INTSTS_VBDETIF_Msk | USBD_INTSTS_BUSIF_Msk | USBD_INTSTS_SETUP_Msk | USBD_INTSTS_USBIF_Msk | USBD_INTSTS_SOFIF_Msk;
+enum {
+  ENABLED_IRQS = USBD_INTSTS_VBDETIF_Msk | USBD_INTSTS_BUSIF_Msk | USBD_INTSTS_SETUP_Msk |
+                 USBD_INTSTS_USBIF_Msk   | (USE_SOF ? USBD_INTSTS_SOFIF_Msk : 0)
+};
 
 /*
   NUC121/NUC125/NUC126 TinyUSB API driver implementation
@@ -213,8 +225,8 @@ void dcd_init(uint8_t rhport)
 
   usb_attach();
 
-  USBD->INTSTS = enabled_irqs;
-  USBD->INTEN  = enabled_irqs;
+  USBD->INTSTS = ENABLED_IRQS;
+  USBD->INTEN  = ENABLED_IRQS;
 }
 
 void dcd_int_enable(uint8_t rhport)
@@ -232,14 +244,30 @@ void dcd_int_disable(uint8_t rhport)
 void dcd_set_address(uint8_t rhport, uint8_t dev_addr)
 {
   (void) rhport;
+  (void) dev_addr;
   usb_control_send_zlp(); /* SET_ADDRESS is the one exception where TinyUSB doesn't use dcd_edpt_xfer() to generate a ZLP */
-  assigned_address = dev_addr;
+
+  // DCD can only set address after status for this request is complete.
+  // do it at dcd_edpt0_status_complete()
+}
+
+static void remote_wakeup_delay(void)
+{
+  // try to delay for 1 ms
+  uint32_t count = SystemCoreClock / 1000;
+  while(count--) __NOP();
 }
 
 void dcd_remote_wakeup(uint8_t rhport)
 {
   (void) rhport;
-  USBD->ATTR = USBD_ATTR_RWAKEUP_Msk;
+  // Enable PHY before sending Resume('K') state
+  USBD->ATTR |= USBD_ATTR_PHYEN_Msk;
+  USBD->ATTR |= USBD_ATTR_RWAKEUP_Msk;
+
+  // Per specs: remote wakeup signal bit must be clear within 1-15ms
+  remote_wakeup_delay();
+  USBD->ATTR &=~USBD_ATTR_RWAKEUP_Msk;
 }
 
 bool dcd_edpt_open(uint8_t rhport, tusb_desc_endpoint_t const * p_endpoint_desc)
@@ -252,7 +280,7 @@ bool dcd_edpt_open(uint8_t rhport, tusb_desc_endpoint_t const * p_endpoint_desc)
   /* mine the data for the information we need */
   int const dir = tu_edpt_dir(p_endpoint_desc->bEndpointAddress);
   int const size = p_endpoint_desc->wMaxPacketSize.size;
-  tusb_xfer_type_t const type = p_endpoint_desc->bmAttributes.xfer;
+  tusb_xfer_type_t const type = (tusb_xfer_type_t) p_endpoint_desc->bmAttributes.xfer;
   struct xfer_ctl_t *xfer = &xfer_table[ep - USBD->EP];
 
   /* allocate buffer from USB RAM */
@@ -271,6 +299,12 @@ bool dcd_edpt_open(uint8_t rhport, tusb_desc_endpoint_t const * p_endpoint_desc)
   xfer->max_packet_size = size;
 
   return true;
+}
+
+void dcd_edpt_close_all (uint8_t rhport)
+{
+  (void) rhport;
+  // TODO implement dcd_edpt_close_all()
 }
 
 bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t *buffer, uint16_t total_bytes)
@@ -345,14 +379,16 @@ void dcd_edpt_clear_stall(uint8_t rhport, uint8_t ep_addr)
 {
   (void) rhport;
   USBD_EP_T *ep = ep_entry(ep_addr, false);
-  ep->CFG |= USBD_CFG_CSTALL_Msk;
+  ep->CFG = (ep->CFG & ~USBD_CFG_DSQSYNC_Msk) | USBD_CFG_CSTALL_Msk;
 }
 
 void dcd_int_handler(uint8_t rhport)
 {
   (void) rhport;
 
-  uint32_t status = USBD->INTSTS;
+  // Mask non-enabled irqs, ex. SOF
+  uint32_t status = USBD->INTSTS & (ENABLED_IRQS | 0xffffff00);
+
 #ifdef SUPPORT_LPM
   uint32_t state = USBD->ATTR & 0x300f;
 #else
@@ -414,9 +450,6 @@ void dcd_int_handler(uint8_t rhport)
   {
     if (status & USBD_INTSTS_EPEVT0_Msk) /* PERIPH_EP0 (EP0_IN) event: this is treated separately from the rest */
     {
-      /* given ACK from host has happened, we can now set the address (if not already done) */
-      if((USBD->FADDR != assigned_address) && (USBD->FADDR == 0)) USBD->FADDR = assigned_address;
-
       uint16_t const available_bytes = USBD->EP[PERIPH_EP0].MXPLD;
 
       active_ep0_xfer = (available_bytes == xfer_table[PERIPH_EP0].max_packet_size);
@@ -450,7 +483,8 @@ void dcd_int_handler(uint8_t rhport)
           else
 #endif
           {
-            memcpy(xfer->data_ptr, (uint8_t *)(USBD_BUF_BASE + ep->BUFSEG), available_bytes);
+            // USB SRAM seems to only support byte access and memcpy could possibly do it by words
+            usb_memcpy(xfer->data_ptr, (uint8_t *)(USBD_BUF_BASE + ep->BUFSEG), available_bytes);
             xfer->data_ptr += available_bytes;
           }
 
@@ -485,7 +519,24 @@ void dcd_int_handler(uint8_t rhport)
   }
 
   /* acknowledge all interrupts */
-  USBD->INTSTS = status & enabled_irqs;
+  USBD->INTSTS = status & ENABLED_IRQS;
+}
+
+// Invoked when a control transfer's status stage is complete.
+// May help DCD to prepare for next control transfer, this API is optional.
+void dcd_edpt0_status_complete(uint8_t rhport, tusb_control_request_t const * request)
+{
+  (void) rhport;
+
+  if (request->bmRequestType_bit.recipient == TUSB_REQ_RCPT_DEVICE &&
+      request->bmRequestType_bit.type == TUSB_REQ_TYPE_STANDARD &&
+      request->bRequest == TUSB_REQ_SET_ADDRESS )
+  {
+    uint8_t const dev_addr = (uint8_t) request->wValue;
+
+    // Setting new address after the whole request is complete
+    USBD->FADDR = dev_addr;
+  }
 }
 
 void dcd_disconnect(uint8_t rhport)

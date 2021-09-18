@@ -16,6 +16,7 @@ jobs:
         family:
         # Alphabetical order
         - 'fomu'
+        - 'gd32vf103'
     steps:
     - name: Setup Python
       uses: actions/setup-python@v2
