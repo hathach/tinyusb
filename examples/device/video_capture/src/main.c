@@ -30,9 +30,13 @@
 #include "bsp/board.h"
 #include "tusb.h"
 
+#include "images.h"
 //--------------------------------------------------------------------+
 // MACRO CONSTANT TYPEDEF PROTYPES
 //--------------------------------------------------------------------+
+
+#define FRAME_WIDTH   128
+#define FRAME_HEIGHT  96
 
 /* Blink pattern
  * - 250 ms  : device not mounted
@@ -102,8 +106,45 @@ void tud_resume_cb(void)
 //--------------------------------------------------------------------+
 // USB Video
 //--------------------------------------------------------------------+
+static unsigned char const *frames[] = {
+  black_128x96_yuv, white_128x96_yuv
+};
+uint8_t current_frame = 0;
+
 void video_task(void)
 {
+  static unsigned start_ms = 0;
+  static unsigned interval_ms = 66;
+  static unsigned frame_num = 0;
+  static unsigned already_sent = 0;
+
+  if (!tud_video_n_streaming(0)) return;
+
+  if (!already_sent) {
+    tud_video_n_frame_xfer(0, 0, (void*)frames[current_frame], 128 * 96 * 12/8);
+    current_frame ^= 1;
+    already_sent = 1;
+  }
+
+  unsigned cur = board_millis();
+  if (cur - start_ms < interval_ms) return; // not enough time
+  start_ms += interval_ms;
+
+  /* flip buffer */
+  ++frame_num;
+  if (frame_num % 3) {
+    interval_ms = 66;
+  } else {
+    interval_ms = 67;
+  }
+}
+
+int tud_video_frame_xfer_complete_cb(void)
+{
+  /* prepare tx */
+  tud_video_n_frame_xfer(0, 0, (void*)frames[current_frame], 128 * 96 * 12/8);
+  current_frame ^= 1;
+  return 0;
 }
 
 //--------------------------------------------------------------------+

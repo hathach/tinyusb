@@ -90,6 +90,10 @@
 #define CFG_TUD_ENDPOINT0_SIZE    64
 #endif
 
+#define CFG_TUD_VIDEO_EP_BUFSIZE  256
+
+#define CFG_TUD_VIDEO_STREAMING  1
+
 //------------- CLASS -------------//
 #define CFG_TUD_CDC              0
 #define CFG_TUD_MSC              0

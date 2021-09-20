@@ -36,17 +36,23 @@ extern "C" {
 #endif
 
 //--------------------------------------------------------------------+
+// Application API (Multiple Ports)
+// CFG_TUD_VIDEO > 1
+//--------------------------------------------------------------------+
+bool tud_video_n_streaming(uint8_t itf);
+
+
+int tud_video_n_frame_xfer(uint8_t itf, uint32_t pts, void *buffer, size_t bufsize);
+
+/*------------- Optional callbacks -------------*/
+TU_ATTR_WEAK int tud_video_frame_xfer_complete_cb(void);
+
+//--------------------------------------------------------------------+
 // Application Callback API (weak is optional)
 //--------------------------------------------------------------------+
 
-// Invoked when GET_INFO request received
-TU_ATTR_WEAK bool tud_video_get_info_cb(uint8_t rhport, tusb_control_request_t const *request, uint8_t const *itf_desc);
-// Invoked when GET_INFO request received
-TU_ATTR_WEAK bool tud_video_set_cur_cb(uint8_t rhport, tusb_control_request_t const *request);
-// Invoked when GET_CUR request received
-TU_ATTR_WEAK bool tud_video_get_cur_cb(uint8_t rhport, tusb_control_request_t const *request);
-
-/* @return video_error_code_t */
+/* Invoked when SET POWER_MODE request received to 
+ * @return video_error_code_t */
 TU_ATTR_WEAK int tud_video_power_mode_cb(unsigned itf, uint8_t power_mod);
 
 /* @return video_error_code_t */

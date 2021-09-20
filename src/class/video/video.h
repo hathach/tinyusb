@@ -192,6 +192,23 @@ typedef struct TU_ATTR_PACKED {
   uint8_t  baInterfaceNr[];
 } tusb_desc_cs_video_ctl_itf_hdr_t;
 
+/* 2.4.3.3 */
+typedef struct TU_ATTR_PACKED {
+  uint8_t bHeaderLength;
+  union {
+    uint8_t bmHeaderInfo;
+    struct {
+      uint8_t FrameID:              1;
+      uint8_t EndOfFrame:           1;
+      uint8_t PresentationTime:     1;
+      uint8_t SourceClockReference: 1;
+      uint8_t StillImage:           1;
+      uint8_t Error:                1;
+      uint8_t EndOfHeader:          1;
+    };
+  };
+} tusb_video_payload_header_t;
+
 /* 3.9.2.1 */
 typedef struct TU_ATTR_PACKED {
   uint8_t  bLength;
