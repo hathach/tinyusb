@@ -885,7 +885,12 @@ bool dcd_edpt_open(uint8_t rhport, tusb_desc_endpoint_t const * desc_edpt)
 void dcd_edpt_close_all (uint8_t rhport)
 {
   (void) rhport;
-  // TODO implement dcd_edpt_close_all()
+
+  for (int epnum = 1; epnum < EP_MAX; ++epnum)
+  {
+    dcd_edpt_close(0, epnum | TUSB_DIR_OUT);
+    dcd_edpt_close(0, epnum | TUSB_DIR_IN);
+  }
 }
 
 void dcd_edpt_close(uint8_t rhport, uint8_t ep_addr)
