@@ -28,6 +28,7 @@
 #include "board.h"
 
 #include "io.h"
+#include "mmu.h"
 
 //--------------------------------------------------------------------+
 // Forward USB interrupt events to TinyUSB IRQ Handler
@@ -55,6 +56,7 @@ void board_init(void)
   gpio_initOutputPinWithPullNone(18);
   gpio_setPinOutputBool(18, true);
   gpio_initOutputPinWithPullNone(42);
+  setup_mmu_flat_map();
   // gpio_initOutputPinWithPullNone(23);
   // gpio_initOutputPinWithPullNone(24);
   // gpio_initOutputPinWithPullNone(25);
@@ -83,17 +85,17 @@ void board_init(void)
   // gpio_setPinOutputBool(25, true);
   print();
   // gpio_setPinOutputBool(25, false);
-  while (true) {
-  // for (size_t i = 0; i < 5; i++) {
-    for (size_t j = 0; j < 10000000000; j++) {
-      __asm__("nop");
-    }
-    gpio_setPinOutputBool(42, true);
-    for (size_t j = 0; j < 10000000000; j++) {
-      __asm__("nop");
-    }
-    gpio_setPinOutputBool(42, false);
-  }
+  // while (true) {
+  // // for (size_t i = 0; i < 5; i++) {
+  //   for (size_t j = 0; j < 10000000000; j++) {
+  //     __asm__("nop");
+  //   }
+  //   gpio_setPinOutputBool(42, true);
+  //   for (size_t j = 0; j < 10000000000; j++) {
+  //     __asm__("nop");
+  //   }
+  //   gpio_setPinOutputBool(42, false);
+  // }
   // while (1) uart_update();
 }
 

@@ -19,7 +19,7 @@ _start:
     adr    x0, vectors        // load VBAR_EL1 with virtual
     // msr    vbar_el3, x0        // vector table address
     msr    vbar_el1, x0        // vector table address
-    // msr    vbar_el2, x0        // vector table address
+    msr    vbar_el2, x0        // vector table address
     isb
 
     // Clean the BSS section
@@ -45,6 +45,8 @@ irq_entry
 mov x0, #\type
 mrs x1, esr_el1
 mrs x2, elr_el1
+mrs x3, esr_el2
+mrs x4, elr_el2
 b   err_hang
 .endm
 

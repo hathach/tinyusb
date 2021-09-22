@@ -18,8 +18,9 @@ CFLAGS += \
 
 SRC_C += \
 	src/portable/broadcom/synopsys/dcd_synopsys.c \
+	$(MCU_DIR)/interrupts.c \
 	$(MCU_DIR)/io.c \
-	$(MCU_DIR)/interrupts.c
+	$(MCU_DIR)/mmu.c
 
 CROSS_COMPILE = aarch64-none-elf-
 
