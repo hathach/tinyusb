@@ -1037,7 +1037,7 @@ void dcd_edpt_clear_stall(uint8_t rhport, uint8_t ep_addr)
 
 void dcd_int_handler(uint8_t rhport)
 {
-  uint32_t int_status = USB->USB_MAEV_REG;
+  uint32_t int_status = USB->USB_MAEV_REG & USB->USB_MAMSK_REG;
 
   (void)rhport;
 
