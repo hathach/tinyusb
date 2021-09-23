@@ -60,10 +60,17 @@
 
 #define EP_MAX            4
 
+// Node functional states
 #define NFSR_NODE_RESET         0
 #define NFSR_NODE_RESUME        1
 #define NFSR_NODE_OPERATIONAL   2
 #define NFSR_NODE_SUSPEND       3
+// Those two following states are added to allow going out of sleep mode
+// using frame interrupt.  On remove wakeup RESUME state must be kept for
+// at least 1ms. It is accomplished by using FRAME interrupt that goes
+// through those two fake states before entering OPERATIONAL state.
+#define NFSR_NODE_WAKING        (0x10 | (NFSR_NODE_RESUME))
+#define NFSR_NODE_WAKING2       (0x20 | (NFSR_NODE_RESUME))
 
 static TU_ATTR_ALIGNED(4) uint8_t _setup_packet[8];
 
@@ -218,7 +225,7 @@ static struct
 {
   bool vbus_present;
   bool init_called;
-  bool in_reset;
+  uint8_t nfsr;
   xfer_ctl_t xfer_status[EP_MAX][2];
   // Endpoints that use DMA, one for each direction
   uint8_t dma_ep[2];
@@ -259,6 +266,15 @@ static const tusb_desc_endpoint_t ep0IN_desc =
 };
 
 #define XFER_CTL_BASE(_ep, _dir) &_dcd.xfer_status[_ep][_dir]
+
+static void set_nfsr(uint8_t val)
+{
+  _dcd.nfsr = val;
+  // Write only lower 2 bits to register, higher bits are used
+  // to count down till OPERATIONAL state can be entered when
+  // remote wakeup activated.
+  USB->USB_NFSR_REG = val & 3;
+}
 
 static void fill_tx_fifo(xfer_ctl_t * xfer)
 {
@@ -628,60 +644,81 @@ static void handle_tx_ev(void)
     handle_epx_tx_ev(XFER_CTL_BASE(3, TUSB_DIR_IN));
 }
 
+static uint32_t check_reset_end(uint32_t alt_ev)
+{
+  if (_dcd.nfsr == NFSR_NODE_RESET)
+  {
+    if (GET_BIT(alt_ev, USB_USB_ALTEV_REG_USB_RESET))
+    {
+      // Could be still in reset, but since USB_M_RESET is disabled it can
+      // be also old reset state that was not cleared yet.
+      // If (after reading USB_ALTEV_REG register again) bit is cleared
+      // reset state just ended.
+      // Keep non-reset bits combined from two previous ALTEV read and
+      // one from the next line.
+      alt_ev = (alt_ev & ~USB_USB_ALTEV_REG_USB_RESET_Msk) | USB->USB_ALTEV_REG;
+    }
+    if (GET_BIT(alt_ev, USB_USB_ALTEV_REG_USB_RESET) == 0)
+    {
+      USB->USB_ALTMSK_REG = USB_USB_ALTMSK_REG_USB_M_RESET_Msk |
+                            USB_USB_ALTEV_REG_USB_SD3_Msk;
+      set_nfsr(NFSR_NODE_OPERATIONAL);
+      dcd_edpt_open(0, &ep0OUT_desc);
+      dcd_edpt_open(0, &ep0IN_desc);
+    }
+  }
+  return alt_ev;
+}
+
 static void handle_bus_reset(void)
 {
+  uint32_t alt_ev;
+
   USB->USB_NFSR_REG = 0;
   USB->USB_FAR_REG = 0x80;
   USB->USB_ALTMSK_REG = 0;
   USB->USB_NFSR_REG = NFSR_NODE_RESET;
   USB->USB_TXMSK_REG = 0;
   USB->USB_RXMSK_REG = 0;
-  (void)USB->USB_ALTEV_REG;
-  _dcd.in_reset = true;
+  set_nfsr(NFSR_NODE_RESET);
 
   dcd_event_bus_reset(0, TUSB_SPEED_FULL, true);
   USB->USB_DMA_CTRL_REG = 0;
 
   USB->USB_MAMSK_REG = USB_USB_MAMSK_REG_USB_M_INTR_Msk |
-#if USE_SOF
                        USB_USB_MAMSK_REG_USB_M_FRAME_Msk |
-#endif
                        USB_USB_MAMSK_REG_USB_M_WARN_Msk |
                        USB_USB_MAMSK_REG_USB_M_ALT_Msk;
-  USB->USB_NFSR_REG = NFSR_NODE_OPERATIONAL;
-  USB->USB_ALTMSK_REG = USB_USB_ALTMSK_REG_USB_M_SD3_Msk |
-                        USB_USB_ALTMSK_REG_USB_M_RESUME_Msk;
-  // There is no information about end of reset state
-  // USB_FRAME event will be used to enable reset detection again
-  REG_SET_BIT(USB_MAEV_REG, USB_FRAME);
-  dcd_edpt_open (0, &ep0OUT_desc);
-  dcd_edpt_open (0, &ep0IN_desc);
+  USB->USB_ALTMSK_REG = USB_USB_ALTMSK_REG_USB_M_RESUME_Msk;
+  alt_ev = USB->USB_ALTEV_REG;
+  check_reset_end(alt_ev);
 }
 
 static void handle_alt_ev(void)
 {
   uint32_t alt_ev = USB->USB_ALTEV_REG;
 
-  if (GET_BIT(alt_ev, USB_USB_ALTEV_REG_USB_RESET))
+  alt_ev = check_reset_end(alt_ev);
+  if (GET_BIT(alt_ev, USB_USB_ALTEV_REG_USB_RESET) && _dcd.nfsr != NFSR_NODE_RESET)
   {
     handle_bus_reset();
   }
-  else
+  else if (GET_BIT(alt_ev, USB_USB_ALTEV_REG_USB_RESUME))
   {
-    if (GET_BIT(alt_ev, USB_USB_ALTEV_REG_USB_RESUME))
+    if (USB->USB_NFSR_REG == NFSR_NODE_SUSPEND)
     {
-      USB->USB_NFSR_REG = NFSR_NODE_OPERATIONAL;
-      USB->USB_ALTMSK_REG &= ~USB_USB_ALTMSK_REG_USB_M_RESUME_Msk;
-      USB->USB_ALTMSK_REG |= USB_USB_ALTMSK_REG_USB_M_SD3_Msk;
+      set_nfsr(NFSR_NODE_OPERATIONAL);
+      USB->USB_ALTMSK_REG = USB_USB_ALTMSK_REG_USB_M_RESET_Msk |
+                            USB_USB_ALTMSK_REG_USB_M_SD3_Msk;
       dcd_event_bus_signal(0, DCD_EVENT_RESUME, true);
     }
-    if (GET_BIT(alt_ev, USB_USB_ALTEV_REG_USB_SD3))
-    {
-      USB->USB_NFSR_REG = NFSR_NODE_SUSPEND;
-      USB->USB_ALTMSK_REG |= USB_USB_ALTMSK_REG_USB_M_RESUME_Msk;
-      USB->USB_ALTMSK_REG &= ~USB_USB_ALTMSK_REG_USB_M_SD3_Msk | USB_USB_ALTMSK_REG_USB_M_SD5_Msk;
-      dcd_event_bus_signal(0, DCD_EVENT_SUSPEND, true);
-    }
+  }
+  else if (GET_BIT(alt_ev, USB_USB_ALTEV_REG_USB_SD3))
+  {
+    set_nfsr(NFSR_NODE_SUSPEND);
+    USB->USB_ALTMSK_REG = USB_USB_ALTMSK_REG_USB_M_RESET_Msk |
+                          USB_USB_ALTMSK_REG_USB_M_RESUME_Msk;
+    dcd_event_bus_signal(0, DCD_EVENT_SUSPEND, true);
   }
 }
 
@@ -773,6 +810,12 @@ void dcd_set_address(uint8_t rhport, uint8_t dev_addr)
 void dcd_remote_wakeup(uint8_t rhport)
 {
   (void)rhport;
+  if (_dcd.nfsr == NFSR_NODE_SUSPEND)
+  {
+    // Enter fake state that will use FRAME interrupt to wait before going operational.
+    set_nfsr(NFSR_NODE_WAKING);
+    USB->USB_MAMSK_REG |= USB_USB_MAMSK_REG_USB_M_FRAME_Msk;
+  }
 }
 
 void dcd_connect(uint8_t rhport)
@@ -784,16 +827,16 @@ void dcd_connect(uint8_t rhport)
     USB->USB_MCTRL_REG = USB_USB_MCTRL_REG_USBEN_Msk;
     USB->USB_NFSR_REG = 0;
     USB->USB_FAR_REG = 0x80;
-    USB->USB_NFSR_REG = NFSR_NODE_RESET;
     USB->USB_TXMSK_REG = 0;
     USB->USB_RXMSK_REG = 0;
 
     USB->USB_MAMSK_REG = USB_USB_MAMSK_REG_USB_M_INTR_Msk |
                          USB_USB_MAMSK_REG_USB_M_ALT_Msk |
                          USB_USB_MAMSK_REG_USB_M_WARN_Msk;
-    USB->USB_ALTMSK_REG = USB_USB_ALTMSK_REG_USB_M_RESET_Msk;
+    USB->USB_ALTMSK_REG = USB_USB_ALTMSK_REG_USB_M_RESET_Msk |
+                          USB_USB_ALTEV_REG_USB_SD3_Msk;
 
-    REG_SET_BIT(USB_MCTRL_REG, USB_NAT);
+    USB->USB_MCTRL_REG = USB_USB_MCTRL_REG_USBEN_Msk | USB_USB_MCTRL_REG_USB_NAT_Msk;
 
     // Select chosen DMA to be triggered by USB.
     DMA->DMA_REQ_MUX_REG = (DMA->DMA_REQ_MUX_REG & ~DA146XX_DMA_USB_MUX_MASK) | DA146XX_DMA_USB_MUX;
@@ -1079,19 +1122,38 @@ void dcd_int_handler(uint8_t rhport)
 
   if (GET_BIT(int_status, USB_USB_MAEV_REG_USB_FRAME))
   {
-    if (_dcd.in_reset)
+    if (_dcd.nfsr == NFSR_NODE_RESET)
     {
-      // Enable reset detection
-      _dcd.in_reset = false;
-      (void)USB->USB_ALTEV_REG;
+      // During reset FRAME interrupt is enabled to periodically
+      // check when reset state ends.
+      // FRAME interrupt is generated every 1ms without host sending
+      // actual SOF.
+      check_reset_end(USB_USB_ALTEV_REG_USB_RESET_Msk);
     }
+    else if (_dcd.nfsr == NFSR_NODE_WAKING)
+    {
+      // No need to call set_nfsr, just set state
+      _dcd.nfsr = NFSR_NODE_WAKING2;
+    }
+    else if (_dcd.nfsr == NFSR_NODE_WAKING2)
+    {
+      // No need to call set_nfsr, just set state
+      _dcd.nfsr = NFSR_NODE_RESUME;
+    }
+    else if (_dcd.nfsr == NFSR_NODE_RESUME)
+    {
+      set_nfsr(NFSR_NODE_OPERATIONAL);
+    }
+    else
+    {
 #if USE_SOF
-    dcd_event_bus_signal(0, DCD_EVENT_SOF, true);
+      dcd_event_bus_signal(0, DCD_EVENT_SOF, true);
 #else
-    // SOF was used to re-enable reset detection
-    // No need to keep it enabled
-    USB->USB_MAMSK_REG &= ~USB_USB_MAMSK_REG_USB_M_FRAME_Msk;
+      // FRAME interrupt was used to re-enable reset detection or remote
+      // wakeup no need to keep it enabled when USE_SOF is off.
+      USB->USB_MAMSK_REG &= ~USB_USB_MAMSK_REG_USB_M_FRAME_Msk;
 #endif
+    }
   }
 
   if (GET_BIT(int_status, USB_USB_MAEV_REG_USB_TX_EV))
