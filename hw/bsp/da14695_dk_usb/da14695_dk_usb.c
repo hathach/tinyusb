@@ -68,7 +68,7 @@ void board_init(void)
   hal_gpio_init_out(5, 0);
 
   // Button
-  hal_gpio_init_in(BUTTON_PIN, HAL_GPIO_PULL_NONE);
+  hal_gpio_init_in(BUTTON_PIN, HAL_GPIO_PULL_DOWN);
 
   // 1ms tick timer
   SysTick_Config(SystemCoreClock / 1000);
@@ -101,8 +101,8 @@ void board_led_write(bool state)
 
 uint32_t board_button_read(void)
 {
-  // button is active LOW
-  return hal_gpio_read(BUTTON_PIN) ^ 1;
+  // button is active HIGH
+  return hal_gpio_read(BUTTON_PIN);
 }
 
 int board_uart_read(uint8_t* buf, int len)
