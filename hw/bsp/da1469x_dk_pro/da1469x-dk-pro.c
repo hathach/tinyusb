@@ -80,7 +80,7 @@ void board_init(void)
   hal_gpio_init_out(5, 0);
 
   // Button
-  hal_gpio_init_in(BUTTON_PIN, HAL_GPIO_PULL_NONE);
+  hal_gpio_init_in(BUTTON_PIN, HAL_GPIO_PULL_UP);
 
   // 1ms tick timer
   SysTick_Config(SystemCoreClock / 1000);
