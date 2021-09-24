@@ -114,7 +114,7 @@
 // MACRO TYPEDEF CONSTANT ENUM
 //--------------------------------------------------------------------+
 
-#define RHPORT_REGS_BASE 0x7e980000
+#define RHPORT_REGS_BASE 0xfe980000
 
 #define GLOBAL_BASE(_port)     ((USB_OTG_GlobalTypeDef*) RHPORT_REGS_BASE)
 #define DEVICE_BASE(_port)     (USB_OTG_DeviceTypeDef *) (RHPORT_REGS_BASE + USB_OTG_DEVICE_BASE)
@@ -438,6 +438,7 @@ void dcd_init (uint8_t rhport)
 {
   // Programming model begins in the last section of the chapter on the USB
   // peripheral in each Reference Manual.
+  TU_LOG(2, "    dcd_init");
 
   USB_OTG_GlobalTypeDef * usb_otg = GLOBAL_BASE(rhport);
 
@@ -477,8 +478,13 @@ void dcd_init (uint8_t rhport)
   // Reset core after selecting PHY
   // Wait AHB IDLE, reset then wait until it is cleared
   while ((usb_otg->GRSTCTL & USB_OTG_GRSTCTL_AHBIDL) == 0U) {}
+
+  TU_LOG(2, "    resetting");
   usb_otg->GRSTCTL |= USB_OTG_GRSTCTL_CSRST;
+  TU_LOG(2, "    waiting");
   while ((usb_otg->GRSTCTL & USB_OTG_GRSTCTL_CSRST) == USB_OTG_GRSTCTL_CSRST) {}
+
+  TU_LOG(2, "    reset done");
 
   // Restart PHY clock
   *((volatile uint32_t *)(RHPORT_REGS_BASE + USB_OTG_PCGCCTL_BASE)) = 0;

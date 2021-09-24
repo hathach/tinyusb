@@ -3,6 +3,8 @@
 
 // GPIO
 
+// Pi 4 base address: 0xFE000000
+// Pi 3 base address: 0x3F000000
 enum {
     PERIPHERAL_BASE = 0xFE000000,
     GPFSEL0         = PERIPHERAL_BASE + 0x200000,

@@ -5,7 +5,7 @@
 #include "mmu.h"
 
 // Each entry is a gig.
-volatile uint64_t level_1_table[32] __attribute__((aligned(4096)));
+volatile uint64_t level_1_table[512] __attribute__((aligned(4096)));
 
 // Third gig has peripherals
 uint64_t level_2_0x0_c000_0000_to_0x1_0000_0000[512] __attribute__((aligned(4096)));
@@ -14,9 +14,10 @@ void setup_mmu_flat_map(void) {
     // Set the first gig to regular access.
     level_1_table[0] = 0x0000000000000000 | 
                        MM_DESCRIPTOR_MAIR_INDEX(MT_NORMAL_NC) |
+                       MM_DESCRIPTOR_ACCESS_FLAG |
                        MM_DESCRIPTOR_BLOCK |
                        MM_DESCRIPTOR_VALID;
-    level_1_table[2] = ((uint64_t) level_2_0x0_c000_0000_to_0x1_0000_0000) |
+    level_1_table[3] = ((uint64_t) level_2_0x0_c000_0000_to_0x1_0000_0000) |
                        MM_DESCRIPTOR_TABLE |
                        MM_DESCRIPTOR_VALID;
     // Set peripherals to register access.
@@ -24,6 +25,7 @@ void setup_mmu_flat_map(void) {
         level_2_0x0_c000_0000_to_0x1_0000_0000[i] = (0x00000000c0000000 + (i << 21)) |
                                                     MM_DESCRIPTOR_EXECUTE_NEVER |
                                                     MM_DESCRIPTOR_MAIR_INDEX(MT_DEVICE_nGnRnE) |
+                                                    MM_DESCRIPTOR_ACCESS_FLAG |
                                                     MM_DESCRIPTOR_BLOCK |
                                                     MM_DESCRIPTOR_VALID;
     }
@@ -47,12 +49,14 @@ void setup_mmu_flat_map(void) {
         // Set [M] bit and enable the MMU.
         "MSR SCTLR_EL2, %[sctlr]\n\t"
         // The ISB forces these changes to be seen by the next instruction
-        "ISB"
+        "ISB\n\t"
+        // "AT S1EL2R %[ttbr0]"
         : /* No outputs. */
         : [mair] "r" (mair),
           [tcr] "r" (tcr),
           [ttbr0] "r" (ttbr0),
           [sctlr] "r" (sctlr)
     );
-    while (true) {}
+    //__asm__ ("brk #123");
+    //while (true) {}
 }
