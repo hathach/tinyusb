@@ -65,7 +65,6 @@ typedef struct TU_ATTR_PACKED {
   uint8_t bEntityId;
 } tusb_desc_cs_video_entity_itf_t;
 
-
 typedef struct TU_ATTR_PACKED {
   void const *beg;  /* The head of the first video control interface descriptor */
   uint16_t length;  /* Byte length of the video control interface descriptors */
@@ -356,9 +355,14 @@ static bool _open_vs_itf(uint8_t rhport, videod_streaming_interface_t *stm, unsi
     TU_ASSERT(cur < end);
     TU_ASSERT(usbd_edpt_open(rhport, (tusb_desc_endpoint_t const *)cur));
     stm->desc.ep[i] = cur - desc;
-    stm->max_payload_transfer_size = CFG_TUD_VIDEO_EP_BUFSIZE;
+    stm->max_payload_transfer_size = def_stm_settings.dwMaxPayloadTransferSize;
     TU_LOG1("    open EP%02x\n", _desc_ep_addr(cur));
   }
+  /* initialize payload header */
+  tusb_video_payload_header_t *hdr = (tusb_video_payload_header_t*)stm->ep_buf;
+  hdr->bHeaderLength = sizeof(*hdr);
+  hdr->bmHeaderInfo  = 0;
+
   return true;
 }
 
@@ -379,24 +383,22 @@ static int _payload_xfer_in(uint8_t rhport, uint8_t itf)
   TU_VERIFY( usbd_edpt_claim(rhport, ep_addr), 0);
 
   /* prepare a payload */
-  unsigned mps = stm->max_payload_transfer_size;
   uint32_t remaining = stm->bufsize - stm->offset;
-  uint32_t data_len = remaining < (mps - 2) ? remaining: (mps - 2);
-  stm->ep_buf[0] = 1;
-  stm->ep_buf[1] = 0;
-  memcpy(&stm->ep_buf[2], stm->buffer + stm->offset, data_len);
+  unsigned hdr_len   = stm->ep_buf[0];
+  unsigned pkt_len   = stm->max_payload_transfer_size;
+  if (hdr_len + remaining < pkt_len) {
+    pkt_len = hdr_len + remaining;
+  }
+  uint32_t data_len = pkt_len - hdr_len;
+  memcpy(&stm->ep_buf[hdr_len], stm->buffer + stm->offset, data_len);
   stm->offset += data_len;
   remaining -= data_len;
-  TU_LOG2(" %d\n", data_len, remaining);
-  TU_ASSERT( usbd_edpt_xfer(rhport, ep_addr, stm->ep_buf, 2 + data_len), 0 );
-
   if (!remaining) {
-    stm->buffer  = NULL;
-    stm->bufsize = 0;
-    stm->offset  = 0;
-    if (tud_video_frame_xfer_complete_cb)
-      tud_video_frame_xfer_complete_cb();
+    tusb_video_payload_header_t *hdr = (tusb_video_payload_header_t*)stm->ep_buf;
+    hdr->EndOfFrame = 1;
   }
+  TU_LOG2(" %d\n", data_len, remaining);
+  TU_ASSERT( usbd_edpt_xfer(rhport, ep_addr, stm->ep_buf, hdr_len + data_len), 0 );
   return data_len;
 }
 
@@ -691,7 +693,12 @@ int tud_video_n_frame_xfer(uint8_t itf, uint32_t pts, void *buffer, size_t bufsi
   if (!tud_video_n_streaming(itf))
     return false;
 
+  /* update the packet header */
   videod_streaming_interface_t *stm = &_videod_streaming_itf[itf];
+  tusb_video_payload_header_t *hdr = (tusb_video_payload_header_t*)stm->ep_buf;
+  hdr->FrameID   ^= 1;
+  hdr->EndOfFrame = 0;
+
   stm->buffer  = (uint8_t*)buffer;
   stm->bufsize = bufsize;
   TU_LOG1(" xfer %d\n", bufsize);
@@ -835,8 +842,9 @@ bool videod_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint3
 
   /* find streaming handle */
   unsigned i;
+  videod_streaming_interface_t *stm;
   for (i = 0; i < CFG_TUD_VIDEO_STREAMING; ++i) {
-    videod_streaming_interface_t *stm = &_videod_streaming_itf[i];
+    stm = &_videod_streaming_itf[i];
     unsigned const ep_ofs = stm->desc.ep[0];
     if (!ep_ofs) continue;
     void const *desc = _videod_itf[stm->index_vc].beg;
@@ -844,7 +852,15 @@ bool videod_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint3
       break;
   }
   TU_ASSERT(i < CFG_TUD_VIDEO_STREAMING);
-  _payload_xfer_in(rhport, i);
+  if (stm->offset < stm->bufsize) {
+    _payload_xfer_in(rhport, i);
+  } else {
+    stm->buffer  = NULL;
+    stm->bufsize = 0;
+    stm->offset  = 0;
+    if (tud_video_frame_xfer_complete_cb)
+      tud_video_frame_xfer_complete_cb();
+  }
   return true;
 }
 

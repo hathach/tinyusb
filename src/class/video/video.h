@@ -202,6 +202,7 @@ typedef struct TU_ATTR_PACKED {
       uint8_t EndOfFrame:           1;
       uint8_t PresentationTime:     1;
       uint8_t SourceClockReference: 1;
+      uint8_t PayloadSpecific:      1;
       uint8_t StillImage:           1;
       uint8_t Error:                1;
       uint8_t EndOfHeader:          1;
