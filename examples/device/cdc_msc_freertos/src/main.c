@@ -27,14 +27,16 @@
 #include <stdio.h>
 #include <string.h>
 
-#include "FreeRTOS.h"
-#include "task.h"
-#include "timers.h"
-#include "queue.h"
-#include "semphr.h"
-
 #include "bsp/board.h"
 #include "tusb.h"
+
+// FreeRTOS headers, MCUs such as esp32sx requires "freertos/" prefix in include path.
+// CFG_TUSB_OS_INC_PATH should be defined accordingly.
+#include TU_INCLUDE_PATH(CFG_TUSB_OS_INC_PATH,FreeRTOS.h)
+#include TU_INCLUDE_PATH(CFG_TUSB_OS_INC_PATH,semphr.h)
+#include TU_INCLUDE_PATH(CFG_TUSB_OS_INC_PATH,queue.h)
+#include TU_INCLUDE_PATH(CFG_TUSB_OS_INC_PATH,task.h)
+#include TU_INCLUDE_PATH(CFG_TUSB_OS_INC_PATH,timers.h)
 
 //--------------------------------------------------------------------+
 // MACRO CONSTANT TYPEDEF PROTYPES
@@ -95,7 +97,7 @@ int main(void)
   (void) xTaskCreateStatic( cdc_task, "cdc", CDC_STACK_SZIE, NULL, configMAX_PRIORITIES-2, cdc_stack, &cdc_taskdef);
 
   // skip starting scheduler (and return) for ESP32-S2 or ESP32-S3
-#if CFG_TUSB_MCU != OPT_MCU_ESP32S2 && CFG_TUSB_MCU != OPT_MCU_ESP32S3
+#if !( TU_CHECK_MCU(ESP32S2) || TU_CHECK_MCU(ESP32S3) )
   vTaskStartScheduler();
 #endif
 

@@ -45,6 +45,10 @@
 // Include MCU header
 #include "bsp/board_mcu.h"
 
+#if CFG_TUSB_MCU == OPT_MCU_ESP32S2 || CFG_TUSB_MCU == OPT_MCU_ESP32S3
+#error "ESP32-Sx should use IDF's FreeRTOSConfig.h"
+#endif
+
 extern uint32_t SystemCoreClock;
 
 /* Cortex M23/M33 port configuration. */
