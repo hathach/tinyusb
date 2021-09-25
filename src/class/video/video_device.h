@@ -42,10 +42,12 @@ extern "C" {
 bool tud_video_n_streaming(uint8_t itf);
 
 
-int tud_video_n_frame_xfer(uint8_t itf, uint32_t pts, void *buffer, size_t bufsize);
+/* itf       instance number of streaming interface */
+bool tud_video_n_frame_xfer(uint8_t itf, uint32_t pts, void *buffer, size_t bufsize);
 
 /*------------- Optional callbacks -------------*/
-TU_ATTR_WEAK int tud_video_frame_xfer_complete_cb(void);
+/* itf       instance number of streaming interface */
+TU_ATTR_WEAK int tud_video_frame_xfer_complete_cb(unsigned itf);
 
 //--------------------------------------------------------------------+
 // Application Callback API (weak is optional)

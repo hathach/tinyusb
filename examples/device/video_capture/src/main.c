@@ -141,10 +141,10 @@ void video_task(void)
   }
 }
 
-int tud_video_frame_xfer_complete_cb(void)
+int tud_video_frame_xfer_complete_cb(unsigned itf)
 {
   /* prepare tx */
-  tud_video_n_frame_xfer(0, 0, (void*)frames[current_frame], 128 * 96 * 12/8);
+  tud_video_n_frame_xfer(itf, 0, (void*)frames[current_frame], 128 * 96 * 12/8);
   ++current_frame;
   if (current_frame == sizeof(frames)/sizeof(frames[0]))
     current_frame = 0;
