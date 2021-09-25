@@ -107,7 +107,7 @@ void tud_resume_cb(void)
 // USB Video
 //--------------------------------------------------------------------+
 static unsigned char const *frames[] = {
-  black_128x96_yuv, white_128x96_yuv
+  black_128x96_yuv, white_128x96_yuv, green_128x96_yuv
 };
 uint8_t current_frame = 0;
 
@@ -122,7 +122,9 @@ void video_task(void)
 
   if (!already_sent) {
     tud_video_n_frame_xfer(0, 0, (void*)frames[current_frame], 128 * 96 * 12/8);
-    current_frame ^= 1;
+    ++current_frame;
+    if (current_frame == sizeof(frames)/sizeof(frames[0]))
+      current_frame = 0;
     already_sent = 1;
   }
 
@@ -143,7 +145,9 @@ int tud_video_frame_xfer_complete_cb(void)
 {
   /* prepare tx */
   tud_video_n_frame_xfer(0, 0, (void*)frames[current_frame], 128 * 96 * 12/8);
-  current_frame ^= 1;
+  ++current_frame;
+  if (current_frame == sizeof(frames)/sizeof(frames[0]))
+    current_frame = 0;
   return 0;
 }
 
