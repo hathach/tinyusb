@@ -109,30 +109,35 @@ void tud_resume_cb(void)
 static unsigned char const *frames[] = {
   black_128x96_yuv, white_128x96_yuv, green_128x96_yuv
 };
-uint8_t current_frame = 0;
+static unsigned current_frame = 0;
+static unsigned tx_busy = 0;
 
 void video_task(void)
 {
   static unsigned start_ms = 0;
-  static unsigned interval_ms = 66;
+  static unsigned interval_ms = 100;
   static unsigned frame_num = 0;
   static unsigned already_sent = 0;
 
-  if (!tud_video_n_streaming(0)) return;
+  if (!tud_video_n_streaming(0)) {
+    already_sent  = 0;
+    current_frame = 0;
+    return;
+  }
 
   if (!already_sent) {
-    tud_video_n_frame_xfer(0, 0, (void*)frames[current_frame], 128 * 96 * 12/8);
-    ++current_frame;
-    if (current_frame == sizeof(frames)/sizeof(frames[0]))
-      current_frame = 0;
     already_sent = 1;
+    start_ms = board_millis();
+    tud_video_n_frame_xfer(0, 0, (void*)frames[current_frame], 128 * 96 * 12/8);
   }
 
   unsigned cur = board_millis();
   if (cur - start_ms < interval_ms) return; // not enough time
+  if (tx_busy) return;
   start_ms += interval_ms;
 
-  /* flip buffer */
+  tud_video_n_frame_xfer(0, 0, (void*)frames[current_frame], 128 * 96 * 12/8);
+
   ++frame_num;
   if (frame_num % 3) {
     interval_ms = 66;
@@ -143,8 +148,8 @@ void video_task(void)
 
 int tud_video_frame_xfer_complete_cb(unsigned itf)
 {
-  /* prepare tx */
-  tud_video_n_frame_xfer(itf, 0, (void*)frames[current_frame], 128 * 96 * 12/8);
+  tx_busy = 0;
+  /* flip buffer */
   ++current_frame;
   if (current_frame == sizeof(frames)/sizeof(frames[0]))
     current_frame = 0;
