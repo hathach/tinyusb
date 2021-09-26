@@ -104,7 +104,9 @@ void tud_resume_cb(void)
 // USB Video
 //--------------------------------------------------------------------+
 static unsigned char const *frames[] = {
-  black_128x96_yuv, white_128x96_yuv, green_128x96_yuv
+  white_128x96_yuv, white_128x96_yuv, white_128x96_yuv,
+  t_128x96_yuv, ti_128x96_yuv, tin_128x96_yuv, logo_128x96_yuv,
+  logo_128x96_yuv, logo_128x96_yuv, logo_128x96_yuv, logo_128x96_yuv
 };
 static unsigned current_frame = 0;
 static unsigned tx_busy = 0;
