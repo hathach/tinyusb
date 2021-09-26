@@ -418,8 +418,6 @@ TU_VERIFY_STATIC( sizeof(video_probe_and_commit_control_t) == 48, "size is not c
   _fmtidx, _numfrmdesc, TUD_VIDEO_GUID(_guid), \
   _bitsperpix, _frmidx, _asrx,  _asry, _interlace, _cp
 
-//  _g0,_g1,_g2,_g3,_g4,_g5,_g6,_g7,_g8,_g9,_g10,_g11,_g12,_g13,_g14,_g15,
-
 /* Uncompressed 3.1.2 Table 3-3 */
 #define TUD_VIDEO_DESC_CS_VS_FRM_UNCOMPR_CONT(_frmidx, _cap, _width, _height, _minbr, _maxbr, _maxfrmbufsz, _frminterval, _minfrminterval, _maxfrminterval, _frmintervalstep) \
   TUD_VIDEO_DESC_CS_VS_FRM_UNCOMPR_CONT_LEN, TUSB_DESC_CS_INTERFACE, VIDEO_CS_VS_INTERFACE_FRAME_UNCOMPRESSED, \

@@ -45,7 +45,7 @@ tusb_desc_device_t const desc_device =
     .bDescriptorType    = TUSB_DESC_DEVICE,
     .bcdUSB             = 0x0200,
 
-    // Use Interface Association Descriptor (IAD) for CDC
+    // Use Interface Association Descriptor (IAD) for Video
     // As required by USB Specs IAD's subclass must be common class (2) and protocol must be IAD (1)
     .bDeviceClass       = TUSB_CLASS_MISC,
     .bDeviceSubClass    = MISC_SUBCLASS_COMMON,
@@ -104,7 +104,9 @@ uint8_t const desc_fs_configuration[] =
   // Config number, interface count, string index, total length, attribute, power in mA
   TUD_CONFIG_DESCRIPTOR(1, ITF_NUM_TOTAL, 0, CONFIG_TOTAL_LEN, 0, 500),
   // IAD for Video Control
-  TUD_VIDEO_CAPTURE_DESCRIPTOR(4, EPNUM_VIDEO_IN, FRAME_WIDTH, FRAME_HEIGHT, FRAME_RATE, CFG_TUD_VIDEO_EP_BUFSIZE)
+  TUD_VIDEO_CAPTURE_DESCRIPTOR(4, EPNUM_VIDEO_IN,
+                               FRAME_WIDTH, FRAME_HEIGHT, FRAME_RATE,
+                               CFG_TUD_VIDEO_STREAMING_EP_BUFSIZE)
 };
 
 // Invoked when received GET CONFIGURATION DESCRIPTOR

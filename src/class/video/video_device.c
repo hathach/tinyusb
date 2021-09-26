@@ -28,7 +28,7 @@
 
 #include "tusb_option.h"
 
-#if (TUSB_OPT_DEVICE_ENABLED && CFG_TUD_VIDEO)
+#if (TUSB_OPT_DEVICE_ENABLED && CFG_TUD_VIDEO && CFG_TUD_VIDEO_STREAMING)
 
 #include "device/usbd.h"
 #include "device/usbd_pvt.h"
@@ -66,17 +66,17 @@ typedef struct TU_ATTR_PACKED {
   uint8_t index_vs;  /* index from the video control interface */
   uint8_t error_code;/* error code */
   struct {
-    uint16_t beg;    /* Offset of the beggining of video streaming interface descriptor */
+    uint16_t beg;    /* Offset of the begging of video streaming interface descriptor */
     uint16_t end;    /* Offset of the end of video streaming interface descriptor */
     uint16_t cur;    /* Offset of the current settings */
     uint16_t ep[2];  /* Offset of endpoint descriptors. 0: streaming, 1: still capture */
   } desc;
-  uint8_t  *buffer; /* frame buffer. assume linear buffer. no support for stride access */
-  uint32_t bufsize; /* frame buffer size */
-  uint32_t offset;  /* offset for the next payload transfer */
+  uint8_t *buffer;   /* frame buffer. assume linear buffer. no support for stride access */
+  uint32_t bufsize;  /* frame buffer size */
+  uint32_t offset;   /* offset for the next payload transfer */
   uint32_t max_payload_transfer_size;
   /*------------- From this point, data is not cleared by bus reset -------------*/
-  CFG_TUSB_MEM_ALIGN uint8_t ep_buf[CFG_TUD_VIDEO_EP_BUFSIZE]; /* EP transfer buffer for streaming */
+  CFG_TUSB_MEM_ALIGN uint8_t ep_buf[CFG_TUD_VIDEO_STREAMING_EP_BUFSIZE]; /* EP transfer buffer for streaming */
 } videod_streaming_interface_t;
 
 /* video control interface */
@@ -89,8 +89,7 @@ typedef struct TU_ATTR_PACKED {
   uint8_t power_mode;
 
   /*------------- From this point, data is not cleared by bus reset -------------*/
-  // 
-  // CFG_TUSB_MEM_ALIGN uint8_t ctl_buf[64]; /* EP transfer buffer for control */
+  // CFG_TUSB_MEM_ALIGN uint8_t ctl_buf[64]; /* EP transfer buffer for interrupt transfer */
 
 } videod_interface_t;
 
@@ -115,7 +114,7 @@ static video_probe_and_commit_control_t const def_stm_settings = {
   .wCompWindowSize = 1, /* Maybe it is match to GOP size */
   .wDelay = 240, /* milliseconds */
   .dwMaxVideoFrameSize = FRAME_WIDTH * FRAME_HEIGHT * 12 / 8,
-  .dwMaxPayloadTransferSize = ((FRAME_WIDTH * FRAME_HEIGHT * 12 / 8 * 10) + 999) / 1000 + 2,
+  .dwMaxPayloadTransferSize = ((FRAME_WIDTH * FRAME_HEIGHT * 12 / 8 * FRAME_RATE) + 999) / 1000 + 2,
   .dwClockFrequency = 27000000, /* same as MPEG-2 system time clock  */
   .bmFramingInfo = 0x3,
   .bPreferedVersion = 1,
@@ -274,7 +273,7 @@ static void const* _find_desc_entity(tusb_desc_vc_itf_t const *vc, uint_fast8_t 
 
 /** Close current video control interface.
  *
- * @param[in,out] self     The context.
+ * @param[in,out] self     Video control interface context.
  * @param[in]     altnum   The target alternate setting number. */
 static bool _close_vc_itf(uint8_t rhport, videod_interface_t *self)
 {
@@ -294,9 +293,9 @@ static bool _close_vc_itf(uint8_t rhport, videod_interface_t *self)
   return true;
 }
 
-/** Set the specified alternate setting to own video control interface.
+/** Set the alternate setting to own video control interface.
  *
- * @param[in,out] self     The context.
+ * @param[in,out] self     Video control interface context.
  * @param[in]     altnum   The target alternate setting number. */
 static bool _open_vc_itf(uint8_t rhport, videod_interface_t *self, uint_fast8_t altnum)
 {
@@ -333,9 +332,9 @@ static bool _open_vc_itf(uint8_t rhport, videod_interface_t *self, uint_fast8_t 
   return true;
 }
 
-/** Set the specified alternate setting to own video control interface.
+/** Set the alternate setting to own video streaming interface.
  *
- * @param[in,out] self     The context.
+ * @param[in,out] stm      Streaming interface context.
  * @param[in]     altnum   The target alternate setting number. */
 static bool _open_vs_itf(uint8_t rhport, videod_streaming_interface_t *stm, uint_fast8_t altnum)
 {
@@ -374,6 +373,10 @@ static bool _open_vs_itf(uint8_t rhport, videod_streaming_interface_t *stm, uint
   tusb_video_payload_header_t *hdr = (tusb_video_payload_header_t*)stm->ep_buf;
   hdr->bHeaderLength = sizeof(*hdr);
   hdr->bmHeaderInfo  = 0;
+  /* clear transfer management information */
+  stm->buffer  = NULL;
+  stm->bufsize = 0;
+  stm->offset  = 0;
 
   return true;
 }
@@ -398,13 +401,15 @@ static uint_fast16_t _prepare_in_payload(videod_streaming_interface_t *stm)
 }
 
 /** Handle a standard request to the video control interface. */
-static int handle_video_ctl_std_req(uint8_t rhport, uint8_t stage, tusb_control_request_t const *request, uint_fast8_t itf)
+static int handle_video_ctl_std_req(uint8_t rhport, uint8_t stage,
+                                    tusb_control_request_t const *request,
+                                    uint_fast8_t ctl_idx)
 {
   switch (request->bRequest) {
   case TUSB_REQ_GET_INTERFACE:
     if (stage != CONTROL_STAGE_SETUP) return VIDEO_NO_ERROR;
     TU_VERIFY(1 == request->wLength, VIDEO_UNKNOWN);
-    tusb_desc_vc_itf_t const *vc = _get_desc_vc(&_videod_itf[itf]);
+    tusb_desc_vc_itf_t const *vc = _get_desc_vc(&_videod_itf[ctl_idx]);
     if (!vc) return VIDEO_UNKNOWN;
     if (tud_control_xfer(rhport, request,
                          (void*)&vc->std.bAlternateSetting,
@@ -414,9 +419,9 @@ static int handle_video_ctl_std_req(uint8_t rhport, uint8_t stage, tusb_control_
   case TUSB_REQ_SET_INTERFACE:
     if (stage != CONTROL_STAGE_SETUP) return VIDEO_NO_ERROR;
     TU_VERIFY(0 == request->wLength, VIDEO_UNKNOWN);
-    if (!_close_vc_itf(rhport, &_videod_itf[itf]))
+    if (!_close_vc_itf(rhport, &_videod_itf[ctl_idx]))
       return VIDEO_UNKNOWN;
-    if (!_open_vc_itf(rhport, &_videod_itf[itf], request->wValue))
+    if (!_open_vc_itf(rhport, &_videod_itf[ctl_idx], request->wValue))
       return VIDEO_UNKNOWN;
     tud_control_status(rhport, request);
     return VIDEO_NO_ERROR;
@@ -426,9 +431,11 @@ static int handle_video_ctl_std_req(uint8_t rhport, uint8_t stage, tusb_control_
   }
 }
 
-static int handle_video_ctl_cs_req(uint8_t rhport, uint8_t stage, tusb_control_request_t const *request, uint_fast8_t itf)
+static int handle_video_ctl_cs_req(uint8_t rhport, uint8_t stage,
+                                   tusb_control_request_t const *request,
+                                   uint_fast8_t ctl_idx)
 {
-  videod_interface_t *self = &_videod_itf[itf];
+  videod_interface_t *self = &_videod_itf[ctl_idx];
   /* 4.2.1 Interface Control Request */
   switch (TU_U16_HIGH(request->wValue)) {
   case VIDEO_VC_CTL_VIDEO_POWER_MODE:
@@ -440,7 +447,7 @@ static int handle_video_ctl_cs_req(uint8_t rhport, uint8_t stage, tusb_control_r
           return VIDEO_UNKNOWN;
       } else if (stage == CONTROL_STAGE_ACK) {
         if (tud_video_power_mode_cb)
-          return tud_video_power_mode_cb(itf, self->power_mode);
+          return tud_video_power_mode_cb(ctl_idx, self->power_mode);
       }
       return VIDEO_NO_ERROR;
     case VIDEO_REQUEST_GET_CUR:
@@ -480,18 +487,20 @@ static int handle_video_ctl_cs_req(uint8_t rhport, uint8_t stage, tusb_control_r
   return VIDEO_INVALID_REQUEST;
 }
 
-static int handle_video_ctl_req(uint8_t rhport, uint8_t stage, tusb_control_request_t const *request, uint_fast8_t itf)
+static int handle_video_ctl_req(uint8_t rhport, uint8_t stage,
+                                tusb_control_request_t const *request,
+                                uint_fast8_t ctl_idx)
 {
   uint_fast8_t entity_id;
   switch (request->bmRequestType_bit.type) {
   case TUSB_REQ_TYPE_STANDARD:
-    return handle_video_ctl_std_req(rhport, stage, request, itf);
+    return handle_video_ctl_std_req(rhport, stage, request, ctl_idx);
   case TUSB_REQ_TYPE_CLASS:
     entity_id = TU_U16_HIGH(request->wIndex);
     if (!entity_id) {
-      return handle_video_ctl_cs_req(rhport, stage, request, itf);
+      return handle_video_ctl_cs_req(rhport, stage, request, ctl_idx);
     } else {
-      if (!_find_desc_entity(_get_desc_vc(&_videod_itf[itf]), entity_id))
+      if (!_find_desc_entity(_get_desc_vc(&_videod_itf[ctl_idx]), entity_id))
         return VIDEO_INVALID_REQUEST;
       return VIDEO_INVALID_REQUEST;
     }
@@ -500,9 +509,11 @@ static int handle_video_ctl_req(uint8_t rhport, uint8_t stage, tusb_control_requ
   }
 }
 
-static int handle_video_stm_std_req(uint8_t rhport, uint8_t stage, tusb_control_request_t const *request, uint_fast8_t itf)
+static int handle_video_stm_std_req(uint8_t rhport, uint8_t stage,
+                                    tusb_control_request_t const *request,
+                                    uint_fast8_t stm_idx)
 {
-  videod_streaming_interface_t *self = &_videod_streaming_itf[itf];
+  videod_streaming_interface_t *self = &_videod_streaming_itf[stm_idx];
   switch (request->bRequest) {
   case TUSB_REQ_GET_INTERFACE:
     if (stage != CONTROL_STAGE_SETUP) return VIDEO_NO_ERROR;
@@ -526,10 +537,12 @@ static int handle_video_stm_std_req(uint8_t rhport, uint8_t stage, tusb_control_
   }
 }
 
-static int handle_video_stm_cs_req(uint8_t rhport, uint8_t stage, tusb_control_request_t const *request, uint_fast8_t itf)
+static int handle_video_stm_cs_req(uint8_t rhport, uint8_t stage,
+                                   tusb_control_request_t const *request,
+                                   uint_fast8_t stm_idx)
 {
   (void)rhport;
-  videod_streaming_interface_t *self = &_videod_streaming_itf[itf];
+  videod_streaming_interface_t *self = &_videod_streaming_itf[stm_idx];
   /* 4.2.1 Interface Control Request */
   switch (TU_U16_HIGH(request->wValue)) {
   case VIDEO_VS_CTL_STREAM_ERROR_CODE:
@@ -641,15 +654,17 @@ static int handle_video_stm_cs_req(uint8_t rhport, uint8_t stage, tusb_control_r
   return VIDEO_INVALID_REQUEST;
 }
 
-static int handle_video_stm_req(uint8_t rhport, uint8_t stage, tusb_control_request_t const *request, uint_fast8_t itf)
+static int handle_video_stm_req(uint8_t rhport, uint8_t stage,
+                                tusb_control_request_t const *request,
+                                uint_fast8_t stm_idx)
 {
   switch (request->bmRequestType_bit.type) {
   case TUSB_REQ_TYPE_STANDARD:
-    return handle_video_stm_std_req(rhport, stage, request, itf);
+    return handle_video_stm_std_req(rhport, stage, request, stm_idx);
   case TUSB_REQ_TYPE_CLASS:
     if (TU_U16_HIGH(request->wIndex))
       return VIDEO_INVALID_REQUEST;
-    return handle_video_stm_cs_req(rhport, stage, request, itf);
+    return handle_video_stm_cs_req(rhport, stage, request, stm_idx);
   default:
     return VIDEO_INVALID_REQUEST;
   }
