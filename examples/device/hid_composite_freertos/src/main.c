@@ -31,13 +31,21 @@
 #include "tusb.h"
 #include "usb_descriptors.h"
 
-// FreeRTOS headers, MCUs such as esp32sx requires "freertos/" prefix in include path.
-// CFG_TUSB_OS_INC_PATH should be defined accordingly.
-#include TU_INCLUDE_PATH(CFG_TUSB_OS_INC_PATH,FreeRTOS.h)
-#include TU_INCLUDE_PATH(CFG_TUSB_OS_INC_PATH,semphr.h)
-#include TU_INCLUDE_PATH(CFG_TUSB_OS_INC_PATH,queue.h)
-#include TU_INCLUDE_PATH(CFG_TUSB_OS_INC_PATH,task.h)
-#include TU_INCLUDE_PATH(CFG_TUSB_OS_INC_PATH,timers.h)
+#if TU_CHECK_MCU(ESP32S2) || TU_CHECK_MCU(ESP32S3)
+  // ESP-IDF need "freertos/" prefix in include path.
+  // CFG_TUSB_OS_INC_PATH should be defined accordingly.
+  #include "freertos/FreeRTOS.h"
+  #include "freertos/semphr.h"
+  #include "freertos/queue.h"
+  #include "freertos/task.h"
+  #include "freertos/timers.h"
+#else
+  #include "FreeRTOS.h"
+  #include "semphr.h"
+  #include "queue.h"
+  #include "task.h"
+  #include "timers.h"
+#endif
 
 //--------------------------------------------------------------------+
 // MACRO CONSTANT TYPEDEF PROTYPES
