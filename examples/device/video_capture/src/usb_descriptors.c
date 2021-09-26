@@ -104,7 +104,7 @@ uint8_t const desc_fs_configuration[] =
   // Config number, interface count, string index, total length, attribute, power in mA
   TUD_CONFIG_DESCRIPTOR(1, ITF_NUM_TOTAL, 0, CONFIG_TOTAL_LEN, 0, 500),
   // IAD for Video Control
-  TUD_VIDEO_CAPTURE_DESCRIPTOR(4, EPNUM_VIDEO_IN, 128, 96, 10, 256)
+  TUD_VIDEO_CAPTURE_DESCRIPTOR(4, EPNUM_VIDEO_IN, FRAME_WIDTH, FRAME_HEIGHT, FRAME_RATE, CFG_TUD_VIDEO_EP_BUFSIZE)
 };
 
 // Invoked when received GET CONFIGURATION DESCRIPTOR

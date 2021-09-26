@@ -39,11 +39,6 @@
 // MACRO CONSTANT TYPEDEF
 //--------------------------------------------------------------------+
 typedef struct {
-  uint8_t num;
-  uint8_t alt;
-} itf_setting_t;
-
-typedef struct {
   tusb_desc_interface_t            std;
   tusb_desc_cs_video_ctl_itf_hdr_t ctl;
 } tusb_desc_vc_itf_t;
@@ -65,49 +60,41 @@ typedef struct TU_ATTR_PACKED {
   uint8_t bEntityId;
 } tusb_desc_cs_video_entity_itf_t;
 
+/* video streaming interface */
 typedef struct TU_ATTR_PACKED {
-  void const *beg;  /* The head of the first video control interface descriptor */
-  uint16_t length;  /* Byte length of the video control interface descriptors */
-  uint16_t offset;  /* offset bytes for the current video control interface descripter */
-  uint8_t  error_code;  /* error code set by previous transaction */
-  uint8_t  power_mode;  /* current power mode */
-} videod_control_interface_t;
-
-typedef struct TU_ATTR_PACKED {
-  uint8_t index_vc;  /* index of video control interface */
-  uint8_t error_code;/* error code for video control/streaming interface. 0:control 1:streaming 2:streaming */
+  uint8_t index_vc;  /* index of bound video control interface */
+  uint8_t index_vs;  /* index from the video control interface */
+  uint8_t error_code;/* error code */
   struct {
     uint16_t beg;    /* Offset of the beggining of video streaming interface descriptor */
     uint16_t end;    /* Offset of the end of video streaming interface descriptor */
     uint16_t cur;    /* Offset of the current settings */
-    uint16_t ep[2];  /* Offset of endpoint descriptors */
+    uint16_t ep[2];  /* Offset of endpoint descriptors. 0: streaming, 1: still capture */
   } desc;
-
   uint8_t  *buffer; /* frame buffer. assume linear buffer. no support for stride access */
-  uint32_t bufsize; /* frame buffer */
+  uint32_t bufsize; /* frame buffer size */
   uint32_t offset;  /* offset for the next payload transfer */
   uint32_t max_payload_transfer_size;
-  uint8_t  ep_buf[CFG_TUD_VIDEO_EP_BUFSIZE];
+  /*------------- From this point, data is not cleared by bus reset -------------*/
+  CFG_TUSB_MEM_ALIGN uint8_t ep_buf[CFG_TUD_VIDEO_EP_BUFSIZE]; /* EP transfer buffer for streaming */
 } videod_streaming_interface_t;
 
+/* video control interface */
 typedef struct TU_ATTR_PACKED {
   void const *beg;  /* The head of the first video control interface descriptor */
   uint16_t    len;  /* Byte length of the descriptors */
   uint16_t    cur;  /* offset for current video control interface */
   uint8_t     stm[CFG_TUD_VIDEO_STREAMING]; /* Indices of streaming interface */
-  uint8_t error_code;  /* error code for video control/streaming interface. */
+  uint8_t error_code;  /* error code */
   uint8_t power_mode;
 
   /*------------- From this point, data is not cleared by bus reset -------------*/
-
-  // Endpoint Transfer buffer
-  //  CFG_TUSB_MEM_ALIGN uint8_t epout_buf[CFG_TUD_CDC_EP_BUFSIZE];
-  //  CFG_TUSB_MEM_ALIGN uint8_t epin_buf[CFG_TUD_CDC_EP_BUFSIZE];
-  uint8_t ctl_buf[64];
+  // 
+  // CFG_TUSB_MEM_ALIGN uint8_t ctl_buf[64]; /* EP transfer buffer for control */
 
 } videod_interface_t;
 
-#define ITF_MEM_RESET_SIZE   offsetof(videod_interface_t, ctl_buf)
+#define ITF_STM_MEM_RESET_SIZE   offsetof(videod_streaming_interface_t, ep_buf)
 
 //--------------------------------------------------------------------+
 // INTERNAL OBJECT & FUNCTION DECLARATION
@@ -121,14 +108,14 @@ static video_probe_and_commit_control_t const def_stm_settings = {
   .bmHint = 0,
   .bFormatIndex = 1,
   .bFrameIndex = 1,
-  .dwFrameInterval = (10000000/10),
+  .dwFrameInterval = (10000000/FRAME_RATE),
   .wKeyFrameRate = 1,
   .wPFrameRate = 0,
   .wCompQuality = 1, /* 1 to 10000 */
   .wCompWindowSize = 1, /* Maybe it is match to GOP size */
   .wDelay = 240, /* milliseconds */
-  .dwMaxVideoFrameSize = 128 * 96 * 12 / 8,
-  .dwMaxPayloadTransferSize = ((128 * 96 * 12 / 8 * 10) + 999) / 1000 + 2,
+  .dwMaxVideoFrameSize = FRAME_WIDTH * FRAME_HEIGHT * 12 / 8,
+  .dwMaxPayloadTransferSize = ((FRAME_WIDTH * FRAME_HEIGHT * 12 / 8 * 10) + 999) / 1000 + 2,
   .dwClockFrequency = 27000000, /* same as MPEG-2 system time clock  */
   .bmFramingInfo = 0x3,
   .bPreferedVersion = 1,
@@ -142,14 +129,25 @@ static video_probe_and_commit_control_t const def_stm_settings = {
   .bmLayoutPerStream = 0
 };
 
+/* return bInterfaceNumber */
 static inline uint8_t _desc_itfnum(void const *desc)
 {
   return ((uint8_t const*)desc)[2];
 }
 
+/* return bEndpointAddress */
 static inline uint8_t _desc_ep_addr(void const *desc)
 {
   return ((uint8_t const*)desc)[2];
+}
+
+static videod_streaming_interface_t* _get_instance_streaming(uint_fast8_t ctl_idx, uint_fast8_t stm_idx)
+{
+  videod_interface_t *ctl = &_videod_itf[ctl_idx];
+  if (!ctl->beg) return NULL;
+  videod_streaming_interface_t *stm = &_videod_streaming_itf[ctl->stm[stm_idx]];
+  if (!stm->desc.beg) return NULL;
+  return stm;
 }
 
 static tusb_desc_vc_itf_t const* _get_desc_vc(videod_interface_t const *self)
@@ -157,7 +155,7 @@ static tusb_desc_vc_itf_t const* _get_desc_vc(videod_interface_t const *self)
   return (tusb_desc_vc_itf_t const *)(self->beg + self->cur);
 }
 
-static tusb_desc_vs_itf_t const *_get_desc_vs(videod_streaming_interface_t const *self)
+static tusb_desc_vs_itf_t const* _get_desc_vs(videod_streaming_interface_t const *self)
 {
   if (!self->desc.cur) return NULL;
   void const *desc = _videod_itf[self->index_vc].beg;
@@ -230,7 +228,7 @@ static void const* _find_desc_itf(void const *beg, void const *end, uint_fast8_t
 static void const* _find_desc_ep(void const *beg, void const *end)
 {
   for (void const *cur = beg; cur < end; cur = tu_desc_next(cur)) {
-    uint8_t desc_type = tu_desc_type(cur);
+    uint_fast8_t desc_type = tu_desc_type(cur);
     if (TUSB_DESC_ENDPOINT == desc_type) return cur;
     if (TUSB_DESC_INTERFACE == desc_type) break;
   }
@@ -429,7 +427,8 @@ static int handle_video_ctl_cs_req(uint8_t rhport, uint8_t stage, tusb_control_r
         if (!tud_control_xfer(rhport, request, &self->power_mode, sizeof(self->power_mode)))
           return VIDEO_UNKNOWN;
       } else if (stage == CONTROL_STAGE_ACK) {
-        if (tud_video_power_mode_cb) return tud_video_power_mode_cb(itf, self->power_mode);
+        if (tud_video_power_mode_cb)
+          return tud_video_power_mode_cb(itf, self->power_mode);
       }
       return VIDEO_NO_ERROR;
     case VIDEO_REQUEST_GET_CUR:
@@ -553,7 +552,8 @@ static int handle_video_stm_cs_req(uint8_t rhport, uint8_t stage, tusb_control_r
           return VIDEO_UNKNOWN;
       } else if (stage == CONTROL_STAGE_ACK) {
         if (tud_video_probe_set_cb)
-          return tud_video_probe_set_cb(itf, (video_probe_and_commit_control_t const*)self->ep_buf);
+          return tud_video_probe_set_cb(self->index_vc, self->index_vs,
+                                        (video_probe_and_commit_control_t const*)self->ep_buf);
       }
       return VIDEO_NO_ERROR;
     case VIDEO_REQUEST_GET_CUR:
@@ -601,7 +601,8 @@ static int handle_video_stm_cs_req(uint8_t rhport, uint8_t stage, tusb_control_r
           return VIDEO_UNKNOWN;
       } else if (stage == CONTROL_STAGE_ACK) {
         if (tud_video_commit_set_cb)
-          return tud_video_commit_set_cb(itf, (video_probe_and_commit_control_t const*)self->ep_buf);
+          return tud_video_commit_set_cb(self->index_vc, self->index_vs,
+                                         (video_probe_and_commit_control_t const*)self->ep_buf);
       }
       return VIDEO_NO_ERROR;
     case VIDEO_REQUEST_GET_CUR:
@@ -654,33 +655,36 @@ static int handle_video_stm_req(uint8_t rhport, uint8_t stage, tusb_control_requ
 // APPLICATION API
 //--------------------------------------------------------------------+
 
-/* itf     control interface number */
-bool tud_video_n_connected(uint8_t itf)
+/* ctl_idx      instance number of video control interface */
+bool tud_video_n_connected(uint_fast8_t ctl_idx)
 {
-  (void)itf;
-  // DTR (bit 0) active  is considered as connected
-  return tud_ready();
-}
-
-/* itf     streaming interface number */
-bool tud_video_n_streaming(uint8_t itf)
-{
-  videod_streaming_interface_t *stm = &_videod_streaming_itf[itf];
-  if (stm->desc.ep[0])
+  TU_ASSERT(ctl_idx < CFG_TUD_VIDEO);
+  videod_streaming_interface_t *stm = _get_instance_streaming(ctl_idx, 0);
+  if (stm)
     return true;
   return false;
 }
 
-bool tud_video_n_frame_xfer(uint8_t itf, uint32_t pts, void *buffer, size_t bufsize)
+/* ctl_idx      instance number of video control interface
+ * stm_idx      index number of streaming interface as per video control */
+bool tud_video_n_streaming(uint_fast8_t ctl_idx, uint_fast8_t stm_idx)
 {
-  (void)pts;
+  TU_ASSERT(ctl_idx < CFG_TUD_VIDEO);
+  TU_ASSERT(stm_idx < CFG_TUD_VIDEO_STREAMING);
+  videod_streaming_interface_t *stm = _get_instance_streaming(ctl_idx, stm_idx);
+  if (!stm || !stm->desc.ep[0])
+    return false;
+  return true;
+}
 
+bool tud_video_n_frame_xfer(uint_fast8_t ctl_idx, uint_fast8_t stm_idx, void *buffer, size_t bufsize)
+{
+  TU_ASSERT(ctl_idx < CFG_TUD_VIDEO);
+  TU_ASSERT(stm_idx < CFG_TUD_VIDEO_STREAMING);
   if (!buffer || !buffer)
     return false;
-  if (!tud_video_n_streaming(itf))
-    return false;
-  videod_streaming_interface_t *stm = &_videod_streaming_itf[itf];
-  if (stm->buffer)
+  videod_streaming_interface_t *stm = _get_instance_streaming(ctl_idx, stm_idx);
+  if (!stm || !stm->desc.ep[0] || stm->buffer)
     return false;
 
   /* find EP address */
@@ -713,26 +717,26 @@ bool tud_video_n_frame_xfer(uint8_t itf, uint32_t pts, void *buffer, size_t bufs
 //--------------------------------------------------------------------+
 void videod_init(void)
 {
-  tu_memclr(_videod_itf, sizeof(_videod_itf));
-
-  for (unsigned i = 0; i < CFG_TUD_VIDEO; ++i)
-  {
-    // videod_interface_t* p_video = &_videod_itf[i];
-
-    // TODO
+  for (uint_fast8_t i = 0; i < CFG_TUD_VIDEO; ++i) {
+    videod_interface_t* ctl = &_videod_itf[i];
+    tu_memclr(ctl, sizeof(*ctl));
+  }
+  for (uint_fast8_t i = 0; i < CFG_TUD_VIDEO_STREAMING; ++i) {
+    videod_streaming_interface_t *stm = &_videod_streaming_itf[i];
+    tu_memclr(stm, ITF_STM_MEM_RESET_SIZE);
   }
 }
 
 void videod_reset(uint8_t rhport)
 {
   (void) rhport;
-
-  for (unsigned i = 0; i < CFG_TUD_VIDEO; ++i)
-  {
-    videod_interface_t* p_video = &_videod_itf[i];
-
-    // TODO
-    tu_memclr(p_video, ITF_MEM_RESET_SIZE);
+  for (uint_fast8_t i = 0; i < CFG_TUD_VIDEO; ++i) {
+    videod_interface_t* ctl = &_videod_itf[i];
+    tu_memclr(ctl, sizeof(*ctl));
+  }
+  for (uint_fast8_t i = 0; i < CFG_TUD_VIDEO_STREAMING; ++i) {
+    videod_streaming_interface_t *stm = &_videod_streaming_itf[i];
+    tu_memclr(stm, ITF_STM_MEM_RESET_SIZE);
   }
 }
 
@@ -744,14 +748,14 @@ uint16_t videod_open(uint8_t rhport, tusb_desc_interface_t const * itf_desc, uin
 
   /* Find available interface */
   videod_interface_t *self = NULL;
-  uint_fast8_t itf;
-  for (itf = 0; itf < CFG_TUD_VIDEO; ++itf) {
-    if (_videod_itf[itf].beg)
+  uint_fast8_t ctl_idx;
+  for (ctl_idx = 0; ctl_idx < CFG_TUD_VIDEO; ++ctl_idx) {
+    if (_videod_itf[ctl_idx].beg)
       continue;
-    self = &_videod_itf[itf];
+    self = &_videod_itf[ctl_idx];
     break;
   }
-  TU_ASSERT(itf < CFG_TUD_VIDEO, 0);
+  TU_ASSERT(ctl_idx < CFG_TUD_VIDEO, 0);
 
   void const *end = (void const*)itf_desc + max_len;
   self->beg = itf_desc;
@@ -760,21 +764,22 @@ uint16_t videod_open(uint8_t rhport, tusb_desc_interface_t const * itf_desc, uin
   if (!_open_vc_itf(rhport, self, 0))
     return 0;
   tusb_desc_vc_itf_t const *vc = _get_desc_vc(self);
-  uint_fast8_t bInCollection       = vc->ctl.bInCollection;
+  uint_fast8_t bInCollection   = vc->ctl.bInCollection;
   /* Find the end of the video interface descriptor */
   void const *cur = _next_desc_itf(itf_desc, end);
-  for (uint_fast8_t i = 0; i < bInCollection; ++i) {
+  for (uint_fast8_t stm_idx = 0; stm_idx < bInCollection; ++stm_idx) {
     videod_streaming_interface_t *stm = NULL;
     /* find free streaming interface handle */
-    for (uint_fast8_t j = 0; j < TU_ARRAY_SIZE(_videod_streaming_itf); ++j) {
+    for (uint_fast8_t i = 0; i < CFG_TUD_VIDEO_STREAMING; ++i) {
       if (_videod_streaming_itf[i].desc.beg)
         continue;
       stm = &_videod_streaming_itf[i];
-      self->stm[i] = j;
+      self->stm[stm_idx] = i;
       break;
     }
     TU_ASSERT(stm, 0);
-    stm->index_vc = itf;
+    stm->index_vc = ctl_idx;
+    stm->index_vs = stm_idx;
     stm->desc.beg = (uintptr_t)cur - (uintptr_t)itf_desc;
     cur = _next_desc_itf(cur, end);
     stm->desc.end = (uintptr_t)cur - (uintptr_t)itf_desc;
@@ -832,12 +837,14 @@ bool videod_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint3
 
   /* find streaming handle */
   uint_fast8_t itf;
+  videod_interface_t *ctl;
   videod_streaming_interface_t *stm;
   for (itf = 0; itf < CFG_TUD_VIDEO_STREAMING; ++itf) {
     stm = &_videod_streaming_itf[itf];
     uint_fast16_t const ep_ofs = stm->desc.ep[0];
     if (!ep_ofs) continue;
-    void const *desc = _videod_itf[stm->index_vc].beg;
+    ctl = &_videod_itf[stm->index_vc];
+    void const *desc = ctl->beg;
     if (ep_addr == _desc_ep_addr(desc + ep_ofs))
       break;
   }
@@ -852,7 +859,7 @@ bool videod_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint3
     stm->bufsize = 0;
     stm->offset  = 0;
     if (tud_video_frame_xfer_complete_cb)
-      tud_video_frame_xfer_complete_cb(itf);
+      tud_video_frame_xfer_complete_cb(stm->index_vc, stm->index_vs);
   }
   return true;
 }

@@ -35,9 +35,6 @@
 // MACRO CONSTANT TYPEDEF PROTYPES
 //--------------------------------------------------------------------+
 
-#define FRAME_WIDTH   128
-#define FRAME_HEIGHT  96
-
 /* Blink pattern
  * - 250 ms  : device not mounted
  * - 1000 ms : device mounted
@@ -115,11 +112,10 @@ static unsigned tx_busy = 0;
 void video_task(void)
 {
   static unsigned start_ms = 0;
-  static unsigned interval_ms = 100;
-  static unsigned frame_num = 0;
+  static unsigned interval_ms = 1000 / FRAME_RATE;
   static unsigned already_sent = 0;
 
-  if (!tud_video_n_streaming(0)) {
+  if (!tud_video_n_streaming(0, 0)) {
     already_sent  = 0;
     current_frame = 0;
     return;
@@ -128,7 +124,7 @@ void video_task(void)
   if (!already_sent) {
     already_sent = 1;
     start_ms = board_millis();
-    tud_video_n_frame_xfer(0, 0, (void*)frames[current_frame], 128 * 96 * 12/8);
+    tud_video_n_frame_xfer(0, 0, (void*)frames[current_frame], FRAME_WIDTH * FRAME_HEIGHT * 12/8);
   }
 
   unsigned cur = board_millis();
@@ -136,18 +132,12 @@ void video_task(void)
   if (tx_busy) return;
   start_ms += interval_ms;
 
-  tud_video_n_frame_xfer(0, 0, (void*)frames[current_frame], 128 * 96 * 12/8);
-
-  ++frame_num;
-  if (frame_num % 3) {
-    interval_ms = 66;
-  } else {
-    interval_ms = 67;
-  }
+  tud_video_n_frame_xfer(0, 0, (void*)frames[current_frame], FRAME_WIDTH * FRAME_HEIGHT * 12/8);
 }
 
-int tud_video_frame_xfer_complete_cb(unsigned itf)
+int tud_video_frame_xfer_complete_cb(uint_fast8_t ctl_idx, uint_fast8_t stm_idx)
 {
+  (void)ctl_idx; (void)stm_idx;
   tx_busy = 0;
   /* flip buffer */
   ++current_frame;

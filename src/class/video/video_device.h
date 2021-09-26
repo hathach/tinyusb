@@ -39,15 +39,19 @@ extern "C" {
 // Application API (Multiple Ports)
 // CFG_TUD_VIDEO > 1
 //--------------------------------------------------------------------+
-bool tud_video_n_streaming(uint8_t itf);
+/* ctl_idx       instance number of control interface
+ * stm_idx       instance number of streaming interface */
+bool tud_video_n_streaming(uint_fast8_t ctl_idx, uint_fast8_t stm_idx);
 
 
-/* itf       instance number of streaming interface */
-bool tud_video_n_frame_xfer(uint8_t itf, uint32_t pts, void *buffer, size_t bufsize);
+/* ctl_idx       instance number of control interface
+ * stm_idx       instance number of streaming interface */
+bool tud_video_n_frame_xfer(uint_fast8_t ctl_idx, uint_fast8_t stm_idx, void *buffer, size_t bufsize);
 
 /*------------- Optional callbacks -------------*/
-/* itf       instance number of streaming interface */
-TU_ATTR_WEAK int tud_video_frame_xfer_complete_cb(unsigned itf);
+/* ctl_idx       instance number of control interface
+ * stm_idx       instance number of streaming interface */
+TU_ATTR_WEAK int tud_video_frame_xfer_complete_cb(uint_fast8_t ctl_idx, uint_fast8_t stm_idx);
 
 //--------------------------------------------------------------------+
 // Application Callback API (weak is optional)
@@ -55,13 +59,13 @@ TU_ATTR_WEAK int tud_video_frame_xfer_complete_cb(unsigned itf);
 
 /* Invoked when SET POWER_MODE request received to 
  * @return video_error_code_t */
-TU_ATTR_WEAK int tud_video_power_mode_cb(unsigned itf, uint8_t power_mod);
+TU_ATTR_WEAK int tud_video_power_mode_cb(uint_fast8_t ctl_idx, uint8_t power_mod);
 
 /* @return video_error_code_t */
-TU_ATTR_WEAK int tud_video_probe_set_cb(unsigned itf, video_probe_and_commit_control_t const *settings);
+TU_ATTR_WEAK int tud_video_probe_set_cb(uint_fast8_t ctl_idx, uint_fast8_t stm_idx, video_probe_and_commit_control_t const *settings);
 
 /* @return video_error_code_t */
-TU_ATTR_WEAK int tud_video_commit_set_cb(unsigned itf, video_probe_and_commit_control_t const *settings);
+TU_ATTR_WEAK int tud_video_commit_set_cb(uint_fast8_t ctl_idx, uint_fast8_t stm_idx, video_probe_and_commit_control_t const *settings);
 //--------------------------------------------------------------------+
 // INTERNAL USBD-CLASS DRIVER API
 //--------------------------------------------------------------------+
