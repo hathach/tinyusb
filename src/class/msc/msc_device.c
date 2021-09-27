@@ -1,4 +1,4 @@
-/* 
+/*
  * The MIT License (MIT)
  *
  * Copyright (c) 2019 Ha Thach (tinyusb.org)
@@ -186,6 +186,11 @@ uint8_t rdwr10_validate_cmd(msc_cbw_t const* cbw)
     {
       TU_LOG(MSC_DEBUG, "  SCSI case 4 Hi > Dn\r\n");
       status =  MSC_CSW_STATUS_FAILED;
+    }
+    else if ( SCSI_CMD_READ_10 == cbw->command[0] && cbw->total_bytes / block_count == 0)
+    {
+      TU_LOG(MSC_DEBUG, " Computed block size 0\r\n");
+      status = MSC_CSW_STATUS_FAILED;
     }
   }
 
