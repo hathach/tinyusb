@@ -61,8 +61,11 @@ TU_ATTR_WEAK int tud_video_frame_xfer_complete_cb(uint_fast8_t ctl_idx, uint_fas
  * @return video_error_code_t */
 TU_ATTR_WEAK int tud_video_power_mode_cb(uint_fast8_t ctl_idx, uint8_t power_mod);
 
-/* @return video_error_code_t */
-TU_ATTR_WEAK int tud_video_probe_set_cb(uint_fast8_t ctl_idx, uint_fast8_t stm_idx, video_probe_and_commit_control_t const *settings);
+/** 
+ *
+ * @return video_error_code_t */
+TU_ATTR_WEAK int tud_video_commit_cb(uint_fast8_t ctl_idx, uint_fast8_t stm_idx,
+                                     video_probe_and_commit_control_t const *parameters);
 
 /* @return video_error_code_t */
 TU_ATTR_WEAK int tud_video_commit_set_cb(uint_fast8_t ctl_idx, uint_fast8_t stm_idx, video_probe_and_commit_control_t const *settings);

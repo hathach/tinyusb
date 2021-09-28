@@ -282,18 +282,19 @@ typedef struct TU_ATTR_PACKED {
 } tusb_desc_cs_video_fmt_uncompressed_t;
 
 typedef struct TU_ATTR_PACKED {
-  uint8_t bLength;
-  uint8_t bDescriptorType;
-  uint8_t bDescriptorSubType;
-  uint8_t bFrameIndex;
-  uint8_t bNumFrameDescriptors;
-  uint8_t guidFormat[16];
-  uint8_t bBitsPerPixel;
-  uint8_t bDefaultFrameIndex;
-  uint8_t bAspectRatioX;
-  uint8_t bAspectRatioY;
-  uint8_t bmInterlaceFlags;
-  uint8_t bCopyProtect;
+  uint8_t  bLength;
+  uint8_t  bDescriptorType;
+  uint8_t  bDescriptorSubType;
+  uint8_t  bFrameIndex;
+  uint8_t  bmCapabilities;
+  uint16_t wWidth;
+  uint16_t wHeight;
+  uint32_t dwMinBitRate;
+  uint32_t dwMaxBitRate;
+  uint32_t dwMaxVideoFrameBufferSize; /* deprecated */
+  uint32_t dwDefaultFrameInterval;
+  uint8_t  bFrameIntervalType;
+  uint32_t dwFrameInterval[];
 } tusb_desc_cs_video_frm_uncompressed_t;
 
 //--------------------------------------------------------------------+

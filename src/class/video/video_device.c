@@ -64,7 +64,6 @@ typedef struct TU_ATTR_PACKED {
 typedef struct TU_ATTR_PACKED {
   uint8_t index_vc;  /* index of bound video control interface */
   uint8_t index_vs;  /* index from the video control interface */
-  uint8_t error_code;/* error code */
   struct {
     uint16_t beg;    /* Offset of the begging of video streaming interface descriptor */
     uint16_t end;    /* Offset of the end of video streaming interface descriptor */
@@ -75,6 +74,7 @@ typedef struct TU_ATTR_PACKED {
   uint32_t bufsize;  /* frame buffer size */
   uint32_t offset;   /* offset for the next payload transfer */
   uint32_t max_payload_transfer_size;
+  uint8_t  error_code;/* error code */
   /*------------- From this point, data is not cleared by bus reset -------------*/
   CFG_TUSB_MEM_ALIGN uint8_t ep_buf[CFG_TUD_VIDEO_STREAMING_EP_BUFSIZE]; /* EP transfer buffer for streaming */
 } videod_streaming_interface_t;
@@ -103,30 +103,6 @@ CFG_TUSB_MEM_SECTION static videod_streaming_interface_t _videod_streaming_itf[C
 
 static uint8_t const _cap_get     = 0x1u; /* support for GET */
 static uint8_t const _cap_get_set = 0x3u; /* support for GET and SET */
-static video_probe_and_commit_control_t const def_stm_settings = {
-  .bmHint = 0,
-  .bFormatIndex = 1,
-  .bFrameIndex = 1,
-  .dwFrameInterval = (10000000/FRAME_RATE),
-  .wKeyFrameRate = 1,
-  .wPFrameRate = 0,
-  .wCompQuality = 1, /* 1 to 10000 */
-  .wCompWindowSize = 1, /* Maybe it is match to GOP size */
-  .wDelay = 240, /* milliseconds */
-  .dwMaxVideoFrameSize = FRAME_WIDTH * FRAME_HEIGHT * 12 / 8,
-  .dwMaxPayloadTransferSize = ((FRAME_WIDTH * FRAME_HEIGHT * 12 / 8 * FRAME_RATE) + 999) / 1000 + 2,
-  .dwClockFrequency = 27000000, /* same as MPEG-2 system time clock  */
-  .bmFramingInfo = 0x3,
-  .bPreferedVersion = 1,
-  .bMinVersion = 1,
-  .bMaxVersion = 1,
-  .bUsage = 0,
-  .bBitDepthLuma = 8,
-  .bmSettings = 0,
-  .bMaxNumberOfRefFramesPlus1 = 0,
-  .bmRateControlModes = 0,
-  .bmLayoutPerStream = 0
-};
 
 /** Get interface number from the interface descriptor
  *
@@ -175,24 +151,49 @@ static tusb_desc_vs_itf_t const* _get_desc_vs(videod_streaming_interface_t const
   return (tusb_desc_vs_itf_t const*)(desc + self->desc.cur);
 }
 
-/** Find the first descriptor with the specified descriptor type.
+/** Find the first descriptor of a given type
  *
- * @param[in] beg     The head of descriptor byte array.
- * @param[in] end     The tail of descriptor byte array.
- * @param[in] target  The target descriptor type.
+ * @param[in] beg        The head of descriptor byte array.
+ * @param[in] end        The tail of descriptor byte array.
+ * @param[in] desc_type  The target descriptor type.
  *
  * @return The pointer for interface descriptor.
  * @retval end   did not found interface descriptor */
-static void const* _find_desc(void const *beg, void const *end, uint8_t target)
+static void const* _find_desc(void const *beg, void const *end, uint_fast8_t desc_type)
 {
   void const *cur = beg;
-  while ((cur < end) && (target != tu_desc_type(cur))) {
+  while ((cur < end) && (desc_type != tu_desc_type(cur))) {
     cur = tu_desc_next(cur);
   }
   return cur;
 }
 
-/** Return the next interface descriptor except alternate ones.
+/** Find the first descriptor specified by the arguments
+ *
+ * @param[in] beg        The head of descriptor byte array.
+ * @param[in] end        The tail of descriptor byte array.
+ * @param[in] desc_type  The target descriptor type
+ * @param[in] element_0  The target element following the desc_type
+ * @param[in] element_1  The target element following the element_0
+ *
+ * @return The pointer for interface descriptor.
+ * @retval end   did not found interface descriptor */
+static void const* _find_desc_3(void const *beg, void const *end,
+                                uint_fast8_t desc_type,
+                                uint_fast8_t element_0,
+                                uint_fast8_t element_1)
+{
+  for (void const *cur = beg; cur < end; cur = _find_desc(cur, end, desc_type)) {
+    uint8_t const *p = (uint8_t const *)cur;
+    if ((p[2] == element_0) && (p[3] == element_1)) {
+      return cur;
+    }
+    cur = tu_desc_next(cur);
+  }
+  return end;
+}
+
+/** Return the next interface descriptor which has another interface number.
  *
  * @param[in] beg     The head of descriptor byte array.
  * @param[in] end     The tail of descriptor byte array.
@@ -219,19 +220,14 @@ static void const* _next_desc_itf(void const *beg, void const *end)
  *
  * @return The pointer for interface descriptor.
  * @retval end   did not found interface descriptor */
-static void const* _find_desc_itf(void const *beg, void const *end, uint_fast8_t itfnum, uint_fast8_t altnum)
+static inline void const* _find_desc_itf(void const *beg, void const *end, uint_fast8_t itfnum, uint_fast8_t altnum)
 {
-  for (void const *cur = beg; cur < end; cur = _find_desc(cur, end, TUSB_DESC_INTERFACE)) {
-    tusb_desc_interface_t const *itf = (tusb_desc_interface_t const *)cur;
-    if (itf->bInterfaceNumber == itfnum && itf->bAlternateSetting == altnum) {
-      return itf;
-    }
-    cur = tu_desc_next(cur);
-  }
-  return end;
+  return _find_desc_3(beg, end, TUSB_DESC_INTERFACE, itfnum, altnum);
 }
 
-/** Find the first endpoint descriptor in front of the next interface descriptor.
+/** Find the first endpoint descriptor belonging to the current interface descriptor.
+ *
+ * The search range is from `beg` to `end` or the next interface descriptor.
  *
  * @param[in] beg     The head of descriptor byte array.
  * @param[in] end     The tail of descriptor byte array.
@@ -248,16 +244,18 @@ static void const* _find_desc_ep(void const *beg, void const *end)
   return end;
 }
 
-/** Find the first entity descriptor with the specified entity ID in the video control interface descriptor.
+/** Find the first entity descriptor with the entity ID
+ *  specified by the argument belonging to the current video control descriptor.
  *
- * @param[in] vc        The video control interface descriptor.
+ * @param[in] desc      The video control interface descriptor.
  * @param[in] entityid  The target entity id.
  *
  * @return The pointer for interface descriptor.
  * @retval end   did not found interface descriptor */
-static void const* _find_desc_entity(tusb_desc_vc_itf_t const *vc, uint_fast8_t entityid)
+static void const* _find_desc_entity(void const *desc, uint_fast8_t entityid)
 {
-  void const *beg = (void const*)vc;
+  tusb_desc_vc_itf_t const *vc = (tusb_desc_vc_itf_t const*)desc;
+  void const *beg = vc;
   void const *end = beg + vc->std.bLength + vc->ctl.wTotalLength;
   for (void const *cur = beg; cur < end; cur = _find_desc(cur, end, TUSB_DESC_CS_INTERFACE)) {
     tusb_desc_cs_video_entity_itf_t const *itf = (tusb_desc_cs_video_entity_itf_t const *)cur;
@@ -269,6 +267,153 @@ static void const* _find_desc_entity(tusb_desc_vc_itf_t const *vc, uint_fast8_t 
     cur = tu_desc_next(cur);
   }
   return end;
+}
+
+/** Return the end of the video streaming descriptor. */
+static inline void const* _end_of_streaming_descriptor(void const *desc)
+{
+  tusb_desc_vs_itf_t const *vs = (tusb_desc_vs_itf_t const *)desc;
+  return desc + vs->std.bLength + vs->stm.wTotalLength;
+}
+
+/** Find the first format descriptor with the specified format number. */
+static inline tusb_desc_cs_video_fmt_uncompressed_t const *_find_desc_format(void const *beg, void const *end, uint_fast8_t fmtnum)
+{
+  return (tusb_desc_cs_video_fmt_uncompressed_t const*)
+    _find_desc_3(beg, end, TUSB_DESC_CS_INTERFACE, VIDEO_CS_VS_INTERFACE_FORMAT_UNCOMPRESSED, fmtnum);
+}
+
+/** Find the first frame descriptor with the specified format number. */
+static inline tusb_desc_cs_video_frm_uncompressed_t const *_find_desc_frame(void const *beg, void const *end, uint_fast8_t frmnum)
+{
+  return (tusb_desc_cs_video_frm_uncompressed_t const*)
+    _find_desc_3(beg, end, TUSB_DESC_CS_INTERFACE, VIDEO_CS_VS_INTERFACE_FRAME_UNCOMPRESSED, frmnum);
+}
+
+static bool _update_streaming_parameters(videod_streaming_interface_t const *stm,
+                                         video_probe_and_commit_control_t *param)
+{
+  tusb_desc_vs_itf_t const *vs = _get_desc_vs(stm);
+  uint_fast8_t fmtnum = param->bFormatIndex;
+  TU_ASSERT(fmtnum <= vs->stm.bNumFormats);
+  if (!fmtnum) {
+    if (1 < vs->stm.bNumFormats)
+      return true; /* Need to negotiate all variables. */
+    fmtnum = 1;
+    param->bFormatIndex = 1;
+  }
+
+  /* Set the parameters determined by the format  */
+  param->wKeyFrameRate    = 1;
+  param->wPFrameRate      = 0;
+  param->wCompQuality     = 1; /* 1 to 10000 */
+  param->wCompWindowSize  = 1; /* GOP size? */
+  param->wDelay           = 0; /* milliseconds */
+  param->dwClockFrequency = 27000000; /* same as MPEG-2 system time clock  */
+  param->bmFramingInfo    = 0x3; /* enables FrameID and EndOfFrame */
+  param->bPreferedVersion = 1;
+  param->bMinVersion      = 1;
+  param->bMaxVersion      = 1;
+  param->bUsage           = 0;
+  param->bBitDepthLuma    = 8;
+
+  void const *end = _end_of_streaming_descriptor(vs);
+  tusb_desc_cs_video_fmt_uncompressed_t const *fmt = _find_desc_format(tu_desc_next(vs), end, fmtnum);
+  TU_ASSERT(fmt != end);
+  uint_fast8_t frmnum = param->bFrameIndex;
+  TU_ASSERT(frmnum <= fmt->bNumFrameDescriptors);
+  if (!frmnum) {
+    if (1 < fmt->bNumFrameDescriptors)
+      return true;
+    frmnum = 1;
+    param->bFrameIndex = 1;
+  }
+  tusb_desc_cs_video_frm_uncompressed_t const *frm = _find_desc_frame(tu_desc_next(fmt), end, frmnum);
+  TU_ASSERT(frm != end);
+
+  /* Set the parameters determined by the frame  */
+  uint_fast32_t frame_size = param->dwMaxVideoFrameSize;
+  if (!frame_size) {
+    frame_size = (uint_fast32_t)frm->wWidth * frm->wHeight * fmt->bBitsPerPixel / 8;
+    param->dwMaxVideoFrameSize = frame_size;
+  }
+
+  uint_fast32_t interval = param->dwFrameInterval;
+  if (!interval) {
+    if ((1 < frm->bFrameIntervalType) ||
+        ((0 == frm->bFrameIntervalType) && (frm->dwFrameInterval[1] != frm->dwFrameInterval[0])))
+      return true;
+    interval = frm->dwFrameInterval[0];
+    param->dwFrameInterval = interval;
+  }
+  uint_fast32_t interval_ms = interval / 10000;
+  TU_ASSERT(interval_ms);
+  uint_fast32_t payload_size = (frame_size + interval_ms - 1) / interval_ms + 2;
+  param->dwMaxPayloadTransferSize = payload_size;
+  return true;
+}
+
+static bool _negotiate_streaming_parameters(videod_streaming_interface_t const *stm, bool set_max,
+                                            video_probe_and_commit_control_t *param)
+{
+  uint_fast8_t const fmtnum = param->bFormatIndex;
+  if (!fmtnum) {
+    if (set_max) {
+      tusb_desc_vs_itf_t const *vs = _get_desc_vs(stm);
+      param->bFormatIndex   = vs->stm.bNumFormats;
+    } else {
+      param->bFormatIndex   = 1;
+    }
+    /* Set the parameters determined by the format  */
+    param->wKeyFrameRate    = 1;
+    param->wPFrameRate      = 0;
+    param->wCompQuality     = 1; /* 1 to 10000 */
+    param->wCompWindowSize  = 1; /* GOP size? */
+    param->wDelay           = 0; /* milliseconds */
+    param->dwClockFrequency = 27000000; /* same as MPEG-2 system time clock  */
+    param->bmFramingInfo    = 0x3; /* enables FrameID and EndOfFrame */
+    param->bPreferedVersion = 1;
+    param->bMinVersion      = 1;
+    param->bMaxVersion      = 1;
+    param->bUsage           = 0;
+    param->bBitDepthLuma    = 8;
+    return true;
+  }
+
+  uint_fast8_t frmnum = param->bFrameIndex;
+  if (!frmnum) {
+    tusb_desc_vs_itf_t const *vs = _get_desc_vs(stm);
+    void const *end = _end_of_streaming_descriptor(vs);
+    tusb_desc_cs_video_fmt_uncompressed_t const *fmt = _find_desc_format(tu_desc_next(vs), end, fmtnum);
+    frmnum = set_max ? fmt->bNumFrameDescriptors: 1;
+    param->bFrameIndex = frmnum;
+    /* Set the parameters determined by the frame */
+    tusb_desc_cs_video_frm_uncompressed_t const *frm = _find_desc_frame(tu_desc_next(fmt), end, frmnum);
+    param->dwMaxVideoFrameSize = frm->wWidth * frm->wHeight * fmt->bBitsPerPixel / 8;
+    return true;
+  }
+
+  if (!param->dwFrameInterval) {
+    tusb_desc_vs_itf_t const *vs = _get_desc_vs(stm);
+    void const *end = _end_of_streaming_descriptor(vs);
+    tusb_desc_cs_video_fmt_uncompressed_t const *fmt = _find_desc_format(tu_desc_next(vs), end, fmtnum);
+    tusb_desc_cs_video_frm_uncompressed_t const *frm = _find_desc_frame(tu_desc_next(fmt), end, frmnum);
+
+    uint_fast32_t interval;
+    uint_fast8_t num_intervals = frm->bFrameIntervalType;
+    if (!num_intervals) {
+      interval = set_max ? frm->dwFrameInterval[1]: frm->dwFrameInterval[0];
+    } else {
+      interval = set_max ? frm->dwFrameInterval[num_intervals - 1]: frm->dwFrameInterval[0];
+    }
+    param->dwFrameInterval = interval;
+    uint_fast32_t interval_ms = interval / 10000;
+    TU_ASSERT(interval_ms);
+    uint_fast32_t frame_size = param->dwMaxVideoFrameSize;
+    param->dwMaxPayloadTransferSize = (frame_size + interval_ms - 1) / interval_ms + 2;
+    return true;
+  }
+  return true;
 }
 
 /** Close current video control interface.
@@ -351,6 +496,10 @@ static bool _open_vs_itf(uint8_t rhport, videod_streaming_interface_t *stm, uint
     stm->desc.ep[i] = 0;
     TU_LOG2("    close EP%02x\n", ep_adr);
   }
+  /* clear transfer management information */
+  stm->buffer  = NULL;
+  stm->bufsize = 0;
+  stm->offset  = 0;
 
   /* Find a alternate interface */
   void const *beg = desc + stm->desc.beg;
@@ -360,23 +509,38 @@ static bool _open_vs_itf(uint8_t rhport, videod_streaming_interface_t *stm, uint
   uint_fast8_t numeps = ((tusb_desc_interface_t const *)cur)->bNumEndpoints;
   TU_ASSERT(numeps <= TU_ARRAY_SIZE(stm->desc.ep));
   stm->desc.cur = cur - desc; /* Save the offset of the new settings */
+  if (!altnum) {
+    /* initialize streaming settings */
+    stm->max_payload_transfer_size = 0;
+    video_probe_and_commit_control_t *param =
+      (video_probe_and_commit_control_t *)&stm->ep_buf;
+    return _update_streaming_parameters(stm, param);
+  }
   /* Open endpoints of the new settings. */
   for (i = 0, cur = tu_desc_next(cur); i < numeps; ++i, cur = tu_desc_next(cur)) {
     cur = _find_desc_ep(cur, end);
     TU_ASSERT(cur < end);
-    TU_ASSERT(usbd_edpt_open(rhport, (tusb_desc_endpoint_t const *)cur));
+    tusb_desc_endpoint_t const *ep = (tusb_desc_endpoint_t const*)cur;
+    if (!stm->max_payload_transfer_size) {
+      video_probe_and_commit_control_t const *param =
+        (video_probe_and_commit_control_t const*)&stm->ep_buf;
+      uint_fast32_t max_size = param->dwMaxPayloadTransferSize;
+      if ((TUSB_XFER_ISOCHRONOUS == ep->bmAttributes.xfer) &&
+          (ep->wMaxPacketSize.size < max_size)) {
+        /* FS must be less than or equal to max packet size */
+        return false;
+      }
+      /* Set the negotiated value */
+      stm->max_payload_transfer_size = max_size;
+    }
+    TU_ASSERT(usbd_edpt_open(rhport, ep));
     stm->desc.ep[i] = cur - desc;
-    stm->max_payload_transfer_size = def_stm_settings.dwMaxPayloadTransferSize;
     TU_LOG2("    open EP%02x\n", _desc_ep_addr(cur));
   }
   /* initialize payload header */
   tusb_video_payload_header_t *hdr = (tusb_video_payload_header_t*)stm->ep_buf;
   hdr->bHeaderLength = sizeof(*hdr);
   hdr->bmHeaderInfo  = 0;
-  /* clear transfer management information */
-  stm->buffer  = NULL;
-  stm->bufsize = 0;
-  stm->offset  = 0;
 
   return true;
 }
@@ -569,32 +733,40 @@ static int handle_video_stm_cs_req(uint8_t rhport, uint8_t stage,
         if (!tud_control_xfer(rhport, request, self->ep_buf, sizeof(video_probe_and_commit_control_t)))
           return VIDEO_UNKNOWN;
       } else if (stage == CONTROL_STAGE_ACK) {
-        if (tud_video_probe_set_cb)
-          return tud_video_probe_set_cb(self->index_vc, self->index_vs,
-                                        (video_probe_and_commit_control_t const*)self->ep_buf);
+        if (!_update_streaming_parameters(self, (video_probe_and_commit_control_t*)self->ep_buf))
+          return VIDEO_INVALID_VALUE_WITHIN_RANGE;
       }
       return VIDEO_NO_ERROR;
     case VIDEO_REQUEST_GET_CUR:
       if (stage != CONTROL_STAGE_SETUP) return VIDEO_NO_ERROR;
       TU_VERIFY(request->wLength, VIDEO_UNKNOWN);
-      if (tud_control_xfer(rhport, request, (void*)&def_stm_settings,
-                           sizeof(video_probe_and_commit_control_t)))
+      if (tud_control_xfer(rhport, request, self->ep_buf, sizeof(video_probe_and_commit_control_t)))
         return VIDEO_NO_ERROR;
       return VIDEO_UNKNOWN;
-    case VIDEO_REQUEST_GET_MIN:
+    case VIDEO_REQUEST_GET_MIN: {
+      video_probe_and_commit_control_t tmp;
       if (stage != CONTROL_STAGE_SETUP) return VIDEO_NO_ERROR;
       TU_VERIFY(request->wLength, VIDEO_UNKNOWN);
-      if (tud_control_xfer(rhport, request, (void*)&def_stm_settings,
+      tmp = *(video_probe_and_commit_control_t*)&self->ep_buf;
+      if (!_negotiate_streaming_parameters(self, false, &tmp))
+        return VIDEO_INVALID_VALUE_WITHIN_RANGE;
+      if (tud_control_xfer(rhport, request, &tmp,
                            sizeof(video_probe_and_commit_control_t)))
         return VIDEO_NO_ERROR;
       return VIDEO_UNKNOWN;
-    case VIDEO_REQUEST_GET_MAX:
+    }
+    case VIDEO_REQUEST_GET_MAX: {
+      video_probe_and_commit_control_t tmp;
       if (stage != CONTROL_STAGE_SETUP) return VIDEO_NO_ERROR;
       TU_VERIFY(request->wLength, VIDEO_UNKNOWN);
-      if (tud_control_xfer(rhport, request, (void*)&def_stm_settings,
+      tmp = *(video_probe_and_commit_control_t*)&self->ep_buf;
+      if (!_negotiate_streaming_parameters(self, true, &tmp))
+        return VIDEO_INVALID_VALUE_WITHIN_RANGE;
+      if (tud_control_xfer(rhport, request, self->ep_buf,
                            sizeof(video_probe_and_commit_control_t)))
         return VIDEO_NO_ERROR;
       return VIDEO_UNKNOWN;
+    }
     case VIDEO_REQUEST_GET_RES:
       return VIDEO_UNKNOWN;
     case VIDEO_REQUEST_GET_DEF:
@@ -618,16 +790,17 @@ static int handle_video_stm_cs_req(uint8_t rhport, uint8_t stage,
         if (!tud_control_xfer(rhport, request, self->ep_buf, sizeof(video_probe_and_commit_control_t)))
           return VIDEO_UNKNOWN;
       } else if (stage == CONTROL_STAGE_ACK) {
-        if (tud_video_commit_set_cb)
-          return tud_video_commit_set_cb(self->index_vc, self->index_vs,
-                                         (video_probe_and_commit_control_t const*)self->ep_buf);
+        if (!_update_streaming_parameters(self, (video_probe_and_commit_control_t*)self->ep_buf))
+          return VIDEO_INVALID_VALUE_WITHIN_RANGE;
+        if (tud_video_commit_cb)
+          return tud_video_commit_cb(self->index_vc, self->index_vs,
+                                     (video_probe_and_commit_control_t*)self->ep_buf);
       }
       return VIDEO_NO_ERROR;
     case VIDEO_REQUEST_GET_CUR:
       if (stage != CONTROL_STAGE_SETUP) return VIDEO_NO_ERROR;
       TU_VERIFY(request->wLength, VIDEO_UNKNOWN);
-      if (tud_control_xfer(rhport, request, (void*)&def_stm_settings,
-                           sizeof(video_probe_and_commit_control_t)))
+      if (tud_control_xfer(rhport, request, self->ep_buf, sizeof(video_probe_and_commit_control_t)))
         return VIDEO_NO_ERROR;
       return VIDEO_UNKNOWN;
     case VIDEO_REQUEST_GET_INFO:
