@@ -554,6 +554,7 @@ static bool _open_vs_itf(uint8_t rhport, videod_streaming_interface_t *stm, uint
   return true;
 }
 
+/** Prepare the next packet payload. */
 static uint_fast16_t _prepare_in_payload(videod_streaming_interface_t *stm)
 {
   uint_fast16_t remaining = stm->bufsize - stm->offset;
@@ -857,7 +858,6 @@ static int handle_video_stm_req(uint8_t rhport, uint8_t stage,
 // APPLICATION API
 //--------------------------------------------------------------------+
 
-/* ctl_idx      instance number of video control interface */
 bool tud_video_n_connected(uint_fast8_t ctl_idx)
 {
   TU_ASSERT(ctl_idx < CFG_TUD_VIDEO);
@@ -867,8 +867,6 @@ bool tud_video_n_connected(uint_fast8_t ctl_idx)
   return false;
 }
 
-/* ctl_idx      instance number of video control interface
- * stm_idx      index number of streaming interface as per video control */
 bool tud_video_n_streaming(uint_fast8_t ctl_idx, uint_fast8_t stm_idx)
 {
   TU_ASSERT(ctl_idx < CFG_TUD_VIDEO);

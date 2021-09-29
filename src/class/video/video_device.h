@@ -39,11 +39,15 @@ extern "C" {
 // Application API (Multiple Ports)
 // CFG_TUD_VIDEO > 1
 //--------------------------------------------------------------------+
-/* ctl_idx       instance number of control interface
- * stm_idx       instance number of streaming interface */
+
+/** Return true if streaming
+ *
+ * @param[in] ctl_idx    Destination control interface index
+ * @param[in] stm_idx    Destination streaming interface index */
 bool tud_video_n_streaming(uint_fast8_t ctl_idx, uint_fast8_t stm_idx);
 
-/**
+/** Transfer a frame
+ *
  * @param[in] ctl_idx    Destination control interface index
  * @param[in] stm_idx    Destination streaming interface index
  * @param[in] buffer     Frame buffer. The caller must not use this buffer until the operation is completed.
@@ -70,8 +74,9 @@ TU_ATTR_WEAK int tud_video_power_mode_cb(uint_fast8_t ctl_idx, uint8_t power_mod
 
 /** Invoked when VS_COMMIT_CONTROL(SET_CUR) request received
  *
- * @param[in] ctl_idx    Destination control interface index
- * @param[in] stm_idx    Destination streaming interface index
+ * @param[in] ctl_idx     Destination control interface index
+ * @param[in] stm_idx     Destination streaming interface index
+ * @param[in] parameters  Video streaming parameters
  * @return video_error_code_t */
 TU_ATTR_WEAK int tud_video_commit_cb(uint_fast8_t ctl_idx, uint_fast8_t stm_idx,
                                      video_probe_and_commit_control_t const *parameters);
