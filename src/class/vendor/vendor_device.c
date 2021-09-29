@@ -207,6 +207,8 @@ uint16_t vendord_open(uint8_t rhport, tusb_desc_interface_t const * desc_itf, ui
     // Open endpoint pair with usbd helper
     TU_ASSERT(usbd_open_edpt_pair(rhport, p_desc, desc_itf->bNumEndpoints, TUSB_XFER_BULK, &p_vendor->ep_out, &p_vendor->ep_in), 0);
 
+    drv_len += desc_itf->bNumEndpoints*sizeof(tusb_desc_endpoint_t);
+
     // Prepare for incoming data
     if ( p_vendor->ep_out )
     {
