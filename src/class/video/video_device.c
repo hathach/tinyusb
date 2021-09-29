@@ -290,6 +290,9 @@ static inline tusb_desc_cs_video_frm_uncompressed_t const *_find_desc_frame(void
     _find_desc_3(beg, end, TUSB_DESC_CS_INTERFACE, VIDEO_CS_VS_INTERFACE_FRAME_UNCOMPRESSED, frmnum);
 }
 
+/** Set uniquely determined values to variables that have not been set
+ *
+ * @param[in,out] param       Target */
 static bool _update_streaming_parameters(videod_streaming_interface_t const *stm,
                                          video_probe_and_commit_control_t *param)
 {
@@ -353,6 +356,11 @@ static bool _update_streaming_parameters(videod_streaming_interface_t const *stm
   return true;
 }
 
+/** Set the minimum or the maximum values to variables which need to negotiate with the host
+ *
+ * @param[in]     set_max     If true, the maximum values is set, otherwise the minimum value is set.
+ * @param[in,out] param       Target
+ */
 static bool _negotiate_streaming_parameters(videod_streaming_interface_t const *stm, bool set_max,
                                             video_probe_and_commit_control_t *param)
 {
@@ -514,6 +522,7 @@ static bool _open_vs_itf(uint8_t rhport, videod_streaming_interface_t *stm, uint
     stm->max_payload_transfer_size = 0;
     video_probe_and_commit_control_t *param =
       (video_probe_and_commit_control_t *)&stm->ep_buf;
+    tu_memclr(param, sizeof(*param));
     return _update_streaming_parameters(stm, param);
   }
   /* Open endpoints of the new settings. */
@@ -880,7 +889,7 @@ bool tud_video_n_frame_xfer(uint_fast8_t ctl_idx, uint_fast8_t stm_idx, void *bu
   if (!stm || !stm->desc.ep[0] || stm->buffer)
     return false;
 
-  /* find EP address */
+  /* Find EP address */
   void const *desc = _videod_itf[stm->index_vc].beg;
   uint_fast8_t ep_addr = 0;
   for (uint_fast8_t i = 0; i < CFG_TUD_VIDEO_STREAMING; ++i) {

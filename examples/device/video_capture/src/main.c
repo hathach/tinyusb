@@ -110,11 +110,11 @@ static unsigned char const *frames[] = {
 };
 static unsigned current_frame = 0;
 static unsigned tx_busy = 0;
+static unsigned interval_ms = 1000 / FRAME_RATE;
 
 void video_task(void)
 {
   static unsigned start_ms = 0;
-  static unsigned interval_ms = 1000 / FRAME_RATE;
   static unsigned already_sent = 0;
 
   if (!tud_video_n_streaming(0, 0)) {
@@ -137,7 +137,7 @@ void video_task(void)
   tud_video_n_frame_xfer(0, 0, (void*)frames[current_frame], FRAME_WIDTH * FRAME_HEIGHT * 12/8);
 }
 
-int tud_video_frame_xfer_complete_cb(uint_fast8_t ctl_idx, uint_fast8_t stm_idx)
+void tud_video_frame_xfer_complete_cb(uint_fast8_t ctl_idx, uint_fast8_t stm_idx)
 {
   (void)ctl_idx; (void)stm_idx;
   tx_busy = 0;
@@ -145,7 +145,14 @@ int tud_video_frame_xfer_complete_cb(uint_fast8_t ctl_idx, uint_fast8_t stm_idx)
   ++current_frame;
   if (current_frame == sizeof(frames)/sizeof(frames[0]))
     current_frame = 0;
-  return 0;
+}
+
+int tud_video_commit_cb(uint_fast8_t ctl_idx, uint_fast8_t stm_idx,
+			video_probe_and_commit_control_t const *parameters)
+{
+  /* convert unit to ms from 100 ns */
+  interval_ms = parameters->dwFrameInterval / 10000;
+  return VIDEO_NO_ERROR;
 }
 
 //--------------------------------------------------------------------+

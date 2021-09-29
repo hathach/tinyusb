@@ -43,32 +43,39 @@ extern "C" {
  * stm_idx       instance number of streaming interface */
 bool tud_video_n_streaming(uint_fast8_t ctl_idx, uint_fast8_t stm_idx);
 
-
-/* ctl_idx       instance number of control interface
- * stm_idx       instance number of streaming interface */
+/**
+ * @param[in] ctl_idx    Destination control interface index
+ * @param[in] stm_idx    Destination streaming interface index
+ * @param[in] buffer     Frame buffer. The caller must not use this buffer until the operation is completed.
+ * @param[in] bufsize    Byte size of the frame buffer */
 bool tud_video_n_frame_xfer(uint_fast8_t ctl_idx, uint_fast8_t stm_idx, void *buffer, size_t bufsize);
 
 /*------------- Optional callbacks -------------*/
-/* ctl_idx       instance number of control interface
- * stm_idx       instance number of streaming interface */
-TU_ATTR_WEAK int tud_video_frame_xfer_complete_cb(uint_fast8_t ctl_idx, uint_fast8_t stm_idx);
+/** Invoked when compeletion of a frame transfer
+ *
+ * @param[in] ctl_idx    Destination control interface index
+ * @param[in] stm_idx    Destination streaming interface index */
+TU_ATTR_WEAK void tud_video_frame_xfer_complete_cb(uint_fast8_t ctl_idx, uint_fast8_t stm_idx);
 
 //--------------------------------------------------------------------+
 // Application Callback API (weak is optional)
 //--------------------------------------------------------------------+
 
-/* Invoked when SET POWER_MODE request received to 
+/** Invoked when SET_POWER_MODE request received
+ *
+ * @param[in] ctl_idx    Destination control interface index
+ * @param[in] stm_idx    Destination streaming interface index
  * @return video_error_code_t */
 TU_ATTR_WEAK int tud_video_power_mode_cb(uint_fast8_t ctl_idx, uint8_t power_mod);
 
-/** 
+/** Invoked when VS_COMMIT_CONTROL(SET_CUR) request received
  *
+ * @param[in] ctl_idx    Destination control interface index
+ * @param[in] stm_idx    Destination streaming interface index
  * @return video_error_code_t */
 TU_ATTR_WEAK int tud_video_commit_cb(uint_fast8_t ctl_idx, uint_fast8_t stm_idx,
                                      video_probe_and_commit_control_t const *parameters);
 
-/* @return video_error_code_t */
-TU_ATTR_WEAK int tud_video_commit_set_cb(uint_fast8_t ctl_idx, uint_fast8_t stm_idx, video_probe_and_commit_control_t const *settings);
 //--------------------------------------------------------------------+
 // INTERNAL USBD-CLASS DRIVER API
 //--------------------------------------------------------------------+
