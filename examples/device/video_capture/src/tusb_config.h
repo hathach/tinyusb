@@ -105,14 +105,6 @@
 // video streaming endpoint size
 #define CFG_TUD_VIDEO_STREAMING_EP_BUFSIZE  256
 
-//--------------------------------------------------------------------
-// APPLICATION CONFIGURATION
-//--------------------------------------------------------------------
-#define FRAME_WIDTH   128
-#define FRAME_HEIGHT  96
-#define FRAME_RATE    10
-
-
 #ifdef __cplusplus
  }
 #endif

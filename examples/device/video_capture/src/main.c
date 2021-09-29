@@ -29,6 +29,7 @@
 
 #include "bsp/board.h"
 #include "tusb.h"
+#include "usb_descriptors.h"
 
 #include "images.h"
 //--------------------------------------------------------------------+
