@@ -121,9 +121,6 @@
 [submodule "hw/mcu/nxp/nxp_sdk"]
 	path = hw/mcu/nxp/nxp_sdk
 	url = https://github.com/hathach/nxp_sdk.git
-[submodule "hw/mcu/mindmotion/mm32sdk"]
-	path = hw/mcu/mindmotion/mm32sdk
-	url = https://github.com/zhangslice/mm32sdk.git
 [submodule "hw/mcu/gd/nuclei-sdk"]
 	path = hw/mcu/gd/nuclei-sdk
 	url = https://github.com/Nuclei-Software/nuclei-sdk.git
