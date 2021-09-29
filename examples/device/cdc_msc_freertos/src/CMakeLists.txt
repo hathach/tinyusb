@@ -8,9 +8,7 @@ if(EXISTS ${board_cmake})
     include(${board_cmake})
 endif()
 
-idf_component_get_property( FREERTOS_ORIG_INCLUDE_PATH freertos ORIG_INCLUDE_PATH)
 target_include_directories(${COMPONENT_TARGET} PUBLIC
-  "${FREERTOS_ORIG_INCLUDE_PATH}"
   "${TOP}/hw"
   "${TOP}/src"
 )

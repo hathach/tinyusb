@@ -986,9 +986,11 @@ static bool process_get_descriptor(uint8_t rhport, tusb_control_request_t const 
 
       uint16_t len = sizeof(tusb_desc_device_t);
 
-      // Only send up to EP0 Packet Size if not addressed
+      // Only send up to EP0 Packet Size if not addressed and host requested more data
+      // that device descriptor has.
       // This only happens with the very first get device descriptor and EP0 size = 8 or 16.
-      if ((CFG_TUD_ENDPOINT0_SIZE < sizeof(tusb_desc_device_t)) && !_usbd_dev.addressed)
+      if ((CFG_TUD_ENDPOINT0_SIZE < sizeof(tusb_desc_device_t)) && !_usbd_dev.addressed &&
+          ((tusb_control_request_t*) p_request)->wLength > sizeof(tusb_desc_device_t))
       {
         len = CFG_TUD_ENDPOINT0_SIZE;
 
@@ -1056,6 +1058,7 @@ static bool process_get_descriptor(uint8_t rhport, tusb_control_request_t const 
     break;
 
     case TUSB_DESC_DEVICE_QUALIFIER:
+    {
       TU_LOG2(" Device Qualifier\r\n");
 
       TU_VERIFY( tud_descriptor_device_qualifier_cb );
@@ -1065,6 +1068,7 @@ static bool process_get_descriptor(uint8_t rhport, tusb_control_request_t const 
 
       // first byte of descriptor is its size
       return tud_control_xfer(rhport, p_request, (void*) desc_qualifier, desc_qualifier[0]);
+    }
     break;
 
     default: return false;
@@ -1392,7 +1396,13 @@ void usbd_edpt_close(uint8_t rhport, uint8_t ep_addr)
   TU_ASSERT(dcd_edpt_close, /**/);
   TU_LOG2("  CLOSING Endpoint: 0x%02X\r\n", ep_addr);
 
+  uint8_t const epnum = tu_edpt_number(ep_addr);
+  uint8_t const dir   = tu_edpt_dir(ep_addr);
+
   dcd_edpt_close(rhport, ep_addr);
+  _usbd_dev.ep_status[epnum][dir].stalled = false;
+  _usbd_dev.ep_status[epnum][dir].busy = false;
+  _usbd_dev.ep_status[epnum][dir].claimed = false;
 
   return;
 }
