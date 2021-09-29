@@ -49,7 +49,12 @@
 #error "ESP32-Sx should use IDF's FreeRTOSConfig.h"
 #endif
 
-extern uint32_t SystemCoreClock;
+#if CFG_TUSB_MCU == OPT_MCU_MM32F327X
+  // TODO fix/remove later  
+  extern u32 SystemCoreClock;
+#else
+  extern uint32_t SystemCoreClock;
+#endif
 
 /* Cortex M23/M33 port configuration. */
 #define configENABLE_MPU								        0
