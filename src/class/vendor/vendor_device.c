@@ -216,7 +216,7 @@ uint16_t vendord_open(uint8_t rhport, tusb_desc_interface_t const * desc_itf, ui
     if ( p_vendor->ep_in ) maybe_transmit(p_vendor);
   }
 
-  return (uint16_t) true;
+  return drv_len;
 }
 
 bool vendord_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint32_t xferred_bytes)

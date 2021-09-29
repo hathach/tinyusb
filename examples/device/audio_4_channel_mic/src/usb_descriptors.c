@@ -85,9 +85,11 @@ enum
   // LPC 17xx and 40xx endpoint type (bulk/interrupt/iso) are fixed by its number
   // 0 control, 1 In, 2 Bulk, 3 Iso, 4 In etc ...
   #define EPNUM_AUDIO   0x03
+
 #elif TU_CHECK_MCU(NRF5X)
   // nRF5x ISO can only be endpoint 8
   #define EPNUM_AUDIO   0x08
+
 #else
   #define EPNUM_AUDIO   0x01
 #endif
