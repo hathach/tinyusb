@@ -282,7 +282,7 @@ bool hidd_control_xfer_cb (uint8_t rhport, uint8_t stage, tusb_control_request_t
           uint8_t const report_id   = tu_u16_low(request->wValue);
 
           uint8_t* report_buf = p_hid->epin_buf;
-          uint16_t req_len = request->wLength;
+          uint16_t req_len = tu_min16(request->wLength, CFG_TUD_HID_EP_BUFSIZE);
 
           uint16_t xferlen = 0;
 
@@ -314,7 +314,7 @@ bool hidd_control_xfer_cb (uint8_t rhport, uint8_t stage, tusb_control_request_t
           uint8_t const report_id   = tu_u16_low(request->wValue);
 
           uint8_t const* report_buf = p_hid->epout_buf;
-          uint16_t report_len = request->wLength;
+          uint16_t report_len = tu_min16(request->wLength, CFG_TUD_HID_EP_BUFSIZE);
 
           // If host request a specific Report ID, extract report ID in buffer before invoking callback
           if ( (report_id != HID_REPORT_TYPE_INVALID) && (report_len > 1) && (report_id == report_buf[0]) )

@@ -971,9 +971,11 @@ static bool process_get_descriptor(uint8_t rhport, tusb_control_request_t const 
 
       uint16_t len = sizeof(tusb_desc_device_t);
 
-      // Only send up to EP0 Packet Size if not addressed
+      // Only send up to EP0 Packet Size if not addressed and host requested more data
+      // that device descriptor has.
       // This only happens with the very first get device descriptor and EP0 size = 8 or 16.
-      if ((CFG_TUD_ENDPOINT0_SIZE < sizeof(tusb_desc_device_t)) && !_usbd_dev.addressed)
+      if ((CFG_TUD_ENDPOINT0_SIZE < sizeof(tusb_desc_device_t)) && !_usbd_dev.addressed &&
+          ((tusb_control_request_t*) p_request)->wLength > sizeof(tusb_desc_device_t))
       {
         len = CFG_TUD_ENDPOINT0_SIZE;
 
