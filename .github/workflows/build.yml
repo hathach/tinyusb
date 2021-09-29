@@ -44,6 +44,7 @@ jobs:
         - 'lpc18'
         - 'lpc54'
         - 'lpc55'
+        - 'mm32'
         - 'nrf'
         - 'rp2040'
         - 'samd11'
