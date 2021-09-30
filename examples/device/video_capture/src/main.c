@@ -151,6 +151,7 @@ void tud_video_frame_xfer_complete_cb(uint_fast8_t ctl_idx, uint_fast8_t stm_idx
 int tud_video_commit_cb(uint_fast8_t ctl_idx, uint_fast8_t stm_idx,
 			video_probe_and_commit_control_t const *parameters)
 {
+  (void)ctl_idx; (void)stm_idx;
   /* convert unit to ms from 100 ns */
   interval_ms = parameters->dwFrameInterval / 10000;
   return VIDEO_NO_ERROR;
