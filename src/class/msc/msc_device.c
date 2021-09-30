@@ -182,15 +182,15 @@ uint8_t rdwr10_validate_cmd(msc_cbw_t const* cbw)
       TU_LOG(MSC_DEBUG, "  SCSI case 8 (Hi <> Do)\r\n");
       status = MSC_CSW_STATUS_PHASE_ERROR;
     }
-    else if ( !block_count )
+    else if ( 0 == block_count )
     {
-      TU_LOG(MSC_DEBUG, "  SCSI case 4 Hi > Dn\r\n");
+      TU_LOG(MSC_DEBUG, "  SCSI case 4 Hi > Dn (READ10) or case 9 Ho > Dn (WRITE10) \r\n");
       status =  MSC_CSW_STATUS_FAILED;
     }
-    else if ( SCSI_CMD_READ_10 == cbw->command[0] && cbw->total_bytes / block_count == 0)
+    else if ( cbw->total_bytes / block_count == 0 )
     {
-      TU_LOG(MSC_DEBUG, " Computed block size 0\r\n");
-      status = MSC_CSW_STATUS_FAILED;
+      TU_LOG(MSC_DEBUG, " Computed block size = 0. SCSI case 7 Hi < Di (READ10) or case 13 Ho < Do (WRIT10)\r\n");
+      status = MSC_CSW_STATUS_PHASE_ERROR;
     }
   }
 
