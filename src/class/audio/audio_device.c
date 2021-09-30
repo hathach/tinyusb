@@ -64,10 +64,19 @@
 // MACRO CONSTANT TYPEDEF
 //--------------------------------------------------------------------+
 
+// Use ring buffer if it's available, some MCUs need extra RAM requirements
+#ifndef TUD_AUDIO_PREFER_RING_BUFFER
+#if CFG_TUSB_MCU == OPT_MCU_LPC43XX || CFG_TUSB_MCU == OPT_MCU_LPC18XX || CFG_TUSB_MCU == OPT_MCU_MIMXRT10XX
+#define TUD_AUDIO_PREFER_RING_BUFFER 0
+#else
+#define TUD_AUDIO_PREFER_RING_BUFFER 1
+#endif
+#endif
+
 // Linear buffer in case target MCU is not capable of handling a ring buffer FIFO e.g. no hardware buffer
 // is available or driver is would need to be changed dramatically
 
-// Only STM32 synopsys use non-linear buffer for now
+// Only STM32 synopsys and dcd_transdimension use non-linear buffer for now
 // Synopsys detection copied from dcd_synopsys.c (refactor later on)
 #if defined (STM32F105x8) || defined (STM32F105xB) || defined (STM32F105xC) || \
     defined (STM32F107xB) || defined (STM32F107xC)
@@ -90,8 +99,15 @@
     CFG_TUSB_MCU == OPT_MCU_RX63X                                 || \
     CFG_TUSB_MCU == OPT_MCU_RX65X                                 || \
     CFG_TUSB_MCU == OPT_MCU_RX72N                                 || \
-    CFG_TUSB_MCU == OPT_MCU_GD32VF103
+    CFG_TUSB_MCU == OPT_MCU_GD32VF103                             || \
+    CFG_TUSB_MCU == OPT_MCU_LPC18XX                               || \
+    CFG_TUSB_MCU == OPT_MCU_LPC43XX                               || \
+    CFG_TUSB_MCU == OPT_MCU_MIMXRT10XX
+#if TUD_AUDIO_PREFER_RING_BUFFER
 #define  USE_LINEAR_BUFFER     0
+#else
+#define  USE_LINEAR_BUFFER     1
+#endif
 #else
 #define  USE_LINEAR_BUFFER     1
 #endif
