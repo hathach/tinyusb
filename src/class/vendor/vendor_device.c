@@ -179,8 +179,8 @@ uint16_t vendord_open(uint8_t rhport, tusb_desc_interface_t const * desc_itf, ui
 {
   TU_VERIFY(TUSB_CLASS_VENDOR_SPECIFIC == desc_itf->bInterfaceClass, 0);
 
-  uint16_t drv_len = tu_desc_len(desc_itf);
   uint8_t const * p_desc = tu_desc_next(desc_itf);
+  uint8_t const * desc_end = p_desc + max_len;
 
   // Find available interface
   vendord_interface_t* p_vendor = NULL;
@@ -198,16 +198,15 @@ uint16_t vendord_open(uint8_t rhport, tusb_desc_interface_t const * desc_itf, ui
   if (desc_itf->bNumEndpoints)
   {
     // skip non-endpoint descriptors
-    while ( (TUSB_DESC_ENDPOINT != tu_desc_type(p_desc)) && (drv_len <= max_len) )
+    while ( (TUSB_DESC_ENDPOINT != tu_desc_type(p_desc)) && (p_desc < desc_end) )
     {
-      drv_len += tu_desc_len(p_desc);
-      p_desc   = tu_desc_next(p_desc);
+      p_desc = tu_desc_next(p_desc);
     }
 
     // Open endpoint pair with usbd helper
     TU_ASSERT(usbd_open_edpt_pair(rhport, p_desc, desc_itf->bNumEndpoints, TUSB_XFER_BULK, &p_vendor->ep_out, &p_vendor->ep_in), 0);
 
-    drv_len += desc_itf->bNumEndpoints*sizeof(tusb_desc_endpoint_t);
+    p_desc += desc_itf->bNumEndpoints*sizeof(tusb_desc_endpoint_t);
 
     // Prepare for incoming data
     if ( p_vendor->ep_out )
@@ -218,7 +217,7 @@ uint16_t vendord_open(uint8_t rhport, tusb_desc_interface_t const * desc_itf, ui
     if ( p_vendor->ep_in ) maybe_transmit(p_vendor);
   }
 
-  return drv_len;
+  return (uintptr_t) p_desc - (uintptr_t) desc_itf;
 }
 
 bool vendord_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint32_t xferred_bytes)
