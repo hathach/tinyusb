@@ -906,54 +906,51 @@ static bool process_set_config(uint8_t rhport, uint8_t cfg_num)
     TU_ASSERT( TUSB_DESC_INTERFACE == tu_desc_type(p_desc) );
     tusb_desc_interface_t const * desc_itf = (tusb_desc_interface_t const*) p_desc;
 
-    // Interface number must not be used already
-    TU_ASSERT(DRVID_INVALID == _usbd_dev.itf2drv[desc_itf->bInterfaceNumber]);
-
-#if CFG_TUD_MIDI
-    // MIDI has 2 interfaces (Audio Control v1 + MIDIStreaming) but does not have IAD
-    // manually increase the associated count
-    if (1                              == assoc_itf_count              &&
-        TUSB_CLASS_AUDIO               == desc_itf->bInterfaceClass    &&
-        AUDIO_SUBCLASS_CONTROL         == desc_itf->bInterfaceSubClass &&
-        AUDIO_FUNC_PROTOCOL_CODE_UNDEF == desc_itf->bInterfaceProtocol)
-    {
-      assoc_itf_count = 2;
-    }
-#endif
-
-#if CFG_TUD_BTH && CFG_TUD_BTH_ISO_ALT_COUNT
-    // BTH implementation currently does not use IAD. TODO should also use IAD for composite device
-    if (1                                  == assoc_itf_count              &&
-        TUD_BT_APP_CLASS                   == desc_itf->bInterfaceClass    &&
-        TUD_BT_APP_SUBCLASS                == desc_itf->bInterfaceSubClass &&
-        TUD_BT_PROTOCOL_PRIMARY_CONTROLLER == desc_itf->bInterfaceProtocol)
-    {
-      assoc_itf_count = 2;
-    }
-#endif
-
-    uint16_t const drv_len = tu_desc_get_interface_total_len(desc_itf, assoc_itf_count, desc_end-p_desc);
-    TU_ASSERT(drv_len >= sizeof(tusb_desc_interface_t));
-
     // Find driver for this interface
+    uint16_t const remaining_len = desc_end-p_desc;
     uint8_t drv_id;
     for (drv_id = 0; drv_id < TOTAL_DRIVER_COUNT; drv_id++)
     {
       usbd_class_driver_t const *driver = get_driver(drv_id);
+      uint16_t const drv_len = driver->open(rhport, desc_itf, remaining_len);
 
-      if ( driver->open(rhport, desc_itf, drv_len) )
+      if ( (sizeof(tusb_desc_interface_t) <= drv_len)  && (drv_len <= remaining_len) )
       {
         // Open successfully
         TU_LOG2("  %s opened\r\n", driver->name);
 
+        // Some drivers use 2 or more interfaces but may not have IAD e.g MIDI (always) or
+        // BTH (even CDC) with class in device descriptor (single interface)
+        if ( assoc_itf_count == 1)
+        {
+          #if CFG_TUD_CDC
+          if ( driver->open == cdcd_open ) assoc_itf_count = 2;
+          #endif
+
+          #if CFG_TUD_MIDI
+          if ( driver->open == midid_open ) assoc_itf_count = 2;
+          #endif
+
+          #if CFG_TUD_BTH && CFG_TUD_BTH_ISO_ALT_COUNT
+          if ( driver->open == btd_open ) assoc_itf_count = 2;
+          #endif
+        }
+
         // bind (associated) interfaces to found driver
         for(uint8_t i=0; i<assoc_itf_count; i++)
         {
-          _usbd_dev.itf2drv[desc_itf->bInterfaceNumber+i] = drv_id;
+          uint8_t const itf_num = desc_itf->bInterfaceNumber+i;
+
+          // Interface number must not be used already
+          TU_ASSERT(DRVID_INVALID == _usbd_dev.itf2drv[itf_num]);
+          _usbd_dev.itf2drv[itf_num] = drv_id;
         }
 
         // bind all endpoints to found driver
         tu_edpt_bind_driver(_usbd_dev.ep2drv, desc_itf, drv_len, drv_id);
+
+        // next Interface
+        p_desc += drv_len;
 
         break; // exit driver find loop
       }
@@ -961,9 +958,6 @@ static bool process_set_config(uint8_t rhport, uint8_t cfg_num)
 
     // Failed if there is no supported drivers
     TU_ASSERT(drv_id < TOTAL_DRIVER_COUNT);
-
-    // next Interface or IAD descriptor
-    p_desc += drv_len;
   }
 
   // invoke callback

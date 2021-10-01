@@ -43,6 +43,10 @@ typedef struct
   char const* name;
   #endif
 
+  // Minimum number of Interfaces for this driver to work.
+  // Only needed for driver use 2 or more interfaces without IAD
+  uint8_t itf_count_min;
+
   void     (* init             ) (void);
   void     (* reset            ) (uint8_t rhport);
   uint16_t (* open             ) (uint8_t rhport, tusb_desc_interface_t const * desc_intf, uint16_t max_len);
