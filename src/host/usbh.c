@@ -1000,9 +1000,6 @@ static bool parse_configuration_descriptor(uint8_t dev_addr, tusb_desc_configura
     TU_ASSERT( TUSB_DESC_INTERFACE == tu_desc_type(p_desc) );
     tusb_desc_interface_t const* desc_itf = (tusb_desc_interface_t const*) p_desc;
 
-    // Interface number must not be used already
-    TU_ASSERT( DRVID_INVALID == dev->itf2drv[desc_itf->bInterfaceNumber] );
-
 #if CFG_TUH_MIDI
     // MIDI has 2 interfaces (Audio Control v1 + MIDIStreaming) but does not have IAD
     // manually increase the associated count
@@ -1040,7 +1037,11 @@ static bool parse_configuration_descriptor(uint8_t dev_addr, tusb_desc_configura
           // bind (associated) interfaces to found driver
           for(uint8_t i=0; i<assoc_itf_count; i++)
           {
-            dev->itf2drv[desc_itf->bInterfaceNumber+i] = drv_id;
+            uint8_t const itf_num = desc_itf->bInterfaceNumber+i;
+
+            // Interface number must not be used already
+            TU_ASSERT( DRVID_INVALID == dev->itf2drv[itf_num] );
+            dev->itf2drv[itf_num] = drv_id;
           }
 
           // bind all endpoints to found driver
