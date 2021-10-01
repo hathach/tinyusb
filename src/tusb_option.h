@@ -284,6 +284,30 @@
   //------------- CLASS -------------//
 #endif // TUSB_OPT_HOST_ENABLED
 
+#ifndef CFG_TUH_HUB
+#define CFG_TUH_HUB    0
+#endif
+
+#ifndef CFG_TUH_CDC
+#define CFG_TUH_CDC    0
+#endif
+
+#ifndef CFG_TUH_HID
+#define CFG_TUH_HID    0
+#endif
+
+#ifndef CFG_TUH_MIDI
+#define CFG_TUH_MIDI   0
+#endif
+
+#ifndef CFG_TUH_MSC
+#define CFG_TUH_MSC    0
+#endif
+
+#ifndef CFG_TUH_VENDOR
+#define CFG_TUH_VENDOR 0
+#endif
+
 //--------------------------------------------------------------------+
 // Port Specific
 // TUP stand for TinyUSB Port (can be renamed)

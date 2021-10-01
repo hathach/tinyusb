@@ -263,7 +263,7 @@ uint16_t mscd_open(uint8_t rhport, tusb_desc_interface_t const * itf_desc, uint1
   // msc driver length is fixed
   uint16_t const drv_len = sizeof(tusb_desc_interface_t) + 2*sizeof(tusb_desc_endpoint_t);
 
-  // Max length mus be at least 1 interface + 2 endpoints
+  // Max length must be at least 1 interface + 2 endpoints
   TU_ASSERT(max_len >= drv_len, 0);
 
   mscd_interface_t * p_msc = &_mscd_itf;
