@@ -663,15 +663,16 @@ typedef struct TU_ATTR_PACKED {
 } audio_desc_channel_cluster_t;
 
 /// AUDIO Class-Specific AC Interface Header Descriptor (4.7.2)
+// https://www.usb.org/sites/default/files/midi10.pdf (B.3.2) ...tested against a real device
 typedef struct TU_ATTR_PACKED
 {
-  uint8_t bLength            ; ///< Size of this descriptor in bytes: 9.
-  uint8_t bDescriptorType    ; ///< Descriptor Type. Value: TUSB_DESC_CS_INTERFACE.
-  uint8_t bDescriptorSubType ; ///< Descriptor SubType. Value: AUDIO_CS_AC_INTERFACE_HEADER.
-  uint16_t bcdADC            ; ///< Audio Device Class Specification Release Number in Binary-Coded Decimal. Value: U16_TO_U8S_LE(0x0200).
-  uint8_t bCategory          ; ///< Constant, indicating the primary use of this audio function, as intended by the manufacturer. See: audio_function_t.
-  uint16_t wTotalLength      ; ///< Total number of bytes returned for the class-specific AudioControl interface descriptor. Includes the combined length of this descriptor header and all Clock Source, Unit and Terminal descriptors.
-  uint8_t bmControls         ; ///< See: audio_cs_ac_interface_control_pos_t.
+  uint8_t   bLength            ; ///< Size of this descriptor in bytes: 9.
+  uint8_t   bDescriptorType    ; ///< Descriptor Type. Value: TUSB_DESC_CS_INTERFACE.
+  uint8_t   bDescriptorSubType ; ///< Descriptor SubType. Value: AUDIO_CS_AC_INTERFACE_HEADER.
+  uint16_t  bcdADC             ; ///< Audio Device Class Specification Release Number in Binary-Coded Decimal. Value: U16_TO_U8S_LE(0x0200).
+  uint16_t  wTotalLength       ; ///< Total number of bytes returned for the class-specific AudioControl interface descriptor. Includes the combined length of this descriptor header and all Clock Source, Unit and Terminal descriptors.
+  uint8_t   bInCollection      ; ///< See: Number of streaming interfaces.
+  uint8_t   baInterfaceNr      ; ///< Interfaces that belong to this AudioControl interface.
 } audio_desc_cs_ac_interface_t;
 
 /// AUDIO Clock Source Descriptor (4.7.2.1)
