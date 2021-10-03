@@ -33,6 +33,10 @@
 #include "host/usbh_classdriver.h"
 #include "hub.h"
 
+#if CFG_TUH_MIDI
+#include "class/audio/audio.h"
+#endif
+
 //--------------------------------------------------------------------+
 // USBH Configuration
 //--------------------------------------------------------------------+
