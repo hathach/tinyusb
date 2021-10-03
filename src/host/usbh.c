@@ -1192,6 +1192,12 @@ bool usbh_edpt_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_endpoint_t const
   usbh_device_t* dev = get_device(dev_addr);
   TU_ASSERT(tu_edpt_validate(desc_ep, (tusb_speed_t) dev->speed));
 
+#if CFG_TUH_MIDI
+uint16_t  vid, pid;
+tuh_vid_pid_get(dev_addr, &vid, &pid);
+printf("+ VID/PID = %04X:%04X ********** ?kernel patch? **********\r\n", vid, pid);
+#endif
+
   return hcd_edpt_open(rhport, dev_addr, desc_ep);
 }
 
