@@ -134,6 +134,17 @@ enum { ADDR_INVALID  = 0xFFu };
 
 static usbh_class_driver_t const usbh_class_drivers[] =
 {
+  #if CFG_TUH_MIDI
+    {
+      DRIVER_NAME("MIDI")
+      .init       = midih_init,
+      .open       = midih_open,
+      .set_config = midih_set_config,
+      .xfer_cb    = midih_xfer_cb,
+      .close      = midih_close
+    },
+  #endif
+
   #if CFG_TUH_CDC
     {
       DRIVER_NAME("CDC")
