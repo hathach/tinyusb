@@ -30,6 +30,7 @@
 
 #include "tusb.h"
 #include "usbh_classdriver.h"
+void  dec_hexdump (const char* const msg,  const uint16_t len,  const void* const buf);
 
 enum
 {
@@ -80,6 +81,7 @@ static void _xfer_complete(uint8_t dev_addr, xfer_result_t result)
 {
   TU_LOG2("\r\n");
   if (_ctrl_xfer.complete_cb) _ctrl_xfer.complete_cb(dev_addr, &_ctrl_xfer.request, result);
+dec_hexdump("<Data", _ctrl_xfer.request.wLength, _ctrl_xfer.buffer);
 }
 
 bool usbh_control_xfer_cb (uint8_t dev_addr, uint8_t ep_addr, xfer_result_t result, uint32_t xferred_bytes)
@@ -107,6 +109,8 @@ bool usbh_control_xfer_cb (uint8_t dev_addr, uint8_t ep_addr, xfer_result_t resu
         {
           // DATA stage: initial data toggle is always 1
           hcd_edpt_xfer(rhport, dev_addr, tu_edpt_addr(0, request->bmRequestType_bit.direction), _ctrl_xfer.buffer, request->wLength);
+dec_hexdump(">Data", request->wLength, _ctrl_xfer.buffer);
+
           return true;
         }
         __attribute__((fallthrough));
@@ -122,6 +126,7 @@ bool usbh_control_xfer_cb (uint8_t dev_addr, uint8_t ep_addr, xfer_result_t resu
 
         // ACK stage: toggle is always 1
         hcd_edpt_xfer(rhport, dev_addr, tu_edpt_addr(0, 1-request->bmRequestType_bit.direction), NULL, 0);
+dec_hexdump(">Ack", 0, NULL);
       break;
 
       case STAGE_ACK:
