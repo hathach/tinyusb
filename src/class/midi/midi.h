@@ -61,24 +61,25 @@ typedef enum
   MIDI_JACK_EXTERNAL = 0x02
 } midi_jack_type_t;
 
+// https://www.usb.org/sites/default/files/midi10.pdf .. table 4-1
 typedef enum
 {
   MIDI_CIN_MISC              = 0,
   MIDI_CIN_CABLE_EVENT       = 1,
   MIDI_CIN_SYSCOM_2BYTE      = 2, // 2 byte system common message e.g MTC, SongSelect
   MIDI_CIN_SYSCOM_3BYTE      = 3, // 3 byte system common message e.g SPP
-  MIDI_CIN_SYSEX_START       = 4, // SysEx starts or continue
+  MIDI_CIN_SYSEX_START       = 4, // SysEx starts or continue -or- 1 byte system common e.g TuneRequest
   MIDI_CIN_SYSEX_END_1BYTE   = 5, // SysEx ends with 1 data, or 1 byte system common message
   MIDI_CIN_SYSEX_END_2BYTE   = 6, // SysEx ends with 2 data
   MIDI_CIN_SYSEX_END_3BYTE   = 7, // SysEx ends with 3 data
-  MIDI_CIN_NOTE_ON           = 8,
-  MIDI_CIN_NOTE_OFF          = 9,
+  MIDI_CIN_NOTE_OFF          = 8, 
+  MIDI_CIN_NOTE_ON           = 9, 
   MIDI_CIN_POLY_KEYPRESS     = 10,
   MIDI_CIN_CONTROL_CHANGE    = 11,
   MIDI_CIN_PROGRAM_CHANGE    = 12,
   MIDI_CIN_CHANNEL_PRESSURE  = 13,
   MIDI_CIN_PITCH_BEND_CHANGE = 14,
-  MIDI_CIN_1BYTE_DATA = 15
+  MIDI_CIN_1BYTE_DATA        = 15
 } midi_code_index_number_t;
 
 // MIDI 1.0 status byte
@@ -97,7 +98,7 @@ enum
 
   //------------- System RealTime  -------------//
   MIDI_STATUS_SYSREAL_TIMING_CLOCK           = 0xF8,
-  // 0xF9 is undefined
+  MIDI_STATUS_SYSREAL_TICK                   = 0xF9, // http://midi.teragonaudio.com/tech/midispec/tick.htm
   MIDI_STATUS_SYSREAL_START                  = 0xFA,
   MIDI_STATUS_SYSREAL_CONTINUE               = 0xFB,
   MIDI_STATUS_SYSREAL_STOP                   = 0xFC,
