@@ -1,6 +1,6 @@
 # quick'n'dirty
 
-NAME=midi_controller
+NAME=midi_host
 ELF=b/$(NAME).elf
 
 DBG =
