@@ -26,3 +26,4 @@ cov-int
 # cppcheck build directories
 *-build-dir
 /_bin/
+b/
