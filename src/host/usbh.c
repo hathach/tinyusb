@@ -251,6 +251,21 @@ bool tuh_mounted(uint8_t dev_addr)
   return get_device(dev_addr)->configured;
 }
 
+bool tuh_iManf_iProd_iSrn_get(uint8_t dev_addr, uint8_t* iM, uint8_t* iP, uint8_t* iS)
+{
+  *iM = *iP = *iS = 0;
+
+  TU_VERIFY(tuh_mounted(dev_addr));
+
+  usbh_device_t const* dev = get_device(dev_addr);
+
+  *iM = dev->i_manufacturer;
+  *iP = dev->i_product;
+  *iS = dev->i_serial;
+
+  return true;
+}
+
 bool tuh_vid_pid_get(uint8_t dev_addr, uint16_t* vid, uint16_t* pid)
 {
   *vid = *pid = 0;
