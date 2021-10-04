@@ -9,8 +9,10 @@ DBG = -DCMAKE_BUILD_TYPE=Debug
 #===============================================================================
 # yeah, this is all hacky code right now
 .PHONY: all
-all $(ELF): b ../../../src/class/midi/decode.c
-	rm -f b/CMakeFiles/$(NAME).dir/${HOME}/src/pico/_test/_tusb/tinyusb.fork/src/class/raw/*.obj
+all : $(ELF)
+
+$(ELF): b $(wildcard src/*) $(wildcard ../../../src/class/midi/*) $(wildcard ../../../src/host/*) $(wildcard ../../../src/common/*)
+	rm -f b/CMakeFiles/$(NAME).dir/${HOME}/src/pico/_test/_tusb/tinyusb.fork/src/class/midi/*.obj
 	rm -f b/$(NAME).*
 	(cd b ;\
 		cmake .. -DFAMILY=rp2040 $(DBG) ;\
