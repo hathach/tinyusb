@@ -67,14 +67,6 @@ void  midih_init (void)
 //+============================================================================ ========================================
 // USBH-CLASS API [2/5] : .open
 //
-uint8_t buf[256];
-
-static bool strHandler(uint8_t dev_addr,  tusb_control_request_t const* request,  xfer_result_t result)
-{
-	dec_hexdump("<String", 64, buf);
-	return true;
-}
-
 bool  midih_open (uint8_t rhport,  uint8_t dev_addr,  tusb_desc_interface_t const *desc_itf,  uint16_t max_len)
 {
 
@@ -106,29 +98,46 @@ bool  midih_open (uint8_t rhport,  uint8_t dev_addr,  tusb_desc_interface_t cons
 	}//for
 	LOGF("^^^=====================================================================^^^\r\n\r\n");
 
-// 0x80 (10000000B - Request type)
-// 0x06 (Get_Descriptor request)
-// 0x0301 (high byte = STRING descriptor(3), low byte = index(1))
-// 0x0409 (language - UNICODE for english-us)
-// 0x0012 (length)	
-printf("#########################################################################\r\n");
-	uint8_t request[] = {0x80, 0x06, 0x01, 0x03, 0x09, 0x04, 0x12, 0x00};
-	TU_ASSERT( tuh_control_xfer(0, (tusb_control_request_t*)request, buf, strHandler) );
-printf("#########################################################################\r\n");
-	
 	return true;
 }
 
 //+============================================================================ ========================================
 // USBH-CLASS API [3/5] : .set_config
 //
+uint8_t buf[256];
+
+static bool strHandler(uint8_t dev_addr,  tusb_control_request_t const* request,  xfer_result_t result)
+{
+	dec_hexdump("<String---------------------------", 64, buf);
+	return true;
+}
+
 bool  midih_set_config (uint8_t dev_addr,  uint8_t itf_num)
 {
 	uint16_t  vid, pid;
+	uint8_t   iManf, iProd, iSrn;
+
+	LOGF("# midi_set_config(dev=%d, num=%d)\r\n", dev_addr, itf_num);
 
 	tuh_vid_pid_get(dev_addr, &vid, &pid);
+	tuh_iManf_iProd_iSrn_get(dev_addr, &iManf, &iProd, &iSrn);
+	LOGF("+ vid/pid %04X:%04X, iM=%d, iP=%d, iS=%d\r\n", vid, pid, iManf, iProd, iSrn);
 
-	LOGF("# midi_set_config(dev=%d, num=%d) // VID:PID=%04X:%04X\r\n", dev_addr, itf_num, vid, pid);
+// 0x80 (10000000B - Request type)
+// 0x06 (Get_Descriptor request)
+// 0x0301 (high byte = STRING descriptor(3), low byte = index(1))
+// 0x0409 (language - UNICODE for english-us)
+// 0x0012 (length)
+printf("##lang#######################################################################\r\n");
+	//                                               req  getdesc  idx   str     lang      datalen
+	TU_ASSERT( tuh_control_xfer(0,
+	           (tusb_control_request_t*)((uint8_t[]){0x80, 0x06,  0x00,  0x03, 0x00,0x00, 0x00,0x00}),
+			   buf, strHandler) );  // get language table
+printf("##string#######################################################################\r\n");
+	TU_ASSERT( tuh_control_xfer(0,
+	           (tusb_control_request_t*)((uint8_t[]){0x80, 0x06,  iProd, 0x03, 0x09,0x04, 0x00,0x00}),
+			   buf, strHandler) );  // get product string
+printf("#########################################################################\r\n");
 
 	return true;
 }
