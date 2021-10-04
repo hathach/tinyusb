@@ -291,7 +291,15 @@ bool hidh_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_interface_t const *de
   tusb_desc_endpoint_t const * desc_ep = (tusb_desc_endpoint_t const *) p_desc;
   TU_ASSERT(TUSB_DESC_ENDPOINT == desc_ep->bDescriptorType);
 
+  // first endpoint may be OUT, skip to IN endpoint
   // TODO also open endpoint OUT
+  if(tu_edpt_dir(desc_ep->bEndpointAddress) == TUSB_DIR_OUT)
+  {
+    p_desc = tu_desc_next(p_desc);
+    desc_ep = (tusb_desc_endpoint_t const *) p_desc;
+    TU_ASSERT(TUSB_DESC_ENDPOINT == desc_ep->bDescriptorType);
+  }
+
   TU_ASSERT( usbh_edpt_open(rhport, dev_addr, desc_ep) );
 
   hidh_interface_t* hid_itf = get_instance(dev_addr, hid_dev->inst_count);
