@@ -9,6 +9,7 @@
 ifneq ($(FAMILY),esp32s2)
 ifneq ($(FAMILY),esp32s3)
 ifneq ($(FAMILY),rp2040)
+
 # ---------------------------------------
 # GNU Make build system
 # ---------------------------------------
@@ -42,6 +43,12 @@ SRC_C += \
 INC += $(TOP)/src
 
 CFLAGS += $(addprefix -I,$(INC))
+
+# LTO makes it difficult to analyze map file for optimizing size purpose
+# We will run this option in ci
+ifeq ($(NO_LTO),1)
+CFLAGS := $(filter-out -flto,$(CFLAGS))
+endif
 
 LDFLAGS += $(CFLAGS) -Wl,-T,$(TOP)/$(LD_FILE) -Wl,-Map=$@.map -Wl,-cref -Wl,-gc-sections
 ifneq ($(SKIP_NANOLIB), 1)
