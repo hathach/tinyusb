@@ -33,7 +33,7 @@
  */
 #define _PID_MAP(itf, n)  ( (CFG_TUD_##itf) << (n) )
 #define USB_PID           (0x4000 | _PID_MAP(CDC, 0) | _PID_MAP(MSC, 1) | _PID_MAP(HID, 2) | \
-                           _PID_MAP(MIDI, 3) | _PID_MAP(VENDOR, 4) | _PID_MAP(NET, 5) )
+                           _PID_MAP(MIDI, 3) | _PID_MAP(VENDOR, 4) | _PID_MAP(ECM_RNDIS, 5) | _PID_MAP(NCM, 5) )
 
 // String Descriptor Index
 enum
@@ -55,7 +55,7 @@ enum
 
 enum
 {
-#if !CFG_TUD_NCM
+#if CFG_TUD_ECM_RNDIS
   CONFIG_ID_RNDIS = 0,
   CONFIG_ID_ECM   = 1,
 #else
@@ -125,7 +125,8 @@ uint8_t const * tud_descriptor_device_cb(void)
   #define EPNUM_NET_IN      0x82
 #endif
 
-#if !CFG_TUD_NCM
+#if CFG_TUD_ECM_RNDIS
+
 static uint8_t const rndis_configuration[] =
 {
   // Config number (index+1), interface count, string index, total length, attribute, power in mA
@@ -143,7 +144,9 @@ static uint8_t const ecm_configuration[] =
   // Interface number, description string index, MAC address string index, EP notification address and size, EP data address (out, in), and size, max segment size.
   TUD_CDC_ECM_DESCRIPTOR(ITF_NUM_CDC, STRID_INTERFACE, STRID_MAC, EPNUM_NET_NOTIF, 64, EPNUM_NET_OUT, EPNUM_NET_IN, CFG_TUD_NET_ENDPOINT_SIZE, CFG_TUD_NET_MTU),
 };
+
 #else
+
 static uint8_t const ncm_configuration[] =
 {
   // Config number (index+1), interface count, string index, total length, attribute, power in mA
@@ -152,6 +155,7 @@ static uint8_t const ncm_configuration[] =
   // Interface number, description string index, MAC address string index, EP notification address and size, EP data address (out, in), and size, max segment size.
   TUD_CDC_NCM_DESCRIPTOR(ITF_NUM_CDC, STRID_INTERFACE, STRID_MAC, EPNUM_NET_NOTIF, 64, EPNUM_NET_OUT, EPNUM_NET_IN, CFG_TUD_NET_ENDPOINT_SIZE, CFG_TUD_NET_MTU),
 };
+
 #endif
 
 // Configuration array: RNDIS and CDC-ECM
@@ -160,7 +164,7 @@ static uint8_t const ncm_configuration[] =
 // - Linux will work on both
 static uint8_t const * const configuration_arr[2] =
 {
-#if !CFG_TUD_NCM
+#if CFG_TUD_ECM_RNDIS
   [CONFIG_ID_RNDIS] = rndis_configuration,
   [CONFIG_ID_ECM  ] = ecm_configuration
 #else

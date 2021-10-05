@@ -100,7 +100,7 @@
     #include "class/dfu/dfu_device.h"
   #endif
 
-  #if CFG_TUD_NET
+  #if CFG_TUD_ECM_RNDIS || CFG_TUD_NCM
     #include "class/net/net_device.h"
   #endif
 

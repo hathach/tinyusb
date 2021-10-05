@@ -261,16 +261,16 @@
   #define CFG_TUD_DFU             0
 #endif
 
-#ifndef CFG_TUD_NET
-  #define CFG_TUD_NET             0
-#endif
-
 #ifndef CFG_TUD_BTH
   #define CFG_TUD_BTH             0
 #endif
 
+#ifndef CFG_TUD_ECM_RNDIS
+  #define CFG_TUD_ECM_RNDIS   0
+#endif
+
 #ifndef CFG_TUD_NCM
-  #define CFG_TUD_NCM             0
+  #define CFG_TUD_NCM         0
 #endif
 
 //--------------------------------------------------------------------

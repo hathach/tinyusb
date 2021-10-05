@@ -23,7 +23,7 @@ target_sources(${COMPONENT_TARGET} PUBLIC
   "${TOP}/src/class/hid/hid_device.c"
   "${TOP}/src/class/midi/midi_device.c"
   "${TOP}/src/class/msc/msc_device.c"
-  "${TOP}/src/class/net/ecmrndis_device.c"
+  "${TOP}/src/class/net/ecm_rndis_device.c"
   "${TOP}/src/class/net/ncm_device.c"
   "${TOP}/src/class/usbtmc/usbtmc_device.c"
   "${TOP}/src/class/vendor/vendor_device.c"

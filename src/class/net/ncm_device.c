@@ -28,7 +28,7 @@
 
 #include "tusb_option.h"
 
-#if ( TUSB_OPT_DEVICE_ENABLED && CFG_TUD_NET && CFG_TUD_NCM )
+#if ( TUSB_OPT_DEVICE_ENABLED && CFG_TUD_NCM )
 
 #include "device/usbd.h"
 #include "device/usbd_pvt.h"
@@ -131,18 +131,18 @@ typedef struct
 //--------------------------------------------------------------------+
 
 CFG_TUSB_MEM_SECTION CFG_TUSB_MEM_ALIGN static const ntb_parameters_t ntb_parameters = {
-    .wLength = sizeof(ntb_parameters_t),
-    .bmNtbFormatsSupported = 0x01,
-    .dwNtbInMaxSize = CFG_TUD_NCM_IN_NTB_MAX_SIZE,
-    .wNdbInDivisor = 4,
-    .wNdbInPayloadRemainder = 0,
-    .wNdbInAlignment = CFG_TUD_NCM_ALIGNMENT,
-    .wReserved = 0,
-    .dwNtbOutMaxSize = CFG_TUD_NCM_OUT_NTB_MAX_SIZE,
-    .wNdbOutDivisor = 4,
+    .wLength                 = sizeof(ntb_parameters_t),
+    .bmNtbFormatsSupported   = 0x01,
+    .dwNtbInMaxSize          = CFG_TUD_NCM_IN_NTB_MAX_SIZE,
+    .wNdbInDivisor           = 4,
+    .wNdbInPayloadRemainder  = 0,
+    .wNdbInAlignment         = CFG_TUD_NCM_ALIGNMENT,
+    .wReserved               = 0,
+    .dwNtbOutMaxSize         = CFG_TUD_NCM_OUT_NTB_MAX_SIZE,
+    .wNdbOutDivisor          = 4,
     .wNdbOutPayloadRemainder = 0,
-    .wNdbOutAlignment = CFG_TUD_NCM_ALIGNMENT,
-    .wNtbOutMaxDatagrams = 0
+    .wNdbOutAlignment        = CFG_TUD_NCM_ALIGNMENT,
+    .wNtbOutMaxDatagrams     = 0
 };
 
 CFG_TUSB_MEM_SECTION CFG_TUSB_MEM_ALIGN static transmit_ntb_t transmit_ntb[2];
