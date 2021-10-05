@@ -126,6 +126,10 @@
 // GigaDevice
 #define OPT_MCU_GD32VF103        1600 ///< GigaDevice GD32VF103
 
+// BridgeTek
+#define OPT_MCU_FT90X            1700 ///< BridgeTek FT90x
+#define OPT_MCU_FT93X            1701 ///< BridgeTek FT93x
+
 //--------------------------------------------------------------------+
 // Supported OS
 //--------------------------------------------------------------------+

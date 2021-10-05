@@ -151,6 +151,13 @@
 #elif TU_CHECK_MCU(GD32VF103)
   #define DCD_ATTR_ENDPOINT_MAX   4
 
+//------------- BridgeTek -------------//
+#elif TU_CHECK_MCU(FT90X)
+  #define DCD_ATTR_ENDPOINT_MAX   8
+
+#elif TU_CHECK_MCU(FT93X)
+  #define DCD_ATTR_ENDPOINT_MAX   16
+
 #else
   #warning "DCD_ATTR_ENDPOINT_MAX is not defined for this MCU, default to 8"
   #define DCD_ATTR_ENDPOINT_MAX   8
