@@ -127,3 +127,7 @@
 [submodule "hw/mcu/gd/nuclei-sdk"]
 	path = hw/mcu/gd/nuclei-sdk
 	url = https://github.com/Nuclei-Software/nuclei-sdk.git
+[submodule "hw/mcu/broadcom"]
+	path = hw/mcu/broadcom
+	url = git@github.com:adafruit/broadcom-peripherals.git
+	branch = main-build

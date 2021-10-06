@@ -27,8 +27,9 @@
 #include "bsp/board.h"
 #include "board.h"
 
-#include "io.h"
-#include "mmu.h"
+#include "broadcom/io.h"
+#include "broadcom/mmu.h"
+#include "broadcom/vcmailbox.h"
 
 //--------------------------------------------------------------------+
 // Forward USB interrupt events to TinyUSB IRQ Handler
@@ -46,9 +47,8 @@ void OTG_FS_IRQHandler(void)
 // Board porting API
 //--------------------------------------------------------------------+
 
-void print(void) {
-  const char* greeting2 = "hello from cm100\r\n";
-  board_uart_write(greeting2, strlen(greeting2));
+void print(const char* str) {
+  board_uart_write(str, strlen(str));
 }
 
 void board_init(void)
@@ -83,7 +83,7 @@ void board_init(void)
   board_uart_write(greeting, strlen(greeting));
   // gpio_setPinOutputBool(24, false);
   // gpio_setPinOutputBool(25, true);
-  print();
+  // print();
   // gpio_setPinOutputBool(25, false);
   // while (true) {
   // // for (size_t i = 0; i < 5; i++) {
@@ -97,6 +97,12 @@ void board_init(void)
   //   gpio_setPinOutputBool(42, false);
   // }
   // while (1) uart_update();
+
+  // Turn on USB peripheral.
+  print("Turning on USB power\r\n");
+
+  vcmailbox_set_power_state(VCMAILBOX_DEVICE_USB_HCD, true);
+  print("USB power on\r\n");
 }
 
 void board_led_write(bool state)
