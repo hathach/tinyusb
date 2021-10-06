@@ -524,8 +524,6 @@ void dcd_init(uint8_t rhport)
 
   _dcd_ft90x_attach();
 
-  //_ft90x_reset_edpts(void);//tu_memclr(ep_xfer, sizeof(ep_xfer));
-
   interrupt_attach(interrupt_usb_device, (int8_t)interrupt_usb_device, _ft90x_usbd_ISR);
 
   dcd_connect(rhport);

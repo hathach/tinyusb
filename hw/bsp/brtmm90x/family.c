@@ -28,7 +28,6 @@
 #include <ft900.h>
 #include "bsp/board.h"
 #include "board.h"
-//#include "src/device/dcd.h"
 
 #if TUSB_OPT_DEVICE_ENABLED
 int8_t board_ft90x_vbus(void); // Board specific implementation of VBUS detection for USB device.
@@ -67,16 +66,17 @@ void board_init(void)
 #if 1
     gpio_function(GPIO_ETH_LED0, pad_gpio4); /* ETH LED0 */
     gpio_dir(GPIO_ETH_LED0, pad_dir_open_drain);
-    gpio_function(GPIO_ETH_LED1, pad_gpio5); /* ETH LED0 */
+    gpio_function(GPIO_ETH_LED1, pad_gpio5); /* ETH LED1 */
     gpio_dir(GPIO_ETH_LED1, pad_dir_output);
 #endif
+
 	sys_enable(sys_device_timer_wdt);
-	interrupt_attach(interrupt_timers, (int8_t)interrupt_timers, timer_ISR);
 	/* Timer A = 1ms */
 	timer_prescaler(timer_select_a, 1000);
 	timer_init(timer_select_a, 100, timer_direction_down, timer_prescaler_select_on, timer_mode_continuous);
 	timer_enable_interrupt(timer_select_a);
 	timer_start(timer_select_a);
+	interrupt_attach(interrupt_timers, (int8_t)interrupt_timers, timer_ISR);
 
     // Setup VBUS detect GPIO. If the device is connected then this
     // will set the MASK_SYS_PMCFG_DEV_DETECT_EN bit in PMCFG.
