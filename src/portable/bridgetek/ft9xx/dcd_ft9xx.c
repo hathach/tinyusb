@@ -24,8 +24,9 @@
  * This file is part of the TinyUSB stack.
  */
 
-#include "tusb_option.h"
+#include "board.h"
 #include "bsp/board.h"
+#include "tusb_option.h"
 
 #if TUSB_OPT_DEVICE_ENABLED && CFG_TUSB_MCU == OPT_MCU_FT90X
 

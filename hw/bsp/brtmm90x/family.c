@@ -24,10 +24,10 @@
  * This file is part of the TinyUSB stack.
  */
 
+#include "board.h"
+#include "bsp/board.h"
 #include <registers/ft900_registers.h>
 #include <ft900.h>
-#include "bsp/board.h"
-#include "board.h"
 
 #if TUSB_OPT_DEVICE_ENABLED
 int8_t board_ft90x_vbus(void); // Board specific implementation of VBUS detection for USB device.
@@ -42,7 +42,7 @@ volatile unsigned int timer_ms = 0;
 void board_pm_ISR(void);
 
 #define WELCOME_MSG "\x1B[2J\x1B[H" \
-                    "MM900EV1B board\r\n"
+                    "MM900EVxB board\r\n"
 
 // Initialize on-board peripherals : led, button, uart and USB
 void board_init(void)
