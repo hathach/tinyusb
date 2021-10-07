@@ -12,7 +12,7 @@ CFLAGS += \
 	-fvar-tracking-assignments \
 	-fmessage-length=0 \
 	-ffunction-sections \
-	-DCFG_TUSB_MCU=OPT_MCU_FT90X 
+	-DCFG_TUSB_MCU=OPT_MCU_FT90X
 
 # lwip/src/core/raw.c:334:43: error: declaration of 'recv' shadows a global declaration
 CFLAGS += -Wno-error=shadow

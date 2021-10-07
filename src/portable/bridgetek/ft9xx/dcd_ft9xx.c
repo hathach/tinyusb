@@ -24,11 +24,17 @@
  * This file is part of the TinyUSB stack.
  */
 
+/* 
+ * Contains code adapted from Bridgetek Pte Ltd via license terms stated 
+ * in https://brtchip.com/BRTSourceCodeLicenseAgreement
+ */
+
 #include "board.h"
 #include "bsp/board.h"
 #include "tusb_option.h"
 
-#if TUSB_OPT_DEVICE_ENABLED && CFG_TUSB_MCU == OPT_MCU_FT90X
+#if TUSB_OPT_DEVICE_ENABLED && \
+  (CFG_TUSB_MCU == OPT_MCU_FT90X || CFG_TUSB_MCU == OPT_MCU_FT93X)
 
 #define USBD_USE_STREAMS
 
@@ -250,12 +256,12 @@ static void _dcd_ft90x_attach(void)
 
   CRITICAL_SECTION_BEGIN
   // Turn off the device enable bit.
-#if CFG_TUSB_RHPORT0_MODE & OPT_MODE_HIGH_SPEED
+#if BOARD_DEVICE_RHPORT_SPEED == OPT_MODE_HIGH_SPEED
   USBD_REG(fctrl) = 0;
-#else
+#else // BOARD_DEVICE_RHPORT_SPEED == OPT_MODE_FULL_SPEED
   //Set the full speed only bit if required.
   USBD_REG(fctrl) = MASK_USBD_FCTRL_MODE_FS_ONLY;
-#endif
+#endif // BOARD_DEVICE_RHPORT_SPEED
 
   // Clear first reset and suspend interrupts.
   do
@@ -301,7 +307,7 @@ static void _dcd_ft90x_detach(void)
   delayms(1);
 
   // Disable USB PHY
-  dcd_disconnect(0);
+  dcd_disconnect(BOARD_DEVICE_RHPORT_NUM);
   delayms(1);
 
   // Disable Chip USB device clock/PM configuration.
@@ -333,7 +339,7 @@ static void _ft90x_usb_speed(void)
 		delayus(200);
 	}
 
-#if CFG_TUSB_RHPORT0_MODE & OPT_MODE_HIGH_SPEED
+#if BOARD_DEVICE_RHPORT_SPEED == OPT_MODE_HIGH_SPEED
 
 	/* Detect high or full speed */
 	fctrl_val = MASK_USBD_FCTRL_USB_DEV_EN;
@@ -357,11 +363,11 @@ static void _ft90x_usb_speed(void)
 	delayus(125 + 5);
 	_speed = (USBD_REG(cmif) & MASK_USBD_CMIF_SOFIRQ) ?
 		TUSB_SPEED_HIGH : TUSB_SPEED_FULL;
-  dcd_event_bus_reset(0, _speed, true);
+  dcd_event_bus_reset(BOARD_DEVICE_RHPORT_NUM, _speed, true);
 
 #endif /* !__FT930__ */
 
-#else /* CFG_TUSB_RHPORT0_MODE & OPT_MODE_HIGH_SPEED */
+#else // BOARD_DEVICE_RHPORT_SPEED == OPT_MODE_FULL_SPEED
 
 	/* User force set to full speed */
   _speed = TUSB_SPEED_FULL;
@@ -374,10 +380,10 @@ static void _ft90x_usb_speed(void)
 	}
 #endif
 	USBD_REG(fctrl) = fctrl_val;
-  dcd_event_bus_reset(0, _speed, true);
+  dcd_event_bus_reset(BOARD_DEVICE_RHPORT_NUM, _speed, true);
 	return;
 
-#endif /* CFG_TUSB_RHPORT0_MODE & OPT_MODE_HIGH_SPEED */
+#endif // BOARD_DEVICE_RHPORT_SPEED
 }
 
 // Send a buffer to the USB IN FIFO.
@@ -557,7 +563,7 @@ void dcd_set_address(uint8_t rhport, uint8_t dev_addr)
   (void)dev_addr;
 
   // Respond with status. There is no checking that the address is in range.
-  dcd_edpt_xfer(rhport, tu_edpt_addr(0, TUSB_DIR_IN), NULL, 0);
+  dcd_edpt_xfer(rhport, tu_edpt_addr(USBD_EP_0, TUSB_DIR_IN), NULL, 0);
 
   // Set the update bit for the address register.
   dev_addr |= 0x80;
@@ -603,7 +609,7 @@ void dcd_remote_wakeup(uint8_t rhport)
   SYS->MSC0CFG &= ~MASK_SYS_MSC0CFG_DEV_RMWAKEUP;
 
   // Enable USB PHY and determine current bus speed.
-  dcd_connect(0);
+  dcd_connect(rhport);
 }
 
 // Connect by enabling internal pull-up resistor on D+/D-
@@ -882,7 +888,7 @@ void dcd_edpt_clear_stall(uint8_t rhport, uint8_t ep_addr)
 
 void _ft90x_usbd_ISR(void)
 {
-  tud_int_handler(0); // Resolves to dcd_int_handler().
+  tud_int_handler(BOARD_DEVICE_RHPORT_NUM); // Resolves to dcd_int_handler().
 }
 
 void dcd_int_handler(uint8_t rhport)
@@ -920,19 +926,19 @@ void dcd_int_handler(uint8_t rhport)
     {
       // Reset endpoints to default state.
       _ft90x_reset_edpts();
-      dcd_event_bus_reset(0, _speed, true);
+      dcd_event_bus_reset(BOARD_DEVICE_RHPORT_NUM, _speed, true);
     }
     if (cmif & MASK_USBD_CMIF_SUSIRQ) //Handle Suspend interrupt
     {
-      dcd_event_bus_signal(0, DCD_EVENT_SUSPEND, true);
+      dcd_event_bus_signal(BOARD_DEVICE_RHPORT_NUM, DCD_EVENT_SUSPEND, true);
     }
     if (cmif & MASK_USBD_CMIF_RESIRQ) //Handle Resume interrupt
     {
-      dcd_event_bus_signal(0, DCD_EVENT_RESUME, true);
+      dcd_event_bus_signal(BOARD_DEVICE_RHPORT_NUM, DCD_EVENT_RESUME, true);
     }
     if (cmif & MASK_USBD_CMIF_SOFIRQ) //Handle SOF interrupt
     {
-      dcd_event_bus_signal(0, DCD_EVENT_SOF, true);
+      dcd_event_bus_signal(BOARD_DEVICE_RHPORT_NUM, DCD_EVENT_SOF, true);
     }
   }
   // Handle endpoint interrupts.
@@ -963,7 +969,7 @@ void dcd_int_handler(uint8_t rhport)
         _ft90x_dusb_out(USBD_EP_0, (uint8_t *)_ft90x_setup_packet, sizeof(USB_device_request));
         
         // Send the packet to tinyusb.
-        dcd_event_setup_received(0, _ft90x_setup_packet, true);
+        dcd_event_setup_received(BOARD_DEVICE_RHPORT_NUM, _ft90x_setup_packet, true);
 
         // Clear the interrupt that signals a SETUP packet is received.
         USBD_EP_SR_REG(USBD_EP_0) = (MASK_USBD_EP0SR_SETUP);
@@ -985,7 +991,7 @@ void dcd_int_handler(uint8_t rhport)
             xfer_bytes = _ft90x_edpt_xfer_out(USBD_EP_0, (uint8_t *)ep_xfer[USBD_EP_0].buff_ptr, xfer_bytes);
           }
           // Now signal completion of data packet.
-          dcd_event_xfer_complete(0, (ep_xfer[USBD_EP_0].dir ? TUSB_DIR_IN_MASK : 0), xfer_bytes, XFER_RESULT_SUCCESS, true);
+          dcd_event_xfer_complete(BOARD_DEVICE_RHPORT_NUM, (ep_xfer[USBD_EP_0].dir ? TUSB_DIR_IN_MASK : 0), xfer_bytes, XFER_RESULT_SUCCESS, true);
 
           // Allow new transfers on the control endpoint.
           ep_xfer[USBD_EP_0].valid = 0;
@@ -1042,7 +1048,7 @@ void dcd_int_handler(uint8_t rhport)
           if (ep_xfer[ep_number].remain_size == 0)
           {
             // Signal tinyUSB.
-            dcd_event_xfer_complete(0, ep_number | ep_dirmask, ep_xfer[ep_number].total_size, XFER_RESULT_SUCCESS, true);
+            dcd_event_xfer_complete(BOARD_DEVICE_RHPORT_NUM, ep_number | ep_dirmask, ep_xfer[ep_number].total_size, XFER_RESULT_SUCCESS, true);
 
             // Allow new transfers on this endpoint.
             ep_xfer[ep_number].valid = 0;
@@ -1067,21 +1073,21 @@ void ft90x_usbd_pm_ISR(void)
   {
       // Signal connection interrupt
       SYS->PMCFG_H = MASK_SYS_PMCFG_PM_GPIO_IRQ_PEND;
-      dcd_event_bus_signal(0, DCD_EVENT_RESUME, true);
+      dcd_event_bus_signal(BOARD_DEVICE_RHPORT_NUM, DCD_EVENT_RESUME, true);
   }
 
   if (pmcfg & MASK_SYS_PMCFG_DEV_DIS_DEV)
   {
       // Signal disconnection interrupt
       SYS->PMCFG_H = MASK_SYS_PMCFG_PM_GPIO_IRQ_PEND;
-      dcd_event_bus_signal(0, DCD_EVENT_UNPLUGGED, true);
+      dcd_event_bus_signal(BOARD_DEVICE_RHPORT_NUM, DCD_EVENT_UNPLUGGED, true);
   }
 
   if (pmcfg & MASK_SYS_PMCFG_HOST_RST_DEV)
   {
       // Signal Host Reset interrupt
       SYS->PMCFG_H = MASK_SYS_PMCFG_PM_GPIO_IRQ_PEND;
-      dcd_event_bus_signal(0, DCD_EVENT_BUS_RESET, true);
+      dcd_event_bus_signal(BOARD_DEVICE_RHPORT_NUM, DCD_EVENT_BUS_RESET, true);
   }
 
   if (pmcfg & MASK_SYS_PMCFG_HOST_RESUME_DEV)
@@ -1092,7 +1098,7 @@ void ft90x_usbd_pm_ISR(void)
       {
           // If we are driving K-state on Device USB port;
           // We must maintain the 1ms requirement before resuming the phy
-          dcd_event_bus_signal(0, DCD_EVENT_RESUME, true);
+          dcd_event_bus_signal(BOARD_DEVICE_RHPORT_NUM, DCD_EVENT_RESUME, true);
       }
   }
 }
