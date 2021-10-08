@@ -457,7 +457,7 @@ static bool _open_vc_itf(uint8_t rhport, videod_interface_t *self, uint_fast8_t 
   void const *end = beg + self->len;
   /* The first descriptor is a video control interface descriptor. */
   void const *cur = _find_desc_itf(beg, end, _desc_itfnum(beg), altnum);
-  TU_LOG2("    cur %ld\n", cur - beg);
+  TU_LOG2("    cur %d\n", cur - beg);
   TU_VERIFY(cur < end);
 
   tusb_desc_vc_itf_t const *vc = (tusb_desc_vc_itf_t const *)cur;
