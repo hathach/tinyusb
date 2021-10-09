@@ -266,7 +266,12 @@
 #endif
 
 #ifndef CFG_TUD_ECM_RNDIS
-  #define CFG_TUD_ECM_RNDIS   0
+  #ifdef CFG_TUD_NET
+    #warning "CFG_TUD_NET is renamed to CFG_TUD_ECM_RNDIS"
+    #define CFG_TUD_ECM_RNDIS   CFG_TUD_NET
+  #else
+    #define CFG_TUD_ECM_RNDIS   0
+  #endif
 #endif
 
 #ifndef CFG_TUD_NCM
