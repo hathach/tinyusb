@@ -6,7 +6,8 @@ CFLAGS += \
   -mabi=aapcs \
   -mcpu=cortex-m0plus \
   -DCPU_MKL25Z128VLK4 \
-  -DCFG_TUSB_MCU=OPT_MCU_MKL25ZXX
+  -DCFG_TUSB_MCU=OPT_MCU_MKL25ZXX \
+  -DCFG_EXAMPLE_VIDEO_READONLY
 
 LDFLAGS += \
   -Wl,--defsym,__stack_size__=0x400 \
