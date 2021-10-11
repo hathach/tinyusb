@@ -258,8 +258,8 @@ static void const* _find_desc_entity(void const *desc, uint_fast8_t entityid)
   void const *end = beg + vc->std.bLength + vc->ctl.wTotalLength;
   for (void const *cur = beg; cur < end; cur = _find_desc(cur, end, TUSB_DESC_CS_INTERFACE)) {
     tusb_desc_cs_video_entity_itf_t const *itf = (tusb_desc_cs_video_entity_itf_t const *)cur;
-    if ((VIDEO_CS_VC_INPUT_TERMINAL  <= itf->bDescriptorSubtype
-         && itf->bDescriptorSubtype < VIDEO_CS_VC_MAX)
+    if ((VIDEO_CS_ITF_VC_INPUT_TERMINAL  <= itf->bDescriptorSubtype
+         && itf->bDescriptorSubtype < VIDEO_CS_ITF_VC_MAX)
         && itf->bEntityId == entityid) {
       return itf;
     }
@@ -279,14 +279,14 @@ static inline void const* _end_of_streaming_descriptor(void const *desc)
 static inline tusb_desc_cs_video_fmt_uncompressed_t const *_find_desc_format(void const *beg, void const *end, uint_fast8_t fmtnum)
 {
   return (tusb_desc_cs_video_fmt_uncompressed_t const*)
-    _find_desc_3(beg, end, TUSB_DESC_CS_INTERFACE, VIDEO_CS_VS_FORMAT_UNCOMPRESSED, fmtnum);
+    _find_desc_3(beg, end, TUSB_DESC_CS_INTERFACE, VIDEO_CS_ITF_VS_FORMAT_UNCOMPRESSED, fmtnum);
 }
 
 /** Find the first frame descriptor with the specified format number. */
 static inline tusb_desc_cs_video_frm_uncompressed_t const *_find_desc_frame(void const *beg, void const *end, uint_fast8_t frmnum)
 {
   return (tusb_desc_cs_video_frm_uncompressed_t const*)
-    _find_desc_3(beg, end, TUSB_DESC_CS_INTERFACE, VIDEO_CS_VS_FRAME_UNCOMPRESSED, frmnum);
+    _find_desc_3(beg, end, TUSB_DESC_CS_INTERFACE, VIDEO_CS_ITF_VS_FRAME_UNCOMPRESSED, frmnum);
 }
 
 /** Set uniquely determined values to variables that have not been set

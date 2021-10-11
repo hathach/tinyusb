@@ -91,39 +91,39 @@ typedef enum {
 
 /* A.5 Class-Specific VideoControl Interface Descriptor Subtypes */
 typedef enum {
-  VIDEO_CS_VC_UNDEFINED = 0x00,
-  VIDEO_CS_VC_HEADER,
-  VIDEO_CS_VC_INPUT_TERMINAL,
-  VIDEO_CS_VC_OUTPUT_TERMINAL,
-  VIDEO_CS_VC_SELECTOR_UNIT,
-  VIDEO_CS_VC_PROCESSING_UNIT,
-  VIDEO_CS_VC_EXTENSION_UNIT,
-  VIDEO_CS_VC_ENCODING_UNIT,
-  VIDEO_CS_VC_MAX,
+  VIDEO_CS_ITF_VC_UNDEFINED = 0x00,
+  VIDEO_CS_ITF_VC_HEADER,
+  VIDEO_CS_ITF_VC_INPUT_TERMINAL,
+  VIDEO_CS_ITF_VC_OUTPUT_TERMINAL,
+  VIDEO_CS_ITF_VC_SELECTOR_UNIT,
+  VIDEO_CS_ITF_VC_PROCESSING_UNIT,
+  VIDEO_CS_ITF_VC_EXTENSION_UNIT,
+  VIDEO_CS_ITF_VC_ENCODING_UNIT,
+  VIDEO_CS_ITF_VC_MAX,
 } video_cs_vc_interface_subtype_t;
 
 /* A.6 Class-Specific VideoStreaming Interface Descriptor Subtypes */
 typedef enum {
-  VIDEO_CS_VS_UNDEFINED             = 0x00,
-  VIDEO_CS_VS_INPUT_HEADER          = 0x01,
-  VIDEO_CS_VS_OUTPUT_HEADER         = 0x02,
-  VIDEO_CS_VS_STILL_IMAGE_FRAME     = 0x03,
-  VIDEO_CS_VS_FORMAT_UNCOMPRESSED   = 0x04,
-  VIDEO_CS_VS_FRAME_UNCOMPRESSED    = 0x05,
-  VIDEO_CS_VS_FORMAT_MJPEG          = 0x06,
-  VIDEO_CS_VS_FRAME_MJPEG           = 0x07,
-  VIDEO_CS_VS_FORMAT_MPEG2TS        = 0x0A,
-  VIDEO_CS_VS_FORMAT_DV             = 0x0C,
-  VIDEO_CS_VS_COLORFORMAT           = 0x0D,
-  VIDEO_CS_VS_FORMAT_FRAME_BASED    = 0x10,
-  VIDEO_CS_VS_FRAME_FRAME_BASED     = 0x11,
-  VIDEO_CS_VS_FORMAT_STREAM_BASED   = 0x12,
-  VIDEO_CS_VS_FORMAT_H264           = 0x13,
-  VIDEO_CS_VS_FRAME_H264            = 0x14,
-  VIDEO_CS_VS_FORMAT_H264_SIMULCAST = 0x15,
-  VIDEO_CS_VS_FORMAT_VP8            = 0x16,
-  VIDEO_CS_VS_FRAME_VP8             = 0x17,
-  VIDEO_CS_VS_FORMAT_VP8_SIMULCAST  = 0x18,
+  VIDEO_CS_ITF_VS_UNDEFINED             = 0x00,
+  VIDEO_CS_ITF_VS_INPUT_HEADER          = 0x01,
+  VIDEO_CS_ITF_VS_OUTPUT_HEADER         = 0x02,
+  VIDEO_CS_ITF_VS_STILL_IMAGE_FRAME     = 0x03,
+  VIDEO_CS_ITF_VS_FORMAT_UNCOMPRESSED   = 0x04,
+  VIDEO_CS_ITF_VS_FRAME_UNCOMPRESSED    = 0x05,
+  VIDEO_CS_ITF_VS_FORMAT_MJPEG          = 0x06,
+  VIDEO_CS_ITF_VS_FRAME_MJPEG           = 0x07,
+  VIDEO_CS_ITF_VS_FORMAT_MPEG2TS        = 0x0A,
+  VIDEO_CS_ITF_VS_FORMAT_DV             = 0x0C,
+  VIDEO_CS_ITF_VS_COLORFORMAT           = 0x0D,
+  VIDEO_CS_ITF_VS_FORMAT_FRAME_BASED    = 0x10,
+  VIDEO_CS_ITF_VS_FRAME_FRAME_BASED     = 0x11,
+  VIDEO_CS_ITF_VS_FORMAT_STREAM_BASED   = 0x12,
+  VIDEO_CS_ITF_VS_FORMAT_H264           = 0x13,
+  VIDEO_CS_ITF_VS_FRAME_H264            = 0x14,
+  VIDEO_CS_ITF_VS_FORMAT_H264_SIMULCAST = 0x15,
+  VIDEO_CS_ITF_VS_FORMAT_VP8            = 0x16,
+  VIDEO_CS_ITF_VS_FRAME_VP8             = 0x17,
+  VIDEO_CS_ITF_VS_FORMAT_VP8_SIMULCAST  = 0x18,
 } video_cs_vs_interface_subtype_t;
 
 /* A.7. Class-Specific Endpoint Descriptor Subtypes */
@@ -398,18 +398,18 @@ TU_VERIFY_STATIC( sizeof(video_probe_and_commit_control_t) == 48, "size is not c
 
 /* 3.7.2 */
 #define TUD_VIDEO_DESC_CS_VC(_bcdUVC, _totallen, _clkfreq, ...)	\
-  TUD_VIDEO_DESC_CS_VC_LEN + (TU_ARGS_NUM(__VA_ARGS__)), TUSB_DESC_CS_INTERFACE, VIDEO_CS_VC_HEADER, \
+  TUD_VIDEO_DESC_CS_VC_LEN + (TU_ARGS_NUM(__VA_ARGS__)), TUSB_DESC_CS_INTERFACE, VIDEO_CS_ITF_VC_HEADER, \
   U16_TO_U8S_LE(_bcdUVC), U16_TO_U8S_LE((_totallen) + TUD_VIDEO_DESC_CS_VC_LEN + (TU_ARGS_NUM(__VA_ARGS__))), \
   U32_TO_U8S_LE(_clkfreq), TU_ARGS_NUM(__VA_ARGS__), __VA_ARGS__
 
 /* 3.7.2.1 */
 #define TUD_VIDEO_DESC_INPUT_TERM(_tid, _tt, _at, _stridx) \
-  TUD_VIDEO_DESC_INPUT_TERM_LEN, TUSB_DESC_CS_INTERFACE, VIDEO_CS_VC_INPUT_TERMINAL, \
+  TUD_VIDEO_DESC_INPUT_TERM_LEN, TUSB_DESC_CS_INTERFACE, VIDEO_CS_ITF_VC_INPUT_TERMINAL, \
     _tid, U16_TO_U8S_LE(_tt), _at, _stridx
 
 /* 3.7.2.2 */
 #define TUD_VIDEO_DESC_OUTPUT_TERM(_tid, _tt, _at, _srcid, _stridx) \
-  TUD_VIDEO_DESC_OUTPUT_TERM_LEN, TUSB_DESC_CS_INTERFACE, VIDEO_CS_VC_OUTPUT_TERMINAL, \
+  TUD_VIDEO_DESC_OUTPUT_TERM_LEN, TUSB_DESC_CS_INTERFACE, VIDEO_CS_ITF_VC_OUTPUT_TERMINAL, \
     _tid, U16_TO_U8S_LE(_tt), _at, _srcid, _stridx
 
 /* 3.9.1 */
@@ -420,14 +420,14 @@ TU_VERIFY_STATIC( sizeof(video_probe_and_commit_control_t) == 48, "size is not c
 /* 3.9.2.1 */
 #define TUD_VIDEO_DESC_CS_VS_INPUT(_numfmt, _totallen, _ep, _inf, _termlnk, _sticaptmeth, _trgspt, _trgusg, ...) \
   TUD_VIDEO_DESC_CS_VS_IN_LEN + (_numfmt) * (TU_ARGS_NUM(__VA_ARGS__)), TUSB_DESC_CS_INTERFACE, \
-  VIDEO_CS_VS_INPUT_HEADER, _numfmt, \
+  VIDEO_CS_ITF_VS_INPUT_HEADER, _numfmt, \
   U16_TO_U8S_LE((_totallen) + TUD_VIDEO_DESC_CS_VS_IN_LEN + (_numfmt) * (TU_ARGS_NUM(__VA_ARGS__))), \
   _ep, _inf, _termlnk, _sticaptmeth, _trgspt, _trgusg, (TU_ARGS_NUM(__VA_ARGS__)), __VA_ARGS__
 
 /* 3.9.2.2 */
 #define TUD_VIDEO_DESC_CS_VS_OUTPUT(_numfmt, _totallen, _ep, _inf, _termlnk, ...) \
   TUD_VIDEO_DESC_CS_VS_OUT_LEN + (_numfmt) * (TU_ARGS_NUM(__VA_ARGS__)), TUSB_DESC_CS_INTERFACE, \
-  VIDEO_CS_VS_OUTPUT_HEADER, _numfmt, \
+  VIDEO_CS_ITF_VS_OUTPUT_HEADER, _numfmt, \
   U16_TO_U8S_LE((_totallen) + TUD_VIDEO_DESC_CS_VS_OUT_LEN + (_numfmt) * (TU_ARGS_NUM(__VA_ARGS__))), \
   _ep, _inf, _termlnk, (TU_ARGS_NUM(__VA_ARGS__)), __VA_ARGS__
 
@@ -436,13 +436,13 @@ TU_VERIFY_STATIC( sizeof(video_probe_and_commit_control_t) == 48, "size is not c
 
 #define TUD_VIDEO_DESC_CS_VS_FMT_UNCOMPR(_fmtidx, _numfrmdesc, \
   _guid, _bitsperpix, _frmidx, _asrx, _asry, _interlace, _cp) \
-  TUD_VIDEO_DESC_CS_VS_FMT_UNCOMPR_LEN, TUSB_DESC_CS_INTERFACE, VIDEO_CS_VS_FORMAT_UNCOMPRESSED, \
+  TUD_VIDEO_DESC_CS_VS_FMT_UNCOMPR_LEN, TUSB_DESC_CS_INTERFACE, VIDEO_CS_ITF_VS_FORMAT_UNCOMPRESSED, \
   _fmtidx, _numfrmdesc, TUD_VIDEO_GUID(_guid), \
   _bitsperpix, _frmidx, _asrx,  _asry, _interlace, _cp
 
 /* Uncompressed 3.1.2 Table 3-3 */
 #define TUD_VIDEO_DESC_CS_VS_FRM_UNCOMPR_CONT(_frmidx, _cap, _width, _height, _minbr, _maxbr, _maxfrmbufsz, _frminterval, _minfrminterval, _maxfrminterval, _frmintervalstep) \
-  TUD_VIDEO_DESC_CS_VS_FRM_UNCOMPR_CONT_LEN, TUSB_DESC_CS_INTERFACE, VIDEO_CS_VS_FRAME_UNCOMPRESSED, \
+  TUD_VIDEO_DESC_CS_VS_FRM_UNCOMPR_CONT_LEN, TUSB_DESC_CS_INTERFACE, VIDEO_CS_ITF_VS_FRAME_UNCOMPRESSED, \
   _frmidx, _cap, U16_TO_U8S_LE(_width), U16_TO_U8S_LE(_height), U32_TO_U8S_LE(_minbr), U32_TO_U8S_LE(_maxbr), \
   U32_TO_U8S_LE(_maxfrmbufsz), U32_TO_U8S_LE(_frminterval), 0, \
   U32_TO_U8S_LE(_minfrminterval), U32_TO_U8S_LE(_maxfrminterval), U32_TO_U8S_LE(_frmintervalstep)
@@ -450,14 +450,14 @@ TU_VERIFY_STATIC( sizeof(video_probe_and_commit_control_t) == 48, "size is not c
 /* Uncompressed 3.1.2 Table 3-4 */
 #define TUD_VIDEO_DESC_CS_VS_FRM_UNCOMPR_DISC(_frmidx, _cap, _width, _height, _minbr, _maxbr, _maxfrmbufsz, _frminterval, ...) \
   TUD_VIDEO_DESC_CS_VS_FRM_UNCOMPR_DISC_LEN + (TU_ARGS_NUM(__VA_ARGS__)) * 4, \
-  TUSB_DESC_CS_INTERFACE, VIDEO_CS_VS_FRAME_UNCOMPRESSED, \
+  TUSB_DESC_CS_INTERFACE, VIDEO_CS_ITF_VS_FRAME_UNCOMPRESSED, \
   _frmidx, _cap, U16_TO_U8S_LE(_width), U16_TO_U8S_LE(_height), U32_TO_U8S_LE(_minbr), U32_TO_U8S_LE(_maxbr), \
   U32_TO_U8S_LE(_maxfrmbufsz), U32_TO_U8S_LE(_frminterval), (TU_ARGS_NUM(__VA_ARGS__)), __VA_ARGS__
 
 /* 3.9.2.6 */
 #define TUD_VIDEO_DESC_CS_VS_COLOR_MATCHING(_color, _trns, _mat) \
   TUD_VIDEO_DESC_CS_VS_COLOR_MATCHING_LEN, \
-  TUSB_DESC_CS_INTERFACE, VIDEO_CS_VS_COLORFORMAT, \
+  TUSB_DESC_CS_INTERFACE, VIDEO_CS_ITF_VS_COLORFORMAT, \
   _color, _trns, _mat
 
 /* 3.10.1.1 */
