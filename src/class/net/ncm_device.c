@@ -38,7 +38,7 @@
 // MACRO CONSTANT TYPEDEF
 //--------------------------------------------------------------------+
 
-#define NTH16_SIGNATURE 0x484D434E
+#define NTH16_SIGNATURE      0x484D434E
 #define NDP16_SIGNATURE_NCM0 0x304D434E
 #define NDP16_SIGNATURE_NCM1 0x314D434E
 
@@ -114,13 +114,13 @@ typedef struct
   } report_state;
   bool report_pending;
 
-  uint8_t current_ntb; // Index in transmit_ntb[] that is currently being filled with datagrams
-  uint8_t datagram_count; // Number of datagrams in transmit_ntb[current_ntb]
-  uint16_t next_datagram_offset; // Offset in transmit_ntb[current_ntb].data to place the next datagram
-  uint16_t ntb_in_size; // Maximum size of transmitted (IN to host) NTBs; initially CFG_TUD_NCM_IN_NTB_MAX_SIZE
-  uint8_t max_datagrams_per_ntb; // Maximum number of datagrams per NTB; initially CFG_TUD_NCM_MAX_DATAGRAMS_PER_NTB
+  uint8_t  current_ntb;           // Index in transmit_ntb[] that is currently being filled with datagrams
+  uint8_t  datagram_count;        // Number of datagrams in transmit_ntb[current_ntb]
+  uint16_t next_datagram_offset;  // Offset in transmit_ntb[current_ntb].data to place the next datagram
+  uint16_t ntb_in_size;           // Maximum size of transmitted (IN to host) NTBs; initially CFG_TUD_NCM_IN_NTB_MAX_SIZE
+  uint8_t  max_datagrams_per_ntb; // Maximum number of datagrams per NTB; initially CFG_TUD_NCM_MAX_DATAGRAMS_PER_NTB
 
-  uint16_t nth_sequence; // Sequence number counter for transmitted NTBs
+  uint16_t nth_sequence;          // Sequence number counter for transmitted NTBs
 
   bool transferring;
 
@@ -197,25 +197,33 @@ static void ncm_start_tx(void) {
 }
 
 static struct ecm_notify_struct ncm_notify_connected =
-    {
-        .header = {
-            .bmRequestType = 0xA1,
-            .bRequest = 0 /* NETWORK_CONNECTION aka NetworkConnection */,
-            .wValue = 1 /* Connected */,
-            .wLength = 0,
+{
+    .header = {
+        .bmRequestType_bit = {
+          .recipient = TUSB_REQ_RCPT_INTERFACE,
+          .type      = TUSB_REQ_TYPE_CLASS,
+          .direction = TUSB_DIR_IN
         },
-    };
+        .bRequest      = CDC_NOTIF_NETWORK_CONNECTION,
+        .wValue        = 1 /* Connected */,
+        .wLength       = 0,
+    },
+};
 
 static struct ecm_notify_struct ncm_notify_speed_change =
-    {
-        .header = {
-            .bmRequestType = 0xA1,
-            .bRequest = 0x2A /* CONNECTION_SPEED_CHANGE aka ConnectionSpeedChange */,
-            .wLength = 8,
+{
+    .header = {
+        .bmRequestType_bit = {
+          .recipient = TUSB_REQ_RCPT_INTERFACE,
+          .type      = TUSB_REQ_TYPE_CLASS,
+          .direction = TUSB_DIR_IN
         },
-        .downlink = 10000000,
-        .uplink = 10000000,
-    };
+        .bRequest = CDC_NOTIF_CONNECTION_SPEED_CHANGE,
+        .wLength = 8,
+    },
+    .downlink = 10000000,
+    .uplink = 10000000,
+};
 
 void tud_network_recv_renew(void)
 {
@@ -381,7 +389,7 @@ bool netd_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request_t 
     case TUSB_REQ_TYPE_CLASS:
       TU_VERIFY (ncm_interface.itf_num == request->wIndex);
 
-      if (0x80 /* GET_NTB_PARAMETERS */ == request->bRequest)
+      if (NCM_GET_NTB_PARAMETERS == request->bRequest)
       {
         tud_control_xfer(rhport, request, (void*)&ntb_parameters, sizeof(ntb_parameters));
       }
@@ -418,7 +426,9 @@ static void handle_incoming_datagram(uint32_t len)
   ncm_interface.num_datagrams = 0;
   ncm_interface.ndp = ndp;
   for (int i = 0; i < num_datagrams && ndp->datagram[i].wDatagramIndex && ndp->datagram[i].wDatagramLength; i++)
+  {
     ncm_interface.num_datagrams++;
+  }
   
   tud_network_recv_renew();
 }

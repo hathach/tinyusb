@@ -34,6 +34,8 @@
 #error "Cannot enable both ECM_RNDIS and NCM network drivers"
 #endif
 
+#include "ncm.h"
+
 /* declared here, NOT in usb_descriptors.c, so that the driver can intelligently ZLP as needed */
 #define CFG_TUD_NET_ENDPOINT_SIZE (TUD_OPT_HIGH_SPEED ? 512 : 64)
 
