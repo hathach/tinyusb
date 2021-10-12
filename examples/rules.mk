@@ -5,12 +5,11 @@
 # Set all as default goal
 .DEFAULT_GOAL := all
 
-# ESP32-SX and RP2040 has its own CMake build system
-ifneq ($(FAMILY),esp32s2)
-ifneq ($(FAMILY),esp32s3)
-ifneq ($(FAMILY),rp2040)
+# ESP32-Sx and RP2040 has its own CMake build system
+ifeq (,$(findstring $(FAMILY),esp32s2 esp32s3 rp2040))
+
 # ---------------------------------------
-# GNU Make build system
+# Compiler Flags
 # ---------------------------------------
 
 # libc
@@ -44,6 +43,12 @@ INC += $(TOP)/src
 
 CFLAGS += $(addprefix -I,$(INC))
 
+# LTO makes it difficult to analyze map file for optimizing size purpose
+# We will run this option in ci
+ifeq ($(NO_LTO),1)
+CFLAGS := $(filter-out -flto,$(CFLAGS))
+endif
+
 LDFLAGS += $(CFLAGS) -Wl,-T,$(TOP)/$(LD_FILE) -Wl,-Map=$@.map -Wl,-cref -Wl,-gc-sections
 ifneq ($(SKIP_NANOLIB), 1)
 LDFLAGS += -specs=nosys.specs -specs=nano.specs
@@ -66,6 +71,10 @@ $(info CFLAGS  $(CFLAGS) ) $(info )
 $(info LDFLAGS $(LDFLAGS)) $(info )
 $(info ASFLAGS $(ASFLAGS)) $(info )
 endif
+
+# ---------------------------------------
+# Rules
+# ---------------------------------------
 
 all: $(BUILD)/$(PROJECT).bin $(BUILD)/$(PROJECT).hex size
 
@@ -126,10 +135,16 @@ $(BUILD)/obj/%_asm.o: %.S
 	@echo AS $(notdir $@)
 	@$(CC) -x assembler-with-cpp $(ASFLAGS) -c -o $@ $<
 
+endif # GNU Make
+
 size: $(BUILD)/$(PROJECT).elf
 	-@echo ''
 	@$(SIZE) $<
 	-@echo ''
+
+# linkermap must be install previously at https://github.com/hathach/linkermap
+linkermap: $(BUILD)/$(PROJECT).elf
+	@linkermap -v $<.map
 
 .PHONY: clean
 clean:
@@ -138,10 +153,6 @@ ifeq ($(CMDEXE),1)
 else
 	$(RM) -rf $(BUILD)
 endif
-
-endif
-endif
-endif # GNU Make
 
 # ---------------------------------------
 # Flash Targets

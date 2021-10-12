@@ -30,5 +30,19 @@ jobs:
     - name: Checkout TinyUSB
       uses: actions/checkout@v2
 
+    - name: Checkout hathach/linkermap
+      uses: actions/checkout@v2
+      with:
+         repository: hathach/linkermap
+         path: linkermap
+
     - name: Build
       run: docker run --rm -v $PWD:/project -w /project espressif/idf:latest python3 tools/build_esp32sx.py ${{ matrix.board }}
+
+    - name: Linker Map
+      run: |
+        pip install linkermap/
+        for ex in `ls -d examples/device/*/`; do \
+          find ${ex} -maxdepth 3 -name *.map -print -quit | \
+          xargs -I % sh -c 'echo "::group::%"; linkermap -v %; echo "::endgroup::"'; \
+        done

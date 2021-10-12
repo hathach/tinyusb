@@ -89,6 +89,15 @@ A MCU can support multiple operational speed. By default, the example build syst
 
    $ make BOARD=stm32f746disco SPEED=full all
 
+Size Analysis
+~~~~~~~~~~~~~
+
+First install `linkermap tool <https://github.com/hathach/linkermap>`_ then ``linkermap`` target can be used to analyze code size. You may want to compile with ``NO_LTO=1`` since -flto merges code across .o files and make it difficult to analyze.
+
+.. code-block::
+
+   $ make BOARD=feather_nrf52840_express NO_LTO=1 all linkermap
+
 Debug
 ^^^^^
 
@@ -153,7 +162,7 @@ Some board use uf2 bootloader for drag & drop in to mass storage device, uf2 can
    $ make BOARD=feather_nrf52840_express all uf2
 
 IAR Support
------------
+^^^^^^^^^^^
 
 IAR Project Connection files are provided to import TinyUSB stack into your project.
 
@@ -171,12 +180,12 @@ IAR Project Connection files are provided to import TinyUSB stack into your proj
    for example `C:\\tinyusb`
 
 Import stack only
-^^^^^^^^^^^^^^^^^
+~~~~~~~~~~~~~~~~~
 
 1. Open `Project -> Add project Connection ...`, click `OK`, choose `tinyusb\\tools\\iar_template.ipcf`.
 
 Run examples
-^^^^^^^^^^^^
+~~~~~~~~~~~~
 
 1. (Python3 is needed) Run `iar_gen.py` to generate .ipcf files of examples:
 
