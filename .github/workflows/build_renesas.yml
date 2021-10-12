@@ -24,7 +24,13 @@ jobs:
       uses: actions/checkout@v2
 
     - name: Checkout common submodules in lib
-      run: git submodule update --init lib/FreeRTOS-Kernel lib/lwip lib/linkermap
+      run: git submodule update --init lib/FreeRTOS-Kernel lib/lwip
+
+    - name: Checkout hathach/linkermap
+      uses: actions/checkout@v2
+      with:
+         repository: hathach/linkermap
+         path: linkermap
 
     - name: Set Toolchain URL
       run: echo >> $GITHUB_ENV TOOLCHAIN_URL=http://gcc-renesas.com/downloads/get.php?f=rx/8.3.0.202004-gnurx/gcc-8.3.0.202004-GNURX-ELF.run
@@ -52,7 +58,7 @@ jobs:
 
     - name: Linker Map
       run: |
-        pip install lib/linkermap
+        pip install linkermap/
         for ex in `ls -d examples/device/*/`; do \
           find ${ex} -name *.map -print -quit | \
           xargs -I % sh -c 'echo "::group::%"; linkermap -v %; echo "::endgroup::"'; \
