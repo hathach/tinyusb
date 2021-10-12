@@ -35,6 +35,7 @@ jobs:
 
     - name: Linker Map
       run: |
+        git submodule update --init lib/linkermap
         pip install lib/linkermap
         for ex in `ls -d examples/device/*/`; do \
           find ${ex} -name *.map -print -quit | \

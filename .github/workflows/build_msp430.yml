@@ -24,7 +24,7 @@ jobs:
       uses: actions/checkout@v2
 
     - name: Checkout common submodules in lib
-      run: git submodule update --init lib/FreeRTOS-Kernel lib/lwip
+      run: git submodule update --init lib/FreeRTOS-Kernel lib/lwip lib/linkermap
 
     - name: Set Toolchain URL
       run: echo >> $GITHUB_ENV TOOLCHAIN_URL=http://software-dl.ti.com/msp430/msp430_public_sw/mcu/msp430/MSPGCC/9_2_0_0/export/msp430-gcc-9.2.0.50_linux64.tar.bz2

@@ -25,7 +25,7 @@ jobs:
       uses: actions/checkout@v2
 
     - name: Checkout common submodules in lib
-      run: git submodule update --init lib/FreeRTOS-Kernel lib/lwip
+      run: git submodule update --init lib/FreeRTOS-Kernel lib/lwip lib/linkermap
 
     - name: Set Toolchain URL
       run: echo >> $GITHUB_ENV TOOLCHAIN_URL=https://github.com/xpack-dev-tools/riscv-none-embed-gcc-xpack/releases/download/v10.1.0-1.1/xpack-riscv-none-embed-gcc-10.1.0-1.1-linux-x64.tar.gz
