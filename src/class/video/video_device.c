@@ -909,7 +909,7 @@ bool tud_video_n_frame_xfer(uint_fast8_t ctl_idx, uint_fast8_t stm_idx, void *bu
 {
   TU_ASSERT(ctl_idx < CFG_TUD_VIDEO);
   TU_ASSERT(stm_idx < CFG_TUD_VIDEO_STREAMING);
-  if (!buffer || !buffer) return false;
+  if (!buffer || !bufsize) return false;
   videod_streaming_interface_t *stm = _get_instance_streaming(ctl_idx, stm_idx);
   if (!stm || !stm->desc.ep[0] || stm->buffer) return false;
 
