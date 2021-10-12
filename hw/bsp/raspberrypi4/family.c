@@ -27,14 +27,17 @@
 #include "bsp/board.h"
 #include "board.h"
 
+#include "broadcom/interrupts.h"
 #include "broadcom/io.h"
 #include "broadcom/mmu.h"
 #include "broadcom/vcmailbox.h"
 
+uint32_t SystemCoreClock = 700 * 1000 * 1000;
+
 //--------------------------------------------------------------------+
 // Forward USB interrupt events to TinyUSB IRQ Handler
 //--------------------------------------------------------------------+
-void OTG_FS_IRQHandler(void)
+void USB_IRQHandler(void)
 {
   tud_int_handler(0);
 }
@@ -54,6 +57,9 @@ void print(const char* str) {
 void board_init(void)
 {
   gpio_initOutputPinWithPullNone(18);
+  gpio_initOutputPinWithPullNone(19);
+  gpio_initOutputPinWithPullNone(20);
+  gpio_initOutputPinWithPullNone(21);
   gpio_setPinOutputBool(18, true);
   gpio_initOutputPinWithPullNone(42);
   setup_mmu_flat_map();
@@ -72,11 +78,17 @@ void board_init(void)
     }
     gpio_setPinOutputBool(42, true);
     gpio_setPinOutputBool(18, true);
+    gpio_setPinOutputBool(19, true);
+    gpio_setPinOutputBool(20, true);
+    gpio_setPinOutputBool(21, true);
     for (size_t j = 0; j < 1000000; j++) {
       __asm__("nop");
     }
     gpio_setPinOutputBool(42, false);
     gpio_setPinOutputBool(18, false);
+    gpio_setPinOutputBool(19, false);
+    gpio_setPinOutputBool(20, false);
+    gpio_setPinOutputBool(21, false);
   }
   // uart_writeText("hello from io\n");
   // gpio_setPinOutputBool(24, true);
@@ -98,11 +110,18 @@ void board_init(void)
   // }
   // while (1) uart_update();
 
+  printf("hello %d\r\n", 21);
+
   // Turn on USB peripheral.
   print("Turning on USB power\r\n");
 
   vcmailbox_set_power_state(VCMAILBOX_DEVICE_USB_HCD, true);
   print("USB power on\r\n");
+
+  BP_SetPriority(USB_IRQn, 0x00);
+  BP_ClearPendingIRQ(USB_IRQn);
+  BP_EnableIRQ(USB_IRQn);
+  BP_EnableIRQs();
 }
 
 void board_led_write(bool state)
@@ -125,10 +144,12 @@ int board_uart_write(void const * buf, int len)
 {
   for (int i = 0; i < len; i++) {
     const char* cbuf = buf;
+    while (!UART1->STAT_b.TX_READY) {}
     if (cbuf[i] == '\n') {
-      uart_writeByteBlockingActual('\r');
+      UART1->IO = '\r';
+      while (!UART1->STAT_b.TX_READY) {}
     }
-    uart_writeByteBlockingActual(cbuf[i]);
+    UART1->IO = cbuf[i];
   }
   return len;
 }

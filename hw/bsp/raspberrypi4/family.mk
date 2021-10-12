@@ -18,6 +18,7 @@ CFLAGS += \
 
 SRC_C += \
 	src/portable/broadcom/synopsys/dcd_synopsys.c \
+	$(MCU_DIR)/broadcom/gen/interrupt_handlers.c \
 	$(MCU_DIR)/broadcom/interrupts.c \
 	$(MCU_DIR)/broadcom/io.c \
 	$(MCU_DIR)/broadcom/mmu.c \

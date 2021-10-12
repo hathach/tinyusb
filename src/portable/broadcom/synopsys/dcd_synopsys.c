@@ -434,60 +434,63 @@ static void edpt_schedule_packets(uint8_t rhport, uint8_t const epnum, uint8_t c
 /*------------------------------------------------------------------*/
 /* Controller API
  *------------------------------------------------------------------*/
+
+static void reset_core(USB_OTG_GlobalTypeDef * usb_otg) {
+  while ((usb_otg->GRSTCTL & USB_OTG_GRSTCTL_AHBIDL) == 0) {}
+
+  TU_LOG(2, "    resetting\r\n");
+  usb_otg->GRSTCTL |= USB_OTG_GRSTCTL_CSRST;
+  TU_LOG(2, "    waiting\r\n");
+  while ((usb_otg->GRSTCTL & (USB_OTG_GRSTCTL_AHBIDL | USB_OTG_GRSTCTL_CSRST)) != USB_OTG_GRSTCTL_AHBIDL) {}
+  TU_LOG(2, "    reset done\r\n");
+}
+
 void dcd_init (uint8_t rhport)
 {
+  printf("test done\r\n");
   // Programming model begins in the last section of the chapter on the USB
   // peripheral in each Reference Manual.
-  TU_LOG(2, "    dcd_init");
+  TU_LOG(2, "    dcd_init\r\n");
+
+  TU_LOG2("Test 123\r\n");
 
   USB_OTG_GlobalTypeDef * usb_otg = GLOBAL_BASE(rhport);
 
-  // No HNP/SRP (no OTG support), program timeout later.
-  if ( rhport == 1 )
-  {
-    // On selected MCUs HS port1 can be used with external PHY via ULPI interface
-#if CFG_TUSB_RHPORT1_MODE & OPT_MODE_HIGH_SPEED
-    // deactivate internal PHY
-    usb_otg->GCCFG &= ~USB_OTG_GCCFG_PWRDWN;
 
-    // Init The UTMI Interface
-    usb_otg->GUSBCFG &= ~(USB_OTG_GUSBCFG_TSDPS | USB_OTG_GUSBCFG_ULPIFSLS | USB_OTG_GUSBCFG_PHYSEL);
+  // ReadBackReg(&Core->Usb);
+  // Core->Usb.UlpiDriveExternalVbus = 0;
+  // Core->Usb.TsDlinePulseEnable = 0;
+  // WriteThroughReg(&Core->Usb);
 
-    // Select default internal VBUS Indicator and Drive for ULPI
-    usb_otg->GUSBCFG &= ~(USB_OTG_GUSBCFG_ULPIEVBUSD | USB_OTG_GUSBCFG_ULPIEVBUSI);
-#else
-    usb_otg->GUSBCFG |= USB_OTG_GUSBCFG_PHYSEL;
-#endif
+  // This sequence is modeled after: https://github.com/Chadderz121/csud/blob/e13b9355d043a9cdd384b335060f1bc0416df61e/source/hcd/dwc/designware20.c#L689
+  usb_otg->GUSBCFG &= ~(USB_OTG_GUSBCFG_TSDPS | USB_OTG_GUSBCFG_ULPIEVBUSD);
+  reset_core(usb_otg);
 
-#if defined(USB_HS_PHYC)
-    // Highspeed with embedded UTMI PHYC
+  //   Core->Usb.ModeSelect = UTMI;
+  //   LOG_DEBUG("HCD: Interface: UTMI+.\n");
+  //   Core->Usb.PhyInterface = false;
 
-    // Select UTMI Interface
-    usb_otg->GUSBCFG &= ~USB_OTG_GUSBCFG_ULPI_UTMI_SEL;
-    usb_otg->GCCFG |= USB_OTG_GCCFG_PHYHSEN;
+  //   HcdReset();  
+  TU_LOG2("init phy\r\n");
+  usb_otg->GUSBCFG |= (1 << 4); // bit four sets UTMI+ mode
+  usb_otg->GUSBCFG &= ~(1 << 3); // bit three disables phy interface
+  reset_core(usb_otg);
 
-    // Enables control of a High Speed USB PHY
-    USB_HS_PHYCInit();
-#endif
-  } else
-  {
-    // Enable internal PHY
-    usb_otg->GUSBCFG |= USB_OTG_GUSBCFG_PHYSEL;
-  }
+  //   LOG_DEBUG("HCD: ULPI FSLS configuration: disabled.\n");
+  //   Core->Usb.UlpiFsls = false;
+  //   Core->Usb.ulpi_clk_sus_m = false;
+  usb_otg->GUSBCFG &= ~(USB_OTG_GUSBCFG_ULPIFSLS | USB_OTG_GUSBCFG_ULPICSM);
 
-  // Reset core after selecting PHY
-  // Wait AHB IDLE, reset then wait until it is cleared
-  while ((usb_otg->GRSTCTL & USB_OTG_GRSTCTL_AHBIDL) == 0U) {}
-
-  TU_LOG(2, "    resetting");
-  usb_otg->GRSTCTL |= USB_OTG_GRSTCTL_CSRST;
-  TU_LOG(2, "    waiting");
-  while ((usb_otg->GRSTCTL & USB_OTG_GRSTCTL_CSRST) == USB_OTG_GRSTCTL_CSRST) {}
-
-  TU_LOG(2, "    reset done");
-
-  // Restart PHY clock
-  *((volatile uint32_t *)(RHPORT_REGS_BASE + USB_OTG_PCGCCTL_BASE)) = 0;
+  // LOG_DEBUG("HCD: DMA configuration: enabled.\n");
+  // Core->Ahb.DmaEnable = true;
+  // Core->Ahb.DmaRemainderMode = Incremental;
+  usb_otg->GAHBCFG &= ~(1 << 23); // Remainder mode
+  usb_otg->GAHBCFG |= USB_OTG_GAHBCFG_DMAEN;
+  
+  //   LOG_DEBUG("HCD: HNP/SRP configuration: HNP, SRP.\n");
+  //   Core->Usb.HnpCapable = true;
+  //   Core->Usb.SrpCapable = true;
+  usb_otg->GUSBCFG |= USB_OTG_GUSBCFG_SRPCAP | USB_OTG_GUSBCFG_HNPCAP;
 
   // Clear all interrupts
   usb_otg->GINTSTS |= usb_otg->GINTSTS;
@@ -509,8 +512,7 @@ void dcd_init (uint8_t rhport)
   set_speed(rhport, TUSB_SPEED_FULL);
   #endif
 
-  // Enable internal USB transceiver, unless using HS core (port 1) with external PHY.
-  if (!(rhport == 1 && (CFG_TUSB_RHPORT1_MODE & OPT_MODE_HIGH_SPEED))) usb_otg->GCCFG |= USB_OTG_GCCFG_PWRDWN;
+  usb_otg->GCCFG |= USB_OTG_GCCFG_PWRDWN;
 
   usb_otg->GINTMSK |= USB_OTG_GINTMSK_USBRST   | USB_OTG_GINTMSK_ENUMDNEM |
       USB_OTG_GINTMSK_USBSUSPM | USB_OTG_GINTMSK_WUIM     |
