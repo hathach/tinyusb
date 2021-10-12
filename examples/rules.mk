@@ -33,7 +33,8 @@ SRC_C += \
 	src/class/hid/hid_device.c \
 	src/class/midi/midi_device.c \
 	src/class/msc/msc_device.c \
-	src/class/net/net_device.c \
+	src/class/net/ecm_rndis_device.c \
+	src/class/net/ncm_device.c \
 	src/class/usbtmc/usbtmc_device.c \
 	src/class/video/video_device.c \
 	src/class/vendor/vendor_device.c

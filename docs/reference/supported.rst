@@ -175,6 +175,12 @@ SAMD51 & SAME54
 -  `D5035-01 <https://github.com/RudolphRiedel/USB_CAN-FD>`__
 -  `Microchip SAME54 Xplained Pro <https://www.microchip.com/developmenttools/productdetails/atsame54-xpro>`__
 
+SAME7x
+^^^^^^
+
+- `Microchip SAME70 Xplained <https://www.microchip.com/en-us/development-tool/ATSAME70-XPLD>`_
+- `QMTECH ATSAME70N19 <https://www.aliexpress.com/item/1005003173783268.html>`_
+
 SAMG
 ^^^^
 

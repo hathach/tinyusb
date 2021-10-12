@@ -1,4 +1,4 @@
-/* 
+/*
  * The MIT License (MIT)
  *
  * Copyright (c) 2019 Ha Thach (tinyusb.org)
@@ -182,10 +182,15 @@ uint8_t rdwr10_validate_cmd(msc_cbw_t const* cbw)
       TU_LOG(MSC_DEBUG, "  SCSI case 8 (Hi <> Do)\r\n");
       status = MSC_CSW_STATUS_PHASE_ERROR;
     }
-    else if ( !block_count )
+    else if ( 0 == block_count )
     {
-      TU_LOG(MSC_DEBUG, "  SCSI case 4 Hi > Dn\r\n");
+      TU_LOG(MSC_DEBUG, "  SCSI case 4 Hi > Dn (READ10) or case 9 Ho > Dn (WRITE10) \r\n");
       status =  MSC_CSW_STATUS_FAILED;
+    }
+    else if ( cbw->total_bytes / block_count == 0 )
+    {
+      TU_LOG(MSC_DEBUG, " Computed block size = 0. SCSI case 7 Hi < Di (READ10) or case 13 Ho < Do (WRIT10)\r\n");
+      status = MSC_CSW_STATUS_PHASE_ERROR;
     }
   }
 
@@ -258,7 +263,7 @@ uint16_t mscd_open(uint8_t rhport, tusb_desc_interface_t const * itf_desc, uint1
   // msc driver length is fixed
   uint16_t const drv_len = sizeof(tusb_desc_interface_t) + 2*sizeof(tusb_desc_endpoint_t);
 
-  // Max length mus be at least 1 interface + 2 endpoints
+  // Max length must be at least 1 interface + 2 endpoints
   TU_ASSERT(max_len >= drv_len, 0);
 
   mscd_interface_t * p_msc = &_mscd_itf;
