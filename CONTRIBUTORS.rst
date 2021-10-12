@@ -82,7 +82,8 @@ Notable contributors
 -----------------------------------------------
 
 -  Add new DCD port for NXP Kinetis KL25
--  Add new DCD port for Renesas RX63n with GR-CITRUS board
+-  Add new DCD port for Renesas RX family (RX600, RX700 ..) with GR-CITRUS, RX65n target board
+-  Add new class driver for USB Video Class (UVC 1.5)
 
 
 `Nathan Conrad <https://github.com/pigrew>`__
@@ -100,7 +101,7 @@ Notable contributors
 
 -  Add new DCD port for Nuvoton NUC 120, 121, 125, 126, 505
 -  Add new class driver for network RNDIS, CDC-ECM
--  Enhance NCM network driver to compatible with RNDIS/ECM
+-  Enhance CDC-NCM network driver to compatible with RNDIS/ECM
 -  Add *net\_lwip\_webserver* example for demonstration of usbnet with lwip
 -  Board support for NuTiny NUC120, NUC121s, NUC125s, NUC126V, NUC505
 -  Improve multiple cdc interfaces API & add cdc\_dual\_ports example

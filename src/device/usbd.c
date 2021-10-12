@@ -143,6 +143,18 @@ static usbd_class_driver_t const _usbd_driver[] =
   },
   #endif
 
+  #if CFG_TUD_VIDEO
+  {
+    DRIVER_NAME("VIDEO")
+    .init             = videod_init,
+    .reset            = videod_reset,
+    .open             = videod_open,
+    .control_xfer_cb  = videod_control_xfer_cb,
+    .xfer_cb          = videod_xfer_cb,
+    .sof              = NULL
+  },
+  #endif
+
   #if CFG_TUD_MIDI
   {
     DRIVER_NAME("MIDI")

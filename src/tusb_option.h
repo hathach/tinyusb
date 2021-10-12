@@ -241,6 +241,10 @@
   #define CFG_TUD_AUDIO           0
 #endif
 
+#ifndef CFG_TUD_VIDEO
+  #define CFG_TUD_VIDEO           0
+#endif
+
 #ifndef CFG_TUD_MIDI
   #define CFG_TUD_MIDI            0
 #endif
