@@ -98,7 +98,10 @@ jobs:
     - name: Linker Map
       run: |
         pip install lib/linkermap
-        for ex in `ls -d examples/device/*/`; do find ${ex} -name *.map -print -quit | xargs -I % sh -c 'echo %; linkermap -v %; echo "\n"'; done
+        for ex in `ls -d examples/device/*/`; do \
+          find ${ex} -name *.map -print -quit | \
+          xargs -I % sh -c 'echo %; linkermap %; echo "\n"'; \
+        done
 
   # ---------------------------------------
   # Build all no-family (opharned) boards
