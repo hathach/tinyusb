@@ -29,6 +29,8 @@
 
 #if (CFG_TUD_ENABLED && CFG_TUD_VIDEO && CFG_TUD_VIDEO_STREAMING)
 
+#include <stdarg.h>
+
 #include "device/usbd.h"
 #include "device/usbd_pvt.h"
 
@@ -58,6 +60,30 @@ typedef struct TU_ATTR_PACKED {
   uint8_t bDescriptorSubtype;
   uint8_t bEntityId;
 } tusb_desc_cs_video_entity_itf_t;
+
+typedef union {
+  struct TU_ATTR_PACKED {
+    uint8_t bLength;
+    uint8_t bDescriptorType;
+    uint8_t bDescriptorSubType;
+    uint8_t bFormatIndex;
+  };
+  tusb_desc_cs_video_fmt_uncompressed_t uncompressed;
+  tusb_desc_cs_video_fmt_mjpeg_t        mjpeg;
+  tusb_desc_cs_video_fmt_frame_based_t  frame_based;
+} tusb_desc_cs_video_fmt_t;
+
+typedef union {
+  struct TU_ATTR_PACKED {
+    uint8_t bLength;
+    uint8_t bDescriptorType;
+    uint8_t bDescriptorSubType;
+    uint8_t bFrameIndex;
+  };
+  tusb_desc_cs_video_frm_uncompressed_t uncompressed;
+  tusb_desc_cs_video_frm_mjpeg_t        mjpeg;
+  tusb_desc_cs_video_frm_frame_based_t  frame_based;
+} tusb_desc_cs_video_frm_t;
 
 /* video streaming interface */
 typedef struct TU_ATTR_PACKED {
@@ -167,6 +193,72 @@ static void const* _find_desc(void const *beg, void const *end, uint_fast8_t des
   return cur;
 }
 
+/** Find the first descriptor of a given types
+ *
+ * @param[in] beg        The head of descriptor byte array.
+ * @param[in] end        The tail of descriptor byte array.
+ * @param[in] ...        The target descriptor types. The last type must be 0.
+ *
+ * @return The pointer for interface descriptor.
+ * @retval end   did not found interface descriptor */
+static void const* _find_desc_n(void const *beg, void const *end, ...)
+{
+  uint_fast8_t target = 0;
+  void const *cur;
+  for (cur = beg; cur < end && !target; cur = tu_desc_next(cur)) {
+    uint_fast8_t actual = tu_desc_type(cur);
+    va_list ap;
+    va_start(ap, end);
+    do {
+      target = va_arg(ap, unsigned);
+    } while (target && target != actual);
+    va_end(ap);
+  } 
+  return cur;
+}
+
+/** Find the first descriptor specified by the arguments
+ *
+ * @param[in] beg        The head of descriptor byte array.
+ * @param[in] end        The tail of descriptor byte array.
+ * @param[in] sub_types  The target bDescriptorSubtype list. The last elemnt must be 0.
+ *
+ * @return The pointer for interface descriptor.
+ * @retval end   did not found interface descriptor */
+static void const* _find_desc_cs(void const *beg, void const *end, uint8_t const *sub_types)
+{
+  uint_fast8_t target = 0;
+  void const *cur;
+  for (cur = beg; cur < end && !target; cur = _find_desc(cur, end, TUSB_DESC_CS_INTERFACE)) {
+    uint_fast8_t actual = ((uint8_t const *)cur)[2];
+    uint8_t const *p = sub_types;
+    do {
+      target = *p++;
+    } while (target && target != actual);
+  } 
+  return cur;
+}
+
+/** Find the first descriptor specified by the arguments
+ *
+ * @param[in] beg        The head of descriptor byte array.
+ * @param[in] end        The tail of descriptor byte array.
+ * @param[in] desc_type  The target descriptor type
+ * @param[in] element_0  The target element following the desc_type
+ *
+ * @return The pointer for interface descriptor.
+ * @retval end   did not found interface descriptor */
+static void const* _find_desc_2(void const *beg, void const *end,
+                                uint_fast8_t desc_type, uint_fast8_t element_0)
+{
+  for (void const *cur = beg; cur < end; cur = _find_desc(cur, end, desc_type)) {
+    uint8_t const *p = (uint8_t const *)cur;
+    if (p[2] == element_0) return cur;
+    cur = tu_desc_next(cur);
+  }
+  return end;
+}
+
 /** Find the first descriptor specified by the arguments
  *
  * @param[in] beg        The head of descriptor byte array.
@@ -235,12 +327,17 @@ static inline void const* _find_desc_itf(void const *beg, void const *end, uint_
  * @retval end   did not found endpoint descriptor */
 static void const* _find_desc_ep(void const *beg, void const *end)
 {
-  for (void const *cur = beg; cur < end; cur = tu_desc_next(cur)) {
-    uint_fast8_t desc_type = tu_desc_type(cur);
-    if (TUSB_DESC_ENDPOINT == desc_type) return cur;
-    if (TUSB_DESC_INTERFACE == desc_type) break;
-  }
+  void const *cur = _find_desc_n(beg, end, TUSB_DESC_ENDPOINT, TUSB_DESC_INTERFACE, 0);
+  if ((cur < end) && (TUSB_DESC_ENDPOINT == tu_desc_type(cur)))
+    return cur;
   return end;
+}
+
+/** Return the end of the video control descriptor. */
+static inline void const* _end_of_control_descriptor(void const *desc)
+{
+  tusb_desc_vc_itf_t const *vc = (tusb_desc_vc_itf_t const *)desc;
+  return desc + vc->std.bLength + vc->ctl.wTotalLength;
 }
 
 /** Find the first entity descriptor with the entity ID
@@ -253,10 +350,8 @@ static void const* _find_desc_ep(void const *beg, void const *end)
  * @retval end   did not found interface descriptor */
 static void const* _find_desc_entity(void const *desc, uint_fast8_t entityid)
 {
-  tusb_desc_vc_itf_t const *vc = (tusb_desc_vc_itf_t const*)desc;
-  void const *beg = vc;
-  void const *end = beg + vc->std.bLength + vc->ctl.wTotalLength;
-  for (void const *cur = beg; cur < end; cur = _find_desc(cur, end, TUSB_DESC_CS_INTERFACE)) {
+  void const *end = _end_of_control_descriptor(desc);
+  for (void const *cur = desc; cur < end; cur = _find_desc(cur, end, TUSB_DESC_CS_INTERFACE)) {
     tusb_desc_cs_video_entity_itf_t const *itf = (tusb_desc_cs_video_entity_itf_t const *)cur;
     if ((VIDEO_CS_ITF_VC_INPUT_TERMINAL  <= itf->bDescriptorSubtype
          && itf->bDescriptorSubtype < VIDEO_CS_ITF_VC_MAX)
@@ -276,17 +371,38 @@ static inline void const* _end_of_streaming_descriptor(void const *desc)
 }
 
 /** Find the first format descriptor with the specified format number. */
-static inline tusb_desc_cs_video_fmt_uncompressed_t const *_find_desc_format(void const *beg, void const *end, uint_fast8_t fmtnum)
+static inline void const *_find_desc_format(void const *beg, void const *end, uint_fast8_t fmtnum)
 {
-  return (tusb_desc_cs_video_fmt_uncompressed_t const*)
-    _find_desc_3(beg, end, TUSB_DESC_CS_INTERFACE, VIDEO_CS_ITF_VS_FORMAT_UNCOMPRESSED, fmtnum);
+  static uint8_t const sub_types[] = {
+    VIDEO_CS_ITF_VS_FORMAT_UNCOMPRESSED,
+    VIDEO_CS_ITF_VS_FORMAT_MJPEG,
+    VIDEO_CS_ITF_VS_FORMAT_DV,
+    VIDEO_CS_ITF_VS_FORMAT_FRAME_BASED,
+    0
+  };
+  while (true) {
+    uint8_t const *cur = _find_desc_cs(beg, end, sub_types);
+    if ((end == cur) || (fmtnum == cur[3]))
+      return cur;
+    cur = tu_desc_next(cur);
+  }
 }
 
 /** Find the first frame descriptor with the specified format number. */
-static inline tusb_desc_cs_video_frm_uncompressed_t const *_find_desc_frame(void const *beg, void const *end, uint_fast8_t frmnum)
+static inline void const *_find_desc_frame(void const *beg, void const *end, uint_fast8_t frmnum)
 {
-  return (tusb_desc_cs_video_frm_uncompressed_t const*)
-    _find_desc_3(beg, end, TUSB_DESC_CS_INTERFACE, VIDEO_CS_ITF_VS_FRAME_UNCOMPRESSED, frmnum);
+  static uint8_t const sub_types[] = {
+    VIDEO_CS_ITF_VS_FRAME_UNCOMPRESSED,
+    VIDEO_CS_ITF_VS_FRAME_MJPEG,
+    VIDEO_CS_ITF_VS_FRAME_FRAME_BASED,
+    0
+  };
+  while (true) {
+    uint8_t const *cur = _find_desc_cs(beg, end, sub_types);
+    if ((end == cur) || (frmnum == ((uint8_t const *)cur)[3]))
+      return cur;
+    cur = tu_desc_next(cur);
+  }
 }
 
 /** Set uniquely determined values to variables that have not been set
@@ -307,7 +423,6 @@ static bool _update_streaming_parameters(videod_streaming_interface_t const *stm
   /* Set the parameters determined by the format  */
   param->wKeyFrameRate    = 1;
   param->wPFrameRate      = 0;
-  param->wCompQuality     = 1; /* 1 to 10000 */
   param->wCompWindowSize  = 1; /* GOP size? */
   param->wDelay           = 0; /* milliseconds */
   param->dwClockFrequency = 27000000; /* same as MPEG-2 system time clock  */
@@ -319,8 +434,18 @@ static bool _update_streaming_parameters(videod_streaming_interface_t const *stm
   param->bBitDepthLuma    = 8;
 
   void const *end = _end_of_streaming_descriptor(vs);
-  tusb_desc_cs_video_fmt_uncompressed_t const *fmt = _find_desc_format(tu_desc_next(vs), end, fmtnum);
+  tusb_desc_cs_video_fmt_t const *fmt = _find_desc_format(tu_desc_next(vs), end, fmtnum);
   TU_ASSERT(fmt != end);
+
+  switch (fmt->bDescriptorSubtype) {
+    case VIDEO_CS_ITF_VS_FORMAT_UNCOMPRESSED:
+      param->wCompQuality = 1; /* 1 to 10000 */
+      break;
+    case VIDEO_CS_ITF_VS_FORMAT_MJPEG;
+      break;
+    default: return false;
+  }
+
   uint_fast8_t frmnum = param->bFrameIndex;
   TU_ASSERT(frmnum <= fmt->bNumFrameDescriptors);
   if (!frmnum) {
@@ -328,13 +453,21 @@ static bool _update_streaming_parameters(videod_streaming_interface_t const *stm
     frmnum = 1;
     param->bFrameIndex = 1;
   }
-  tusb_desc_cs_video_frm_uncompressed_t const *frm = _find_desc_frame(tu_desc_next(fmt), end, frmnum);
+  tusb_desc_cs_video_frm_t const *frm = _find_desc_frame(tu_desc_next(fmt), end, frmnum);
   TU_ASSERT(frm != end);
 
   /* Set the parameters determined by the frame  */
   uint_fast32_t frame_size = param->dwMaxVideoFrameSize;
   if (!frame_size) {
-    frame_size = (uint_fast32_t)frm->wWidth * frm->wHeight * fmt->bBitsPerPixel / 8;
+    switch (fmt->bDescriptorSubtype) {
+      case VIDEO_CS_ITF_VS_FORMAT_UNCOMPRESSED:
+        frame_size = (uint_fast32_t)frm->uncompressed.wWidth * frm->uncompressed.wHeight * fmt->uncompressed.bBitsPerPixel / 8;
+        break;
+      case VIDEO_CS_ITF_VS_FORMAT_MJPEG;
+        frame_size = (uint_fast32_t)frm->mjpeg.wWidth * frm->mjpeg.wHeight * 16 / 8; /* YUV422 */
+        break;
+      default: break;
+    }
     param->dwMaxVideoFrameSize = frame_size;
   }
 
@@ -487,7 +620,7 @@ static bool _close_vc_itf(uint8_t rhport, videod_interface_t *self)
   /* The next descriptor after the class-specific VC interface header descriptor. */
   void const *cur = (void const*)vc + vc->std.bLength + vc->ctl.bLength;
   /* The end of the video control interface descriptor. */
-  void const *end = (void const*)vc + vc->std.bLength + vc->ctl.wTotalLength;
+  void const *end = _end_of_control_descriptor(vc);
   if (vc->std.bNumEndpoints) {
     /* Find the notification endpoint descriptor. */
     cur = _find_desc(cur, end, TUSB_DESC_ENDPOINT);
@@ -519,7 +652,7 @@ static bool _open_vc_itf(uint8_t rhport, videod_interface_t *self, uint_fast8_t 
   TU_ASSERT(vc->ctl.bInCollection <= CFG_TUD_VIDEO_STREAMING);
 
   /* Update to point the end of the video control interface descriptor. */
-  end  = cur + vc->std.bLength + vc->ctl.wTotalLength;
+  end  = _end_of_control_descriptor(cur);
   /* Advance to the next descriptor after the class-specific VC interface header descriptor. */
   cur += vc->std.bLength + vc->ctl.bLength;
   TU_LOG2("    bNumEndpoints %d\n", vc->std.bNumEndpoints);

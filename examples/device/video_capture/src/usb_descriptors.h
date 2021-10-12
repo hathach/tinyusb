@@ -90,17 +90,17 @@ enum {
     /* Video stream header for without still image capture */ \
     TUD_VIDEO_DESC_CS_VS_INPUT( /*bNumFormats*/1, \
         /*wTotalLength - bLength */\
-        TUD_VIDEO_DESC_CS_VS_FMT_UNCOMPR_LEN\
-        + TUD_VIDEO_DESC_CS_VS_FRM_UNCOMPR_CONT_LEN\
+        TUD_VIDEO_DESC_CS_VS_FMT_MJPEG_LEN\
+        + TUD_VIDEO_DESC_CS_VS_FRM_MJPEG_CONT_LEN\
         + TUD_VIDEO_DESC_CS_VS_COLOR_MATCHING_LEN,\
         _epin, /*bmInfo*/0, /*bTerminalLink*/UVC_ENTITY_CAP_OUTPUT_TERMINAL, \
         /*bStillCaptureMethod*/0, /*bTriggerSupport*/0, /*bTriggerUsage*/0, \
         /*bmaControls(1)*/0), \
       /* Video stream format */ \
-      TUD_VIDEO_DESC_CS_VS_FMT_YUY2(/*bFormatIndex*/1, /*bNumFrameDescriptors*/1, \
-        /*bDefaultFrameIndex*/1, 0, 0, 0, /*bCopyProtect*/0), \
+      TUD_VIDEO_DESC_CS_VS_FMT_MJPEG(/*bFormatIndex*/1, /*bNumFrameDescriptors*/1, \
+        1, /*bDefaultFrameIndex*/1, 0, 0, 0, /*bCopyProtect*/0), \
         /* Video stream frame format */ \
-        TUD_VIDEO_DESC_CS_VS_FRM_UNCOMPR_CONT(/*bFrameIndex */1, 0, _width, _height, \
+        TUD_VIDEO_DESC_CS_VS_FRM_MJPEG_CONT(/*bFrameIndex */1, 0, _width, _height, \
             _width * _height * 16, _width * _height * 16 * _fps, \
             _width * _height * 16, \
             (10000000/_fps), (10000000/_fps), (10000000/_fps)*_fps, (10000000/_fps)), \
