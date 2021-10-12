@@ -5,13 +5,11 @@
 # Set all as default goal
 .DEFAULT_GOAL := all
 
-# ESP32-SX and RP2040 has its own CMake build system
-ifneq ($(FAMILY),esp32s2)
-ifneq ($(FAMILY),esp32s3)
-ifneq ($(FAMILY),rp2040)
+# ESP32-Sx and RP2040 has its own CMake build system
+ifeq (,$(findstring $(FAMILY),esp32s2 esp32s3 rp2040))
 
 # ---------------------------------------
-# GNU Make build system
+# Compiler Flags
 # ---------------------------------------
 
 # libc
@@ -73,6 +71,10 @@ $(info LDFLAGS $(LDFLAGS)) $(info )
 $(info ASFLAGS $(ASFLAGS)) $(info )
 endif
 
+# ---------------------------------------
+# Rules
+# ---------------------------------------
+
 all: $(BUILD)/$(PROJECT).bin $(BUILD)/$(PROJECT).hex size
 
 uf2: $(BUILD)/$(PROJECT).uf2
@@ -132,10 +134,16 @@ $(BUILD)/obj/%_asm.o: %.S
 	@echo AS $(notdir $@)
 	@$(CC) -x assembler-with-cpp $(ASFLAGS) -c -o $@ $<
 
+endif # GNU Make
+
 size: $(BUILD)/$(PROJECT).elf
 	-@echo ''
 	@$(SIZE) $<
 	-@echo ''
+
+# linkermap must be install previously with 'pip install lib/linkermap'
+linkermap: $(BUILD)/$(PROJECT).elf
+	@linkermap -v $<.map
 
 .PHONY: clean
 clean:
@@ -144,10 +152,6 @@ ifeq ($(CMDEXE),1)
 else
 	$(RM) -rf $(BUILD)
 endif
-
-endif
-endif
-endif # GNU Make
 
 # ---------------------------------------
 # Flash Targets
