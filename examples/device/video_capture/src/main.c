@@ -202,7 +202,7 @@ int tud_video_commit_cb(uint_fast8_t ctl_idx, uint_fast8_t stm_idx,
   (void)ctl_idx; (void)stm_idx;
   /* convert unit to ms from 100 ns */
   interval_ms = parameters->dwFrameInterval / 10000;
-  return VIDEO_NO_ERROR;
+  return VIDEO_ERROR_NONE;
 }
 
 //--------------------------------------------------------------------+
