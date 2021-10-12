@@ -141,7 +141,7 @@ size: $(BUILD)/$(PROJECT).elf
 	@$(SIZE) $<
 	-@echo ''
 
-# linkermap must be install previously with 'pip install lib/linkermap'
+# linkermap must be install previously at https://github.com/hathach/linkermap
 linkermap: $(BUILD)/$(PROJECT).elf
 	@linkermap -v $<.map
 
