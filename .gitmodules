@@ -127,6 +127,3 @@
 [submodule "hw/mcu/mindmotion/mm32sdk"]
 	path = hw/mcu/mindmotion/mm32sdk
 	url = https://github.com/hathach/mm32sdk.git
-[submodule "lib/linkermap"]
-	path = lib/linkermap
-	url = https://github.com/hathach/linkermap.git
