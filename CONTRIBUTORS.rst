@@ -177,8 +177,7 @@ Notable contributors
 -  Add new DCD port for Synopsys DesignWare for STM32 L4, F2, F4,
    F7, H7 etc ...
 -  Add new DCD port for TI MSP430
--  Board support for STM32F407 Discovery, STM32H743 Nucleo, pyboard
-   v1.1, msp\_exp430f5529lp etc ...
+-  Board support for STM32F407 Discovery, STM32H743 Nucleo, pyboard v1.1, msp\_exp430f5529lp etc ...
 
 
 `Zixun Li <https://github.com/HiFiPhile>`__
