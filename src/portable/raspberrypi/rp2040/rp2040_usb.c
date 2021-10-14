@@ -38,7 +38,7 @@ const char *ep_dir_string[] = {
         "in",
 };
 
-static inline void _hw_endpoint_lock_update(struct hw_endpoint *ep, int delta) {
+static inline void _hw_endpoint_lock_update(__unused struct hw_endpoint * ep, __unused int delta) {
     // todo add critsec as necessary to prevent issues between worker and IRQ...
     //  note that this is perhaps as simple as disabling IRQs because it would make
     //  sense to have worker and IRQ on same core, however I think using critsec is about equivalent.
@@ -107,7 +107,7 @@ void _hw_endpoint_buffer_control_update32(struct hw_endpoint *ep, uint32_t and_m
 static uint32_t prepare_ep_buffer(struct hw_endpoint *ep, uint8_t buf_id)
 {
   uint16_t const buflen = tu_min16(ep->remaining_len, ep->wMaxPacketSize);
-  ep->remaining_len -= buflen;
+  ep->remaining_len = (uint16_t)(ep->remaining_len - buflen);
 
   uint32_t buf_ctrl = buflen | USB_BUF_CTRL_AVAIL;
 
@@ -214,7 +214,7 @@ static uint16_t sync_ep_buffer(struct hw_endpoint *ep, uint8_t buf_id)
     // sent some data can increase the length we have sent
     assert(!(buf_ctrl & USB_BUF_CTRL_FULL));
 
-    ep->xferred_len += xferred_bytes;
+    ep->xferred_len = (uint16_t)(ep->xferred_len + xferred_bytes);
   }else
   {
     // If we have received some data, so can increase the length
@@ -222,7 +222,7 @@ static uint16_t sync_ep_buffer(struct hw_endpoint *ep, uint8_t buf_id)
     assert(buf_ctrl & USB_BUF_CTRL_FULL);
 
     memcpy(ep->user_buf, ep->hw_data_buf + buf_id*64, xferred_bytes);
-    ep->xferred_len += xferred_bytes;
+    ep->xferred_len = (uint16_t)(ep->xferred_len + xferred_bytes);
     ep->user_buf += xferred_bytes;
   }
 
