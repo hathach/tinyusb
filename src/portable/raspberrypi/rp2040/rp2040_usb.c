@@ -242,7 +242,7 @@ static void _hw_endpoint_xfer_sync (struct hw_endpoint *ep)
   // Update hw endpoint struct with info from hardware
   // after a buff status interrupt
 
-  uint32_t buf_ctrl = _hw_endpoint_buffer_control_get_value32(ep);
+  uint32_t __unused buf_ctrl = _hw_endpoint_buffer_control_get_value32(ep);
   TU_LOG(3, "  Sync BufCtrl: [0] = 0x%04u  [1] = 0x%04x\r\n", tu_u32_low16(buf_ctrl), tu_u32_high16(buf_ctrl));
 
   // always sync buffer 0
