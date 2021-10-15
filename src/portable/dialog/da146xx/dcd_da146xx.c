@@ -632,6 +632,13 @@ static void handle_epx_tx_ev(xfer_ctl_t *xfer)
         return;
       }
     }
+    else if (regs->epc_in & USB_USB_EPC1_REG_USB_STALL_Msk)
+    {
+      // TX_DONE also indicates that STALL packet was just sent, there is
+      // no point to put anything into transmit FIFO. It could result in
+      // empty packet being scheduled.
+      return;
+    }
   }
   if (txs & USB_USB_TXS1_REG_USB_TX_URUN_Msk)
   {
