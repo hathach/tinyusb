@@ -368,8 +368,8 @@ static void start_rx_packet(xfer_ctl_t *xfer)
     else
     {
       // Other endpoint is using DMA in that direction, fall back to interrupts.
-      // For endpoint size greater then FIFO size enable FIFO level warning interrupt
-      // when FIFO has less then 17 bytes free.
+      // For endpoint size greater than FIFO size enable FIFO level warning interrupt
+      // when FIFO has less than 17 bytes free.
       regs->rxc |= USB_USB_RXC1_REG_USB_RFWL_Msk;
       USB->USB_FWMSK_REG |= 1 << (epnum - 1 + USB_USB_FWMSK_REG_USB_M_RXWARN31_Pos);
     }
@@ -420,7 +420,7 @@ static void start_tx_packet(xfer_ctl_t *xfer)
   regs->txc |= USB_USB_TXC1_REG_USB_TX_EN_Msk;
 }
 
-static void read_rx_fifo(xfer_ctl_t *xfer, uint16_t bytes_in_fifo)
+static uint16_t read_rx_fifo(xfer_ctl_t *xfer, uint16_t bytes_in_fifo)
 {
   EPx_REGS *regs = XFER_REGS(xfer);
   uint16_t remaining = xfer->total_len - xfer->transferred - xfer->last_packet_size;
@@ -433,6 +433,8 @@ static void read_rx_fifo(xfer_ctl_t *xfer, uint16_t bytes_in_fifo)
   for (int i = 0; i < receive_this_time; ++i) buf[i] = regs->rxd;
 
   xfer->last_packet_size += receive_this_time;
+
+  return bytes_in_fifo - receive_this_time;
 }
 
 static void handle_ep0_rx(void)
@@ -562,7 +564,7 @@ static void handle_epx_rx_ev(uint8_t ep)
       // FIFO maybe empty if DMA read it before or it's final iteration and function already read all that was to read.
       if (fifo_bytes > 0)
       {
-        read_rx_fifo(xfer, fifo_bytes);
+        fifo_bytes = read_rx_fifo(xfer, fifo_bytes);
       }
       if (GET_BIT(rxs, USB_USB_RXS1_REG_USB_RX_LAST))
       {
@@ -577,6 +579,13 @@ static void handle_epx_rx_ev(uint8_t ep)
           xfer->transferred += xfer->last_packet_size;
           if (xfer->total_len == xfer->transferred || xfer->last_packet_size < xfer->max_packet_size || xfer->iso)
           {
+            if (fifo_bytes)
+            {
+              // There are extra bytes in the FIFO just flush them
+              regs->rxc |= USB_USB_RXC1_REG_USB_FLUSH_Msk;
+              fifo_bytes = 0;
+            }
+
             dcd_event_xfer_complete(0, xfer->ep_addr, xfer->transferred, XFER_RESULT_SUCCESS, true);
           }
           else
