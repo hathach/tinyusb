@@ -125,7 +125,7 @@ static void edpt_dma_start(volatile uint32_t* reg_startep)
     if (is_in_isr())
     {
       // Called within ISR, use usbd task to defer later
-      usbd_defer_func( (osal_task_func_t) edpt_dma_start, (void*) reg_startep, true );
+      usbd_defer_func((osal_task_func_t) edpt_dma_start, (void*) (uintptr_t) reg_startep, true);
       return;
     }
     else
@@ -773,7 +773,7 @@ void dcd_int_handler(uint8_t rhport)
           if ( _dcd.dma_pending )
           {
             // use usbd task to defer later
-            usbd_defer_func( (osal_task_func_t) start_ep0_task, (void*) &NRF_USBD->TASKS_EP0RCVOUT, true );
+            usbd_defer_func((osal_task_func_t) start_ep0_task, (void*) (uintptr_t) &NRF_USBD->TASKS_EP0RCVOUT, true);
           }else
           {
             start_ep0_task(&NRF_USBD->TASKS_EP0RCVOUT);

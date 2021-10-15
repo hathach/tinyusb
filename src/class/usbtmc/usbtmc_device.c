@@ -1,11 +1,4 @@
 /*
- * usbtmc.c
- *
- *  Created on: Sep 9, 2019
- *      Author: nconrad
- */
-
-/*
  * The MIT License (MIT)
  *
  * Copyright (c) 2019 Nathan Conrad
@@ -205,7 +198,7 @@ bool tud_usbtmc_transmit_dev_msg_data(
   {
     TU_ASSERT(usbtmc_state.capabilities->bmDevCapabilities.canEndBulkInOnTermChar);
     TU_ASSERT(termCharRequested);
-    TU_ASSERT(((uint8_t*)data)[len-1u] == termChar);
+    TU_ASSERT(((uint8_t const*)data)[len-1u] == termChar);
   }
 #endif
 
@@ -228,7 +221,7 @@ bool tud_usbtmc_transmit_dev_msg_data(
   memcpy((uint8_t*)(usbtmc_state.ep_bulk_in_buf) + headerLen, data, dataLen);
   usbtmc_state.transfer_size_remaining = len - dataLen;
   usbtmc_state.transfer_size_sent = dataLen;
-  usbtmc_state.devInBuffer = (uint8_t*)data + (dataLen);
+  usbtmc_state.devInBuffer = (uint8_t const*) data + (dataLen);
 
   bool stateChanged =
       atomicChangeState(STATE_TX_REQUESTED, (packetLen >= txBufLen) ? STATE_TX_INITIATED : STATE_TX_SHORTED);
@@ -508,13 +501,13 @@ bool usbtmcd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint
     case STATE_ABORTING_BULK_OUT:
       TU_VERIFY(false);
       return false; // Should be stalled by now, shouldn't have received a packet.
+
     case STATE_TX_REQUESTED:
     case STATE_TX_INITIATED:
     case STATE_ABORTING_BULK_IN:
     case STATE_ABORTING_BULK_IN_SHORTED:
     case STATE_ABORTING_BULK_IN_ABORTED:
     default:
-
       TU_VERIFY(false);
     }
   }
@@ -528,16 +521,16 @@ bool usbtmcd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint
 
     case STATE_TX_INITIATED:
       if(usbtmc_state.transfer_size_remaining >=sizeof(usbtmc_state.ep_bulk_in_buf))
-    {
-        // FIXME! This removes const below!
-        TU_VERIFY( usbd_edpt_xfer(rhport, usbtmc_state.ep_bulk_in,
-            (void*)usbtmc_state.devInBuffer,sizeof(usbtmc_state.ep_bulk_in_buf)));
-        usbtmc_state.devInBuffer += sizeof(usbtmc_state.ep_bulk_in_buf);
-        usbtmc_state.transfer_size_remaining -= sizeof(usbtmc_state.ep_bulk_in_buf);
-        usbtmc_state.transfer_size_sent += sizeof(usbtmc_state.ep_bulk_in_buf);
-    }
-    else // last packet
-    {
+      {
+          // FIXME! This removes const below!
+          TU_VERIFY( usbd_edpt_xfer(rhport, usbtmc_state.ep_bulk_in,
+              (void*)(uintptr_t) usbtmc_state.devInBuffer, sizeof(usbtmc_state.ep_bulk_in_buf)));
+          usbtmc_state.devInBuffer += sizeof(usbtmc_state.ep_bulk_in_buf);
+          usbtmc_state.transfer_size_remaining -= sizeof(usbtmc_state.ep_bulk_in_buf);
+          usbtmc_state.transfer_size_sent += sizeof(usbtmc_state.ep_bulk_in_buf);
+      }
+      else // last packet
+      {
       size_t packetLen = usbtmc_state.transfer_size_remaining;
       memcpy(usbtmc_state.ep_bulk_in_buf, usbtmc_state.devInBuffer, usbtmc_state.transfer_size_remaining);
         usbtmc_state.transfer_size_sent += sizeof(usbtmc_state.transfer_size_remaining);
@@ -550,15 +543,18 @@ bool usbtmcd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint
         }
       }
       return true;
+
     case STATE_ABORTING_BULK_IN:
       // need to send short packet  (ZLP?)
       TU_VERIFY( usbd_edpt_xfer(rhport, usbtmc_state.ep_bulk_in, usbtmc_state.ep_bulk_in_buf,(uint16_t)0u));
       usbtmc_state.state = STATE_ABORTING_BULK_IN_SHORTED;
       return true;
+
     case STATE_ABORTING_BULK_IN_SHORTED:
       /* Done. :)*/
       usbtmc_state.state = STATE_ABORTING_BULK_IN_ABORTED;
-    return true;
+      return true;
+
     default:
       TU_ASSERT(false);
       return false;
@@ -787,7 +783,7 @@ bool usbtmcd_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request
     {
       TU_VERIFY(request->bmRequestType == 0xA1); // in,class,interface
       TU_VERIFY(request->wLength == sizeof(*(usbtmc_state.capabilities)));
-      TU_VERIFY(tud_control_xfer(rhport, request, (void*)usbtmc_state.capabilities, sizeof(*usbtmc_state.capabilities)));
+      TU_VERIFY(tud_control_xfer(rhport, request, (void*)(uintptr_t) usbtmc_state.capabilities, sizeof(*usbtmc_state.capabilities)));
       return true;
     }
   // USBTMC Optional Requests

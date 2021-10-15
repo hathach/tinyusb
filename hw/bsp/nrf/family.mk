@@ -14,19 +14,7 @@ CFLAGS += \
   -DCONFIG_GPIO_AS_PINRESET
 
 # suppress warning caused by vendor mcu driver
-CFLAGS += -Wno-error=undef -Wno-error=unused-parameter -Wno-error=cast-align
-
-# due to tusb_hal_nrf_power_event
-GCCVERSION = $(firstword $(subst ., ,$(shell arm-none-eabi-gcc -dumpversion)))
-ifeq ($(CMDEXE),1)
-  ifeq ($(shell if $(GCCVERSION) geq 8 echo 1), 1)
-  CFLAGS += -Wno-error=cast-function-type
-  endif
-else
-  ifeq ($(shell expr $(GCCVERSION) \>= 8), 1)
-  CFLAGS += -Wno-error=cast-function-type
-  endif
-endif
+CFLAGS += -Wno-error=undef -Wno-error=unused-parameter -Wno-error=cast-align -Wno-error=cast-qual
 
 # All source paths should be relative to the top level.
 LD_FILE ?= hw/bsp/nrf/boards/$(BOARD)/nrf52840_s140_v6.ld
