@@ -1,0 +1,29 @@
+import rtconfig
+from building import *
+
+cwd     = GetCurrentDir()
+src     = Split("""
+../../src/tusb.c
+../../src/common/tusb_fifo.c
+../../src/device/usbd.c
+../../src/device/usbd_control.c
+./tinyusb_port.c
+./usb_descriptor.c
+""")
+path = [cwd, cwd + "/../../src"]
+
+# BSP
+if GetDepend(["SOC_FAMILY_STM32"]):
+    src += ["../../src/portable/st/synopsys/dcd_synopsys.c",
+            "../../src/portable/st/stm32_fsdev/dcd_stm32_fsdev.c"]
+
+# Device class
+if GetDepend(["PKG_TINYUSB_DEVICE_CDC"]):
+    src += ["../../src/class/cdc/cdc_device.c"]
+
+if GetDepend(["PKG_TINYUSB_DEVICE_MSC"]):
+    src += ["../../src/class/msc/msc_device.c", "port/msc_device.c"]
+
+group = DefineGroup('tinyusb', src, depend = ['PKG_USING_TINYUSB'], CPPPATH = path)
+
+Return('group')

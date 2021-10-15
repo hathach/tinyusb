@@ -88,6 +88,7 @@ TinyUSB is completely thread-safe by pushing all Interrupt Service Request (ISR)
 - **No OS**
 - **FreeRTOS**
 - **Mynewt** Due to the newt package build system, Mynewt examples are better to be on its [own repo](https://github.com/hathach/mynewt-tinyusb-example)
+- **RT-Thread**
 
 Local Docs
 ==========
