@@ -136,7 +136,7 @@ static void udp_recv_proc(void *arg, struct udp_pcb *upcb, struct pbuf *p, const
 	dns_header_t *header;
 	static dns_query_t query;
 	struct pbuf *out;
-	ip_addr_t host_addr;
+	ip4_addr_t host_addr;
 	dns_answer_t *answer;
 
 	(void)arg;
