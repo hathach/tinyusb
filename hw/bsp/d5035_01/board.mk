@@ -18,6 +18,9 @@ CFLAGS += \
   -DSVC_Handler=SVCall_Handler \
   -DHWREV=$(HWREV)
 
+# suppress warning caused by vendor mcu driver
+CFLAGS += -Wno-error=cast-qual
+
 # All source paths should be relative to the top level.
 LD_FILE = hw/bsp/$(BOARD)/same51j19a_flash.ld
 

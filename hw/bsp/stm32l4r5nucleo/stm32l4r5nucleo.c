@@ -257,7 +257,7 @@ int board_uart_read(uint8_t* buf, int len)
 
 int board_uart_write(void const * buf, int len)
 {
-  HAL_UART_Transmit(&UartHandle, (uint8_t*) buf, len, 0xffff);
+  HAL_UART_Transmit(&UartHandle, (uint8_t*)(uintptr_t) buf, len, 0xffff);
   return len;
 }
 

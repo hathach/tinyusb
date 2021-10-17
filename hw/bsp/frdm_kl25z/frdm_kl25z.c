@@ -153,7 +153,7 @@ int board_uart_read(uint8_t* buf, int len)
 
 int board_uart_write(void const * buf, int len)
 {
-  LPSCI_WriteBlocking(UART_PORT, (uint8_t*)buf, len);
+  LPSCI_WriteBlocking(UART_PORT, (uint8_t const*) buf, len);
   return len;
 }
 
