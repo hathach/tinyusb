@@ -105,7 +105,8 @@ CFLAGS += \
   -Wunreachable-code \
   -Wcast-align \
   -Wcast-function-type \
-  -Wcast-qual
+  -Wcast-qual \
+  -Wnull-dereference
 
 # Debugging/Optimization
 ifeq ($(DEBUG), 1)
