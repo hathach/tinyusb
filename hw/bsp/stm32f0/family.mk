@@ -18,7 +18,7 @@ CFLAGS += \
   -DCFG_TUSB_MCU=OPT_MCU_STM32F0
 
 # suppress warning caused by vendor mcu driver
-CFLAGS += -Wno-error=unused-parameter -Wno-error=cast-align
+CFLAGS += -Wno-error=unused-parameter -Wno-error=cast-align -Wno-error=cast-qual
 
 SRC_C += \
   src/portable/st/stm32_fsdev/dcd_stm32_fsdev.c \

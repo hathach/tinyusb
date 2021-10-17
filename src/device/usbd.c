@@ -1002,7 +1002,7 @@ static bool process_get_descriptor(uint8_t rhport, tusb_control_request_t const 
         tusb_control_request_t mod_request = *p_request;
         mod_request.wLength = CFG_TUD_ENDPOINT0_SIZE;
 
-        tud_control_xfer(rhport, &mod_request, desc_device, CFG_TUD_ENDPOINT0_SIZE);
+        return tud_control_xfer(rhport, &mod_request, desc_device, CFG_TUD_ENDPOINT0_SIZE);
       }else
       {
         return tud_control_xfer(rhport, p_request, desc_device, sizeof(tusb_desc_device_t));

@@ -894,11 +894,10 @@ static bool enum_get_9byte_config_desc_complete(uint8_t dev_addr, tusb_control_r
   TU_ASSERT(XFER_RESULT_SUCCESS == result);
 
   // TODO not enough buffer to hold configuration descriptor
-  tusb_desc_configuration_t const * desc_config = (tusb_desc_configuration_t const*) _usbh_ctrl_buf;
-  uint16_t total_len;
+  uint8_t const * desc_config = _usbh_ctrl_buf;
 
   // Use offsetof to avoid pointer to the odd/misaligned address
-  memcpy(&total_len, (uint8_t*) desc_config + offsetof(tusb_desc_configuration_t, wTotalLength), 2);
+  uint16_t const total_len = tu_le16toh( tu_unaligned_read16(desc_config + offsetof(tusb_desc_configuration_t, wTotalLength)) );
 
   TU_ASSERT(total_len <= CFG_TUH_ENUMERATION_BUFSIZE);
 

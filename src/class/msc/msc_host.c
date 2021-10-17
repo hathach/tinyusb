@@ -263,7 +263,7 @@ bool tuh_msc_write10(uint8_t dev_addr, uint8_t lun, void const * buffer, uint32_
 
   memcpy(cbw.command, &cmd_write10, cbw.cmd_len);
 
-  return tuh_msc_scsi_command(dev_addr, &cbw, (void*) buffer, complete_cb);
+  return tuh_msc_scsi_command(dev_addr, &cbw, (void*)(uintptr_t) buffer, complete_cb);
 }
 
 #if 0

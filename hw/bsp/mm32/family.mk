@@ -14,7 +14,7 @@ CFLAGS += \
   -DCFG_TUSB_MCU=OPT_MCU_MM32F327X 
 
 # suppress warning caused by vendor mcu driver
-CFLAGS += -Wno-error=unused-parameter -Wno-error=maybe-uninitialized
+CFLAGS += -Wno-error=unused-parameter -Wno-error=maybe-uninitialized -Wno-error=cast-qual
 
 SRC_C += \
 	src/portable/mindmotion/mm32/dcd_mm32f327x_otg.c \
