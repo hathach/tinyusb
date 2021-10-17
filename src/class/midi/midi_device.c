@@ -433,6 +433,7 @@ uint16_t midid_open(uint8_t rhport, tusb_desc_interface_t const * desc_itf, uint
       break;
     }
   }
+  TU_ASSERT(p_midi);
 
   p_midi->itf_num = desc_midi->bInterfaceNumber;
   (void) p_midi->itf_num;
