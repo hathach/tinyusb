@@ -140,7 +140,7 @@ typedef struct
     __IOM uint32_t USB_RXC2_REG;                 /*!< (@ 0x000000DC) Receive Command Register 2    */
     __IOM uint32_t USB_RXC3_REG;                 /*!< (@ 0x000000FC) Receive Command Register 3    */
   };
-} EPx_REGS;
+} volatile EPx_REGS;
 
 #define EP_REGS(first_ep_reg) (EPx_REGS*)(&USB->first_ep_reg)
 
