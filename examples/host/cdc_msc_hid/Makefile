@@ -9,7 +9,8 @@ INC += \
 EXAMPLE_SOURCE += $(wildcard src/*.c)
 SRC_C += $(addprefix $(CURRENT_PATH)/, $(EXAMPLE_SOURCE))
 
-CFLAGS += -Wno-error=cast-align
+# TODO: suppress warning caused by host stack
+CFLAGS += -Wno-error=cast-align -Wno-error=null-dereference
 
 # TinyUSB Host Stack source
 SRC_C += \

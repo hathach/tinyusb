@@ -7,6 +7,9 @@ CFLAGS += \
   -DPBUF_POOL_SIZE=2 \
   -DTCP_WND=2*TCP_MSS \
   -DHTTPD_USE_CUSTOM_FSDATA=0
+  
+# suppress warning caused by lwip
+CFLAGS += -Wno-error=null-dereference
 
 INC += \
   src \

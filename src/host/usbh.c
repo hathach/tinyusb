@@ -53,12 +53,38 @@
 // USBH-HCD common data structure
 //--------------------------------------------------------------------+
 
-typedef struct {
-  //------------- port -------------//
+// device0 struct must be strictly a subset of normal device struct
+typedef struct
+{
+  // port
   uint8_t rhport;
   uint8_t hub_addr;
   uint8_t hub_port;
   uint8_t speed;
+
+  volatile struct TU_ATTR_PACKED
+  {
+    uint8_t connected    : 1;
+    uint8_t addressed    : 1;
+    uint8_t configured   : 1;
+    uint8_t suspended    : 1;
+  };
+} usbh_dev0_t;
+
+typedef struct {
+  // port
+  uint8_t rhport;
+  uint8_t hub_addr;
+  uint8_t hub_port;
+  uint8_t speed;
+
+  volatile struct TU_ATTR_PACKED
+  {
+    uint8_t connected    : 1;
+    uint8_t addressed    : 1;
+    uint8_t configured   : 1;
+    uint8_t suspended    : 1;
+  };
 
   //------------- device descriptor -------------//
   uint16_t vid;
@@ -73,14 +99,6 @@ typedef struct {
   // uint8_t interface_count; // bNumInterfaces alias
 
   //------------- device -------------//
-  struct TU_ATTR_PACKED
-  {
-    uint8_t connected    : 1;
-    uint8_t addressed    : 1;
-    uint8_t configured   : 1;
-    uint8_t suspended    : 1;
-  };
-
   volatile uint8_t state;            // device state, value from enum tusbh_device_state_t
 
   uint8_t itf2drv[16];               // map interface number to driver (0xff is invalid)
@@ -102,16 +120,6 @@ typedef struct {
 #endif
 
 } usbh_device_t;
-
-typedef struct
-{
-  uint8_t rhport;
-  uint8_t hub_addr;
-  uint8_t hub_port;
-  uint8_t speed;
-
-  volatile uint8_t connected;
-} usbh_dev0_t;
 
 
 //--------------------------------------------------------------------+
