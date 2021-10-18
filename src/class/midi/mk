@@ -1,0 +1,2 @@
+#!/bin/bash
+make -C ../../../examples/host/midi_controller $*

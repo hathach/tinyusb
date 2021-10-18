@@ -161,7 +161,7 @@ static void hw_handle_buff_status(void)
 static void hw_trans_complete(void)
 {
   struct hw_endpoint *ep = &epx;
-  assert(ep->active);
+//  assert(ep->active);  //! stops CFG_TUSB_DEBUG from working
 
   if (usb_hw->sie_ctrl & USB_SIE_CTRL_SEND_SETUP_BITS)
   {
@@ -230,7 +230,7 @@ static void hcd_rp2040_irq(void)
     if (status & USB_INTS_ERROR_DATA_SEQ_BITS)
     {
         usb_hw_clear->sie_status = USB_SIE_STATUS_DATA_SEQ_ERROR_BITS;
-        TU_LOG(3, "  Seq Error: [0] = 0x%04u  [1] = 0x%04x\r\n", tu_u32_low16(*epx.buffer_control), tu_u32_high16(*epx.buffer_control));
+//        TU_LOG(3, "  Seq Error: [0] = 0x%04u  [1] = 0x%04x\r\n", tu_u32_low16(*epx.buffer_control), tu_u32_high16(*epx.buffer_control));
         panic("Data Seq Error \n");
     }
 
