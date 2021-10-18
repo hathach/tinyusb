@@ -70,9 +70,11 @@ if (NOT TARGET _rp2040_family_inclusion_marker)
 			${TOP}/src/class/hid/hid_device.c
 			${TOP}/src/class/midi/midi_device.c
 			${TOP}/src/class/msc/msc_device.c
-			${TOP}/src/class/net/net_device.c
+			${TOP}/src/class/net/ecm_rndis_device.c
+			${TOP}/src/class/net/ncm_device.c
 			${TOP}/src/class/usbtmc/usbtmc_device.c
 			${TOP}/src/class/vendor/vendor_device.c
+			${TOP}/src/class/video/video_device.c
 			)
 
 

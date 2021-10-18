@@ -31,6 +31,12 @@ Notable contributors
 -  Improve ESP32s2 DCD
 
 
+`Jacob Berg Potter <https://github.com/j4cbo>`__
+------------------------------------------------
+
+-  Add new class driver for network CDC-NCM
+
+
 `Jan Dümpelmann <https://github.com/duempel>`__
 -----------------------------------------------
 
@@ -76,7 +82,8 @@ Notable contributors
 -----------------------------------------------
 
 -  Add new DCD port for NXP Kinetis KL25
--  Add new DCD port for Renesas RX63n with GR-CITRUS board
+-  Add new DCD port for Renesas RX family (RX600, RX700 ..) with GR-CITRUS, RX65n target board
+-  Add new class driver for USB Video Class (UVC 1.5)
 
 
 `Nathan Conrad <https://github.com/pigrew>`__
@@ -93,9 +100,9 @@ Notable contributors
 ------------------------------------------------
 
 -  Add new DCD port for Nuvoton NUC 120, 121, 125, 126, 505
--  Add new class driver for USBNET RNDIS, CDC-ECM
--  Add *net\_lwip\_webserver* example for demonstration of usbnet with
-   lwip
+-  Add new class driver for network RNDIS, CDC-ECM
+-  Enhance CDC-NCM network driver to compatible with RNDIS/ECM
+-  Add *net\_lwip\_webserver* example for demonstration of usbnet with lwip
 -  Board support for NuTiny NUC120, NUC121s, NUC125s, NUC126V, NUC505
 -  Improve multiple cdc interfaces API & add cdc\_dual\_ports example
 
@@ -118,10 +125,8 @@ Notable contributors
 ------------------------------------------------
 
 -  Add new class driver for USB Audio Class 2.0 (UAC2)
--  Rework tu\_fifo with unmasked pointer, add DMA support, and constant
-   address support
--  Add new DCD/USBD edpt\_xfer\_fifo() API for optimizing endpoint
-   transfer
+-  Rework tu\_fifo with unmasked pointer, add DMA support, and constant address support
+-  Add new DCD/USBD edpt\_xfer\_fifo() API for optimizing endpoint transfer
 -  Add and greatly improve Isochronous transfer
 -  Add new audio examples: audio\_test and audio\_4\_channel\_mic
 
@@ -130,8 +135,7 @@ Notable contributors
 ------------------------------------------------
 
 -  Add new DCD port for SAMD21 and SAMD51
--  Add new class driver for Musical Instrument Digital Interface
-   (MIDI)
+-  Add new class driver for Musical Instrument Digital Interface (MIDI)
 -  Improve USBD control transfer, MSC, CDC class driver
 -  Board support for Metro M0 & M4 express
 -  Write the excellent porting.md documentation
@@ -178,7 +182,7 @@ Notable contributors
 
 
 `Zixun Li <https://github.com/HiFiPhile>`__
------------------------------------------------
+-------------------------------------------
 
 -  Add new DCD port for Microchip SAMx7x
 -  Add IAR compiler support

@@ -6,6 +6,7 @@ CFLAGS += \
   -mabi=aapcs-linux \
   -mcpu=cortex-m0 \
   -DCFG_EXAMPLE_MSC_READONLY \
+  -DCFG_EXAMPLE_VIDEO_READONLY \
   -DCFG_TUSB_MCU=OPT_MCU_NUC120
 
 # All source paths should be relative to the top level.

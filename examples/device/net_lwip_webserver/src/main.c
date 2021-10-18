@@ -97,7 +97,7 @@ static err_t linkoutput_fn(struct netif *netif, struct pbuf *p)
       return ERR_USE;
 
     /* if the network driver can accept another packet, we make it happen */
-    if (tud_network_can_xmit())
+    if (tud_network_can_xmit(p->tot_len))
     {
       tud_network_xmit(p, 0 /* unused for this example */);
       return ERR_OK;

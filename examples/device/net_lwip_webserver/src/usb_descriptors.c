@@ -33,7 +33,7 @@
  */
 #define _PID_MAP(itf, n)  ( (CFG_TUD_##itf) << (n) )
 #define USB_PID           (0x4000 | _PID_MAP(CDC, 0) | _PID_MAP(MSC, 1) | _PID_MAP(HID, 2) | \
-                           _PID_MAP(MIDI, 3) | _PID_MAP(VENDOR, 4) | _PID_MAP(NET, 5) )
+                           _PID_MAP(MIDI, 3) | _PID_MAP(VENDOR, 4) | _PID_MAP(ECM_RNDIS, 5) | _PID_MAP(NCM, 5) )
 
 // String Descriptor Index
 enum
@@ -55,8 +55,12 @@ enum
 
 enum
 {
+#if CFG_TUD_ECM_RNDIS
   CONFIG_ID_RNDIS = 0,
   CONFIG_ID_ECM   = 1,
+#else
+  CONFIG_ID_NCM   = 0,
+#endif
   CONFIG_ID_COUNT
 };
 
@@ -99,6 +103,7 @@ uint8_t const * tud_descriptor_device_cb(void)
 //--------------------------------------------------------------------+
 #define MAIN_CONFIG_TOTAL_LEN    (TUD_CONFIG_DESC_LEN + TUD_RNDIS_DESC_LEN)
 #define ALT_CONFIG_TOTAL_LEN     (TUD_CONFIG_DESC_LEN + TUD_CDC_ECM_DESC_LEN)
+#define NCM_CONFIG_TOTAL_LEN     (TUD_CONFIG_DESC_LEN + TUD_CDC_NCM_DESC_LEN)
 
 #if CFG_TUSB_MCU == OPT_MCU_LPC175X_6X || CFG_TUSB_MCU == OPT_MCU_LPC177X_8X || CFG_TUSB_MCU == OPT_MCU_LPC40XX
   // LPC 17xx and 40xx endpoint type (bulk/interrupt/iso) are fixed by its number
@@ -120,6 +125,8 @@ uint8_t const * tud_descriptor_device_cb(void)
   #define EPNUM_NET_IN      0x82
 #endif
 
+#if CFG_TUD_ECM_RNDIS
+
 static uint8_t const rndis_configuration[] =
 {
   // Config number (index+1), interface count, string index, total length, attribute, power in mA
@@ -138,14 +145,31 @@ static uint8_t const ecm_configuration[] =
   TUD_CDC_ECM_DESCRIPTOR(ITF_NUM_CDC, STRID_INTERFACE, STRID_MAC, EPNUM_NET_NOTIF, 64, EPNUM_NET_OUT, EPNUM_NET_IN, CFG_TUD_NET_ENDPOINT_SIZE, CFG_TUD_NET_MTU),
 };
 
+#else
+
+static uint8_t const ncm_configuration[] =
+{
+  // Config number (index+1), interface count, string index, total length, attribute, power in mA
+  TUD_CONFIG_DESCRIPTOR(CONFIG_ID_NCM+1, ITF_NUM_TOTAL, 0, NCM_CONFIG_TOTAL_LEN, 0, 100),
+
+  // Interface number, description string index, MAC address string index, EP notification address and size, EP data address (out, in), and size, max segment size.
+  TUD_CDC_NCM_DESCRIPTOR(ITF_NUM_CDC, STRID_INTERFACE, STRID_MAC, EPNUM_NET_NOTIF, 64, EPNUM_NET_OUT, EPNUM_NET_IN, CFG_TUD_NET_ENDPOINT_SIZE, CFG_TUD_NET_MTU),
+};
+
+#endif
+
 // Configuration array: RNDIS and CDC-ECM
 // - Windows only works with RNDIS
 // - MacOS only works with CDC-ECM
 // - Linux will work on both
 static uint8_t const * const configuration_arr[2] =
 {
+#if CFG_TUD_ECM_RNDIS
   [CONFIG_ID_RNDIS] = rndis_configuration,
   [CONFIG_ID_ECM  ] = ecm_configuration
+#else
+  [CONFIG_ID_NCM  ] = ncm_configuration
+#endif
 };
 
 // Invoked when received GET CONFIGURATION DESCRIPTOR
