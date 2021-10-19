@@ -11,10 +11,10 @@ Device Controller Driver (DCD)
 ------------------------------
 
 - Getting device stack to pass USB Compliance Verification test (chapter9, HID, MSC). Ports are tested:
-  nRF, SAMD 21/51, rp2040, stm32f4, Renesas RX, iMXRT, ESP32-S2/3, Kinetic KL25/32
+  nRF, SAMD 21/51, rp2040, stm32f4, Renesas RX, iMXRT, ESP32-S2/3, Kinetic KL25/32, DA146xx
 - Added dcd_edpt_close_all() for switching configuration
 - [Transdimension] Support dcd_edpt_xfer_fifo() with auto wrap over if fifo buffer is 4K aligned and size is multiple of 4K.
-- [Da146xx] Improve vbus, reset, suspend, resume detection, and remote wakeup.
+- [DA146xx] Improve vbus, reset, suspend, resume detection, and remote wakeup.
 
 Device Stack
 ------------
