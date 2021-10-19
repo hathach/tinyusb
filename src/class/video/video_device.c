@@ -354,9 +354,9 @@ static bool _update_streaming_parameters(videod_streaming_interface_t const *stm
   return true;
 }
 
-/** Set the minimum, maximum or default values to variables which need to negotiate with the host
+/** Set the minimum, maximum, default values or resolutions to variables which need to negotiate with the host
  *
- * @param[in]     request     GET_MAX, GET_MIN or GET_DEF
+ * @param[in]     request     GET_MAX, GET_MIN, GET_RES or GET_DEF
  * @param[in,out] param       Target
  */
 static bool _negotiate_streaming_parameters(videod_streaming_interface_t const *stm, uint_fast8_t request,
@@ -420,27 +420,56 @@ static bool _negotiate_streaming_parameters(videod_streaming_interface_t const *
     tusb_desc_cs_video_fmt_uncompressed_t const *fmt = _find_desc_format(tu_desc_next(vs), end, fmtnum);
     tusb_desc_cs_video_frm_uncompressed_t const *frm = _find_desc_frame(tu_desc_next(fmt), end, frmnum);
 
-    uint_fast32_t interval;
+    uint_fast32_t interval, interval_ms;
     switch (request) {
       case VIDEO_REQUEST_GET_MAX:
         {
+          uint_fast32_t min_interval, max_interval;
           uint_fast8_t num_intervals = frm->bFrameIntervalType;
-          interval = num_intervals ? frm->dwFrameInterval[num_intervals - 1]: frm->dwFrameInterval[1];
+          max_interval = num_intervals ? frm->dwFrameInterval[num_intervals - 1]: frm->dwFrameInterval[1];
+          min_interval = frm->dwFrameInterval[0];
+          interval = max_interval;
+          interval_ms = min_interval / 10000;
         }
         break;
       case VIDEO_REQUEST_GET_MIN:
-        interval = frm->dwFrameInterval[0];
+        {
+          uint_fast32_t min_interval, max_interval;
+          uint_fast8_t num_intervals = frm->bFrameIntervalType;
+          max_interval = num_intervals ? frm->dwFrameInterval[num_intervals - 1]: frm->dwFrameInterval[1];
+          min_interval = frm->dwFrameInterval[0];
+          interval = min_interval;
+          interval_ms = max_interval / 10000;
+        }
         break;
       case VIDEO_REQUEST_GET_DEF:
         interval = frm->dwDefaultFrameInterval;
+        interval_ms = interval / 10000;
+        break;
+      case VIDEO_REQUEST_GET_RES:
+        {
+          uint_fast8_t num_intervals = frm->bFrameIntervalType;
+          if (num_intervals) {
+            interval = 0;
+          } else {
+            interval = frm->dwFrameInterval[2];
+            interval_ms = interval / 10000;
+          }
+        }
         break;
       default: return false;
     }
     param->dwFrameInterval = interval;
-    uint_fast32_t interval_ms = interval / 10000;
-    TU_ASSERT(interval_ms);
-    uint_fast32_t frame_size = param->dwMaxVideoFrameSize;
-    param->dwMaxPayloadTransferSize = (frame_size + interval_ms - 1) / interval_ms + 2;
+    if (!interval) {
+      param->dwMaxPayloadTransferSize = 0;
+    } else {
+      uint_fast32_t frame_size = param->dwMaxVideoFrameSize;
+      if (!interval_ms) {
+        param->dwMaxPayloadTransferSize = frame_size + 2;
+      } else {
+        param->dwMaxPayloadTransferSize = (frame_size + interval_ms - 1) / interval_ms + 2;
+      }
+    }
     return true;
   }
   return true;
@@ -802,39 +831,18 @@ static int handle_video_stm_cs_req(uint8_t rhport, uint8_t stage,
           return VIDEO_ERROR_NONE;
 
         case VIDEO_REQUEST_GET_MIN:
-          if (stage == CONTROL_STAGE_SETUP)
-          {
-            TU_VERIFY(request->wLength, VIDEO_ERROR_UNKNOWN);
-
-            video_probe_and_commit_control_t tmp;
-            tmp = *(video_probe_and_commit_control_t*)&self->ep_buf;
-            TU_VERIFY(_negotiate_streaming_parameters(self, VIDEO_REQUEST_GET_MIN, &tmp), VIDEO_ERROR_INVALID_VALUE_WITHIN_RANGE);
-            TU_VERIFY(tud_control_xfer(rhport, request, &tmp, sizeof(video_probe_and_commit_control_t)), VIDEO_ERROR_UNKNOWN);
-          }
-          return VIDEO_ERROR_NONE;
-
         case VIDEO_REQUEST_GET_MAX:
-          if (stage == CONTROL_STAGE_SETUP)
-          {
-            TU_VERIFY(request->wLength, VIDEO_ERROR_UNKNOWN);
-            video_probe_and_commit_control_t tmp;
-            tmp = *(video_probe_and_commit_control_t*)&self->ep_buf;
-            TU_VERIFY(_negotiate_streaming_parameters(self, VIDEO_REQUEST_GET_MAX, &tmp), VIDEO_ERROR_INVALID_VALUE_WITHIN_RANGE);
-            TU_VERIFY(tud_control_xfer(rhport, request, self->ep_buf, sizeof(video_probe_and_commit_control_t)), VIDEO_ERROR_UNKNOWN);
-          }
-          return VIDEO_ERROR_NONE;
-
-        case VIDEO_REQUEST_GET_RES: return VIDEO_ERROR_UNKNOWN;
+        case VIDEO_REQUEST_GET_RES:
         case VIDEO_REQUEST_GET_DEF:
           if (stage == CONTROL_STAGE_SETUP)
           {
             TU_VERIFY(request->wLength, VIDEO_ERROR_UNKNOWN);
             video_probe_and_commit_control_t tmp;
             tmp = *(video_probe_and_commit_control_t*)&self->ep_buf;
-            TU_VERIFY(_negotiate_streaming_parameters(self, VIDEO_REQUEST_GET_DEF, &tmp), VIDEO_ERROR_INVALID_VALUE_WITHIN_RANGE);
+            TU_VERIFY(_negotiate_streaming_parameters(self, request->bRequest, &tmp), VIDEO_ERROR_INVALID_VALUE_WITHIN_RANGE);
             TU_VERIFY(tud_control_xfer(rhport, request, self->ep_buf, sizeof(video_probe_and_commit_control_t)), VIDEO_ERROR_UNKNOWN);
           }
-          return VIDEO_ERROR_UNKNOWN;
+          return VIDEO_ERROR_NONE;
 
         case VIDEO_REQUEST_GET_LEN:
           if (stage == CONTROL_STAGE_SETUP)
