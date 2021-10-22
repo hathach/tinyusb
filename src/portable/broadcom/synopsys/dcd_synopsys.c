@@ -110,6 +110,8 @@
 
 #include "device/dcd.h"
 
+TU_VERIFY_STATIC(sizeof(USB_OTG_GlobalTypeDef) == 0x140, "size is incorrect");
+
 //--------------------------------------------------------------------+
 // MACRO TYPEDEF CONSTANT ENUM
 //--------------------------------------------------------------------+
@@ -340,7 +342,10 @@ static void set_speed(uint8_t rhport, tusb_speed_t speed)
   dev->DCFG |= (bitvalue << USB_OTG_DCFG_DSPD_Pos);
 }
 
-#if defined(USB_HS_PHYC)
+#if 0
+// From CM4IO xtal to usb hub, may not be correct
+#define HSE_VALUE 24000000
+
 static bool USB_HS_PHYCInit(void)
 {
   USB_HS_PHYC_GlobalTypeDef *usb_hs_phyc = (USB_HS_PHYC_GlobalTypeDef*) USB_HS_PHYC_CONTROLLER_BASE;
@@ -435,6 +440,7 @@ static void edpt_schedule_packets(uint8_t rhport, uint8_t const epnum, uint8_t c
 /* Controller API
  *------------------------------------------------------------------*/
 
+TU_ATTR_UNUSED
 static void reset_core(USB_OTG_GlobalTypeDef * usb_otg) {
   while ((usb_otg->GRSTCTL & USB_OTG_GRSTCTL_AHBIDL) == 0) {}
 
@@ -456,6 +462,46 @@ void dcd_init (uint8_t rhport)
 
   USB_OTG_GlobalTypeDef * usb_otg = GLOBAL_BASE(rhport);
 
+#if 1
+  // No VBUS sense
+  usb_otg->GCCFG &= ~(1UL << 21); // USB_OTG_GCCFG_VBDEN
+
+  // B-peripheral session valid override enable
+  usb_otg->GOTGCTL |= (1UL << 6); // USB_OTG_GOTGCTL_BVALOEN
+  usb_otg->GOTGCTL |= (1UL << 7); // USB_OTG_GOTGCTL_BVALOVAL
+
+  // Force device mode
+  usb_otg->GUSBCFG &= ~USB_OTG_GUSBCFG_FHMOD;
+  usb_otg->GUSBCFG |= USB_OTG_GUSBCFG_FDMOD;
+
+  // deactivate internal PHY
+  usb_otg->GCCFG &= ~USB_OTG_GCCFG_PWRDWN;
+
+  // Init The UTMI Interface
+  usb_otg->GUSBCFG &= ~(USB_OTG_GUSBCFG_TSDPS | USB_OTG_GUSBCFG_ULPIFSLS | USB_OTG_GUSBCFG_PHYSEL);
+
+  // Select default internal VBUS Indicator and Drive for ULPI
+  usb_otg->GUSBCFG &= ~(USB_OTG_GUSBCFG_ULPIEVBUSD | USB_OTG_GUSBCFG_ULPIEVBUSI);
+
+  // Select UTMI Interface
+  usb_otg->GUSBCFG &= ~(1UL << 4); // USB_OTG_GUSBCFG_ULPI_UTMI_SEL
+  usb_otg->GCCFG |= (1UL << 32);   // USB_OTG_GCCFG_PHYHSEN
+
+  // Enables control of a High Speed USB PHY
+  //USB_HS_PHYCInit();
+
+  // Reset core after selecting PHY
+  // Wait AHB IDLE, reset then wait until it is cleared
+//  while ((usb_otg->GRSTCTL & USB_OTG_GRSTCTL_AHBIDL) == 0U) {}
+//  usb_otg->GRSTCTL |= USB_OTG_GRSTCTL_CSRST;
+//  while ((usb_otg->GRSTCTL & USB_OTG_GRSTCTL_CSRST) == USB_OTG_GRSTCTL_CSRST) {}
+
+  reset_core(usb_otg);
+
+  // Restart PHY clock
+  *((volatile uint32_t *)(RHPORT_REGS_BASE + USB_OTG_PCGCCTL_BASE)) = 0;
+
+#else
 
   // ReadBackReg(&Core->Usb);
   // Core->Usb.UlpiDriveExternalVbus = 0;
@@ -470,7 +516,7 @@ void dcd_init (uint8_t rhport)
   //   LOG_DEBUG("HCD: Interface: UTMI+.\n");
   //   Core->Usb.PhyInterface = false;
 
-  //   HcdReset();  
+  //   HcdReset();
   TU_LOG2("init phy\r\n");
   usb_otg->GUSBCFG |= (1 << 4); // bit four sets UTMI+ mode
   usb_otg->GUSBCFG &= ~(1 << 3); // bit three disables phy interface
@@ -486,11 +532,13 @@ void dcd_init (uint8_t rhport)
   // Core->Ahb.DmaRemainderMode = Incremental;
   usb_otg->GAHBCFG &= ~(1 << 23); // Remainder mode
   usb_otg->GAHBCFG |= USB_OTG_GAHBCFG_DMAEN;
-  
+
   //   LOG_DEBUG("HCD: HNP/SRP configuration: HNP, SRP.\n");
   //   Core->Usb.HnpCapable = true;
   //   Core->Usb.SrpCapable = true;
   usb_otg->GUSBCFG |= USB_OTG_GUSBCFG_SRPCAP | USB_OTG_GUSBCFG_HNPCAP;
+
+#endif
 
   // Clear all interrupts
   usb_otg->GINTSTS |= usb_otg->GINTSTS;
@@ -506,12 +554,9 @@ void dcd_init (uint8_t rhport)
   // (non zero-length packet), send STALL back and discard.
   dev->DCFG |=  USB_OTG_DCFG_NZLSOHSK;
 
-  #if TUD_OPT_HIGH_SPEED
   set_speed(rhport, TUSB_SPEED_HIGH);
-  #else
-  set_speed(rhport, TUSB_SPEED_FULL);
-  #endif
 
+  // TODO internal phy (full speed)
   usb_otg->GCCFG |= USB_OTG_GCCFG_PWRDWN;
 
   usb_otg->GINTMSK |= USB_OTG_GINTMSK_USBRST   | USB_OTG_GINTMSK_ENUMDNEM |

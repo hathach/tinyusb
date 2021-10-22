@@ -60,11 +60,22 @@ typedef struct
   __IO uint32_t HNPTXSTS;             /*!<  Non Periodic Tx FIFO/Queue Sts reg        Address offset: 02Ch */
   uint32_t Reserved30[2];             /*!< Reserved 030h*/
   __IO uint32_t GCCFG;                /*!< General Purpose IO Register                Address offset: 038h */
-  __IO uint32_t CID;                  /*!< User ID Register                           Address offset: 03Ch */
-  uint32_t  Reserved40[48];           /*!< Reserved 040h-0FFh */
+  __IO uint32_t CID;                  /*!< User ID Register                             03Ch */
+  __IO uint32_t GSNPSID;              /* USB_OTG core ID                                040h*/
+  __IO uint32_t GHWCFG1;              /* User HW config1                                044h*/
+  __IO uint32_t GHWCFG2;              /* User HW config2                                048h*/
+  __IO uint32_t GHWCFG3;              /*!< User HW config3                              04Ch */
+  uint32_t  Reserved6;                /*!< Reserved                                     050h */
+  __IO uint32_t GLPMCFG;              /*!< LPM Register                                 054h */
+  __IO uint32_t GPWRDN;               /*!< Power Down Register                          058h */
+  __IO uint32_t GDFIFOCFG;            /*!< DFIFO Software Config Register               05Ch */
+   __IO uint32_t GADPCTL;             /*!< ADP Timer, Control and Status Register       60Ch */
+    uint32_t  Reserved43[39];         /*!< Reserved                                058h-0FFh */
   __IO uint32_t HPTXFSIZ;             /*!< Host Periodic Tx FIFO Size Reg             Address offset: 100h */
   __IO uint32_t DIEPTXF[0x0F];        /*!< dev Periodic Transmit FIFO                 Address offset: 0x104 */
 } USB_OTG_GlobalTypeDef;
+
+
 
 /** 
   * @brief __device_Registers

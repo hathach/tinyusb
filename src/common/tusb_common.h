@@ -337,8 +337,8 @@ void tu_print_var(uint8_t const* buf, uint32_t bufsize)
 #define TU_LOG1               tu_printf
 #define TU_LOG1_MEM           tu_print_mem
 #define TU_LOG1_VAR(_x)       tu_print_var((uint8_t const*)(_x), sizeof(*(_x)))
-#define TU_LOG1_INT(_x)       tu_printf(#_x " = %ld\r\n", (uint32_t) (_x) )
-#define TU_LOG1_HEX(_x)       tu_printf(#_x " = %lX\r\n", (uint32_t) (_x) )
+#define TU_LOG1_INT(_x)       tu_printf(#_x " = %ld\r\n", (unsigned long) (_x) )
+#define TU_LOG1_HEX(_x)       tu_printf(#_x " = %lX\r\n", (unsigned long) (_x) )
 
 // Log Level 2: Warn
 #if CFG_TUSB_DEBUG >= 2
