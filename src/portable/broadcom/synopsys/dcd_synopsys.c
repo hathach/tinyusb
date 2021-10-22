@@ -574,13 +574,13 @@ void dcd_init (uint8_t rhport)
 void dcd_int_enable (uint8_t rhport)
 {
   (void) rhport;
-  // BP_EnableIRQ(USB_IRQn);
+  BP_EnableIRQ(USB_IRQn);
 }
 
 void dcd_int_disable (uint8_t rhport)
 {
   (void) rhport;
-  // BP_DisableIRQ(USB_IRQn);
+  BP_DisableIRQ(USB_IRQn);
 }
 
 void dcd_set_address (uint8_t rhport, uint8_t dev_addr)
