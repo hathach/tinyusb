@@ -169,12 +169,12 @@ typedef struct
 /*!< USB registers base address */
 #define USB_OTG_FS_PERIPH_BASE               0x50000000UL
 
-#define USB_OTG_GLOBAL_BASE                  0x00000000UL
-#define USB_OTG_DEVICE_BASE                  0x00000800UL
+// #define USB_OTG_GLOBAL_BASE                  0x00000000UL
+// #define USB_OTG_DEVICE_BASE                  0x00000800UL
 #define USB_OTG_IN_ENDPOINT_BASE             0x00000900UL
 #define USB_OTG_OUT_ENDPOINT_BASE            0x00000B00UL
 #define USB_OTG_EP_REG_SIZE                  0x00000020UL
-#define USB_OTG_HOST_BASE                    0x00000400UL
+// #define USB_OTG_HOST_BASE                    0x00000400UL
 #define USB_OTG_HOST_PORT_BASE               0x00000440UL
 #define USB_OTG_HOST_CHANNEL_BASE            0x00000500UL
 #define USB_OTG_HOST_CHANNEL_SIZE            0x00000020UL

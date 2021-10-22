@@ -31,6 +31,8 @@
 
 #include "synopsys_common.h"
 
+#include "broadcom/interrupts.h"
+
 // Since TinyUSB doesn't use SOF for now, and this interrupt too often (1ms interval)
 // We disable SOF for now until needed later on
 #define USE_SOF     0
@@ -116,10 +118,10 @@ TU_VERIFY_STATIC(sizeof(USB_OTG_GlobalTypeDef) == 0x140, "size is incorrect");
 // MACRO TYPEDEF CONSTANT ENUM
 //--------------------------------------------------------------------+
 
-#define RHPORT_REGS_BASE 0xfe980000
+#define RHPORT_REGS_BASE USB_OTG_GLOBAL_BASE
 
 #define GLOBAL_BASE(_port)     ((USB_OTG_GlobalTypeDef*) RHPORT_REGS_BASE)
-#define DEVICE_BASE(_port)     (USB_OTG_DeviceTypeDef *) (RHPORT_REGS_BASE + USB_OTG_DEVICE_BASE)
+#define DEVICE_BASE(_port)     (USB_OTG_DeviceTypeDef *) (USB_OTG_DEVICE_BASE)
 #define OUT_EP_BASE(_port)     (USB_OTG_OUTEndpointTypeDef *) (RHPORT_REGS_BASE + USB_OTG_OUT_ENDPOINT_BASE)
 #define IN_EP_BASE(_port)      (USB_OTG_INEndpointTypeDef *) (RHPORT_REGS_BASE + USB_OTG_IN_ENDPOINT_BASE)
 #define FIFO_BASE(_port, _x)   ((volatile uint32_t *) (RHPORT_REGS_BASE + USB_OTG_FIFO_BASE + (_x) * USB_OTG_FIFO_SIZE))
@@ -572,13 +574,13 @@ void dcd_init (uint8_t rhport)
 void dcd_int_enable (uint8_t rhport)
 {
   (void) rhport;
-  // NVIC_EnableIRQ(RHPORT_IRQn);
+  // BP_EnableIRQ(USB_IRQn);
 }
 
 void dcd_int_disable (uint8_t rhport)
 {
   (void) rhport;
-  // NVIC_DisableIRQ(RHPORT_IRQn);
+  // BP_DisableIRQ(USB_IRQn);
 }
 
 void dcd_set_address (uint8_t rhport, uint8_t dev_addr)
