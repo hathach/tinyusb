@@ -70,7 +70,7 @@ static struct hw_endpoint *hw_endpoint_get_by_addr(uint8_t ep_addr)
 static void _hw_endpoint_alloc(struct hw_endpoint *ep, uint8_t transfer_type)
 {
   // size must be multiple of 64
-  uint16_t size = tu_div_ceil(ep->wMaxPacketSize, 64) * 64u;
+  uint size = tu_div_ceil(ep->wMaxPacketSize, 64) * 64u;
 
   // double buffered Bulk endpoint
   if ( transfer_type == TUSB_XFER_BULK )
@@ -88,7 +88,7 @@ static void _hw_endpoint_alloc(struct hw_endpoint *ep, uint8_t transfer_type)
   pico_info("  Alloced %d bytes at offset 0x%x (0x%p)\r\n", size, dpram_offset, ep->hw_data_buf);
 
   // Fill in endpoint control register with buffer offset
-  uint32_t const reg = EP_CTRL_ENABLE_BITS | (transfer_type << EP_CTRL_BUFFER_TYPE_LSB) | dpram_offset;
+  uint32_t const reg = EP_CTRL_ENABLE_BITS | ((uint)transfer_type << EP_CTRL_BUFFER_TYPE_LSB) | dpram_offset;
 
   *ep->endpoint_control = reg;
 }
@@ -177,7 +177,7 @@ static void hw_handle_buff_status(void)
     uint32_t remaining_buffers = usb_hw->buf_status;
     pico_trace("buf_status = 0x%08x\n", remaining_buffers);
     uint bit = 1u;
-    for (uint i = 0; remaining_buffers && i < USB_MAX_ENDPOINTS * 2; i++)
+    for (uint8_t i = 0; remaining_buffers && i < USB_MAX_ENDPOINTS * 2; i++)
     {
         if (remaining_buffers & bit)
         {
@@ -365,19 +365,19 @@ void dcd_init (uint8_t rhport)
   dcd_connect(rhport);
 }
 
-void dcd_int_enable(uint8_t rhport)
+void dcd_int_enable(__unused uint8_t rhport)
 {
     assert(rhport == 0);
     irq_set_enabled(USBCTRL_IRQ, true);
 }
 
-void dcd_int_disable(uint8_t rhport)
+void dcd_int_disable(__unused uint8_t rhport)
 {
     assert(rhport == 0);
     irq_set_enabled(USBCTRL_IRQ, false);
 }
 
-void dcd_set_address (uint8_t rhport, uint8_t dev_addr)
+void dcd_set_address (__unused uint8_t rhport, __unused uint8_t dev_addr)
 {
   assert(rhport == 0);
 
@@ -386,7 +386,7 @@ void dcd_set_address (uint8_t rhport, uint8_t dev_addr)
   hw_endpoint_xfer(0x80, NULL, 0);
 }
 
-void dcd_remote_wakeup(uint8_t rhport)
+void dcd_remote_wakeup(__unused uint8_t rhport)
 {
     pico_info("dcd_remote_wakeup %d\n", rhport);
     assert(rhport == 0);
@@ -394,14 +394,14 @@ void dcd_remote_wakeup(uint8_t rhport)
 }
 
 // disconnect by disabling internal pull-up resistor on D+/D-
-void dcd_disconnect(uint8_t rhport)
+void dcd_disconnect(__unused uint8_t rhport)
 {
   (void) rhport;
   usb_hw_clear->sie_ctrl = USB_SIE_CTRL_PULLUP_EN_BITS;
 }
 
 // connect by enabling internal pull-up resistor on D+/D-
-void dcd_connect(uint8_t rhport)
+void dcd_connect(__unused uint8_t rhport)
 {
   (void) rhport;
   usb_hw_set->sie_ctrl = USB_SIE_CTRL_PULLUP_EN_BITS;
@@ -423,7 +423,7 @@ void dcd_edpt0_status_complete(uint8_t rhport, tusb_control_request_t const * re
   }
 }
 
-bool dcd_edpt_open (uint8_t rhport, tusb_desc_endpoint_t const * desc_edpt)
+bool dcd_edpt_open (__unused uint8_t rhport, tusb_desc_endpoint_t const * desc_edpt)
 {
     assert(rhport == 0);
     hw_endpoint_init(desc_edpt->bEndpointAddress, desc_edpt->wMaxPacketSize.size, desc_edpt->bmAttributes.xfer);
@@ -438,7 +438,7 @@ void dcd_edpt_close_all (uint8_t rhport)
   reset_non_control_endpoints();
 }
 
-bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t total_bytes)
+bool dcd_edpt_xfer(__unused uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t total_bytes)
 {
     assert(rhport == 0);
     hw_endpoint_xfer(ep_addr, buffer, total_bytes);

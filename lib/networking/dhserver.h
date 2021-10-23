@@ -41,16 +41,16 @@
 
 typedef struct dhcp_entry
 {
-	uint8_t  mac[6];
-	ip_addr_t addr;
-	uint32_t lease;
+	uint8_t    mac[6];
+	ip4_addr_t addr;
+	uint32_t   lease;
 } dhcp_entry_t;
 
 typedef struct dhcp_config
 {
-	ip_addr_t     router;
+	ip4_addr_t    router;
 	uint16_t      port;
-	ip_addr_t     dns;
+	ip4_addr_t    dns;
 	const char   *domain;
 	int           num_entry;
 	dhcp_entry_t *entries;
