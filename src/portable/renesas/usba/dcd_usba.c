@@ -259,7 +259,7 @@ static inline void pipe_wait_for_ready(unsigned num)
 
 static void pipe_write_packet(void *buf, volatile void *fifo, unsigned len)
 {
-  hw_fifo_t *reg = (hw_fifo_t*)fifo;
+  volatile hw_fifo_t *reg = (volatile hw_fifo_t*) fifo;
   uintptr_t addr = (uintptr_t)buf;
   while (len >= 2) {
     reg->u16 = *(const uint16_t *)addr;
@@ -275,7 +275,7 @@ static void pipe_write_packet(void *buf, volatile void *fifo, unsigned len)
 static void pipe_read_packet(void *buf, volatile void *fifo, unsigned len)
 {
   uint8_t *p   = (uint8_t*)buf;
-  uint8_t *reg = (uint8_t*)fifo;  /* byte access is always at base register address */
+  volatile uint8_t *reg = (volatile uint8_t*)fifo;  /* byte access is always at base register address */
   while (len--) *p++ = *reg;
 }
 

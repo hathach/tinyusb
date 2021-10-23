@@ -210,7 +210,7 @@ int board_uart_read(uint8_t* buf, int len)
 
 int board_uart_write(void const * buf, int len)
 {
-  USART_WriteBlocking(UART_DEV, (uint8_t *)buf, len);
+  USART_WriteBlocking(UART_DEV, (uint8_t const *) buf, len);
   return 0;
 }
 

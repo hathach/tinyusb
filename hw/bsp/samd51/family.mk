@@ -13,7 +13,8 @@ CFLAGS += \
   -nostdlib -nostartfiles \
   -DCFG_TUSB_MCU=OPT_MCU_SAMD51
 
-CFLAGS += -Wno-error=undef
+# suppress warning caused by vendor mcu driver
+CFLAGS += -Wno-error=cast-qual
 
 SRC_C += \
 	src/portable/microchip/samd/dcd_samd.c \

@@ -990,21 +990,23 @@ static bool process_get_descriptor(uint8_t rhport, tusb_control_request_t const 
     {
       TU_LOG2(" Device\r\n");
 
-      uint16_t len = sizeof(tusb_desc_device_t);
+      void* desc_device = (void*) (uintptr_t) tud_descriptor_device_cb();
 
-      // Only send up to EP0 Packet Size if not addressed and host requested more data
-      // that device descriptor has.
+      // Only response with exactly 1 Packet if: not addressed and host requested more data than device descriptor has.
       // This only happens with the very first get device descriptor and EP0 size = 8 or 16.
       if ((CFG_TUD_ENDPOINT0_SIZE < sizeof(tusb_desc_device_t)) && !_usbd_dev.addressed &&
-          ((tusb_control_request_t*) p_request)->wLength > sizeof(tusb_desc_device_t))
+          ((tusb_control_request_t const*) p_request)->wLength > sizeof(tusb_desc_device_t))
       {
-        len = CFG_TUD_ENDPOINT0_SIZE;
-
         // Hack here: we modify the request length to prevent usbd_control response with zlp
-        ((tusb_control_request_t*) p_request)->wLength = CFG_TUD_ENDPOINT0_SIZE;
-      }
+        // since we are responding with 1 packet & less data than wLength.
+        tusb_control_request_t mod_request = *p_request;
+        mod_request.wLength = CFG_TUD_ENDPOINT0_SIZE;
 
-      return tud_control_xfer(rhport, p_request, (void*) tud_descriptor_device_cb(), len);
+        return tud_control_xfer(rhport, &mod_request, desc_device, CFG_TUD_ENDPOINT0_SIZE);
+      }else
+      {
+        return tud_control_xfer(rhport, p_request, desc_device, sizeof(tusb_desc_device_t));
+      }
     }
     break;
 
@@ -1015,10 +1017,11 @@ static bool process_get_descriptor(uint8_t rhport, tusb_control_request_t const 
       // requested by host if USB > 2.0 ( i.e 2.1 or 3.x )
       if (!tud_descriptor_bos_cb) return false;
 
-      tusb_desc_bos_t const* desc_bos = (tusb_desc_bos_t const*) tud_descriptor_bos_cb();
+      uintptr_t desc_bos = (uintptr_t) tud_descriptor_bos_cb();
+      TU_ASSERT(desc_bos);
 
       // Use offsetof to avoid pointer to the odd/misaligned address
-      uint16_t const total_len = tu_le16toh( tu_unaligned_read16((uint8_t*) desc_bos + offsetof(tusb_desc_bos_t, wTotalLength)) );
+      uint16_t const total_len = tu_le16toh( tu_unaligned_read16((const void*) (desc_bos + offsetof(tusb_desc_bos_t, wTotalLength))) );
 
       return tud_control_xfer(rhport, p_request, (void*) desc_bos, total_len);
     }
@@ -1027,24 +1030,24 @@ static bool process_get_descriptor(uint8_t rhport, tusb_control_request_t const 
     case TUSB_DESC_CONFIGURATION:
     case TUSB_DESC_OTHER_SPEED_CONFIG:
     {
-      tusb_desc_configuration_t const* desc_config;
+      uintptr_t desc_config;
 
       if ( desc_type == TUSB_DESC_CONFIGURATION )
       {
         TU_LOG2(" Configuration[%u]\r\n", desc_index);
-        desc_config = (tusb_desc_configuration_t const*) tud_descriptor_configuration_cb(desc_index);
+        desc_config = (uintptr_t) tud_descriptor_configuration_cb(desc_index);
       }else
       {
         // Host only request this after getting Device Qualifier descriptor
         TU_LOG2(" Other Speed Configuration\r\n");
         TU_VERIFY( tud_descriptor_other_speed_configuration_cb );
-        desc_config = (tusb_desc_configuration_t const*) tud_descriptor_other_speed_configuration_cb(desc_index);
+        desc_config = (uintptr_t) tud_descriptor_other_speed_configuration_cb(desc_index);
       }
 
       TU_ASSERT(desc_config);
 
       // Use offsetof to avoid pointer to the odd/misaligned address
-      uint16_t const total_len = tu_le16toh( tu_unaligned_read16((uint8_t*) desc_config + offsetof(tusb_desc_configuration_t, wTotalLength)) );
+      uint16_t const total_len = tu_le16toh( tu_unaligned_read16((const void*) (desc_config + offsetof(tusb_desc_configuration_t, wTotalLength))) );
 
       return tud_control_xfer(rhport, p_request, (void*) desc_config, total_len);
     }
@@ -1055,11 +1058,11 @@ static bool process_get_descriptor(uint8_t rhport, tusb_control_request_t const 
       TU_LOG2(" String[%u]\r\n", desc_index);
 
       // String Descriptor always uses the desc set from user
-      uint8_t const* desc_str = (uint8_t const*) tud_descriptor_string_cb(desc_index, p_request->wIndex);
+      uint8_t const* desc_str = (uint8_t const*) tud_descriptor_string_cb(desc_index, tu_le16toh(p_request->wIndex));
       TU_VERIFY(desc_str);
 
       // first byte of descriptor is its size
-      return tud_control_xfer(rhport, p_request, (void*) desc_str, desc_str[0]);
+      return tud_control_xfer(rhport, p_request, (void*) (uintptr_t) desc_str, tu_desc_len(desc_str));
     }
     break;
 
@@ -1073,7 +1076,7 @@ static bool process_get_descriptor(uint8_t rhport, tusb_control_request_t const 
       TU_VERIFY(desc_qualifier);
 
       // first byte of descriptor is its size
-      return tud_control_xfer(rhport, p_request, (void*) desc_qualifier, desc_qualifier[0]);
+      return tud_control_xfer(rhport, p_request, (void*) (uintptr_t) desc_qualifier, tu_desc_len(desc_qualifier));
     }
     break;
 

@@ -314,13 +314,13 @@ static void dcd_reset(void)
   usb_in_ctrl_write(1 << CSR_USB_IN_CTRL_RESET_OFFSET);
   usb_out_ctrl_write(1 << CSR_USB_OUT_CTRL_RESET_OFFSET);
 
-  memset((void *)rx_buffer, 0, sizeof(rx_buffer));
-  memset((void *)rx_buffer_max, 0, sizeof(rx_buffer_max));
-  memset((void *)rx_buffer_offset, 0, sizeof(rx_buffer_offset));
+  memset((void *)(uintptr_t) rx_buffer, 0, sizeof(rx_buffer));
+  memset((void *)(uintptr_t) rx_buffer_max, 0, sizeof(rx_buffer_max));
+  memset((void *)(uintptr_t) rx_buffer_offset, 0, sizeof(rx_buffer_offset));
 
-  memset((void *)tx_buffer, 0, sizeof(tx_buffer));
-  memset((void *)tx_buffer_max, 0, sizeof(tx_buffer_max));
-  memset((void *)tx_buffer_offset, 0, sizeof(tx_buffer_offset));
+  memset((void *)(uintptr_t) tx_buffer, 0, sizeof(tx_buffer));
+  memset((void *)(uintptr_t) tx_buffer_max, 0, sizeof(tx_buffer_max));
+  memset((void *)(uintptr_t) tx_buffer_offset, 0, sizeof(tx_buffer_offset));
   tx_ep = 0;
   tx_active = false;
 

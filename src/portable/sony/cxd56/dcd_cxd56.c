@@ -134,7 +134,7 @@ static int _dcd_setup(FAR struct usbdevclass_driver_s *driver, FAR struct usbdev
   if (usbdcd_driver.setup_processed)
   {
     usbdcd_driver.setup_processed = false;
-    dcd_event_setup_received(0, (uint8_t *) ctrl, true);
+    dcd_event_setup_received(0, (uint8_t const *) ctrl, true);
   }
   else
   {

@@ -15,6 +15,8 @@ CFLAGS += \
   -DCFG_TUSB_MCU=OPT_MCU_SAME5X \
   -DBOARD_NAME="\"Microchip SAM E54 Xplained Pro\""
 
+# suppress warning caused by vendor mcu driver
+CFLAGS += -Wno-error=cast-qual
 
 # All source paths should be relative to the top level.
 LD_FILE = hw/bsp/$(BOARD)/same54p20a_flash.ld

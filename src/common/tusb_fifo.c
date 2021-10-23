@@ -102,7 +102,7 @@ static inline uint16_t _ff_mod(uint16_t idx, uint16_t depth)
 // TODO generalize with configurable 1 byte or 4 byte each read
 static void _ff_push_const_addr(uint8_t * ff_buf, const void * app_buf, uint16_t len)
 {
-  volatile uint32_t * rx_fifo = (volatile uint32_t *) app_buf;
+  volatile const uint32_t * rx_fifo = (volatile const uint32_t *) app_buf;
 
   // Reading full available 32 bit words from const app address
   uint16_t full_words = len >> 2;
@@ -201,7 +201,7 @@ static void _ff_push_n(tu_fifo_t* f, void const * app_buf, uint16_t n, uint16_t 
         ff_buf += nLin_4n_bytes;
 
         // There could be odd 1-3 bytes before the wrap-around boundary
-        volatile uint32_t * rx_fifo = (volatile uint32_t *) app_buf;
+        volatile const uint32_t * rx_fifo = (volatile const uint32_t *) app_buf;
         uint8_t rem = nLin_bytes & 0x03;
         if (rem > 0)
         {

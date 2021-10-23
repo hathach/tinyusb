@@ -105,7 +105,7 @@ bool tuh_cdc_send(uint8_t dev_addr, void const * p_data, uint32_t length, bool i
   uint8_t const ep_out = cdch_data[dev_addr-1].ep_out;
   if ( usbh_edpt_busy(dev_addr, ep_out) ) return false;
 
-  return usbh_edpt_xfer(dev_addr, ep_out, (void *) p_data, length);
+  return usbh_edpt_xfer(dev_addr, ep_out, (void*)(uintptr_t) p_data, length);
 }
 
 bool tuh_cdc_receive(uint8_t dev_addr, void * p_buffer, uint32_t length, bool is_notify)

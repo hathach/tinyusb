@@ -636,7 +636,7 @@ void dcd_int_handler(uint8_t rhport)
       // 23.10.10.2 Operational model for setup transfers
       dcd_reg->ENDPTSETUPSTAT = dcd_reg->ENDPTSETUPSTAT;
 
-      dcd_event_setup_received(rhport, (uint8_t*) &_dcd_data.qhd[0][0].setup_request, true);
+      dcd_event_setup_received(rhport, (uint8_t*)(uintptr_t) &_dcd_data.qhd[0][0].setup_request, true);
     }
 
     // 23.10.12.3 Failed QTD also get ENDPTCOMPLETE set

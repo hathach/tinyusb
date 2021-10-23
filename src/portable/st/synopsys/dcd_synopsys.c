@@ -976,7 +976,7 @@ static void handle_rxflvl_ints(uint8_t rhport, USB_OTG_OUTEndpointTypeDef * out_
       if (xfer->ff)
       {
         // Ring buffer
-        tu_fifo_write_n_const_addr_full_words(xfer->ff, (const void *) rx_fifo, bcnt);
+        tu_fifo_write_n_const_addr_full_words(xfer->ff, (const void *)(uintptr_t) rx_fifo, bcnt);
       }
       else
       {
@@ -1096,7 +1096,7 @@ static void handle_epin_ints(uint8_t rhport, USB_OTG_DeviceTypeDef * dev, USB_OT
           if (xfer->ff)
           {
             usb_fifo_t tx_fifo = FIFO_BASE(rhport, n);
-            tu_fifo_read_n_const_addr_full_words(xfer->ff, (void *) tx_fifo, packet_size);
+            tu_fifo_read_n_const_addr_full_words(xfer->ff, (void *)(uintptr_t) tx_fifo, packet_size);
           }
           else
           {

@@ -12,7 +12,7 @@ CFLAGS += \
   -DRTC_EV_SUPPORT=0
 
 # lpc_types.h cause following errors
-CFLAGS += -Wno-error=strict-prototypes
+CFLAGS += -Wno-error=strict-prototypes -Wno-error=cast-qual
 
 MCU_DIR = hw/mcu/nxp/lpcopen/lpc175x_6x/lpc_chip_175x_6x
 

@@ -152,7 +152,7 @@ static inline uint16_t rdwr10_get_blocksize(msc_cbw_t const* cbw)
   // invalid block count
   if (block_count == 0) return 0;
 
-  return cbw->total_bytes / block_count;
+  return (uint16_t) (cbw->total_bytes / block_count);
 }
 
 uint8_t rdwr10_validate_cmd(msc_cbw_t const* cbw)

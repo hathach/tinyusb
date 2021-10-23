@@ -229,7 +229,7 @@ void cdcd_init(void)
   {
     cdcd_interface_t* p_cdc = &_cdcd_itf[i];
 
-    p_cdc->wanted_char = -1;
+    p_cdc->wanted_char = (char) -1;
 
     // default line coding is : stop bit = 1, parity = none, data bits = 8
     p_cdc->line_coding.bit_rate  = 115200;

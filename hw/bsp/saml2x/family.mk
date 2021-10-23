@@ -13,6 +13,9 @@ CFLAGS += \
   -DCONF_OSC32K_CALIB_ENABLE=0 \
   -DCFG_TUSB_MCU=OPT_MCU_SAML22
 
+# suppress warning caused by vendor mcu driver
+CFLAGS += -Wno-error=cast-qual
+
 SRC_C += \
 	src/portable/microchip/samd/dcd_samd.c \
 	$(MCU_DIR)/gcc/gcc/startup_$(SAML_VARIANT).c \
