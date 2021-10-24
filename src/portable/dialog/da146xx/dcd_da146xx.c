@@ -256,7 +256,7 @@ static const tusb_desc_endpoint_t ep0OUT_desc =
 
   .bEndpointAddress = 0x00,
   .bmAttributes     = { .xfer = TUSB_XFER_CONTROL },
-  .wMaxPacketSize   = { .size = CFG_TUD_ENDPOINT0_SIZE },
+  .wMaxPacketSize   = CFG_TUD_ENDPOINT0_SIZE,
   .bInterval        = 0
 };
 
@@ -267,7 +267,7 @@ static const tusb_desc_endpoint_t ep0IN_desc =
 
   .bEndpointAddress = 0x80,
   .bmAttributes     = { .xfer = TUSB_XFER_CONTROL },
-  .wMaxPacketSize   = { .size = CFG_TUD_ENDPOINT0_SIZE },
+  .wMaxPacketSize   = CFG_TUD_ENDPOINT0_SIZE,
   .bInterval        = 0
 };
 

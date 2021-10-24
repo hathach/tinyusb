@@ -84,7 +84,7 @@ static xfer_ctl_t xfer_status[EP_MAX];
 static const tusb_desc_endpoint_t ep0_desc =
 {
   .bEndpointAddress = 0x00,
-  .wMaxPacketSize   = { .size = CFG_TUD_ENDPOINT0_SIZE },
+  .wMaxPacketSize   = CFG_TUD_ENDPOINT0_SIZE,
 };
 
 TU_ATTR_ALWAYS_INLINE static inline void CleanInValidateCache(uint32_t *addr, int32_t size)
