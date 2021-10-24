@@ -85,24 +85,53 @@
   #define DCD_ATTR_ENDPOINT_EXCLUSIVE_NUMBER
 
 //------------- ST -------------//
-#elif TU_CHECK_MCU(STM32F0) || TU_CHECK_MCU(STM32F1) || TU_CHECK_MCU(STM32F3) || \
-      TU_CHECK_MCU(STM32L0) || TU_CHECK_MCU(STM32L1) || TU_CHECK_MCU(STM32L4)
-  // F1: F102, F103
-  // L4: L4x2, L4x3
+#elif TU_CHECK_MCU(STM32F0)
   #define DCD_ATTR_ENDPOINT_MAX   8
 
-#elif TU_CHECK_MCU(STM32F2) || TU_CHECK_MCU(STM32F4) || TU_CHECK_MCU(STM32F3)
-  // F1: F105, F107 only has 4
-  // L4: L4x5, L4x6 has 6
-  // For most mcu, FS has 4, HS has 6
+#elif TU_CHECK_MCU(STM32F1)
+  #if defined (STM32F105x8) || defined (STM32F105xB) || defined (STM32F105xC) || \
+      defined (STM32F107xB) || defined (STM32F107xC)
+    #define DCD_ATTR_ENDPOINT_MAX   4
+    #define DCD_ATTR_DWC2_STM32
+  #else
+    #define DCD_ATTR_ENDPOINT_MAX   8
+  #endif
+
+#elif TU_CHECK_MCU(STM32F2)
+  // FS has 4 ep, HS has 5 ep
   #define DCD_ATTR_ENDPOINT_MAX   6
+  #define DCD_ATTR_DWC2_STM32
+
+#elif TU_CHECK_MCU(STM32F3)
+  #define DCD_ATTR_ENDPOINT_MAX   8
+
+#elif TU_CHECK_MCU(STM32F4)
+  // For most mcu, FS has 4, HS has 6. TODO 446/469/479 HS has 9
+  #define DCD_ATTR_ENDPOINT_MAX   6
+  #define DCD_ATTR_DWC2_STM32
 
 #elif TU_CHECK_MCU(STM32F7)
   // FS has 6, HS has 9
   #define DCD_ATTR_ENDPOINT_MAX   9
+  #define DCD_ATTR_DWC2_STM32
 
 #elif TU_CHECK_MCU(STM32H7)
   #define DCD_ATTR_ENDPOINT_MAX   9
+  #define DCD_ATTR_DWC2_STM32
+
+#elif TU_CHECK_MCU(STM32L0) || TU_CHECK_MCU(STM32L1)
+  #define DCD_ATTR_ENDPOINT_MAX   8
+
+#elif TU_CHECK_MCU(STM32L4)
+  #if defined (STM32L475xx) || defined (STM32L476xx) ||                          \
+      defined (STM32L485xx) || defined (STM32L486xx) || defined (STM32L496xx) || \
+      defined (STM32L4R5xx) || defined (STM32L4R7xx) || defined (STM32L4R9xx) || \
+      defined (STM32L4S5xx) || defined (STM32L4S7xx) || defined (STM32L4S9xx)
+    #define DCD_ATTR_ENDPOINT_MAX   6
+    #define DCD_ATTR_DWC2_STM32
+  #else
+    #define DCD_ATTR_ENDPOINT_MAX   8
+  #endif
 
 //------------- Sony -------------//
 #elif TU_CHECK_MCU(CXD56)
