@@ -69,4 +69,19 @@
   #error "Unsupported MCUs"
 #endif
 
+// On STM32 we associate Port0 to OTG_FS, and Port1 to OTG_HS
+#if TUD_OPT_RHPORT == 0
+  #define EP_MAX            EP_MAX_FS
+  #define EP_FIFO_SIZE      EP_FIFO_SIZE_FS
+  #define DWC2_REG_BASE     USB_OTG_FS_PERIPH_BASE
+  #define RHPORT_IRQn       OTG_FS_IRQn
+
+#else
+  #define EP_MAX            EP_MAX_HS
+  #define EP_FIFO_SIZE      EP_FIFO_SIZE_HS
+  #define DWC2_REG_BASE     USB_OTG_HS_PERIPH_BASE
+  #define RHPORT_IRQn       OTG_HS_IRQn
+
+#endif
+
 #endif /* DWC2_STM32_H_ */
