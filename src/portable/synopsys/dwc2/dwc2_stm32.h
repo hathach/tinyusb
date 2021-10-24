@@ -84,4 +84,18 @@
 
 #endif
 
+TU_ATTR_ALWAYS_INLINE
+static inline void dcd_dwc2_int_enable(uint8_t rhport)
+{
+  (void) rhport;
+  NVIC_EnableIRQ(RHPORT_IRQn);
+}
+
+TU_ATTR_ALWAYS_INLINE
+static inline void dcd_dwc2_int_disable (uint8_t rhport)
+{
+  (void) rhport;
+  NVIC_DisableIRQ(RHPORT_IRQn);
+}
+
 #endif /* DWC2_STM32_H_ */

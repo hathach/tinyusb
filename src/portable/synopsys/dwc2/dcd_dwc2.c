@@ -32,6 +32,7 @@
 
 #if TUSB_OPT_DEVICE_ENABLED && (defined(DCD_ATTR_DWC2_STM32) || TU_CHECK_MCU(GD32VF103))
 
+#include "device/dcd.h"
 #include "dwc2_type.h"
 
 #if defined(DCD_ATTR_DWC2_STM32)
@@ -42,17 +43,15 @@
   #error "Unsupported MCUs"
 #endif
 
-#include "device/dcd.h"
-
 //--------------------------------------------------------------------+
 // MACRO TYPEDEF CONSTANT ENUM
 //--------------------------------------------------------------------+
 
-#define CORE_REG(_port)     ((dwc2_core_t*) DWC2_REG_BASE)
+#define CORE_REG(_port)       ((dwc2_core_t*) DWC2_REG_BASE)
 #define DEVICE_REG(_port)     ((dwc2_device_t*) (DWC2_REG_BASE + DWC2_DEVICE_BASE))
-#define EPIN_REG(_port)      ((dwc2_epin_t*) (DWC2_REG_BASE + DWC2_IN_ENDPOINT_BASE))
-#define EPOUT_REG(_port)     ((dwc2_epout_t*) (DWC2_REG_BASE + DWC2_OUT_ENDPOINT_BASE))
-#define FIFO_BASE(_port, _x)   ((volatile uint32_t*) (DWC2_REG_BASE + DWC2_FIFO_BASE + (_x) * DWC2_FIFO_SIZE))
+#define EPIN_REG(_port)       ((dwc2_epin_t*) (DWC2_REG_BASE + DWC2_IN_ENDPOINT_BASE))
+#define EPOUT_REG(_port)      ((dwc2_epout_t*) (DWC2_REG_BASE + DWC2_OUT_ENDPOINT_BASE))
+#define FIFO_BASE(_port, _x)  ((volatile uint32_t*) (DWC2_REG_BASE + DWC2_FIFO_BASE + (_x) * DWC2_FIFO_SIZE))
 
 enum
 {
@@ -441,14 +440,12 @@ void dcd_init (uint8_t rhport)
 
 void dcd_int_enable (uint8_t rhport)
 {
-  (void) rhport;
-  NVIC_EnableIRQ(RHPORT_IRQn);
+  dcd_dwc2_int_enable(rhport);
 }
 
 void dcd_int_disable (uint8_t rhport)
 {
-  (void) rhport;
-  NVIC_DisableIRQ(RHPORT_IRQn);
+  dcd_dwc2_int_disable(rhport);
 }
 
 void dcd_set_address (uint8_t rhport, uint8_t dev_addr)

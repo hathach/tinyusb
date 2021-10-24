@@ -32,26 +32,38 @@
 #define __NOP()   __asm volatile ("nop")
 
 // These numbers are the same for the whole GD32VF103 family.
-#define RHPORT_IRQn     86
+#define DWC2_REG_BASE   0x50000000UL
 #define EP_MAX          4
 #define EP_FIFO_SIZE    1280
-#define DWC2_REG_BASE   0x50000000UL
+#define RHPORT_IRQn     86
 
 // The GD32VF103 is a RISC-V MCU, which implements the ECLIC Core-Local
 // Interrupt Controller by Nuclei. It is nearly API compatible to the
 // NVIC used by ARM MCUs.
 #define ECLIC_INTERRUPT_ENABLE_BASE 0xD2001001UL
 
-#define NVIC_EnableIRQ __eclic_enable_interrupt
-#define NVIC_DisableIRQ __eclic_disable_interrupt
-
+TU_ATTR_ALWAYS_INLINE
 static inline void __eclic_enable_interrupt (uint32_t irq) {
   *(volatile uint8_t*)(ECLIC_INTERRUPT_ENABLE_BASE + (irq * 4)) = 1;
 }
 
+TU_ATTR_ALWAYS_INLINE
 static inline void __eclic_disable_interrupt (uint32_t irq){
   *(volatile uint8_t*)(ECLIC_INTERRUPT_ENABLE_BASE + (irq * 4)) = 0;
 }
 
+TU_ATTR_ALWAYS_INLINE
+static inline void dcd_dwc2_int_enable(uint8_t rhport)
+{
+  (void) rhport;
+  __eclic_enable_interrupt(RHPORT_IRQn);
+}
+
+TU_ATTR_ALWAYS_INLINE
+static inline void dcd_dwc2_int_disable (uint8_t rhport)
+{
+  (void) rhport;
+  __eclic_disable_interrupt(RHPORT_IRQn);
+}
 
 #endif /* DWC2_GD32_H_ */
