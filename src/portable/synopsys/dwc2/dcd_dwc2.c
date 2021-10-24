@@ -44,18 +44,14 @@
 
 #include "device/dcd.h"
 
-// Since TinyUSB doesn't use SOF for now, and this interrupt too often (1ms interval)
-// We disable SOF for now until needed later on
-#define USE_SOF     0
-
 //--------------------------------------------------------------------+
 // MACRO TYPEDEF CONSTANT ENUM
 //--------------------------------------------------------------------+
 
-#define GLOBAL_BASE(_port)     ((dwc2_core_t*) DWC2_REG_BASE)
-#define DEVICE_BASE(_port)     ((dwc2_device_t*) (DWC2_REG_BASE + DWC2_DEVICE_BASE))
-#define IN_EP_BASE(_port)      ((dwc2_epin_t*) (DWC2_REG_BASE + DWC2_IN_ENDPOINT_BASE))
-#define OUT_EP_BASE(_port)     ((dwc2_epout_t*) (DWC2_REG_BASE + DWC2_OUT_ENDPOINT_BASE))
+#define CORE_REG(_port)     ((dwc2_core_t*) DWC2_REG_BASE)
+#define DEVICE_REG(_port)     ((dwc2_device_t*) (DWC2_REG_BASE + DWC2_DEVICE_BASE))
+#define EPIN_REG(_port)      ((dwc2_epin_t*) (DWC2_REG_BASE + DWC2_IN_ENDPOINT_BASE))
+#define EPOUT_REG(_port)     ((dwc2_epout_t*) (DWC2_REG_BASE + DWC2_OUT_ENDPOINT_BASE))
 #define FIFO_BASE(_port, _x)   ((volatile uint32_t*) (DWC2_REG_BASE + DWC2_FIFO_BASE + (_x) * DWC2_FIFO_SIZE))
 
 enum
@@ -97,7 +93,7 @@ static void update_grxfsiz(uint8_t rhport)
 {
   (void) rhport;
 
-  dwc2_core_t * core = GLOBAL_BASE(rhport);
+  dwc2_core_t * core = CORE_REG(rhport);
 
   // Determine largest EP size for RX FIFO
   uint16_t max_epsize = 0;
@@ -115,10 +111,10 @@ static void bus_reset(uint8_t rhport)
 {
   (void) rhport;
 
-  dwc2_core_t * core = GLOBAL_BASE(rhport);
-  dwc2_device_t * dev = DEVICE_BASE(rhport);
-  dwc2_epout_t * out_ep = OUT_EP_BASE(rhport);
-  dwc2_epin_t * in_ep = IN_EP_BASE(rhport);
+  dwc2_core_t   * core   = CORE_REG(rhport);
+  dwc2_device_t * dev    = DEVICE_REG(rhport);
+  dwc2_epout_t  * out_ep = EPOUT_REG(rhport);
+  dwc2_epin_t   * in_ep  = EPIN_REG(rhport);
 
   tu_memclr(xfer_status, sizeof(xfer_status));
   _out_ep_closed = false;
@@ -133,8 +129,8 @@ static void bus_reset(uint8_t rhport)
 
   // 2. Un-mask interrupt bits
   dev->DAINTMSK = (1 << DAINTMSK_OEPM_Pos) | (1 << DAINTMSK_IEPM_Pos);
-  dev->DOEPMSK = DOEPMSK_STUPM | DOEPMSK_XFRCM;
-  dev->DIEPMSK = DIEPMSK_TOM | DIEPMSK_XFRCM;
+  dev->DOEPMSK  = DOEPMSK_STUPM | DOEPMSK_XFRCM;
+  dev->DIEPMSK  = DIEPMSK_TOM | DIEPMSK_XFRCM;
 
   // "USB Data FIFOs" section in reference manual
   // Peripheral FIFO architecture
@@ -247,7 +243,7 @@ static void set_turnaround(dwc2_core_t * core, tusb_speed_t speed)
 static tusb_speed_t get_speed(uint8_t rhport)
 {
   (void) rhport;
-  dwc2_device_t * dev = DEVICE_BASE(rhport);
+  dwc2_device_t * dev = DEVICE_REG(rhport);
   uint32_t const enum_spd = (dev->DSTS & DSTS_ENUMSPD_Msk) >> DSTS_ENUMSPD_Pos;
   return (enum_spd == DCD_HIGH_SPEED) ? TUSB_SPEED_HIGH : TUSB_SPEED_FULL;
 }
@@ -265,7 +261,7 @@ static void set_speed(uint8_t rhport, tusb_speed_t speed)
     bitvalue = DCD_FULL_SPEED;
   }
 
-  dwc2_device_t * dev = DEVICE_BASE(rhport);
+  dwc2_device_t * dev = DEVICE_REG(rhport);
 
   // Clear and set speed bits
   dev->DCFG &= ~(3 << DCFG_DSPD_Pos);
@@ -317,9 +313,9 @@ static void edpt_schedule_packets(uint8_t rhport, uint8_t const epnum, uint8_t c
 {
   (void) rhport;
 
-  dwc2_device_t * dev = DEVICE_BASE(rhport);
-  dwc2_epout_t * out_ep = OUT_EP_BASE(rhport);
-  dwc2_epin_t * in_ep = IN_EP_BASE(rhport);
+  dwc2_device_t * dev    = DEVICE_REG(rhport);
+  dwc2_epout_t  * out_ep = EPOUT_REG(rhport);
+  dwc2_epin_t   * in_ep  = EPIN_REG(rhport);
 
   // EP0 is limited to one packet each xfer
   // We use multiple transaction of xfer->max_size length to get a whole transfer done
@@ -336,6 +332,7 @@ static void edpt_schedule_packets(uint8_t rhport, uint8_t const epnum, uint8_t c
         ((total_bytes << DIEPTSIZ_XFRSIZ_Pos) & DIEPTSIZ_XFRSIZ_Msk);
 
     in_ep[epnum].DIEPCTL |= DIEPCTL_EPENA | DIEPCTL_CNAK;
+
     // For ISO endpoint set correct odd/even bit for next frame.
     if ((in_ep[epnum].DIEPCTL & DIEPCTL_EPTYP) == DIEPCTL_EPTYP_0 && (XFER_CTL_BASE(epnum, dir))->interval == 1)
     {
@@ -370,7 +367,7 @@ void dcd_init (uint8_t rhport)
 {
   // Programming model begins in the last section of the chapter on the USB
   // peripheral in each Reference Manual.
-  dwc2_core_t * core = GLOBAL_BASE(rhport);
+  dwc2_core_t * core = CORE_REG(rhport);
 
   // No HNP/SRP (no OTG support), program timeout later.
   if ( rhport == 1 )
@@ -422,7 +419,7 @@ void dcd_init (uint8_t rhport)
   // the core to stop working/require reset.
   core->GINTMSK |= GINTMSK_OTGINT | GINTMSK_MMISM;
 
-  dwc2_device_t * dev = DEVICE_BASE(rhport);
+  dwc2_device_t * dev = DEVICE_REG(rhport);
 
   // If USB host misbehaves during status portion of control xfer
   // (non zero-length packet), send STALL back and discard.
@@ -433,9 +430,8 @@ void dcd_init (uint8_t rhport)
   // Enable internal USB transceiver, unless using HS core (port 1) with external PHY.
   if (!(rhport == 1 && (CFG_TUSB_RHPORT1_MODE & OPT_MODE_HIGH_SPEED))) core->GCCFG |= GCCFG_PWRDWN;
 
-  core->GINTMSK |= GINTMSK_USBRST   | GINTMSK_ENUMDNEM |
-                      GINTMSK_USBSUSPM | GINTMSK_WUIM     |
-                      GINTMSK_RXFLVLM  | (USE_SOF ? GINTMSK_SOFM : 0);
+  core->GINTMSK |= GINTMSK_USBRST | GINTMSK_ENUMDNEM | GINTMSK_USBSUSPM |
+                   GINTMSK_WUIM   | GINTMSK_RXFLVLM;
 
   // Enable global interrupt
   core->GAHBCFG |= GAHBCFG_GINT;
@@ -457,7 +453,7 @@ void dcd_int_disable (uint8_t rhport)
 
 void dcd_set_address (uint8_t rhport, uint8_t dev_addr)
 {
-  dwc2_device_t * dev = DEVICE_BASE(rhport);
+  dwc2_device_t * dev = DEVICE_REG(rhport);
   dev->DCFG = (dev->DCFG & ~DCFG_DAD_Msk) | (dev_addr << DCFG_DAD_Pos);
 
   // Response with status after changing device address
@@ -478,8 +474,8 @@ void dcd_remote_wakeup(uint8_t rhport)
 {
   (void) rhport;
 
-  dwc2_core_t * core = GLOBAL_BASE(rhport);
-  dwc2_device_t * dev = DEVICE_BASE(rhport);
+  dwc2_core_t   * core = CORE_REG(rhport);
+  dwc2_device_t * dev  = DEVICE_REG(rhport);
 
   // set remote wakeup
   dev->DCTL |= DCTL_RWUSIG;
@@ -497,14 +493,14 @@ void dcd_remote_wakeup(uint8_t rhport)
 void dcd_connect(uint8_t rhport)
 {
   (void) rhport;
-  dwc2_device_t * dev = DEVICE_BASE(rhport);
+  dwc2_device_t * dev = DEVICE_REG(rhport);
   dev->DCTL &= ~DCTL_SDIS;
 }
 
 void dcd_disconnect(uint8_t rhport)
 {
   (void) rhport;
-  dwc2_device_t * dev = DEVICE_BASE(rhport);
+  dwc2_device_t * dev = DEVICE_REG(rhport);
   dev->DCTL |= DCTL_SDIS;
 }
 
@@ -517,10 +513,10 @@ bool dcd_edpt_open (uint8_t rhport, tusb_desc_endpoint_t const * desc_edpt)
 {
   (void) rhport;
 
-  dwc2_core_t * core = GLOBAL_BASE(rhport);
-  dwc2_device_t * dev = DEVICE_BASE(rhport);
-  dwc2_epout_t * out_ep = OUT_EP_BASE(rhport);
-  dwc2_epin_t * in_ep = IN_EP_BASE(rhport);
+  dwc2_core_t   * core   = CORE_REG(rhport);
+  dwc2_device_t * dev    = DEVICE_REG(rhport);
+  dwc2_epout_t  * out_ep = EPOUT_REG(rhport);
+  dwc2_epin_t   * in_ep  = EPIN_REG(rhport);
 
   uint8_t const epnum = tu_edpt_number(desc_edpt->bEndpointAddress);
   uint8_t const dir   = tu_edpt_dir(desc_edpt->bEndpointAddress);
@@ -605,10 +601,10 @@ void dcd_edpt_close_all (uint8_t rhport)
 {
   (void) rhport;
 
-//  dwc2_core_t * core = GLOBAL_BASE(rhport);
-  dwc2_device_t * dev = DEVICE_BASE(rhport);
-  dwc2_epout_t * out_ep = OUT_EP_BASE(rhport);
-  dwc2_epin_t * in_ep = IN_EP_BASE(rhport);
+//  dwc2_core_t * core = CORE_REG(rhport);
+  dwc2_device_t * dev    = DEVICE_REG(rhport);
+  dwc2_epout_t  * out_ep = EPOUT_REG(rhport);
+  dwc2_epin_t   * in_ep  = EPIN_REG(rhport);
 
   // Disable non-control interrupt
   dev->DAINTMSK = (1 << DAINTMSK_OEPM_Pos) | (1 << DAINTMSK_IEPM_Pos);
@@ -693,10 +689,10 @@ static void dcd_edpt_disable (uint8_t rhport, uint8_t ep_addr, bool stall)
 {
   (void) rhport;
 
-  dwc2_core_t * core = GLOBAL_BASE(rhport);
-  dwc2_device_t * dev = DEVICE_BASE(rhport);
-  dwc2_epout_t * out_ep = OUT_EP_BASE(rhport);
-  dwc2_epin_t * in_ep = IN_EP_BASE(rhport);
+  dwc2_core_t   * core   = CORE_REG(rhport);
+  dwc2_device_t * dev    = DEVICE_REG(rhport);
+  dwc2_epout_t  * out_ep = EPOUT_REG(rhport);
+  dwc2_epin_t   * in_ep  = EPIN_REG(rhport);
 
   uint8_t const epnum = tu_edpt_number(ep_addr);
   uint8_t const dir   = tu_edpt_dir(ep_addr);
@@ -748,7 +744,7 @@ static void dcd_edpt_disable (uint8_t rhport, uint8_t ep_addr, bool stall)
  */
 void dcd_edpt_close (uint8_t rhport, uint8_t ep_addr)
 {
-  dwc2_core_t * core = GLOBAL_BASE(rhport);
+  dwc2_core_t * core = CORE_REG(rhport);
 
   uint8_t const epnum = tu_edpt_number(ep_addr);
   uint8_t const dir   = tu_edpt_dir(ep_addr);
@@ -781,8 +777,8 @@ void dcd_edpt_clear_stall (uint8_t rhport, uint8_t ep_addr)
 {
   (void) rhport;
 
-  dwc2_epout_t * out_ep = OUT_EP_BASE(rhport);
-  dwc2_epin_t * in_ep = IN_EP_BASE(rhport);
+  dwc2_epout_t * out_ep = EPOUT_REG(rhport);
+  dwc2_epin_t  * in_ep  = EPIN_REG(rhport);
 
   uint8_t const epnum = tu_edpt_number(ep_addr);
   uint8_t const dir   = tu_edpt_dir(ep_addr);
@@ -861,14 +857,14 @@ static void write_fifo_packet(uint8_t rhport, uint8_t fifo_num, uint8_t * src, u
 }
 
 static void handle_rxflvl_ints(uint8_t rhport, dwc2_epout_t * out_ep) {
-  dwc2_core_t * core = GLOBAL_BASE(rhport);
+  dwc2_core_t * core = CORE_REG(rhport);
   usb_fifo_t rx_fifo = FIFO_BASE(rhport, 0);
 
   // Pop control word off FIFO
   uint32_t ctl_word = core->GRXSTSP;
-  uint8_t pktsts = (ctl_word & GRXSTSP_PKTSTS_Msk) >> GRXSTSP_PKTSTS_Pos;
-  uint8_t epnum = (ctl_word &  GRXSTSP_EPNUM_Msk) >>  GRXSTSP_EPNUM_Pos;
-  uint16_t bcnt = (ctl_word & GRXSTSP_BCNT_Msk) >> GRXSTSP_BCNT_Pos;
+  uint8_t pktsts    = (ctl_word & GRXSTSP_PKTSTS_Msk) >> GRXSTSP_PKTSTS_Pos;
+  uint8_t epnum     = (ctl_word & GRXSTSP_EPNUM_Msk) >>  GRXSTSP_EPNUM_Pos;
+  uint16_t bcnt     = (ctl_word & GRXSTSP_BCNT_Msk) >> GRXSTSP_BCNT_Pos;
 
   switch(pktsts) {
     case 0x01: // Global OUT NAK (Interrupt)
@@ -1025,10 +1021,10 @@ static void handle_epin_ints(uint8_t rhport, dwc2_device_t * dev, dwc2_epin_t * 
 
 void dcd_int_handler(uint8_t rhport)
 {
-  dwc2_core_t * core = GLOBAL_BASE(rhport);
-  dwc2_device_t * dev = DEVICE_BASE(rhport);
-  dwc2_epout_t * out_ep = OUT_EP_BASE(rhport);
-  dwc2_epin_t * in_ep = IN_EP_BASE(rhport);
+  dwc2_core_t   * core   = CORE_REG(rhport);
+  dwc2_device_t * dev    = DEVICE_REG(rhport);
+  dwc2_epout_t  * out_ep = EPOUT_REG(rhport);
+  dwc2_epin_t   * in_ep  = EPIN_REG(rhport);
 
   uint32_t const int_status = core->GINTSTS & core->GINTMSK;
 
