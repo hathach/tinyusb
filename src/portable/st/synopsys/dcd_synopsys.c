@@ -622,10 +622,10 @@ bool dcd_edpt_open (uint8_t rhport, tusb_desc_endpoint_t const * desc_edpt)
   TU_ASSERT(epnum < EP_MAX);
 
   xfer_ctl_t * xfer = XFER_CTL_BASE(epnum, dir);
-  xfer->max_size = desc_edpt->wMaxPacketSize.size;
+  xfer->max_size = tu_edpt_packet_size(desc_edpt);
   xfer->interval = desc_edpt->bInterval;
 
-  uint16_t const fifo_size = (desc_edpt->wMaxPacketSize.size + 3) / 4; // Round up to next full word
+  uint16_t const fifo_size = (xfer->max_size + 3) / 4; // Round up to next full word
 
   if(dir == TUSB_DIR_OUT)
   {
@@ -644,7 +644,7 @@ bool dcd_edpt_open (uint8_t rhport, tusb_desc_endpoint_t const * desc_edpt)
     out_ep[epnum].DOEPCTL |= (1 << USB_OTG_DOEPCTL_USBAEP_Pos)        |
         (desc_edpt->bmAttributes.xfer << USB_OTG_DOEPCTL_EPTYP_Pos)   |
         (desc_edpt->bmAttributes.xfer != TUSB_XFER_ISOCHRONOUS ? USB_OTG_DOEPCTL_SD0PID_SEVNFRM : 0) |
-        (desc_edpt->wMaxPacketSize.size << USB_OTG_DOEPCTL_MPSIZ_Pos);
+        (xfer->max_size << USB_OTG_DOEPCTL_MPSIZ_Pos);
 
     dev->DAINTMSK |= (1 << (USB_OTG_DAINTMSK_OEPM_Pos + epnum));
   }
@@ -686,7 +686,7 @@ bool dcd_edpt_open (uint8_t rhport, tusb_desc_endpoint_t const * desc_edpt)
         (epnum << USB_OTG_DIEPCTL_TXFNUM_Pos) |
         (desc_edpt->bmAttributes.xfer << USB_OTG_DIEPCTL_EPTYP_Pos) |
         (desc_edpt->bmAttributes.xfer != TUSB_XFER_ISOCHRONOUS ? USB_OTG_DIEPCTL_SD0PID_SEVNFRM : 0) |
-        (desc_edpt->wMaxPacketSize.size << USB_OTG_DIEPCTL_MPSIZ_Pos);
+        (xfer->max_size << USB_OTG_DIEPCTL_MPSIZ_Pos);
 
     dev->DAINTMSK |= (1 << (USB_OTG_DAINTMSK_IEPM_Pos + epnum));
   }

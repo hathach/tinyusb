@@ -323,7 +323,7 @@ bool dcd_edpt_open(uint8_t rhport, tusb_desc_endpoint_t const * ep_desc)
   /* No support for control transfer */
   TU_ASSERT(epn && (xfer != TUSB_XFER_CONTROL));
 
-  ep->max_packet_size = ep_desc->wMaxPacketSize.size;
+  ep->max_packet_size = tu_edpt_packet_size(ep_desc);
   unsigned val = USB_ENDPT_EPCTLDIS_MASK;
   val |= (xfer != TUSB_XFER_ISOCHRONOUS) ? USB_ENDPT_EPHSHK_MASK: 0;
   val |= dir ? USB_ENDPT_EPTXEN_MASK : USB_ENDPT_EPRXEN_MASK;

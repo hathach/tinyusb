@@ -365,7 +365,7 @@ bool dcd_edpt_open(uint8_t rhport, tusb_desc_endpoint_t const * p_endpoint_desc)
   tu_memclr(p_qhd, sizeof(dcd_qhd_t));
 
   p_qhd->zero_length_termination = 1;
-  p_qhd->max_packet_size         = p_endpoint_desc->wMaxPacketSize.size;
+  p_qhd->max_packet_size         = tu_edpt_packet_size(p_endpoint_desc);
   if (p_endpoint_desc->bmAttributes.xfer == TUSB_XFER_ISOCHRONOUS)
   {
     p_qhd->iso_mult = 1;

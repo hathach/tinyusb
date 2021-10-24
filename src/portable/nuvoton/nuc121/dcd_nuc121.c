@@ -279,7 +279,7 @@ bool dcd_edpt_open(uint8_t rhport, tusb_desc_endpoint_t const * p_endpoint_desc)
 
   /* mine the data for the information we need */
   int const dir = tu_edpt_dir(p_endpoint_desc->bEndpointAddress);
-  int const size = p_endpoint_desc->wMaxPacketSize.size;
+  int const size = tu_edpt_packet_size(p_endpoint_desc);
   tusb_xfer_type_t const type = (tusb_xfer_type_t) p_endpoint_desc->bmAttributes.xfer;
   struct xfer_ctl_t *xfer = &xfer_table[ep - USBD->EP];
 

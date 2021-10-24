@@ -307,7 +307,7 @@ bool hidh_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_interface_t const *de
 
   hid_itf->itf_num   = desc_itf->bInterfaceNumber;
   hid_itf->ep_in     = desc_ep->bEndpointAddress;
-  hid_itf->epin_size = desc_ep->wMaxPacketSize.size;
+  hid_itf->epin_size = tu_edpt_packet_size(desc_ep);
 
   // Assume bNumDescriptors = 1
   hid_itf->report_desc_type = desc_hid->bReportType;

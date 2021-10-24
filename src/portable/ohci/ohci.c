@@ -412,7 +412,7 @@ bool hcd_edpt_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_endpoint_t const 
   }
   TU_ASSERT(p_ed);
 
-  ed_init( p_ed, dev_addr, ep_desc->wMaxPacketSize.size, ep_desc->bEndpointAddress,
+  ed_init( p_ed, dev_addr, tu_edpt_packet_size(ep_desc), ep_desc->bEndpointAddress,
             ep_desc->bmAttributes.xfer, ep_desc->bInterval );
 
   // control of dev0 is used as static async head

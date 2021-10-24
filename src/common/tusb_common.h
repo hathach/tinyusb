@@ -38,20 +38,21 @@
 #define TU_MIN(_x, _y)        ( ( (_x) < (_y) ) ? (_x) : (_y) )
 #define TU_MAX(_x, _y)        ( ( (_x) > (_y) ) ? (_x) : (_y) )
 
-#define TU_U16_HIGH(_u16)      ((uint8_t) (((_u16) >> 8) & 0x00ff))
-#define TU_U16_LOW(_u16)       ((uint8_t) ((_u16)       & 0x00ff))
-#define U16_TO_U8S_BE(_u16)    TU_U16_HIGH(_u16), TU_U16_LOW(_u16)
-#define U16_TO_U8S_LE(_u16)    TU_U16_LOW(_u16), TU_U16_HIGH(_u16)
+#define TU_U16_HIGH(_u16)     ((uint8_t) (((_u16) >> 8) & 0x00ff))
+#define TU_U16_LOW(_u16)      ((uint8_t) ((_u16)       & 0x00ff))
+#define U16_TO_U8S_BE(_u16)   TU_U16_HIGH(_u16), TU_U16_LOW(_u16)
+#define U16_TO_U8S_LE(_u16)   TU_U16_LOW(_u16), TU_U16_HIGH(_u16)
 
-#define TU_U32_BYTE3(_u32)     ((uint8_t) ((((uint32_t) _u32) >> 24) & 0x000000ff)) // MSB
-#define TU_U32_BYTE2(_u32)     ((uint8_t) ((((uint32_t) _u32) >> 16) & 0x000000ff))
-#define TU_U32_BYTE1(_u32)     ((uint8_t) ((((uint32_t) _u32) >>  8) & 0x000000ff))
-#define TU_U32_BYTE0(_u32)     ((uint8_t) (((uint32_t)  _u32)        & 0x000000ff)) // LSB
+#define TU_U32_BYTE3(_u32)    ((uint8_t) ((((uint32_t) _u32) >> 24) & 0x000000ff)) // MSB
+#define TU_U32_BYTE2(_u32)    ((uint8_t) ((((uint32_t) _u32) >> 16) & 0x000000ff))
+#define TU_U32_BYTE1(_u32)    ((uint8_t) ((((uint32_t) _u32) >>  8) & 0x000000ff))
+#define TU_U32_BYTE0(_u32)    ((uint8_t) (((uint32_t)  _u32)        & 0x000000ff)) // LSB
 
-#define U32_TO_U8S_BE(_u32)    TU_U32_BYTE3(_u32), TU_U32_BYTE2(_u32), TU_U32_BYTE1(_u32), TU_U32_BYTE0(_u32)
-#define U32_TO_U8S_LE(_u32)    TU_U32_BYTE0(_u32), TU_U32_BYTE1(_u32), TU_U32_BYTE2(_u32), TU_U32_BYTE3(_u32)
+#define U32_TO_U8S_BE(_u32)   TU_U32_BYTE3(_u32), TU_U32_BYTE2(_u32), TU_U32_BYTE1(_u32), TU_U32_BYTE0(_u32)
+#define U32_TO_U8S_LE(_u32)   TU_U32_BYTE0(_u32), TU_U32_BYTE1(_u32), TU_U32_BYTE2(_u32), TU_U32_BYTE3(_u32)
 
 #define TU_BIT(n)             (1UL << (n))
+#define TU_GENMASK(h, l)      ( (UINT32_MAX << (l)) & (UINT32_MAX >> (31 - (h))) )
 
 //--------------------------------------------------------------------+
 // Includes

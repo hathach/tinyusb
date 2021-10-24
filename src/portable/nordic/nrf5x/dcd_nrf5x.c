@@ -311,7 +311,7 @@ bool dcd_edpt_open (uint8_t rhport, tusb_desc_endpoint_t const * desc_edpt)
   uint8_t const epnum   = tu_edpt_number(ep_addr);
   uint8_t const dir     = tu_edpt_dir(ep_addr);
 
-  _dcd.xfer[epnum][dir].mps = desc_edpt->wMaxPacketSize.size;
+  _dcd.xfer[epnum][dir].mps = tu_edpt_packet_size(desc_edpt);
 
   if (desc_edpt->bmAttributes.xfer != TUSB_XFER_ISOCHRONOUS)
   {

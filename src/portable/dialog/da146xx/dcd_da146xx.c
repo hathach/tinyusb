@@ -914,7 +914,7 @@ bool dcd_edpt_open(uint8_t rhport, tusb_desc_endpoint_t const * desc_edpt)
 
   TU_ASSERT(epnum < EP_MAX);
 
-  xfer->max_packet_size = desc_edpt->wMaxPacketSize.size;
+  xfer->max_packet_size = tu_edpt_packet_size(desc_edpt);
   xfer->ep_addr = desc_edpt->bEndpointAddress;
   xfer->data1 = 0;
   xfer->iso = 0;

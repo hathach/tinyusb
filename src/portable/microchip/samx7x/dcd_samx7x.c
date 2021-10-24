@@ -460,7 +460,7 @@ bool dcd_edpt_open (uint8_t rhport, tusb_desc_endpoint_t const * ep_desc)
   (void) rhport;
   uint8_t const epnum = tu_edpt_number(ep_desc->bEndpointAddress);
   uint8_t const dir   = tu_edpt_dir(ep_desc->bEndpointAddress);
-  uint16_t const epMaxPktSize = ep_desc->wMaxPacketSize.size;
+  uint16_t const epMaxPktSize = tu_edpt_packet_size(ep_desc);
   tusb_xfer_type_t const eptype = (tusb_xfer_type_t)ep_desc->bmAttributes.xfer;
   uint8_t fifoSize = 0;                       // FIFO size
   uint16_t defaultEndpointSize = 8;           // Default size of Endpoint

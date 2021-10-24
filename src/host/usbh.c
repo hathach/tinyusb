@@ -1172,7 +1172,7 @@ static bool usbh_edpt_control_open(uint8_t dev_addr, uint8_t max_packet_size)
     .bDescriptorType  = TUSB_DESC_ENDPOINT,
     .bEndpointAddress = 0,
     .bmAttributes     = { .xfer = TUSB_XFER_CONTROL },
-    .wMaxPacketSize   = { .size = max_packet_size },
+    .wMaxPacketSize   = max_packet_size,
     .bInterval        = 0
   };
 

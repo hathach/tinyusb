@@ -454,7 +454,7 @@ bool hcd_edpt_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_endpoint_t const 
     _hw_endpoint_init(ep,
         dev_addr,
         ep_desc->bEndpointAddress,
-        ep_desc->wMaxPacketSize.size,
+        tu_edpt_packet_size(ep_desc),
         ep_desc->bmAttributes.xfer,
         ep_desc->bInterval);
 

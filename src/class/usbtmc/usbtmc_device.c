@@ -280,7 +280,7 @@ uint16_t usbtmcd_open_cb(uint8_t rhport, tusb_desc_interface_t const * itf_desc,
       tusb_desc_endpoint_t const *ep_desc = (tusb_desc_endpoint_t const *)p_desc;
       switch(ep_desc->bmAttributes.xfer) {
         case TUSB_XFER_BULK:
-          TU_ASSERT(ep_desc->wMaxPacketSize.size == USBTMCD_MAX_PACKET_SIZE, 0);
+          TU_ASSERT(tu_edpt_packet_size(ep_desc) == USBTMCD_MAX_PACKET_SIZE, 0);
           if (tu_edpt_dir(ep_desc->bEndpointAddress) == TUSB_DIR_IN)
           {
             usbtmc_state.ep_bulk_in = ep_desc->bEndpointAddress;

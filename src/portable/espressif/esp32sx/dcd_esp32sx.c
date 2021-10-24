@@ -256,17 +256,16 @@ bool dcd_edpt_open(uint8_t rhport, tusb_desc_endpoint_t const *desc_edpt)
   uint8_t const epnum = tu_edpt_number(desc_edpt->bEndpointAddress);
   uint8_t const dir = tu_edpt_dir(desc_edpt->bEndpointAddress);
 
-  TU_ASSERT(desc_edpt->wMaxPacketSize.size <= 64);
   TU_ASSERT(epnum < EP_MAX);
 
   xfer_ctl_t *xfer = XFER_CTL_BASE(epnum, dir);
-  xfer->max_size = desc_edpt->wMaxPacketSize.size;
+  xfer->max_size = tu_edpt_packet_size(desc_edpt);
 
   if (dir == TUSB_DIR_OUT) {
     out_ep[epnum].doepctl |= USB_USBACTEP1_M |
                              desc_edpt->bmAttributes.xfer << USB_EPTYPE1_S |
                              (desc_edpt->bmAttributes.xfer != TUSB_XFER_ISOCHRONOUS ? USB_DO_SETD0PID1_M : 0) |
-                             desc_edpt->wMaxPacketSize.size << USB_MPS1_S;
+                             xfer->max_size << USB_MPS1_S;
     USB0.daintmsk |= (1 << (16 + epnum));
   } else {
     // "USB Data FIFOs" section in reference manual
@@ -300,7 +299,7 @@ bool dcd_edpt_open(uint8_t rhport, tusb_desc_endpoint_t const *desc_edpt)
                             fifo_num << USB_D_TXFNUM1_S |
                             desc_edpt->bmAttributes.xfer << USB_D_EPTYPE1_S |
                             (desc_edpt->bmAttributes.xfer != TUSB_XFER_ISOCHRONOUS ? (1 << USB_DI_SETD0PID1_S) : 0) |
-                            desc_edpt->wMaxPacketSize.size << 0;
+                            xfer->max_size << 0;
 
     USB0.daintmsk |= (1 << (0 + epnum));
 

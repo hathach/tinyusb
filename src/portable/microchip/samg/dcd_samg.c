@@ -258,7 +258,7 @@ bool dcd_edpt_open (uint8_t rhport, tusb_desc_endpoint_t const * ep_desc)
   // Must not already enabled
   TU_ASSERT((UDP->UDP_CSR[epnum] & UDP_CSR_EPEDS_Msk) == 0);
 
-  xfer_epsize_set(&_dcd_xfer[epnum], ep_desc->wMaxPacketSize.size);
+  xfer_epsize_set(&_dcd_xfer[epnum], tu_edpt_packet_size(ep_desc));
 
   // Configure type and enable EP
   csr_write(epnum, UDP_CSR_EPEDS_Msk | UDP_CSR_EPTYPE(ep_desc->bmAttributes.xfer + 4*dir));
