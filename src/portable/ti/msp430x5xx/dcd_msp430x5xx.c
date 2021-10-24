@@ -547,6 +547,7 @@ static void transmit_packet(uint8_t ep_num)
   }
 
   // Then actually commit to transmit a packet.
+  uint8_t * base = (xfer->buffer + xfer->queued_len);
   uint16_t remaining = xfer->total_len - xfer->queued_len;
   uint8_t xfer_size = (xfer->max_size < xfer->total_len) ? xfer->max_size : remaining;
 
@@ -560,7 +561,6 @@ static void transmit_packet(uint8_t ep_num)
   if(ep_num == 0)
   {
     volatile uint8_t * ep0in_buf = &USBIEP0BUF;
-    uint8_t * base = (xfer->buffer + xfer->queued_len);
     for(uint16_t i = 0; i < xfer_size; i++)
     {
       ep0in_buf[i] = base[i];
@@ -582,7 +582,6 @@ static void transmit_packet(uint8_t ep_num)
     else
 #endif
     {
-      uint8_t * base = (xfer->buffer + xfer->queued_len);
       for(int i = 0; i < xfer_size; i++)
       {
         ep_buf[i] = base[i];
