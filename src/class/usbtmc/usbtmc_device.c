@@ -280,7 +280,7 @@ uint16_t usbtmcd_open_cb(uint8_t rhport, tusb_desc_interface_t const * itf_desc,
       tusb_desc_endpoint_t const *ep_desc = (tusb_desc_endpoint_t const *)p_desc;
       switch(ep_desc->bmAttributes.xfer) {
         case TUSB_XFER_BULK:
-          TU_ASSERT(ep_desc->wMaxPacketSize.size == USBTMCD_MAX_PACKET_SIZE, 0);
+          TU_ASSERT(tu_edpt_packet_size(ep_desc) == USBTMCD_MAX_PACKET_SIZE, 0);
           if (tu_edpt_dir(ep_desc->bEndpointAddress) == TUSB_DIR_IN)
           {
             usbtmc_state.ep_bulk_in = ep_desc->bEndpointAddress;
@@ -522,21 +522,21 @@ bool usbtmcd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint
     case STATE_TX_INITIATED:
       if(usbtmc_state.transfer_size_remaining >=sizeof(usbtmc_state.ep_bulk_in_buf))
       {
-          // FIXME! This removes const below!
-          TU_VERIFY( usbd_edpt_xfer(rhport, usbtmc_state.ep_bulk_in,
-              (void*)(uintptr_t) usbtmc_state.devInBuffer, sizeof(usbtmc_state.ep_bulk_in_buf)));
-          usbtmc_state.devInBuffer += sizeof(usbtmc_state.ep_bulk_in_buf);
-          usbtmc_state.transfer_size_remaining -= sizeof(usbtmc_state.ep_bulk_in_buf);
-          usbtmc_state.transfer_size_sent += sizeof(usbtmc_state.ep_bulk_in_buf);
+        // FIXME! This removes const below!
+        TU_VERIFY( usbd_edpt_xfer(rhport, usbtmc_state.ep_bulk_in,
+            (void*)(uintptr_t) usbtmc_state.devInBuffer, sizeof(usbtmc_state.ep_bulk_in_buf)));
+        usbtmc_state.devInBuffer += sizeof(usbtmc_state.ep_bulk_in_buf);
+        usbtmc_state.transfer_size_remaining -= sizeof(usbtmc_state.ep_bulk_in_buf);
+        usbtmc_state.transfer_size_sent += sizeof(usbtmc_state.ep_bulk_in_buf);
       }
       else // last packet
       {
-      size_t packetLen = usbtmc_state.transfer_size_remaining;
-      memcpy(usbtmc_state.ep_bulk_in_buf, usbtmc_state.devInBuffer, usbtmc_state.transfer_size_remaining);
-        usbtmc_state.transfer_size_sent += sizeof(usbtmc_state.transfer_size_remaining);
-      usbtmc_state.transfer_size_remaining = 0;
-      usbtmc_state.devInBuffer = NULL;
-      TU_VERIFY( usbd_edpt_xfer(rhport, usbtmc_state.ep_bulk_in, usbtmc_state.ep_bulk_in_buf,(uint16_t)packetLen));
+        size_t packetLen = usbtmc_state.transfer_size_remaining;
+        memcpy(usbtmc_state.ep_bulk_in_buf, usbtmc_state.devInBuffer, usbtmc_state.transfer_size_remaining);
+          usbtmc_state.transfer_size_sent += sizeof(usbtmc_state.transfer_size_remaining);
+        usbtmc_state.transfer_size_remaining = 0;
+        usbtmc_state.devInBuffer = NULL;
+        TU_VERIFY( usbd_edpt_xfer(rhport, usbtmc_state.ep_bulk_in, usbtmc_state.ep_bulk_in_buf, (uint16_t)packetLen) );
         if(((packetLen % USBTMCD_MAX_PACKET_SIZE) != 0) || (packetLen == 0 ))
         {
           usbtmc_state.state = STATE_TX_SHORTED;

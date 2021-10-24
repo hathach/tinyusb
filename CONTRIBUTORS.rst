@@ -110,7 +110,7 @@ Notable contributors
 `Rafael Silva <https://github.com/perigoso>`__
 ----------------------------------------------
 
--  Add new DCD port for Silabs EFM32GG12 with SLTB009A board
+-  Port DCD Synopsys to support Silabs EFM32GG12 with SLTB009A board
 -  Rewrite documentation in rst and setup for readthedocs
 
 

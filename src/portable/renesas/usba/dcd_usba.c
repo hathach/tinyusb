@@ -695,7 +695,7 @@ bool dcd_edpt_open(uint8_t rhport, tusb_desc_endpoint_t const * ep_desc)
   const unsigned dir     = tu_edpt_dir(ep_addr);
   const unsigned xfer    = ep_desc->bmAttributes.xfer;
 
-  const unsigned mps = tu_le16toh(ep_desc->wMaxPacketSize.size);
+  const unsigned mps = tu_edpt_packet_size(ep_desc);
   if (xfer == TUSB_XFER_ISOCHRONOUS && mps > 256) {
     /* USBa supports up to 256 bytes */
     return false;

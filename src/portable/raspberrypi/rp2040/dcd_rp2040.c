@@ -426,7 +426,7 @@ void dcd_edpt0_status_complete(uint8_t rhport, tusb_control_request_t const * re
 bool dcd_edpt_open (__unused uint8_t rhport, tusb_desc_endpoint_t const * desc_edpt)
 {
     assert(rhport == 0);
-    hw_endpoint_init(desc_edpt->bEndpointAddress, desc_edpt->wMaxPacketSize.size, desc_edpt->bmAttributes.xfer);
+    hw_endpoint_init(desc_edpt->bEndpointAddress, tu_edpt_packet_size(desc_edpt), desc_edpt->bmAttributes.xfer);
     return true;
 }
 

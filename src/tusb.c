@@ -69,7 +69,7 @@ bool tusb_inited(void)
 
 bool tu_edpt_validate(tusb_desc_endpoint_t const * desc_ep, tusb_speed_t speed)
 {
-  uint16_t const max_packet_size = tu_le16toh(desc_ep->wMaxPacketSize.size);
+  uint16_t const max_packet_size = tu_edpt_packet_size(desc_ep);
   TU_LOG2("  Open EP %02X with Size = %u\r\n", desc_ep->bEndpointAddress, max_packet_size);
 
   switch (desc_ep->bmAttributes.xfer)

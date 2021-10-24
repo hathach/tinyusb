@@ -582,11 +582,11 @@ static bool _open_vs_itf(uint8_t rhport, videod_streaming_interface_t *stm, uint
     TU_ASSERT(cur < end);
     tusb_desc_endpoint_t const *ep = (tusb_desc_endpoint_t const*)cur;
     if (!stm->max_payload_transfer_size) {
-      video_probe_and_commit_control_t const *param =
-        (video_probe_and_commit_control_t const*)&stm->ep_buf;
+      video_probe_and_commit_control_t const *param = (video_probe_and_commit_control_t const*)&stm->ep_buf;
       uint_fast32_t max_size = param->dwMaxPayloadTransferSize;
       if ((TUSB_XFER_ISOCHRONOUS == ep->bmAttributes.xfer) &&
-          (ep->wMaxPacketSize.size < max_size)) {
+          (tu_edpt_packet_size(ep) < max_size))
+      {
         /* FS must be less than or equal to max packet size */
         return false;
       }

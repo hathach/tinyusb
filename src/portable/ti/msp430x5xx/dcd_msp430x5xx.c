@@ -242,7 +242,7 @@ bool dcd_edpt_open (uint8_t rhport, tusb_desc_endpoint_t const * desc_edpt)
   }
 
   xfer_ctl_t * xfer = XFER_CTL_BASE(epnum, dir);
-  xfer->max_size = desc_edpt->wMaxPacketSize.size;
+  xfer->max_size = tu_edpt_packet_size(desc_edpt);
 
   // Buffer allocation scheme:
   // For simplicity, only single buffer for now, since tinyusb currently waits
@@ -275,7 +275,7 @@ bool dcd_edpt_open (uint8_t rhport, tusb_desc_endpoint_t const * desc_edpt)
   // Also, DBUF got set on OUT EP 2 while debugging. Only OUT EPs seem to be
   // affected at this time. USB RAM directly precedes main RAM; perhaps I'm
   // overwriting registers via buffer overflow w/ my debugging code?
-  ep_regs[SIZXY] = desc_edpt->wMaxPacketSize.size;
+  ep_regs[SIZXY] = tu_edpt_packet_size(desc_edpt);
   ep_regs[BCTX] |= NAK;
   ep_regs[BBAX] = buf_base;
   ep_regs[CNF] &= ~(TOGGLE | STALL | DBUF); // ISO xfers not supported on
