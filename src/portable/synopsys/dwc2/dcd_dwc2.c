@@ -83,7 +83,7 @@ xfer_ctl_t xfer_status[EP_MAX][2];
 // EP0 transfers are limited to 1 packet - larger sizes has to be split
 static uint16_t ep0_pending[2];                   // Index determines direction as tusb_dir_t type
 
-// TX FIFO RAM allocation so far in words - RX FIFO size is readily available from usb_otg->GRXFSIZ
+// TX FIFO RAM allocation so far in words - RX FIFO size is readily available from core->GRXFSIZ
 static uint16_t _allocated_fifo_words_tx;         // TX FIFO size in words (IN EPs)
 static bool _out_ep_closed;                       // Flag to check if RX FIFO size needs an update (reduce its size)
 
@@ -97,7 +97,7 @@ static void update_grxfsiz(uint8_t rhport)
 {
   (void) rhport;
 
-  dwc2_core_t * usb_otg = GLOBAL_BASE(rhport);
+  dwc2_core_t * core = GLOBAL_BASE(rhport);
 
   // Determine largest EP size for RX FIFO
   uint16_t max_epsize = 0;
@@ -107,7 +107,7 @@ static void update_grxfsiz(uint8_t rhport)
   }
 
   // Update size of RX FIFO
-  usb_otg->GRXFSIZ = calc_rx_ff_size(max_epsize);
+  core->GRXFSIZ = calc_rx_ff_size(max_epsize);
 }
 
 // Setup the control endpoint 0.
@@ -115,7 +115,7 @@ static void bus_reset(uint8_t rhport)
 {
   (void) rhport;
 
-  dwc2_core_t * usb_otg = GLOBAL_BASE(rhport);
+  dwc2_core_t * core = GLOBAL_BASE(rhport);
   dwc2_device_t * dev = DEVICE_BASE(rhport);
   dwc2_epout_t * out_ep = OUT_EP_BASE(rhport);
   dwc2_epin_t * in_ep = IN_EP_BASE(rhport);
@@ -186,12 +186,12 @@ static void bus_reset(uint8_t rhport)
   //   are enabled at least "2 x (Largest-EPsize/4) + 1" are recommended.  Maybe provide a macro for application to
   //   overwrite this.
 
-  usb_otg->GRXFSIZ = calc_rx_ff_size(TUD_OPT_HIGH_SPEED ? 512 : 64);
+  core->GRXFSIZ = calc_rx_ff_size(TUD_OPT_HIGH_SPEED ? 512 : 64);
 
   _allocated_fifo_words_tx = 16;
 
   // Control IN uses FIFO 0 with 64 bytes ( 16 32-bit word )
-  usb_otg->DIEPTXF0_HNPTXFSIZ = (16 << TX0FD_Pos) | (EP_FIFO_SIZE/4 - _allocated_fifo_words_tx);
+  core->DIEPTXF0_HNPTXFSIZ = (16 << TX0FD_Pos) | (EP_FIFO_SIZE/4 - _allocated_fifo_words_tx);
 
   // Fixed control EP0 size to 64 bytes
   in_ep[0].DIEPCTL &= ~(0x03 << DIEPCTL_MPSIZ_Pos);
@@ -199,19 +199,19 @@ static void bus_reset(uint8_t rhport)
 
   out_ep[0].DOEPTSIZ |= (3 << DOEPTSIZ_STUPCNT_Pos);
 
-  usb_otg->GINTMSK |= GINTMSK_OEPINT | GINTMSK_IEPINT;
+  core->GINTMSK |= GINTMSK_OEPINT | GINTMSK_IEPINT;
 }
 
 // Set turn-around timeout according to link speed
 extern uint32_t SystemCoreClock;
-static void set_turnaround(dwc2_core_t * usb_otg, tusb_speed_t speed)
+static void set_turnaround(dwc2_core_t * core, tusb_speed_t speed)
 {
-  usb_otg->GUSBCFG &= ~GUSBCFG_TRDT;
+  core->GUSBCFG &= ~GUSBCFG_TRDT;
 
   if ( speed == TUSB_SPEED_HIGH )
   {
     // Use fixed 0x09 for Highspeed
-    usb_otg->GUSBCFG |= (0x09 << GUSBCFG_TRDT_Pos);
+    core->GUSBCFG |= (0x09 << GUSBCFG_TRDT_Pos);
   }
   else
   {
@@ -240,7 +240,7 @@ static void set_turnaround(dwc2_core_t * usb_otg, tusb_speed_t speed)
       turnaround = 0xFU;
 
     // Fullspeed depends on MCU clocks, but we will use 0x06 for 32+ Mhz
-    usb_otg->GUSBCFG |= (turnaround << GUSBCFG_TRDT_Pos);
+    core->GUSBCFG |= (turnaround << GUSBCFG_TRDT_Pos);
   }
 }
 
@@ -370,7 +370,7 @@ void dcd_init (uint8_t rhport)
 {
   // Programming model begins in the last section of the chapter on the USB
   // peripheral in each Reference Manual.
-  dwc2_core_t * usb_otg = GLOBAL_BASE(rhport);
+  dwc2_core_t * core = GLOBAL_BASE(rhport);
 
   // No HNP/SRP (no OTG support), program timeout later.
   if ( rhport == 1 )
@@ -378,23 +378,23 @@ void dcd_init (uint8_t rhport)
     // On selected MCUs HS port1 can be used with external PHY via ULPI interface
 #if CFG_TUSB_RHPORT1_MODE & OPT_MODE_HIGH_SPEED
     // deactivate internal PHY
-    usb_otg->GCCFG &= ~GCCFG_PWRDWN;
+    core->GCCFG &= ~GCCFG_PWRDWN;
 
     // Init The UTMI Interface
-    usb_otg->GUSBCFG &= ~(GUSBCFG_TSDPS | GUSBCFG_ULPIFSLS | GUSBCFG_PHYSEL);
+    core->GUSBCFG &= ~(GUSBCFG_TSDPS | GUSBCFG_ULPIFSLS | GUSBCFG_PHYSEL);
 
     // Select default internal VBUS Indicator and Drive for ULPI
-    usb_otg->GUSBCFG &= ~(GUSBCFG_ULPIEVBUSD | GUSBCFG_ULPIEVBUSI);
+    core->GUSBCFG &= ~(GUSBCFG_ULPIEVBUSD | GUSBCFG_ULPIEVBUSI);
 #else
-    usb_otg->GUSBCFG |= GUSBCFG_PHYSEL;
+    core->GUSBCFG |= GUSBCFG_PHYSEL;
 #endif
 
 #if defined(USB_HS_PHYC)
     // Highspeed with embedded UTMI PHYC
 
     // Select UTMI Interface
-    usb_otg->GUSBCFG &= ~GUSBCFG_ULPI_UTMI_SEL;
-    usb_otg->GCCFG |= GCCFG_PHYHSEN;
+    core->GUSBCFG &= ~GUSBCFG_ULPI_UTMI_SEL;
+    core->GCCFG |= GCCFG_PHYHSEN;
 
     // Enables control of a High Speed USB PHY
     USB_HS_PHYCInit();
@@ -402,25 +402,25 @@ void dcd_init (uint8_t rhport)
   } else
   {
     // Enable internal PHY
-    usb_otg->GUSBCFG |= GUSBCFG_PHYSEL;
+    core->GUSBCFG |= GUSBCFG_PHYSEL;
   }
 
   // Reset core after selecting PHYst
   // Wait AHB IDLE, reset then wait until it is cleared
-  while ((usb_otg->GRSTCTL & GRSTCTL_AHBIDL) == 0U) {}
-  usb_otg->GRSTCTL |= GRSTCTL_CSRST;
-  while ((usb_otg->GRSTCTL & GRSTCTL_CSRST) == GRSTCTL_CSRST) {}
+  while ((core->GRSTCTL & GRSTCTL_AHBIDL) == 0U) {}
+  core->GRSTCTL |= GRSTCTL_CSRST;
+  while ((core->GRSTCTL & GRSTCTL_CSRST) == GRSTCTL_CSRST) {}
 
   // Restart PHY clock
   *((volatile uint32_t *)(DWC2_REG_BASE + DWC2_PCGCCTL_BASE)) = 0;
 
   // Clear all interrupts
-  usb_otg->GINTSTS |= usb_otg->GINTSTS;
+  core->GINTSTS |= core->GINTSTS;
 
   // Required as part of core initialization.
   // TODO: How should mode mismatch be handled? It will cause
   // the core to stop working/require reset.
-  usb_otg->GINTMSK |= GINTMSK_OTGINT | GINTMSK_MMISM;
+  core->GINTMSK |= GINTMSK_OTGINT | GINTMSK_MMISM;
 
   dwc2_device_t * dev = DEVICE_BASE(rhport);
 
@@ -431,14 +431,14 @@ void dcd_init (uint8_t rhport)
   set_speed(rhport, TUD_OPT_HIGH_SPEED ? TUSB_SPEED_HIGH : TUSB_SPEED_FULL);
 
   // Enable internal USB transceiver, unless using HS core (port 1) with external PHY.
-  if (!(rhport == 1 && (CFG_TUSB_RHPORT1_MODE & OPT_MODE_HIGH_SPEED))) usb_otg->GCCFG |= GCCFG_PWRDWN;
+  if (!(rhport == 1 && (CFG_TUSB_RHPORT1_MODE & OPT_MODE_HIGH_SPEED))) core->GCCFG |= GCCFG_PWRDWN;
 
-  usb_otg->GINTMSK |= GINTMSK_USBRST   | GINTMSK_ENUMDNEM |
-      GINTMSK_USBSUSPM | GINTMSK_WUIM     |
-      GINTMSK_RXFLVLM  | (USE_SOF ? GINTMSK_SOFM : 0);
+  core->GINTMSK |= GINTMSK_USBRST   | GINTMSK_ENUMDNEM |
+                      GINTMSK_USBSUSPM | GINTMSK_WUIM     |
+                      GINTMSK_RXFLVLM  | (USE_SOF ? GINTMSK_SOFM : 0);
 
   // Enable global interrupt
-  usb_otg->GAHBCFG |= GAHBCFG_GINT;
+  core->GAHBCFG |= GAHBCFG_GINT;
 
   dcd_connect(rhport);
 }
@@ -478,15 +478,15 @@ void dcd_remote_wakeup(uint8_t rhport)
 {
   (void) rhport;
 
-  dwc2_core_t * usb_otg = GLOBAL_BASE(rhport);
+  dwc2_core_t * core = GLOBAL_BASE(rhport);
   dwc2_device_t * dev = DEVICE_BASE(rhport);
 
   // set remote wakeup
   dev->DCTL |= DCTL_RWUSIG;
 
   // enable SOF to detect bus resume
-  usb_otg->GINTSTS = GINTSTS_SOF;
-  usb_otg->GINTMSK |= GINTMSK_SOFM;
+  core->GINTSTS = GINTSTS_SOF;
+  core->GINTMSK |= GINTMSK_SOFM;
 
   // Per specs: remote wakeup signal bit must be clear within 1-15ms
   remote_wakeup_delay();
@@ -517,7 +517,7 @@ bool dcd_edpt_open (uint8_t rhport, tusb_desc_endpoint_t const * desc_edpt)
 {
   (void) rhport;
 
-  dwc2_core_t * usb_otg = GLOBAL_BASE(rhport);
+  dwc2_core_t * core = GLOBAL_BASE(rhport);
   dwc2_device_t * dev = DEVICE_BASE(rhport);
   dwc2_epout_t * out_ep = OUT_EP_BASE(rhport);
   dwc2_epin_t * in_ep = IN_EP_BASE(rhport);
@@ -539,12 +539,12 @@ bool dcd_edpt_open (uint8_t rhport, tusb_desc_endpoint_t const * desc_edpt)
     uint16_t const sz = calc_rx_ff_size(4*fifo_size);
 
     // If size_rx needs to be extended check if possible and if so enlarge it
-    if (usb_otg->GRXFSIZ < sz)
+    if (core->GRXFSIZ < sz)
     {
       TU_ASSERT(sz + _allocated_fifo_words_tx <= EP_FIFO_SIZE/4);
 
       // Enlarge RX FIFO
-      usb_otg->GRXFSIZ = sz;
+      core->GRXFSIZ = sz;
     }
 
     out_ep[epnum].DOEPCTL |= (1 << DOEPCTL_USBAEP_Pos)        |
@@ -578,7 +578,7 @@ bool dcd_edpt_open (uint8_t rhport, tusb_desc_endpoint_t const * desc_edpt)
     // - IN EP 1 gets FIFO 1, IN EP "n" gets FIFO "n".
 
     // Check if free space is available
-    TU_ASSERT(_allocated_fifo_words_tx + fifo_size + usb_otg->GRXFSIZ <= EP_FIFO_SIZE/4);
+    TU_ASSERT(_allocated_fifo_words_tx + fifo_size + core->GRXFSIZ <= EP_FIFO_SIZE/4);
 
     _allocated_fifo_words_tx += fifo_size;
 
@@ -586,7 +586,7 @@ bool dcd_edpt_open (uint8_t rhport, tusb_desc_endpoint_t const * desc_edpt)
 
     // DIEPTXF starts at FIFO #1.
     // Both TXFD and TXSA are in unit of 32-bit words.
-    usb_otg->DIEPTXF[epnum - 1] = (fifo_size << DIEPTXF_INEPTXFD_Pos) | (EP_FIFO_SIZE/4 - _allocated_fifo_words_tx);
+    core->DIEPTXF[epnum - 1] = (fifo_size << DIEPTXF_INEPTXFD_Pos) | (EP_FIFO_SIZE/4 - _allocated_fifo_words_tx);
 
     in_ep[epnum].DIEPCTL |= (1 << DIEPCTL_USBAEP_Pos) |
         (epnum << DIEPCTL_TXFNUM_Pos) |
@@ -605,7 +605,7 @@ void dcd_edpt_close_all (uint8_t rhport)
 {
   (void) rhport;
 
-//  dwc2_core_t * usb_otg = GLOBAL_BASE(rhport);
+//  dwc2_core_t * core = GLOBAL_BASE(rhport);
   dwc2_device_t * dev = DEVICE_BASE(rhport);
   dwc2_epout_t * out_ep = OUT_EP_BASE(rhport);
   dwc2_epin_t * in_ep = IN_EP_BASE(rhport);
@@ -693,7 +693,7 @@ static void dcd_edpt_disable (uint8_t rhport, uint8_t ep_addr, bool stall)
 {
   (void) rhport;
 
-  dwc2_core_t * usb_otg = GLOBAL_BASE(rhport);
+  dwc2_core_t * core = GLOBAL_BASE(rhport);
   dwc2_device_t * dev = DEVICE_BASE(rhport);
   dwc2_epout_t * out_ep = OUT_EP_BASE(rhport);
   dwc2_epin_t * in_ep = IN_EP_BASE(rhport);
@@ -717,9 +717,9 @@ static void dcd_edpt_disable (uint8_t rhport, uint8_t ep_addr, bool stall)
     }
 
     // Flush the FIFO, and wait until we have confirmed it cleared.
-    usb_otg->GRSTCTL |= (epnum << GRSTCTL_TXFNUM_Pos);
-    usb_otg->GRSTCTL |= GRSTCTL_TXFFLSH;
-    while((usb_otg->GRSTCTL & GRSTCTL_TXFFLSH_Msk) != 0);
+    core->GRSTCTL |= (epnum << GRSTCTL_TXFNUM_Pos);
+    core->GRSTCTL |= GRSTCTL_TXFFLSH;
+    while((core->GRSTCTL & GRSTCTL_TXFFLSH_Msk) != 0);
   } else {
     // Only disable currently enabled non-control endpoint
     if ( (epnum == 0) || !(out_ep[epnum].DOEPCTL & DOEPCTL_EPENA) ){
@@ -730,7 +730,7 @@ static void dcd_edpt_disable (uint8_t rhport, uint8_t ep_addr, bool stall)
       // anyway, and it can't be cleared by user code. If this while loop never
       // finishes, we have bigger problems than just the stack.
       dev->DCTL |= DCTL_SGONAK;
-      while((usb_otg->GINTSTS & GINTSTS_BOUTNAKEFF_Msk) == 0);
+      while((core->GINTSTS & GINTSTS_BOUTNAKEFF_Msk) == 0);
 
       // Ditto here- disable the endpoint.
       out_ep[epnum].DOEPCTL |= DOEPCTL_EPDIS | (stall ? DOEPCTL_STALL : 0);
@@ -748,7 +748,7 @@ static void dcd_edpt_disable (uint8_t rhport, uint8_t ep_addr, bool stall)
  */
 void dcd_edpt_close (uint8_t rhport, uint8_t ep_addr)
 {
-  dwc2_core_t * usb_otg = GLOBAL_BASE(rhport);
+  dwc2_core_t * core = GLOBAL_BASE(rhport);
 
   uint8_t const epnum = tu_edpt_number(ep_addr);
   uint8_t const dir   = tu_edpt_dir(ep_addr);
@@ -760,8 +760,8 @@ void dcd_edpt_close (uint8_t rhport, uint8_t ep_addr)
 
   if (dir == TUSB_DIR_IN)
   {
-    uint16_t const fifo_size = (usb_otg->DIEPTXF[epnum - 1] & DIEPTXF_INEPTXFD_Msk) >> DIEPTXF_INEPTXFD_Pos;
-    uint16_t const fifo_start = (usb_otg->DIEPTXF[epnum - 1] & DIEPTXF_INEPTXSA_Msk) >> DIEPTXF_INEPTXSA_Pos;
+    uint16_t const fifo_size = (core->DIEPTXF[epnum - 1] & DIEPTXF_INEPTXFD_Msk) >> DIEPTXF_INEPTXFD_Pos;
+    uint16_t const fifo_start = (core->DIEPTXF[epnum - 1] & DIEPTXF_INEPTXSA_Msk) >> DIEPTXF_INEPTXSA_Pos;
     // For now only the last opened endpoint can be closed without fuss.
     TU_ASSERT(fifo_start == EP_FIFO_SIZE/4 - _allocated_fifo_words_tx,);
     _allocated_fifo_words_tx -= fifo_size;
@@ -861,11 +861,11 @@ static void write_fifo_packet(uint8_t rhport, uint8_t fifo_num, uint8_t * src, u
 }
 
 static void handle_rxflvl_ints(uint8_t rhport, dwc2_epout_t * out_ep) {
-  dwc2_core_t * usb_otg = GLOBAL_BASE(rhport);
+  dwc2_core_t * core = GLOBAL_BASE(rhport);
   usb_fifo_t rx_fifo = FIFO_BASE(rhport, 0);
 
   // Pop control word off FIFO
-  uint32_t ctl_word = usb_otg->GRXSTSP;
+  uint32_t ctl_word = core->GRXSTSP;
   uint8_t pktsts = (ctl_word & GRXSTSP_PKTSTS_Msk) >> GRXSTSP_PKTSTS_Pos;
   uint8_t epnum = (ctl_word &  GRXSTSP_EPNUM_Msk) >>  GRXSTSP_EPNUM_Pos;
   uint16_t bcnt = (ctl_word & GRXSTSP_BCNT_Msk) >> GRXSTSP_BCNT_Pos;
@@ -1025,17 +1025,17 @@ static void handle_epin_ints(uint8_t rhport, dwc2_device_t * dev, dwc2_epin_t * 
 
 void dcd_int_handler(uint8_t rhport)
 {
-  dwc2_core_t * usb_otg = GLOBAL_BASE(rhport);
+  dwc2_core_t * core = GLOBAL_BASE(rhport);
   dwc2_device_t * dev = DEVICE_BASE(rhport);
   dwc2_epout_t * out_ep = OUT_EP_BASE(rhport);
   dwc2_epin_t * in_ep = IN_EP_BASE(rhport);
 
-  uint32_t const int_status = usb_otg->GINTSTS & usb_otg->GINTMSK;
+  uint32_t const int_status = core->GINTSTS & core->GINTMSK;
 
   if(int_status & GINTSTS_USBRST)
   {
     // USBRST is start of reset.
-    usb_otg->GINTSTS = GINTSTS_USBRST;
+    core->GINTSTS = GINTSTS_USBRST;
     bus_reset(rhport);
   }
 
@@ -1043,23 +1043,23 @@ void dcd_int_handler(uint8_t rhport)
   {
     // ENUMDNE is the end of reset where speed of the link is detected
 
-    usb_otg->GINTSTS = GINTSTS_ENUMDNE;
+    core->GINTSTS = GINTSTS_ENUMDNE;
 
     tusb_speed_t const speed = get_speed(rhport);
 
-    set_turnaround(usb_otg, speed);
+    set_turnaround(core, speed);
     dcd_event_bus_reset(rhport, speed, true);
   }
 
   if(int_status & GINTSTS_USBSUSP)
   {
-    usb_otg->GINTSTS = GINTSTS_USBSUSP;
+    core->GINTSTS = GINTSTS_USBSUSP;
     dcd_event_bus_signal(rhport, DCD_EVENT_SUSPEND, true);
   }
 
   if(int_status & GINTSTS_WKUINT)
   {
-    usb_otg->GINTSTS = GINTSTS_WKUINT;
+    core->GINTSTS = GINTSTS_WKUINT;
     dcd_event_bus_signal(rhport, DCD_EVENT_RESUME, true);
   }
 
@@ -1069,22 +1069,22 @@ void dcd_int_handler(uint8_t rhport)
   if(int_status & GINTSTS_OTGINT)
   {
     // OTG INT bit is read-only
-    uint32_t const otg_int = usb_otg->GOTGINT;
+    uint32_t const otg_int = core->GOTGINT;
 
     if (otg_int & GOTGINT_SEDET)
     {
       dcd_event_bus_signal(rhport, DCD_EVENT_UNPLUGGED, true);
     }
 
-    usb_otg->GOTGINT = otg_int;
+    core->GOTGINT = otg_int;
   }
 
   if(int_status & GINTSTS_SOF)
   {
-    usb_otg->GINTSTS = GINTSTS_SOF;
+    core->GINTSTS = GINTSTS_SOF;
 
     // Disable SOF interrupt since currently only used for remote wakeup detection
-    usb_otg->GINTMSK &= ~GINTMSK_SOFM;
+    core->GINTMSK &= ~GINTMSK_SOFM;
 
     dcd_event_bus_signal(rhport, DCD_EVENT_SOF, true);
   }
@@ -1095,13 +1095,13 @@ void dcd_int_handler(uint8_t rhport)
     // RXFLVL bit is read-only
 
     // Mask out RXFLVL while reading data from FIFO
-    usb_otg->GINTMSK &= ~GINTMSK_RXFLVLM;
+    core->GINTMSK &= ~GINTMSK_RXFLVLM;
 
     // Loop until all available packets were handled
     do
     {
       handle_rxflvl_ints(rhport, out_ep);
-    } while(usb_otg->GINTSTS & GINTSTS_RXFLVL);
+    } while(core->GINTSTS & GINTSTS_RXFLVL);
 
     // Manage RX FIFO size
     if (_out_ep_closed)
@@ -1112,7 +1112,7 @@ void dcd_int_handler(uint8_t rhport)
       _out_ep_closed = false;
     }
 
-    usb_otg->GINTMSK |= GINTMSK_RXFLVLM;
+    core->GINTMSK |= GINTMSK_RXFLVLM;
   }
 
   // OUT endpoint interrupt handling.
