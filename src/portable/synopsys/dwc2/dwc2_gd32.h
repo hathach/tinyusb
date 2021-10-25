@@ -32,8 +32,6 @@
  extern "C" {
 #endif
 
-
-// These numbers are the same for the whole GD32VF103 family.
 #define DWC2_REG_BASE       0x50000000UL
 #define DWC2_EP_MAX         4
 #define DWC2_EP_FIFO_SIZE   1280
