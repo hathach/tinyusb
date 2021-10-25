@@ -115,12 +115,12 @@ static inline void dwc2_remote_wakeup_delay(void)
 // Set turn-around timeout according to link speed
 static inline void dwc2_set_turnaround(dwc2_core_t * core, tusb_speed_t speed)
 {
-  core->GUSBCFG &= ~GUSBCFG_TRDT;
+  core->gusbcfg &= ~GUSBCFG_TRDT;
 
   if ( speed == TUSB_SPEED_HIGH )
   {
     // Use fixed 0x09 for Highspeed
-    core->GUSBCFG |= (0x09 << GUSBCFG_TRDT_Pos);
+    core->gusbcfg |= (0x09 << GUSBCFG_TRDT_Pos);
   }
   else
   {
@@ -149,7 +149,7 @@ static inline void dwc2_set_turnaround(dwc2_core_t * core, tusb_speed_t speed)
       turnaround = 0xFU;
 
     // Fullspeed depends on MCU clocks, but we will use 0x06 for 32+ Mhz
-    core->GUSBCFG |= (turnaround << GUSBCFG_TRDT_Pos);
+    core->gusbcfg |= (turnaround << GUSBCFG_TRDT_Pos);
   }
 }
 
