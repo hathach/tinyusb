@@ -69,7 +69,7 @@
 
 /*------------------------------------------------------------------*/
 /* Count number of arguments of __VA_ARGS__
- * - reference https://groups.google.com/forum/#!topic/comp.std.c/d-6Mj5Lko_s
+ * - reference https://stackoverflow.com/questions/2124339/c-preprocessor-va-args-number-of-arguments
  * - _GET_NTH_ARG() takes args >= N (64) but only expand to Nth one (64th)
  * - _RSEQ_N() is reverse sequential to N to add padding to have
  * Nth position is the same as the number of arguments

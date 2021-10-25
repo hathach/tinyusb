@@ -86,7 +86,7 @@ enum
   // 0 control, 1 In, 2 Bulk, 3 Iso, 4 In etc ...
   #define EPNUM_AUDIO   0x03
 
-#elif TU_CHECK_MCU(NRF5X)
+#elif TU_CHECK_MCU(OPT_MCU_NRF5X)
   // nRF5x ISO can only be endpoint 8
   #define EPNUM_AUDIO   0x08
 

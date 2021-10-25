@@ -109,13 +109,10 @@
 #define STM32F1_FSDEV
 #endif
 
-#if (TUSB_OPT_DEVICE_ENABLED) && ( \
-      (CFG_TUSB_MCU == OPT_MCU_STM32F0                          ) || \
-      (CFG_TUSB_MCU == OPT_MCU_STM32F1 && defined(STM32F1_FSDEV)) || \
-      (CFG_TUSB_MCU == OPT_MCU_STM32F3                          ) || \
-	  (CFG_TUSB_MCU == OPT_MCU_STM32L0                          ) || \
-      (CFG_TUSB_MCU == OPT_MCU_STM32L1                          ) \
-    )
+#if TUSB_OPT_DEVICE_ENABLED && \
+      ( TU_CHECK_MCU(OPT_MCU_STM32F0, OPT_MCU_STM32F3, OPT_MCU_STM32L0, OPT_MCU_STM32L1) || \
+        (TU_CHECK_MCU(OPT_MCU_STM32F1) && defined(STM32F1_FSDEV)) \
+      )
 
 // In order to reduce the dependance on HAL, we undefine this.
 // Some definitions are copied to our private include file.

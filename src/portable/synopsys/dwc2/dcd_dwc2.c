@@ -31,16 +31,16 @@
 #include "device/dcd_attr.h"
 
 #if TUSB_OPT_DEVICE_ENABLED && \
-    ( defined(DCD_ATTR_DWC2_STM32) || TU_CHECK_MCU(ESP32S2, ESP32S3, GD32VF103) )
+    ( defined(DCD_ATTR_DWC2_STM32) || TU_CHECK_MCU(OPT_MCU_ESP32S2, OPT_MCU_ESP32S3, OPT_MCU_GD32VF103) )
 
 #include "device/dcd.h"
 #include "dwc2_type.h"
 
 #if defined(DCD_ATTR_DWC2_STM32)
   #include "dwc2_stm32.h"
-#elif TU_CHECK_MCU(ESP32S2, ESP32S3)
+#elif TU_CHECK_MCU(OPT_MCU_ESP32S2, OPT_MCU_ESP32S3)
   #include "dwc2_esp32.h"
-#elif TU_CHECK_MCU(GD32VF103)
+#elif TU_CHECK_MCU(OPT_MCU_GD32VF103)
   #include "dwc2_gd32.h"
 #else
   #error "Unsupported MCUs"

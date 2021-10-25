@@ -77,12 +77,12 @@ uint8_t const * tud_descriptor_device_cb(void)
 
 #define CONFIG_TOTAL_LEN    (TUD_CONFIG_DESC_LEN + TUD_VIDEO_CAPTURE_DESC_LEN)
 
-#if TU_CHECK_MCU(LPC175X_6X) || TU_CHECK_MCU(LPC177X_8X) || TU_CHECK_MCU(LPC40XX)
+#if TU_CHECK_MCU(OPT_MCU_LPC175X_6X, OPT_MCU_LPC177X_8X, OPT_MCU_LPC40XX)
   // LPC 17xx and 40xx endpoint type (bulk/interrupt/iso) are fixed by its number
   // 0 control, 1 In, 2 Bulk, 3 Iso, 4 In, 5 Bulk etc ...
   #define EPNUM_VIDEO_IN    0x83
 
-#elif TU_CHECK_MCU(NRF5X)
+#elif TU_CHECK_MCU(OPT_MCU_NRF5X)
   // nRF5x ISO can only be endpoint 8
   #define EPNUM_VIDEO_IN    0x88
 

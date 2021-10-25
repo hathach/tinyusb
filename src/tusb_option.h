@@ -130,7 +130,7 @@
 
 // Helper to check if configured MCU is one of listed
 // Apply _TU_CHECK_MCU with || as separator to list of input
-#define _TU_CHECK_MCU(_m)   (CFG_TUSB_MCU == OPT_MCU_##_m)
+#define _TU_CHECK_MCU(_m)   (CFG_TUSB_MCU == _m)
 #define TU_CHECK_MCU(...)   (TU_ARGS_APPLY(_TU_CHECK_MCU, ||, __VA_ARGS__))
 
 //--------------------------------------------------------------------+
