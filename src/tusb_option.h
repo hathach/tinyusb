@@ -27,6 +27,8 @@
 #ifndef _TUSB_OPTION_H_
 #define _TUSB_OPTION_H_
 
+#include "common/tusb_compiler.h"
+
 #define TUSB_VERSION_MAJOR     0
 #define TUSB_VERSION_MINOR     12
 #define TUSB_VERSION_REVISION  0
@@ -36,7 +38,6 @@
 // Supported MCUs
 // CFG_TUSB_MCU must be defined to one of following value
 //--------------------------------------------------------------------+
-#define TU_CHECK_MCU(_m)            (CFG_TUSB_MCU == OPT_MCU_##_m)
 
 #define OPT_MCU_NONE                0
 
@@ -125,6 +126,12 @@
 
 // GigaDevice
 #define OPT_MCU_GD32VF103        1600 ///< GigaDevice GD32VF103
+
+
+// Helper to check if configured MCU is one of listed
+// Apply _TU_CHECK_MCU with || as separator to list of input
+#define _TU_CHECK_MCU(_m)   (CFG_TUSB_MCU == OPT_MCU_##_m)
+#define TU_CHECK_MCU(...)   TU_ARGS_APPLY(_TU_CHECK_MCU, ||, __VA_ARGS__)
 
 //--------------------------------------------------------------------+
 // Supported OS
