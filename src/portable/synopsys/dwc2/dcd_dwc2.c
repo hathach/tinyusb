@@ -73,8 +73,6 @@ typedef struct {
   uint8_t interval;
 } xfer_ctl_t;
 
-typedef volatile uint32_t * usb_fifo_t;
-
 xfer_ctl_t xfer_status[DWC2_EP_MAX][2];
 #define XFER_CTL_BASE(_ep, _dir) &xfer_status[_ep][_dir]
 
@@ -586,7 +584,8 @@ bool dcd_edpt_xfer (uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t 
   xfer->total_len   = total_bytes;
 
   // EP0 can only handle one packet
-  if(epnum == 0) {
+  if(epnum == 0)
+  {
     ep0_pending[dir] = total_bytes;
     // Schedule the first transaction for EP0 transfer
     edpt_schedule_packets(rhport, epnum, dir, 1, ep0_pending[dir]);
@@ -597,9 +596,7 @@ bool dcd_edpt_xfer (uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t 
   uint16_t const short_packet_size = total_bytes % xfer->max_size;
 
   // Zero-size packet is special case.
-  if(short_packet_size > 0 || (total_bytes == 0)) {
-    num_packets++;
-  }
+  if ( short_packet_size > 0 || (total_bytes == 0) ) num_packets++;
 
   // Schedule packets to be sent within interrupt
   edpt_schedule_packets(rhport, epnum, dir, num_packets, total_bytes);
@@ -628,7 +625,7 @@ bool dcd_edpt_xfer_fifo (uint8_t rhport, uint8_t ep_addr, tu_fifo_t * ff, uint16
   uint16_t const short_packet_size = total_bytes % xfer->max_size;
 
   // Zero-size packet is special case.
-  if(short_packet_size > 0 || (total_bytes == 0)) num_packets++;
+  if ( short_packet_size > 0 || (total_bytes == 0) ) num_packets++;
 
   // Schedule packets to be sent within interrupt
   edpt_schedule_packets(rhport, epnum, dir, num_packets, total_bytes);
@@ -648,40 +645,51 @@ static void dcd_edpt_disable (uint8_t rhport, uint8_t ep_addr, bool stall)
   uint8_t const epnum = tu_edpt_number(ep_addr);
   uint8_t const dir   = tu_edpt_dir(ep_addr);
 
-  if(dir == TUSB_DIR_IN) {
+  if ( dir == TUSB_DIR_IN )
+  {
     // Only disable currently enabled non-control endpoint
-    if ( (epnum == 0) || !(in_ep[epnum].DIEPCTL & DIEPCTL_EPENA) ){
+    if ( (epnum == 0) || !(in_ep[epnum].DIEPCTL & DIEPCTL_EPENA) )
+    {
       in_ep[epnum].DIEPCTL |= DIEPCTL_SNAK | (stall ? DIEPCTL_STALL : 0);
-    } else {
+    }
+    else
+    {
       // Stop transmitting packets and NAK IN xfers.
       in_ep[epnum].DIEPCTL |= DIEPCTL_SNAK;
-      while((in_ep[epnum].DIEPINT & DIEPINT_INEPNE) == 0);
+      while ( (in_ep[epnum].DIEPINT & DIEPINT_INEPNE) == 0 ) {}
 
       // Disable the endpoint.
       in_ep[epnum].DIEPCTL |= DIEPCTL_EPDIS | (stall ? DIEPCTL_STALL : 0);
-      while((in_ep[epnum].DIEPINT & DIEPINT_EPDISD_Msk) == 0);
+      while ( (in_ep[epnum].DIEPINT & DIEPINT_EPDISD_Msk) == 0 ) {}
+
       in_ep[epnum].DIEPINT = DIEPINT_EPDISD;
     }
 
     // Flush the FIFO, and wait until we have confirmed it cleared.
     core->GRSTCTL |= (epnum << GRSTCTL_TXFNUM_Pos);
     core->GRSTCTL |= GRSTCTL_TXFFLSH;
-    while((core->GRSTCTL & GRSTCTL_TXFFLSH_Msk) != 0);
-  } else {
+    while ( (core->GRSTCTL & GRSTCTL_TXFFLSH_Msk) != 0 ) {}
+  }
+  else
+  {
     // Only disable currently enabled non-control endpoint
-    if ( (epnum == 0) || !(out_ep[epnum].DOEPCTL & DOEPCTL_EPENA) ){
+    if ( (epnum == 0) || !(out_ep[epnum].DOEPCTL & DOEPCTL_EPENA) )
+    {
       out_ep[epnum].DOEPCTL |= stall ? DOEPCTL_STALL : 0;
-    } else {
+    }
+    else
+    {
       // Asserting GONAK is required to STALL an OUT endpoint.
       // Simpler to use polling here, we don't use the "B"OUTNAKEFF interrupt
       // anyway, and it can't be cleared by user code. If this while loop never
       // finishes, we have bigger problems than just the stack.
       dev->DCTL |= DCTL_SGONAK;
-      while((core->GINTSTS & GINTSTS_BOUTNAKEFF_Msk) == 0);
+      while ( (core->GINTSTS & GINTSTS_BOUTNAKEFF_Msk) == 0 ) {}
 
       // Ditto here- disable the endpoint.
       out_ep[epnum].DOEPCTL |= DOEPCTL_EPDIS | (stall ? DOEPCTL_STALL : 0);
-      while((out_ep[epnum].DOEPINT & DOEPINT_EPDISD_Msk) == 0);
+      while ( (out_ep[epnum].DOEPINT & DOEPINT_EPDISD_Msk) == 0 ) {}
+
       out_ep[epnum].DOEPINT = DOEPINT_EPDISD;
 
       // Allow other OUT endpoints to keep receiving.
@@ -735,10 +743,13 @@ void dcd_edpt_clear_stall (uint8_t rhport, uint8_t ep_addr)
   uint8_t const dir   = tu_edpt_dir(ep_addr);
 
   // Clear stall and reset data toggle
-  if(dir == TUSB_DIR_IN) {
+  if ( dir == TUSB_DIR_IN )
+  {
     in_ep[epnum].DIEPCTL &= ~DIEPCTL_STALL;
     in_ep[epnum].DIEPCTL |= DIEPCTL_SD0PID_SEVNFRM;
-  } else {
+  }
+  else
+  {
     out_ep[epnum].DOEPCTL &= ~DOEPCTL_STALL;
     out_ep[epnum].DOEPCTL |= DOEPCTL_SD0PID_SEVNFRM;
   }
@@ -751,11 +762,12 @@ static void read_fifo_packet(uint8_t rhport, uint8_t * dst, uint16_t len)
 {
   (void) rhport;
 
-  usb_fifo_t rx_fifo = FIFO_BASE(rhport, 0);
+  volatile uint32_t * rx_fifo = FIFO_BASE(rhport, 0);
 
   // Reading full available 32 bit words from fifo
   uint16_t full_words = len >> 2;
-  for(uint16_t i = 0; i < full_words; i++) {
+  for ( uint16_t i = 0; i < full_words; i++ )
+  {
     uint32_t tmp = *rx_fifo;
     dst[0] = tmp & 0x000000FF;
     dst[1] = (tmp & 0x0000FF00) >> 8;
@@ -766,13 +778,16 @@ static void read_fifo_packet(uint8_t rhport, uint8_t * dst, uint16_t len)
 
   // Read the remaining 1-3 bytes from fifo
   uint8_t bytes_rem = len & 0x03;
-  if(bytes_rem != 0) {
+  if ( bytes_rem != 0 )
+  {
     uint32_t tmp = *rx_fifo;
     dst[0] = tmp & 0x000000FF;
-    if(bytes_rem > 1) {
+    if ( bytes_rem > 1 )
+    {
       dst[1] = (tmp & 0x0000FF00) >> 8;
     }
-    if(bytes_rem > 2) {
+    if ( bytes_rem > 2 )
+    {
       dst[2] = (tmp & 0x00FF0000) >> 16;
     }
   }
@@ -783,24 +798,28 @@ static void write_fifo_packet(uint8_t rhport, uint8_t fifo_num, uint8_t * src, u
 {
   (void) rhport;
 
-  usb_fifo_t tx_fifo = FIFO_BASE(rhport, fifo_num);
+  volatile uint32_t * tx_fifo = FIFO_BASE(rhport, fifo_num);
 
   // Pushing full available 32 bit words to fifo
   uint16_t full_words = len >> 2;
-  for(uint16_t i = 0; i < full_words; i++){
+  for ( uint16_t i = 0; i < full_words; i++ )
+  {
     *tx_fifo = (src[3] << 24) | (src[2] << 16) | (src[1] << 8) | src[0];
     src += 4;
   }
 
   // Write the remaining 1-3 bytes into fifo
   uint8_t bytes_rem = len & 0x03;
-  if(bytes_rem){
+  if ( bytes_rem )
+  {
     uint32_t tmp_word = 0;
     tmp_word |= src[0];
-    if(bytes_rem > 1){
+    if ( bytes_rem > 1 )
+    {
       tmp_word |= src[1] << 8;
     }
-    if(bytes_rem > 2){
+    if ( bytes_rem > 2 )
+    {
       tmp_word |= src[2] << 16;
     }
     *tx_fifo = tmp_word;
@@ -809,7 +828,7 @@ static void write_fifo_packet(uint8_t rhport, uint8_t fifo_num, uint8_t * src, u
 
 static void handle_rxflvl_ints(uint8_t rhport, dwc2_epout_t * out_ep) {
   dwc2_core_t * core = CORE_REG(rhport);
-  usb_fifo_t rx_fifo = FIFO_BASE(rhport, 0);
+  volatile uint32_t * rx_fifo = FIFO_BASE(rhport, 0);
 
   // Pop control word off FIFO
   uint32_t ctl_word = core->GRXSTSP;
@@ -817,7 +836,8 @@ static void handle_rxflvl_ints(uint8_t rhport, dwc2_epout_t * out_ep) {
   uint8_t epnum     = (ctl_word & GRXSTSP_EPNUM_Msk) >>  GRXSTSP_EPNUM_Pos;
   uint16_t bcnt     = (ctl_word & GRXSTSP_BCNT_Msk) >> GRXSTSP_BCNT_Pos;
 
-  switch(pktsts) {
+  switch(pktsts)
+  {
     case 0x01: // Global OUT NAK (Interrupt)
       break;
 
@@ -871,28 +891,36 @@ static void handle_rxflvl_ints(uint8_t rhport, dwc2_epout_t * out_ep) {
   }
 }
 
-static void handle_epout_ints(uint8_t rhport, dwc2_device_t * dev, dwc2_epout_t * out_ep) {
+static void handle_epout_ints (uint8_t rhport, dwc2_device_t *dev, dwc2_epout_t *out_ep)
+{
   // DAINT for a given EP clears when DOEPINTx is cleared.
   // OEPINT will be cleared when DAINT's out bits are cleared.
-  for(uint8_t n = 0; n < DWC2_EP_MAX; n++) {
-    xfer_ctl_t * xfer = XFER_CTL_BASE(n, TUSB_DIR_OUT);
+  for ( uint8_t n = 0; n < DWC2_EP_MAX; n++ )
+  {
+    xfer_ctl_t *xfer = XFER_CTL_BASE(n, TUSB_DIR_OUT);
 
-    if(dev->DAINT & (1 << (DAINT_OEPINT_Pos + n))) {
+    if ( dev->DAINT & (1 << (DAINT_OEPINT_Pos + n)) )
+    {
       // SETUP packet Setup Phase done.
-      if(out_ep[n].DOEPINT & DOEPINT_STUP) {
-        out_ep[n].DOEPINT =  DOEPINT_STUP;
+      if ( out_ep[n].DOEPINT & DOEPINT_STUP )
+      {
+        out_ep[n].DOEPINT = DOEPINT_STUP;
         dcd_event_setup_received(rhport, (uint8_t*) &_setup_packet[0], true);
       }
 
       // OUT XFER complete
-      if(out_ep[n].DOEPINT & DOEPINT_XFRC) {
+      if ( out_ep[n].DOEPINT & DOEPINT_XFRC )
+      {
         out_ep[n].DOEPINT = DOEPINT_XFRC;
 
         // EP0 can only handle one packet
-        if((n == 0) && ep0_pending[TUSB_DIR_OUT]) {
+        if ( (n == 0) && ep0_pending[TUSB_DIR_OUT] )
+        {
           // Schedule another packet to be received.
           edpt_schedule_packets(rhport, n, TUSB_DIR_OUT, 1, ep0_pending[TUSB_DIR_OUT]);
-        } else {
+        }
+        else
+        {
           dcd_event_xfer_complete(rhport, n, xfer->total_len, XFER_RESULT_SUCCESS, true);
         }
       }
@@ -948,7 +976,7 @@ static void handle_epin_ints(uint8_t rhport, dwc2_device_t * dev, dwc2_epin_t * 
           // Push packet to Tx-FIFO
           if (xfer->ff)
           {
-            usb_fifo_t tx_fifo = FIFO_BASE(rhport, n);
+            volatile uint32_t * tx_fifo = FIFO_BASE(rhport, n);
             tu_fifo_read_n_const_addr_full_words(xfer->ff, (void *)(uintptr_t) tx_fifo, packet_size);
           }
           else
