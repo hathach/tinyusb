@@ -25,57 +25,46 @@
  */
 
 
-#ifndef DWC2_GD32_H_
-#define DWC2_GD32_H_
+#ifndef _DWC2_ESP32_H_
+#define _DWC2_ESP32_H_
 
 #ifdef __cplusplus
  extern "C" {
 #endif
 
+#include "esp_intr_alloc.h"
+#include "soc/periph_defs.h"
+//#include "soc/usb_periph.h"
 
-// These numbers are the same for the whole GD32VF103 family.
-#define DWC2_REG_BASE       0x50000000UL
-#define DWC2_EP_MAX         4
-#define DWC2_EP_FIFO_SIZE   1280
-#define RHPORT_IRQn         86
+#define DWC2_REG_BASE       0x60080000UL
+#define DWC2_EP_MAX         5             // USB_OUT_EP_NUM
+#define DWC2_EP_FIFO_SIZE   1024
 
-extern uint32_t SystemCoreClock;
+// #define EP_FIFO_NUM 5
 
-// The GD32VF103 is a RISC-V MCU, which implements the ECLIC Core-Local
-// Interrupt Controller by Nuclei. It is nearly API compatible to the
-// NVIC used by ARM MCUs.
-#define ECLIC_INTERRUPT_ENABLE_BASE 0xD2001001UL
+static intr_handle_t usb_ih;
 
-TU_ATTR_ALWAYS_INLINE
-static inline void __eclic_enable_interrupt (uint32_t irq) {
-  *(volatile uint8_t*)(ECLIC_INTERRUPT_ENABLE_BASE + (irq * 4)) = 1;
+static void dcd_int_handler_wrap(void* arg)
+{
+  (void) arg;
+  dcd_int_handler(0);
 }
 
-TU_ATTR_ALWAYS_INLINE
-static inline void __eclic_disable_interrupt (uint32_t irq){
-  *(volatile uint8_t*)(ECLIC_INTERRUPT_ENABLE_BASE + (irq * 4)) = 0;
-}
-
-TU_ATTR_ALWAYS_INLINE
-static inline void dcd_dwc2_int_enable(uint8_t rhport)
+static inline void dcd_dwc2_int_enable (uint8_t rhport)
 {
   (void) rhport;
-  __eclic_enable_interrupt(RHPORT_IRQn);
+  esp_intr_alloc(ETS_USB_INTR_SOURCE, ESP_INTR_FLAG_LOWMED, dcd_int_handler_wrap, NULL, &usb_ih);
 }
 
-TU_ATTR_ALWAYS_INLINE
 static inline void dcd_dwc2_int_disable (uint8_t rhport)
 {
   (void) rhport;
-  __eclic_disable_interrupt(RHPORT_IRQn);
+  esp_intr_free(usb_ih);
 }
 
-TU_ATTR_ALWAYS_INLINE
 static inline void dwc2_remote_wakeup_delay(void)
 {
-  // try to delay for 1 ms
-  uint32_t count = SystemCoreClock / 1000;
-  while ( count-- ) __asm volatile ("nop");
+  vTaskDelay(pdMS_TO_TICKS(1));
 }
 
 static inline void dwc2_set_turnaround(dwc2_core_t * core, tusb_speed_t speed)
@@ -86,9 +75,8 @@ static inline void dwc2_set_turnaround(dwc2_core_t * core, tusb_speed_t speed)
   // keep the reset value
 }
 
-
 #ifdef __cplusplus
 }
 #endif
 
-#endif /* DWC2_GD32_H_ */
+#endif /* _DWC2_ESP32_H_ */

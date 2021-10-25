@@ -28,8 +28,7 @@ CFLAGS += \
 	-mstrict-align \
 	-nostdlib -nostartfiles \
 	-DCFG_TUSB_MCU=OPT_MCU_GD32VF103 \
-	-DDOWNLOAD_MODE=DOWNLOAD_MODE_FLASHXIP \
-	-DGD32VF103 
+	-DDOWNLOAD_MODE=DOWNLOAD_MODE_FLASHXIP
 
 # mcu driver cause following warnings
 CFLAGS += -Wno-error=unused-parameter

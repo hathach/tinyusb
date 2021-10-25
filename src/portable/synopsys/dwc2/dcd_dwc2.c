@@ -30,13 +30,16 @@
 #include "tusb_option.h"
 #include "device/dcd_attr.h"
 
-#if TUSB_OPT_DEVICE_ENABLED && (defined(DCD_ATTR_DWC2_STM32) || TU_CHECK_MCU(GD32VF103))
+#if TUSB_OPT_DEVICE_ENABLED && \
+    ( defined(DCD_ATTR_DWC2_STM32) || TU_CHECK_MCU(ESP32S2, ESP32S3, GD32VF103) )
 
 #include "device/dcd.h"
 #include "dwc2_type.h"
 
 #if defined(DCD_ATTR_DWC2_STM32)
   #include "dwc2_stm32.h"
+#elif TU_CHECK_MCU(ESP32S2, ESP32S3)
+  #include "dwc2_esp32.h"
 #elif TU_CHECK_MCU(GD32VF103)
   #include "dwc2_gd32.h"
 #else
@@ -72,7 +75,7 @@ typedef struct {
 
 typedef volatile uint32_t * usb_fifo_t;
 
-xfer_ctl_t xfer_status[EP_MAX][2];
+xfer_ctl_t xfer_status[DWC2_EP_MAX][2];
 #define XFER_CTL_BASE(_ep, _dir) &xfer_status[_ep][_dir]
 
 // EP0 transfers are limited to 1 packet - larger sizes has to be split
@@ -85,7 +88,7 @@ static bool _out_ep_closed;                       // Flag to check if RX FIFO si
 // Calculate the RX FIFO size according to recommendations from reference manual
 static inline uint16_t calc_rx_ff_size(uint16_t ep_size)
 {
-  return 15 + 2*(ep_size/4) + 2*EP_MAX;
+  return 15 + 2*(ep_size/4) + 2*DWC2_EP_MAX;
 }
 
 static void update_grxfsiz(uint8_t rhport)
@@ -96,7 +99,7 @@ static void update_grxfsiz(uint8_t rhport)
 
   // Determine largest EP size for RX FIFO
   uint16_t max_epsize = 0;
-  for (uint8_t epnum = 0; epnum < EP_MAX; epnum++)
+  for (uint8_t epnum = 0; epnum < DWC2_EP_MAX; epnum++)
   {
     max_epsize = tu_max16(max_epsize, xfer_status[epnum][TUSB_DIR_OUT].max_size);
   }
@@ -122,7 +125,7 @@ static void bus_reset(uint8_t rhport)
   dev->DCFG &= ~DCFG_DAD_Msk;
 
   // 1. NAK for all OUT endpoints
-  for(uint8_t n = 0; n < EP_MAX; n++) {
+  for(uint8_t n = 0; n < DWC2_EP_MAX; n++) {
     out_ep[n].DOEPCTL |= DOEPCTL_SNAK;
   }
 
@@ -171,11 +174,11 @@ static void bus_reset(uint8_t rhport)
   //   - 2 for each used OUT endpoint
   //
   //   Therefore GRXFSIZ = 13 + 1 + 1 + 2 x (Largest-EPsize/4) + 2 x EPOUTnum
-  //   - FullSpeed (64 Bytes ): GRXFSIZ = 15 + 2 x  16 + 2 x EP_MAX = 47  + 2 x EP_MAX
-  //   - Highspeed (512 bytes): GRXFSIZ = 15 + 2 x 128 + 2 x EP_MAX = 271 + 2 x EP_MAX
+  //   - FullSpeed (64 Bytes ): GRXFSIZ = 15 + 2 x  16 + 2 x DWC2_EP_MAX = 47  + 2 x DWC2_EP_MAX
+  //   - Highspeed (512 bytes): GRXFSIZ = 15 + 2 x 128 + 2 x DWC2_EP_MAX = 271 + 2 x DWC2_EP_MAX
   //
   //   NOTE: Largest-EPsize & EPOUTnum is actual used endpoints in configuration. Since DCD has no knowledge
-  //   of the overall picture yet. We will use the worst scenario: largest possible + EP_MAX
+  //   of the overall picture yet. We will use the worst scenario: largest possible + DWC2_EP_MAX
   //
   //   For Isochronous, largest EP size can be 1023/1024 for FS/HS respectively. In addition if multiple ISO
   //   are enabled at least "2 x (Largest-EPsize/4) + 1" are recommended.  Maybe provide a macro for application to
@@ -186,7 +189,7 @@ static void bus_reset(uint8_t rhport)
   _allocated_fifo_words_tx = 16;
 
   // Control IN uses FIFO 0 with 64 bytes ( 16 32-bit word )
-  core->DIEPTXF0_HNPTXFSIZ = (16 << TX0FD_Pos) | (EP_FIFO_SIZE/4 - _allocated_fifo_words_tx);
+  core->DIEPTXF0_HNPTXFSIZ = (16 << TX0FD_Pos) | (DWC2_EP_FIFO_SIZE/4 - _allocated_fifo_words_tx);
 
   // Fixed control EP0 size to 64 bytes
   in_ep[0].DIEPCTL &= ~(0x03 << DIEPCTL_MPSIZ_Pos);
@@ -197,47 +200,6 @@ static void bus_reset(uint8_t rhport)
   core->GINTMSK |= GINTMSK_OEPINT | GINTMSK_IEPINT;
 }
 
-// Set turn-around timeout according to link speed
-extern uint32_t SystemCoreClock;
-static void set_turnaround(dwc2_core_t * core, tusb_speed_t speed)
-{
-  core->GUSBCFG &= ~GUSBCFG_TRDT;
-
-  if ( speed == TUSB_SPEED_HIGH )
-  {
-    // Use fixed 0x09 for Highspeed
-    core->GUSBCFG |= (0x09 << GUSBCFG_TRDT_Pos);
-  }
-  else
-  {
-    // Turnaround timeout depends on the MCU clock
-    uint32_t turnaround;
-
-    if ( SystemCoreClock >= 32000000U )
-      turnaround = 0x6U;
-    else if ( SystemCoreClock >= 27500000U )
-      turnaround = 0x7U;
-    else if ( SystemCoreClock >= 24000000U )
-      turnaround = 0x8U;
-    else if ( SystemCoreClock >= 21800000U )
-      turnaround = 0x9U;
-    else if ( SystemCoreClock >= 20000000U )
-      turnaround = 0xAU;
-    else if ( SystemCoreClock >= 18500000U )
-      turnaround = 0xBU;
-    else if ( SystemCoreClock >= 17200000U )
-      turnaround = 0xCU;
-    else if ( SystemCoreClock >= 16000000U )
-      turnaround = 0xDU;
-    else if ( SystemCoreClock >= 15000000U )
-      turnaround = 0xEU;
-    else
-      turnaround = 0xFU;
-
-    // Fullspeed depends on MCU clocks, but we will use 0x06 for 32+ Mhz
-    core->GUSBCFG |= (turnaround << GUSBCFG_TRDT_Pos);
-  }
-}
 
 static tusb_speed_t get_speed(uint8_t rhport)
 {
@@ -368,6 +330,8 @@ void dcd_init (uint8_t rhport)
   // peripheral in each Reference Manual.
   dwc2_core_t * core = CORE_REG(rhport);
 
+  // check GSNPSID
+
   // No HNP/SRP (no OTG support), program timeout later.
   if ( rhport == 1 )
   {
@@ -422,7 +386,7 @@ void dcd_init (uint8_t rhport)
 
   // If USB host misbehaves during status portion of control xfer
   // (non zero-length packet), send STALL back and discard.
-  dev->DCFG |=  DCFG_NZLSOHSK;
+  dev->DCFG |= DCFG_NZLSOHSK;
 
   set_speed(rhport, TUD_OPT_HIGH_SPEED ? TUSB_SPEED_HIGH : TUSB_SPEED_FULL);
 
@@ -457,16 +421,6 @@ void dcd_set_address (uint8_t rhport, uint8_t dev_addr)
   dcd_edpt_xfer(rhport, tu_edpt_addr(0, TUSB_DIR_IN), NULL, 0);
 }
 
-static void remote_wakeup_delay(void)
-{
-  // try to delay for 1 ms
-  uint32_t count = SystemCoreClock / 1000;
-  while ( count-- )
-  {
-    __NOP();
-  }
-}
-
 void dcd_remote_wakeup(uint8_t rhport)
 {
   (void) rhport;
@@ -482,7 +436,7 @@ void dcd_remote_wakeup(uint8_t rhport)
   core->GINTMSK |= GINTMSK_SOFM;
 
   // Per specs: remote wakeup signal bit must be clear within 1-15ms
-  remote_wakeup_delay();
+  dwc2_remote_wakeup_delay();
 
   dev->DCTL &= ~DCTL_RWUSIG;
 }
@@ -518,7 +472,7 @@ bool dcd_edpt_open (uint8_t rhport, tusb_desc_endpoint_t const * desc_edpt)
   uint8_t const epnum = tu_edpt_number(desc_edpt->bEndpointAddress);
   uint8_t const dir   = tu_edpt_dir(desc_edpt->bEndpointAddress);
 
-  TU_ASSERT(epnum < EP_MAX);
+  TU_ASSERT(epnum < DWC2_EP_MAX);
 
   xfer_ctl_t * xfer = XFER_CTL_BASE(epnum, dir);
   xfer->max_size = tu_edpt_packet_size(desc_edpt);
@@ -534,7 +488,7 @@ bool dcd_edpt_open (uint8_t rhport, tusb_desc_endpoint_t const * desc_edpt)
     // If size_rx needs to be extended check if possible and if so enlarge it
     if (core->GRXFSIZ < sz)
     {
-      TU_ASSERT(sz + _allocated_fifo_words_tx <= EP_FIFO_SIZE/4);
+      TU_ASSERT(sz + _allocated_fifo_words_tx <= DWC2_EP_FIFO_SIZE/4);
 
       // Enlarge RX FIFO
       core->GRXFSIZ = sz;
@@ -571,15 +525,15 @@ bool dcd_edpt_open (uint8_t rhport, tusb_desc_endpoint_t const * desc_edpt)
     // - IN EP 1 gets FIFO 1, IN EP "n" gets FIFO "n".
 
     // Check if free space is available
-    TU_ASSERT(_allocated_fifo_words_tx + fifo_size + core->GRXFSIZ <= EP_FIFO_SIZE/4);
+    TU_ASSERT(_allocated_fifo_words_tx + fifo_size + core->GRXFSIZ <= DWC2_EP_FIFO_SIZE/4);
 
     _allocated_fifo_words_tx += fifo_size;
 
-    TU_LOG(2, "    Allocated %u bytes at offset %u", fifo_size*4, EP_FIFO_SIZE-_allocated_fifo_words_tx*4);
+    TU_LOG(2, "    Allocated %u bytes at offset %u", fifo_size*4, DWC2_EP_FIFO_SIZE-_allocated_fifo_words_tx*4);
 
     // DIEPTXF starts at FIFO #1.
     // Both TXFD and TXSA are in unit of 32-bit words.
-    core->DIEPTXF[epnum - 1] = (fifo_size << DIEPTXF_INEPTXFD_Pos) | (EP_FIFO_SIZE/4 - _allocated_fifo_words_tx);
+    core->DIEPTXF[epnum - 1] = (fifo_size << DIEPTXF_INEPTXFD_Pos) | (DWC2_EP_FIFO_SIZE/4 - _allocated_fifo_words_tx);
 
     in_ep[epnum].DIEPCTL |= (1 << DIEPCTL_USBAEP_Pos) |
         (epnum << DIEPCTL_TXFNUM_Pos) |
@@ -606,7 +560,7 @@ void dcd_edpt_close_all (uint8_t rhport)
   // Disable non-control interrupt
   dev->DAINTMSK = (1 << DAINTMSK_OEPM_Pos) | (1 << DAINTMSK_IEPM_Pos);
 
-  for(uint8_t n = 1; n < EP_MAX; n++)
+  for(uint8_t n = 1; n < DWC2_EP_MAX; n++)
   {
     // disable OUT endpoint
     out_ep[n].DOEPCTL = 0;
@@ -756,7 +710,7 @@ void dcd_edpt_close (uint8_t rhport, uint8_t ep_addr)
     uint16_t const fifo_size = (core->DIEPTXF[epnum - 1] & DIEPTXF_INEPTXFD_Msk) >> DIEPTXF_INEPTXFD_Pos;
     uint16_t const fifo_start = (core->DIEPTXF[epnum - 1] & DIEPTXF_INEPTXSA_Msk) >> DIEPTXF_INEPTXSA_Pos;
     // For now only the last opened endpoint can be closed without fuss.
-    TU_ASSERT(fifo_start == EP_FIFO_SIZE/4 - _allocated_fifo_words_tx,);
+    TU_ASSERT(fifo_start == DWC2_EP_FIFO_SIZE/4 - _allocated_fifo_words_tx,);
     _allocated_fifo_words_tx -= fifo_size;
   }
   else
@@ -920,7 +874,7 @@ static void handle_rxflvl_ints(uint8_t rhport, dwc2_epout_t * out_ep) {
 static void handle_epout_ints(uint8_t rhport, dwc2_device_t * dev, dwc2_epout_t * out_ep) {
   // DAINT for a given EP clears when DOEPINTx is cleared.
   // OEPINT will be cleared when DAINT's out bits are cleared.
-  for(uint8_t n = 0; n < EP_MAX; n++) {
+  for(uint8_t n = 0; n < DWC2_EP_MAX; n++) {
     xfer_ctl_t * xfer = XFER_CTL_BASE(n, TUSB_DIR_OUT);
 
     if(dev->DAINT & (1 << (DAINT_OEPINT_Pos + n))) {
@@ -949,7 +903,7 @@ static void handle_epout_ints(uint8_t rhport, dwc2_device_t * dev, dwc2_epout_t 
 static void handle_epin_ints(uint8_t rhport, dwc2_device_t * dev, dwc2_epin_t * in_ep) {
   // DAINT for a given EP clears when DIEPINTx is cleared.
   // IEPINT will be cleared when DAINT's out bits are cleared.
-  for ( uint8_t n = 0; n < EP_MAX; n++ )
+  for ( uint8_t n = 0; n < DWC2_EP_MAX; n++ )
   {
     xfer_ctl_t *xfer = XFER_CTL_BASE(n, TUSB_DIR_IN);
 
@@ -1040,7 +994,7 @@ void dcd_int_handler(uint8_t rhport)
 
     tusb_speed_t const speed = get_speed(rhport);
 
-    set_turnaround(core, speed);
+    dwc2_set_turnaround(core, speed);
     dcd_event_bus_reset(rhport, speed, true);
   }
 

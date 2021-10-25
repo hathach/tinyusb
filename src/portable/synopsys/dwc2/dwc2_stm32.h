@@ -24,8 +24,12 @@
  * This file is part of the TinyUSB stack.
  */
 
-#ifndef _TUSB_DWC2_STM32_H_
-#define _TUSB_DWC2_STM32_H_
+#ifndef _DWC2_STM32_H_
+#define _DWC2_STM32_H_
+
+#ifdef __cplusplus
+ extern "C" {
+#endif
 
 // EP_MAX       : Max number of bi-directional endpoints including EP0
 // EP_FIFO_SIZE : Size of dedicated USB SRAM
@@ -71,18 +75,20 @@
 
 // On STM32 we associate Port0 to OTG_FS, and Port1 to OTG_HS
 #if TUD_OPT_RHPORT == 0
-  #define EP_MAX            EP_MAX_FS
-  #define EP_FIFO_SIZE      EP_FIFO_SIZE_FS
-  #define DWC2_REG_BASE     USB_OTG_FS_PERIPH_BASE
-  #define RHPORT_IRQn       OTG_FS_IRQn
+  #define DWC2_REG_BASE       USB_OTG_FS_PERIPH_BASE
+  #define DWC2_EP_MAX         EP_MAX_FS
+  #define DWC2_EP_FIFO_SIZE   EP_FIFO_SIZE_FS
+  #define RHPORT_IRQn         OTG_FS_IRQn
 
 #else
-  #define EP_MAX            EP_MAX_HS
-  #define EP_FIFO_SIZE      EP_FIFO_SIZE_HS
-  #define DWC2_REG_BASE     USB_OTG_HS_PERIPH_BASE
-  #define RHPORT_IRQn       OTG_HS_IRQn
+  #define DWC2_REG_BASE       USB_OTG_HS_PERIPH_BASE
+  #define DWC2_EP_MAX         EP_MAX_HS
+  #define DWC2_EP_FIFO_SIZE   EP_FIFO_SIZE_HS
+  #define RHPORT_IRQn         OTG_HS_IRQn
 
 #endif
+
+extern uint32_t SystemCoreClock;
 
 TU_ATTR_ALWAYS_INLINE
 static inline void dcd_dwc2_int_enable(uint8_t rhport)
@@ -98,4 +104,59 @@ static inline void dcd_dwc2_int_disable (uint8_t rhport)
   NVIC_DisableIRQ(RHPORT_IRQn);
 }
 
-#endif /* DWC2_STM32_H_ */
+TU_ATTR_ALWAYS_INLINE
+static inline void dwc2_remote_wakeup_delay(void)
+{
+  // try to delay for 1 ms
+  uint32_t count = SystemCoreClock / 1000;
+  while ( count-- ) __NOP();
+}
+
+// Set turn-around timeout according to link speed
+static inline void dwc2_set_turnaround(dwc2_core_t * core, tusb_speed_t speed)
+{
+  core->GUSBCFG &= ~GUSBCFG_TRDT;
+
+  if ( speed == TUSB_SPEED_HIGH )
+  {
+    // Use fixed 0x09 for Highspeed
+    core->GUSBCFG |= (0x09 << GUSBCFG_TRDT_Pos);
+  }
+  else
+  {
+    // Turnaround timeout depends on the MCU clock
+    uint32_t turnaround;
+
+    if ( SystemCoreClock >= 32000000U )
+      turnaround = 0x6U;
+    else if ( SystemCoreClock >= 27500000U )
+      turnaround = 0x7U;
+    else if ( SystemCoreClock >= 24000000U )
+      turnaround = 0x8U;
+    else if ( SystemCoreClock >= 21800000U )
+      turnaround = 0x9U;
+    else if ( SystemCoreClock >= 20000000U )
+      turnaround = 0xAU;
+    else if ( SystemCoreClock >= 18500000U )
+      turnaround = 0xBU;
+    else if ( SystemCoreClock >= 17200000U )
+      turnaround = 0xCU;
+    else if ( SystemCoreClock >= 16000000U )
+      turnaround = 0xDU;
+    else if ( SystemCoreClock >= 15000000U )
+      turnaround = 0xEU;
+    else
+      turnaround = 0xFU;
+
+    // Fullspeed depends on MCU clocks, but we will use 0x06 for 32+ Mhz
+    core->GUSBCFG |= (turnaround << GUSBCFG_TRDT_Pos);
+  }
+}
+
+
+
+#ifdef __cplusplus
+}
+#endif
+
+#endif /* _DWC2_STM32_H_ */

@@ -36,13 +36,13 @@
 // - PORT_HIGHSPEED: mask to indicate which port support highspeed mode, bit0 for port0 and so on.
 
 //------------- NXP -------------//
-#if   TU_CHECK_MCU(LPC11UXX) || TU_CHECK_MCU(LPC13XX) || TU_CHECK_MCU(LPC15XX)
+#if   TU_CHECK_MCU(LPC11UXX, LPC13XX, LPC15XX)
   #define DCD_ATTR_ENDPOINT_MAX   5
 
-#elif TU_CHECK_MCU(LPC175X_6X) || TU_CHECK_MCU(LPC177X_8X) || TU_CHECK_MCU(LPC40XX)
+#elif TU_CHECK_MCU(LPC175X_6X, LPC177X_8X, LPC40XX)
   #define DCD_ATTR_ENDPOINT_MAX   16
 
-#elif TU_CHECK_MCU(LPC18XX) || TU_CHECK_MCU(LPC43XX)
+#elif TU_CHECK_MCU(LPC18XX, LPC43XX)
   // TODO USB0 has 6, USB1 has 4
   #define DCD_ATTR_ENDPOINT_MAX   6
 
@@ -60,7 +60,7 @@
 #elif TU_CHECK_MCU(MIMXRT10XX)
   #define DCD_ATTR_ENDPOINT_MAX   8
 
-#elif TU_CHECK_MCU(MKL25ZXX) || TU_CHECK_MCU(K32L2BXX)
+#elif TU_CHECK_MCU(MKL25ZXX, K32L2BXX)
   #define DCD_ATTR_ENDPOINT_MAX   16
 
 #elif TU_CHECK_MCU(MM32F327X)
@@ -72,8 +72,8 @@
   #define DCD_ATTR_ENDPOINT_MAX   9
 
 //------------- Microchip -------------//
-#elif TU_CHECK_MCU(SAMD21) || TU_CHECK_MCU(SAMD51) || TU_CHECK_MCU(SAME5X) || \
-      TU_CHECK_MCU(SAMD11) || TU_CHECK_MCU(SAML21) || TU_CHECK_MCU(SAML22)
+#elif TU_CHECK_MCU(SAMD21, SAMD51, SAME5X) || \
+      TU_CHECK_MCU(SAMD11, SAML21, SAML22)
   #define DCD_ATTR_ENDPOINT_MAX   8
 
 #elif TU_CHECK_MCU(SAMG)
@@ -119,7 +119,7 @@
   #define DCD_ATTR_ENDPOINT_MAX   9
   #define DCD_ATTR_DWC2_STM32
 
-#elif TU_CHECK_MCU(STM32L0) || TU_CHECK_MCU(STM32L1)
+#elif TU_CHECK_MCU(STM32L0, STM32L1)
   #define DCD_ATTR_ENDPOINT_MAX   8
 
 #elif TU_CHECK_MCU(STM32L4)
@@ -157,7 +157,7 @@
   #define DCD_ATTR_ENDPOINT_MAX   12
 
 //------------- Espressif -------------//
-#elif TU_CHECK_MCU(ESP32S2) || TU_CHECK_MCU(ESP32S3)
+#elif TU_CHECK_MCU(ESP32S2, ESP32S3)
   #define DCD_ATTR_ENDPOINT_MAX   6
 
 //------------- Dialog -------------//
