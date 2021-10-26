@@ -40,15 +40,40 @@ typedef struct
 // Host Channel
 typedef struct
 {
-  volatile uint32_t hcchar;           // 500 + 20n Host Channel Characteristics Register
-  volatile uint32_t hcsplt;           // 504 + 20n Host Channel Split Control Register
-  volatile uint32_t hcint;            // 508 + 20n Host Channel Interrupt Register
-  volatile uint32_t hcintmsk;         // 50C + 20n Host Channel Interrupt Mask Register
-  volatile uint32_t hctsiz;           // 510 + 20n Host Channel Transfer Size Register
-  volatile uint32_t hcdma;            // 514 + 20n Host Channel DMA Address Register
-           uint32_t reserved518;      // 518 + 20n
-  volatile uint32_t hcdmab;           // 51C + 20n Host Channel DMA Address Register
+  volatile uint32_t hcchar;           // 500 + 20*ch Host Channel Characteristics Register
+  volatile uint32_t hcsplt;           // 504 + 20*ch Host Channel Split Control Register
+  volatile uint32_t hcint;            // 508 + 20*ch Host Channel Interrupt Register
+  volatile uint32_t hcintmsk;         // 50C + 20*ch Host Channel Interrupt Mask Register
+  volatile uint32_t hctsiz;           // 510 + 20*ch Host Channel Transfer Size Register
+  volatile uint32_t hcdma;            // 514 + 20*ch Host Channel DMA Address Register
+           uint32_t reserved518;      // 518 + 20*ch
+  volatile uint32_t hcdmab;           // 51C + 20*ch Host Channel DMA Address Register
 } dwc2_channel_t;
+
+// Endpoint IN
+typedef struct
+{
+  volatile uint32_t diepctl;       // 900 + 20*ep Device IN Endpoint Control
+           uint32_t reserved04;    // 904
+  volatile uint32_t diepint;       // 908 + 20*ep Device IN Endpoint Interrupt
+           uint32_t reserved0c;    // 90C
+  volatile uint32_t dieptsiz;      // 910 + 20*ep Device IN Endpoint Transfer Size
+  volatile uint32_t diepdma;       // 914 + 20*ep Device IN Endpoint DMA Address
+  volatile uint32_t dtxfsts;       // 918 + 20*ep Device IN Endpoint Tx FIFO Status
+           uint32_t reserved1c;    // 91C
+} dwc2_epin_t;
+
+// Endpoint OUT
+typedef struct
+{
+  volatile uint32_t doepctl;       // B00 + 20*ep Device OUT Endpoint Control
+           uint32_t reserved04;    // B04
+  volatile uint32_t doepint;       // B08 + 20*ep Device OUT Endpoint Interrupt
+           uint32_t reserved0c;    // B0C
+  volatile uint32_t doeptsiz;      // B10 + 20*ep Device OUT Endpoint Transfer Size
+  volatile uint32_t doepdma;       // B14 + 20*ep Device OUT Endpoint DMA Address
+           uint32_t reserved18[2]; // B18..B1C
+} dwc2_epout_t;
 
 typedef struct
 {
@@ -123,48 +148,22 @@ union {
   volatile uint32_t dvbuspulse;      // 82C Device VBUS Pulsing Time Register
   volatile uint32_t dthrctl;         // 830 Device threshold Control
   volatile uint32_t diepempmsk;      // 834 Device IN Endpoint FIFO Empty Interrupt Mask
-
   volatile uint32_t deachint;        // 838 Device Each Endpoint Interrupt
   volatile uint32_t deachmsk;        // 83C Device Each Endpoint Interrupt msk
   volatile uint32_t diepeachmsk[16]; // 840..87C Device Each IN Endpoint mask
   volatile uint32_t doepeachmsk[16]; // 880..8BC Device Each OUT Endpoint mask
            uint32_t reserved8c0[16]; // 8C0..8FC
 
-  //------------- Device IN Endpoint -------------//
-
-
-  //------------- Device OUT Endpoint -------------//
+  //------------- Device Endpoint -------------//
+  dwc2_epin_t  epin[16];               // 900..AFC  IN Endpoints
+  dwc2_epout_t epout[16];              // B00..CFC  OUT Endpoints
 } dwc2_regs_t;
 
-TU_VERIFY_STATIC(offsetof(dwc2_regs_t, hcfg   ) == 0x0400, "incorrect size");
-TU_VERIFY_STATIC(offsetof(dwc2_regs_t, channel) == 0x0500, "incorrect size");
-TU_VERIFY_STATIC(offsetof(dwc2_regs_t, dcfg   ) == 0x0800, "incorrect size");
-
-// Endpoint IN
-typedef struct
-{
-  volatile uint32_t DIEPCTL;       // dev IN Endpoint Control Reg    900h + (ep_num * 20h) + 00h */
-           uint32_t Reserved04;    // Reserved                       900h + (ep_num * 20h) + 04h */
-  volatile uint32_t DIEPINT;       // dev IN Endpoint Itr Reg        900h + (ep_num * 20h) + 08h */
-           uint32_t Reserved0C;    // Reserved                       900h + (ep_num * 20h) + 0Ch */
-  volatile uint32_t DIEPTSIZ;      // IN Endpoint Txfer Size         900h + (ep_num * 20h) + 10h */
-  volatile uint32_t DIEPDMA;       // IN Endpoint DMA Address Reg    900h + (ep_num * 20h) + 14h */
-  volatile uint32_t DTXFSTS;       // IN Endpoint Tx FIFO Status Reg 900h + (ep_num * 20h) + 18h */
-           uint32_t Reserved18;    // Reserved  900h+(ep_num*20h)+1Ch-900h+ (ep_num * 20h) + 1Ch */
-} dwc2_epin_t;
-
-// Endpoint OUT
-typedef struct
-{
-  volatile uint32_t DOEPCTL;       // dev OUT Endpoint Control Reg           B00h + (ep_num * 20h) + 00h */
-           uint32_t Reserved04;    // Reserved                               B00h + (ep_num * 20h) + 04h */
-  volatile uint32_t DOEPINT;       // dev OUT Endpoint Itr Reg               B00h + (ep_num * 20h) + 08h */
-           uint32_t Reserved0C;    // Reserved                               B00h + (ep_num * 20h) + 0Ch */
-  volatile uint32_t DOEPTSIZ;      // dev OUT Endpoint Txfer Size            B00h + (ep_num * 20h) + 10h */
-  volatile uint32_t DOEPDMA;       // dev OUT Endpoint DMA Address           B00h + (ep_num * 20h) + 14h */
-           uint32_t Reserved18[2]; // Reserved B00h + (ep_num * 20h) + 18h - B00h + (ep_num * 20h) + 1Ch */
-} dwc2_epout_t;
-
+TU_VERIFY_STATIC(offsetof(dwc2_regs_t, hcfg   ) == 0x400, "incorrect size");
+TU_VERIFY_STATIC(offsetof(dwc2_regs_t, channel) == 0x500, "incorrect size");
+TU_VERIFY_STATIC(offsetof(dwc2_regs_t, dcfg   ) == 0x800, "incorrect size");
+TU_VERIFY_STATIC(offsetof(dwc2_regs_t, epin   ) == 0x900, "incorrect size");
+TU_VERIFY_STATIC(offsetof(dwc2_regs_t, epout  ) == 0xB00, "incorrect size");
 
 //--------------------------------------------------------------------+
 // Register Base Address

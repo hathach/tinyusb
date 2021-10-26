@@ -55,14 +55,14 @@ static inline void __eclic_disable_interrupt (uint32_t irq){
 }
 
 TU_ATTR_ALWAYS_INLINE
-static inline void dcd_dwc2_int_enable(uint8_t rhport)
+static inline void dwc2_dcd_int_enable(uint8_t rhport)
 {
   (void) rhport;
   __eclic_enable_interrupt(RHPORT_IRQn);
 }
 
 TU_ATTR_ALWAYS_INLINE
-static inline void dcd_dwc2_int_disable (uint8_t rhport)
+static inline void dwc2_dcd_int_disable (uint8_t rhport)
 {
   (void) rhport;
   __eclic_disable_interrupt(RHPORT_IRQn);

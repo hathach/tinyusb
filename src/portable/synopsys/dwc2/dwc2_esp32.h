@@ -50,13 +50,13 @@ static void dcd_int_handler_wrap(void* arg)
   dcd_int_handler(0);
 }
 
-static inline void dcd_dwc2_int_enable (uint8_t rhport)
+static inline void dwc2_dcd_int_enable (uint8_t rhport)
 {
   (void) rhport;
   esp_intr_alloc(ETS_USB_INTR_SOURCE, ESP_INTR_FLAG_LOWMED, dcd_int_handler_wrap, NULL, &usb_ih);
 }
 
-static inline void dcd_dwc2_int_disable (uint8_t rhport)
+static inline void dwc2_dcd_int_disable (uint8_t rhport)
 {
   (void) rhport;
   esp_intr_free(usb_ih);
