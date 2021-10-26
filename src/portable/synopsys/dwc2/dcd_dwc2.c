@@ -823,7 +823,7 @@ static void write_fifo_packet(uint8_t rhport, uint8_t fifo_num, uint8_t * src, u
   }
 }
 
-static void handle_rxflvl_ints(uint8_t rhport)
+static void handle_rxflvl_irq(uint8_t rhport)
 {
   dwc2_regs_t * dwc2 = DWC2_REG(rhport);
   volatile uint32_t * rx_fifo = dwc2->fifo[0];
@@ -891,8 +891,9 @@ static void handle_rxflvl_ints(uint8_t rhport)
   }
 }
 
-static void handle_epout_ints (uint8_t rhport, dwc2_regs_t *dwc2)
+static void handle_epout_irq (uint8_t rhport)
 {
+  dwc2_regs_t *dwc2 = DWC2_REG(rhport);
   dwc2_epout_t* epout = dwc2->epout;
 
   // DAINT for a given EP clears when DOEPINTx is cleared.
@@ -930,8 +931,9 @@ static void handle_epout_ints (uint8_t rhport, dwc2_regs_t *dwc2)
   }
 }
 
-static void handle_epin_ints (uint8_t rhport, dwc2_regs_t *dwc2)
+static void handle_epin_irq (uint8_t rhport)
 {
+  dwc2_regs_t *dwc2 = DWC2_REG(rhport);
   dwc2_epin_t* epin = dwc2->epin;
 
   // DAINT for a given EP clears when DIEPINTx is cleared.
@@ -1080,7 +1082,7 @@ void dcd_int_handler(uint8_t rhport)
     // Loop until all available packets were handled
     do
     {
-      handle_rxflvl_ints(rhport);
+      handle_rxflvl_irq(rhport);
     } while(dwc2->gotgint & GINTSTS_RXFLVL);
 
     // Manage RX FIFO size
@@ -1099,14 +1101,14 @@ void dcd_int_handler(uint8_t rhport)
   if(int_status & GINTSTS_OEPINT)
   {
     // OEPINT is read-only
-    handle_epout_ints(rhport, dwc2);
+    handle_epout_irq(rhport);
   }
 
   // IN endpoint interrupt handling.
   if(int_status & GINTSTS_IEPINT)
   {
     // IEPINT bit read-only
-    handle_epin_ints(rhport, dwc2);
+    handle_epin_irq(rhport);
   }
 
   //  // Check for Incomplete isochronous IN transfer
