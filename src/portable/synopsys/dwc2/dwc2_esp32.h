@@ -67,7 +67,7 @@ static inline void dwc2_remote_wakeup_delay(void)
   vTaskDelay(pdMS_TO_TICKS(1));
 }
 
-static inline void dwc2_set_turnaround(dwc2_core_t * core, tusb_speed_t speed)
+static inline void dwc2_set_turnaround(dwc2_regs_t * core, tusb_speed_t speed)
 {
   (void) core;
   (void) speed;

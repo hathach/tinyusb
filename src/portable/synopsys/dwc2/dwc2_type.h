@@ -134,11 +134,11 @@ union {
 
 
   //------------- Device OUT Endpoint -------------//
-} dwc2_core_t;
+} dwc2_regs_t;
 
-TU_VERIFY_STATIC(offsetof(dwc2_core_t, hcfg   ) == 0x0400, "incorrect size");
-TU_VERIFY_STATIC(offsetof(dwc2_core_t, channel) == 0x0500, "incorrect size");
-TU_VERIFY_STATIC(offsetof(dwc2_core_t, dcfg   ) == 0x0800, "incorrect size");
+TU_VERIFY_STATIC(offsetof(dwc2_regs_t, hcfg   ) == 0x0400, "incorrect size");
+TU_VERIFY_STATIC(offsetof(dwc2_regs_t, channel) == 0x0500, "incorrect size");
+TU_VERIFY_STATIC(offsetof(dwc2_regs_t, dcfg   ) == 0x0800, "incorrect size");
 
 // Endpoint IN
 typedef struct
