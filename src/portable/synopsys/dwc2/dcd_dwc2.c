@@ -74,14 +74,14 @@ typedef struct {
 } xfer_ctl_t;
 
 xfer_ctl_t xfer_status[DWC2_EP_MAX][2];
-#define XFER_CTL_BASE(_ep, _dir) &xfer_status[_ep][_dir]
+#define XFER_CTL_BASE(_ep, _dir) (&xfer_status[_ep][_dir])
 
 // EP0 transfers are limited to 1 packet - larger sizes has to be split
 static uint16_t ep0_pending[2];                   // Index determines direction as tusb_dir_t type
 
 // TX FIFO RAM allocation so far in words - RX FIFO size is readily available from dwc2->grxfsiz
 static uint16_t _allocated_fifo_words_tx;         // TX FIFO size in words (IN EPs)
-static bool _out_ep_closed;                       // Flag to check if RX FIFO size needs an update (reduce its size)
+static bool     _out_ep_closed;                   // Flag to check if RX FIFO size needs an update (reduce its size)
 
 // Calculate the RX FIFO size according to recommendations from reference manual
 static inline uint16_t calc_rx_ff_size(uint16_t ep_size)
@@ -120,14 +120,15 @@ static void bus_reset(uint8_t rhport)
   dwc2->dcfg &= ~DCFG_DAD_Msk;
 
   // 1. NAK for all OUT endpoints
-  for(uint8_t n = 0; n < DWC2_EP_MAX; n++) {
+  for ( uint8_t n = 0; n < DWC2_EP_MAX; n++ )
+  {
     dwc2->epout[n].doepctl |= DOEPCTL_SNAK;
   }
 
   // 2. Un-mask interrupt bits
   dwc2->daintmsk = (1 << DAINTMSK_OEPM_Pos) | (1 << DAINTMSK_IEPM_Pos);
   dwc2->doepmsk  = DOEPMSK_STUPM | DOEPMSK_XFRCM;
-  dwc2->diepmsk  = DIEPMSK_TOM | DIEPMSK_XFRCM;
+  dwc2->diepmsk  = DIEPMSK_TOM   | DIEPMSK_XFRCM;
 
   // "USB Data FIFOs" section in reference manual
   // Peripheral FIFO architecture
@@ -188,7 +189,8 @@ static void bus_reset(uint8_t rhport)
 
   // Fixed control EP0 size to 64 bytes
   dwc2->epin[0].diepctl &= ~(0x03 << DIEPCTL_MPSIZ_Pos);
-  xfer_status[0][TUSB_DIR_OUT].max_size = xfer_status[0][TUSB_DIR_IN].max_size = 64;
+  xfer_status[0][TUSB_DIR_OUT].max_size = 64;
+  xfer_status[0][TUSB_DIR_IN ].max_size = 64;
 
   dwc2->epout[0].doeptsiz |= (3 << DOEPTSIZ_STUPCNT_Pos);
 
@@ -210,7 +212,7 @@ static void set_speed(uint8_t rhport, tusb_speed_t speed)
 
   if ( rhport == 1 )
   {
-    bitvalue = ((TUSB_SPEED_HIGH == speed) ? DCD_HIGH_SPEED : DCD_FULL_SPEED_USE_HS);
+    bitvalue = (TUSB_SPEED_HIGH == speed ? DCD_HIGH_SPEED : DCD_FULL_SPEED_USE_HS);
   }
   else
   {
@@ -287,7 +289,7 @@ static void edpt_schedule_packets(uint8_t rhport, uint8_t const epnum, uint8_t c
 
     // A full IN transfer (multiple packets, possibly) triggers XFRC.
     epin[epnum].dieptsiz = (num_packets << DIEPTSIZ_PKTCNT_Pos) |
-                            ((total_bytes << DIEPTSIZ_XFRSIZ_Pos) & DIEPTSIZ_XFRSIZ_Msk);
+                           ((total_bytes << DIEPTSIZ_XFRSIZ_Pos) & DIEPTSIZ_XFRSIZ_Msk);
 
     epin[epnum].diepctl |= DIEPCTL_EPENA | DIEPCTL_CNAK;
 
@@ -311,10 +313,11 @@ static void edpt_schedule_packets(uint8_t rhport, uint8_t const epnum, uint8_t c
     // A full OUT transfer (multiple packets, possibly) triggers XFRC.
     epout[epnum].doeptsiz &= ~(DOEPTSIZ_PKTCNT_Msk | DOEPTSIZ_XFRSIZ);
     epout[epnum].doeptsiz |= (num_packets << DOEPTSIZ_PKTCNT_Pos) |
-                                   ((total_bytes << DOEPTSIZ_XFRSIZ_Pos) & DOEPTSIZ_XFRSIZ_Msk);
+                             ((total_bytes << DOEPTSIZ_XFRSIZ_Pos) & DOEPTSIZ_XFRSIZ_Msk);
 
     epout[epnum].doepctl |= DOEPCTL_EPENA | DOEPCTL_CNAK;
-    if ( (epout[epnum].doepctl & DOEPCTL_EPTYP) == DOEPCTL_EPTYP_0 && (XFER_CTL_BASE(epnum, dir))->interval == 1 )
+    if ( (epout[epnum].doepctl & DOEPCTL_EPTYP) == DOEPCTL_EPTYP_0 &&
+         XFER_CTL_BASE(epnum, dir)->interval == 1 )
     {
       // Take odd/even bit from frame counter.
       uint32_t const odd_frame_now = (dwc2->dsts & (1u << DSTS_FNSOF_Pos));
@@ -326,13 +329,82 @@ static void edpt_schedule_packets(uint8_t rhport, uint8_t const epnum, uint8_t c
 /*------------------------------------------------------------------*/
 /* Controller API
  *------------------------------------------------------------------*/
+void print_dwc2_info(dwc2_regs_t * dwc2)
+{
+  dwc2_ghwcfg2_t const * hw_cfg2 = &dwc2->ghwcfg2_bm;
+  dwc2_ghwcfg3_t const * hw_cfg3 = &dwc2->ghwcfg3_bm;
+  dwc2_ghwcfg4_t const * hw_cfg4 = &dwc2->ghwcfg4_bm;
+
+  TU_LOG_HEX(1, dwc2->guid);
+  TU_LOG_HEX(1, dwc2->gsnpsid);
+  TU_LOG_HEX(1, dwc2->ghwcfg1);
+
+  // HW configure 2
+  TU_LOG(1, "\r\n");
+  TU_LOG_HEX(1, dwc2->ghwcfg2);
+  TU_LOG_INT(1, hw_cfg2->op_mode                );
+  TU_LOG_INT(1, hw_cfg2->arch                   );
+  TU_LOG_INT(1, hw_cfg2->point2point            );
+  TU_LOG_INT(1, hw_cfg2->hs_phy_type            );
+  TU_LOG_INT(1, hw_cfg2->fs_phy_type            );
+  TU_LOG_INT(1, hw_cfg2->num_dev_ep             );
+  TU_LOG_INT(1, hw_cfg2->num_host_ch            );
+  TU_LOG_INT(1, hw_cfg2->period_channel_support );
+  TU_LOG_INT(1, hw_cfg2->enable_dynamic_fifo    );
+  TU_LOG_INT(1, hw_cfg2->mul_cpu_int            );
+  TU_LOG_INT(1, hw_cfg2->nperiod_tx_q_depth     );
+  TU_LOG_INT(1, hw_cfg2->host_period_tx_q_depth );
+  TU_LOG_INT(1, hw_cfg2->dev_token_q_depth      );
+  TU_LOG_INT(1, hw_cfg2->otg_enable_ic_usb      );
+
+  // HW configure 3
+  TU_LOG(1, "\r\n");
+  TU_LOG_HEX(1, dwc2->ghwcfg3);
+  TU_LOG_INT(1, hw_cfg3->xfer_size_width          );
+  TU_LOG_INT(1, hw_cfg3->packet_size_width        );
+  TU_LOG_INT(1, hw_cfg3->otg_enable               );
+  TU_LOG_INT(1, hw_cfg3->i2c_enable               );
+  TU_LOG_INT(1, hw_cfg3->vendor_ctrl_itf          );
+  TU_LOG_INT(1, hw_cfg3->optional_feature_removed );
+  TU_LOG_INT(1, hw_cfg3->synch_reset              );
+  TU_LOG_INT(1, hw_cfg3->otg_adp_support          );
+  TU_LOG_INT(1, hw_cfg3->otg_enable_hsic          );
+  TU_LOG_INT(1, hw_cfg3->otg_bc_support           );
+  TU_LOG_INT(1, hw_cfg3->lpm_mode                 );
+  TU_LOG_INT(1, hw_cfg3->total_fifo_size          );
+
+  // HW configure 4
+  TU_LOG(1, "\r\n");
+  TU_LOG_HEX(1, dwc2->ghwcfg4);
+  TU_LOG_INT(1, hw_cfg4->num_dev_period_in_ep      );
+  TU_LOG_INT(1, hw_cfg4->power_optimized           );
+  TU_LOG_INT(1, hw_cfg4->ahb_freq_min              );
+  TU_LOG_INT(1, hw_cfg4->hibernation               );
+  TU_LOG_INT(1, hw_cfg4->service_interval_mode     );
+  TU_LOG_INT(1, hw_cfg4->ipg_isoc_en               );
+  TU_LOG_INT(1, hw_cfg4->acg_enable                );
+  TU_LOG_INT(1, hw_cfg4->utmi_phy_data_width       );
+  TU_LOG_INT(1, hw_cfg4->dev_ctrl_ep_num           );
+  TU_LOG_INT(1, hw_cfg4->iddg_filter_enabled       );
+  TU_LOG_INT(1, hw_cfg4->vbus_valid_filter_enabled );
+  TU_LOG_INT(1, hw_cfg4->a_valid_filter_enabled    );
+  TU_LOG_INT(1, hw_cfg4->b_valid_filter_enabled    );
+  TU_LOG_INT(1, hw_cfg4->dedicated_fifos           );
+  TU_LOG_INT(1, hw_cfg4->num_dev_in_eps            );
+  TU_LOG_INT(1, hw_cfg4->dma_desc_enable           );
+  TU_LOG_INT(1, hw_cfg4->dma_dynamic               );
+}
+
 void dcd_init (uint8_t rhport)
 {
   // Programming model begins in the last section of the chapter on the USB
   // peripheral in each Reference Manual.
   dwc2_regs_t * dwc2 = DWC2_REG(rhport);
 
-  // check GSNPSID
+  // check gsnpsid
+  //TU_LOG_HEX(1, dwc2->gsnpsid);
+
+  print_dwc2_info(dwc2);
 
   // No HNP/SRP (no OTG support), program timeout later.
   if ( rhport == 1 )
