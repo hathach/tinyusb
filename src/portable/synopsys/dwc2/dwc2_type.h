@@ -1051,42 +1051,42 @@ TU_VERIFY_STATIC(offsetof(dwc2_regs_t, fifo   ) == 0x1000, "incorrect size");
 #define DEACHINT_OEP1INT                 DEACHINT_OEP1INT_Msk                     // OUT endpoint 1 interrupt bit */
 
 /********************  Bit definition for GCCFG register  ********************/
-#define GCCFG_DCDET_Pos                  (0U)
-#define GCCFG_DCDET_Msk                  (0x1UL << GCCFG_DCDET_Pos)               // 0x00000001 */
-#define GCCFG_DCDET                      GCCFG_DCDET_Msk                          // Data contact detection (DCD) status */
-#define GCCFG_PDET_Pos                   (1U)
-#define GCCFG_PDET_Msk                   (0x1UL << GCCFG_PDET_Pos)                // 0x00000002 */
-#define GCCFG_PDET                       GCCFG_PDET_Msk                           // Primary detection (PD) status */
-#define GCCFG_SDET_Pos                   (2U)
-#define GCCFG_SDET_Msk                   (0x1UL << GCCFG_SDET_Pos)                // 0x00000004 */
-#define GCCFG_SDET                       GCCFG_SDET_Msk                           // Secondary detection (SD) status */
-#define GCCFG_PS2DET_Pos                 (3U)
-#define GCCFG_PS2DET_Msk                 (0x1UL << GCCFG_PS2DET_Pos)              // 0x00000008 */
-#define GCCFG_PS2DET                     GCCFG_PS2DET_Msk                         // DM pull-up detection status */
-#define GCCFG_PWRDWN_Pos                 (16U)
-#define GCCFG_PWRDWN_Msk                 (0x1UL << GCCFG_PWRDWN_Pos)              // 0x00010000 */
-#define GCCFG_PWRDWN                     GCCFG_PWRDWN_Msk                         // Power down */
-#define GCCFG_BCDEN_Pos                  (17U)
-#define GCCFG_BCDEN_Msk                  (0x1UL << GCCFG_BCDEN_Pos)               // 0x00020000 */
-#define GCCFG_BCDEN                      GCCFG_BCDEN_Msk                          // Battery charging detector (BCD) enable */
-#define GCCFG_DCDEN_Pos                  (18U)
-#define GCCFG_DCDEN_Msk                  (0x1UL << GCCFG_DCDEN_Pos)               // 0x00040000 */
-#define GCCFG_DCDEN                      GCCFG_DCDEN_Msk                          // Data contact detection (DCD) mode enable*/
-#define GCCFG_PDEN_Pos                   (19U)
-#define GCCFG_PDEN_Msk                   (0x1UL << GCCFG_PDEN_Pos)                // 0x00080000 */
-#define GCCFG_PDEN                       GCCFG_PDEN_Msk                           // Primary detection (PD) mode enable*/
-#define GCCFG_SDEN_Pos                   (20U)
-#define GCCFG_SDEN_Msk                   (0x1UL << GCCFG_SDEN_Pos)                // 0x00100000 */
-#define GCCFG_SDEN                       GCCFG_SDEN_Msk                           // Secondary detection (SD) mode enable */
-#define GCCFG_VBDEN_Pos                  (21U)
-#define GCCFG_VBDEN_Msk                  (0x1UL << GCCFG_VBDEN_Pos)               // 0x00200000 */
-#define GCCFG_VBDEN                      GCCFG_VBDEN_Msk                          // VBUS mode enable */
-#define GCCFG_OTGIDEN_Pos                (22U)
-#define GCCFG_OTGIDEN_Msk                (0x1UL << GCCFG_OTGIDEN_Pos)             // 0x00400000 */
-#define GCCFG_OTGIDEN                    GCCFG_OTGIDEN_Msk                        // OTG Id enable */
-#define GCCFG_PHYHSEN_Pos                (23U)
-#define GCCFG_PHYHSEN_Msk                (0x1UL << GCCFG_PHYHSEN_Pos)             // 0x00800000 */
-#define GCCFG_PHYHSEN                    GCCFG_PHYHSEN_Msk                        // HS PHY enable */
+#define STM32_GCCFG_DCDET_Pos            (0U)
+#define STM32_GCCFG_DCDET_Msk            (0x1UL << STM32_GCCFG_DCDET_Pos)         // 0x00000001 */
+#define STM32_GCCFG_DCDET                STM32_GCCFG_DCDET_Msk                    // Data contact detection (DCD) status */
+#define STM32_GCCFG_PDET_Pos             (1U)
+#define STM32_GCCFG_PDET_Msk             (0x1UL << STM32_GCCFG_PDET_Pos)          // 0x00000002 */
+#define STM32_GCCFG_PDET                 STM32_GCCFG_PDET_Msk                     // Primary detection (PD) status */
+#define STM32_GCCFG_SDET_Pos             (2U)
+#define STM32_GCCFG_SDET_Msk             (0x1UL << STM32_GCCFG_SDET_Pos)          // 0x00000004 */
+#define STM32_GCCFG_SDET                 STM32_GCCFG_SDET_Msk                     // Secondary detection (SD) status */
+#define STM32_GCCFG_PS2DET_Pos           (3U)
+#define STM32_GCCFG_PS2DET_Msk           (0x1UL << STM32_GCCFG_PS2DET_Pos)        // 0x00000008 */
+#define STM32_GCCFG_PS2DET               STM32_GCCFG_PS2DET_Msk                   // DM pull-up detection status */
+#define STM32_GCCFG_PWRDWN_Pos           (16U)
+#define STM32_GCCFG_PWRDWN_Msk           (0x1UL << STM32_GCCFG_PWRDWN_Pos)        // 0x00010000 */
+#define STM32_GCCFG_PWRDWN               STM32_GCCFG_PWRDWN_Msk                   // Power down */
+#define STM32_GCCFG_BCDEN_Pos            (17U)
+#define STM32_GCCFG_BCDEN_Msk            (0x1UL << STM32_GCCFG_BCDEN_Pos)         // 0x00020000 */
+#define STM32_GCCFG_BCDEN                STM32_GCCFG_BCDEN_Msk                    // Battery charging detector (BCD) enable */
+#define STM32_GCCFG_DCDEN_Pos            (18U)
+#define STM32_GCCFG_DCDEN_Msk            (0x1UL << STM32_GCCFG_DCDEN_Pos)         // 0x00040000 */
+#define STM32_GCCFG_DCDEN                STM32_GCCFG_DCDEN_Msk                    // Data contact detection (DCD) mode enable*/
+#define STM32_GCCFG_PDEN_Pos             (19U)
+#define STM32_GCCFG_PDEN_Msk             (0x1UL << STM32_GCCFG_PDEN_Pos)          // 0x00080000 */
+#define STM32_GCCFG_PDEN                 STM32_GCCFG_PDEN_Msk                     // Primary detection (PD) mode enable*/
+#define STM32_GCCFG_SDEN_Pos             (20U)
+#define STM32_GCCFG_SDEN_Msk             (0x1UL << STM32_GCCFG_SDEN_Pos)          // 0x00100000 */
+#define STM32_GCCFG_SDEN                 STM32_GCCFG_SDEN_Msk                     // Secondary detection (SD) mode enable */
+#define STM32_GCCFG_VBDEN_Pos            (21U)
+#define STM32_GCCFG_VBDEN_Msk            (0x1UL << STM32_GCCFG_VBDEN_Pos)         // 0x00200000 */
+#define STM32_GCCFG_VBDEN                STM32_GCCFG_VBDEN_Msk                    // VBUS mode enable */
+#define STM32_GCCFG_OTGIDEN_Pos          (22U)
+#define STM32_GCCFG_OTGIDEN_Msk          (0x1UL << STM32_GCCFG_OTGIDEN_Pos)       // 0x00400000 */
+#define STM32_GCCFG_OTGIDEN              STM32_GCCFG_OTGIDEN_Msk                  // OTG Id enable */
+#define STM32_GCCFG_PHYHSEN_Pos          (23U)
+#define STM32_GCCFG_PHYHSEN_Msk          (0x1UL << STM32_GCCFG_PHYHSEN_Pos)       // 0x00800000 */
+#define STM32_GCCFG_PHYHSEN              STM32_GCCFG_PHYHSEN_Msk                  // HS PHY enable */
 
 /********************  Bit definition for DEACHINTMSK register  ********************/
 #define DEACHINTMSK_IEP1INTM_Pos         (1U)

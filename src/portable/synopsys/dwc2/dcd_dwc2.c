@@ -401,8 +401,9 @@ void dcd_init (uint8_t rhport)
   // peripheral in each Reference Manual.
   dwc2_regs_t * dwc2 = DWC2_REG(rhport);
 
-  // check gsnpsid
-  //TU_LOG_HEX(1, dwc2->gsnpsid);
+  // Check Synopsys ID
+  uint32_t const gsnpsid = dwc2->gsnpsid & 0xffff0000u;
+  TU_ASSERT(gsnpsid == DWC2_OTG_ID || gsnpsid == DWC2_FS_IOT_ID || gsnpsid == DWC2_HS_IOT_ID, );
 
   print_dwc2_info(dwc2);
 
@@ -412,7 +413,7 @@ void dcd_init (uint8_t rhport)
     // On selected MCUs HS port1 can be used with external PHY via ULPI interface
 #if CFG_TUSB_RHPORT1_MODE & OPT_MODE_HIGH_SPEED
     // deactivate internal PHY
-    dwc2->stm32_gccfg &= ~GCCFG_PWRDWN;
+    dwc2->stm32_gccfg &= ~STM32_GCCFG_PWRDWN;
 
     // Init The UTMI Interface
     dwc2->gusbcfg &= ~(GUSBCFG_TSDPS | GUSBCFG_ULPIFSLS | GUSBCFG_PHYSEL);
@@ -428,7 +429,7 @@ void dcd_init (uint8_t rhport)
 
     // Select UTMI Interface
     dwc2->gusbcfg &= ~GUSBCFG_ULPI_UTMI_SEL;
-    dwc2->stm32_gccfg |= GCCFG_PHYHSEN;
+    dwc2->stm32_gccfg |= STM32_GCCFG_PHYHSEN;
 
     // Enables control of a High Speed USB PHY
     USB_HS_PHYCInit();
@@ -463,7 +464,7 @@ void dcd_init (uint8_t rhport)
   set_speed(rhport, TUD_OPT_HIGH_SPEED ? TUSB_SPEED_HIGH : TUSB_SPEED_FULL);
 
   // Enable internal USB transceiver, unless using HS core (port 1) with external PHY.
-  if (!(rhport == 1 && (CFG_TUSB_RHPORT1_MODE & OPT_MODE_HIGH_SPEED))) dwc2->stm32_gccfg |= GCCFG_PWRDWN;
+  if (!(rhport == 1 && (CFG_TUSB_RHPORT1_MODE & OPT_MODE_HIGH_SPEED))) dwc2->stm32_gccfg |= STM32_GCCFG_PWRDWN;
 
   dwc2->gintmsk |= GINTMSK_USBRST | GINTMSK_ENUMDNEM | GINTMSK_USBSUSPM |
                    GINTMSK_WUIM   | GINTMSK_RXFLVLM;
@@ -546,7 +547,7 @@ bool dcd_edpt_open (uint8_t rhport, tusb_desc_endpoint_t const * desc_edpt)
   xfer->max_size = tu_edpt_packet_size(desc_edpt);
   xfer->interval = desc_edpt->bInterval;
 
-  uint16_t const fifo_size = (xfer->max_size + 3) / 4; // Round up to next full word
+  uint16_t const fifo_size = tu_div_ceil(xfer->max_size, 4);
 
   if(dir == TUSB_DIR_OUT)
   {
