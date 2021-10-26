@@ -164,6 +164,7 @@ union {
            uint32_t reservede08[126]; // E08..FFF
 
   //------------- FIFOs -------------//
+  // Word-accessed only using first pointer since it auto shift
   volatile uint32_t fifo[16][0x400];  // 1000..FFFF Endpoint FIFO
 } dwc2_regs_t;
 

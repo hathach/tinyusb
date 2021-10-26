@@ -53,7 +53,6 @@
 #define DWC2_REG(_port)       ((dwc2_regs_t*) DWC2_REG_BASE)
 #define EPIN_REG(_port)       (DWC2_REG(_port)->epin)
 #define EPOUT_REG(_port)      (DWC2_REG(_port)->epout)
-#define FIFO_BASE(_port, _x)  ((volatile uint32_t*) (DWC2_REG_BASE + DWC2_FIFO_BASE + (_x) * DWC2_FIFO_SIZE))
 
 enum
 {
@@ -758,7 +757,8 @@ static void read_fifo_packet(uint8_t rhport, uint8_t * dst, uint16_t len)
 {
   (void) rhport;
 
-  volatile uint32_t * rx_fifo = FIFO_BASE(rhport, 0);
+  dwc2_regs_t * dwc2 = DWC2_REG(rhport);
+  volatile uint32_t * rx_fifo = dwc2->fifo[0];
 
   // Reading full available 32 bit words from fifo
   uint16_t full_words = len >> 2;
@@ -794,7 +794,8 @@ static void write_fifo_packet(uint8_t rhport, uint8_t fifo_num, uint8_t * src, u
 {
   (void) rhport;
 
-  volatile uint32_t * tx_fifo = FIFO_BASE(rhport, fifo_num);
+  dwc2_regs_t * dwc2 = DWC2_REG(rhport);
+  volatile uint32_t * tx_fifo = dwc2->fifo[fifo_num];
 
   // Pushing full available 32 bit words to fifo
   uint16_t full_words = len >> 2;
@@ -822,9 +823,10 @@ static void write_fifo_packet(uint8_t rhport, uint8_t fifo_num, uint8_t * src, u
   }
 }
 
-static void handle_rxflvl_ints(uint8_t rhport, dwc2_epout_t * out_ep) {
+static void handle_rxflvl_ints(uint8_t rhport, dwc2_epout_t * out_ep)
+{
   dwc2_regs_t * dwc2 = DWC2_REG(rhport);
-  volatile uint32_t * rx_fifo = FIFO_BASE(rhport, 0);
+  volatile uint32_t * rx_fifo = dwc2->fifo[0];
 
   // Pop control word off FIFO
   uint32_t ctl_word = dwc2->grxstsp;
@@ -972,7 +974,7 @@ static void handle_epin_ints(uint8_t rhport, dwc2_regs_t * dwc2, dwc2_epin_t * i
           // Push packet to Tx-FIFO
           if (xfer->ff)
           {
-            volatile uint32_t * tx_fifo = FIFO_BASE(rhport, n);
+            volatile uint32_t * tx_fifo = dwc2->fifo[n];
             tu_fifo_read_n_const_addr_full_words(xfer->ff, (void *)(uintptr_t) tx_fifo, packet_size);
           }
           else
