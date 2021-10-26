@@ -30,8 +30,6 @@
 #include "tusb_option.h"
 #include "device/dcd_attr.h"
 
-
-
 #if TUSB_OPT_DEVICE_ENABLED && \
     ( defined(DCD_ATTR_DWC2_STM32) || TU_CHECK_MCU(OPT_MCU_ESP32S2, OPT_MCU_ESP32S3, OPT_MCU_GD32VF103) )
 
@@ -84,7 +82,7 @@ xfer_ctl_t xfer_status[DWC2_EP_MAX][2];
 // EP0 transfers are limited to 1 packet - larger sizes has to be split
 static uint16_t ep0_pending[2];                   // Index determines direction as tusb_dir_t type
 
-// TX FIFO RAM allocation so far in words - RX FIFO size is readily available from core->GRXFSIZ
+// TX FIFO RAM allocation so far in words - RX FIFO size is readily available from dwc2->grxfsiz
 static uint16_t _allocated_fifo_words_tx;         // TX FIFO size in words (IN EPs)
 static bool _out_ep_closed;                       // Flag to check if RX FIFO size needs an update (reduce its size)
 
@@ -98,7 +96,7 @@ static void update_grxfsiz(uint8_t rhport)
 {
   (void) rhport;
 
-  dwc2_regs_t * core = DWC2_REG(rhport);
+  dwc2_regs_t * dwc2 = DWC2_REG(rhport);
 
   // Determine largest EP size for RX FIFO
   uint16_t max_epsize = 0;
@@ -108,7 +106,7 @@ static void update_grxfsiz(uint8_t rhport)
   }
 
   // Update size of RX FIFO
-  core->grxfsiz = calc_rx_ff_size(max_epsize);
+  dwc2->grxfsiz = calc_rx_ff_size(max_epsize);
 }
 
 // Setup the control endpoint 0.
@@ -340,7 +338,7 @@ void dcd_init (uint8_t rhport)
     // On selected MCUs HS port1 can be used with external PHY via ULPI interface
 #if CFG_TUSB_RHPORT1_MODE & OPT_MODE_HIGH_SPEED
     // deactivate internal PHY
-    dwc2->gccfg &= ~GCCFG_PWRDWN;
+    dwc2->stm32_gccfg &= ~GCCFG_PWRDWN;
 
     // Init The UTMI Interface
     dwc2->gusbcfg &= ~(GUSBCFG_TSDPS | GUSBCFG_ULPIFSLS | GUSBCFG_PHYSEL);
@@ -356,7 +354,7 @@ void dcd_init (uint8_t rhport)
 
     // Select UTMI Interface
     dwc2->gusbcfg &= ~GUSBCFG_ULPI_UTMI_SEL;
-    dwc2->gccfg |= GCCFG_PHYHSEN;
+    dwc2->stm32_gccfg |= GCCFG_PHYHSEN;
 
     // Enables control of a High Speed USB PHY
     USB_HS_PHYCInit();
@@ -374,7 +372,7 @@ void dcd_init (uint8_t rhport)
   while ((dwc2->grstctl & GRSTCTL_CSRST) == GRSTCTL_CSRST) {}
 
   // Restart PHY clock
-  *((volatile uint32_t *)(DWC2_REG_BASE + DWC2_PCGCCTL_BASE)) = 0;
+  dwc2->pcgctrl = 0;
 
   // Clear all interrupts
   dwc2->gintsts |= dwc2->gintsts;
@@ -391,7 +389,7 @@ void dcd_init (uint8_t rhport)
   set_speed(rhport, TUD_OPT_HIGH_SPEED ? TUSB_SPEED_HIGH : TUSB_SPEED_FULL);
 
   // Enable internal USB transceiver, unless using HS core (port 1) with external PHY.
-  if (!(rhport == 1 && (CFG_TUSB_RHPORT1_MODE & OPT_MODE_HIGH_SPEED))) dwc2->gccfg |= GCCFG_PWRDWN;
+  if (!(rhport == 1 && (CFG_TUSB_RHPORT1_MODE & OPT_MODE_HIGH_SPEED))) dwc2->stm32_gccfg |= GCCFG_PWRDWN;
 
   dwc2->gintmsk |= GINTMSK_USBRST | GINTMSK_ENUMDNEM | GINTMSK_USBSUSPM |
                    GINTMSK_WUIM   | GINTMSK_RXFLVLM;

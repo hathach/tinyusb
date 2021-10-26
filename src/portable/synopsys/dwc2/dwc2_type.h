@@ -78,42 +78,42 @@ typedef struct
 typedef struct
 {
   //------------- Core Global -------------//
-  volatile uint32_t gotgctl;              // 000 OTG Control and Status Register
-  volatile uint32_t gotgint;              // 004 OTG Interrupt Register
-  volatile uint32_t gahbcfg;              // 008 AHB Configuration Register
-  volatile uint32_t gusbcfg;              // 00c USB Configuration Register
-  volatile uint32_t grstctl;              // 010 Reset Register
-  volatile uint32_t gintsts;              // 014 Interrupt Register
-  volatile uint32_t gintmsk;              // 018 Interrupt Mask Register
-  volatile uint32_t grxstsr;              // 01c Receive Status Debug Read Register
-  volatile uint32_t grxstsp;              // 020 Receive Status Read/Pop Register
-  volatile uint32_t grxfsiz;              // 024 Receive FIFO Size Register
+  volatile uint32_t gotgctl;          // 000 OTG Control and Status Register
+  volatile uint32_t gotgint;          // 004 OTG Interrupt Register
+  volatile uint32_t gahbcfg;          // 008 AHB Configuration Register
+  volatile uint32_t gusbcfg;          // 00c USB Configuration Register
+  volatile uint32_t grstctl;          // 010 Reset Register
+  volatile uint32_t gintsts;          // 014 Interrupt Register
+  volatile uint32_t gintmsk;          // 018 Interrupt Mask Register
+  volatile uint32_t grxstsr;          // 01c Receive Status Debug Read Register
+  volatile uint32_t grxstsp;          // 020 Receive Status Read/Pop Register
+  volatile uint32_t grxfsiz;          // 024 Receive FIFO Size Register
 union {
-  volatile uint32_t dieptxf0;             // 028 EP0 Tx FIFO Size Register
-  volatile uint32_t gnptxfsiz;            // 028 Non-periodic Transmit FIFO Size Register
+  volatile uint32_t dieptxf0;         // 028 EP0 Tx FIFO Size Register
+  volatile uint32_t gnptxfsiz;        // 028 Non-periodic Transmit FIFO Size Register
 };
-  volatile uint32_t gnptxsts;             // 02c Non-periodic Transmit FIFO/Queue Status Register
-  volatile uint32_t gi2cctl;              // 030 I2C Address Register
-  volatile uint32_t gpvndctl;             // 034 PHY Vendor Control Register
+  volatile uint32_t gnptxsts;         // 02c Non-periodic Transmit FIFO/Queue Status Register
+  volatile uint32_t gi2cctl;          // 030 I2C Address Register
+  volatile uint32_t gpvndctl;         // 034 PHY Vendor Control Register
 union {
-  volatile uint32_t ggpio;                // 038 General Purpose IO Register
-  volatile uint32_t gccfg;                // 038 STM32 General Core Configuration
+  volatile uint32_t ggpio;            // 038 General Purpose IO Register
+  volatile uint32_t stm32_gccfg;      // 038 STM32 General Core Configuration
 };
-  volatile uint32_t guid;                 // 03C User ID Register
-  volatile uint32_t gsnpsid;              // 040 Synopsys ID Register
-  volatile uint32_t ghwcfg1;              // 044 User Hardware Configuration 1 Register
-  volatile uint32_t ghwcfg2;              // 048 User Hardware Configuration 2 Register
-  volatile uint32_t ghwcfg3;              // 04C User Hardware Configuration 3 Register
-  volatile uint32_t ghwcfg4;              // 050 User Hardware Configuration 4 Register
-  volatile uint32_t glpmcfg;              // 054 Core LPM Configuration Register
-  volatile uint32_t gpwrdn;               // 058 Power Down Register
-  volatile uint32_t gdfifocfg;            // 05C DFIFO Software Configuration Register
-  volatile uint32_t gadpctl;              // 060 ADP Timer, Control and Status Register
+  volatile uint32_t guid;             // 03C User ID Register
+  volatile uint32_t gsnpsid;          // 040 Synopsys ID Register
+  volatile uint32_t ghwcfg1;          // 044 User Hardware Configuration 1 Register
+  volatile uint32_t ghwcfg2;          // 048 User Hardware Configuration 2 Register
+  volatile uint32_t ghwcfg3;          // 04C User Hardware Configuration 3 Register
+  volatile uint32_t ghwcfg4;          // 050 User Hardware Configuration 4 Register
+  volatile uint32_t glpmcfg;          // 054 Core LPM Configuration Register
+  volatile uint32_t gpwrdn;           // 058 Power Down Register
+  volatile uint32_t gdfifocfg;        // 05C DFIFO Software Configuration Register
+  volatile uint32_t gadpctl;          // 060 ADP Timer, Control and Status Register
 
-           uint32_t reserved64[39];       // 064..0FF
-  volatile uint32_t hptxfsiz;             // 100 Host Periodic Tx FIFO Size Register
-  volatile uint32_t dieptxf[15];          // 104..13C Device Periodic Transmit FIFO Size Register
-           uint32_t reserved140[176];     // 140..3FC
+           uint32_t reserved64[39];   // 064..0FF
+  volatile uint32_t hptxfsiz;         // 100 Host Periodic Tx FIFO Size Register
+  volatile uint32_t dieptxf[15];      // 104..13C Device Periodic Transmit FIFO Size Register
+           uint32_t reserved140[176]; // 140..3FF
 
   //------------- Host -------------//
   volatile uint32_t hcfg;             // 400 Host Configuration Register
@@ -124,46 +124,56 @@ union {
   volatile uint32_t haint;            // 414 Host All Channels Interrupt Register
   volatile uint32_t haintmsk;         // 418 Host All Channels Interrupt Mask
   volatile uint32_t hflbaddr;         // 41C Host Frame List Base Address Register
-           uint32_t reserved420[8];   // 420..43C
+           uint32_t reserved420[8];   // 420..43F
   volatile uint32_t hprt;             // 440 Host Port Control and Status
-           uint32_t reserved444[47];  // 444..4FC
+           uint32_t reserved444[47];  // 444..4FF
 
   //------------- Host Channel -------------//
-  dwc2_channel_t channel[16];         // 500..6FC Host Channels 0-15
+  dwc2_channel_t    channel[16];      // 500..6FF Host Channels 0-15
+           uint32_t reserved700[64];  // 700..7FF
 
-           uint32_t reserved700[64];  // 700..7FC
-
-  //------------- Device -------------//
-  volatile uint32_t dcfg;            // 800 Device Configuration Register
-  volatile uint32_t dctl;            // 804 Device Control Register
-  volatile uint32_t dsts;            // 808 Device Status Register (RO)
-           uint32_t reserved80c;     // 80C
-  volatile uint32_t diepmsk;         // 810 Device IN Endpoint Interrupt Mask
-  volatile uint32_t doepmsk;         // 814 Device OUT Endpoint Interrupt Mask
-  volatile uint32_t daint;           // 818 Device All Endpoints Interrupt
-  volatile uint32_t daintmsk;        // 81C Device All Endpoints Interrupt Mask
-  volatile uint32_t dtknqr1;         // 820 Device IN token sequence learning queue read register1
-  volatile uint32_t dtknqr2;         // 824 Device IN token sequence learning queue read register2
-  volatile uint32_t dvbusdis;        // 828 Device VBUS Discharge Time Register
-  volatile uint32_t dvbuspulse;      // 82C Device VBUS Pulsing Time Register
-  volatile uint32_t dthrctl;         // 830 Device threshold Control
-  volatile uint32_t diepempmsk;      // 834 Device IN Endpoint FIFO Empty Interrupt Mask
-  volatile uint32_t deachint;        // 838 Device Each Endpoint Interrupt
-  volatile uint32_t deachmsk;        // 83C Device Each Endpoint Interrupt msk
-  volatile uint32_t diepeachmsk[16]; // 840..87C Device Each IN Endpoint mask
-  volatile uint32_t doepeachmsk[16]; // 880..8BC Device Each OUT Endpoint mask
-           uint32_t reserved8c0[16]; // 8C0..8FC
+ //------------- Device -------------//
+  volatile uint32_t dcfg;             // 800 Device Configuration Register
+  volatile uint32_t dctl;             // 804 Device Control Register
+  volatile uint32_t dsts;             // 808 Device Status Register (RO)
+           uint32_t reserved80c;      // 80C
+  volatile uint32_t diepmsk;          // 810 Device IN Endpoint Interrupt Mask
+  volatile uint32_t doepmsk;          // 814 Device OUT Endpoint Interrupt Mask
+  volatile uint32_t daint;            // 818 Device All Endpoints Interrupt
+  volatile uint32_t daintmsk;         // 81C Device All Endpoints Interrupt Mask
+  volatile uint32_t dtknqr1;          // 820 Device IN token sequence learning queue read register1
+  volatile uint32_t dtknqr2;          // 824 Device IN token sequence learning queue read register2
+  volatile uint32_t dvbusdis;         // 828 Device VBUS Discharge Time Register
+  volatile uint32_t dvbuspulse;       // 82C Device VBUS Pulsing Time Register
+  volatile uint32_t dthrctl;          // 830 Device threshold Control
+  volatile uint32_t diepempmsk;       // 834 Device IN Endpoint FIFO Empty Interrupt Mask
+  volatile uint32_t deachint;         // 838 Device Each Endpoint Interrupt
+  volatile uint32_t deachmsk;         // 83C Device Each Endpoint Interrupt msk
+  volatile uint32_t diepeachmsk[16];  // 840..87C Device Each IN Endpoint mask
+  volatile uint32_t doepeachmsk[16];  // 880..8BF Device Each OUT Endpoint mask
+           uint32_t reserved8c0[16];  // 8C0..8FF
 
   //------------- Device Endpoint -------------//
-  dwc2_epin_t  epin[16];               // 900..AFC  IN Endpoints
-  dwc2_epout_t epout[16];              // B00..CFC  OUT Endpoints
+  dwc2_epin_t       epin[16];         // 900..AFF  IN Endpoints
+  dwc2_epout_t      epout[16];        // B00..CFF  OUT Endpoints
+           uint32_t reservedd00[64];  // D00..DFF
+
+  //------------- Power Clock -------------//
+  volatile uint32_t pcgctrl;          // E00 Power and Clock Gating Control
+  volatile uint32_t pcgcctl1;         // E04
+           uint32_t reservede08[126]; // E08..FFF
+
+  //------------- FIFOs -------------//
+  volatile uint32_t fifo[16][0x400];  // 1000..FFFF Endpoint FIFO
 } dwc2_regs_t;
 
-TU_VERIFY_STATIC(offsetof(dwc2_regs_t, hcfg   ) == 0x400, "incorrect size");
-TU_VERIFY_STATIC(offsetof(dwc2_regs_t, channel) == 0x500, "incorrect size");
-TU_VERIFY_STATIC(offsetof(dwc2_regs_t, dcfg   ) == 0x800, "incorrect size");
-TU_VERIFY_STATIC(offsetof(dwc2_regs_t, epin   ) == 0x900, "incorrect size");
-TU_VERIFY_STATIC(offsetof(dwc2_regs_t, epout  ) == 0xB00, "incorrect size");
+TU_VERIFY_STATIC(offsetof(dwc2_regs_t, hcfg   ) == 0x0400, "incorrect size");
+TU_VERIFY_STATIC(offsetof(dwc2_regs_t, channel) == 0x0500, "incorrect size");
+TU_VERIFY_STATIC(offsetof(dwc2_regs_t, dcfg   ) == 0x0800, "incorrect size");
+TU_VERIFY_STATIC(offsetof(dwc2_regs_t, epin   ) == 0x0900, "incorrect size");
+TU_VERIFY_STATIC(offsetof(dwc2_regs_t, epout  ) == 0x0B00, "incorrect size");
+TU_VERIFY_STATIC(offsetof(dwc2_regs_t, pcgctrl) == 0x0E00, "incorrect size");
+TU_VERIFY_STATIC(offsetof(dwc2_regs_t, fifo   ) == 0x1000, "incorrect size");
 
 //--------------------------------------------------------------------+
 // Register Base Address
