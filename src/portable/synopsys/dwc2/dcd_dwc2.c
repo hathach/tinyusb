@@ -758,39 +758,29 @@ static void read_fifo_packet(uint8_t rhport, uint8_t * dst, uint16_t len)
   (void) rhport;
 
   dwc2_regs_t * dwc2 = DWC2_REG(rhport);
-  volatile uint32_t * rx_fifo = dwc2->fifo[0];
+  volatile const uint32_t * rx_fifo = dwc2->fifo[0];
 
   // Reading full available 32 bit words from fifo
   uint16_t full_words = len >> 2;
-  for ( uint16_t i = 0; i < full_words; i++ )
+  while(full_words--)
   {
-    uint32_t tmp = *rx_fifo;
-    dst[0] = tmp & 0x000000FF;
-    dst[1] = (tmp & 0x0000FF00) >> 8;
-    dst[2] = (tmp & 0x00FF0000) >> 16;
-    dst[3] = (tmp & 0xFF000000) >> 24;
+    tu_unaligned_write32(dst, *rx_fifo);
     dst += 4;
   }
 
   // Read the remaining 1-3 bytes from fifo
-  uint8_t bytes_rem = len & 0x03;
+  uint8_t const bytes_rem = len & 0x03;
   if ( bytes_rem != 0 )
   {
-    uint32_t tmp = *rx_fifo;
-    dst[0] = tmp & 0x000000FF;
-    if ( bytes_rem > 1 )
-    {
-      dst[1] = (tmp & 0x0000FF00) >> 8;
-    }
-    if ( bytes_rem > 2 )
-    {
-      dst[2] = (tmp & 0x00FF0000) >> 16;
-    }
+    uint32_t const tmp = *rx_fifo;
+    dst[0] = tu_u32_byte0(tmp);
+    if ( bytes_rem > 1 ) dst[1] = tu_u32_byte1(tmp);
+    if ( bytes_rem > 2 ) dst[2] = tu_u32_byte2(tmp);
   }
 }
 
 // Write a single data packet to EPIN FIFO
-static void write_fifo_packet(uint8_t rhport, uint8_t fifo_num, uint8_t * src, uint16_t len)
+static void write_fifo_packet(uint8_t rhport, uint8_t fifo_num, uint8_t const * src, uint16_t len)
 {
   (void) rhport;
 
@@ -799,26 +789,20 @@ static void write_fifo_packet(uint8_t rhport, uint8_t fifo_num, uint8_t * src, u
 
   // Pushing full available 32 bit words to fifo
   uint16_t full_words = len >> 2;
-  for ( uint16_t i = 0; i < full_words; i++ )
+  while(full_words--)
   {
-    *tx_fifo = (src[3] << 24) | (src[2] << 16) | (src[1] << 8) | src[0];
+    *tx_fifo = tu_unaligned_read32(src);
     src += 4;
   }
 
   // Write the remaining 1-3 bytes into fifo
-  uint8_t bytes_rem = len & 0x03;
+  uint8_t const bytes_rem = len & 0x03;
   if ( bytes_rem )
   {
-    uint32_t tmp_word = 0;
-    tmp_word |= src[0];
-    if ( bytes_rem > 1 )
-    {
-      tmp_word |= src[1] << 8;
-    }
-    if ( bytes_rem > 2 )
-    {
-      tmp_word |= src[2] << 16;
-    }
+    uint32_t tmp_word = src[0];
+    if ( bytes_rem > 1 ) tmp_word |= (src[1] << 8);
+    if ( bytes_rem > 2 ) tmp_word |= (src[2] << 16);
+
     *tx_fifo = tmp_word;
   }
 }
@@ -830,9 +814,9 @@ static void handle_rxflvl_irq(uint8_t rhport)
 
   // Pop control word off FIFO
   uint32_t ctl_word = dwc2->grxstsp;
-  uint8_t pktsts    = (ctl_word & GRXSTSP_PKTSTS_Msk) >> GRXSTSP_PKTSTS_Pos;
-  uint8_t epnum     = (ctl_word & GRXSTSP_EPNUM_Msk) >>  GRXSTSP_EPNUM_Pos;
-  uint16_t bcnt     = (ctl_word & GRXSTSP_BCNT_Msk) >> GRXSTSP_BCNT_Pos;
+  uint8_t  pktsts   = (ctl_word & GRXSTSP_PKTSTS_Msk ) >> GRXSTSP_PKTSTS_Pos;
+  uint8_t  epnum    = (ctl_word & GRXSTSP_EPNUM_Msk  ) >> GRXSTSP_EPNUM_Pos;
+  uint16_t bcnt     = (ctl_word & GRXSTSP_BCNT_Msk   ) >> GRXSTSP_BCNT_Pos;
 
   switch ( pktsts )
   {
