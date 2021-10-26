@@ -127,6 +127,8 @@
 // GigaDevice
 #define OPT_MCU_GD32VF103        1600 ///< GigaDevice GD32VF103
 
+// Broadcom
+#define OPT_MCU_BCM2711          1700 ///< Broadcom BCM2711
 
 // Helper to check if configured MCU is one of listed
 // Apply _TU_CHECK_MCU with || as separator to list of input

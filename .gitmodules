@@ -127,3 +127,7 @@
 [submodule "hw/mcu/mindmotion/mm32sdk"]
 	path = hw/mcu/mindmotion/mm32sdk
 	url = https://github.com/hathach/mm32sdk.git
+[submodule "hw/mcu/broadcom"]
+	path = hw/mcu/broadcom
+	url = git@github.com:adafruit/broadcom-peripherals.git
+	branch = main-build
