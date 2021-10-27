@@ -9,6 +9,7 @@ MEMORY
 {
   flash     (rx)   : ORIGIN = 0,        LENGTH = __PMSIZE
   ram       (rw!x) : ORIGIN = 0x800000, LENGTH = __RAMSIZE
+  ehci_mmap (rw!x) : ORIGIN = 0x811000, LENGTH = 2K
 }
 SECTIONS
 {
