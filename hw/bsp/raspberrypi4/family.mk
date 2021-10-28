@@ -16,8 +16,11 @@ CFLAGS += \
 	-mgeneral-regs-only \
 	-DCFG_TUSB_MCU=OPT_MCU_BCM2711
 
+# mcu driver cause following warnings
+CFLAGS += -Wno-error=cast-qual
+
 SRC_C += \
-	src/portable/broadcom/synopsys/dcd_synopsys.c \
+	src/portable/synopsys/dwc2/dcd_dwc2.c \
 	$(MCU_DIR)/broadcom/gen/interrupt_handlers.c \
 	$(MCU_DIR)/broadcom/interrupts.c \
 	$(MCU_DIR)/broadcom/io.c \
@@ -39,3 +42,6 @@ SRC_S += $(MCU_DIR)/broadcom/boot.S
 
 $(BUILD)/kernel8.img: $(BUILD)/$(PROJECT).elf
 	$(OBJCOPY) -O binary $^ $@
+
+flash: $(BUILD)/kernel8.img
+	@$(CP) $< /home/$(USER)/Documents/code/pi4_tinyusb/boot_cpy

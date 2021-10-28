@@ -58,6 +58,13 @@ typedef struct
 } HS_PHYC_GlobalTypeDef;
 #endif
 
+enum {
+  HS_PHY_TYPE_NONE = 0  ,
+  HS_PHY_TYPE_UTMI      , // internal PHY (mostly)
+  HS_PHY_TYPE_ULPI      , // external PHY
+  HS_PHY_TYPE_UTMI_ULPI ,
+};
+
 typedef struct TU_ATTR_PACKED
 {
   uint32_t op_mode                  : 3; // 0: HNP and SRP | 1: SRP | 2: non-HNP, non-SRP
@@ -90,7 +97,7 @@ typedef struct TU_ATTR_PACKED
   uint32_t synch_reset              : 1;  // 0: async reset | 1: synch reset
   uint32_t otg_adp_support          : 1;  // ADP logic is present along with HSOTG controller
   uint32_t otg_enable_hsic          : 1;  // 1: HSIC-capable with shared UTMI PHY interface | 0: non-HSIC
-  uint32_t otg_bc_support           : 1;  // support battery charger
+  uint32_t battery_charger_support  : 1;  // support battery charger
   uint32_t lpm_mode                 : 1;  // LPC mode
   uint32_t total_fifo_size          : 16; // DFIFO depth value in terms of 32-bit words
 }dwc2_ghwcfg3_t;
@@ -494,6 +501,8 @@ TU_VERIFY_STATIC(offsetof(dwc2_regs_t, fifo   ) == 0x1000, "incorrect size");
 #define GAHBCFG_PTXFELVL_Msk             (0x1UL << GAHBCFG_PTXFELVL_Pos)          // 0x00000100 */
 #define GAHBCFG_PTXFELVL                 GAHBCFG_PTXFELVL_Msk                     // Periodic TxFIFO empty level */
 
+#define GSNPSID_ID_MASK			             TU_GENMASK(31, 16)
+
 /********************  Bit definition for GUSBCFG register  ********************/
 #define GUSBCFG_TOCAL_Pos                (0U)
 #define GUSBCFG_TOCAL_Msk                (0x7UL << GUSBCFG_TOCAL_Pos)             // 0x00000007 */
@@ -501,15 +510,16 @@ TU_VERIFY_STATIC(offsetof(dwc2_regs_t, fifo   ) == 0x1000, "incorrect size");
 #define GUSBCFG_TOCAL_0                  (0x1UL << GUSBCFG_TOCAL_Pos)             // 0x00000001 */
 #define GUSBCFG_TOCAL_1                  (0x2UL << GUSBCFG_TOCAL_Pos)             // 0x00000002 */
 #define GUSBCFG_TOCAL_2                  (0x4UL << GUSBCFG_TOCAL_Pos)             // 0x00000004 */
-#define GUSBCFG_PHYIF_Pos                (3U)
-#define GUSBCFG_PHYIF_Msk                (0x1UL << GUSBCFG_PHYIF_Pos)             // 0x00000008 */
-#define GUSBCFG_PHYIF                    GUSBCFG_PHYIF_Msk                        // PHY Interface (PHYIf) */
+#define GUSBCFG_PHYIF16_Pos              (3U)
+#define GUSBCFG_PHYIF16_Msk              (0x1UL << GUSBCFG_PHYIF16_Pos)             // 0x00000008 */
+#define GUSBCFG_PHYIF16                  GUSBCFG_PHYIF16_Msk                        // PHY Interface (PHYIf) */
 #define GUSBCFG_ULPI_UTMI_SEL_Pos        (4U)
 #define GUSBCFG_ULPI_UTMI_SEL_Msk        (0x1UL << GUSBCFG_ULPI_UTMI_SEL_Pos)     // 0x00000010 */
 #define GUSBCFG_ULPI_UTMI_SEL            GUSBCFG_ULPI_UTMI_SEL_Msk                // ULPI or UTMI+ Select (ULPI_UTMI_Sel) */
 #define GUSBCFG_PHYSEL_Pos               (6U)
 #define GUSBCFG_PHYSEL_Msk               (0x1UL << GUSBCFG_PHYSEL_Pos)            // 0x00000040 */
 #define GUSBCFG_PHYSEL                   GUSBCFG_PHYSEL_Msk                       // USB 2.0 high-speed ULPI PHY or USB 1.1 full-speed serial transceiver select */
+#define GUSBCFG_DDRSEL			             TU_BIT(7)                                // Single Data Rate (SDR) or Double Data Rate (DDR) or ULPI interface.
 #define GUSBCFG_SRPCAP_Pos               (8U)
 #define GUSBCFG_SRPCAP_Msk               (0x1UL << GUSBCFG_SRPCAP_Pos)            // 0x00000100 */
 #define GUSBCFG_SRPCAP                   GUSBCFG_SRPCAP_Msk                       // SRP-capable */
@@ -587,6 +597,8 @@ TU_VERIFY_STATIC(offsetof(dwc2_regs_t, fifo   ) == 0x1000, "incorrect size");
 #define GRSTCTL_TXFNUM_2                 (0x04UL << GRSTCTL_TXFNUM_Pos)           // 0x00000100 */
 #define GRSTCTL_TXFNUM_3                 (0x08UL << GRSTCTL_TXFNUM_Pos)           // 0x00000200 */
 #define GRSTCTL_TXFNUM_4                 (0x10UL << GRSTCTL_TXFNUM_Pos)           // 0x00000400 */
+#define GRSTCTL_CSFTRST_DONE_Pos		     (29)
+#define GRSTCTL_CSFTRST_DONE		         (1u << GRSTCTL_CSFTRST_DONE_Pos)         // Reset Done, only available from v4.20a
 #define GRSTCTL_DMAREQ_Pos               (30U)
 #define GRSTCTL_DMAREQ_Msk               (0x1UL << GRSTCTL_DMAREQ_Pos)            // 0x40000000 */
 #define GRSTCTL_DMAREQ                   GRSTCTL_DMAREQ_Msk                       // DMA request signal */
@@ -898,6 +910,7 @@ TU_VERIFY_STATIC(offsetof(dwc2_regs_t, fifo   ) == 0x1000, "incorrect size");
 #define DAINTMSK_OEPM_Msk                (0xFFFFUL << DAINTMSK_OEPM_Pos)          // 0xFFFF0000 */
 #define DAINTMSK_OEPM                    DAINTMSK_OEPM_Msk                        // OUT EP interrupt mask bits */
 
+#if 0
 /********************  Bit definition for OTG register  ********************/
 #define CHNUM_Pos                        (0U)
 #define CHNUM_Msk                        (0xFUL << CHNUM_Pos)                     // 0x0000000F */
@@ -939,6 +952,7 @@ TU_VERIFY_STATIC(offsetof(dwc2_regs_t, fifo   ) == 0x1000, "incorrect size");
 #define FRMNUM_1                         (0x2UL << FRMNUM_Pos)                    // 0x00400000 */
 #define FRMNUM_2                         (0x4UL << FRMNUM_Pos)                    // 0x00800000 */
 #define FRMNUM_3                         (0x8UL << FRMNUM_Pos)                    // 0x01000000 */
+#endif
 
 /********************  Bit definition for GRXFSIZ register  ********************/
 #define GRXFSIZ_RXFD_Pos                 (0U)
@@ -951,18 +965,18 @@ TU_VERIFY_STATIC(offsetof(dwc2_regs_t, fifo   ) == 0x1000, "incorrect size");
 #define DVBUSDIS_VBUSDT                  DVBUSDIS_VBUSDT_Msk                      // Device VBUS discharge time */
 
 /********************  Bit definition for OTG register  ********************/
-#define NPTXFSA_Pos                      (0U)
-#define NPTXFSA_Msk                      (0xFFFFUL << NPTXFSA_Pos)                // 0x0000FFFF */
-#define NPTXFSA                          NPTXFSA_Msk                              // Nonperiodic transmit RAM start address */
-#define NPTXFD_Pos                       (16U)
-#define NPTXFD_Msk                       (0xFFFFUL << NPTXFD_Pos)                 // 0xFFFF0000 */
-#define NPTXFD                           NPTXFD_Msk                               // Nonperiodic TxFIFO depth               */
-#define TX0FSA_Pos                       (0U)
-#define TX0FSA_Msk                       (0xFFFFUL << TX0FSA_Pos)                 // 0x0000FFFF */
-#define TX0FSA                           TX0FSA_Msk                               // Endpoint 0 transmit RAM start address  */
-#define TX0FD_Pos                        (16U)
-#define TX0FD_Msk                        (0xFFFFUL << TX0FD_Pos)                  // 0xFFFF0000 */
-#define TX0FD                            TX0FD_Msk                                // Endpoint 0 TxFIFO depth                */
+#define GNPTXFSIZ_NPTXFSA_Pos            (0U)
+#define GNPTXFSIZ_NPTXFSA_Msk            (0xFFFFUL << NPTXFSA_Pos)                // 0x0000FFFF */
+#define GNPTXFSIZ_NPTXFSA                GNPTXFSIZ_NPTXFSA_Msk                    // Nonperiodic transmit RAM start address */
+#define GNPTXFSIZ_NPTXFD_Pos             (16U)
+#define GNPTXFSIZ_NPTXFD_Msk             (0xFFFFUL << NPTXFD_Pos)                 // 0xFFFF0000 */
+#define GNPTXFSIZ_NPTXFD                 GNPTXFSIZ_NPTXFD_Msk                     // Nonperiodic TxFIFO depth               */
+#define DIEPTXF0_TX0FSA_Pos              (0U)
+#define DIEPTXF0_TX0FSA_Msk              (0xFFFFUL << TX0FSA_Pos)                 // 0x0000FFFF */
+#define DIEPTXF0_TX0FSA                  DIEPTXF0_TX0FSA_Msk                      // Endpoint 0 transmit RAM start address  */
+#define DIEPTXF0_TX0FD_Pos               (16U)
+#define DIEPTXF0_TX0FD_Msk               (0xFFFFUL << TX0FD_Pos)                  // 0xFFFF0000 */
+#define DIEPTXF0_TX0FD                   DIEPTXF0_TX0FD_Msk                       // Endpoint 0 TxFIFO depth                */
 
 /********************  Bit definition for DVBUSPULSE register  ********************/
 #define DVBUSPULSE_DVBUSP_Pos            (0U)

@@ -113,14 +113,14 @@ static inline void dwc2_remote_wakeup_delay(void)
 }
 
 // Set turn-around timeout according to link speed
-static inline void dwc2_set_turnaround(dwc2_regs_t * core, tusb_speed_t speed)
+static inline void dwc2_set_turnaround(dwc2_regs_t * dwc2, tusb_speed_t speed)
 {
-  core->gusbcfg &= ~GUSBCFG_TRDT;
+  dwc2->gusbcfg &= ~GUSBCFG_TRDT;
 
   if ( speed == TUSB_SPEED_HIGH )
   {
     // Use fixed 0x09 for Highspeed
-    core->gusbcfg |= (0x09 << GUSBCFG_TRDT_Pos);
+    dwc2->gusbcfg |= (0x09 << GUSBCFG_TRDT_Pos);
   }
   else
   {
@@ -149,11 +149,52 @@ static inline void dwc2_set_turnaround(dwc2_regs_t * core, tusb_speed_t speed)
       turnaround = 0xFU;
 
     // Fullspeed depends on MCU clocks, but we will use 0x06 for 32+ Mhz
-    core->gusbcfg |= (turnaround << GUSBCFG_TRDT_Pos);
+    dwc2->gusbcfg |= (turnaround << GUSBCFG_TRDT_Pos);
   }
 }
 
+#if defined(USB_HS_PHYC)
+static inline void dwc2_stm32_utmi_phy_init(dwc2_regs_t * dwc2)
+{
+  USB_HS_PHYC_GlobalTypeDef *usb_hs_phyc = (USB_HS_PHYC_GlobalTypeDef*) USB_HS_PHYC_CONTROLLER_BASE;
 
+  // Enable UTMI HS PHY
+  dwc2->stm32_gccfg |= STM32_GCCFG_PHYHSEN;
+
+  // Enable LDO
+  usb_hs_phyc->USB_HS_PHYC_LDO |= USB_HS_PHYC_LDO_ENABLE;
+
+  // Wait until LDO ready
+  while ( 0 == (usb_hs_phyc->USB_HS_PHYC_LDO & USB_HS_PHYC_LDO_STATUS) ) {}
+
+  uint32_t phyc_pll = 0;
+
+  // TODO Try to get HSE_VALUE from registers instead of depending CFLAGS
+  switch ( HSE_VALUE )
+  {
+    case 12000000: phyc_pll = USB_HS_PHYC_PLL1_PLLSEL_12MHZ   ; break;
+    case 12500000: phyc_pll = USB_HS_PHYC_PLL1_PLLSEL_12_5MHZ ; break;
+    case 16000000: phyc_pll = USB_HS_PHYC_PLL1_PLLSEL_16MHZ   ; break;
+    case 24000000: phyc_pll = USB_HS_PHYC_PLL1_PLLSEL_24MHZ   ; break;
+    case 25000000: phyc_pll = USB_HS_PHYC_PLL1_PLLSEL_25MHZ   ; break;
+    case 32000000: phyc_pll = USB_HS_PHYC_PLL1_PLLSEL_Msk     ; break; // Value not defined in header
+    default:
+      TU_ASSERT(false, );
+  }
+  usb_hs_phyc->USB_HS_PHYC_PLL = phyc_pll;
+
+  // Control the tuning interface of the High Speed PHY
+  // Use magic value (USB_HS_PHYC_TUNE_VALUE) from ST driver
+  usb_hs_phyc->USB_HS_PHYC_TUNE |= 0x00000F13U;
+
+  // Enable PLL internal PHY
+  usb_hs_phyc->USB_HS_PHYC_PLL |= USB_HS_PHYC_PLL_PLLEN;
+
+  // Original ST code has 2 ms delay for PLL stabilization.
+  // Primitive test shows that more than 10 USB un/replug cycle showed no error with enumeration
+}
+
+#endif
 
 #ifdef __cplusplus
 }

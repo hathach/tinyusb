@@ -31,7 +31,7 @@
 #include "device/dcd_attr.h"
 
 #if TUSB_OPT_DEVICE_ENABLED && \
-    ( defined(DCD_ATTR_DWC2_STM32) || TU_CHECK_MCU(OPT_MCU_ESP32S2, OPT_MCU_ESP32S3, OPT_MCU_GD32VF103) )
+    ( defined(DCD_ATTR_DWC2_STM32) || TU_CHECK_MCU(OPT_MCU_ESP32S2, OPT_MCU_ESP32S3, OPT_MCU_GD32VF103, OPT_MCU_BCM2711) )
 
 #include "device/dcd.h"
 #include "dwc2_type.h"
@@ -42,6 +42,8 @@
   #include "dwc2_esp32.h"
 #elif TU_CHECK_MCU(OPT_MCU_GD32VF103)
   #include "dwc2_gd32.h"
+#elif TU_CHECK_MCU(OPT_MCU_BCM2711)
+  #include "dwc2_bcm.h"
 #else
   #error "Unsupported MCUs"
 #endif
@@ -185,7 +187,7 @@ static void bus_reset(uint8_t rhport)
   _allocated_fifo_words_tx = 16;
 
   // Control IN uses FIFO 0 with 64 bytes ( 16 32-bit word )
-  dwc2->dieptxf0 = (16 << TX0FD_Pos) | (DWC2_EP_FIFO_SIZE/4 - _allocated_fifo_words_tx);
+  dwc2->dieptxf0 = (16 << DIEPTXF0_TX0FD_Pos) | (DWC2_EP_FIFO_SIZE/4 - _allocated_fifo_words_tx);
 
   // Fixed control EP0 size to 64 bytes
   dwc2->epin[0].diepctl &= ~(0x03 << DIEPCTL_MPSIZ_Pos);
@@ -225,47 +227,6 @@ static void set_speed(uint8_t rhport, tusb_speed_t speed)
   dwc2->dcfg &= ~(3 << DCFG_DSPD_Pos);
   dwc2->dcfg |= (bitvalue << DCFG_DSPD_Pos);
 }
-
-#if defined(USB_HS_PHYC)
-static bool USB_HS_PHYCInit(void)
-{
-  USB_HS_PHYC_GlobalTypeDef *usb_hs_phyc = (USB_HS_PHYC_GlobalTypeDef*) USB_HS_PHYC_CONTROLLER_BASE;
-
-  // Enable LDO
-  usb_hs_phyc->USB_HS_PHYC_LDO |= USB_HS_PHYC_LDO_ENABLE;
-
-  // Wait until LDO ready
-  while ( 0 == (usb_hs_phyc->USB_HS_PHYC_LDO & USB_HS_PHYC_LDO_STATUS) ) {}
-
-  uint32_t phyc_pll = 0;
-
-  // TODO Try to get HSE_VALUE from registers instead of depending CFLAGS
-  switch ( HSE_VALUE )
-  {
-    case 12000000: phyc_pll = USB_HS_PHYC_PLL1_PLLSEL_12MHZ   ; break;
-    case 12500000: phyc_pll = USB_HS_PHYC_PLL1_PLLSEL_12_5MHZ ; break;
-    case 16000000: phyc_pll = USB_HS_PHYC_PLL1_PLLSEL_16MHZ   ; break;
-    case 24000000: phyc_pll = USB_HS_PHYC_PLL1_PLLSEL_24MHZ   ; break;
-    case 25000000: phyc_pll = USB_HS_PHYC_PLL1_PLLSEL_25MHZ   ; break;
-    case 32000000: phyc_pll = USB_HS_PHYC_PLL1_PLLSEL_Msk     ; break; // Value not defined in header
-    default:
-      TU_ASSERT(0);
-  }
-  usb_hs_phyc->USB_HS_PHYC_PLL = phyc_pll;
-
-  // Control the tuning interface of the High Speed PHY
-  // Use magic value (USB_HS_PHYC_TUNE_VALUE) from ST driver
-  usb_hs_phyc->USB_HS_PHYC_TUNE |= 0x00000F13U;
-
-  // Enable PLL internal PHY
-  usb_hs_phyc->USB_HS_PHYC_PLL |= USB_HS_PHYC_PLL_PLLEN;
-
-  // Original ST code has 2 ms delay for PLL stabilization.
-  // Primitive test shows that more than 10 USB un/replug cycle showed no error with enumeration
-
-  return true;
-}
-#endif
 
 static void edpt_schedule_packets(uint8_t rhport, uint8_t const epnum, uint8_t const dir, uint16_t const num_packets, uint16_t total_bytes)
 {
@@ -369,7 +330,7 @@ void print_dwc2_info(dwc2_regs_t * dwc2)
   TU_LOG_INT(1, hw_cfg3->synch_reset              );
   TU_LOG_INT(1, hw_cfg3->otg_adp_support          );
   TU_LOG_INT(1, hw_cfg3->otg_enable_hsic          );
-  TU_LOG_INT(1, hw_cfg3->otg_bc_support           );
+  TU_LOG_INT(1, hw_cfg3->battery_charger_support  );
   TU_LOG_INT(1, hw_cfg3->lpm_mode                 );
   TU_LOG_INT(1, hw_cfg3->total_fifo_size          );
 
@@ -395,56 +356,102 @@ void print_dwc2_info(dwc2_regs_t * dwc2)
   TU_LOG_INT(1, hw_cfg4->dma_dynamic               );
 }
 
+static void reset_core(dwc2_regs_t * dwc2)
+{
+  // reset core
+  dwc2->grstctl |= GRSTCTL_CSRST;
+
+  // wait for reset bit is cleared
+  // TODO version 4.20a should wait for RESET DONE mask
+  while (dwc2->grstctl & GRSTCTL_CSRST) { }
+
+  // wait for AHB master IDLE
+  while ( !(dwc2->grstctl & GRSTCTL_AHBIDL) ) { }
+
+  // wait for device mode ?
+}
+
 void dcd_init (uint8_t rhport)
 {
   // Programming model begins in the last section of the chapter on the USB
   // peripheral in each Reference Manual.
   dwc2_regs_t * dwc2 = DWC2_REG(rhport);
 
-  // Check Synopsys ID
-  uint32_t const gsnpsid = dwc2->gsnpsid & 0xffff0000u;
+  // Check Synopsys ID, failed if controller is not enabled
+  uint32_t const gsnpsid = dwc2->gsnpsid & GSNPSID_ID_MASK;
   TU_ASSERT(gsnpsid == DWC2_OTG_ID || gsnpsid == DWC2_FS_IOT_ID || gsnpsid == DWC2_HS_IOT_ID, );
 
   print_dwc2_info(dwc2);
 
-  // No HNP/SRP (no OTG support), program timeout later.
-  if ( rhport == 1 )
+  // Force device mode
+  dwc2->gusbcfg = (dwc2->gusbcfg & ~GUSBCFG_FHMOD) | GUSBCFG_FDMOD;
+
+  uint32_t const hs_phy_type = dwc2->ghwcfg2_bm.hs_phy_type;
+
+  if( !TUD_OPT_HIGH_SPEED || hs_phy_type == HS_PHY_TYPE_NONE)
   {
-    // On selected MCUs HS port1 can be used with external PHY via ULPI interface
-#if CFG_TUSB_RHPORT1_MODE & OPT_MODE_HIGH_SPEED
-    // deactivate internal PHY
+    // max speed is full or core does not support highspeed
+    TU_LOG2("Fullspeed PHY init\r\n");
+
+    // Select FS PHY
+    dwc2->gusbcfg |= GUSBCFG_PHYSEL;
+
+    // Reset core after selecting PHY
+    reset_core(dwc2);
+
+    #if defined(DCD_ATTR_DWC2_STM32)
+    // activate FS PHY on stm32
+    dwc2->stm32_gccfg |= STM32_GCCFG_PWRDWN;
+    #endif
+  }else
+  {
+    // Highspeed mode
+
+    #if defined(DCD_ATTR_DWC2_STM32)
+    // Disable STM32 FS PHY
     dwc2->stm32_gccfg &= ~STM32_GCCFG_PWRDWN;
+    #endif
 
-    // Init The UTMI Interface
-    dwc2->gusbcfg &= ~(GUSBCFG_TSDPS | GUSBCFG_ULPIFSLS | GUSBCFG_PHYSEL);
+    uint32_t gusbcfg = dwc2->gusbcfg;
 
-    // Select default internal VBUS Indicator and Drive for ULPI
-    dwc2->gusbcfg &= ~(GUSBCFG_ULPIEVBUSD | GUSBCFG_ULPIEVBUSI);
-#else
-    dwc2->gusbcfg |= GUSBCFG_PHYSEL;
-#endif
+    // De-select FS PHY
+    gusbcfg &= ~GUSBCFG_PHYSEL;
 
-#if defined(USB_HS_PHYC)
-    // Highspeed with embedded UTMI PHYC
+    if (hs_phy_type == HS_PHY_TYPE_ULPI)
+    {
+      TU_LOG2("Highspeed ULPI PHY init\r\n");
 
-    // Select UTMI Interface
-    dwc2->gusbcfg &= ~GUSBCFG_ULPI_UTMI_SEL;
-    dwc2->stm32_gccfg |= STM32_GCCFG_PHYHSEN;
+      // Select ULPI
+      gusbcfg |= GUSBCFG_ULPI_UTMI_SEL;
 
-    // Enables control of a High Speed USB PHY
-    USB_HS_PHYCInit();
-#endif
-  } else
-  {
-    // Enable internal PHY
-    dwc2->gusbcfg |= GUSBCFG_PHYSEL;
+      // ULPI 8-bit interface, single data rate
+      gusbcfg &= ~(GUSBCFG_PHYIF16 | GUSBCFG_DDRSEL);
+
+      // default internal VBUS Indicator and Drive
+      gusbcfg &= ~(GUSBCFG_ULPIEVBUSD | GUSBCFG_ULPIEVBUSI);
+
+      // Disable FS/LS ULPI
+      gusbcfg &= ~(GUSBCFG_ULPIFSLS | GUSBCFG_ULPICSM);
+    }else
+    {
+      TU_LOG2("Highspeed UTMI+ PHY init\r\n");
+
+      // Select UTMI+ with 8-bit interface
+      gusbcfg &= ~(GUSBCFG_ULPI_UTMI_SEL | GUSBCFG_PHYIF16);
+
+      // Set 16-bit interface if supported
+      if (dwc2->ghwcfg4_bm.utmi_phy_data_width) gusbcfg |= GUSBCFG_PHYIF16;
+
+      #if defined(DCD_ATTR_DWC2_STM32) && defined(USB_HS_PHYC)
+      dwc2_stm32_utmi_phy_init(dwc2);
+      #endif
+    }
+
+    dwc2->gusbcfg = gusbcfg;
+
+    // Reset core after selecting PHY
+    reset_core(dwc2);
   }
-
-  // Reset core after selecting PHYst
-  // Wait AHB IDLE, reset then wait until it is cleared
-  while ((dwc2->grstctl & GRSTCTL_AHBIDL) == 0U) {}
-  dwc2->grstctl |= GRSTCTL_CSRST;
-  while ((dwc2->grstctl & GRSTCTL_CSRST) == GRSTCTL_CSRST) {}
 
   // Restart PHY clock
   dwc2->pcgctrl = 0;
@@ -462,9 +469,6 @@ void dcd_init (uint8_t rhport)
   dwc2->dcfg |= DCFG_NZLSOHSK;
 
   set_speed(rhport, TUD_OPT_HIGH_SPEED ? TUSB_SPEED_HIGH : TUSB_SPEED_FULL);
-
-  // Enable internal USB transceiver, unless using HS core (port 1) with external PHY.
-  if (!(rhport == 1 && (CFG_TUSB_RHPORT1_MODE & OPT_MODE_HIGH_SPEED))) dwc2->stm32_gccfg |= STM32_GCCFG_PWRDWN;
 
   dwc2->gintmsk |= GINTMSK_USBRST | GINTMSK_ENUMDNEM | GINTMSK_USBSUSPM |
                    GINTMSK_WUIM   | GINTMSK_RXFLVLM;
