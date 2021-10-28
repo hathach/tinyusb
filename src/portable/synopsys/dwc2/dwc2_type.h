@@ -259,8 +259,8 @@ union {
            uint32_t reservedd00[64];  // D00..DFF
 
   //------------- Power Clock -------------//
-  volatile uint32_t pcgctrl;          // E00 Power and Clock Gating Control
-  volatile uint32_t pcgcctl1;         // E04
+  volatile uint32_t pcgctl;           // E00 Power and Clock Gating Control
+  volatile uint32_t pcgctl1;          // E04
            uint32_t reservede08[126]; // E08..FFF
 
   //------------- FIFOs -------------//
@@ -273,7 +273,7 @@ TU_VERIFY_STATIC(offsetof(dwc2_regs_t, channel) == 0x0500, "incorrect size");
 TU_VERIFY_STATIC(offsetof(dwc2_regs_t, dcfg   ) == 0x0800, "incorrect size");
 TU_VERIFY_STATIC(offsetof(dwc2_regs_t, epin   ) == 0x0900, "incorrect size");
 TU_VERIFY_STATIC(offsetof(dwc2_regs_t, epout  ) == 0x0B00, "incorrect size");
-TU_VERIFY_STATIC(offsetof(dwc2_regs_t, pcgctrl) == 0x0E00, "incorrect size");
+TU_VERIFY_STATIC(offsetof(dwc2_regs_t, pcgctl ) == 0x0E00, "incorrect size");
 TU_VERIFY_STATIC(offsetof(dwc2_regs_t, fifo   ) == 0x1000, "incorrect size");
 
 //--------------------------------------------------------------------+
@@ -346,39 +346,6 @@ TU_VERIFY_STATIC(offsetof(dwc2_regs_t, fifo   ) == 0x1000, "incorrect size");
 #define HCFG_FSLSS_Msk                   (0x1UL << HCFG_FSLSS_Pos)                // 0x00000004 */
 #define HCFG_FSLSS                       HCFG_FSLSS_Msk                           // FS- and LS-only support */
 
-/********************  Bit definition for DCFG register  ********************/
-#define DCFG_DSPD_Pos                    (0U)
-#define DCFG_DSPD_Msk                    (0x3UL << DCFG_DSPD_Pos)                 // 0x00000003 */
-#define DCFG_DSPD                        DCFG_DSPD_Msk                            // Device speed */
-#define DCFG_DSPD_0                      (0x1UL << DCFG_DSPD_Pos)                 // 0x00000001 */
-#define DCFG_DSPD_1                      (0x2UL << DCFG_DSPD_Pos)                 // 0x00000002 */
-#define DCFG_NZLSOHSK_Pos                (2U)
-#define DCFG_NZLSOHSK_Msk                (0x1UL << DCFG_NZLSOHSK_Pos)             // 0x00000004 */
-#define DCFG_NZLSOHSK                    DCFG_NZLSOHSK_Msk                        // Nonzero-length status OUT handshake */
-
-#define DCFG_DAD_Pos                     (4U)
-#define DCFG_DAD_Msk                     (0x7FUL << DCFG_DAD_Pos)                 // 0x000007F0 */
-#define DCFG_DAD                         DCFG_DAD_Msk                             // Device address */
-#define DCFG_DAD_0                       (0x01UL << DCFG_DAD_Pos)                 // 0x00000010 */
-#define DCFG_DAD_1                       (0x02UL << DCFG_DAD_Pos)                 // 0x00000020 */
-#define DCFG_DAD_2                       (0x04UL << DCFG_DAD_Pos)                 // 0x00000040 */
-#define DCFG_DAD_3                       (0x08UL << DCFG_DAD_Pos)                 // 0x00000080 */
-#define DCFG_DAD_4                       (0x10UL << DCFG_DAD_Pos)                 // 0x00000100 */
-#define DCFG_DAD_5                       (0x20UL << DCFG_DAD_Pos)                 // 0x00000200 */
-#define DCFG_DAD_6                       (0x40UL << DCFG_DAD_Pos)                 // 0x00000400 */
-
-#define DCFG_PFIVL_Pos                   (11U)
-#define DCFG_PFIVL_Msk                   (0x3UL << DCFG_PFIVL_Pos)                // 0x00001800 */
-#define DCFG_PFIVL                       DCFG_PFIVL_Msk                           // Periodic (micro)frame interval */
-#define DCFG_PFIVL_0                     (0x1UL << DCFG_PFIVL_Pos)                // 0x00000800 */
-#define DCFG_PFIVL_1                     (0x2UL << DCFG_PFIVL_Pos)                // 0x00001000 */
-
-#define DCFG_PERSCHIVL_Pos               (24U)
-#define DCFG_PERSCHIVL_Msk               (0x3UL << DCFG_PERSCHIVL_Pos)            // 0x03000000 */
-#define DCFG_PERSCHIVL                   DCFG_PERSCHIVL_Msk                       // Periodic scheduling interval */
-#define DCFG_PERSCHIVL_0                 (0x1UL << DCFG_PERSCHIVL_Pos)            // 0x01000000 */
-#define DCFG_PERSCHIVL_1                 (0x2UL << DCFG_PERSCHIVL_Pos)            // 0x02000000 */
-
 /********************  Bit definition for PCGCR register  ********************/
 #define PCGCR_STPPCLK_Pos                (0U)
 #define PCGCR_STPPCLK_Msk                (0x1UL << PCGCR_STPPCLK_Pos)             // 0x00000001 */
@@ -412,6 +379,41 @@ TU_VERIFY_STATIC(offsetof(dwc2_regs_t, fifo   ) == 0x1000, "incorrect size");
 #define GOTGINT_IDCHNG_Pos               (20U)
 #define GOTGINT_IDCHNG_Msk               (0x1UL << GOTGINT_IDCHNG_Pos)            // 0x00100000 */
 #define GOTGINT_IDCHNG                   GOTGINT_IDCHNG_Msk                       // Change in ID pin input value           */
+
+/********************  Bit definition for DCFG register  ********************/
+#define DCFG_DSPD_Pos                    (0U)
+#define DCFG_DSPD_Msk                    (0x3UL << DCFG_DSPD_Pos)                 // 0x00000003
+#define DCFG_DSPD_HS                     0    // Highspeed
+#define DCFG_DSPD_FS_HSPHY               1    // Fullspeed on HS PHY
+#define DCFG_DSPD_LS                     2    // Lowspeed
+#define DCFG_DSPD_FS                     3    // Fullspeed on FS PHY
+
+#define DCFG_NZLSOHSK_Pos                (2U)
+#define DCFG_NZLSOHSK_Msk                (0x1UL << DCFG_NZLSOHSK_Pos)             // 0x00000004 */
+#define DCFG_NZLSOHSK                    DCFG_NZLSOHSK_Msk                        // Nonzero-length status OUT handshake */
+
+#define DCFG_DAD_Pos                     (4U)
+#define DCFG_DAD_Msk                     (0x7FUL << DCFG_DAD_Pos)                 // 0x000007F0 */
+#define DCFG_DAD                         DCFG_DAD_Msk                             // Device address */
+#define DCFG_DAD_0                       (0x01UL << DCFG_DAD_Pos)                 // 0x00000010 */
+#define DCFG_DAD_1                       (0x02UL << DCFG_DAD_Pos)                 // 0x00000020 */
+#define DCFG_DAD_2                       (0x04UL << DCFG_DAD_Pos)                 // 0x00000040 */
+#define DCFG_DAD_3                       (0x08UL << DCFG_DAD_Pos)                 // 0x00000080 */
+#define DCFG_DAD_4                       (0x10UL << DCFG_DAD_Pos)                 // 0x00000100 */
+#define DCFG_DAD_5                       (0x20UL << DCFG_DAD_Pos)                 // 0x00000200 */
+#define DCFG_DAD_6                       (0x40UL << DCFG_DAD_Pos)                 // 0x00000400 */
+
+#define DCFG_PFIVL_Pos                   (11U)
+#define DCFG_PFIVL_Msk                   (0x3UL << DCFG_PFIVL_Pos)                // 0x00001800 */
+#define DCFG_PFIVL                       DCFG_PFIVL_Msk                           // Periodic (micro)frame interval */
+#define DCFG_PFIVL_0                     (0x1UL << DCFG_PFIVL_Pos)                // 0x00000800 */
+#define DCFG_PFIVL_1                     (0x2UL << DCFG_PFIVL_Pos)                // 0x00001000 */
+
+#define DCFG_PERSCHIVL_Pos               (24U)
+#define DCFG_PERSCHIVL_Msk               (0x3UL << DCFG_PERSCHIVL_Pos)            // 0x03000000 */
+#define DCFG_PERSCHIVL                   DCFG_PERSCHIVL_Msk                       // Periodic scheduling interval */
+#define DCFG_PERSCHIVL_0                 (0x1UL << DCFG_PERSCHIVL_Pos)            // 0x01000000 */
+#define DCFG_PERSCHIVL_1                 (0x2UL << DCFG_PERSCHIVL_Pos)            // 0x02000000 */
 
 /********************  Bit definition for DCTL register  ********************/
 #define DCTL_RWUSIG_Pos                  (0U)
@@ -466,12 +468,15 @@ TU_VERIFY_STATIC(offsetof(dwc2_regs_t, fifo   ) == 0x1000, "incorrect size");
 #define DSTS_SUSPSTS_Pos                 (0U)
 #define DSTS_SUSPSTS_Msk                 (0x1UL << DSTS_SUSPSTS_Pos)              // 0x00000001 */
 #define DSTS_SUSPSTS                     DSTS_SUSPSTS_Msk                         // Suspend status   */
-
 #define DSTS_ENUMSPD_Pos                 (1U)
 #define DSTS_ENUMSPD_Msk                 (0x3UL << DSTS_ENUMSPD_Pos)              // 0x00000006 */
 #define DSTS_ENUMSPD                     DSTS_ENUMSPD_Msk                         // Enumerated speed */
-#define DSTS_ENUMSPD_0                   (0x1UL << DSTS_ENUMSPD_Pos)              // 0x00000002 */
-#define DSTS_ENUMSPD_1                   (0x2UL << DSTS_ENUMSPD_Pos)              // 0x00000004 */
+#define DSTS_ENUMSPD_HS                  0    // Highspeed
+#define DSTS_ENUMSPD_FS_HSPHY            1    // Fullspeed on HS PHY
+#define DSTS_ENUMSPD_LS                  2    // Lowspeed
+#define DSTS_ENUMSPD_FS                  3    // Fullspeed on FS PHY
+
+
 #define DSTS_EERR_Pos                    (3U)
 #define DSTS_EERR_Msk                    (0x1UL << DSTS_EERR_Pos)                 // 0x00000008 */
 #define DSTS_EERR                        DSTS_EERR_Msk                            // Erratic error     */
@@ -501,15 +506,12 @@ TU_VERIFY_STATIC(offsetof(dwc2_regs_t, fifo   ) == 0x1000, "incorrect size");
 #define GAHBCFG_PTXFELVL_Msk             (0x1UL << GAHBCFG_PTXFELVL_Pos)          // 0x00000100 */
 #define GAHBCFG_PTXFELVL                 GAHBCFG_PTXFELVL_Msk                     // Periodic TxFIFO empty level */
 
-#define GSNPSID_ID_MASK			             TU_GENMASK(31, 16)
+#define GSNPSID_ID_MASK                 TU_GENMASK(31, 16)
 
 /********************  Bit definition for GUSBCFG register  ********************/
 #define GUSBCFG_TOCAL_Pos                (0U)
 #define GUSBCFG_TOCAL_Msk                (0x7UL << GUSBCFG_TOCAL_Pos)             // 0x00000007 */
 #define GUSBCFG_TOCAL                    GUSBCFG_TOCAL_Msk                        // FS timeout calibration */
-#define GUSBCFG_TOCAL_0                  (0x1UL << GUSBCFG_TOCAL_Pos)             // 0x00000001 */
-#define GUSBCFG_TOCAL_1                  (0x2UL << GUSBCFG_TOCAL_Pos)             // 0x00000002 */
-#define GUSBCFG_TOCAL_2                  (0x4UL << GUSBCFG_TOCAL_Pos)             // 0x00000004 */
 #define GUSBCFG_PHYIF16_Pos              (3U)
 #define GUSBCFG_PHYIF16_Msk              (0x1UL << GUSBCFG_PHYIF16_Pos)             // 0x00000008 */
 #define GUSBCFG_PHYIF16                  GUSBCFG_PHYIF16_Msk                        // PHY Interface (PHYIf) */
@@ -519,7 +521,7 @@ TU_VERIFY_STATIC(offsetof(dwc2_regs_t, fifo   ) == 0x1000, "incorrect size");
 #define GUSBCFG_PHYSEL_Pos               (6U)
 #define GUSBCFG_PHYSEL_Msk               (0x1UL << GUSBCFG_PHYSEL_Pos)            // 0x00000040 */
 #define GUSBCFG_PHYSEL                   GUSBCFG_PHYSEL_Msk                       // USB 2.0 high-speed ULPI PHY or USB 1.1 full-speed serial transceiver select */
-#define GUSBCFG_DDRSEL			             TU_BIT(7)                                // Single Data Rate (SDR) or Double Data Rate (DDR) or ULPI interface.
+#define GUSBCFG_DDRSEL                TU_BIT(7)                                // Single Data Rate (SDR) or Double Data Rate (DDR) or ULPI interface.
 #define GUSBCFG_SRPCAP_Pos               (8U)
 #define GUSBCFG_SRPCAP_Msk               (0x1UL << GUSBCFG_SRPCAP_Pos)            // 0x00000100 */
 #define GUSBCFG_SRPCAP                   GUSBCFG_SRPCAP_Msk                       // SRP-capable */
@@ -597,8 +599,8 @@ TU_VERIFY_STATIC(offsetof(dwc2_regs_t, fifo   ) == 0x1000, "incorrect size");
 #define GRSTCTL_TXFNUM_2                 (0x04UL << GRSTCTL_TXFNUM_Pos)           // 0x00000100 */
 #define GRSTCTL_TXFNUM_3                 (0x08UL << GRSTCTL_TXFNUM_Pos)           // 0x00000200 */
 #define GRSTCTL_TXFNUM_4                 (0x10UL << GRSTCTL_TXFNUM_Pos)           // 0x00000400 */
-#define GRSTCTL_CSFTRST_DONE_Pos		     (29)
-#define GRSTCTL_CSFTRST_DONE		         (1u << GRSTCTL_CSFTRST_DONE_Pos)         // Reset Done, only available from v4.20a
+#define GRSTCTL_CSFTRST_DONE_Pos       (29)
+#define GRSTCTL_CSFTRST_DONE           (1u << GRSTCTL_CSFTRST_DONE_Pos)         // Reset Done, only available from v4.20a
 #define GRSTCTL_DMAREQ_Pos               (30U)
 #define GRSTCTL_DMAREQ_Msk               (0x1UL << GRSTCTL_DMAREQ_Pos)            // 0x40000000 */
 #define GRSTCTL_DMAREQ                   GRSTCTL_DMAREQ_Msk                       // DMA request signal */
@@ -1672,48 +1674,36 @@ TU_VERIFY_STATIC(offsetof(dwc2_regs_t, fifo   ) == 0x1000, "incorrect size");
 #define DOEPTSIZ_STUPCNT_0               (0x1UL << DOEPTSIZ_STUPCNT_Pos)          // 0x20000000 */
 #define DOEPTSIZ_STUPCNT_1               (0x2UL << DOEPTSIZ_STUPCNT_Pos)          // 0x40000000 */
 
-/********************  Bit definition for PCGCCTL register  ********************/
-#define PCGCCTL_STOPCLK_Pos              (0U)
-#define PCGCCTL_STOPCLK_Msk              (0x1UL << PCGCCTL_STOPCLK_Pos)           // 0x00000001 */
-#define PCGCCTL_STOPCLK                  PCGCCTL_STOPCLK_Msk                      // SETUP packet count */
-#define PCGCCTL_GATECLK_Pos              (1U)
-#define PCGCCTL_GATECLK_Msk              (0x1UL << PCGCCTL_GATECLK_Pos)           // 0x00000002 */
-#define PCGCCTL_GATECLK                  PCGCCTL_GATECLK_Msk                      //Bit 0 */
-#define PCGCCTL_PHYSUSP_Pos              (4U)
-#define PCGCCTL_PHYSUSP_Msk              (0x1UL << PCGCCTL_PHYSUSP_Pos)           // 0x00000010 */
-#define PCGCCTL_PHYSUSP                  PCGCCTL_PHYSUSP_Msk                      //Bit 1 */
+/********************  Bit definition for PCGCTL register  ********************/
+#define PCGCTL_IF_DEV_MODE              TU_BIT(31)
+#define PCGCTL_P2HD_PRT_SPD_MASK        (0x3ul << 29)
+#define PCGCTL_P2HD_PRT_SPD_SHIFT       29
+#define PCGCTL_P2HD_DEV_ENUM_SPD_MASK   (0x3ul << 27)
+#define PCGCTL_P2HD_DEV_ENUM_SPD_SHIFT  27
+#define PCGCTL_MAC_DEV_ADDR_MASK        (0x7ful << 20)
+#define PCGCTL_MAC_DEV_ADDR_SHIFT       20
+#define PCGCTL_MAX_TERMSEL              TU_BIT(19)
+#define PCGCTL_MAX_XCVRSELECT_MASK      (0x3ul << 17)
+#define PCGCTL_MAX_XCVRSELECT_SHIFT     17
+#define PCGCTL_PORT_POWER               TU_BIT(16)
+#define PCGCTL_PRT_CLK_SEL_MASK         (0x3ul << 14)
+#define PCGCTL_PRT_CLK_SEL_SHIFT        14
+#define PCGCTL_ESS_REG_RESTORED         TU_BIT(13)
+#define PCGCTL_EXTND_HIBER_SWITCH       TU_BIT(12)
+#define PCGCTL_EXTND_HIBER_PWRCLMP      TU_BIT(11)
+#define PCGCTL_ENBL_EXTND_HIBER         TU_BIT(10)
+#define PCGCTL_RESTOREMODE              TU_BIT(9)
+#define PCGCTL_RESETAFTSUSP             TU_BIT(8)
+#define PCGCTL_DEEP_SLEEP               TU_BIT(7)
+#define PCGCTL_PHY_IN_SLEEP             TU_BIT(6)
+#define PCGCTL_ENBL_SLEEP_GATING        TU_BIT(5)
+#define PCGCTL_RSTPDWNMODULE            TU_BIT(3)
+#define PCGCTL_PWRCLMP                  TU_BIT(2)
+#define PCGCTL_GATEHCLK                 TU_BIT(1)
+#define PCGCTL_STOPPCLK                 TU_BIT(0)
 
-/********************  Bit definition for USBPHYC_PLL1 register  ********************/
-#define HS_PHYC_PLL1_PLLEN_Pos                (0U)
-#define HS_PHYC_PLL1_PLLEN_Msk                (0x1UL << HS_PHYC_PLL1_PLLEN_Pos)   // 0x00000001 */
-#define HS_PHYC_PLL1_PLLEN                    HS_PHYC_PLL1_PLLEN_Msk              // Enable PLL */
-#define HS_PHYC_PLL1_PLLSEL_Pos               (1U)
-#define HS_PHYC_PLL1_PLLSEL_Msk               (0x7UL << HS_PHYC_PLL1_PLLSEL_Pos)  // 0x0000000E */
-#define HS_PHYC_PLL1_PLLSEL                   HS_PHYC_PLL1_PLLSEL_Msk             // Controls PHY frequency operation selection */
-#define HS_PHYC_PLL1_PLLSEL_1                 (0x1UL << HS_PHYC_PLL1_PLLSEL_Pos)  // 0x00000002 */
-#define HS_PHYC_PLL1_PLLSEL_2                 (0x2UL << HS_PHYC_PLL1_PLLSEL_Pos)  // 0x00000004 */
-#define HS_PHYC_PLL1_PLLSEL_3                 (0x4UL << HS_PHYC_PLL1_PLLSEL_Pos)  // 0x00000008 */
-
-#define HS_PHYC_PLL1_PLLSEL_12MHZ             0x00000000U                                                       // PHY PLL1 input clock frequency 12 MHz   */
-#define HS_PHYC_PLL1_PLLSEL_12_5MHZ           HS_PHYC_PLL1_PLLSEL_1                                         // PHY PLL1 input clock frequency 12.5 MHz */
-#define HS_PHYC_PLL1_PLLSEL_16MHZ             (uint32_t)(HS_PHYC_PLL1_PLLSEL_1 | HS_PHYC_PLL1_PLLSEL_2) // PHY PLL1 input clock frequency 16 MHz   */
-#define HS_PHYC_PLL1_PLLSEL_24MHZ             HS_PHYC_PLL1_PLLSEL_3                                         // PHY PLL1 input clock frequency 24 MHz   */
-#define HS_PHYC_PLL1_PLLSEL_25MHZ             (uint32_t)(HS_PHYC_PLL1_PLLSEL_2 | HS_PHYC_PLL1_PLLSEL_3) // PHY PLL1 input clock frequency 25 MHz   */
-
-/********************  Bit definition for USBPHYC_LDO register  ********************/
-#define HS_PHYC_LDO_USED_Pos                 (0U)
-#define HS_PHYC_LDO_USED_Msk                 (0x1UL << HS_PHYC_LDO_USED_Pos) // 0x00000001 */
-#define HS_PHYC_LDO_USED                     HS_PHYC_LDO_USED_Msk      // Monitors the usage status of the PHY's LDO   */
-#define HS_PHYC_LDO_STATUS_Pos               (1U)
-#define HS_PHYC_LDO_STATUS_Msk               (0x1UL << HS_PHYC_LDO_STATUS_Pos) // 0x00000002 */
-#define HS_PHYC_LDO_STATUS                   HS_PHYC_LDO_STATUS_Msk    // Monitors the status of the PHY's LDO.        */
-#define HS_PHYC_LDO_DISABLE_Pos              (2U)
-#define HS_PHYC_LDO_DISABLE_Msk              (0x1UL << HS_PHYC_LDO_DISABLE_Pos) // 0x00000004 */
-#define HS_PHYC_LDO_DISABLE                  HS_PHYC_LDO_DISABLE_Msk    // Controls disable of the High Speed PHY's LDO */
-
-#define HS_PHYC_LDO_ENABLE_Pos               HS_PHYC_LDO_DISABLE_Pos
-#define HS_PHYC_LDO_ENABLE_Msk               HS_PHYC_LDO_DISABLE_Msk
-#define HS_PHYC_LDO_ENABLE                   HS_PHYC_LDO_DISABLE
+#define PCGCTL1_TIMER                   (0x3ul << 1)
+#define PCGCTL1_GATEEN                  TU_BIT(0)
 
 #ifdef __cplusplus
  }

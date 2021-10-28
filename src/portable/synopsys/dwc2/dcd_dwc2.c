@@ -199,35 +199,6 @@ static void bus_reset(uint8_t rhport)
   dwc2->gintmsk |= GINTMSK_OEPINT | GINTMSK_IEPINT;
 }
 
-
-static tusb_speed_t get_speed(uint8_t rhport)
-{
-  (void) rhport;
-  dwc2_regs_t * dwc2 = DWC2_REG(rhport);
-  uint32_t const enum_spd = (dwc2->dsts & DSTS_ENUMSPD_Msk) >> DSTS_ENUMSPD_Pos;
-  return (enum_spd == DCD_HIGH_SPEED) ? TUSB_SPEED_HIGH : TUSB_SPEED_FULL;
-}
-
-static void set_speed(uint8_t rhport, tusb_speed_t speed)
-{
-  uint32_t bitvalue;
-
-  if ( rhport == 1 )
-  {
-    bitvalue = (TUSB_SPEED_HIGH == speed ? DCD_HIGH_SPEED : DCD_FULL_SPEED_USE_HS);
-  }
-  else
-  {
-    bitvalue = DCD_FULL_SPEED;
-  }
-
-  dwc2_regs_t * dwc2 = DWC2_REG(rhport);
-
-  // Clear and set speed bits
-  dwc2->dcfg &= ~(3 << DCFG_DSPD_Pos);
-  dwc2->dcfg |= (bitvalue << DCFG_DSPD_Pos);
-}
-
 static void edpt_schedule_packets(uint8_t rhport, uint8_t const epnum, uint8_t const dir, uint16_t const num_packets, uint16_t total_bytes)
 {
   (void) rhport;
@@ -371,6 +342,99 @@ static void reset_core(dwc2_regs_t * dwc2)
   // wait for device mode ?
 }
 
+static bool has_hs_phy(dwc2_regs_t * dwc2)
+{
+  return TUD_OPT_HIGH_SPEED && dwc2->ghwcfg2_bm.hs_phy_type != HS_PHY_TYPE_NONE;
+}
+
+static void phy_fs_init(dwc2_regs_t * dwc2)
+{
+  TU_LOG1("Fullspeed PHY init\r\n");
+
+  // Select FS PHY
+  dwc2->gusbcfg |= GUSBCFG_PHYSEL;
+
+  // Reset core after selecting PHY
+  reset_core(dwc2);
+
+  // set turn around
+  // The values above are calculated for the minimum AHB frequency of 30 MHz. USB turnaround
+  // time is critical for certification where long cables and 5-Hubs are used, so if
+  // you need the AHB to run at less than 30 MHz, and if USB turnaround time is not critical,
+  // these bits can be programmed to a larger value.
+  dwc2_set_turnaround(dwc2, TUSB_SPEED_FULL);
+
+  // set max speed
+  dwc2->dcfg = (dwc2->dcfg & ~DCFG_DSPD_Msk) | (DCFG_DSPD_FS << DCFG_DSPD_Pos);
+
+  #if defined(DCD_ATTR_DWC2_STM32)
+  // activate FS PHY on stm32
+  dwc2->stm32_gccfg |= STM32_GCCFG_PWRDWN;
+  #endif
+}
+
+static void phy_hs_init(dwc2_regs_t * dwc2)
+{
+  uint32_t gusbcfg = dwc2->gusbcfg;
+
+  // De-select FS PHY
+  gusbcfg &= ~GUSBCFG_PHYSEL;
+
+  if (dwc2->ghwcfg2_bm.hs_phy_type == HS_PHY_TYPE_ULPI)
+  {
+    TU_LOG1("Highspeed ULPI PHY init\r\n");
+
+    // Select ULPI
+    gusbcfg |= GUSBCFG_ULPI_UTMI_SEL;
+
+    // ULPI 8-bit interface, single data rate
+    gusbcfg &= ~(GUSBCFG_PHYIF16 | GUSBCFG_DDRSEL);
+
+    // default internal VBUS Indicator and Drive
+    gusbcfg &= ~(GUSBCFG_ULPIEVBUSD | GUSBCFG_ULPIEVBUSI);
+
+    // Disable FS/LS ULPI
+    gusbcfg &= ~(GUSBCFG_ULPIFSLS | GUSBCFG_ULPICSM);
+  }else
+  {
+    TU_LOG1("Highspeed UTMI+ PHY init\r\n");
+
+    // Select UTMI+ with 8-bit interface
+    gusbcfg &= ~(GUSBCFG_ULPI_UTMI_SEL | GUSBCFG_PHYIF16);
+
+    // Set 16-bit interface if supported
+    if (dwc2->ghwcfg4_bm.utmi_phy_data_width) gusbcfg |= GUSBCFG_PHYIF16;
+
+    #if defined(DCD_ATTR_DWC2_STM32) && defined(USB_HS_PHYC)
+    dwc2_stm32_utmi_phy_init(dwc2);
+    #endif
+  }
+
+  // Apply config
+  dwc2->gusbcfg = gusbcfg;
+
+  #if defined(DCD_ATTR_DWC2_STM32)
+  // Disable STM32 FS PHY
+  dwc2->stm32_gccfg &= ~STM32_GCCFG_PWRDWN;
+  #endif
+
+  // Reset core after selecting PHY
+  reset_core(dwc2);
+
+  // Set turn-around, must after core reset otherwise it will be clear
+  // 9 if UTMI interface is 8-bit, 5 if 16-bit
+  // The values above are calculated for the minimum AHB frequency of 30 MHz. USB turnaround
+  // time is critical for certification where long cables and 5-Hubs are used, so if
+  // you need the AHB to run at less than 30 MHz, and if USB turnaround time is not critical,
+  // these bits can be programmed to a larger value.
+  gusbcfg &= ~GUSBCFG_TRDT_Msk;
+  gusbcfg |= (dwc2->ghwcfg4_bm.utmi_phy_data_width ? 5u : 9u) << GUSBCFG_TRDT_Pos;
+  dwc2->gusbcfg = gusbcfg; // Apply config
+
+  // Set max speed
+  dwc2->dcfg = (dwc2->dcfg & ~DCFG_DSPD_Msk) | (DCFG_DSPD_HS << DCFG_DSPD_Pos);
+}
+
 void dcd_init (uint8_t rhport)
 {
   // Programming model begins in the last section of the chapter on the USB
@@ -386,75 +450,28 @@ void dcd_init (uint8_t rhport)
   // Force device mode
   dwc2->gusbcfg = (dwc2->gusbcfg & ~GUSBCFG_FHMOD) | GUSBCFG_FDMOD;
 
-  uint32_t const hs_phy_type = dwc2->ghwcfg2_bm.hs_phy_type;
-
-  if( !TUD_OPT_HIGH_SPEED || hs_phy_type == HS_PHY_TYPE_NONE)
+  if( !has_hs_phy(dwc2) )
   {
-    // max speed is full or core does not support highspeed
-    TU_LOG2("Fullspeed PHY init\r\n");
-
-    // Select FS PHY
-    dwc2->gusbcfg |= GUSBCFG_PHYSEL;
-
-    // Reset core after selecting PHY
-    reset_core(dwc2);
-
-    #if defined(DCD_ATTR_DWC2_STM32)
-    // activate FS PHY on stm32
-    dwc2->stm32_gccfg |= STM32_GCCFG_PWRDWN;
-    #endif
+    // core does not support highspeed or hs-phy is not present
+    phy_fs_init(dwc2);
   }else
   {
-    // Highspeed mode
-
-    #if defined(DCD_ATTR_DWC2_STM32)
-    // Disable STM32 FS PHY
-    dwc2->stm32_gccfg &= ~STM32_GCCFG_PWRDWN;
-    #endif
-
-    uint32_t gusbcfg = dwc2->gusbcfg;
-
-    // De-select FS PHY
-    gusbcfg &= ~GUSBCFG_PHYSEL;
-
-    if (hs_phy_type == HS_PHY_TYPE_ULPI)
-    {
-      TU_LOG2("Highspeed ULPI PHY init\r\n");
-
-      // Select ULPI
-      gusbcfg |= GUSBCFG_ULPI_UTMI_SEL;
-
-      // ULPI 8-bit interface, single data rate
-      gusbcfg &= ~(GUSBCFG_PHYIF16 | GUSBCFG_DDRSEL);
-
-      // default internal VBUS Indicator and Drive
-      gusbcfg &= ~(GUSBCFG_ULPIEVBUSD | GUSBCFG_ULPIEVBUSI);
-
-      // Disable FS/LS ULPI
-      gusbcfg &= ~(GUSBCFG_ULPIFSLS | GUSBCFG_ULPICSM);
-    }else
-    {
-      TU_LOG2("Highspeed UTMI+ PHY init\r\n");
-
-      // Select UTMI+ with 8-bit interface
-      gusbcfg &= ~(GUSBCFG_ULPI_UTMI_SEL | GUSBCFG_PHYIF16);
-
-      // Set 16-bit interface if supported
-      if (dwc2->ghwcfg4_bm.utmi_phy_data_width) gusbcfg |= GUSBCFG_PHYIF16;
-
-      #if defined(DCD_ATTR_DWC2_STM32) && defined(USB_HS_PHYC)
-      dwc2_stm32_utmi_phy_init(dwc2);
-      #endif
-    }
-
-    dwc2->gusbcfg = gusbcfg;
-
-    // Reset core after selecting PHY
-    reset_core(dwc2);
+    // Highspeed
+    phy_hs_init(dwc2);
   }
 
+	/* Set HS/FS Timeout Calibration to 7 (max available value).
+	 * The number of PHY clocks that the application programs in
+	 * this field is added to the high/full speed interpacket timeout
+	 * duration in the core to account for any additional delays
+	 * introduced by the PHY. This can be required, because the delay
+	 * introduced by the PHY in generating the linestate condition
+	 * can vary from one PHY to another.
+	 */
+  // dwc2->gusbcfg |= (7ul << GUSBCFG_TOCAL_Pos);
+
   // Restart PHY clock
-  dwc2->pcgctrl = 0;
+  dwc2->pcgctl &= ~(PCGCTL_STOPPCLK | PCGCTL_GATEHCLK | PCGCTL_PWRCLMP | PCGCTL_RSTPDWNMODULE);
 
   // Clear all interrupts
   dwc2->gintsts |= dwc2->gintsts;
@@ -467,8 +484,6 @@ void dcd_init (uint8_t rhport)
   // If USB host misbehaves during status portion of control xfer
   // (non zero-length packet), send STALL back and discard.
   dwc2->dcfg |= DCFG_NZLSOHSK;
-
-  set_speed(rhport, TUD_OPT_HIGH_SPEED ? TUSB_SPEED_HIGH : TUSB_SPEED_FULL);
 
   dwc2->gintmsk |= GINTMSK_USBRST | GINTMSK_ENUMDNEM | GINTMSK_USBSUSPM |
                    GINTMSK_WUIM   | GINTMSK_RXFLVLM;
@@ -1088,9 +1103,23 @@ void dcd_int_handler(uint8_t rhport)
 
     dwc2->gintsts = GINTSTS_ENUMDNE;
 
-    tusb_speed_t const speed = get_speed(rhport);
+    tusb_speed_t speed;
+    switch ((dwc2->dsts & DSTS_ENUMSPD_Msk) >> DSTS_ENUMSPD_Pos)
+    {
+      case DSTS_ENUMSPD_HS:
+        speed = TUSB_SPEED_HIGH;
+      break;
 
-    dwc2_set_turnaround(dwc2, speed);
+      case DSTS_ENUMSPD_FS_HSPHY:
+      case DSTS_ENUMSPD_FS:
+        speed = TUSB_SPEED_FULL;
+      break;
+
+      case DSTS_ENUMSPD_LS:
+        speed = TUSB_SPEED_LOW;
+      break;
+    }
+
     dcd_event_bus_reset(rhport, speed, true);
   }
 
