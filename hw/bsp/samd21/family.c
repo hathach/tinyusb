@@ -73,12 +73,16 @@ void board_init(void)
   SysTick_Config(CONF_CPU_FREQUENCY / 1000);
 
   // Led init
+#ifdef LED_PIN
   gpio_set_pin_direction(LED_PIN, GPIO_DIRECTION_OUT);
   board_led_write(false);
+#endif
 
   // Button init
+#ifdef BUTTON_PIN
   gpio_set_pin_direction(BUTTON_PIN, GPIO_DIRECTION_IN);
   gpio_set_pin_pull_mode(BUTTON_PIN, BUTTON_STATE_ACTIVE ? GPIO_PULL_DOWN : GPIO_PULL_UP);
+#endif
 
 #if CFG_TUSB_OS  == OPT_OS_FREERTOS
   // If freeRTOS is used, IRQ priority is limit by max syscall ( smaller is higher )
@@ -119,12 +123,19 @@ void board_init(void)
 
 void board_led_write(bool state)
 {
+  (void)state;
+#ifdef LED_PIN
   gpio_set_pin_level(LED_PIN, state ? LED_STATE_ON : (1-LED_STATE_ON));
+#endif
 }
 
 uint32_t board_button_read(void)
 {
+#ifdef BUTTON_PIN
   return BUTTON_STATE_ACTIVE == gpio_get_pin_level(BUTTON_PIN);
+#else
+  return 0;
+#endif
 }
 
 int board_uart_read(uint8_t* buf, int len)
