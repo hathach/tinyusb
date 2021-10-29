@@ -54,16 +54,8 @@
 
 #define DWC2_REG(_port)       ((dwc2_regs_t*) DWC2_REG_BASE)
 
-enum
-{
-  DCD_HIGH_SPEED        = 0, // Highspeed mode
-  DCD_FULL_SPEED_USE_HS = 1, // Full speed in Highspeed port (probably with internal PHY)
-  DCD_FULL_SPEED        = 3, // Full speed with internal PHY
-};
-
-// PHYSEL, ULPISEL
-// UTMI internal HS PHY
-// ULPI external HS PHY
+// Debug level for DWC2
+#define DWC2_DEBUG    1
 
 static TU_ATTR_ALIGNED(4) uint32_t _setup_packet[2];
 
@@ -261,71 +253,73 @@ static void edpt_schedule_packets(uint8_t rhport, uint8_t const epnum, uint8_t c
 /*------------------------------------------------------------------*/
 /* Controller API
  *------------------------------------------------------------------*/
+#if CFG_TUSB_DEBUG >= DWC2_DEBUG
 void print_dwc2_info(dwc2_regs_t * dwc2)
 {
   dwc2_ghwcfg2_t const * hw_cfg2 = &dwc2->ghwcfg2_bm;
   dwc2_ghwcfg3_t const * hw_cfg3 = &dwc2->ghwcfg3_bm;
   dwc2_ghwcfg4_t const * hw_cfg4 = &dwc2->ghwcfg4_bm;
 
-  TU_LOG_HEX(1, dwc2->guid);
-  TU_LOG_HEX(1, dwc2->gsnpsid);
-  TU_LOG_HEX(1, dwc2->ghwcfg1);
+  TU_LOG_HEX(DWC2_DEBUG, dwc2->guid);
+  TU_LOG_HEX(DWC2_DEBUG, dwc2->gsnpsid);
+  TU_LOG_HEX(DWC2_DEBUG, dwc2->ghwcfg1);
 
   // HW configure 2
-  TU_LOG(1, "\r\n");
-  TU_LOG_HEX(1, dwc2->ghwcfg2);
-  TU_LOG_INT(1, hw_cfg2->op_mode                );
-  TU_LOG_INT(1, hw_cfg2->arch                   );
-  TU_LOG_INT(1, hw_cfg2->point2point            );
-  TU_LOG_INT(1, hw_cfg2->hs_phy_type            );
-  TU_LOG_INT(1, hw_cfg2->fs_phy_type            );
-  TU_LOG_INT(1, hw_cfg2->num_dev_ep             );
-  TU_LOG_INT(1, hw_cfg2->num_host_ch            );
-  TU_LOG_INT(1, hw_cfg2->period_channel_support );
-  TU_LOG_INT(1, hw_cfg2->enable_dynamic_fifo    );
-  TU_LOG_INT(1, hw_cfg2->mul_cpu_int            );
-  TU_LOG_INT(1, hw_cfg2->nperiod_tx_q_depth     );
-  TU_LOG_INT(1, hw_cfg2->host_period_tx_q_depth );
-  TU_LOG_INT(1, hw_cfg2->dev_token_q_depth      );
-  TU_LOG_INT(1, hw_cfg2->otg_enable_ic_usb      );
+  TU_LOG(DWC2_DEBUG, "\r\n");
+  TU_LOG_HEX(DWC2_DEBUG, dwc2->ghwcfg2);
+  TU_LOG_INT(DWC2_DEBUG, hw_cfg2->op_mode                );
+  TU_LOG_INT(DWC2_DEBUG, hw_cfg2->arch                   );
+  TU_LOG_INT(DWC2_DEBUG, hw_cfg2->point2point            );
+  TU_LOG_INT(DWC2_DEBUG, hw_cfg2->hs_phy_type            );
+  TU_LOG_INT(DWC2_DEBUG, hw_cfg2->fs_phy_type            );
+  TU_LOG_INT(DWC2_DEBUG, hw_cfg2->num_dev_ep             );
+  TU_LOG_INT(DWC2_DEBUG, hw_cfg2->num_host_ch            );
+  TU_LOG_INT(DWC2_DEBUG, hw_cfg2->period_channel_support );
+  TU_LOG_INT(DWC2_DEBUG, hw_cfg2->enable_dynamic_fifo    );
+  TU_LOG_INT(DWC2_DEBUG, hw_cfg2->mul_cpu_int            );
+  TU_LOG_INT(DWC2_DEBUG, hw_cfg2->nperiod_tx_q_depth     );
+  TU_LOG_INT(DWC2_DEBUG, hw_cfg2->host_period_tx_q_depth );
+  TU_LOG_INT(DWC2_DEBUG, hw_cfg2->dev_token_q_depth      );
+  TU_LOG_INT(DWC2_DEBUG, hw_cfg2->otg_enable_ic_usb      );
 
   // HW configure 3
-  TU_LOG(1, "\r\n");
-  TU_LOG_HEX(1, dwc2->ghwcfg3);
-  TU_LOG_INT(1, hw_cfg3->xfer_size_width          );
-  TU_LOG_INT(1, hw_cfg3->packet_size_width        );
-  TU_LOG_INT(1, hw_cfg3->otg_enable               );
-  TU_LOG_INT(1, hw_cfg3->i2c_enable               );
-  TU_LOG_INT(1, hw_cfg3->vendor_ctrl_itf          );
-  TU_LOG_INT(1, hw_cfg3->optional_feature_removed );
-  TU_LOG_INT(1, hw_cfg3->synch_reset              );
-  TU_LOG_INT(1, hw_cfg3->otg_adp_support          );
-  TU_LOG_INT(1, hw_cfg3->otg_enable_hsic          );
-  TU_LOG_INT(1, hw_cfg3->battery_charger_support  );
-  TU_LOG_INT(1, hw_cfg3->lpm_mode                 );
-  TU_LOG_INT(1, hw_cfg3->total_fifo_size          );
+  TU_LOG(DWC2_DEBUG, "\r\n");
+  TU_LOG_HEX(DWC2_DEBUG, dwc2->ghwcfg3);
+  TU_LOG_INT(DWC2_DEBUG, hw_cfg3->xfer_size_width          );
+  TU_LOG_INT(DWC2_DEBUG, hw_cfg3->packet_size_width        );
+  TU_LOG_INT(DWC2_DEBUG, hw_cfg3->otg_enable               );
+  TU_LOG_INT(DWC2_DEBUG, hw_cfg3->i2c_enable               );
+  TU_LOG_INT(DWC2_DEBUG, hw_cfg3->vendor_ctrl_itf          );
+  TU_LOG_INT(DWC2_DEBUG, hw_cfg3->optional_feature_removed );
+  TU_LOG_INT(DWC2_DEBUG, hw_cfg3->synch_reset              );
+  TU_LOG_INT(DWC2_DEBUG, hw_cfg3->otg_adp_support          );
+  TU_LOG_INT(DWC2_DEBUG, hw_cfg3->otg_enable_hsic          );
+  TU_LOG_INT(DWC2_DEBUG, hw_cfg3->battery_charger_support  );
+  TU_LOG_INT(DWC2_DEBUG, hw_cfg3->lpm_mode                 );
+  TU_LOG_INT(DWC2_DEBUG, hw_cfg3->total_fifo_size          );
 
   // HW configure 4
-  TU_LOG(1, "\r\n");
-  TU_LOG_HEX(1, dwc2->ghwcfg4);
-  TU_LOG_INT(1, hw_cfg4->num_dev_period_in_ep      );
-  TU_LOG_INT(1, hw_cfg4->power_optimized           );
-  TU_LOG_INT(1, hw_cfg4->ahb_freq_min              );
-  TU_LOG_INT(1, hw_cfg4->hibernation               );
-  TU_LOG_INT(1, hw_cfg4->service_interval_mode     );
-  TU_LOG_INT(1, hw_cfg4->ipg_isoc_en               );
-  TU_LOG_INT(1, hw_cfg4->acg_enable                );
-  TU_LOG_INT(1, hw_cfg4->utmi_phy_data_width       );
-  TU_LOG_INT(1, hw_cfg4->dev_ctrl_ep_num           );
-  TU_LOG_INT(1, hw_cfg4->iddg_filter_enabled       );
-  TU_LOG_INT(1, hw_cfg4->vbus_valid_filter_enabled );
-  TU_LOG_INT(1, hw_cfg4->a_valid_filter_enabled    );
-  TU_LOG_INT(1, hw_cfg4->b_valid_filter_enabled    );
-  TU_LOG_INT(1, hw_cfg4->dedicated_fifos           );
-  TU_LOG_INT(1, hw_cfg4->num_dev_in_eps            );
-  TU_LOG_INT(1, hw_cfg4->dma_desc_enable           );
-  TU_LOG_INT(1, hw_cfg4->dma_dynamic               );
+  TU_LOG(DWC2_DEBUG, "\r\n");
+  TU_LOG_HEX(DWC2_DEBUG, dwc2->ghwcfg4);
+  TU_LOG_INT(DWC2_DEBUG, hw_cfg4->num_dev_period_in_ep      );
+  TU_LOG_INT(DWC2_DEBUG, hw_cfg4->power_optimized           );
+  TU_LOG_INT(DWC2_DEBUG, hw_cfg4->ahb_freq_min              );
+  TU_LOG_INT(DWC2_DEBUG, hw_cfg4->hibernation               );
+  TU_LOG_INT(DWC2_DEBUG, hw_cfg4->service_interval_mode     );
+  TU_LOG_INT(DWC2_DEBUG, hw_cfg4->ipg_isoc_en               );
+  TU_LOG_INT(DWC2_DEBUG, hw_cfg4->acg_enable                );
+  TU_LOG_INT(DWC2_DEBUG, hw_cfg4->utmi_phy_data_width       );
+  TU_LOG_INT(DWC2_DEBUG, hw_cfg4->dev_ctrl_ep_num           );
+  TU_LOG_INT(DWC2_DEBUG, hw_cfg4->iddg_filter_enabled       );
+  TU_LOG_INT(DWC2_DEBUG, hw_cfg4->vbus_valid_filter_enabled );
+  TU_LOG_INT(DWC2_DEBUG, hw_cfg4->a_valid_filter_enabled    );
+  TU_LOG_INT(DWC2_DEBUG, hw_cfg4->b_valid_filter_enabled    );
+  TU_LOG_INT(DWC2_DEBUG, hw_cfg4->dedicated_fifos           );
+  TU_LOG_INT(DWC2_DEBUG, hw_cfg4->num_dev_in_eps            );
+  TU_LOG_INT(DWC2_DEBUG, hw_cfg4->dma_desc_enable           );
+  TU_LOG_INT(DWC2_DEBUG, hw_cfg4->dma_dynamic               );
 }
+#endif
 
 static void reset_core(dwc2_regs_t * dwc2)
 {
@@ -342,14 +336,15 @@ static void reset_core(dwc2_regs_t * dwc2)
   // wait for device mode ?
 }
 
-static bool has_hs_phy(dwc2_regs_t * dwc2)
+static bool phy_hs_supported(dwc2_regs_t * dwc2)
 {
+  // note: esp32 incorrect report its hs_phy_type as utmi
   return TUD_OPT_HIGH_SPEED && dwc2->ghwcfg2_bm.hs_phy_type != HS_PHY_TYPE_NONE;
 }
 
 static void phy_fs_init(dwc2_regs_t * dwc2)
 {
-  TU_LOG1("Fullspeed PHY init\r\n");
+  TU_LOG(DWC2_DEBUG, "Fullspeed PHY init\r\n");
 
   // Select FS PHY
   dwc2->gusbcfg |= GUSBCFG_PHYSEL;
@@ -358,11 +353,11 @@ static void phy_fs_init(dwc2_regs_t * dwc2)
   reset_core(dwc2);
 
   // set turn around
-  // The values above are calculated for the minimum AHB frequency of 30 MHz. USB turnaround
-  // time is critical for certification where long cables and 5-Hubs are used, so if
-  // you need the AHB to run at less than 30 MHz, and if USB turnaround time is not critical,
+  // USB turnaround time is critical for certification where long cables and 5-Hubs are used.
+  // So if you need the AHB to run at less than 30 MHz, and if USB turnaround time is not critical,
   // these bits can be programmed to a larger value.
-  dwc2_set_turnaround(dwc2, TUSB_SPEED_FULL);
+  //TU_LOG_INT(DWC2_DEBUG, (dwc2->gusbcfg & GUSBCFG_TRDT_Msk) >> GUSBCFG_TRDT_Pos );
+  dwc2_phyfs_set_turnaround(dwc2);
 
   // set max speed
   dwc2->dcfg = (dwc2->dcfg & ~DCFG_DSPD_Msk) | (DCFG_DSPD_FS << DCFG_DSPD_Pos);
@@ -382,7 +377,7 @@ static void phy_hs_init(dwc2_regs_t * dwc2)
 
   if (dwc2->ghwcfg2_bm.hs_phy_type == HS_PHY_TYPE_ULPI)
   {
-    TU_LOG1("Highspeed ULPI PHY init\r\n");
+    TU_LOG(DWC2_DEBUG, "Highspeed ULPI PHY init\r\n");
 
     // Select ULPI
     gusbcfg |= GUSBCFG_ULPI_UTMI_SEL;
@@ -397,7 +392,7 @@ static void phy_hs_init(dwc2_regs_t * dwc2)
     gusbcfg &= ~(GUSBCFG_ULPIFSLS | GUSBCFG_ULPICSM);
   }else
   {
-    TU_LOG1("Highspeed UTMI+ PHY init\r\n");
+    TU_LOG(DWC2_DEBUG, "Highspeed UTMI+ PHY init\r\n");
 
     // Select UTMI+ with 8-bit interface
     gusbcfg &= ~(GUSBCFG_ULPI_UTMI_SEL | GUSBCFG_PHYIF16);
@@ -422,11 +417,8 @@ static void phy_hs_init(dwc2_regs_t * dwc2)
   reset_core(dwc2);
 
   // Set turn-around, must after core reset otherwise it will be clear
-  // 9 if UTMI interface is 8-bit, 5 if 16-bit
-  // The values above are calculated for the minimum AHB frequency of 30 MHz. USB turnaround
-  // time is critical for certification where long cables and 5-Hubs are used, so if
-  // you need the AHB to run at less than 30 MHz, and if USB turnaround time is not critical,
-  // these bits can be programmed to a larger value.
+  // - 9 if using 8-bit PHY interface
+  // - 5 if using 16-bit PHY interface
   gusbcfg &= ~GUSBCFG_TRDT_Msk;
   gusbcfg |= (dwc2->ghwcfg4_bm.utmi_phy_data_width ? 5u : 9u) << GUSBCFG_TRDT_Pos;
   dwc2->gusbcfg = gusbcfg; // Apply config
@@ -435,30 +427,44 @@ static void phy_hs_init(dwc2_regs_t * dwc2)
   dwc2->dcfg = (dwc2->dcfg & ~DCFG_DSPD_Msk) | (DCFG_DSPD_HS << DCFG_DSPD_Pos);
 }
 
+static bool check_dwc2(dwc2_regs_t * dwc2)
+{
+  // For some reasons: GD32VF103 snpsid and all hwcfg register are always zero (skip it)
+#if !TU_CHECK_MCU(OPT_MCU_GD32VF103)
+  uint32_t const gsnpsid = dwc2->gsnpsid & GSNPSID_ID_MASK;
+  TU_ASSERT(gsnpsid == DWC2_OTG_ID || gsnpsid == DWC2_FS_IOT_ID || gsnpsid == DWC2_HS_IOT_ID);
+#endif
+
+#if CFG_TUSB_DEBUG >= DWC2_DEBUG
+  print_dwc2_info(dwc2);
+#endif
+
+  return true;
+}
+
 void dcd_init (uint8_t rhport)
 {
   // Programming model begins in the last section of the chapter on the USB
   // peripheral in each Reference Manual.
   dwc2_regs_t * dwc2 = DWC2_REG(rhport);
 
-  // Check Synopsys ID, failed if controller is not enabled
-  uint32_t const gsnpsid = dwc2->gsnpsid & GSNPSID_ID_MASK;
-  TU_ASSERT(gsnpsid == DWC2_OTG_ID || gsnpsid == DWC2_FS_IOT_ID || gsnpsid == DWC2_HS_IOT_ID, );
-
-  print_dwc2_info(dwc2);
+  // Check Synopsys ID register, failed if controller clock/power is not enabled
+  TU_VERIFY(check_dwc2(dwc2), );
 
   // Force device mode
   dwc2->gusbcfg = (dwc2->gusbcfg & ~GUSBCFG_FHMOD) | GUSBCFG_FDMOD;
 
-  if( !has_hs_phy(dwc2) )
-  {
-    // core does not support highspeed or hs-phy is not present
-    phy_fs_init(dwc2);
-  }else
+  if( phy_hs_supported(dwc2) )
   {
     // Highspeed
     phy_hs_init(dwc2);
+  }else
+  {
+    // core does not support highspeed or hs-phy is not present
+    phy_fs_init(dwc2);
   }
+
+  TU_LOG_HEX(DWC2_DEBUG, dwc2->gusbcfg);
 
 	/* Set HS/FS Timeout Calibration to 7 (max available value).
 	 * The number of PHY clocks that the application programs in
@@ -468,7 +474,7 @@ void dcd_init (uint8_t rhport)
 	 * introduced by the PHY in generating the linestate condition
 	 * can vary from one PHY to another.
 	 */
-  // dwc2->gusbcfg |= (7ul << GUSBCFG_TOCAL_Pos);
+  dwc2->gusbcfg |= (7ul << GUSBCFG_TOCAL_Pos);
 
   // Restart PHY clock
   dwc2->pcgctl &= ~(PCGCTL_STOPPCLK | PCGCTL_GATEHCLK | PCGCTL_PWRCLMP | PCGCTL_RSTPDWNMODULE);
@@ -617,7 +623,7 @@ bool dcd_edpt_open (uint8_t rhport, tusb_desc_endpoint_t const * desc_edpt)
 
     _allocated_fifo_words_tx += fifo_size;
 
-    TU_LOG(2, "    Allocated %u bytes at offset %u", fifo_size*4, DWC2_EP_FIFO_SIZE-_allocated_fifo_words_tx*4);
+    TU_LOG(DWC2_DEBUG, "    Allocated %u bytes at offset %u", fifo_size*4, DWC2_EP_FIFO_SIZE-_allocated_fifo_words_tx*4);
 
     // DIEPTXF starts at FIFO #1.
     // Both TXFD and TXSA are in unit of 32-bit words.
@@ -1110,13 +1116,14 @@ void dcd_int_handler(uint8_t rhport)
         speed = TUSB_SPEED_HIGH;
       break;
 
-      case DSTS_ENUMSPD_FS_HSPHY:
-      case DSTS_ENUMSPD_FS:
-        speed = TUSB_SPEED_FULL;
-      break;
-
       case DSTS_ENUMSPD_LS:
         speed = TUSB_SPEED_LOW;
+      break;
+
+      case DSTS_ENUMSPD_FS_HSPHY:
+      case DSTS_ENUMSPD_FS:
+      default:
+        speed = TUSB_SPEED_FULL;
       break;
     }
 
@@ -1204,7 +1211,7 @@ void dcd_int_handler(uint8_t rhport)
   //  // Check for Incomplete isochronous IN transfer
   //  if(int_status & GINTSTS_IISOIXFR) {
   //    printf("      IISOIXFR!\r\n");
-  ////    TU_LOG2("      IISOIXFR!\r\n");
+  ////    TU_LOG(DWC2_DEBUG, "      IISOIXFR!\r\n");
   //  }
 }
 

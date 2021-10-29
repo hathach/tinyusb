@@ -67,12 +67,10 @@ static inline void dwc2_remote_wakeup_delay(void)
   vTaskDelay(pdMS_TO_TICKS(1));
 }
 
-static inline void dwc2_set_turnaround(dwc2_regs_t * core, tusb_speed_t speed)
+static inline void dwc2_phyfs_set_turnaround(dwc2_regs_t * dwc2)
 {
-  (void) core;
-  (void) speed;
-
-  // keep the reset value
+  (void) dwc2;
+  // keep the reset value which is 5 on this port
 }
 
 #ifdef __cplusplus

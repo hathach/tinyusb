@@ -113,44 +113,33 @@ static inline void dwc2_remote_wakeup_delay(void)
 }
 
 // Set turn-around timeout according to link speed
-static inline void dwc2_set_turnaround(dwc2_regs_t * dwc2, tusb_speed_t speed)
+static inline void dwc2_phyfs_set_turnaround(dwc2_regs_t * dwc2)
 {
-  dwc2->gusbcfg &= ~GUSBCFG_TRDT;
+  // Turnaround timeout depends on the AHB clock dictated by STM32 Reference Manual
+  uint32_t turnaround;
 
-  if ( speed == TUSB_SPEED_HIGH )
-  {
-    // Use fixed 0x09 for Highspeed
-    dwc2->gusbcfg |= (0x09 << GUSBCFG_TRDT_Pos);
-  }
+  if ( SystemCoreClock >= 32000000U )
+    turnaround = 0x6u;
+  else if ( SystemCoreClock >= 27500000U )
+    turnaround = 0x7u;
+  else if ( SystemCoreClock >= 24000000U )
+    turnaround = 0x8u;
+  else if ( SystemCoreClock >= 21800000U )
+    turnaround = 0x9u;
+  else if ( SystemCoreClock >= 20000000U )
+    turnaround = 0xAu;
+  else if ( SystemCoreClock >= 18500000U )
+    turnaround = 0xBu;
+  else if ( SystemCoreClock >= 17200000U )
+    turnaround = 0xCu;
+  else if ( SystemCoreClock >= 16000000U )
+    turnaround = 0xDu;
+  else if ( SystemCoreClock >= 15000000U )
+    turnaround = 0xEu;
   else
-  {
-    // Turnaround timeout depends on the MCU clock
-    uint32_t turnaround;
+    turnaround = 0xFu;
 
-    if ( SystemCoreClock >= 32000000U )
-      turnaround = 0x6U;
-    else if ( SystemCoreClock >= 27500000U )
-      turnaround = 0x7U;
-    else if ( SystemCoreClock >= 24000000U )
-      turnaround = 0x8U;
-    else if ( SystemCoreClock >= 21800000U )
-      turnaround = 0x9U;
-    else if ( SystemCoreClock >= 20000000U )
-      turnaround = 0xAU;
-    else if ( SystemCoreClock >= 18500000U )
-      turnaround = 0xBU;
-    else if ( SystemCoreClock >= 17200000U )
-      turnaround = 0xCU;
-    else if ( SystemCoreClock >= 16000000U )
-      turnaround = 0xDU;
-    else if ( SystemCoreClock >= 15000000U )
-      turnaround = 0xEU;
-    else
-      turnaround = 0xFU;
-
-    // Fullspeed depends on MCU clocks, but we will use 0x06 for 32+ Mhz
-    dwc2->gusbcfg |= (turnaround << GUSBCFG_TRDT_Pos);
-  }
+  dwc2->gusbcfg = (dwc2->gusbcfg & GUSBCFG_TRDT_Msk) | (turnaround << GUSBCFG_TRDT_Pos);
 }
 
 #if defined(USB_HS_PHYC)

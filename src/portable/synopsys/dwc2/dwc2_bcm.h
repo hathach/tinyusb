@@ -58,11 +58,10 @@ static inline void dwc2_remote_wakeup_delay(void)
   // TODO implement later
 }
 
-static inline void dwc2_set_turnaround(dwc2_regs_t * core, tusb_speed_t speed)
+static inline void dwc2_phyfs_set_turnaround(dwc2_regs_t * dwc2)
 {
-  // TODO implement later
-  (void) core;
-  (void) speed;
+  (void) dwc2;
+  // do nothing since bcm alwyas use HS PHY
 }
 
 #ifdef __cplusplus

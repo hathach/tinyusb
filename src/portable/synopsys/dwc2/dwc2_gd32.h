@@ -76,12 +76,10 @@ static inline void dwc2_remote_wakeup_delay(void)
   while ( count-- ) __asm volatile ("nop");
 }
 
-static inline void dwc2_set_turnaround(dwc2_regs_t * core, tusb_speed_t speed)
+static inline void dwc2_phyfs_set_turnaround(dwc2_regs_t * dwc2)
 {
-  (void) core;
-  (void) speed;
-
-  // keep the reset value
+  // use recommeded value 6 by stm32 for mcu with AHB clock > 32Mhz
+  dwc2->gusbcfg = (dwc2->gusbcfg & GUSBCFG_TRDT_Msk) | (6u << GUSBCFG_TRDT_Pos);
 }
 
 

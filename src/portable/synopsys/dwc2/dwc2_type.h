@@ -59,10 +59,17 @@ typedef struct
 #endif
 
 enum {
-  HS_PHY_TYPE_NONE = 0  ,
+  HS_PHY_TYPE_NONE = 0  , // not supported
   HS_PHY_TYPE_UTMI      , // internal PHY (mostly)
   HS_PHY_TYPE_ULPI      , // external PHY
   HS_PHY_TYPE_UTMI_ULPI ,
+};
+
+enum {
+  FS_PHY_TYPE_NONE = 0,  // not supported
+  FS_PHY_TYPE_DEDICATED,
+  FS_PHY_TYPE_UTMI,
+  FS_PHY_TYPE_ULPI,
 };
 
 typedef struct TU_ATTR_PACKED
@@ -531,10 +538,6 @@ TU_VERIFY_STATIC(offsetof(dwc2_regs_t, fifo   ) == 0x1000, "incorrect size");
 #define GUSBCFG_TRDT_Pos                 (10U)
 #define GUSBCFG_TRDT_Msk                 (0xFUL << GUSBCFG_TRDT_Pos)              // 0x00003C00 */
 #define GUSBCFG_TRDT                     GUSBCFG_TRDT_Msk                         // USB turnaround time */
-#define GUSBCFG_TRDT_0                   (0x1UL << GUSBCFG_TRDT_Pos)              // 0x00000400 */
-#define GUSBCFG_TRDT_1                   (0x2UL << GUSBCFG_TRDT_Pos)              // 0x00000800 */
-#define GUSBCFG_TRDT_2                   (0x4UL << GUSBCFG_TRDT_Pos)              // 0x00001000 */
-#define GUSBCFG_TRDT_3                   (0x8UL << GUSBCFG_TRDT_Pos)              // 0x00002000 */
 #define GUSBCFG_PHYLPCS_Pos              (15U)
 #define GUSBCFG_PHYLPCS_Msk              (0x1UL << GUSBCFG_PHYLPCS_Pos)           // 0x00008000 */
 #define GUSBCFG_PHYLPCS                  GUSBCFG_PHYLPCS_Msk                      // PHY Low-power clock select */
