@@ -122,6 +122,8 @@ void board_init(void)
   for (int i = 0; i < 16; ++i) __NOP();
   SYSCTL->SRUSB     = 0u;
 
+  USB0->CC          = USB_CC_CLKEN | (3u << USB_CC_CLKDIV_S); /* 60MHz = 240MHz / 4 */
+  __DMB(); /* Wait for completion of opening of the clock gate */
 }
 
 //--------------------------------------------------------------------+

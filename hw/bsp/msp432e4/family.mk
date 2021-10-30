@@ -11,6 +11,9 @@ CFLAGS += \
 	-D__MSP432E401Y__ \
 	-DCFG_TUSB_MCU=OPT_MCU_MSP432E4xx
 
+# mcu driver cause following warnings
+CFLAGS += -Wno-error=cast-qual -Wno-error=format=
+
 # All source paths should be relative to the top level.
 LD_FILE = hw/mcu/ti/msp432e4/Source/msp432e401y.ld
 LDINC += $(TOP)/hw/mcu/ti/msp432e4/Include
@@ -19,7 +22,7 @@ LDFLAGS += $(addprefix -L,$(LDINC))
 MCU_DIR = hw/mcu/ti/msp432e4
 
 SRC_C += \
-	src/portable/mentor/dcd_musb.c \
+	src/portable/mentor/musb/dcd_musb.c \
 	$(MCU_DIR)/Source/system_msp432e401y.c
 
 INC += \
@@ -37,12 +40,6 @@ ifneq ($(OS),Windows_NT)
 export LD_LIBRARY_PATH=$(dir $(shell which MSP430Flasher))
 endif
 
-# flash target using TI MSP430-Flasher
-# http://www.ti.com/tool/MSP430-FLASHER
-# Please add its installation dir to PATH
-flash: $(BUILD)/$(PROJECT).hex
-	MSP430Flasher -w $< -z [VCC]
-
-# flash target using mspdebug.
-flash-mspdebug: $(BUILD)/$(PROJECT).elf
-	$(MSPDEBUG) tilib "prog $<" --allow-fw-update
+# For flash-jlink target
+JLINK_DEVICE = MSP432E401Y
+JLINK_IF     = SWD
