@@ -112,78 +112,91 @@ static inline void dwc2_remote_wakeup_delay(void)
   while ( count-- ) __NOP();
 }
 
-// Set turn-around timeout according to link speed
-static inline void dwc2_phyfs_set_turnaround(dwc2_regs_t * dwc2)
+// MCU specific PHY init, called BEFORE core reset
+static inline void dwc2_phy_init(dwc2_regs_t * dwc2, uint8_t hs_phy_type)
 {
-  // Turnaround timeout depends on the AHB clock dictated by STM32 Reference Manual
-  uint32_t turnaround;
-
-  if ( SystemCoreClock >= 32000000U )
-    turnaround = 0x6u;
-  else if ( SystemCoreClock >= 27500000U )
-    turnaround = 0x7u;
-  else if ( SystemCoreClock >= 24000000U )
-    turnaround = 0x8u;
-  else if ( SystemCoreClock >= 21800000U )
-    turnaround = 0x9u;
-  else if ( SystemCoreClock >= 20000000U )
-    turnaround = 0xAu;
-  else if ( SystemCoreClock >= 18500000U )
-    turnaround = 0xBu;
-  else if ( SystemCoreClock >= 17200000U )
-    turnaround = 0xCu;
-  else if ( SystemCoreClock >= 16000000U )
-    turnaround = 0xDu;
-  else if ( SystemCoreClock >= 15000000U )
-    turnaround = 0xEu;
-  else
-    turnaround = 0xFu;
-
-  dwc2->gusbcfg = (dwc2->gusbcfg & GUSBCFG_TRDT_Msk) | (turnaround << GUSBCFG_TRDT_Pos);
-}
-
-#if defined(USB_HS_PHYC)
-static inline void dwc2_stm32_utmi_phy_init(dwc2_regs_t * dwc2)
-{
-  USB_HS_PHYC_GlobalTypeDef *usb_hs_phyc = (USB_HS_PHYC_GlobalTypeDef*) USB_HS_PHYC_CONTROLLER_BASE;
-
-  // Enable UTMI HS PHY
-  dwc2->stm32_gccfg |= STM32_GCCFG_PHYHSEN;
-
-  // Enable LDO
-  usb_hs_phyc->USB_HS_PHYC_LDO |= USB_HS_PHYC_LDO_ENABLE;
-
-  // Wait until LDO ready
-  while ( 0 == (usb_hs_phyc->USB_HS_PHYC_LDO & USB_HS_PHYC_LDO_STATUS) ) {}
-
-  uint32_t phyc_pll = 0;
-
-  // TODO Try to get HSE_VALUE from registers instead of depending CFLAGS
-  switch ( HSE_VALUE )
+  if ( hs_phy_type == HS_PHY_TYPE_NONE )
   {
-    case 12000000: phyc_pll = USB_HS_PHYC_PLL1_PLLSEL_12MHZ   ; break;
-    case 12500000: phyc_pll = USB_HS_PHYC_PLL1_PLLSEL_12_5MHZ ; break;
-    case 16000000: phyc_pll = USB_HS_PHYC_PLL1_PLLSEL_16MHZ   ; break;
-    case 24000000: phyc_pll = USB_HS_PHYC_PLL1_PLLSEL_24MHZ   ; break;
-    case 25000000: phyc_pll = USB_HS_PHYC_PLL1_PLLSEL_25MHZ   ; break;
-    case 32000000: phyc_pll = USB_HS_PHYC_PLL1_PLLSEL_Msk     ; break; // Value not defined in header
-    default:
-      TU_ASSERT(false, );
+    // Enable on-chip FS PHY
+    dwc2->stm32_gccfg |= STM32_GCCFG_PWRDWN;
+  }else
+  {
+    // Disable FS PHY
+    dwc2->stm32_gccfg &= ~STM32_GCCFG_PWRDWN;
+
+    // Enable on-chip HS PHY
+    if (hs_phy_type == HS_PHY_TYPE_UTMI || hs_phy_type == HS_PHY_TYPE_UTMI_ULPI)
+    {
+#ifdef USB_HS_PHYC
+      // Enable UTMI HS PHY
+      dwc2->stm32_gccfg |= STM32_GCCFG_PHYHSEN;
+
+      // Enable LDO
+      USB_HS_PHYC->USB_HS_PHYC_LDO |= USB_HS_PHYC_LDO_ENABLE;
+
+      // Wait until LDO ready
+      while ( 0 == (USB_HS_PHYC->USB_HS_PHYC_LDO & USB_HS_PHYC_LDO_STATUS) ) {}
+
+      uint32_t phyc_pll = 0;
+
+      // TODO Try to get HSE_VALUE from registers instead of depending CFLAGS
+      switch ( HSE_VALUE )
+      {
+        case 12000000: phyc_pll = USB_HS_PHYC_PLL1_PLLSEL_12MHZ   ; break;
+        case 12500000: phyc_pll = USB_HS_PHYC_PLL1_PLLSEL_12_5MHZ ; break;
+        case 16000000: phyc_pll = USB_HS_PHYC_PLL1_PLLSEL_16MHZ   ; break;
+        case 24000000: phyc_pll = USB_HS_PHYC_PLL1_PLLSEL_24MHZ   ; break;
+        case 25000000: phyc_pll = USB_HS_PHYC_PLL1_PLLSEL_25MHZ   ; break;
+        case 32000000: phyc_pll = USB_HS_PHYC_PLL1_PLLSEL_Msk     ; break; // Value not defined in header
+        default:
+          TU_ASSERT(false, );
+      }
+      USB_HS_PHYC->USB_HS_PHYC_PLL = phyc_pll;
+
+      // Control the tuning interface of the High Speed PHY
+      // Use magic value (USB_HS_PHYC_TUNE_VALUE) from ST driver for F7
+      USB_HS_PHYC->USB_HS_PHYC_TUNE |= 0x00000F13U;
+
+      // Enable PLL internal PHY
+      USB_HS_PHYC->USB_HS_PHYC_PLL |= USB_HS_PHYC_PLL_PLLEN;
+#endif
+    }
   }
-  usb_hs_phyc->USB_HS_PHYC_PLL = phyc_pll;
-
-  // Control the tuning interface of the High Speed PHY
-  // Use magic value (USB_HS_PHYC_TUNE_VALUE) from ST driver
-  usb_hs_phyc->USB_HS_PHYC_TUNE |= 0x00000F13U;
-
-  // Enable PLL internal PHY
-  usb_hs_phyc->USB_HS_PHYC_PLL |= USB_HS_PHYC_PLL_PLLEN;
-
-  // Original ST code has 2 ms delay for PLL stabilization.
-  // Primitive test shows that more than 10 USB un/replug cycle showed no error with enumeration
 }
 
-#endif
+// MCU specific PHY update, it is called AFTER init() and core reset
+static inline void dwc2_phy_update(dwc2_regs_t * dwc2, uint8_t hs_phy_type)
+{
+  // used to set turnaround time for fullspeed, nothing to do in highspeed mode
+  if ( hs_phy_type == HS_PHY_TYPE_NONE )
+  {
+    // Turnaround timeout depends on the AHB clock dictated by STM32 Reference Manual
+    uint32_t turnaround;
+
+    if ( SystemCoreClock >= 32000000u )
+      turnaround = 0x6u;
+    else if ( SystemCoreClock >= 27500000u )
+      turnaround = 0x7u;
+    else if ( SystemCoreClock >= 24000000u )
+      turnaround = 0x8u;
+    else if ( SystemCoreClock >= 21800000u )
+      turnaround = 0x9u;
+    else if ( SystemCoreClock >= 20000000u )
+      turnaround = 0xAu;
+    else if ( SystemCoreClock >= 18500000u )
+      turnaround = 0xBu;
+    else if ( SystemCoreClock >= 17200000u )
+      turnaround = 0xCu;
+    else if ( SystemCoreClock >= 16000000u )
+      turnaround = 0xDu;
+    else if ( SystemCoreClock >= 15000000u )
+      turnaround = 0xEu;
+    else
+      turnaround = 0xFu;
+
+    dwc2->gusbcfg = (dwc2->gusbcfg & ~GUSBCFG_TRDT_Msk) | (turnaround << GUSBCFG_TRDT_Pos);
+  }
+}
 
 #ifdef __cplusplus
 }

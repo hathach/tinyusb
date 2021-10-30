@@ -31,7 +31,9 @@
 #include "device/dcd_attr.h"
 
 #if TUSB_OPT_DEVICE_ENABLED && \
-    ( defined(DCD_ATTR_DWC2_STM32) || TU_CHECK_MCU(OPT_MCU_ESP32S2, OPT_MCU_ESP32S3, OPT_MCU_GD32VF103, OPT_MCU_BCM2711) )
+    ( defined(DCD_ATTR_DWC2_STM32) || \
+      TU_CHECK_MCU(OPT_MCU_ESP32S2, OPT_MCU_ESP32S3, OPT_MCU_GD32VF103) || \
+      TU_CHECK_MCU(OPT_MCU_EFM32GG, OPT_MCU_BCM2711) )
 
 #include "device/dcd.h"
 #include "dwc2_type.h"
@@ -44,6 +46,8 @@
   #include "dwc2_gd32.h"
 #elif TU_CHECK_MCU(OPT_MCU_BCM2711)
   #include "dwc2_bcm.h"
+#elif TU_CHECK_MCU(OPT_MCU_EFM32GG)
+  #include "dwc2_efm32.h"
 #else
   #error "Unsupported MCUs"
 #endif
@@ -260,6 +264,9 @@ void print_dwc2_info(dwc2_regs_t * dwc2)
   dwc2_ghwcfg3_t const * hw_cfg3 = &dwc2->ghwcfg3_bm;
   dwc2_ghwcfg4_t const * hw_cfg4 = &dwc2->ghwcfg4_bm;
 
+  TU_LOG_HEX(DWC2_DEBUG, dwc2->gotgctl);
+  TU_LOG_HEX(DWC2_DEBUG, dwc2->gusbcfg);
+  TU_LOG_HEX(DWC2_DEBUG, dwc2->dcfg);
   TU_LOG_HEX(DWC2_DEBUG, dwc2->guid);
   TU_LOG_HEX(DWC2_DEBUG, dwc2->gsnpsid);
   TU_LOG_HEX(DWC2_DEBUG, dwc2->ghwcfg1);
@@ -349,23 +356,22 @@ static void phy_fs_init(dwc2_regs_t * dwc2)
   // Select FS PHY
   dwc2->gusbcfg |= GUSBCFG_PHYSEL;
 
+  // MCU specific PHY init before reset
+  dwc2_phy_init(dwc2, HS_PHY_TYPE_NONE);
+
   // Reset core after selecting PHY
   reset_core(dwc2);
 
-  // set turn around
   // USB turnaround time is critical for certification where long cables and 5-Hubs are used.
   // So if you need the AHB to run at less than 30 MHz, and if USB turnaround time is not critical,
-  // these bits can be programmed to a larger value.
-  //TU_LOG_INT(DWC2_DEBUG, (dwc2->gusbcfg & GUSBCFG_TRDT_Msk) >> GUSBCFG_TRDT_Pos );
-  dwc2_phyfs_set_turnaround(dwc2);
+  // these bits can be programmed to a larger value. Default is 5
+  dwc2->gusbcfg = (dwc2->gusbcfg & ~GUSBCFG_TRDT_Msk) | (5u << GUSBCFG_TRDT_Pos);
+
+  // MCU specific PHY update post reset
+  dwc2_phy_update(dwc2, HS_PHY_TYPE_NONE);
 
   // set max speed
   dwc2->dcfg = (dwc2->dcfg & ~DCFG_DSPD_Msk) | (DCFG_DSPD_FS << DCFG_DSPD_Pos);
-
-  #if defined(DCD_ATTR_DWC2_STM32)
-  // activate FS PHY on stm32
-  dwc2->stm32_gccfg |= STM32_GCCFG_PWRDWN;
-  #endif
 }
 
 static void phy_hs_init(dwc2_regs_t * dwc2)
@@ -399,19 +405,13 @@ static void phy_hs_init(dwc2_regs_t * dwc2)
 
     // Set 16-bit interface if supported
     if (dwc2->ghwcfg4_bm.utmi_phy_data_width) gusbcfg |= GUSBCFG_PHYIF16;
-
-    #if defined(DCD_ATTR_DWC2_STM32) && defined(USB_HS_PHYC)
-    dwc2_stm32_utmi_phy_init(dwc2);
-    #endif
   }
 
   // Apply config
   dwc2->gusbcfg = gusbcfg;
 
-  #if defined(DCD_ATTR_DWC2_STM32)
-  // Disable STM32 FS PHY
-  dwc2->stm32_gccfg &= ~STM32_GCCFG_PWRDWN;
-  #endif
+  // mcu specific phy init
+  dwc2_phy_init(dwc2, dwc2->ghwcfg2_bm.hs_phy_type);
 
   // Reset core after selecting PHY
   reset_core(dwc2);
@@ -421,7 +421,10 @@ static void phy_hs_init(dwc2_regs_t * dwc2)
   // - 5 if using 16-bit PHY interface
   gusbcfg &= ~GUSBCFG_TRDT_Msk;
   gusbcfg |= (dwc2->ghwcfg4_bm.utmi_phy_data_width ? 5u : 9u) << GUSBCFG_TRDT_Pos;
-  dwc2->gusbcfg = gusbcfg; // Apply config
+  dwc2->gusbcfg = gusbcfg;
+
+  // MCU specific PHY update post reset
+  dwc2_phy_update(dwc2, dwc2->ghwcfg2_bm.hs_phy_type);
 
   // Set max speed
   dwc2->dcfg = (dwc2->dcfg & ~DCFG_DSPD_Msk) | (DCFG_DSPD_HS << DCFG_DSPD_Pos);
@@ -429,14 +432,14 @@ static void phy_hs_init(dwc2_regs_t * dwc2)
 
 static bool check_dwc2(dwc2_regs_t * dwc2)
 {
+#if CFG_TUSB_DEBUG >= DWC2_DEBUG
+  print_dwc2_info(dwc2);
+#endif
+
   // For some reasons: GD32VF103 snpsid and all hwcfg register are always zero (skip it)
 #if !TU_CHECK_MCU(OPT_MCU_GD32VF103)
   uint32_t const gsnpsid = dwc2->gsnpsid & GSNPSID_ID_MASK;
   TU_ASSERT(gsnpsid == DWC2_OTG_ID || gsnpsid == DWC2_FS_IOT_ID || gsnpsid == DWC2_HS_IOT_ID);
-#endif
-
-#if CFG_TUSB_DEBUG >= DWC2_DEBUG
-  print_dwc2_info(dwc2);
 #endif
 
   return true;
@@ -451,8 +454,10 @@ void dcd_init (uint8_t rhport)
   // Check Synopsys ID register, failed if controller clock/power is not enabled
   TU_VERIFY(check_dwc2(dwc2), );
 
-  // Force device mode
-  dwc2->gusbcfg = (dwc2->gusbcfg & ~GUSBCFG_FHMOD) | GUSBCFG_FDMOD;
+  dcd_disconnect(rhport);
+
+  // max number of endpoints & total_fifo_size are:
+  // hw_cfg2->num_dev_ep, hw_cfg2->total_fifo_size
 
   if( phy_hs_supported(dwc2) )
   {
@@ -464,7 +469,11 @@ void dcd_init (uint8_t rhport)
     phy_fs_init(dwc2);
   }
 
-  TU_LOG_HEX(DWC2_DEBUG, dwc2->gusbcfg);
+  // Restart PHY clock
+  dwc2->pcgctl &= ~(PCGCTL_STOPPCLK | PCGCTL_GATEHCLK | PCGCTL_PWRCLMP | PCGCTL_RSTPDWNMODULE);
+
+  // Force device mode
+  dwc2->gusbcfg = (dwc2->gusbcfg & ~GUSBCFG_FHMOD) | GUSBCFG_FDMOD;
 
 	/* Set HS/FS Timeout Calibration to 7 (max available value).
 	 * The number of PHY clocks that the application programs in
@@ -476,26 +485,33 @@ void dcd_init (uint8_t rhport)
 	 */
   dwc2->gusbcfg |= (7ul << GUSBCFG_TOCAL_Pos);
 
-  // Restart PHY clock
-  dwc2->pcgctl &= ~(PCGCTL_STOPPCLK | PCGCTL_GATEHCLK | PCGCTL_PWRCLMP | PCGCTL_RSTPDWNMODULE);
-
-  // Clear all interrupts
-  dwc2->gintsts |= dwc2->gintsts;
-
-  // Required as part of core initialization.
-  // TODO: How should mode mismatch be handled? It will cause
-  // the core to stop working/require reset.
-  dwc2->gintmsk |= GINTMSK_OTGINT | GINTMSK_MMISM;
-
   // If USB host misbehaves during status portion of control xfer
   // (non zero-length packet), send STALL back and discard.
   dwc2->dcfg |= DCFG_NZLSOHSK;
 
-  dwc2->gintmsk |= GINTMSK_USBRST | GINTMSK_ENUMDNEM | GINTMSK_USBSUSPM |
-                   GINTMSK_WUIM   | GINTMSK_RXFLVLM;
+  // Clear A,B, VBus valid override
+  dwc2->gotgctl &= ~(GOTGCTL_BVALOEN | GOTGCTL_AVALOEN | GOTGCTL_VBVALOEN);
+
+  // Clear all interrupts
+  dwc2->gintsts |= dwc2->gintsts;
+  dwc2->gotgint |= dwc2->gotgint;
+
+  // Required as part of core initialization.
+  // TODO: How should mode mismatch be handled? It will cause
+  // the core to stop working/require reset.
+  dwc2->gintmsk = GINTMSK_OTGINT   | GINTMSK_MMISM  | GINTMSK_RXFLVLM  |
+                  GINTMSK_USBSUSPM | GINTMSK_USBRST | GINTMSK_ENUMDNEM | GINTMSK_WUIM;
 
   // Enable global interrupt
   dwc2->gahbcfg |= GAHBCFG_GINT;
+
+  // make sure we are in device mode
+//  TU_ASSERT(!(dwc2->gintsts & GINTSTS_CMOD), );
+
+//  TU_LOG_HEX(DWC2_DEBUG, dwc2->gotgctl);
+//  TU_LOG_HEX(DWC2_DEBUG, dwc2->gusbcfg);
+//  TU_LOG_HEX(DWC2_DEBUG, dwc2->dcfg);
+//  TU_LOG_HEX(DWC2_DEBUG, dwc2->gahbcfg);
 
   dcd_connect(rhport);
 }
@@ -1095,6 +1111,8 @@ void dcd_int_handler(uint8_t rhport)
   dwc2_regs_t *dwc2 = DWC2_REG(rhport);
 
   uint32_t const int_status = dwc2->gintsts & dwc2->gintmsk;
+
+//  TU_LOG_HEX(DWC2_DEBUG, int_status);
 
   if(int_status & GINTSTS_USBRST)
   {

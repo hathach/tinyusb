@@ -50,12 +50,14 @@ static void dcd_int_handler_wrap(void* arg)
   dcd_int_handler(0);
 }
 
+TU_ATTR_ALWAYS_INLINE
 static inline void dwc2_dcd_int_enable (uint8_t rhport)
 {
   (void) rhport;
   esp_intr_alloc(ETS_USB_INTR_SOURCE, ESP_INTR_FLAG_LOWMED, dcd_int_handler_wrap, NULL, &usb_ih);
 }
 
+TU_ATTR_ALWAYS_INLINE
 static inline void dwc2_dcd_int_disable (uint8_t rhport)
 {
   (void) rhport;
@@ -67,10 +69,22 @@ static inline void dwc2_remote_wakeup_delay(void)
   vTaskDelay(pdMS_TO_TICKS(1));
 }
 
-static inline void dwc2_phyfs_set_turnaround(dwc2_regs_t * dwc2)
+// MCU specific PHY init, called BEFORE core reset
+static inline void dwc2_phy_init(dwc2_regs_t * dwc2, uint8_t hs_phy_type)
 {
   (void) dwc2;
-  // keep the reset value which is 5 on this port
+  (void) hs_phy_type;
+
+  // nothing to do
+}
+
+// MCU specific PHY update, it is called AFTER init() and core reset
+static inline void dwc2_phy_update(dwc2_regs_t * dwc2, uint8_t hs_phy_type)
+{
+  (void) dwc2;
+  (void) hs_phy_type;
+
+  // nothing to do
 }
 
 #ifdef __cplusplus

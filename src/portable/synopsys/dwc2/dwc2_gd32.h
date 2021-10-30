@@ -68,7 +68,6 @@ static inline void dwc2_dcd_int_disable (uint8_t rhport)
   __eclic_disable_interrupt(RHPORT_IRQn);
 }
 
-TU_ATTR_ALWAYS_INLINE
 static inline void dwc2_remote_wakeup_delay(void)
 {
   // try to delay for 1 ms
@@ -76,12 +75,23 @@ static inline void dwc2_remote_wakeup_delay(void)
   while ( count-- ) __asm volatile ("nop");
 }
 
-static inline void dwc2_phyfs_set_turnaround(dwc2_regs_t * dwc2)
+// MCU specific PHY init, called BEFORE core reset
+static inline void dwc2_phy_init(dwc2_regs_t * dwc2, uint8_t hs_phy_type)
 {
-  // use recommeded value 6 by stm32 for mcu with AHB clock > 32Mhz
-  dwc2->gusbcfg = (dwc2->gusbcfg & GUSBCFG_TRDT_Msk) | (6u << GUSBCFG_TRDT_Pos);
+  (void) dwc2;
+  (void) hs_phy_type;
+
+  // nothing to do
 }
 
+// MCU specific PHY update, it is called AFTER init() and core reset
+static inline void dwc2_phy_update(dwc2_regs_t * dwc2, uint8_t hs_phy_type)
+{
+  (void) dwc2;
+  (void) hs_phy_type;
+
+  // nothing to do
+}
 
 #ifdef __cplusplus
 }

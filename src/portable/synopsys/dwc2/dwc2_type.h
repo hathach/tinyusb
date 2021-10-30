@@ -528,7 +528,7 @@ TU_VERIFY_STATIC(offsetof(dwc2_regs_t, fifo   ) == 0x1000, "incorrect size");
 #define GUSBCFG_PHYSEL_Pos               (6U)
 #define GUSBCFG_PHYSEL_Msk               (0x1UL << GUSBCFG_PHYSEL_Pos)            // 0x00000040 */
 #define GUSBCFG_PHYSEL                   GUSBCFG_PHYSEL_Msk                       // USB 2.0 high-speed ULPI PHY or USB 1.1 full-speed serial transceiver select */
-#define GUSBCFG_DDRSEL                TU_BIT(7)                                // Single Data Rate (SDR) or Double Data Rate (DDR) or ULPI interface.
+#define GUSBCFG_DDRSEL                   TU_BIT(7)                                // Single Data Rate (SDR) or Double Data Rate (DDR) or ULPI interface.
 #define GUSBCFG_SRPCAP_Pos               (8U)
 #define GUSBCFG_SRPCAP_Msk               (0x1UL << GUSBCFG_SRPCAP_Pos)            // 0x00000100 */
 #define GUSBCFG_SRPCAP                   GUSBCFG_SRPCAP_Msk                       // SRP-capable */

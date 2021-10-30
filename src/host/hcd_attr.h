@@ -82,7 +82,7 @@
 #elif TU_CHECK_MCU(OPT_MCU_RP2040)
 
 //------------- Silabs -------------//
-#elif TU_CHECK_MCU(OPT_MCU_EFM32GG, OPT_MCU_EFM32GG11, OPT_MCU_EFM32GG12)
+#elif TU_CHECK_MCU(OPT_MCU_EFM32GG)
 
 //------------- Renesas -------------//
 #elif TU_CHECK_MCU(OPT_MCU_RX63X, OPT_MCU_RX65X, OPT_MCU_RX72N)
