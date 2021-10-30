@@ -264,9 +264,9 @@ void print_dwc2_info(dwc2_regs_t * dwc2)
   dwc2_ghwcfg3_t const * hw_cfg3 = &dwc2->ghwcfg3_bm;
   dwc2_ghwcfg4_t const * hw_cfg4 = &dwc2->ghwcfg4_bm;
 
-  TU_LOG_HEX(DWC2_DEBUG, dwc2->gotgctl);
-  TU_LOG_HEX(DWC2_DEBUG, dwc2->gusbcfg);
-  TU_LOG_HEX(DWC2_DEBUG, dwc2->dcfg);
+//  TU_LOG_HEX(DWC2_DEBUG, dwc2->gotgctl);
+//  TU_LOG_HEX(DWC2_DEBUG, dwc2->gusbcfg);
+//  TU_LOG_HEX(DWC2_DEBUG, dwc2->dcfg);
   TU_LOG_HEX(DWC2_DEBUG, dwc2->guid);
   TU_LOG_HEX(DWC2_DEBUG, dwc2->gsnpsid);
   TU_LOG_HEX(DWC2_DEBUG, dwc2->ghwcfg1);
