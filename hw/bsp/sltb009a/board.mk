@@ -34,12 +34,8 @@ INC += \
   $(TOP)/$(SILABS_CMSIS)/Include \
   $(TOP)/hw/bsp/$(BOARD)
 
-# For TinyUSB port source
-VENDOR = silabs
-CHIP_FAMILY = efm32
-
 # For freeRTOS port source
-FREERTOS_PORT = ARM_CM4
+FREERTOS_PORT = ARM_CM3
 
 # For flash-jlink target
 JLINK_DEVICE = EFM32GG12B810F1024
