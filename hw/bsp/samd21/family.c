@@ -45,6 +45,11 @@ void USB_Handler(void)
 }
 
 //--------------------------------------------------------------------+
+// UART support
+//--------------------------------------------------------------------+
+void uart_init(void);
+
+//--------------------------------------------------------------------+
 // MACRO TYPEDEF CONSTANT ENUM DECLARATION
 //--------------------------------------------------------------------+
 
@@ -83,6 +88,8 @@ void board_init(void)
   gpio_set_pin_direction(BUTTON_PIN, GPIO_DIRECTION_IN);
   gpio_set_pin_pull_mode(BUTTON_PIN, BUTTON_STATE_ACTIVE ? GPIO_PULL_DOWN : GPIO_PULL_UP);
 #endif
+
+  uart_init();
 
 #if CFG_TUSB_OS  == OPT_OS_FREERTOS
   // If freeRTOS is used, IRQ priority is limit by max syscall ( smaller is higher )
@@ -138,6 +145,81 @@ uint32_t board_button_read(void)
 #endif
 }
 
+#if defined(UART_SERCOM)
+
+#define BOARD_SERCOM2(n)  SERCOM ## n
+#define BOARD_SERCOM(n) BOARD_SERCOM2(n)
+
+void uart_init(void)
+{
+#if UART_SERCOM == 0
+  gpio_set_pin_function(PIN_PA06, PINMUX_PA06D_SERCOM0_PAD2);
+  gpio_set_pin_function(PIN_PA07, PINMUX_PA07D_SERCOM0_PAD3);
+
+  // setup clock (48MHz)
+  _pm_enable_bus_clock(PM_BUS_APBC, SERCOM0);
+  _gclk_enable_channel(SERCOM0_GCLK_ID_CORE, GCLK_CLKCTRL_GEN_GCLK0_Val);
+
+  SERCOM0->USART.CTRLA.bit.SWRST = 1; /* reset SERCOM & enable config */
+  while(SERCOM0->USART.SYNCBUSY.bit.SWRST);
+
+  SERCOM0->USART.CTRLA.reg  =  /* CMODE = 0 -> async, SAMPA = 0, FORM = 0 -> USART frame, SMPR = 0 -> arithmetic baud rate */
+    SERCOM_USART_CTRLA_SAMPR(1) | /* 0 = 16x / arithmetic baud rate, 1 = 16x / fractional baud rate */
+//    SERCOM_USART_CTRLA_FORM(0) | /* 0 = USART Frame, 2 = LIN Master */
+    SERCOM_USART_CTRLA_DORD | /* LSB first */
+    SERCOM_USART_CTRLA_MODE(1) | /* 0 = Asynchronous, 1 = USART with internal clock */
+    SERCOM_USART_CTRLA_RXPO(3) | /* pad 3 */
+    SERCOM_USART_CTRLA_TXPO(1);  /* pad 2 */
+
+  SERCOM0->USART.CTRLB.reg =
+    SERCOM_USART_CTRLB_TXEN | /* tx enabled */
+    SERCOM_USART_CTRLB_RXEN;  /* rx enabled */
+
+  SERCOM0->USART.BAUD.reg = SERCOM_USART_BAUD_FRAC_FP(0) | SERCOM_USART_BAUD_FRAC_BAUD(26);
+
+  SERCOM0->USART.CTRLA.bit.ENABLE = 1; /* activate SERCOM */
+  while(SERCOM0->USART.SYNCBUSY.bit.ENABLE); /* wait for SERCOM to be ready */
+#endif
+}
+
+static inline void uart_send_buffer(uint8_t const *text, size_t len)
+{
+  for (size_t i = 0; i < len; ++i) {
+    BOARD_SERCOM(UART_SERCOM)->USART.DATA.reg = text[i];
+    while((BOARD_SERCOM(UART_SERCOM)->USART.INTFLAG.reg & SERCOM_USART_INTFLAG_TXC) == 0);
+  }
+}
+
+static inline void uart_send_str(const char* text)
+{
+  while (*text) {
+    BOARD_SERCOM(UART_SERCOM)->USART.DATA.reg = *text++;
+    while((BOARD_SERCOM(UART_SERCOM)->USART.INTFLAG.reg & SERCOM_USART_INTFLAG_TXC) == 0);
+  }
+}
+
+int board_uart_read(uint8_t* buf, int len)
+{
+  (void) buf; (void) len;
+  return 0;
+}
+
+int board_uart_write(void const * buf, int len)
+{
+  if (len < 0) {
+    uart_send_str(buf);
+  } else {
+    uart_send_buffer(buf, len);
+  }
+  return len;
+}
+
+#else // ! defined(UART_SERCOM)
+void uart_init(void)
+{
+
+}
+
 int board_uart_read(uint8_t* buf, int len)
 {
   (void) buf; (void) len;
@@ -149,6 +231,7 @@ int board_uart_write(void const * buf, int len)
   (void) buf; (void) len;
   return 0;
 }
+#endif
 
 #if CFG_TUSB_OS  == OPT_OS_NONE
 volatile uint32_t system_ticks = 0;
