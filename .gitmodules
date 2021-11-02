@@ -130,3 +130,4 @@
 [submodule "hw/mcu/broadcom"]
 	path = hw/mcu/broadcom
 	url = https://github.com/adafruit/broadcom-peripherals.git
+	branch = main-build

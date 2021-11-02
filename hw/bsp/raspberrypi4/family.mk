@@ -1,8 +1,7 @@
-UF2_FAMILY_ID = 0x57755a57
+MCU_DIR = hw/mcu/broadcom
+DEPS_SUBMODULES += $(MCU_DIR)
 
 include $(TOP)/$(BOARD_PATH)/board.mk
-
-MCU_DIR = hw/mcu/broadcom
 
 CC = clang
 
