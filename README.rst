@@ -47,7 +47,7 @@ The stack supports the following MCUs:
 - **Renesas:** RX63N, RX65N
 - **Silabs:** EFM32GG12
 - **Sony:** CXD56
-- **ST:** STM32 series: L0, L1, F0, F1, F2, F3, F4, F7, H7 both FullSpeed and HighSpeed
+- **ST:** STM32 series: L0, L1, L4, F0, F1, F2, F3, F4, F7, H7 both FullSpeed and HighSpeed
 - **TI:** MSP430
 - **ValentyUSB:** eptri
 
