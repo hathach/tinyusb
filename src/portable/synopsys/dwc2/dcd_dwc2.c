@@ -123,8 +123,8 @@ static void bus_reset(uint8_t rhport)
     dwc2->epout[n].doepctl |= DOEPCTL_SNAK;
   }
 
-  // 2. Un-mask interrupt bits
-  dwc2->daintmsk = (1 << DAINTMSK_OEPM_Pos) | (1 << DAINTMSK_IEPM_Pos);
+  // 2. Set up interrupt mask
+  dwc2->daintmsk = TU_BIT(DAINTMSK_OEPM_Pos) | TU_BIT(DAINTMSK_IEPM_Pos);
   dwc2->doepmsk  = DOEPMSK_STUPM | DOEPMSK_XFRCM;
   dwc2->diepmsk  = DIEPMSK_TOM   | DIEPMSK_XFRCM;
 
@@ -472,9 +472,6 @@ void dcd_init (uint8_t rhport)
   // Restart PHY clock
   dwc2->pcgctl &= ~(PCGCTL_STOPPCLK | PCGCTL_GATEHCLK | PCGCTL_PWRCLMP | PCGCTL_RSTPDWNMODULE);
 
-  // Force device mode
-  dwc2->gusbcfg = (dwc2->gusbcfg & ~GUSBCFG_FHMOD) | GUSBCFG_FDMOD;
-
 	/* Set HS/FS Timeout Calibration to 7 (max available value).
 	 * The number of PHY clocks that the application programs in
 	 * this field is added to the high/full speed interpacket timeout
@@ -485,12 +482,15 @@ void dcd_init (uint8_t rhport)
 	 */
   dwc2->gusbcfg |= (7ul << GUSBCFG_TOCAL_Pos);
 
+  // Force device mode
+  dwc2->gusbcfg = (dwc2->gusbcfg & ~GUSBCFG_FHMOD) | GUSBCFG_FDMOD;
+
+  // Clear A override, force B Valid
+  dwc2->gotgctl = (dwc2->gotgctl & ~GOTGCTL_AVALOEN) | GOTGCTL_BVALOEN | GOTGCTL_BVALOVAL;
+
   // If USB host misbehaves during status portion of control xfer
   // (non zero-length packet), send STALL back and discard.
   dwc2->dcfg |= DCFG_NZLSOHSK;
-
-  // Clear A,B, VBus valid override
-  dwc2->gotgctl &= ~(GOTGCTL_BVALOEN | GOTGCTL_AVALOEN | GOTGCTL_VBVALOEN);
 
   // Clear all interrupts
   dwc2->gintsts |= dwc2->gintsts;
@@ -609,7 +609,7 @@ bool dcd_edpt_open (uint8_t rhport, tusb_desc_endpoint_t const * desc_edpt)
                                   (desc_edpt->bmAttributes.xfer != TUSB_XFER_ISOCHRONOUS ? DOEPCTL_SD0PID_SEVNFRM : 0) |
                                   (xfer->max_size << DOEPCTL_MPSIZ_Pos);
 
-    dwc2->daintmsk |= (1 << (DAINTMSK_OEPM_Pos + epnum));
+    dwc2->daintmsk |= TU_BIT(DAINTMSK_OEPM_Pos + epnum);
   }
   else
   {
@@ -696,19 +696,21 @@ bool dcd_edpt_xfer (uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t 
   if(epnum == 0)
   {
     ep0_pending[dir] = total_bytes;
+
     // Schedule the first transaction for EP0 transfer
     edpt_schedule_packets(rhport, epnum, dir, 1, ep0_pending[dir]);
-    return true;
   }
+  else
+  {
+    uint16_t num_packets = (total_bytes / xfer->max_size);
+    uint16_t const short_packet_size = total_bytes % xfer->max_size;
 
-  uint16_t num_packets = (total_bytes / xfer->max_size);
-  uint16_t const short_packet_size = total_bytes % xfer->max_size;
+    // Zero-size packet is special case.
+    if ( (short_packet_size > 0) || (total_bytes == 0) ) num_packets++;
 
-  // Zero-size packet is special case.
-  if ( short_packet_size > 0 || (total_bytes == 0) ) num_packets++;
-
-  // Schedule packets to be sent within interrupt
-  edpt_schedule_packets(rhport, epnum, dir, num_packets, total_bytes);
+    // Schedule packets to be sent within interrupt
+    edpt_schedule_packets(rhport, epnum, dir, num_packets, total_bytes);
+  }
 
   return true;
 }
@@ -924,21 +926,49 @@ static void write_fifo_packet(uint8_t rhport, uint8_t fifo_num, uint8_t const * 
 static void handle_rxflvl_irq(uint8_t rhport)
 {
   dwc2_regs_t * dwc2 = DWC2_REG(rhport);
-  volatile uint32_t * rx_fifo = dwc2->fifo[0];
+  volatile uint32_t const * rx_fifo = dwc2->fifo[0];
 
   // Pop control word off FIFO
-  uint32_t ctl_word = dwc2->grxstsp;
-  uint8_t  pktsts   = (ctl_word & GRXSTSP_PKTSTS_Msk ) >> GRXSTSP_PKTSTS_Pos;
-  uint8_t  epnum    = (ctl_word & GRXSTSP_EPNUM_Msk  ) >> GRXSTSP_EPNUM_Pos;
-  uint16_t bcnt     = (ctl_word & GRXSTSP_BCNT_Msk   ) >> GRXSTSP_BCNT_Pos;
+  uint32_t const ctl_word = dwc2->grxstsp;
+  uint8_t  const pktsts   = (ctl_word & GRXSTSP_PKTSTS_Msk ) >> GRXSTSP_PKTSTS_Pos;
+  uint8_t  const epnum    = (ctl_word & GRXSTSP_EPNUM_Msk  ) >> GRXSTSP_EPNUM_Pos;
+  uint16_t const bcnt     = (ctl_word & GRXSTSP_BCNT_Msk   ) >> GRXSTSP_BCNT_Pos;
+
+  dwc2_epout_t* epout = &dwc2->epout[epnum];
+
+#if CFG_TUSB_DEBUG >= (DWC2_DEBUG + 1)
+  const char * pktsts_str[] =
+  {
+    "ASSERT", "Global NAK (ISR)", "Out Data Received", "Out Transfer Complete (ISR)",
+    "Setup Complete (ISR)", "ASSERT", "Setup Data Received"
+  };
+  TU_LOG_LOCATION();
+  TU_LOG(DWC2_DEBUG, "  EP %02X, Byte Count %u, %s\r\n", epnum, bcnt, pktsts_str[pktsts]);
+  TU_LOG(DWC2_DEBUG, "  daint = %08lX, doepint = %04lX\r\n", dwc2->daint, epout->doepint);
+#endif
 
   switch ( pktsts )
   {
-    case 0x01:    // Global OUT NAK (Interrupt)
+    // Global OUT NAK: do nothign
+    case GRXSTS_PKTSTS_GLOBALOUTNAK: break;
+
+    case GRXSTS_PKTSTS_SETUPRX:
+      // Setup packet received
+
+      // We can receive up to three setup packets in succession, but
+      // only the last one is valid.
+      _setup_packet[0] = (*rx_fifo);
+      _setup_packet[1] = (*rx_fifo);
     break;
 
-    case 0x02:    // Out packet received
+    case GRXSTS_PKTSTS_SETUPDONE:
+      // Setup packet done (Interrupt)
+      epout->doeptsiz |= (3 << DOEPTSIZ_STUPCNT_Pos);
+    break;
+
+    case GRXSTS_PKTSTS_OUTRX:
     {
+      // Out packet received
       xfer_ctl_t *xfer = XFER_CTL_BASE(epnum, TUSB_DIR_OUT);
 
       // Read packet off RxFIFO
@@ -959,7 +989,7 @@ static void handle_rxflvl_irq(uint8_t rhport)
       // Truncate transfer length in case of short packet
       if ( bcnt < xfer->max_size )
       {
-        xfer->total_len -= (dwc2->epout[epnum].doeptsiz & DOEPTSIZ_XFRSIZ_Msk) >> DOEPTSIZ_XFRSIZ_Pos;
+        xfer->total_len -= (epout->doeptsiz & DOEPTSIZ_XFRSIZ_Msk) >> DOEPTSIZ_XFRSIZ_Pos;
         if ( epnum == 0 )
         {
           xfer->total_len -= ep0_pending[TUSB_DIR_OUT];
@@ -969,18 +999,28 @@ static void handle_rxflvl_irq(uint8_t rhport)
     }
     break;
 
-    case 0x03:    // Out packet done (Interrupt)
-    break;
+    // Out packet done (Interrupt)
+    case GRXSTS_PKTSTS_OUTDONE:
+        // Occurred on STM32L47 with dwc2 version 3.10a but not found on other version like 2.80a or 3.30a
+        // May (or not) be 3.10a specific feature/bug or depending on MCU configuration
+        // XFRC complete is additionally generated when
+        // - setup packet is received
+        // - complete the data stage of control write is complete
+        if ((epnum == 0) && (bcnt == 0) && (dwc2->gsnpsid >= DWC2_CORE_REV_3_00a))
+        {
+          if (epout->doepint & DOEPINT_STPKTRX)
+          {
+            // skip this "no-data" transfer complete event
+            // STPKTRX will be clear later by setup received handler
+            epout->doepint = DOEPINT_XFRC;
+          }
 
-    case 0x04:    // Setup packet done (Interrupt)
-      dwc2->epout[epnum].doeptsiz |= (3 << DOEPTSIZ_STUPCNT_Pos);
-    break;
-
-    case 0x06:    // Setup packet recvd
-      // We can receive up to three setup packets in succession, but
-      // only the last one is valid.
-      _setup_packet[0] = (*rx_fifo);
-      _setup_packet[1] = (*rx_fifo);
+          if (epout->doepint & DOEPINT_OTEPSPR)
+          {
+            // skip this "no-data" transfer complete event
+            epout->doepint = DOEPINT_XFRC | DOEPINT_OTEPSPR;
+          }
+        }
     break;
 
     default:    // Invalid
@@ -992,27 +1032,38 @@ static void handle_rxflvl_irq(uint8_t rhport)
 static void handle_epout_irq (uint8_t rhport)
 {
   dwc2_regs_t *dwc2 = DWC2_REG(rhport);
-  dwc2_epout_t* epout = dwc2->epout;
 
   // DAINT for a given EP clears when DOEPINTx is cleared.
   // OEPINT will be cleared when DAINT's out bits are cleared.
   for ( uint8_t n = 0; n < DWC2_EP_MAX; n++ )
   {
-    xfer_ctl_t *xfer = XFER_CTL_BASE(n, TUSB_DIR_OUT);
-
-    if ( dwc2->daint & (1 << (DAINT_OEPINT_Pos + n)) )
+    if ( dwc2->daint & TU_BIT(DAINT_OEPINT_Pos + n) )
     {
+      dwc2_epout_t* epout = &dwc2->epout[n];
+
+      uint32_t const doepint = epout->doepint;
+
       // SETUP packet Setup Phase done.
-      if ( epout[n].doepint & DOEPINT_STUP )
+      if ( doepint & DOEPINT_STUP )
       {
-        epout[n].doepint = DOEPINT_STUP;
-        dcd_event_setup_received(rhport, (uint8_t*) &_setup_packet[0], true);
+        uint32_t clear_flag = DOEPINT_STUP;
+
+        // STPKTRX is only available for version from 3_00a
+        if ((doepint & DOEPINT_STPKTRX) && (dwc2->gsnpsid >= DWC2_CORE_REV_3_00a))
+        {
+          clear_flag |= DOEPINT_STPKTRX;
+        }
+
+        epout->doepint = clear_flag;
+        dcd_event_setup_received(rhport, (uint8_t*) _setup_packet, true);
       }
 
       // OUT XFER complete
-      if ( epout[n].doepint & DOEPINT_XFRC )
+      if ( epout->doepint & DOEPINT_XFRC )
       {
-        epout[n].doepint = DOEPINT_XFRC;
+        epout->doepint = DOEPINT_XFRC;
+
+        xfer_ctl_t *xfer = XFER_CTL_BASE(n, TUSB_DIR_OUT);
 
         // EP0 can only handle one packet
         if ( (n == 0) && ep0_pending[TUSB_DIR_OUT] )
@@ -1038,11 +1089,11 @@ static void handle_epin_irq (uint8_t rhport)
   // IEPINT will be cleared when DAINT's out bits are cleared.
   for ( uint8_t n = 0; n < DWC2_EP_MAX; n++ )
   {
-    xfer_ctl_t *xfer = XFER_CTL_BASE(n, TUSB_DIR_IN);
-
-    if ( dwc2->daint & (1 << (DAINT_IEPINT_Pos + n)) )
+    if ( dwc2->daint & TU_BIT(DAINT_IEPINT_Pos + n) )
     {
       // IN XFER complete (entire xfer).
+      xfer_ctl_t *xfer = XFER_CTL_BASE(n, TUSB_DIR_IN);
+
       if ( epin[n].diepint & DIEPINT_XFRC )
       {
         epin[n].diepint = DIEPINT_XFRC;
@@ -1215,14 +1266,14 @@ void dcd_int_handler(uint8_t rhport)
   // OUT endpoint interrupt handling.
   if(int_status & GINTSTS_OEPINT)
   {
-    // OEPINT is read-only
+    // OEPINT is read-only, clear using DOEPINTn
     handle_epout_irq(rhport);
   }
 
   // IN endpoint interrupt handling.
   if(int_status & GINTSTS_IEPINT)
   {
-    // IEPINT bit read-only
+    // IEPINT bit read-only, clear using DIEPINTn
     handle_epin_irq(rhport);
   }
 

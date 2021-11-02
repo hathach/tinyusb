@@ -907,6 +907,17 @@ TU_VERIFY_STATIC(offsetof(dwc2_regs_t, fifo   ) == 0x1000, "incorrect size");
 #define GRXSTSP_PKTSTS_Msk               (0xFUL << GRXSTSP_PKTSTS_Pos)            // 0x001E0000 */
 #define GRXSTSP_PKTSTS                   GRXSTSP_PKTSTS_Msk                       // OUT EP interrupt mask bits */
 
+#define GRXSTS_PKTSTS_GLOBALOUTNAK       1
+#define GRXSTS_PKTSTS_OUTRX              2
+#define GRXSTS_PKTSTS_HCHIN              2
+#define GRXSTS_PKTSTS_OUTDONE            3
+#define GRXSTS_PKTSTS_HCHIN_XFER_COMP    3
+#define GRXSTS_PKTSTS_SETUPDONE          4
+#define GRXSTS_PKTSTS_DATATOGGLEERR      5
+#define GRXSTS_PKTSTS_SETUPRX            6
+#define GRXSTS_PKTSTS_HCHHALTED          7
+
+
 /********************  Bit definition for DAINTMSK register  ********************/
 #define DAINTMSK_IEPM_Pos                (0U)
 #define DAINTMSK_IEPM_Msk                (0xFFFFUL << DAINTMSK_IEPM_Pos)          // 0x0000FFFF */

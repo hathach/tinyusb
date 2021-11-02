@@ -21,8 +21,9 @@ CFLAGS += -Wno-error=maybe-uninitialized -Wno-error=cast-align
 # All source paths should be relative to the top level.
 LD_FILE = hw/bsp/$(BOARD)/STM32L476VGTx_FLASH.ld
 
+#src/portable/st/synopsys/dcd_synopsys.c
 SRC_C += \
-	src/portable/st/synopsys/dcd_synopsys.c \
+	src/portable/synopsys/dwc2/dcd_dwc2.c \
 	$(ST_CMSIS)/Source/Templates/system_stm32$(ST_FAMILY)xx.c \
 	$(ST_HAL_DRIVER)/Src/stm32$(ST_FAMILY)xx_hal.c \
 	$(ST_HAL_DRIVER)/Src/stm32$(ST_FAMILY)xx_hal_cortex.c \
@@ -52,5 +53,4 @@ JLINK_DEVICE = stm32l476vg
 STM32Prog = STM32_Programmer_CLI
 
 # flash target using on-board stlink
-flash: $(BUILD)/$(PROJECT).elf
-	$(STM32Prog) --connect port=swd --write $< --go
+flash: flash-stlink
