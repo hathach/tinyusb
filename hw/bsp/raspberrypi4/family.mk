@@ -43,5 +43,7 @@ SRC_S += $(MCU_DIR)/broadcom/boot.S
 $(BUILD)/kernel8.img: $(BUILD)/$(PROJECT).elf
 	$(OBJCOPY) -O binary $^ $@
 
+# Copy to kernel to netboot drive or SD card
+# Change destinaation to fit your need
 flash: $(BUILD)/kernel8.img
 	@$(CP) $< /home/$(USER)/Documents/code/pi4_tinyusb/boot_cpy

@@ -129,5 +129,4 @@
 	url = https://github.com/hathach/mm32sdk.git
 [submodule "hw/mcu/broadcom"]
 	path = hw/mcu/broadcom
-	url = git@github.com:adafruit/broadcom-peripherals.git
-	branch = main-build
+	url = https://github.com/adafruit/broadcom-peripherals.git
