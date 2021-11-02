@@ -936,16 +936,16 @@ static void handle_rxflvl_irq(uint8_t rhport)
 
   dwc2_epout_t* epout = &dwc2->epout[epnum];
 
-#if CFG_TUSB_DEBUG >= (DWC2_DEBUG + 1)
-  const char * pktsts_str[] =
-  {
-    "ASSERT", "Global NAK (ISR)", "Out Data Received", "Out Transfer Complete (ISR)",
-    "Setup Complete (ISR)", "ASSERT", "Setup Data Received"
-  };
-  TU_LOG_LOCATION();
-  TU_LOG(DWC2_DEBUG, "  EP %02X, Byte Count %u, %s\r\n", epnum, bcnt, pktsts_str[pktsts]);
-  TU_LOG(DWC2_DEBUG, "  daint = %08lX, doepint = %04lX\r\n", dwc2->daint, epout->doepint);
-#endif
+//#if CFG_TUSB_DEBUG >= DWC2_DEBUG
+//  const char * pktsts_str[] =
+//  {
+//    "ASSERT", "Global NAK (ISR)", "Out Data Received", "Out Transfer Complete (ISR)",
+//    "Setup Complete (ISR)", "ASSERT", "Setup Data Received"
+//  };
+//  TU_LOG_LOCATION();
+//  TU_LOG(DWC2_DEBUG, "  EP %02X, Byte Count %u, %s\r\n", epnum, bcnt, pktsts_str[pktsts]);
+//  TU_LOG(DWC2_DEBUG, "  daint = %08lX, doepint = %04X\r\n", (unsigned long) dwc2->daint, (unsigned int) epout->doepint);
+//#endif
 
   switch ( pktsts )
   {
@@ -1008,17 +1008,19 @@ static void handle_rxflvl_irq(uint8_t rhport)
         // - complete the data stage of control write is complete
         if ((epnum == 0) && (bcnt == 0) && (dwc2->gsnpsid >= DWC2_CORE_REV_3_00a))
         {
-          if (epout->doepint & DOEPINT_STPKTRX)
-          {
-            // skip this "no-data" transfer complete event
-            // STPKTRX will be clear later by setup received handler
-            epout->doepint = DOEPINT_XFRC;
-          }
+          uint32_t doepint = epout->doepint;
 
-          if (epout->doepint & DOEPINT_OTEPSPR)
+          if (doepint & (DOEPINT_STPKTRX | DOEPINT_OTEPSPR))
           {
             // skip this "no-data" transfer complete event
-            epout->doepint = DOEPINT_XFRC | DOEPINT_OTEPSPR;
+            // Note: STPKTRX will be clear later by setup received handler
+            uint32_t clear_flags = DOEPINT_XFRC;
+
+            if (doepint & DOEPINT_OTEPSPR) clear_flags |= DOEPINT_OTEPSPR;
+
+            epout->doepint = clear_flags;
+
+            // TU_LOG(DWC2_DEBUG, "  FIX extra transfer complete on setup/data compete\r\n");
           }
         }
     break;
@@ -1162,8 +1164,6 @@ void dcd_int_handler(uint8_t rhport)
   dwc2_regs_t *dwc2 = DWC2_REG(rhport);
 
   uint32_t const int_status = dwc2->gintsts & dwc2->gintmsk;
-
-//  TU_LOG_HEX(DWC2_DEBUG, int_status);
 
   if(int_status & GINTSTS_USBRST)
   {
