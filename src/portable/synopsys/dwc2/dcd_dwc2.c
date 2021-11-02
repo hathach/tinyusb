@@ -59,7 +59,7 @@
 #define DWC2_REG(_port)       ((dwc2_regs_t*) DWC2_REG_BASE)
 
 // Debug level for DWC2
-#define DWC2_DEBUG    1
+#define DWC2_DEBUG    2
 
 static TU_ATTR_ALIGNED(4) uint32_t _setup_packet[2];
 
