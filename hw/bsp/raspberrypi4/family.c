@@ -30,7 +30,7 @@
 #include "broadcom/interrupts.h"
 #include "broadcom/io.h"
 #include "broadcom/mmu.h"
-//#include "broadcom/caches.h"
+#include "broadcom/caches.h"
 #include "broadcom/vcmailbox.h"
 
 //--------------------------------------------------------------------+
@@ -57,7 +57,7 @@ void board_init(void)
   gpio_setPinOutputBool(18, true);
   gpio_initOutputPinWithPullNone(42);
   setup_mmu_flat_map();
-//  init_caches();
+  init_caches();
 
   // gpio_initOutputPinWithPullNone(23);
   // gpio_initOutputPinWithPullNone(24);

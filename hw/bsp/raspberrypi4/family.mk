@@ -25,9 +25,9 @@ SRC_C += \
 	$(MCU_DIR)/broadcom/interrupts.c \
 	$(MCU_DIR)/broadcom/io.c \
 	$(MCU_DIR)/broadcom/mmu.c \
+	$(MCU_DIR)/broadcom/caches.c \
 	$(MCU_DIR)/broadcom/vcmailbox.c
 
-#	$(MCU_DIR)/broadcom/caches.c \
 
 CROSS_COMPILE = aarch64-none-elf-
 
