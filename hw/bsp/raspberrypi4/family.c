@@ -30,9 +30,8 @@
 #include "broadcom/interrupts.h"
 #include "broadcom/io.h"
 #include "broadcom/mmu.h"
+//#include "broadcom/caches.h"
 #include "broadcom/vcmailbox.h"
-
-uint32_t SystemCoreClock = 700 * 1000 * 1000;
 
 //--------------------------------------------------------------------+
 // Forward USB interrupt events to TinyUSB IRQ Handler
@@ -49,11 +48,6 @@ void USB_IRQHandler(void)
 //--------------------------------------------------------------------+
 // Board porting API
 //--------------------------------------------------------------------+
-
-void print(const char* str) {
-  board_uart_write(str, strlen(str));
-}
-
 void board_init(void)
 {
   gpio_initOutputPinWithPullNone(18);
@@ -63,13 +57,14 @@ void board_init(void)
   gpio_setPinOutputBool(18, true);
   gpio_initOutputPinWithPullNone(42);
   setup_mmu_flat_map();
+//  init_caches();
+
   // gpio_initOutputPinWithPullNone(23);
   // gpio_initOutputPinWithPullNone(24);
   // gpio_initOutputPinWithPullNone(25);
   gpio_setPinOutputBool(18, false);
   uart_init();
   gpio_setPinOutputBool(18, true);
-  const char* greeting = "hello to gdb2\r\n";
   gpio_setPinOutputBool(18, false);
   for (size_t i = 0; i < 5; i++) {
   // while (true) {
@@ -92,7 +87,6 @@ void board_init(void)
   }
   // uart_writeText("hello from io\n");
   // gpio_setPinOutputBool(24, true);
-  board_uart_write(greeting, strlen(greeting));
   // gpio_setPinOutputBool(24, false);
   // gpio_setPinOutputBool(25, true);
   // print();
@@ -110,13 +104,8 @@ void board_init(void)
   // }
   // while (1) uart_update();
 
-  printf("hello %d\r\n", 21);
-
   // Turn on USB peripheral.
-  print("Turning on USB power\r\n");
-
   vcmailbox_set_power_state(VCMAILBOX_DEVICE_USB_HCD, true);
-  print("USB power on\r\n");
 
   BP_SetPriority(USB_IRQn, 0x00);
   BP_ClearPendingIRQ(USB_IRQn);

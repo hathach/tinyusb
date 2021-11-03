@@ -32,10 +32,15 @@
 #endif
 
 #include "broadcom/interrupts.h"
+//#include "broadcom/caches.h"
 
 #define DWC2_REG_BASE       0xFE980000UL
 #define DWC2_EP_MAX         8
 #define DWC2_EP_FIFO_SIZE   4096
+
+//#define dcache_clean(_addr, _size)              data_clean(_addr, _size)
+//#define dcache_invalidate(_addr, _size)         data_invalidate(_addr, _size)
+//#define dcache_clean_invalidate(_addr, _size)   data_clean_and_invalidate(_addr, _size)
 
 TU_ATTR_ALWAYS_INLINE
 static inline void dwc2_dcd_int_enable(uint8_t rhport)
