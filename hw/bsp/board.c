@@ -96,7 +96,7 @@ void board_led_task(void)
 TU_ATTR_USED int sys_write (int fhdl, const void *buf, size_t count)
 {
   (void) fhdl;
-  SEGGER_RTT_Write(0, (char*) buf, (int) count);
+  SEGGER_RTT_Write(0, (const char*) buf, (int) count);
   return count;
 }
 

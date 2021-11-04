@@ -370,7 +370,7 @@ static bool USB_HS_PHYCInit(void)
 {
   USB_HS_PHYC_GlobalTypeDef *usb_hs_phyc = (USB_HS_PHYC_GlobalTypeDef*) USB_HS_PHYC_CONTROLLER_BASE;
 
-  // Enable LDO
+  // Enable LDO: Note STM32F72/3xx Reference Manual rev 3 June 2018 incorrectly defined this bit as Disabled !!
   usb_hs_phyc->USB_HS_PHYC_LDO |= USB_HS_PHYC_LDO_ENABLE;
 
   // Wait until LDO ready

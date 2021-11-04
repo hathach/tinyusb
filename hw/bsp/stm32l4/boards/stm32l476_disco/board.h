@@ -1,7 +1,7 @@
 /* 
  * The MIT License (MIT)
  *
- * Copyright (c) 2019 Ha Thach (tinyusb.org)
+ * Copyright (c) 2020, Ha Thach (tinyusb.org)
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -24,21 +24,12 @@
  * This file is part of the TinyUSB stack.
  */
 
-#include "../board.h"
+#ifndef BOARD_H_
+#define BOARD_H_
 
-#include "stm32l4xx_hal.h"
-
-//--------------------------------------------------------------------+
-// Forward USB interrupt events to TinyUSB IRQ Handler
-//--------------------------------------------------------------------+
-void OTG_FS_IRQHandler(void)
-{
-  tud_int_handler(0);
-}
-
-//--------------------------------------------------------------------+
-// MACRO TYPEDEF CONSTANT ENUM
-//--------------------------------------------------------------------+
+#ifdef __cplusplus
+ extern "C" {
+#endif
 
 #define LED_PORT              GPIOB
 #define LED_PIN               GPIO_PIN_2
@@ -48,15 +39,16 @@ void OTG_FS_IRQHandler(void)
 #define BUTTON_PIN            GPIO_PIN_0
 #define BUTTON_STATE_ACTIVE   1
 
+#define UART_DEV              USART2
+#define UART_CLK_EN           __HAL_RCC_USART2_CLK_ENABLE
+#define UART_GPIO_PORT        GPIOD
+#define UART_GPIO_AF          GPIO_AF7_USART2
+#define UART_TX_PIN           GPIO_PIN_5
+#define UART_RX_PIN           GPIO_PIN_6
 
-// enable all LED, Button, Uart, USB clock
-static void all_rcc_clk_enable(void)
-{
-  __HAL_RCC_GPIOA_CLK_ENABLE(); // USB D+, D-, Button
-  __HAL_RCC_GPIOB_CLK_ENABLE(); // LED
-  __HAL_RCC_GPIOC_CLK_ENABLE(); // VBUS pin
-}
-
+//--------------------------------------------------------------------+
+// RCC Clock
+//--------------------------------------------------------------------+
 
 /**
   * @brief  System Clock Configuration
@@ -80,7 +72,7 @@ static void all_rcc_clk_enable(void)
   * @param  None
   * @retval None
   */
-static void SystemClock_Config(void)
+static inline void board_clock_init(void)
 {
   RCC_ClkInitTypeDef RCC_ClkInitStruct;
   RCC_OscInitTypeDef RCC_OscInitStruct;
@@ -131,112 +123,17 @@ static void SystemClock_Config(void)
   HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_4);
 }
 
-void board_init(void)
+static inline void board_vbus_sense_init(void)
 {
-  SystemClock_Config();
-  all_rcc_clk_enable();
+  // L476Disco use general GPIO PC11 for VBUS sensing instead of dedicated PA9 as others
+  // Disable VBUS Sense and force device mode
+  USB_OTG_FS->GCCFG &= ~USB_OTG_GCCFG_VBDEN;
 
-#if CFG_TUSB_OS  == OPT_OS_NONE
-  // 1ms tick timer
-  SysTick_Config(SystemCoreClock / 1000);
-#elif CFG_TUSB_OS == OPT_OS_FREERTOS
-  // If freeRTOS is used, IRQ priority is limit by max syscall ( smaller is higher )
-  //NVIC_SetPriority(USB0_IRQn, configLIBRARY_MAX_SYSCALL_INTERRUPT_PRIORITY );
+  USB_OTG_FS->GOTGCTL |= USB_OTG_GOTGCTL_BVALOEN | USB_OTG_GOTGCTL_BVALOVAL;
+}
+
+#ifdef __cplusplus
+ }
 #endif
 
-  /* Enable Power Clock*/
-  __HAL_RCC_PWR_CLK_ENABLE();
-
-  /* Enable USB power on Pwrctrl CR2 register */
-  HAL_PWREx_EnableVddUSB();
-
-  GPIO_InitTypeDef  GPIO_InitStruct;
-
-  // LED
-  GPIO_InitStruct.Pin = LED_PIN;
-  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
-  GPIO_InitStruct.Pull = GPIO_PULLUP;
-  GPIO_InitStruct.Speed = GPIO_SPEED_FAST;
-  HAL_GPIO_Init(LED_PORT, &GPIO_InitStruct);
-
-  board_led_write(false);
-
-  // Button
-  GPIO_InitStruct.Pin = BUTTON_PIN;
-  GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
-  GPIO_InitStruct.Pull = GPIO_PULLDOWN;
-  GPIO_InitStruct.Speed = GPIO_SPEED_FAST;
-  HAL_GPIO_Init(BUTTON_PORT, &GPIO_InitStruct);
-
-  // USB
-  /* Configure DM DP Pins */
-  GPIO_InitStruct.Pin = (GPIO_PIN_11 | GPIO_PIN_12);
-  GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
-  GPIO_InitStruct.Pull = GPIO_NOPULL;
-  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_VERY_HIGH;
-  GPIO_InitStruct.Alternate = GPIO_AF10_OTG_FS;
-  HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
-
-  /* Configure VBUS Pin */
-  GPIO_InitStruct.Pin = GPIO_PIN_11;
-  GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
-  GPIO_InitStruct.Pull = GPIO_NOPULL;
-  HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
-
-  /* Enable USB FS Clock */
-  __HAL_RCC_USB_OTG_FS_CLK_ENABLE();
-
-  // Enable VBUS sense (B device) via pin PA9
-  USB_OTG_FS->GCCFG |= USB_OTG_GCCFG_VBDEN;
-}
-
-//--------------------------------------------------------------------+
-// board porting API
-//--------------------------------------------------------------------+
-
-void board_led_write(bool state)
-{
-  HAL_GPIO_WritePin(LED_PORT, LED_PIN, state ? LED_STATE_ON : (1-LED_STATE_ON));
-}
-
-uint32_t board_button_read(void)
-{
-  return BUTTON_STATE_ACTIVE == HAL_GPIO_ReadPin(BUTTON_PORT, BUTTON_PIN);
-}
-
-int board_uart_read(uint8_t* buf, int len)
-{
-  (void) buf; (void) len;
-  return 0;
-}
-
-int board_uart_write(void const * buf, int len)
-{
-  (void) buf; (void) len;
-  return 0;
-}
-
-#if CFG_TUSB_OS  == OPT_OS_NONE
-volatile uint32_t system_ticks = 0;
-void SysTick_Handler (void)
-{
-  system_ticks++;
-}
-
-uint32_t board_millis(void)
-{
-  return system_ticks;
-}
-#endif
-
-void HardFault_Handler (void)
-{
-  asm("bkpt");
-}
-
-// Required by __libc_init_array in startup code if we are compiling using
-// -nostdlib/-nostartfiles.
-void _init(void)
-{
-
-}
+#endif /* BOARD_H_ */

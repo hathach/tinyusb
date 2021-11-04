@@ -30,7 +30,7 @@
 #include "bsp/board.h"
 #include "tusb.h"
 
-#if TU_CHECK_MCU(ESP32S2) || TU_CHECK_MCU(ESP32S3)
+#if TU_CHECK_MCU(OPT_MCU_ESP32S2, OPT_MCU_ESP32S3)
   // ESP-IDF need "freertos/" prefix in include path.
   // CFG_TUSB_OS_INC_PATH should be defined accordingly.
   #include "freertos/FreeRTOS.h"
@@ -105,14 +105,14 @@ int main(void)
   (void) xTaskCreateStatic( cdc_task, "cdc", CDC_STACK_SZIE, NULL, configMAX_PRIORITIES-2, cdc_stack, &cdc_taskdef);
 
   // skip starting scheduler (and return) for ESP32-S2 or ESP32-S3
-#if !( TU_CHECK_MCU(ESP32S2) || TU_CHECK_MCU(ESP32S3) )
+#if !TU_CHECK_MCU(OPT_MCU_ESP32S2, OPT_MCU_ESP32S3)
   vTaskStartScheduler();
 #endif
 
   return 0;
 }
 
-#if CFG_TUSB_MCU == OPT_MCU_ESP32S2 || CFG_TUSB_MCU == OPT_MCU_ESP32S3
+#if TU_CHECK_MCU(OPT_MCU_ESP32S2, OPT_MCU_ESP32S3)
 void app_main(void)
 {
   main();

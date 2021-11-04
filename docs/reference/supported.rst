@@ -305,29 +305,58 @@ Sony
 ST STM32
 --------
 
--  `Adafruit Feather STM32F405 <https://www.adafruit.com/product/4382>`__
--  `Micro Python PyBoard v1.1 <https://store.micropython.org/product/PYBv1.1>`__
--  `STLink-V3 Mini <https://www.st.com/en/development-tools/stlink-v3mini.html>`__
--  `STM32 L035c8 Discovery <https://www.st.com/en/evaluation-tools/32l0538discovery.html>`__
--  `STM32 L4R5zi Nucleo <https://www.st.com/en/evaluation-tools/nucleo-l4r5zi.html>`__
+F0
+^^
 -  `STM32 F070rb Nucleo <https://www.st.com/en/evaluation-tools/nucleo-f070rb.html>`__
 -  `STM32 F072 Evaluation <https://www.st.com/en/evaluation-tools/stm32072b-eval.html>`__
 -  `STM32 F072rb Discovery <https://www.st.com/en/evaluation-tools/32f072bdiscovery.html>`__
+
+F1
+^^
 -  `STM32 F103c8 Blue Pill <https://stm32-base.org/boards/STM32F103C8T6-Blue-Pill>`__
 -  `STM32 F103rc Mini v2.0 <https://stm32-base.org/boards/STM32F103RCT6-STM32-Mini-V2.0>`__
+
+F2
+^^
 -  `STM32 F207zg Nucleo <https://www.st.com/en/evaluation-tools/nucleo-f207zg.html>`__
+
+F3
+^^
 -  `STM32 F303vc Discovery <https://www.st.com/en/evaluation-tools/stm32f3discovery.html>`__
+
+F4
+^^
+-  `Adafruit Feather STM32F405 <https://www.adafruit.com/product/4382>`__
+-  `Micro Python PyBoard v1.1 <https://store.micropython.org/product/PYBv1.1>`__
 -  `STM32 F401cc Black Pill <https://stm32-base.org/boards/STM32F401CCU6-WeAct-Black-Pill-V1.2>`__
 -  `STM32 F407vg Discovery <https://www.st.com/en/evaluation-tools/stm32f4discovery.html>`__
 -  `STM32 F411ce Black Pill <https://www.adafruit.com/product/4877>`__
 -  `STM32 F411ve Discovery <https://www.st.com/en/evaluation-tools/32f411ediscovery.html>`__
 -  `STM32 F412zg Discovery <https://www.st.com/en/evaluation-tools/32f412gdiscovery.html>`__
 -  `STM32 F412zg Nucleo <https://www.st.com/en/evaluation-tools/nucleo-f412zg.html>`__
+
+F7
+^^
+
+-  `STLink-V3 Mini <https://www.st.com/en/development-tools/stlink-v3mini.html>`__
 -  `STM32 F723e Discovery <https://www.st.com/en/evaluation-tools/32f723ediscovery.html>`__
 -  `STM32 F746zg Nucleo <https://www.st.com/en/evaluation-tools/nucleo-f746zg.html>`__
 -  `STM32 F746g Discovery <https://www.st.com/en/evaluation-tools/32f746gdiscovery.html>`__
 -  `STM32 F767zi Nucleo <https://www.st.com/en/evaluation-tools/nucleo-f767zi.html>`__
 -  `STM32 F769i Discovery <https://www.st.com/en/evaluation-tools/32f769idiscovery.html>`__
+
+L0
+^^
+-  `STM32 L035c8 Discovery <https://www.st.com/en/evaluation-tools/32l0538discovery.html>`__
+
+L4
+^^
+-  `STM32 L476vg Discovery <https://www.st.com/en/evaluation-tools/32l476gdiscovery.html>`__
+-  `STM32 L4P5zg Nucleo <https://www.st.com/en/evaluation-tools/nucleo-l4p5zg.html>`__
+-  `STM32 L4R5zi Nucleo <https://www.st.com/en/evaluation-tools/nucleo-l4r5zi.html>`__
+
+H7
+^^
 -  `STM32 H743zi Nucleo <https://www.st.com/en/evaluation-tools/nucleo-h743zi.html>`__
 -  `STM32 H743i Evaluation <https://www.st.com/en/evaluation-tools/stm32h743i-eval.html>`__
 -  `STM32 H745i Discovery <https://www.st.com/en/evaluation-tools/stm32h745i-disco.html>`__

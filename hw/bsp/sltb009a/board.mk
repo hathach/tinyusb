@@ -8,7 +8,7 @@ CFLAGS += \
   -D__STARTUP_CLEAR_BSS \
   -D__START=main \
   -DEFM32GG12B810F1024GM64 \
-  -DCFG_TUSB_MCU=OPT_MCU_EFM32GG12 
+  -DCFG_TUSB_MCU=OPT_MCU_EFM32GG
 
 # mcu driver cause following warnings
 #CFLAGS += -Wno-error=unused-parameter
@@ -24,7 +24,7 @@ LD_FILE = $(SILABS_CMSIS)/Source/GCC/$(SILABS_FAMILY).ld
 
 SRC_C += \
   $(SILABS_CMSIS)/Source/system_$(SILABS_FAMILY).c \
-  src/portable/silabs/efm32/dcd_efm32.c
+	src/portable/synopsys/dwc2/dcd_dwc2.c
 
 SRC_S += \
   $(SILABS_CMSIS)/Source/GCC/startup_$(SILABS_FAMILY).S
@@ -34,12 +34,8 @@ INC += \
   $(TOP)/$(SILABS_CMSIS)/Include \
   $(TOP)/hw/bsp/$(BOARD)
 
-# For TinyUSB port source
-VENDOR = silabs
-CHIP_FAMILY = efm32
-
 # For freeRTOS port source
-FREERTOS_PORT = ARM_CM4
+FREERTOS_PORT = ARM_CM3
 
 # For flash-jlink target
 JLINK_DEVICE = EFM32GG12B810F1024

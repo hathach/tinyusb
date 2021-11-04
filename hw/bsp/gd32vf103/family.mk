@@ -28,14 +28,13 @@ CFLAGS += \
 	-mstrict-align \
 	-nostdlib -nostartfiles \
 	-DCFG_TUSB_MCU=OPT_MCU_GD32VF103 \
-	-DDOWNLOAD_MODE=DOWNLOAD_MODE_FLASHXIP \
-	-DGD32VF103 
+	-DDOWNLOAD_MODE=DOWNLOAD_MODE_FLASHXIP
 
 # mcu driver cause following warnings
 CFLAGS += -Wno-error=unused-parameter
 
 SRC_C += \
-	src/portable/st/synopsys/dcd_synopsys.c \
+	src/portable/synopsys/dwc2/dcd_dwc2.c \
 	$(GD32VF103_SDK_DRIVER)/gd32vf103_rcu.c \
 	$(GD32VF103_SDK_DRIVER)/gd32vf103_gpio.c \
 	$(GD32VF103_SDK_DRIVER)/Usb/gd32vf103_usb_hw.c \

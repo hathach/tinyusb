@@ -36,6 +36,11 @@ void OTG_FS_IRQHandler(void)
   tud_int_handler(0);
 }
 
+void OTG_HS_IRQHandler(void)
+{
+  tud_int_handler(1);
+}
+
 //--------------------------------------------------------------------+
 // MACRO TYPEDEF CONSTANT ENUM
 //--------------------------------------------------------------------+
@@ -133,6 +138,8 @@ void board_init(void)
 
   // Enable USB OTG clock
   __HAL_RCC_USB_OTG_FS_CLK_ENABLE();
+
+//  __HAL_RCC_USB_OTG_HS_CLK_ENABLE();
 
   board_vbus_sense_init();
 }
