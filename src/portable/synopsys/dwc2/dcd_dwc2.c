@@ -56,10 +56,24 @@
 // MACRO TYPEDEF CONSTANT ENUM
 //--------------------------------------------------------------------+
 
+// DWC2 registers
 #define DWC2_REG(_port)       ((dwc2_regs_t*) DWC2_REG_BASE)
 
 // Debug level for DWC2
 #define DWC2_DEBUG    2
+
+#ifndef dcache_clean
+#define dcache_clean(_addr, _size)
+#endif
+
+#ifndef dcache_invalidate
+#define dcache_invalidate(_addr, _size)
+#endif
+
+#ifndef dcache_clean_invalidate
+#define dcache_clean_invalidate(_addr, _size)
+#endif
+
 
 static TU_ATTR_ALIGNED(4) uint32_t _setup_packet[2];
 
@@ -71,7 +85,7 @@ typedef struct {
   uint8_t interval;
 } xfer_ctl_t;
 
-xfer_ctl_t xfer_status[DWC2_EP_MAX][2];
+static xfer_ctl_t xfer_status[DWC2_EP_MAX][2];
 #define XFER_CTL_BASE(_ep, _dir) (&xfer_status[_ep][_dir])
 
 // EP0 transfers are limited to 1 packet - larger sizes has to be split
