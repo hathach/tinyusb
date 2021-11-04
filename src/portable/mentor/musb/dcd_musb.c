@@ -77,7 +77,8 @@ typedef struct
   uint16_t     remaining_ctrl; /* The number of bytes remaining in data stage of control transfer. */
   int8_t       status_out;
   pipe_state_t pipe0;
-  pipe_state_t pipe[2][7];
+  pipe_state_t pipe[2][7];   /* pipe[direction][endpoint number - 1] */
+  uint16_t     pipe_buf_is_fifo[2]; /* Bitmap. Each bit means whether 1:TU_FIFO or 0:POD. */
 } dcd_data_t;
 
 /*------------------------------------------------------------------
@@ -244,6 +245,30 @@ static void pipe_read_packet(void *buf, volatile void *fifo, unsigned len)
   }
 }
 
+static void pipe_read_write_packet_ff(tu_fifo_t *f, volatile void *fifo, unsigned len, unsigned dir)
+{
+  static const struct {
+    void (*tu_fifo_get_info)(tu_fifo_t *f, tu_fifo_buffer_info_t *info);
+    void (*tu_fifo_advance)(tu_fifo_t *f, uint16_t n);
+    void (*pipe_read_write)(void *buf, volatile void *fifo, unsigned len);
+  } ops[] = {
+    /* OUT */ {tu_fifo_get_write_info,tu_fifo_advance_write_pointer,pipe_read_packet},
+    /* IN  */ {tu_fifo_get_read_info, tu_fifo_advance_read_pointer, pipe_write_packet},
+  };
+  tu_fifo_buffer_info_t info;
+  ops[dir].tu_fifo_get_info(f, &info);
+  unsigned total_len = len;
+  len = TU_MIN(total_len, info.len_lin);
+  ops[dir].pipe_read_write(info.ptr_lin, fifo, len);
+  unsigned rem = total_len - len;
+  if (rem) {
+    len = TU_MIN(rem, info.len_wrap);
+    ops[dir].pipe_read_write(info.ptr_wrap, fifo, len);
+    rem -= len;
+  }
+  ops[dir].tu_fifo_advance(f, total_len - rem);
+}
+
 static void process_setup_packet(uint8_t rhport)
 {
   uint32_t *p = (void*)&_dcd.setup_packet;
@@ -279,8 +304,12 @@ static bool handle_xfer_in(uint_fast8_t ep_addr)
   void          *buf = pipe->buf;
   // TU_LOG1("   %p mps %d len %d rem %d\n", buf, mps, len, rem);
   if (len) {
-    pipe_write_packet(buf, &USB0->FIFO1_WORD + epnum_minus1, len);
-    pipe->buf       = buf + len;
+    if (_dcd.pipe_buf_is_fifo[TUSB_DIR_IN] & TU_BIT(epnum_minus1)) {
+      pipe_read_write_packet_ff(buf, &USB0->FIFO1_WORD + epnum_minus1, len, TUSB_DIR_IN);
+    } else {
+      pipe_write_packet(buf, &USB0->FIFO1_WORD + epnum_minus1, len);
+      pipe->buf       = buf + len;
+    }
     pipe->remaining = rem - len;
   }
   regs->TXCSRL = USB_TXCSRL1_TXRDY;
@@ -303,8 +332,12 @@ static bool handle_xfer_out(uint_fast8_t ep_addr)
   const unsigned len = TU_MIN(TU_MIN(rem, mps), vld);
   void          *buf = pipe->buf;
   if (len) {
-    pipe_read_packet(buf, &USB0->FIFO1_WORD + epnum_minus1, len);
-    pipe->buf       = buf + len;
+    if (_dcd.pipe_buf_is_fifo[TUSB_DIR_OUT] & TU_BIT(epnum_minus1)) {
+      pipe_read_write_packet_ff(buf, &USB0->FIFO1_WORD + epnum_minus1, len, TUSB_DIR_OUT);
+    } else {
+      pipe_read_packet(buf, &USB0->FIFO1_WORD + epnum_minus1, len);
+      pipe->buf       = buf + len;
+    }
     pipe->remaining = rem - len;
   }
   if ((len < mps) || (rem == len)) {
@@ -725,12 +758,13 @@ bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t t
   (void)rhport;
   bool ret;
   // TU_LOG1("X %x %d\n", ep_addr, total_bytes);
-
+  unsigned const epnum = tu_edpt_number(ep_addr);
   unsigned const ie = NVIC_GetEnableIRQ(USB0_IRQn);
   NVIC_DisableIRQ(USB0_IRQn);
-  if (tu_edpt_number(ep_addr))
+  if (epnum) {
+    _dcd.pipe_buf_is_fifo[tu_edpt_dir(ep_addr)] &= ~TU_BIT(epnum - 1);
     ret = edpt_n_xfer(rhport, ep_addr, buffer, total_bytes);
-  else
+  } else
     ret = edpt0_xfer(rhport, ep_addr, buffer, total_bytes);
   if (ie) NVIC_EnableIRQ(USB0_IRQn);
   return ret;
@@ -739,11 +773,17 @@ bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t t
 // Submit a transfer where is managed by FIFO, When complete dcd_event_xfer_complete() is invoked to notify the stack - optional, however, must be listed in usbd.c
 bool dcd_edpt_xfer_fifo(uint8_t rhport, uint8_t ep_addr, tu_fifo_t * ff, uint16_t total_bytes)
 {
-  (void) rhport;
-  (void) ep_addr;
-  (void) ff;
-  (void) total_bytes;
-  return false;
+  (void)rhport;
+  bool ret;
+  // TU_LOG1("X %x %d\n", ep_addr, total_bytes);
+  unsigned const epnum = tu_edpt_number(ep_addr);
+  TU_ASSERT(epnum);
+  unsigned const ie = NVIC_GetEnableIRQ(USB0_IRQn);
+  NVIC_DisableIRQ(USB0_IRQn);
+  _dcd.pipe_buf_is_fifo[tu_edpt_dir(ep_addr)] |= TU_BIT(epnum - 1);
+  ret = edpt_n_xfer(rhport, ep_addr, (uint8_t*)ff, total_bytes);
+  if (ie) NVIC_EnableIRQ(USB0_IRQn);
+  return ret;
 }
 
 // Stall endpoint
