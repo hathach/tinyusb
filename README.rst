@@ -35,7 +35,7 @@ The stack supports the following MCUs:
 - **Dialog:** DA1469x
 - **Espressif:** ESP32-S2, ESP32-S3
 - **MicroChip:** SAMD11, SAMD21, SAMD51, SAME5x, SAMG55, SAML21, SAML22, SAME7x
-- **NordicSemi:** nRF52833, nRF52840
+- **NordicSemi:** nRF52833, nRF52840, nRF5340
 - **Nuvoton:** NUC120, NUC121/NUC125, NUC126, NUC505
 - **NXP:**
 
@@ -45,9 +45,9 @@ The stack supports the following MCUs:
 
 - **Raspberry Pi:** RP2040
 - **Renesas:** RX63N, RX65N
-- **Silabs:** EFM32GG12
+- **Silabs:** EFM32GG
 - **Sony:** CXD56
-- **ST:** STM32 series: L0, L1, L4, F0, F1, F2, F3, F4, F7, H7 both FullSpeed and HighSpeed
+- **ST:** STM32 series: L0, L1, L4, L4+, F0, F1, F2, F3, F4, F7, H7
 - **TI:** MSP430
 - **ValentyUSB:** eptri
 

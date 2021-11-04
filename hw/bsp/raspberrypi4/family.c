@@ -33,6 +33,14 @@
 #include "broadcom/caches.h"
 #include "broadcom/vcmailbox.h"
 
+// LED
+#define LED_PIN               18
+#define LED_STATE_ON          1
+
+// Button
+#define BUTTON_PIN            16
+#define BUTTON_STATE_ACTIVE   0
+
 //--------------------------------------------------------------------+
 // Forward USB interrupt events to TinyUSB IRQ Handler
 //--------------------------------------------------------------------+
@@ -50,62 +58,26 @@ void USB_IRQHandler(void)
 //--------------------------------------------------------------------+
 void board_init(void)
 {
-  gpio_initOutputPinWithPullNone(18);
-  gpio_initOutputPinWithPullNone(19);
-  gpio_initOutputPinWithPullNone(20);
-  gpio_initOutputPinWithPullNone(21);
-  gpio_setPinOutputBool(18, true);
-  gpio_initOutputPinWithPullNone(42);
   setup_mmu_flat_map();
   init_caches();
 
-  // gpio_initOutputPinWithPullNone(23);
-  // gpio_initOutputPinWithPullNone(24);
-  // gpio_initOutputPinWithPullNone(25);
-  gpio_setPinOutputBool(18, false);
+  // LED
+  gpio_initOutputPinWithPullNone(LED_PIN);
+  board_led_write(true);
+
+  // Button
+  // TODO
+
+  // Uart
   uart_init();
-  gpio_setPinOutputBool(18, true);
-  gpio_setPinOutputBool(18, false);
-  for (size_t i = 0; i < 5; i++) {
-  // while (true) {
-    for (size_t j = 0; j < 1000000; j++) {
-      __asm__("nop");
-    }
-    gpio_setPinOutputBool(42, true);
-    gpio_setPinOutputBool(18, true);
-    gpio_setPinOutputBool(19, true);
-    gpio_setPinOutputBool(20, true);
-    gpio_setPinOutputBool(21, true);
-    for (size_t j = 0; j < 1000000; j++) {
-      __asm__("nop");
-    }
-    gpio_setPinOutputBool(42, false);
-    gpio_setPinOutputBool(18, false);
-    gpio_setPinOutputBool(19, false);
-    gpio_setPinOutputBool(20, false);
-    gpio_setPinOutputBool(21, false);
-  }
-  // uart_writeText("hello from io\n");
-  // gpio_setPinOutputBool(24, true);
-  // gpio_setPinOutputBool(24, false);
-  // gpio_setPinOutputBool(25, true);
-  // print();
-  // gpio_setPinOutputBool(25, false);
-  // while (true) {
-  // // for (size_t i = 0; i < 5; i++) {
-  //   for (size_t j = 0; j < 10000000000; j++) {
-  //     __asm__("nop");
-  //   }
-  //   gpio_setPinOutputBool(42, true);
-  //   for (size_t j = 0; j < 10000000000; j++) {
-  //     __asm__("nop");
-  //   }
-  //   gpio_setPinOutputBool(42, false);
-  // }
-  // while (1) uart_update();
 
   // Turn on USB peripheral.
   vcmailbox_set_power_state(VCMAILBOX_DEVICE_USB_HCD, true);
+
+  // Timer 1/1024 second tick
+  SYSTMR->CS_b.M1 = 1;
+  SYSTMR->C1 = SYSTMR->CLO + 977;
+  BP_EnableIRQ(TIMER_1_IRQn);
 
   BP_SetPriority(USB_IRQn, 0x00);
   BP_ClearPendingIRQ(USB_IRQn);
@@ -115,7 +87,7 @@ void board_init(void)
 
 void board_led_write(bool state)
 {
-  gpio_setPinOutputBool(42, state);
+  gpio_setPinOutputBool(LED_PIN, state ? LED_STATE_ON : (1-LED_STATE_ON));
 }
 
 uint32_t board_button_read(void)
@@ -145,9 +117,12 @@ int board_uart_write(void const * buf, int len)
 
 #if CFG_TUSB_OS  == OPT_OS_NONE
 volatile uint32_t system_ticks = 0;
-void SysTick_Handler (void)
+
+void TIMER_1_IRQHandler(void)
 {
   system_ticks++;
+  SYSTMR->C1 += 977;
+  SYSTMR->CS_b.M1 = 1;
 }
 
 uint32_t board_millis(void)
