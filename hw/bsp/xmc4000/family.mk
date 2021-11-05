@@ -1,7 +1,7 @@
 UF2_FAMILY_ID = 0x00
 MCU_DIR = hw/mcu/infineon/mtb-xmclib-cat3
 
-#DEPS_SUBMODULES += $(MCU_DIR)
+DEPS_SUBMODULES += $(MCU_DIR)
 
 include $(TOP)/$(BOARD_PATH)/board.mk
 

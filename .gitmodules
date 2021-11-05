@@ -131,3 +131,6 @@
 	path = hw/mcu/broadcom
 	url = https://github.com/adafruit/broadcom-peripherals.git
 	branch = main-build
+[submodule "hw/mcu/infineon/mtb-xmclib-cat3"]
+	path = hw/mcu/infineon/mtb-xmclib-cat3
+	url = https://github.com/Infineon/mtb-xmclib-cat3.git
