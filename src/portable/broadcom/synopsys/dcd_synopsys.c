@@ -29,6 +29,10 @@
 
 #include "tusb_option.h"
 
+#if TUSB_OPT_DEVICE_ENABLED &&         \
+    (CFG_TUSB_MCU == OPT_MCU_BCM2711 ) \
+
+
 #include "synopsys_common.h"
 
 #include "broadcom/interrupts.h"
@@ -36,10 +40,6 @@
 // Since TinyUSB doesn't use SOF for now, and this interrupt too often (1ms interval)
 // We disable SOF for now until needed later on
 #define USE_SOF     0
-
-#if TUSB_OPT_DEVICE_ENABLED &&         \
-    (CFG_TUSB_MCU == OPT_MCU_BCM2711 ) \
-
 
 // EP_MAX       : Max number of bi-directional endpoints including EP0
 // EP_FIFO_SIZE : Size of dedicated USB SRAM
