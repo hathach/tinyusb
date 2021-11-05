@@ -720,3 +720,58 @@ hw_cfg4->dedicated_fifos = 0
 hw_cfg4->num_dev_in_eps = 0
 hw_cfg4->dma_desc_enable = 0
 hw_cfg4->dma_dynamic = 0
+
+## XMC4500
+
+dwc2->guid = AEC000
+dwc2->gsnpsid = 4F54292A
+dwc2->ghwcfg1 = 0
+
+dwc2->ghwcfg2 = 228F5930
+hw_cfg2->op_mode = 0
+hw_cfg2->arch = 2
+hw_cfg2->point2point = 1
+hw_cfg2->hs_phy_type = 0
+hw_cfg2->fs_phy_type = 1
+hw_cfg2->num_dev_ep = 6
+hw_cfg2->num_host_ch = 13
+hw_cfg2->period_channel_support = 1
+hw_cfg2->enable_dynamic_fifo = 1
+hw_cfg2->mul_cpu_int = 0
+hw_cfg2->nperiod_tx_q_depth = 2
+hw_cfg2->host_period_tx_q_depth = 2
+hw_cfg2->dev_token_q_depth = 8
+hw_cfg2->otg_enable_ic_usb = 0
+
+dwc2->ghwcfg3 = 27A01E5
+hw_cfg3->xfer_size_width = 5
+hw_cfg3->packet_size_width = 6
+hw_cfg3->otg_enable = 1
+hw_cfg3->i2c_enable = 1
+hw_cfg3->vendor_ctrl_itf = 0
+hw_cfg3->optional_feature_removed = 0
+hw_cfg3->synch_reset = 0
+hw_cfg3->otg_adp_support = 0
+hw_cfg3->otg_enable_hsic = 0
+hw_cfg3->battery_charger_support = 0
+hw_cfg3->lpm_mode = 0
+hw_cfg3->total_fifo_size = 634
+
+dwc2->ghwcfg4 = DBF08030
+hw_cfg4->num_dev_period_in_ep = 0
+hw_cfg4->power_optimized = 1
+hw_cfg4->ahb_freq_min = 1
+hw_cfg4->hibernation = 0
+hw_cfg4->service_interval_mode = 0
+hw_cfg4->ipg_isoc_en = 0
+hw_cfg4->acg_enable = 0
+hw_cfg4->utmi_phy_data_width = 2
+hw_cfg4->dev_ctrl_ep_num = 0
+hw_cfg4->iddg_filter_enabled = 1
+hw_cfg4->vbus_valid_filter_enabled = 1
+hw_cfg4->a_valid_filter_enabled = 1
+hw_cfg4->b_valid_filter_enabled = 1
+hw_cfg4->dedicated_fifos = 1
+hw_cfg4->num_dev_in_eps = 13
+hw_cfg4->dma_desc_enable = 0
+hw_cfg4->dma_dynamic = 1

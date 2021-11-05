@@ -30,6 +30,15 @@
 #include "bsp/board.h"
 #include "board.h"
 
+
+//--------------------------------------------------------------------+
+// Forward USB interrupt events to TinyUSB IRQ Handler
+//--------------------------------------------------------------------+
+void USB0_0_IRQHandler(void)
+{
+  tud_int_handler(0);
+}
+
 void board_init(void)
 {
   board_clock_init();
@@ -58,6 +67,10 @@ void board_init(void)
   // If freeRTOS is used, IRQ priority is limit by max syscall ( smaller is higher )
   NVIC_SetPriority(USB0_0_IRQn, configLIBRARY_MAX_SYSCALL_INTERRUPT_PRIORITY );
 #endif
+
+  // USB Power Enable
+  XMC_SCU_RESET_DeassertPeripheralReset(XMC_SCU_PERIPHERAL_RESET_USB0);
+  XMC_SCU_POWER_EnableUsb();
 }
 
 //--------------------------------------------------------------------+
