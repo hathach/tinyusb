@@ -47,6 +47,7 @@ enum  {
 int main(void)
 {
   board_init();
+  board_led_write(true);
 
   uint32_t start_ms = 0;
   bool led_state = false;

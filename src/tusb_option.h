@@ -68,16 +68,18 @@
 #define OPT_MCU_SAMX7X            207 ///< MicroChip SAME70, S70, V70, V71 family
 
 // STM32
-#define OPT_MCU_STM32F0           300 ///< ST STM32F0
-#define OPT_MCU_STM32F1           301 ///< ST STM32F1
-#define OPT_MCU_STM32F2           302 ///< ST STM32F2
-#define OPT_MCU_STM32F3           303 ///< ST STM32F3
-#define OPT_MCU_STM32F4           304 ///< ST STM32F4
-#define OPT_MCU_STM32F7           305 ///< ST STM32F7
-#define OPT_MCU_STM32H7           306 ///< ST STM32H7
-#define OPT_MCU_STM32L0           307 ///< ST STM32L0
-#define OPT_MCU_STM32L1           308 ///< ST STM32L1
-#define OPT_MCU_STM32L4           309 ///< ST STM32L4
+#define OPT_MCU_STM32F0           300 ///< ST F0
+#define OPT_MCU_STM32F1           301 ///< ST F1
+#define OPT_MCU_STM32F2           302 ///< ST F2
+#define OPT_MCU_STM32F3           303 ///< ST F3
+#define OPT_MCU_STM32F4           304 ///< ST F4
+#define OPT_MCU_STM32F7           305 ///< ST F7
+#define OPT_MCU_STM32H7           306 ///< ST H7
+#define OPT_MCU_STM32L1           308 ///< ST L1
+#define OPT_MCU_STM32L0           307 ///< ST L0
+#define OPT_MCU_STM32L4           309 ///< ST L4
+#define OPT_MCU_STM32G0           310 ///< ST G0
+#define OPT_MCU_STM32G4           311 ///< ST G4
 
 // Sony
 #define OPT_MCU_CXD56             400 ///< SONY CXD56
@@ -127,6 +129,9 @@
 
 // Broadcom
 #define OPT_MCU_BCM2711          1700 ///< Broadcom BCM2711
+
+// Infineon
+#define OPT_MCU_XMC4000          1800 ///< Infineon XMC4000
 
 // Helper to check if configured MCU is one of listed
 // Apply _TU_CHECK_MCU with || as separator to list of input

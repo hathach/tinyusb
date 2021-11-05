@@ -149,6 +149,14 @@ Espressif ESP32-S2
 -  `ESP32-S2-Kaluga-1 <https://docs.espressif.com/projects/esp-idf/en/latest/esp32s2/hw-reference/esp32s2/user-guide-esp32-s2-kaluga-1-kit.html>`__
 -  `ESP32-S2-Saola-1 <https://docs.espressif.com/projects/esp-idf/en/latest/esp32s2/hw-reference/esp32s2/user-guide-saola-1-v1.2.html>`__
 
+Infineon
+---------
+
+XMC4000
+^^^^^^^
+
+-  `XMC4500 Relax (Lite) Kit <https://www.infineon.com/cms/en/product/evaluation-boards/kit_xmc45_relax_lite_v1/>`__
+
 MicroChip
 ---------
 

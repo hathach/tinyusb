@@ -76,6 +76,8 @@ static inline void board_clock_init(void)
   RCC_OscInitStruct.PLL.PLLQ = 9;
   HAL_RCC_OscConfig(&RCC_OscInitStruct);
 
+  // TODO need to enable usb clock source
+
   /* Activate the OverDrive to reach the 216 MHz Frequency */
   HAL_PWREx_EnableOverDrive();
 
