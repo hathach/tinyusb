@@ -130,6 +130,9 @@
 // Broadcom
 #define OPT_MCU_BCM2711          1700 ///< Broadcom BCM2711
 
+// Infineon
+#define OPT_MCU_XMC4000          1800 ///< Infineon XMC4000
+
 // Helper to check if configured MCU is one of listed
 // Apply _TU_CHECK_MCU with || as separator to list of input
 #define _TU_CHECK_MCU(_m)   (CFG_TUSB_MCU == _m)

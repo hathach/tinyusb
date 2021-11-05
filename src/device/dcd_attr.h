@@ -188,6 +188,10 @@
 #elif TU_CHECK_MCU(OPT_MCU_BCM2711)
   #define DCD_ATTR_ENDPOINT_MAX   8
 
+//------------- Broadcom -------------//
+#elif TU_CHECK_MCU(OPT_MCU_XMC4000)
+  #define DCD_ATTR_ENDPOINT_MAX   8
+
 #else
   #warning "DCD_ATTR_ENDPOINT_MAX is not defined for this MCU, default to 8"
   #define DCD_ATTR_ENDPOINT_MAX   8
