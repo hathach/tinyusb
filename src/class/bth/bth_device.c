@@ -112,74 +112,78 @@ uint16_t btd_open(uint8_t rhport, tusb_desc_interface_t const *itf_desc, uint16_
             TUD_BT_APP_SUBCLASS == itf_desc->bInterfaceSubClass &&
             TUD_BT_PROTOCOL_PRIMARY_CONTROLLER == itf_desc->bInterfaceProtocol, 0);
 
-  // Distinguish interface by number of endpoints, as both interface have same class, subclass and protocol
-  if (itf_desc->bNumEndpoints == 3 && max_len >= hci_itf_size)
-  {
-    _btd_itf.itf_num = itf_desc->bInterfaceNumber;
+  TU_ASSERT(itf_desc->bNumEndpoints == 3 && max_len >= hci_itf_size);
 
-    desc_ep = (tusb_desc_endpoint_t const *) tu_desc_next(itf_desc);
+  _btd_itf.itf_num = itf_desc->bInterfaceNumber;
 
-    TU_ASSERT(TUSB_DESC_ENDPOINT == desc_ep->bDescriptorType && TUSB_XFER_INTERRUPT == desc_ep->bmAttributes.xfer, 0);
-    TU_ASSERT(usbd_edpt_open(rhport, desc_ep), 0);
-    _btd_itf.ep_ev = desc_ep->bEndpointAddress;
+  desc_ep = (tusb_desc_endpoint_t const *) tu_desc_next(itf_desc);
 
-    // Open endpoint pair
-    TU_ASSERT(usbd_open_edpt_pair(rhport, tu_desc_next(desc_ep), 2, TUSB_XFER_BULK, &_btd_itf.ep_acl_out,
-                                  &_btd_itf.ep_acl_in), 0);
+  TU_ASSERT(TUSB_DESC_ENDPOINT == desc_ep->bDescriptorType && TUSB_XFER_INTERRUPT == desc_ep->bmAttributes.xfer, 0);
+  TU_ASSERT(usbd_edpt_open(rhport, desc_ep), 0);
+  _btd_itf.ep_ev = desc_ep->bEndpointAddress;
 
-    // Prepare for incoming data from host
-    TU_ASSERT(usbd_edpt_xfer(rhport, _btd_itf.ep_acl_out, _btd_itf.epout_buf, CFG_TUD_BTH_DATA_EPSIZE), 0);
+  // Open endpoint pair
+  TU_ASSERT(usbd_open_edpt_pair(rhport, tu_desc_next(desc_ep), 2, TUSB_XFER_BULK, &_btd_itf.ep_acl_out,
+                                &_btd_itf.ep_acl_in), 0);
 
-    drv_len = hci_itf_size;
-  }
-  else if (itf_desc->bNumEndpoints == 2 && max_len >= iso_alt_itf_size)
-  {
-    uint8_t dir;
+  itf_desc = (tusb_desc_interface_t const *)tu_desc_next(tu_desc_next(tu_desc_next(desc_ep)));
+
+  // Prepare for incoming data from host
+  TU_ASSERT(usbd_edpt_xfer(rhport, _btd_itf.ep_acl_out, _btd_itf.epout_buf, CFG_TUD_BTH_DATA_EPSIZE), 0);
+
+  drv_len = hci_itf_size;
+
+  // Ensure this is still BT Primary Controller
+  TU_ASSERT(TUSB_CLASS_WIRELESS_CONTROLLER == itf_desc->bInterfaceClass &&
+            TUD_BT_APP_SUBCLASS == itf_desc->bInterfaceSubClass &&
+            TUD_BT_PROTOCOL_PRIMARY_CONTROLLER == itf_desc->bInterfaceProtocol, 0);
+  TU_ASSERT(itf_desc->bNumEndpoints == 2 && max_len >= iso_alt_itf_size + drv_len);
+
+  uint8_t dir;
+
+  desc_ep = (tusb_desc_endpoint_t const *)tu_desc_next(itf_desc);
+  TU_ASSERT(itf_desc->bAlternateSetting < CFG_TUD_BTH_ISO_ALT_COUNT, 0);
+  TU_ASSERT(desc_ep->bDescriptorType == TUSB_DESC_ENDPOINT, 0);
+  dir = tu_edpt_dir(desc_ep->bEndpointAddress);
+  _btd_itf.ep_voice[dir] = desc_ep->bEndpointAddress;
+  // Store endpoint size for alternative
+  _btd_itf.ep_voice_size[dir][itf_desc->bAlternateSetting] = (uint8_t) tu_edpt_packet_size(desc_ep);
+
+  desc_ep = (tusb_desc_endpoint_t const *)tu_desc_next(desc_ep);
+  TU_ASSERT(desc_ep->bDescriptorType == TUSB_DESC_ENDPOINT, 0);
+  dir = tu_edpt_dir(desc_ep->bEndpointAddress);
+  _btd_itf.ep_voice[dir] = desc_ep->bEndpointAddress;
+  // Store endpoint size for alternative
+  _btd_itf.ep_voice_size[dir][itf_desc->bAlternateSetting] = (uint8_t) tu_edpt_packet_size(desc_ep);
+  drv_len += iso_alt_itf_size;
+
+  for (int i = 1; i < CFG_TUD_BTH_ISO_ALT_COUNT && drv_len + iso_alt_itf_size <= max_len; ++i) {
+    // Make sure rest of alternatives matches
+    itf_desc = (tusb_desc_interface_t const *)tu_desc_next(desc_ep);
+    if (itf_desc->bDescriptorType != TUSB_DESC_INTERFACE ||
+        TUSB_CLASS_WIRELESS_CONTROLLER != itf_desc->bInterfaceClass ||
+        TUD_BT_APP_SUBCLASS != itf_desc->bInterfaceSubClass ||
+        TUD_BT_PROTOCOL_PRIMARY_CONTROLLER != itf_desc->bInterfaceProtocol)
+    {
+      // Not an Iso interface instance
+      break;
+    }
+    TU_ASSERT(itf_desc->bAlternateSetting < CFG_TUD_BTH_ISO_ALT_COUNT, 0);
 
     desc_ep = (tusb_desc_endpoint_t const *)tu_desc_next(itf_desc);
-    TU_ASSERT(itf_desc->bAlternateSetting < CFG_TUD_BTH_ISO_ALT_COUNT, 0);
-    TU_ASSERT(desc_ep->bDescriptorType == TUSB_DESC_ENDPOINT, 0);
     dir = tu_edpt_dir(desc_ep->bEndpointAddress);
-    _btd_itf.ep_voice[dir] = desc_ep->bEndpointAddress;
-    // Store endpoint size for alternative
+    // Verify that alternative endpoint are same as first ones
+    TU_ASSERT(desc_ep->bDescriptorType == TUSB_DESC_ENDPOINT &&
+              _btd_itf.ep_voice[dir] == desc_ep->bEndpointAddress, 0);
     _btd_itf.ep_voice_size[dir][itf_desc->bAlternateSetting] = (uint8_t) tu_edpt_packet_size(desc_ep);
 
     desc_ep = (tusb_desc_endpoint_t const *)tu_desc_next(desc_ep);
-    TU_ASSERT(desc_ep->bDescriptorType == TUSB_DESC_ENDPOINT, 0);
     dir = tu_edpt_dir(desc_ep->bEndpointAddress);
-    _btd_itf.ep_voice[dir] = desc_ep->bEndpointAddress;
-    // Store endpoint size for alternative
+    // Verify that alternative endpoint are same as first ones
+    TU_ASSERT(desc_ep->bDescriptorType == TUSB_DESC_ENDPOINT &&
+              _btd_itf.ep_voice[dir] == desc_ep->bEndpointAddress, 0);
     _btd_itf.ep_voice_size[dir][itf_desc->bAlternateSetting] = (uint8_t) tu_edpt_packet_size(desc_ep);
     drv_len += iso_alt_itf_size;
-
-    for (int i = 1; i < CFG_TUD_BTH_ISO_ALT_COUNT && drv_len + iso_alt_itf_size <= max_len; ++i) {
-      // Make sure rest of alternatives matches
-      itf_desc = (tusb_desc_interface_t const *)tu_desc_next(desc_ep);
-      if (itf_desc->bDescriptorType != TUSB_DESC_INTERFACE ||
-          TUSB_CLASS_WIRELESS_CONTROLLER != itf_desc->bInterfaceClass ||
-          TUD_BT_APP_SUBCLASS != itf_desc->bInterfaceSubClass ||
-          TUD_BT_PROTOCOL_PRIMARY_CONTROLLER != itf_desc->bInterfaceProtocol)
-      {
-        // Not an Iso interface instance
-        break;
-      }
-      TU_ASSERT(itf_desc->bAlternateSetting < CFG_TUD_BTH_ISO_ALT_COUNT, 0);
-
-      desc_ep = (tusb_desc_endpoint_t const *)tu_desc_next(itf_desc);
-      dir = tu_edpt_dir(desc_ep->bEndpointAddress);
-      // Verify that alternative endpoint are same as first ones
-      TU_ASSERT(desc_ep->bDescriptorType == TUSB_DESC_ENDPOINT &&
-                _btd_itf.ep_voice[dir] == desc_ep->bEndpointAddress, 0);
-      _btd_itf.ep_voice_size[dir][itf_desc->bAlternateSetting] = (uint8_t) tu_edpt_packet_size(desc_ep);
-
-      desc_ep = (tusb_desc_endpoint_t const *)tu_desc_next(desc_ep);
-      dir = tu_edpt_dir(desc_ep->bEndpointAddress);
-      // Verify that alternative endpoint are same as first ones
-      TU_ASSERT(desc_ep->bDescriptorType == TUSB_DESC_ENDPOINT &&
-                _btd_itf.ep_voice[dir] == desc_ep->bEndpointAddress, 0);
-      _btd_itf.ep_voice_size[dir][itf_desc->bAlternateSetting] = (uint8_t) tu_edpt_packet_size(desc_ep);
-      drv_len += iso_alt_itf_size;
-    }
   }
 
   return drv_len;
