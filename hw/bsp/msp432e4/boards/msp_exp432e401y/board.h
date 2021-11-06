@@ -27,13 +27,13 @@
 #ifndef BOARD_H_
 #define BOARD_H_
 
-#define LED_PORT              P1OUT
-#define LED_PIN               BIT0
-#define LED_STATE_ON          1
+#define CLK_LED               12u
+#define GPIO_LED              GPION
+#define GPIO_LED_PIN          1u
 
-#define BUTTON_PORT           P1IN
-#define BUTTON_PIN            BIT1
-#define BUTTON_STATE_ACTIVE   0
+#define CLK_BUTTON            8u
+#define GPIO_BUTTON           GPIOJ
+#define GPIO_BUTTON_PIN       0u
 
 #ifdef __cplusplus
  extern "C" {

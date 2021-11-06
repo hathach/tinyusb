@@ -28,9 +28,6 @@
 #include "board.h"
 #include "msp.h"
 
-/* Frequency of the external crystal oscillator */
-#define XTAL_FREQUENCY   25000000UL
-
 //--------------------------------------------------------------------+
 // Forward USB interrupt events to TinyUSB IRQ Handler
 //--------------------------------------------------------------------+
@@ -82,17 +79,17 @@ void board_init(void)
   NVIC_SetPriority(USB0_IRQn, configLIBRARY_MAX_SYSCALL_INTERRUPT_PRIORITY );
 #endif
 
-  /* USR_LED1 PN1 */
-  SYSCTL->RCGCGPIO |= 1u << 12;
-  while (!(SYSCTL->PRGPIO & (1u << 12))) ;
-  GPION->DIR        = 2u;
-  GPION->DEN        = 2u;
+  /* USR_LED1 ON1 */
+  SYSCTL->RCGCGPIO |= TU_BIT(CLK_LED);
+  while (!(SYSCTL->PRGPIO & TU_BIT(CLK_LED))) ;
+  GPIO_LED->DIR     = TU_BIT(GPIO_LED_PIN);
+  GPIO_LED->DEN     = TU_BIT(GPIO_LED_PIN);
 
   /* USR_SW1 PJ0 */
-  SYSCTL->RCGCGPIO |= 1u << 8;
-  while (!(SYSCTL->PRGPIO & (1u << 8))) ;
-  GPIOJ->PUR        = 1u;
-  GPIOJ->DEN        = 1u;
+  SYSCTL->RCGCGPIO |= TU_BIT(CLK_BUTTON);
+  while (!(SYSCTL->PRGPIO & TU_BIT(CLK_BUTTON))) ;
+  GPIO_BUTTON->PUR  = TU_BIT(GPIO_BUTTON_PIN);
+  GPIO_BUTTON->DEN  = TU_BIT(GPIO_BUTTON_PIN);
 
   /* UART PA0,1 */
   SYSCTL->RCGCGPIO |= 1u << 0;
@@ -136,14 +133,14 @@ void board_init(void)
 void board_led_write(bool state)
 {
   if (state)
-    GPION->DATA |= 2u;
+    GPIO_LED->DATA |= TU_BIT(GPIO_LED_PIN);
   else
-    GPION->DATA &= ~2u;
+    GPIO_LED->DATA &= ~TU_BIT(GPIO_LED_PIN);
 }
 
 uint32_t board_button_read(void)
 {
-  return (GPIOJ->DATA & 1u) ? 0u : 1u;
+  return (GPIO_BUTTON->DATA & TU_BIT(GPIO_BUTTON_PIN)) ? 0u : 1u;
 }
 
 int board_uart_read(uint8_t * buf, int len)
