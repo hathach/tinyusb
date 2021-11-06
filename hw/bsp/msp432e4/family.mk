@@ -35,11 +35,6 @@ SRC_S += $(MCU_DIR)/Source/startup_msp432e411y_gcc.S
 # For freeRTOS port source
 FREERTOS_PORT = ARM_CM4F
 
-# export for libmsp430.so to same installation
-ifneq ($(OS),Windows_NT)
-export LD_LIBRARY_PATH=$(dir $(shell which MSP430Flasher))
-endif
-
 # For flash-jlink target
 JLINK_DEVICE = MSP432E401Y
 JLINK_IF     = SWD
