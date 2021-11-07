@@ -556,6 +556,9 @@ static void process_bus_reset(uint8_t rhport)
   /* When pipe0.buf has not NULL, DATA stage works in progress. */
   _dcd.pipe0.buf = NULL;
 
+  USB0->TXIE = 1; /* Enable only EP0 */
+  USB0->RXIE = 0; 
+
   /* Clear FIFO settings */
   for (unsigned i = 1; i < DCD_ATTR_ENDPOINT_MAX; ++i) {
     USB0->EPIDX     = i;
@@ -660,6 +663,7 @@ bool dcd_edpt_open(uint8_t rhport, tusb_desc_endpoint_t const * ep_desc)
       regs->TXCSRL = USB_TXCSRL1_CLRDT | USB_TXCSRL1_FLUSH;
     else
       regs->TXCSRL = USB_TXCSRL1_CLRDT;
+    USB0->TXIE |= TU_BIT(epn);
   } else {
     regs->RXMAXP = mps;
     regs->RXCSRH = (xfer == TUSB_XFER_ISOCHRONOUS) ? USB_RXCSRH1_ISO : 0;
@@ -667,6 +671,7 @@ bool dcd_edpt_open(uint8_t rhport, tusb_desc_endpoint_t const * ep_desc)
       regs->RXCSRL = USB_RXCSRL1_CLRDT | USB_RXCSRL1_FLUSH;
     else
       regs->RXCSRL = USB_RXCSRL1_CLRDT;
+    USB0->RXIE |= TU_BIT(epn);
   }
 
   /* Setup FIFO */
@@ -693,6 +698,8 @@ void dcd_edpt_close_all(uint8_t rhport)
   volatile hw_endpoint_t *regs = (volatile hw_endpoint_t *)(uintptr_t)&USB0->TXMAXP1;
   unsigned const ie = NVIC_GetEnableIRQ(USB0_IRQn);
   NVIC_DisableIRQ(USB0_IRQn);
+  USB0->TXIE = 1; /* Enable only EP0 */
+  USB0->RXIE = 0; 
   for (unsigned i = 1; i < DCD_ATTR_ENDPOINT_MAX; ++i) {
     regs->TXMAXP = 0;
     regs->TXCSRH = 0;
@@ -727,6 +734,7 @@ void dcd_edpt_close(uint8_t rhport, uint8_t ep_addr)
   unsigned const ie = NVIC_GetEnableIRQ(USB0_IRQn);
   NVIC_DisableIRQ(USB0_IRQn);
   if (dir_in) {
+    USB0->TXIE  &= ~TU_BIT(epn);
     regs->TXMAXP = 0;
     regs->TXCSRH = 0;
     if (regs->TXCSRL & USB_TXCSRL1_TXRDY)
@@ -738,6 +746,7 @@ void dcd_edpt_close(uint8_t rhport, uint8_t ep_addr)
     USB0->TXFIFOSZ  = 0;
     USB0->TXFIFOADD = 0;
   } else {
+    USB0->RXIE  &= ~TU_BIT(epn);
     regs->RXMAXP = 0;
     regs->RXCSRH = 0;
     if (regs->RXCSRL & USB_RXCSRL1_RXRDY)
