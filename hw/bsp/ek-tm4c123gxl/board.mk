@@ -1,4 +1,3 @@
-
 DEPS_SUBMODULES += hw/mcu/ti
 
 CFLAGS += \
@@ -12,39 +11,29 @@ CFLAGS += \
   -uvectors \
   -DTM4C123GH6PM
   
-# lpc_types.h cause following errors
-CFLAGS += -Wno-error=strict-prototypes
+# mcu driver cause following warnings
+CFLAGS += -Wno-error=strict-prototypes -Wno-error=cast-qual
 
 MCU_DIR=hw/mcu/ti/tm4c123xx/
 
-CMSIS=$(TOP)/hw/mcu/ti/tm4c123xx/CMSIS/5.7.0/CMSIS/Include
-
-TI_HDR=$(TOP)/hw/mcu/ti/tm4c123xx/Include/TM4C123/
-
 # All source paths should be relative to the top level.
-
-LD_FILE = hw/bsp/$(BOARD)/tm4c123.ld
+LD_FILE = $(BOARD_PATH)/tm4c123.ld
 
 INC += \
-     	$(CMSIS) \
-      $(TI_HDR) \
-      $(TOP)/hw/bsp 
-
+	$(TOP)/$(MCU_DIR)/CMSIS/5.7.0/CMSIS/Include \
+	$(TOP)/$(MCU_DIR)/Include/TM4C123 \
+	$(TOP)/hw/bsp
 
 SRC_C += \
-         $(MCU_DIR)/Source/system_TM4C123.c \
-         $(MCU_DIR)/Source/GCC/tm4c123_startup.c 
-
-# For TinyUSB port source
-VENDOR = ti
-CHIP_FAMILY = tm4c123xx
+	$(MCU_DIR)/Source/system_TM4C123.c \
+	$(MCU_DIR)/Source/GCC/tm4c123_startup.c
 
 # For freeRTOS port source
 FREERTOS_PORT = ARM_CM4F
 
 # For flash-jlink target
-JLINK_DEVICE = LPC1769
+JLINK_DEVICE = TM4C123GH6PM
 
-# flash using jlink
-flash: $(BUILD)/$(PROJECT).elf
-	openocd -f board/ti_ek-tm4c123gxl.cfg  -c "program $< verify reset exit"
+# flash using openocd
+OPENOCD_OPTION = -f board/ti_ek-tm4c123gxl.cfg
+flash: flash-openocd

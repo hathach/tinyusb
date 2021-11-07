@@ -3,9 +3,12 @@
 
 #define BOARD_UART            UART0
 #define BOARD_UART_PORT       GPIOA
+
 #define BOARD_BTN_PORT        GPIOF
 #define BOARD_BTN             4
 #define BOARD_BTN_Msk         (1u<<4)
+#define BUTTON_STATE_ACTIVE   0
+
 #define LED_PORT              GPIOF
 #define LED_PIN_RED           1
 #define LED_PIN_BLUE          2
@@ -125,7 +128,8 @@ void board_led_write(bool state)
 
 uint32_t board_button_read(void)
 {
-    return ReadGPIOPin(BOARD_BTN_PORT, BOARD_BTN_Msk);
+    uint32_t gpio_value = ReadGPIOPin(BOARD_BTN_PORT, BOARD_BTN_Msk);
+    return BUTTON_STATE_ACTIVE ? gpio_value : !gpio_value;
 }
 
 int board_uart_write(void const* buf, int len)
