@@ -143,6 +143,9 @@
 #elif CFG_TUSB_MCU == OPT_MCU_XMC4000
   #include "xmc_device.h"
 
+#elif CFG_TUSB_MCU == OPT_MCU_TM4C123
+  #include "TM4C123.h"
+
 #else
   #error "Missing MCU header"
 #endif
