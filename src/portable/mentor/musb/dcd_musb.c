@@ -26,7 +26,7 @@
 
 #include "tusb_option.h"
 
-#if TU_CHECK_MCU(OPT_MCU_MSP432E4xx, OPT_MCU_TM4C123, OPT_MCU_TM4C129)
+#if TU_CHECK_MCU(OPT_MCU_MSP432E4, OPT_MCU_TM4C123, OPT_MCU_TM4C129)
 
 #if __GNUC__ > 8 && defined(__ARM_FEATURE_UNALIGNED)
 /* GCC warns that an address may be unaligned, even though
@@ -36,7 +36,7 @@ _Pragma("GCC diagnostic ignored \"-Waddress-of-packed-member\"");
 
 #include "device/dcd.h"
 
-#if TU_CHECK_MCU(OPT_MCU_MSP432E4xx)
+#if TU_CHECK_MCU(OPT_MCU_MSP432E4)
   #include "musb_msp432e.h"
 
 #elif TU_CHECK_MCU(OPT_MCU_TM4C123, OPT_MCU_TM4C129)

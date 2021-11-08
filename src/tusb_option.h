@@ -84,9 +84,9 @@
 // Sony
 #define OPT_MCU_CXD56             400 ///< SONY CXD56
 
-// TI MSP430
+// TI
 #define OPT_MCU_MSP430x5xx        500 ///< TI MSP430x5xx
-#define OPT_MCU_MSP432E4xx        510 ///< TI MSP432E4xx
+#define OPT_MCU_MSP432E4          510 ///< TI MSP432E4xx
 #define OPT_MCU_TM4C123           511 ///< TI Tiva-C 123x
 #define OPT_MCU_TM4C129           512 ///< TI Tiva-C 129x
 

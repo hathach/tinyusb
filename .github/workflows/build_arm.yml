@@ -45,6 +45,7 @@ jobs:
         - 'lpc54'
         - 'lpc55'
         - 'mm32'
+        - 'msp430e4'
         - 'nrf'
         - 'rp2040'
         - 'samd11'

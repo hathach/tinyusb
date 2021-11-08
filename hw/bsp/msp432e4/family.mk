@@ -9,7 +9,7 @@ CFLAGS += \
 	-mfloat-abi=hard \
 	-mfpu=fpv4-sp-d16 \
 	-D__MSP432E401Y__ \
-	-DCFG_TUSB_MCU=OPT_MCU_MSP432E4xx
+	-DCFG_TUSB_MCU=OPT_MCU_MSP432E4
 
 # mcu driver cause following warnings
 CFLAGS += -Wno-error=cast-qual -Wno-error=format=
