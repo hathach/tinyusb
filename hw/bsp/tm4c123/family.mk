@@ -1,5 +1,7 @@
 DEPS_SUBMODULES += hw/mcu/ti
 
+include $(TOP)/$(BOARD_PATH)/board.mk
+
 CFLAGS += \
   -flto \
   -mthumb \
@@ -22,7 +24,7 @@ LD_FILE = $(BOARD_PATH)/tm4c123.ld
 INC += \
 	$(TOP)/$(MCU_DIR)/CMSIS/5.7.0/CMSIS/Include \
 	$(TOP)/$(MCU_DIR)/Include/TM4C123 \
-	$(TOP)/hw/bsp
+	$(TOP)/$(BOARD_PATH)
 
 SRC_C += \
 	src/portable/mentor/musb/dcd_musb.c \
@@ -31,10 +33,3 @@ SRC_C += \
 
 # For freeRTOS port source
 FREERTOS_PORT = ARM_CM4F
-
-# For flash-jlink target
-JLINK_DEVICE = TM4C123GH6PM
-
-# flash using openocd
-OPENOCD_OPTION = -f board/ti_ek-tm4c123gxl.cfg
-flash: flash-openocd

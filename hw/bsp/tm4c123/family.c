@@ -1,19 +1,6 @@
-#include <TM4C123.h>
-#include <board.h>
-
-#define BOARD_UART            UART0
-#define BOARD_UART_PORT       GPIOA
-
-#define BOARD_BTN_PORT        GPIOF
-#define BOARD_BTN             4
-#define BOARD_BTN_Msk         (1u<<4)
-#define BUTTON_STATE_ACTIVE   0
-
-#define LED_PORT              GPIOF
-#define LED_PIN_RED           1
-#define LED_PIN_BLUE          2
-#define LED_PIN_GREEN         3
-#define LED_STATE_ON          1
+#include "TM4C123.h"
+#include "bsp/board.h"
+#include "board.h"
 
 //--------------------------------------------------------------------+
 // Forward USB interrupt events to TinyUSB IRQ Handler
