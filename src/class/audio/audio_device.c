@@ -102,7 +102,8 @@
     CFG_TUSB_MCU == OPT_MCU_GD32VF103                             || \
     CFG_TUSB_MCU == OPT_MCU_LPC18XX                               || \
     CFG_TUSB_MCU == OPT_MCU_LPC43XX                               || \
-    CFG_TUSB_MCU == OPT_MCU_MIMXRT10XX
+    CFG_TUSB_MCU == OPT_MCU_MIMXRT10XX                            || \
+    CFG_TUSB_MCU == OPT_MCU_MSP432E4
 #if TUD_AUDIO_PREFER_RING_BUFFER
 #define  USE_LINEAR_BUFFER     0
 #else

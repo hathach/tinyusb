@@ -158,13 +158,14 @@ endif
 # Flash Targets
 # ---------------------------------------
 
-# Flash binary using Jlink
+# Jlink binary
 ifeq ($(OS),Windows_NT)
   JLINKEXE = JLink.exe
 else
   JLINKEXE = JLinkExe
 endif
 
+# Jlink Interface
 JLINK_IF ?= swd
 
 # Flash using jlink
@@ -177,18 +178,22 @@ flash-jlink: $(BUILD)/$(PROJECT).hex
 	@echo exit >> $(BUILD)/$(BOARD).jlink
 	$(JLINKEXE) -device $(JLINK_DEVICE) -if $(JLINK_IF) -JTAGConf -1,-1 -speed auto -CommandFile $(BUILD)/$(BOARD).jlink
 
-# flash STM32 MCU using stlink with STM32 Cube Programmer CLI
+# Flash STM32 MCU using stlink with STM32 Cube Programmer CLI
 flash-stlink: $(BUILD)/$(PROJECT).elf
 	STM32_Programmer_CLI --connect port=swd --write $< --go
 
-# flash with pyocd
+# Flash using pyocd
 PYOCD_OPTION ?=
 flash-pyocd: $(BUILD)/$(PROJECT).hex
 	pyocd flash -t $(PYOCD_TARGET) $(PYOCD_OPTION) $<
 	pyocd reset -t $(PYOCD_TARGET)
 
-# flash with Black Magic Probe
+# Flash using openocd
+OPENOCD_OPTION ?=
+flash-openocd: $(BUILD)/$(PROJECT).elf
+	openocd $(OPENOCD_OPTION) -c "program $< verify reset exit"
 
+# flash with Black Magic Probe
 # This symlink is created by https://github.com/blacksphere/blackmagic/blob/master/driver/99-blackmagic.rules
 BMP ?= /dev/ttyBmpGdb
 
