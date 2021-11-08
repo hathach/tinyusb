@@ -143,7 +143,10 @@
   #define DCD_ATTR_ENDPOINT_EXCLUSIVE_NUMBER
 
 //------------- TI -------------//
-#elif TU_CHECK_MCU(OPT_MCU_MSP430x5xx, OPT_MCU_MSP432E4xx)
+#elif TU_CHECK_MCU(OPT_MCU_MSP430x5xx)
+  #define DCD_ATTR_ENDPOINT_MAX   8
+
+#elif TU_CHECK_MCU(OPT_MCU_MSP432E4xx, OPT_MCU_TM4C123, OPT_MCU_TM4C129)
   #define DCD_ATTR_ENDPOINT_MAX   8
 
 //------------- ValentyUSB -------------//

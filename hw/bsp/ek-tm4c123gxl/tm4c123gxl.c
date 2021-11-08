@@ -15,142 +15,155 @@
 #define LED_PIN_GREEN         3
 #define LED_STATE_ON          1
 
-static void board_uart_init(void)
+//--------------------------------------------------------------------+
+// Forward USB interrupt events to TinyUSB IRQ Handler
+//--------------------------------------------------------------------+
+void USB0_Handler(void)
 {
-    SYSCTL->RCGCUART |= (1<<0);                		   // Enable the clock to UART0
-  	SYSCTL->RCGCGPIO |= (1<<0);                       // Enable the clock to GPIOA
-
-  	GPIOA->AFSEL |= (1<<1)|(1<<0);                          // Enable the alternate function on pin PA0 & PA1
-  	GPIOA->PCTL |= (1<<0)|(1<<4);                          // Configure the GPIOPCTL register to select UART0 in PA0 and PA1
-  	GPIOA->DEN |= (1<<0)|(1<<1);                          // Enable the digital functionality in PA0 and PA1
-
-	/** BAUDRATE = 9600 bits per second, refer manual for calculation **/
-
-  	UART0->CTL &= ~(1<<0);                             // Disable UART0 by clearing UARTEN bit in the UARTCTL register
-  	UART0->IBRD = 325;                                // Write the integer portion of the BRD to the UARTIRD register
-  	UART0->FBRD = 33;                                // Write the fractional portion of the BRD to the UARTFBRD registerer
-
-  	UART0->LCRH = (0x3<<5);          		        // 8-bit, no parity, 1 stop bit
-  	UART0->CC = 0x0;                               // Configure the UART clock source as system clock
-
-  	UART0->CTL = (1<<0)|(1<<8)|(1<<9);            // UART0 Enable, Transmit Enable, Recieve Enable
+  tud_int_handler(0);
 }
 
-static void initialize_board_led(GPIOA_Type* port, uint8_t PinMsk, uint8_t dirmsk)
+//--------------------------------------------------------------------+
+// MACRO TYPEDEF CONSTANT ENUM
+//--------------------------------------------------------------------+
+
+static void board_uart_init (void)
 {
-    /* Enable PortF Clock */
-    SYSCTL -> RCGCGPIO |= (1<<5) ;
+  SYSCTL->RCGCUART |= (1 << 0);                // Enable the clock to UART0
+  SYSCTL->RCGCGPIO |= (1 << 0);                // Enable the clock to GPIOA
 
-	/* Let the clock stabilize */
-	while(! ((SYSCTL->PRGPIO) & (1<<5)) ) ;
+  GPIOA->AFSEL |= (1 << 1) | (1 << 0);         // Enable the alternate function on pin PA0 & PA1
+  GPIOA->PCTL |= (1 << 0) | (1 << 4);          // Configure the GPIOPCTL register to select UART0 in PA0 and PA1
+  GPIOA->DEN |= (1 << 0) | (1 << 1);           // Enable the digital functionality in PA0 and PA1
 
-	/* Port Digital Enable */
-	port->DEN |= PinMsk;
+                                               /** BAUDRATE = 9600 bits per second, refer manual for calculation **/
+  UART0->CTL &= ~(1 << 0);                     // Disable UART0 by clearing UARTEN bit in the UARTCTL register
+  UART0->IBRD = 325;                           // Write the integer portion of the BRD to the UARTIRD register
+  UART0->FBRD = 33;                            // Write the fractional portion of the BRD to the UARTFBRD registerer
 
-	/* Set direction */
-	port->DIR = dirmsk ;
+  UART0->LCRH = (0x3 << 5);                    // 8-bit, no parity, 1 stop bit
+  UART0->CC = 0x0;                             // Configure the UART clock source as system clock
+
+  UART0->CTL = (1 << 0) | (1 << 8) | (1 << 9); // UART0 Enable, Transmit Enable, Recieve Enable
 }
 
-static void board_switch_init(void)
+static void initialize_board_led (GPIOA_Type *port, uint8_t PinMsk, uint8_t dirmsk)
 {
-    GPIOF->DIR &= ~(1<<BOARD_BTN); 
-    GPIOF->PUR |=  (1<<BOARD_BTN); 
-    GPIOF->DEN |=  (1<<BOARD_BTN); 
+  /* Enable PortF Clock */
+  SYSCTL->RCGCGPIO |= (1 << 5);
+
+  /* Let the clock stabilize */
+  while ( !((SYSCTL->PRGPIO) & (1 << 5)) )
+    ;
+
+  /* Port Digital Enable */
+  port->DEN |= PinMsk;
+
+  /* Set direction */
+  port->DIR = dirmsk;
 }
 
-static void WriteGPIOPin(GPIOA_Type* port, uint8_t PinMsk, bool state)
+static void board_switch_init (void)
 {
-    if(state)
-        port->DATA |= PinMsk; 
-    else
-        port->DATA &= ~(PinMsk);
+  GPIOF->DIR &= ~(1 << BOARD_BTN);
+  GPIOF->PUR |= (1 << BOARD_BTN);
+  GPIOF->DEN |= (1 << BOARD_BTN);
 }
 
-static uint32_t ReadGPIOPin(GPIOA_Type *port, uint8_t pinMsk)
+static void WriteGPIOPin (GPIOA_Type *port, uint8_t PinMsk, bool state)
 {
-    return (port -> DATA & pinMsk) ;
+  if ( state )
+    port->DATA |= PinMsk;
+  else
+    port->DATA &= ~(PinMsk);
 }
 
-void board_init(void)
+static uint32_t ReadGPIOPin (GPIOA_Type *port, uint8_t pinMsk)
 {
-    SystemCoreClockUpdate(); 
- 
+  return (port->DATA & pinMsk);
+}
+
+void board_init (void)
+{
+  SystemCoreClockUpdate();
+
 #if CFG_TUSB_OS == OPT_OS_NONE
-    // 1ms tick timer
-    SysTick_Config(SystemCoreClock / 1000);
+  // 1ms tick timer
+  SysTick_Config(SystemCoreClock / 1000);
 #elif CFG_TUSB_OS == OPT_OS_FREERTOS
     // If freeRTOS is used, IRQ priority is limit by max syscall ( smaller is higher )
     NVIC_SetPriority(USB0_IRQn, configLIBRARY_MAX_SYSCALL_INTERRUPT_PRIORITY );
 #endif
 
-    /* Reset USB */ 
-    SYSCTL->SRCR2 |= (1u<<16);
+  /* Reset USB */
+  SYSCTL->SRCR2 |= (1u << 16);
 
-    for (volatile uint8_t i=0; i<20; i++);
+  for ( volatile uint8_t i = 0; i < 20; i++ ) {}
 
-    SYSCTL->SRCR2 &= ~(1u<<16);
+  SYSCTL->SRCR2 &= ~(1u << 16);
 
-    /* Open the USB clock gate */
-    SYSCTL->RCGCUSB |= (1<<0);
+  /* Open the USB clock gate */
+  SYSCTL->RCGCUSB |= (1 << 0);
 
-    /* Power-up USB PLL */
-    SYSCTL->RCC2 &= ~(1u<<14);
+  /* Power-up USB PLL */
+  SYSCTL->RCC2 &= ~(1u << 14);
 
-    /* USB IO Initialization */
-    SYSCTL->RCGCGPIO |= (1u<<3); 
-    
-    /* Let the clock stabilize */ 
-    while(!(SYSCTL->PRGPIO & (1u<<3))); 
+  /* USB IO Initialization */
+  SYSCTL->RCGCGPIO |= (1u << 3);
 
-    /* USB IOs to Analog Mode */ 
-    GPIOD->AFSEL &= ~ ( (1u<<4) | (1u<<5) ); 
-    GPIOD->DEN   &= ~ ( (1u<<4) | (1u<<5) ); 
-    GPIOD->AMSEL |=   ( (1u<<4) | (1u<<5) );
+  /* Let the clock stabilize */
+  while ( !(SYSCTL->PRGPIO & (1u << 3)) )
+    ;
 
-    uint8_t leds = (1<<LED_PIN_RED) | (1<<LED_PIN_BLUE) | (1<<LED_PIN_GREEN) ; 
-    uint8_t dirmsk = (1<<LED_PIN_RED) | (1<<LED_PIN_BLUE) | (1<<LED_PIN_GREEN) ; 
+  /* USB IOs to Analog Mode */
+  GPIOD->AFSEL &= ~((1u << 4) | (1u << 5));
+  GPIOD->DEN &= ~((1u << 4) | (1u << 5));
+  GPIOD->AMSEL |= ((1u << 4) | (1u << 5));
 
-    /* Configure GPIO for board LED */
-    initialize_board_led(LED_PORT,leds, dirmsk); 
+  uint8_t leds = (1 << LED_PIN_RED) | (1 << LED_PIN_BLUE) | (1 << LED_PIN_GREEN);
+  uint8_t dirmsk = (1 << LED_PIN_RED) | (1 << LED_PIN_BLUE) | (1 << LED_PIN_GREEN);
 
-    /* Configure GPIO for board switch */
-    board_switch_init(); 
+  /* Configure GPIO for board LED */
+  initialize_board_led(LED_PORT, leds, dirmsk);
 
-    /* Initialize board UART */
-    board_uart_init(); 
+  /* Configure GPIO for board switch */
+  board_switch_init();
+
+  /* Initialize board UART */
+  board_uart_init();
 
 }
 
-void board_led_write(bool state)
+void board_led_write (bool state)
 {
-    WriteGPIOPin(LED_PORT, (1<<LED_PIN_BLUE), state); 
+  WriteGPIOPin(LED_PORT, (1 << LED_PIN_BLUE), state);
 }
 
-uint32_t board_button_read(void)
+uint32_t board_button_read (void)
 {
-    uint32_t gpio_value = ReadGPIOPin(BOARD_BTN_PORT, BOARD_BTN_Msk);
-    return BUTTON_STATE_ACTIVE ? gpio_value : !gpio_value;
+  uint32_t gpio_value = ReadGPIOPin(BOARD_BTN_PORT, BOARD_BTN_Msk);
+  return BUTTON_STATE_ACTIVE ? gpio_value : !gpio_value;
 }
 
-int board_uart_write(void const* buf, int len)
+int board_uart_write (void const *buf, int len)
 {
-    uint8_t const* data = buf; 
+  uint8_t const * data = buf;
 
-    for(int i=0; i<len; i++)
-    {
-        while((UART0->FR &(1<<5)) != 0);                 // Poll until previous data was shofted out
-        UART0->DR= data[i];                                   // Write UART0 DATA REGISTER 
-    }
+  for ( int i = 0; i < len; i++ )
+  {
+    while ( (UART0->FR & (1 << 5)) != 0 ) {} // Poll until previous data was shofted out
+    UART0->DR = data[i];                     // Write UART0 DATA REGISTER
+  }
 
-    return len;
+  return len;
 }
 
-int board_uart_read(uint8_t* buf, int len)
+int board_uart_read (uint8_t *buf, int len)
 {
-  (void) buf; (void) len;
+  (void) buf;
+  (void) len;
   return 0;
 }
-
 
 #if CFG_TUSB_OS == OPT_OS_NONE
 volatile uint32_t system_ticks = 0;
@@ -159,7 +172,7 @@ void SysTick_Handler (void)
   system_ticks++;
 }
 
-uint32_t board_millis(void)
+uint32_t board_millis (void)
 {
   return system_ticks;
 }

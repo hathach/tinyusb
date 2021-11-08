@@ -26,7 +26,7 @@
 
 #include "tusb_option.h"
 
-#if CFG_TUSB_MCU == OPT_MCU_MSP432E4xx
+#if TU_CHECK_MCU(OPT_MCU_MSP432E4xx, OPT_MCU_TM4C123, OPT_MCU_TM4C129)
 
 #if __GNUC__ > 8 && defined(__ARM_FEATURE_UNALIGNED)
 /* GCC warns that an address may be unaligned, even though
@@ -35,7 +35,21 @@ _Pragma("GCC diagnostic ignored \"-Waddress-of-packed-member\"");
 #endif
 
 #include "device/dcd.h"
-#include "msp.h"
+
+#if TU_CHECK_MCU(OPT_MCU_MSP432E4xx)
+  #include "musb_msp432e.h"
+
+#elif TU_CHECK_MCU(OPT_MCU_TM4C123, OPT_MCU_TM4C129)
+  #include "musb_tm4c.h"
+
+  // HACK generalize later
+  #include "musb_type.h"
+  #define FIFO0_WORD FIFO0
+  #define FIFO1_WORD FIFO1
+
+#else
+  #error "Unsupported MCUs"
+#endif
 
 /*------------------------------------------------------------------
  * MACRO TYPEDEF CONSTANT ENUM DECLARATION

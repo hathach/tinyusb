@@ -25,6 +25,7 @@ INC += \
 	$(TOP)/hw/bsp
 
 SRC_C += \
+	src/portable/mentor/musb/dcd_musb.c \
 	$(MCU_DIR)/Source/system_TM4C123.c \
 	$(MCU_DIR)/Source/GCC/tm4c123_startup.c
 
