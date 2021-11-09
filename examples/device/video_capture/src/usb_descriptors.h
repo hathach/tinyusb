@@ -53,8 +53,8 @@ enum {
     /* Interface 1, Alternate 0 */\
     + TUD_VIDEO_DESC_STD_VS_LEN\
     + (TUD_VIDEO_DESC_CS_VS_IN_LEN + 1/*bNumFormats x bControlSize*/)\
-    + TUD_VIDEO_DESC_CS_VS_FMT_UNCOMPR_LEN\
-    + TUD_VIDEO_DESC_CS_VS_FRM_UNCOMPR_CONT_LEN\
+    + TUD_VIDEO_DESC_CS_VS_FMT_MJPEG_LEN\
+    + TUD_VIDEO_DESC_CS_VS_FRM_MJPEG_CONT_LEN\
     + TUD_VIDEO_DESC_CS_VS_COLOR_MATCHING_LEN\
     /* Interface 1, Alternate 1 */\
     + TUD_VIDEO_DESC_STD_VS_LEN\
@@ -98,7 +98,7 @@ enum {
         /*bmaControls(1)*/0), \
       /* Video stream format */ \
       TUD_VIDEO_DESC_CS_VS_FMT_MJPEG(/*bFormatIndex*/1, /*bNumFrameDescriptors*/1, \
-        1, /*bDefaultFrameIndex*/1, 0, 0, 0, /*bCopyProtect*/0), \
+        /*bmFlags*/0, /*bDefaultFrameIndex*/1, 0, 0, 0, /*bCopyProtect*/0), \
         /* Video stream frame format */ \
         TUD_VIDEO_DESC_CS_VS_FRM_MJPEG_CONT(/*bFrameIndex */1, 0, _width, _height, \
             _width * _height * 16, _width * _height * 16 * _fps, \
