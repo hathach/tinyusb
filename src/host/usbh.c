@@ -546,6 +546,9 @@ void process_device_unplugged(uint8_t rhport, uint8_t hub_addr, uint8_t hub_port
 
       hcd_device_close(rhport, dev_addr);
 
+      // release all endpoints associated with the device
+      tu_memclr(dev->ep_status, sizeof(dev->ep_status));
+
       dev->state = TUSB_DEVICE_STATE_UNPLUG;
     }
   }
