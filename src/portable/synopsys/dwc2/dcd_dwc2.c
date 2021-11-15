@@ -444,6 +444,10 @@ static void phy_hs_init(dwc2_regs_t * dwc2)
 
   // Set max speed
   dwc2->dcfg = (dwc2->dcfg & ~DCFG_DSPD_Msk) | (DCFG_DSPD_HS << DCFG_DSPD_Pos);
+
+  // XCVRDLY: transceiver delay between xcvr_sel and txvalid during device chirp is required
+  // when using with some PHYs such as USB334x (USB3341, USB3343, USB3346, USB3347)
+  if (dwc2->ghwcfg2_bm.hs_phy_type == HS_PHY_TYPE_ULPI) dwc2->dcfg |= DCFG_XCVRDLY;
 }
 
 static bool check_dwc2(dwc2_regs_t * dwc2)
