@@ -33,8 +33,10 @@ body:
     attributes:
       label: Firmware
       placeholder: |
-        e.g examples/device/cdc_msc.
-        If it is custom firmware, please provide links to your minimal sources or as attached files.
+        e.g examples/device/cdc_msc. If it is custom firmware, it is preferably compiled like one in example folder and reviewable for people to comment on. The easiest way is
+        - Fork this repo, checkout a new branch
+        - Add your-own-example based on stock one
+        - Push and post it here.
     validations:
       required: true
 
@@ -49,6 +51,7 @@ body:
     attributes:
       label: How to reproduce ?
       placeholder: |
+        Exact steps in chronological order, details should be specific e.g if you use a command/script to test with, please post it as well.
         1. Go to '...'
         2. Click on '....'
         3. See error      
