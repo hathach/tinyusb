@@ -33,8 +33,7 @@ body:
     attributes:
       label: Firmware
       placeholder: |
-        e.g examples/device/cdc_msc.
-        If it is custom firmware, it is preferably compiled like one in example folder and reviewable for people to comment on. The easiest way is
+        e.g examples/device/cdc_msc. If it is custom firmware, it is preferably compiled like one in example folder and reviewable for people to comment on. The easiest way is
         - Fork this repo, checkout a new branch
         - Add your-own-example based on stock one
         - Push and post it here.
