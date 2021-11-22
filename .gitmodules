@@ -127,3 +127,6 @@
 [submodule "hw/mcu/gd/nuclei-sdk"]
 	path = hw/mcu/gd/nuclei-sdk
 	url = https://github.com/Nuclei-Software/nuclei-sdk.git
+[submodule "hw/mcu/bridgetek/ft9xx/ft90x-sdk"]
+	path = hw/mcu/bridgetek/ft9xx/ft90x-sdk
+	url = https://github.com/BRTSG-FOSS/ft90x-sdk
