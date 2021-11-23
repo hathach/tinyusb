@@ -217,9 +217,6 @@ static void xact_out_dma(uint8_t epnum)
 
     edpt_dma_start(&NRF_USBD->TASKS_STARTEPOUT[epnum]);
   }
-
-//  xfer->buffer     += xact_len;
-//  xfer->actual_len += xact_len;
 }
 
 // Prepare for a CBI transaction IN, call at the start
@@ -233,8 +230,6 @@ static void xact_in_dma(uint8_t epnum)
 
   NRF_USBD->EPIN[epnum].PTR    = (uint32_t) xfer->buffer;
   NRF_USBD->EPIN[epnum].MAXCNT = xact_len;
-
-  //xfer->buffer += xact_len;
 
   edpt_dma_start(&NRF_USBD->TASKS_STARTEPIN[epnum]);
 }
@@ -813,7 +808,7 @@ void dcd_int_handler(uint8_t rhport)
       if ( tu_bit_test(data_status, epnum) || (epnum == 0 && is_control_in) )
       {
         xfer_td_t* xfer = get_td(epnum, TUSB_DIR_IN);
-        uint8_t const xact_len = NRF_USBD->EPIN[epnum].AMOUNT; // MAXCNT
+        uint8_t const xact_len = NRF_USBD->EPIN[epnum].AMOUNT;
 
         xfer->buffer     += xact_len;
         xfer->actual_len += xact_len;
@@ -843,7 +838,6 @@ void dcd_int_handler(uint8_t rhport)
         }else
         {
           // Data overflow !!! Nah, nRF will auto accept next Bulk/Interrupt OUT packet
-          // If USBD is already queued this
           // Mark this endpoint with data received
           xfer->data_received = true;
         }
