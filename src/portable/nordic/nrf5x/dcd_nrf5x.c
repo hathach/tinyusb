@@ -63,7 +63,7 @@ typedef struct
   uint8_t* buffer;
   uint16_t total_len;
   volatile uint16_t actual_len;
-  uint16_t  mps; // max packet size
+  uint16_t mps; // max packet size
 
   // nRF will auto accept OUT packet after DMA is done
   // indicate packet is already ACK
@@ -84,8 +84,6 @@ static struct
 
   // Number of pending DMA that is started but not handled yet by dcd_int_handler().
   // Since nRF can only carry one DMA can run at a time, this value is normally be either 0 or 1.
-  // However, in critical section with interrupt disabled, the DMA can be finished and added up
-  // until handled by dcd_int_handler() when exiting critical section.
   volatile uint8_t dma_pending;
 }_dcd;
 
@@ -115,67 +113,68 @@ TU_ATTR_ALWAYS_INLINE static inline bool is_in_isr(void)
 }
 
 // helper to start DMA
+static void start_dma(volatile uint32_t* reg_startep)
+{
+  _dcd.dma_pending = true;
+
+  (*reg_startep) = 1;
+  __ISB(); __DSB();
+
+  // TASKS_EP0STATUS, TASKS_EP0RCVOUT seem to need EasyDMA to be available
+  // However these don't trigger any DMA transfer and got ENDED event subsequently
+  // Therefore dma_pending is corrected right away
+  if ( (reg_startep == &NRF_USBD->TASKS_EP0STATUS) || (reg_startep == &NRF_USBD->TASKS_EP0RCVOUT) )
+  {
+    _dcd.dma_pending = false;
+  }
+}
+
+// only 1 EasyDMA can be active at any time
 // TODO use Cortex M4 LDREX and STREX command (atomic) to have better mutex access to EasyDMA
 // since current implementation does not 100% guarded against race condition
 static void edpt_dma_start(volatile uint32_t* reg_startep)
 {
-  // Only one dma can be active
-  if ( _dcd.dma_pending )
+  // Called in critical section i.e within USB ISR, or USB/Global interrupt disabled
+  if ( is_in_isr() || __get_PRIMASK() || !NVIC_GetEnableIRQ(USBD_IRQn) )
   {
-    if (is_in_isr())
+    if (_dcd.dma_pending)
     {
-      // Called within ISR, use usbd task to defer later
+      //use usbd task to defer later
       usbd_defer_func((osal_task_func_t) edpt_dma_start, (void*) (uintptr_t) reg_startep, true);
-      return;
-    }
-    else
+    }else
     {
-      if ( __get_PRIMASK() || !NVIC_GetEnableIRQ(USBD_IRQn) )
-      {
-        // Called in critical section with interrupt disabled. We have to manually check
-        // for the DMA complete by comparing current pending DMA with number of ENDED Events
-        uint32_t ended = 0;
+      start_dma(reg_startep);
+    }
+  }else
+  {
+    // Called in non-critical thread-mode, should be 99% of the time.
+    // Should be safe to blocking wait until previous DMA transfer complete
+    uint8_t const rhport = 0;
+    bool started = false;
+    while(!started)
+    {
+      // LDREX/STREX may be needed in form of std atomic (required C11) or
+      // use osal mutex to guard against multiple core MCUs such as nRF53
+      dcd_int_disable(rhport);
 
-        while ( _dcd.dma_pending > ((uint8_t) ended) )
-        {
-          ended = NRF_USBD->EVENTS_ENDISOIN + NRF_USBD->EVENTS_ENDISOOUT;
-
-          for (uint8_t i=0; i<EP_CBI_COUNT; i++)
-          {
-            ended += NRF_USBD->EVENTS_ENDEPIN[i] + NRF_USBD->EVENTS_ENDEPOUT[i];
-          }
-        }
-      }else
+      if ( !_dcd.dma_pending )
       {
-        // Called in non-critical thread-mode, should be 99% of the time.
-        // Should be safe to blocking wait until previous DMA transfer complete
-        while ( _dcd.dma_pending ) { }
+        start_dma(reg_startep);
+        started = true;
       }
+
+      dcd_int_enable(rhport);
+
+      // osal_yield();
     }
   }
-
-  _dcd.dma_pending++;
-
-  (*reg_startep) = 1;
-  __ISB(); __DSB();
 }
 
 // DMA is complete
 static void edpt_dma_end(void)
 {
   TU_ASSERT(_dcd.dma_pending, );
-  _dcd.dma_pending = 0;
-}
-
-// helper to set TASKS_EP0STATUS / TASKS_EP0RCVOUT since they also need EasyDMA
-// However TASKS_EP0STATUS doesn't trigger any DMA transfer and got ENDED event subsequently
-// Therefore dma_running state will be corrected right away
-void start_ep0_task(volatile uint32_t* reg_task)
-{
-  edpt_dma_start(reg_task);
-
-  // correct the dma_running++ in dma start
-  if (_dcd.dma_pending) _dcd.dma_pending--;
+  _dcd.dma_pending = false;
 }
 
 // helper getting td
@@ -194,7 +193,10 @@ static void xact_out_dma(uint8_t epnum)
   {
     xact_len = NRF_USBD->SIZE.ISOOUT;
     // If ZERO bit is set, ignore ISOOUT length
-    if (xact_len & USBD_SIZE_ISOOUT_ZERO_Msk) xact_len = 0;
+    if (xact_len & USBD_SIZE_ISOOUT_ZERO_Msk)
+    {
+      xact_len = 0;
+    }
     else
     {
       // Trigger DMA move data from Endpoint -> SRAM
@@ -216,8 +218,8 @@ static void xact_out_dma(uint8_t epnum)
     edpt_dma_start(&NRF_USBD->TASKS_STARTEPOUT[epnum]);
   }
 
-  xfer->buffer     += xact_len;
-  xfer->actual_len += xact_len;
+//  xfer->buffer     += xact_len;
+//  xfer->actual_len += xact_len;
 }
 
 // Prepare for a CBI transaction IN, call at the start
@@ -232,7 +234,7 @@ static void xact_in_dma(uint8_t epnum)
   NRF_USBD->EPIN[epnum].PTR    = (uint32_t) xfer->buffer;
   NRF_USBD->EPIN[epnum].MAXCNT = xact_len;
 
-  xfer->buffer += xact_len;
+  //xfer->buffer += xact_len;
 
   edpt_dma_start(&NRF_USBD->TASKS_STARTEPIN[epnum]);
 }
@@ -242,6 +244,7 @@ static void xact_in_dma(uint8_t epnum)
 //--------------------------------------------------------------------+
 void dcd_init (uint8_t rhport)
 {
+  TU_LOG1("dcd init\r\n");
   (void) rhport;
 }
 
@@ -466,7 +469,7 @@ bool dcd_edpt_xfer (uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t 
   if ( control_status )
   {
     // Status Phase also requires EasyDMA has to be available as well !!!!
-    start_ep0_task(&NRF_USBD->TASKS_EP0STATUS);
+    edpt_dma_start(&NRF_USBD->TASKS_EP0STATUS);
 
     // The nRF doesn't interrupt on status transmit so we queue up a success response.
     dcd_event_xfer_complete(0, ep_addr, 0, XFER_RESULT_SUCCESS, is_in_isr());
@@ -476,7 +479,7 @@ bool dcd_edpt_xfer (uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t 
     if ( epnum == 0 )
     {
       // Accept next Control Out packet. TASKS_EP0RCVOUT also require EasyDMA
-      start_ep0_task(&NRF_USBD->TASKS_EP0RCVOUT);
+      edpt_dma_start(&NRF_USBD->TASKS_EP0RCVOUT);
     }else
     {
       if ( xfer->data_received )
@@ -522,7 +525,6 @@ void dcd_edpt_stall (uint8_t rhport, uint8_t ep_addr)
     // There maybe data in endpoint fifo already, we need to pull it out
     if ( (dir == TUSB_DIR_OUT) && xfer->data_received )
     {
-      TU_LOG_LOCATION();
       xfer->data_received = false;
       xact_out_dma(epnum);
     }
@@ -717,7 +719,8 @@ void dcd_int_handler(uint8_t rhport)
 
   if ( int_status & EDPT_END_ALL_MASK )
   {
-    // DMA complete move data from SRAM -> Endpoint
+    // DMA complete move data from SRAM <-> Endpoint
+    // Must before endpoint transfer handling
     edpt_dma_end();
   }
 
@@ -732,7 +735,7 @@ void dcd_int_handler(uint8_t rhport)
    *  - Host -> Endpoint
    *      EPDATA (or EP0DATADONE) interrupted, check EPDATASTATUS.EPOUT[i]
    *      to start DMA. For Bulk/Interrupt, this step can occur automatically (without sw),
-   *      which means data may or may not be ready (data_received flag).
+   *      which means data may or may not be ready (out_received flag).
    *  - Endpoint -> RAM
    *      ENDEPOUT[i] interrupted, transaction complete, sw prepare next transaction
    *
@@ -764,20 +767,16 @@ void dcd_int_handler(uint8_t rhport)
       xfer_td_t* xfer = get_td(epnum, TUSB_DIR_OUT);
       uint8_t const xact_len = NRF_USBD->EPOUT[epnum].AMOUNT;
 
+      xfer->buffer     += xact_len;
+      xfer->actual_len += xact_len;
+
       // Transfer complete if transaction len < Max Packet Size or total len is transferred
       if ( (epnum != EP_ISO_NUM) && (xact_len == xfer->mps) && (xfer->actual_len < xfer->total_len) )
       {
         if ( epnum == 0 )
         {
           // Accept next Control Out packet. TASKS_EP0RCVOUT also require EasyDMA
-          if ( _dcd.dma_pending )
-          {
-            // use usbd task to defer later
-            usbd_defer_func((osal_task_func_t) start_ep0_task, (void*) (uintptr_t) &NRF_USBD->TASKS_EP0RCVOUT, true);
-          }else
-          {
-            start_ep0_task(&NRF_USBD->TASKS_EP0RCVOUT);
-          }
+          edpt_dma_start(&NRF_USBD->TASKS_EP0RCVOUT);
         }else
         {
           // nRF auto accept next Bulk/Interrupt OUT packet
@@ -814,8 +813,10 @@ void dcd_int_handler(uint8_t rhport)
       if ( tu_bit_test(data_status, epnum) || (epnum == 0 && is_control_in) )
       {
         xfer_td_t* xfer = get_td(epnum, TUSB_DIR_IN);
+        uint8_t const xact_len = NRF_USBD->EPIN[epnum].AMOUNT; // MAXCNT
 
-        xfer->actual_len += NRF_USBD->EPIN[epnum].MAXCNT;
+        xfer->buffer     += xact_len;
+        xfer->actual_len += xact_len;
 
         if ( xfer->actual_len < xfer->total_len )
         {
@@ -842,6 +843,7 @@ void dcd_int_handler(uint8_t rhport)
         }else
         {
           // Data overflow !!! Nah, nRF will auto accept next Bulk/Interrupt OUT packet
+          // If USBD is already queued this
           // Mark this endpoint with data received
           xfer->data_received = true;
         }
