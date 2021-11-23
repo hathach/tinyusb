@@ -82,9 +82,8 @@ static struct
   // +1 for ISO endpoints
   xfer_td_t xfer[EP_CBI_COUNT + 1][2];
 
-  // Number of pending DMA that is started but not handled yet by dcd_int_handler().
-  // Since nRF can only carry one DMA can run at a time, this value is normally be either 0 or 1.
-  volatile uint8_t dma_pending;
+  // nRF can only carry one DMA at a time, this is used to guard the access to EasyDMA
+  volatile bool dma_running;
 }_dcd;
 
 /*------------------------------------------------------------------*/
@@ -115,7 +114,7 @@ TU_ATTR_ALWAYS_INLINE static inline bool is_in_isr(void)
 // helper to start DMA
 static void start_dma(volatile uint32_t* reg_startep)
 {
-  _dcd.dma_pending = true;
+  _dcd.dma_running = true;
 
   (*reg_startep) = 1;
   __ISB(); __DSB();
@@ -125,7 +124,7 @@ static void start_dma(volatile uint32_t* reg_startep)
   // Therefore dma_pending is corrected right away
   if ( (reg_startep == &NRF_USBD->TASKS_EP0STATUS) || (reg_startep == &NRF_USBD->TASKS_EP0RCVOUT) )
   {
-    _dcd.dma_pending = false;
+    _dcd.dma_running = false;
   }
 }
 
@@ -137,7 +136,7 @@ static void edpt_dma_start(volatile uint32_t* reg_startep)
   // Called in critical section i.e within USB ISR, or USB/Global interrupt disabled
   if ( is_in_isr() || __get_PRIMASK() || !NVIC_GetEnableIRQ(USBD_IRQn) )
   {
-    if (_dcd.dma_pending)
+    if (_dcd.dma_running)
     {
       //use usbd task to defer later
       usbd_defer_func((osal_task_func_t) edpt_dma_start, (void*) (uintptr_t) reg_startep, true);
@@ -157,7 +156,7 @@ static void edpt_dma_start(volatile uint32_t* reg_startep)
       // use osal mutex to guard against multiple core MCUs such as nRF53
       dcd_int_disable(rhport);
 
-      if ( !_dcd.dma_pending )
+      if ( !_dcd.dma_running )
       {
         start_dma(reg_startep);
         started = true;
@@ -173,8 +172,8 @@ static void edpt_dma_start(volatile uint32_t* reg_startep)
 // DMA is complete
 static void edpt_dma_end(void)
 {
-  TU_ASSERT(_dcd.dma_pending, );
-  _dcd.dma_pending = false;
+  TU_ASSERT(_dcd.dma_running, );
+  _dcd.dma_running = false;
 }
 
 // helper getting td
