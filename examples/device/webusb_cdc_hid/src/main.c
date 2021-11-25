@@ -187,7 +187,7 @@ void hid_task(void)
   }
 
   /*------------- Keyboard -------------*/
-  if ( tud_hid_n_ready(ITF_NUM_KEYBOARD) )
+  if ( tud_hid_n_ready(HID_INSTANCE_KEYBOARD) )
   {
     // use to avoid send multiple consecutive zero report for keyboard
     static bool has_key = false;
@@ -197,26 +197,26 @@ void hid_task(void)
       uint8_t keycode[6] = { 0 };
       keycode[0] = HID_KEY_A;
 
-      tud_hid_n_keyboard_report(ITF_NUM_KEYBOARD, 0, 0, keycode);
+      tud_hid_n_keyboard_report(HID_INSTANCE_KEYBOARD, 0, 0, keycode);
 
       has_key = true;
     }else
     {
       // send empty key report if previously has key pressed
-      if (has_key) tud_hid_n_keyboard_report(ITF_NUM_KEYBOARD, 0, 0, NULL);
+      if (has_key) tud_hid_n_keyboard_report(HID_INSTANCE_KEYBOARD, 0, 0, NULL);
       has_key = false;
     }
   }
 
   /*------------- Mouse -------------*/
-  if ( tud_hid_n_ready(ITF_NUM_MOUSE) )
+  if ( tud_hid_n_ready(HID_INSTANCE_MOUSE) )
   {
     if ( btn )
     {
       int8_t const delta = 5;
 
       // no button, right + down, no scroll pan
-      tud_hid_n_mouse_report(ITF_NUM_MOUSE, 0, 0x00, delta, delta, 0, 0);
+      tud_hid_n_mouse_report(HID_INSTANCE_MOUSE, 0, 0x00, delta, delta, 0, 0);
     }
   }
 }
@@ -266,7 +266,7 @@ void tud_hid_set_report_cb(uint8_t instance, uint8_t report_id, hid_report_type_
   (void) report_id;
 
   // keyboard interface
-  if (instance == ITF_NUM_KEYBOARD)
+  if (instance == HID_INSTANCE_KEYBOARD)
   {
     // Set keyboard LED e.g Capslock, Numlock etc...
     if (report_type == HID_REPORT_TYPE_OUTPUT)
@@ -279,6 +279,7 @@ void tud_hid_set_report_cb(uint8_t instance, uint8_t report_id, hid_report_type_
       if (kbd_leds & KEYBOARD_LED_CAPSLOCK)
       {
         // Capslock On: disable blink, turn led on
+        board_led_write(true);
         blink_interval_ms = BLINK_ALWAYS_ON;
         echo_all((uint8_t*)"CapsON\n",7);
       }else

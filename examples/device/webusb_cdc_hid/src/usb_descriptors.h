@@ -43,5 +43,21 @@ enum
   ITF_NUM_TOTAL
 };
 
+enum
+{
+  HID_INSTANCE_KEYBOARD = 0,
+  HID_INSTANCE_MOUSE,
+};
+
+enum
+{
+  CDC_INSTANCE_1 = 0,
+};
+
+enum
+{
+  VENDOR_INSTANCE_1 = 0,
+};
+
 
 #endif /* USB_DESCRIPTORS_H_ */

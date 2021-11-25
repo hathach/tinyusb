@@ -104,7 +104,8 @@ uint8_t const * tud_hid_descriptor_report_cb(uint8_t instance)
   #define EPNUM_CDC_OUT    2
   #define EPNUM_VENDOR_IN  5
   #define EPNUM_VENDOR_OUT 5
-  #error "Missing EPNums for keyboard and mouse"
+  #define EPNUM_KEYBOARD   1
+  #define EPNUM_MOUSE      4
 #elif CFG_TUSB_MCU == OPT_MCU_SAMG || CFG_TUSB_MCU ==  OPT_MCU_SAMX7X
   // SAMG & SAME70 don't support a same endpoint number with different direction IN and OUT
   //    e.g EP1 OUT & EP1 IN cannot exist together
@@ -112,7 +113,8 @@ uint8_t const * tud_hid_descriptor_report_cb(uint8_t instance)
   #define EPNUM_CDC_OUT    3
   #define EPNUM_VENDOR_IN  4
   #define EPNUM_VENDOR_OUT 5
-  #error "Missing EPNums for keyboard and mouse"
+  #define EPNUM_KEYBOARD   6
+  #define EPNUM_MOUSE      7
 #else
   #define EPNUM_CDC_IN     2
   #define EPNUM_CDC_OUT    2
