@@ -41,7 +41,8 @@
 			<path>$TUSB_DIR$/src/class/msc/msc_host.c</path>
 		</group>
 		<group name="src/class/net">
-			<path>$TUSB_DIR$/src/class/net/net_device.c</path>
+			<path>$TUSB_DIR$/src/class/net/ecm_rndis_device.c</path>
+			<path>$TUSB_DIR$/src/class/net/ncm_device.c</path>
 		</group>
 		<group name="src/class/usbtmc">
 			<path>$TUSB_DIR$/src/class/usbtmc/usbtmc_device.c</path>
@@ -58,6 +59,9 @@
 			<path>$TUSB_DIR$/src/host/usbh.c</path>
 			<path>$TUSB_DIR$/src/host/usbh_control.c</path>
 		</group>
+		<group name="src/portable/synopsys/dwc2">
+			<path>$TUSB_DIR$/src/portable/synopsys/dwc2/dcd_dwc2.c</path>
+		</group>
 		<group name="src/portable/dialog/da146xx">
 			<path>$TUSB_DIR$/src/portable/dialog/da146xx/dcd_da146xx.c</path>
 		</group>
@@ -66,6 +70,9 @@
 		</group>
 		<group name="src/portable/espressif/esp32sx">
 			<path>$TUSB_DIR$/src/portable/espressif/esp32sx/dcd_esp32sx.c</path>
+		</group>
+		<group name="src/portable/mentor/musb">
+			<path>$TUSB_DIR$/src/portable/mentor/musb/dcd_musb.c</path>
 		</group>
 		<group name="src/portable/microchip/samd">
 			<path>$TUSB_DIR$/src/portable/microchip/samd/dcd_samd.c</path>
@@ -116,20 +123,11 @@
 		<group name="src/portable/renesas/usba">
 			<path>$TUSB_DIR$/src/portable/renesas/usba/dcd_usba.c</path>
 		</group>
-		<group name="src/portable/silabs/efm32">
-			<path>$TUSB_DIR$/src/portable/silabs/efm32/dcd_efm32.c</path>
-		</group>
 		<group name="src/portable/sony/cxd56">
 			<path>$TUSB_DIR$/src/portable/sony/cxd56/dcd_cxd56.c</path>
 		</group>
 		<group name="src/portable/st/stm32_fsdev">
 			<path>$TUSB_DIR$/src/portable/st/stm32_fsdev/dcd_stm32_fsdev.c</path>
-		</group>
-		<group name="src/portable/st/synopsys">
-			<path>$TUSB_DIR$/src/portable/st/synopsys/dcd_synopsys.c</path>
-		</group>
-		<group name="src/portable/template">
-			<path>$TUSB_DIR$/src/portable/template/dcd_template.c</path>
 		</group>
 		<group name="src/portable/ti/msp430x5xx">
 			<path>$TUSB_DIR$/src/portable/ti/msp430x5xx/dcd_msp430x5xx.c</path>
