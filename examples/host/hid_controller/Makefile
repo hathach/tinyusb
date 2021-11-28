@@ -9,7 +9,7 @@ INC += \
 EXAMPLE_SOURCE += \
 	src/hid_app.c \
 	src/main.c
-	
+
 SRC_C += $(addprefix $(CURRENT_PATH)/, $(EXAMPLE_SOURCE))
 
 # TODO: suppress warning caused by host stack
@@ -26,6 +26,7 @@ SRC_C += \
 	src/portable/ehci/ehci.c \
 	src/portable/ohci/ohci.c \
 	src/portable/nxp/transdimension/hcd_transdimension.c \
-	src/portable/nxp/lpc17_40/hcd_lpc17_40.c
+	src/portable/nxp/lpc17_40/hcd_lpc17_40.c \
+	src/portable/mentor/musb/hcd_musb.c
 
 include ../../rules.mk

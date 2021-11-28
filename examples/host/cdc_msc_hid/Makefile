@@ -23,6 +23,7 @@ SRC_C += \
 	src/portable/ehci/ehci.c \
 	src/portable/ohci/ohci.c \
 	src/portable/nxp/transdimension/hcd_transdimension.c \
-	src/portable/nxp/lpc17_40/hcd_lpc17_40.c
+	src/portable/nxp/lpc17_40/hcd_lpc17_40.c \
+	src/portable/mentor/musb/hcd_musb.c
 
 include ../../rules.mk
