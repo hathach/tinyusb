@@ -38,12 +38,17 @@
   #include "freertos/queue.h"
   #include "freertos/task.h"
   #include "freertos/timers.h"
+
+  #define USBD_STACK_SIZE     4096
 #else
   #include "FreeRTOS.h"
   #include "semphr.h"
   #include "queue.h"
   #include "task.h"
   #include "timers.h"
+
+  // Increase stack size when debug log is enabled
+  #define USBD_STACK_SIZE    (3*configMINIMAL_STACK_SIZE/2) * (CFG_TUSB_DEBUG ? 2 : 1)
 #endif
 
 //--------------------------------------------------------------------+
@@ -65,14 +70,7 @@ enum  {
 StaticTimer_t blinky_tmdef;
 TimerHandle_t blinky_tm;
 
-// static task for usbd
-// Increase stack size when debug log is enabled
-#if CFG_TUSB_DEBUG
-  #define USBD_STACK_SIZE     (3*configMINIMAL_STACK_SIZE)
-#else
-  #define USBD_STACK_SIZE     (3*configMINIMAL_STACK_SIZE/2)
-#endif
-
+// static task
 StackType_t  usb_device_stack[USBD_STACK_SIZE];
 StaticTask_t usb_device_taskdef;
 
