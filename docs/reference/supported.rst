@@ -6,11 +6,6 @@ Supported Devices
 Supported MCUs
 ==============
 
-.. admonition:: Warning
-   :class: warning
-
-   This table is a WIP! the data is not correct, tho if a device is listed, it likely works as a usb full speed device at the least.
-
 +--------------+-----------------------+----------------------+----------------------+----------------------+-----------------+--------------+
 | Manufacturer | Family                | Device               | Host                 | Highspeed            | Driver          | Note         |
 +==============+=======================+======================+======================+======================+=================+==============+
