@@ -64,8 +64,6 @@ enum {
                   USB_SIE_CTRL_PULLDOWN_EN_BITS | USB_SIE_CTRL_EP0_INT_1BUF_BITS
 };
 
-enum { ADDR_INVALID  = 0xFFu };
-
 static struct hw_endpoint *get_dev_ep(uint8_t dev_addr, uint8_t ep_addr)
 {
   uint8_t num = tu_edpt_number(ep_addr);
@@ -348,21 +346,6 @@ static void _hw_endpoint_init(struct hw_endpoint *ep, uint8_t dev_addr, uint8_t 
     }
 }
 
-// return struct hw_endpoint* pointing to the endpoint in the pool or NULL if the dev_addr is not found
-static struct hw_endpoint *_hw_find_first_endpoint(uint8_t dev_addr)
-{
-    struct hw_endpoint *ep = NULL;
-    for (uint i = 1; i < TU_ARRAY_SIZE(ep_pool); i++)
-    {
-        ep = &ep_pool[i];
-        if (ep->dev_addr == dev_addr && ep->configured)
-        {
-            return ep;
-        }
-    }
-    return NULL;
-}
-
 //--------------------------------------------------------------------+
 // HCD API
 //--------------------------------------------------------------------+
@@ -429,25 +412,28 @@ tusb_speed_t hcd_port_speed_get(uint8_t rhport)
 // Close all opened endpoint belong to this device
 void hcd_device_close(uint8_t rhport, uint8_t dev_addr)
 {
-    assert(rhport == 0);
-    if (dev_addr == 0)
-        return;
+  pico_trace("hcd_device_close %d\n", dev_addr);
+  (void) rhport;
 
-    struct hw_endpoint *ep = _hw_find_first_endpoint(dev_addr);
-    while (ep)
+  if (dev_addr == 0) return;
+
+  for (size_t i = 1; i < TU_ARRAY_SIZE(ep_pool); i++)
+  {
+    hw_endpoint_t* ep = &ep_pool[i];
+
+    if (ep->dev_addr == dev_addr && ep->configured)
     {
-        // in case it is an interrupt endpoint, disable it
-        usb_hw_clear->int_ep_ctrl = (1 << (ep->interrupt_num + 1));
-        usb_hw->int_ep_addr_ctrl[ep->interrupt_num] = 0;
-        // unconfigure the endpoint
-        ep->configured = false;
-        *ep->endpoint_control = 0;
-        *ep->buffer_control = 0;
-        hw_endpoint_reset_transfer(ep);
-        ep->dev_addr = ADDR_INVALID; // don't find this one again
-        ep = _hw_find_first_endpoint(dev_addr);
+      // in case it is an interrupt endpoint, disable it
+      usb_hw_clear->int_ep_ctrl = (1 << (ep->interrupt_num + 1));
+      usb_hw->int_ep_addr_ctrl[ep->interrupt_num] = 0;
+
+      // unconfigure the endpoint
+      ep->configured = false;
+      *ep->endpoint_control = 0;
+      *ep->buffer_control = 0;
+      hw_endpoint_reset_transfer(ep);
     }
-    pico_trace("hcd_device_close %d\n", dev_addr);
+  }
 }
 
 uint32_t hcd_frame_number(uint8_t rhport)

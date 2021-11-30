@@ -541,12 +541,11 @@ void process_device_unplugged(uint8_t rhport, uint8_t hub_addr, uint8_t hub_port
         usbh_class_drivers[drv_id].close(dev_addr);
       }
 
-      memset(dev->itf2drv, DRVID_INVALID, sizeof(dev->itf2drv)); // invalid mapping
-      memset(dev->ep2drv , DRVID_INVALID, sizeof(dev->ep2drv )); // invalid mapping
-
       hcd_device_close(rhport, dev_addr);
 
       // release all endpoints associated with the device
+      memset(dev->itf2drv, DRVID_INVALID, sizeof(dev->itf2drv)); // invalid mapping
+      memset(dev->ep2drv , DRVID_INVALID, sizeof(dev->ep2drv )); // invalid mapping
       tu_memclr(dev->ep_status, sizeof(dev->ep_status));
 
       dev->state = TUSB_DEVICE_STATE_UNPLUG;
