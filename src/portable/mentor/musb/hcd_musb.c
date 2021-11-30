@@ -325,7 +325,7 @@ static bool edpt0_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr, uint8_
 {
   (void)rhport;
 
-  const unsigned req = _hcd.bmRequestType;
+  unsigned const req = _hcd.bmRequestType;
   TU_ASSERT(req != REQUEST_TYPE_INVALID);
   TU_ASSERT(dev_addr < sizeof(_hcd.ctl_mps));
 
@@ -453,6 +453,7 @@ static void process_ep0(uint8_t rhport)
     /* STATUS IN */
     TU_ASSERT(USB_CSRL0_RXRDY == (csrl & USB_CSRL0_RXRDY),);
     TU_ASSERT(0 == USB0->COUNT0,);
+    USB0->CSRH0 = USB_CSRH0_FLUSH;
     USB0->CSRL0 = 0;
     _hcd.bmRequestType = REQUEST_TYPE_INVALID;
     hcd_event_xfer_complete(dev_addr, tu_edpt_addr(0, TUSB_DIR_IN),
@@ -694,7 +695,17 @@ bool hcd_setup_send(uint8_t rhport, uint8_t dev_addr, uint8_t const setup_packet
   _hcd.pipe0.buf       = (void*)(uintptr_t)setup_packet;
   _hcd.pipe0.length    = 8;
   _hcd.pipe0.remaining = 0;
-  _hcd.bmRequestType   = REQUEST_TYPE_INVALID;
+
+  hcd_devtree_info_t devtree;
+  hcd_devtree_get_info(dev_addr, &devtree);
+  switch (devtree.speed) {
+    default: return false;
+    case TUSB_SPEED_LOW:  USB0->TYPE0 = USB_TYPE0_SPEED_LOW;  break;
+    case TUSB_SPEED_FULL: USB0->TYPE0 = USB_TYPE0_SPEED_FULL; break;
+    case TUSB_SPEED_HIGH: USB0->TYPE0 = USB_TYPE0_SPEED_HIGH; break;
+  }
+  USB0->TXHUBADDR0     = devtree.hub_addr;
+  USB0->TXHUBPORT0     = devtree.hub_port;
   USB0->TXFUNCADDR0    = dev_addr;
   USB0->CSRL0 = USB_CSRL0_TXRDY | USB_CSRL0_SETUP;
   return true;
@@ -702,6 +713,7 @@ bool hcd_setup_send(uint8_t rhport, uint8_t dev_addr, uint8_t const setup_packet
 
 bool hcd_edpt_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_endpoint_t const * ep_desc)
 {
+  (void)rhport;
   if (sizeof(_hcd.ctl_mps) <= dev_addr) return false;
   unsigned const ep_addr = ep_desc->bEndpointAddress;
   unsigned const epn     = tu_edpt_number(ep_addr);
@@ -733,7 +745,9 @@ bool hcd_edpt_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_endpoint_t const 
   pipe->remaining = 0;
 
   uint8_t pipe_type = 0;
-  switch (hcd_port_speed_get(rhport)) {
+  hcd_devtree_info_t devtree;
+  hcd_devtree_get_info(dev_addr, &devtree);
+  switch (devtree.speed) {
     default: return false;
     case TUSB_SPEED_LOW:  pipe_type |= USB_TXTYPE1_SPEED_LOW;  break;
     case TUSB_SPEED_FULL: pipe_type |= USB_TXTYPE1_SPEED_FULL; break;
@@ -750,6 +764,8 @@ bool hcd_edpt_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_endpoint_t const 
   hw_endpoint_t volatile *regs = edpt_regs(pipenum - 1);
   if (dir_tx) {
     fadr->TXFUNCADDR = dev_addr;
+    fadr->TXHUBADDR  = devtree.hub_addr;
+    fadr->TXHUBPORT  = devtree.hub_port;
     regs->TXMAXP     = mps;
     regs->TXTYPE     = pipe_type | epn;
     regs->TXINTERVAL = ep_desc->bInterval;
@@ -760,6 +776,8 @@ bool hcd_edpt_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_endpoint_t const 
     USB0->TXIE |= TU_BIT(pipenum);
   } else {
     fadr->RXFUNCADDR = dev_addr;
+    fadr->RXHUBADDR  = devtree.hub_addr;
+    fadr->RXHUBPORT  = devtree.hub_port;
     regs->RXMAXP     = mps;
     regs->RXTYPE     = pipe_type | epn;
     regs->RXINTERVAL = ep_desc->bInterval;
