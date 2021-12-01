@@ -201,6 +201,17 @@ typedef struct TU_ATTR_PACKED
     uint8_t  iElement;          \
  }
 
+// This descriptor follows the standard bulk data endpoint descriptor
+typedef struct
+{
+  uint8_t bLength            ; ///< Size of this descriptor in bytes (4+bNumEmbMIDIJack)
+  uint8_t bDescriptorType    ; ///< Descriptor Type, must be CS_ENDPOINT
+  uint8_t bDescriptorSubType ; ///< Descriptor SubType, must be MS_GENERAL
+  uint8_t bNumEmbMIDIJack;   ; ///< Number of embedded MIDI jacks associated with this endpoint
+  uint8_t baAssocJackID[];   ; ///< A list of associated jacks
+} midi_cs_desc_endpoint_t;
+
+
 /** @} */
 
 #ifdef __cplusplus
