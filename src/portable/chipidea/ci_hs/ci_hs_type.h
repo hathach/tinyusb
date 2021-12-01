@@ -85,49 +85,57 @@ enum {
 typedef struct
 {
   //------------- ID + HW Parameter Registers-------------//
-  __I  uint32_t TU_RESERVED[64]; ///< For iMX RT10xx, but not used by LPC18XX/LPC43XX
+  volatile uint32_t TU_RESERVED[64]; ///< For iMX RT10xx, but not used by LPC18XX/LPC43XX
 
   //------------- Capability Registers-------------//
-  __I  uint8_t  CAPLENGTH;       ///< Capability Registers Length
-  __I  uint8_t  TU_RESERVED[1];
-  __I  uint16_t HCIVERSION;      ///< Host Controller Interface Version
+  volatile uint8_t  CAPLENGTH;       ///< Capability Registers Length
+  volatile uint8_t  TU_RESERVED[1];
+  volatile uint16_t HCIVERSION;      ///< Host Controller Interface Version
 
-  __I  uint32_t HCSPARAMS;       ///< Host Controller Structural Parameters
-  __I  uint32_t HCCPARAMS;       ///< Host Controller Capability Parameters
-  __I  uint32_t TU_RESERVED[5];
+  volatile uint32_t HCSPARAMS;       ///< Host Controller Structural Parameters
+  volatile uint32_t HCCPARAMS;       ///< Host Controller Capability Parameters
+  volatile uint32_t TU_RESERVED[5];
 
-  __I  uint16_t DCIVERSION;      ///< Device Controller Interface Version
-  __I  uint8_t  TU_RESERVED[2];
+  volatile uint16_t DCIVERSION;      ///< Device Controller Interface Version
+  volatile uint8_t  TU_RESERVED[2];
 
-  __I  uint32_t DCCPARAMS;       ///< Device Controller Capability Parameters
-  __I  uint32_t TU_RESERVED[6];
+  volatile uint32_t DCCPARAMS;       ///< Device Controller Capability Parameters
+  volatile uint32_t TU_RESERVED[6];
 
   //------------- Operational Registers -------------//
-  __IO uint32_t USBCMD;          ///< USB Command Register
-  __IO uint32_t USBSTS;          ///< USB Status Register
-  __IO uint32_t USBINTR;         ///< Interrupt Enable Register
-  __IO uint32_t FRINDEX;         ///< USB Frame Index
-  __I  uint32_t TU_RESERVED;
-  __IO uint32_t DEVICEADDR;      ///< Device Address
-  __IO uint32_t ENDPTLISTADDR;   ///< Endpoint List Address
-  __I  uint32_t TU_RESERVED;
-  __IO uint32_t BURSTSIZE;       ///< Programmable Burst Size
-  __IO uint32_t TXFILLTUNING;    ///< TX FIFO Fill Tuning
-       uint32_t TU_RESERVED[4];
-  __IO uint32_t ENDPTNAK;        ///< Endpoint NAK
-  __IO uint32_t ENDPTNAKEN;      ///< Endpoint NAK Enable
-  __I  uint32_t TU_RESERVED;
-  __IO uint32_t PORTSC1;         ///< Port Status & Control
-  __I  uint32_t TU_RESERVED[7];
-  __IO uint32_t OTGSC;           ///< On-The-Go Status & control
-  __IO uint32_t USBMODE;         ///< USB Device Mode
-  __IO uint32_t ENDPTSETUPSTAT;  ///< Endpoint Setup Status
-  __IO uint32_t ENDPTPRIME;      ///< Endpoint Prime
-  __IO uint32_t ENDPTFLUSH;      ///< Endpoint Flush
-  __I  uint32_t ENDPTSTAT;       ///< Endpoint Status
-  __IO uint32_t ENDPTCOMPLETE;   ///< Endpoint Complete
-  __IO uint32_t ENDPTCTRL[8];    ///< Endpoint Control 0 - 7
-} dcd_registers_t, hcd_registers_t;
+  volatile uint32_t USBCMD;          ///< USB Command Register
+  volatile uint32_t USBSTS;          ///< USB Status Register
+  volatile uint32_t USBINTR;         ///< Interrupt Enable Register
+  volatile uint32_t FRINDEX;         ///< USB Frame Index
+  volatile uint32_t TU_RESERVED;
+  volatile uint32_t DEVICEADDR;      ///< Device Address
+  volatile uint32_t ENDPTLISTADDR;   ///< Endpoint List Address
+  volatile uint32_t TU_RESERVED;
+  volatile uint32_t BURSTSIZE;       ///< Programmable Burst Size
+  volatile uint32_t TXFILLTUNING;    ///< TX FIFO Fill Tuning
+           uint32_t TU_RESERVED[4];
+  volatile uint32_t ENDPTNAK;        ///< Endpoint NAK
+  volatile uint32_t ENDPTNAKEN;      ///< Endpoint NAK Enable
+  volatile uint32_t TU_RESERVED;
+  volatile uint32_t PORTSC1;         ///< Port Status & Control
+  volatile uint32_t TU_RESERVED[7];
+  volatile uint32_t OTGSC;           ///< On-The-Go Status & control
+  volatile uint32_t USBMODE;         ///< USB Device Mode
+  volatile uint32_t ENDPTSETUPSTAT;  ///< Endpoint Setup Status
+  volatile uint32_t ENDPTPRIME;      ///< Endpoint Prime
+  volatile uint32_t ENDPTFLUSH;      ///< Endpoint Flush
+  volatile uint32_t ENDPTSTAT;       ///< Endpoint Status
+  volatile uint32_t ENDPTCOMPLETE;   ///< Endpoint Complete
+  volatile uint32_t ENDPTCTRL[8];    ///< Endpoint Control 0 - 7
+} ci_hs_regs_t, hcd_registers_t;
+
+
+typedef struct
+{
+  ci_hs_regs_t* regs;
+  const uint32_t irqnum;
+  const uint8_t ep_count; // Max bi-directional Endpoints
+}dcd_controller_t;
 
 #ifdef __cplusplus
  }

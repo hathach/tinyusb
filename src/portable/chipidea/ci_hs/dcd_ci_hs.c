@@ -25,24 +25,23 @@
  */
 
 #include "tusb_option.h"
+#include "device/dcd_attr.h"
 
-#if TUSB_OPT_DEVICE_ENABLED && \
-    (CFG_TUSB_MCU == OPT_MCU_LPC18XX || CFG_TUSB_MCU == OPT_MCU_LPC43XX || CFG_TUSB_MCU == OPT_MCU_MIMXRT10XX)
+#if TUSB_OPT_DEVICE_ENABLED && defined(DCD_ATTR_CONTROLLER_CHIPIDEA_HS)
 
 //--------------------------------------------------------------------+
 // INCLUDE
 //--------------------------------------------------------------------+
-#if CFG_TUSB_MCU == OPT_MCU_MIMXRT10XX
-  #include "fsl_device_registers.h"
-  #define INCLUDE_FSL_DEVICE_REGISTERS
-#else
-  // LPCOpen for 18xx & 43xx
-  #include "chip.h"
-#endif
-
-#include "common/tusb_common.h"
 #include "device/dcd.h"
 #include "ci_hs_type.h"
+
+#if CFG_TUSB_MCU == OPT_MCU_MIMXRT10XX
+  #include "ci_hs_imxrt.h"
+#elif TU_CHECK_MCU(OPT_MCU_LPC18XX, OPT_MCU_LPC43XX)
+  #include "ci_hs_lpc18_43.h"
+#else
+  #error "Unsupported MCUs"
+#endif
 
 #if defined(__CORTEX_M) && __CORTEX_M == 7 && __DCACHE_PRESENT == 1
   #define CleanInvalidateDCache_by_Addr   SCB_CleanInvalidateDCache_by_Addr
@@ -144,33 +143,6 @@ TU_VERIFY_STATIC( sizeof(dcd_qhd_t) == 64, "size is not correct");
 // Variables
 //--------------------------------------------------------------------+
 
-typedef struct
-{
-  dcd_registers_t* regs;  // registers
-  const IRQn_Type irqnum; // IRQ number
-  const uint8_t ep_count; // Max bi-directional Endpoints
-}dcd_controller_t;
-
-#if CFG_TUSB_MCU == OPT_MCU_MIMXRT10XX
-  static const dcd_controller_t _dcd_controller[] =
-  {
-    // RT1010 and RT1020 only has 1 USB controller
-    #if FSL_FEATURE_SOC_USBHS_COUNT == 1
-      { .regs = (dcd_registers_t*) USB_BASE , .irqnum = USB_OTG1_IRQn, .ep_count = 8 }
-    #else
-      { .regs = (dcd_registers_t*) USB1_BASE, .irqnum = USB_OTG1_IRQn, .ep_count = 8 },
-      { .regs = (dcd_registers_t*) USB2_BASE, .irqnum = USB_OTG2_IRQn, .ep_count = 8 }
-    #endif
-  };
-
-#else
-  static const dcd_controller_t _dcd_controller[] =
-  {
-    { .regs = (dcd_registers_t*) LPC_USB0_BASE, .irqnum = USB0_IRQn, .ep_count = 6 },
-    { .regs = (dcd_registers_t*) LPC_USB1_BASE, .irqnum = USB1_IRQn, .ep_count = 4 }
-  };
-#endif
-
 #define QTD_NEXT_INVALID 0x01
 
 typedef struct {
@@ -191,7 +163,7 @@ static dcd_data_t _dcd_data;
 /// follows LPC43xx User Manual 23.10.3
 static void bus_reset(uint8_t rhport)
 {
-  dcd_registers_t* dcd_reg = _dcd_controller[rhport].regs;
+  ci_hs_regs_t* dcd_reg = _dcd_controller[rhport].regs;
 
   // The reset value for all endpoint types is the control endpoint. If one endpoint
   // direction is enabled and the paired endpoint of opposite direction is disabled, then the
@@ -231,7 +203,7 @@ void dcd_init(uint8_t rhport)
 {
   tu_memclr(&_dcd_data, sizeof(dcd_data_t));
 
-  dcd_registers_t* dcd_reg = _dcd_controller[rhport].regs;
+  ci_hs_regs_t* dcd_reg = _dcd_controller[rhport].regs;
 
   // Reset controller
   dcd_reg->USBCMD |= USBCMD_RESET;
@@ -255,40 +227,30 @@ void dcd_init(uint8_t rhport)
   dcd_reg->USBCMD |= USBCMD_RUN_STOP; // Connect
 }
 
-void dcd_int_enable(uint8_t rhport)
-{
-  NVIC_EnableIRQ(_dcd_controller[rhport].irqnum);
-}
-
-void dcd_int_disable(uint8_t rhport)
-{
-  NVIC_DisableIRQ(_dcd_controller[rhport].irqnum);
-}
-
 void dcd_set_address(uint8_t rhport, uint8_t dev_addr)
 {
   // Response with status first before changing device address
   dcd_edpt_xfer(rhport, tu_edpt_addr(0, TUSB_DIR_IN), NULL, 0);
 
-  dcd_registers_t* dcd_reg = _dcd_controller[rhport].regs;
+  ci_hs_regs_t* dcd_reg = _dcd_controller[rhport].regs;
   dcd_reg->DEVICEADDR = (dev_addr << 25) | TU_BIT(24);
 }
 
 void dcd_remote_wakeup(uint8_t rhport)
 {
-  dcd_registers_t* dcd_reg = _dcd_controller[rhport].regs;
+  ci_hs_regs_t* dcd_reg = _dcd_controller[rhport].regs;
   dcd_reg->PORTSC1 |= PORTSC1_FORCE_PORT_RESUME;
 }
 
 void dcd_connect(uint8_t rhport)
 {
-  dcd_registers_t* dcd_reg = _dcd_controller[rhport].regs;
+  ci_hs_regs_t* dcd_reg = _dcd_controller[rhport].regs;
   dcd_reg->USBCMD |= USBCMD_RUN_STOP;
 }
 
 void dcd_disconnect(uint8_t rhport)
 {
-  dcd_registers_t* dcd_reg = _dcd_controller[rhport].regs;
+  ci_hs_regs_t* dcd_reg = _dcd_controller[rhport].regs;
   dcd_reg->USBCMD &= ~USBCMD_RUN_STOP;
 }
 
@@ -334,7 +296,7 @@ void dcd_edpt_stall(uint8_t rhport, uint8_t ep_addr)
   uint8_t const epnum  = tu_edpt_number(ep_addr);
   uint8_t const dir    = tu_edpt_dir(ep_addr);
 
-  dcd_registers_t* dcd_reg = _dcd_controller[rhport].regs;
+  ci_hs_regs_t* dcd_reg = _dcd_controller[rhport].regs;
   dcd_reg->ENDPTCTRL[epnum] |= ENDPTCTRL_STALL << (dir ? 16 : 0);
 
   // flush to abort any primed buffer
@@ -347,7 +309,7 @@ void dcd_edpt_clear_stall(uint8_t rhport, uint8_t ep_addr)
   uint8_t const dir   = tu_edpt_dir(ep_addr);
 
   // data toggle also need to be reset
-  dcd_registers_t* dcd_reg = _dcd_controller[rhport].regs;
+  ci_hs_regs_t* dcd_reg = _dcd_controller[rhport].regs;
   dcd_reg->ENDPTCTRL[epnum] |= ENDPTCTRL_TOGGLE_RESET << ( dir ? 16 : 0 );
   dcd_reg->ENDPTCTRL[epnum] &= ~(ENDPTCTRL_STALL << ( dir  ? 16 : 0));
 }
@@ -376,7 +338,7 @@ bool dcd_edpt_open(uint8_t rhport, tusb_desc_endpoint_t const * p_endpoint_desc)
   CleanInvalidateDCache_by_Addr((uint32_t*) &_dcd_data, sizeof(dcd_data_t));
 
   // Enable EP Control
-  dcd_registers_t* dcd_reg = _dcd_controller[rhport].regs;
+  ci_hs_regs_t* dcd_reg = _dcd_controller[rhport].regs;
 
   uint32_t const epctrl = (p_endpoint_desc->bmAttributes.xfer << ENDPTCTRL_TYPE_POS) | ENDPTCTRL_ENABLE | ENDPTCTRL_TOGGLE_RESET;
 
@@ -393,7 +355,7 @@ bool dcd_edpt_open(uint8_t rhport, tusb_desc_endpoint_t const * p_endpoint_desc)
 
 void dcd_edpt_close_all (uint8_t rhport)
 {
-  dcd_registers_t* dcd_reg = _dcd_controller[rhport].regs;
+  ci_hs_regs_t* dcd_reg = _dcd_controller[rhport].regs;
 
   // Disable all non-control endpoints
   for( uint8_t epnum=1; epnum < _dcd_controller[rhport].ep_count; epnum++)
@@ -411,7 +373,7 @@ void dcd_edpt_close(uint8_t rhport, uint8_t ep_addr)
   uint8_t const epnum  = tu_edpt_number(ep_addr);
   uint8_t const dir    = tu_edpt_dir(ep_addr);
 
-  dcd_registers_t* dcd_reg = _dcd_controller[rhport].regs;
+  ci_hs_regs_t* dcd_reg = _dcd_controller[rhport].regs;
 
   _dcd_data.qhd[epnum][dir].qtd_overlay.halted = 1;
 
@@ -426,7 +388,7 @@ void dcd_edpt_close(uint8_t rhport, uint8_t ep_addr)
 
 static void qhd_start_xfer(uint8_t rhport, uint8_t epnum, uint8_t dir)
 {
-  dcd_registers_t* dcd_reg = _dcd_controller[rhport].regs;
+  ci_hs_regs_t* dcd_reg = _dcd_controller[rhport].regs;
   dcd_qhd_t* p_qhd = &_dcd_data.qhd[epnum][dir];
   dcd_qtd_t* p_qtd = &_dcd_data.qtd[epnum][dir];
 
@@ -542,7 +504,7 @@ static void process_edpt_complete_isr(uint8_t rhport, uint8_t epnum, uint8_t dir
 
   if ( result != XFER_RESULT_SUCCESS )
   {
-    dcd_registers_t* dcd_reg = _dcd_controller[rhport].regs;
+    ci_hs_regs_t* dcd_reg = _dcd_controller[rhport].regs;
     // flush to abort error buffer
     dcd_reg->ENDPTFLUSH = TU_BIT(epnum + (dir ? 16 : 0));
   }
@@ -566,7 +528,7 @@ static void process_edpt_complete_isr(uint8_t rhport, uint8_t epnum, uint8_t dir
 
 void dcd_int_handler(uint8_t rhport)
 {
-  dcd_registers_t* dcd_reg = _dcd_controller[rhport].regs;
+  ci_hs_regs_t* dcd_reg = _dcd_controller[rhport].regs;
 
   uint32_t const int_enable = dcd_reg->USBINTR;
   uint32_t const int_status = dcd_reg->USBSTS & int_enable;
