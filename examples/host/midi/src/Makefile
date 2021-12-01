@@ -1,0 +1,27 @@
+include ../../../tools/top.mk
+include ../../make.mk
+
+INC += \
+	src \
+	$(TOP)/hw \
+
+# Example source
+EXAMPLE_SOURCE += $(wildcard src/*.c)
+SRC_C += $(addprefix $(CURRENT_PATH)/, $(EXAMPLE_SOURCE))
+
+# TODO: suppress warning caused by host stack
+CFLAGS += -Wno-error=cast-align -Wno-error=null-dereference
+
+# TinyUSB Host Stack source
+SRC_C += \
+	src/class/midi/midi_host.c \
+	src/host/hub.c \
+	src/host/usbh.c \
+	src/host/usbh_control.c \
+	src/portable/ehci/ehci.c \
+	src/portable/ohci/ohci.c \
+	src/portable/nxp/transdimension/hcd_transdimension.c \
+	src/portable/nxp/lpc17_40/hcd_lpc17_40.c \
+	src/portable/raspberrypi/rp2040/hcd_rp2040.c
+
+include ../../rules.mk
