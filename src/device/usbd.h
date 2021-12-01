@@ -311,7 +311,7 @@ TU_ATTR_WEAK bool tud_vendor_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb
   /* Endpoint: Note Audio v1.0's endpoint has 9 bytes instead of 7 */\
   9, TUSB_DESC_ENDPOINT, _epout, TUSB_XFER_BULK, U16_TO_U8S_LE(_epsize), 0, 0, 0, \
   /* MS Endpoint (connected to embedded jack) */\
-  (uint8_t)(4 + (_numcables)), TUSB_DESC_CS_ENDPOINT, MIDI_CS_ENDPOINT_GENERAL, _numcables
+  (uint8_t)(4 + (_numcables)), TUSB_DESC_CS_ENDPOINT, MIDI_MS_ENDPOINT_GENERAL, _numcables
 
 // Length of template descriptor (88 bytes)
 #define TUD_MIDI_DESC_LEN (TUD_MIDI_DESC_HEAD_LEN + TUD_MIDI_DESC_JACK_LEN + TUD_MIDI_DESC_EP_LEN(1) * 2)

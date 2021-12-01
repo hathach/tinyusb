@@ -52,8 +52,8 @@ typedef enum
 
 typedef enum
 {
-  MIDI_CS_ENDPOINT_GENERAL = 0x01
-} midi_cs_endpoint_subtype_t;
+  MIDI_MS_ENDPOINT_GENERAL = 0x01
+} midi_ms_endpoint_subtype_t;
 
 typedef enum
 {
