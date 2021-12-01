@@ -18,7 +18,9 @@ CFLAGS += -Wno-error=unused-parameter -Wno-error=strict-prototypes -Wno-error=ca
 MCU_DIR = hw/mcu/nxp/lpcopen/lpc18xx/lpc_chip_18xx
 
 SRC_C += \
-	src/portable/nxp/transdimension/dcd_transdimension.c \
+	src/portable/chipidea/ci_hs/dcd_ci_hs.c \
+	src/portable/chipidea/ci_hs/hcd_ci_hs.c \
+	src/portable/ehci/ehci.c \
 	$(MCU_DIR)/../gcc/cr_startup_lpc18xx.c \
 	$(MCU_DIR)/src/chip_18xx_43xx.c \
 	$(MCU_DIR)/src/clock_18xx_43xx.c \

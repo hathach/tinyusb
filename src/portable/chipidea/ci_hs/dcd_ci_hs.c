@@ -29,8 +29,6 @@
 #if TUSB_OPT_DEVICE_ENABLED && \
     (CFG_TUSB_MCU == OPT_MCU_LPC18XX || CFG_TUSB_MCU == OPT_MCU_LPC43XX || CFG_TUSB_MCU == OPT_MCU_MIMXRT10XX)
 
-#warning "transdimenion is renamed to chipidea (portable/chipidea/ci_hs) to match other opensource naming convention such as linux. This file will be removed in the future, please update your makefile accordingly"
-
 //--------------------------------------------------------------------+
 // INCLUDE
 //--------------------------------------------------------------------+
@@ -44,7 +42,7 @@
 
 #include "common/tusb_common.h"
 #include "device/dcd.h"
-#include "common_transdimension.h"
+#include "ci_hs_type.h"
 
 #if defined(__CORTEX_M) && __CORTEX_M == 7 && __DCACHE_PRESENT == 1
   #define CleanInvalidateDCache_by_Addr   SCB_CleanInvalidateDCache_by_Addr
