@@ -27,10 +27,6 @@
 #ifndef _CI_HS_IMXRT_H_
 #define _CI_HS_IMXRT_H_
 
-#ifdef __cplusplus
- extern "C" {
-#endif
-
 #include "fsl_device_registers.h"
 
 static const ci_hs_controller_t _ci_controller[] =
@@ -44,18 +40,11 @@ static const ci_hs_controller_t _ci_controller[] =
   #endif
 };
 
-void dcd_int_enable(uint8_t rhport)
-{
-  NVIC_EnableIRQ(_ci_controller[rhport].irqnum);
-}
+#define CI_DCD_INT_ENABLE(_p)   NVIC_EnableIRQ (_ci_controller[_p].irqnum)
+#define CI_DCD_INT_DISABLE(_p)  NVIC_DisableIRQ(_ci_controller[_p].irqnum)
 
-void dcd_int_disable(uint8_t rhport)
-{
-  NVIC_DisableIRQ(_ci_controller[rhport].irqnum);
-}
+#define CI_HCD_INT_ENABLE(_p)   NVIC_EnableIRQ (_ci_controller[_p].irqnum)
+#define CI_HCD_INT_DISABLE(_p)  NVIC_DisableIRQ(_ci_controller[_p].irqnum)
 
-#ifdef __cplusplus
- }
-#endif
 
 #endif

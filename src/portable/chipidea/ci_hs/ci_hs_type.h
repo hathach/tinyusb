@@ -127,7 +127,7 @@ typedef struct
   volatile uint32_t ENDPTSTAT;       ///< Endpoint Status
   volatile uint32_t ENDPTCOMPLETE;   ///< Endpoint Complete
   volatile uint32_t ENDPTCTRL[8];    ///< Endpoint Control 0 - 7
-} ci_hs_regs_t, hcd_registers_t;
+} ci_hs_regs_t;
 
 
 typedef struct

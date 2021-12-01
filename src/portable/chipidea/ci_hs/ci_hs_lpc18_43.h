@@ -27,10 +27,6 @@
 #ifndef _CI_HS_LPC18_43_H_
 #define _CI_HS_LPC18_43_H_
 
-#ifdef __cplusplus
- extern "C" {
-#endif
-
 // LPCOpen for 18xx & 43xx
 #include "chip.h"
 
@@ -40,18 +36,10 @@ static const ci_hs_controller_t _ci_controller[] =
   { .reg_base = LPC_USB1_BASE, .irqnum = USB1_IRQn, .ep_count = 4 }
 };
 
-void dcd_int_enable(uint8_t rhport)
-{
-  NVIC_EnableIRQ(_ci_controller[rhport].irqnum);
-}
+#define CI_DCD_INT_ENABLE(_p)   NVIC_EnableIRQ (_ci_controller[_p].irqnum)
+#define CI_DCD_INT_DISABLE(_p)  NVIC_DisableIRQ(_ci_controller[_p].irqnum)
 
-void dcd_int_disable(uint8_t rhport)
-{
-  NVIC_DisableIRQ(_ci_controller[rhport].irqnum);
-}
-
-#ifdef __cplusplus
- }
-#endif
+#define CI_HCD_INT_ENABLE(_p)   NVIC_EnableIRQ (_ci_controller[_p].irqnum)
+#define CI_HCD_INT_DISABLE(_p)  NVIC_DisableIRQ(_ci_controller[_p].irqnum)
 
 #endif

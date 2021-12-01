@@ -34,47 +34,23 @@
 //--------------------------------------------------------------------+
 // INCLUDE
 //--------------------------------------------------------------------+
-#if CFG_TUSB_MCU == OPT_MCU_MIMXRT10XX
-  #include "fsl_device_registers.h"
-#else
-  // LPCOpen for 18xx & 43xx
-  #include "chip.h"
-#endif
-
 #include "common/tusb_common.h"
-#include "ci_hs_type.h"
 #include "portable/ehci/ehci_api.h"
+#include "ci_hs_type.h"
+
+#if CFG_TUSB_MCU == OPT_MCU_MIMXRT10XX
+  #include "ci_hs_imxrt.h"
+#elif TU_CHECK_MCU(OPT_MCU_LPC18XX, OPT_MCU_LPC43XX)
+  #include "ci_hs_lpc18_43.h"
+#else
+  #error "Unsupported MCUs"
+#endif
 
 //--------------------------------------------------------------------+
 // MACRO CONSTANT TYPEDEF
 //--------------------------------------------------------------------+
 
-// TODO can be merged with dcd_controller_t
-typedef struct
-{
-  uint32_t regs_base;     // registers base
-  const IRQn_Type irqnum; // IRQ number
-}hcd_controller_t;
-
-#if CFG_TUSB_MCU == OPT_MCU_MIMXRT10XX
-  static const hcd_controller_t _hcd_controller[] =
-  {
-    // RT1010 and RT1020 only has 1 USB controller
-    #if FSL_FEATURE_SOC_USBHS_COUNT == 1
-      { .regs_base = USB_BASE , .irqnum = USB_OTG1_IRQn }
-    #else
-      { .regs_base = USB1_BASE, .irqnum = USB_OTG1_IRQn },
-      { .regs_base = USB2_BASE, .irqnum = USB_OTG2_IRQn }
-    #endif
-  };
-
-#else
-  static const hcd_controller_t _hcd_controller[] =
-  {
-    { .regs_base = LPC_USB0_BASE, .irqnum = USB0_IRQn },
-    { .regs_base = LPC_USB1_BASE, .irqnum = USB1_IRQn }
-  };
-#endif
+#define CI_HS_REG(_port)      ((ci_hs_regs_t*) _ci_controller[_port].reg_base)
 
 //--------------------------------------------------------------------+
 // Controller API
@@ -82,7 +58,7 @@ typedef struct
 
 bool hcd_init(uint8_t rhport)
 {
-  hcd_registers_t* hcd_reg = (hcd_registers_t*) _hcd_controller[rhport].regs_base;
+  ci_hs_regs_t* hcd_reg = CI_HS_REG(rhport);
 
   // Reset controller
   hcd_reg->USBCMD |= USBCMD_RESET;
@@ -106,12 +82,12 @@ bool hcd_init(uint8_t rhport)
 
 void hcd_int_enable(uint8_t rhport)
 {
-  NVIC_EnableIRQ(_hcd_controller[rhport].irqnum);
+  CI_HCD_INT_ENABLE(rhport);
 }
 
 void hcd_int_disable(uint8_t rhport)
 {
-  NVIC_DisableIRQ(_hcd_controller[rhport].irqnum);
+  CI_HCD_INT_DISABLE(rhport);
 }
 
 #endif

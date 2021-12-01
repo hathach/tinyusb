@@ -43,6 +43,9 @@
   #error "Unsupported MCUs"
 #endif
 
+//--------------------------------------------------------------------+
+// MACRO CONSTANT TYPEDEF
+//--------------------------------------------------------------------+
 
 #define CI_HS_REG(_port)      ((ci_hs_regs_t*) _ci_controller[_port].reg_base)
 
@@ -52,9 +55,6 @@
   #define CleanInvalidateDCache_by_Addr(_addr, _dsize)
 #endif
 
-//--------------------------------------------------------------------+
-// MACRO CONSTANT TYPEDEF
-//--------------------------------------------------------------------+
 
 // ENDPTCTRL
 enum {
@@ -228,6 +228,16 @@ void dcd_init(uint8_t rhport)
 
   dcd_reg->USBCMD &= ~0x00FF0000;     // Interrupt Threshold Interval = 0
   dcd_reg->USBCMD |= USBCMD_RUN_STOP; // Connect
+}
+
+void dcd_int_enable(uint8_t rhport)
+{
+  CI_DCD_INT_ENABLE(rhport);
+}
+
+void dcd_int_disable(uint8_t rhport)
+{
+  CI_DCD_INT_DISABLE(rhport);
 }
 
 void dcd_set_address(uint8_t rhport, uint8_t dev_addr)
