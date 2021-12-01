@@ -132,10 +132,10 @@ typedef struct
 
 typedef struct
 {
-  ci_hs_regs_t* regs;
-  const uint32_t irqnum;
-  const uint8_t ep_count; // Max bi-directional Endpoints
-}dcd_controller_t;
+  uint32_t reg_base;
+  uint32_t irqnum;
+  uint8_t  ep_count; // Max bi-directional Endpoints
+}ci_hs_controller_t;
 
 #ifdef __cplusplus
  }

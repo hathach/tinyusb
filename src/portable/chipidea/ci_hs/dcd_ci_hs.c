@@ -43,6 +43,9 @@
   #error "Unsupported MCUs"
 #endif
 
+
+#define CI_HS_REG(_port)      ((ci_hs_regs_t*) _ci_controller[_port].reg_base)
+
 #if defined(__CORTEX_M) && __CORTEX_M == 7 && __DCACHE_PRESENT == 1
   #define CleanInvalidateDCache_by_Addr   SCB_CleanInvalidateDCache_by_Addr
 #else
@@ -163,14 +166,14 @@ static dcd_data_t _dcd_data;
 /// follows LPC43xx User Manual 23.10.3
 static void bus_reset(uint8_t rhport)
 {
-  ci_hs_regs_t* dcd_reg = _dcd_controller[rhport].regs;
+  ci_hs_regs_t* dcd_reg = CI_HS_REG(rhport);
 
   // The reset value for all endpoint types is the control endpoint. If one endpoint
   // direction is enabled and the paired endpoint of opposite direction is disabled, then the
   // endpoint type of the unused direction must be changed from the control type to any other
   // type (e.g. bulk). Leaving an un-configured endpoint control will cause undefined behavior
   // for the data PID tracking on the active endpoint.
-  for( uint8_t i=1; i < _dcd_controller[rhport].ep_count; i++)
+  for( uint8_t i=1; i < _ci_controller[rhport].ep_count; i++)
   {
     dcd_reg->ENDPTCTRL[i] = (TUSB_XFER_BULK << ENDPTCTRL_TYPE_POS) | (TUSB_XFER_BULK << (16+ENDPTCTRL_TYPE_POS));
   }
@@ -203,7 +206,7 @@ void dcd_init(uint8_t rhport)
 {
   tu_memclr(&_dcd_data, sizeof(dcd_data_t));
 
-  ci_hs_regs_t* dcd_reg = _dcd_controller[rhport].regs;
+  ci_hs_regs_t* dcd_reg = CI_HS_REG(rhport);
 
   // Reset controller
   dcd_reg->USBCMD |= USBCMD_RESET;
@@ -232,25 +235,25 @@ void dcd_set_address(uint8_t rhport, uint8_t dev_addr)
   // Response with status first before changing device address
   dcd_edpt_xfer(rhport, tu_edpt_addr(0, TUSB_DIR_IN), NULL, 0);
 
-  ci_hs_regs_t* dcd_reg = _dcd_controller[rhport].regs;
+  ci_hs_regs_t* dcd_reg = CI_HS_REG(rhport);
   dcd_reg->DEVICEADDR = (dev_addr << 25) | TU_BIT(24);
 }
 
 void dcd_remote_wakeup(uint8_t rhport)
 {
-  ci_hs_regs_t* dcd_reg = _dcd_controller[rhport].regs;
+  ci_hs_regs_t* dcd_reg = CI_HS_REG(rhport);
   dcd_reg->PORTSC1 |= PORTSC1_FORCE_PORT_RESUME;
 }
 
 void dcd_connect(uint8_t rhport)
 {
-  ci_hs_regs_t* dcd_reg = _dcd_controller[rhport].regs;
+  ci_hs_regs_t* dcd_reg = CI_HS_REG(rhport);
   dcd_reg->USBCMD |= USBCMD_RUN_STOP;
 }
 
 void dcd_disconnect(uint8_t rhport)
 {
-  ci_hs_regs_t* dcd_reg = _dcd_controller[rhport].regs;
+  ci_hs_regs_t* dcd_reg = CI_HS_REG(rhport);
   dcd_reg->USBCMD &= ~USBCMD_RUN_STOP;
 }
 
@@ -296,7 +299,7 @@ void dcd_edpt_stall(uint8_t rhport, uint8_t ep_addr)
   uint8_t const epnum  = tu_edpt_number(ep_addr);
   uint8_t const dir    = tu_edpt_dir(ep_addr);
 
-  ci_hs_regs_t* dcd_reg = _dcd_controller[rhport].regs;
+  ci_hs_regs_t* dcd_reg = CI_HS_REG(rhport);
   dcd_reg->ENDPTCTRL[epnum] |= ENDPTCTRL_STALL << (dir ? 16 : 0);
 
   // flush to abort any primed buffer
@@ -309,7 +312,7 @@ void dcd_edpt_clear_stall(uint8_t rhport, uint8_t ep_addr)
   uint8_t const dir   = tu_edpt_dir(ep_addr);
 
   // data toggle also need to be reset
-  ci_hs_regs_t* dcd_reg = _dcd_controller[rhport].regs;
+  ci_hs_regs_t* dcd_reg = CI_HS_REG(rhport);
   dcd_reg->ENDPTCTRL[epnum] |= ENDPTCTRL_TOGGLE_RESET << ( dir ? 16 : 0 );
   dcd_reg->ENDPTCTRL[epnum] &= ~(ENDPTCTRL_STALL << ( dir  ? 16 : 0));
 }
@@ -320,7 +323,7 @@ bool dcd_edpt_open(uint8_t rhport, tusb_desc_endpoint_t const * p_endpoint_desc)
   uint8_t const dir   = tu_edpt_dir(p_endpoint_desc->bEndpointAddress);
 
   // Must not exceed max endpoint number
-  TU_ASSERT( epnum < _dcd_controller[rhport].ep_count );
+  TU_ASSERT( epnum < _ci_controller[rhport].ep_count );
 
   //------------- Prepare Queue Head -------------//
   dcd_qhd_t * p_qhd = &_dcd_data.qhd[epnum][dir];
@@ -338,7 +341,7 @@ bool dcd_edpt_open(uint8_t rhport, tusb_desc_endpoint_t const * p_endpoint_desc)
   CleanInvalidateDCache_by_Addr((uint32_t*) &_dcd_data, sizeof(dcd_data_t));
 
   // Enable EP Control
-  ci_hs_regs_t* dcd_reg = _dcd_controller[rhport].regs;
+  ci_hs_regs_t* dcd_reg = CI_HS_REG(rhport);
 
   uint32_t const epctrl = (p_endpoint_desc->bmAttributes.xfer << ENDPTCTRL_TYPE_POS) | ENDPTCTRL_ENABLE | ENDPTCTRL_TOGGLE_RESET;
 
@@ -355,10 +358,10 @@ bool dcd_edpt_open(uint8_t rhport, tusb_desc_endpoint_t const * p_endpoint_desc)
 
 void dcd_edpt_close_all (uint8_t rhport)
 {
-  ci_hs_regs_t* dcd_reg = _dcd_controller[rhport].regs;
+  ci_hs_regs_t* dcd_reg = CI_HS_REG(rhport);
 
   // Disable all non-control endpoints
-  for( uint8_t epnum=1; epnum < _dcd_controller[rhport].ep_count; epnum++)
+  for( uint8_t epnum=1; epnum < _ci_controller[rhport].ep_count; epnum++)
   {
     _dcd_data.qhd[epnum][TUSB_DIR_OUT].qtd_overlay.halted = 1;
     _dcd_data.qhd[epnum][TUSB_DIR_IN ].qtd_overlay.halted = 1;
@@ -373,7 +376,7 @@ void dcd_edpt_close(uint8_t rhport, uint8_t ep_addr)
   uint8_t const epnum  = tu_edpt_number(ep_addr);
   uint8_t const dir    = tu_edpt_dir(ep_addr);
 
-  ci_hs_regs_t* dcd_reg = _dcd_controller[rhport].regs;
+  ci_hs_regs_t* dcd_reg = CI_HS_REG(rhport);
 
   _dcd_data.qhd[epnum][dir].qtd_overlay.halted = 1;
 
@@ -388,7 +391,7 @@ void dcd_edpt_close(uint8_t rhport, uint8_t ep_addr)
 
 static void qhd_start_xfer(uint8_t rhport, uint8_t epnum, uint8_t dir)
 {
-  ci_hs_regs_t* dcd_reg = _dcd_controller[rhport].regs;
+  ci_hs_regs_t* dcd_reg = CI_HS_REG(rhport);
   dcd_qhd_t* p_qhd = &_dcd_data.qhd[epnum][dir];
   dcd_qtd_t* p_qtd = &_dcd_data.qtd[epnum][dir];
 
@@ -504,7 +507,7 @@ static void process_edpt_complete_isr(uint8_t rhport, uint8_t epnum, uint8_t dir
 
   if ( result != XFER_RESULT_SUCCESS )
   {
-    ci_hs_regs_t* dcd_reg = _dcd_controller[rhport].regs;
+    ci_hs_regs_t* dcd_reg = CI_HS_REG(rhport);
     // flush to abort error buffer
     dcd_reg->ENDPTFLUSH = TU_BIT(epnum + (dir ? 16 : 0));
   }
@@ -528,7 +531,7 @@ static void process_edpt_complete_isr(uint8_t rhport, uint8_t epnum, uint8_t dir
 
 void dcd_int_handler(uint8_t rhport)
 {
-  ci_hs_regs_t* dcd_reg = _dcd_controller[rhport].regs;
+  ci_hs_regs_t* dcd_reg = CI_HS_REG(rhport);
 
   uint32_t const int_enable = dcd_reg->USBINTR;
   uint32_t const int_status = dcd_reg->USBSTS & int_enable;

@@ -34,20 +34,20 @@
 // LPCOpen for 18xx & 43xx
 #include "chip.h"
 
-static const dcd_controller_t _dcd_controller[] =
+static const ci_hs_controller_t _ci_controller[] =
 {
-  { .regs = (ci_hs_regs_t*) LPC_USB0_BASE, .irqnum = USB0_IRQn, .ep_count = 6 },
-  { .regs = (ci_hs_regs_t*) LPC_USB1_BASE, .irqnum = USB1_IRQn, .ep_count = 4 }
+  { .reg_base = LPC_USB0_BASE, .irqnum = USB0_IRQn, .ep_count = 6 },
+  { .reg_base = LPC_USB1_BASE, .irqnum = USB1_IRQn, .ep_count = 4 }
 };
 
 void dcd_int_enable(uint8_t rhport)
 {
-  NVIC_EnableIRQ(_dcd_controller[rhport].irqnum);
+  NVIC_EnableIRQ(_ci_controller[rhport].irqnum);
 }
 
 void dcd_int_disable(uint8_t rhport)
 {
-  NVIC_DisableIRQ(_dcd_controller[rhport].irqnum);
+  NVIC_DisableIRQ(_ci_controller[rhport].irqnum);
 }
 
 #ifdef __cplusplus

@@ -33,25 +33,25 @@
 
 #include "fsl_device_registers.h"
 
-static const dcd_controller_t _dcd_controller[] =
+static const ci_hs_controller_t _ci_controller[] =
 {
   // RT1010 and RT1020 only has 1 USB controller
   #if FSL_FEATURE_SOC_USBHS_COUNT == 1
-    { .regs = (ci_hs_regs_t*) USB_BASE , .irqnum = USB_OTG1_IRQn, .ep_count = 8 }
+    { .reg_base = USB_BASE , .irqnum = USB_OTG1_IRQn, .ep_count = 8 }
   #else
-    { .regs = (ci_hs_regs_t*) USB1_BASE, .irqnum = USB_OTG1_IRQn, .ep_count = 8 },
-    { .regs = (ci_hs_regs_t*) USB2_BASE, .irqnum = USB_OTG2_IRQn, .ep_count = 8 }
+    { .reg_base = USB1_BASE, .irqnum = USB_OTG1_IRQn, .ep_count = 8 },
+    { .reg_base = USB2_BASE, .irqnum = USB_OTG2_IRQn, .ep_count = 8 }
   #endif
 };
 
 void dcd_int_enable(uint8_t rhport)
 {
-  NVIC_EnableIRQ(_dcd_controller[rhport].irqnum);
+  NVIC_EnableIRQ(_ci_controller[rhport].irqnum);
 }
 
 void dcd_int_disable(uint8_t rhport)
 {
-  NVIC_DisableIRQ(_dcd_controller[rhport].irqnum);
+  NVIC_DisableIRQ(_ci_controller[rhport].irqnum);
 }
 
 #ifdef __cplusplus
