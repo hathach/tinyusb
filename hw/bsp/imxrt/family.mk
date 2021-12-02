@@ -28,7 +28,9 @@ LDFLAGS += \
 	-Wl,--defsym,__stack_size__=0x800 \
 
 SRC_C += \
-	src/portable/nxp/transdimension/dcd_transdimension.c \
+	src/portable/chipidea/ci_hs/dcd_ci_hs.c \
+	src/portable/chipidea/ci_hs/hcd_ci_hs.c \
+	src/portable/ehci/ehci.c \
 	$(MCU_DIR)/system_$(MCU_VARIANT).c \
 	$(MCU_DIR)/xip/fsl_flexspi_nor_boot.c \
 	$(MCU_DIR)/project_template/clock_config.c \
