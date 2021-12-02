@@ -21,7 +21,6 @@ extensions = [
     'sphinx.ext.intersphinx',
     'sphinx.ext.todo',
     'sphinx_autodoc_typehints',
-    'sphinxemoji.sphinxemoji',
 ]
 
 templates_path = ['_templates']
