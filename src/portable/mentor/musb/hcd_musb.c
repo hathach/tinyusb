@@ -269,12 +269,12 @@ static void pipe_read_packet(void *buf, volatile void *fifo, unsigned len)
     len  -= 4;
   }
   if (len >= 2) {
-    *(uint32_t *)addr = reg->u16;
+    *(uint16_t *)addr = reg->u16;
     addr += 2;
     len  -= 2;
   }
   if (len) {
-    *(uint32_t *)addr = reg->u8;
+    *(uint8_t *)addr = reg->u8;
   }
 }
 
