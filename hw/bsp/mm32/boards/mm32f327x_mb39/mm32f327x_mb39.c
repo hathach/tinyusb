@@ -29,6 +29,10 @@
 #include "tusb.h"
 #include "../board.h"
 
+#define BUTTON_PORT         GPIOB
+#define BUTTON_PIN          GPIO_Pin_1
+#define BUTTON_STATE_ACTIVE 1
+
 //--------------------------------------------------------------------+
 // Forward USB interrupt events to TinyUSB IRQ Handler
 //--------------------------------------------------------------------+
@@ -37,16 +41,7 @@ void OTG_FS_IRQHandler (void)
   tud_int_handler(0);
 
 }
-void USB_DeviceClockInit (void)
-{
-  /* Select USBCLK source */
-  //  RCC_USBCLKConfig(RCC_USBCLKSource_PLLCLK_Div1);
-  RCC->CFGR &= ~(0x3 << 22);
-  RCC->CFGR |= (0x1 << 22);
 
-  /* Enable USB clock */
-  RCC->AHB2ENR |= 0x1 << 7;
-}
 //--------------------------------------------------------------------+
 // MACRO TYPEDEF CONSTANT ENUM DECLARATION
 //--------------------------------------------------------------------+
@@ -58,49 +53,48 @@ const int baudrate = 115200;
 
 void board_init (void)
 {
-//   usb clock	
-  USB_DeviceClockInit();
+  // GPIO & UART clock
+  RCC_AHBPeriphClockCmd(RCC_AHBENR_GPIOA, ENABLE);
+  RCC_AHBPeriphClockCmd(RCC_AHBENR_GPIOB, ENABLE);
+  RCC_APB2PeriphClockCmd(RCC_APB2ENR_UART1, ENABLE);
 
-  if ( SysTick_Config(SystemCoreClock / 1000) )
-  {
-    while ( 1 )
-      ;
-  }
+  SysTick_Config(SystemCoreClock / 1000);
   NVIC_SetPriority(SysTick_IRQn, 0x0);
 
   // LED
   GPIO_InitTypeDef GPIO_InitStruct;
-  RCC_AHBPeriphClockCmd(RCC_AHBENR_GPIOA, ENABLE);
-  GPIO_StructInit(&GPIO_InitStruct);
-  GPIO_PinAFConfig(GPIOA, GPIO_PinSource15, GPIO_AF_15);                      //Disable JTDI   AF to  AF15
 
-  GPIO_InitStruct.GPIO_Pin = GPIO_Pin_15;
+  GPIO_StructInit(&GPIO_InitStruct);
+  GPIO_PinAFConfig(GPIOA, GPIO_PinSource15, GPIO_AF_15); // Disable JTDI   AF to  AF15
+  GPIO_InitStruct.GPIO_Pin   = GPIO_Pin_15;
   GPIO_InitStruct.GPIO_Speed = GPIO_Speed_50MHz;
-  GPIO_InitStruct.GPIO_Mode = GPIO_Mode_Out_PP;
+  GPIO_InitStruct.GPIO_Mode  = GPIO_Mode_Out_PP;
   GPIO_Init(GPIOA, &GPIO_InitStruct);
 
   board_led_write(true);
 
+  // Button
+  GPIO_StructInit(&GPIO_InitStruct);
+  GPIO_InitStruct.GPIO_Pin   = BUTTON_PIN;
+  GPIO_InitStruct.GPIO_Speed = GPIO_Speed_50MHz;
+  GPIO_InitStruct.GPIO_Mode  = GPIO_Mode_IPD;
+  GPIO_Init(BUTTON_PORT, &GPIO_InitStruct);
+
   // UART
   UART_InitTypeDef UART_InitStruct;
-
-  RCC_APB2PeriphClockCmd(RCC_APB2ENR_UART1, ENABLE);    //enableUART1,GPIOAclock
-  RCC_AHBPeriphClockCmd(RCC_AHBENR_GPIOA, ENABLE);    //
-  //UART initialset
-
   GPIO_PinAFConfig(GPIOA, GPIO_PinSource9, GPIO_AF_7);
   GPIO_PinAFConfig(GPIOA, GPIO_PinSource10, GPIO_AF_7);
 
   UART_StructInit(&UART_InitStruct);
-  UART_InitStruct.UART_BaudRate = baudrate;
-  UART_InitStruct.UART_WordLength = UART_WordLength_8b;
-  UART_InitStruct.UART_StopBits = UART_StopBits_1;    //one stopbit
-  UART_InitStruct.UART_Parity = UART_Parity_No;    //none odd-even  verify bit
-  UART_InitStruct.UART_HardwareFlowControl = UART_HardwareFlowControl_None;    //No hardware flow control
-  UART_InitStruct.UART_Mode = UART_Mode_Rx | UART_Mode_Tx;    // receive and sent  mode
+  UART_InitStruct.UART_BaudRate            = baudrate;
+  UART_InitStruct.UART_WordLength          = UART_WordLength_8b;
+  UART_InitStruct.UART_StopBits            = UART_StopBits_1;
+  UART_InitStruct.UART_Parity              = UART_Parity_No;
+  UART_InitStruct.UART_HardwareFlowControl = UART_HardwareFlowControl_None;
+  UART_InitStruct.UART_Mode                = UART_Mode_Rx | UART_Mode_Tx;
 
-  UART_Init(UART1, &UART_InitStruct);    //initial uart 1
-  UART_Cmd(UART1, ENABLE);                    //enable uart 1
+  UART_Init(UART1, &UART_InitStruct);
+  UART_Cmd(UART1, ENABLE);
 
   //UART1_TX   GPIOA.9
   GPIO_StructInit(&GPIO_InitStruct);
@@ -114,6 +108,13 @@ void board_init (void)
   GPIO_InitStruct.GPIO_Mode = GPIO_Mode_IPU;
   GPIO_Init(GPIOA, &GPIO_InitStruct);
 
+  /* Select USBCLK source */
+  //  RCC_USBCLKConfig(RCC_USBCLKSource_PLLCLK_Div1);
+  RCC->CFGR &= ~(0x3 << 22);
+  RCC->CFGR |= (0x1 << 22);
+
+  /* Enable USB clock */
+  RCC->AHB2ENR |= 0x1 << 7;
 }
 
 //--------------------------------------------------------------------+
@@ -127,7 +128,7 @@ void board_led_write (bool state)
 
 uint32_t board_button_read (void)
 {
-  return 0;
+  return (BUTTON_STATE_ACTIVE == GPIO_ReadInputDataBit(BUTTON_PORT, BUTTON_PIN)) ? 1 : 0;
 }
 
 int board_uart_read (uint8_t *buf, int len)
@@ -142,8 +143,8 @@ int board_uart_write (void const *buf, int len)
   const char *buff = buf;
   while ( len )
   {
-    while ( (UART1->CSR & UART_IT_TXIEN) == 0 )
-      ;    //The loop is sent until it is finished
+     //The loop is sent until it is finished
+    while ( (UART1->CSR & UART_IT_TXIEN) == 0 ) {}
     UART1->TDR = (*buff & 0xFF);
     buff++;
     len--;
