@@ -15,3 +15,4 @@ To enter FEL mode, you have to press BOOT button, then press RESET once, and rel
 * Test on Tiny200 v2 (F1C200s)
 * Make it able to load .bin directly to SPI Flash and boot
 * Add F1C100s to `#if CFG_TUSB_MCU == OPT_MCU_LPC43XX || CFG_TUSB_MCU == OPT_MCU_LPC18XX || CFG_TUSB_MCU == OPT_MCU_MIMXRT10XX` high speed MCU check in examples (maybe we should extract the logic?)
+* `cdc_msc` example is not working. Device is only echoing the first character.
