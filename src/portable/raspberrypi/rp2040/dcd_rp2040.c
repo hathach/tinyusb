@@ -83,7 +83,7 @@ static void _hw_endpoint_alloc(struct hw_endpoint *ep, uint8_t transfer_type)
 
   assert(((uintptr_t )next_buffer_ptr & 0b111111u) == 0);
   uint dpram_offset = hw_data_offset(ep->hw_data_buf);
-  assert(hw_data_offset(next_buffer_ptr) <= USB_DPRAM_MAX);
+  hard_assert(hw_data_offset(next_buffer_ptr) <= USB_DPRAM_MAX);
 
   pico_info("  Alloced %d bytes at offset 0x%x (0x%p)\r\n", size, dpram_offset, ep->hw_data_buf);
 
@@ -93,7 +93,6 @@ static void _hw_endpoint_alloc(struct hw_endpoint *ep, uint8_t transfer_type)
   *ep->endpoint_control = reg;
 }
 
-#if 0 // todo unused
 static void _hw_endpoint_close(struct hw_endpoint *ep)
 {
     // Clear hardware registers and then zero the struct
@@ -103,6 +102,22 @@ static void _hw_endpoint_close(struct hw_endpoint *ep)
     *ep->buffer_control = 0;
     // Clear any endpoint state
     memset(ep, 0, sizeof(struct hw_endpoint));
+
+    // Reclaim buffer space if all endpoints are closed
+    bool reclaim_buffers = true;
+    for ( uint8_t i = 1; i < USB_MAX_ENDPOINTS; i++ )
+    {
+        if (hw_endpoint_get_by_num(i, TUSB_DIR_OUT)->hw_data_buf != NULL || hw_endpoint_get_by_num(i, TUSB_DIR_IN)->hw_data_buf != NULL)
+        {
+            reclaim_buffers = false;
+            break;
+        }
+    }
+    if (reclaim_buffers)
+    {
+        pico_info("  reclaim buffer space\n");
+        next_buffer_ptr = &usb_dpram->epx_data[0];
+    }
 }
 
 static void hw_endpoint_close(uint8_t ep_addr)
@@ -110,7 +125,6 @@ static void hw_endpoint_close(uint8_t ep_addr)
     struct hw_endpoint *ep = hw_endpoint_get_by_addr(ep_addr);
     _hw_endpoint_close(ep);
 }
-#endif
 
 static void hw_endpoint_init(uint8_t ep_addr, uint16_t wMaxPacketSize, uint8_t transfer_type)
 {
@@ -224,6 +238,8 @@ static void reset_non_control_endpoints(void)
 
   // clear non-control hw endpoints
   tu_memclr(hw_endpoints[1], sizeof(hw_endpoints) - 2*sizeof(hw_endpoint_t));
+
+  pico_info("  reclaim buffer space\n");
   next_buffer_ptr = &usb_dpram->epx_data[0];
 }
 
@@ -479,10 +495,12 @@ void dcd_edpt_clear_stall(uint8_t rhport, uint8_t ep_addr)
 void dcd_edpt_close (uint8_t rhport, uint8_t ep_addr)
 {
     (void) rhport;
-    (void) ep_addr;
 
-    // usbd.c says: In progress transfers on this EP may be delivered after this call
     pico_trace("dcd_edpt_close %02x\n", ep_addr);
+
+    // usbd.c says: In progress transfers on this EP may be delivered after this call.
+    // If the endpoint is no longer active when the transfer event is delivered, it will be ignored.
+    hw_endpoint_close(ep_addr);
 }
 
 void dcd_int_handler(uint8_t rhport)
