@@ -4,6 +4,7 @@
 #include <f1c100s-irq.h>
 #include <device/dcd.h>
 #include "musb_def.h"
+#include "bsp/board.h"
 
 typedef uint32_t u32;
 typedef uint16_t u16;
@@ -69,8 +70,8 @@ static void usb_phy_write(int addr, int data, int len)
 static void delay_ms(uint32_t ms)
 {
 #if CFG_TUSB_OS == OPT_OS_NONE
-  int cnt = ms * 1000 * 1000 / 2;
-  while (cnt--) asm("nop");
+  int now = board_millis();
+  while (board_millis() - now <= ms) asm("nop");
 #else
   osal_task_delay(ms);
 #endif

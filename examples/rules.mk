@@ -182,6 +182,11 @@ flash-jlink: $(BUILD)/$(PROJECT).hex
 flash-stlink: $(BUILD)/$(PROJECT).elf
 	STM32_Programmer_CLI --connect port=swd --write $< --go
 
+flash-xfel: $(BUILD)/$(PROJECT).bin
+	xfel ddr 
+	xfel write 0x80000000 $<
+	xfel exec 0x80000000
+
 # Flash using pyocd
 PYOCD_OPTION ?=
 flash-pyocd: $(BUILD)/$(PROJECT).hex
