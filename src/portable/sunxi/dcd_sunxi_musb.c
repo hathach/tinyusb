@@ -1,8 +1,7 @@
 #include <stdint.h>
-#include <F1C100s.h>
+#include "tusb_option.h"
+#include "osal/osal.h"
 #include <f1c100s-irq.h>
-
-#include <tusb_option.h>
 #include <device/dcd.h>
 #include "musb_def.h"
 
@@ -10,9 +9,7 @@ typedef uint32_t u32;
 typedef uint16_t u16;
 typedef uint8_t u8;
 
-#if !TU_CHECK_MCU(OPT_MCU_F1C100S)
-    #error "Only f1c100s is supported"
-#endif
+#if TUSB_OPT_DEVICE_ENABLED && CFG_TUSB_MCU == OPT_MCU_F1C100S
 
 #define REQUEST_TYPE_INVALID  (0xFFu)
 
@@ -69,12 +66,22 @@ static void usb_phy_write(int addr, int data, int len)
 	}
 }
 
+static void delay_ms(uint32_t ms)
+{
+#if CFG_TUSB_OS == OPT_OS_NONE
+  int cnt = ms * 1000 * 1000 / 2;
+  while (cnt--) asm("nop");
+#else
+  osal_task_delay(ms);
+#endif
+}
+
 static void USBC_HardwareReset(void)
 {
   // Reset phy and controller
   USBC_REG_set_bit_l(USBPHY_CLK_RST_BIT, USBPHY_CLK_REG);
 	USBC_REG_set_bit_l(BUS_RST_USB_BIT, BUS_CLK_RST_REG);
-  osal_task_delay(2);
+  delay_ms(2);
 
 	USBC_REG_set_bit_l(USBPHY_CLK_GAT_BIT, USBPHY_CLK_REG);
   USBC_REG_set_bit_l(USBPHY_CLK_RST_BIT, USBPHY_CLK_REG);
@@ -83,7 +90,7 @@ static void USBC_HardwareReset(void)
 	USBC_REG_set_bit_l(BUS_RST_USB_BIT, BUS_CLK_RST_REG);
 }
 
-static void USBC_PhyConfig()
+static void USBC_PhyConfig(void)
 {
 	/* Regulation 45 ohms */
 	usb_phy_write(0x0c, 0x01, 1);
@@ -97,7 +104,7 @@ static void USBC_PhyConfig()
 	return;
 }
 
-static void USBC_ConfigFIFO_Base()
+static void USBC_ConfigFIFO_Base(void)
 {
 	u32 reg_value;
 
@@ -507,7 +514,7 @@ static void pipe_read_write_packet_ff(tu_fifo_t *f, volatile void *fifo, unsigne
 
 static void process_setup_packet(uint8_t rhport)
 {
-  uint32_t *p = (void*)&_dcd.setup_packet;
+  uint32_t *p = (uint32_t*)&_dcd.setup_packet;
   p[0]        = USBC_Readl(USBC_REG_EPFIFO0(USBC0_BASE));
   p[1]        = USBC_Readl(USBC_REG_EPFIFO0(USBC0_BASE));
 
@@ -808,7 +815,7 @@ static void process_bus_reset(uint8_t rhport)
  * Device API
  *------------------------------------------------------------------*/
 
-static void usb_isr_handler() {
+static void usb_isr_handler(void) {
 	dcd_int_handler(0);
 }
 
@@ -861,7 +868,7 @@ void dcd_int_enable(uint8_t rhport)
   f1c100s_intc_enable_irq(F1C100S_IRQ_USBOTG);
 }
 
-static void musb_int_mask()
+static void musb_int_mask(void)
 {
   f1c100s_intc_mask_irq(F1C100S_IRQ_USBOTG);
 }
@@ -872,7 +879,7 @@ void dcd_int_disable(uint8_t rhport)
   f1c100s_intc_disable_irq(F1C100S_IRQ_USBOTG);
 }
 
-static void musb_int_unmask()
+static void musb_int_unmask(void)
 {
   f1c100s_intc_unmask_irq(F1C100S_IRQ_USBOTG);
 }
@@ -895,13 +902,17 @@ void dcd_remote_wakeup(uint8_t rhport)
 {
   (void)rhport;
   USBC_REG_set_bit_b(USBC_BP_POWER_D_RESUME, USBC_REG_PCTL(USBC0_BASE));
-  osal_task_delay(10);
+  delay_ms(10);
   USBC_REG_clear_bit_b(USBC_BP_POWER_D_RESUME, USBC_REG_PCTL(USBC0_BASE));
 }
 
 //--------------------------------------------------------------------+
 // Endpoint API
 //--------------------------------------------------------------------+
+
+#ifndef __ARMCC_VERSION
+#define __clz __builtin_clz
+#endif
 
 // Configure endpoint's registers according to descriptor
 bool dcd_edpt_open(uint8_t rhport, tusb_desc_endpoint_t const * ep_desc)
@@ -1150,3 +1161,4 @@ void dcd_int_handler(uint8_t rhport)
   }
 }
 
+#endif
