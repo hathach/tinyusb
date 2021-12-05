@@ -839,6 +839,7 @@ void dcd_init(uint8_t rhport)
   USBC_ForceIdToHigh(); // Force device mode
   USBC_ForceVbusValidToHigh();
   USBC_SelectBus(USBC_IO_TYPE_PIO, 0, 0);
+  dcd_edpt_close_all(rhport);
 
   #if TUD_OPT_HIGH_SPEED
     USBC_REG_set_bit_b(USBC_BP_POWER_D_HIGH_SPEED_EN, USBC_REG_PCTL(USBC0_BASE));
