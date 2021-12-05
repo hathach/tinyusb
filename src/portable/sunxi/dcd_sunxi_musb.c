@@ -389,7 +389,7 @@ static inline void print_block_list(free_block_t const *blk, unsigned num)
 #endif
 
 #if CFG_TUSB_MCU == OPT_MCU_F1C100S
-#define USB_FIFO_SIZE_KB 2
+#define USB_FIFO_SIZE_KB 4
 #else
 #error "Unsupported MCU"
 #endif
