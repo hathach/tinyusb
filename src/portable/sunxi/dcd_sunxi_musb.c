@@ -185,6 +185,11 @@ static void USBC_SelectActiveEp(u8 ep_index)
 	USBC_Writeb(ep_index, USBC_REG_EPIND(USBC0_BASE));
 }
 
+static u8 USBC_GetActiveEp(void)
+{
+	return USBC_Readb(USBC_REG_EPIND(USBC0_BASE));
+}
+
 static void __USBC_Dev_ep0_SendStall(void)
 {
 	USBC_REG_set_bit_w(USBC_BP_CSR0_D_SEND_STALL, USBC_REG_CSR0(USBC0_BASE));
@@ -387,6 +392,8 @@ static unsigned find_free_memory(uint_fast16_t size_in_log2_minus3)
 {
   free_block_t free_blocks[2 * (DCD_ATTR_ENDPOINT_MAX - 1)];
   unsigned num_blocks = 1;
+  /* Backup current EP to restore later */
+  u8 backup_ep = USBC_GetActiveEp();
 
   /* Initialize free memory block list */
   free_blocks[0].beg = 64 / 8;
@@ -415,6 +422,8 @@ static unsigned find_free_memory(uint_fast16_t size_in_log2_minus3)
     }
   }
   print_block_list(free_blocks, num_blocks);
+
+  USBC_SelectActiveEp(backup_ep);
 
   /* Find the best fit memory block */
   uint_fast16_t size_in_8byte_unit = 1 << size_in_log2_minus3;
