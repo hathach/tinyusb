@@ -388,6 +388,12 @@ static inline void print_block_list(free_block_t const *blk, unsigned num)
 #define print_block_list(a,b)
 #endif
 
+#if CFG_TUSB_MCU == OPT_MCU_F1C100S
+#define USB_FIFO_SIZE_KB 2
+#else
+#error "Unsupported MCU"
+#endif
+
 static unsigned find_free_memory(uint_fast16_t size_in_log2_minus3)
 {
   free_block_t free_blocks[2 * (DCD_ATTR_ENDPOINT_MAX - 1)];
@@ -397,7 +403,7 @@ static unsigned find_free_memory(uint_fast16_t size_in_log2_minus3)
 
   /* Initialize free memory block list */
   free_blocks[0].beg = 64 / 8;
-  free_blocks[0].end = (4 << 10) / 8; /* 4KiB / 8 bytes */
+  free_blocks[0].end = (USB_FIFO_SIZE_KB << 10) / 8; /* 2KiB / 8 bytes */
   for (int i = 1; i < DCD_ATTR_ENDPOINT_MAX; ++i) {
     uint_fast16_t addr;
     int num;
