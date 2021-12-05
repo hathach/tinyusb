@@ -598,7 +598,7 @@ static bool handle_xfer_out(uint_fast8_t ep_addr)
       pipe->buf       = buf + len;
     }
     pipe->remaining = rem - len;
-    __USBC_Dev_ep0_ReadDataComplete();
+    __USBC_Dev_Rx_ReadDataComplete();
   }
   if ((len < mps) || (rem == len)) {
     pipe->buf = NULL;
