@@ -186,6 +186,11 @@
 #define CFG_TUD_AUDIO_ENABLE_FEEDBACK_EP                    0                             // Feedback - 0 or 1
 #endif
 
+// Disable/enable conversion from 16.16 to 10.14 format on high-speed devices. See tud_audio_n_fb_set().
+#ifndef CFG_TUD_AUDIO_DISABLE_FEEDBACK_FORMAT_CORRECTION
+#define CFG_TUD_AUDIO_DISABLE_FEEDBACK_FORMAT_CORRECTION    0                             // 0 or 1
+#endif
+
 // Audio interrupt control EP size - disabled if 0
 #ifndef CFG_TUD_AUDIO_INT_CTR_EPSIZE_IN
 #define CFG_TUD_AUDIO_INT_CTR_EPSIZE_IN                     0                             // Audio interrupt control - if required - 6 Bytes according to UAC 2 specification (p. 74)
@@ -458,6 +463,11 @@ TU_ATTR_WEAK bool tud_audio_fb_done_cb(uint8_t rhport);
 // Value will be corrected for FS to 10.14 format automatically.
 // (see Universal Serial Bus Specification Revision 2.0 5.12.4.2).
 // Feedback value will be sent at FB endpoint interval till it's changed.
+//
+// Note that the USB Audio 2.0 driver on Windows 10 is not following the spec and expects 16.16
+// format for FS. You can define CFG_TUD_AUDIO_DISABLE_FEEDBACK_FORMAT_CORRECTION=1 as a workaround
+// to transmit the feedback value unchanged. Be aware that this might break feedback on other hosts,
+// though at least on Linux the ALSA driver will happily accept either format.
 bool tud_audio_n_fb_set(uint8_t func_id, uint32_t feedback);
 static inline bool tud_audio_fb_set(uint32_t feedback);
 #endif
