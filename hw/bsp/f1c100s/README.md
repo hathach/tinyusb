@@ -6,13 +6,13 @@ Currently tested on:
 
 * Lichee Pi Nano (F1C100s)
 
-## make flash
-`make flash` will use [xfel](https://github.com/xboot/xfel) to write the code to onchip DDR memory and execute it. It will not write the program to SPI Flash.
+## Flashing
+There are two options to put your code into the MCU: `flash` and `exec`. Both modes require you to install [xfel](https://github.com/xboot/xfel) tool to your PATH. You must enter FEL mode before any operation can be done. To enter FEL mode, press BOOT button, then press RESET once, and release BOOT button. You will find VID/PID=1f3a:efe8 on your PC.
 
-To enter FEL mode, you have to press BOOT button, then press RESET once, and release BOOT button. You will find VID/PID=1f3a:efe8 on your PC.
+Exec: `make BOARD=f1c100s exec` will just upload the image to the DDR ram and execute it. It will not touch anything in the SPI flash.
+
+Flash: `make BOARD=f1c100s flash` will write the image to SPI flash, and then reset the chip to execute it.
 
 ## TODO
 * Test on Tiny200 v2 (F1C200s)
-* Make it able to load .bin directly to SPI Flash and boot
 * Add F1C100s to `#if CFG_TUSB_MCU == OPT_MCU_LPC43XX || CFG_TUSB_MCU == OPT_MCU_LPC18XX || CFG_TUSB_MCU == OPT_MCU_MIMXRT10XX` high speed MCU check in examples (maybe we should extract the logic?)
-* `cdc_msc` example is not working. Device is only echoing the first character.
