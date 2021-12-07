@@ -26,7 +26,8 @@
 
 #include "tusb_option.h"
 
-#if TU_CHECK_MCU(OPT_MCU_MSP432E4, OPT_MCU_TM4C123, OPT_MCU_TM4C129)
+#if TUSB_OPT_DEVICE_ENABLED && \
+  TU_CHECK_MCU(OPT_MCU_MSP432E4, OPT_MCU_TM4C123, OPT_MCU_TM4C129)
 
 #if __GNUC__ > 8 && defined(__ARM_FEATURE_UNALIGNED)
 /* GCC warns that an address may be unaligned, even though
