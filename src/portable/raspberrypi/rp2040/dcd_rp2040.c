@@ -115,7 +115,6 @@ static void _hw_endpoint_close(struct hw_endpoint *ep)
     }
     if (reclaim_buffers)
     {
-        pico_info("  reclaim buffer space\n");
         next_buffer_ptr = &usb_dpram->epx_data[0];
     }
 }
@@ -239,7 +238,7 @@ static void reset_non_control_endpoints(void)
   // clear non-control hw endpoints
   tu_memclr(hw_endpoints[1], sizeof(hw_endpoints) - 2*sizeof(hw_endpoint_t));
 
-  pico_info("  reclaim buffer space\n");
+  // reclaim buffer space
   next_buffer_ptr = &usb_dpram->epx_data[0];
 }
 
