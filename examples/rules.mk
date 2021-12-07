@@ -182,10 +182,12 @@ flash-jlink: $(BUILD)/$(PROJECT).hex
 flash-stlink: $(BUILD)/$(PROJECT).elf
 	STM32_Programmer_CLI --connect port=swd --write $< --go
 
-flash-xfel: $(BUILD)/$(PROJECT).bin
-	xfel ddr 
-	xfel write 0x80000000 $<
-	xfel exec 0x80000000
+$(BUILD)/$(PROJECT)-sunxi.bin: $(BUILD)/$(PROJECT).bin
+	$(PYTHON) $(TOP)/tools/mksunxi.py $< $@
+
+flash-xfel: $(BUILD)/$(PROJECT)-sunxi.bin
+	xfel spinor write 0 $<
+	xfel reset
 
 # Flash using pyocd
 PYOCD_OPTION ?=

@@ -21,15 +21,15 @@ SECTIONS
 		PROVIDE(__bootloader_start = .);
 		PROVIDE(__image_start = .);
 		PROVIDE(__text_start = .);
-		*/machine/start.o (.text)
-		*/lib/memcpy.o (.text)
-		*/lib/memset.o (.text)
-		*/machine/sys-uart.o (.text)
-		*/machine/sys-clock.o (.text)
-		*/machine/sys-dram.o (.text)
-		*/machine/sys-mmu.o (.text)
-		*/machine/sys-spi-flash.o (.text)
-		*/machine/sys-copyself.o (.text)
+		_build/*/obj/hw/mcu/allwinner/*/machine/start_asm.o (.text)
+		_build/*/obj/hw/mcu/allwinner/*/lib/memcpy_asm.o (.text)
+		_build/*/obj/hw/mcu/allwinner/*/lib/memset_asm.o (.text)
+		_build/*/obj/hw/mcu/allwinner/*/machine/sys-uart.o (.text*)
+		_build/*/obj/hw/mcu/allwinner/*/machine/sys-clock.o (.text*)
+		_build/*/obj/hw/mcu/allwinner/*/machine/sys-dram.o (.text*)
+		_build/*/obj/hw/mcu/allwinner/*/machine/sys-mmu.o (.text*)
+		_build/*/obj/hw/mcu/allwinner/*/machine/sys-spi-flash.o (.text*)
+		_build/*/obj/hw/mcu/allwinner/*/machine/sys-copyself.o (.text*)
 		PROVIDE(__bootloader_end = .);
 	} > ram
 
@@ -37,7 +37,6 @@ SECTIONS
 
 	.text :
 	{
-		*/main.o (.text)
 		*(.text*)
 		*(.glue*)
 		*(.note.gnu.build-id)

@@ -41,5 +41,10 @@ INC += \
 	$(TOP)/$(MCU_DIR)/include \
 	$(TOP)/$(BOARD_PATH)
 
-# flash target using on-board stlink
+# flash target using xfel
 flash: flash-xfel
+
+exec: $(BUILD)/$(PROJECT).bin
+	xfel ddr 
+	xfel write 0x80000000 $<
+	xfel exec 0x80000000
