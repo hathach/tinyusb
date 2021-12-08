@@ -24,8 +24,9 @@
  * This file is part of the TinyUSB stack.
  */
 
-#include "board.h"
 #include "bsp/board.h"
+#include "board.h"
+
 #include <registers/ft900_registers.h>
 #include <ft900.h>
 
