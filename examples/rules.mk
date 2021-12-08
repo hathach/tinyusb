@@ -84,7 +84,7 @@ OBJ_DIRS = $(sort $(dir $(OBJ)))
 $(OBJ): | $(OBJ_DIRS)
 $(OBJ_DIRS):
 ifeq ($(CMDEXE),1)
-	-@$(MKDIR) $(subst /,\,$@)
+	@$(MKDIR) $(subst /,\,$@)
 else
 	@$(MKDIR) -p $@
 endif
@@ -207,7 +207,7 @@ debug-bmp: $(BUILD)/$(PROJECT).elf
 
 # Create binary directory
 $(BIN):
-	-@$(MKDIR) -p $@
+	@$(MKDIR) -p $@
 
 # Copy binaries .elf, .bin, .hex, .uf2 to BIN for upload
 # due to large size of combined artifacts, only uf2 is uploaded for now
