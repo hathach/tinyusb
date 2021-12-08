@@ -158,7 +158,7 @@ int board_uart_write(void const* buf, int len) {
 #if defined(UART_DEV)
   int txsize = len;
   while (txsize--) {
-    usart_write(UART_DEV, *(uint8_t*)buf);
+    usart_write(UART_DEV, *(uint8_t const*)buf);
     buf++;
   }
   return len;

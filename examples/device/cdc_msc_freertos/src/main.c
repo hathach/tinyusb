@@ -27,14 +27,29 @@
 #include <stdio.h>
 #include <string.h>
 
-#include "FreeRTOS.h"
-#include "task.h"
-#include "timers.h"
-#include "queue.h"
-#include "semphr.h"
-
 #include "bsp/board.h"
 #include "tusb.h"
+
+#if TU_CHECK_MCU(OPT_MCU_ESP32S2, OPT_MCU_ESP32S3)
+  // ESP-IDF need "freertos/" prefix in include path.
+  // CFG_TUSB_OS_INC_PATH should be defined accordingly.
+  #include "freertos/FreeRTOS.h"
+  #include "freertos/semphr.h"
+  #include "freertos/queue.h"
+  #include "freertos/task.h"
+  #include "freertos/timers.h"
+
+  #define USBD_STACK_SIZE     4096
+#else
+  #include "FreeRTOS.h"
+  #include "semphr.h"
+  #include "queue.h"
+  #include "task.h"
+  #include "timers.h"
+
+  // Increase stack size when debug log is enabled
+  #define USBD_STACK_SIZE    (3*configMINIMAL_STACK_SIZE/2) * (CFG_TUSB_DEBUG ? 2 : 1)
+#endif
 
 //--------------------------------------------------------------------+
 // MACRO CONSTANT TYPEDEF PROTYPES
@@ -55,14 +70,7 @@ enum  {
 StaticTimer_t blinky_tmdef;
 TimerHandle_t blinky_tm;
 
-// static task for usbd
-// Increase stack size when debug log is enabled
-#if CFG_TUSB_DEBUG
-  #define USBD_STACK_SIZE     (3*configMINIMAL_STACK_SIZE)
-#else
-  #define USBD_STACK_SIZE     (3*configMINIMAL_STACK_SIZE/2)
-#endif
-
+// static task
 StackType_t  usb_device_stack[USBD_STACK_SIZE];
 StaticTask_t usb_device_taskdef;
 
@@ -95,14 +103,14 @@ int main(void)
   (void) xTaskCreateStatic( cdc_task, "cdc", CDC_STACK_SZIE, NULL, configMAX_PRIORITIES-2, cdc_stack, &cdc_taskdef);
 
   // skip starting scheduler (and return) for ESP32-S2 or ESP32-S3
-#if CFG_TUSB_MCU != OPT_MCU_ESP32S2 && CFG_TUSB_MCU != OPT_MCU_ESP32S3
+#if !TU_CHECK_MCU(OPT_MCU_ESP32S2, OPT_MCU_ESP32S3)
   vTaskStartScheduler();
 #endif
 
   return 0;
 }
 
-#if CFG_TUSB_MCU == OPT_MCU_ESP32S2 || CFG_TUSB_MCU == OPT_MCU_ESP32S3
+#if TU_CHECK_MCU(OPT_MCU_ESP32S2, OPT_MCU_ESP32S3)
 void app_main(void)
 {
   main();

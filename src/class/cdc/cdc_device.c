@@ -80,7 +80,7 @@ typedef struct
 //--------------------------------------------------------------------+
 CFG_TUSB_MEM_SECTION static cdcd_interface_t _cdcd_itf[CFG_TUD_CDC];
 
-static void _prep_out_transaction (cdcd_interface_t* p_cdc)
+static bool _prep_out_transaction (cdcd_interface_t* p_cdc)
 {
   uint8_t const rhport = TUD_OPT_RHPORT;
   uint16_t available = tu_fifo_remaining(&p_cdc->rx_ff);
@@ -89,21 +89,23 @@ static void _prep_out_transaction (cdcd_interface_t* p_cdc)
   // TODO Actually we can still carry out the transfer, keeping count of received bytes
   // and slowly move it to the FIFO when read().
   // This pre-check reduces endpoint claiming
-  TU_VERIFY(available >= sizeof(p_cdc->epout_buf), );
+  TU_VERIFY(available >= sizeof(p_cdc->epout_buf));
 
   // claim endpoint
-  TU_VERIFY(usbd_edpt_claim(rhport, p_cdc->ep_out), );
+  TU_VERIFY(usbd_edpt_claim(rhport, p_cdc->ep_out));
 
   // fifo can be changed before endpoint is claimed
   available = tu_fifo_remaining(&p_cdc->rx_ff);
 
   if ( available >= sizeof(p_cdc->epout_buf) )
   {
-    usbd_edpt_xfer(rhport, p_cdc->ep_out, p_cdc->epout_buf, sizeof(p_cdc->epout_buf));
+    return usbd_edpt_xfer(rhport, p_cdc->ep_out, p_cdc->epout_buf, sizeof(p_cdc->epout_buf));
   }else
   {
     // Release endpoint since we don't make any transfer
     usbd_edpt_release(rhport, p_cdc->ep_out);
+
+    return false;
   }
 }
 
@@ -229,7 +231,7 @@ void cdcd_init(void)
   {
     cdcd_interface_t* p_cdc = &_cdcd_itf[i];
 
-    p_cdc->wanted_char = -1;
+    p_cdc->wanted_char = (char) -1;
 
     // default line coding is : stop bit = 1, parity = none, data bits = 8
     p_cdc->line_coding.bit_rate  = 115200;

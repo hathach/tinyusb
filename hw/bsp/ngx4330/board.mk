@@ -13,7 +13,7 @@ CFLAGS += \
   -DCFG_TUSB_MCU=OPT_MCU_LPC43XX
 
 # mcu driver cause following warnings
-CFLAGS += -Wno-error=strict-prototypes -Wno-error=unused-parameter
+CFLAGS += -Wno-error=strict-prototypes -Wno-error=unused-parameter -Wno-error=cast-qual
 
 MCU_DIR = hw/mcu/nxp/lpcopen/lpc43xx/lpc_chip_43xx
 
@@ -21,7 +21,9 @@ MCU_DIR = hw/mcu/nxp/lpcopen/lpc43xx/lpc_chip_43xx
 LD_FILE = hw/bsp/$(BOARD)/ngx4330.ld
 
 SRC_C += \
-	src/portable/nxp/transdimension/dcd_transdimension.c \
+	src/portable/chipidea/ci_hs/dcd_ci_hs.c \
+	src/portable/chipidea/ci_hs/hcd_ci_hs.c \
+	src/portable/ehci/ehci.c \
 	$(MCU_DIR)/../gcc/cr_startup_lpc43xx.c \
 	$(MCU_DIR)/src/chip_18xx_43xx.c \
 	$(MCU_DIR)/src/clock_18xx_43xx.c \

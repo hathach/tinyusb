@@ -7,6 +7,7 @@ CFLAGS += \
   -mcpu=cortex-m0 \
   -D__ARM_FEATURE_DSP=0 \
   -DUSE_ASSERT=0 \
+  -DCFG_EXAMPLE_VIDEO_READONLY \
   -D__CORTEX_SC=0 \
   -DCFG_TUSB_MCU=OPT_MCU_NUC126
 
@@ -16,28 +17,13 @@ LD_FILE = hw/bsp/$(BOARD)/nuc126_flash.ld
 SRC_C += \
   src/portable/nuvoton/nuc121/dcd_nuc121.c \
   hw/mcu/nuvoton/nuc126/Device/Nuvoton/NUC126/Source/system_NUC126.c \
-  hw/mcu/nuvoton/nuc126/StdDriver/src/acmp.c \
-  hw/mcu/nuvoton/nuc126/StdDriver/src/adc.c \
   hw/mcu/nuvoton/nuc126/StdDriver/src/clk.c \
   hw/mcu/nuvoton/nuc126/StdDriver/src/crc.c \
-  hw/mcu/nuvoton/nuc126/StdDriver/src/ebi.c \
-  hw/mcu/nuvoton/nuc126/StdDriver/src/fmc.c \
   hw/mcu/nuvoton/nuc126/StdDriver/src/gpio.c \
-  hw/mcu/nuvoton/nuc126/StdDriver/src/pdma.c \
-  hw/mcu/nuvoton/nuc126/StdDriver/src/pwm.c \
   hw/mcu/nuvoton/nuc126/StdDriver/src/rtc.c \
-  hw/mcu/nuvoton/nuc126/StdDriver/src/sc.c \
-  hw/mcu/nuvoton/nuc126/StdDriver/src/scuart.c \
-  hw/mcu/nuvoton/nuc126/StdDriver/src/spi.c \
   hw/mcu/nuvoton/nuc126/StdDriver/src/sys.c \
   hw/mcu/nuvoton/nuc126/StdDriver/src/timer.c \
-  hw/mcu/nuvoton/nuc126/StdDriver/src/timer_pwm.c \
-  hw/mcu/nuvoton/nuc126/StdDriver/src/uart.c \
-  hw/mcu/nuvoton/nuc126/StdDriver/src/usbd.c \
-  hw/mcu/nuvoton/nuc126/StdDriver/src/usci_spi.c \
-  hw/mcu/nuvoton/nuc126/StdDriver/src/usci_uart.c \
-  hw/mcu/nuvoton/nuc126/StdDriver/src/wdt.c \
-  hw/mcu/nuvoton/nuc126/StdDriver/src/wwdt.c
+  hw/mcu/nuvoton/nuc126/StdDriver/src/uart.c
 
 SRC_S += \
   hw/mcu/nuvoton/nuc126/Device/Nuvoton/NUC126/Source/GCC/startup_NUC126.S

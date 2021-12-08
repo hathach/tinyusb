@@ -89,6 +89,15 @@ A MCU can support multiple operational speed. By default, the example build syst
 
    $ make BOARD=stm32f746disco SPEED=full all
 
+Size Analysis
+~~~~~~~~~~~~~
+
+First install `linkermap tool <https://github.com/hathach/linkermap>`_ then ``linkermap`` target can be used to analyze code size. You may want to compile with ``NO_LTO=1`` since -flto merges code across .o files and make it difficult to analyze.
+
+.. code-block::
+
+   $ make BOARD=feather_nrf52840_express NO_LTO=1 all linkermap
+
 Debug
 ^^^^^
 
@@ -113,7 +122,7 @@ Logger
 By default log message is printed via on-board UART which is slow and take lots of CPU time comparing to USB speed. If your board support on-board/external debugger, it would be more efficient to use it for logging. There are 2 protocols: 
 
 
-* `LOGGER=rtt`: use [Segger RTT protocol](https://www.segger.com/products/debug-probes/j-link/technology/about-real-time-transfer/)   
+* `LOGGER=rtt`: use `Segger RTT protocol <https://www.segger.com/products/debug-probes/j-link/technology/about-real-time-transfer/>`_
 
   * Cons: requires jlink as the debugger.
   * Pros: work with most if not all MCUs
@@ -151,3 +160,39 @@ Some board use uf2 bootloader for drag & drop in to mass storage device, uf2 can
 .. code-block::
 
    $ make BOARD=feather_nrf52840_express all uf2
+
+IAR Support
+^^^^^^^^^^^
+
+IAR Project Connection files are provided to import TinyUSB stack into your project.
+
+* A buldable project of your MCU need to be created in advance.
+
+
+  * Take example of STM32F0:
+  
+    -  You need `stm32l0xx.h`, `startup_stm32f0xx.s`, `system_stm32f0xx.c`.
+
+    - `STM32L0xx_HAL_Driver` is only needed to run examples, TinyUSB stack itself doesn't rely on MCU's SDKs.
+
+* Open `Tools -> Configure Custom Argument Variables` (Switch to `Global` tab if you want to do it for all your projects) 
+   Click `New Group ...`, name it to `TUSB`, Click `Add Variable ...`, name it to `TUSB_DIR`, change it's value to the path of your TinyUSB stack,
+   for example `C:\\tinyusb`
+
+Import stack only
+~~~~~~~~~~~~~~~~~
+
+1. Open `Project -> Add project Connection ...`, click `OK`, choose `tinyusb\\tools\\iar_template.ipcf`.
+
+Run examples
+~~~~~~~~~~~~
+
+1. (Python3 is needed) Run `iar_gen.py` to generate .ipcf files of examples:
+
+   .. code-block::
+
+     cd C:\tinyusb\tools
+     python iar_gen.py
+
+2. Open `Project -> Add project Connection ...`, click `OK`, choose `tinyusb\\examples\\(.ipcf of example)`.
+   For example `C:\\tinyusb\\examples\\device\\cdc_msc\\iar_cdc_msc.ipcf`

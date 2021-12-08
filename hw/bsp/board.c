@@ -96,7 +96,7 @@ void board_led_task(void)
 TU_ATTR_USED int sys_write (int fhdl, const void *buf, size_t count)
 {
   (void) fhdl;
-  SEGGER_RTT_Write(0, (char*) buf, (int) count);
+  SEGGER_RTT_Write(0, (const char*) buf, (int) count);
   return count;
 }
 
@@ -126,6 +126,8 @@ TU_ATTR_USED int sys_write (int fhdl, const void *buf, size_t count)
 TU_ATTR_USED int sys_read (int fhdl, char *buf, size_t count)
 {
   (void) fhdl;
+  (void) buf;
+  (void) count;
   return 0;
 }
 
@@ -135,13 +137,13 @@ TU_ATTR_USED int sys_read (int fhdl, char *buf, size_t count)
 TU_ATTR_USED int sys_write (int fhdl, const void *buf, size_t count)
 {
   (void) fhdl;
-  return board_uart_write(buf, count);
+  return board_uart_write(buf, (int) count);
 }
 
 TU_ATTR_USED int sys_read (int fhdl, char *buf, size_t count)
 {
   (void) fhdl;
-  return board_uart_read((uint8_t*) buf, count);
+  return board_uart_read((uint8_t*) buf, (int) count);
 }
 
 #endif

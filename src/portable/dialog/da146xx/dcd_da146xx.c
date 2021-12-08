@@ -60,10 +60,17 @@
 
 #define EP_MAX            4
 
+// Node functional states
 #define NFSR_NODE_RESET         0
 #define NFSR_NODE_RESUME        1
 #define NFSR_NODE_OPERATIONAL   2
 #define NFSR_NODE_SUSPEND       3
+// Those two following states are added to allow going out of sleep mode
+// using frame interrupt.  On remove wakeup RESUME state must be kept for
+// at least 1ms. It is accomplished by using FRAME interrupt that goes
+// through those two fake states before entering OPERATIONAL state.
+#define NFSR_NODE_WAKING        (0x10 | (NFSR_NODE_RESUME))
+#define NFSR_NODE_WAKING2       (0x20 | (NFSR_NODE_RESUME))
 
 static TU_ATTR_ALIGNED(4) uint8_t _setup_packet[8];
 
@@ -133,7 +140,7 @@ typedef struct
     __IOM uint32_t USB_RXC2_REG;                 /*!< (@ 0x000000DC) Receive Command Register 2    */
     __IOM uint32_t USB_RXC3_REG;                 /*!< (@ 0x000000FC) Receive Command Register 3    */
   };
-} EPx_REGS;
+} volatile EPx_REGS;
 
 #define EP_REGS(first_ep_reg) (EPx_REGS*)(&USB->first_ep_reg)
 
@@ -193,8 +200,14 @@ typedef struct
 #define REG_CLR_BIT(reg, field) USB->reg &= ~USB_ ## reg ## _ ## field ## _Msk
 #define REG_SET_VAL(reg, field, val) USB->reg = (USB->reg & ~USB_ ## reg ## _ ## field ## _Msk) | (val << USB_ ## reg ## _ ## field ## _Pos)
 
+static EPx_REGS * const ep_regs[EP_MAX] = {
+  EP_REGS(USB_EPC0_REG),
+  EP_REGS(USB_EPC1_REG),
+  EP_REGS(USB_EPC3_REG),
+  EP_REGS(USB_EPC5_REG),
+};
+
 typedef struct {
-  EPx_REGS * regs;
   uint8_t * buffer;
   // Total length of current transfer
   uint16_t total_len;
@@ -217,21 +230,23 @@ typedef struct {
 static struct
 {
   bool vbus_present;
-  bool in_reset;
+  bool init_called;
+  uint8_t nfsr;
   xfer_ctl_t xfer_status[EP_MAX][2];
   // Endpoints that use DMA, one for each direction
   uint8_t dma_ep[2];
 } _dcd =
 {
   .vbus_present = false,
-  .xfer_status =
-  {
-    { { .regs = EP_REGS(USB_EPC0_REG) }, { .regs = EP_REGS(USB_EPC0_REG) } },
-    { { .regs = EP_REGS(USB_EPC1_REG) }, { .regs = EP_REGS(USB_EPC1_REG) } },
-    { { .regs = EP_REGS(USB_EPC3_REG) }, { .regs = EP_REGS(USB_EPC3_REG) } },
-    { { .regs = EP_REGS(USB_EPC5_REG) }, { .regs = EP_REGS(USB_EPC5_REG) } },
-  }
+  .init_called = false,
 };
+
+// Converts xfer pointer to epnum (0,1,2,3) regardless of xfer direction
+#define XFER_EPNUM(xfer)      ((xfer - &_dcd.xfer_status[0][0]) >> 1)
+// Converts xfer pinter to EPx_REGS pointer (returns same pointer for IN and OUT with same endpoint number)
+#define XFER_REGS(xfer)       ep_regs[XFER_EPNUM(xfer)]
+// Converts epnum (0,1,2,3) to EPx_REGS pointer
+#define EPNUM_REGS(epnum)     ep_regs[epnum]
 
 // Two endpoint 0 descriptor definition for unified dcd_edpt_open()
 static const tusb_desc_endpoint_t ep0OUT_desc =
@@ -241,7 +256,7 @@ static const tusb_desc_endpoint_t ep0OUT_desc =
 
   .bEndpointAddress = 0x00,
   .bmAttributes     = { .xfer = TUSB_XFER_CONTROL },
-  .wMaxPacketSize   = { .size = CFG_TUD_ENDPOINT0_SIZE },
+  .wMaxPacketSize   = CFG_TUD_ENDPOINT0_SIZE,
   .bInterval        = 0
 };
 
@@ -252,18 +267,27 @@ static const tusb_desc_endpoint_t ep0IN_desc =
 
   .bEndpointAddress = 0x80,
   .bmAttributes     = { .xfer = TUSB_XFER_CONTROL },
-  .wMaxPacketSize   = { .size = CFG_TUD_ENDPOINT0_SIZE },
+  .wMaxPacketSize   = CFG_TUD_ENDPOINT0_SIZE,
   .bInterval        = 0
 };
 
 #define XFER_CTL_BASE(_ep, _dir) &_dcd.xfer_status[_ep][_dir]
 
+static void set_nfsr(uint8_t val)
+{
+  _dcd.nfsr = val;
+  // Write only lower 2 bits to register, higher bits are used
+  // to count down till OPERATIONAL state can be entered when
+  // remote wakeup activated.
+  USB->USB_NFSR_REG = val & 3;
+}
+
 static void fill_tx_fifo(xfer_ctl_t * xfer)
 {
   int left_to_send;
   uint8_t const *src;
-  EPx_REGS *regs = xfer->regs;
   uint8_t const epnum = tu_edpt_number(xfer->ep_addr);
+  EPx_REGS *regs = EPNUM_REGS(epnum);
 
   src = &xfer->buffer[xfer->transferred];
   left_to_send = xfer->total_len - xfer->transferred;
@@ -291,7 +315,7 @@ static void fill_tx_fifo(xfer_ctl_t * xfer)
     }
     else
     {
-      xfer->regs->txc &= ~USB_USB_TXC1_REG_USB_TFWL_Msk;
+      regs->txc &= ~USB_USB_TXC1_REG_USB_TFWL_Msk;
       USB->USB_FWMSK_REG &= ~(1 << (epnum - 1 + USB_USB_FWMSK_REG_USB_M_TXWARN31_Pos));
       // Whole packet already in fifo, no need to refill it later.  Mark last.
       regs->txc |= USB_USB_TXC1_REG_USB_LAST_Msk;
@@ -332,30 +356,31 @@ static void start_rx_packet(xfer_ctl_t *xfer)
   uint8_t const epnum = tu_edpt_number(xfer->ep_addr);
   uint16_t remaining = xfer->total_len - xfer->transferred;
   uint16_t size = tu_min16(remaining, xfer->max_packet_size);
+  EPx_REGS *regs = XFER_REGS(xfer);
 
   xfer->last_packet_size = 0;
   if (xfer->max_packet_size > FIFO_SIZE && remaining > FIFO_SIZE)
   {
     if (try_allocate_dma(epnum, TUSB_DIR_OUT))
     {
-      start_rx_dma(&xfer->regs->rxd, xfer->buffer + xfer->transferred, size);
+      start_rx_dma(&regs->rxd, xfer->buffer + xfer->transferred, size);
     }
     else
     {
       // Other endpoint is using DMA in that direction, fall back to interrupts.
-      // For endpoint size greater then FIFO size enable FIFO level warning interrupt
-      // when FIFO has less then 17 bytes free.
-      xfer->regs->rxc |= USB_USB_RXC1_REG_USB_RFWL_Msk;
+      // For endpoint size greater than FIFO size enable FIFO level warning interrupt
+      // when FIFO has less than 17 bytes free.
+      regs->rxc |= USB_USB_RXC1_REG_USB_RFWL_Msk;
       USB->USB_FWMSK_REG |= 1 << (epnum - 1 + USB_USB_FWMSK_REG_USB_M_RXWARN31_Pos);
     }
   }
   else if (epnum != 0)
   {
     // If max_packet_size would fit in FIFO no need for FIFO level warning interrupt.
-    xfer->regs->rxc &= ~USB_USB_RXC1_REG_USB_RFWL_Msk;
+    regs->rxc &= ~USB_USB_RXC1_REG_USB_RFWL_Msk;
     USB->USB_FWMSK_REG &= ~(1 << (epnum - 1 + USB_USB_FWMSK_REG_USB_M_RXWARN31_Pos));
   }
-  xfer->regs->rxc |= USB_USB_RXC1_REG_USB_RX_EN_Msk;
+  regs->rxc |= USB_USB_RXC1_REG_USB_RX_EN_Msk;
 }
 
 static void start_tx_dma(void *src, volatile void *dst, uint16_t size)
@@ -374,13 +399,13 @@ static void start_tx_packet(xfer_ctl_t *xfer)
   uint8_t const epnum = tu_edpt_number(xfer->ep_addr);
   uint16_t remaining = xfer->total_len - xfer->transferred;
   uint16_t size = tu_min16(remaining, xfer->max_packet_size);
-  EPx_REGS *regs = xfer->regs;
+  EPx_REGS *regs = EPNUM_REGS(epnum);
 
   xfer->last_packet_size = 0;
 
   regs->txc = USB_USB_TXC1_REG_USB_FLUSH_Msk;
   regs->txc = USB_USB_TXC1_REG_USB_IGN_ISOMSK_Msk;
-  if (xfer->data1) xfer->regs->txc |= USB_USB_TXC1_REG_USB_TOGGLE_TX_Msk;
+  if (xfer->data1) regs->txc |= USB_USB_TXC1_REG_USB_TOGGLE_TX_Msk;
 
   if (xfer->max_packet_size > FIFO_SIZE && remaining > FIFO_SIZE && try_allocate_dma(epnum, TUSB_DIR_IN))
   {
@@ -395,9 +420,9 @@ static void start_tx_packet(xfer_ctl_t *xfer)
   regs->txc |= USB_USB_TXC1_REG_USB_TX_EN_Msk;
 }
 
-static void read_rx_fifo(xfer_ctl_t *xfer, uint16_t bytes_in_fifo)
+static uint16_t read_rx_fifo(xfer_ctl_t *xfer, uint16_t bytes_in_fifo)
 {
-  EPx_REGS *regs = xfer->regs;
+  EPx_REGS *regs = XFER_REGS(xfer);
   uint16_t remaining = xfer->total_len - xfer->transferred - xfer->last_packet_size;
   uint16_t receive_this_time = bytes_in_fifo;
 
@@ -408,6 +433,8 @@ static void read_rx_fifo(xfer_ctl_t *xfer, uint16_t bytes_in_fifo)
   for (int i = 0; i < receive_this_time; ++i) buf[i] = regs->rxd;
 
   xfer->last_packet_size += receive_this_time;
+
+  return bytes_in_fifo - receive_this_time;
 }
 
 static void handle_ep0_rx(void)
@@ -467,7 +494,7 @@ static void handle_ep0_tx(void)
 {
   uint32_t txs0;
   xfer_ctl_t *xfer = XFER_CTL_BASE(0, TUSB_DIR_IN);
-  EPx_REGS *regs = xfer->regs;
+  EPx_REGS *regs = XFER_REGS(xfer);
 
   txs0 = regs->USB_TXS0_REG;
 
@@ -501,7 +528,7 @@ static void handle_epx_rx_ev(uint8_t ep)
   int fifo_bytes;
   xfer_ctl_t *xfer = XFER_CTL_BASE(ep, TUSB_DIR_OUT);
 
-  EPx_REGS *regs = xfer->regs;
+  EPx_REGS *regs = EPNUM_REGS(ep);
 
   do
   {
@@ -537,7 +564,7 @@ static void handle_epx_rx_ev(uint8_t ep)
       // FIFO maybe empty if DMA read it before or it's final iteration and function already read all that was to read.
       if (fifo_bytes > 0)
       {
-        read_rx_fifo(xfer, fifo_bytes);
+        fifo_bytes = read_rx_fifo(xfer, fifo_bytes);
       }
       if (GET_BIT(rxs, USB_USB_RXS1_REG_USB_RX_LAST))
       {
@@ -552,6 +579,13 @@ static void handle_epx_rx_ev(uint8_t ep)
           xfer->transferred += xfer->last_packet_size;
           if (xfer->total_len == xfer->transferred || xfer->last_packet_size < xfer->max_packet_size || xfer->iso)
           {
+            if (fifo_bytes)
+            {
+              // There are extra bytes in the FIFO just flush them
+              regs->rxc |= USB_USB_RXC1_REG_USB_FLUSH_Msk;
+              fifo_bytes = 0;
+            }
+
             dcd_event_xfer_complete(0, xfer->ep_addr, xfer->transferred, XFER_RESULT_SUCCESS, true);
           }
           else
@@ -580,7 +614,7 @@ static void handle_epx_tx_ev(xfer_ctl_t *xfer)
 {
   uint8_t const epnum = tu_edpt_number(xfer->ep_addr);
   uint32_t txs;
-  EPx_REGS *regs = xfer->regs;
+  EPx_REGS *regs = EPNUM_REGS(epnum);
 
   txs = regs->txs;
 
@@ -607,6 +641,13 @@ static void handle_epx_tx_ev(xfer_ctl_t *xfer)
         return;
       }
     }
+    else if (regs->epc_in & USB_USB_EPC1_REG_USB_STALL_Msk)
+    {
+      // TX_DONE also indicates that STALL packet was just sent, there is
+      // no point to put anything into transmit FIFO. It could result in
+      // empty packet being scheduled.
+      return;
+    }
   }
   if (txs & USB_USB_TXS1_REG_USB_TX_URUN_Msk)
   {
@@ -626,60 +667,81 @@ static void handle_tx_ev(void)
     handle_epx_tx_ev(XFER_CTL_BASE(3, TUSB_DIR_IN));
 }
 
+static uint32_t check_reset_end(uint32_t alt_ev)
+{
+  if (_dcd.nfsr == NFSR_NODE_RESET)
+  {
+    if (GET_BIT(alt_ev, USB_USB_ALTEV_REG_USB_RESET))
+    {
+      // Could be still in reset, but since USB_M_RESET is disabled it can
+      // be also old reset state that was not cleared yet.
+      // If (after reading USB_ALTEV_REG register again) bit is cleared
+      // reset state just ended.
+      // Keep non-reset bits combined from two previous ALTEV read and
+      // one from the next line.
+      alt_ev = (alt_ev & ~USB_USB_ALTEV_REG_USB_RESET_Msk) | USB->USB_ALTEV_REG;
+    }
+    if (GET_BIT(alt_ev, USB_USB_ALTEV_REG_USB_RESET) == 0)
+    {
+      USB->USB_ALTMSK_REG = USB_USB_ALTMSK_REG_USB_M_RESET_Msk |
+                            USB_USB_ALTEV_REG_USB_SD3_Msk;
+      set_nfsr(NFSR_NODE_OPERATIONAL);
+      dcd_edpt_open(0, &ep0OUT_desc);
+      dcd_edpt_open(0, &ep0IN_desc);
+    }
+  }
+  return alt_ev;
+}
+
 static void handle_bus_reset(void)
 {
+  uint32_t alt_ev;
+
   USB->USB_NFSR_REG = 0;
   USB->USB_FAR_REG = 0x80;
   USB->USB_ALTMSK_REG = 0;
   USB->USB_NFSR_REG = NFSR_NODE_RESET;
   USB->USB_TXMSK_REG = 0;
   USB->USB_RXMSK_REG = 0;
-  (void)USB->USB_ALTEV_REG;
-  _dcd.in_reset = true;
+  set_nfsr(NFSR_NODE_RESET);
 
   dcd_event_bus_reset(0, TUSB_SPEED_FULL, true);
   USB->USB_DMA_CTRL_REG = 0;
 
   USB->USB_MAMSK_REG = USB_USB_MAMSK_REG_USB_M_INTR_Msk |
-#if USE_SOF
                        USB_USB_MAMSK_REG_USB_M_FRAME_Msk |
-#endif
                        USB_USB_MAMSK_REG_USB_M_WARN_Msk |
                        USB_USB_MAMSK_REG_USB_M_ALT_Msk;
-  USB->USB_NFSR_REG = NFSR_NODE_OPERATIONAL;
-  USB->USB_ALTMSK_REG = USB_USB_ALTMSK_REG_USB_M_SD3_Msk |
-                        USB_USB_ALTMSK_REG_USB_M_RESUME_Msk;
-  // There is no information about end of reset state
-  // USB_FRAME event will be used to enable reset detection again
-  REG_SET_BIT(USB_MAEV_REG, USB_FRAME);
-  dcd_edpt_open (0, &ep0OUT_desc);
-  dcd_edpt_open (0, &ep0IN_desc);
+  USB->USB_ALTMSK_REG = USB_USB_ALTMSK_REG_USB_M_RESUME_Msk;
+  alt_ev = USB->USB_ALTEV_REG;
+  check_reset_end(alt_ev);
 }
 
 static void handle_alt_ev(void)
 {
   uint32_t alt_ev = USB->USB_ALTEV_REG;
 
-  if (GET_BIT(alt_ev, USB_USB_ALTEV_REG_USB_RESET))
+  alt_ev = check_reset_end(alt_ev);
+  if (GET_BIT(alt_ev, USB_USB_ALTEV_REG_USB_RESET) && _dcd.nfsr != NFSR_NODE_RESET)
   {
     handle_bus_reset();
   }
-  else
+  else if (GET_BIT(alt_ev, USB_USB_ALTEV_REG_USB_RESUME))
   {
-    if (GET_BIT(alt_ev, USB_USB_ALTEV_REG_USB_RESUME))
+    if (USB->USB_NFSR_REG == NFSR_NODE_SUSPEND)
     {
-      USB->USB_NFSR_REG = NFSR_NODE_OPERATIONAL;
-      USB->USB_ALTMSK_REG &= ~USB_USB_ALTMSK_REG_USB_M_RESUME_Msk;
-      USB->USB_ALTMSK_REG |= USB_USB_ALTMSK_REG_USB_M_SD3_Msk;
+      set_nfsr(NFSR_NODE_OPERATIONAL);
+      USB->USB_ALTMSK_REG = USB_USB_ALTMSK_REG_USB_M_RESET_Msk |
+                            USB_USB_ALTMSK_REG_USB_M_SD3_Msk;
       dcd_event_bus_signal(0, DCD_EVENT_RESUME, true);
     }
-    if (GET_BIT(alt_ev, USB_USB_ALTEV_REG_USB_SD3))
-    {
-      USB->USB_NFSR_REG = NFSR_NODE_SUSPEND;
-      USB->USB_ALTMSK_REG |= USB_USB_ALTMSK_REG_USB_M_RESUME_Msk;
-      USB->USB_ALTMSK_REG &= ~USB_USB_ALTMSK_REG_USB_M_SD3_Msk | USB_USB_ALTMSK_REG_USB_M_SD5_Msk;
-      dcd_event_bus_signal(0, DCD_EVENT_SUSPEND, true);
-    }
+  }
+  else if (GET_BIT(alt_ev, USB_USB_ALTEV_REG_USB_SD3))
+  {
+    set_nfsr(NFSR_NODE_SUSPEND);
+    USB->USB_ALTMSK_REG = USB_USB_ALTMSK_REG_USB_M_RESET_Msk |
+                          USB_USB_ALTMSK_REG_USB_M_RESUME_Msk;
+    dcd_event_bus_signal(0, DCD_EVENT_SUSPEND, true);
   }
 }
 
@@ -735,19 +797,13 @@ static void handle_ep0_nak(void)
  *------------------------------------------------------------------*/
 void dcd_init(uint8_t rhport)
 {
-  USB->USB_MCTRL_REG = USB_USB_MCTRL_REG_USBEN_Msk;
-  USB->USB_NFSR_REG = 0;
-  USB->USB_FAR_REG = 0x80;
-  USB->USB_NFSR_REG = NFSR_NODE_RESET;
-  USB->USB_TXMSK_REG = 0;
-  USB->USB_RXMSK_REG = 0;
+  (void) rhport;
 
-  USB->USB_MAMSK_REG = USB_USB_MAMSK_REG_USB_M_INTR_Msk |
-                       USB_USB_MAMSK_REG_USB_M_ALT_Msk |
-                       USB_USB_MAMSK_REG_USB_M_WARN_Msk;
-  USB->USB_ALTMSK_REG = USB_USB_ALTMSK_REG_USB_M_RESET_Msk;
-
-  dcd_connect(rhport);
+  _dcd.init_called = true;
+  if (_dcd.vbus_present)
+  {
+    dcd_connect(rhport);
+  }
 }
 
 void dcd_int_enable(uint8_t rhport)
@@ -777,16 +833,37 @@ void dcd_set_address(uint8_t rhport, uint8_t dev_addr)
 void dcd_remote_wakeup(uint8_t rhport)
 {
   (void)rhport;
+  if (_dcd.nfsr == NFSR_NODE_SUSPEND)
+  {
+    // Enter fake state that will use FRAME interrupt to wait before going operational.
+    set_nfsr(NFSR_NODE_WAKING);
+    USB->USB_MAMSK_REG |= USB_USB_MAMSK_REG_USB_M_FRAME_Msk;
+  }
 }
 
 void dcd_connect(uint8_t rhport)
 {
   (void)rhport;
 
-  REG_SET_BIT(USB_MCTRL_REG, USB_NAT);
+  if (GET_BIT(USB->USB_MCTRL_REG, USB_USB_MCTRL_REG_USB_NAT) == 0)
+  {
+    USB->USB_MCTRL_REG = USB_USB_MCTRL_REG_USBEN_Msk;
+    USB->USB_NFSR_REG = 0;
+    USB->USB_FAR_REG = 0x80;
+    USB->USB_TXMSK_REG = 0;
+    USB->USB_RXMSK_REG = 0;
 
-  // Select chosen DMA to be triggered by USB.
-  DMA->DMA_REQ_MUX_REG = (DMA->DMA_REQ_MUX_REG & ~DA146XX_DMA_USB_MUX_MASK) | DA146XX_DMA_USB_MUX;
+    USB->USB_MAMSK_REG = USB_USB_MAMSK_REG_USB_M_INTR_Msk |
+                         USB_USB_MAMSK_REG_USB_M_ALT_Msk |
+                         USB_USB_MAMSK_REG_USB_M_WARN_Msk;
+    USB->USB_ALTMSK_REG = USB_USB_ALTMSK_REG_USB_M_RESET_Msk |
+                          USB_USB_ALTEV_REG_USB_SD3_Msk;
+
+    USB->USB_MCTRL_REG = USB_USB_MCTRL_REG_USBEN_Msk | USB_USB_MCTRL_REG_USB_NAT_Msk;
+
+    // Select chosen DMA to be triggered by USB.
+    DMA->DMA_REQ_MUX_REG = (DMA->DMA_REQ_MUX_REG & ~DA146XX_DMA_USB_MUX_MASK) | DA146XX_DMA_USB_MUX;
+  }
 }
 
 void dcd_disconnect(uint8_t rhport)
@@ -796,6 +873,30 @@ void dcd_disconnect(uint8_t rhport)
   REG_CLR_BIT(USB_MCTRL_REG, USB_NAT);
 }
 
+TU_ATTR_ALWAYS_INLINE static inline bool is_in_isr(void)
+{
+  return (SCB->ICSR & SCB_ICSR_VECTACTIVE_Msk) != 0;
+}
+
+void tusb_vbus_changed(bool present)
+{
+  if (present && !_dcd.vbus_present)
+  {
+    _dcd.vbus_present = true;
+    // If power event happened before USB started, delay dcd_connect
+    // until dcd_init is called.
+    if (_dcd.init_called)
+    {
+      dcd_connect(0);
+    }
+  }
+  else if (!present && _dcd.vbus_present)
+  {
+    _dcd.vbus_present = false;
+    USB->USB_MCTRL_REG = 0;
+    dcd_event_bus_signal(0, DCD_EVENT_UNPLUGGED, is_in_isr());
+  }
+}
 
 /*------------------------------------------------------------------*/
 /* DCD Endpoint port
@@ -808,11 +909,12 @@ bool dcd_edpt_open(uint8_t rhport, tusb_desc_endpoint_t const * desc_edpt)
   uint8_t const epnum = tu_edpt_number(desc_edpt->bEndpointAddress);
   uint8_t const dir   = tu_edpt_dir(desc_edpt->bEndpointAddress);
   xfer_ctl_t * xfer = XFER_CTL_BASE(epnum, dir);
+  EPx_REGS *regs = EPNUM_REGS(epnum);
   uint8_t iso_mask = 0;
 
   TU_ASSERT(epnum < EP_MAX);
 
-  xfer->max_packet_size = desc_edpt->wMaxPacketSize.size;
+  xfer->max_packet_size = tu_edpt_packet_size(desc_edpt);
   xfer->ep_addr = desc_edpt->bEndpointAddress;
   xfer->data1 = 0;
   xfer->iso = 0;
@@ -832,13 +934,13 @@ bool dcd_edpt_open(uint8_t rhport, tusb_desc_endpoint_t const * desc_edpt)
   {
     if (dir == TUSB_DIR_OUT)
     {
-      xfer->regs->epc_out = epnum | USB_USB_EPC1_REG_USB_EP_EN_Msk | iso_mask;
+      regs->epc_out = epnum | USB_USB_EPC1_REG_USB_EP_EN_Msk | iso_mask;
       USB->USB_RXMSK_REG |= 0x101 << (epnum - 1);
       REG_SET_BIT(USB_MAMSK_REG, USB_M_RX_EV);
     }
     else
     {
-      xfer->regs->epc_in = epnum | USB_USB_EPC1_REG_USB_EP_EN_Msk | iso_mask;
+      regs->epc_in = epnum | USB_USB_EPC1_REG_USB_EP_EN_Msk | iso_mask;
       USB->USB_TXMSK_REG |= 0x101 << (epnum - 1);
       REG_SET_BIT(USB_MAMSK_REG, USB_M_TX_EV);
     }
@@ -847,10 +949,22 @@ bool dcd_edpt_open(uint8_t rhport, tusb_desc_endpoint_t const * desc_edpt)
   return true;
 }
 
+void dcd_edpt_close_all (uint8_t rhport)
+{
+  (void) rhport;
+
+  for (int epnum = 1; epnum < EP_MAX; ++epnum)
+  {
+    dcd_edpt_close(0, epnum | TUSB_DIR_OUT);
+    dcd_edpt_close(0, epnum | TUSB_DIR_IN);
+  }
+}
+
 void dcd_edpt_close(uint8_t rhport, uint8_t ep_addr)
 {
   uint8_t const epnum = tu_edpt_number(ep_addr);
   uint8_t const dir   = tu_edpt_dir(ep_addr);
+  EPx_REGS *regs = EPNUM_REGS(epnum);
   xfer_ctl_t * xfer = XFER_CTL_BASE(epnum, dir);
 
   (void)rhport;
@@ -866,8 +980,8 @@ void dcd_edpt_close(uint8_t rhport, uint8_t ep_addr)
   {
     if (dir == TUSB_DIR_OUT)
     {
-      xfer->regs->rxc = USB_USB_RXC1_REG_USB_FLUSH_Msk;
-      xfer->regs->epc_out = 0;
+      regs->rxc = USB_USB_RXC1_REG_USB_FLUSH_Msk;
+      regs->epc_out = 0;
       USB->USB_RXMSK_REG &= ~(0x101 << (epnum - 1));
       // Release DMA if needed
       if (_dcd.dma_ep[TUSB_DIR_OUT] == epnum)
@@ -878,8 +992,8 @@ void dcd_edpt_close(uint8_t rhport, uint8_t ep_addr)
     }
     else
     {
-      xfer->regs->txc = USB_USB_TXC1_REG_USB_FLUSH_Msk;
-      xfer->regs->epc_in = 0;
+      regs->txc = USB_USB_TXC1_REG_USB_FLUSH_Msk;
+      regs->epc_in = 0;
       USB->USB_TXMSK_REG &= ~(0x101 << (epnum - 1));
       // Release DMA if needed
       if (_dcd.dma_ep[TUSB_DIR_IN] == epnum)
@@ -889,6 +1003,7 @@ void dcd_edpt_close(uint8_t rhport, uint8_t ep_addr)
       }
     }
   }
+  tu_memclr(xfer, sizeof(*xfer));
 }
 
 bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t total_bytes)
@@ -924,6 +1039,7 @@ void dcd_edpt_stall(uint8_t rhport, uint8_t ep_addr)
   (void)rhport;
 
   xfer_ctl_t * xfer = XFER_CTL_BASE(epnum, dir);
+  EPx_REGS *regs = EPNUM_REGS(epnum);
   xfer->stall = 1;
 
   if (epnum == 0)
@@ -932,11 +1048,11 @@ void dcd_edpt_stall(uint8_t rhport, uint8_t ep_addr)
     REG_SET_BIT(USB_EPC0_REG, USB_STALL);
     if (dir == TUSB_DIR_OUT)
     {
-      xfer->regs->USB_RXC0_REG = USB_USB_RXC0_REG_USB_RX_EN_Msk;
+      regs->USB_RXC0_REG = USB_USB_RXC0_REG_USB_RX_EN_Msk;
     }
     else
     {
-      if (xfer->regs->USB_RXC0_REG & USB_USB_RXC0_REG_USB_RX_EN_Msk)
+      if (regs->USB_RXC0_REG & USB_USB_RXC0_REG_USB_RX_EN_Msk)
       {
         // If RX is also enabled TX will not be stalled since RX has
         // higher priority. Enable NAK interrupt to handle stall.
@@ -944,7 +1060,7 @@ void dcd_edpt_stall(uint8_t rhport, uint8_t ep_addr)
       }
       else
       {
-        xfer->regs->USB_TXC0_REG |= USB_USB_TXC0_REG_USB_TX_EN_Msk;
+        regs->USB_TXC0_REG |= USB_USB_TXC0_REG_USB_TX_EN_Msk;
       }
     }
   }
@@ -952,13 +1068,13 @@ void dcd_edpt_stall(uint8_t rhport, uint8_t ep_addr)
   {
     if (dir == TUSB_DIR_OUT)
     {
-      xfer->regs->epc_out |= USB_USB_EPC1_REG_USB_STALL_Msk;
-      xfer->regs->rxc |= USB_USB_RXC1_REG_USB_RX_EN_Msk;
+      regs->epc_out |= USB_USB_EPC1_REG_USB_STALL_Msk;
+      regs->rxc |= USB_USB_RXC1_REG_USB_RX_EN_Msk;
     }
     else
     {
-      xfer->regs->epc_in |= USB_USB_EPC1_REG_USB_STALL_Msk;
-      xfer->regs->txc |= USB_USB_TXC1_REG_USB_TX_EN_Msk | USB_USB_TXC1_REG_USB_LAST_Msk;
+      regs->epc_in |= USB_USB_EPC1_REG_USB_STALL_Msk;
+      regs->txc |= USB_USB_TXC1_REG_USB_TX_EN_Msk | USB_USB_TXC1_REG_USB_LAST_Msk;
     }
   }
 }
@@ -971,6 +1087,7 @@ void dcd_edpt_clear_stall(uint8_t rhport, uint8_t ep_addr)
   (void)rhport;
 
   xfer_ctl_t * xfer = XFER_CTL_BASE(epnum, dir);
+  EPx_REGS *regs = EPNUM_REGS(epnum);
 
   // Clear stall is called in response to Clear Feature ENDPOINT_HALT, reset toggle
   xfer->data1 = 0;
@@ -978,11 +1095,11 @@ void dcd_edpt_clear_stall(uint8_t rhport, uint8_t ep_addr)
 
   if (dir == TUSB_DIR_OUT)
   {
-    xfer->regs->epc_out &= ~USB_USB_EPC1_REG_USB_STALL_Msk;
+    regs->epc_out &= ~USB_USB_EPC1_REG_USB_STALL_Msk;
   }
   else
   {
-    xfer->regs->epc_in &= ~USB_USB_EPC1_REG_USB_STALL_Msk;
+    regs->epc_in &= ~USB_USB_EPC1_REG_USB_STALL_Msk;
   }
   if (epnum == 0)
   {
@@ -996,7 +1113,7 @@ void dcd_edpt_clear_stall(uint8_t rhport, uint8_t ep_addr)
 
 void dcd_int_handler(uint8_t rhport)
 {
-  uint32_t int_status = USB->USB_MAEV_REG;
+  uint32_t int_status = USB->USB_MAEV_REG & USB->USB_MAMSK_REG;
 
   (void)rhport;
 
@@ -1038,19 +1155,38 @@ void dcd_int_handler(uint8_t rhport)
 
   if (GET_BIT(int_status, USB_USB_MAEV_REG_USB_FRAME))
   {
-    if (_dcd.in_reset)
+    if (_dcd.nfsr == NFSR_NODE_RESET)
     {
-      // Enable reset detection
-      _dcd.in_reset = false;
-      (void)USB->USB_ALTEV_REG;
+      // During reset FRAME interrupt is enabled to periodically
+      // check when reset state ends.
+      // FRAME interrupt is generated every 1ms without host sending
+      // actual SOF.
+      check_reset_end(USB_USB_ALTEV_REG_USB_RESET_Msk);
     }
+    else if (_dcd.nfsr == NFSR_NODE_WAKING)
+    {
+      // No need to call set_nfsr, just set state
+      _dcd.nfsr = NFSR_NODE_WAKING2;
+    }
+    else if (_dcd.nfsr == NFSR_NODE_WAKING2)
+    {
+      // No need to call set_nfsr, just set state
+      _dcd.nfsr = NFSR_NODE_RESUME;
+    }
+    else if (_dcd.nfsr == NFSR_NODE_RESUME)
+    {
+      set_nfsr(NFSR_NODE_OPERATIONAL);
+    }
+    else
+    {
 #if USE_SOF
-    dcd_event_bus_signal(0, DCD_EVENT_SOF, true);
+      dcd_event_bus_signal(0, DCD_EVENT_SOF, true);
 #else
-    // SOF was used to re-enable reset detection
-    // No need to keep it enabled
-    USB->USB_MAMSK_REG &= ~USB_USB_MAMSK_REG_USB_M_FRAME_Msk;
+      // FRAME interrupt was used to re-enable reset detection or remote
+      // wakeup no need to keep it enabled when USE_SOF is off.
+      USB->USB_MAMSK_REG &= ~USB_USB_MAMSK_REG_USB_M_FRAME_Msk;
 #endif
+    }
   }
 
   if (GET_BIT(int_status, USB_USB_MAEV_REG_USB_TX_EV))

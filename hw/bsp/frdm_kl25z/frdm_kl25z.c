@@ -54,6 +54,14 @@ void USB0_IRQHandler(void)
 #define LED_PIN_FUNCTION      kPORT_MuxAsGpio
 #define LED_STATE_ON          0
 
+// Button
+#define BUTTON_PORT           GPIOC
+#define BUTTON_PIN_CLOCK      kCLOCK_PortC
+#define BUTTON_PIN_PORT       PORTC
+#define BUTTON_PIN            9U
+#define BUTTON_PIN_FUNCTION   kPORT_MuxAsGpio
+#define BUTTON_STATE_ACTIVE   0
+
 // UART
 #define UART_PORT             UART0
 #define UART_PIN_CLOCK        kCLOCK_PortA
@@ -84,7 +92,19 @@ void board_init(void)
   PORT_SetPinMux(LED_PIN_PORT, LED_PIN, LED_PIN_FUNCTION);
   gpio_pin_config_t led_config = { kGPIO_DigitalOutput, 0 };
   GPIO_PinInit(LED_PORT, LED_PIN, &led_config);
-  board_led_write(true);
+  board_led_write(false);
+
+#if defined(BUTTON_PORT) && defined(BUTTON_PIN)
+  // Button
+  CLOCK_EnableClock(BUTTON_PIN_CLOCK);
+  port_pin_config_t button_port = {
+    .pullSelect = kPORT_PullUp, 
+    .mux = BUTTON_PIN_FUNCTION,
+  };
+  PORT_SetPinConfig(BUTTON_PIN_PORT, BUTTON_PIN, &button_port);
+  gpio_pin_config_t button_config = { kGPIO_DigitalInput, 0 };
+  GPIO_PinInit(BUTTON_PORT, BUTTON_PIN, &button_config);
+#endif
 
   // UART
   CLOCK_EnableClock(UART_PIN_CLOCK);
@@ -119,6 +139,9 @@ void board_led_write(bool state)
 
 uint32_t board_button_read(void)
 {
+#if defined(BUTTON_PORT) && defined(BUTTON_PIN)
+  return BUTTON_STATE_ACTIVE == GPIO_ReadPinInput(BUTTON_PORT, BUTTON_PIN);
+#endif
   return 0;
 }
 
@@ -130,7 +153,7 @@ int board_uart_read(uint8_t* buf, int len)
 
 int board_uart_write(void const * buf, int len)
 {
-  LPSCI_WriteBlocking(UART_PORT, (uint8_t*)buf, len);
+  LPSCI_WriteBlocking(UART_PORT, (uint8_t const*) buf, len);
   return len;
 }
 

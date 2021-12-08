@@ -38,7 +38,7 @@ const char *ep_dir_string[] = {
         "in",
 };
 
-static inline void _hw_endpoint_lock_update(struct hw_endpoint *ep, int delta) {
+static inline void _hw_endpoint_lock_update(__unused struct hw_endpoint * ep, __unused int delta) {
     // todo add critsec as necessary to prevent issues between worker and IRQ...
     //  note that this is perhaps as simple as disabling IRQs because it would make
     //  sense to have worker and IRQ on same core, however I think using critsec is about equivalent.
@@ -67,7 +67,6 @@ void rp2040_usb_init(void)
 
 void hw_endpoint_reset_transfer(struct hw_endpoint *ep)
 {
-  ep->stalled = false;
   ep->active = false;
   ep->remaining_len = 0;
   ep->xferred_len = 0;
@@ -108,7 +107,7 @@ void _hw_endpoint_buffer_control_update32(struct hw_endpoint *ep, uint32_t and_m
 static uint32_t prepare_ep_buffer(struct hw_endpoint *ep, uint8_t buf_id)
 {
   uint16_t const buflen = tu_min16(ep->remaining_len, ep->wMaxPacketSize);
-  ep->remaining_len -= buflen;
+  ep->remaining_len = (uint16_t)(ep->remaining_len - buflen);
 
   uint32_t buf_ctrl = buflen | USB_BUF_CTRL_AVAIL;
 
@@ -171,8 +170,7 @@ static void _hw_endpoint_start_next_buffer(struct hw_endpoint *ep)
 
   *ep->endpoint_control = ep_ctrl;
 
-  TU_LOG(3, "Prepare Buffer Control:\r\n");
-  print_bufctrl32(buf_ctrl);
+  TU_LOG(3, "  Prepare BufCtrl: [0] = 0x%04u  [1] = 0x%04x\r\n", tu_u32_low16(buf_ctrl), tu_u32_high16(buf_ctrl));
 
   // Finally, write to buffer_control which will trigger the transfer
   // the next time the controller polls this dpram address
@@ -216,7 +214,7 @@ static uint16_t sync_ep_buffer(struct hw_endpoint *ep, uint8_t buf_id)
     // sent some data can increase the length we have sent
     assert(!(buf_ctrl & USB_BUF_CTRL_FULL));
 
-    ep->xferred_len += xferred_bytes;
+    ep->xferred_len = (uint16_t)(ep->xferred_len + xferred_bytes);
   }else
   {
     // If we have received some data, so can increase the length
@@ -224,14 +222,14 @@ static uint16_t sync_ep_buffer(struct hw_endpoint *ep, uint8_t buf_id)
     assert(buf_ctrl & USB_BUF_CTRL_FULL);
 
     memcpy(ep->user_buf, ep->hw_data_buf + buf_id*64, xferred_bytes);
-    ep->xferred_len += xferred_bytes;
+    ep->xferred_len = (uint16_t)(ep->xferred_len + xferred_bytes);
     ep->user_buf += xferred_bytes;
   }
 
   // Short packet
   if (xferred_bytes < ep->wMaxPacketSize)
   {
-    pico_trace("Short rx transfer on buffer %d with %u bytes\n", buf_id, xferred_bytes);
+    pico_trace("  Short packet on buffer %d with %u bytes\n", buf_id, xferred_bytes);
     // Reduce total length as this is last packet
     ep->remaining_len = 0;
   }
@@ -244,9 +242,8 @@ static void _hw_endpoint_xfer_sync (struct hw_endpoint *ep)
   // Update hw endpoint struct with info from hardware
   // after a buff status interrupt
 
-  uint32_t buf_ctrl = _hw_endpoint_buffer_control_get_value32(ep);
-  TU_LOG(3, "_hw_endpoint_xfer_sync:\r\n");
-  print_bufctrl32(buf_ctrl);
+  uint32_t __unused buf_ctrl = _hw_endpoint_buffer_control_get_value32(ep);
+  TU_LOG(3, "  Sync BufCtrl: [0] = 0x%04u  [1] = 0x%04x\r\n", tu_u32_low16(buf_ctrl), tu_u32_high16(buf_ctrl));
 
   // always sync buffer 0
   uint16_t buf0_bytes = sync_ep_buffer(ep, 0);
@@ -284,7 +281,7 @@ static void _hw_endpoint_xfer_sync (struct hw_endpoint *ep)
       usb_hw->abort &= ~TU_BIT(ep_id);
 
       TU_LOG(3, "----SHORT PACKET buffer0 on EP %02X:\r\n", ep->ep_addr);
-      print_bufctrl32(buf_ctrl);
+      TU_LOG(3, "  BufCtrl: [0] = 0x%04u  [1] = 0x%04x\r\n", tu_u32_low16(buf_ctrl), tu_u32_high16(buf_ctrl));
 #endif
     }
   }

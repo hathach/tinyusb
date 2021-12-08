@@ -12,6 +12,9 @@ CFLAGS += \
   -DCONF_DFLL_OVERWRITE_CALIBRATION=0 \
   -DCFG_TUSB_MCU=OPT_MCU_SAMD21
 
+# suppress warning caused by vendor mcu driver
+CFLAGS += -Wno-error=cast-qual
+
 SRC_C += \
 	src/portable/microchip/samd/dcd_samd.c \
 	hw/mcu/microchip/samd21/gcc/gcc/startup_samd21.c \

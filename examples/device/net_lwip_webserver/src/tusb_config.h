@@ -95,12 +95,11 @@
 #endif
 
 //------------- CLASS -------------//
-#define CFG_TUD_CDC               0
-#define CFG_TUD_MSC               0
-#define CFG_TUD_HID               0
-#define CFG_TUD_MIDI              0
-#define CFG_TUD_VENDOR            0
-#define CFG_TUD_NET               1
+
+// Network class has 2 drivers: ECM/RNDIS and NCM.
+// Only one of the drivers can be enabled
+#define CFG_TUD_ECM_RNDIS     1
+#define CFG_TUD_NCM           (1-CFG_TUD_ECM_RNDIS)
 
 #ifdef __cplusplus
  }

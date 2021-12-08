@@ -70,11 +70,12 @@ if (NOT TARGET _rp2040_family_inclusion_marker)
 			${TOP}/src/class/hid/hid_device.c
 			${TOP}/src/class/midi/midi_device.c
 			${TOP}/src/class/msc/msc_device.c
-			${TOP}/src/class/net/net_device.c
+			${TOP}/src/class/net/ecm_rndis_device.c
+			${TOP}/src/class/net/ncm_device.c
 			${TOP}/src/class/usbtmc/usbtmc_device.c
 			${TOP}/src/class/vendor/vendor_device.c
+			${TOP}/src/class/video/video_device.c
 			)
-
 
 	# Base config for host mode; wrapped by SDK's tinyusb_host
 	add_library(tinyusb_host_base INTERFACE)
@@ -150,5 +151,29 @@ if (NOT TARGET _rp2040_family_inclusion_marker)
 		_family_initialize_project(${PROJECT} ${DIR})
 		enable_language(C CXX ASM)
 		pico_sdk_init()
+	endfunction()
+
+	# This method must be called from the project scope to suppress known warnings in TinyUSB source files
+	function(suppress_tinyusb_warnings)
+		set_source_files_properties(
+				${PICO_TINYUSB_PATH}/src/tusb.c
+				PROPERTIES
+				COMPILE_FLAGS "-Wno-conversion")
+		set_source_files_properties(
+				${PICO_TINYUSB_PATH}/src/common/tusb_fifo.c
+				PROPERTIES
+				COMPILE_FLAGS "-Wno-conversion -Wno-cast-qual")
+		set_source_files_properties(
+				${PICO_TINYUSB_PATH}/src/device/usbd.c
+				PROPERTIES
+				COMPILE_FLAGS "-Wno-conversion -Wno-cast-qual -Wno-null-dereference")
+		set_source_files_properties(
+				${PICO_TINYUSB_PATH}/src/device/usbd_control.c
+				PROPERTIES
+				COMPILE_FLAGS "-Wno-conversion")
+		set_source_files_properties(
+				${PICO_TINYUSB_PATH}/src/class/cdc/cdc_device.c
+				PROPERTIES
+				COMPILE_FLAGS "-Wno-conversion")
 	endfunction()
 endif()

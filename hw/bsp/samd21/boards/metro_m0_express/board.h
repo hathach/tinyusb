@@ -35,7 +35,7 @@
 #define LED_PIN               17
 #define LED_STATE_ON          1
 
-// Button
+// Button: D5
 #define BUTTON_PIN            15
 #define BUTTON_STATE_ACTIVE   0
 

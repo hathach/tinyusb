@@ -228,7 +228,7 @@ int board_uart_read(uint8_t* buf, int len)
 
 int board_uart_write(void const *buf, int len)
 {
-  sci0_buf[0].buf = (uint8_t*)buf;
+  sci0_buf[0].buf = (uint8_t*)(uintptr_t) buf;
   sci0_buf[0].cnt = len;
   SCI0.SCR.BYTE |= SCI_SCR_TE | SCI_SCR_TIE;
   while (SCI0.SCR.BIT.TE) ;

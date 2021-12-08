@@ -128,7 +128,7 @@ static inline ehci_qtd_t* qtd_find_free (void);
 static inline ehci_qtd_t* qtd_next (ehci_qtd_t const * p_qtd);
 static inline void qtd_insert_to_qhd (ehci_qhd_t *p_qhd, ehci_qtd_t *p_qtd_new);
 static inline void qtd_remove_1st_from_qhd (ehci_qhd_t *p_qhd);
-static void qtd_init (ehci_qtd_t* p_qtd, void* buffer, uint16_t total_bytes);
+static void qtd_init (ehci_qtd_t* p_qtd, void const* buffer, uint16_t total_bytes);
 
 static inline void list_insert (ehci_link_t *current, ehci_link_t *new, uint8_t new_type);
 static inline ehci_link_t* list_next (ehci_link_t *p_link_pointer);
@@ -392,7 +392,7 @@ bool hcd_setup_send(uint8_t rhport, uint8_t dev_addr, uint8_t const setup_packet
   ehci_qhd_t* qhd = &ehci_data.control[dev_addr].qhd;
   ehci_qtd_t* td  = &ehci_data.control[dev_addr].qtd;
 
-  qtd_init(td, (void*) setup_packet, 8);
+  qtd_init(td, setup_packet, 8);
   td->pid          = EHCI_PID_SETUP;
   td->int_on_complete = 1;
   td->next.terminate  = 1;
@@ -802,7 +802,7 @@ static void qhd_init(ehci_qhd_t *p_qhd, uint8_t dev_addr, tusb_desc_endpoint_t c
   p_qhd->ep_speed           = devtree_info.speed;
   p_qhd->data_toggle_control= (xfer_type == TUSB_XFER_CONTROL) ? 1 : 0;
   p_qhd->head_list_flag     = (dev_addr == 0) ? 1 : 0; // addr0's endpoint is the static asyn list head
-  p_qhd->max_packet_size    = ep_desc->wMaxPacketSize.size;
+  p_qhd->max_packet_size    = tu_edpt_packet_size(ep_desc);
   p_qhd->fl_ctrl_ep_flag    = ((xfer_type == TUSB_XFER_CONTROL) && (p_qhd->ep_speed != TUSB_SPEED_HIGH))  ? 1 : 0;
   p_qhd->nak_reload         = 0;
 
@@ -857,7 +857,7 @@ static void qhd_init(ehci_qhd_t *p_qhd, uint8_t dev_addr, tusb_desc_endpoint_t c
   }
 }
 
-static void qtd_init(ehci_qtd_t* p_qtd, void* buffer, uint16_t total_bytes)
+static void qtd_init(ehci_qtd_t* p_qtd, void const* buffer, uint16_t total_bytes)
 {
   tu_memclr(p_qtd, sizeof(ehci_qtd_t));
 

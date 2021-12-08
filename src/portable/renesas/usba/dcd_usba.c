@@ -259,7 +259,7 @@ static inline void pipe_wait_for_ready(unsigned num)
 
 static void pipe_write_packet(void *buf, volatile void *fifo, unsigned len)
 {
-  hw_fifo_t *reg = (hw_fifo_t*)fifo;
+  volatile hw_fifo_t *reg = (volatile hw_fifo_t*) fifo;
   uintptr_t addr = (uintptr_t)buf;
   while (len >= 2) {
     reg->u16 = *(const uint16_t *)addr;
@@ -275,7 +275,7 @@ static void pipe_write_packet(void *buf, volatile void *fifo, unsigned len)
 static void pipe_read_packet(void *buf, volatile void *fifo, unsigned len)
 {
   uint8_t *p   = (uint8_t*)buf;
-  uint8_t *reg = (uint8_t*)fifo;  /* byte access is always at base register address */
+  volatile uint8_t *reg = (volatile uint8_t*)fifo;  /* byte access is always at base register address */
   while (len--) *p++ = *reg;
 }
 
@@ -695,7 +695,7 @@ bool dcd_edpt_open(uint8_t rhport, tusb_desc_endpoint_t const * ep_desc)
   const unsigned dir     = tu_edpt_dir(ep_addr);
   const unsigned xfer    = ep_desc->bmAttributes.xfer;
 
-  const unsigned mps = tu_le16toh(ep_desc->wMaxPacketSize.size);
+  const unsigned mps = tu_edpt_packet_size(ep_desc);
   if (xfer == TUSB_XFER_ISOCHRONOUS && mps > 256) {
     /* USBa supports up to 256 bytes */
     return false;
@@ -711,7 +711,7 @@ bool dcd_edpt_open(uint8_t rhport, tusb_desc_endpoint_t const * ep_desc)
   USB0.PIPESEL.WORD  = num;
   USB0.PIPEMAXP.WORD = mps;
   volatile uint16_t *ctr = get_pipectr(num);
-  *ctr = USB_PIPECTR_ACLRM;
+  *ctr = USB_PIPECTR_ACLRM | USB_PIPECTR_SQCLR;
   *ctr = 0;
   unsigned cfg = (dir << 4) | epn;
   if (xfer == TUSB_XFER_BULK) {
@@ -731,6 +731,18 @@ bool dcd_edpt_open(uint8_t rhport, tusb_desc_endpoint_t const * ep_desc)
   dcd_int_enable(rhport);
 
   return true;
+}
+
+void dcd_edpt_close_all(uint8_t rhport)
+{
+  unsigned i = TU_ARRAY_SIZE(_dcd.pipe);
+  dcd_int_disable(rhport);
+  while (--i) { /* Close all pipes except 0 */
+    const unsigned ep_addr = _dcd.pipe[i].ep;
+    if (!ep_addr) continue;
+    dcd_edpt_close(rhport, ep_addr);
+  }
+  dcd_int_enable(rhport);
 }
 
 void dcd_edpt_close(uint8_t rhport, uint8_t ep_addr)

@@ -6,7 +6,7 @@ INC += \
 	$(TOP)/hw \
 
 # Example source
-EXAMPLE_SOURCE += \
+EXAMPLE_SOURCE = \
 	src/main.c \
 	src/usb_descriptors.c
 	

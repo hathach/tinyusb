@@ -69,7 +69,7 @@ bool tusb_inited(void)
 
 bool tu_edpt_validate(tusb_desc_endpoint_t const * desc_ep, tusb_speed_t speed)
 {
-  uint16_t const max_packet_size = tu_le16toh(desc_ep->wMaxPacketSize.size);
+  uint16_t const max_packet_size = tu_edpt_packet_size(desc_ep);
   TU_LOG2("  Open EP %02X with Size = %u\r\n", desc_ep->bEndpointAddress, max_packet_size);
 
   switch (desc_ep->bmAttributes.xfer)
@@ -109,9 +109,9 @@ bool tu_edpt_validate(tusb_desc_endpoint_t const * desc_ep, tusb_speed_t speed)
 void tu_edpt_bind_driver(uint8_t ep2drv[][2], tusb_desc_interface_t const* desc_itf, uint16_t desc_len, uint8_t driver_id)
 {
   uint8_t const* p_desc = (uint8_t const*) desc_itf;
-  uint16_t len = 0;
+  uint8_t const* desc_end = p_desc + desc_len;
 
-  while( len < desc_len )
+  while( p_desc < desc_end )
   {
     if ( TUSB_DESC_ENDPOINT == tu_desc_type(p_desc) )
     {
@@ -121,7 +121,6 @@ void tu_edpt_bind_driver(uint8_t ep2drv[][2], tusb_desc_interface_t const* desc_
       ep2drv[tu_edpt_number(ep_addr)][tu_edpt_dir(ep_addr)] = driver_id;
     }
 
-    len    = (uint16_t)(len + tu_desc_len(p_desc));
     p_desc = tu_desc_next(p_desc);
   }
 }

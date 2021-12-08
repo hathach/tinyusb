@@ -2,6 +2,37 @@
 Changelog
 *********
 
+0.12.0
+======
+
+- add CFG_TUSB_OS_INC_PATH for os include path
+
+Device Controller Driver (DCD)
+------------------------------
+
+- Getting device stack to pass USB Compliance Verification test (chapter9, HID, MSC). Ports are tested:
+  nRF, SAMD 21/51, rp2040, stm32f4, Renesas RX, iMXRT, ESP32-S2/3, Kinetic KL25/32, DA146xx
+- Added dcd_edpt_close_all() for switching configuration
+- [Transdimension] Support dcd_edpt_xfer_fifo() with auto wrap over if fifo buffer is 4K aligned and size is multiple of 4K.
+- [DA146xx] Improve vbus, reset, suspend, resume detection, and remote wakeup.
+
+Device Stack
+------------
+
+- Add new network driver Network Control Model (CDC-NCM), update net_lwip_webserver to work with NCM (need re-configure example)
+- Add new USB Video Class UVC 1.5 driver and video_capture example ((work in progress)
+- Fix potential buffer overflow for HID, bluetooth drivers
+
+Host Controller Driver (HCD)
+----------------------------
+
+No notable changes
+
+Host Stack
+----------
+
+No notable changes
+
 0.11.0 (2021-08-29)
 ===================
 
@@ -26,7 +57,7 @@ Synopsys
 ^^^^^^^^
 
 - Fix Synopsys set address bug which could cause re-enumeration failed
-- Fix for dcd_synopsys driver integer overflow in HS mode (issue #968)
+- Fix dcd_synopsys driver integer overflow in HS mode (issue #968)
 
 nRF5x
 ^^^^^

@@ -19,18 +19,24 @@ CFLAGS += \
 	-DBOARD_DEVICE_RHPORT_NUM=$(PORT)
 
 ifeq ($(PORT), 1)
-  CFLAGS += -DBOARD_DEVICE_RHPORT_SPEED=OPT_MODE_HIGH_SPEED
-  $(info "PORT1 High Speed")
+  ifeq ($(SPEED), high)
+    CFLAGS += -DBOARD_DEVICE_RHPORT_SPEED=OPT_MODE_HIGH_SPEED
+    $(info "Using OTG_HS in HighSpeed mode")
+  else
+    CFLAGS += -DBOARD_DEVICE_RHPORT_SPEED=OPT_MODE_FULL_SPEED
+    $(info "Using OTG_HS in FullSpeed mode")
+  endif
 else
-  $(info "PORT0 Full Speed")
+  $(info "Using OTG_FS")
 endif
 
 # suppress warning caused by vendor mcu driver
 CFLAGS += -Wno-error=maybe-uninitialized -Wno-error=cast-align
 
 # All source paths should be relative to the top level.
+
 SRC_C += \
-	src/portable/st/synopsys/dcd_synopsys.c \
+	src/portable/synopsys/dwc2/dcd_dwc2.c \
 	$(ST_CMSIS)/Source/Templates/system_stm32$(ST_FAMILY)xx.c \
 	$(ST_HAL_DRIVER)/Src/stm32$(ST_FAMILY)xx_hal.c \
 	$(ST_HAL_DRIVER)/Src/stm32$(ST_FAMILY)xx_hal_cortex.c \

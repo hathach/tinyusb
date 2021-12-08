@@ -141,7 +141,7 @@ void tud_resume_cb(void)
 void audio_task(void)
 {
   // Yet to be filled - e.g. put meas data into TX FIFOs etc.
-  asm("nop");
+  // asm("nop");
 }
 
 //--------------------------------------------------------------------+

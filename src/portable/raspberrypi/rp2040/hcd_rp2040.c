@@ -160,12 +160,11 @@ static void hw_handle_buff_status(void)
 
 static void hw_trans_complete(void)
 {
-  struct hw_endpoint *ep = &epx;
-  assert(ep->active);
-
   if (usb_hw->sie_ctrl & USB_SIE_CTRL_SEND_SETUP_BITS)
   {
     pico_trace("Sent setup packet\n");
+    struct hw_endpoint *ep = &epx;
+    assert(ep->active);
     hw_xfer_complete(ep, XFER_RESULT_SUCCESS);
   }
   else
@@ -201,7 +200,6 @@ static void hcd_rp2040_irq(void)
     {
         handled |= USB_INTS_BUFF_STATUS_BITS;
         TU_LOG(2, "Buffer complete\n");
-        // print_bufctrl32(*epx.buffer_control);
         hw_handle_buff_status();
     }
 
@@ -231,7 +229,7 @@ static void hcd_rp2040_irq(void)
     if (status & USB_INTS_ERROR_DATA_SEQ_BITS)
     {
         usb_hw_clear->sie_status = USB_SIE_STATUS_DATA_SEQ_ERROR_BITS;
-        print_bufctrl32(*epx.buffer_control);
+        TU_LOG(3, "  Seq Error: [0] = 0x%04u  [1] = 0x%04x\r\n", tu_u32_low16(*epx.buffer_control), tu_u32_high16(*epx.buffer_control));
         panic("Data Seq Error \n");
     }
 
@@ -414,10 +412,28 @@ tusb_speed_t hcd_port_speed_get(uint8_t rhport)
 // Close all opened endpoint belong to this device
 void hcd_device_close(uint8_t rhport, uint8_t dev_addr)
 {
-    (void) rhport;
-    (void) dev_addr;
+  pico_trace("hcd_device_close %d\n", dev_addr);
+  (void) rhport;
 
-    pico_trace("hcd_device_close %d\n", dev_addr);
+  if (dev_addr == 0) return;
+
+  for (size_t i = 1; i < TU_ARRAY_SIZE(ep_pool); i++)
+  {
+    hw_endpoint_t* ep = &ep_pool[i];
+
+    if (ep->dev_addr == dev_addr && ep->configured)
+    {
+      // in case it is an interrupt endpoint, disable it
+      usb_hw_clear->int_ep_ctrl = (1 << (ep->interrupt_num + 1));
+      usb_hw->int_ep_addr_ctrl[ep->interrupt_num] = 0;
+
+      // unconfigure the endpoint
+      ep->configured = false;
+      *ep->endpoint_control = 0;
+      *ep->buffer_control = 0;
+      hw_endpoint_reset_transfer(ep);
+    }
+  }
 }
 
 uint32_t hcd_frame_number(uint8_t rhport)
@@ -455,7 +471,7 @@ bool hcd_edpt_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_endpoint_t const 
     _hw_endpoint_init(ep,
         dev_addr,
         ep_desc->bEndpointAddress,
-        ep_desc->wMaxPacketSize.size,
+        tu_edpt_packet_size(ep_desc),
         ep_desc->bmAttributes.xfer,
         ep_desc->bInterval);
 

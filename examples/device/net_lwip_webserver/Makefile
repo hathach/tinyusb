@@ -3,10 +3,11 @@ DEPS_SUBMODULES += lib/lwip
 include ../../../tools/top.mk
 include ../../make.mk
 
+# suppress warning caused by lwip
 CFLAGS += \
-  -DPBUF_POOL_SIZE=2 \
-  -DTCP_WND=2*TCP_MSS \
-  -DHTTPD_USE_CUSTOM_FSDATA=0
+  -Wno-error=null-dereference \
+  -Wno-error=unused-parameter \
+  -Wno-error=unused-variable
 
 INC += \
   src \
@@ -50,6 +51,15 @@ SRC_C += \
   lib/lwip/src/core/ipv4/ip4.c \
   lib/lwip/src/core/ipv4/ip4_addr.c \
   lib/lwip/src/core/ipv4/ip4_frag.c \
+  lib/lwip/src/core/ipv6/dhcp6.c \
+  lib/lwip/src/core/ipv6/ethip6.c \
+  lib/lwip/src/core/ipv6/icmp6.c \
+  lib/lwip/src/core/ipv6/inet6.c \
+  lib/lwip/src/core/ipv6/ip6.c \
+  lib/lwip/src/core/ipv6/ip6_addr.c \
+  lib/lwip/src/core/ipv6/ip6_frag.c \
+  lib/lwip/src/core/ipv6/mld6.c \
+  lib/lwip/src/core/ipv6/nd6.c \
   lib/lwip/src/netif/ethernet.c \
   lib/lwip/src/netif/slipif.c \
   lib/lwip/src/apps/http/httpd.c \

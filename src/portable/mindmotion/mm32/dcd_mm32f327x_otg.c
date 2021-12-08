@@ -283,7 +283,7 @@ void dcd_set_address(uint8_t rhport, uint8_t dev_addr)
   /* Response with status first before changing device address */
   dcd_edpt_xfer(rhport, tu_edpt_addr(0, TUSB_DIR_IN), NULL, 0);
 }
-extern u32 SystemCoreClock ;
+extern u32 SystemCoreClock;
 void dcd_remote_wakeup(uint8_t rhport)
 {
   (void) rhport;
@@ -323,7 +323,7 @@ bool dcd_edpt_open(uint8_t rhport, tusb_desc_endpoint_t const * ep_desc)
   /* No support for control transfer */
   TU_ASSERT(epn && (xfer != TUSB_XFER_CONTROL));
 
-  ep->max_packet_size = ep_desc->wMaxPacketSize.size;
+  ep->max_packet_size = tu_edpt_packet_size(ep_desc);
   unsigned val = USB_ENDPT_EPCTLDIS_MASK;
   val |= (xfer != TUSB_XFER_ISOCHRONOUS) ? USB_ENDPT_EPHSHK_MASK: 0;
   val |= dir ? USB_ENDPT_EPTXEN_MASK : USB_ENDPT_EPRXEN_MASK;
@@ -337,6 +337,12 @@ bool dcd_edpt_open(uint8_t rhport, tusb_desc_endpoint_t const * ep_desc)
   }
 
   return true;
+}
+
+void dcd_edpt_close_all (uint8_t rhport)
+{
+  (void) rhport;
+  // TODO implement dcd_edpt_close_all()
 }
 
 void dcd_edpt_close(uint8_t rhport, uint8_t ep_addr)

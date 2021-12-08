@@ -1,0 +1,145 @@
+<?xml version="1.0"?>
+<iarProjectConnection name="tinyusb" oneShot="true">
+
+	<includePath>
+		<path>$TUSB_DIR$/src</path>
+        <path>$TUSB_DIR$/lib/SEGGER_RTT/RTT</path>
+        <path>$PROJ_DIR$</path>
+	</includePath>
+	<files>
+		<group name="src/device">
+			<path>$TUSB_DIR$/src/device/usbd.c</path>
+			<path>$TUSB_DIR$/src/device/usbd_control.c</path>
+		</group>
+		<group name="src/common">
+			<path>$TUSB_DIR$/src/common/tusb_fifo.c</path>
+		</group>
+		<group name="src/class/audio">
+			<path>$TUSB_DIR$/src/class/audio/audio_device.c</path>
+		</group>
+		<group name="src/class/bth">
+			<path>$TUSB_DIR$/src/class/bth/bth_device.c</path>
+		</group>
+		<group name="src/class/cdc">
+			<path>$TUSB_DIR$/src/class/cdc/cdc_device.c</path>
+			<path>$TUSB_DIR$/src/class/cdc/cdc_host.c</path>
+			<path>$TUSB_DIR$/src/class/cdc/cdc_rndis_host.c</path>
+		</group>
+		<group name="src/class/dfu">
+			<path>$TUSB_DIR$/src/class/dfu/dfu_device.c</path>
+			<path>$TUSB_DIR$/src/class/dfu/dfu_rt_device.c</path>
+		</group>
+		<group name="src/class/hid">
+			<path>$TUSB_DIR$/src/class/hid/hid_device.c</path>
+			<path>$TUSB_DIR$/src/class/hid/hid_host.c</path>
+		</group>
+		<group name="src/class/midi">
+			<path>$TUSB_DIR$/src/class/midi/midi_device.c</path>
+		</group>
+		<group name="src/class/msc">
+			<path>$TUSB_DIR$/src/class/msc/msc_device.c</path>
+			<path>$TUSB_DIR$/src/class/msc/msc_host.c</path>
+		</group>
+		<group name="src/class/net">
+			<path>$TUSB_DIR$/src/class/net/ecm_rndis_device.c</path>
+			<path>$TUSB_DIR$/src/class/net/ncm_device.c</path>
+		</group>
+		<group name="src/class/usbtmc">
+			<path>$TUSB_DIR$/src/class/usbtmc/usbtmc_device.c</path>
+		</group>
+		<group name="src/class/vendor">
+			<path>$TUSB_DIR$/src/class/vendor/vendor_device.c</path>
+			<path>$TUSB_DIR$/src/class/vendor/vendor_host.c</path>
+		</group>
+        <group name="src">
+            <path>$TUSB_DIR$/src/tusb.c</path>
+        </group>
+		<group name="src/host">
+			<path>$TUSB_DIR$/src/host/hub.c</path>
+			<path>$TUSB_DIR$/src/host/usbh.c</path>
+			<path>$TUSB_DIR$/src/host/usbh_control.c</path>
+		</group>
+		<group name="src/portable/synopsys/dwc2">
+			<path>$TUSB_DIR$/src/portable/synopsys/dwc2/dcd_dwc2.c</path>
+		</group>
+		<group name="src/portable/dialog/da146xx">
+			<path>$TUSB_DIR$/src/portable/dialog/da146xx/dcd_da146xx.c</path>
+		</group>
+		<group name="src/portable/ehci">
+			<path>$TUSB_DIR$/src/portable/ehci/ehci.c</path>
+		</group>
+		<group name="src/portable/espressif/esp32sx">
+			<path>$TUSB_DIR$/src/portable/espressif/esp32sx/dcd_esp32sx.c</path>
+		</group>
+		<group name="src/portable/mentor/musb">
+			<path>$TUSB_DIR$/src/portable/mentor/musb/dcd_musb.c</path>
+		</group>
+		<group name="src/portable/microchip/samd">
+			<path>$TUSB_DIR$/src/portable/microchip/samd/dcd_samd.c</path>
+		</group>
+		<group name="src/portable/microchip/samg">
+			<path>$TUSB_DIR$/src/portable/microchip/samg/dcd_samg.c</path>
+		</group>
+		<group name="src/portable/microchip/samx7x">
+			<path>$TUSB_DIR$/src/portable/microchip/samx7x/dcd_samx7x.c</path>
+		</group>
+		<group name="src/portable/mindmotion/mm32">
+			<path>$TUSB_DIR$/src/portable/mindmotion/mm32/dcd_mm32f327x_otg.c</path>
+		</group>
+		<group name="src/portable/nordic/nrf5x">
+			<path>$TUSB_DIR$/src/portable/nordic/nrf5x/dcd_nrf5x.c</path>
+		</group>
+		<group name="src/portable/nuvoton/nuc120">
+			<path>$TUSB_DIR$/src/portable/nuvoton/nuc120/dcd_nuc120.c</path>
+		</group>
+		<group name="src/portable/nuvoton/nuc121">
+			<path>$TUSB_DIR$/src/portable/nuvoton/nuc121/dcd_nuc121.c</path>
+		</group>
+		<group name="src/portable/nuvoton/nuc505">
+			<path>$TUSB_DIR$/src/portable/nuvoton/nuc505/dcd_nuc505.c</path>
+		</group>
+		<group name="src/portable/nxp/khci">
+			<path>$TUSB_DIR$/src/portable/nxp/khci/dcd_khci.c</path>
+		</group>
+		<group name="src/portable/nxp/lpc17_40">
+			<path>$TUSB_DIR$/src/portable/nxp/lpc17_40/dcd_lpc17_40.c</path>
+			<path>$TUSB_DIR$/src/portable/nxp/lpc17_40/hcd_lpc17_40.c</path>
+		</group>
+		<group name="src/portable/nxp/lpc_ip3511">
+			<path>$TUSB_DIR$/src/portable/nxp/lpc_ip3511/dcd_lpc_ip3511.c</path>
+		</group>
+		<group name="src/portable/nxp/transdimension">
+			<path>$TUSB_DIR$/src/portable/nxp/transdimension/dcd_transdimension.c</path>
+			<path>$TUSB_DIR$/src/portable/nxp/transdimension/hcd_transdimension.c</path>
+		</group>
+		<group name="src/portable/ohci">
+			<path>$TUSB_DIR$/src/portable/ohci/ohci.c</path>
+		</group>
+		<group name="src/portable/raspberrypi/rp2040">
+			<path>$TUSB_DIR$/src/portable/raspberrypi/rp2040/dcd_rp2040.c</path>
+			<path>$TUSB_DIR$/src/portable/raspberrypi/rp2040/hcd_rp2040.c</path>
+			<path>$TUSB_DIR$/src/portable/raspberrypi/rp2040/rp2040_usb.c</path>
+		</group>
+		<group name="src/portable/renesas/usba">
+			<path>$TUSB_DIR$/src/portable/renesas/usba/dcd_usba.c</path>
+		</group>
+		<group name="src/portable/sony/cxd56">
+			<path>$TUSB_DIR$/src/portable/sony/cxd56/dcd_cxd56.c</path>
+		</group>
+		<group name="src/portable/st/stm32_fsdev">
+			<path>$TUSB_DIR$/src/portable/st/stm32_fsdev/dcd_stm32_fsdev.c</path>
+		</group>
+		<group name="src/portable/ti/msp430x5xx">
+			<path>$TUSB_DIR$/src/portable/ti/msp430x5xx/dcd_msp430x5xx.c</path>
+		</group>
+		<group name="src/portable/valentyusb/eptri">
+			<path>$TUSB_DIR$/src/portable/valentyusb/eptri/dcd_eptri.c</path>
+		</group>
+        <group name="lib/SEGGER_RTT">
+			<path>$TUSB_DIR$/lib/SEGGER_RTT/RTT/SEGGER_RTT.c</path>
+            <path>$TUSB_DIR$/lib/SEGGER_RTT/RTT/SEGGER_RTT_printf.c</path>
+            <path>$TUSB_DIR$/lib/SEGGER_RTT/Syscalls/SEGGER_RTT_Syscalls_IAR.c</path>
+		</group>
+    </files>
+    
+</iarProjectConnection>

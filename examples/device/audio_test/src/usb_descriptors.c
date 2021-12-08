@@ -82,17 +82,22 @@ enum
 #define CONFIG_TOTAL_LEN    	(TUD_CONFIG_DESC_LEN + CFG_TUD_AUDIO * TUD_AUDIO_MIC_ONE_CH_DESC_LEN)
 
 #if CFG_TUSB_MCU == OPT_MCU_LPC175X_6X || CFG_TUSB_MCU == OPT_MCU_LPC177X_8X || CFG_TUSB_MCU == OPT_MCU_LPC40XX
-// LPC 17xx and 40xx endpoint type (bulk/interrupt/iso) are fixed by its number
-// 0 control, 1 In, 2 Bulk, 3 Iso, 4 In etc ...
-#define EPNUM_AUDIO   0x03
+  // LPC 17xx and 40xx endpoint type (bulk/interrupt/iso) are fixed by its number
+  // 0 control, 1 In, 2 Bulk, 3 Iso, 4 In etc ...
+  #define EPNUM_AUDIO   0x03
+
+#elif TU_CHECK_MCU(OPT_MCU_NRF5X)
+  // nRF5x ISO can only be endpoint 8
+  #define EPNUM_AUDIO   0x08
+
 #else
-#define EPNUM_AUDIO   0x01
+  #define EPNUM_AUDIO   0x01
 #endif
 
 uint8_t const desc_configuration[] =
 {
     // Interface count, string index, total length, attribute, power in mA
-    TUD_CONFIG_DESCRIPTOR(1, ITF_NUM_TOTAL, 0, CONFIG_TOTAL_LEN, TUSB_DESC_CONFIG_ATT_REMOTE_WAKEUP, 100),
+    TUD_CONFIG_DESCRIPTOR(1, ITF_NUM_TOTAL, 0, CONFIG_TOTAL_LEN, 0x00, 100),
 
     // Interface number, string index, EP Out & EP In address, EP size
     TUD_AUDIO_MIC_ONE_CH_DESCRIPTOR(/*_itfnum*/ ITF_NUM_AUDIO_CONTROL, /*_stridx*/ 0, /*_nBytesPerSample*/ CFG_TUD_AUDIO_FUNC_1_N_BYTES_PER_SAMPLE_TX, /*_nBitsUsedPerSample*/ CFG_TUD_AUDIO_FUNC_1_N_BYTES_PER_SAMPLE_TX*8, /*_epin*/ 0x80 | EPNUM_AUDIO, /*_epsize*/ CFG_TUD_AUDIO_EP_SZ_IN)

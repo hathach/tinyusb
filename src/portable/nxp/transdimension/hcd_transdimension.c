@@ -31,6 +31,8 @@
 #if TUSB_OPT_HOST_ENABLED && \
     (CFG_TUSB_MCU == OPT_MCU_LPC18XX || CFG_TUSB_MCU == OPT_MCU_LPC43XX || CFG_TUSB_MCU == OPT_MCU_MIMXRT10XX)
 
+#warning "transdimenion is renamed to chipidea (portable/chipidea/ci_hs) to match other opensource naming convention such as linux. This file will be removed in the future, please update your makefile accordingly"
+
 //--------------------------------------------------------------------+
 // INCLUDE
 //--------------------------------------------------------------------+

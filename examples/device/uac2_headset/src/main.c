@@ -36,11 +36,12 @@
 
 // List of supported sample rates
 #if defined(__RX__)
-const uint32_t sample_rates[]       = {44100, 48000};
+  const uint32_t sample_rates[] = {44100, 48000};
 #else
-const uint32_t sample_rates[]       = {44100, 48000, 88200, 96000};
+  const uint32_t sample_rates[] = {44100, 48000, 88200, 96000};
 #endif
-uint32_t       current_sample_rate  = 44100;
+
+uint32_t current_sample_rate  = 44100;
 
 #define N_SAMPLE_RATES  TU_ARRAY_SIZE(sample_rates)
 
@@ -202,7 +203,7 @@ static bool tud_audio_clock_set_request(uint8_t rhport, audio_control_request_t 
   {
     TU_VERIFY(request->wLength == sizeof(audio_control_cur_4_t));
 
-    current_sample_rate = ((audio_control_cur_4_t *)buf)->bCur;
+    current_sample_rate = ((audio_control_cur_4_t const *)buf)->bCur;
 
     TU_LOG1("Clock set current freq: %d\r\n", current_sample_rate);
 
@@ -264,7 +265,7 @@ static bool tud_audio_feature_unit_set_request(uint8_t rhport, audio_control_req
   {
     TU_VERIFY(request->wLength == sizeof(audio_control_cur_1_t));
 
-    mute[request->bChannelNumber] = ((audio_control_cur_1_t *)buf)->bCur;
+    mute[request->bChannelNumber] = ((audio_control_cur_1_t const *)buf)->bCur;
 
     TU_LOG1("Set channel %d Mute: %d\r\n", request->bChannelNumber, mute[request->bChannelNumber]);
 
@@ -295,7 +296,7 @@ static bool tud_audio_feature_unit_set_request(uint8_t rhport, audio_control_req
 // Invoked when audio class specific get request received for an entity
 bool tud_audio_get_req_entity_cb(uint8_t rhport, tusb_control_request_t const *p_request)
 {
-  audio_control_request_t *request = (audio_control_request_t *)p_request;
+  audio_control_request_t const *request = (audio_control_request_t const *)p_request;
 
   if (request->bEntityID == UAC2_ENTITY_CLOCK)
     return tud_audio_clock_get_request(rhport, request);

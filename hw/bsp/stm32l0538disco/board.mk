@@ -13,6 +13,7 @@ CFLAGS += \
   -nostdlib -nostartfiles \
   -DSTM32L053xx \
   -DCFG_EXAMPLE_MSC_READONLY \
+  -DCFG_EXAMPLE_VIDEO_READONLY \
   -DCFG_TUSB_MCU=OPT_MCU_STM32L0
 
 # mcu driver cause following warnings

@@ -64,10 +64,19 @@
 // MACRO CONSTANT TYPEDEF
 //--------------------------------------------------------------------+
 
+// Use ring buffer if it's available, some MCUs need extra RAM requirements
+#ifndef TUD_AUDIO_PREFER_RING_BUFFER
+#if CFG_TUSB_MCU == OPT_MCU_LPC43XX || CFG_TUSB_MCU == OPT_MCU_LPC18XX || CFG_TUSB_MCU == OPT_MCU_MIMXRT10XX
+#define TUD_AUDIO_PREFER_RING_BUFFER 0
+#else
+#define TUD_AUDIO_PREFER_RING_BUFFER 1
+#endif
+#endif
+
 // Linear buffer in case target MCU is not capable of handling a ring buffer FIFO e.g. no hardware buffer
 // is available or driver is would need to be changed dramatically
 
-// Only STM32 synopsys use non-linear buffer for now
+// Only STM32 synopsys and dcd_transdimension use non-linear buffer for now
 // Synopsys detection copied from dcd_synopsys.c (refactor later on)
 #if defined (STM32F105x8) || defined (STM32F105xB) || defined (STM32F105xC) || \
     defined (STM32F107xB) || defined (STM32F107xC)
@@ -90,8 +99,16 @@
     CFG_TUSB_MCU == OPT_MCU_RX63X                                 || \
     CFG_TUSB_MCU == OPT_MCU_RX65X                                 || \
     CFG_TUSB_MCU == OPT_MCU_RX72N                                 || \
-    CFG_TUSB_MCU == OPT_MCU_GD32VF103
+    CFG_TUSB_MCU == OPT_MCU_GD32VF103                             || \
+    CFG_TUSB_MCU == OPT_MCU_LPC18XX                               || \
+    CFG_TUSB_MCU == OPT_MCU_LPC43XX                               || \
+    CFG_TUSB_MCU == OPT_MCU_MIMXRT10XX                            || \
+    CFG_TUSB_MCU == OPT_MCU_MSP432E4
+#if TUD_AUDIO_PREFER_RING_BUFFER
 #define  USE_LINEAR_BUFFER     0
+#else
+#define  USE_LINEAR_BUFFER     1
+#endif
 #else
 #define  USE_LINEAR_BUFFER     1
 #endif
@@ -1553,20 +1570,21 @@ static bool audiod_set_interface(uint8_t rhport, tusb_control_request_t const * 
       {
         if (tu_desc_type(p_desc) == TUSB_DESC_ENDPOINT)
         {
-          TU_ASSERT(usbd_edpt_open(rhport, (tusb_desc_endpoint_t const *)p_desc));
+          tusb_desc_endpoint_t const* desc_ep = (tusb_desc_endpoint_t const *) p_desc;
+          TU_ASSERT(usbd_edpt_open(rhport, desc_ep));
 
-          uint8_t ep_addr = ((tusb_desc_endpoint_t const *) p_desc)->bEndpointAddress;
+          uint8_t const ep_addr = desc_ep->bEndpointAddress;
 
           //TODO: We need to set EP non busy since this is not taken care of right now in ep_close() - THIS IS A WORKAROUND!
           usbd_edpt_clear_stall(rhport, ep_addr);
 
 #if CFG_TUD_AUDIO_ENABLE_EP_IN
-          if (tu_edpt_dir(ep_addr) == TUSB_DIR_IN && ((tusb_desc_endpoint_t const *) p_desc)->bmAttributes.usage == 0x00)   // Check if usage is data EP
+          if (tu_edpt_dir(ep_addr) == TUSB_DIR_IN && desc_ep->bmAttributes.usage == 0x00)   // Check if usage is data EP
           {
             // Save address
             audio->ep_in = ep_addr;
             audio->ep_in_as_intf_num = itf;
-            audio->ep_in_sz = ((tusb_desc_endpoint_t const *) p_desc)->wMaxPacketSize.size;
+            audio->ep_in_sz = tu_edpt_packet_size(desc_ep);
 
             // If software encoding is enabled, parse for the corresponding parameters - doing this here means only AS interfaces with EPs get scanned for parameters
 #if CFG_TUD_AUDIO_ENABLE_ENCODING
@@ -1600,7 +1618,7 @@ static bool audiod_set_interface(uint8_t rhport, tusb_control_request_t const * 
             // Save address
             audio->ep_out = ep_addr;
             audio->ep_out_as_intf_num = itf;
-            audio->ep_out_sz = ((tusb_desc_endpoint_t const *) p_desc)->wMaxPacketSize.size;
+            audio->ep_out_sz = tu_edpt_packet_size(desc_ep);
 
 #if CFG_TUD_AUDIO_ENABLE_DECODING
             audiod_parse_for_AS_params(audio, p_desc_parse_for_params, p_desc_end, itf);
@@ -1619,7 +1637,7 @@ static bool audiod_set_interface(uint8_t rhport, tusb_control_request_t const * 
 
 #if CFG_TUD_AUDIO_ENABLE_FEEDBACK_EP
             // In case of asynchronous EP, call Cb after ep_fb is set
-            if (!(((tusb_desc_endpoint_t const *) p_desc)->bmAttributes.sync == 0x01 && audio->ep_fb == 0))
+            if ( !(desc_ep->bmAttributes.sync == 0x01 && audio->ep_fb == 0) )
             {
               if (tud_audio_set_itf_cb) TU_VERIFY(tud_audio_set_itf_cb(rhport, p_request));
             }
@@ -1636,7 +1654,7 @@ static bool audiod_set_interface(uint8_t rhport, tusb_control_request_t const * 
           }
 
 #if CFG_TUD_AUDIO_ENABLE_FEEDBACK_EP
-          if (tu_edpt_dir(ep_addr) == TUSB_DIR_IN && ((tusb_desc_endpoint_t const *) p_desc)->bmAttributes.usage == 1)   // Check if usage is explicit data feedback
+          if (tu_edpt_dir(ep_addr) == TUSB_DIR_IN && desc_ep->bmAttributes.usage == 1)   // Check if usage is explicit data feedback
           {
             audio->ep_fb = ep_addr;
 

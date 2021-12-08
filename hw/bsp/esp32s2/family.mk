@@ -7,14 +7,11 @@ all:
 
 build: all
 
-clean:
-	idf.py -B$(BUILD) -DFAMILY=$(FAMILY) -DBOARD=$(BOARD) $(CMAKE_DEFSYM) clean
-
 fullclean:
 	if test -f sdkconfig; then $(RM) -f sdkconfig ; fi
 	if test -d $(BUILD); then $(RM) -rf $(BUILD) ; fi
 
-flash bootloader-flash app-flash erase monitor dfu-flash dfu:
+clean flash bootloader-flash app-flash erase monitor dfu-flash dfu size size-components size-files:
 	idf.py -B$(BUILD) -DFAMILY=$(FAMILY) -DBOARD=$(BOARD) $(CMAKE_DEFSYM) $@
 
 uf2: $(BUILD)/$(PROJECT).uf2

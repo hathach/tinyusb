@@ -96,6 +96,9 @@
 #elif CFG_TUSB_MCU == OPT_MCU_GD32VF103
 #include "synopsys_common.h"
 
+// for remote wakeup delay
+#define __NOP()   __asm volatile ("nop")
+
 // These numbers are the same for the whole GD32VF103 family.
 #define OTG_FS_IRQn     86
 #define EP_MAX_FS       4
@@ -213,17 +216,18 @@ static void bus_reset(uint8_t rhport)
   tu_memclr(xfer_status, sizeof(xfer_status));
   _out_ep_closed = false;
 
+  // clear device address
+  dev->DCFG &= ~USB_OTG_DCFG_DAD_Msk;
+
+  // 1. NAK for all OUT endpoints
   for(uint8_t n = 0; n < EP_MAX; n++) {
     out_ep[n].DOEPCTL |= USB_OTG_DOEPCTL_SNAK;
   }
 
-  // clear device address
-  dev->DCFG &= ~USB_OTG_DCFG_DAD_Msk;
-
-  // TODO should probably assign value when reset rather than OR
-  dev->DAINTMSK |= (1 << USB_OTG_DAINTMSK_OEPM_Pos) | (1 << USB_OTG_DAINTMSK_IEPM_Pos);
-  dev->DOEPMSK |= USB_OTG_DOEPMSK_STUPM | USB_OTG_DOEPMSK_XFRCM;
-  dev->DIEPMSK |= USB_OTG_DIEPMSK_TOM | USB_OTG_DIEPMSK_XFRCM;
+  // 2. Un-mask interrupt bits
+  dev->DAINTMSK = (1 << USB_OTG_DAINTMSK_OEPM_Pos) | (1 << USB_OTG_DAINTMSK_IEPM_Pos);
+  dev->DOEPMSK = USB_OTG_DOEPMSK_STUPM | USB_OTG_DOEPMSK_XFRCM;
+  dev->DIEPMSK = USB_OTG_DIEPMSK_TOM | USB_OTG_DIEPMSK_XFRCM;
 
   // "USB Data FIFOs" section in reference manual
   // Peripheral FIFO architecture
@@ -307,8 +311,6 @@ static void set_turnaround(USB_OTG_GlobalTypeDef * usb_otg, tusb_speed_t speed)
     // Turnaround timeout depends on the MCU clock
     uint32_t turnaround;
 
-    TU_LOG_INT(2, SystemCoreClock);
-
     if ( SystemCoreClock >= 32000000U )
       turnaround = 0x6U;
     else if ( SystemCoreClock >= 27500000U )
@@ -368,7 +370,7 @@ static bool USB_HS_PHYCInit(void)
 {
   USB_HS_PHYC_GlobalTypeDef *usb_hs_phyc = (USB_HS_PHYC_GlobalTypeDef*) USB_HS_PHYC_CONTROLLER_BASE;
 
-  // Enable LDO
+  // Enable LDO: Note STM32F72/3xx Reference Manual rev 3 June 2018 incorrectly defined this bit as Disabled !!
   usb_hs_phyc->USB_HS_PHYC_LDO |= USB_HS_PHYC_LDO_ENABLE;
 
   // Wait until LDO ready
@@ -556,13 +558,34 @@ void dcd_set_address (uint8_t rhport, uint8_t dev_addr)
   dcd_edpt_xfer(rhport, tu_edpt_addr(0, TUSB_DIR_IN), NULL, 0);
 }
 
+static void remote_wakeup_delay(void)
+{
+  // try to delay for 1 ms
+  uint32_t count = SystemCoreClock / 1000;
+  while ( count-- )
+  {
+    __NOP();
+  }
+}
+
 void dcd_remote_wakeup(uint8_t rhport)
 {
   (void) rhport;
 
-  // TODO must manually clear this bit after 1-15 ms
-  // USB_OTG_DeviceTypeDef * dev = DEVICE_BASE(rhport);
-  // dev->DCTL |= USB_OTG_DCTL_RWUSIG;
+  USB_OTG_GlobalTypeDef * usb_otg = GLOBAL_BASE(rhport);
+  USB_OTG_DeviceTypeDef * dev = DEVICE_BASE(rhport);
+
+  // set remote wakeup
+  dev->DCTL |= USB_OTG_DCTL_RWUSIG;
+
+  // enable SOF to detect bus resume
+  usb_otg->GINTSTS = USB_OTG_GINTSTS_SOF;
+  usb_otg->GINTMSK |= USB_OTG_GINTMSK_SOFM;
+
+  // Per specs: remote wakeup signal bit must be clear within 1-15ms
+  remote_wakeup_delay();
+
+  dev->DCTL &= ~USB_OTG_DCTL_RWUSIG;
 }
 
 void dcd_connect(uint8_t rhport)
@@ -599,10 +622,10 @@ bool dcd_edpt_open (uint8_t rhport, tusb_desc_endpoint_t const * desc_edpt)
   TU_ASSERT(epnum < EP_MAX);
 
   xfer_ctl_t * xfer = XFER_CTL_BASE(epnum, dir);
-  xfer->max_size = desc_edpt->wMaxPacketSize.size;
+  xfer->max_size = tu_edpt_packet_size(desc_edpt);
   xfer->interval = desc_edpt->bInterval;
 
-  uint16_t const fifo_size = (desc_edpt->wMaxPacketSize.size + 3) / 4; // Round up to next full word
+  uint16_t const fifo_size = (xfer->max_size + 3) / 4; // Round up to next full word
 
   if(dir == TUSB_DIR_OUT)
   {
@@ -618,9 +641,10 @@ bool dcd_edpt_open (uint8_t rhport, tusb_desc_endpoint_t const * desc_edpt)
       usb_otg->GRXFSIZ = sz;
     }
 
-    out_ep[epnum].DOEPCTL |= (1 << USB_OTG_DOEPCTL_USBAEP_Pos) |
-        (desc_edpt->bmAttributes.xfer << USB_OTG_DOEPCTL_EPTYP_Pos) |
-        (desc_edpt->wMaxPacketSize.size << USB_OTG_DOEPCTL_MPSIZ_Pos);
+    out_ep[epnum].DOEPCTL |= (1 << USB_OTG_DOEPCTL_USBAEP_Pos)        |
+        (desc_edpt->bmAttributes.xfer << USB_OTG_DOEPCTL_EPTYP_Pos)   |
+        (desc_edpt->bmAttributes.xfer != TUSB_XFER_ISOCHRONOUS ? USB_OTG_DOEPCTL_SD0PID_SEVNFRM : 0) |
+        (xfer->max_size << USB_OTG_DOEPCTL_MPSIZ_Pos);
 
     dev->DAINTMSK |= (1 << (USB_OTG_DAINTMSK_OEPM_Pos + epnum));
   }
@@ -661,13 +685,41 @@ bool dcd_edpt_open (uint8_t rhport, tusb_desc_endpoint_t const * desc_edpt)
     in_ep[epnum].DIEPCTL |= (1 << USB_OTG_DIEPCTL_USBAEP_Pos) |
         (epnum << USB_OTG_DIEPCTL_TXFNUM_Pos) |
         (desc_edpt->bmAttributes.xfer << USB_OTG_DIEPCTL_EPTYP_Pos) |
-        (desc_edpt->bmAttributes.xfer != TUSB_XFER_ISOCHRONOUS ? USB_OTG_DOEPCTL_SD0PID_SEVNFRM : 0) |
-        (desc_edpt->wMaxPacketSize.size << USB_OTG_DIEPCTL_MPSIZ_Pos);
+        (desc_edpt->bmAttributes.xfer != TUSB_XFER_ISOCHRONOUS ? USB_OTG_DIEPCTL_SD0PID_SEVNFRM : 0) |
+        (xfer->max_size << USB_OTG_DIEPCTL_MPSIZ_Pos);
 
     dev->DAINTMSK |= (1 << (USB_OTG_DAINTMSK_IEPM_Pos + epnum));
   }
 
   return true;
+}
+
+// Close all non-control endpoints, cancel all pending transfers if any.
+void dcd_edpt_close_all (uint8_t rhport)
+{
+  (void) rhport;
+
+//  USB_OTG_GlobalTypeDef * usb_otg = GLOBAL_BASE(rhport);
+  USB_OTG_DeviceTypeDef * dev = DEVICE_BASE(rhport);
+  USB_OTG_OUTEndpointTypeDef * out_ep = OUT_EP_BASE(rhport);
+  USB_OTG_INEndpointTypeDef * in_ep = IN_EP_BASE(rhport);
+
+  // Disable non-control interrupt
+  dev->DAINTMSK = (1 << USB_OTG_DAINTMSK_OEPM_Pos) | (1 << USB_OTG_DAINTMSK_IEPM_Pos);
+
+  for(uint8_t n = 1; n < EP_MAX; n++)
+  {
+    // disable OUT endpoint
+    out_ep[n].DOEPCTL = 0;
+    xfer_status[n][TUSB_DIR_OUT].max_size = 0;
+
+    // disable IN endpoint
+    in_ep[n].DIEPCTL = 0;
+    xfer_status[n][TUSB_DIR_IN].max_size = 0;
+  }
+
+  // reset allocated fifo IN
+  _allocated_fifo_words_tx = 16;
 }
 
 bool dcd_edpt_xfer (uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t total_bytes)
@@ -829,22 +881,13 @@ void dcd_edpt_clear_stall (uint8_t rhport, uint8_t ep_addr)
   uint8_t const epnum = tu_edpt_number(ep_addr);
   uint8_t const dir   = tu_edpt_dir(ep_addr);
 
+  // Clear stall and reset data toggle
   if(dir == TUSB_DIR_IN) {
     in_ep[epnum].DIEPCTL &= ~USB_OTG_DIEPCTL_STALL;
-
-    uint8_t eptype = (in_ep[epnum].DIEPCTL & USB_OTG_DIEPCTL_EPTYP_Msk) >> USB_OTG_DIEPCTL_EPTYP_Pos;
-    // Required by USB spec to reset DATA toggle bit to DATA0 on interrupt and bulk endpoints.
-    if(eptype == 2 || eptype == 3) {
-      in_ep[epnum].DIEPCTL |= USB_OTG_DIEPCTL_SD0PID_SEVNFRM;
-    }
+    in_ep[epnum].DIEPCTL |= USB_OTG_DIEPCTL_SD0PID_SEVNFRM;
   } else {
     out_ep[epnum].DOEPCTL &= ~USB_OTG_DOEPCTL_STALL;
-
-    uint8_t eptype = (out_ep[epnum].DOEPCTL & USB_OTG_DOEPCTL_EPTYP_Msk) >> USB_OTG_DOEPCTL_EPTYP_Pos;
-    // Required by USB spec to reset DATA toggle bit to DATA0 on interrupt and bulk endpoints.
-    if(eptype == 2 || eptype == 3) {
-      out_ep[epnum].DOEPCTL |= USB_OTG_DOEPCTL_SD0PID_SEVNFRM;
-    }
+    out_ep[epnum].DOEPCTL |= USB_OTG_DOEPCTL_SD0PID_SEVNFRM;
   }
 }
 
@@ -933,7 +976,7 @@ static void handle_rxflvl_ints(uint8_t rhport, USB_OTG_OUTEndpointTypeDef * out_
       if (xfer->ff)
       {
         // Ring buffer
-        tu_fifo_write_n_const_addr_full_words(xfer->ff, (const void *) rx_fifo, bcnt);
+        tu_fifo_write_n_const_addr_full_words(xfer->ff, (const void *)(uintptr_t) rx_fifo, bcnt);
       }
       else
       {
@@ -1053,7 +1096,7 @@ static void handle_epin_ints(uint8_t rhport, USB_OTG_DeviceTypeDef * dev, USB_OT
           if (xfer->ff)
           {
             usb_fifo_t tx_fifo = FIFO_BASE(rhport, n);
-            tu_fifo_read_n_const_addr_full_words(xfer->ff, (void *) tx_fifo, packet_size);
+            tu_fifo_read_n_const_addr_full_words(xfer->ff, (void *)(uintptr_t) tx_fifo, packet_size);
           }
           else
           {
@@ -1081,7 +1124,7 @@ void dcd_int_handler(uint8_t rhport)
   USB_OTG_OUTEndpointTypeDef * out_ep = OUT_EP_BASE(rhport);
   USB_OTG_INEndpointTypeDef * in_ep = IN_EP_BASE(rhport);
 
-  uint32_t int_status = usb_otg->GINTSTS;
+  uint32_t const int_status = usb_otg->GINTSTS & usb_otg->GINTMSK;
 
   if(int_status & USB_OTG_GINTSTS_USBRST)
   {
@@ -1114,6 +1157,9 @@ void dcd_int_handler(uint8_t rhport)
     dcd_event_bus_signal(rhport, DCD_EVENT_RESUME, true);
   }
 
+  // TODO check USB_OTG_GINTSTS_DISCINT for disconnect detection
+  // if(int_status & USB_OTG_GINTSTS_DISCINT)
+
   if(int_status & USB_OTG_GINTSTS_OTGINT)
   {
     // OTG INT bit is read-only
@@ -1127,13 +1173,15 @@ void dcd_int_handler(uint8_t rhport)
     usb_otg->GOTGINT = otg_int;
   }
 
-#if USE_SOF
   if(int_status & USB_OTG_GINTSTS_SOF)
   {
     usb_otg->GINTSTS = USB_OTG_GINTSTS_SOF;
+
+    // Disable SOF interrupt since currently only used for remote wakeup detection
+    usb_otg->GINTMSK &= ~USB_OTG_GINTMSK_SOFM;
+
     dcd_event_bus_signal(rhport, DCD_EVENT_SOF, true);
   }
-#endif
 
   // RxFIFO non-empty interrupt handling.
   if(int_status & USB_OTG_GINTSTS_RXFLVL)
@@ -1147,8 +1195,7 @@ void dcd_int_handler(uint8_t rhport)
     do
     {
       handle_rxflvl_ints(rhport, out_ep);
-      int_status = usb_otg->GINTSTS;
-    } while(int_status & USB_OTG_GINTSTS_RXFLVL);
+    } while(usb_otg->GINTSTS & USB_OTG_GINTSTS_RXFLVL);
 
     // Manage RX FIFO size
     if (_out_ep_closed)

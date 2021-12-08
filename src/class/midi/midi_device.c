@@ -279,6 +279,12 @@ uint32_t tud_midi_n_stream_write(uint8_t itf, uint8_t cable_num, uint8_t const* 
         stream->buffer[0] = (cable_num << 4) | msg;
         stream->total = 4;
       }
+      else if ( msg == 0xC || msg == 0xD)
+      {
+        // Channel Voice Messages, two-byte variants (Program Change and Channel Pressure)
+        stream->buffer[0] = (cable_num << 4) | msg;
+        stream->total = 3;
+      }
       else if ( msg == 0xf )
       {
         // System message
@@ -433,6 +439,7 @@ uint16_t midid_open(uint8_t rhport, tusb_desc_interface_t const * desc_itf, uint
       break;
     }
   }
+  TU_ASSERT(p_midi);
 
   p_midi->itf_num = desc_midi->bInterfaceNumber;
   (void) p_midi->itf_num;

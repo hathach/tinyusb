@@ -67,6 +67,11 @@
 // This examples use FreeRTOS
 #define CFG_TUSB_OS               OPT_OS_FREERTOS
 
+// Espressif IDF requires "freertos/" prefix in include path
+#if TU_CHECK_MCU(OPT_MCU_ESP32S2, OPT_MCU_ESP32S3)
+  #define CFG_TUSB_OS_INC_PATH    freertos/
+#endif
+
 // can be defined by compiler in DEBUG build
 #ifndef CFG_TUSB_DEBUG
   #define CFG_TUSB_DEBUG           0

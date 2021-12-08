@@ -121,12 +121,19 @@
 [submodule "hw/mcu/nxp/nxp_sdk"]
 	path = hw/mcu/nxp/nxp_sdk
 	url = https://github.com/hathach/nxp_sdk.git
-[submodule "hw/mcu/mindmotion/mm32sdk"]
-	path = hw/mcu/mindmotion/mm32sdk
-	url = https://github.com/zhangslice/mm32sdk.git
 [submodule "hw/mcu/gd/nuclei-sdk"]
 	path = hw/mcu/gd/nuclei-sdk
 	url = https://github.com/Nuclei-Software/nuclei-sdk.git
 [submodule "hw/mcu/bridgetek/ft9xx/ft90x-sdk"]
 	path = hw/mcu/bridgetek/ft9xx/ft90x-sdk
 	url = https://github.com/BRTSG-FOSS/ft90x-sdk
+[submodule "hw/mcu/mindmotion/mm32sdk"]
+	path = hw/mcu/mindmotion/mm32sdk
+	url = https://github.com/hathach/mm32sdk.git
+[submodule "hw/mcu/broadcom"]
+	path = hw/mcu/broadcom
+	url = https://github.com/adafruit/broadcom-peripherals.git
+	branch = main-build
+[submodule "hw/mcu/infineon/mtb-xmclib-cat3"]
+	path = hw/mcu/infineon/mtb-xmclib-cat3
+	url = https://github.com/Infineon/mtb-xmclib-cat3.git

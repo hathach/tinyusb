@@ -98,6 +98,9 @@
 #elif CFG_TUSB_MCU == OPT_MCU_MSP430x5xx
   #include "msp430.h"
 
+#elif CFG_TUSB_MCU == OPT_MCU_MSP432E4
+  #include "msp.h"
+
 #elif CFG_TUSB_MCU == OPT_MCU_VALENTYUSB_EPTRI
   // no header needed
 
@@ -125,7 +128,7 @@
 #elif CFG_TUSB_MCU == OPT_MCU_RP2040
   #include "pico.h"
   
-#elif CFG_TUSB_MCU == OPT_MCU_EFM32GG || CFG_TUSB_MCU == OPT_MCU_EFM32GG11 || CFG_TUSB_MCU == OPT_MCU_EFM32GG12
+#elif CFG_TUSB_MCU == OPT_MCU_EFM32GG
   #include "em_device.h"
 
 #elif CFG_TUSB_MCU == OPT_MCU_RX63X || CFG_TUSB_MCU == OPT_MCU_RX65X
@@ -133,6 +136,15 @@
 
 #elif CFG_TUSB_MCU == OPT_MCU_GD32VF103
   #include "gd32vf103.h"
+
+#elif CFG_TUSB_MCU == OPT_MCU_MM32F327X
+  #include "mm32_device.h"
+
+#elif CFG_TUSB_MCU == OPT_MCU_XMC4000
+  #include "xmc_device.h"
+
+#elif CFG_TUSB_MCU == OPT_MCU_TM4C123
+  #include "TM4C123.h"
 
 #else
   #error "Missing MCU header"
