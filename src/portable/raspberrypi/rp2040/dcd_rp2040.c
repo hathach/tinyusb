@@ -247,6 +247,14 @@ static void dcd_rp2040_irq(void)
     uint32_t const status = usb_hw->ints;
     uint32_t handled = 0;
 
+    // xfer events are handled before setup req. So if a transfer completes immediately
+    // before closing the EP, the events will be delivered in same order.
+    if (status & USB_INTS_BUFF_STATUS_BITS)
+    {
+        handled |= USB_INTS_BUFF_STATUS_BITS;
+        hw_handle_buff_status();
+    }
+
     if (status & USB_INTS_SETUP_REQ_BITS)
     {
         handled |= USB_INTS_SETUP_REQ_BITS;
@@ -258,12 +266,6 @@ static void dcd_rp2040_irq(void)
         // Pass setup packet to tiny usb
         dcd_event_setup_received(0, setup, true);
         usb_hw_clear->sie_status = USB_SIE_STATUS_SETUP_REC_BITS;
-    }
-
-    if (status & USB_INTS_BUFF_STATUS_BITS)
-    {
-        handled |= USB_INTS_BUFF_STATUS_BITS;
-        hw_handle_buff_status();
     }
 
 #if FORCE_VBUS_DETECT == 0
@@ -496,9 +498,6 @@ void dcd_edpt_close (uint8_t rhport, uint8_t ep_addr)
     (void) rhport;
 
     pico_trace("dcd_edpt_close %02x\n", ep_addr);
-
-    // usbd.c says: In progress transfers on this EP may be delivered after this call.
-    // If the endpoint is no longer active when the transfer event is delivered, it will be ignored.
     hw_endpoint_close(ep_addr);
 }
 
