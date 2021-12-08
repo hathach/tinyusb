@@ -198,10 +198,10 @@
   #define DCD_ATTR_ENDPOINT_MAX   8
 
 //------------- BridgeTek -------------//
-#elif TU_CHECK_MCU(FT90X)
+#elif TU_CHECK_MCU(OPT_MCU_FT90X)
   #define DCD_ATTR_ENDPOINT_MAX   8
 
-#elif TU_CHECK_MCU(FT93X)
+#elif TU_CHECK_MCU(OPT_MCU_FT93X)
   #define DCD_ATTR_ENDPOINT_MAX   16
 
 #else

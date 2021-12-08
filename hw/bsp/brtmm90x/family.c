@@ -63,7 +63,8 @@ void board_init(void)
     // Use sizeof to avoid pulling in strlen unnecessarily.
     board_uart_write(WELCOME_MSG, sizeof(WELCOME_MSG));
 
-#if 1
+#if 0
+    // Ethernet LEDs
     gpio_function(GPIO_ETH_LED0, pad_gpio4); /* ETH LED0 */
     gpio_dir(GPIO_ETH_LED0, pad_dir_open_drain);
     gpio_function(GPIO_ETH_LED1, pad_gpio5); /* ETH LED1 */
@@ -192,7 +193,10 @@ int board_uart_read(uint8_t *buf, int len)
 // Send characters to UART
 int board_uart_write(void const *buf, int len)
 {
-    int r = uart_writen(UART0, (uint8_t *)buf, len);
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wcast-qual" // uart_writen does not have const for buffer parameter.
+    int r = uart_writen(UART0, (uint8_t *)((const void *)buf), len);
+#pragma GCC diagnostic pop
 
     return r;
 }

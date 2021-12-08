@@ -56,10 +56,10 @@ static uint8_t _ft90x_setup_packet[8];
 
 struct ft90x_xfer_state
 {
-  volatile int16_t total_size; // Total transfer size in bytes for this transfer.
-  volatile int16_t remain_size; // Total remaining in transfer.
-  volatile uint8_t *buff_ptr; // Pointer to buffer to transmit from or receive to.
-  volatile uint8_t valid; // Transfer is pending and total_size, remain_size, and buff_ptr are valid.
+  uint8_t valid; // Transfer is pending and total_size, remain_size, and buff_ptr are valid.
+  int16_t total_size; // Total transfer size in bytes for this transfer.
+  int16_t remain_size; // Total remaining in transfer.
+  uint8_t *buff_ptr; // Pointer to buffer to transmit from or receive to.
 
   uint8_t type; // Endpoint type. Of type USBD_ENDPOINT_TYPE from endpoint descriptor.
   uint8_t dir; // Endpoint direction. TUSB_DIR_OUT or TUSB_DIR_IN. For control endpoint this is the current direction.
@@ -399,7 +399,7 @@ static uint16_t _ft90x_dusb_in(uint8_t ep_number, const uint8_t *buffer, uint16_
 #ifdef USBD_USE_STREAMS
   volatile uint8_t *data_reg;
 
-  data_reg = (uint8_t *)&(USBD->ep[ep_number].epxfifo);
+  data_reg = (volatile uint8_t *)&(USBD->ep[ep_number].epxfifo);
   if (buff_size)
   {
     if (((uint32_t)buffer) % 4 == 0)
@@ -476,7 +476,7 @@ static uint16_t _ft90x_dusb_out(uint8_t ep_number, uint8_t *buffer, uint16_t len
     buff_size = length;
 
 #ifdef USBD_USE_STREAMS
-  data_reg = (uint8_t *)&(USBD->ep[ep_number].epxfifo);
+  data_reg = (volatile uint8_t *)&(USBD->ep[ep_number].epxfifo);
   if (buff_size)
   {
     if ((uint32_t)buffer % 4 == 0)
@@ -656,7 +656,7 @@ bool dcd_edpt_open(uint8_t rhport, tusb_desc_endpoint_t const *ep_desc)
   uint8_t const ep_number = tu_edpt_number(ep_desc->bEndpointAddress);
   uint8_t const ep_dir = tu_edpt_dir(ep_desc->bEndpointAddress);
   uint8_t const ep_type = ep_desc->bmAttributes.xfer;
-  uint16_t const ep_size = ep_desc->wMaxPacketSize.size;
+  uint16_t const ep_size = tu_edpt_packet_size(ep_desc); // Mask size per packet, bits 10..0.
   uint16_t ep_buff_size;
   uint8_t ep_reg_size = USBD_EP_MAX_SIZE_8;
   uint8_t ep_reg_data = 0;
@@ -673,13 +673,13 @@ bool dcd_edpt_open(uint8_t rhport, tusb_desc_endpoint_t const *ep_desc)
 
   // Calculate the physical size of the endpoint as a power of 2. This may be more than
   // the requested size.
-  while (ep_desc->wMaxPacketSize.size > (8 * (1 << ep_reg_size)))
+  while (ep_size > (8 * (1 << ep_reg_size)))
   {
     ep_reg_size++;
   }
   if (ep_reg_size > USBD_EP_MAX_SIZE_1024)
   {
-    TU_LOG1("FT90x endpoint size not valid: requested %d max 1024\r\n", ep_desc->wMaxPacketSize.size);
+    TU_LOG1("FT90x endpoint size not valid: requested %d max 1024\r\n", ep_size);
     return false;
   }
   // Calculate actual amount of buffer RAM used by this endpoint. This may be more than the 
