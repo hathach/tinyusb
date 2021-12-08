@@ -1,5 +1,8 @@
 SDK_DIR = hw/mcu/nxp/mcux-sdk
-DEPS_SUBMODULES += $(SDK_DIR)
+DEPS_SUBMODULES += $(SDK_DIR) tools/uf2
+
+# This board uses TinyUF2 for updates
+UF2_FAMILY_ID = 0x7f83e793
 
 CFLAGS += \
   -mthumb \
