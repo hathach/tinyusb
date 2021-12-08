@@ -3,23 +3,24 @@ CROSS_COMPILE = ft32-elf-
 SKIP_NANOLIB = 1
 
 # Set to use FT90X prebuilt libraries.
-FT90X_PREBUILT_LIBS = 1
+FT90X_PREBUILT_LIBS = 0
 ifeq ($(FT90X_PREBUILT_LIBS),1)
 # If the FT90X toolchain is installed on Windows systems then the SDK 
 # include files and prebuilt libraries are at: %FT90X_TOOLCHAIN%/hardware
 FT9XX_SDK = $(FT90X_TOOLCHAIN)/hardware
+INC += $(FT9XX_SDK)/include
 else
 # The submodule BRTSG-FOSS/ft90x-sdk contains header files and source
 # code for the Bridgetek SDK. This can be used instead of the prebuilt
 # library.
-DEPS_SUBMODULES += hw/mcu/bridgetek/ft9xx/hardware
+DEPS_SUBMODULES += hw/mcu/bridgetek/ft9xx/ft90x-sdk
 # The SDK can be used to load specific files from the Bridgetek SDK.
-FT9XX_SDK = hw/mcu/bridgetek/ft9xx/hardware/Source
+FT9XX_SDK = hw/mcu/bridgetek/ft9xx/ft90x-sdk/Source
+INC += $(TOP)/$(FT9XX_SDK)/include
 endif
 
 # Add include files which are within the TinyUSB directory structure.
 INC += \
-	$(TOP)/hw/mcu/bridgetek/ft9xx/hardware/Source/include \
 	$(TOP)/$(BOARD_PATH)
 
 # Add required C Compiler flags for FT90X.
