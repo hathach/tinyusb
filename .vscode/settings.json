@@ -1,0 +1,17 @@
+{
+    "files.associations": {
+        "tusb_option.h": "c",
+        "ft900.h": "c",
+        "ft900_usbd.h": "c",
+        "ft900_registers.h": "c",
+        "ft900_usbd_registers.h": "c",
+        "dcd.h": "c",
+        "stdint.h": "c",
+        "board.h": "c",
+        "ft900_ehci_registers.h": "c",
+        "stdint-gcc.h": "c",
+        "ft900_memctl.h": "c",
+        "stddef.h": "c"
+    },
+    "cmake.configureOnOpen": true
+}

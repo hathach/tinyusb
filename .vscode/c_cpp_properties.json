@@ -1,0 +1,41 @@
+{
+    "configurations": [
+        {
+            "name": "FT900",
+            "includePath": [
+                // Toolchain installed FT90X SDK.
+                "C:/Program Files (x86)/Bridgetek/FT9xx Toolchain/Toolchain/hardware/include",
+                // Submodule for FT90X SDK.
+                //"${workspaceFolder}/hw/mcu/bridgetek/ft9xx/hardware/Source/include",
+                // Board headers.
+                "${workspaceFolder}/hw/bsp/brtmm90x/boards/mm900evxb",
+                // Hardware abstraction headers.
+                "${workspaceFolder}/hw/",
+                // Local header files.
+                ".",
+                "${workspaceFolder}/src",
+                // Example headers.
+                "${workspaceFolder}/examples/device/cdc_msc/src"
+                //"${workspaceFolder}/examples/host/hid_controller/src"
+            ],
+            "defines": [
+                "__FT900__", 
+                "BOARD=mm900evxb",
+                //"FT32_PORT", "FT32_PORT_HEAP=4", // For FreeRTOS
+                "CFG_TUSB_MCU=OPT_MCU_FT90X", // For FT90x
+                //"CFG_TUSB_RHPORT0_MODE=(OPT_MODE_HOST|OPT_MODE_HIGH_SPEED)",
+                //"CFG_TUSB_RHPORT1_MODE=(OPT_MODE_DEVICE|OPT_MODE_HIGH_SPEED)",
+                //"BOARD_DEVICE_RHPORT_NUM=1", 
+                //"BOARD_DEVICE_RHPORT_SPEED=OPT_MODE_HIGH_SPEED",
+                "CFG_TUSB_DEBUG=0"
+            ],
+            "windowsSdkVersion": "10.0.18362.0",
+            "compilerPath": "C:/Program Files (x86)/Bridgetek/FT9xx Toolchain/Toolchain/tools/bin/ft32-elf-gcc",
+            "cStandard": "c11",
+            "cppStandard": "c++11",
+            "intelliSenseMode": "windows-gcc-x64",
+            "configurationProvider": "ms-vscode.makefile-tools"
+        }
+    ],
+    "version": 4
+}

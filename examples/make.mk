@@ -104,9 +104,10 @@ CFLAGS += \
   -Wmissing-format-attribute \
   -Wunreachable-code \
   -Wcast-align \
-  -Wcast-function-type \
   -Wcast-qual \
   -Wnull-dereference
+
+#  -Wcast-function-type \
 
 # Debugging/Optimization
 ifeq ($(DEBUG), 1)
