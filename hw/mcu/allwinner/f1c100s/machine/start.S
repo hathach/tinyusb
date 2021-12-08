@@ -111,37 +111,38 @@ reset:
 	ldmia r0!, {r2-r8, r10}
 	stmia r1!, {r2-r8, r10}
 
-	/* Initial system clock, ddr add uart */
+	/* Initial system clock, ddr and uart */
 	bl sys_clock_init
-	bl sys_dram_init
 	bl sys_uart_init
 
-	/* Boot speed up, leave slower sram */
+	/* Check if we are already running from dram */
 	adr r0, _start
 	ldr r1, =_start
 	cmp r0, r1
-	beq _speedup
+	beq _init_mmu
+
+	/* Init dram if not running from dram */
+	bl sys_dram_init
+
+	/* Copy bootloader to faster dram (sram is slower) */
 	ldr r0, =0x81f80000
 	adr r1, _start
 	mov r2, #0x4000
 	bl memcpy
-	ldr r0, =_speedup
+	ldr r0, =_copy_self
 	ldr r1, =_start
 	sub r0, r0, r1
 	ldr r1, =0x81f80000
 	add r0, r0, r1
 	mov pc, r0
-_speedup:
-	nop
-
+_init_mmu:
+	bl sys_mmu_init
+	b 1f
+_copy_self:
 	/* Copyself to link address */
-	adr r0, _start
-	ldr r1, =_start
-	cmp r0, r1
-	beq 1f
 	bl sys_copyself
-1:	nop
 
+1:	nop
 	/* Initialize stacks */
 	mrs r0, cpsr
 	bic r0, r0, #0x1f
