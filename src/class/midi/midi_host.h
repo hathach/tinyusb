@@ -98,14 +98,7 @@ TU_ATTR_WEAK void tuh_midi_mount_cb(uint8_t dev_addr, uint8_t in_ep, uint8_t out
 // For now, the instance parameter is always 0 and can be ignored
 TU_ATTR_WEAK void tuh_midi_umount_cb(uint8_t dev_addr, uint8_t instance);
 
-// Invoked when a message is received on the bulk IN endpoint
-// For now, the instance parameter is always 0 and can be ignored
-// If a system exclusive message is long, the whole sysex message
-// may not be contained in the result from a single callback.
-// The application must consume this message (either by copying it or interpreting
-// and using it immediately) before issuing another bulk in transfer request
-TU_ATTR_WEAK void tuh_midi_message_received_cb(uint8_t dev_addr, uint8_t instance, uint8_t cable_num, uint8_t const* message, uint16_t message_len);
-
+TU_ATTR_WEAK void tuh_midi_rx_cb(uint8_t dev_addr, uint32_t num_packets);
 #ifdef __cplusplus
 }
 #endif
