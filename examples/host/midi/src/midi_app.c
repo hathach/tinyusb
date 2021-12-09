@@ -31,7 +31,7 @@
 // MACRO TYPEDEF CONSTANT ENUM DECLARATION
 //--------------------------------------------------------------------+
 static bool device_mounted = false;
-
+static bool need_to_poll_device = true;
 static void test_tx(void)
 {
   // toggle NOTE On, Note Off for the Mackie Control channels 1-8 REC LED
@@ -95,7 +95,7 @@ static void test_tx(void)
 
 static void test_rx(void)
 {
-  #if 1
+  #if 0
   const uint32_t interval_ms = 10;
   static uint32_t start_ms = 0;
   #endif
@@ -108,7 +108,7 @@ static void test_rx(void)
   {
     return;
   }
-  #if 1
+  #if 0
   // poll every interval_ms ms
   if ( board_millis() - start_ms < interval_ms)
   {
@@ -116,13 +116,17 @@ static void test_rx(void)
   }
   start_ms += interval_ms;
   #endif
-  tuh_midi_read_poll();
+  if (need_to_poll_device)
+  {
+    tuh_midi_read_poll();
+    need_to_poll_device = false;
+  }
 }
 
 void midi_host_app_task(void)
 {
-  test_tx();
-  //test_rx();
+  //test_tx();
+  test_rx();
 }
 
 //--------------------------------------------------------------------+
@@ -148,35 +152,17 @@ void tuh_midi_umount_cb(uint8_t dev_addr, uint8_t instance)
   printf("MIDI device address = %d, instance = %d is unmounted\r\n", dev_addr, instance);
 }
 
-#if 0
-// Invoked when received report from device via interrupt endpoint
-void tuh_hid_report_received_cb(uint8_t dev_addr, uint8_t instance, uint8_t const* report, uint16_t len)
+void tuh_midi_rx_cb(uint8_t dev_addr, uint32_t num_packets)
 {
-  uint8_t const itf_protocol = tuh_hid_interface_protocol(dev_addr, instance);
-
-  switch (itf_protocol)
+  need_to_poll_device = true;
+  if (num_packets != 0)
   {
-    case HID_ITF_PROTOCOL_KEYBOARD:
-      TU_LOG2("HID receive boot keyboard report\r\n");
-      process_kbd_report( (hid_keyboard_report_t const*) report );
-    break;
-
-    case HID_ITF_PROTOCOL_MOUSE:
-      TU_LOG2("HID receive boot mouse report\r\n");
-      process_mouse_report( (hid_mouse_report_t const*) report );
-    break;
-
-    default:
-      // Generic report requires matching ReportID and contents with previous parsed report info
-      process_generic_report(dev_addr, instance, report, len);
-    break;
-  }
-
-  // continue to request to receive report
-  if ( !tuh_hid_receive_report(dev_addr, instance) )
-  {
-    printf("Error: cannot request to receive report\r\n");
+    uint8_t cable_num;
+    uint8_t buffer[48];
+    uint32_t bytes_read = tuh_midi_stream_read(dev_addr, &cable_num, buffer, sizeof(buffer));
+    TU_LOG1("Read bytes %u cable %u", bytes_read, cable_num);
+    TU_LOG1_MEM(buffer, bytes_read, 2);
   }
 }
-#endif
+
 
