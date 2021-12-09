@@ -62,6 +62,9 @@ typedef struct hw_endpoint
 
     // If interrupt endpoint
     uint8_t interrupt_num;
+
+    // Set to true to force the LAST_BUFF flag to true in the next xfer request
+    bool force_last_buff;
 #endif
 } hw_endpoint_t;
 

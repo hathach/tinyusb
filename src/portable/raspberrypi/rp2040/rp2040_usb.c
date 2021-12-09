@@ -128,7 +128,7 @@ static uint32_t prepare_ep_buffer(struct hw_endpoint *ep, uint8_t buf_id)
   // Is this the last buffer? Only really matters for host mode. Will trigger
   // the trans complete irq but also stop it polling. We only really care about
   // trans complete for setup packets being sent
-  if (ep->remaining_len == 0)
+  if (ep->remaining_len == 0 || ep->force_last_buff)
   {
     buf_ctrl |= USB_BUF_CTRL_LAST;
   }

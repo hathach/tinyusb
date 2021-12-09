@@ -663,4 +663,10 @@ bool hcd_edpt_clear_stall(uint8_t dev_addr, uint8_t ep_addr)
     return true;
 }
 
+void hcd_edpt_force_last_buffer(uint8_t dev_addr, uint8_t ep_addr, bool force)
+{
+    struct hw_endpoint *ep = get_dev_ep(dev_addr, ep_addr);
+    assert(ep);
+    ep->force_last_buff = force;
+}
 #endif

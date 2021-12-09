@@ -81,6 +81,8 @@ static inline bool tuh_ready(uint8_t dev_addr)
 // Carry out control transfer
 bool tuh_control_xfer (uint8_t dev_addr, tusb_control_request_t const* request, void* buffer, tuh_control_complete_cb_t complete_cb);
 
+
+void usbh_edpt_force_last_buffer(uint8_t dev_addr, uint8_t ep_addr, bool force);
 //--------------------------------------------------------------------+
 // APPLICATION CALLBACK
 //--------------------------------------------------------------------+

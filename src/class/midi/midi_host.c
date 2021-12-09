@@ -542,6 +542,9 @@ bool midih_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_interface_t const *d
   if (in_desc)
   {
     TU_ASSERT(usbh_edpt_open(rhport, dev_addr, in_desc));
+    // Some devices always return exactly the request length so transfers won't complete
+    // unless you assume every transfer is the last one.
+    usbh_edpt_force_last_buffer(dev_addr, _midi_host.ep_in, true);
   }
   if (out_desc)
   {

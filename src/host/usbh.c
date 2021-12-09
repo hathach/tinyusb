@@ -1210,6 +1210,10 @@ bool usbh_edpt_busy(uint8_t dev_addr, uint8_t ep_addr)
   return dev->ep_status[epnum][dir].busy;
 }
 
-
+void usbh_edpt_force_last_buffer(uint8_t dev_addr, uint8_t ep_addr, bool force)
+{
+  if (hcd_edpt_force_last_buffer)
+    hcd_edpt_force_last_buffer(dev_addr, ep_addr, force);
+}
 
 #endif
