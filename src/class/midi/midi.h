@@ -106,6 +106,11 @@ enum
   MIDI_STATUS_SYSREAL_SYSTEM_RESET           = 0xFF,
 };
 
+enum
+{
+  MIDI_MAX_DATA_VAL = 0x7F,
+};
+
 /// MIDI Interface Header Descriptor
 typedef struct TU_ATTR_PACKED
 {

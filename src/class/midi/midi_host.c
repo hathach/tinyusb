@@ -784,4 +784,125 @@ uint8_t tuh_midih_get_num_rx_cables (void)
   return _midi_host.num_cables_rx;
 }
 
+uint32_t tuh_midi_stream_read (uint8_t dev_addr, uint8_t *p_cable_num, uint8_t *p_buffer, uint16_t bufsize)
+{
+  uint32_t bytes_buffered = 0;
+  if (_midi_host.dev_addr == dev_addr)
+  {
+    TU_ASSERT(p_cable_num);
+    TU_ASSERT(p_buffer);
+    TU_ASSERT(bufsize);
+    uint8_t one_byte;
+    if (!tu_fifo_peek(&_midi_host.rx_ff, &one_byte))
+    {
+      return 0;
+    }
+    *p_cable_num = (one_byte >> 4) & 0xf;
+    uint32_t nread = tu_fifo_read_n(&_midi_host.rx_ff, _midi_host.stream_read.buffer, 4);
+    static uint16_t cable_sysex_in_progress; // bit i is set if received MIDI_STATUS_SYSEX_START but not MIDI_STATUS_SYSEX_END
+    while (nread == 4 && bytes_buffered < bufsize)
+    {
+      *p_cable_num=(_midi_host.stream_read.buffer[0] & 0xf) >> 4;
+      uint8_t bytes_to_add_to_stream = 0;
+      if (*p_cable_num < _midi_host.num_cables_rx)
+      {
+        // ignore the CIN field; too many devices out there encode this wrong
+        uint8_t status = _midi_host.stream_read.buffer[1];
+        uint16_t cable_mask = 1 << *p_cable_num;
+        if (status <= MIDI_MAX_DATA_VAL || status == MIDI_STATUS_SYSEX_START)
+        {
+          if (status == MIDI_STATUS_SYSEX_START)
+          {
+            cable_sysex_in_progress |= cable_mask;
+          }
+          // only add the packet if a sysex message is in progress
+          if (cable_sysex_in_progress & cable_mask)
+          {
+            ++bytes_to_add_to_stream;
+            uint8_t idx;
+            for (idx = 2; idx < 4; idx++)
+            {
+              if (_midi_host.stream_read.buffer[idx] <= MIDI_MAX_DATA_VAL)
+              {
+                ++bytes_to_add_to_stream;
+              }
+              else if (_midi_host.stream_read.buffer[idx] == MIDI_STATUS_SYSEX_END)
+              {
+                ++bytes_to_add_to_stream;
+                cable_sysex_in_progress &= ~cable_mask;
+                idx = 4; // force the loop to exit; I hate break statements in loops
+              }
+            }
+          }
+        }
+        else if (status < MIDI_STATUS_SYSEX_START)
+        {
+          // then it is a channel message either three bytes or two
+          uint8_t fake_cin = (status & 0xf0) >> 4;
+          switch (fake_cin)
+          {
+            case MIDI_CIN_NOTE_OFF:
+            case MIDI_CIN_NOTE_ON:
+            case MIDI_CIN_POLY_KEYPRESS:
+            case MIDI_CIN_CONTROL_CHANGE:
+            case MIDI_CIN_PITCH_BEND_CHANGE:
+              bytes_to_add_to_stream = 3;
+              break;
+            case MIDI_CIN_PROGRAM_CHANGE:
+            case MIDI_CIN_CHANNEL_PRESSURE:
+              bytes_to_add_to_stream = 2;
+              break;
+            default:
+              break; // Should not get this
+          }
+          cable_sysex_in_progress &= ~cable_mask;
+        }
+        else if (status < MIDI_STATUS_SYSREAL_TIMING_CLOCK)
+        {
+          switch (status)
+          {
+            case MIDI_STATUS_SYSCOM_TIME_CODE_QUARTER_FRAME:
+            case MIDI_STATUS_SYSCOM_SONG_SELECT:
+              bytes_to_add_to_stream = 2;
+              break;
+            case MIDI_STATUS_SYSCOM_SONG_POSITION_POINTER:
+              bytes_to_add_to_stream = 3;
+              break;
+            case MIDI_STATUS_SYSCOM_TUNE_REQUEST:
+            case MIDI_STATUS_SYSEX_END:
+              bytes_to_add_to_stream = 1;
+              break;
+            default:
+              break;
+            cable_sysex_in_progress &= ~cable_mask;
+          }
+        }
+        else
+        {
+          // Real-time message: can be inserted into a sysex message,
+          // so do don't clear cable_sysex_in_progress bit
+          bytes_to_add_to_stream = 1;
+        }
+      }
+      uint8_t idx;
+      for (idx = 1; idx <= bytes_to_add_to_stream; idx++)
+      {
+        *p_buffer++ = _midi_host.stream_read.buffer[idx];
+      }
+      bytes_buffered += bytes_to_add_to_stream;
+      nread = 0;
+      if (tu_fifo_peek(&_midi_host.rx_ff, &one_byte))
+      {
+        uint8_t new_cable = (one_byte >> 4) & 0xf;
+        if (new_cable == *p_cable_num)
+        {
+          // still on the same cable. Continue reading the stream
+          nread = tu_fifo_read_n(&_midi_host.rx_ff, _midi_host.stream_read.buffer, 4);
+        }
+      }
+    }
+  }
+
+  return bytes_buffered;
+}
 #endif

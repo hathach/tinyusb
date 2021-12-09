@@ -73,7 +73,17 @@ bool tuh_midi_read_poll( void );
 // NOTE: check the return value and make sure the whole buffer was sent.
 // The transmit queue might be full or the transmit hardware may not be able
 // to start a new transmission.
-uint32_t tuh_midi_stream_write (uint8_t cable_num, uint8_t const* buffer, uint32_t bufsize);
+uint32_t tuh_midi_stream_write (uint8_t cable_num, uint8_t const* p_buffer, uint32_t bufsize);
+
+// Get the MIDI stream from the device. Set the value pointed
+// to by p_cable_num to the MIDI cable number intended to receive it.
+// The MIDI stream will be stored in the buffer pointed to by p_buffer.
+// Return the number of bytes added to the buffer.
+// Note that this function ignores the CIN field of the MIDI packet
+// because a number of commercial devices out there do not encode
+// it properly.
+uint32_t tuh_midi_stream_read (uint8_t dev_addr, uint8_t *p_cable_num, uint8_t *p_buffer, uint16_t bufsize);
+
 
 //--------------------------------------------------------------------+
 // Internal Class Driver API
