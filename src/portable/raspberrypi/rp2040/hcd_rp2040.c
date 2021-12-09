@@ -110,12 +110,6 @@ static void hw_xfer_complete(struct hw_endpoint *ep, xfer_result_t xfer_result)
     uint8_t ep_addr = ep->ep_addr;
     uint xferred_len = ep->xferred_len;
     hw_endpoint_reset_transfer(ep);
-    if (tu_edpt_number(ep_addr) != 0 && nak_received())
-    {
-        TU_LOG2("NAK Received EP=%x\r\n", ep_addr);
-        clear_nak_received();
-        xferred_len = 0;
-    }
     hcd_event_xfer_complete(dev_addr, ep_addr, xferred_len, xfer_result, true);
 }
 
