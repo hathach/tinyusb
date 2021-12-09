@@ -279,44 +279,33 @@ bool midih_xfer_cb(uint8_t dev_addr, uint8_t ep_addr, xfer_result_t result, uint
     }
 
     // receive new data if available
-    TU_LOG0("Data Received Result=%u #bytes=%u\r\n", result, xferred_bytes);
     if (xferred_bytes)
     {
       // put in the RX FIFO only non-zero MIDI IN 4-byte packets
       uint8_t* buf = _midi_host.epin_buf;
       uint32_t npackets = xferred_bytes / 4;
       uint32_t packet_num;
-      uint32_t num_packets_queued = 0;
+      uint32_t packets_queued = 0;
       for (packet_num = 0; packet_num < npackets; packet_num++)
       {
         // some devices send back all zero packets even if there is no data ready
-        uint32_t packet = (uint32_t)(*buf) | ((uint32_t)(*(buf+1))<<8) | ((uint32_t)(*(buf+2))<<16) | ((uint32_t)(*(buf+3))<<24);
+        uint32_t packet = (uint32_t)((*buf)<<24) | ((uint32_t)(*(buf+1))<<16) | ((uint32_t)(*(buf+2))<<8) | ((uint32_t)(*(buf+3)));
         if (packet != 0)
         {
           tu_fifo_write_n(&_midi_host.rx_ff, buf, 4);
-          ++num_packets_queued;
-          TU_LOG1("MIDI RX=%08x\r\n", packet);
+          ++packets_queued;
+          TU_LOG3("MIDI RX=%08x\r\n", packet);
         }
         buf += 4;
       }
-      #if 0 // TODO
+
+
       // invoke receive callback if available
       if (tuh_midi_rx_cb)
       {
-        tuh_midi_rx_cb(itf);
+        tuh_midi_rx_cb(dev_addr, packets_queued);
       }
-      #endif
     }
-    #if 0 // TODO
-    tu_fifo_write_n(&p_midi->rx_ff, p_midi->epin_buf, xferred_bytes);
-
-
-
-    // prepare for next
-    // TODO for now ep_out is not used by public API therefore there is no race condition,
-    // and does not need to claim like ep_in
-    _prep_out_transaction(p_midi);
-    #endif
   }
   else if ( ep_addr == _midi_host.ep_out )
   {
