@@ -68,37 +68,37 @@ static void test_tx(void)
   start_ms += interval_ms;
 
   uint32_t nwritten = tuh_midi_stream_write(0, message, sizeof(message));
-  printf ("wrote %d bytes to MIDI device\r\n", nwritten);
-  if (message[2] == 0x7f)
+  if (nwritten != 0)
   {
-    message[2] = 0;
-    message[5] = 0;
-    message[8] = 0;
-    message[11] = 0;
-    message[14] = 0;
-    message[17] = 0;
-    message[20] = 0;
-    message[23] = 0;
-  }
-  else
-  {
-    message[2] = 0x7f;
-    message[5] = 0x7f;
-    message[8] = 0x7f;
-    message[11] = 0x7f;
-    message[14] = 0x7f;
-    message[17] = 0x7f;
-    message[20] = 0x7f;
-    message[23] = 0x7f;
+    need_to_poll_device = (tuh_midi_stream_flush() == 0);
+
+    if (message[2] == 0x7f)
+    {
+      message[2] = 0;
+      message[5] = 0;
+      message[8] = 0;
+      message[11] = 0;
+      message[14] = 0;
+      message[17] = 0;
+      message[20] = 0;
+      message[23] = 0;
+    }
+    else
+    {
+      message[2] = 0x7f;
+      message[5] = 0x7f;
+      message[8] = 0x7f;
+      message[11] = 0x7f;
+      message[14] = 0x7f;
+      message[17] = 0x7f;
+      message[20] = 0x7f;
+      message[23] = 0x7f;
+    }
   }
 }
 
 static void test_rx(void)
 {
-  #if 0
-  const uint32_t interval_ms = 10;
-  static uint32_t start_ms = 0;
-  #endif
   // device must be attached and have at least one endpoint ready to receive a message
   if (!tuh_midi_configured())
   {
@@ -108,14 +108,6 @@ static void test_rx(void)
   {
     return;
   }
-  #if 0
-  // poll every interval_ms ms
-  if ( board_millis() - start_ms < interval_ms)
-  {
-    return; // not enough time
-  }
-  start_ms += interval_ms;
-  #endif
   if (need_to_poll_device)
   {
     tuh_midi_read_poll();
