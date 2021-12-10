@@ -110,14 +110,13 @@ static void test_rx(void)
   }
   if (need_to_poll_device)
   {
-    tuh_midi_read_poll();
-    need_to_poll_device = false;
+    need_to_poll_device = !tuh_midi_read_poll();
   }
 }
 
 void midi_host_app_task(void)
 {
-  //test_tx();
+  test_tx();
   test_rx();
 }
 
@@ -146,7 +145,6 @@ void tuh_midi_umount_cb(uint8_t dev_addr, uint8_t instance)
 
 void tuh_midi_rx_cb(uint8_t dev_addr, uint32_t num_packets)
 {
-  need_to_poll_device = true;
   if (num_packets != 0)
   {
     uint8_t cable_num;
@@ -155,6 +153,12 @@ void tuh_midi_rx_cb(uint8_t dev_addr, uint32_t num_packets)
     TU_LOG1("Read bytes %u cable %u", bytes_read, cable_num);
     TU_LOG1_MEM(buffer, bytes_read, 2);
   }
+  // Try to send any queued packets before polling IN again
+  need_to_poll_device = (tuh_midi_stream_flush() == 0);
 }
 
-
+void tuh_midi_tx_cb(uint8_t dev_addr)
+{
+  // We are done sending. Can receive
+  need_to_poll_device = true;
+}
