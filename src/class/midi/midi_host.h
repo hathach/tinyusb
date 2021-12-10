@@ -67,13 +67,15 @@ uint8_t tuh_midih_get_num_rx_cables (void);
 // This function will return false if the hardware is busy.
 bool tuh_midi_read_poll( void );
 
-// Send a message to the device. This function blocks until the send completes.
-// If the device sends NAK during the transmission, this function will block
-// until the NAK clears and the whole message gets sent.
-// NOTE: check the return value and make sure the whole buffer was sent.
-// The transmit queue might be full or the transmit hardware may not be able
-// to start a new transmission.
+// Queue a message to the device. The application
+// must call tuh_midi_stream_flush to actually have the
+// data go out.
 uint32_t tuh_midi_stream_write (uint8_t cable_num, uint8_t const* p_buffer, uint32_t bufsize);
+
+// Send any queued packets to the device if the host hardware is able to do it
+// Returns the number of bytes flushed to the host hardware or 0 if
+// the host hardware is busy or there is nothing in queue to send.
+uint32_t tuh_midi_stream_flush( void);
 
 // Get the MIDI stream from the device. Set the value pointed
 // to by p_cable_num to the MIDI cable number intended to receive it.
@@ -83,7 +85,6 @@ uint32_t tuh_midi_stream_write (uint8_t cable_num, uint8_t const* p_buffer, uint
 // because a number of commercial devices out there do not encode
 // it properly.
 uint32_t tuh_midi_stream_read (uint8_t dev_addr, uint8_t *p_cable_num, uint8_t *p_buffer, uint16_t bufsize);
-
 
 //--------------------------------------------------------------------+
 // Internal Class Driver API
@@ -109,6 +110,7 @@ TU_ATTR_WEAK void tuh_midi_mount_cb(uint8_t dev_addr, uint8_t in_ep, uint8_t out
 TU_ATTR_WEAK void tuh_midi_umount_cb(uint8_t dev_addr, uint8_t instance);
 
 TU_ATTR_WEAK void tuh_midi_rx_cb(uint8_t dev_addr, uint32_t num_packets);
+TU_ATTR_WEAK void tuh_midi_tx_cb(uint8_t dev_addr);
 #ifdef __cplusplus
 }
 #endif

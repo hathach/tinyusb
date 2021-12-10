@@ -168,6 +168,10 @@ bool midih_xfer_cb(uint8_t dev_addr, uint8_t ep_addr, xfer_result_t result, uint
         }
       }
     }
+    if (tuh_midi_tx_cb)
+    {
+      tuh_midi_tx_cb(dev_addr);
+    }
   }
 
   return true;
@@ -483,26 +487,20 @@ bool tuh_midi_read_poll( void )
   // MIDI bulk endpoints are shared with the control endpoints. None can be busy before we start a transfer
   bool control_edpt_not_busy = !usbh_edpt_busy(_midi_host.dev_addr,0) && !usbh_edpt_busy(_midi_host.dev_addr,0x80);
   bool out_edpt_not_busy = true;
+  bool result = false;
   if (_midi_host.num_cables_tx > 0)
     out_edpt_not_busy = !usbh_edpt_busy(_midi_host.dev_addr,_midi_host.ep_out);
   if (!usbh_edpt_busy(_midi_host.dev_addr, _midi_host.ep_in) && control_edpt_not_busy && out_edpt_not_busy)
   {
     TU_LOG3("Requesting poll IN endpoint %d\r\n", _midi_host.ep_in);
     TU_ASSERT(usbh_edpt_xfer(_midi_host.dev_addr, _midi_host.ep_in, _midi_host.epin_buf, _midi_host.ep_in_max), 0);
+    result = true;
   }
-  return true;
+  return result;
 }
 
 uint32_t tuh_midi_stream_write (uint8_t cable_num, uint8_t const* buffer, uint32_t bufsize)
 {
-  bool control_edpt_busy = usbh_edpt_busy(_midi_host.dev_addr,0) || usbh_edpt_busy(_midi_host.dev_addr,0x80);
-  bool in_edpt_busy = false;
-  if (_midi_host.num_cables_rx > 0)
-    in_edpt_busy = usbh_edpt_busy(_midi_host.dev_addr,_midi_host.ep_in);
-  if (control_edpt_busy || in_edpt_busy || usbh_edpt_busy(_midi_host.dev_addr, _midi_host.ep_out))
-  {
-    return 0; // can't send a packet now
-  }
   TU_VERIFY(cable_num < _midi_host.num_cables_tx);
   midi_stream_t stream = _midi_host.stream_write;
 
@@ -612,13 +610,24 @@ uint32_t tuh_midi_stream_write (uint8_t cable_num, uint8_t const* buffer, uint32
       TU_ASSERT(count == 4, i);
     }
   }
-
-  write_flush(_midi_host.dev_addr, &_midi_host);
-
   return i;
 }
 
+uint32_t tuh_midi_stream_flush( void )
+{
 
+  bool control_edpt_busy = usbh_edpt_busy(_midi_host.dev_addr,0) || usbh_edpt_busy(_midi_host.dev_addr,0x80);
+  bool in_edpt_busy = false;
+
+  uint32_t bytes_flushed = 0;
+  if (_midi_host.num_cables_rx > 0)
+    in_edpt_busy = usbh_edpt_busy(_midi_host.dev_addr,_midi_host.ep_in);
+  if (!control_edpt_busy && !in_edpt_busy && !usbh_edpt_busy(_midi_host.dev_addr, _midi_host.ep_out))
+  {
+    bytes_flushed = write_flush(_midi_host.dev_addr, &_midi_host);
+  }
+  return bytes_flushed;
+}
 //--------------------------------------------------------------------+
 // Helper
 //--------------------------------------------------------------------+
