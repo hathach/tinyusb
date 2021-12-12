@@ -126,13 +126,13 @@ bool midih_xfer_cb(uint8_t dev_addr, uint8_t ep_addr, xfer_result_t result, uint
     }
 
     // receive new data if available
+    uint32_t packets_queued = 0;
     if (xferred_bytes)
     {
       // put in the RX FIFO only non-zero MIDI IN 4-byte packets
       uint8_t* buf = _midi_host.epin_buf;
       uint32_t npackets = xferred_bytes / 4;
       uint32_t packet_num;
-      uint32_t packets_queued = 0;
       for (packet_num = 0; packet_num < npackets; packet_num++)
       {
         // some devices send back all zero packets even if there is no data ready
@@ -145,13 +145,11 @@ bool midih_xfer_cb(uint8_t dev_addr, uint8_t ep_addr, xfer_result_t result, uint
         }
         buf += 4;
       }
-
-
-      // invoke receive callback if available
-      if (tuh_midi_rx_cb)
-      {
-        tuh_midi_rx_cb(dev_addr, packets_queued);
-      }
+    }
+    // invoke receive callback if available
+    if (tuh_midi_rx_cb)
+    {
+      tuh_midi_rx_cb(dev_addr, packets_queued);
     }
   }
   else if ( ep_addr == _midi_host.ep_out )
