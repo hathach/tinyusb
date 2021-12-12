@@ -611,13 +611,13 @@ uint32_t tuh_midi_stream_write (uint8_t cable_num, uint8_t const* buffer, uint32
 uint32_t tuh_midi_stream_flush( void )
 {
 
-  bool control_edpt_busy = usbh_edpt_busy(_midi_host.dev_addr,0) || usbh_edpt_busy(_midi_host.dev_addr,0x80);
-  bool in_edpt_busy = false;
+  bool control_edpt_not_busy = !usbh_edpt_busy(_midi_host.dev_addr,0) && !usbh_edpt_busy(_midi_host.dev_addr,0x80);
+  bool in_edpt_not_busy = true;
 
   uint32_t bytes_flushed = 0;
   if (_midi_host.num_cables_rx > 0)
-    in_edpt_busy = usbh_edpt_busy(_midi_host.dev_addr,_midi_host.ep_in);
-  if (!control_edpt_busy && !in_edpt_busy && !usbh_edpt_busy(_midi_host.dev_addr, _midi_host.ep_out))
+    in_edpt_not_busy = !usbh_edpt_busy(_midi_host.dev_addr,_midi_host.ep_in);
+  if (control_edpt_not_busy && in_edpt_not_busy && !usbh_edpt_busy(_midi_host.dev_addr, _midi_host.ep_out))
   {
     bytes_flushed = write_flush(_midi_host.dev_addr, &_midi_host);
   }
