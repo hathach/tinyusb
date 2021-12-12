@@ -162,7 +162,7 @@ bool midih_xfer_cb(uint8_t dev_addr, uint8_t ep_addr, xfer_result_t result, uint
       {
         if ( usbh_edpt_claim(dev_addr, _midi_host.ep_out) )
         {
-          usbh_edpt_xfer(dev_addr, _midi_host.ep_out, XFER_RESULT_SUCCESS, 0);
+          TU_ASSERT(usbh_edpt_xfer(dev_addr, _midi_host.ep_out, XFER_RESULT_SUCCESS, 0));
         }
       }
     }
