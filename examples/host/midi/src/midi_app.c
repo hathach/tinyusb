@@ -31,7 +31,6 @@
 // MACRO TYPEDEF CONSTANT ENUM DECLARATION
 //--------------------------------------------------------------------+
 static bool device_mounted = false;
-static bool need_to_poll_device = true;
 static void test_tx(void)
 {
   // toggle NOTE On, Note Off for the Mackie Control channels 1-8 REC LED
@@ -59,7 +58,8 @@ static void test_tx(void)
   {
     return;
   }
-
+  // transmit any previously queued bytes
+  tuh_midi_stream_flush();
   // Blink every interval ms
   if ( board_millis() - start_ms < interval_ms)
   {
@@ -70,8 +70,6 @@ static void test_tx(void)
   uint32_t nwritten = tuh_midi_stream_write(0, message, sizeof(message));
   if (nwritten != 0)
   {
-    need_to_poll_device = (tuh_midi_stream_flush() == 0);
-
     if (message[2] == 0x7f)
     {
       message[2] = 0;
@@ -108,10 +106,7 @@ static void test_rx(void)
   {
     return;
   }
-  if (need_to_poll_device)
-  {
-    need_to_poll_device = !tuh_midi_read_poll();
-  }
+  tuh_midi_read_poll();
 }
 
 void midi_host_app_task(void)
@@ -153,12 +148,9 @@ void tuh_midi_rx_cb(uint8_t dev_addr, uint32_t num_packets)
     TU_LOG1("Read bytes %u cable %u", bytes_read, cable_num);
     TU_LOG1_MEM(buffer, bytes_read, 2);
   }
-  // Try to send any queued packets before polling IN again
-  need_to_poll_device = (tuh_midi_stream_flush() == 0);
 }
 
 void tuh_midi_tx_cb(uint8_t dev_addr)
 {
-  // We are done sending. Can receive
-  need_to_poll_device = true;
+
 }
