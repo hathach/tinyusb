@@ -571,7 +571,9 @@ bool hcd_edpt_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr, uint8_t * 
     if ( is_bulk_or_isochronous )
     {
         if (ep != _current_epx_endpoint)
+        {
             _hw_endpoint_reinit_epx(ep);
+        }
         _current_epx_endpoint = ep;
         hw_endpoint_xfer_start(ep, buffer, buflen);
 
@@ -579,11 +581,16 @@ bool hcd_edpt_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr, uint8_t * 
         // for host we have to initiate the transfer
         usb_hw->dev_addr_ctrl = dev_addr | (ep_num << USB_ADDR_ENDP_ENDPOINT_LSB);
 
-        uint32_t flags = USB_SIE_CTRL_START_TRANS_BITS | SIE_CTRL_BASE |
-                         (ep_dir ? USB_SIE_CTRL_RECEIVE_DATA_BITS : USB_SIE_CTRL_SEND_DATA_BITS);
+        uint32_t flags = SIE_CTRL_BASE |
+                 (ep_dir ? USB_SIE_CTRL_RECEIVE_DATA_BITS : USB_SIE_CTRL_SEND_DATA_BITS);
         // Set pre if we are a low speed device on full speed hub
         flags |= need_pre(dev_addr) ? USB_SIE_CTRL_PREAMBLE_EN_BITS : 0;
-
+        // Set up the hardware with all flags except the start bit
+        usb_hw->sie_ctrl = flags;
+        // Now start the transaction; if you don't do this in two parts,
+        // and the host has switched direction, sometimes the transaction
+        // does not start
+        flags |= USB_SIE_CTRL_START_TRANS_BITS;
         usb_hw->sie_ctrl = flags;
     }else
     // If a normal transfer (non-interrupt) then initiate using
