@@ -294,7 +294,7 @@ bool hw_endpoint_xfer_continue(struct hw_endpoint *ep)
   // Part way through a transfer
   if (!ep->active)
   {
-    panic("Can't continue xfer on inactive ep %d %s", tu_edpt_number(ep->ep_addr), ep_dir_string);
+    panic("Can't continue xfer on inactive ep %d %s", tu_edpt_number(ep->ep_addr), ep_dir_string[tu_edpt_dir(ep->ep_addr)]);
   }
 
   // Update EP struct from hardware state
