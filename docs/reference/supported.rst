@@ -82,6 +82,8 @@ Supported MCUs
 |              +-----------------------+--------+------+-----------+-------------------+--------------+
 |              | H7                    | ✔      |      | ✔         | dwc2              |              |
 |              +-----------------------+--------+------+-----------+-------------------+--------------+
+|              | G4                    | ✔      | ✖    | ✖         | stm32_fsdev       |              |
+|              +-----------------------+--------+------+-----------+-------------------+--------------+
 |              | L0, L1                | ✔      | ✖    | ✖         | stm32_fsdev       |              |
 |              +----+------------------+--------+------+-----------+-------------------+--------------+
 |              | L4 | 4x2, 4x3         | ✔      | ✖    | ✖         | stm32_fsdev       |              |
@@ -352,6 +354,17 @@ F7
 -  `STM32 F767zi Nucleo <https://www.st.com/en/evaluation-tools/nucleo-f767zi.html>`__
 -  `STM32 F769i Discovery <https://www.st.com/en/evaluation-tools/32f769idiscovery.html>`__
 
+H7
+^^
+-  `STM32 H743zi Nucleo <https://www.st.com/en/evaluation-tools/nucleo-h743zi.html>`__
+-  `STM32 H743i Evaluation <https://www.st.com/en/evaluation-tools/stm32h743i-eval.html>`__
+-  `STM32 H745i Discovery <https://www.st.com/en/evaluation-tools/stm32h745i-disco.html>`__
+-  `Waveshare OpenH743I-C <https://www.waveshare.com/openh743i-c-standard.htm>`__
+
+G4
+^^
+-  `STM32 G474RE Nucleo <https://www.st.com/en/evaluation-tools/nucleo-g474re.html>`__
+
 L0
 ^^
 -  `STM32 L035c8 Discovery <https://www.st.com/en/evaluation-tools/32l0538discovery.html>`__
@@ -361,13 +374,6 @@ L4
 -  `STM32 L476vg Discovery <https://www.st.com/en/evaluation-tools/32l476gdiscovery.html>`__
 -  `STM32 L4P5zg Nucleo <https://www.st.com/en/evaluation-tools/nucleo-l4p5zg.html>`__
 -  `STM32 L4R5zi Nucleo <https://www.st.com/en/evaluation-tools/nucleo-l4r5zi.html>`__
-
-H7
-^^
--  `STM32 H743zi Nucleo <https://www.st.com/en/evaluation-tools/nucleo-h743zi.html>`__
--  `STM32 H743i Evaluation <https://www.st.com/en/evaluation-tools/stm32h743i-eval.html>`__
--  `STM32 H745i Discovery <https://www.st.com/en/evaluation-tools/stm32h745i-disco.html>`__
--  `Waveshare OpenH743I-C <https://www.waveshare.com/openh743i-c-standard.htm>`__
 
 TI
 --
