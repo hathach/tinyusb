@@ -118,13 +118,13 @@ void board_init(void)
 
   // USB Pins TODO double check USB clock and pin setup
   // Configure USB DM and DP pins. This is optional, and maintained only for user guidance.
-//  GPIO_InitStruct.Pin = (GPIO_PIN_11 | GPIO_PIN_12);
-//  GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
-//  GPIO_InitStruct.Pull = GPIO_NOPULL;
-//  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_HIGH;
-//  HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
-//
-//  __HAL_RCC_USB_CLK_ENABLE();
+  GPIO_InitStruct.Pin = (GPIO_PIN_11 | GPIO_PIN_12);
+  GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_HIGH;
+  HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
+
+  __HAL_RCC_USB_CLK_ENABLE();
 
   board_vbus_sense_init();
 }
