@@ -32,8 +32,8 @@
 #endif
 
 // G474RE Nucleo does not has usb connection. We need to manually connect
-// - PA11 for D+, CN10.14
-// - PA12 for D-, CN10.12
+// - PA12 for D+, CN10.12
+// - PA11 for D-, CN10.14
 
 // LED
 #define LED_PORT              GPIOA
