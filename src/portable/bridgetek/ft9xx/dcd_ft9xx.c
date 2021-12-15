@@ -56,10 +56,10 @@ static uint8_t _ft90x_setup_packet[8];
 
 struct ft90x_xfer_state
 {
-  uint8_t valid; // Transfer is pending and total_size, remain_size, and buff_ptr are valid.
-  int16_t total_size; // Total transfer size in bytes for this transfer.
-  int16_t remain_size; // Total remaining in transfer.
-  uint8_t *buff_ptr; // Pointer to buffer to transmit from or receive to.
+  volatile uint8_t valid; // Transfer is pending and total_size, remain_size, and buff_ptr are valid.
+  volatile int16_t total_size; // Total transfer size in bytes for this transfer.
+  volatile int16_t remain_size; // Total remaining in transfer.
+  volatile uint8_t *buff_ptr; // Pointer to buffer to transmit from or receive to.
 
   uint8_t type; // Endpoint type. Of type USBD_ENDPOINT_TYPE from endpoint descriptor.
   uint8_t dir; // Endpoint direction. TUSB_DIR_OUT or TUSB_DIR_IN. For control endpoint this is the current direction.
@@ -131,6 +131,7 @@ static uint16_t _ft90x_edpt_xfer_in(uint8_t ep_number, uint8_t *buffer, uint16_t
   uint8_t end = 0;
   uint16_t ep_size = ep_xfer[ep_number].size;
   (void)ep_size;
+
   if ((xfer_bytes == 0) || (xfer_bytes < ep_size))
   {
     end = 1;
@@ -186,39 +187,21 @@ static uint16_t _ft90x_edpt_xfer_in(uint8_t ep_number, uint8_t *buffer, uint16_t
   return xfer_bytes;
 }
 
-// Reset all endpoints to a default state. 
-// Control endpoint enabled and ready. All others disabled.
+// Reset all non-control endpoints to a default state. 
+// Control endpoint is always enabled and ready. All others disabled.
 static void _ft90x_reset_edpts(void)
 {
   // Disable all endpoints and remove configuration values.
-    // Clear settings.
-  tu_memclr(ep_xfer, sizeof(ep_xfer));
-  for (int i = 0; i < USBD_MAX_ENDPOINT_COUNT; i++)
+  for (int i = 1; i < USBD_MAX_ENDPOINT_COUNT; i++)
   {
+    // Clear settings.
+    tu_memclr(&ep_xfer[i], sizeof(struct ft90x_xfer_state));
     // Disable hardware.
     USBD_EP_CR_REG(i) = 0;
   }
   
-  // Setup the control endpoint only.
-#if CFG_TUD_ENDPOINT0_SIZE == 64
-  USBD_EP_CR_REG(USBD_EP_0) = (USBD_EP0_MAX_SIZE_64 << BIT_USBD_EP0_MAX_SIZE);
-#elif CFG_TUD_ENDPOINT0_SIZE == 32
-  USBD_EP_CR_REG(USBD_EP_0) = (USBD_EP0_MAX_SIZE_32 << BIT_USBD_EP0_MAX_SIZE);
-#elif CFG_TUD_ENDPOINT0_SIZE == 16
-  USBD_EP_CR_REG(USBD_EP_0) = (USBD_EP0_MAX_SIZE_16 << BIT_USBD_EP0_MAX_SIZE);
-#elif CFG_TUD_ENDPOINT0_SIZE == 8
-  USBD_EP_CR_REG(USBD_EP_0) = (USBD_EP0_MAX_SIZE_8 << BIT_USBD_EP0_MAX_SIZE);
-#else
-#error "CFG_TUD_ENDPOINT0_SIZE must be defined with a value of 8, 16, 32 or 64."
-#endif
-  // Configure the control endpoint.
-  ep_xfer[USBD_EP_0].size = CFG_TUD_ENDPOINT0_SIZE;
-  ep_xfer[USBD_EP_0].type = TUSB_XFER_CONTROL;
-
   // Enable interrupts from USB device control.
   USBD_REG(cmie) = MASK_USBD_CMIE_ALL;
-  // Enable interrupts on EP0.
-  USBD_REG(epie) = (MASK_USBD_EPIE_EP0IE);
 }
 
 // Enable or disable the USB PHY.
@@ -297,12 +280,13 @@ static void _dcd_ft90x_detach(void)
   SYS->MSC0CFG = SYS->MSC0CFG & (~MASK_SYS_MSC0CFG_USB_VBUS_EN);
 #endif
   CRITICAL_SECTION_BEGIN
+  // Disable interrupts from USB.
   USBD_REG(epie) = 0;
   USBD_REG(cmie) = 0;
+  // Turn off the device enable bit.
+  USBD_REG(fctrl) = 0;
   CRITICAL_SECTION_END;
 
-  // Disable the USB function.
-  USBD_REG(fctrl) = 0;
   delayms(1);
 
   // Disable USB PHY
@@ -628,8 +612,28 @@ void dcd_connect(uint8_t rhport)
     // Determine bus speed and signal speed to tusb.
     _ft90x_usb_speed();
   }
-  CRITICAL_SECTION_END;
   
+  // Setup the control endpoint only.
+#if CFG_TUD_ENDPOINT0_SIZE == 64
+  USBD_EP_CR_REG(USBD_EP_0) = (USBD_EP0_MAX_SIZE_64 << BIT_USBD_EP0_MAX_SIZE);
+#elif CFG_TUD_ENDPOINT0_SIZE == 32
+  USBD_EP_CR_REG(USBD_EP_0) = (USBD_EP0_MAX_SIZE_32 << BIT_USBD_EP0_MAX_SIZE);
+#elif CFG_TUD_ENDPOINT0_SIZE == 16
+  USBD_EP_CR_REG(USBD_EP_0) = (USBD_EP0_MAX_SIZE_16 << BIT_USBD_EP0_MAX_SIZE);
+#elif CFG_TUD_ENDPOINT0_SIZE == 8
+  USBD_EP_CR_REG(USBD_EP_0) = (USBD_EP0_MAX_SIZE_8 << BIT_USBD_EP0_MAX_SIZE);
+#else
+#error "CFG_TUD_ENDPOINT0_SIZE must be defined with a value of 8, 16, 32 or 64."
+#endif
+  CRITICAL_SECTION_END;
+
+  // Configure the control endpoint.
+  ep_xfer[USBD_EP_0].size = CFG_TUD_ENDPOINT0_SIZE;
+  ep_xfer[USBD_EP_0].type = TUSB_XFER_CONTROL;
+
+  // Enable interrupts on EP0.
+  USBD_REG(epie) = (MASK_USBD_EPIE_EP0IE);
+
   // Restore default endpoint state.
   _ft90x_reset_edpts();
 }
