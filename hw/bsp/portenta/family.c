@@ -242,7 +242,6 @@ int board_uart_write(void const * buf, int len)
   return len;
 }
 
-
 #if CFG_TUSB_OS == OPT_OS_NONE
 volatile uint32_t system_ticks = 0;
 void SysTick_Handler(void)
@@ -255,6 +254,15 @@ uint32_t board_millis(void)
   return system_ticks;
 }
 #endif
+
+void tud_cdc_line_coding_cb(__unused uint8_t itf, cdc_line_coding_t const* p_line_coding) {
+    if (p_line_coding->bit_rate == 1200) {
+  		HAL_GPIO_WritePin(GPIOK, GPIO_PIN_7, 1);
+  		HAL_GPIO_WritePin(GPIOK, GPIO_PIN_6, 0);
+  		HAL_GPIO_WritePin(GPIOK, GPIO_PIN_5, 0);
+        reboot1200bps();
+    }
+}
 
 void HardFault_Handler(void)
 {

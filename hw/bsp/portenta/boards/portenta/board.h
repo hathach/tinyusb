@@ -31,6 +31,8 @@
  extern "C" {
 #endif
 
+#include <stm32h7xx_hal_rtc_ex.h>
+
 #define LED_PORT              GPIOK
 #define LED_PIN               GPIO_PIN_7
 #define LED_STATE_ON          1
@@ -136,6 +138,14 @@ static inline void board_stm32h7_clock_init(void)
   PeriphClkInitStruct.AdcClockSelection = RCC_ADCCLKSOURCE_PLL3;
   HAL_RCCEx_PeriphCLKConfig(&PeriphClkInitStruct);
 
+}
+
+static inline void reboot1200bps(void)
+{
+  RTC_HandleTypeDef RTCHandle;
+  RTCHandle.Instance = RTC;
+  HAL_RTCEx_BKUPWrite(&RTCHandle, RTC_BKP_DR0, 0xDF59);
+  NVIC_SystemReset();
 }
 
 static inline void board_stm32h7_post_init(void)

@@ -89,7 +89,8 @@
 /* #define HAL_RAMECC_MODULE_ENABLED */
 #define HAL_RCC_MODULE_ENABLED
 /* #define HAL_RNG_MODULE_ENABLED */
-/* #define HAL_RTC_MODULE_ENABLED */
+#define HAL_RTC_MODULE_ENABLED
+#define HAL_RTC_EX_MODULE_ENABLED
 /* #define HAL_SAI_MODULE_ENABLED */
 /* #define HAL_SD_MODULE_ENABLED */
 /* #define HAL_SDRAM_MODULE_ENABLED */
@@ -395,6 +396,10 @@
 #ifdef HAL_RTC_MODULE_ENABLED
  #include "stm32h7xx_hal_rtc.h"
 #endif /* HAL_RTC_MODULE_ENABLED */
+
+#ifdef HAL_RTC_EX_MODULE_ENABLED
+ #include "stm32h7xx_hal_rtc_ex.h"
+#endif /* HAL_RTC_EX_MODULE_ENABLED */
 
 #ifdef HAL_SAI_MODULE_ENABLED
  #include "stm32h7xx_hal_sai.h"
