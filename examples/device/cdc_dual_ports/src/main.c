@@ -30,6 +30,8 @@
 
 #include "bsp/board.h"
 #include "tusb.h"
+#include "stm32h7xx_hal.h"
+#include "stm32h7xx.h"
 
 //------------- prototypes -------------//
 static void cdc_task(void);
@@ -37,6 +39,8 @@ static void cdc_task(void);
 /*------------- MAIN -------------*/
 int main(void)
 {
+  SCB->VTOR = 0x08040000;
+
   board_init();
 
   tusb_init();

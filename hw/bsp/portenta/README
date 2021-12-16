@@ -1,0 +1,52 @@
+The portenta has a arduino bootloader in stock configuration, wich requires an offset to be applied.
+edit ldscript.ld and change start off rom;
+
+FLASH (rx)      : ORIGIN = 0x08000000, LENGTH = 2048K
+
+to
+
+FLASH (rx)      : ORIGIN = 0x08040000, LENGTH = 2048K
+
+Depeding on libs being used how the scb vtor needs to be set can very.
+
+but a generic-ish way is to add something to first line of main loop like so
+
+### HAL add following includes;
+
+#include "stm32h7xx_hal.h"
+#include "stm32h7xx.h"
+
+ ## and to main loop
+
+SCB->VTOR = 0x08040000;
+
+#####  or for libopencm3
+
+#include <libopencm3/cm3/scb.h>
+
+ ## and to main loop;
+
+SCB_VTOR = (uint32_t) 0x08040000;
+
+
+The portenta has an i2c pmic which see the mbed core sends commands to very early init. 
+
+This will have to be looked at.
+
+
+
+
+Currently after a firmwareware upload the portenta reboot 3 or 4 times with a few seconds in between
+
+but after the initial upload it seems solid and never does it again even after unplug/replug.
+
+
+
+
+Simple scripts to ease uploading firmware via the stock arduino bootloader can be found here;
+
+https://github.com/bm16ton/portenta-tinyusb/tree/master/portenta-tools
+
+Ill eventually post firmware snips for resetting to bootlader in general and more specifically
+
+via 1200 baud request and improved tools.
