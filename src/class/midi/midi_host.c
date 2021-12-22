@@ -376,6 +376,7 @@ bool midih_set_config(uint8_t dev_addr, uint8_t itf_num)
   (void) itf_num;
   midih_interface_t *p_midi_host = get_midi_host(dev_addr);
   p_midi_host->configured = true;
+
   // TODO I don't think there are any special config things to do for MIDI
 
   return true;
@@ -415,11 +416,23 @@ bool tuh_midi_read_poll( uint8_t dev_addr )
   bool result = false;
   if (p_midi_host->num_cables_tx > 0)
     out_edpt_not_busy = !usbh_edpt_busy(p_midi_host->dev_addr, p_midi_host->ep_out);
-  if (!usbh_edpt_busy(dev_addr, p_midi_host->ep_in) && control_edpt_not_busy && out_edpt_not_busy)
+  if (control_edpt_not_busy && out_edpt_not_busy)
   {
-    TU_LOG3("Requesting poll IN endpoint %d\r\n", p_midi_host->ep_in);
-    TU_ASSERT(usbh_edpt_xfer(p_midi_host->dev_addr, p_midi_host->ep_in, _midi_host->epin_buf, _midi_host->ep_in_max), 0);
-    result = true;
+    bool in_edpt_not_busy = !usbh_edpt_busy(dev_addr, p_midi_host->ep_in);
+    if (in_edpt_not_busy)
+    {
+      TU_LOG2("Requesting poll IN endpoint %d\r\n", p_midi_host->ep_in);
+      TU_ASSERT(usbh_edpt_xfer(p_midi_host->dev_addr, p_midi_host->ep_in, _midi_host->epin_buf, _midi_host->ep_in_max), 0);
+      result = true;
+    }
+    else
+    {
+      // Maybe the IN endpoint is only busy because the RP2040 host hardware
+      // is retrying a NAK'd IN transfer forever. Try aborting the NAK'd
+      // transfer to allow other transfers to happen on the one shared
+      // epx endpoint.
+      usbh_edpt_clear_in_on_nak(p_midi_host->dev_addr, p_midi_host->ep_in);
+    }
   }
   return result;
 }

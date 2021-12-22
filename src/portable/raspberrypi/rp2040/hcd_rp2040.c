@@ -67,6 +67,10 @@ enum {
                   USB_SIE_CTRL_PULLDOWN_EN_BITS | USB_SIE_CTRL_EP0_INT_1BUF_BITS
 };
 
+// See hcd_edpt_clear_in_on_nak() for an explanation of this hack on top of a hack
+#define SKIP_CLEAR_IN_ON_NAK_COUNT 20
+static uint8_t skip_hcd_edpt_clear_in_on_nak = SKIP_CLEAR_IN_ON_NAK_COUNT; // for some reason doing this algorithm right away doesn't work
+
 static struct hw_endpoint *get_dev_ep(uint8_t dev_addr, uint8_t ep_addr)
 {
   uint8_t num = tu_edpt_number(ep_addr);
@@ -93,7 +97,7 @@ static inline void clear_nak_received(void)
 
 static inline bool nak_received()
 {
-    return (usb_hw->sie_status & USB_SIE_STATUS_NAK_REC_BITS) != 0;
+    return ((usb_hw->sie_status & USB_SIE_STATUS_NAK_REC_BITS) != 0);
 }
 
 static bool need_pre(uint8_t dev_addr)
@@ -110,6 +114,7 @@ static void hw_xfer_complete(struct hw_endpoint *ep, xfer_result_t xfer_result)
     uint8_t ep_addr = ep->ep_addr;
     uint xferred_len = ep->xferred_len;
     hw_endpoint_reset_transfer(ep);
+
     hcd_event_xfer_complete(dev_addr, ep_addr, xferred_len, xfer_result, true);
 }
 
@@ -456,7 +461,7 @@ void hcd_device_close(uint8_t rhport, uint8_t dev_addr)
   (void) rhport;
 
   if (dev_addr == 0) return;
-
+  skip_hcd_edpt_clear_in_on_nak = SKIP_CLEAR_IN_ON_NAK_COUNT;
   for (size_t i = 1; i < TU_ARRAY_SIZE(ep_pool); i++)
   {
     hw_endpoint_t* ep = &ep_pool[i];
@@ -540,6 +545,13 @@ static void _hw_endpoint_reinit_epx(struct hw_endpoint *ep)
 
     *ep->endpoint_control = ep_reg;
     pico_trace("endpoint control (0x%p) <- 0x%x\n", ep->endpoint_control, ep_reg);
+    if (nak_received())
+        clear_nak_received();
+    if (tu_edpt_dir(ep->ep_addr) == TUSB_DIR_IN)
+    {
+        uint32_t nak_poll_delay = 1000; // set to one ms.
+        usb_hw->nak_poll = (nak_poll_delay << USB_NAK_POLL_DELAY_FS_LSB) | (nak_poll_delay << USB_NAK_POLL_DELAY_LS_LSB);
+    }
 }
 
 bool hcd_edpt_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr, uint8_t * buffer, uint16_t buflen)
@@ -675,5 +687,57 @@ void hcd_edpt_force_last_buffer(uint8_t dev_addr, uint8_t ep_addr, bool force)
     struct hw_endpoint *ep = get_dev_ep(dev_addr, ep_addr);
     assert(ep);
     ep->force_last_buff = force;
+}
+
+// This function is a hack. It appears that the RP2040 host
+// controller will keep retrying a NAK'd bulk transfer forever
+// until the transfer completes. This function detects that
+// the sie status register NAK bit is set, stops the
+// current transaction, clears the NAK status, and fixes
+// up the endpoint so we can safely start a new transaction
+void hcd_edpt_clear_in_on_nak(uint8_t dev_addr, uint8_t ep_addr)
+{
+    struct hw_endpoint *ep = get_dev_ep(dev_addr, ep_addr);
+    if (ep == _current_epx_endpoint)
+    {
+        if (nak_received() && (usb_hw->ints & (USB_INTS_BUFF_STATUS_BITS | USB_INTS_TRANS_COMPLETE_BITS)) == 0)
+        {
+            if (skip_hcd_edpt_clear_in_on_nak > 0)
+            {
+                --skip_hcd_edpt_clear_in_on_nak;
+                clear_nak_received();
+                return;
+            }
+            // Disable USB interrupts in case there is an in-flight transaction
+            uint32_t temp_inte = usb_hw->inte;
+            usb_hw->inte = 0;
+            // clear the NAK status bit
+            clear_nak_received();
+            // Wait for either the next nak or any raw irq that would interrupt the USB
+            // The amount of time between host NAK retries is set in the nak_poll register
+            uint32_t masked_ints = (usb_hw->intr & temp_inte);
+            while (!nak_received() && masked_ints == 0)
+                masked_ints = (usb_hw->intr & temp_inte);
+            if (masked_ints == 0 && nak_received())
+            {
+                // stop the current transaction to free up the host epx HW
+                usb_hw_set->sie_ctrl = USB_SIE_CTRL_STOP_TRANS_BITS;
+                // clear the NAK status bit
+                clear_nak_received();
+                // There was no transfer, but the logic that sets up the buffer
+                // control register needs to see USB_BUF_CTRL_AVAIL bit clear
+                // or else it will assert.
+                _hw_endpoint_buffer_control_clear_mask32(ep, USB_BUF_CTRL_AVAIL);
+                // Fixup next PID: prepare_ep_buffer() toggles the PID, but there was
+                // no successful data transfer, so we need to toggle it here so that
+                // it is back where we started.
+                ep->next_pid ^= 1u;
+                // Notify host stack that the transfer is done (clears busy)
+                hw_xfer_complete(ep, XFER_RESULT_SUCCESS);
+            }
+            // restore the USB interrupts; a transaction is in process
+            usb_hw->inte = temp_inte;
+        }
+    }
 }
 #endif

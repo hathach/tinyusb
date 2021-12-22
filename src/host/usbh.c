@@ -1216,4 +1216,9 @@ void usbh_edpt_force_last_buffer(uint8_t dev_addr, uint8_t ep_addr, bool force)
     hcd_edpt_force_last_buffer(dev_addr, ep_addr, force);
 }
 
+void usbh_edpt_clear_in_on_nak(uint8_t dev_addr, uint8_t ep_addr)
+{
+  if (hcd_edpt_clear_in_on_nak)
+    hcd_edpt_clear_in_on_nak(dev_addr, ep_addr);
+}
 #endif
