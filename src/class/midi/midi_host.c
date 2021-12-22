@@ -197,25 +197,9 @@ void midih_close(uint8_t dev_addr)
   }
 }
 
-#if 0
-// Invoked when device with midi interface is un-mounted
-void tuh_midi_umount_cb(uint8_t dev_addr, uint8_t instance)
-{
-  printf("MIDI device address = %d, instance = %d is unmounted\r\n", dev_addr, instance);
-
-}
-#endif
-
 //--------------------------------------------------------------------+
 // Enumeration
 //--------------------------------------------------------------------+
-#if 0
-static bool config_set_protocol             (uint8_t dev_addr, tusb_control_request_t const * request, xfer_result_t result);
-static bool config_get_report_desc          (uint8_t dev_addr, tusb_control_request_t const * request, xfer_result_t result);
-static bool config_get_report_desc_complete (uint8_t dev_addr, tusb_control_request_t const * request, xfer_result_t result);
-
-static void config_driver_mount_complete(uint8_t dev_addr, uint8_t instance, uint8_t const* desc_report, uint16_t desc_len);
-#endif
 bool midih_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_interface_t const *desc_itf, uint16_t max_len)
 {
   (void) rhport;
@@ -234,32 +218,7 @@ bool midih_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_interface_t const *d
       p_desc = tu_desc_next(p_desc);
       desc_itf = (tusb_desc_interface_t const *)p_desc;
     }
-    #if 0
-    p_desc = tu_desc_next(p_desc);
-    // p_desc now should point to the class-specific audio interface descriptor header
-    audio_desc_cs_ac_interface_t const *p_cs_ac = (audio_desc_cs_ac_interface_t const *)p_desc;
-    TU_VERIFY(p_cs_ac->bDescriptorType == TUSB_DESC_CS_INTERFACE);
-    TU_VERIFY(p_cs_ac->bDescriptorSubType == AUDIO_CS_AC_INTERFACE_HEADER);
-    if (p_cs_ac->bcdADC == 0x0200)
-    {
-      // skip the audio interface header
-      p_desc += p_cs_ac->wTotalLength;
-      len_parsed += p_cs_ac->wTotalLength;
-    }
-    else if (p_cs_ac->bcdADC == 0x0100)
-    {
-      // it's audio class 1.0
-      audio_desc_cs_ac1_interface_t const *p_cs_ac1 = (audio_desc_cs_ac1_interface_t const *)p_desc;
-      // skip the audio interface header
-      p_desc += p_cs_ac1->wTotalLength;
-      len_parsed += p_cs_ac1->wTotalLength;
-    }
-    else
-    {
-      return false;
-    }
-    desc_itf = (tusb_desc_interface_t const *)p_desc;
-    #endif
+
     TU_VERIFY(TUSB_CLASS_AUDIO == desc_itf->bInterfaceClass);
   }
   TU_VERIFY(AUDIO_SUBCLASS_MIDI_STREAMING == desc_itf->bInterfaceSubClass);
@@ -397,13 +356,6 @@ bool midih_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_interface_t const *d
   return true;
 }
 
-#if 0
-void tuh_midi_mount_cb(uint8_t dev_addr, uint8_t in_ep, uint8_t out_ep, uint8_t num_cables_rx, uint16_t num_cables_tx)
-{
-  printf("MIDI endpoints OK. MIDI Interface opened\r\n");
-}
-#endif
-
 bool tuh_midi_configured(void)
 {
   return _midi_host.configured;
@@ -414,47 +366,10 @@ bool midih_set_config(uint8_t dev_addr, uint8_t itf_num)
   if (dev_addr == _midi_host.dev_addr)
     _midi_host.configured = true;
   // TODO I don't think there are any special config things to do for MIDI
-  #if 0
-  uint8_t const instance    = get_instance_id_by_itfnum(dev_addr, itf_num);
-  hidh_interface_t* hid_itf = get_instance(dev_addr, instance);
 
-  // Idle rate = 0 mean only report when there is changes
-  uint16_t const idle_rate = 0;
-
-  // SET IDLE request, device can stall if not support this request
-  TU_LOG2("HID Set Idle \r\n");
-  tusb_control_request_t const request =
-  {
-    .bmRequestType_bit =
-    {
-      .recipient = TUSB_REQ_RCPT_INTERFACE,
-      .type      = TUSB_REQ_TYPE_CLASS,
-      .direction = TUSB_DIR_OUT
-    },
-    .bRequest = HID_REQ_CONTROL_SET_IDLE,
-    .wValue   = idle_rate,
-    .wIndex   = itf_num,
-    .wLength  = 0
-  };
-
-  TU_ASSERT( tuh_control_xfer(dev_addr, &request, NULL, (hid_itf->itf_protocol != HID_ITF_PROTOCOL_NONE) ? config_set_protocol : config_get_report_desc) );
-#endif
   return true;
 }
-#if 0
-static void config_driver_mount_complete(uint8_t dev_addr, uint8_t instance, uint8_t const* desc_report, uint16_t desc_len)
-{
-  hidh_interface_t* hid_itf = get_instance(dev_addr, instance);
 
-  // enumeration is complete
-  tuh_hid_mount_cb(dev_addr, instance, desc_report, desc_len);
-
-  // notify usbh that driver enumeration is complete
-  usbh_driver_set_config_complete(dev_addr, hid_itf->itf_num);
-}
-
-
-#endif
 //--------------------------------------------------------------------+
 // Stream API
 //--------------------------------------------------------------------+
