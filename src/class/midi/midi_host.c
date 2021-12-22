@@ -93,7 +93,13 @@ typedef struct
   bool configured;
 }midih_interface_t;
 
-static midih_interface_t _midi_host;
+static midih_interface_t _midi_host[CFG_TUH_DEVICE_MAX];
+
+static midih_interface_t *get_midi_host(uint8_t dev_addr)
+{
+  TU_ASSERT(dev_addr >0 && dev_addr <= CFG_TUH_DEVICE_MAX);
+  return (_midi_host + dev_addr - 1);
+}
 
 //------------- Internal prototypes -------------//
 static uint32_t write_flush(uint8_t dev_addr, midih_interface_t* midi);
@@ -105,20 +111,24 @@ void midih_init(void)
 {
   tu_memclr(&_midi_host, sizeof(_midi_host));
 
-  // config fifo
-  tu_fifo_config(&_midi_host.rx_ff, _midi_host.rx_ff_buf, CFG_TUH_MIDI_RX_BUFSIZE, 1, false); // true, true
-  tu_fifo_config(&_midi_host.tx_ff, _midi_host.tx_ff_buf, CFG_TUH_MIDI_TX_BUFSIZE, 1, false); // OBVS.
+  // config fifos
+  for (int inst = 0; inst < CFG_TUH_DEVICE_MAX; inst++)
+  {
+    midih_interface_t *p_midi_host = &_midi_host[inst];
+    tu_fifo_config(&p_midi_host->rx_ff, p_midi_host->rx_ff_buf, CFG_TUH_MIDI_RX_BUFSIZE, 1, false); // true, true
+    tu_fifo_config(&p_midi_host->tx_ff, p_midi_host->tx_ff_buf, CFG_TUH_MIDI_TX_BUFSIZE, 1, false); // OBVS.
 
   #if CFG_FIFO_MUTEX
-  tu_fifo_config_mutex(&_midi_host.rx_ff, NULL, osal_mutex_create(&_midi_host.rx_ff_mutex));
-  tu_fifo_config_mutex(&_midi_host.tx_ff, osal_mutex_create(&_midi_host.tx_ff_mutex), NULL);
+    tu_fifo_config_mutex(&p_midi_host->rx_ff, NULL, osal_mutex_create(&p_midi_host->rx_ff_mutex));
+    tu_fifo_config_mutex(&p_midi_host->tx_ff, osal_mutex_create(&p_midi_host->tx_ff_mutex), NULL);
   #endif
+  }
 }
 
 bool midih_xfer_cb(uint8_t dev_addr, uint8_t ep_addr, xfer_result_t result, uint32_t xferred_bytes)
 {
-
-  if ( ep_addr == _midi_host.ep_in)
+  midih_interface_t *p_midi_host = get_midi_host(dev_addr);
+  if ( ep_addr == p_midi_host->ep_in)
   {
     if (0 == xferred_bytes)
     {
@@ -130,7 +140,7 @@ bool midih_xfer_cb(uint8_t dev_addr, uint8_t ep_addr, xfer_result_t result, uint
     if (xferred_bytes)
     {
       // put in the RX FIFO only non-zero MIDI IN 4-byte packets
-      uint8_t* buf = _midi_host.epin_buf;
+      uint8_t* buf = p_midi_host->epin_buf;
       uint32_t npackets = xferred_bytes / 4;
       uint32_t packet_num;
       for (packet_num = 0; packet_num < npackets; packet_num++)
@@ -139,7 +149,7 @@ bool midih_xfer_cb(uint8_t dev_addr, uint8_t ep_addr, xfer_result_t result, uint
         uint32_t packet = (uint32_t)((*buf)<<24) | ((uint32_t)(*(buf+1))<<16) | ((uint32_t)(*(buf+2))<<8) | ((uint32_t)(*(buf+3)));
         if (packet != 0)
         {
-          tu_fifo_write_n(&_midi_host.rx_ff, buf, 4);
+          tu_fifo_write_n(&p_midi_host->rx_ff, buf, 4);
           ++packets_queued;
           TU_LOG3("MIDI RX=%08x\r\n", packet);
         }
@@ -152,17 +162,17 @@ bool midih_xfer_cb(uint8_t dev_addr, uint8_t ep_addr, xfer_result_t result, uint
       tuh_midi_rx_cb(dev_addr, packets_queued);
     }
   }
-  else if ( ep_addr == _midi_host.ep_out )
+  else if ( ep_addr == p_midi_host->ep_out )
   {
-    if (0 == write_flush(dev_addr, &_midi_host))
+    if (0 == write_flush(dev_addr, p_midi_host))
     {
       // If there is no data left, a ZLP should be sent if
       // xferred_bytes is multiple of EP size and not zero
-      if ( !tu_fifo_count(&_midi_host.tx_ff) && xferred_bytes && (0 == (xferred_bytes % _midi_host.ep_out_max)) )
+      if ( !tu_fifo_count(&p_midi_host->tx_ff) && xferred_bytes && (0 == (xferred_bytes % p_midi_host->ep_out_max)) )
       {
-        if ( usbh_edpt_claim(dev_addr, _midi_host.ep_out) )
+        if ( usbh_edpt_claim(dev_addr, p_midi_host->ep_out) )
         {
-          TU_ASSERT(usbh_edpt_xfer(dev_addr, _midi_host.ep_out, XFER_RESULT_SUCCESS, 0));
+          TU_ASSERT(usbh_edpt_xfer(dev_addr, p_midi_host->ep_out, XFER_RESULT_SUCCESS, 0));
         }
       }
     }
@@ -177,24 +187,22 @@ bool midih_xfer_cb(uint8_t dev_addr, uint8_t ep_addr, xfer_result_t result, uint
 
 void midih_close(uint8_t dev_addr)
 {
-  if (dev_addr == _midi_host.dev_addr)
-  {
-    if (tuh_midi_umount_cb)
-      tuh_midi_umount_cb(dev_addr, 0);
-    tu_fifo_clear(&_midi_host.rx_ff);
-    tu_fifo_clear(&_midi_host.tx_ff);
-    _midi_host.ep_in = 0;
-    _midi_host.ep_in_max = 0;
-    _midi_host.ep_out = 0;
-    _midi_host.ep_out_max = 0;
-    _midi_host.itf_num = 0;
-    _midi_host.num_cables_rx = 0;
-    _midi_host.num_cables_tx = 0;
-    _midi_host.dev_addr = 255; // invalid
-    _midi_host.configured = false;
-    tu_memclr(&_midi_host.stream_read, sizeof(_midi_host.stream_read));
-    tu_memclr(&_midi_host.stream_read, sizeof(_midi_host.stream_write));
-  }
+  midih_interface_t *p_midi_host = get_midi_host(dev_addr);
+  if (tuh_midi_umount_cb)
+    tuh_midi_umount_cb(dev_addr, 0);
+  tu_fifo_clear(&p_midi_host->rx_ff);
+  tu_fifo_clear(&p_midi_host->tx_ff);
+  p_midi_host->ep_in = 0;
+  p_midi_host->ep_in_max = 0;
+  p_midi_host->ep_out = 0;
+  p_midi_host->ep_out_max = 0;
+  p_midi_host->itf_num = 0;
+  p_midi_host->num_cables_rx = 0;
+  p_midi_host->num_cables_tx = 0;
+  p_midi_host->dev_addr = 255; // invalid
+  p_midi_host->configured = false;
+  tu_memclr(&p_midi_host->stream_read, sizeof(p_midi_host->stream_read));
+  tu_memclr(&p_midi_host->stream_write, sizeof(p_midi_host->stream_write));
 }
 
 //--------------------------------------------------------------------+
@@ -203,6 +211,7 @@ void midih_close(uint8_t dev_addr)
 bool midih_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_interface_t const *desc_itf, uint16_t max_len)
 {
   (void) rhport;
+  midih_interface_t *p_midi_host = get_midi_host(dev_addr);
   TU_VERIFY(TUSB_CLASS_AUDIO == desc_itf->bInterfaceClass);
   // There can be just a MIDI interface or an audio and a MIDI interface. Only open the MIDI interface
   uint8_t const *p_desc = (uint8_t const *) desc_itf;
@@ -238,7 +247,7 @@ bool midih_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_interface_t const *d
     p_mdh->bDescriptorType == TUSB_DESC_ENDPOINT);
 
   uint8_t prev_ep_addr = 0; // the CS endpoint descriptor is associated with the previous endpoint descrptor
-  _midi_host.itf_num = desc_itf->bInterfaceNumber;
+  p_midi_host->itf_num = desc_itf->bInterfaceNumber;
   tusb_desc_endpoint_t const* in_desc = NULL;
   tusb_desc_endpoint_t const* out_desc = NULL;
   while (len_parsed < max_len)
@@ -288,15 +297,15 @@ bool midih_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_interface_t const *d
       midi_cs_desc_endpoint_t const* p_csep = (midi_cs_desc_endpoint_t const*)p_mdh;
       if (tu_edpt_dir(prev_ep_addr) == TUSB_DIR_OUT)
       {
-        TU_VERIFY(_midi_host.ep_out == prev_ep_addr);
-        TU_VERIFY(_midi_host.num_cables_tx == 0);
-        _midi_host.num_cables_tx = p_csep->bNumEmbMIDIJack;
+        TU_VERIFY(p_midi_host->ep_out == prev_ep_addr);
+        TU_VERIFY(p_midi_host->num_cables_tx == 0);
+        p_midi_host->num_cables_tx = p_csep->bNumEmbMIDIJack;
       }
       else
       {
-        TU_VERIFY(_midi_host.ep_in == prev_ep_addr);
-        TU_VERIFY(_midi_host.num_cables_rx == 0);
-        _midi_host.num_cables_rx = p_csep->bNumEmbMIDIJack;
+        TU_VERIFY(p_midi_host->ep_in == prev_ep_addr);
+        TU_VERIFY(p_midi_host->num_cables_rx == 0);
+        p_midi_host->num_cables_rx = p_csep->bNumEmbMIDIJack;
       }
       len_parsed += p_csep->bLength;
       prev_ep_addr = 0;
@@ -307,24 +316,24 @@ bool midih_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_interface_t const *d
       TU_LOG2("found ENDPOINT Descriptor for %u\r\n", p_ep->bEndpointAddress);
       if (tu_edpt_dir(p_ep->bEndpointAddress) == TUSB_DIR_OUT)
       {
-        TU_VERIFY(_midi_host.ep_out == 0);
-        TU_VERIFY(_midi_host.num_cables_tx == 0);
-        _midi_host.ep_out = p_ep->bEndpointAddress;
-        _midi_host.ep_out_max = p_ep->wMaxPacketSize;
-        if (_midi_host.ep_out_max > CFG_TUH_MIDI_TX_BUFSIZE)
-          _midi_host.ep_out_max = CFG_TUH_MIDI_TX_BUFSIZE;
-        prev_ep_addr = _midi_host.ep_out;
+        TU_VERIFY(p_midi_host->ep_out == 0);
+        TU_VERIFY(p_midi_host->num_cables_tx == 0);
+        p_midi_host->ep_out = p_ep->bEndpointAddress;
+        p_midi_host->ep_out_max = p_ep->wMaxPacketSize;
+        if (p_midi_host->ep_out_max > CFG_TUH_MIDI_TX_BUFSIZE)
+          p_midi_host->ep_out_max = CFG_TUH_MIDI_TX_BUFSIZE;
+        prev_ep_addr = p_midi_host->ep_out;
         out_desc = p_ep;
       }
       else
       {
-        TU_VERIFY(_midi_host.ep_in == 0);
-        TU_VERIFY(_midi_host.num_cables_rx == 0);
-        _midi_host.ep_in = p_ep->bEndpointAddress;
-        _midi_host.ep_in_max = p_ep->wMaxPacketSize;
-        if (_midi_host.ep_in_max > CFG_TUH_MIDI_RX_BUFSIZE)
-          _midi_host.ep_in_max = CFG_TUH_MIDI_RX_BUFSIZE;
-        prev_ep_addr = _midi_host.ep_in;
+        TU_VERIFY(p_midi_host->ep_in == 0);
+        TU_VERIFY(p_midi_host->num_cables_rx == 0);
+        p_midi_host->ep_in = p_ep->bEndpointAddress;
+        p_midi_host->ep_in_max = p_ep->wMaxPacketSize;
+        if (p_midi_host->ep_in_max > CFG_TUH_MIDI_RX_BUFSIZE)
+          p_midi_host->ep_in_max = CFG_TUH_MIDI_RX_BUFSIZE;
+        prev_ep_addr = p_midi_host->ep_in;
         in_desc = p_ep;
       }
       len_parsed += p_mdh->bLength;
@@ -332,36 +341,41 @@ bool midih_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_interface_t const *d
     p_desc = tu_desc_next(p_desc);
     p_mdh = (midi_desc_header_t const *)p_desc;
   }
-  TU_VERIFY((_midi_host.ep_out != 0 && _midi_host.num_cables_tx != 0) ||
-            (_midi_host.ep_in != 0 && _midi_host.num_cables_rx != 0));
+  TU_VERIFY((p_midi_host->ep_out != 0 && p_midi_host->num_cables_tx != 0) ||
+            (p_midi_host->ep_in != 0 && p_midi_host->num_cables_rx != 0));
   TU_LOG1("MIDI descriptor parsed successfully\r\n");
 
   if (in_desc)
   {
     TU_ASSERT(usbh_edpt_open(rhport, dev_addr, in_desc));
+    // Some devices always return exactly the request length so transfers won't complete
+    // unless you assume every transfer is the last one.
+    usbh_edpt_force_last_buffer(dev_addr, p_midi_host->ep_in, true);
   }
   if (out_desc)
   {
     TU_ASSERT(usbh_edpt_open(rhport, dev_addr, out_desc));
   }
-  _midi_host.dev_addr = dev_addr;
+  p_midi_host->dev_addr = dev_addr;
 
   if (tuh_midi_mount_cb)
   {
-    tuh_midi_mount_cb(dev_addr, _midi_host.ep_in, _midi_host.ep_out, _midi_host.num_cables_rx, _midi_host.num_cables_tx);
+    tuh_midi_mount_cb(dev_addr, p_midi_host->ep_in, p_midi_host->ep_out, p_midi_host->num_cables_rx, p_midi_host->num_cables_tx);
   }
   return true;
 }
 
-bool tuh_midi_configured(void)
+bool tuh_midi_configured(uint8_t dev_addr)
 {
-  return _midi_host.configured;
+  midih_interface_t *p_midi_host = get_midi_host(dev_addr);
+  return p_midi_host->configured;
 }
+
 bool midih_set_config(uint8_t dev_addr, uint8_t itf_num)
 {
   (void) itf_num;
-  if (dev_addr == _midi_host.dev_addr)
-    _midi_host.configured = true;
+  midih_interface_t *p_midi_host = get_midi_host(dev_addr);
+  p_midi_host->configured = true;
   // TODO I don't think there are any special config things to do for MIDI
 
   return true;
@@ -392,30 +406,32 @@ static uint32_t write_flush(uint8_t dev_addr, midih_interface_t* midi)
   }
 }
 
-bool tuh_midi_read_poll( void )
+bool tuh_midi_read_poll( uint8_t dev_addr )
 {
+  midih_interface_t *p_midi_host = get_midi_host(dev_addr);
   // MIDI bulk endpoints are shared with the control endpoints. None can be busy before we start a transfer
-  bool control_edpt_not_busy = !usbh_edpt_busy(_midi_host.dev_addr,0) && !usbh_edpt_busy(_midi_host.dev_addr,0x80);
+  bool control_edpt_not_busy = !usbh_edpt_busy(dev_addr,0) && !usbh_edpt_busy(dev_addr,0x80);
   bool out_edpt_not_busy = true;
   bool result = false;
-  if (_midi_host.num_cables_tx > 0)
-    out_edpt_not_busy = !usbh_edpt_busy(_midi_host.dev_addr,_midi_host.ep_out);
-  if (!usbh_edpt_busy(_midi_host.dev_addr, _midi_host.ep_in) && control_edpt_not_busy && out_edpt_not_busy)
+  if (p_midi_host->num_cables_tx > 0)
+    out_edpt_not_busy = !usbh_edpt_busy(p_midi_host->dev_addr, p_midi_host->ep_out);
+  if (!usbh_edpt_busy(dev_addr, p_midi_host->ep_in) && control_edpt_not_busy && out_edpt_not_busy)
   {
-    TU_LOG3("Requesting poll IN endpoint %d\r\n", _midi_host.ep_in);
-    TU_ASSERT(usbh_edpt_xfer(_midi_host.dev_addr, _midi_host.ep_in, _midi_host.epin_buf, _midi_host.ep_in_max), 0);
+    TU_LOG3("Requesting poll IN endpoint %d\r\n", p_midi_host->ep_in);
+    TU_ASSERT(usbh_edpt_xfer(p_midi_host->dev_addr, p_midi_host->ep_in, _midi_host->epin_buf, _midi_host->ep_in_max), 0);
     result = true;
   }
   return result;
 }
 
-uint32_t tuh_midi_stream_write (uint8_t cable_num, uint8_t const* buffer, uint32_t bufsize)
+uint32_t tuh_midi_stream_write (uint8_t dev_addr, uint8_t cable_num, uint8_t const* buffer, uint32_t bufsize)
 {
-  TU_VERIFY(cable_num < _midi_host.num_cables_tx);
-  midi_stream_t stream = _midi_host.stream_write;
+  midih_interface_t *p_midi_host = get_midi_host(dev_addr);
+  TU_VERIFY(cable_num < p_midi_host->num_cables_tx);
+  midi_stream_t stream = p_midi_host->stream_write;
 
   uint32_t i = 0;
-  while ( (i < bufsize) && (tu_fifo_remaining(&_midi_host.tx_ff) >= 4) )
+  while ( (i < bufsize) && (tu_fifo_remaining(&p_midi_host->tx_ff) >= 4) )
   {
     uint8_t const data = buffer[i];
     i++;
@@ -510,7 +526,7 @@ uint32_t tuh_midi_stream_write (uint8_t cable_num, uint8_t const* buffer, uint32
       // zeroes unused bytes
       for(uint8_t idx = stream.total; idx < 4; idx++) stream.buffer[idx] = 0;
 
-      uint16_t const count = tu_fifo_write_n(&_midi_host.tx_ff, stream.buffer, 4);
+      uint16_t const count = tu_fifo_write_n(&p_midi_host->tx_ff, stream.buffer, 4);
 
       // complete current event packet, reset stream
       stream.index = 0;
@@ -523,151 +539,151 @@ uint32_t tuh_midi_stream_write (uint8_t cable_num, uint8_t const* buffer, uint32
   return i;
 }
 
-uint32_t tuh_midi_stream_flush( void )
+uint32_t tuh_midi_stream_flush( uint8_t dev_addr )
 {
-
-  bool control_edpt_not_busy = !usbh_edpt_busy(_midi_host.dev_addr,0) && !usbh_edpt_busy(_midi_host.dev_addr,0x80);
+  midih_interface_t *p_midi_host = get_midi_host(dev_addr);
+  bool control_edpt_not_busy = !usbh_edpt_busy(dev_addr,0) && !usbh_edpt_busy(dev_addr,0x80);
   bool in_edpt_not_busy = true;
 
   uint32_t bytes_flushed = 0;
-  if (_midi_host.num_cables_rx > 0)
-    in_edpt_not_busy = !usbh_edpt_busy(_midi_host.dev_addr,_midi_host.ep_in);
-  if (control_edpt_not_busy && in_edpt_not_busy && !usbh_edpt_busy(_midi_host.dev_addr, _midi_host.ep_out))
+  if (p_midi_host->num_cables_rx > 0)
+    in_edpt_not_busy = !usbh_edpt_busy(dev_addr, p_midi_host->ep_in);
+  if (control_edpt_not_busy && in_edpt_not_busy && !usbh_edpt_busy(p_midi_host->dev_addr, p_midi_host->ep_out))
   {
-    bytes_flushed = write_flush(_midi_host.dev_addr, &_midi_host);
+    bytes_flushed = write_flush(dev_addr, p_midi_host);
   }
   return bytes_flushed;
 }
 //--------------------------------------------------------------------+
 // Helper
 //--------------------------------------------------------------------+
-uint8_t tuh_midih_get_num_tx_cables (void)
+uint8_t tuh_midih_get_num_tx_cables (uint8_t dev_addr)
 {
-  TU_VERIFY(_midi_host.ep_out != 0); // returns 0 if fails
-  return _midi_host.num_cables_tx;
+  midih_interface_t *p_midi_host = get_midi_host(dev_addr);
+  TU_VERIFY(p_midi_host->ep_out != 0); // returns 0 if fails
+  return p_midi_host->num_cables_tx;
 }
 
-uint8_t tuh_midih_get_num_rx_cables (void)
+uint8_t tuh_midih_get_num_rx_cables (uint8_t dev_addr)
 {
-  TU_VERIFY(_midi_host.ep_in != 0); // returns 0 if fails
-  return _midi_host.num_cables_rx;
+  midih_interface_t *p_midi_host = get_midi_host(dev_addr);
+  TU_VERIFY(p_midi_host->ep_in != 0); // returns 0 if fails
+  return p_midi_host->num_cables_rx;
 }
 
 uint32_t tuh_midi_stream_read (uint8_t dev_addr, uint8_t *p_cable_num, uint8_t *p_buffer, uint16_t bufsize)
 {
+  midih_interface_t *p_midi_host = get_midi_host(dev_addr);
   uint32_t bytes_buffered = 0;
-  if (_midi_host.dev_addr == dev_addr)
+  TU_ASSERT(p_cable_num);
+  TU_ASSERT(p_buffer);
+  TU_ASSERT(bufsize);
+  uint8_t one_byte;
+  if (!tu_fifo_peek(&p_midi_host->rx_ff, &one_byte))
   {
-    TU_ASSERT(p_cable_num);
-    TU_ASSERT(p_buffer);
-    TU_ASSERT(bufsize);
-    uint8_t one_byte;
-    if (!tu_fifo_peek(&_midi_host.rx_ff, &one_byte))
+    return 0;
+  }
+  *p_cable_num = (one_byte >> 4) & 0xf;
+  uint32_t nread = tu_fifo_read_n(&p_midi_host->rx_ff, p_midi_host->stream_read.buffer, 4);
+  static uint16_t cable_sysex_in_progress; // bit i is set if received MIDI_STATUS_SYSEX_START but not MIDI_STATUS_SYSEX_END
+  while (nread == 4 && bytes_buffered < bufsize)
+  {
+    *p_cable_num=(p_midi_host->stream_read.buffer[0] & 0xf) >> 4;
+    uint8_t bytes_to_add_to_stream = 0;
+    if (*p_cable_num < p_midi_host->num_cables_rx)
     {
-      return 0;
-    }
-    *p_cable_num = (one_byte >> 4) & 0xf;
-    uint32_t nread = tu_fifo_read_n(&_midi_host.rx_ff, _midi_host.stream_read.buffer, 4);
-    static uint16_t cable_sysex_in_progress; // bit i is set if received MIDI_STATUS_SYSEX_START but not MIDI_STATUS_SYSEX_END
-    while (nread == 4 && bytes_buffered < bufsize)
-    {
-      *p_cable_num=(_midi_host.stream_read.buffer[0] & 0xf) >> 4;
-      uint8_t bytes_to_add_to_stream = 0;
-      if (*p_cable_num < _midi_host.num_cables_rx)
+      // ignore the CIN field; too many devices out there encode this wrong
+      uint8_t status = p_midi_host->stream_read.buffer[1];
+      uint16_t cable_mask = 1 << *p_cable_num;
+      if (status <= MIDI_MAX_DATA_VAL || status == MIDI_STATUS_SYSEX_START)
       {
-        // ignore the CIN field; too many devices out there encode this wrong
-        uint8_t status = _midi_host.stream_read.buffer[1];
-        uint16_t cable_mask = 1 << *p_cable_num;
-        if (status <= MIDI_MAX_DATA_VAL || status == MIDI_STATUS_SYSEX_START)
+        if (status == MIDI_STATUS_SYSEX_START)
         {
-          if (status == MIDI_STATUS_SYSEX_START)
+          cable_sysex_in_progress |= cable_mask;
+        }
+        // only add the packet if a sysex message is in progress
+        if (cable_sysex_in_progress & cable_mask)
+        {
+          ++bytes_to_add_to_stream;
+          uint8_t idx;
+          for (idx = 2; idx < 4; idx++)
           {
-            cable_sysex_in_progress |= cable_mask;
-          }
-          // only add the packet if a sysex message is in progress
-          if (cable_sysex_in_progress & cable_mask)
-          {
-            ++bytes_to_add_to_stream;
-            uint8_t idx;
-            for (idx = 2; idx < 4; idx++)
+            if (p_midi_host->stream_read.buffer[idx] <= MIDI_MAX_DATA_VAL)
             {
-              if (_midi_host.stream_read.buffer[idx] <= MIDI_MAX_DATA_VAL)
-              {
-                ++bytes_to_add_to_stream;
-              }
-              else if (_midi_host.stream_read.buffer[idx] == MIDI_STATUS_SYSEX_END)
-              {
-                ++bytes_to_add_to_stream;
-                cable_sysex_in_progress &= ~cable_mask;
-                idx = 4; // force the loop to exit; I hate break statements in loops
-              }
+              ++bytes_to_add_to_stream;
+            }
+            else if (p_midi_host->stream_read.buffer[idx] == MIDI_STATUS_SYSEX_END)
+            {
+              ++bytes_to_add_to_stream;
+              cable_sysex_in_progress &= ~cable_mask;
+              idx = 4; // force the loop to exit; I hate break statements in loops
             }
           }
         }
-        else if (status < MIDI_STATUS_SYSEX_START)
+      }
+      else if (status < MIDI_STATUS_SYSEX_START)
+      {
+        // then it is a channel message either three bytes or two
+        uint8_t fake_cin = (status & 0xf0) >> 4;
+        switch (fake_cin)
         {
-          // then it is a channel message either three bytes or two
-          uint8_t fake_cin = (status & 0xf0) >> 4;
-          switch (fake_cin)
-          {
-            case MIDI_CIN_NOTE_OFF:
-            case MIDI_CIN_NOTE_ON:
-            case MIDI_CIN_POLY_KEYPRESS:
-            case MIDI_CIN_CONTROL_CHANGE:
-            case MIDI_CIN_PITCH_BEND_CHANGE:
-              bytes_to_add_to_stream = 3;
-              break;
-            case MIDI_CIN_PROGRAM_CHANGE:
-            case MIDI_CIN_CHANNEL_PRESSURE:
-              bytes_to_add_to_stream = 2;
-              break;
-            default:
-              break; // Should not get this
-          }
+          case MIDI_CIN_NOTE_OFF:
+          case MIDI_CIN_NOTE_ON:
+          case MIDI_CIN_POLY_KEYPRESS:
+          case MIDI_CIN_CONTROL_CHANGE:
+          case MIDI_CIN_PITCH_BEND_CHANGE:
+            bytes_to_add_to_stream = 3;
+            break;
+          case MIDI_CIN_PROGRAM_CHANGE:
+          case MIDI_CIN_CHANNEL_PRESSURE:
+            bytes_to_add_to_stream = 2;
+            break;
+          default:
+            break; // Should not get this
+        }
+        cable_sysex_in_progress &= ~cable_mask;
+      }
+      else if (status < MIDI_STATUS_SYSREAL_TIMING_CLOCK)
+      {
+        switch (status)
+        {
+          case MIDI_STATUS_SYSCOM_TIME_CODE_QUARTER_FRAME:
+          case MIDI_STATUS_SYSCOM_SONG_SELECT:
+            bytes_to_add_to_stream = 2;
+            break;
+          case MIDI_STATUS_SYSCOM_SONG_POSITION_POINTER:
+            bytes_to_add_to_stream = 3;
+            break;
+          case MIDI_STATUS_SYSCOM_TUNE_REQUEST:
+          case MIDI_STATUS_SYSEX_END:
+            bytes_to_add_to_stream = 1;
+            break;
+          default:
+            break;
           cable_sysex_in_progress &= ~cable_mask;
         }
-        else if (status < MIDI_STATUS_SYSREAL_TIMING_CLOCK)
-        {
-          switch (status)
-          {
-            case MIDI_STATUS_SYSCOM_TIME_CODE_QUARTER_FRAME:
-            case MIDI_STATUS_SYSCOM_SONG_SELECT:
-              bytes_to_add_to_stream = 2;
-              break;
-            case MIDI_STATUS_SYSCOM_SONG_POSITION_POINTER:
-              bytes_to_add_to_stream = 3;
-              break;
-            case MIDI_STATUS_SYSCOM_TUNE_REQUEST:
-            case MIDI_STATUS_SYSEX_END:
-              bytes_to_add_to_stream = 1;
-              break;
-            default:
-              break;
-            cable_sysex_in_progress &= ~cable_mask;
-          }
-        }
-        else
-        {
-          // Real-time message: can be inserted into a sysex message,
-          // so do don't clear cable_sysex_in_progress bit
-          bytes_to_add_to_stream = 1;
-        }
       }
-      uint8_t idx;
-      for (idx = 1; idx <= bytes_to_add_to_stream; idx++)
+      else
       {
-        *p_buffer++ = _midi_host.stream_read.buffer[idx];
+        // Real-time message: can be inserted into a sysex message,
+        // so do don't clear cable_sysex_in_progress bit
+        bytes_to_add_to_stream = 1;
       }
-      bytes_buffered += bytes_to_add_to_stream;
-      nread = 0;
-      if (tu_fifo_peek(&_midi_host.rx_ff, &one_byte))
+    }
+    uint8_t idx;
+    for (idx = 1; idx <= bytes_to_add_to_stream; idx++)
+    {
+      *p_buffer++ = p_midi_host->stream_read.buffer[idx];
+    }
+    bytes_buffered += bytes_to_add_to_stream;
+    nread = 0;
+    if (tu_fifo_peek(&p_midi_host->rx_ff, &one_byte))
+    {
+      uint8_t new_cable = (one_byte >> 4) & 0xf;
+      if (new_cable == *p_cable_num)
       {
-        uint8_t new_cable = (one_byte >> 4) & 0xf;
-        if (new_cable == *p_cable_num)
-        {
-          // still on the same cable. Continue reading the stream
-          nread = tu_fifo_read_n(&_midi_host.rx_ff, _midi_host.stream_read.buffer, 4);
-        }
+        // still on the same cable. Continue reading the stream
+        nread = tu_fifo_read_n(&p_midi_host->rx_ff, p_midi_host->stream_read.buffer, 4);
       }
     }
   }

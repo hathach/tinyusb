@@ -51,31 +51,31 @@
 //--------------------------------------------------------------------+
 // Application API (Single Interface)
 //--------------------------------------------------------------------+
-bool     tuh_midi_configured      (void);
-uint32_t tuh_midi_available    (void);
+bool     tuh_midi_configured      (uint8_t dev_addr);
+uint32_t tuh_midi_available    (uint8_t dev_addr);
 
 // return the number of virtual midi cables on the device's OUT endpoint
-uint8_t tuh_midih_get_num_tx_cables (void);
+uint8_t tuh_midih_get_num_tx_cables (uint8_t dev_addr);
 
 // return the number of virtual midi cables on the device's IN endpoint
-uint8_t tuh_midih_get_num_rx_cables (void);
+uint8_t tuh_midih_get_num_rx_cables (uint8_t dev_addr);
 
 // request available data from the device. tuh_midi_message_received_cb() will
 // be called if the device has any data to send. Otherwise, the device will
 // respond NAK. This function blocks until the transfer completes or the
 // devices sends NAK.
 // This function will return false if the hardware is busy.
-bool tuh_midi_read_poll( void );
+bool tuh_midi_read_poll( uint8_t dev_addr );
 
 // Queue a message to the device. The application
 // must call tuh_midi_stream_flush to actually have the
 // data go out.
-uint32_t tuh_midi_stream_write (uint8_t cable_num, uint8_t const* p_buffer, uint32_t bufsize);
+uint32_t tuh_midi_stream_write (uint8_t dev_addr, uint8_t cable_num, uint8_t const* p_buffer, uint32_t bufsize);
 
 // Send any queued packets to the device if the host hardware is able to do it
 // Returns the number of bytes flushed to the host hardware or 0 if
 // the host hardware is busy or there is nothing in queue to send.
-uint32_t tuh_midi_stream_flush( void);
+uint32_t tuh_midi_stream_flush( uint8_t dev_addr);
 
 // Get the MIDI stream from the device. Set the value pointed
 // to by p_cable_num to the MIDI cable number intended to receive it.

@@ -30,7 +30,7 @@
 //--------------------------------------------------------------------+
 // MACRO TYPEDEF CONSTANT ENUM DECLARATION
 //--------------------------------------------------------------------+
-static bool device_mounted = false;
+static uint8_t midi_dev_addr = 0;
 static void test_tx(void)
 {
   // toggle NOTE On, Note Off for the Mackie Control channels 1-8 REC LED
@@ -50,16 +50,16 @@ static void test_tx(void)
   };
 
   // device must be attached and have at least one endpoint ready to receive a message
-  if (!tuh_midi_configured())
+  if (!midi_dev_addr || !tuh_midi_configured(midi_dev_addr))
   {
     return;
   }
-  if (tuh_midih_get_num_tx_cables() < 1)
+  if (tuh_midih_get_num_tx_cables(midi_dev_addr) < 1)
   {
     return;
   }
   // transmit any previously queued bytes
-  tuh_midi_stream_flush();
+  tuh_midi_stream_flush(midi_dev_addr);
   // Blink every interval ms
   if ( board_millis() - start_ms < interval_ms)
   {
@@ -67,7 +67,7 @@ static void test_tx(void)
   }
   start_ms += interval_ms;
 
-  uint32_t nwritten = tuh_midi_stream_write(0, message, sizeof(message));
+  uint32_t nwritten = tuh_midi_stream_write(midi_dev_addr, 0, message, sizeof(message));
  
   char off_on[4] = {'O','n','\0'};
   if (nwritten != 0)
@@ -106,15 +106,15 @@ static void test_tx(void)
 static void test_rx(void)
 {
   // device must be attached and have at least one endpoint ready to receive a message
-  if (!tuh_midi_configured())
+  if (!midi_dev_addr || !tuh_midi_configured(midi_dev_addr))
   {
     return;
   }
-  if (tuh_midih_get_num_rx_cables() < 1)
+  if (tuh_midih_get_num_rx_cables(midi_dev_addr) < 1)
   {
     return;
   }
-  tuh_midi_read_poll();
+  tuh_midi_read_poll(midi_dev_addr);
 }
 
 void midi_host_app_task(void)
@@ -137,19 +137,19 @@ void tuh_midi_mount_cb(uint8_t dev_addr, uint8_t in_ep, uint8_t out_ep, uint8_t 
 {
   printf("MIDI device address = %u, IN endpoint %u has %u cables, OUT endpoint %u has %u cables\r\n",
       dev_addr, in_ep & 0xf, num_cables_rx, out_ep & 0xf, num_cables_tx);
-  device_mounted = true;
+  midi_dev_addr = dev_addr;
 }
 
 // Invoked when device with hid interface is un-mounted
 void tuh_midi_umount_cb(uint8_t dev_addr, uint8_t instance)
 {
-  device_mounted = false;
+  midi_dev_addr = 0;
   printf("MIDI device address = %d, instance = %d is unmounted\r\n", dev_addr, instance);
 }
 
 void tuh_midi_rx_cb(uint8_t dev_addr, uint32_t num_packets)
 {
-  if (num_packets != 0)
+  if (num_packets != 0 && midi_dev_addr == dev_addr)
   {
     uint8_t cable_num;
     uint8_t buffer[48];
