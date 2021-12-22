@@ -31,6 +31,7 @@
 // MACRO TYPEDEF CONSTANT ENUM DECLARATION
 //--------------------------------------------------------------------+
 static uint8_t midi_dev_addr = 0;
+
 static void test_tx(void)
 {
   // toggle NOTE On, Note Off for the Mackie Control channels 1-8 REC LED
@@ -149,13 +150,17 @@ void tuh_midi_umount_cb(uint8_t dev_addr, uint8_t instance)
 
 void tuh_midi_rx_cb(uint8_t dev_addr, uint32_t num_packets)
 {
-  if (num_packets != 0 && midi_dev_addr == dev_addr)
+  if (midi_dev_addr == dev_addr)
   {
-    uint8_t cable_num;
-    uint8_t buffer[48];
-    uint32_t bytes_read = tuh_midi_stream_read(dev_addr, &cable_num, buffer, sizeof(buffer));
-    TU_LOG1("Read bytes %u cable %u", bytes_read, cable_num);
-    TU_LOG1_MEM(buffer, bytes_read, 2);
+    if (num_packets != 0)
+    {
+      uint8_t cable_num;
+      uint8_t buffer[48];
+      uint32_t bytes_read = tuh_midi_stream_read(dev_addr, &cable_num, buffer, sizeof(buffer));
+      TU_LOG1("Read bytes %u cable %u", bytes_read, cable_num);
+      TU_LOG1_MEM(buffer, bytes_read, 2);
+    }
+    tuh_midi_stream_flush(midi_dev_addr);
   }
 }
 
