@@ -68,10 +68,14 @@ static void test_tx(void)
   start_ms += interval_ms;
 
   uint32_t nwritten = tuh_midi_stream_write(0, message, sizeof(message));
+ 
+  char off_on[4] = {'O','n','\0'};
   if (nwritten != 0)
   {
     if (message[2] == 0x7f)
     {
+      off_on[1] = 'n';
+      off_on[2] = '\0';
       message[2] = 0;
       message[5] = 0;
       message[8] = 0;
@@ -83,6 +87,9 @@ static void test_tx(void)
     }
     else
     {
+      off_on[1] = 'f';
+      off_on[2] = 'f';
+      off_on[3] = '\0';
       message[2] = 0x7f;
       message[5] = 0x7f;
       message[8] = 0x7f;
@@ -92,6 +99,7 @@ static void test_tx(void)
       message[20] = 0x7f;
       message[23] = 0x7f;
     }
+    TU_LOG1("Switched lights %s\r\n", off_on);
   }
 }
 
@@ -112,6 +120,7 @@ static void test_rx(void)
 void midi_host_app_task(void)
 {
   test_tx();
+
   test_rx();
 }
 
