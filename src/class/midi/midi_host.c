@@ -601,7 +601,7 @@ uint32_t tuh_midi_stream_read (uint8_t dev_addr, uint8_t *p_cable_num, uint8_t *
   static uint16_t cable_sysex_in_progress; // bit i is set if received MIDI_STATUS_SYSEX_START but not MIDI_STATUS_SYSEX_END
   while (nread == 4 && bytes_buffered < bufsize)
   {
-    *p_cable_num=(p_midi_host->stream_read.buffer[0] & 0xf) >> 4;
+    *p_cable_num=(p_midi_host->stream_read.buffer[0] >> 4) & 0x0f;
     uint8_t bytes_to_add_to_stream = 0;
     if (*p_cable_num < p_midi_host->num_cables_rx)
     {
