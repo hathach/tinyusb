@@ -549,7 +549,7 @@ static void _hw_endpoint_reinit_epx(struct hw_endpoint *ep)
         clear_nak_received();
     if (tu_edpt_dir(ep->ep_addr) == TUSB_DIR_IN)
     {
-        uint32_t nak_poll_delay = 1000; // set to one ms.
+        uint32_t nak_poll_delay = 100; // increase the spacing between NAK auto-retries
         usb_hw->nak_poll = (nak_poll_delay << USB_NAK_POLL_DELAY_FS_LSB) | (nak_poll_delay << USB_NAK_POLL_DELAY_LS_LSB);
     }
 }
