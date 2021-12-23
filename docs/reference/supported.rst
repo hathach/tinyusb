@@ -344,7 +344,7 @@ F4
 -  `STM32 F411ve Discovery <https://www.st.com/en/evaluation-tools/32f411ediscovery.html>`__
 -  `STM32 F412zg Discovery <https://www.st.com/en/evaluation-tools/32f412gdiscovery.html>`__
 -  `STM32 F412zg Nucleo <https://www.st.com/en/evaluation-tools/nucleo-f412zg.html>`__
--  `STM32 F439zg Nucleo <https://www.st.com/en/evaluation-tools/nucleo-f439zi.html>`__
+-  `STM32 F439zi Nucleo <https://www.st.com/en/evaluation-tools/nucleo-f439zi.html>`__
 
 F7
 ^^
