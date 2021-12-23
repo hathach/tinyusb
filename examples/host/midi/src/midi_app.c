@@ -160,7 +160,6 @@ void tuh_midi_rx_cb(uint8_t dev_addr, uint32_t num_packets)
       TU_LOG1("Read bytes %u cable %u", bytes_read, cable_num);
       TU_LOG1_MEM(buffer, bytes_read, 2);
     }
-    tuh_midi_stream_flush(midi_dev_addr);
   }
 }
 
