@@ -15,6 +15,7 @@ CFLAGS += \
 
 SRC_C += \
 	src/portable/renesas/usba/dcd_usba.c \
+	src/portable/renesas/usba/hcd_usba.c \
 	$(MCU_DIR)/vects.c
 
 INC += \
