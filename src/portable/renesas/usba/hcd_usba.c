@@ -538,6 +538,9 @@ bool hcd_init(uint8_t rhport)
   USB0.SYSCFG.BIT.DPRPU = 0;
   USB0.SYSCFG.BIT.DRPD = 0;
   USB0.SYSCFG.BIT.DCFM = 1;
+
+  USB0.DVSTCTR0.BIT.VBUSEN = 1;
+
   USB0.SYSCFG.BIT.DRPD = 1;
   for (volatile int i = 0; i < 30000; ++i) ;
   USB0.SYSCFG.BIT.USBE = 1;
