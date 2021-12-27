@@ -765,19 +765,17 @@ bool hcd_edpt_clear_stall(uint8_t dev_addr, uint8_t ep_addr)
 {
   uint16_t volatile *ctr = addr_to_pipectr(dev_addr, ep_addr);
   TU_ASSERT(ctr);
+
+  const uint32_t pid = *ctr & 0x3;
+  if (pid & 2) {
+    *ctr = pid & 2;
+    *ctr = 0;
+  }
   *ctr = USB_PIPECTR_SQCLR;
   unsigned const epn = tu_edpt_number(ep_addr);
   if (!epn) return true;
 
-  if (tu_edpt_dir(ep_addr)) { /* IN */
-    const unsigned num = _hcd.ep[dev_addr - 1][1][epn - 1];
-    hcd_int_disable(0);
-    USB0.PIPESEL.WORD  = num;
-    if (USB0.PIPECFG.BIT.TYPE != 1) {
-      *ctr = USB_PIPECTR_PID_BUF;
-    }
-    hcd_int_enable(0);
-  } else {
+  if (!tu_edpt_dir(ep_addr)) { /* OUT */
     *ctr = USB_PIPECTR_PID_BUF;
   }
   return true;
