@@ -1,3 +1,5 @@
+DEPS_SUBMODULES += hw/mcu/allwinner
+
 DEFINES += -D__ARM32_ARCH__=5 -D__ARM926EJS__
 
 CFLAGS += \
@@ -33,7 +35,7 @@ SRC_C += \
 	$(MCU_DIR)/lib/printf.c 
 
 SRC_S += \
-    $(MCU_DIR)/machine/start.S \
+  $(MCU_DIR)/machine/start.S \
 	$(MCU_DIR)/lib/memcpy.S \
 	$(MCU_DIR)/lib/memset.S
 

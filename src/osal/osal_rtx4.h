@@ -1,6 +1,7 @@
 /* 
  * The MIT License (MIT)
  *
+ * Copyright (c) 2021 Tian Yunhao (t123yh)
  * Copyright (c) 2019 Ha Thach (tinyusb.org)
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
