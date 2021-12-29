@@ -1,6 +1,7 @@
 /*
  * The MIT License (MIT)
  *
+ * Copyright (c) 2021 Koji KITAYAMA
  * Copyright (c) 2021 Tian Yunhao (t123yh)
  * Copyright (c) 2021 Ha Thach (tinyusb.org)
  *

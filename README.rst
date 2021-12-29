@@ -32,6 +32,7 @@ Supported MCUs
 
 The stack supports the following MCUs:
 
+- **Allwinner:** F1C100s/F1C200s
 - **Broadcom:** BCM2837, BCM2711
 - **Dialog:** DA1469x
 - **Espressif:** ESP32-S2, ESP32-S3
