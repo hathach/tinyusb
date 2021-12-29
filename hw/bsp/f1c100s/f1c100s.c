@@ -49,7 +49,7 @@ void board_init(void)
   arch_local_irq_enable();
 }
 
-// No LED, no button, sorry
+// No LED, no button
 void board_led_write(bool state)
 {
 
