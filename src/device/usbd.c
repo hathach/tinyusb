@@ -44,6 +44,11 @@
   #define CFG_TUD_TASK_QUEUE_SZ   16
 #endif
 
+#ifdef __ARMCC_VERSION
+// Supress "statement is unreachable" warning
+#pragma diag_suppress 111
+#endif
+
 //--------------------------------------------------------------------+
 // Device Data
 //--------------------------------------------------------------------+
