@@ -44,11 +44,6 @@
   #define CFG_TUD_TASK_QUEUE_SZ   16
 #endif
 
-#ifdef __ARMCC_VERSION
-// Supress "statement is unreachable" warning
-#pragma diag_suppress 111
-#endif
-
 //--------------------------------------------------------------------+
 // Device Data
 //--------------------------------------------------------------------+
@@ -1013,7 +1008,7 @@ static bool process_get_descriptor(uint8_t rhport, tusb_control_request_t const 
         return tud_control_xfer(rhport, p_request, desc_device, sizeof(tusb_desc_device_t));
       }
     }
-    break;
+    // break; // unreachable
 
     case TUSB_DESC_BOS:
     {
@@ -1030,7 +1025,7 @@ static bool process_get_descriptor(uint8_t rhport, tusb_control_request_t const 
 
       return tud_control_xfer(rhport, p_request, (void*) desc_bos, total_len);
     }
-    break;
+    // break; // unreachable
 
     case TUSB_DESC_CONFIGURATION:
     case TUSB_DESC_OTHER_SPEED_CONFIG:
@@ -1056,7 +1051,7 @@ static bool process_get_descriptor(uint8_t rhport, tusb_control_request_t const 
 
       return tud_control_xfer(rhport, p_request, (void*) desc_config, total_len);
     }
-    break;
+    // break; // unreachable
 
     case TUSB_DESC_STRING:
     {
@@ -1069,7 +1064,7 @@ static bool process_get_descriptor(uint8_t rhport, tusb_control_request_t const 
       // first byte of descriptor is its size
       return tud_control_xfer(rhport, p_request, (void*) (uintptr_t) desc_str, tu_desc_len(desc_str));
     }
-    break;
+    // break; // unreachable
 
     case TUSB_DESC_DEVICE_QUALIFIER:
     {
@@ -1083,7 +1078,7 @@ static bool process_get_descriptor(uint8_t rhport, tusb_control_request_t const 
       // first byte of descriptor is its size
       return tud_control_xfer(rhport, p_request, (void*) (uintptr_t) desc_qualifier, tu_desc_len(desc_qualifier));
     }
-    break;
+    // break; // unreachable
 
     default: return false;
   }
