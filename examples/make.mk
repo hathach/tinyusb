@@ -54,6 +54,8 @@ endif
 #-------------- Cross Compiler  ------------
 # Can be set by board, default to ARM GCC
 CROSS_COMPILE ?= arm-none-eabi-
+# Allow for -Os to be changed by board makefiles in case -Os is not allowed
+CFLAGS_OPTIMIZED ?= -Os
 
 CC = $(CROSS_COMPILE)gcc
 CXX = $(CROSS_COMPILE)g++
@@ -112,7 +114,7 @@ CFLAGS += \
 ifeq ($(DEBUG), 1)
   CFLAGS += -Og
 else
-  CFLAGS += -Os
+  CFLAGS += $(CFLAGS_OPTIMIZED)
 endif
 
 # Log level is mapped to TUSB DEBUG option
