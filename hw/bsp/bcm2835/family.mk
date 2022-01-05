@@ -3,18 +3,14 @@ DEPS_SUBMODULES += $(MCU_DIR)
 
 include $(TOP)/$(BOARD_PATH)/board.mk
 
-CC = clang
-
 CFLAGS += \
-	-mcpu=cortex-a72 \
 	-Wall \
 	-O0 \
 	-ffreestanding \
 	-nostdlib \
 	-nostartfiles \
-	-std=c17 \
 	-mgeneral-regs-only \
-	-DCFG_TUSB_MCU=OPT_MCU_BCM2711
+	-std=c17
 
 # mcu driver cause following warnings
 CFLAGS += -Wno-error=cast-qual
@@ -22,30 +18,26 @@ CFLAGS += -Wno-error=cast-qual
 SRC_C += \
 	src/portable/synopsys/dwc2/dcd_dwc2.c \
 	$(MCU_DIR)/broadcom/gen/interrupt_handlers.c \
+	$(MCU_DIR)/broadcom/gpio.c \
 	$(MCU_DIR)/broadcom/interrupts.c \
-	$(MCU_DIR)/broadcom/io.c \
 	$(MCU_DIR)/broadcom/mmu.c \
 	$(MCU_DIR)/broadcom/caches.c \
 	$(MCU_DIR)/broadcom/vcmailbox.c
 
-
-CROSS_COMPILE = aarch64-none-elf-
-
 SKIP_NANOLIB = 1
 
-LD_FILE = $(MCU_DIR)/broadcom/link.ld
+LD_FILE = $(MCU_DIR)/broadcom/link$(SUFFIX).ld
 
 INC += \
 	$(TOP)/$(BOARD_PATH) \
-	$(TOP)/$(MCU_DIR) \
-	$(TOP)/lib/CMSIS_5/CMSIS/Core_A/Include
+	$(TOP)/$(MCU_DIR)
 
-SRC_S += $(MCU_DIR)/broadcom/boot.S
+SRC_S += $(MCU_DIR)/broadcom/boot$(SUFFIX).S
 
-$(BUILD)/kernel8.img: $(BUILD)/$(PROJECT).elf
+$(BUILD)/kernel$(SUFFIX).img: $(BUILD)/$(PROJECT).elf
 	$(OBJCOPY) -O binary $^ $@
 
 # Copy to kernel to netboot drive or SD card
 # Change destinaation to fit your need
-flash: $(BUILD)/kernel8.img
-	$(CP) $< /home/$(USER)/Documents/code/pi4_tinyusb/boot_cpy
+flash: $(BUILD)/kernel$(SUFFIX).img
+	@$(CP) $< /home/$(USER)/Documents/code/pi_tinyusb/boot_cpy

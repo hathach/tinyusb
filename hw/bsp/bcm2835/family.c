@@ -27,8 +27,9 @@
 #include "bsp/board.h"
 #include "board.h"
 
+#include "broadcom/cpu.h"
+#include "broadcom/gpio.h"
 #include "broadcom/interrupts.h"
-#include "broadcom/io.h"
 #include "broadcom/mmu.h"
 #include "broadcom/caches.h"
 #include "broadcom/vcmailbox.h"
@@ -37,9 +38,8 @@
 #define LED_PIN               18
 #define LED_STATE_ON          1
 
-// Button
-#define BUTTON_PIN            16
-#define BUTTON_STATE_ACTIVE   0
+// UART TX
+#define UART_TX_PIN           14
 
 //--------------------------------------------------------------------+
 // Forward USB interrupt events to TinyUSB IRQ Handler
@@ -62,14 +62,26 @@ void board_init(void)
   init_caches();
 
   // LED
-  gpio_initOutputPinWithPullNone(LED_PIN);
+  gpio_set_function(LED_PIN, GPIO_FUNCTION_OUTPUT);
+  gpio_set_pull(LED_PIN, BP_PULL_NONE);
   board_led_write(true);
 
-  // Button
-  // TODO
-
   // Uart
-  uart_init();
+  COMPLETE_MEMORY_READS;
+  AUX->ENABLES_b.UART_1 = true;
+
+  UART1->IER = 0;
+  UART1->CNTL = 0;
+  UART1->LCR_b.DATA_SIZE = UART1_LCR_DATA_SIZE_MODE_8BIT;
+  UART1->MCR = 0;
+  UART1->IER = 0;
+
+  uint32_t source_clock = vcmailbox_get_clock_rate_measured(VCMAILBOX_CLOCK_CORE);
+  UART1->BAUD = ((source_clock / (115200 * 8)) - 1);
+  UART1->CNTL |= UART1_CNTL_TX_ENABLE_Msk;
+  COMPLETE_MEMORY_READS;
+
+  gpio_set_function(UART_TX_PIN, GPIO_FUNCTION_ALT5);
 
   // Turn on USB peripheral.
   vcmailbox_set_power_state(VCMAILBOX_DEVICE_USB_HCD, true);
@@ -87,7 +99,7 @@ void board_init(void)
 
 void board_led_write(bool state)
 {
-  gpio_setPinOutputBool(LED_PIN, state ? LED_STATE_ON : (1-LED_STATE_ON));
+  gpio_set_value(LED_PIN, state ? LED_STATE_ON : (1-LED_STATE_ON));
 }
 
 uint32_t board_button_read(void)
