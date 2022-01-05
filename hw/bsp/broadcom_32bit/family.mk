@@ -12,6 +12,8 @@ CFLAGS += \
 	-mgeneral-regs-only \
 	-std=c17
 
+CROSS_COMPILE = arm-none-eabi-
+
 # mcu driver cause following warnings
 CFLAGS += -Wno-error=cast-qual
 
