@@ -1,1 +1,0 @@
-tinyusb/lib/lwip/src/include/lwip/arch.h:202:13: error: conflicting types for 'ssize_t'
