@@ -4,6 +4,8 @@ import sys
 import subprocess
 import time
 
+import build_utils
+
 SUCCEEDED = "\033[32msucceeded\033[0m"
 FAILED = "\033[31mfailed\033[0m"
 SKIPPED = "\033[33mskipped\033[0m"
@@ -50,7 +52,7 @@ def build_board(example, board):
     sram_size = "-"
 
     # Check if board is skipped
-    if skip_example(example, board):
+    if build_utils.skip_example(example, board):
         success = SKIPPED
         skip_count += 1
         print(build_format.format(example, board, success, '-', flash_size, sram_size))
@@ -81,33 +83,6 @@ def build_size(example, board):
     flash_size = int(size_list[0])
     sram_size = int(size_list[1]) + int(size_list[2])
     return (flash_size, sram_size)
-
-def skip_example(example, board):
-    ex_dir = 'examples/' + example
-    board_mk = 'hw/bsp/{}/board.mk'.format(board)
-    with open(board_mk) as mk:
-        mk_contents = mk.read()
-
-        # Skip all OPT_MCU_NONE these are WIP port
-        if '-DCFG_TUSB_MCU=OPT_MCU_NONE' in mk_contents:
-            return 1
-
-        # Skip if CFG_TUSB_MCU in board.mk to match skip file
-        for skip_file in glob.iglob(ex_dir + '/.skip.MCU_*'):
-            mcu_cflag = '-DCFG_TUSB_MCU=OPT_' + os.path.basename(skip_file).split('.')[2]
-            if mcu_cflag in mk_contents:
-                return 1
-
-        # Build only list, if exists only these MCU are built
-        only_list = list(glob.iglob(ex_dir + '/.only.MCU_*'))
-        if len(only_list) > 0:
-            for only_file in only_list:
-                mcu_cflag = '-DCFG_TUSB_MCU=OPT_' + os.path.basename(only_file).split('.')[2]
-                if mcu_cflag in mk_contents:
-                    return 0
-            return 1
-
-    return 0
 
 print(build_separator)
 print(build_format.format('Example', 'Board', '\033[39mResult\033[0m', 'Time', 'Flash', 'SRAM'))

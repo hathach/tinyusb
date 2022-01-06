@@ -26,3 +26,5 @@ cov-int
 # cppcheck build directories
 *-build-dir
 /_bin/
+__pycache__
+

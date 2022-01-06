@@ -1,0 +1,10 @@
+mcu:LPC11UXX
+mcu:LPC13XX
+mcu:MSP430x5xx
+mcu:NUC121
+mcu:SAMD11
+mcu:STM32L0
+mcu:MKL25ZXX
+family:broadcom_64bit
+family:broadcom_32bit
+board:curiosity_nano
