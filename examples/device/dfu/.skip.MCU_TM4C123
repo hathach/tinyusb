@@ -1,4 +1,0 @@
-LINK _build/ek-tm4c123gxl/dfu.elf
-/home/runner/cache/toolchain/xpack-arm-none-eabi-gcc-10.2.1-1.1/bin/../lib/gcc/arm-none-eabi/10.2.1/../../../../arm-none-eabi/bin/ld: section .ARM.exidx.text._close LMA [0000000000002980,0000000000002987] overlaps section .data LMA [0000000000002980,0000000000002a03]
-collect2: error: ld returned 1 exit status
-make: *** [../../rules.mk:94: _build/ek-tm4c123gxl/dfu.elf] Error 1

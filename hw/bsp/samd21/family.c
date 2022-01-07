@@ -47,7 +47,7 @@ void USB_Handler(void)
 //--------------------------------------------------------------------+
 // UART support
 //--------------------------------------------------------------------+
-void uart_init(void);
+static void uart_init(void);
 
 //--------------------------------------------------------------------+
 // MACRO TYPEDEF CONSTANT ENUM DECLARATION
@@ -152,7 +152,7 @@ uint32_t board_button_read(void)
 #define BOARD_SERCOM2(n)  SERCOM ## n
 #define BOARD_SERCOM(n) BOARD_SERCOM2(n)
 
-void uart_init(void)
+static void uart_init(void)
 {
 #if UART_SERCOM == 0
   gpio_set_pin_function(PIN_PA06, PINMUX_PA06D_SERCOM0_PAD2);
@@ -217,7 +217,7 @@ int board_uart_write(void const * buf, int len)
 }
 
 #else // ! defined(UART_SERCOM)
-void uart_init(void)
+static void uart_init(void)
 {
 
 }

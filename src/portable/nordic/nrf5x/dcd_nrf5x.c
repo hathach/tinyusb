@@ -1059,7 +1059,13 @@ void tusb_hal_nrf_power_event (uint32_t event)
 
       // Enable interrupt, priorities should be set by application
       NVIC_ClearPendingIRQ(USBD_IRQn);
-      NVIC_EnableIRQ(USBD_IRQn);
+      // Don't enable USBD interrupt yet, if dcd_init() did not finish yet
+      // Interrupt will be enabled by tud_init(), when USB stack is ready
+      // to handle interrupts.
+      if (tud_inited())
+      {
+        NVIC_EnableIRQ(USBD_IRQn);
+      }
 
       // Wait for HFCLK
       while ( !hfclk_running() ) { }

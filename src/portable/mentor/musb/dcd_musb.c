@@ -26,7 +26,8 @@
 
 #include "tusb_option.h"
 
-#if TU_CHECK_MCU(OPT_MCU_MSP432E4, OPT_MCU_TM4C123, OPT_MCU_TM4C129)
+#if TUSB_OPT_DEVICE_ENABLED && \
+  TU_CHECK_MCU(OPT_MCU_MSP432E4, OPT_MCU_TM4C123, OPT_MCU_TM4C129)
 
 #if __GNUC__ > 8 && defined(__ARM_FEATURE_UNALIGNED)
 /* GCC warns that an address may be unaligned, even though
@@ -250,12 +251,12 @@ static void pipe_read_packet(void *buf, volatile void *fifo, unsigned len)
     len  -= 4;
   }
   if (len >= 2) {
-    *(uint32_t *)addr = reg->u16;
+    *(uint16_t *)addr = reg->u16;
     addr += 2;
     len  -= 2;
   }
   if (len) {
-    *(uint32_t *)addr = reg->u8;
+    *(uint8_t *)addr = reg->u8;
   }
 }
 

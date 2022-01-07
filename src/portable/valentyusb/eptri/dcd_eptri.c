@@ -24,6 +24,10 @@
  * This file is part of the TinyUSB stack.
  */
 
+#include "tusb_option.h"
+
+#if TUSB_OPT_DEVICE_ENABLED && (CFG_TUSB_MCU == OPT_MCU_VALENTYUSB_EPTRI)
+
 #ifndef DEBUG
 #define DEBUG 0
 #endif
@@ -31,10 +35,6 @@
 #ifndef LOG_USB
 #define LOG_USB 0
 #endif
-
-#include "tusb_option.h"
-
-#if TUSB_OPT_DEVICE_ENABLED && (CFG_TUSB_MCU == OPT_MCU_VALENTYUSB_EPTRI)
 
 #include "device/dcd.h"
 #include "dcd_eptri.h"
