@@ -2247,14 +2247,12 @@ static void audiod_parse_for_AS_params(audiod_function_t* audio, uint8_t const *
 
 #if CFG_TUD_AUDIO_ENABLE_FEEDBACK_EP
 
-// Input value feedback has to be in 16.16 format - the format will be converted according to speed settings automatically
-// unless format correction is disabled.
 bool tud_audio_n_fb_set(uint8_t func_id, uint32_t feedback)
 {
   TU_VERIFY(func_id < CFG_TUD_AUDIO && _audiod_fct[func_id].p_desc != NULL);
 
   // Format the feedback value
-#if !TUD_OPT_HIGH_SPEED && !CFG_TUD_AUDIO_DISABLE_FEEDBACK_FORMAT_CORRECTION
+#if CFG_TUD_AUDIO_ENABLE_FEEDBACK_FORMAT_CORRECTION && !TUD_OPT_HIGH_SPEED
   uint8_t * fb = (uint8_t *) &_audiod_fct[func_id].fb_val;
 
   // For FS format is 10.14
@@ -2264,7 +2262,7 @@ bool tud_audio_n_fb_set(uint8_t func_id, uint32_t feedback)
   // 4th byte is needed to work correctly with MS Windows
   *fb = 0;
 #else
-  // For HS format is 16.16 as originally demanded
+  // Send value as-is, caller will choose the appropriate format
   _audiod_fct[func_id].fb_val = feedback;
 #endif
 
