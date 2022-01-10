@@ -93,11 +93,10 @@ typedef struct TU_ATTR_PACKED
       uint32_t        : 0;
     };
   };
+  uint8_t *buffer;
   uint16_t length;
   uint16_t remaining;
 } endpoint_state_t;
-
-TU_VERIFY_STATIC( sizeof(endpoint_state_t) == 8, "size is not correct" );
 
 typedef struct TU_ATTR_PACKED
 {
@@ -112,19 +111,24 @@ typedef struct TU_ATTR_PACKED
       uint8_t      : 0;
     };
   };
+  uint8_t *buffer;
+  uint16_t length;
+  uint16_t remaining;
 } pipe_state_t;
 
 
 typedef struct
 {
   union {
-    /* [#EP][OUT,IN][EVEN,ODD] */
-    buffer_descriptor_t bdt[16][2][2];
-    uint16_t            bda[512];
+    /* [OUT,IN][EVEN,ODD] */
+    buffer_descriptor_t bdt[2][2];
+    uint16_t            bda[2*2];
   };
   endpoint_state_t endpoint[2];
-  pipe_state_t pipe[HCD_MAX_XFER];
-  bool         need_reset;     /* The device has not been reset after connection. */
+  pipe_state_t pipe[HCD_MAX_XFER * 2];
+  uint32_t     in_progress; /* Bitmap. Each bit indicates that a transfer of the corresponding pipe is in progress */
+  uint32_t     pending;     /* Bitmap. Each bit indicates that a transfer of the corresponding pipe will be resume the next frame */
+  bool         need_reset;  /* The device has not been reset after connection. */
 } hcd_data_t;
 
 //--------------------------------------------------------------------+
@@ -132,15 +136,13 @@ typedef struct
 //--------------------------------------------------------------------+
 // BDT(Buffer Descriptor Table) must be 256-byte aligned
 CFG_TUSB_MEM_SECTION TU_ATTR_ALIGNED(512) static hcd_data_t _hcd;
-
-TU_VERIFY_STATIC( sizeof(_hcd.bdt) == 512, "size is not correct" );
+//CFG_TUSB_MEM_SECTION TU_ATTR_ALIGNED(4) static uint8_t _rx_buf[1024];
 
 int find_pipe(uint8_t dev_addr, uint8_t ep_addr)
 {
   /* Find the target pipe */
   int num;
-  if (0 == tu_edpt_number(ep_addr)) ep_addr = 0;
-  for (num = 0; num < HCD_MAX_XFER; ++num) {
+  for (num = 0; num < HCD_MAX_XFER * 2; ++num) {
     pipe_state_t *p = &_hcd.pipe[num];
     if ((p->dev_addr == dev_addr) && (p->ep_addr == ep_addr))
       return num;
@@ -148,37 +150,129 @@ int find_pipe(uint8_t dev_addr, uint8_t ep_addr)
   return -1;
 }
 
-static int prepare_packets(int pipenum,
-                           uint_fast8_t dir_in, uint8_t* buffer,
-                           uint_fast16_t total_bytes)
+static int prepare_packets(int pipenum)
 {
-  const unsigned dir_tx   = dir_in ? 0 : 1;
-  endpoint_state_t    *ep = &_hcd.endpoint[dir_tx];
-  buffer_descriptor_t *bd = &_hcd.bdt[0][dir_tx][ep->odd];
-  TU_ASSERT(0 == bd->own, 0);
+  pipe_state_t *pipe      = &_hcd.pipe[pipenum];
+  unsigned const dir_tx   = tu_edpt_dir(pipe->ep_addr) ? 0 : 1;
+  endpoint_state_t *ep    = &_hcd.endpoint[dir_tx];
+  unsigned const odd      = ep->odd;
+  buffer_descriptor_t *bd = _hcd.bdt[dir_tx];
+  TU_ASSERT(0 == bd[odd].own, -1);
 
-  ep->pipenum   = pipenum;
-  ep->length    = total_bytes;
-  ep->remaining = total_bytes;
+  // TU_LOG1("  %p dir %d odd %d data %d\n", &bd[odd], dir_tx, odd, pipe->data);
 
-  int num_pkts = 0; /* The number of prepared packets */
-  const unsigned mps = _hcd.pipe[pipenum].max_packet_size;
-  if (total_bytes > mps) {
-    buffer_descriptor_t *next = ep->odd ? bd - 1: bd + 1;
+  ep->pipenum = pipenum;
+
+  bd[odd    ].data      = pipe->data;
+  bd[odd ^ 1].data      = pipe->data ^ 1;
+  bd[odd ^ 1].own       = 0;
+  /* reset values for a next transfer */
+
+  int num_tokens = 0; /* The number of prepared packets */
+  unsigned const mps = pipe->max_packet_size;
+  unsigned const rem = pipe->remaining;
+  if (rem > mps) {
     /* When total_bytes is greater than the max packet size,
      * it prepares to the next transfer to avoid NAK in advance. */
-    next->bc   = total_bytes >= 2 * mps ? mps: total_bytes - mps;
-    next->addr = buffer + mps;
-    next->own  = 1;
-    ++num_pkts;
+    bd[odd ^ 1].bc   = rem >= 2 * mps ? mps: rem - mps;
+    bd[odd ^ 1].addr = pipe->buffer + mps;
+    bd[odd ^ 1].own  = 1;
+    if (dir_tx) ++num_tokens;
   }
-  bd->bc   = total_bytes >= mps ? mps: total_bytes;
-  bd->addr = buffer;
+  bd[odd].bc   = rem >= mps ? mps: rem;
+  bd[odd].addr = pipe->buffer;
   __DSB();
-  bd->own  = 1; /* This bit must be set last */
-  ++num_pkts;
-  // TU_LOG1("BD pipe=%d %d %lx %x\n", pipenum, num_pkts, bd->head, (uintptr_t)bd->addr);
-  return num_pkts;
+  bd[odd].own  = 1; /* This bit must be set last */
+  ++num_tokens;
+  return num_tokens;
+}
+
+static int select_next_pipenum(int pipenum)
+{
+  unsigned wip  = _hcd.in_progress & ~_hcd.pending;
+  if (!wip) return -1;
+  unsigned msk  = TU_GENMASK(31, pipenum);
+  int      next = __builtin_ctz(wip & msk);
+  if (next) return next;
+  msk  = TU_GENMASK(pipenum, 0);
+  next = __builtin_ctz(wip & msk);
+  return next;
+}
+
+/* When transfer is completed, return true. */
+static bool continue_transfer(int pipenum, buffer_descriptor_t *bd)
+{
+  pipe_state_t *pipe = &_hcd.pipe[pipenum];
+  unsigned const bc  = bd->bc;
+  unsigned const rem = pipe->remaining - bc;
+
+  pipe->remaining = rem;
+  if (rem && bc == pipe->max_packet_size) {
+    int const next_rem = rem - pipe->max_packet_size;
+    if (next_rem > 0) {
+      /* Prepare to the after next transfer */
+      bd->addr += pipe->max_packet_size * 2;
+      bd->bc    = next_rem > pipe->max_packet_size ? pipe->max_packet_size: next_rem;
+      __DSB();
+      bd->own   = 1; /* This bit must be set last */
+      while (KHCI->CTL & USB_CTL_TXSUSPENDTOKENBUSY_MASK) ;
+      KHCI->TOKEN = KHCI->TOKEN; /* Queue the same token as the last */
+    } else if (TUSB_DIR_IN == tu_edpt_dir(pipe->ep_addr)) { /* IN */
+      while (KHCI->CTL & USB_CTL_TXSUSPENDTOKENBUSY_MASK) ;
+      KHCI->TOKEN = KHCI->TOKEN;
+    }
+    return true;
+  }
+  pipe->data = bd->data ^ 1;
+  return false;
+}
+
+static bool resume_transfer(int pipenum)
+{
+  int num_tokens = prepare_packets(pipenum);
+  TU_ASSERT(0 <= num_tokens);
+
+  const unsigned ie = NVIC_GetEnableIRQ(USB0_IRQn);
+  NVIC_DisableIRQ(USB0_IRQn);
+  pipe_state_t *pipe = &_hcd.pipe[pipenum];
+
+  unsigned flags = KHCI->ENDPOINT[0].ENDPT & USB_ENDPT_HOSTWOHUB_MASK;
+  flags |= USB_ENDPT_EPRXEN_MASK | USB_ENDPT_EPTXEN_MASK;
+  switch (pipe->xfer) {
+  case TUSB_XFER_CONTROL:
+    flags |= USB_ENDPT_EPHSHK_MASK;
+    break;
+  case TUSB_XFER_ISOCHRONOUS:
+    flags |= USB_ENDPT_EPCTLDIS_MASK | USB_ENDPT_RETRYDIS_MASK;
+    break;
+  default:
+    flags |= USB_ENDPT_EPHSHK_MASK | USB_ENDPT_EPCTLDIS_MASK | USB_ENDPT_RETRYDIS_MASK;
+    break;
+  }
+  // TU_LOG1("  resume pipenum %d flags %x\n", pipenum, flags);
+
+  KHCI->ENDPOINT[0].ENDPT = flags;
+  KHCI->ADDR  = (KHCI->ADDR & USB_ADDR_LSEN_MASK) | pipe->dev_addr;
+
+  unsigned const token = tu_edpt_number(pipe->ep_addr) |
+    ((tu_edpt_dir(pipe->ep_addr) ? TOK_PID_IN: TOK_PID_OUT) << USB_TOKEN_TOKENPID_SHIFT);
+  do {
+    while (KHCI->CTL & USB_CTL_TXSUSPENDTOKENBUSY_MASK) ;
+    KHCI->TOKEN = token;
+  } while (--num_tokens);
+  if (ie) NVIC_EnableIRQ(USB0_IRQn);
+  return true;
+}
+
+static void suspend_transfer(int pipenum, buffer_descriptor_t *bd)
+{
+  pipe_state_t *pipe = &_hcd.pipe[pipenum];
+  pipe->buffer  = bd->addr;
+  pipe->data    = bd->data;
+  if (TUSB_XFER_INTERRUPT == pipe->xfer) {
+    _hcd.pending |= TU_BIT(pipenum);
+    KHCI->INTEN |= USB_ISTAT_SOFTOK_MASK;
+  }
 }
 
 static void process_tokdne(uint8_t rhport)
@@ -186,12 +280,8 @@ static void process_tokdne(uint8_t rhport)
   (void)rhport;
   const unsigned s = KHCI->STAT;
   KHCI->ISTAT = USB_ISTAT_TOKDNE_MASK; /* fetch the next token if received */
-  uint8_t const epnum  = (s >> USB_STAT_ENDP_SHIFT);
-  TU_ASSERT(0 == epnum,);
   uint8_t const dir_in = (s & USB_STAT_TX_MASK) ? TUSB_DIR_OUT: TUSB_DIR_IN;
   unsigned const odd   = (s & USB_STAT_ODD_MASK) ? 1 : 0;
-
-  // TU_LOG1("TOKDNE %x\n", s);
 
   buffer_descriptor_t *bd = (buffer_descriptor_t *)&_hcd.bda[s];
   endpoint_state_t    *ep = &_hcd.endpoint[s >> 3];
@@ -207,48 +297,40 @@ static void process_tokdne(uint8_t rhport)
   /* Update the odd variable to prepare for the next transfer */
   ep->odd       = odd ^ 1;
 
-  const unsigned bc = bd->bc;
-  const unsigned remaining = ep->remaining - bc;
-  pipe_state_t *pipe = &_hcd.pipe[ep->pipenum];
+  int pipenum = ep->pipenum;
+  int next_pipenum;
+  // TU_LOG1("TOKDNE %x PID %x pipe %d\n", s, pid, pipenum);
 
-  // TU_LOG1("  pid %x bc %x remaining %d\n", pid, bc, remaining);
-  if ((TOK_PID_DATA0 == pid) || (TOK_PID_DATA1 == pid) || (TOK_PID_ACK == pid)) {
-    /* Go on the next packet transfer */
-    if (remaining && bc == pipe->max_packet_size) {
-      ep->remaining = remaining;
-      const int next_remaining = remaining - pipe->max_packet_size;
-      if (next_remaining > 0) {
-        /* Prepare to the after next transfer */
-        bd->addr += pipe->max_packet_size * 2;
-        bd->bc    = next_remaining > pipe->max_packet_size ? pipe->max_packet_size: next_remaining;
-        __DSB();
-        bd->own   = 1; /* This bit must be set last */
-        while (KHCI->CTL & USB_CTL_TXSUSPENDTOKENBUSY_MASK) ;
-        KHCI->TOKEN = KHCI->TOKEN; /* Queue the same token as the last */
-      } else if (dir_in) {
-        KHCI->TOKEN = KHCI->TOKEN;
-      }
-      return;
-    }
-  }
-  const unsigned length = ep->length;
   xfer_result_t result;
   switch (pid) {
     default:
+      if (continue_transfer(pipenum, bd))
+        return;
       result = XFER_RESULT_SUCCESS;
-      break;
-    case TOK_PID_STALL:
-      result = XFER_RESULT_STALLED;
       break;
     case TOK_PID_NAK:
     case TOK_PID_ERR:
+      suspend_transfer(pipenum, bd);
+      next_pipenum = select_next_pipenum(pipenum);
+      if (0 <= next_pipenum)
+        resume_transfer(next_pipenum);
+      return;
+    case TOK_PID_STALL:
+      result = XFER_RESULT_STALLED;
+      break;
     case TOK_PID_BUSTO:
       result = XFER_RESULT_FAILED;
       break;
   }
+  _hcd.in_progress  &= ~TU_BIT(pipenum);
+  pipe_state_t *pipe = &_hcd.pipe[ep->pipenum];
   hcd_event_xfer_complete(pipe->dev_addr,
                           tu_edpt_addr(KHCI->TOKEN & USB_TOKEN_TOKENENDPT_MASK, dir_in),
-                          length - remaining, result, true);
+                          pipe->length - pipe->remaining,
+                          result, true);
+  next_pipenum = select_next_pipenum(pipenum);
+  if (0 <= next_pipenum)
+    resume_transfer(next_pipenum);
 }
 
 static void process_attach(uint8_t rhport)
@@ -264,6 +346,7 @@ static void process_attach(uint8_t rhport)
 
 static void process_bus_reset(uint8_t rhport)
 {
+  KHCI->ISTAT    = USB_ISTAT_TOKDNE_MASK;
   KHCI->USBCTRL &= ~USB_USBCTRL_SUSP_MASK;
   KHCI->CTL     &= ~USB_CTL_USBENSOFEN_MASK;
   KHCI->ADDR     = 0;
@@ -271,7 +354,9 @@ static void process_bus_reset(uint8_t rhport)
 
   hcd_event_device_remove(rhport, true);
 
-  buffer_descriptor_t *bd = _hcd.bdt[0][0];
+  _hcd.in_progress = 0;
+  _hcd.pending     = 0;
+  buffer_descriptor_t *bd = &_hcd.bdt[0][0];
   for (unsigned i = 0; i < 2; ++i, ++bd) {
     bd->head = 0;
   }
@@ -301,12 +386,15 @@ bool hcd_init(uint8_t rhport)
   KHCI->CTL &= ~USB_CTL_ODDRST_MASK;
 
   KHCI->SOFTHLD = 74; /* for 64-byte packets */
+  // KHCI->SOFTHLD = 144; /* for low speed 8-byte packets */
   KHCI->CTL     = USB_CTL_HOSTMODEEN_MASK | USB_CTL_SE0_MASK;
   KHCI->USBCTRL = USB_USBCTRL_PDE_MASK;
 
   NVIC_ClearPendingIRQ(USB0_IRQn);
   KHCI->INTEN = USB_INTEN_ATTACHEN_MASK | USB_INTEN_TOKDNEEN_MASK |
     USB_INTEN_USBRSTEN_MASK | USB_INTEN_ERROREN_MASK | USB_INTEN_STALLEN_MASK;
+  KHCI->ERREN = 0xff;
+
   return true;
 }
 
@@ -371,12 +459,15 @@ tusb_speed_t hcd_port_speed_get(uint8_t rhport)
 void hcd_device_close(uint8_t rhport, uint8_t dev_addr)
 {
   (void)rhport;
+  const unsigned ie = NVIC_GetEnableIRQ(USB0_IRQn);
+  NVIC_DisableIRQ(USB0_IRQn);
   pipe_state_t *p   = &_hcd.pipe[0];
-  pipe_state_t *end = &_hcd.pipe[HCD_MAX_XFER];
+  pipe_state_t *end = &_hcd.pipe[HCD_MAX_XFER * 2];
   for (;p != end; ++p) {
     if (p->dev_addr == dev_addr)
       tu_memclr(p, sizeof(*p));
   }
+  if (ie) NVIC_EnableIRQ(USB0_IRQn);
 }
 
 //--------------------------------------------------------------------+
@@ -386,34 +477,30 @@ bool hcd_setup_send(uint8_t rhport, uint8_t dev_addr, uint8_t const setup_packet
 {
   (void)rhport;
   // TU_LOG1("SETUP %u\n", dev_addr);
-  const unsigned rx_odd = _hcd.endpoint[0].odd;
-  const unsigned tx_odd = _hcd.endpoint[1].odd;
-  TU_ASSERT(0 == _hcd.bdt[0][0][tx_odd].own);
+  TU_ASSERT(0 == (_hcd.in_progress & TU_BIT(0)));
 
-  int num = find_pipe(dev_addr, 0);
-  if (num < 0) return false;
+  int pipenum = find_pipe(dev_addr, 0);
+  if (pipenum < 0) return false;
 
-  const unsigned ie = NVIC_GetEnableIRQ(USB0_IRQn);
-  NVIC_DisableIRQ(USB0_IRQn);
+  pipe_state_t *pipe = &_hcd.pipe[pipenum];
+  pipe[0].data       = 0;
+  pipe[0].buffer     = (uint8_t*)(uintptr_t)setup_packet;
+  pipe[0].length     = 8;
+  pipe[0].remaining  = 8;
+  pipe[1].data       = 1;
 
-  _hcd.bdt[0][0][rx_odd    ].data = 1;
-  _hcd.bdt[0][0][rx_odd ^ 1].data = 0;
-  _hcd.bdt[0][1][tx_odd    ].data = 0;
-  _hcd.bdt[0][1][tx_odd ^ 1].data = 1;
+  if (1 != prepare_packets(pipenum))
+    return false;
+
+  _hcd.in_progress |= TU_BIT(pipenum);
 
   unsigned hostwohub = KHCI->ENDPOINT[0].ENDPT & USB_ENDPT_HOSTWOHUB_MASK;
   KHCI->ENDPOINT[0].ENDPT = hostwohub |
     USB_ENDPT_EPHSHK_MASK | USB_ENDPT_EPRXEN_MASK | USB_ENDPT_EPTXEN_MASK;
-  bool ret = false;
-  if (prepare_packets(num, TUSB_DIR_OUT, (void*)(uintptr_t)setup_packet, 8)) {
-    KHCI->ADDR  = (KHCI->ADDR & USB_ADDR_LSEN_MASK) | dev_addr;
-    while (KHCI->CTL & USB_CTL_TXSUSPENDTOKENBUSY_MASK) ;
-    KHCI->TOKEN = (TOK_PID_SETUP << USB_TOKEN_TOKENPID_SHIFT);
-    ret = true;
-  }
-  if (ie) NVIC_EnableIRQ(USB0_IRQn);
-
-  return ret;
+  KHCI->ADDR  = (KHCI->ADDR & USB_ADDR_LSEN_MASK) | dev_addr;
+  while (KHCI->CTL & USB_CTL_TXSUSPENDTOKENBUSY_MASK) ;
+  KHCI->TOKEN = (TOK_PID_SETUP << USB_TOKEN_TOKENPID_SHIFT);
+  return true;
 }
 
 bool hcd_edpt_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_endpoint_t const * ep_desc)
@@ -423,9 +510,10 @@ bool hcd_edpt_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_endpoint_t const 
   // TU_LOG1("O %u %x\n", dev_addr, ep_addr);
   /* Find a free pipe */
   pipe_state_t *p = &_hcd.pipe[0];
+  pipe_state_t *end = &_hcd.pipe[HCD_MAX_XFER * 2];
   if (dev_addr || ep_addr) {
-    pipe_state_t *end = &_hcd.pipe[HCD_MAX_XFER];
-    for (++p; p < end && (p->dev_addr || p->ep_addr); ++p) ;
+    p += 2;
+    for (; p < end && (p->dev_addr || p->ep_addr); ++p) ;
     if (p == end) return false;
   }
   p->dev_addr        = dev_addr;
@@ -433,45 +521,39 @@ bool hcd_edpt_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_endpoint_t const 
   p->max_packet_size = ep_desc->wMaxPacketSize;
   p->xfer            = ep_desc->bmAttributes.xfer;
   p->data            = 0;
+  if (!ep_addr) {
+    /* Open one more pipe for Control IN transfer */
+    TU_ASSERT(TUSB_XFER_CONTROL == p->xfer);
+    pipe_state_t *q = p + 1;
+    TU_ASSERT(!q->dev_addr && !q->ep_addr);
+    q->dev_addr        = dev_addr;
+    q->ep_addr         = tu_edpt_addr(0, TUSB_DIR_IN);
+    q->max_packet_size = ep_desc->wMaxPacketSize;
+    q->xfer            = ep_desc->bmAttributes.xfer;
+    q->data            = 1;
+  }
   return true;
 }
 
 bool hcd_edpt_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr, uint8_t * buffer, uint16_t buflen)
 {
   (void)rhport;
-  // TU_LOG1("X %u %x %d\n", dev_addr, ep_addr, buflen);
-  const unsigned dir_in   = tu_edpt_dir(ep_addr);
-  const unsigned odd      = _hcd.endpoint[dir_in ^ 1].odd;
-  buffer_descriptor_t *bd = _hcd.bdt[0][dir_in ^ 1];
-  TU_ASSERT(0 == bd[odd].own);
+  // TU_LOG1("X %u %x %x %d\n", dev_addr, ep_addr, (uintptr_t)buffer, buflen);
 
-  int num = find_pipe(dev_addr, ep_addr);
-  if (num < 0) return false;
+  int pipenum = find_pipe(dev_addr, ep_addr);
+  TU_ASSERT(0 <= pipenum);
 
-  unsigned flags = USB_ENDPT_EPHSHK_MASK | USB_ENDPT_EPRXEN_MASK | USB_ENDPT_EPTXEN_MASK;
-  if (tu_edpt_number(ep_addr)) {
-    pipe_state_t *p  = &_hcd.pipe[num];
-    bd[odd    ].data = p->data;
-    bd[odd ^ 1].data = p->data ^ 1;
-    bd[odd ^ 1].own  = 0;
-    flags |= USB_ENDPT_EPCTLDIS_MASK;
-    /* Disable retry for a interrupt transfer.  */
-    if (TUSB_XFER_INTERRUPT == p->xfer)
-      flags |= USB_ENDPT_RETRYDIS_MASK;
-  }
-  unsigned hostwohub = KHCI->ENDPOINT[0].ENDPT & USB_ENDPT_HOSTWOHUB_MASK;
-  KHCI->ENDPOINT[0].ENDPT = hostwohub | flags;
-  int num_pkts = prepare_packets(num, dir_in, buffer, buflen);
-  if (!num_pkts) return false;
-  KHCI->ADDR  = (KHCI->ADDR & USB_ADDR_LSEN_MASK) | dev_addr;
-  const unsigned token = tu_edpt_number(ep_addr) |
-    ((dir_in ? TOK_PID_IN: TOK_PID_OUT) << USB_TOKEN_TOKENPID_SHIFT);
-  const unsigned ie = NVIC_GetEnableIRQ(USB0_IRQn);
+  TU_ASSERT(0 == (_hcd.in_progress & TU_BIT(pipenum)));
+  unsigned const ie  = NVIC_GetEnableIRQ(USB0_IRQn);
+  unsigned const wip = _hcd.in_progress;
   NVIC_DisableIRQ(USB0_IRQn);
-  do {
-    while (KHCI->CTL & USB_CTL_TXSUSPENDTOKENBUSY_MASK) ;
-    KHCI->TOKEN = token;
-  } while (--num_pkts && !dir_in);
+  pipe_state_t *pipe = &_hcd.pipe[pipenum];
+  pipe->buffer       = buffer;
+  pipe->length       = buflen;
+  pipe->remaining    = buflen;
+  _hcd.in_progress   = wip | TU_BIT(pipenum);
+  if (0 == (wip & ~_hcd.pending))
+    resume_transfer(pipenum);
   if (ie) NVIC_EnableIRQ(USB0_IRQn);
   return true;
 }
@@ -497,20 +579,41 @@ void hcd_int_handler(uint8_t rhport)
   // TU_LOG1("S %lx\n", is);
 
   /* clear disabled interrupts */
-  KHCI->ISTAT = is & ~msk & ~USB_ISTAT_TOKDNE_MASK;
+  KHCI->ISTAT = (is & ~msk & ~USB_ISTAT_TOKDNE_MASK) | USB_ISTAT_SOFTOK_MASK;
   is &= msk;
 
+  if (is & USB_ISTAT_ERROR_MASK) {
+    unsigned err = KHCI->ERRSTAT;
+    if (err) {
+      TU_LOG1(" ERR %x\n", err);
+      KHCI->ERRSTAT = err;
+    } else {
+      KHCI->INTEN &= ~USB_ISTAT_ERROR_MASK;
+    }
+  }
+
+  if (is & USB_ISTAT_USBRST_MASK) {
+    KHCI->INTEN = (msk & ~USB_INTEN_USBRSTEN_MASK) | USB_INTEN_ATTACHEN_MASK;
+    process_bus_reset(rhport);
+    return;
+  }
   if (is & USB_ISTAT_ATTACH_MASK) {
     KHCI->INTEN = (msk & ~USB_INTEN_ATTACHEN_MASK) | USB_INTEN_USBRSTEN_MASK;
     _hcd.need_reset = true;
     process_attach(rhport);
-  }
-  if (is & USB_ISTAT_USBRST_MASK) {
-    KHCI->INTEN = (msk & ~USB_INTEN_USBRSTEN_MASK) | USB_INTEN_ATTACHEN_MASK;
-    process_bus_reset(rhport);
+    return;
   }
   if (is & USB_ISTAT_STALL_MASK) {
     KHCI->ISTAT = USB_ISTAT_STALL_MASK;
+  }
+  if (is & USB_ISTAT_SOFTOK_MASK) {
+    msk &= ~USB_ISTAT_SOFTOK_MASK;
+    KHCI->INTEN = msk;
+    if (_hcd.pending) {
+      int pipenum = __builtin_ctz(_hcd.pending);
+      _hcd.pending = 0;
+      resume_transfer(pipenum);
+    }
   }
   if (is & USB_ISTAT_TOKDNE_MASK) {
     process_tokdne(rhport);
