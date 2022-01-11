@@ -435,8 +435,19 @@ uint32_t tuh_midi_stream_write (uint8_t dev_addr, uint8_t cable_num, uint8_t con
   {
     uint8_t const data = buffer[i];
     i++;
-
-    if ( stream.index == 0 )
+    if (data >= MIDI_STATUS_SYSREAL_TIMING_CLOCK)
+    {
+      // real-time messages need to be sent right away
+      midi_stream_t streamrt;
+      streamrt.buffer[0] = MIDI_CIN_SYSEX_END_1BYTE;
+      streamrt.buffer[1] = data;
+      streamrt.index = 2;
+      streamrt.total = 2;
+      uint16_t const count = tu_fifo_write_n(&p_midi_host->tx_ff, stream->buffer, 4);
+      // FIFO overflown, since we already check fifo remaining. It is probably race condition
+      TU_ASSERT(count == 4, i);
+    }
+    else if ( stream->index == 0 )
     {
       //------------- New event packet -------------//
 
