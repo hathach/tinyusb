@@ -428,7 +428,7 @@ uint32_t tuh_midi_stream_write (uint8_t dev_addr, uint8_t cable_num, uint8_t con
 {
   midih_interface_t *p_midi_host = get_midi_host(dev_addr);
   TU_VERIFY(cable_num < p_midi_host->num_cables_tx);
-  midi_stream_t stream = p_midi_host->stream_write;
+  midi_stream_t *stream = &p_midi_host->stream_write;
 
   uint32_t i = 0;
   while ( (i < bufsize) && (tu_fifo_remaining(&p_midi_host->tx_ff) >= 4) )
@@ -453,95 +453,95 @@ uint32_t tuh_midi_stream_write (uint8_t dev_addr, uint8_t cable_num, uint8_t con
 
       uint8_t const msg = data >> 4;
 
-      stream.index = 2;
-      stream.buffer[1] = data;
+      stream->index = 2;
+      stream->buffer[1] = data;
 
       // Check to see if we're still in a SysEx transmit.
-      if ( stream.buffer[0] == MIDI_CIN_SYSEX_START )
+      if ( stream->buffer[0] == MIDI_CIN_SYSEX_START )
       {
         if ( data == MIDI_STATUS_SYSEX_END )
         {
-          stream.buffer[0] = MIDI_CIN_SYSEX_END_1BYTE;
-          stream.total = 2;
+          stream->buffer[0] = MIDI_CIN_SYSEX_END_1BYTE;
+          stream->total = 2;
         }
         else
         {
-          stream.total = 4;
+          stream->total = 4;
         }
       }
       else if ( (msg >= 0x8 && msg <= 0xB) || msg == 0xE )
       {
         // Channel Voice Messages
-        stream.buffer[0] = (cable_num << 4) | msg;
-        stream.total = 4;
+        stream->buffer[0] = (cable_num << 4) | msg;
+        stream->total = 4;
       }
       else if ( msg == 0xC || msg == 0xD)
       {
         // Channel Voice Messages, two-byte variants (Program Change and Channel Pressure)
-        stream.buffer[0] = (cable_num << 4) | msg;
-        stream.total = 3;
+        stream->buffer[0] = (cable_num << 4) | msg;
+        stream->total = 3;
       }
       else if ( msg == 0xf )
       {
         // System message
         if ( data == MIDI_STATUS_SYSEX_START )
         {
-          stream.buffer[0] = MIDI_CIN_SYSEX_START;
-          stream.total = 4;
+          stream->buffer[0] = MIDI_CIN_SYSEX_START;
+          stream->total = 4;
         }
         else if ( data == MIDI_STATUS_SYSCOM_TIME_CODE_QUARTER_FRAME || data == MIDI_STATUS_SYSCOM_SONG_SELECT )
         {
-          stream.buffer[0] = MIDI_CIN_SYSCOM_2BYTE;
-          stream.total = 3;
+          stream->buffer[0] = MIDI_CIN_SYSCOM_2BYTE;
+          stream->total = 3;
         }
         else if ( data == MIDI_STATUS_SYSCOM_SONG_POSITION_POINTER )
         {
-          stream.buffer[0] = MIDI_CIN_SYSCOM_3BYTE;
-          stream.total = 4;
+          stream->buffer[0] = MIDI_CIN_SYSCOM_3BYTE;
+          stream->total = 4;
         }
         else
         {
-          stream.buffer[0] = MIDI_CIN_SYSEX_END_1BYTE;
-          stream.total = 2;
+          stream->buffer[0] = MIDI_CIN_SYSEX_END_1BYTE;
+          stream->total = 2;
         }
       }
       else
       {
         // Pack individual bytes if we don't support packing them into words.
-        stream.buffer[0] = cable_num << 4 | 0xf;
-        stream.buffer[2] = 0;
-        stream.buffer[3] = 0;
-        stream.index = 2;
-        stream.total = 2;
+        stream->buffer[0] = cable_num << 4 | 0xf;
+        stream->buffer[2] = 0;
+        stream->buffer[3] = 0;
+        stream->index = 2;
+        stream->total = 2;
       }
     }
     else
     {
       //------------- On-going (buffering) packet -------------//
 
-      TU_ASSERT(stream.index < 4, i);
-      stream.buffer[stream.index] = data;
-      stream.index++;
-
+      TU_ASSERT(stream->index < 4, i);
+      stream->buffer[stream->index] = data;
+      stream->index++;
       // See if this byte ends a SysEx.
-      if ( stream.buffer[0] == MIDI_CIN_SYSEX_START && data == MIDI_STATUS_SYSEX_END )
+      if ( stream->buffer[0] == MIDI_CIN_SYSEX_START && data == MIDI_STATUS_SYSEX_END )
       {
-        stream.buffer[0] = MIDI_CIN_SYSEX_START + (stream.index - 1);
-        stream.total = stream.index;
+        stream->buffer[0] = MIDI_CIN_SYSEX_START + (stream->index - 1);
+        stream->total = stream->index;
       }
     }
 
     // Send out packet
-    if ( stream.index == stream.total )
+    if ( stream->index >= 2 && stream->index == stream->total )
     {
       // zeroes unused bytes
-      for(uint8_t idx = stream.total; idx < 4; idx++) stream.buffer[idx] = 0;
+      for(uint8_t idx = stream->total; idx < 4; idx++) stream->buffer[idx] = 0;
+      TU_LOG1_MEM(stream->buffer, 4, 2);
 
-      uint16_t const count = tu_fifo_write_n(&p_midi_host->tx_ff, stream.buffer, 4);
+      uint16_t const count = tu_fifo_write_n(&p_midi_host->tx_ff, stream->buffer, 4);
 
       // complete current event packet, reset stream
-      stream.index = 0;
-      stream.total = 0;
+      stream->index = 0;
+      stream->total = 0;
 
       // FIFO overflown, since we already check fifo remaining. It is probably race condition
       TU_ASSERT(count == 4, i);
