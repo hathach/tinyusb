@@ -38,6 +38,10 @@
 #include "device/usbd.h"
 #include "device/usbd_pvt.h" // to use defer function helper
 
+#if CFG_TUSB_OS == OPT_OS_MYNEWT
+#include "mcu/mcu.h"
+#endif
+
 /*------------------------------------------------------------------*/
 /* MACRO TYPEDEF CONSTANT ENUM
  *------------------------------------------------------------------*/
@@ -891,6 +895,11 @@ static bool hfclk_running(void)
 
 static void hfclk_enable(void)
 {
+#if CFG_TUSB_OS == OPT_OS_MYNEWT
+  usb_clock_request();
+  return;
+#else
+
   // already running, nothing to do
   if ( hfclk_running() ) return;
 
@@ -904,10 +913,16 @@ static void hfclk_enable(void)
 
   nrf_clock_event_clear(NRF_CLOCK, NRF_CLOCK_EVENT_HFCLKSTARTED);
   nrf_clock_task_trigger(NRF_CLOCK, NRF_CLOCK_TASK_HFCLKSTART);
+#endif
 }
 
 static void hfclk_disable(void)
 {
+#if CFG_TUSB_OS == OPT_OS_MYNEWT
+  usb_clock_release();
+  return;
+#else
+
 #ifdef SOFTDEVICE_PRESENT
   if ( is_sd_enabled() )
   {
@@ -917,6 +932,7 @@ static void hfclk_disable(void)
 #endif
 
   nrf_clock_task_trigger(NRF_CLOCK, NRF_CLOCK_TASK_HFCLKSTOP);
+#endif
 }
 
 // Power & Clock Peripheral on nRF5x to manage USB
