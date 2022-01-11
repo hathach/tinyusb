@@ -456,7 +456,7 @@ uint32_t tuh_midi_stream_write (uint8_t dev_addr, uint8_t cable_num, uint8_t con
       streamrt.buffer[1] = data;
       streamrt.index = 2;
       streamrt.total = 2;
-      uint16_t const count = tu_fifo_write_n(&p_midi_host->tx_ff, stream->buffer, 4);
+      uint16_t const count = tu_fifo_write_n(&p_midi_host->tx_ff, streamrt.buffer, 4);
       // FIFO overflown, since we already check fifo remaining. It is probably race condition
       TU_ASSERT(count == 4, i);
     }
@@ -548,7 +548,7 @@ uint32_t tuh_midi_stream_write (uint8_t dev_addr, uint8_t cable_num, uint8_t con
     {
       // zeroes unused bytes
       for(uint8_t idx = stream->total; idx < 4; idx++) stream->buffer[idx] = 0;
-      TU_LOG1_MEM(stream->buffer, 4, 2);
+      TU_LOG3_MEM(stream->buffer, 4, 2);
 
       uint16_t const count = tu_fifo_write_n(&p_midi_host->tx_ff, stream->buffer, 4);
 
