@@ -104,6 +104,8 @@ static void __no_inline_not_in_flash_func(hw_xfer_complete)(struct hw_endpoint *
 static void __no_inline_not_in_flash_func(_handle_buff_status_bit)(uint bit, struct hw_endpoint *ep)
 {
     usb_hw_clear->buf_status = bit;
+    // EP may have been stalled?
+    assert(ep->active);
     bool done = hw_endpoint_xfer_continue(ep);
     if (done)
     {
@@ -166,6 +168,8 @@ static void __no_inline_not_in_flash_func(hw_trans_complete)(void)
     pico_trace("Sent setup packet\n");
     struct hw_endpoint *ep = &epx;
     assert(ep->active);
+    // Set transferred length to 8 for a setup packet
+    ep->xferred_len = 8;
     hw_xfer_complete(ep, XFER_RESULT_SUCCESS);
   }
   else
@@ -197,6 +201,18 @@ static void __no_inline_not_in_flash_func(hcd_rp2040_irq)(void)
         usb_hw_clear->sie_status = USB_SIE_STATUS_SPEED_BITS;
     }
 
+    if (status & USB_INTS_STALL_BITS)
+    {
+        // We have rx'd a stall from the device
+        // NOTE THIS SHOULD HAVE PRIORITY OVER BUFF_STATUS
+        // AND TRANS_COMPLETE as the stall is an alternative response
+        // to one of those events
+        pico_trace("Stall REC\n");
+        handled |= USB_INTS_STALL_BITS;
+        usb_hw_clear->sie_status = USB_SIE_STATUS_STALL_REC_BITS;
+        hw_xfer_complete(&epx, XFER_RESULT_STALLED);
+    }
+
     if (status & USB_INTS_BUFF_STATUS_BITS)
     {
         handled |= USB_INTS_BUFF_STATUS_BITS;
@@ -210,15 +226,6 @@ static void __no_inline_not_in_flash_func(hcd_rp2040_irq)(void)
         usb_hw_clear->sie_status = USB_SIE_STATUS_TRANS_COMPLETE_BITS;
         TU_LOG(2, "Transfer complete\n");
         hw_trans_complete();
-    }
-
-    if (status & USB_INTS_STALL_BITS)
-    {
-        // We have rx'd a stall from the device
-        pico_trace("Stall REC\n");
-        handled |= USB_INTS_STALL_BITS;
-        usb_hw_clear->sie_status = USB_SIE_STATUS_STALL_REC_BITS;
-        hw_xfer_complete(&epx, XFER_RESULT_STALLED);
     }
 
     if (status & USB_INTS_ERROR_RX_TIMEOUT_BITS)
@@ -505,6 +512,9 @@ bool hcd_edpt_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr, uint8_t * 
     struct hw_endpoint *ep = get_dev_ep(dev_addr, ep_addr);
     assert(ep);
 
+    // EP should be inactive
+    assert(!ep->active);
+
     // Control endpoint can change direction 0x00 <-> 0x80
     if ( ep_addr != ep->ep_addr )
     {
@@ -552,6 +562,9 @@ bool hcd_setup_send(uint8_t rhport, uint8_t dev_addr, uint8_t const setup_packet
     // Configure EP0 struct with setup info for the trans complete
     struct hw_endpoint *ep = _hw_endpoint_allocate(0);
 
+    // EPX should be inactive
+    assert(!ep->active);
+
     // EP0 out
     _hw_endpoint_init(ep, dev_addr, 0x00, ep->wMaxPacketSize, 0, 0);
     assert(ep->configured);
@@ -570,21 +583,6 @@ bool hcd_setup_send(uint8_t rhport, uint8_t dev_addr, uint8_t const setup_packet
 
     return true;
 }
-
-
-//bool hcd_edpt_busy(uint8_t dev_addr, uint8_t ep_addr)
-//{
-//    // EPX is shared, so multiple device addresses and endpoint addresses share that
-//    // so if any transfer is active on epx, we are busy. Interrupt endpoints have their own
-//    // EPX so ep->active will only be busy if there is a pending transfer on that interrupt endpoint
-//    // on that device
-//    pico_trace("hcd_edpt_busy dev addr %d ep_addr 0x%x\n", dev_addr, ep_addr);
-//    struct hw_endpoint *ep = get_dev_ep(dev_addr, ep_addr);
-//    assert(ep);
-//    bool busy = ep->active;
-//    pico_trace("busy == %d\n", busy);
-//    return busy;
-//}
 
 bool hcd_edpt_clear_stall(uint8_t dev_addr, uint8_t ep_addr)
 {
