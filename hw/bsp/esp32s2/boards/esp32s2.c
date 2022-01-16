@@ -98,7 +98,11 @@ static void configure_pins(usb_hal_context_t *usb)
         esp_rom_gpio_connect_out_signal(iopin->pin, iopin->func, false, false);
       } else {
         esp_rom_gpio_connect_in_signal(iopin->pin, iopin->func, false);
+#if ESP_IDF_VERSION_MAJOR > 4
+        if ((iopin->pin != GPIO_MATRIX_CONST_ZERO_INPUT) && (iopin->pin != GPIO_MATRIX_CONST_ONE_INPUT)) {
+#else
         if ((iopin->pin != GPIO_FUNC_IN_LOW) && (iopin->pin != GPIO_FUNC_IN_HIGH)) {
+#endif
           gpio_ll_input_enable(&GPIO, iopin->pin);
         }
       }
