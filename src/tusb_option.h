@@ -66,7 +66,6 @@
 #define OPT_MCU_SAML22            205 ///< MicroChip SAML22
 #define OPT_MCU_SAML21            206 ///< MicroChip SAML21
 #define OPT_MCU_SAMX7X            207 ///< MicroChip SAME70, S70, V70, V71 family
-#define OPT_MCU_PIC32MZ           220 ///< MicroChip PIC32MZ family
 
 // STM32
 #define OPT_MCU_STM32F0           300 ///< ST F0
@@ -136,6 +135,9 @@
 
 // Infineon
 #define OPT_MCU_XMC4000          1800 ///< Infineon XMC4000
+
+// PIC
+#define OPT_MCU_PIC32MZ          1900 ///< MicroChip PIC32MZ family
 
 // Helper to check if configured MCU is one of listed
 // Apply _TU_CHECK_MCU with || as separator to list of input
