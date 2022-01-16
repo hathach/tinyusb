@@ -70,7 +70,7 @@ void board_init(void)
 #endif
 
   // Button
-  gpio_pad_select_gpio(BUTTON_PIN);
+  esp_rom_gpio_pad_select_gpio(BUTTON_PIN);
   gpio_set_direction(BUTTON_PIN, GPIO_MODE_INPUT);
   gpio_set_pull_mode(BUTTON_PIN, BUTTON_STATE_ACTIVE ? GPIO_PULLDOWN_ONLY : GPIO_PULLUP_ONLY);
 
