@@ -60,7 +60,7 @@ void led_init(void)
 {
   // RH2 - LED
   // ANASELH no analog function on RH2
-  // TRISH RH2 input
+  // TRISH RH2 output
   TRISHCLR = TU_BIT(2);
   // Initial value 0, LED off
   LATHCLR = TU_BIT(2);
@@ -126,7 +126,7 @@ void board_led_write(bool state)
 
 uint32_t board_button_read(void)
 {
-  return (PORTB >> 12) & 1;
+  return ((PORTB >> 12) & 1) == 0;
 }
 
 int board_uart_write(void const * buf, int len)
