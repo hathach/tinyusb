@@ -29,16 +29,17 @@
  * in https://brtchip.com/BRTSourceCodeLicenseAgreement
  */
 
+#include "tusb_option.h"
+
+#if TUSB_OPT_DEVICE_ENABLED && \
+  (CFG_TUSB_MCU == OPT_MCU_FT90X || CFG_TUSB_MCU == OPT_MCU_FT93X) 
+
 #include <stdint.h>
 #include <ft900.h>
 #include <registers/ft900_registers.h>
 
 #include "board.h"
 #include "bsp/board.h"
-#include "tusb_option.h"
-
-#if TUSB_OPT_DEVICE_ENABLED && \
-  (CFG_TUSB_MCU == OPT_MCU_FT90X || CFG_TUSB_MCU == OPT_MCU_FT93X) 
 
 #define USBD_USE_STREAMS
 
