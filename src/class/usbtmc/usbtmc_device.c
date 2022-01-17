@@ -235,17 +235,19 @@ void usbtmcd_init_cb(void)
   usbtmc_state.capabilities = tud_usbtmc_get_capabilities_cb();
 #ifndef NDEBUG
 # if CFG_TUD_USBTMC_ENABLE_488
-    if(usbtmc_state.capabilities->bmIntfcCapabilities488.supportsTrigger)
-      TU_ASSERT(&tud_usbtmc_msg_trigger_cb != NULL,);
-      // Per USB488 spec: table 8
-      TU_ASSERT(!usbtmc_state.capabilities->bmIntfcCapabilities.listenOnly,);
-      TU_ASSERT(!usbtmc_state.capabilities->bmIntfcCapabilities.talkOnly,);
+  if (usbtmc_state.capabilities->bmIntfcCapabilities488.supportsTrigger) {
+    TU_ASSERT(&tud_usbtmc_msg_trigger_cb != NULL,);
+  }
+  // Per USB488 spec: table 8
+  TU_ASSERT(!usbtmc_state.capabilities->bmIntfcCapabilities.listenOnly,);
+  TU_ASSERT(!usbtmc_state.capabilities->bmIntfcCapabilities.talkOnly,);
 # endif
-    if(usbtmc_state.capabilities->bmIntfcCapabilities.supportsIndicatorPulse)
-      TU_ASSERT(&tud_usbtmc_indicator_pulse_cb != NULL,);
+  if (usbtmc_state.capabilities->bmIntfcCapabilities.supportsIndicatorPulse) {
+    TU_ASSERT(&tud_usbtmc_indicator_pulse_cb != NULL,);
+  }
 #endif
 
-    usbtmcLock = osal_mutex_create(&usbtmcLockBuffer);
+  usbtmcLock = osal_mutex_create(&usbtmcLockBuffer);
 }
 
 uint16_t usbtmcd_open_cb(uint8_t rhport, tusb_desc_interface_t const * itf_desc, uint16_t max_len)

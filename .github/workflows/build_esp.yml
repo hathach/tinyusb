@@ -18,7 +18,7 @@ jobs:
         # ESP32-S2
         - 'espressif_saola_1'
         # ESP32-S3
-        #- 'espressif_addax_1'
+        #- 'espressif_s3_devkitm'
         # S3 compile error with "dangerous relocation: call8: call target out of range: memcpy"
 
     steps:

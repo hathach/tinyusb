@@ -132,13 +132,18 @@
 
 // Broadcom
 #define OPT_MCU_BCM2711          1700 ///< Broadcom BCM2711
+#define OPT_MCU_BCM2835          1701 ///< Broadcom BCM2835
+#define OPT_MCU_BCM2837          1702 ///< Broadcom BCM2837
 
 // Infineon
 #define OPT_MCU_XMC4000          1800 ///< Infineon XMC4000
 
+// PIC
+#define OPT_MCU_PIC32MZ          1900 ///< MicroChip PIC32MZ family
+
 // BridgeTek
-#define OPT_MCU_FT90X            1900 ///< BridgeTek FT90x
-#define OPT_MCU_FT93X            1901 ///< BridgeTek FT93x
+#define OPT_MCU_FT90X            2000 ///< BridgeTek FT90x
+#define OPT_MCU_FT93X            2001 ///< BridgeTek FT93x
 
 // Helper to check if configured MCU is one of listed
 // Apply _TU_CHECK_MCU with || as separator to list of input
