@@ -63,7 +63,7 @@ void led_init(void)
   // RB8 - LED
   // ANASELB RB8 not analog
   ANSELBCLR = TU_BIT(8);
-  // TRISH RH2 input
+  // TRISH RH2 output
   TRISBCLR = TU_BIT(8);
   // Initial value 0, LED off
   LATBCLR = TU_BIT(8);
@@ -128,7 +128,7 @@ void board_led_write(bool state)
 
 uint32_t board_button_read(void)
 {
-  return (PORTB >> 12) & 1;
+  return ((PORTB >> 12) & 1) == 0;
 }
 
 int board_uart_write(void const * buf, int len)
