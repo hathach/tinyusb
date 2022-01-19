@@ -716,7 +716,7 @@ bool tu_fifo_peek(tu_fifo_t* f, void * p_buffer)
 uint16_t tu_fifo_peek_n(tu_fifo_t* f, void * p_buffer, uint16_t n)
 {
   _ff_lock(f->mutex_rd);
-  bool ret = _tu_fifo_peek_n(f, p_buffer, n, f->wr_idx, f->rd_idx, TU_FIFO_COPY_INC);
+  uint16_t ret = _tu_fifo_peek_n(f, p_buffer, n, f->wr_idx, f->rd_idx, TU_FIFO_COPY_INC);
   _ff_unlock(f->mutex_rd);
   return ret;
 }
