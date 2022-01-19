@@ -457,9 +457,11 @@ bool dcd_edpt_xfer (uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t 
 
   xfer_td_t* xfer = get_td(epnum, dir);
 
+  dcd_int_disable(rhport);
   xfer->buffer     = buffer;
   xfer->total_len  = total_bytes;
   xfer->actual_len = 0;
+  dcd_int_enable(rhport);
 
   // Control endpoint with zero-length packet and opposite direction to 1st request byte --> status stage
   bool const control_status = (epnum == 0 && total_bytes == 0 && dir != tu_edpt_dir(NRF_USBD->BMREQUESTTYPE));
@@ -480,7 +482,7 @@ bool dcd_edpt_xfer (uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t 
       edpt_dma_start(&NRF_USBD->TASKS_EP0RCVOUT);
     }else
     {
-      if ( xfer->data_received )
+      if ( xfer->data_received && xfer->total_len > xfer->actual_len)
       {
         // Data is already received previously
         // start DMA to copy to SRAM
