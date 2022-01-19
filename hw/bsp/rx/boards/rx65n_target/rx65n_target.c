@@ -176,7 +176,12 @@ void INT_Excep_SCI5_RXI5(void)
 //--------------------------------------------------------------------+
 void INT_Excep_USB0_USBI0(void)
 {
+#if TUSB_OPT_HOST_ENABLED
+  tuh_int_handler(0);
+#endif
+#if TUSB_OPT_DEVICE_ENABLED
   tud_int_handler(0);
+#endif
 }
 
 void board_init(void)
