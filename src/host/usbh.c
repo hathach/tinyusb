@@ -356,8 +356,6 @@ void tuh_task(void)
     switch (event.event_id)
     {
       case HCD_EVENT_DEVICE_ATTACH:
-        // TODO due to the shared _usbh_ctrl_buf, we must complete enumerating
-        // one device before enumerating another one.
         TU_LOG2("USBH DEVICE ATTACH\r\n");
         enum_new_device(&event);
       break;
@@ -525,12 +523,19 @@ void process_device_unplugged(uint8_t rhport, uint8_t hub_addr, uint8_t hub_port
     usbh_device_t* dev = &_usbh_devices[dev_id];
     uint8_t const dev_addr = dev_id+1;
 
-    // TODO Hub multiple level
     if (dev->rhport == rhport   &&
         (hub_addr == 0 || dev->hub_addr == hub_addr) && // hub_addr == 0 & hub_port == 0 means roothub
         (hub_port == 0 || dev->hub_port == hub_port) &&
         dev->state    != TUSB_DEVICE_STATE_UNPLUG)
     {
+      //If device itself is a hub, need to also disconnect downstream devices.
+      if (dev_addr > CFG_TUH_DEVICE_MAX)
+      {
+        process_device_unplugged(rhport, dev_addr, 0);
+      }
+
+      TU_LOG2("Device address %02x disconnected\n", dev_addr);
+
       // Invoke callback before close driver
       if (tuh_umount_cb) tuh_umount_cb(dev_addr);
 
@@ -600,9 +605,15 @@ void usbh_driver_set_config_complete(uint8_t dev_addr, uint8_t itf_num)
 // is a lengthy process with a seires of control transfer to configure
 // newly attached device. Each step is handled by a function in this
 // section
-// TODO due to the shared _usbh_ctrl_buf, we must complete enumerating
-// one device before enumerating another one.
+// Due to the shared _usbh_ctrl_buf, a flag (enum_is_active) is set for the ensite enumeration process
+// to prevent another device from enumerating until it has complete.
 //--------------------------------------------------------------------+
+
+static bool enum_is_active = false;
+bool tuh_is_enumerating(void)
+{
+  return enum_is_active;
+}
 
 static bool enum_request_addr0_device_desc(void);
 static bool enum_request_set_addr(void);
@@ -683,6 +694,7 @@ static bool enum_hub_get_status0_complete(uint8_t dev_addr, tusb_control_request
 
 static bool enum_new_device(hcd_event_t* event)
 {
+  enum_is_active = true;
   _dev0.rhport   = event->rhport; // TODO refractor integrate to device_pool
   _dev0.hub_addr = event->connection.hub_addr;
   _dev0.hub_port = event->connection.hub_port;
@@ -842,6 +854,10 @@ static bool enum_set_address_complete(uint8_t dev_addr, tusb_control_request_t c
   // open control pipe for new address
   TU_ASSERT( usbh_edpt_control_open(new_addr, new_dev->ep0_size) );
 
+  //Ref usb spec 9.2.6.3
+  //After successful completion of the Status stage, the device is allowed a SetAddress() recovery interval of 2 ms
+  osal_task_delay(2);
+
   // Get full device descriptor
   TU_LOG2("Get Device Descriptor\r\n");
   tusb_control_request_t const new_request =
@@ -973,6 +989,8 @@ static bool enum_set_config_complete(uint8_t dev_addr, tusb_control_request_t co
   dev->configured = 1;
   dev->state = TUSB_DEVICE_STATE_CONFIGURED;
 
+  enum_is_active = false;
+
   // Start the Set Configuration process for interfaces (itf = DRVID_INVALID)
   // Since driver can perform control transfer within its set_config, this is done asynchronously.
   // The process continue with next interface when class driver complete its sequence with usbh_driver_set_config_complete()
@@ -1025,13 +1043,6 @@ static bool parse_configuration_descriptor(uint8_t dev_addr, tusb_desc_configura
     uint16_t const drv_len = tu_desc_get_interface_total_len(desc_itf, assoc_itf_count, desc_end-p_desc);
     TU_ASSERT(drv_len >= sizeof(tusb_desc_interface_t));
 
-    if (desc_itf->bInterfaceClass == TUSB_CLASS_HUB && dev->hub_addr != 0)
-    {
-      // TODO Attach hub to Hub is not currently supported
-      // skip this interface
-      TU_LOG(USBH_DBG_LVL, "Only 1 level of HUB is supported\r\n");
-    }
-    else
     {
       // Find driver for this interface
       uint8_t drv_id;

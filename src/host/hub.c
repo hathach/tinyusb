@@ -281,15 +281,16 @@ bool hub_xfer_cb(uint8_t dev_addr, uint8_t ep_addr, xfer_result_t result, uint32
 {
   (void) xferred_bytes; // TODO can be more than 1 for hub with lots of ports
   (void) ep_addr;
-  TU_ASSERT(result == XFER_RESULT_SUCCESS);
+  //Might stall if unplugged
+  TU_ASSERT(result != XFER_RESULT_FAILED);
 
   hub_interface_t* p_hub = get_itf(dev_addr);
 
   TU_LOG2("  Port Status Change = 0x%02X\r\n", p_hub->status_change);
 
-  if (tuh_control_xfer_busy())
+  if (tuh_control_xfer_busy() || tuh_is_enumerating())
   {
-    TU_LOG2("  Control buffer busy, requeue hub status check\n");
+    TU_LOG2("  Control buffer busy or stack enumerating, requeue hub status check\n");
     //The usb stack is busy other control transfers, just requeue the transfer
     //and we can try again later
     hub_status_pipe_queue(dev_addr);

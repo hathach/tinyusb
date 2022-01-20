@@ -63,6 +63,9 @@ tusb_speed_t tuh_speed_get(uint8_t dev_addr);
 // Check if device is connected and configured
 bool tuh_mounted(uint8_t dev_addr);
 
+// Check if tusb is currently enumerating a usb device
+bool tuh_is_enumerating(void);
+
 // Check if device is suspended
 static inline bool tuh_suspended(uint8_t dev_addr)
 {
