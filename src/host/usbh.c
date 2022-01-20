@@ -774,10 +774,11 @@ static bool enum_get_addr0_device_desc_complete(uint8_t dev_addr, tusb_control_r
   {
     // after RESET_DELAY the hub_port_reset() already complete
     TU_ASSERT( hub_port_reset(_dev0.hub_addr, _dev0.hub_port, NULL) );
+    while(tuh_control_xfer_busy())
+    {
+      tuh_task(); //FIXME. Should be non blocking.
+    }
     osal_task_delay(RESET_DELAY);
-
-    tuh_task(); // FIXME temporarily to clean up port_reset control transfer
-
     TU_ASSERT( hub_port_get_status(_dev0.hub_addr, _dev0.hub_port, _usbh_ctrl_buf, enum_hub_get_status1_complete) );
   }
 #endif
