@@ -287,6 +287,15 @@ bool hub_xfer_cb(uint8_t dev_addr, uint8_t ep_addr, xfer_result_t result, uint32
 
   TU_LOG2("  Port Status Change = 0x%02X\r\n", p_hub->status_change);
 
+  if (tuh_control_xfer_busy())
+  {
+    TU_LOG2("  Control buffer busy, requeue hub status check\n");
+    //The usb stack is busy other control transfers, just requeue the transfer
+    //and we can try again later
+    hub_status_pipe_queue(dev_addr);
+    return true;
+  }
+
   // Hub ignore bit0 in status change
   for (uint8_t port=1; port <= p_hub->port_count; port++)
   {
