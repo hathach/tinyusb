@@ -935,13 +935,13 @@ bool dcd_edpt_open(uint8_t rhport, tusb_desc_endpoint_t const * desc_edpt)
     if (dir == TUSB_DIR_OUT)
     {
       regs->epc_out = epnum | USB_USB_EPC1_REG_USB_EP_EN_Msk | iso_mask;
-      USB->USB_RXMSK_REG |= 0x101 << (epnum - 1);
+      USB->USB_RXMSK_REG |= 0x11 << (epnum - 1);
       REG_SET_BIT(USB_MAMSK_REG, USB_M_RX_EV);
     }
     else
     {
       regs->epc_in = epnum | USB_USB_EPC1_REG_USB_EP_EN_Msk | iso_mask;
-      USB->USB_TXMSK_REG |= 0x101 << (epnum - 1);
+      USB->USB_TXMSK_REG |= 0x11 << (epnum - 1);
       REG_SET_BIT(USB_MAMSK_REG, USB_M_TX_EV);
     }
   }
@@ -982,7 +982,7 @@ void dcd_edpt_close(uint8_t rhport, uint8_t ep_addr)
     {
       regs->rxc = USB_USB_RXC1_REG_USB_FLUSH_Msk;
       regs->epc_out = 0;
-      USB->USB_RXMSK_REG &= ~(0x101 << (epnum - 1));
+      USB->USB_RXMSK_REG &= ~(0x11 << (epnum - 1));
       // Release DMA if needed
       if (_dcd.dma_ep[TUSB_DIR_OUT] == epnum)
       {
@@ -994,7 +994,7 @@ void dcd_edpt_close(uint8_t rhport, uint8_t ep_addr)
     {
       regs->txc = USB_USB_TXC1_REG_USB_FLUSH_Msk;
       regs->epc_in = 0;
-      USB->USB_TXMSK_REG &= ~(0x101 << (epnum - 1));
+      USB->USB_TXMSK_REG &= ~(0x11 << (epnum - 1));
       // Release DMA if needed
       if (_dcd.dma_ep[TUSB_DIR_IN] == epnum)
       {
