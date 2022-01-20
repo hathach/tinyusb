@@ -733,6 +733,15 @@ static void handle_alt_ev(void)
       set_nfsr(NFSR_NODE_OPERATIONAL);
       USB->USB_ALTMSK_REG = USB_USB_ALTMSK_REG_USB_M_RESET_Msk |
                             USB_USB_ALTMSK_REG_USB_M_SD3_Msk;
+      // Re-enable reception of endpoint with pending transfer
+      for (int epnum = 1; epnum <= 3; ++epnum)
+      {
+        xfer_ctl_t * xfer = XFER_CTL_BASE(epnum, TUSB_DIR_OUT);
+        if (xfer->total_len > xfer->transferred)
+        {
+          start_rx_packet(xfer);
+        }
+      }
       dcd_event_bus_signal(0, DCD_EVENT_RESUME, true);
     }
   }
