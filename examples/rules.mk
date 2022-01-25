@@ -12,8 +12,10 @@ ifeq (,$(findstring $(FAMILY),esp32s2 esp32s3 rp2040))
 # Compiler Flags
 # ---------------------------------------
 
+LIBS_GCC ?= -lgcc -lm -lnosys
+
 # libc
-LIBS += -lgcc -lm -lnosys
+LIBS += $(LIBS_GCC)
 
 ifneq ($(BOARD), spresense)
 LIBS += -lc
@@ -49,7 +51,11 @@ ifeq ($(NO_LTO),1)
 CFLAGS := $(filter-out -flto,$(CFLAGS))
 endif
 
-LDFLAGS += $(CFLAGS) -Wl,-T,$(TOP)/$(LD_FILE) -Wl,-Map=$@.map -Wl,-cref -Wl,-gc-sections
+ifneq ($(LD_FILE),)
+LDFLAGS_LD_FILE ?= -Wl,-T,$(TOP)/$(LD_FILE)
+endif
+
+LDFLAGS += $(CFLAGS) $(LDFLAGS_LD_FILE) -Wl,-Map=$@.map -Wl,-cref -Wl,-gc-sections
 ifneq ($(SKIP_NANOLIB), 1)
 LDFLAGS += -specs=nosys.specs -specs=nano.specs
 endif

@@ -38,6 +38,10 @@
 #include "device/usbd.h"
 #include "device/usbd_pvt.h" // to use defer function helper
 
+#if CFG_TUSB_OS == OPT_OS_MYNEWT
+#include "mcu/mcu.h"
+#endif
+
 /*------------------------------------------------------------------*/
 /* MACRO TYPEDEF CONSTANT ENUM
  *------------------------------------------------------------------*/
@@ -453,9 +457,11 @@ bool dcd_edpt_xfer (uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t 
 
   xfer_td_t* xfer = get_td(epnum, dir);
 
+  dcd_int_disable(rhport);
   xfer->buffer     = buffer;
   xfer->total_len  = total_bytes;
   xfer->actual_len = 0;
+  dcd_int_enable(rhport);
 
   // Control endpoint with zero-length packet and opposite direction to 1st request byte --> status stage
   bool const control_status = (epnum == 0 && total_bytes == 0 && dir != tu_edpt_dir(NRF_USBD->BMREQUESTTYPE));
@@ -476,7 +482,7 @@ bool dcd_edpt_xfer (uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t 
       edpt_dma_start(&NRF_USBD->TASKS_EP0RCVOUT);
     }else
     {
-      if ( xfer->data_received )
+      if ( xfer->data_received && xfer->total_len > xfer->actual_len)
       {
         // Data is already received previously
         // start DMA to copy to SRAM
@@ -891,6 +897,11 @@ static bool hfclk_running(void)
 
 static void hfclk_enable(void)
 {
+#if CFG_TUSB_OS == OPT_OS_MYNEWT
+  usb_clock_request();
+  return;
+#else
+
   // already running, nothing to do
   if ( hfclk_running() ) return;
 
@@ -904,10 +915,16 @@ static void hfclk_enable(void)
 
   nrf_clock_event_clear(NRF_CLOCK, NRF_CLOCK_EVENT_HFCLKSTARTED);
   nrf_clock_task_trigger(NRF_CLOCK, NRF_CLOCK_TASK_HFCLKSTART);
+#endif
 }
 
 static void hfclk_disable(void)
 {
+#if CFG_TUSB_OS == OPT_OS_MYNEWT
+  usb_clock_release();
+  return;
+#else
+
 #ifdef SOFTDEVICE_PRESENT
   if ( is_sd_enabled() )
   {
@@ -917,6 +934,7 @@ static void hfclk_disable(void)
 #endif
 
   nrf_clock_task_trigger(NRF_CLOCK, NRF_CLOCK_TASK_HFCLKSTOP);
+#endif
 }
 
 // Power & Clock Peripheral on nRF5x to manage USB

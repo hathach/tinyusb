@@ -18,7 +18,7 @@ jobs:
       matrix:
         family:
         # Alphabetical order
-        - 'raspberrypi4'
+        - 'broadcom_64bit'
     steps:
     - name: Setup Python
       uses: actions/setup-python@v2

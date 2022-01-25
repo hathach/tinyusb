@@ -1,0 +1,10 @@
+mcu:CXD56
+mcu:MSP430x5xx
+mcu:SAMD11
+mcu:VALENTYUSB_EPTRI
+mcu:MKL25ZXX
+mcu:RP2040
+mcu:SAMX7X
+mcu:GD32VF103
+family:broadcom_64bit
+family:broadcom_32bit

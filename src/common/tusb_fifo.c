@@ -716,7 +716,7 @@ bool tu_fifo_peek(tu_fifo_t* f, void * p_buffer)
 uint16_t tu_fifo_peek_n(tu_fifo_t* f, void * p_buffer, uint16_t n)
 {
   _ff_lock(f->mutex_rd);
-  bool ret = _tu_fifo_peek_n(f, p_buffer, n, f->wr_idx, f->rd_idx, TU_FIFO_COPY_INC);
+  uint16_t ret = _tu_fifo_peek_n(f, p_buffer, n, f->wr_idx, f->rd_idx, TU_FIFO_COPY_INC);
   _ff_unlock(f->mutex_rd);
   return ret;
 }
@@ -741,21 +741,28 @@ bool tu_fifo_write(tu_fifo_t* f, const void * data)
 {
   _ff_lock(f->mutex_wr);
 
-  uint16_t w = f->wr_idx;
+  bool ret;
+  uint16_t const w = f->wr_idx;
 
-  if ( _tu_fifo_full(f, w, f->rd_idx) && !f->overwritable ) return false;
+  if ( _tu_fifo_full(f, w, f->rd_idx) && !f->overwritable )
+  {
+    ret = false;
+  }else
+  {
+    uint16_t wRel = get_relative_pointer(f, w);
 
-  uint16_t wRel = get_relative_pointer(f, w);
+    // Write data
+    _ff_push(f, data, wRel);
 
-  // Write data
-  _ff_push(f, data, wRel);
+    // Advance pointer
+    f->wr_idx = advance_pointer(f, w, 1);
 
-  // Advance pointer
-  f->wr_idx = advance_pointer(f, w, 1);
+    ret = true;
+  }
 
   _ff_unlock(f->mutex_wr);
 
-  return true;
+  return ret;
 }
 
 /******************************************************************************/

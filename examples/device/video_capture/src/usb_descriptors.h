@@ -103,7 +103,7 @@ enum {
         TUD_VIDEO_DESC_CS_VS_FRM_UNCOMPR_CONT(/*bFrameIndex */1, 0, _width, _height, \
             _width * _height * 16, _width * _height * 16 * _fps, \
             _width * _height * 16, \
-            (10000000/_fps), (10000000/_fps), 10000000, 100000), \
+            (10000000/_fps), (10000000/_fps), (10000000/_fps)*_fps, (10000000/_fps)), \
         TUD_VIDEO_DESC_CS_VS_COLOR_MATCHING(VIDEO_COLOR_PRIMARIES_BT709, VIDEO_COLOR_XFER_CH_BT709, VIDEO_COLOR_COEF_SMPTE170M), \
   /* VS alt 1 */\
   TUD_VIDEO_DESC_STD_VS(1, 1, 1, 0), \

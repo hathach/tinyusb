@@ -117,6 +117,16 @@ enum
   #define EPNUM_MSC_OUT     0x05
   #define EPNUM_MSC_IN      0x84
 
+#elif CFG_TUSB_MCU == OPT_MCU_FT90X || CFG_TUSB_MCU == OPT_MCU_FT93X
+  // FT9XX doesn't support a same endpoint number with different direction IN and OUT
+  //    e.g EP1 OUT & EP1 IN cannot exist together
+  #define EPNUM_CDC_NOTIF   0x81
+  #define EPNUM_CDC_OUT     0x02
+  #define EPNUM_CDC_IN      0x83
+
+  #define EPNUM_MSC_OUT     0x04
+  #define EPNUM_MSC_IN      0x85
+
 #else
   #define EPNUM_CDC_NOTIF   0x81
   #define EPNUM_CDC_OUT     0x02

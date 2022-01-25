@@ -39,6 +39,7 @@ jobs:
       matrix:
         family:
         # Alphabetical order
+        - 'broadcom_32bit'
         - 'imxrt'
         - 'lpc15'
         - 'lpc18'
@@ -114,7 +115,7 @@ jobs:
         done
 
   # ---------------------------------------
-  # Build all no-family (opharned) boards
+  # Build all no-family (orphaned) boards
   # ---------------------------------------
   build-board:
     runs-on: ubuntu-latest
