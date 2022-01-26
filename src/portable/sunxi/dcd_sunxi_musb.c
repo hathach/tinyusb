@@ -28,6 +28,9 @@
 
 #include <stdint.h>
 #include "tusb_option.h"
+
+#if TUSB_OPT_DEVICE_ENABLED && CFG_TUSB_MCU == OPT_MCU_F1C100S
+
 #include "osal/osal.h"
 #include <f1c100s-irq.h>
 #include <device/dcd.h>
@@ -38,7 +41,6 @@ typedef uint32_t u32;
 typedef uint16_t u16;
 typedef uint8_t u8;
 
-#if TUSB_OPT_DEVICE_ENABLED && CFG_TUSB_MCU == OPT_MCU_F1C100S
 
 #define REQUEST_TYPE_INVALID  (0xFFu)
 
