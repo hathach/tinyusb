@@ -153,6 +153,12 @@ Notable contributors
 -  Add new class driver for DFU Runtime
 
 
+`Tian Yunhao <https://github.com/t123yh>`__
+-------------------------------------------
+
+-  Add new DCD port for Allwinner F1C100S/F1C200S
+-  Add support for osal_rtx4
+
 `Timon Skerutsch <https://github.com/PTS93>`__
 ----------------------------------------------
 

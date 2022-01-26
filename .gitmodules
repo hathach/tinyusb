@@ -137,3 +137,6 @@
 [submodule "hw/mcu/infineon/mtb-xmclib-cat3"]
 	path = hw/mcu/infineon/mtb-xmclib-cat3
 	url = https://github.com/Infineon/mtb-xmclib-cat3.git
+[submodule "hw/mcu/allwinner"]
+	path = hw/mcu/allwinner
+	url = https://github.com/hathach/allwinner_driver.git
