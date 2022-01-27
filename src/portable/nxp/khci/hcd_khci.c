@@ -269,7 +269,8 @@ static void suspend_transfer(int pipenum, buffer_descriptor_t *bd)
   pipe_state_t *pipe = &_hcd.pipe[pipenum];
   pipe->buffer  = bd->addr;
   pipe->data    = bd->data ^ 1;
-  if (TUSB_XFER_INTERRUPT == pipe->xfer) {
+  if ((TUSB_XFER_INTERRUPT == pipe->xfer) ||
+      (TUSB_XFER_BULK == pipe->xfer)) {
     _hcd.pending |= TU_BIT(pipenum);
     KHCI->INTEN |= USB_ISTAT_SOFTOK_MASK;
   }
@@ -613,7 +614,8 @@ void hcd_int_handler(uint8_t rhport)
     if (_hcd.pending) {
       int pipenum = __builtin_ctz(_hcd.pending);
       _hcd.pending = 0;
-      resume_transfer(pipenum);
+      if (!(is & USB_ISTAT_TOKDNE_MASK))
+        resume_transfer(pipenum);
     }
   }
   if (is & USB_ISTAT_TOKDNE_MASK) {
