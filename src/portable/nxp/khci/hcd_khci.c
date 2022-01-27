@@ -268,7 +268,7 @@ static void suspend_transfer(int pipenum, buffer_descriptor_t *bd)
 {
   pipe_state_t *pipe = &_hcd.pipe[pipenum];
   pipe->buffer  = bd->addr;
-  pipe->data    = bd->data;
+  pipe->data    = bd->data ^ 1;
   if (TUSB_XFER_INTERRUPT == pipe->xfer) {
     _hcd.pending |= TU_BIT(pipenum);
     KHCI->INTEN |= USB_ISTAT_SOFTOK_MASK;
@@ -309,7 +309,6 @@ static void process_tokdne(uint8_t rhport)
       result = XFER_RESULT_SUCCESS;
       break;
     case TOK_PID_NAK:
-    case TOK_PID_ERR:
       suspend_transfer(pipenum, bd);
       next_pipenum = select_next_pipenum(pipenum);
       if (0 <= next_pipenum)
@@ -318,6 +317,7 @@ static void process_tokdne(uint8_t rhport)
     case TOK_PID_STALL:
       result = XFER_RESULT_STALLED;
       break;
+    case TOK_PID_ERR: /* mismatch toggle bit */
     case TOK_PID_BUSTO:
       result = XFER_RESULT_FAILED;
       break;
@@ -535,6 +535,8 @@ bool hcd_edpt_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_endpoint_t const 
   return true;
 }
 
+/* The address of buffer must be aligned to 4 byte boundary. And it must be at least 4 bytes long.
+ * DMA writes data in 4 byte unit */
 bool hcd_edpt_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr, uint8_t * buffer, uint16_t buflen)
 {
   (void)rhport;
@@ -545,15 +547,14 @@ bool hcd_edpt_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr, uint8_t * 
 
   TU_ASSERT(0 == (_hcd.in_progress & TU_BIT(pipenum)));
   unsigned const ie  = NVIC_GetEnableIRQ(USB0_IRQn);
-  unsigned const wip = _hcd.in_progress;
   NVIC_DisableIRQ(USB0_IRQn);
   pipe_state_t *pipe = &_hcd.pipe[pipenum];
   pipe->buffer       = buffer;
   pipe->length       = buflen;
   pipe->remaining    = buflen;
-  _hcd.in_progress   = wip | TU_BIT(pipenum);
-  if (0 == (wip & ~_hcd.pending))
-    resume_transfer(pipenum);
+  _hcd.in_progress  |= TU_BIT(pipenum);
+  _hcd.pending      |= TU_BIT(pipenum); /* Send at the next Frame */
+  KHCI->INTEN |= USB_ISTAT_SOFTOK_MASK;
   if (ie) NVIC_EnableIRQ(USB0_IRQn);
   return true;
 }
