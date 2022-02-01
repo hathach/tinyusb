@@ -40,8 +40,10 @@ void tearDown(void)
 //--------------------------------------------------------------------+
 // Tests
 //--------------------------------------------------------------------+
-void test_short_item_length(void) {
+void test_short_item_length(void) 
+{
   uint8_t tb[] = { 0x00, 0x01, 0x02, 0x03 };
+  
   TEST_ASSERT_EQUAL(0, hidri_short_data_length(&tb[0]));
   TEST_ASSERT_EQUAL(1, hidri_short_data_length(&tb[1]));
   TEST_ASSERT_EQUAL(2, hidri_short_data_length(&tb[2]));
@@ -58,8 +60,10 @@ void test_short_item_size_check(void)
   TEST_ASSERT_EQUAL(-1, hidri_size(tb, 0));
 }
 
-void test_long_item(void) {
+void test_long_item(void) 
+{
   uint8_t tb[] = { 0xfe, 0xff, 0x81, 0x01 };
+  
   TEST_ASSERT_EQUAL(true, hidri_is_long(tb));
   TEST_ASSERT_EQUAL(2, hidri_short_data_length(tb));
   TEST_ASSERT_EQUAL(255, hidri_long_data_length(tb));
@@ -68,8 +72,10 @@ void test_long_item(void) {
   TEST_ASSERT_EQUAL(3 + 255, hidri_size(tb, 3 + 255));
 }
 
-void test_long_item_size_check(void) {
+void test_long_item_size_check(void) 
+{
   uint8_t tb[] = { 0xfe, 0xff, 0x81, 0x01 };
+  
   TEST_ASSERT_EQUAL(3 + 255, hidri_size(tb, 3 + 255));
   TEST_ASSERT_EQUAL(-3, hidri_size(tb, 3 + 254));
   TEST_ASSERT_EQUAL(-3, hidri_size(tb, 3));
