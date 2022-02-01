@@ -76,7 +76,7 @@ uint8_t hidri_long_tag(uint8_t *ri) {
 }
 
 uint8_t* hidri_long_item_data(uint8_t *ri) {
-  return ri + 2;
+  return ri + 3;
 }
 
 int16_t hidri_size(uint8_t *ri, uint16_t l) {
@@ -88,8 +88,8 @@ int16_t hidri_size(uint8_t *ri, uint16_t l) {
   if (l < sl) return -2;
   // Check if we need to worry about a long item
   if (hidri_is_long(ri)) {
-    uint16_t ll =  hidri_long_data_length(ri);
-    uint16_t tl = sl + tl;
+    uint16_t ll = hidri_long_data_length(ri);
+    uint16_t tl = sl + ll;
     if (l < tl) return -3;
     return tl;
   }

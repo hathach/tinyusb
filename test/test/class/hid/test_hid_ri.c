@@ -48,40 +48,76 @@ void test_short_item_length(void) {
   TEST_ASSERT_EQUAL(4, hidri_short_data_length(&tb[3]));
 }
 
+void test_short_item_size_check(void)
+{
+  uint8_t tb[] = { 0x46, 0x3B, 0x01 };        /*     Physical Maximum (315)  */
+  
+  TEST_ASSERT_EQUAL( 3, hidri_size(tb, 3));
+  TEST_ASSERT_EQUAL(-2, hidri_size(tb, 2));
+  TEST_ASSERT_EQUAL(-2, hidri_size(tb, 1));
+  TEST_ASSERT_EQUAL(-1, hidri_size(tb, 0));
+}
+
+void test_long_item(void) {
+  uint8_t tb[] = { 0xfe, 0xff, 0x81, 0x01 };
+  TEST_ASSERT_EQUAL(true, hidri_is_long(tb));
+  TEST_ASSERT_EQUAL(2, hidri_short_data_length(tb));
+  TEST_ASSERT_EQUAL(255, hidri_long_data_length(tb));
+  TEST_ASSERT_EQUAL(0x81, hidri_long_tag(tb));
+  TEST_ASSERT_EQUAL(1, hidri_long_item_data(tb)[0]);
+  TEST_ASSERT_EQUAL(3 + 255, hidri_size(tb, 3 + 255));
+}
+
 void test_physical_max_315(void)
 {
   uint8_t tb[] = { 0x46, 0x3B, 0x01 };        /*     Physical Maximum (315)  */
   
-  TEST_ASSERT_EQUAL( 2, hidri_short_data_length(tb) );
-  TEST_ASSERT_EQUAL( 1, hidri_short_type(tb) );
-  TEST_ASSERT_EQUAL( 4, hidri_short_tag(tb) );
-  TEST_ASSERT_EQUAL( false, hidri_is_long(tb) );
-  TEST_ASSERT_EQUAL( 315, hidri_short_udata32(tb) );
-  TEST_ASSERT_EQUAL( 315, hidri_short_data32(tb) );
-  TEST_ASSERT_EQUAL( 3, hidri_size(tb, 3) );
+  TEST_ASSERT_EQUAL(2, hidri_short_data_length(tb));
+  TEST_ASSERT_EQUAL(1, hidri_short_type(tb));
+  TEST_ASSERT_EQUAL(4, hidri_short_tag(tb));
+  TEST_ASSERT_EQUAL(false, hidri_is_long(tb));
+  TEST_ASSERT_EQUAL(315, hidri_short_udata32(tb));
+  TEST_ASSERT_EQUAL(315, hidri_short_data32(tb));
+  TEST_ASSERT_EQUAL(3, hidri_size(tb, 3));
 }
 
 void test_logical_min_neg_127(void)
 {
   uint8_t tb[] = { 0x15, 0x81 };        /*     LOGICAL_MINIMUM (-127)  */
   
-  TEST_ASSERT_EQUAL( 1, hidri_short_data_length(tb) );
-  TEST_ASSERT_EQUAL( 1, hidri_short_type(tb) );
-  TEST_ASSERT_EQUAL( 1, hidri_short_tag(tb) );
-  TEST_ASSERT_EQUAL( false, hidri_is_long(tb) );
-  TEST_ASSERT_EQUAL( 0x81, hidri_short_udata32(tb) );
-  TEST_ASSERT_EQUAL( -127, hidri_short_data32(tb) );
-  TEST_ASSERT_EQUAL( 2, hidri_size(tb, 2) );
+  TEST_ASSERT_EQUAL(1, hidri_short_data_length(tb));
+  TEST_ASSERT_EQUAL(1, hidri_short_type(tb));
+  TEST_ASSERT_EQUAL(1, hidri_short_tag(tb));
+  TEST_ASSERT_EQUAL(false, hidri_is_long(tb));
+  TEST_ASSERT_EQUAL(0x81, hidri_short_udata32(tb));
+  TEST_ASSERT_EQUAL(-127, hidri_short_data32(tb));
+  TEST_ASSERT_EQUAL(2, hidri_size(tb, 2));
+}
+
+void test_logical_min_neg_32768(void)
+{
+  uint8_t tb[] = { 0x16, 0x00, 0x80 };  //     Logical Minimum (-32768)
+  
+  TEST_ASSERT_EQUAL(2, hidri_short_data_length(tb));
+  TEST_ASSERT_EQUAL(1, hidri_short_type(tb));
+  TEST_ASSERT_EQUAL(1, hidri_short_tag(tb));
+  TEST_ASSERT_EQUAL(false, hidri_is_long(tb));
+  TEST_ASSERT_EQUAL(-32768, hidri_short_data32(tb));
+  TEST_ASSERT_EQUAL(3, hidri_size(tb, 3));
 }
 
 void test_logical_min_neg_2147483648(void)
 {
   uint8_t tb[] = { 0x17, 0x01, 0x00, 0x00, 0x80 };  //     Logical Minimum (-2147483647)
   
-  TEST_ASSERT_EQUAL( 4, hidri_short_data_length(tb) );
-  TEST_ASSERT_EQUAL( 1, hidri_short_type(tb) );
-  TEST_ASSERT_EQUAL( 1, hidri_short_tag(tb) );
-  TEST_ASSERT_EQUAL( false, hidri_is_long(tb) );
-  TEST_ASSERT_EQUAL( -2147483647, hidri_short_data32(tb) );
-  TEST_ASSERT_EQUAL( 5, hidri_size(tb, 5) );
+  TEST_ASSERT_EQUAL(4, hidri_short_data_length(tb));
+  TEST_ASSERT_EQUAL(1, hidri_short_type(tb));
+  TEST_ASSERT_EQUAL(1, hidri_short_tag(tb));
+  TEST_ASSERT_EQUAL(false, hidri_is_long(tb));
+  TEST_ASSERT_EQUAL(-2147483647, hidri_short_data32(tb));
+  TEST_ASSERT_EQUAL(5, hidri_size(tb, 5));
 }
+
+
+
+
