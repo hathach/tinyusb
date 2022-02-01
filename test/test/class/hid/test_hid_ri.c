@@ -122,7 +122,9 @@ void test_logical_min_neg_32768(void)
   TEST_ASSERT_EQUAL(3, hidri_size(tb, 3));
 }
 
-void test_logical_min_neg_2147483648(void)
+// https://eleccelerator.com/usbdescreqparser/ says this should be -2147483648,
+// which I am pretty sure is wrong.. but worth noting in case problems arise later.
+void test_logical_min_neg_2147483647(void)
 {
   uint8_t tb[] = { 0x17, 0x01, 0x00, 0x00, 0x80 };  //     Logical Minimum (-2147483647)
   
