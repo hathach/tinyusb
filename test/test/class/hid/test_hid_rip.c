@@ -22,14 +22,28 @@
  * This file is part of the TinyUSB stack.
  */
 
-#include "hid_rip.h"
 
-void hidrip_init_state(struct tuh_hid_rip_state *state) {
-  state->stack_index = 0;
-  state->usage_index = 0;
-  memset(&state->global_items, 0, sizeof(uint8_t *) * HID_REPORT_STACK_SIZE * 16);
-  memset(&state->local_items, 0, sizeof(uint8_t *) * 16);
-  memset(&state->usages, 0, sizeof(uint8_t *) * HID_REPORT_MAX_USAGES);
+#include "unity.h"
+
+// Files to test
+#include "hid_rip.h"
+TEST_FILE("hid_rip.c")
+
+void setUp(void)
+{
 }
+
+void tearDown(void)
+{
+}
+
+//--------------------------------------------------------------------+
+// Tests
+//--------------------------------------------------------------------+
+void test_nothing(void) 
+{
+
+}
+
 
 

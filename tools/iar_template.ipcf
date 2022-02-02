@@ -32,6 +32,7 @@
 		<group name="src/class/hid">
 			<path>$TUSB_DIR$/src/class/hid/hid_device.c</path>
 			<path>$TUSB_DIR$/src/class/hid/hid_ri.c</path>
+			<path>$TUSB_DIR$/src/class/hid/hid_rip.c</path>
 			<path>$TUSB_DIR$/src/class/hid/hid_host.c</path>
 		</group>
 		<group name="src/class/midi">
