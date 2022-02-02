@@ -24,7 +24,7 @@
 
 #include "hid_ri.h"
 
-// #if (TUSB_OPT_HOST_ENABLED && CFG_TUH_HID)
+#if ((TUSB_OPT_HOST_ENABLED && CFG_TUH_HID) || _UNITY_TEST_)
 
 uint8_t hidri_short_data_length(uint8_t *ri) {
   // 0 -> 0, 1 -> 1, 2 -> 2, 3 -> 4
@@ -98,4 +98,4 @@ int16_t hidri_size(uint8_t *ri, uint16_t l) {
   }
 }
 
-// #endif
+#endif
