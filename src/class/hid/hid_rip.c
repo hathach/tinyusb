@@ -35,11 +35,7 @@ void hidrip_init_state(tuh_hid_rip_state_t *state) {
 
 int16_t hidrip_parse_item(tuh_hid_rip_state_t *state, uint8_t *ri, uint16_t length) {
   int16_t il = hidri_size(ri, length);
-  if (il > 0) {
-    if (hidri_is_long(ri)) {
-      // For now just don't do anything with long items.
-    }
-    else {
+  if (il > 0 && !hidri_is_long(ri)) { // For now ignore long items.
       uint8_t short_type = hidri_short_type(ri);
       uint8_t short_tag = hidri_short_tag(ri);
       switch (short_type) {
