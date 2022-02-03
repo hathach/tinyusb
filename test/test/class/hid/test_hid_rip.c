@@ -27,6 +27,7 @@
 
 // Files to test
 #include "hid_rip.h"
+TEST_FILE("hid_ri.c")
 TEST_FILE("hid_rip.c")
 
 void setUp(void)

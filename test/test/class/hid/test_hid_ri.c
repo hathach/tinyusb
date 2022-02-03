@@ -55,9 +55,9 @@ void test_short_item_size_check(void)
   uint8_t tb[] = { 0x46, 0x3B, 0x01 };        /*     Physical Maximum (315)  */
   
   TEST_ASSERT_EQUAL( 3, hidri_size(tb, 3));
-  TEST_ASSERT_EQUAL(-2, hidri_size(tb, 2));
-  TEST_ASSERT_EQUAL(-2, hidri_size(tb, 1));
-  TEST_ASSERT_EQUAL(-1, hidri_size(tb, 0));
+  TEST_ASSERT_EQUAL(-1, hidri_size(tb, 2));
+  TEST_ASSERT_EQUAL(-1, hidri_size(tb, 1));
+  TEST_ASSERT_EQUAL( 0, hidri_size(tb, 0));
 }
 
 void test_long_item(void) 
@@ -77,11 +77,11 @@ void test_long_item_size_check(void)
   uint8_t tb[] = { 0xfe, 0xff, 0x81, 0x01 };
   
   TEST_ASSERT_EQUAL(3 + 255, hidri_size(tb, 3 + 255));
-  TEST_ASSERT_EQUAL(-3, hidri_size(tb, 3 + 254));
-  TEST_ASSERT_EQUAL(-3, hidri_size(tb, 3));
-  TEST_ASSERT_EQUAL(-2, hidri_size(tb, 2));
-  TEST_ASSERT_EQUAL(-2, hidri_size(tb, 1));
-  TEST_ASSERT_EQUAL(-1, hidri_size(tb, 0));
+  TEST_ASSERT_EQUAL(-2, hidri_size(tb, 3 + 254));
+  TEST_ASSERT_EQUAL(-2, hidri_size(tb, 3));
+  TEST_ASSERT_EQUAL(-1, hidri_size(tb, 2));
+  TEST_ASSERT_EQUAL(-1, hidri_size(tb, 1));
+  TEST_ASSERT_EQUAL( 0, hidri_size(tb, 0));
 }
 
 void test_physical_max_315(void)

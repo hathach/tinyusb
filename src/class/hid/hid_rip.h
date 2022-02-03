@@ -48,15 +48,15 @@
 #define HID_REPORT_STACK_SIZE 10
 #define HID_REPORT_MAX_USAGES 20
 
-struct tuh_hid_rip_state {
+typedef struct tuh_hid_rip_state {
   uint8_t stack_index;
-  uint8_t usage_index;
-  uint8_t *global_items[HID_REPORT_STACK_SIZE][16];
-  uint8_t *local_items[16];
-  uint8_t *usages[HID_REPORT_MAX_USAGES];
-};
+  uint8_t usage_count;
+  uint8_t* global_items[HID_REPORT_STACK_SIZE][16];
+  uint8_t* local_items[16];
+  uint32_t usages[HID_REPORT_MAX_USAGES];
+} tuh_hid_rip_state_t;
 
-void hidrip_init_state(struct tuh_hid_rip_state *state);
+void hidrip_init_state(tuh_hid_rip_state_t *state);
 
 #endif
 

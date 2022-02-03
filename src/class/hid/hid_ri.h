@@ -78,9 +78,9 @@ uint8_t* hidri_long_item_data(uint8_t *ri);
 //   and check the return code for eof or error.
 //
 //  return values:
-//    -1 -> eof,
-//    -2 -> missing short bytes,
-//    -3 -> missing long bytes
+//     0 -> eof,
+//    -1 -> missing short bytes,
+//    -2 -> missing long bytes
 int16_t hidri_size(uint8_t *ri, uint16_t l);
 
 #ifdef __cplusplus
