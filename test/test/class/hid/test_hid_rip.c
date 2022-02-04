@@ -41,9 +41,27 @@ void tearDown(void)
 //--------------------------------------------------------------------+
 // Tests
 //--------------------------------------------------------------------+
-void test_nothing(void) 
+void test_next_simple(void) 
 {
-
+  uint8_t tb[] = { 
+    0x05, 0x01,        // Usage Page (Generic Desktop Ctrls)
+    0x09, 0x02,        // Usage (Mouse)
+    0xA1, 0x01,        // Collection (Application)
+  };
+  
+  tuh_hid_rip_state_t pstate;
+  hidrip_init_state(&pstate, (uint8_t*)&tb, sizeof(tb));
+  TEST_ASSERT_EQUAL(2, hidrip_next_item(&pstate));
+  TEST_ASSERT_EQUAL(2, pstate.item_length);
+  TEST_ASSERT_EQUAL(0x05, *pstate.cursor);
+  TEST_ASSERT_EQUAL(2, hidrip_next_item(&pstate));
+  TEST_ASSERT_EQUAL(2, pstate.item_length);
+  TEST_ASSERT_EQUAL(0x09, *pstate.cursor);
+  TEST_ASSERT_EQUAL(2, hidrip_next_item(&pstate));
+  TEST_ASSERT_EQUAL(2, pstate.item_length);
+  TEST_ASSERT_EQUAL(0xA1, *pstate.cursor);
+  TEST_ASSERT_EQUAL(0, hidrip_next_item(&pstate));
+  TEST_ASSERT_EQUAL(0, pstate.item_length);
 }
 
 

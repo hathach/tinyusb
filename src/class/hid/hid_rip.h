@@ -63,6 +63,7 @@ typedef struct tuh_hid_rip_state {
 } tuh_hid_rip_state_t;
 
 void hidrip_init_state(tuh_hid_rip_state_t *state, uint8_t *report, uint16_t length);
+int16_t hidrip_next_item(tuh_hid_rip_state_t *state);
 
 #endif
 

@@ -25,7 +25,8 @@
 #include "hid_rip.h"
 #include "hid.h"
 
-void hidrip_init_state(tuh_hid_rip_state_t *state, uint8_t *report, uint16_t length) {
+void hidrip_init_state(tuh_hid_rip_state_t *state, uint8_t *report, uint16_t length)
+{
   state->cursor = report;
   state->length = length;
   state->item_length = 0;
@@ -36,13 +37,13 @@ void hidrip_init_state(tuh_hid_rip_state_t *state, uint8_t *report, uint16_t len
   memset(&state->local_items, 0, sizeof(uint8_t*) * 16);
 }
 
-int16_t hidrip_parse_item(tuh_hid_rip_state_t *state) {
-
-  
+int16_t hidrip_next_item(tuh_hid_rip_state_t *state) 
+{
+  if (state->length == 0) return 0;
+   
   uint8_t *ri = state->cursor;
   int16_t il = state->item_length;
-    // Exit early if there has been an error
-  // TODO Think - error vs eof
+
   if (il < 0) return il;
   
   if (il > 0 && hidri_short_type(ri) == RI_TYPE_MAIN) {
@@ -55,10 +56,10 @@ int16_t hidrip_parse_item(tuh_hid_rip_state_t *state) {
   ri += il;
   state->cursor = ri;
   state->length -= il;
-  il = hidri_size(ri, state->length);
-  state->item_length = il;
-  
+
   // Check the report item is valid
+  state->item_length = il = hidri_size(ri, state->length);
+ 
   if (il > 0 && !hidri_is_long(ri)) { // For now ignore long items.
     uint8_t short_type = hidri_short_type(ri);
     uint8_t short_tag = hidri_short_tag(ri);
