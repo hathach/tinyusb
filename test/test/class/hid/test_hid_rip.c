@@ -64,5 +64,20 @@ void test_next_simple(void)
   TEST_ASSERT_EQUAL(0, pstate.item_length);
 }
 
-
+void test_usage_with_page(void) 
+{
+  uint8_t tb[] = { 
+    0x05, 0x01,        // Usage Page (Generic Desktop Ctrls)
+    0x09, 0x02,        // Usage (Mouse)
+  };
+  
+  tuh_hid_rip_state_t pstate;
+  hidrip_init_state(&pstate, (uint8_t*)&tb, sizeof(tb));
+  TEST_ASSERT_EQUAL(2, hidrip_next_item(&pstate));
+  TEST_ASSERT_EQUAL(0x01, hidri_short_udata32(pstate.cursor));
+  TEST_ASSERT_EQUAL(2, hidrip_next_item(&pstate));
+  TEST_ASSERT_EQUAL(1, pstate.usage_count);
+  TEST_ASSERT_EQUAL(0x02, hidri_short_udata32(pstate.cursor));
+  TEST_ASSERT_EQUAL(0x00010002, pstate.usages[0]);
+}
 
