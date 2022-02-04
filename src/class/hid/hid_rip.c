@@ -25,7 +25,10 @@
 #include "hid_rip.h"
 #include "hid.h"
 
-void hidrip_init_state(tuh_hid_rip_state_t *state) {
+void hidrip_init_state(tuh_hid_rip_state_t *state, uint8_t *report, uint16_t length) {
+  state->cursor = report;
+  state->length = length;
+  state->item_length = 0;
   state->stack_index = 0;
   state->usage_count = 0;
   state->collections_count = 0;
@@ -33,8 +36,29 @@ void hidrip_init_state(tuh_hid_rip_state_t *state) {
   memset(&state->local_items, 0, sizeof(uint8_t*) * 16);
 }
 
-int16_t hidrip_parse_item(tuh_hid_rip_state_t *state, uint8_t *ri, uint16_t length) {
-  int16_t il = hidri_size(ri, length);
+int16_t hidrip_parse_item(tuh_hid_rip_state_t *state) {
+
+  
+  uint8_t *ri = state->cursor;
+  int16_t il = state->item_length;
+    // Exit early if there has been an error
+  // TODO Think - error vs eof
+  if (il < 0) return il;
+  
+  if (il > 0 && hidri_short_type(ri) == RI_TYPE_MAIN) {
+    // Clear down local state after a main item
+    memset(&state->local_items, 0, sizeof(uint8_t*) * 16);
+    state->usage_count = 0;
+  }
+  
+  // Advance to the next report item
+  ri += il;
+  state->cursor = ri;
+  state->length -= il;
+  il = hidri_size(ri, state->length);
+  state->item_length = il;
+  
+  // Check the report item is valid
   if (il > 0 && !hidri_is_long(ri)) { // For now ignore long items.
     uint8_t short_type = hidri_short_type(ri);
     uint8_t short_tag = hidri_short_tag(ri);
@@ -71,11 +95,7 @@ int16_t hidrip_parse_item(tuh_hid_rip_state_t *state, uint8_t *ri, uint16_t leng
             break;
         }
         break;
-      case RI_TYPE_MAIN:
-        // Hmmm ??!?
-        // TODO handle the main item
-        // ...then clear down local state... maybe not here!
-        
+      case RI_TYPE_MAIN: {
         switch(short_tag) {
           case RI_MAIN_COLLECTION: {
             if (state->collections_count == HID_REPORT_MAX_COLLECTION_DEPTH) return -4; // TODO enum? Max collections overflow
@@ -88,11 +108,8 @@ int16_t hidrip_parse_item(tuh_hid_rip_state_t *state, uint8_t *ri, uint16_t leng
           default:
             break;
         }
-        
-        memset(&state->local_items, 0, sizeof(uint8_t*) * 16);
-        state->usage_count = 0;
         break;
-        
+      }
       default:
         break;
     }
