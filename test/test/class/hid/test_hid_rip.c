@@ -114,8 +114,33 @@ void test_main_clears_local(void)
   TEST_ASSERT_EQUAL(2, hidrip_next_item(&pstate));
   TEST_ASSERT_EQUAL(2, hidrip_next_item(&pstate));
   TEST_ASSERT_EQUAL(1, pstate.usage_count);
-  TEST_ASSERT_EQUAL(4, hidri_short_data32(pstate.global_items[pstate.stack_index][3]));
+  TEST_ASSERT_EQUAL(&tb[4], pstate.local_items[3]);
+  TEST_ASSERT_EQUAL(4, hidri_short_data32(pstate.local_items[3]));
   TEST_ASSERT_EQUAL(2, hidrip_next_item(&pstate));
   TEST_ASSERT_EQUAL(0, pstate.global_items[pstate.stack_index][3]);
   TEST_ASSERT_EQUAL(0, pstate.usage_count);
 }
+
+void test_collections(void) 
+{
+  uint8_t tb[] = { 
+    0xA1, 0x01,        // Collection (Application)
+    0xA1, 0x00,        // Collection (Physical)
+    0xC0,              // End Collection
+    0xC0,              // End Collection
+  };
+  
+  tuh_hid_rip_state_t pstate;
+  hidrip_init_state(&pstate, (uint8_t*)&tb, sizeof(tb));
+  TEST_ASSERT_EQUAL(2, hidrip_next_item(&pstate));
+  TEST_ASSERT_EQUAL(1, pstate.collections_count);
+  TEST_ASSERT_EQUAL(2, hidrip_next_item(&pstate));
+  TEST_ASSERT_EQUAL(2, pstate.collections_count);
+  TEST_ASSERT_EQUAL(&tb[0], pstate.collections[0]);
+  TEST_ASSERT_EQUAL(&tb[2], pstate.collections[1]);
+  TEST_ASSERT_EQUAL(1, hidrip_next_item(&pstate));
+  TEST_ASSERT_EQUAL(1, pstate.collections_count);
+  TEST_ASSERT_EQUAL(1, hidrip_next_item(&pstate));
+  TEST_ASSERT_EQUAL(0, pstate.collections_count);
+}
+
