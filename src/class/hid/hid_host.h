@@ -54,8 +54,8 @@ typedef struct
   uint16_t usage_page;
 
   // TODO still use the endpoint size for now
-//  uint8_t in_len;      // length of IN report
-//  uint8_t out_len;     // length of OUT report
+  uint16_t in_len;      // length of IN report in bits
+  uint16_t out_len;     // length of OUT report in bits
 } tuh_hid_report_info_t;
 
 //--------------------------------------------------------------------+

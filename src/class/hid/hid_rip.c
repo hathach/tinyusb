@@ -133,6 +133,24 @@ const uint8_t* hidrip_current_item(tuh_hid_rip_state_t *state)
   return state->cursor;
 }
 
+uint32_t hidrip_report_total_size_bits(tuh_hid_rip_state_t *state) 
+{
+  const uint8_t* ri_report_size = hidrip_global(state, RI_GLOBAL_REPORT_SIZE);
+  const uint8_t* ri_report_count = hidrip_global(state, RI_GLOBAL_REPORT_COUNT);
+  
+  if (ri_report_size != NULL && ri_report_count != NULL) 
+  {
+    uint32_t report_size = hidri_short_udata32(ri_report_size);
+    uint32_t report_count = hidri_short_udata32(ri_report_count);
+    return report_size * report_count;
+  }
+  else
+  {
+    TU_LOG2("HID report parser cannot calc total report size in bits\r\n");
+    return 0;
+  }
+}
+
 uint8_t hidrip_parse_report_descriptor(tuh_hid_report_info_t* report_info_arr, uint8_t arr_count, uint8_t const* desc_report, uint16_t desc_len) 
 {
   // Prepare the summary array
@@ -145,9 +163,76 @@ uint8_t hidrip_parse_report_descriptor(tuh_hid_report_info_t* report_info_arr, u
   tuh_hid_rip_state_t pstate;
   hidrip_init_state(&pstate, desc_report, desc_len);
   int il = 0;
-  while(il = hidrip_next_item(&pstate)) {
+  uint32_t outer_usage = 0;
+  while(il = hidrip_next_item(&pstate))
+  {
     const uint8_t *ri = hidrip_current_item(&pstate);
-    
+    // Skip past long items
+    if (!hidri_is_long(ri)) 
+    {
+      uint8_t const tag  = hidri_short_tag(ri);
+      uint8_t const type = hidri_short_type(ri);
+      switch(type)
+      {
+        case RI_TYPE_MAIN: {
+          switch (tag)
+          {
+            case RI_MAIN_INPUT: {
+              info->in_len += hidrip_report_total_size_bits(&pstate);
+              break;
+            }
+            case RI_MAIN_OUTPUT: {
+              info->out_len += hidrip_report_total_size_bits(&pstate);
+              break;
+            }
+            default: break;
+          }
+          break;
+        }
+        case RI_TYPE_GLOBAL:
+          switch(tag)
+          {
+            case RI_GLOBAL_REPORT_ID:
+  //            info->report_id = data8;
+            break;
+
+            case RI_GLOBAL_REPORT_SIZE:
+  //            ri_report_size = data8;
+            break;
+
+            case RI_GLOBAL_REPORT_COUNT:
+  //            ri_report_count = data8;
+            break;
+
+            default: break;
+          }
+        break;
+
+        case RI_TYPE_LOCAL:
+          switch(tag)
+          {
+            case RI_LOCAL_USAGE:
+              // only take in account the "usage" before starting REPORT ID
+              if ( pstate.collections_count == 0 ) {
+   //             info->usage = data8;
+              }
+            break;
+
+            default: break;
+          }
+        break;
+
+        // error
+        default: break;
+      }
+
+
+
+
+
+
+
+    }
   }
 }
 

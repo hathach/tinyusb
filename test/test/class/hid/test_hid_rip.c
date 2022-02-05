@@ -131,6 +131,10 @@ void test_push_pop(void)
   TEST_ASSERT_EQUAL(0x01, hidri_short_udata32(hidrip_global(&pstate, 0)));
 }
 
+// TODO test stack overflow
+
+// TODO test stack underflow
+
 void test_main_clears_local(void) 
 {
   uint8_t tb[] = { 
@@ -178,3 +182,16 @@ void test_collections(void)
   TEST_ASSERT_EQUAL(0, pstate.collections_count);
 }
 
+void test_total_size_bits(void) 
+{
+  uint8_t tb[] = { 
+    0x75, 0x08,        //     REPORT_SIZE (8)
+    0x95, 0x02,        //     REPORT_COUNT (2)
+  };
+  
+  tuh_hid_rip_state_t pstate;
+  hidrip_init_state(&pstate, (uint8_t*)&tb, sizeof(tb));
+  TEST_ASSERT_EQUAL(2, hidrip_next_item(&pstate));
+  TEST_ASSERT_EQUAL(2, hidrip_next_item(&pstate));
+  TEST_ASSERT_EQUAL(16, hidrip_report_total_size_bits(&pstate));
+}
