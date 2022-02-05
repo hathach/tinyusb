@@ -254,14 +254,14 @@ uint8_t tuh_hid_parse_report_descriptor(tuh_hid_report_info_t* report_info_arr, 
     }
   }
   
-  for ( uint8_t i = 0; i < report_num; i++ )
+  for ( uint8_t i = 0; i < report_num + 1; i++ )
   {
     info = report_info_arr+i;
     TU_LOG2("%u: id = %02X, usage_page = %04X, usage = %04X\r\n", i, info->report_id, info->usage_page, info->usage);
     printf("%u: id = %02X, usage_page = %04X, usage = %04X\r\n", i, info->report_id, info->usage_page, info->usage);
   }
 
-  return report_num;
+  return report_num + 1;
 }
 
 #endif

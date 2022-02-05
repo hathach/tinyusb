@@ -229,9 +229,13 @@ void test_hid_parse_report_descriptor_single_report() {
   
   tuh_hid_report_info_t report_info[3];
 
-
-  tuh_hid_parse_report_descriptor(report_info, 3, (const uint8_t*)&tb, sizeof(tb));
-  
+  uint8_t report_count = tuh_hid_parse_report_descriptor(report_info, 3, (const uint8_t*)&tb, sizeof(tb));
+  TEST_ASSERT_EQUAL(1, report_count);
+  TEST_ASSERT_EQUAL(1, report_info[0].usage_page);
+  TEST_ASSERT_EQUAL(2, report_info[0].usage);
+  TEST_ASSERT_EQUAL(2, report_info[0].usage);
+  TEST_ASSERT_EQUAL(3*1 + 1*5 + 8*2, report_info[0].in_len);
+  TEST_ASSERT_EQUAL(0, report_info[0].out_len);
 }
 
 
