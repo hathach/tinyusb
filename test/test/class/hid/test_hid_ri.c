@@ -97,6 +97,19 @@ void test_physical_max_315(void)
   TEST_ASSERT_EQUAL(3, hidri_size(tb, 3));
 }
 
+void test_physical_max_123(void) {
+  uint8_t tb[] = { 0x46, 0x7B, 0x00 };        /*     Physical Maximum (123)  */
+  
+  TEST_ASSERT_EQUAL(2, hidri_short_data_length(tb));
+  TEST_ASSERT_EQUAL(1, hidri_short_type(tb));
+  TEST_ASSERT_EQUAL(4, hidri_short_tag(tb));
+  TEST_ASSERT_EQUAL(false, hidri_is_long(tb));
+  TEST_ASSERT_EQUAL(123, hidri_short_udata32(tb));
+  TEST_ASSERT_EQUAL(123, hidri_short_udata8(tb));
+  TEST_ASSERT_EQUAL(123, hidri_short_data32(tb));
+  TEST_ASSERT_EQUAL(3, hidri_size(tb, 3));
+}
+
 void test_logical_min_neg_127(void)
 {
   uint8_t tb[] = { 0x15, 0x81 };        /*     LOGICAL_MINIMUM (-127)  */

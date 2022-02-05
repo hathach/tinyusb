@@ -50,6 +50,10 @@ uint32_t hidri_short_udata32(const uint8_t *ri) {
   return d;
 }
 
+uint8_t hidri_short_udata8(const uint8_t *ri) {
+  return hidri_short_data_length(ri) > 0 ? ri[1] : 0;
+}
+
 int32_t hidri_short_data32(const uint8_t *ri) {
   int32_t d = 0;
   uint8_t l = hidri_short_data_length(ri++);

@@ -164,10 +164,11 @@ uint8_t hidrip_parse_report_descriptor(tuh_hid_report_info_t* report_info_arr, u
   hidrip_init_state(&pstate, desc_report, desc_len);
   int il = 0;
   uint32_t outer_usage = 0;
+  
+  // TODO perhaps hidrip_next_item should return the item pointer??
   while(il = hidrip_next_item(&pstate))
   {
     const uint8_t *ri = hidrip_current_item(&pstate);
-    // Skip past long items
     if (!hidri_is_long(ri)) 
     {
       uint8_t const tag  = hidri_short_tag(ri);
@@ -189,51 +190,50 @@ uint8_t hidrip_parse_report_descriptor(tuh_hid_report_info_t* report_info_arr, u
           }
           break;
         }
-        case RI_TYPE_GLOBAL:
+        case RI_TYPE_GLOBAL: {
           switch(tag)
           {
-            case RI_GLOBAL_REPORT_ID:
-  //            info->report_id = data8;
-            break;
-
-            case RI_GLOBAL_REPORT_SIZE:
-  //            ri_report_size = data8;
-            break;
-
-            case RI_GLOBAL_REPORT_COUNT:
-  //            ri_report_count = data8;
-            break;
-
+            case RI_GLOBAL_REPORT_ID: {
+              if (info->in_len > 0 || info->out_len > 0) {
+                info++;
+                report_num++;
+              }
+              info->report_id = hidri_short_udata8(hidrip_current_item(&pstate));
+              break;
+            }
             default: break;
           }
-        break;
-
-        case RI_TYPE_LOCAL:
+          break;
+        }
+        case RI_TYPE_LOCAL: {
           switch(tag)
           {
             case RI_LOCAL_USAGE:
               // only take in account the "usage" before starting REPORT ID
               if ( pstate.collections_count == 0 ) {
-   //             info->usage = data8;
+                uint32_t eusage = pstate.usages[pstate.usage_count - 1];
+                info->usage = eusage & 0xffff;
+                info->usage_page = eusage >> 16;
               }
             break;
 
             default: break;
           }
-        break;
-
+          break;
+        }
         // error
         default: break;
       }
-
-
-
-
-
-
-
     }
   }
+  
+  for ( uint8_t i = 0; i < report_num; i++ )
+  {
+    info = report_info_arr+i;
+    TU_LOG2("%u: id = %u, usage_page = %u, usage = %u\r\n", i, info->report_id, info->usage_page, info->usage);
+  }
+
+  return report_num;
 }
 
 

@@ -50,7 +50,7 @@
 typedef struct
 {
   uint8_t  report_id;
-  uint8_t  usage;
+  uint16_t usage;
   uint16_t usage_page;
 
   // TODO still use the endpoint size for now

@@ -59,6 +59,9 @@ bool hidri_is_long(const uint8_t *ri);
 // Get the short item data unsigned
 uint32_t hidri_short_udata32(const uint8_t *ri);
 
+// Get the short item data unsigned
+uint8_t hidri_short_udata8(const uint8_t *ri);
+
 // Get the short item data signed (with sign extend to uint32)
 int32_t hidri_short_data32(const uint8_t *ri);
 
