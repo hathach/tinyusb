@@ -27,6 +27,8 @@
 
 #include "tusb.h"
 #include "hid_ri.h"
+#include "hid.h"
+#include "tusb_compiler.h"
 
 #ifdef __cplusplus
  extern "C" {
@@ -64,6 +66,19 @@ typedef struct tuh_hid_rip_state {
   uint32_t usages[HID_REPORT_MAX_USAGES];
 } tuh_hid_rip_state_t;
 
+
+typedef struct
+{
+  uint8_t  report_id;
+  uint16_t usage;
+  uint16_t usage_page;
+
+  // TODO still use the endpoint size for now
+  uint16_t in_len;      // length of IN report in bits
+  uint16_t out_len;     // length of OUT report in bits
+} tuh_hid_report_info_t;
+
+
 // Initialise a report item descriptor parser
 void hidrip_init_state(tuh_hid_rip_state_t *state, const uint8_t *report, uint16_t length);
 
@@ -88,6 +103,10 @@ const uint8_t* hidrip_current_item(tuh_hid_rip_state_t *state);
 
 // Return report_size * report_count
 uint32_t hidrip_report_total_size_bits(tuh_hid_rip_state_t *state);
+
+// Parse report descriptor into array of report_info struct and return number of reports.
+// For complicated report, application should write its own parser.
+uint8_t tuh_hid_parse_report_descriptor(tuh_hid_report_info_t* reports_info_arr, uint8_t arr_count, uint8_t const* desc_report, uint16_t desc_len) TU_ATTR_UNUSED;
 
 #endif
 

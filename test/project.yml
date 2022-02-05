@@ -49,10 +49,6 @@
     - *common_defines
   :test_preprocess:
     - *common_defines
-  :test_hid_host:
-    - *common_defines
-    - CFG_TUSB_RHPORT0_MODE
-    - CFG_TUH_HID
 
 :cmock:
   :mock_prefix: mock_
