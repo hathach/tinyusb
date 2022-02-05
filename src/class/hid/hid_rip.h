@@ -72,11 +72,9 @@ void hidrip_init_state(tuh_hid_rip_state_t *state, const uint8_t *report, uint16
 
 // Move to the next item in the report
 //
-// returns
-//   0 for eof
-//  <0 for error
+// returns pointer to next item or null
 //
-int16_t hidrip_next_item(tuh_hid_rip_state_t *state);
+const uint8_t* hidrip_next_item(tuh_hid_rip_state_t *state);
 
 // Accessor for the curren value of a global item
 //
@@ -88,7 +86,7 @@ const uint8_t* hidrip_global(tuh_hid_rip_state_t *state, uint8_t tag);
 // Returns a pointer to the start of the item of null
 const uint8_t* hidrip_local(tuh_hid_rip_state_t *state, uint8_t tag);
 
-// Returns a pointer to the start of the last parsed item
+// Returns a pointer to the start of the item or NULL for eof
 const uint8_t* hidrip_current_item(tuh_hid_rip_state_t *state);
 
 // Return report_size * report_count

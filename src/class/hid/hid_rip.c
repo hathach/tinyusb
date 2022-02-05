@@ -37,14 +37,16 @@ void hidrip_init_state(tuh_hid_rip_state_t *state, const uint8_t *report, uint16
   memset(&state->local_items, 0, sizeof(uint8_t*) * 16);
 }
 
-int16_t hidrip_next_item(tuh_hid_rip_state_t *state) 
+const uint8_t* hidrip_next_item(tuh_hid_rip_state_t *state) 
 {
-  if (state->length == 0) return 0;
+  // Already at eof
+  if (state->length == 0) return NULL;
    
   const uint8_t *ri = state->cursor;
   int16_t il = state->item_length;
 
-  if (il < 0) return il;
+  // Previous error encountered so do nothing
+  if (il < 0) return NULL;
   
   if (il > 0 && hidri_short_type(ri) == RI_TYPE_MAIN) {
     // Clear down local state after a main item
@@ -56,10 +58,21 @@ int16_t hidrip_next_item(tuh_hid_rip_state_t *state)
   ri += il;
   state->cursor = ri;
   state->length -= il;
-
+  
+  // Normal eof
+  if (state->length == 0) {
+     state->item_length = 0;
+     return NULL;
+  }
+  
   // Check the report item is valid
   state->item_length = il = hidri_size(ri, state->length);
- 
+  
+  if (il <= 0) {
+    // record error somewhere
+    return NULL;
+  }
+
   if (il > 0 && !hidri_is_long(ri)) { // For now ignore long items.
     uint8_t short_type = hidri_short_type(ri);
     uint8_t short_tag = hidri_short_tag(ri);
@@ -68,11 +81,15 @@ int16_t hidrip_next_item(tuh_hid_rip_state_t *state)
         state->global_items[state->stack_index][short_tag] = ri;
         switch (short_tag) {
           case RI_GLOBAL_PUSH:
-            if (++state->stack_index == HID_REPORT_STACK_SIZE) return -1; // TODO enum? Stack overflow
+            if (++state->stack_index == HID_REPORT_STACK_SIZE) {
+              return NULL; // TODO enum? Stack overflow
+            }
             memcpy(&state->global_items[state->stack_index], &state->global_items[state->stack_index - 1], sizeof(uint8_t*) * 16);
             break;
           case RI_GLOBAL_POP:
-            if (state->stack_index-- == 0) return -2; // TODO enum? Stack underflow
+            if (state->stack_index-- == 0) {
+              return NULL; // TODO enum? Stack underflow
+            }
             break;
           default:
             break;
@@ -87,7 +104,9 @@ int16_t hidrip_next_item(tuh_hid_rip_state_t *state)
               uint32_t usage_page = usage_page_item ? hidri_short_udata32(usage_page_item) : 0;
               usage |= usage_page << 16;
             }
-            if (state->usage_count == HID_REPORT_MAX_USAGES) return -3; // TODO enum? Max usages overflow
+            if (state->usage_count == HID_REPORT_MAX_USAGES) {
+              return NULL; // TODO enum? Max usages overflow
+            }
             state->usages[state->usage_count++] = usage;
             break;
           }
@@ -99,12 +118,16 @@ int16_t hidrip_next_item(tuh_hid_rip_state_t *state)
       case RI_TYPE_MAIN: {
         switch(short_tag) {
           case RI_MAIN_COLLECTION: {
-            if (state->collections_count == HID_REPORT_MAX_COLLECTION_DEPTH) return -4; // TODO enum? Max collections overflow
+            if (state->collections_count == HID_REPORT_MAX_COLLECTION_DEPTH) {
+              return NULL; // TODO enum? Max collections overflow
+            } 
             state->collections[state->collections_count++] = ri;
             break;
           }
           case RI_MAIN_COLLECTION_END:
-            if (state->collections_count-- == 0) return -5; // TODO enum? Max collections underflow
+            if (state->collections_count-- == 0) {
+              return NULL; // TODO enum? Max collections underflow
+            }
             break;
           default:
             break;
@@ -115,7 +138,7 @@ int16_t hidrip_next_item(tuh_hid_rip_state_t *state)
         break;
     }
   }
-  return il;
+  return ri;
 }
 
 const uint8_t* hidrip_global(tuh_hid_rip_state_t *state, uint8_t tag)
@@ -163,11 +186,9 @@ uint8_t hidrip_parse_report_descriptor(tuh_hid_report_info_t* report_info_arr, u
   tuh_hid_rip_state_t pstate;
   hidrip_init_state(&pstate, desc_report, desc_len);
   int il = 0;
-  
-  // TODO perhaps hidrip_next_item should return the item pointer??
-  while(il = hidrip_next_item(&pstate))
+  const uint8_t *ri;
+  while((ri = hidrip_next_item(&pstate)) != NULL)
   {
-    const uint8_t *ri = hidrip_current_item(&pstate);
     if (!hidri_is_long(ri)) 
     {
       uint8_t const tag  = hidri_short_tag(ri);

@@ -51,16 +51,16 @@ void test_next_simple(void)
   
   tuh_hid_rip_state_t pstate;
   hidrip_init_state(&pstate, (uint8_t*)&tb, sizeof(tb));
-  TEST_ASSERT_EQUAL(2, hidrip_next_item(&pstate));
+  TEST_ASSERT_EQUAL(&tb[0], hidrip_next_item(&pstate));
   TEST_ASSERT_EQUAL(2, pstate.item_length);
   TEST_ASSERT_EQUAL(0x05, *pstate.cursor);
-  TEST_ASSERT_EQUAL(2, hidrip_next_item(&pstate));
+  TEST_ASSERT_EQUAL(&tb[2], hidrip_next_item(&pstate));
   TEST_ASSERT_EQUAL(2, pstate.item_length);
   TEST_ASSERT_EQUAL(0x09, *pstate.cursor);
-  TEST_ASSERT_EQUAL(2, hidrip_next_item(&pstate));
+  TEST_ASSERT_EQUAL(&tb[4], hidrip_next_item(&pstate));
   TEST_ASSERT_EQUAL(2, pstate.item_length);
   TEST_ASSERT_EQUAL(0xA1, *pstate.cursor);
-  TEST_ASSERT_EQUAL(0, hidrip_next_item(&pstate));
+  TEST_ASSERT_EQUAL(NULL, hidrip_next_item(&pstate));
   TEST_ASSERT_EQUAL(0, pstate.item_length);
 }
 
@@ -73,9 +73,9 @@ void test_usage_with_page(void)
   
   tuh_hid_rip_state_t pstate;
   hidrip_init_state(&pstate, (uint8_t*)&tb, sizeof(tb));
-  TEST_ASSERT_EQUAL(2, hidrip_next_item(&pstate));
+  TEST_ASSERT_EQUAL(&tb[0], hidrip_next_item(&pstate));
   TEST_ASSERT_EQUAL(0x01, hidri_short_udata32(pstate.cursor));
-  TEST_ASSERT_EQUAL(2, hidrip_next_item(&pstate));
+  TEST_ASSERT_EQUAL(&tb[2], hidrip_next_item(&pstate));
   TEST_ASSERT_EQUAL(1, pstate.usage_count);
   TEST_ASSERT_EQUAL(0x02, hidri_short_udata32(pstate.cursor));
   TEST_ASSERT_EQUAL(0x00010002, pstate.usages[0]);
@@ -90,8 +90,8 @@ void test_globals_recorded(void)
   
   tuh_hid_rip_state_t pstate;
   hidrip_init_state(&pstate, (uint8_t*)&tb, sizeof(tb));
-  TEST_ASSERT_EQUAL(2, hidrip_next_item(&pstate));
-  TEST_ASSERT_EQUAL(2, hidrip_next_item(&pstate));
+  TEST_ASSERT_EQUAL(&tb[0], hidrip_next_item(&pstate));
+  TEST_ASSERT_EQUAL(&tb[2], hidrip_next_item(&pstate));
   TEST_ASSERT_EQUAL(0, pstate.stack_index);
   TEST_ASSERT_EQUAL(0x01, hidri_short_udata32(pstate.global_items[pstate.stack_index][0]));
   TEST_ASSERT_EQUAL(0x55, hidri_short_data32(pstate.global_items[pstate.stack_index][1]));
@@ -106,8 +106,8 @@ void test_globals_overwritten(void)
   
   tuh_hid_rip_state_t pstate;
   hidrip_init_state(&pstate, (uint8_t*)&tb, sizeof(tb));
-  TEST_ASSERT_EQUAL(2, hidrip_next_item(&pstate));
-  TEST_ASSERT_EQUAL(2, hidrip_next_item(&pstate));
+  TEST_ASSERT_EQUAL(&tb[0], hidrip_next_item(&pstate));
+  TEST_ASSERT_EQUAL(&tb[2], hidrip_next_item(&pstate));
   TEST_ASSERT_EQUAL(0, pstate.stack_index);
   TEST_ASSERT_EQUAL(0x09, hidri_short_udata32(hidrip_global(&pstate, 0)));
 }
@@ -123,10 +123,10 @@ void test_push_pop(void)
   
   tuh_hid_rip_state_t pstate;
   hidrip_init_state(&pstate, (uint8_t*)&tb, sizeof(tb));
-  TEST_ASSERT_EQUAL(2, hidrip_next_item(&pstate));
-  TEST_ASSERT_EQUAL(1, hidrip_next_item(&pstate));
-  TEST_ASSERT_EQUAL(2, hidrip_next_item(&pstate));
-  TEST_ASSERT_EQUAL(1, hidrip_next_item(&pstate));
+  TEST_ASSERT_EQUAL(&tb[0], hidrip_next_item(&pstate));
+  TEST_ASSERT_EQUAL(&tb[2], hidrip_next_item(&pstate));
+  TEST_ASSERT_EQUAL(&tb[3], hidrip_next_item(&pstate));
+  TEST_ASSERT_EQUAL(&tb[5], hidrip_next_item(&pstate));
   TEST_ASSERT_EQUAL(0, pstate.stack_index);
   TEST_ASSERT_EQUAL(0x01, hidri_short_udata32(hidrip_global(&pstate, 0)));
 }
@@ -147,14 +147,14 @@ void test_main_clears_local(void)
   
   tuh_hid_rip_state_t pstate;
   hidrip_init_state(&pstate, (uint8_t*)&tb, sizeof(tb));
-  TEST_ASSERT_EQUAL(2, hidrip_next_item(&pstate));
-  TEST_ASSERT_EQUAL(2, hidrip_next_item(&pstate));
-  TEST_ASSERT_EQUAL(2, hidrip_next_item(&pstate));
-  TEST_ASSERT_EQUAL(2, hidrip_next_item(&pstate));
+  TEST_ASSERT_EQUAL(&tb[0], hidrip_next_item(&pstate));
+  TEST_ASSERT_EQUAL(&tb[2], hidrip_next_item(&pstate));
+  TEST_ASSERT_EQUAL(&tb[4], hidrip_next_item(&pstate));
+  TEST_ASSERT_EQUAL(&tb[6], hidrip_next_item(&pstate));
   TEST_ASSERT_EQUAL(1, pstate.usage_count);
   TEST_ASSERT_EQUAL(&tb[4], pstate.local_items[3]);
   TEST_ASSERT_EQUAL(4, hidri_short_data32(pstate.local_items[3]));
-  TEST_ASSERT_EQUAL(2, hidrip_next_item(&pstate));
+  TEST_ASSERT_EQUAL(&tb[8], hidrip_next_item(&pstate));
   TEST_ASSERT_EQUAL(0, pstate.global_items[pstate.stack_index][3]);
   TEST_ASSERT_EQUAL(0, pstate.usage_count);
 }
@@ -170,15 +170,15 @@ void test_collections(void)
   
   tuh_hid_rip_state_t pstate;
   hidrip_init_state(&pstate, (uint8_t*)&tb, sizeof(tb));
-  TEST_ASSERT_EQUAL(2, hidrip_next_item(&pstate));
+  TEST_ASSERT_EQUAL(&tb[0], hidrip_next_item(&pstate));
   TEST_ASSERT_EQUAL(1, pstate.collections_count);
-  TEST_ASSERT_EQUAL(2, hidrip_next_item(&pstate));
+  TEST_ASSERT_EQUAL(&tb[2], hidrip_next_item(&pstate));
   TEST_ASSERT_EQUAL(2, pstate.collections_count);
   TEST_ASSERT_EQUAL(&tb[0], pstate.collections[0]);
   TEST_ASSERT_EQUAL(&tb[2], pstate.collections[1]);
-  TEST_ASSERT_EQUAL(1, hidrip_next_item(&pstate));
+  TEST_ASSERT_EQUAL(&tb[4], hidrip_next_item(&pstate));
   TEST_ASSERT_EQUAL(1, pstate.collections_count);
-  TEST_ASSERT_EQUAL(1, hidrip_next_item(&pstate));
+  TEST_ASSERT_EQUAL(&tb[5], hidrip_next_item(&pstate));
   TEST_ASSERT_EQUAL(0, pstate.collections_count);
 }
 
@@ -191,7 +191,7 @@ void test_total_size_bits(void)
   
   tuh_hid_rip_state_t pstate;
   hidrip_init_state(&pstate, (uint8_t*)&tb, sizeof(tb));
-  TEST_ASSERT_EQUAL(2, hidrip_next_item(&pstate));
-  TEST_ASSERT_EQUAL(2, hidrip_next_item(&pstate));
+  TEST_ASSERT_EQUAL(&tb[0], hidrip_next_item(&pstate));
+  TEST_ASSERT_EQUAL(&tb[2], hidrip_next_item(&pstate));
   TEST_ASSERT_EQUAL(16, hidrip_report_total_size_bits(&pstate));
 }
