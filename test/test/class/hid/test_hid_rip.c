@@ -197,7 +197,7 @@ void test_total_size_bits(void)
 }
 
 
-void test_hid_parse_report_descriptor_single_report() {
+void test_hid_parse_report_descriptor_single_mouse_report() {
   const uint8_t const tb[] = { 
     0x05, 0x01,                    // USAGE_PAGE (Generic Desktop)
     0x09, 0x02,                    // USAGE (Mouse)
@@ -233,10 +233,50 @@ void test_hid_parse_report_descriptor_single_report() {
   TEST_ASSERT_EQUAL(1, report_count);
   TEST_ASSERT_EQUAL(1, report_info[0].usage_page);
   TEST_ASSERT_EQUAL(2, report_info[0].usage);
-  TEST_ASSERT_EQUAL(2, report_info[0].usage);
+  TEST_ASSERT_EQUAL(0, report_info[0].report_id);
   TEST_ASSERT_EQUAL(3*1 + 1*5 + 8*2, report_info[0].in_len);
   TEST_ASSERT_EQUAL(0, report_info[0].out_len);
 }
 
+void test_hid_parse_report_descriptor_single_gamepad_report() {
+  const uint8_t const tb[] = { 
+    0x05, 0x01,                    // USAGE_PAGE (Generic Desktop)
+    0x09, 0x05,                    // USAGE (Game Pad)
+    0xa1, 0x01,                    // COLLECTION (Application)
+    0xa1, 0x00,                    //   COLLECTION (Physical)
+                                   // ReportID - 8 bits
+    0x85, 0x01,                    //     REPORT_ID (1)
+                                   // X & Y - 2x8 = 16 bits
+    0x05, 0x01,                    //     USAGE_PAGE (Generic Desktop)
+    0x09, 0x30,                    //     USAGE (X)
+    0x09, 0x31,                    //     USAGE (Y)
+    0x15, 0x81,                    //     LOGICAL_MINIMUM (-127)
+    0x25, 0x7f,                    //     LOGICAL_MAXIMUM (127)
+    0x75, 0x08,                    //     REPORT_SIZE (8)
+    0x95, 0x02,                    //     REPORT_COUNT (2)
+    0x81, 0x02,                    //     INPUT (Data,Var,Abs)
+                                   // Buttons - 8 bits
+    0x05, 0x09,                    //     USAGE_PAGE (Button)
+    0x19, 0x01,                    //     USAGE_MINIMUM (Button 1)
+    0x29, 0x08,                    //     USAGE_MAXIMUM (Button 8)
+    0x15, 0x00,                    //     LOGICAL_MINIMUM (0)
+    0x25, 0x01,                    //     LOGICAL_MAXIMUM (1)
+    0x75, 0x08,                    //     REPORT_SIZE (8)
+    0x95, 0x01,                    //     REPORT_COUNT (1)
+    0x81, 0x02,                    //     INPUT (Data,Var,Abs)
+    0xc0,                          //     END_COLLECTION
+    0xc0                           // END_COLLECTION
+  };
+  
+  tuh_hid_report_info_t report_info[3];
+
+  uint8_t report_count = tuh_hid_parse_report_descriptor(report_info, 3, (const uint8_t*)&tb, sizeof(tb));
+  TEST_ASSERT_EQUAL(1, report_count);
+  TEST_ASSERT_EQUAL(1, report_info[0].usage_page);
+  TEST_ASSERT_EQUAL(5, report_info[0].usage);
+  TEST_ASSERT_EQUAL(1, report_info[0].report_id);
+  TEST_ASSERT_EQUAL(8*2 + 8*1, report_info[0].in_len);
+  TEST_ASSERT_EQUAL(0, report_info[0].out_len);
+}
 
 
