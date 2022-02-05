@@ -279,4 +279,45 @@ void test_hid_parse_report_descriptor_single_gamepad_report() {
   TEST_ASSERT_EQUAL(0, report_info[0].out_len);
 }
 
+void test_hid_parse_report_descriptor_dual_report() {
+  const uint8_t const tb[] = { 
+    0x09, 0x01,        // Usage (Consumer Control)
+    0xA1, 0x01,        // Collection (Application)
+
+    0x85, 0x01,        //   Report ID (1)
+    0x05, 0x0C,        //   Usage Page (Consumer)
+    0x15, 0x00,        //   Logical Minimum (0)
+    0x25, 0x01,        //   Logical Maximum (1)
+    0x75, 0x01,        //   Report Size (1)
+    0x95, 0x01,        //   Report Count (1)
+    0x09, 0xE2,        //   Usage (Mute)
+    0x81, 0x62,        //   Input (Data,Var,Abs,No Wrap,Linear,No Preferred State,Null State)
+
+    0x85, 0x02,        //   Report ID (2)
+    0x05, 0x0C,        //   Usage Page (Consumer)
+    0x15, 0x00,        //   Logical Minimum (0)
+    0x25, 0x01,        //   Logical Maximum (1)
+    0x75, 0x01,        //   Report Size (1)
+    0x95, 0x01,        //   Report Count (1)
+    0x09, 0xE2,        //   Usage (Mute)
+    0x81, 0x62,        //   Input (Data,Var,Abs,No Wrap,Linear,No Preferred State,Null State)
+    0xC0,              // End Collection
+  };
+  
+  tuh_hid_report_info_t report_info[3];
+
+  uint8_t report_count = tuh_hid_parse_report_descriptor(report_info, 3, (const uint8_t*)&tb, sizeof(tb));
+  TEST_ASSERT_EQUAL(2, report_count);
+  TEST_ASSERT_EQUAL(0, report_info[0].usage_page);
+  TEST_ASSERT_EQUAL(1, report_info[0].usage);
+  TEST_ASSERT_EQUAL(1, report_info[0].report_id);
+  TEST_ASSERT_EQUAL(1*1, report_info[0].in_len);
+  TEST_ASSERT_EQUAL(0, report_info[0].out_len);
+  TEST_ASSERT_EQUAL(0, report_info[1].usage_page);
+  TEST_ASSERT_EQUAL(1, report_info[1].usage);
+  TEST_ASSERT_EQUAL(2, report_info[1].report_id);
+  TEST_ASSERT_EQUAL(1*1, report_info[1].in_len);
+  TEST_ASSERT_EQUAL(0, report_info[1].out_len);
+}
+
 
