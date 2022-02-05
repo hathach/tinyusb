@@ -28,9 +28,6 @@
 #include "tusb.h"
 #include "hid_ri.h"
 
-// TODO this probably does not belong in here
-#include "hid_host.h"
-
 #ifdef __cplusplus
  extern "C" {
 #endif
@@ -91,19 +88,6 @@ const uint8_t* hidrip_current_item(tuh_hid_rip_state_t *state);
 
 // Return report_size * report_count
 uint32_t hidrip_report_total_size_bits(tuh_hid_rip_state_t *state);
-
-
-// Fetch some basic information from the HID report descriptor
-//
-// Experimental replacement for tuh_hid_parse_report_descriptor
-// Possibly implementation in hid_host.c should just be replaced.
-// Handy here for now as I can test it and not break the rest of the stack
-//
-// TODO this probably does not belong in here
-uint8_t hidrip_parse_report_descriptor(tuh_hid_report_info_t* report_info_arr, uint8_t arr_count, uint8_t const* desc_report, uint16_t desc_len);
-
-
-
 
 #endif
 

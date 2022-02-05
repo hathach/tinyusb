@@ -26,6 +26,9 @@
 #include "unity.h"
 
 // Files to test
+#include "hid_host.h"
+
+
 #include "hid_ri.h"
 TEST_FILE("hid_ri.c")
 

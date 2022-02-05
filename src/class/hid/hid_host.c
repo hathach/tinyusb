@@ -32,6 +32,7 @@
 #include "host/usbh_classdriver.h"
 
 #include "hid_host.h"
+#include "hid_rip.h"
 
 //--------------------------------------------------------------------+
 // MACRO CONSTANT TYPEDEF
@@ -452,140 +453,84 @@ static void config_driver_mount_complete(uint8_t dev_addr, uint8_t instance, uin
 //--------------------------------------------------------------------+
 // Report Descriptor Parser
 //--------------------------------------------------------------------+
-
-uint8_t tuh_hid_parse_report_descriptor(tuh_hid_report_info_t* report_info_arr, uint8_t arr_count, uint8_t const* desc_report, uint16_t desc_len)
+uint8_t tuh_hid_parse_report_descriptor(tuh_hid_report_info_t* report_info_arr, uint8_t arr_count, uint8_t const* desc_report, uint16_t desc_len) 
 {
-  // Report Item 6.2.2.2 USB HID 1.11
-  union TU_ATTR_PACKED
-  {
-    uint8_t byte;
-    struct TU_ATTR_PACKED
-    {
-        uint8_t size : 2;
-        uint8_t type : 2;
-        uint8_t tag  : 4;
-    };
-  } header;
-
+  // Prepare the summary array
   tu_memclr(report_info_arr, arr_count*sizeof(tuh_hid_report_info_t));
-
   uint8_t report_num = 0;
   tuh_hid_report_info_t* info = report_info_arr;
+  uint8_t ri_report_count = 0;
+  uint8_t ri_report_size = 0;  
 
-  // current parsed report count & size from descriptor
-//  uint8_t ri_report_count = 0;
-//  uint8_t ri_report_size = 0;
-
-  uint8_t ri_collection_depth = 0;
-
-  while(desc_len && report_num < arr_count)
+  tuh_hid_rip_state_t pstate;
+  hidrip_init_state(&pstate, desc_report, desc_len);
+  int il = 0;
+  const uint8_t *ri;
+  while((ri = hidrip_next_item(&pstate)) != NULL)
   {
-    header.byte = *desc_report++;
-    desc_len--;
-
-    uint8_t const tag  = header.tag;
-    uint8_t const type = header.type;
-    uint8_t const size = header.size;
-
-    uint8_t const data8 = desc_report[0];
-
-    TU_LOG(3, "tag = %d, type = %d, size = %d, data = ", tag, type, size);
-    for(uint32_t i=0; i<size; i++) TU_LOG(3, "%02X ", desc_report[i]);
-    TU_LOG(3, "\r\n");
-
-    switch(type)
+    if (!hidri_is_long(ri)) 
     {
-      case RI_TYPE_MAIN:
-        switch (tag)
-        {
-          case RI_MAIN_INPUT: break;
-          case RI_MAIN_OUTPUT: break;
-          case RI_MAIN_FEATURE: break;
-
-          case RI_MAIN_COLLECTION:
-            ri_collection_depth++;
-          break;
-
-          case RI_MAIN_COLLECTION_END:
-            ri_collection_depth--;
-            if (ri_collection_depth == 0)
-            {
-              info++;
-              report_num++;
+      uint8_t const tag  = hidri_short_tag(ri);
+      uint8_t const type = hidri_short_type(ri);
+      switch(type)
+      {
+        case RI_TYPE_MAIN: {
+          switch (tag)
+          {
+            case RI_MAIN_INPUT: {
+              info->in_len += hidrip_report_total_size_bits(&pstate);
+              break;
             }
+            case RI_MAIN_OUTPUT: {
+              info->out_len += hidrip_report_total_size_bits(&pstate);
+              break;
+            }
+            default: break;
+          }
           break;
-
-          default: break;
         }
-      break;
-
-      case RI_TYPE_GLOBAL:
-        switch(tag)
-        {
-          case RI_GLOBAL_USAGE_PAGE:
-            // only take in account the "usage page" before REPORT ID
-            if ( ri_collection_depth == 0 ) memcpy(&info->usage_page, desc_report, size);
+        case RI_TYPE_GLOBAL: {
+          switch(tag)
+          {
+            case RI_GLOBAL_REPORT_ID: {
+              if (info->in_len > 0 || info->out_len > 0) {
+                info++;
+                report_num++;
+              }
+              info->report_id = hidri_short_udata8(hidrip_current_item(&pstate));
+              break;
+            }
+            default: break;
+          }
           break;
-
-          case RI_GLOBAL_LOGICAL_MIN   : break;
-          case RI_GLOBAL_LOGICAL_MAX   : break;
-          case RI_GLOBAL_PHYSICAL_MIN  : break;
-          case RI_GLOBAL_PHYSICAL_MAX  : break;
-
-          case RI_GLOBAL_REPORT_ID:
-            info->report_id = data8;
-          break;
-
-          case RI_GLOBAL_REPORT_SIZE:
-//            ri_report_size = data8;
-          break;
-
-          case RI_GLOBAL_REPORT_COUNT:
-//            ri_report_count = data8;
-          break;
-
-          case RI_GLOBAL_UNIT_EXPONENT : break;
-          case RI_GLOBAL_UNIT          : break;
-          case RI_GLOBAL_PUSH          : break;
-          case RI_GLOBAL_POP           : break;
-
-          default: break;
         }
-      break;
+        case RI_TYPE_LOCAL: {
+          switch(tag)
+          {
+            case RI_LOCAL_USAGE:
+              // only take in account the "usage" before starting REPORT ID
+              if ( pstate.collections_count == 0 ) {
+                uint32_t eusage = pstate.usages[pstate.usage_count - 1];
+                info->usage = eusage & 0xffff;
+                info->usage_page = eusage >> 16;
+              }
+            break;
 
-      case RI_TYPE_LOCAL:
-        switch(tag)
-        {
-          case RI_LOCAL_USAGE:
-            // only take in account the "usage" before starting REPORT ID
-            if ( ri_collection_depth == 0 ) info->usage = data8;
+            default: break;
+          }
           break;
-
-          case RI_LOCAL_USAGE_MIN        : break;
-          case RI_LOCAL_USAGE_MAX        : break;
-          case RI_LOCAL_DESIGNATOR_INDEX : break;
-          case RI_LOCAL_DESIGNATOR_MIN   : break;
-          case RI_LOCAL_DESIGNATOR_MAX   : break;
-          case RI_LOCAL_STRING_INDEX     : break;
-          case RI_LOCAL_STRING_MIN       : break;
-          case RI_LOCAL_STRING_MAX       : break;
-          case RI_LOCAL_DELIMITER        : break;
-          default: break;
         }
-      break;
-
-      // error
-      default: break;
+        // error
+        default: break;
+      }
     }
-
-    desc_report += size;
-    desc_len    -= size;
   }
-
+  
   for ( uint8_t i = 0; i < report_num; i++ )
   {
     info = report_info_arr+i;
-    TU_LOG2("%u: id = %u, usage_page = %u, usage = %u\r\n", i, info->report_id, info->usage_page, info->usage);
+    TU_LOG2("%u: id = %02X, usage_page = %04X, usage = %04X\r\n", i, info->report_id, info->usage_page, info->usage);
+    printf("%u: id = %02X, usage_page = %04X, usage = %04X\r\n", i, info->report_id, info->usage_page, info->usage);
   }
 
   return report_num;

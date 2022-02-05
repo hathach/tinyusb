@@ -21,10 +21,11 @@
  *
  * This file is part of the TinyUSB stack.
  */
-
-#include "hid_ri.h"
+#include "tusb_option.h"
 
 #if ((TUSB_OPT_HOST_ENABLED && CFG_TUH_HID) || _UNITY_TEST_)
+
+#include "hid_ri.h"
 
 uint8_t hidri_short_data_length(const uint8_t *ri) {
   // 0 -> 0, 1 -> 1, 2 -> 2, 3 -> 4
