@@ -163,7 +163,6 @@ uint8_t hidrip_parse_report_descriptor(tuh_hid_report_info_t* report_info_arr, u
   tuh_hid_rip_state_t pstate;
   hidrip_init_state(&pstate, desc_report, desc_len);
   int il = 0;
-  uint32_t outer_usage = 0;
   
   // TODO perhaps hidrip_next_item should return the item pointer??
   while(il = hidrip_next_item(&pstate))
