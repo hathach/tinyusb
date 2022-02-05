@@ -45,31 +45,31 @@
 //--------------------------------------------------------------------+
 
 // Get the length of a short item
-uint8_t hidri_short_data_length(uint8_t *ri);
+uint8_t hidri_short_data_length(const uint8_t *ri);
 
 // Get the type of a short item
-uint8_t hidri_short_type(uint8_t *ri);
+uint8_t hidri_short_type(const uint8_t *ri);
 
 // Get the tag from a short item
-uint8_t hidri_short_tag(uint8_t *ri);
+uint8_t hidri_short_tag(const uint8_t *ri);
 
 // Test if the item is a long item
-bool hidri_is_long(uint8_t *ri);
+bool hidri_is_long(const uint8_t *ri);
 
 // Get the short item data unsigned
-uint32_t hidri_short_udata32(uint8_t *ri);
+uint32_t hidri_short_udata32(const uint8_t *ri);
 
 // Get the short item data signed (with sign extend to uint32)
-int32_t hidri_short_data32(uint8_t *ri);
+int32_t hidri_short_data32(const uint8_t *ri);
 
 // Get the data length of a long item
-uint8_t hidri_long_data_length(uint8_t *ri);
+uint8_t hidri_long_data_length(const uint8_t *ri);
 
 // Get the tag from a long item
-uint8_t hidri_long_tag(uint8_t *ri);
+uint8_t hidri_long_tag(const uint8_t *ri);
 
 // Get a pointer to the data in a long item
-uint8_t* hidri_long_item_data(uint8_t *ri);
+const uint8_t* hidri_long_item_data(const uint8_t *ri);
 
 // Get the size of the item in bytes
 //
@@ -81,7 +81,7 @@ uint8_t* hidri_long_item_data(uint8_t *ri);
 //     0 -> eof,
 //    -1 -> missing short bytes,
 //    -2 -> missing long bytes
-int16_t hidri_size(uint8_t *ri, uint16_t l);
+int16_t hidri_size(const uint8_t *ri, uint16_t l);
 
 #ifdef __cplusplus
 }

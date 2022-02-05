@@ -28,6 +28,9 @@
 #include "tusb.h"
 #include "hid_ri.h"
 
+// TODO this probably does not belong in here
+#include "hid_host.h"
+
 #ifdef __cplusplus
  extern "C" {
 #endif
@@ -37,6 +40,8 @@
 //
 // Implementation intended to minimise memory footprint,
 // mildly at the expense of performance.
+//
+// Iterates through report items and manages state rules.
 //
 // See:
 //    https://www.usb.org/sites/default/files/hid1_11.pdf
@@ -50,20 +55,50 @@
 #define HID_REPORT_MAX_COLLECTION_DEPTH 20
 
 typedef struct tuh_hid_rip_state {
-  uint8_t* cursor;
+  const uint8_t* cursor;
   uint16_t length;
   int16_t item_length;
   uint8_t stack_index;
   uint8_t usage_count;
   uint8_t collections_count;
-  uint8_t* global_items[HID_REPORT_STACK_SIZE][16];
-  uint8_t* local_items[16];
-  uint8_t* collections[HID_REPORT_MAX_COLLECTION_DEPTH];
+  const uint8_t* global_items[HID_REPORT_STACK_SIZE][16];
+  const uint8_t* local_items[16];
+  const uint8_t* collections[HID_REPORT_MAX_COLLECTION_DEPTH];
   uint32_t usages[HID_REPORT_MAX_USAGES];
 } tuh_hid_rip_state_t;
 
-void hidrip_init_state(tuh_hid_rip_state_t *state, uint8_t *report, uint16_t length);
+// Initialise a report item descriptor parser
+void hidrip_init_state(tuh_hid_rip_state_t *state, const uint8_t *report, uint16_t length);
+
+// Move to the next item in the report
+//
+// returns
+//   0 for eof
+//  <0 for error
+//
 int16_t hidrip_next_item(tuh_hid_rip_state_t *state);
+
+// Accessor for the curren value of a global item
+//
+// Returns a pointer to the start of the item of null
+const uint8_t* hidrip_global(tuh_hid_rip_state_t *state, uint8_t tag);
+
+// Accessor for the curren value of a local item
+//
+// Returns a pointer to the start of the item of null
+const uint8_t* hidrip_local(tuh_hid_rip_state_t *state, uint8_t tag);
+
+// Fetch some basic information from the HID report descriptor
+//
+// Experimental replacement for tuh_hid_parse_report_descriptor
+// Possibly implementation in hid_host.c should just be replaced.
+// Handy here for now as I can test it and not break the rest of the stack
+//
+// TODO this probably does not belong in here
+uint8_t hidrip_parse_report_descriptor(tuh_hid_report_info_t* report_info_arr, uint8_t arr_count, uint8_t const* desc_report, uint16_t desc_len);
+
+
+
 
 #endif
 

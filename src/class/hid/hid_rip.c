@@ -25,7 +25,7 @@
 #include "hid_rip.h"
 #include "hid.h"
 
-void hidrip_init_state(tuh_hid_rip_state_t *state, uint8_t *report, uint16_t length)
+void hidrip_init_state(tuh_hid_rip_state_t *state, const uint8_t *report, uint16_t length)
 {
   state->cursor = report;
   state->length = length;
@@ -41,7 +41,7 @@ int16_t hidrip_next_item(tuh_hid_rip_state_t *state)
 {
   if (state->length == 0) return 0;
    
-  uint8_t *ri = state->cursor;
+  const uint8_t *ri = state->cursor;
   int16_t il = state->item_length;
 
   if (il < 0) return il;
@@ -83,7 +83,7 @@ int16_t hidrip_next_item(tuh_hid_rip_state_t *state)
           case RI_LOCAL_USAGE: {
             uint32_t usage = hidri_short_udata32(ri);
             if (hidri_short_data_length(ri) <= 2) {
-              uint8_t* usage_page_item = state->global_items[state->stack_index][RI_GLOBAL_USAGE_PAGE];
+              const uint8_t* usage_page_item = state->global_items[state->stack_index][RI_GLOBAL_USAGE_PAGE];
               uint32_t usage_page = usage_page_item ? hidri_short_udata32(usage_page_item) : 0;
               usage |= usage_page << 16;
             }
@@ -116,6 +116,35 @@ int16_t hidrip_next_item(tuh_hid_rip_state_t *state)
     }
   }
   return il;
+}
+
+const uint8_t* hidrip_global(tuh_hid_rip_state_t *state, uint8_t tag)
+{
+  return state->global_items[state->stack_index][tag];
+}
+
+const uint8_t* hidrip_local(tuh_hid_rip_state_t *state, uint8_t tag)
+{
+  return state->local_items[tag];
+}
+
+uint8_t hidrip_parse_report_descriptor(tuh_hid_report_info_t* report_info_arr, uint8_t arr_count, uint8_t const* desc_report, uint16_t desc_len) 
+{
+  // Prepare the summary array
+  tu_memclr(report_info_arr, arr_count*sizeof(tuh_hid_report_info_t));
+  uint8_t report_num = 0;
+  tuh_hid_report_info_t* info = report_info_arr;
+  uint8_t ri_report_count = 0;
+  uint8_t ri_report_size = 0;  
+
+  tuh_hid_rip_state_t pstate;
+  hidrip_init_state(&pstate, desc_report, desc_len);
+  
+  // Remember each item length as it may contain error codes
+  int il = 0;
+  while(il = hidrip_next_item(&pstate)) {
+    
+  }
 }
 
 

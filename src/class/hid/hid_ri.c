@@ -26,31 +26,31 @@
 
 #if ((TUSB_OPT_HOST_ENABLED && CFG_TUH_HID) || _UNITY_TEST_)
 
-uint8_t hidri_short_data_length(uint8_t *ri) {
+uint8_t hidri_short_data_length(const uint8_t *ri) {
   // 0 -> 0, 1 -> 1, 2 -> 2, 3 -> 4
   return (1 << (*ri & 3)) >> 1;
 }
 
-uint8_t hidri_short_type(uint8_t *ri) {
+uint8_t hidri_short_type(const uint8_t *ri) {
   return (*ri >> 2) & 3;
 }
 
-uint8_t hidri_short_tag(uint8_t *ri) {
+uint8_t hidri_short_tag(const uint8_t *ri) {
   return (*ri >> 4) & 15;
 }
 
-bool hidri_is_long(uint8_t *ri) {
+bool hidri_is_long(const uint8_t *ri) {
   return *ri == 0xfe;
 }
 
-uint32_t hidri_short_udata32(uint8_t *ri) {
+uint32_t hidri_short_udata32(const uint8_t *ri) {
   uint32_t d = 0;
   uint8_t l = hidri_short_data_length(ri++);
   for(uint8_t i = 0; i < l; ++i) d |= ((uint32_t)(*ri++)) << (i << 3);
   return d;
 }
 
-int32_t hidri_short_data32(uint8_t *ri) {
+int32_t hidri_short_data32(const uint8_t *ri) {
   int32_t d = 0;
   uint8_t l = hidri_short_data_length(ri++);
   bool negative = false;
@@ -67,19 +67,19 @@ int32_t hidri_short_data32(uint8_t *ri) {
   return d;
 }
 
-uint8_t hidri_long_data_length(uint8_t *ri) {
+uint8_t hidri_long_data_length(const uint8_t *ri) {
   return ri[1];
 }
 
-uint8_t hidri_long_tag(uint8_t *ri) {
+uint8_t hidri_long_tag(const uint8_t *ri) {
   return ri[2];
 }
 
-uint8_t* hidri_long_item_data(uint8_t *ri) {
+const uint8_t* hidri_long_item_data(const uint8_t *ri) {
   return ri + 3;
 }
 
-int16_t hidri_size(uint8_t *ri, uint16_t l) {
+int16_t hidri_size(const uint8_t *ri, uint16_t l) {
   // Make sure there is enough room for the header
   if (l < 1) return 0;
   // Calculate the short item length
