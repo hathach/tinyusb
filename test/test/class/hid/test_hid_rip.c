@@ -97,6 +97,40 @@ void test_globals_recorded(void)
   TEST_ASSERT_EQUAL(0x55, hidri_short_data32(pstate.global_items[pstate.stack_index][1]));
 }
 
+void test_globals_overwritten(void) 
+{
+  uint8_t tb[] = { 
+    0x05, 0x01,        // Usage Page (Generic Desktop Ctrls)
+    0x05, 0x09,        // USAGE_PAGE (Button)
+  };
+  
+  tuh_hid_rip_state_t pstate;
+  hidrip_init_state(&pstate, (uint8_t*)&tb, sizeof(tb));
+  TEST_ASSERT_EQUAL(2, hidrip_next_item(&pstate));
+  TEST_ASSERT_EQUAL(2, hidrip_next_item(&pstate));
+  TEST_ASSERT_EQUAL(0, pstate.stack_index);
+  TEST_ASSERT_EQUAL(0x09, hidri_short_udata32(hidrip_global(&pstate, 0)));
+}
+
+void test_push_pop(void) 
+{
+  uint8_t tb[] = { 
+    0x05, 0x01,        // Usage Page (Generic Desktop Ctrls)
+    0xA4,              // Push
+    0x05, 0x09,        // USAGE_PAGE (Button)
+    0xB4,              // Pop
+  };
+  
+  tuh_hid_rip_state_t pstate;
+  hidrip_init_state(&pstate, (uint8_t*)&tb, sizeof(tb));
+  TEST_ASSERT_EQUAL(2, hidrip_next_item(&pstate));
+  TEST_ASSERT_EQUAL(1, hidrip_next_item(&pstate));
+  TEST_ASSERT_EQUAL(2, hidrip_next_item(&pstate));
+  TEST_ASSERT_EQUAL(1, hidrip_next_item(&pstate));
+  TEST_ASSERT_EQUAL(0, pstate.stack_index);
+  TEST_ASSERT_EQUAL(0x01, hidri_short_udata32(hidrip_global(&pstate, 0)));
+}
+
 void test_main_clears_local(void) 
 {
   uint8_t tb[] = { 

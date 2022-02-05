@@ -128,6 +128,11 @@ const uint8_t* hidrip_local(tuh_hid_rip_state_t *state, uint8_t tag)
   return state->local_items[tag];
 }
 
+const uint8_t* hidrip_current_item(tuh_hid_rip_state_t *state)
+{
+  return state->cursor;
+}
+
 uint8_t hidrip_parse_report_descriptor(tuh_hid_report_info_t* report_info_arr, uint8_t arr_count, uint8_t const* desc_report, uint16_t desc_len) 
 {
   // Prepare the summary array
@@ -139,10 +144,9 @@ uint8_t hidrip_parse_report_descriptor(tuh_hid_report_info_t* report_info_arr, u
 
   tuh_hid_rip_state_t pstate;
   hidrip_init_state(&pstate, desc_report, desc_len);
-  
-  // Remember each item length as it may contain error codes
   int il = 0;
   while(il = hidrip_next_item(&pstate)) {
+    const uint8_t *ri = hidrip_current_item(&pstate);
     
   }
 }

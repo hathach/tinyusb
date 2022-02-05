@@ -88,6 +88,9 @@ const uint8_t* hidrip_global(tuh_hid_rip_state_t *state, uint8_t tag);
 // Returns a pointer to the start of the item of null
 const uint8_t* hidrip_local(tuh_hid_rip_state_t *state, uint8_t tag);
 
+// Returns a pointer to the start of the last parsed item
+const uint8_t* hidrip_current_item(tuh_hid_rip_state_t *state);
+
 // Fetch some basic information from the HID report descriptor
 //
 // Experimental replacement for tuh_hid_parse_report_descriptor
