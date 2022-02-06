@@ -402,4 +402,69 @@ void test_hid_parse_report_descriptor_dual_report() {
   TEST_ASSERT_EQUAL(0, report_info[1].out_len);
 }
 
+void test_hid_parse_report_descriptor_joystick_report() {
+  const uint8_t const tb[] = { 
+    0x05, 0x01,        // Usage Page (Generic Desktop Ctrls)
+    0x09, 0x04,        // Usage (Joystick)
+    0xA1, 0x01,        // Collection (Application)
+    0x09, 0x01,        //   Usage (Pointer)
+    0xA1, 0x00,        //   Collection (Physical)
+    0x05, 0x01,        //     Usage Page (Generic Desktop Ctrls)
+    0x09, 0x30,        //     Usage (X)
+    0x09, 0x31,        //     Usage (Y)
+    0x15, 0x00,        //     Logical Minimum (0)
+    0x26, 0xFF, 0x03,  //     Logical Maximum (1023)
+    0x35, 0x00,        //     Physical Minimum (0)
+    0x46, 0xFF, 0x03,  //     Physical Maximum (1023)
+    0x65, 0x00,        //     Unit (None)
+    0x75, 0x0A,        //     Report Size (10)
+    0x95, 0x02,        //     Report Count (2)
+    0x81, 0x02,        //     Input (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position)
+    0x09, 0x35,        //     Usage (Rz)
+    0x09, 0x32,        //     Usage (Z)
+    0x15, 0x00,        //     Logical Minimum (0)
+    0x26, 0xFF, 0x01,  //     Logical Maximum (511)
+    0x35, 0x00,        //     Physical Minimum (0)
+    0x46, 0xFF, 0x01,  //     Physical Maximum (511)
+    0x65, 0x00,        //     Unit (None)
+    0x75, 0x09,        //     Report Size (9)
+    0x95, 0x02,        //     Report Count (2)
+    0x81, 0x02,        //     Input (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position)
+    0x75, 0x01,        //     Report Size (1)
+    0x95, 0x02,        //     Report Count (2)
+    0x81, 0x01,        //     Input (Const,Array,Abs,No Wrap,Linear,Preferred State,No Null Position)
+    0x09, 0x39,        //     Usage (Hat switch)
+    0x15, 0x01,        //     Logical Minimum (1)
+    0x25, 0x08,        //     Logical Maximum (8)
+    0x35, 0x00,        //     Physical Minimum (0)
+    0x46, 0x3B, 0x01,  //     Physical Maximum (315)
+    0x65, 0x14,        //     Unit (System: English Rotation, Length: Centimeter)
+    0x75, 0x08,        //     Report Size (8)
+    0x95, 0x01,        //     Report Count (1)
+    0x81, 0x02,        //     Input (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position)
+    0x05, 0x09,        //     Usage Page (Button)
+    0x19, 0x01,        //     Usage Minimum (0x01)
+    0x29, 0x0C,        //     Usage Maximum (0x0C)
+    0x15, 0x00,        //     Logical Minimum (0)
+    0x25, 0x01,        //     Logical Maximum (1)
+    0x35, 0x00,        //     Physical Minimum (0)
+    0x45, 0x01,        //     Physical Maximum (1)
+    0x75, 0x01,        //     Report Size (1)
+    0x95, 0x0C,        //     Report Count (12)
+    0x81, 0x02,        //     Input (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position)
+    0x75, 0x01,        //     Report Size (1)
+    0x95, 0x04,        //     Report Count (4)
+    0x81, 0x01,        //     Input (Const,Array,Abs,No Wrap,Linear,Preferred State,No Null Position)
+    0xC0,              //   End Collection
+    0xC0,              // End Collection
+  };
+  tuh_hid_report_info_t report_info[3];
 
+  uint8_t report_count = tuh_hid_parse_report_descriptor(report_info, 3, (const uint8_t*)&tb, sizeof(tb));
+  TEST_ASSERT_EQUAL(1, report_count);
+  TEST_ASSERT_EQUAL(1, report_info[0].usage_page);
+  TEST_ASSERT_EQUAL(4, report_info[0].usage);
+  TEST_ASSERT_EQUAL(0, report_info[0].report_id);
+  TEST_ASSERT_EQUAL(64, report_info[0].in_len);
+  TEST_ASSERT_EQUAL(0, report_info[0].out_len);
+}
