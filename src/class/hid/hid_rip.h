@@ -53,15 +53,17 @@
 #define HID_REPORT_MAX_USAGES 20
 #define HID_REPORT_MAX_COLLECTION_DEPTH 20
 
-typedef enum tuh_hid_rip_err {
-  HID_RIP_OK,
+typedef enum tuh_hid_rip_status {
+  HID_RIP_INIT = 0,                  // Initial state
+  HID_RIP_EOF,                   // No more items
+  HID_RIP_TTEM_OK,               // Last item parsed ok
   HID_RIP_ITEM_ERR,              // Issue decoding a single report item
   HID_RIP_STACK_OVERFLOW,        // Too many pushes
   HID_RIP_STACK_UNDERFLOW,       // Too many pops
   HID_RIP_USAGES_OVERFLOW,       // Too many usages
   HID_RIP_COLLECTIONS_OVERFLOW,  // Too many collections
   HID_RIP_COLLECTIONS_UNDERFLOW  // More collection starts than ends
-} tuh_hid_rip_err_t;
+} tuh_hid_rip_status_t;
 
 typedef struct tuh_hid_rip_state {
   const uint8_t* cursor;
@@ -74,7 +76,7 @@ typedef struct tuh_hid_rip_state {
   const uint8_t* local_items[16];
   const uint8_t* collections[HID_REPORT_MAX_COLLECTION_DEPTH];
   uint32_t usages[HID_REPORT_MAX_USAGES];
-  tuh_hid_rip_err_t status;
+  tuh_hid_rip_status_t status;
 } tuh_hid_rip_state_t;
 
 

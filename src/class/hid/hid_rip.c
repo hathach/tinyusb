@@ -41,7 +41,7 @@ void tuh_hid_rip_init_state(tuh_hid_rip_state_t *state, const uint8_t *report, u
   state->collections_count = 0;
   tu_memclr(&state->global_items, sizeof(uint8_t*) * HID_REPORT_STACK_SIZE * 16);
   tu_memclr(&state->local_items, sizeof(uint8_t*) * 16);
-  state->status = HID_RIP_OK;
+  state->status = HID_RIP_INIT;
 }
 
 const uint8_t* tuh_hid_rip_next_item(tuh_hid_rip_state_t *state) 
@@ -69,6 +69,7 @@ const uint8_t* tuh_hid_rip_next_item(tuh_hid_rip_state_t *state)
   // Normal eof
   if (state->length == 0) {
      state->item_length = 0;
+     state->status = HID_RIP_EOF;
      return NULL;
   }
   
@@ -77,6 +78,7 @@ const uint8_t* tuh_hid_rip_next_item(tuh_hid_rip_state_t *state)
   
   if (il <= 0) {
     state->status = HID_RIP_ITEM_ERR;
+    TU_LOG2("HID Report item parser: Attempt to read HID Report item returned %d\r\n", il);
     return NULL;
   }
 
@@ -90,6 +92,7 @@ const uint8_t* tuh_hid_rip_next_item(tuh_hid_rip_state_t *state)
           case RI_GLOBAL_PUSH:
             if (++state->stack_index == HID_REPORT_STACK_SIZE) {
               state->status = HID_RIP_STACK_OVERFLOW;
+              TU_LOG2("HID Report item parser: stack overflow\r\n");
               return NULL;
             }
             memcpy(&state->global_items[state->stack_index], &state->global_items[state->stack_index - 1], sizeof(uint8_t*) * 16);
@@ -97,6 +100,7 @@ const uint8_t* tuh_hid_rip_next_item(tuh_hid_rip_state_t *state)
           case RI_GLOBAL_POP:
             if (state->stack_index-- == 0) {
               state->status = HID_RIP_STACK_UNDERFLOW;
+              TU_LOG2("HID Report item parser: stack underflow\r\n");              
               return NULL;
             }
             break;
@@ -115,6 +119,7 @@ const uint8_t* tuh_hid_rip_next_item(tuh_hid_rip_state_t *state)
             }
             if (state->usage_count == HID_REPORT_MAX_USAGES) {
               state->status = HID_RIP_USAGES_OVERFLOW;
+              TU_LOG2("HID Report item parser: usage overflow\r\n");              
               return NULL;
             }
             state->usages[state->usage_count++] = usage;
@@ -130,6 +135,7 @@ const uint8_t* tuh_hid_rip_next_item(tuh_hid_rip_state_t *state)
           case RI_MAIN_COLLECTION: {
             if (state->collections_count == HID_REPORT_MAX_COLLECTION_DEPTH) {
               state->status = HID_RIP_COLLECTIONS_OVERFLOW;
+              TU_LOG2("HID Report item parser: collections overflow\r\n");
               return NULL;
             } 
             state->collections[state->collections_count++] = ri;
@@ -138,6 +144,7 @@ const uint8_t* tuh_hid_rip_next_item(tuh_hid_rip_state_t *state)
           case RI_MAIN_COLLECTION_END:
             if (state->collections_count-- == 0) {
               state->status = HID_RIP_COLLECTIONS_UNDERFLOW;
+              TU_LOG2("HID Report item parser: collections underflow\r\n");
               return NULL;
             }
             break;
@@ -150,6 +157,7 @@ const uint8_t* tuh_hid_rip_next_item(tuh_hid_rip_state_t *state)
         break;
     }
   }
+  state->status = HID_RIP_TTEM_OK;
   return ri;
 }
 
