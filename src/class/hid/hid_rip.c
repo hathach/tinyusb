@@ -37,8 +37,8 @@ void tuh_hid_rip_init_state(tuh_hid_rip_state_t *state, const uint8_t *report, u
   state->stack_index = 0;
   state->usage_count = 0;
   state->collections_count = 0;
-  memset(&state->global_items, 0, sizeof(uint8_t*) * HID_REPORT_STACK_SIZE * 16);
-  memset(&state->local_items, 0, sizeof(uint8_t*) * 16);
+  tu_memclr(&state->global_items, sizeof(uint8_t*) * HID_REPORT_STACK_SIZE * 16);
+  tu_memclr(&state->local_items, sizeof(uint8_t*) * 16);
 }
 
 const uint8_t* tuh_hid_rip_next_item(tuh_hid_rip_state_t *state) 
@@ -54,7 +54,7 @@ const uint8_t* tuh_hid_rip_next_item(tuh_hid_rip_state_t *state)
   
   if (il > 0 && tuh_hid_ri_short_type(ri) == RI_TYPE_MAIN) {
     // Clear down local state after a main item
-    memset(&state->local_items, 0, sizeof(uint8_t*) * 16);
+    tu_memclr(&state->local_items, sizeof(uint8_t*) * 16);
     state->usage_count = 0;
   }
   
@@ -239,7 +239,7 @@ uint8_t tuh_hid_parse_report_descriptor(tuh_hid_report_info_t* report_info_arr, 
           switch(tag)
           {
             case RI_LOCAL_USAGE:
-              // only take in account the "usage" before starting REPORT ID
+              // only take into account the "usage" before starting REPORT ID
               if ( pstate.collections_count == 0 ) {
                 uint32_t eusage = pstate.usages[pstate.usage_count - 1];
                 usage = eusage & 0xffff;

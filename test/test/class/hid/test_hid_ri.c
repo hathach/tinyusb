@@ -148,6 +148,14 @@ void test_logical_min_neg_2147483647(void)
   TEST_ASSERT_EQUAL(5, tuh_hid_ri_size(tb, 5));
 }
 
-
+void test_split_usage(void) {
+  uint16_t usage;
+  uint16_t usage_page;
+  
+  tuh_hid_ri_split_usage(0xFA23832B, &usage, &usage_page);
+  
+  TEST_ASSERT_EQUAL(0x832B, usage);
+  TEST_ASSERT_EQUAL(0xFA23, usage_page);
+}
 
 

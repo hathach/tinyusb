@@ -86,6 +86,9 @@ const uint8_t* tuh_hid_ri_long_item_data(const uint8_t *ri);
 //    -2 -> missing long bytes
 int16_t tuh_hid_ri_size(const uint8_t *ri, uint16_t l);
 
+// Split an extended usage into local and page values
+void tuh_hid_ri_split_usage(uint32_t eusage, uint16_t *usage, uint16_t *usage_page);
+
 #ifdef __cplusplus
 }
 #endif
