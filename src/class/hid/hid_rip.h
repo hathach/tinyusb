@@ -80,29 +80,29 @@ typedef struct
 
 
 // Initialise a report item descriptor parser
-void hidrip_init_state(tuh_hid_rip_state_t *state, const uint8_t *report, uint16_t length);
+void tuh_hid_rip_init_state(tuh_hid_rip_state_t *state, const uint8_t *report, uint16_t length);
 
 // Move to the next item in the report
 //
 // returns pointer to next item or null
 //
-const uint8_t* hidrip_next_item(tuh_hid_rip_state_t *state);
+const uint8_t* tuh_hid_rip_next_item(tuh_hid_rip_state_t *state);
 
 // Accessor for the curren value of a global item
 //
 // Returns a pointer to the start of the item of null
-const uint8_t* hidrip_global(tuh_hid_rip_state_t *state, uint8_t tag);
+const uint8_t* tuh_hid_rip_global(tuh_hid_rip_state_t *state, uint8_t tag);
 
 // Accessor for the curren value of a local item
 //
 // Returns a pointer to the start of the item of null
-const uint8_t* hidrip_local(tuh_hid_rip_state_t *state, uint8_t tag);
+const uint8_t* tuh_hid_rip_local(tuh_hid_rip_state_t *state, uint8_t tag);
 
 // Returns a pointer to the start of the item or NULL for eof
-const uint8_t* hidrip_current_item(tuh_hid_rip_state_t *state);
+const uint8_t* tuh_hid_rip_current_item(tuh_hid_rip_state_t *state);
 
 // Return report_size * report_count
-uint32_t hidrip_report_total_size_bits(tuh_hid_rip_state_t *state);
+uint32_t tuh_hid_rip_report_total_size_bits(tuh_hid_rip_state_t *state);
 
 // Parse report descriptor into array of report_info struct and return number of reports.
 // For complicated report, application should write its own parser.

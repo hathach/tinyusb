@@ -27,37 +27,37 @@
 
 #include "hid_ri.h"
 
-uint8_t hidri_short_data_length(const uint8_t *ri) {
+uint8_t tuh_hid_ri_short_data_length(const uint8_t *ri) {
   // 0 -> 0, 1 -> 1, 2 -> 2, 3 -> 4
   return (1 << (*ri & 3)) >> 1;
 }
 
-uint8_t hidri_short_type(const uint8_t *ri) {
+uint8_t tuh_hid_ri_short_type(const uint8_t *ri) {
   return (*ri >> 2) & 3;
 }
 
-uint8_t hidri_short_tag(const uint8_t *ri) {
+uint8_t tuh_hid_ri_short_tag(const uint8_t *ri) {
   return (*ri >> 4) & 15;
 }
 
-bool hidri_is_long(const uint8_t *ri) {
+bool tuh_hid_ri_is_long(const uint8_t *ri) {
   return *ri == 0xfe;
 }
 
-uint32_t hidri_short_udata32(const uint8_t *ri) {
+uint32_t tuh_hid_ri_short_udata32(const uint8_t *ri) {
   uint32_t d = 0;
-  uint8_t l = hidri_short_data_length(ri++);
+  uint8_t l = tuh_hid_ri_short_data_length(ri++);
   for(uint8_t i = 0; i < l; ++i) d |= ((uint32_t)(*ri++)) << (i << 3);
   return d;
 }
 
-uint8_t hidri_short_udata8(const uint8_t *ri) {
-  return hidri_short_data_length(ri) > 0 ? ri[1] : 0;
+uint8_t tuh_hid_ri_short_udata8(const uint8_t *ri) {
+  return tuh_hid_ri_short_data_length(ri) > 0 ? ri[1] : 0;
 }
 
-int32_t hidri_short_data32(const uint8_t *ri) {
+int32_t tuh_hid_ri_short_data32(const uint8_t *ri) {
   int32_t d = 0;
-  uint8_t l = hidri_short_data_length(ri++);
+  uint8_t l = tuh_hid_ri_short_data_length(ri++);
   bool negative = false;
   for(uint8_t i = 0; i < 4; ++i) {
     if (i < l) {
@@ -72,28 +72,28 @@ int32_t hidri_short_data32(const uint8_t *ri) {
   return d;
 }
 
-uint8_t hidri_long_data_length(const uint8_t *ri) {
+uint8_t tuh_hid_ri_long_data_length(const uint8_t *ri) {
   return ri[1];
 }
 
-uint8_t hidri_long_tag(const uint8_t *ri) {
+uint8_t tuh_hid_ri_long_tag(const uint8_t *ri) {
   return ri[2];
 }
 
-const uint8_t* hidri_long_item_data(const uint8_t *ri) {
+const uint8_t* tuh_hid_ri_long_item_data(const uint8_t *ri) {
   return ri + 3;
 }
 
-int16_t hidri_size(const uint8_t *ri, uint16_t l) {
+int16_t tuh_hid_ri_size(const uint8_t *ri, uint16_t l) {
   // Make sure there is enough room for the header
   if (l < 1) return 0;
   // Calculate the short item length
-  uint16_t sl = 1 + hidri_short_data_length(ri);
+  uint16_t sl = 1 + tuh_hid_ri_short_data_length(ri);
   // check it fits
   if (l < sl) return -1;
   // Check if we need to worry about a long item
-  if (hidri_is_long(ri)) {
-    uint16_t ll = hidri_long_data_length(ri);
+  if (tuh_hid_ri_is_long(ri)) {
+    uint16_t ll = tuh_hid_ri_long_data_length(ri);
     uint16_t tl = sl + ll;
     if (l < tl) return -2;
     return tl;

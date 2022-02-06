@@ -29,7 +29,7 @@
 #include "hid_rip.h"
 #include "hid.h"
 
-void hidrip_init_state(tuh_hid_rip_state_t *state, const uint8_t *report, uint16_t length)
+void tuh_hid_rip_init_state(tuh_hid_rip_state_t *state, const uint8_t *report, uint16_t length)
 {
   state->cursor = report;
   state->length = length;
@@ -41,7 +41,7 @@ void hidrip_init_state(tuh_hid_rip_state_t *state, const uint8_t *report, uint16
   memset(&state->local_items, 0, sizeof(uint8_t*) * 16);
 }
 
-const uint8_t* hidrip_next_item(tuh_hid_rip_state_t *state) 
+const uint8_t* tuh_hid_rip_next_item(tuh_hid_rip_state_t *state) 
 {
   // Already at eof
   if (state->length == 0) return NULL;
@@ -52,7 +52,7 @@ const uint8_t* hidrip_next_item(tuh_hid_rip_state_t *state)
   // Previous error encountered so do nothing
   if (il < 0) return NULL;
   
-  if (il > 0 && hidri_short_type(ri) == RI_TYPE_MAIN) {
+  if (il > 0 && tuh_hid_ri_short_type(ri) == RI_TYPE_MAIN) {
     // Clear down local state after a main item
     memset(&state->local_items, 0, sizeof(uint8_t*) * 16);
     state->usage_count = 0;
@@ -70,16 +70,16 @@ const uint8_t* hidrip_next_item(tuh_hid_rip_state_t *state)
   }
   
   // Check the report item is valid
-  state->item_length = il = hidri_size(ri, state->length);
+  state->item_length = il = tuh_hid_ri_size(ri, state->length);
   
   if (il <= 0) {
     // record error somewhere
     return NULL;
   }
 
-  if (il > 0 && !hidri_is_long(ri)) { // For now ignore long items.
-    uint8_t short_type = hidri_short_type(ri);
-    uint8_t short_tag = hidri_short_tag(ri);
+  if (il > 0 && !tuh_hid_ri_is_long(ri)) { // For now ignore long items.
+    uint8_t short_type = tuh_hid_ri_short_type(ri);
+    uint8_t short_tag = tuh_hid_ri_short_tag(ri);
     switch (short_type) {
       case RI_TYPE_GLOBAL:
         state->global_items[state->stack_index][short_tag] = ri;
@@ -102,10 +102,10 @@ const uint8_t* hidrip_next_item(tuh_hid_rip_state_t *state)
       case RI_TYPE_LOCAL:
         switch(short_tag) {
           case RI_LOCAL_USAGE: {
-            uint32_t usage = hidri_short_udata32(ri);
-            if (hidri_short_data_length(ri) <= 2) {
+            uint32_t usage = tuh_hid_ri_short_udata32(ri);
+            if (tuh_hid_ri_short_data_length(ri) <= 2) {
               const uint8_t* usage_page_item = state->global_items[state->stack_index][RI_GLOBAL_USAGE_PAGE];
-              uint32_t usage_page = usage_page_item ? hidri_short_udata32(usage_page_item) : 0;
+              uint32_t usage_page = usage_page_item ? tuh_hid_ri_short_udata32(usage_page_item) : 0;
               usage |= usage_page << 16;
             }
             if (state->usage_count == HID_REPORT_MAX_USAGES) {
@@ -145,30 +145,30 @@ const uint8_t* hidrip_next_item(tuh_hid_rip_state_t *state)
   return ri;
 }
 
-const uint8_t* hidrip_global(tuh_hid_rip_state_t *state, uint8_t tag)
+const uint8_t* tuh_hid_rip_global(tuh_hid_rip_state_t *state, uint8_t tag)
 {
   return state->global_items[state->stack_index][tag];
 }
 
-const uint8_t* hidrip_local(tuh_hid_rip_state_t *state, uint8_t tag)
+const uint8_t* tuh_hid_rip_local(tuh_hid_rip_state_t *state, uint8_t tag)
 {
   return state->local_items[tag];
 }
 
-const uint8_t* hidrip_current_item(tuh_hid_rip_state_t *state)
+const uint8_t* tuh_hid_rip_current_item(tuh_hid_rip_state_t *state)
 {
   return state->cursor;
 }
 
-uint32_t hidrip_report_total_size_bits(tuh_hid_rip_state_t *state) 
+uint32_t tuh_hid_rip_report_total_size_bits(tuh_hid_rip_state_t *state) 
 {
-  const uint8_t* ri_report_size = hidrip_global(state, RI_GLOBAL_REPORT_SIZE);
-  const uint8_t* ri_report_count = hidrip_global(state, RI_GLOBAL_REPORT_COUNT);
+  const uint8_t* ri_report_size = tuh_hid_rip_global(state, RI_GLOBAL_REPORT_SIZE);
+  const uint8_t* ri_report_count = tuh_hid_rip_global(state, RI_GLOBAL_REPORT_COUNT);
   
   if (ri_report_size != NULL && ri_report_count != NULL) 
   {
-    uint32_t report_size = hidri_short_udata32(ri_report_size);
-    uint32_t report_count = hidri_short_udata32(ri_report_count);
+    uint32_t report_size = tuh_hid_ri_short_udata32(ri_report_size);
+    uint32_t report_count = tuh_hid_ri_short_udata32(ri_report_count);
     return report_size * report_count;
   }
   else
@@ -191,27 +191,27 @@ uint8_t tuh_hid_parse_report_descriptor(tuh_hid_report_info_t* report_info_arr, 
   
   tuh_hid_report_info_t* info = report_info_arr;
   tuh_hid_rip_state_t pstate;
-  hidrip_init_state(&pstate, desc_report, desc_len);
+  tuh_hid_rip_init_state(&pstate, desc_report, desc_len);
   const uint8_t *ri;
-  while((ri = hidrip_next_item(&pstate)) != NULL)
+  while((ri = tuh_hid_rip_next_item(&pstate)) != NULL)
   {
-    if (!hidri_is_long(ri)) 
+    if (!tuh_hid_ri_is_long(ri)) 
     {
-      uint8_t const tag  = hidri_short_tag(ri);
-      uint8_t const type = hidri_short_type(ri);
+      uint8_t const tag  = tuh_hid_ri_short_tag(ri);
+      uint8_t const type = tuh_hid_ri_short_type(ri);
       switch(type)
       {
         case RI_TYPE_MAIN: {
           switch (tag)
           {
             case RI_MAIN_INPUT: {
-              info->in_len += hidrip_report_total_size_bits(&pstate);
+              info->in_len += tuh_hid_rip_report_total_size_bits(&pstate);
               info->usage = usage;
               info->usage_page = usage_page;
               break;
             }
             case RI_MAIN_OUTPUT: {
-              info->out_len += hidrip_report_total_size_bits(&pstate);
+              info->out_len += tuh_hid_rip_report_total_size_bits(&pstate);
               info->usage = usage;
               info->usage_page = usage_page;
               break;
@@ -228,7 +228,7 @@ uint8_t tuh_hid_parse_report_descriptor(tuh_hid_report_info_t* report_info_arr, 
                 info++;
                 report_num++;
               }
-              info->report_id = hidri_short_udata8(ri);
+              info->report_id = tuh_hid_ri_short_udata8(ri);
               break;
             }
             default: break;
