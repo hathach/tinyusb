@@ -135,6 +135,12 @@ void test_push_pop(void)
 
 // TODO test stack underflow
 
+// TODO test usage overflow
+
+// TODO test collection overflow
+
+// TODO test collection underflow
+
 void test_main_clears_local(void) 
 {
   uint8_t tb[] = { 

@@ -22,6 +22,8 @@
  * This file is part of the TinyUSB stack.
  */
 
+// TODO log error conditions
+
 #include "tusb_option.h"
 
 #if ((TUSB_OPT_HOST_ENABLED && CFG_TUH_HID) || _UNITY_TEST_)
@@ -39,6 +41,7 @@ void tuh_hid_rip_init_state(tuh_hid_rip_state_t *state, const uint8_t *report, u
   state->collections_count = 0;
   tu_memclr(&state->global_items, sizeof(uint8_t*) * HID_REPORT_STACK_SIZE * 16);
   tu_memclr(&state->local_items, sizeof(uint8_t*) * 16);
+  state->status = HID_RIP_OK;
 }
 
 const uint8_t* tuh_hid_rip_next_item(tuh_hid_rip_state_t *state) 
@@ -73,7 +76,7 @@ const uint8_t* tuh_hid_rip_next_item(tuh_hid_rip_state_t *state)
   state->item_length = il = tuh_hid_ri_size(ri, state->length);
   
   if (il <= 0) {
-    // record error somewhere
+    state->status = HID_RIP_ITEM_ERR;
     return NULL;
   }
 
@@ -86,13 +89,15 @@ const uint8_t* tuh_hid_rip_next_item(tuh_hid_rip_state_t *state)
         switch (short_tag) {
           case RI_GLOBAL_PUSH:
             if (++state->stack_index == HID_REPORT_STACK_SIZE) {
-              return NULL; // TODO enum? Stack overflow
+              state->status = HID_RIP_STACK_OVERFLOW;
+              return NULL;
             }
             memcpy(&state->global_items[state->stack_index], &state->global_items[state->stack_index - 1], sizeof(uint8_t*) * 16);
             break;
           case RI_GLOBAL_POP:
             if (state->stack_index-- == 0) {
-              return NULL; // TODO enum? Stack underflow
+              state->status = HID_RIP_STACK_UNDERFLOW;
+              return NULL;
             }
             break;
           default:
@@ -109,7 +114,8 @@ const uint8_t* tuh_hid_rip_next_item(tuh_hid_rip_state_t *state)
               usage |= usage_page << 16;
             }
             if (state->usage_count == HID_REPORT_MAX_USAGES) {
-              return NULL; // TODO enum? Max usages overflow
+              state->status = HID_RIP_USAGES_OVERFLOW;
+              return NULL;
             }
             state->usages[state->usage_count++] = usage;
             break;
@@ -123,14 +129,16 @@ const uint8_t* tuh_hid_rip_next_item(tuh_hid_rip_state_t *state)
         switch(short_tag) {
           case RI_MAIN_COLLECTION: {
             if (state->collections_count == HID_REPORT_MAX_COLLECTION_DEPTH) {
-              return NULL; // TODO enum? Max collections overflow
+              state->status = HID_RIP_COLLECTIONS_OVERFLOW;
+              return NULL;
             } 
             state->collections[state->collections_count++] = ri;
             break;
           }
           case RI_MAIN_COLLECTION_END:
             if (state->collections_count-- == 0) {
-              return NULL; // TODO enum? Max collections underflow
+              state->status = HID_RIP_COLLECTIONS_UNDERFLOW;
+              return NULL;
             }
             break;
           default:
@@ -260,6 +268,7 @@ uint8_t tuh_hid_parse_report_descriptor(tuh_hid_report_info_t* report_info_arr, 
   {
     info = report_info_arr+i;
     TU_LOG2("%u: id = %02X, usage_page = %04X, usage = %04X, in_len = %u, out_len = %u\r\n", i, info->report_id, info->usage_page, info->usage, info->in_len, info->out_len);
+    // TODO remove following line after testing
     printf("%u: id = %02X, usage_page = %04X, usage = %04X, in_len = %u, out_len = %u\r\n", i, info->report_id, info->usage_page, info->usage, info->in_len, info->out_len);
   }
 
