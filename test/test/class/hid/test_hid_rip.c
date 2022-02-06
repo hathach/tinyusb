@@ -131,15 +131,91 @@ void test_push_pop(void)
   TEST_ASSERT_EQUAL(0x01, tuh_hid_ri_short_udata32(tuh_hid_rip_global(&pstate, 0)));
 }
 
-// TODO test stack overflow
+void test_stack_overflow(void) 
+{
+  uint8_t tb[HID_REPORT_STACK_SIZE];
+  memset(tb, 0xA4, sizeof(tb));  // Push
+  
+  tuh_hid_rip_state_t pstate;
+  tuh_hid_rip_init_state(&pstate, (uint8_t*)&tb, sizeof(tb));
+  TEST_ASSERT_EQUAL(pstate.status, HID_RIP_INIT);
+  for (int i = 0; i < HID_REPORT_STACK_SIZE - 1; ++i) {
+    TEST_ASSERT_EQUAL(&tb[i], tuh_hid_rip_next_item(&pstate));
+    TEST_ASSERT_EQUAL(pstate.status, HID_RIP_TTEM_OK);
+  }
+  TEST_ASSERT_EQUAL(NULL, tuh_hid_rip_next_item(&pstate));
+  TEST_ASSERT_EQUAL(pstate.status, HID_RIP_STACK_OVERFLOW);
+}
 
-// TODO test stack underflow
+void test_stack_underflow(void) 
+{
+  uint8_t tb[] = { 
+    0xA4,              // Push
+    0xB4,              // Pop
+    0xB4,              // Pop
+  };
+  
+  tuh_hid_rip_state_t pstate;
+  tuh_hid_rip_init_state(&pstate, (uint8_t*)&tb, sizeof(tb));
+  TEST_ASSERT_EQUAL(pstate.status, HID_RIP_INIT);
+  TEST_ASSERT_EQUAL(&tb[0], tuh_hid_rip_next_item(&pstate));
+  TEST_ASSERT_EQUAL(pstate.status, HID_RIP_TTEM_OK);
+  TEST_ASSERT_EQUAL(&tb[1], tuh_hid_rip_next_item(&pstate));
+  TEST_ASSERT_EQUAL(pstate.status, HID_RIP_TTEM_OK);
+  TEST_ASSERT_EQUAL(0, tuh_hid_rip_next_item(&pstate));
+  TEST_ASSERT_EQUAL(pstate.status, HID_RIP_STACK_UNDERFLOW);
+}
 
-// TODO test usage overflow
+void test_usage_overflow(void) 
+{
+  uint8_t tb[HID_REPORT_MAX_USAGES + 1];
+  memset(tb, 0x08, sizeof(tb));  // Usage
+  
+  tuh_hid_rip_state_t pstate;
+  tuh_hid_rip_init_state(&pstate, (uint8_t*)&tb, sizeof(tb));
+  TEST_ASSERT_EQUAL(pstate.status, HID_RIP_INIT);
+  for (int i = 0; i < HID_REPORT_MAX_USAGES; ++i) {
+    TEST_ASSERT_EQUAL(&tb[i], tuh_hid_rip_next_item(&pstate));
+    TEST_ASSERT_EQUAL(pstate.status, HID_RIP_TTEM_OK);
+  }
+  TEST_ASSERT_EQUAL(NULL, tuh_hid_rip_next_item(&pstate));
+  TEST_ASSERT_EQUAL(pstate.status, HID_RIP_USAGES_OVERFLOW);
+}
 
-// TODO test collection overflow
+void test_collection_overflow(void) 
+{
+  uint8_t tb[HID_REPORT_MAX_COLLECTION_DEPTH + 1];
+  memset(tb, 0xA0, sizeof(tb));  // Collection start
+  
+  tuh_hid_rip_state_t pstate;
+  tuh_hid_rip_init_state(&pstate, (uint8_t*)&tb, sizeof(tb));
+  TEST_ASSERT_EQUAL(pstate.status, HID_RIP_INIT);
+  for (int i = 0; i < HID_REPORT_MAX_COLLECTION_DEPTH; ++i) {
+    TEST_ASSERT_EQUAL(&tb[i], tuh_hid_rip_next_item(&pstate));
+    TEST_ASSERT_EQUAL(pstate.status, HID_RIP_TTEM_OK);
+  }
+  TEST_ASSERT_EQUAL(NULL, tuh_hid_rip_next_item(&pstate));
+  TEST_ASSERT_EQUAL(pstate.status, HID_RIP_COLLECTIONS_OVERFLOW);
+}
 
-// TODO test collection underflow
+void test_collection_underflow(void) 
+{
+  uint8_t tb[] = { 
+    0xA0,              // Collection start
+    0xC0,              // Collection end
+    0xC0,              // Collection end
+  };
+  
+  tuh_hid_rip_state_t pstate;
+  tuh_hid_rip_init_state(&pstate, (uint8_t*)&tb, sizeof(tb));
+  TEST_ASSERT_EQUAL(pstate.status, HID_RIP_INIT);
+  TEST_ASSERT_EQUAL(&tb[0], tuh_hid_rip_next_item(&pstate));
+  TEST_ASSERT_EQUAL(pstate.status, HID_RIP_TTEM_OK);
+  TEST_ASSERT_EQUAL(&tb[1], tuh_hid_rip_next_item(&pstate));
+  TEST_ASSERT_EQUAL(pstate.status, HID_RIP_TTEM_OK);
+  TEST_ASSERT_EQUAL(0, tuh_hid_rip_next_item(&pstate));
+  TEST_ASSERT_EQUAL(pstate.status, HID_RIP_COLLECTIONS_UNDERFLOW);
+}
 
 void test_main_clears_local(void) 
 {
