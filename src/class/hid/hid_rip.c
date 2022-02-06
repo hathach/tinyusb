@@ -242,8 +242,7 @@ uint8_t tuh_hid_parse_report_descriptor(tuh_hid_report_info_t* report_info_arr, 
               // only take into account the "usage" before starting REPORT ID
               if ( pstate.collections_count == 0 ) {
                 uint32_t eusage = pstate.usages[pstate.usage_count - 1];
-                usage = eusage & 0xffff;
-                usage_page = eusage >> 16;
+                tuh_hid_ri_split_usage(eusage, &usage, &usage_page);
               }
             break;
 
@@ -260,8 +259,8 @@ uint8_t tuh_hid_parse_report_descriptor(tuh_hid_report_info_t* report_info_arr, 
   for ( uint8_t i = 0; i < report_num + 1; i++ )
   {
     info = report_info_arr+i;
-    TU_LOG2("%u: id = %02X, usage_page = %04X, usage = %04X\r\n", i, info->report_id, info->usage_page, info->usage);
-    printf("%u: id = %02X, usage_page = %04X, usage = %04X\r\n", i, info->report_id, info->usage_page, info->usage);
+    TU_LOG2("%u: id = %02X, usage_page = %04X, usage = %04X, in_len = %u, out_len = %u\r\n", i, info->report_id, info->usage_page, info->usage, info->in_len, info->out_len);
+    printf("%u: id = %02X, usage_page = %04X, usage = %04X, in_len = %u, out_len = %u\r\n", i, info->report_id, info->usage_page, info->usage, info->in_len, info->out_len);
   }
 
   return report_num + 1;
