@@ -86,16 +86,16 @@ const uint8_t* tuh_hid_ri_long_item_data(const uint8_t *ri) {
 
 int16_t tuh_hid_ri_size(const uint8_t *ri, uint16_t l) {
   // Make sure there is enough room for the header
-  if (l < 1) return TUH_HID_RI_EOF;
+  if (l < 1) return HID_RI_EOF;
   // Calculate the short item length
   uint16_t sl = 1 + tuh_hid_ri_short_data_length(ri);
   // check it fits
-  if (l < sl) return TUH_HID_RI_ERR_MISSING_SHORT;
+  if (l < sl) return HID_RI_ERR_MISSING_SHORT;
   // Check if we need to worry about a long item
   if (tuh_hid_ri_is_long(ri)) {
     uint16_t ll = tuh_hid_ri_long_data_length(ri);
     uint16_t tl = sl + ll;
-    if (l < tl) return TUH_HID_RI_ERR_MISSING_LONG;
+    if (l < tl) return HID_RI_ERR_MISSING_LONG;
     return tl;
   }
   else {

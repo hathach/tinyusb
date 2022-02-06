@@ -22,8 +22,6 @@
  * This file is part of the TinyUSB stack.
  */
 
-// TODO log error conditions
-
 #include "tusb_option.h"
 
 #if ((TUSB_OPT_HOST_ENABLED && CFG_TUH_HID) || _UNITY_TEST_)

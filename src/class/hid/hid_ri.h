@@ -74,9 +74,9 @@ uint8_t tuh_hid_ri_long_tag(const uint8_t *ri);
 // Get a pointer to the data in a long item
 const uint8_t* tuh_hid_ri_long_item_data(const uint8_t *ri);
 
-#define TUH_HID_RI_EOF                0
-#define TUH_HID_RI_ERR_MISSING_SHORT -1
-#define TUH_HID_RI_ERR_MISSING_LONG  -2
+#define HID_RI_EOF                0
+#define HID_RI_ERR_MISSING_SHORT -1
+#define HID_RI_ERR_MISSING_LONG  -2
 // Get the size of the item in bytes
 //
 // Important:
@@ -84,9 +84,9 @@ const uint8_t* tuh_hid_ri_long_item_data(const uint8_t *ri);
 //   and check the return code for eof or error.
 //
 //  return values:
-//    TUH_HID_RI_EOF                : no more values
-//    TUH_HID_RI_ERR_MISSING_SHORT  : missing short bytes,
-//    TUH_HID_RI_ERR_MISSING_LONG   : missing long bytes
+//    HID_RI_EOF                : no more values
+//    HID_RI_ERR_MISSING_SHORT  : missing short bytes,
+//    HID_RI_ERR_MISSING_LONG   : missing long bytes
 int16_t tuh_hid_ri_size(const uint8_t *ri, uint16_t l);
 
 // Split an extended usage into local and page values
