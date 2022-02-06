@@ -186,13 +186,12 @@ uint8_t tuh_hid_parse_report_descriptor(tuh_hid_report_info_t* report_info_arr, 
   // Prepare the summary array
   tu_memclr(report_info_arr, arr_count*sizeof(tuh_hid_report_info_t));
   uint8_t report_num = 0;
+  uint16_t usage = 0;
+  uint16_t usage_page = 0;
+  
   tuh_hid_report_info_t* info = report_info_arr;
-  uint8_t ri_report_count = 0;
-  uint8_t ri_report_size = 0;  
-
   tuh_hid_rip_state_t pstate;
   hidrip_init_state(&pstate, desc_report, desc_len);
-  int il = 0;
   const uint8_t *ri;
   while((ri = hidrip_next_item(&pstate)) != NULL)
   {
@@ -207,10 +206,14 @@ uint8_t tuh_hid_parse_report_descriptor(tuh_hid_report_info_t* report_info_arr, 
           {
             case RI_MAIN_INPUT: {
               info->in_len += hidrip_report_total_size_bits(&pstate);
+              info->usage = usage;
+              info->usage_page = usage_page;
               break;
             }
             case RI_MAIN_OUTPUT: {
               info->out_len += hidrip_report_total_size_bits(&pstate);
+              info->usage = usage;
+              info->usage_page = usage_page;
               break;
             }
             default: break;
@@ -225,7 +228,7 @@ uint8_t tuh_hid_parse_report_descriptor(tuh_hid_report_info_t* report_info_arr, 
                 info++;
                 report_num++;
               }
-              info->report_id = hidri_short_udata8(hidrip_current_item(&pstate));
+              info->report_id = hidri_short_udata8(ri);
               break;
             }
             default: break;
@@ -239,8 +242,8 @@ uint8_t tuh_hid_parse_report_descriptor(tuh_hid_report_info_t* report_info_arr, 
               // only take in account the "usage" before starting REPORT ID
               if ( pstate.collections_count == 0 ) {
                 uint32_t eusage = pstate.usages[pstate.usage_count - 1];
-                info->usage = eusage & 0xffff;
-                info->usage_page = eusage >> 16;
+                usage = eusage & 0xffff;
+                usage_page = eusage >> 16;
               }
             break;
 
