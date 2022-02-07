@@ -26,7 +26,7 @@
 
 #include "tusb_option.h"
 
-#if ((TUSB_OPT_HOST_ENABLED && CFG_TUH_HID) || _UNITY_TEST_)
+#if (TUSB_OPT_HOST_ENABLED && CFG_TUH_HID)
 
 #include "host/usbh.h"
 #include "host/usbh_classdriver.h"

@@ -238,7 +238,7 @@ uint8_t tuh_hid_parse_report_descriptor(tuh_hid_report_info_t* report_info_arr, 
           switch(tag)
           {
             case RI_GLOBAL_REPORT_ID: {
-              if (info->in_len > 0 || info->out_len > 0) {
+              if (info->report_id > 0 || info->in_len > 0 || info->out_len > 0) {
                 info++;
                 report_num++;
               }
@@ -274,8 +274,6 @@ uint8_t tuh_hid_parse_report_descriptor(tuh_hid_report_info_t* report_info_arr, 
   {
     info = report_info_arr+i;
     TU_LOG2("%u: id = %02X, usage_page = %04X, usage = %04X, in_len = %u, out_len = %u\r\n", i, info->report_id, info->usage_page, info->usage, info->in_len, info->out_len);
-    // TODO remove following line after testing
-    printf("%u: id = %02X, usage_page = %04X, usage = %04X, in_len = %u, out_len = %u\r\n", i, info->report_id, info->usage_page, info->usage, info->in_len, info->out_len);
   }
 
   return report_num + 1;

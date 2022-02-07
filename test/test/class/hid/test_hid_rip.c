@@ -380,7 +380,8 @@ void test_hid_parse_report_descriptor_dual_report() {
     0x15, 0x00,        //   Logical Minimum (0)
     0x25, 0x01,        //   Logical Maximum (1)
     0x75, 0x01,        //   Report Size (1)
-    0x95, 0x01,        //   Report Count (1)
+    0x95, 0x02,        //   Report Count (2)
+    0x09, 0xE2,        //   Usage (Mute)
     0x09, 0xE2,        //   Usage (Mute)
     0x81, 0x62,        //   Input (Data,Var,Abs,No Wrap,Linear,No Preferred State,Null State)
     0xC0,              // End Collection
@@ -398,7 +399,7 @@ void test_hid_parse_report_descriptor_dual_report() {
   TEST_ASSERT_EQUAL(0, report_info[1].usage_page);
   TEST_ASSERT_EQUAL(1, report_info[1].usage);
   TEST_ASSERT_EQUAL(2, report_info[1].report_id);
-  TEST_ASSERT_EQUAL(1*1, report_info[1].in_len);
+  TEST_ASSERT_EQUAL(1*2, report_info[1].in_len);
   TEST_ASSERT_EQUAL(0, report_info[1].out_len);
 }
 
