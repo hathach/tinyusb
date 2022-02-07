@@ -42,6 +42,16 @@
 //
 // Iterates through report items and manages state rules.
 //
+// Expected usage:
+//
+//    tuh_hid_rip_state_t pstate;
+//    tuh_hid_rip_init_state(&pstate, desc_report, desc_len);
+//    const uint8_t *ri;
+//    while((ri = tuh_hid_rip_next_item(&pstate)) != NULL)
+//    {
+//       ...
+//    }
+//
 // See:
 //    https://www.usb.org/sites/default/files/hid1_11.pdf
 //    https://eleccelerator.com/usbdescreqparser/
