@@ -54,7 +54,7 @@
 #define HID_REPORT_MAX_COLLECTION_DEPTH 20
 
 typedef enum tuh_hid_rip_status {
-  HID_RIP_INIT = 0,                  // Initial state
+  HID_RIP_INIT = 0,              // Initial state
   HID_RIP_EOF,                   // No more items
   HID_RIP_TTEM_OK,               // Last item parsed ok
   HID_RIP_ITEM_ERR,              // Issue decoding a single report item

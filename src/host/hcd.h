@@ -82,7 +82,7 @@ typedef struct
 
 } hcd_event_t;
 
-#if TUSB_OPT_HOST_ENABLED || _UNITY_TEST_
+#if TUSB_OPT_HOST_ENABLED
 // Max number of endpoints per device
 enum {
   // TODO better computation
