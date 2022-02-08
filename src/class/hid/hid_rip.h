@@ -72,7 +72,7 @@ typedef enum tuh_hid_rip_status {
   HID_RIP_STACK_UNDERFLOW,       // Too many pops
   HID_RIP_USAGES_OVERFLOW,       // Too many usages
   HID_RIP_COLLECTIONS_OVERFLOW,  // Too many collections
-  HID_RIP_COLLECTIONS_UNDERFLOW  // More collection starts than ends
+  HID_RIP_COLLECTIONS_UNDERFLOW  // More collection ends than starts
 } tuh_hid_rip_status_t;
 
 typedef struct tuh_hid_rip_state {
