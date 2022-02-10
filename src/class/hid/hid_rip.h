@@ -49,6 +49,7 @@
 //    const uint8_t *ri;
 //    while((ri = tuh_hid_rip_next_item(&pstate)) != NULL)
 //    {
+//       // ri points to the current hid report item
 //       ...
 //    }
 //
@@ -112,12 +113,12 @@ void tuh_hid_rip_init_state(tuh_hid_rip_state_t *state, const uint8_t *report, u
 //
 const uint8_t* tuh_hid_rip_next_item(tuh_hid_rip_state_t *state);
 
-// Accessor for the curren value of a global item
+// Accessor for the current value of a global item
 //
 // Returns a pointer to the start of the item of null
 const uint8_t* tuh_hid_rip_global(tuh_hid_rip_state_t *state, uint8_t tag);
 
-// Accessor for the curren value of a local item
+// Accessor for the current value of a local item
 //
 // Returns a pointer to the start of the item of null
 const uint8_t* tuh_hid_rip_local(tuh_hid_rip_state_t *state, uint8_t tag);
