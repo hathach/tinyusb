@@ -586,5 +586,20 @@ void test_hid_parse_speedlink_report() {
   TEST_ASSERT_EQUAL(1, report_count);
 }
 
+void test_tuh_hid_report_bits_u32() {
+  const uint8_t const tb[] = {
+    0x50, 0x05, 0x8f, 0xff
+  };
+  TEST_ASSERT_EQUAL(0x55, tuh_hid_report_bits_u32(tb, 4, 8));
+  TEST_ASSERT_EQUAL(0x8f, tuh_hid_report_bits_u32(tb, 16, 8));
+  TEST_ASSERT_EQUAL(0xff8f0550, tuh_hid_report_bits_u32(tb, 0, 32));
+}
 
-
+void test_tuh_hid_report_bits_i32() {
+  const uint8_t const tb[] = {
+    0x50, 0x05, 0x8f, 0xff
+  };
+  TEST_ASSERT_EQUAL(0x55, tuh_hid_report_bits_i32(tb, 4, 8));
+  TEST_ASSERT_EQUAL(0xffffff8f, tuh_hid_report_bits_i32(tb, 16, 8));
+  TEST_ASSERT_EQUAL(0xff8f0550, tuh_hid_report_bits_i32(tb, 0, 32));
+}

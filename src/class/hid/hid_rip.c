@@ -192,6 +192,34 @@ uint32_t tuh_hid_rip_report_total_size_bits(tuh_hid_rip_state_t *state)
   }
 }
 
+uint32_t tuh_hid_report_bits_u32(uint8_t const* report, uint8_t start, uint8_t length)
+{
+  const int16_t bit_offset_start = start & 7;
+  const int16_t l = length + bit_offset_start;
+  const uint8_t *p = report + (start >> 3);
+  uint32_t acc = ((uint32_t)*p++) >> bit_offset_start;
+  for(uint16_t i = 1; (i << 3) < l; ++i) {
+    acc |= ((uint32_t)*p++) << ((i << 3) - bit_offset_start);
+  }
+  const uint32_t m = (((uint32_t)1) << length) - 1;
+  return acc & m;
+}
+
+int32_t tuh_hid_report_bits_i32(uint8_t const* report, uint8_t start, uint8_t length)
+{
+  const int16_t bit_offset_start = start & 7;
+  const int16_t l = length + bit_offset_start;
+  const uint8_t *p = report + (start >> 3);
+  uint32_t acc = ((uint32_t)*p++) >> bit_offset_start;
+  for(uint16_t i = 1; (i << 3) < l; ++i) {
+    acc |= ((uint32_t)*p++) << ((i << 3) - bit_offset_start);
+  }
+  const uint32_t lp0 = ((uint32_t)1) << (length - 1);
+  const uint32_t lp1 = lp0 << 1;
+  // Mask or sign extend
+  return acc & lp0 ? acc | -lp1 : acc & (lp1 - 1);
+}
+
 //--------------------------------------------------------------------+
 // Report Descriptor Parser
 //--------------------------------------------------------------------+

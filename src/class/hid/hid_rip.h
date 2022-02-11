@@ -131,9 +131,23 @@ const uint8_t* tuh_hid_rip_current_item(tuh_hid_rip_state_t *state);
 // Note: this currently does not include the Report ID byte
 uint32_t tuh_hid_rip_report_total_size_bits(tuh_hid_rip_state_t *state);
 
+//--------------------------------------------------------------------+
+// Report Descriptor Parser
+//
 // Parse report descriptor into array of report_info struct and return number of reports.
 // For complicated report, application should write its own parser.
+//--------------------------------------------------------------------+
 uint8_t tuh_hid_parse_report_descriptor(tuh_hid_report_info_t* reports_info_arr, uint8_t arr_count, uint8_t const* desc_report, uint16_t desc_len) TU_ATTR_UNUSED;
+
+//--------------------------------------------------------------------+
+// Helpers for extracting values from a HID Report
+//--------------------------------------------------------------------+
+
+// Helper to get some bits from a HID report as an unsigned 32 bit number
+uint32_t tuh_hid_report_bits_u32(uint8_t const* report, uint8_t start, uint8_t length);
+
+// Helper to get some bits from a HID report as a signed 32 bit number
+int32_t tuh_hid_report_bits_i32(uint8_t const* report, uint8_t start, uint8_t length);
 
 #endif
 
