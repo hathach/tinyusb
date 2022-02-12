@@ -38,7 +38,7 @@
 
 static uint8_t const keycode2ascii[128][2] =  { HID_KEYCODE_TO_ASCII };
 
-// Each HID instance can has multiple reports
+// Each HID instance can have multiple reports
 static struct
 {
   uint8_t report_count;

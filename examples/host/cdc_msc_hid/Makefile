@@ -16,6 +16,8 @@ CFLAGS += -Wno-error=cast-align -Wno-error=null-dereference
 SRC_C += \
 	src/class/cdc/cdc_host.c \
 	src/class/hid/hid_host.c \
+	src/class/hid/hid_rip.c \
+	src/class/hid/hid_ri.c \
 	src/class/msc/msc_host.c \
 	src/host/hub.c \
 	src/host/usbh.c \

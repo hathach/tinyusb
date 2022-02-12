@@ -36,6 +36,7 @@
     - -:test/support
   :source:
     - ../src/**
+    - ../examples/**
   :support:
     - test/support
 
