@@ -83,10 +83,14 @@ typedef struct {
 typedef struct {
   uint32_t report_size;   // TODO make this a uint8_t and range check before assignment
   uint32_t report_count;  // TODO make this a uint8_t and range check before assignment
-  uint8_t report_id;
   uint32_t logical_min;
   uint32_t logical_max;
+  uint16_t usage_page;
+  uint16_t usage_min;
+  uint16_t usage_max;
+  uint8_t report_id;
   tusb_hid_ri_intput_flags_t input_flags;
+  bool usage_is_range;
 } tuh_hid_joystick_data_t;
 
 // Fetch some data from the HID parser
@@ -97,7 +101,14 @@ typedef struct {
 bool tuh_hid_joystick_get_data(
   tuh_hid_rip_state_t *pstate,     // The current HID report parser state
   const uint8_t* ri_input,         // Pointer to the input item we have arrived at
-  tuh_hid_joystick_data_t* jdata); // Data structure to complete
+  tuh_hid_joystick_data_t* jdata   // Data structure to complete
+);
+
+void tuh_hid_joystick_process_usages(
+  tuh_hid_rip_state_t *pstate,
+  tuh_hid_joystick_data_t* jdata,
+  uint32_t bitpos
+);
 
 uint8_t tuh_hid_joystick_parse_report_descriptor(uint8_t const* desc_report, uint16_t desc_len);
 

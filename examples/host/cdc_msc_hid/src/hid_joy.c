@@ -40,8 +40,6 @@ static bool tuh_hid_joystick_check_usage(uint32_t eusage) {
   }
 }
 
-
-
 // Fetch some data from the HID parser
 //
 // The data fetched here may be relevant to multiple usage items
@@ -57,9 +55,12 @@ bool tuh_hid_joystick_get_data(
   const uint8_t* ri_report_id = tuh_hid_rip_global(pstate, RI_GLOBAL_REPORT_ID);
   const uint8_t* ri_logical_min = tuh_hid_rip_global(pstate, RI_GLOBAL_LOGICAL_MIN);
   const uint8_t* ri_logical_max = tuh_hid_rip_global(pstate, RI_GLOBAL_LOGICAL_MAX);
-
+  const uint8_t* ri_usage_page = tuh_hid_rip_global(pstate, RI_GLOBAL_USAGE_PAGE);
+  const uint8_t* ri_usage_min = tuh_hid_rip_local(pstate, RI_LOCAL_USAGE_MIN);
+  const uint8_t* ri_usage_max = tuh_hid_rip_local(pstate, RI_LOCAL_USAGE_MAX);
+    
   // We need to know how the size of the data
-  if (ri_report_size == NULL || ri_report_count == NULL) return false;
+  if (ri_report_size == NULL || ri_report_count == NULL || ri_usage_page == NULL) return false;
   
   jdata->report_size = tuh_hid_ri_short_udata32(ri_report_size);
   jdata->report_count = tuh_hid_ri_short_udata32(ri_report_count);
@@ -67,8 +68,67 @@ bool tuh_hid_joystick_get_data(
   jdata->logical_min = ri_logical_min ? tuh_hid_ri_short_data32(ri_logical_min) : 0;
   jdata->logical_max = ri_logical_max ? tuh_hid_ri_short_data32(ri_logical_max) : 0;
   jdata->input_flags.byte = tuh_hid_ri_short_udata8(ri_input);
+  jdata->usage_page = tuh_hid_ri_short_udata32(ri_usage_page);
+  jdata->usage_min = ri_usage_min ? tuh_hid_ri_short_udata32(ri_usage_min) : 0;
+  jdata->usage_max = ri_usage_max ? tuh_hid_ri_short_udata32(ri_usage_max) : 0;
+  jdata->usage_is_range = (ri_usage_min != NULL) && (ri_usage_max != NULL);
   
   return true;
+}
+
+void tuh_hid_joystick_process_usages(
+  tuh_hid_rip_state_t *pstate,
+  tuh_hid_joystick_data_t* jdata,
+  uint32_t bitpos) 
+{
+  if (jdata->input_flags.data_const) {
+    printf("const bits %d \n", jdata->report_size * jdata->report_count);
+    return;
+  }
+  
+  // If there are no specific usages look for a range
+  // TODO What is the correct behaviour if there are both?
+  if (pstate->usage_count == 0 && !jdata->usage_is_range) {
+    printf("no usage - skipping bits %d \n", jdata->report_size * jdata->report_count);
+    return;
+  }
+  
+  if (jdata->input_flags.data_const) {
+    printf("skipping const bits %d \n", jdata->report_size * jdata->report_count);
+    return;
+  }
+  
+  // TODO Naive, assumes buttons are defined in a range
+  if (jdata->usage_is_range) {
+    if (jdata->usage_page == HID_USAGE_PAGE_BUTTON) {
+      printf("Buttons %d to %d\n", jdata->usage_min, jdata->usage_max);
+      return;
+    }
+  }
+
+  for (uint8_t i = 0; i < jdata->report_count; ++i) {
+    uint32_t eusage = pstate->usages[i < pstate->usage_count ? i : pstate->usage_count - 1];
+    switch (eusage) {
+      // Seems to be common usage for gamepads.
+      // Probably needs a lot more thought...
+      case HID_EUSAGE(HID_USAGE_PAGE_DESKTOP, HID_USAGE_DESKTOP_X):
+      case HID_EUSAGE(HID_USAGE_PAGE_DESKTOP, HID_USAGE_DESKTOP_Y):
+      case HID_EUSAGE(HID_USAGE_PAGE_DESKTOP, HID_USAGE_DESKTOP_Z):
+      case HID_EUSAGE(HID_USAGE_PAGE_DESKTOP, HID_USAGE_DESKTOP_RZ):
+        printf("Axis\n");
+        break;
+      
+      case HID_EUSAGE(HID_USAGE_PAGE_DESKTOP, HID_USAGE_DESKTOP_HAT_SWITCH):
+        printf("Hat\n");
+        break;
+      
+      default: break;
+    }
+     
+
+    bitpos += jdata->report_size;
+  }
+
 }
 
 uint8_t tuh_hid_joystick_parse_report_descriptor(uint8_t const* desc_report, uint16_t desc_len) {

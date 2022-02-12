@@ -170,7 +170,9 @@ void test_tuh_hid_joystick_get_data() {
     TEST_ASSERT_EQUAL(0, joystick_data.report_id);
     TEST_ASSERT_EQUAL(0, joystick_data.logical_min);
     TEST_ASSERT_EQUAL(255, joystick_data.logical_max);
-    
+    TEST_ASSERT_EQUAL(false, joystick_data.usage_is_range);
+
+    // Input (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position)
     TEST_ASSERT_EQUAL(false, joystick_data.input_flags.data_const);
     TEST_ASSERT_EQUAL(true, joystick_data.input_flags.array_variable);
     TEST_ASSERT_EQUAL(false, joystick_data.input_flags.absolute_relative);
@@ -179,17 +181,20 @@ void test_tuh_hid_joystick_get_data() {
     TEST_ASSERT_EQUAL(false, joystick_data.input_flags.prefered_noprefered);
     TEST_ASSERT_EQUAL(false, joystick_data.input_flags.nonull_null);
 
+    tuh_hid_joystick_process_usages(&pstate, &joystick_data, 0);
+
+
     while((ri = tuh_hid_rip_next_item(&pstate)) != NULL ) if (ri >= &tb_speedlink[47]) break;
     TEST_ASSERT_EQUAL(&tb_speedlink[47], ri); // Move to the second input in the speedlink description
     TEST_ASSERT_EQUAL(true, tuh_hid_joystick_get_data(&pstate, ri, &joystick_data));
 
-    // Input (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position)
     TEST_ASSERT_EQUAL(4, joystick_data.report_size);
     TEST_ASSERT_EQUAL(1, joystick_data.report_count);
     TEST_ASSERT_EQUAL(0, joystick_data.report_id);
     TEST_ASSERT_EQUAL(0, joystick_data.logical_min);
     TEST_ASSERT_EQUAL(7, joystick_data.logical_max);
-    
+    TEST_ASSERT_EQUAL(false, joystick_data.usage_is_range);
+
     // Input (Data,Var,Abs,No Wrap,Linear,Preferred State,Null State)
     TEST_ASSERT_EQUAL(false, joystick_data.input_flags.data_const);
     TEST_ASSERT_EQUAL(true, joystick_data.input_flags.array_variable);
@@ -198,6 +203,34 @@ void test_tuh_hid_joystick_get_data() {
     TEST_ASSERT_EQUAL(false, joystick_data.input_flags.linear_nonlinear);
     TEST_ASSERT_EQUAL(false, joystick_data.input_flags.prefered_noprefered);
     TEST_ASSERT_EQUAL(true, joystick_data.input_flags.nonull_null);
+
+    tuh_hid_joystick_process_usages(&pstate, &joystick_data, 40);
+
+
+    while((ri = tuh_hid_rip_next_item(&pstate)) != NULL ) if (ri >= &tb_speedlink[65]) break;
+    TEST_ASSERT_EQUAL(&tb_speedlink[65], ri); // Move to the second input in the speedlink description
+    TEST_ASSERT_EQUAL(true, tuh_hid_joystick_get_data(&pstate, ri, &joystick_data));
+
+    TEST_ASSERT_EQUAL(1, joystick_data.report_size);
+    TEST_ASSERT_EQUAL(12, joystick_data.report_count);
+    TEST_ASSERT_EQUAL(0, joystick_data.report_id);
+    TEST_ASSERT_EQUAL(0, joystick_data.logical_min);
+    TEST_ASSERT_EQUAL(1, joystick_data.logical_max);
+    TEST_ASSERT_EQUAL(true, joystick_data.usage_is_range);
+    TEST_ASSERT_EQUAL(1, joystick_data.usage_min);
+    TEST_ASSERT_EQUAL(12, joystick_data.usage_max);
+    
+    // Input (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position)
+    TEST_ASSERT_EQUAL(false, joystick_data.input_flags.data_const);
+    TEST_ASSERT_EQUAL(true, joystick_data.input_flags.array_variable);
+    TEST_ASSERT_EQUAL(false, joystick_data.input_flags.absolute_relative);
+    TEST_ASSERT_EQUAL(false, joystick_data.input_flags.nowrap_wrap);
+    TEST_ASSERT_EQUAL(false, joystick_data.input_flags.linear_nonlinear);
+    TEST_ASSERT_EQUAL(false, joystick_data.input_flags.prefered_noprefered);
+    TEST_ASSERT_EQUAL(false, joystick_data.input_flags.nonull_null);
+    
+    tuh_hid_joystick_process_usages(&pstate, &joystick_data, 44); // 56
+
 }
 
 
