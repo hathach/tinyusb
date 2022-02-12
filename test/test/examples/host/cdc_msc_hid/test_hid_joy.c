@@ -32,28 +32,7 @@ TEST_FILE("hid_ri.c")
 TEST_FILE("hid_rip.c")
 TEST_FILE("hid_joy.c")
 
-void setUp(void)
-{
-}
-
-void tearDown(void)
-{
-}
-
-//--------------------------------------------------------------------+
-// Tests
-//--------------------------------------------------------------------+
-void test_nothing() {
-  const uint8_t const tb[] = { 
-    0x05, 0x01,        // Usage Page (Generic Desktop Ctrls)
-    0x09, 0x04,        // Usage (Joystick)
-  };
-  TEST_ASSERT_EQUAL(0, tuh_hid_joystick_parse_report_descriptor(tb, sizeof(tb)));
-}
-
-
-void test_hid_parse_greenasia_report() {
-  const uint8_t const tb[] = { 
+static const uint8_t const tb_greenasia[] = { 
     0x05, 0x01,        // Usage Page (Generic Desktop Ctrls)
     0x09, 0x04,        // Usage (Joystick)
     0xA1, 0x01,        // Collection (Application)
@@ -103,13 +82,9 @@ void test_hid_parse_greenasia_report() {
     0x91, 0x02,        //     Output (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position,Non-volatile)
     0xC0,              //   End Collection
     0xC0,              // End Collection
-  };
-  tuh_hid_joystick_parse_report_descriptor(tb, sizeof(tb));
+};
 
-}
-
-void test_hid_parse_speedlink_report() {
-  const uint8_t const tb[] = { 
+static const uint8_t const tb_speedlink[] = { 
     0x05, 0x01,        // Usage Page (Generic Desktop Ctrls)
     0x09, 0x04,        // Usage (Joystick)
     0xA1, 0x01,        // Collection (Application)
@@ -160,6 +135,80 @@ void test_hid_parse_speedlink_report() {
     0xC0,              //   End Collection
     0xC0,              // End Collection
   };
+
+void setUp(void)
+{
+}
+
+void tearDown(void)
+{
+}
+
+//--------------------------------------------------------------------+
+// Tests
+//--------------------------------------------------------------------+
+void test_nothing() {
+  const uint8_t const tb[] = { 
+    0x05, 0x01,        // Usage Page (Generic Desktop Ctrls)
+    0x09, 0x04,        // Usage (Joystick)
+  };
+  TEST_ASSERT_EQUAL(0, tuh_hid_joystick_parse_report_descriptor(tb, sizeof(tb)));
+}
+
+void test_tuh_hid_joystick_get_data() {
+    tuh_hid_joystick_data_t joystick_data;
+    tuh_hid_rip_state_t pstate;
+    tuh_hid_rip_init_state(&pstate, tb_speedlink, sizeof(tb_speedlink));
+    const uint8_t *ri;
+    
+    while((ri = tuh_hid_rip_next_item(&pstate)) != NULL ) if (ri >= &tb_speedlink[32]) break;
+    TEST_ASSERT_EQUAL(&tb_speedlink[32], ri); // Move to the first input in the speedlink description
+    TEST_ASSERT_EQUAL(true, tuh_hid_joystick_get_data(&pstate, ri, &joystick_data));
+    
+    TEST_ASSERT_EQUAL(8, joystick_data.report_size);
+    TEST_ASSERT_EQUAL(5, joystick_data.report_count);
+    TEST_ASSERT_EQUAL(0, joystick_data.report_id);
+    TEST_ASSERT_EQUAL(0, joystick_data.logical_min);
+    TEST_ASSERT_EQUAL(255, joystick_data.logical_max);
+    
+    TEST_ASSERT_EQUAL(false, joystick_data.input_flags.data_const);
+    TEST_ASSERT_EQUAL(true, joystick_data.input_flags.array_variable);
+    TEST_ASSERT_EQUAL(false, joystick_data.input_flags.absolute_relative);
+    TEST_ASSERT_EQUAL(false, joystick_data.input_flags.nowrap_wrap);
+    TEST_ASSERT_EQUAL(false, joystick_data.input_flags.linear_nonlinear);
+    TEST_ASSERT_EQUAL(false, joystick_data.input_flags.prefered_noprefered);
+    TEST_ASSERT_EQUAL(false, joystick_data.input_flags.nonull_null);
+
+    while((ri = tuh_hid_rip_next_item(&pstate)) != NULL ) if (ri >= &tb_speedlink[47]) break;
+    TEST_ASSERT_EQUAL(&tb_speedlink[47], ri); // Move to the second input in the speedlink description
+    TEST_ASSERT_EQUAL(true, tuh_hid_joystick_get_data(&pstate, ri, &joystick_data));
+
+    // Input (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position)
+    TEST_ASSERT_EQUAL(4, joystick_data.report_size);
+    TEST_ASSERT_EQUAL(1, joystick_data.report_count);
+    TEST_ASSERT_EQUAL(0, joystick_data.report_id);
+    TEST_ASSERT_EQUAL(0, joystick_data.logical_min);
+    TEST_ASSERT_EQUAL(7, joystick_data.logical_max);
+    
+    // Input (Data,Var,Abs,No Wrap,Linear,Preferred State,Null State)
+    TEST_ASSERT_EQUAL(false, joystick_data.input_flags.data_const);
+    TEST_ASSERT_EQUAL(true, joystick_data.input_flags.array_variable);
+    TEST_ASSERT_EQUAL(false, joystick_data.input_flags.absolute_relative);
+    TEST_ASSERT_EQUAL(false, joystick_data.input_flags.nowrap_wrap);
+    TEST_ASSERT_EQUAL(false, joystick_data.input_flags.linear_nonlinear);
+    TEST_ASSERT_EQUAL(false, joystick_data.input_flags.prefered_noprefered);
+    TEST_ASSERT_EQUAL(true, joystick_data.input_flags.nonull_null);
+}
+
+
+void test_hid_parse_greenasia_report() {
+
+  // tuh_hid_joystick_parse_report_descriptor(tb, sizeof(tb));
+
+}
+
+void test_hid_parse_speedlink_report() {
+
 
 }
 

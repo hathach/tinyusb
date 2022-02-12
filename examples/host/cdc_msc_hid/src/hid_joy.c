@@ -1,8 +1,6 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2021, Ha Thach (tinyusb.org)
- *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
  * in the Software without restriction, including without limitation the rights
@@ -21,10 +19,12 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  *
+ * Test me with:
+ * 
+ * ceedling test:pattern[hid_joy]
  */
 
 #include "hid_joy.h"
-#include "hid_rip.h"
 
 static uint8_t hid_simple_joysick_count = 0;
 static tusb_hid_simple_joysick_t hid_simple_joysicks[HID_MAX_JOYSTICKS];
@@ -35,9 +35,40 @@ static bool tuh_hid_joystick_check_usage(uint32_t eusage) {
   // Check outer usage
   switch(eusage) {
     case HID_EUSAGE(HID_USAGE_PAGE_DESKTOP, HID_USAGE_DESKTOP_JOYSTICK): return true;
-    case HID_EUSAGE(HID_USAGE_PAGE_DESKTOP, HID_USAGE_DESKTOP_GAMEPAD): return true;
+    case HID_EUSAGE(HID_USAGE_PAGE_DESKTOP, HID_USAGE_DESKTOP_GAMEPAD): return true; // TODO not sure about this one
     default: return false;
   }
+}
+
+
+
+// Fetch some data from the HID parser
+//
+// The data fetched here may be relevant to multiple usage items
+//
+// returns false if obviously not of interest
+bool tuh_hid_joystick_get_data(
+  tuh_hid_rip_state_t *pstate,     // The current HID report parser state
+  const uint8_t* ri_input,         // Pointer to the input item we have arrived at
+  tuh_hid_joystick_data_t* jdata)  // Data structure to complete
+{
+  const uint8_t* ri_report_size = tuh_hid_rip_global(pstate, RI_GLOBAL_REPORT_SIZE);
+  const uint8_t* ri_report_count = tuh_hid_rip_global(pstate, RI_GLOBAL_REPORT_COUNT);
+  const uint8_t* ri_report_id = tuh_hid_rip_global(pstate, RI_GLOBAL_REPORT_ID);
+  const uint8_t* ri_logical_min = tuh_hid_rip_global(pstate, RI_GLOBAL_LOGICAL_MIN);
+  const uint8_t* ri_logical_max = tuh_hid_rip_global(pstate, RI_GLOBAL_LOGICAL_MAX);
+
+  // We need to know how the size of the data
+  if (ri_report_size == NULL || ri_report_count == NULL) return false;
+  
+  jdata->report_size = tuh_hid_ri_short_udata32(ri_report_size);
+  jdata->report_count = tuh_hid_ri_short_udata32(ri_report_count);
+  jdata->report_id = ri_report_id ? tuh_hid_ri_short_udata8(ri_report_id) : 0;
+  jdata->logical_min = ri_logical_min ? tuh_hid_ri_short_data32(ri_logical_min) : 0;
+  jdata->logical_max = ri_logical_max ? tuh_hid_ri_short_data32(ri_logical_max) : 0;
+  jdata->input_flags.byte = tuh_hid_ri_short_udata8(ri_input);
+  
+  return true;
 }
 
 uint8_t tuh_hid_joystick_parse_report_descriptor(uint8_t const* desc_report, uint16_t desc_len) {
