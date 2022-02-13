@@ -199,7 +199,7 @@ uint32_t tuh_hid_rip_report_total_size_bits(tuh_hid_rip_state_t *state)
   }
 }
 
-uint32_t tuh_hid_report_bits_u32(uint8_t const* report, uint8_t start, uint8_t length)
+uint32_t tuh_hid_report_bits_u32(uint8_t const* report, uint16_t start, uint16_t length)
 {
   const int16_t bit_offset_start = start & 7;
   const int16_t l = length + bit_offset_start;
@@ -212,7 +212,7 @@ uint32_t tuh_hid_report_bits_u32(uint8_t const* report, uint8_t start, uint8_t l
   return acc & m;
 }
 
-int32_t tuh_hid_report_bits_i32(uint8_t const* report, uint8_t start, uint8_t length)
+int32_t tuh_hid_report_bits_i32(uint8_t const* report, uint16_t start, uint16_t length)
 {
   const int16_t bit_offset_start = start & 7;
   const int16_t l = length + bit_offset_start;
@@ -225,6 +225,47 @@ int32_t tuh_hid_report_bits_i32(uint8_t const* report, uint8_t start, uint8_t le
   const uint32_t lp1 = lp0 << 1;
   // Mask or sign extend
   return acc & lp0 ? acc | -lp1 : acc & (lp1 - 1);
+}
+
+// Helper to get some bytes from a HID report as an unsigned 32 bit number
+uint32_t tuh_hid_report_bytes_u32(uint8_t const* report, uint16_t start, uint16_t length)
+{
+  const uint8_t *p = report + start;
+  uint32_t acc = 0;
+  for(uint16_t i = 0; i < length; ++i) {
+    acc |= (uint32_t)*p++;
+  }
+  return acc;   
+}
+
+// Helper to get some bytes from a HID report as a signed 32 bit number
+int32_t tuh_hid_report_bytes_i32(uint8_t const* report, uint16_t start, uint16_t length)
+{
+  const uint8_t *p = report + start;
+  uint32_t acc = 0;
+  for(uint16_t i = 0; i < length; ++i) {
+    acc |= (uint32_t)*p++;
+  }
+  const uint32_t lp0 = ((uint32_t)1) << (length + 2);
+  const uint32_t lp1 = lp0 << 1;
+  // sign extend
+  return acc & lp0 ? acc | -lp1 : acc;  
+}
+
+// Helper to get a value from a HID report
+int32_t tuh_hid_report_i32(const uint8_t* report, uint16_t start, uint16_t length, bool is_signed) 
+{
+  if (length == 0) return 0;
+  if ((start | length) & 7) {
+    return is_signed ?
+      tuh_hid_report_bits_i32(report, start, length):
+      (int32_t)tuh_hid_report_bits_u32(report, start, length);
+  }
+  else {
+    return is_signed ?
+      tuh_hid_report_bytes_i32(report, start >> 3, length >> 3):
+      (int32_t)tuh_hid_report_bytes_u32(report, start >> 3, length >> 3);   
+  }
 }
 
 //--------------------------------------------------------------------+

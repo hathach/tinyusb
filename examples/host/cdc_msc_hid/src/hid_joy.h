@@ -58,13 +58,13 @@ typedef struct {
         bool byte_aligned : 1; // TODO More efficient fetch from report if set
     };
   } flags;
-  uint8_t start;
-  uint8_t length;
+  uint16_t start;
+  uint16_t length;
 } tusb_hid_simple_axis_t;
 
 typedef struct {
-  uint8_t start;
-  uint8_t length;
+  uint16_t start;
+  uint16_t length;
 } tusb_hid_simple_buttons_t;
 
 // Very simple representation of a joystick to try and map to

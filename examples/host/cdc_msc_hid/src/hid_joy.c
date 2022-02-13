@@ -239,10 +239,7 @@ uint8_t tuh_hid_joystick_parse_report_descriptor(uint8_t const* desc_report, uin
 
 int32_t tuh_hid_simple_joystick_get_axis_value(tusb_hid_simple_axis_t* simple_axis, const uint8_t* report) 
 {
-  if (simple_axis->length == 0) return 0;
-  return simple_axis->flags.is_signed ?
-    tuh_hid_report_bits_i32(report, simple_axis->start, simple_axis->length):
-    (int32_t)tuh_hid_report_bits_u32(report, simple_axis->start, simple_axis->length);
+  return tuh_hid_report_i32(report, simple_axis->start, simple_axis->length, simple_axis->flags.is_signed);
 }
 
 void tusb_hid_print_simple_joysick_report(tusb_hid_simple_joysick_t* simple_joystick, const uint8_t* report, uint8_t report_length)
@@ -268,4 +265,5 @@ void tusb_hid_print_simple_joysick_report(tusb_hid_simple_joysick_t* simple_joys
     y2,
     hat,
     buttons);
-}  
+}
+

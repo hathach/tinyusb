@@ -153,10 +153,20 @@ uint8_t tuh_hid_parse_report_descriptor(tuh_hid_report_info_t* reports_info_arr,
 //--------------------------------------------------------------------+
 
 // Helper to get some bits from a HID report as an unsigned 32 bit number
-uint32_t tuh_hid_report_bits_u32(uint8_t const* report, uint8_t start, uint8_t length);
+uint32_t tuh_hid_report_bits_u32(uint8_t const* report, uint16_t start, uint16_t length);
 
 // Helper to get some bits from a HID report as a signed 32 bit number
-int32_t tuh_hid_report_bits_i32(uint8_t const* report, uint8_t start, uint8_t length);
+int32_t tuh_hid_report_bits_i32(uint8_t const* report, uint16_t start, uint16_t length);
+
+// Helper to get some bytes from a HID report as an unsigned 32 bit number
+uint32_t tuh_hid_report_bytes_u32(uint8_t const* report, uint16_t start, uint16_t length);
+
+// Helper to get some bytes from a HID report as a signed 32 bit number
+int32_t tuh_hid_report_bytes_i32(uint8_t const* report, uint16_t start, uint16_t length);
+
+// Helper to get a value from a HID report
+// Not suitable if the value can be > 2^31
+int32_t tuh_hid_report_i32(const uint8_t* report, uint16_t start, uint16_t length, bool is_signed);
 
 #endif
 
