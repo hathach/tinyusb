@@ -204,7 +204,8 @@ void tuh_hid_joystick_process_usages(
   }
 }
 
-uint8_t tuh_hid_joystick_parse_report_descriptor(uint8_t const* desc_report, uint16_t desc_len, uint8_t hid_instance) {
+uint8_t tuh_hid_joystick_parse_report_descriptor(uint8_t const* desc_report, uint16_t desc_len, uint8_t hid_instance) 
+{
   uint32_t eusage = 0;
   tuh_hid_rip_state_t pstate;
   tuh_hid_rip_init_state(&pstate, desc_report, desc_len);
@@ -234,8 +235,6 @@ uint8_t tuh_hid_joystick_parse_report_descriptor(uint8_t const* desc_report, uin
       }
       case HID_RI_TYPE_AND_TAG(RI_TYPE_MAIN, RI_MAIN_COLLECTION_END): {
         if (pstate.collections_count == 0) {
-          // End of application collection.
-          printf("End of application collection.\n");
           bitpos = 0;
         }
         break;
@@ -245,3 +244,36 @@ uint8_t tuh_hid_joystick_parse_report_descriptor(uint8_t const* desc_report, uin
   }
 }
 
+int32_t tuh_hid_simple_joystick_get_axis_value(tusb_hid_simple_axis_t* simple_axis, const uint8_t* report) 
+{
+  if (simple_axis->length == 0) return 0;
+  return simple_axis->flags.is_signed ?
+    tuh_hid_report_bits_i32(report, simple_axis->start, simple_axis->length):
+    (int32_t)tuh_hid_report_bits_u32(report, simple_axis->start, simple_axis->length);
+}
+
+void tusb_hid_print_simple_joysick_report(tusb_hid_simple_joysick_t* simple_joystick, const uint8_t* report, uint8_t report_length)
+{
+  if (simple_joystick == NULL ) {
+    printf("NULL joystick definition\n");
+  }
+  
+  // TODO Check the report is long enough!!
+  
+  // TODO move to struct
+  int32_t x1 = tuh_hid_simple_joystick_get_axis_value(&simple_joystick->axis_x1, report);
+  int32_t y1 = tuh_hid_simple_joystick_get_axis_value(&simple_joystick->axis_y1, report);
+  int32_t x2 = tuh_hid_simple_joystick_get_axis_value(&simple_joystick->axis_x2, report);
+  int32_t y2 = tuh_hid_simple_joystick_get_axis_value(&simple_joystick->axis_y2, report);
+  
+  uint32_t hat_buttons = tuh_hid_report_bits_u32(report, simple_joystick->hat_buttons.start, simple_joystick->hat_buttons.length);
+  uint32_t buttons = tuh_hid_report_bits_u32(report, simple_joystick->buttons.start, simple_joystick->buttons.length);
+  
+  printf("x1=%4ld, y1=%4ld, x2=%4ld, y2=%4ld, hat=%01X, buttons=%04X\n",  
+    x1,
+    y1,
+    x2,
+    y2,
+    hat_buttons,
+    buttons);
+}  

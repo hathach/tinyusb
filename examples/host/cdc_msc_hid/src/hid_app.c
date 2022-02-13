@@ -25,6 +25,7 @@
 
 #include "bsp/board.h"
 #include "tusb.h"
+#include "hid_joy.h"
 
 //--------------------------------------------------------------------+
 // MACRO TYPEDEF CONSTANT ENUM DECLARATION
@@ -83,6 +84,8 @@ void tuh_hid_mount_cb(uint8_t dev_addr, uint8_t instance, uint8_t const* desc_re
   {
     hid_info[instance].report_count = tuh_hid_parse_report_descriptor(hid_info[instance].report_info, MAX_REPORT, desc_report, desc_len);
     printf("HID has %u reports \r\n", hid_info[instance].report_count);
+    
+    tuh_hid_joystick_parse_report_descriptor(desc_report, desc_len, instance);
   }
 
   // request to receive report
@@ -97,6 +100,9 @@ void tuh_hid_mount_cb(uint8_t dev_addr, uint8_t instance, uint8_t const* desc_re
 void tuh_hid_umount_cb(uint8_t dev_addr, uint8_t instance)
 {
   printf("HID device address = %d, instance = %d is unmounted\r\n", dev_addr, instance);
+  
+  // Free up any joystick definitions
+  tuh_hid_free_simple_joystick(instance);
 }
 
 // Invoked when received report from device via interrupt endpoint
@@ -242,7 +248,8 @@ static void process_generic_report(uint8_t dev_addr, uint8_t instance, uint8_t c
   uint8_t const rpt_count = hid_info[instance].report_count;
   tuh_hid_report_info_t* rpt_info_arr = hid_info[instance].report_info;
   tuh_hid_report_info_t* rpt_info = NULL;
-
+  uint8_t rpt_id = 0;
+  
   if ( rpt_count == 1 && rpt_info_arr[0].report_id == 0)
   {
     // Simple report without report ID as 1st byte
@@ -250,7 +257,7 @@ static void process_generic_report(uint8_t dev_addr, uint8_t instance, uint8_t c
   }else
   {
     // Composite report, 1st byte is report ID, data starts from 2nd byte
-    uint8_t const rpt_id = report[0];
+    rpt_id = report[0];
 
     // Find report id in the arrray
     for(uint8_t i=0; i<rpt_count; i++)
@@ -301,6 +308,11 @@ static void process_generic_report(uint8_t dev_addr, uint8_t instance, uint8_t c
           printf("%02x", report[i]);
         }
         printf("\r\n");
+        
+        tusb_hid_simple_joysick_t* simple_joystick = tuh_hid_get_simple_joystick(instance, rpt_id);
+        if (simple_joystick != NULL) {
+          tusb_hid_print_simple_joysick_report(simple_joystick, report, len);
+        }
       break;
       
       case HID_USAGE_DESKTOP_GAMEPAD:

@@ -25,7 +25,7 @@
 #define _TUSB_HID_JOY_H_
 
 #include "tusb.h"
-#include "hid_rip.h"
+#include "class/hid/hid_rip.h"
 
 #ifdef __cplusplus
  extern "C" {
@@ -119,5 +119,6 @@ void tuh_hid_free_simple_joystick(uint8_t hid_instance);
 void tuh_hid_free_simple_joysticks();
 tusb_hid_simple_joysick_t* tuh_hid_allocate_simple_joystick(uint8_t hid_instance, uint8_t report_id);
 tusb_hid_simple_joysick_t* tuh_hid_obtain_simple_joystick(uint8_t hid_instance, uint8_t report_id);
+void tusb_hid_print_simple_joysick_report(tusb_hid_simple_joysick_t* simple_joystick, const uint8_t* report, uint8_t report_length);
 
 #endif
