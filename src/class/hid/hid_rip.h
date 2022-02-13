@@ -64,6 +64,9 @@
 #define HID_REPORT_MAX_USAGES 20
 #define HID_REPORT_MAX_COLLECTION_DEPTH 20
 
+#define HID_RIP_EUSAGE(G, L) ((G << 16) | L)
+
+
 typedef enum tuh_hid_rip_status {
   HID_RIP_INIT = 0,              // Initial state
   HID_RIP_EOF,                   // No more items
@@ -112,6 +115,12 @@ void tuh_hid_rip_init_state(tuh_hid_rip_state_t *state, const uint8_t *report, u
 // returns pointer to next item or null
 //
 const uint8_t* tuh_hid_rip_next_item(tuh_hid_rip_state_t *state);
+
+// Move to the next short item in the report
+//
+// returns pointer to next item or null
+//
+const uint8_t* tuh_hid_rip_next_short_item(tuh_hid_rip_state_t *state);
 
 // Accessor for the current value of a global item
 //

@@ -90,6 +90,7 @@ void test_physical_max_315(void)
   TEST_ASSERT_EQUAL(2, tuh_hid_ri_short_data_length(tb));
   TEST_ASSERT_EQUAL(1, tuh_hid_ri_short_type(tb));
   TEST_ASSERT_EQUAL(4, tuh_hid_ri_short_tag(tb));
+  TEST_ASSERT_EQUAL(HID_RI_TYPE_AND_TAG(1, 4), tuh_hid_ri_short_type_and_tag(tb));
   TEST_ASSERT_EQUAL(false, tuh_hid_ri_is_long(tb));
   TEST_ASSERT_EQUAL(315, tuh_hid_ri_short_udata32(tb));
   TEST_ASSERT_EQUAL(315, tuh_hid_ri_short_data32(tb));
@@ -116,6 +117,7 @@ void test_logical_min_neg_127(void)
   TEST_ASSERT_EQUAL(1, tuh_hid_ri_short_data_length(tb));
   TEST_ASSERT_EQUAL(1, tuh_hid_ri_short_type(tb));
   TEST_ASSERT_EQUAL(1, tuh_hid_ri_short_tag(tb));
+  TEST_ASSERT_EQUAL(HID_RI_TYPE_AND_TAG(1, 1), tuh_hid_ri_short_type_and_tag(tb));
   TEST_ASSERT_EQUAL(false, tuh_hid_ri_is_long(tb));
   TEST_ASSERT_EQUAL(0x81, tuh_hid_ri_short_udata32(tb));
   TEST_ASSERT_EQUAL(-127, tuh_hid_ri_short_data32(tb));

@@ -31,6 +31,8 @@
  extern "C" {
 #endif
 
+#define HID_RI_TYPE_AND_TAG(TYPE, TAG) ((TAG << 4) | (TYPE << 2))
+
 //--------------------------------------------------------------------+
 // HID Report Description Item functions
 //
@@ -52,6 +54,9 @@ uint8_t tuh_hid_ri_short_type(const uint8_t *ri);
 
 // Get the tag from a short item
 uint8_t tuh_hid_ri_short_tag(const uint8_t *ri);
+
+// Get the tag and type with length bits set to 0
+uint8_t tuh_hid_ri_short_type_and_tag(const uint8_t *ri);
 
 // Test if the item is a long item
 bool tuh_hid_ri_is_long(const uint8_t *ri);

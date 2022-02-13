@@ -40,6 +40,10 @@ uint8_t tuh_hid_ri_short_tag(const uint8_t *ri) {
   return (*ri >> 4) & 15;
 }
 
+uint8_t tuh_hid_ri_short_type_and_tag(const uint8_t *ri) {
+  return (*ri) & 0xfc;
+}
+
 bool tuh_hid_ri_is_long(const uint8_t *ri) {
   return *ri == 0xfe;
 }

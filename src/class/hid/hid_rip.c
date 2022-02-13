@@ -159,6 +159,13 @@ const uint8_t* tuh_hid_rip_next_item(tuh_hid_rip_state_t *state)
   return ri;
 }
 
+const uint8_t* tuh_hid_rip_next_short_item(tuh_hid_rip_state_t *state) 
+{
+  const uint8_t* ri;
+  while((ri = tuh_hid_rip_next_item(state)) != NULL) if (!tuh_hid_ri_is_long(ri)) break;
+  return ri;
+}
+
 const uint8_t* tuh_hid_rip_global(tuh_hid_rip_state_t *state, uint8_t tag)
 {
   return state->global_items[state->stack_index][tag];
@@ -235,66 +242,41 @@ uint8_t tuh_hid_parse_report_descriptor(tuh_hid_report_info_t* report_info_arr, 
   tuh_hid_rip_state_t pstate;
   tuh_hid_rip_init_state(&pstate, desc_report, desc_len);
   const uint8_t *ri;
-  while((ri = tuh_hid_rip_next_item(&pstate)) != NULL)
+  while((ri = tuh_hid_rip_next_short_item(&pstate)) != NULL)
   {
-    if (!tuh_hid_ri_is_long(ri)) 
+    uint8_t const type_and_tag = tuh_hid_ri_short_type_and_tag(ri);
+    
+    switch(type_and_tag)
     {
-      uint8_t const tag  = tuh_hid_ri_short_tag(ri);
-      uint8_t const type = tuh_hid_ri_short_type(ri);
-      switch(type)
-      {
-        case RI_TYPE_MAIN: {
-          switch (tag)
-          {
-            case RI_MAIN_INPUT: {
-              info->in_len += tuh_hid_rip_report_total_size_bits(&pstate);
-              info->usage = usage;
-              info->usage_page = usage_page;
-              break;
-            }
-            case RI_MAIN_OUTPUT: {
-              info->out_len += tuh_hid_rip_report_total_size_bits(&pstate);
-              info->usage = usage;
-              info->usage_page = usage_page;
-              break;
-            }
-            default: break;
-          }
-          break;
-        }
-        case RI_TYPE_GLOBAL: {
-          switch(tag)
-          {
-            case RI_GLOBAL_REPORT_ID: {
-              if (info->report_id > 0 || info->in_len > 0 || info->out_len > 0) {
-                info++;
-                report_num++;
-              }
-              info->report_id = tuh_hid_ri_short_udata8(ri);
-              break;
-            }
-            default: break;
-          }
-          break;
-        }
-        case RI_TYPE_LOCAL: {
-          switch(tag)
-          {
-            case RI_LOCAL_USAGE:
-              // only take into account the "usage" before starting REPORT ID
-              if ( pstate.collections_count == 0 ) {
-                uint32_t eusage = pstate.usages[pstate.usage_count - 1];
-                tuh_hid_ri_split_usage(eusage, &usage, &usage_page);
-              }
-            break;
-
-            default: break;
-          }
-          break;
-        }
-        // error
-        default: break;
+      case HID_RI_TYPE_AND_TAG(RI_TYPE_MAIN, RI_MAIN_INPUT): {
+        info->in_len += tuh_hid_rip_report_total_size_bits(&pstate);
+        info->usage = usage;
+        info->usage_page = usage_page;
+        break;
       }
+      case HID_RI_TYPE_AND_TAG(RI_TYPE_MAIN, RI_MAIN_OUTPUT): {
+        info->out_len += tuh_hid_rip_report_total_size_bits(&pstate);
+        info->usage = usage;
+        info->usage_page = usage_page;
+        break;
+      }
+      case HID_RI_TYPE_AND_TAG(RI_TYPE_GLOBAL, RI_GLOBAL_REPORT_ID): {
+        if (info->report_id > 0 || info->in_len > 0 || info->out_len > 0) {
+          info++;
+          report_num++;
+        }
+        info->report_id = tuh_hid_ri_short_udata8(ri);
+        break;
+      }
+      case HID_RI_TYPE_AND_TAG(RI_TYPE_LOCAL, RI_LOCAL_USAGE): {
+        // only take into account the "usage" before starting REPORT ID
+        if ( pstate.collections_count == 0 ) {
+          uint32_t eusage = pstate.usages[pstate.usage_count - 1];
+          tuh_hid_ri_split_usage(eusage, &usage, &usage_page);
+        }
+        break;
+      }
+      default: break;
     }
   }
   

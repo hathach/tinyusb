@@ -29,13 +29,11 @@
 static uint8_t hid_simple_joysick_count = 0;
 static tusb_hid_simple_joysick_t hid_simple_joysicks[HID_MAX_JOYSTICKS];
 
-#define HID_EUSAGE(G, L) ((G << 16) | L)
-
 static bool tuh_hid_joystick_check_usage(uint32_t eusage) {
   // Check outer usage
   switch(eusage) {
-    case HID_EUSAGE(HID_USAGE_PAGE_DESKTOP, HID_USAGE_DESKTOP_JOYSTICK): return true;
-    case HID_EUSAGE(HID_USAGE_PAGE_DESKTOP, HID_USAGE_DESKTOP_GAMEPAD): return true; // TODO not sure about this one
+    case HID_RIP_EUSAGE(HID_USAGE_PAGE_DESKTOP, HID_USAGE_DESKTOP_JOYSTICK): return true;
+    case HID_RIP_EUSAGE(HID_USAGE_PAGE_DESKTOP, HID_USAGE_DESKTOP_GAMEPAD): return true; // TODO not sure about this one
     default: return false;
   }
 }
@@ -111,14 +109,14 @@ void tuh_hid_joystick_process_usages(
     switch (eusage) {
       // Seems to be common usage for gamepads.
       // Probably needs a lot more thought...
-      case HID_EUSAGE(HID_USAGE_PAGE_DESKTOP, HID_USAGE_DESKTOP_X):
-      case HID_EUSAGE(HID_USAGE_PAGE_DESKTOP, HID_USAGE_DESKTOP_Y):
-      case HID_EUSAGE(HID_USAGE_PAGE_DESKTOP, HID_USAGE_DESKTOP_Z):
-      case HID_EUSAGE(HID_USAGE_PAGE_DESKTOP, HID_USAGE_DESKTOP_RZ):
+      case HID_RIP_EUSAGE(HID_USAGE_PAGE_DESKTOP, HID_USAGE_DESKTOP_X):
+      case HID_RIP_EUSAGE(HID_USAGE_PAGE_DESKTOP, HID_USAGE_DESKTOP_Y):
+      case HID_RIP_EUSAGE(HID_USAGE_PAGE_DESKTOP, HID_USAGE_DESKTOP_Z):
+      case HID_RIP_EUSAGE(HID_USAGE_PAGE_DESKTOP, HID_USAGE_DESKTOP_RZ):
         printf("Axis\n");
         break;
       
-      case HID_EUSAGE(HID_USAGE_PAGE_DESKTOP, HID_USAGE_DESKTOP_HAT_SWITCH):
+      case HID_RIP_EUSAGE(HID_USAGE_PAGE_DESKTOP, HID_USAGE_DESKTOP_HAT_SWITCH):
         printf("Hat\n");
         break;
       
@@ -137,45 +135,28 @@ uint8_t tuh_hid_joystick_parse_report_descriptor(uint8_t const* desc_report, uin
     tuh_hid_rip_state_t pstate;
     tuh_hid_rip_init_state(&pstate, desc_report, desc_len);
     const uint8_t *ri;
-    while((ri = tuh_hid_rip_next_item(&pstate)) != NULL)
+    while((ri = tuh_hid_rip_next_short_item(&pstate)) != NULL)
     {
-      if (!tuh_hid_ri_is_long(ri)) 
-      {
-        uint8_t const tag  = tuh_hid_ri_short_tag(ri);
-        uint8_t const type = tuh_hid_ri_short_type(ri);
-        switch(type)
-        {
-          case RI_TYPE_MAIN: {
-            switch (tag)
-            {
-              case RI_MAIN_INPUT: {
-                if (tuh_hid_joystick_check_usage(eusage)) {
-                  // This is what we care about for the joystick
+      uint8_t const type_and_tag = tuh_hid_ri_short_type_and_tag(ri);
 
-                  // TODO Check the outer usage is joystick/gamepad
-                  // TODO Keep track of the report id, when it changes move to next joystick definition??
-                }
-                break;
-              }
-              default: break;
-            }
-            break;
+      switch(type_and_tag)
+      {
+        case HID_RI_TYPE_AND_TAG(RI_TYPE_MAIN, RI_MAIN_INPUT): {
+          if (tuh_hid_joystick_check_usage(eusage)) {
+            // This is what we care about for the joystick
+
+            // TODO Check the outer usage is joystick/gamepad
+            // TODO Keep track of the report id, when it changes move to next joystick definition??
           }
-          case RI_TYPE_LOCAL: {
-            switch(tag)
-            {
-              case RI_LOCAL_USAGE: {
-                if (pstate.collections_count == 0) {
-                  eusage = pstate.usages[pstate.usage_count - 1];
-                }
-                break;
-              }
-              default: break;
-            }
-            break;
-          }
-          default: break;
+          break;
         }
+        case HID_RI_TYPE_AND_TAG(RI_TYPE_LOCAL, RI_LOCAL_USAGE): {
+          if (pstate.collections_count == 0) {
+            eusage = pstate.usages[pstate.usage_count - 1];
+          }
+          break;
+        }
+        default: break;
       }
     }
   }
