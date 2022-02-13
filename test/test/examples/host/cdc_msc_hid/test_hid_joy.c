@@ -157,99 +157,170 @@ void test_nothing() {
 }
 
 void test_tuh_hid_joystick_get_data() {
-    tuh_hid_joystick_data_t joystick_data;
-    tuh_hid_rip_state_t pstate;
-    tusb_hid_simple_joysick_t* simple_joystick;
-    tuh_hid_rip_init_state(&pstate, tb_speedlink, sizeof(tb_speedlink));
-    const uint8_t *ri;
-    
-    while((ri = tuh_hid_rip_next_item(&pstate)) != NULL ) if (ri >= &tb_speedlink[32]) break;
-    TEST_ASSERT_EQUAL(&tb_speedlink[32], ri); // Move to the first input in the speedlink description
-    TEST_ASSERT_EQUAL(true, tuh_hid_joystick_get_data(&pstate, ri, &joystick_data));
-    
-    TEST_ASSERT_EQUAL(8, joystick_data.report_size);
-    TEST_ASSERT_EQUAL(5, joystick_data.report_count);
-    TEST_ASSERT_EQUAL(0, joystick_data.report_id);
-    TEST_ASSERT_EQUAL(0, joystick_data.logical_min);
-    TEST_ASSERT_EQUAL(255, joystick_data.logical_max);
-    TEST_ASSERT_EQUAL(false, joystick_data.usage_is_range);
+  tuh_hid_joystick_data_t joystick_data;
+  tuh_hid_rip_state_t pstate;
+  tusb_hid_simple_joysick_t* simple_joystick;
+  tuh_hid_rip_init_state(&pstate, tb_speedlink, sizeof(tb_speedlink));
+  const uint8_t *ri;
 
-    // Input (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position)
-    TEST_ASSERT_EQUAL(false, joystick_data.input_flags.data_const);
-    TEST_ASSERT_EQUAL(true, joystick_data.input_flags.array_variable);
-    TEST_ASSERT_EQUAL(false, joystick_data.input_flags.absolute_relative);
-    TEST_ASSERT_EQUAL(false, joystick_data.input_flags.nowrap_wrap);
-    TEST_ASSERT_EQUAL(false, joystick_data.input_flags.linear_nonlinear);
-    TEST_ASSERT_EQUAL(false, joystick_data.input_flags.prefered_noprefered);
-    TEST_ASSERT_EQUAL(false, joystick_data.input_flags.nonull_null);
+  while((ri = tuh_hid_rip_next_item(&pstate)) != NULL ) if (ri >= &tb_speedlink[32]) break;
+  TEST_ASSERT_EQUAL(&tb_speedlink[32], ri); // Move to the first input in the speedlink description
+  TEST_ASSERT_EQUAL(true, tuh_hid_joystick_get_data(&pstate, ri, &joystick_data));
 
-    tuh_hid_joystick_process_usages(&pstate, &joystick_data, 0, 9);
+  TEST_ASSERT_EQUAL(8, joystick_data.report_size);
+  TEST_ASSERT_EQUAL(5, joystick_data.report_count);
+  TEST_ASSERT_EQUAL(0, joystick_data.report_id);
+  TEST_ASSERT_EQUAL(0, joystick_data.logical_min);
+  TEST_ASSERT_EQUAL(255, joystick_data.logical_max);
+  TEST_ASSERT_EQUAL(false, joystick_data.usage_is_range);
 
+  // Input (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position)
+  TEST_ASSERT_EQUAL(false, joystick_data.input_flags.data_const);
+  TEST_ASSERT_EQUAL(true, joystick_data.input_flags.array_variable);
+  TEST_ASSERT_EQUAL(false, joystick_data.input_flags.absolute_relative);
+  TEST_ASSERT_EQUAL(false, joystick_data.input_flags.nowrap_wrap);
+  TEST_ASSERT_EQUAL(false, joystick_data.input_flags.linear_nonlinear);
+  TEST_ASSERT_EQUAL(false, joystick_data.input_flags.prefered_noprefered);
+  TEST_ASSERT_EQUAL(false, joystick_data.input_flags.nonull_null);
 
-    while((ri = tuh_hid_rip_next_item(&pstate)) != NULL ) if (ri >= &tb_speedlink[47]) break;
-    TEST_ASSERT_EQUAL(&tb_speedlink[47], ri); // Move to the second input in the speedlink description
-    TEST_ASSERT_EQUAL(true, tuh_hid_joystick_get_data(&pstate, ri, &joystick_data));
+  tuh_hid_joystick_process_usages(&pstate, &joystick_data, 0, 9);
+  simple_joystick = tuh_hid_get_simple_joystick(9, 0);
+  TEST_ASSERT_NOT_NULL(simple_joystick);
+  // x1
+  TEST_ASSERT_EQUAL(0, simple_joystick->axis_x1.start);
+  TEST_ASSERT_EQUAL(8, simple_joystick->axis_x1.length);
+  TEST_ASSERT_EQUAL(false, simple_joystick->axis_x1.flags.is_signed);
+  TEST_ASSERT_EQUAL(true, simple_joystick->axis_x1.flags.byte_aligned);
+  // y1
+  TEST_ASSERT_EQUAL(8, simple_joystick->axis_y1.start);
+  TEST_ASSERT_EQUAL(8, simple_joystick->axis_y1.length);
+  TEST_ASSERT_EQUAL(false, simple_joystick->axis_y1.flags.is_signed);
+  TEST_ASSERT_EQUAL(true, simple_joystick->axis_y1.flags.byte_aligned);
+  // x2
+  TEST_ASSERT_EQUAL(24, simple_joystick->axis_x2.start);
+  TEST_ASSERT_EQUAL(8, simple_joystick->axis_x2.length);
+  TEST_ASSERT_EQUAL(false, simple_joystick->axis_x2.flags.is_signed);
+  TEST_ASSERT_EQUAL(true, simple_joystick->axis_x2.flags.byte_aligned);
+  // y2
+  TEST_ASSERT_EQUAL(32, simple_joystick->axis_y2.start);
+  TEST_ASSERT_EQUAL(8, simple_joystick->axis_y2.length);
+  TEST_ASSERT_EQUAL(false, simple_joystick->axis_y2.flags.is_signed);
+  TEST_ASSERT_EQUAL(true, simple_joystick->axis_y2.flags.byte_aligned);
 
-    TEST_ASSERT_EQUAL(4, joystick_data.report_size);
-    TEST_ASSERT_EQUAL(1, joystick_data.report_count);
-    TEST_ASSERT_EQUAL(0, joystick_data.report_id);
-    TEST_ASSERT_EQUAL(0, joystick_data.logical_min);
-    TEST_ASSERT_EQUAL(7, joystick_data.logical_max);
-    TEST_ASSERT_EQUAL(false, joystick_data.usage_is_range);
+  while((ri = tuh_hid_rip_next_item(&pstate)) != NULL ) if (ri >= &tb_speedlink[47]) break;
+  TEST_ASSERT_EQUAL(&tb_speedlink[47], ri); // Move to the second input in the speedlink description
+  TEST_ASSERT_EQUAL(true, tuh_hid_joystick_get_data(&pstate, ri, &joystick_data));
 
-    // Input (Data,Var,Abs,No Wrap,Linear,Preferred State,Null State)
-    TEST_ASSERT_EQUAL(false, joystick_data.input_flags.data_const);
-    TEST_ASSERT_EQUAL(true, joystick_data.input_flags.array_variable);
-    TEST_ASSERT_EQUAL(false, joystick_data.input_flags.absolute_relative);
-    TEST_ASSERT_EQUAL(false, joystick_data.input_flags.nowrap_wrap);
-    TEST_ASSERT_EQUAL(false, joystick_data.input_flags.linear_nonlinear);
-    TEST_ASSERT_EQUAL(false, joystick_data.input_flags.prefered_noprefered);
-    TEST_ASSERT_EQUAL(true, joystick_data.input_flags.nonull_null);
+  TEST_ASSERT_EQUAL(4, joystick_data.report_size);
+  TEST_ASSERT_EQUAL(1, joystick_data.report_count);
+  TEST_ASSERT_EQUAL(0, joystick_data.report_id);
+  TEST_ASSERT_EQUAL(0, joystick_data.logical_min);
+  TEST_ASSERT_EQUAL(7, joystick_data.logical_max);
+  TEST_ASSERT_EQUAL(false, joystick_data.usage_is_range);
 
-    tuh_hid_joystick_process_usages(&pstate, &joystick_data, 40, 9);
-    simple_joystick = tuh_hid_get_simple_joystick(9, 0);
-    TEST_ASSERT_NOT_NULL(simple_joystick);
-    TEST_ASSERT_EQUAL(40, simple_joystick->hat_buttons.start);
-    TEST_ASSERT_EQUAL(4, simple_joystick->hat_buttons.length);
+  // Input (Data,Var,Abs,No Wrap,Linear,Preferred State,Null State)
+  TEST_ASSERT_EQUAL(false, joystick_data.input_flags.data_const);
+  TEST_ASSERT_EQUAL(true, joystick_data.input_flags.array_variable);
+  TEST_ASSERT_EQUAL(false, joystick_data.input_flags.absolute_relative);
+  TEST_ASSERT_EQUAL(false, joystick_data.input_flags.nowrap_wrap);
+  TEST_ASSERT_EQUAL(false, joystick_data.input_flags.linear_nonlinear);
+  TEST_ASSERT_EQUAL(false, joystick_data.input_flags.prefered_noprefered);
+  TEST_ASSERT_EQUAL(true, joystick_data.input_flags.nonull_null);
 
-    while((ri = tuh_hid_rip_next_item(&pstate)) != NULL ) if (ri >= &tb_speedlink[65]) break;
-    TEST_ASSERT_EQUAL(&tb_speedlink[65], ri); // Move to the second input in the speedlink description
-    TEST_ASSERT_EQUAL(true, tuh_hid_joystick_get_data(&pstate, ri, &joystick_data));
+  tuh_hid_joystick_process_usages(&pstate, &joystick_data, 40, 9);
+  simple_joystick = tuh_hid_get_simple_joystick(9, 0);
+  TEST_ASSERT_NOT_NULL(simple_joystick);
+  TEST_ASSERT_EQUAL(40, simple_joystick->hat_buttons.start);
+  TEST_ASSERT_EQUAL(4, simple_joystick->hat_buttons.length);
 
-    TEST_ASSERT_EQUAL(1, joystick_data.report_size);
-    TEST_ASSERT_EQUAL(12, joystick_data.report_count);
-    TEST_ASSERT_EQUAL(0, joystick_data.report_id);
-    TEST_ASSERT_EQUAL(0, joystick_data.logical_min);
-    TEST_ASSERT_EQUAL(1, joystick_data.logical_max);
-    TEST_ASSERT_EQUAL(true, joystick_data.usage_is_range);
-    TEST_ASSERT_EQUAL(1, joystick_data.usage_min);
-    TEST_ASSERT_EQUAL(12, joystick_data.usage_max);
-    
-    // Input (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position)
-    TEST_ASSERT_EQUAL(false, joystick_data.input_flags.data_const);
-    TEST_ASSERT_EQUAL(true, joystick_data.input_flags.array_variable);
-    TEST_ASSERT_EQUAL(false, joystick_data.input_flags.absolute_relative);
-    TEST_ASSERT_EQUAL(false, joystick_data.input_flags.nowrap_wrap);
-    TEST_ASSERT_EQUAL(false, joystick_data.input_flags.linear_nonlinear);
-    TEST_ASSERT_EQUAL(false, joystick_data.input_flags.prefered_noprefered);
-    TEST_ASSERT_EQUAL(false, joystick_data.input_flags.nonull_null);
-    
-    tuh_hid_joystick_process_usages(&pstate, &joystick_data, 44, 9); // 56
-    simple_joystick = tuh_hid_get_simple_joystick(9, 0);
-    TEST_ASSERT_NOT_NULL(simple_joystick);
-    TEST_ASSERT_EQUAL(44, simple_joystick->buttons.start);
-    TEST_ASSERT_EQUAL(12, simple_joystick->buttons.length);
+  while((ri = tuh_hid_rip_next_item(&pstate)) != NULL ) if (ri >= &tb_speedlink[65]) break;
+  TEST_ASSERT_EQUAL(&tb_speedlink[65], ri); // Move to the second input in the speedlink description
+  TEST_ASSERT_EQUAL(true, tuh_hid_joystick_get_data(&pstate, ri, &joystick_data));
+
+  TEST_ASSERT_EQUAL(1, joystick_data.report_size);
+  TEST_ASSERT_EQUAL(12, joystick_data.report_count);
+  TEST_ASSERT_EQUAL(0, joystick_data.report_id);
+  TEST_ASSERT_EQUAL(0, joystick_data.logical_min);
+  TEST_ASSERT_EQUAL(1, joystick_data.logical_max);
+  TEST_ASSERT_EQUAL(true, joystick_data.usage_is_range);
+  TEST_ASSERT_EQUAL(1, joystick_data.usage_min);
+  TEST_ASSERT_EQUAL(12, joystick_data.usage_max);
+
+  // Input (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position)
+  TEST_ASSERT_EQUAL(false, joystick_data.input_flags.data_const);
+  TEST_ASSERT_EQUAL(true, joystick_data.input_flags.array_variable);
+  TEST_ASSERT_EQUAL(false, joystick_data.input_flags.absolute_relative);
+  TEST_ASSERT_EQUAL(false, joystick_data.input_flags.nowrap_wrap);
+  TEST_ASSERT_EQUAL(false, joystick_data.input_flags.linear_nonlinear);
+  TEST_ASSERT_EQUAL(false, joystick_data.input_flags.prefered_noprefered);
+  TEST_ASSERT_EQUAL(false, joystick_data.input_flags.nonull_null);
+
+  tuh_hid_joystick_process_usages(&pstate, &joystick_data, 44, 9); // 56
+  simple_joystick = tuh_hid_get_simple_joystick(9, 0);
+  TEST_ASSERT_NOT_NULL(simple_joystick);
+  TEST_ASSERT_EQUAL(44, simple_joystick->buttons.start);
+  TEST_ASSERT_EQUAL(12, simple_joystick->buttons.length);
 }
 
 void test_hid_parse_greenasia_report() {
-
-  // tuh_hid_joystick_parse_report_descriptor(tb, sizeof(tb), 1);
-
+  tuh_hid_joystick_parse_report_descriptor(tb_speedlink, sizeof(tb_speedlink), 9);
+  tusb_hid_simple_joysick_t* simple_joystick = tuh_hid_get_simple_joystick(9, 0);
+  TEST_ASSERT_NOT_NULL(simple_joystick);
+  // x1
+  TEST_ASSERT_EQUAL(0, simple_joystick->axis_x1.start);
+  TEST_ASSERT_EQUAL(8, simple_joystick->axis_x1.length);
+  TEST_ASSERT_EQUAL(false, simple_joystick->axis_x1.flags.is_signed);
+  TEST_ASSERT_EQUAL(true, simple_joystick->axis_x1.flags.byte_aligned);
+  // y1
+  TEST_ASSERT_EQUAL(8, simple_joystick->axis_y1.start);
+  TEST_ASSERT_EQUAL(8, simple_joystick->axis_y1.length);
+  TEST_ASSERT_EQUAL(false, simple_joystick->axis_y1.flags.is_signed);
+  TEST_ASSERT_EQUAL(true, simple_joystick->axis_y1.flags.byte_aligned);
+  // x2
+  TEST_ASSERT_EQUAL(24, simple_joystick->axis_x2.start);
+  TEST_ASSERT_EQUAL(8, simple_joystick->axis_x2.length);
+  TEST_ASSERT_EQUAL(false, simple_joystick->axis_x2.flags.is_signed);
+  TEST_ASSERT_EQUAL(true, simple_joystick->axis_x2.flags.byte_aligned);
+  // y2
+  TEST_ASSERT_EQUAL(32, simple_joystick->axis_y2.start);
+  TEST_ASSERT_EQUAL(8, simple_joystick->axis_y2.length);
+  TEST_ASSERT_EQUAL(false, simple_joystick->axis_y2.flags.is_signed);
+  TEST_ASSERT_EQUAL(true, simple_joystick->axis_y2.flags.byte_aligned);
+  TEST_ASSERT_EQUAL(40, simple_joystick->hat_buttons.start);
+  TEST_ASSERT_EQUAL(4, simple_joystick->hat_buttons.length);
+  TEST_ASSERT_EQUAL(44, simple_joystick->buttons.start);
+  TEST_ASSERT_EQUAL(12, simple_joystick->buttons.length);
 }
 
 void test_hid_parse_speedlink_report() {
-
-
+  tuh_hid_joystick_parse_report_descriptor(tb_greenasia, sizeof(tb_greenasia), 9);
+  tusb_hid_simple_joysick_t* simple_joystick = tuh_hid_get_simple_joystick(9, 0);
+  TEST_ASSERT_NOT_NULL(simple_joystick);
+  // x1
+  TEST_ASSERT_EQUAL(16, simple_joystick->axis_x1.start);
+  TEST_ASSERT_EQUAL(8, simple_joystick->axis_x1.length);
+  TEST_ASSERT_EQUAL(false, simple_joystick->axis_x1.flags.is_signed);
+  TEST_ASSERT_EQUAL(true, simple_joystick->axis_x1.flags.byte_aligned);
+  // y1
+  TEST_ASSERT_EQUAL(24, simple_joystick->axis_y1.start);
+  TEST_ASSERT_EQUAL(8, simple_joystick->axis_y1.length);
+  TEST_ASSERT_EQUAL(false, simple_joystick->axis_y1.flags.is_signed);
+  TEST_ASSERT_EQUAL(true, simple_joystick->axis_y1.flags.byte_aligned);
+  // x2
+  TEST_ASSERT_EQUAL(0, simple_joystick->axis_x2.start);
+  TEST_ASSERT_EQUAL(8, simple_joystick->axis_x2.length);
+  TEST_ASSERT_EQUAL(false, simple_joystick->axis_x2.flags.is_signed);
+  TEST_ASSERT_EQUAL(true, simple_joystick->axis_x2.flags.byte_aligned);
+  // y2
+  TEST_ASSERT_EQUAL(8, simple_joystick->axis_y2.start);
+  TEST_ASSERT_EQUAL(8, simple_joystick->axis_y2.length);
+  TEST_ASSERT_EQUAL(false, simple_joystick->axis_y2.flags.is_signed);
+  TEST_ASSERT_EQUAL(true, simple_joystick->axis_y2.flags.byte_aligned);
+  
+  TEST_ASSERT_EQUAL(40, simple_joystick->hat_buttons.start);
+  TEST_ASSERT_EQUAL(4, simple_joystick->hat_buttons.length);
+  TEST_ASSERT_EQUAL(44, simple_joystick->buttons.start);
+  TEST_ASSERT_EQUAL(12, simple_joystick->buttons.length);
 }
 
 

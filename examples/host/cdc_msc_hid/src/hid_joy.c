@@ -26,7 +26,6 @@
 
 #include "hid_joy.h"
 
-static uint8_t hid_simple_joysick_count = 0;
 static tusb_hid_simple_joysick_t hid_simple_joysicks[HID_MAX_JOYSTICKS];
 
 static bool tuh_hid_joystick_check_usage(uint32_t eusage)
@@ -72,8 +71,10 @@ tusb_hid_simple_joysick_t* tuh_hid_allocate_simple_joystick(uint8_t hid_instance
       simple_joystick->active = true;
       simple_joystick->hid_instance = hid_instance;
       simple_joystick->report_id = report_id;
+      return simple_joystick;
     }
   }
+  return NULL;
 }
 
 // get or create
@@ -118,11 +119,23 @@ bool tuh_hid_joystick_get_data(
   return true;
 }
 
+static void tuh_hid_joystick_process_axis(
+  tuh_hid_joystick_data_t* jdata,
+  uint32_t bitpos,
+  uint8_t hid_instance,
+  tusb_hid_simple_axis_t* simple_axis)
+{
+  simple_axis->start = bitpos;
+  simple_axis->length = jdata->report_size;
+  simple_axis->flags.is_signed = jdata->logical_min < 0;
+  simple_axis->flags.byte_aligned = ((bitpos & 7) == 0) && ((jdata->report_size & 7) == 0);
+}
+
 void tuh_hid_joystick_process_usages(
   tuh_hid_rip_state_t *pstate,
   tuh_hid_joystick_data_t* jdata,
   uint32_t bitpos,
-  uint8_t hid_instance) 
+  uint8_t hid_instance)
 {
   if (jdata->input_flags.data_const) {
     printf("const bits %d \n", jdata->report_size * jdata->report_count);
@@ -163,13 +176,18 @@ void tuh_hid_joystick_process_usages(
     switch (eusage) {
       // Seems to be common usage for gamepads.
       // Probably needs a lot more thought...
-      case HID_RIP_EUSAGE(HID_USAGE_PAGE_DESKTOP, HID_USAGE_DESKTOP_X):
-      case HID_RIP_EUSAGE(HID_USAGE_PAGE_DESKTOP, HID_USAGE_DESKTOP_Y):
-      case HID_RIP_EUSAGE(HID_USAGE_PAGE_DESKTOP, HID_USAGE_DESKTOP_Z):
-      case HID_RIP_EUSAGE(HID_USAGE_PAGE_DESKTOP, HID_USAGE_DESKTOP_RZ):
-        printf("Axis\n");
+      case HID_RIP_EUSAGE(HID_USAGE_PAGE_DESKTOP, HID_USAGE_DESKTOP_X):    
+        tuh_hid_joystick_process_axis(jdata, bitpos, hid_instance, &simple_joystick->axis_x1);
         break;
-      
+      case HID_RIP_EUSAGE(HID_USAGE_PAGE_DESKTOP, HID_USAGE_DESKTOP_Y):
+        tuh_hid_joystick_process_axis(jdata, bitpos, hid_instance, &simple_joystick->axis_y1);
+        break;
+      case HID_RIP_EUSAGE(HID_USAGE_PAGE_DESKTOP, HID_USAGE_DESKTOP_Z): // Why oh why?
+        tuh_hid_joystick_process_axis(jdata, bitpos, hid_instance, &simple_joystick->axis_x2);
+        break;
+      case HID_RIP_EUSAGE(HID_USAGE_PAGE_DESKTOP, HID_USAGE_DESKTOP_RZ):  // Why oh why?
+        tuh_hid_joystick_process_axis(jdata, bitpos, hid_instance, &simple_joystick->axis_y2);
+        break;      
       case HID_RIP_EUSAGE(HID_USAGE_PAGE_DESKTOP, HID_USAGE_DESKTOP_HAT_SWITCH): {
         // HAT buttons seem a bit crazy on joypads... 
         // they appear to act like a 4 bit button array, roughly arranged to represent directions.
@@ -177,49 +195,53 @@ void tuh_hid_joystick_process_usages(
         // There are probably 10^18 ways of describing and interpreting this item alone. Yay.
         tusb_hid_simple_buttons_t* simple_buttons = &simple_joystick->hat_buttons;
         simple_buttons->start = bitpos;
-        simple_buttons->length = jdata->report_count * jdata->report_size;
+        simple_buttons->length = jdata->report_size;
         break;
       }
       default: break;
     }
-     
-
     bitpos += jdata->report_size;
   }
-
 }
 
 uint8_t tuh_hid_joystick_parse_report_descriptor(uint8_t const* desc_report, uint16_t desc_len, uint8_t hid_instance) {
-  if (hid_simple_joysick_count < HID_MAX_JOYSTICKS) {
-    uint32_t eusage = 0;
-    tuh_hid_rip_state_t pstate;
-    tuh_hid_rip_init_state(&pstate, desc_report, desc_len);
-    const uint8_t *ri;
-    while((ri = tuh_hid_rip_next_short_item(&pstate)) != NULL)
+  uint32_t eusage = 0;
+  tuh_hid_rip_state_t pstate;
+  tuh_hid_rip_init_state(&pstate, desc_report, desc_len);
+  const uint8_t *ri;
+  uint32_t bitpos = 0; // TODO Think about if this could be uint8_t or uint16_t 
+  while((ri = tuh_hid_rip_next_short_item(&pstate)) != NULL)
+  {
+    uint8_t const type_and_tag = tuh_hid_ri_short_type_and_tag(ri);
+
+    switch(type_and_tag)
     {
-      uint8_t const type_and_tag = tuh_hid_ri_short_type_and_tag(ri);
-
-      switch(type_and_tag)
-      {
-        case HID_RI_TYPE_AND_TAG(RI_TYPE_MAIN, RI_MAIN_INPUT): {
-          if (tuh_hid_joystick_check_usage(eusage)) {
-            // This is what we care about for the joystick
-
-            // TODO Check the outer usage is joystick/gamepad
-            // TODO Keep track of the report id, when it changes move to next joystick definition??
+      case HID_RI_TYPE_AND_TAG(RI_TYPE_MAIN, RI_MAIN_INPUT): {
+        if (tuh_hid_joystick_check_usage(eusage)) {
+          tuh_hid_joystick_data_t joystick_data;
+          if(tuh_hid_joystick_get_data(&pstate, ri, &joystick_data)) {
+            tuh_hid_joystick_process_usages(&pstate, &joystick_data, bitpos, hid_instance);
+            bitpos += joystick_data.report_size * joystick_data.report_count;
           }
-          break;
         }
-        case HID_RI_TYPE_AND_TAG(RI_TYPE_LOCAL, RI_LOCAL_USAGE): {
-          if (pstate.collections_count == 0) {
-            eusage = pstate.usages[pstate.usage_count - 1];
-          }
-          break;
-        }
-        default: break;
+        break;
       }
+      case HID_RI_TYPE_AND_TAG(RI_TYPE_LOCAL, RI_LOCAL_USAGE): {
+        if (pstate.collections_count == 0) {
+          eusage = pstate.usages[pstate.usage_count - 1];
+        }
+        break;
+      }
+      case HID_RI_TYPE_AND_TAG(RI_TYPE_MAIN, RI_MAIN_COLLECTION_END): {
+        if (pstate.collections_count == 0) {
+          // End of application collection.
+          printf("End of application collection.\n");
+          bitpos = 0;
+        }
+        break;
+      }
+      default: break;
     }
   }
-  return hid_simple_joysick_count;
 }
 
