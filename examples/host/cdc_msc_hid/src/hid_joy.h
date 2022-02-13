@@ -77,7 +77,7 @@ typedef struct {
   tusb_hid_simple_axis_t axis_y1;
   tusb_hid_simple_axis_t axis_x2;
   tusb_hid_simple_axis_t axis_y2;
-  tusb_hid_simple_buttons_t hat_buttons;
+  tusb_hid_simple_axis_t hat;
   tusb_hid_simple_buttons_t buttons;
 } tusb_hid_simple_joysick_t;
 

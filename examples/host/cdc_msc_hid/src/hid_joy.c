@@ -182,22 +182,15 @@ void tuh_hid_joystick_process_usages(
       case HID_RIP_EUSAGE(HID_USAGE_PAGE_DESKTOP, HID_USAGE_DESKTOP_Y):
         tuh_hid_joystick_process_axis(jdata, bitpos, hid_instance, &simple_joystick->axis_y1);
         break;
-      case HID_RIP_EUSAGE(HID_USAGE_PAGE_DESKTOP, HID_USAGE_DESKTOP_Z): // Why oh why?
+      case HID_RIP_EUSAGE(HID_USAGE_PAGE_DESKTOP, HID_USAGE_DESKTOP_Z):
         tuh_hid_joystick_process_axis(jdata, bitpos, hid_instance, &simple_joystick->axis_x2);
         break;
-      case HID_RIP_EUSAGE(HID_USAGE_PAGE_DESKTOP, HID_USAGE_DESKTOP_RZ):  // Why oh why?
+      case HID_RIP_EUSAGE(HID_USAGE_PAGE_DESKTOP, HID_USAGE_DESKTOP_RZ):
         tuh_hid_joystick_process_axis(jdata, bitpos, hid_instance, &simple_joystick->axis_y2);
         break;      
-      case HID_RIP_EUSAGE(HID_USAGE_PAGE_DESKTOP, HID_USAGE_DESKTOP_HAT_SWITCH): {
-        // HAT buttons seem a bit crazy on joypads... 
-        // they appear to act like a 4 bit button array, roughly arranged to represent directions.
-        // Multiple bits are set if multiple buttons are pressed.
-        // There are probably 10^18 ways of describing and interpreting this item alone. Yay.
-        tusb_hid_simple_buttons_t* simple_buttons = &simple_joystick->hat_buttons;
-        simple_buttons->start = bitpos;
-        simple_buttons->length = jdata->report_size;
+      case HID_RIP_EUSAGE(HID_USAGE_PAGE_DESKTOP, HID_USAGE_DESKTOP_HAT_SWITCH):
+        tuh_hid_joystick_process_axis(jdata, bitpos, hid_instance, &simple_joystick->hat);
         break;
-      }
       default: break;
     }
     bitpos += jdata->report_size;
@@ -265,8 +258,7 @@ void tusb_hid_print_simple_joysick_report(tusb_hid_simple_joysick_t* simple_joys
   int32_t y1 = tuh_hid_simple_joystick_get_axis_value(&simple_joystick->axis_y1, report);
   int32_t x2 = tuh_hid_simple_joystick_get_axis_value(&simple_joystick->axis_x2, report);
   int32_t y2 = tuh_hid_simple_joystick_get_axis_value(&simple_joystick->axis_y2, report);
-  
-  uint32_t hat_buttons = tuh_hid_report_bits_u32(report, simple_joystick->hat_buttons.start, simple_joystick->hat_buttons.length);
+  int32_t hat = tuh_hid_simple_joystick_get_axis_value(&simple_joystick->hat, report);
   uint32_t buttons = tuh_hid_report_bits_u32(report, simple_joystick->buttons.start, simple_joystick->buttons.length);
   
   printf("x1=%4ld, y1=%4ld, x2=%4ld, y2=%4ld, hat=%01X, buttons=%04X\n",  
@@ -274,6 +266,6 @@ void tusb_hid_print_simple_joysick_report(tusb_hid_simple_joysick_t* simple_joys
     y1,
     x2,
     y2,
-    hat_buttons,
+    hat,
     buttons);
 }  

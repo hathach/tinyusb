@@ -230,8 +230,8 @@ void test_tuh_hid_joystick_get_data() {
   tuh_hid_joystick_process_usages(&pstate, &joystick_data, 40, 9);
   simple_joystick = tuh_hid_get_simple_joystick(9, 0);
   TEST_ASSERT_NOT_NULL(simple_joystick);
-  TEST_ASSERT_EQUAL(40, simple_joystick->hat_buttons.start);
-  TEST_ASSERT_EQUAL(4, simple_joystick->hat_buttons.length);
+  TEST_ASSERT_EQUAL(40, simple_joystick->hat.start);
+  TEST_ASSERT_EQUAL(4, simple_joystick->hat.length);
 
   while((ri = tuh_hid_rip_next_item(&pstate)) != NULL ) if (ri >= &tb_speedlink[65]) break;
   TEST_ASSERT_EQUAL(&tb_speedlink[65], ri); // Move to the second input in the speedlink description
@@ -286,8 +286,8 @@ void test_hid_parse_greenasia_report() {
   TEST_ASSERT_EQUAL(8, simple_joystick->axis_y2.length);
   TEST_ASSERT_EQUAL(false, simple_joystick->axis_y2.flags.is_signed);
   TEST_ASSERT_EQUAL(true, simple_joystick->axis_y2.flags.byte_aligned);
-  TEST_ASSERT_EQUAL(40, simple_joystick->hat_buttons.start);
-  TEST_ASSERT_EQUAL(4, simple_joystick->hat_buttons.length);
+  TEST_ASSERT_EQUAL(40, simple_joystick->hat.start);
+  TEST_ASSERT_EQUAL(4, simple_joystick->hat.length);
   TEST_ASSERT_EQUAL(44, simple_joystick->buttons.start);
   TEST_ASSERT_EQUAL(12, simple_joystick->buttons.length);
 }
@@ -317,8 +317,8 @@ void test_hid_parse_speedlink_report() {
   TEST_ASSERT_EQUAL(false, simple_joystick->axis_y2.flags.is_signed);
   TEST_ASSERT_EQUAL(true, simple_joystick->axis_y2.flags.byte_aligned);
   
-  TEST_ASSERT_EQUAL(40, simple_joystick->hat_buttons.start);
-  TEST_ASSERT_EQUAL(4, simple_joystick->hat_buttons.length);
+  TEST_ASSERT_EQUAL(40, simple_joystick->hat.start);
+  TEST_ASSERT_EQUAL(4, simple_joystick->hat.length);
   TEST_ASSERT_EQUAL(44, simple_joystick->buttons.start);
   TEST_ASSERT_EQUAL(12, simple_joystick->buttons.length);
 }
