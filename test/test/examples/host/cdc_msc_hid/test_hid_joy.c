@@ -190,22 +190,18 @@ void test_tuh_hid_joystick_get_data() {
   TEST_ASSERT_EQUAL(0, simple_joystick->axis_x1.start);
   TEST_ASSERT_EQUAL(8, simple_joystick->axis_x1.length);
   TEST_ASSERT_EQUAL(false, simple_joystick->axis_x1.flags.is_signed);
-  TEST_ASSERT_EQUAL(true, simple_joystick->axis_x1.flags.byte_aligned);
   // y1
   TEST_ASSERT_EQUAL(8, simple_joystick->axis_y1.start);
   TEST_ASSERT_EQUAL(8, simple_joystick->axis_y1.length);
   TEST_ASSERT_EQUAL(false, simple_joystick->axis_y1.flags.is_signed);
-  TEST_ASSERT_EQUAL(true, simple_joystick->axis_y1.flags.byte_aligned);
   // x2
   TEST_ASSERT_EQUAL(24, simple_joystick->axis_x2.start);
   TEST_ASSERT_EQUAL(8, simple_joystick->axis_x2.length);
   TEST_ASSERT_EQUAL(false, simple_joystick->axis_x2.flags.is_signed);
-  TEST_ASSERT_EQUAL(true, simple_joystick->axis_x2.flags.byte_aligned);
   // y2
   TEST_ASSERT_EQUAL(32, simple_joystick->axis_y2.start);
   TEST_ASSERT_EQUAL(8, simple_joystick->axis_y2.length);
   TEST_ASSERT_EQUAL(false, simple_joystick->axis_y2.flags.is_signed);
-  TEST_ASSERT_EQUAL(true, simple_joystick->axis_y2.flags.byte_aligned);
 
   while((ri = tuh_hid_rip_next_item(&pstate)) != NULL ) if (ri >= &tb_speedlink[47]) break;
   TEST_ASSERT_EQUAL(&tb_speedlink[47], ri); // Move to the second input in the speedlink description
@@ -270,22 +266,18 @@ void test_hid_parse_greenasia_report() {
   TEST_ASSERT_EQUAL(0, simple_joystick->axis_x1.start);
   TEST_ASSERT_EQUAL(8, simple_joystick->axis_x1.length);
   TEST_ASSERT_EQUAL(false, simple_joystick->axis_x1.flags.is_signed);
-  TEST_ASSERT_EQUAL(true, simple_joystick->axis_x1.flags.byte_aligned);
   // y1
   TEST_ASSERT_EQUAL(8, simple_joystick->axis_y1.start);
   TEST_ASSERT_EQUAL(8, simple_joystick->axis_y1.length);
   TEST_ASSERT_EQUAL(false, simple_joystick->axis_y1.flags.is_signed);
-  TEST_ASSERT_EQUAL(true, simple_joystick->axis_y1.flags.byte_aligned);
   // x2
   TEST_ASSERT_EQUAL(24, simple_joystick->axis_x2.start);
   TEST_ASSERT_EQUAL(8, simple_joystick->axis_x2.length);
   TEST_ASSERT_EQUAL(false, simple_joystick->axis_x2.flags.is_signed);
-  TEST_ASSERT_EQUAL(true, simple_joystick->axis_x2.flags.byte_aligned);
   // y2
   TEST_ASSERT_EQUAL(32, simple_joystick->axis_y2.start);
   TEST_ASSERT_EQUAL(8, simple_joystick->axis_y2.length);
   TEST_ASSERT_EQUAL(false, simple_joystick->axis_y2.flags.is_signed);
-  TEST_ASSERT_EQUAL(true, simple_joystick->axis_y2.flags.byte_aligned);
   TEST_ASSERT_EQUAL(40, simple_joystick->hat.start);
   TEST_ASSERT_EQUAL(4, simple_joystick->hat.length);
   TEST_ASSERT_EQUAL(44, simple_joystick->buttons.start);
@@ -300,22 +292,18 @@ void test_hid_parse_speedlink_report() {
   TEST_ASSERT_EQUAL(16, simple_joystick->axis_x1.start);
   TEST_ASSERT_EQUAL(8, simple_joystick->axis_x1.length);
   TEST_ASSERT_EQUAL(false, simple_joystick->axis_x1.flags.is_signed);
-  TEST_ASSERT_EQUAL(true, simple_joystick->axis_x1.flags.byte_aligned);
   // y1
   TEST_ASSERT_EQUAL(24, simple_joystick->axis_y1.start);
   TEST_ASSERT_EQUAL(8, simple_joystick->axis_y1.length);
   TEST_ASSERT_EQUAL(false, simple_joystick->axis_y1.flags.is_signed);
-  TEST_ASSERT_EQUAL(true, simple_joystick->axis_y1.flags.byte_aligned);
   // x2
   TEST_ASSERT_EQUAL(0, simple_joystick->axis_x2.start);
   TEST_ASSERT_EQUAL(8, simple_joystick->axis_x2.length);
   TEST_ASSERT_EQUAL(false, simple_joystick->axis_x2.flags.is_signed);
-  TEST_ASSERT_EQUAL(true, simple_joystick->axis_x2.flags.byte_aligned);
   // y2
   TEST_ASSERT_EQUAL(8, simple_joystick->axis_y2.start);
   TEST_ASSERT_EQUAL(8, simple_joystick->axis_y2.length);
   TEST_ASSERT_EQUAL(false, simple_joystick->axis_y2.flags.is_signed);
-  TEST_ASSERT_EQUAL(true, simple_joystick->axis_y2.flags.byte_aligned);
   
   TEST_ASSERT_EQUAL(40, simple_joystick->hat.start);
   TEST_ASSERT_EQUAL(4, simple_joystick->hat.length);

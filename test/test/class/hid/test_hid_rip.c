@@ -612,6 +612,7 @@ void test_tuh_hid_report_bytes_u32() {
   TEST_ASSERT_EQUAL(0x8f05, tuh_hid_report_bytes_u32(tb, 1, 2));
   TEST_ASSERT_EQUAL(0xff8f05, tuh_hid_report_bytes_u32(tb, 1, 3));
   TEST_ASSERT_EQUAL(0xff8f0550, tuh_hid_report_bytes_u32(tb, 0, 4));
+  TEST_ASSERT_EQUAL(0x8f, tuh_hid_report_bytes_u32(tb, 2, 1));
 }
 
 void test_tuh_hid_report_bytes_i32() {
@@ -622,6 +623,7 @@ void test_tuh_hid_report_bytes_i32() {
   TEST_ASSERT_EQUAL(0xffff8f05, tuh_hid_report_bytes_i32(tb, 1, 2));
   TEST_ASSERT_EQUAL(0xffff8f05, tuh_hid_report_bytes_i32(tb, 1, 3));
   TEST_ASSERT_EQUAL(0xff8f0550, tuh_hid_report_bytes_i32(tb, 0, 4));
+  TEST_ASSERT_EQUAL(0xffffff8f, tuh_hid_report_bytes_i32(tb, 2, 1));
 }
 
 void test_tuh_hid_report_i32() {

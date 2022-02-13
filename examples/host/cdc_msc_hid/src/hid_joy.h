@@ -55,7 +55,6 @@ typedef struct {
     struct TU_ATTR_PACKED
     {
         bool is_signed    : 1;
-        bool byte_aligned : 1; // TODO More efficient fetch from report if set
     };
   } flags;
   uint16_t start;
@@ -70,15 +69,26 @@ typedef struct {
 // Very simple representation of a joystick to try and map to
 // (and this will be quite tricky enough).
 typedef struct {
+  int32_t x1;
+  int32_t y1;
+  int32_t x2;
+  int32_t y2;
+  int32_t hat;
+  uint32_t buttons;
+} tusb_hid_simple_joysick_values_t;
+
+typedef struct {
   uint8_t hid_instance;
   uint8_t report_id;
   bool active;
+  bool has_values;
   tusb_hid_simple_axis_t axis_x1;
   tusb_hid_simple_axis_t axis_y1;
   tusb_hid_simple_axis_t axis_x2;
   tusb_hid_simple_axis_t axis_y2;
   tusb_hid_simple_axis_t hat;
   tusb_hid_simple_buttons_t buttons;
+  tusb_hid_simple_joysick_values_t values;
 } tusb_hid_simple_joysick_t;
 
 typedef struct {
@@ -119,6 +129,7 @@ void tuh_hid_free_simple_joystick(uint8_t hid_instance);
 void tuh_hid_free_simple_joysticks();
 tusb_hid_simple_joysick_t* tuh_hid_allocate_simple_joystick(uint8_t hid_instance, uint8_t report_id);
 tusb_hid_simple_joysick_t* tuh_hid_obtain_simple_joystick(uint8_t hid_instance, uint8_t report_id);
-void tusb_hid_print_simple_joysick_report(tusb_hid_simple_joysick_t* simple_joystick, const uint8_t* report, uint8_t report_length);
+void tusb_hid_simple_joysick_process_report(tusb_hid_simple_joysick_t* simple_joystick, const uint8_t* report, uint8_t report_length);
+void tusb_hid_print_simple_joysick_report(tusb_hid_simple_joysick_t* simple_joystick);
 
 #endif

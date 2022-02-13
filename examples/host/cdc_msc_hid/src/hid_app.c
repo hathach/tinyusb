@@ -304,14 +304,15 @@ static void process_generic_report(uint8_t dev_addr, uint8_t instance, uint8_t c
       
       case HID_USAGE_DESKTOP_JOYSTICK:
         TU_LOG1("HID receive joystick report ");
-        for(int i = 0; i < len; ++i) {
-          printf("%02x", report[i]);
-        }
-        printf("\r\n");
+//        for(int i = 0; i < len; ++i) {
+//          printf("%02x", report[i]);
+//        }
+//        printf("\r\n");
         
         tusb_hid_simple_joysick_t* simple_joystick = tuh_hid_get_simple_joystick(instance, rpt_id);
         if (simple_joystick != NULL) {
-          tusb_hid_print_simple_joysick_report(simple_joystick, report, len);
+          tusb_hid_simple_joysick_process_report(simple_joystick, report, len);
+          tusb_hid_print_simple_joysick_report(simple_joystick);
         }
       break;
       

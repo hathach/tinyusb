@@ -231,9 +231,10 @@ int32_t tuh_hid_report_bits_i32(uint8_t const* report, uint16_t start, uint16_t 
 uint32_t tuh_hid_report_bytes_u32(uint8_t const* report, uint16_t start, uint16_t length)
 {
   const uint8_t *p = report + start;
+  if (length == 1) return (uint32_t)*p;
   uint32_t acc = 0;
   for(uint16_t i = 0; i < length; ++i) {
-    acc |= (uint32_t)*p++;
+    acc |= ((uint32_t)*p++) << (i << 3);
   }
   return acc;   
 }
@@ -242,11 +243,12 @@ uint32_t tuh_hid_report_bytes_u32(uint8_t const* report, uint16_t start, uint16_
 int32_t tuh_hid_report_bytes_i32(uint8_t const* report, uint16_t start, uint16_t length)
 {
   const uint8_t *p = report + start;
+  if (length == 1) return (int32_t)(int8_t)*p;
   uint32_t acc = 0;
   for(uint16_t i = 0; i < length; ++i) {
-    acc |= (uint32_t)*p++;
+    acc |= ((uint32_t)*p++) << (i << 3);
   }
-  const uint32_t lp0 = ((uint32_t)1) << (length + 2);
+  const uint32_t lp0 = ((uint32_t)1) << ((length << 3) - 1);
   const uint32_t lp1 = lp0 << 1;
   // sign extend
   return acc & lp0 ? acc | -lp1 : acc;  

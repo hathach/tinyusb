@@ -128,7 +128,6 @@ static void tuh_hid_joystick_process_axis(
   simple_axis->start = bitpos;
   simple_axis->length = jdata->report_size;
   simple_axis->flags.is_signed = jdata->logical_min < 0;
-  simple_axis->flags.byte_aligned = ((bitpos & 7) == 0) && ((jdata->report_size & 7) == 0);
 }
 
 void tuh_hid_joystick_process_usages(
@@ -242,28 +241,30 @@ int32_t tuh_hid_simple_joystick_get_axis_value(tusb_hid_simple_axis_t* simple_ax
   return tuh_hid_report_i32(report, simple_axis->start, simple_axis->length, simple_axis->flags.is_signed);
 }
 
-void tusb_hid_print_simple_joysick_report(tusb_hid_simple_joysick_t* simple_joystick, const uint8_t* report, uint8_t report_length)
-{
-  if (simple_joystick == NULL ) {
-    printf("NULL joystick definition\n");
-  }
+void tusb_hid_simple_joysick_process_report(tusb_hid_simple_joysick_t* simple_joystick, const uint8_t* report, uint8_t report_length) { 
   
   // TODO Check the report is long enough!!
   
-  // TODO move to struct
-  int32_t x1 = tuh_hid_simple_joystick_get_axis_value(&simple_joystick->axis_x1, report);
-  int32_t y1 = tuh_hid_simple_joystick_get_axis_value(&simple_joystick->axis_y1, report);
-  int32_t x2 = tuh_hid_simple_joystick_get_axis_value(&simple_joystick->axis_x2, report);
-  int32_t y2 = tuh_hid_simple_joystick_get_axis_value(&simple_joystick->axis_y2, report);
-  int32_t hat = tuh_hid_simple_joystick_get_axis_value(&simple_joystick->hat, report);
-  uint32_t buttons = tuh_hid_report_bits_u32(report, simple_joystick->buttons.start, simple_joystick->buttons.length);
-  
-  printf("x1=%4ld, y1=%4ld, x2=%4ld, y2=%4ld, hat=%01X, buttons=%04X\n",  
-    x1,
-    y1,
-    x2,
-    y2,
-    hat,
-    buttons);
+  tusb_hid_simple_joysick_values_t* values = &simple_joystick->values;
+  values->x1 = tuh_hid_simple_joystick_get_axis_value(&simple_joystick->axis_x1, report);
+  values->y1 = tuh_hid_simple_joystick_get_axis_value(&simple_joystick->axis_y1, report);
+  values->x2 = tuh_hid_simple_joystick_get_axis_value(&simple_joystick->axis_x2, report);
+  values->y2 = tuh_hid_simple_joystick_get_axis_value(&simple_joystick->axis_y2, report);
+  values->hat = tuh_hid_simple_joystick_get_axis_value(&simple_joystick->hat, report);
+  values->buttons = tuh_hid_report_bits_u32(report, simple_joystick->buttons.start, simple_joystick->buttons.length);
+  simple_joystick->has_values = true;
+}
+
+void tusb_hid_print_simple_joysick_report(tusb_hid_simple_joysick_t* simple_joystick)
+{
+  if (simple_joystick->has_values) {  
+    printf("x1=%4ld, y1=%4ld, x2=%4ld, y2=%4ld, hat=%01X, buttons=%04X\n",  
+      simple_joystick->values.x1,
+      simple_joystick->values.y1,
+      simple_joystick->values.x2,
+      simple_joystick->values.y2,
+      simple_joystick->values.hat,
+      simple_joystick->values.buttons);    
+  }
 }
 
