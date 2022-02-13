@@ -138,6 +138,7 @@ static const uint8_t const tb_speedlink[] = {
 
 void setUp(void)
 {
+    tuh_hid_free_simple_joysticks();
 }
 
 void tearDown(void)
@@ -152,12 +153,13 @@ void test_nothing() {
     0x05, 0x01,        // Usage Page (Generic Desktop Ctrls)
     0x09, 0x04,        // Usage (Joystick)
   };
-  TEST_ASSERT_EQUAL(0, tuh_hid_joystick_parse_report_descriptor(tb, sizeof(tb)));
+  TEST_ASSERT_EQUAL(0, tuh_hid_joystick_parse_report_descriptor(tb, sizeof(tb), 1));
 }
 
 void test_tuh_hid_joystick_get_data() {
     tuh_hid_joystick_data_t joystick_data;
     tuh_hid_rip_state_t pstate;
+    tusb_hid_simple_joysick_t* simple_joystick;
     tuh_hid_rip_init_state(&pstate, tb_speedlink, sizeof(tb_speedlink));
     const uint8_t *ri;
     
@@ -181,7 +183,7 @@ void test_tuh_hid_joystick_get_data() {
     TEST_ASSERT_EQUAL(false, joystick_data.input_flags.prefered_noprefered);
     TEST_ASSERT_EQUAL(false, joystick_data.input_flags.nonull_null);
 
-    tuh_hid_joystick_process_usages(&pstate, &joystick_data, 0);
+    tuh_hid_joystick_process_usages(&pstate, &joystick_data, 0, 9);
 
 
     while((ri = tuh_hid_rip_next_item(&pstate)) != NULL ) if (ri >= &tb_speedlink[47]) break;
@@ -204,8 +206,11 @@ void test_tuh_hid_joystick_get_data() {
     TEST_ASSERT_EQUAL(false, joystick_data.input_flags.prefered_noprefered);
     TEST_ASSERT_EQUAL(true, joystick_data.input_flags.nonull_null);
 
-    tuh_hid_joystick_process_usages(&pstate, &joystick_data, 40);
-
+    tuh_hid_joystick_process_usages(&pstate, &joystick_data, 40, 9);
+    simple_joystick = tuh_hid_get_simple_joystick(9, 0);
+    TEST_ASSERT_NOT_NULL(simple_joystick);
+    TEST_ASSERT_EQUAL(40, simple_joystick->hat_buttons.start);
+    TEST_ASSERT_EQUAL(4, simple_joystick->hat_buttons.length);
 
     while((ri = tuh_hid_rip_next_item(&pstate)) != NULL ) if (ri >= &tb_speedlink[65]) break;
     TEST_ASSERT_EQUAL(&tb_speedlink[65], ri); // Move to the second input in the speedlink description
@@ -229,14 +234,16 @@ void test_tuh_hid_joystick_get_data() {
     TEST_ASSERT_EQUAL(false, joystick_data.input_flags.prefered_noprefered);
     TEST_ASSERT_EQUAL(false, joystick_data.input_flags.nonull_null);
     
-    tuh_hid_joystick_process_usages(&pstate, &joystick_data, 44); // 56
-
+    tuh_hid_joystick_process_usages(&pstate, &joystick_data, 44, 9); // 56
+    simple_joystick = tuh_hid_get_simple_joystick(9, 0);
+    TEST_ASSERT_NOT_NULL(simple_joystick);
+    TEST_ASSERT_EQUAL(44, simple_joystick->buttons.start);
+    TEST_ASSERT_EQUAL(12, simple_joystick->buttons.length);
 }
-
 
 void test_hid_parse_greenasia_report() {
 
-  // tuh_hid_joystick_parse_report_descriptor(tb, sizeof(tb));
+  // tuh_hid_joystick_parse_report_descriptor(tb, sizeof(tb), 1);
 
 }
 

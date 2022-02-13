@@ -29,13 +29,57 @@
 static uint8_t hid_simple_joysick_count = 0;
 static tusb_hid_simple_joysick_t hid_simple_joysicks[HID_MAX_JOYSTICKS];
 
-static bool tuh_hid_joystick_check_usage(uint32_t eusage) {
+static bool tuh_hid_joystick_check_usage(uint32_t eusage)
+{
   // Check outer usage
   switch(eusage) {
     case HID_RIP_EUSAGE(HID_USAGE_PAGE_DESKTOP, HID_USAGE_DESKTOP_JOYSTICK): return true;
     case HID_RIP_EUSAGE(HID_USAGE_PAGE_DESKTOP, HID_USAGE_DESKTOP_GAMEPAD): return true; // TODO not sure about this one
     default: return false;
   }
+}
+
+// TODO Test
+tusb_hid_simple_joysick_t* tuh_hid_get_simple_joystick(uint8_t hid_instance, uint8_t report_id)
+{
+  for(uint8_t i = 0; i < HID_MAX_JOYSTICKS; ++i) {
+    tusb_hid_simple_joysick_t* simple_joystick = &hid_simple_joysicks[i];
+    if (simple_joystick->active && simple_joystick->hid_instance == hid_instance && simple_joystick->report_id == report_id) return simple_joystick;
+  }
+  return NULL;
+}
+
+void tuh_hid_free_simple_joysticks() {
+  for(uint8_t i = 0; i < HID_MAX_JOYSTICKS; ++i) {
+    hid_simple_joysicks[i].active = false;
+  } 
+}
+
+// TODO Test
+void tuh_hid_free_simple_joystick(uint8_t hid_instance) {
+  for(uint8_t i = 0; i < HID_MAX_JOYSTICKS; ++i) {
+    tusb_hid_simple_joysick_t* simple_joystick = &hid_simple_joysicks[i];
+    if (simple_joystick->hid_instance == hid_instance) simple_joystick->active = false;
+  }
+}
+
+// TODO Test
+tusb_hid_simple_joysick_t* tuh_hid_allocate_simple_joystick(uint8_t hid_instance, uint8_t report_id) {
+  for(uint8_t i = 0; i < HID_MAX_JOYSTICKS; ++i) {
+    tusb_hid_simple_joysick_t* simple_joystick = &hid_simple_joysicks[i];
+    if (!simple_joystick->active) {
+      tu_memclr(simple_joystick, sizeof(tusb_hid_simple_joysick_t));
+      simple_joystick->active = true;
+      simple_joystick->hid_instance = hid_instance;
+      simple_joystick->report_id = report_id;
+    }
+  }
+}
+
+// get or create
+tusb_hid_simple_joysick_t* tuh_hid_obtain_simple_joystick(uint8_t hid_instance, uint8_t report_id) {
+  tusb_hid_simple_joysick_t* jdata = tuh_hid_get_simple_joystick(hid_instance, report_id);
+  return jdata ? jdata : tuh_hid_allocate_simple_joystick(hid_instance, report_id);
 }
 
 // Fetch some data from the HID parser
@@ -77,7 +121,8 @@ bool tuh_hid_joystick_get_data(
 void tuh_hid_joystick_process_usages(
   tuh_hid_rip_state_t *pstate,
   tuh_hid_joystick_data_t* jdata,
-  uint32_t bitpos) 
+  uint32_t bitpos,
+  uint8_t hid_instance) 
 {
   if (jdata->input_flags.data_const) {
     printf("const bits %d \n", jdata->report_size * jdata->report_count);
@@ -95,11 +140,20 @@ void tuh_hid_joystick_process_usages(
     printf("skipping const bits %d \n", jdata->report_size * jdata->report_count);
     return;
   }
+
+  tusb_hid_simple_joysick_t* simple_joystick = tuh_hid_obtain_simple_joystick(hid_instance, jdata->report_id);
+  
+  if (simple_joystick == NULL) {
+    printf("Failed to allocate joystick for HID instance %d, report ID %d\n", hid_instance, jdata->report_id);
+    return;
+  }
   
   // TODO Naive, assumes buttons are defined in a range
   if (jdata->usage_is_range) {
     if (jdata->usage_page == HID_USAGE_PAGE_BUTTON) {
-      printf("Buttons %d to %d\n", jdata->usage_min, jdata->usage_max);
+      tusb_hid_simple_buttons_t* simple_buttons = &simple_joystick->buttons;
+      simple_buttons->start = bitpos;
+      simple_buttons->length = jdata->report_count;
       return;
     }
   }
@@ -116,10 +170,16 @@ void tuh_hid_joystick_process_usages(
         printf("Axis\n");
         break;
       
-      case HID_RIP_EUSAGE(HID_USAGE_PAGE_DESKTOP, HID_USAGE_DESKTOP_HAT_SWITCH):
-        printf("Hat\n");
+      case HID_RIP_EUSAGE(HID_USAGE_PAGE_DESKTOP, HID_USAGE_DESKTOP_HAT_SWITCH): {
+        // HAT buttons seem a bit crazy on joypads... 
+        // they appear to act like a 4 bit button array, roughly arranged to represent directions.
+        // Multiple bits are set if multiple buttons are pressed.
+        // There are probably 10^18 ways of describing and interpreting this item alone. Yay.
+        tusb_hid_simple_buttons_t* simple_buttons = &simple_joystick->hat_buttons;
+        simple_buttons->start = bitpos;
+        simple_buttons->length = jdata->report_count * jdata->report_size;
         break;
-      
+      }
       default: break;
     }
      
@@ -129,7 +189,7 @@ void tuh_hid_joystick_process_usages(
 
 }
 
-uint8_t tuh_hid_joystick_parse_report_descriptor(uint8_t const* desc_report, uint16_t desc_len) {
+uint8_t tuh_hid_joystick_parse_report_descriptor(uint8_t const* desc_report, uint16_t desc_len, uint8_t hid_instance) {
   if (hid_simple_joysick_count < HID_MAX_JOYSTICKS) {
     uint32_t eusage = 0;
     tuh_hid_rip_state_t pstate;

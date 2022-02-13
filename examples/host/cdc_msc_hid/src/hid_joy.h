@@ -70,8 +70,9 @@ typedef struct {
 // Very simple representation of a joystick to try and map to
 // (and this will be quite tricky enough).
 typedef struct {
-  uint8_t instance;
+  uint8_t hid_instance;
   uint8_t report_id;
+  bool active;
   tusb_hid_simple_axis_t axis_x1;
   tusb_hid_simple_axis_t axis_y1;
   tusb_hid_simple_axis_t axis_x2;
@@ -107,9 +108,16 @@ bool tuh_hid_joystick_get_data(
 void tuh_hid_joystick_process_usages(
   tuh_hid_rip_state_t *pstate,
   tuh_hid_joystick_data_t* jdata,
-  uint32_t bitpos
+  uint32_t bitpos,
+  uint8_t hid_instance
 );
 
-uint8_t tuh_hid_joystick_parse_report_descriptor(uint8_t const* desc_report, uint16_t desc_len);
+uint8_t tuh_hid_joystick_parse_report_descriptor(uint8_t const* desc_report, uint16_t desc_len, uint8_t hid_instance);
+
+tusb_hid_simple_joysick_t* tuh_hid_get_simple_joystick(uint8_t hid_instance, uint8_t report_id);
+void tuh_hid_free_simple_joystick(uint8_t hid_instance);
+void tuh_hid_free_simple_joysticks();
+tusb_hid_simple_joysick_t* tuh_hid_allocate_simple_joystick(uint8_t hid_instance, uint8_t report_id);
+tusb_hid_simple_joysick_t* tuh_hid_obtain_simple_joystick(uint8_t hid_instance, uint8_t report_id);
 
 #endif
