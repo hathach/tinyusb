@@ -195,7 +195,7 @@ static const uint8_t const tb_apple[] = {
 
 void setUp(void)
 {
-    tuh_hid_free_simple_joysticks();
+  tuh_hid_free_simple_joysticks();
 }
 
 void tearDown(void)
@@ -247,18 +247,27 @@ void test_tuh_hid_joystick_get_data() {
   TEST_ASSERT_EQUAL(0, simple_joystick->axis_x1.start);
   TEST_ASSERT_EQUAL(8, simple_joystick->axis_x1.length);
   TEST_ASSERT_EQUAL(false, simple_joystick->axis_x1.flags.is_signed);
+  TEST_ASSERT_EQUAL(0, simple_joystick->axis_x1.logical_min);
+  TEST_ASSERT_EQUAL(255, simple_joystick->axis_x1.logical_max);
+
   // y1
   TEST_ASSERT_EQUAL(8, simple_joystick->axis_y1.start);
   TEST_ASSERT_EQUAL(8, simple_joystick->axis_y1.length);
   TEST_ASSERT_EQUAL(false, simple_joystick->axis_y1.flags.is_signed);
+  TEST_ASSERT_EQUAL(0, simple_joystick->axis_y1.logical_min);
+  TEST_ASSERT_EQUAL(255, simple_joystick->axis_y1.logical_max);
   // x2
   TEST_ASSERT_EQUAL(24, simple_joystick->axis_x2.start);
   TEST_ASSERT_EQUAL(8, simple_joystick->axis_x2.length);
   TEST_ASSERT_EQUAL(false, simple_joystick->axis_x2.flags.is_signed);
+  TEST_ASSERT_EQUAL(0, simple_joystick->axis_x2.logical_min);
+  TEST_ASSERT_EQUAL(255, simple_joystick->axis_x2.logical_max);
   // y2
   TEST_ASSERT_EQUAL(32, simple_joystick->axis_y2.start);
   TEST_ASSERT_EQUAL(8, simple_joystick->axis_y2.length);
   TEST_ASSERT_EQUAL(false, simple_joystick->axis_y2.flags.is_signed);
+  TEST_ASSERT_EQUAL(0, simple_joystick->axis_y2.logical_min);
+  TEST_ASSERT_EQUAL(255, simple_joystick->axis_y2.logical_max);
 
   while((ri = tuh_hid_rip_next_item(&pstate)) != NULL ) if (ri >= &tb_speedlink[47]) break;
   TEST_ASSERT_EQUAL(&tb_speedlink[47], ri); // Move to the second input in the speedlink description
@@ -313,6 +322,8 @@ void test_tuh_hid_joystick_get_data() {
   TEST_ASSERT_NOT_NULL(simple_joystick);
   TEST_ASSERT_EQUAL(44, simple_joystick->buttons.start);
   TEST_ASSERT_EQUAL(12, simple_joystick->buttons.length);
+  
+  TEST_ASSERT_EQUAL(7, simple_joystick->report_length);
 }
 
 void test_hid_parse_greenasia_report() {
@@ -339,6 +350,8 @@ void test_hid_parse_greenasia_report() {
   TEST_ASSERT_EQUAL(4, simple_joystick->hat.length);
   TEST_ASSERT_EQUAL(44, simple_joystick->buttons.start);
   TEST_ASSERT_EQUAL(12, simple_joystick->buttons.length);
+
+  TEST_ASSERT_EQUAL(8, simple_joystick->report_length);
 }
 
 void test_hid_parse_speedlink_report() {
@@ -366,6 +379,8 @@ void test_hid_parse_speedlink_report() {
   TEST_ASSERT_EQUAL(4, simple_joystick->hat.length);
   TEST_ASSERT_EQUAL(44, simple_joystick->buttons.start);
   TEST_ASSERT_EQUAL(12, simple_joystick->buttons.length);
+
+  TEST_ASSERT_EQUAL(8, simple_joystick->report_length);
 }
 
 void test_apple_joystick() {
@@ -386,6 +401,8 @@ void test_apple_joystick() {
   TEST_ASSERT_EQUAL(0, simple_joystick->axis_x1.start);
   TEST_ASSERT_EQUAL(10, simple_joystick->axis_x1.length);
   TEST_ASSERT_EQUAL(false, simple_joystick->axis_x1.flags.is_signed);
+  TEST_ASSERT_EQUAL(0, simple_joystick->axis_x1.logical_min);
+  TEST_ASSERT_EQUAL(1023, simple_joystick->axis_x1.logical_max);
   // y1
   TEST_ASSERT_EQUAL(10, simple_joystick->axis_y1.start);
   TEST_ASSERT_EQUAL(10, simple_joystick->axis_y1.length);
@@ -428,4 +445,10 @@ void test_apple_joystick() {
   TEST_ASSERT_EQUAL(254, simple_joystick->values.y2);
   TEST_ASSERT_EQUAL(0, simple_joystick->values.hat);
   TEST_ASSERT_EQUAL(0, simple_joystick->values.buttons);
+
+  TEST_ASSERT_EQUAL(8, simple_joystick->report_length);
 }
+
+// TODO Test multiple report IDs
+
+

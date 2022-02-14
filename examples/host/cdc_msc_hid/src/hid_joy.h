@@ -59,6 +59,8 @@ typedef struct {
   } flags;
   uint16_t start;
   uint16_t length;
+  int32_t logical_min;
+  int32_t logical_max;
 } tusb_hid_simple_axis_t;
 
 typedef struct {
@@ -80,6 +82,7 @@ typedef struct {
 typedef struct {
   uint8_t hid_instance;
   uint8_t report_id;
+  uint8_t report_length; // requied report length in bytes
   bool active;
   bool has_values;
   tusb_hid_simple_axis_t axis_x1;
@@ -92,8 +95,8 @@ typedef struct {
 } tusb_hid_simple_joysick_t;
 
 typedef struct {
-  uint32_t report_size;   // TODO make this a uint8_t and range check before assignment
-  uint32_t report_count;  // TODO make this a uint8_t and range check before assignment
+  uint32_t report_size; 
+  uint32_t report_count;
   uint32_t logical_min;
   uint32_t logical_max;
   uint16_t usage_page;

@@ -128,6 +128,8 @@ static void tuh_hid_joystick_process_axis(
   simple_axis->start = bitpos;
   simple_axis->length = jdata->report_size;
   simple_axis->flags.is_signed = jdata->logical_min < 0;
+  simple_axis->logical_min = jdata->logical_min;
+  simple_axis->logical_max = jdata->logical_max;
 }
 
 void tuh_hid_joystick_process_usages(
@@ -151,6 +153,9 @@ void tuh_hid_joystick_process_usages(
     printf("Failed to allocate joystick for HID instance %d, report ID %d\n", hid_instance, jdata->report_id);
     return;
   }
+
+  // update the report length in bytes
+  simple_joystick->report_length = (uint8_t)((bitpos + (jdata->report_size * jdata->report_count) + 7) >> 3);
   
   // TODO Naive, assumes buttons are defined in a range
   if (jdata->usage_is_range) {
@@ -217,10 +222,8 @@ uint8_t tuh_hid_joystick_parse_report_descriptor(uint8_t const* desc_report, uin
         }
         break;
       }
-      case HID_RI_TYPE_AND_TAG(RI_TYPE_MAIN, RI_MAIN_COLLECTION_END): {
-        if (pstate.collections_count == 0) {
-          bitpos = 0;
-        }
+      case HID_RI_TYPE_AND_TAG(RI_TYPE_GLOBAL, RI_GLOBAL_REPORT_ID): {
+        bitpos = 0;
         break;
       }
       default: break;
@@ -233,10 +236,12 @@ int32_t tuh_hid_simple_joystick_get_axis_value(tusb_hid_simple_axis_t* simple_ax
   return tuh_hid_report_i32(report, simple_axis->start, simple_axis->length, simple_axis->flags.is_signed);
 }
 
-void tusb_hid_simple_joysick_process_report(tusb_hid_simple_joysick_t* simple_joystick, const uint8_t* report, uint8_t report_length) { 
-  
-  // TODO Check the report is long enough!!
-  
+void tusb_hid_simple_joysick_process_report(tusb_hid_simple_joysick_t* simple_joystick, const uint8_t* report, uint8_t report_length)
+ {   
+  if (simple_joystick->report_length > report_length) {
+    TU_LOG1("HID joystick report too small\r\n");
+    return;
+  }
   tusb_hid_simple_joysick_values_t* values = &simple_joystick->values;
   values->x1 = tuh_hid_simple_joystick_get_axis_value(&simple_joystick->axis_x1, report);
   values->y1 = tuh_hid_simple_joystick_get_axis_value(&simple_joystick->axis_y1, report);
