@@ -423,5 +423,9 @@ void test_apple_joystick() {
   tusb_hid_simple_joysick_process_report(simple_joystick, report, sizeof(report));
   TEST_ASSERT_EQUAL(true, simple_joystick->has_values);
   TEST_ASSERT_EQUAL(489, simple_joystick->values.x1);
-  // TODO 
+  TEST_ASSERT_EQUAL(524, simple_joystick->values.y1);
+  TEST_ASSERT_EQUAL(511, simple_joystick->values.x2);
+  TEST_ASSERT_EQUAL(254, simple_joystick->values.y2);
+  TEST_ASSERT_EQUAL(0, simple_joystick->values.hat);
+  TEST_ASSERT_EQUAL(0, simple_joystick->values.buttons);
 }
