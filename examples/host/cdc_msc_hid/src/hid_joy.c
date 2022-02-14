@@ -136,20 +136,12 @@ void tuh_hid_joystick_process_usages(
   uint32_t bitpos,
   uint8_t hid_instance)
 {
-  if (jdata->input_flags.data_const) {
-    printf("const bits %d \n", jdata->report_size * jdata->report_count);
-    return;
-  }
+  if (jdata->input_flags.data_const) return;
   
   // If there are no specific usages look for a range
   // TODO What is the correct behaviour if there are both?
   if (pstate->usage_count == 0 && !jdata->usage_is_range) {
     printf("no usage - skipping bits %d \n", jdata->report_size * jdata->report_count);
-    return;
-  }
-  
-  if (jdata->input_flags.data_const) {
-    printf("skipping const bits %d \n", jdata->report_size * jdata->report_count);
     return;
   }
 
