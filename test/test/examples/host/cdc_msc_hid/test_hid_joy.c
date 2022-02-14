@@ -135,6 +135,63 @@ static const uint8_t const tb_speedlink[] = {
     0xC0,              //   End Collection
     0xC0,              // End Collection
   };
+  
+static const uint8_t const tb_apple[] = { 
+    0x05, 0x01,        // Usage Page (Generic Desktop Ctrls)
+    0x09, 0x04,        // Usage (Joystick)
+    0xA1, 0x01,        // Collection (Application)
+    0x09, 0x01,        //   Usage (Pointer)
+    0xA1, 0x00,        //   Collection (Physical)
+    0x05, 0x01,        //     Usage Page (Generic Desktop Ctrls)
+    0x09, 0x30,        //     Usage (X)
+    0x09, 0x31,        //     Usage (Y)
+    0x15, 0x00,        //     Logical Minimum (0)
+    0x26, 0xFF, 0x03,  //     Logical Maximum (1023)
+    0x35, 0x00,        //     Physical Minimum (0)
+    0x46, 0xFF, 0x03,  //     Physical Maximum (1023)
+    0x65, 0x00,        //     Unit (None)
+    0x75, 0x0A,        //     Report Size (10)
+    0x95, 0x02,        //     Report Count (2)
+    0x81, 0x02,        //     Input (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position)
+    0x09, 0x35,        //     Usage (Rz)
+    0x09, 0x32,        //     Usage (Z)
+    0x15, 0x00,        //     Logical Minimum (0)
+    0x26, 0xFF, 0x01,  //     Logical Maximum (511)
+    0x35, 0x00,        //     Physical Minimum (0)
+    0x46, 0xFF, 0x01,  //     Physical Maximum (511)
+    0x65, 0x00,        //     Unit (None)
+    0x75, 0x09,        //     Report Size (9)
+    0x95, 0x02,        //     Report Count (2)
+    0x81, 0x02,        //     Input (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position)
+    0x75, 0x01,        //     Report Size (1)
+    0x95, 0x02,        //     Report Count (2)
+    0x81, 0x01,        //     Input (Const,Array,Abs,No Wrap,Linear,Preferred State,No Null Position)
+    0x09, 0x39,        //     Usage (Hat switch)
+    0x15, 0x01,        //     Logical Minimum (1)
+    0x25, 0x08,        //     Logical Maximum (8)
+    0x35, 0x00,        //     Physical Minimum (0)
+    0x46, 0x3B, 0x01,  //     Physical Maximum (315)
+    0x65, 0x14,        //     Unit (System: English Rotation, Length: Centimeter)
+    0x75, 0x08,        //     Report Size (8)
+    0x95, 0x01,        //     Report Count (1)
+    0x81, 0x02,        //     Input (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position)
+    0x05, 0x09,        //     Usage Page (Button)
+    0x19, 0x01,        //     Usage Minimum (0x01)
+    0x29, 0x0C,        //     Usage Maximum (0x0C)
+    0x15, 0x00,        //     Logical Minimum (0)
+    0x25, 0x01,        //     Logical Maximum (1)
+    0x35, 0x00,        //     Physical Minimum (0)
+    0x45, 0x01,        //     Physical Maximum (1)
+    0x75, 0x01,        //     Report Size (1)
+    0x95, 0x0C,        //     Report Count (12)
+    0x81, 0x02,        //     Input (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position)
+    0x75, 0x01,        //     Report Size (1)
+    0x95, 0x04,        //     Report Count (4)
+    0x81, 0x01,        //     Input (Const,Array,Abs,No Wrap,Linear,Preferred State,No Null Position)
+    0xC0,              //   End Collection
+    0xC0,              // End Collection
+};
+
 
 void setUp(void)
 {
@@ -311,4 +368,60 @@ void test_hid_parse_speedlink_report() {
   TEST_ASSERT_EQUAL(12, simple_joystick->buttons.length);
 }
 
-
+void test_apple_joystick() {
+  // Thanks to https://jenswilly.dk/2012/10/parsing-usb-joystick-hid-data/
+  
+  //  10 bits of X-axis data (for values from 0 to 1023)
+  //  10 bits of Y-axis data (for values from 0 to 1023)
+  //   9 bits of Rz-axis (yaw or rotation) data (for values from 0-511)
+  //   9 bits of Z-axis (throttle) data (for values from 0-511)
+  //   2 "constant" bits – i.e. unused padding bits
+  //   8 bits of hat switch data (though values are only from 1-8)
+  //  12 bits of button states (12 buttons of 0 or 1 values)
+  //   4 bits of padding  
+  tuh_hid_joystick_parse_report_descriptor(tb_apple, sizeof(tb_apple), 9);
+  tusb_hid_simple_joysick_t* simple_joystick = tuh_hid_get_simple_joystick(9, 0);
+  TEST_ASSERT_NOT_NULL(simple_joystick);
+  // x1
+  TEST_ASSERT_EQUAL(0, simple_joystick->axis_x1.start);
+  TEST_ASSERT_EQUAL(10, simple_joystick->axis_x1.length);
+  TEST_ASSERT_EQUAL(false, simple_joystick->axis_x1.flags.is_signed);
+  // y1
+  TEST_ASSERT_EQUAL(10, simple_joystick->axis_y1.start);
+  TEST_ASSERT_EQUAL(10, simple_joystick->axis_y1.length);
+  TEST_ASSERT_EQUAL(false, simple_joystick->axis_y1.flags.is_signed);
+  // x2
+  TEST_ASSERT_EQUAL(29, simple_joystick->axis_x2.start);
+  TEST_ASSERT_EQUAL(9, simple_joystick->axis_x2.length);
+  TEST_ASSERT_EQUAL(false, simple_joystick->axis_x2.flags.is_signed);
+  // y2
+  TEST_ASSERT_EQUAL(20, simple_joystick->axis_y2.start);
+  TEST_ASSERT_EQUAL(9, simple_joystick->axis_y2.length);
+  TEST_ASSERT_EQUAL(false, simple_joystick->axis_y2.flags.is_signed);
+  
+  TEST_ASSERT_EQUAL(40, simple_joystick->hat.start);
+  TEST_ASSERT_EQUAL(8, simple_joystick->hat.length);
+  
+  TEST_ASSERT_EQUAL(48, simple_joystick->buttons.start);
+  TEST_ASSERT_EQUAL(12, simple_joystick->buttons.length); 
+  
+  // Raw hex: e9 31 e8 ef 3f 00 00 00
+  // 
+  // Binary  11101001 00110001 11101000 11101111 00111111 00000000 00000000 00000000
+  // field   XXXXXXXX YYYYYYXX RRRRYYYY ZZZRRRRR --ZZZZZZ HHHHHHHH BBBBBBBB ----BBBB
+  // bit no. 76543210 54321098 32109876 21087654 --876543 76543210 76543210 ----BA98
+  // 
+  // X = X-axis:  b0111101001 = 489
+  // Y = Y-axis:  b1000001100 = 524
+  // R = Rz-axis: b011111110 = 254
+  // Z = Z-axis:  b111111111 = 511
+  // H = hat:     b00000000 = 0 (centered)
+  // B = buttons  b000000000000 = 0 (no buttons pressed)
+  // - = padding
+  
+  uint8_t report[] = {0xe9, 0x31, 0xe8, 0xef, 0x3f, 0x00, 0x00, 0x00};
+  tusb_hid_simple_joysick_process_report(simple_joystick, report, sizeof(report));
+  TEST_ASSERT_EQUAL(true, simple_joystick->has_values);
+  TEST_ASSERT_EQUAL(489, simple_joystick->values.x1);
+  // TODO 
+}
