@@ -2,7 +2,7 @@ if (NOT TARGET _family_support_marker)
     add_library(_family_support_marker INTERFACE)
 
     if (NOT FAMILY)
-        message(FATAL_ERROR "You must set a FAMILY variable for the build (e.g. rp2040, eps32s2, esp32s3). You can do this via -DFAMILY=xxx on the camke command line")
+        message(FATAL_ERROR "You must set a FAMILY variable for the build (e.g. rp2040, eps32s2, esp32s3). You can do this via -DFAMILY=xxx on the cmake command line")
     endif()
 
     if (NOT EXISTS ${CMAKE_CURRENT_LIST_DIR}/${FAMILY}/family.cmake)
