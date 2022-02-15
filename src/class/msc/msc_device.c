@@ -239,7 +239,7 @@ bool tud_msc_set_sense(uint8_t lun, uint8_t sense_key, uint8_t add_sense_code, u
   return true;
 }
 
-static inline void set_default_error_sense(uint8_t lun)
+static inline void set_sense_medium_not_present(uint8_t lun)
 {
   // default sense is NOT READY, MEDIUM NOT PRESENT
   tud_msc_set_sense(lun, SCSI_SENSE_NOT_READY, 0x3A, 0x00);
@@ -661,7 +661,7 @@ static int32_t proc_builtin_scsi(uint8_t lun, uint8_t const scsi_cmd[16], uint8_
         resplen = - 1;
 
         // set default sense if not set by callback
-        if ( p_msc->sense_key == 0 ) set_default_error_sense(lun);
+        if ( p_msc->sense_key == 0 ) set_sense_medium_not_present(lun);
       }
     break;
 
@@ -677,7 +677,7 @@ static int32_t proc_builtin_scsi(uint8_t lun, uint8_t const scsi_cmd[16], uint8_
           resplen = - 1;
 
           // set default sense if not set by callback
-          if ( p_msc->sense_key == 0 ) set_default_error_sense(lun);
+          if ( p_msc->sense_key == 0 ) set_sense_medium_not_present(lun);
         }
       }
     break;
@@ -698,7 +698,7 @@ static int32_t proc_builtin_scsi(uint8_t lun, uint8_t const scsi_cmd[16], uint8_
         resplen = -1;
 
         // set default sense if not set by callback
-        if ( p_msc->sense_key == 0 ) set_default_error_sense(lun);
+        if ( p_msc->sense_key == 0 ) set_sense_medium_not_present(lun);
       }else
       {
         scsi_read_capacity10_resp_t read_capa10;
@@ -734,7 +734,7 @@ static int32_t proc_builtin_scsi(uint8_t lun, uint8_t const scsi_cmd[16], uint8_
         resplen = -1;
 
         // set default sense if not set by callback
-        if ( p_msc->sense_key == 0 ) set_default_error_sense(lun);
+        if ( p_msc->sense_key == 0 ) set_sense_medium_not_present(lun);
       }else
       {
         read_fmt_capa.block_num = tu_htonl(block_count);
@@ -847,7 +847,7 @@ static void proc_read10_cmd(uint8_t rhport, mscd_interface_t* p_msc)
     TU_LOG(MSC_DEBUG, "  tud_msc_read10_cb() return -1\r\n");
 
     // set sense
-    set_default_error_sense(p_cbw->lun);
+    set_sense_medium_not_present(p_cbw->lun);
 
     fail_scsi_op(rhport, p_msc, MSC_CSW_STATUS_FAILED);
   }
@@ -912,7 +912,7 @@ static void proc_write10_new_data(uint8_t rhport, mscd_interface_t* p_msc, uint3
     p_msc->xferred_len += xferred_bytes;
 
     // Set sense
-    set_default_error_sense(p_cbw->lun);
+    set_sense_medium_not_present(p_cbw->lun);
 
     fail_scsi_op(rhport, p_msc, MSC_CSW_STATUS_FAILED);
   }else
