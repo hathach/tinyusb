@@ -221,11 +221,6 @@ int32_t tud_msc_scsi_cb (uint8_t lun, uint8_t const scsi_cmd[16], void* buffer, 
 
   switch (scsi_cmd[0])
   {
-    case SCSI_CMD_PREVENT_ALLOW_MEDIUM_REMOVAL:
-      // Host is about to read/write etc ... better not to disconnect disk
-      resplen = 0;
-    break;
-
     default:
       // Set Sense = Invalid Command Operation
       tud_msc_set_sense(lun, SCSI_SENSE_ILLEGAL_REQUEST, 0x20, 0x00);

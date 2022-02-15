@@ -65,7 +65,7 @@ Supports multiple device configurations by dynamically changing USB descriptors,
 -  Audio Class 2.0 (UAC2)
 -  Bluetooth Host Controller Interface (BTH HCI)
 -  Communication Device Class (CDC)
--  Device Firmware Update (DFU): DFU mode (WIP) and Runtinme
+-  Device Firmware Update (DFU): DFU mode (WIP) and Runtime
 -  Human Interface Device (HID): Generic (In & Out), Keyboard, Mouse, Gamepad etc ...
 -  Mass Storage Class (MSC): with multiple LUNs
 -  Musical Instrument Digital Interface (MIDI)

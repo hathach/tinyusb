@@ -28,6 +28,9 @@
 
 #if CFG_TUD_MSC
 
+// When button is pressed, LUN1 will be set to not ready to simulate
+// medium not present (e.g SD card removed)
+
 // Some MCU doesn't have enough 8KB SRAM to store the whole disk
 // We will use Flash as read-only disk with board that has
 // CFG_EXAMPLE_MSC_READONLY defined
@@ -227,7 +230,7 @@ void tud_msc_inquiry_cb(uint8_t lun, uint8_t vendor_id[8], uint8_t product_id[16
 // return true allowing host to read/write this LUN e.g SD card inserted
 bool tud_msc_test_unit_ready_cb(uint8_t lun)
 {
-  (void) lun;
+  if ( lun == 1 && board_button_read() ) return false;
 
   return true; // RAM disk is always ready
 }
@@ -320,23 +323,6 @@ int32_t tud_msc_scsi_cb (uint8_t lun, uint8_t const scsi_cmd[16], void* buffer, 
 
   switch (scsi_cmd[0])
   {
-    case SCSI_CMD_PREVENT_ALLOW_MEDIUM_REMOVAL:
-      // Host is about to read/write etc ... better not to disconnect disk
-      resplen = 0;
-    break;
-
-    case SCSI_CMD_START_STOP_UNIT:
-      // Host try to eject/safe remove/poweroff us. We could safely disconnect with disk storage, or go into lower power
-      /* scsi_start_stop_unit_t const * start_stop = (scsi_start_stop_unit_t const *) scsi_cmd;
-        // Start bit = 0 : low power mode, if load_eject = 1 : unmount disk storage as well
-        // Start bit = 1 : Ready mode, if load_eject = 1 : mount disk storage
-        start_stop->start;
-        start_stop->load_eject;
-       */
-       resplen = 0;
-    break;
-
-
     default:
       // Set Sense = Invalid Command Operation
       tud_msc_set_sense(lun, SCSI_SENSE_ILLEGAL_REQUEST, 0x20, 0x00);
