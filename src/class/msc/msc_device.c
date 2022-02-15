@@ -209,7 +209,7 @@ TU_ATTR_UNUSED static tu_lookup_entry_t const _msc_scsi_cmd_lookup[] =
   { .key = SCSI_CMD_MODE_SELECT_6                , .data = "Mode_Select 6" },
   { .key = SCSI_CMD_MODE_SENSE_6                 , .data = "Mode_Sense 6" },
   { .key = SCSI_CMD_START_STOP_UNIT              , .data = "Start Stop Unit" },
-  { .key = SCSI_CMD_PREVENT_ALLOW_MEDIUM_REMOVAL , .data = "Prevent Allow Medium Removal" },
+  { .key = SCSI_CMD_PREVENT_ALLOW_MEDIUM_REMOVAL , .data = "Prevent/Allow Medium Removal" },
   { .key = SCSI_CMD_READ_CAPACITY_10             , .data = "Read Capacity10" },
   { .key = SCSI_CMD_REQUEST_SENSE                , .data = "Request Sense" },
   { .key = SCSI_CMD_READ_FORMAT_CAPACITY         , .data = "Read Format Capacity" },
