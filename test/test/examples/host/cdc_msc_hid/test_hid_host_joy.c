@@ -27,10 +27,11 @@
 
 // Files to test
 #include "hid_rip.h"
-#include "hid_joy.h"
+#include "hid_host_joy.h"
 TEST_FILE("hid_ri.c")
 TEST_FILE("hid_rip.c")
-TEST_FILE("hid_joy.c")
+TEST_FILE("hid_host_utils.c")
+TEST_FILE("hid_host_joy.c")
 
 static const uint8_t const tb_greenasia[] = { 
     0x05, 0x01,        // Usage Page (Generic Desktop Ctrls)
@@ -205,12 +206,52 @@ void tearDown(void)
 //--------------------------------------------------------------------+
 // Tests
 //--------------------------------------------------------------------+
-void test_nothing() {
-  const uint8_t const tb[] = { 
-    0x05, 0x01,        // Usage Page (Generic Desktop Ctrls)
-    0x09, 0x04,        // Usage (Joystick)
-  };
-  TEST_ASSERT_EQUAL(0, tuh_hid_joystick_parse_report_descriptor(tb, sizeof(tb), 1));
+
+// TODO 
+void test_simple_joystick_allocator() {
+  TEST_ASSERT_NULL(tuh_hid_get_simple_joystick(1, 2));
+  TEST_ASSERT_NULL(tuh_hid_get_simple_joystick(1, 3));
+  TEST_ASSERT_NULL(tuh_hid_get_simple_joystick(2, 3));
+  TEST_ASSERT_NULL(tuh_hid_get_simple_joystick(2, 2));
+  TEST_ASSERT_NOT_NULL(tuh_hid_allocate_simple_joystick(1, 2));
+  TEST_ASSERT_NOT_NULL(tuh_hid_allocate_simple_joystick(1, 3));
+  TEST_ASSERT_NOT_NULL(tuh_hid_allocate_simple_joystick(2, 3));
+  TEST_ASSERT_NOT_NULL(tuh_hid_allocate_simple_joystick(2, 2));
+  TEST_ASSERT_NOT_NULL(tuh_hid_get_simple_joystick(1, 2));
+  TEST_ASSERT_NOT_NULL(tuh_hid_get_simple_joystick(1, 3));
+  TEST_ASSERT_NOT_NULL(tuh_hid_get_simple_joystick(2, 3));
+  TEST_ASSERT_NOT_NULL(tuh_hid_get_simple_joystick(2, 2));
+  tuh_hid_free_simple_joysticks_for_instance(1);
+  TEST_ASSERT_NULL(tuh_hid_get_simple_joystick(1, 2));
+  TEST_ASSERT_NULL(tuh_hid_get_simple_joystick(1, 3));  
+  tuh_hid_free_simple_joysticks_for_instance(1);
+  TEST_ASSERT_NULL(tuh_hid_get_simple_joystick(1, 2));
+  TEST_ASSERT_NULL(tuh_hid_get_simple_joystick(1, 3)); 
+}
+
+void test_simple_joystick_allocate_too_many() {
+  for (int i =0; i < HID_MAX_JOYSTICKS; ++i) {
+    TEST_ASSERT_NOT_NULL(tuh_hid_allocate_simple_joystick(1, i + 1));
+  }
+  TEST_ASSERT_NULL(tuh_hid_allocate_simple_joystick(2, 1));
+}
+
+void test_simple_joystick_free_all() {
+  TEST_ASSERT_NOT_NULL(tuh_hid_allocate_simple_joystick(1, 3));
+  TEST_ASSERT_NOT_NULL(tuh_hid_allocate_simple_joystick(2, 3));
+  tuh_hid_free_simple_joysticks();
+  TEST_ASSERT_NULL(tuh_hid_get_simple_joystick(1, 3));
+  TEST_ASSERT_NULL(tuh_hid_get_simple_joystick(2, 3));  
+}
+
+void test_simple_joystick_obtain() {
+  tusb_hid_simple_joysick_t* j1 = tuh_hid_allocate_simple_joystick(1, 3);
+  TEST_ASSERT_NOT_NULL(j1);
+  TEST_ASSERT_EQUAL(j1, tuh_hid_obtain_simple_joystick(1, 3));
+  TEST_ASSERT_NULL(tuh_hid_get_simple_joystick(2, 3));  
+  tusb_hid_simple_joysick_t* j2 = tuh_hid_allocate_simple_joystick(2, 3);
+  TEST_ASSERT_NOT_NULL(j2);
+  TEST_ASSERT_NOT_EQUAL(j1,j2);
 }
 
 void test_tuh_hid_joystick_get_data() {

@@ -148,25 +148,5 @@ uint32_t tuh_hid_rip_report_total_size_bits(tuh_hid_rip_state_t *state);
 //--------------------------------------------------------------------+
 uint8_t tuh_hid_parse_report_descriptor(tuh_hid_report_info_t* reports_info_arr, uint8_t arr_count, uint8_t const* desc_report, uint16_t desc_len) TU_ATTR_UNUSED;
 
-//--------------------------------------------------------------------+
-// Helpers for extracting values from a HID Report
-//--------------------------------------------------------------------+
-
-// Helper to get some bits from a HID report as an unsigned 32 bit number
-uint32_t tuh_hid_report_bits_u32(uint8_t const* report, uint16_t start, uint16_t length);
-
-// Helper to get some bits from a HID report as a signed 32 bit number
-int32_t tuh_hid_report_bits_i32(uint8_t const* report, uint16_t start, uint16_t length);
-
-// Helper to get some bytes from a HID report as an unsigned 32 bit number
-uint32_t tuh_hid_report_bytes_u32(uint8_t const* report, uint16_t start, uint16_t length);
-
-// Helper to get some bytes from a HID report as a signed 32 bit number
-int32_t tuh_hid_report_bytes_i32(uint8_t const* report, uint16_t start, uint16_t length);
-
-// Helper to get a value from a HID report
-// Not suitable if the value can be > 2^31
-int32_t tuh_hid_report_i32(const uint8_t* report, uint16_t start, uint16_t length, bool is_signed);
-
 #endif
 

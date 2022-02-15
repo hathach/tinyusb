@@ -21,10 +21,11 @@
  *
  * Test me with:
  * 
- * ceedling test:pattern[hid_joy]
+ * ceedling test:pattern[hid_host_joy]
  */
 
-#include "hid_joy.h"
+#include "hid_host_joy.h"
+#include "hid_host_utils.h"
 
 static tusb_hid_simple_joysick_t hid_simple_joysicks[HID_MAX_JOYSTICKS];
 
@@ -38,7 +39,6 @@ static bool tuh_hid_joystick_check_usage(uint32_t eusage)
   }
 }
 
-// TODO Test
 tusb_hid_simple_joysick_t* tuh_hid_get_simple_joystick(uint8_t hid_instance, uint8_t report_id)
 {
   for(uint8_t i = 0; i < HID_MAX_JOYSTICKS; ++i) {
@@ -54,15 +54,13 @@ void tuh_hid_free_simple_joysticks() {
   } 
 }
 
-// TODO Test
-void tuh_hid_free_simple_joystick(uint8_t hid_instance) {
+void tuh_hid_free_simple_joysticks_for_instance(uint8_t hid_instance) {
   for(uint8_t i = 0; i < HID_MAX_JOYSTICKS; ++i) {
     tusb_hid_simple_joysick_t* simple_joystick = &hid_simple_joysicks[i];
     if (simple_joystick->hid_instance == hid_instance) simple_joystick->active = false;
   }
 }
 
-// TODO Test
 tusb_hid_simple_joysick_t* tuh_hid_allocate_simple_joystick(uint8_t hid_instance, uint8_t report_id) {
   for(uint8_t i = 0; i < HID_MAX_JOYSTICKS; ++i) {
     tusb_hid_simple_joysick_t* simple_joystick = &hid_simple_joysicks[i];
@@ -154,10 +152,10 @@ void tuh_hid_joystick_process_usages(
     return;
   }
 
-  // update the report length in bytes
+  // Update the report length in bytes
   simple_joystick->report_length = (uint8_t)((bitpos + (jdata->report_size * jdata->report_count) + 7) >> 3);
   
-  // TODO Naive, assumes buttons are defined in a range
+  // Naive, assumes buttons are defined in a range
   if (jdata->usage_is_range) {
     if (jdata->usage_page == HID_USAGE_PAGE_BUTTON) {
       tusb_hid_simple_buttons_t* simple_buttons = &simple_joystick->buttons;
@@ -199,7 +197,7 @@ uint8_t tuh_hid_joystick_parse_report_descriptor(uint8_t const* desc_report, uin
   tuh_hid_rip_state_t pstate;
   tuh_hid_rip_init_state(&pstate, desc_report, desc_len);
   const uint8_t *ri;
-  uint32_t bitpos = 0; // TODO Think about if this could be uint8_t or uint16_t 
+  uint32_t bitpos = 0;
   while((ri = tuh_hid_rip_next_short_item(&pstate)) != NULL)
   {
     uint8_t const type_and_tag = tuh_hid_ri_short_type_and_tag(ri);
@@ -255,7 +253,9 @@ void tusb_hid_simple_joysick_process_report(tusb_hid_simple_joysick_t* simple_jo
 void tusb_hid_print_simple_joysick_report(tusb_hid_simple_joysick_t* simple_joystick)
 {
   if (simple_joystick->has_values) {  
-    printf("x1=%4ld, y1=%4ld, x2=%4ld, y2=%4ld, hat=%01X, buttons=%04X\n",  
+    printf("hid=%3ld, report_id=%3ld, x1=%4ld, y1=%4ld, x2=%4ld, y2=%4ld, hat=%01X, buttons=%04X\n",  
+      simple_joystick->hid_instance,
+      simple_joystick->report_id,
       simple_joystick->values.x1,
       simple_joystick->values.y1,
       simple_joystick->values.x2,

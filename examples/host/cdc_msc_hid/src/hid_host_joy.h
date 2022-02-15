@@ -31,7 +31,7 @@
  extern "C" {
 #endif
 
-#define HID_MAX_JOYSTICKS 2
+#define HID_MAX_JOYSTICKS 4
 
 typedef union TU_ATTR_PACKED
 {
@@ -79,6 +79,7 @@ typedef struct {
   uint32_t buttons;
 } tusb_hid_simple_joysick_values_t;
 
+// Simple joystick definitions and values
 typedef struct {
   uint8_t hid_instance;
   uint8_t report_id;
@@ -94,6 +95,7 @@ typedef struct {
   tusb_hid_simple_joysick_values_t values;
 } tusb_hid_simple_joysick_t;
 
+// Intermediate data structure used while parsing joystick HID report descriptors
 typedef struct {
   uint32_t report_size; 
   uint32_t report_count;
@@ -118,6 +120,8 @@ bool tuh_hid_joystick_get_data(
   tuh_hid_joystick_data_t* jdata   // Data structure to complete
 );
 
+// Process the HID descriptor usages
+// These are handled when an 'input' item is encountered.
 void tuh_hid_joystick_process_usages(
   tuh_hid_rip_state_t *pstate,
   tuh_hid_joystick_data_t* jdata,
@@ -125,14 +129,35 @@ void tuh_hid_joystick_process_usages(
   uint8_t hid_instance
 );
 
+// Parse a HID report description for a joystick
 uint8_t tuh_hid_joystick_parse_report_descriptor(uint8_t const* desc_report, uint16_t desc_len, uint8_t hid_instance);
 
+// Fetch a previously allocated simple joystick
 tusb_hid_simple_joysick_t* tuh_hid_get_simple_joystick(uint8_t hid_instance, uint8_t report_id);
-void tuh_hid_free_simple_joystick(uint8_t hid_instance);
+
+// Free a previously allocated simple joystick
+void tuh_hid_free_simple_joysticks_for_instance(uint8_t hid_instance);
+
+// Free all previously allocated simple joysticks
 void tuh_hid_free_simple_joysticks();
+
+// Allocate a new simple joystick
 tusb_hid_simple_joysick_t* tuh_hid_allocate_simple_joystick(uint8_t hid_instance, uint8_t report_id);
+
+// If it exists, return an exisiting simple joystick, else allocate a new one
 tusb_hid_simple_joysick_t* tuh_hid_obtain_simple_joystick(uint8_t hid_instance, uint8_t report_id);
+
+// Process a HID report
+// The report pointer should be advanced beyond the report ID byte.
+// The length should not include the report ID byte.
+// The length should be in bytes.
 void tusb_hid_simple_joysick_process_report(tusb_hid_simple_joysick_t* simple_joystick, const uint8_t* report, uint8_t report_length);
+
+// Send an axis and button report to stdout
+//
+// e.g.
+//  hid=  0, report_id=  0, x1=   0, y1=   0, x2= 127, y2= 127, hat=F, buttons=0008
+//
 void tusb_hid_print_simple_joysick_report(tusb_hid_simple_joysick_t* simple_joystick);
 
 #endif

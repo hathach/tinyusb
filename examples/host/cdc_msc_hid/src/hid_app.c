@@ -25,7 +25,7 @@
 
 #include "bsp/board.h"
 #include "tusb.h"
-#include "hid_joy.h"
+#include "hid_host_joy.h"
 
 //--------------------------------------------------------------------+
 // MACRO TYPEDEF CONSTANT ENUM DECLARATION
@@ -102,7 +102,7 @@ void tuh_hid_umount_cb(uint8_t dev_addr, uint8_t instance)
   printf("HID device address = %d, instance = %d is unmounted\r\n", dev_addr, instance);
   
   // Free up any joystick definitions
-  tuh_hid_free_simple_joystick(instance);
+  tuh_hid_free_simple_joysticks_for_instance(instance);
 }
 
 // Invoked when received report from device via interrupt endpoint
