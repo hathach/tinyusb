@@ -39,36 +39,44 @@ static bool tuh_hid_joystick_check_usage(uint32_t eusage)
   }
 }
 
-tusb_hid_simple_joysick_t* tuh_hid_get_simple_joystick(uint8_t hid_instance, uint8_t report_id)
+tusb_hid_simple_joysick_t* tuh_hid_get_simple_joystick(uint8_t dev_addr, uint8_t instance, uint8_t report_id)
 {
+  tusb_hid_simple_joysick_key_t key;
+  key.elements.dev_addr = dev_addr;
+  key.elements.instance = instance;
+  key.elements.report_id = report_id;
+  key.elements.in_use = 1;
+  uint32_t combined = key.combined;
+  
   for(uint8_t i = 0; i < HID_MAX_JOYSTICKS; ++i) {
     tusb_hid_simple_joysick_t* simple_joystick = &hid_simple_joysicks[i];
-    if (simple_joystick->active && simple_joystick->hid_instance == hid_instance && simple_joystick->report_id == report_id) return simple_joystick;
+    if (simple_joystick->key.combined == combined) return simple_joystick;
   }
   return NULL;
 }
 
 void tuh_hid_free_simple_joysticks() {
   for(uint8_t i = 0; i < HID_MAX_JOYSTICKS; ++i) {
-    hid_simple_joysicks[i].active = false;
+    hid_simple_joysicks[i].key.elements.in_use = false;
   } 
 }
 
-void tuh_hid_free_simple_joysticks_for_instance(uint8_t hid_instance) {
+void tuh_hid_free_simple_joysticks_for_instance(uint8_t dev_addr, uint8_t instance) {
   for(uint8_t i = 0; i < HID_MAX_JOYSTICKS; ++i) {
     tusb_hid_simple_joysick_t* simple_joystick = &hid_simple_joysicks[i];
-    if (simple_joystick->hid_instance == hid_instance) simple_joystick->active = false;
+    if (simple_joystick->key.elements.dev_addr == dev_addr && simple_joystick->key.elements.instance == instance) simple_joystick->key.elements.in_use = 0;
   }
 }
 
-tusb_hid_simple_joysick_t* tuh_hid_allocate_simple_joystick(uint8_t hid_instance, uint8_t report_id) {
+tusb_hid_simple_joysick_t* tuh_hid_allocate_simple_joystick(uint8_t dev_addr, uint8_t instance, uint8_t report_id) {
   for(uint8_t i = 0; i < HID_MAX_JOYSTICKS; ++i) {
     tusb_hid_simple_joysick_t* simple_joystick = &hid_simple_joysicks[i];
-    if (!simple_joystick->active) {
+    if (!simple_joystick->key.elements.in_use) {
       tu_memclr(simple_joystick, sizeof(tusb_hid_simple_joysick_t));
-      simple_joystick->active = true;
-      simple_joystick->hid_instance = hid_instance;
-      simple_joystick->report_id = report_id;
+      simple_joystick->key.elements.in_use = 1;;
+      simple_joystick->key.elements.instance = instance;
+      simple_joystick->key.elements.report_id = report_id;
+      simple_joystick->key.elements.dev_addr = dev_addr;
       return simple_joystick;
     }
   }
@@ -76,9 +84,9 @@ tusb_hid_simple_joysick_t* tuh_hid_allocate_simple_joystick(uint8_t hid_instance
 }
 
 // get or create
-tusb_hid_simple_joysick_t* tuh_hid_obtain_simple_joystick(uint8_t hid_instance, uint8_t report_id) {
-  tusb_hid_simple_joysick_t* jdata = tuh_hid_get_simple_joystick(hid_instance, report_id);
-  return jdata ? jdata : tuh_hid_allocate_simple_joystick(hid_instance, report_id);
+tusb_hid_simple_joysick_t* tuh_hid_obtain_simple_joystick(uint8_t dev_addr, uint8_t instance, uint8_t report_id) {
+  tusb_hid_simple_joysick_t* jdata = tuh_hid_get_simple_joystick(dev_addr, instance, report_id);
+  return jdata ? jdata : tuh_hid_allocate_simple_joystick(dev_addr, instance, report_id);
 }
 
 // Fetch some data from the HID parser
@@ -120,7 +128,7 @@ bool tuh_hid_joystick_get_data(
 static void tuh_hid_joystick_process_axis(
   tuh_hid_joystick_data_t* jdata,
   uint32_t bitpos,
-  uint8_t hid_instance,
+  uint8_t instance,
   tusb_hid_simple_axis_t* simple_axis)
 {
   simple_axis->start = bitpos;
@@ -134,7 +142,8 @@ void tuh_hid_joystick_process_usages(
   tuh_hid_rip_state_t *pstate,
   tuh_hid_joystick_data_t* jdata,
   uint32_t bitpos,
-  uint8_t hid_instance)
+  uint8_t dev_addr,
+  uint8_t instance)
 {
   if (jdata->input_flags.data_const) return;
   
@@ -145,10 +154,10 @@ void tuh_hid_joystick_process_usages(
     return;
   }
 
-  tusb_hid_simple_joysick_t* simple_joystick = tuh_hid_obtain_simple_joystick(hid_instance, jdata->report_id);
+  tusb_hid_simple_joysick_t* simple_joystick = tuh_hid_obtain_simple_joystick(dev_addr, instance, jdata->report_id);
   
   if (simple_joystick == NULL) {
-    printf("Failed to allocate joystick for HID instance %d, report ID %d\n", hid_instance, jdata->report_id);
+    printf("Failed to allocate joystick for HID dev_addr %d, instance %d, report ID %d\n", dev_addr, instance, jdata->report_id);
     return;
   }
 
@@ -171,19 +180,19 @@ void tuh_hid_joystick_process_usages(
       // Seems to be common usage for gamepads.
       // Probably needs a lot more thought...
       case HID_RIP_EUSAGE(HID_USAGE_PAGE_DESKTOP, HID_USAGE_DESKTOP_X):    
-        tuh_hid_joystick_process_axis(jdata, bitpos, hid_instance, &simple_joystick->axis_x1);
+        tuh_hid_joystick_process_axis(jdata, bitpos, instance, &simple_joystick->axis_x1);
         break;
       case HID_RIP_EUSAGE(HID_USAGE_PAGE_DESKTOP, HID_USAGE_DESKTOP_Y):
-        tuh_hid_joystick_process_axis(jdata, bitpos, hid_instance, &simple_joystick->axis_y1);
+        tuh_hid_joystick_process_axis(jdata, bitpos, instance, &simple_joystick->axis_y1);
         break;
       case HID_RIP_EUSAGE(HID_USAGE_PAGE_DESKTOP, HID_USAGE_DESKTOP_Z):
-        tuh_hid_joystick_process_axis(jdata, bitpos, hid_instance, &simple_joystick->axis_x2);
+        tuh_hid_joystick_process_axis(jdata, bitpos, instance, &simple_joystick->axis_x2);
         break;
       case HID_RIP_EUSAGE(HID_USAGE_PAGE_DESKTOP, HID_USAGE_DESKTOP_RZ):
-        tuh_hid_joystick_process_axis(jdata, bitpos, hid_instance, &simple_joystick->axis_y2);
+        tuh_hid_joystick_process_axis(jdata, bitpos, instance, &simple_joystick->axis_y2);
         break;      
       case HID_RIP_EUSAGE(HID_USAGE_PAGE_DESKTOP, HID_USAGE_DESKTOP_HAT_SWITCH):
-        tuh_hid_joystick_process_axis(jdata, bitpos, hid_instance, &simple_joystick->hat);
+        tuh_hid_joystick_process_axis(jdata, bitpos, instance, &simple_joystick->hat);
         break;
       default: break;
     }
@@ -191,7 +200,7 @@ void tuh_hid_joystick_process_usages(
   }
 }
 
-uint8_t tuh_hid_joystick_parse_report_descriptor(uint8_t const* desc_report, uint16_t desc_len, uint8_t hid_instance) 
+uint8_t tuh_hid_joystick_parse_report_descriptor(uint8_t const* desc_report, uint16_t desc_len, uint8_t dev_addr, uint8_t instance) 
 {
   uint32_t eusage = 0;
   tuh_hid_rip_state_t pstate;
@@ -208,7 +217,7 @@ uint8_t tuh_hid_joystick_parse_report_descriptor(uint8_t const* desc_report, uin
         if (tuh_hid_joystick_check_usage(eusage)) {
           tuh_hid_joystick_data_t joystick_data;
           if(tuh_hid_joystick_get_data(&pstate, ri, &joystick_data)) {
-            tuh_hid_joystick_process_usages(&pstate, &joystick_data, bitpos, hid_instance);
+            tuh_hid_joystick_process_usages(&pstate, &joystick_data, bitpos, dev_addr, instance);
             bitpos += joystick_data.report_size * joystick_data.report_count;
           }
         }
@@ -253,9 +262,10 @@ void tusb_hid_simple_joysick_process_report(tusb_hid_simple_joysick_t* simple_jo
 void tusb_hid_print_simple_joysick_report(tusb_hid_simple_joysick_t* simple_joystick)
 {
   if (simple_joystick->has_values) {  
-    printf("hid=%3ld, report_id=%3ld, x1=%4ld, y1=%4ld, x2=%4ld, y2=%4ld, hat=%01X, buttons=%04X\n",  
-      simple_joystick->hid_instance,
-      simple_joystick->report_id,
+    printf("dev_addr=%3d, instance=%3d, report_id=%3d, x1=%4ld, y1=%4ld, x2=%4ld, y2=%4ld, hat=%01X, buttons=%04X\n",  
+      simple_joystick->key.elements.dev_addr,
+      simple_joystick->key.elements.instance,
+      simple_joystick->key.elements.report_id,
       simple_joystick->values.x1,
       simple_joystick->values.y1,
       simple_joystick->values.x2,

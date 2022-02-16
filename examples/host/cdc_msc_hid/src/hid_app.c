@@ -26,6 +26,7 @@
 #include "bsp/board.h"
 #include "tusb.h"
 #include "hid_host_joy.h"
+#include "hid_host_parse.h"
 
 //--------------------------------------------------------------------+
 // MACRO TYPEDEF CONSTANT ENUM DECLARATION
@@ -39,13 +40,6 @@
 
 static uint8_t const keycode2ascii[128][2] =  { HID_KEYCODE_TO_ASCII };
 
-// Each HID instance can have multiple reports
-static struct
-{
-  uint8_t report_count;
-  tuh_hid_report_info_t report_info[MAX_REPORT];
-}hid_info[CFG_TUH_HID];
-
 static void process_kbd_report(hid_keyboard_report_t const *report);
 static void process_mouse_report(hid_mouse_report_t const * report);
 static void process_generic_report(uint8_t dev_addr, uint8_t instance, uint8_t const* report, uint16_t len);
@@ -53,6 +47,40 @@ static void process_generic_report(uint8_t dev_addr, uint8_t instance, uint8_t c
 void hid_app_task(void)
 {
   // nothing to do
+}
+
+void handle_kbd_report(tusb_hid_host_info_t* info, const uint8_t* report, uint8_t report_length, uint8_t report_id)
+{
+  TU_LOG1("HID receive keyboard report\r\n");
+  process_kbd_report((hid_keyboard_report_t const *)report);
+}
+
+void handle_mouse_report(tusb_hid_host_info_t* info, const uint8_t* report, uint8_t report_length, uint8_t report_id)
+{
+  TU_LOG1("HID receive mouse report\r\n");
+  process_mouse_report((hid_mouse_report_t const *)report);
+}
+
+void handle_joystick_report(tusb_hid_host_info_t* info, const uint8_t* report, uint8_t report_length, uint8_t report_id)
+{ 
+  TU_LOG1("HID receive joystick report ");
+  tusb_hid_simple_joysick_t* simple_joystick = tuh_hid_get_simple_joystick(
+    info->key.elements.dev_addr, 
+    info->key.elements.instance, 
+    report_id);
+    
+  if (simple_joystick != NULL) {
+    tusb_hid_simple_joysick_process_report(simple_joystick, report, report_length);
+    tusb_hid_print_simple_joysick_report(simple_joystick);
+  }
+}
+void handle_gamepad_report(tusb_hid_host_info_t* info, const uint8_t* report, uint8_t report_length, uint8_t report_id)
+{
+  TU_LOG1("HID receive gamepad report ");
+  for(int i = 0; i < report_length; ++i) {
+    printf("%02x", report[i]);
+  }
+  printf("\r\n");
 }
 
 //--------------------------------------------------------------------+
@@ -68,7 +96,7 @@ void tuh_hid_mount_cb(uint8_t dev_addr, uint8_t instance, uint8_t const* desc_re
 {
   printf("HID device address = %d, instance = %d is mounted\r\n", dev_addr, instance);
 
-  printf("HID Report Descrtipion \r\n");
+  printf("HID Report Description \r\n");
   for(int i = 0; i < desc_len; ++i) printf("%02X ", desc_report[i]);
   printf("\r\n");
 
@@ -82,10 +110,67 @@ void tuh_hid_mount_cb(uint8_t dev_addr, uint8_t instance, uint8_t const* desc_re
   // Therefore for this simple example, we only need to parse generic report descriptor (with built-in parser)
   if ( itf_protocol == HID_ITF_PROTOCOL_NONE )
   {
-    hid_info[instance].report_count = tuh_hid_parse_report_descriptor(hid_info[instance].report_info, MAX_REPORT, desc_report, desc_len);
-    printf("HID has %u reports \r\n", hid_info[instance].report_count);
+    tuh_hid_report_info_t reports[MAX_REPORT];
+    uint8_t report_count = tuh_hid_parse_report_descriptor(reports, MAX_REPORT, desc_report, desc_len);
+    printf("HID has %u reports \r\n", report_count);
     
-    tuh_hid_joystick_parse_report_descriptor(desc_report, desc_len, instance);
+    for (uint8_t i = 0; i < report_count; ++i) {
+      tuh_hid_report_info_t *report = &reports[i];
+      bool has_report_id = report_count > 1 || (report[0].report_id > 0);
+      
+      printf("HID report usage_page=%d, usage=%d, has_report_id=%d dev=%d instance=%d\n", report->usage_page, report->usage, has_report_id, dev_addr, instance);
+      
+      if (report->usage_page == HID_USAGE_PAGE_DESKTOP)
+      {
+        switch (report->usage)
+        {
+          case HID_USAGE_DESKTOP_KEYBOARD: {
+            printf("HID receive keyboard report description\r\n");
+            tuh_hid_allocate_info(dev_addr, instance, has_report_id, &handle_kbd_report);
+            break;
+          }
+          case HID_USAGE_DESKTOP_JOYSTICK: {
+            printf("HID receive joystick report description\r\n");
+            tuh_hid_allocate_info(dev_addr, instance, has_report_id, &handle_joystick_report);
+            break;
+          }          
+/*
+          case HID_USAGE_DESKTOP_MOUSE:
+            TU_LOG1("HID receive mouse report\r\n");
+            // Assume mouse follow boot report layout
+            process_mouse_report( (hid_mouse_report_t const*) report );
+          break;
+          
+          case HID_USAGE_DESKTOP_JOYSTICK:
+            TU_LOG1("HID receive joystick report ");
+    //        for(int i = 0; i < len; ++i) {
+    //          printf("%02x", report[i]);
+    //        }
+    //        printf("\r\n");
+            
+
+          break;
+          
+          case HID_USAGE_DESKTOP_GAMEPAD:
+            TU_LOG1("HID receive gamepad report ");
+            for(int i = 0; i < len; ++i) {
+              printf("%02x", report[i]);
+            }
+            printf("\r\n");
+          break;
+*/
+          default: 
+            TU_LOG1("HID usage unknown usage:%d\r\n", report->usage);
+
+          break;
+        }
+      }
+      else {
+        
+      }
+    }
+   
+    tuh_hid_joystick_parse_report_descriptor(desc_report, desc_len, dev_addr, instance);
   }
 
   // request to receive report
@@ -101,8 +186,11 @@ void tuh_hid_umount_cb(uint8_t dev_addr, uint8_t instance)
 {
   printf("HID device address = %d, instance = %d is unmounted\r\n", dev_addr, instance);
   
+  // Free up host info structure
+  tuh_hid_free_info(dev_addr, instance);
+  
   // Free up any joystick definitions
-  tuh_hid_free_simple_joysticks_for_instance(instance);
+  tuh_hid_free_simple_joysticks_for_instance(dev_addr, instance);
 }
 
 // Invoked when received report from device via interrupt endpoint
@@ -243,94 +331,21 @@ static void process_mouse_report(hid_mouse_report_t const * report)
 //--------------------------------------------------------------------+
 static void process_generic_report(uint8_t dev_addr, uint8_t instance, uint8_t const* report, uint16_t len)
 {
-  (void) dev_addr;
-
-  uint8_t const rpt_count = hid_info[instance].report_count;
-  tuh_hid_report_info_t* rpt_info_arr = hid_info[instance].report_info;
-  tuh_hid_report_info_t* rpt_info = NULL;
-  uint8_t rpt_id = 0;
+  tusb_hid_host_info_t* info = tuh_hid_get_info(dev_addr, instance);
   
-  if ( rpt_count == 1 && rpt_info_arr[0].report_id == 0)
+  if (info == NULL)
   {
-    // Simple report without report ID as 1st byte
-    rpt_info = &rpt_info_arr[0];
-  }else
-  {
-    // Composite report, 1st byte is report ID, data starts from 2nd byte
-    rpt_id = report[0];
-
-    // Find report id in the arrray
-    for(uint8_t i=0; i<rpt_count; i++)
-    {
-      if (rpt_id == rpt_info_arr[i].report_id )
-      {
-        rpt_info = &rpt_info_arr[i];
-        break;
-      }
-    }
-
-    report++;
-    len--;
-  }
-
-  if (!rpt_info)
-  {
-    printf("Couldn't find the report info for this report !\r\n");
+    printf("Couldn't find the host report info for dev_addr=%d instance=%d\r\n", dev_addr, instance);
     return;
   }
+  
+  uint8_t rpt_id = 0;
 
-  // For complete list of Usage Page & Usage checkout src/class/hid/hid.h. For examples:
-  // - Keyboard                     : Desktop, Keyboard
-  // - Mouse                        : Desktop, Mouse
-  // - Gamepad                      : Desktop, Gamepad
-  // - Consumer Control (Media Key) : Consumer, Consumer Control
-  // - System Control (Power key)   : Desktop, System Control
-  // - Generic (vendor)             : 0xFFxx, xx
-  if ( rpt_info->usage_page == HID_USAGE_PAGE_DESKTOP )
-  {
-    switch (rpt_info->usage)
-    {
-      case HID_USAGE_DESKTOP_KEYBOARD:
-        TU_LOG1("HID receive keyboard report\r\n");
-        // Assume keyboard follow boot report layout
-        process_kbd_report( (hid_keyboard_report_t const*) report );
-      break;
-
-      case HID_USAGE_DESKTOP_MOUSE:
-        TU_LOG1("HID receive mouse report\r\n");
-        // Assume mouse follow boot report layout
-        process_mouse_report( (hid_mouse_report_t const*) report );
-      break;
-      
-      case HID_USAGE_DESKTOP_JOYSTICK:
-        TU_LOG1("HID receive joystick report ");
-//        for(int i = 0; i < len; ++i) {
-//          printf("%02x", report[i]);
-//        }
-//        printf("\r\n");
-        
-        tusb_hid_simple_joysick_t* simple_joystick = tuh_hid_get_simple_joystick(instance, rpt_id);
-        if (simple_joystick != NULL) {
-          tusb_hid_simple_joysick_process_report(simple_joystick, report, len);
-          tusb_hid_print_simple_joysick_report(simple_joystick);
-        }
-      break;
-      
-      case HID_USAGE_DESKTOP_GAMEPAD:
-        TU_LOG1("HID receive gamepad report ");
-        for(int i = 0; i < len; ++i) {
-          printf("%02x", report[i]);
-        }
-        printf("\r\n");
-      break;
-
-      default: 
-        TU_LOG1("HID usage unknown usage:%d\r\n", rpt_info->usage);
-
-      break;
-    }
+  if (info->has_report_id) {
+    rpt_id = report[0];
+    report++;
+    len--;       
   }
-  else {
-   TU_LOG1("HID usage unknown page:%d, usage:%d\r\n", rpt_info->usage_page, rpt_info->usage);
-  }
+  
+  info->handler(info, report, len, rpt_id);
 }
