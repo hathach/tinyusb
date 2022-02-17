@@ -19,20 +19,15 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  *
- * Test me with:
- * 
- * ceedling test:pattern[hid_host_joy]
  */
 
-#include "hid_host_parse.h"
-#include "hid_host_utils.h"
+#include "hid_host_info.h"
 
 static tusb_hid_host_info_t hid_info[HID_HOST_MAX_SIMPLE_DEVICES];
 
 tusb_hid_host_info_t* tuh_hid_get_info(uint8_t dev_addr, uint8_t instance)
 {
   tusb_hid_host_info_key_t key;
-  key.combined = 0;
   key.elements.dev_addr = dev_addr;
   key.elements.instance = instance;
   key.elements.in_use = 1;

@@ -167,7 +167,7 @@ void tusb_hid_simple_joysick_process_report(tusb_hid_simple_joysick_t* simple_jo
 // Send an axis and button report to stdout
 //
 // e.g.
-//  hid=  0, report_id=  0, x1=   0, y1=   0, x2= 127, y2= 127, hat=F, buttons=0008
+//  dev_addr=  1, instance=  0, report_id=  0, x1= 127, y1= 127, x2= 127, y2= 127, hat=F, buttons=0000
 //
 void tusb_hid_print_simple_joysick_report(tusb_hid_simple_joysick_t* simple_joystick);
 

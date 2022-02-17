@@ -26,7 +26,7 @@
 #include "bsp/board.h"
 #include "tusb.h"
 #include "hid_host_joy.h"
-#include "hid_host_parse.h"
+#include "hid_host_info.h"
 
 //--------------------------------------------------------------------+
 // MACRO TYPEDEF CONSTANT ENUM DECLARATION
@@ -133,40 +133,22 @@ void tuh_hid_mount_cb(uint8_t dev_addr, uint8_t instance, uint8_t const* desc_re
             printf("HID receive joystick report description\r\n");
             tuh_hid_allocate_info(dev_addr, instance, has_report_id, &handle_joystick_report);
             break;
-          }          
-/*
-          case HID_USAGE_DESKTOP_MOUSE:
-            TU_LOG1("HID receive mouse report\r\n");
-            // Assume mouse follow boot report layout
-            process_mouse_report( (hid_mouse_report_t const*) report );
-          break;
-          
-          case HID_USAGE_DESKTOP_JOYSTICK:
-            TU_LOG1("HID receive joystick report ");
-    //        for(int i = 0; i < len; ++i) {
-    //          printf("%02x", report[i]);
-    //        }
-    //        printf("\r\n");
-            
-
-          break;
-          
-          case HID_USAGE_DESKTOP_GAMEPAD:
-            TU_LOG1("HID receive gamepad report ");
-            for(int i = 0; i < len; ++i) {
-              printf("%02x", report[i]);
-            }
-            printf("\r\n");
-          break;
-*/
-          default: 
+          }
+          case HID_USAGE_DESKTOP_MOUSE: {
+            printf("HID receive mouse report description\r\n");
+            tuh_hid_allocate_info(dev_addr, instance, has_report_id, &handle_mouse_report);
+            break;
+          }
+          case HID_USAGE_DESKTOP_GAMEPAD: {
+            printf("HID receive gamepad report description\r\n");
+            tuh_hid_allocate_info(dev_addr, instance, has_report_id, &handle_gamepad_report);
+            break;
+          }
+          default: {
             TU_LOG1("HID usage unknown usage:%d\r\n", report->usage);
-
-          break;
+            break;
+          }
         }
-      }
-      else {
-        
       }
     }
    

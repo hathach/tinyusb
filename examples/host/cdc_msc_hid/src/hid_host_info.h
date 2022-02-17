@@ -38,9 +38,9 @@ typedef union TU_ATTR_PACKED
   uint32_t combined;
   struct TU_ATTR_PACKED
   {
-    uint8_t instance     :8;
-    uint8_t dev_addr     :8;
-    uint8_t in_use       :8;
+    uint8_t instance      :8;
+    uint8_t dev_addr      :8;
+    uint16_t in_use       :16;
   } elements;
 } tusb_hid_host_info_key_t;
 
