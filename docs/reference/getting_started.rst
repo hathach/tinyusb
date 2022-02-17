@@ -37,7 +37,7 @@ It is relatively simple to incorporate tinyusb to your (existing) project
 Examples
 --------
 
-For your convenience, TinyUSB contains a handful of examples for both host and device with/without RTOS to quickly test the functionality as well as demonstrate how API() should be used. Most examples will work on most of `the supported Boards <boards.md>`_. Firstly we need to ``git clone`` if not already
+For your convenience, TinyUSB contains a handful of examples for both host and device with/without RTOS to quickly test the functionality as well as demonstrate how API() should be used. Most examples will work on most of `the supported boards <supported.rst>`_. Firstly we need to ``git clone`` if not already
 
 .. code-block::
 
