@@ -491,6 +491,28 @@ void test_apple_joystick() {
   TEST_ASSERT_EQUAL(8, simple_joystick->report_length);
 }
 
+void test_get_simple_joysticks() {
+  static tusb_hid_simple_joysick_t* hid_simple_joysicks[4];
+  uint8_t jcount;
+  jcount = tuh_hid_get_simple_joysticks(hid_simple_joysicks, 4);
+  TEST_ASSERT_EQUAL(0, jcount);
+  tuh_hid_joystick_parse_report_descriptor(tb_speedlink, sizeof(tb_speedlink), 5, 9);
+  jcount = tuh_hid_get_simple_joysticks(hid_simple_joysicks, 4);
+  TEST_ASSERT_EQUAL(1, jcount);
+  TEST_ASSERT_EQUAL(tuh_hid_get_simple_joystick(5, 9, 0), hid_simple_joysicks[0]);
+  tuh_hid_joystick_parse_report_descriptor(tb_apple, sizeof(tb_apple), 1, 3);
+  jcount = tuh_hid_get_simple_joysticks(hid_simple_joysicks, 1);
+  TEST_ASSERT_EQUAL(1, jcount);
+  jcount = tuh_hid_get_simple_joysticks(hid_simple_joysicks, 4);
+  TEST_ASSERT_EQUAL(2, jcount);
+  TEST_ASSERT_EQUAL(tuh_hid_get_simple_joystick(5, 9, 0), hid_simple_joysicks[0]);
+  TEST_ASSERT_EQUAL(tuh_hid_get_simple_joystick(1, 3, 0), hid_simple_joysicks[1]);
+  tuh_hid_free_simple_joysticks_for_instance(5, 9);
+  jcount = tuh_hid_get_simple_joysticks(hid_simple_joysicks, 4);
+  TEST_ASSERT_EQUAL(1, jcount);
+  TEST_ASSERT_EQUAL(tuh_hid_get_simple_joystick(1, 3, 0), hid_simple_joysicks[0]);  
+}
+
 // TODO Test multiple report IDs
 
 

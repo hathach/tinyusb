@@ -19,19 +19,28 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  *
+ * 
+ * This module provides a place to store information about host endpoints.
+ * 
+ * It records:
+ *   A flag which indicates whether reports start with an identifier byte
+ *   A 'handler' function to process a report
+ *   An optional 'unmount' function called when the instance is removed
+ * 
+ * Each 'info' record is indexed by the device address and instance number.
+ * 
+ * [ It might be nice if the main library gave some support for managing
+ *   state like this... particularly if it avoided more arrays & lookups ]
  */
 
-#ifndef _TUSB_HID_HOST_PARSE_H_
-#define _TUSB_HID_HOST_PARSE_H_
+#ifndef _TUSB_HID_HOST_INFO_H_
+#define _TUSB_HID_HOST_INFO_H_
 
 #include "tusb.h"
 
 #ifdef __cplusplus
  extern "C" {
 #endif
-
-// Perhaps this should be derived from other config
-#define HID_HOST_MAX_SIMPLE_DEVICES 8
 
 typedef union TU_ATTR_PACKED
 {
@@ -48,6 +57,7 @@ typedef struct tusb_hid_host_info {
   tusb_hid_host_info_key_t key;
   bool has_report_id;
   void (*handler)(struct tusb_hid_host_info* info, const uint8_t* report, uint8_t report_length, uint8_t report_id);
+  void (*unmount)(struct tusb_hid_host_info* info);
 } tusb_hid_host_info_t;
 
 tusb_hid_host_info_t* tuh_hid_get_info(uint8_t dev_addr, uint8_t instance);
@@ -56,7 +66,9 @@ tusb_hid_host_info_t* tuh_hid_allocate_info(
   uint8_t dev_addr, 
   uint8_t instance, 
   bool has_report_id,
-  void (*handler)(struct tusb_hid_host_info* info, const uint8_t* report, uint8_t report_length, uint8_t report_id));
+  void (*handler)(struct tusb_hid_host_info* info, const uint8_t* report, uint8_t report_length, uint8_t report_id),
+  void (*unmount)(struct tusb_hid_host_info* info)
+);
 
 void tuh_hid_free_info(uint8_t dev_addr, uint8_t instance);
 

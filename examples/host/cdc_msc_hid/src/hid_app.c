@@ -63,7 +63,7 @@ void handle_mouse_report(tusb_hid_host_info_t* info, const uint8_t* report, uint
 
 void handle_joystick_report(tusb_hid_host_info_t* info, const uint8_t* report, uint8_t report_length, uint8_t report_id)
 { 
-  TU_LOG1("HID receive joystick report ");
+  TU_LOG1("HID receive joystick report\r\n");
   tusb_hid_simple_joysick_t* simple_joystick = tuh_hid_get_simple_joystick(
     info->key.elements.dev_addr, 
     info->key.elements.instance, 
@@ -74,6 +74,13 @@ void handle_joystick_report(tusb_hid_host_info_t* info, const uint8_t* report, u
     tusb_hid_print_simple_joysick_report(simple_joystick);
   }
 }
+
+void handle_joystick_unmount(tusb_hid_host_info_t* info) {
+  TU_LOG1("HID joystick unmount\n");
+  // Free up joystick definitions
+  tuh_hid_free_simple_joysticks_for_instance(info->key.elements.dev_addr, info->key.elements.instance);
+}
+
 void handle_gamepad_report(tusb_hid_host_info_t* info, const uint8_t* report, uint8_t report_length, uint8_t report_id)
 {
   TU_LOG1("HID receive gamepad report ");
@@ -126,22 +133,25 @@ void tuh_hid_mount_cb(uint8_t dev_addr, uint8_t instance, uint8_t const* desc_re
         {
           case HID_USAGE_DESKTOP_KEYBOARD: {
             printf("HID receive keyboard report description\r\n");
-            tuh_hid_allocate_info(dev_addr, instance, has_report_id, &handle_kbd_report);
+            tuh_hid_allocate_info(dev_addr, instance, has_report_id, &handle_kbd_report, NULL);
             break;
           }
           case HID_USAGE_DESKTOP_JOYSTICK: {
             printf("HID receive joystick report description\r\n");
-            tuh_hid_allocate_info(dev_addr, instance, has_report_id, &handle_joystick_report);
+            if(tuh_hid_allocate_info(dev_addr, instance, has_report_id, &handle_joystick_report, handle_joystick_unmount)) {
+              tuh_hid_joystick_parse_report_descriptor(desc_report, desc_len, dev_addr, instance);
+            }
             break;
           }
           case HID_USAGE_DESKTOP_MOUSE: {
             printf("HID receive mouse report description\r\n");
-            tuh_hid_allocate_info(dev_addr, instance, has_report_id, &handle_mouse_report);
+            tuh_hid_allocate_info(dev_addr, instance, has_report_id, &handle_mouse_report, NULL);
             break;
           }
           case HID_USAGE_DESKTOP_GAMEPAD: {
             printf("HID receive gamepad report description\r\n");
-            tuh_hid_allocate_info(dev_addr, instance, has_report_id, &handle_gamepad_report);
+            tuh_hid_allocate_info(dev_addr, instance, has_report_id, &handle_gamepad_report, NULL);
+            // May be able to handle this in the same was as a the joystick. Needs a little investigation
             break;
           }
           default: {
@@ -150,9 +160,7 @@ void tuh_hid_mount_cb(uint8_t dev_addr, uint8_t instance, uint8_t const* desc_re
           }
         }
       }
-    }
-   
-    tuh_hid_joystick_parse_report_descriptor(desc_report, desc_len, dev_addr, instance);
+    }  
   }
 
   // request to receive report
@@ -168,11 +176,8 @@ void tuh_hid_umount_cb(uint8_t dev_addr, uint8_t instance)
 {
   printf("HID device address = %d, instance = %d is unmounted\r\n", dev_addr, instance);
   
-  // Free up host info structure
+  // Invoke unmount functions adn free up host info structure 
   tuh_hid_free_info(dev_addr, instance);
-  
-  // Free up any joystick definitions
-  tuh_hid_free_simple_joysticks_for_instance(dev_addr, instance);
 }
 
 // Invoked when received report from device via interrupt endpoint

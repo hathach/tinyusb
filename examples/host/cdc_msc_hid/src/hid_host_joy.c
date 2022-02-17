@@ -275,3 +275,15 @@ void tusb_hid_print_simple_joysick_report(tusb_hid_simple_joysick_t* simple_joys
   }
 }
 
+uint8_t tuh_hid_get_simple_joysticks(tusb_hid_simple_joysick_t** simple_joysticks, uint8_t max_simple_joysticks)
+{
+  uint8_t j = 0;
+  for(uint8_t i = 0; i < HID_MAX_JOYSTICKS && j < max_simple_joysticks; ++i) {
+    tusb_hid_simple_joysick_t* simple_joystick = &hid_simple_joysicks[i];
+    if (simple_joystick->key.elements.in_use) {
+      simple_joysticks[j++] = simple_joystick;
+    }
+  }  
+  return j;
+}
+

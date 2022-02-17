@@ -19,6 +19,18 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  *
+ * 
+ * This module contains an example of mapping a HID report to a simplified 
+ * local joystick definition. This simple model has:
+ *        2x XY axes (X, Y and Z, Rz)
+ *        1x HAT control
+ * up to 32x Buttons (but have to be defined in one range in the HID description)
+ * 
+ * Applications will still need to allow mapping of axis and buttons to 
+ * particlar functions.
+ * 
+ * There are many ways a HID report can describe a joystick and this code
+ * only copes with a few of them. 
  */
 
 #ifndef _TUSB_HID_JOY_H_
@@ -170,5 +182,8 @@ void tusb_hid_simple_joysick_process_report(tusb_hid_simple_joysick_t* simple_jo
 //  dev_addr=  1, instance=  0, report_id=  0, x1= 127, y1= 127, x2= 127, y2= 127, hat=F, buttons=0000
 //
 void tusb_hid_print_simple_joysick_report(tusb_hid_simple_joysick_t* simple_joystick);
+
+// Populate an array of the attached joysticks
+uint8_t tuh_hid_get_simple_joysticks(tusb_hid_simple_joysick_t** simple_joysticks, uint8_t max_simple_joysticks);
 
 #endif
