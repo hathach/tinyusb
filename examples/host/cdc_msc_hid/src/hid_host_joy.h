@@ -153,7 +153,7 @@ void tuh_hid_joystick_process_usages(
 );
 
 // Parse a HID report description for a joystick
-uint8_t tuh_hid_joystick_parse_report_descriptor(uint8_t const* desc_report, uint16_t desc_len, uint8_t dev_addr, uint8_t instance);
+void tuh_hid_joystick_parse_report_descriptor(uint8_t const* desc_report, uint16_t desc_len, uint8_t dev_addr, uint8_t instance);
 
 // Fetch a previously allocated simple joystick
 tusb_hid_simple_joysick_t* tuh_hid_get_simple_joystick(uint8_t dev_addr, uint8_t instance, uint8_t report_id);
