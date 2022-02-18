@@ -72,5 +72,8 @@ tusb_hid_host_info_t* tuh_hid_allocate_info(
 
 void tuh_hid_free_info(uint8_t dev_addr, uint8_t instance);
 
+#ifdef __cplusplus
+}
 #endif
 
+#endif /* _TUSB_HID_HOST_INFO_H_ */

@@ -101,4 +101,4 @@ void tuh_hid_ri_split_usage(uint32_t eusage, uint16_t *usage, uint16_t *usage_pa
 }
 #endif
 
-#endif /* _TUSB_HID_HOST_H_ */
+#endif /* _TUSB_HID_RI_H_ */

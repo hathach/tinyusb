@@ -52,5 +52,9 @@ int32_t tuh_hid_report_bytes_i32(uint8_t const* report, uint16_t start, uint16_t
 // Chooses between bytewise and bitwise fetches
 int32_t tuh_hid_report_i32(const uint8_t* report, uint16_t start, uint16_t length, bool is_signed);
 
+#ifdef __cplusplus
+}
 #endif
+
+#endif /* _TUSB_HID_HOST_UTILS_H_ */
 

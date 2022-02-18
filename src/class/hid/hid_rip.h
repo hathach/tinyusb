@@ -148,5 +148,8 @@ uint32_t tuh_hid_rip_report_total_size_bits(tuh_hid_rip_state_t *state);
 //--------------------------------------------------------------------+
 uint8_t tuh_hid_parse_report_descriptor(tuh_hid_report_info_t* reports_info_arr, uint8_t arr_count, uint8_t const* desc_report, uint16_t desc_len) TU_ATTR_UNUSED;
 
+#ifdef __cplusplus
+}
 #endif
 
+#endif /* _TUSB_HID_RIP_H_ */

@@ -186,4 +186,8 @@ void tusb_hid_print_simple_joysick_report(tusb_hid_simple_joysick_t* simple_joys
 // Populate an array of the attached joysticks
 uint8_t tuh_hid_get_simple_joysticks(tusb_hid_simple_joysick_t** simple_joysticks, uint8_t max_simple_joysticks);
 
+#ifdef __cplusplus
+}
 #endif
+
+#endif /* _TUSB_HID_JOY_H_ */
