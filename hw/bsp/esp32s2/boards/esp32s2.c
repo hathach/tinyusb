@@ -32,8 +32,8 @@
 #include "hal/usb_hal.h"
 #include "soc/usb_periph.h"
 
-#include "driver/periph_ctrl.h"
 #include "driver/rmt.h"
+#include "esp_private/periph_ctrl.h"
 
 #ifdef NEOPIXEL_PIN
 #include "led_strip.h"
