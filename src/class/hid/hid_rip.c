@@ -221,18 +221,30 @@ uint8_t tuh_hid_parse_report_descriptor(tuh_hid_report_info_t* report_info_arr, 
     switch(type_and_tag)
     {
       case HID_RI_TYPE_AND_TAG(RI_TYPE_MAIN, RI_MAIN_INPUT): {
+        if (report_num >= arr_count) {
+          TU_LOG1("HID report description contains more than the maximum %d reports\r\n", arr_count);
+          return report_num;
+        }        
         info->in_len += tuh_hid_rip_report_total_size_bits(&pstate);
         info->usage = usage;
         info->usage_page = usage_page;
         break;
       }
       case HID_RI_TYPE_AND_TAG(RI_TYPE_MAIN, RI_MAIN_OUTPUT): {
+        if (report_num >= arr_count) {
+          TU_LOG1("HID report description contains more than the maximum %d reports\r\n", arr_count);
+          return report_num;
+        }        
         info->out_len += tuh_hid_rip_report_total_size_bits(&pstate);
         info->usage = usage;
         info->usage_page = usage_page;
         break;
       }
       case HID_RI_TYPE_AND_TAG(RI_TYPE_GLOBAL, RI_GLOBAL_REPORT_ID): {
+        if (report_num >= arr_count) {
+          TU_LOG1("HID report description contains more than the maximum %d reports\r\n", arr_count);
+          return report_num;
+        }
         if (info->report_id > 0 || info->in_len > 0 || info->out_len > 0) {
           info++;
           report_num++;

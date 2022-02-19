@@ -513,7 +513,8 @@ void test_get_simple_joysticks() {
   TEST_ASSERT_EQUAL(tuh_hid_get_simple_joystick(1, 3, 0), hid_simple_joysicks[0]);  
 }
 
-// TODO Test multiple report IDs
+// TODO Test with report ID
+// anyone got a joystick that reports with an ID?
 
 
 
