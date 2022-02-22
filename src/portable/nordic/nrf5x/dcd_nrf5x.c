@@ -79,6 +79,9 @@ typedef struct
 
 } xfer_td_t;
 
+static osal_mutex_def_t dcd_mutex_def;
+static osal_mutex_t dcd_mutex;
+
 // Data for managing dcd
 static struct
 {
@@ -154,6 +157,7 @@ static void edpt_dma_start(volatile uint32_t* reg_startep)
     // Should be safe to blocking wait until previous DMA transfer complete
     uint8_t const rhport = 0;
     bool started = false;
+    osal_mutex_lock(dcd_mutex, OSAL_TIMEOUT_WAIT_FOREVER);
     while(!started)
     {
       // LDREX/STREX may be needed in form of std atomic (required C11) or
@@ -170,6 +174,7 @@ static void edpt_dma_start(volatile uint32_t* reg_startep)
 
       // osal_yield();
     }
+    osal_mutex_unlock(dcd_mutex);
   }
 }
 
@@ -243,6 +248,7 @@ static void xact_in_dma(uint8_t epnum)
 void dcd_init (uint8_t rhport)
 {
   TU_LOG1("dcd init\r\n");
+  dcd_mutex = osal_mutex_create(&dcd_mutex_def);
   (void) rhport;
 }
 
@@ -457,11 +463,17 @@ bool dcd_edpt_xfer (uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t 
 
   xfer_td_t* xfer = get_td(epnum, dir);
 
-  dcd_int_disable(rhport);
+  if (!is_in_isr()) {
+    osal_mutex_lock(dcd_mutex, OSAL_TIMEOUT_WAIT_FOREVER);
+    dcd_int_disable(rhport);
+  }
   xfer->buffer     = buffer;
   xfer->total_len  = total_bytes;
   xfer->actual_len = 0;
-  dcd_int_enable(rhport);
+  if (!is_in_isr()) {
+    dcd_int_enable(rhport);
+    osal_mutex_unlock(dcd_mutex);
+  }
 
   // Control endpoint with zero-length packet and opposite direction to 1st request byte --> status stage
   bool const control_status = (epnum == 0 && total_bytes == 0 && dir != tu_edpt_dir(NRF_USBD->BMREQUESTTYPE));
