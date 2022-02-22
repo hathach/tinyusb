@@ -23,6 +23,7 @@ LD_FILE = $(MCU_DIR)/gcc/MKL25Z128xxx4_flash.ld
 
 SRC_C += \
 	src/portable/nxp/khci/dcd_khci.c \
+	src/portable/nxp/khci/hcd_khci.c \
 	$(MCU_DIR)/system_MKL25Z4.c \
 	$(MCU_DIR)/project_template/clock_config.c \
 	$(MCU_DIR)/drivers/fsl_clock.c \

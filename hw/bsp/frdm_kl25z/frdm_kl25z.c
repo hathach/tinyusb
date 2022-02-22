@@ -39,7 +39,12 @@
 //--------------------------------------------------------------------+
 void USB0_IRQHandler(void)
 {
+#if TUSB_OPT_HOST_ENABLED
+  tuh_int_handler(0);
+#endif
+#if TUSB_OPT_DEVICE_ENABLED
   tud_int_handler(0);
+#endif
 }
 
 //--------------------------------------------------------------------+

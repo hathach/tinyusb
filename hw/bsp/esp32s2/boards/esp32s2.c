@@ -32,8 +32,13 @@
 #include "hal/usb_hal.h"
 #include "soc/usb_periph.h"
 
-#include "driver/periph_ctrl.h"
 #include "driver/rmt.h"
+
+#if ESP_IDF_VERSION_MAJOR > 4
+  #include "esp_private/periph_ctrl.h"
+#else
+  #include "driver/periph_ctrl.h"
+#endif
 
 #ifdef NEOPIXEL_PIN
 #include "led_strip.h"

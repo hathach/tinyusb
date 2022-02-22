@@ -13,6 +13,10 @@ target_include_directories(${COMPONENT_TARGET} PUBLIC
   "${TOP}/src"
 )
 
+target_compile_definitions(${COMPONENT_TARGET} PUBLIC
+  ESP_PLATFORM
+)
+
 target_sources(${COMPONENT_TARGET} PUBLIC
   "${TOP}/src/tusb.c"
   "${TOP}/src/common/tusb_fifo.c"
