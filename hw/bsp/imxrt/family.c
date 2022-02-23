@@ -98,10 +98,6 @@ void board_init(void)
   CLOCK_EnableUsbhs0PhyPllClock(kCLOCK_Usbphy480M, 480000000U);
   CLOCK_EnableUsbhs0Clock(kCLOCK_Usb480M, 480000000U);
 
-  // USB1
-  CLOCK_EnableUsbhs1PhyPllClock(kCLOCK_Usbphy480M, 480000000U);
-  CLOCK_EnableUsbhs1Clock(kCLOCK_Usb480M, 480000000U);
-
   USBPHY_Type* usb_phy;
 
   // RT105x RT106x have dual USB controller.
@@ -125,6 +121,10 @@ void board_init(void)
 
   // RT105x RT106x have dual USB controller.
 #ifdef USBPHY2
+  // USB1
+  CLOCK_EnableUsbhs1PhyPllClock(kCLOCK_Usbphy480M, 480000000U);
+  CLOCK_EnableUsbhs1Clock(kCLOCK_Usb480M, 480000000U);
+
   usb_phy = USBPHY2;
 
   // Enable PHY support for Low speed device + LS via FS Hub
