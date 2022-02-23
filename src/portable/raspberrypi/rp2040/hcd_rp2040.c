@@ -328,9 +328,11 @@ static void _hw_endpoint_init(struct hw_endpoint *ep, uint8_t dev_addr, uint8_t 
         // endpoint number / direction
         // preamble
         uint32_t reg = dev_addr | (num << USB_ADDR_ENDP1_ENDPOINT_LSB);
-        // Assert the interrupt endpoint is IN_TO_HOST
-        // TODO Interrupt can also be OUT
-        assert(dir == TUSB_DIR_IN);
+
+        if (dir == TUSB_DIR_OUT)
+        {
+            reg |= USB_ADDR_ENDP1_INTEP_DIR_BITS;
+        }
 
         if (need_pre(dev_addr))
         {
