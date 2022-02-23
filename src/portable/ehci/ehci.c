@@ -26,7 +26,7 @@
 
 #include "host/hcd_attr.h"
 
-#if TUSB_OPT_HOST_ENABLED && defined(HCD_ATTR_EHCI_TRANSDIMENSION)
+#if CFG_TUH_ENABLED && defined(HCD_ATTR_EHCI_TRANSDIMENSION)
 
 //--------------------------------------------------------------------+
 // INCLUDE

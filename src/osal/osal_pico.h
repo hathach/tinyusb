@@ -100,7 +100,7 @@ static inline bool osal_mutex_unlock(osal_mutex_t mutex_hdl)
 //--------------------------------------------------------------------+
 #include "common/tusb_fifo.h"
 
-#if TUSB_OPT_HOST_ENABLED
+#if CFG_TUH_ENABLED
 extern void hcd_int_disable(uint8_t rhport);
 extern void hcd_int_enable(uint8_t rhport);
 #endif

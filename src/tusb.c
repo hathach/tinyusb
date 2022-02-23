@@ -26,7 +26,7 @@
 
 #include "tusb_option.h"
 
-#if TUSB_OPT_HOST_ENABLED || CFG_TUD_ENABLED
+#if CFG_TUH_ENABLED || CFG_TUD_ENABLED
 
 #include "tusb.h"
 
@@ -41,7 +41,7 @@ bool tusb_init(void)
   TU_ASSERT ( tud_init(TUD_OPT_RHPORT) ); // init device stack
 #endif
 
-#if TUSB_OPT_HOST_ENABLED
+#if CFG_TUH_ENABLED
   TU_ASSERT( tuh_init(TUH_OPT_RHPORT) ); // init host stack
 #endif
 
@@ -56,7 +56,7 @@ bool tusb_inited(void)
   ret = ret || tud_inited();
 #endif
 
-#if TUSB_OPT_HOST_ENABLED
+#if CFG_TUH_ENABLED
   ret = ret || tuh_inited();
 #endif
 

@@ -7,7 +7,7 @@
 //--------------------------------------------------------------------+
 void USB0_Handler(void)
 {
-#if TUSB_OPT_HOST_ENABLED
+#if CFG_TUH_ENABLED
   tuh_int_handler(0);
 #endif
 

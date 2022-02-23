@@ -187,11 +187,9 @@
 #define OPT_MODE_LOW_SPEED    0x10 ///< Max Low Speed
 #define OPT_MODE_HIGH_SPEED   0x20 ///< Max High Speed
 
-
 #ifndef CFG_TUSB_RHPORT0_MODE
   #define CFG_TUSB_RHPORT0_MODE OPT_MODE_NONE
 #endif
-
 
 #ifndef CFG_TUSB_RHPORT1_MODE
   #define CFG_TUSB_RHPORT1_MODE OPT_MODE_NONE
@@ -203,22 +201,23 @@
 #endif
 
 // Which roothub port is configured as host
-#define TUH_OPT_RHPORT          ( ((CFG_TUSB_RHPORT0_MODE) & OPT_MODE_HOST) ? 0 : (((CFG_TUSB_RHPORT1_MODE) & OPT_MODE_HOST) ? 1 : -1) )
-#define TUSB_OPT_HOST_ENABLED   ( TUH_OPT_RHPORT >= 0 )
+#define TUH_OPT_RHPORT      ( ((CFG_TUSB_RHPORT0_MODE) & OPT_MODE_HOST) ? 0 : (((CFG_TUSB_RHPORT1_MODE) & OPT_MODE_HOST) ? 1 : -1) )
+#define CFG_TUH_ENABLED     ( TUH_OPT_RHPORT >= 0 )
 
 // Which roothub port is configured as device
-#define TUD_OPT_RHPORT          ( ((CFG_TUSB_RHPORT0_MODE) & OPT_MODE_DEVICE) ? 0 : (((CFG_TUSB_RHPORT1_MODE) & OPT_MODE_DEVICE) ? 1 : -1) )
+#define TUD_OPT_RHPORT      ( ((CFG_TUSB_RHPORT0_MODE) & OPT_MODE_DEVICE) ? 0 : (((CFG_TUSB_RHPORT1_MODE) & OPT_MODE_DEVICE) ? 1 : -1) )
 
 #if TUD_OPT_RHPORT == 0
-#define TUD_OPT_HIGH_SPEED      ( (CFG_TUSB_RHPORT0_MODE) & OPT_MODE_HIGH_SPEED )
+#define TUD_OPT_HIGH_SPEED  ( (CFG_TUSB_RHPORT0_MODE) & OPT_MODE_HIGH_SPEED )
 #else
-#define TUD_OPT_HIGH_SPEED      ( (CFG_TUSB_RHPORT1_MODE) & OPT_MODE_HIGH_SPEED )
+#define TUD_OPT_HIGH_SPEED  ( (CFG_TUSB_RHPORT1_MODE) & OPT_MODE_HIGH_SPEED )
 #endif
 
 #define CFG_TUD_ENABLED ( TUD_OPT_RHPORT >= 0 )
 
 // For backward compatible
 #define TUSB_OPT_DEVICE_ENABLED CFG_TUD_ENABLED
+#define TUSB_OPT_HOST_ENABLED   CFG_TUH_ENABLED
 
 //--------------------------------------------------------------------+
 // COMMON OPTIONS
@@ -316,7 +315,7 @@
 //--------------------------------------------------------------------
 // HOST OPTIONS
 //--------------------------------------------------------------------
-#if TUSB_OPT_HOST_ENABLED
+#if CFG_TUH_ENABLED
   #ifndef CFG_TUH_DEVICE_MAX
     #define CFG_TUH_DEVICE_MAX 1
   #endif
@@ -324,7 +323,7 @@
   #ifndef CFG_TUH_ENUMERATION_BUFSIZE
     #define CFG_TUH_ENUMERATION_BUFSIZE 256
   #endif
-#endif // TUSB_OPT_HOST_ENABLED
+#endif // CFG_TUH_ENABLED
 
 //------------- CLASS -------------//
 

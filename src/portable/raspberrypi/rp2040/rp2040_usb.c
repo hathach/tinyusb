@@ -87,7 +87,7 @@ void _hw_endpoint_buffer_control_update32(struct hw_endpoint *ep, uint32_t and_m
             *ep->buffer_control = value & ~USB_BUF_CTRL_AVAIL;
             // 12 cycle delay.. (should be good for 48*12Mhz = 576Mhz)
             // Don't need delay in host mode as host is in charge
-#if !TUSB_OPT_HOST_ENABLED
+#if !CFG_TUH_ENABLED
             __asm volatile (
                     "b 1f\n"
                     "1: b 1f\n"

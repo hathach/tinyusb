@@ -142,7 +142,7 @@ void board_init(void)
 
 #endif
 
-#if TUSB_OPT_HOST_ENABLED
+#if CFG_TUH_ENABLED
   // set portfunc to host !!!
 #endif
 }
