@@ -114,7 +114,7 @@ typedef struct
 typedef osal_queue_def_t* osal_queue_t;
 
 // role device/host is used by OS NONE for mutex (disable usb isr) only
-#define OSAL_QUEUE_DEF(_role, _name, _depth, _type)       \
+#define OSAL_QUEUE_DEF(_int_set, _name, _depth, _type)       \
   uint8_t _name##_buf[_depth*sizeof(_type)];              \
   osal_queue_def_t _name = {                              \
     .ff = TU_FIFO_INIT(_name##_buf, _depth, _type, false) \

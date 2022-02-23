@@ -33,12 +33,13 @@
 #include <nuttx/arch.h>
 
 #include "device/dcd.h"
+#include "device/usbd_pvt.h"
 
 #define CXD56_EPNUM (7)
 #define CXD56_SETUP_QUEUE_DEPTH (4)
 #define CXD56_MAX_DATA_OUT_SIZE (64)
 
-OSAL_QUEUE_DEF(OPT_MODE_DEVICE, _setup_queue_def, CXD56_SETUP_QUEUE_DEPTH, struct usb_ctrlreq_s);
+OSAL_QUEUE_DEF(usbd_int_set, _setup_queue_def, CXD56_SETUP_QUEUE_DEPTH, struct usb_ctrlreq_s);
 
 struct usbdcd_driver_s
 {

@@ -215,7 +215,7 @@ CFG_TUSB_MEM_SECTION usbh_device_t _usbh_devices[CFG_TUH_DEVICE_MAX + CFG_TUH_HU
 
 // Event queue
 // role device/host is used by OS NONE for mutex (disable usb isr)
-OSAL_QUEUE_DEF(OPT_MODE_HOST, _usbh_qdef, CFG_TUH_TASK_QUEUE_SZ, hcd_event_t);
+OSAL_QUEUE_DEF(usbh_int_set, _usbh_qdef, CFG_TUH_TASK_QUEUE_SZ, hcd_event_t);
 static osal_queue_t _usbh_q;
 
 CFG_TUSB_MEM_SECTION CFG_TUSB_MEM_ALIGN static uint8_t _usbh_ctrl_buf[CFG_TUH_ENUMERATION_BUFSIZE];
@@ -432,6 +432,18 @@ uint8_t usbh_get_rhport(uint8_t dev_addr)
 uint8_t* usbh_get_enum_buf(void)
 {
   return _usbh_ctrl_buf;
+}
+
+void usbh_int_set(bool enabled)
+{
+  // TODO all host controller
+  if (enabled)
+  {
+    hcd_int_enable(TUH_OPT_RHPORT);
+  }else
+  {
+    hcd_int_disable(TUH_OPT_RHPORT);
+  }
 }
 
 //--------------------------------------------------------------------+
