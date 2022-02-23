@@ -138,7 +138,7 @@ void board_init(void)
 #endif
 
   // todo probably set up device mode?
-#if TUSB_OPT_DEVICE_ENABLED
+#if CFG_TUD_ENABLED
 
 #endif
 

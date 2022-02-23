@@ -29,7 +29,7 @@
 #include <stdint.h>
 #include "tusb_option.h"
 
-#if TUSB_OPT_DEVICE_ENABLED && CFG_TUSB_MCU == OPT_MCU_F1C100S
+#if CFG_TUD_ENABLED && CFG_TUSB_MCU == OPT_MCU_F1C100S
 
 #include "osal/osal.h"
 #include <f1c100s-irq.h>

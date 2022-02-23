@@ -50,7 +50,7 @@
 
 #include "tusb_option.h"
 
-#if (TUSB_OPT_DEVICE_ENABLED && CFG_TUD_AUDIO)
+#if (CFG_TUD_ENABLED && CFG_TUD_AUDIO)
 
 //--------------------------------------------------------------------+
 // INCLUDE
@@ -2291,4 +2291,4 @@ uint8_t audiod_get_audio_fct_idx(audiod_function_t * audio)
   return 0;
 }
 
-#endif //TUSB_OPT_DEVICE_ENABLED && CFG_TUD_AUDIO
+#endif //CFG_TUD_ENABLED && CFG_TUD_AUDIO

@@ -215,7 +215,10 @@
 #define TUD_OPT_HIGH_SPEED      ( (CFG_TUSB_RHPORT1_MODE) & OPT_MODE_HIGH_SPEED )
 #endif
 
-#define TUSB_OPT_DEVICE_ENABLED ( TUD_OPT_RHPORT >= 0 )
+#define CFG_TUD_ENABLED ( TUD_OPT_RHPORT >= 0 )
+
+// For backward compatible
+#define TUSB_OPT_DEVICE_ENABLED CFG_TUD_ENABLED
 
 //--------------------------------------------------------------------+
 // COMMON OPTIONS

@@ -27,7 +27,7 @@
 
 #include "tusb_option.h"
 
-#if (TUSB_OPT_DEVICE_ENABLED && CFG_TUD_VIDEO && CFG_TUD_VIDEO_STREAMING)
+#if (CFG_TUD_ENABLED && CFG_TUD_VIDEO && CFG_TUD_VIDEO_STREAMING)
 
 #include "device/usbd.h"
 #include "device/usbd_pvt.h"

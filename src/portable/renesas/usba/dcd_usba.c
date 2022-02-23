@@ -31,7 +31,7 @@
 // We disable SOF for now until needed later on
 #define USE_SOF     0
 
-#if TUSB_OPT_DEVICE_ENABLED && ( CFG_TUSB_MCU == OPT_MCU_RX63X || \
+#if CFG_TUD_ENABLED && ( CFG_TUSB_MCU == OPT_MCU_RX63X || \
                                  CFG_TUSB_MCU == OPT_MCU_RX65X || \
                                  CFG_TUSB_MCU == OPT_MCU_RX72N )
 #include "device/dcd.h"

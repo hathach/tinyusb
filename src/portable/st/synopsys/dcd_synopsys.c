@@ -45,7 +45,7 @@
 #define STM32L4_SYNOPSYS
 #endif
 
-#if TUSB_OPT_DEVICE_ENABLED &&                                          \
+#if CFG_TUD_ENABLED &&                                          \
     ( (CFG_TUSB_MCU == OPT_MCU_STM32F1 && defined(STM32F1_SYNOPSYS)) || \
        CFG_TUSB_MCU == OPT_MCU_STM32F2                               || \
        CFG_TUSB_MCU == OPT_MCU_STM32F4                               || \

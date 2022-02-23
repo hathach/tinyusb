@@ -29,7 +29,7 @@
 
 #include "tusb_option.h"
 
-#if TUSB_OPT_DEVICE_ENABLED &&         \
+#if CFG_TUD_ENABLED &&         \
     (CFG_TUSB_MCU == OPT_MCU_BCM2711 ) \
 
 

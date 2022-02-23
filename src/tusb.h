@@ -61,7 +61,7 @@
 #endif
 
 //------------- DEVICE -------------//
-#if TUSB_OPT_DEVICE_ENABLED
+#if CFG_TUD_ENABLED
   #include "device/usbd.h"
 
   #if CFG_TUD_HID

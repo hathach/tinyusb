@@ -36,7 +36,7 @@ void USB0_IRQHandler(void)
 #if TUSB_OPT_HOST_ENABLED
   tuh_int_handler(0);
 #endif
-#if TUSB_OPT_DEVICE_ENABLED
+#if CFG_TUD_ENABLED
   tud_int_handler(0);
 #endif
 }
@@ -148,7 +148,7 @@ void board_init(void)
   USB0->GPCS = USB_GPCS_DEVMOD_OTG;
   USB0->EPC  = USB_EPC_EPENDE | USB_EPC_EPEN_HIGH;
 #endif
-#if TUSB_OPT_DEVICE_ENABLED
+#if CFG_TUD_ENABLED
   USB0->GPCS = USB_GPCS_DEVMOD_DEVVBUS;
 #endif
 }

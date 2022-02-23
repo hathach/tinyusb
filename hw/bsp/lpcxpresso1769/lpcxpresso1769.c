@@ -156,7 +156,7 @@ void board_init(void)
 //    0x1B // Host + Device + OTG + AHB
   };
 
-  uint32_t const clk_en = TUSB_OPT_DEVICE_ENABLED ? USBCLK_DEVCIE : USBCLK_HOST;
+  uint32_t const clk_en = CFG_TUD_ENABLED ? USBCLK_DEVCIE : USBCLK_HOST;
 
   LPC_USB->OTGClkCtrl = clk_en;
   while ( (LPC_USB->OTGClkSt & clk_en) != clk_en );

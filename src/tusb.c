@@ -26,18 +26,18 @@
 
 #include "tusb_option.h"
 
-#if TUSB_OPT_HOST_ENABLED || TUSB_OPT_DEVICE_ENABLED
+#if TUSB_OPT_HOST_ENABLED || CFG_TUD_ENABLED
 
 #include "tusb.h"
 
 // TODO clean up
-#if TUSB_OPT_DEVICE_ENABLED
+#if CFG_TUD_ENABLED
 #include "device/usbd_pvt.h"
 #endif
 
 bool tusb_init(void)
 {
-#if TUSB_OPT_DEVICE_ENABLED
+#if CFG_TUD_ENABLED
   TU_ASSERT ( tud_init(TUD_OPT_RHPORT) ); // init device stack
 #endif
 
@@ -52,7 +52,7 @@ bool tusb_inited(void)
 {
   bool ret = false;
 
-#if TUSB_OPT_DEVICE_ENABLED
+#if CFG_TUD_ENABLED
   ret = ret || tud_inited();
 #endif
 

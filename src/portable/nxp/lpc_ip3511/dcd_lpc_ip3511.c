@@ -34,7 +34,7 @@
  * - LPC54114
  * - LPC55s69
  */
-#if TUSB_OPT_DEVICE_ENABLED && ( CFG_TUSB_MCU == OPT_MCU_LPC11UXX || \
+#if CFG_TUD_ENABLED && ( CFG_TUSB_MCU == OPT_MCU_LPC11UXX || \
                                  CFG_TUSB_MCU == OPT_MCU_LPC13XX  || \
                                  CFG_TUSB_MCU == OPT_MCU_LPC15XX  || \
                                  CFG_TUSB_MCU == OPT_MCU_LPC51UXX || \

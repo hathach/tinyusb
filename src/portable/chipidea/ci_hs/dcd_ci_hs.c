@@ -27,7 +27,7 @@
 #include "tusb_option.h"
 #include "device/dcd_attr.h"
 
-#if TUSB_OPT_DEVICE_ENABLED && defined(DCD_ATTR_CONTROLLER_CHIPIDEA_HS)
+#if CFG_TUD_ENABLED && defined(DCD_ATTR_CONTROLLER_CHIPIDEA_HS)
 
 //--------------------------------------------------------------------+
 // INCLUDE
