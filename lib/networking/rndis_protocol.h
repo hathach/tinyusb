@@ -46,6 +46,24 @@
 
 #include <stdint.h>
 
+#if (TU_BYTE_ORDER==TU_BIG_ENDIAN)
+/* These macros should be calculated by the preprocessor and are used within
+   compile-time constants only (so that there is no endian overhead at runtime). */
+#define PP_RNDIS_HTONS(x) ((((x) & 0xff) << 8) | (((x) & 0xff00) >> 8))
+#define PP_RNDIS_NTOHS(x) PP_RNDIS_HTONS(x)
+#define PP_RNDIS_HTONL(x) ((((x) & 0xff) << 24) | \
+                           (((x) & 0xff00) << 8) | \
+                           (((x) & 0xff0000UL) >> 8) | \
+                           (((x) & 0xff000000UL) >> 24))
+#define PP_RNDIS_NTOHL(x) PP_RNDIS_HTONL(x)
+#else
+#define PP_RNDIS_HTONS(x) (x)
+#define PP_RNDIS_NTOHS(x) (x)
+#define PP_RNDIS_HTONL(x) (x)
+#define PP_RNDIS_NTOHL(x) (x)
+#endif
+
+
 #define RNDIS_MAJOR_VERSION	1
 #define RNDIS_MINOR_VERSION 0
 
