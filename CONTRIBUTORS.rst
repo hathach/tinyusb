@@ -18,6 +18,12 @@ Notable contributors
 -  Design the project logo
 
 
+`Gordon McNab <https://github.com/ftdigdm>`__
+---------------------------------------------
+
+-  Add new DCD port for Bridgetek FT90x and FT93x
+
+
 `Ha Thach <https://github.com/hathach>`__
 -----------------------------------------
 
@@ -53,6 +59,7 @@ Notable contributors
 -----------------------------------------------
 
 -  Add new DCD port for Dialog DA1469x
+-  Add new DCD port for PIC32MZ
 -  Add new class driver for Bluetooth HCI
 -  Add ISO transfer for STM32 Synopsys, Nordic nRF, Dialog DA1469x
 -  Improve Audio driver and add uac2\_headset example
@@ -81,10 +88,10 @@ Notable contributors
 `Koji KITAYAMA <https://github.com/kkitayam>`__
 -----------------------------------------------
 
--  Add new DCD port for NXP Kinetis KL25
--  Add new DCD port for Renesas RX family (RX600, RX700 ..) with GR-CITRUS, RX65n target board
+-  Add new DCD and HCD port for NXP Kinetis KL25
+-  Add new DCD and HCD port for Renesas RX family (RX600, RX700 ..) with GR-CITRUS, RX65n target board
+-  Add new DCD and HCD port for Mentor musb with MSP432E4
 -  Add new class driver for USB Video Class (UVC 1.5)
-
 
 `Nathan Conrad <https://github.com/pigrew>`__
 ---------------------------------------------

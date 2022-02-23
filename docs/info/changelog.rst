@@ -2,6 +2,46 @@
 Changelog
 *********
 
+0.13.0
+======
+
+- [tu_fifo] Fix locked mutex when full, and return type in peek_n()
+
+Controller Driver (DCD & HCD)
+-----------------------------
+
+- [DWC2] Generalize synopsys dwc2 with synopsys/dwc2 which support both FS and HS phy (UTMI and ULPI) for various MCUs.
+  - Broadcom 28/27xx on raspberrypi SBC
+  - Silicon Labs EFM32
+  - Espressif ESP32 Sx
+  - GigaDevice GD32
+  - ST STM32
+  - Infineon XMC
+- [KL25] Add new HCD for NXP KL25
+- [MUSB] Add new DCD and HCD for Mentor musb with TI MSP432E4
+- [F1C100s] Add new DCD for Allwinner F1C100s family
+- [PIC32MZ] Add new DCD for PIC32MZ
+- [nRF] Fix/Enhance varous race condtion with: EASY DMA, request HFXO, EPOUT
+- [ChipIdea] rename Transdimension to more popular ChipIdea Highspeed, 
+- [RP2040] various update/fix for hcd/dcd
+- [FT9XX] new DCD port for Bridgetek FT90x and FT93x devices
+- [DA1469X] Fix resume
+- [OHCI] Fix device array out of bound
+
+Note: legacy drivers such as st/synopsys, nxp/transdimension are still present in this release but won't recieve more update and could be removed in the future.
+
+Device Stack
+------------
+
+- [Audio] Support disabling feedback format correction (16.16 <-> 10.14 format)
+- [MSC] Add tud_msc_request_sense_cb() callback, change most default sense error to medium not present (0x02, 0x3A, 0x00)
+- [Video] Fix video_capture example fails enumeration when 8FPS
+
+Host Stack
+----------
+
+No notable changes
+
 0.12.0
 ======
 
