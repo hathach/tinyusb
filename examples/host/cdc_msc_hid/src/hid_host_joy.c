@@ -150,7 +150,7 @@ void tuh_hid_joystick_process_usages(
   // If there are no specific usages look for a range
   // TODO What is the correct behaviour if there are both?
   if (pstate->usage_count == 0 && !jdata->usage_is_range) {
-    printf("no usage - skipping bits %lu \n", jdata->report_size * jdata->report_count);
+    printf("no usage - skipping bits %u \n", jdata->report_size * jdata->report_count);
     return;
   }
 
@@ -262,7 +262,7 @@ void tusb_hid_simple_joysick_process_report(tusb_hid_simple_joysick_t* simple_jo
 void tusb_hid_print_simple_joysick_report(tusb_hid_simple_joysick_t* simple_joystick)
 {
   if (simple_joystick->has_values) {  
-    printf("dev_addr=%3d, instance=%3d, report_id=%3d, x1=%4ld, y1=%4ld, x2=%4ld, y2=%4ld, hat=%01lX, buttons=%04lX\n",  
+    printf("dev_addr=%3d, instance=%3d, report_id=%3d, x1=%4d, y1=%4d, x2=%4d, y2=%4d, hat=%01X, buttons=%04X\n",  
       simple_joystick->key.elements.dev_addr,
       simple_joystick->key.elements.instance,
       simple_joystick->key.elements.report_id,
