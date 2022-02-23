@@ -1,0 +1,1 @@
+board:mimxrt1060_evk
