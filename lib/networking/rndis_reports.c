@@ -46,7 +46,7 @@ static usb_eth_stat_t usb_eth_stat = { 0, 0, 0, 0 };
 static uint32_t oid_packet_filter = 0x0000000;
 static rndis_state_t rndis_state;
 
-CFG_TUSB_MEM_SECTION CFG_TUSB_MEM_ALIGN static const uint8_t ndis_report[8] = { 0x01,0x00,0x00,0x00,0x00,0x00,0x00,0x00 };
+CFG_TUSB_MEM_SECTION CFG_TUSB_MEM_ALIGN static uint8_t ndis_report[8] = { 0x01,0x00,0x00,0x00,0x00,0x00,0x00,0x00 };
 
 static const uint32_t OIDSupportedList[] = 
 {
@@ -81,7 +81,7 @@ static void *encapsulated_buffer;
 
 static void rndis_report(void)
 {
-  netd_report((uint8_t*)ndis_report, sizeof(ndis_report));
+  netd_report(ndis_report, sizeof(ndis_report));
 }
 
 static void rndis_query_cmplt32(int status, uint32_t data)
