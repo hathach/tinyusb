@@ -62,12 +62,12 @@ typedef struct
   uint8_t hub_port;
   uint8_t speed;
 
-  volatile struct TU_ATTR_PACKED
+  struct TU_ATTR_PACKED
   {
-    uint8_t connected    : 1;
-    uint8_t addressed    : 1;
-    uint8_t configured   : 1;
-    uint8_t suspended    : 1;
+    volatile uint8_t connected    : 1;
+    volatile uint8_t addressed    : 1;
+    volatile uint8_t configured   : 1;
+    volatile uint8_t suspended    : 1;
   };
 } usbh_dev0_t;
 
@@ -78,12 +78,12 @@ typedef struct {
   uint8_t hub_port;
   uint8_t speed;
 
-  volatile struct TU_ATTR_PACKED
+  struct TU_ATTR_PACKED
   {
-    uint8_t connected    : 1;
-    uint8_t addressed    : 1;
-    uint8_t configured   : 1;
-    uint8_t suspended    : 1;
+    volatile uint8_t connected    : 1;
+    volatile uint8_t addressed    : 1;
+    volatile uint8_t configured   : 1;
+    volatile uint8_t suspended    : 1;
   };
 
   //------------- device descriptor -------------//
