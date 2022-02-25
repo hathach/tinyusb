@@ -39,6 +39,26 @@
 // MACRO CONSTANT TYPEDEF PROTYPES
 //--------------------------------------------------------------------+
 
+// uncomment if you are using colemak layout
+// #define KEYBOARD_COLEMAK
+
+#ifdef KEYBOARD_COLEMAK
+const uint8_t colemak[128] = {
+  0  ,  0,  0,  0,  0,  0,  0, 22,
+  9  , 23,  7,  0, 24, 17,  8, 12,
+  0  , 14, 28, 51,  0, 19, 21, 10,
+  15 ,  0,  0,  0, 13,  0,  0,  0,
+  0  ,  0,  0,  0,  0,  0,  0,  0,
+  0  ,  0,  0,  0,  0,  0,  0,  0,
+  0  ,  0,  0, 18,  0,  0,  0,  0,
+  0  ,  0,  0,  0,  0,  0,  0,  0,
+  0  ,  0,  0,  0,  0,  0,  0,  0,
+  0  ,  0,  0,  0,  0,  0,  0,  0
+};
+#endif
+
+static uint8_t const keycode2ascii[128][2] =  { HID_KEYCODE_TO_ASCII };
+
 /* Blink pattern
  * - 250 ms  : device not mounted
  * - 1000 ms : device mounted
@@ -137,85 +157,89 @@ void tuh_hid_umount_cb(uint8_t dev_addr, uint8_t instance)
   printf("HID device address = %d, instance = %d is unmounted\r\n", dev_addr, instance);
 }
 
-const char* numbers = "0123456789";
+// keycodes from last report to check if key is holding or newly pressed
+uint8_t last_keycodes[6] = {0};
 
-// Uncomment if you use colemak and need to remap keys (like @tannewt.)
-// const uint8_t colemak[77] = {
-//    0,  0,  0,  0,  0,  0,  0, 22,
-//    9, 23,  7,  0, 24, 17,  8, 12,
-//    0, 14, 28, 51,  0, 19, 21, 10,
-//   15,  0,  0,  0, 13,  0,  0,  0,
-//    0,  0,  0,  0,  0,  0,  0,  0,
-//    0,  0,  0,  0,  0,  0,  0,  0,
-//    0,  0,  0, 18,  0,  0,  0,  0,
-//    0,  0,  0,  0,  0,  0,  0,  0,
-//    0,  0,  0,  0,  0,  0,  0,  0,
-//    0,  0,  0,  0,  0
-// };
+// look up new key in previous keys
+static inline bool key_in_last_report(const uint8_t key_arr[6], uint8_t keycode)
+{
+  for(uint8_t i=0; i<6; i++)
+  {
+    if (key_arr[i] == keycode) return true;
+  }
 
-// This is the reverse mapping of the US key layout in Adafruit_CircuitPython_HID.
-const char* ascii = "\0\0\0\0abcdefghijklmnopqrstuvwxyz1234567890\n\x1b\x08\t -=[]\\\x00;\'`,./\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\x7f";
-const char* shifted = "\0\0\0\0ABCDEFGHIJKLMNOPQRSTUVWXYZ!@#$%^&*()\0\0\0\0\0_+{}|\0:\"~<>?\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0";
-// Bitmask of pressed keys. We use the current modifier state.
-uint32_t last_state[8];
+  return false;
+}
 
 // Invoked when received report from device via interrupt endpoint
 void tuh_hid_report_received_cb(uint8_t dev_addr, uint8_t instance, uint8_t const* report, uint16_t len)
 {
-  if (len != 8 && len < 10) {
-    tud_cdc_write("report len: ", 12);
-    tud_cdc_write(numbers + len, 1);
-    tud_cdc_write("\r\n", 2);
+  if (len != 8)
+  {
+    char ch_num;
+
+    tud_cdc_write_str("incorrect report len: ");
+
+    if ( len > 10 )
+    {
+      ch_num = '0' + (len / 10);
+      tud_cdc_write(&ch_num, 1);
+      len = len % 10;
+    }
+
+    ch_num = '0' + len;
+    tud_cdc_write(&ch_num, 1);
+
+    tud_cdc_write_str("\r\n");
     tud_cdc_write_flush();
-  }
-  if (len != 8) {
+
     // Don't request a new report for a wrong sized endpoint.
     return;
   }
-  uint8_t modifiers = report[0];
+
+  uint8_t const modifiers = report[0];
   bool flush = false;
-  for (int i = 2; i < 8; i++) {
-    if (report[i] == 0) {
-      continue;
-    }
-    uint8_t down = report[i];
-    uint32_t mask = 1 << (down % 32);
-    bool was_down = (last_state[down / 32] & mask) != 0;
-    // Only map keycodes 0 - 76.
-    if (!was_down && down < 77) {
-      const char* layer = ascii;
-      // Check shift bits
-      if ((modifiers & 0x22) != 0) {
-        layer = shifted;
+
+  for (int i = 2; i < 8; i++)
+  {
+    uint8_t keycode = report[i];
+
+    if (keycode)
+    {
+      if ( key_in_last_report(last_keycodes, keycode) )
+      {
+        // exist in previous report means the current key is holding
+        // do nothing
+      }else
+      {
+        // not existed in previous report means the current key is pressed
+        // Only print keycodes 0 - 128.
+        if (keycode < 128)
+        {
+          // remap the key code for Colemak layout so @tannewt can type.
+          #ifdef KEYBOARD_COLEMAK
+          uint8_t colemak_key_code = colemak[keycode];
+          if (colemak_key_code != 0) keycode = colemak_key_code;
+          #endif
+
+          bool const is_shift = modifiers & (KEYBOARD_MODIFIER_LEFTSHIFT | KEYBOARD_MODIFIER_RIGHTSHIFT);
+          char c = keycode2ascii[keycode][is_shift ? 1 : 0];
+          if (c)
+          {
+            if (c == '\n') tud_cdc_write("\r", 1);
+            tud_cdc_write(&c, 1);
+            flush = true;
+          }
+        }
       }
-      // Map the key code for Colemak layout so @tannewt can type.
-      // uint8_t colemak_key_code = colemak[down];
-      // if (colemak_key_code != 0) {
-      //   down = colemak_key_code;
-      // }
-      char c = layer[down];
-      if (c == '\0') {
-        continue;
-      }
-      if (c == '\n') {
-        tud_cdc_write("\r", 1);
-      }
-      tud_cdc_write(&c, 1);
-      flush = true;
     }
   }
-  if (flush) {
-    tud_cdc_write_flush();
-  }
-  // Now update last_state
-  memset(last_state, 0, 8 * sizeof(uint32_t));
-  for (int i = 2; i < 8; i++) {
-    if (report[i] == 0) {
-      continue;
-    }
-    uint8_t down = report[i];
-    last_state[down / 32] |= 1 << (down % 32);
-  }
+
+  if (flush) tud_cdc_write_flush();
+
+  // save current report
+  memcpy(last_keycodes, report+2, 6);
+
   // continue to request to receive report
   if ( !tuh_hid_receive_report(dev_addr, instance) )
   {
