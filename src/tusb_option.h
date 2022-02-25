@@ -172,7 +172,7 @@
   #include "tusb_config.h"
 #endif
 
-#include "device/dcd_attr.h"
+#include "common/tusb_mcu_attr.h"
 
 //--------------------------------------------------------------------
 // RootHub Mode Configuration

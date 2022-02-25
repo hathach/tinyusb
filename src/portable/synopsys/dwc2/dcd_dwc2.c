@@ -28,7 +28,6 @@
  */
 
 #include "tusb_option.h"
-#include "device/dcd_attr.h"
 
 #if CFG_TUD_ENABLED && \
     ( defined(DCD_ATTR_DWC2_STM32) || \

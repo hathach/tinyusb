@@ -24,8 +24,8 @@
  * This file is part of the TinyUSB stack.
  */
 
-#ifndef TUSB_DCD_ATTR_H_
-#define TUSB_DCD_ATTR_H_
+#ifndef TUSB_MCU_ATTR_H_
+#define TUSB_MCU_ATTR_H_
 
 #include "tusb_option.h"
 
