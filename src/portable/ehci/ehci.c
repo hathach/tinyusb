@@ -24,9 +24,9 @@
  * This file is part of the TinyUSB stack.
  */
 
-#include "host/hcd_attr.h"
+#include "tusb_option.h"
 
-#if CFG_TUH_ENABLED && defined(HCD_ATTR_EHCI_TRANSDIMENSION)
+#if CFG_TUH_ENABLED && defined(HCD_ATTR_EHCI)
 
 //--------------------------------------------------------------------+
 // INCLUDE
@@ -45,7 +45,7 @@
 #define EHCI_DBG     2
 
 // Framelist size as small as possible to save SRAM
-#ifdef HCD_ATTR_EHCI_TRANSDIMENSION
+#ifdef HCD_ATTR_EHCI
   // NXP Transdimension: 8 elements
   #define FRAMELIST_SIZE_BIT_VALUE      7u
   #define FRAMELIST_SIZE_USBCMD_VALUE   (((FRAMELIST_SIZE_BIT_VALUE &  3) << EHCI_USBCMD_POS_FRAMELIST_SIZE) | \

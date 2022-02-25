@@ -27,14 +27,13 @@
 #ifndef TUSB_MCU_ATTR_H_
 #define TUSB_MCU_ATTR_H_
 
-#include "tusb_option.h"
-
-// Attribute includes
-// - ENDPOINT_MAX: max (logical) number of endpoint
-// - ENDPOINT_EXCLUSIVE_NUMBER: endpoint number with different direction IN and OUT aren't allowed,
-//                              e.g EP1 OUT & EP1 IN cannot exist together
-// - RHPORT_HIGHSPEED: mask to indicate which port support highspeed mode (without external PHY)
-//                     bit0 for port0 and so on.
+/* Attribute includes
+ * - ENDPOINT_MAX: max (logical) number of endpoint
+ * - ENDPOINT_EXCLUSIVE_NUMBER: endpoint number with different direction IN and OUT aren't allowed,
+ *                              e.g EP1 OUT & EP1 IN cannot exist together
+ * - RHPORT_HIGHSPEED: mask to indicate which port support highspeed mode (without external PHY)
+ *                     bit0 for port0 and so on.
+ */
 
 //------------- NXP -------------//
 #if   TU_CHECK_MCU(OPT_MCU_LPC11UXX, OPT_MCU_LPC13XX, OPT_MCU_LPC15XX)
@@ -42,12 +41,15 @@
 
 #elif TU_CHECK_MCU(OPT_MCU_LPC175X_6X, OPT_MCU_LPC177X_8X, OPT_MCU_LPC40XX)
   #define DCD_ATTR_ENDPOINT_MAX   16
+  #define HCD_ATTR_OHCI
 
 #elif TU_CHECK_MCU(OPT_MCU_LPC18XX, OPT_MCU_LPC43XX)
   // TODO USB0 has 6, USB1 has 4
   #define DCD_ATTR_CONTROLLER_CHIPIDEA_HS
   #define DCD_ATTR_ENDPOINT_MAX     6
   #define DCD_ATTR_RHPORT_HIGHSPEED 0x01 // Port0 HS, Port1 FS
+
+  #define HCD_ATTR_EHCI
 
 #elif TU_CHECK_MCU(OPT_MCU_LPC51UXX)
    #define DCD_ATTR_ENDPOINT_MAX   5
@@ -64,6 +66,8 @@
   #define DCD_ATTR_CONTROLLER_CHIPIDEA_HS
   #define DCD_ATTR_ENDPOINT_MAX     8
   #define DCD_ATTR_RHPORT_HIGHSPEED 0x03 // Port0 HS, Port1 HS
+
+  #define HCD_ATTR_EHCI
 
 #elif TU_CHECK_MCU(OPT_MCU_MKL25ZXX, OPT_MCU_K32L2BXX)
   #define DCD_ATTR_ENDPOINT_MAX   16
@@ -221,7 +225,13 @@
 #elif TU_CHECK_MCU(OPT_MCU_F1C100S)
   #define DCD_ATTR_ENDPOINT_MAX   4
 
-#else
+#endif
+
+//--------------------------------------------------------------------+
+// Default Values
+//--------------------------------------------------------------------+
+
+#ifndef DCD_ATTR_ENDPOINT_MAX
   #warning "DCD_ATTR_ENDPOINT_MAX is not defined for this MCU, default to 8"
   #define DCD_ATTR_ENDPOINT_MAX   8
 #endif
