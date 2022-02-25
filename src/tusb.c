@@ -163,6 +163,8 @@ uint16_t tu_desc_get_interface_total_len(tusb_desc_interface_t const* desc_itf, 
 
 char const* const tusb_strerr[TUSB_ERROR_COUNT] = { ERROR_TABLE(ERROR_STRING) };
 
+char const* const tusb_speed_str[] = { "Full", "Low", "High" };
+
 static void dump_str_line(uint8_t const* buf, uint16_t count)
 {
   tu_printf("  |");

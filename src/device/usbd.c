@@ -332,8 +332,6 @@ static char const* const _tusb_std_request_str[] =
   "Synch Frame"
 };
 
-static char const* const _tusb_speed_str[] = { "Full", "Low", "High" };
-
 // for usbd_control to print the name of control complete driver
 void usbd_driver_print_control_complete_name(usbd_control_xfer_cb_t callback)
 {
@@ -509,7 +507,7 @@ void tud_task (void)
     switch ( event.event_id )
     {
       case DCD_EVENT_BUS_RESET:
-        TU_LOG2(": %s Speed\r\n", _tusb_speed_str[event.bus_reset.speed]);
+        TU_LOG2(": %s Speed\r\n", tusb_speed_str[event.bus_reset.speed]);
         usbd_reset(event.rhport);
         _usbd_dev.speed = event.bus_reset.speed;
       break;

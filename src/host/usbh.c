@@ -709,6 +709,7 @@ static bool enum_new_device(hcd_event_t* event)
     if ( !hcd_port_connect_status(_dev0.rhport) ) return true;
 
     _dev0.speed = hcd_port_speed_get(_dev0.rhport );
+    TU_LOG2("%s Speed\r\n", tusb_speed_str[_dev0.speed]);
 
     enum_request_addr0_device_desc();
   }

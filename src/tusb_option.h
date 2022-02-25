@@ -223,8 +223,19 @@
 // CFG_TUD_SPEED    OPT_MODE_HIGH_SPEED
 
 //------------- Roothub as Host -------------//
-#define TUH_OPT_RHPORT      ( ((CFG_TUSB_RHPORT0_MODE) & OPT_MODE_HOST) ? 0 : (((CFG_TUSB_RHPORT1_MODE) & OPT_MODE_HOST) ? 1 : -1) )
-#define CFG_TUH_ENABLED     ( TUH_OPT_RHPORT >= 0 )
+
+#if (CFG_TUSB_RHPORT0_MODE) & OPT_MODE_HOST
+  #define TUH_RHPORT_MODE  (CFG_TUSB_RHPORT0_MODE)
+  #define TUH_OPT_RHPORT   0
+#elif (CFG_TUSB_RHPORT1_MODE) & OPT_MODE_HOST
+  #define TUH_RHPORT_MODE  (CFG_TUSB_RHPORT1_MODE)
+  #define TUH_OPT_RHPORT   1
+#else
+  #define TUH_RHPORT_MODE   OPT_MODE_NONE
+  #define TUH_OPT_RHPORT   -1
+#endif
+
+#define CFG_TUH_ENABLED     ( TUH_RHPORT_MODE & OPT_MODE_HOST )
 
 // For backward compatible
 #define TUSB_OPT_DEVICE_ENABLED CFG_TUD_ENABLED
