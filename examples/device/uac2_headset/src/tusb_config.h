@@ -42,11 +42,7 @@ extern "C" {
 #error CFG_TUSB_MCU must be defined
 #endif
 
-#if CFG_TUSB_MCU == OPT_MCU_LPC43XX || CFG_TUSB_MCU == OPT_MCU_LPC18XX || CFG_TUSB_MCU == OPT_MCU_MIMXRT10XX
-#define CFG_TUSB_RHPORT0_MODE       (OPT_MODE_DEVICE | OPT_MODE_HIGH_SPEED)
-#else
 #define CFG_TUSB_RHPORT0_MODE       OPT_MODE_DEVICE
-#endif
 
 #ifndef CFG_TUSB_OS
 #define CFG_TUSB_OS                 OPT_OS_NONE

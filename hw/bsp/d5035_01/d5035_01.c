@@ -270,7 +270,7 @@ void board_init(void)
 #endif
 
 
-#if TUSB_OPT_DEVICE_ENABLED
+#if CFG_TUD_ENABLED
 #if CFG_TUSB_DEBUG >= 2
 	uart_send_str(BOARD_NAME " USB device enabled\n");
 #endif

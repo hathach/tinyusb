@@ -26,7 +26,7 @@
 
 #include "tusb_option.h"
 
-#if TUSB_OPT_DEVICE_ENABLED && CFG_TUSB_MCU == OPT_MCU_NRF5X
+#if CFG_TUD_ENABLED && CFG_TUSB_MCU == OPT_MCU_NRF5X
 
 #include "nrf.h"
 #include "nrf_clock.h"

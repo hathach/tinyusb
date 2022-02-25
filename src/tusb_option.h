@@ -172,26 +172,28 @@
   #include "tusb_config.h"
 #endif
 
+#include "common/tusb_mcu_attr.h"
+
 //--------------------------------------------------------------------
 // RootHub Mode Configuration
 // CFG_TUSB_RHPORTx_MODE contains operation mode and speed for that port
 //--------------------------------------------------------------------
 
-// Lower 4-bit is operational mode
-#define OPT_MODE_NONE         0x00 ///< Disabled
-#define OPT_MODE_DEVICE       0x01 ///< Device Mode
-#define OPT_MODE_HOST         0x02 ///< Host Mode
+// Low byte is operational mode
+#define OPT_MODE_NONE           0x0000 ///< Disabled
+#define OPT_MODE_DEVICE         0x0001 ///< Device Mode
+#define OPT_MODE_HOST           0x0002 ///< Host Mode
 
-// Higher 4-bit is max operational speed (corresponding to tusb_speed_t)
-#define OPT_MODE_FULL_SPEED   0x00 ///< Max Full Speed
-#define OPT_MODE_LOW_SPEED    0x10 ///< Max Low Speed
-#define OPT_MODE_HIGH_SPEED   0x20 ///< Max High Speed
-
+// High byte is max operational speed (corresponding to tusb_speed_t)
+#define OPT_MODE_DEFAULT_SPEED  0x0000 ///< Default (max) speed supported by MCU
+#define OPT_MODE_LOW_SPEED      0x0100 ///< Low Speed
+#define OPT_MODE_FULL_SPEED     0x0200 ///< Full Speed
+#define OPT_MODE_HIGH_SPEED     0x0400 ///< High Speed
+#define OPT_MODE_SPEED_MASK     0xff00
 
 #ifndef CFG_TUSB_RHPORT0_MODE
   #define CFG_TUSB_RHPORT0_MODE OPT_MODE_NONE
 #endif
-
 
 #ifndef CFG_TUSB_RHPORT1_MODE
   #define CFG_TUSB_RHPORT1_MODE OPT_MODE_NONE
@@ -202,20 +204,40 @@
   #error "TinyUSB currently does not support same modes on more than 1 roothub port"
 #endif
 
-// Which roothub port is configured as host
-#define TUH_OPT_RHPORT          ( ((CFG_TUSB_RHPORT0_MODE) & OPT_MODE_HOST) ? 0 : (((CFG_TUSB_RHPORT1_MODE) & OPT_MODE_HOST) ? 1 : -1) )
-#define TUSB_OPT_HOST_ENABLED   ( TUH_OPT_RHPORT >= 0 )
+//------------- Roothub as Device -------------//
 
-// Which roothub port is configured as device
-#define TUD_OPT_RHPORT          ( ((CFG_TUSB_RHPORT0_MODE) & OPT_MODE_DEVICE) ? 0 : (((CFG_TUSB_RHPORT1_MODE) & OPT_MODE_DEVICE) ? 1 : -1) )
-
-#if TUD_OPT_RHPORT == 0
-#define TUD_OPT_HIGH_SPEED      ( (CFG_TUSB_RHPORT0_MODE) & OPT_MODE_HIGH_SPEED )
+#if (CFG_TUSB_RHPORT0_MODE) & OPT_MODE_DEVICE
+  #define TUD_RHPORT_MODE  (CFG_TUSB_RHPORT0_MODE)
+  #define TUD_OPT_RHPORT   0
+#elif (CFG_TUSB_RHPORT1_MODE) & OPT_MODE_DEVICE
+  #define TUD_RHPORT_MODE  (CFG_TUSB_RHPORT1_MODE)
+  #define TUD_OPT_RHPORT   1
 #else
-#define TUD_OPT_HIGH_SPEED      ( (CFG_TUSB_RHPORT1_MODE) & OPT_MODE_HIGH_SPEED )
+  #define TUD_RHPORT_MODE   OPT_MODE_NONE
+  #define TUD_OPT_RHPORT   -1
 #endif
 
-#define TUSB_OPT_DEVICE_ENABLED ( TUD_OPT_RHPORT >= 0 )
+#define CFG_TUD_ENABLED     ( TUD_RHPORT_MODE & OPT_MODE_DEVICE )
+#define TUD_OPT_HIGH_SPEED  ( (TUD_RHPORT_MODE & OPT_MODE_SPEED_MASK) ? (TUD_RHPORT_MODE & OPT_MODE_HIGH_SPEED) : (DCD_ATTR_RHPORT_HIGHSPEED & (1 << TUD_OPT_RHPORT)) )
+
+//------------- Roothub as Host -------------//
+
+#if (CFG_TUSB_RHPORT0_MODE) & OPT_MODE_HOST
+  #define TUH_RHPORT_MODE  (CFG_TUSB_RHPORT0_MODE)
+  #define TUH_OPT_RHPORT   0
+#elif (CFG_TUSB_RHPORT1_MODE) & OPT_MODE_HOST
+  #define TUH_RHPORT_MODE  (CFG_TUSB_RHPORT1_MODE)
+  #define TUH_OPT_RHPORT   1
+#else
+  #define TUH_RHPORT_MODE   OPT_MODE_NONE
+  #define TUH_OPT_RHPORT   -1
+#endif
+
+#define CFG_TUH_ENABLED     ( TUH_RHPORT_MODE & OPT_MODE_HOST )
+
+// For backward compatible
+#define TUSB_OPT_DEVICE_ENABLED CFG_TUD_ENABLED
+#define TUSB_OPT_HOST_ENABLED   CFG_TUH_ENABLED
 
 //--------------------------------------------------------------------+
 // COMMON OPTIONS
@@ -313,7 +335,7 @@
 //--------------------------------------------------------------------
 // HOST OPTIONS
 //--------------------------------------------------------------------
-#if TUSB_OPT_HOST_ENABLED
+#if CFG_TUH_ENABLED
   #ifndef CFG_TUH_DEVICE_MAX
     #define CFG_TUH_DEVICE_MAX 1
   #endif
@@ -321,7 +343,7 @@
   #ifndef CFG_TUH_ENUMERATION_BUFSIZE
     #define CFG_TUH_ENUMERATION_BUFSIZE 256
   #endif
-#endif // TUSB_OPT_HOST_ENABLED
+#endif // CFG_TUH_ENABLED
 
 //------------- CLASS -------------//
 

@@ -26,7 +26,7 @@
 
 #include "tusb_option.h"
 
-#if TUSB_OPT_DEVICE_ENABLED
+#if CFG_TUD_ENABLED
 
 #include "tusb.h"
 #include "device/usbd.h"
@@ -269,11 +269,12 @@ static inline usbd_class_driver_t const * get_driver(uint8_t drvid)
 // DCD Event
 //--------------------------------------------------------------------+
 
-static bool _usbd_initialized = false;
+enum { RHPORT_INVALID = 0xFFu };
+static uint8_t _usbd_rhport = RHPORT_INVALID;
 
 // Event queue
 // OPT_MODE_DEVICE is used by OS NONE for mutex (disable usb isr)
-OSAL_QUEUE_DEF(OPT_MODE_DEVICE, _usbd_qdef, CFG_TUD_TASK_QUEUE_SZ, dcd_event_t);
+OSAL_QUEUE_DEF(usbd_int_set, _usbd_qdef, CFG_TUD_TASK_QUEUE_SZ, dcd_event_t);
 static osal_queue_t _usbd_q;
 
 // Mutex for claiming endpoint, only needed when using with preempted RTOS
@@ -331,8 +332,6 @@ static char const* const _tusb_std_request_str[] =
   "Synch Frame"
 };
 
-static char const* const _tusb_speed_str[] = { "Full", "Low", "High" };
-
 // for usbd_control to print the name of control complete driver
 void usbd_driver_print_control_complete_name(usbd_control_xfer_cb_t callback)
 {
@@ -376,21 +375,21 @@ bool tud_remote_wakeup(void)
 {
   // only wake up host if this feature is supported and enabled and we are suspended
   TU_VERIFY (_usbd_dev.suspended && _usbd_dev.remote_wakeup_support && _usbd_dev.remote_wakeup_en );
-  dcd_remote_wakeup(TUD_OPT_RHPORT);
+  dcd_remote_wakeup(_usbd_rhport);
   return true;
 }
 
 bool tud_disconnect(void)
 {
   TU_VERIFY(dcd_disconnect);
-  dcd_disconnect(TUD_OPT_RHPORT);
+  dcd_disconnect(_usbd_rhport);
   return true;
 }
 
 bool tud_connect(void)
 {
   TU_VERIFY(dcd_connect);
-  dcd_connect(TUD_OPT_RHPORT);
+  dcd_connect(_usbd_rhport);
   return true;
 }
 
@@ -399,13 +398,13 @@ bool tud_connect(void)
 //--------------------------------------------------------------------+
 bool tud_inited(void)
 {
-  return _usbd_initialized;
+  return _usbd_rhport != RHPORT_INVALID;
 }
 
 bool tud_init (uint8_t rhport)
 {
   // skip if already initialized
-  if (_usbd_initialized) return _usbd_initialized;
+  if ( tud_inited() ) return true;
 
   TU_LOG2("USBD init\r\n");
 
@@ -439,7 +438,7 @@ bool tud_init (uint8_t rhport)
   dcd_init(rhport);
   dcd_int_enable(rhport);
 
-  _usbd_initialized = true;
+  _usbd_rhport = rhport;
 
   return true;
 }
@@ -508,7 +507,7 @@ void tud_task (void)
     switch ( event.event_id )
     {
       case DCD_EVENT_BUS_RESET:
-        TU_LOG2(": %s Speed\r\n", _tusb_speed_str[event.bus_reset.speed]);
+        TU_LOG2(": %s Speed\r\n", tusb_speed_str[event.bus_reset.speed]);
         usbd_reset(event.rhport);
         _usbd_dev.speed = event.bus_reset.speed;
       break;
@@ -1172,6 +1171,17 @@ void dcd_event_xfer_complete (uint8_t rhport, uint8_t ep_addr, uint32_t xferred_
 //--------------------------------------------------------------------+
 // USBD API For Class Driver
 //--------------------------------------------------------------------+
+
+void usbd_int_set(bool enabled)
+{
+  if (enabled)
+  {
+    dcd_int_enable(_usbd_rhport);
+  }else
+  {
+    dcd_int_disable(_usbd_rhport);
+  }
+}
 
 // Parse consecutive endpoint descriptors (IN & OUT)
 bool usbd_open_edpt_pair(uint8_t rhport, uint8_t const* p_desc, uint8_t ep_count, uint8_t xfer_type, uint8_t* ep_out, uint8_t* ep_in)

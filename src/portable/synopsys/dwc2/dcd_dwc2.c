@@ -28,9 +28,8 @@
  */
 
 #include "tusb_option.h"
-#include "device/dcd_attr.h"
 
-#if TUSB_OPT_DEVICE_ENABLED && \
+#if CFG_TUD_ENABLED && \
     ( defined(DCD_ATTR_DWC2_STM32) || \
       TU_CHECK_MCU(OPT_MCU_ESP32S2, OPT_MCU_ESP32S3, OPT_MCU_GD32VF103) || \
       TU_CHECK_MCU(OPT_MCU_EFM32GG, OPT_MCU_BCM2711, OPT_MCU_BCM2835) || \

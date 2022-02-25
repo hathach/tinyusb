@@ -24,9 +24,9 @@
  * This file is part of the TinyUSB stack.
  */
 
-#include "host/hcd_attr.h"
+#include "tusb_option.h"
 
-#if TUSB_OPT_HOST_ENABLED && defined(HCD_ATTR_OHCI)
+#if CFG_TUH_ENABLED && defined(HCD_ATTR_OHCI)
 
 //--------------------------------------------------------------------+
 // INCLUDE

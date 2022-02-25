@@ -26,7 +26,7 @@
 
 #include "tusb_option.h"
 
-#if TUSB_OPT_DEVICE_ENABLED && (CFG_TUSB_MCU == OPT_MCU_VALENTYUSB_EPTRI)
+#if CFG_TUD_ENABLED && (CFG_TUSB_MCU == OPT_MCU_VALENTYUSB_EPTRI)
 
 #ifndef DEBUG
 #define DEBUG 0

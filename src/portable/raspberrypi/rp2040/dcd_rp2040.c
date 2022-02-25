@@ -26,7 +26,7 @@
 
 #include "tusb_option.h"
 
-#if TUSB_OPT_DEVICE_ENABLED && CFG_TUSB_MCU == OPT_MCU_RP2040
+#if CFG_TUD_ENABLED && CFG_TUSB_MCU == OPT_MCU_RP2040
 
 #include "pico.h"
 #include "rp2040_usb.h"
