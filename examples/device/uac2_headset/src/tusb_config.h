@@ -42,11 +42,7 @@ extern "C" {
 #error CFG_TUSB_MCU must be defined
 #endif
 
-// RHPort max operational speed can defined by board.mk
-// Default to max (auto) speed for MCU with internal HighSpeed PHY
-#ifndef BOARD_DEVICE_RHPORT_SPEED
-  #define BOARD_DEVICE_RHPORT_SPEED   OPT_MODE_DEFAULT_SPEED
-#endif
+#define CFG_TUSB_RHPORT0_MODE       OPT_MODE_DEVICE
 
 #ifndef CFG_TUSB_OS
 #define CFG_TUSB_OS                 OPT_OS_NONE
