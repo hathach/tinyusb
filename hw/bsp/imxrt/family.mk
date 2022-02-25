@@ -15,6 +15,13 @@ CFLAGS += \
   -DXIP_BOOT_HEADER_ENABLE=1 \
   -DCFG_TUSB_MCU=OPT_MCU_MIMXRT10XX
 
+ifdef BOARD_DEVICE_RHPORT_NUM
+CFLAGS += -DBOARD_DEVICE_RHPORT_NUM=$(BOARD_DEVICE_RHPORT_NUM)
+endif
+ifdef BOARD_HOST_RHPORT_NUM
+CFLAGS += -DBOARD_HOST_RHPORT_NUM=$(BOARD_HOST_RHPORT_NUM)
+endif
+
 # mcu driver cause following warnings
 CFLAGS += -Wno-error=unused-parameter -Wno-error=implicit-fallthrough=
 
