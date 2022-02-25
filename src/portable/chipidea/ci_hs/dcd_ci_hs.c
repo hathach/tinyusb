@@ -26,7 +26,7 @@
 
 #include "tusb_option.h"
 
-#if CFG_TUD_ENABLED && defined(DCD_ATTR_CONTROLLER_CHIPIDEA_HS)
+#if CFG_TUD_ENABLED && defined(MCU_ATTR_CONTROLLER_CHIPIDEA_HS)
 
 //--------------------------------------------------------------------+
 // INCLUDE

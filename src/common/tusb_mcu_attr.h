@@ -27,7 +27,7 @@
 #ifndef TUSB_MCU_ATTR_H_
 #define TUSB_MCU_ATTR_H_
 
-/* Attribute includes
+/* USB Controller Attributes for Device, Host or MCU (both)
  * - ENDPOINT_MAX: max (logical) number of endpoint
  * - ENDPOINT_EXCLUSIVE_NUMBER: endpoint number with different direction IN and OUT aren't allowed,
  *                              e.g EP1 OUT & EP1 IN cannot exist together
@@ -45,7 +45,7 @@
 
 #elif TU_CHECK_MCU(OPT_MCU_LPC18XX, OPT_MCU_LPC43XX)
   // TODO USB0 has 6, USB1 has 4
-  #define DCD_ATTR_CONTROLLER_CHIPIDEA_HS
+  #define MCU_ATTR_CONTROLLER_CHIPIDEA_HS
   #define DCD_ATTR_ENDPOINT_MAX     6
   #define DCD_ATTR_RHPORT_HIGHSPEED 0x01 // Port0 HS, Port1 FS
 
@@ -63,7 +63,7 @@
   #define DCD_ATTR_ENDPOINT_MAX   6
 
 #elif TU_CHECK_MCU(OPT_MCU_MIMXRT10XX)
-  #define DCD_ATTR_CONTROLLER_CHIPIDEA_HS
+  #define MCU_ATTR_CONTROLLER_CHIPIDEA_HS
   #define DCD_ATTR_ENDPOINT_MAX     8
   #define DCD_ATTR_RHPORT_HIGHSPEED 0x03 // Port0 HS, Port1 HS
 

@@ -45,7 +45,7 @@
 #define EHCI_DBG     2
 
 // Framelist size as small as possible to save SRAM
-#ifdef HCD_ATTR_EHCI
+#ifdef MCU_ATTR_CONTROLLER_CHIPIDEA_HS
   // NXP Transdimension: 8 elements
   #define FRAMELIST_SIZE_BIT_VALUE      7u
   #define FRAMELIST_SIZE_USBCMD_VALUE   (((FRAMELIST_SIZE_BIT_VALUE &  3) << EHCI_USBCMD_POS_FRAMELIST_SIZE) | \
