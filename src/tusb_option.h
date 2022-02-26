@@ -172,7 +172,7 @@
   #include "tusb_config.h"
 #endif
 
-#include "common/tusb_mcu_attr.h"
+#include "common/tusb_mcu.h"
 
 //--------------------------------------------------------------------
 // RootHub Mode Configuration
@@ -218,7 +218,7 @@
 #endif
 
 #define CFG_TUD_ENABLED     ( TUD_RHPORT_MODE & OPT_MODE_DEVICE )
-#define TUD_OPT_HIGH_SPEED  ( (TUD_RHPORT_MODE & OPT_MODE_SPEED_MASK) ? (TUD_RHPORT_MODE & OPT_MODE_HIGH_SPEED) : (DCD_ATTR_RHPORT_HIGHSPEED & (1 << TUD_OPT_RHPORT)) )
+#define TUD_OPT_HIGH_SPEED  ( (TUD_RHPORT_MODE & OPT_MODE_SPEED_MASK) ? (TUD_RHPORT_MODE & OPT_MODE_HIGH_SPEED) : (TUP_RHPORT_HIGHSPEED & (1 << TUD_OPT_RHPORT)) )
 
 //------------- Roothub as Host -------------//
 
@@ -238,6 +238,18 @@
 // For backward compatible
 #define TUSB_OPT_DEVICE_ENABLED CFG_TUD_ENABLED
 #define TUSB_OPT_HOST_ENABLED   CFG_TUH_ENABLED
+
+// TODO move later
+// TUP_MCU_STRICT_ALIGN will overwrite TUP_ARCH_STRICT_ALIGN.
+// In case TUP_MCU_STRICT_ALIGN = 1 and TUP_ARCH_STRICT_ALIGN =0, we will not reply on compiler
+// to generate unaligned access code.
+// LPC_IP3511 Highspeed cannot access unaligned memory on USB_RAM
+#if TUD_OPT_HIGH_SPEED && (CFG_TUSB_MCU == OPT_MCU_LPC54XXX || CFG_TUSB_MCU == OPT_MCU_LPC55XX)
+  #define TUP_MCU_STRICT_ALIGN   1
+#else
+  #define TUP_MCU_STRICT_ALIGN   0
+#endif
+
 
 //--------------------------------------------------------------------+
 // COMMON OPTIONS
@@ -370,31 +382,6 @@
 #ifndef CFG_TUH_VENDOR
 #define CFG_TUH_VENDOR 0
 #endif
-
-//--------------------------------------------------------------------+
-// Port Specific
-// TUP stand for TinyUSB Port (can be renamed)
-//--------------------------------------------------------------------+
-
-//------------- Unaligned Memory -------------//
-
-// ARMv7+ (M3-M7, M23-M33) can access unaligned memory
-#if (defined(__ARM_ARCH) && (__ARM_ARCH >= 7))
-  #define TUP_ARCH_STRICT_ALIGN   0
-#else
-  #define TUP_ARCH_STRICT_ALIGN   1
-#endif
-
-// TUP_MCU_STRICT_ALIGN will overwrite TUP_ARCH_STRICT_ALIGN.
-// In case TUP_MCU_STRICT_ALIGN = 1 and TUP_ARCH_STRICT_ALIGN =0, we will not reply on compiler
-// to generate unaligned access code.
-// LPC_IP3511 Highspeed cannot access unaligned memory on USB_RAM
-#if TUD_OPT_HIGH_SPEED && (CFG_TUSB_MCU == OPT_MCU_LPC54XXX || CFG_TUSB_MCU == OPT_MCU_LPC55XX)
-  #define TUP_MCU_STRICT_ALIGN   1
-#else
-  #define TUP_MCU_STRICT_ALIGN   0
-#endif
-
 
 //------------------------------------------------------------------
 // Configuration Validation
