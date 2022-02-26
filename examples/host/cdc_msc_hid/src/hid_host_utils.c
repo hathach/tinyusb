@@ -35,8 +35,9 @@ uint32_t tuh_hid_report_bits_u32(uint8_t const* report, uint16_t start, uint16_t
   for(uint16_t i = 1; (i << 3) < l; ++i) {
     acc |= ((uint32_t)*p++) << ((i << 3) - bit_offset_start);
   }
-  const uint32_t m = (((uint32_t)1) << length) - 1;
-  return acc & m;
+  const uint32_t lp0 = ((uint32_t)1) << (length - 1);
+  const uint32_t lp1 = lp0 << 1;
+  return acc & (lp1 - 1);
 }
 
 int32_t tuh_hid_report_bits_i32(uint8_t const* report, uint16_t start, uint16_t length)
