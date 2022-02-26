@@ -26,7 +26,7 @@
 
 #include "tusb_option.h"
 
-#if CFG_TUH_ENABLED && defined(HCD_ATTR_OHCI)
+#if CFG_TUH_ENABLED && defined(TUP_USBIP_OHCI)
 
 //--------------------------------------------------------------------+
 // INCLUDE

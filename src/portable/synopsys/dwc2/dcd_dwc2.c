@@ -38,7 +38,7 @@
 #include "device/dcd.h"
 #include "dwc2_type.h"
 
-#if defined(DCD_ATTR_DWC2_STM32)
+#if defined(TUP_USBIP_DWC2_STM32)
   #include "dwc2_stm32.h"
 #elif TU_CHECK_MCU(OPT_MCU_ESP32S2, OPT_MCU_ESP32S3)
   #include "dwc2_esp32.h"

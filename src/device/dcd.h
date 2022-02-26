@@ -40,7 +40,7 @@
 //--------------------------------------------------------------------+
 
 #ifndef CFG_TUD_ENDPPOINT_MAX
-  #define CFG_TUD_ENDPPOINT_MAX   DCD_ATTR_ENDPOINT_MAX
+  #define CFG_TUD_ENDPPOINT_MAX   TUP_DCD_ENDPOINT_MAX
 #endif
 
 //--------------------------------------------------------------------+
