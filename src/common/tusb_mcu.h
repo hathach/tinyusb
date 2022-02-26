@@ -51,10 +51,10 @@
 
 //------------- NXP -------------//
 #if   TU_CHECK_MCU(OPT_MCU_LPC11UXX, OPT_MCU_LPC13XX, OPT_MCU_LPC15XX)
-  #define TUP_DCD_ENDPOINT_MAX   5
+  #define TUP_DCD_ENDPOINT_MAX    5
 
 #elif TU_CHECK_MCU(OPT_MCU_LPC175X_6X, OPT_MCU_LPC177X_8X, OPT_MCU_LPC40XX)
-  #define TUP_DCD_ENDPOINT_MAX   16
+  #define TUP_DCD_ENDPOINT_MAX    16
   #define TUP_USBIP_OHCI
 
 #elif TU_CHECK_MCU(OPT_MCU_LPC18XX, OPT_MCU_LPC43XX)
@@ -62,8 +62,8 @@
   #define TUP_USBIP_CHIPIDEA_HS
   #define TUP_USBIP_EHCI
 
-  #define TUP_DCD_ENDPOINT_MAX     6
-  #define TUP_RHPORT_HIGHSPEED 0x01 // Port0 HS, Port1 FS
+  #define TUP_DCD_ENDPOINT_MAX    6
+  #define TUP_RHPORT_HIGHSPEED    0x01 // Port0 HS, Port1 FS
 
 
 #elif TU_CHECK_MCU(OPT_MCU_LPC51UXX)
@@ -71,52 +71,52 @@
 
 #elif TU_CHECK_MCU(OPT_MCU_LPC54XXX)
   // TODO USB0 has 5, USB1 has 6
-  #define TUP_DCD_ENDPOINT_MAX   6
+  #define TUP_DCD_ENDPOINT_MAX    6
 
 #elif TU_CHECK_MCU(OPT_MCU_LPC55XX)
   // TODO USB0 has 5, USB1 has 6
-  #define TUP_DCD_ENDPOINT_MAX   6
+  #define TUP_DCD_ENDPOINT_MAX    6
 
 #elif TU_CHECK_MCU(OPT_MCU_MIMXRT10XX)
   #define TUP_USBIP_CHIPIDEA_HS
   #define TUP_USBIP_EHCI
 
-  #define TUP_DCD_ENDPOINT_MAX     8
-  #define TUP_RHPORT_HIGHSPEED 0x03 // Port0 HS, Port1 HS
+  #define TUP_DCD_ENDPOINT_MAX    8
+  #define TUP_RHPORT_HIGHSPEED    0x03 // Port0 HS, Port1 HS
 
 
 #elif TU_CHECK_MCU(OPT_MCU_MKL25ZXX, OPT_MCU_K32L2BXX)
-  #define TUP_DCD_ENDPOINT_MAX   16
+  #define TUP_DCD_ENDPOINT_MAX    16
 
 #elif TU_CHECK_MCU(OPT_MCU_MM32F327X)
-  #define TUP_DCD_ENDPOINT_MAX   16
+  #define TUP_DCD_ENDPOINT_MAX    16
 
 //------------- Nordic -------------//
 #elif TU_CHECK_MCU(OPT_MCU_NRF5X)
   // 8 CBI + 1 ISO
-  #define TUP_DCD_ENDPOINT_MAX   9
+  #define TUP_DCD_ENDPOINT_MAX    9
 
 //------------- Microchip -------------//
 #elif TU_CHECK_MCU(OPT_MCU_SAMD21, OPT_MCU_SAMD51, OPT_MCU_SAME5X) || \
       TU_CHECK_MCU(OPT_MCU_SAMD11, OPT_MCU_SAML21, OPT_MCU_SAML22)
-  #define TUP_DCD_ENDPOINT_MAX   8
+  #define TUP_DCD_ENDPOINT_MAX    8
 
 #elif TU_CHECK_MCU(OPT_MCU_SAMG)
-  #define TUP_DCD_ENDPOINT_MAX   6
+  #define TUP_DCD_ENDPOINT_MAX    6
   #define TUP_DCD_ENDPOINT_EXCLUSIVE_NUMBER
 
 #elif TU_CHECK_MCU(OPT_MCU_SAMX7X)
-  #define TUP_DCD_ENDPOINT_MAX     10
-  #define TUP_RHPORT_HIGHSPEED 0x01
+  #define TUP_DCD_ENDPOINT_MAX    10
+  #define TUP_RHPORT_HIGHSPEED    0x01
   #define TUP_DCD_ENDPOINT_EXCLUSIVE_NUMBER
 
 #elif TU_CHECK_MCU(OPT_MCU_PIC32MZ)
-  #define TUP_DCD_ENDPOINT_MAX   8
+  #define TUP_DCD_ENDPOINT_MAX    8
   #define TUP_DCD_ENDPOINT_EXCLUSIVE_NUMBER
 
 //------------- ST -------------//
 #elif TU_CHECK_MCU(OPT_MCU_STM32F0)
-  #define TUP_DCD_ENDPOINT_MAX   8
+  #define TUP_DCD_ENDPOINT_MAX    8
 
 #elif TU_CHECK_MCU(OPT_MCU_STM32F1)
   #if defined (STM32F105x8) || defined (STM32F105xB) || defined (STM32F105xC) || \
@@ -124,9 +124,9 @@
     #define TUP_USBIP_DWC2
     #define TUP_USBIP_DWC2_STM32
 
-    #define TUP_DCD_ENDPOINT_MAX   4
+    #define TUP_DCD_ENDPOINT_MAX  4
   #else
-    #define TUP_DCD_ENDPOINT_MAX   8
+    #define TUP_DCD_ENDPOINT_MAX  8
   #endif
 
 #elif TU_CHECK_MCU(OPT_MCU_STM32F2)
@@ -134,36 +134,36 @@
   #define TUP_USBIP_DWC2_STM32
 
   // FS has 4 ep, HS has 5 ep
-  #define TUP_DCD_ENDPOINT_MAX   6
+  #define TUP_DCD_ENDPOINT_MAX    6
 
 #elif TU_CHECK_MCU(OPT_MCU_STM32F3)
-  #define TUP_DCD_ENDPOINT_MAX   8
+  #define TUP_DCD_ENDPOINT_MAX    8
 
 #elif TU_CHECK_MCU(OPT_MCU_STM32F4)
   #define TUP_USBIP_DWC2
   #define TUP_USBIP_DWC2_STM32
 
   // For most mcu, FS has 4, HS has 6. TODO 446/469/479 HS has 9
-  #define TUP_DCD_ENDPOINT_MAX   6
+  #define TUP_DCD_ENDPOINT_MAX    6
 
 #elif TU_CHECK_MCU(OPT_MCU_STM32F7)
   #define TUP_USBIP_DWC2
   #define TUP_USBIP_DWC2_STM32
 
   // FS has 6, HS has 9
-  #define TUP_DCD_ENDPOINT_MAX   9
+  #define TUP_DCD_ENDPOINT_MAX    9
 
 #elif TU_CHECK_MCU(OPT_MCU_STM32H7)
   #define TUP_USBIP_DWC2
   #define TUP_USBIP_DWC2_STM32
 
-  #define TUP_DCD_ENDPOINT_MAX   9
+  #define TUP_DCD_ENDPOINT_MAX    9
 
 #elif TU_CHECK_MCU(OPT_MCU_STM32G4)
-  #define TUP_DCD_ENDPOINT_MAX   8
+  #define TUP_DCD_ENDPOINT_MAX    8
 
 #elif TU_CHECK_MCU(OPT_MCU_STM32L0, OPT_MCU_STM32L1)
-  #define TUP_DCD_ENDPOINT_MAX   8
+  #define TUP_DCD_ENDPOINT_MAX    8
 
 #elif TU_CHECK_MCU(OPT_MCU_STM32L4)
   #if defined (STM32L475xx) || defined (STM32L476xx) ||                          \
@@ -174,84 +174,89 @@
     #define TUP_USBIP_DWC2
     #define TUP_USBIP_DWC2_STM32
 
-    #define TUP_DCD_ENDPOINT_MAX   6
+    #define TUP_DCD_ENDPOINT_MAX  6
   #else
-    #define TUP_DCD_ENDPOINT_MAX   8
+    #define TUP_DCD_ENDPOINT_MAX  8
   #endif
 
 //------------- Sony -------------//
 #elif TU_CHECK_MCU(OPT_MCU_CXD56)
-  #define TUP_DCD_ENDPOINT_MAX     7
-  #define TUP_RHPORT_HIGHSPEED 0x01
+  #define TUP_DCD_ENDPOINT_MAX    7
+  #define TUP_RHPORT_HIGHSPEED    0x01
   #define TUP_DCD_ENDPOINT_EXCLUSIVE_NUMBER
 
 //------------- TI -------------//
 #elif TU_CHECK_MCU(OPT_MCU_MSP430x5xx)
-  #define TUP_DCD_ENDPOINT_MAX   8
+  #define TUP_DCD_ENDPOINT_MAX    8
 
 #elif TU_CHECK_MCU(OPT_MCU_MSP432E4, OPT_MCU_TM4C123, OPT_MCU_TM4C129)
-  #define TUP_DCD_ENDPOINT_MAX   8
+  #define TUP_DCD_ENDPOINT_MAX    8
 
 //------------- ValentyUSB -------------//
 #elif TU_CHECK_MCU(OPT_MCU_VALENTYUSB_EPTRI)
-  #define TUP_DCD_ENDPOINT_MAX   16
+  #define TUP_DCD_ENDPOINT_MAX    16
 
 //------------- Nuvoton -------------//
 #elif TU_CHECK_MCU(OPT_MCU_NUC121, OPT_MCU_NUC126)
-  #define TUP_DCD_ENDPOINT_MAX   8
+  #define TUP_DCD_ENDPOINT_MAX    8
 
 #elif TU_CHECK_MCU(OPT_MCU_NUC120)
-  #define TUP_DCD_ENDPOINT_MAX   6
+  #define TUP_DCD_ENDPOINT_MAX    6
 
 #elif TU_CHECK_MCU(OPT_MCU_NUC505)
-  #define TUP_DCD_ENDPOINT_MAX     12
-  #define TUP_RHPORT_HIGHSPEED 0x01
+  #define TUP_DCD_ENDPOINT_MAX    12
+  #define TUP_RHPORT_HIGHSPEED    0x01
 
 //------------- Espressif -------------//
 #elif TU_CHECK_MCU(OPT_MCU_ESP32S2, OPT_MCU_ESP32S3)
-  #define TUP_DCD_ENDPOINT_MAX   6
+  #define TUP_USBIP_DWC2
+  #define TUP_DCD_ENDPOINT_MAX    6
 
 //------------- Dialog -------------//
 #elif TU_CHECK_MCU(OPT_MCU_DA1469X)
-  #define TUP_DCD_ENDPOINT_MAX   4
+  #define TUP_DCD_ENDPOINT_MAX    4
 
 //------------- Raspberry Pi -------------//
 #elif TU_CHECK_MCU(OPT_MCU_RP2040)
-  #define TUP_DCD_ENDPOINT_MAX   16
+  #define TUP_DCD_ENDPOINT_MAX    16
 
 //------------- Silabs -------------//
 #elif TU_CHECK_MCU(OPT_MCU_EFM32GG)
-  #define TUP_DCD_ENDPOINT_MAX   7
+  #define TUP_USBIP_DWC2
+  #define TUP_DCD_ENDPOINT_MAX    7
 
 //------------- Renesas -------------//
 #elif TU_CHECK_MCU(OPT_MCU_RX63X, OPT_MCU_RX65X, OPT_MCU_RX72N)
-  #define TUP_DCD_ENDPOINT_MAX   10
+  #define TUP_DCD_ENDPOINT_MAX    10
 
 //------------- GigaDevice -------------//
 #elif TU_CHECK_MCU(OPT_MCU_GD32VF103)
-  #define TUP_DCD_ENDPOINT_MAX   4
+  #define TUP_USBIP_DWC2
+  #define TUP_DCD_ENDPOINT_MAX    4
 
 //------------- Broadcom -------------//
 #elif TU_CHECK_MCU(OPT_MCU_BCM2711, OPT_MCU_BCM2835, OPT_MCU_BCM2837)
-  #define TUP_DCD_ENDPOINT_MAX     8
-  #define TUP_RHPORT_HIGHSPEED 0x01
+  #define TUP_USBIP_DWC2
+  #define TUP_DCD_ENDPOINT_MAX    8
+  #define TUP_RHPORT_HIGHSPEED    0x01
 
 //------------- Broadcom -------------//
 #elif TU_CHECK_MCU(OPT_MCU_XMC4000)
-  #define TUP_DCD_ENDPOINT_MAX   8
+  #define TUP_USBIP_DWC2
+  #define TUP_DCD_ENDPOINT_MAX    8
 
 //------------- BridgeTek -------------//
 #elif TU_CHECK_MCU(OPT_MCU_FT90X)
-  #define TUP_DCD_ENDPOINT_MAX     8
-  #define TUP_RHPORT_HIGHSPEED 0x01
+  #define TUP_DCD_ENDPOINT_MAX    8
+  #define TUP_RHPORT_HIGHSPEED    0x01
 
 #elif TU_CHECK_MCU(OPT_MCU_FT93X)
-  #define TUP_DCD_ENDPOINT_MAX     16
-  #define TUP_RHPORT_HIGHSPEED 0x01
+  #define TUP_DCD_ENDPOINT_MAX    16
+  #define TUP_RHPORT_HIGHSPEED    0x01
 
 //------------ Allwinner -------------//
 #elif TU_CHECK_MCU(OPT_MCU_F1C100S)
-  #define TUP_DCD_ENDPOINT_MAX   4
+  #define TUP_DCD_ENDPOINT_MAX    4
 
 #endif
 
@@ -261,12 +266,12 @@
 
 #ifndef TUP_DCD_ENDPOINT_MAX
   #warning "TUP_DCD_ENDPOINT_MAX is not defined for this MCU, default to 8"
-  #define TUP_DCD_ENDPOINT_MAX   8
+  #define TUP_DCD_ENDPOINT_MAX    8
 #endif
 
 // Default to fullspeed if not defined
 #ifndef TUP_RHPORT_HIGHSPEED
-  #define TUP_RHPORT_HIGHSPEED 0x00
+  #define TUP_RHPORT_HIGHSPEED    0x00
 #endif
 
 #endif
