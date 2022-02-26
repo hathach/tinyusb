@@ -153,6 +153,11 @@
   // FS has 6, HS has 9
   #define TUP_DCD_ENDPOINT_MAX    9
 
+  // MCU with on-chip HS Phy
+  #if defined(STM32F723xx) || defined(STM32F730xx) || defined(STM32F733xx)
+    #define TUP_RHPORT_HIGHSPEED  0x02 // Port 0: FS, Port 1: HS
+  #endif
+
 #elif TU_CHECK_MCU(OPT_MCU_STM32H7)
   #define TUP_USBIP_DWC2
   #define TUP_USBIP_DWC2_STM32
