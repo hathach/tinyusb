@@ -494,7 +494,11 @@ static bool process_pipe_xfer(int buffer_type, uint8_t ep_addr, void* buffer, ui
       while (USB0.D0FIFOSEL.BIT.CURPIPE) ; /* if CURPIPE bits changes, check written value */
     }
   } else {
+#if defined(__CCRX__)
+    __evenaccess volatile reg_pipetre_t *pt = get_pipetre(num);
+#else
     volatile reg_pipetre_t *pt = get_pipetre(num);
+#endif
     if (pt) {
       const unsigned     mps = edpt_max_packet_size(num);
       volatile uint16_t *ctr = get_pipectr(num);
@@ -715,11 +719,11 @@ bool dcd_edpt_open(uint8_t rhport, tusb_desc_endpoint_t const * ep_desc)
   *ctr = 0;
   unsigned cfg = (dir << 4) | epn;
   if (xfer == TUSB_XFER_BULK) {
-    cfg |= USB_PIPECFG_BULK | USB_PIPECFG_SHTNAK | USB_PIPECFG_DBLB;
+    cfg |= (USB_PIPECFG_BULK | USB_PIPECFG_SHTNAK | USB_PIPECFG_DBLB);
   } else if (xfer == TUSB_XFER_INTERRUPT) {
     cfg |= USB_PIPECFG_INT;
   } else {
-    cfg |= USB_PIPECFG_ISO | USB_PIPECFG_DBLB;
+    cfg |= (USB_PIPECFG_ISO | USB_PIPECFG_DBLB);
   }
   USB0.PIPECFG.WORD  = cfg;
   USB0.BRDYSTS.WORD  = 0x1FFu ^ TU_BIT(num);
