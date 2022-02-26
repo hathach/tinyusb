@@ -24,8 +24,22 @@
  * This file is part of the TinyUSB stack.
  */
 
-#ifndef TUSB_MCU_ATTR_H_
-#define TUSB_MCU_ATTR_H_
+#ifndef TUSB_MCU_H_
+#define TUSB_MCU_H_
+
+//--------------------------------------------------------------------+
+// Port Specific
+// TUP stand for TinyUSB Port (can be renamed)
+//--------------------------------------------------------------------+
+
+//------------- Unaligned Memory Access -------------//
+
+// ARMv7+ (M3-M7, M23-M33) can access unaligned memory
+#if (defined(__ARM_ARCH) && (__ARM_ARCH >= 7))
+  #define TUP_ARCH_STRICT_ALIGN   0
+#else
+  #define TUP_ARCH_STRICT_ALIGN   1
+#endif
 
 /* USB Controller Attributes for Device, Host or MCU (both)
  * - ENDPOINT_MAX: max (logical) number of endpoint
@@ -45,7 +59,7 @@
 
 #elif TU_CHECK_MCU(OPT_MCU_LPC18XX, OPT_MCU_LPC43XX)
   // TODO USB0 has 6, USB1 has 4
-  #define MCU_ATTR_CONTROLLER_CHIPIDEA_HS
+  #define TUP_USBIP_CHIPIDEA_HS
   #define DCD_ATTR_ENDPOINT_MAX     6
   #define DCD_ATTR_RHPORT_HIGHSPEED 0x01 // Port0 HS, Port1 FS
 
@@ -63,7 +77,7 @@
   #define DCD_ATTR_ENDPOINT_MAX   6
 
 #elif TU_CHECK_MCU(OPT_MCU_MIMXRT10XX)
-  #define MCU_ATTR_CONTROLLER_CHIPIDEA_HS
+  #define TUP_USBIP_CHIPIDEA_HS
   #define DCD_ATTR_ENDPOINT_MAX     8
   #define DCD_ATTR_RHPORT_HIGHSPEED 0x03 // Port0 HS, Port1 HS
 
@@ -106,6 +120,8 @@
   #if defined (STM32F105x8) || defined (STM32F105xB) || defined (STM32F105xC) || \
       defined (STM32F107xB) || defined (STM32F107xC)
     #define DCD_ATTR_ENDPOINT_MAX   4
+
+    #define TUP_USBIP_DWC2
     #define DCD_ATTR_DWC2_STM32
   #else
     #define DCD_ATTR_ENDPOINT_MAX   8
@@ -114,6 +130,8 @@
 #elif TU_CHECK_MCU(OPT_MCU_STM32F2)
   // FS has 4 ep, HS has 5 ep
   #define DCD_ATTR_ENDPOINT_MAX   6
+
+  #define TUP_USBIP_DWC2
   #define DCD_ATTR_DWC2_STM32
 
 #elif TU_CHECK_MCU(OPT_MCU_STM32F3)
@@ -122,15 +140,21 @@
 #elif TU_CHECK_MCU(OPT_MCU_STM32F4)
   // For most mcu, FS has 4, HS has 6. TODO 446/469/479 HS has 9
   #define DCD_ATTR_ENDPOINT_MAX   6
+
+  #define TUP_USBIP_DWC2
   #define DCD_ATTR_DWC2_STM32
 
 #elif TU_CHECK_MCU(OPT_MCU_STM32F7)
   // FS has 6, HS has 9
   #define DCD_ATTR_ENDPOINT_MAX   9
+
+  #define TUP_USBIP_DWC2
   #define DCD_ATTR_DWC2_STM32
 
 #elif TU_CHECK_MCU(OPT_MCU_STM32H7)
   #define DCD_ATTR_ENDPOINT_MAX   9
+
+  #define TUP_USBIP_DWC2
   #define DCD_ATTR_DWC2_STM32
 
 #elif TU_CHECK_MCU(OPT_MCU_STM32G4)
@@ -146,6 +170,8 @@
       defined (STM32L4R5xx) || defined (STM32L4R7xx) || defined (STM32L4R9xx) || \
       defined (STM32L4S5xx) || defined (STM32L4S7xx) || defined (STM32L4S9xx)
     #define DCD_ATTR_ENDPOINT_MAX   6
+
+    #define TUP_USBIP_DWC2
     #define DCD_ATTR_DWC2_STM32
   #else
     #define DCD_ATTR_ENDPOINT_MAX   8
