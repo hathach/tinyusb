@@ -27,7 +27,7 @@
 
 #include "tusb_option.h"
 
-#if ( TUSB_OPT_DEVICE_ENABLED && CFG_TUD_ECM_RNDIS )
+#if ( CFG_TUD_ENABLED && CFG_TUD_ECM_RNDIS )
 
 #include "device/usbd.h"
 #include "device/usbd_pvt.h"

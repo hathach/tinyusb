@@ -26,7 +26,7 @@
 
 #include "tusb_option.h"
 
-#if TUSB_OPT_DEVICE_ENABLED && \
+#if CFG_TUD_ENABLED && \
   TU_CHECK_MCU(OPT_MCU_MSP432E4, OPT_MCU_TM4C123, OPT_MCU_TM4C129)
 
 #if __GNUC__ > 8 && defined(__ARM_FEATURE_UNALIGNED)
@@ -170,13 +170,13 @@ static inline void print_block_list(free_block_t const *blk, unsigned num)
 
 static unsigned find_free_memory(uint_fast16_t size_in_log2_minus3)
 {
-  free_block_t free_blocks[2 * (DCD_ATTR_ENDPOINT_MAX - 1)];
+  free_block_t free_blocks[2 * (TUP_DCD_ENDPOINT_MAX - 1)];
   unsigned num_blocks = 1;
 
   /* Initialize free memory block list */
   free_blocks[0].beg = 64 / 8;
   free_blocks[0].end = (4 << 10) / 8; /* 4KiB / 8 bytes */
-  for (int i = 1; i < DCD_ATTR_ENDPOINT_MAX; ++i) {
+  for (int i = 1; i < TUP_DCD_ENDPOINT_MAX; ++i) {
     uint_fast16_t addr;
     int num;
     USB0->EPIDX = i;
@@ -575,7 +575,7 @@ static void process_bus_reset(uint8_t rhport)
   USB0->RXIE = 0; 
 
   /* Clear FIFO settings */
-  for (unsigned i = 1; i < DCD_ATTR_ENDPOINT_MAX; ++i) {
+  for (unsigned i = 1; i < TUP_DCD_ENDPOINT_MAX; ++i) {
     USB0->EPIDX     = i;
     USB0->TXFIFOSZ  = 0;
     USB0->TXFIFOADD = 0;
@@ -663,7 +663,7 @@ bool dcd_edpt_open(uint8_t rhport, tusb_desc_endpoint_t const * ep_desc)
   const unsigned xfer    = ep_desc->bmAttributes.xfer;
   const unsigned mps     = tu_edpt_packet_size(ep_desc);
 
-  TU_ASSERT(epn < DCD_ATTR_ENDPOINT_MAX);
+  TU_ASSERT(epn < TUP_DCD_ENDPOINT_MAX);
 
   pipe_state_t *pipe = &_dcd.pipe[dir_in][epn - 1];
   pipe->buf       = NULL;
@@ -715,7 +715,7 @@ void dcd_edpt_close_all(uint8_t rhport)
   NVIC_DisableIRQ(USB0_IRQn);
   USB0->TXIE = 1; /* Enable only EP0 */
   USB0->RXIE = 0; 
-  for (unsigned i = 1; i < DCD_ATTR_ENDPOINT_MAX; ++i) {
+  for (unsigned i = 1; i < TUP_DCD_ENDPOINT_MAX; ++i) {
     regs->TXMAXP = 0;
     regs->TXCSRH = 0;
     if (regs->TXCSRL & USB_TXCSRL1_TXRDY)

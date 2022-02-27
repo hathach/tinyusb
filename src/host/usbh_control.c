@@ -26,7 +26,7 @@
 
 #include "tusb_option.h"
 
-#if TUSB_OPT_HOST_ENABLED
+#if CFG_TUH_ENABLED
 
 #include "tusb.h"
 #include "usbh_classdriver.h"

@@ -26,22 +26,22 @@
 
 #include "tusb_option.h"
 
-#if TUSB_OPT_HOST_ENABLED || TUSB_OPT_DEVICE_ENABLED
+#if CFG_TUH_ENABLED || CFG_TUD_ENABLED
 
 #include "tusb.h"
 
 // TODO clean up
-#if TUSB_OPT_DEVICE_ENABLED
+#if CFG_TUD_ENABLED
 #include "device/usbd_pvt.h"
 #endif
 
 bool tusb_init(void)
 {
-#if TUSB_OPT_DEVICE_ENABLED
+#if CFG_TUD_ENABLED
   TU_ASSERT ( tud_init(TUD_OPT_RHPORT) ); // init device stack
 #endif
 
-#if TUSB_OPT_HOST_ENABLED
+#if CFG_TUH_ENABLED
   TU_ASSERT( tuh_init(TUH_OPT_RHPORT) ); // init host stack
 #endif
 
@@ -52,11 +52,11 @@ bool tusb_inited(void)
 {
   bool ret = false;
 
-#if TUSB_OPT_DEVICE_ENABLED
+#if CFG_TUD_ENABLED
   ret = ret || tud_inited();
 #endif
 
-#if TUSB_OPT_HOST_ENABLED
+#if CFG_TUH_ENABLED
   ret = ret || tuh_inited();
 #endif
 
@@ -162,6 +162,8 @@ uint16_t tu_desc_get_interface_total_len(tusb_desc_interface_t const* desc_itf, 
 #include <ctype.h>
 
 char const* const tusb_strerr[TUSB_ERROR_COUNT] = { ERROR_TABLE(ERROR_STRING) };
+
+char const* const tusb_speed_str[] = { "Full", "Low", "High" };
 
 static void dump_str_line(uint8_t const* buf, uint16_t count)
 {

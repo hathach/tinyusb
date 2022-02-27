@@ -26,7 +26,7 @@
 
 #include "tusb_option.h"
 
-#if TUSB_OPT_DEVICE_ENABLED && CFG_TUSB_MCU == OPT_MCU_PIC32MZ
+#if CFG_TUD_ENABLED && CFG_TUSB_MCU == OPT_MCU_PIC32MZ
 
 #include <common/tusb_common.h>
 #include <device/dcd.h>
