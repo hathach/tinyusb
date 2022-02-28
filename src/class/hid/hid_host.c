@@ -286,28 +286,35 @@ bool hidh_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_interface_t const *de
   hidh_device_t* hid_dev = get_dev(dev_addr);
   TU_ASSERT(hid_dev->inst_count < CFG_TUH_HID, 0);
 
-  //------------- Endpoint Descriptor -------------//
+  hidh_interface_t* hid_itf = get_instance(dev_addr, hid_dev->inst_count);  
+
+  //------------- Endpoint Descriptors -------------//
   p_desc = tu_desc_next(p_desc);
   tusb_desc_endpoint_t const * desc_ep = (tusb_desc_endpoint_t const *) p_desc;
-  TU_ASSERT(TUSB_DESC_ENDPOINT == desc_ep->bDescriptorType);
 
-  // first endpoint may be OUT, skip to IN endpoint
-  // TODO also open endpoint OUT
-  if(tu_edpt_dir(desc_ep->bEndpointAddress) == TUSB_DIR_OUT)
+  for(int i = 0; i < desc_itf->bNumEndpoints; i++)
   {
+    TU_ASSERT(TUSB_DESC_ENDPOINT == desc_ep->bDescriptorType);
+    TU_ASSERT( usbh_edpt_open(rhport, dev_addr, desc_ep) );
+
+    if(tu_edpt_dir(desc_ep->bEndpointAddress) == TUSB_DIR_IN)
+    {
+      hid_itf->ep_in     = desc_ep->bEndpointAddress;
+      hid_itf->epin_size = tu_edpt_packet_size(desc_ep);
+    }
+    else
+    {
+      hid_itf->ep_out     = desc_ep->bEndpointAddress;
+      hid_itf->epout_size = tu_edpt_packet_size(desc_ep);
+    }
+
     p_desc = tu_desc_next(p_desc);
     desc_ep = (tusb_desc_endpoint_t const *) p_desc;
-    TU_ASSERT(TUSB_DESC_ENDPOINT == desc_ep->bDescriptorType);
   }
 
-  TU_ASSERT( usbh_edpt_open(rhport, dev_addr, desc_ep) );
-
-  hidh_interface_t* hid_itf = get_instance(dev_addr, hid_dev->inst_count);
   hid_dev->inst_count++;
 
   hid_itf->itf_num   = desc_itf->bInterfaceNumber;
-  hid_itf->ep_in     = desc_ep->bEndpointAddress;
-  hid_itf->epin_size = tu_edpt_packet_size(desc_ep);
 
   // Assume bNumDescriptors = 1
   hid_itf->report_desc_type = desc_hid->bReportType;
