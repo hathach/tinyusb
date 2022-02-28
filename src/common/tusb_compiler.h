@@ -51,10 +51,10 @@
 #endif
 
 // Compile-time Assert
-#if defined (__STDC_VERSION__) && __STDC_VERSION__ >= 201112L
-  #define TU_VERIFY_STATIC   _Static_assert
-#elif defined (__cplusplus) && __cplusplus >= 201103L
+#if defined (__cplusplus) && __cplusplus >= 201103L
   #define TU_VERIFY_STATIC   static_assert
+#elif defined (__STDC_VERSION__) && __STDC_VERSION__ >= 201112L
+  #define TU_VERIFY_STATIC   _Static_assert
 #elif defined(__CCRX__)
   #define TU_VERIFY_STATIC(const_expr, _mess) typedef char TU_XSTRCAT(Line, __LINE__)[(const_expr) ? 1 : 0];
 #else
