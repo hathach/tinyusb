@@ -140,3 +140,6 @@
 [submodule "hw/mcu/allwinner"]
 	path = hw/mcu/allwinner
 	url = https://github.com/hathach/allwinner_driver.git
+[submodule "lib/Pico-PIO-USB"]
+	path = lib/Pico-PIO-USB
+	url = https://github.com/hathach/Pico-PIO-USB.git
