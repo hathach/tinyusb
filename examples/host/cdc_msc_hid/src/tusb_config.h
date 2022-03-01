@@ -39,12 +39,17 @@
   #error CFG_TUSB_MCU must be defined
 #endif
 
+#define CFG_TUH_RPI_PIO            1
+//#define CFG_TUSB_RPI_PIO_INC_PATH   1
+
+
 #if CFG_TUSB_MCU == OPT_MCU_LPC43XX || CFG_TUSB_MCU == OPT_MCU_LPC18XX || CFG_TUSB_MCU == OPT_MCU_MIMXRT10XX
   #define CFG_TUSB_RHPORT0_MODE       (OPT_MODE_HOST | OPT_MODE_HIGH_SPEED)
+#elif CFG_TUH_RPI_PIO
+  // rp2040: port0 is native, port 1 for PIO-USB
+  #define CFG_TUSB_RHPORT1_MODE       OPT_MODE_HOST
 #else
-  //#define CFG_TUSB_RHPORT0_MODE       OPT_MODE_HOST
- // rp2040: port0 is native, port 1 for PIO-USB
- #define CFG_TUSB_RHPORT1_MODE       OPT_MODE_HOST
+  #define CFG_TUSB_RHPORT0_MODE       OPT_MODE_HOST
 #endif
 
 #ifndef CFG_TUSB_OS
@@ -72,9 +77,6 @@
 //--------------------------------------------------------------------
 // CONFIGURATION
 //--------------------------------------------------------------------
-
-#define CFG_TUH_RPI_PIO            1
-//#define CFG_TUSB_RPI_PIO_INC_PATH   1
 
 // Size of buffer to hold descriptors and other data used for enumeration
 #define CFG_TUH_ENUMERATION_BUFSIZE 256
