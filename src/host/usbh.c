@@ -358,12 +358,12 @@ void tuh_task(void)
       case HCD_EVENT_DEVICE_ATTACH:
         // TODO due to the shared _usbh_ctrl_buf, we must complete enumerating
         // one device before enumerating another one.
-        TU_LOG2("USBH DEVICE ATTACH\r\n");
+        TU_LOG2("[rh%d] USBH DEVICE ATTACH\r\n", event.rhport);
         enum_new_device(&event);
       break;
 
       case HCD_EVENT_DEVICE_REMOVE:
-        TU_LOG2("USBH DEVICE REMOVED\r\n");
+        TU_LOG2("[rh%d] USBH DEVICE REMOVED\r\n", event.rhport);
         process_device_unplugged(event.rhport, event.connection.hub_addr, event.connection.hub_port);
 
         #if CFG_TUH_HUB
@@ -703,7 +703,9 @@ static bool enum_new_device(hcd_event_t* event)
   if (_dev0.hub_addr == 0)
   {
     // wait until device is stable TODO non blocking
+    hcd_port_reset(_dev0.rhport);
     osal_task_delay(RESET_DELAY);
+    hcd_port_reset_end( _dev0.rhport);
 
     // device unplugged while delaying
     if ( !hcd_port_connect_status(_dev0.rhport) ) return true;
@@ -772,13 +774,17 @@ static bool enum_get_addr0_device_desc_complete(uint8_t dev_addr, tusb_control_r
   TU_ASSERT( tu_desc_type(desc_device) == TUSB_DESC_DEVICE );
 
   // Reset device again before Set Address
+  // reset port after 8 byte descriptor
   TU_LOG2("Port reset \r\n");
 
   if (_dev0.hub_addr == 0)
   {
+#if !CFG_TUH_RPI_PIO // skip this reset for pio-usb
     // connected directly to roothub
-    hcd_port_reset( _dev0.rhport ); // reset port after 8 byte descriptor
+    hcd_port_reset(_dev0.rhport);
     osal_task_delay(RESET_DELAY);
+    hcd_port_reset_end(_dev0.rhport);
+#endif
 
     enum_request_set_addr();
   }

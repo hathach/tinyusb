@@ -143,9 +143,20 @@ void hcd_device_close(uint8_t rhport, uint8_t dev_addr);
 // Endpoints API
 //--------------------------------------------------------------------+
 
-bool hcd_setup_send(uint8_t rhport, uint8_t dev_addr, uint8_t const setup_packet[8]);
+// Open an endpoint
 bool hcd_edpt_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_endpoint_t const * ep_desc);
+
+// Submit a transfer, when complete hcd_event_xfer_complete() must be invoked
 bool hcd_edpt_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr, uint8_t * buffer, uint16_t buflen);
+
+// Submit a special transfer to send 8-byte Setup Packet, when complete hcd_event_xfer_complete() must be invoked
+bool hcd_setup_send(uint8_t rhport, uint8_t dev_addr, uint8_t const setup_packet[8]);
+
+// Optional: some controllers are capable of carry out the whole Control Transfer (setup, data, status)
+// without help of USBH.
+bool hcd_edpt_control_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t const setup_packet[8], uint8_t* data) TU_ATTR_WEAK;
+
+// clear stall, data toggle is also reset to DATA0
 bool hcd_edpt_clear_stall(uint8_t dev_addr, uint8_t ep_addr);
 
 //--------------------------------------------------------------------+

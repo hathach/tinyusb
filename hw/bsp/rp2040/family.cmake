@@ -89,13 +89,27 @@ if (NOT TARGET _rp2040_family_inclusion_marker)
 			${TOP}/src/class/hid/hid_host.c
 			${TOP}/src/class/msc/msc_host.c
 			${TOP}/src/class/vendor/vendor_host.c
+
+			${TOP}/src/portable/raspberrypi/pio/hcd_pio.c
+			${TOP}/lib/Pico-PIO-USB/pio_usb.c
+			${TOP}/lib/Pico-PIO-USB/usb_crc.c
 			)
 
-	# Sometimes have to do host specific actions in mostly
-	# common functions
+	# Sometimes have to do host specific actions in mostly common functions
 	target_compile_definitions(tinyusb_host_base INTERFACE
 			RP2040_USB_HOST_MODE=1
 	)
+	
+	# config for host pio
+	target_link_libraries(tinyusb_host_base INTERFACE
+	   hardware_dma
+	   hardware_pio
+	   pico_multicore
+	   )
+	   
+	target_include_directories(tinyusb_host_base INTERFACE
+	   ${TOP}/lib/Pico-PIO-USB
+	   )
 
 	add_library(tinyusb_bsp INTERFACE)
 	target_sources(tinyusb_bsp INTERFACE
@@ -151,6 +165,8 @@ if (NOT TARGET _rp2040_family_inclusion_marker)
 		_family_initialize_project(${PROJECT} ${DIR})
 		enable_language(C CXX ASM)
 		pico_sdk_init()
+    pico_generate_pio_header(tinyusb_host_base ${TOP}/lib/Pico-PIO-USB/usb_tx.pio)
+    pico_generate_pio_header(tinyusb_host_base ${TOP}/lib/Pico-PIO-USB/usb_rx.pio)
 	endfunction()
 
 	# This method must be called from the project scope to suppress known warnings in TinyUSB source files

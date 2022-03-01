@@ -27,7 +27,7 @@
 
 #include "tusb_option.h"
 
-#if CFG_TUH_ENABLED && CFG_TUSB_MCU == OPT_MCU_RP2040
+#if CFG_TUH_ENABLED && (CFG_TUSB_MCU == OPT_MCU_RP2040) && !CFG_TUH_RPI_PIO
 
 #include "pico.h"
 #include "rp2040_usb.h"
@@ -40,7 +40,8 @@
 #include "host/hcd.h"
 #include "host/usbh.h"
 
-#define ROOT_PORT 0
+// port 0 is native USB port, other is counted as software PIO
+#define RHPORT_NATIVE 0
 
 //--------------------------------------------------------------------+
 // Low level rp2040 controller functions
@@ -185,11 +186,11 @@ static void hcd_rp2040_irq(void)
         
         if (dev_speed())
         {
-            hcd_event_device_attach(ROOT_PORT, true);
+            hcd_event_device_attach(RHPORT_NATIVE, true);
         }
         else
         {
-            hcd_event_device_remove(ROOT_PORT, true);
+            hcd_event_device_remove(RHPORT_NATIVE, true);
         }
 
         // Clear speed change interrupt

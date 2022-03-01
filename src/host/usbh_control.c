@@ -71,7 +71,14 @@ bool tuh_control_xfer (uint8_t dev_addr, tusb_control_request_t const* request, 
   TU_LOG2("\r\n");
 
   // Send setup packet
-  TU_ASSERT( hcd_setup_send(rhport, dev_addr, (uint8_t const*) &_ctrl_xfer.request) );
+  if ( hcd_edpt_control_xfer )
+  {
+    _ctrl_xfer.stage = STAGE_ACK;
+    TU_ASSERT( hcd_edpt_control_xfer(rhport, dev_addr, (uint8_t const*) &_ctrl_xfer.request, buffer) );
+  }else
+  {
+    TU_ASSERT( hcd_setup_send(rhport, dev_addr, (uint8_t const*) &_ctrl_xfer.request) );
+  }
 
   return true;
 }
