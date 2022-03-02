@@ -387,6 +387,11 @@ void hcd_port_reset(uint8_t rhport)
     // TODO: Nothing to do here yet. Perhaps need to reset some state?
 }
 
+void hcd_port_reset_end(uint8_t rhport)
+{
+  (void) rhport;
+}
+
 bool hcd_port_connect_status(uint8_t rhport)
 {
     pico_trace("hcd_port_connect_status\n");

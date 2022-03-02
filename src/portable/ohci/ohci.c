@@ -216,6 +216,11 @@ void hcd_port_reset(uint8_t hostid)
   OHCI_REG->rhport_status[0] = RHPORT_PORT_RESET_STATUS_MASK;
 }
 
+void hcd_port_reset_end(uint8_t rhport)
+{
+  (void) rhport;
+}
+
 bool hcd_port_connect_status(uint8_t hostid)
 {
   (void) hostid;
