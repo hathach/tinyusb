@@ -252,7 +252,7 @@
 
 
 //--------------------------------------------------------------------+
-// COMMON OPTIONS
+// Common Options (Default)
 //--------------------------------------------------------------------+
 
 // Debug enable to print out error message
@@ -280,7 +280,7 @@
 #endif
 
 //--------------------------------------------------------------------
-// DEVICE OPTIONS
+// Device Options (Default)
 //--------------------------------------------------------------------
 
 #ifndef CFG_TUD_ENDPOINT0_SIZE
@@ -345,7 +345,7 @@
 #endif
 
 //--------------------------------------------------------------------
-// HOST OPTIONS
+// Host Options (Default)
 //--------------------------------------------------------------------
 #if CFG_TUH_ENABLED
   #ifndef CFG_TUH_DEVICE_MAX
@@ -381,6 +381,11 @@
 
 #ifndef CFG_TUH_VENDOR
 #define CFG_TUH_VENDOR 0
+#endif
+
+// Enable PIO-USB software host controller
+#ifndef CFG_TUH_RPI_PIO_USB
+#define CFG_TUH_RPI_PIO_USB 0
 #endif
 
 //------------------------------------------------------------------

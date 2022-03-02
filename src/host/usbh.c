@@ -779,7 +779,7 @@ static bool enum_get_addr0_device_desc_complete(uint8_t dev_addr, tusb_control_r
 
   if (_dev0.hub_addr == 0)
   {
-#if !CFG_TUH_RPI_PIO // skip this reset for pio-usb
+#if !CFG_TUH_RPI_PIO_USB // skip this reset for pio-usb
     // connected directly to roothub
     hcd_port_reset(_dev0.rhport);
     osal_task_delay(RESET_DELAY);
