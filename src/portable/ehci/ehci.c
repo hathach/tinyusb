@@ -58,7 +58,8 @@
 
 #define FRAMELIST_SIZE                  (1024 >> FRAMELIST_SIZE_BIT_VALUE)
 
-#define HCD_MAX_XFER      CFG_TUH_ENDPOINT_MAX
+#define QHD_MAX      (CFG_TUH_DEVICE_MAX*CFG_TUH_ENDPOINT_MAX)
+#define QTD_MAX      QHD_MAX
 
 typedef struct
 {
@@ -76,7 +77,7 @@ typedef struct
   }control[CFG_TUH_DEVICE_MAX+CFG_TUH_HUB+1];
 
   ehci_qhd_t qhd_pool[CFG_TUH_ENDPOINT_MAX];
-  ehci_qtd_t qtd_pool[HCD_MAX_XFER] TU_ATTR_ALIGNED(32);
+  ehci_qtd_t qtd_pool[QTD_MAX] TU_ATTR_ALIGNED(32);
 
   ehci_registers_t* regs;
 
@@ -752,7 +753,7 @@ static inline ehci_qhd_t* qhd_get_from_addr(uint8_t dev_addr, uint8_t ep_addr)
 //------------- TD helper -------------//
 static inline ehci_qtd_t* qtd_find_free(void)
 {
-  for (uint32_t i=0; i<HCD_MAX_XFER; i++)
+  for (uint32_t i=0; i<QTD_MAX; i++)
   {
     if ( !ehci_data.qtd_pool[i].used ) return &ehci_data.qtd_pool[i];
   }
