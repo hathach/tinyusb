@@ -66,8 +66,8 @@ int main(void)
 
 void print_device_descriptor(uint8_t dev_addr)
 {
+  (void) dev_addr;
   printf("Device Descriptor:\r\n");
-
 }
 
 // Invoked when device is mounted (configured)

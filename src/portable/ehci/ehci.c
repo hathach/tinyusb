@@ -76,7 +76,7 @@ typedef struct
     ehci_qtd_t qtd;
   }control[CFG_TUH_DEVICE_MAX+CFG_TUH_HUB+1];
 
-  ehci_qhd_t qhd_pool[CFG_TUH_ENDPOINT_MAX];
+  ehci_qhd_t qhd_pool[QHD_MAX];
   ehci_qtd_t qtd_pool[QTD_MAX] TU_ATTR_ALIGNED(32);
 
   ehci_registers_t* regs;
@@ -481,7 +481,7 @@ static void async_advance_isr(uint8_t rhport)
   (void) rhport;
 
   ehci_qhd_t* qhd_pool = ehci_data.qhd_pool;
-  for(uint32_t i = 0; i < CFG_TUH_ENDPOINT_MAX; i++)
+  for(uint32_t i = 0; i < QHD_MAX; i++)
   {
     if ( qhd_pool[i].removing )
     {
@@ -549,7 +549,7 @@ static void period_list_xfer_complete_isr(uint8_t hostid, uint32_t interval_ms)
   // TODO abstract max loop guard for period
   while( !next_item.terminate &&
       !(interval_ms > 1 && period_1ms_addr == tu_align32(next_item.address)) &&
-      max_loop < (CFG_TUH_ENDPOINT_MAX + EHCI_MAX_ITD + EHCI_MAX_SITD)*CFG_TUH_DEVICE_MAX)
+      max_loop < (QHD_MAX + EHCI_MAX_ITD + EHCI_MAX_SITD)*CFG_TUH_DEVICE_MAX)
   {
     switch ( next_item.type )
     {
@@ -721,7 +721,7 @@ void hcd_int_handler(uint8_t rhport)
 //------------- queue head helper -------------//
 static inline ehci_qhd_t* qhd_find_free (void)
 {
-  for (uint32_t i=0; i<CFG_TUH_ENDPOINT_MAX; i++)
+  for (uint32_t i=0; i<QHD_MAX; i++)
   {
     if ( !ehci_data.qhd_pool[i].used ) return &ehci_data.qhd_pool[i];
   }
@@ -738,7 +738,7 @@ static inline ehci_qhd_t* qhd_get_from_addr(uint8_t dev_addr, uint8_t ep_addr)
 {
   ehci_qhd_t* qhd_pool = ehci_data.qhd_pool;
 
-  for(uint32_t i=0; i<CFG_TUH_ENDPOINT_MAX; i++)
+  for(uint32_t i=0; i<QHD_MAX; i++)
   {
     if ( (qhd_pool[i].dev_addr == dev_addr) &&
           ep_addr == tu_edpt_addr(qhd_pool[i].ep_number, qhd_pool[i].pid) )

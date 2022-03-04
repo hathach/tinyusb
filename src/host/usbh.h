@@ -38,7 +38,6 @@
 // MACRO CONSTANT TYPEDEF
 //--------------------------------------------------------------------+
 
-typedef bool (*tuh_complete_cb_t)(xfer_result_t result);
 typedef bool (*tuh_control_complete_cb_t)(uint8_t daddr, tusb_control_request_t const * request, xfer_result_t result);
 
 //--------------------------------------------------------------------+
