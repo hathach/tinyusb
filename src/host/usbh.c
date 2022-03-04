@@ -96,7 +96,7 @@ typedef struct {
   //------------- device -------------//
   volatile uint8_t state;            // device state, value from enum tusbh_device_state_t
 
-  uint8_t itf2drv[16];               // map interface number to driver (0xff is invalid)
+  uint8_t itf2drv[8];               // map interface number to driver (0xff is invalid)
   uint8_t ep2drv[CFG_TUH_ENDPOINT_MAX][2]; // map endpoint to driver ( 0xff is invalid )
 
   struct TU_ATTR_PACKED
@@ -253,6 +253,34 @@ bool tuh_vid_pid_get(uint8_t dev_addr, uint16_t* vid, uint16_t* pid)
   return true;
 }
 
+
+bool tuh_descriptor_get(uint8_t daddr, uint8_t type, uint8_t index,
+                        void* buffer, uint16_t len, tuh_control_complete_cb_t complete_cb)
+{
+  tusb_control_request_t const request =
+  {
+    .bmRequestType_bit =
+    {
+      .recipient = TUSB_REQ_RCPT_DEVICE,
+      .type      = TUSB_REQ_TYPE_STANDARD,
+      .direction = TUSB_DIR_IN
+    },
+    .bRequest = TUSB_REQ_GET_DESCRIPTOR,
+    .wValue   = tu_htole16( TU_U16(type, index) ),
+    .wIndex   = 0,
+    .wLength  = len
+  };
+
+  TU_ASSERT( tuh_control_xfer(daddr, &request, buffer, complete_cb) );
+
+  return true;
+}
+
+bool tuh_descriptor_device_get(uint8_t daddr, void* buffer, uint16_t len, tuh_control_complete_cb_t complete_cb)
+{
+  return tuh_descriptor_get(daddr, TUSB_DESC_DEVICE, 0, buffer, len, complete_cb);
+}
+
 uint8_t tuh_i_manufacturer_get(uint8_t dev_addr) {
   TU_VERIFY(tuh_mounted(dev_addr));
   usbh_device_t const* dev = get_device(dev_addr);
@@ -338,7 +366,6 @@ bool tuh_init(uint8_t rhport)
   if (_usbh_initialized) return _usbh_initialized;
 
   TU_LOG2("USBH init\r\n");
-
   TU_LOG2_INT(sizeof(usbh_device_t));
 
   tu_memclr(_usbh_devices, sizeof(_usbh_devices));
@@ -785,23 +812,10 @@ static bool enum_request_addr0_device_desc(void)
   uint8_t const addr0 = 0;
   TU_ASSERT( usbh_edpt_control_open(addr0, 8) );
 
-  //------------- Get first 8 bytes of device descriptor to get Control Endpoint Size -------------//
+  // Get first 8 bytes of device descriptor for Control Endpoint size
   TU_LOG2("Get 8 byte of Device Descriptor\r\n");
-  tusb_control_request_t const request =
-  {
-    .bmRequestType_bit =
-    {
-      .recipient = TUSB_REQ_RCPT_DEVICE,
-      .type      = TUSB_REQ_TYPE_STANDARD,
-      .direction = TUSB_DIR_IN
-    },
-    .bRequest = TUSB_REQ_GET_DESCRIPTOR,
-    .wValue   = TUSB_DESC_DEVICE << 8,
-    .wIndex   = 0,
-    .wLength  = 8
-  };
-  TU_ASSERT( tuh_control_xfer(addr0, &request, _usbh_ctrl_buf, enum_get_addr0_device_desc_complete) );
 
+  TU_ASSERT(tuh_descriptor_device_get(addr0, _usbh_ctrl_buf, 8, enum_get_addr0_device_desc_complete));
   return true;
 }
 
@@ -909,22 +923,8 @@ static bool enum_set_address_complete(uint8_t dev_addr, tusb_control_request_t c
 
   // Get full device descriptor
   TU_LOG2("Get Device Descriptor\r\n");
-  tusb_control_request_t const new_request =
-  {
-    .bmRequestType_bit =
-    {
-      .recipient = TUSB_REQ_RCPT_DEVICE,
-      .type      = TUSB_REQ_TYPE_STANDARD,
-      .direction = TUSB_DIR_IN
-    },
-    .bRequest = TUSB_REQ_GET_DESCRIPTOR,
-    .wValue   = TUSB_DESC_DEVICE << 8,
-    .wIndex   = 0,
-    .wLength  = sizeof(tusb_desc_device_t)
-  };
 
-  TU_ASSERT(tuh_control_xfer(new_addr, &new_request, _usbh_ctrl_buf, enum_get_device_desc_complete));
-
+  TU_ASSERT(tuh_descriptor_device_get(new_addr, _usbh_ctrl_buf, sizeof(tusb_desc_device_t), enum_get_device_desc_complete));
   return true;
 }
 

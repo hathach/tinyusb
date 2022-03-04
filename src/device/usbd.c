@@ -407,6 +407,7 @@ bool tud_init (uint8_t rhport)
   if ( tud_inited() ) return true;
 
   TU_LOG2("USBD init\r\n");
+  TU_LOG2_INT(sizeof(usbd_device_t));
 
   tu_varclr(&_usbd_dev);
 
