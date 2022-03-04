@@ -313,7 +313,7 @@ static ohci_ed_t * ed_from_addr(uint8_t dev_addr, uint8_t ep_addr)
 
   ohci_ed_t* ed_pool = ohci_data.ed_pool;
 
-  for(uint32_t i=0; i<HCD_MAX_ENDPOINT; i++)
+  for(uint32_t i=0; i<CFG_TUH_ENDPOINT_MAX; i++)
   {
     if ( (ed_pool[i].dev_addr == dev_addr) &&
           ep_addr == tu_edpt_addr(ed_pool[i].ep_number, ed_pool[i].pid == PID_IN) )
@@ -329,7 +329,7 @@ static ohci_ed_t * ed_find_free(void)
 {
   ohci_ed_t* ed_pool = ohci_data.ed_pool;
 
-  for(uint8_t i = 0; i < HCD_MAX_ENDPOINT; i++)
+  for(uint8_t i = 0; i < CFG_TUH_ENDPOINT_MAX; i++)
   {
     if ( !ed_pool[i].used ) return &ed_pool[i];
   }

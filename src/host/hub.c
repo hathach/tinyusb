@@ -54,7 +54,7 @@ static inline hub_interface_t* get_itf(uint8_t dev_addr)
   return &hub_data[dev_addr-1-CFG_TUH_DEVICE_MAX];
 }
 
-#if CFG_TUSB_DEBUG
+#if CFG_TUSB_DEBUG >= 2
 static char const* const _hub_feature_str[] =
 {
   [HUB_FEATURE_PORT_CONNECTION          ] = "PORT_CONNECTION",
