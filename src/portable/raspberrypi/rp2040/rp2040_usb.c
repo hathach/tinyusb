@@ -58,8 +58,11 @@ void rp2040_usb_init(void)
   unreset_block_wait(RESETS_RESET_USBCTRL_BITS);
 
   // Clear any previous state just in case
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Warray-bounds"
   memset(usb_hw, 0, sizeof(*usb_hw));
   memset(usb_dpram, 0, sizeof(*usb_dpram));
+#pragma GCC diagnostic pop
 
   // Mux the controller to the onboard usb phy
   usb_hw->muxing = USB_USB_MUXING_TO_PHY_BITS | USB_USB_MUXING_SOFTCON_BITS;

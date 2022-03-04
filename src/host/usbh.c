@@ -258,6 +258,60 @@ bool tuh_vid_pid_get(uint8_t dev_addr, uint16_t* vid, uint16_t* pid)
   return true;
 }
 
+uint8_t tuh_i_manufacturer_get(uint8_t dev_addr) {
+  TU_VERIFY(tuh_mounted(dev_addr));
+  usbh_device_t const* dev = get_device(dev_addr);
+
+  return dev->i_manufacturer;
+}
+
+uint8_t tuh_i_serial_get(uint8_t dev_addr) {
+  TU_VERIFY(tuh_mounted(dev_addr));
+  usbh_device_t const* dev = get_device(dev_addr);
+
+  return dev->i_serial;
+}
+
+uint8_t tuh_i_product_get(uint8_t dev_addr) {
+  TU_VERIFY(tuh_mounted(dev_addr));
+  usbh_device_t const* dev = get_device(dev_addr);
+
+  return dev->i_product;
+}
+
+static tuh_complete_cb_t string_get_cb;
+
+static bool string_get_complete (uint8_t dev_addr, tusb_control_request_t const * request, xfer_result_t result) {
+  if (string_get_cb != NULL) {
+    TU_LOG2("string get done %d\r\n", result);
+    string_get_cb(result);
+  }
+  string_get_cb = NULL;
+  return true;
+}
+
+bool tuh_string_get(uint8_t dev_addr, uint8_t string_index, uint16_t* buf, size_t len, tuh_complete_cb_t complete_cb) {
+  if (string_get_cb != NULL) {
+    return false;
+  }
+  tusb_control_request_t const request =
+  {
+    .bmRequestType_bit =
+    {
+      .recipient = TUSB_REQ_RCPT_DEVICE,
+      .type      = TUSB_REQ_TYPE_STANDARD,
+      .direction = TUSB_DIR_IN
+    },
+    .bRequest = TUSB_REQ_GET_DESCRIPTOR,
+    .wValue   = TUSB_DESC_STRING << 8 | string_index,
+    .wIndex   = 0,
+    .wLength  = len * sizeof(uint16_t)
+  };
+  string_get_cb = complete_cb;
+  TU_ASSERT( tuh_control_xfer(dev_addr, &request, buf, string_get_complete) );
+  return true;
+}
+
 tusb_speed_t tuh_speed_get (uint8_t dev_addr)
 {
   return (tusb_speed_t) (dev_addr ? get_device(dev_addr)->speed : _dev0.speed);
@@ -561,6 +615,7 @@ void process_device_unplugged(uint8_t rhport, uint8_t hub_addr, uint8_t hub_port
       tu_memclr(dev->ep_status, sizeof(dev->ep_status));
 
       dev->state = TUSB_DEVICE_STATE_UNPLUG;
+      dev->configured = false;
     }
   }
 }
@@ -609,7 +664,7 @@ void usbh_driver_set_config_complete(uint8_t dev_addr, uint8_t itf_num)
 
 //--------------------------------------------------------------------+
 // Enumeration Process
-// is a lengthy process with a seires of control transfer to configure
+// is a lengthy process with a series of control transfer to configure
 // newly attached device. Each step is handled by a function in this
 // section
 // TODO due to the shared _usbh_ctrl_buf, we must complete enumerating

@@ -38,6 +38,7 @@
 // MACRO CONSTANT TYPEDEF
 //--------------------------------------------------------------------+
 
+typedef bool (*tuh_complete_cb_t)(xfer_result_t result);
 typedef bool (*tuh_control_complete_cb_t)(uint8_t dev_addr, tusb_control_request_t const * request, xfer_result_t result);
 
 //--------------------------------------------------------------------+
@@ -58,6 +59,17 @@ extern void hcd_int_handler(uint8_t rhport);
 #define tuh_int_handler   hcd_int_handler
 
 bool tuh_vid_pid_get(uint8_t dev_addr, uint16_t* vid, uint16_t* pid);
+
+// Gets the string indices for common device descriptor data.
+uint8_t tuh_i_manufacturer_get(uint8_t dev_addr);
+uint8_t tuh_i_serial_get(uint8_t dev_addr);
+uint8_t tuh_i_product_get(uint8_t dev_addr);
+
+// Reads the string descriptor at the string index into the buffer. This is the
+// full response so the first entry is the length and the constant 0x03 for
+// string descriptor type.
+bool tuh_string_get(uint8_t dev_addr, uint8_t string_index, uint16_t* buf, size_t len, tuh_complete_cb_t complete_cb);
+
 tusb_speed_t tuh_speed_get(uint8_t dev_addr);
 
 // Check if device is connected and configured

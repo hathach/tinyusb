@@ -189,7 +189,10 @@ static void list_remove_qhd_by_addr(ehci_link_t* list_head, uint8_t dev_addr)
       prev = list_next(prev) )
   {
     // TODO check type for ISO iTD and siTD
+    #pragma GCC diagnostic push
+    #pragma GCC diagnostic ignored "-Wcast-align"
     ehci_qhd_t* qhd = (ehci_qhd_t*) list_next(prev);
+    #pragma GCC diagnostic pop
     if ( qhd->dev_addr == dev_addr )
     {
       // TODO deactive all TD, wait for QHD to inactive before removal
