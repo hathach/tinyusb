@@ -41,6 +41,10 @@
 #define CFG_TUH_TASK_QUEUE_SZ   16
 #endif
 
+#ifndef CFG_TUH_INTERFACE_MAX
+#define CFG_TUH_INTERFACE_MAX   8
+#endif
+
 // Debug level of USBD
 #define USBH_DBG_LVL   2
 
@@ -96,7 +100,7 @@ typedef struct {
   //------------- device -------------//
   volatile uint8_t state;            // device state, value from enum tusbh_device_state_t
 
-  uint8_t itf2drv[8];               // map interface number to driver (0xff is invalid)
+  uint8_t itf2drv[CFG_TUH_INTERFACE_MAX];  // map interface number to driver (0xff is invalid)
   uint8_t ep2drv[CFG_TUH_ENDPOINT_MAX][2]; // map endpoint to driver ( 0xff is invalid )
 
   struct TU_ATTR_PACKED
@@ -665,7 +669,7 @@ void usbh_driver_set_config_complete(uint8_t dev_addr, uint8_t itf_num)
 {
   usbh_device_t* dev = get_device(dev_addr);
 
-  for(itf_num++; itf_num < sizeof(dev->itf2drv); itf_num++)
+  for(itf_num++; itf_num < CFG_TUH_INTERFACE_MAX; itf_num++)
   {
     // continue with next valid interface
     // TODO skip IAD binding interface such as CDCs
@@ -680,7 +684,7 @@ void usbh_driver_set_config_complete(uint8_t dev_addr, uint8_t itf_num)
   }
 
   // all interface are configured
-  if (itf_num == sizeof(dev->itf2drv))
+  if (itf_num == CFG_TUH_INTERFACE_MAX)
   {
     // Invoke callback if available
     if (tuh_mount_cb) tuh_mount_cb(dev_addr);
