@@ -86,10 +86,11 @@ typedef struct {
   };
 
   //------------- device descriptor -------------//
+  uint8_t  ep0_size;
+
   uint16_t vid;
   uint16_t pid;
 
-  uint8_t  ep0_size;
   uint8_t  i_manufacturer;
   uint8_t  i_product;
   uint8_t  i_serial;
@@ -248,7 +249,6 @@ bool tuh_vid_pid_get(uint8_t dev_addr, uint16_t* vid, uint16_t* pid)
   *vid = *pid = 0;
 
   TU_VERIFY(tuh_mounted(dev_addr));
-
   usbh_device_t const* dev = get_device(dev_addr);
 
   *vid = dev->vid;
@@ -308,7 +308,7 @@ bool tuh_descriptor_configuration_get(uint8_t daddr, uint8_t index, void* buffer
 }
 
 bool tuh_descriptor_string_get(uint8_t daddr, uint16_t language_id, uint8_t index,
-                               void* buf, uint16_t len, tuh_control_complete_cb_t complete_cb)
+                               void* buffer, uint16_t len, tuh_control_complete_cb_t complete_cb)
 {
   tusb_control_request_t const request =
   {
@@ -324,29 +324,32 @@ bool tuh_descriptor_string_get(uint8_t daddr, uint16_t language_id, uint8_t inde
     .wLength  = tu_htole16(len)
   };
 
-  TU_ASSERT( tuh_control_xfer(daddr, &request, buf, complete_cb) );
+  TU_ASSERT( tuh_control_xfer(daddr, &request, buffer, complete_cb) );
   return true;
 }
 
-uint8_t tuh_i_manufacturer_get(uint8_t dev_addr) {
-  TU_VERIFY(tuh_mounted(dev_addr));
-  usbh_device_t const* dev = get_device(dev_addr);
-
-  return dev->i_manufacturer;
+// Get manufacturer string descriptor
+bool tuh_descriptor_string_manufacturer_get(uint8_t daddr, uint16_t language_id, void* buffer, uint16_t len, tuh_control_complete_cb_t complete_cb)
+{
+  TU_VERIFY(tuh_mounted(daddr));
+  usbh_device_t const* dev = get_device(daddr);
+  return tuh_descriptor_string_get(daddr, language_id, dev->i_manufacturer, buffer, len, complete_cb);
 }
 
-uint8_t tuh_i_serial_get(uint8_t dev_addr) {
-  TU_VERIFY(tuh_mounted(dev_addr));
-  usbh_device_t const* dev = get_device(dev_addr);
-
-  return dev->i_serial;
+// Get product string descriptor
+bool tuh_descriptor_string_product_get(uint8_t daddr, uint16_t language_id, void* buffer, uint16_t len, tuh_control_complete_cb_t complete_cb)
+{
+  TU_VERIFY(tuh_mounted(daddr));
+  usbh_device_t const* dev = get_device(daddr);
+  return tuh_descriptor_string_get(daddr, language_id, dev->i_product, buffer, len, complete_cb);
 }
 
-uint8_t tuh_i_product_get(uint8_t dev_addr) {
-  TU_VERIFY(tuh_mounted(dev_addr));
-  usbh_device_t const* dev = get_device(dev_addr);
-
-  return dev->i_product;
+// Get serial string descriptor
+bool tuh_descriptor_string_serial_get(uint8_t daddr, uint16_t language_id, void* buffer, uint16_t len, tuh_control_complete_cb_t complete_cb)
+{
+  TU_VERIFY(tuh_mounted(daddr));
+  usbh_device_t const* dev = get_device(daddr);
+  return tuh_descriptor_string_get(daddr, language_id, dev->i_serial, buffer, len, complete_cb);
 }
 
 bool tuh_configuration_set(uint8_t daddr, uint8_t config_num, tuh_control_complete_cb_t complete_cb)
@@ -957,9 +960,9 @@ static bool enum_get_device_desc_complete(uint8_t dev_addr, tusb_control_request
 
   dev->vid            = desc_device->idVendor;
   dev->pid            = desc_device->idProduct;
-  dev->i_manufacturer = desc_device->iManufacturer;
-  dev->i_product      = desc_device->iProduct;
-  dev->i_serial       = desc_device->iSerialNumber;
+//  dev->i_manufacturer = desc_device->iManufacturer;
+//  dev->i_product      = desc_device->iProduct;
+//  dev->i_serial       = desc_device->iSerialNumber;
 
 //  if (tuh_attach_cb) tuh_attach_cb((tusb_desc_device_t*) _usbh_ctrl_buf);
 

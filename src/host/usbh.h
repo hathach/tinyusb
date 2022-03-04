@@ -101,17 +101,17 @@ bool tuh_descriptor_device_get(uint8_t daddr, void* buffer, uint16_t len, tuh_co
 bool tuh_descriptor_configuration_get(uint8_t daddr, uint8_t index, void* buffer, uint16_t len, tuh_control_complete_cb_t complete_cb);
 
 // Get string descriptor
-// Reads the string descriptor at the string index into the buffer. This is the
-// full response so the first entry is the length and the constant 0x03 for
-// string descriptor type.
 bool tuh_descriptor_string_get(uint8_t daddr, uint16_t language_id, uint8_t index,
-                               void* buf, uint16_t len, tuh_control_complete_cb_t complete_cb);
+                               void* buffer, uint16_t len, tuh_control_complete_cb_t complete_cb);
 
+// Get manufacturer string descriptor
+bool tuh_descriptor_string_manufacturer_get(uint8_t daddr, uint16_t language_id, void* buffer, uint16_t len, tuh_control_complete_cb_t complete_cb);
 
-// Gets the string indices for common device descriptor data.
-uint8_t tuh_i_manufacturer_get(uint8_t daddr);
-uint8_t tuh_i_serial_get(uint8_t daddr);
-uint8_t tuh_i_product_get(uint8_t daddr);
+// Get product string descriptor
+bool tuh_descriptor_string_product_get(uint8_t daddr, uint16_t language_id, void* buffer, uint16_t len, tuh_control_complete_cb_t complete_cb);
+
+// Get serial string descriptor
+bool tuh_descriptor_string_serial_get(uint8_t daddr, uint16_t language_id, void* buffer, uint16_t len, tuh_control_complete_cb_t complete_cb);
 
 //--------------------------------------------------------------------+
 // APPLICATION CALLBACK
