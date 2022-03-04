@@ -58,29 +58,7 @@ void tuh_task(void);
 extern void hcd_int_handler(uint8_t rhport);
 #define tuh_int_handler   hcd_int_handler
 
-//------------- descriptors -------------//
-
-// Get an descriptor
-bool tuh_descriptor_get(uint8_t daddr, uint8_t type, uint8_t index,
-                        void* buffer, uint16_t len, tuh_control_complete_cb_t complete_cb);
-
-// Get device descriptor
-bool tuh_descriptor_device_get(uint8_t daddr, void* buffer, uint16_t len, tuh_control_complete_cb_t complete_cb);
-
-// Get configuration descriptor
-bool tuh_descriptor_configuration_get(uint8_t daddr, uint8_t index, void* buffer, uint16_t len, tuh_control_complete_cb_t complete_cb);
-
 bool tuh_vid_pid_get(uint8_t daddr, uint16_t* vid, uint16_t* pid);
-
-// Gets the string indices for common device descriptor data.
-uint8_t tuh_i_manufacturer_get(uint8_t daddr);
-uint8_t tuh_i_serial_get(uint8_t daddr);
-uint8_t tuh_i_product_get(uint8_t daddr);
-
-// Reads the string descriptor at the string index into the buffer. This is the
-// full response so the first entry is the length and the constant 0x03 for
-// string descriptor type.
-bool tuh_string_get(uint8_t daddr, uint8_t string_index, uint16_t* buf, size_t len, tuh_complete_cb_t complete_cb);
 
 tusb_speed_t tuh_speed_get(uint8_t daddr);
 
@@ -88,6 +66,7 @@ tusb_speed_t tuh_speed_get(uint8_t daddr);
 bool tuh_mounted(uint8_t daddr);
 
 // Check if device is suspended
+TU_ATTR_ALWAYS_INLINE
 static inline bool tuh_suspended(uint8_t daddr)
 {
   // TODO implement suspend & resume on host
@@ -104,6 +83,35 @@ static inline bool tuh_ready(uint8_t daddr)
 
 // Carry out control transfer
 bool tuh_control_xfer (uint8_t daddr, tusb_control_request_t const* request, void* buffer, tuh_control_complete_cb_t complete_cb);
+
+// Set Configuration
+// config_num = 0 will un-configure device. Note: config_num = config_descriptor_index + 1
+bool tuh_configuration_set(uint8_t daddr, uint8_t config_num, tuh_control_complete_cb_t complete_cb);
+
+//------------- descriptors -------------//
+
+// Get an descriptor
+bool tuh_descriptor_get(uint8_t daddr, uint8_t type, uint8_t index,
+                        void* buffer, uint16_t len, tuh_control_complete_cb_t complete_cb);
+
+// Get device descriptor
+bool tuh_descriptor_device_get(uint8_t daddr, void* buffer, uint16_t len, tuh_control_complete_cb_t complete_cb);
+
+// Get configuration descriptor
+bool tuh_descriptor_configuration_get(uint8_t daddr, uint8_t index, void* buffer, uint16_t len, tuh_control_complete_cb_t complete_cb);
+
+// Get string descriptor
+// Reads the string descriptor at the string index into the buffer. This is the
+// full response so the first entry is the length and the constant 0x03 for
+// string descriptor type.
+bool tuh_descriptor_string_get(uint8_t daddr, uint16_t language_id, uint8_t index,
+                               void* buf, uint16_t len, tuh_control_complete_cb_t complete_cb);
+
+
+// Gets the string indices for common device descriptor data.
+uint8_t tuh_i_manufacturer_get(uint8_t daddr);
+uint8_t tuh_i_serial_get(uint8_t daddr);
+uint8_t tuh_i_product_get(uint8_t daddr);
 
 //--------------------------------------------------------------------+
 // APPLICATION CALLBACK
