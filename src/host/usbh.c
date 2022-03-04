@@ -285,6 +285,11 @@ bool tuh_descriptor_device_get(uint8_t daddr, void* buffer, uint16_t len, tuh_co
   return tuh_descriptor_get(daddr, TUSB_DESC_DEVICE, 0, buffer, len, complete_cb);
 }
 
+bool tuh_descriptor_configuration_get(uint8_t daddr, uint8_t index, void* buffer, uint16_t len, tuh_control_complete_cb_t complete_cb)
+{
+  return tuh_descriptor_get(daddr, TUSB_DESC_CONFIGURATION, index, buffer, len, complete_cb);
+}
+
 uint8_t tuh_i_manufacturer_get(uint8_t dev_addr) {
   TU_VERIFY(tuh_mounted(dev_addr));
   usbh_device_t const* dev = get_device(dev_addr);
@@ -948,23 +953,9 @@ static bool enum_get_device_desc_complete(uint8_t dev_addr, tusb_control_request
 
 //  if (tuh_attach_cb) tuh_attach_cb((tusb_desc_device_t*) _usbh_ctrl_buf);
 
-  TU_LOG2("Get 9 bytes of Configuration Descriptor\r\n");
-  tusb_control_request_t const new_request =
-  {
-    .bmRequestType_bit =
-    {
-      .recipient = TUSB_REQ_RCPT_DEVICE,
-      .type      = TUSB_REQ_TYPE_STANDARD,
-      .direction = TUSB_DIR_IN
-    },
-    .bRequest = TUSB_REQ_GET_DESCRIPTOR,
-    .wValue   = (TUSB_DESC_CONFIGURATION << 8) | (CONFIG_NUM - 1),
-    .wIndex   = 0,
-    .wLength  = 9
-  };
-
-  TU_ASSERT( tuh_control_xfer(dev_addr, &new_request, _usbh_ctrl_buf, enum_get_9byte_config_desc_complete) );
-
+  // Get 9-byte for total length
+  TU_LOG2("Get Configuration[0] Descriptor (9 bytes)\r\n");
+  TU_ASSERT( tuh_descriptor_configuration_get(dev_addr, 0, _usbh_ctrl_buf, 9, enum_get_9byte_config_desc_complete) );
   return true;
 }
 
@@ -982,24 +973,8 @@ static bool enum_get_9byte_config_desc_complete(uint8_t dev_addr, tusb_control_r
   TU_ASSERT(total_len <= CFG_TUH_ENUMERATION_BUFSIZE);
 
   // Get full configuration descriptor
-  TU_LOG2("Get Configuration Descriptor\r\n");
-  tusb_control_request_t const new_request =
-  {
-    .bmRequestType_bit =
-    {
-      .recipient = TUSB_REQ_RCPT_DEVICE,
-      .type      = TUSB_REQ_TYPE_STANDARD,
-      .direction = TUSB_DIR_IN
-    },
-    .bRequest = TUSB_REQ_GET_DESCRIPTOR,
-    .wValue   = (TUSB_DESC_CONFIGURATION << 8) | (CONFIG_NUM - 1),
-    .wIndex   = 0,
-    .wLength  = total_len
-
-  };
-
-  TU_ASSERT( tuh_control_xfer(dev_addr, &new_request, _usbh_ctrl_buf, enum_get_config_desc_complete) );
-
+  TU_LOG2("Get Configuration[0] Descriptor\r\n");
+  TU_ASSERT( tuh_descriptor_configuration_get(dev_addr, 0, _usbh_ctrl_buf, total_len, enum_get_config_desc_complete) );
   return true;
 }
 

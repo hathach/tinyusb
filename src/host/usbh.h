@@ -67,6 +67,9 @@ bool tuh_descriptor_get(uint8_t daddr, uint8_t type, uint8_t index,
 // Get device descriptor
 bool tuh_descriptor_device_get(uint8_t daddr, void* buffer, uint16_t len, tuh_control_complete_cb_t complete_cb);
 
+// Get configuration descriptor
+bool tuh_descriptor_configuration_get(uint8_t daddr, uint8_t index, void* buffer, uint16_t len, tuh_control_complete_cb_t complete_cb);
+
 bool tuh_vid_pid_get(uint8_t daddr, uint16_t* vid, uint16_t* pid);
 
 // Gets the string indices for common device descriptor data.
