@@ -125,7 +125,7 @@ typedef struct
     uint16_t            bda[2*2];
   };
   endpoint_state_t endpoint[2];
-  pipe_state_t pipe[HCD_MAX_XFER * 2];
+  pipe_state_t pipe[CFG_TUH_ENDPOINT_MAX * 2];
   uint32_t     in_progress; /* Bitmap. Each bit indicates that a transfer of the corresponding pipe is in progress */
   uint32_t     pending;     /* Bitmap. Each bit indicates that a transfer of the corresponding pipe will be resume the next frame */
   bool         need_reset;  /* The device has not been reset after connection. */
@@ -142,7 +142,7 @@ int find_pipe(uint8_t dev_addr, uint8_t ep_addr)
 {
   /* Find the target pipe */
   int num;
-  for (num = 0; num < HCD_MAX_XFER * 2; ++num) {
+  for (num = 0; num < CFG_TUH_ENDPOINT_MAX * 2; ++num) {
     pipe_state_t *p = &_hcd.pipe[num];
     if ((p->dev_addr == dev_addr) && (p->ep_addr == ep_addr))
       return num;
@@ -463,7 +463,7 @@ void hcd_device_close(uint8_t rhport, uint8_t dev_addr)
   const unsigned ie = NVIC_GetEnableIRQ(USB0_IRQn);
   NVIC_DisableIRQ(USB0_IRQn);
   pipe_state_t *p   = &_hcd.pipe[0];
-  pipe_state_t *end = &_hcd.pipe[HCD_MAX_XFER * 2];
+  pipe_state_t *end = &_hcd.pipe[CFG_TUH_ENDPOINT_MAX * 2];
   for (;p != end; ++p) {
     if (p->dev_addr == dev_addr)
       tu_memclr(p, sizeof(*p));
@@ -511,7 +511,7 @@ bool hcd_edpt_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_endpoint_t const 
   // TU_LOG1("O %u %x\n", dev_addr, ep_addr);
   /* Find a free pipe */
   pipe_state_t *p = &_hcd.pipe[0];
-  pipe_state_t *end = &_hcd.pipe[HCD_MAX_XFER * 2];
+  pipe_state_t *end = &_hcd.pipe[CFG_TUH_ENDPOINT_MAX * 2];
   if (dev_addr || ep_addr) {
     p += 2;
     for (; p < end && (p->dev_addr || p->ep_addr); ++p) ;
