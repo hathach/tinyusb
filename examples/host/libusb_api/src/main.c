@@ -40,9 +40,6 @@
 //--------------------------------------------------------------------+
 void led_blinking_task(void);
 
-extern void cdc_task(void);
-extern void hid_app_task(void);
-
 /*------------- MAIN -------------*/
 int main(void)
 {
@@ -67,10 +64,17 @@ int main(void)
 // TinyUSB Callbacks
 //--------------------------------------------------------------------+
 
+void print_device_descriptor(uint8_t dev_addr)
+{
+  printf("Device Descriptor:\r\n");
+
+}
+
 // Invoked when device is mounted (configured)
 void tuh_mount_cb (uint8_t dev_addr)
 {
   printf("Device attached, address = %d\r\n", dev_addr);
+  print_device_descriptor(dev_addr);
 }
 
 /// Invoked when device is unmounted (bus reset/unplugged)

@@ -37,11 +37,6 @@
 // USBH Configuration
 //--------------------------------------------------------------------+
 
-// TODO remove,update
-#ifndef CFG_TUH_EP_MAX
-#define CFG_TUH_EP_MAX          9
-#endif
-
 #ifndef CFG_TUH_TASK_QUEUE_SZ
 #define CFG_TUH_TASK_QUEUE_SZ   16
 #endif
@@ -72,7 +67,7 @@ typedef struct
 } usbh_dev0_t;
 
 typedef struct {
-  // port
+  // port, must be same layout as usbh_dev0_t
   uint8_t rhport;
   uint8_t hub_addr;
   uint8_t hub_port;
@@ -102,7 +97,7 @@ typedef struct {
   volatile uint8_t state;            // device state, value from enum tusbh_device_state_t
 
   uint8_t itf2drv[16];               // map interface number to driver (0xff is invalid)
-  uint8_t ep2drv[CFG_TUH_EP_MAX][2]; // map endpoint to driver ( 0xff is invalid )
+  uint8_t ep2drv[CFG_TUH_ENDPOINT_MAX][2]; // map endpoint to driver ( 0xff is invalid )
 
   struct TU_ATTR_PACKED
   {
@@ -111,7 +106,7 @@ typedef struct {
     volatile bool claimed : 1;
 
     // TODO merge ep2drv here, 4-bit should be sufficient
-  }ep_status[CFG_TUH_EP_MAX][2];
+  }ep_status[CFG_TUH_ENDPOINT_MAX][2];
 
   // Mutex for claiming endpoint, only needed when using with preempted RTOS
 #if CFG_TUSB_OS != OPT_OS_NONE
@@ -343,6 +338,8 @@ bool tuh_init(uint8_t rhport)
   if (_usbh_initialized) return _usbh_initialized;
 
   TU_LOG2("USBH init\r\n");
+
+  TU_LOG2_INT(sizeof(usbh_device_t));
 
   tu_memclr(_usbh_devices, sizeof(_usbh_devices));
   tu_memclr(&_dev0, sizeof(_dev0));
