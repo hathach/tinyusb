@@ -282,8 +282,9 @@ uint8_t tuh_i_product_get(uint8_t dev_addr) {
 static tuh_complete_cb_t string_get_cb;
 
 static bool string_get_complete (uint8_t dev_addr, tusb_control_request_t const * request, xfer_result_t result) {
+  (void) dev_addr;
+  (void) request;
   if (string_get_cb != NULL) {
-    TU_LOG2("string get done %d\r\n", result);
     string_get_cb(result);
   }
   string_get_cb = NULL;
