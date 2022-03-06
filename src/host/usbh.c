@@ -333,6 +333,9 @@ bool tuh_descriptor_string_manufacturer_get(uint8_t daddr, uint16_t language_id,
 {
   TU_VERIFY(tuh_mounted(daddr));
   usbh_device_t const* dev = get_device(daddr);
+  if (dev->i_manufacturer == 0) {
+    return false;
+  }
   return tuh_descriptor_string_get(daddr, language_id, dev->i_manufacturer, buffer, len, complete_cb);
 }
 
@@ -341,6 +344,9 @@ bool tuh_descriptor_string_product_get(uint8_t daddr, uint16_t language_id, void
 {
   TU_VERIFY(tuh_mounted(daddr));
   usbh_device_t const* dev = get_device(daddr);
+  if (dev->i_product == 0) {
+    return false;
+  }
   return tuh_descriptor_string_get(daddr, language_id, dev->i_product, buffer, len, complete_cb);
 }
 
@@ -349,6 +355,9 @@ bool tuh_descriptor_string_serial_get(uint8_t daddr, uint16_t language_id, void*
 {
   TU_VERIFY(tuh_mounted(daddr));
   usbh_device_t const* dev = get_device(daddr);
+  if (dev->i_serial == 0) {
+    return false;
+  }
   return tuh_descriptor_string_get(daddr, language_id, dev->i_serial, buffer, len, complete_cb);
 }
 
@@ -960,9 +969,9 @@ static bool enum_get_device_desc_complete(uint8_t dev_addr, tusb_control_request
 
   dev->vid            = desc_device->idVendor;
   dev->pid            = desc_device->idProduct;
-//  dev->i_manufacturer = desc_device->iManufacturer;
-//  dev->i_product      = desc_device->iProduct;
-//  dev->i_serial       = desc_device->iSerialNumber;
+  dev->i_manufacturer = desc_device->iManufacturer;
+  dev->i_product      = desc_device->iProduct;
+  dev->i_serial       = desc_device->iSerialNumber;
 
 //  if (tuh_attach_cb) tuh_attach_cb((tusb_desc_device_t*) _usbh_ctrl_buf);
 
