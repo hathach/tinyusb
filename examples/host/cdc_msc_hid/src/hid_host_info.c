@@ -51,7 +51,7 @@ void tuh_hid_free_sinlge_info(tusb_hid_host_info_t* info)
   info->key.elements.in_use = 0;
 }
 
-void tuh_hid_free_all_info()
+void tuh_hid_free_all_info(void)
 {
   for(uint8_t i = 0; i < HCD_MAX_ENDPOINT; ++i) {
     tuh_hid_free_sinlge_info(&hid_info[i]);

@@ -55,7 +55,7 @@ tusb_hid_simple_joysick_t* tuh_hid_get_simple_joystick(uint8_t dev_addr, uint8_t
   return NULL;
 }
 
-void tuh_hid_free_simple_joysticks() {
+void tuh_hid_free_simple_joysticks(void) {
   for(uint8_t i = 0; i < HID_MAX_JOYSTICKS; ++i) {
     hid_simple_joysicks[i].key.elements.in_use = false;
   } 
