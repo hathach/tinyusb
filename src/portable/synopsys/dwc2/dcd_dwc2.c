@@ -28,18 +28,13 @@
  */
 
 #include "tusb_option.h"
-#include "device/dcd_attr.h"
 
-#if TUSB_OPT_DEVICE_ENABLED && \
-    ( defined(DCD_ATTR_DWC2_STM32) || \
-      TU_CHECK_MCU(OPT_MCU_ESP32S2, OPT_MCU_ESP32S3, OPT_MCU_GD32VF103) || \
-      TU_CHECK_MCU(OPT_MCU_EFM32GG, OPT_MCU_BCM2711, OPT_MCU_BCM2835) || \
-      TU_CHECK_MCU(OPT_MCU_BCM2837, OPT_MCU_XMC4000) )
+#if CFG_TUD_ENABLED && defined(TUP_USBIP_DWC2)
 
 #include "device/dcd.h"
 #include "dwc2_type.h"
 
-#if defined(DCD_ATTR_DWC2_STM32)
+#if defined(TUP_USBIP_DWC2_STM32)
   #include "dwc2_stm32.h"
 #elif TU_CHECK_MCU(OPT_MCU_ESP32S2, OPT_MCU_ESP32S3)
   #include "dwc2_esp32.h"

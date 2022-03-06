@@ -24,9 +24,9 @@
  * This file is part of the TinyUSB stack.
  */
 
-#include "host/hcd_attr.h"
+#include "tusb_option.h"
 
-#if TUSB_OPT_HOST_ENABLED && defined(HCD_ATTR_EHCI_TRANSDIMENSION)
+#if CFG_TUH_ENABLED && defined(TUP_USBIP_EHCI)
 
 //--------------------------------------------------------------------+
 // INCLUDE
@@ -45,7 +45,7 @@
 #define EHCI_DBG     2
 
 // Framelist size as small as possible to save SRAM
-#ifdef HCD_ATTR_EHCI_TRANSDIMENSION
+#ifdef TUP_USBIP_CHIPIDEA_HS
   // NXP Transdimension: 8 elements
   #define FRAMELIST_SIZE_BIT_VALUE      7u
   #define FRAMELIST_SIZE_USBCMD_VALUE   (((FRAMELIST_SIZE_BIT_VALUE &  3) << EHCI_USBCMD_POS_FRAMELIST_SIZE) | \
@@ -657,7 +657,7 @@ void hcd_int_handler(uint8_t rhport)
   uint32_t int_status = regs->status;
   int_status &= regs->inten;
   
-  regs->status |= int_status; // Acknowledge handled interrupt
+  regs->status = int_status; // Acknowledge handled interrupt
 
   if (int_status == 0) return;
 

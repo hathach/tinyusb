@@ -26,7 +26,7 @@
 
 #include "tusb_option.h"
 
-#if TUSB_OPT_DEVICE_ENABLED && ( CFG_TUSB_MCU == OPT_MCU_MM32F327X )
+#if CFG_TUD_ENABLED && ( CFG_TUSB_MCU == OPT_MCU_MM32F327X )
 
 #include "reg_usb_otg_fs.h"
 #include "mm32_device.h"

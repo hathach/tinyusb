@@ -279,7 +279,7 @@ void test_total_size_bits(void)
 }
 
 
-void test_hid_parse_report_descriptor_single_mouse_report() {
+void test_hid_parse_report_descriptor_single_mouse_report(void) {
   const uint8_t const tb[] = { 
     0x05, 0x01,                    // USAGE_PAGE (Generic Desktop)
     0x09, 0x02,                    // USAGE (Mouse)
@@ -320,7 +320,7 @@ void test_hid_parse_report_descriptor_single_mouse_report() {
   TEST_ASSERT_EQUAL(0, report_info[0].out_len);
 }
 
-void test_hid_parse_report_descriptor_single_gamepad_report() {
+void test_hid_parse_report_descriptor_single_gamepad_report(void) {
   const uint8_t const tb[] = { 
     0x05, 0x01,                    // USAGE_PAGE (Generic Desktop)
     0x09, 0x05,                    // USAGE (Game Pad)
@@ -361,7 +361,7 @@ void test_hid_parse_report_descriptor_single_gamepad_report() {
   TEST_ASSERT_EQUAL(0, report_info[0].out_len);
 }
 
-void test_hid_parse_report_descriptor_dual_report() {
+void test_hid_parse_report_descriptor_dual_report(void) {
   const uint8_t const tb[] = { 
     0x09, 0x01,        // Usage (Consumer Control)
     0xA1, 0x01,        // Collection (Application)
@@ -403,7 +403,7 @@ void test_hid_parse_report_descriptor_dual_report() {
   TEST_ASSERT_EQUAL(0, report_info[1].out_len);
 }
 
-void test_hid_parse_report_descriptor_joystick_report() {
+void test_hid_parse_report_descriptor_joystick_report(void) {
   const uint8_t const tb[] = { 
     0x05, 0x01,        // Usage Page (Generic Desktop Ctrls)
     0x09, 0x04,        // Usage (Joystick)
@@ -470,7 +470,7 @@ void test_hid_parse_report_descriptor_joystick_report() {
   TEST_ASSERT_EQUAL(0, report_info[0].out_len);
 }
 
-void test_hid_parse_greenasia_report() {
+void test_hid_parse_greenasia_report(void) {
   const uint8_t const tb[] = { 
     0x05, 0x01,        // Usage Page (Generic Desktop Ctrls)
     0x09, 0x04,        // Usage (Joystick)
@@ -528,7 +528,7 @@ void test_hid_parse_greenasia_report() {
   TEST_ASSERT_EQUAL(1, report_count);
 }
 
-void test_hid_parse_speedlink_report() {
+void test_hid_parse_speedlink_report(void) {
   const uint8_t const tb[] = { 
     0x05, 0x01,        // Usage Page (Generic Desktop Ctrls)
     0x09, 0x04,        // Usage (Joystick)
@@ -586,7 +586,7 @@ void test_hid_parse_speedlink_report() {
   TEST_ASSERT_EQUAL(1, report_count);
 }
 
-void test_hid_parse_keyboard_and_trackpad_report() {
+void test_hid_parse_keyboard_and_trackpad_report(void) {
   const uint8_t const tb[] = { 
     0x05, 0x01,        // Usage Page (Generic Desktop Ctrls)
     0x09, 0x02,        // Usage (Mouse)

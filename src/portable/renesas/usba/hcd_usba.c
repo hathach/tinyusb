@@ -27,7 +27,7 @@
 
 #include "tusb_option.h"
 
-#if TUSB_OPT_HOST_ENABLED && ( CFG_TUSB_MCU == OPT_MCU_RX63X || \
+#if CFG_TUH_ENABLED && ( CFG_TUSB_MCU == OPT_MCU_RX63X || \
                                CFG_TUSB_MCU == OPT_MCU_RX65X || \
                                CFG_TUSB_MCU == OPT_MCU_RX72N )
 #include "host/hcd.h"

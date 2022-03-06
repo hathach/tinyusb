@@ -26,7 +26,7 @@
 
 #include "tusb_option.h"
 
-#if TUSB_OPT_DEVICE_ENABLED
+#if CFG_TUD_ENABLED
 
 #include "tusb.h"
 #include "device/usbd_pvt.h"

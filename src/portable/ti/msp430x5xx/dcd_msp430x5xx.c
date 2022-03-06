@@ -27,7 +27,7 @@
 
 #include "tusb_option.h"
 
-#if TUSB_OPT_DEVICE_ENABLED && ( CFG_TUSB_MCU == OPT_MCU_MSP430x5xx )
+#if CFG_TUD_ENABLED && ( CFG_TUSB_MCU == OPT_MCU_MSP430x5xx )
 
 #include "msp430.h"
 #include "device/dcd.h"

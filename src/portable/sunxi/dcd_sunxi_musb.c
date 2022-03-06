@@ -29,7 +29,7 @@
 #include <stdint.h>
 #include "tusb_option.h"
 
-#if TUSB_OPT_DEVICE_ENABLED && CFG_TUSB_MCU == OPT_MCU_F1C100S
+#if CFG_TUD_ENABLED && CFG_TUSB_MCU == OPT_MCU_F1C100S
 
 #include "osal/osal.h"
 #include <f1c100s-irq.h>
@@ -426,7 +426,7 @@ static inline void print_block_list(free_block_t const *blk, unsigned num)
 
 static unsigned find_free_memory(uint_fast16_t size_in_log2_minus3)
 {
-  free_block_t free_blocks[2 * (DCD_ATTR_ENDPOINT_MAX - 1)];
+  free_block_t free_blocks[2 * (TUP_DCD_ENDPOINT_MAX - 1)];
   unsigned num_blocks = 1;
   /* Backup current EP to restore later */
   u8 backup_ep = USBC_GetActiveEp();
@@ -434,7 +434,7 @@ static unsigned find_free_memory(uint_fast16_t size_in_log2_minus3)
   /* Initialize free memory block list */
   free_blocks[0].beg = 64 / 8;
   free_blocks[0].end = (USB_FIFO_SIZE_KB << 10) / 8; /* 2KiB / 8 bytes */
-  for (int i = 1; i < DCD_ATTR_ENDPOINT_MAX; ++i) {
+  for (int i = 1; i < TUP_DCD_ENDPOINT_MAX; ++i) {
     uint_fast16_t addr;
     int num;
     USBC_SelectActiveEp(i);
@@ -974,7 +974,7 @@ bool dcd_edpt_open(uint8_t rhport, tusb_desc_endpoint_t const * ep_desc)
   const unsigned xfer    = ep_desc->bmAttributes.xfer;
   const unsigned mps     = tu_edpt_packet_size(ep_desc);
 
-  TU_ASSERT(epn < DCD_ATTR_ENDPOINT_MAX);
+  TU_ASSERT(epn < TUP_DCD_ENDPOINT_MAX);
 
   pipe_state_t *pipe = &_dcd.pipe[dir_in][epn - 1];
   pipe->buf       = NULL;
@@ -1033,7 +1033,7 @@ void dcd_edpt_close_all(uint8_t rhport)
   musb_int_mask();
   USBC_Writew(1, USBC_REG_INTTxE(USBC0_BASE)); /* Enable only EP0 */
   USBC_Writew(0, USBC_REG_INTRxE(USBC0_BASE));
-  for (unsigned i = 1; i < DCD_ATTR_ENDPOINT_MAX; ++i) {
+  for (unsigned i = 1; i < TUP_DCD_ENDPOINT_MAX; ++i) {
     USBC_SelectActiveEp(i);
     USBC_Writew(0, USBC_REG_TXMAXP(USBC0_BASE));
 		USBC_Writew((1 << USBC_BP_TXCSR_D_MODE) | (1 << USBC_BP_TXCSR_D_CLEAR_DATA_TOGGLE) | (1 << USBC_BP_TXCSR_D_FLUSH_FIFO),

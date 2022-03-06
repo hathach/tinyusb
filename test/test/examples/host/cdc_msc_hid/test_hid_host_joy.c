@@ -207,7 +207,7 @@ void tearDown(void)
 // Tests
 //--------------------------------------------------------------------+
 
-void test_simple_joystick_allocator() {
+void test_simple_joystick_allocator(void) {
   TEST_ASSERT_NULL(tuh_hid_get_simple_joystick(5, 1, 2));
   TEST_ASSERT_NULL(tuh_hid_get_simple_joystick(5, 1, 3));
   TEST_ASSERT_NULL(tuh_hid_get_simple_joystick(4, 2, 3));
@@ -230,14 +230,14 @@ void test_simple_joystick_allocator() {
   TEST_ASSERT_NOT_NULL(tuh_hid_get_simple_joystick(4, 2, 3)); 
 }
 
-void test_simple_joystick_allocate_too_many() {
+void test_simple_joystick_allocate_too_many(void) {
   for (int i =0; i < HID_MAX_JOYSTICKS; ++i) {
     TEST_ASSERT_NOT_NULL(tuh_hid_allocate_simple_joystick(1, i + 1, 4));
   }
   TEST_ASSERT_NULL(tuh_hid_allocate_simple_joystick(2, 1, 0));
 }
 
-void test_simple_joystick_free_all() {
+void test_simple_joystick_free_all(void) {
   TEST_ASSERT_NOT_NULL(tuh_hid_allocate_simple_joystick(7, 1, 3));
   TEST_ASSERT_NOT_NULL(tuh_hid_allocate_simple_joystick(0, 2, 3));
   tuh_hid_free_simple_joysticks();
@@ -245,7 +245,7 @@ void test_simple_joystick_free_all() {
   TEST_ASSERT_NULL(tuh_hid_get_simple_joystick(0, 2, 3));  
 }
 
-void test_simple_joystick_obtain() {
+void test_simple_joystick_obtain(void) {
   tusb_hid_simple_joysick_t* j1 = tuh_hid_allocate_simple_joystick(7, 1, 3);
   TEST_ASSERT_NOT_NULL(j1);
   TEST_ASSERT_EQUAL(j1, tuh_hid_obtain_simple_joystick(7, 1, 3));
@@ -255,7 +255,7 @@ void test_simple_joystick_obtain() {
   TEST_ASSERT_NOT_EQUAL(j1,j2);
 }
 
-void test_tuh_hid_joystick_get_data() {
+void test_tuh_hid_joystick_get_data(void) {
   tuh_hid_joystick_data_t joystick_data;
   tuh_hid_rip_state_t pstate;
   tusb_hid_simple_joysick_t* simple_joystick;
@@ -368,7 +368,7 @@ void test_tuh_hid_joystick_get_data() {
   TEST_ASSERT_EQUAL(7, simple_joystick->report_length);
 }
 
-void test_hid_parse_greenasia_report() {
+void test_hid_parse_greenasia_report(void) {
   tuh_hid_joystick_parse_report_descriptor(tb_speedlink, sizeof(tb_speedlink), 5, 9);
   tusb_hid_simple_joysick_t* simple_joystick = tuh_hid_get_simple_joystick(5, 9, 0);
   TEST_ASSERT_NOT_NULL(simple_joystick);
@@ -396,7 +396,7 @@ void test_hid_parse_greenasia_report() {
   TEST_ASSERT_EQUAL(8, simple_joystick->report_length);
 }
 
-void test_hid_parse_speedlink_report() {
+void test_hid_parse_speedlink_report(void) {
   tuh_hid_joystick_parse_report_descriptor(tb_greenasia, sizeof(tb_greenasia), 5, 9);
   tusb_hid_simple_joysick_t* simple_joystick = tuh_hid_get_simple_joystick(5, 9, 0);
   TEST_ASSERT_NOT_NULL(simple_joystick);
@@ -425,7 +425,7 @@ void test_hid_parse_speedlink_report() {
   TEST_ASSERT_EQUAL(8, simple_joystick->report_length);
 }
 
-void test_apple_joystick() {
+void test_apple_joystick(void) {
   // Thanks to https://jenswilly.dk/2012/10/parsing-usb-joystick-hid-data/
   
   //  10 bits of X-axis data (for values from 0 to 1023)
@@ -491,7 +491,7 @@ void test_apple_joystick() {
   TEST_ASSERT_EQUAL(8, simple_joystick->report_length);
 }
 
-void test_get_simple_joysticks() {
+void test_get_simple_joysticks(void) {
   static tusb_hid_simple_joysick_t* hid_simple_joysicks[4];
   uint8_t jcount;
   jcount = tuh_hid_get_simple_joysticks(hid_simple_joysicks, 4);

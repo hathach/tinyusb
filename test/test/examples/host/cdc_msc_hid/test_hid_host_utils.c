@@ -41,7 +41,7 @@ void tearDown(void)
 // Tests
 //--------------------------------------------------------------------+
 
-void test_tuh_hid_report_bits_u32() {
+void test_tuh_hid_report_bits_u32(void) {
   const uint8_t const tb[] = {
     0x50, 0x05, 0x8f, 0xff
   };
@@ -50,7 +50,7 @@ void test_tuh_hid_report_bits_u32() {
   TEST_ASSERT_EQUAL((uint32_t)0xff8f0550UL, tuh_hid_report_bits_u32(tb, 0, 32));
 }
 
-void test_tuh_hid_report_bits_i32() {
+void test_tuh_hid_report_bits_i32(void) {
   const uint8_t const tb[] = {
     0x50, 0x05, 0x8f, 0xff
   };
@@ -59,7 +59,7 @@ void test_tuh_hid_report_bits_i32() {
   TEST_ASSERT_EQUAL(-7404208, tuh_hid_report_bits_i32(tb, 0, 32));    // int32_t 0xff8f0550 == -7404208
 }
 
-void test_tuh_hid_report_bytes_u32() {
+void test_tuh_hid_report_bytes_u32(void) {
   const uint8_t const tb[] = {
     0x50, 0x05, 0x8f, 0xff
   };
@@ -70,7 +70,7 @@ void test_tuh_hid_report_bytes_u32() {
   TEST_ASSERT_EQUAL(0x8f, tuh_hid_report_bytes_u32(tb, 2, 1));
 }
 
-void test_tuh_hid_report_bytes_i32() {
+void test_tuh_hid_report_bytes_i32(void) {
   const uint8_t const tb[] = {
     0x50, 0x05, 0x8f, 0xff
   };
@@ -81,7 +81,7 @@ void test_tuh_hid_report_bytes_i32() {
   TEST_ASSERT_EQUAL(-113, tuh_hid_report_bytes_i32(tb, 2, 1));        // int32_t 0xffffff8f == -113
 }
 
-void test_tuh_hid_report_i32() {
+void test_tuh_hid_report_i32(void) {
   const uint8_t const tb[] = {
     0x50, 0x05, 0x8f, 0xff
   };
