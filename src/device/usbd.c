@@ -67,7 +67,7 @@ typedef struct
   volatile uint8_t cfg_num; // current active configuration (0x00 is not configured)
   uint8_t speed;
 
-  uint8_t itf2drv[16];     // map interface number to driver (0xff is invalid)
+  uint8_t itf2drv[CFG_TUD_INTERFACE_MAX];   // map interface number to driver (0xff is invalid)
   uint8_t ep2drv[CFG_TUD_ENDPPOINT_MAX][2]; // map endpoint to driver ( 0xff is invalid )
 
   struct TU_ATTR_PACKED
@@ -269,6 +269,8 @@ static inline usbd_class_driver_t const * get_driver(uint8_t drvid)
 // DCD Event
 //--------------------------------------------------------------------+
 
+static tud_sof_isr_t _sof_isr = NULL;
+
 enum { RHPORT_INVALID = 0xFFu };
 static uint8_t _usbd_rhport = RHPORT_INVALID;
 
@@ -393,6 +395,12 @@ bool tud_connect(void)
   return true;
 }
 
+void tud_sof_isr_set(tud_sof_isr_t sof_isr)
+{
+  _sof_isr = sof_isr;
+  dcd_sof_enable(_usbd_rhport, _sof_isr != NULL);
+}
+
 //--------------------------------------------------------------------+
 // USBD Task
 //--------------------------------------------------------------------+
@@ -435,11 +443,13 @@ bool tud_init (uint8_t rhport)
     driver->init();
   }
 
+  _usbd_rhport = rhport;
+  _sof_isr = NULL;
+
   // Init device controller driver
   dcd_init(rhport);
   dcd_int_enable(rhport);
 
-  _usbd_rhport = rhport;
 
   return true;
 }
@@ -1121,11 +1131,15 @@ void dcd_event_handler(dcd_event_t const * event, bool in_isr)
     break;
 
     case DCD_EVENT_SOF:
+      // SOF Handler
+      if (_sof_isr) _sof_isr(event->sof.frame_count);
+
       // Some MCUs after running dcd_remote_wakeup() does not have way to detect the end of remote wakeup
       // which last 1-15 ms. DCD can use SOF as a clear indicator that bus is back to operational
       if ( _usbd_dev.suspended )
       {
         _usbd_dev.suspended = 0;
+
         dcd_event_t const event_resume = { .rhport = event->rhport, .event_id = DCD_EVENT_RESUME };
         osal_queue_send(_usbd_q, &event_resume, in_isr);
       }
