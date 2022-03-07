@@ -149,3 +149,6 @@
 [submodule "hw/mcu/raspberry_pi/Pico-PIO-USB"]
 	path = hw/mcu/raspberry_pi/Pico-PIO-USB
 	url = https://github.com/sekigon-gonnoc/Pico-PIO-USB.git
+[submodule "hw/mcu/renesas/fsp"]
+	path = hw/mcu/renesas/fsp
+	url = https://github.com/renesas/fsp
