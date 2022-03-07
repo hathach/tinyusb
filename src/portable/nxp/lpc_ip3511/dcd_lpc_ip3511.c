@@ -277,6 +277,14 @@ void dcd_disconnect(uint8_t rhport)
   dcd_reg->DEVCMDSTAT &= ~CMDSTAT_DEVICE_CONNECT_MASK;
 }
 
+void dcd_sof_enable(uint8_t rhport, bool en)
+{
+  (void) rhport;
+  (void) en;
+
+  // TODO implement later
+}
+
 //--------------------------------------------------------------------+
 // DCD Endpoint Port
 //--------------------------------------------------------------------+

@@ -649,6 +649,13 @@ void dcd_disconnect(uint8_t rhport)
   _ft90x_phy_enable(false);
 }
 
+void dcd_sof_enable(uint8_t rhport, bool en)
+{
+  (void) rhport;
+  (void) en;
+
+  // TODO implement later
+}
 
 //--------------------------------------------------------------------+
 // Endpoint API

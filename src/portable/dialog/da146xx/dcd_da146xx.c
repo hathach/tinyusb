@@ -882,6 +882,14 @@ void dcd_disconnect(uint8_t rhport)
   REG_CLR_BIT(USB_MCTRL_REG, USB_NAT);
 }
 
+void dcd_sof_enable(uint8_t rhport, bool en)
+{
+  (void) rhport;
+  (void) en;
+
+  // TODO implement later
+}
+
 TU_ATTR_ALWAYS_INLINE static inline bool is_in_isr(void)
 {
   return (SCB->ICSR & SCB_ICSR_VECTACTIVE_Msk) != 0;
