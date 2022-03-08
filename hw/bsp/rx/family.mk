@@ -14,8 +14,8 @@ CFLAGS += \
   -DSSIZE_MAX=__INT_MAX__
 
 SRC_C += \
-	src/portable/renesas/usba/dcd_usba.c \
-	src/portable/renesas/usba/hcd_usba.c \
+	src/portable/renesas/link/dcd_link.c \
+	src/portable/renesas/link/hcd_link.c \
 	$(MCU_DIR)/vects.c
 
 INC += \
