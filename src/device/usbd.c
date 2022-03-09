@@ -69,19 +69,10 @@ typedef struct
   volatile uint8_t cfg_num; // current active configuration (0x00 is not configured)
   uint8_t speed;
 
-  uint8_t itf2drv[16];     // map interface number to driver (0xff is invalid)
-  uint8_t ep2drv[CFG_TUD_ENDPPOINT_MAX][2]; // map endpoint to driver ( 0xff is invalid )
+  uint8_t itf2drv[16];                      // map interface number to driver (0xff is invalid)
+  uint8_t ep2drv[CFG_TUD_ENDPPOINT_MAX][2]; // map endpoint to driver ( 0xff is invalid ), can use only 4-bit each
 
-  // TODO 4-bit should be sufficient for ep2drv if we want to save half its bytes
-
-  struct TU_ATTR_PACKED
-  {
-    volatile bool busy    : 1;
-    volatile bool stalled : 1;
-    volatile bool claimed : 1;
-
-    // TODO merge ep2drv here, 4-bit should be sufficient
-  }ep_status[CFG_TUD_ENDPPOINT_MAX][2];
+  tu_edpt_state_t ep_status[CFG_TUD_ENDPPOINT_MAX][2];
 
 }usbd_device_t;
 
@@ -1229,52 +1220,30 @@ bool usbd_edpt_claim(uint8_t rhport, uint8_t ep_addr)
   // TODO add this check later, also make sure we don't starve an out endpoint while suspending
   // TU_VERIFY(tud_ready());
 
-  uint8_t const epnum = tu_edpt_number(ep_addr);
-  uint8_t const dir   = tu_edpt_dir(ep_addr);
+  uint8_t const epnum       = tu_edpt_number(ep_addr);
+  uint8_t const dir         = tu_edpt_dir(ep_addr);
+  tu_edpt_state_t* ep_state = &_usbd_dev.ep_status[epnum][dir];
 
-#if CFG_TUSB_OS != OPT_OS_NONE
-  // pre-check to help reducing mutex lock
-  TU_VERIFY((_usbd_dev.ep_status[epnum][dir].busy == 0) && (_usbd_dev.ep_status[epnum][dir].claimed == 0));
-  osal_mutex_lock(_usbd_mutex, OSAL_TIMEOUT_WAIT_FOREVER);
+#if TUSB_OPT_MUTEX
+  return tu_edpt_claim(ep_state, _usbd_mutex);
+#else
+  return tu_edpt_claim(ep_state, NULL);
 #endif
-
-  // can only claim the endpoint if it is not busy and not claimed yet.
-  bool const ret = (_usbd_dev.ep_status[epnum][dir].busy == 0) && (_usbd_dev.ep_status[epnum][dir].claimed == 0);
-  if (ret)
-  {
-    _usbd_dev.ep_status[epnum][dir].claimed = 1;
-  }
-
-#if CFG_TUSB_OS != OPT_OS_NONE
-  osal_mutex_unlock(_usbd_mutex);
-#endif
-
-  return ret;
 }
 
 bool usbd_edpt_release(uint8_t rhport, uint8_t ep_addr)
 {
   (void) rhport;
 
-  uint8_t const epnum = tu_edpt_number(ep_addr);
-  uint8_t const dir   = tu_edpt_dir(ep_addr);
+  uint8_t const epnum       = tu_edpt_number(ep_addr);
+  uint8_t const dir         = tu_edpt_dir(ep_addr);
+  tu_edpt_state_t* ep_state = &_usbd_dev.ep_status[epnum][dir];
 
-#if CFG_TUSB_OS != OPT_OS_NONE
-  osal_mutex_lock(_usbd_mutex, OSAL_TIMEOUT_WAIT_FOREVER);
+#if TUSB_OPT_MUTEX
+  return tu_edpt_release(ep_state, _usbd_mutex);
+#else
+  return tu_edpt_release(ep_state, NULL);
 #endif
-
-  // can only release the endpoint if it is claimed and not busy
-  bool const ret = (_usbd_dev.ep_status[epnum][dir].busy == 0) && (_usbd_dev.ep_status[epnum][dir].claimed == 1);
-  if (ret)
-  {
-    _usbd_dev.ep_status[epnum][dir].claimed = 0;
-  }
-
-#if CFG_TUSB_OS != OPT_OS_NONE
-  osal_mutex_unlock(_usbd_mutex);
-#endif
-
-  return ret;
 }
 
 bool usbd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t total_bytes)

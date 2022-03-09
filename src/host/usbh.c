@@ -104,9 +104,10 @@ typedef struct {
   volatile uint8_t state;            // device state, value from enum tusbh_device_state_t
 
   uint8_t itf2drv[CFG_TUH_INTERFACE_MAX];  // map interface number to driver (0xff is invalid)
-  uint8_t ep2drv[CFG_TUH_ENDPOINT_MAX][2]; // map endpoint to driver ( 0xff is invalid )
+  uint8_t ep2drv[CFG_TUH_ENDPOINT_MAX][2]; // map endpoint to driver ( 0xff is invalid ), can use only 4-bit each
 
   tu_edpt_state_t ep_status[CFG_TUH_ENDPOINT_MAX][2];
+
 } usbh_device_t;
 
 
@@ -1193,7 +1194,7 @@ bool usbh_edpt_claim(uint8_t dev_addr, uint8_t ep_addr)
   tu_edpt_state_t* ep_state = &dev->ep_status[epnum][dir];
 
 #if TUSB_OPT_MUTEX
-  return tu_edpt_claim(ep_state, &_usbh_mutex[dev_addr-1]);
+  return tu_edpt_claim(ep_state, _usbh_mutex[dev_addr-1]);
 #else
   return tu_edpt_claim(ep_state, NULL);
 #endif
@@ -1211,7 +1212,7 @@ bool usbh_edpt_release(uint8_t dev_addr, uint8_t ep_addr)
   tu_edpt_state_t* ep_state = &dev->ep_status[epnum][dir];
 
 #if TUSB_OPT_MUTEX
-  return tu_edpt_release(ep_state, &_usbh_mutex[dev_addr-1]);
+  return tu_edpt_release(ep_state, _usbh_mutex[dev_addr-1]);
 #else
   return tu_edpt_release(ep_state, NULL);
 #endif
