@@ -299,6 +299,7 @@ bool tuh_descriptor_get(uint8_t daddr, uint8_t type, uint8_t index, void* buffer
 
 bool tuh_descriptor_device_get(uint8_t daddr, void* buffer, uint16_t len, tuh_control_complete_cb_t complete_cb)
 {
+  len = tu_min16(len, sizeof(tusb_desc_device_t));
   return tuh_descriptor_get(daddr, TUSB_DESC_DEVICE, 0, buffer, len, complete_cb);
 }
 
@@ -359,6 +360,27 @@ bool tuh_descriptor_string_serial_get(uint8_t daddr, uint16_t language_id, void*
     return false;
   }
   return tuh_descriptor_string_get(daddr, language_id, dev->i_serial, buffer, len, complete_cb);
+}
+
+// Get HID report descriptor
+bool tuh_descriptor_hid_report_get(uint8_t daddr, uint8_t itf_num, uint8_t desc_type, void* buffer, uint16_t len, tuh_control_complete_cb_t complete_cb)
+{
+  TU_LOG2("HID Get Report Descriptor\r\n");
+  tusb_control_request_t const request =
+  {
+    .bmRequestType_bit =
+    {
+      .recipient = TUSB_REQ_RCPT_INTERFACE,
+      .type      = TUSB_REQ_TYPE_STANDARD,
+      .direction = TUSB_DIR_IN
+    },
+    .bRequest = TUSB_REQ_GET_DESCRIPTOR,
+    .wValue   = tu_htole16(TU_U16(desc_type, 0)),
+    .wIndex   = itf_num,
+    .wLength  = len
+  };
+
+  return tuh_control_xfer(daddr, &request, buffer, complete_cb);
 }
 
 bool tuh_configuration_set(uint8_t daddr, uint8_t config_num, tuh_control_complete_cb_t complete_cb)

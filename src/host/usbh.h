@@ -112,6 +112,9 @@ bool tuh_descriptor_string_product_get(uint8_t daddr, uint16_t language_id, void
 // Get serial string descriptor
 bool tuh_descriptor_string_serial_get(uint8_t daddr, uint16_t language_id, void* buffer, uint16_t len, tuh_control_complete_cb_t complete_cb);
 
+// Get HID report descriptor
+bool tuh_descriptor_hid_report_get(uint8_t daddr, uint8_t itf_num, uint8_t desc_type,  void* buffer, uint16_t len, tuh_control_complete_cb_t complete_cb);
+
 //--------------------------------------------------------------------+
 // APPLICATION CALLBACK
 //--------------------------------------------------------------------+
