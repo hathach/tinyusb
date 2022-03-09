@@ -492,7 +492,7 @@ void tuh_task(void)
         uint8_t const epnum   = tu_edpt_number(ep_addr);
         uint8_t const ep_dir  = tu_edpt_dir(ep_addr);
 
-        TU_LOG2("on EP %02X with %u bytes\r\n", ep_addr, (unsigned int) event.xfer_complete.len);
+        TU_LOG2("on dev %d EP %02X with %u bytes\r\n", event.dev_addr, ep_addr, (unsigned int) event.xfer_complete.len);
 
         if (event.dev_addr == 0)
         {
@@ -850,6 +850,12 @@ static bool enum_request_addr0_device_desc(void)
   return true;
 }
 
+static bool hub_port_reset_complete(uint8_t dev_addr, tusb_control_request_t const * request, xfer_result_t result)
+{
+    TU_ASSERT( hub_port_get_status(_dev0.hub_addr, _dev0.hub_port, _usbh_ctrl_buf, enum_hub_get_status1_complete) );
+    return true;
+}
+
 // After Get Device Descriptor of Address 0
 static bool enum_get_addr0_device_desc_complete(uint8_t dev_addr, tusb_control_request_t const * request, xfer_result_t result)
 {
@@ -884,12 +890,8 @@ static bool enum_get_addr0_device_desc_complete(uint8_t dev_addr, tusb_control_r
   else
   {
     // after RESET_DELAY the hub_port_reset() already complete
-    TU_ASSERT( hub_port_reset(_dev0.hub_addr, _dev0.hub_port, NULL) );
+    TU_ASSERT( hub_port_reset(_dev0.hub_addr, _dev0.hub_port, hub_port_reset_complete) );
     osal_task_delay(RESET_DELAY);
-
-    tuh_task(); // FIXME temporarily to clean up port_reset control transfer
-
-    TU_ASSERT( hub_port_get_status(_dev0.hub_addr, _dev0.hub_port, _usbh_ctrl_buf, enum_hub_get_status1_complete) );
   }
 #endif
 
@@ -1193,7 +1195,7 @@ bool usbh_edpt_xfer(uint8_t dev_addr, uint8_t ep_addr, uint8_t * buffer, uint16_
 
   usbh_device_t* dev = get_device(dev_addr);
 
-  TU_LOG2("  Queue EP %02X with %u bytes ... ", ep_addr, total_bytes);
+  TU_LOG2("  Queue dev %d EP %02X with %u bytes ...\n", dev_addr, ep_addr, total_bytes);
 
   // Attempt to transfer on a busy endpoint, sound like an race condition !
   TU_ASSERT(dev->ep_status[epnum][dir].busy == 0);
@@ -1204,14 +1206,14 @@ bool usbh_edpt_xfer(uint8_t dev_addr, uint8_t ep_addr, uint8_t * buffer, uint16_
 
   if ( hcd_edpt_xfer(dev->rhport, dev_addr, ep_addr, buffer, total_bytes) )
   {
-    TU_LOG2("OK\r\n");
+    TU_LOG2("  Queue OK\r\n");
     return true;
   }else
   {
     // HCD error, mark endpoint as ready to allow next transfer
     dev->ep_status[epnum][dir].busy = false;
     dev->ep_status[epnum][dir].claimed = 0;
-    TU_LOG2("failed\r\n");
+    TU_LOG2("  Queue failed\r\n");
     TU_BREAKPOINT();
     return false;
   }
