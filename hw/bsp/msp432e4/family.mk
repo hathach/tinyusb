@@ -34,7 +34,7 @@ INC += \
 SRC_S += $(MCU_DIR)/Source/startup_msp432e411y_gcc.S
 
 # For freeRTOS port source
-FREERTOS_PORT = ARM_CM4F
+FREERTOS_PORT = $(FREERTOS_PORT_PATH)/ARM_CM4F
 
 # For flash-jlink target
 JLINK_DEVICE = MSP432E401Y

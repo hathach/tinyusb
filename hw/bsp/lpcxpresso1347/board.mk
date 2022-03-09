@@ -36,7 +36,7 @@ INC += \
 	$(TOP)/$(MCU_DIR)/inc
 
 # For freeRTOS port source
-FREERTOS_PORT = ARM_CM3
+FREERTOS_PORT = $(FREERTOS_PORT_PATH)/ARM_CM3
 
 # For flash-jlink target
 JLINK_DEVICE = LPC1347

@@ -59,5 +59,5 @@ INC += \
 SRC_S += $(MCU_DIR)/gcc/startup_$(MCU_VARIANT).S
 
 # For freeRTOS port source
-FREERTOS_PORT = ARM_CM7/r0p1
+FREERTOS_PORT = $(FREERTOS_PORT_PATH)/ARM_CM7/r0p1
 

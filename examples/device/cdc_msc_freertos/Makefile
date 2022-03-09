@@ -4,14 +4,15 @@ include ../../../tools/top.mk
 include ../../make.mk
 
 FREERTOS_SRC = lib/FreeRTOS-Kernel
+FREERTOS_PORT_PATH = lib/FreeRTOS-Kernel/portable/GCC
 
 INC += \
 	src \
 	src/FreeRTOSConfig \
 	$(TOP)/hw \
 	$(TOP)/$(FREERTOS_SRC)/include \
-	$(TOP)/$(FREERTOS_SRC)/portable/GCC/$(FREERTOS_PORT)
-	
+	$(TOP)/$(FREERTOS_PORT)
+
 # Example source
 EXAMPLE_SOURCE = \
 	src/freertos_hook.c \
@@ -27,7 +28,7 @@ SRC_C += \
 	$(FREERTOS_SRC)/queue.c \
 	$(FREERTOS_SRC)/tasks.c \
 	$(FREERTOS_SRC)/timers.c \
-	$(subst ../../../,,$(wildcard ../../../$(FREERTOS_SRC)/portable/GCC/$(FREERTOS_PORT)/*.c))
+	$(subst $(TOP)/,,$(wildcard $(TOP)/$(FREERTOS_PORT)/*.c))
 
 # Suppress FreeRTOS warnings
 CFLAGS += -Wno-error=cast-qual

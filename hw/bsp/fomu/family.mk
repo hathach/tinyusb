@@ -19,7 +19,7 @@ INC += \
 	$(TOP)/$(FAMILY_PATH)/include
 
 # For freeRTOS port source
-FREERTOS_PORT = RISC-V
+FREERTOS_PORT = $(FREERTOS_PORT_PATH)/RISC-V
 
 # flash using dfu-util
 $(BUILD)/$(PROJECT).dfu: $(BUILD)/$(PROJECT).bin

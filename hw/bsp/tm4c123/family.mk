@@ -33,4 +33,4 @@ SRC_C += \
 	$(MCU_DIR)/Source/GCC/tm4c123_startup.c
 
 # For freeRTOS port source
-FREERTOS_PORT = ARM_CM4F
+FREERTOS_PORT = $(FREERTOS_PORT_PATH)/ARM_CM4F

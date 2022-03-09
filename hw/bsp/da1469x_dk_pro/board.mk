@@ -31,7 +31,7 @@ INC += \
 	$(TOP)/$(MCU_FAMILY_DIR)/SDK_10.0.8.105/sdk/bsp/include
 
 # For freeRTOS port source
-FREERTOS_PORT = ARM_CM33_NTZ/non_secure
+FREERTOS_PORT = $(FREERTOS_PORT_PATH)/ARM_CM33_NTZ/non_secure
 
 # For flash-jlink target
 JLINK_DEVICE = DA14699

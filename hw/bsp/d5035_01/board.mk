@@ -52,7 +52,7 @@ INC += \
 	$(TOP)/hw/mcu/microchip/same51/CMSIS/Include
 
 # For freeRTOS port source
-FREERTOS_PORT = ARM_CM4F
+FREERTOS_PORT = $(FREERTOS_PORT_PATH)/ARM_CM4F
 
 # For flash-jlink target
 JLINK_DEVICE = ATSAME51J19

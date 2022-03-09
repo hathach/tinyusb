@@ -57,7 +57,7 @@ INC += \
 	$(TOP)/$(GD32VF103_SDK_SOC)/Common/Include/Usb
 
 # For freeRTOS port source
-FREERTOS_PORT = RISC-V
+FREERTOS_PORT = $(FREERTOS_PORT_PATH)/RISC-V
 
 # For flash-jlink target
 JLINK_IF = jtag

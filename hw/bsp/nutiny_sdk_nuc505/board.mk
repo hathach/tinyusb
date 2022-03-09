@@ -39,7 +39,7 @@ INC += \
   $(TOP)/hw/mcu/nuvoton/nuc505/CMSIS/Include
 
 # For freeRTOS port source
-FREERTOS_PORT = ARM_CM4F
+FREERTOS_PORT = $(FREERTOS_PORT_PATH)/ARM_CM4F
 
 # For flash-jlink target
 JLINK_DEVICE = NUC505YO13Y

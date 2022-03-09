@@ -35,7 +35,7 @@ INC += \
   $(TOP)/$(ST_HAL_DRIVER)/Inc
 
 # For freeRTOS port source
-FREERTOS_PORT = ARM_CM3
+FREERTOS_PORT = $(FREERTOS_PORT_PATH)/ARM_CM3
 
 # For flash-jlink target
 JLINK_DEVICE = stm32f103c8
