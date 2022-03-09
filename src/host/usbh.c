@@ -561,7 +561,7 @@ void tuh_task(void)
         else
         {
           usbh_device_t* dev = get_device(event.dev_addr);
-          dev->ep_status[epnum][ep_dir].busy = false;
+          dev->ep_status[epnum][ep_dir].busy    = 0;
           dev->ep_status[epnum][ep_dir].claimed = 0;
 
           if ( 0 == epnum )

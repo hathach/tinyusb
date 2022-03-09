@@ -50,9 +50,6 @@ typedef struct
 
 static usbh_control_xfer_t _ctrl_xfer;
 
-//CFG_TUSB_MEM_SECTION CFG_TUSB_MEM_ALIGN
-//static uint8_t _tuh_ctrl_buf[CFG_TUH_ENUMERATION_BUFSIZE];
-
 //--------------------------------------------------------------------+
 // MACRO TYPEDEF CONSTANT ENUM DECLARATION
 //--------------------------------------------------------------------+
@@ -76,6 +73,7 @@ bool usbh_control_xfer (uint8_t dev_addr, tusb_control_request_t const* request,
 static void _xfer_complete(uint8_t dev_addr, xfer_result_t result)
 {
   TU_LOG2("\r\n");
+  _ctrl_xfer.stage = STAGE_IDLE;
   if (_ctrl_xfer.complete_cb) _ctrl_xfer.complete_cb(dev_addr, &_ctrl_xfer.request, result);
 }
 
@@ -90,7 +88,7 @@ bool usbh_control_xfer_cb (uint8_t dev_addr, uint8_t ep_addr, xfer_result_t resu
 
   if (XFER_RESULT_SUCCESS != result)
   {
-    TU_LOG2("Control failed: result = %d\r\n", result);
+    TU_LOG2("[%u:%u] Control %s\r\n", rhport, dev_addr, result == XFER_RESULT_STALLED ? "STALLED" : "FAILED");
 
     // terminate transfer if any stage failed
     _xfer_complete(dev_addr, result);
@@ -113,7 +111,7 @@ bool usbh_control_xfer_cb (uint8_t dev_addr, uint8_t ep_addr, xfer_result_t resu
 
         if (request->wLength)
         {
-          TU_LOG2("Control data (addr = %u):\r\n", dev_addr);
+          TU_LOG2("[%u:%u] Control data:\r\n", rhport, dev_addr);
           TU_LOG2_MEM(_ctrl_xfer.buffer, request->wLength, 2);
         }
 
