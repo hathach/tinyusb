@@ -100,7 +100,7 @@ bool tuh_cdc_send(uint8_t dev_addr, void const * p_data, uint32_t length, bool i
 {
   (void) is_notify;
   TU_VERIFY( tuh_cdc_mounted(dev_addr) );
-  TU_VERIFY( p_data != NULL && length, TUSB_ERROR_INVALID_PARA);
+  TU_VERIFY( p_data != NULL && length);
 
   uint8_t const ep_out = cdch_data[dev_addr-1].ep_out;
   if ( usbh_edpt_busy(dev_addr, ep_out) ) return false;
@@ -112,7 +112,7 @@ bool tuh_cdc_receive(uint8_t dev_addr, void * p_buffer, uint32_t length, bool is
 {
   (void) is_notify;
   TU_VERIFY( tuh_cdc_mounted(dev_addr) );
-  TU_VERIFY( p_buffer != NULL && length, TUSB_ERROR_INVALID_PARA);
+  TU_VERIFY( p_buffer != NULL && length );
 
   uint8_t const ep_in = cdch_data[dev_addr-1].ep_in;
   if ( usbh_edpt_busy(dev_addr, ep_in) ) return false;

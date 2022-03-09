@@ -315,23 +315,6 @@ static char const* const _usbd_event_str[DCD_EVENT_COUNT] =
   "Func Call"
 };
 
-static char const* const _tusb_std_request_str[] =
-{
-  "Get Status"        ,
-  "Clear Feature"     ,
-  "Reserved"          ,
-  "Set Feature"       ,
-  "Reserved"          ,
-  "Set Address"       ,
-  "Get Descriptor"    ,
-  "Set Descriptor"    ,
-  "Get Configuration" ,
-  "Set Configuration" ,
-  "Get Interface"     ,
-  "Set Interface"     ,
-  "Synch Frame"
-};
-
 // for usbd_control to print the name of control complete driver
 void usbd_driver_print_control_complete_name(usbd_control_xfer_cb_t callback)
 {
@@ -508,7 +491,7 @@ void tud_task (void)
     switch ( event.event_id )
     {
       case DCD_EVENT_BUS_RESET:
-        TU_LOG2(": %s Speed\r\n", tusb_speed_str[event.bus_reset.speed]);
+        TU_LOG2(": %s Speed\r\n", tu_str_speed[event.bus_reset.speed]);
         usbd_reset(event.rhport);
         _usbd_dev.speed = event.bus_reset.speed;
       break;
@@ -650,7 +633,7 @@ static bool process_control_request(uint8_t rhport, tusb_control_request_t const
 #if CFG_TUSB_DEBUG >= 2
   if (TUSB_REQ_TYPE_STANDARD == p_request->bmRequestType_bit.type && p_request->bRequest <= TUSB_REQ_SYNCH_FRAME)
   {
-    TU_LOG2("  %s", _tusb_std_request_str[p_request->bRequest]);
+    TU_LOG2("  %s", tu_str_std_request[p_request->bRequest]);
     if (TUSB_REQ_GET_DESCRIPTOR != p_request->bRequest) TU_LOG2("\r\n");
   }
 #endif

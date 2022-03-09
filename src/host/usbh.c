@@ -259,6 +259,7 @@ static void process_device_unplugged(uint8_t rhport, uint8_t hub_addr, uint8_t h
 static bool usbh_edpt_control_open(uint8_t dev_addr, uint8_t max_packet_size);
 
 // from usbh_control.c
+extern bool usbh_control_xfer (uint8_t dev_addr, tusb_control_request_t const* request, void* buffer, tuh_control_complete_cb_t complete_cb);
 extern bool usbh_control_xfer_cb (uint8_t dev_addr, uint8_t ep_addr, xfer_result_t result, uint32_t xferred_bytes);
 
 //--------------------------------------------------------------------+
@@ -296,6 +297,16 @@ void osal_task_delay(uint32_t msec)
   while ( ( hcd_frame_number(TUH_OPT_RHPORT) - start ) < msec ) {}
 }
 #endif
+
+
+bool tuh_control_xfer (uint8_t dev_addr, tusb_control_request_t const* request, void* buffer, tuh_control_complete_cb_t complete_cb)
+{
+  TU_LOG2("[%u:%u] %s: ", usbh_get_rhport(dev_addr), dev_addr, request->bRequest <= TUSB_REQ_SYNCH_FRAME ? tu_str_std_request[request->bRequest] : "Unknown Request");
+  TU_LOG2_VAR(request);
+  TU_LOG2("\r\n");
+
+  return usbh_control_xfer(dev_addr, request, buffer, complete_cb);
+}
 
 //--------------------------------------------------------------------+
 // Descriptors
@@ -864,7 +875,7 @@ static bool enum_new_device(hcd_event_t* event)
     if ( !hcd_port_connect_status(_dev0.rhport) ) return true;
 
     _dev0.speed = hcd_port_speed_get(_dev0.rhport );
-    TU_LOG2("%s Speed\r\n", tusb_speed_str[_dev0.speed]);
+    TU_LOG2("%s Speed\r\n", tu_str_speed[_dev0.speed]);
 
     enum_request_addr0_device_desc();
   }

@@ -161,9 +161,27 @@ uint16_t tu_desc_get_interface_total_len(tusb_desc_interface_t const* desc_itf, 
 #if CFG_TUSB_DEBUG
 #include <ctype.h>
 
-char const* const tusb_strerr[TUSB_ERROR_COUNT] = { ERROR_TABLE(ERROR_STRING) };
+#if CFG_TUSB_DEBUG >= 2
 
-char const* const tusb_speed_str[] = { "Full", "Low", "High" };
+char const* const tu_str_speed[] = { "Full", "Low", "High" };
+char const* const tu_str_std_request[] =
+{
+  "Get Status"        ,
+  "Clear Feature"     ,
+  "Reserved"          ,
+  "Set Feature"       ,
+  "Reserved"          ,
+  "Set Address"       ,
+  "Get Descriptor"    ,
+  "Set Descriptor"    ,
+  "Get Configuration" ,
+  "Set Configuration" ,
+  "Get Interface"     ,
+  "Set Interface"     ,
+  "Synch Frame"
+};
+
+#endif
 
 static void dump_str_line(uint8_t const* buf, uint16_t count)
 {

@@ -33,6 +33,7 @@
 
 enum
 {
+  STAGE_IDLE,
   STAGE_SETUP,
   STAGE_DATA,
   STAGE_ACK
@@ -56,7 +57,7 @@ static usbh_control_xfer_t _ctrl_xfer;
 // MACRO TYPEDEF CONSTANT ENUM DECLARATION
 //--------------------------------------------------------------------+
 
-bool tuh_control_xfer (uint8_t dev_addr, tusb_control_request_t const* request, void* buffer, tuh_control_complete_cb_t complete_cb)
+bool usbh_control_xfer (uint8_t dev_addr, tusb_control_request_t const* request, void* buffer, tuh_control_complete_cb_t complete_cb)
 {
   // TODO need to claim the endpoint first
   const uint8_t rhport = usbh_get_rhport(dev_addr);
@@ -65,10 +66,6 @@ bool tuh_control_xfer (uint8_t dev_addr, tusb_control_request_t const* request, 
   _ctrl_xfer.buffer      = buffer;
   _ctrl_xfer.stage       = STAGE_SETUP;
   _ctrl_xfer.complete_cb = complete_cb;
-
-  TU_LOG2("Control Setup (addr = %u): ", dev_addr);
-  TU_LOG2_VAR(request);
-  TU_LOG2("\r\n");
 
   // Send setup packet
   TU_ASSERT( hcd_setup_send(rhport, dev_addr, (uint8_t const*) &_ctrl_xfer.request) );
