@@ -48,6 +48,7 @@ jobs:
         - 'mm32'
         - 'msp432e4'
         - 'nrf'
+        - 'ra'
         - 'rp2040'
         - 'samd11'
         - 'samd21'
