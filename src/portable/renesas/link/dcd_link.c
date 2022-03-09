@@ -31,13 +31,16 @@
 // We disable SOF for now until needed later on
 #define USE_SOF     0
 
-#if CFG_TUD_ENABLED && (CFG_TUSB_MCU == OPT_MCU_RX63X || CFG_TUSB_MCU == OPT_MCU_RX65X || CFG_TUSB_MCU == OPT_MCU_RX72N)
+#if CFG_TUD_ENABLED && (CFG_TUSB_MCU == OPT_MCU_RX63X || CFG_TUSB_MCU == OPT_MCU_RX65X || CFG_TUSB_MCU == OPT_MCU_RX72N || \
+			CFG_TUSB_MCU == OPT_MCU_RAXXX)
 
 #include "device/dcd.h"
 #include "link_type.h"
 
 #if TU_CHECK_MCU(OPT_MCU_RX63X, OPT_MCU_RX65X, OPT_MCU_RX72N)
 #include "link_rx.h"
+#elif TU_CHECK_MCU(OPT_MCU_RAXXX)
+#include "link_ra.h"
 #else
 #error "Unsupported MCU"
 #endif

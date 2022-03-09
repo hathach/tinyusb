@@ -236,7 +236,7 @@
   #define TUP_DCD_ENDPOINT_MAX    7
 
 //------------- Renesas -------------//
-#elif TU_CHECK_MCU(OPT_MCU_RX63X, OPT_MCU_RX65X, OPT_MCU_RX72N)
+#elif TU_CHECK_MCU(OPT_MCU_RX63X, OPT_MCU_RX65X, OPT_MCU_RX72N, OPT_MCU_RAXXX)
   #define TUP_DCD_ENDPOINT_MAX    10
 
 //------------- GigaDevice -------------//
