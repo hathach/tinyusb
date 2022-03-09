@@ -65,10 +65,10 @@ typedef struct
 
   struct TU_ATTR_PACKED
   {
-    volatile uint8_t connected    : 1;
-    volatile uint8_t addressed    : 1;
-    volatile uint8_t configured   : 1;
-    volatile uint8_t suspended    : 1;
+    volatile uint8_t connected  : 1;
+    volatile uint8_t addressed  : 1;
+    volatile uint8_t configured : 1;
+    volatile uint8_t suspended  : 1;
   };
 } usbh_dev0_t;
 
@@ -81,10 +81,10 @@ typedef struct {
 
   struct TU_ATTR_PACKED
   {
-    volatile uint8_t connected    : 1;
-    volatile uint8_t addressed    : 1;
-    volatile uint8_t configured   : 1;
-    volatile uint8_t suspended    : 1;
+    volatile uint8_t connected  : 1;
+    volatile uint8_t addressed  : 1;
+    volatile uint8_t configured : 1;
+    volatile uint8_t suspended  : 1;
   };
 
   //------------- device descriptor -------------//
@@ -208,29 +208,8 @@ CFG_TUSB_MEM_SECTION usbh_device_t _usbh_devices[TOTAL_DEVICES];
 
 // Mutex for claiming endpoint, only needed when using with preempted RTOS
 #if TUSB_OPT_MUTEX
-
 static osal_mutex_def_t _usbh_mutexdef[TOTAL_DEVICES];
 static osal_mutex_t _usbh_mutex[TOTAL_DEVICES];
-
-static inline void lock_device(uint8_t daddr)
-{
-  // addr0 is always available
-  if (daddr) return;
-  osal_mutex_lock(&_usbh_mutex[daddr-1], OSAL_TIMEOUT_WAIT_FOREVER);
-}
-
-static inline void unlock_device(uint8_t daddr)
-{
-  // addr0 is always available
-  if (daddr) return;
-  osal_mutex_unlock(&_usbh_mutex[daddr-1]);
-}
-
-#else
-
-#define lock_device(_addr)
-#define unlock_device(_addr)
-
 #endif
 
 // Event queue
@@ -770,6 +749,113 @@ void usbh_driver_set_config_complete(uint8_t dev_addr, uint8_t itf_num)
 }
 
 //--------------------------------------------------------------------+
+// Endpoint API
+//--------------------------------------------------------------------+
+
+// TODO has some duplication code with device, refactor later
+bool usbh_edpt_claim(uint8_t dev_addr, uint8_t ep_addr)
+{
+  // addr0 is always available
+  if (dev_addr == 0) return true;
+
+  usbh_device_t* dev        = get_device(dev_addr);
+  uint8_t const epnum       = tu_edpt_number(ep_addr);
+  uint8_t const dir         = tu_edpt_dir(ep_addr);
+  tu_edpt_state_t* ep_state = &dev->ep_status[epnum][dir];
+
+#if TUSB_OPT_MUTEX
+  return tu_edpt_claim(ep_state, _usbh_mutex[dev_addr-1]);
+#else
+  return tu_edpt_claim(ep_state, NULL);
+#endif
+}
+
+// TODO has some duplication code with device, refactor later
+bool usbh_edpt_release(uint8_t dev_addr, uint8_t ep_addr)
+{
+  // addr0 is always available
+  if (dev_addr == 0) return true;
+
+  usbh_device_t* dev        = get_device(dev_addr);
+  uint8_t const epnum       = tu_edpt_number(ep_addr);
+  uint8_t const dir         = tu_edpt_dir(ep_addr);
+  tu_edpt_state_t* ep_state = &dev->ep_status[epnum][dir];
+
+#if TUSB_OPT_MUTEX
+  return tu_edpt_release(ep_state, _usbh_mutex[dev_addr-1]);
+#else
+  return tu_edpt_release(ep_state, NULL);
+#endif
+}
+
+// TODO has some duplication code with device, refactor later
+bool usbh_edpt_xfer(uint8_t dev_addr, uint8_t ep_addr, uint8_t * buffer, uint16_t total_bytes)
+{
+  uint8_t const epnum = tu_edpt_number(ep_addr);
+  uint8_t const dir   = tu_edpt_dir(ep_addr);
+
+  usbh_device_t* dev = get_device(dev_addr);
+
+  TU_LOG2("  Queue EP %02X with %u bytes ... ", ep_addr, total_bytes);
+
+  // Attempt to transfer on a busy endpoint, sound like an race condition !
+  TU_ASSERT(dev->ep_status[epnum][dir].busy == 0);
+
+  // Set busy first since the actual transfer can be complete before hcd_edpt_xfer()
+  // could return and USBH task can preempt and clear the busy
+  dev->ep_status[epnum][dir].busy = true;
+
+  if ( hcd_edpt_xfer(dev->rhport, dev_addr, ep_addr, buffer, total_bytes) )
+  {
+    TU_LOG2("OK\r\n");
+    return true;
+  }else
+  {
+    // HCD error, mark endpoint as ready to allow next transfer
+    dev->ep_status[epnum][dir].busy = false;
+    dev->ep_status[epnum][dir].claimed = 0;
+    TU_LOG2("failed\r\n");
+    TU_BREAKPOINT();
+    return false;
+  }
+}
+
+static bool usbh_edpt_control_open(uint8_t dev_addr, uint8_t max_packet_size)
+{
+  TU_LOG2("Open EP0 with Size = %u (addr = %u)\r\n", max_packet_size, dev_addr);
+
+  tusb_desc_endpoint_t ep0_desc =
+  {
+    .bLength          = sizeof(tusb_desc_endpoint_t),
+    .bDescriptorType  = TUSB_DESC_ENDPOINT,
+    .bEndpointAddress = 0,
+    .bmAttributes     = { .xfer = TUSB_XFER_CONTROL },
+    .wMaxPacketSize   = max_packet_size,
+    .bInterval        = 0
+  };
+
+  return hcd_edpt_open(usbh_get_rhport(dev_addr), dev_addr, &ep0_desc);
+}
+
+bool usbh_edpt_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_endpoint_t const * desc_ep)
+{
+  usbh_device_t* dev = get_device(dev_addr);
+  TU_ASSERT(tu_edpt_validate(desc_ep, (tusb_speed_t) dev->speed));
+
+  return hcd_edpt_open(rhport, dev_addr, desc_ep);
+}
+
+bool usbh_edpt_busy(uint8_t dev_addr, uint8_t ep_addr)
+{
+  uint8_t const epnum = tu_edpt_number(ep_addr);
+  uint8_t const dir   = tu_edpt_dir(ep_addr);
+
+  usbh_device_t* dev = get_device(dev_addr);
+
+  return dev->ep_status[epnum][dir].busy;
+}
+
+//--------------------------------------------------------------------+
 // Enumeration Process
 // is a lengthy process with a series of control transfer to configure
 // newly attached device. Each step is handled by a function in this
@@ -1176,113 +1262,6 @@ static bool parse_configuration_descriptor(uint8_t dev_addr, tusb_desc_configura
   }
 
   return true;
-}
-
-//--------------------------------------------------------------------+
-// Endpoint API
-//--------------------------------------------------------------------+
-
-// TODO has some duplication code with device, refactor later
-bool usbh_edpt_claim(uint8_t dev_addr, uint8_t ep_addr)
-{
-  // addr0 is always available
-  if (dev_addr == 0) return true;
-
-  usbh_device_t* dev        = get_device(dev_addr);
-  uint8_t const epnum       = tu_edpt_number(ep_addr);
-  uint8_t const dir         = tu_edpt_dir(ep_addr);
-  tu_edpt_state_t* ep_state = &dev->ep_status[epnum][dir];
-
-#if TUSB_OPT_MUTEX
-  return tu_edpt_claim(ep_state, _usbh_mutex[dev_addr-1]);
-#else
-  return tu_edpt_claim(ep_state, NULL);
-#endif
-}
-
-// TODO has some duplication code with device, refactor later
-bool usbh_edpt_release(uint8_t dev_addr, uint8_t ep_addr)
-{
-  // addr0 is always available
-  if (dev_addr == 0) return true;
-
-  usbh_device_t* dev        = get_device(dev_addr);
-  uint8_t const epnum       = tu_edpt_number(ep_addr);
-  uint8_t const dir         = tu_edpt_dir(ep_addr);
-  tu_edpt_state_t* ep_state = &dev->ep_status[epnum][dir];
-
-#if TUSB_OPT_MUTEX
-  return tu_edpt_release(ep_state, _usbh_mutex[dev_addr-1]);
-#else
-  return tu_edpt_release(ep_state, NULL);
-#endif
-}
-
-// TODO has some duplication code with device, refactor later
-bool usbh_edpt_xfer(uint8_t dev_addr, uint8_t ep_addr, uint8_t * buffer, uint16_t total_bytes)
-{
-  uint8_t const epnum = tu_edpt_number(ep_addr);
-  uint8_t const dir   = tu_edpt_dir(ep_addr);
-
-  usbh_device_t* dev = get_device(dev_addr);
-
-  TU_LOG2("  Queue EP %02X with %u bytes ... ", ep_addr, total_bytes);
-
-  // Attempt to transfer on a busy endpoint, sound like an race condition !
-  TU_ASSERT(dev->ep_status[epnum][dir].busy == 0);
-
-  // Set busy first since the actual transfer can be complete before hcd_edpt_xfer()
-  // could return and USBH task can preempt and clear the busy
-  dev->ep_status[epnum][dir].busy = true;
-
-  if ( hcd_edpt_xfer(dev->rhport, dev_addr, ep_addr, buffer, total_bytes) )
-  {
-    TU_LOG2("OK\r\n");
-    return true;
-  }else
-  {
-    // HCD error, mark endpoint as ready to allow next transfer
-    dev->ep_status[epnum][dir].busy = false;
-    dev->ep_status[epnum][dir].claimed = 0;
-    TU_LOG2("failed\r\n");
-    TU_BREAKPOINT();
-    return false;
-  }
-}
-
-static bool usbh_edpt_control_open(uint8_t dev_addr, uint8_t max_packet_size)
-{
-  TU_LOG2("Open EP0 with Size = %u (addr = %u)\r\n", max_packet_size, dev_addr);
-
-  tusb_desc_endpoint_t ep0_desc =
-  {
-    .bLength          = sizeof(tusb_desc_endpoint_t),
-    .bDescriptorType  = TUSB_DESC_ENDPOINT,
-    .bEndpointAddress = 0,
-    .bmAttributes     = { .xfer = TUSB_XFER_CONTROL },
-    .wMaxPacketSize   = max_packet_size,
-    .bInterval        = 0
-  };
-
-  return hcd_edpt_open(usbh_get_rhport(dev_addr), dev_addr, &ep0_desc);
-}
-
-bool usbh_edpt_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_endpoint_t const * desc_ep)
-{
-  usbh_device_t* dev = get_device(dev_addr);
-  TU_ASSERT(tu_edpt_validate(desc_ep, (tusb_speed_t) dev->speed));
-
-  return hcd_edpt_open(rhport, dev_addr, desc_ep);
-}
-
-bool usbh_edpt_busy(uint8_t dev_addr, uint8_t ep_addr)
-{
-  uint8_t const epnum = tu_edpt_number(ep_addr);
-  uint8_t const dir   = tu_edpt_dir(ep_addr);
-
-  usbh_device_t* dev = get_device(dev_addr);
-
-  return dev->ep_status[epnum][dir].busy;
 }
 
 #endif
