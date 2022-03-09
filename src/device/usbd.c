@@ -29,6 +29,8 @@
 #if CFG_TUD_ENABLED
 
 #include "tusb.h"
+#include "common/tusb_private.h"
+
 #include "device/usbd.h"
 #include "device/usbd_pvt.h"
 #include "device/dcd.h"
@@ -69,6 +71,8 @@ typedef struct
 
   uint8_t itf2drv[16];     // map interface number to driver (0xff is invalid)
   uint8_t ep2drv[CFG_TUD_ENDPPOINT_MAX][2]; // map endpoint to driver ( 0xff is invalid )
+
+  // TODO 4-bit should be sufficient for ep2drv if we want to save half its bytes
 
   struct TU_ATTR_PACKED
   {

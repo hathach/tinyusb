@@ -29,6 +29,7 @@
 #if CFG_TUH_ENABLED || CFG_TUD_ENABLED
 
 #include "tusb.h"
+#include "common/tusb_private.h"
 
 // TODO clean up
 #if CFG_TUD_ENABLED
@@ -66,6 +67,30 @@ bool tusb_inited(void)
 //--------------------------------------------------------------------+
 // Internal Helper for both Host and Device stack
 //--------------------------------------------------------------------+
+
+bool tu_edpt_claim(tu_edpt_state_t* ep_state, osal_mutex_t mutex)
+{
+  (void) mutex;
+
+#if TUSB_OPT_MUTEX
+  // pre-check to help reducing mutex lock
+  TU_VERIFY((ep_state->busy == 0) && (ep_state->claimed == 0));
+  osal_mutex_lock(mutex, OSAL_TIMEOUT_WAIT_FOREVER);
+#endif
+
+  // can only claim the endpoint if it is not busy and not claimed yet.
+  bool const available = (ep_state->busy == 0) && (ep_state->claimed == 0);
+  if (available)
+  {
+    ep_state->claimed = 1;
+  }
+
+#if TUSB_OPT_MUTEX
+  osal_mutex_unlock(mutex);
+#endif
+
+  return available;
+}
 
 bool tu_edpt_validate(tusb_desc_endpoint_t const * desc_ep, tusb_speed_t speed)
 {

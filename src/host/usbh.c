@@ -29,6 +29,8 @@
 #if CFG_TUH_ENABLED
 
 #include "tusb.h"
+#include "common/tusb_private.h"
+
 #include "host/usbh.h"
 #include "host/usbh_classdriver.h"
 #include "hub.h"
@@ -104,14 +106,7 @@ typedef struct {
   uint8_t itf2drv[CFG_TUH_INTERFACE_MAX];  // map interface number to driver (0xff is invalid)
   uint8_t ep2drv[CFG_TUH_ENDPOINT_MAX][2]; // map endpoint to driver ( 0xff is invalid )
 
-  struct TU_ATTR_PACKED
-  {
-    volatile bool busy    : 1;
-    volatile bool stalled : 1;
-    volatile bool claimed : 1;
-
-    // TODO merge ep2drv here, 4-bit should be sufficient
-  }ep_status[CFG_TUH_ENDPOINT_MAX][2];
+  tu_edpt_state_t ep_status[CFG_TUH_ENDPOINT_MAX][2];
 } usbh_device_t;
 
 
@@ -1189,25 +1184,19 @@ static bool parse_configuration_descriptor(uint8_t dev_addr, tusb_desc_configura
 // TODO has some duplication code with device, refactor later
 bool usbh_edpt_claim(uint8_t dev_addr, uint8_t ep_addr)
 {
-  uint8_t const epnum = tu_edpt_number(ep_addr);
-  uint8_t const dir   = tu_edpt_dir(ep_addr);
+  // addr0 is always available
+  if (dev_addr == 0) return true;
 
-  usbh_device_t* dev = get_device(dev_addr);
+  usbh_device_t* dev        = get_device(dev_addr);
+  uint8_t const epnum       = tu_edpt_number(ep_addr);
+  uint8_t const dir         = tu_edpt_dir(ep_addr);
+  tu_edpt_state_t* ep_state = &dev->ep_status[epnum][dir];
 
-  // pre-check to help reducing mutex lock
-  TU_VERIFY((dev->ep_status[epnum][dir].busy == 0) && (dev->ep_status[epnum][dir].claimed == 0));
-  lock_device(dev_addr);
-
-  // can only claim the endpoint if it is not busy and not claimed yet.
-  bool const ret = (dev->ep_status[epnum][dir].busy == 0) && (dev->ep_status[epnum][dir].claimed == 0);
-  if (ret)
-  {
-    dev->ep_status[epnum][dir].claimed = 1;
-  }
-
-  unlock_device(dev_addr);
-
-  return ret;
+#if TUSB_OPT_MUTEX
+  return tu_edpt_claim(ep_state, &_usbh_mutex[dev_addr-1]);
+#else
+  return tu_edpt_claim(ep_state, NULL);
+#endif
 }
 
 // TODO has some duplication code with device, refactor later
@@ -1298,7 +1287,5 @@ bool usbh_edpt_busy(uint8_t dev_addr, uint8_t ep_addr)
 
   return dev->ep_status[epnum][dir].busy;
 }
-
-
 
 #endif
