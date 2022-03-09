@@ -51,12 +51,22 @@ void hid_app_task(void)
 
 void handle_kbd_report(tusb_hid_host_info_t* info, const uint8_t* report, uint8_t report_length, uint8_t report_id)
 {
+  // Stop unused parameter errors
+  (void) info;
+  (void) report_length;
+  (void) report_id;
+  
   TU_LOG1("HID receive keyboard report\r\n");
   process_kbd_report((hid_keyboard_report_t const *)report);
 }
 
 void handle_mouse_report(tusb_hid_host_info_t* info, const uint8_t* report, uint8_t report_length, uint8_t report_id)
 {
+  // Stop unused parameter errors
+  (void) info;
+  (void) report_length;
+  (void) report_id;
+    
   TU_LOG1("HID receive mouse report\r\n");
   process_mouse_report((hid_mouse_report_t const *)report);
 }
@@ -83,6 +93,10 @@ void handle_joystick_unmount(tusb_hid_host_info_t* info) {
 
 void handle_gamepad_report(tusb_hid_host_info_t* info, const uint8_t* report, uint8_t report_length, uint8_t report_id)
 {
+  // Stop unused parameter errors
+  (void) info;
+  (void) report_id;
+  
   TU_LOG1("HID receive gamepad report ");
   for(int i = 0; i < report_length; ++i) {
     printf("%02x", report[i]);

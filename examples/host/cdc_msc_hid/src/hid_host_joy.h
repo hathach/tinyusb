@@ -33,10 +33,11 @@
  * only copes with a few of them. 
  */
 
-#ifndef _TUSB_HID_JOY_H_
-#define _TUSB_HID_JOY_H_
+#ifndef _TUSB_HID_HOST_JOY_H_
+#define _TUSB_HID_HOST_JOY_H_
 
 #include "tusb.h"
+#include "host/hcd.h"
 #include "class/hid/hid_rip.h"
 
 #ifdef __cplusplus
@@ -190,4 +191,4 @@ uint8_t tuh_hid_get_simple_joysticks(tusb_hid_simple_joysick_t** simple_joystick
 }
 #endif
 
-#endif /* _TUSB_HID_JOY_H_ */
+#endif /* _TUSB_HID_HOST_JOY_H_ */

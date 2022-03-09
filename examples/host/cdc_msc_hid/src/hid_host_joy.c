@@ -128,7 +128,6 @@ bool tuh_hid_joystick_get_data(
 static void tuh_hid_joystick_process_axis(
   tuh_hid_joystick_data_t* jdata,
   uint32_t bitpos,
-  uint8_t instance,
   tusb_hid_simple_axis_t* simple_axis)
 {
   simple_axis->start = bitpos;
@@ -150,7 +149,7 @@ void tuh_hid_joystick_process_usages(
   // If there are no specific usages look for a range
   // TODO What is the correct behaviour if there are both?
   if (pstate->usage_count == 0 && !jdata->usage_is_range) {
-    printf("no usage - skipping bits %u \n", jdata->report_size * jdata->report_count);
+    printf("no usage - skipping bits %lu \n", jdata->report_size * jdata->report_count);
     return;
   }
 
@@ -180,19 +179,19 @@ void tuh_hid_joystick_process_usages(
       // Seems to be common usage for gamepads.
       // Probably needs a lot more thought...
       case HID_RIP_EUSAGE(HID_USAGE_PAGE_DESKTOP, HID_USAGE_DESKTOP_X):    
-        tuh_hid_joystick_process_axis(jdata, bitpos, instance, &simple_joystick->axis_x1);
+        tuh_hid_joystick_process_axis(jdata, bitpos, &simple_joystick->axis_x1);
         break;
       case HID_RIP_EUSAGE(HID_USAGE_PAGE_DESKTOP, HID_USAGE_DESKTOP_Y):
-        tuh_hid_joystick_process_axis(jdata, bitpos, instance, &simple_joystick->axis_y1);
+        tuh_hid_joystick_process_axis(jdata, bitpos, &simple_joystick->axis_y1);
         break;
       case HID_RIP_EUSAGE(HID_USAGE_PAGE_DESKTOP, HID_USAGE_DESKTOP_Z):
-        tuh_hid_joystick_process_axis(jdata, bitpos, instance, &simple_joystick->axis_x2);
+        tuh_hid_joystick_process_axis(jdata, bitpos, &simple_joystick->axis_x2);
         break;
       case HID_RIP_EUSAGE(HID_USAGE_PAGE_DESKTOP, HID_USAGE_DESKTOP_RZ):
-        tuh_hid_joystick_process_axis(jdata, bitpos, instance, &simple_joystick->axis_y2);
+        tuh_hid_joystick_process_axis(jdata, bitpos, &simple_joystick->axis_y2);
         break;      
       case HID_RIP_EUSAGE(HID_USAGE_PAGE_DESKTOP, HID_USAGE_DESKTOP_HAT_SWITCH):
-        tuh_hid_joystick_process_axis(jdata, bitpos, instance, &simple_joystick->hat);
+        tuh_hid_joystick_process_axis(jdata, bitpos, &simple_joystick->hat);
         break;
       default: break;
     }
@@ -262,7 +261,7 @@ void tusb_hid_simple_joysick_process_report(tusb_hid_simple_joysick_t* simple_jo
 void tusb_hid_print_simple_joysick_report(tusb_hid_simple_joysick_t* simple_joystick)
 {
   if (simple_joystick->has_values) {  
-    printf("dev_addr=%3d, instance=%3d, report_id=%3d, x1=%4d, y1=%4d, x2=%4d, y2=%4d, hat=%01X, buttons=%04X\n",  
+    printf("dev_addr=%3d, instance=%3d, report_id=%3d, x1=%4ld, y1=%4ld, x2=%4ld, y2=%4ld, hat=%01lX, buttons=%04lX\n",  
       simple_joystick->key.elements.dev_addr,
       simple_joystick->key.elements.instance,
       simple_joystick->key.elements.report_id,
