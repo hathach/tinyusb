@@ -207,18 +207,18 @@ static bool pipe0_xfer_in(void)
   const unsigned len = TU_MIN(TU_MIN(rem, mps), vld);
   void          *buf = pipe->buf;
   if (len) {
-    LINK_REG->DCPCTR = USB_PIPECTR_PID_NAK;
+    LINK_REG->DCPCTR = LINK_REG_PIPE_CTR_PID_NAK;
     pipe_read_packet(buf, (volatile void*)&LINK_REG->CFIFO, len);
     pipe->buf = (uint8_t*)buf + len;
   }
   if (len < mps)
-    LINK_REG->CFIFOCTR = USB_FIFOCTR_BCLR;
+    LINK_REG->CFIFOCTR = LINK_REG_CFIFOCTR_BCLR_Msk;
   pipe->remaining = rem - len;
   if ((len < mps) || (rem == len)) {
     pipe->buf = NULL;
     return true;
   }
-  LINK_REG->DCPCTR = USB_PIPECTR_PID_BUF;
+  LINK_REG->DCPCTR = LINK_REG_PIPE_CTR_PID_BUF;
   return false;
 }
 
@@ -238,7 +238,7 @@ static bool pipe0_xfer_out(void)
     pipe->buf = (uint8_t*)buf + len;
   }
   if (len < mps)
-    LINK_REG->CFIFOCTR = USB_FIFOCTR_BVAL;
+    LINK_REG->CFIFOCTR = LINK_REG_CFIFOCTR_BVAL_Msk;
   pipe->remaining = rem - len;
   return false;
 }
@@ -248,7 +248,7 @@ static bool pipe_xfer_in(unsigned num)
   pipe_state_t  *pipe = &_hcd.pipe[num];
   const unsigned rem  = pipe->remaining;
 
-  LINK_REG->D0FIFOSEL = num | USB_FIFOSEL_MBW_8;
+  LINK_REG->D0FIFOSEL = num | LINK_REG_FIFOSEL_MBW_8BIT;
   const unsigned mps  = edpt_max_packet_size(num);
   pipe_wait_for_ready(num);
   const unsigned vld  = LINK_REG->D0FIFOCTR_b.DTLN;
@@ -259,7 +259,7 @@ static bool pipe_xfer_in(unsigned num)
     pipe->buf = (uint8_t*)buf + len;
   }
   if (len < mps)
-    LINK_REG->D0FIFOCTR = USB_FIFOCTR_BCLR;
+    LINK_REG->D0FIFOCTR = LINK_REG_CFIFOCTR_BCLR_Msk;
   LINK_REG->D0FIFOSEL = 0;
   while (LINK_REG->D0FIFOSEL_b.CURPIPE) ; /* if CURPIPE bits changes, check written value */
   pipe->remaining = rem - len;
@@ -280,7 +280,7 @@ static bool pipe_xfer_out(unsigned num)
     return true;
   }
 
-  LINK_REG->D0FIFOSEL = num | USB_FIFOSEL_MBW_16 | (TU_BYTE_ORDER == TU_BIG_ENDIAN ? USB_FIFOSEL_BIGEND : 0);
+  LINK_REG->D0FIFOSEL = num | LINK_REG_FIFOSEL_MBW_16BIT | (TU_BYTE_ORDER == TU_BIG_ENDIAN ? LINK_REG_FIFOSEL_BIGEND : 0);
   const unsigned mps  = edpt_max_packet_size(num);
   pipe_wait_for_ready(num);
   const unsigned len  = TU_MIN(rem, mps);
@@ -290,7 +290,7 @@ static bool pipe_xfer_out(unsigned num)
     pipe->buf = (uint8_t*)buf + len;
   }
   if (len < mps)
-    LINK_REG->D0FIFOCTR = USB_FIFOCTR_BVAL;
+    LINK_REG->D0FIFOCTR = LINK_REG_CFIFOCTR_BVAL_Msk;
   LINK_REG->D0FIFOSEL = 0;
   while (LINK_REG->D0FIFOSEL_b.CURPIPE) ; /* if CURPIPE bits changes, check written value */
   pipe->remaining = rem - len;
@@ -304,12 +304,12 @@ static bool process_pipe0_xfer(uint8_t dev_addr, uint8_t ep_addr, void* buffer, 
 
   /* configure fifo direction and access unit settings */
   if (dir_in) { /* IN, a byte */
-    LINK_REG->CFIFOSEL = USB_FIFOSEL_MBW_8;
-    while (LINK_REG->CFIFOSEL & USB_FIFOSEL_TX) ;
+    LINK_REG->CFIFOSEL = LINK_REG_FIFOSEL_MBW_8BIT;
+    while (LINK_REG->CFIFOSEL & LINK_REG_CFIFOSEL_ISEL_WRITE) ;
   } else { /* OUT, 2 bytes */
-    LINK_REG->CFIFOSEL =
-      USB_FIFOSEL_TX | USB_FIFOSEL_MBW_16 | (TU_BYTE_ORDER == TU_BIG_ENDIAN ? USB_FIFOSEL_BIGEND : 0);
-    while (!(LINK_REG->CFIFOSEL & USB_FIFOSEL_TX)) ;
+    LINK_REG->CFIFOSEL = LINK_REG_CFIFOSEL_ISEL_WRITE | LINK_REG_FIFOSEL_MBW_16BIT |
+             (TU_BYTE_ORDER == TU_BIG_ENDIAN ? LINK_REG_FIFOSEL_BIGEND : 0);
+    while (!(LINK_REG->CFIFOSEL & LINK_REG_CFIFOSEL_ISEL_WRITE)) ;
   }
 
   pipe_state_t *pipe = &_hcd.pipe[0];
@@ -325,15 +325,15 @@ static bool process_pipe0_xfer(uint8_t dev_addr, uint8_t ep_addr, void* buffer, 
   } else { /* ZLP */
     pipe->buf        = NULL;
     if (!dir_in) { /* OUT */
-      LINK_REG->CFIFOCTR = USB_FIFOCTR_BVAL;
+      LINK_REG->CFIFOCTR = LINK_REG_CFIFOCTR_BVAL_Msk;
     }
     if (dir_in == LINK_REG->DCPCFG_b.DIR) {
-      TU_ASSERT(USB_PIPECTR_PID_NAK == LINK_REG->DCPCTR_b.PID);
+      TU_ASSERT(LINK_REG_PIPE_CTR_PID_NAK == LINK_REG->DCPCTR_b.PID);
       LINK_REG->DCPCTR_b.SQSET = 1;
       LINK_REG->DCPCFG_b.DIR = dir_in ^ 1;
     }
   }
-  LINK_REG->DCPCTR = USB_PIPECTR_PID_BUF;
+  LINK_REG->DCPCTR = LINK_REG_PIPE_CTR_PID_BUF;
   return true;
 }
 
@@ -355,7 +355,7 @@ static bool process_pipe_xfer(uint8_t dev_addr, uint8_t ep_addr, void *buffer, u
     } else { /* ZLP */
       LINK_REG->D0FIFOSEL = num;
       pipe_wait_for_ready(num);
-      LINK_REG->D0FIFOCTR = USB_FIFOCTR_BVAL;
+      LINK_REG->D0FIFOCTR = LINK_REG_CFIFOCTR_BVAL_Msk;
       LINK_REG->D0FIFOSEL = 0;
       while (LINK_REG->D0FIFOSEL_b.CURPIPE) continue; /* if CURPIPE bits changes, check written value */
     }
@@ -364,12 +364,12 @@ static bool process_pipe_xfer(uint8_t dev_addr, uint8_t ep_addr, void *buffer, u
     volatile reg_pipetre_t *pt = get_pipetre(num);
     if (pt) {
       const unsigned     mps = edpt_max_packet_size(num);
-      if (*ctr & 0x3) *ctr = USB_PIPECTR_PID_NAK;
+      if (*ctr & 0x3) *ctr = LINK_REG_PIPE_CTR_PID_NAK;
       pt->TRE   = TU_BIT(8);
       pt->TRN   = (buflen + mps - 1) / mps;
       pt->TRENB = 1;
     }
-    *ctr = USB_PIPECTR_PID_BUF;
+    *ctr = LINK_REG_PIPE_CTR_PID_BUF;
   }
   return true;
 }
@@ -403,10 +403,10 @@ static void process_pipe_nrdy(uint8_t rhport, unsigned num)
   unsigned result;
   uint16_t volatile *ctr = get_pipectr(num);
   // TU_LOG1("NRDY %d %x\n", num, *ctr);
-  switch (*ctr & USB_PIPECTR_PID_MSK) {
+  switch (*ctr & LINK_REG_PIPE_CTR_PID_Msk) {
     default: return;
-    case USB_PIPECTR_PID_STALL: result = XFER_RESULT_STALLED; break;
-    case USB_PIPECTR_PID_NAK:   result = XFER_RESULT_FAILED;  break;
+    case LINK_REG_PIPE_CTR_PID_STALL: result = XFER_RESULT_STALLED; break;
+    case LINK_REG_PIPE_CTR_PID_NAK:   result = XFER_RESULT_FAILED;  break;
   }
   pipe_state_t *pipe = &_hcd.pipe[num];
   hcd_event_xfer_complete(pipe->dev, pipe->ep,
@@ -464,10 +464,10 @@ bool hcd_init(uint8_t rhport)
   LINK_REG->DPUSR0R_FS_b.FIXPHY0 = 0u; /* Transceiver Output fixed */
 
   /* Setup default control pipe */
-  LINK_REG->DCPCFG = USB_PIPECFG_SHTNAK;
+  LINK_REG->DCPCFG = LINK_REG_PIPECFG_SHTNAK_Msk;
   LINK_REG->DCPMAXP = 64;
-  LINK_REG->INTENB0 = USB_IS0_BRDY | USB_IS0_NRDY | USB_IS0_BEMP;
-  LINK_REG->INTENB1 = USB_IS1_SACK | USB_IS1_SIGN | USB_IS1_ATTCH | USB_IS1_DTCH;
+  LINK_REG->INTENB0 = LINK_REG_INTSTS0_BRDY_Msk | LINK_REG_INTSTS0_NRDY_Msk | LINK_REG_INTSTS0_BEMP_Msk;
+  LINK_REG->INTENB1 = LINK_REG_INTSTS1_SACK_Msk | LINK_REG_INTSTS1_SIGN_Msk | LINK_REG_INTSTS1_ATTCH_Msk | LINK_REG_INTSTS1_DTCH_Msk;
   LINK_REG->BEMPENB = 1;
   LINK_REG->NRDYENB = 1;
   LINK_REG->BRDYENB = 1;
@@ -505,7 +505,7 @@ bool hcd_port_connect_status(uint8_t rhport)
 
 void hcd_port_reset(uint8_t rhport)
 {
-  LINK_REG->DCPCTR = USB_PIPECTR_PID_NAK;
+  LINK_REG->DCPCTR = LINK_REG_PIPE_CTR_PID_NAK;
   while (LINK_REG->DCPCTR_b.PBUSY) ;
   hcd_int_disable(rhport);
   LINK_REG->DVSTCTR0_b.UACT = 0;
@@ -530,8 +530,8 @@ tusb_speed_t hcd_port_speed_get(uint8_t rhport)
   (void)rhport;
   switch (LINK_REG->DVSTCTR0_b.RHST) {
     default: return TUSB_SPEED_INVALID;
-    case USB_DVSTCTR0_FULL: return TUSB_SPEED_FULL;
-    case USB_DVSTCTR0_LOW:  return TUSB_SPEED_LOW;
+    case LINK_REG_DVSTCTR0_RHST_FS: return TUSB_SPEED_FULL;
+    case LINK_REG_DVSTCTR0_RHST_LS:  return TUSB_SPEED_LOW;
   }
 }
 
@@ -572,7 +572,7 @@ bool hcd_setup_send(uint8_t rhport, uint8_t dev_addr, uint8_t const setup_packet
   TU_ASSERT(dev_addr < 6); /* USBa can only handle addresses from 0 to 5. */
   TU_ASSERT(0 == LINK_REG->DCPCTR_b.SUREQ);
 
-  LINK_REG->DCPCTR = USB_PIPECTR_PID_NAK;
+  LINK_REG->DCPCTR = LINK_REG_PIPE_CTR_PID_NAK;
 
   _hcd.pipe[0].buf = NULL;
   _hcd.pipe[0].length = 8;
@@ -605,14 +605,14 @@ bool hcd_edpt_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_endpoint_t const 
   const unsigned epn     = tu_edpt_number(ep_addr);
   const unsigned mps     = tu_edpt_packet_size(ep_desc);
   if (0 == epn) {
-    LINK_REG->DCPCTR = USB_PIPECTR_PID_NAK;
+    LINK_REG->DCPCTR = LINK_REG_PIPE_CTR_PID_NAK;
     hcd_devtree_info_t devtree;
     hcd_devtree_get_info(dev_addr, &devtree);
     uint16_t volatile *devadd = (uint16_t volatile *)(uintptr_t) &LINK_REG->DEVADD[0];
     devadd += dev_addr;
     while (LINK_REG->DCPCTR_b.PBUSY) ;
     LINK_REG->DCPMAXP = (dev_addr << 12) | mps;
-    *devadd = (TUSB_SPEED_FULL == devtree.speed) ? USB_DEVADD_FULL : USB_DEVADD_LOW;
+    *devadd = (TUSB_SPEED_FULL == devtree.speed) ? LINK_REG_DEVADD_USBSPD_FS : LINK_REG_DEVADD_USBSPD_LS;
     _hcd.ctl_mps[dev_addr] = mps;
     return true;
   }
@@ -634,22 +634,22 @@ bool hcd_edpt_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_endpoint_t const 
   LINK_REG->PIPESEL = num;
   LINK_REG->PIPEMAXP = (dev_addr << 12) | mps;
   volatile uint16_t *ctr = get_pipectr(num);
-  *ctr = USB_PIPECTR_ACLRM | USB_PIPECTR_SQCLR;
+  *ctr = LINK_REG_PIPE_CTR_ACLRM_Msk | LINK_REG_PIPE_CTR_SQCLR_Msk;
   *ctr = 0;
   unsigned cfg = ((1 ^ dir_in) << 4) | epn;
   if (xfer == TUSB_XFER_BULK) {
-    cfg |= USB_PIPECFG_BULK | USB_PIPECFG_SHTNAK | USB_PIPECFG_DBLB;
+    cfg |= LINK_REG_PIPECFG_TYPE_BULK | LINK_REG_PIPECFG_SHTNAK_Msk | LINK_REG_PIPECFG_DBLB_Msk;
   } else if (xfer == TUSB_XFER_INTERRUPT) {
-    cfg |= USB_PIPECFG_INT;
+    cfg |= LINK_REG_PIPECFG_TYPE_ISO;
   } else {
-    cfg |= USB_PIPECFG_ISO | USB_PIPECFG_DBLB;
+    cfg |= LINK_REG_PIPECFG_TYPE_INT | LINK_REG_PIPECFG_DBLB_Msk;
   }
   LINK_REG->PIPECFG = cfg;
   LINK_REG->BRDYSTS = 0x1FFu ^ TU_BIT(num);
   LINK_REG->NRDYENB |= TU_BIT(num);
   LINK_REG->BRDYENB |= TU_BIT(num);
   if (!dir_in) {
-    *ctr = USB_PIPECTR_PID_BUF;
+    *ctr = LINK_REG_PIPE_CTR_PID_BUF;
   }
   hcd_int_enable(rhport);
 
@@ -676,12 +676,12 @@ bool hcd_edpt_clear_stall(uint8_t dev_addr, uint8_t ep_addr)
     *ctr = pid & 2;
     *ctr = 0;
   }
-  *ctr = USB_PIPECTR_SQCLR;
+  *ctr = LINK_REG_PIPE_CTR_SQCLR_Msk;
   unsigned const epn = tu_edpt_number(ep_addr);
   if (!epn) return true;
 
   if (!tu_edpt_dir(ep_addr)) { /* OUT */
-    *ctr = USB_PIPECTR_PID_BUF;
+    *ctr = LINK_REG_PIPE_CTR_PID_BUF;
   }
   return true;
 }
@@ -702,44 +702,44 @@ void hcd_int_handler(uint8_t rhport)
   unsigned is1 = LINK_REG->INTSTS1;
   unsigned is0 = LINK_REG->INTSTS0;
   /* clear active bits except VALID (don't write 0 to already cleared bits according to the HW manual) */
-  LINK_REG->INTSTS1 = ~((USB_IS1_SACK | USB_IS1_SIGN | USB_IS1_ATTCH | USB_IS1_DTCH) & is1);
-  LINK_REG->INTSTS0 = ~((USB_IS0_BRDY | USB_IS0_NRDY | USB_IS0_BEMP) & is0);
+  LINK_REG->INTSTS1 = ~((LINK_REG_INTSTS1_SACK_Msk | LINK_REG_INTSTS1_SIGN_Msk | LINK_REG_INTSTS1_ATTCH_Msk | LINK_REG_INTSTS1_DTCH_Msk) & is1);
+  LINK_REG->INTSTS0 = ~((LINK_REG_INTSTS0_BRDY_Msk | LINK_REG_INTSTS0_NRDY_Msk | LINK_REG_INTSTS0_BEMP_Msk) & is0);
   // TU_LOG1("IS %04x %04x\n", is0, is1);
   is1 &= LINK_REG->INTENB1;
   is0 &= LINK_REG->INTENB0;
 
-  if (is1 & USB_IS1_SACK) {
+  if (is1 & LINK_REG_INTSTS1_SACK_Msk) {
     /* Set DATA1 in advance for the next transfer. */
     LINK_REG->DCPCTR_b.SQSET = 1;
     hcd_event_xfer_complete(
       LINK_REG->DCPMAXP_b.DEVSEL, tu_edpt_addr(0, TUSB_DIR_OUT), 8, XFER_RESULT_SUCCESS, true);
   }
-  if (is1 & USB_IS1_SIGN) {
+  if (is1 & LINK_REG_INTSTS1_SIGN_Msk) {
     hcd_event_xfer_complete(
       LINK_REG->DCPMAXP_b.DEVSEL, tu_edpt_addr(0, TUSB_DIR_OUT), 8, XFER_RESULT_FAILED, true);
   }
-  if (is1 & USB_IS1_ATTCH) {
+  if (is1 & LINK_REG_INTSTS1_ATTCH_Msk) {
     LINK_REG->DVSTCTR0_b.UACT = 1;
     _hcd.need_reset = true;
-    LINK_REG->INTENB1 = (LINK_REG->INTENB1 & ~USB_IS1_ATTCH) | USB_IS1_DTCH;
+    LINK_REG->INTENB1 = (LINK_REG->INTENB1 & ~LINK_REG_INTSTS1_ATTCH_Msk) | LINK_REG_INTSTS1_DTCH_Msk;
     hcd_event_device_attach(rhport, true);
   }
-  if (is1 & USB_IS1_DTCH) {
+  if (is1 & LINK_REG_INTSTS1_DTCH_Msk) {
     LINK_REG->DVSTCTR0_b.UACT = 0;
     if (LINK_REG->DCPCTR_b.SUREQ)
       LINK_REG->DCPCTR_b.SUREQCLR = 1;
-    LINK_REG->INTENB1 = (LINK_REG->INTENB1 & ~USB_IS1_DTCH) | USB_IS1_ATTCH;
+    LINK_REG->INTENB1 = (LINK_REG->INTENB1 & ~LINK_REG_INTSTS1_DTCH_Msk) | LINK_REG_INTSTS1_ATTCH_Msk;
     hcd_event_device_remove(rhport, true);
   }
 
-  if (is0 & USB_IS0_BEMP) {
+  if (is0 & LINK_REG_INTSTS0_BEMP_Msk) {
     const unsigned s = LINK_REG->BEMPSTS;
     LINK_REG->BEMPSTS = 0;
     if (s & 1) {
       process_pipe0_bemp(rhport);
     }
   }
-  if (is0 & USB_IS0_NRDY) {
+  if (is0 & LINK_REG_INTSTS0_NRDY_Msk) {
     const unsigned m = LINK_REG->NRDYENB;
     unsigned s = LINK_REG->NRDYSTS & m;
     LINK_REG->NRDYSTS = ~s;
@@ -753,7 +753,7 @@ void hcd_int_handler(uint8_t rhport)
       s &= ~TU_BIT(num);
     }
   }
-  if (is0 & USB_IS0_BRDY) {
+  if (is0 & LINK_REG_INTSTS0_BRDY_Msk) {
     const unsigned m = LINK_REG->BRDYENB;
     unsigned s = LINK_REG->BRDYSTS & m;
     /* clear active bits (don't write 0 to already cleared bits according to the HW manual) */

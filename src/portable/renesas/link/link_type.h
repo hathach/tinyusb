@@ -33,72 +33,6 @@
 extern "C" {
 #endif
 
-//--------------------------------------------------------------------+
-// MACRO TYPEDEF CONSTANT ENUM DECLARATION
-//--------------------------------------------------------------------+
-#define USB_DVSTCTR0_LOW  (1u)
-#define USB_DVSTCTR0_FULL (2u)
-
-#define USB_FIFOSEL_TX	   ((uint16_t) (1u << 5))
-#define USB_FIFOSEL_BIGEND ((uint16_t) (1u << 8))
-#define USB_FIFOSEL_MBW_8  ((uint16_t) (0u << 10))
-#define USB_FIFOSEL_MBW_16 ((uint16_t) (1u << 10))
-#define USB_IS0_CTSQ	   ((uint16_t) (7u))
-#define USB_IS0_DVSQ	   ((uint16_t) (7u << 4))
-#define USB_IS0_VALID	   ((uint16_t) (1u << 3))
-#define USB_IS0_BRDY	   ((uint16_t) (1u << 8))
-#define USB_IS0_NRDY	   ((uint16_t) (1u << 9))
-#define USB_IS0_BEMP	   ((uint16_t) (1u << 10))
-#define USB_IS0_CTRT	   ((uint16_t) (1u << 11))
-#define USB_IS0_DVST	   ((uint16_t) (1u << 12))
-#define USB_IS0_SOFR	   ((uint16_t) (1u << 13))
-#define USB_IS0_RESM	   ((uint16_t) (1u << 14))
-#define USB_IS0_VBINT	   ((uint16_t) (1u << 15))
-#define USB_IS1_SACK	   ((uint16_t) (1u << 4))
-#define USB_IS1_SIGN	   ((uint16_t) (1u << 5))
-#define USB_IS1_EOFERR	   ((uint16_t) (1u << 6))
-#define USB_IS1_ATTCH	   ((uint16_t) (1u << 11))
-#define USB_IS1_DTCH	   ((uint16_t) (1u << 12))
-#define USB_IS1_BCHG	   ((uint16_t) (1u << 14))
-#define USB_IS1_OVRCR	   ((uint16_t) (1u << 15))
-
-#define USB_IS0_CTSQ_MSK   (7u)
-#define USB_IS0_CTSQ_SETUP (1u)
-#define USB_IS0_DVSQ_DEF   (1u << 4)
-#define USB_IS0_DVSQ_ADDR  (2u << 4)
-#define USB_IS0_DVSQ_SUSP0 (4u << 4)
-#define USB_IS0_DVSQ_SUSP1 (5u << 4)
-#define USB_IS0_DVSQ_SUSP2 (6u << 4)
-#define USB_IS0_DVSQ_SUSP3 (7u << 4)
-
-#define USB_PIPECTR_PID_MSK   (3u)
-#define USB_PIPECTR_PID_NAK   (0u)
-#define USB_PIPECTR_PID_BUF   (1u)
-#define USB_PIPECTR_PID_STALL (2u)
-#define USB_PIPECTR_CCPL      (1u << 2)
-#define USB_PIPECTR_SQMON     (1u << 6)
-#define USB_PIPECTR_SQCLR     (1u << 8)
-#define USB_PIPECTR_ACLRM     (1u << 9)
-#define USB_PIPECTR_INBUFM    (1u << 14)
-#define USB_PIPECTR_BSTS      (1u << 15)
-
-#define USB_FIFOCTR_DTLN (0x1FF)
-#define USB_FIFOCTR_FRDY (1u << 13)
-#define USB_FIFOCTR_BCLR (1u << 14)
-#define USB_FIFOCTR_BVAL (1u << 15)
-
-#define USB_PIPECFG_SHTNAK (1u << 7)
-#define USB_PIPECFG_DBLB   (1u << 9)
-#define USB_PIPECFG_BULK   (1u << 14)
-#define USB_PIPECFG_ISO	   (3u << 14)
-#define USB_PIPECFG_INT	   (2u << 14)
-
-#define FIFO_REQ_CLR  (1u)
-#define FIFO_COMPLETE (1u << 1)
-
-#define USB_DEVADD_LOW	(1u << 6)
-#define USB_DEVADD_FULL (2u << 6)
-
 /*--------------------------------------------------------------------*/
 /* Register Definitions                                           */
 /*--------------------------------------------------------------------*/
@@ -1650,6 +1584,38 @@ TU_ATTR_PACKED_END /* End of definition of packed structs (used by the CCRX tool
 #define LINK_REG_DPUSR1R_FS_DMINTE0_Msk	  (0x2UL)      /* DMINTE0 (Bitfield-Mask: 0x01) */
 #define LINK_REG_DPUSR1R_FS_DPINTE0_Pos	  (0UL)	       /* DPINTE0 (Bit 0) */
 #define LINK_REG_DPUSR1R_FS_DPINTE0_Msk	  (0x1UL)      /* DPINTE0 (Bitfield-Mask: 0x01) */
+
+/*--------------------------------------------------------------------*/
+/* Register Bit Utils                                           */
+/*--------------------------------------------------------------------*/
+#define LINK_REG_PIPE_CTR_PID_NAK   (0U << LINK_REG_PIPE_CTR_PID_Pos) /* NAK response */
+#define LINK_REG_PIPE_CTR_PID_BUF   (1U << LINK_REG_PIPE_CTR_PID_Pos) /* BUF response (depends buffer state) */
+#define LINK_REG_PIPE_CTR_PID_STALL (2U << LINK_REG_PIPE_CTR_PID_Pos) /* STALL response */
+
+#define LINK_REG_DVSTCTR0_RHST_LS	(1U << LINK_REG_DVSTCTR0_RHST_Pos) /*  Low-speed connection */
+#define LINK_REG_DVSTCTR0_RHST_FS	(2U << LINK_REG_DVSTCTR0_RHST_Pos) /*  Full-speed connection */
+
+#define LINK_REG_DEVADD_USBSPD_LS (1U << LINK_REG_DEVADD_USBSPD_Pos) /* Target Device Low-speed */
+#define LINK_REG_DEVADD_USBSPD_FS (2U << LINK_REG_DEVADD_USBSPD_Pos) /* Target Device Full-speed */
+
+#define LINK_REG_CFIFOSEL_ISEL_WRITE	(1U << LINK_REG_CFIFOSEL_ISEL_Pos)	/* FIFO write AKA TX*/
+
+#define LINK_REG_FIFOSEL_BIGEND			(1U << LINK_REG_CFIFOSEL_BIGEND_Pos)	/* FIFO Big Endian */
+#define LINK_REG_FIFOSEL_MBW_8BIT			(0U << LINK_REG_CFIFOSEL_MBW_Pos)	/* 8-bit width */
+#define LINK_REG_FIFOSEL_MBW_16BIT			(1U << LINK_REG_CFIFOSEL_MBW_Pos)	/* 16-bit width */
+
+#define LINK_REG_INTSTS0_CTSQ_CTRL_RDATA (1U << LINK_REG_INTSTS0_CTSQ_Pos)
+
+#define LINK_REG_INTSTS0_DVSQ_STATE_DEF (1U << LINK_REG_INTSTS0_DVSQ_Pos) /* Default state */
+#define LINK_REG_INTSTS0_DVSQ_STATE_ADDR (2U << LINK_REG_INTSTS0_DVSQ_Pos) /* Address state */
+#define LINK_REG_INTSTS0_DVSQ_STATE_SUSP0 (4U << LINK_REG_INTSTS0_DVSQ_Pos) /* Suspend state */
+#define LINK_REG_INTSTS0_DVSQ_STATE_SUSP1 (5U << LINK_REG_INTSTS0_DVSQ_Pos) /* Suspend state */
+#define LINK_REG_INTSTS0_DVSQ_STATE_SUSP2 (6U << LINK_REG_INTSTS0_DVSQ_Pos) /* Suspend state */
+#define LINK_REG_INTSTS0_DVSQ_STATE_SUSP3 (7U << LINK_REG_INTSTS0_DVSQ_Pos) /* Suspend state */
+
+#define LINK_REG_PIPECFG_TYPE_BULK (1U << LINK_REG_PIPECFG_TYPE_Pos)
+#define LINK_REG_PIPECFG_TYPE_INT (2U << LINK_REG_PIPECFG_TYPE_Pos)
+#define LINK_REG_PIPECFG_TYPE_ISO (3U << LINK_REG_PIPECFG_TYPE_Pos)
 
 #ifdef __cplusplus
 }
