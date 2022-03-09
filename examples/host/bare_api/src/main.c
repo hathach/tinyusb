@@ -108,7 +108,7 @@ void tuh_mount_cb (uint8_t daddr)
   printf("Device attached, address = %d\r\n", daddr);
 
   // get device descriptor
-  tuh_descriptor_device_get(daddr, &desc_device, 18, print_device_descriptor);
+  tuh_descriptor_get_device(daddr, &desc_device, 18, print_device_descriptor);
 }
 
 /// Invoked when device is unmounted (bus reset/unplugged)

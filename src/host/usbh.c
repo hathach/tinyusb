@@ -297,18 +297,18 @@ bool tuh_descriptor_get(uint8_t daddr, uint8_t type, uint8_t index, void* buffer
   return true;
 }
 
-bool tuh_descriptor_device_get(uint8_t daddr, void* buffer, uint16_t len, tuh_control_complete_cb_t complete_cb)
+bool tuh_descriptor_get_device(uint8_t daddr, void* buffer, uint16_t len, tuh_control_complete_cb_t complete_cb)
 {
   len = tu_min16(len, sizeof(tusb_desc_device_t));
   return tuh_descriptor_get(daddr, TUSB_DESC_DEVICE, 0, buffer, len, complete_cb);
 }
 
-bool tuh_descriptor_configuration_get(uint8_t daddr, uint8_t index, void* buffer, uint16_t len, tuh_control_complete_cb_t complete_cb)
+bool tuh_descriptor_get_configuration(uint8_t daddr, uint8_t index, void* buffer, uint16_t len, tuh_control_complete_cb_t complete_cb)
 {
   return tuh_descriptor_get(daddr, TUSB_DESC_CONFIGURATION, index, buffer, len, complete_cb);
 }
 
-bool tuh_descriptor_string_get(uint8_t daddr, uint16_t language_id, uint8_t index,
+bool tuh_descriptor_get_string(uint8_t daddr, uint16_t language_id, uint8_t index,
                                void* buffer, uint16_t len, tuh_control_complete_cb_t complete_cb)
 {
   tusb_control_request_t const request =
@@ -330,40 +330,40 @@ bool tuh_descriptor_string_get(uint8_t daddr, uint16_t language_id, uint8_t inde
 }
 
 // Get manufacturer string descriptor
-bool tuh_descriptor_string_manufacturer_get(uint8_t daddr, uint16_t language_id, void* buffer, uint16_t len, tuh_control_complete_cb_t complete_cb)
+bool tuh_descriptor_get_manufacturer_string(uint8_t daddr, uint16_t language_id, void* buffer, uint16_t len, tuh_control_complete_cb_t complete_cb)
 {
   TU_VERIFY(tuh_mounted(daddr));
   usbh_device_t const* dev = get_device(daddr);
   if (dev->i_manufacturer == 0) {
     return false;
   }
-  return tuh_descriptor_string_get(daddr, language_id, dev->i_manufacturer, buffer, len, complete_cb);
+  return tuh_descriptor_get_string(daddr, language_id, dev->i_manufacturer, buffer, len, complete_cb);
 }
 
 // Get product string descriptor
-bool tuh_descriptor_string_product_get(uint8_t daddr, uint16_t language_id, void* buffer, uint16_t len, tuh_control_complete_cb_t complete_cb)
+bool tuh_descriptor_get_product_string(uint8_t daddr, uint16_t language_id, void* buffer, uint16_t len, tuh_control_complete_cb_t complete_cb)
 {
   TU_VERIFY(tuh_mounted(daddr));
   usbh_device_t const* dev = get_device(daddr);
   if (dev->i_product == 0) {
     return false;
   }
-  return tuh_descriptor_string_get(daddr, language_id, dev->i_product, buffer, len, complete_cb);
+  return tuh_descriptor_get_string(daddr, language_id, dev->i_product, buffer, len, complete_cb);
 }
 
 // Get serial string descriptor
-bool tuh_descriptor_string_serial_get(uint8_t daddr, uint16_t language_id, void* buffer, uint16_t len, tuh_control_complete_cb_t complete_cb)
+bool tuh_descriptor_get_serial_string(uint8_t daddr, uint16_t language_id, void* buffer, uint16_t len, tuh_control_complete_cb_t complete_cb)
 {
   TU_VERIFY(tuh_mounted(daddr));
   usbh_device_t const* dev = get_device(daddr);
   if (dev->i_serial == 0) {
     return false;
   }
-  return tuh_descriptor_string_get(daddr, language_id, dev->i_serial, buffer, len, complete_cb);
+  return tuh_descriptor_get_string(daddr, language_id, dev->i_serial, buffer, len, complete_cb);
 }
 
 // Get HID report descriptor
-bool tuh_descriptor_hid_report_get(uint8_t daddr, uint8_t itf_num, uint8_t desc_type, void* buffer, uint16_t len, tuh_control_complete_cb_t complete_cb)
+bool tuh_descriptor_get_hid_report(uint8_t daddr, uint8_t itf_num, uint8_t desc_type, void* buffer, uint16_t len, tuh_control_complete_cb_t complete_cb)
 {
   TU_LOG2("HID Get Report Descriptor\r\n");
   tusb_control_request_t const request =
@@ -868,7 +868,7 @@ static bool enum_request_addr0_device_desc(void)
   // Get first 8 bytes of device descriptor for Control Endpoint size
   TU_LOG2("Get 8 byte of Device Descriptor\r\n");
 
-  TU_ASSERT(tuh_descriptor_device_get(addr0, _usbh_ctrl_buf, 8, enum_get_addr0_device_desc_complete));
+  TU_ASSERT(tuh_descriptor_get_device(addr0, _usbh_ctrl_buf, 8, enum_get_addr0_device_desc_complete));
   return true;
 }
 
@@ -977,7 +977,7 @@ static bool enum_set_address_complete(uint8_t dev_addr, tusb_control_request_t c
   // Get full device descriptor
   TU_LOG2("Get Device Descriptor\r\n");
 
-  TU_ASSERT(tuh_descriptor_device_get(new_addr, _usbh_ctrl_buf, sizeof(tusb_desc_device_t), enum_get_device_desc_complete));
+  TU_ASSERT(tuh_descriptor_get_device(new_addr, _usbh_ctrl_buf, sizeof(tusb_desc_device_t), enum_get_device_desc_complete));
   return true;
 }
 
@@ -1000,7 +1000,7 @@ static bool enum_get_device_desc_complete(uint8_t dev_addr, tusb_control_request
   // Get 9-byte for total length
   uint8_t const config_idx = CONFIG_NUM - 1;
   TU_LOG2("Get Configuration[0] Descriptor (9 bytes)\r\n");
-  TU_ASSERT( tuh_descriptor_configuration_get(dev_addr, config_idx, _usbh_ctrl_buf, 9, enum_get_9byte_config_desc_complete) );
+  TU_ASSERT( tuh_descriptor_get_configuration(dev_addr, config_idx, _usbh_ctrl_buf, 9, enum_get_9byte_config_desc_complete) );
   return true;
 }
 
@@ -1020,7 +1020,7 @@ static bool enum_get_9byte_config_desc_complete(uint8_t dev_addr, tusb_control_r
   // Get full configuration descriptor
   uint8_t const config_idx = CONFIG_NUM - 1;
   TU_LOG2("Get Configuration[0] Descriptor\r\n");
-  TU_ASSERT( tuh_descriptor_configuration_get(dev_addr, config_idx, _usbh_ctrl_buf, total_len, enum_get_config_desc_complete) );
+  TU_ASSERT( tuh_descriptor_get_configuration(dev_addr, config_idx, _usbh_ctrl_buf, total_len, enum_get_config_desc_complete) );
   return true;
 }
 

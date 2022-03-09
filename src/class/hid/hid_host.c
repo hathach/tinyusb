@@ -409,7 +409,7 @@ static bool config_get_report_desc(uint8_t dev_addr, tusb_control_request_t cons
     config_driver_mount_complete(dev_addr, instance, NULL, 0);
   }else
   {
-    TU_ASSERT(tuh_descriptor_hid_report_get(dev_addr, itf_num, hid_itf->report_desc_type, usbh_get_enum_buf(), hid_itf->report_desc_len, config_get_report_desc_complete));
+    TU_ASSERT(tuh_descriptor_get_hid_report(dev_addr, itf_num, hid_itf->report_desc_type, usbh_get_enum_buf(), hid_itf->report_desc_len, config_get_report_desc_complete));
   }
 
   return true;

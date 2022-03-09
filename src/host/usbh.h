@@ -94,26 +94,26 @@ bool tuh_descriptor_get(uint8_t daddr, uint8_t type, uint8_t index,
                         void* buffer, uint16_t len, tuh_control_complete_cb_t complete_cb);
 
 // Get device descriptor
-bool tuh_descriptor_device_get(uint8_t daddr, void* buffer, uint16_t len, tuh_control_complete_cb_t complete_cb);
+bool tuh_descriptor_get_device(uint8_t daddr, void* buffer, uint16_t len, tuh_control_complete_cb_t complete_cb);
 
 // Get configuration descriptor
-bool tuh_descriptor_configuration_get(uint8_t daddr, uint8_t index, void* buffer, uint16_t len, tuh_control_complete_cb_t complete_cb);
+bool tuh_descriptor_get_configuration(uint8_t daddr, uint8_t index, void* buffer, uint16_t len, tuh_control_complete_cb_t complete_cb);
 
 // Get string descriptor
-bool tuh_descriptor_string_get(uint8_t daddr, uint16_t language_id, uint8_t index,
+bool tuh_descriptor_get_string(uint8_t daddr, uint16_t language_id, uint8_t index,
                                void* buffer, uint16_t len, tuh_control_complete_cb_t complete_cb);
 
 // Get manufacturer string descriptor
-bool tuh_descriptor_string_manufacturer_get(uint8_t daddr, uint16_t language_id, void* buffer, uint16_t len, tuh_control_complete_cb_t complete_cb);
+bool tuh_descriptor_get_manufacturer_string(uint8_t daddr, uint16_t language_id, void* buffer, uint16_t len, tuh_control_complete_cb_t complete_cb);
 
 // Get product string descriptor
-bool tuh_descriptor_string_product_get(uint8_t daddr, uint16_t language_id, void* buffer, uint16_t len, tuh_control_complete_cb_t complete_cb);
+bool tuh_descriptor_get_product_string(uint8_t daddr, uint16_t language_id, void* buffer, uint16_t len, tuh_control_complete_cb_t complete_cb);
 
 // Get serial string descriptor
-bool tuh_descriptor_string_serial_get(uint8_t daddr, uint16_t language_id, void* buffer, uint16_t len, tuh_control_complete_cb_t complete_cb);
+bool tuh_descriptor_get_serial_string(uint8_t daddr, uint16_t language_id, void* buffer, uint16_t len, tuh_control_complete_cb_t complete_cb);
 
 // Get HID report descriptor
-bool tuh_descriptor_hid_report_get(uint8_t daddr, uint8_t itf_num, uint8_t desc_type,  void* buffer, uint16_t len, tuh_control_complete_cb_t complete_cb);
+bool tuh_descriptor_get_hid_report(uint8_t daddr, uint8_t itf_num, uint8_t desc_type, void* buffer, uint16_t len, tuh_control_complete_cb_t complete_cb);
 
 //--------------------------------------------------------------------+
 // APPLICATION CALLBACK
