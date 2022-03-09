@@ -1202,23 +1202,19 @@ bool usbh_edpt_claim(uint8_t dev_addr, uint8_t ep_addr)
 // TODO has some duplication code with device, refactor later
 bool usbh_edpt_release(uint8_t dev_addr, uint8_t ep_addr)
 {
-  uint8_t const epnum = tu_edpt_number(ep_addr);
-  uint8_t const dir   = tu_edpt_dir(ep_addr);
+  // addr0 is always available
+  if (dev_addr == 0) return true;
 
-  usbh_device_t* dev = get_device(dev_addr);
+  usbh_device_t* dev        = get_device(dev_addr);
+  uint8_t const epnum       = tu_edpt_number(ep_addr);
+  uint8_t const dir         = tu_edpt_dir(ep_addr);
+  tu_edpt_state_t* ep_state = &dev->ep_status[epnum][dir];
 
-  lock_device(dev_addr);
-
-  // can only release the endpoint if it is claimed and not busy
-  bool const ret = (dev->ep_status[epnum][dir].busy == 0) && (dev->ep_status[epnum][dir].claimed == 1);
-  if (ret)
-  {
-    dev->ep_status[epnum][dir].claimed = 0;
-  }
-
-  unlock_device(dev_addr);
-
-  return ret;
+#if TUSB_OPT_MUTEX
+  return tu_edpt_release(ep_state, &_usbh_mutex[dev_addr-1]);
+#else
+  return tu_edpt_release(ep_state, NULL);
+#endif
 }
 
 // TODO has some duplication code with device, refactor later

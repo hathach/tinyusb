@@ -92,6 +92,28 @@ bool tu_edpt_claim(tu_edpt_state_t* ep_state, osal_mutex_t mutex)
   return available;
 }
 
+bool tu_edpt_release(tu_edpt_state_t* ep_state, osal_mutex_t mutex)
+{
+  (void) mutex;
+
+#if TUSB_OPT_MUTEX
+  osal_mutex_lock(mutex, OSAL_TIMEOUT_WAIT_FOREVER);
+#endif
+
+  // can only release the endpoint if it is claimed and not busy
+  bool const ret = (ep_state->claimed == 1) && (ep_state->busy == 0);
+  if (ret)
+  {
+    ep_state->claimed = 0;
+  }
+
+#if TUSB_OPT_MUTEX
+  osal_mutex_unlock(mutex);
+#endif
+
+  return ret;
+}
+
 bool tu_edpt_validate(tusb_desc_endpoint_t const * desc_ep, tusb_speed_t speed)
 {
   uint16_t const max_packet_size = tu_edpt_packet_size(desc_ep);
