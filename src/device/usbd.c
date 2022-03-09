@@ -273,7 +273,7 @@ enum { RHPORT_INVALID = 0xFFu };
 static uint8_t _usbd_rhport = RHPORT_INVALID;
 
 // Event queue
-// OPT_MODE_DEVICE is used by OS NONE for mutex (disable usb isr)
+// usbd_int_set() is used as mutex in OS NONE config
 OSAL_QUEUE_DEF(usbd_int_set, _usbd_qdef, CFG_TUD_TASK_QUEUE_SZ, dcd_event_t);
 static osal_queue_t _usbd_q;
 

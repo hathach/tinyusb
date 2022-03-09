@@ -112,13 +112,6 @@ typedef struct {
 
     // TODO merge ep2drv here, 4-bit should be sufficient
   }ep_status[CFG_TUH_ENDPOINT_MAX][2];
-
-  // Mutex for claiming endpoint, only needed when using with preempted RTOS
-#if CFG_TUSB_OS != OPT_OS_NONE
-  osal_mutex_def_t mutexdef;
-  osal_mutex_t mutex;
-#endif
-
 } usbh_device_t;
 
 
@@ -204,6 +197,9 @@ enum { CONFIG_NUM = 1 }; // default to use configuration 1
 // INTERNAL OBJECT & FUNCTION DECLARATION
 //--------------------------------------------------------------------+
 
+// sum of end device + hub
+#define TOTAL_DEVICES   (CFG_TUH_DEVICE_MAX + CFG_TUH_HUB)
+
 static bool _usbh_initialized = false;
 
 // Device with address = 0 for enumeration
@@ -211,14 +207,43 @@ static usbh_dev0_t _dev0;
 
 // all devices excluding zero-address
 // hub address start from CFG_TUH_DEVICE_MAX+1
-CFG_TUSB_MEM_SECTION usbh_device_t _usbh_devices[CFG_TUH_DEVICE_MAX + CFG_TUH_HUB];
+// TODO: hub can has its own simpler struct to save memory
+CFG_TUSB_MEM_SECTION usbh_device_t _usbh_devices[TOTAL_DEVICES];
+
+// Mutex for claiming endpoint, only needed when using with preempted RTOS
+#if TUSB_OPT_MUTEX
+
+static osal_mutex_def_t _usbh_mutexdef[TOTAL_DEVICES];
+static osal_mutex_t _usbh_mutex[TOTAL_DEVICES];
+
+static inline void lock_device(uint8_t daddr)
+{
+  // addr0 is always available
+  if (daddr) return;
+  osal_mutex_lock(&_usbh_mutex[daddr-1], OSAL_TIMEOUT_WAIT_FOREVER);
+}
+
+static inline void unlock_device(uint8_t daddr)
+{
+  // addr0 is always available
+  if (daddr) return;
+  osal_mutex_unlock(&_usbh_mutex[daddr-1]);
+}
+
+#else
+
+#define lock_device(_addr)
+#define unlock_device(_addr)
+
+#endif
 
 // Event queue
-// role device/host is used by OS NONE for mutex (disable usb isr)
+// usbh_int_set is used as mutex in OS NONE config
 OSAL_QUEUE_DEF(usbh_int_set, _usbh_qdef, CFG_TUH_TASK_QUEUE_SZ, hcd_event_t);
 static osal_queue_t _usbh_q;
 
-CFG_TUSB_MEM_SECTION CFG_TUSB_MEM_ALIGN static uint8_t _usbh_ctrl_buf[CFG_TUH_ENUMERATION_BUFSIZE];
+CFG_TUSB_MEM_SECTION CFG_TUSB_MEM_ALIGN
+static uint8_t _usbh_ctrl_buf[CFG_TUH_ENUMERATION_BUFSIZE];
 
 //------------- Helper Function -------------//
 
@@ -408,6 +433,13 @@ bool tuh_configuration_set(uint8_t daddr, uint8_t config_num, tuh_control_comple
 // CLASS-USBD API (don't require to verify parameters)
 //--------------------------------------------------------------------+
 
+static void clear_device(usbh_device_t* dev)
+{
+  tu_memclr(dev, sizeof(usbh_device_t));
+  memset(dev->itf2drv, DRVID_INVALID, sizeof(dev->itf2drv)); // invalid mapping
+  memset(dev->ep2drv , DRVID_INVALID, sizeof(dev->ep2drv )); // invalid mapping
+}
+
 bool tuh_inited(void)
 {
   return _usbh_initialized;
@@ -421,25 +453,22 @@ bool tuh_init(uint8_t rhport)
   TU_LOG2("USBH init\r\n");
   TU_LOG2_INT(sizeof(usbh_device_t));
 
-  tu_memclr(_usbh_devices, sizeof(_usbh_devices));
-  tu_memclr(&_dev0, sizeof(_dev0));
-
   //------------- Enumeration & Reporter Task init -------------//
   _usbh_q = osal_queue_create( &_usbh_qdef );
   TU_ASSERT(_usbh_q != NULL);
 
   //------------- Semaphore, Mutex for Control Pipe -------------//
-  for(uint8_t i=0; i<TU_ARRAY_SIZE(_usbh_devices); i++)
+  tu_memclr(&_dev0, sizeof(_dev0));
+  tu_memclr(_usbh_devices, sizeof(_usbh_devices));
+
+  for(uint8_t i=0; i<TOTAL_DEVICES; i++)
   {
-    usbh_device_t * dev = &_usbh_devices[i];
+    clear_device(&_usbh_devices[i]);
 
-#if CFG_TUSB_OS != OPT_OS_NONE
-    dev->mutex = osal_mutex_create(&dev->mutexdef);
-    TU_ASSERT(dev->mutex);
+#if TUSB_OPT_MUTEX
+    _usbh_mutex[i] = osal_mutex_create(&_usbh_mutexdef[i]);
+    TU_ASSERT(_usbh_mutex[i]);
 #endif
-
-    memset(dev->itf2drv, DRVID_INVALID, sizeof(dev->itf2drv)); // invalid mapping
-    memset(dev->ep2drv , DRVID_INVALID, sizeof(dev->ep2drv )); // invalid mapping
   }
 
   // Class drivers init
@@ -686,14 +715,7 @@ void process_device_unplugged(uint8_t rhport, uint8_t hub_addr, uint8_t hub_port
       }
 
       hcd_device_close(rhport, dev_addr);
-
-      // release all endpoints associated with the device
-      memset(dev->itf2drv, DRVID_INVALID, sizeof(dev->itf2drv)); // invalid mapping
-      memset(dev->ep2drv , DRVID_INVALID, sizeof(dev->ep2drv )); // invalid mapping
-      tu_memclr(dev->ep_status, sizeof(dev->ep_status));
-
-      dev->state = TUSB_DEVICE_STATE_UNPLUG;
-      dev->configured = false;
+      clear_device(dev);
     }
   }
 }
@@ -1161,11 +1183,9 @@ bool usbh_edpt_claim(uint8_t dev_addr, uint8_t ep_addr)
 
   usbh_device_t* dev = get_device(dev_addr);
 
-#if CFG_TUSB_OS != OPT_OS_NONE
   // pre-check to help reducing mutex lock
   TU_VERIFY((dev->ep_status[epnum][dir].busy == 0) && (dev->ep_status[epnum][dir].claimed == 0));
-  osal_mutex_lock(dev->mutex, OSAL_TIMEOUT_WAIT_FOREVER);
-#endif
+  lock_device(dev_addr);
 
   // can only claim the endpoint if it is not busy and not claimed yet.
   bool const ret = (dev->ep_status[epnum][dir].busy == 0) && (dev->ep_status[epnum][dir].claimed == 0);
@@ -1174,9 +1194,7 @@ bool usbh_edpt_claim(uint8_t dev_addr, uint8_t ep_addr)
     dev->ep_status[epnum][dir].claimed = 1;
   }
 
-#if CFG_TUSB_OS != OPT_OS_NONE
-  osal_mutex_unlock(dev->mutex);
-#endif
+  unlock_device(dev_addr);
 
   return ret;
 }
@@ -1189,9 +1207,7 @@ bool usbh_edpt_release(uint8_t dev_addr, uint8_t ep_addr)
 
   usbh_device_t* dev = get_device(dev_addr);
 
-#if CFG_TUSB_OS != OPT_OS_NONE
-  osal_mutex_lock(dev->mutex, OSAL_TIMEOUT_WAIT_FOREVER);
-#endif
+  lock_device(dev_addr);
 
   // can only release the endpoint if it is claimed and not busy
   bool const ret = (dev->ep_status[epnum][dir].busy == 0) && (dev->ep_status[epnum][dir].claimed == 1);
@@ -1200,9 +1216,7 @@ bool usbh_edpt_release(uint8_t dev_addr, uint8_t ep_addr)
     dev->ep_status[epnum][dir].claimed = 0;
   }
 
-#if CFG_TUSB_OS != OPT_OS_NONE
-  osal_mutex_unlock(dev->mutex);
-#endif
+  unlock_device(dev_addr);
 
   return ret;
 }
