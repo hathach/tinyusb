@@ -90,6 +90,10 @@ static void _wait_and_convert(uint16_t *temp_buf, size_t buf_len) {
     while (_get_string_result == 0xff) {
         tuh_task();
     }
+    if (_get_string_result != XFER_RESULT_SUCCESS) {
+        temp_buf[0] = 0;
+        return;
+    }
     size_t utf16_len = ((temp_buf[0] & 0xff) - 2) / sizeof(uint16_t);
     size_t utf8_len = _count_utf8_bytes(temp_buf + 1, utf16_len);
     _convert_utf16le_to_utf8(temp_buf + 1, utf16_len, (uint8_t *) temp_buf, sizeof(uint16_t) * buf_len);
@@ -127,6 +131,21 @@ int main(void)
       uint16_t pid;
       tuh_vid_pid_get(i, &vid, &pid);
       printf("%d vid %04x pid %04x\r\n", i, vid, pid);
+
+      tusb_speed_t speed = tuh_speed_get(i);
+      switch (speed) {
+        case TUSB_SPEED_FULL:
+          printf("Full speed\r\n");
+          break;
+        case TUSB_SPEED_LOW:
+          printf("Low speed\r\n");
+          break;
+        case TUSB_SPEED_HIGH:
+          printf("High speed\r\n");
+          break;
+        default:
+          break;
+      }
 
       _get_string_result = 0xff;
       uint16_t temp_buf[127];
