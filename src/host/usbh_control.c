@@ -31,14 +31,6 @@
 #include "tusb.h"
 #include "usbh_classdriver.h"
 
-enum
-{
-  STAGE_IDLE,
-  STAGE_SETUP,
-  STAGE_DATA,
-  STAGE_ACK
-};
-
 typedef struct
 {
   tusb_control_request_t request TU_ATTR_ALIGNED(4);
@@ -61,7 +53,7 @@ bool usbh_control_xfer (uint8_t dev_addr, tusb_control_request_t const* request,
 
   _ctrl_xfer.request     = (*request);
   _ctrl_xfer.buffer      = buffer;
-  _ctrl_xfer.stage       = STAGE_SETUP;
+  _ctrl_xfer.stage       = CONTROL_STAGE_SETUP;
   _ctrl_xfer.complete_cb = complete_cb;
 
   // Send setup packet
@@ -73,7 +65,7 @@ bool usbh_control_xfer (uint8_t dev_addr, tusb_control_request_t const* request,
 static void _xfer_complete(uint8_t dev_addr, xfer_result_t result)
 {
   TU_LOG2("\r\n");
-  _ctrl_xfer.stage = STAGE_IDLE;
+  _ctrl_xfer.stage = CONTROL_STAGE_IDLE;
   if (_ctrl_xfer.complete_cb) _ctrl_xfer.complete_cb(dev_addr, &_ctrl_xfer.request, result);
 }
 
@@ -96,8 +88,8 @@ bool usbh_control_xfer_cb (uint8_t dev_addr, uint8_t ep_addr, xfer_result_t resu
   {
     switch(_ctrl_xfer.stage)
     {
-      case STAGE_SETUP:
-        _ctrl_xfer.stage = STAGE_DATA;
+      case CONTROL_STAGE_SETUP:
+        _ctrl_xfer.stage = CONTROL_STAGE_DATA;
         if (request->wLength)
         {
           // DATA stage: initial data toggle is always 1
@@ -106,8 +98,8 @@ bool usbh_control_xfer_cb (uint8_t dev_addr, uint8_t ep_addr, xfer_result_t resu
         }
         __attribute__((fallthrough));
 
-      case STAGE_DATA:
-        _ctrl_xfer.stage = STAGE_ACK;
+      case CONTROL_STAGE_DATA:
+        _ctrl_xfer.stage = CONTROL_STAGE_ACK;
 
         if (request->wLength)
         {
@@ -119,7 +111,7 @@ bool usbh_control_xfer_cb (uint8_t dev_addr, uint8_t ep_addr, xfer_result_t resu
         hcd_edpt_xfer(rhport, dev_addr, tu_edpt_addr(0, 1-request->bmRequestType_bit.direction), NULL, 0);
       break;
 
-      case STAGE_ACK:
+      case CONTROL_STAGE_ACK:
         _xfer_complete(dev_addr, result);
       break;
 
