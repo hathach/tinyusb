@@ -979,7 +979,7 @@ static bool enum_hub_clear_reset1_complete(uint8_t dev_addr, tusb_control_reques
 
 static bool enum_hub_get_status0_complete(uint8_t dev_addr, tusb_control_request_t const * request, xfer_result_t result)
 {
-  (void) request;
+  (void) dev_addr; (void) request;
   TU_ASSERT(XFER_RESULT_SUCCESS == result);
 
   hub_port_status_response_t port_status;
