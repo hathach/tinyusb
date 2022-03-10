@@ -82,6 +82,7 @@ typedef struct {
   uint8_t hub_port;
   uint8_t speed;
 
+  // Device State
   struct TU_ATTR_PACKED
   {
     volatile uint8_t connected  : 1;
@@ -92,7 +93,7 @@ typedef struct {
 
   uint8_t control_stage;  // state of control transfer
 
-  //------------- device descriptor -------------//
+  // Device Descriptor
   uint16_t vid;
   uint16_t pid;
 
@@ -101,12 +102,10 @@ typedef struct {
   uint8_t  i_product;
   uint8_t  i_serial;
 
-  //------------- configuration descriptor -------------//
+  // Configuration Descriptor
   // uint8_t interface_count; // bNumInterfaces alias
 
-  //------------- device -------------//
-  volatile uint8_t state;            // device state, value from enum tusbh_device_state_t
-
+  // Endpoint & Interface
   uint8_t itf2drv[CFG_TUH_INTERFACE_MAX];  // map interface number to driver (0xff is invalid)
   uint8_t ep2drv[CFG_TUH_ENDPOINT_MAX][2]; // map endpoint to driver ( 0xff is invalid ), can use only 4-bit each
 
@@ -685,9 +684,8 @@ void hcd_event_device_remove(uint8_t hostid, bool in_isr)
 }
 
 
-// a device unplugged on hostid, hub_addr, hub_port
-// return true if found and unmounted device, false if cannot find
-void process_device_unplugged(uint8_t rhport, uint8_t hub_addr, uint8_t hub_port)
+// a device unplugged from rhport:hub_addr:hub_port
+static void process_device_unplugged(uint8_t rhport, uint8_t hub_addr, uint8_t hub_port)
 {
   //------------- find the all devices (star-network) under port that is unplugged -------------//
   // TODO mark as disconnected in ISR, also handle dev0
@@ -700,7 +698,7 @@ void process_device_unplugged(uint8_t rhport, uint8_t hub_addr, uint8_t hub_port
     if (dev->rhport == rhport   &&
         (hub_addr == 0 || dev->hub_addr == hub_addr) && // hub_addr == 0 & hub_port == 0 means roothub
         (hub_port == 0 || dev->hub_port == hub_port) &&
-        dev->state    != TUSB_DEVICE_STATE_UNPLUG)
+        dev->connected)
     {
       // Invoke callback before close driver
       if (tuh_umount_cb) tuh_umount_cb(dev_addr);
@@ -729,7 +727,7 @@ static uint8_t get_new_address(bool is_hub)
   for (uint8_t i=0; i < count; i++)
   {
     uint8_t const addr = start + i;
-    if (get_device(addr)->state == TUSB_DEVICE_STATE_UNPLUG) return addr;
+    if (!get_device(addr)->connected) return addr;
   }
   return ADDR_INVALID;
 }
@@ -951,17 +949,17 @@ static bool enum_hub_get_status0_complete(uint8_t dev_addr, tusb_control_request
 
   return true;
 }
-#endif
+#endif // hub
 
 static bool enum_new_device(hcd_event_t* event)
 {
-  _dev0.rhport   = event->rhport; // TODO refractor integrate to device_pool
+  _dev0.rhport   = event->rhport;
   _dev0.hub_addr = event->connection.hub_addr;
   _dev0.hub_port = event->connection.hub_port;
 
-  //------------- connected/disconnected directly with roothub -------------//
   if (_dev0.hub_addr == 0)
   {
+    // connected/disconnected directly with roothub
     // wait until device is stable TODO non blocking
     osal_task_delay(RESET_DELAY);
 
@@ -974,14 +972,14 @@ static bool enum_new_device(hcd_event_t* event)
     enum_request_addr0_device_desc();
   }
 #if CFG_TUH_HUB
-  //------------- connected/disconnected via hub -------------//
   else
   {
+    // connected/disconnected via external hub
     // wait until device is stable
     osal_task_delay(RESET_DELAY);
     TU_ASSERT( hub_port_get_status(_dev0.hub_addr, _dev0.hub_port, _usbh_ctrl_buf, enum_hub_get_status0_complete) );
   }
-#endif // CFG_TUH_HUB
+#endif // hub
 
   return true;
 }
@@ -994,7 +992,6 @@ static bool enum_request_addr0_device_desc(void)
 
   // Get first 8 bytes of device descriptor for Control Endpoint size
   TU_LOG2("Get 8 byte of Device Descriptor\r\n");
-
   TU_ASSERT(tuh_descriptor_get_device(addr0, _usbh_ctrl_buf, 8, enum_get_addr0_device_desc_complete));
   return true;
 }
@@ -1024,7 +1021,7 @@ static bool enum_get_addr0_device_desc_complete(uint8_t dev_addr, tusb_control_r
   if (_dev0.hub_addr == 0)
   {
     // connected directly to roothub
-    hcd_port_reset( _dev0.rhport ); // reset port after 8 byte descriptor
+    hcd_port_reset( _dev0.rhport );
     osal_task_delay(RESET_DELAY);
 
     enum_request_set_addr();
@@ -1040,14 +1037,13 @@ static bool enum_get_addr0_device_desc_complete(uint8_t dev_addr, tusb_control_r
 
     TU_ASSERT( hub_port_get_status(_dev0.hub_addr, _dev0.hub_port, _usbh_ctrl_buf, enum_hub_get_status1_complete) );
   }
-#endif
+#endif // hub
 
   return true;
 }
 
 static bool enum_request_set_addr(void)
 {
-  uint8_t const addr0 = 0;
   tusb_desc_device_t const * desc_device = (tusb_desc_device_t const*) _usbh_ctrl_buf;
 
   // Get new address
@@ -1079,6 +1075,7 @@ static bool enum_request_set_addr(void)
     .wLength  = 0
   };
 
+  uint8_t const addr0 = 0;
   TU_ASSERT( tuh_control_xfer(addr0, &new_request, NULL, enum_set_address_complete) );
 
   return true;
@@ -1172,7 +1169,6 @@ static bool enum_set_config_complete(uint8_t dev_addr, tusb_control_request_t co
   TU_LOG2("Device configured\r\n");
   usbh_device_t* dev = get_device(dev_addr);
   dev->configured = 1;
-  dev->state = TUSB_DEVICE_STATE_CONFIGURED;
 
   // Start the Set Configuration process for interfaces (itf = DRVID_INVALID)
   // Since driver can perform control transfer within its set_config, this is done asynchronously.
