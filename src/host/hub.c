@@ -189,7 +189,7 @@ void hub_close(uint8_t dev_addr)
   if (p_hub->ep_in) tu_memclr(p_hub, sizeof( hub_interface_t));
 }
 
-bool hub_status_pipe_queue(uint8_t dev_addr)
+bool hub_edpt_status_xfer(uint8_t dev_addr)
 {
   hub_interface_t* hub_itf = get_itf(dev_addr);
   return usbh_edpt_xfer(dev_addr, hub_itf->ep_in, &hub_itf->status_change, 1);
@@ -324,7 +324,7 @@ static bool connection_get_status_complete (uint8_t dev_addr, tusb_control_reque
 
     // prepare for next hub status
     // TODO continue with status_change, or maybe we can do it again with status
-    hub_status_pipe_queue(dev_addr);
+    hub_edpt_status_xfer(dev_addr);
   }
 
   return true;

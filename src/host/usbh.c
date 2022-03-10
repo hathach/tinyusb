@@ -543,7 +543,7 @@ void tuh_task(void)
         if ( event.connection.hub_addr != 0)
         {
           // done with hub, waiting for next data on status pipe
-          (void) hub_status_pipe_queue( event.connection.hub_addr );
+          (void) hub_edpt_status_xfer( event.connection.hub_addr );
         }
         #endif
       break;
@@ -904,6 +904,10 @@ static bool usbh_control_xfer_cb (uint8_t dev_addr, uint8_t ep_addr, xfer_result
   return true;
 }
 
+//--------------------------------------------------------------------+
+//
+//--------------------------------------------------------------------+
+
 // a device unplugged from rhport:hub_addr:hub_port
 static void process_device_unplugged(uint8_t rhport, uint8_t hub_addr, uint8_t hub_port)
 {
@@ -939,49 +943,6 @@ static void process_device_unplugged(uint8_t rhport, uint8_t hub_addr, uint8_t h
 }
 
 //--------------------------------------------------------------------+
-// INTERNAL HELPER
-//--------------------------------------------------------------------+
-
-static uint8_t get_new_address(bool is_hub)
-{
-  uint8_t const start = (is_hub ? CFG_TUH_DEVICE_MAX : 0) + 1;
-  uint8_t const count = (is_hub ? CFG_TUH_HUB : CFG_TUH_DEVICE_MAX);
-
-  for (uint8_t i=0; i < count; i++)
-  {
-    uint8_t const addr = start + i;
-    if (!get_device(addr)->connected) return addr;
-  }
-  return ADDR_INVALID;
-}
-
-void usbh_driver_set_config_complete(uint8_t dev_addr, uint8_t itf_num)
-{
-  usbh_device_t* dev = get_device(dev_addr);
-
-  for(itf_num++; itf_num < CFG_TUH_INTERFACE_MAX; itf_num++)
-  {
-    // continue with next valid interface
-    // TODO skip IAD binding interface such as CDCs
-    uint8_t const drv_id = dev->itf2drv[itf_num];
-    if (drv_id != DRVID_INVALID)
-    {
-      usbh_class_driver_t const * driver = &usbh_class_drivers[drv_id];
-      TU_LOG2("%s set config: itf = %u\r\n", driver->name, itf_num);
-      driver->set_config(dev_addr, itf_num);
-      break;
-    }
-  }
-
-  // all interface are configured
-  if (itf_num == CFG_TUH_INTERFACE_MAX)
-  {
-    // Invoke callback if available
-    if (tuh_mount_cb) tuh_mount_cb(dev_addr);
-  }
-}
-
-//--------------------------------------------------------------------+
 // Enumeration Process
 // is a lengthy process with a series of control transfer to configure
 // newly attached device. Each step is handled by a function in this
@@ -991,15 +952,18 @@ void usbh_driver_set_config_complete(uint8_t dev_addr, uint8_t itf_num)
 //--------------------------------------------------------------------+
 
 static bool enum_request_addr0_device_desc(void);
-static bool enum_request_set_addr(void);
-
 static bool enum_get_addr0_device_desc_complete (uint8_t dev_addr, tusb_control_request_t const * request, xfer_result_t result);
+
+static bool enum_request_set_addr(void);
 static bool enum_set_address_complete           (uint8_t dev_addr, tusb_control_request_t const * request, xfer_result_t result);
 static bool enum_get_device_desc_complete       (uint8_t dev_addr, tusb_control_request_t const * request, xfer_result_t result);
 static bool enum_get_9byte_config_desc_complete (uint8_t dev_addr, tusb_control_request_t const * request, xfer_result_t result);
 static bool enum_get_config_desc_complete       (uint8_t dev_addr, tusb_control_request_t const * request, xfer_result_t result);
 static bool enum_set_config_complete            (uint8_t dev_addr, tusb_control_request_t const * request, xfer_result_t result);
 static bool parse_configuration_descriptor      (uint8_t dev_addr, tusb_desc_configuration_t const* desc_cfg);
+
+static uint8_t get_new_address(bool is_hub);
+static void enum_full_complete(void);
 
 #if CFG_TUH_HUB
 
@@ -1015,7 +979,7 @@ static bool enum_hub_clear_reset1_complete(uint8_t dev_addr, tusb_control_reques
 
 static bool enum_hub_get_status0_complete(uint8_t dev_addr, tusb_control_request_t const * request, xfer_result_t result)
 {
-  (void) dev_addr; (void) request;
+  (void) request;
   TU_ASSERT(XFER_RESULT_SUCCESS == result);
 
   hub_port_status_response_t port_status;
@@ -1024,7 +988,8 @@ static bool enum_hub_get_status0_complete(uint8_t dev_addr, tusb_control_request
   if ( !port_status.status.connection )
   {
     // device unplugged while delaying, nothing else to do, queue hub status
-    return hub_status_pipe_queue(dev_addr);
+    enum_full_complete();
+    return false;
   }
 
   _dev0.speed = (port_status.status.high_speed) ? TUSB_SPEED_HIGH :
@@ -1082,9 +1047,6 @@ static bool enum_hub_clear_reset1_complete(uint8_t dev_addr, tusb_control_reques
   TU_ASSERT(XFER_RESULT_SUCCESS == result);
 
   enum_request_set_addr();
-
-  // done with hub, waiting for next data on status pipe
-  (void) hub_status_pipe_queue( _dev0.hub_addr );
 
   return true;
 }
@@ -1144,11 +1106,8 @@ static bool enum_get_addr0_device_desc_complete(uint8_t dev_addr, tusb_control_r
 
   if (XFER_RESULT_SUCCESS != result)
   {
-#if CFG_TUH_HUB
-    // TODO remove, waiting for next data on status pipe
-    if (_dev0.hub_addr != 0) hub_status_pipe_queue(_dev0.hub_addr);
-#endif
-
+    // stop enumeration, maybe we could retry this
+    enum_full_complete();
     return false;
   }
 
@@ -1405,6 +1364,56 @@ static bool parse_configuration_descriptor(uint8_t dev_addr, tusb_desc_configura
   }
 
   return true;
+}
+
+void usbh_driver_set_config_complete(uint8_t dev_addr, uint8_t itf_num)
+{
+  usbh_device_t* dev = get_device(dev_addr);
+
+  for(itf_num++; itf_num < CFG_TUH_INTERFACE_MAX; itf_num++)
+  {
+    // continue with next valid interface
+    // TODO skip IAD binding interface such as CDCs
+    uint8_t const drv_id = dev->itf2drv[itf_num];
+    if (drv_id != DRVID_INVALID)
+    {
+      usbh_class_driver_t const * driver = &usbh_class_drivers[drv_id];
+      TU_LOG2("%s set config: itf = %u\r\n", driver->name, itf_num);
+      driver->set_config(dev_addr, itf_num);
+      break;
+    }
+  }
+
+  // all interface are configured
+  if (itf_num == CFG_TUH_INTERFACE_MAX)
+  {
+    enum_full_complete();
+
+    // Invoke callback if available
+    if (tuh_mount_cb) tuh_mount_cb(dev_addr);
+  }
+}
+
+static void enum_full_complete(void)
+{
+#if CFG_TUH_HUB
+  // get next hub status
+  if (_dev0.hub_addr) hub_edpt_status_xfer(_dev0.hub_addr);
+#endif
+
+}
+
+static uint8_t get_new_address(bool is_hub)
+{
+  uint8_t const start = (is_hub ? CFG_TUH_DEVICE_MAX : 0) + 1;
+  uint8_t const count = (is_hub ? CFG_TUH_HUB : CFG_TUH_DEVICE_MAX);
+
+  for (uint8_t i=0; i < count; i++)
+  {
+    uint8_t const addr = start + i;
+    if (!get_device(addr)->connected) return addr;
+  }
+  return ADDR_INVALID;
 }
 
 #endif

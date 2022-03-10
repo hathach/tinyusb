@@ -80,7 +80,8 @@ static inline bool tuh_ready(uint8_t daddr)
   return tuh_mounted(daddr) && !tuh_suspended(daddr);
 }
 
-// Carry out control transfer
+// Carry out a control transfer
+// true on success, false if there is on-going control trasnfer
 bool tuh_control_xfer (uint8_t daddr, tusb_control_request_t const* request, void* buffer, tuh_control_complete_cb_t complete_cb);
 
 // Set Configuration
