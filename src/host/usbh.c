@@ -55,6 +55,7 @@
 //--------------------------------------------------------------------+
 
 // device0 struct must be strictly a subset of normal device struct
+// TODO refactor later
 typedef struct
 {
   // port
@@ -70,6 +71,8 @@ typedef struct
     volatile uint8_t configured : 1;
     volatile uint8_t suspended  : 1;
   };
+
+  uint8_t control_stage;  // state of control transfer
 } usbh_dev0_t;
 
 typedef struct {
@@ -87,12 +90,13 @@ typedef struct {
     volatile uint8_t suspended  : 1;
   };
 
-  //------------- device descriptor -------------//
-  uint8_t  ep0_size;
+  uint8_t control_stage;  // state of control transfer
 
+  //------------- device descriptor -------------//
   uint16_t vid;
   uint16_t pid;
 
+  uint8_t  ep0_size;
   uint8_t  i_manufacturer;
   uint8_t  i_product;
   uint8_t  i_serial;
@@ -234,8 +238,8 @@ static void process_device_unplugged(uint8_t rhport, uint8_t hub_addr, uint8_t h
 static bool usbh_edpt_control_open(uint8_t dev_addr, uint8_t max_packet_size);
 
 // from usbh_control.c
-extern bool usbh_control_xfer (uint8_t dev_addr, tusb_control_request_t const* request, void* buffer, tuh_control_complete_cb_t complete_cb);
-extern bool usbh_control_xfer_cb (uint8_t dev_addr, uint8_t ep_addr, xfer_result_t result, uint32_t xferred_bytes);
+extern bool usbh_control_xfer (uint8_t daddr, tusb_control_request_t const* request, void* buffer, tuh_control_complete_cb_t complete_cb);
+extern uint8_t usbh_control_xfer_cb (uint8_t daddr, uint8_t ep_addr, uint8_t* stage, xfer_result_t result, uint32_t xferred_bytes);
 
 //--------------------------------------------------------------------+
 // PUBLIC API (Parameter Verification is required)
@@ -274,13 +278,21 @@ void osal_task_delay(uint32_t msec)
 #endif
 
 
-bool tuh_control_xfer (uint8_t dev_addr, tusb_control_request_t const* request, void* buffer, tuh_control_complete_cb_t complete_cb)
+bool tuh_control_xfer (uint8_t daddr, tusb_control_request_t const* request, void* buffer, tuh_control_complete_cb_t complete_cb)
 {
-  TU_LOG2("[%u:%u] %s: ", usbh_get_rhport(dev_addr), dev_addr, request->bRequest <= TUSB_REQ_SYNCH_FRAME ? tu_str_std_request[request->bRequest] : "Unknown Request");
+  TU_LOG2("[%u:%u] %s: ", usbh_get_rhport(daddr), daddr, request->bRequest <= TUSB_REQ_SYNCH_FRAME ? tu_str_std_request[request->bRequest] : "Unknown Request");
   TU_LOG2_VAR(request);
   TU_LOG2("\r\n");
 
-  return usbh_control_xfer(dev_addr, request, buffer, complete_cb);
+  if (daddr)
+  {
+    get_device(daddr)->control_stage = CONTROL_STAGE_SETUP;
+  }else
+  {
+    _dev0.control_stage = CONTROL_STAGE_SETUP;
+  }
+
+  return usbh_control_xfer(daddr, request, buffer, complete_cb);
 }
 
 //--------------------------------------------------------------------+
@@ -535,7 +547,7 @@ void tuh_task(void)
         {
           // device 0 only has control endpoint
           TU_ASSERT(epnum == 0, );
-          usbh_control_xfer_cb(event.dev_addr, ep_addr, event.xfer_complete.result, event.xfer_complete.len);
+          usbh_control_xfer_cb(event.dev_addr, ep_addr, &_dev0.control_stage, event.xfer_complete.result, event.xfer_complete.len);
         }
         else
         {
@@ -545,7 +557,7 @@ void tuh_task(void)
 
           if ( 0 == epnum )
           {
-            usbh_control_xfer_cb(event.dev_addr, ep_addr, event.xfer_complete.result, event.xfer_complete.len);
+            usbh_control_xfer_cb(event.dev_addr, ep_addr, &dev->control_stage, event.xfer_complete.result, event.xfer_complete.len);
           }else
           {
             uint8_t drv_id = dev->ep2drv[epnum][ep_dir];

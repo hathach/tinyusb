@@ -34,8 +34,6 @@
 typedef struct
 {
   tusb_control_request_t request TU_ATTR_ALIGNED(4);
-
-  uint8_t stage;
   uint8_t* buffer;
   tuh_control_complete_cb_t complete_cb;
 } usbh_control_xfer_t;
@@ -53,7 +51,6 @@ bool usbh_control_xfer (uint8_t dev_addr, tusb_control_request_t const* request,
 
   _ctrl_xfer.request     = (*request);
   _ctrl_xfer.buffer      = buffer;
-  _ctrl_xfer.stage       = CONTROL_STAGE_SETUP;
   _ctrl_xfer.complete_cb = complete_cb;
 
   // Send setup packet
@@ -65,17 +62,15 @@ bool usbh_control_xfer (uint8_t dev_addr, tusb_control_request_t const* request,
 static void _xfer_complete(uint8_t dev_addr, xfer_result_t result)
 {
   TU_LOG2("\r\n");
-  _ctrl_xfer.stage = CONTROL_STAGE_IDLE;
   if (_ctrl_xfer.complete_cb) _ctrl_xfer.complete_cb(dev_addr, &_ctrl_xfer.request, result);
 }
 
-bool usbh_control_xfer_cb (uint8_t dev_addr, uint8_t ep_addr, xfer_result_t result, uint32_t xferred_bytes)
+bool usbh_control_xfer_cb (uint8_t dev_addr, uint8_t ep_addr, uint8_t* stage, xfer_result_t result, uint32_t xferred_bytes)
 {
   (void) ep_addr;
   (void) xferred_bytes;
 
   const uint8_t rhport = usbh_get_rhport(dev_addr);
-
   tusb_control_request_t const * request = &_ctrl_xfer.request;
 
   if (XFER_RESULT_SUCCESS != result)
@@ -83,13 +78,14 @@ bool usbh_control_xfer_cb (uint8_t dev_addr, uint8_t ep_addr, xfer_result_t resu
     TU_LOG2("[%u:%u] Control %s\r\n", rhport, dev_addr, result == XFER_RESULT_STALLED ? "STALLED" : "FAILED");
 
     // terminate transfer if any stage failed
+    *stage = CONTROL_STAGE_IDLE;
     _xfer_complete(dev_addr, result);
   }else
   {
-    switch(_ctrl_xfer.stage)
+    switch(*stage)
     {
       case CONTROL_STAGE_SETUP:
-        _ctrl_xfer.stage = CONTROL_STAGE_DATA;
+        *stage = CONTROL_STAGE_DATA;
         if (request->wLength)
         {
           // DATA stage: initial data toggle is always 1
@@ -99,8 +95,7 @@ bool usbh_control_xfer_cb (uint8_t dev_addr, uint8_t ep_addr, xfer_result_t resu
         __attribute__((fallthrough));
 
       case CONTROL_STAGE_DATA:
-        _ctrl_xfer.stage = CONTROL_STAGE_ACK;
-
+        *stage = CONTROL_STAGE_ACK;
         if (request->wLength)
         {
           TU_LOG2("[%u:%u] Control data:\r\n", rhport, dev_addr);
@@ -112,6 +107,7 @@ bool usbh_control_xfer_cb (uint8_t dev_addr, uint8_t ep_addr, xfer_result_t resu
       break;
 
       case CONTROL_STAGE_ACK:
+        *stage = CONTROL_STAGE_IDLE;
         _xfer_complete(dev_addr, result);
       break;
 
