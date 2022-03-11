@@ -535,7 +535,7 @@ void tuh_task(void)
       break;
 
       case HCD_EVENT_DEVICE_REMOVE:
-        TU_LOG2("USBH DEVICE REMOVED\r\n");
+        TU_LOG2("[%u:%u:%u] USBH DEVICE REMOVED\r\n", event.rhport, event.connection.hub_addr, event.connection.hub_port);
         process_device_unplugged(event.rhport, event.connection.hub_addr, event.connection.hub_port);
 
         #if CFG_TUH_HUB
@@ -924,6 +924,8 @@ static void process_device_unplugged(uint8_t rhport, uint8_t hub_addr, uint8_t h
         (hub_port == 0 || dev->hub_port == hub_port) &&
         dev->connected)
     {
+      TU_LOG2("  Address = %u\r\n", dev_addr);
+
       // Invoke callback before close driver
       if (tuh_umount_cb) tuh_umount_cb(dev_addr);
 
