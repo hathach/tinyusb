@@ -358,7 +358,7 @@ bool msch_xfer_cb(uint8_t dev_addr, uint8_t ep_addr, xfer_result_t event, uint32
 // MSC Enumeration
 //--------------------------------------------------------------------+
 
-static bool config_get_maxlun_complete (uint8_t dev_addr, tusb_control_request_t const * request, xfer_result_t result);
+static bool config_get_maxlun_complete (uint8_t dev_addr, tuh_control_xfer_t const * xfer,  xfer_result_t result);
 static bool config_test_unit_ready_complete(uint8_t dev_addr, msc_cbw_t const* cbw, msc_csw_t const* csw);
 static bool config_request_sense_complete(uint8_t dev_addr, msc_cbw_t const* cbw, msc_csw_t const* csw);
 static bool config_read_capacity_complete(uint8_t dev_addr, msc_cbw_t const* cbw, msc_csw_t const* csw);
@@ -405,27 +405,34 @@ bool msch_set_config(uint8_t dev_addr, uint8_t itf_num)
 
   //------------- Get Max Lun -------------//
   TU_LOG2("MSC Get Max Lun\r\n");
-  tusb_control_request_t request =
+  tuh_control_xfer_t const xfer =
   {
-    .bmRequestType_bit =
+    .request =
     {
-      .recipient = TUSB_REQ_RCPT_INTERFACE,
-      .type      = TUSB_REQ_TYPE_CLASS,
-      .direction = TUSB_DIR_IN
+      .bmRequestType_bit =
+      {
+        .recipient = TUSB_REQ_RCPT_INTERFACE,
+        .type      = TUSB_REQ_TYPE_CLASS,
+        .direction = TUSB_DIR_IN
+      },
+      .bRequest = MSC_REQ_GET_MAX_LUN,
+      .wValue   = 0,
+      .wIndex   = itf_num,
+      .wLength  = 1
     },
-    .bRequest = MSC_REQ_GET_MAX_LUN,
-    .wValue   = 0,
-    .wIndex   = itf_num,
-    .wLength  = 1
+
+    .buffer      = &p_msc->max_lun,
+    .complete_cb = config_get_maxlun_complete,
+    .user_arg    = 0
   };
-  TU_ASSERT(tuh_control_xfer(dev_addr, &request, &p_msc->max_lun, config_get_maxlun_complete));
+  TU_ASSERT(tuh_control_xfer(dev_addr, &xfer));
 
   return true;
 }
 
-static bool config_get_maxlun_complete (uint8_t dev_addr, tusb_control_request_t const * request, xfer_result_t result)
+static bool config_get_maxlun_complete (uint8_t dev_addr, tuh_control_xfer_t const * xfer,  xfer_result_t result)
 {
-  (void) request;
+  (void) xfer;
 
   msch_interface_t* p_msc = get_itf(dev_addr);
 

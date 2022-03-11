@@ -123,22 +123,29 @@ bool tuh_cdc_receive(uint8_t dev_addr, void * p_buffer, uint32_t length, bool is
 bool tuh_cdc_set_control_line_state(uint8_t dev_addr, bool dtr, bool rts, tuh_control_xfer_cb_t complete_cb)
 {
   cdch_data_t const * p_cdc = get_itf(dev_addr);
-  tusb_control_request_t const request =
+
+  tuh_control_xfer_t const xfer =
   {
-    .bmRequestType_bit =
+    .request =
     {
-      .recipient = TUSB_REQ_RCPT_INTERFACE,
-      .type      = TUSB_REQ_TYPE_CLASS,
-      .direction = TUSB_DIR_OUT
+      .bmRequestType_bit =
+      {
+        .recipient = TUSB_REQ_RCPT_INTERFACE,
+        .type      = TUSB_REQ_TYPE_CLASS,
+        .direction = TUSB_DIR_OUT
+      },
+      .bRequest = CDC_REQUEST_SET_CONTROL_LINE_STATE,
+      .wValue   = (rts ? 2 : 0) | (dtr ? 1 : 0),
+      .wIndex   = p_cdc->itf_num,
+      .wLength  = 0
     },
-    .bRequest = CDC_REQUEST_SET_CONTROL_LINE_STATE,
-    .wValue   = (rts ? 2 : 0) | (dtr ? 1 : 0),
-    .wIndex   = p_cdc->itf_num,
-    .wLength  = 0
+
+    .buffer      = NULL,
+    .complete_cb = complete_cb,
+    .user_arg    = 0
   };
 
-  TU_ASSERT( tuh_control_xfer(dev_addr, &request, NULL, complete_cb) );
-  return true;
+  return tuh_control_xfer(dev_addr, &xfer);
 }
 
 //--------------------------------------------------------------------+
