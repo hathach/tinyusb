@@ -64,23 +64,57 @@ int main(void)
 // TinyUSB Callbacks
 //--------------------------------------------------------------------+
 
-void print_device_descriptor(uint8_t dev_addr)
+uint8_t usb_buf[256] TU_ATTR_ALIGNED(4);
+
+tusb_desc_device_t desc_device;
+
+bool print_device_descriptor(uint8_t daddr, tusb_control_request_t const * request, xfer_result_t result)
 {
-  (void) dev_addr;
+  (void) request;
+
+  if ( XFER_RESULT_SUCCESS != result )
+  {
+    printf("Failed to get device descriptor\r\n");
+    return false;
+  }
+
+  printf("Rhport %u Device %u: ID %04x:%04x\r\n", 0, daddr, desc_device.idVendor, desc_device.idProduct);
   printf("Device Descriptor:\r\n");
+  printf("  bLength             %u\r\n", desc_device.bLength);
+  printf("  bDescriptorType     %u\r\n", desc_device.bDescriptorType);
+  printf("  bcdUSB              %04x\r\n", desc_device.bcdUSB);
+
+  printf("  bDeviceClass        %u\r\n", desc_device.bDeviceClass);
+  printf("  bDeviceSubClass     %u\r\n", desc_device.bDeviceSubClass);
+  printf("  bDeviceProtocol     %u\r\n", desc_device.bDeviceProtocol);
+  printf("  bMaxPacketSize0     %u\r\n", desc_device.bMaxPacketSize0);
+
+  printf("  idVendor            0x%04x\r\n", desc_device.idVendor);
+  printf("  idProduct           0x%04x\r\n", desc_device.idProduct);
+  printf("  bcdDevice           %04x\r\n", desc_device.bcdDevice);
+
+  printf("  iManufacturer       %u\r\n", desc_device.iManufacturer);
+  printf("  iProduct            %u\r\n", desc_device.iProduct);
+  printf("  iSerialNumber       %u\r\n", desc_device.iSerialNumber);
+
+  printf("  bNumConfigurations  %u\r\n", desc_device.bNumConfigurations);
+
+  return true;
 }
 
 // Invoked when device is mounted (configured)
-void tuh_mount_cb (uint8_t dev_addr)
+void tuh_mount_cb (uint8_t daddr)
 {
-  printf("Device attached, address = %d\r\n", dev_addr);
-  print_device_descriptor(dev_addr);
+  printf("Device attached, address = %d\r\n", daddr);
+
+  // get device descriptor
+  tuh_descriptor_get_device(daddr, &desc_device, 18, print_device_descriptor);
 }
 
 /// Invoked when device is unmounted (bus reset/unplugged)
-void tuh_umount_cb(uint8_t dev_addr)
+void tuh_umount_cb(uint8_t daddr)
 {
-  printf("Device removed, address = %d\r\n", dev_addr);
+  printf("Device removed, address = %d\r\n", daddr);
 }
 
 //--------------------------------------------------------------------+
