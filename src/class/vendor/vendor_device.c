@@ -113,7 +113,7 @@ void tud_vendor_n_read_flush (uint8_t itf)
 //--------------------------------------------------------------------+
 // Write API
 //--------------------------------------------------------------------+
-static bool maybe_transmit(vendord_interface_t* p_itf)
+static uint16_t maybe_transmit(vendord_interface_t* p_itf)
 {
   // skip if previous transfer not complete
   TU_VERIFY( !usbd_edpt_busy(TUD_OPT_RHPORT, p_itf->ep_in) );
@@ -123,14 +123,24 @@ static bool maybe_transmit(vendord_interface_t* p_itf)
   {
     TU_ASSERT( usbd_edpt_xfer(TUD_OPT_RHPORT, p_itf->ep_in, p_itf->epin_buf, count) );
   }
-  return true;
+  return count;
 }
 
 uint32_t tud_vendor_n_write (uint8_t itf, void const* buffer, uint32_t bufsize)
 {
   vendord_interface_t* p_itf = &_vendord_itf[itf];
   uint16_t ret = tu_fifo_write_n(&p_itf->tx_ff, buffer, bufsize);
-  maybe_transmit(p_itf);
+  if (tu_fifo_count(&p_itf->tx_ff) >= CFG_TUD_VENDOR_EPSIZE) {
+    maybe_transmit(p_itf);
+  }
+  return ret;
+}
+
+uint32_t tud_vendor_n_flush (uint8_t itf)
+{
+  vendord_interface_t* p_itf = &_vendord_itf[itf];
+  uint32_t ret = maybe_transmit(p_itf);
+
   return ret;
 }
 
@@ -247,6 +257,7 @@ bool vendord_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint
   }
   else if ( ep_addr == p_itf->ep_in )
   {
+    if (tud_vendor_tx_cb) tud_vendor_tx_cb(itf, xferred_bytes);
     // Send complete, try to send more if possible
     maybe_transmit(p_itf);
   }

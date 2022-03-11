@@ -287,28 +287,35 @@ bool hidh_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_interface_t const *de
   hidh_device_t* hid_dev = get_dev(dev_addr);
   TU_ASSERT(hid_dev->inst_count < CFG_TUH_HID, 0);
 
-  //------------- Endpoint Descriptor -------------//
+  hidh_interface_t* hid_itf = get_instance(dev_addr, hid_dev->inst_count);  
+
+  //------------- Endpoint Descriptors -------------//
   p_desc = tu_desc_next(p_desc);
   tusb_desc_endpoint_t const * desc_ep = (tusb_desc_endpoint_t const *) p_desc;
-  TU_ASSERT(TUSB_DESC_ENDPOINT == desc_ep->bDescriptorType);
 
-  // first endpoint may be OUT, skip to IN endpoint
-  // TODO also open endpoint OUT
-  if(tu_edpt_dir(desc_ep->bEndpointAddress) == TUSB_DIR_OUT)
+  for(int i = 0; i < desc_itf->bNumEndpoints; i++)
   {
+    TU_ASSERT(TUSB_DESC_ENDPOINT == desc_ep->bDescriptorType);
+    TU_ASSERT( usbh_edpt_open(rhport, dev_addr, desc_ep) );
+
+    if(tu_edpt_dir(desc_ep->bEndpointAddress) == TUSB_DIR_IN)
+    {
+      hid_itf->ep_in     = desc_ep->bEndpointAddress;
+      hid_itf->epin_size = tu_edpt_packet_size(desc_ep);
+    }
+    else
+    {
+      hid_itf->ep_out     = desc_ep->bEndpointAddress;
+      hid_itf->epout_size = tu_edpt_packet_size(desc_ep);
+    }
+
     p_desc = tu_desc_next(p_desc);
     desc_ep = (tusb_desc_endpoint_t const *) p_desc;
-    TU_ASSERT(TUSB_DESC_ENDPOINT == desc_ep->bDescriptorType);
   }
 
-  TU_ASSERT( usbh_edpt_open(rhport, dev_addr, desc_ep) );
-
-  hidh_interface_t* hid_itf = get_instance(dev_addr, hid_dev->inst_count);
   hid_dev->inst_count++;
 
   hid_itf->itf_num   = desc_itf->bInterfaceNumber;
-  hid_itf->ep_in     = desc_ep->bEndpointAddress;
-  hid_itf->epin_size = tu_edpt_packet_size(desc_ep);
 
   // Assume bNumDescriptors = 1
   hid_itf->report_desc_type = desc_hid->bReportType;
@@ -403,22 +410,7 @@ static bool config_get_report_desc(uint8_t dev_addr, tusb_control_request_t cons
     config_driver_mount_complete(dev_addr, instance, NULL, 0);
   }else
   {
-    TU_LOG2("HID Get Report Descriptor\r\n");
-    tusb_control_request_t const new_request =
-    {
-      .bmRequestType_bit =
-      {
-        .recipient = TUSB_REQ_RCPT_INTERFACE,
-        .type      = TUSB_REQ_TYPE_STANDARD,
-        .direction = TUSB_DIR_IN
-      },
-      .bRequest = TUSB_REQ_GET_DESCRIPTOR,
-      .wValue   = tu_u16(hid_itf->report_desc_type, 0),
-      .wIndex   = itf_num,
-      .wLength  = hid_itf->report_desc_len
-    };
-
-    TU_ASSERT(tuh_control_xfer(dev_addr, &new_request, usbh_get_enum_buf(), config_get_report_desc_complete));
+    TU_ASSERT(tuh_descriptor_get_hid_report(dev_addr, itf_num, hid_itf->report_desc_type, usbh_get_enum_buf(), hid_itf->report_desc_len, config_get_report_desc_complete));
   }
 
   return true;
