@@ -70,9 +70,9 @@ tusb_desc_device_t desc_device;
 
 static volatile xfer_result_t _get_string_result;
 
-static bool _transfer_done_cb(uint8_t daddr, tusb_control_request_t const *request, xfer_result_t result) {
+static bool _transfer_done_cb(uint8_t daddr, tuh_control_xfer_t const *xfer, xfer_result_t result) {
     (void)daddr;
-    (void)request;
+    (void)xfer;
     _get_string_result = result;
     return true;
 }
@@ -130,9 +130,9 @@ static void _wait_and_convert(uint16_t *temp_buf, size_t buf_len) {
     ((uint8_t*) temp_buf)[utf8_len] = '\0';
 }
 
-bool print_device_descriptor(uint8_t daddr, tusb_control_request_t const * request, xfer_result_t result)
+bool print_device_descriptor(uint8_t daddr, tuh_control_xfer_t const * xfer, xfer_result_t result)
 {
-  (void) request;
+  (void) xfer;
 
   if ( XFER_RESULT_SUCCESS != result )
   {
@@ -158,7 +158,7 @@ bool print_device_descriptor(uint8_t daddr, tusb_control_request_t const * reque
 
   printf("  iManufacturer       %u     "     , desc_device.iManufacturer);
   temp_buf[0] = 0;
-  if (tuh_descriptor_get_manufacturer_string(daddr, LANGUAGE_ID, temp_buf, TU_ARRAY_SIZE(temp_buf), _transfer_done_cb)) {
+  if (tuh_descriptor_get_manufacturer_string(daddr, LANGUAGE_ID, temp_buf, TU_ARRAY_SIZE(temp_buf), _transfer_done_cb, 0)) {
     _wait_and_convert(temp_buf, TU_ARRAY_SIZE(temp_buf));
     printf((const char*) temp_buf);
   }
@@ -167,7 +167,7 @@ bool print_device_descriptor(uint8_t daddr, tusb_control_request_t const * reque
   printf("  iProduct            %u     "     , desc_device.iProduct);
   _get_string_result = 0xff;
   temp_buf[0] = 0;
-  if (tuh_descriptor_get_product_string(daddr, LANGUAGE_ID, temp_buf, TU_ARRAY_SIZE(temp_buf), _transfer_done_cb)) {
+  if (tuh_descriptor_get_product_string(daddr, LANGUAGE_ID, temp_buf, TU_ARRAY_SIZE(temp_buf), _transfer_done_cb, 0)) {
     _wait_and_convert(temp_buf, TU_ARRAY_SIZE(temp_buf));
     printf((const char*) temp_buf);
   }
@@ -176,7 +176,7 @@ bool print_device_descriptor(uint8_t daddr, tusb_control_request_t const * reque
   printf("  iSerialNumber       %u     "     , desc_device.iSerialNumber);
   _get_string_result = 0xff;
   temp_buf[0] = 0;
-  if (tuh_descriptor_get_serial_string(daddr, LANGUAGE_ID, temp_buf, TU_ARRAY_SIZE(temp_buf), _transfer_done_cb)) {
+  if (tuh_descriptor_get_serial_string(daddr, LANGUAGE_ID, temp_buf, TU_ARRAY_SIZE(temp_buf), _transfer_done_cb, 0)) {
     _wait_and_convert(temp_buf, TU_ARRAY_SIZE(temp_buf));
     printf((const char*) temp_buf);
   }
@@ -193,7 +193,7 @@ void tuh_mount_cb (uint8_t daddr)
   printf("Device attached, address = %d\r\n", daddr);
 
   // Get Device Descriptor
-  tuh_descriptor_get_device(daddr, &desc_device, 18, print_device_descriptor);
+  tuh_descriptor_get_device(daddr, &desc_device, 18, print_device_descriptor, 0);
 }
 
 /// Invoked when device is unmounted (bus reset/unplugged)

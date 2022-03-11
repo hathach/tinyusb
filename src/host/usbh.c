@@ -111,15 +111,6 @@ typedef struct {
 
 } usbh_device_t;
 
-typedef struct
-{
-  tusb_control_request_t request TU_ATTR_ALIGNED(4);
-  uint8_t* buffer;
-  tuh_control_complete_cb_t complete_cb;
-
-  uint8_t daddr;
-} usbh_control_xfer_t;
-
 //--------------------------------------------------------------------+
 // MACRO CONSTANT TYPEDEF
 //--------------------------------------------------------------------+
@@ -250,7 +241,8 @@ static uint8_t _usbh_ctrl_buf[CFG_TUH_ENUMERATION_BUFSIZE];
 // We will only execute control transfer one at a time.
 struct
 {
-  usbh_control_xfer_t xfer;
+  tuh_control_xfer_t xfer;
+  uint8_t daddr;  // device address that is transferring
   uint8_t stage;
 }_ctrl_xfer;
 
@@ -308,132 +300,165 @@ void osal_task_delay(uint32_t msec)
 // Descriptors
 //--------------------------------------------------------------------+
 
-bool tuh_descriptor_get(uint8_t daddr, uint8_t type, uint8_t index, void* buffer, uint16_t len, tuh_control_complete_cb_t complete_cb)
+bool tuh_descriptor_get(uint8_t daddr, uint8_t type, uint8_t index, void* buffer, uint16_t len,
+                        tuh_control_xfer_cb_t complete_cb, uintptr_t user_arg)
 {
-  tusb_control_request_t const request =
+  tuh_control_xfer_t const xfer =
   {
-    .bmRequestType_bit =
+    .request =
     {
-      .recipient = TUSB_REQ_RCPT_DEVICE,
-      .type      = TUSB_REQ_TYPE_STANDARD,
-      .direction = TUSB_DIR_IN
+      .bmRequestType_bit =
+      {
+        .recipient = TUSB_REQ_RCPT_DEVICE,
+        .type      = TUSB_REQ_TYPE_STANDARD,
+        .direction = TUSB_DIR_IN
+      },
+      .bRequest = TUSB_REQ_GET_DESCRIPTOR,
+      .wValue   = tu_htole16( TU_U16(type, index) ),
+      .wIndex   = 0,
+      .wLength  = tu_htole16(len)
     },
-    .bRequest = TUSB_REQ_GET_DESCRIPTOR,
-    .wValue   = tu_htole16( TU_U16(type, index) ),
-    .wIndex   = 0,
-    .wLength  = tu_htole16(len)
+
+    .buffer      = buffer,
+    .complete_cb = complete_cb,
+    .user_arg    = user_arg
   };
 
-  TU_ASSERT( tuh_control_xfer(daddr, &request, buffer, complete_cb) );
-
-  return true;
+  return tuh_control_xfer(daddr, &xfer);
 }
 
-bool tuh_descriptor_get_device(uint8_t daddr, void* buffer, uint16_t len, tuh_control_complete_cb_t complete_cb)
+bool tuh_descriptor_get_device(uint8_t daddr, void* buffer, uint16_t len,
+                               tuh_control_xfer_cb_t complete_cb, uintptr_t user_arg)
 {
   len = tu_min16(len, sizeof(tusb_desc_device_t));
-  return tuh_descriptor_get(daddr, TUSB_DESC_DEVICE, 0, buffer, len, complete_cb);
+  return tuh_descriptor_get(daddr, TUSB_DESC_DEVICE, 0, buffer, len, complete_cb, user_arg);
 }
 
-bool tuh_descriptor_get_configuration(uint8_t daddr, uint8_t index, void* buffer, uint16_t len, tuh_control_complete_cb_t complete_cb)
+bool tuh_descriptor_get_configuration(uint8_t daddr, uint8_t index, void* buffer, uint16_t len,
+                                      tuh_control_xfer_cb_t complete_cb, uintptr_t user_arg)
 {
-  return tuh_descriptor_get(daddr, TUSB_DESC_CONFIGURATION, index, buffer, len, complete_cb);
+  return tuh_descriptor_get(daddr, TUSB_DESC_CONFIGURATION, index, buffer, len, complete_cb, user_arg);
 }
 
-bool tuh_descriptor_get_string(uint8_t daddr, uint16_t language_id, uint8_t index,
-                               void* buffer, uint16_t len, tuh_control_complete_cb_t complete_cb)
+bool tuh_descriptor_get_string(uint8_t daddr, uint16_t language_id, uint8_t index, void* buffer, uint16_t len,
+                               tuh_control_xfer_cb_t complete_cb, uintptr_t user_arg)
 {
-  tusb_control_request_t const request =
+  tuh_control_xfer_t const xfer =
   {
-    .bmRequestType_bit =
+    .request =
     {
-      .recipient = TUSB_REQ_RCPT_DEVICE,
-      .type      = TUSB_REQ_TYPE_STANDARD,
-      .direction = TUSB_DIR_IN
+      .bmRequestType_bit =
+      {
+        .recipient = TUSB_REQ_RCPT_DEVICE,
+        .type      = TUSB_REQ_TYPE_STANDARD,
+        .direction = TUSB_DIR_IN
+      },
+      .bRequest = TUSB_REQ_GET_DESCRIPTOR,
+      .wValue   = tu_htole16( TU_U16(TUSB_DESC_STRING, index) ),
+      .wIndex   = tu_htole16(language_id),
+      .wLength  = tu_htole16(len)
     },
-    .bRequest = TUSB_REQ_GET_DESCRIPTOR,
-    .wValue   = tu_htole16( TU_U16(TUSB_DESC_STRING, index) ),
-    .wIndex   = tu_htole16(language_id),
-    .wLength  = tu_htole16(len)
+
+    .buffer      = buffer,
+    .complete_cb = complete_cb,
+    .user_arg    = user_arg
   };
 
-  TU_ASSERT( tuh_control_xfer(daddr, &request, buffer, complete_cb) );
-  return true;
+  return tuh_control_xfer(daddr, &xfer);
 }
 
 // Get manufacturer string descriptor
-bool tuh_descriptor_get_manufacturer_string(uint8_t daddr, uint16_t language_id, void* buffer, uint16_t len, tuh_control_complete_cb_t complete_cb)
+bool tuh_descriptor_get_manufacturer_string(uint8_t daddr, uint16_t language_id, void* buffer, uint16_t len,
+                                            tuh_control_xfer_cb_t complete_cb, uintptr_t user_arg)
 {
   TU_VERIFY(tuh_mounted(daddr));
   usbh_device_t const* dev = get_device(daddr);
   if (dev->i_manufacturer == 0) {
     return false;
   }
-  return tuh_descriptor_get_string(daddr, language_id, dev->i_manufacturer, buffer, len, complete_cb);
+  return tuh_descriptor_get_string(daddr, language_id, dev->i_manufacturer, buffer, len, complete_cb, user_arg);
 }
 
 // Get product string descriptor
-bool tuh_descriptor_get_product_string(uint8_t daddr, uint16_t language_id, void* buffer, uint16_t len, tuh_control_complete_cb_t complete_cb)
+bool tuh_descriptor_get_product_string(uint8_t daddr, uint16_t language_id, void* buffer, uint16_t len,
+                                       tuh_control_xfer_cb_t complete_cb, uintptr_t user_arg)
 {
   TU_VERIFY(tuh_mounted(daddr));
   usbh_device_t const* dev = get_device(daddr);
   if (dev->i_product == 0) {
     return false;
   }
-  return tuh_descriptor_get_string(daddr, language_id, dev->i_product, buffer, len, complete_cb);
+  return tuh_descriptor_get_string(daddr, language_id, dev->i_product, buffer, len, complete_cb, user_arg);
 }
 
 // Get serial string descriptor
-bool tuh_descriptor_get_serial_string(uint8_t daddr, uint16_t language_id, void* buffer, uint16_t len, tuh_control_complete_cb_t complete_cb)
+bool tuh_descriptor_get_serial_string(uint8_t daddr, uint16_t language_id, void* buffer, uint16_t len,
+                                      tuh_control_xfer_cb_t complete_cb, uintptr_t user_arg)
 {
   TU_VERIFY(tuh_mounted(daddr));
   usbh_device_t const* dev = get_device(daddr);
   if (dev->i_serial == 0) {
     return false;
   }
-  return tuh_descriptor_get_string(daddr, language_id, dev->i_serial, buffer, len, complete_cb);
+  return tuh_descriptor_get_string(daddr, language_id, dev->i_serial, buffer, len, complete_cb, user_arg);
 }
 
 // Get HID report descriptor
-bool tuh_descriptor_get_hid_report(uint8_t daddr, uint8_t itf_num, uint8_t desc_type, void* buffer, uint16_t len, tuh_control_complete_cb_t complete_cb)
+bool tuh_descriptor_get_hid_report(uint8_t daddr, uint8_t itf_num, uint8_t desc_type, void* buffer, uint16_t len,
+                                   tuh_control_xfer_cb_t complete_cb, uintptr_t user_arg)
 {
   TU_LOG2("HID Get Report Descriptor\r\n");
-  tusb_control_request_t const request =
+  tuh_control_xfer_t const xfer =
   {
-    .bmRequestType_bit =
+    .request =
     {
-      .recipient = TUSB_REQ_RCPT_INTERFACE,
-      .type      = TUSB_REQ_TYPE_STANDARD,
-      .direction = TUSB_DIR_IN
+      .bmRequestType_bit =
+      {
+        .recipient = TUSB_REQ_RCPT_INTERFACE,
+        .type      = TUSB_REQ_TYPE_STANDARD,
+        .direction = TUSB_DIR_IN
+      },
+      .bRequest = TUSB_REQ_GET_DESCRIPTOR,
+      .wValue   = tu_htole16(TU_U16(desc_type, 0)),
+      .wIndex   = itf_num,
+      .wLength  = len
     },
-    .bRequest = TUSB_REQ_GET_DESCRIPTOR,
-    .wValue   = tu_htole16(TU_U16(desc_type, 0)),
-    .wIndex   = itf_num,
-    .wLength  = len
+
+    .buffer      = buffer,
+    .complete_cb = complete_cb,
+    .user_arg    = user_arg
   };
 
-  return tuh_control_xfer(daddr, &request, buffer, complete_cb);
+  return tuh_control_xfer(daddr, &xfer);
 }
 
-bool tuh_configuration_set(uint8_t daddr, uint8_t config_num, tuh_control_complete_cb_t complete_cb)
+bool tuh_configuration_set(uint8_t daddr, uint8_t config_num,
+                           tuh_control_xfer_cb_t complete_cb, uintptr_t user_arg)
 {
   TU_LOG2("Set Configuration = %d\r\n", config_num);
-  tusb_control_request_t const request =
+
+  tuh_control_xfer_t const xfer =
   {
-    .bmRequestType_bit =
+    .request =
     {
-      .recipient = TUSB_REQ_RCPT_DEVICE,
-      .type      = TUSB_REQ_TYPE_STANDARD,
-      .direction = TUSB_DIR_OUT
+      .bmRequestType_bit =
+      {
+        .recipient = TUSB_REQ_RCPT_DEVICE,
+        .type      = TUSB_REQ_TYPE_STANDARD,
+        .direction = TUSB_DIR_OUT
+      },
+      .bRequest = TUSB_REQ_SET_CONFIGURATION,
+      .wValue   = tu_htole16(config_num),
+      .wIndex   = 0,
+      .wLength  = 0
     },
-    .bRequest = TUSB_REQ_SET_CONFIGURATION,
-    .wValue   = tu_htole16(config_num),
-    .wIndex   = 0,
-    .wLength  = 0
+
+    .buffer      = NULL,
+    .complete_cb = complete_cb,
+    .user_arg    = user_arg
   };
 
-  TU_ASSERT( tuh_control_xfer(daddr, &request, NULL, complete_cb) );
-  return true;
+  return tuh_control_xfer(daddr, &xfer);
 }
 
 //--------------------------------------------------------------------+
@@ -460,7 +485,7 @@ bool tuh_init(uint8_t rhport)
   TU_LOG2("USBH init\r\n");
   TU_LOG2_INT(sizeof(usbh_device_t));
   TU_LOG2_INT(sizeof(hcd_event_t));
-  TU_LOG2_INT(sizeof(usbh_control_xfer_t));
+  TU_LOG2_INT(sizeof(tuh_control_xfer_t));
 
   // Event queue
   _usbh_q = osal_queue_create( &_usbh_qdef );
@@ -808,7 +833,7 @@ bool usbh_edpt_busy(uint8_t dev_addr, uint8_t ep_addr)
 // Control transfer
 //--------------------------------------------------------------------+
 
-bool tuh_control_xfer (uint8_t daddr, tusb_control_request_t const* request, void* buffer, tuh_control_complete_cb_t complete_cb)
+bool tuh_control_xfer (uint8_t daddr, tuh_control_xfer_t const* xfer)
 {
   // pre-check to help reducing mutex lock
   TU_VERIFY(_ctrl_xfer.stage == CONTROL_STAGE_IDLE);
@@ -824,16 +849,13 @@ bool tuh_control_xfer (uint8_t daddr, tusb_control_request_t const* request, voi
 
   const uint8_t rhport = usbh_get_rhport(daddr);
 
-  TU_LOG2("[%u:%u] %s: ", rhport, daddr, request->bRequest <= TUSB_REQ_SYNCH_FRAME ? tu_str_std_request[request->bRequest] : "Unknown Request");
-  TU_LOG2_VAR(request);
+  TU_LOG2("[%u:%u] %s: ", rhport, daddr, xfer->request.bRequest <= TUSB_REQ_SYNCH_FRAME ? tu_str_std_request[xfer->request.bRequest] : "Unknown Request");
+  TU_LOG2_VAR(&xfer->request);
   TU_LOG2("\r\n");
 
-  _ctrl_xfer.xfer.request     = (*request);
-  _ctrl_xfer.xfer.buffer      = buffer;
-  _ctrl_xfer.xfer.complete_cb = complete_cb;
-  _ctrl_xfer.xfer.daddr       = daddr;
-
-  return hcd_setup_send(rhport, daddr, (uint8_t const*) &_ctrl_xfer.xfer.request);
+  _ctrl_xfer.daddr = daddr;
+  _ctrl_xfer.xfer = (*xfer);
+  return hcd_setup_send(rhport, daddr, (uint8_t*) &_ctrl_xfer.xfer.request);
 }
 
 TU_ATTR_ALWAYS_INLINE static inline void set_control_xfer_stage(uint8_t stage)
@@ -851,7 +873,12 @@ static void _xfer_complete(uint8_t dev_addr, xfer_result_t result)
   _ctrl_xfer.stage = CONTROL_STAGE_IDLE;
   usbh_unlock();
 
-  if (_ctrl_xfer.xfer.complete_cb) _ctrl_xfer.xfer.complete_cb(dev_addr, &_ctrl_xfer.xfer.request, result);
+  if (_ctrl_xfer.xfer.complete_cb)
+  {
+    // duplicate xfer since user can execute control transfer within callback
+    tuh_control_xfer_t const xfer_temp = _ctrl_xfer.xfer;
+    _ctrl_xfer.xfer.complete_cb(dev_addr, &xfer_temp, result);
+  }
 }
 
 static bool usbh_control_xfer_cb (uint8_t dev_addr, uint8_t ep_addr, xfer_result_t result, uint32_t xferred_bytes)
@@ -939,7 +966,7 @@ static void process_device_unplugged(uint8_t rhport, uint8_t hub_addr, uint8_t h
       hcd_device_close(rhport, dev_addr);
       clear_device(dev);
       // abort on-going control xfer if any
-      if (_ctrl_xfer.xfer.daddr == dev_addr) set_control_xfer_stage(CONTROL_STAGE_IDLE);
+      if (_ctrl_xfer.daddr == dev_addr) set_control_xfer_stage(CONTROL_STAGE_IDLE);
     }
   }
 }
@@ -954,14 +981,14 @@ static void process_device_unplugged(uint8_t rhport, uint8_t hub_addr, uint8_t h
 //--------------------------------------------------------------------+
 
 static bool enum_request_addr0_device_desc(void);
-static bool enum_get_addr0_device_desc_complete (uint8_t dev_addr, tusb_control_request_t const * request, xfer_result_t result);
+static bool enum_get_addr0_device_desc_complete (uint8_t dev_addr, tuh_control_xfer_t const * xfer, xfer_result_t result);
 
 static bool enum_request_set_addr(void);
-static bool enum_set_address_complete           (uint8_t dev_addr, tusb_control_request_t const * request, xfer_result_t result);
-static bool enum_get_device_desc_complete       (uint8_t dev_addr, tusb_control_request_t const * request, xfer_result_t result);
-static bool enum_get_9byte_config_desc_complete (uint8_t dev_addr, tusb_control_request_t const * request, xfer_result_t result);
-static bool enum_get_config_desc_complete       (uint8_t dev_addr, tusb_control_request_t const * request, xfer_result_t result);
-static bool enum_set_config_complete            (uint8_t dev_addr, tusb_control_request_t const * request, xfer_result_t result);
+static bool enum_set_address_complete           (uint8_t dev_addr, tuh_control_xfer_t const * xfer, xfer_result_t result);
+static bool enum_get_device_desc_complete       (uint8_t dev_addr, tuh_control_xfer_t const * xfer, xfer_result_t result);
+static bool enum_get_9byte_config_desc_complete (uint8_t dev_addr, tuh_control_xfer_t const * xfer, xfer_result_t result);
+static bool enum_get_config_desc_complete       (uint8_t dev_addr, tuh_control_xfer_t const * xfer, xfer_result_t result);
+static bool enum_set_config_complete            (uint8_t dev_addr, tuh_control_xfer_t const * xfer, xfer_result_t result);
 static bool parse_configuration_descriptor      (uint8_t dev_addr, tusb_desc_configuration_t const* desc_cfg);
 
 static uint8_t get_new_address(bool is_hub);
@@ -973,15 +1000,15 @@ static void enum_full_complete(void);
 // New device (reset on the way) -> Get Status 0 -> Clear Reset 0 -> Get 8byte Device Descriptor
 //   -> Port Reset 1 -> reset delay -> Get Status 1 -> Clear Reset 1 -> queue hub interrupt endpoint
 
-static bool enum_hub_get_status0_complete(uint8_t dev_addr, tusb_control_request_t const * request, xfer_result_t result);
-static bool enum_hub_clear_reset0_complete(uint8_t dev_addr, tusb_control_request_t const * request, xfer_result_t result);
-static bool enum_hub_set_reset1_complete(uint8_t dev_addr, tusb_control_request_t const * request, xfer_result_t result);
-static bool enum_hub_get_status1_complete(uint8_t dev_addr, tusb_control_request_t const * request, xfer_result_t result);
-static bool enum_hub_clear_reset1_complete(uint8_t dev_addr, tusb_control_request_t const * request, xfer_result_t result);
+static bool enum_hub_get_status0_complete  (uint8_t dev_addr, tuh_control_xfer_t const * xfer, xfer_result_t result);
+static bool enum_hub_clear_reset0_complete (uint8_t dev_addr, tuh_control_xfer_t const * xfer, xfer_result_t result);
+static bool enum_hub_set_reset1_complete   (uint8_t dev_addr, tuh_control_xfer_t const * xfer, xfer_result_t result);
+static bool enum_hub_get_status1_complete  (uint8_t dev_addr, tuh_control_xfer_t const * xfer, xfer_result_t result);
+static bool enum_hub_clear_reset1_complete (uint8_t dev_addr, tuh_control_xfer_t const * xfer, xfer_result_t result);
 
-static bool enum_hub_get_status0_complete(uint8_t dev_addr, tusb_control_request_t const * request, xfer_result_t result)
+static bool enum_hub_get_status0_complete(uint8_t dev_addr, tuh_control_xfer_t const * xfer, xfer_result_t result)
 {
-  (void) dev_addr; (void) request;
+  (void) dev_addr; (void) xfer;
   TU_ASSERT(XFER_RESULT_SUCCESS == result);
 
   hub_port_status_response_t port_status;
@@ -1006,17 +1033,17 @@ static bool enum_hub_get_status0_complete(uint8_t dev_addr, tusb_control_request
   return true;
 }
 
-static bool enum_hub_clear_reset0_complete(uint8_t dev_addr, tusb_control_request_t const * request, xfer_result_t result)
+static bool enum_hub_clear_reset0_complete(uint8_t dev_addr, tuh_control_xfer_t const * xfer, xfer_result_t result)
 {
-  (void) dev_addr; (void) request;
+  (void) dev_addr; (void) xfer;
   TU_ASSERT(XFER_RESULT_SUCCESS == result);
   enum_request_addr0_device_desc();
   return true;
 }
 
-static bool enum_hub_set_reset1_complete(uint8_t dev_addr, tusb_control_request_t const * request, xfer_result_t result)
+static bool enum_hub_set_reset1_complete(uint8_t dev_addr, tuh_control_xfer_t const * xfer, xfer_result_t result)
 {
-  (void) dev_addr; (void) request;
+  (void) dev_addr; (void) xfer;
   TU_ASSERT(XFER_RESULT_SUCCESS == result);
 
   osal_task_delay(RESET_DELAY);
@@ -1026,9 +1053,9 @@ static bool enum_hub_set_reset1_complete(uint8_t dev_addr, tusb_control_request_
   return true;
 }
 
-static bool enum_hub_get_status1_complete(uint8_t dev_addr, tusb_control_request_t const * request, xfer_result_t result)
+static bool enum_hub_get_status1_complete(uint8_t dev_addr, tuh_control_xfer_t const * xfer, xfer_result_t result)
 {
-  (void) dev_addr; (void) request;
+  (void) dev_addr; (void) xfer;
   TU_ASSERT(XFER_RESULT_SUCCESS == result);
 
   hub_port_status_response_t port_status;
@@ -1043,9 +1070,9 @@ static bool enum_hub_get_status1_complete(uint8_t dev_addr, tusb_control_request
   return true;
 }
 
-static bool enum_hub_clear_reset1_complete(uint8_t dev_addr, tusb_control_request_t const * request, xfer_result_t result)
+static bool enum_hub_clear_reset1_complete(uint8_t dev_addr, tuh_control_xfer_t const * xfer, xfer_result_t result)
 {
-  (void) dev_addr; (void) request;
+  (void) dev_addr; (void) xfer;
   TU_ASSERT(XFER_RESULT_SUCCESS == result);
 
   enum_request_set_addr();
@@ -1096,14 +1123,14 @@ static bool enum_request_addr0_device_desc(void)
 
   // Get first 8 bytes of device descriptor for Control Endpoint size
   TU_LOG2("Get 8 byte of Device Descriptor\r\n");
-  TU_ASSERT(tuh_descriptor_get_device(addr0, _usbh_ctrl_buf, 8, enum_get_addr0_device_desc_complete));
+  TU_ASSERT(tuh_descriptor_get_device(addr0, _usbh_ctrl_buf, 8, enum_get_addr0_device_desc_complete, 0));
   return true;
 }
 
 // After Get Device Descriptor of Address 0
-static bool enum_get_addr0_device_desc_complete(uint8_t dev_addr, tusb_control_request_t const * request, xfer_result_t result)
+static bool enum_get_addr0_device_desc_complete(uint8_t dev_addr, tuh_control_xfer_t const * xfer, xfer_result_t result)
 {
-  (void) request;
+  (void) xfer;
   TU_ASSERT(0 == dev_addr);
 
   if (XFER_RESULT_SUCCESS != result)
@@ -1157,33 +1184,40 @@ static bool enum_request_set_addr(void)
   new_dev->connected = 1;
   new_dev->ep0_size  = desc_device->bMaxPacketSize0;
 
-  tusb_control_request_t const new_request =
+  tuh_control_xfer_t const xfer =
   {
-    .bmRequestType_bit =
+    .request =
     {
-      .recipient = TUSB_REQ_RCPT_DEVICE,
-      .type      = TUSB_REQ_TYPE_STANDARD,
-      .direction = TUSB_DIR_OUT
+      .bmRequestType_bit =
+      {
+        .recipient = TUSB_REQ_RCPT_DEVICE,
+        .type      = TUSB_REQ_TYPE_STANDARD,
+        .direction = TUSB_DIR_OUT
+      },
+      .bRequest = TUSB_REQ_SET_ADDRESS,
+      .wValue   = tu_htole16(new_addr),
+      .wIndex   = 0,
+      .wLength  = 0
     },
-    .bRequest = TUSB_REQ_SET_ADDRESS,
-    .wValue   = tu_htole16(new_addr),
-    .wIndex   = 0,
-    .wLength  = 0
+
+    .buffer      = NULL,
+    .complete_cb = enum_set_address_complete,
+    .user_arg    = 0
   };
 
   uint8_t const addr0 = 0;
-  TU_ASSERT( tuh_control_xfer(addr0, &new_request, NULL, enum_set_address_complete) );
+  TU_ASSERT( tuh_control_xfer(addr0, &xfer) );
 
   return true;
 }
 
 // After SET_ADDRESS is complete
-static bool enum_set_address_complete(uint8_t dev_addr, tusb_control_request_t const * request, xfer_result_t result)
+static bool enum_set_address_complete(uint8_t dev_addr, tuh_control_xfer_t const * xfer, xfer_result_t result)
 {
   TU_ASSERT(0 == dev_addr);
   TU_ASSERT(XFER_RESULT_SUCCESS == result);
 
-  uint8_t const new_addr = (uint8_t const) request->wValue;
+  uint8_t const new_addr = (uint8_t const) xfer->request.wValue;
 
   usbh_device_t* new_dev = get_device(new_addr);
   new_dev->addressed = 1;
@@ -1197,13 +1231,13 @@ static bool enum_set_address_complete(uint8_t dev_addr, tusb_control_request_t c
   // Get full device descriptor
   TU_LOG2("Get Device Descriptor\r\n");
 
-  TU_ASSERT(tuh_descriptor_get_device(new_addr, _usbh_ctrl_buf, sizeof(tusb_desc_device_t), enum_get_device_desc_complete));
+  TU_ASSERT(tuh_descriptor_get_device(new_addr, _usbh_ctrl_buf, sizeof(tusb_desc_device_t), enum_get_device_desc_complete, 0));
   return true;
 }
 
-static bool enum_get_device_desc_complete(uint8_t dev_addr, tusb_control_request_t const * request, xfer_result_t result)
+static bool enum_get_device_desc_complete(uint8_t dev_addr, tuh_control_xfer_t const * xfer, xfer_result_t result)
 {
-  (void) request;
+  (void) xfer;
   TU_ASSERT(XFER_RESULT_SUCCESS == result);
 
   tusb_desc_device_t const * desc_device = (tusb_desc_device_t const*) _usbh_ctrl_buf;
@@ -1220,13 +1254,13 @@ static bool enum_get_device_desc_complete(uint8_t dev_addr, tusb_control_request
   // Get 9-byte for total length
   uint8_t const config_idx = CONFIG_NUM - 1;
   TU_LOG2("Get Configuration[0] Descriptor (9 bytes)\r\n");
-  TU_ASSERT( tuh_descriptor_get_configuration(dev_addr, config_idx, _usbh_ctrl_buf, 9, enum_get_9byte_config_desc_complete) );
+  TU_ASSERT( tuh_descriptor_get_configuration(dev_addr, config_idx, _usbh_ctrl_buf, 9, enum_get_9byte_config_desc_complete, 0) );
   return true;
 }
 
-static bool enum_get_9byte_config_desc_complete(uint8_t dev_addr, tusb_control_request_t const * request, xfer_result_t result)
+static bool enum_get_9byte_config_desc_complete(uint8_t dev_addr, tuh_control_xfer_t const * xfer, xfer_result_t result)
 {
-  (void) request;
+  (void) xfer;
   TU_ASSERT(XFER_RESULT_SUCCESS == result);
 
   // TODO not enough buffer to hold configuration descriptor
@@ -1240,26 +1274,26 @@ static bool enum_get_9byte_config_desc_complete(uint8_t dev_addr, tusb_control_r
   // Get full configuration descriptor
   uint8_t const config_idx = CONFIG_NUM - 1;
   TU_LOG2("Get Configuration[0] Descriptor\r\n");
-  TU_ASSERT( tuh_descriptor_get_configuration(dev_addr, config_idx, _usbh_ctrl_buf, total_len, enum_get_config_desc_complete) );
+  TU_ASSERT( tuh_descriptor_get_configuration(dev_addr, config_idx, _usbh_ctrl_buf, total_len, enum_get_config_desc_complete, 0) );
   return true;
 }
 
-static bool enum_get_config_desc_complete(uint8_t dev_addr, tusb_control_request_t const * request, xfer_result_t result)
+static bool enum_get_config_desc_complete(uint8_t dev_addr, tuh_control_xfer_t const * xfer, xfer_result_t result)
 {
-  (void) request;
+  (void) xfer;
   TU_ASSERT(XFER_RESULT_SUCCESS == result);
 
   // Parse configuration & set up drivers
   // Driver open aren't allowed to make any usb transfer yet
   TU_ASSERT( parse_configuration_descriptor(dev_addr, (tusb_desc_configuration_t*) _usbh_ctrl_buf) );
 
-  TU_ASSERT( tuh_configuration_set(dev_addr, CONFIG_NUM, enum_set_config_complete) );
+  TU_ASSERT( tuh_configuration_set(dev_addr, CONFIG_NUM, enum_set_config_complete, 0) );
   return true;
 }
 
-static bool enum_set_config_complete(uint8_t dev_addr, tusb_control_request_t const * request, xfer_result_t result)
+static bool enum_set_config_complete(uint8_t dev_addr, tuh_control_xfer_t const * xfer, xfer_result_t result)
 {
-  (void) request;
+  (void) xfer;
   TU_ASSERT(XFER_RESULT_SUCCESS == result);
 
   TU_LOG2("Device configured\r\n");

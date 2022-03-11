@@ -38,7 +38,19 @@
 // MACRO CONSTANT TYPEDEF
 //--------------------------------------------------------------------+
 
-typedef bool (*tuh_control_complete_cb_t)(uint8_t daddr, tusb_control_request_t const * request, xfer_result_t result);
+// forward declaration
+struct tuh_control_xfer_s;
+typedef struct tuh_control_xfer_s tuh_control_xfer_t;
+
+typedef bool (*tuh_control_xfer_cb_t)(uint8_t daddr, tuh_control_xfer_t const * xfer, xfer_result_t result);
+
+struct tuh_control_xfer_s
+{
+  tusb_control_request_t request TU_ATTR_ALIGNED(4);
+  uint8_t* buffer;
+  tuh_control_xfer_cb_t complete_cb;
+  uintptr_t user_arg;
+};
 
 //--------------------------------------------------------------------+
 // APPLICATION API
@@ -81,40 +93,54 @@ static inline bool tuh_ready(uint8_t daddr)
 }
 
 // Carry out a control transfer
-// true on success, false if there is on-going control trasnfer
-bool tuh_control_xfer (uint8_t daddr, tusb_control_request_t const* request, void* buffer, tuh_control_complete_cb_t complete_cb);
+// true on success, false if there is on-going control transfer
+// Note: function is blocking if complete callback is NULL
+bool tuh_control_xfer (uint8_t daddr, tuh_control_xfer_t const* xfer);
+
+// Carry out a control transfer
+// true on success, false if there is on-going control transfer
+// Note: function is blocking if complete callback is NULL
+//bool tuh_control_xfer (uint8_t daddr, tusb_control_request_t const* request, void* buffer,
+//                       tuh_control_xfer_cb_t complete_cb, uintptr_t user_arg);
 
 // Set Configuration
 // config_num = 0 will un-configure device. Note: config_num = config_descriptor_index + 1
-bool tuh_configuration_set(uint8_t daddr, uint8_t config_num, tuh_control_complete_cb_t complete_cb);
+bool tuh_configuration_set(uint8_t daddr, uint8_t config_num,
+                           tuh_control_xfer_cb_t complete_cb, uintptr_t user_arg);
 
 //------------- descriptors -------------//
 
 // Get an descriptor
-bool tuh_descriptor_get(uint8_t daddr, uint8_t type, uint8_t index,
-                        void* buffer, uint16_t len, tuh_control_complete_cb_t complete_cb);
+bool tuh_descriptor_get(uint8_t daddr, uint8_t type, uint8_t index, void* buffer, uint16_t len,
+                        tuh_control_xfer_cb_t complete_cb, uintptr_t user_arg);
 
 // Get device descriptor
-bool tuh_descriptor_get_device(uint8_t daddr, void* buffer, uint16_t len, tuh_control_complete_cb_t complete_cb);
+bool tuh_descriptor_get_device(uint8_t daddr, void* buffer, uint16_t len,
+                               tuh_control_xfer_cb_t complete_cb, uintptr_t user_arg);
 
 // Get configuration descriptor
-bool tuh_descriptor_get_configuration(uint8_t daddr, uint8_t index, void* buffer, uint16_t len, tuh_control_complete_cb_t complete_cb);
-
-// Get string descriptor
-bool tuh_descriptor_get_string(uint8_t daddr, uint16_t language_id, uint8_t index,
-                               void* buffer, uint16_t len, tuh_control_complete_cb_t complete_cb);
-
-// Get manufacturer string descriptor
-bool tuh_descriptor_get_manufacturer_string(uint8_t daddr, uint16_t language_id, void* buffer, uint16_t len, tuh_control_complete_cb_t complete_cb);
-
-// Get product string descriptor
-bool tuh_descriptor_get_product_string(uint8_t daddr, uint16_t language_id, void* buffer, uint16_t len, tuh_control_complete_cb_t complete_cb);
-
-// Get serial string descriptor
-bool tuh_descriptor_get_serial_string(uint8_t daddr, uint16_t language_id, void* buffer, uint16_t len, tuh_control_complete_cb_t complete_cb);
+bool tuh_descriptor_get_configuration(uint8_t daddr, uint8_t index, void* buffer, uint16_t len,
+                                      tuh_control_xfer_cb_t complete_cb, uintptr_t user_arg);
 
 // Get HID report descriptor
-bool tuh_descriptor_get_hid_report(uint8_t daddr, uint8_t itf_num, uint8_t desc_type, void* buffer, uint16_t len, tuh_control_complete_cb_t complete_cb);
+bool tuh_descriptor_get_hid_report(uint8_t daddr, uint8_t itf_num, uint8_t desc_type, void* buffer, uint16_t len,
+                                   tuh_control_xfer_cb_t complete_cb, uintptr_t user_arg);
+
+// Get string descriptor
+bool tuh_descriptor_get_string(uint8_t daddr, uint16_t language_id, uint8_t index, void* buffer, uint16_t len,
+                               tuh_control_xfer_cb_t complete_cb, uintptr_t user_arg);
+
+// Get manufacturer string descriptor
+bool tuh_descriptor_get_manufacturer_string(uint8_t daddr, uint16_t language_id, void* buffer, uint16_t len,
+                                            tuh_control_xfer_cb_t complete_cb, uintptr_t user_arg);
+
+// Get product string descriptor
+bool tuh_descriptor_get_product_string(uint8_t daddr, uint16_t language_id, void* buffer, uint16_t len,
+                                       tuh_control_xfer_cb_t complete_cb, uintptr_t user_arg);
+
+// Get serial string descriptor
+bool tuh_descriptor_get_serial_string(uint8_t daddr, uint16_t language_id, void* buffer, uint16_t len,
+                                      tuh_control_xfer_cb_t complete_cb, uintptr_t user_arg);
 
 //--------------------------------------------------------------------+
 // APPLICATION CALLBACK

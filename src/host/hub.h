@@ -171,11 +171,11 @@ typedef struct {
 
 TU_VERIFY_STATIC( sizeof(hub_port_status_response_t) == 4, "size is not correct");
 
-bool hub_port_clear_feature(uint8_t hub_addr, uint8_t hub_port, uint8_t feature, tuh_control_complete_cb_t complete_cb);
-bool hub_port_set_feature(uint8_t hub_addr, uint8_t hub_port, uint8_t feature, tuh_control_complete_cb_t complete_cb);
+bool hub_port_clear_feature(uint8_t hub_addr, uint8_t hub_port, uint8_t feature, tuh_control_xfer_cb_t complete_cb);
+bool hub_port_set_feature(uint8_t hub_addr, uint8_t hub_port, uint8_t feature, tuh_control_xfer_cb_t complete_cb);
 
-bool hub_port_reset(uint8_t hub_addr, uint8_t hub_port, tuh_control_complete_cb_t complete_cb);
-bool hub_port_get_status(uint8_t hub_addr, uint8_t hub_port, void* resp, tuh_control_complete_cb_t complete_cb);
+bool hub_port_reset(uint8_t hub_addr, uint8_t hub_port, tuh_control_xfer_cb_t complete_cb);
+bool hub_port_get_status(uint8_t hub_addr, uint8_t hub_port, void* resp, tuh_control_xfer_cb_t complete_cb);
 bool hub_edpt_status_xfer(uint8_t dev_addr);
 
 //--------------------------------------------------------------------+
