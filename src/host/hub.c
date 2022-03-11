@@ -54,7 +54,7 @@ static inline hub_interface_t* get_itf(uint8_t dev_addr)
   return &hub_data[dev_addr-1-CFG_TUH_DEVICE_MAX];
 }
 
-#if CFG_TUSB_DEBUG
+#if CFG_TUSB_DEBUG >= 2
 static char const* const _hub_feature_str[] =
 {
   [HUB_FEATURE_PORT_CONNECTION          ] = "PORT_CONNECTION",
@@ -189,7 +189,7 @@ void hub_close(uint8_t dev_addr)
   if (p_hub->ep_in) tu_memclr(p_hub, sizeof( hub_interface_t));
 }
 
-bool hub_status_pipe_queue(uint8_t dev_addr)
+bool hub_edpt_status_xfer(uint8_t dev_addr)
 {
   hub_interface_t* hub_itf = get_itf(dev_addr);
   return usbh_edpt_xfer(dev_addr, hub_itf->ep_in, &hub_itf->status_change, 1);
@@ -324,7 +324,7 @@ static bool connection_get_status_complete (uint8_t dev_addr, tusb_control_reque
 
     // prepare for next hub status
     // TODO continue with status_change, or maybe we can do it again with status
-    hub_status_pipe_queue(dev_addr);
+    hub_edpt_status_xfer(dev_addr);
   }
 
   return true;

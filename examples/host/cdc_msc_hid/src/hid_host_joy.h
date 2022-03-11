@@ -37,7 +37,6 @@
 #define _TUSB_HID_HOST_JOY_H_
 
 #include "tusb.h"
-#include "host/hcd.h"
 #include "class/hid/hid_rip.h"
 
 #ifdef __cplusplus

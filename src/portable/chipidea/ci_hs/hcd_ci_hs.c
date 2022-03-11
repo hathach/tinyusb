@@ -35,6 +35,7 @@
 // INCLUDE
 //--------------------------------------------------------------------+
 #include "common/tusb_common.h"
+#include "host/hcd.h"
 #include "portable/ehci/ehci_api.h"
 #include "ci_hs_type.h"
 

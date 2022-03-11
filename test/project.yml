@@ -36,7 +36,7 @@
     - -:test/support
   :source:
     - ../src/**
-    - ../examples/**
+    - ../examples/host/cdc_msc_hid/*
   :support:
     - test/support
 
