@@ -19,7 +19,6 @@ SRC_C += \
 	src/class/msc/msc_host.c \
 	src/host/hub.c \
 	src/host/usbh.c \
-	src/host/usbh_control.c \
 	src/portable/ohci/ohci.c \
 	src/portable/nxp/lpc17_40/hcd_lpc17_40.c
 
