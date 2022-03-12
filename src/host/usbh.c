@@ -1011,8 +1011,7 @@ static bool process_enumeration(uint8_t dev_addr, tuh_control_xfer_t const * xfe
     return false;
   }
 
-  uint32_t const state = (uint32_t) xfer->user_arg;
-
+  uintptr_t const state = xfer->user_arg;
   switch(state)
   {
 #if CFG_TUH_HUB
