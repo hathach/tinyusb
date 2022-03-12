@@ -1090,8 +1090,8 @@ static bool process_enumeration(uint8_t dev_addr, tuh_control_xfer_t const * xfe
         TU_ASSERT( hub_port_reset(_dev0.hub_addr, _dev0.hub_port, process_enumeration, ENUM_HUB_GET_STATUS_2) );
         break;
       }
-      __attribute__((fallthrough));
       #endif
+      __attribute__((fallthrough));
 
     case ENUM_SET_ADDR:
       enum_request_set_addr();
