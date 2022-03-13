@@ -243,7 +243,7 @@ struct
 {
   tuh_control_xfer_t xfer;
   uint8_t daddr;  // device address that is transferring
-  uint8_t stage;
+  volatile uint8_t stage;
 }_ctrl_xfer;
 
 //------------- Helper Function -------------//
@@ -300,8 +300,8 @@ void osal_task_delay(uint32_t msec)
 // Descriptors
 //--------------------------------------------------------------------+
 
-bool tuh_descriptor_get(uint8_t daddr, uint8_t type, uint8_t index, void* buffer, uint16_t len,
-                        tuh_control_xfer_cb_t complete_cb, uintptr_t user_arg)
+static bool _get_descriptor(uint8_t daddr, uint8_t type, uint8_t index, uint16_t language_id, void* buffer, uint16_t len,
+                            tuh_control_xfer_cb_t complete_cb, uintptr_t user_arg)
 {
   tuh_control_xfer_t const xfer =
   {
@@ -315,7 +315,7 @@ bool tuh_descriptor_get(uint8_t daddr, uint8_t type, uint8_t index, void* buffer
       },
       .bRequest = TUSB_REQ_GET_DESCRIPTOR,
       .wValue   = tu_htole16( TU_U16(type, index) ),
-      .wIndex   = 0,
+      .wIndex   = tu_htole16(language_id),
       .wLength  = tu_htole16(len)
     },
 
@@ -325,6 +325,12 @@ bool tuh_descriptor_get(uint8_t daddr, uint8_t type, uint8_t index, void* buffer
   };
 
   return tuh_control_xfer(daddr, &xfer);
+}
+
+bool tuh_descriptor_get(uint8_t daddr, uint8_t type, uint8_t index, void* buffer, uint16_t len,
+                        tuh_control_xfer_cb_t complete_cb, uintptr_t user_arg)
+{
+  return _get_descriptor(daddr, type, index, 0x0000, buffer, len, complete_cb, user_arg);
 }
 
 bool tuh_descriptor_get_device(uint8_t daddr, void* buffer, uint16_t len,
@@ -340,31 +346,12 @@ bool tuh_descriptor_get_configuration(uint8_t daddr, uint8_t index, void* buffer
   return tuh_descriptor_get(daddr, TUSB_DESC_CONFIGURATION, index, buffer, len, complete_cb, user_arg);
 }
 
-bool tuh_descriptor_get_string(uint8_t daddr, uint16_t language_id, uint8_t index, void* buffer, uint16_t len,
+//------------- String Descriptor -------------//
+
+bool tuh_descriptor_get_string(uint8_t daddr, uint8_t index, uint16_t language_id, void* buffer, uint16_t len,
                                tuh_control_xfer_cb_t complete_cb, uintptr_t user_arg)
 {
-  tuh_control_xfer_t const xfer =
-  {
-    .request =
-    {
-      .bmRequestType_bit =
-      {
-        .recipient = TUSB_REQ_RCPT_DEVICE,
-        .type      = TUSB_REQ_TYPE_STANDARD,
-        .direction = TUSB_DIR_IN
-      },
-      .bRequest = TUSB_REQ_GET_DESCRIPTOR,
-      .wValue   = tu_htole16( TU_U16(TUSB_DESC_STRING, index) ),
-      .wIndex   = tu_htole16(language_id),
-      .wLength  = tu_htole16(len)
-    },
-
-    .buffer      = buffer,
-    .complete_cb = complete_cb,
-    .user_arg    = user_arg
-  };
-
-  return tuh_control_xfer(daddr, &xfer);
+  return _get_descriptor(daddr, TUSB_DESC_STRING, index, language_id, buffer, len, complete_cb, user_arg);
 }
 
 // Get manufacturer string descriptor
@@ -376,7 +363,7 @@ bool tuh_descriptor_get_manufacturer_string(uint8_t daddr, uint16_t language_id,
   if (dev->i_manufacturer == 0) {
     return false;
   }
-  return tuh_descriptor_get_string(daddr, language_id, dev->i_manufacturer, buffer, len, complete_cb, user_arg);
+  return tuh_descriptor_get_string(daddr, dev->i_manufacturer, language_id, buffer, len, complete_cb, user_arg);
 }
 
 // Get product string descriptor
@@ -388,7 +375,7 @@ bool tuh_descriptor_get_product_string(uint8_t daddr, uint16_t language_id, void
   if (dev->i_product == 0) {
     return false;
   }
-  return tuh_descriptor_get_string(daddr, language_id, dev->i_product, buffer, len, complete_cb, user_arg);
+  return tuh_descriptor_get_string(daddr, dev->i_product, language_id, buffer, len, complete_cb, user_arg);
 }
 
 // Get serial string descriptor
@@ -400,11 +387,11 @@ bool tuh_descriptor_get_serial_string(uint8_t daddr, uint16_t language_id, void*
   if (dev->i_serial == 0) {
     return false;
   }
-  return tuh_descriptor_get_string(daddr, language_id, dev->i_serial, buffer, len, complete_cb, user_arg);
+  return tuh_descriptor_get_string(daddr, dev->i_serial, language_id, buffer, len, complete_cb, user_arg);
 }
 
 // Get HID report descriptor
-bool tuh_descriptor_get_hid_report(uint8_t daddr, uint8_t itf_num, uint8_t desc_type, void* buffer, uint16_t len,
+bool tuh_descriptor_get_hid_report(uint8_t daddr, uint8_t itf_num, uint8_t desc_type, uint8_t index, void* buffer, uint16_t len,
                                    tuh_control_xfer_cb_t complete_cb, uintptr_t user_arg)
 {
   TU_LOG2("HID Get Report Descriptor\r\n");
@@ -419,8 +406,8 @@ bool tuh_descriptor_get_hid_report(uint8_t daddr, uint8_t itf_num, uint8_t desc_
         .direction = TUSB_DIR_IN
       },
       .bRequest = TUSB_REQ_GET_DESCRIPTOR,
-      .wValue   = tu_htole16(TU_U16(desc_type, 0)),
-      .wIndex   = itf_num,
+      .wValue   = tu_htole16(TU_U16(desc_type, index)),
+      .wIndex   = tu_htole16((uint16_t) itf_num),
       .wLength  = len
     },
 
@@ -459,6 +446,58 @@ bool tuh_configuration_set(uint8_t daddr, uint8_t config_num,
   };
 
   return tuh_control_xfer(daddr, &xfer);
+}
+
+//--------------------------------------------------------------------+
+// Asynchronous
+//--------------------------------------------------------------------+
+
+#define _CONTROL_SYNC_API(_async_func, _timeout, ...) \
+  (void) _timeout; \
+  xfer_result_t result = XFER_RESULT_INVALID;\
+  /* TODO use timeout to wait */ \
+  TU_VERIFY(_async_func(__VA_ARGS__, NULL, (uintptr_t) &result), XFER_RESULT_TIMEOUT); \
+  return (uint8_t) result
+
+uint8_t tuh_descriptor_get_sync(uint8_t daddr, uint8_t type, uint8_t index, void* buffer, uint16_t len, uint8_t timeout_ms)
+{
+  _CONTROL_SYNC_API(tuh_descriptor_get, timeout_ms, daddr, type, index, buffer, len);
+}
+
+uint8_t tuh_descriptor_get_device_sync(uint8_t daddr, void* buffer, uint16_t len, uint8_t timeout_ms)
+{
+  len = tu_min16(len, sizeof(tusb_desc_device_t));
+  return tuh_descriptor_get_sync(daddr, TUSB_DESC_DEVICE, 0, buffer, len, timeout_ms);
+}
+
+uint8_t tuh_descriptor_get_configuration_sync(uint8_t daddr, uint8_t index, void* buffer, uint16_t len, uint8_t timeout_ms)
+{
+  return tuh_descriptor_get_sync(daddr, TUSB_DESC_CONFIGURATION, index, buffer, len, timeout_ms);
+}
+
+uint8_t tuh_descriptor_get_hid_report_sync(uint8_t daddr, uint8_t itf_num, uint8_t desc_type, uint8_t index, void* buffer, uint16_t len, uint8_t timeout_ms)
+{
+  _CONTROL_SYNC_API(tuh_descriptor_get_hid_report, timeout_ms, daddr, itf_num, desc_type, index, buffer, len);
+}
+
+uint8_t tuh_descriptor_get_string_sync(uint8_t daddr, uint8_t index, uint16_t language_id, void* buffer, uint16_t len, uint8_t timeout_ms)
+{
+  _CONTROL_SYNC_API(tuh_descriptor_get_string, timeout_ms, daddr, index, language_id, buffer, len);
+}
+
+uint8_t tuh_descriptor_get_manufacturer_string_sync(uint8_t daddr, uint16_t language_id, void* buffer, uint16_t len, uint8_t timeout_ms)
+{
+  _CONTROL_SYNC_API(tuh_descriptor_get_manufacturer_string, timeout_ms, daddr, language_id, buffer, len);
+}
+
+uint8_t tuh_descriptor_get_product_string_sync(uint8_t daddr, uint16_t language_id, void* buffer, uint16_t len, uint8_t timeout_ms)
+{
+  _CONTROL_SYNC_API(tuh_descriptor_get_product_string, timeout_ms, daddr, language_id, buffer, len);
+}
+
+uint8_t tuh_descriptor_get_serial_string_sync(uint8_t daddr, uint16_t language_id, void* buffer, uint16_t len, uint8_t timeout_ms)
+{
+  _CONTROL_SYNC_API(tuh_descriptor_get_serial_string, timeout_ms, daddr, language_id, buffer, len);
 }
 
 //--------------------------------------------------------------------+
@@ -833,11 +872,22 @@ bool usbh_edpt_busy(uint8_t dev_addr, uint8_t ep_addr)
 // Control transfer
 //--------------------------------------------------------------------+
 
+static bool _control_blocking_complete_cb(uint8_t daddr, tuh_control_xfer_t const * xfer, xfer_result_t result)
+{
+  (void) daddr;
+
+  // update result
+  *((xfer_result_t*) xfer->user_arg) = result;
+
+  return true;
+}
+
 bool tuh_control_xfer (uint8_t daddr, tuh_control_xfer_t const* xfer)
 {
   // pre-check to help reducing mutex lock
   TU_VERIFY(_ctrl_xfer.stage == CONTROL_STAGE_IDLE);
 
+  // TODO probably better to use semaphore as resource management than mutex
   usbh_lock();
 
   bool const is_idle = (_ctrl_xfer.stage == CONTROL_STAGE_IDLE);
@@ -855,7 +905,52 @@ bool tuh_control_xfer (uint8_t daddr, tuh_control_xfer_t const* xfer)
 
   _ctrl_xfer.daddr = daddr;
   _ctrl_xfer.xfer = (*xfer);
-  return hcd_setup_send(rhport, daddr, (uint8_t*) &_ctrl_xfer.xfer.request);
+
+  if (xfer->complete_cb)
+  {
+    TU_ASSERT( hcd_setup_send(rhport, daddr, (uint8_t*) &_ctrl_xfer.xfer.request) );
+  }else
+  {
+    // user_arg must point to xfer_result_t to hold result
+    TU_VERIFY(xfer->user_arg);
+
+    // blocking if complete callback is not provided
+    // change callback to internal blocking, and result as user argument
+    volatile xfer_result_t* result = (volatile xfer_result_t*) xfer->user_arg;
+
+    _ctrl_xfer.xfer.complete_cb = _control_blocking_complete_cb;
+    *result = XFER_RESULT_INVALID;
+
+    TU_ASSERT( hcd_setup_send(rhport, daddr, (uint8_t*) &_ctrl_xfer.xfer.request) );
+
+    while ((*result) == XFER_RESULT_INVALID)
+    {
+      // only need to call task if not preempted RTOS
+      #if CFG_TUSB_OS == OPT_OS_NONE || CFG_TUSB_OS == OPT_OS_PICO
+      tuh_task();
+      #endif
+
+      // TODO probably some timeout to prevent hanged
+    }
+  }
+
+  return true;
+}
+
+uint8_t tuh_control_xfer_sync(uint8_t daddr, tuh_control_xfer_t const* xfer, uint32_t timeout_ms)
+{
+  (void) timeout_ms;
+
+  xfer_result_t result = XFER_RESULT_INVALID;
+  tuh_control_xfer_t xfer_sync = (*xfer);
+
+  xfer_sync.complete_cb = NULL;
+  xfer_sync.user_arg = (uintptr_t) &result;
+
+  // TODO use timeout to wait
+  TU_VERIFY(tuh_control_xfer(daddr, &xfer_sync), XFER_RESULT_TIMEOUT);
+
+  return result;
 }
 
 TU_ATTR_ALWAYS_INLINE static inline void set_control_xfer_stage(uint8_t stage)
@@ -869,15 +964,16 @@ static void _xfer_complete(uint8_t dev_addr, xfer_result_t result)
 {
   TU_LOG2("\r\n");
 
+  // duplicate xfer since user can execute control transfer within callback
+  tuh_control_xfer_t const xfer_temp = _ctrl_xfer.xfer;
+
   usbh_lock();
   _ctrl_xfer.stage = CONTROL_STAGE_IDLE;
   usbh_unlock();
 
-  if (_ctrl_xfer.xfer.complete_cb)
+  if (xfer_temp.complete_cb)
   {
-    // duplicate xfer since user can execute control transfer within callback
-    tuh_control_xfer_t const xfer_temp = _ctrl_xfer.xfer;
-    _ctrl_xfer.xfer.complete_cb(dev_addr, &xfer_temp, result);
+    xfer_temp.complete_cb(dev_addr, &xfer_temp, result);
   }
 }
 
