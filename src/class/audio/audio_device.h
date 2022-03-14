@@ -191,6 +191,11 @@
 #define CFG_TUD_AUDIO_ENABLE_FEEDBACK_FORMAT_CORRECTION     0                             // 0 or 1
 #endif
 
+// Determine feedback value within SOF ISR within audio driver - if disabled the user has to call tud_audio_n_fb_set() with a suitable feedback value on its own. If done within audio driver SOF ISR, tud_audio_n_fb_set() is disabled for user
+#ifndef CFG_TUD_AUDIO_ENABLE_FEEDBACK_DETERMINATION_WITHIN_SOF_ISR
+#define CFG_TUD_AUDIO_ENABLE_FEEDBACK_DETERMINATION_WITHIN_SOF_ISR    1                             // 0 or 1
+#endif
+
 // Audio interrupt control EP size - disabled if 0
 #ifndef CFG_TUD_AUDIO_INT_CTR_EPSIZE_IN
 #define CFG_TUD_AUDIO_INT_CTR_EPSIZE_IN                     0                             // Audio interrupt control - if required - 6 Bytes according to UAC 2 specification (p. 74)
@@ -468,8 +473,23 @@ TU_ATTR_WEAK bool tud_audio_fb_done_cb(uint8_t rhport);
 //
 // Note that due to a bug in its USB Audio 2.0 driver, Windows currently requires 16.16 format for _all_ USB 2.0 devices. On Linux and macOS it seems the 
 // driver can work with either format. So a good compromise is to keep format correction disabled and stick to 16.16 format.
+
+// Feedback value can be determined from within the SOF ISR of the audio driver. This should reduce jitter. If the feature is used, the user can not set the feedback value.
+# if !CFG_TUD_AUDIO_ENABLE_FEEDBACK_DETERMINATION_WITHIN_SOF_ISR
 bool tud_audio_n_fb_set(uint8_t func_id, uint32_t feedback);
 static inline bool tud_audio_fb_set(uint32_t feedback);
+# else
+
+// This callback function is called once the feedback value needs to be updated within the SOF ISR in the audio class. To determine the feedback value, some
+// parameters need to be given. The user must implement this callback function and provide the current cycle count of the master clock.
+// The feedback endpoint number can be used to identify the correct audio function in case multiple audio functions were defined.
+TU_ATTR_WEAK uint32_t tud_audio_n_get_fm_n_cycles_cb(uint8_t rhport, uint8_t ep_fb);
+
+// f_m : Main clock frequency in Hz i.e. master clock to which sample clock is locked
+// f_s : Current sample rate in Hz
+bool tud_audio_set_feedback_params_fm_fs(uint8_t func_id, uint32_t f_m, uint32_t f_s);
+#endif
+
 #endif
 
 #if CFG_TUD_AUDIO_INT_CTR_EPSIZE_IN
@@ -611,7 +631,7 @@ static inline uint16_t tud_audio_int_ctr_write(uint8_t const* buffer, uint16_t l
 }
 #endif
 
-#if CFG_TUD_AUDIO_ENABLE_EP_OUT && CFG_TUD_AUDIO_ENABLE_FEEDBACK_EP
+#if CFG_TUD_AUDIO_ENABLE_EP_OUT && CFG_TUD_AUDIO_ENABLE_FEEDBACK_EP && !CFG_TUD_AUDIO_ENABLE_FEEDBACK_DETERMINATION_WITHIN_SOF_ISR
 static inline bool tud_audio_fb_set(uint32_t feedback)
 {
   return tud_audio_n_fb_set(0, feedback);
@@ -626,6 +646,7 @@ void     audiod_reset          (uint8_t rhport);
 uint16_t audiod_open           (uint8_t rhport, tusb_desc_interface_t const * itf_desc, uint16_t max_len);
 bool     audiod_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request_t const * request);
 bool     audiod_xfer_cb        (uint8_t rhport, uint8_t edpt_addr, xfer_result_t result, uint32_t xferred_bytes);
+void     audiod_sof            (uint8_t rhport, uint32_t frame_count);
 
 #ifdef __cplusplus
 }

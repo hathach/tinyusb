@@ -139,7 +139,7 @@ static usbd_class_driver_t const _usbd_driver[] =
     .open             = audiod_open,
     .control_xfer_cb  = audiod_control_xfer_cb,
     .xfer_cb          = audiod_xfer_cb,
-    .sof              = NULL
+    .sof              = audiod_sof
   },
   #endif
 
@@ -612,7 +612,7 @@ void tud_task (void)
         for ( uint8_t i = 0; i < TOTAL_DRIVER_COUNT; i++ )
         {
           usbd_class_driver_t const * driver = get_driver(i);
-          if ( driver->sof ) driver->sof(event.rhport);
+          if ( driver->sof ) driver->sof(event.rhport, event.sof.frame_count);
         }
       break;
 
@@ -1131,7 +1131,18 @@ void dcd_event_handler(dcd_event_t const * event, bool in_isr)
     break;
 
     case DCD_EVENT_SOF:
-      // SOF Handler
+      // SOF driver handler in ISR context
+      for (uint8_t i = 0; i < TOTAL_DRIVER_COUNT; i++)
+      {
+        usbd_class_driver_t const * driver = get_driver(i);
+        if (driver->sof)
+        {
+          driver->sof(event->rhport, event->sof.frame_count);
+          // TU_LOG2("%s sof\r\n", driver->name); // too demanding
+        }
+      }
+
+      // SOF user handler in ISR context
       if (_sof_isr) _sof_isr(event->sof.frame_count);
 
       // Some MCUs after running dcd_remote_wakeup() does not have way to detect the end of remote wakeup
@@ -1439,6 +1450,11 @@ void usbd_edpt_close(uint8_t rhport, uint8_t ep_addr)
   _usbd_dev.ep_status[epnum][dir].claimed = false;
 
   return;
+}
+
+void usbd_sof_enable(uint8_t rhport, bool en)
+{
+  dcd_sof_enable(rhport, en);
 }
 
 #endif

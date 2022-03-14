@@ -306,6 +306,13 @@ typedef struct
 
 #if CFG_TUD_AUDIO_ENABLE_FEEDBACK_EP
   uint32_t fb_val;                                                              // Feedback value for asynchronous mode (in 16.16 format).
+
+#if CFG_TUD_AUDIO_ENABLE_FEEDBACK_DETERMINATION_WITHIN_SOF_ISR
+  uint8_t n_frames;                                                            // Number of (micro)frames used to estimate feedback value
+  uint8_t n_frames_current;                                                    // Current (micro)frame number
+  uint32_t feeback_param_factor;                                               // TODO: Set this value within some new tud_audio_set_feedback_params_fm_fs function as feeback_param_factor = f_s / (f_cpu * n_frames)!
+#endif
+
 #endif
 #endif
 
@@ -419,6 +426,10 @@ static inline uint8_t tu_desc_subtype(void const* desc)
 {
   return ((uint8_t const*) desc)[2];
 }
+#endif
+
+#if CFG_TUD_AUDIO_ENABLE_FEEDBACK_DETERMINATION_WITHIN_SOF_ISR
+static bool tud_audio_n_fb_set(uint8_t func_id, uint32_t feedback);
 #endif
 
 bool tud_audio_n_mounted(uint8_t func_id)
@@ -1658,6 +1669,11 @@ static bool audiod_set_interface(uint8_t rhport, tusb_control_request_t const * 
           {
             audio->ep_fb = ep_addr;
 
+#if CFG_TUD_AUDIO_ENABLE_FEEDBACK_DETERMINATION_WITHIN_SOF_ISR
+            usbd_sof_enable(rhport, true);       // Enable SOF interrupt
+            audio->n_frames_current = 0;
+#endif
+
             // Invoke callback after ep_out is set
             if (audio->ep_out != 0)
             {
@@ -1681,6 +1697,23 @@ static bool audiod_set_interface(uint8_t rhport, tusb_control_request_t const * 
     // Moving forward
     p_desc = tu_desc_next(p_desc);
   }
+
+  // Disable SOF interrupt if no driver has any enabled feedback EP
+#if CFG_TUD_AUDIO_ENABLE_EP_OUT && CFG_TUD_AUDIO_ENABLE_FEEDBACK_EP && CFG_TUD_AUDIO_ENABLE_FEEDBACK_DETERMINATION_WITHIN_SOF_ISR
+
+  bool disable = true;
+
+  for(uint8_t i=0; i < CFG_TUD_AUDIO; i++)
+    {
+      if (_audiod_fct[i].ep_fb != 0)
+      {
+        disable = false;
+      }
+    }
+
+  if (disable) usbd_sof_enable(rhport, false);
+
+#endif
 
   tud_control_status(rhport, p_request);
 
@@ -1970,6 +2003,52 @@ bool audiod_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint3
   return false;
 }
 
+#if CFG_TUD_AUDIO_ENABLE_EP_OUT && CFG_TUD_AUDIO_ENABLE_FEEDBACK_EP && CFG_TUD_AUDIO_ENABLE_FEEDBACK_DETERMINATION_WITHIN_SOF_ISR
+bool tud_audio_set_feedback_params_fm_fs(uint8_t func_id, uint32_t f_m, uint32_t f_s)
+{
+  audiod_function_t* audio = &_audiod_fct[func_id];
+  uint8_t n_frame = 1;    // TODO: finalize that
+  audio->n_frames = n_frame;
+  audio->feeback_param_factor = f_s / f_m / n_frame;    // TODO: Check the 16.16 precision!
+  return true;
+}
+#endif
+
+void audiod_sof (uint8_t rhport, uint32_t frame_count)
+{
+  (void) rhport;
+  (void) frame_count;
+
+#if CFG_TUD_AUDIO_ENABLE_EP_OUT && CFG_TUD_AUDIO_ENABLE_FEEDBACK_EP && CFG_TUD_AUDIO_ENABLE_FEEDBACK_DETERMINATION_WITHIN_SOF_ISR
+
+  // Determine feedback value - The feedback method is described in 5.12.4.2 of the USB 2.0 spec
+  // Boiled down, the feedback value Ff = n_samples / (micro)frame.
+  // Since an accuracy of less than 1 Sample / second is desired, at least n_frames = ceil(2^K * f_s / f_cpu) frames need to be measured, where K = 10 for full speed and K = 13 for high speed, f_s is the sampling frequency e.g. 48 kHz and f_cpu is the cpu clock frequency e.g. 100 MHz (or any other master clock whose clock count is available and locked to f_s)
+  // The update interval in the (4.10.2.1) Feedback Endpoint Descriptor must be less or equal to 2^(K - P), where P = min( ceil(log2(f_cpu / f_s)), K)
+  // Ff = n_cycles / n_frames * f_s / f_cpu in 16.16 format, where n_cycles are the number of CPU cycles within n_frames
+
+  // Iterate over audio functions and set feedback value
+  for(uint8_t i=0; i < CFG_TUD_AUDIO; i++)
+    {
+      audiod_function_t* audio = &_audiod_fct[i];
+
+      if (audio->ep_fb != 0)
+      {
+        audio->n_frames_current++;
+        if (audio->n_frames_current == audio->n_frames)
+        {
+          uint32_t n_cylces = tud_audio_n_get_fm_n_cycles_cb(rhport, audio->ep_fb);
+          uint32_t feedback = n_cylces * audio->feeback_param_factor;
+
+          tud_audio_n_fb_set(i, feedback);
+          audio->n_frames_current = 0;
+        }
+      }
+    }
+
+#endif
+}
+
 bool tud_audio_buffer_and_schedule_control_xfer(uint8_t rhport, tusb_control_request_t const * p_request, void* data, uint16_t len)
 {
   // Handles only sending of data not receiving
@@ -2247,7 +2326,11 @@ static void audiod_parse_for_AS_params(audiod_function_t* audio, uint8_t const *
 
 #if CFG_TUD_AUDIO_ENABLE_FEEDBACK_EP
 
+#if CFG_TUD_AUDIO_ENABLE_FEEDBACK_DETERMINATION_WITHIN_SOF_ISR
+static bool tud_audio_n_fb_set(uint8_t func_id, uint32_t feedback)
+#else
 bool tud_audio_n_fb_set(uint8_t func_id, uint32_t feedback)
+#endif
 {
   TU_VERIFY(func_id < CFG_TUD_AUDIO && _audiod_fct[func_id].p_desc != NULL);
 
