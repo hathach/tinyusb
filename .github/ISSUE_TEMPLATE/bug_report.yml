@@ -60,11 +60,12 @@ body:
 
   - type: textarea
     attributes:
-      label: Debug Log
+      label: Debug Log as txt file
       placeholder: |
-        TinyUSB debug log where the issue occurred as attached txt file, best with comments to explain the actual events.
-
-        Note: To enable logging, add `LOG=3` to to the make command if building with stock examples or set `CFG_TUSB_DEBUG=3` in your tusb_config.h. 
+        Attach your debug log txt file here, where the issue occurred, best with comments to explain the actual events.
+        
+        Note1: Please DO NOT paste your lengthy log contents here since it hurts the readibility.
+        Note2: To enable logging, add `LOG=3` to to the make command if building with stock examples or set `CFG_TUSB_DEBUG=3` in your tusb_config.h. 
         More information can be found at [example's readme](https://github.com/hathach/tinyusb/blob/master/docs/getting_started.md)
     validations:
       required: false
