@@ -83,7 +83,6 @@ if (NOT TARGET _rp2040_family_inclusion_marker)
 			${TOP}/src/portable/raspberrypi/rp2040/hcd_rp2040.c
 			${TOP}/src/portable/raspberrypi/rp2040/rp2040_usb.c
 			${TOP}/src/host/usbh.c
-			${TOP}/src/host/usbh_control.c
 			${TOP}/src/host/hub.c
 			${TOP}/src/class/cdc/cdc_host.c
 			${TOP}/src/class/hid/hid_host.c
