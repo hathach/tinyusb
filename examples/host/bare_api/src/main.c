@@ -66,16 +66,8 @@ int main(void)
 #define LANGUAGE_ID 0x0409
 
 //uint8_t usb_buf[256] TU_ATTR_ALIGNED(4);
+TU_ATTR_ALIGNED(4)
 tusb_desc_device_t desc_device;
-
-static volatile xfer_result_t _get_string_result;
-
-static bool _transfer_done_cb(uint8_t daddr, tusb_control_request_t const *request, xfer_result_t result) {
-    (void)daddr;
-    (void)request;
-    _get_string_result = result;
-    return true;
-}
 
 static void _convert_utf16le_to_utf8(const uint16_t *utf16, size_t utf16_len, uint8_t *utf8, size_t utf8_len) {
     // TODO: Check for runover.
@@ -116,23 +108,16 @@ static int _count_utf8_bytes(const uint16_t *buf, size_t len) {
     return total_bytes;
 }
 
-static void _wait_and_convert(uint16_t *temp_buf, size_t buf_len) {
-    while (_get_string_result == 0xff) {
-        tuh_task();
-    }
-    if (_get_string_result != XFER_RESULT_SUCCESS) {
-        temp_buf[0] = 0;
-        return;
-    }
+static void utf16_to_utf8(uint16_t *temp_buf, size_t buf_len) {
     size_t utf16_len = ((temp_buf[0] & 0xff) - 2) / sizeof(uint16_t);
     size_t utf8_len = _count_utf8_bytes(temp_buf + 1, utf16_len);
     _convert_utf16le_to_utf8(temp_buf + 1, utf16_len, (uint8_t *) temp_buf, sizeof(uint16_t) * buf_len);
     ((uint8_t*) temp_buf)[utf8_len] = '\0';
 }
 
-bool print_device_descriptor(uint8_t daddr, tusb_control_request_t const * request, xfer_result_t result)
+bool print_device_descriptor(uint8_t daddr, tuh_control_xfer_t const * xfer, xfer_result_t result)
 {
-  (void) request;
+  (void) xfer;
 
   if ( XFER_RESULT_SUCCESS != result )
   {
@@ -153,31 +138,29 @@ bool print_device_descriptor(uint8_t daddr, tusb_control_request_t const * reque
   printf("  idProduct           0x%04x\r\n" , desc_device.idProduct);
   printf("  bcdDevice           %04x\r\n"   , desc_device.bcdDevice);
 
-  _get_string_result = 0xff;
+  uint32_t timeout_ms = 10;
   uint16_t temp_buf[128];
 
   printf("  iManufacturer       %u     "     , desc_device.iManufacturer);
-  temp_buf[0] = 0;
-  if (tuh_descriptor_get_manufacturer_string(daddr, LANGUAGE_ID, temp_buf, TU_ARRAY_SIZE(temp_buf), _transfer_done_cb)) {
-    _wait_and_convert(temp_buf, TU_ARRAY_SIZE(temp_buf));
+  if (XFER_RESULT_SUCCESS == tuh_descriptor_get_manufacturer_string_sync(daddr, LANGUAGE_ID, temp_buf, TU_ARRAY_SIZE(temp_buf), timeout_ms) )
+  {
+    utf16_to_utf8(temp_buf, TU_ARRAY_SIZE(temp_buf));
     printf((const char*) temp_buf);
   }
   printf("\r\n");
 
   printf("  iProduct            %u     "     , desc_device.iProduct);
-  _get_string_result = 0xff;
-  temp_buf[0] = 0;
-  if (tuh_descriptor_get_product_string(daddr, LANGUAGE_ID, temp_buf, TU_ARRAY_SIZE(temp_buf), _transfer_done_cb)) {
-    _wait_and_convert(temp_buf, TU_ARRAY_SIZE(temp_buf));
+  if (XFER_RESULT_SUCCESS == tuh_descriptor_get_product_string_sync(daddr, LANGUAGE_ID, temp_buf, TU_ARRAY_SIZE(temp_buf), timeout_ms))
+  {
+    utf16_to_utf8(temp_buf, TU_ARRAY_SIZE(temp_buf));
     printf((const char*) temp_buf);
   }
   printf("\r\n");
 
   printf("  iSerialNumber       %u     "     , desc_device.iSerialNumber);
-  _get_string_result = 0xff;
-  temp_buf[0] = 0;
-  if (tuh_descriptor_get_serial_string(daddr, LANGUAGE_ID, temp_buf, TU_ARRAY_SIZE(temp_buf), _transfer_done_cb)) {
-    _wait_and_convert(temp_buf, TU_ARRAY_SIZE(temp_buf));
+  if (XFER_RESULT_SUCCESS == tuh_descriptor_get_serial_string_sync(daddr, LANGUAGE_ID, temp_buf, TU_ARRAY_SIZE(temp_buf), timeout_ms))
+  {
+    utf16_to_utf8(temp_buf, TU_ARRAY_SIZE(temp_buf));
     printf((const char*) temp_buf);
   }
   printf("\r\n");
@@ -192,8 +175,8 @@ void tuh_mount_cb (uint8_t daddr)
 {
   printf("Device attached, address = %d\r\n", daddr);
 
-  // Get Device Descriptor
-  tuh_descriptor_get_device(daddr, &desc_device, 18, print_device_descriptor);
+  // Get Device Descriptor using asynchronous API
+  tuh_descriptor_get_device(daddr, &desc_device, 18, print_device_descriptor, 0);
 }
 
 /// Invoked when device is unmounted (bus reset/unplugged)
