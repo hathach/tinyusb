@@ -310,6 +310,7 @@ typedef struct
 #if CFG_TUD_AUDIO_ENABLE_FEEDBACK_DETERMINATION_WITHIN_SOF_ISR
   uint8_t n_frames;                                                            // Number of (micro)frames used to estimate feedback value
   uint8_t n_frames_current;                                                    // Current (micro)frame number
+  uint32_t n_cycles_old;                                                       // Old cycle count
   uint32_t feeback_param_factor_N;                                             // Numerator of feedback parameter coefficient
   uint32_t feeback_param_factor_D;                                             // Denominator of feedback parameter coefficient
 #endif
@@ -1673,6 +1674,7 @@ static bool audiod_set_interface(uint8_t rhport, tusb_control_request_t const * 
 #if CFG_TUD_AUDIO_ENABLE_FEEDBACK_DETERMINATION_WITHIN_SOF_ISR
             usbd_sof_enable(rhport, true);       // Enable SOF interrupt
             audio->n_frames_current = 0;
+            audio->n_cycles_old = 0;
 #endif
 
             // Invoke callback after ep_out is set
@@ -2043,10 +2045,11 @@ void audiod_sof (uint8_t rhport, uint32_t frame_count)
         if (audio->n_frames_current == audio->n_frames)
         {
           uint32_t n_cylces = tud_audio_n_get_fm_n_cycles_cb(rhport, audio->ep_fb);
-          uint32_t feedback = (n_cylces << 3) * audio->feeback_param_factor_N / audio->feeback_param_factor_D;          // feeback_param_factor_N has scaling factor of 13 bits, n_cycles 3 and feeback_param_factor_D 1, hence 16.16 precision
+          uint32_t feedback = ((n_cylces - audio->n_cycles_old) << 3) * audio->feeback_param_factor_N / audio->feeback_param_factor_D;          // feeback_param_factor_N has scaling factor of 13 bits, n_cycles 3 and feeback_param_factor_D 1, hence 16.16 precision
 
           tud_audio_n_fb_set(i, feedback);
           audio->n_frames_current = 0;
+          audio->n_cycles_old = n_cylces;
         }
       }
     }
