@@ -310,7 +310,8 @@ typedef struct
 #if CFG_TUD_AUDIO_ENABLE_FEEDBACK_DETERMINATION_WITHIN_SOF_ISR
   uint8_t n_frames;                                                            // Number of (micro)frames used to estimate feedback value
   uint8_t n_frames_current;                                                    // Current (micro)frame number
-  uint32_t feeback_param_factor;                                               // TODO: Set this value within some new tud_audio_set_feedback_params_fm_fs function as feeback_param_factor = f_s / (f_cpu * n_frames)!
+  uint32_t feeback_param_factor_N;                                             // Numerator of feedback parameter coefficient
+  uint32_t feeback_param_factor_D;                                             // Denominator of feedback parameter coefficient
 #endif
 
 #endif
@@ -2004,12 +2005,16 @@ bool audiod_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint3
 }
 
 #if CFG_TUD_AUDIO_ENABLE_EP_OUT && CFG_TUD_AUDIO_ENABLE_FEEDBACK_EP && CFG_TUD_AUDIO_ENABLE_FEEDBACK_DETERMINATION_WITHIN_SOF_ISR
+// f_s max is 2^19-1 = 524287 Hz
+// n_frames_min is ceil(2^10 * f_s / f_m) for full speed and ceil(2^13 * f_s / f_m) for high speed
+// f_m max is 2^29/(1 ms * n_frames) for full speed and 2^29/(125 us * n_frames) for high speed
 bool tud_audio_set_feedback_params_fm_fs(uint8_t func_id, uint32_t f_m, uint32_t f_s)
 {
   audiod_function_t* audio = &_audiod_fct[func_id];
   uint8_t n_frame = 1;    // TODO: finalize that
   audio->n_frames = n_frame;
-  audio->feeback_param_factor = f_s / f_m / n_frame;    // TODO: Check the 16.16 precision!
+  audio->feeback_param_factor_N = f_s << 13;
+  audio->feeback_param_factor_D = f_m * n_frame;
   return true;
 }
 #endif
@@ -2023,7 +2028,7 @@ void audiod_sof (uint8_t rhport, uint32_t frame_count)
 
   // Determine feedback value - The feedback method is described in 5.12.4.2 of the USB 2.0 spec
   // Boiled down, the feedback value Ff = n_samples / (micro)frame.
-  // Since an accuracy of less than 1 Sample / second is desired, at least n_frames = ceil(2^K * f_s / f_cpu) frames need to be measured, where K = 10 for full speed and K = 13 for high speed, f_s is the sampling frequency e.g. 48 kHz and f_cpu is the cpu clock frequency e.g. 100 MHz (or any other master clock whose clock count is available and locked to f_s)
+  // Since an accuracy of less than 1 Sample / second is desired, at least n_frames = ceil(2^K * f_s / f_m) frames need to be measured, where K = 10 for full speed and K = 13 for high speed, f_s is the sampling frequency e.g. 48 kHz and f_cpu is the cpu clock frequency e.g. 100 MHz (or any other master clock whose clock count is available and locked to f_s)
   // The update interval in the (4.10.2.1) Feedback Endpoint Descriptor must be less or equal to 2^(K - P), where P = min( ceil(log2(f_cpu / f_s)), K)
   // Ff = n_cycles / n_frames * f_s / f_cpu in 16.16 format, where n_cycles are the number of CPU cycles within n_frames
 
@@ -2038,7 +2043,7 @@ void audiod_sof (uint8_t rhport, uint32_t frame_count)
         if (audio->n_frames_current == audio->n_frames)
         {
           uint32_t n_cylces = tud_audio_n_get_fm_n_cycles_cb(rhport, audio->ep_fb);
-          uint32_t feedback = n_cylces * audio->feeback_param_factor;
+          uint32_t feedback = (n_cylces << 3) * audio->feeback_param_factor_N / audio->feeback_param_factor_D;          // feeback_param_factor_N has scaling factor of 13 bits, n_cycles 3 and feeback_param_factor_D 1, hence 16.16 precision
 
           tud_audio_n_fb_set(i, feedback);
           audio->n_frames_current = 0;
