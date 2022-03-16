@@ -430,7 +430,7 @@ static inline uint8_t tu_desc_subtype(void const* desc)
 }
 #endif
 
-#if CFG_TUD_AUDIO_ENABLE_FEEDBACK_DETERMINATION_WITHIN_SOF_ISR
+#if CFG_TUD_AUDIO_ENABLE_EP_OUT && CFG_TUD_AUDIO_ENABLE_FEEDBACK_EP && CFG_TUD_AUDIO_ENABLE_FEEDBACK_DETERMINATION_WITHIN_SOF_ISR
 static bool tud_audio_n_fb_set(uint8_t func_id, uint32_t feedback);
 #endif
 
