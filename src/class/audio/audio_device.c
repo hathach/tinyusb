@@ -2047,6 +2047,8 @@ void audiod_sof (uint8_t rhport, uint32_t frame_count)
           uint32_t n_cylces = tud_audio_n_get_fm_n_cycles_cb(rhport, audio->ep_fb);
           uint32_t feedback = ((n_cylces - audio->n_cycles_old) << 3) * audio->feeback_param_factor_N / audio->feeback_param_factor_D;          // feeback_param_factor_N has scaling factor of 13 bits, n_cycles 3 and feeback_param_factor_D 1, hence 16.16 precision
 
+          // TODO: Implement fast computation in case n_frames * f_s / f_m is a power of two
+
           tud_audio_n_fb_set(i, feedback);
           audio->n_frames_current = 0;
           audio->n_cycles_old = n_cylces;

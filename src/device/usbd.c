@@ -587,11 +587,12 @@ void tud_task (void)
 
       case DCD_EVENT_SOF:
         TU_LOG2("\r\n");
-        for ( uint8_t i = 0; i < TOTAL_DRIVER_COUNT; i++ )
-        {
-          usbd_class_driver_t const * driver = get_driver(i);
-          if ( driver->sof ) driver->sof(event.rhport, event.sof.frame_count);
-        }
+        // TODO: Should this really be done here in the queue? How to distinguish the calls here from those SOF events which should be handled directly in the ISR routine? If we do it like this, the SOF routines get called two time right now, once in the ISR context and once again here
+//        for ( uint8_t i = 0; i < TOTAL_DRIVER_COUNT; i++ )
+//        {
+//          usbd_class_driver_t const * driver = get_driver(i);
+//          if ( driver->sof ) driver->sof(event.rhport, event.sof.frame_count);
+//        }
       break;
 
       case USBD_EVENT_FUNC_CALL:
@@ -1410,6 +1411,7 @@ void usbd_edpt_close(uint8_t rhport, uint8_t ep_addr)
 
 void usbd_sof_enable(uint8_t rhport, bool en)
 {
+  // TODO: Check needed if all drivers including the user sof_cb does not need an active SOF ISR any more. Only if all drivers switched off SOF calls the SOF interrupt may be disabled
   dcd_sof_enable(rhport, en);
 }
 
