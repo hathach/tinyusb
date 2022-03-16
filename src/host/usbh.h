@@ -201,6 +201,10 @@ uint8_t tuh_descriptor_get_product_string_sync(uint8_t daddr, uint16_t language_
 // return transfer result
 uint8_t tuh_descriptor_get_serial_string_sync(uint8_t daddr, uint16_t language_id, void* buffer, uint16_t len, uint8_t timeout_ms);
 
+//--------------------------------------------------------------------+
+//
+//--------------------------------------------------------------------+
+
 #ifdef __cplusplus
  }
 #endif

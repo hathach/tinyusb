@@ -251,7 +251,7 @@ struct
 TU_ATTR_ALWAYS_INLINE
 static inline usbh_device_t* get_device(uint8_t dev_addr)
 {
-  TU_ASSERT(dev_addr, NULL);
+  TU_VERIFY(dev_addr > 0 && dev_addr <= TOTAL_DEVICES, NULL);
   return &_usbh_devices[dev_addr-1];
 }
 
@@ -265,15 +265,15 @@ static bool usbh_control_xfer_cb (uint8_t daddr, uint8_t ep_addr, xfer_result_t 
 //--------------------------------------------------------------------+
 bool tuh_mounted(uint8_t dev_addr)
 {
-  return get_device(dev_addr)->configured;
+  usbh_device_t* dev = get_device(dev_addr);
+  TU_VERIFY(dev);
+  return dev->configured;
 }
 
 bool tuh_vid_pid_get(uint8_t dev_addr, uint16_t* vid, uint16_t* pid)
 {
-  *vid = *pid = 0;
-
-  TU_VERIFY(tuh_mounted(dev_addr));
   usbh_device_t const* dev = get_device(dev_addr);
+  TU_VERIFY(dev && dev->configured);
 
   *vid = dev->vid;
   *pid = dev->pid;
@@ -283,7 +283,8 @@ bool tuh_vid_pid_get(uint8_t dev_addr, uint16_t* vid, uint16_t* pid)
 
 tusb_speed_t tuh_speed_get (uint8_t dev_addr)
 {
-  return (tusb_speed_t) (dev_addr ? get_device(dev_addr)->speed : _dev0.speed);
+  usbh_device_t* dev = get_device(dev_addr);
+  return (tusb_speed_t) (dev ? get_device(dev_addr)->speed : _dev0.speed);
 }
 
 #if CFG_TUSB_OS == OPT_OS_NONE
@@ -358,11 +359,8 @@ bool tuh_descriptor_get_string(uint8_t daddr, uint8_t index, uint16_t language_i
 bool tuh_descriptor_get_manufacturer_string(uint8_t daddr, uint16_t language_id, void* buffer, uint16_t len,
                                             tuh_control_xfer_cb_t complete_cb, uintptr_t user_arg)
 {
-  TU_VERIFY(tuh_mounted(daddr));
   usbh_device_t const* dev = get_device(daddr);
-  if (dev->i_manufacturer == 0) {
-    return false;
-  }
+  TU_VERIFY(dev && dev->i_manufacturer);
   return tuh_descriptor_get_string(daddr, dev->i_manufacturer, language_id, buffer, len, complete_cb, user_arg);
 }
 
@@ -370,11 +368,8 @@ bool tuh_descriptor_get_manufacturer_string(uint8_t daddr, uint16_t language_id,
 bool tuh_descriptor_get_product_string(uint8_t daddr, uint16_t language_id, void* buffer, uint16_t len,
                                        tuh_control_xfer_cb_t complete_cb, uintptr_t user_arg)
 {
-  TU_VERIFY(tuh_mounted(daddr));
   usbh_device_t const* dev = get_device(daddr);
-  if (dev->i_product == 0) {
-    return false;
-  }
+  TU_VERIFY(dev && dev->i_product);
   return tuh_descriptor_get_string(daddr, dev->i_product, language_id, buffer, len, complete_cb, user_arg);
 }
 
@@ -382,11 +377,8 @@ bool tuh_descriptor_get_product_string(uint8_t daddr, uint16_t language_id, void
 bool tuh_descriptor_get_serial_string(uint8_t daddr, uint16_t language_id, void* buffer, uint16_t len,
                                       tuh_control_xfer_cb_t complete_cb, uintptr_t user_arg)
 {
-  TU_VERIFY(tuh_mounted(daddr));
   usbh_device_t const* dev = get_device(daddr);
-  if (dev->i_serial == 0) {
-    return false;
-  }
+  TU_VERIFY(dev && dev->i_serial);
   return tuh_descriptor_get_string(daddr, dev->i_serial, language_id, buffer, len, complete_cb, user_arg);
 }
 
@@ -629,6 +621,8 @@ void tuh_task(void)
         else
         {
           usbh_device_t* dev = get_device(event.dev_addr);
+          TU_ASSERT(dev, );
+
           dev->ep_status[epnum][ep_dir].busy    = 0;
           dev->ep_status[epnum][ep_dir].claimed = 0;
 
@@ -662,7 +656,8 @@ void tuh_task(void)
 
 uint8_t usbh_get_rhport(uint8_t dev_addr)
 {
-  return (dev_addr == 0) ? _dev0.rhport : get_device(dev_addr)->rhport;
+  usbh_device_t* dev = get_device(dev_addr);
+  return dev ? dev->rhport : _dev0.rhport;
 }
 
 uint8_t* usbh_get_enum_buf(void)
@@ -688,10 +683,10 @@ void usbh_int_set(bool enabled)
 
 void hcd_devtree_get_info(uint8_t dev_addr, hcd_devtree_info_t* devtree_info)
 {
-  if (dev_addr)
-  {
-    usbh_device_t const* dev = get_device(dev_addr);
+  usbh_device_t const* dev = get_device(dev_addr);
 
+  if (dev)
+  {
     devtree_info->rhport   = dev->rhport;
     devtree_info->hub_addr = dev->hub_addr;
     devtree_info->hub_port = dev->hub_port;
@@ -768,10 +763,11 @@ void hcd_event_device_remove(uint8_t hostid, bool in_isr)
 // TODO has some duplication code with device, refactor later
 bool usbh_edpt_claim(uint8_t dev_addr, uint8_t ep_addr)
 {
-  // addr0 is always available
-  if (dev_addr == 0) return true;
-
   usbh_device_t* dev        = get_device(dev_addr);
+
+  // addr0 only use tuh_control_xfer
+  TU_ASSERT(dev);
+
   uint8_t const epnum       = tu_edpt_number(ep_addr);
   uint8_t const dir         = tu_edpt_dir(ep_addr);
   tu_edpt_state_t* ep_state = &dev->ep_status[epnum][dir];
@@ -804,10 +800,11 @@ bool usbh_edpt_release(uint8_t dev_addr, uint8_t ep_addr)
 // TODO has some duplication code with device, refactor later
 bool usbh_edpt_xfer(uint8_t dev_addr, uint8_t ep_addr, uint8_t * buffer, uint16_t total_bytes)
 {
+  usbh_device_t* dev = get_device(dev_addr);
+  TU_VERIFY(dev);
+
   uint8_t const epnum = tu_edpt_number(ep_addr);
   uint8_t const dir   = tu_edpt_dir(ep_addr);
-
-  usbh_device_t* dev = get_device(dev_addr);
 
   TU_LOG2("  Queue EP %02X with %u bytes ... ", ep_addr, total_bytes);
 
@@ -827,7 +824,7 @@ bool usbh_edpt_xfer(uint8_t dev_addr, uint8_t ep_addr, uint8_t * buffer, uint16_
     // HCD error, mark endpoint as ready to allow next transfer
     dev->ep_status[epnum][dir].busy = false;
     dev->ep_status[epnum][dir].claimed = 0;
-    TU_LOG2("failed\r\n");
+    TU_LOG1("failed\r\n");
     TU_BREAKPOINT();
     return false;
   }
@@ -852,9 +849,7 @@ static bool usbh_edpt_control_open(uint8_t dev_addr, uint8_t max_packet_size)
 
 bool usbh_edpt_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_endpoint_t const * desc_ep)
 {
-  usbh_device_t* dev = get_device(dev_addr);
-  TU_ASSERT(tu_edpt_validate(desc_ep, (tusb_speed_t) dev->speed));
-
+  TU_ASSERT( tu_edpt_validate(desc_ep, tuh_speed_get(dev_addr)) );
   return hcd_edpt_open(rhport, dev_addr, desc_ep);
 }
 
@@ -864,6 +859,7 @@ bool usbh_edpt_busy(uint8_t dev_addr, uint8_t ep_addr)
   uint8_t const dir   = tu_edpt_dir(ep_addr);
 
   usbh_device_t* dev = get_device(dev_addr);
+  TU_VERIFY(dev);
 
   return dev->ep_status[epnum][dir].busy;
 }
@@ -1094,7 +1090,7 @@ enum {
 };
 
 static bool enum_request_set_addr(void);
-static bool parse_configuration_descriptor      (uint8_t dev_addr, tusb_desc_configuration_t const* desc_cfg);
+static bool parse_configuration_descriptor (uint8_t dev_addr, tusb_desc_configuration_t const* desc_cfg);
 static void enum_full_complete(void);
 
 // process device enumeration
@@ -1194,9 +1190,10 @@ static bool process_enumeration(uint8_t dev_addr, tuh_control_xfer_t const * xfe
 
     case ENUM_GET_DEVICE_DESC:
     {
-      uint8_t const new_addr = (uint8_t const) xfer->request.wValue;
+      uint8_t const new_addr = (uint8_t) tu_le16toh(xfer->request.wValue);
 
       usbh_device_t* new_dev = get_device(new_addr);
+      TU_ASSERT(new_dev);
       new_dev->addressed = 1;
 
       // TODO close device 0, may not be needed
@@ -1215,6 +1212,7 @@ static bool process_enumeration(uint8_t dev_addr, tuh_control_xfer_t const * xfe
     {
       tusb_desc_device_t const * desc_device = (tusb_desc_device_t const*) _usbh_ctrl_buf;
       usbh_device_t* dev = get_device(dev_addr);
+      TU_ASSERT(dev);
 
       dev->vid            = desc_device->idVendor;
       dev->pid            = desc_device->idProduct;
@@ -1260,6 +1258,8 @@ static bool process_enumeration(uint8_t dev_addr, tuh_control_xfer_t const * xfe
     {
       TU_LOG2("Device configured\r\n");
       usbh_device_t* dev = get_device(dev_addr);
+      TU_ASSERT(dev);
+
       dev->configured = 1;
 
       // Start the Set Configuration process for interfaces (itf = DRVID_INVALID)
@@ -1324,13 +1324,21 @@ static bool enum_new_device(hcd_event_t* event)
 
 static uint8_t get_new_address(bool is_hub)
 {
-  uint8_t const start = (is_hub ? CFG_TUH_DEVICE_MAX : 0) + 1;
-  uint8_t const count = (is_hub ? CFG_TUH_HUB : CFG_TUH_DEVICE_MAX);
-
-  for (uint8_t i=0; i < count; i++)
+  uint8_t start;
+  uint8_t end;
+  if ( is_hub )
   {
-    uint8_t const addr = start + i;
-    if (!get_device(addr)->connected) return addr;
+    start = CFG_TUH_DEVICE_MAX;
+    end   = start + CFG_TUH_HUB;
+  }else
+  {
+    start = 0;
+    end   = start + CFG_TUH_DEVICE_MAX;
+  }
+
+  for ( uint8_t idx = start; idx < end; idx++)
+  {
+    if (!_usbh_devices[idx].connected) return (idx+1);
   }
   return ADDR_INVALID;
 }
