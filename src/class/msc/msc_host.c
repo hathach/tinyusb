@@ -483,7 +483,7 @@ static bool config_read_capacity_complete(uint8_t dev_addr, msc_cbw_t const* cbw
   // Capacity response field: Block size and Last LBA are both Big-Endian
   scsi_read_capacity10_resp_t* resp = (scsi_read_capacity10_resp_t*) ((void*) _msch_buffer);
   p_msc->capacity[cbw->lun].block_count = tu_ntohl(resp->last_lba) + 1;
-  p_msc->capacity[cbw->lun].block_size = tu_ntohl(resp->block_size);
+  p_msc->capacity[cbw->lun].block_size  = tu_ntohl(resp->block_size);
 
   // Mark enumeration is complete
   p_msc->mounted = true;

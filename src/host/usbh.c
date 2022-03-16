@@ -1297,12 +1297,10 @@ static bool enum_new_device(hcd_event_t* event)
     _dev0.speed = hcd_port_speed_get(_dev0.rhport );
     TU_LOG2("%s Speed\r\n", tu_str_speed[_dev0.speed]);
 
-    //enum_request_addr0_device_desc();
-    tuh_control_xfer_t const xfer =
-    {
-      .complete_cb = process_enumeration,
-      .user_arg    = ENUM_ADDR0_DEVICE_DESC
-    };
+    // start the enumeration process
+    tuh_control_xfer_t xfer;
+    xfer.user_arg = ENUM_ADDR0_DEVICE_DESC;
+
     process_enumeration(0, &xfer, XFER_RESULT_SUCCESS);
 
   }
