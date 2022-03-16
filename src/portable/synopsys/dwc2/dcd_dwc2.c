@@ -1276,7 +1276,7 @@ void dcd_int_handler(uint8_t rhport)
 
     if (_sof_en)
     {
-      uint32_t frame = (dwc2->dsts & (USB_OTG_DSTS_FNSOF)) >> 8;
+      uint32_t frame = (dwc2->dsts & (DSTS_FNSOF)) >> 8;
       dcd_event_sof(rhport, frame, true);
     }
     else
