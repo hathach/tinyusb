@@ -50,7 +50,7 @@ struct tuh_control_xfer_s
   xfer_result_t result;
 
   tusb_control_request_t const* setup;
-  uint32_t actual_len;
+  uint32_t actual_len; // excluding setup packet
 
   uint8_t* buffer;
   tuh_control_xfer_cb_t complete_cb;
@@ -115,7 +115,8 @@ static inline bool tuh_ready(uint8_t daddr)
 
 // Carry out a control transfer
 // true on success, false if there is on-going control transfer or incorrect parameters
-// Blocking if complete callback is NULL, in this case 'user_arg' must contain xfer_result_t variable
+// Note: blocking if complete callback is NULL. In this case 'xfer->result' will be updated
+//       and if 'user_arg' point to a xfer_result_t variable, it will be updated as well.
 bool tuh_control_xfer(uint8_t daddr, tuh_control_xfer_t* xfer);
 
 //bool tuh_edpt_xfer(uint8_t daddr, uint8_t ep_addr, uint8_t * buffer, uint16_t total_bytes);
@@ -123,7 +124,6 @@ bool tuh_control_xfer(uint8_t daddr, tuh_control_xfer_t* xfer);
 // Set Configuration (control transfer)
 // config_num = 0 will un-configure device. Note: config_num = config_descriptor_index + 1
 // true on success, false if there is on-going control transfer or incorrect parameters
-// Blocking if complete callback is NULL, in this case 'user_arg' must contain xfer_result_t variable
 bool tuh_configuration_set(uint8_t daddr, uint8_t config_num,
                            tuh_control_xfer_cb_t complete_cb, uintptr_t user_arg);
 
@@ -132,7 +132,7 @@ bool tuh_configuration_set(uint8_t daddr, uint8_t config_num,
 //--------------------------------------------------------------------+
 
 // Sync (blocking) version of tuh_control_xfer()
-// return transfer result
+// xfer contents will be updated to reflect the transfer
 bool tuh_control_xfer_sync(uint8_t daddr, tuh_control_xfer_t * xfer, uint32_t timeout_ms);
 
 //--------------------------------------------------------------------+

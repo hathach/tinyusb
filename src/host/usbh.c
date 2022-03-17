@@ -250,6 +250,7 @@ struct
   tuh_control_xfer_cb_t complete_cb;
   uintptr_t user_arg;
 
+  volatile uint16_t actual_len;
   uint8_t daddr;  // device address that is transferring
   volatile uint8_t stage;
 }_ctrl_xfer;
@@ -306,7 +307,7 @@ void osal_task_delay(uint32_t msec)
 #endif
 
 //--------------------------------------------------------------------+
-// Descriptors
+// Descriptors Async
 //--------------------------------------------------------------------+
 
 static bool _get_descriptor(uint8_t daddr, uint8_t type, uint8_t index, uint16_t language_id, void* buffer, uint16_t len,
@@ -455,7 +456,7 @@ bool tuh_configuration_set(uint8_t daddr, uint8_t config_num,
 }
 
 //--------------------------------------------------------------------+
-// Asynchronous
+// Descriptor Sync
 //--------------------------------------------------------------------+
 
 #define _CONTROL_SYNC_API(_async_func, _timeout, ...) \
@@ -903,13 +904,13 @@ bool tuh_control_xfer (uint8_t daddr, tuh_control_xfer_t* xfer)
   usbh_unlock();
 
   TU_VERIFY(is_idle);
-
   const uint8_t rhport = usbh_get_rhport(daddr);
 
   TU_LOG2("[%u:%u] %s: ", rhport, daddr, xfer->setup->bRequest <= TUSB_REQ_SYNCH_FRAME ? tu_str_std_request[xfer->setup->bRequest] : "Unknown Request");
   TU_LOG2_VAR(&xfer->setup);
   TU_LOG2("\r\n");
 
+  _ctrl_xfer.actual_len  = 0;
   _ctrl_xfer.daddr       = daddr;
   _ctrl_xfer.request     = (*xfer->setup);
   _ctrl_xfer.buffer      = xfer->buffer;
@@ -941,8 +942,15 @@ bool tuh_control_xfer (uint8_t daddr, tuh_control_xfer_t* xfer)
       // TODO probably some timeout to prevent hanged
     }
 
-    // update result
-    //xfer->result = result;
+    // update xfer result
+    xfer->result = result;
+    if ( xfer->user_arg )
+    {
+      // if user_arg is not NULL, it is also updated
+      *((xfer_result_t*) xfer->user_arg) = result;
+    }
+
+    xfer->actual_len = _ctrl_xfer.actual_len;
   }
 
   return true;
@@ -952,19 +960,16 @@ bool tuh_control_xfer_sync(uint8_t daddr, tuh_control_xfer_t* xfer, uint32_t tim
 {
   (void) timeout_ms;
 
-  xfer_result_t result = XFER_RESULT_INVALID;
-  tuh_control_xfer_t xfer_sync = (*xfer);
-
-  xfer_sync.complete_cb = NULL;
-  xfer_sync.user_arg = (uintptr_t) &result;
+  // clear callback for sync
+  xfer->complete_cb = NULL;
 
   // TODO use timeout to wait
-  TU_VERIFY(tuh_control_xfer(daddr, &xfer_sync), XFER_RESULT_TIMEOUT);
+  TU_VERIFY(tuh_control_xfer(daddr, xfer));
 
-  return result;
+  return true;
 }
 
-TU_ATTR_ALWAYS_INLINE static inline void set_control_xfer_stage(uint8_t stage)
+TU_ATTR_ALWAYS_INLINE static inline void _set_control_xfer_stage(uint8_t stage)
 {
   usbh_lock();
   _ctrl_xfer.stage = stage;
@@ -982,7 +987,7 @@ static void _xfer_complete(uint8_t dev_addr, xfer_result_t result)
     .ep_addr     = 0,
     .result      = result,
     .setup       = &request,
-    .actual_len  = 0,
+    .actual_len  = (uint32_t) _ctrl_xfer.actual_len,
     .buffer      = _ctrl_xfer.buffer,
     .complete_cb = _ctrl_xfer.complete_cb,
     .user_arg    = _ctrl_xfer.user_arg
@@ -1001,7 +1006,6 @@ static void _xfer_complete(uint8_t dev_addr, xfer_result_t result)
 static bool usbh_control_xfer_cb (uint8_t dev_addr, uint8_t ep_addr, xfer_result_t result, uint32_t xferred_bytes)
 {
   (void) ep_addr;
-  (void) xferred_bytes;
 
   const uint8_t rhport = usbh_get_rhport(dev_addr);
   tusb_control_request_t const * request = &_ctrl_xfer.request;
@@ -1020,20 +1024,22 @@ static bool usbh_control_xfer_cb (uint8_t dev_addr, uint8_t ep_addr, xfer_result
         if (request->wLength)
         {
           // DATA stage: initial data toggle is always 1
-          set_control_xfer_stage(CONTROL_STAGE_DATA);
+          _set_control_xfer_stage(CONTROL_STAGE_DATA);
           return hcd_edpt_xfer(rhport, dev_addr, tu_edpt_addr(0, request->bmRequestType_bit.direction), _ctrl_xfer.buffer, request->wLength);
         }
         __attribute__((fallthrough));
 
       case CONTROL_STAGE_DATA:
-        if (request->wLength)
+        if (xferred_bytes)
         {
           TU_LOG2("[%u:%u] Control data:\r\n", rhport, dev_addr);
-          TU_LOG2_MEM(_ctrl_xfer.buffer, request->wLength, 2);
+          TU_LOG2_MEM(_ctrl_xfer.buffer, xferred_bytes, 2);
         }
 
+        _ctrl_xfer.actual_len = xferred_bytes;
+
         // ACK stage: toggle is always 1
-        set_control_xfer_stage(CONTROL_STAGE_ACK);
+        _set_control_xfer_stage(CONTROL_STAGE_ACK);
         hcd_edpt_xfer(rhport, dev_addr, tu_edpt_addr(0, 1-request->bmRequestType_bit.direction), NULL, 0);
       break;
 
@@ -1083,7 +1089,7 @@ static void process_device_unplugged(uint8_t rhport, uint8_t hub_addr, uint8_t h
       hcd_device_close(rhport, dev_addr);
       clear_device(dev);
       // abort on-going control xfer if any
-      if (_ctrl_xfer.daddr == dev_addr) set_control_xfer_stage(CONTROL_STAGE_IDLE);
+      if (_ctrl_xfer.daddr == dev_addr) _set_control_xfer_stage(CONTROL_STAGE_IDLE);
     }
   }
 }
