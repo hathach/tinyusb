@@ -81,11 +81,11 @@
 // 1 hub typically has 4 ports
 #define CFG_TUH_DEVICE_MAX          (CFG_TUH_HUB ? 4 : 1)
 
-#define CFG_TUH_ENDPOINT_MAX       8
+// Max endpoint per device
+#define CFG_TUH_ENDPOINT_MAX        8
 
-//------------- HID -------------//
-
-#define CFG_TUH_HID_EP_BUFSIZE      64
+// Enable tuh_edpt_xfer() API
+#define CFG_TUH_API_EDPT_XFER       1
 
 #ifdef __cplusplus
  }

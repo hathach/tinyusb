@@ -109,8 +109,15 @@ typedef struct {
 
   tu_edpt_state_t ep_status[CFG_TUH_ENDPOINT_MAX][2];
 
-#if CFG_TUH_BARE
-
+#if CFG_TUH_API_EDPT_XFER
+//  struct
+//  {
+//    uint8_t* buffer;
+//    tuh_xfer_cb_t complete_cb;
+//    uintptr_t user_arg;
+//
+//    volatile uint16_t actual_len;
+//  }ep_xfer;
 #endif
 
 } usbh_device_t;
@@ -239,6 +246,16 @@ static osal_queue_t _usbh_q;
 
 CFG_TUSB_MEM_SECTION CFG_TUSB_MEM_ALIGN
 static uint8_t _usbh_ctrl_buf[CFG_TUH_ENUMERATION_BUFSIZE];
+
+//// internal version of tuh_xfer_t
+//typedef struct
+//{
+//  uint8_t* buffer;
+//  tuh_xfer_cb_t complete_cb;
+//  uintptr_t user_arg;
+//
+//  volatile uint16_t actual_len;
+//}usbh_xfer_t;
 
 // Control transfer: since most controller does not support multiple control transfer
 // on multiple devices concurrently. And control transfer is not used much except enumeration
@@ -890,6 +907,19 @@ static void _control_blocking_complete_cb(uint8_t daddr, tuh_xfer_t* xfer)
   *((xfer_result_t*) xfer->user_arg) = xfer->result;
 }
 
+bool tuh_control_xfer_sync(uint8_t daddr, tuh_xfer_t* xfer, uint32_t timeout_ms)
+{
+  (void) timeout_ms;
+
+  // clear callback for sync
+  xfer->complete_cb = NULL;
+
+  // TODO use timeout to wait
+  TU_VERIFY(tuh_control_xfer(daddr, xfer));
+
+  return true;
+}
+
 bool tuh_control_xfer (uint8_t daddr, tuh_xfer_t* xfer)
 {
   // pre-check to help reducing mutex lock
@@ -952,19 +982,6 @@ bool tuh_control_xfer (uint8_t daddr, tuh_xfer_t* xfer)
 
     xfer->actual_len = _ctrl_xfer.actual_len;
   }
-
-  return true;
-}
-
-bool tuh_control_xfer_sync(uint8_t daddr, tuh_xfer_t* xfer, uint32_t timeout_ms)
-{
-  (void) timeout_ms;
-
-  // clear callback for sync
-  xfer->complete_cb = NULL;
-
-  // TODO use timeout to wait
-  TU_VERIFY(tuh_control_xfer(daddr, xfer));
 
   return true;
 }

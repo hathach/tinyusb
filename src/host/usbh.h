@@ -113,13 +113,17 @@ static inline bool tuh_ready(uint8_t daddr)
 // Endpoint Asynchronous (non-blocking)
 //--------------------------------------------------------------------+
 
-// Carry out a control transfer
+// Submit a control transfer
 // true on success, false if there is on-going control transfer or incorrect parameters
 // Note: blocking if complete callback is NULL. In this case 'xfer->result' will be updated
 //       and if 'user_arg' point to a xfer_result_t variable, it will be updated as well.
 bool tuh_control_xfer(uint8_t daddr, tuh_xfer_t* xfer);
 
-//bool tuh_edpt_xfer(uint8_t daddr, uint8_t ep_addr, uint8_t * buffer, uint16_t total_bytes);
+// Submit a bulk/interrupt transfer
+// true on success, false if there is on-going control transfer or incorrect parameters
+// Note: blocking if complete callback is NULL. In this case 'xfer->result' will be updated
+//       and if 'user_arg' point to a xfer_result_t variable, it will be updated as well.
+bool tuh_edpt_xfer(uint8_t daddr, tuh_xfer_t* xfer);
 
 // Set Configuration (control transfer)
 // config_num = 0 will un-configure device. Note: config_num = config_descriptor_index + 1
