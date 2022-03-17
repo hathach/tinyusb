@@ -115,12 +115,12 @@ static void utf16_to_utf8(uint16_t *temp_buf, size_t buf_len) {
     ((uint8_t*) temp_buf)[utf8_len] = '\0';
 }
 
-bool print_device_descriptor(uint8_t daddr, tuh_control_xfer_t const * xfer)
+void print_device_descriptor(uint8_t daddr, tuh_control_xfer_t* xfer)
 {
   if ( XFER_RESULT_SUCCESS != xfer->result )
   {
     printf("Failed to get device descriptor\r\n");
-    return false;
+    return;
   }
 
   printf("Device %u: ID %04x:%04x\r\n", daddr, desc_device.idVendor, desc_device.idProduct);
@@ -164,8 +164,6 @@ bool print_device_descriptor(uint8_t daddr, tuh_control_xfer_t const * xfer)
   printf("\r\n");
 
   printf("  bNumConfigurations  %u\r\n"     , desc_device.bNumConfigurations);
-
-  return true;
 }
 
 // Invoked when device is mounted (configured)
