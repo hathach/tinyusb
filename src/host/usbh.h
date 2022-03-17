@@ -42,15 +42,19 @@
 struct tuh_control_xfer_s;
 typedef struct tuh_control_xfer_s tuh_control_xfer_t;
 
-typedef bool (*tuh_control_xfer_cb_t)(uint8_t daddr, tuh_control_xfer_t const * xfer, xfer_result_t result);
+typedef bool (*tuh_control_xfer_cb_t)(uint8_t daddr, tuh_control_xfer_t const * xfer);
 
 struct tuh_control_xfer_s
 {
   uint8_t ep_addr;
+  xfer_result_t result;
+
   tusb_control_request_t const* setup;
   uint32_t actual_len;
 
   uint8_t* buffer;
+
+
   tuh_control_xfer_cb_t complete_cb;
   uintptr_t user_arg;
 };

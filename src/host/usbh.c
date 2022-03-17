@@ -882,12 +882,12 @@ bool usbh_edpt_busy(uint8_t dev_addr, uint8_t ep_addr)
 // Control transfer
 //--------------------------------------------------------------------+
 
-static bool _control_blocking_complete_cb(uint8_t daddr, tuh_control_xfer_t const * xfer, xfer_result_t result)
+static bool _control_blocking_complete_cb(uint8_t daddr, tuh_control_xfer_t const * xfer)
 {
   (void) daddr;
 
   // update result
-  *((xfer_result_t*) xfer->user_arg) = result;
+  *((xfer_result_t*) xfer->user_arg) = xfer->result;
 
   return true;
 }
@@ -924,19 +924,17 @@ bool tuh_control_xfer (uint8_t daddr, tuh_control_xfer_t const* xfer)
     TU_ASSERT( hcd_setup_send(rhport, daddr, (uint8_t*) &_ctrl_xfer.request) );
   }else
   {
-    // user_arg must point to xfer_result_t to hold result
-    TU_VERIFY(xfer->user_arg);
-
     // blocking if complete callback is not provided
     // change callback to internal blocking, and result as user argument
-    volatile xfer_result_t* result = (volatile xfer_result_t*) xfer->user_arg;
+    volatile xfer_result_t result = XFER_RESULT_INVALID;
 
+    // use user_arg to point to xfer_result_t
+    _ctrl_xfer.user_arg    = (uintptr_t) &result;
     _ctrl_xfer.complete_cb = _control_blocking_complete_cb;
-    *result = XFER_RESULT_INVALID;
 
     TU_ASSERT( hcd_setup_send(rhport, daddr, (uint8_t*) &_ctrl_xfer.request) );
 
-    while ((*result) == XFER_RESULT_INVALID)
+    while (result == XFER_RESULT_INVALID)
     {
       // only need to call task if not preempted RTOS
       #if CFG_TUSB_OS == OPT_OS_NONE || CFG_TUSB_OS == OPT_OS_PICO
@@ -982,6 +980,7 @@ static void _xfer_complete(uint8_t dev_addr, xfer_result_t result)
   tuh_control_xfer_t const xfer_temp =
   {
     .ep_addr     = 0,
+    .result      = result,
     .setup       = &request,
     .actual_len  = 0,
     .buffer      = _ctrl_xfer.buffer,
@@ -995,7 +994,7 @@ static void _xfer_complete(uint8_t dev_addr, xfer_result_t result)
 
   if (xfer_temp.complete_cb)
   {
-    xfer_temp.complete_cb(dev_addr, &xfer_temp, result);
+    xfer_temp.complete_cb(dev_addr, &xfer_temp);
   }
 }
 
@@ -1120,9 +1119,9 @@ static bool parse_configuration_descriptor (uint8_t dev_addr, tusb_desc_configur
 static void enum_full_complete(void);
 
 // process device enumeration
-static bool process_enumeration(uint8_t dev_addr, tuh_control_xfer_t const * xfer, xfer_result_t result)
+static bool process_enumeration(uint8_t dev_addr, tuh_control_xfer_t const * xfer)
 {
-  if (XFER_RESULT_SUCCESS != result)
+  if (XFER_RESULT_SUCCESS != xfer->result)
   {
     // stop enumeration, maybe we could retry this
     enum_full_complete();
@@ -1323,11 +1322,12 @@ static bool enum_new_device(hcd_event_t* event)
     _dev0.speed = hcd_port_speed_get(_dev0.rhport );
     TU_LOG2("%s Speed\r\n", tu_str_speed[_dev0.speed]);
 
-    // start the enumeration process
+    // fake transfer to kick-off the enumeration process
     tuh_control_xfer_t xfer;
+    xfer.result   = XFER_RESULT_SUCCESS;
     xfer.user_arg = ENUM_ADDR0_DEVICE_DESC;
 
-    process_enumeration(0, &xfer, XFER_RESULT_SUCCESS);
+    process_enumeration(0, &xfer);
 
   }
 #if CFG_TUH_HUB

@@ -225,8 +225,8 @@ bool hub_edpt_status_xfer(uint8_t dev_addr)
 // Set Configure
 //--------------------------------------------------------------------+
 
-static bool config_set_port_power (uint8_t dev_addr, tuh_control_xfer_t const * xfer, xfer_result_t result);
-static bool config_port_power_complete (uint8_t dev_addr, tuh_control_xfer_t const * xfer, xfer_result_t result);
+static bool config_set_port_power (uint8_t dev_addr, tuh_control_xfer_t const * xfer);
+static bool config_port_power_complete (uint8_t dev_addr, tuh_control_xfer_t const * xfer);
 
 bool hub_set_config(uint8_t dev_addr, uint8_t itf_num)
 {
@@ -262,10 +262,9 @@ bool hub_set_config(uint8_t dev_addr, uint8_t itf_num)
   return true;
 }
 
-static bool config_set_port_power (uint8_t dev_addr, tuh_control_xfer_t const * xfer, xfer_result_t result)
+static bool config_set_port_power (uint8_t dev_addr, tuh_control_xfer_t const * xfer)
 {
-  (void) xfer;
-  TU_ASSERT(XFER_RESULT_SUCCESS == result);
+  TU_ASSERT(XFER_RESULT_SUCCESS == xfer->result);
 
   hub_interface_t* p_hub = get_itf(dev_addr);
 
@@ -280,9 +279,9 @@ static bool config_set_port_power (uint8_t dev_addr, tuh_control_xfer_t const * 
   return hub_port_set_feature(dev_addr, hub_port, HUB_FEATURE_PORT_POWER, config_port_power_complete, 0);
 }
 
-static bool config_port_power_complete (uint8_t dev_addr, tuh_control_xfer_t const * xfer, xfer_result_t result)
+static bool config_port_power_complete (uint8_t dev_addr, tuh_control_xfer_t const * xfer)
 {
-  TU_ASSERT(XFER_RESULT_SUCCESS == result);
+  TU_ASSERT(XFER_RESULT_SUCCESS == xfer->result);
    hub_interface_t* p_hub = get_itf(dev_addr);
 
   if (xfer->setup->wIndex == p_hub->port_count)
@@ -306,9 +305,9 @@ static bool config_port_power_complete (uint8_t dev_addr, tuh_control_xfer_t con
 // Connection Changes
 //--------------------------------------------------------------------+
 
-static bool connection_get_status_complete (uint8_t dev_addr, tuh_control_xfer_t const * xfer, xfer_result_t result);
-static bool connection_clear_conn_change_complete (uint8_t dev_addr, tuh_control_xfer_t const * xfer, xfer_result_t result);
-static bool connection_port_reset_complete (uint8_t dev_addr, tuh_control_xfer_t const * xfer, xfer_result_t result);
+static bool connection_get_status_complete (uint8_t dev_addr, tuh_control_xfer_t const * xfer);
+static bool connection_clear_conn_change_complete (uint8_t dev_addr, tuh_control_xfer_t const * xfer);
+static bool connection_port_reset_complete (uint8_t dev_addr, tuh_control_xfer_t const * xfer);
 
 // callback as response of interrupt endpoint polling
 bool hub_xfer_cb(uint8_t dev_addr, uint8_t ep_addr, xfer_result_t result, uint32_t xferred_bytes)
@@ -336,9 +335,9 @@ bool hub_xfer_cb(uint8_t dev_addr, uint8_t ep_addr, xfer_result_t result, uint32
   return true;
 }
 
-static bool connection_get_status_complete (uint8_t dev_addr, tuh_control_xfer_t const * xfer, xfer_result_t result)
+static bool connection_get_status_complete (uint8_t dev_addr, tuh_control_xfer_t const * xfer)
 {
-  TU_ASSERT(result == XFER_RESULT_SUCCESS);
+  TU_ASSERT(xfer->result == XFER_RESULT_SUCCESS);
 
   hub_interface_t* p_hub = get_itf(dev_addr);
   uint8_t const port_num = (uint8_t) xfer->setup->wIndex;
@@ -364,9 +363,9 @@ static bool connection_get_status_complete (uint8_t dev_addr, tuh_control_xfer_t
   return true;
 }
 
-static bool connection_clear_conn_change_complete (uint8_t dev_addr, tuh_control_xfer_t const * xfer, xfer_result_t result)
+static bool connection_clear_conn_change_complete (uint8_t dev_addr, tuh_control_xfer_t const * xfer)
 {
-  TU_ASSERT(result == XFER_RESULT_SUCCESS);
+  TU_ASSERT(xfer->result == XFER_RESULT_SUCCESS);
 
   hub_interface_t* p_hub = get_itf(dev_addr);
   uint8_t const port_num = (uint8_t) xfer->setup->wIndex;
@@ -395,9 +394,9 @@ static bool connection_clear_conn_change_complete (uint8_t dev_addr, tuh_control
   return true;
 }
 
-static bool connection_port_reset_complete (uint8_t dev_addr, tuh_control_xfer_t const * xfer, xfer_result_t result)
+static bool connection_port_reset_complete (uint8_t dev_addr, tuh_control_xfer_t const * xfer)
 {
-  TU_ASSERT(result == XFER_RESULT_SUCCESS);
+  TU_ASSERT(xfer->result == XFER_RESULT_SUCCESS);
 
   // hub_interface_t* p_hub = get_itf(dev_addr);
   uint8_t const port_num = (uint8_t) xfer->setup->wIndex;

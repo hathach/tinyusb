@@ -358,7 +358,7 @@ bool msch_xfer_cb(uint8_t dev_addr, uint8_t ep_addr, xfer_result_t event, uint32
 // MSC Enumeration
 //--------------------------------------------------------------------+
 
-static bool config_get_maxlun_complete (uint8_t dev_addr, tuh_control_xfer_t const * xfer,  xfer_result_t result);
+static bool config_get_maxlun_complete (uint8_t dev_addr, tuh_control_xfer_t const * xfer);
 static bool config_test_unit_ready_complete(uint8_t dev_addr, msc_cbw_t const* cbw, msc_csw_t const* csw);
 static bool config_request_sense_complete(uint8_t dev_addr, msc_cbw_t const* cbw, msc_csw_t const* csw);
 static bool config_read_capacity_complete(uint8_t dev_addr, msc_cbw_t const* cbw, msc_csw_t const* csw);
@@ -432,14 +432,12 @@ bool msch_set_config(uint8_t dev_addr, uint8_t itf_num)
   return true;
 }
 
-static bool config_get_maxlun_complete (uint8_t dev_addr, tuh_control_xfer_t const * xfer,  xfer_result_t result)
+static bool config_get_maxlun_complete (uint8_t dev_addr, tuh_control_xfer_t const * xfer)
 {
-  (void) xfer;
-
   msch_interface_t* p_msc = get_itf(dev_addr);
 
   // STALL means zero
-  p_msc->max_lun = (XFER_RESULT_SUCCESS == result) ? _msch_buffer[0] : 0;
+  p_msc->max_lun = (XFER_RESULT_SUCCESS == xfer->result) ? _msch_buffer[0] : 0;
   p_msc->max_lun++; // MAX LUN is minus 1 by specs
 
   // TODO multiple LUN support

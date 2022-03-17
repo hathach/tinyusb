@@ -115,11 +115,9 @@ static void utf16_to_utf8(uint16_t *temp_buf, size_t buf_len) {
     ((uint8_t*) temp_buf)[utf8_len] = '\0';
 }
 
-bool print_device_descriptor(uint8_t daddr, tuh_control_xfer_t const * xfer, xfer_result_t result)
+bool print_device_descriptor(uint8_t daddr, tuh_control_xfer_t const * xfer)
 {
-  (void) xfer;
-
-  if ( XFER_RESULT_SUCCESS != result )
+  if ( XFER_RESULT_SUCCESS != xfer->result )
   {
     printf("Failed to get device descriptor\r\n");
     return false;
