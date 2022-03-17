@@ -42,7 +42,7 @@
 struct tuh_control_xfer_s;
 typedef struct tuh_control_xfer_s tuh_control_xfer_t;
 
-typedef bool (*tuh_control_xfer_cb_t)(uint8_t daddr, tuh_control_xfer_t const * xfer);
+typedef bool (*tuh_control_xfer_cb_t)(uint8_t daddr, tuh_control_xfer_t* xfer);
 
 struct tuh_control_xfer_s
 {
@@ -135,7 +135,7 @@ bool tuh_configuration_set(uint8_t daddr, uint8_t config_num,
 
 // Sync (blocking) version of tuh_control_xfer()
 // return transfer result
-uint8_t tuh_control_xfer_sync(uint8_t daddr, tuh_control_xfer_t const* xfer, uint32_t timeout_ms);
+bool tuh_control_xfer_sync(uint8_t daddr, tuh_control_xfer_t * xfer, uint32_t timeout_ms);
 
 //--------------------------------------------------------------------+
 // Descriptors Asynchronous (non-blocking)

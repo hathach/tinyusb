@@ -882,7 +882,7 @@ bool usbh_edpt_busy(uint8_t dev_addr, uint8_t ep_addr)
 // Control transfer
 //--------------------------------------------------------------------+
 
-static bool _control_blocking_complete_cb(uint8_t daddr, tuh_control_xfer_t const * xfer)
+static bool _control_blocking_complete_cb(uint8_t daddr, tuh_control_xfer_t* xfer)
 {
   (void) daddr;
 
@@ -943,12 +943,15 @@ bool tuh_control_xfer (uint8_t daddr, tuh_control_xfer_t const* xfer)
 
       // TODO probably some timeout to prevent hanged
     }
+
+    // update result
+    //xfer->result = result;
   }
 
   return true;
 }
 
-uint8_t tuh_control_xfer_sync(uint8_t daddr, tuh_control_xfer_t const* xfer, uint32_t timeout_ms)
+bool tuh_control_xfer_sync(uint8_t daddr, tuh_control_xfer_t* xfer, uint32_t timeout_ms)
 {
   (void) timeout_ms;
 
@@ -977,7 +980,7 @@ static void _xfer_complete(uint8_t dev_addr, xfer_result_t result)
 
   // duplicate xfer since user can execute control transfer within callback
   tusb_control_request_t const request = _ctrl_xfer.request;
-  tuh_control_xfer_t const xfer_temp =
+  tuh_control_xfer_t xfer_temp =
   {
     .ep_addr     = 0,
     .result      = result,
@@ -1119,7 +1122,7 @@ static bool parse_configuration_descriptor (uint8_t dev_addr, tusb_desc_configur
 static void enum_full_complete(void);
 
 // process device enumeration
-static bool process_enumeration(uint8_t dev_addr, tuh_control_xfer_t const * xfer)
+static bool process_enumeration(uint8_t dev_addr, tuh_control_xfer_t* xfer)
 {
   if (XFER_RESULT_SUCCESS != xfer->result)
   {

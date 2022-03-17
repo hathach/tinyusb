@@ -103,7 +103,7 @@ uint8_t tuh_hid_get_protocol(uint8_t dev_addr, uint8_t instance)
   return hid_itf->protocol_mode;
 }
 
-static bool set_protocol_complete(uint8_t dev_addr, tuh_control_xfer_t const * xfer)
+static bool set_protocol_complete(uint8_t dev_addr, tuh_control_xfer_t* xfer)
 {
   uint8_t const itf_num     = (uint8_t) xfer->setup->wIndex;
   uint8_t const instance    = get_instance_id_by_itfnum(dev_addr, itf_num);
@@ -159,7 +159,7 @@ bool tuh_hid_set_protocol(uint8_t dev_addr, uint8_t instance, uint8_t protocol)
   return _hidh_set_protocol(dev_addr, hid_itf->itf_num, protocol, set_protocol_complete, 0);
 }
 
-static bool set_report_complete(uint8_t dev_addr, tuh_control_xfer_t const * xfer)
+static bool set_report_complete(uint8_t dev_addr, tuh_control_xfer_t* xfer)
 {
   TU_LOG2("HID Set Report complete\r\n");
 
@@ -390,7 +390,7 @@ enum {
 };
 
 static void config_driver_mount_complete(uint8_t dev_addr, uint8_t instance, uint8_t const* desc_report, uint16_t desc_len);
-static bool process_set_config(uint8_t dev_addr, tuh_control_xfer_t const * xfer);
+static bool process_set_config(uint8_t dev_addr, tuh_control_xfer_t* xfer);
 
 bool hidh_set_config(uint8_t dev_addr, uint8_t itf_num)
 {
@@ -406,7 +406,7 @@ bool hidh_set_config(uint8_t dev_addr, uint8_t itf_num)
   return process_set_config(dev_addr, &xfer);
 }
 
-static bool process_set_config(uint8_t dev_addr, tuh_control_xfer_t const * xfer)
+static bool process_set_config(uint8_t dev_addr, tuh_control_xfer_t* xfer)
 {
   // Stall is a valid response for SET_IDLE, therefore we could ignore its result
   if ( xfer->setup->bRequest != HID_REQ_CONTROL_SET_IDLE )
