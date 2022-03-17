@@ -268,7 +268,7 @@ struct
   uintptr_t user_data;
 
   volatile uint16_t actual_len;
-  uint8_t daddr;  // device address that is transferring
+  uint8_t daddr;  // transferring device
   volatile uint8_t stage;
 }_ctrl_xfer;
 
@@ -548,7 +548,7 @@ bool tuh_init(uint8_t rhport)
   TU_LOG2("USBH init\r\n");
   TU_LOG2_INT(sizeof(usbh_device_t));
   TU_LOG2_INT(sizeof(hcd_event_t));
-  TU_LOG2_INT(sizeof(tuh_xfer_t));
+  TU_LOG2_INT(sizeof(_ctrl_xfer));
 
   // Event queue
   _usbh_q = osal_queue_create( &_usbh_qdef );
@@ -1077,6 +1077,8 @@ static bool usbh_control_xfer_cb (uint8_t dev_addr, uint8_t ep_addr, xfer_result
 
 bool tuh_edpt_xfer(uint8_t daddr, tuh_xfer_t* xfer)
 {
+  (void) daddr;
+  (void) xfer;
   return true;
 }
 
