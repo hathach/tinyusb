@@ -139,7 +139,7 @@ static bool _hidh_set_protocol(uint8_t dev_addr, uint8_t itf_num, uint8_t protoc
     .wLength  = 0
   };
 
-  tuh_control_xfer_t const xfer =
+  tuh_control_xfer_t xfer =
   {
     .ep_addr     = 0,
     .setup       = &request,
@@ -196,7 +196,7 @@ bool tuh_hid_set_report(uint8_t dev_addr, uint8_t instance, uint8_t report_id, u
     .wLength  = len
   };
 
-  tuh_control_xfer_t const xfer =
+  tuh_control_xfer_t xfer =
   {
     .ep_addr     = 0,
     .setup       = &request,
@@ -227,7 +227,7 @@ static bool _hidh_set_idle(uint8_t dev_addr, uint8_t itf_num, uint16_t idle_rate
     .wLength  = 0
   };
 
-  tuh_control_xfer_t const xfer =
+  tuh_control_xfer_t xfer =
   {
     .ep_addr     = 0,
     .setup       = &request,

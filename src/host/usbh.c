@@ -326,7 +326,7 @@ static bool _get_descriptor(uint8_t daddr, uint8_t type, uint8_t index, uint16_t
     .wLength  = tu_htole16(len)
   };
 
-  tuh_control_xfer_t const xfer =
+  tuh_control_xfer_t xfer =
   {
     .ep_addr     = 0,
     .setup       = &request,
@@ -411,7 +411,7 @@ bool tuh_descriptor_get_hid_report(uint8_t daddr, uint8_t itf_num, uint8_t desc_
     .wLength  = len
   };
 
-  tuh_control_xfer_t const xfer =
+  tuh_control_xfer_t xfer =
   {
     .ep_addr     = 0,
     .setup       = &request,
@@ -442,7 +442,7 @@ bool tuh_configuration_set(uint8_t daddr, uint8_t config_num,
     .wLength  = 0
   };
 
-  tuh_control_xfer_t const xfer =
+  tuh_control_xfer_t xfer =
   {
     .ep_addr     = 0,
     .setup       = &request,
@@ -889,7 +889,7 @@ static void _control_blocking_complete_cb(uint8_t daddr, tuh_control_xfer_t* xfe
   *((xfer_result_t*) xfer->user_arg) = xfer->result;
 }
 
-bool tuh_control_xfer (uint8_t daddr, tuh_control_xfer_t const* xfer)
+bool tuh_control_xfer (uint8_t daddr, tuh_control_xfer_t* xfer)
 {
   // pre-check to help reducing mutex lock
   TU_VERIFY(_ctrl_xfer.stage == CONTROL_STAGE_IDLE);
@@ -1404,7 +1404,7 @@ static bool enum_request_set_addr(void)
     .wLength  = 0
   };
 
-  tuh_control_xfer_t const xfer =
+  tuh_control_xfer_t xfer =
   {
     .ep_addr     = 0,
     .setup       = &request,

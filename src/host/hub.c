@@ -94,7 +94,7 @@ bool hub_port_clear_feature(uint8_t hub_addr, uint8_t hub_port, uint8_t feature,
     .wLength  = 0
   };
 
-  tuh_control_xfer_t const xfer =
+  tuh_control_xfer_t xfer =
   {
     .ep_addr     = 0,
     .setup       = &request,
@@ -125,7 +125,7 @@ bool hub_port_set_feature(uint8_t hub_addr, uint8_t hub_port, uint8_t feature,
     .wLength  = 0
   };
 
-  tuh_control_xfer_t const xfer =
+  tuh_control_xfer_t xfer =
   {
     .ep_addr     = 0,
     .setup       = &request,
@@ -156,7 +156,7 @@ bool hub_port_get_status(uint8_t hub_addr, uint8_t hub_port, void* resp,
     .wLength  = 4
   };
 
-  tuh_control_xfer_t const xfer =
+  tuh_control_xfer_t xfer =
   {
     .ep_addr     = 0,
     .setup       = &request,
@@ -248,7 +248,7 @@ bool hub_set_config(uint8_t dev_addr, uint8_t itf_num)
     .wLength  = sizeof(descriptor_hub_desc_t)
   };
 
-  tuh_control_xfer_t const xfer =
+  tuh_control_xfer_t xfer =
   {
     .ep_addr     = 0,
     .setup       = &request,

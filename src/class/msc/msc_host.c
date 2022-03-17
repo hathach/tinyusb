@@ -419,7 +419,7 @@ bool msch_set_config(uint8_t dev_addr, uint8_t itf_num)
     .wLength  = 1
   };
 
-  tuh_control_xfer_t const xfer =
+  tuh_control_xfer_t xfer =
   {
     .ep_addr     = 0,
     .setup       = &request,

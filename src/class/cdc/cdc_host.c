@@ -138,7 +138,7 @@ bool tuh_cdc_set_control_line_state(uint8_t dev_addr, bool dtr, bool rts, tuh_co
     .wLength  = 0
   };
 
-  tuh_control_xfer_t const xfer =
+  tuh_control_xfer_t xfer =
   {
     .ep_addr     = 0,
     .setup       = &request,

@@ -53,8 +53,6 @@ struct tuh_control_xfer_s
   uint32_t actual_len;
 
   uint8_t* buffer;
-
-
   tuh_control_xfer_cb_t complete_cb;
   uintptr_t user_arg;
 };
@@ -118,7 +116,7 @@ static inline bool tuh_ready(uint8_t daddr)
 // Carry out a control transfer
 // true on success, false if there is on-going control transfer or incorrect parameters
 // Blocking if complete callback is NULL, in this case 'user_arg' must contain xfer_result_t variable
-bool tuh_control_xfer(uint8_t daddr, tuh_control_xfer_t const* xfer);
+bool tuh_control_xfer(uint8_t daddr, tuh_control_xfer_t* xfer);
 
 //bool tuh_edpt_xfer(uint8_t daddr, uint8_t ep_addr, uint8_t * buffer, uint16_t total_bytes);
 
