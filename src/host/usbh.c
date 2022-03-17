@@ -882,14 +882,11 @@ bool usbh_edpt_busy(uint8_t dev_addr, uint8_t ep_addr)
 // Control transfer
 //--------------------------------------------------------------------+
 
-static bool _control_blocking_complete_cb(uint8_t daddr, tuh_control_xfer_t* xfer)
+static void _control_blocking_complete_cb(uint8_t daddr, tuh_control_xfer_t* xfer)
 {
   (void) daddr;
-
   // update result
   *((xfer_result_t*) xfer->user_arg) = xfer->result;
-
-  return true;
 }
 
 bool tuh_control_xfer (uint8_t daddr, tuh_control_xfer_t const* xfer)
@@ -1122,13 +1119,13 @@ static bool parse_configuration_descriptor (uint8_t dev_addr, tusb_desc_configur
 static void enum_full_complete(void);
 
 // process device enumeration
-static bool process_enumeration(uint8_t dev_addr, tuh_control_xfer_t* xfer)
+static void process_enumeration(uint8_t dev_addr, tuh_control_xfer_t* xfer)
 {
   if (XFER_RESULT_SUCCESS != xfer->result)
   {
     // stop enumeration, maybe we could retry this
     enum_full_complete();
-    return false;
+    return;
   }
 
   uintptr_t const state = xfer->user_arg;
@@ -1146,7 +1143,7 @@ static bool process_enumeration(uint8_t dev_addr, tuh_control_xfer_t* xfer)
       {
         // device unplugged while delaying, nothing else to do
         enum_full_complete();
-        return false;
+        return;
       }
 
       _dev0.speed = (port_status.status.high_speed) ? TUSB_SPEED_HIGH :
@@ -1162,7 +1159,7 @@ static bool process_enumeration(uint8_t dev_addr, tuh_control_xfer_t* xfer)
 
     case ENUM_HUB_GET_STATUS_2:
       osal_task_delay(RESET_DELAY);
-      TU_ASSERT( hub_port_get_status(_dev0.hub_addr, _dev0.hub_port, _usbh_ctrl_buf, process_enumeration, ENUM_HUB_CLEAR_RESET_2) );
+      TU_ASSERT( hub_port_get_status(_dev0.hub_addr, _dev0.hub_port, _usbh_ctrl_buf, process_enumeration, ENUM_HUB_CLEAR_RESET_2), );
     break;
 
     case ENUM_HUB_CLEAR_RESET_2:
@@ -1173,7 +1170,7 @@ static bool process_enumeration(uint8_t dev_addr, tuh_control_xfer_t* xfer)
       // Acknowledge Port Reset Change if Reset Successful
       if (port_status.change.reset)
       {
-        TU_ASSERT( hub_port_clear_reset_change(_dev0.hub_addr, _dev0.hub_port, process_enumeration, ENUM_SET_ADDR) );
+        TU_ASSERT( hub_port_clear_reset_change(_dev0.hub_addr, _dev0.hub_port, process_enumeration, ENUM_SET_ADDR), );
       }
     }
     break;
@@ -1183,11 +1180,11 @@ static bool process_enumeration(uint8_t dev_addr, tuh_control_xfer_t* xfer)
     {
       // TODO probably doesn't need to open/close each enumeration
       uint8_t const addr0 = 0;
-      TU_ASSERT( usbh_edpt_control_open(addr0, 8) );
+      TU_ASSERT( usbh_edpt_control_open(addr0, 8), );
 
       // Get first 8 bytes of device descriptor for Control Endpoint size
       TU_LOG2("Get 8 byte of Device Descriptor\r\n");
-      TU_ASSERT(tuh_descriptor_get_device(addr0, _usbh_ctrl_buf, 8, process_enumeration, ENUM_SET_ADDR));
+      TU_ASSERT(tuh_descriptor_get_device(addr0, _usbh_ctrl_buf, 8, process_enumeration, ENUM_SET_ADDR), );
     }
     break;
 
@@ -1206,7 +1203,7 @@ static bool process_enumeration(uint8_t dev_addr, tuh_control_xfer_t* xfer)
       else
       {
         // after RESET_DELAY the hub_port_reset() already complete
-        TU_ASSERT( hub_port_reset(_dev0.hub_addr, _dev0.hub_port, process_enumeration, ENUM_HUB_GET_STATUS_2) );
+        TU_ASSERT( hub_port_reset(_dev0.hub_addr, _dev0.hub_port, process_enumeration, ENUM_HUB_GET_STATUS_2), );
         break;
       }
       #endif
@@ -1221,18 +1218,18 @@ static bool process_enumeration(uint8_t dev_addr, tuh_control_xfer_t* xfer)
       uint8_t const new_addr = (uint8_t) tu_le16toh(xfer->setup->wValue);
 
       usbh_device_t* new_dev = get_device(new_addr);
-      TU_ASSERT(new_dev);
+      TU_ASSERT(new_dev, );
       new_dev->addressed = 1;
 
       // TODO close device 0, may not be needed
       hcd_device_close(_dev0.rhport, 0);
 
       // open control pipe for new address
-      TU_ASSERT( usbh_edpt_control_open(new_addr, new_dev->ep0_size) );
+      TU_ASSERT( usbh_edpt_control_open(new_addr, new_dev->ep0_size), );
 
       // Get full device descriptor
       TU_LOG2("Get Device Descriptor\r\n");
-      TU_ASSERT(tuh_descriptor_get_device(new_addr, _usbh_ctrl_buf, sizeof(tusb_desc_device_t), process_enumeration, ENUM_GET_9BYTE_CONFIG_DESC));
+      TU_ASSERT(tuh_descriptor_get_device(new_addr, _usbh_ctrl_buf, sizeof(tusb_desc_device_t), process_enumeration, ENUM_GET_9BYTE_CONFIG_DESC), );
     }
     break;
 
@@ -1240,7 +1237,7 @@ static bool process_enumeration(uint8_t dev_addr, tuh_control_xfer_t* xfer)
     {
       tusb_desc_device_t const * desc_device = (tusb_desc_device_t const*) _usbh_ctrl_buf;
       usbh_device_t* dev = get_device(dev_addr);
-      TU_ASSERT(dev);
+      TU_ASSERT(dev, );
 
       dev->vid            = desc_device->idVendor;
       dev->pid            = desc_device->idProduct;
@@ -1253,7 +1250,7 @@ static bool process_enumeration(uint8_t dev_addr, tuh_control_xfer_t* xfer)
       // Get 9-byte for total length
       uint8_t const config_idx = CONFIG_NUM - 1;
       TU_LOG2("Get Configuration[0] Descriptor (9 bytes)\r\n");
-      TU_ASSERT( tuh_descriptor_get_configuration(dev_addr, config_idx, _usbh_ctrl_buf, 9, process_enumeration, ENUM_GET_FULL_CONFIG_DESC) );
+      TU_ASSERT( tuh_descriptor_get_configuration(dev_addr, config_idx, _usbh_ctrl_buf, 9, process_enumeration, ENUM_GET_FULL_CONFIG_DESC), );
     }
     break;
 
@@ -1265,28 +1262,28 @@ static bool process_enumeration(uint8_t dev_addr, tuh_control_xfer_t* xfer)
       uint16_t const total_len = tu_le16toh( tu_unaligned_read16(desc_config + offsetof(tusb_desc_configuration_t, wTotalLength)) );
 
       // TODO not enough buffer to hold configuration descriptor
-      TU_ASSERT(total_len <= CFG_TUH_ENUMERATION_BUFSIZE);
+      TU_ASSERT(total_len <= CFG_TUH_ENUMERATION_BUFSIZE, );
 
       // Get full configuration descriptor
       uint8_t const config_idx = CONFIG_NUM - 1;
       TU_LOG2("Get Configuration[0] Descriptor\r\n");
-      TU_ASSERT( tuh_descriptor_get_configuration(dev_addr, config_idx, _usbh_ctrl_buf, total_len, process_enumeration, ENUM_SET_CONFIG) );
+      TU_ASSERT( tuh_descriptor_get_configuration(dev_addr, config_idx, _usbh_ctrl_buf, total_len, process_enumeration, ENUM_SET_CONFIG), );
     }
     break;
 
     case ENUM_SET_CONFIG:
       // Parse configuration & set up drivers
       // Driver open aren't allowed to make any usb transfer yet
-      TU_ASSERT( parse_configuration_descriptor(dev_addr, (tusb_desc_configuration_t*) _usbh_ctrl_buf) );
+      TU_ASSERT( parse_configuration_descriptor(dev_addr, (tusb_desc_configuration_t*) _usbh_ctrl_buf), );
 
-      TU_ASSERT( tuh_configuration_set(dev_addr, CONFIG_NUM, process_enumeration, ENUM_CONFIG_DRIVER) );
+      TU_ASSERT( tuh_configuration_set(dev_addr, CONFIG_NUM, process_enumeration, ENUM_CONFIG_DRIVER), );
     break;
 
     case ENUM_CONFIG_DRIVER:
     {
       TU_LOG2("Device configured\r\n");
       usbh_device_t* dev = get_device(dev_addr);
-      TU_ASSERT(dev);
+      TU_ASSERT(dev, );
 
       dev->configured = 1;
 
@@ -1303,8 +1300,6 @@ static bool process_enumeration(uint8_t dev_addr, tuh_control_xfer_t* xfer)
       enum_full_complete();
     break;
   }
-
-  return true;
 }
 
 static bool enum_new_device(hcd_event_t* event)

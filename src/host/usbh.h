@@ -42,7 +42,7 @@
 struct tuh_control_xfer_s;
 typedef struct tuh_control_xfer_s tuh_control_xfer_t;
 
-typedef bool (*tuh_control_xfer_cb_t)(uint8_t daddr, tuh_control_xfer_t* xfer);
+typedef void (*tuh_control_xfer_cb_t)(uint8_t daddr, tuh_control_xfer_t* xfer);
 
 struct tuh_control_xfer_s
 {

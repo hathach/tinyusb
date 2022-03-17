@@ -225,8 +225,8 @@ bool hub_edpt_status_xfer(uint8_t dev_addr)
 // Set Configure
 //--------------------------------------------------------------------+
 
-static bool config_set_port_power (uint8_t dev_addr, tuh_control_xfer_t* xfer);
-static bool config_port_power_complete (uint8_t dev_addr, tuh_control_xfer_t* xfer);
+static void config_set_port_power (uint8_t dev_addr, tuh_control_xfer_t* xfer);
+static void config_port_power_complete (uint8_t dev_addr, tuh_control_xfer_t* xfer);
 
 bool hub_set_config(uint8_t dev_addr, uint8_t itf_num)
 {
@@ -262,9 +262,9 @@ bool hub_set_config(uint8_t dev_addr, uint8_t itf_num)
   return true;
 }
 
-static bool config_set_port_power (uint8_t dev_addr, tuh_control_xfer_t* xfer)
+static void config_set_port_power (uint8_t dev_addr, tuh_control_xfer_t* xfer)
 {
-  TU_ASSERT(XFER_RESULT_SUCCESS == xfer->result);
+  TU_ASSERT(XFER_RESULT_SUCCESS == xfer->result, );
 
   hub_interface_t* p_hub = get_itf(dev_addr);
 
@@ -276,38 +276,36 @@ static bool config_set_port_power (uint8_t dev_addr, tuh_control_xfer_t* xfer)
 
   // Set Port Power to be able to detect connection, starting with port 1
   uint8_t const hub_port = 1;
-  return hub_port_set_feature(dev_addr, hub_port, HUB_FEATURE_PORT_POWER, config_port_power_complete, 0);
+  hub_port_set_feature(dev_addr, hub_port, HUB_FEATURE_PORT_POWER, config_port_power_complete, 0);
 }
 
-static bool config_port_power_complete (uint8_t dev_addr, tuh_control_xfer_t* xfer)
+static void config_port_power_complete (uint8_t dev_addr, tuh_control_xfer_t* xfer)
 {
-  TU_ASSERT(XFER_RESULT_SUCCESS == xfer->result);
+  TU_ASSERT(XFER_RESULT_SUCCESS == xfer->result, );
    hub_interface_t* p_hub = get_itf(dev_addr);
 
   if (xfer->setup->wIndex == p_hub->port_count)
   {
     // All ports are power -> queue notification status endpoint and
     // complete the SET CONFIGURATION
-    TU_ASSERT( usbh_edpt_xfer(dev_addr, p_hub->ep_in, &p_hub->status_change, 1) );
+    TU_ASSERT( usbh_edpt_xfer(dev_addr, p_hub->ep_in, &p_hub->status_change, 1), );
 
     usbh_driver_set_config_complete(dev_addr, p_hub->itf_num);
   }else
   {
     // power next port
     uint8_t const hub_port = (uint8_t) (xfer->setup->wIndex + 1);
-    return hub_port_set_feature(dev_addr, hub_port, HUB_FEATURE_PORT_POWER, config_port_power_complete, 0);
+    hub_port_set_feature(dev_addr, hub_port, HUB_FEATURE_PORT_POWER, config_port_power_complete, 0);
   }
-
-  return true;
 }
 
 //--------------------------------------------------------------------+
 // Connection Changes
 //--------------------------------------------------------------------+
 
-static bool connection_get_status_complete (uint8_t dev_addr, tuh_control_xfer_t* xfer);
-static bool connection_clear_conn_change_complete (uint8_t dev_addr, tuh_control_xfer_t* xfer);
-static bool connection_port_reset_complete (uint8_t dev_addr, tuh_control_xfer_t* xfer);
+static void connection_get_status_complete (uint8_t dev_addr, tuh_control_xfer_t* xfer);
+static void connection_clear_conn_change_complete (uint8_t dev_addr, tuh_control_xfer_t* xfer);
+static void connection_port_reset_complete (uint8_t dev_addr, tuh_control_xfer_t* xfer);
 
 // callback as response of interrupt endpoint polling
 bool hub_xfer_cb(uint8_t dev_addr, uint8_t ep_addr, xfer_result_t result, uint32_t xferred_bytes)
@@ -335,12 +333,12 @@ bool hub_xfer_cb(uint8_t dev_addr, uint8_t ep_addr, xfer_result_t result, uint32
   return true;
 }
 
-static bool connection_get_status_complete (uint8_t dev_addr, tuh_control_xfer_t* xfer)
+static void connection_get_status_complete (uint8_t dev_addr, tuh_control_xfer_t* xfer)
 {
-  TU_ASSERT(xfer->result == XFER_RESULT_SUCCESS);
+  TU_ASSERT(xfer->result == XFER_RESULT_SUCCESS, );
 
   hub_interface_t* p_hub = get_itf(dev_addr);
-  uint8_t const port_num = (uint8_t) xfer->setup->wIndex;
+  uint8_t const port_num = (uint8_t) tu_le16toh(xfer->setup->wIndex);
 
   // Connection change
   if (p_hub->port_status.change.connection)
@@ -359,16 +357,14 @@ static bool connection_get_status_complete (uint8_t dev_addr, tuh_control_xfer_t
     // TODO continue with status_change, or maybe we can do it again with status
     hub_edpt_status_xfer(dev_addr);
   }
-
-  return true;
 }
 
-static bool connection_clear_conn_change_complete (uint8_t dev_addr, tuh_control_xfer_t* xfer)
+static void connection_clear_conn_change_complete (uint8_t dev_addr, tuh_control_xfer_t* xfer)
 {
-  TU_ASSERT(xfer->result == XFER_RESULT_SUCCESS);
+  TU_ASSERT(xfer->result == XFER_RESULT_SUCCESS, );
 
   hub_interface_t* p_hub = get_itf(dev_addr);
-  uint8_t const port_num = (uint8_t) xfer->setup->wIndex;
+  uint8_t const port_num = (uint8_t) tu_le16toh(xfer->setup->wIndex);
 
   if ( p_hub->port_status.status.connection )
   {
@@ -390,16 +386,14 @@ static bool connection_clear_conn_change_complete (uint8_t dev_addr, tuh_control
 
     hcd_event_handler(&event, false);
   }
-
-  return true;
 }
 
-static bool connection_port_reset_complete (uint8_t dev_addr, tuh_control_xfer_t* xfer)
+static void connection_port_reset_complete (uint8_t dev_addr, tuh_control_xfer_t* xfer)
 {
-  TU_ASSERT(xfer->result == XFER_RESULT_SUCCESS);
+  TU_ASSERT(xfer->result == XFER_RESULT_SUCCESS, );
 
   // hub_interface_t* p_hub = get_itf(dev_addr);
-  uint8_t const port_num = (uint8_t) xfer->setup->wIndex;
+  uint8_t const port_num = (uint8_t) tu_le16toh(xfer->setup->wIndex);
 
   // submit attach event
   hcd_event_t event =
@@ -414,8 +408,6 @@ static bool connection_port_reset_complete (uint8_t dev_addr, tuh_control_xfer_t
   };
 
   hcd_event_handler(&event, false);
-
-  return true;
 }
 
 #endif
