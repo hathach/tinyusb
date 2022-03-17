@@ -46,7 +46,10 @@ typedef bool (*tuh_control_xfer_cb_t)(uint8_t daddr, tuh_control_xfer_t const * 
 
 struct tuh_control_xfer_s
 {
-  tusb_control_request_t request TU_ATTR_ALIGNED(4);
+  uint8_t ep_addr;
+  tusb_control_request_t const* setup;
+  uint32_t actual_len;
+
   uint8_t* buffer;
   tuh_control_xfer_cb_t complete_cb;
   uintptr_t user_arg;
@@ -104,14 +107,16 @@ static inline bool tuh_ready(uint8_t daddr)
   return tuh_mounted(daddr) && !tuh_suspended(daddr);
 }
 
+//--------------------------------------------------------------------+
+// Endpoint Asynchronous (non-blocking)
+//--------------------------------------------------------------------+
+
 // Carry out a control transfer
 // true on success, false if there is on-going control transfer or incorrect parameters
 // Blocking if complete callback is NULL, in this case 'user_arg' must contain xfer_result_t variable
-bool tuh_control_xfer (uint8_t daddr, tuh_control_xfer_t const* xfer);
+bool tuh_control_xfer(uint8_t daddr, tuh_control_xfer_t const* xfer);
 
-// Sync (blocking) version of tuh_control_xfer()
-// return transfer result
-uint8_t tuh_control_xfer_sync(uint8_t daddr, tuh_control_xfer_t const* xfer, uint32_t timeout_ms);
+//bool tuh_edpt_xfer(uint8_t daddr, uint8_t ep_addr, uint8_t * buffer, uint16_t total_bytes);
 
 // Set Configuration (control transfer)
 // config_num = 0 will un-configure device. Note: config_num = config_descriptor_index + 1
@@ -119,6 +124,14 @@ uint8_t tuh_control_xfer_sync(uint8_t daddr, tuh_control_xfer_t const* xfer, uin
 // Blocking if complete callback is NULL, in this case 'user_arg' must contain xfer_result_t variable
 bool tuh_configuration_set(uint8_t daddr, uint8_t config_num,
                            tuh_control_xfer_cb_t complete_cb, uintptr_t user_arg);
+
+//--------------------------------------------------------------------+
+// Endpoint Synchronous (blocking)
+//--------------------------------------------------------------------+
+
+// Sync (blocking) version of tuh_control_xfer()
+// return transfer result
+uint8_t tuh_control_xfer_sync(uint8_t daddr, tuh_control_xfer_t const* xfer, uint32_t timeout_ms);
 
 //--------------------------------------------------------------------+
 // Descriptors Asynchronous (non-blocking)
@@ -200,10 +213,6 @@ uint8_t tuh_descriptor_get_product_string_sync(uint8_t daddr, uint16_t language_
 // Sync (blocking) version of tuh_descriptor_get_serial_string()
 // return transfer result
 uint8_t tuh_descriptor_get_serial_string_sync(uint8_t daddr, uint16_t language_id, void* buffer, uint16_t len, uint8_t timeout_ms);
-
-//--------------------------------------------------------------------+
-//
-//--------------------------------------------------------------------+
 
 #ifdef __cplusplus
  }

@@ -405,22 +405,24 @@ bool msch_set_config(uint8_t dev_addr, uint8_t itf_num)
 
   //------------- Get Max Lun -------------//
   TU_LOG2("MSC Get Max Lun\r\n");
+  tusb_control_request_t const request =
+  {
+    .bmRequestType_bit =
+    {
+      .recipient = TUSB_REQ_RCPT_INTERFACE,
+      .type      = TUSB_REQ_TYPE_CLASS,
+      .direction = TUSB_DIR_IN
+    },
+    .bRequest = MSC_REQ_GET_MAX_LUN,
+    .wValue   = 0,
+    .wIndex   = itf_num,
+    .wLength  = 1
+  };
+
   tuh_control_xfer_t const xfer =
   {
-    .request =
-    {
-      .bmRequestType_bit =
-      {
-        .recipient = TUSB_REQ_RCPT_INTERFACE,
-        .type      = TUSB_REQ_TYPE_CLASS,
-        .direction = TUSB_DIR_IN
-      },
-      .bRequest = MSC_REQ_GET_MAX_LUN,
-      .wValue   = 0,
-      .wIndex   = itf_num,
-      .wLength  = 1
-    },
-
+    .ep_addr     = 0,
+    .setup       = &request,
     .buffer      = &p_msc->max_lun,
     .complete_cb = config_get_maxlun_complete,
     .user_arg    = 0

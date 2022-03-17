@@ -105,11 +105,11 @@ uint8_t tuh_hid_get_protocol(uint8_t dev_addr, uint8_t instance)
 
 static bool set_protocol_complete(uint8_t dev_addr, tuh_control_xfer_t const * xfer,  xfer_result_t result)
 {
-  uint8_t const itf_num     = (uint8_t) xfer->request.wIndex;
+  uint8_t const itf_num     = (uint8_t) xfer->setup->wIndex;
   uint8_t const instance    = get_instance_id_by_itfnum(dev_addr, itf_num);
   hidh_interface_t* hid_itf = get_instance(dev_addr, instance);
 
-  if (XFER_RESULT_SUCCESS == result) hid_itf->protocol_mode = (uint8_t) xfer->request.wValue;
+  if (XFER_RESULT_SUCCESS == result) hid_itf->protocol_mode = (uint8_t) xfer->setup->wValue;
 
   if (tuh_hid_set_protocol_complete_cb)
   {
@@ -124,22 +124,24 @@ static bool _hidh_set_protocol(uint8_t dev_addr, uint8_t itf_num, uint8_t protoc
 {
   TU_LOG2("HID Set Protocol = %d\r\n", protocol);
 
+  tusb_control_request_t const request =
+  {
+    .bmRequestType_bit =
+    {
+      .recipient = TUSB_REQ_RCPT_INTERFACE,
+      .type      = TUSB_REQ_TYPE_CLASS,
+      .direction = TUSB_DIR_OUT
+    },
+    .bRequest = HID_REQ_CONTROL_SET_PROTOCOL,
+    .wValue   = protocol,
+    .wIndex   = itf_num,
+    .wLength  = 0
+  };
+
   tuh_control_xfer_t const xfer =
   {
-    .request =
-    {
-      .bmRequestType_bit =
-      {
-        .recipient = TUSB_REQ_RCPT_INTERFACE,
-        .type      = TUSB_REQ_TYPE_CLASS,
-        .direction = TUSB_DIR_OUT
-      },
-      .bRequest = HID_REQ_CONTROL_SET_PROTOCOL,
-      .wValue   = protocol,
-      .wIndex   = itf_num,
-      .wLength  = 0
-    },
-
+    .ep_addr     = 0,
+    .setup       = &request,
     .buffer      = NULL,
     .complete_cb = complete_cb,
     .user_arg    = user_arg
@@ -163,13 +165,13 @@ static bool set_report_complete(uint8_t dev_addr, tuh_control_xfer_t const * xfe
 
   if (tuh_hid_set_report_complete_cb)
   {
-    uint8_t const itf_num     = (uint8_t) xfer->request.wIndex;
+    uint8_t const itf_num     = (uint8_t) xfer->setup->wIndex;
     uint8_t const instance    = get_instance_id_by_itfnum(dev_addr, itf_num);
 
-    uint8_t const report_type = tu_u16_high(xfer->request.wValue);
-    uint8_t const report_id   = tu_u16_low(xfer->request.wValue);
+    uint8_t const report_type = tu_u16_high(xfer->setup->wValue);
+    uint8_t const report_id   = tu_u16_low(xfer->setup->wValue);
 
-    tuh_hid_set_report_complete_cb(dev_addr, instance, report_id, report_type, (result == XFER_RESULT_SUCCESS) ? xfer->request.wLength : 0);
+    tuh_hid_set_report_complete_cb(dev_addr, instance, report_id, report_type, (result == XFER_RESULT_SUCCESS) ? xfer->setup->wLength : 0);
   }
 
   return true;
@@ -180,22 +182,24 @@ bool tuh_hid_set_report(uint8_t dev_addr, uint8_t instance, uint8_t report_id, u
   hidh_interface_t* hid_itf = get_instance(dev_addr, instance);
   TU_LOG2("HID Set Report: id = %u, type = %u, len = %u\r\n", report_id, report_type, len);
 
+  tusb_control_request_t const request =
+  {
+    .bmRequestType_bit =
+    {
+      .recipient = TUSB_REQ_RCPT_INTERFACE,
+      .type      = TUSB_REQ_TYPE_CLASS,
+      .direction = TUSB_DIR_OUT
+    },
+    .bRequest = HID_REQ_CONTROL_SET_REPORT,
+    .wValue   = tu_u16(report_type, report_id),
+    .wIndex   = hid_itf->itf_num,
+    .wLength  = len
+  };
+
   tuh_control_xfer_t const xfer =
   {
-    .request =
-    {
-      .bmRequestType_bit =
-      {
-        .recipient = TUSB_REQ_RCPT_INTERFACE,
-        .type      = TUSB_REQ_TYPE_CLASS,
-        .direction = TUSB_DIR_OUT
-      },
-      .bRequest = HID_REQ_CONTROL_SET_REPORT,
-      .wValue   = tu_u16(report_type, report_id),
-      .wIndex   = hid_itf->itf_num,
-      .wLength  = len
-    },
-
+    .ep_addr     = 0,
+    .setup       = &request,
     .buffer      = report,
     .complete_cb = set_report_complete,
     .user_arg    = 0
@@ -209,22 +213,24 @@ static bool _hidh_set_idle(uint8_t dev_addr, uint8_t itf_num, uint16_t idle_rate
 {
   // SET IDLE request, device can stall if not support this request
   TU_LOG2("HID Set Idle \r\n");
+  tusb_control_request_t const request =
+  {
+    .bmRequestType_bit =
+    {
+      .recipient = TUSB_REQ_RCPT_INTERFACE,
+      .type      = TUSB_REQ_TYPE_CLASS,
+      .direction = TUSB_DIR_OUT
+    },
+    .bRequest = HID_REQ_CONTROL_SET_IDLE,
+    .wValue   = idle_rate,
+    .wIndex   = itf_num,
+    .wLength  = 0
+  };
+
   tuh_control_xfer_t const xfer =
   {
-    .request =
-    {
-      .bmRequestType_bit =
-      {
-        .recipient = TUSB_REQ_RCPT_INTERFACE,
-        .type      = TUSB_REQ_TYPE_CLASS,
-        .direction = TUSB_DIR_OUT
-      },
-      .bRequest = HID_REQ_CONTROL_SET_IDLE,
-      .wValue   = idle_rate,
-      .wIndex   = itf_num,
-      .wLength  = 0
-    },
-
+    .ep_addr     = 0,
+    .setup       = &request,
     .buffer      = NULL,
     .complete_cb = complete_cb,
     .user_arg    = user_arg
@@ -387,24 +393,27 @@ static bool process_set_config(uint8_t dev_addr, tuh_control_xfer_t const * xfer
 
 bool hidh_set_config(uint8_t dev_addr, uint8_t itf_num)
 {
+  tusb_control_request_t request;
+  request.wIndex = tu_htole16((uint16_t) itf_num);
+
   tuh_control_xfer_t xfer;
-  xfer.request.wIndex = tu_htole16((uint16_t) itf_num);
+  xfer.setup = &request;
   xfer.user_arg = CONFG_SET_IDLE;
 
-  // start the set config process
+  // fake request to start the set config process
   return process_set_config(dev_addr, &xfer, XFER_RESULT_SUCCESS);
 }
 
 static bool process_set_config(uint8_t dev_addr, tuh_control_xfer_t const * xfer,  xfer_result_t result)
 {
   // Stall is a valid response for SET_IDLE, therefore we could ignore its result
-  if ( xfer->request.bRequest != HID_REQ_CONTROL_SET_IDLE )
+  if ( xfer->setup->bRequest != HID_REQ_CONTROL_SET_IDLE )
   {
     TU_ASSERT(result == XFER_RESULT_SUCCESS);
   }
 
   uintptr_t const state     = xfer->user_arg;
-  uint8_t const itf_num     = (uint8_t) tu_le16toh(xfer->request.wIndex);
+  uint8_t const itf_num     = (uint8_t) tu_le16toh(xfer->setup->wIndex);
   uint8_t const instance    = get_instance_id_by_itfnum(dev_addr, itf_num);
   hidh_interface_t* hid_itf = get_instance(dev_addr, instance);
 
@@ -441,7 +450,7 @@ static bool process_set_config(uint8_t dev_addr, tuh_control_xfer_t const * xfer
     case CONFIG_COMPLETE:
     {
       uint8_t const* desc_report = usbh_get_enum_buf();
-      uint16_t const desc_len    = xfer->request.wLength;
+      uint16_t const desc_len    = xfer->setup->wLength;
 
       config_driver_mount_complete(dev_addr, instance, desc_report, desc_len);
     }

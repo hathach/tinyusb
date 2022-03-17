@@ -80,22 +80,24 @@ static char const* const _hub_feature_str[] =
 bool hub_port_clear_feature(uint8_t hub_addr, uint8_t hub_port, uint8_t feature,
                             tuh_control_xfer_cb_t complete_cb, uintptr_t user_arg)
 {
+  tusb_control_request_t const request =
+  {
+    .bmRequestType_bit =
+    {
+      .recipient = TUSB_REQ_RCPT_OTHER,
+      .type      = TUSB_REQ_TYPE_CLASS,
+      .direction = TUSB_DIR_OUT
+    },
+    .bRequest = HUB_REQUEST_CLEAR_FEATURE,
+    .wValue   = feature,
+    .wIndex   = hub_port,
+    .wLength  = 0
+  };
+
   tuh_control_xfer_t const xfer =
   {
-    .request =
-    {
-      .bmRequestType_bit =
-      {
-        .recipient = TUSB_REQ_RCPT_OTHER,
-        .type      = TUSB_REQ_TYPE_CLASS,
-        .direction = TUSB_DIR_OUT
-      },
-      .bRequest = HUB_REQUEST_CLEAR_FEATURE,
-      .wValue   = feature,
-      .wIndex   = hub_port,
-      .wLength  = 0
-    },
-
+    .ep_addr     = 0,
+    .setup       = &request,
     .buffer      = NULL,
     .complete_cb = complete_cb,
     .user_arg    = user_arg
@@ -109,22 +111,24 @@ bool hub_port_clear_feature(uint8_t hub_addr, uint8_t hub_port, uint8_t feature,
 bool hub_port_set_feature(uint8_t hub_addr, uint8_t hub_port, uint8_t feature,
                           tuh_control_xfer_cb_t complete_cb, uintptr_t user_arg)
 {
+  tusb_control_request_t const request =
+  {
+    .bmRequestType_bit =
+    {
+      .recipient = TUSB_REQ_RCPT_OTHER,
+      .type      = TUSB_REQ_TYPE_CLASS,
+      .direction = TUSB_DIR_OUT
+    },
+    .bRequest = HUB_REQUEST_SET_FEATURE,
+    .wValue   = feature,
+    .wIndex   = hub_port,
+    .wLength  = 0
+  };
+
   tuh_control_xfer_t const xfer =
   {
-    .request =
-    {
-      .bmRequestType_bit =
-      {
-        .recipient = TUSB_REQ_RCPT_OTHER,
-        .type      = TUSB_REQ_TYPE_CLASS,
-        .direction = TUSB_DIR_OUT
-      },
-      .bRequest = HUB_REQUEST_SET_FEATURE,
-      .wValue   = feature,
-      .wIndex   = hub_port,
-      .wLength  = 0
-    },
-
+    .ep_addr     = 0,
+    .setup       = &request,
     .buffer      = NULL,
     .complete_cb = complete_cb,
     .user_arg    = user_arg
@@ -138,22 +142,24 @@ bool hub_port_set_feature(uint8_t hub_addr, uint8_t hub_port, uint8_t feature,
 bool hub_port_get_status(uint8_t hub_addr, uint8_t hub_port, void* resp,
                          tuh_control_xfer_cb_t complete_cb, uintptr_t user_arg)
 {
+  tusb_control_request_t const request =
+  {
+    .bmRequestType_bit =
+    {
+      .recipient = TUSB_REQ_RCPT_OTHER,
+      .type      = TUSB_REQ_TYPE_CLASS,
+      .direction = TUSB_DIR_IN
+    },
+    .bRequest = HUB_REQUEST_GET_STATUS,
+    .wValue   = 0,
+    .wIndex   = hub_port,
+    .wLength  = 4
+  };
+
   tuh_control_xfer_t const xfer =
   {
-    .request =
-    {
-      .bmRequestType_bit =
-      {
-        .recipient = TUSB_REQ_RCPT_OTHER,
-        .type      = TUSB_REQ_TYPE_CLASS,
-        .direction = TUSB_DIR_IN
-      },
-      .bRequest = HUB_REQUEST_GET_STATUS,
-      .wValue   = 0,
-      .wIndex   = hub_port,
-      .wLength  = 4
-    },
-
+    .ep_addr     = 0,
+    .setup       = &request,
     .buffer      = resp,
     .complete_cb = complete_cb,
     .user_arg    = user_arg
@@ -228,22 +234,24 @@ bool hub_set_config(uint8_t dev_addr, uint8_t itf_num)
   TU_ASSERT(itf_num == p_hub->itf_num);
 
   // Get Hub Descriptor
+  tusb_control_request_t const request =
+  {
+    .bmRequestType_bit =
+    {
+      .recipient = TUSB_REQ_RCPT_DEVICE,
+      .type      = TUSB_REQ_TYPE_CLASS,
+      .direction = TUSB_DIR_IN
+    },
+    .bRequest = HUB_REQUEST_GET_DESCRIPTOR,
+    .wValue   = 0,
+    .wIndex   = 0,
+    .wLength  = sizeof(descriptor_hub_desc_t)
+  };
+
   tuh_control_xfer_t const xfer =
   {
-    .request =
-    {
-      .bmRequestType_bit =
-      {
-        .recipient = TUSB_REQ_RCPT_DEVICE,
-        .type      = TUSB_REQ_TYPE_CLASS,
-        .direction = TUSB_DIR_IN
-      },
-      .bRequest = HUB_REQUEST_GET_DESCRIPTOR,
-      .wValue   = 0,
-      .wIndex   = 0,
-      .wLength  = sizeof(descriptor_hub_desc_t)
-    },
-
+    .ep_addr     = 0,
+    .setup       = &request,
     .buffer      = _hub_buffer,
     .complete_cb = config_set_port_power,
     .user_arg    = 0
@@ -277,7 +285,7 @@ static bool config_port_power_complete (uint8_t dev_addr, tuh_control_xfer_t con
   TU_ASSERT(XFER_RESULT_SUCCESS == result);
    hub_interface_t* p_hub = get_itf(dev_addr);
 
-  if (xfer->request.wIndex == p_hub->port_count)
+  if (xfer->setup->wIndex == p_hub->port_count)
   {
     // All ports are power -> queue notification status endpoint and
     // complete the SET CONFIGURATION
@@ -287,7 +295,7 @@ static bool config_port_power_complete (uint8_t dev_addr, tuh_control_xfer_t con
   }else
   {
     // power next port
-    uint8_t const hub_port = (uint8_t) (xfer->request.wIndex + 1);
+    uint8_t const hub_port = (uint8_t) (xfer->setup->wIndex + 1);
     return hub_port_set_feature(dev_addr, hub_port, HUB_FEATURE_PORT_POWER, config_port_power_complete, 0);
   }
 
@@ -333,7 +341,7 @@ static bool connection_get_status_complete (uint8_t dev_addr, tuh_control_xfer_t
   TU_ASSERT(result == XFER_RESULT_SUCCESS);
 
   hub_interface_t* p_hub = get_itf(dev_addr);
-  uint8_t const port_num = (uint8_t) xfer->request.wIndex;
+  uint8_t const port_num = (uint8_t) xfer->setup->wIndex;
 
   // Connection change
   if (p_hub->port_status.change.connection)
@@ -361,7 +369,7 @@ static bool connection_clear_conn_change_complete (uint8_t dev_addr, tuh_control
   TU_ASSERT(result == XFER_RESULT_SUCCESS);
 
   hub_interface_t* p_hub = get_itf(dev_addr);
-  uint8_t const port_num = (uint8_t) xfer->request.wIndex;
+  uint8_t const port_num = (uint8_t) xfer->setup->wIndex;
 
   if ( p_hub->port_status.status.connection )
   {
@@ -392,7 +400,7 @@ static bool connection_port_reset_complete (uint8_t dev_addr, tuh_control_xfer_t
   TU_ASSERT(result == XFER_RESULT_SUCCESS);
 
   // hub_interface_t* p_hub = get_itf(dev_addr);
-  uint8_t const port_num = (uint8_t) xfer->request.wIndex;
+  uint8_t const port_num = (uint8_t) xfer->setup->wIndex;
 
   // submit attach event
   hcd_event_t event =

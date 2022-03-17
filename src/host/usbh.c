@@ -109,6 +109,10 @@ typedef struct {
 
   tu_edpt_state_t ep_status[CFG_TUH_ENDPOINT_MAX][2];
 
+#if CFG_TUH_BARE
+
+#endif
+
 } usbh_device_t;
 
 //--------------------------------------------------------------------+
@@ -241,7 +245,11 @@ static uint8_t _usbh_ctrl_buf[CFG_TUH_ENUMERATION_BUFSIZE];
 // We will only execute control transfer one at a time.
 struct
 {
-  tuh_control_xfer_t xfer;
+  tusb_control_request_t request TU_ATTR_ALIGNED(4);
+  uint8_t* buffer;
+  tuh_control_xfer_cb_t complete_cb;
+  uintptr_t user_arg;
+
   uint8_t daddr;  // device address that is transferring
   volatile uint8_t stage;
 }_ctrl_xfer;
@@ -304,22 +312,24 @@ void osal_task_delay(uint32_t msec)
 static bool _get_descriptor(uint8_t daddr, uint8_t type, uint8_t index, uint16_t language_id, void* buffer, uint16_t len,
                             tuh_control_xfer_cb_t complete_cb, uintptr_t user_arg)
 {
+  tusb_control_request_t const request =
+  {
+    .bmRequestType_bit =
+    {
+      .recipient = TUSB_REQ_RCPT_DEVICE,
+      .type      = TUSB_REQ_TYPE_STANDARD,
+      .direction = TUSB_DIR_IN
+    },
+    .bRequest = TUSB_REQ_GET_DESCRIPTOR,
+    .wValue   = tu_htole16( TU_U16(type, index) ),
+    .wIndex   = tu_htole16(language_id),
+    .wLength  = tu_htole16(len)
+  };
+
   tuh_control_xfer_t const xfer =
   {
-    .request =
-    {
-      .bmRequestType_bit =
-      {
-        .recipient = TUSB_REQ_RCPT_DEVICE,
-        .type      = TUSB_REQ_TYPE_STANDARD,
-        .direction = TUSB_DIR_IN
-      },
-      .bRequest = TUSB_REQ_GET_DESCRIPTOR,
-      .wValue   = tu_htole16( TU_U16(type, index) ),
-      .wIndex   = tu_htole16(language_id),
-      .wLength  = tu_htole16(len)
-    },
-
+    .ep_addr     = 0,
+    .setup       = &request,
     .buffer      = buffer,
     .complete_cb = complete_cb,
     .user_arg    = user_arg
@@ -387,22 +397,24 @@ bool tuh_descriptor_get_hid_report(uint8_t daddr, uint8_t itf_num, uint8_t desc_
                                    tuh_control_xfer_cb_t complete_cb, uintptr_t user_arg)
 {
   TU_LOG2("HID Get Report Descriptor\r\n");
+  tusb_control_request_t const request =
+  {
+    .bmRequestType_bit =
+    {
+      .recipient = TUSB_REQ_RCPT_INTERFACE,
+      .type      = TUSB_REQ_TYPE_STANDARD,
+      .direction = TUSB_DIR_IN
+    },
+    .bRequest = TUSB_REQ_GET_DESCRIPTOR,
+    .wValue   = tu_htole16(TU_U16(desc_type, index)),
+    .wIndex   = tu_htole16((uint16_t) itf_num),
+    .wLength  = len
+  };
+
   tuh_control_xfer_t const xfer =
   {
-    .request =
-    {
-      .bmRequestType_bit =
-      {
-        .recipient = TUSB_REQ_RCPT_INTERFACE,
-        .type      = TUSB_REQ_TYPE_STANDARD,
-        .direction = TUSB_DIR_IN
-      },
-      .bRequest = TUSB_REQ_GET_DESCRIPTOR,
-      .wValue   = tu_htole16(TU_U16(desc_type, index)),
-      .wIndex   = tu_htole16((uint16_t) itf_num),
-      .wLength  = len
-    },
-
+    .ep_addr     = 0,
+    .setup       = &request,
     .buffer      = buffer,
     .complete_cb = complete_cb,
     .user_arg    = user_arg
@@ -416,22 +428,24 @@ bool tuh_configuration_set(uint8_t daddr, uint8_t config_num,
 {
   TU_LOG2("Set Configuration = %d\r\n", config_num);
 
+  tusb_control_request_t const request =
+  {
+    .bmRequestType_bit =
+    {
+      .recipient = TUSB_REQ_RCPT_DEVICE,
+      .type      = TUSB_REQ_TYPE_STANDARD,
+      .direction = TUSB_DIR_OUT
+    },
+    .bRequest = TUSB_REQ_SET_CONFIGURATION,
+    .wValue   = tu_htole16(config_num),
+    .wIndex   = 0,
+    .wLength  = 0
+  };
+
   tuh_control_xfer_t const xfer =
   {
-    .request =
-    {
-      .bmRequestType_bit =
-      {
-        .recipient = TUSB_REQ_RCPT_DEVICE,
-        .type      = TUSB_REQ_TYPE_STANDARD,
-        .direction = TUSB_DIR_OUT
-      },
-      .bRequest = TUSB_REQ_SET_CONFIGURATION,
-      .wValue   = tu_htole16(config_num),
-      .wIndex   = 0,
-      .wLength  = 0
-    },
-
+    .ep_addr     = 0,
+    .setup       = &request,
     .buffer      = NULL,
     .complete_cb = complete_cb,
     .user_arg    = user_arg
@@ -895,16 +909,19 @@ bool tuh_control_xfer (uint8_t daddr, tuh_control_xfer_t const* xfer)
 
   const uint8_t rhport = usbh_get_rhport(daddr);
 
-  TU_LOG2("[%u:%u] %s: ", rhport, daddr, xfer->request.bRequest <= TUSB_REQ_SYNCH_FRAME ? tu_str_std_request[xfer->request.bRequest] : "Unknown Request");
-  TU_LOG2_VAR(&xfer->request);
+  TU_LOG2("[%u:%u] %s: ", rhport, daddr, xfer->setup->bRequest <= TUSB_REQ_SYNCH_FRAME ? tu_str_std_request[xfer->setup->bRequest] : "Unknown Request");
+  TU_LOG2_VAR(&xfer->setup);
   TU_LOG2("\r\n");
 
-  _ctrl_xfer.daddr = daddr;
-  _ctrl_xfer.xfer = (*xfer);
+  _ctrl_xfer.daddr       = daddr;
+  _ctrl_xfer.request     = (*xfer->setup);
+  _ctrl_xfer.buffer      = xfer->buffer;
+  _ctrl_xfer.complete_cb = xfer->complete_cb;
+  _ctrl_xfer.user_arg    = xfer->user_arg;
 
   if (xfer->complete_cb)
   {
-    TU_ASSERT( hcd_setup_send(rhport, daddr, (uint8_t*) &_ctrl_xfer.xfer.request) );
+    TU_ASSERT( hcd_setup_send(rhport, daddr, (uint8_t*) &_ctrl_xfer.request) );
   }else
   {
     // user_arg must point to xfer_result_t to hold result
@@ -914,10 +931,10 @@ bool tuh_control_xfer (uint8_t daddr, tuh_control_xfer_t const* xfer)
     // change callback to internal blocking, and result as user argument
     volatile xfer_result_t* result = (volatile xfer_result_t*) xfer->user_arg;
 
-    _ctrl_xfer.xfer.complete_cb = _control_blocking_complete_cb;
+    _ctrl_xfer.complete_cb = _control_blocking_complete_cb;
     *result = XFER_RESULT_INVALID;
 
-    TU_ASSERT( hcd_setup_send(rhport, daddr, (uint8_t*) &_ctrl_xfer.xfer.request) );
+    TU_ASSERT( hcd_setup_send(rhport, daddr, (uint8_t*) &_ctrl_xfer.request) );
 
     while ((*result) == XFER_RESULT_INVALID)
     {
@@ -961,7 +978,16 @@ static void _xfer_complete(uint8_t dev_addr, xfer_result_t result)
   TU_LOG2("\r\n");
 
   // duplicate xfer since user can execute control transfer within callback
-  tuh_control_xfer_t const xfer_temp = _ctrl_xfer.xfer;
+  tusb_control_request_t const request = _ctrl_xfer.request;
+  tuh_control_xfer_t const xfer_temp =
+  {
+    .ep_addr     = 0,
+    .setup       = &request,
+    .actual_len  = 0,
+    .buffer      = _ctrl_xfer.buffer,
+    .complete_cb = _ctrl_xfer.complete_cb,
+    .user_arg    = _ctrl_xfer.user_arg
+  };
 
   usbh_lock();
   _ctrl_xfer.stage = CONTROL_STAGE_IDLE;
@@ -979,7 +1005,7 @@ static bool usbh_control_xfer_cb (uint8_t dev_addr, uint8_t ep_addr, xfer_result
   (void) xferred_bytes;
 
   const uint8_t rhport = usbh_get_rhport(dev_addr);
-  tusb_control_request_t const * request = &_ctrl_xfer.xfer.request;
+  tusb_control_request_t const * request = &_ctrl_xfer.request;
 
   if (XFER_RESULT_SUCCESS != result)
   {
@@ -996,7 +1022,7 @@ static bool usbh_control_xfer_cb (uint8_t dev_addr, uint8_t ep_addr, xfer_result
         {
           // DATA stage: initial data toggle is always 1
           set_control_xfer_stage(CONTROL_STAGE_DATA);
-          return hcd_edpt_xfer(rhport, dev_addr, tu_edpt_addr(0, request->bmRequestType_bit.direction), _ctrl_xfer.xfer.buffer, request->wLength);
+          return hcd_edpt_xfer(rhport, dev_addr, tu_edpt_addr(0, request->bmRequestType_bit.direction), _ctrl_xfer.buffer, request->wLength);
         }
         __attribute__((fallthrough));
 
@@ -1004,7 +1030,7 @@ static bool usbh_control_xfer_cb (uint8_t dev_addr, uint8_t ep_addr, xfer_result
         if (request->wLength)
         {
           TU_LOG2("[%u:%u] Control data:\r\n", rhport, dev_addr);
-          TU_LOG2_MEM(_ctrl_xfer.xfer.buffer, request->wLength, 2);
+          TU_LOG2_MEM(_ctrl_xfer.buffer, request->wLength, 2);
         }
 
         // ACK stage: toggle is always 1
@@ -1190,7 +1216,7 @@ static bool process_enumeration(uint8_t dev_addr, tuh_control_xfer_t const * xfe
 
     case ENUM_GET_DEVICE_DESC:
     {
-      uint8_t const new_addr = (uint8_t) tu_le16toh(xfer->request.wValue);
+      uint8_t const new_addr = (uint8_t) tu_le16toh(xfer->setup->wValue);
 
       usbh_device_t* new_dev = get_device(new_addr);
       TU_ASSERT(new_dev);
@@ -1320,6 +1346,12 @@ static bool enum_new_device(hcd_event_t* event)
   return true;
 }
 
+TU_ATTR_ALWAYS_INLINE
+static inline bool is_hub_addr(uint8_t daddr)
+{
+  return daddr > CFG_TUH_DEVICE_MAX;
+}
+
 static uint8_t get_new_address(bool is_hub)
 {
   uint8_t start;
@@ -1360,22 +1392,24 @@ static bool enum_request_set_addr(void)
   new_dev->connected = 1;
   new_dev->ep0_size  = desc_device->bMaxPacketSize0;
 
+  tusb_control_request_t const request =
+  {
+    .bmRequestType_bit =
+    {
+      .recipient = TUSB_REQ_RCPT_DEVICE,
+      .type      = TUSB_REQ_TYPE_STANDARD,
+      .direction = TUSB_DIR_OUT
+    },
+    .bRequest = TUSB_REQ_SET_ADDRESS,
+    .wValue   = tu_htole16(new_addr),
+    .wIndex   = 0,
+    .wLength  = 0
+  };
+
   tuh_control_xfer_t const xfer =
   {
-    .request =
-    {
-      .bmRequestType_bit =
-      {
-        .recipient = TUSB_REQ_RCPT_DEVICE,
-        .type      = TUSB_REQ_TYPE_STANDARD,
-        .direction = TUSB_DIR_OUT
-      },
-      .bRequest = TUSB_REQ_SET_ADDRESS,
-      .wValue   = tu_htole16(new_addr),
-      .wIndex   = 0,
-      .wLength  = 0
-    },
-
+    .ep_addr     = 0,
+    .setup       = &request,
     .buffer      = NULL,
     .complete_cb = process_enumeration,
     .user_arg    = ENUM_GET_DEVICE_DESC
@@ -1503,8 +1537,14 @@ void usbh_driver_set_config_complete(uint8_t dev_addr, uint8_t itf_num)
   {
     enum_full_complete();
 
-    // Invoke callback if available
-    if (tuh_mount_cb) tuh_mount_cb(dev_addr);
+#if CFG_TUH_HUB
+    // skip device mount callback for hub
+    if ( !is_hub_addr(dev_addr) )
+#endif
+    {
+      // Invoke callback if available
+      if (tuh_mount_cb) tuh_mount_cb(dev_addr);
+    }
   }
 }
 

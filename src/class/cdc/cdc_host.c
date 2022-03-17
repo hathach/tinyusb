@@ -124,22 +124,24 @@ bool tuh_cdc_set_control_line_state(uint8_t dev_addr, bool dtr, bool rts, tuh_co
 {
   cdch_data_t const * p_cdc = get_itf(dev_addr);
 
+  tusb_control_request_t const request =
+  {
+    .bmRequestType_bit =
+    {
+      .recipient = TUSB_REQ_RCPT_INTERFACE,
+      .type      = TUSB_REQ_TYPE_CLASS,
+      .direction = TUSB_DIR_OUT
+    },
+    .bRequest = CDC_REQUEST_SET_CONTROL_LINE_STATE,
+    .wValue   = (rts ? 2 : 0) | (dtr ? 1 : 0),
+    .wIndex   = p_cdc->itf_num,
+    .wLength  = 0
+  };
+
   tuh_control_xfer_t const xfer =
   {
-    .request =
-    {
-      .bmRequestType_bit =
-      {
-        .recipient = TUSB_REQ_RCPT_INTERFACE,
-        .type      = TUSB_REQ_TYPE_CLASS,
-        .direction = TUSB_DIR_OUT
-      },
-      .bRequest = CDC_REQUEST_SET_CONTROL_LINE_STATE,
-      .wValue   = (rts ? 2 : 0) | (dtr ? 1 : 0),
-      .wIndex   = p_cdc->itf_num,
-      .wLength  = 0
-    },
-
+    .ep_addr     = 0,
+    .setup       = &request,
     .buffer      = NULL,
     .complete_cb = complete_cb,
     .user_arg    = 0
