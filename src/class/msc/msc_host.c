@@ -358,7 +358,7 @@ bool msch_xfer_cb(uint8_t dev_addr, uint8_t ep_addr, xfer_result_t event, uint32
 // MSC Enumeration
 //--------------------------------------------------------------------+
 
-static void config_get_maxlun_complete (uint8_t dev_addr, tuh_control_xfer_t* xfer);
+static void config_get_maxlun_complete (uint8_t dev_addr, tuh_xfer_t* xfer);
 static bool config_test_unit_ready_complete(uint8_t dev_addr, msc_cbw_t const* cbw, msc_csw_t const* csw);
 static bool config_request_sense_complete(uint8_t dev_addr, msc_cbw_t const* cbw, msc_csw_t const* csw);
 static bool config_read_capacity_complete(uint8_t dev_addr, msc_cbw_t const* cbw, msc_csw_t const* csw);
@@ -419,7 +419,7 @@ bool msch_set_config(uint8_t dev_addr, uint8_t itf_num)
     .wLength  = 1
   };
 
-  tuh_control_xfer_t xfer =
+  tuh_xfer_t xfer =
   {
     .ep_addr     = 0,
     .setup       = &request,
@@ -432,7 +432,7 @@ bool msch_set_config(uint8_t dev_addr, uint8_t itf_num)
   return true;
 }
 
-static void config_get_maxlun_complete (uint8_t dev_addr, tuh_control_xfer_t* xfer)
+static void config_get_maxlun_complete (uint8_t dev_addr, tuh_xfer_t* xfer)
 {
   msch_interface_t* p_msc = get_itf(dev_addr);
 

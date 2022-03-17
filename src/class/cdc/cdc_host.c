@@ -120,7 +120,7 @@ bool tuh_cdc_receive(uint8_t dev_addr, void * p_buffer, uint32_t length, bool is
   return usbh_edpt_xfer(dev_addr, ep_in, p_buffer, length);
 }
 
-bool tuh_cdc_set_control_line_state(uint8_t dev_addr, bool dtr, bool rts, tuh_control_xfer_cb_t complete_cb)
+bool tuh_cdc_set_control_line_state(uint8_t dev_addr, bool dtr, bool rts, tuh_xfer_cb_t complete_cb)
 {
   cdch_data_t const * p_cdc = get_itf(dev_addr);
 
@@ -138,7 +138,7 @@ bool tuh_cdc_set_control_line_state(uint8_t dev_addr, bool dtr, bool rts, tuh_co
     .wLength  = 0
   };
 
-  tuh_control_xfer_t xfer =
+  tuh_xfer_t xfer =
   {
     .ep_addr     = 0,
     .setup       = &request,

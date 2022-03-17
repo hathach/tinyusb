@@ -78,7 +78,7 @@ static char const* const _hub_feature_str[] =
 // HUB
 //--------------------------------------------------------------------+
 bool hub_port_clear_feature(uint8_t hub_addr, uint8_t hub_port, uint8_t feature,
-                            tuh_control_xfer_cb_t complete_cb, uintptr_t user_arg)
+                            tuh_xfer_cb_t complete_cb, uintptr_t user_arg)
 {
   tusb_control_request_t const request =
   {
@@ -94,7 +94,7 @@ bool hub_port_clear_feature(uint8_t hub_addr, uint8_t hub_port, uint8_t feature,
     .wLength  = 0
   };
 
-  tuh_control_xfer_t xfer =
+  tuh_xfer_t xfer =
   {
     .ep_addr     = 0,
     .setup       = &request,
@@ -109,7 +109,7 @@ bool hub_port_clear_feature(uint8_t hub_addr, uint8_t hub_port, uint8_t feature,
 }
 
 bool hub_port_set_feature(uint8_t hub_addr, uint8_t hub_port, uint8_t feature,
-                          tuh_control_xfer_cb_t complete_cb, uintptr_t user_arg)
+                          tuh_xfer_cb_t complete_cb, uintptr_t user_arg)
 {
   tusb_control_request_t const request =
   {
@@ -125,7 +125,7 @@ bool hub_port_set_feature(uint8_t hub_addr, uint8_t hub_port, uint8_t feature,
     .wLength  = 0
   };
 
-  tuh_control_xfer_t xfer =
+  tuh_xfer_t xfer =
   {
     .ep_addr     = 0,
     .setup       = &request,
@@ -140,7 +140,7 @@ bool hub_port_set_feature(uint8_t hub_addr, uint8_t hub_port, uint8_t feature,
 }
 
 bool hub_port_get_status(uint8_t hub_addr, uint8_t hub_port, void* resp,
-                         tuh_control_xfer_cb_t complete_cb, uintptr_t user_arg)
+                         tuh_xfer_cb_t complete_cb, uintptr_t user_arg)
 {
   tusb_control_request_t const request =
   {
@@ -156,7 +156,7 @@ bool hub_port_get_status(uint8_t hub_addr, uint8_t hub_port, void* resp,
     .wLength  = 4
   };
 
-  tuh_control_xfer_t xfer =
+  tuh_xfer_t xfer =
   {
     .ep_addr     = 0,
     .setup       = &request,
@@ -225,8 +225,8 @@ bool hub_edpt_status_xfer(uint8_t dev_addr)
 // Set Configure
 //--------------------------------------------------------------------+
 
-static void config_set_port_power (uint8_t dev_addr, tuh_control_xfer_t* xfer);
-static void config_port_power_complete (uint8_t dev_addr, tuh_control_xfer_t* xfer);
+static void config_set_port_power (uint8_t dev_addr, tuh_xfer_t* xfer);
+static void config_port_power_complete (uint8_t dev_addr, tuh_xfer_t* xfer);
 
 bool hub_set_config(uint8_t dev_addr, uint8_t itf_num)
 {
@@ -248,7 +248,7 @@ bool hub_set_config(uint8_t dev_addr, uint8_t itf_num)
     .wLength  = sizeof(descriptor_hub_desc_t)
   };
 
-  tuh_control_xfer_t xfer =
+  tuh_xfer_t xfer =
   {
     .ep_addr     = 0,
     .setup       = &request,
@@ -262,7 +262,7 @@ bool hub_set_config(uint8_t dev_addr, uint8_t itf_num)
   return true;
 }
 
-static void config_set_port_power (uint8_t dev_addr, tuh_control_xfer_t* xfer)
+static void config_set_port_power (uint8_t dev_addr, tuh_xfer_t* xfer)
 {
   TU_ASSERT(XFER_RESULT_SUCCESS == xfer->result, );
 
@@ -279,7 +279,7 @@ static void config_set_port_power (uint8_t dev_addr, tuh_control_xfer_t* xfer)
   hub_port_set_feature(dev_addr, hub_port, HUB_FEATURE_PORT_POWER, config_port_power_complete, 0);
 }
 
-static void config_port_power_complete (uint8_t dev_addr, tuh_control_xfer_t* xfer)
+static void config_port_power_complete (uint8_t dev_addr, tuh_xfer_t* xfer)
 {
   TU_ASSERT(XFER_RESULT_SUCCESS == xfer->result, );
    hub_interface_t* p_hub = get_itf(dev_addr);
@@ -303,9 +303,9 @@ static void config_port_power_complete (uint8_t dev_addr, tuh_control_xfer_t* xf
 // Connection Changes
 //--------------------------------------------------------------------+
 
-static void connection_get_status_complete (uint8_t dev_addr, tuh_control_xfer_t* xfer);
-static void connection_clear_conn_change_complete (uint8_t dev_addr, tuh_control_xfer_t* xfer);
-static void connection_port_reset_complete (uint8_t dev_addr, tuh_control_xfer_t* xfer);
+static void connection_get_status_complete (uint8_t dev_addr, tuh_xfer_t* xfer);
+static void connection_clear_conn_change_complete (uint8_t dev_addr, tuh_xfer_t* xfer);
+static void connection_port_reset_complete (uint8_t dev_addr, tuh_xfer_t* xfer);
 
 // callback as response of interrupt endpoint polling
 bool hub_xfer_cb(uint8_t dev_addr, uint8_t ep_addr, xfer_result_t result, uint32_t xferred_bytes)
@@ -333,7 +333,7 @@ bool hub_xfer_cb(uint8_t dev_addr, uint8_t ep_addr, xfer_result_t result, uint32
   return true;
 }
 
-static void connection_get_status_complete (uint8_t dev_addr, tuh_control_xfer_t* xfer)
+static void connection_get_status_complete (uint8_t dev_addr, tuh_xfer_t* xfer)
 {
   TU_ASSERT(xfer->result == XFER_RESULT_SUCCESS, );
 
@@ -359,7 +359,7 @@ static void connection_get_status_complete (uint8_t dev_addr, tuh_control_xfer_t
   }
 }
 
-static void connection_clear_conn_change_complete (uint8_t dev_addr, tuh_control_xfer_t* xfer)
+static void connection_clear_conn_change_complete (uint8_t dev_addr, tuh_xfer_t* xfer)
 {
   TU_ASSERT(xfer->result == XFER_RESULT_SUCCESS, );
 
@@ -388,7 +388,7 @@ static void connection_clear_conn_change_complete (uint8_t dev_addr, tuh_control
   }
 }
 
-static void connection_port_reset_complete (uint8_t dev_addr, tuh_control_xfer_t* xfer)
+static void connection_port_reset_complete (uint8_t dev_addr, tuh_xfer_t* xfer)
 {
   TU_ASSERT(xfer->result == XFER_RESULT_SUCCESS, );
 

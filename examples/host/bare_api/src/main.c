@@ -115,7 +115,7 @@ static void utf16_to_utf8(uint16_t *temp_buf, size_t buf_len) {
     ((uint8_t*) temp_buf)[utf8_len] = '\0';
 }
 
-void print_device_descriptor(uint8_t daddr, tuh_control_xfer_t* xfer)
+void print_device_descriptor(uint8_t daddr, tuh_xfer_t* xfer)
 {
   if ( XFER_RESULT_SUCCESS != xfer->result )
   {
