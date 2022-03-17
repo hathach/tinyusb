@@ -425,7 +425,7 @@ bool msch_set_config(uint8_t dev_addr, uint8_t itf_num)
     .setup       = &request,
     .buffer      = &p_msc->max_lun,
     .complete_cb = config_get_maxlun_complete,
-    .user_arg    = 0
+    .user_data    = 0
   };
   TU_ASSERT(tuh_control_xfer(dev_addr, &xfer));
 

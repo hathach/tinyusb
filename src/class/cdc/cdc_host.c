@@ -144,7 +144,7 @@ bool tuh_cdc_set_control_line_state(uint8_t dev_addr, bool dtr, bool rts, tuh_xf
     .setup       = &request,
     .buffer      = NULL,
     .complete_cb = complete_cb,
-    .user_arg    = 0
+    .user_data    = 0
   };
 
   return tuh_control_xfer(dev_addr, &xfer);

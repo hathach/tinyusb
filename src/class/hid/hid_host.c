@@ -121,7 +121,7 @@ static void set_protocol_complete(uint8_t dev_addr, tuh_xfer_t* xfer)
 }
 
 
-static bool _hidh_set_protocol(uint8_t dev_addr, uint8_t itf_num, uint8_t protocol, tuh_xfer_cb_t complete_cb, uintptr_t user_arg)
+static bool _hidh_set_protocol(uint8_t dev_addr, uint8_t itf_num, uint8_t protocol, tuh_xfer_cb_t complete_cb, uintptr_t user_data)
 {
   TU_LOG2("HID Set Protocol = %d\r\n", protocol);
 
@@ -145,7 +145,7 @@ static bool _hidh_set_protocol(uint8_t dev_addr, uint8_t itf_num, uint8_t protoc
     .setup       = &request,
     .buffer      = NULL,
     .complete_cb = complete_cb,
-    .user_arg    = user_arg
+    .user_data   = user_data
   };
 
   TU_ASSERT( tuh_control_xfer(dev_addr, &xfer) );
@@ -202,14 +202,14 @@ bool tuh_hid_set_report(uint8_t dev_addr, uint8_t instance, uint8_t report_id, u
     .setup       = &request,
     .buffer      = report,
     .complete_cb = set_report_complete,
-    .user_arg    = 0
+    .user_data   = 0
   };
 
   TU_ASSERT( tuh_control_xfer(dev_addr, &xfer) );
   return true;
 }
 
-static bool _hidh_set_idle(uint8_t dev_addr, uint8_t itf_num, uint16_t idle_rate, tuh_xfer_cb_t complete_cb, uintptr_t user_arg)
+static bool _hidh_set_idle(uint8_t dev_addr, uint8_t itf_num, uint16_t idle_rate, tuh_xfer_cb_t complete_cb, uintptr_t user_data)
 {
   // SET IDLE request, device can stall if not support this request
   TU_LOG2("HID Set Idle \r\n");
@@ -233,7 +233,7 @@ static bool _hidh_set_idle(uint8_t dev_addr, uint8_t itf_num, uint16_t idle_rate
     .setup       = &request,
     .buffer      = NULL,
     .complete_cb = complete_cb,
-    .user_arg    = user_arg
+    .user_data   = user_data
   };
 
   TU_ASSERT( tuh_control_xfer(dev_addr, &xfer) );
@@ -397,9 +397,9 @@ bool hidh_set_config(uint8_t dev_addr, uint8_t itf_num)
   request.wIndex = tu_htole16((uint16_t) itf_num);
 
   tuh_xfer_t xfer;
-  xfer.result = XFER_RESULT_SUCCESS;
-  xfer.setup = &request;
-  xfer.user_arg = CONFG_SET_IDLE;
+  xfer.result    = XFER_RESULT_SUCCESS;
+  xfer.setup     = &request;
+  xfer.user_data = CONFG_SET_IDLE;
 
   // fake request to kick-off the set config process
   process_set_config(dev_addr, &xfer);
@@ -415,7 +415,7 @@ static void process_set_config(uint8_t dev_addr, tuh_xfer_t* xfer)
     TU_ASSERT(xfer->result == XFER_RESULT_SUCCESS, );
   }
 
-  uintptr_t const state     = xfer->user_arg;
+  uintptr_t const state     = xfer->user_data;
   uint8_t const itf_num     = (uint8_t) tu_le16toh(xfer->setup->wIndex);
   uint8_t const instance    = get_instance_id_by_itfnum(dev_addr, itf_num);
   hidh_interface_t* hid_itf = get_instance(dev_addr, instance);

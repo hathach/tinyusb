@@ -78,7 +78,7 @@ static char const* const _hub_feature_str[] =
 // HUB
 //--------------------------------------------------------------------+
 bool hub_port_clear_feature(uint8_t hub_addr, uint8_t hub_port, uint8_t feature,
-                            tuh_xfer_cb_t complete_cb, uintptr_t user_arg)
+                            tuh_xfer_cb_t complete_cb, uintptr_t user_data)
 {
   tusb_control_request_t const request =
   {
@@ -100,7 +100,7 @@ bool hub_port_clear_feature(uint8_t hub_addr, uint8_t hub_port, uint8_t feature,
     .setup       = &request,
     .buffer      = NULL,
     .complete_cb = complete_cb,
-    .user_arg    = user_arg
+    .user_data   = user_data
   };
 
   TU_LOG2("HUB Clear Feature: %s, addr = %u port = %u\r\n", _hub_feature_str[feature], hub_addr, hub_port);
@@ -109,7 +109,7 @@ bool hub_port_clear_feature(uint8_t hub_addr, uint8_t hub_port, uint8_t feature,
 }
 
 bool hub_port_set_feature(uint8_t hub_addr, uint8_t hub_port, uint8_t feature,
-                          tuh_xfer_cb_t complete_cb, uintptr_t user_arg)
+                          tuh_xfer_cb_t complete_cb, uintptr_t user_data)
 {
   tusb_control_request_t const request =
   {
@@ -131,7 +131,7 @@ bool hub_port_set_feature(uint8_t hub_addr, uint8_t hub_port, uint8_t feature,
     .setup       = &request,
     .buffer      = NULL,
     .complete_cb = complete_cb,
-    .user_arg    = user_arg
+    .user_data   = user_data
   };
 
   TU_LOG2("HUB Set Feature: %s, addr = %u port = %u\r\n", _hub_feature_str[feature], hub_addr, hub_port);
@@ -140,7 +140,7 @@ bool hub_port_set_feature(uint8_t hub_addr, uint8_t hub_port, uint8_t feature,
 }
 
 bool hub_port_get_status(uint8_t hub_addr, uint8_t hub_port, void* resp,
-                         tuh_xfer_cb_t complete_cb, uintptr_t user_arg)
+                         tuh_xfer_cb_t complete_cb, uintptr_t user_data)
 {
   tusb_control_request_t const request =
   {
@@ -162,7 +162,7 @@ bool hub_port_get_status(uint8_t hub_addr, uint8_t hub_port, void* resp,
     .setup       = &request,
     .buffer      = resp,
     .complete_cb = complete_cb,
-    .user_arg    = user_arg
+    .user_data   = user_data
   };
 
   TU_LOG2("HUB Get Port Status: addr = %u port = %u\r\n", hub_addr, hub_port);
@@ -254,7 +254,7 @@ bool hub_set_config(uint8_t dev_addr, uint8_t itf_num)
     .setup       = &request,
     .buffer      = _hub_buffer,
     .complete_cb = config_set_port_power,
-    .user_arg    = 0
+    .user_data    = 0
   };
 
   TU_ASSERT( tuh_control_xfer(dev_addr, &xfer) );

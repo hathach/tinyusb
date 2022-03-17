@@ -110,14 +110,14 @@ typedef struct {
   tu_edpt_state_t ep_status[CFG_TUH_ENDPOINT_MAX][2];
 
 #if CFG_TUH_API_EDPT_XFER
-//  struct
-//  {
-//    uint8_t* buffer;
-//    tuh_xfer_cb_t complete_cb;
-//    uintptr_t user_arg;
-//
-//    volatile uint16_t actual_len;
-//  }ep_xfer;
+  struct
+  {
+    uint8_t* buffer;
+    tuh_xfer_cb_t complete_cb;
+    uintptr_t user_data;
+    uint16_t buflen;
+    volatile uint16_t actual_len;
+  }ep_xfer;
 #endif
 
 } usbh_device_t;
@@ -252,7 +252,7 @@ static uint8_t _usbh_ctrl_buf[CFG_TUH_ENUMERATION_BUFSIZE];
 //{
 //  uint8_t* buffer;
 //  tuh_xfer_cb_t complete_cb;
-//  uintptr_t user_arg;
+//  uintptr_t user_data;
 //
 //  volatile uint16_t actual_len;
 //}usbh_xfer_t;
@@ -265,7 +265,7 @@ struct
   tusb_control_request_t request TU_ATTR_ALIGNED(4);
   uint8_t* buffer;
   tuh_xfer_cb_t complete_cb;
-  uintptr_t user_arg;
+  uintptr_t user_data;
 
   volatile uint16_t actual_len;
   uint8_t daddr;  // device address that is transferring
@@ -328,7 +328,7 @@ void osal_task_delay(uint32_t msec)
 //--------------------------------------------------------------------+
 
 static bool _get_descriptor(uint8_t daddr, uint8_t type, uint8_t index, uint16_t language_id, void* buffer, uint16_t len,
-                            tuh_xfer_cb_t complete_cb, uintptr_t user_arg)
+                            tuh_xfer_cb_t complete_cb, uintptr_t user_data)
 {
   tusb_control_request_t const request =
   {
@@ -350,69 +350,69 @@ static bool _get_descriptor(uint8_t daddr, uint8_t type, uint8_t index, uint16_t
     .setup       = &request,
     .buffer      = buffer,
     .complete_cb = complete_cb,
-    .user_arg    = user_arg
+    .user_data   = user_data
   };
 
   return tuh_control_xfer(daddr, &xfer);
 }
 
 bool tuh_descriptor_get(uint8_t daddr, uint8_t type, uint8_t index, void* buffer, uint16_t len,
-                        tuh_xfer_cb_t complete_cb, uintptr_t user_arg)
+                        tuh_xfer_cb_t complete_cb, uintptr_t user_data)
 {
-  return _get_descriptor(daddr, type, index, 0x0000, buffer, len, complete_cb, user_arg);
+  return _get_descriptor(daddr, type, index, 0x0000, buffer, len, complete_cb, user_data);
 }
 
 bool tuh_descriptor_get_device(uint8_t daddr, void* buffer, uint16_t len,
-                               tuh_xfer_cb_t complete_cb, uintptr_t user_arg)
+                               tuh_xfer_cb_t complete_cb, uintptr_t user_data)
 {
   len = tu_min16(len, sizeof(tusb_desc_device_t));
-  return tuh_descriptor_get(daddr, TUSB_DESC_DEVICE, 0, buffer, len, complete_cb, user_arg);
+  return tuh_descriptor_get(daddr, TUSB_DESC_DEVICE, 0, buffer, len, complete_cb, user_data);
 }
 
 bool tuh_descriptor_get_configuration(uint8_t daddr, uint8_t index, void* buffer, uint16_t len,
-                                      tuh_xfer_cb_t complete_cb, uintptr_t user_arg)
+                                      tuh_xfer_cb_t complete_cb, uintptr_t user_data)
 {
-  return tuh_descriptor_get(daddr, TUSB_DESC_CONFIGURATION, index, buffer, len, complete_cb, user_arg);
+  return tuh_descriptor_get(daddr, TUSB_DESC_CONFIGURATION, index, buffer, len, complete_cb, user_data);
 }
 
 //------------- String Descriptor -------------//
 
 bool tuh_descriptor_get_string(uint8_t daddr, uint8_t index, uint16_t language_id, void* buffer, uint16_t len,
-                               tuh_xfer_cb_t complete_cb, uintptr_t user_arg)
+                               tuh_xfer_cb_t complete_cb, uintptr_t user_data)
 {
-  return _get_descriptor(daddr, TUSB_DESC_STRING, index, language_id, buffer, len, complete_cb, user_arg);
+  return _get_descriptor(daddr, TUSB_DESC_STRING, index, language_id, buffer, len, complete_cb, user_data);
 }
 
 // Get manufacturer string descriptor
 bool tuh_descriptor_get_manufacturer_string(uint8_t daddr, uint16_t language_id, void* buffer, uint16_t len,
-                                            tuh_xfer_cb_t complete_cb, uintptr_t user_arg)
+                                            tuh_xfer_cb_t complete_cb, uintptr_t user_data)
 {
   usbh_device_t const* dev = get_device(daddr);
   TU_VERIFY(dev && dev->i_manufacturer);
-  return tuh_descriptor_get_string(daddr, dev->i_manufacturer, language_id, buffer, len, complete_cb, user_arg);
+  return tuh_descriptor_get_string(daddr, dev->i_manufacturer, language_id, buffer, len, complete_cb, user_data);
 }
 
 // Get product string descriptor
 bool tuh_descriptor_get_product_string(uint8_t daddr, uint16_t language_id, void* buffer, uint16_t len,
-                                       tuh_xfer_cb_t complete_cb, uintptr_t user_arg)
+                                       tuh_xfer_cb_t complete_cb, uintptr_t user_data)
 {
   usbh_device_t const* dev = get_device(daddr);
   TU_VERIFY(dev && dev->i_product);
-  return tuh_descriptor_get_string(daddr, dev->i_product, language_id, buffer, len, complete_cb, user_arg);
+  return tuh_descriptor_get_string(daddr, dev->i_product, language_id, buffer, len, complete_cb, user_data);
 }
 
 // Get serial string descriptor
 bool tuh_descriptor_get_serial_string(uint8_t daddr, uint16_t language_id, void* buffer, uint16_t len,
-                                      tuh_xfer_cb_t complete_cb, uintptr_t user_arg)
+                                      tuh_xfer_cb_t complete_cb, uintptr_t user_data)
 {
   usbh_device_t const* dev = get_device(daddr);
   TU_VERIFY(dev && dev->i_serial);
-  return tuh_descriptor_get_string(daddr, dev->i_serial, language_id, buffer, len, complete_cb, user_arg);
+  return tuh_descriptor_get_string(daddr, dev->i_serial, language_id, buffer, len, complete_cb, user_data);
 }
 
 // Get HID report descriptor
 bool tuh_descriptor_get_hid_report(uint8_t daddr, uint8_t itf_num, uint8_t desc_type, uint8_t index, void* buffer, uint16_t len,
-                                   tuh_xfer_cb_t complete_cb, uintptr_t user_arg)
+                                   tuh_xfer_cb_t complete_cb, uintptr_t user_data)
 {
   TU_LOG2("HID Get Report Descriptor\r\n");
   tusb_control_request_t const request =
@@ -435,14 +435,14 @@ bool tuh_descriptor_get_hid_report(uint8_t daddr, uint8_t itf_num, uint8_t desc_
     .setup       = &request,
     .buffer      = buffer,
     .complete_cb = complete_cb,
-    .user_arg    = user_arg
+    .user_data   = user_data
   };
 
   return tuh_control_xfer(daddr, &xfer);
 }
 
 bool tuh_configuration_set(uint8_t daddr, uint8_t config_num,
-                           tuh_xfer_cb_t complete_cb, uintptr_t user_arg)
+                           tuh_xfer_cb_t complete_cb, uintptr_t user_data)
 {
   TU_LOG2("Set Configuration = %d\r\n", config_num);
 
@@ -466,7 +466,7 @@ bool tuh_configuration_set(uint8_t daddr, uint8_t config_num,
     .setup       = &request,
     .buffer      = NULL,
     .complete_cb = complete_cb,
-    .user_arg    = user_arg
+    .user_data   = user_data
   };
 
   return tuh_control_xfer(daddr, &xfer);
@@ -904,7 +904,7 @@ static void _control_blocking_complete_cb(uint8_t daddr, tuh_xfer_t* xfer)
 {
   (void) daddr;
   // update result
-  *((xfer_result_t*) xfer->user_arg) = xfer->result;
+  *((xfer_result_t*) xfer->user_data) = xfer->result;
 }
 
 bool tuh_control_xfer_sync(uint8_t daddr, tuh_xfer_t* xfer, uint32_t timeout_ms)
@@ -945,7 +945,7 @@ bool tuh_control_xfer (uint8_t daddr, tuh_xfer_t* xfer)
   _ctrl_xfer.request     = (*xfer->setup);
   _ctrl_xfer.buffer      = xfer->buffer;
   _ctrl_xfer.complete_cb = xfer->complete_cb;
-  _ctrl_xfer.user_arg    = xfer->user_arg;
+  _ctrl_xfer.user_data   = xfer->user_data;
 
   if (xfer->complete_cb)
   {
@@ -956,8 +956,8 @@ bool tuh_control_xfer (uint8_t daddr, tuh_xfer_t* xfer)
     // change callback to internal blocking, and result as user argument
     volatile xfer_result_t result = XFER_RESULT_INVALID;
 
-    // use user_arg to point to xfer_result_t
-    _ctrl_xfer.user_arg    = (uintptr_t) &result;
+    // use user_data to point to xfer_result_t
+    _ctrl_xfer.user_data   = (uintptr_t) &result;
     _ctrl_xfer.complete_cb = _control_blocking_complete_cb;
 
     TU_ASSERT( hcd_setup_send(rhport, daddr, (uint8_t*) &_ctrl_xfer.request) );
@@ -974,10 +974,10 @@ bool tuh_control_xfer (uint8_t daddr, tuh_xfer_t* xfer)
 
     // update xfer result
     xfer->result = result;
-    if ( xfer->user_arg )
+    if ( xfer->user_data )
     {
-      // if user_arg is not NULL, it is also updated
-      *((xfer_result_t*) xfer->user_arg) = result;
+      // if user_data is not NULL, it is also updated
+      *((xfer_result_t*) xfer->user_data) = result;
     }
 
     xfer->actual_len = _ctrl_xfer.actual_len;
@@ -1007,7 +1007,7 @@ static void _xfer_complete(uint8_t dev_addr, xfer_result_t result)
     .actual_len  = (uint32_t) _ctrl_xfer.actual_len,
     .buffer      = _ctrl_xfer.buffer,
     .complete_cb = _ctrl_xfer.complete_cb,
-    .user_arg    = _ctrl_xfer.user_arg
+    .user_data   = _ctrl_xfer.user_data
   };
 
   usbh_lock();
@@ -1068,6 +1068,15 @@ static bool usbh_control_xfer_cb (uint8_t dev_addr, uint8_t ep_addr, xfer_result
     }
   }
 
+  return true;
+}
+
+//--------------------------------------------------------------------+
+//
+//--------------------------------------------------------------------+
+
+bool tuh_edpt_xfer(uint8_t daddr, tuh_xfer_t* xfer)
+{
   return true;
 }
 
@@ -1151,7 +1160,7 @@ static void process_enumeration(uint8_t dev_addr, tuh_xfer_t* xfer)
     return;
   }
 
-  uintptr_t const state = xfer->user_arg;
+  uintptr_t const state = xfer->user_data;
   switch(state)
   {
 #if CFG_TUH_HUB
@@ -1345,8 +1354,8 @@ static bool enum_new_device(hcd_event_t* event)
 
     // fake transfer to kick-off the enumeration process
     tuh_xfer_t xfer;
-    xfer.result   = XFER_RESULT_SUCCESS;
-    xfer.user_arg = ENUM_ADDR0_DEVICE_DESC;
+    xfer.result    = XFER_RESULT_SUCCESS;
+    xfer.user_data = ENUM_ADDR0_DEVICE_DESC;
 
     process_enumeration(0, &xfer);
 
@@ -1433,7 +1442,7 @@ static bool enum_request_set_addr(void)
     .setup       = &request,
     .buffer      = NULL,
     .complete_cb = process_enumeration,
-    .user_arg    = ENUM_GET_DEVICE_DESC
+    .user_data   = ENUM_GET_DEVICE_DESC
   };
 
   uint8_t const addr0 = 0;
