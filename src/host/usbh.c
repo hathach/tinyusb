@@ -487,52 +487,49 @@ bool tuh_configuration_set(uint8_t daddr, uint8_t config_num,
 // Descriptor Sync
 //--------------------------------------------------------------------+
 
-#define _CONTROL_SYNC_API(_async_func, _timeout, ...) \
-  (void) _timeout; \
+#define _CONTROL_SYNC_API(_async_func, ...) \
   xfer_result_t result = XFER_RESULT_INVALID;\
-  /* TODO use timeout to wait */ \
   TU_VERIFY(_async_func(__VA_ARGS__, NULL, (uintptr_t) &result), XFER_RESULT_TIMEOUT); \
   return (uint8_t) result
 
-uint8_t tuh_descriptor_get_sync(uint8_t daddr, uint8_t type, uint8_t index, void* buffer, uint16_t len, uint8_t timeout_ms)
+uint8_t tuh_descriptor_get_sync(uint8_t daddr, uint8_t type, uint8_t index, void* buffer, uint16_t len)
 {
-  _CONTROL_SYNC_API(tuh_descriptor_get, timeout_ms, daddr, type, index, buffer, len);
+  _CONTROL_SYNC_API(tuh_descriptor_get, daddr, type, index, buffer, len);
 }
 
-uint8_t tuh_descriptor_get_device_sync(uint8_t daddr, void* buffer, uint16_t len, uint8_t timeout_ms)
+uint8_t tuh_descriptor_get_device_sync(uint8_t daddr, void* buffer, uint16_t len)
 {
-  len = tu_min16(len, sizeof(tusb_desc_device_t));
-  return tuh_descriptor_get_sync(daddr, TUSB_DESC_DEVICE, 0, buffer, len, timeout_ms);
+  _CONTROL_SYNC_API(tuh_descriptor_get_device, daddr, buffer, len);
 }
 
-uint8_t tuh_descriptor_get_configuration_sync(uint8_t daddr, uint8_t index, void* buffer, uint16_t len, uint8_t timeout_ms)
+uint8_t tuh_descriptor_get_configuration_sync(uint8_t daddr, uint8_t index, void* buffer, uint16_t len)
 {
-  return tuh_descriptor_get_sync(daddr, TUSB_DESC_CONFIGURATION, index, buffer, len, timeout_ms);
+  _CONTROL_SYNC_API(tuh_descriptor_get_configuration, daddr, index, buffer, len);
 }
 
-uint8_t tuh_descriptor_get_hid_report_sync(uint8_t daddr, uint8_t itf_num, uint8_t desc_type, uint8_t index, void* buffer, uint16_t len, uint8_t timeout_ms)
+uint8_t tuh_descriptor_get_hid_report_sync(uint8_t daddr, uint8_t itf_num, uint8_t desc_type, uint8_t index, void* buffer, uint16_t len)
 {
-  _CONTROL_SYNC_API(tuh_descriptor_get_hid_report, timeout_ms, daddr, itf_num, desc_type, index, buffer, len);
+  _CONTROL_SYNC_API(tuh_descriptor_get_hid_report, daddr, itf_num, desc_type, index, buffer, len);
 }
 
-uint8_t tuh_descriptor_get_string_sync(uint8_t daddr, uint8_t index, uint16_t language_id, void* buffer, uint16_t len, uint8_t timeout_ms)
+uint8_t tuh_descriptor_get_string_sync(uint8_t daddr, uint8_t index, uint16_t language_id, void* buffer, uint16_t len)
 {
-  _CONTROL_SYNC_API(tuh_descriptor_get_string, timeout_ms, daddr, index, language_id, buffer, len);
+  _CONTROL_SYNC_API(tuh_descriptor_get_string, daddr, index, language_id, buffer, len);
 }
 
-uint8_t tuh_descriptor_get_manufacturer_string_sync(uint8_t daddr, uint16_t language_id, void* buffer, uint16_t len, uint8_t timeout_ms)
+uint8_t tuh_descriptor_get_manufacturer_string_sync(uint8_t daddr, uint16_t language_id, void* buffer, uint16_t len)
 {
-  _CONTROL_SYNC_API(tuh_descriptor_get_manufacturer_string, timeout_ms, daddr, language_id, buffer, len);
+  _CONTROL_SYNC_API(tuh_descriptor_get_manufacturer_string, daddr, language_id, buffer, len);
 }
 
-uint8_t tuh_descriptor_get_product_string_sync(uint8_t daddr, uint16_t language_id, void* buffer, uint16_t len, uint8_t timeout_ms)
+uint8_t tuh_descriptor_get_product_string_sync(uint8_t daddr, uint16_t language_id, void* buffer, uint16_t len)
 {
-  _CONTROL_SYNC_API(tuh_descriptor_get_product_string, timeout_ms, daddr, language_id, buffer, len);
+  _CONTROL_SYNC_API(tuh_descriptor_get_product_string, daddr, language_id, buffer, len);
 }
 
-uint8_t tuh_descriptor_get_serial_string_sync(uint8_t daddr, uint16_t language_id, void* buffer, uint16_t len, uint8_t timeout_ms)
+uint8_t tuh_descriptor_get_serial_string_sync(uint8_t daddr, uint16_t language_id, void* buffer, uint16_t len)
 {
-  _CONTROL_SYNC_API(tuh_descriptor_get_serial_string, timeout_ms, daddr, language_id, buffer, len);
+  _CONTROL_SYNC_API(tuh_descriptor_get_serial_string, daddr, language_id, buffer, len);
 }
 
 //--------------------------------------------------------------------+
@@ -919,19 +916,7 @@ static void _control_blocking_complete_cb(uint8_t daddr, tuh_xfer_t* xfer)
   *((xfer_result_t*) xfer->user_data) = xfer->result;
 }
 
-bool tuh_control_xfer_sync(uint8_t daddr, tuh_xfer_t* xfer, uint32_t timeout_ms)
-{
-  (void) timeout_ms;
-
-  // clear callback for sync
-  xfer->complete_cb = NULL;
-
-  // TODO use timeout to wait
-  TU_VERIFY(tuh_control_xfer(daddr, xfer));
-
-  return true;
-}
-
+// TODO timeout_ms is not supported yet
 bool tuh_control_xfer (uint8_t daddr, tuh_xfer_t* xfer)
 {
   // pre-check to help reducing mutex lock

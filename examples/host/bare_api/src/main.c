@@ -136,11 +136,10 @@ void print_device_descriptor(uint8_t daddr, tuh_xfer_t* xfer)
   printf("  idProduct           0x%04x\r\n" , desc_device.idProduct);
   printf("  bcdDevice           %04x\r\n"   , desc_device.bcdDevice);
 
-  uint32_t timeout_ms = 10;
   uint16_t temp_buf[128];
 
   printf("  iManufacturer       %u     "     , desc_device.iManufacturer);
-  if (XFER_RESULT_SUCCESS == tuh_descriptor_get_manufacturer_string_sync(daddr, LANGUAGE_ID, temp_buf, TU_ARRAY_SIZE(temp_buf), timeout_ms) )
+  if (XFER_RESULT_SUCCESS == tuh_descriptor_get_manufacturer_string_sync(daddr, LANGUAGE_ID, temp_buf, TU_ARRAY_SIZE(temp_buf)) )
   {
     utf16_to_utf8(temp_buf, TU_ARRAY_SIZE(temp_buf));
     printf((const char*) temp_buf);
@@ -148,7 +147,7 @@ void print_device_descriptor(uint8_t daddr, tuh_xfer_t* xfer)
   printf("\r\n");
 
   printf("  iProduct            %u     "     , desc_device.iProduct);
-  if (XFER_RESULT_SUCCESS == tuh_descriptor_get_product_string_sync(daddr, LANGUAGE_ID, temp_buf, TU_ARRAY_SIZE(temp_buf), timeout_ms))
+  if (XFER_RESULT_SUCCESS == tuh_descriptor_get_product_string_sync(daddr, LANGUAGE_ID, temp_buf, TU_ARRAY_SIZE(temp_buf)))
   {
     utf16_to_utf8(temp_buf, TU_ARRAY_SIZE(temp_buf));
     printf((const char*) temp_buf);
@@ -156,7 +155,7 @@ void print_device_descriptor(uint8_t daddr, tuh_xfer_t* xfer)
   printf("\r\n");
 
   printf("  iSerialNumber       %u     "     , desc_device.iSerialNumber);
-  if (XFER_RESULT_SUCCESS == tuh_descriptor_get_serial_string_sync(daddr, LANGUAGE_ID, temp_buf, TU_ARRAY_SIZE(temp_buf), timeout_ms))
+  if (XFER_RESULT_SUCCESS == tuh_descriptor_get_serial_string_sync(daddr, LANGUAGE_ID, temp_buf, TU_ARRAY_SIZE(temp_buf)))
   {
     utf16_to_utf8(temp_buf, TU_ARRAY_SIZE(temp_buf));
     printf((const char*) temp_buf);
