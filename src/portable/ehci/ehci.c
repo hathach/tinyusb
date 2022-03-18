@@ -656,6 +656,26 @@ static void xfer_error_isr(uint8_t hostid)
   }
 }
 
+#if CFG_TUSB_DEBUG >= EHCI_DBG
+
+static inline void print_portsc(ehci_registers_t* regs)
+{
+  TU_LOG_HEX(EHCI_DBG, regs->portsc);
+  TU_LOG(EHCI_DBG, "  Current Connect Status: %u\r\n", regs->portsc_bm.current_connect_status);
+  TU_LOG(EHCI_DBG, "  Connect Status Change : %u\r\n", regs->portsc_bm.connect_status_change);
+  TU_LOG(EHCI_DBG, "  Port Enabled          : %u\r\n", regs->portsc_bm.port_enabled);
+  TU_LOG(EHCI_DBG, "  Port Enabled Change   : %u\r\n", regs->portsc_bm.port_enable_change);
+
+  TU_LOG(EHCI_DBG, "  Port Reset            : %u\r\n", regs->portsc_bm.port_reset);
+  TU_LOG(EHCI_DBG, "  Port Power            : %u\r\n", regs->portsc_bm.port_power);
+}
+
+#else
+
+#define print_portsc(_reg)
+
+#endif
+
 //------------- Host Controller Driver's Interrupt Handler -------------//
 void hcd_int_handler(uint8_t rhport)
 {
@@ -675,9 +695,8 @@ void hcd_int_handler(uint8_t rhport)
 
   if (int_status & EHCI_INT_MASK_PORT_CHANGE)
   {
-    uint32_t port_status = regs->portsc & EHCI_PORTSC_MASK_ALL;
-
-    TU_LOG_HEX(EHCI_DBG, regs->portsc);
+    uint32_t const port_status = regs->portsc & EHCI_PORTSC_MASK_ALL;
+    print_portsc(regs);
 
     if (regs->portsc_bm.connect_status_change)
     {

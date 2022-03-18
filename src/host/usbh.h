@@ -44,8 +44,10 @@ typedef struct tuh_xfer_s tuh_xfer_t;
 
 typedef void (*tuh_xfer_cb_t)(tuh_xfer_t* xfer);
 
-// Note: layout and order of this will be changed in near future
+// Note1: layout and order of this will be changed in near future
 // it is advised to initialize it using member name
+// Note2: not all field is available/meaningful in callback, some info is not saved by
+// usbh to save SRAM
 struct tuh_xfer_s
 {
   uint8_t daddr;
@@ -124,13 +126,17 @@ static inline bool tuh_ready(uint8_t daddr)
 //--------------------------------------------------------------------+
 
 // Submit a control transfer
-// Note: blocking if complete callback is NULL, in this case xfer contents will be updated to reflect the result
+//  - async: complete callback invoked when finished.
+//  - sync : blocking if complete callback is NULL.
 bool tuh_control_xfer(tuh_xfer_t* xfer);
 
 // Submit a bulk/interrupt transfer
-// xfer memory must exist until transfer is complete.
-// Note: blocking if complete callback is NULL.
+//  - async: complete callback invoked when finished.
+//  - sync : blocking if complete callback is NULL.
 bool tuh_edpt_xfer(tuh_xfer_t* xfer);
+
+// Open an endpoint
+bool usbh_edpt_open(uint8_t dev_addr, tusb_desc_endpoint_t const * desc_ep);
 
 // Set Configuration (control transfer)
 // config_num = 0 will un-configure device. Note: config_num = config_descriptor_index + 1

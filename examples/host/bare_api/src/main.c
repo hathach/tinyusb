@@ -35,12 +35,19 @@
 #include "bsp/board.h"
 #include "tusb.h"
 
+// English
+#define LANGUAGE_ID 0x0409
+
 //--------------------------------------------------------------------+
 // MACRO CONSTANT TYPEDEF PROTYPES
 //--------------------------------------------------------------------+
 void led_blinking_task(void);
 
 static void print_utf16(uint16_t *temp_buf, size_t buf_len);
+void print_device_descriptor(tuh_xfer_t* xfer);
+void parse_config_descriptor(uint8_t dev_addr, tusb_desc_configuration_t const* desc_cfg);
+
+tusb_desc_device_t desc_device;
 
 /*------------- MAIN -------------*/
 int main(void)
@@ -60,20 +67,27 @@ int main(void)
   return 0;
 }
 
+/*------------- TinyUSB Callbacks -------------*/
+
+// Invoked when device is mounted (configured)
+void tuh_mount_cb (uint8_t daddr)
+{
+  printf("Device attached, address = %d\r\n", daddr);
+
+  // Get Device Descriptor sync API
+  // TODO: invoking control trannsfer now has issue with mounting hub with multiple devices attached, fix later
+  tuh_descriptor_get_device(daddr, &desc_device, 18, print_device_descriptor, 0);
+}
+
+/// Invoked when device is unmounted (bus reset/unplugged)
+void tuh_umount_cb(uint8_t daddr)
+{
+  printf("Device removed, address = %d\r\n", daddr);
+}
+
 //--------------------------------------------------------------------+
-// TinyUSB Callbacks
+// Device Descriptor
 //--------------------------------------------------------------------+
-
-// English
-#define LANGUAGE_ID 0x0409
-
-tusb_desc_device_t desc_device;
-
-//void parse_config_descriptor(uint8_t dev_addr, tusb_desc_configuration_t const* desc_cfg)
-//{
-//  uint8_t const* desc_end = ((uint8_t const*) desc_cfg) + tu_le16toh(desc_cfg->wTotalLength);
-//  uint8_t const* p_desc   = tu_desc_next(desc_cfg);
-//}
 
 void print_device_descriptor(tuh_xfer_t* xfer)
 {
@@ -125,27 +139,117 @@ void print_device_descriptor(tuh_xfer_t* xfer)
   printf("  bNumConfigurations  %u\r\n"     , desc_device.bNumConfigurations);
 
   // Get configuration descriptor with sync API
-//  if (XFER_RESULT_SUCCESS == tuh_descriptor_get_configuration_sync(daddr, 0, temp_buf, sizeof(temp_buf)) )
-//  {
-//    parse_config_descriptor(daddr, (tusb_desc_configuration_t*) temp_buf);
-//  }
+  if (XFER_RESULT_SUCCESS == tuh_descriptor_get_configuration_sync(daddr, 0, temp_buf, sizeof(temp_buf)) )
+  {
+    parse_config_descriptor(daddr, (tusb_desc_configuration_t*) temp_buf);
+  }
 }
 
-// Invoked when device is mounted (configured)
-void tuh_mount_cb (uint8_t daddr)
+
+//--------------------------------------------------------------------+
+// Configuration Descriptor
+//--------------------------------------------------------------------+
+
+// count total length of an interface
+uint16_t count_interface_total_len(tusb_desc_interface_t const* desc_itf, uint8_t itf_count, uint16_t max_len);
+
+void open_hid_interface(uint8_t dev_addr, tusb_desc_interface_t const *desc_itf, uint16_t max_len)
 {
-  printf("Device attached, address = %d\r\n", daddr);
+  // len = interface + hid + n*endpoints
+  uint16_t const drv_len = sizeof(tusb_desc_interface_t) + sizeof(tusb_hid_descriptor_hid_t) + desc_itf->bNumEndpoints*sizeof(tusb_desc_endpoint_t);
 
-  // Get Device Descriptor sync API
-  // TODO: invoking control trannsfer now has issue with mounting hub with multiple devices attached, fix later
-  tuh_descriptor_get_device(daddr, &desc_device, 18, print_device_descriptor, 0);
+  // corrupted descriptor
+  if (max_len < drv_len) return;
+
+  uint8_t const *p_desc = (uint8_t const *) desc_itf;
+
+  // HID descriptor
+  p_desc = tu_desc_next(p_desc);
+
+  // Endpoint descriptor
+  tusb_desc_endpoint_t const * desc_ep = (tusb_desc_endpoint_t const *) p_desc;
+
+  for(int i = 0; i < desc_itf->bNumEndpoints; i++)
+  {
+    if (TUSB_DESC_ENDPOINT != desc_ep->bDescriptorType) return;
+
+    if(tu_edpt_dir(desc_ep->bEndpointAddress) == TUSB_DIR_IN)
+    {
+      //usbh_edpt_open(rhport, dev_addr, desc_ep);
+    }
+  }
 }
 
-/// Invoked when device is unmounted (bus reset/unplugged)
-void tuh_umount_cb(uint8_t daddr)
+// simple configuration parser to open and listen to HID Endpoint IN
+void parse_config_descriptor(uint8_t dev_addr, tusb_desc_configuration_t const* desc_cfg)
 {
-  printf("Device removed, address = %d\r\n", daddr);
+  uint8_t const* desc_end = ((uint8_t const*) desc_cfg) + tu_le16toh(desc_cfg->wTotalLength);
+  uint8_t const* p_desc   = tu_desc_next(desc_cfg);
+
+  // parse each interfaces
+  while( p_desc < desc_end )
+  {
+    uint8_t assoc_itf_count = 1;
+
+    // Class will always starts with Interface Association (if any) and then Interface descriptor
+    if ( TUSB_DESC_INTERFACE_ASSOCIATION == tu_desc_type(p_desc) )
+    {
+      tusb_desc_interface_assoc_t const * desc_iad = (tusb_desc_interface_assoc_t const *) p_desc;
+      assoc_itf_count = desc_iad->bInterfaceCount;
+
+      p_desc = tu_desc_next(p_desc); // next to Interface
+    }
+
+    // must be interface from now
+    if( TUSB_DESC_INTERFACE != tu_desc_type(p_desc) ) return;
+    tusb_desc_interface_t const* desc_itf = (tusb_desc_interface_t const*) p_desc;
+
+    uint16_t const drv_len = count_interface_total_len(desc_itf, assoc_itf_count, desc_end-p_desc);
+
+    // probably corrupted descriptor
+    if(drv_len < sizeof(tusb_desc_interface_t)) return;
+
+    // only open and listen to HID endpoint IN
+    if (desc_itf->bInterfaceClass == TUSB_CLASS_HID)
+    {
+      open_hid_interface(dev_addr, desc_itf, drv_len);
+    }
+
+    // next Interface or IAD descriptor
+    p_desc += drv_len;
+  }
 }
+
+uint16_t count_interface_total_len(tusb_desc_interface_t const* desc_itf, uint8_t itf_count, uint16_t max_len)
+{
+  uint8_t const* p_desc = (uint8_t const*) desc_itf;
+  uint16_t len = 0;
+
+  while (itf_count--)
+  {
+    // Next on interface desc
+    len += tu_desc_len(desc_itf);
+    p_desc = tu_desc_next(p_desc);
+
+    while (len < max_len)
+    {
+      // return on IAD regardless of itf count
+      if ( tu_desc_type(p_desc) == TUSB_DESC_INTERFACE_ASSOCIATION ) return len;
+
+      if ( (tu_desc_type(p_desc) == TUSB_DESC_INTERFACE) &&
+           ((tusb_desc_interface_t const*) p_desc)->bAlternateSetting == 0 )
+      {
+        break;
+      }
+
+      len += tu_desc_len(p_desc);
+      p_desc = tu_desc_next(p_desc);
+    }
+  }
+
+  return len;
+}
+
 
 //--------------------------------------------------------------------+
 // Blinking Task

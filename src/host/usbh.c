@@ -806,10 +806,11 @@ static bool usbh_edpt_control_open(uint8_t dev_addr, uint8_t max_packet_size)
   return hcd_edpt_open(usbh_get_rhport(dev_addr), dev_addr, &ep0_desc);
 }
 
-bool usbh_edpt_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_endpoint_t const * desc_ep)
+bool usbh_edpt_open(uint8_t dev_addr, tusb_desc_endpoint_t const * desc_ep)
 {
   TU_ASSERT( tu_edpt_validate(desc_ep, tuh_speed_get(dev_addr)) );
-  return hcd_edpt_open(rhport, dev_addr, desc_ep);
+
+  return hcd_edpt_open(usbh_get_rhport(dev_addr), dev_addr, desc_ep);
 }
 
 bool usbh_edpt_busy(uint8_t dev_addr, uint8_t ep_addr)
@@ -1189,7 +1190,7 @@ enum {
 };
 
 static bool enum_request_set_addr(void);
-static bool parse_configuration_descriptor (uint8_t dev_addr, tusb_desc_configuration_t const* desc_cfg);
+static bool _parse_configuration_descriptor (uint8_t dev_addr, tusb_desc_configuration_t const* desc_cfg);
 static void enum_full_complete(void);
 
 // process device enumeration
@@ -1350,7 +1351,7 @@ static void process_enumeration(tuh_xfer_t* xfer)
     case ENUM_SET_CONFIG:
       // Parse configuration & set up drivers
       // Driver open aren't allowed to make any usb transfer yet
-      TU_ASSERT( parse_configuration_descriptor(daddr, (tusb_desc_configuration_t*) _usbh_ctrl_buf), );
+      TU_ASSERT( _parse_configuration_descriptor(daddr, (tusb_desc_configuration_t*) _usbh_ctrl_buf), );
 
       TU_ASSERT( tuh_configuration_set(daddr, CONFIG_NUM, process_enumeration, ENUM_CONFIG_DRIVER), );
     break;
@@ -1496,7 +1497,7 @@ static bool enum_request_set_addr(void)
   return true;
 }
 
-static bool parse_configuration_descriptor(uint8_t dev_addr, tusb_desc_configuration_t const* desc_cfg)
+static bool _parse_configuration_descriptor(uint8_t dev_addr, tusb_desc_configuration_t const* desc_cfg)
 {
   usbh_device_t* dev = get_device(dev_addr);
 

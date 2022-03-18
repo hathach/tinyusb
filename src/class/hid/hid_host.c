@@ -324,6 +324,7 @@ void hidh_close(uint8_t dev_addr)
 
 bool hidh_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_interface_t const *desc_itf, uint16_t max_len)
 {
+  (void) rhport;
   (void) max_len;
 
   TU_VERIFY(TUSB_CLASS_HID == desc_itf->bInterfaceClass);
@@ -355,7 +356,7 @@ bool hidh_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_interface_t const *de
   for(int i = 0; i < desc_itf->bNumEndpoints; i++)
   {
     TU_ASSERT(TUSB_DESC_ENDPOINT == desc_ep->bDescriptorType);
-    TU_ASSERT( usbh_edpt_open(rhport, dev_addr, desc_ep) );
+    TU_ASSERT( usbh_edpt_open(dev_addr, desc_ep) );
 
     if(tu_edpt_dir(desc_ep->bEndpointAddress) == TUSB_DIR_IN)
     {

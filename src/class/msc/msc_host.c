@@ -365,6 +365,7 @@ static bool config_read_capacity_complete(uint8_t dev_addr, msc_cbw_t const* cbw
 
 bool msch_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_interface_t const *desc_itf, uint16_t max_len)
 {
+  (void) rhport;
   TU_VERIFY (MSC_SUBCLASS_SCSI == desc_itf->bInterfaceSubClass &&
              MSC_PROTOCOL_BOT  == desc_itf->bInterfaceProtocol);
 
@@ -378,7 +379,7 @@ bool msch_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_interface_t const *de
   for(uint32_t i=0; i<2; i++)
   {
     TU_ASSERT(TUSB_DESC_ENDPOINT == ep_desc->bDescriptorType && TUSB_XFER_BULK == ep_desc->bmAttributes.xfer);
-    TU_ASSERT(usbh_edpt_open(rhport, dev_addr, ep_desc));
+    TU_ASSERT(usbh_edpt_open(dev_addr, ep_desc));
 
     if ( tu_edpt_dir(ep_desc->bEndpointAddress) == TUSB_DIR_IN )
     {

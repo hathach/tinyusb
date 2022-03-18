@@ -183,6 +183,8 @@ void hub_init(void)
 
 bool hub_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_interface_t const *itf_desc, uint16_t max_len)
 {
+  (void) rhport;
+
   TU_VERIFY(TUSB_CLASS_HUB == itf_desc->bInterfaceClass &&
             0              == itf_desc->bInterfaceSubClass);
 
@@ -199,7 +201,7 @@ bool hub_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_interface_t const *itf
   TU_ASSERT(TUSB_DESC_ENDPOINT  == desc_ep->bDescriptorType &&
             TUSB_XFER_INTERRUPT == desc_ep->bmAttributes.xfer, 0);
   
-  TU_ASSERT(usbh_edpt_open(rhport, dev_addr, desc_ep));
+  TU_ASSERT(usbh_edpt_open(dev_addr, desc_ep));
 
   hub_interface_t* p_hub = get_itf(dev_addr);
 
