@@ -358,7 +358,7 @@ bool msch_xfer_cb(uint8_t dev_addr, uint8_t ep_addr, xfer_result_t event, uint32
 // MSC Enumeration
 //--------------------------------------------------------------------+
 
-static void config_get_maxlun_complete (uint8_t dev_addr, tuh_xfer_t* xfer);
+static void config_get_maxlun_complete (tuh_xfer_t* xfer);
 static bool config_test_unit_ready_complete(uint8_t dev_addr, msc_cbw_t const* cbw, msc_csw_t const* csw);
 static bool config_request_sense_complete(uint8_t dev_addr, msc_cbw_t const* cbw, msc_csw_t const* csw);
 static bool config_read_capacity_complete(uint8_t dev_addr, msc_cbw_t const* cbw, msc_csw_t const* csw);
@@ -421,20 +421,22 @@ bool msch_set_config(uint8_t dev_addr, uint8_t itf_num)
 
   tuh_xfer_t xfer =
   {
+    .daddr       = dev_addr,
     .ep_addr     = 0,
     .setup       = &request,
     .buffer      = &p_msc->max_lun,
     .complete_cb = config_get_maxlun_complete,
     .user_data    = 0
   };
-  TU_ASSERT(tuh_control_xfer(dev_addr, &xfer));
+  TU_ASSERT(tuh_control_xfer(&xfer));
 
   return true;
 }
 
-static void config_get_maxlun_complete (uint8_t dev_addr, tuh_xfer_t* xfer)
+static void config_get_maxlun_complete (tuh_xfer_t* xfer)
 {
-  msch_interface_t* p_msc = get_itf(dev_addr);
+  uint8_t const daddr = xfer->daddr;
+  msch_interface_t* p_msc = get_itf(daddr);
 
   // STALL means zero
   p_msc->max_lun = (XFER_RESULT_SUCCESS == xfer->result) ? _msch_buffer[0] : 0;
@@ -443,7 +445,7 @@ static void config_get_maxlun_complete (uint8_t dev_addr, tuh_xfer_t* xfer)
   // TODO multiple LUN support
   TU_LOG2("SCSI Test Unit Ready\r\n");
   uint8_t const lun = 0;
-  tuh_msc_test_unit_ready(dev_addr, lun, config_test_unit_ready_complete);
+  tuh_msc_test_unit_ready(daddr, lun, config_test_unit_ready_complete);
 }
 
 static bool config_test_unit_ready_complete(uint8_t dev_addr, msc_cbw_t const* cbw, msc_csw_t const* csw)

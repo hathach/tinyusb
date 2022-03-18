@@ -42,7 +42,7 @@
 struct tuh_xfer_s;
 typedef struct tuh_xfer_s tuh_xfer_t;
 
-typedef void (*tuh_xfer_cb_t)(uint8_t daddr, tuh_xfer_t* xfer);
+typedef void (*tuh_xfer_cb_t)(tuh_xfer_t* xfer);
 
 struct tuh_xfer_s
 {
@@ -54,7 +54,7 @@ struct tuh_xfer_s
 
   union
   {
-    tusb_control_request_t const* setup; // setup packet if control transfer
+    tusb_control_request_t const* setup; // setup packet pointer if control transfer
     uint32_t buflen;                     // length if not control transfer
   };
 
@@ -62,7 +62,7 @@ struct tuh_xfer_s
   tuh_xfer_cb_t complete_cb;
   uintptr_t user_data;
 
-  uint32_t timeout_ms;
+  uint32_t timeout_ms; // place holder, not supported yet
 };
 
 //--------------------------------------------------------------------+
@@ -118,19 +118,17 @@ static inline bool tuh_ready(uint8_t daddr)
 }
 
 //--------------------------------------------------------------------+
-// Endpoint Asynchronous (non-blocking)
+// Transfer API
 //--------------------------------------------------------------------+
 
 // Submit a control transfer
-// true on success, false if there is on-going control transfer or incorrect parameters
-// Note: blocking if complete callback is NULL.
-//       xfer contents will be updated to reflect the result
-bool tuh_control_xfer(uint8_t daddr, tuh_xfer_t* xfer);
+// Note: blocking if complete callback is NULL, in this case xfer contents will be updated to reflect the result
+bool tuh_control_xfer(tuh_xfer_t* xfer);
 
 // Submit a bulk/interrupt transfer
-// true on success, false if there is on-going control transfer or incorrect parameters
+// xfer memory must exist until transfer is complete.
 // Note: blocking if complete callback is NULL.
-bool tuh_edpt_xfer(uint8_t daddr, tuh_xfer_t* xfer);
+bool tuh_edpt_xfer(tuh_xfer_t* xfer);
 
 // Set Configuration (control transfer)
 // config_num = 0 will un-configure device. Note: config_num = config_descriptor_index + 1

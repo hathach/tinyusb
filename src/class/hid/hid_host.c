@@ -103,11 +103,12 @@ uint8_t tuh_hid_get_protocol(uint8_t dev_addr, uint8_t instance)
   return hid_itf->protocol_mode;
 }
 
-static void set_protocol_complete(uint8_t dev_addr, tuh_xfer_t* xfer)
+static void set_protocol_complete(tuh_xfer_t* xfer)
 {
   uint8_t const itf_num     = (uint8_t) tu_le16toh(xfer->setup->wIndex);
-  uint8_t const instance    = get_instance_id_by_itfnum(dev_addr, itf_num);
-  hidh_interface_t* hid_itf = get_instance(dev_addr, instance);
+  uint8_t const daddr       = xfer->daddr;
+  uint8_t const instance    = get_instance_id_by_itfnum(daddr, itf_num);
+  hidh_interface_t* hid_itf = get_instance(daddr, instance);
 
   if (XFER_RESULT_SUCCESS == xfer->result)
   {
@@ -116,7 +117,7 @@ static void set_protocol_complete(uint8_t dev_addr, tuh_xfer_t* xfer)
 
   if (tuh_hid_set_protocol_complete_cb)
   {
-    tuh_hid_set_protocol_complete_cb(dev_addr, instance, hid_itf->protocol_mode);
+    tuh_hid_set_protocol_complete_cb(daddr, instance, hid_itf->protocol_mode);
   }
 }
 
@@ -141,6 +142,7 @@ static bool _hidh_set_protocol(uint8_t dev_addr, uint8_t itf_num, uint8_t protoc
 
   tuh_xfer_t xfer =
   {
+    .daddr       = dev_addr,
     .ep_addr     = 0,
     .setup       = &request,
     .buffer      = NULL,
@@ -148,7 +150,7 @@ static bool _hidh_set_protocol(uint8_t dev_addr, uint8_t itf_num, uint8_t protoc
     .user_data   = user_data
   };
 
-  TU_ASSERT( tuh_control_xfer(dev_addr, &xfer) );
+  TU_ASSERT( tuh_control_xfer(&xfer) );
   return true;
 }
 
@@ -160,19 +162,19 @@ bool tuh_hid_set_protocol(uint8_t dev_addr, uint8_t instance, uint8_t protocol)
   return _hidh_set_protocol(dev_addr, hid_itf->itf_num, protocol, set_protocol_complete, 0);
 }
 
-static void set_report_complete(uint8_t dev_addr, tuh_xfer_t* xfer)
+static void set_report_complete(tuh_xfer_t* xfer)
 {
   TU_LOG2("HID Set Report complete\r\n");
 
   if (tuh_hid_set_report_complete_cb)
   {
     uint8_t const itf_num     = (uint8_t) tu_le16toh(xfer->setup->wIndex);
-    uint8_t const instance    = get_instance_id_by_itfnum(dev_addr, itf_num);
+    uint8_t const instance    = get_instance_id_by_itfnum(xfer->daddr, itf_num);
 
     uint8_t const report_type = tu_u16_high(xfer->setup->wValue);
     uint8_t const report_id   = tu_u16_low(xfer->setup->wValue);
 
-    tuh_hid_set_report_complete_cb(dev_addr, instance, report_id, report_type,
+    tuh_hid_set_report_complete_cb(xfer->daddr, instance, report_id, report_type,
                                    (xfer->result == XFER_RESULT_SUCCESS) ? xfer->setup->wLength : 0);
   }
 }
@@ -198,6 +200,7 @@ bool tuh_hid_set_report(uint8_t dev_addr, uint8_t instance, uint8_t report_id, u
 
   tuh_xfer_t xfer =
   {
+    .daddr       = dev_addr,
     .ep_addr     = 0,
     .setup       = &request,
     .buffer      = report,
@@ -205,7 +208,7 @@ bool tuh_hid_set_report(uint8_t dev_addr, uint8_t instance, uint8_t report_id, u
     .user_data   = 0
   };
 
-  TU_ASSERT( tuh_control_xfer(dev_addr, &xfer) );
+  TU_ASSERT( tuh_control_xfer(&xfer) );
   return true;
 }
 
@@ -229,6 +232,7 @@ static bool _hidh_set_idle(uint8_t dev_addr, uint8_t itf_num, uint16_t idle_rate
 
   tuh_xfer_t xfer =
   {
+    .daddr       = dev_addr,
     .ep_addr     = 0,
     .setup       = &request,
     .buffer      = NULL,
@@ -236,7 +240,7 @@ static bool _hidh_set_idle(uint8_t dev_addr, uint8_t itf_num, uint16_t idle_rate
     .user_data   = user_data
   };
 
-  TU_ASSERT( tuh_control_xfer(dev_addr, &xfer) );
+  TU_ASSERT( tuh_control_xfer(&xfer) );
 
   return true;
 }
@@ -389,7 +393,7 @@ enum {
 };
 
 static void config_driver_mount_complete(uint8_t dev_addr, uint8_t instance, uint8_t const* desc_report, uint16_t desc_len);
-static void process_set_config(uint8_t dev_addr, tuh_xfer_t* xfer);
+static void process_set_config(tuh_xfer_t* xfer);
 
 bool hidh_set_config(uint8_t dev_addr, uint8_t itf_num)
 {
@@ -397,17 +401,18 @@ bool hidh_set_config(uint8_t dev_addr, uint8_t itf_num)
   request.wIndex = tu_htole16((uint16_t) itf_num);
 
   tuh_xfer_t xfer;
+  xfer.daddr     = dev_addr;
   xfer.result    = XFER_RESULT_SUCCESS;
   xfer.setup     = &request;
   xfer.user_data = CONFG_SET_IDLE;
 
   // fake request to kick-off the set config process
-  process_set_config(dev_addr, &xfer);
+  process_set_config(&xfer);
 
   return true;
 }
 
-static void process_set_config(uint8_t dev_addr, tuh_xfer_t* xfer)
+static void process_set_config(tuh_xfer_t* xfer)
 {
   // Stall is a valid response for SET_IDLE, therefore we could ignore its result
   if ( xfer->setup->bRequest != HID_REQ_CONTROL_SET_IDLE )
@@ -415,10 +420,12 @@ static void process_set_config(uint8_t dev_addr, tuh_xfer_t* xfer)
     TU_ASSERT(xfer->result == XFER_RESULT_SUCCESS, );
   }
 
-  uintptr_t const state     = xfer->user_data;
-  uint8_t const itf_num     = (uint8_t) tu_le16toh(xfer->setup->wIndex);
-  uint8_t const instance    = get_instance_id_by_itfnum(dev_addr, itf_num);
-  hidh_interface_t* hid_itf = get_instance(dev_addr, instance);
+  uintptr_t const state = xfer->user_data;
+  uint8_t const itf_num = (uint8_t) tu_le16toh(xfer->setup->wIndex);
+  uint8_t const daddr   = xfer->daddr;
+
+  uint8_t const instance    = get_instance_id_by_itfnum(daddr, itf_num);
+  hidh_interface_t* hid_itf = get_instance(daddr, instance);
 
   switch(state)
   {
@@ -427,12 +434,12 @@ static void process_set_config(uint8_t dev_addr, tuh_xfer_t* xfer)
       // Idle rate = 0 mean only report when there is changes
       const uint16_t idle_rate = 0;
       const uintptr_t next_state = (hid_itf->itf_protocol != HID_ITF_PROTOCOL_NONE) ? CONFIG_SET_PROTOCOL : CONFIG_GET_REPORT_DESC;
-      _hidh_set_idle(dev_addr, itf_num, idle_rate, process_set_config, next_state);
+      _hidh_set_idle(daddr, itf_num, idle_rate, process_set_config, next_state);
     }
     break;
 
     case CONFIG_SET_PROTOCOL:
-      _hidh_set_protocol(dev_addr, hid_itf->itf_num, HID_PROTOCOL_BOOT, process_set_config, CONFIG_GET_REPORT_DESC);
+      _hidh_set_protocol(daddr, hid_itf->itf_num, HID_PROTOCOL_BOOT, process_set_config, CONFIG_GET_REPORT_DESC);
     break;
 
     case CONFIG_GET_REPORT_DESC:
@@ -443,19 +450,19 @@ static void process_set_config(uint8_t dev_addr, tuh_xfer_t* xfer)
         TU_LOG2("HID Skip Report Descriptor since it is too large %u bytes\r\n", hid_itf->report_desc_len);
 
         // Driver is mounted without report descriptor
-        config_driver_mount_complete(dev_addr, instance, NULL, 0);
+        config_driver_mount_complete(daddr, instance, NULL, 0);
       }else
       {
-        tuh_descriptor_get_hid_report(dev_addr, itf_num, hid_itf->report_desc_type, 0, usbh_get_enum_buf(), hid_itf->report_desc_len, process_set_config, CONFIG_COMPLETE);
+        tuh_descriptor_get_hid_report(daddr, itf_num, hid_itf->report_desc_type, 0, usbh_get_enum_buf(), hid_itf->report_desc_len, process_set_config, CONFIG_COMPLETE);
       }
       break;
 
     case CONFIG_COMPLETE:
     {
       uint8_t const* desc_report = usbh_get_enum_buf();
-      uint16_t const desc_len    = xfer->setup->wLength;
+      uint16_t const desc_len    = tu_le16toh(xfer->setup->wLength);
 
-      config_driver_mount_complete(dev_addr, instance, desc_report, desc_len);
+      config_driver_mount_complete(daddr, instance, desc_report, desc_len);
     }
     break;
 

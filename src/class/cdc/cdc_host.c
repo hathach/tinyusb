@@ -140,6 +140,7 @@ bool tuh_cdc_set_control_line_state(uint8_t dev_addr, bool dtr, bool rts, tuh_xf
 
   tuh_xfer_t xfer =
   {
+    .daddr       = dev_addr,
     .ep_addr     = 0,
     .setup       = &request,
     .buffer      = NULL,
@@ -147,7 +148,7 @@ bool tuh_cdc_set_control_line_state(uint8_t dev_addr, bool dtr, bool rts, tuh_xf
     .user_data    = 0
   };
 
-  return tuh_control_xfer(dev_addr, &xfer);
+  return tuh_control_xfer(&xfer);
 }
 
 //--------------------------------------------------------------------+
