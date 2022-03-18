@@ -110,14 +110,14 @@ typedef struct {
   tu_edpt_state_t ep_status[CFG_TUH_ENDPOINT_MAX][2];
 
 #if CFG_TUH_API_EDPT_XFER
-  struct
-  {
-    uint8_t* buffer;
-    tuh_xfer_cb_t complete_cb;
-    uintptr_t user_data;
-    uint16_t buflen;
-    volatile uint16_t actual_len;
-  }ep_xfer;
+//  struct
+//  {
+//    uint8_t* buffer;
+//    tuh_xfer_cb_t complete_cb;
+//    uintptr_t user_data;
+//    uint16_t buflen;
+//    volatile uint16_t actual_len;
+//  }ep_xfer[[]];
 #endif
 
 } usbh_device_t;
@@ -247,16 +247,6 @@ static osal_queue_t _usbh_q;
 CFG_TUSB_MEM_SECTION CFG_TUSB_MEM_ALIGN
 static uint8_t _usbh_ctrl_buf[CFG_TUH_ENUMERATION_BUFSIZE];
 
-//// internal version of tuh_xfer_t
-//typedef struct
-//{
-//  uint8_t* buffer;
-//  tuh_xfer_cb_t complete_cb;
-//  uintptr_t user_data;
-//
-//  volatile uint16_t actual_len;
-//}usbh_xfer_t;
-
 // Control transfer: since most controller does not support multiple control transfer
 // on multiple devices concurrently. And control transfer is not used much except enumeration
 // We will only execute control transfer one at a time.
@@ -267,9 +257,9 @@ struct
   tuh_xfer_cb_t complete_cb;
   uintptr_t user_data;
 
-  volatile uint16_t actual_len;
-  uint8_t daddr;  // transferring device
+  uint8_t daddr;
   volatile uint8_t stage;
+  volatile uint16_t actual_len;
 }_ctrl_xfer;
 
 //------------- Helper Function -------------//
@@ -298,6 +288,8 @@ bool tuh_mounted(uint8_t dev_addr)
 
 bool tuh_vid_pid_get(uint8_t dev_addr, uint16_t* vid, uint16_t* pid)
 {
+  *vid = *pid = 0;
+
   usbh_device_t const* dev = get_device(dev_addr);
   TU_VERIFY(dev && dev->configured);
 
@@ -327,6 +319,8 @@ void osal_task_delay(uint32_t msec)
 // Descriptors Async
 //--------------------------------------------------------------------+
 
+// generic helper to get a descriptor
+// if blocking, user_data could be pointed to xfer_result
 static bool _get_descriptor(uint8_t daddr, uint8_t type, uint8_t index, uint16_t language_id, void* buffer, uint16_t len,
                             tuh_xfer_cb_t complete_cb, uintptr_t user_data)
 {
@@ -353,7 +347,15 @@ static bool _get_descriptor(uint8_t daddr, uint8_t type, uint8_t index, uint16_t
     .user_data   = user_data
   };
 
-  return tuh_control_xfer(daddr, &xfer);
+  bool const ret = tuh_control_xfer(daddr, &xfer);
+
+  // if blocking, user_data could be pointed to xfer_result
+  if ( !complete_cb && user_data )
+  {
+    *((xfer_result_t*) user_data) = xfer.result;
+  }
+
+  return ret;
 }
 
 bool tuh_descriptor_get(uint8_t daddr, uint8_t type, uint8_t index, void* buffer, uint16_t len,
@@ -411,6 +413,7 @@ bool tuh_descriptor_get_serial_string(uint8_t daddr, uint16_t language_id, void*
 }
 
 // Get HID report descriptor
+// if blocking, user_data could be pointed to xfer_result
 bool tuh_descriptor_get_hid_report(uint8_t daddr, uint8_t itf_num, uint8_t desc_type, uint8_t index, void* buffer, uint16_t len,
                                    tuh_xfer_cb_t complete_cb, uintptr_t user_data)
 {
@@ -438,7 +441,15 @@ bool tuh_descriptor_get_hid_report(uint8_t daddr, uint8_t itf_num, uint8_t desc_
     .user_data   = user_data
   };
 
-  return tuh_control_xfer(daddr, &xfer);
+  bool const ret = tuh_control_xfer(daddr, &xfer);
+
+  // if blocking, user_data could be pointed to xfer_result
+  if ( !complete_cb && user_data )
+  {
+    *((xfer_result_t*) user_data) = xfer.result;
+  }
+
+  return ret;
 }
 
 bool tuh_configuration_set(uint8_t daddr, uint8_t config_num,
@@ -549,6 +560,7 @@ bool tuh_init(uint8_t rhport)
   TU_LOG2_INT(sizeof(usbh_device_t));
   TU_LOG2_INT(sizeof(hcd_event_t));
   TU_LOG2_INT(sizeof(_ctrl_xfer));
+  TU_LOG2_INT(sizeof(tuh_xfer_t));
 
   // Event queue
   _usbh_q = osal_queue_create( &_usbh_qdef );
@@ -972,14 +984,8 @@ bool tuh_control_xfer (uint8_t daddr, tuh_xfer_t* xfer)
       // TODO probably some timeout to prevent hanged
     }
 
-    // update xfer result
-    xfer->result = result;
-    if ( xfer->user_data )
-    {
-      // if user_data is not NULL, it is also updated
-      *((xfer_result_t*) xfer->user_data) = result;
-    }
-
+    // update transfer result
+    xfer->result     = result;
     xfer->actual_len = _ctrl_xfer.actual_len;
   }
 
