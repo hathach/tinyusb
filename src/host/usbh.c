@@ -82,8 +82,7 @@ typedef struct {
   uint8_t speed;
 
   // Device State
-  struct TU_ATTR_PACKED
-  {
+  struct TU_ATTR_PACKED {
     volatile uint8_t connected  : 1;
     volatile uint8_t addressed  : 1;
     volatile uint8_t configured : 1;
@@ -110,7 +109,11 @@ typedef struct {
   tu_edpt_state_t ep_status[CFG_TUH_ENDPOINT_MAX][2];
 
 #if CFG_TUH_API_EDPT_XFER
-  // ep_xfer[];
+  // TODO array can be CFG_TUH_ENDPOINT_MAX-1
+  struct {
+    tuh_xfer_cb_t complete_cb;
+    uintptr_t user_data;
+  }ep_callback[CFG_TUH_ENDPOINT_MAX][2];
 #endif
 
 } usbh_device_t;
@@ -226,6 +229,8 @@ TU_ATTR_ALWAYS_INLINE static inline void usbh_unlock(void)
 }
 
 #else
+
+#define _usbh_mutex   NULL
 
 #define usbh_lock()
 #define usbh_unlock()
@@ -449,10 +454,38 @@ void tuh_task(void)
           }else
           {
             uint8_t drv_id = dev->ep2drv[epnum][ep_dir];
-            TU_ASSERT(drv_id < USBH_CLASS_DRIVER_COUNT, );
+            if(drv_id < USBH_CLASS_DRIVER_COUNT)
+            {
+              TU_LOG2("%s xfer callback\r\n", usbh_class_drivers[drv_id].name);
+              usbh_class_drivers[drv_id].xfer_cb(event.dev_addr, ep_addr, event.xfer_complete.result, event.xfer_complete.len);
+            }
+            else
+            {
+#if CFG_TUH_API_EDPT_XFER
+              tuh_xfer_cb_t complete_cb = dev->ep_callback[epnum][ep_dir].complete_cb;
+              if ( complete_cb )
+              {
+                tuh_xfer_t xfer =
+                {
+                  .daddr       = event.dev_addr,
+                  .ep_addr     = ep_addr,
+                  .result      = event.xfer_complete.result,
+                  .actual_len  = event.xfer_complete.len,
+                  .buflen      = 0,    // not available
+                  .buffer      = NULL, // not available
+                  .complete_cb = complete_cb,
+                  .user_data   = dev->ep_callback[epnum][ep_dir].user_data
+                };
 
-            TU_LOG2("%s xfer callback\r\n", usbh_class_drivers[drv_id].name);
-            usbh_class_drivers[drv_id].xfer_cb(event.dev_addr, ep_addr, event.xfer_complete.result, event.xfer_complete.len);
+                complete_cb(&xfer);
+              }else
+#endif
+              {
+                // no driver/callback responsible for this transfer
+                TU_ASSERT(false, );
+              }
+
+            }
           }
         }
       }
@@ -638,9 +671,18 @@ static bool usbh_control_xfer_cb (uint8_t dev_addr, uint8_t ep_addr, xfer_result
 
 bool tuh_edpt_xfer(tuh_xfer_t* xfer)
 {
-  TU_VERIFY(xfer->daddr && xfer->ep_addr);
+  uint8_t const daddr   = xfer->daddr;
+  uint8_t const ep_addr = xfer->ep_addr;
 
+  TU_VERIFY(daddr && ep_addr);
 
+  TU_VERIFY(usbh_edpt_claim(daddr, ep_addr));
+
+  if ( !usbh_edpt_xfer_with_callback(daddr, ep_addr, xfer->buffer, xfer->buflen, xfer->complete_cb, xfer->user_data) )
+  {
+    usbh_edpt_release(daddr, ep_addr);
+    return false;
+  }
 
   return true;
 }
@@ -687,50 +729,50 @@ bool usbh_edpt_claim(uint8_t dev_addr, uint8_t ep_addr)
   uint8_t const epnum = tu_edpt_number(ep_addr);
   uint8_t const dir   = tu_edpt_dir(ep_addr);
 
-  tu_edpt_state_t* ep_state = &dev->ep_status[epnum][dir];
-
-#if TUSB_OPT_MUTEX
-  return tu_edpt_claim(ep_state, _usbh_mutex);
-#else
-  return tu_edpt_claim(ep_state, NULL);
-#endif
+  return tu_edpt_claim(&dev->ep_status[epnum][dir], _usbh_mutex);
 }
 
 // TODO has some duplication code with device, refactor later
 bool usbh_edpt_release(uint8_t dev_addr, uint8_t ep_addr)
 {
-  // addr0 is always available
-  if (dev_addr == 0) return true;
+  usbh_device_t* dev = get_device(dev_addr);
 
-  usbh_device_t* dev        = get_device(dev_addr);
-  uint8_t const epnum       = tu_edpt_number(ep_addr);
-  uint8_t const dir         = tu_edpt_dir(ep_addr);
-  tu_edpt_state_t* ep_state = &dev->ep_status[epnum][dir];
+  // addr0 only use tuh_control_xfer
+  TU_ASSERT(dev);
 
-#if TUSB_OPT_MUTEX
-  return tu_edpt_release(ep_state, _usbh_mutex);
-#else
-  return tu_edpt_release(ep_state, NULL);
-#endif
+  uint8_t const epnum = tu_edpt_number(ep_addr);
+  uint8_t const dir   = tu_edpt_dir(ep_addr);
+
+  return tu_edpt_release(&dev->ep_status[epnum][dir], _usbh_mutex);
 }
 
 // TODO has some duplication code with device, refactor later
-bool usbh_edpt_xfer(uint8_t dev_addr, uint8_t ep_addr, uint8_t * buffer, uint16_t total_bytes)
+bool usbh_edpt_xfer_with_callback(uint8_t dev_addr, uint8_t ep_addr, uint8_t * buffer, uint16_t total_bytes,
+                                  tuh_xfer_cb_t complete_cb, uintptr_t user_data)
 {
+  (void) complete_cb;
+  (void) user_data;
+
   usbh_device_t* dev = get_device(dev_addr);
   TU_VERIFY(dev);
 
   uint8_t const epnum = tu_edpt_number(ep_addr);
   uint8_t const dir   = tu_edpt_dir(ep_addr);
+  tu_edpt_state_t* ep_state = &dev->ep_status[epnum][dir];
 
   TU_LOG2("  Queue EP %02X with %u bytes ... ", ep_addr, total_bytes);
 
   // Attempt to transfer on a busy endpoint, sound like an race condition !
-  TU_ASSERT(dev->ep_status[epnum][dir].busy == 0);
+  TU_ASSERT(ep_state->busy == 0);
 
   // Set busy first since the actual transfer can be complete before hcd_edpt_xfer()
   // could return and USBH task can preempt and clear the busy
-  dev->ep_status[epnum][dir].busy = true;
+  ep_state->busy = 1;
+
+#if CFG_TUH_API_EDPT_XFER
+  dev->ep_callback[epnum][dir].complete_cb = complete_cb;
+  dev->ep_callback[epnum][dir].user_data   = user_data;
+#endif
 
   if ( hcd_edpt_xfer(dev->rhport, dev_addr, ep_addr, buffer, total_bytes) )
   {
@@ -739,9 +781,9 @@ bool usbh_edpt_xfer(uint8_t dev_addr, uint8_t ep_addr, uint8_t * buffer, uint16_
   }else
   {
     // HCD error, mark endpoint as ready to allow next transfer
-    dev->ep_status[epnum][dir].busy = false;
-    dev->ep_status[epnum][dir].claimed = 0;
-    TU_LOG1("failed\r\n");
+    ep_state->busy    = 0;
+    ep_state->claimed = 0;
+    TU_LOG1("Failed\r\n");
     TU_BREAKPOINT();
     return false;
   }

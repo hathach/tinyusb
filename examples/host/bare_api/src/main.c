@@ -40,6 +40,8 @@
 //--------------------------------------------------------------------+
 void led_blinking_task(void);
 
+static void print_utf16(uint16_t *temp_buf, size_t buf_len);
+
 /*------------- MAIN -------------*/
 int main(void)
 {
@@ -65,9 +67,107 @@ int main(void)
 // English
 #define LANGUAGE_ID 0x0409
 
-//uint8_t usb_buf[256] TU_ATTR_ALIGNED(4);
-TU_ATTR_ALIGNED(4)
 tusb_desc_device_t desc_device;
+
+//void parse_config_descriptor(uint8_t dev_addr, tusb_desc_configuration_t const* desc_cfg)
+//{
+//  uint8_t const* desc_end = ((uint8_t const*) desc_cfg) + tu_le16toh(desc_cfg->wTotalLength);
+//  uint8_t const* p_desc   = tu_desc_next(desc_cfg);
+//}
+
+void print_device_descriptor(tuh_xfer_t* xfer)
+{
+  if ( XFER_RESULT_SUCCESS != xfer->result )
+  {
+    printf("Failed to get device descriptor\r\n");
+    return;
+  }
+
+  uint8_t const daddr = xfer->daddr;
+
+  printf("Device %u: ID %04x:%04x\r\n", daddr, desc_device.idVendor, desc_device.idProduct);
+  printf("Device Descriptor:\r\n");
+  printf("  bLength             %u\r\n"     , desc_device.bLength);
+  printf("  bDescriptorType     %u\r\n"     , desc_device.bDescriptorType);
+  printf("  bcdUSB              %04x\r\n"   , desc_device.bcdUSB);
+  printf("  bDeviceClass        %u\r\n"     , desc_device.bDeviceClass);
+  printf("  bDeviceSubClass     %u\r\n"     , desc_device.bDeviceSubClass);
+  printf("  bDeviceProtocol     %u\r\n"     , desc_device.bDeviceProtocol);
+  printf("  bMaxPacketSize0     %u\r\n"     , desc_device.bMaxPacketSize0);
+  printf("  idVendor            0x%04x\r\n" , desc_device.idVendor);
+  printf("  idProduct           0x%04x\r\n" , desc_device.idProduct);
+  printf("  bcdDevice           %04x\r\n"   , desc_device.bcdDevice);
+
+  // Get String descriptor using Sync API
+  uint16_t temp_buf[128];
+
+  printf("  iManufacturer       %u     "     , desc_device.iManufacturer);
+  if (XFER_RESULT_SUCCESS == tuh_descriptor_get_manufacturer_string_sync(daddr, LANGUAGE_ID, temp_buf, sizeof(temp_buf)) )
+  {
+    print_utf16(temp_buf, TU_ARRAY_SIZE(temp_buf));
+  }
+  printf("\r\n");
+
+  printf("  iProduct            %u     "     , desc_device.iProduct);
+  if (XFER_RESULT_SUCCESS == tuh_descriptor_get_product_string_sync(daddr, LANGUAGE_ID, temp_buf, sizeof(temp_buf)))
+  {
+    print_utf16(temp_buf, TU_ARRAY_SIZE(temp_buf));
+  }
+  printf("\r\n");
+
+  printf("  iSerialNumber       %u     "     , desc_device.iSerialNumber);
+  if (XFER_RESULT_SUCCESS == tuh_descriptor_get_serial_string_sync(daddr, LANGUAGE_ID, temp_buf, sizeof(temp_buf)))
+  {
+    print_utf16(temp_buf, TU_ARRAY_SIZE(temp_buf));
+  }
+  printf("\r\n");
+
+  printf("  bNumConfigurations  %u\r\n"     , desc_device.bNumConfigurations);
+
+  // Get configuration descriptor with sync API
+//  if (XFER_RESULT_SUCCESS == tuh_descriptor_get_configuration_sync(daddr, 0, temp_buf, sizeof(temp_buf)) )
+//  {
+//    parse_config_descriptor(daddr, (tusb_desc_configuration_t*) temp_buf);
+//  }
+}
+
+// Invoked when device is mounted (configured)
+void tuh_mount_cb (uint8_t daddr)
+{
+  printf("Device attached, address = %d\r\n", daddr);
+
+  // Get Device Descriptor sync API
+  // TODO: invoking control trannsfer now has issue with mounting hub with multiple devices attached, fix later
+  tuh_descriptor_get_device(daddr, &desc_device, 18, print_device_descriptor, 0);
+}
+
+/// Invoked when device is unmounted (bus reset/unplugged)
+void tuh_umount_cb(uint8_t daddr)
+{
+  printf("Device removed, address = %d\r\n", daddr);
+}
+
+//--------------------------------------------------------------------+
+// Blinking Task
+//--------------------------------------------------------------------+
+void led_blinking_task(void)
+{
+  const uint32_t interval_ms = 1000;
+  static uint32_t start_ms = 0;
+
+  static bool led_state = false;
+
+  // Blink every interval ms
+  if ( board_millis() - start_ms < interval_ms) return; // not enough time
+  start_ms += interval_ms;
+
+  board_led_write(led_state);
+  led_state = 1 - led_state; // toggle
+}
+
+//--------------------------------------------------------------------+
+// Helper
+//--------------------------------------------------------------------+
 
 static void _convert_utf16le_to_utf8(const uint16_t *utf16, size_t utf16_len, uint8_t *utf8, size_t utf8_len) {
     // TODO: Check for runover.
@@ -108,94 +208,11 @@ static int _count_utf8_bytes(const uint16_t *buf, size_t len) {
     return total_bytes;
 }
 
-static void utf16_to_utf8(uint16_t *temp_buf, size_t buf_len) {
+static void print_utf16(uint16_t *temp_buf, size_t buf_len) {
     size_t utf16_len = ((temp_buf[0] & 0xff) - 2) / sizeof(uint16_t);
     size_t utf8_len = _count_utf8_bytes(temp_buf + 1, utf16_len);
     _convert_utf16le_to_utf8(temp_buf + 1, utf16_len, (uint8_t *) temp_buf, sizeof(uint16_t) * buf_len);
     ((uint8_t*) temp_buf)[utf8_len] = '\0';
-}
 
-void print_device_descriptor(tuh_xfer_t* xfer)
-{
-  if ( XFER_RESULT_SUCCESS != xfer->result )
-  {
-    printf("Failed to get device descriptor\r\n");
-    return;
-  }
-
-  uint8_t const daddr = xfer->daddr;
-
-  printf("Device %u: ID %04x:%04x\r\n", daddr, desc_device.idVendor, desc_device.idProduct);
-  printf("Device Descriptor:\r\n");
-  printf("  bLength             %u\r\n"     , desc_device.bLength);
-  printf("  bDescriptorType     %u\r\n"     , desc_device.bDescriptorType);
-  printf("  bcdUSB              %04x\r\n"   , desc_device.bcdUSB);
-  printf("  bDeviceClass        %u\r\n"     , desc_device.bDeviceClass);
-  printf("  bDeviceSubClass     %u\r\n"     , desc_device.bDeviceSubClass);
-  printf("  bDeviceProtocol     %u\r\n"     , desc_device.bDeviceProtocol);
-  printf("  bMaxPacketSize0     %u\r\n"     , desc_device.bMaxPacketSize0);
-  printf("  idVendor            0x%04x\r\n" , desc_device.idVendor);
-  printf("  idProduct           0x%04x\r\n" , desc_device.idProduct);
-  printf("  bcdDevice           %04x\r\n"   , desc_device.bcdDevice);
-
-  uint16_t temp_buf[128];
-
-  printf("  iManufacturer       %u     "     , desc_device.iManufacturer);
-  if (XFER_RESULT_SUCCESS == tuh_descriptor_get_manufacturer_string_sync(daddr, LANGUAGE_ID, temp_buf, TU_ARRAY_SIZE(temp_buf)) )
-  {
-    utf16_to_utf8(temp_buf, TU_ARRAY_SIZE(temp_buf));
-    printf((const char*) temp_buf);
-  }
-  printf("\r\n");
-
-  printf("  iProduct            %u     "     , desc_device.iProduct);
-  if (XFER_RESULT_SUCCESS == tuh_descriptor_get_product_string_sync(daddr, LANGUAGE_ID, temp_buf, TU_ARRAY_SIZE(temp_buf)))
-  {
-    utf16_to_utf8(temp_buf, TU_ARRAY_SIZE(temp_buf));
-    printf((const char*) temp_buf);
-  }
-  printf("\r\n");
-
-  printf("  iSerialNumber       %u     "     , desc_device.iSerialNumber);
-  if (XFER_RESULT_SUCCESS == tuh_descriptor_get_serial_string_sync(daddr, LANGUAGE_ID, temp_buf, TU_ARRAY_SIZE(temp_buf)))
-  {
-    utf16_to_utf8(temp_buf, TU_ARRAY_SIZE(temp_buf));
-    printf((const char*) temp_buf);
-  }
-  printf("\r\n");
-
-  printf("  bNumConfigurations  %u\r\n"     , desc_device.bNumConfigurations);
-}
-
-// Invoked when device is mounted (configured)
-void tuh_mount_cb (uint8_t daddr)
-{
-  printf("Device attached, address = %d\r\n", daddr);
-
-  // Get Device Descriptor using asynchronous API
-  tuh_descriptor_get_device(daddr, &desc_device, 18, print_device_descriptor, 0);
-}
-
-/// Invoked when device is unmounted (bus reset/unplugged)
-void tuh_umount_cb(uint8_t daddr)
-{
-  printf("Device removed, address = %d\r\n", daddr);
-}
-
-//--------------------------------------------------------------------+
-// Blinking Task
-//--------------------------------------------------------------------+
-void led_blinking_task(void)
-{
-  const uint32_t interval_ms = 1000;
-  static uint32_t start_ms = 0;
-
-  static bool led_state = false;
-
-  // Blink every interval ms
-  if ( board_millis() - start_ms < interval_ms) return; // not enough time
-  start_ms += interval_ms;
-
-  board_led_write(led_state);
-  led_state = 1 - led_state; // toggle
+    printf((char*)temp_buf);
 }

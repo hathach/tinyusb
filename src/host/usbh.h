@@ -44,25 +44,27 @@ typedef struct tuh_xfer_s tuh_xfer_t;
 
 typedef void (*tuh_xfer_cb_t)(tuh_xfer_t* xfer);
 
+// Note: layout and order of this will be changed in near future
+// it is advised to initialize it using member name
 struct tuh_xfer_s
 {
   uint8_t daddr;
   uint8_t ep_addr;
 
   xfer_result_t result;
-  uint32_t actual_len; // excluding setup packet
+  uint32_t actual_len;      // excluding setup packet
 
   union
   {
     tusb_control_request_t const* setup; // setup packet pointer if control transfer
-    uint32_t buflen;                     // length if not control transfer
+    uint32_t buflen;        // expected length if not control transfer (not available in callback)
   };
 
-  uint8_t* buffer;
+  uint8_t* buffer;           // not available in callback if not control transfer
   tuh_xfer_cb_t complete_cb;
   uintptr_t user_data;
 
-  uint32_t timeout_ms; // place holder, not supported yet
+  // uint32_t timeout_ms;    // place holder, not supported yet
 };
 
 //--------------------------------------------------------------------+

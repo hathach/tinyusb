@@ -256,7 +256,13 @@ bool tuh_hid_receive_report(uint8_t dev_addr, uint8_t instance)
   // claim endpoint
   TU_VERIFY( usbh_edpt_claim(dev_addr, hid_itf->ep_in) );
 
-  return usbh_edpt_xfer(dev_addr, hid_itf->ep_in, hid_itf->epin_buf, hid_itf->epin_size);
+  if ( !usbh_edpt_xfer(dev_addr, hid_itf->ep_in, hid_itf->epin_buf, hid_itf->epin_size) )
+  {
+    usbh_edpt_claim(dev_addr, hid_itf->ep_in);
+    return false;
+  }
+
+  return true;
 }
 
 //bool tuh_n_hid_n_ready(uint8_t dev_addr, uint8_t instance)
