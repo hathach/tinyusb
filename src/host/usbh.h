@@ -135,8 +135,8 @@ bool tuh_control_xfer(tuh_xfer_t* xfer);
 //  - sync : blocking if complete callback is NULL.
 bool tuh_edpt_xfer(tuh_xfer_t* xfer);
 
-// Open an endpoint
-bool usbh_edpt_open(uint8_t dev_addr, tusb_desc_endpoint_t const * desc_ep);
+// Open an non-control endpoint
+bool tuh_edpt_open(uint8_t dev_addr, tusb_desc_endpoint_t const * desc_ep);
 
 // Set Configuration (control transfer)
 // config_num = 0 will un-configure device. Note: config_num = config_descriptor_index + 1

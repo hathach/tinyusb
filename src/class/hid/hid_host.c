@@ -356,7 +356,7 @@ bool hidh_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_interface_t const *de
   for(int i = 0; i < desc_itf->bNumEndpoints; i++)
   {
     TU_ASSERT(TUSB_DESC_ENDPOINT == desc_ep->bDescriptorType);
-    TU_ASSERT( usbh_edpt_open(dev_addr, desc_ep) );
+    TU_ASSERT( tuh_edpt_open(dev_addr, desc_ep) );
 
     if(tu_edpt_dir(desc_ep->bEndpointAddress) == TUSB_DIR_IN)
     {

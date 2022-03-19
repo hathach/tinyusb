@@ -234,7 +234,7 @@ void open_hid_interface(uint8_t daddr, tusb_desc_interface_t const *desc_itf, ui
     if(tu_edpt_dir(desc_ep->bEndpointAddress) == TUSB_DIR_IN)
     {
       // skip if failed to open endpoint
-      if ( ! usbh_edpt_open(daddr, desc_ep) ) return;
+      if ( ! tuh_edpt_open(daddr, desc_ep) ) return;
 
       uint8_t* buf = get_hid_buf(daddr);
       if (!buf) return; // out of memory
