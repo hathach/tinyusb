@@ -120,32 +120,35 @@ bool tuh_cdc_receive(uint8_t dev_addr, void * p_buffer, uint32_t length, bool is
   return usbh_edpt_xfer(dev_addr, ep_in, p_buffer, length);
 }
 
-bool tuh_cdc_set_control_line_state(uint8_t dev_addr, bool dtr, bool rts, tuh_control_xfer_cb_t complete_cb)
+bool tuh_cdc_set_control_line_state(uint8_t dev_addr, bool dtr, bool rts, tuh_xfer_cb_t complete_cb)
 {
   cdch_data_t const * p_cdc = get_itf(dev_addr);
 
-  tuh_control_xfer_t const xfer =
+  tusb_control_request_t const request =
   {
-    .request =
+    .bmRequestType_bit =
     {
-      .bmRequestType_bit =
-      {
-        .recipient = TUSB_REQ_RCPT_INTERFACE,
-        .type      = TUSB_REQ_TYPE_CLASS,
-        .direction = TUSB_DIR_OUT
-      },
-      .bRequest = CDC_REQUEST_SET_CONTROL_LINE_STATE,
-      .wValue   = (rts ? 2 : 0) | (dtr ? 1 : 0),
-      .wIndex   = p_cdc->itf_num,
-      .wLength  = 0
+      .recipient = TUSB_REQ_RCPT_INTERFACE,
+      .type      = TUSB_REQ_TYPE_CLASS,
+      .direction = TUSB_DIR_OUT
     },
-
-    .buffer      = NULL,
-    .complete_cb = complete_cb,
-    .user_arg    = 0
+    .bRequest = CDC_REQUEST_SET_CONTROL_LINE_STATE,
+    .wValue   = (rts ? 2 : 0) | (dtr ? 1 : 0),
+    .wIndex   = p_cdc->itf_num,
+    .wLength  = 0
   };
 
-  return tuh_control_xfer(dev_addr, &xfer);
+  tuh_xfer_t xfer =
+  {
+    .daddr       = dev_addr,
+    .ep_addr     = 0,
+    .setup       = &request,
+    .buffer      = NULL,
+    .complete_cb = complete_cb,
+    .user_data    = 0
+  };
+
+  return tuh_control_xfer(&xfer);
 }
 
 //--------------------------------------------------------------------+
@@ -158,6 +161,7 @@ void cdch_init(void)
 
 bool cdch_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_interface_t const *itf_desc, uint16_t max_len)
 {
+  (void) rhport;
   (void) max_len;
 
   // Only support ACM subclass
@@ -193,7 +197,7 @@ bool cdch_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_interface_t const *it
     // notification endpoint
     tusb_desc_endpoint_t const * desc_ep = (tusb_desc_endpoint_t const *) p_desc;
 
-    TU_ASSERT( usbh_edpt_open(rhport, dev_addr, desc_ep) );
+    TU_ASSERT( tuh_edpt_open(dev_addr, desc_ep) );
     p_cdc->ep_notif = desc_ep->bEndpointAddress;
 
     drv_len += tu_desc_len(p_desc);
@@ -214,7 +218,7 @@ bool cdch_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_interface_t const *it
       tusb_desc_endpoint_t const *desc_ep = (tusb_desc_endpoint_t const *) p_desc;
       TU_ASSERT(TUSB_DESC_ENDPOINT == desc_ep->bDescriptorType && TUSB_XFER_BULK == desc_ep->bmAttributes.xfer);
 
-      TU_ASSERT(usbh_edpt_open(rhport, dev_addr, desc_ep));
+      TU_ASSERT(tuh_edpt_open(dev_addr, desc_ep));
 
       if ( tu_edpt_dir(desc_ep->bEndpointAddress) == TUSB_DIR_IN )
       {
