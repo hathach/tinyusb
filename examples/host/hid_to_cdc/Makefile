@@ -14,7 +14,6 @@ CFLAGS += -Wno-error=cast-align -Wno-error=null-dereference
 SRC_C += \
 	src/class/hid/hid_host.c \
 	src/host/hub.c \
-	src/host/usbh.c \
-	src/host/usbh_control.c
+	src/host/usbh.c
 
 include ../../rules.mk

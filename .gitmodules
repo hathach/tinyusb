@@ -97,6 +97,12 @@
 [submodule "hw/mcu/st/stm32l5xx_hal_driver"]
 	path = hw/mcu/st/stm32l5xx_hal_driver
 	url = https://github.com/STMicroelectronics/stm32l5xx_hal_driver.git
+[submodule "hw/mcu/st/cmsis_device_wb"]
+	path = hw/mcu/st/cmsis_device_wb
+	url = https://github.com/STMicroelectronics/cmsis_device_wb.git
+[submodule "hw/mcu/st/stm32wbxx_hal_driver"]
+	path = hw/mcu/st/stm32wbxx_hal_driver
+	url = https://github.com/STMicroelectronics/stm32wbxx_hal_driver.git
 [submodule "lib/sct_neopixel"]
 	path = lib/sct_neopixel
 	url = https://github.com/gsteiert/sct_neopixel
