@@ -308,11 +308,15 @@ typedef struct
   uint32_t fb_val;                                                              // Feedback value for asynchronous mode (in 16.16 format).
 
 #if CFG_TUD_AUDIO_ENABLE_FEEDBACK_DETERMINATION_WITHIN_SOF_ISR
-  uint8_t n_frames;                                                            // Number of (micro)frames used to estimate feedback value
-  uint8_t n_frames_current;                                                    // Current (micro)frame number
-  uint32_t n_cycles_old;                                                       // Old cycle count
-  uint32_t feeback_param_factor_N;                                             // Numerator of feedback parameter coefficient
-  uint32_t feeback_param_factor_D;                                             // Denominator of feedback parameter coefficient
+  uint8_t n_frames;                                                             // Number of (micro)frames used to estimate feedback value
+  uint8_t n_frames_current;                                                     // Current (micro)frame number
+  uint32_t n_cycles_old;                                                        // Old cycle count
+  union {
+    uint32_t i;
+    float    f;
+  } feedback_param_factor_N;                                                    // Numerator of feedback parameter coefficient
+  uint32_t feedback_param_factor_D;                                             // Denominator of feedback parameter coefficient
+  uint32_t * feedback_param_p_cycle_count;                                      // Pointer to cycle counter
 #endif
 
 #endif
@@ -2010,14 +2014,39 @@ bool audiod_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint3
 // f_s max is 2^19-1 = 524287 Hz
 // n_frames_min is ceil(2^10 * f_s / f_m) for full speed and ceil(2^13 * f_s / f_m) for high speed
 // f_m max is 2^29/(1 ms * n_frames) for full speed and 2^29/(125 us * n_frames) for high speed
-bool tud_audio_set_feedback_params_fm_fs(uint8_t func_id, uint32_t f_m, uint32_t f_s)
+bool tud_audio_set_feedback_params_fm_fs(uint8_t func_id, uint32_t f_m, uint32_t f_s, uint32_t * p_cycle_count, bool use_float)
 {
   audiod_function_t* audio = &_audiod_fct[func_id];
+  audio->feedback_param_p_cycle_count = p_cycle_count;
   uint8_t n_frame = 1;    // TODO: finalize that
   audio->n_frames = n_frame;
-  audio->feeback_param_factor_N = f_s << 13;
-  audio->feeback_param_factor_D = f_m * n_frame;
+
+
+
+  // Check if parameters reduce to a power of two shift i.e. is n_f * f_m / f_s a power of two?
+  if ((f_m % f_s) == 0 && tu_is_power_of_two(n_frame * f_m / f_s))
+  {
+    audio->feedback_param_factor_N.i = 0;                                                 // zero marks power of two option
+    audio->feedback_param_factor_D = 16 - tu_log2(n_frame * f_m / f_s);
+  }
+  else
+  {
+    // Next best option is to use float if a FPU is available - this has to be enabled by the user
+    if (use_float)
+    {
+      audio->feedback_param_factor_N.f = (float)f_s / n_frame / f_m * (1 << 16);
+      audio->feedback_param_factor_D = 0;                                                 // non zero marks float option
+    }
+    else
+    {
+      // Neither a power of two or floats - use fixed point number
+      audio->feedback_param_factor_N.i = f_s << 13;
+      audio->feedback_param_factor_D = f_m * n_frame;
+    }
+  }
+
   return true;
+
 }
 #endif
 
@@ -2044,10 +2073,27 @@ void audiod_sof (uint8_t rhport, uint32_t frame_count)
         audio->n_frames_current++;
         if (audio->n_frames_current == audio->n_frames)
         {
-          uint32_t n_cylces = tud_audio_n_get_fm_n_cycles_cb(rhport, audio->ep_fb);
-          uint32_t feedback = ((n_cylces - audio->n_cycles_old) << 3) * audio->feeback_param_factor_N / audio->feeback_param_factor_D;          // feeback_param_factor_N has scaling factor of 13 bits, n_cycles 3 and feeback_param_factor_D 1, hence 16.16 precision
+          uint32_t n_cylces = *audio->feedback_param_p_cycle_count;
+          uint32_t feedback;
 
-          // TODO: Implement fast computation in case n_frames * f_s / f_m is a power of two
+          if (audio->feedback_param_factor_N.i == 0)
+          {
+            // Power of two shift
+            feedback = n_cylces << audio->feedback_param_factor_D;
+          }
+          else
+          {
+            if (audio->feedback_param_factor_D == 0)
+            {
+              // Float computation
+              feedback = (uint32_t)(n_cylces * audio->feedback_param_factor_N.f);
+            }
+            else
+            {
+              // Fixed point computation
+              feedback = ((n_cylces - audio->n_cycles_old) << 3) * audio->feedback_param_factor_N.i / audio->feedback_param_factor_D;          // feeback_param_factor_N has scaling factor of 13 bits, n_cycles 3 and feeback_param_factor_D 1, hence 16.16 precision
+            }
+          }
 
           tud_audio_n_fb_set(i, feedback);
           audio->n_frames_current = 0;

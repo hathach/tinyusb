@@ -149,6 +149,16 @@ static inline uint8_t tu_log2(uint32_t value)
   return result;
 }
 
+//static inline uint8_t tu_log2(uint32_t value)
+//{
+//   return sizeof(uint32_t) * CHAR_BIT - __builtin_clz(x) - 1;
+//}
+
+static inline bool tu_is_power_of_two(uint32_t value)
+{
+   return (value != 0) && ((value & (value - 1)) == 0);
+}
+
 //------------- Unaligned Access -------------//
 #if TUP_ARCH_STRICT_ALIGN
 
