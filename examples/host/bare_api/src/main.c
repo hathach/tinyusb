@@ -49,6 +49,11 @@ void parse_config_descriptor(uint8_t dev_addr, tusb_desc_configuration_t const* 
 
 tusb_desc_device_t desc_device;
 
+#define BUF_COUNT   4
+
+uint8_t buf_pool[BUF_COUNT][64];
+uint8_t buf_owner[BUF_COUNT] = { 0 }; // device address that owns buffer
+
 /*------------- MAIN -------------*/
 int main(void)
 {
@@ -139,7 +144,7 @@ void print_device_descriptor(tuh_xfer_t* xfer)
   printf("  bNumConfigurations  %u\r\n"     , desc_device.bNumConfigurations);
 
   // Get configuration descriptor with sync API
-  if (XFER_RESULT_SUCCESS == tuh_descriptor_get_configuration_sync(daddr, 0, temp_buf, sizeof(temp_buf)) )
+  if (XFER_RESULT_SUCCESS == tuh_descriptor_get_configuration_sync(daddr, 0, temp_buf, sizeof(temp_buf)))
   {
     parse_config_descriptor(daddr, (tusb_desc_configuration_t*) temp_buf);
   }
@@ -150,10 +155,60 @@ void print_device_descriptor(tuh_xfer_t* xfer)
 // Configuration Descriptor
 //--------------------------------------------------------------------+
 
+// get an buffer from pool
+uint8_t* get_hid_buf(uint8_t daddr)
+{
+  for(size_t i=0; i<BUF_COUNT; i++)
+  {
+    if (buf_owner[i] == 0)
+    {
+      buf_owner[i] = daddr;
+      return buf_pool[i];
+    }
+  }
+
+  // out of memory, increase BUF_COUNT
+  return NULL;
+}
+
+// free all buffer owned by device
+void free_hid_buf(uint8_t daddr)
+{
+  for(size_t i=0; i<BUF_COUNT; i++)
+  {
+    if (buf_owner[i] == daddr) buf_owner[i] = 0;
+  }
+}
+
+void hid_report_received(tuh_xfer_t* xfer)
+{
+  // Note: not all field in xfer is available for use (i.e filled by tinyusb stack) in callback to save sram
+  // For instance, xfer->buffer is NULL. We have used user_data to store buffer when submitted callback
+  uint8_t* buf = (uint8_t*) xfer->user_data;
+
+  if (xfer->result == XFER_RESULT_SUCCESS)
+  {
+    printf("[dev %u: ep %02x] HID Report:", xfer->daddr, xfer->ep_addr);
+    for(uint32_t i=0; i<xfer->actual_len; i++)
+    {
+      if (i%16 == 0) printf("\r\n  ");
+      printf("%02X ", buf[i]);
+    }
+    printf("\r\n");
+  }
+
+  // continue to submit transfer, with updated buffer
+  // other field remain the same
+  xfer->buflen = 64;
+  xfer->buffer = buf;
+
+  tuh_edpt_xfer(xfer);
+}
+
 // count total length of an interface
 uint16_t count_interface_total_len(tusb_desc_interface_t const* desc_itf, uint8_t itf_count, uint16_t max_len);
 
-void open_hid_interface(uint8_t dev_addr, tusb_desc_interface_t const *desc_itf, uint16_t max_len)
+void open_hid_interface(uint8_t daddr, tusb_desc_interface_t const *desc_itf, uint16_t max_len)
 {
   // len = interface + hid + n*endpoints
   uint16_t const drv_len = sizeof(tusb_desc_interface_t) + sizeof(tusb_hid_descriptor_hid_t) + desc_itf->bNumEndpoints*sizeof(tusb_desc_endpoint_t);
@@ -165,8 +220,11 @@ void open_hid_interface(uint8_t dev_addr, tusb_desc_interface_t const *desc_itf,
 
   // HID descriptor
   p_desc = tu_desc_next(p_desc);
+  tusb_hid_descriptor_hid_t const *desc_hid = (tusb_hid_descriptor_hid_t const *) p_desc;
+  if(HID_DESC_TYPE_HID != desc_hid->bDescriptorType) return;
 
   // Endpoint descriptor
+  p_desc = tu_desc_next(p_desc);
   tusb_desc_endpoint_t const * desc_ep = (tusb_desc_endpoint_t const *) p_desc;
 
   for(int i = 0; i < desc_itf->bNumEndpoints; i++)
@@ -175,8 +233,30 @@ void open_hid_interface(uint8_t dev_addr, tusb_desc_interface_t const *desc_itf,
 
     if(tu_edpt_dir(desc_ep->bEndpointAddress) == TUSB_DIR_IN)
     {
-      //usbh_edpt_open(rhport, dev_addr, desc_ep);
+      // skip if failed to open endpoint
+      if ( ! usbh_edpt_open(daddr, desc_ep) ) return;
+
+      uint8_t* buf = get_hid_buf(daddr);
+      if (!buf) return; // out of memory
+
+      tuh_xfer_t xfer =
+      {
+        .daddr       = daddr,
+        .ep_addr     = desc_ep->bEndpointAddress,
+        .buflen      = 64,
+        .buffer      = buf,
+        .complete_cb = hid_report_received,
+        .user_data   = (uintptr_t) buf, // since buffer is not available in callback, use user data to store the buffer
+      };
+
+      // submit transfer for this EP
+      tuh_edpt_xfer(&xfer);
+
+      printf("Listen to [dev %u: ep %02x]\r\n", daddr, desc_ep->bEndpointAddress);
     }
+
+    p_desc = tu_desc_next(p_desc);
+    desc_ep = (tusb_desc_endpoint_t const *) p_desc;
   }
 }
 
