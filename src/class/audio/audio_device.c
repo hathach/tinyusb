@@ -1631,7 +1631,7 @@ static bool audiod_set_interface(uint8_t rhport, tusb_control_request_t const * 
 
 #endif
             // Invoke callback - can be used to trigger data sampling if not already running
-            if (tud_audio_set_itf_cb) TU_VERIFY(tud_audio_set_itf_cb(rhport, p_request));
+//            if (tud_audio_set_itf_cb) TU_VERIFY(tud_audio_set_itf_cb(rhport, p_request));
 
             // Schedule first transmit if alternate interface is not zero i.e. streaming is disabled - in case no sample data is available a ZLP is loaded
             // It is necessary to trigger this here since the refill is done with an RX FIFO empty interrupt which can only trigger if something was in there
@@ -1665,10 +1665,10 @@ static bool audiod_set_interface(uint8_t rhport, tusb_control_request_t const * 
 
 #if CFG_TUD_AUDIO_ENABLE_FEEDBACK_EP
             // In case of asynchronous EP, call Cb after ep_fb is set
-            if ( !(desc_ep->bmAttributes.sync == 0x01 && audio->ep_fb == 0) )
-            {
-              if (tud_audio_set_itf_cb) TU_VERIFY(tud_audio_set_itf_cb(rhport, p_request));
-            }
+//            if ( !(desc_ep->bmAttributes.sync == 0x01 && audio->ep_fb == 0) )
+//            {
+//              if (tud_audio_set_itf_cb) TU_VERIFY(tud_audio_set_itf_cb(rhport, p_request));
+//            }
 #else
             // Invoke callback
             if (tud_audio_set_itf_cb) TU_VERIFY(tud_audio_set_itf_cb(rhport, p_request));
@@ -1693,11 +1693,11 @@ static bool audiod_set_interface(uint8_t rhport, tusb_control_request_t const * 
             audio->fb_n_cycles_old = 0;
 #endif
 
-            // Invoke callback after ep_out is set
-            if (audio->ep_out != 0)
-            {
-              if (tud_audio_set_itf_cb) TU_VERIFY(tud_audio_set_itf_cb(rhport, p_request));
-            }
+//            // Invoke callback after ep_out is set
+//            if (audio->ep_out != 0)
+//            {
+//              if (tud_audio_set_itf_cb) TU_VERIFY(tud_audio_set_itf_cb(rhport, p_request));
+//            }
           }
 #endif
 #endif // CFG_TUD_AUDIO_ENABLE_EP_OUT
@@ -1708,6 +1708,9 @@ static bool audiod_set_interface(uint8_t rhport, tusb_control_request_t const * 
       }
 
       TU_VERIFY(foundEPs == nEps);
+
+      // Invoke one callback for a final set interface
+      if (tud_audio_set_itf_cb) TU_VERIFY(tud_audio_set_itf_cb(rhport, p_request));
 
       // We are done - abort loop
       break;
@@ -2118,7 +2121,7 @@ void audiod_sof (uint8_t rhport, uint32_t frame_count)
 
         // Buffer count checks ?
 
-        // Magic checks
+        // Magic checks - where are they from?
         if (feedback > 2949166){        // 45.0007 in 16.16 format
           feedback = 2949166;
         }
