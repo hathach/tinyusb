@@ -193,7 +193,7 @@
 
 // Determine feedback value within SOF ISR within audio driver - if disabled the user has to call tud_audio_n_fb_set() with a suitable feedback value on its own. If done within audio driver SOF ISR, tud_audio_n_fb_set() is disabled for user
 #ifndef CFG_TUD_AUDIO_ENABLE_FEEDBACK_DETERMINATION_WITHIN_SOF_ISR
-#define CFG_TUD_AUDIO_ENABLE_FEEDBACK_DETERMINATION_WITHIN_SOF_ISR    1                             // 0 or 1
+#define CFG_TUD_AUDIO_ENABLE_FEEDBACK_DETERMINATION_WITHIN_SOF_ISR    0                             // 0 or 1
 #endif
 
 // Feeback calculation mode
