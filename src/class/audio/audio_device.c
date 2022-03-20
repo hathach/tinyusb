@@ -305,18 +305,29 @@ typedef struct
 #endif
 
 #if CFG_TUD_AUDIO_ENABLE_FEEDBACK_EP
-  uint32_t fb_val;                                                              // Feedback value for asynchronous mode (in 16.16 format).
+#if !CFG_TUD_AUDIO_ENABLE_FEEDBACK_DETERMINATION_WITHIN_SOF_ISR
+  uint32_t fb_val;                                                                        // Feedback value for asynchronous mode (in 16.16 format).
+#endif
 
 #if CFG_TUD_AUDIO_ENABLE_FEEDBACK_DETERMINATION_WITHIN_SOF_ISR
-  uint8_t n_frames;                                                             // Number of (micro)frames used to estimate feedback value
-  uint8_t n_frames_current;                                                     // Current (micro)frame number
-  uint32_t n_cycles_old;                                                        // Old cycle count
-  union {
-    uint32_t i;
-    float    f;
-  } feedback_param_factor_N;                                                    // Numerator of feedback parameter coefficient
-  uint32_t feedback_param_factor_D;                                             // Denominator of feedback parameter coefficient
-  uint32_t * feedback_param_p_cycle_count;                                      // Pointer to cycle counter
+  volatile uint32_t fb_val;                                                               // Feedback value for asynchronous mode (in 16.16 format).
+  uint8_t fb_n_frames;                                                                    // Number of (micro)frames used to estimate feedback value
+  volatile uint8_t fb_n_frames_current;                                                   // Current (micro)frame number
+  volatile uint32_t fb_n_cycles_old;                                                      // Old cycle count
+  uint32_t * fb_param_p_cycle_count;                                                      // Pointer to cycle counter
+
+#if CFG_TUD_AUDIO_ENABLE_FEEDBACK_DETERMINATION_MODE == CFG_TUD_AUDIO_ENABLE_FEEDBACK_DETERMINATION_MODE_POWER_OF_TWO_SHIFT
+  uint8_t fb_power_of_two_val;
+#endif
+
+#if CFG_TUD_AUDIO_ENABLE_FEEDBACK_DETERMINATION_MODE == CFG_TUD_AUDIO_ENABLE_FEEDBACK_DETERMINATION_MODE_FLOAT
+  float fb_float_val;
+#endif
+
+#if CFG_TUD_AUDIO_ENABLE_FEEDBACK_DETERMINATION_MODE == CFG_TUD_AUDIO_ENABLE_FEEDBACK_DETERMINATION_MODE_FIXED_POINT
+  uint64_t fb_param_factor_N;                                                       // Numerator of feedback parameter coefficient
+  uint64_t fb_param_factor_D;                                                       // Denominator of feedback parameter coefficient
+#endif
 #endif
 
 #endif
@@ -1527,7 +1538,7 @@ static bool audiod_set_interface(uint8_t rhport, tusb_control_request_t const * 
       tu_fifo_clear(&audio->tx_supp_ff[cnt]);
     }
 #endif
-    
+
     // Invoke callback - can be used to stop data sampling
     if (tud_audio_set_itf_close_EP_cb) TU_VERIFY(tud_audio_set_itf_close_EP_cb(rhport, p_request));
 
@@ -1560,7 +1571,7 @@ static bool audiod_set_interface(uint8_t rhport, tusb_control_request_t const * 
     // Close corresponding feedback EP
 #if CFG_TUD_AUDIO_ENABLE_FEEDBACK_EP
     usbd_edpt_close(rhport, audio->ep_fb);
-    audio->ep_fb = 0;                           // Necessary?
+    audio->ep_fb = 0;
 #endif
   }
 #endif
@@ -1677,8 +1688,9 @@ static bool audiod_set_interface(uint8_t rhport, tusb_control_request_t const * 
 
 #if CFG_TUD_AUDIO_ENABLE_FEEDBACK_DETERMINATION_WITHIN_SOF_ISR
             usbd_sof_enable(rhport, true);       // Enable SOF interrupt
-            audio->n_frames_current = 0;
-            audio->n_cycles_old = 0;
+            audio->fb_n_frames = desc_ep->bInterval;
+            audio->fb_n_frames_current = 0;
+            audio->fb_n_cycles_old = 0;
 #endif
 
             // Invoke callback after ep_out is set
@@ -1711,12 +1723,12 @@ static bool audiod_set_interface(uint8_t rhport, tusb_control_request_t const * 
   bool disable = true;
 
   for(uint8_t i=0; i < CFG_TUD_AUDIO; i++)
+  {
+    if (_audiod_fct[i].ep_fb != 0)
     {
-      if (_audiod_fct[i].ep_fb != 0)
-      {
-        disable = false;
-      }
+      disable = false;
     }
+  }
 
   if (disable) usbd_sof_enable(rhport, false);
 
@@ -2011,39 +2023,55 @@ bool audiod_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint3
 }
 
 #if CFG_TUD_AUDIO_ENABLE_EP_OUT && CFG_TUD_AUDIO_ENABLE_FEEDBACK_EP && CFG_TUD_AUDIO_ENABLE_FEEDBACK_DETERMINATION_WITHIN_SOF_ISR
-// f_s max is 2^19-1 = 524287 Hz
-// n_frames_min is ceil(2^10 * f_s / f_m) for full speed and ceil(2^13 * f_s / f_m) for high speed
-// f_m max is 2^29/(1 ms * n_frames) for full speed and 2^29/(125 us * n_frames) for high speed
-bool tud_audio_set_feedback_params_fm_fs(uint8_t func_id, uint32_t f_m, uint32_t f_s, uint32_t * p_cycle_count, bool use_float)
+
+// This function must be called from the user within the tud_audio_set_itf_cb(rhport, p_request) callback function, where p_request needs to be checked as
+// uint8_t const itf = tu_u16_low(p_request->wIndex);
+// uint8_t const alt = tu_u16_low(p_request->wValue);
+// such that tud_audio_set_fb_params() gets called with the parameters corresponding to the defined interface and alternate setting
+// Also, start the main clock cycle counter (or reset its value) within tud_audio_set_itf_cb()
+TU_ATTR_WEAK bool tud_audio_set_fb_params(uint8_t func_id, uint32_t f_m, uint32_t f_s, uint32_t * p_cycle_count)
 {
   audiod_function_t* audio = &_audiod_fct[func_id];
-  audio->feedback_param_p_cycle_count = p_cycle_count;
-  uint8_t n_frame = 1;    // TODO: finalize that
-  audio->n_frames = n_frame;
+  audio->fb_param_p_cycle_count = p_cycle_count;
 
+  // Check if frame interval is within sane limits
+  // The interval value audio->fb_n_frames was taken from the descriptors within audiod_set_interface()
 
-
-  // Check if parameters reduce to a power of two shift i.e. is n_f * f_m / f_s a power of two?
-  if ((f_m % f_s) == 0 && tu_is_power_of_two(n_frame * f_m / f_s))
+  // n_frames_min is ceil(2^10 * f_s / f_m) for full speed and ceil(2^13 * f_s / f_m) for high speed - this lower limit ensures the measures feedback value has sufficient precision
+  if ((TUSB_SPEED_FULL == tud_speed_get() && ((2^10 * f_s / f_m) + 1) > audio->fb_n_frames) || (TUSB_SPEED_HIGH == tud_speed_get() && ((2^13 * f_s / f_m) + 1) > audio->fb_n_frames))
   {
-    audio->feedback_param_factor_N.i = 0;                                                 // zero marks power of two option
-    audio->feedback_param_factor_D = 16 - tu_log2(n_frame * f_m / f_s);
+    TU_LOG2("  UAC2 feedback interval too small\r\n"); TU_BREAKPOINT(); return false;
   }
-  else
+
+
+#if CFG_TUD_AUDIO_ENABLE_FEEDBACK_DETERMINATION_MODE == CFG_TUD_AUDIO_ENABLE_FEEDBACK_DETERMINATION_MODE_POWER_OF_TWO_SHIFT
+  // Check if parameters really allow for a power of two division
+  if ((f_m % f_s) != 0 || !tu_is_power_of_two(audio->fb_n_frames * f_m / f_s))
   {
-    // Next best option is to use float if a FPU is available - this has to be enabled by the user
-    if (use_float)
-    {
-      audio->feedback_param_factor_N.f = (float)f_s / n_frame / f_m * (1 << 16);
-      audio->feedback_param_factor_D = 0;                                                 // non zero marks float option
-    }
-    else
-    {
-      // Neither a power of two or floats - use fixed point number
-      audio->feedback_param_factor_N.i = f_s << 13;
-      audio->feedback_param_factor_D = f_m * n_frame;
-    }
+    TU_LOG2("  FEEDBACK_DETERMINATION_MODE_POWER_OF_TWO_SHIFT not possible!\r\n"); TU_BREAKPOINT(); return false;
   }
+
+  audio->fb_power_of_two_val = 16 - tu_log2(audio->fb_n_frames * f_m / f_s);
+#endif
+
+#if CFG_TUD_AUDIO_ENABLE_FEEDBACK_DETERMINATION_MODE == CFG_TUD_AUDIO_ENABLE_FEEDBACK_DETERMINATION_MODE_FLOAT
+  audio->fb_float_val = (float)f_s / audio->fb_n_frames / f_m * (1 << 16);
+#endif
+
+#if CFG_TUD_AUDIO_ENABLE_FEEDBACK_DETERMINATION_MODE == CFG_TUD_AUDIO_ENABLE_FEEDBACK_DETERMINATION_MODE_FIXED_POINT
+
+  // f_s max is 2^19-1 = 524287 Hz
+  // f_m max is 2^29/(1 ms * n_frames) for full speed and 2^29/(125 us * n_frames) for high speed, this means for f_m fitting in an uint32, n_frames must be < 125 for full speed and < 1000 for high speed (1000 does not fit into uint8 so the maximum possible value cannot even be reached by UAC2 - we don't need to check for it)
+
+  if ((f_s > (2^19)-1) || (TUSB_SPEED_FULL == tud_speed_get() && (audio->fb_n_frames > 125)))
+  {
+    // If this check fails, not every thing is lost - you need to re-evaluate the scaling factors of the parameters such that the numbers fit into uint64 again. feedback = n_cycles * S_c / (n_frames * S_n) * f_s * S_s / (f_m * S_m). In the end S_c*S_s / (S_n * S_m) = 2^16 for a 16.16 fixed point precision. If you find something, define your own function of tud_audio_set_feedback_params_fm_fs() and audiod_sof() and use your values
+    TU_LOG2("  FEEDBACK_DETERMINATION_MODE_FIXED_POINT not possible!\r\n"); TU_BREAKPOINT(); return false;
+  }
+
+  audio->fb_param_factor_N = (uint64_t)f_s << 13;
+  audio->fb_param_factor_D = (uint64_t)f_m * audio->fb_n_frames;
+#endif
 
   return true;
 
@@ -2053,54 +2081,47 @@ bool tud_audio_set_feedback_params_fm_fs(uint8_t func_id, uint32_t f_m, uint32_t
 void audiod_sof (uint8_t rhport, uint32_t frame_count)
 {
   (void) rhport;
-  (void) frame_count;
+  (void) frame_count;         // frame_count is not used since some devices may not provide the frame count value
 
 #if CFG_TUD_AUDIO_ENABLE_EP_OUT && CFG_TUD_AUDIO_ENABLE_FEEDBACK_EP && CFG_TUD_AUDIO_ENABLE_FEEDBACK_DETERMINATION_WITHIN_SOF_ISR
 
   // Determine feedback value - The feedback method is described in 5.12.4.2 of the USB 2.0 spec
   // Boiled down, the feedback value Ff = n_samples / (micro)frame.
-  // Since an accuracy of less than 1 Sample / second is desired, at least n_frames = ceil(2^K * f_s / f_m) frames need to be measured, where K = 10 for full speed and K = 13 for high speed, f_s is the sampling frequency e.g. 48 kHz and f_cpu is the cpu clock frequency e.g. 100 MHz (or any other master clock whose clock count is available and locked to f_s)
-  // The update interval in the (4.10.2.1) Feedback Endpoint Descriptor must be less or equal to 2^(K - P), where P = min( ceil(log2(f_cpu / f_s)), K)
-  // Ff = n_cycles / n_frames * f_s / f_cpu in 16.16 format, where n_cycles are the number of CPU cycles within n_frames
+  // Since an accuracy of less than 1 Sample / second is desired, at least n_frames = ceil(2^K * f_s / f_m) frames need to be measured, where K = 10 for full speed and K = 13 for high speed, f_s is the sampling frequency e.g. 48 kHz and f_m is the cpu clock frequency e.g. 100 MHz (or any other master clock whose clock count is available and locked to f_s)
+  // The update interval in the (4.10.2.1) Feedback Endpoint Descriptor must be less or equal to 2^(K - P), where P = min( ceil(log2(f_m / f_s)), K)
+  // feedback = n_cycles / n_frames * f_s / f_m in 16.16 format, where n_cycles are the number of main clock cycles within fb_n_frames
 
   // Iterate over audio functions and set feedback value
   for(uint8_t i=0; i < CFG_TUD_AUDIO; i++)
+  {
+    audiod_function_t* audio = &_audiod_fct[i];
+
+    if (audio->ep_fb != 0)
     {
-      audiod_function_t* audio = &_audiod_fct[i];
-
-      if (audio->ep_fb != 0)
+      audio->fb_n_frames_current++;
+      if (audio->fb_n_frames_current == audio->fb_n_frames)
       {
-        audio->n_frames_current++;
-        if (audio->n_frames_current == audio->n_frames)
-        {
-          uint32_t n_cylces = *audio->feedback_param_p_cycle_count;
-          uint32_t feedback;
+        uint32_t n_cylces = *audio->fb_param_p_cycle_count;
+        uint32_t feedback;
 
-          if (audio->feedback_param_factor_N.i == 0)
-          {
-            // Power of two shift
-            feedback = n_cylces << audio->feedback_param_factor_D;
-          }
-          else
-          {
-            if (audio->feedback_param_factor_D == 0)
-            {
-              // Float computation
-              feedback = (uint32_t)(n_cylces * audio->feedback_param_factor_N.f);
-            }
-            else
-            {
-              // Fixed point computation
-              feedback = ((n_cylces - audio->n_cycles_old) << 3) * audio->feedback_param_factor_N.i / audio->feedback_param_factor_D;          // feeback_param_factor_N has scaling factor of 13 bits, n_cycles 3 and feeback_param_factor_D 1, hence 16.16 precision
-            }
-          }
+#if CFG_TUD_AUDIO_ENABLE_FEEDBACK_DETERMINATION_MODE == CFG_TUD_AUDIO_ENABLE_FEEDBACK_DETERMINATION_MODE_POWER_OF_TWO_SHIFT
+        feedback = (n_cylces - audio->fb_n_cycles_old) << audio->fb_power_of_two_val;
+#endif
 
-          tud_audio_n_fb_set(i, feedback);
-          audio->n_frames_current = 0;
-          audio->n_cycles_old = n_cylces;
-        }
+#if CFG_TUD_AUDIO_ENABLE_FEEDBACK_DETERMINATION_MODE == CFG_TUD_AUDIO_ENABLE_FEEDBACK_DETERMINATION_MODE_FLOAT
+        feedback = (uint32_t)((float)(n_cylces - audio->fb_n_cycles_old) * audio->fb_float_val);
+#endif
+
+#if CFG_TUD_AUDIO_ENABLE_FEEDBACK_DETERMINATION_MODE == CFG_TUD_AUDIO_ENABLE_FEEDBACK_DETERMINATION_MODE_FIXED_POINT
+        feedback = ((n_cylces - audio->fb_n_cycles_old) << 3) * audio->fb_param_factor_N / audio->fb_param_factor_D;          // feeback_param_factor_N has scaling factor of 13 bits, n_cycles 3 and feeback_param_factor_D 1, hence 16.16 precision
+#endif
+
+        tud_audio_n_fb_set(i, feedback);
+        audio->fb_n_frames_current = 0;
+        audio->fb_n_cycles_old = n_cylces;
       }
     }
+  }
 
 #endif
 }
@@ -2299,6 +2320,16 @@ static bool audiod_verify_ep_exists(uint8_t ep, uint8_t *func_id)
 // Currently, only AS interfaces with an EP (in or out) are supposed to be parsed for!
 static void audiod_parse_for_AS_params(audiod_function_t* audio, uint8_t const * p_desc, uint8_t const * p_desc_end, uint8_t const as_itf)
 {
+#if CFG_TUD_AUDIO_ENABLE_EP_IN && CFG_TUD_AUDIO_ENABLE_EP_OUT
+  if (as_itf != audio->ep_in_as_intf_num && as_itf != audio->ep_out_as_intf_num) return;           // Abort, this interface has no EP, this driver does not support this currently
+#endif
+#if CFG_TUD_AUDIO_ENABLE_EP_IN && !CFG_TUD_AUDIO_ENABLE_EP_OUT
+  if (as_itf != audio->ep_in_as_intf_num) return;
+#endif
+#if !CFG_TUD_AUDIO_ENABLE_EP_IN && CFG_TUD_AUDIO_ENABLE_EP_OUT
+  if (as_itf != audio->ep_out_as_intf_num) return;
+#endif
+
   p_desc = tu_desc_next(p_desc);    // Exclude standard AS interface descriptor of current alternate interface descriptor
 
   while (p_desc < p_desc_end)
@@ -2309,16 +2340,6 @@ static void audiod_parse_for_AS_params(audiod_function_t* audio, uint8_t const *
     // Look for a Class-Specific AS Interface Descriptor(4.9.2) to verify format type and format and also to get number of physical channels
     if (tu_desc_type(p_desc) == TUSB_DESC_CS_INTERFACE && tu_desc_subtype(p_desc) == AUDIO_CS_AS_INTERFACE_AS_GENERAL)
     {
-#if CFG_TUD_AUDIO_ENABLE_EP_IN && CFG_TUD_AUDIO_ENABLE_EP_OUT
-      if (as_itf != audio->ep_in_as_intf_num && as_itf != audio->ep_out_as_intf_num) break;           // Abort loop, this interface has no EP, this driver does not support this currently
-#endif
-#if CFG_TUD_AUDIO_ENABLE_EP_IN && !CFG_TUD_AUDIO_ENABLE_EP_OUT
-      if (as_itf != audio->ep_in_as_intf_num) break;
-#endif
-#if !CFG_TUD_AUDIO_ENABLE_EP_IN && CFG_TUD_AUDIO_ENABLE_EP_OUT
-      if (as_itf != audio->ep_out_as_intf_num) break;
-#endif
-
 #if CFG_TUD_AUDIO_ENABLE_EP_IN
       if (as_itf == audio->ep_in_as_intf_num)
       {

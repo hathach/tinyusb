@@ -196,6 +196,25 @@
 #define CFG_TUD_AUDIO_ENABLE_FEEDBACK_DETERMINATION_WITHIN_SOF_ISR    1                             // 0 or 1
 #endif
 
+// Feeback calculation mode
+#if CFG_TUD_AUDIO_ENABLE_FEEDBACK_DETERMINATION_WITHIN_SOF_ISR
+
+#define CFG_TUD_AUDIO_ENABLE_FEEDBACK_DETERMINATION_MODE_POWER_OF_TWO_SHIFT     1
+#define CFG_TUD_AUDIO_ENABLE_FEEDBACK_DETERMINATION_MODE_FLOAT                  2
+#define CFG_TUD_AUDIO_ENABLE_FEEDBACK_DETERMINATION_MODE_FIXED_POINT            3
+
+#ifndef CFG_TUD_AUDIO_ENABLE_FEEDBACK_DETERMINATION_MODE
+#error You must tell the driver the feedback determination mode! Possible choices are: CFG_TUD_AUDIO_ENABLE_FEEDBACK_DETERMINATION_MODE_POWER_OF_TWO_SHIFT, CFG_TUD_AUDIO_ENABLE_FEEDBACK_DETERMINATION_MODE_FLOAT, or CFG_TUD_AUDIO_ENABLE_FEEDBACK_DETERMINATION_MODE_FIXED_POINT!
+#endif
+
+#ifdef CFG_TUD_AUDIO_ENABLE_FEEDBACK_DETERMINATION_MODE
+#if (CFG_TUD_AUDIO_ENABLE_FEEDBACK_DETERMINATION_MODE != CFG_TUD_AUDIO_ENABLE_FEEDBACK_DETERMINATION_MODE_POWER_OF_TWO_SHIFT && CFG_TUD_AUDIO_ENABLE_FEEDBACK_DETERMINATION_MODE != CFG_TUD_AUDIO_ENABLE_FEEDBACK_DETERMINATION_MODE_FLOAT && CFG_TUD_AUDIO_ENABLE_FEEDBACK_DETERMINATION_MODE != CFG_TUD_AUDIO_ENABLE_FEEDBACK_DETERMINATION_MODE_FIXED_POINT)
+#error Unknown CFG_TUD_AUDIO_ENABLE_FEEDBACK_DETERMINATION_MODE. Possible choices are: CFG_TUD_AUDIO_ENABLE_FEEDBACK_DETERMINATION_MODE_POWER_OF_TWO_SHIFT, CFG_TUD_AUDIO_ENABLE_FEEDBACK_DETERMINATION_MODE_FLOAT, or CFG_TUD_AUDIO_ENABLE_FEEDBACK_DETERMINATION_MODE_FIXED_POINT!
+#endif
+#endif
+
+#endif
+
 // Audio interrupt control EP size - disabled if 0
 #ifndef CFG_TUD_AUDIO_INT_CTR_EPSIZE_IN
 #define CFG_TUD_AUDIO_INT_CTR_EPSIZE_IN                     0                             // Audio interrupt control - if required - 6 Bytes according to UAC 2 specification (p. 74)
@@ -487,7 +506,14 @@ TU_ATTR_WEAK uint32_t tud_audio_n_get_fm_n_cycles_cb(uint8_t rhport, uint8_t ep_
 
 // f_m : Main clock frequency in Hz i.e. master clock to which sample clock is locked
 // f_s : Current sample rate in Hz
-bool tud_audio_set_feedback_params_fm_fs(uint8_t func_id, uint32_t f_m, uint32_t f_s, uint32_t * p_cycle_count, bool use_float);
+// p_cycle_count : Pointer to main clock cycle counter register where the current count can be read from (e.g. a timer register)
+
+// This function must be called from the user within the tud_audio_set_itf_cb(rhport, p_request) callback function, where p_request needs to be checked as
+// uint8_t const itf = tu_u16_low(p_request->wIndex);
+// uint8_t const alt = tu_u16_low(p_request->wValue);
+// such that tud_audio_set_fb_params() gets called with the parameters corresponding to the defined interface and alternate setting
+// Also, start the main clock cycle counter (or reset its value) within tud_audio_set_itf_cb()
+TU_ATTR_WEAK bool tud_audio_set_fb_params(uint8_t func_id, uint32_t f_m, uint32_t f_s, uint32_t * p_cycle_count);
 #endif
 
 #endif
