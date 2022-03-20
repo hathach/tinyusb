@@ -2116,6 +2116,16 @@ void audiod_sof (uint8_t rhport, uint32_t frame_count)
         feedback = ((n_cylces - audio->fb_n_cycles_old) << 3) * audio->fb_param_factor_N / audio->fb_param_factor_D;          // feeback_param_factor_N has scaling factor of 13 bits, n_cycles 3 and feeback_param_factor_D 1, hence 16.16 precision
 #endif
 
+        // Buffer count checks ?
+
+        // Magic checks
+        if (feedback > 2949166){        // 45.0007 in 16.16 format
+          feedback = 2949166;
+        }
+        if ( feedback < 2883630) {      // 44.0007 in 16.16 format
+          feedback = 2883630;
+        }
+
         tud_audio_n_fb_set(i, feedback);
         audio->fb_n_frames_current = 0;
         audio->fb_n_cycles_old = n_cylces;
