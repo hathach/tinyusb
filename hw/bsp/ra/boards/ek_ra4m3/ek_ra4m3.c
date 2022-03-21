@@ -91,28 +91,52 @@ void usbfs_interrupt_handler(void)
 	IRQn_Type irq = R_FSP_CurrentIrqGet();
 	R_BSP_IrqStatusClear(irq);
 
+#if CFG_TUSB_RHPORT0_MODE & OPT_MODE_HOST
+	tuh_int_handler(0);
+#endif
+
+#if CFG_TUSB_RHPORT0_MODE & OPT_MODE_DEVICE
 	tud_int_handler(0);
+#endif
 }
 void usbfs_resume_handler(void)
 {
 	IRQn_Type irq = R_FSP_CurrentIrqGet();
 	R_BSP_IrqStatusClear(irq);
 
+#if CFG_TUSB_RHPORT0_MODE & OPT_MODE_HOST
+	tuh_int_handler(0);
+#endif
+
+#if CFG_TUSB_RHPORT0_MODE & OPT_MODE_DEVICE
 	tud_int_handler(0);
+#endif
 }
 void usbfs_d0fifo_handler(void)
 {
 	IRQn_Type irq = R_FSP_CurrentIrqGet();
 	R_BSP_IrqStatusClear(irq);
 
+#if CFG_TUSB_RHPORT0_MODE & OPT_MODE_HOST
+	tuh_int_handler(0);
+#endif
+
+#if CFG_TUSB_RHPORT0_MODE & OPT_MODE_DEVICE
 	tud_int_handler(0);
+#endif
 }
 void usbfs_d1fifo_handler(void)
 {
 	IRQn_Type irq = R_FSP_CurrentIrqGet();
 	R_BSP_IrqStatusClear(irq);
 
+#if CFG_TUSB_RHPORT0_MODE & OPT_MODE_HOST
+	tuh_int_handler(0);
+#endif
+
+#if CFG_TUSB_RHPORT0_MODE & OPT_MODE_DEVICE
 	tud_int_handler(0);
+#endif
 }
 
 void board_init(void)
@@ -125,17 +149,17 @@ void board_init(void)
 	R_MSTP->MSTPCRB &= ~(1U << 11U);
 	R_SYSTEM->PRCR = (uint16_t) BSP_PRV_PRCR_LOCK;
 
-#if CFG_TUSB_OS  == OPT_OS_FREERTOS
-  // If freeRTOS is used, IRQ priority is limit by max syscall ( smaller is higher )
-  NVIC_SetPriority(TU_IRQn, configLIBRARY_MAX_SYSCALL_INTERRUPT_PRIORITY);
-  NVIC_SetPriority(USBFS_RESUME_IRQn, configLIBRARY_MAX_SYSCALL_INTERRUPT_PRIORITY);
-  NVIC_SetPriority(USBFS_FIFO_0_IRQn, configLIBRARY_MAX_SYSCALL_INTERRUPT_PRIORITY);
-  NVIC_SetPriority(USBFS_FIFO_1_IRQn, configLIBRARY_MAX_SYSCALL_INTERRUPT_PRIORITY);
+#if CFG_TUSB_OS == OPT_OS_FREERTOS
+	// If freeRTOS is used, IRQ priority is limit by max syscall ( smaller is higher )
+	NVIC_SetPriority(TU_IRQn, configLIBRARY_MAX_SYSCALL_INTERRUPT_PRIORITY);
+	NVIC_SetPriority(USBFS_RESUME_IRQn, configLIBRARY_MAX_SYSCALL_INTERRUPT_PRIORITY);
+	NVIC_SetPriority(USBFS_FIFO_0_IRQn, configLIBRARY_MAX_SYSCALL_INTERRUPT_PRIORITY);
+	NVIC_SetPriority(USBFS_FIFO_1_IRQn, configLIBRARY_MAX_SYSCALL_INTERRUPT_PRIORITY);
 #endif
 
 #if CFG_TUSB_OS == OPT_OS_NONE
 	/* Init systick */
-  	SysTick_Config(SystemCoreClock / 1000);
+	SysTick_Config(SystemCoreClock / 1000);
 #endif
 }
 
