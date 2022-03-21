@@ -41,21 +41,21 @@ extern "C" {
 
 static inline void link_int_enable(uint8_t rhport)
 {
-	(void) rhport;
+  (void) rhport;
 #if (CFG_TUSB_MCU == OPT_MCU_RX72N)
-	IEN(PERIB, INTB185) = 1;
+  IEN(PERIB, INTB185) = 1;
 #else
-	IEN(USB0, USBI0) = 1;
+  IEN(USB0, USBI0) = 1;
 #endif
 }
 
 static inline void link_int_disable(uint8_t rhport)
 {
-	(void) rhport;
+  (void) rhport;
 #if (CFG_TUSB_MCU == OPT_MCU_RX72N)
-	IEN(PERIB, INTB185) = 0;
+  IEN(PERIB, INTB185) = 0;
 #else
-	IEN(USB0, USBI0) = 0;
+  IEN(USB0, USBI0) = 0;
 #endif
 }
 
@@ -63,9 +63,9 @@ static inline void link_int_disable(uint8_t rhport)
 static inline void link_phy_init(void)
 {
 #if (CFG_TUSB_MCU == OPT_MCU_RX72N)
-	IR(PERIB, INTB185) = 0;
+  IR(PERIB, INTB185) = 0;
 #else
-	IR(USB0, USBI0) = 0;
+  IR(USB0, USBI0) = 0;
 #endif
 }
 

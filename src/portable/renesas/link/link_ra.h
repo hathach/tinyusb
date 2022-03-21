@@ -41,15 +41,15 @@ extern "C" {
 TU_ATTR_ALWAYS_INLINE
 static inline void link_int_enable(uint8_t rhport)
 {
-	(void) rhport;
-	NVIC_EnableIRQ(TU_IRQn);
+  (void) rhport;
+  NVIC_EnableIRQ(TU_IRQn);
 }
 
 TU_ATTR_ALWAYS_INLINE
 static inline void link_int_disable(uint8_t rhport)
 {
-	(void) rhport;
-	NVIC_DisableIRQ(TU_IRQn);
+  (void) rhport;
+  NVIC_DisableIRQ(TU_IRQn);
 }
 
 // MCU specific PHY init
