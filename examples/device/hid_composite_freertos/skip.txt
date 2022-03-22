@@ -5,5 +5,6 @@ mcu:VALENTYUSB_EPTRI
 mcu:RP2040
 mcu:SAMX7X
 mcu:GD32VF103
+mcu:CH32V307
 family:broadcom_64bit
 family:broadcom_32bit
