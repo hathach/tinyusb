@@ -28,7 +28,7 @@ CFLAGS += \
 	-ffunction-sections \
 	-fdata-sections \
 	-nostdlib -nostartfiles \
-	-DCFG_TUSB_MCU=OPT_MCU_CH32VF307 \
+	-DCFG_TUSB_MCU=OPT_MCU_CH32V307 \
 	-Xlinker --gc-sections \
     -DBOARD_DEVICE_RHPORT_SPEED=OPT_MODE_HIGH_SPEED
 

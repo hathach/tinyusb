@@ -26,7 +26,7 @@
 
 #include "tusb_option.h"
 
-#if CFG_TUD_ENABLED && (CFG_TUSB_MCU == OPT_MCU_CH32VF307)
+#if CFG_TUD_ENABLED && (CFG_TUSB_MCU == OPT_MCU_CH32V307)
 #include "device/dcd.h"
 
 #include "usb_ch32_usbhs_reg.h"
