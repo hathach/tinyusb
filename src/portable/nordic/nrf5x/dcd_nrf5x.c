@@ -28,6 +28,7 @@
 
 #if CFG_TUD_ENABLED && CFG_TUSB_MCU == OPT_MCU_NRF5X
 
+#include <stdatomic.h>
 #include "nrf.h"
 #include "nrf_clock.h"
 #include "nrf_power.h"
@@ -90,7 +91,7 @@ static struct
   xfer_td_t xfer[EP_CBI_COUNT + 1][2];
 
   // nRF can only carry one DMA at a time, this is used to guard the access to EasyDMA
-  volatile bool dma_running;
+  atomic_bool dma_running;
 }_dcd;
 
 /*------------------------------------------------------------------*/
@@ -121,8 +122,6 @@ TU_ATTR_ALWAYS_INLINE static inline bool is_in_isr(void)
 // helper to start DMA
 static void start_dma(volatile uint32_t* reg_startep)
 {
-  _dcd.dma_running = true;
-
   (*reg_startep) = 1;
   __ISB(); __DSB();
 
@@ -131,7 +130,7 @@ static void start_dma(volatile uint32_t* reg_startep)
   // Therefore dma_pending is corrected right away
   if ( (reg_startep == &NRF_USBD->TASKS_EP0STATUS) || (reg_startep == &NRF_USBD->TASKS_EP0RCVOUT) )
   {
-    _dcd.dma_running = false;
+    atomic_flag_clear(&_dcd.dma_running);
   }
 }
 
@@ -143,7 +142,7 @@ static void edpt_dma_start(volatile uint32_t* reg_startep)
   // Called in critical section i.e within USB ISR, or USB/Global interrupt disabled
   if ( is_in_isr() || __get_PRIMASK() || !NVIC_GetEnableIRQ(USBD_IRQn) )
   {
-    if (_dcd.dma_running)
+    if (atomic_flag_test_and_set(&_dcd.dma_running))
     {
       //use usbd task to defer later
       usbd_defer_func((osal_task_func_t) edpt_dma_start, (void*) (uintptr_t) reg_startep, true);
@@ -164,7 +163,7 @@ static void edpt_dma_start(volatile uint32_t* reg_startep)
       // use osal mutex to guard against multiple core MCUs such as nRF53
       dcd_int_disable(rhport);
 
-      if ( !_dcd.dma_running )
+      if ( !atomic_flag_test_and_set(&_dcd.dma_running) )
       {
         start_dma(reg_startep);
         started = true;
@@ -182,7 +181,7 @@ static void edpt_dma_start(volatile uint32_t* reg_startep)
 static void edpt_dma_end(void)
 {
   TU_ASSERT(_dcd.dma_running, );
-  _dcd.dma_running = false;
+  atomic_flag_clear(&_dcd.dma_running);
 }
 
 // helper getting td
