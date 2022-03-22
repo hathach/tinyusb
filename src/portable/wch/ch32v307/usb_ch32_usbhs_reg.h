@@ -231,12 +231,12 @@
 
 #define USBHS_EP15_BUF_MOD     (1 << 15)
 #define USBHS_EP15_ISO_BUF_MOD (1 << 31)
-//USBHS_EPn_T_EN  USBHS_EPn_R_EN  USBHS_EPn_BUF_MOD  锟斤拷锟斤拷锟斤拷锟斤拷UEPn_DMA为锟斤拷始锟斤拷址锟缴碉拷锟斤拷锟斤拷锟斤拷锟�
-//      0               0               x            锟剿点被锟斤拷锟矫ｏ拷未锟矫碉拷UEPn_*_DMA锟斤拷锟斤拷锟斤拷锟斤拷
-//      1               0               0            锟斤拷锟秸ｏ拷OUT锟斤拷锟斤拷锟斤拷锟斤拷锟阶碉拷址为UEPn_RX_DMA
-//      1               0               1            bUEPn_RX_TOG[0]=0,使锟矫伙拷锟斤拷锟斤拷UEPn_RX_DMA锟斤拷bUEPn_RX_TOG[0]=1,使锟矫伙拷锟斤拷锟斤拷UEPn_TX_DMA
-//      0               1               0            锟斤拷锟斤拷(IN)锟斤拷锟斤拷锟斤拷锟阶碉拷址为UEPn_TX_DMA锟斤拷
-//      0               1               1            bUEPn_TX_TOG[0]=0,使锟矫伙拷锟斤拷锟斤拷UEPn_TX_DMA锟斤拷bUEPn_TX_TOG[0]=1,使锟矫伙拷锟斤拷锟斤拷UEPn_RX_DMA
+//USBHS_EPn_T_EN  USBHS_EPn_R_EN  USBHS_EPn_BUF_MOD  Description: Arrange from low to high with UEPn_DMA as the starting address
+//      0               0               x            The endpoint is disabled and the UEPn_*_DMA buffers are not used.
+//      1               0               0            The first address of the receive (OUT) buffer is UEPn_RX_DMA
+//      1               0               1            RB_UEPn_RX_TOG[0]=0, use buffer UEPn_RX_DMA RB_UEPn_RX_TOG[0]=1, use buffer UEPn_TX_DMA
+//      0               1               0            The first address of the transmit (IN) buffer is UEPn_TX_DMA.
+//      0               1               1            RB_UEPn_TX_TOG[0]=0, use buffer UEPn_TX_DMA RB_UEPn_TX_TOG[0]=1, use buffer UEPn_RX_DMA
 
 /* USB0_DMA */
 #define USBHS_UEP0_DMA_OFFSET(n) (0x1C) // endpoint 0 DMA buffer address
