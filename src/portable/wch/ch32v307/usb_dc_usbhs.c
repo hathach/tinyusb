@@ -56,10 +56,8 @@ static xfer_ctl_t xfer_status[EP_MAX][2];
 #define EP_RX_DMA_ADDR(ep) *(volatile uint32_t *)((volatile uint32_t *)&(USBHSD->UEP1_RX_DMA) + (ep - 1))
 
 /* Endpoint Buffer */
-__attribute__((aligned(4))) uint8_t setup[8];           // ep0(64)
-__attribute__((aligned(4))) uint8_t EP0_DatabufHD[64];  // ep0(64)
+TU_ATTR_ALIGNED(4) uint8_t EP0_DatabufHD[64];  // ep0(64)
 
-volatile uint8_t mps_over_flag = 0;
 volatile uint8_t USBHS_Dev_Endp0_Tog = 0x01;
 
 void dcd_init(uint8_t rhport) {
@@ -67,15 +65,15 @@ void dcd_init(uint8_t rhport) {
 
     memset(&xfer_status, 0, sizeof(xfer_status));
 
-    // usb_dc_low_level_init();
-
     USBHSD->HOST_CTRL = 0x00;
     USBHSD->HOST_CTRL = USBHS_PHY_SUSPENDM;
 
     USBHSD->CONTROL = 0;
-#if 1
+
+#if (BOARD_DEVICE_RHPORT_SPEED == OPT_MODE_HIGH_SPEED)
     USBHSD->CONTROL = USBHS_DMA_EN | USBHS_INT_BUSY_EN | USBHS_HIGH_SPEED;
 #else
+    #error OPT_MODE_FULL_SPEED not currently supported on CH32V307
     USBHSD->CONTROL = USBHS_DMA_EN | USBHS_INT_BUSY_EN | USBHS_FULL_SPEED;
 #endif
 

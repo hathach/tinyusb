@@ -268,7 +268,7 @@
 
 //------------- WCH -------------//
 #elif TU_CHECK_MCU(OPT_MCU_CH32V307)
-  #define TUP_DCD_ENDPOINT_MAX    8
+  #define TUP_DCD_ENDPOINT_MAX    16
 
 #endif
 
