@@ -120,9 +120,10 @@ bool tuh_cdc_receive(uint8_t dev_addr, void * p_buffer, uint32_t length, bool is
   return usbh_edpt_xfer(dev_addr, ep_in, p_buffer, length);
 }
 
-bool tuh_cdc_set_control_line_state(uint8_t dev_addr, bool dtr, bool rts, tuh_control_complete_cb_t complete_cb)
+bool tuh_cdc_set_control_line_state(uint8_t dev_addr, bool dtr, bool rts, tuh_xfer_cb_t complete_cb)
 {
   cdch_data_t const * p_cdc = get_itf(dev_addr);
+
   tusb_control_request_t const request =
   {
     .bmRequestType_bit =
@@ -137,8 +138,17 @@ bool tuh_cdc_set_control_line_state(uint8_t dev_addr, bool dtr, bool rts, tuh_co
     .wLength  = 0
   };
 
-  TU_ASSERT( tuh_control_xfer(dev_addr, &request, NULL, complete_cb) );
-  return true;
+  tuh_xfer_t xfer =
+  {
+    .daddr       = dev_addr,
+    .ep_addr     = 0,
+    .setup       = &request,
+    .buffer      = NULL,
+    .complete_cb = complete_cb,
+    .user_data    = 0
+  };
+
+  return tuh_control_xfer(&xfer);
 }
 
 //--------------------------------------------------------------------+
@@ -151,6 +161,7 @@ void cdch_init(void)
 
 bool cdch_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_interface_t const *itf_desc, uint16_t max_len)
 {
+  (void) rhport;
   (void) max_len;
 
   // Only support ACM subclass
@@ -186,7 +197,7 @@ bool cdch_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_interface_t const *it
     // notification endpoint
     tusb_desc_endpoint_t const * desc_ep = (tusb_desc_endpoint_t const *) p_desc;
 
-    TU_ASSERT( usbh_edpt_open(rhport, dev_addr, desc_ep) );
+    TU_ASSERT( tuh_edpt_open(dev_addr, desc_ep) );
     p_cdc->ep_notif = desc_ep->bEndpointAddress;
 
     drv_len += tu_desc_len(p_desc);
@@ -207,7 +218,7 @@ bool cdch_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_interface_t const *it
       tusb_desc_endpoint_t const *desc_ep = (tusb_desc_endpoint_t const *) p_desc;
       TU_ASSERT(TUSB_DESC_ENDPOINT == desc_ep->bDescriptorType && TUSB_XFER_BULK == desc_ep->bmAttributes.xfer);
 
-      TU_ASSERT(usbh_edpt_open(rhport, dev_addr, desc_ep));
+      TU_ASSERT(tuh_edpt_open(dev_addr, desc_ep));
 
       if ( tu_edpt_dir(desc_ep->bEndpointAddress) == TUSB_DIR_IN )
       {
