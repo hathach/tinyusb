@@ -297,7 +297,7 @@
 #endif
 
 #ifndef CFG_TUD_INTERFACE_MAX
-  #define CFG_TUD_INTERFACE_MAX   8
+  #define CFG_TUD_INTERFACE_MAX   16
 #endif
 
 #ifndef CFG_TUD_CDC

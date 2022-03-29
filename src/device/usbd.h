@@ -88,7 +88,7 @@ bool tud_connect(void);
 
 // Set Start-of-frame (1ms interval) IRQ handler
 // NULL means disabled, frame_count may not be supported on mcus
-void tud_sof_isr_set(tud_sof_isr_t sof_isr);
+// void tud_sof_isr_set(tud_sof_isr_t sof_isr);
 
 // Carry out Data and Status stage of control transfer
 // - If len = 0, it is equivalent to sending status only
