@@ -53,8 +53,6 @@ extern pio_port_t pio_port[1];
 extern root_port_t root_port[PIO_USB_ROOT_PORT_CNT];
 extern endpoint_t ep_pool[PIO_USB_EP_POOL_CNT];
 
-
-extern port_pin_status_t get_port_pin_status( root_port_t *port);
 extern void configure_fullspeed_host( pio_port_t *pp, const pio_usb_configuration_t *c, root_port_t *port);
 extern void configure_lowspeed_host( pio_port_t *pp, const pio_usb_configuration_t *c, root_port_t *port);
 
@@ -83,10 +81,7 @@ void hcd_port_reset(uint8_t rhport)
   pio_port_t *pp = &pio_port[0];
   root_port_t *root = &root_port[rhport];
 
-  pio_sm_set_pins_with_mask(pp->pio_usb_tx, pp->sm_tx, (0b00 << root->pin_dp),
-                            (0b11u << root->pin_dp));
-  pio_sm_set_pindirs_with_mask(pp->pio_usb_tx, pp->sm_tx, (0b11u << root->pin_dp),
-                               (0b11u << root->pin_dp));
+  pio_usb_port_reset_start(root, pp);
 }
 
 void hcd_port_reset_end(uint8_t rhport)
@@ -96,8 +91,7 @@ void hcd_port_reset_end(uint8_t rhport)
   pio_port_t *pp = &pio_port[0];
   root_port_t *root = &root_port[rhport];
 
-  pio_sm_set_pindirs_with_mask(pp->pio_usb_tx, pp->sm_tx, (0b00u << root->pin_dp),
-                               (0b11u << root->pin_dp));
+  pio_usb_port_reset_end(root, pp);
 
   busy_wait_us(100);
 

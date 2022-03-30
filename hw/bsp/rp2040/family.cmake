@@ -91,6 +91,7 @@ if (NOT TARGET _rp2040_family_inclusion_marker)
 
 			${TOP}/src/portable/raspberrypi/pio/hcd_pio.c
 			${TOP}/lib/Pico-PIO-USB/pio_usb.c
+			${TOP}/lib/Pico-PIO-USB/pio_usb_port.c
 			${TOP}/lib/Pico-PIO-USB/usb_crc.c
 			)
 
