@@ -27,7 +27,7 @@
 
 #include "tusb_option.h"
 
-#if CFG_TUD_ENABLED && (CFG_TUSB_MCU == OPT_MCU_RX63X || \
+#if CFG_TUH_ENABLED && (CFG_TUSB_MCU == OPT_MCU_RX63X || \
                         CFG_TUSB_MCU == OPT_MCU_RX65X || \
                         CFG_TUSB_MCU == OPT_MCU_RX72N || \
                         CFG_TUSB_MCU == OPT_MCU_RAXXX)
