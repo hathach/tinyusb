@@ -642,9 +642,9 @@ bool hcd_edpt_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_endpoint_t const 
   if (xfer == TUSB_XFER_BULK) {
     cfg |= LINK_REG_PIPECFG_TYPE_BULK | LINK_REG_PIPECFG_SHTNAK_Msk | LINK_REG_PIPECFG_DBLB_Msk;
   } else if (xfer == TUSB_XFER_INTERRUPT) {
-    cfg |= LINK_REG_PIPECFG_TYPE_ISO;
+    cfg |= LINK_REG_PIPECFG_TYPE_INT;
   } else {
-    cfg |= LINK_REG_PIPECFG_TYPE_INT | LINK_REG_PIPECFG_DBLB_Msk;
+    cfg |= LINK_REG_PIPECFG_TYPE_ISO | LINK_REG_PIPECFG_DBLB_Msk;
   }
   LINK_REG->PIPECFG = cfg;
   LINK_REG->BRDYSTS = 0x1FFu ^ TU_BIT(num);
