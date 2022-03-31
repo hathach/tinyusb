@@ -101,7 +101,7 @@ void hcd_port_reset_end(uint8_t rhport)
   if (fullspeed_flag && get_port_pin_status(root) == PORT_PIN_FS_IDLE) {
     root->root_device = &usb_device[0];
     if (!root->root_device->connected) {
-      configure_fullspeed_host(pp, &pio_host_config, root);
+//      configure_fullspeed_host(pp, &pio_host_config, root);
       root->root_device->is_fullspeed = true;
       root->root_device->is_root = true;
       root->root_device->connected = true;
@@ -111,7 +111,7 @@ void hcd_port_reset_end(uint8_t rhport)
   } else if (!fullspeed_flag && get_port_pin_status(root) == PORT_PIN_LS_IDLE) {
     root->root_device = &usb_device[0];
     if (!root->root_device->connected) {
-      configure_lowspeed_host(pp, &pio_host_config, root);
+//      configure_lowspeed_host(pp, &pio_host_config, root);
       root->root_device->is_fullspeed = false;
       root->root_device->is_root = true;
       root->root_device->connected = true;
@@ -217,6 +217,7 @@ bool hcd_setup_send(uint8_t rhport, uint8_t dev_addr, uint8_t const setup_packet
   return false;
 }
 
+
 bool hcd_edpt_control_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t const setup_packet[8], uint8_t* data)
 {
   int ret;
@@ -242,7 +243,6 @@ bool hcd_edpt_control_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t const setup
   return ret == 0;
 }
 
-
 //bool hcd_edpt_busy(uint8_t dev_addr, uint8_t ep_addr)
 //{
 //    // EPX is shared, so multiple device addresses and endpoint addresses share that
@@ -263,6 +263,26 @@ bool hcd_edpt_clear_stall(uint8_t dev_addr, uint8_t ep_addr)
   (void) ep_addr;
 
   return true;
+}
+
+// IRQ Handler
+void pio_usb_irq_handler(uint8_t root_id)
+{
+  root_port_t* port = PIO_USB(root_id);
+
+  if ( port->ints & PIO_USB_INTS_CONNECT_BITS )
+  {
+    hcd_event_device_attach(root_id+1, true);
+
+    port->ints &= ~PIO_USB_INTS_CONNECT_BITS;
+  }
+
+  if ( port->ints & PIO_USB_INTS_DISCONNECT_BITS )
+  {
+    hcd_event_device_remove(root_id+1, true);
+
+    port->ints &= ~PIO_USB_INTS_DISCONNECT_BITS;
+  }
 }
 
 #endif
