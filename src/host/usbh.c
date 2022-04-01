@@ -792,7 +792,7 @@ bool usbh_edpt_xfer_with_callback(uint8_t dev_addr, uint8_t ep_addr, uint8_t * b
 
 static bool usbh_edpt_control_open(uint8_t dev_addr, uint8_t max_packet_size)
 {
-  TU_LOG2("Open EP0 with Size = %u (addr = %u)\r\n", max_packet_size, dev_addr);
+  TU_LOG2("[%u] Open EP0 with Size = %u\r\n", dev_addr, max_packet_size);
 
   tusb_desc_endpoint_t ep0_desc =
   {

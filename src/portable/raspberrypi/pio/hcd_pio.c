@@ -155,48 +155,6 @@ bool hcd_edpt_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_endpoint_t const 
   usb_device_t *device = &usb_device[0];
 
   return pio_usb_endpoint_open(rhport, dev_addr, (uint8_t const*) desc_ep);
-
-#if 0
-  static uint8_t ep_id_idx; // TODO remove later
-
-  if (ep_desc->bEndpointAddress == 0)
-  {
-    device->event = EVENT_NONE;
-    device->address = dev_addr;
-
-    ep_id_idx = 0;
-  }else  if (ep_desc->bmAttributes.xfer == TUSB_XFER_INTERRUPT) // only support interrupt endpoint
-  {
-    endpoint_t *ep = NULL;
-    for ( int ep_pool_idx = 0; ep_pool_idx < PIO_USB_EP_POOL_CNT; ep_pool_idx++ )
-    {
-      if ( ep_pool[ep_pool_idx].ep_num == 0 )
-      {
-        ep = &ep_pool[ep_pool_idx];
-        device->endpoint_id[ep_id_idx] = ep_pool_idx + 1;
-        ep_id_idx++;
-
-        ep->data_id = 0;
-        ep->ep_num = ep_desc->bEndpointAddress;
-        ep->interval = ep_desc->bInterval;
-        ep->interval_counter = 0;
-        ep->size = (uint8_t) tu_edpt_packet_size(ep_desc);
-        ep->attr = EP_ATTR_INTERRUPT;
-
-        break;
-      }
-    }
-
-//    TU_LOG1_INT(device->connected);
-//    TU_LOG1_INT(device->root);
-//    TU_LOG1_INT(device->is_root);
-//    TU_LOG1_INT(device->is_fullspeed);
-//
-//    TU_LOG1_INT(ep_id_idx);
-  }
-
-  return true;
-#endif
 }
 
 bool hcd_edpt_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr, uint8_t * buffer, uint16_t buflen)
