@@ -543,19 +543,12 @@ bool tuh_control_xfer (tuh_xfer_t* xfer)
   const uint8_t rhport = usbh_get_rhport(daddr);
 
   TU_LOG2("[%u:%u] %s: ", rhport, daddr, xfer->setup->bRequest <= TUSB_REQ_SYNCH_FRAME ? tu_str_std_request[xfer->setup->bRequest] : "Unknown Request");
-  TU_LOG2_VAR(&xfer->setup);
+  TU_LOG2_VAR(xfer->setup);
   TU_LOG2("\r\n");
 
   if (xfer->complete_cb)
   {
-    if ( hcd_edpt_control_xfer )
-    {
-      _ctrl_xfer.stage = CONTROL_STAGE_ACK;
-      TU_ASSERT( hcd_edpt_control_xfer(rhport, daddr, (uint8_t const*) &_ctrl_xfer.request, _ctrl_xfer.buffer) );
-    }else
-    {
-      TU_ASSERT( hcd_setup_send(rhport, daddr, (uint8_t const*) &_ctrl_xfer.request) );
-    }
+    TU_ASSERT( hcd_setup_send(rhport, daddr, (uint8_t const*) &_ctrl_xfer.request) );
   }else
   {
     // blocking if complete callback is not provided
@@ -643,7 +636,8 @@ static bool usbh_control_xfer_cb (uint8_t dev_addr, uint8_t ep_addr, xfer_result
         {
           // DATA stage: initial data toggle is always 1
           _set_control_xfer_stage(CONTROL_STAGE_DATA);
-          return hcd_edpt_xfer(rhport, dev_addr, tu_edpt_addr(0, request->bmRequestType_bit.direction), _ctrl_xfer.buffer, request->wLength);
+          TU_ASSERT( hcd_edpt_xfer(rhport, dev_addr, tu_edpt_addr(0, request->bmRequestType_bit.direction), _ctrl_xfer.buffer, request->wLength) );
+          return true;
         }
         __attribute__((fallthrough));
 
@@ -658,7 +652,7 @@ static bool usbh_control_xfer_cb (uint8_t dev_addr, uint8_t ep_addr, xfer_result
 
         // ACK stage: toggle is always 1
         _set_control_xfer_stage(CONTROL_STAGE_ACK);
-        hcd_edpt_xfer(rhport, dev_addr, tu_edpt_addr(0, 1-request->bmRequestType_bit.direction), NULL, 0);
+        TU_ASSERT( hcd_edpt_xfer(rhport, dev_addr, tu_edpt_addr(0, 1-request->bmRequestType_bit.direction), NULL, 0) );
       break;
 
       case CONTROL_STAGE_ACK:

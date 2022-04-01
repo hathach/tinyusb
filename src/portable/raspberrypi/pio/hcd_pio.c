@@ -53,15 +53,6 @@ extern pio_port_t pio_port[1];
 extern root_port_t root_port[PIO_USB_ROOT_PORT_CNT];
 extern endpoint_t ep_pool[PIO_USB_EP_POOL_CNT];
 
-extern void configure_fullspeed_host( pio_port_t *pp, const pio_usb_configuration_t *c, root_port_t *port);
-extern void configure_lowspeed_host( pio_port_t *pp, const pio_usb_configuration_t *c, root_port_t *port);
-
-extern void control_setup_transfer( const pio_port_t *pp, uint8_t device_address, uint8_t *tx_data_address, uint8_t tx_data_len);
-extern int control_in_protocol( usb_device_t *device, uint8_t *tx_data, uint16_t tx_length, uint8_t *rx_buffer, uint16_t request_length);
-extern int control_out_protocol( usb_device_t *device, uint8_t *setup_data, uint16_t setup_length, uint8_t *out_data, uint16_t out_length);
-
-extern void update_packet_crc16(usb_setup_packet_t * packet);
-
 //--------------------------------------------------------------------+
 // HCD API
 //--------------------------------------------------------------------+
@@ -157,12 +148,15 @@ void hcd_int_disable(uint8_t rhport)
 // Endpoint API
 //--------------------------------------------------------------------+
 
-bool hcd_edpt_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_endpoint_t const * ep_desc)
+bool hcd_edpt_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_endpoint_t const * desc_ep)
 {
   rhport = RHPORT_PIO(rhport);
 
   usb_device_t *device = &usb_device[0];
 
+  return pio_usb_endpoint_open(rhport, dev_addr, (uint8_t const*) desc_ep);
+
+#if 0
   static uint8_t ep_id_idx; // TODO remove later
 
   if (ep_desc->bEndpointAddress == 0)
@@ -202,45 +196,19 @@ bool hcd_edpt_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_endpoint_t const 
   }
 
   return true;
+#endif
 }
 
 bool hcd_edpt_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr, uint8_t * buffer, uint16_t buflen)
 {
-  (void) rhport;
-
-  return true;
+  rhport = RHPORT_PIO(rhport);
+  return pio_usb_endpoint_transfer(rhport, dev_addr, ep_addr, buffer, buflen);
 }
 
 bool hcd_setup_send(uint8_t rhport, uint8_t dev_addr, uint8_t const setup_packet[8])
 {
-  (void) rhport;
-  return false;
-}
-
-
-bool hcd_edpt_control_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t const setup_packet[8], uint8_t* data)
-{
-  int ret;
   rhport = RHPORT_PIO(rhport);
-
-  uint16_t const len = ((tusb_control_request_t const*) setup_packet)->wLength;
-
-  usb_setup_packet_t pio_setup = { USB_SYNC, USB_PID_DATA0 };
-  memcpy(&pio_setup.request_type, setup_packet, 8);
-  update_packet_crc16(&pio_setup);
-
-  if (setup_packet[0] & TUSB_DIR_IN_MASK)
-  {
-    ret = control_in_protocol(&usb_device[0], (uint8_t*) &pio_setup, sizeof(pio_setup), data, len);
-  }else
-  {
-    ret = control_out_protocol(&usb_device[0], (uint8_t*) &pio_setup, sizeof(pio_setup), data, len);
-  }
-
-  // TODO current pio is blocking
-  hcd_event_xfer_complete(dev_addr, 0, 0, ret ? XFER_RESULT_FAILED : XFER_RESULT_SUCCESS, false);
-
-  return ret == 0;
+  return pio_usb_endpoint_send_setup(rhport, dev_addr, setup_packet);
 }
 
 //bool hcd_edpt_busy(uint8_t dev_addr, uint8_t ep_addr)
@@ -265,23 +233,83 @@ bool hcd_edpt_clear_stall(uint8_t dev_addr, uint8_t ep_addr)
   return true;
 }
 
+void __no_inline_not_in_flash_func(handle_endpoint_irq)(root_port_t* port, uint32_t flag)
+{
+  volatile uint32_t* ep_reg;
+  xfer_result_t result;
+
+  if ( flag == PIO_USB_INTS_ENDPOINT_COMPLETE_BITS )
+  {
+    ep_reg = &port->ep_complete;
+    result = XFER_RESULT_SUCCESS;
+  }
+  else if ( flag == PIO_USB_INTS_ENDPOINT_ERROR_BITS )
+  {
+    ep_reg = &port->ep_error;
+    result = XFER_RESULT_FAILED;
+  }
+  else if ( flag == PIO_USB_INTS_ENDPOINT_STALLED_BITS )
+  {
+    ep_reg = &port->ep_stalled;
+    result = XFER_RESULT_STALLED;
+  }
+  else
+  {
+    // something wrong
+    return;
+  }
+
+  const uint32_t ep_all = *ep_reg;
+
+  for(uint8_t ep_idx = 0; ep_idx < PIO_USB_EP_POOL_CNT; ep_idx++)
+  {
+    uint32_t const mask = (1u << ep_idx);
+
+    if (ep_all & mask)
+    {
+      endpoint_t* ep = PIO_USB_EP(ep_idx);
+      hcd_event_xfer_complete(ep->dev_addr, ep->ep_num, ep->actual_len, result, true);
+    }
+  }
+
+  // clear all
+  (*ep_reg) &= ~ep_all;
+}
+
 // IRQ Handler
-void pio_usb_irq_handler(uint8_t root_id)
+void __no_inline_not_in_flash_func(pio_usb_host_irq_handler)(uint8_t root_id)
 {
   root_port_t* port = PIO_USB(root_id);
 
   if ( port->ints & PIO_USB_INTS_CONNECT_BITS )
   {
-    hcd_event_device_attach(root_id+1, true);
-
     port->ints &= ~PIO_USB_INTS_CONNECT_BITS;
+
+    hcd_event_device_attach(root_id+1, true);
   }
 
   if ( port->ints & PIO_USB_INTS_DISCONNECT_BITS )
   {
-    hcd_event_device_remove(root_id+1, true);
-
     port->ints &= ~PIO_USB_INTS_DISCONNECT_BITS;
+    hcd_event_device_remove(root_id+1, true);
+  }
+
+  if ( port->ints & PIO_USB_INTS_ENDPOINT_COMPLETE_BITS )
+  {
+    port->ints &= ~PIO_USB_INTS_ENDPOINT_COMPLETE_BITS;
+    handle_endpoint_irq(port, PIO_USB_INTS_ENDPOINT_COMPLETE_BITS);
+  }
+
+  if ( port->ints & PIO_USB_INTS_ENDPOINT_ERROR_BITS )
+  {
+    port->ints &= ~PIO_USB_INTS_ENDPOINT_ERROR_BITS;
+    handle_endpoint_irq(port, PIO_USB_INTS_ENDPOINT_ERROR_BITS);
+  }
+
+  if ( port->ints & PIO_USB_INTS_ENDPOINT_STALLED_BITS )
+  {
+    port->ints &= ~PIO_USB_INTS_ENDPOINT_STALLED_BITS;
+    handle_endpoint_irq(port, PIO_USB_INTS_ENDPOINT_STALLED_BITS);
   }
 }
 
