@@ -225,7 +225,7 @@ void __no_inline_not_in_flash_func(handle_endpoint_irq)(root_port_t* port, uint3
 
     if (ep_all & mask)
     {
-      endpoint_t* ep = PIO_USB_EP(ep_idx);
+      pio_hw_endpoint_t* ep = PIO_USB_HW_EP(ep_idx);
       hcd_event_xfer_complete(ep->dev_addr, ep->ep_num, ep->actual_len, result, true);
     }
   }
