@@ -43,13 +43,7 @@
 #define RHPORT_OFFSET     1
 #define RHPORT_PIO(_x)    ((_x)-RHPORT_OFFSET)
 
-
-static usb_device_t *_test_usb_device = NULL;
 static pio_usb_configuration_t pio_host_config = PIO_USB_DEFAULT_CONFIG;
-
-extern root_port_t root_port[PIO_USB_ROOT_PORT_CNT];
-extern usb_device_t usb_device[PIO_USB_DEVICE_CNT];
-extern pio_port_t pio_port[1];
 
 //--------------------------------------------------------------------+
 // HCD API
@@ -58,7 +52,7 @@ bool hcd_init(uint8_t rhport)
 {
   // To run USB SOF interrupt in core1, create alarm pool in core1.
   pio_host_config.alarm_pool = (void*)alarm_pool_create(2, 1);
-  _test_usb_device = pio_usb_host_init(&pio_host_config);
+  (void) pio_usb_host_init(&pio_host_config);
 
   return true;
 }
@@ -66,56 +60,23 @@ bool hcd_init(uint8_t rhport)
 void hcd_port_reset(uint8_t rhport)
 {
   rhport = RHPORT_PIO(rhport);
-
-  pio_port_t *pp = &pio_port[0];
-  root_port_t *root = &root_port[rhport];
-
-  pio_usb_port_reset_start(root, pp);
+  pio_usb_hw_port_reset_start(rhport);
 }
 
 void hcd_port_reset_end(uint8_t rhport)
 {
   rhport = RHPORT_PIO(rhport);
-
-  pio_port_t *pp = &pio_port[0];
-  root_port_t *root = &root_port[rhport];
-
-  pio_usb_port_reset_end(root, pp);
-
-  busy_wait_us(100);
-
-  // TODO slow speed
-  bool fullspeed_flag = true;
-
-  if (fullspeed_flag && get_port_pin_status(root) == PORT_PIN_FS_IDLE) {
-    root->root_device = &usb_device[0];
-    if (!root->root_device->connected) {
-//      configure_fullspeed_host(pp, &pio_host_config, root);
-      root->root_device->is_fullspeed = true;
-      root->root_device->is_root = true;
-      root->root_device->connected = true;
-      root->root_device->root = root;
-      root->root_device->event = EVENT_CONNECT;
-    }
-  } else if (!fullspeed_flag && get_port_pin_status(root) == PORT_PIN_LS_IDLE) {
-    root->root_device = &usb_device[0];
-    if (!root->root_device->connected) {
-//      configure_lowspeed_host(pp, &pio_host_config, root);
-      root->root_device->is_fullspeed = false;
-      root->root_device->is_root = true;
-      root->root_device->connected = true;
-      root->root_device->root = root;
-      root->root_device->event = EVENT_CONNECT;
-    }
-  }
+  pio_usb_hw_port_reset_end(rhport);
 }
 
 bool hcd_port_connect_status(uint8_t rhport)
 {
-  root_port_t* port = &root_port[0];
-  bool dp = gpio_get(port->pin_dp);
-  bool dm = gpio_get(port->pin_dm);
-  return dp || dm;
+  rhport = RHPORT_PIO(rhport);
+
+  pio_hw_root_port_t *root = PIO_USB_HW_RPORT(rhport);
+  port_pin_status_t line_state = pio_hw_get_line_state(root);
+
+  return line_state != PORT_PIN_SE0;
 }
 
 tusb_speed_t hcd_port_speed_get(uint8_t rhport)
@@ -149,9 +110,6 @@ void hcd_int_disable(uint8_t rhport)
 bool hcd_edpt_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_endpoint_t const * desc_ep)
 {
   rhport = RHPORT_PIO(rhport);
-
-  usb_device_t *device = &usb_device[0];
-
   return pio_usb_endpoint_open(rhport, dev_addr, (uint8_t const*) desc_ep);
 }
 
