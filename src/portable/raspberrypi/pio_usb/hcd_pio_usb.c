@@ -50,8 +50,6 @@ static pio_usb_configuration_t pio_host_config = PIO_USB_DEFAULT_CONFIG;
 extern root_port_t root_port[PIO_USB_ROOT_PORT_CNT];
 extern usb_device_t usb_device[PIO_USB_DEVICE_CNT];
 extern pio_port_t pio_port[1];
-extern root_port_t root_port[PIO_USB_ROOT_PORT_CNT];
-extern endpoint_t ep_pool[PIO_USB_EP_POOL_CNT];
 
 //--------------------------------------------------------------------+
 // HCD API
@@ -191,7 +189,7 @@ bool hcd_edpt_clear_stall(uint8_t dev_addr, uint8_t ep_addr)
   return true;
 }
 
-void __no_inline_not_in_flash_func(handle_endpoint_irq)(root_port_t* port, uint32_t flag)
+void __no_inline_not_in_flash_func(handle_endpoint_irq)(pio_hw_root_port_t* port, uint32_t flag)
 {
   volatile uint32_t* ep_reg;
   xfer_result_t result;
@@ -237,7 +235,7 @@ void __no_inline_not_in_flash_func(handle_endpoint_irq)(root_port_t* port, uint3
 // IRQ Handler
 void __no_inline_not_in_flash_func(pio_usb_host_irq_handler)(uint8_t root_id)
 {
-  root_port_t* port = PIO_USB(root_id);
+  pio_hw_root_port_t* port = PIO_USB_HW_RPORT(root_id);
 
   if ( port->ints & PIO_USB_INTS_CONNECT_BITS )
   {
