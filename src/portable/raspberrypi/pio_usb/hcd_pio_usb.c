@@ -50,9 +50,8 @@ static pio_usb_configuration_t pio_host_config = PIO_USB_DEFAULT_CONFIG;
 //--------------------------------------------------------------------+
 bool hcd_init(uint8_t rhport)
 {
-  // To run USB SOF interrupt in core1, create alarm pool in core1.
-  pio_host_config.alarm_pool = (void*)alarm_pool_create(2, 1);
-  (void) pio_usb_host_init(&pio_host_config);
+  // To run USB SOF interrupt in core1, call this init in core1
+  pio_usb_host_controller_init(&pio_host_config);
 
   return true;
 }
