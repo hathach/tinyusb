@@ -81,12 +81,15 @@ bool hcd_port_connect_status(uint8_t rhport)
 tusb_speed_t hcd_port_speed_get(uint8_t rhport)
 {
   // TODO determine link speed
-  return TUSB_SPEED_FULL;
+  rhport = RHPORT_PIO(rhport);
+  return PIO_USB_HW_RPORT(rhport)->is_fullspeed ? TUSB_SPEED_FULL : TUSB_SPEED_LOW;
 }
 
 // Close all opened endpoint belong to this device
 void hcd_device_close(uint8_t rhport, uint8_t dev_addr)
 {
+  rhport = RHPORT_PIO(rhport);
+  pio_usb_host_close_device(rhport, dev_addr);
 }
 
 uint32_t hcd_frame_number(uint8_t rhport)
