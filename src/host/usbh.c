@@ -642,7 +642,7 @@ static bool usbh_control_xfer_cb (uint8_t dev_addr, uint8_t ep_addr, xfer_result
         __attribute__((fallthrough));
 
       case CONTROL_STAGE_DATA:
-        if (xferred_bytes)
+        if (request->wLength)
         {
           TU_LOG2("[%u:%u] Control data:\r\n", rhport, dev_addr);
           TU_LOG2_MEM(_ctrl_xfer.buffer, xferred_bytes, 2);
@@ -1301,7 +1301,7 @@ static void process_enumeration(tuh_xfer_t* xfer)
       TU_ASSERT(new_dev, );
       new_dev->addressed = 1;
 
-      // TODO close device 0, may not be needed
+      // Close device 0
       hcd_device_close(_dev0.rhport, 0);
 
       // open control pipe for new address

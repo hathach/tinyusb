@@ -111,8 +111,12 @@ void hcd_int_disable(uint8_t rhport)
 
 bool hcd_edpt_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_endpoint_t const * desc_ep)
 {
+  hcd_devtree_info_t dev_tree;
+  hcd_devtree_get_info(dev_addr, &dev_tree);
+  bool const need_pre = (dev_tree.hub_addr && dev_tree.speed == TUSB_SPEED_LOW);
+
   rhport = RHPORT_PIO(rhport);
-  return pio_usb_endpoint_open(rhport, dev_addr, (uint8_t const*) desc_ep);
+  return pio_usb_endpoint_open(rhport, dev_addr, (uint8_t const*) desc_ep, need_pre);
 }
 
 bool hcd_edpt_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr, uint8_t * buffer, uint16_t buflen)
