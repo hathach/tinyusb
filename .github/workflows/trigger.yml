@@ -37,13 +37,14 @@ jobs:
         # Copy src and other files
         cp -r src tinyusb_src/
         cp LICENSE tinyusb_src/
+        cp meson.build tinyusb_src/
         cd tinyusb_src
 
         # Commit if there is changes
         if [ -n "$(git status --porcelain)" ]; then
           git add .
           git commit --message "Update from https://github.com/$GITHUB_REPOSITORY/commit/$GITHUB_SHA"
-          git push 
+          git push
         fi
 
     - name: Create tinyusb_src Release
@@ -53,6 +54,6 @@ jobs:
         cd tinyusb_src
         git tag ${{ github.event.release.tag_name }}
         git push origin ${{ github.event.release.tag_name }}
-        
+
         # Send POST reqwuest to release https://docs.github.com/en/rest/reference/repos#create-a-release
         curl -X POST -H "Authorization: token ${{ secrets.API_TOKEN_GITHUB }}" -H "Accept: application/vnd.github.v3+json" --data '{"tag_name": "${{ github.event.release.tag_name }}", "name": "${{ github.event.release.name }}", "body": "${{ github.event.release.body }}", "draft": ${{ github.event.release.draft }}, "prerelease": ${{ github.event.release.prerelease }}}' https://api.github.com/repos/hathach/tinyusb_src/releases
