@@ -52,7 +52,11 @@
 //--------------------------------------------------------------------+
 
 /* LINK core registers */
+#if defined(__CCRX__)
+#define LINK_REG ((LINK_REG_t __evenaccess*)LINK_REG_BASE)
+#else
 #define LINK_REG ((LINK_REG_t*)LINK_REG_BASE)
+#endif
 
 /* Start of definition of packed structs (used by the CCRX toolchain) */
 TU_ATTR_PACKED_BEGIN
