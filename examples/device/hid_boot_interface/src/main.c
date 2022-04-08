@@ -31,6 +31,8 @@
 #include "tusb.h"
 #include "usb_descriptors.h"
 
+#include "pio_usb.h"
+
 //--------------------------------------------------------------------+
 // MACRO CONSTANT TYPEDEF PROTYPES
 //--------------------------------------------------------------------+
@@ -59,6 +61,8 @@ int main(void)
 
   while (1)
   {
+    pio_usb_device_task();
+
     tud_task(); // tinyusb device task
     led_blinking_task();
 

@@ -239,7 +239,7 @@
   #define TUH_OPT_RHPORT   -1
 #endif
 
-#define CFG_TUH_ENABLED     ( TUH_RHPORT_MODE & OPT_MODE_HOST )
+#define CFG_TUH_ENABLED     (TUH_RHPORT_MODE & OPT_MODE_HOST)
 
 // For backward compatible
 #define TUSB_OPT_DEVICE_ENABLED CFG_TUD_ENABLED
@@ -396,6 +396,10 @@
 // Enable PIO-USB software host controller
 #ifndef CFG_TUH_RPI_PIO_USB
 #define CFG_TUH_RPI_PIO_USB 0
+#endif
+
+#ifndef CFG_TUD_RPI_PIO_USB
+#define CFG_TUD_RPI_PIO_USB 0
 #endif
 
 

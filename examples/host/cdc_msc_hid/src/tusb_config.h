@@ -39,6 +39,7 @@
   #error CFG_TUSB_MCU must be defined
 #endif
 
+// Use raspberry pio-usb for host
 #define CFG_TUH_RPI_PIO_USB            1
 //#define CFG_TUSB_RPI_PIO_INC_PATH   1
 
