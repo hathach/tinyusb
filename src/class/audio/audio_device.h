@@ -191,13 +191,24 @@
 #define CFG_TUD_AUDIO_ENABLE_FEEDBACK_FORMAT_CORRECTION     0                             // 0 or 1
 #endif
 
+// Possible options for determination of feedback value
+#define CFG_TUD_AUDIO_ENABLE_FEEDBACK_DETERMINATION_OPTION_NO_SOF_BY_USER                 1         // Feedback value must be determined by the user itself and set by use of tud_audio_n_fb_set(). The feedback value may be determined e.g. from some fill status of some FIFO buffer. Advantage: No ISR interrupt is enabled, hence the CPU need not to handle an ISR every 1ms or 125us and thus less CPU load, disadvantage: typically a larger FIFO is needed to compensate for jitter (e.g. 8 frames), i.e. a larger delay is introduced.
+#define CFG_TUD_AUDIO_ENABLE_FEEDBACK_DETERMINATION_OPTION_SOF_BY_AUDIO_DRIVER            2         // Feedback value is calculated within the audio driver by use of SOF interrupt. The driver needs information about the master clock f_m from which the audio sample frequency f_s is derived, f_s itself, and the cycle count of f_m at time of the SOF interrupt (e.g. by use of a hardware counter) - see tud_audio_set_fb_params(). Advantage: Reduced jitter in the feedback value computation, hence, the receive FIFO can be smaller (e.g. 2 frames) and thus a smaller delay is possible, disadvantage: higher CPU load due to SOF ISR handling every frame i.e. 1ms or 125us. This option is a great starting point to try the SOF ISR option but depending on your hardware setup (performance of the CPU) it might not work. If so, figure out why and use the next option. (The most critical point is the reading of the cycle counter value of f_m. It is read from within the SOF ISR - see: audiod_sof() -, hence, the ISR must has a high priority such that no software dependent "random" delay i.e. jitter is introduced).
+#define CFG_TUD_AUDIO_ENABLE_FEEDBACK_DETERMINATION_OPTION_SOF_BY_USER                    3         // Feedback value is determined by the user by use of SOF interrupt. The user may use tud_audio_sof_isr_cb() which is called every SOF (of course only invoked when an alternate interface other than zero was set). The number of frames used to determine the feedback value for the currently active alternate setting can be get by tud_audio_get_fb_n_frames(). The feedback value must be set by use of tud_audio_n_fb_set().
+
 // Determine feedback value within SOF ISR within audio driver - if disabled the user has to call tud_audio_n_fb_set() with a suitable feedback value on its own. If done within audio driver SOF ISR, tud_audio_n_fb_set() is disabled for user
-#ifndef CFG_TUD_AUDIO_ENABLE_FEEDBACK_DETERMINATION_WITHIN_SOF_ISR
-#define CFG_TUD_AUDIO_ENABLE_FEEDBACK_DETERMINATION_WITHIN_SOF_ISR    0                             // 0 or 1
+#ifndef CFG_TUD_AUDIO_ENABLE_FEEDBACK_DETERMINATION_OPTION
+#define CFG_TUD_AUDIO_ENABLE_FEEDBACK_DETERMINATION_OPTION                                CFG_TUD_AUDIO_ENABLE_FEEDBACK_DETERMINATION_OPTION_NO_SOF_BY_USER
+#endif
+
+#ifdef CFG_TUD_AUDIO_ENABLE_FEEDBACK_DETERMINATION_OPTION
+#if (CFG_TUD_AUDIO_ENABLE_FEEDBACK_DETERMINATION_OPTION != CFG_TUD_AUDIO_ENABLE_FEEDBACK_DETERMINATION_OPTION_NO_SOF_BY_USER && CFG_TUD_AUDIO_ENABLE_FEEDBACK_DETERMINATION_OPTION != CFG_TUD_AUDIO_ENABLE_FEEDBACK_DETERMINATION_OPTION_SOF_BY_AUDIO_DRIVER && CFG_TUD_AUDIO_ENABLE_FEEDBACK_DETERMINATION_OPTION != CFG_TUD_AUDIO_ENABLE_FEEDBACK_DETERMINATION_OPTION_SOF_BY_USER)
+#error Unknown CFG_TUD_AUDIO_ENABLE_FEEDBACK_DETERMINATION_OPTION. Possible choices are: CFG_TUD_AUDIO_ENABLE_FEEDBACK_DETERMINATION_OPTION_NO_SOF_BY_USER, CFG_TUD_AUDIO_ENABLE_FEEDBACK_DETERMINATION_OPTION_SOF_BY_AUDIO_DRIVER, or CFG_TUD_AUDIO_ENABLE_FEEDBACK_DETERMINATION_OPTION_SOF_BY_USER!
+#endif
 #endif
 
 // Feeback calculation mode
-#if CFG_TUD_AUDIO_ENABLE_FEEDBACK_DETERMINATION_WITHIN_SOF_ISR
+#if CFG_TUD_AUDIO_ENABLE_FEEDBACK_DETERMINATION_OPTION == CFG_TUD_AUDIO_ENABLE_FEEDBACK_DETERMINATION_OPTION_SOF_BY_AUDIO_DRIVER
 
 #define CFG_TUD_AUDIO_ENABLE_FEEDBACK_DETERMINATION_MODE_POWER_OF_TWO_SHIFT     1
 #define CFG_TUD_AUDIO_ENABLE_FEEDBACK_DETERMINATION_MODE_FLOAT                  2
@@ -484,6 +495,8 @@ TU_ATTR_WEAK bool tud_audio_rx_done_post_read_cb(uint8_t rhport, uint16_t n_byte
 #if CFG_TUD_AUDIO_ENABLE_EP_OUT && CFG_TUD_AUDIO_ENABLE_FEEDBACK_EP
 TU_ATTR_WEAK bool tud_audio_fb_done_cb(uint8_t rhport);
 
+#if (CFG_TUD_AUDIO_ENABLE_FEEDBACK_DETERMINATION_OPTION == CFG_TUD_AUDIO_ENABLE_FEEDBACK_DETERMINATION_OPTION_NO_SOF_BY_USER)
+
 // This function is used to provide data rate feedback from an asynchronous sink. Feedback value will be sent at FB endpoint interval till it's changed.
 //
 // The feedback format is specified to be 16.16 for HS and 10.14 for FS devices (see Universal Serial Bus Specification Revision 2.0 5.12.4.2). By default,
@@ -494,15 +507,16 @@ TU_ATTR_WEAK bool tud_audio_fb_done_cb(uint8_t rhport);
 // driver can work with either format. So a good compromise is to keep format correction disabled and stick to 16.16 format.
 
 // Feedback value can be determined from within the SOF ISR of the audio driver. This should reduce jitter. If the feature is used, the user can not set the feedback value.
-# if !CFG_TUD_AUDIO_ENABLE_FEEDBACK_DETERMINATION_WITHIN_SOF_ISR
+
 bool tud_audio_n_fb_set(uint8_t func_id, uint32_t feedback);
 static inline bool tud_audio_fb_set(uint32_t feedback);
-# else
 
-// This callback function is called once the feedback value needs to be updated within the SOF ISR in the audio class. To determine the feedback value, some
-// parameters need to be given. The user must implement this callback function and provide the current cycle count of the master clock.
-// The feedback endpoint number can be used to identify the correct audio function in case multiple audio functions were defined.
-TU_ATTR_WEAK uint32_t tud_audio_n_get_fm_n_cycles_cb(uint8_t rhport, uint8_t ep_fb);
+uint8_t tud_audio_n_get_fb_n_frames(uint8_t func_id);
+static inline uint8_t tud_audio_get_fb_n_frames();
+
+#endif // (CFG_TUD_AUDIO_ENABLE_FEEDBACK_DETERMINATION_OPTION == CFG_TUD_AUDIO_ENABLE_FEEDBACK_DETERMINATION_OPTION_NO_SOF_BY_USER)
+
+#if CFG_TUD_AUDIO_ENABLE_FEEDBACK_DETERMINATION_OPTION == CFG_TUD_AUDIO_ENABLE_FEEDBACK_DETERMINATION_OPTION_SOF_BY_AUDIO_DRIVER
 
 // f_m : Main clock frequency in Hz i.e. master clock to which sample clock is locked
 // f_s : Current sample rate in Hz
@@ -513,10 +527,34 @@ TU_ATTR_WEAK uint32_t tud_audio_n_get_fm_n_cycles_cb(uint8_t rhport, uint8_t ep_
 // uint8_t const alt = tu_u16_low(p_request->wValue);
 // such that tud_audio_set_fb_params() gets called with the parameters corresponding to the defined interface and alternate setting
 // Also, start the main clock cycle counter (or reset its value) within tud_audio_set_itf_cb()
-TU_ATTR_WEAK bool tud_audio_set_fb_params(uint8_t func_id, uint32_t f_m, uint32_t f_s, uint32_t * p_cycle_count);
-#endif
+bool tud_audio_set_fb_params(uint8_t func_id, uint32_t f_m, uint32_t f_s, uint32_t * p_cycle_count);
 
-#endif
+#endif // CFG_TUD_AUDIO_ENABLE_FEEDBACK_DETERMINATION_OPTION == CFG_TUD_AUDIO_ENABLE_FEEDBACK_DETERMINATION_OPTION_SOF_BY_AUDIO_DRIVER
+
+#if (CFG_TUD_AUDIO_ENABLE_FEEDBACK_DETERMINATION_OPTION == CFG_TUD_AUDIO_ENABLE_FEEDBACK_DETERMINATION_OPTION_SOF_BY_USER)
+
+// This function is used to provide data rate feedback from an asynchronous sink. Feedback value will be sent at FB endpoint interval till it's changed.
+//
+// The feedback format is specified to be 16.16 for HS and 10.14 for FS devices (see Universal Serial Bus Specification Revision 2.0 5.12.4.2). By default,
+// the choice of format is left to the caller and feedback argument is sent as-is. If CFG_TUD_AUDIO_ENABLE_FEEDBACK_FORMAT_CORRECTION is set, then tinyusb
+// expects 16.16 format and handles the conversion to 10.14 on FS.
+//
+// Note that due to a bug in its USB Audio 2.0 driver, Windows currently requires 16.16 format for _all_ USB 2.0 devices. On Linux and macOS it seems the
+// driver can work with either format. So a good compromise is to keep format correction disabled and stick to 16.16 format.
+
+// Feedback value can be determined from within the SOF ISR of the audio driver. This should reduce jitter. If the feature is used, the user can not set the feedback value.
+
+bool tud_audio_n_fb_set(uint8_t func_id, uint32_t feedback);
+static inline bool tud_audio_fb_set(uint32_t feedback);
+
+uint8_t tud_audio_n_get_fb_n_frames(uint8_t func_id);
+static inline uint8_t tud_audio_get_fb_n_frames();
+
+TU_ATTR_WEAK void tud_audio_sof_isr_cb(uint8_t func_id, uint32_t frame);
+
+#endif // (CFG_TUD_AUDIO_ENABLE_FEEDBACK_DETERMINATION_OPTION == CFG_TUD_AUDIO_ENABLE_FEEDBACK_DETERMINATION_OPTION_SOF_BY_USER)
+
+#endif // CFG_TUD_AUDIO_ENABLE_EP_OUT && CFG_TUD_AUDIO_ENABLE_FEEDBACK_EP
 
 #if CFG_TUD_AUDIO_INT_CTR_EPSIZE_IN
 TU_ATTR_WEAK bool tud_audio_int_ctr_done_cb(uint8_t rhport, uint16_t n_bytes_copied);
@@ -657,11 +695,17 @@ static inline uint16_t tud_audio_int_ctr_write(uint8_t const* buffer, uint16_t l
 }
 #endif
 
-#if CFG_TUD_AUDIO_ENABLE_EP_OUT && CFG_TUD_AUDIO_ENABLE_FEEDBACK_EP && !CFG_TUD_AUDIO_ENABLE_FEEDBACK_DETERMINATION_WITHIN_SOF_ISR
+#if CFG_TUD_AUDIO_ENABLE_EP_OUT && CFG_TUD_AUDIO_ENABLE_FEEDBACK_EP && ((CFG_TUD_AUDIO_ENABLE_FEEDBACK_DETERMINATION_OPTION == CFG_TUD_AUDIO_ENABLE_FEEDBACK_DETERMINATION_OPTION_NO_SOF_BY_USER) || (CFG_TUD_AUDIO_ENABLE_FEEDBACK_DETERMINATION_OPTION == CFG_TUD_AUDIO_ENABLE_FEEDBACK_DETERMINATION_OPTION_SOF_BY_USER))
 static inline bool tud_audio_fb_set(uint32_t feedback)
 {
   return tud_audio_n_fb_set(0, feedback);
 }
+
+static inline uint8_t tud_audio_get_fb_n_frames()
+{
+  return tud_audio_n_get_fb_n_frames(0);
+}
+
 #endif
 
 //--------------------------------------------------------------------+

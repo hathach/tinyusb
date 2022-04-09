@@ -305,11 +305,12 @@ typedef struct
 #endif
 
 #if CFG_TUD_AUDIO_ENABLE_FEEDBACK_EP
-#if !CFG_TUD_AUDIO_ENABLE_FEEDBACK_DETERMINATION_WITHIN_SOF_ISR
+#if CFG_TUD_AUDIO_ENABLE_FEEDBACK_DETERMINATION_OPTION == CFG_TUD_AUDIO_ENABLE_FEEDBACK_DETERMINATION_OPTION_NO_SOF_BY_USER
   uint32_t fb_val;                                                                        // Feedback value for asynchronous mode (in 16.16 format).
+  uint8_t fb_n_frames;                                                                    // Number of (micro)frames used to estimate feedback value
 #endif
 
-#if CFG_TUD_AUDIO_ENABLE_FEEDBACK_DETERMINATION_WITHIN_SOF_ISR
+#if CFG_TUD_AUDIO_ENABLE_FEEDBACK_DETERMINATION_OPTION == CFG_TUD_AUDIO_ENABLE_FEEDBACK_DETERMINATION_OPTION_SOF_BY_AUDIO_DRIVER
   volatile uint32_t fb_val;                                                               // Feedback value for asynchronous mode (in 16.16 format).
   uint8_t fb_n_frames;                                                                    // Number of (micro)frames used to estimate feedback value
   volatile uint8_t fb_n_frames_current;                                                   // Current (micro)frame number
@@ -328,10 +329,15 @@ typedef struct
   uint64_t fb_param_factor_N;                                                       // Numerator of feedback parameter coefficient
   uint64_t fb_param_factor_D;                                                       // Denominator of feedback parameter coefficient
 #endif
+#endif // CFG_TUD_AUDIO_ENABLE_FEEDBACK_DETERMINATION_OPTION == CFG_TUD_AUDIO_ENABLE_FEEDBACK_DETERMINATION_OPTION_SOF_BY_AUDIO_DRIVER
+
+#if CFG_TUD_AUDIO_ENABLE_FEEDBACK_DETERMINATION_OPTION == CFG_TUD_AUDIO_ENABLE_FEEDBACK_DETERMINATION_OPTION_SOF_BY_USER
+  volatile uint32_t fb_val;                                                               // Feedback value for asynchronous mode (in 16.16 format).
+  uint8_t fb_n_frames;                                                                    // Number of (micro)frames used to estimate feedback value
 #endif
 
-#endif
-#endif
+#endif // CFG_TUD_AUDIO_ENABLE_FEEDBACK_EP
+#endif // CFG_TUD_AUDIO_ENABLE_EP_OUT
 
 #if CFG_TUD_AUDIO_ENABLE_EP_IN && !CFG_TUD_AUDIO_ENABLE_ENCODING
   tu_fifo_t ep_in_ff;
@@ -445,7 +451,7 @@ static inline uint8_t tu_desc_subtype(void const* desc)
 }
 #endif
 
-#if CFG_TUD_AUDIO_ENABLE_EP_OUT && CFG_TUD_AUDIO_ENABLE_FEEDBACK_EP && CFG_TUD_AUDIO_ENABLE_FEEDBACK_DETERMINATION_WITHIN_SOF_ISR
+#if CFG_TUD_AUDIO_ENABLE_EP_OUT && CFG_TUD_AUDIO_ENABLE_FEEDBACK_EP && (CFG_TUD_AUDIO_ENABLE_FEEDBACK_DETERMINATION_OPTION == CFG_TUD_AUDIO_ENABLE_FEEDBACK_DETERMINATION_OPTION_SOF_BY_AUDIO_DRIVER)
 static bool tud_audio_n_fb_set(uint8_t func_id, uint32_t feedback);
 #endif
 
@@ -1572,6 +1578,8 @@ static bool audiod_set_interface(uint8_t rhport, tusb_control_request_t const * 
 #if CFG_TUD_AUDIO_ENABLE_FEEDBACK_EP
     usbd_edpt_close(rhport, audio->ep_fb);
     audio->ep_fb = 0;
+    audio->fb_n_frames = 0;
+
 #endif
   }
 #endif
@@ -1631,7 +1639,7 @@ static bool audiod_set_interface(uint8_t rhport, tusb_control_request_t const * 
 
 #endif
             // Invoke callback - can be used to trigger data sampling if not already running
-//            if (tud_audio_set_itf_cb) TU_VERIFY(tud_audio_set_itf_cb(rhport, p_request));
+            //            if (tud_audio_set_itf_cb) TU_VERIFY(tud_audio_set_itf_cb(rhport, p_request));
 
             // Schedule first transmit if alternate interface is not zero i.e. streaming is disabled - in case no sample data is available a ZLP is loaded
             // It is necessary to trigger this here since the refill is done with an RX FIFO empty interrupt which can only trigger if something was in there
@@ -1665,10 +1673,10 @@ static bool audiod_set_interface(uint8_t rhport, tusb_control_request_t const * 
 
 #if CFG_TUD_AUDIO_ENABLE_FEEDBACK_EP
             // In case of asynchronous EP, call Cb after ep_fb is set
-//            if ( !(desc_ep->bmAttributes.sync == 0x01 && audio->ep_fb == 0) )
-//            {
-//              if (tud_audio_set_itf_cb) TU_VERIFY(tud_audio_set_itf_cb(rhport, p_request));
-//            }
+            //            if ( !(desc_ep->bmAttributes.sync == 0x01 && audio->ep_fb == 0) )
+            //            {
+            //              if (tud_audio_set_itf_cb) TU_VERIFY(tud_audio_set_itf_cb(rhport, p_request));
+            //            }
 #else
             // Invoke callback
             if (tud_audio_set_itf_cb) TU_VERIFY(tud_audio_set_itf_cb(rhport, p_request));
@@ -1685,19 +1693,22 @@ static bool audiod_set_interface(uint8_t rhport, tusb_control_request_t const * 
           if (tu_edpt_dir(ep_addr) == TUSB_DIR_IN && desc_ep->bmAttributes.usage == 1)   // Check if usage is explicit data feedback
           {
             audio->ep_fb = ep_addr;
-
-#if CFG_TUD_AUDIO_ENABLE_FEEDBACK_DETERMINATION_WITHIN_SOF_ISR
-            usbd_sof_enable(rhport, true);       // Enable SOF interrupt
             audio->fb_n_frames = desc_ep->bInterval;
+
+#if ((CFG_TUD_AUDIO_ENABLE_FEEDBACK_DETERMINATION_OPTION == CFG_TUD_AUDIO_ENABLE_FEEDBACK_DETERMINATION_OPTION_SOF_BY_USER) || (CFG_TUD_AUDIO_ENABLE_FEEDBACK_DETERMINATION_OPTION == CFG_TUD_AUDIO_ENABLE_FEEDBACK_DETERMINATION_OPTION_SOF_BY_AUDIO_DRIVER))
+            usbd_sof_enable(rhport, true);       // Enable SOF interrupt
+#endif
+
+#if CFG_TUD_AUDIO_ENABLE_FEEDBACK_DETERMINATION_OPTION == CFG_TUD_AUDIO_ENABLE_FEEDBACK_DETERMINATION_OPTION_SOF_BY_AUDIO_DRIVER
             audio->fb_n_frames_current = 0;
             audio->fb_n_cycles_old = 0;
 #endif
 
-//            // Invoke callback after ep_out is set
-//            if (audio->ep_out != 0)
-//            {
-//              if (tud_audio_set_itf_cb) TU_VERIFY(tud_audio_set_itf_cb(rhport, p_request));
-//            }
+            //            // Invoke callback after ep_out is set
+            //            if (audio->ep_out != 0)
+            //            {
+            //              if (tud_audio_set_itf_cb) TU_VERIFY(tud_audio_set_itf_cb(rhport, p_request));
+            //            }
           }
 #endif
 #endif // CFG_TUD_AUDIO_ENABLE_EP_OUT
@@ -1721,7 +1732,7 @@ static bool audiod_set_interface(uint8_t rhport, tusb_control_request_t const * 
   }
 
   // Disable SOF interrupt if no driver has any enabled feedback EP
-#if CFG_TUD_AUDIO_ENABLE_EP_OUT && CFG_TUD_AUDIO_ENABLE_FEEDBACK_EP && CFG_TUD_AUDIO_ENABLE_FEEDBACK_DETERMINATION_WITHIN_SOF_ISR
+#if CFG_TUD_AUDIO_ENABLE_EP_OUT && CFG_TUD_AUDIO_ENABLE_FEEDBACK_EP && ((CFG_TUD_AUDIO_ENABLE_FEEDBACK_DETERMINATION_OPTION == CFG_TUD_AUDIO_ENABLE_FEEDBACK_DETERMINATION_OPTION_SOF_BY_USER) || (CFG_TUD_AUDIO_ENABLE_FEEDBACK_DETERMINATION_OPTION == CFG_TUD_AUDIO_ENABLE_FEEDBACK_DETERMINATION_OPTION_SOF_BY_AUDIO_DRIVER))
 
   bool disable = true;
 
@@ -2025,7 +2036,14 @@ bool audiod_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint3
   return false;
 }
 
-#if CFG_TUD_AUDIO_ENABLE_EP_OUT && CFG_TUD_AUDIO_ENABLE_FEEDBACK_EP && CFG_TUD_AUDIO_ENABLE_FEEDBACK_DETERMINATION_WITHIN_SOF_ISR
+#if CFG_TUD_AUDIO_ENABLE_EP_OUT && CFG_TUD_AUDIO_ENABLE_FEEDBACK_EP && ((CFG_TUD_AUDIO_ENABLE_FEEDBACK_DETERMINATION_OPTION == CFG_TUD_AUDIO_ENABLE_FEEDBACK_DETERMINATION_OPTION_NO_SOF_BY_USER) || (CFG_TUD_AUDIO_ENABLE_FEEDBACK_DETERMINATION_OPTION == CFG_TUD_AUDIO_ENABLE_FEEDBACK_DETERMINATION_OPTION_SOF_BY_USER))
+uint8_t tud_audio_n_get_fb_n_frames(uint8_t func_id)
+{
+  return _audiod_fct[func_id].fb_n_frames;
+}
+#endif
+
+#if CFG_TUD_AUDIO_ENABLE_EP_OUT && CFG_TUD_AUDIO_ENABLE_FEEDBACK_EP && (CFG_TUD_AUDIO_ENABLE_FEEDBACK_DETERMINATION_OPTION == CFG_TUD_AUDIO_ENABLE_FEEDBACK_DETERMINATION_OPTION_SOF_BY_AUDIO_DRIVER)
 
 // This function must be called from the user within the tud_audio_set_itf_cb(rhport, p_request) callback function, where p_request needs to be checked as
 // uint8_t const itf = tu_u16_low(p_request->wIndex);
@@ -2081,12 +2099,14 @@ TU_ATTR_WEAK bool tud_audio_set_fb_params(uint8_t func_id, uint32_t f_m, uint32_
 }
 #endif
 
-void audiod_sof (uint8_t rhport, uint32_t frame_count)
+TU_ATTR_WEAK void audiod_sof (uint8_t rhport, uint32_t frame_count)
 {
   (void) rhport;
   (void) frame_count;         // frame_count is not used since some devices may not provide the frame count value
 
-#if CFG_TUD_AUDIO_ENABLE_EP_OUT && CFG_TUD_AUDIO_ENABLE_FEEDBACK_EP && CFG_TUD_AUDIO_ENABLE_FEEDBACK_DETERMINATION_WITHIN_SOF_ISR
+#if CFG_TUD_AUDIO_ENABLE_EP_OUT && CFG_TUD_AUDIO_ENABLE_FEEDBACK_EP
+
+#if (CFG_TUD_AUDIO_ENABLE_FEEDBACK_DETERMINATION_OPTION == CFG_TUD_AUDIO_ENABLE_FEEDBACK_DETERMINATION_OPTION_SOF_BY_AUDIO_DRIVER)
 
   // Determine feedback value - The feedback method is described in 5.12.4.2 of the USB 2.0 spec
   // Boiled down, the feedback value Ff = n_samples / (micro)frame.
@@ -2136,7 +2156,23 @@ void audiod_sof (uint8_t rhport, uint32_t frame_count)
     }
   }
 
-#endif
+#endif // (CFG_TUD_AUDIO_ENABLE_FEEDBACK_DETERMINATION_OPTION == CFG_TUD_AUDIO_ENABLE_FEEDBACK_DETERMINATION_OPTION_SOF_BY_AUDIO_DRIVER)
+
+#if (CFG_TUD_AUDIO_ENABLE_FEEDBACK_DETERMINATION_OPTION == CFG_TUD_AUDIO_ENABLE_FEEDBACK_DETERMINATION_OPTION_SOF_BY_USER)
+  // Iterate over audio functions and call callback function
+  for(uint8_t i=0; i < CFG_TUD_AUDIO; i++)
+  {
+    audiod_function_t* audio = &_audiod_fct[i];
+
+    if (audio->ep_fb != 0)
+    {
+      tud_audio_sof_isr_cb(i, frame_count);
+    }
+  }
+
+#endif // (CFG_TUD_AUDIO_ENABLE_FEEDBACK_DETERMINATION_OPTION == CFG_TUD_AUDIO_ENABLE_FEEDBACK_DETERMINATION_OPTION_SOF_BY_USER)
+
+#endif // CFG_TUD_AUDIO_ENABLE_EP_OUT && CFG_TUD_AUDIO_ENABLE_FEEDBACK_EP
 }
 
 bool tud_audio_buffer_and_schedule_control_xfer(uint8_t rhport, tusb_control_request_t const * p_request, void* data, uint16_t len)
@@ -2416,7 +2452,7 @@ static void audiod_parse_for_AS_params(audiod_function_t* audio, uint8_t const *
 
 #if CFG_TUD_AUDIO_ENABLE_FEEDBACK_EP
 
-#if CFG_TUD_AUDIO_ENABLE_FEEDBACK_DETERMINATION_WITHIN_SOF_ISR
+#if CFG_TUD_AUDIO_ENABLE_FEEDBACK_DETERMINATION_OPTION == CFG_TUD_AUDIO_ENABLE_FEEDBACK_DETERMINATION_OPTION_SOF_BY_AUDIO_DRIVER
 static bool tud_audio_n_fb_set(uint8_t func_id, uint32_t feedback)
 #else
 bool tud_audio_n_fb_set(uint8_t func_id, uint32_t feedback)
