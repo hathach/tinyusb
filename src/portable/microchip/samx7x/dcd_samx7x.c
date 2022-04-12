@@ -27,7 +27,7 @@
 
 #include "tusb_option.h"
 
-#if CFG_TUD_ENABLED && CFG_TUSB_MCU == OPT_MCU_SAMX7X
+#if CFG_TUD_ENABLED && TU_CHECK_MCU(OPT_MCU_SAMX7X, OPT_MCU_SAM3U)
 
 #include "device/dcd.h"
 #include "sam.h"
