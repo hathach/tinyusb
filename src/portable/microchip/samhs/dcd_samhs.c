@@ -164,7 +164,7 @@ void dcd_connect(uint8_t rhport)
   // Enable the End Of Reset, Suspend & Wakeup interrupts
   SAMHS_REG->SAMHS_DEV_IER = (SAMHS_DEV_IER_EORSTES | SAMHS_DEV_IER_SUSPES | SAMHS_DEV_IER_WAKEUPES);
 #if USE_SOF
-  SAMHS_REG->SAMHS_DEV_IER = SAMHS_DEV_IER_SOFES;
+  SAMHS_REG->SAMHS_DEV_IER |= SAMHS_DEV_IER_SOFES;
 #endif
   // Clear the End Of Reset, SOF & Wakeup interrupts
   SAMHS_REG->SAMHS_DEV_ICR = (SAMHS_DEV_ICR_EORSTC | SAMHS_DEV_ICR_SOFC | SAMHS_DEV_ICR_WAKEUPC);
