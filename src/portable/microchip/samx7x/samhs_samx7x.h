@@ -26,10 +26,8 @@
 * This file is part of the TinyUSB stack.
 */
 
-#ifndef _COMMON_USB_REGS_H_
-#define _COMMON_USB_REGS_H_
-
-#if CFG_TUSB_MCU == OPT_MCU_SAMX7X
+#ifndef _SAMHS_SAMX7X_H_
+#define _SAMHS_SAMX7X_H_
 
 /* -------- DEVDMANXTDSC : (USBHS Offset: 0x00) (R/W 32) Device DMA Channel Next Descriptor Address Register -------- */
 
@@ -2007,7 +2005,7 @@
 
 /** \brief DEVDMA hardware registers */
 typedef struct
-{  
+{
   __IO uint32_t DEVDMANXTDSC; /**< (DEVDMA Offset: 0x00) Device DMA Channel Next Descriptor Address Register */
   __IO uint32_t DEVDMAADDRESS; /**< (DEVDMA Offset: 0x04) Device DMA Channel Address Register */
   __IO uint32_t DEVDMACONTROL; /**< (DEVDMA Offset: 0x08) Device DMA Channel Control Register */
@@ -2016,7 +2014,7 @@ typedef struct
 
 /** \brief HSTDMA hardware registers */
 typedef struct
-{  
+{
   __IO uint32_t HSTDMANXTDSC; /**< (HSTDMA Offset: 0x00) Host DMA Channel Next Descriptor Address Register */
   __IO uint32_t HSTDMAADDRESS; /**< (HSTDMA Offset: 0x04) Host DMA Channel Address Register */
   __IO uint32_t HSTDMACONTROL; /**< (HSTDMA Offset: 0x08) Host DMA Channel Control Register */
@@ -2025,7 +2023,7 @@ typedef struct
 
 /** \brief USBHS hardware registers */
 typedef struct
-{  
+{
   __IO uint32_t DEVCTRL;  /**< (USBHS Offset: 0x00) Device General Control Register */
   __I  uint32_t DEVISR;   /**< (USBHS Offset: 0x04) Device Global Interrupt Status Register */
   __O  uint32_t DEVICR;   /**< (USBHS Offset: 0x08) Device Global Interrupt Clear Register */
@@ -2095,14 +2093,9 @@ typedef struct
 
 #define EP_MAX            10
 
-#define FIFO_RAM_ADDR     0xA0100000u
+#define FIFO_RAM_ADDR     0xA0100000U
 
 // Errata: The DMA feature is not available for Pipe/Endpoint 7
 #define EP_DMA_SUPPORT(epnum) (epnum >= 1 && epnum <= 6)
 
-#else // TODO : SAM3U
-
-
-#endif
-
-#endif /* _COMMON_USB_REGS_H_ */
+#endif /* _SAMHS_SAMX7X_H_ */

@@ -31,7 +31,10 @@
 
 #include "device/dcd.h"
 #include "sam.h"
-#include "common_usb_regs.h"
+
+#if TU_CHECK_MCU(OPT_MCU_SAMX7X)
+#include "samhs_samx7x.h"
+#endif
 //--------------------------------------------------------------------+
 // MACRO TYPEDEF CONSTANT ENUM DECLARATION
 //--------------------------------------------------------------------+
