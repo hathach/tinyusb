@@ -27,15 +27,14 @@
 
 #include "tusb_option.h"
 
-// #if CFG_TUD_ENABLED && TU_CHECK_MCU(OPT_MCU_SAMX7X, OPT_MCU_SAM3U)
-#if 1
+#if CFG_TUD_ENABLED && TU_CHECK_MCU(OPT_MCU_SAMX7X)
 
 #include "device/dcd.h"
 #include "sam.h"
 
-// #if TU_CHECK_MCU(OPT_MCU_SAMX7X)
+#if TU_CHECK_MCU(OPT_MCU_SAMX7X)
 #include "samhs_samx7x.h"
-// #endif
+#endif
 //--------------------------------------------------------------------+
 // MACRO TYPEDEF CONSTANT ENUM DECLARATION
 //--------------------------------------------------------------------+

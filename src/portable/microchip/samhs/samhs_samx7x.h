@@ -2089,11 +2089,11 @@ typedef struct
   __O  uint32_t SAMHS_SFR;      /**< (USBHS Offset: 0x80C) General Status Set Register */
 } samhs_reg_t;
 
-#define SAMHS_BASE_REG           (0x40038000U)         /**< \brief (USBHS) Base Address */
+#define SAMHS_BASE_REG		(0x40038000U)         /**< \brief (USBHS) Base Address */
 
-#define EP_MAX            10
+#define EP_MAX				10
 
-#define FIFO_RAM_ADDR     0xA0100000U
+#define FIFO_RAM_ADDR		(0xA0100000U)
 
 // Errata: The DMA feature is not available for Pipe/Endpoint 7
 #define EP_DMA_SUPPORT(epnum) (epnum >= 1 && epnum <= 6)
