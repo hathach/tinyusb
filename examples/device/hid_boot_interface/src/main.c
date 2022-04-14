@@ -61,8 +61,6 @@ int main(void)
 
   while (1)
   {
-    pio_usb_device_task();
-
     tud_task(); // tinyusb device task
     led_blinking_task();
 

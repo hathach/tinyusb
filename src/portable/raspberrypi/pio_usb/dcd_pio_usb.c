@@ -41,8 +41,6 @@
 #define RHPORT_OFFSET     1
 #define RHPORT_PIO(_x)    ((_x)-RHPORT_OFFSET)
 
-static uint8_t new_addr = 0;
-
 //-------------  -------------//
 static usb_device_t *usb_device = NULL;
 static usb_descriptor_buffers_t desc;
@@ -75,10 +73,12 @@ void dcd_int_disable (uint8_t rhport)
 // Receive Set Address request, mcu port must also include status IN response
 void dcd_set_address (uint8_t rhport, uint8_t dev_addr)
 {
-  // store addr, will update crc5 lut when status is complete
-  new_addr = dev_addr;
+  uint8_t const pio_rhport = RHPORT_PIO(rhport);
 
-  dcd_edpt_xfer(rhport, 0x80, NULL, 0);
+  // must be called before queuing status
+  pio_usb_device_set_address(pio_rhport, dev_addr);
+
+  pio_usb_device_endpoint_transfer(pio_rhport, 0x80, NULL, 0);
 }
 
 // Wake up host
@@ -104,11 +104,10 @@ void dcd_disconnect(uint8_t rhport)
 //--------------------------------------------------------------------+
 
 // Configure endpoint's registers according to descriptor
-bool dcd_edpt_open (uint8_t rhport, tusb_desc_endpoint_t const * ep_desc)
+bool dcd_edpt_open (uint8_t rhport, tusb_desc_endpoint_t const * desc_ep)
 {
-  (void) rhport;
-  (void) ep_desc;
-  return false;
+  uint8_t const pio_rhport = RHPORT_PIO(rhport);
+  return pio_usb_device_endpoint_open(pio_rhport, (uint8_t const*) desc_ep);
 }
 
 void dcd_edpt_close_all (uint8_t rhport)
@@ -119,19 +118,19 @@ void dcd_edpt_close_all (uint8_t rhport)
 // Submit a transfer, When complete dcd_event_xfer_complete() is invoked to notify the stack
 bool dcd_edpt_xfer (uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t total_bytes)
 {
-  uint8_t pio_rhport = RHPORT_PIO(rhport);
+  uint8_t const pio_rhport = RHPORT_PIO(rhport);
   return pio_usb_device_endpoint_transfer(pio_rhport, ep_addr, buffer, total_bytes);
 }
 
 // Submit a transfer where is managed by FIFO, When complete dcd_event_xfer_complete() is invoked to notify the stack - optional, however, must be listed in usbd.c
-bool dcd_edpt_xfer_fifo (uint8_t rhport, uint8_t ep_addr, tu_fifo_t * ff, uint16_t total_bytes)
-{
-  (void) rhport;
-  (void) ep_addr;
-  (void) ff;
-  (void) total_bytes;
-  return false;
-}
+//bool dcd_edpt_xfer_fifo (uint8_t rhport, uint8_t ep_addr, tu_fifo_t * ff, uint16_t total_bytes)
+//{
+//  (void) rhport;
+//  (void) ep_addr;
+//  (void) ff;
+//  (void) total_bytes;
+//  return false;
+//}
 
 // Stall endpoint
 void dcd_edpt_stall (uint8_t rhport, uint8_t ep_addr)
@@ -150,7 +149,6 @@ void dcd_edpt_clear_stall (uint8_t rhport, uint8_t ep_addr)
 //--------------------------------------------------------------------+
 //
 //--------------------------------------------------------------------+
-extern void update_ep0_crc5_lut(uint8_t addr);
 
 static void __no_inline_not_in_flash_func(handle_endpoint_irq)(pio_hw_root_port_t* port, uint32_t flag)
 {
@@ -188,14 +186,6 @@ static void __no_inline_not_in_flash_func(handle_endpoint_irq)(pio_hw_root_port_
     {
       pio_hw_endpoint_t* ep = PIO_USB_HW_EP(ep_idx);
       uint8_t const tu_rhport = port - PIO_USB_HW_RPORT(0) + 1;
-
-      // address is changed, update crc5 lut
-      if (new_addr && ep->ep_num == 0x80 && ep->actual_len == 0)
-      {
-        update_ep0_crc5_lut(new_addr);
-        new_addr = 0;
-      }
-
       dcd_event_xfer_complete(tu_rhport, ep->ep_num, ep->actual_len, result, true);
     }
   }
@@ -213,7 +203,6 @@ void __no_inline_not_in_flash_func(pio_usb_device_irq_handler)(uint8_t root_id)
 
   if (ints & PIO_USB_INTS_RESET_END_BITS)
   {
-    new_addr = 0;
     dcd_event_bus_reset(tu_rhport, TUSB_SPEED_FULL, true);
   }
 
