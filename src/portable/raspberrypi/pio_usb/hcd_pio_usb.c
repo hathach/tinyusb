@@ -116,19 +116,19 @@ bool hcd_edpt_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_endpoint_t const 
   bool const need_pre = (dev_tree.hub_addr && dev_tree.speed == TUSB_SPEED_LOW);
 
   rhport = RHPORT_PIO(rhport);
-  return pio_usb_endpoint_open(rhport, dev_addr, (uint8_t const*) desc_ep, need_pre);
+  return pio_usb_host_endpoint_open(rhport, dev_addr, (uint8_t const*) desc_ep, need_pre);
 }
 
 bool hcd_edpt_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr, uint8_t * buffer, uint16_t buflen)
 {
   rhport = RHPORT_PIO(rhport);
-  return pio_usb_endpoint_transfer(rhport, dev_addr, ep_addr, buffer, buflen);
+  return pio_usb_host_endpoint_transfer(rhport, dev_addr, ep_addr, buffer, buflen);
 }
 
 bool hcd_setup_send(uint8_t rhport, uint8_t dev_addr, uint8_t const setup_packet[8])
 {
   rhport = RHPORT_PIO(rhport);
-  return pio_usb_endpoint_send_setup(rhport, dev_addr, setup_packet);
+  return pio_usb_host_send_setup(rhport, dev_addr, setup_packet);
 }
 
 //bool hcd_edpt_busy(uint8_t dev_addr, uint8_t ep_addr)
@@ -153,7 +153,7 @@ bool hcd_edpt_clear_stall(uint8_t dev_addr, uint8_t ep_addr)
   return true;
 }
 
-void __no_inline_not_in_flash_func(handle_endpoint_irq)(pio_hw_root_port_t* port, uint32_t flag)
+static void __no_inline_not_in_flash_func(handle_endpoint_irq)(pio_hw_root_port_t* port, uint32_t flag)
 {
   volatile uint32_t* ep_reg;
   xfer_result_t result;
@@ -200,37 +200,35 @@ void __no_inline_not_in_flash_func(handle_endpoint_irq)(pio_hw_root_port_t* port
 void __no_inline_not_in_flash_func(pio_usb_host_irq_handler)(uint8_t root_id)
 {
   pio_hw_root_port_t* port = PIO_USB_HW_RPORT(root_id);
+  uint32_t const ints = port->ints;
 
-  if ( port->ints & PIO_USB_INTS_CONNECT_BITS )
+  if ( ints & PIO_USB_INTS_CONNECT_BITS )
   {
-    port->ints &= ~PIO_USB_INTS_CONNECT_BITS;
-
     hcd_event_device_attach(root_id+1, true);
   }
 
-  if ( port->ints & PIO_USB_INTS_DISCONNECT_BITS )
+  if ( ints & PIO_USB_INTS_DISCONNECT_BITS )
   {
-    port->ints &= ~PIO_USB_INTS_DISCONNECT_BITS;
     hcd_event_device_remove(root_id+1, true);
   }
 
-  if ( port->ints & PIO_USB_INTS_ENDPOINT_COMPLETE_BITS )
+  if ( ints & PIO_USB_INTS_ENDPOINT_COMPLETE_BITS )
   {
-    port->ints &= ~PIO_USB_INTS_ENDPOINT_COMPLETE_BITS;
     handle_endpoint_irq(port, PIO_USB_INTS_ENDPOINT_COMPLETE_BITS);
   }
 
-  if ( port->ints & PIO_USB_INTS_ENDPOINT_ERROR_BITS )
+  if ( ints & PIO_USB_INTS_ENDPOINT_ERROR_BITS )
   {
-    port->ints &= ~PIO_USB_INTS_ENDPOINT_ERROR_BITS;
     handle_endpoint_irq(port, PIO_USB_INTS_ENDPOINT_ERROR_BITS);
   }
 
-  if ( port->ints & PIO_USB_INTS_ENDPOINT_STALLED_BITS )
+  if ( ints & PIO_USB_INTS_ENDPOINT_STALLED_BITS )
   {
-    port->ints &= ~PIO_USB_INTS_ENDPOINT_STALLED_BITS;
     handle_endpoint_irq(port, PIO_USB_INTS_ENDPOINT_STALLED_BITS);
   }
+
+  // clear all
+  port->ints &= ~ints;
 }
 
 #endif

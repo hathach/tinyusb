@@ -1,0 +1,234 @@
+/* 
+ * The MIT License (MIT)
+ *
+ * Copyright (c) 2018, hathach (tinyusb.org)
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+ * THE SOFTWARE.
+ *
+ * This file is part of the TinyUSB stack.
+ */
+
+#include "tusb_option.h"
+
+#if CFG_TUD_ENABLED && (CFG_TUSB_MCU == OPT_MCU_RP2040) && CFG_TUD_RPI_PIO_USB
+
+#include "pico.h"
+#include "hardware/pio.h"
+#include "pio_usb.h"
+
+#include "device/dcd.h"
+
+//--------------------------------------------------------------------+
+// MACRO TYPEDEF CONSTANT ENUM DECLARATION
+//--------------------------------------------------------------------+
+
+#define RHPORT_OFFSET     1
+#define RHPORT_PIO(_x)    ((_x)-RHPORT_OFFSET)
+
+static uint8_t new_addr = 0;
+
+//-------------  -------------//
+static usb_device_t *usb_device = NULL;
+static usb_descriptor_buffers_t desc;
+
+/*------------------------------------------------------------------*/
+/* Device API
+ *------------------------------------------------------------------*/
+
+// Initialize controller to device mode
+void dcd_init (uint8_t rhport)
+{
+  (void) rhport;
+
+  static pio_usb_configuration_t config = PIO_USB_DEFAULT_CONFIG;
+  usb_device = pio_usb_device_init(&config, &desc);
+}
+
+// Enable device interrupt
+void dcd_int_enable (uint8_t rhport)
+{
+  (void) rhport;
+}
+
+// Disable device interrupt
+void dcd_int_disable (uint8_t rhport)
+{
+  (void) rhport;
+}
+
+// Receive Set Address request, mcu port must also include status IN response
+void dcd_set_address (uint8_t rhport, uint8_t dev_addr)
+{
+  // store addr, will update crc5 lut when status is complete
+  new_addr = dev_addr;
+
+  dcd_edpt_xfer(rhport, 0x80, NULL, 0);
+}
+
+// Wake up host
+void dcd_remote_wakeup (uint8_t rhport)
+{
+  (void) rhport;
+}
+
+// Connect by enabling internal pull-up resistor on D+/D-
+void dcd_connect(uint8_t rhport)
+{
+  (void) rhport;
+}
+
+// Disconnect by disabling internal pull-up resistor on D+/D-
+void dcd_disconnect(uint8_t rhport)
+{
+  (void) rhport;
+}
+
+//--------------------------------------------------------------------+
+// Endpoint API
+//--------------------------------------------------------------------+
+
+// Configure endpoint's registers according to descriptor
+bool dcd_edpt_open (uint8_t rhport, tusb_desc_endpoint_t const * ep_desc)
+{
+  (void) rhport;
+  (void) ep_desc;
+  return false;
+}
+
+void dcd_edpt_close_all (uint8_t rhport)
+{
+  (void) rhport;
+}
+
+// Submit a transfer, When complete dcd_event_xfer_complete() is invoked to notify the stack
+bool dcd_edpt_xfer (uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t total_bytes)
+{
+  uint8_t pio_rhport = RHPORT_PIO(rhport);
+  return pio_usb_device_endpoint_transfer(pio_rhport, ep_addr, buffer, total_bytes);
+}
+
+// Submit a transfer where is managed by FIFO, When complete dcd_event_xfer_complete() is invoked to notify the stack - optional, however, must be listed in usbd.c
+bool dcd_edpt_xfer_fifo (uint8_t rhport, uint8_t ep_addr, tu_fifo_t * ff, uint16_t total_bytes)
+{
+  (void) rhport;
+  (void) ep_addr;
+  (void) ff;
+  (void) total_bytes;
+  return false;
+}
+
+// Stall endpoint
+void dcd_edpt_stall (uint8_t rhport, uint8_t ep_addr)
+{
+  (void) rhport;
+  (void) ep_addr;
+}
+
+// clear stall, data toggle is also reset to DATA0
+void dcd_edpt_clear_stall (uint8_t rhport, uint8_t ep_addr)
+{
+  (void) rhport;
+  (void) ep_addr;
+}
+
+//--------------------------------------------------------------------+
+//
+//--------------------------------------------------------------------+
+extern void update_ep0_crc5_lut(uint8_t addr);
+
+static void __no_inline_not_in_flash_func(handle_endpoint_irq)(pio_hw_root_port_t* port, uint32_t flag)
+{
+  volatile uint32_t* ep_reg;
+  xfer_result_t result;
+
+  if ( flag == PIO_USB_INTS_ENDPOINT_COMPLETE_BITS )
+  {
+    ep_reg = &port->ep_complete;
+    result = XFER_RESULT_SUCCESS;
+  }
+  else if ( flag == PIO_USB_INTS_ENDPOINT_ERROR_BITS )
+  {
+    ep_reg = &port->ep_error;
+    result = XFER_RESULT_FAILED;
+  }
+  else if ( flag == PIO_USB_INTS_ENDPOINT_STALLED_BITS )
+  {
+    ep_reg = &port->ep_stalled;
+    result = XFER_RESULT_STALLED;
+  }
+  else
+  {
+    // something wrong
+    return;
+  }
+
+  const uint32_t ep_all = *ep_reg;
+
+  for(uint8_t ep_idx = 0; ep_idx < PIO_USB_EP_POOL_CNT; ep_idx++)
+  {
+    uint32_t const mask = (1u << ep_idx);
+
+    if (ep_all & mask)
+    {
+      pio_hw_endpoint_t* ep = PIO_USB_HW_EP(ep_idx);
+      uint8_t const tu_rhport = port - PIO_USB_HW_RPORT(0) + 1;
+
+      // address is changed, update crc5 lut
+      if (new_addr && ep->ep_num == 0x80 && ep->actual_len == 0)
+      {
+        update_ep0_crc5_lut(new_addr);
+        new_addr = 0;
+      }
+
+      dcd_event_xfer_complete(tu_rhport, ep->ep_num, ep->actual_len, result, true);
+    }
+  }
+
+  // clear all
+  (*ep_reg) &= ~ep_all;
+}
+
+// IRQ Handler
+void __no_inline_not_in_flash_func(pio_usb_device_irq_handler)(uint8_t root_id)
+{
+  uint8_t const tu_rhport = root_id + 1;
+  pio_hw_root_port_t* port = PIO_USB_HW_RPORT(root_id);
+  uint32_t const ints = port->ints;
+
+  if (ints & PIO_USB_INTS_RESET_END_BITS)
+  {
+    new_addr = 0;
+    dcd_event_bus_reset(tu_rhport, TUSB_SPEED_FULL, true);
+  }
+
+  if (ints & PIO_USB_INTS_SETUP_REQ_BITS)
+  {
+    dcd_event_setup_received(tu_rhport, port->setup_packet, true);
+  }
+
+  if ( ints & PIO_USB_INTS_ENDPOINT_COMPLETE_BITS )
+  {
+    handle_endpoint_irq(port, PIO_USB_INTS_ENDPOINT_COMPLETE_BITS);
+  }
+
+  // clear all
+  port->ints &= ~ints;
+}
+
+#endif

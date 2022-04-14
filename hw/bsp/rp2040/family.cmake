@@ -31,6 +31,7 @@ if (NOT TARGET _rp2040_family_inclusion_marker)
 			${TOP}/src/common/tusb_fifo.c
 			${TOP}/lib/Pico-PIO-USB/pio_usb.c
 			${TOP}/lib/Pico-PIO-USB/pio_usb_host.c
+			${TOP}/lib/Pico-PIO-USB/pio_usb_device.c
 			${TOP}/lib/Pico-PIO-USB/pio_usb_hw.c
 			${TOP}/lib/Pico-PIO-USB/usb_crc.c
 			)
@@ -69,8 +70,8 @@ if (NOT TARGET _rp2040_family_inclusion_marker)
 	add_library(tinyusb_device_base INTERFACE)
 	target_sources(tinyusb_device_base INTERFACE
 			${TOP}/src/portable/raspberrypi/rp2040/dcd_rp2040.c
-		  ${TOP}/src/portable/raspberrypi/pio_usb/dcd_pio_usb.c
 			${TOP}/src/portable/raspberrypi/rp2040/rp2040_usb.c
+		  ${TOP}/src/portable/raspberrypi/pio_usb/dcd_pio_usb.c
 			${TOP}/src/device/usbd.c
 			${TOP}/src/device/usbd_control.c
 			${TOP}/src/class/audio/audio_device.c
@@ -92,13 +93,13 @@ if (NOT TARGET _rp2040_family_inclusion_marker)
 	target_sources(tinyusb_host_base INTERFACE
 			${TOP}/src/portable/raspberrypi/rp2040/hcd_rp2040.c
 			${TOP}/src/portable/raspberrypi/rp2040/rp2040_usb.c
+		  ${TOP}/src/portable/raspberrypi/pio_usb/hcd_pio_usb.c
 			${TOP}/src/host/usbh.c
 			${TOP}/src/host/hub.c
 			${TOP}/src/class/cdc/cdc_host.c
 			${TOP}/src/class/hid/hid_host.c
 			${TOP}/src/class/msc/msc_host.c
 			${TOP}/src/class/vendor/vendor_host.c
-		  ${TOP}/src/portable/raspberrypi/pio_usb/hcd_pio_usb.c
 			)
 
 	# Sometimes have to do host specific actions in mostly common functions

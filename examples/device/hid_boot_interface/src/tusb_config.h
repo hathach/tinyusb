@@ -41,6 +41,9 @@
 
 // Use raspberry pio-usb for device
 #define CFG_TUD_RPI_PIO_USB            1
+#if CFG_TUD_RPI_PIO_USB
+#define BOARD_DEVICE_RHPORT_NUM 1
+#endif
 
 // RHPort number used for device can be defined by board.mk, default to port 0
 #ifndef BOARD_DEVICE_RHPORT_NUM
