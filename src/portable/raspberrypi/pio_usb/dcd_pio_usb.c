@@ -136,14 +136,17 @@ bool dcd_edpt_xfer (uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t 
 void dcd_edpt_stall (uint8_t rhport, uint8_t ep_addr)
 {
   (void) rhport;
-  (void) ep_addr;
+  pio_hw_endpoint_t *ep = pio_usb_device_get_ep(ep_addr);
+  ep->stalled = true;
 }
 
 // clear stall, data toggle is also reset to DATA0
 void dcd_edpt_clear_stall (uint8_t rhport, uint8_t ep_addr)
 {
   (void) rhport;
-  (void) ep_addr;
+  pio_hw_endpoint_t *ep = pio_usb_device_get_ep(ep_addr);
+  ep->data_id = 0;
+  ep->stalled = false;
 }
 
 //--------------------------------------------------------------------+
