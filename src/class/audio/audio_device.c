@@ -312,6 +312,8 @@ typedef struct
 
 #if CFG_TUD_AUDIO_ENABLE_FEEDBACK_DETERMINATION_OPTION == CFG_TUD_AUDIO_ENABLE_FEEDBACK_DETERMINATION_OPTION_SOF_BY_AUDIO_DRIVER
   volatile uint32_t fb_val;                                                               // Feedback value for asynchronous mode (in 16.16 format).
+  uint32_t fb_val_min;                                                                    // Maximum allowed feedback value according to UAC2 FMT-2.0 section 2.3.1.1.
+  uint32_t fb_val_max;                                                                    // Maximum allowed feedback value according to UAC2 FMT-2.0 section 2.3.1.1.
   uint8_t fb_n_frames;                                                                    // Number of (micro)frames used to estimate feedback value
   volatile uint8_t fb_n_frames_current;                                                   // Current (micro)frame number
   volatile uint32_t fb_n_cycles_old;                                                      // Old cycle count
@@ -2094,6 +2096,9 @@ TU_ATTR_WEAK bool tud_audio_set_fb_params(uint8_t func_id, uint32_t f_m, uint32_
   audio->fb_param_factor_D = (uint64_t)f_m * audio->fb_n_frames;
 #endif
 
+  audio->fb_val_min = ((TUSB_SPEED_FULL == tud_speed_get() ? (f_s/1000) : (f_s/8000)) - 1) << 16;   // Minimal value in 16.16 format for full speed (1ms per frame) or high speed (125 us per frame)
+  audio->fb_val_max = ((TUSB_SPEED_FULL == tud_speed_get() ? (f_s/1000) : (f_s/8000)) + 1) << 16;   // Maximum value in 16.16 format
+
   return true;
 
 }
@@ -2139,15 +2144,17 @@ TU_ATTR_WEAK void audiod_sof (uint8_t rhport, uint32_t frame_count)
         feedback = ((n_cylces - audio->fb_n_cycles_old) << 3) * audio->fb_param_factor_N / audio->fb_param_factor_D;          // feeback_param_factor_N has scaling factor of 13 bits, n_cycles 3 and feeback_param_factor_D 1, hence 16.16 precision
 #endif
 
-        // Buffer count checks ?
+        // For Windows: https://docs.microsoft.com/en-us/windows-hardware/drivers/audio/usb-2-0-audio-drivers
+        // The size of isochronous packets created by the device must be within the limits specified in FMT-2.0 section 2.3.1.1. This means that the deviation of actual packet size from nominal size must not exceed +/- one audio slot (audio slot = channel count samples).
 
-        // Magic checks - where are they from?
-        if (feedback > 2949166){        // 45.0007 in 16.16 format
-          feedback = 2949166;
+        if (feedback > audio->fb_val_max){
+          feedback = audio->fb_val_max;
         }
-        if ( feedback < 2883630) {      // 44.0007 in 16.16 format
-          feedback = 2883630;
+        if ( feedback < audio->fb_val_min) {
+          feedback = audio->fb_val_min;
         }
+
+        // Buffer count checks ?
 
         tud_audio_n_fb_set(i, feedback);
         audio->fb_n_frames_current = 0;
