@@ -139,16 +139,20 @@ static void hw_handle_buff_status(void)
     for (uint i = 1; i <= USB_HOST_INTERRUPT_ENDPOINTS && remaining_buffers; i++)
     {
         // EPX is bit 0
-        // IEP1 is bit 2
-        // IEP2 is bit 4
-        // IEP3 is bit 6
+        // IEP1 IN  is bit 2
+        // IEP1 OUT is bit 3
+        // IEP2 IN  is bit 4
+        // IEP2 OUT is bit 5
+        // IEP3 IN  is bit 6
+        // IEP3 OUT is bit 7
         // etc
-        bit = 1 << (i*2);
-
-        if (remaining_buffers & bit)
-        {
-            remaining_buffers &= ~bit;
-            _handle_buff_status_bit(bit, &ep_pool[i]);
+        for(int j = 0; j < 2; j++){
+            bit = 1 << (i*2+j);
+            if (remaining_buffers & bit)
+            {
+                remaining_buffers &= ~bit;
+                _handle_buff_status_bit(bit, &ep_pool[i]);
+            }
         }
     }
 
@@ -259,10 +263,10 @@ static struct hw_endpoint *_hw_endpoint_allocate(uint8_t transfer_type)
 {
     struct hw_endpoint *ep = NULL;
 
-    if (transfer_type == TUSB_XFER_INTERRUPT)
+    if (transfer_type != TUSB_XFER_CONTROL)
     {
         ep = _next_free_interrupt_ep();
-        pico_info("Allocate interrupt ep %d\n", ep->interrupt_num);
+        pico_info("Allocate %s ep %d\n", tu_edpt_type_str(transfer_type), ep->interrupt_num);
         assert(ep);
         ep->buffer_control = &usbh_dpram->int_ep_buffer_ctrl[ep->interrupt_num].ctrl;
         ep->endpoint_control = &usbh_dpram->int_ep_ctrl[ep->interrupt_num].ctrl;
@@ -320,8 +324,9 @@ static void _hw_endpoint_init(struct hw_endpoint *ep, uint8_t dev_addr, uint8_t 
     pico_trace("endpoint control (0x%p) <- 0x%x\n", ep->endpoint_control, ep_reg);
     ep->configured = true;
 
-    if (bmInterval)
+    if (ep != &epx)
     {
+        // Endpoint has its own addr_endp and interrupt bits to be setup!
         // This is an interrupt endpoint
         // so need to set up interrupt endpoint address control register with:
         // device address
@@ -492,6 +497,9 @@ bool hcd_edpt_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr, uint8_t * 
     // Get appropriate ep. Either EPX or interrupt endpoint
     struct hw_endpoint *ep = get_dev_ep(dev_addr, ep_addr);
     assert(ep);
+    // Should we maybe be able to check if endpt is busy/active instead?
+    if(ep->active)
+        return false;
 
     // Control endpoint can change direction 0x00 <-> 0x80
     if ( ep_addr != ep->ep_addr )
@@ -535,6 +543,7 @@ bool hcd_setup_send(uint8_t rhport, uint8_t dev_addr, uint8_t const setup_packet
 
     // Configure EP0 struct with setup info for the trans complete
     struct hw_endpoint *ep = _hw_endpoint_allocate(0);
+    assert(ep == &epx);
 
     // EP0 out
     _hw_endpoint_init(ep, dev_addr, 0x00, ep->wMaxPacketSize, 0, 0);
