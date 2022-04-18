@@ -51,7 +51,7 @@ static pio_usb_configuration_t pio_host_config = PIO_USB_DEFAULT_CONFIG;
 bool hcd_init(uint8_t rhport)
 {
   // To run USB SOF interrupt in core1, call this init in core1
-  pio_usb_host_controller_init(&pio_host_config);
+  pio_usb_host_init(&pio_host_config);
 
   return true;
 }
@@ -59,13 +59,13 @@ bool hcd_init(uint8_t rhport)
 void hcd_port_reset(uint8_t rhport)
 {
   rhport = RHPORT_PIO(rhport);
-  pio_usb_hw_port_reset_start(rhport);
+  pio_usb_host_port_reset_start(rhport);
 }
 
 void hcd_port_reset_end(uint8_t rhport)
 {
   rhport = RHPORT_PIO(rhport);
-  pio_usb_hw_port_reset_end(rhport);
+  pio_usb_host_port_reset_end(rhport);
 }
 
 bool hcd_port_connect_status(uint8_t rhport)

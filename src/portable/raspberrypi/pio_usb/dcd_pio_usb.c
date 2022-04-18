@@ -78,7 +78,7 @@ void dcd_set_address (uint8_t rhport, uint8_t dev_addr)
   // must be called before queuing status
   pio_usb_device_set_address(pio_rhport, dev_addr);
 
-  pio_usb_device_endpoint_transfer(pio_rhport, 0x80, NULL, 0);
+  dcd_edpt_xfer(rhport, 0x80, NULL, 0);
 }
 
 // Wake up host
@@ -118,8 +118,9 @@ void dcd_edpt_close_all (uint8_t rhport)
 // Submit a transfer, When complete dcd_event_xfer_complete() is invoked to notify the stack
 bool dcd_edpt_xfer (uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t total_bytes)
 {
-  uint8_t const pio_rhport = RHPORT_PIO(rhport);
-  return pio_usb_device_endpoint_transfer(pio_rhport, ep_addr, buffer, total_bytes);
+  (void) rhport;
+  pio_hw_endpoint_t *ep = pio_usb_device_get_ep(ep_addr);
+  return pio_usb_endpoint_transfer(ep, buffer, total_bytes);
 }
 
 // Submit a transfer where is managed by FIFO, When complete dcd_event_xfer_complete() is invoked to notify the stack - optional, however, must be listed in usbd.c
