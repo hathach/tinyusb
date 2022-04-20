@@ -134,6 +134,7 @@ void usb_device_task(void* param)
     tud_task();
 
     // following code only run if tud_task() process at least 1 event
+    tud_cdc_write_flush();
   }
 }
 
@@ -183,7 +184,7 @@ void cdc_task(void* params)
     // if ( tud_cdc_connected() )
     {
       // There are data available
-      if ( tud_cdc_available() )
+      while ( tud_cdc_available() )
       {
         uint8_t buf[64];
 
@@ -196,8 +197,9 @@ void cdc_task(void* params)
         // for throughput test e.g
         //    $ dd if=/dev/zero of=/dev/ttyACM0 count=10000
         tud_cdc_write(buf, count);
-        tud_cdc_write_flush();
       }
+
+      tud_cdc_write_flush();
     }
 
     // For ESP32-Sx this delay is essential to allow idle how to run and reset watchdog
