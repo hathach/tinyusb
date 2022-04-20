@@ -132,6 +132,8 @@ void usb_device_task(void* param)
   {
     // tinyusb device task
     tud_task();
+
+    tud_cdc_write_flush();
   }
 }
 
@@ -194,12 +196,8 @@ void cdc_task(void* params)
         // for throughput test e.g
         //    $ dd if=/dev/zero of=/dev/ttyACM0 count=10000
         tud_cdc_write(buf, count);
-        tud_cdc_write_flush();
       }
     }
-
-    // For ESP32-S2 this delay is essential to allow idle how to run and reset wdt
-    vTaskDelay(pdMS_TO_TICKS(10));
   }
 }
 

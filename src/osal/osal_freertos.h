@@ -37,6 +37,20 @@
 extern "C" {
 #endif
 
+TU_ATTR_ALWAYS_INLINE static inline uint32_t _osal_ms2tick(uint32_t msec)
+{
+  if (msec == OSAL_TIMEOUT_WAIT_FOREVER) return portMAX_DELAY;
+  if (msec == 0) return 0;
+
+  uint32_t ticks = pdMS_TO_TICKS(msec);
+
+  // configTICK_RATE_HZ is less than 1000 and 1 tick > 1 ms
+  // we still need to delay at least 1 tick
+  if (ticks == 0) ticks =1 ;
+
+  return ticks;
+}
+
 //--------------------------------------------------------------------+
 // TASK API
 //--------------------------------------------------------------------+
@@ -80,8 +94,7 @@ TU_ATTR_ALWAYS_INLINE static inline bool osal_semaphore_post(osal_semaphore_t se
 
 TU_ATTR_ALWAYS_INLINE static inline bool osal_semaphore_wait (osal_semaphore_t sem_hdl, uint32_t msec)
 {
-  uint32_t const ticks = (msec == OSAL_TIMEOUT_WAIT_FOREVER) ? portMAX_DELAY : pdMS_TO_TICKS(msec);
-  return xSemaphoreTake(sem_hdl, ticks);
+  return xSemaphoreTake(sem_hdl, _osal_ms2tick(msec));
 }
 
 TU_ATTR_ALWAYS_INLINE static inline void osal_semaphore_reset(osal_semaphore_t const sem_hdl)
@@ -137,8 +150,7 @@ TU_ATTR_ALWAYS_INLINE static inline osal_queue_t osal_queue_create(osal_queue_de
 
 TU_ATTR_ALWAYS_INLINE static inline bool osal_queue_receive(osal_queue_t qhdl, void* data, uint32_t msec)
 {
-  uint32_t const ticks = (msec == OSAL_TIMEOUT_WAIT_FOREVER) ? portMAX_DELAY : pdMS_TO_TICKS(msec);
-  return xQueueReceive(qhdl, data, ticks);
+  return xQueueReceive(qhdl, data, _osal_ms2tick(msec));
 }
 
 TU_ATTR_ALWAYS_INLINE static inline bool osal_queue_send(osal_queue_t qhdl, void const * data, bool in_isr)
