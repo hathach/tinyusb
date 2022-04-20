@@ -130,10 +130,10 @@ void usb_device_task(void* param)
   // RTOS forever loop
   while (1)
   {
-    // tinyusb device task
+    // put this thread to waiting state until there is new events
     tud_task();
 
-    tud_cdc_write_flush();
+    // following code only run if tud_task() process at least 1 event
   }
 }
 
@@ -196,6 +196,7 @@ void cdc_task(void* params)
         // for throughput test e.g
         //    $ dd if=/dev/zero of=/dev/ttyACM0 count=10000
         tud_cdc_write(buf, count);
+        tud_cdc_write_flush();
       }
     }
 

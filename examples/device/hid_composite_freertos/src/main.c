@@ -132,8 +132,10 @@ void usb_device_task(void* param)
   // RTOS forever loop
   while (1)
   {
-    // tinyusb device task
+    // put this thread to waiting state until there is new events
     tud_task();
+
+    // following code only run if tud_task() process at least 1 event
   }
 }
 

@@ -100,7 +100,7 @@ void tuh_task_ext(uint32_t timeout_ms, bool in_isr);
 TU_ATTR_ALWAYS_INLINE static inline
 void tuh_task(void)
 {
-  tuh_task_ext(OSAL_TIMEOUT_WAIT_FOREVER, false);
+  tuh_task_ext(UINT32_MAX, false);
 }
 
 // Interrupt handler, name alias to HCD

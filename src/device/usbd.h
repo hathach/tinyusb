@@ -52,7 +52,7 @@ void tud_task_ext(uint32_t timeout_ms, bool in_isr);
 TU_ATTR_ALWAYS_INLINE static inline
 void tud_task (void)
 {
-  tud_task_ext(OSAL_TIMEOUT_WAIT_FOREVER, false);
+  tud_task_ext(UINT32_MAX, false);
 }
 
 // Check if there is pending events need proccessing by tud_task()
