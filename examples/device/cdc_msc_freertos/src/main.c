@@ -198,6 +198,9 @@ void cdc_task(void* params)
         tud_cdc_write(buf, count);
       }
     }
+
+    // For ESP32-Sx this delay is essential to allow idle how to run and reset watchdog
+    vTaskDelay(1);
   }
 }
 
