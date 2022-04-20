@@ -475,8 +475,7 @@ void tud_task (void)
   while (1)
   {
     dcd_event_t event;
-
-    if ( !osal_queue_receive(_usbd_q, &event) ) return;
+    if ( !osal_queue_receive(_usbd_q, &event, 1) ) return;
 
 #if CFG_TUSB_DEBUG >= 2
     if (event.event_id == DCD_EVENT_SETUP_RECEIVED) TU_LOG2("\r\n"); // extra line for setup

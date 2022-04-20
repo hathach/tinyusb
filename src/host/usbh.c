@@ -401,7 +401,7 @@ void tuh_task(void)
   while (1)
   {
     hcd_event_t event;
-    if ( !osal_queue_receive(_usbh_q, &event) ) return;
+    if ( !osal_queue_receive(_usbh_q, &event, 1) ) return;
 
     switch (event.event_id)
     {
