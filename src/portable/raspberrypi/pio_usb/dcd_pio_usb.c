@@ -119,8 +119,8 @@ void dcd_edpt_close_all (uint8_t rhport)
 bool dcd_edpt_xfer (uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t total_bytes)
 {
   (void) rhport;
-  pio_hw_endpoint_t *ep = pio_usb_device_get_ep(ep_addr);
-  return pio_usb_endpoint_transfer(ep, buffer, total_bytes);
+  endpoint_t *ep = pio_usb_device_get_ep(ep_addr);
+  return pio_usb_ll_endpoint_transfer(ep, buffer, total_bytes);
 }
 
 // Submit a transfer where is managed by FIFO, When complete dcd_event_xfer_complete() is invoked to notify the stack - optional, however, must be listed in usbd.c
@@ -137,7 +137,7 @@ bool dcd_edpt_xfer (uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t 
 void dcd_edpt_stall (uint8_t rhport, uint8_t ep_addr)
 {
   (void) rhport;
-  pio_hw_endpoint_t *ep = pio_usb_device_get_ep(ep_addr);
+  endpoint_t *ep = pio_usb_device_get_ep(ep_addr);
   ep->stalled = true;
 }
 
@@ -145,7 +145,7 @@ void dcd_edpt_stall (uint8_t rhport, uint8_t ep_addr)
 void dcd_edpt_clear_stall (uint8_t rhport, uint8_t ep_addr)
 {
   (void) rhport;
-  pio_hw_endpoint_t *ep = pio_usb_device_get_ep(ep_addr);
+  endpoint_t *ep = pio_usb_device_get_ep(ep_addr);
   ep->data_id = 0;
   ep->stalled = false;
 }
@@ -188,7 +188,7 @@ static void __no_inline_not_in_flash_func(handle_endpoint_irq)(pio_hw_root_port_
 
     if (ep_all & mask)
     {
-      pio_hw_endpoint_t* ep = PIO_USB_HW_EP(ep_idx);
+      endpoint_t* ep = PIO_USB_HW_EP(ep_idx);
       uint8_t const tu_rhport = port - PIO_USB_HW_RPORT(0) + 1;
       dcd_event_xfer_complete(tu_rhport, ep->ep_num, ep->actual_len, result, true);
     }

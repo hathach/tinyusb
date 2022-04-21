@@ -32,7 +32,6 @@ if (NOT TARGET _rp2040_family_inclusion_marker)
 			${TOP}/lib/Pico-PIO-USB/pio_usb.c
 			${TOP}/lib/Pico-PIO-USB/pio_usb_host.c
 			${TOP}/lib/Pico-PIO-USB/pio_usb_device.c
-			${TOP}/lib/Pico-PIO-USB/pio_usb_hw.c
 			${TOP}/lib/Pico-PIO-USB/usb_crc.c
 			)
 

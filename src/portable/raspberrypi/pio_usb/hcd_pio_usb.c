@@ -73,7 +73,7 @@ bool hcd_port_connect_status(uint8_t rhport)
   rhport = RHPORT_PIO(rhport);
 
   pio_hw_root_port_t *root = PIO_USB_HW_RPORT(rhport);
-  port_pin_status_t line_state = pio_hw_get_line_state(root);
+  port_pin_status_t line_state = pio_usb_ll_get_line_state(root);
 
   return line_state != PORT_PIN_SE0;
 }
@@ -187,7 +187,7 @@ static void __no_inline_not_in_flash_func(handle_endpoint_irq)(pio_hw_root_port_
 
     if (ep_all & mask)
     {
-      pio_hw_endpoint_t* ep = PIO_USB_HW_EP(ep_idx);
+      endpoint_t* ep = PIO_USB_HW_EP(ep_idx);
       hcd_event_xfer_complete(ep->dev_addr, ep->ep_num, ep->actual_len, result, true);
     }
   }
