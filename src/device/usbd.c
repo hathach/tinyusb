@@ -466,8 +466,10 @@ bool tud_task_event_ready(void)
     }
     @endcode
  */
-void tud_task (void)
+void tud_task_ext(uint32_t timeout_ms, bool in_isr)
 {
+  (void) in_isr; // not implemented yet
+
   // Skip if stack is not initialized
   if ( !tusb_inited() ) return;
 
@@ -475,8 +477,7 @@ void tud_task (void)
   while (1)
   {
     dcd_event_t event;
-
-    if ( !osal_queue_receive(_usbd_q, &event) ) return;
+    if ( !osal_queue_receive(_usbd_q, &event, timeout_ms) ) return;
 
 #if CFG_TUSB_DEBUG >= 2
     if (event.event_id == DCD_EVENT_SETUP_RECEIVED) TU_LOG2("\r\n"); // extra line for setup
@@ -593,6 +594,11 @@ void tud_task (void)
         TU_BREAKPOINT();
       break;
     }
+
+#if CFG_TUSB_OS != OPT_OS_NONE && CFG_TUSB_OS != OPT_OS_PICO
+    // return if there is no more events, for application to run other background
+    if (osal_queue_empty(_usbd_q)) return;
+#endif
   }
 }
 
