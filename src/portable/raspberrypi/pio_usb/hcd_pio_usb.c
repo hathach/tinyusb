@@ -31,6 +31,7 @@
 #include "pico.h"
 #include "hardware/pio.h"
 #include "pio_usb.h"
+#include "pio_usb_ll.h"
 
 //--------------------------------------------------------------------+
 // INCLUDE
@@ -72,8 +73,8 @@ bool hcd_port_connect_status(uint8_t rhport)
 {
   rhport = RHPORT_PIO(rhport);
 
-  pio_hw_root_port_t *root = PIO_USB_HW_RPORT(rhport);
-  port_pin_status_t line_state = pio_usb_ll_get_line_state(root);
+  root_port_t *root = PIO_USB_ROOT_PORT(rhport);
+  port_pin_status_t line_state = pio_usb_bus_get_line_state(root);
 
   return line_state != PORT_PIN_SE0;
 }
@@ -82,7 +83,7 @@ tusb_speed_t hcd_port_speed_get(uint8_t rhport)
 {
   // TODO determine link speed
   rhport = RHPORT_PIO(rhport);
-  return PIO_USB_HW_RPORT(rhport)->is_fullspeed ? TUSB_SPEED_FULL : TUSB_SPEED_LOW;
+  return PIO_USB_ROOT_PORT(rhport)->is_fullspeed ? TUSB_SPEED_FULL : TUSB_SPEED_LOW;
 }
 
 // Close all opened endpoint belong to this device
@@ -153,7 +154,7 @@ bool hcd_edpt_clear_stall(uint8_t dev_addr, uint8_t ep_addr)
   return true;
 }
 
-static void __no_inline_not_in_flash_func(handle_endpoint_irq)(pio_hw_root_port_t* port, uint32_t flag)
+static void __no_inline_not_in_flash_func(handle_endpoint_irq)(root_port_t* port, uint32_t flag)
 {
   volatile uint32_t* ep_reg;
   xfer_result_t result;
@@ -187,7 +188,7 @@ static void __no_inline_not_in_flash_func(handle_endpoint_irq)(pio_hw_root_port_
 
     if (ep_all & mask)
     {
-      endpoint_t* ep = PIO_USB_HW_EP(ep_idx);
+      endpoint_t* ep = PIO_USB_ENDPOINT(ep_idx);
       hcd_event_xfer_complete(ep->dev_addr, ep->ep_num, ep->actual_len, result, true);
     }
   }
@@ -199,7 +200,7 @@ static void __no_inline_not_in_flash_func(handle_endpoint_irq)(pio_hw_root_port_
 // IRQ Handler
 void __no_inline_not_in_flash_func(pio_usb_host_irq_handler)(uint8_t root_id)
 {
-  pio_hw_root_port_t* port = PIO_USB_HW_RPORT(root_id);
+  root_port_t* port = PIO_USB_ROOT_PORT(root_id);
   uint32_t const ints = port->ints;
 
   if ( ints & PIO_USB_INTS_CONNECT_BITS )
