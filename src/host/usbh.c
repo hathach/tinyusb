@@ -392,8 +392,10 @@ bool tuh_init(uint8_t rhport)
     }
     @endcode
  */
-void tuh_task(void)
+void tuh_task_ext(uint32_t timeout_ms, bool in_isr)
 {
+  (void) in_isr; // not implemented yet
+
   // Skip if stack is not initialized
   if ( !tusb_inited() ) return;
 
@@ -401,7 +403,7 @@ void tuh_task(void)
   while (1)
   {
     hcd_event_t event;
-    if ( !osal_queue_receive(_usbh_q, &event) ) return;
+    if ( !osal_queue_receive(_usbh_q, &event, timeout_ms) ) return;
 
     switch (event.event_id)
     {
@@ -497,6 +499,11 @@ void tuh_task(void)
 
       default: break;
     }
+
+#if CFG_TUSB_OS != OPT_OS_NONE && CFG_TUSB_OS != OPT_OS_PICO
+    // return if there is no more events, for application to run other background
+    if (osal_queue_empty(_usbh_q)) return;
+#endif
   }
 }
 
