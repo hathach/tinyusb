@@ -80,6 +80,7 @@
 #define OPT_MCU_STM32L4           309 ///< ST L4
 #define OPT_MCU_STM32G0           310 ///< ST G0
 #define OPT_MCU_STM32G4           311 ///< ST G4
+#define OPT_MCU_STM32WB           312 ///< ST WB
 
 // Sony
 #define OPT_MCU_CXD56             400 ///< SONY CXD56
@@ -207,18 +208,23 @@
 //------------- Roothub as Device -------------//
 
 #if (CFG_TUSB_RHPORT0_MODE) & OPT_MODE_DEVICE
-  #define TUD_RHPORT_MODE  (CFG_TUSB_RHPORT0_MODE)
-  #define TUD_OPT_RHPORT   0
+  #define TUD_RHPORT_MODE     (CFG_TUSB_RHPORT0_MODE)
+  #define TUD_OPT_RHPORT      0
 #elif (CFG_TUSB_RHPORT1_MODE) & OPT_MODE_DEVICE
-  #define TUD_RHPORT_MODE  (CFG_TUSB_RHPORT1_MODE)
-  #define TUD_OPT_RHPORT   1
+  #define TUD_RHPORT_MODE     (CFG_TUSB_RHPORT1_MODE)
+  #define TUD_OPT_RHPORT      1
 #else
-  #define TUD_RHPORT_MODE   OPT_MODE_NONE
-  #define TUD_OPT_RHPORT   -1
+  #define TUD_RHPORT_MODE     OPT_MODE_NONE
+  #define TUD_OPT_RHPORT      -1
 #endif
 
-#define CFG_TUD_ENABLED     ( TUD_RHPORT_MODE & OPT_MODE_DEVICE )
-#define TUD_OPT_HIGH_SPEED  ( (TUD_RHPORT_MODE & OPT_MODE_SPEED_MASK) ? (TUD_RHPORT_MODE & OPT_MODE_HIGH_SPEED) : (TUP_RHPORT_HIGHSPEED & (1 << TUD_OPT_RHPORT)) )
+#define CFG_TUD_ENABLED       (TUD_RHPORT_MODE & OPT_MODE_DEVICE)
+
+#if CFG_TUD_ENABLED
+  #define TUD_OPT_HIGH_SPEED  ((TUD_RHPORT_MODE & OPT_MODE_SPEED_MASK) ? (TUD_RHPORT_MODE & OPT_MODE_HIGH_SPEED) : (TUP_RHPORT_HIGHSPEED & (1 << TUD_OPT_RHPORT)))
+#else
+  #define TUD_OPT_HIGH_SPEED  0
+#endif
 
 //------------- Roothub as Host -------------//
 
@@ -278,6 +284,9 @@
 #ifndef CFG_TUSB_OS_INC_PATH
   #define CFG_TUSB_OS_INC_PATH
 #endif
+
+// mutex is only needed for RTOS TODO also required with multiple core MCUs
+#define TUSB_OPT_MUTEX      (CFG_TUSB_OS != OPT_OS_NONE)
 
 //--------------------------------------------------------------------
 // DEVICE OPTIONS
@@ -381,6 +390,10 @@
 
 #ifndef CFG_TUH_VENDOR
 #define CFG_TUH_VENDOR 0
+#endif
+
+#ifndef CFG_TUH_API_EDPT_XFER
+#define CFG_TUH_API_EDPT_XFER 0
 #endif
 
 //------------------------------------------------------------------
