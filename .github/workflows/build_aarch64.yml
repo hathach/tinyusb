@@ -24,13 +24,13 @@ jobs:
       uses: actions/setup-python@v2
 
     - name: Checkout TinyUSB
-      uses: actions/checkout@v2
+      uses: actions/checkout@v3
 
     - name: Checkout common submodules in lib
       run: git submodule update --init lib/FreeRTOS-Kernel lib/lwip lib/sct_neopixel
 
     - name: Checkout hathach/linkermap
-      uses: actions/checkout@v2
+      uses: actions/checkout@v3
       with:
          repository: hathach/linkermap
          path: linkermap
