@@ -74,11 +74,8 @@ void dcd_int_disable (uint8_t rhport)
 // Receive Set Address request, mcu port must also include status IN response
 void dcd_set_address (uint8_t rhport, uint8_t dev_addr)
 {
-  uint8_t const pio_rhport = RHPORT_PIO(rhport);
-
   // must be called before queuing status
-  pio_usb_device_set_address(pio_rhport, dev_addr);
-
+  pio_usb_device_set_address(dev_addr);
   dcd_edpt_xfer(rhport, 0x80, NULL, 0);
 }
 
@@ -107,8 +104,8 @@ void dcd_disconnect(uint8_t rhport)
 // Configure endpoint's registers according to descriptor
 bool dcd_edpt_open (uint8_t rhport, tusb_desc_endpoint_t const * desc_ep)
 {
-  uint8_t const pio_rhport = RHPORT_PIO(rhport);
-  return pio_usb_device_endpoint_open(pio_rhport, (uint8_t const*) desc_ep);
+  (void) rhport;
+  return pio_usb_device_endpoint_open((uint8_t const*) desc_ep);
 }
 
 void dcd_edpt_close_all (uint8_t rhport)
@@ -121,7 +118,7 @@ bool dcd_edpt_xfer (uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t 
 {
   (void) rhport;
   endpoint_t *ep = pio_usb_device_get_endpoint_by_address(ep_addr);
-  return pio_usb_ll_endpoint_transfer(ep, buffer, total_bytes);
+  return pio_usb_ll_transfer_start(ep, buffer, total_bytes);
 }
 
 // Submit a transfer where is managed by FIFO, When complete dcd_event_xfer_complete() is invoked to notify the stack - optional, however, must be listed in usbd.c
