@@ -157,32 +157,8 @@ bool hcd_edpt_clear_stall(uint8_t dev_addr, uint8_t ep_addr)
   return true;
 }
 
-static void __no_inline_not_in_flash_func(handle_endpoint_irq)(root_port_t* port, uint32_t flag)
+static void __no_inline_not_in_flash_func(handle_endpoint_irq)(root_port_t* port, xfer_result_t result, volatile uint32_t* ep_reg)
 {
-  volatile uint32_t* ep_reg;
-  xfer_result_t result;
-
-  if ( flag == PIO_USB_INTS_ENDPOINT_COMPLETE_BITS )
-  {
-    ep_reg = &port->ep_complete;
-    result = XFER_RESULT_SUCCESS;
-  }
-  else if ( flag == PIO_USB_INTS_ENDPOINT_ERROR_BITS )
-  {
-    ep_reg = &port->ep_error;
-    result = XFER_RESULT_FAILED;
-  }
-  else if ( flag == PIO_USB_INTS_ENDPOINT_STALLED_BITS )
-  {
-    ep_reg = &port->ep_stalled;
-    result = XFER_RESULT_STALLED;
-  }
-  else
-  {
-    // something wrong
-    return;
-  }
-
   const uint32_t ep_all = *ep_reg;
 
   for(uint8_t ep_idx = 0; ep_idx < PIO_USB_EP_POOL_CNT; ep_idx++)
@@ -204,8 +180,8 @@ static void __no_inline_not_in_flash_func(handle_endpoint_irq)(root_port_t* port
 void __no_inline_not_in_flash_func(pio_usb_host_irq_handler)(uint8_t root_id)
 {
   uint8_t const tu_rhport = root_id + 1;
-  root_port_t* port = PIO_USB_ROOT_PORT(root_id);
-  uint32_t const ints = port->ints;
+  root_port_t* rport = PIO_USB_ROOT_PORT(root_id);
+  uint32_t const ints = rport->ints;
 
   if ( ints & PIO_USB_INTS_CONNECT_BITS )
   {
@@ -219,21 +195,21 @@ void __no_inline_not_in_flash_func(pio_usb_host_irq_handler)(uint8_t root_id)
 
   if ( ints & PIO_USB_INTS_ENDPOINT_COMPLETE_BITS )
   {
-    handle_endpoint_irq(port, PIO_USB_INTS_ENDPOINT_COMPLETE_BITS);
-  }
-
-  if ( ints & PIO_USB_INTS_ENDPOINT_ERROR_BITS )
-  {
-    handle_endpoint_irq(port, PIO_USB_INTS_ENDPOINT_ERROR_BITS);
+    handle_endpoint_irq(rport, XFER_RESULT_SUCCESS, &rport->ep_complete);
   }
 
   if ( ints & PIO_USB_INTS_ENDPOINT_STALLED_BITS )
   {
-    handle_endpoint_irq(port, PIO_USB_INTS_ENDPOINT_STALLED_BITS);
+    handle_endpoint_irq(rport, XFER_RESULT_STALLED, &rport->ep_stalled);
+  }
+
+  if ( ints & PIO_USB_INTS_ENDPOINT_ERROR_BITS )
+  {
+    handle_endpoint_irq(rport, XFER_RESULT_FAILED, &rport->ep_error);
   }
 
   // clear all
-  port->ints &= ~ints;
+  rport->ints &= ~ints;
 }
 
 #endif
