@@ -157,8 +157,9 @@ bool hcd_edpt_clear_stall(uint8_t dev_addr, uint8_t ep_addr)
   return true;
 }
 
-static void __no_inline_not_in_flash_func(handle_endpoint_irq)(root_port_t* port, xfer_result_t result, volatile uint32_t* ep_reg)
+static void __no_inline_not_in_flash_func(handle_endpoint_irq)(root_port_t* rport, xfer_result_t result, volatile uint32_t* ep_reg)
 {
+  (void) rport;
   const uint32_t ep_all = *ep_reg;
 
   for(uint8_t ep_idx = 0; ep_idx < PIO_USB_EP_POOL_CNT; ep_idx++)

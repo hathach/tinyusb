@@ -152,7 +152,7 @@ void dcd_edpt_clear_stall (uint8_t rhport, uint8_t ep_addr)
 //
 //--------------------------------------------------------------------+
 
-static void __no_inline_not_in_flash_func(handle_endpoint_irq)(root_port_t* rport, xfer_result_t result, volatile uint32_t* ep_reg)
+static void __no_inline_not_in_flash_func(handle_endpoint_irq)(uint8_t tu_rhport, xfer_result_t result, volatile uint32_t* ep_reg)
 {
   const uint32_t ep_all = *ep_reg;
 
@@ -163,7 +163,6 @@ static void __no_inline_not_in_flash_func(handle_endpoint_irq)(root_port_t* rpor
     if (ep_all & mask)
     {
       endpoint_t* ep = PIO_USB_ENDPOINT(ep_idx);
-      uint8_t const tu_rhport = rport - PIO_USB_ROOT_PORT(0) + 1;
       dcd_event_xfer_complete(tu_rhport, ep->ep_num, ep->actual_len, result, true);
     }
   }
@@ -191,17 +190,17 @@ void __no_inline_not_in_flash_func(pio_usb_device_irq_handler)(uint8_t root_id)
 
   if ( ints & PIO_USB_INTS_ENDPOINT_COMPLETE_BITS )
   {
-    handle_endpoint_irq(rport, XFER_RESULT_SUCCESS, &rport->ep_complete);
+    handle_endpoint_irq(tu_rhport, XFER_RESULT_SUCCESS, &rport->ep_complete);
   }
 
   if ( ints & PIO_USB_INTS_ENDPOINT_STALLED_BITS )
   {
-    handle_endpoint_irq(rport, XFER_RESULT_STALLED, &rport->ep_stalled);
+    handle_endpoint_irq(tu_rhport, XFER_RESULT_STALLED, &rport->ep_stalled);
   }
 
   if ( ints & PIO_USB_INTS_ENDPOINT_ERROR_BITS )
   {
-    handle_endpoint_irq(rport, XFER_RESULT_FAILED, &rport->ep_error);
+    handle_endpoint_irq(tu_rhport, XFER_RESULT_FAILED, &rport->ep_error);
   }
 
   // clear all
