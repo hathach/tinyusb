@@ -29,7 +29,6 @@
 #if CFG_TUH_ENABLED && (CFG_TUSB_MCU == OPT_MCU_RP2040) && CFG_TUH_RPI_PIO_USB
 
 #include "pico.h"
-#include "hardware/pio.h"
 #include "pio_usb.h"
 #include "pio_usb_ll.h"
 

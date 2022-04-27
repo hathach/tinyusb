@@ -410,7 +410,7 @@ void tuh_task_ext(uint32_t timeout_ms, bool in_isr)
       case HCD_EVENT_DEVICE_ATTACH:
         // TODO due to the shared _usbh_ctrl_buf, we must complete enumerating
         // one device before enumerating another one.
-        TU_LOG2("[rh%d] USBH DEVICE ATTACH\r\n", event.rhport);
+        TU_LOG2("[%u:] USBH DEVICE ATTACH\r\n", event.rhport);
         enum_new_device(&event);
       break;
 
@@ -799,7 +799,7 @@ bool usbh_edpt_xfer_with_callback(uint8_t dev_addr, uint8_t ep_addr, uint8_t * b
 
 static bool usbh_edpt_control_open(uint8_t dev_addr, uint8_t max_packet_size)
 {
-  TU_LOG2("[%u] Open EP0 with Size = %u\r\n", dev_addr, max_packet_size);
+  TU_LOG2("[%u:%u] Open EP0 with Size = %u\r\n", usbh_get_rhport(dev_addr), dev_addr, max_packet_size);
 
   tusb_desc_endpoint_t ep0_desc =
   {
@@ -1279,7 +1279,7 @@ static void process_enumeration(tuh_xfer_t* xfer)
       if (_dev0.hub_addr == 0)
       {
         // connected directly to roothub
-#if !CFG_TUH_RPI_PIO_USB // skip this reset for pio-usb
+#if !CFG_TUH_RPI_PIO_USB // FIXME skip this reset for pio-usb
         hcd_port_reset( _dev0.rhport );
         osal_task_delay(RESET_DELAY);
         hcd_port_reset_end(_dev0.rhport);

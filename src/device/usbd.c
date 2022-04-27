@@ -265,7 +265,7 @@ static inline usbd_class_driver_t const * get_driver(uint8_t drvid)
 //--------------------------------------------------------------------+
 
 enum { RHPORT_INVALID = 0xFFu };
-static volatile uint8_t _usbd_rhport = RHPORT_INVALID;
+static uint8_t _usbd_rhport = RHPORT_INVALID;
 
 // Event queue
 // usbd_int_set() is used as mutex in OS NONE config
