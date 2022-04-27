@@ -31,8 +31,6 @@
 #include "tusb.h"
 #include "usb_descriptors.h"
 
-#include "pio_usb.h"
-
 //--------------------------------------------------------------------+
 // MACRO CONSTANT TYPEDEF PROTYPES
 //--------------------------------------------------------------------+

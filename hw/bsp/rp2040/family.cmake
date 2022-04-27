@@ -47,7 +47,7 @@ if (NOT TARGET _rp2040_family_inclusion_marker)
 			hardware_irq
 			hardware_resets
 			pico_sync
-	    # for usb-pio
+      # for usb-pio
 	    hardware_dma
 	    hardware_pio
 	    pico_multicore
