@@ -855,7 +855,7 @@ void hcd_devtree_get_info(uint8_t dev_addr, hcd_devtree_info_t* devtree_info)
   }
 }
 
-void hcd_event_handler(hcd_event_t const* event, bool in_isr)
+TU_ATTR_FAST_FUNC void hcd_event_handler(hcd_event_t const* event, bool in_isr)
 {
   switch (event->event_id)
   {
@@ -863,52 +863,6 @@ void hcd_event_handler(hcd_event_t const* event, bool in_isr)
       osal_queue_send(_usbh_q, event, in_isr);
     break;
   }
-}
-
-void hcd_event_xfer_complete(uint8_t dev_addr, uint8_t ep_addr, uint32_t xferred_bytes, xfer_result_t result, bool in_isr)
-{
-  hcd_event_t event =
-  {
-    .rhport   = 0, // TODO correct rhport
-    .event_id = HCD_EVENT_XFER_COMPLETE,
-    .dev_addr = dev_addr,
-    .xfer_complete =
-    {
-      .ep_addr = ep_addr,
-      .result  = result,
-      .len     = xferred_bytes
-    }
-  };
-
-  hcd_event_handler(&event, in_isr);
-}
-
-void hcd_event_device_attach(uint8_t rhport, bool in_isr)
-{
-  hcd_event_t event =
-  {
-    .rhport   = rhport,
-    .event_id = HCD_EVENT_DEVICE_ATTACH
-  };
-
-  event.connection.hub_addr = 0;
-  event.connection.hub_port = 0;
-
-  hcd_event_handler(&event, in_isr);
-}
-
-void hcd_event_device_remove(uint8_t hostid, bool in_isr)
-{
-  hcd_event_t event =
-  {
-    .rhport   = hostid,
-    .event_id = HCD_EVENT_DEVICE_REMOVE
-  };
-
-  event.connection.hub_addr = 0;
-  event.connection.hub_port = 0;
-
-  hcd_event_handler(&event, in_isr);
 }
 
 //--------------------------------------------------------------------+
