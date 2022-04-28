@@ -1139,7 +1139,7 @@ enum {
   //ENUM_HUB_GET_STATUS_1,
   ENUM_HUB_CLEAR_RESET_1,
   ENUM_ADDR0_DEVICE_DESC,
-  ENUM_RESET_2,         // 2nd reset before set address
+  ENUM_RESET_2,         // 2nd reset before set address (not used)
   ENUM_HUB_GET_STATUS_2,
   ENUM_HUB_CLEAR_RESET_2,
   ENUM_SET_ADDR,
@@ -1227,17 +1227,17 @@ static void process_enumeration(tuh_xfer_t* xfer)
     }
     break;
 
+#if 0
     case ENUM_RESET_2:
+      // XXX note used by now, but may be needed for some devices !?
       // Reset device again before Set Address
-      TU_LOG2("Port reset \r\n");
+      TU_LOG2("Port reset2 \r\n");
       if (_dev0.hub_addr == 0)
       {
         // connected directly to roothub
-#if !CFG_TUH_RPI_PIO_USB // FIXME skip this reset for pio-usb
         hcd_port_reset( _dev0.rhport );
         osal_task_delay(RESET_DELAY);
         hcd_port_reset_end(_dev0.rhport);
-#endif
         // TODO: fall through to SET ADDRESS, refactor later
       }
       #if CFG_TUH_HUB
@@ -1249,6 +1249,7 @@ static void process_enumeration(tuh_xfer_t* xfer)
       }
       #endif
       __attribute__((fallthrough));
+#endif
 
     case ENUM_SET_ADDR:
       enum_request_set_addr();

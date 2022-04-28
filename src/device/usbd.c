@@ -1071,8 +1071,7 @@ static bool process_get_descriptor(uint8_t rhport, tusb_control_request_t const 
 //--------------------------------------------------------------------+
 // DCD Event Handler
 //--------------------------------------------------------------------+
-TU_ATTR_FAST_FUNC
-void dcd_event_handler(dcd_event_t const * event, bool in_isr)
+TU_ATTR_FAST_FUNC void dcd_event_handler(dcd_event_t const * event, bool in_isr)
 {
   switch (event->event_id)
   {

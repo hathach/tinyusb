@@ -135,6 +135,7 @@ void dcd_edpt_stall (uint8_t rhport, uint8_t ep_addr)
 {
   (void) rhport;
   endpoint_t *ep = pio_usb_device_get_endpoint_by_address(ep_addr);
+  ep->has_transfer = false;
   ep->stalled = true;
 }
 
