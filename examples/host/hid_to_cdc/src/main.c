@@ -237,8 +237,6 @@ static void process_kbd_report(hid_keyboard_report_t const *report)
 // send mouse report to usb device CDC
 static void process_mouse_report(hid_mouse_report_t const * report)
 {
-  static hid_mouse_report_t prev_report = { 0 };
-
   char tempbuf[32];
   int count;
 
