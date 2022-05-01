@@ -564,6 +564,7 @@ static void epn_handle_rx_int(uint8_t epnum)
     TU_ASSERT(xfer->transferred <= xfer->total_len,);
     if (transferred < xfer->max_packet_size || xfer->transferred == xfer->total_len)
     {
+      USB_REGS->INTRRXEbits.w &= ~(1u << epnum);
       xfer_complete(xfer, XFER_RESULT_SUCCESS, true);
     }
   }
@@ -692,7 +693,7 @@ void dcd_int_handler(uint8_t rhport)
   int i;
   uint8_t mask;
   __USBCSR2bits_t csr2_bits;
-  uint16_t rxints = USB_REGS->INTRRX;
+  uint16_t rxints = USB_REGS->INTRRX & USB_REGS->INTRRXEbits.w;
   uint16_t txints = USB_REGS->INTRTX;
   csr2_bits = USBCSR2bits;
   (void) rhport;
