@@ -91,6 +91,7 @@ static uint16_t ep0_pending[2];                   // Index determines direction 
 
 // TX FIFO RAM allocation so far in words - RX FIFO size is readily available from dwc2->grxfsiz
 static uint16_t _allocated_fifo_words_tx;         // TX FIFO size in words (IN EPs)
+static uint16_t _still_allocated_in_eps;
 static bool     _out_ep_closed;                   // Flag to check if RX FIFO size needs an update (reduce its size)
 
 // Calculate the RX FIFO size according to recommendations from reference manual
@@ -654,16 +655,23 @@ bool dcd_edpt_open (uint8_t rhport, tusb_desc_endpoint_t const * desc_edpt)
     // In FIFO is allocated by following rules:
     // - IN EP 1 gets FIFO 1, IN EP "n" gets FIFO "n".
 
-    // Check if free space is available
-    TU_ASSERT(_allocated_fifo_words_tx + fifo_size + dwc2->grxfsiz <= DWC2_EP_FIFO_SIZE/4);
 
-    _allocated_fifo_words_tx += fifo_size;
+    if (_still_allocated_in_eps & (1 << epnum)) {
+    	// if this fifo is already allocated, we need to have the same size.
+    	TU_ASSERT(fifo_size == dwc2->dieptxf[epnum - 1] >> DIEPTXF_INEPTXFD_Pos );
+    	_still_allocated_in_eps &= ~(1 << epnum);
+    } else {
+		// Check if free space is available
+		TU_ASSERT(_allocated_fifo_words_tx + fifo_size + dwc2->grxfsiz <= DWC2_EP_FIFO_SIZE/4);
 
-    TU_LOG(DWC2_DEBUG, "    Allocated %u bytes at offset %u", fifo_size*4, DWC2_EP_FIFO_SIZE-_allocated_fifo_words_tx*4);
+		_allocated_fifo_words_tx += fifo_size;
 
-    // DIEPTXF starts at FIFO #1.
-    // Both TXFD and TXSA are in unit of 32-bit words.
-    dwc2->dieptxf[epnum - 1] = (fifo_size << DIEPTXF_INEPTXFD_Pos) | (DWC2_EP_FIFO_SIZE/4 - _allocated_fifo_words_tx);
+		TU_LOG(DWC2_DEBUG, "    Allocated %u bytes at offset %u", fifo_size*4, DWC2_EP_FIFO_SIZE-_allocated_fifo_words_tx*4);
+
+		// DIEPTXF starts at FIFO #1.
+		// Both TXFD and TXSA are in unit of 32-bit words.
+		dwc2->dieptxf[epnum - 1] = (fifo_size << DIEPTXF_INEPTXFD_Pos) | (DWC2_EP_FIFO_SIZE/4 - _allocated_fifo_words_tx);
+    }
 
     dwc2->epin[epnum].diepctl |= (1 << DIEPCTL_USBAEP_Pos) |
                                  (epnum << DIEPCTL_TXFNUM_Pos) |
@@ -850,8 +858,13 @@ void dcd_edpt_close (uint8_t rhport, uint8_t ep_addr)
     uint16_t const fifo_size = (dwc2->dieptxf[epnum - 1] & DIEPTXF_INEPTXFD_Msk) >> DIEPTXF_INEPTXFD_Pos;
     uint16_t const fifo_start = (dwc2->dieptxf[epnum - 1] & DIEPTXF_INEPTXSA_Msk) >> DIEPTXF_INEPTXSA_Pos;
     // For now only the last opened endpoint can be closed without fuss.
-    TU_ASSERT(fifo_start == DWC2_EP_FIFO_SIZE/4 - _allocated_fifo_words_tx,);
-    _allocated_fifo_words_tx -= fifo_size;
+    //TU_ASSERT(fifo_start == DWC2_EP_FIFO_SIZE/4 - _allocated_fifo_words_tx,);
+
+    if(fifo_start != DWC2_EP_FIFO_SIZE/4 - _allocated_fifo_words_tx) {
+    	_still_allocated_in_eps |= (1<<epnum); // this fifo is not freed and can be re-used if endpoint is re-opened with the same size
+    } else {
+    	_allocated_fifo_words_tx -= fifo_size;
+    }
   }
   else
   {
