@@ -57,6 +57,27 @@ void board_init(void)
 #endif
 #endif
 
+#ifdef TEENSY_SPECIAL_PINMUX
+  // TEENSY jtag pins must be configured in this manner
+  // so that communication works with the bootlaoder chip
+  // (the MKL02Z32VFG4, U2).  by configuring these pins
+  // to JTAG mode, it allows a software reboot to works properly
+  //
+  // With the pins configured thusly, you can reboot to the
+  // application or to the teensy bootloader.
+  //
+  // See the reboot_to_bootloader() and reboot_to_application()
+  // functions below.
+  IOMUXC_SetPinMux(IOMUXC_GPIO_AD_B0_04_SRC_BOOT_MODE00, 0U);
+  IOMUXC_SetPinMux(IOMUXC_GPIO_AD_B0_06_JTAG_TMS, 0U);
+  IOMUXC_SetPinMux(IOMUXC_GPIO_AD_B0_07_JTAG_TCK, 0U);
+  IOMUXC_SetPinMux(IOMUXC_GPIO_AD_B0_08_JTAG_MOD, 0U);
+  IOMUXC_SetPinMux(IOMUXC_GPIO_AD_B0_09_JTAG_TDI, 0U);
+  IOMUXC_SetPinMux(IOMUXC_GPIO_AD_B0_10_JTAG_TDO, 0U);
+  IOMUXC_SetPinMux(IOMUXC_GPIO_EMC_01_GPIO4_IO01, 0U);
+  IOMUXC_SetPinMux(IOMUXC_GPIO_B0_13_GPIO2_IO13 , 0U);
+#endif
+
   // LED
   IOMUXC_SetPinMux( LED_PINMUX, 0U);
   IOMUXC_SetPinConfig( LED_PINMUX, 0x10B0U);
@@ -167,6 +188,19 @@ void USB_OTG2_IRQHandler(void)
   #if CFG_TUSB_RHPORT1_MODE & OPT_MODE_DEVICE
     tud_int_handler(1);
   #endif
+}
+
+void reboot_to_application(void)
+{
+    // This is the standard system reset.
+    NVIC_SystemReset();
+}
+
+void reboot_to_bootloader(void)
+{
+    // This was taken from the teensy 4.1 source code.
+    // this allows the bootloader chip to take over.
+    asm volatile ("bkpt #251");
 }
 
 //--------------------------------------------------------------------+

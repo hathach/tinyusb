@@ -32,6 +32,19 @@
 // required since iMX RT10xx SDK include this file for board size
 #define BOARD_FLASH_SIZE (2 * 1024 * 1024)
 
+
+// TEENSY jtag pins must be configured in this manner
+// so that communication works with the bootlaoder chip
+// (the MKL02Z32VFG4, U2).  by configuring these pins
+// to JTAG mode, it allows a software reboot to works properly
+//
+// With the pins configured thusly, you can reboot to the
+// application or to the teensy bootloader.
+//
+// See the reboot_to_bootloader() and reboot_to_application()
+// functions below.
+#define TEENSY_SPECIAL_PINMUX
+
 // LED
 #define LED_PINMUX            IOMUXC_GPIO_B0_03_GPIO2_IO03 // D13
 #define LED_PORT              GPIO2
