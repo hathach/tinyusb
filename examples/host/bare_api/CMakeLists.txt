@@ -27,4 +27,4 @@ target_include_directories(${PROJECT} PUBLIC
 family_configure_host_example(${PROJECT})
 
 # For rp2040, un-comment to enable pico-pio-usb
-# family_configure_pio_usb_example(${PROJECT})
+# family_configure_pico_pio_usb_example(${PROJECT})

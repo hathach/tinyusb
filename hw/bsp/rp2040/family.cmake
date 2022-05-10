@@ -61,26 +61,26 @@ if (NOT TARGET _rp2040_family_inclusion_marker)
   #------------------------------------
   # PIO USB for both host and device
   #------------------------------------
-  add_library(tinyusb_pio_usb_base INTERFACE)
+  add_library(pico_pio_usb INTERFACE)
 
-	target_sources(tinyusb_pio_usb_base INTERFACE
+	target_sources(pico_pio_usb INTERFACE
 			${TOP}/lib/Pico-PIO-USB/src/pio_usb.c
 			${TOP}/lib/Pico-PIO-USB/src/pio_usb_host.c
 			${TOP}/lib/Pico-PIO-USB/src/pio_usb_device.c
 			${TOP}/lib/Pico-PIO-USB/src/usb_crc.c
 			)
 
-	target_include_directories(tinyusb_pio_usb_base INTERFACE
+	target_include_directories(pico_pio_usb INTERFACE
 			${TOP}/lib/Pico-PIO-USB/src
 			)
 
-	target_link_libraries(tinyusb_pio_usb_base INTERFACE
+	target_link_libraries(pico_pio_usb INTERFACE
 	    hardware_dma
 	    hardware_pio
 	    pico_multicore
 			)
 
-	target_compile_definitions(tinyusb_pio_usb_base INTERFACE
+	target_compile_definitions(pico_pio_usb INTERFACE
 			PIO_USB_USE_TINYUSB
 	)
 
@@ -185,9 +185,9 @@ if (NOT TARGET _rp2040_family_inclusion_marker)
 		target_link_libraries(${TARGET} PUBLIC pico_stdlib tinyusb_host)
 	endfunction()
 
-	function(family_configure_pio_usb_example TARGET)
+	function(family_configure_pico_pio_usb_example TARGET)
 		family_configure_target(${TARGET})
-		target_link_libraries(${TARGET} PUBLIC pico_stdlib tinyusb_pio_usb_base)
+		target_link_libraries(${TARGET} PUBLIC pico_stdlib pico_pio_usb)
     pico_generate_pio_header(tinyusb_common_base ${TOP}/lib/Pico-PIO-USB/src/usb_tx.pio)
     pico_generate_pio_header(tinyusb_common_base ${TOP}/lib/Pico-PIO-USB/src/usb_rx.pio)
 	endfunction()
