@@ -64,14 +64,14 @@ if (NOT TARGET _rp2040_family_inclusion_marker)
   add_library(tinyusb_pio_usb_base INTERFACE)
 
 	target_sources(tinyusb_pio_usb_base INTERFACE
-			${TOP}/lib/Pico-PIO-USB/pio_usb.c
-			${TOP}/lib/Pico-PIO-USB/pio_usb_host.c
-			${TOP}/lib/Pico-PIO-USB/pio_usb_device.c
-			${TOP}/lib/Pico-PIO-USB/usb_crc.c
+			${TOP}/lib/Pico-PIO-USB/src/pio_usb.c
+			${TOP}/lib/Pico-PIO-USB/src/pio_usb_host.c
+			${TOP}/lib/Pico-PIO-USB/src/pio_usb_device.c
+			${TOP}/lib/Pico-PIO-USB/src/usb_crc.c
 			)
 
 	target_include_directories(tinyusb_pio_usb_base INTERFACE
-			${TOP}/lib/Pico-PIO-USB
+			${TOP}/lib/Pico-PIO-USB/src
 			)
 
 	target_link_libraries(tinyusb_pio_usb_base INTERFACE
@@ -190,8 +190,8 @@ if (NOT TARGET _rp2040_family_inclusion_marker)
 		_family_initialize_project(${PROJECT} ${DIR})
 		enable_language(C CXX ASM)
 		pico_sdk_init()
-    pico_generate_pio_header(tinyusb_common_base ${TOP}/lib/Pico-PIO-USB/usb_tx.pio)
-    pico_generate_pio_header(tinyusb_common_base ${TOP}/lib/Pico-PIO-USB/usb_rx.pio)
+    pico_generate_pio_header(tinyusb_common_base ${TOP}/lib/Pico-PIO-USB/src/usb_tx.pio)
+    pico_generate_pio_header(tinyusb_common_base ${TOP}/lib/Pico-PIO-USB/src/usb_rx.pio)
 	endfunction()
 
 	# This method must be called from the project scope to suppress known warnings in TinyUSB source files
