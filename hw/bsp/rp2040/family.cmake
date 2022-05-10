@@ -177,12 +177,19 @@ if (NOT TARGET _rp2040_family_inclusion_marker)
 
 	function(family_configure_device_example TARGET)
 		family_configure_target(${TARGET})
-		target_link_libraries(${TARGET} PUBLIC pico_stdlib tinyusb_device tinyusb_pio_usb_base)
+		target_link_libraries(${TARGET} PUBLIC pico_stdlib tinyusb_device)
 	endfunction()
 
 	function(family_configure_host_example TARGET)
 		family_configure_target(${TARGET})
-		target_link_libraries(${TARGET} PUBLIC pico_stdlib tinyusb_host tinyusb_pio_usb_base)
+		target_link_libraries(${TARGET} PUBLIC pico_stdlib tinyusb_host)
+	endfunction()
+
+	function(family_configure_pio_usb_example TARGET)
+		family_configure_target(${TARGET})
+		target_link_libraries(${TARGET} PUBLIC pico_stdlib tinyusb_pio_usb_base)
+    pico_generate_pio_header(tinyusb_common_base ${TOP}/lib/Pico-PIO-USB/src/usb_tx.pio)
+    pico_generate_pio_header(tinyusb_common_base ${TOP}/lib/Pico-PIO-USB/src/usb_rx.pio)
 	endfunction()
 
 	function(family_initialize_project PROJECT DIR)
@@ -190,8 +197,6 @@ if (NOT TARGET _rp2040_family_inclusion_marker)
 		_family_initialize_project(${PROJECT} ${DIR})
 		enable_language(C CXX ASM)
 		pico_sdk_init()
-    pico_generate_pio_header(tinyusb_common_base ${TOP}/lib/Pico-PIO-USB/src/usb_tx.pio)
-    pico_generate_pio_header(tinyusb_common_base ${TOP}/lib/Pico-PIO-USB/src/usb_rx.pio)
 	endfunction()
 
 	# This method must be called from the project scope to suppress known warnings in TinyUSB source files

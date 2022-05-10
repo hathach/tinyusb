@@ -27,3 +27,4 @@ target_include_directories(${PROJECT} PUBLIC
 # in hw/bsp/FAMILY/family.cmake for details.
 family_configure_device_example(${PROJECT})
 family_configure_host_example(${PROJECT})
+family_configure_pio_usb_example(${PROJECT})
