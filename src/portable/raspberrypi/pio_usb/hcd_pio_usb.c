@@ -50,6 +50,8 @@ static pio_usb_configuration_t pio_host_config = PIO_USB_DEFAULT_CONFIG;
 //--------------------------------------------------------------------+
 bool hcd_init(uint8_t rhport)
 {
+  (void) rhport;
+
   // To run USB SOF interrupt in core1, call this init in core1
   pio_usb_host_init(&pio_host_config);
 
@@ -58,19 +60,19 @@ bool hcd_init(uint8_t rhport)
 
 void hcd_port_reset(uint8_t rhport)
 {
-  uint8_t pio_rhport = RHPORT_PIO(rhport);
+  uint8_t const pio_rhport = RHPORT_PIO(rhport);
   pio_usb_host_port_reset_start(pio_rhport);
 }
 
 void hcd_port_reset_end(uint8_t rhport)
 {
-  uint8_t pio_rhport = RHPORT_PIO(rhport);
+  uint8_t const pio_rhport = RHPORT_PIO(rhport);
   pio_usb_host_port_reset_end(pio_rhport);
 }
 
 bool hcd_port_connect_status(uint8_t rhport)
 {
-  uint8_t pio_rhport = RHPORT_PIO(rhport);
+  uint8_t const pio_rhport = RHPORT_PIO(rhport);
 
   root_port_t *root = PIO_USB_ROOT_PORT(pio_rhport);
   port_pin_status_t line_state = pio_usb_bus_get_line_state(root);
@@ -81,14 +83,14 @@ bool hcd_port_connect_status(uint8_t rhport)
 tusb_speed_t hcd_port_speed_get(uint8_t rhport)
 {
   // TODO determine link speed
-  uint8_t pio_rhport = RHPORT_PIO(rhport);
+  uint8_t const pio_rhport = RHPORT_PIO(rhport);
   return PIO_USB_ROOT_PORT(pio_rhport)->is_fullspeed ? TUSB_SPEED_FULL : TUSB_SPEED_LOW;
 }
 
 // Close all opened endpoint belong to this device
 void hcd_device_close(uint8_t rhport, uint8_t dev_addr)
 {
-  uint8_t pio_rhport = RHPORT_PIO(rhport);
+  uint8_t const pio_rhport = RHPORT_PIO(rhport);
   pio_usb_host_close_device(pio_rhport, dev_addr);
 }
 
@@ -118,19 +120,19 @@ bool hcd_edpt_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_endpoint_t const 
   hcd_devtree_get_info(dev_addr, &dev_tree);
   bool const need_pre = (dev_tree.hub_addr && dev_tree.speed == TUSB_SPEED_LOW);
 
-  uint8_t pio_rhport = RHPORT_PIO(rhport);
+  uint8_t const pio_rhport = RHPORT_PIO(rhport);
   return pio_usb_host_endpoint_open(pio_rhport, dev_addr, (uint8_t const*) desc_ep, need_pre);
 }
 
 bool hcd_edpt_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr, uint8_t * buffer, uint16_t buflen)
 {
-  uint8_t pio_rhport = RHPORT_PIO(rhport);
+  uint8_t const pio_rhport = RHPORT_PIO(rhport);
   return pio_usb_host_endpoint_transfer(pio_rhport, dev_addr, ep_addr, buffer, buflen);
 }
 
 bool hcd_setup_send(uint8_t rhport, uint8_t dev_addr, uint8_t const setup_packet[8])
 {
-  uint8_t pio_rhport = RHPORT_PIO(rhport);
+  uint8_t const pio_rhport = RHPORT_PIO(rhport);
   return pio_usb_host_send_setup(pio_rhport, dev_addr, setup_packet);
 }
 

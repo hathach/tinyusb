@@ -176,9 +176,6 @@ void tuh_hid_umount_cb(uint8_t dev_addr, uint8_t instance)
   printf("[%u] HID Interface instance = %d is unmounted\r\n", dev_addr, instance);
 }
 
-// keycodes from last report to check if key is holding or newly pressed
-uint8_t last_keycodes[6] = {0};
-
 // look up new key in previous keys
 static inline bool find_key_in_report(hid_keyboard_report_t const *report, uint8_t keycode)
 {
