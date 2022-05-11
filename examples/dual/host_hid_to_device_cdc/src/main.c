@@ -23,10 +23,8 @@
  *
  */
 
-// This example runs both host and device concurrently. The USB host looks for
-// any HID device with reports that are 8 bytes long and then assumes they are
-// keyboard reports. It translates the keypresses of the reports to ASCII and
-// transmits it over CDC to the device's host.
+// This example runs both host and device concurrently. The USB host receive
+// reports from HID device and print it out over USB Device CDC interface.
 
 #include <stdlib.h>
 #include <stdio.h>
@@ -157,7 +155,11 @@ void tuh_hid_mount_cb(uint8_t dev_addr, uint8_t instance, uint8_t const* desc_re
   uint16_t vid, pid;
   tuh_vid_pid_get(dev_addr, &vid, &pid);
 
-  printf("[%04x:%04x][%u] HID Interface instance = %d, Protocol = %s\r\n", vid, pid, dev_addr, instance, protocol_str[itf_protocol]);
+  char tempbuf[256];
+  int count = sprintf(tempbuf, "[%04x:%04x][%u] HID Interface instance = %d, Protocol = %s\r\n", vid, pid, dev_addr, instance, protocol_str[itf_protocol]);
+
+  tud_cdc_write(tempbuf, count);
+  tud_cdc_write_flush();
 
   // Receive report from boot keyboard & mouse only
   // tuh_hid_report_received_cb() will be invoked when report is available
@@ -165,7 +167,7 @@ void tuh_hid_mount_cb(uint8_t dev_addr, uint8_t instance, uint8_t const* desc_re
   {
     if ( !tuh_hid_receive_report(dev_addr, instance) )
     {
-      printf("Error: cannot request report\r\n");
+      tud_cdc_write_str("Error: cannot request report\r\n");
     }
   }
 }
@@ -173,7 +175,10 @@ void tuh_hid_mount_cb(uint8_t dev_addr, uint8_t instance, uint8_t const* desc_re
 // Invoked when device with hid interface is un-mounted
 void tuh_hid_umount_cb(uint8_t dev_addr, uint8_t instance)
 {
-  printf("[%u] HID Interface instance = %d is unmounted\r\n", dev_addr, instance);
+  char tempbuf[256];
+  int count = sprintf(tempbuf, "[%u] HID Interface instance = %d is unmounted\r\n", dev_addr, instance);
+  tud_cdc_write(tempbuf, count);
+  tud_cdc_write_flush();
 }
 
 // look up new key in previous keys
@@ -234,16 +239,14 @@ static void process_kbd_report(hid_keyboard_report_t const *report)
 // send mouse report to usb device CDC
 static void process_mouse_report(hid_mouse_report_t const * report)
 {
-  char tempbuf[32];
-  int count;
-
   //------------- button state  -------------//
   //uint8_t button_changed_mask = report->buttons ^ prev_report.buttons;
   char l = report->buttons & MOUSE_BUTTON_LEFT   ? 'L' : '-';
   char m = report->buttons & MOUSE_BUTTON_MIDDLE ? 'M' : '-';
   char r = report->buttons & MOUSE_BUTTON_RIGHT  ? 'R' : '-';
 
-  count = sprintf(tempbuf, " %c%c%c %d %d %d\r\n", l, m, r, report->x, report->y, report->wheel);
+  char tempbuf[32];
+  int count = sprintf(tempbuf, "%c%c%c %d %d %d\r\n", l, m, r, report->x, report->y, report->wheel);
 
   tud_cdc_write(tempbuf, count);
   tud_cdc_write_flush();
@@ -252,6 +255,7 @@ static void process_mouse_report(hid_mouse_report_t const * report)
 // Invoked when received report from device via interrupt endpoint
 void tuh_hid_report_received_cb(uint8_t dev_addr, uint8_t instance, uint8_t const* report, uint16_t len)
 {
+  (void) len;
   uint8_t const itf_protocol = tuh_hid_interface_protocol(dev_addr, instance);
 
   switch(itf_protocol)
@@ -270,7 +274,7 @@ void tuh_hid_report_received_cb(uint8_t dev_addr, uint8_t instance, uint8_t cons
   // continue to request to receive report
   if ( !tuh_hid_receive_report(dev_addr, instance) )
   {
-    printf("Error: cannot request report\r\n");
+    tud_cdc_write_str("Error: cannot request report\r\n");
   }
 }
 
