@@ -1708,6 +1708,7 @@ static bool audiod_set_interface(uint8_t rhport, tusb_control_request_t const * 
 
       TU_VERIFY(foundEPs == nEps);
 
+#if CFG_TUD_AUDIO_ENABLE_FEEDBACK_EP
       // Invoke one callback for a final set interface
       if (tud_audio_set_itf_cb) TU_VERIFY(tud_audio_set_itf_cb(rhport, p_request));
 
@@ -1728,6 +1729,7 @@ static bool audiod_set_interface(uint8_t rhport, tusb_control_request_t const * 
           set_fb_params(audio, sample_freq, mclk_freq);
         }
       }
+#endif
 
       // We are done - abort loop
       break;
@@ -1737,6 +1739,7 @@ static bool audiod_set_interface(uint8_t rhport, tusb_control_request_t const * 
     p_desc = tu_desc_next(p_desc);
   }
 
+#if CFG_TUD_AUDIO_ENABLE_FEEDBACK_EP
   // Disable SOF interrupt if no driver has any enabled feedback EP
   bool disable = true;
   for(uint8_t i=0; i < CFG_TUD_AUDIO; i++)
@@ -1748,6 +1751,7 @@ static bool audiod_set_interface(uint8_t rhport, tusb_control_request_t const * 
     }
   }
   if (disable) usbd_sof_enable(rhport, false);
+#endif
 
   tud_control_status(rhport, p_request);
 
@@ -2080,7 +2084,6 @@ static bool set_fb_params(audiod_function_t* audio, uint32_t f_s, uint32_t f_m)
 
   return true;
 }
-#endif
 
 uint32_t tud_audio_feedback_update(uint8_t func_id, uint32_t cycles)
 {
@@ -2118,10 +2121,12 @@ uint32_t tud_audio_feedback_update(uint8_t func_id, uint32_t cycles)
 
   return feedback;
 }
+#endif
 
 void audiod_sof_isr (uint8_t rhport, uint32_t frame_count)
 {
   (void) rhport;
+  (void) frame_count;
 
 #if CFG_TUD_AUDIO_ENABLE_EP_OUT && CFG_TUD_AUDIO_ENABLE_FEEDBACK_EP
   // Determine feedback value - The feedback method is described in 5.12.4.2 of the USB 2.0 spec

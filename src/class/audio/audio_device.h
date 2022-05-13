@@ -490,6 +490,8 @@ static inline bool tud_audio_fb_set(uint32_t feedback);
 uint8_t tud_audio_n_get_fb_n_frames(uint8_t func_id);
 static inline uint8_t tud_audio_get_fb_n_frames();
 
+#endif // CFG_TUD_AUDIO_ENABLE_EP_OUT && CFG_TUD_AUDIO_ENABLE_FEEDBACK_EP
+
 // Update feedback value with passed cycles since last time this update function is called.
 // Typically called within tud_audio_sof_isr(). Required tud_audio_feedback_params_cb() is implemented
 // This function will also call tud_audio_feedback_set()
@@ -503,7 +505,6 @@ TU_ATTR_WEAK void tud_audio_feedback_params_cb(uint8_t func_id, uint8_t alt_itf,
 
 TU_ATTR_WEAK void tud_audio_sof_isr(uint8_t func_id, uint32_t frame);
 
-#endif // CFG_TUD_AUDIO_ENABLE_EP_OUT && CFG_TUD_AUDIO_ENABLE_FEEDBACK_EP
 
 #if CFG_TUD_AUDIO_INT_CTR_EPSIZE_IN
 TU_ATTR_WEAK bool tud_audio_int_ctr_done_cb(uint8_t rhport, uint16_t n_bytes_copied);
