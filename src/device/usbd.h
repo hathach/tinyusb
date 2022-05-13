@@ -33,7 +33,7 @@
 extern "C" {
 #endif
 
-typedef void (*tud_sof_isr_t) (uint32_t frame_count);
+// typedef void (*tud_sof_isr_t) (uint32_t frame_count);
 
 //--------------------------------------------------------------------+
 // Application API
