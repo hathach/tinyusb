@@ -156,7 +156,7 @@ void tuh_hid_mount_cb(uint8_t dev_addr, uint8_t instance, uint8_t const* desc_re
   tuh_vid_pid_get(dev_addr, &vid, &pid);
 
   char tempbuf[256];
-  int count = sprintf(tempbuf, "[%04x:%04x][%u] HID Interface instance = %d, Protocol = %s\r\n", vid, pid, dev_addr, instance, protocol_str[itf_protocol]);
+  int count = sprintf(tempbuf, "[%04x:%04x][%u] HID Interface%u, Protocol = %s\r\n", vid, pid, dev_addr, instance, protocol_str[itf_protocol]);
 
   tud_cdc_write(tempbuf, count);
   tud_cdc_write_flush();
@@ -176,7 +176,7 @@ void tuh_hid_mount_cb(uint8_t dev_addr, uint8_t instance, uint8_t const* desc_re
 void tuh_hid_umount_cb(uint8_t dev_addr, uint8_t instance)
 {
   char tempbuf[256];
-  int count = sprintf(tempbuf, "[%u] HID Interface instance = %d is unmounted\r\n", dev_addr, instance);
+  int count = sprintf(tempbuf, "[%u] HID Interface%u is unmounted\r\n", dev_addr, instance);
   tud_cdc_write(tempbuf, count);
   tud_cdc_write_flush();
 }
@@ -194,8 +194,9 @@ static inline bool find_key_in_report(hid_keyboard_report_t const *report, uint8
 
 
 // convert hid keycode to ascii and print via usb device CDC (ignore non-printable)
-static void process_kbd_report(hid_keyboard_report_t const *report)
+static void process_kbd_report(uint8_t dev_addr, hid_keyboard_report_t const *report)
 {
+  (void) dev_addr;
   static hid_keyboard_report_t prev_report = { 0, 0, {0} }; // previous report to check key released
   bool flush = false;
 
@@ -237,7 +238,7 @@ static void process_kbd_report(hid_keyboard_report_t const *report)
 }
 
 // send mouse report to usb device CDC
-static void process_mouse_report(hid_mouse_report_t const * report)
+static void process_mouse_report(uint8_t dev_addr, hid_mouse_report_t const * report)
 {
   //------------- button state  -------------//
   //uint8_t button_changed_mask = report->buttons ^ prev_report.buttons;
@@ -246,7 +247,7 @@ static void process_mouse_report(hid_mouse_report_t const * report)
   char r = report->buttons & MOUSE_BUTTON_RIGHT  ? 'R' : '-';
 
   char tempbuf[32];
-  int count = sprintf(tempbuf, "%c%c%c %d %d %d\r\n", l, m, r, report->x, report->y, report->wheel);
+  int count = sprintf(tempbuf, "[%u] %c%c%c %d %d %d\r\n", dev_addr, l, m, r, report->x, report->y, report->wheel);
 
   tud_cdc_write(tempbuf, count);
   tud_cdc_write_flush();
@@ -261,11 +262,11 @@ void tuh_hid_report_received_cb(uint8_t dev_addr, uint8_t instance, uint8_t cons
   switch(itf_protocol)
   {
     case HID_ITF_PROTOCOL_KEYBOARD:
-      process_kbd_report( (hid_keyboard_report_t const*) report );
+      process_kbd_report(dev_addr, (hid_keyboard_report_t const*) report );
     break;
 
     case HID_ITF_PROTOCOL_MOUSE:
-      process_mouse_report( (hid_mouse_report_t const*) report );
+      process_mouse_report(dev_addr, (hid_mouse_report_t const*) report );
     break;
 
     default: break;
