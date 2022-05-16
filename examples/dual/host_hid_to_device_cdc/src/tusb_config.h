@@ -49,6 +49,9 @@
   #define BOARD_HOST_RHPORT_NUM     1
 #endif
 
+// Use raspberry pio-usb for host
+#define CFG_TUH_RPI_PIO_USB            1
+
 // RHPort max operational speed can defined by board.mk
 // Default to Highspeed for MCU with internal HighSpeed PHY (can be port specific), otherwise FullSpeed
 #ifndef BOARD_DEVICE_RHPORT_SPEED
@@ -124,10 +127,6 @@
 
 //------------- CLASS -------------//
 #define CFG_TUD_CDC              1
-#define CFG_TUD_MSC              0
-#define CFG_TUD_HID              0
-#define CFG_TUD_MIDI             0
-#define CFG_TUD_VENDOR           0
 
 // CDC FIFO size of TX and RX
 #define CFG_TUD_CDC_RX_BUFSIZE   (TUD_OPT_HIGH_SPEED ? 512 : 64)
@@ -144,14 +143,9 @@
 #define CFG_TUH_ENUMERATION_BUFSIZE 256
 
 #define CFG_TUH_HUB                 1
-#define CFG_TUH_CDC                 0
-#define CFG_TUH_MSC                 0
-#define CFG_TUH_VENDOR              0
-
 // max device support (excluding hub device)
 #define CFG_TUH_DEVICE_MAX          (CFG_TUH_HUB ? 4 : 1) // hub typically has 4 ports
 
-//------------- HID -------------//
 #define CFG_TUH_HID                  4
 #define CFG_TUH_HID_EPIN_BUFSIZE    64
 #define CFG_TUH_HID_EPOUT_BUFSIZE   64

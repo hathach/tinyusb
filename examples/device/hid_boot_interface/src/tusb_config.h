@@ -39,6 +39,10 @@
   #error CFG_TUSB_MCU must be defined
 #endif
 
+// Use raspberry pio-usb for device
+// #define CFG_TUD_RPI_PIO_USB     1
+// #define BOARD_DEVICE_RHPORT_NUM 1
+
 // RHPort number used for device can be defined by board.mk, default to port 0
 #ifndef BOARD_DEVICE_RHPORT_NUM
   #define BOARD_DEVICE_RHPORT_NUM     0

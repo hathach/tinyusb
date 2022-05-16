@@ -82,6 +82,7 @@ jobs:
       run: |
         git clone --depth 1 -b develop https://github.com/raspberrypi/pico-sdk ~/pico-sdk
         echo >> $GITHUB_ENV PICO_SDK_PATH=~/pico-sdk
+        git submodule update --init hw/mcu/raspberry_pi/Pico-PIO-USB
 
     - name: Set Toolchain URL
       run: echo >> $GITHUB_ENV TOOLCHAIN_URL=https://github.com/xpack-dev-tools/arm-none-eabi-gcc-xpack/releases/download/v10.2.1-1.1/xpack-arm-none-eabi-gcc-10.2.1-1.1-linux-x64.tar.gz

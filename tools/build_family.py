@@ -28,12 +28,11 @@ def filter_with_input(mylist):
 
 # If examples are not specified in arguments, build all
 all_examples = []
-for entry in os.scandir("examples/device"):
-    if entry.is_dir():
-        all_examples.append("device/" + entry.name)
-for entry in os.scandir("examples/host"):
-    if entry.is_dir():
-        all_examples.append("host/" + entry.name)
+for dir1 in os.scandir("examples"):
+    if dir1.is_dir():
+        for entry in os.scandir(dir1.path):
+            if entry.is_dir():
+                all_examples.append(dir1.name + '/' + entry.name)
 filter_with_input(all_examples)
 all_examples.sort()
 
