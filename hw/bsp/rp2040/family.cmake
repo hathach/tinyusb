@@ -63,15 +63,19 @@ if (NOT TARGET _rp2040_family_inclusion_marker)
   #------------------------------------
   add_library(pico_pio_usb INTERFACE)
 
+  if (NOT DEFINED PICO_PIO_USB_PATH)
+    set(PICO_PIO_USB_PATH "${TOP}/hw/mcu/raspberry_pi/Pico-PIO-USB")
+  endif()
+
 	target_sources(pico_pio_usb INTERFACE
-			${TOP}/lib/Pico-PIO-USB/src/pio_usb.c
-			${TOP}/lib/Pico-PIO-USB/src/pio_usb_host.c
-			${TOP}/lib/Pico-PIO-USB/src/pio_usb_device.c
-			${TOP}/lib/Pico-PIO-USB/src/usb_crc.c
+			${PICO_PIO_USB_PATH}/src/pio_usb.c
+			${PICO_PIO_USB_PATH}/src/pio_usb_host.c
+			${PICO_PIO_USB_PATH}/src/pio_usb_device.c
+			${PICO_PIO_USB_PATH}/src/usb_crc.c
 			)
 
 	target_include_directories(pico_pio_usb INTERFACE
-			${TOP}/lib/Pico-PIO-USB/src
+			${PICO_PIO_USB_PATH}/src
 			)
 
 	target_link_libraries(pico_pio_usb INTERFACE
@@ -188,8 +192,8 @@ if (NOT TARGET _rp2040_family_inclusion_marker)
 	function(family_configure_pico_pio_usb_example TARGET)
 		family_configure_target(${TARGET})
 		target_link_libraries(${TARGET} PUBLIC pico_stdlib pico_pio_usb)
-    pico_generate_pio_header(tinyusb_common_base ${TOP}/lib/Pico-PIO-USB/src/usb_tx.pio)
-    pico_generate_pio_header(tinyusb_common_base ${TOP}/lib/Pico-PIO-USB/src/usb_rx.pio)
+    pico_generate_pio_header(tinyusb_common_base ${PICO_PIO_USB_PATH}/src/usb_tx.pio)
+    pico_generate_pio_header(tinyusb_common_base ${PICO_PIO_USB_PATH}/src/usb_rx.pio)
 	endfunction()
 
 	function(family_initialize_project PROJECT DIR)
