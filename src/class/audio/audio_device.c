@@ -326,8 +326,8 @@ typedef struct
 
   float fb_float_val;
 
-  uint32_t fb_param_factor_N;
-  uint32_t fb_param_factor_D;
+  uint32_t fb_sample_freq;
+  uint32_t fb_mclk_freq;
 
 #endif // CFG_TUD_AUDIO_ENABLE_FEEDBACK_EP
 #endif // CFG_TUD_AUDIO_ENABLE_EP_OUT
@@ -1686,11 +1686,11 @@ static bool audiod_set_interface(uint8_t rhport, tusb_control_request_t const * 
           if (tu_edpt_dir(ep_addr) == TUSB_DIR_IN && desc_ep->bmAttributes.usage == 1)   // Check if usage is explicit data feedback
           {
             audio->ep_fb = ep_addr;
-            audio->fb_n_frames = 1 << (desc_ep->bInterval -1);
+            audio->fb_n_frames = 1U << (desc_ep->bInterval -1); // TODO correctly set USB frame interval for SOF (not micro-frame)
             audio->fb_n_frames_shift = desc_ep->bInterval -1;
 
             // Enable SOF interrupt if callback is implemented
-            if (tud_audio_sof_isr) usbd_sof_enable(rhport, true);
+            if (tud_audio_feedback_interval_isr) usbd_sof_enable(rhport, true);
 
             //            // Invoke callback after ep_out is set
             //            if (audio->ep_out != 0)
@@ -2050,7 +2050,7 @@ uint8_t tud_audio_n_get_fb_n_frames(uint8_t func_id)
 
 #if CFG_TUD_AUDIO_ENABLE_EP_OUT && CFG_TUD_AUDIO_ENABLE_FEEDBACK_EP
 
-static bool set_fb_params(audiod_function_t* audio, uint32_t f_s, uint32_t f_m)
+static bool set_fb_params(audiod_function_t* audio, uint32_t sample_freq, uint32_t mclk_freq)
 {
   // Check if frame interval is within sane limits
   // The interval value audio->fb_n_frames was taken from the descriptors within audiod_set_interface()
@@ -2058,29 +2058,29 @@ static bool set_fb_params(audiod_function_t* audio, uint32_t f_s, uint32_t f_m)
   // n_frames_min is ceil(2^10 * f_s / f_m) for full speed and ceil(2^13 * f_s / f_m) for high speed
   // this lower limit ensures the measures feedback value has sufficient precision
   uint32_t const k = (TUSB_SPEED_FULL == tud_speed_get()) ? 10 : 13;
-  if ( (((1UL << k) * f_s / f_m) + 1) > audio->fb_n_frames )
+  if ( (((1UL << k) * sample_freq / mclk_freq) + 1) > audio->fb_n_frames )
   {
     TU_LOG1("  UAC2 feedback interval too small\r\n"); TU_BREAKPOINT(); return false;
   }
 
   // Check if parameters really allow for a power of two division
-  if ((f_m % f_s) == 0 && tu_is_power_of_two(f_m / f_s))
+  if ((mclk_freq % sample_freq) == 0 && tu_is_power_of_two(mclk_freq / sample_freq))
   {
     audio->fb_compute_method = FEEDBACK_COMPUTE_POWER_OF_2;
-    audio->fb_power_of_two_val = 16 - audio->fb_n_frames_shift - tu_log2(f_m / f_s);
+    audio->fb_power_of_two_val = 16 - audio->fb_n_frames_shift - tu_log2(mclk_freq / sample_freq);
   }else if ( audio->fb_compute_method == FEEDBACK_COMPUTE_FLOAT)
   {
-    audio->fb_float_val = (float)f_s / f_m * (1UL << (16 - audio->fb_n_frames_shift));
+    audio->fb_float_val = (float)sample_freq / mclk_freq * (1UL << (16 - audio->fb_n_frames_shift));
   }else
   {
-    audio->fb_param_factor_N = f_s;
-    audio->fb_param_factor_D = f_m;
+    audio->fb_sample_freq = sample_freq;
+    audio->fb_mclk_freq = mclk_freq;
   }
 
   // Minimal/Maximum value in 16.16 format for full speed (1ms per frame) or high speed (125 us per frame)
   uint32_t const frame_div = (TUSB_SPEED_FULL == tud_speed_get()) ? 1000 : 8000;
-  audio->fb_val_min = (f_s/frame_div - 1) << 16;
-  audio->fb_val_max = (f_s/frame_div + 1) << 16;
+  audio->fb_val_min = (sample_freq/frame_div - 1) << 16;
+  audio->fb_val_max = (sample_freq/frame_div + 1) << 16;
 
   return true;
 }
@@ -2093,7 +2093,7 @@ uint32_t tud_audio_feedback_update(uint8_t func_id, uint32_t cycles)
   switch (audio->fb_compute_method)
   {
     case FEEDBACK_COMPUTE_POWER_OF_2:
-      feedback = cycles << audio->fb_power_of_two_val;
+      feedback = (cycles << audio->fb_power_of_two_val);
     break;
 
     case FEEDBACK_COMPUTE_FLOAT:
@@ -2102,8 +2102,8 @@ uint32_t tud_audio_feedback_update(uint8_t func_id, uint32_t cycles)
 
     case FEEDBACK_COMPUTE_FIXED:
     {
-      uint64_t fb64 = (((uint64_t) cycles) * audio->fb_param_factor_N) << (16 - audio->fb_n_frames_shift);
-      feedback = (uint32_t) (fb64 / audio->fb_param_factor_D);
+      uint64_t fb64 = (((uint64_t) cycles) * audio->fb_sample_freq) << (16 - audio->fb_n_frames_shift);
+      feedback = (uint32_t) (fb64 / audio->fb_mclk_freq);
     }
     break;
 
@@ -2142,10 +2142,11 @@ void audiod_sof_isr (uint8_t rhport, uint32_t frame_count)
 
     if (audio->ep_fb != 0)
     {
-      uint32_t const interval = (1UL << audio->fb_n_frames);
+      // TODO hs need to be adjusted to frame (SOF event is not generated for micro-frame)
+      uint32_t const interval = (1UL << audio->fb_n_frames_shift);
       if ( 0 == (frame_count & (interval-1)) )
       {
-        if(tud_audio_sof_isr) tud_audio_sof_isr(i, frame_count);
+        if(tud_audio_feedback_interval_isr) tud_audio_feedback_interval_isr(i, frame_count, audio->fb_n_frames_shift);
       }
     }
   }

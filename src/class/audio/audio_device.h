@@ -503,7 +503,9 @@ uint32_t tud_audio_feedback_update(uint8_t func_id, uint32_t cycles);
 // fixed_point : 0 float (default), 1 fixed point (for mcu without FPU)
 TU_ATTR_WEAK void tud_audio_feedback_params_cb(uint8_t func_id, uint8_t alt_itf, uint32_t* sample_freq, uint32_t* mclk_freq, uint8_t* fixed_point);
 
-TU_ATTR_WEAK void tud_audio_sof_isr(uint8_t func_id, uint32_t frame);
+// Callback in ISR context, invoked periodically according to feedback endpoint bInterval.
+// Could be used to compute and update feedback value
+TU_ATTR_WEAK void tud_audio_feedback_interval_isr(uint8_t func_id, uint32_t frame_number, uint8_t interval_log2);
 
 
 #if CFG_TUD_AUDIO_INT_CTR_EPSIZE_IN
