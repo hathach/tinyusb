@@ -498,6 +498,34 @@ static inline uint8_t tud_audio_get_fb_n_frames();
 // return feedback value in 16.16 for reference (0 for error)
 uint32_t tud_audio_feedback_update(uint8_t func_id, uint32_t cycles);
 
+enum {
+  AUDIO_FEEDBACK_METHOD_DISABLED,
+  AUDIO_FEEDBACK_METHOD_FREQUENCY_FIXED,
+  AUDIO_FEEDBACK_METHOD_FREQUENCY_FLOAT,
+  AUDIO_FEEDBACK_METHOD_FREQUENCY_POWER_OF_2,
+  AUDIO_FEEDBACK_METHOD_FIFO_COUNT_FIXED,
+  AUDIO_FEEDBACK_METHOD_FIFO_COUNT_FLOAT
+};
+
+typedef struct {
+  uint8_t method;
+  union {
+    struct {
+        uint32_t sample_freq;
+        uint32_t mclk_freq;
+    }frequency;
+
+    struct {
+        uint32_t nominal;
+        uint32_t threshold;
+        // variation etc ..
+    }fifo_count;
+  };
+}audio_feedback_params_t;
+
+
+// TU_ATTR_WEAK void tud_audio_feedback_params_cb(uint8_t func_id, uint8_t alt_itf, audio_feedback_params_t* feedback_param);
+
 // mclk_freq   : Main clock frequency in Hz i.e. master clock to which sample clock is locked
 // sample_freq : sample frequency in Hz
 // fixed_point : 0 float (default), 1 fixed point (for mcu without FPU)

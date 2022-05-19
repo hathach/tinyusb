@@ -261,13 +261,6 @@ osal_mutex_def_t rx_supp_ff_mutex_rd_3[CFG_TUD_AUDIO_FUNC_3_N_RX_SUPP_SW_FIFO]; 
 #endif
 #endif
 
-enum {
-  FEEDBACK_COMPUTE_DISABLED,
-  FEEDBACK_COMPUTE_FLOAT,
-  FEEDBACK_COMPUTE_FIXED,
-  FEEDBACK_COMPUTE_POWER_OF_2,
-};
-
 typedef struct
 {
   uint8_t rhport;
@@ -1722,10 +1715,10 @@ static bool audiod_set_interface(uint8_t rhport, tusb_control_request_t const * 
 
         if ( sample_freq == 0 || mclk_freq == 0 )
         {
-          audio->fb_compute_method = FEEDBACK_COMPUTE_DISABLED;
+          audio->fb_compute_method = AUDIO_FEEDBACK_METHOD_DISABLED;
         }else
         {
-          audio->fb_compute_method = fixed_point ? FEEDBACK_COMPUTE_FIXED : FEEDBACK_COMPUTE_FLOAT;
+          audio->fb_compute_method = fixed_point ? AUDIO_FEEDBACK_METHOD_FREQUENCY_FIXED : AUDIO_FEEDBACK_METHOD_FREQUENCY_FLOAT;
           set_fb_params(audio, sample_freq, mclk_freq);
         }
       }
@@ -2066,9 +2059,9 @@ static bool set_fb_params(audiod_function_t* audio, uint32_t sample_freq, uint32
   // Check if parameters really allow for a power of two division
   if ((mclk_freq % sample_freq) == 0 && tu_is_power_of_two(mclk_freq / sample_freq))
   {
-    audio->fb_compute_method = FEEDBACK_COMPUTE_POWER_OF_2;
+    audio->fb_compute_method = AUDIO_FEEDBACK_METHOD_FREQUENCY_POWER_OF_2;
     audio->fb_power_of_two_val = 16 - audio->fb_n_frames_shift - tu_log2(mclk_freq / sample_freq);
-  }else if ( audio->fb_compute_method == FEEDBACK_COMPUTE_FLOAT)
+  }else if ( audio->fb_compute_method == AUDIO_FEEDBACK_METHOD_FREQUENCY_FLOAT)
   {
     audio->fb_float_val = (float)sample_freq / mclk_freq * (1UL << (16 - audio->fb_n_frames_shift));
   }else
@@ -2092,15 +2085,15 @@ uint32_t tud_audio_feedback_update(uint8_t func_id, uint32_t cycles)
 
   switch (audio->fb_compute_method)
   {
-    case FEEDBACK_COMPUTE_POWER_OF_2:
+    case AUDIO_FEEDBACK_METHOD_FREQUENCY_POWER_OF_2:
       feedback = (cycles << audio->fb_power_of_two_val);
     break;
 
-    case FEEDBACK_COMPUTE_FLOAT:
+    case AUDIO_FEEDBACK_METHOD_FREQUENCY_FLOAT:
       feedback = (uint32_t) ((float) cylces * audio->fb_float_val);
     break;
 
-    case FEEDBACK_COMPUTE_FIXED:
+    case AUDIO_FEEDBACK_METHOD_FREQUENCY_FIXED:
     {
       uint64_t fb64 = (((uint64_t) cycles) * audio->fb_sample_freq) << (16 - audio->fb_n_frames_shift);
       feedback = (uint32_t) (fb64 / audio->fb_mclk_freq);
