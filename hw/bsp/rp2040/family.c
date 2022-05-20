@@ -127,8 +127,10 @@ void board_init(void)
 #ifndef BUTTON_BOOTSEL
 #endif
 
+#if CFG_TUH_RPI_PIO_USB || CFG_TUD_RPI_PIO_USB
   // Set the system clock to a multiple of 120mhz for bitbanging USB with pico-usb
   set_sys_clock_khz(120000, true);
+#endif
 
 #if defined(UART_DEV) && defined(LIB_PICO_STDIO_UART)
   bi_decl(bi_2pins_with_func(UART_TX_PIN, UART_TX_PIN, GPIO_FUNC_UART));

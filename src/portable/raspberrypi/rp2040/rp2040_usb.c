@@ -58,9 +58,9 @@ void rp2040_usb_init(void)
   unreset_block_wait(RESETS_RESET_USBCTRL_BITS);
 
   // Clear any previous state just in case
-  // TODO Suppress warning array-bounds with gcc11
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Warray-bounds"
+#pragma GCC diagnostic ignored "-Wstringop-overflow"
   memset(usb_hw, 0, sizeof(*usb_hw));
   memset(usb_dpram, 0, sizeof(*usb_dpram));
 #pragma GCC diagnostic pop
