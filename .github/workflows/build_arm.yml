@@ -15,12 +15,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - name: Setup Ruby
-      uses: actions/setup-ruby@v1
+      uses: ruby/setup-ruby@v1
       with:
         ruby-version: '2.7'
 
     - name: Checkout TinyUSB
-      uses: actions/checkout@v2
+      uses: actions/checkout@v3
 
     - name: Unit Tests
       run: |
@@ -66,13 +66,13 @@ jobs:
       uses: actions/setup-python@v2
 
     - name: Checkout TinyUSB
-      uses: actions/checkout@v2
+      uses: actions/checkout@v3
 
     - name: Checkout common submodules in lib
       run: git submodule update --init lib/FreeRTOS-Kernel lib/lwip lib/sct_neopixel
 
     - name: Checkout hathach/linkermap
-      uses: actions/checkout@v2
+      uses: actions/checkout@v3
       with:
          repository: hathach/linkermap
          path: linkermap
@@ -82,6 +82,7 @@ jobs:
       run: |
         git clone --depth 1 -b develop https://github.com/raspberrypi/pico-sdk ~/pico-sdk
         echo >> $GITHUB_ENV PICO_SDK_PATH=~/pico-sdk
+        git submodule update --init hw/mcu/raspberry_pi/Pico-PIO-USB
 
     - name: Set Toolchain URL
       run: echo >> $GITHUB_ENV TOOLCHAIN_URL=https://github.com/xpack-dev-tools/arm-none-eabi-gcc-xpack/releases/download/v10.2.1-1.1/xpack-arm-none-eabi-gcc-10.2.1-1.1-linux-x64.tar.gz
@@ -135,7 +136,7 @@ jobs:
       uses: actions/setup-python@v2
 
     - name: Checkout TinyUSB
-      uses: actions/checkout@v2
+      uses: actions/checkout@v3
 
     - name: Checkout common submodules in lib
       run: git submodule update --init lib/FreeRTOS-Kernel lib/lwip

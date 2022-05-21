@@ -23,9 +23,11 @@ if (NOT TARGET _rp2040_family_inclusion_marker)
 		set(PICO_TINYUSB_PATH ${TOP})
 	endif()
 
+  #------------------------------------
 	# Base config for both device and host; wrapped by SDK's tinyusb_common
+	#------------------------------------
 	add_library(tinyusb_common_base INTERFACE)
-	
+
 	target_sources(tinyusb_common_base INTERFACE
 			${TOP}/src/tusb.c
 			${TOP}/src/common/tusb_fifo.c
@@ -56,11 +58,44 @@ if (NOT TARGET _rp2040_family_inclusion_marker)
 			CFG_TUSB_DEBUG=${TINYUSB_DEBUG_LEVEL}
 	)
 
+  #------------------------------------
+  # PIO USB for both host and device
+  #------------------------------------
+  add_library(pico_pio_usb INTERFACE)
+
+  if (NOT DEFINED PICO_PIO_USB_PATH)
+    set(PICO_PIO_USB_PATH "${TOP}/hw/mcu/raspberry_pi/Pico-PIO-USB")
+  endif()
+
+	target_sources(pico_pio_usb INTERFACE
+			${PICO_PIO_USB_PATH}/src/pio_usb.c
+			${PICO_PIO_USB_PATH}/src/pio_usb_host.c
+			${PICO_PIO_USB_PATH}/src/pio_usb_device.c
+			${PICO_PIO_USB_PATH}/src/usb_crc.c
+			)
+
+	target_include_directories(pico_pio_usb INTERFACE
+			${PICO_PIO_USB_PATH}/src
+			)
+
+	target_link_libraries(pico_pio_usb INTERFACE
+	    hardware_dma
+	    hardware_pio
+	    pico_multicore
+			)
+
+	target_compile_definitions(pico_pio_usb INTERFACE
+			PIO_USB_USE_TINYUSB
+	)
+
+  #------------------------------------
 	# Base config for device mode; wrapped by SDK's tinyusb_device
+	#------------------------------------
 	add_library(tinyusb_device_base INTERFACE)
 	target_sources(tinyusb_device_base INTERFACE
 			${TOP}/src/portable/raspberrypi/rp2040/dcd_rp2040.c
 			${TOP}/src/portable/raspberrypi/rp2040/rp2040_usb.c
+		  ${TOP}/src/portable/raspberrypi/pio_usb/dcd_pio_usb.c
 			${TOP}/src/device/usbd.c
 			${TOP}/src/device/usbd_control.c
 			${TOP}/src/class/audio/audio_device.c
@@ -77,11 +112,14 @@ if (NOT TARGET _rp2040_family_inclusion_marker)
 			${TOP}/src/class/video/video_device.c
 			)
 
+	#------------------------------------
 	# Base config for host mode; wrapped by SDK's tinyusb_host
+	#------------------------------------
 	add_library(tinyusb_host_base INTERFACE)
 	target_sources(tinyusb_host_base INTERFACE
 			${TOP}/src/portable/raspberrypi/rp2040/hcd_rp2040.c
 			${TOP}/src/portable/raspberrypi/rp2040/rp2040_usb.c
+		  ${TOP}/src/portable/raspberrypi/pio_usb/hcd_pio_usb.c
 			${TOP}/src/host/usbh.c
 			${TOP}/src/host/hub.c
 			${TOP}/src/class/cdc/cdc_host.c
@@ -90,12 +128,14 @@ if (NOT TARGET _rp2040_family_inclusion_marker)
 			${TOP}/src/class/vendor/vendor_host.c
 			)
 
-	# Sometimes have to do host specific actions in mostly
-	# common functions
+	# Sometimes have to do host specific actions in mostly common functions
 	target_compile_definitions(tinyusb_host_base INTERFACE
 			RP2040_USB_HOST_MODE=1
 	)
 
+	#------------------------------------
+	# BSP & Additions
+	#------------------------------------
 	add_library(tinyusb_bsp INTERFACE)
 	target_sources(tinyusb_bsp INTERFACE
 			${TOP}/hw/bsp/rp2040/family.c
@@ -129,6 +169,10 @@ if (NOT TARGET _rp2040_family_inclusion_marker)
 	  )
 	endif()
 
+	#------------------------------------
+	# Functions
+	#------------------------------------
+
 	function(family_configure_target TARGET)
 		pico_add_extra_outputs(${TARGET})
 		pico_enable_stdio_uart(${TARGET} 1)
@@ -143,6 +187,13 @@ if (NOT TARGET _rp2040_family_inclusion_marker)
 	function(family_configure_host_example TARGET)
 		family_configure_target(${TARGET})
 		target_link_libraries(${TARGET} PUBLIC pico_stdlib tinyusb_host)
+	endfunction()
+
+	function(family_configure_pico_pio_usb_example TARGET)
+		family_configure_target(${TARGET})
+		target_link_libraries(${TARGET} PUBLIC pico_stdlib pico_pio_usb)
+    pico_generate_pio_header(tinyusb_common_base ${PICO_PIO_USB_PATH}/src/usb_tx.pio)
+    pico_generate_pio_header(tinyusb_common_base ${PICO_PIO_USB_PATH}/src/usb_rx.pio)
 	endfunction()
 
 	function(family_initialize_project PROJECT DIR)

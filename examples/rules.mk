@@ -199,7 +199,7 @@ flash-xfel: $(BUILD)/$(PROJECT)-sunxi.bin
 PYOCD_OPTION ?=
 flash-pyocd: $(BUILD)/$(PROJECT).hex
 	pyocd flash -t $(PYOCD_TARGET) $(PYOCD_OPTION) $<
-	pyocd reset -t $(PYOCD_TARGET)
+	#pyocd reset -t $(PYOCD_TARGET)
 
 # Flash using openocd
 OPENOCD_OPTION ?=

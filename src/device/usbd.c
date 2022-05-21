@@ -466,8 +466,10 @@ bool tud_task_event_ready(void)
     }
     @endcode
  */
-void tud_task (void)
+void tud_task_ext(uint32_t timeout_ms, bool in_isr)
 {
+  (void) in_isr; // not implemented yet
+
   // Skip if stack is not initialized
   if ( !tusb_inited() ) return;
 
@@ -475,8 +477,7 @@ void tud_task (void)
   while (1)
   {
     dcd_event_t event;
-
-    if ( !osal_queue_receive(_usbd_q, &event) ) return;
+    if ( !osal_queue_receive(_usbd_q, &event, timeout_ms) ) return;
 
 #if CFG_TUSB_DEBUG >= 2
     if (event.event_id == DCD_EVENT_SETUP_RECEIVED) TU_LOG2("\r\n"); // extra line for setup
@@ -593,6 +594,11 @@ void tud_task (void)
         TU_BREAKPOINT();
       break;
     }
+
+#if CFG_TUSB_OS != OPT_OS_NONE && CFG_TUSB_OS != OPT_OS_PICO
+    // return if there is no more events, for application to run other background
+    if (osal_queue_empty(_usbd_q)) return;
+#endif
   }
 }
 
@@ -1065,7 +1071,7 @@ static bool process_get_descriptor(uint8_t rhport, tusb_control_request_t const 
 //--------------------------------------------------------------------+
 // DCD Event Handler
 //--------------------------------------------------------------------+
-void dcd_event_handler(dcd_event_t const * event, bool in_isr)
+TU_ATTR_FAST_FUNC void dcd_event_handler(dcd_event_t const * event, bool in_isr)
 {
   switch (event->event_id)
   {
@@ -1113,38 +1119,6 @@ void dcd_event_handler(dcd_event_t const * event, bool in_isr)
       osal_queue_send(_usbd_q, event, in_isr);
     break;
   }
-}
-
-void dcd_event_bus_signal (uint8_t rhport, dcd_eventid_t eid, bool in_isr)
-{
-  dcd_event_t event = { .rhport = rhport, .event_id = eid };
-  dcd_event_handler(&event, in_isr);
-}
-
-void dcd_event_bus_reset (uint8_t rhport, tusb_speed_t speed, bool in_isr)
-{
-  dcd_event_t event = { .rhport = rhport, .event_id = DCD_EVENT_BUS_RESET };
-  event.bus_reset.speed = speed;
-  dcd_event_handler(&event, in_isr);
-}
-
-void dcd_event_setup_received(uint8_t rhport, uint8_t const * setup, bool in_isr)
-{
-  dcd_event_t event = { .rhport = rhport, .event_id = DCD_EVENT_SETUP_RECEIVED };
-  memcpy(&event.setup_received, setup, 8);
-
-  dcd_event_handler(&event, in_isr);
-}
-
-void dcd_event_xfer_complete (uint8_t rhport, uint8_t ep_addr, uint32_t xferred_bytes, uint8_t result, bool in_isr)
-{
-  dcd_event_t event = { .rhport = rhport, .event_id = DCD_EVENT_XFER_COMPLETE };
-
-  event.xfer_complete.ep_addr = ep_addr;
-  event.xfer_complete.len     = xferred_bytes;
-  event.xfer_complete.result  = result;
-
-  dcd_event_handler(&event, in_isr);
 }
 
 //--------------------------------------------------------------------+

@@ -392,8 +392,10 @@ bool tuh_init(uint8_t rhport)
     }
     @endcode
  */
-void tuh_task(void)
+void tuh_task_ext(uint32_t timeout_ms, bool in_isr)
 {
+  (void) in_isr; // not implemented yet
+
   // Skip if stack is not initialized
   if ( !tusb_inited() ) return;
 
@@ -401,14 +403,14 @@ void tuh_task(void)
   while (1)
   {
     hcd_event_t event;
-    if ( !osal_queue_receive(_usbh_q, &event) ) return;
+    if ( !osal_queue_receive(_usbh_q, &event, timeout_ms) ) return;
 
     switch (event.event_id)
     {
       case HCD_EVENT_DEVICE_ATTACH:
         // TODO due to the shared _usbh_ctrl_buf, we must complete enumerating
         // one device before enumerating another one.
-        TU_LOG2("USBH DEVICE ATTACH\r\n");
+        TU_LOG2("[%u:] USBH DEVICE ATTACH\r\n", event.rhport);
         enum_new_device(&event);
       break;
 
@@ -497,6 +499,11 @@ void tuh_task(void)
 
       default: break;
     }
+
+#if CFG_TUSB_OS != OPT_OS_NONE && CFG_TUSB_OS != OPT_OS_PICO
+    // return if there is no more events, for application to run other background
+    if (osal_queue_empty(_usbh_q)) return;
+#endif
   }
 }
 
@@ -543,12 +550,12 @@ bool tuh_control_xfer (tuh_xfer_t* xfer)
   const uint8_t rhport = usbh_get_rhport(daddr);
 
   TU_LOG2("[%u:%u] %s: ", rhport, daddr, xfer->setup->bRequest <= TUSB_REQ_SYNCH_FRAME ? tu_str_std_request[xfer->setup->bRequest] : "Unknown Request");
-  TU_LOG2_VAR(&xfer->setup);
+  TU_LOG2_VAR(xfer->setup);
   TU_LOG2("\r\n");
 
   if (xfer->complete_cb)
   {
-    TU_ASSERT( hcd_setup_send(rhport, daddr, (uint8_t*) &_ctrl_xfer.request) );
+    TU_ASSERT( hcd_setup_send(rhport, daddr, (uint8_t const*) &_ctrl_xfer.request) );
   }else
   {
     // blocking if complete callback is not provided
@@ -623,7 +630,7 @@ static bool usbh_control_xfer_cb (uint8_t dev_addr, uint8_t ep_addr, xfer_result
 
   if (XFER_RESULT_SUCCESS != result)
   {
-    TU_LOG2("[%u:%u] Control %s\r\n", rhport, dev_addr, result == XFER_RESULT_STALLED ? "STALLED" : "FAILED");
+    TU_LOG1("[%u:%u] Control %s\r\n", rhport, dev_addr, result == XFER_RESULT_STALLED ? "STALLED" : "FAILED");
 
     // terminate transfer if any stage failed
     _xfer_complete(dev_addr, result);
@@ -636,12 +643,13 @@ static bool usbh_control_xfer_cb (uint8_t dev_addr, uint8_t ep_addr, xfer_result
         {
           // DATA stage: initial data toggle is always 1
           _set_control_xfer_stage(CONTROL_STAGE_DATA);
-          return hcd_edpt_xfer(rhport, dev_addr, tu_edpt_addr(0, request->bmRequestType_bit.direction), _ctrl_xfer.buffer, request->wLength);
+          TU_ASSERT( hcd_edpt_xfer(rhport, dev_addr, tu_edpt_addr(0, request->bmRequestType_bit.direction), _ctrl_xfer.buffer, request->wLength) );
+          return true;
         }
         __attribute__((fallthrough));
 
       case CONTROL_STAGE_DATA:
-        if (xferred_bytes)
+        if (request->wLength)
         {
           TU_LOG2("[%u:%u] Control data:\r\n", rhport, dev_addr);
           TU_LOG2_MEM(_ctrl_xfer.buffer, xferred_bytes, 2);
@@ -651,7 +659,7 @@ static bool usbh_control_xfer_cb (uint8_t dev_addr, uint8_t ep_addr, xfer_result
 
         // ACK stage: toggle is always 1
         _set_control_xfer_stage(CONTROL_STAGE_ACK);
-        hcd_edpt_xfer(rhport, dev_addr, tu_edpt_addr(0, 1-request->bmRequestType_bit.direction), NULL, 0);
+        TU_ASSERT( hcd_edpt_xfer(rhport, dev_addr, tu_edpt_addr(0, 1-request->bmRequestType_bit.direction), NULL, 0) );
       break;
 
       case CONTROL_STAGE_ACK:
@@ -791,7 +799,7 @@ bool usbh_edpt_xfer_with_callback(uint8_t dev_addr, uint8_t ep_addr, uint8_t * b
 
 static bool usbh_edpt_control_open(uint8_t dev_addr, uint8_t max_packet_size)
 {
-  TU_LOG2("Open EP0 with Size = %u (addr = %u)\r\n", max_packet_size, dev_addr);
+  TU_LOG2("[%u:%u] Open EP0 with Size = %u\r\n", usbh_get_rhport(dev_addr), dev_addr, max_packet_size);
 
   tusb_desc_endpoint_t ep0_desc =
   {
@@ -847,7 +855,7 @@ void hcd_devtree_get_info(uint8_t dev_addr, hcd_devtree_info_t* devtree_info)
   }
 }
 
-void hcd_event_handler(hcd_event_t const* event, bool in_isr)
+TU_ATTR_FAST_FUNC void hcd_event_handler(hcd_event_t const* event, bool in_isr)
 {
   switch (event->event_id)
   {
@@ -855,52 +863,6 @@ void hcd_event_handler(hcd_event_t const* event, bool in_isr)
       osal_queue_send(_usbh_q, event, in_isr);
     break;
   }
-}
-
-void hcd_event_xfer_complete(uint8_t dev_addr, uint8_t ep_addr, uint32_t xferred_bytes, xfer_result_t result, bool in_isr)
-{
-  hcd_event_t event =
-  {
-    .rhport   = 0, // TODO correct rhport
-    .event_id = HCD_EVENT_XFER_COMPLETE,
-    .dev_addr = dev_addr,
-    .xfer_complete =
-    {
-      .ep_addr = ep_addr,
-      .result  = result,
-      .len     = xferred_bytes
-    }
-  };
-
-  hcd_event_handler(&event, in_isr);
-}
-
-void hcd_event_device_attach(uint8_t rhport, bool in_isr)
-{
-  hcd_event_t event =
-  {
-    .rhport   = rhport,
-    .event_id = HCD_EVENT_DEVICE_ATTACH
-  };
-
-  event.connection.hub_addr = 0;
-  event.connection.hub_port = 0;
-
-  hcd_event_handler(&event, in_isr);
-}
-
-void hcd_event_device_remove(uint8_t hostid, bool in_isr)
-{
-  hcd_event_t event =
-  {
-    .rhport   = hostid,
-    .event_id = HCD_EVENT_DEVICE_REMOVE
-  };
-
-  event.connection.hub_addr = 0;
-  event.connection.hub_port = 0;
-
-  hcd_event_handler(&event, in_isr);
 }
 
 //--------------------------------------------------------------------+
@@ -1177,7 +1139,7 @@ enum {
   //ENUM_HUB_GET_STATUS_1,
   ENUM_HUB_CLEAR_RESET_1,
   ENUM_ADDR0_DEVICE_DESC,
-  ENUM_RESET_2,         // 2nd reset before set address
+  ENUM_RESET_2,         // 2nd reset before set address (not used)
   ENUM_HUB_GET_STATUS_2,
   ENUM_HUB_CLEAR_RESET_2,
   ENUM_SET_ADDR,
@@ -1265,15 +1227,17 @@ static void process_enumeration(tuh_xfer_t* xfer)
     }
     break;
 
+#if 0
     case ENUM_RESET_2:
+      // XXX note used by now, but may be needed for some devices !?
       // Reset device again before Set Address
-      TU_LOG2("Port reset \r\n");
+      TU_LOG2("Port reset2 \r\n");
       if (_dev0.hub_addr == 0)
       {
         // connected directly to roothub
         hcd_port_reset( _dev0.rhport );
         osal_task_delay(RESET_DELAY);
-
+        hcd_port_reset_end(_dev0.rhport);
         // TODO: fall through to SET ADDRESS, refactor later
       }
       #if CFG_TUH_HUB
@@ -1285,6 +1249,7 @@ static void process_enumeration(tuh_xfer_t* xfer)
       }
       #endif
       __attribute__((fallthrough));
+#endif
 
     case ENUM_SET_ADDR:
       enum_request_set_addr();
@@ -1298,7 +1263,7 @@ static void process_enumeration(tuh_xfer_t* xfer)
       TU_ASSERT(new_dev, );
       new_dev->addressed = 1;
 
-      // TODO close device 0, may not be needed
+      // Close device 0
       hcd_device_close(_dev0.rhport, 0);
 
       // open control pipe for new address
@@ -1389,7 +1354,9 @@ static bool enum_new_device(hcd_event_t* event)
   {
     // connected/disconnected directly with roothub
     // wait until device is stable TODO non blocking
+    hcd_port_reset(_dev0.rhport);
     osal_task_delay(RESET_DELAY);
+    hcd_port_reset_end( _dev0.rhport);
 
     // device unplugged while delaying
     if ( !hcd_port_connect_status(_dev0.rhport) ) return true;

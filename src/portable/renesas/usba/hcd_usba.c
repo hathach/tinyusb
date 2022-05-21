@@ -620,6 +620,11 @@ void hcd_port_reset(uint8_t rhport)
   _hcd.need_reset = false;
 }
 
+void hcd_port_reset_end(uint8_t rhport)
+{
+  (void) rhport;
+}
+
 tusb_speed_t hcd_port_speed_get(uint8_t rhport)
 {
   (void)rhport;

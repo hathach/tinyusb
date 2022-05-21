@@ -329,7 +329,7 @@ bool hidh_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_interface_t const *de
 
   TU_VERIFY(TUSB_CLASS_HID == desc_itf->bInterfaceClass);
 
-  TU_LOG2("HID opening Interface %u (addr = %u)\r\n", desc_itf->bInterfaceNumber, dev_addr);
+  TU_LOG2("[%u] HID opening Interface %u\r\n", dev_addr, desc_itf->bInterfaceNumber);
 
   // len = interface + hid + n*endpoints
   uint16_t const drv_len = sizeof(tusb_desc_interface_t) + sizeof(tusb_hid_descriptor_hid_t) + desc_itf->bNumEndpoints*sizeof(tusb_desc_endpoint_t);
