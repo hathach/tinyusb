@@ -26,3 +26,5 @@ target_include_directories(${PROJECT} PUBLIC
 # Configure compilation flags and libraries for the example... see the corresponding function
 # in hw/bsp/FAMILY/family.cmake for details.
 family_configure_device_example(${PROJECT})
+family_configure_host_example(${PROJECT})
+family_configure_pico_pio_usb_example(${PROJECT})
