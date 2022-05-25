@@ -708,6 +708,7 @@ enum {
   HID_USAGE_PAGE_MSR             = 0x8e,
   HID_USAGE_PAGE_CAMERA          = 0x90,
   HID_USAGE_PAGE_ARCADE          = 0x91,
+  HID_USAGE_PAGE_FIDO_ALLIANCE   = 0xF1D0,
   HID_USAGE_PAGE_VENDOR          = 0xFF00 // 0xFF00 - 0xFFFF
 };
 
@@ -842,6 +843,14 @@ enum
 
   // Mouse Horizontal scroll
   HID_USAGE_CONSUMER_AC_PAN                            = 0x0238,
+};
+
+/// HID Usage Table: FIDO Alliance Page (0xF1D0)
+enum
+{
+  HID_USAGE_FIDO_U2F_AUTHENTICATOR_DEVICE  = 0x01,
+  HID_USAGE_FIDO_INPUT_REPORT_DATA         = 0x20,
+  HID_USAGE_FIDO_OUTPUT_REPORT_DATA        = 0x21
 };
 
 /*--------------------------------------------------------------------
