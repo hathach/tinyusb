@@ -49,7 +49,9 @@
 
 #define TCP_MSS                         (1500 /*mtu*/ - 20 /*iphdr*/ - 20 /*tcphhr*/)
 #define TCP_SND_BUF                     (2 * TCP_MSS)
+#ifndef TCP_WND
 #define TCP_WND                         (TCP_MSS)
+#endif
 
 #define ETHARP_SUPPORT_STATIC_ENTRIES   1
 
