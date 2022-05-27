@@ -504,16 +504,15 @@ enum {
 
 typedef struct {
   uint8_t method;
+  uint32_t sample_freq;   //  sample frequency in Hz
+
   union {
     struct {
-        uint32_t sample_freq; //  sample frequency in Hz
-        uint32_t mclk_freq;   // Main clock frequency in Hz i.e. master clock to which sample clock is based on
+      uint32_t mclk_freq; // Main clock frequency in Hz i.e. master clock to which sample clock is based on
     }frequency;
 
     struct {
-        uint32_t nominal;
-        uint32_t threshold;
-        // variation etc ..
+      uint32_t threshold_bytes; // minimum number of bytes received to be considered as filled/ready
     }fifo_count;
   };
 }audio_feedback_params_t;

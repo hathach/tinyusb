@@ -323,9 +323,10 @@ typedef struct
         uint32_t mclk_freq;
       }fixed;
 
-//      struct {
-//
-//      }fifo_count;
+      struct {
+        uint32_t nominal_value;
+        uint32_t threshold_bytes;
+      }fifo_count;
     }compute;
 
   } feedback;
@@ -1715,17 +1716,28 @@ static bool audiod_set_interface(uint8_t rhport, tusb_control_request_t const * 
         tud_audio_feedback_params_cb(func_id, alt, &fb_param);
         audio->feedback.compute_method = fb_param.method;
 
+        // Minimal/Maximum value in 16.16 format for full speed (1ms per frame) or high speed (125 us per frame)
+        uint32_t const frame_div  = (TUSB_SPEED_FULL == tud_speed_get()) ? 1000 : 8000;
+        audio->feedback.min_value = (fb_param.sample_freq/frame_div - 1) << 16;
+        audio->feedback.max_value = (fb_param.sample_freq/frame_div + 1) << 16;
+
         switch(fb_param.method)
         {
           case AUDIO_FEEDBACK_METHOD_FREQUENCY_FIXED:
           case AUDIO_FEEDBACK_METHOD_FREQUENCY_FLOAT:
           case AUDIO_FEEDBACK_METHOD_FREQUENCY_POWER_OF_2:
-            set_fb_params_freq(audio, fb_param.frequency.sample_freq, fb_param.frequency.mclk_freq);
+            set_fb_params_freq(audio, fb_param.sample_freq, fb_param.frequency.mclk_freq);
           break;
 
           case AUDIO_FEEDBACK_METHOD_FIFO_COUNT_FIXED:
           case AUDIO_FEEDBACK_METHOD_FIFO_COUNT_FLOAT:
-            // TODO feedback by fifo count
+          {
+            uint64_t fb64 = ((uint64_t) fb_param.sample_freq) << 16;
+            audio->feedback.compute.fifo_count.nominal_value = (uint32_t) (fb64 / frame_div);
+            audio->feedback.compute.fifo_count.threshold_bytes = fb_param.fifo_count.threshold_bytes;
+
+            tud_audio_fb_set(audio->feedback.compute.fifo_count.nominal_value);
+          }
           break;
 
           // nothing to do
@@ -1972,14 +1984,14 @@ bool audiod_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint3
   (void) xferred_bytes;
 
   // Search for interface belonging to given end point address and proceed as required
-  uint8_t func_id;
-  for (func_id = 0; func_id < CFG_TUD_AUDIO; func_id++)
+  for (uint8_t func_id = 0; func_id < CFG_TUD_AUDIO; func_id++)
   {
+    audiod_function_t* audio = &_audiod_fct[func_id];
 
 #if CFG_TUD_AUDIO_INT_CTR_EPSIZE_IN
 
     // Data transmission of control interrupt finished
-    if (_audiod_fct[func_id].ep_int_ctr == ep_addr)
+    if (audio->ep_int_ctr == ep_addr)
     {
       // According to USB2 specification, maximum payload of interrupt EP is 8 bytes on low speed, 64 bytes on full speed, and 1024 bytes on high speed (but only if an alternate interface other than 0 is used - see specification p. 49)
       // In case there is nothing to send we have to return a NAK - this is taken care of by PHY ???
@@ -1996,7 +2008,7 @@ bool audiod_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint3
 #if CFG_TUD_AUDIO_ENABLE_EP_IN
 
     // Data transmission of audio packet finished
-    if (_audiod_fct[func_id].ep_in == ep_addr && _audiod_fct[func_id].alt_setting != 0)
+    if (audio->ep_in == ep_addr && audio->alt_setting != 0)
     {
       // USB 2.0, section 5.6.4, third paragraph, states "An isochronous endpoint must specify its required bus access period. However, an isochronous endpoint must be prepared to handle poll rates faster than the one specified."
       // That paragraph goes on to say "An isochronous IN endpoint must return a zero-length packet whenever data is requested at a faster interval than the specified interval and data is not available."
@@ -2007,7 +2019,7 @@ bool audiod_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint3
       // This is the only place where we can fill something into the EPs buffer!
 
       // Load new data
-      TU_VERIFY(audiod_tx_done_cb(rhport, &_audiod_fct[func_id]));
+      TU_VERIFY(audiod_tx_done_cb(rhport, audio));
 
       // Transmission of ZLP is done by audiod_tx_done_cb()
       return true;
@@ -2017,24 +2029,24 @@ bool audiod_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint3
 #if CFG_TUD_AUDIO_ENABLE_EP_OUT
 
     // New audio packet received
-    if (_audiod_fct[func_id].ep_out == ep_addr)
+    if (audio->ep_out == ep_addr)
     {
-      TU_VERIFY(audiod_rx_done_cb(rhport, &_audiod_fct[func_id], (uint16_t) xferred_bytes));
+      TU_VERIFY(audiod_rx_done_cb(rhport, audio, (uint16_t) xferred_bytes));
       return true;
     }
 
 
 #if CFG_TUD_AUDIO_ENABLE_FEEDBACK_EP
     // Transmission of feedback EP finished
-    if (_audiod_fct[func_id].ep_fb == ep_addr)
+    if (audio->ep_fb == ep_addr)
     {
       if (tud_audio_fb_done_cb) tud_audio_fb_done_cb(func_id);
 
       // Schedule a transmit with the new value if EP is not busy 
-      if (!usbd_edpt_busy(rhport, _audiod_fct[func_id].ep_fb))
+      if (!usbd_edpt_busy(rhport, audio->ep_fb))
       {
         // Schedule next transmission - value is changed bytud_audio_n_fb_set() in the meantime or the old value gets sent
-        return audiod_fb_send(rhport, &_audiod_fct[func_id]);
+        return audiod_fb_send(rhport, audio);
       }
     }
 #endif
@@ -2076,11 +2088,6 @@ static bool set_fb_params_freq(audiod_function_t* audio, uint32_t sample_freq, u
     audio->feedback.compute.fixed.sample_freq = sample_freq;
     audio->feedback.compute.fixed.mclk_freq = mclk_freq;
   }
-
-  // Minimal/Maximum value in 16.16 format for full speed (1ms per frame) or high speed (125 us per frame)
-  uint32_t const frame_div  = (TUSB_SPEED_FULL == tud_speed_get()) ? 1000 : 8000;
-  audio->feedback.min_value = (sample_freq/frame_div - 1) << 16;
-  audio->feedback.max_value = (sample_freq/frame_div + 1) << 16;
 
   return true;
 }
