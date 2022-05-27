@@ -487,11 +487,6 @@ TU_ATTR_WEAK void tud_audio_fb_done_cb(uint8_t func_id);
 bool tud_audio_n_fb_set(uint8_t func_id, uint32_t feedback);
 static inline bool tud_audio_fb_set(uint32_t feedback);
 
-uint8_t tud_audio_n_get_fb_n_frames(uint8_t func_id);
-static inline uint8_t tud_audio_get_fb_n_frames();
-
-#endif // CFG_TUD_AUDIO_ENABLE_EP_OUT && CFG_TUD_AUDIO_ENABLE_FEEDBACK_EP
-
 // Update feedback value with passed cycles since last time this update function is called.
 // Typically called within tud_audio_sof_isr(). Required tud_audio_feedback_params_cb() is implemented
 // This function will also call tud_audio_feedback_set()
@@ -511,8 +506,8 @@ typedef struct {
   uint8_t method;
   union {
     struct {
-        uint32_t sample_freq;
-        uint32_t mclk_freq;
+        uint32_t sample_freq; //  sample frequency in Hz
+        uint32_t mclk_freq;   // Main clock frequency in Hz i.e. master clock to which sample clock is based on
     }frequency;
 
     struct {
@@ -523,18 +518,16 @@ typedef struct {
   };
 }audio_feedback_params_t;
 
-
-// TU_ATTR_WEAK void tud_audio_feedback_params_cb(uint8_t func_id, uint8_t alt_itf, audio_feedback_params_t* feedback_param);
-
-// mclk_freq   : Main clock frequency in Hz i.e. master clock to which sample clock is locked
-// sample_freq : sample frequency in Hz
-// fixed_point : 0 float (default), 1 fixed point (for mcu without FPU)
-TU_ATTR_WEAK void tud_audio_feedback_params_cb(uint8_t func_id, uint8_t alt_itf, uint32_t* sample_freq, uint32_t* mclk_freq, uint8_t* fixed_point);
+// Invoked when needed to set feedback parameters
+TU_ATTR_WEAK void tud_audio_feedback_params_cb(uint8_t func_id, uint8_t alt_itf, audio_feedback_params_t* feedback_param);
 
 // Callback in ISR context, invoked periodically according to feedback endpoint bInterval.
 // Could be used to compute and update feedback value
-TU_ATTR_WEAK void tud_audio_feedback_interval_isr(uint8_t func_id, uint32_t frame_number, uint8_t interval_log2);
+// frame_number  : current SOF count
+// interval_shift: number of bit shift i.e log2(interval) from Feedback endpoint descriptor
+TU_ATTR_WEAK void tud_audio_feedback_interval_isr(uint8_t func_id, uint32_t frame_number, uint8_t interval_shift);
 
+#endif // CFG_TUD_AUDIO_ENABLE_EP_OUT && CFG_TUD_AUDIO_ENABLE_FEEDBACK_EP
 
 #if CFG_TUD_AUDIO_INT_CTR_EPSIZE_IN
 TU_ATTR_WEAK bool tud_audio_int_ctr_done_cb(uint8_t rhport, uint16_t n_bytes_copied);
@@ -680,11 +673,6 @@ static inline uint16_t tud_audio_int_ctr_write(uint8_t const* buffer, uint16_t l
 static inline bool tud_audio_fb_set(uint32_t feedback)
 {
   return tud_audio_n_fb_set(0, feedback);
-}
-
-static inline uint8_t tud_audio_get_fb_n_frames()
-{
-  return tud_audio_n_get_fb_n_frames(0);
 }
 
 #endif
