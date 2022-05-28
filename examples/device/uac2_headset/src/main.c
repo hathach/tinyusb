@@ -156,7 +156,7 @@ static bool tud_audio_clock_get_request(uint8_t rhport, audio_control_request_t 
   {
     if (request->bRequest == AUDIO_CS_REQ_CUR)
     {
-      TU_LOG1("Clock get current freq %u\r\n", current_sample_rate);
+      TU_LOG1("Clock get current freq %lu\r\n", current_sample_rate);
 
       audio_control_cur_4_t curf = { tu_htole32(current_sample_rate) };
       return tud_audio_buffer_and_schedule_control_xfer(rhport, (tusb_control_request_t const *)request, &curf, sizeof(curf));
@@ -205,7 +205,7 @@ static bool tud_audio_clock_set_request(uint8_t rhport, audio_control_request_t 
 
     current_sample_rate = ((audio_control_cur_4_t const *)buf)->bCur;
 
-    TU_LOG1("Clock set current freq: %d\r\n", current_sample_rate);
+    TU_LOG1("Clock set current freq: %ld\r\n", current_sample_rate);
 
     return true;
   }
