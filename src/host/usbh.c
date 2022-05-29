@@ -1513,40 +1513,31 @@ static bool _parse_configuration_descriptor(uint8_t dev_addr, tusb_desc_configur
     uint16_t const drv_len = tu_desc_get_interface_total_len(desc_itf, assoc_itf_count, desc_end-p_desc);
     TU_ASSERT(drv_len >= sizeof(tusb_desc_interface_t));
 
-    if (desc_itf->bInterfaceClass == TUSB_CLASS_HUB && dev->hub_addr != 0)
+    // Find driver for this interface
+    uint8_t drv_id;
+    for (drv_id = 0; drv_id < USBH_CLASS_DRIVER_COUNT; drv_id++)
     {
-      // TODO Attach hub to Hub is not currently supported
-      // skip this interface
-      TU_LOG(USBH_DBG_LVL, "Only 1 level of HUB is supported\r\n");
-    }
-    else
-    {
-      // Find driver for this interface
-      uint8_t drv_id;
-      for (drv_id = 0; drv_id < USBH_CLASS_DRIVER_COUNT; drv_id++)
+      usbh_class_driver_t const * driver = &usbh_class_drivers[drv_id];
+
+      if ( driver->open(dev->rhport, dev_addr, desc_itf, drv_len) )
       {
-        usbh_class_driver_t const * driver = &usbh_class_drivers[drv_id];
+        // open successfully
+        TU_LOG2("  %s opened\r\n", driver->name);
 
-        if ( driver->open(dev->rhport, dev_addr, desc_itf, drv_len) )
+        // bind (associated) interfaces to found driver
+        for(uint8_t i=0; i<assoc_itf_count; i++)
         {
-          // open successfully
-          TU_LOG2("  %s opened\r\n", driver->name);
+          uint8_t const itf_num = desc_itf->bInterfaceNumber+i;
 
-          // bind (associated) interfaces to found driver
-          for(uint8_t i=0; i<assoc_itf_count; i++)
-          {
-            uint8_t const itf_num = desc_itf->bInterfaceNumber+i;
-
-            // Interface number must not be used already
-            TU_ASSERT( DRVID_INVALID == dev->itf2drv[itf_num] );
-            dev->itf2drv[itf_num] = drv_id;
-          }
-
-          // bind all endpoints to found driver
-          tu_edpt_bind_driver(dev->ep2drv, desc_itf, drv_len, drv_id);
-
-          break; // exit driver find loop
+          // Interface number must not be used already
+          TU_ASSERT( DRVID_INVALID == dev->itf2drv[itf_num] );
+          dev->itf2drv[itf_num] = drv_id;
         }
+
+        // bind all endpoints to found driver
+        tu_edpt_bind_driver(dev->ep2drv, desc_itf, drv_len, drv_id);
+
+        break; // exit driver find loop
       }
 
       if( drv_id >= USBH_CLASS_DRIVER_COUNT )
