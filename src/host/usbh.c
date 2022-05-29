@@ -1107,6 +1107,12 @@ static void process_device_unplugged(uint8_t rhport, uint8_t hub_addr, uint8_t h
     {
       TU_LOG2("  Address = %u\r\n", dev_addr);
 
+      // If the device itself is a usb hub, unplug downstream devices.
+      if (dev_addr > CFG_TUH_DEVICE_MAX)
+      {
+        process_device_unplugged(rhport, dev_addr, 0);
+      }
+
       // Invoke callback before close driver
       if (tuh_umount_cb) tuh_umount_cb(dev_addr);
 
