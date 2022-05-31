@@ -69,7 +69,7 @@ typedef struct
   volatile uint8_t cfg_num; // current active configuration (0x00 is not configured)
   uint8_t speed;
 
-  uint8_t itf2drv[16];                      // map interface number to driver (0xff is invalid)
+  uint8_t itf2drv[CFG_TUD_INTERFACE_MAX];   // map interface number to driver (0xff is invalid)
   uint8_t ep2drv[CFG_TUD_ENDPPOINT_MAX][2]; // map endpoint to driver ( 0xff is invalid ), can use only 4-bit each
 
   tu_edpt_state_t ep_status[CFG_TUD_ENDPPOINT_MAX][2];
@@ -134,7 +134,7 @@ static usbd_class_driver_t const _usbd_driver[] =
     .open             = audiod_open,
     .control_xfer_cb  = audiod_control_xfer_cb,
     .xfer_cb          = audiod_xfer_cb,
-    .sof_isr          = audiod_sof
+    .sof_isr          = audiod_sof_isr
   },
   #endif
 
@@ -170,7 +170,7 @@ static usbd_class_driver_t const _usbd_driver[] =
     .open             = vendord_open,
     .control_xfer_cb  = tud_vendor_control_xfer_cb,
     .xfer_cb          = vendord_xfer_cb,
-    .sof_isr              = NULL
+    .sof_isr          = NULL
   },
   #endif
 
