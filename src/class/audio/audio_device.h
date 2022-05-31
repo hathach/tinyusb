@@ -498,8 +498,9 @@ enum {
   AUDIO_FEEDBACK_METHOD_FREQUENCY_FIXED,
   AUDIO_FEEDBACK_METHOD_FREQUENCY_FLOAT,
   AUDIO_FEEDBACK_METHOD_FREQUENCY_POWER_OF_2,
-  AUDIO_FEEDBACK_METHOD_FIFO_COUNT_FIXED,
-  AUDIO_FEEDBACK_METHOD_FIFO_COUNT_FLOAT
+
+  // impelemnt later
+  // AUDIO_FEEDBACK_METHOD_FIFO_COUNT
 };
 
 typedef struct {
@@ -511,9 +512,11 @@ typedef struct {
       uint32_t mclk_freq; // Main clock frequency in Hz i.e. master clock to which sample clock is based on
     }frequency;
 
+#if 0 // implement later
     struct {
       uint32_t threshold_bytes; // minimum number of bytes received to be considered as filled/ready
     }fifo_count;
+#endif
   };
 }audio_feedback_params_t;
 

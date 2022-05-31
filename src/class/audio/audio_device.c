@@ -305,13 +305,12 @@ typedef struct
 #endif
 
 #if CFG_TUD_AUDIO_ENABLE_FEEDBACK_EP
-
   struct {
-    uint32_t value;     // Feedback value for asynchronous mode (in 16.16 format).
-    uint32_t min_value; // min value according to UAC2 FMT-2.0 section 2.3.1.1.
-    uint32_t max_value; // max value according to UAC2 FMT-2.0 section 2.3.1.1.
+    uint32_t value;       // Feedback value for asynchronous mode (in 16.16 format).
+    uint32_t min_value;   // min value according to UAC2 FMT-2.0 section 2.3.1.1.
+    uint32_t max_value;   // max value according to UAC2 FMT-2.0 section 2.3.1.1.
 
-    uint8_t frame_shift; // bInterval-1 in unit of frame (FS), micro-frame (HS)
+    uint8_t frame_shift;  // bInterval-1 in unit of frame (FS), micro-frame (HS)
     uint8_t compute_method;
 
     union {
@@ -323,15 +322,17 @@ typedef struct
         uint32_t mclk_freq;
       }fixed;
 
+#if 0 // implement later
       struct {
         uint32_t nominal_value;
         uint32_t threshold_bytes;
       }fifo_count;
+#endif
     }compute;
 
   } feedback;
-
 #endif // CFG_TUD_AUDIO_ENABLE_FEEDBACK_EP
+
 #endif // CFG_TUD_AUDIO_ENABLE_EP_OUT
 
 #if CFG_TUD_AUDIO_ENABLE_EP_IN && !CFG_TUD_AUDIO_ENABLE_ENCODING
@@ -1729,8 +1730,8 @@ static bool audiod_set_interface(uint8_t rhport, tusb_control_request_t const * 
             set_fb_params_freq(audio, fb_param.sample_freq, fb_param.frequency.mclk_freq);
           break;
 
-          case AUDIO_FEEDBACK_METHOD_FIFO_COUNT_FIXED:
-          case AUDIO_FEEDBACK_METHOD_FIFO_COUNT_FLOAT:
+          #if 0 // implement later
+          case AUDIO_FEEDBACK_METHOD_FIFO_COUNT:
           {
             uint64_t fb64 = ((uint64_t) fb_param.sample_freq) << 16;
             audio->feedback.compute.fifo_count.nominal_value = (uint32_t) (fb64 / frame_div);
@@ -1739,6 +1740,7 @@ static bool audiod_set_interface(uint8_t rhport, tusb_control_request_t const * 
             tud_audio_fb_set(audio->feedback.compute.fifo_count.nominal_value);
           }
           break;
+          #endif
 
           // nothing to do
           default: break;
