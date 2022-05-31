@@ -247,6 +247,12 @@ static void dcd_rp2040_irq(void)
     uint32_t const status = usb_hw->ints;
     uint32_t handled = 0;
 
+    if (status & USB_INTF_DEV_SOF_BITS)
+    {
+      handled |= USB_INTF_DEV_SOF_BITS;
+      dcd_event_sof(0, usb_hw->sof_rd & USB_SOF_RD_BITS, true);
+    }
+
     // xfer events are handled before setup req. So if a transfer completes immediately
     // before closing the EP, the events will be delivered in same order.
     if (status & USB_INTS_BUFF_STATUS_BITS)
@@ -422,6 +428,23 @@ void dcd_connect(__unused uint8_t rhport)
 {
   (void) rhport;
   usb_hw_set->sie_ctrl = USB_SIE_CTRL_PULLUP_EN_BITS;
+}
+
+void dcd_sof_enable(uint8_t rhport, bool en)
+{
+  (void) rhport;
+
+  uint32_t inte = usb_hw->inte;
+
+  if (en)
+  {
+    inte |= USB_INTS_DEV_SOF_BITS;
+  }else
+  {
+    inte &= ~USB_INTS_DEV_SOF_BITS;
+  }
+
+  usb_hw->inte = inte;
 }
 
 /*------------------------------------------------------------------*/

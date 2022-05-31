@@ -186,6 +186,14 @@ void dcd_disconnect(uint8_t rhport)
   USB_REGS->POWERbits.SOFTCONN = 1;
 }
 
+void dcd_sof_enable(uint8_t rhport, bool en)
+{
+  (void) rhport;
+  (void) en;
+
+  // TODO implement later
+}
+
 TU_ATTR_ALWAYS_INLINE static inline bool is_in_isr(void)
 {
   return (_CP0_GET_STATUS() & (_CP0_STATUS_EXL_MASK | _CP0_STATUS_IPL_MASK)) != 0;

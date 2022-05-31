@@ -305,9 +305,35 @@ typedef struct
 #endif
 
 #if CFG_TUD_AUDIO_ENABLE_FEEDBACK_EP
-  uint32_t fb_val;                                                              // Feedback value for asynchronous mode (in 16.16 format).
+  struct {
+    uint32_t value;       // Feedback value for asynchronous mode (in 16.16 format).
+    uint32_t min_value;   // min value according to UAC2 FMT-2.0 section 2.3.1.1.
+    uint32_t max_value;   // max value according to UAC2 FMT-2.0 section 2.3.1.1.
+
+    uint8_t frame_shift;  // bInterval-1 in unit of frame (FS), micro-frame (HS)
+    uint8_t compute_method;
+
+    union {
+      uint8_t power_of_2; // pre-computed power of 2 shift
+      float float_const;  // pre-computed float constant
+
+      struct {
+        uint32_t sample_freq;
+        uint32_t mclk_freq;
+      }fixed;
+
+#if 0 // implement later
+      struct {
+        uint32_t nominal_value;
+        uint32_t threshold_bytes;
+      }fifo_count;
 #endif
-#endif
+    }compute;
+
+  } feedback;
+#endif // CFG_TUD_AUDIO_ENABLE_FEEDBACK_EP
+
+#endif // CFG_TUD_AUDIO_ENABLE_EP_OUT
 
 #if CFG_TUD_AUDIO_ENABLE_EP_IN && !CFG_TUD_AUDIO_ENABLE_ENCODING
   tu_fifo_t ep_in_ff;
@@ -1039,7 +1065,7 @@ static uint16_t audiod_encode_type_I_pcm(uint8_t rhport, audiod_function_t* audi
 #if CFG_TUD_AUDIO_ENABLE_EP_OUT && CFG_TUD_AUDIO_ENABLE_FEEDBACK_EP
 static inline bool audiod_fb_send(uint8_t rhport, audiod_function_t *audio)
 {
-  return usbd_edpt_xfer(rhport, audio->ep_fb, (uint8_t *) &audio->fb_val, 4);
+  return usbd_edpt_xfer(rhport, audio->ep_fb, (uint8_t *) &audio->feedback.value, 4);
 }
 #endif
 
@@ -1510,7 +1536,7 @@ static bool audiod_set_interface(uint8_t rhport, tusb_control_request_t const * 
       tu_fifo_clear(&audio->tx_supp_ff[cnt]);
     }
 #endif
-    
+
     // Invoke callback - can be used to stop data sampling
     if (tud_audio_set_itf_close_EP_cb) TU_VERIFY(tud_audio_set_itf_close_EP_cb(rhport, p_request));
 
@@ -1543,7 +1569,8 @@ static bool audiod_set_interface(uint8_t rhport, tusb_control_request_t const * 
     // Close corresponding feedback EP
 #if CFG_TUD_AUDIO_ENABLE_FEEDBACK_EP
     usbd_edpt_close(rhport, audio->ep_fb);
-    audio->ep_fb = 0;                           // Necessary?
+    audio->ep_fb = 0;
+    tu_memclr(&audio->feedback, sizeof(audio->feedback));
 #endif
   }
 #endif
@@ -1602,8 +1629,6 @@ static bool audiod_set_interface(uint8_t rhport, tusb_control_request_t const * 
 #endif
 
 #endif
-            // Invoke callback - can be used to trigger data sampling if not already running
-            if (tud_audio_set_itf_cb) TU_VERIFY(tud_audio_set_itf_cb(rhport, p_request));
 
             // Schedule first transmit if alternate interface is not zero i.e. streaming is disabled - in case no sample data is available a ZLP is loaded
             // It is necessary to trigger this here since the refill is done with an RX FIFO empty interrupt which can only trigger if something was in there
@@ -1635,16 +1660,6 @@ static bool audiod_set_interface(uint8_t rhport, tusb_control_request_t const * 
 #endif
 #endif
 
-#if CFG_TUD_AUDIO_ENABLE_FEEDBACK_EP
-            // In case of asynchronous EP, call Cb after ep_fb is set
-            if ( !(desc_ep->bmAttributes.sync == 0x01 && audio->ep_fb == 0) )
-            {
-              if (tud_audio_set_itf_cb) TU_VERIFY(tud_audio_set_itf_cb(rhport, p_request));
-            }
-#else
-            // Invoke callback
-            if (tud_audio_set_itf_cb) TU_VERIFY(tud_audio_set_itf_cb(rhport, p_request));
-#endif
             // Prepare for incoming data
 #if USE_LINEAR_BUFFER_RX
             TU_VERIFY(usbd_edpt_xfer(rhport, audio->ep_out, audio->lin_buf_out, audio->ep_out_sz), false);
@@ -1657,12 +1672,10 @@ static bool audiod_set_interface(uint8_t rhport, tusb_control_request_t const * 
           if (tu_edpt_dir(ep_addr) == TUSB_DIR_IN && desc_ep->bmAttributes.usage == 1)   // Check if usage is explicit data feedback
           {
             audio->ep_fb = ep_addr;
+            audio->feedback.frame_shift = desc_ep->bInterval -1;
 
-            // Invoke callback after ep_out is set
-            if (audio->ep_out != 0)
-            {
-              if (tud_audio_set_itf_cb) TU_VERIFY(tud_audio_set_itf_cb(rhport, p_request));
-            }
+            // Enable SOF interrupt if callback is implemented
+            if (tud_audio_feedback_interval_isr) usbd_sof_enable(rhport, true);
           }
 #endif
 #endif // CFG_TUD_AUDIO_ENABLE_EP_OUT
@@ -1674,6 +1687,49 @@ static bool audiod_set_interface(uint8_t rhport, tusb_control_request_t const * 
 
       TU_VERIFY(foundEPs == nEps);
 
+      // Invoke one callback for a final set interface
+      if (tud_audio_set_itf_cb) TU_VERIFY(tud_audio_set_itf_cb(rhport, p_request));
+
+#if CFG_TUD_AUDIO_ENABLE_FEEDBACK_EP
+      // Prepare feedback computation if callback is available
+      if (tud_audio_feedback_params_cb)
+      {
+        audio_feedback_params_t fb_param;
+
+        tud_audio_feedback_params_cb(func_id, alt, &fb_param);
+        audio->feedback.compute_method = fb_param.method;
+
+        // Minimal/Maximum value in 16.16 format for full speed (1ms per frame) or high speed (125 us per frame)
+        uint32_t const frame_div  = (TUSB_SPEED_FULL == tud_speed_get()) ? 1000 : 8000;
+        audio->feedback.min_value = (fb_param.sample_freq/frame_div - 1) << 16;
+        audio->feedback.max_value = (fb_param.sample_freq/frame_div + 1) << 16;
+
+        switch(fb_param.method)
+        {
+          case AUDIO_FEEDBACK_METHOD_FREQUENCY_FIXED:
+          case AUDIO_FEEDBACK_METHOD_FREQUENCY_FLOAT:
+          case AUDIO_FEEDBACK_METHOD_FREQUENCY_POWER_OF_2:
+            set_fb_params_freq(audio, fb_param.sample_freq, fb_param.frequency.mclk_freq);
+          break;
+
+          #if 0 // implement later
+          case AUDIO_FEEDBACK_METHOD_FIFO_COUNT:
+          {
+            uint64_t fb64 = ((uint64_t) fb_param.sample_freq) << 16;
+            audio->feedback.compute.fifo_count.nominal_value = (uint32_t) (fb64 / frame_div);
+            audio->feedback.compute.fifo_count.threshold_bytes = fb_param.fifo_count.threshold_bytes;
+
+            tud_audio_fb_set(audio->feedback.compute.fifo_count.nominal_value);
+          }
+          break;
+          #endif
+
+          // nothing to do
+          default: break;
+        }
+      }
+#endif
+
       // We are done - abort loop
       break;
     }
@@ -1681,6 +1737,20 @@ static bool audiod_set_interface(uint8_t rhport, tusb_control_request_t const * 
     // Moving forward
     p_desc = tu_desc_next(p_desc);
   }
+
+#if CFG_TUD_AUDIO_ENABLE_FEEDBACK_EP
+  // Disable SOF interrupt if no driver has any enabled feedback EP
+  bool disable = true;
+  for(uint8_t i=0; i < CFG_TUD_AUDIO; i++)
+  {
+    if (_audiod_fct[i].ep_fb != 0)
+    {
+      disable = false;
+      break;
+    }
+  }
+  if (disable) usbd_sof_enable(rhport, false);
+#endif
 
   tud_control_status(rhport, p_request);
 
@@ -1898,14 +1968,14 @@ bool audiod_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint3
   (void) xferred_bytes;
 
   // Search for interface belonging to given end point address and proceed as required
-  uint8_t func_id;
-  for (func_id = 0; func_id < CFG_TUD_AUDIO; func_id++)
+  for (uint8_t func_id = 0; func_id < CFG_TUD_AUDIO; func_id++)
   {
+    audiod_function_t* audio = &_audiod_fct[func_id];
 
 #if CFG_TUD_AUDIO_INT_CTR_EPSIZE_IN
 
     // Data transmission of control interrupt finished
-    if (_audiod_fct[func_id].ep_int_ctr == ep_addr)
+    if (audio->ep_int_ctr == ep_addr)
     {
       // According to USB2 specification, maximum payload of interrupt EP is 8 bytes on low speed, 64 bytes on full speed, and 1024 bytes on high speed (but only if an alternate interface other than 0 is used - see specification p. 49)
       // In case there is nothing to send we have to return a NAK - this is taken care of by PHY ???
@@ -1922,7 +1992,7 @@ bool audiod_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint3
 #if CFG_TUD_AUDIO_ENABLE_EP_IN
 
     // Data transmission of audio packet finished
-    if (_audiod_fct[func_id].ep_in == ep_addr && _audiod_fct[func_id].alt_setting != 0)
+    if (audio->ep_in == ep_addr && audio->alt_setting != 0)
     {
       // USB 2.0, section 5.6.4, third paragraph, states "An isochronous endpoint must specify its required bus access period. However, an isochronous endpoint must be prepared to handle poll rates faster than the one specified."
       // That paragraph goes on to say "An isochronous IN endpoint must return a zero-length packet whenever data is requested at a faster interval than the specified interval and data is not available."
@@ -1933,7 +2003,7 @@ bool audiod_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint3
       // This is the only place where we can fill something into the EPs buffer!
 
       // Load new data
-      TU_VERIFY(audiod_tx_done_cb(rhport, &_audiod_fct[func_id]));
+      TU_VERIFY(audiod_tx_done_cb(rhport, audio));
 
       // Transmission of ZLP is done by audiod_tx_done_cb()
       return true;
@@ -1943,24 +2013,24 @@ bool audiod_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint3
 #if CFG_TUD_AUDIO_ENABLE_EP_OUT
 
     // New audio packet received
-    if (_audiod_fct[func_id].ep_out == ep_addr)
+    if (audio->ep_out == ep_addr)
     {
-      TU_VERIFY(audiod_rx_done_cb(rhport, &_audiod_fct[func_id], (uint16_t) xferred_bytes));
+      TU_VERIFY(audiod_rx_done_cb(rhport, audio, (uint16_t) xferred_bytes));
       return true;
     }
 
 
 #if CFG_TUD_AUDIO_ENABLE_FEEDBACK_EP
     // Transmission of feedback EP finished
-    if (_audiod_fct[func_id].ep_fb == ep_addr)
+    if (audio->ep_fb == ep_addr)
     {
-      if (tud_audio_fb_done_cb) TU_VERIFY(tud_audio_fb_done_cb(rhport));
+      if (tud_audio_fb_done_cb) tud_audio_fb_done_cb(func_id);
 
       // Schedule a transmit with the new value if EP is not busy 
-      if (!usbd_edpt_busy(rhport, _audiod_fct[func_id].ep_fb))
+      if (!usbd_edpt_busy(rhport, audio->ep_fb))
       {
         // Schedule next transmission - value is changed bytud_audio_n_fb_set() in the meantime or the old value gets sent
-        return audiod_fb_send(rhport, &_audiod_fct[func_id]);
+        return audiod_fb_send(rhport, audio);
       }
     }
 #endif
@@ -1968,6 +2038,111 @@ bool audiod_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint3
   }
 
   return false;
+}
+
+#if CFG_TUD_AUDIO_ENABLE_EP_OUT && CFG_TUD_AUDIO_ENABLE_FEEDBACK_EP
+
+static bool set_fb_params_freq(audiod_function_t* audio, uint32_t sample_freq, uint32_t mclk_freq)
+{
+  // Check if frame interval is within sane limits
+  // The interval value n_frames was taken from the descriptors within audiod_set_interface()
+
+  // n_frames_min is ceil(2^10 * f_s / f_m) for full speed and ceil(2^13 * f_s / f_m) for high speed
+  // this lower limit ensures the measures feedback value has sufficient precision
+  uint32_t const k = (TUSB_SPEED_FULL == tud_speed_get()) ? 10 : 13;
+  uint32_t const n_frame = (1UL << audio->feedback.frame_shift);
+
+  if ( (((1UL << k) * sample_freq / mclk_freq) + 1) > n_frame )
+  {
+    TU_LOG1("  UAC2 feedback interval too small\r\n"); TU_BREAKPOINT(); return false;
+  }
+
+  // Check if parameters really allow for a power of two division
+  if ((mclk_freq % sample_freq) == 0 && tu_is_power_of_two(mclk_freq / sample_freq))
+  {
+    audio->feedback.compute_method     = AUDIO_FEEDBACK_METHOD_FREQUENCY_POWER_OF_2;
+    audio->feedback.compute.power_of_2 = 16 - audio->feedback.frame_shift - tu_log2(mclk_freq / sample_freq);
+  }
+  else if ( audio->feedback.compute_method == AUDIO_FEEDBACK_METHOD_FREQUENCY_FLOAT)
+  {
+    audio->feedback.compute.float_const = (float)sample_freq / mclk_freq * (1UL << (16 - audio->feedback.frame_shift));
+  }
+  else
+  {
+    audio->feedback.compute.fixed.sample_freq = sample_freq;
+    audio->feedback.compute.fixed.mclk_freq = mclk_freq;
+  }
+
+  return true;
+}
+
+uint32_t tud_audio_feedback_update(uint8_t func_id, uint32_t cycles)
+{
+  audiod_function_t* audio = &_audiod_fct[func_id];
+  uint32_t feedback;
+
+  switch (audio->feedback.compute_method)
+  {
+    case AUDIO_FEEDBACK_METHOD_FREQUENCY_POWER_OF_2:
+      feedback = (cycles << audio->feedback.compute.power_of_2);
+    break;
+
+    case AUDIO_FEEDBACK_METHOD_FREQUENCY_FLOAT:
+      feedback = (uint32_t) ((float) cycles * audio->feedback.compute.float_const);
+    break;
+
+    case AUDIO_FEEDBACK_METHOD_FREQUENCY_FIXED:
+    {
+      uint64_t fb64 = (((uint64_t) cycles) * audio->feedback.compute.fixed.sample_freq) << (16 - audio->feedback.frame_shift);
+      feedback = (uint32_t) (fb64 / audio->feedback.compute.fixed.mclk_freq);
+    }
+    break;
+
+    default: return 0;
+  }
+
+  // For Windows: https://docs.microsoft.com/en-us/windows-hardware/drivers/audio/usb-2-0-audio-drivers
+  // The size of isochronous packets created by the device must be within the limits specified in FMT-2.0 section 2.3.1.1.
+  // This means that the deviation of actual packet size from nominal size must not exceed +/- one audio slot
+  // (audio slot = channel count samples).
+  if ( feedback > audio->feedback.max_value ) feedback = audio->feedback.max_value;
+  if ( feedback < audio->feedback.min_value ) feedback = audio->feedback.min_value;
+
+  tud_audio_n_fb_set(func_id, feedback);
+
+  return feedback;
+}
+#endif
+
+void audiod_sof_isr (uint8_t rhport, uint32_t frame_count)
+{
+  (void) rhport;
+  (void) frame_count;
+
+#if CFG_TUD_AUDIO_ENABLE_EP_OUT && CFG_TUD_AUDIO_ENABLE_FEEDBACK_EP
+  // Determine feedback value - The feedback method is described in 5.12.4.2 of the USB 2.0 spec
+  // Boiled down, the feedback value Ff = n_samples / (micro)frame.
+  // Since an accuracy of less than 1 Sample / second is desired, at least n_frames = ceil(2^K * f_s / f_m) frames need to be measured, where K = 10 for full speed and K = 13 for high speed, f_s is the sampling frequency e.g. 48 kHz and f_m is the cpu clock frequency e.g. 100 MHz (or any other master clock whose clock count is available and locked to f_s)
+  // The update interval in the (4.10.2.1) Feedback Endpoint Descriptor must be less or equal to 2^(K - P), where P = min( ceil(log2(f_m / f_s)), K)
+  // feedback = n_cycles / n_frames * f_s / f_m in 16.16 format, where n_cycles are the number of main clock cycles within fb_n_frames
+
+  // Iterate over audio functions and set feedback value
+  for(uint8_t i=0; i < CFG_TUD_AUDIO; i++)
+  {
+    audiod_function_t* audio = &_audiod_fct[i];
+
+    if (audio->ep_fb != 0)
+    {
+      // HS shift need to be adjusted since SOF event is generated for frame only
+      uint8_t const hs_adjust = (TUSB_SPEED_HIGH == tud_speed_get()) ? 3 : 0;
+      uint32_t const interval = 1UL << (audio->feedback.frame_shift - hs_adjust);
+      if ( 0 == (frame_count & (interval-1)) )
+      {
+        if(tud_audio_feedback_interval_isr) tud_audio_feedback_interval_isr(i, frame_count, audio->feedback.frame_shift);
+      }
+    }
+  }
+#endif // CFG_TUD_AUDIO_ENABLE_EP_OUT && CFG_TUD_AUDIO_ENABLE_FEEDBACK_EP
 }
 
 bool tud_audio_buffer_and_schedule_control_xfer(uint8_t rhport, tusb_control_request_t const * p_request, void* data, uint16_t len)
@@ -2164,6 +2339,16 @@ static bool audiod_verify_ep_exists(uint8_t ep, uint8_t *func_id)
 // Currently, only AS interfaces with an EP (in or out) are supposed to be parsed for!
 static void audiod_parse_for_AS_params(audiod_function_t* audio, uint8_t const * p_desc, uint8_t const * p_desc_end, uint8_t const as_itf)
 {
+#if CFG_TUD_AUDIO_ENABLE_EP_IN && CFG_TUD_AUDIO_ENABLE_EP_OUT
+  if (as_itf != audio->ep_in_as_intf_num && as_itf != audio->ep_out_as_intf_num) return;           // Abort, this interface has no EP, this driver does not support this currently
+#endif
+#if CFG_TUD_AUDIO_ENABLE_EP_IN && !CFG_TUD_AUDIO_ENABLE_EP_OUT
+  if (as_itf != audio->ep_in_as_intf_num) return;
+#endif
+#if !CFG_TUD_AUDIO_ENABLE_EP_IN && CFG_TUD_AUDIO_ENABLE_EP_OUT
+  if (as_itf != audio->ep_out_as_intf_num) return;
+#endif
+
   p_desc = tu_desc_next(p_desc);    // Exclude standard AS interface descriptor of current alternate interface descriptor
 
   while (p_desc < p_desc_end)
@@ -2174,16 +2359,6 @@ static void audiod_parse_for_AS_params(audiod_function_t* audio, uint8_t const *
     // Look for a Class-Specific AS Interface Descriptor(4.9.2) to verify format type and format and also to get number of physical channels
     if (tu_desc_type(p_desc) == TUSB_DESC_CS_INTERFACE && tu_desc_subtype(p_desc) == AUDIO_CS_AS_INTERFACE_AS_GENERAL)
     {
-#if CFG_TUD_AUDIO_ENABLE_EP_IN && CFG_TUD_AUDIO_ENABLE_EP_OUT
-      if (as_itf != audio->ep_in_as_intf_num && as_itf != audio->ep_out_as_intf_num) break;           // Abort loop, this interface has no EP, this driver does not support this currently
-#endif
-#if CFG_TUD_AUDIO_ENABLE_EP_IN && !CFG_TUD_AUDIO_ENABLE_EP_OUT
-      if (as_itf != audio->ep_in_as_intf_num) break;
-#endif
-#if !CFG_TUD_AUDIO_ENABLE_EP_IN && CFG_TUD_AUDIO_ENABLE_EP_OUT
-      if (as_itf != audio->ep_out_as_intf_num) break;
-#endif
-
 #if CFG_TUD_AUDIO_ENABLE_EP_IN
       if (as_itf == audio->ep_in_as_intf_num)
       {
@@ -2255,7 +2430,7 @@ bool tud_audio_n_fb_set(uint8_t func_id, uint32_t feedback)
 #if CFG_TUD_AUDIO_ENABLE_FEEDBACK_FORMAT_CORRECTION
   if ( TUSB_SPEED_FULL == tud_speed_get() )
   {
-    uint8_t * fb = (uint8_t *) &_audiod_fct[func_id].fb_val;
+    uint8_t * fb = (uint8_t *) &_audiod_fct[func_id].feedback.value;
 
     // For FS format is 10.14
     *(fb++) = (feedback >> 2) & 0xFF;
@@ -2267,7 +2442,7 @@ bool tud_audio_n_fb_set(uint8_t func_id, uint32_t feedback)
 #else
   {
     // Send value as-is, caller will choose the appropriate format
-    _audiod_fct[func_id].fb_val = feedback;
+    _audiod_fct[func_id].feedback.value = feedback;
   }
 #endif
 

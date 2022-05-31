@@ -93,6 +93,9 @@ static uint16_t ep0_pending[2];                   // Index determines direction 
 static uint16_t _allocated_fifo_words_tx;         // TX FIFO size in words (IN EPs)
 static bool     _out_ep_closed;                   // Flag to check if RX FIFO size needs an update (reduce its size)
 
+// SOF enabling flag - required for SOF to not get disabled in ISR when SOF was enabled by
+static bool _sof_en;
+
 // Calculate the RX FIFO size according to recommendations from reference manual
 static inline uint16_t calc_rx_ff_size(uint16_t ep_size)
 {
@@ -125,6 +128,8 @@ static void bus_reset(uint8_t rhport)
 
   tu_memclr(xfer_status, sizeof(xfer_status));
   _out_ep_closed = false;
+
+  _sof_en = false;
 
   // clear device address
   dwc2->dcfg &= ~DCFG_DAD_Msk;
@@ -588,6 +593,24 @@ void dcd_disconnect(uint8_t rhport)
   dwc2->dctl |= DCTL_SDIS;
 }
 
+// Be advised: audio, video and possibly other iso-ep classes use dcd_sof_enable() to enable/disable its corresponding ISR on purpose!
+void dcd_sof_enable(uint8_t rhport, bool en)
+{
+  (void) rhport;
+  dwc2_regs_t * dwc2 = DWC2_REG(rhport);
+
+  _sof_en = en;
+
+  if (en)
+  {
+    dwc2->gintsts = GINTSTS_SOF;
+    dwc2->gintmsk |= GINTMSK_SOFM;
+  }
+  else
+  {
+    dwc2->gintmsk &= ~GINTMSK_SOFM;
+  }
+}
 
 /*------------------------------------------------------------------*/
 /* DCD Endpoint port
@@ -1251,8 +1274,16 @@ void dcd_int_handler(uint8_t rhport)
   {
     dwc2->gotgint = GINTSTS_SOF;
 
-    // Disable SOF interrupt since currently only used for remote wakeup detection
-    dwc2->gintmsk &= ~GINTMSK_SOFM;
+    if (_sof_en)
+    {
+      uint32_t frame = (dwc2->dsts & (DSTS_FNSOF)) >> 8;
+      dcd_event_sof(rhport, frame, true);
+    }
+    else
+    {
+      // Disable SOF interrupt if SOF was not explicitly enabled. SOF was used for remote wakeup detection
+      dwc2->gintmsk &= ~GINTMSK_SOFM;
+    }
 
     dcd_event_bus_signal(rhport, DCD_EVENT_SOF, true);
   }

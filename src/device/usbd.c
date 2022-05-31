@@ -69,7 +69,7 @@ typedef struct
   volatile uint8_t cfg_num; // current active configuration (0x00 is not configured)
   uint8_t speed;
 
-  uint8_t itf2drv[16];                      // map interface number to driver (0xff is invalid)
+  uint8_t itf2drv[CFG_TUD_INTERFACE_MAX];   // map interface number to driver (0xff is invalid)
   uint8_t ep2drv[CFG_TUD_ENDPPOINT_MAX][2]; // map endpoint to driver ( 0xff is invalid ), can use only 4-bit each
 
   tu_edpt_state_t ep_status[CFG_TUD_ENDPPOINT_MAX][2];
@@ -98,7 +98,7 @@ static usbd_class_driver_t const _usbd_driver[] =
     .open             = cdcd_open,
     .control_xfer_cb  = cdcd_control_xfer_cb,
     .xfer_cb          = cdcd_xfer_cb,
-    .sof              = NULL
+    .sof_isr          = NULL
   },
   #endif
 
@@ -110,7 +110,7 @@ static usbd_class_driver_t const _usbd_driver[] =
     .open             = mscd_open,
     .control_xfer_cb  = mscd_control_xfer_cb,
     .xfer_cb          = mscd_xfer_cb,
-    .sof              = NULL
+    .sof_isr          = NULL
   },
   #endif
 
@@ -122,7 +122,7 @@ static usbd_class_driver_t const _usbd_driver[] =
     .open             = hidd_open,
     .control_xfer_cb  = hidd_control_xfer_cb,
     .xfer_cb          = hidd_xfer_cb,
-    .sof              = NULL
+    .sof_isr          = NULL
   },
   #endif
 
@@ -134,7 +134,7 @@ static usbd_class_driver_t const _usbd_driver[] =
     .open             = audiod_open,
     .control_xfer_cb  = audiod_control_xfer_cb,
     .xfer_cb          = audiod_xfer_cb,
-    .sof              = NULL
+    .sof_isr          = audiod_sof_isr
   },
   #endif
 
@@ -146,7 +146,7 @@ static usbd_class_driver_t const _usbd_driver[] =
     .open             = videod_open,
     .control_xfer_cb  = videod_control_xfer_cb,
     .xfer_cb          = videod_xfer_cb,
-    .sof              = NULL
+    .sof_isr          = NULL
   },
   #endif
 
@@ -158,7 +158,7 @@ static usbd_class_driver_t const _usbd_driver[] =
     .reset            = midid_reset,
     .control_xfer_cb  = midid_control_xfer_cb,
     .xfer_cb          = midid_xfer_cb,
-    .sof              = NULL
+    .sof_isr          = NULL
   },
   #endif
 
@@ -170,7 +170,7 @@ static usbd_class_driver_t const _usbd_driver[] =
     .open             = vendord_open,
     .control_xfer_cb  = tud_vendor_control_xfer_cb,
     .xfer_cb          = vendord_xfer_cb,
-    .sof              = NULL
+    .sof_isr          = NULL
   },
   #endif
 
@@ -182,7 +182,7 @@ static usbd_class_driver_t const _usbd_driver[] =
     .open             = usbtmcd_open_cb,
     .control_xfer_cb  = usbtmcd_control_xfer_cb,
     .xfer_cb          = usbtmcd_xfer_cb,
-    .sof              = NULL
+    .sof_isr          = NULL
   },
   #endif
 
@@ -194,7 +194,7 @@ static usbd_class_driver_t const _usbd_driver[] =
     .open             = dfu_rtd_open,
     .control_xfer_cb  = dfu_rtd_control_xfer_cb,
     .xfer_cb          = NULL,
-    .sof              = NULL
+    .sof_isr          = NULL
   },
   #endif
 
@@ -206,7 +206,7 @@ static usbd_class_driver_t const _usbd_driver[] =
     .open             = dfu_moded_open,
     .control_xfer_cb  = dfu_moded_control_xfer_cb,
     .xfer_cb          = NULL,
-    .sof              = NULL
+    .sof_isr          = NULL
   },
   #endif
 
@@ -218,7 +218,7 @@ static usbd_class_driver_t const _usbd_driver[] =
     .open             = netd_open,
     .control_xfer_cb  = netd_control_xfer_cb,
     .xfer_cb          = netd_xfer_cb,
-    .sof              = NULL,
+    .sof_isr              = NULL,
   },
   #endif
 
@@ -230,7 +230,7 @@ static usbd_class_driver_t const _usbd_driver[] =
     .open             = btd_open,
     .control_xfer_cb  = btd_control_xfer_cb,
     .xfer_cb          = btd_xfer_cb,
-    .sof              = NULL
+    .sof_isr          = NULL
   },
   #endif
 };
@@ -263,6 +263,8 @@ static inline usbd_class_driver_t const * get_driver(uint8_t drvid)
 //--------------------------------------------------------------------+
 // DCD Event
 //--------------------------------------------------------------------+
+
+//static tud_sof_isr_t _sof_isr = NULL;
 
 enum { RHPORT_INVALID = 0xFFu };
 static uint8_t _usbd_rhport = RHPORT_INVALID;
@@ -371,6 +373,12 @@ bool tud_connect(void)
   return true;
 }
 
+//void tud_sof_isr_set(tud_sof_isr_t sof_isr)
+//{
+//  _sof_isr = sof_isr;
+//  dcd_sof_enable(_usbd_rhport, _sof_isr != NULL);
+//}
+
 //--------------------------------------------------------------------+
 // USBD Task
 //--------------------------------------------------------------------+
@@ -413,11 +421,13 @@ bool tud_init (uint8_t rhport)
     driver->init();
   }
 
+  _usbd_rhport = rhport;
+  //_sof_isr = NULL;
+
   // Init device controller driver
   dcd_init(rhport);
   dcd_int_enable(rhport);
 
-  _usbd_rhport = rhport;
 
   return true;
 }
@@ -576,20 +586,12 @@ void tud_task_ext(uint32_t timeout_ms, bool in_isr)
         }
       break;
 
-      case DCD_EVENT_SOF:
-        TU_LOG2("\r\n");
-        for ( uint8_t i = 0; i < TOTAL_DRIVER_COUNT; i++ )
-        {
-          usbd_class_driver_t const * driver = get_driver(i);
-          if ( driver->sof ) driver->sof(event.rhport);
-        }
-      break;
-
       case USBD_EVENT_FUNC_CALL:
         TU_LOG2("\r\n");
         if ( event.func_call.func ) event.func_call.func(event.func_call.param);
       break;
 
+      case DCD_EVENT_SOF:
       default:
         TU_BREAKPOINT();
       break;
@@ -1105,14 +1107,30 @@ TU_ATTR_FAST_FUNC void dcd_event_handler(dcd_event_t const * event, bool in_isr)
     break;
 
     case DCD_EVENT_SOF:
+      // SOF driver handler in ISR context
+      for (uint8_t i = 0; i < TOTAL_DRIVER_COUNT; i++)
+      {
+        usbd_class_driver_t const * driver = get_driver(i);
+        if (driver->sof_isr)
+        {
+          driver->sof_isr(event->rhport, event->sof.frame_count);
+        }
+      }
+
+      // SOF user handler in ISR context
+      // if (_sof_isr) _sof_isr(event->sof.frame_count);
+
       // Some MCUs after running dcd_remote_wakeup() does not have way to detect the end of remote wakeup
       // which last 1-15 ms. DCD can use SOF as a clear indicator that bus is back to operational
       if ( _usbd_dev.suspended )
       {
         _usbd_dev.suspended = 0;
+
         dcd_event_t const event_resume = { .rhport = event->rhport, .event_id = DCD_EVENT_RESUME };
         osal_queue_send(_usbd_q, &event_resume, in_isr);
       }
+
+      // skip osal queue for SOF in usbd task
     break;
 
     default:
@@ -1355,6 +1373,13 @@ void usbd_edpt_close(uint8_t rhport, uint8_t ep_addr)
   _usbd_dev.ep_status[epnum][dir].claimed = false;
 
   return;
+}
+
+void usbd_sof_enable(uint8_t rhport, bool en)
+{
+  // TODO: Check needed if all drivers including the user sof_cb does not need an active SOF ISR any more.
+  // Only if all drivers switched off SOF calls the SOF interrupt may be disabled
+  dcd_sof_enable(rhport, en);
 }
 
 #endif
