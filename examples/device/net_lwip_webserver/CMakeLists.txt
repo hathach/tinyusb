@@ -69,12 +69,6 @@ if (EXISTS ${TOP}/lib/lwip/src)
             ${TOP}/lib/networking/rndis_reports.c
             )
 
-    target_compile_definitions(${PROJECT} PUBLIC
-            PBUF_POOL_SIZE=2
-            TCP_WND=2*TCP_MSS
-            HTTPD_USE_CUSTOM_FSDATA=0
-            )
-
     # Configure compilation flags and libraries for the example... see the corresponding function
     # in hw/bsp/FAMILY/family.cmake for details.
     family_configure_device_example(${PROJECT})
