@@ -796,8 +796,7 @@ static void dcd_edpt_disable (uint8_t rhport, uint8_t ep_addr, bool stall)
     }
 
     // Flush the FIFO, and wait until we have confirmed it cleared.
-    dwc2->grstctl = (epnum << GRSTCTL_TXFNUM_Pos);
-    dwc2->grstctl |= GRSTCTL_TXFFLSH;
+    dwc2->grstctl = ((epnum << GRSTCTL_TXFNUM_Pos) | GRSTCTL_TXFFLSH);
     while ( (dwc2->grstctl & GRSTCTL_TXFFLSH_Msk) != 0 ) {}
   }
   else
