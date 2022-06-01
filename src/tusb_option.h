@@ -27,6 +27,9 @@
 #ifndef _TUSB_OPTION_H_
 #define _TUSB_OPTION_H_
 
+// To avoid GCC compiler warnings when -pedantic option is used (strict ISO C)
+typedef int make_iso_compilers_happy ;
+
 #include "common/tusb_compiler.h"
 
 #define TUSB_VERSION_MAJOR     0
