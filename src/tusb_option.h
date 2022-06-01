@@ -221,7 +221,9 @@ typedef int make_iso_compilers_happy ;
   #define TUD_OPT_RHPORT      -1
 #endif
 
+#ifndef CFG_TUD_ENABLED
 #define CFG_TUD_ENABLED       (TUD_RHPORT_MODE & OPT_MODE_DEVICE)
+#endif
 
 #if CFG_TUD_ENABLED
   #define TUD_OPT_HIGH_SPEED  ((TUD_RHPORT_MODE & OPT_MODE_SPEED_MASK) ? (TUD_RHPORT_MODE & OPT_MODE_HIGH_SPEED) : (TUP_RHPORT_HIGHSPEED & (1 << TUD_OPT_RHPORT)))

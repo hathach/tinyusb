@@ -39,30 +39,44 @@
   #error CFG_TUSB_MCU must be defined
 #endif
 
-// RHPort number used for device can be defined by board.mk, default to port 0
-#ifndef BOARD_DEVICE_RHPORT_NUM
-  #define BOARD_DEVICE_RHPORT_NUM     0
-#endif
-
-// RHPort max operational speed can defined by board.mk
-// Default to max (auto) speed for MCU with internal HighSpeed PHY
-#ifndef BOARD_DEVICE_RHPORT_SPEED
-  #define BOARD_DEVICE_RHPORT_SPEED   OPT_MODE_DEFAULT_SPEED
-#endif
-
-// Device mode with rhport and speed defined by board.mk
-#if   BOARD_DEVICE_RHPORT_NUM == 0
-  #define CFG_TUSB_RHPORT0_MODE     (OPT_MODE_DEVICE | BOARD_DEVICE_RHPORT_SPEED)
-#elif BOARD_DEVICE_RHPORT_NUM == 1
-  #define CFG_TUSB_RHPORT1_MODE     (OPT_MODE_DEVICE | BOARD_DEVICE_RHPORT_SPEED)
-#else
-  #error "Incorrect RHPort configuration"
-#endif
-
 // This example doesn't use an RTOS
 #ifndef CFG_TUSB_OS
 #define CFG_TUSB_OS               OPT_OS_NONE
 #endif
+
+// Enable Device stack
+#define CFG_TUD_ENABLED       1
+
+// RHPort number used for device can be defined by board.mk, default to port 0
+#ifndef BOARD_TUD_RHPORT
+  #define BOARD_TUD_RHPORT     0
+#endif
+
+// RHPort max operational speed can defined by board.mk
+// Default to max (auto) speed for MCU with internal HighSpeed PHY
+#ifndef BOARD_TUD_MAX_SPEED
+  #define BOARD_TUD_MAX_SPEED   OPT_MODE_DEFAULT_SPEED
+#endif
+
+// Device mode with rhport and speed defined by board.mk
+#if   BOARD_TUD_RHPORT == 0
+  #define CFG_TUSB_RHPORT0_MODE     (OPT_MODE_DEVICE | BOARD_TUD_MAX_SPEED)
+#elif BOARD_TUD_RHPORT == 1
+  #define CFG_TUSB_RHPORT1_MODE     (OPT_MODE_DEVICE | BOARD_TUD_MAX_SPEED)
+#else
+  #error "Incorrect RHPort configuration"
+#endif
+
+
+
+// Device max speed, default is max speed that hardware controller could support without external PHY
+// BOARD_TUD_MAX_SPEED can be used to change value (e.g for board features external PHY).
+#ifdef BOARD_TUD_MAX_SPEED
+  #define CFG_TUD_MAX_SPEED     BOARD_TUD_MAX_SPEED
+#else
+  #define CFG_TUD_MAX_SPEED     OPT_MODE_DEFAULT_SPEED
+#endif
+
 
 // CFG_TUSB_DEBUG is defined by compiler in DEBUG build
 // #define CFG_TUSB_DEBUG           0
