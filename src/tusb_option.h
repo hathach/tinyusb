@@ -195,25 +195,21 @@ typedef int make_iso_compilers_happy ;
 #define OPT_MODE_HIGH_SPEED     0x0400 ///< High Speed
 #define OPT_MODE_SPEED_MASK     0xff00
 
-#ifndef CFG_TUSB_RHPORT0_MODE
-  #define CFG_TUSB_RHPORT0_MODE OPT_MODE_NONE
-#endif
-
-#ifndef CFG_TUSB_RHPORT1_MODE
-  #define CFG_TUSB_RHPORT1_MODE OPT_MODE_NONE
-#endif
-
-#if (((CFG_TUSB_RHPORT0_MODE) & OPT_MODE_HOST  ) && ((CFG_TUSB_RHPORT1_MODE) & OPT_MODE_HOST  )) || \
-    (((CFG_TUSB_RHPORT0_MODE) & OPT_MODE_DEVICE) && ((CFG_TUSB_RHPORT1_MODE) & OPT_MODE_DEVICE))
-  #error "TinyUSB currently does not support same modes on more than 1 roothub port"
-#endif
-
 //------------- Roothub as Device -------------//
 
-#if (CFG_TUSB_RHPORT0_MODE) & OPT_MODE_DEVICE
+//#ifndef CFG_TUSB_RHPORT0_MODE
+//  #define CFG_TUSB_RHPORT0_MODE OPT_MODE_NONE
+//#endif
+//
+//#ifndef CFG_TUSB_RHPORT1_MODE
+//  #define CFG_TUSB_RHPORT1_MODE OPT_MODE_NONE
+//#endif
+
+
+#if defined(CFG_TUSB_RHPORT0_MODE) && ((CFG_TUSB_RHPORT0_MODE) & OPT_MODE_DEVICE)
   #define TUD_RHPORT_MODE     (CFG_TUSB_RHPORT0_MODE)
   #define TUD_OPT_RHPORT      0
-#elif (CFG_TUSB_RHPORT1_MODE) & OPT_MODE_DEVICE
+#elif defined(CFG_TUSB_RHPORT1_MODE) && ((CFG_TUSB_RHPORT1_MODE) & OPT_MODE_DEVICE)
   #define TUD_RHPORT_MODE     (CFG_TUSB_RHPORT1_MODE)
   #define TUD_OPT_RHPORT      1
 #else
@@ -222,21 +218,24 @@ typedef int make_iso_compilers_happy ;
 #endif
 
 #ifndef CFG_TUD_ENABLED
-#define CFG_TUD_ENABLED       (TUD_RHPORT_MODE & OPT_MODE_DEVICE)
+  // fallback to use CFG_TUSB_RHPORTx_MODE
+  #define CFG_TUD_ENABLED     (TUD_RHPORT_MODE & OPT_MODE_DEVICE)
 #endif
 
-#if CFG_TUD_ENABLED
-  #define TUD_OPT_HIGH_SPEED  ((TUD_RHPORT_MODE & OPT_MODE_SPEED_MASK) ? (TUD_RHPORT_MODE & OPT_MODE_HIGH_SPEED) : (TUP_RHPORT_HIGHSPEED & (1 << TUD_OPT_RHPORT)))
-#else
-  #define TUD_OPT_HIGH_SPEED  0
+#ifndef CFG_TUD_MAX_SPEED
+  // fallback to use CFG_TUSB_RHPORTx_MODE
+  #define CFG_TUD_MAX_SPEED   (TUD_RHPORT_MODE & OPT_MODE_SPEED_MASK)
 #endif
+
+// highspeed support indicator
+#define TUD_OPT_HIGH_SPEED  (CFG_TUD_MAX_SPEED ? CFG_TUD_MAX_SPEED : TUP_RHPORT_HIGHSPEED)
 
 //------------- Roothub as Host -------------//
 
-#if (CFG_TUSB_RHPORT0_MODE) & OPT_MODE_HOST
+#if defined(CFG_TUSB_RHPORT0_MODE) && ((CFG_TUSB_RHPORT0_MODE) & OPT_MODE_HOST)
   #define TUH_RHPORT_MODE  (CFG_TUSB_RHPORT0_MODE)
   #define TUH_OPT_RHPORT   0
-#elif (CFG_TUSB_RHPORT1_MODE) & OPT_MODE_HOST
+#elif defined(CFG_TUSB_RHPORT1_MODE) && ((CFG_TUSB_RHPORT1_MODE) & OPT_MODE_HOST)
   #define TUH_RHPORT_MODE  (CFG_TUSB_RHPORT1_MODE)
   #define TUH_OPT_RHPORT   1
 #else
@@ -244,7 +243,10 @@ typedef int make_iso_compilers_happy ;
   #define TUH_OPT_RHPORT   -1
 #endif
 
-#define CFG_TUH_ENABLED     (TUH_RHPORT_MODE & OPT_MODE_HOST)
+#ifndef CFG_TUH_ENABLED
+  // fallback to use CFG_TUSB_RHPORTx_MODE
+  #define CFG_TUH_ENABLED     (TUH_RHPORT_MODE & OPT_MODE_HOST)
+#endif
 
 // For backward compatible
 #define TUSB_OPT_DEVICE_ENABLED CFG_TUD_ENABLED

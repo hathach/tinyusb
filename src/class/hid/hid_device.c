@@ -76,8 +76,9 @@ static inline uint8_t get_index_by_itfnum(uint8_t itf_num)
 //--------------------------------------------------------------------+
 bool tud_hid_n_ready(uint8_t instance)
 {
+  uint8_t const rhport = 0;
   uint8_t const ep_in = _hidd_itf[instance].ep_in;
-  return tud_ready() && (ep_in != 0) && !usbd_edpt_busy(TUD_OPT_RHPORT, ep_in);
+  return tud_ready() && (ep_in != 0) && !usbd_edpt_busy(rhport, ep_in);
 }
 
 bool tud_hid_n_report(uint8_t instance, uint8_t report_id, void const* report, uint8_t len)
@@ -103,7 +104,7 @@ bool tud_hid_n_report(uint8_t instance, uint8_t report_id, void const* report, u
     memcpy(p_hid->epin_buf, report, len);
   }
 
-  return usbd_edpt_xfer(TUD_OPT_RHPORT, p_hid->ep_in, p_hid->epin_buf, len);
+  return usbd_edpt_xfer(rhport, p_hid->ep_in, p_hid->epin_buf, len);
 }
 
 uint8_t tud_hid_n_interface_protocol(uint8_t instance)
@@ -172,7 +173,7 @@ bool tud_hid_n_gamepad_report(uint8_t instance, uint8_t report_id,
 //--------------------------------------------------------------------+
 void hidd_init(void)
 {
-  hidd_reset(TUD_OPT_RHPORT);
+  hidd_reset(0);
 }
 
 void hidd_reset(uint8_t rhport)

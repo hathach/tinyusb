@@ -82,7 +82,7 @@ CFG_TUSB_MEM_SECTION static cdcd_interface_t _cdcd_itf[CFG_TUD_CDC];
 
 static bool _prep_out_transaction (cdcd_interface_t* p_cdc)
 {
-  uint8_t const rhport = TUD_OPT_RHPORT;
+  uint8_t const rhport = 0;
   uint16_t available = tu_fifo_remaining(&p_cdc->rx_ff);
 
   // Prepare for incoming data but only allow what we can store in the ring buffer.
@@ -189,7 +189,7 @@ uint32_t tud_cdc_n_write_flush (uint8_t itf)
   // No data to send
   if ( !tu_fifo_count(&p_cdc->tx_ff) ) return 0;
 
-  uint8_t const rhport = TUD_OPT_RHPORT;
+  uint8_t const rhport = 0;
 
   // Claim the endpoint
   TU_VERIFY( usbd_edpt_claim(rhport, p_cdc->ep_in), 0 );

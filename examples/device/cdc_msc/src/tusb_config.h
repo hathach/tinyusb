@@ -41,7 +41,12 @@
 
 // This example doesn't use an RTOS
 #ifndef CFG_TUSB_OS
-#define CFG_TUSB_OS               OPT_OS_NONE
+  #define CFG_TUSB_OS         OPT_OS_NONE
+#endif
+
+// CFG_TUSB_DEBUG is defined by compiler in DEBUG build
+#ifndef CFG_TUSB_DEBUG
+  #define CFG_TUSB_DEBUG      0
 #endif
 
 // Enable Device stack
@@ -53,33 +58,13 @@
 #endif
 
 // RHPort max operational speed can defined by board.mk
-// Default to max (auto) speed for MCU with internal HighSpeed PHY
 #ifndef BOARD_TUD_MAX_SPEED
   #define BOARD_TUD_MAX_SPEED   OPT_MODE_DEFAULT_SPEED
 #endif
 
-// Device mode with rhport and speed defined by board.mk
-#if   BOARD_TUD_RHPORT == 0
-  #define CFG_TUSB_RHPORT0_MODE     (OPT_MODE_DEVICE | BOARD_TUD_MAX_SPEED)
-#elif BOARD_TUD_RHPORT == 1
-  #define CFG_TUSB_RHPORT1_MODE     (OPT_MODE_DEVICE | BOARD_TUD_MAX_SPEED)
-#else
-  #error "Incorrect RHPort configuration"
-#endif
+// Default is max speed that hardware controller could support with on-chip PHY
+#define CFG_TUD_MAX_SPEED     BOARD_TUD_MAX_SPEED
 
-
-
-// Device max speed, default is max speed that hardware controller could support without external PHY
-// BOARD_TUD_MAX_SPEED can be used to change value (e.g for board features external PHY).
-#ifdef BOARD_TUD_MAX_SPEED
-  #define CFG_TUD_MAX_SPEED     BOARD_TUD_MAX_SPEED
-#else
-  #define CFG_TUD_MAX_SPEED     OPT_MODE_DEFAULT_SPEED
-#endif
-
-
-// CFG_TUSB_DEBUG is defined by compiler in DEBUG build
-// #define CFG_TUSB_DEBUG           0
 
 /* USB DMA on some MCUs can only access a specific SRAM region with restriction on alignment.
  * Tinyusb use follows macros to declare transferring memory so that they can be put

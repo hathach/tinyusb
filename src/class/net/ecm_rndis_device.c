@@ -108,20 +108,22 @@ static bool can_xmit;
 
 void tud_network_recv_renew(void)
 {
-  usbd_edpt_xfer(TUD_OPT_RHPORT, _netd_itf.ep_out, received, sizeof(received));
+  usbd_edpt_xfer(0, _netd_itf.ep_out, received, sizeof(received));
 }
 
 static void do_in_xfer(uint8_t *buf, uint16_t len)
 {
   can_xmit = false;
-  usbd_edpt_xfer(TUD_OPT_RHPORT, _netd_itf.ep_in, buf, len);
+  usbd_edpt_xfer(0, _netd_itf.ep_in, buf, len);
 }
 
 void netd_report(uint8_t *buf, uint16_t len)
 {
+  uint8_t const rhport = 0;
+
   // skip if previous report not yet acknowledged by host
-  if ( usbd_edpt_busy(TUD_OPT_RHPORT, _netd_itf.ep_notif) ) return;
-  usbd_edpt_xfer(TUD_OPT_RHPORT, _netd_itf.ep_notif, buf, len);
+  if ( usbd_edpt_busy(rhport, _netd_itf.ep_notif) ) return;
+  usbd_edpt_xfer(rhport, _netd_itf.ep_notif, buf, len);
 }
 
 //--------------------------------------------------------------------+

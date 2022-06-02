@@ -84,14 +84,16 @@ bool tud_vendor_n_peek(uint8_t itf, uint8_t* u8)
 //--------------------------------------------------------------------+
 static void _prep_out_transaction (vendord_interface_t* p_itf)
 {
+  uint8_t const rhport = 0;
+
   // skip if previous transfer not complete
-  if ( usbd_edpt_busy(TUD_OPT_RHPORT, p_itf->ep_out) ) return;
+  if ( usbd_edpt_busy(rhport, p_itf->ep_out) ) return;
 
   // Prepare for incoming data but only allow what we can store in the ring buffer.
   uint16_t max_read = tu_fifo_remaining(&p_itf->rx_ff);
   if ( max_read >= CFG_TUD_VENDOR_EPSIZE )
   {
-    usbd_edpt_xfer(TUD_OPT_RHPORT, p_itf->ep_out, p_itf->epout_buf, CFG_TUD_VENDOR_EPSIZE);
+    usbd_edpt_xfer(rhport, p_itf->ep_out, p_itf->epout_buf, CFG_TUD_VENDOR_EPSIZE);
   }
 }
 
@@ -115,13 +117,15 @@ void tud_vendor_n_read_flush (uint8_t itf)
 //--------------------------------------------------------------------+
 static uint16_t maybe_transmit(vendord_interface_t* p_itf)
 {
+  uint8_t const rhport = 0;
+
   // skip if previous transfer not complete
-  TU_VERIFY( !usbd_edpt_busy(TUD_OPT_RHPORT, p_itf->ep_in) );
+  TU_VERIFY( !usbd_edpt_busy(rhport, p_itf->ep_in) );
 
   uint16_t count = tu_fifo_read_n(&p_itf->tx_ff, p_itf->epin_buf, CFG_TUD_VENDOR_EPSIZE);
   if (count > 0)
   {
-    TU_ASSERT( usbd_edpt_xfer(TUD_OPT_RHPORT, p_itf->ep_in, p_itf->epin_buf, count) );
+    TU_ASSERT( usbd_edpt_xfer(rhport, p_itf->ep_in, p_itf->epin_buf, count) );
   }
   return count;
 }

@@ -92,7 +92,7 @@ bool tud_midi_n_mounted (uint8_t itf)
 
 static void _prep_out_transaction (midid_interface_t* p_midi)
 {
-  uint8_t const rhport = TUD_OPT_RHPORT;
+  uint8_t const rhport = 0;
   uint16_t available = tu_fifo_remaining(&p_midi->rx_ff);
 
   // Prepare for incoming data but only allow what we can store in the ring buffer.
@@ -219,7 +219,7 @@ static uint32_t write_flush(midid_interface_t* midi)
   // No data to send
   if ( !tu_fifo_count(&midi->tx_ff) ) return 0;
 
-  uint8_t const rhport = TUD_OPT_RHPORT;
+  uint8_t const rhport = 0;
 
   // skip if previous transfer not complete
   TU_VERIFY( usbd_edpt_claim(rhport, midi->ep_in), 0 );
