@@ -197,15 +197,6 @@ typedef int make_iso_compilers_happy ;
 
 //------------- Roothub as Device -------------//
 
-//#ifndef CFG_TUSB_RHPORT0_MODE
-//  #define CFG_TUSB_RHPORT0_MODE OPT_MODE_NONE
-//#endif
-//
-//#ifndef CFG_TUSB_RHPORT1_MODE
-//  #define CFG_TUSB_RHPORT1_MODE OPT_MODE_NONE
-//#endif
-
-
 #if defined(CFG_TUSB_RHPORT0_MODE) && ((CFG_TUSB_RHPORT0_MODE) & OPT_MODE_DEVICE)
   #define TUD_RHPORT_MODE     (CFG_TUSB_RHPORT0_MODE)
   #define TUD_OPT_RHPORT      0
@@ -214,7 +205,6 @@ typedef int make_iso_compilers_happy ;
   #define TUD_OPT_RHPORT      1
 #else
   #define TUD_RHPORT_MODE     OPT_MODE_NONE
-  #define TUD_OPT_RHPORT      -1
 #endif
 
 #ifndef CFG_TUD_ENABLED
@@ -228,7 +218,7 @@ typedef int make_iso_compilers_happy ;
 #endif
 
 // highspeed support indicator
-#define TUD_OPT_HIGH_SPEED  (CFG_TUD_MAX_SPEED ? CFG_TUD_MAX_SPEED : TUP_RHPORT_HIGHSPEED)
+#define TUD_OPT_HIGH_SPEED    (CFG_TUD_MAX_SPEED ? CFG_TUD_MAX_SPEED : TUP_RHPORT_HIGHSPEED)
 
 //------------- Roothub as Host -------------//
 
