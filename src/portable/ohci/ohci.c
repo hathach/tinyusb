@@ -177,6 +177,22 @@ bool hcd_init(uint8_t rhport)
   ohci_data.bulk_head_ed.skip   = 1;
   ohci_data.period_head_ed.skip = 1;
 
+  //If OHCI hardware is in SMM mode, gain ownership (Ref OHCI spec 5.1.1.3.3)
+  if (OHCI_REG->control_bit.interrupt_routing == 1)
+  {
+    OHCI_REG->command_status_bit.ownership_change_request = 1;
+    while (OHCI_REG->control_bit.interrupt_routing == 1) {}
+  }
+
+  //If OHCI hardware has come from warm-boot, signal resume (Ref OHCI spec 5.1.1.3.4)
+  else if (OHCI_REG->control_bit.hc_functional_state != OHCI_CONTROL_FUNCSTATE_RESET &&
+           OHCI_REG->control_bit.hc_functional_state != OHCI_CONTROL_FUNCSTATE_OPERATIONAL)
+  {
+    //Wait 20 ms. (Ref Usb spec 7.1.7.7)
+    OHCI_REG->control_bit.hc_functional_state = OHCI_CONTROL_FUNCSTATE_RESUME;
+    osal_task_delay(20);
+  }
+
   // reset controller
   OHCI_REG->command_status_bit.controller_reset = 1;
   while( OHCI_REG->command_status_bit.controller_reset ) {} // should not take longer than 10 us
