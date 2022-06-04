@@ -234,8 +234,7 @@ uint32_t hcd_frame_number(uint8_t rhport)
 //--------------------------------------------------------------------+
 void hcd_port_reset(uint8_t hostid)
 {
-  (void) hostid;
-  OHCI_REG->rhport_status[0] = RHPORT_PORT_RESET_STATUS_MASK;
+  OHCI_REG->rhport_status[hostid] = RHPORT_PORT_RESET_STATUS_MASK;
 }
 
 void hcd_port_reset_end(uint8_t rhport)
@@ -245,14 +244,12 @@ void hcd_port_reset_end(uint8_t rhport)
 
 bool hcd_port_connect_status(uint8_t hostid)
 {
-  (void) hostid;
-  return OHCI_REG->rhport_status_bit[0].current_connect_status;
+  return OHCI_REG->rhport_status_bit[hostid].current_connect_status;
 }
 
 tusb_speed_t hcd_port_speed_get(uint8_t hostid)
 {
-  (void) hostid;
-  return OHCI_REG->rhport_status_bit[0].low_speed_device_attached ? TUSB_SPEED_LOW : TUSB_SPEED_FULL;
+  return OHCI_REG->rhport_status_bit[hostid].low_speed_device_attached ? TUSB_SPEED_LOW : TUSB_SPEED_FULL;
 }
 
 // endpoints are tied to an address, which only reclaim after a long delay when enumerating
