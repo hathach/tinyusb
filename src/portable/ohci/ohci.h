@@ -267,7 +267,7 @@ typedef volatile struct
   };
 
   union {
-    uint32_t rhport_status[2]; // TODO NXP OHCI controller only has 2 ports
+    uint32_t rhport_status[OHCI_RHPORTS];
     struct {
       uint32_t current_connect_status             : 1;
       uint32_t port_enable_status                 : 1;
@@ -284,11 +284,11 @@ typedef volatile struct
       uint32_t port_over_current_indicator_change : 1;
       uint32_t port_reset_status_change           : 1;
       uint32_t TU_RESERVED                        : 11;
-    }rhport_status_bit[2];
+    }rhport_status_bit[OHCI_RHPORTS];
   };
 }ohci_registers_t;
 
-TU_VERIFY_STATIC( sizeof(ohci_registers_t) == 0x5c, "size is not correct");
+TU_VERIFY_STATIC( sizeof(ohci_registers_t) == (0x54 + (4 * OHCI_RHPORTS)), "size is not correct");
 
 #ifdef __cplusplus
  }

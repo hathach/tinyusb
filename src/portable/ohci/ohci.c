@@ -28,6 +28,10 @@
 
 #if CFG_TUH_ENABLED && defined(TUP_USBIP_OHCI)
 
+#ifndef OHCI_RHPORTS
+#error  OHCI is enabled, but OHCI_RHPORTS is not defined.
+#endif
+
 //--------------------------------------------------------------------+
 // INCLUDE
 //--------------------------------------------------------------------+
@@ -620,29 +624,30 @@ void hcd_int_handler(uint8_t hostid)
   //------------- RootHub status -------------//
   if ( int_status & OHCI_INT_RHPORT_STATUS_CHANGE_MASK )
   {
-    uint32_t const rhport_status = OHCI_REG->rhport_status[0] & RHPORT_ALL_CHANGE_MASK;
-
-    // TODO dual port is not yet supported
-    if ( rhport_status & RHPORT_CONNECT_STATUS_CHANGE_MASK )
+    for (int i = 0; i < OHCI_RHPORTS; i++)
     {
-      // TODO check if remote wake-up
-      if ( OHCI_REG->rhport_status_bit[0].current_connect_status )
+      uint32_t const rhport_status = OHCI_REG->rhport_status[i] & RHPORT_ALL_CHANGE_MASK;
+      if ( rhport_status & RHPORT_CONNECT_STATUS_CHANGE_MASK )
       {
-        // TODO reset port immediately, without this controller will got 2-3 (debouncing connection status change)
-        OHCI_REG->rhport_status[0] = RHPORT_PORT_RESET_STATUS_MASK;
-        hcd_event_device_attach(hostid, true);
-      }else
-      {
-        hcd_event_device_remove(hostid, true);
+        // TODO check if remote wake-up
+        if ( OHCI_REG->rhport_status_bit[i].current_connect_status )
+        {
+          // TODO reset port immediately, without this controller will got 2-3 (debouncing connection status change)
+          OHCI_REG->rhport_status[i] = RHPORT_PORT_RESET_STATUS_MASK;
+          hcd_event_device_attach(i, true);
+        }else
+        {
+          hcd_event_device_remove(i, true);
+        }
       }
+
+      if ( rhport_status & RHPORT_PORT_SUSPEND_CHANGE_MASK)
+      {
+
+      }
+
+      OHCI_REG->rhport_status[i] = rhport_status; // acknowledge all interrupt
     }
-
-    if ( rhport_status & RHPORT_PORT_SUSPEND_CHANGE_MASK)
-    {
-
-    }
-
-    OHCI_REG->rhport_status[0] = rhport_status; // acknowledge all interrupt
   }
 
   //------------- Transfer Complete -------------//
