@@ -377,12 +377,16 @@ static void ed_list_remove_by_addr(ohci_ed_t * p_head, uint8_t dev_addr)
 
     if (ed->dev_addr == dev_addr)
     {
+      //Prevent Host Controller from processing this ED while we remove it
+      ed->skip = 1;
+
       // unlink ed
       p_prev->next = ed->next;
 
       // point the removed ED's next pointer to list head to make sure HC can always safely move away from this ED
       ed->next = (uint32_t) p_head;
       ed->used = 0;
+      ed->skip = 0;
       continue;
     }
 
