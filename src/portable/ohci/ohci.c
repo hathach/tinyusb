@@ -383,6 +383,7 @@ static void ed_list_remove_by_addr(ohci_ed_t * p_head, uint8_t dev_addr)
       // point the removed ED's next pointer to list head to make sure HC can always safely move away from this ED
       ed->next = (uint32_t) p_head;
       ed->used = 0;
+      continue;
     }
 
     // check next valid since we could remove it
