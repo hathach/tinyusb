@@ -83,31 +83,16 @@
   #define DWC2_EP_MAX   EP_MAX_FS
 #endif
 
-// On STM32 we associate Port0 to OTG_FS, and Port1 to OTG_HS
-//#if TUD_OPT_RHPORT == 0
-//  #define DWC2_REG_BASE       USB_OTG_FS_PERIPH_BASE
-//  #define DWC2_EP_MAX         EP_MAX_FS
-//  #define DWC2_EP_FIFO_SIZE   EP_FIFO_SIZE_FS
-//  #define RHPORT_IRQn         OTG_FS_IRQn
-//
-//#else
-//  #define DWC2_REG_BASE       USB_OTG_HS_PERIPH_BASE
-//  #define DWC2_EP_MAX         EP_MAX_HS
-//  #define DWC2_EP_FIFO_SIZE   EP_FIFO_SIZE_HS
-//  #define RHPORT_IRQn         OTG_HS_IRQn
-//
-//#endif
-
 // On STM32 for consistency we associate
 // - Port0 to OTG_FS, and Port1 to OTG_HS
 static const dwc2_controller_t _dwc2_controller[] =
 {
 #ifdef USB_OTG_FS_PERIPH_BASE
-  { .reg_base = USB_OTG_FS_PERIPH_BASE, .irqnum = OTG_FS_IRQn, .ep_count = EP_MAX_FS, .ep_fifo_size = EP_FIFO_SIZE_FS},
+  { .reg_base = USB_OTG_FS_PERIPH_BASE, .irqnum = OTG_FS_IRQn, .ep_count = EP_MAX_FS, .ep_fifo_size = EP_FIFO_SIZE_FS },
 #endif
 
 #ifdef USB_OTG_HS_PERIPH_BASE
-  { .reg_base = USB_OTG_HS_PERIPH_BASE, .irqnum = OTG_HS_IRQn, .ep_count = EP_MAX_HS, .ep_fifo_size = EP_FIFO_SIZE_HS},
+  { .reg_base = USB_OTG_HS_PERIPH_BASE, .irqnum = OTG_HS_IRQn, .ep_count = EP_MAX_HS, .ep_fifo_size = EP_FIFO_SIZE_HS },
 #endif
 };
 

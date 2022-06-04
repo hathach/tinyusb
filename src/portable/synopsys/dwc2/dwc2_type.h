@@ -26,10 +26,10 @@
 // Controller
 typedef struct
 {
-  uint32_t reg_base;
-  uint32_t irqnum;
-  uint8_t  ep_count;
-  uint32_t ep_fifo_size;
+  uintptr_t reg_base;
+  uint32_t  irqnum;
+  uint8_t   ep_count;
+  uint32_t  ep_fifo_size;
 }dwc2_controller_t;
 
 /* DWC OTG HW Release versions */

@@ -34,6 +34,13 @@
 #include "device/dcd.h"
 #include "dwc2_type.h"
 
+// Following symbols must be defined by port header
+// - _dwc2_controller[]: array of controllers
+// - DWC2_EP_MAX: largest EP counts of all controllers
+// - dwc2_phy_init/dwc2_phy_update: phy init called before and after core reset
+// - dwc2_dcd_int_enable/dwc2_dcd_int_disable
+// - dwc2_remote_wakeup_delay
+
 #if defined(TUP_USBIP_DWC2_STM32)
   #include "dwc2_stm32.h"
 #elif TU_CHECK_MCU(OPT_MCU_ESP32S2, OPT_MCU_ESP32S3)
@@ -49,8 +56,6 @@
 #else
   #error "Unsupported MCUs"
 #endif
-
-// Note _dwc2_controller[] must be defined by port header
 
 //--------------------------------------------------------------------+
 // MACRO TYPEDEF CONSTANT ENUM
@@ -467,6 +472,7 @@ static bool check_dwc2(dwc2_regs_t * dwc2)
 #endif
 
   // For some reasons: GD32VF103 snpsid and all hwcfg register are always zero (skip it)
+  (void) dwc2;
 #if !TU_CHECK_MCU(OPT_MCU_GD32VF103)
   uint32_t const gsnpsid = dwc2->gsnpsid & GSNPSID_ID_MASK;
   TU_ASSERT(gsnpsid == DWC2_OTG_ID || gsnpsid == DWC2_FS_IOT_ID || gsnpsid == DWC2_HS_IOT_ID);
