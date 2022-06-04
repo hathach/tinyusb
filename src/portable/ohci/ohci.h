@@ -230,8 +230,27 @@ typedef volatile struct
   uint32_t periodic_start;
   uint32_t lowspeed_threshold;
 
-  uint32_t rh_descriptorA;
-  uint32_t rh_descriptorB;
+  union {
+    uint32_t rh_descriptorA;
+    struct {
+      uint32_t number_downstream_ports     : 8;
+      uint32_t power_switching_mode        : 1;
+      uint32_t no_power_switching          : 1;
+      uint32_t device_type                 : 1;
+      uint32_t overcurrent_protection_mode : 1;
+      uint32_t no_over_current_protection  : 1;
+      uint32_t reserved                    : 11;
+      uint32_t power_on_to_good_time       : 8;
+    } rh_descriptorA_bit;
+  };
+
+  union {
+    uint32_t rh_descriptorB;
+    struct {
+      uint32_t device_removable        : 16;
+      uint32_t port_power_control_mask : 16;
+    } rh_descriptorB_bit;
+  };
 
   union {
     uint32_t rh_status;
