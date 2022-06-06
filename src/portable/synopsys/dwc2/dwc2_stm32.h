@@ -47,6 +47,7 @@
   #include "stm32f4xx.h"
   #define EP_MAX_FS       USB_OTG_FS_MAX_IN_ENDPOINTS
   #define EP_FIFO_SIZE_FS USB_OTG_FS_TOTAL_FIFO_SIZE
+
   #define EP_MAX_HS       USB_OTG_HS_MAX_IN_ENDPOINTS
   #define EP_FIFO_SIZE_HS USB_OTG_HS_TOTAL_FIFO_SIZE
 
@@ -54,6 +55,7 @@
   #include "stm32h7xx.h"
   #define EP_MAX_FS       9
   #define EP_FIFO_SIZE_FS 4096
+
   #define EP_MAX_HS       9
   #define EP_FIFO_SIZE_HS 4096
 
@@ -64,6 +66,7 @@
   #include "stm32f7xx.h"
   #define EP_MAX_FS       6
   #define EP_FIFO_SIZE_FS 1280
+
   #define EP_MAX_HS       9
   #define EP_FIFO_SIZE_HS 4096
 
@@ -77,7 +80,7 @@
 #endif
 
 // OTG HS always has higher number of endpoints than FS
-#ifdef EP_MAX_HS
+#ifdef USB_OTG_HS_PERIPH_BASE
   #define DWC2_EP_MAX   EP_MAX_HS
 #else
   #define DWC2_EP_MAX   EP_MAX_FS

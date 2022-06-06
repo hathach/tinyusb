@@ -34,13 +34,13 @@
 
 #include "clock_config.h"
 
-#ifdef BOARD_TUD_RHPORT
+#if defined(BOARD_TUD_RHPORT) && CFG_TUD_ENABLED
   #define PORT_SUPPORT_DEVICE(_n)  (BOARD_TUD_RHPORT == _n)
 #else
   #define PORT_SUPPORT_DEVICE(_n)  0
 #endif
 
-#ifdef BOARD_TUH_RHPORT
+#if defined(BOARD_TUH_RHPORT) && CFG_TUH_ENABLED
   #define PORT_SUPPORT_HOST(_n)    (BOARD_TUH_RHPORT == _n)
 #else
   #define PORT_SUPPORT_HOST(_n)    0
