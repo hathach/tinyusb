@@ -82,7 +82,8 @@ int main(void)
 {
   board_init();
 
-  tusb_init();
+  // init device stack on configured roothub port
+  tud_init(BOARD_TUD_RHPORT);
 
   // Init values
   sampFreq = AUDIO_SAMPLE_RATE;
