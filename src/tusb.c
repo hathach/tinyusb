@@ -38,12 +38,14 @@
 
 bool tusb_init(void)
 {
-#if CFG_TUD_ENABLED
-  TU_ASSERT ( tud_init(TUD_OPT_RHPORT) ); // init device stack
+#if CFG_TUD_ENABLED && defined(TUD_OPT_RHPORT)
+  // init device stack CFG_TUSB_RHPORTx_MODE must be defined
+  TU_ASSERT ( tud_init(TUD_OPT_RHPORT) );
 #endif
 
-#if CFG_TUH_ENABLED
-  TU_ASSERT( tuh_init(TUH_OPT_RHPORT) ); // init host stack
+#if CFG_TUH_ENABLED && defined(TUH_OPT_RHPORT)
+  // init host stack CFG_TUSB_RHPORTx_MODE must be defined
+  TU_ASSERT( tuh_init(TUH_OPT_RHPORT) );
 #endif
 
   return true;

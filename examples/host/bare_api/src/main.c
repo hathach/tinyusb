@@ -62,8 +62,10 @@ int main(void)
 {
   board_init();
 
-  printf("TinyUSB Host HID Controller Example\r\n");
-  tusb_init();
+  printf("TinyUSB Bare API Example\r\n");
+
+  // init host stack on configured roothub port
+  tuh_init(BOARD_TUH_RHPORT);
 
   while (1)
   {

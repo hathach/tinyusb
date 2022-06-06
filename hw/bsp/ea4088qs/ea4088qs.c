@@ -32,11 +32,11 @@
 //--------------------------------------------------------------------+
 void USB_IRQHandler(void)
 {
-  #if CFG_TUSB_RHPORT0_MODE & OPT_MODE_HOST
+  #if CFG_TUD_ENABLED
     tuh_int_handler(0);
   #endif
 
-  #if CFG_TUSB_RHPORT0_MODE & OPT_MODE_DEVICE
+  #if CFG_TUH_ENABLED
     tud_int_handler(0);
   #endif
 }
@@ -115,7 +115,7 @@ void board_init(void)
   SysTick_Config(SystemCoreClock / 1000);
 #elif CFG_TUSB_OS == OPT_OS_FREERTOS
   // If freeRTOS is used, IRQ priority is limit by max syscall ( smaller is higher )
-  NVIC_SetPriority(USB_IRQn, configLIBRARY_MAX_SYSCALL_INTERRUPT_PRIORITY );
+  NVIC_SetPriority(USB_IRQn, configLIBRARY_MAX_SYSCALL_INTERRUPT_PRIORITY);
 #endif
 
   Chip_GPIO_Init(LPC_GPIO);

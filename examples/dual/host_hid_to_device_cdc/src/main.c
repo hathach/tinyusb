@@ -79,7 +79,9 @@ int main(void)
 
   printf("TinyUSB Host HID <-> Device CDC Example\r\n");
 
-  tusb_init();
+  // init device and host stack on configured roothub port
+  tud_init(BOARD_TUD_RHPORT);
+  tuh_init(BOARD_TUH_RHPORT);
 
   while (1)
   {
