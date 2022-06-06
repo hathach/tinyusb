@@ -61,7 +61,7 @@ void isr(void)
 
   irqs = irq_pending() & irq_getmask();
 
-#if CFG_TUSB_RHPORT0_MODE == OPT_MODE_DEVICE
+#if CFG_TUD_ENABLED
   if (irqs & (1 << USB_INTERRUPT)) {
     tud_int_handler(0);
   }
