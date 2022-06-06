@@ -238,11 +238,19 @@ typedef int make_iso_compilers_happy ;
   #define CFG_TUH_ENABLED     (TUH_RHPORT_MODE & OPT_MODE_HOST)
 #endif
 
+#ifndef CFG_TUH_MAX_SPEED
+  // fallback to use CFG_TUSB_RHPORTx_MODE
+  #define CFG_TUH_MAX_SPEED   (TUH_RHPORT_MODE & OPT_MODE_SPEED_MASK)
+#endif
+
 // For backward compatible
 #define TUSB_OPT_DEVICE_ENABLED CFG_TUD_ENABLED
 #define TUSB_OPT_HOST_ENABLED   CFG_TUH_ENABLED
 
+//--------------------------------------------------------------------+
 // TODO move later
+//--------------------------------------------------------------------+
+
 // TUP_MCU_STRICT_ALIGN will overwrite TUP_ARCH_STRICT_ALIGN.
 // In case TUP_MCU_STRICT_ALIGN = 1 and TUP_ARCH_STRICT_ALIGN =0, we will not reply on compiler
 // to generate unaligned access code.
