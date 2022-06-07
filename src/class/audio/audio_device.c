@@ -2114,7 +2114,7 @@ uint32_t tud_audio_feedback_update(uint8_t func_id, uint32_t cycles)
 }
 #endif
 
-void audiod_sof_isr (uint8_t rhport, uint32_t frame_count)
+TU_ATTR_FAST_FUNC void audiod_sof_isr (uint8_t rhport, uint32_t frame_count)
 {
   (void) rhport;
   (void) frame_count;
