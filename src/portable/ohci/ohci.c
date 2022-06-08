@@ -161,6 +161,22 @@ static void ed_list_remove_by_addr(ohci_ed_t * p_head, uint8_t dev_addr);
 //--------------------------------------------------------------------+
 // USBH-HCD API
 //--------------------------------------------------------------------+
+
+//If your system requires separation of virtual and physical memory, implement
+//tuh_get_phys_addr and tuh_get_virt_addr in your application.
+TU_ATTR_WEAK void *tuh_get_phys_addr(void *virtual_address);
+TU_ATTR_WEAK void *tuh_get_virt_addr(void *physical_address);
+TU_ATTR_ALWAYS_INLINE static void *_phys_addr(void *virtual_address)
+{
+  if (tuh_get_phys_addr) return tuh_get_phys_addr(virtual_address);
+  return virtual_address;
+}
+TU_ATTR_ALWAYS_INLINE static void *_virt_addr(void *physical_address)
+{
+  if (tuh_get_virt_addr) return tuh_get_virt_addr(physical_address);
+  return physical_address;
+}
+
 // Initialization according to 5.1.1.4
 bool hcd_init(uint8_t rhport)
 {
@@ -170,7 +186,7 @@ bool hcd_init(uint8_t rhport)
   tu_memclr(&ohci_data, sizeof(ohci_data_t));
   for(uint8_t i=0; i<32; i++)
   { // assign all interrupt pointers to period head ed
-    ohci_data.hcca.interrupt_table[i] = (uint32_t) &ohci_data.period_head_ed;
+    ohci_data.hcca.interrupt_table[i] = (uint32_t) _phys_addr(&ohci_data.period_head_ed);
   }
 
   ohci_data.control[0].ed.skip  = 1;
@@ -198,9 +214,9 @@ bool hcd_init(uint8_t rhport)
   while( OHCI_REG->command_status_bit.controller_reset ) {} // should not take longer than 10 us
 
   //------------- init ohci registers -------------//
-  OHCI_REG->control_head_ed = (uint32_t) &ohci_data.control[0].ed;
-  OHCI_REG->bulk_head_ed    = (uint32_t) &ohci_data.bulk_head_ed;
-  OHCI_REG->hcca            = (uint32_t) &ohci_data.hcca;
+  OHCI_REG->control_head_ed = (uint32_t) _phys_addr(&ohci_data.control[0].ed);
+  OHCI_REG->bulk_head_ed    = (uint32_t) _phys_addr(&ohci_data.bulk_head_ed);
+  OHCI_REG->hcca            = (uint32_t) _phys_addr(&ohci_data.hcca);
 
   OHCI_REG->interrupt_disable = OHCI_REG->interrupt_enable; // disable all interrupts
   OHCI_REG->interrupt_status  = OHCI_REG->interrupt_status; // clear current set bits
@@ -327,8 +343,8 @@ static void gtd_init(ohci_gtd_t* p_td, uint8_t* data_ptr, uint16_t total_bytes)
   p_td->delay_interrupt        = OHCI_INT_ON_COMPLETE_NO;
   p_td->condition_code         = OHCI_CCODE_NOT_ACCESSED;
 
-  p_td->current_buffer_pointer = data_ptr;
-  p_td->buffer_end             = total_bytes ? (data_ptr + total_bytes-1) : data_ptr;
+  p_td->current_buffer_pointer = _phys_addr(data_ptr);
+  p_td->buffer_end             = total_bytes ? (_phys_addr(data_ptr + total_bytes - 1)) : (uint8_t *)p_td->current_buffer_pointer;
 }
 
 static ohci_ed_t * ed_from_addr(uint8_t dev_addr, uint8_t ep_addr)
@@ -364,7 +380,7 @@ static ohci_ed_t * ed_find_free(void)
 static void ed_list_insert(ohci_ed_t * p_pre, ohci_ed_t * p_ed)
 {
   p_ed->next = p_pre->next;
-  p_pre->next = (uint32_t) p_ed;
+  p_pre->next = (uint32_t) _phys_addr(p_ed);
 }
 
 static void ed_list_remove_by_addr(ohci_ed_t * p_head, uint8_t dev_addr)
@@ -373,7 +389,7 @@ static void ed_list_remove_by_addr(ohci_ed_t * p_head, uint8_t dev_addr)
 
   while( p_prev->next )
   {
-    ohci_ed_t* ed = (ohci_ed_t*) p_prev->next;
+    ohci_ed_t* ed = (ohci_ed_t*) _virt_addr((void *)p_prev->next);
 
     if (ed->dev_addr == dev_addr)
     {
@@ -384,14 +400,14 @@ static void ed_list_remove_by_addr(ohci_ed_t * p_head, uint8_t dev_addr)
       p_prev->next = ed->next;
 
       // point the removed ED's next pointer to list head to make sure HC can always safely move away from this ED
-      ed->next = (uint32_t) p_head;
+      ed->next = (uint32_t) _phys_addr(p_head);
       ed->used = 0;
       ed->skip = 0;
       continue;
     }
 
     // check next valid since we could remove it
-    if (p_prev->next) p_prev = (ohci_ed_t*) p_prev->next;
+    if (p_prev->next) p_prev = (ohci_ed_t*) _virt_addr((void *)p_prev->next);
   }
 }
 
@@ -410,11 +426,11 @@ static void td_insert_to_ed(ohci_ed_t* p_ed, ohci_gtd_t * p_gtd)
   // tail is always NULL
   if ( tu_align16(p_ed->td_head.address) == 0 )
   { // TD queue is empty --> head = TD
-    p_ed->td_head.address |= (uint32_t) p_gtd;
+    p_ed->td_head.address |= (uint32_t) _phys_addr(p_gtd);
   }
   else
   { // TODO currently only support queue up to 2 TD each endpoint at a time
-    ((ohci_gtd_t*) tu_align16(p_ed->td_head.address))->next = (uint32_t) p_gtd;
+    ((ohci_gtd_t*) tu_align16((uint32_t)_virt_addr((void *)p_ed->td_head.address)))->next = (uint32_t) _phys_addr(p_gtd);
   }
 }
 
@@ -470,7 +486,7 @@ bool hcd_setup_send(uint8_t rhport, uint8_t dev_addr, uint8_t const setup_packet
   qtd->delay_interrupt = 0;
 
   //------------- Attach TDs list to Control Endpoint -------------//
-  ed->td_head.address = (uint32_t) qtd;
+  ed->td_head.address = (uint32_t) _phys_addr(qtd);
 
   OHCI_REG->command_status_bit.control_list_filled = 1;
 
@@ -496,7 +512,7 @@ bool hcd_edpt_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr, uint8_t * 
     gtd->data_toggle     = GTD_DT_DATA1; // Both Data and Ack stage start with DATA1
     gtd->delay_interrupt = 0;
 
-    ed->td_head.address = (uint32_t) gtd;
+    ed->td_head.address = (uint32_t) _phys_addr(gtd);
 
     OHCI_REG->command_status_bit.control_list_filled = 1;
   }else
@@ -544,16 +560,17 @@ static ohci_td_item_t* list_reverse(ohci_td_item_t* td_head)
 
   while(td_head != NULL)
   {
+    td_head = _virt_addr(td_head);
     uint32_t next = td_head->next;
 
     // make current's item become reverse's first item
     td_head->next = (uint32_t) td_reverse_head;
-    td_reverse_head  = td_head;
+    td_reverse_head  = _phys_addr(td_head);
 
     td_head = (ohci_td_item_t*) next; // advance to next item
   }
 
-  return td_reverse_head;
+  return _virt_addr(td_reverse_head);
 }
 
 static inline bool gtd_is_control(ohci_gtd_t const * const p_qtd)
@@ -624,7 +641,7 @@ static void done_queue_isr(uint8_t hostid)
       hcd_event_xfer_complete(ed->dev_addr, tu_edpt_addr(ed->ep_number, dir), xferred_bytes, event, true);
     }
 
-    td_head = (ohci_td_item_t*) td_head->next;
+    td_head = (ohci_td_item_t*) _virt_addr((void *)td_head->next);
   }
 }
 
