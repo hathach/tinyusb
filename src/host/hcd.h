@@ -48,7 +48,7 @@
 //  #endif
 #endif
 
- //--------------------------------------------------------------------+
+//--------------------------------------------------------------------+
 // MACRO CONSTANT TYPEDEF
 //--------------------------------------------------------------------+
 typedef enum
@@ -105,6 +105,9 @@ typedef struct
 //--------------------------------------------------------------------+
 // Controller API
 //--------------------------------------------------------------------+
+
+// optional hcd configuration, called by tuh_config()
+bool hcd_configure(uint8_t rhport, uint32_t cfg_id, const void* cfg_param) TU_ATTR_WEAK;
 
 // Initialize controller to host mode
 bool hcd_init(uint8_t rhport);

@@ -35,6 +35,13 @@
 #include "bsp/board.h"
 #include "board.h"
 
+#if CFG_TUH_RPI_PIO_USB || CFG_TUD_RPI_PIO_USB
+#include "pio_usb.h"
+#endif
+
+// PIO_USB_DP_PIN_DEFAULT is 0, which conflict with UART, change to 2
+#define PICO_PIO_USB_PIN_DP   2
+
 #ifdef BUTTON_BOOTSEL
 // This example blinks the Picoboard LED when the BOOTSEL button is pressed.
 //
@@ -130,6 +137,12 @@ void board_init(void)
 #if CFG_TUH_RPI_PIO_USB || CFG_TUD_RPI_PIO_USB
   // Set the system clock to a multiple of 120mhz for bitbanging USB with pico-usb
   set_sys_clock_khz(120000, true);
+
+  // rp2040 use pico-pio-usb for host tuh_configure() can be used to passed pio configuration to the host stack
+  // Note: tuh_configure() must be called before tuh_init()
+  pio_usb_configuration_t pio_cfg = PIO_USB_DEFAULT_CONFIG;
+  pio_cfg.pin_dp = PICO_PIO_USB_PIN_DP;
+  tuh_configure(BOARD_TUH_RHPORT, TUH_CFGID_RPI_PIO_USB_CONFIGURATION, &pio_cfg);
 #endif
 
 #if defined(UART_DEV) && defined(LIB_PICO_STDIO_UART)
@@ -142,9 +155,8 @@ void board_init(void)
   stdio_rtt_init();
 #endif
 
-  // todo probably set up device mode?
 #if CFG_TUD_ENABLED
-
+  // TODO probably set up device mode?
 #endif
 
 #if CFG_TUH_ENABLED

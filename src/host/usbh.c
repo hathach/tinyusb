@@ -274,9 +274,32 @@ static void process_device_unplugged(uint8_t rhport, uint8_t hub_addr, uint8_t h
 static bool usbh_edpt_control_open(uint8_t dev_addr, uint8_t max_packet_size);
 static bool usbh_control_xfer_cb (uint8_t daddr, uint8_t ep_addr, xfer_result_t result, uint32_t xferred_bytes);
 
+#if CFG_TUSB_OS == OPT_OS_NONE
+// TODO rework time-related function later
+void osal_task_delay(uint32_t msec)
+{
+  (void) msec;
+
+  const uint32_t start = hcd_frame_number(TUH_OPT_RHPORT);
+  while ( ( hcd_frame_number(TUH_OPT_RHPORT) - start ) < msec ) {}
+}
+#endif
+
 //--------------------------------------------------------------------+
 // PUBLIC API (Parameter Verification is required)
 //--------------------------------------------------------------------+
+
+bool tuh_configure(uint8_t rhport, uint32_t cfg_id, const void* cfg_param)
+{
+  if (hcd_configure)
+  {
+    return hcd_configure(rhport, cfg_id, cfg_param);
+  }else
+  {
+    return false;
+  }
+}
+
 bool tuh_mounted(uint8_t dev_addr)
 {
   usbh_device_t* dev = get_device(dev_addr);
@@ -303,20 +326,6 @@ tusb_speed_t tuh_speed_get (uint8_t dev_addr)
   return (tusb_speed_t) (dev ? get_device(dev_addr)->speed : _dev0.speed);
 }
 
-#if CFG_TUSB_OS == OPT_OS_NONE
-void osal_task_delay(uint32_t msec)
-{
-  (void) msec;
-
-  const uint32_t start = hcd_frame_number(TUH_OPT_RHPORT);
-  while ( ( hcd_frame_number(TUH_OPT_RHPORT) - start ) < msec ) {}
-}
-#endif
-
-//--------------------------------------------------------------------+
-// CLASS-USBD API (don't require to verify parameters)
-//--------------------------------------------------------------------+
-
 static void clear_device(usbh_device_t* dev)
 {
   tu_memclr(dev, sizeof(usbh_device_t));
@@ -334,7 +343,7 @@ bool tuh_init(uint8_t rhport)
   // skip if already initialized
   if (_usbh_initialized) return _usbh_initialized;
 
-  TU_LOG2("USBH init\r\n");
+  TU_LOG2("USBH init rhport %u\r\n", rhport);
   TU_LOG2_INT(sizeof(usbh_device_t));
   TU_LOG2_INT(sizeof(hcd_event_t));
   TU_LOG2_INT(sizeof(_ctrl_xfer));
