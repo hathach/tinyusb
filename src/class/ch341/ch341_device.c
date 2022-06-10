@@ -379,7 +379,7 @@ static inline void ch341_read_regs(ch341d_interface_t *p_ch341, uint8_t* data, u
 
 static void _prep_out_transaction (ch341d_interface_t* p_ch341)
 {
-  uint8_t const rhport = TUD_OPT_RHPORT;
+  uint8_t const rhport = BOARD_TUD_RHPORT;
   uint16_t available = tu_fifo_remaining(&p_ch341->rx_ff);
 
   // Prepare for incoming data but only allow what we can store in the ring buffer.
@@ -532,7 +532,7 @@ uint32_t tud_ch341_n_write_flush (uint8_t itf)
   // No data to send
   if ( !tu_fifo_count(&p_ch341->tx_ff) ) return 0;
 
-  uint8_t const rhport = TUD_OPT_RHPORT;
+  uint8_t const rhport = BOARD_TUD_RHPORT;
 
   // Claim the endpoint
   TU_VERIFY( usbd_edpt_claim(rhport, p_ch341->ep_in), 0 );
@@ -563,7 +563,7 @@ uint32_t tud_ch341_n_notify_flush(uint8_t itf)
   if (!tu_fifo_count(&p_ch341->txnotify_ff))
     return 0;
 
-  uint8_t const rhport = TUD_OPT_RHPORT;
+  uint8_t const rhport = BOARD_TUD_RHPORT;
 
   // Claim the endpoint
   TU_VERIFY(usbd_edpt_claim(rhport, p_ch341->ep_notif), 0);

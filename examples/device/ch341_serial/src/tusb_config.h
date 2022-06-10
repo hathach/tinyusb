@@ -68,6 +68,10 @@
 // Default is max speed that hardware controller could support with on-chip PHY
 #define CFG_TUD_MAX_SPEED     BOARD_TUD_MAX_SPEED
 
+#ifndef CFG_TUSB_RHPORT0_MODE
+#define CFG_TUSB_RHPORT0_MODE OPT_MODE_DEVICE
+#endif
+
 /* USB DMA on some MCUs can only access a specific SRAM region with restriction on alignment.
  * Tinyusb use follows macros to declare transferring memory so that they can be put
  * into those specific section.
