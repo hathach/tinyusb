@@ -242,7 +242,7 @@ static usbd_class_driver_t const _usbd_driver[] =
     .open = ch341d_open,
     .control_xfer_cb = ch341d_control_xfer_cb,
     .xfer_cb = ch341d_xfer_cb,
-    .sof_isr = NULL
+    .sof = NULL
   },
   #endif
 };
