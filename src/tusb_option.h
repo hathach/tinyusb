@@ -28,7 +28,7 @@
 #define _TUSB_OPTION_H_
 
 // To avoid GCC compiler warnings when -pedantic option is used (strict ISO C)
-typedef int make_iso_compilers_happy ;
+typedef int make_iso_compilers_happy;
 
 #include "common/tusb_compiler.h"
 
@@ -217,6 +217,9 @@ typedef int make_iso_compilers_happy ;
   #define CFG_TUD_MAX_SPEED   (TUD_RHPORT_MODE & OPT_MODE_SPEED_MASK)
 #endif
 
+// For backward compatible
+#define TUSB_OPT_DEVICE_ENABLED CFG_TUD_ENABLED
+
 // highspeed support indicator
 #define TUD_OPT_HIGH_SPEED    (CFG_TUD_MAX_SPEED ? CFG_TUD_MAX_SPEED : TUP_RHPORT_HIGHSPEED)
 
@@ -230,7 +233,6 @@ typedef int make_iso_compilers_happy ;
   #define TUH_OPT_RHPORT   1
 #else
   #define TUH_RHPORT_MODE   OPT_MODE_NONE
-  #define TUH_OPT_RHPORT   -1
 #endif
 
 #ifndef CFG_TUH_ENABLED
@@ -244,7 +246,6 @@ typedef int make_iso_compilers_happy ;
 #endif
 
 // For backward compatible
-#define TUSB_OPT_DEVICE_ENABLED CFG_TUD_ENABLED
 #define TUSB_OPT_HOST_ENABLED   CFG_TUH_ENABLED
 
 //--------------------------------------------------------------------+

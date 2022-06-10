@@ -95,10 +95,10 @@ TU_ATTR_WEAK void tuh_umount_cb(uint8_t daddr);
 // Should be called before tuh_init()
 // - cfg_id   : configure ID (TBD)
 // - cfg_param: configure data, structure depends on the ID
-bool tuh_configure(uint8_t rhport, uint32_t cfg_id, const void* cfg_param);
+bool tuh_configure(uint8_t controller_id, uint32_t cfg_id, const void* cfg_param);
 
 // Init host stack
-bool tuh_init(uint8_t rhport);
+bool tuh_init(uint8_t controller_id);
 
 // Check if host stack is already initialized
 bool tuh_inited(void);
