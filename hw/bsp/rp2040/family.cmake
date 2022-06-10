@@ -79,6 +79,7 @@ if (NOT TARGET _rp2040_family_inclusion_marker)
 			${TOP}/src/class/usbtmc/usbtmc_device.c
 			${TOP}/src/class/vendor/vendor_device.c
 			${TOP}/src/class/video/video_device.c
+			${TOP}/src/class/ch341/ch341_device.c
 			)
 
 	#------------------------------------
