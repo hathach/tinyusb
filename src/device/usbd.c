@@ -384,7 +384,7 @@ bool tud_init (uint8_t rhport)
   // skip if already initialized
   if ( tud_inited() ) return true;
 
-  TU_LOG2("USBD init rhport %u\r\n", rhport);
+  TU_LOG2("USBD init on controller %u\r\n", rhport);
   TU_LOG2_INT(sizeof(usbd_device_t));
 
   tu_varclr(&_usbd_dev);
