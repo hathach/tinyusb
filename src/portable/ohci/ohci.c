@@ -483,7 +483,7 @@ bool hcd_setup_send(uint8_t rhport, uint8_t dev_addr, uint8_t const setup_packet
   qtd->index           = dev_addr;
   qtd->pid             = PID_SETUP;
   qtd->data_toggle     = GTD_DT_DATA0;
-  qtd->delay_interrupt = 0;
+  qtd->delay_interrupt = OHCI_INT_ON_COMPLETE_YES;
 
   //------------- Attach TDs list to Control Endpoint -------------//
   ed->td_head.address = (uint32_t) _phys_addr(qtd);
@@ -510,7 +510,7 @@ bool hcd_edpt_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr, uint8_t * 
     gtd->index           = dev_addr;
     gtd->pid             = dir ? PID_IN : PID_OUT;
     gtd->data_toggle     = GTD_DT_DATA1; // Both Data and Ack stage start with DATA1
-    gtd->delay_interrupt = 0;
+    gtd->delay_interrupt = OHCI_INT_ON_COMPLETE_YES;
 
     ed->td_head.address = (uint32_t) _phys_addr(gtd);
 
@@ -524,7 +524,7 @@ bool hcd_edpt_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr, uint8_t * 
 
     gtd_init(gtd, buffer, buflen);
     gtd->index = ed-ohci_data.ed_pool;
-    gtd->delay_interrupt = 0;
+    gtd->delay_interrupt = OHCI_INT_ON_COMPLETE_YES;
 
     td_insert_to_ed(ed, gtd);
 
