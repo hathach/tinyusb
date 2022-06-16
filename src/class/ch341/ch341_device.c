@@ -27,7 +27,7 @@
 
 #include "tusb_option.h"
 
-#if (TUSB_OPT_DEVICE_ENABLED && CFG_TUD_CH341)
+#if (CFG_TUD_ENABLED && CFG_TUD_CH341)
 
 #include "device/usbd.h"
 #include "device/usbd_pvt.h"
@@ -189,7 +189,7 @@ typedef struct
 CFG_TUSB_MEM_SECTION static ch341d_interface_t _ch341d_itf[CFG_TUD_CH341];
 
 
-const static uint32_t ch341_known_baud_rates[] = {  50, 75, 100, 110, 150, 300, 600, 900, 1200, 1800, 2400, 3600, 4800, 9600, 14400, 19200, 28800, 33600, 38400, 56000, 57600, 76800, 115200, 128000, 153600, 230400, 460800, 921600, 1500000, 2000000};
+static const uint32_t ch341_known_baud_rates[] = {  50, 75, 100, 110, 150, 300, 600, 900, 1200, 1800, 2400, 3600, 4800, 9600, 14400, 19200, 28800, 33600, 38400, 56000, 57600, 76800, 115200, 128000, 153600, 230400, 460800, 921600, 1500000, 2000000};
 static inline uint16_t __get_unaligned_le16(const uint8_t *p)
 {
   return p[0] | p[1] << 8;

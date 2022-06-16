@@ -65,11 +65,11 @@
 // Enable Device stack
 #define CFG_TUD_ENABLED       1
 
-// Default is max speed that hardware controller could support with on-chip PHY
-#define CFG_TUD_MAX_SPEED     BOARD_TUD_MAX_SPEED
+// CH340G is a full speed USB device.
+#define CFG_TUD_MAX_SPEED      TUSB_SPEED_FULL
 
 #ifndef CFG_TUSB_RHPORT0_MODE
-#define CFG_TUSB_RHPORT0_MODE OPT_MODE_DEVICE
+#define CFG_TUSB_RHPORT0_MODE OPT_MODE_DEVICE | OPT_MODE_FULL_SPEED
 #endif
 
 /* USB DMA on some MCUs can only access a specific SRAM region with restriction on alignment.
