@@ -155,19 +155,24 @@ TU_ATTR_ALWAYS_INLINE static inline bool osal_queue_receive(osal_queue_t qhdl, v
   return success;
 }
 
+#define TUD_QUEUE_SEND_CB_SUPPORTED 1
+
+TU_ATTR_WEAK void tud_queue_send_cb(bool in_isr);
+
 TU_ATTR_ALWAYS_INLINE static inline bool osal_queue_send(osal_queue_t qhdl, void const * data, bool in_isr)
 {
   // TODO: revisit... docs say that mutexes are never used from IRQ context,
   //  however osal_queue_recieve may be. therefore my assumption is that
   //  the fifo mutex is not populated for queues used from an IRQ context
   //assert(!qhdl->ff.mutex);
-  (void) in_isr;
 
   _osal_q_lock(qhdl);
   bool success = tu_fifo_write(&qhdl->ff, data);
   _osal_q_unlock(qhdl);
 
   TU_ASSERT(success);
+
+  if (tud_queue_send_cb) tud_queue_send_cb(in_isr);
 
   return success;
 }
