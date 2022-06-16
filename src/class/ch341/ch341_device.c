@@ -151,9 +151,9 @@ typedef struct
   tu_fifo_t tx_ff;
   tu_fifo_t txnotify_ff;
 
-  uint8_t rx_ff_buf[CFG_TUD_CH341_RX_BUFSIZE];
-  uint8_t tx_ff_buf[CFG_TUD_CH341_TX_BUFSIZE];
-  uint8_t txnotify_ff_buf[CFG_TUD_CH341_TXNOTIFY_BUFSIZE];
+  uint8_t rx_ff_buf[CFG_TUD_CH341_FIFO_SIZE];
+  uint8_t tx_ff_buf[CFG_TUD_CH341_FIFO_SIZE];
+  uint8_t txnotify_ff_buf[CFG_TUD_CH341_EP_TXNOTIFY_MAX_PACKET];
 
 #if CFG_FIFO_MUTEX
   osal_mutex_def_t rx_ff_mutex;
@@ -168,8 +168,8 @@ typedef struct
   CFG_TUSB_MEM_ALIGN uint8_t ep0_in_buf[4];
 
   // Endpoint Transfer buffer
-  CFG_TUSB_MEM_ALIGN uint8_t epout_buf[CFG_TUD_CH341_EP_BUFSIZE];
-  CFG_TUSB_MEM_ALIGN uint8_t epin_buf[CFG_TUD_CH341_EP_BUFSIZE];
+  CFG_TUSB_MEM_ALIGN uint8_t epout_buf[CFG_TUD_CH341_EP_RX_MAX_PACKET];
+  CFG_TUSB_MEM_ALIGN uint8_t epin_buf[CFG_TUD_CH341_EP_TX_MAX_PACKET];
 
   uint8_t register_data[REG_DIDX_MAX];
 
@@ -514,7 +514,7 @@ uint32_t tud_ch341_n_write(uint8_t itf, void const* buffer, uint32_t bufsize)
   uint16_t ret = tu_fifo_write_n(&p_ch341->tx_ff, buffer, bufsize);
 
   // flush if queue more than packet size
-  if (tu_fifo_count(&p_ch341->tx_ff) >= CFG_TUD_CH341_EP_BUFSIZE )
+  if (tu_fifo_count(&p_ch341->tx_ff) >= sizeof(p_ch341->epin_buf))
   {
     tud_ch341_n_write_flush(itf);
   }
@@ -632,16 +632,10 @@ void ch341d_init(void)
 
     // Config RX fifo
     tu_fifo_config(&p_ch341->rx_ff, p_ch341->rx_ff_buf, TU_ARRAY_SIZE(p_ch341->rx_ff_buf), 1, false);
-
-    // Config TX fifo as overwritable at initialization and will be changed to non-overwritable
-    // if terminal supports DTR bit. Without DTR we do not know if data is actually polled by terminal.
-    // In this way, the most current data is prioritized.
-    tu_fifo_config(&p_ch341->tx_ff, p_ch341->tx_ff_buf, TU_ARRAY_SIZE(p_ch341->tx_ff_buf), 1, true);
-
-    // Config TX notify fifo as overwritable at initialization and will be changed to non-overwritable
-    // if terminal supports DTR bit. Without DTR we do not know if data is actually polled by terminal.
-    // In this way, the most current data is prioritized.
-    tu_fifo_config(&p_ch341->txnotify_ff, p_ch341->txnotify_ff_buf, TU_ARRAY_SIZE(p_ch341->txnotify_ff_buf), 1, true);
+    // Config TX fifo
+    tu_fifo_config(&p_ch341->tx_ff, p_ch341->tx_ff_buf, TU_ARRAY_SIZE(p_ch341->tx_ff_buf), 1, false);
+    // Config TX NOTIFY fifo
+    tu_fifo_config(&p_ch341->txnotify_ff, p_ch341->txnotify_ff_buf, TU_ARRAY_SIZE(p_ch341->txnotify_ff_buf), 1, false);
 
 #if CFG_FIFO_MUTEX
     tu_fifo_config_mutex(&p_ch341->rx_ff, NULL, osal_mutex_create(&p_ch341->rx_ff_mutex));
@@ -896,7 +890,7 @@ bool ch341d_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint3
     {
       // If there is no data left, a ZLP should be sent if
       // xferred_bytes is multiple of EP Packet size and not zero
-      if (!tu_fifo_count(&p_ch341->tx_ff) && xferred_bytes && (0 == (xferred_bytes & (CFG_TUD_CH341_EP_BUFSIZE-1))) )
+      if (!tu_fifo_count(&p_ch341->tx_ff) && xferred_bytes && (0 == (xferred_bytes & (CFG_TUD_CH341_EP_TX_MAX_PACKET-1))) )
       {
         if ( usbd_edpt_claim(rhport, p_ch341->ep_in) )
         {

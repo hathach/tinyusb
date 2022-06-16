@@ -65,26 +65,11 @@
 // Enable Device stack
 #define CFG_TUD_ENABLED       1
 
-// CH340G is a full speed USB device.
-#define CFG_TUD_MAX_SPEED      TUSB_SPEED_FULL
+// Default is max speed that hardware controller could support with on-chip PHY
+#define CFG_TUD_MAX_SPEED     BOARD_TUD_MAX_SPEED
 
 #ifndef CFG_TUSB_RHPORT0_MODE
 #define CFG_TUSB_RHPORT0_MODE OPT_MODE_DEVICE | OPT_MODE_FULL_SPEED
-#endif
-
-/* USB DMA on some MCUs can only access a specific SRAM region with restriction on alignment.
- * Tinyusb use follows macros to declare transferring memory so that they can be put
- * into those specific section.
- * e.g
- * - CFG_TUSB_MEM SECTION : __attribute__ (( section(".usb_ram") ))
- * - CFG_TUSB_MEM_ALIGN   : __attribute__ ((aligned(4)))
- */
-#ifndef CFG_TUSB_MEM_SECTION
-#define CFG_TUSB_MEM_SECTION
-#endif
-
-#ifndef CFG_TUSB_MEM_ALIGN
-#define CFG_TUSB_MEM_ALIGN          __attribute__ ((aligned(4)))
 #endif
 
 //--------------------------------------------------------------------
@@ -102,14 +87,15 @@
 #define CFG_TUD_MIDI              0
 #define CFG_TUD_VENDOR            0
 #define CFG_TUD_CH341             1
-	 
-// CDC FIFO size of TX and RX
-#define CFG_TUD_CH341_TX_BUFSIZE   (64)
-#define CFG_TUD_CH341_RX_BUFSIZE   (64)
-#define CFG_TUD_CH341_TXNOTIFY_BUFSIZE  (8)
 
-// CDC Endpoint transfer buffer size, more is faster
-#define CFG_TUD_CH341_EP_BUFSIZE   (64)
+// CH341 Endpoint max packet sizes (should not change)
+#define CFG_TUD_CH341_EP_RX_MAX_PACKET   (TUD_OPT_HIGH_SPEED ? 512 : 64)
+#define CFG_TUD_CH341_EP_TX_MAX_PACKET   CFG_TUD_CH341_EP_RX_MAX_PACKET
+#define CFG_TUD_CH341_EP_TXNOTIFY_MAX_PACKET  (8)
+ 
+// CH341 buffer size for TX and RX data (must be an interval of max packet size)
+// more is faster
+#define CFG_TUD_CH341_FIFO_SIZE   (TUD_OPT_HIGH_SPEED ? 512 : 64)
 
 #ifdef __cplusplus
  }

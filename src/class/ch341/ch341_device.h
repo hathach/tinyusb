@@ -41,13 +41,20 @@
 //--------------------------------------------------------------------+
 // Class Driver Configuration
 //--------------------------------------------------------------------+
-#if !defined(CFG_TUD_CH341_EP_BUFSIZE) && defined(CFG_TUD_CH341_EPSIZE)
-  #warning CFG_TUD_CH341_EPSIZE is renamed to CFG_TUD_CH341_EP_BUFSIZE, please update to use the new name
-  #define CFG_TUD_CH341_EP_BUFSIZE    CFG_TUD_CH341_EPSIZE
+#ifndef CFG_TUD_CH341_EP_RX_MAX_PACKET
+  #define CFG_TUD_CH341_EP_RX_MAX_PACKET    (TUD_OPT_HIGH_SPEED ? 512 : 64)
 #endif
 
-#ifndef CFG_TUD_CH341_EP_BUFSIZE
-  #define CFG_TUD_CH341_EP_BUFSIZE    (TUD_OPT_HIGH_SPEED ? 512 : 64)
+#ifndef CFG_TUD_CH341_EP_TX_MAX_PACKET
+  #define CFG_TUD_CH341_EP_TX_MAX_PACKET    CFG_TUD_CH341_EP_RX_MAX_PACKET
+#endif
+
+#ifndef CFG_TUD_CH341_EP_TXNOTIFY_MAX_PACKET
+  #define CFG_TUD_CH341_EP_TXNOTIFY_MAX_PACKET    (8)
+#endif
+
+#ifndef CFG_TUD_CH341_FIFO_SIZE
+  #define CFG_TUD_CH341_FIFO_SIZE           CFG_TUD_CH341_EP_RX_MAX_PACKET
 #endif
 
 #ifdef __cplusplus
