@@ -1089,6 +1089,12 @@ uint8_t tuh_descriptor_get_serial_string_sync(uint8_t daddr, uint16_t language_i
 //
 //--------------------------------------------------------------------+
 
+TU_ATTR_ALWAYS_INLINE
+static inline bool is_hub_addr(uint8_t daddr)
+{
+  return (CFG_TUH_HUB > 0) && (daddr > CFG_TUH_DEVICE_MAX);
+}
+
 // a device unplugged from rhport:hub_addr:hub_port
 static void process_device_unplugged(uint8_t rhport, uint8_t hub_addr, uint8_t hub_port)
 {
@@ -1101,20 +1107,23 @@ static void process_device_unplugged(uint8_t rhport, uint8_t hub_addr, uint8_t h
 
     // TODO Hub multiple level
     if (dev->rhport == rhport   &&
-        (hub_addr == 0 || dev->hub_addr == hub_addr) && // hub_addr == 0 & hub_port == 0 means roothub
-        (hub_port == 0 || dev->hub_port == hub_port) &&
+        (hub_addr == 0 || dev->hub_addr == hub_addr) && // hub_addr = 0 means roothub
+        (hub_port == 0 || dev->hub_port == hub_port) && // hub_port = 0 means all devices of downstream hub
         dev->connected)
     {
       TU_LOG2("  Address = %u\r\n", dev_addr);
 
-      // If the device itself is a usb hub, unplug downstream devices.
-      if (dev_addr > CFG_TUH_DEVICE_MAX)
+      if (is_hub_addr(dev_addr))
       {
+        TU_LOG(USBH_DBG_LVL, "HUB address = %u is unmounted\r\n", dev_addr);
+        // If the device itself is a usb hub, unplug downstream devices.
+        // FIXME un-roll recursive calls to prevent potential stack overflow
         process_device_unplugged(rhport, dev_addr, 0);
+      }else
+      {
+        // Invoke callback before closing driver
+        if (tuh_umount_cb) tuh_umount_cb(dev_addr);
       }
-
-      // Invoke callback before close driver
-      if (tuh_umount_cb) tuh_umount_cb(dev_addr);
 
       // Close class driver
       for (uint8_t drv_id = 0; drv_id < USBH_CLASS_DRIVER_COUNT; drv_id++)
@@ -1395,12 +1404,6 @@ static bool enum_new_device(hcd_event_t* event)
   return true;
 }
 
-TU_ATTR_ALWAYS_INLINE
-static inline bool is_hub_addr(uint8_t daddr)
-{
-  return daddr > CFG_TUH_DEVICE_MAX;
-}
-
 static uint8_t get_new_address(bool is_hub)
 {
   uint8_t start;
@@ -1577,10 +1580,10 @@ void usbh_driver_set_config_complete(uint8_t dev_addr, uint8_t itf_num)
   {
     enum_full_complete();
 
-#if CFG_TUH_HUB
-    // skip device mount callback for hub
-    if ( !is_hub_addr(dev_addr) )
-#endif
+    if (is_hub_addr(dev_addr))
+    {
+      TU_LOG(USBH_DBG_LVL, "HUB address = %u is mounted\r\n", dev_addr);
+    }else
     {
       // Invoke callback if available
       if (tuh_mount_cb) tuh_mount_cb(dev_addr);
