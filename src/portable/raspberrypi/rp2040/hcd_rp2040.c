@@ -91,7 +91,7 @@ static bool need_pre(uint8_t dev_addr)
     return hcd_port_speed_get(0) != tuh_speed_get(dev_addr);
 }
 
-static void __no_inline_not_in_flash_func(hw_xfer_complete)(struct hw_endpoint *ep, xfer_result_t xfer_result)
+static void __tusb_irq_path_func(hw_xfer_complete)(struct hw_endpoint *ep, xfer_result_t xfer_result)
 {
     // Mark transfer as done before we tell the tinyusb stack
     uint8_t dev_addr = ep->dev_addr;
@@ -101,7 +101,7 @@ static void __no_inline_not_in_flash_func(hw_xfer_complete)(struct hw_endpoint *
     hcd_event_xfer_complete(dev_addr, ep_addr, xferred_len, xfer_result, true);
 }
 
-static void __no_inline_not_in_flash_func(_handle_buff_status_bit)(uint bit, struct hw_endpoint *ep)
+static void __tusb_irq_path_func(_handle_buff_status_bit)(uint bit, struct hw_endpoint *ep)
 {
     usb_hw_clear->buf_status = bit;
     bool done = hw_endpoint_xfer_continue(ep);
@@ -111,7 +111,7 @@ static void __no_inline_not_in_flash_func(_handle_buff_status_bit)(uint bit, str
     }
 }
 
-static void __no_inline_not_in_flash_func(hw_handle_buff_status)(void)
+static void __tusb_irq_path_func(hw_handle_buff_status)(void)
 {
     uint32_t remaining_buffers = usb_hw->buf_status;
     pico_trace("buf_status 0x%08x\n", remaining_buffers);
@@ -159,7 +159,7 @@ static void __no_inline_not_in_flash_func(hw_handle_buff_status)(void)
     }
 }
 
-static void __no_inline_not_in_flash_func(hw_trans_complete)(void)
+static void __tusb_irq_path_func(hw_trans_complete)(void)
 {
   if (usb_hw->sie_ctrl & USB_SIE_CTRL_SEND_SETUP_BITS)
   {
@@ -175,7 +175,7 @@ static void __no_inline_not_in_flash_func(hw_trans_complete)(void)
   }
 }
 
-static void __no_inline_not_in_flash_func(hcd_rp2040_irq)(void)
+static void __tusb_irq_path_func(hcd_rp2040_irq)(void)
 {
     uint32_t status = usb_hw->ints;
     uint32_t handled = 0;
@@ -240,7 +240,7 @@ static void __no_inline_not_in_flash_func(hcd_rp2040_irq)(void)
     }
 }
 
-void __no_inline_not_in_flash_func(hcd_int_handler)(uint8_t rhport)
+void __tusb_irq_path_func(hcd_int_handler)(uint8_t rhport)
 {
   (void) rhport;
   hcd_rp2040_irq();
