@@ -84,8 +84,8 @@ void tuh_mount_cb (uint8_t daddr)
 {
   printf("Device attached, address = %d\r\n", daddr);
 
-  // Get Device Descriptor sync API
-  // TODO: invoking control trannsfer now has issue with mounting hub with multiple devices attached, fix later
+  // Get Device Descriptor
+  // TODO: invoking control transfer now has issue with mounting hub with multiple devices attached, fix later
   tuh_descriptor_get_device(daddr, &desc_device, 18, print_device_descriptor, 0);
 }
 
