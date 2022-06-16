@@ -1100,6 +1100,12 @@ uint8_t tuh_descriptor_get_serial_string_sync(uint8_t daddr, uint16_t language_i
 //
 //--------------------------------------------------------------------+
 
+TU_ATTR_ALWAYS_INLINE
+static inline bool is_hub_addr(uint8_t daddr)
+{
+  return (CFG_TUH_HUB > 0) && (daddr > CFG_TUH_DEVICE_MAX);
+}
+
 // a device unplugged from rhport:hub_addr:hub_port
 static void process_device_unplugged(uint8_t rhport, uint8_t hub_addr, uint8_t hub_port)
 {
@@ -1112,14 +1118,23 @@ static void process_device_unplugged(uint8_t rhport, uint8_t hub_addr, uint8_t h
 
     // TODO Hub multiple level
     if (dev->rhport == rhport   &&
-        (hub_addr == 0 || dev->hub_addr == hub_addr) && // hub_addr == 0 & hub_port == 0 means roothub
-        (hub_port == 0 || dev->hub_port == hub_port) &&
+        (hub_addr == 0 || dev->hub_addr == hub_addr) && // hub_addr = 0 means roothub
+        (hub_port == 0 || dev->hub_port == hub_port) && // hub_port = 0 means all devices of downstream hub
         dev->connected)
     {
       TU_LOG2("  Address = %u\r\n", dev_addr);
 
-      // Invoke callback before close driver
-      if (tuh_umount_cb) tuh_umount_cb(dev_addr);
+      if (is_hub_addr(dev_addr))
+      {
+        TU_LOG(USBH_DBG_LVL, "HUB address = %u is unmounted\r\n", dev_addr);
+        // If the device itself is a usb hub, unplug downstream devices.
+        // FIXME un-roll recursive calls to prevent potential stack overflow
+        process_device_unplugged(rhport, dev_addr, 0);
+      }else
+      {
+        // Invoke callback before closing driver
+        if (tuh_umount_cb) tuh_umount_cb(dev_addr);
+      }
 
       // Close class driver
       for (uint8_t drv_id = 0; drv_id < USBH_CLASS_DRIVER_COUNT; drv_id++)
@@ -1402,12 +1417,6 @@ static bool enum_new_device(hcd_event_t* event)
   return true;
 }
 
-TU_ATTR_ALWAYS_INLINE
-static inline bool is_hub_addr(uint8_t daddr)
-{
-  return daddr > CFG_TUH_DEVICE_MAX;
-}
-
 static uint8_t get_new_address(bool is_hub)
 {
   uint8_t start;
@@ -1520,40 +1529,31 @@ static bool _parse_configuration_descriptor(uint8_t dev_addr, tusb_desc_configur
     uint16_t const drv_len = tu_desc_get_interface_total_len(desc_itf, assoc_itf_count, desc_end-p_desc);
     TU_ASSERT(drv_len >= sizeof(tusb_desc_interface_t));
 
-    if (desc_itf->bInterfaceClass == TUSB_CLASS_HUB && dev->hub_addr != 0)
+    // Find driver for this interface
+    uint8_t drv_id;
+    for (drv_id = 0; drv_id < USBH_CLASS_DRIVER_COUNT; drv_id++)
     {
-      // TODO Attach hub to Hub is not currently supported
-      // skip this interface
-      TU_LOG(USBH_DBG_LVL, "Only 1 level of HUB is supported\r\n");
-    }
-    else
-    {
-      // Find driver for this interface
-      uint8_t drv_id;
-      for (drv_id = 0; drv_id < USBH_CLASS_DRIVER_COUNT; drv_id++)
+      usbh_class_driver_t const * driver = &usbh_class_drivers[drv_id];
+
+      if ( driver->open(dev->rhport, dev_addr, desc_itf, drv_len) )
       {
-        usbh_class_driver_t const * driver = &usbh_class_drivers[drv_id];
+        // open successfully
+        TU_LOG2("  %s opened\r\n", driver->name);
 
-        if ( driver->open(dev->rhport, dev_addr, desc_itf, drv_len) )
+        // bind (associated) interfaces to found driver
+        for(uint8_t i=0; i<assoc_itf_count; i++)
         {
-          // open successfully
-          TU_LOG2("  %s opened\r\n", driver->name);
+          uint8_t const itf_num = desc_itf->bInterfaceNumber+i;
 
-          // bind (associated) interfaces to found driver
-          for(uint8_t i=0; i<assoc_itf_count; i++)
-          {
-            uint8_t const itf_num = desc_itf->bInterfaceNumber+i;
-
-            // Interface number must not be used already
-            TU_ASSERT( DRVID_INVALID == dev->itf2drv[itf_num] );
-            dev->itf2drv[itf_num] = drv_id;
-          }
-
-          // bind all endpoints to found driver
-          tu_edpt_bind_driver(dev->ep2drv, desc_itf, drv_len, drv_id);
-
-          break; // exit driver find loop
+          // Interface number must not be used already
+          TU_ASSERT( DRVID_INVALID == dev->itf2drv[itf_num] );
+          dev->itf2drv[itf_num] = drv_id;
         }
+
+        // bind all endpoints to found driver
+        tu_edpt_bind_driver(dev->ep2drv, desc_itf, drv_len, drv_id);
+
+        break; // exit driver find loop
       }
 
       if( drv_id >= USBH_CLASS_DRIVER_COUNT )
@@ -1593,10 +1593,10 @@ void usbh_driver_set_config_complete(uint8_t dev_addr, uint8_t itf_num)
   {
     enum_full_complete();
 
-#if CFG_TUH_HUB
-    // skip device mount callback for hub
-    if ( !is_hub_addr(dev_addr) )
-#endif
+    if (is_hub_addr(dev_addr))
+    {
+      TU_LOG(USBH_DBG_LVL, "HUB address = %u is mounted\r\n", dev_addr);
+    }else
     {
       // Invoke callback if available
       if (tuh_mount_cb) tuh_mount_cb(dev_addr);

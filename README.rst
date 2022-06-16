@@ -82,7 +82,7 @@ Host Stack
 
 - Human Interface Device (HID): Keyboard, Mouse, Generic
 - Mass Storage Class (MSC)
-- Hub currently only supports 1 level of hub (due to my laziness)
+- Hub with multiple-level support
 
 OS Abstraction layer
 ====================
