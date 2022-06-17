@@ -232,6 +232,25 @@ if (NOT TARGET _rp2040_family_inclusion_marker)
 
 	# This method must be called from the project scope to suppress known warnings in TinyUSB source files
 	function(suppress_tinyusb_warnings)
-		# there are currently no warnings to suppress, however this function must still exist
+		set_source_files_properties(
+					${PICO_TINYUSB_PATH}/src/device/usbd.c
+					PROPERTIES
+					COMPILE_FLAGS "-Wno-conversion")
+		set_source_files_properties(
+					${PICO_TINYUSB_PATH}/src/device/usbd_control.c
+					PROPERTIES
+					COMPILE_FLAGS "-Wno-conversion")
+		set_source_files_properties(
+					${PICO_TINYUSB_PATH}/src/class/cdc/cdc_device.c
+					PROPERTIES
+					COMPILE_FLAGS "-Wno-conversion")
+		set_source_files_properties(
+					${PICO_TINYUSB_PATH}/src/common/tusb_fifo.c
+					PROPERTIES
+					COMPILE_FLAGS "-Wno-conversion")
+		set_source_files_properties(
+					${PICO_TINYUSB_PATH}/src/tusb.c
+					PROPERTIES
+					COMPILE_FLAGS "-Wno-conversion")
 	endfunction()
 endif()
