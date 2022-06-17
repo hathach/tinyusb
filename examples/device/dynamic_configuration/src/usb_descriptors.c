@@ -163,7 +163,7 @@ uint8_t const desc_configuration_0[] =
   TUD_CONFIG_DESCRIPTOR(1, ITF_0_NUM_TOTAL, 0, CONFIG_0_TOTAL_LEN, 0x00, 100),
 
   // Interface number, string index, EP notification address and size, EP data address (out, in) and size.
-  TUD_CDC_DESCRIPTOR(ITF_0_NUM_CDC, 0, EPNUM_0_CDC_NOTIF, 8, EPNUM_0_CDC_OUT, EPNUM_0_CDC_IN, 64),
+  TUD_CDC_DESCRIPTOR(ITF_0_NUM_CDC, 0, EPNUM_0_CDC_NOTIF, 8, EPNUM_0_CDC_OUT, EPNUM_0_CDC_IN, TUD_OPT_HIGH_SPEED ? 512 : 64),
 
   // Interface number, string index, EP Out & EP In address, EP size
   TUD_MIDI_DESCRIPTOR(ITF_0_NUM_MIDI, 0, EPNUM_0_MIDI_OUT, EPNUM_0_MIDI_IN, TUD_OPT_HIGH_SPEED ? 512 : 64),
