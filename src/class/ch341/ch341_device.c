@@ -33,7 +33,6 @@
 #include "device/usbd_pvt.h"
 
 #include "ch341_device.h"
-#include <math.h>
 
 //--------------------------------------------------------------------+
 // MACRO CONSTANT TYPEDEF
@@ -47,7 +46,7 @@
 // https://github.com/torvalds/linux/blob/master/drivers/usb/serial/ch341.c
 //////////////////////////////////////////////////////////////////////////////
 
-#define CH341_CLKRATE 48000000.0F
+#define CH341_CLKRATE 48000000UL
 
 /* flags for IO-Bits */
 #define CH341_BIT_RTS (1 << 6)
@@ -186,33 +185,22 @@ typedef struct
 // This is because it sends vendor class control messages directly to the
 // device asnd uses wIndex of the control packet to transfer vendor
 // specific data.
-CFG_TUSB_MEM_SECTION static ch341d_interface_t _ch341d_itf[CFG_TUD_CH341];
+CFG_TUSB_MEM_SECTION static ch341d_interface_t _ch341d_itf[1];
 
 
 static const uint32_t ch341_known_baud_rates[] = {  50, 75, 100, 110, 150, 300, 600, 900, 1200, 1800, 2400, 3600, 4800, 9600, 14400, 19200, 28800, 33600, 38400, 56000, 57600, 76800, 115200, 128000, 153600, 230400, 460800, 921600, 1500000, 2000000};
-static inline uint16_t __get_unaligned_le16(const uint8_t *p)
-{
-  return p[0] | p[1] << 8;
-}
-
-static inline void __put_unaligned_le16(uint16_t val, uint8_t *p)
-{
-  *p++ = val;
-  *p++ = val >> 8;
-}
 
 static inline void ch341_decode_bit_rate(ch341d_interface_t *p_ch341)
 {
   uint16_t baud_div = 0x100 - p_ch341->register_data[REG_DIDX_DIVISOR];
   uint8_t baud_fact = (p_ch341->register_data[REG_DIDX_PRESCALER] >> 2) & 0x01;
   uint8_t baud_ps = p_ch341->register_data[REG_DIDX_PRESCALER] & 0x03;
-  TU_LOG1("ch341_decode_bit_rate: baud_div=%u baud_fact=%u baud_ps=%u\r\n", baud_div, baud_fact, baud_ps);
-  uint32_t calc_bit_rate = (uint32_t)lroundf(CH341_CLKRATE / ((float)pow(2.0F, (12.0F - 3.0F * (float)baud_ps - (float)baud_fact)) * (float)baud_div));
+  uint32_t calc_bit_rate = (uint32_t)(CH341_CLKRATE / ((1 << (12 - 3 * baud_ps - baud_fact)) * baud_div));
   int index;
 
   for (index = 0; index < (int)((sizeof(ch341_known_baud_rates) / sizeof(uint32_t))); index++)
   {
-    int max_diff = lroundf((float)ch341_known_baud_rates[index] * 0.002F);
+    int max_diff = (int)((ch341_known_baud_rates[index] * 2) / 1000);
     if (calc_bit_rate >= ch341_known_baud_rates[index] - max_diff && calc_bit_rate <= ch341_known_baud_rates[index] + max_diff)
     {
       p_ch341->line_coding.bit_rate = ch341_known_baud_rates[index];
@@ -228,7 +216,6 @@ static inline void ch341_decode_lcr(ch341d_interface_t *p_ch341)
 {
   // decode rx/tx enable
   uint8_t lcr = p_ch341->register_data[REG_DIDX_LCR];
-  TU_LOG1("ch341_decode_lcr: lcr=%02X\r\n", lcr);
   p_ch341->line_coding.tx_en = (lcr & CH341_LCR_ENABLE_TX) ? true : false;
   p_ch341->line_coding.rx_en = (lcr & CH341_LCR_ENABLE_RX) ? true : false;
 
@@ -280,7 +267,7 @@ static inline ch341_line_state_t ch341_decode_mcr(ch341d_interface_t *p_ch341, u
   return line_state;
 }
 
-static inline void ch341_write_regs(ch341d_interface_t *p_ch341, uint16_t wValue, uint16_t wIndex)
+static void ch341_write_regs(ch341d_interface_t *p_ch341, uint16_t wValue, uint16_t wIndex)
 {
   int i;
 
@@ -288,8 +275,6 @@ static inline void ch341_write_regs(ch341d_interface_t *p_ch341, uint16_t wValue
   {
     uint8_t reg = wValue & 0xFF;
     uint8_t regval = wIndex & 0xFF;
-    TU_LOG1("ch341_write_regs: %02X=%02X\r\n", reg, regval);
-
     switch (reg)
     {
       case CH341_REG_BREAK:
@@ -330,14 +315,13 @@ static inline void ch341_write_regs(ch341d_interface_t *p_ch341, uint16_t wValue
   }
 }
 
-static inline void ch341_read_regs(ch341d_interface_t *p_ch341, uint8_t* data, uint16_t wValue)
+static void ch341_read_regs(ch341d_interface_t *p_ch341, uint8_t* data, uint16_t wValue)
 {
   int i;
 
   for (i = 0; i < 2; i++)
   {
     uint8_t reg = wValue & 0xFF;
-    TU_LOG1("ch341_read_regs: %02X\r\n", reg);
     switch (reg)
     {
     case CH341_REG_BREAK:
@@ -408,19 +392,19 @@ static void _prep_out_transaction (ch341d_interface_t* p_ch341)
 //--------------------------------------------------------------------+
 // APPLICATION API
 //--------------------------------------------------------------------+
-bool tud_ch341_n_connected(uint8_t itf)
+bool tud_ch341_connected(void)
 {
-  return tud_ready() && _ch341d_itf[itf].connected;
+  return tud_ready() && _ch341d_itf[0].connected;
 }
 
-ch341_line_state_t tud_ch341_n_get_line_state (uint8_t itf)
+ch341_line_state_t tud_ch341_get_line_state (void)
 {
-  return _ch341d_itf[itf].line_state;
+  return _ch341d_itf[0].line_state;
 }
 
-uint32_t tud_ch341_n_set_modem_state(uint8_t itf, ch341_modem_state_t modem_states)
+uint32_t tud_ch341_set_modem_state(ch341_modem_state_t modem_states)
 {
-  ch341d_interface_t *p_ch341 = &_ch341d_itf[itf];
+  ch341d_interface_t *p_ch341 = &_ch341d_itf[0];
   uint8_t buffer[4];
 
   modem_states &= CH341_MODEM_STATE_ALL;
@@ -452,55 +436,55 @@ uint32_t tud_ch341_n_set_modem_state(uint8_t itf, ch341_modem_state_t modem_stat
   if (ret == 4)
   {
     // start transfer
-    ret = tud_ch341_n_notify_flush(itf);
+    ret = tud_ch341_notify_flush();
   }
   return ret;
 }
 
-ch341_modem_state_t tud_ch341_n_get_modem_state(uint8_t itf)
+ch341_modem_state_t tud_ch341_get_modem_state(void)
 {
-  ch341d_interface_t *p_ch341 = &_ch341d_itf[itf];
+  ch341d_interface_t *p_ch341 = &_ch341d_itf[0];
   ch341_modem_state_t modem_states = p_ch341->register_data[REG_DIDX_MCR_MSR];
   modem_states = (~modem_states) & CH341_MODEM_STATE_ALL;
 
   return modem_states;
 }
 
-void tud_ch341_n_get_line_coding (uint8_t itf, ch341_line_coding_t* coding)
+void tud_ch341_get_line_coding (ch341_line_coding_t* coding)
 {
-  (*coding) = _ch341d_itf[itf].line_coding;
+  (*coding) = _ch341d_itf[0].line_coding;
 }
 
-void tud_ch341_n_set_wanted_char (uint8_t itf, char wanted)
+void tud_ch341_set_wanted_char (char wanted)
 {
-  _ch341d_itf[itf].wanted_char = wanted;
+  _ch341d_itf[0].wanted_char = wanted;
 }
 
 
 //--------------------------------------------------------------------+
 // READ API
 //--------------------------------------------------------------------+
-uint32_t tud_ch341_n_available(uint8_t itf)
+uint32_t tud_ch341_available(void)
 {
-  return tu_fifo_count(&_ch341d_itf[itf].rx_ff);
+  return tu_fifo_count(&_ch341d_itf[0].rx_ff);
 }
 
-uint32_t tud_ch341_n_read(uint8_t itf, void* buffer, uint32_t bufsize)
+uint32_t tud_ch341_read(void* buffer, uint32_t bufsize)
 {
-  ch341d_interface_t* p_ch341 = &_ch341d_itf[itf];
+  ch341d_interface_t* p_ch341 = &_ch341d_itf[0];
   uint32_t num_read = tu_fifo_read_n(&p_ch341->rx_ff, buffer, bufsize);
   _prep_out_transaction(p_ch341);
   return num_read;
 }
 
-bool tud_ch341_n_peek(uint8_t itf, uint8_t* chr)
+bool tud_ch341_peek(uint8_t* chr)
 {
-  return tu_fifo_peek(&_ch341d_itf[itf].rx_ff, chr);
+  return tu_fifo_peek(&_ch341d_itf[0].rx_ff, chr);
 }
 
-void tud_ch341_n_read_flush (uint8_t itf)
+void tud_ch341_read_flush (void)
 {
-  ch341d_interface_t* p_ch341 = &_ch341d_itf[itf];
+  ch341d_interface_t* p_ch341 = &_ch341d_itf[0];
   tu_fifo_clear(&p_ch341->rx_ff);
   _prep_out_transaction(p_ch341);
 }
@@ -508,23 +492,23 @@ void tud_ch341_n_read_flush (uint8_t itf)
 //--------------------------------------------------------------------+
 // WRITE API
 //--------------------------------------------------------------------+
-uint32_t tud_ch341_n_write(uint8_t itf, void const* buffer, uint32_t bufsize)
+uint32_t tud_ch341_write(void const* buffer, uint32_t bufsize)
 {
-  ch341d_interface_t* p_ch341 = &_ch341d_itf[itf];
+  ch341d_interface_t* p_ch341 = &_ch341d_itf[0];
   uint16_t ret = tu_fifo_write_n(&p_ch341->tx_ff, buffer, bufsize);
 
   // flush if queue more than packet size
   if (tu_fifo_count(&p_ch341->tx_ff) >= sizeof(p_ch341->epin_buf))
   {
-    tud_ch341_n_write_flush(itf);
+    tud_ch341_write_flush();
   }
 
   return ret;
 }
 
-uint32_t tud_ch341_n_write_flush (uint8_t itf)
+uint32_t tud_ch341_write_flush (void)
 {
-  ch341d_interface_t* p_ch341 = &_ch341d_itf[itf];
+  ch341d_interface_t* p_ch341 = &_ch341d_itf[0];
 
   // Skip if usb is not ready yet
   TU_VERIFY( tud_ready(), 0 );
@@ -552,9 +536,9 @@ uint32_t tud_ch341_n_write_flush (uint8_t itf)
     return 0;
   }
 }
-uint32_t tud_ch341_n_notify_flush(uint8_t itf)
+uint32_t tud_ch341_notify_flush(void)
 {
-  ch341d_interface_t *p_ch341 = &_ch341d_itf[itf];
+  ch341d_interface_t *p_ch341 = &_ch341d_itf[0];
 
   // Skip if usb is not ready yet
   TU_VERIFY(tud_ready(), 0);
@@ -585,14 +569,14 @@ uint32_t tud_ch341_n_notify_flush(uint8_t itf)
   }
 }
 
-uint32_t tud_ch341_n_write_available (uint8_t itf)
+uint32_t tud_ch341_write_available (void)
 {
-  return tu_fifo_remaining(&_ch341d_itf[itf].tx_ff);
+  return tu_fifo_remaining(&_ch341d_itf[0].tx_ff);
 }
 
-bool tud_ch341_n_write_clear (uint8_t itf)
+bool tud_ch341_write_clear (void)
 {
-  return tu_fifo_clear(&_ch341d_itf[itf].tx_ff);
+  return tu_fifo_clear(&_ch341d_itf[0].tx_ff);
 }
 
 //--------------------------------------------------------------------+
@@ -600,12 +584,9 @@ bool tud_ch341_n_write_clear (uint8_t itf)
 //--------------------------------------------------------------------+
 void ch341d_init(void)
 {
-  TU_LOG1("ch341d_init:begin\r\n");
-  tu_memclr(_ch341d_itf, sizeof(_ch341d_itf));
+		tu_memclr(_ch341d_itf, sizeof(_ch341d_itf));
 
-  for(uint8_t i=0; i<CFG_TUD_CH341; i++)
-  {
-    ch341d_interface_t* p_ch341 = &_ch341d_itf[i];
+    ch341d_interface_t* p_ch341 = &_ch341d_itf[0];
 
     p_ch341->wanted_char = -1;
 
@@ -642,26 +623,20 @@ void ch341d_init(void)
     tu_fifo_config_mutex(&p_ch341->tx_ff, osal_mutex_create(&p_ch341->tx_ff_mutex), NULL);
     tu_fifo_config_mutex(&p_ch341->txnotify_ff, osal_mutex_create(&p_ch341->txnotify_ff_mutex), NULL);
 #endif
-  }
-
-  TU_LOG1("ch341d_init:end\r\n");
 }
 
 void ch341d_reset(uint8_t rhport)
 {
   (void) rhport;
 
-  for(uint8_t i=0; i<CFG_TUD_CH341; i++)
-  {
-    ch341d_interface_t* p_ch341 = &_ch341d_itf[i];
+	ch341d_interface_t* p_ch341 = &_ch341d_itf[0];
 
-    tu_memclr(p_ch341, ITF_MEM_RESET_SIZE);
-    tu_fifo_clear(&p_ch341->rx_ff);
-    tu_fifo_clear(&p_ch341->tx_ff);
-    tu_fifo_clear(&p_ch341->txnotify_ff);
-    tu_fifo_set_overwritable(&p_ch341->tx_ff, false);
-    tu_fifo_set_overwritable(&p_ch341->txnotify_ff, false);
-  }
+	tu_memclr(p_ch341, ITF_MEM_RESET_SIZE);
+	tu_fifo_clear(&p_ch341->rx_ff);
+	tu_fifo_clear(&p_ch341->tx_ff);
+	tu_fifo_clear(&p_ch341->txnotify_ff);
+	tu_fifo_set_overwritable(&p_ch341->tx_ff, false);
+	tu_fifo_set_overwritable(&p_ch341->txnotify_ff, false);
 }
 
 uint16_t ch341d_open(uint8_t rhport, tusb_desc_interface_t const * itf_desc, uint16_t max_len)
@@ -671,19 +646,8 @@ uint16_t ch341d_open(uint8_t rhport, tusb_desc_interface_t const * itf_desc, uin
               0x01 == itf_desc->bInterfaceSubClass &&
               0x02 == itf_desc->bInterfaceProtocol, 0);
 
-  // Find available interface
-  ch341d_interface_t * p_ch341 = NULL;
-  for(uint8_t ch341_id=0; ch341_id<CFG_TUD_CH341; ch341_id++)
-  {
-    if ( _ch341d_itf[ch341_id].ep_in == 0 )
-    {
-      p_ch341 = &_ch341d_itf[ch341_id];
-      break;
-    }
-  }
-  TU_ASSERT(p_ch341, 0);
+  ch341d_interface_t * p_ch341 = &_ch341d_itf[0];
 
-  TU_LOG1("ch341d_open:begin\r\n");
   //------------- CH341 Interface -------------//
   p_ch341->itf_num = itf_desc->bInterfaceNumber;
 
@@ -738,8 +702,7 @@ bool tud_vendor_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_requ
 bool ch341d_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request_t const * request)
 {
 
-  uint8_t itf = 0;
-  ch341d_interface_t* p_ch341 = _ch341d_itf;
+  ch341d_interface_t* p_ch341 = &_ch341d_itf[0];
 
   if ((request->bmRequestType_bit.type) == TUSB_REQ_TYPE_VENDOR && ((request->bmRequestType_bit.recipient) == TUSB_REQ_RCPT_DEVICE))
   {
@@ -807,7 +770,6 @@ bool ch341d_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request_
       break;
 
     default:
-      TU_LOG1("ch341d: bRequest=%02X wValue=%04X  wIndex=%04X  wLength=%u\r\n", request->bRequest, request->wValue, request->wIndex, request->wLength);
       return false;
     }
 
@@ -815,7 +777,7 @@ bool ch341d_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request_
     {
       p_ch341->line_state_changed = false;
       if (tud_ch341_line_state_cb)
-        tud_ch341_line_state_cb(itf, p_ch341->line_state);
+        tud_ch341_line_state_cb(p_ch341->line_state);
     }
     if (p_ch341->line_coding_changed)
     {
@@ -823,36 +785,25 @@ bool ch341d_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request_
       ch341_decode_bit_rate(p_ch341);
       ch341_decode_lcr(p_ch341);
       if (tud_ch341_line_coding_cb)
-        tud_ch341_line_coding_cb(itf, &p_ch341->line_coding);
-      TU_LOG1("BPS:%lu P:%u D:%u S:%u RX:%d, TX:%d\r\n", p_ch341->line_coding.bit_rate, p_ch341->line_coding.parity, p_ch341->line_coding.data_bits, p_ch341->line_coding.stop_bits, p_ch341->line_coding.rx_en, p_ch341->line_coding.tx_en);
+        tud_ch341_line_coding_cb(&p_ch341->line_coding);
     }
     if (p_ch341->break_state_changed)
     {
       p_ch341->break_state_changed = false;
       if (tud_ch341_send_break_cb)
-        tud_ch341_send_break_cb(itf, p_ch341->register_data[REG_DIDX_BREAK]);
+        tud_ch341_send_break_cb(p_ch341->register_data[REG_DIDX_BREAK]);
     }
 
     return true;
   }
-  TU_LOG1("ch341d: bRequest=%02X wValue=%04X  wIndex=%04X  wLength=%u\r\n", request->bRequest, request->wValue, request->wIndex, request->wLength);
-  return false;
+   return false;
 }
 
 bool ch341d_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint32_t xferred_bytes)
 {
   (void) result;
 
-  uint8_t itf;
-  ch341d_interface_t* p_ch341;
-
-  // Identify which interface to use
-  for (itf = 0; itf < CFG_TUD_CH341; itf++)
-  {
-    p_ch341 = &_ch341d_itf[itf];
-    if ( ( ep_addr == p_ch341->ep_out ) || ( ep_addr == p_ch341->ep_in ) ) break;
-  }
-  TU_ASSERT(itf < CFG_TUD_CH341);
+  ch341d_interface_t* p_ch341 = &_ch341d_itf[0];
 
   // Received new data
   if ( ep_addr == p_ch341->ep_out )
@@ -866,13 +817,13 @@ bool ch341d_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint3
       {
         if ( (p_ch341->wanted_char == p_ch341->epout_buf[i]) && !tu_fifo_empty(&p_ch341->rx_ff) )
         {
-          tud_ch341_rx_wanted_cb(itf, p_ch341->wanted_char);
+          tud_ch341_rx_wanted_cb(p_ch341->wanted_char);
         }
       }
     }
 
     // invoke receive callback (if there is still data)
-    if (tud_ch341_rx_cb && !tu_fifo_empty(&p_ch341->rx_ff) ) tud_ch341_rx_cb(itf);
+    if (tud_ch341_rx_cb && !tu_fifo_empty(&p_ch341->rx_ff) ) tud_ch341_rx_cb();
 
     // prepare for OUT transaction
     _prep_out_transaction(p_ch341);
@@ -884,9 +835,9 @@ bool ch341d_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint3
   if ( ep_addr == p_ch341->ep_in )
   {
     // invoke transmit callback to possibly refill tx fifo
-    if ( tud_ch341_tx_complete_cb ) tud_ch341_tx_complete_cb(itf);
+    if ( tud_ch341_tx_complete_cb ) tud_ch341_tx_complete_cb();
 
-    if ( 0 == tud_ch341_n_write_flush(itf) )
+    if ( 0 == tud_ch341_write_flush() )
     {
       // If there is no data left, a ZLP should be sent if
       // xferred_bytes is multiple of EP Packet size and not zero

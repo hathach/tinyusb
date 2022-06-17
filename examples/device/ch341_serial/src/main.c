@@ -89,18 +89,16 @@ static void ch341_task(void)
 }
 
 // Invoked when DTR/RTS changes
-void tud_ch341_line_state_cb(uint8_t itf, ch341_line_state_t line_state)
+void tud_ch341_line_state_cb(ch341_line_state_t line_state)
 {
-	(void)(itf);
 	printf("DTR=%u, RTS=%u\r\n", 
 		line_state & CH341_LINE_STATE_DTR_ACTIVE ? 1 : 0,
 		line_state & CH341_LINE_STATE_RTS_ACTIVE ? 1 : 0);
 }
 
 // Invoked when line coding changes
-void tud_ch341_line_coding_cb(uint8_t itf, ch341_line_coding_t const* p_line_coding)
+void tud_ch341_line_coding_cb(ch341_line_coding_t const* p_line_coding)
 {
-	(void)(itf);
 	printf("BITRATE=%lu (%s%u%u) RX:%s TX:%s\r\n", 
 		p_line_coding->bit_rate,
 		_par_str[p_line_coding->parity],
@@ -112,8 +110,7 @@ void tud_ch341_line_coding_cb(uint8_t itf, ch341_line_coding_t const* p_line_cod
 }
 
 // Invoked when a break signal is received
-void tud_ch341_send_break_cb(uint8_t itf, bool is_break_active)
+void tud_ch341_send_break_cb(bool is_break_active)
 {
-	(void)(itf);
 	printf("RCV BREAK=%u\r\n", is_break_active);
 }
