@@ -369,7 +369,7 @@ bool hcd_init(uint8_t rhport)
     // Force VBUS detect to always present, for now we assume vbus is always provided (without using VBUS En)
     usb_hw->pwr = USB_USB_PWR_VBUS_DETECT_BITS | USB_USB_PWR_VBUS_DETECT_OVERRIDE_EN_BITS;
 
-    irq_set_exclusive_handler(USBCTRL_IRQ, hcd_rp2040_irq);
+    irq_add_shared_handler(USBCTRL_IRQ, hcd_rp2040_irq, PICO_SHARED_IRQ_HANDLER_HIGHEST_ORDER_PRIORITY);
 
     // clear epx and interrupt eps
     memset(&ep_pool, 0, sizeof(ep_pool));
