@@ -655,7 +655,6 @@ uint16_t ch341d_open(uint8_t rhport, tusb_desc_interface_t const * itf_desc, uin
   uint8_t const * p_desc = tu_desc_next( itf_desc );
   while (p_desc && drv_len < max_len)
   {
-    TU_LOG1("ch341d_open:drv_len=%u, max_len=%u\r\n", drv_len, max_len);
     if (TUSB_DESC_ENDPOINT == tu_desc_type(p_desc))
     {
       tusb_desc_endpoint_t const *desc_ep = (tusb_desc_endpoint_t const *)p_desc;
@@ -686,7 +685,6 @@ uint16_t ch341d_open(uint8_t rhport, tusb_desc_interface_t const * itf_desc, uin
   // Prepare for incoming data
   _prep_out_transaction(p_ch341);
 
-  TU_LOG1("ch341d_open:end\r\n");
   return drv_len;
 }
 
@@ -764,7 +762,6 @@ bool ch341d_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request_
       else if (stage == CONTROL_STAGE_ACK)
       {
           p_ch341->line_state = ch341_decode_mcr(p_ch341, request->wValue);
-          TU_LOG1("CH341_REQ_MODEM_CTRL DTR=%u RTS=%u\r\n", (p_ch341->line_state & CH341_LINE_STATE_BIT_DTR) ? 1 : 0, (p_ch341->line_state & CH341_LINE_STATE_BIT_RTS) ? 1 : 0);
           p_ch341->line_state_changed = true;
       }
       break;
