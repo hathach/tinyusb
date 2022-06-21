@@ -91,6 +91,7 @@ uint32_t tud_ch341_available       (void);
 uint32_t tud_ch341_read            (void* buffer, uint32_t bufsize);
 
 // Read a byte, return -1 if there is none
+static inline
 int32_t  tud_ch341_read_char       (void);
 
 // Clear the received FIFO
@@ -103,9 +104,11 @@ bool     tud_ch341_peek            (uint8_t* ui8);
 uint32_t tud_ch341_write           (void const* buffer, uint32_t bufsize);
 
 // Write a byte
+static inline
 uint32_t tud_ch341_write_char      (char ch);
 
 // Write a null-terminated string
+static inline
 uint32_t tud_ch341_write_str       (char const* str);
 
 // Force sending data if possible, return number of forced bytes
@@ -147,6 +150,25 @@ TU_ATTR_WEAK void tud_ch341_line_coding_cb(ch341_line_coding_t const* p_line_cod
 
 // Invoked when received send break
 TU_ATTR_WEAK void tud_ch341_send_break_cb(bool is_break_active);
+
+//--------------------------------------------------------------------+
+// Inline functions
+//--------------------------------------------------------------------+
+static inline int32_t  tud_ch341_read_char (void)
+{
+  uint8_t ch;
+  return tud_ch341_read(&ch, 1) ? (int32_t) ch : -1;
+}
+
+static inline uint32_t tud_ch341_write_char (char ch)
+{
+  return tud_ch341_write((void const*)&ch, 1);
+}
+
+static inline uint32_t tud_ch341_write_str (char const* str)
+{
+  return tud_ch341_write((uint8_t const*)str, strlen(str));
+}
 
 /** @} */
 /** @} */
