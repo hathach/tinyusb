@@ -53,6 +53,7 @@
 #if CFG_TUSB_MCU == OPT_MCU_MM32F327X
   extern u32 SystemCoreClock;
 #else
+  // FIXME cause redundant-decls warnings
   extern uint32_t SystemCoreClock;
 #endif
 
