@@ -94,18 +94,18 @@ static const tusb_desc_endpoint_t ep0_desc =
   .wMaxPacketSize   = CFG_TUD_ENDPOINT0_SIZE,
 };
 
-TU_ATTR_ALWAYS_INLINE static inline void CleanInValidateCache(uint32_t *addr, int32_t size)
-{
-  if (SCB->CCR & SCB_CCR_DC_Msk)
-  {
-    SCB_CleanInvalidateDCache_by_Addr(addr, size);
-  }
-  else
-  {
-    __DSB();
-    __ISB();
-  }
-}
+// TU_ATTR_ALWAYS_INLINE static inline void CleanInValidateCache(uint32_t *addr, int32_t size)
+// {
+//   if (SCB->CCR & SCB_CCR_DC_Msk)
+//   {
+//     SCB_CleanInvalidateDCache_by_Addr(addr, size);
+//   }
+//   else
+//   {
+//     __DSB();
+//     __ISB();
+//   }
+// }
 //------------------------------------------------------------------
 // Device API
 //------------------------------------------------------------------
@@ -120,16 +120,14 @@ void dcd_init (uint8_t rhport)
 void dcd_int_enable (uint8_t rhport)
 {
   (void) rhport;
-//   NVIC_EnableIRQ((IRQn_Type) UDPHS_IRQn);
-  NVIC_EnableIRQ((IRQn_Type) ID_USBHS);
+  NVIC_EnableIRQ((IRQn_Type) UDPHS_IRQn);
 }
 
 // Disable device interrupt
 void dcd_int_disable (uint8_t rhport)
 {
   (void) rhport;
-//   NVIC_DisableIRQ((IRQn_Type) UDPHS_IRQn);
-  NVIC_DisableIRQ((IRQn_Type) ID_USBHS);
+  NVIC_DisableIRQ((IRQn_Type) UDPHS_IRQn);
 }
 
 // Receive Set Address request, mcu port must also include status IN response
@@ -597,7 +595,7 @@ bool dcd_edpt_xfer (uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t 
   {
     // Force the CPU to flush the buffer. We increase the size by 32 because the call aligns the
     // address to 32-byte boundaries.
-    CleanInValidateCache((uint32_t*) tu_align((uint32_t) buffer, 4), total_bytes + 31);
+    // CleanInValidateCache((uint32_t*) tu_align((uint32_t) buffer, 4), total_bytes + 31);
     uint32_t udd_dma_ctrl = total_bytes << SAMHS_DEV_DMACONTROL_BUFF_LENGTH_Pos;
     if (dir == TUSB_DIR_OUT)
     {
@@ -676,20 +674,20 @@ bool dcd_edpt_xfer_fifo (uint8_t rhport, uint8_t ep_addr, tu_fifo_t * ff, uint16
     }
 
     // Clean invalidate cache of linear part
-    CleanInValidateCache((uint32_t*) tu_align((uint32_t) info.ptr_lin, 4), info.len_lin + 31);
+    // CleanInValidateCache((uint32_t*) tu_align((uint32_t) info.ptr_lin, 4), info.len_lin + 31);
     
     SAMHS_REG->SAMHS_DEV_DMA[epnum - 1].SAMHS_DEV_DMAADDRESS = (uint32_t)info.ptr_lin;
     if (info.len_wrap)
     {
       // Clean invalidate cache of wrapped part
-      CleanInValidateCache((uint32_t*) tu_align((uint32_t) info.ptr_wrap, 4), info.len_wrap + 31);
+    //   CleanInValidateCache((uint32_t*) tu_align((uint32_t) info.ptr_wrap, 4), info.len_wrap + 31);
       
       dma_desc[epnum - 1].next_desc = 0;
       dma_desc[epnum - 1].buff_addr = (uint32_t)info.ptr_wrap;
       dma_desc[epnum - 1].chnl_ctrl =
         udd_dma_ctrl_wrap | (info.len_wrap << SAMHS_DEV_DMACONTROL_BUFF_LENGTH_Pos);
       // Clean cache of wrapped DMA descriptor
-      CleanInValidateCache((uint32_t*)&dma_desc[epnum - 1], sizeof(dma_desc_t));
+    //   CleanInValidateCache((uint32_t*)&dma_desc[epnum - 1], sizeof(dma_desc_t));
       
       udd_dma_ctrl_lin |= SAMHS_DEV_DMASTATUS_DESC_LDST;
       SAMHS_REG->SAMHS_DEV_DMA[epnum - 1].SAMHS_DEV_DMANXTDSC = (uint32_t)&dma_desc[epnum - 1];
