@@ -108,8 +108,13 @@ CFLAGS += \
   -Wcast-align \
   -Wcast-function-type \
   -Wcast-qual \
-  -Wnull-dereference
+  -Wnull-dereference \
+  -Wuninitialized \
+  -Wunused \
+  -Wredundant-decls
 
+#  -Wconversion \
+  
 # Debugging/Optimization
 ifeq ($(DEBUG), 1)
   CFLAGS += -Og

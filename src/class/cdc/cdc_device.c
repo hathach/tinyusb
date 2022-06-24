@@ -145,7 +145,7 @@ uint32_t tud_cdc_n_available(uint8_t itf)
 uint32_t tud_cdc_n_read(uint8_t itf, void* buffer, uint32_t bufsize)
 {
   cdcd_interface_t* p_cdc = &_cdcd_itf[itf];
-  uint32_t num_read = tu_fifo_read_n(&p_cdc->rx_ff, buffer, bufsize);
+  uint32_t num_read = tu_fifo_read_n(&p_cdc->rx_ff, buffer, (uint16_t) bufsize);
   _prep_out_transaction(p_cdc);
   return num_read;
 }
@@ -168,7 +168,7 @@ void tud_cdc_n_read_flush (uint8_t itf)
 uint32_t tud_cdc_n_write(uint8_t itf, void const* buffer, uint32_t bufsize)
 {
   cdcd_interface_t* p_cdc = &_cdcd_itf[itf];
-  uint16_t ret = tu_fifo_write_n(&p_cdc->tx_ff, buffer, bufsize);
+  uint16_t ret = tu_fifo_write_n(&p_cdc->tx_ff, buffer, (uint16_t) bufsize);
 
   // flush if queue more than packet size
   if ( tu_fifo_count(&p_cdc->tx_ff) >= BULK_PACKET_SIZE )
@@ -435,7 +435,7 @@ bool cdcd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint32_
   // Received new data
   if ( ep_addr == p_cdc->ep_out )
   {
-    tu_fifo_write_n(&p_cdc->rx_ff, &p_cdc->epout_buf, xferred_bytes);
+    tu_fifo_write_n(&p_cdc->rx_ff, &p_cdc->epout_buf, (uint16_t) xferred_bytes);
     
     // Check for wanted char and invoke callback if needed
     if ( tud_cdc_rx_wanted_cb && (((signed char) p_cdc->wanted_char) != -1) )

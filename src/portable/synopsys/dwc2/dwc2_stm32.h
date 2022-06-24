@@ -103,7 +103,8 @@ static const dwc2_controller_t _dwc2_controller[] =
 //
 //--------------------------------------------------------------------+
 
-extern uint32_t SystemCoreClock;
+// SystemCoreClock is alrady included by family header
+// extern uint32_t SystemCoreClock;
 
 TU_ATTR_ALWAYS_INLINE
 static inline void dwc2_dcd_int_enable(uint8_t rhport)

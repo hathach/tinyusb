@@ -16,6 +16,9 @@ CFLAGS += \
 # suppress warning caused by vendor mcu driver
 CFLAGS += -Wno-error=undef -Wno-error=unused-parameter -Wno-error=cast-align -Wno-error=cast-qual
 
+# warning caused by dcd_nrf5x.c due to include of usbd.h and re-declare of dcd_int_handler()
+CFLAGS += -Wno-error=redundant-decls
+
 # All source paths should be relative to the top level.
 LD_FILE ?= hw/bsp/nrf/boards/$(BOARD)/nrf52840_s140_v6.ld
 
