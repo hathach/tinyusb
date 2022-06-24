@@ -28,12 +28,12 @@
 
 #if CFG_TUD_ENABLED
 
+#include "device/dcd.h"
 #include "tusb.h"
 #include "common/tusb_private.h"
 
 #include "device/usbd.h"
 #include "device/usbd_pvt.h"
-#include "device/dcd.h"
 
 //--------------------------------------------------------------------+
 // USBD Configuration

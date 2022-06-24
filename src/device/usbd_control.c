@@ -28,9 +28,9 @@
 
 #if CFG_TUD_ENABLED
 
+#include "dcd.h"
 #include "tusb.h"
 #include "device/usbd_pvt.h"
-#include "dcd.h"
 
 #if CFG_TUSB_DEBUG >= 2
 extern void usbd_driver_print_control_complete_name(usbd_control_xfer_cb_t callback);

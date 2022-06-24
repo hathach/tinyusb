@@ -90,13 +90,13 @@ CFLAGS += \
   -ffunction-sections \
   -fsingle-precision-constant \
   -fno-strict-aliasing \
-  -Wdouble-promotion \
-  -Wstrict-prototypes \
-  -Wstrict-overflow \
   -Wall \
   -Wextra \
   -Werror \
   -Wfatal-errors \
+  -Wdouble-promotion \
+  -Wstrict-prototypes \
+  -Wstrict-overflow \
   -Werror-implicit-function-declaration \
   -Wfloat-equal \
   -Wundef \
