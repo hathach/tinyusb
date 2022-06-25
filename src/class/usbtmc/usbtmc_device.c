@@ -597,18 +597,31 @@ bool usbtmcd_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request
   {
     uint32_t ep_addr = (request->wIndex);
 
+    // At this point, a transfer MAY be in progress. Based on USB spec, when clearing bulk EP HALT,
+    // the EP transfer buffer needs to be cleared and DTOG needs to be reset, even if 
+    // the EP is not halted. The only USBD API interface to do this is to stall and then unstall the EP.
     if(ep_addr == usbtmc_state.ep_bulk_out)
     {
       criticalEnter();
+      usbd_edpt_stall(rhport, ep_addr);
+      usbd_edpt_clear_stall(rhport, ep_addr);
       usbtmc_state.state = STATE_NAK; // USBD core has placed EP in NAK state for us
       criticalLeave();
       tud_usbtmc_bulkOut_clearFeature_cb();
     }
     else if (ep_addr == usbtmc_state.ep_bulk_in)
     {
+      usbd_edpt_stall(rhport, ep_addr);
+      usbd_edpt_clear_stall(rhport, ep_addr);
       tud_usbtmc_bulkIn_clearFeature_cb();
     }
-    else
+    else if ((usbtmc_state.ep_int_in != 0) && (ep_addr == usbtmc_state.ep_int_in))
+    {
+      // Clearing interrupt in EP
+      usbd_edpt_stall(rhport, ep_addr);
+      usbd_edpt_clear_stall(rhport, ep_addr);
+    }
+     else
     {
       return false;
     }
@@ -836,6 +849,7 @@ bool usbtmcd_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request
           },
           .StatusByte = tud_usbtmc_get_stb_cb(&(rsp.USBTMC_status))
         };
+        // USB488 spec states that transfer must be queued before control request response sent.
         usbd_edpt_xfer(rhport, usbtmc_state.ep_int_in, (void*)&intMsg, sizeof(intMsg));
       }
       else
