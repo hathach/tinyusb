@@ -831,26 +831,32 @@ bool usbtmcd_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request
 
       bTag = request->wValue & 0x7F;
       TU_VERIFY(request->bmRequestType == 0xA1);
-      TU_VERIFY((request->wValue & (~0x7F)) == 0u); // Other bits are required to be zero
+      TU_VERIFY((request->wValue & (~0x7F)) == 0u); // Other bits are required to be zero (USB488v1.0 Table 11)
       TU_VERIFY(bTag >= 0x02 && bTag <= 127);
       TU_VERIFY(request->wIndex == usbtmc_state.itf_id);
       TU_VERIFY(request->wLength == 0x0003);
       rsp.bTag = (uint8_t)bTag;
       if(usbtmc_state.ep_int_in != 0)
       {
-        rsp.USBTMC_status = USBTMC_STATUS_SUCCESS;
-        rsp.statusByte = 0x00; // Use interrupt endpoint, instead.
-
-        usbtmc_read_stb_interrupt_488_t intMsg =
+        rsp.statusByte = 0x00; // Use interrupt endpoint, instead. Must be 0x00 (USB488v1.0 4.3.1.2)
+        if(usbd_edpt_busy(rhport, usbtmc_state.ep_int_in))
         {
-          .bNotify1 = {
-              .one = 1,
-              .bTag = bTag & 0x7Fu,
-          },
-          .StatusByte = tud_usbtmc_get_stb_cb(&(rsp.USBTMC_status))
-        };
-        // USB488 spec states that transfer must be queued before control request response sent.
-        usbd_edpt_xfer(rhport, usbtmc_state.ep_int_in, (void*)&intMsg, sizeof(intMsg));
+          rsp.USBTMC_status = USB488_STATUS_INTERRUPT_IN_BUSY;
+        }
+        else
+        {
+          rsp.USBTMC_status = USBTMC_STATUS_SUCCESS;
+          usbtmc_read_stb_interrupt_488_t intMsg =
+          {
+            .bNotify1 = {
+                .one = 1,
+                .bTag = bTag & 0x7Fu,
+            },
+            .StatusByte = tud_usbtmc_get_stb_cb(&(rsp.USBTMC_status))
+          };
+          // Must be queued before control request response sent (USB488v1.0 4.3.1.2)
+          usbd_edpt_xfer(rhport, usbtmc_state.ep_int_in, (void*)&intMsg, sizeof(intMsg));
+        }
       }
       else
       {
