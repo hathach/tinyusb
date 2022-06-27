@@ -81,7 +81,7 @@ bool tud_hid_n_ready(uint8_t instance)
   return tud_ready() && (ep_in != 0) && !usbd_edpt_busy(rhport, ep_in);
 }
 
-bool tud_hid_n_report(uint8_t instance, uint8_t report_id, void const* report, uint8_t len)
+bool tud_hid_n_report(uint8_t instance, uint8_t report_id, void const* report, uint16_t len)
 {
   uint8_t const rhport = 0;
   hidd_interface_t * p_hid = &_hidd_itf[instance];
@@ -92,7 +92,7 @@ bool tud_hid_n_report(uint8_t instance, uint8_t report_id, void const* report, u
   // prepare data
   if (report_id)
   {
-    len = tu_min8(len, CFG_TUD_HID_EP_BUFSIZE-1);
+    len = tu_min16(len, CFG_TUD_HID_EP_BUFSIZE-1);
 
     p_hid->epin_buf[0] = report_id;
     memcpy(p_hid->epin_buf+1, report, len);
@@ -100,7 +100,7 @@ bool tud_hid_n_report(uint8_t instance, uint8_t report_id, void const* report, u
   }else
   {
     // If report id = 0, skip ID field
-    len = tu_min8(len, CFG_TUD_HID_EP_BUFSIZE);
+    len = tu_min16(len, CFG_TUD_HID_EP_BUFSIZE);
     memcpy(p_hid->epin_buf, report, len);
   }
 
@@ -403,7 +403,7 @@ bool hidd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint32_
   {
     if (tud_hid_report_complete_cb)
     {
-      tud_hid_report_complete_cb(instance, p_hid->epin_buf, (uint8_t) xferred_bytes);
+      tud_hid_report_complete_cb(instance, p_hid->epin_buf, (uint16_t) xferred_bytes);
     }
   }
   // Received report
