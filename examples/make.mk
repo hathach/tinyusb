@@ -113,7 +113,8 @@ CFLAGS += \
   -Wunused \
   -Wredundant-decls
 
-#  -Wconversion \
+# conversion is too strict for most mcu driver, may be disable sign/int/arith-conversion
+#  -Wconversion
   
 # Debugging/Optimization
 ifeq ($(DEBUG), 1)

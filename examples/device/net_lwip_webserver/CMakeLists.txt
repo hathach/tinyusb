@@ -76,6 +76,8 @@ if (EXISTS ${TOP}/lib/lwip/src)
     target_compile_options(${PROJECT} PUBLIC
         -Wno-error=null-dereference
         -Wno-error=conversion
+        -Wno-error=sign-conversion
+        -Wno-error=sign-compare
         )
 
     # Configure compilation flags and libraries for the example... see the corresponding function
