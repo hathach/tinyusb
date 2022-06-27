@@ -23,6 +23,9 @@ target_include_directories(${PROJECT} PUBLIC
         ${CMAKE_CURRENT_SOURCE_DIR}/src
         )
 
+# Example common such as compiler warnings
+include(${CMAKE_CURRENT_SOURCE_DIR}/../../example.cmake)
+
 # Configure compilation flags and libraries for the example... see the corresponding function
 # in hw/bsp/FAMILY/family.cmake for details.
 family_configure_host_example(${PROJECT})
