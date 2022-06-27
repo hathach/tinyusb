@@ -318,11 +318,11 @@ bool netd_control_xfer_cb (uint8_t rhport, uint8_t stage, tusb_control_request_t
             rndis_generic_msg_t *rndis_msg = (rndis_generic_msg_t *) ((void*) notify.rndis_buf);
             uint32_t msglen = tu_le32toh(rndis_msg->MessageLength);
             TU_ASSERT(msglen <= sizeof(notify.rndis_buf));
-            tud_control_xfer(rhport, request, notify.rndis_buf, msglen);
+            tud_control_xfer(rhport, request, notify.rndis_buf, (uint16_t) msglen);
           }
           else
           {
-            tud_control_xfer(rhport, request, notify.rndis_buf, sizeof(notify.rndis_buf));
+            tud_control_xfer(rhport, request, notify.rndis_buf, (uint16_t) sizeof(notify.rndis_buf));
           }
         }
       break;
@@ -369,7 +369,7 @@ static void handle_incoming_packet(uint32_t len)
         }
   }
 
-  if (!tud_network_recv_cb(pnt, size))
+  if (!tud_network_recv_cb(pnt, (uint16_t) size))
   {
     /* if a buffer was never handled by user code, we must renew on the user's behalf */
     tud_network_recv_renew();

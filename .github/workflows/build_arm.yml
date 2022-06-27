@@ -57,8 +57,10 @@ jobs:
         - 'stm32f1'
         - 'stm32f4'
         - 'stm32f7'
+        - 'stm32g4'
         - 'stm32h7'
         - 'stm32l4'
+        - 'stm32wb'
         - 'tm4c123'
         - 'xmc4000'
     steps:

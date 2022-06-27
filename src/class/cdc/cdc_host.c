@@ -105,7 +105,7 @@ bool tuh_cdc_send(uint8_t dev_addr, void const * p_data, uint32_t length, bool i
   uint8_t const ep_out = cdch_data[dev_addr-1].ep_out;
   if ( usbh_edpt_busy(dev_addr, ep_out) ) return false;
 
-  return usbh_edpt_xfer(dev_addr, ep_out, (void*)(uintptr_t) p_data, length);
+  return usbh_edpt_xfer(dev_addr, ep_out, (void*)(uintptr_t) p_data, (uint16_t) length);
 }
 
 bool tuh_cdc_receive(uint8_t dev_addr, void * p_buffer, uint32_t length, bool is_notify)
@@ -117,7 +117,7 @@ bool tuh_cdc_receive(uint8_t dev_addr, void * p_buffer, uint32_t length, bool is
   uint8_t const ep_in = cdch_data[dev_addr-1].ep_in;
   if ( usbh_edpt_busy(dev_addr, ep_in) ) return false;
 
-  return usbh_edpt_xfer(dev_addr, ep_in, p_buffer, length);
+  return usbh_edpt_xfer(dev_addr, ep_in, p_buffer, (uint16_t) length);
 }
 
 bool tuh_cdc_set_control_line_state(uint8_t dev_addr, bool dtr, bool rts, tuh_xfer_cb_t complete_cb)
@@ -133,8 +133,8 @@ bool tuh_cdc_set_control_line_state(uint8_t dev_addr, bool dtr, bool rts, tuh_xf
       .direction = TUSB_DIR_OUT
     },
     .bRequest = CDC_REQUEST_SET_CONTROL_LINE_STATE,
-    .wValue   = (rts ? 2 : 0) | (dtr ? 1 : 0),
-    .wIndex   = p_cdc->itf_num,
+    .wValue   = tu_htole16((uint16_t) ((dtr ? 1u : 0u) | (rts ? 2u : 0u))),
+    .wIndex   = tu_htole16(p_cdc->itf_num),
     .wLength  = 0
   };
 

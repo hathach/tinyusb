@@ -28,12 +28,12 @@
 
 #if CFG_TUD_ENABLED
 
+#include "device/dcd.h"
 #include "tusb.h"
 #include "common/tusb_private.h"
 
 #include "device/usbd.h"
 #include "device/usbd_pvt.h"
-#include "device/dcd.h"
 
 //--------------------------------------------------------------------+
 // USBD Configuration
@@ -409,6 +409,7 @@ bool tud_init (uint8_t rhport)
   for (uint8_t i = 0; i < TOTAL_DRIVER_COUNT; i++)
   {
     usbd_class_driver_t const * driver = get_driver(i);
+    TU_ASSERT(driver);
     TU_LOG(USBD_DBG, "%s init\r\n", driver->name);
     driver->init();
   }
@@ -426,7 +427,9 @@ static void configuration_reset(uint8_t rhport)
 {
   for ( uint8_t i = 0; i < TOTAL_DRIVER_COUNT; i++ )
   {
-    get_driver(i)->reset(rhport);
+    usbd_class_driver_t const * driver = get_driver(i);
+    TU_ASSERT(driver, );
+    driver->reset(rhport);
   }
 
   tu_varclr(&_usbd_dev);
@@ -735,7 +738,7 @@ static bool process_control_request(uint8_t rhport, tusb_control_request_t const
           // Device status bit mask
           // - Bit 0: Self Powered
           // - Bit 1: Remote Wakeup enabled
-          uint16_t status = (_usbd_dev.self_powered ? 1 : 0) | (_usbd_dev.remote_wakeup_en ? 2 : 0);
+          uint16_t status = (uint16_t) ((_usbd_dev.self_powered ? 1u : 0u) | (_usbd_dev.remote_wakeup_en ? 2u : 0u));
           tud_control_xfer(rhport, p_request, &status, 2);
         }
         break;
@@ -867,8 +870,8 @@ static bool process_set_config(uint8_t rhport, uint8_t cfg_num)
   TU_ASSERT(desc_cfg != NULL && desc_cfg->bDescriptorType == TUSB_DESC_CONFIGURATION);
 
   // Parse configuration descriptor
-  _usbd_dev.remote_wakeup_support = (desc_cfg->bmAttributes & TUSB_DESC_CONFIG_ATT_REMOTE_WAKEUP) ? 1 : 0;
-  _usbd_dev.self_powered          = (desc_cfg->bmAttributes & TUSB_DESC_CONFIG_ATT_SELF_POWERED ) ? 1 : 0;
+  _usbd_dev.remote_wakeup_support = (desc_cfg->bmAttributes & TUSB_DESC_CONFIG_ATT_REMOTE_WAKEUP) ? 1u : 0u;
+  _usbd_dev.self_powered          = (desc_cfg->bmAttributes & TUSB_DESC_CONFIG_ATT_SELF_POWERED ) ? 1u : 0u;
 
   // Parse interface descriptor
   uint8_t const * p_desc   = ((uint8_t const*) desc_cfg) + sizeof(tusb_desc_configuration_t);
@@ -895,11 +898,12 @@ static bool process_set_config(uint8_t rhport, uint8_t cfg_num)
     tusb_desc_interface_t const * desc_itf = (tusb_desc_interface_t const*) p_desc;
 
     // Find driver for this interface
-    uint16_t const remaining_len = desc_end-p_desc;
+    uint16_t const remaining_len = (uint16_t) (desc_end-p_desc);
     uint8_t drv_id;
     for (drv_id = 0; drv_id < TOTAL_DRIVER_COUNT; drv_id++)
     {
       usbd_class_driver_t const *driver = get_driver(drv_id);
+      TU_ASSERT(driver);
       uint16_t const drv_len = driver->open(rhport, desc_itf, remaining_len);
 
       if ( (sizeof(tusb_desc_interface_t) <= drv_len)  && (drv_len <= remaining_len) )
@@ -1101,7 +1105,7 @@ TU_ATTR_FAST_FUNC void dcd_event_handler(dcd_event_t const * event, bool in_isr)
       for (uint8_t i = 0; i < TOTAL_DRIVER_COUNT; i++)
       {
         usbd_class_driver_t const * driver = get_driver(i);
-        if (driver->sof)
+        if (driver && driver->sof)
         {
           driver->sof(event->rhport, event->sof.frame_count);
         }

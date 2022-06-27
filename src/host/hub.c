@@ -28,6 +28,7 @@
 
 #if (CFG_TUH_ENABLED && CFG_TUH_HUB)
 
+#include "hcd.h"
 #include "usbh.h"
 #include "usbh_classdriver.h"
 #include "hub.h"
