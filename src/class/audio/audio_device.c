@@ -1619,7 +1619,7 @@ static bool audiod_set_interface(uint8_t rhport, tusb_control_request_t const * 
 
             // Reconfigure size of support FIFOs - this is necessary to avoid samples to get split in case of a wrap
 #if CFG_TUD_AUDIO_ENABLE_TYPE_I_ENCODING
-            const uint16_t active_fifo_depth = (audio->tx_supp_ff_sz_max / audio->n_bytes_per_sampe_tx) * audio->n_bytes_per_sampe_tx;
+            const uint16_t active_fifo_depth = (uint16_t) ((audio->tx_supp_ff_sz_max / audio->n_bytes_per_sampe_tx) * audio->n_bytes_per_sampe_tx);
             for (uint8_t cnt = 0; cnt < audio->n_tx_supp_ff; cnt++)
             {
               tu_fifo_config(&audio->tx_supp_ff[cnt], audio->tx_supp_ff[cnt].buffer, active_fifo_depth, 1, true);
