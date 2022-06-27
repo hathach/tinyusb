@@ -537,7 +537,7 @@ tu_fifo_t* tud_audio_n_get_rx_support_ff(uint8_t func_id, uint8_t ff_idx)
 
 static bool audiod_rx_done_cb(uint8_t rhport, audiod_function_t* audio, uint16_t n_bytes_received)
 {
-  uint8_t idxItf;
+  uint8_t idxItf = 0;
   uint8_t const *dummy2;
   uint8_t idx_audio_fct = 0;
 
@@ -548,7 +548,10 @@ static bool audiod_rx_done_cb(uint8_t rhport, audiod_function_t* audio, uint16_t
   }
 
   // Call a weak callback here - a possibility for user to get informed an audio packet was received and data gets now loaded into EP FIFO (or decoded into support RX software FIFO)
-  if (tud_audio_rx_done_pre_read_cb) TU_VERIFY(tud_audio_rx_done_pre_read_cb(rhport, n_bytes_received, idx_audio_fct, audio->ep_out, audio->alt_setting[idxItf]));
+  if (tud_audio_rx_done_pre_read_cb)
+  {
+    TU_VERIFY(tud_audio_rx_done_pre_read_cb(rhport, n_bytes_received, idx_audio_fct, audio->ep_out, audio->alt_setting[idxItf]));
+  }
 
 #if CFG_TUD_AUDIO_ENABLE_DECODING && CFG_TUD_AUDIO_ENABLE_EP_OUT
 
@@ -602,7 +605,10 @@ static bool audiod_rx_done_cb(uint8_t rhport, audiod_function_t* audio, uint16_t
 #endif
 
   // Call a weak callback here - a possibility for user to get informed decoding was completed
-  if (tud_audio_rx_done_post_read_cb) TU_VERIFY(tud_audio_rx_done_post_read_cb(rhport, n_bytes_received, idx_audio_fct, audio->ep_out, audio->alt_setting[idxItf]));
+  if (tud_audio_rx_done_post_read_cb)
+  {
+    TU_VERIFY(tud_audio_rx_done_post_read_cb(rhport, n_bytes_received, idx_audio_fct, audio->ep_out, audio->alt_setting[idxItf]));
+  }
 
   return true;
 }
