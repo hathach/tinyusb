@@ -28,9 +28,9 @@
 
 #if (CFG_TUD_ENABLED && CFG_TUD_MSC)
 
+#include "device/dcd.h"         // for faking dcd_event_xfer_complete
 #include "device/usbd.h"
 #include "device/usbd_pvt.h"
-#include "device/dcd.h"         // for faking dcd_event_xfer_complete
 
 #include "msc_device.h"
 
@@ -463,7 +463,7 @@ bool mscd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t event, uint32_t
           {
             // Didn't check for case 9 (Ho > Dn), which requires examining scsi command first
             // but it is OK to just receive data then responded with failed status
-            TU_ASSERT( usbd_edpt_xfer(rhport, p_msc->ep_out, _mscd_buf, p_msc->total_len) );
+            TU_ASSERT( usbd_edpt_xfer(rhport, p_msc->ep_out, _mscd_buf, (uint16_t) p_msc->total_len) );
           }
         }else
         {
@@ -473,7 +473,7 @@ bool mscd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t event, uint32_t
           // Invoke user callback if not built-in
           if ( (resplen < 0) && (p_msc->sense_key == 0) )
           {
-            resplen = tud_msc_scsi_cb(p_cbw->lun, p_cbw->command, _mscd_buf, p_msc->total_len);
+            resplen = tud_msc_scsi_cb(p_cbw->lun, p_cbw->command, _mscd_buf, (uint16_t) p_msc->total_len);
           }
 
           if ( resplen < 0 )
@@ -506,7 +506,7 @@ bool mscd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t event, uint32_t
             {
               // cannot return more than host expect
               p_msc->total_len = tu_min32((uint32_t) resplen, p_cbw->total_bytes);
-              TU_ASSERT( usbd_edpt_xfer(rhport, p_msc->ep_in, _mscd_buf, p_msc->total_len) );
+              TU_ASSERT( usbd_edpt_xfer(rhport, p_msc->ep_in, _mscd_buf, (uint16_t) p_msc->total_len) );
             }
           }
         }
@@ -541,7 +541,7 @@ bool mscd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t event, uint32_t
         // OUT transfer, invoke callback if needed
         if ( !is_data_in(p_cbw->dir) )
         {
-          int32_t cb_result = tud_msc_scsi_cb(p_cbw->lun, p_cbw->command, _mscd_buf, p_msc->total_len);
+          int32_t cb_result = tud_msc_scsi_cb(p_cbw->lun, p_cbw->command, _mscd_buf, (uint16_t) p_msc->total_len);
 
           if ( cb_result < 0 )
           {
@@ -707,7 +707,7 @@ static int32_t proc_builtin_scsi(uint8_t lun, uint8_t const scsi_cmd[16], uint8_
         read_capa10.block_size = tu_htonl(block_size);
 
         resplen = sizeof(read_capa10);
-        memcpy(buffer, &read_capa10, resplen);
+        memcpy(buffer, &read_capa10, (size_t) resplen);
       }
     }
     break;
@@ -741,7 +741,7 @@ static int32_t proc_builtin_scsi(uint8_t lun, uint8_t const scsi_cmd[16], uint8_
         read_fmt_capa.block_size_u16 = tu_htons(block_size);
 
         resplen = sizeof(read_fmt_capa);
-        memcpy(buffer, &read_fmt_capa, resplen);
+        memcpy(buffer, &read_fmt_capa, (size_t) resplen);
       }
     }
     break;
@@ -764,7 +764,7 @@ static int32_t proc_builtin_scsi(uint8_t lun, uint8_t const scsi_cmd[16], uint8_
       tud_msc_inquiry_cb(lun, inquiry_rsp.vendor_id, inquiry_rsp.product_id, inquiry_rsp.product_rev);
 
       resplen = sizeof(inquiry_rsp);
-      memcpy(buffer, &inquiry_rsp, resplen);
+      memcpy(buffer, &inquiry_rsp, (size_t) resplen);
     }
     break;
 
@@ -788,7 +788,7 @@ static int32_t proc_builtin_scsi(uint8_t lun, uint8_t const scsi_cmd[16], uint8_
       mode_resp.write_protected = !writable;
 
       resplen = sizeof(mode_resp);
-      memcpy(buffer, &mode_resp, resplen);
+      memcpy(buffer, &mode_resp, (size_t) resplen);
     }
     break;
 
@@ -801,17 +801,17 @@ static int32_t proc_builtin_scsi(uint8_t lun, uint8_t const scsi_cmd[16], uint8_
       };
 
       sense_rsp.add_sense_len       = sizeof(scsi_sense_fixed_resp_t) - 8;
-      sense_rsp.sense_key           = p_msc->sense_key;
+      sense_rsp.sense_key           = (uint8_t) (p_msc->sense_key & 0x0F);
       sense_rsp.add_sense_code      = p_msc->add_sense_code;
       sense_rsp.add_sense_qualifier = p_msc->add_sense_qualifier;
 
       resplen = sizeof(sense_rsp);
-      memcpy(buffer, &sense_rsp, resplen);
+      memcpy(buffer, &sense_rsp, (size_t) resplen);
 
       // request sense callback could overwrite the sense data
       if (tud_msc_request_sense_cb)
       {
-        resplen = tud_msc_request_sense_cb(lun, buffer, bufsize);
+        resplen = tud_msc_request_sense_cb(lun, buffer, (uint16_t) bufsize);
       }
 
       // Clear sense data after copy
@@ -859,7 +859,7 @@ static void proc_read10_cmd(uint8_t rhport, mscd_interface_t* p_msc)
   }
   else
   {
-    TU_ASSERT( usbd_edpt_xfer(rhport, p_msc->ep_in, _mscd_buf, nbytes), );
+    TU_ASSERT( usbd_edpt_xfer(rhport, p_msc->ep_in, _mscd_buf, (uint16_t) nbytes), );
   }
 }
 
@@ -883,7 +883,7 @@ static void proc_write10_cmd(uint8_t rhport, mscd_interface_t* p_msc)
   }
 
   // remaining bytes capped at class buffer
-  int32_t nbytes = (int32_t) tu_min32(sizeof(_mscd_buf), p_cbw->total_bytes-p_msc->xferred_len);
+  uint16_t nbytes = (uint16_t) tu_min32(sizeof(_mscd_buf), p_cbw->total_bytes-p_msc->xferred_len);
 
   // Write10 callback will be called later when usb transfer complete
   TU_ASSERT( usbd_edpt_xfer(rhport, p_msc->ep_out, _mscd_buf, nbytes), );
@@ -921,14 +921,15 @@ static void proc_write10_new_data(uint8_t rhport, mscd_interface_t* p_msc, uint3
     // Application consume less than what we got (including zero)
     if ( (uint32_t) nbytes < xferred_bytes )
     {
+      uint32_t const left_over = xferred_bytes - (uint32_t) nbytes;
       if ( nbytes > 0 )
       {
-        p_msc->xferred_len += nbytes;
-        memmove(_mscd_buf, _mscd_buf+nbytes, xferred_bytes-nbytes);
+        p_msc->xferred_len += (uint16_t) nbytes;
+        memmove(_mscd_buf, _mscd_buf+nbytes, left_over);
       }
 
       // simulate an transfer complete with adjusted parameters --> callback will be invoked with adjusted parameter
-      dcd_event_xfer_complete(rhport, p_msc->ep_out, xferred_bytes-nbytes, XFER_RESULT_SUCCESS, false);
+      dcd_event_xfer_complete(rhport, p_msc->ep_out, left_over, XFER_RESULT_SUCCESS, false);
     }
     else
     {

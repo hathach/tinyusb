@@ -90,13 +90,13 @@ CFLAGS += \
   -ffunction-sections \
   -fsingle-precision-constant \
   -fno-strict-aliasing \
-  -Wdouble-promotion \
-  -Wstrict-prototypes \
-  -Wstrict-overflow \
   -Wall \
   -Wextra \
   -Werror \
   -Wfatal-errors \
+  -Wdouble-promotion \
+  -Wstrict-prototypes \
+  -Wstrict-overflow \
   -Werror-implicit-function-declaration \
   -Wfloat-equal \
   -Wundef \
@@ -108,8 +108,14 @@ CFLAGS += \
   -Wcast-align \
   -Wcast-function-type \
   -Wcast-qual \
-  -Wnull-dereference
+  -Wnull-dereference \
+  -Wuninitialized \
+  -Wunused \
+  -Wredundant-decls
 
+# conversion is too strict for most mcu driver, may be disable sign/int/arith-conversion
+#  -Wconversion
+  
 # Debugging/Optimization
 ifeq ($(DEBUG), 1)
   CFLAGS += -Og

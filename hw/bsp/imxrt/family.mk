@@ -23,7 +23,7 @@ CFLAGS += -DBOARD_TUH_RHPORT=$(BOARD_TUH_RHPORT)
 endif
 
 # mcu driver cause following warnings
-CFLAGS += -Wno-error=unused-parameter -Wno-error=implicit-fallthrough=
+CFLAGS += -Wno-error=unused-parameter -Wno-error=implicit-fallthrough -Wno-error=redundant-decls
 
 MCU_DIR = $(SDK_DIR)/devices/$(MCU_VARIANT)
 

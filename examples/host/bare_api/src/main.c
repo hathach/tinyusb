@@ -84,8 +84,8 @@ void tuh_mount_cb (uint8_t daddr)
 {
   printf("Device attached, address = %d\r\n", daddr);
 
-  // Get Device Descriptor sync API
-  // TODO: invoking control trannsfer now has issue with mounting hub with multiple devices attached, fix later
+  // Get Device Descriptor
+  // TODO: invoking control transfer now has issue with mounting hub with multiple devices attached, fix later
   tuh_descriptor_get_device(daddr, &desc_device, 18, print_device_descriptor, 0);
 }
 
@@ -189,7 +189,7 @@ void parse_config_descriptor(uint8_t dev_addr, tusb_desc_configuration_t const* 
     if( TUSB_DESC_INTERFACE != tu_desc_type(p_desc) ) return;
     tusb_desc_interface_t const* desc_itf = (tusb_desc_interface_t const*) p_desc;
 
-    uint16_t const drv_len = count_interface_total_len(desc_itf, assoc_itf_count, desc_end-p_desc);
+    uint16_t const drv_len = count_interface_total_len(desc_itf, assoc_itf_count, (uint16_t) (desc_end-p_desc));
 
     // probably corrupted descriptor
     if(drv_len < sizeof(tusb_desc_interface_t)) return;
@@ -244,7 +244,8 @@ void hid_report_received(tuh_xfer_t* xfer);
 void open_hid_interface(uint8_t daddr, tusb_desc_interface_t const *desc_itf, uint16_t max_len)
 {
   // len = interface + hid + n*endpoints
-  uint16_t const drv_len = sizeof(tusb_desc_interface_t) + sizeof(tusb_hid_descriptor_hid_t) + desc_itf->bNumEndpoints*sizeof(tusb_desc_endpoint_t);
+  uint16_t const drv_len = (uint16_t) (sizeof(tusb_desc_interface_t) + sizeof(tusb_hid_descriptor_hid_t) +
+                                       desc_itf->bNumEndpoints * sizeof(tusb_desc_endpoint_t));
 
   // corrupted descriptor
   if (max_len < drv_len) return;
@@ -377,7 +378,7 @@ static void _convert_utf16le_to_utf8(const uint16_t *utf16, size_t utf16_len, ui
     for (size_t i = 0; i < utf16_len; i++) {
         uint16_t chr = utf16[i];
         if (chr < 0x80) {
-            *utf8++ = chr & 0xff;
+            *utf8++ = chr & 0xffu;
         } else if (chr < 0x800) {
             *utf8++ = (uint8_t)(0xC0 | (chr >> 6 & 0x1F));
             *utf8++ = (uint8_t)(0x80 | (chr >> 0 & 0x3F));
@@ -405,12 +406,12 @@ static int _count_utf8_bytes(const uint16_t *buf, size_t len) {
         }
         // TODO: Handle UTF-16 code points that take two entries.
     }
-    return total_bytes;
+    return (int) total_bytes;
 }
 
 static void print_utf16(uint16_t *temp_buf, size_t buf_len) {
     size_t utf16_len = ((temp_buf[0] & 0xff) - 2) / sizeof(uint16_t);
-    size_t utf8_len = _count_utf8_bytes(temp_buf + 1, utf16_len);
+    size_t utf8_len = (size_t) _count_utf8_bytes(temp_buf + 1, utf16_len);
     _convert_utf16le_to_utf8(temp_buf + 1, utf16_len, (uint8_t *) temp_buf, sizeof(uint16_t) * buf_len);
     ((uint8_t*) temp_buf)[utf8_len] = '\0';
 

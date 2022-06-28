@@ -28,10 +28,9 @@
 
 #if CFG_TUH_ENABLED
 
+#include "host/hcd.h"
 #include "tusb.h"
 #include "common/tusb_private.h"
-
-#include "host/usbh.h"
 #include "host/usbh_classdriver.h"
 #include "hub.h"
 
@@ -666,7 +665,7 @@ static bool usbh_control_xfer_cb (uint8_t dev_addr, uint8_t ep_addr, xfer_result
           TU_LOG2_MEM(_ctrl_xfer.buffer, xferred_bytes, 2);
         }
 
-        _ctrl_xfer.actual_len = xferred_bytes;
+        _ctrl_xfer.actual_len = (uint16_t) xferred_bytes;
 
         // ACK stage: toggle is always 1
         _set_control_xfer_stage(CONTROL_STAGE_ACK);
@@ -697,7 +696,7 @@ bool tuh_edpt_xfer(tuh_xfer_t* xfer)
 
   TU_VERIFY(usbh_edpt_claim(daddr, ep_addr));
 
-  if ( !usbh_edpt_xfer_with_callback(daddr, ep_addr, xfer->buffer, xfer->buflen, xfer->complete_cb, xfer->user_data) )
+  if ( !usbh_edpt_xfer_with_callback(daddr, ep_addr, xfer->buffer, (uint16_t) xfer->buflen, xfer->complete_cb, xfer->user_data) )
   {
     usbh_edpt_release(daddr, ep_addr);
     return false;
@@ -1526,7 +1525,7 @@ static bool _parse_configuration_descriptor(uint8_t dev_addr, tusb_desc_configur
     }
 #endif
 
-    uint16_t const drv_len = tu_desc_get_interface_total_len(desc_itf, assoc_itf_count, desc_end-p_desc);
+    uint16_t const drv_len = tu_desc_get_interface_total_len(desc_itf, assoc_itf_count, (uint16_t) (desc_end-p_desc));
     TU_ASSERT(drv_len >= sizeof(tusb_desc_interface_t));
 
     // Find driver for this interface
