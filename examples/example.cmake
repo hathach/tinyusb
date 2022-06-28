@@ -21,5 +21,11 @@ target_compile_options(${PROJECT} PUBLIC
         -Wuninitialized
         -Wunused
         -Wredundant-decls
+        )
+
+# GCC version 9 or prior has a bug with incorrect Wconversion warnings
+if (CMAKE_C_COMPILER_VERSION VERSION_GREATER_EQUAL 10.0)
+  target_compile_options(${PROJECT} PUBLIC
         -Wconversion
         )
+endif()

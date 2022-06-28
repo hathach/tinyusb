@@ -235,34 +235,31 @@ if (NOT TARGET _rp2040_family_inclusion_marker)
 
 	# This method must be called from the project scope to suppress known warnings in TinyUSB source files
 	function(suppress_tinyusb_warnings)
-		# some of these are pretty silly warnings only occurring in some older GCC versions
-		set(CONVERSION_WARNING_FILES
-				${PICO_TINYUSB_PATH}/src/tusb.c
-				${PICO_TINYUSB_PATH}/src/common/tusb_fifo.c
-				${PICO_TINYUSB_PATH}/src/device/usbd.c
-				${PICO_TINYUSB_PATH}/src/device/usbd_control.c
-				${PICO_TINYUSB_PATH}/src/host/usbh.c
-				${PICO_TINYUSB_PATH}/src/class/cdc/cdc_device.c
-				${PICO_TINYUSB_PATH}/src/class/cdc/cdc_host.c
-				${PICO_TINYUSB_PATH}/src/class/hid/hid_device.c
-				${PICO_TINYUSB_PATH}/src/class/hid/hid_host.c
-				${PICO_TINYUSB_PATH}/src/class/audio/audio_device.c
-				${PICO_TINYUSB_PATH}/src/class/dfu/dfu_device.c
-				${PICO_TINYUSB_PATH}/src/class/dfu/dfu_rt_device.c
-				${PICO_TINYUSB_PATH}/src/class/midi/midi_device.c
-				${PICO_TINYUSB_PATH}/src/class/usbtmc/usbtmc_device.c
-				${PICO_TINYUSB_PATH}/src/portable/raspberrypi/rp2040/hcd_rp2040.c
-				)
-		foreach(SOURCE_FILE IN LISTS CONVERSION_WARNING_FILES)
-			set_source_files_properties(
-					${SOURCE_FILE}
-					PROPERTIES
-					COMPILE_FLAGS "-Wno-conversion")
-		endforeach()
-		set_source_files_properties(
-				${PICO_TINYUSB_PATH}/src/portable/raspberrypi/rp2040/rp2040_usb.c
-				PROPERTIES
-				COMPILE_FLAGS "-Wno-stringop-overflow -Wno-array-bounds"
-		)
+		# some of these are pretty silly warnings only occurring in some older GCC versions 9 or prior
+		if (CMAKE_C_COMPILER_VERSION VERSION_LESS 10.0)
+  		set(CONVERSION_WARNING_FILES
+  				${PICO_TINYUSB_PATH}/src/tusb.c
+  				${PICO_TINYUSB_PATH}/src/common/tusb_fifo.c
+  				${PICO_TINYUSB_PATH}/src/device/usbd.c
+  				${PICO_TINYUSB_PATH}/src/device/usbd_control.c
+  				${PICO_TINYUSB_PATH}/src/host/usbh.c
+  				${PICO_TINYUSB_PATH}/src/class/cdc/cdc_device.c
+  				${PICO_TINYUSB_PATH}/src/class/cdc/cdc_host.c
+  				${PICO_TINYUSB_PATH}/src/class/hid/hid_device.c
+  				${PICO_TINYUSB_PATH}/src/class/hid/hid_host.c
+  				${PICO_TINYUSB_PATH}/src/class/audio/audio_device.c
+  				${PICO_TINYUSB_PATH}/src/class/dfu/dfu_device.c
+  				${PICO_TINYUSB_PATH}/src/class/dfu/dfu_rt_device.c
+  				${PICO_TINYUSB_PATH}/src/class/midi/midi_device.c
+  				${PICO_TINYUSB_PATH}/src/class/usbtmc/usbtmc_device.c
+  				${PICO_TINYUSB_PATH}/src/portable/raspberrypi/rp2040/hcd_rp2040.c
+  				)
+  		foreach(SOURCE_FILE IN LISTS CONVERSION_WARNING_FILES)
+  			set_source_files_properties(
+  					${SOURCE_FILE}
+  					PROPERTIES
+  					COMPILE_FLAGS "-Wno-conversion")
+  		endforeach()
+  	endif()
 	endfunction()
 endif()

@@ -230,7 +230,7 @@ void tud_hid_report_complete_cb(uint8_t instance, uint8_t const* report, uint16_
   (void) instance;
   (void) len;
 
-  uint8_t next_report_id = (uint8_t)(report[0] + 1);
+  uint8_t next_report_id = report[0] + 1u;
 
   if (next_report_id < REPORT_ID_COUNT)
   {
