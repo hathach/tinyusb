@@ -286,14 +286,14 @@ bool dcd_edpt_xfer (uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t 
   {
     bank->PCKSIZE.bit.MULTI_PACKET_SIZE = total_bytes;
     bank->PCKSIZE.bit.BYTE_COUNT = 0;
-    ep->EPSTATUSCLR.reg |= USB_DEVICE_EPSTATUSCLR_BK0RDY;
-    ep->EPINTFLAG.reg |= USB_DEVICE_EPINTFLAG_TRFAIL0;
+    ep->EPSTATUSCLR.reg = USB_DEVICE_EPSTATUSCLR_BK0RDY;
+    ep->EPINTFLAG.reg = USB_DEVICE_EPINTFLAG_TRFAIL0;
   } else
   {
     bank->PCKSIZE.bit.MULTI_PACKET_SIZE = 0;
     bank->PCKSIZE.bit.BYTE_COUNT = total_bytes;
-    ep->EPSTATUSSET.reg |= USB_DEVICE_EPSTATUSSET_BK1RDY;
-    ep->EPINTFLAG.reg |= USB_DEVICE_EPINTFLAG_TRFAIL1;
+    ep->EPSTATUSSET.reg = USB_DEVICE_EPSTATUSSET_BK1RDY;
+    ep->EPINTFLAG.reg = USB_DEVICE_EPINTFLAG_TRFAIL1;
   }
 
   return true;
