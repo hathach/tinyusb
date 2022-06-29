@@ -3,6 +3,7 @@ import glob
 import sys
 import subprocess
 import time
+from multiprocessing import Process
 
 import build_utils
 
@@ -52,9 +53,15 @@ def build_family(example, family):
             all_boards.append(entry.name)
     filter_with_input(all_boards)
     all_boards.sort()
-    
+
+    plist = []
     for board in all_boards:
-        build_board(example, board)
+        p = Process(target=build_board, args=(example, board))
+        plist.append(p)
+        p.start()
+
+    for p in plist:
+        p.join()
     
 def build_board(example, board):
     global success_count, fail_count, skip_count, exit_status
@@ -88,7 +95,6 @@ def build_board(example, board):
             print(build_result.stdout.decode("utf-8"))
 
 def build_size(example, board):
-    #elf_file = 'examples/device/{}/_build/{}/{}-firmware.elf'.format(example, board, board)
     elf_file = 'examples/{}/_build/{}/*.elf'.format(example, board)
     size_output = subprocess.run('size {}'.format(elf_file), shell=True, stdout=subprocess.PIPE).stdout.decode("utf-8")
     size_list = size_output.split('\n')[1].split('\t')
@@ -96,17 +102,18 @@ def build_size(example, board):
     sram_size = int(size_list[1]) + int(size_list[2])
     return (flash_size, sram_size)
 
-print(build_separator)
-print(build_format.format('Example', 'Board', '\033[39mResult\033[0m', 'Time', 'Flash', 'SRAM'))
-
-for example in all_examples:
+if __name__ == '__main__':
     print(build_separator)
-    for family in all_families:
-        build_family(example, family)
+    print(build_format.format('Example', 'Board', '\033[39mResult\033[0m', 'Time', 'Flash', 'SRAM'))
 
-total_time = time.monotonic() - total_time
-print(build_separator)
-print("Build Summary: {} {}, {} {}, {} {} and took {:.2f}s".format(success_count, SUCCEEDED, fail_count, FAILED, skip_count, SKIPPED, total_time))
-print(build_separator)
+    for example in all_examples:
+        print(build_separator)
+        for family in all_families:
+            build_family(example, family)
 
-sys.exit(exit_status)
+    total_time = time.monotonic() - total_time
+    print(build_separator)
+    print("Build Summary: {} {}, {} {}, {} {} and took {:.2f}s".format(success_count, SUCCEEDED, fail_count, FAILED, skip_count, SKIPPED, total_time))
+    print(build_separator)
+
+    sys.exit(exit_status)
