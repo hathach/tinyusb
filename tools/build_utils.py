@@ -3,15 +3,14 @@ import pathlib
 def skip_example(example, board):
     ex_dir = pathlib.Path('examples/') / example
     bsp = pathlib.Path("hw/bsp")
-
-    # board without family
-    board_dir = bsp / board
     
-    if board_dir.exists():
+    if (bsp / board / "board.mk").exists():
+        # board without family
+        board_dir = bsp / board
         family = ""
         mk_contents = ""
     else:
-        # otherwise look into family        
+        # board within family
         board_dir = list(bsp.glob("*/boards/" + board))
         if not board_dir:
             # Skip unknown boards
