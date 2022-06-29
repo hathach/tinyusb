@@ -69,7 +69,7 @@ void rp2040_usb_init(void)
   usb_hw->muxing = USB_USB_MUXING_TO_PHY_BITS | USB_USB_MUXING_SOFTCON_BITS;
 }
 
-void __no_inline_not_in_flash_func(hw_endpoint_reset_transfer)(struct hw_endpoint *ep)
+void __tusb_irq_path_func(hw_endpoint_reset_transfer)(struct hw_endpoint *ep)
 {
   ep->active = false;
   ep->remaining_len = 0;
@@ -77,7 +77,7 @@ void __no_inline_not_in_flash_func(hw_endpoint_reset_transfer)(struct hw_endpoin
   ep->user_buf = 0;
 }
 
-void __no_inline_not_in_flash_func(_hw_endpoint_buffer_control_update32)(struct hw_endpoint *ep, uint32_t and_mask, uint32_t or_mask) {
+void __tusb_irq_path_func(_hw_endpoint_buffer_control_update32)(struct hw_endpoint *ep, uint32_t and_mask, uint32_t or_mask) {
     uint32_t value = 0;
     if (and_mask) {
         value = *ep->buffer_control & and_mask;
@@ -108,7 +108,7 @@ void __no_inline_not_in_flash_func(_hw_endpoint_buffer_control_update32)(struct 
 }
 
 // prepare buffer, return buffer control
-static uint32_t __no_inline_not_in_flash_func(prepare_ep_buffer)(struct hw_endpoint *ep, uint8_t buf_id)
+static uint32_t __tusb_irq_path_func(prepare_ep_buffer)(struct hw_endpoint *ep, uint8_t buf_id)
 {
   uint16_t const buflen = tu_min16(ep->remaining_len, ep->wMaxPacketSize);
   ep->remaining_len = (uint16_t)(ep->remaining_len - buflen);
@@ -143,7 +143,7 @@ static uint32_t __no_inline_not_in_flash_func(prepare_ep_buffer)(struct hw_endpo
 }
 
 // Prepare buffer control register value
-static void __no_inline_not_in_flash_func(_hw_endpoint_start_next_buffer)(struct hw_endpoint *ep)
+static void __tusb_irq_path_func(_hw_endpoint_start_next_buffer)(struct hw_endpoint *ep)
 {
   uint32_t ep_ctrl = *ep->endpoint_control;
 
@@ -174,7 +174,7 @@ static void __no_inline_not_in_flash_func(_hw_endpoint_start_next_buffer)(struct
 
   *ep->endpoint_control = ep_ctrl;
 
-  TU_LOG(3, "  Prepare BufCtrl: [0] = 0x%04u  [1] = 0x%04x\r\n", tu_u32_low16(buf_ctrl), tu_u32_high16(buf_ctrl));
+  TU_LOG(3, "  Prepare BufCtrl: [0] = 0x%04x  [1] = 0x%04x\r\n", tu_u32_low16(buf_ctrl), tu_u32_high16(buf_ctrl));
 
   // Finally, write to buffer_control which will trigger the transfer
   // the next time the controller polls this dpram address
@@ -205,7 +205,7 @@ void hw_endpoint_xfer_start(struct hw_endpoint *ep, uint8_t *buffer, uint16_t to
 }
 
 // sync endpoint buffer and return transferred bytes
-static uint16_t __no_inline_not_in_flash_func(sync_ep_buffer)(struct hw_endpoint *ep, uint8_t buf_id)
+static uint16_t __tusb_irq_path_func(sync_ep_buffer)(struct hw_endpoint *ep, uint8_t buf_id)
 {
   uint32_t buf_ctrl = _hw_endpoint_buffer_control_get_value32(ep);
   if (buf_id)  buf_ctrl = buf_ctrl >> 16;
@@ -241,13 +241,13 @@ static uint16_t __no_inline_not_in_flash_func(sync_ep_buffer)(struct hw_endpoint
   return xferred_bytes;
 }
 
-static void __no_inline_not_in_flash_func(_hw_endpoint_xfer_sync) (struct hw_endpoint *ep)
+static void __tusb_irq_path_func(_hw_endpoint_xfer_sync) (struct hw_endpoint *ep)
 {
   // Update hw endpoint struct with info from hardware
   // after a buff status interrupt
 
   uint32_t __unused buf_ctrl = _hw_endpoint_buffer_control_get_value32(ep);
-  TU_LOG(3, "  Sync BufCtrl: [0] = 0x%04u  [1] = 0x%04x\r\n", tu_u32_low16(buf_ctrl), tu_u32_high16(buf_ctrl));
+  TU_LOG(3, "  Sync BufCtrl: [0] = 0x%04x  [1] = 0x%04x\r\n", tu_u32_low16(buf_ctrl), tu_u32_high16(buf_ctrl));
 
   // always sync buffer 0
   uint16_t buf0_bytes = sync_ep_buffer(ep, 0);
@@ -285,14 +285,14 @@ static void __no_inline_not_in_flash_func(_hw_endpoint_xfer_sync) (struct hw_end
       usb_hw->abort &= ~TU_BIT(ep_id);
 
       TU_LOG(3, "----SHORT PACKET buffer0 on EP %02X:\r\n", ep->ep_addr);
-      TU_LOG(3, "  BufCtrl: [0] = 0x%04u  [1] = 0x%04x\r\n", tu_u32_low16(buf_ctrl), tu_u32_high16(buf_ctrl));
+      TU_LOG(3, "  BufCtrl: [0] = 0x%04x  [1] = 0x%04x\r\n", tu_u32_low16(buf_ctrl), tu_u32_high16(buf_ctrl));
 #endif
     }
   }
 }
 
 // Returns true if transfer is complete
-bool __no_inline_not_in_flash_func(hw_endpoint_xfer_continue)(struct hw_endpoint *ep)
+bool __tusb_irq_path_func(hw_endpoint_xfer_continue)(struct hw_endpoint *ep)
 {
   _hw_endpoint_lock_update(ep, 1);
   // Part way through a transfer

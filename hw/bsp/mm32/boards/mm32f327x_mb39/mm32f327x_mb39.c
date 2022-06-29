@@ -52,7 +52,6 @@ void USB_DeviceClockInit (void)
 //--------------------------------------------------------------------+
 // LED
 
-void board_led_write (bool state);
 extern u32 SystemCoreClock;
 const int baudrate = 115200;
 

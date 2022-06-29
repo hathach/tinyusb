@@ -33,11 +33,11 @@
 void USB_IRQHandler(void)
 {
   #if CFG_TUD_ENABLED
-    tuh_int_handler(0);
+    tud_int_handler(0);
   #endif
 
   #if CFG_TUH_ENABLED
-    tud_int_handler(0);
+    tuh_int_handler(0);
   #endif
 }
 

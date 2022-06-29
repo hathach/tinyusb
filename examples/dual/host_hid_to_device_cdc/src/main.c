@@ -160,7 +160,7 @@ void tuh_hid_mount_cb(uint8_t dev_addr, uint8_t instance, uint8_t const* desc_re
   char tempbuf[256];
   int count = sprintf(tempbuf, "[%04x:%04x][%u] HID Interface%u, Protocol = %s\r\n", vid, pid, dev_addr, instance, protocol_str[itf_protocol]);
 
-  tud_cdc_write(tempbuf, count);
+  tud_cdc_write(tempbuf, (uint32_t) count);
   tud_cdc_write_flush();
 
   // Receive report from boot keyboard & mouse only
@@ -179,7 +179,7 @@ void tuh_hid_umount_cb(uint8_t dev_addr, uint8_t instance)
 {
   char tempbuf[256];
   int count = sprintf(tempbuf, "[%u] HID Interface%u is unmounted\r\n", dev_addr, instance);
-  tud_cdc_write(tempbuf, count);
+  tud_cdc_write(tempbuf, (uint32_t) count);
   tud_cdc_write_flush();
 }
 
@@ -251,7 +251,7 @@ static void process_mouse_report(uint8_t dev_addr, hid_mouse_report_t const * re
   char tempbuf[32];
   int count = sprintf(tempbuf, "[%u] %c%c%c %d %d %d\r\n", dev_addr, l, m, r, report->x, report->y, report->wheel);
 
-  tud_cdc_write(tempbuf, count);
+  tud_cdc_write(tempbuf, (uint32_t) count);
   tud_cdc_write_flush();
 }
 

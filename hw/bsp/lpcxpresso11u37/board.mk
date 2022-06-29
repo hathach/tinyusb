@@ -15,7 +15,7 @@ CFLAGS += \
   -DCFG_TUSB_MEM_ALIGN='__attribute__((aligned(64)))' 
 
 # mcu driver cause following warnings
-CFLAGS += -Wno-error=strict-prototypes -Wno-error=unused-parameter
+CFLAGS += -Wno-error=strict-prototypes -Wno-error=unused-parameter -Wno-error=redundant-decls
 
 MCU_DIR = hw/mcu/nxp/lpcopen/lpc11uxx/lpc_chip_11uxx
 
