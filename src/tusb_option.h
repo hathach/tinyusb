@@ -69,6 +69,7 @@ typedef int make_iso_compilers_happy;
 #define OPT_MCU_SAML22            205 ///< MicroChip SAML22
 #define OPT_MCU_SAML21            206 ///< MicroChip SAML21
 #define OPT_MCU_SAMX7X            207 ///< MicroChip SAME70, S70, V70, V71 family
+#define OPT_MCU_SAM3U             208 ///< MicroChip SAM3U
 
 // STM32
 #define OPT_MCU_STM32F0           300 ///< ST F0

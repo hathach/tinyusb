@@ -196,7 +196,7 @@ Notable contributors
 `Zixun Li <https://github.com/HiFiPhile>`__
 -------------------------------------------
 
--  Add new DCD port for Microchip SAMx7x
+-  Add new DCD port for Microchip SAMHS
 -  Add IAR compiler support
 -  Improve UAC2, CDC, DFU class driver
 

@@ -80,8 +80,8 @@
 		<group name="src/portable/microchip/samg">
 			<path>$TUSB_DIR$/src/portable/microchip/samg/dcd_samg.c</path>
 		</group>
-		<group name="src/portable/microchip/samx7x">
-			<path>$TUSB_DIR$/src/portable/microchip/samx7x/dcd_samx7x.c</path>
+		<group name="src/portable/microchip/samhs">
+			<path>$TUSB_DIR$/src/portable/microchip/samhs/dcd_samhs.c</path>
 		</group>
 		<group name="src/portable/mindmotion/mm32">
 			<path>$TUSB_DIR$/src/portable/mindmotion/mm32/dcd_mm32f327x_otg.c</path>

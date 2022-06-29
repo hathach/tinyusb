@@ -27,14 +27,21 @@
 
 #include "tusb_option.h"
 
-#if CFG_TUD_ENABLED && CFG_TUSB_MCU == OPT_MCU_SAMX7X
+#if CFG_TUD_ENABLED && TU_CHECK_MCU(OPT_MCU_SAM3U)
 
 #include "device/dcd.h"
 #include "sam.h"
-#include "common_usb_regs.h"
+
+#if TU_CHECK_MCU(OPT_MCU_SAM3U)
+#include "samhs_sam3u.h"
+#endif
+
 //--------------------------------------------------------------------+
 // MACRO TYPEDEF CONSTANT ENUM DECLARATION
 //--------------------------------------------------------------------+
+
+// SAMHS registers
+#define SAMHS_REG         ((samhs_reg_t*) SAMHS_BASE_REG)
 
 // Since TinyUSB doesn't use SOF for now, and this interrupt too often (1ms interval)
 // We disable SOF for now until needed later on
@@ -43,7 +50,7 @@
 #endif
 
 // Dual bank can imporve performance, but need 2 times bigger packet buffer
-// As SAM7x has only 4KB packet buffer, use with caution !
+// Only 4KB packet buffer, use with caution !
 // Enable in FS mode as packets are smaller
 #ifndef USE_DUAL_BANK
 #  if TUD_OPT_HIGH_SPEED
@@ -87,18 +94,18 @@ static const tusb_desc_endpoint_t ep0_desc =
   .wMaxPacketSize   = CFG_TUD_ENDPOINT0_SIZE,
 };
 
-TU_ATTR_ALWAYS_INLINE static inline void CleanInValidateCache(uint32_t *addr, int32_t size)
-{
-  if (SCB->CCR & SCB_CCR_DC_Msk)
-  {
-    SCB_CleanInvalidateDCache_by_Addr(addr, size);
-  }
-  else
-  {
-    __DSB();
-    __ISB();
-  }
-}
+// TU_ATTR_ALWAYS_INLINE static inline void CleanInValidateCache(uint32_t *addr, int32_t size)
+// {
+//   if (SCB->CCR & SCB_CCR_DC_Msk)
+//   {
+//     SCB_CleanInvalidateDCache_by_Addr(addr, size);
+//   }
+//   else
+//   {
+//     __DSB();
+//     __ISB();
+//   }
+// }
 //------------------------------------------------------------------
 // Device API
 //------------------------------------------------------------------
@@ -113,14 +120,14 @@ void dcd_init (uint8_t rhport)
 void dcd_int_enable (uint8_t rhport)
 {
   (void) rhport;
-  NVIC_EnableIRQ((IRQn_Type) ID_USBHS);
+  NVIC_EnableIRQ((IRQn_Type) UDPHS_IRQn);
 }
 
 // Disable device interrupt
 void dcd_int_disable (uint8_t rhport)
 {
   (void) rhport;
-  NVIC_DisableIRQ((IRQn_Type) ID_USBHS);
+  NVIC_DisableIRQ((IRQn_Type) UDPHS_IRQn);
 }
 
 // Receive Set Address request, mcu port must also include status IN response
@@ -138,7 +145,7 @@ void dcd_set_address (uint8_t rhport, uint8_t dev_addr)
 void dcd_remote_wakeup (uint8_t rhport)
 {
   (void) rhport;
-  USB_REG->DEVCTRL |= DEVCTRL_RMWKUP;
+  SAMHS_REG->SAMHS_DEV_CTRL |= SAMHS_DEV_CTRL_REWAKEUP;
 }
 
 // Connect by enabling internal pull-up resistor on D+/D-
@@ -147,28 +154,25 @@ void dcd_connect(uint8_t rhport)
   (void) rhport;
   dcd_int_disable(rhport);
   // Enable the USB controller in device mode
-  USB_REG->CTRL = CTRL_UIMOD | CTRL_USBE;
-  while (!(USB_REG->SR & SR_CLKUSABLE));
+  SAMHS_REG->SAMHS_DEV_CTRL = SAMHS_DEV_CTRL_EN_SAMHS;
+
 #if TUD_OPT_HIGH_SPEED
-  USB_REG->DEVCTRL &= ~DEVCTRL_SPDCONF;
+  SAMHS_REG->SAMHS_DEV_TST &= ~SAMHS_DEV_TST_SPEED_CFG_Msk;
 #else
-  USB_REG->DEVCTRL |= DEVCTRL_SPDCONF_LOW_POWER;
+  SAMHS_REG->SAMHS_DEV_TST |= SAMHS_DEV_TST_SPEED_CFG_FULL_SPEED;
 #endif
   // Enable the End Of Reset, Suspend & Wakeup interrupts
-  USB_REG->DEVIER = (DEVIER_EORSTES | DEVIER_SUSPES | DEVIER_WAKEUPES);
+  SAMHS_REG->SAMHS_DEV_IEN = (SAMHS_DEV_IEN_ENDRESET | SAMHS_DEV_IEN_DET_SUSPD | SAMHS_DEV_IEN_WAKE_UP);
 #if USE_SOF
-  USB_REG->DEVIER = DEVIER_SOFES;
+  SAMHS_REG->SAMHS_DEV_IEN |= SAMHS_DEV_IEN_INT_SOF;
 #endif
   // Clear the End Of Reset, SOF & Wakeup interrupts
-  USB_REG->DEVICR = (DEVICR_EORSTC | DEVICR_SOFC | DEVICR_WAKEUPC);
-  // Manually set the Suspend Interrupt
-  USB_REG->DEVIFR |= DEVIFR_SUSPS;
+  SAMHS_REG->SAMHS_DEV_CLRINT = (SAMHS_DEV_CLRINT_ENDRESET | SAMHS_DEV_CLRINT_INT_SOF | SAMHS_DEV_CLRINT_WAKE_UP);
+
   // Ack the Wakeup Interrupt
-  USB_REG->DEVICR = DEVICR_WAKEUPC;
+  SAMHS_REG->SAMHS_DEV_CLRINT = SAMHS_DEV_CLRINT_WAKE_UP;
   // Attach the device
-  USB_REG->DEVCTRL &= ~DEVCTRL_DETACH;
-  // Freeze USB clock
-  USB_REG->CTRL |= CTRL_FRZCLK;
+  SAMHS_REG->SAMHS_DEV_CTRL &= ~SAMHS_DEV_CTRL_DETACH;
 }
 
 // Disconnect by disabling internal pull-up resistor on D+/D-
@@ -177,57 +181,45 @@ void dcd_disconnect(uint8_t rhport)
   (void) rhport;
   dcd_int_disable(rhport);
   // Disable all endpoints
-  USB_REG->DEVEPT &= ~(0x3FF << DEVEPT_EPEN0_Pos);
-  // Unfreeze USB clock
-  USB_REG->CTRL &= ~CTRL_FRZCLK;
-  while (!(USB_REG->SR & SR_CLKUSABLE));
+  for(size_t i = 0; i < EP_MAX; i++)
+  {
+	SAMHS_REG->SAMHS_DEV_EPT[i].SAMHS_DEV_EPTCTLDIS = SAMHS_DEV_EPTCTLDIS_EPT_DISABL;
+  }
   // Clear all the pending interrupts
-  USB_REG->DEVICR = DEVICR_Msk;
+  SAMHS_REG->SAMHS_DEV_CLRINT = 0xF;
   // Disable all interrupts
-  USB_REG->DEVIDR = DEVIDR_Msk;
+  SAMHS_REG->SAMHS_DEV_IEN = 0;
   // Detach the device
-  USB_REG->DEVCTRL |= DEVCTRL_DETACH;
+  SAMHS_REG->SAMHS_DEV_CTRL |= SAMHS_DEV_CTRL_DETACH;
   // Disable the device address
-  USB_REG->DEVCTRL &=~(DEVCTRL_ADDEN | DEVCTRL_UADD);
-}
-
-void dcd_sof_enable(uint8_t rhport, bool en)
-{
-  (void) rhport;
-  (void) en;
-
-  // TODO implement later
+  SAMHS_REG->SAMHS_DEV_CTRL &= ~(SAMHS_DEV_CTRL_FADDR_EN | SAMHS_DEV_CTRL_DEV_ADDR_Msk);
 }
 
 static tusb_speed_t get_speed(void)
 {
-  switch (USB_REG->SR & SR_SPEED) {
-  case SR_SPEED_FULL_SPEED:
-  default:
-    return TUSB_SPEED_FULL;
-  case SR_SPEED_HIGH_SPEED:
+  if (SAMHS_REG->SAMHS_DEV_INTSTA & SAMHS_DEV_INTSTA_SPEED) {
     return TUSB_SPEED_HIGH;
-  case SR_SPEED_LOW_SPEED:
-    return TUSB_SPEED_LOW;
   }
+
+  return TUSB_SPEED_FULL;
 }
 
 static void dcd_ep_handler(uint8_t ep_ix)
 {
-  uint32_t int_status = USB_REG->DEVEPTISR[ep_ix];
-  int_status &= USB_REG->DEVEPTIMR[ep_ix];
+  uint32_t int_status = SAMHS_REG->SAMHS_DEV_EPT[ep_ix].SAMHS_DEV_EPTSTA;
+  int_status &= SAMHS_REG->SAMHS_DEV_EPT[ep_ix].SAMHS_DEV_EPTCTL;
 
-  uint16_t count = (USB_REG->DEVEPTISR[ep_ix] &
-                    DEVEPTISR_BYCT) >> DEVEPTISR_BYCT_Pos;
+  uint16_t count = (SAMHS_REG->SAMHS_DEV_EPT[ep_ix].SAMHS_DEV_EPTSTA &
+                    SAMHS_DEV_EPTSTA_BYTE_COUNT_Msk) >> SAMHS_DEV_EPTSTA_BYTE_COUNT_Pos;
   xfer_ctl_t *xfer = &xfer_status[ep_ix];
 
   if (ep_ix == 0U)
   {
     static uint8_t ctrl_dir;
 
-    if (int_status & DEVEPTISR_CTRL_RXSTPI)
+    if (int_status & SAMHS_DEV_EPTSTA_RX_SETUP) // Received SETUP
     {
-      ctrl_dir = (USB_REG->DEVEPTISR[0] & DEVEPTISR_CTRL_CTRLDIR) >> DEVEPTISR_CTRL_CTRLDIR_Pos;
+      ctrl_dir = (SAMHS_REG->SAMHS_DEV_EPT[0].SAMHS_DEV_EPTSTA & SAMHS_DEV_EPTSTA_CURBK_CTLDIR_Msk) >> SAMHS_DEV_EPTSTA_CURBK_CTLDIR_Pos;
       // Setup packet should always be 8 bytes. If not, ignore it, and try again.
       if (count == 8)
       {
@@ -235,10 +227,10 @@ static void dcd_ep_handler(uint8_t ep_ix)
         dcd_event_setup_received(0, ptr, true);
       }
       // Ack and disable SETUP interrupt
-      USB_REG->DEVEPTICR[0] = DEVEPTICR_CTRL_RXSTPIC;
-      USB_REG->DEVEPTIDR[0] = DEVEPTIDR_CTRL_RXSTPEC;
+      SAMHS_REG->SAMHS_DEV_EPT[0].SAMHS_DEV_EPTCLRSTA = SAMHS_DEV_EPTCLRSTA_RX_SETUP;
+      SAMHS_REG->SAMHS_DEV_EPT[0].SAMHS_DEV_EPTCTLDIS = SAMHS_DEV_EPTCTLDIS_RX_SETUP;
     }
-    if (int_status & DEVEPTISR_RXOUTI)
+    if (int_status & SAMHS_DEV_EPTSTA_RXRDY_TXKL) // Received OUT
     {
       uint8_t *ptr = EP_GET_FIFO_PTR(0,8);
       
@@ -259,24 +251,24 @@ static void dcd_ep_handler(uint8_t ep_ix)
         xfer->queued_len = (uint16_t)(xfer->queued_len + count);
       }
       // Acknowledge the interrupt
-      USB_REG->DEVEPTICR[0] = DEVEPTICR_RXOUTIC;
+      SAMHS_REG->SAMHS_DEV_EPT[0].SAMHS_DEV_EPTCLRSTA = SAMHS_DEV_EPTCLRSTA_RXRDY_TXKL;
       if ((count < xfer->max_packet_size) || (xfer->queued_len == xfer->total_len))
       {
         // RX COMPLETE
         dcd_event_xfer_complete(0, 0, xfer->queued_len, XFER_RESULT_SUCCESS, true);
         // Disable the interrupt
-        USB_REG->DEVEPTIDR[0] = DEVEPTIDR_RXOUTEC;
+      	SAMHS_REG->SAMHS_DEV_EPT[0].SAMHS_DEV_EPTCTLDIS = SAMHS_DEV_EPTCTLDIS_RXRDY_TXKL;
         // Re-enable SETUP interrupt
         if (ctrl_dir == 1)
         {
-          USB_REG->DEVEPTIER[0] = DEVEPTIER_CTRL_RXSTPES;
+      	  SAMHS_REG->SAMHS_DEV_EPT[0].SAMHS_DEV_EPTCTLENB = SAMHS_DEV_EPTCTLENB_RX_SETUP;
         }
       }
     }
-    if (int_status & DEVEPTISR_TXINI)
+    if (int_status & SAMHS_DEV_EPTSTA_TX_COMPLT)
     {
       // Disable the interrupt
-      USB_REG->DEVEPTIDR[0] = DEVEPTIDR_TXINEC;
+      SAMHS_REG->SAMHS_DEV_EPT[0].SAMHS_DEV_EPTCTLDIS = SAMHS_DEV_EPTCTLDIS_TX_COMPLT;
       if ((xfer->total_len != xfer->queued_len))
       {
         // TX not complete
@@ -288,13 +280,13 @@ static void dcd_ep_handler(uint8_t ep_ix)
         // Re-enable SETUP interrupt
         if (ctrl_dir == 0)
         {
-          USB_REG->DEVEPTIER[0] = DEVEPTIER_CTRL_RXSTPES;
+      	  SAMHS_REG->SAMHS_DEV_EPT[0].SAMHS_DEV_EPTCTLENB = SAMHS_DEV_EPTCTLENB_RX_SETUP;
         }
       }
     }
   } else 
   {
-    if (int_status & DEVEPTISR_RXOUTI)
+    if (int_status & SAMHS_DEV_EPTSTA_RXRDY_TXKL)
     {
       if (count && xfer->total_len)
       {
@@ -312,23 +304,22 @@ static void dcd_ep_handler(uint8_t ep_ix)
         }
         xfer->queued_len = (uint16_t)(xfer->queued_len + count);
       }
-      // Clear the FIFO control flag to receive more data.
-      USB_REG->DEVEPTIDR[ep_ix] = DEVEPTIDR_FIFOCONC;
+
       // Acknowledge the interrupt
-      USB_REG->DEVEPTICR[ep_ix] = DEVEPTICR_RXOUTIC;
+      SAMHS_REG->SAMHS_DEV_EPT[ep_ix].SAMHS_DEV_EPTCLRSTA = SAMHS_DEV_EPTCLRSTA_RXRDY_TXKL;
       if ((count < xfer->max_packet_size) || (xfer->queued_len == xfer->total_len))
       {
         // RX COMPLETE
         dcd_event_xfer_complete(0, ep_ix, xfer->queued_len, XFER_RESULT_SUCCESS, true);
         // Disable the interrupt
-        USB_REG->DEVEPTIDR[ep_ix] = DEVEPTIDR_RXOUTEC;
+        SAMHS_REG->SAMHS_DEV_EPT[ep_ix].SAMHS_DEV_EPTCTLDIS = SAMHS_DEV_EPTCTLDIS_RXRDY_TXKL;
         // Though the host could still send, we don't know.
       }
     }
-    if (int_status & DEVEPTISR_TXINI)
+    if (int_status & SAMHS_DEV_EPTSTA_TXRDY)
     {
       // Acknowledge the interrupt
-      USB_REG->DEVEPTICR[ep_ix] = DEVEPTICR_TXINIC;
+    //   SAMHS_REG->SAMHS_DEV_EPT[ep_ix].SAMHS_DEV_EPTCLRSTA = SAMHS_DEV_EPTCLRSTA_TXRDY; // !TODO: check this
       if ((xfer->total_len != xfer->queued_len))
       {
         // TX not complete
@@ -338,7 +329,7 @@ static void dcd_ep_handler(uint8_t ep_ix)
         // TX complete
         dcd_event_xfer_complete(0, 0x80 + ep_ix, xfer->total_len, XFER_RESULT_SUCCESS, true);
         // Disable the interrupt
-        USB_REG->DEVEPTIDR[ep_ix] = DEVEPTIDR_TXINEC;
+        SAMHS_REG->SAMHS_DEV_EPT[ep_ix].SAMHS_DEV_EPTCTLDIS = SAMHS_DEV_EPTCTLDIS_TXRDY;
       }
     }
   }
@@ -346,17 +337,17 @@ static void dcd_ep_handler(uint8_t ep_ix)
 
 static void dcd_dma_handler(uint8_t ep_ix)
 {
-  uint32_t status = USB_REG->DEVDMA[ep_ix - 1].DEVDMASTATUS;
-  if (status & DEVDMASTATUS_CHANN_ENB)
+  uint32_t status = SAMHS_REG->SAMHS_DEV_DMA[ep_ix - 1].SAMHS_DEV_DMASTATUS;
+  if (status & SAMHS_DEV_DMASTATUS_CHANN_ENB)
   {
     return; // Ignore EOT_STA interrupt
   }
   // Disable DMA interrupt
-  USB_REG->DEVIDR = DEVIDR_DMA_1 << (ep_ix - 1);
+  SAMHS_REG->SAMHS_DEV_IEN &= ~(SAMHS_DEV_IEN_DMA_1 << (ep_ix - 1));
 
   xfer_ctl_t *xfer = &xfer_status[ep_ix];
-  uint16_t count = xfer->total_len - ((status & DEVDMASTATUS_BUFF_COUNT) >> DEVDMASTATUS_BUFF_COUNT_Pos);
-  if(USB_REG->DEVEPTCFG[ep_ix] & DEVEPTCFG_EPDIR)
+  uint16_t count = xfer->total_len - ((status & SAMHS_DEV_DMASTATUS_BUFF_COUNT_Msk) >> SAMHS_DEV_DMASTATUS_BUFF_COUNT_Pos);
+  if(SAMHS_REG->SAMHS_DEV_EPT[ep_ix].SAMHS_DEV_EPTCFG & SAMHS_DEV_EPTCFG_EPT_DIR)
   {
     dcd_event_xfer_complete(0, 0x80 + ep_ix, count, XFER_RESULT_SUCCESS, true);
   } else 
@@ -368,56 +359,46 @@ static void dcd_dma_handler(uint8_t ep_ix)
 void dcd_int_handler(uint8_t rhport)
 {
   (void) rhport;
-  uint32_t int_status = USB_REG->DEVISR;
-  int_status &= USB_REG->DEVIMR;
+  uint32_t int_status = SAMHS_REG->SAMHS_DEV_INTSTA;
+  int_status &= SAMHS_REG->SAMHS_DEV_IEN;
   // End of reset interrupt
-  if (int_status & DEVISR_EORST)
+  if (int_status & SAMHS_DEV_INTSTA_ENDRESET)
   {
-    // Unfreeze USB clock
-    USB_REG->CTRL &= ~CTRL_FRZCLK;
-    while(!(USB_REG->SR & SR_CLKUSABLE));
     // Reset all endpoints
     for (int ep_ix = 1; ep_ix < EP_MAX; ep_ix++)
     {
-      USB_REG->DEVEPT |= 1 << (DEVEPT_EPRST0_Pos + ep_ix);
-      USB_REG->DEVEPT &=~(1 << (DEVEPT_EPRST0_Pos + ep_ix));
+       SAMHS_REG->SAMHS_DEV_EPTRST = (SAMHS_DEV_EPTRST_EPT_0 << ep_ix);
     }
     dcd_edpt_open (0, &ep0_desc);
-    USB_REG->DEVICR = DEVICR_EORSTC;
-    USB_REG->DEVICR = DEVICR_WAKEUPC;
-    USB_REG->DEVICR = DEVICR_SUSPC;
-    USB_REG->DEVIER = DEVIER_SUSPES;
+    SAMHS_REG->SAMHS_DEV_CLRINT = SAMHS_DEV_CLRINT_ENDRESET;
+    SAMHS_REG->SAMHS_DEV_CLRINT = SAMHS_DEV_CLRINT_WAKE_UP;
+    SAMHS_REG->SAMHS_DEV_CLRINT = SAMHS_DEV_CLRINT_DET_SUSPD;
+    SAMHS_REG->SAMHS_DEV_IEN |= SAMHS_DEV_IEN_DET_SUSPD;
 
     dcd_event_bus_reset(rhport, get_speed(), true);
   }
   // End of Wakeup interrupt
-  if (int_status & DEVISR_WAKEUP)
+  if (int_status & SAMHS_DEV_INTSTA_WAKE_UP)
   {
-    USB_REG->CTRL &= ~CTRL_FRZCLK;
-    while (!(USB_REG->SR & SR_CLKUSABLE));
-    USB_REG->DEVICR = DEVICR_WAKEUPC;
-    USB_REG->DEVIDR = DEVIDR_WAKEUPEC;
-    USB_REG->DEVIER = DEVIER_SUSPES;
+    SAMHS_REG->SAMHS_DEV_CLRINT = SAMHS_DEV_CLRINT_WAKE_UP;
+    SAMHS_REG->SAMHS_DEV_IEN &= ~(SAMHS_DEV_IEN_WAKE_UP);
+    SAMHS_REG->SAMHS_DEV_IEN |= SAMHS_DEV_IEN_DET_SUSPD;
 
     dcd_event_bus_signal(0, DCD_EVENT_RESUME, true);
   }
   // Suspend interrupt
-  if (int_status & DEVISR_SUSP)
+  if (int_status & SAMHS_DEV_INTSTA_DET_SUSPD)
   {
-    // Unfreeze USB clock
-    USB_REG->CTRL &= ~CTRL_FRZCLK;
-    while (!(USB_REG->SR & SR_CLKUSABLE));
-    USB_REG->DEVICR = DEVICR_SUSPC;
-    USB_REG->DEVIDR = DEVIDR_SUSPEC;
-    USB_REG->DEVIER = DEVIER_WAKEUPES;
-    USB_REG->CTRL |= CTRL_FRZCLK;
+    SAMHS_REG->SAMHS_DEV_CLRINT = SAMHS_DEV_CLRINT_DET_SUSPD;
+    SAMHS_REG->SAMHS_DEV_IEN &= ~(SAMHS_DEV_IEN_DET_SUSPD);
+    SAMHS_REG->SAMHS_DEV_IEN |= SAMHS_DEV_IEN_WAKE_UP;
 
     dcd_event_bus_signal(0, DCD_EVENT_SUSPEND, true);
   }
 #if USE_SOF
-  if(int_status & DEVISR_SOF)
+  if(int_status & SAMHS_DEV_INTSTA_INT_SOF)
   {
-    USB_REG->DEVICR = DEVICR_SOFC;
+    SAMHS_REG->SAMHS_DEV_CLRINT = SAMHS_DEV_CLRINT_INT_SOF;
 
     dcd_event_bus_signal(0, DCD_EVENT_SOF, true);
   }
@@ -425,7 +406,7 @@ void dcd_int_handler(uint8_t rhport)
   // Endpoints interrupt
   for (int ep_ix = 0; ep_ix < EP_MAX; ep_ix++)
   {
-    if (int_status & (DEVISR_PEP_0 << ep_ix))
+    if (int_status & (SAMHS_DEV_INTSTA_EPT_0 << ep_ix))
     {
       dcd_ep_handler(ep_ix);
     }
@@ -435,7 +416,7 @@ void dcd_int_handler(uint8_t rhport)
   {
     if (EP_DMA_SUPPORT(ep_ix))
     {
-      if (int_status & (DEVISR_DMA_1 << (ep_ix - 1)))
+      if (int_status & (SAMHS_DEV_INTSTA_DMA_1 << (ep_ix - 1)))
       {
         dcd_dma_handler(ep_ix);
       }
@@ -458,7 +439,7 @@ void dcd_edpt0_status_complete(uint8_t rhport, tusb_control_request_t const * re
   {
     uint8_t const dev_addr = (uint8_t) request->wValue;
 
-    USB_REG->DEVCTRL |= dev_addr | DEVCTRL_ADDEN;
+    SAMHS_REG->SAMHS_DEV_CTRL |= SAMHS_DEV_CTRL_DEV_ADDR(dev_addr) | SAMHS_DEV_CTRL_FADDR_EN;
   }
 }
 
@@ -483,29 +464,27 @@ bool dcd_edpt_open (uint8_t rhport, tusb_desc_endpoint_t const * ep_desc)
   }
   xfer_status[epnum].max_packet_size = epMaxPktSize;
 
-  USB_REG->DEVEPT |= 1 << (DEVEPT_EPRST0_Pos + epnum);
-  USB_REG->DEVEPT &=~(1 << (DEVEPT_EPRST0_Pos + epnum));
+  SAMHS_REG->SAMHS_DEV_EPTRST = (SAMHS_DEV_EPTRST_EPT_0 << epnum);
 
   if (epnum == 0)
   {
     // Enable the control endpoint - Endpoint 0
-    USB_REG->DEVEPT |= DEVEPT_EPEN0;
+    SAMHS_REG->SAMHS_DEV_EPT[0].SAMHS_DEV_EPTCTLENB |= SAMHS_DEV_EPTCTLENB_EPT_ENABL;
     // Configure the Endpoint 0 configuration register
-    USB_REG->DEVEPTCFG[0] =
-      (
-       (fifoSize << DEVEPTCFG_EPSIZE_Pos)            |
-       (TUSB_XFER_CONTROL << DEVEPTCFG_EPTYPE_Pos)   |
-       (DEVEPTCFG_EPBK_1_BANK << DEVEPTCFG_EPBK_Pos) |
-       DEVEPTCFG_ALLOC
-       );
-    USB_REG->DEVEPTIER[0] = DEVEPTIER_RSTDTS;
-    USB_REG->DEVEPTIDR[0] = DEVEPTIDR_CTRL_STALLRQC;
-    if (DEVEPTISR_CFGOK == (USB_REG->DEVEPTISR[0] & DEVEPTISR_CFGOK))
+	SAMHS_REG->SAMHS_DEV_EPT[0].SAMHS_DEV_EPTCFG = (SAMHS_DEV_EPTCFG_EPT_SIZE(fifoSize) |
+                                            SAMHS_DEV_EPTCFG_EPT_TYPE(TUSB_XFER_CONTROL) |
+                                            SAMHS_DEV_EPTCFG_BK_NUMBER_1);
+
+
+	SAMHS_REG->SAMHS_DEV_EPT[0].SAMHS_DEV_EPTCLRSTA = SAMHS_DEV_EPTCLRSTA_TOGGLESQ;
+	SAMHS_REG->SAMHS_DEV_EPT[0].SAMHS_DEV_EPTCLRSTA = SAMHS_DEV_EPTCLRSTA_FRCESTALL;
+
+    if (SAMHS_REG->SAMHS_DEV_EPT[0].SAMHS_DEV_EPTCFG & SAMHS_DEV_EPTCFG_EPT_MAPD)
     {
       // Endpoint configuration is successful
-      USB_REG->DEVEPTIER[0] = DEVEPTIER_CTRL_RXSTPES;
+      SAMHS_REG->SAMHS_DEV_EPT[0].SAMHS_DEV_EPTCTLENB = SAMHS_DEV_EPTCTLENB_RX_SETUP;
       // Enable Endpoint 0 Interrupts
-      USB_REG->DEVIER = DEVIER_PEP_0;
+      SAMHS_REG->SAMHS_DEV_IEN |= SAMHS_DEV_IEN_EPT_0;
       return true;
     } else 
     {
@@ -515,34 +494,29 @@ bool dcd_edpt_open (uint8_t rhport, tusb_desc_endpoint_t const * ep_desc)
   } else 
   {
     // Enable the endpoint
-    USB_REG->DEVEPT |= ((0x01 << epnum) << DEVEPT_EPEN0_Pos);
+    SAMHS_REG->SAMHS_DEV_EPT[epnum].SAMHS_DEV_EPTCTLENB |= SAMHS_DEV_EPTCTLENB_EPT_ENABL;
     // Set up the maxpacket size, fifo start address fifosize
     // and enable the interrupt. CLear the data toggle.
     // AUTOSW is needed for DMA ack !
-    USB_REG->DEVEPTCFG[epnum] =
-      (
-       (fifoSize << DEVEPTCFG_EPSIZE_Pos)            |
-       (eptype  << DEVEPTCFG_EPTYPE_Pos)             |
-       (DEVEPTCFG_EPBK_1_BANK << DEVEPTCFG_EPBK_Pos) |
-       DEVEPTCFG_AUTOSW |
-       ((dir & 0x01) << DEVEPTCFG_EPDIR_Pos)
-       );
+	SAMHS_REG->SAMHS_DEV_EPT[epnum].SAMHS_DEV_EPTCFG = (SAMHS_DEV_EPTCFG_EPT_SIZE(fifoSize) |
+                                            SAMHS_DEV_EPTCFG_EPT_TYPE(eptype) |
+                                            SAMHS_DEV_EPTCFG_BK_NUMBER_1 |
+											((dir & 0x01) << 3));
     if (eptype == TUSB_XFER_ISOCHRONOUS)
     {
-      USB_REG->DEVEPTCFG[epnum] |= DEVEPTCFG_NBTRANS_1_TRANS;
+      SAMHS_REG->SAMHS_DEV_EPT[epnum].SAMHS_DEV_EPTCFG |= SAMHS_DEV_EPTCFG_NB_TRANS(1);
     }
 #if USE_DUAL_BANK
     if (eptype == TUSB_XFER_ISOCHRONOUS || eptype == TUSB_XFER_BULK)
     {
-      USB_REG->DEVEPTCFG[epnum] |= DEVEPTCFG_EPBK_2_BANK;
+      SAMHS_REG->SAMHS_DEV_EPT[epnum].SAMHS_DEV_EPTCFG |= SAMHS_DEV_EPTCFG_BK_NUMBER_2;
     }
 #endif
-    USB_REG->DEVEPTCFG[epnum] |= DEVEPTCFG_ALLOC;
-    USB_REG->DEVEPTIER[epnum] = DEVEPTIER_RSTDTS;
-    USB_REG->DEVEPTIDR[epnum] = DEVEPTIDR_CTRL_STALLRQC;
-    if (DEVEPTISR_CFGOK == (USB_REG->DEVEPTISR[epnum] & DEVEPTISR_CFGOK))
+	SAMHS_REG->SAMHS_DEV_EPT[epnum].SAMHS_DEV_EPTCLRSTA = SAMHS_DEV_EPTCLRSTA_TOGGLESQ;
+	SAMHS_REG->SAMHS_DEV_EPT[epnum].SAMHS_DEV_EPTCLRSTA = SAMHS_DEV_EPTCLRSTA_FRCESTALL;
+    if (SAMHS_REG->SAMHS_DEV_EPT[epnum].SAMHS_DEV_EPTCFG & SAMHS_DEV_EPTCFG_EPT_MAPD)
     {
-      USB_REG->DEVIER = ((0x01 << epnum) << DEVIER_PEP_0_Pos);
+      SAMHS_REG->SAMHS_DEV_IEN |= (SAMHS_DEV_IEN_EPT_0 << epnum);
       return true;
     } else 
     {
@@ -564,9 +538,9 @@ void dcd_edpt_close(uint8_t rhport, uint8_t ep_addr)
   uint8_t const epnum  = tu_edpt_number(ep_addr);
 
   // Disable endpoint interrupt
-  USB_REG->DEVIDR = 1 << (DEVIDR_PEP_0_Pos + epnum);
+  SAMHS_REG->SAMHS_DEV_IEN &= ~(SAMHS_DEV_IEN_EPT_0 << epnum);
   // Disable EP
-  USB_REG->DEVEPT &=~(1 << (DEVEPT_EPEN0_Pos + epnum));
+  SAMHS_REG->SAMHS_DEV_EPT[epnum].SAMHS_DEV_EPTCTLENB &= ~(SAMHS_DEV_EPTCTLENB_EPT_ENABL);
 }
 
 static void dcd_transmit_packet(xfer_ctl_t * xfer, uint8_t ep_ix)
@@ -594,13 +568,13 @@ static void dcd_transmit_packet(xfer_ctl_t * xfer, uint8_t ep_ix)
   if (ep_ix == 0U)
   {
     // Control endpoint: clear the interrupt flag to send the data
-    USB_REG->DEVEPTICR[0] = DEVEPTICR_TXINIC;
+	SAMHS_REG->SAMHS_DEV_EPT[0].SAMHS_DEV_EPTSETSTA = SAMHS_DEV_EPTSETSTA_TXRDY;
   } else 
   {
     // Other endpoint types: clear the FIFO control flag to send the data
-    USB_REG->DEVEPTIDR[ep_ix] = DEVEPTIDR_FIFOCONC;
+	SAMHS_REG->SAMHS_DEV_EPT[ep_ix].SAMHS_DEV_EPTSETSTA = SAMHS_DEV_EPTSETSTA_TXRDY;
   }
-  USB_REG->DEVEPTIER[ep_ix] = DEVEPTIER_TXINES;
+  SAMHS_REG->SAMHS_DEV_EPT[ep_ix].SAMHS_DEV_EPTCTLENB = SAMHS_DEV_EPTCTLENB_TX_COMPLT;
 }
 
 // Submit a transfer, When complete dcd_event_xfer_complete() is invoked to notify the stack
@@ -621,24 +595,24 @@ bool dcd_edpt_xfer (uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t 
   {
     // Force the CPU to flush the buffer. We increase the size by 32 because the call aligns the
     // address to 32-byte boundaries.
-    CleanInValidateCache((uint32_t*) tu_align((uint32_t) buffer, 4), total_bytes + 31);
-    uint32_t udd_dma_ctrl = total_bytes << DEVDMACONTROL_BUFF_LENGTH_Pos;
+    // CleanInValidateCache((uint32_t*) tu_align((uint32_t) buffer, 4), total_bytes + 31);
+    uint32_t udd_dma_ctrl = total_bytes << SAMHS_DEV_DMACONTROL_BUFF_LENGTH_Pos;
     if (dir == TUSB_DIR_OUT)
     {
-      udd_dma_ctrl |= DEVDMACONTROL_END_TR_IT | DEVDMACONTROL_END_TR_EN;
+      udd_dma_ctrl |= SAMHS_DEV_DMACONTROL_END_TR_IT | SAMHS_DEV_DMACONTROL_END_TR_EN;
     } else {
-      udd_dma_ctrl |= DEVDMACONTROL_END_B_EN;
+      udd_dma_ctrl |= SAMHS_DEV_DMACONTROL_END_B_EN;
     }
-    USB_REG->DEVDMA[epnum - 1].DEVDMAADDRESS = (uint32_t)buffer;
-    udd_dma_ctrl |= DEVDMACONTROL_END_BUFFIT | DEVDMACONTROL_CHANN_ENB;
+    SAMHS_REG->SAMHS_DEV_DMA[epnum - 1].SAMHS_DEV_DMAADDRESS = (uint32_t)buffer;
+    udd_dma_ctrl |= SAMHS_DEV_DMACONTROL_END_BUFFIT | SAMHS_DEV_DMACONTROL_CHANN_ENB;
     // Disable IRQs to have a short sequence
     // between read of EOT_STA and DMA enable
     uint32_t irq_state = __get_PRIMASK();
     __disable_irq();
-    if (!(USB_REG->DEVDMA[epnum - 1].DEVDMASTATUS & DEVDMASTATUS_END_TR_ST))
+    if (!(SAMHS_REG->SAMHS_DEV_DMA[epnum - 1].SAMHS_DEV_DMASTATUS & SAMHS_DEV_DMASTATUS_END_TR_ST))
     {
-      USB_REG->DEVDMA[epnum - 1].DEVDMACONTROL = udd_dma_ctrl;
-      USB_REG->DEVIER = DEVIER_DMA_1 << (epnum - 1);
+      SAMHS_REG->SAMHS_DEV_DMA[epnum - 1].SAMHS_DEV_DMACONTROL = udd_dma_ctrl;
+      SAMHS_REG->SAMHS_DEV_IEN |= SAMHS_DEV_IEN_DMA_1 << (epnum - 1);
       __set_PRIMASK(irq_state);
       return true;
     }
@@ -652,7 +626,7 @@ bool dcd_edpt_xfer (uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t 
   {
     if (dir == TUSB_DIR_OUT)
     {
-      USB_REG->DEVEPTIER[epnum] = DEVEPTIER_RXOUTES;
+  	  SAMHS_REG->SAMHS_DEV_EPT[epnum].SAMHS_DEV_EPTCTLENB = SAMHS_DEV_EPTCTLENB_RXRDY_TXKL;
     } else 
     {
       dcd_transmit_packet(xfer,epnum);
@@ -683,52 +657,52 @@ bool dcd_edpt_xfer_fifo (uint8_t rhport, uint8_t ep_addr, tu_fifo_t * ff, uint16
   if (EP_DMA_SUPPORT(epnum) && total_bytes != 0)
   {
     tu_fifo_buffer_info_t info;
-    uint32_t udd_dma_ctrl_lin = DEVDMACONTROL_CHANN_ENB;
-    uint32_t udd_dma_ctrl_wrap = DEVDMACONTROL_CHANN_ENB | DEVDMACONTROL_END_BUFFIT;
+    uint32_t udd_dma_ctrl_lin = SAMHS_DEV_DMACONTROL_CHANN_ENB;
+    uint32_t udd_dma_ctrl_wrap = SAMHS_DEV_DMACONTROL_CHANN_ENB | SAMHS_DEV_DMACONTROL_END_BUFFIT;
     if (dir == TUSB_DIR_OUT)
     {
       tu_fifo_get_write_info(ff, &info);
-      udd_dma_ctrl_lin |= DEVDMACONTROL_END_TR_IT | DEVDMACONTROL_END_TR_EN;
-      udd_dma_ctrl_wrap |= DEVDMACONTROL_END_TR_IT | DEVDMACONTROL_END_TR_EN;
+      udd_dma_ctrl_lin |= SAMHS_DEV_DMACONTROL_END_TR_IT | SAMHS_DEV_DMACONTROL_END_TR_EN;
+      udd_dma_ctrl_wrap |= SAMHS_DEV_DMACONTROL_END_TR_IT | SAMHS_DEV_DMACONTROL_END_TR_EN;
     } else {
       tu_fifo_get_read_info(ff, &info);
       if(info.len_wrap == 0)
       {
-        udd_dma_ctrl_lin |= DEVDMACONTROL_END_B_EN;
+        udd_dma_ctrl_lin |= SAMHS_DEV_DMACONTROL_END_B_EN;
       }
-      udd_dma_ctrl_wrap |= DEVDMACONTROL_END_B_EN;
+      udd_dma_ctrl_wrap |= SAMHS_DEV_DMACONTROL_END_B_EN;
     }
 
     // Clean invalidate cache of linear part
-    CleanInValidateCache((uint32_t*) tu_align((uint32_t) info.ptr_lin, 4), info.len_lin + 31);
+    // CleanInValidateCache((uint32_t*) tu_align((uint32_t) info.ptr_lin, 4), info.len_lin + 31);
     
-    USB_REG->DEVDMA[epnum - 1].DEVDMAADDRESS = (uint32_t)info.ptr_lin;
+    SAMHS_REG->SAMHS_DEV_DMA[epnum - 1].SAMHS_DEV_DMAADDRESS = (uint32_t)info.ptr_lin;
     if (info.len_wrap)
     {
       // Clean invalidate cache of wrapped part
-      CleanInValidateCache((uint32_t*) tu_align((uint32_t) info.ptr_wrap, 4), info.len_wrap + 31);
+    //   CleanInValidateCache((uint32_t*) tu_align((uint32_t) info.ptr_wrap, 4), info.len_wrap + 31);
       
       dma_desc[epnum - 1].next_desc = 0;
       dma_desc[epnum - 1].buff_addr = (uint32_t)info.ptr_wrap;
       dma_desc[epnum - 1].chnl_ctrl =
-        udd_dma_ctrl_wrap | (info.len_wrap << DEVDMACONTROL_BUFF_LENGTH_Pos);
+        udd_dma_ctrl_wrap | (info.len_wrap << SAMHS_DEV_DMACONTROL_BUFF_LENGTH_Pos);
       // Clean cache of wrapped DMA descriptor
-      CleanInValidateCache((uint32_t*)&dma_desc[epnum - 1], sizeof(dma_desc_t));
+    //   CleanInValidateCache((uint32_t*)&dma_desc[epnum - 1], sizeof(dma_desc_t));
       
-      udd_dma_ctrl_lin |= DEVDMASTATUS_DESC_LDST;
-      USB_REG->DEVDMA[epnum - 1].DEVDMANXTDSC = (uint32_t)&dma_desc[epnum - 1];
+      udd_dma_ctrl_lin |= SAMHS_DEV_DMASTATUS_DESC_LDST;
+      SAMHS_REG->SAMHS_DEV_DMA[epnum - 1].SAMHS_DEV_DMANXTDSC = (uint32_t)&dma_desc[epnum - 1];
     } else {
-      udd_dma_ctrl_lin |= DEVDMACONTROL_END_BUFFIT;
+      udd_dma_ctrl_lin |= SAMHS_DEV_DMACONTROL_END_BUFFIT;
     }
-    udd_dma_ctrl_lin |= (info.len_lin << DEVDMACONTROL_BUFF_LENGTH_Pos);
+    udd_dma_ctrl_lin |= (info.len_lin << SAMHS_DEV_DMACONTROL_BUFF_LENGTH_Pos);
     // Disable IRQs to have a short sequence
     // between read of EOT_STA and DMA enable
     uint32_t irq_state = __get_PRIMASK();
     __disable_irq();
-    if (!(USB_REG->DEVDMA[epnum - 1].DEVDMASTATUS & DEVDMASTATUS_END_TR_ST))
+    if (!(SAMHS_REG->SAMHS_DEV_DMA[epnum - 1].SAMHS_DEV_DMASTATUS & SAMHS_DEV_DMASTATUS_END_TR_ST))
     {
-      USB_REG->DEVDMA[epnum - 1].DEVDMACONTROL = udd_dma_ctrl_lin;
-      USB_REG->DEVIER = DEVIER_DMA_1 << (epnum - 1);
+      SAMHS_REG->SAMHS_DEV_DMA[epnum - 1].SAMHS_DEV_DMACONTROL = udd_dma_ctrl_lin;
+      SAMHS_REG->SAMHS_DEV_IEN |= SAMHS_DEV_IEN_DMA_1 << (epnum - 1);
       __set_PRIMASK(irq_state);
       return true;
     }
@@ -742,7 +716,7 @@ bool dcd_edpt_xfer_fifo (uint8_t rhport, uint8_t ep_addr, tu_fifo_t * ff, uint16
   {
     if (dir == TUSB_DIR_OUT)
     {
-      USB_REG->DEVEPTIER[epnum] = DEVEPTIER_RXOUTES;
+  	  SAMHS_REG->SAMHS_DEV_EPT[epnum].SAMHS_DEV_EPTCTLENB = SAMHS_DEV_EPTCTLENB_RXRDY_TXKL;
     } else 
     {
       dcd_transmit_packet(xfer,epnum);
@@ -756,11 +730,11 @@ void dcd_edpt_stall (uint8_t rhport, uint8_t ep_addr)
 {
   (void) rhport;
   uint8_t const epnum = tu_edpt_number(ep_addr);
-  USB_REG->DEVEPTIER[epnum] = DEVEPTIER_CTRL_STALLRQS;
+  SAMHS_REG->SAMHS_DEV_EPT[epnum].SAMHS_DEV_EPTSETSTA = SAMHS_DEV_EPTSETSTA_FRCESTALL;
   // Re-enable SETUP interrupt
   if (epnum == 0)
   {
-    USB_REG->DEVEPTIER[0] = DEVEPTIER_CTRL_RXSTPES;
+	SAMHS_REG->SAMHS_DEV_EPT[0].SAMHS_DEV_EPTCTLENB = SAMHS_DEV_EPTCTLENB_RX_SETUP;
   }
 }
 
@@ -769,8 +743,8 @@ void dcd_edpt_clear_stall (uint8_t rhport, uint8_t ep_addr)
 {
   (void) rhport;
   uint8_t const epnum = tu_edpt_number(ep_addr);
-  USB_REG->DEVEPTIDR[epnum] = DEVEPTIDR_CTRL_STALLRQC;
-  USB_REG->DEVEPTIER[epnum] = HSTPIPIER_RSTDTS;
+  SAMHS_REG->SAMHS_DEV_EPT[epnum].SAMHS_DEV_EPTCLRSTA = SAMHS_DEV_EPTCLRSTA_FRCESTALL;
+  SAMHS_REG->SAMHS_DEV_EPT[epnum].SAMHS_DEV_EPTCLRSTA = SAMHS_DEV_EPTCLRSTA_TOGGLESQ;
 }
 
 #endif

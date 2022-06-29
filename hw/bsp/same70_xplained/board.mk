@@ -19,7 +19,7 @@ ASF_DIR = hw/mcu/microchip/same70
 LD_FILE = $(ASF_DIR)/same70b/gcc/gcc/same70q21b_flash.ld
 
 SRC_C += \
-	src/portable/microchip/samx7x/dcd_samx7x.c \
+	src/portable/microchip/samhs/dcd_samhs.c \
 	$(ASF_DIR)/same70b/gcc/gcc/startup_same70q21b.c \
 	$(ASF_DIR)/same70b/gcc/system_same70q21b.c \
 	$(ASF_DIR)/hpl/core/hpl_init.c \
