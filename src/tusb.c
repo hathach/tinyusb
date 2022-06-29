@@ -295,7 +295,7 @@ void tu_print_mem(void const *buf, uint32_t count, uint8_t indent)
 
   // fill up last row to 16 for printing ascii
   const uint32_t remain = count%16;
-  uint8_t nback = (remain ? remain : 16);
+  uint8_t nback = (uint8_t)(remain ? remain : 16);
 
   if ( remain )
   {
