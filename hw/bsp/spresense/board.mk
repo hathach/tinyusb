@@ -34,8 +34,9 @@ CFLAGS += \
 	-Wno-error=unused-parameter \
 	-DCFG_TUSB_MCU=OPT_MCU_CXD56 \
 
+# suppress following warnings from mcu driver
 # lwip/src/core/raw.c:334:43: error: declaration of 'recv' shadows a global declaration
-CFLAGS += -Wno-error=shadow
+CFLAGS += -Wno-error=shadow  -Wno-error=redundant-decls
 
 SPRESENSE_SDK = $(TOP)/hw/mcu/sony/cxd56/spresense-exported-sdk
 
