@@ -3,20 +3,13 @@ import glob
 import sys
 import subprocess
 import time
-from multiprocessing import Process
+from multiprocessing import Pool
 
 import build_utils
 
 SUCCEEDED = "\033[32msucceeded\033[0m"
 FAILED = "\033[31mfailed\033[0m"
 SKIPPED = "\033[33mskipped\033[0m"
-
-success_count = 0
-fail_count = 0
-skip_count = 0
-exit_status = 0
-
-total_time = time.monotonic()
 
 build_format = '| {:29} | {:30} | {:18} | {:7} | {:6} | {:6} |'
 build_separator = '-' * 106
@@ -54,45 +47,44 @@ def build_family(example, family):
     filter_with_input(all_boards)
     all_boards.sort()
 
-    plist = []
-    for board in all_boards:
-        p = Process(target=build_board, args=(example, board))
-        plist.append(p)
-        p.start()
-
-    for p in plist:
-        p.join()
+    with Pool(processes=len(all_boards)) as pool:
+        pool_args = list((map(lambda b, e=example: [e, b], all_boards)))
+        result = pool.starmap(build_board, pool_args)
+        return list(map(sum, list(zip(*result))))
     
 def build_board(example, board):
-    global success_count, fail_count, skip_count, exit_status
     start_time = time.monotonic()
     flash_size = "-"
     sram_size = "-"
 
+    # succeeded, failed, skipped
+    ret = [0, 0, 0]
+
     # Check if board is skipped
     if build_utils.skip_example(example, board):
-        success = SKIPPED
-        skip_count += 1
-        print(build_format.format(example, board, success, '-', flash_size, sram_size))
+        status = SKIPPED
+        ret[2] = 1
+        print(build_format.format(example, board, status, '-', flash_size, sram_size))
     else:   
         #subprocess.run("make -C examples/{} BOARD={} clean".format(example, board), shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
         build_result = subprocess.run("make -j -C examples/{} BOARD={} all".format(example, board), shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
 
         if build_result.returncode == 0:
-            success = SUCCEEDED
-            success_count += 1
+            status = SUCCEEDED
+            ret[0] = 1
             (flash_size, sram_size) = build_size(example, board)
             subprocess.run("make -j -C examples/{} BOARD={} copy-artifact".format(example, board), shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
         else:
-            exit_status = build_result.returncode
-            success = FAILED
-            fail_count += 1
+            status = FAILED
+            ret[1] = 1
 
         build_duration = time.monotonic() - start_time
-        print(build_format.format(example, board, success, "{:.2f}s".format(build_duration), flash_size, sram_size))
+        print(build_format.format(example, board, status, "{:.2f}s".format(build_duration), flash_size, sram_size))
 
         if build_result.returncode != 0:
             print(build_result.stdout.decode("utf-8"))
+
+    return ret
 
 def build_size(example, board):
     elf_file = 'examples/{}/_build/{}/*.elf'.format(example, board)
@@ -103,17 +95,22 @@ def build_size(example, board):
     return (flash_size, sram_size)
 
 if __name__ == '__main__':
+    # succeeded, failed, skipped
+    total_result = [0, 0, 0]
+
     print(build_separator)
     print(build_format.format('Example', 'Board', '\033[39mResult\033[0m', 'Time', 'Flash', 'SRAM'))
+    total_time = time.monotonic()
 
     for example in all_examples:
         print(build_separator)
         for family in all_families:
-            build_family(example, family)
+            fret = build_family(example, family)
+            total_result = list(map(lambda x, y: x+y, total_result, fret))
 
     total_time = time.monotonic() - total_time
     print(build_separator)
-    print("Build Summary: {} {}, {} {}, {} {} and took {:.2f}s".format(success_count, SUCCEEDED, fail_count, FAILED, skip_count, SKIPPED, total_time))
+    print("Build Summary: {} {}, {} {}, {} {} and took {:.2f}s".format(total_result[0], SUCCEEDED, total_result[1], FAILED, total_result[2], SKIPPED, total_time))
     print(build_separator)
 
-    sys.exit(exit_status)
+    sys.exit(total_result[1])
