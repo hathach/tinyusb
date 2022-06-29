@@ -3,27 +3,34 @@ import pathlib
 def skip_example(example, board):
     ex_dir = pathlib.Path('examples/') / example
     bsp = pathlib.Path("hw/bsp")
-
-    board_dir = list(bsp.glob("*/boards/" + board))
-    if not board_dir:
-        # Skip unknown boards
-        return True
-
-    board_dir = list(board_dir)[0]
     
-    family_dir = board_dir.parent.parent
-    family = family_dir.name
+    if (bsp / board / "board.mk").exists():
+        # board without family
+        board_dir = bsp / board
+        family = ""
+        mk_contents = ""
+    else:
+        # board within family
+        board_dir = list(bsp.glob("*/boards/" + board))
+        if not board_dir:
+            # Skip unknown boards
+            return True
+    
+        board_dir = list(board_dir)[0]
+    
+        family_dir = board_dir.parent.parent
+        family = family_dir.name
+    
+        # family CMake
+        family_mk = family_dir / "family.cmake"
+    
+        # family.mk
+        if not family_mk.exists():
+            family_mk = family_dir / "family.mk"
+    
+        mk_contents = family_mk.read_text()
 
-    # family CMake
-    family_mk = family_dir / "family.cmake"
-
-    # family.mk
-    if not family_mk.exists():
-        family_mk = family_dir / "family.mk"
-
-    mk_contents = family_mk.read_text()
-
-    # Find the mcu
+    # Find the mcu, first in family mk then board mk
     if "CFG_TUSB_MCU=OPT_MCU_" not in mk_contents:
         board_mk = board_dir / "board.cmake"
         if not board_mk.exists():

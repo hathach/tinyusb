@@ -48,7 +48,7 @@ all_families.sort()
 def build_family(example, family):
     all_boards = []
     for entry in os.scandir("hw/bsp/{}/boards".format(family)):
-        if entry.is_dir():
+        if entry.is_dir() and entry.name != 'pico_sdk':
             all_boards.append(entry.name)
     filter_with_input(all_boards)
     all_boards.sort()
