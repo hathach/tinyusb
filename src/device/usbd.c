@@ -636,7 +636,7 @@ static bool invoke_class_control(uint8_t rhport, usbd_class_driver_t const * dri
 }
 
 // This handles the actual request and its response.
-// return false will cause its caller to stall control endpoint
+// Returns false if unable to complete the request, causing caller to stall control endpoints.
 static bool process_control_request(uint8_t rhport, tusb_control_request_t const * p_request) {
   usbd_control_set_complete_callback(NULL);
   TU_ASSERT(p_request->bmRequestType_bit.type < TUSB_REQ_TYPE_INVALID);
