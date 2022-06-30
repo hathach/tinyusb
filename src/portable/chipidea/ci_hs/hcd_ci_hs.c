@@ -29,7 +29,7 @@
 // Chipidea Highspeed USB IP implement EHCI for host functionality
 
 #if CFG_TUH_ENABLED && \
-    (CFG_TUSB_MCU == OPT_MCU_LPC18XX || CFG_TUSB_MCU == OPT_MCU_LPC43XX || CFG_TUSB_MCU == OPT_MCU_MIMXRT10XX)
+    (CFG_TUSB_MCU == OPT_MCU_LPC18XX || CFG_TUSB_MCU == OPT_MCU_LPC43XX || CFG_TUSB_MCU == OPT_MCU_MIMXRT10XX || CFG_TUSB_MCU == OPT_MCU_MIMXRT11XX)
 
 //--------------------------------------------------------------------+
 // INCLUDE

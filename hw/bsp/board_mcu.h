@@ -110,7 +110,7 @@
 #elif CFG_TUSB_MCU == OPT_MCU_VALENTYUSB_EPTRI
   // no header needed
 
-#elif CFG_TUSB_MCU == OPT_MCU_MIMXRT10XX
+#elif CFG_TUSB_MCU == OPT_MCU_MIMXRT10XX || CFG_TUSB_MCU == OPT_MCU_MIMXRT11XX
   #include "fsl_device_registers.h"
 
 #elif CFG_TUSB_MCU == OPT_MCU_NUC120

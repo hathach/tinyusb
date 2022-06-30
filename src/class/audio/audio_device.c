@@ -66,7 +66,7 @@
 
 // Use ring buffer if it's available, some MCUs need extra RAM requirements
 #ifndef TUD_AUDIO_PREFER_RING_BUFFER
-#if CFG_TUSB_MCU == OPT_MCU_LPC43XX || CFG_TUSB_MCU == OPT_MCU_LPC18XX || CFG_TUSB_MCU == OPT_MCU_MIMXRT10XX
+#if CFG_TUSB_MCU == OPT_MCU_LPC43XX || CFG_TUSB_MCU == OPT_MCU_LPC18XX || CFG_TUSB_MCU == OPT_MCU_MIMXRT10XX || CFG_TUSB_MCU == OPT_MCU_MIMXRT11XX
 #define TUD_AUDIO_PREFER_RING_BUFFER 0
 #else
 #define TUD_AUDIO_PREFER_RING_BUFFER 1
@@ -103,6 +103,7 @@
     CFG_TUSB_MCU == OPT_MCU_LPC18XX                               || \
     CFG_TUSB_MCU == OPT_MCU_LPC43XX                               || \
     CFG_TUSB_MCU == OPT_MCU_MIMXRT10XX                            || \
+    CFG_TUSB_MCU == OPT_MCU_MIMXRT11XX                            || \
     CFG_TUSB_MCU == OPT_MCU_MSP432E4
 #if TUD_AUDIO_PREFER_RING_BUFFER
 #define  USE_LINEAR_BUFFER     0

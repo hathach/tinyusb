@@ -29,6 +29,11 @@
 
 #include "fsl_device_registers.h"
 
+#if CFG_TUSB_MCU == OPT_MCU_MIMXRT11XX
+#define USB1_BASE USB_OTG1_BASE
+#define USB2_BASE USB_OTG2_BASE
+#endif
+
 static const ci_hs_controller_t _ci_controller[] =
 {
   // RT1010 and RT1020 only has 1 USB controller
