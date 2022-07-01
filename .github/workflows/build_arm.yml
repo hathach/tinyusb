@@ -67,6 +67,11 @@ jobs:
     - name: Setup Python
       uses: actions/setup-python@v3
 
+    - name: Install ARM GCC
+      uses: carlosperate/arm-none-eabi-gcc-action@v1
+      with:
+        release: '11.2-2022.02'
+
     - name: Checkout TinyUSB
       uses: actions/checkout@v3
 
@@ -86,10 +91,10 @@ jobs:
         echo >> $GITHUB_ENV PICO_SDK_PATH=~/pico-sdk
         git submodule update --init hw/mcu/raspberry_pi/Pico-PIO-USB
 
-    - name: Install ARM GCC
-      uses: carlosperate/arm-none-eabi-gcc-action@v1
-      with:
-        release: '11.2-2022.02'
+    - name: Get Dependencies
+      run: |
+        b=`find hw/bsp/${{ matrix.family }}/boards -depth -maxdepth 1 -type d -name '[^.]?*' -printf %f -quit`
+        make BOARD={b} get-deps
 
     - name: Build
       run: python3 tools/build_family.py ${{ matrix.family }}
