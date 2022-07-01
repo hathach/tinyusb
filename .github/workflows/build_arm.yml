@@ -89,12 +89,9 @@ jobs:
       run: |
         git clone --depth 1 -b develop https://github.com/raspberrypi/pico-sdk ~/pico-sdk
         echo >> $GITHUB_ENV PICO_SDK_PATH=~/pico-sdk
-        git submodule update --init hw/mcu/raspberry_pi/Pico-PIO-USB
 
     - name: Get Dependencies
-      run: |
-        b=`find hw/bsp/${{ matrix.family }}/boards -depth -maxdepth 1 -type d -name '[^.]?*' -printf %f -quit`
-        make -C examples/device/board_test BOARD=${b} get-deps
+      run: python3 tools/get_dependencies.py ${{ matrix.family }}
 
     - name: Build
       run: python3 tools/build_family.py ${{ matrix.family }}
@@ -127,16 +124,16 @@ jobs:
     - name: Setup Python
       uses: actions/setup-python@v3
 
+    - name: Install ARM GCC
+      uses: carlosperate/arm-none-eabi-gcc-action@v1
+      with:
+        release: '11.2-2022.02'
+
     - name: Checkout TinyUSB
       uses: actions/checkout@v3
 
     - name: Checkout common submodules in lib
       run: git submodule update --init lib/FreeRTOS-Kernel lib/lwip
-
-    - name: Install ARM GCC
-      uses: carlosperate/arm-none-eabi-gcc-action@v1
-      with:
-        release: '11.2-2022.02'
 
     - name: Build
       run: python3 tools/build_board.py ${{ matrix.example }}
