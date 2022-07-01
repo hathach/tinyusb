@@ -29,7 +29,7 @@
 
 #include "fsl_device_registers.h"
 
-#if CFG_TUSB_MCU == OPT_MCU_MIMXRT11XX
+#if !defined(USB1_BASE) && defined(USB_OTG1_BASE)
 #define USB1_BASE USB_OTG1_BASE
 #define USB2_BASE USB_OTG2_BASE
 #endif

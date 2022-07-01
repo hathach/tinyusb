@@ -27,14 +27,14 @@
 #include "tusb_option.h"
 
 #if CFG_TUD_ENABLED && \
-    (CFG_TUSB_MCU == OPT_MCU_LPC18XX || CFG_TUSB_MCU == OPT_MCU_LPC43XX || CFG_TUSB_MCU == OPT_MCU_MIMXRT10XX)
+    (CFG_TUSB_MCU == OPT_MCU_LPC18XX || CFG_TUSB_MCU == OPT_MCU_LPC43XX || CFG_TUSB_MCU == OPT_MCU_MIMXRT)
 
 #warning "transdimenion is renamed to chipidea (portable/chipidea/ci_hs) to match other opensource naming convention such as linux. This file will be removed in the future, please update your makefile accordingly"
 
 //--------------------------------------------------------------------+
 // INCLUDE
 //--------------------------------------------------------------------+
-#if CFG_TUSB_MCU == OPT_MCU_MIMXRT10XX
+#if CFG_TUSB_MCU == OPT_MCU_MIMXRT
   #include "fsl_device_registers.h"
   #define INCLUDE_FSL_DEVICE_REGISTERS
 #else
@@ -153,7 +153,7 @@ typedef struct
   const uint8_t ep_count; // Max bi-directional Endpoints
 }dcd_controller_t;
 
-#if CFG_TUSB_MCU == OPT_MCU_MIMXRT10XX
+#if CFG_TUSB_MCU == OPT_MCU_MIMXRT
   static const dcd_controller_t _dcd_controller[] =
   {
     // RT1010 and RT1020 only has 1 USB controller
