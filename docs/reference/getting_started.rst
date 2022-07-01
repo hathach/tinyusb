@@ -50,7 +50,12 @@ Some TinyUSB examples also requires external submodule libraries in ``/lib`` suc
 
    $ git submodule update --init lib
 
-In addition, MCU driver submodule is also needed to provide low-level MCU peripheral's driver. Luckily, it will be fetched if needed when you run the ``make`` to build your board.
+In addition, MCU driver submodule is also needed to provide low-level MCU peripheral's driver. To download these depencies for your board, run the ``get-dpes`` as follow.
+
+.. code-block::
+
+   $ make BOARD=feather_nrf52840_express get-deps
+
 
 Some modules will also require a module-specific SDK (e.g. RP2040) or binary (e.g. Sony Spresense) to build examples.
 
