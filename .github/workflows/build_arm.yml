@@ -94,7 +94,7 @@ jobs:
     - name: Get Dependencies
       run: |
         b=`find hw/bsp/${{ matrix.family }}/boards -depth -maxdepth 1 -type d -name '[^.]?*' -printf %f -quit`
-        make BOARD={b} get-deps
+        make -C examples/device/board_test BOARD=${b} get-deps
 
     - name: Build
       run: python3 tools/build_family.py ${{ matrix.family }}

@@ -1,6 +1,7 @@
 import os
 import sys
 import time
+import subprocess
 from multiprocessing import Pool
 
 import build_utils
@@ -37,6 +38,10 @@ if __name__ == '__main__':
             all_boards.append(entry.name)
     filter_with_input(all_boards)
     all_boards.sort()
+
+    # Get dependencies
+    for b in all_boards:
+        subprocess.run("make -C examples/device/board_test BOARD={} get-deps".format(b), shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
 
     print(build_separator)
     print(build_utils.build_format.format('Example', 'Board', '\033[39mResult\033[0m', 'Time', 'Flash', 'SRAM'))
