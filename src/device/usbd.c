@@ -328,7 +328,7 @@ void usbd_driver_print_control_complete_name(usbd_control_xfer_cb_t callback)
   for (uint8_t i = 0; i < TOTAL_DRIVER_COUNT; i++)
   {
     usbd_class_driver_t const * driver = get_driver(i);
-    if ( driver->control_xfer_cb == callback )
+    if ( driver && driver->control_xfer_cb == callback )
     {
       TU_LOG(USBD_DBG, "  %s control complete\r\n", driver->name);
       return;

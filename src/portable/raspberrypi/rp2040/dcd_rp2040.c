@@ -55,6 +55,9 @@ static uint8_t *next_buffer_ptr;
 // USB_MAX_ENDPOINTS Endpoints, direction TUSB_DIR_OUT for out and TUSB_DIR_IN for in.
 static struct hw_endpoint hw_endpoints[USB_MAX_ENDPOINTS][2];
 
+// SOF may be used by remote wakeup as RESUME, this indicate whether SOF is actually used by usbd
+static bool _sof_enable = false;
+
 TU_ATTR_ALWAYS_INLINE static inline struct hw_endpoint *hw_endpoint_get_by_num(uint8_t num, tusb_dir_t dir)
 {
   return &hw_endpoints[num][dir];
@@ -250,6 +253,10 @@ static void __tusb_irq_path_func(dcd_rp2040_irq)(void)
     if (status & USB_INTF_DEV_SOF_BITS)
     {
       handled |= USB_INTF_DEV_SOF_BITS;
+
+      // disable SOF interrupt if it is used for RESUME in remote wakeup
+      if (!_sof_enable) usb_hw_clear->inte = USB_INTS_DEV_SOF_BITS;
+
       dcd_event_sof(0, usb_hw->sof_rd & USB_SOF_RD_BITS, true);
     }
 
@@ -411,9 +418,13 @@ void dcd_set_address (__unused uint8_t rhport, __unused uint8_t dev_addr)
 
 void dcd_remote_wakeup(__unused uint8_t rhport)
 {
-    pico_info("dcd_remote_wakeup %d\n", rhport);
-    assert(rhport == 0);
-    usb_hw_set->sie_ctrl = USB_SIE_CTRL_RESUME_BITS;
+  pico_info("dcd_remote_wakeup %d\n", rhport);
+  assert(rhport == 0);
+
+  // since RESUME interrupt is not triggered if we are the one initiate
+  // briefly enable SOF to notify usbd when bus is ready
+  usb_hw_set->inte = USB_INTS_DEV_SOF_BITS;
+  usb_hw_set->sie_ctrl = USB_SIE_CTRL_RESUME_BITS;
 }
 
 // disconnect by disabling internal pull-up resistor on D+/D-
@@ -434,17 +445,15 @@ void dcd_sof_enable(uint8_t rhport, bool en)
 {
   (void) rhport;
 
-  uint32_t inte = usb_hw->inte;
+  _sof_enable = en;
 
   if (en)
   {
-    inte |= USB_INTS_DEV_SOF_BITS;
+    usb_hw_set->inte = USB_INTS_DEV_SOF_BITS;
   }else
   {
-    inte &= ~USB_INTS_DEV_SOF_BITS;
+    usb_hw_clear->inte = USB_INTS_DEV_SOF_BITS;
   }
-
-  usb_hw->inte = inte;
 }
 
 /*------------------------------------------------------------------*/
