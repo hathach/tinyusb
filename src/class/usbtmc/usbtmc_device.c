@@ -603,23 +603,23 @@ bool usbtmcd_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request
     if(ep_addr == usbtmc_state.ep_bulk_out)
     {
       criticalEnter();
-      usbd_edpt_stall(rhport, ep_addr);
-      usbd_edpt_clear_stall(rhport, ep_addr);
+      usbd_edpt_stall(rhport, (uint8_t)ep_addr);
+      usbd_edpt_clear_stall(rhport, (uint8_t)ep_addr);
       usbtmc_state.state = STATE_NAK; // USBD core has placed EP in NAK state for us
       criticalLeave();
       tud_usbtmc_bulkOut_clearFeature_cb();
     }
     else if (ep_addr == usbtmc_state.ep_bulk_in)
     {
-      usbd_edpt_stall(rhport, ep_addr);
-      usbd_edpt_clear_stall(rhport, ep_addr);
+      usbd_edpt_stall(rhport, (uint8_t)ep_addr);
+      usbd_edpt_clear_stall(rhport, (uint8_t)ep_addr);
       tud_usbtmc_bulkIn_clearFeature_cb();
     }
     else if ((usbtmc_state.ep_int_in != 0) && (ep_addr == usbtmc_state.ep_int_in))
     {
       // Clearing interrupt in EP
-      usbd_edpt_stall(rhport, ep_addr);
-      usbd_edpt_clear_stall(rhport, ep_addr);
+      usbd_edpt_stall(rhport, (uint8_t)ep_addr);
+      usbd_edpt_clear_stall(rhport, (uint8_t)ep_addr);
     }
      else
     {
