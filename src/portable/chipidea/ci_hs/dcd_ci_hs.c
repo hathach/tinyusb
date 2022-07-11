@@ -34,7 +34,7 @@
 #include "device/dcd.h"
 #include "ci_hs_type.h"
 
-#if CFG_TUSB_MCU == OPT_MCU_MIMXRT10XX
+#if CFG_TUSB_MCU == OPT_MCU_MIMXRT
   #include "ci_hs_imxrt.h"
 #elif TU_CHECK_MCU(OPT_MCU_LPC18XX, OPT_MCU_LPC43XX)
   #include "ci_hs_lpc18_43.h"
