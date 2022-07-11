@@ -4,28 +4,29 @@ target_compile_options(${PROJECT} PUBLIC
         -Werror
         -Wfatal-errors
         -Wdouble-promotion
-        #-Wstrict-prototypes
-        -Wstrict-overflow
-        #-Werror-implicit-function-declaration
         -Wfloat-equal
-        #-Wundef
         -Wshadow
         -Wwrite-strings
         -Wsign-compare
         -Wmissing-format-attribute
         -Wunreachable-code
         -Wcast-align
-        -Wcast-function-type
         -Wcast-qual
         -Wnull-dereference
         -Wuninitialized
         -Wunused
         -Wredundant-decls
+        #-Wstrict-prototypes
+        #-Werror-implicit-function-declaration
+        #-Wundef
         )
 
-# GCC version 9 or prior has a bug with incorrect Wconversion warnings
+# GCC 10
 if (CMAKE_C_COMPILER_VERSION VERSION_GREATER_EQUAL 10.0)
-  target_compile_options(${PROJECT} PUBLIC
-        -Wconversion
-        )
+  target_compile_options(${PROJECT} PUBLIC -Wconversion)
+endif()
+
+# GCC 8
+if (CMAKE_C_COMPILER_VERSION VERSION_GREATER_EQUAL 8.0)
+  target_compile_options(${PROJECT} PUBLIC -Wcast-function-type -Wstrict-overflow)
 endif()
