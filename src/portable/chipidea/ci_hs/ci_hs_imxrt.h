@@ -31,6 +31,9 @@
 
 #if !defined(USB1_BASE) && defined(USB_OTG1_BASE)
 #define USB1_BASE USB_OTG1_BASE
+#endif
+
+#if !defined(USB2_BASE) && defined(USB_OTG2_BASE)
 #define USB2_BASE USB_OTG2_BASE
 #endif
 
