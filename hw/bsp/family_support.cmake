@@ -113,6 +113,11 @@ if (NOT TARGET _family_support_marker)
             if (CMAKE_C_COMPILER_VERSION VERSION_GREATER_EQUAL 8.0)
                 target_compile_options(${TARGET} PUBLIC -Wcast-function-type -Wstrict-overflow)
             endif()
+
+            # GCC 6
+            if (CMAKE_C_COMPILER_VERSION VERSION_GREATER_EQUAL 6.0)
+                target_compile_options(${TARGET} PUBLIC -Wno-strict-aliasing)
+            endif()
         endif()
     endfunction()
 
