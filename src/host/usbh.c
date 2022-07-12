@@ -123,7 +123,6 @@ typedef struct {
 
 // Invalid driver ID in itf2drv[] ep2drv[][] mapping
 enum { DRVID_INVALID = 0xFFu };
-enum { ADDR_INVALID  = 0xFFu };
 enum { CONTROLLER_INVALID = 0xFFu };
 
 #if CFG_TUSB_DEBUG >= 2
@@ -1434,7 +1433,8 @@ static uint8_t get_new_address(bool is_hub)
   {
     if (!_usbh_devices[idx].connected) return (idx+1);
   }
-  return ADDR_INVALID;
+
+  return 0; // invalid address
 }
 
 static bool enum_request_set_addr(void)
@@ -1443,7 +1443,7 @@ static bool enum_request_set_addr(void)
 
   // Get new address
   uint8_t const new_addr = get_new_address(desc_device->bDeviceClass == TUSB_CLASS_HUB);
-  TU_ASSERT(new_addr != ADDR_INVALID);
+  TU_ASSERT(new_addr != 0);
 
   TU_LOG2("Set Address = %d\r\n", new_addr);
 
