@@ -655,9 +655,7 @@ static bool usbh_control_xfer_cb (uint8_t dev_addr, uint8_t ep_addr, xfer_result
           TU_ASSERT( hcd_edpt_xfer(rhport, dev_addr, tu_edpt_addr(0, request->bmRequestType_bit.direction), _ctrl_xfer.buffer, request->wLength) );
           return true;
         }
-#if __GNUC__ >= 7
-        __attribute__((fallthrough));
-#endif
+        TU_ATTR_FALLTHROUGH;
 
       case CONTROL_STAGE_DATA:
         if (request->wLength)
