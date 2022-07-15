@@ -87,15 +87,15 @@ TU_ATTR_ALWAYS_INLINE static inline uint32_t _hw_endpoint_buffer_control_get_val
 }
 
 TU_ATTR_ALWAYS_INLINE static inline void _hw_endpoint_buffer_control_set_value32(struct hw_endpoint *ep, uint32_t value) {
-    return _hw_endpoint_buffer_control_update32(ep, 0, value);
+    _hw_endpoint_buffer_control_update32(ep, 0, value);
 }
 
 TU_ATTR_ALWAYS_INLINE static inline void _hw_endpoint_buffer_control_set_mask32(struct hw_endpoint *ep, uint32_t value) {
-    return _hw_endpoint_buffer_control_update32(ep, ~value, value);
+    _hw_endpoint_buffer_control_update32(ep, ~value, value);
 }
 
 TU_ATTR_ALWAYS_INLINE static inline void _hw_endpoint_buffer_control_clear_mask32(struct hw_endpoint *ep, uint32_t value) {
-    return _hw_endpoint_buffer_control_update32(ep, ~value, 0);
+    _hw_endpoint_buffer_control_update32(ep, ~value, 0);
 }
 
 static inline uintptr_t hw_data_offset(uint8_t *buf)
