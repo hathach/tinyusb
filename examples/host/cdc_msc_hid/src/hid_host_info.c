@@ -33,8 +33,8 @@ tusb_hid_host_info_t* tuh_hid_get_info(uint8_t dev_addr, uint8_t instance)
   key.elements.in_use = 1;
   uint32_t combined  = key.combined;
   
-  // Linear search for endpoint, which is fine while HCD_MAX_ENDPOINT 
-  // is small. Perhaps a 'bsearch' version should be used if HCD_MAX_ENDPOINT
+  // Linear search for endpoint, which is fine while TUP_DCD_ENDPOINT_MAX 
+  // is small. Perhaps a 'bsearch' version should be used if TUP_DCD_ENDPOINT_MAX
   // is large.
   for(uint8_t i = 0; i < TUP_DCD_ENDPOINT_MAX; ++i) {
     tusb_hid_host_info_t* info = &hid_info[i];
