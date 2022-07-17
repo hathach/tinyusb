@@ -23,7 +23,7 @@
 
 #include "hid_host_info.h"
 
-static tusb_hid_host_info_t hid_info[CFG_TUH_ENDPOINT_MAX];
+static tusb_hid_host_info_t hid_info[TUP_DCD_ENDPOINT_MAX];
 
 tusb_hid_host_info_t* tuh_hid_get_info(uint8_t dev_addr, uint8_t instance)
 {
@@ -36,7 +36,7 @@ tusb_hid_host_info_t* tuh_hid_get_info(uint8_t dev_addr, uint8_t instance)
   // Linear search for endpoint, which is fine while HCD_MAX_ENDPOINT 
   // is small. Perhaps a 'bsearch' version should be used if HCD_MAX_ENDPOINT
   // is large.
-  for(uint8_t i = 0; i < CFG_TUH_ENDPOINT_MAX; ++i) {
+  for(uint8_t i = 0; i < TUP_DCD_ENDPOINT_MAX; ++i) {
     tusb_hid_host_info_t* info = &hid_info[i];
     if (info->key.combined == combined) return info;
   }
@@ -53,14 +53,14 @@ void tuh_hid_free_sinlge_info(tusb_hid_host_info_t* info)
 
 void tuh_hid_free_all_info(void)
 {
-  for(uint8_t i = 0; i < CFG_TUH_ENDPOINT_MAX; ++i) {
+  for(uint8_t i = 0; i < TUP_DCD_ENDPOINT_MAX; ++i) {
     tuh_hid_free_sinlge_info(&hid_info[i]);
   } 
 }
 
 void tuh_hid_free_info(uint8_t dev_addr, uint8_t instance)
 {
-  for(uint8_t i = 0; i < CFG_TUH_ENDPOINT_MAX; ++i) {
+  for(uint8_t i = 0; i < TUP_DCD_ENDPOINT_MAX; ++i) {
     tusb_hid_host_info_t* info = &hid_info[i];
     if (info->key.elements.instance == instance && info->key.elements.dev_addr == dev_addr && info->key.elements.in_use) {
       tuh_hid_free_sinlge_info(info);
@@ -75,7 +75,7 @@ tusb_hid_host_info_t* tuh_hid_allocate_info(
   void (*handler)(struct tusb_hid_host_info* info, const uint8_t* report, uint8_t report_length, uint8_t report_id),
   void (*unmount)(struct tusb_hid_host_info* info))
 {
-  for(uint8_t i = 0; i < CFG_TUH_ENDPOINT_MAX; ++i) {
+  for(uint8_t i = 0; i < TUP_DCD_ENDPOINT_MAX; ++i) {
     tusb_hid_host_info_t* info = &hid_info[i];
     if (!info->key.elements.in_use) {
       tu_memclr(info, sizeof(tusb_hid_host_info_t));
