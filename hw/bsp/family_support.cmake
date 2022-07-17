@@ -79,6 +79,48 @@ if (NOT TARGET _family_support_marker)
         endif()
     endfunction()
 
+    function(family_add_default_example_warnings TARGET)
+        target_compile_options(${TARGET} PUBLIC
+                -Wall
+                -Wextra
+                -Werror
+                -Wfatal-errors
+                -Wdouble-promotion
+                -Wfloat-equal
+                -Wshadow
+                -Wwrite-strings
+                -Wsign-compare
+                -Wmissing-format-attribute
+                -Wunreachable-code
+                -Wcast-align
+                -Wcast-qual
+                -Wnull-dereference
+                -Wuninitialized
+                -Wunused
+                -Wredundant-decls
+                #-Wstrict-prototypes
+                #-Werror-implicit-function-declaration
+                #-Wundef
+                )
+
+        if (CMAKE_C_COMPILER_ID STREQUAL "GNU")
+            # GCC 10
+            if (CMAKE_C_COMPILER_VERSION VERSION_GREATER_EQUAL 10.0)
+                target_compile_options(${TARGET} PUBLIC -Wconversion)
+            endif()
+
+            # GCC 8
+            if (CMAKE_C_COMPILER_VERSION VERSION_GREATER_EQUAL 8.0)
+                target_compile_options(${TARGET} PUBLIC -Wcast-function-type -Wstrict-overflow)
+            endif()
+
+            # GCC 6
+            if (CMAKE_C_COMPILER_VERSION VERSION_GREATER_EQUAL 6.0)
+                target_compile_options(${TARGET} PUBLIC -Wno-strict-aliasing)
+            endif()
+        endif()
+    endfunction()
+
     # configure an executable target to link to tinyusb in device mode, and add the board implementation
     function(family_configure_device_example TARGET)
         # default implentation is empty, the function should be redefined in the FAMILY/family.cmake

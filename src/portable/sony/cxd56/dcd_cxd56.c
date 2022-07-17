@@ -247,6 +247,14 @@ void dcd_disconnect(uint8_t rhport)
   DEV_DISCONNECT(usbdev);
 }
 
+void dcd_sof_enable(uint8_t rhport, bool en)
+{
+  (void) rhport;
+  (void) en;
+
+  // TODO implement later
+}
+
 //--------------------------------------------------------------------+
 // Endpoint API
 //--------------------------------------------------------------------+

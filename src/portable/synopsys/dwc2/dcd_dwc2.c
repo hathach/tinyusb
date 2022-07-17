@@ -34,6 +34,13 @@
 #include "device/dcd.h"
 #include "dwc2_type.h"
 
+// Following symbols must be defined by port header
+// - _dwc2_controller[]: array of controllers
+// - DWC2_EP_MAX: largest EP counts of all controllers
+// - dwc2_phy_init/dwc2_phy_update: phy init called before and after core reset
+// - dwc2_dcd_int_enable/dwc2_dcd_int_disable
+// - dwc2_remote_wakeup_delay
+
 #if defined(TUP_USBIP_DWC2_STM32)
   #include "dwc2_stm32.h"
 #elif TU_CHECK_MCU(OPT_MCU_ESP32S2, OPT_MCU_ESP32S3)
@@ -55,7 +62,7 @@
 //--------------------------------------------------------------------+
 
 // DWC2 registers
-#define DWC2_REG(_port)       ((dwc2_regs_t*) DWC2_REG_BASE)
+#define DWC2_REG(_port)       ((dwc2_regs_t*) _dwc2_controller[_port].reg_base)
 
 // Debug level for DWC2
 #define DWC2_DEBUG    2
@@ -71,7 +78,6 @@
 #ifndef dcache_clean_invalidate
 #define dcache_clean_invalidate(_addr, _size)
 #endif
-
 
 static TU_ATTR_ALIGNED(4) uint32_t _setup_packet[2];
 
@@ -93,44 +99,47 @@ static uint16_t ep0_pending[2];                   // Index determines direction 
 static uint16_t _allocated_fifo_words_tx;         // TX FIFO size in words (IN EPs)
 static bool     _out_ep_closed;                   // Flag to check if RX FIFO size needs an update (reduce its size)
 
+// SOF enabling flag - required for SOF to not get disabled in ISR when SOF was enabled by
+static bool _sof_en;
+
 // Calculate the RX FIFO size according to recommendations from reference manual
-static inline uint16_t calc_rx_ff_size(uint16_t ep_size)
+static inline uint16_t calc_grxfsiz(uint16_t max_ep_size, uint8_t ep_count)
 {
-  return 15 + 2*(ep_size/4) + 2*DWC2_EP_MAX;
+  return 15 + 2*(max_ep_size/4) + 2*ep_count;
 }
 
 static void update_grxfsiz(uint8_t rhport)
 {
-  (void) rhport;
-
-  dwc2_regs_t * dwc2 = DWC2_REG(rhport);
+  dwc2_regs_t * dwc2     = DWC2_REG(rhport);
+  uint8_t const ep_count = _dwc2_controller[rhport].ep_count;
 
   // Determine largest EP size for RX FIFO
   uint16_t max_epsize = 0;
-  for (uint8_t epnum = 0; epnum < DWC2_EP_MAX; epnum++)
+  for (uint8_t epnum = 0; epnum < ep_count; epnum++)
   {
     max_epsize = tu_max16(max_epsize, xfer_status[epnum][TUSB_DIR_OUT].max_size);
   }
 
   // Update size of RX FIFO
-  dwc2->grxfsiz = calc_rx_ff_size(max_epsize);
+  dwc2->grxfsiz = calc_grxfsiz(max_epsize, ep_count);
 }
 
-// Setup the control endpoint 0.
+// Start of Bus Reset
 static void bus_reset(uint8_t rhport)
 {
-  (void) rhport;
-
-  dwc2_regs_t * dwc2 = DWC2_REG(rhport);
+  dwc2_regs_t * dwc2     = DWC2_REG(rhport);
+  uint8_t const ep_count = _dwc2_controller[rhport].ep_count;
 
   tu_memclr(xfer_status, sizeof(xfer_status));
   _out_ep_closed = false;
+
+  _sof_en = false;
 
   // clear device address
   dwc2->dcfg &= ~DCFG_DAD_Msk;
 
   // 1. NAK for all OUT endpoints
-  for ( uint8_t n = 0; n < DWC2_EP_MAX; n++ )
+  for ( uint8_t n = 0; n < ep_count; n++ )
   {
     dwc2->epout[n].doepctl |= DOEPCTL_SNAK;
   }
@@ -180,22 +189,24 @@ static void bus_reset(uint8_t rhport)
   //   - 2 for each used OUT endpoint
   //
   //   Therefore GRXFSIZ = 13 + 1 + 1 + 2 x (Largest-EPsize/4) + 2 x EPOUTnum
-  //   - FullSpeed (64 Bytes ): GRXFSIZ = 15 + 2 x  16 + 2 x DWC2_EP_MAX = 47  + 2 x DWC2_EP_MAX
-  //   - Highspeed (512 bytes): GRXFSIZ = 15 + 2 x 128 + 2 x DWC2_EP_MAX = 271 + 2 x DWC2_EP_MAX
+  //   - FullSpeed (64 Bytes ): GRXFSIZ = 15 + 2 x  16 + 2 x ep_count = 47  + 2 x ep_count
+  //   - Highspeed (512 bytes): GRXFSIZ = 15 + 2 x 128 + 2 x ep_count = 271 + 2 x ep_count
   //
   //   NOTE: Largest-EPsize & EPOUTnum is actual used endpoints in configuration. Since DCD has no knowledge
-  //   of the overall picture yet. We will use the worst scenario: largest possible + DWC2_EP_MAX
+  //   of the overall picture yet. We will use the worst scenario: largest possible + ep_count
   //
   //   For Isochronous, largest EP size can be 1023/1024 for FS/HS respectively. In addition if multiple ISO
   //   are enabled at least "2 x (Largest-EPsize/4) + 1" are recommended.  Maybe provide a macro for application to
   //   overwrite this.
 
-  dwc2->grxfsiz = calc_rx_ff_size(TUD_OPT_HIGH_SPEED ? 512 : 64);
+  // EP0 out max is 64
+  dwc2->grxfsiz = calc_grxfsiz(64, ep_count);
 
+  // Setup the control endpoint 0
   _allocated_fifo_words_tx = 16;
 
   // Control IN uses FIFO 0 with 64 bytes ( 16 32-bit word )
-  dwc2->dieptxf0 = (16 << DIEPTXF0_TX0FD_Pos) | (DWC2_EP_FIFO_SIZE/4 - _allocated_fifo_words_tx);
+  dwc2->dieptxf0 = (16 << DIEPTXF0_TX0FD_Pos) | (_dwc2_controller[rhport].ep_fifo_size/4 - _allocated_fifo_words_tx);
 
   // Fixed control EP0 size to 64 bytes
   dwc2->epin[0].diepctl &= ~(0x03 << DIEPCTL_MPSIZ_Pos);
@@ -358,7 +369,11 @@ static void reset_core(dwc2_regs_t * dwc2)
 static bool phy_hs_supported(dwc2_regs_t * dwc2)
 {
   // note: esp32 incorrect report its hs_phy_type as utmi
+#if TU_CHECK_MCU(OPT_MCU_ESP32S2, OPT_MCU_ESP32S3)
+  return false;
+#else
   return TUD_OPT_HIGH_SPEED && dwc2->ghwcfg2_bm.hs_phy_type != HS_PHY_TYPE_NONE;
+#endif
 }
 
 static void phy_fs_init(dwc2_regs_t * dwc2)
@@ -457,6 +472,7 @@ static bool check_dwc2(dwc2_regs_t * dwc2)
 #endif
 
   // For some reasons: GD32VF103 snpsid and all hwcfg register are always zero (skip it)
+  (void) dwc2;
 #if !TU_CHECK_MCU(OPT_MCU_GD32VF103)
   uint32_t const gsnpsid = dwc2->gsnpsid & GSNPSID_ID_MASK;
   TU_ASSERT(gsnpsid == DWC2_OTG_ID || gsnpsid == DWC2_FS_IOT_ID || gsnpsid == DWC2_HS_IOT_ID);
@@ -588,6 +604,24 @@ void dcd_disconnect(uint8_t rhport)
   dwc2->dctl |= DCTL_SDIS;
 }
 
+// Be advised: audio, video and possibly other iso-ep classes use dcd_sof_enable() to enable/disable its corresponding ISR on purpose!
+void dcd_sof_enable(uint8_t rhport, bool en)
+{
+  (void) rhport;
+  dwc2_regs_t * dwc2 = DWC2_REG(rhport);
+
+  _sof_en = en;
+
+  if (en)
+  {
+    dwc2->gintsts = GINTSTS_SOF;
+    dwc2->gintmsk |= GINTMSK_SOFM;
+  }
+  else
+  {
+    dwc2->gintmsk &= ~GINTMSK_SOFM;
+  }
+}
 
 /*------------------------------------------------------------------*/
 /* DCD Endpoint port
@@ -597,12 +631,13 @@ bool dcd_edpt_open (uint8_t rhport, tusb_desc_endpoint_t const * desc_edpt)
 {
   (void) rhport;
 
-  dwc2_regs_t * dwc2 = DWC2_REG(rhport);
+  dwc2_regs_t * dwc2     = DWC2_REG(rhport);
+  uint8_t const ep_count = _dwc2_controller[rhport].ep_count;
 
   uint8_t const epnum = tu_edpt_number(desc_edpt->bEndpointAddress);
   uint8_t const dir   = tu_edpt_dir(desc_edpt->bEndpointAddress);
 
-  TU_ASSERT(epnum < DWC2_EP_MAX);
+  TU_ASSERT(epnum < ep_count);
 
   xfer_ctl_t * xfer = XFER_CTL_BASE(epnum, dir);
   xfer->max_size = tu_edpt_packet_size(desc_edpt);
@@ -613,12 +648,12 @@ bool dcd_edpt_open (uint8_t rhport, tusb_desc_endpoint_t const * desc_edpt)
   if(dir == TUSB_DIR_OUT)
   {
     // Calculate required size of RX FIFO
-    uint16_t const sz = calc_rx_ff_size(4*fifo_size);
+    uint16_t const sz = calc_grxfsiz(4*fifo_size, ep_count);
 
     // If size_rx needs to be extended check if possible and if so enlarge it
     if (dwc2->grxfsiz < sz)
     {
-      TU_ASSERT(sz + _allocated_fifo_words_tx <= DWC2_EP_FIFO_SIZE/4);
+      TU_ASSERT(sz + _allocated_fifo_words_tx <= _dwc2_controller[rhport].ep_fifo_size/4);
 
       // Enlarge RX FIFO
       dwc2->grxfsiz = sz;
@@ -655,15 +690,15 @@ bool dcd_edpt_open (uint8_t rhport, tusb_desc_endpoint_t const * desc_edpt)
     // - IN EP 1 gets FIFO 1, IN EP "n" gets FIFO "n".
 
     // Check if free space is available
-    TU_ASSERT(_allocated_fifo_words_tx + fifo_size + dwc2->grxfsiz <= DWC2_EP_FIFO_SIZE/4);
+    TU_ASSERT(_allocated_fifo_words_tx + fifo_size + dwc2->grxfsiz <= _dwc2_controller[rhport].ep_fifo_size/4);
 
     _allocated_fifo_words_tx += fifo_size;
 
-    TU_LOG(DWC2_DEBUG, "    Allocated %u bytes at offset %u", fifo_size*4, DWC2_EP_FIFO_SIZE-_allocated_fifo_words_tx*4);
+    TU_LOG(DWC2_DEBUG, "    Allocated %u bytes at offset %lu", fifo_size*4, _dwc2_controller[rhport].ep_fifo_size-_allocated_fifo_words_tx*4);
 
     // DIEPTXF starts at FIFO #1.
     // Both TXFD and TXSA are in unit of 32-bit words.
-    dwc2->dieptxf[epnum - 1] = (fifo_size << DIEPTXF_INEPTXFD_Pos) | (DWC2_EP_FIFO_SIZE/4 - _allocated_fifo_words_tx);
+    dwc2->dieptxf[epnum - 1] = (fifo_size << DIEPTXF_INEPTXFD_Pos) | (_dwc2_controller[rhport].ep_fifo_size/4 - _allocated_fifo_words_tx);
 
     dwc2->epin[epnum].diepctl |= (1 << DIEPCTL_USBAEP_Pos) |
                                  (epnum << DIEPCTL_TXFNUM_Pos) |
@@ -680,14 +715,13 @@ bool dcd_edpt_open (uint8_t rhport, tusb_desc_endpoint_t const * desc_edpt)
 // Close all non-control endpoints, cancel all pending transfers if any.
 void dcd_edpt_close_all (uint8_t rhport)
 {
-  (void) rhport;
-
-  dwc2_regs_t * dwc2 = DWC2_REG(rhport);
+  dwc2_regs_t * dwc2     = DWC2_REG(rhport);
+  uint8_t const ep_count = _dwc2_controller[rhport].ep_count;
 
   // Disable non-control interrupt
   dwc2->daintmsk = (1 << DAINTMSK_OEPM_Pos) | (1 << DAINTMSK_IEPM_Pos);
 
-  for(uint8_t n = 1; n < DWC2_EP_MAX; n++)
+  for(uint8_t n = 1; n < ep_count; n++)
   {
     // disable OUT endpoint
     dwc2->epout[n].doepctl = 0;
@@ -796,8 +830,7 @@ static void dcd_edpt_disable (uint8_t rhport, uint8_t ep_addr, bool stall)
     }
 
     // Flush the FIFO, and wait until we have confirmed it cleared.
-    dwc2->grstctl |= (epnum << GRSTCTL_TXFNUM_Pos);
-    dwc2->grstctl |= GRSTCTL_TXFFLSH;
+    dwc2->grstctl = ((epnum << GRSTCTL_TXFNUM_Pos) | GRSTCTL_TXFFLSH);
     while ( (dwc2->grstctl & GRSTCTL_TXFFLSH_Msk) != 0 ) {}
   }
   else
@@ -849,8 +882,9 @@ void dcd_edpt_close (uint8_t rhport, uint8_t ep_addr)
   {
     uint16_t const fifo_size = (dwc2->dieptxf[epnum - 1] & DIEPTXF_INEPTXFD_Msk) >> DIEPTXF_INEPTXFD_Pos;
     uint16_t const fifo_start = (dwc2->dieptxf[epnum - 1] & DIEPTXF_INEPTXSA_Msk) >> DIEPTXF_INEPTXSA_Pos;
+
     // For now only the last opened endpoint can be closed without fuss.
-    TU_ASSERT(fifo_start == DWC2_EP_FIFO_SIZE/4 - _allocated_fifo_words_tx,);
+    TU_ASSERT(fifo_start == _dwc2_controller[rhport].ep_fifo_size/4 - _allocated_fifo_words_tx,);
     _allocated_fifo_words_tx -= fifo_size;
   }
   else
@@ -1053,11 +1087,12 @@ static void handle_rxflvl_irq(uint8_t rhport)
 
 static void handle_epout_irq (uint8_t rhport)
 {
-  dwc2_regs_t *dwc2 = DWC2_REG(rhport);
+  dwc2_regs_t * dwc2     = DWC2_REG(rhport);
+  uint8_t const ep_count = _dwc2_controller[rhport].ep_count;
 
   // DAINT for a given EP clears when DOEPINTx is cleared.
   // OEPINT will be cleared when DAINT's out bits are cleared.
-  for ( uint8_t n = 0; n < DWC2_EP_MAX; n++ )
+  for ( uint8_t n = 0; n < ep_count; n++ )
   {
     if ( dwc2->daint & TU_BIT(DAINT_OEPINT_Pos + n) )
     {
@@ -1104,12 +1139,13 @@ static void handle_epout_irq (uint8_t rhport)
 
 static void handle_epin_irq (uint8_t rhport)
 {
-  dwc2_regs_t *dwc2 = DWC2_REG(rhport);
-  dwc2_epin_t* epin = dwc2->epin;
+  dwc2_regs_t * dwc2     = DWC2_REG(rhport);
+  uint8_t const ep_count = _dwc2_controller[rhport].ep_count;
+  dwc2_epin_t* epin      = dwc2->epin;
 
   // DAINT for a given EP clears when DIEPINTx is cleared.
   // IEPINT will be cleared when DAINT's out bits are cleared.
-  for ( uint8_t n = 0; n < DWC2_EP_MAX; n++ )
+  for ( uint8_t n = 0; n < ep_count; n++ )
   {
     if ( dwc2->daint & TU_BIT(DAINT_IEPINT_Pos + n) )
     {
@@ -1251,8 +1287,16 @@ void dcd_int_handler(uint8_t rhport)
   {
     dwc2->gotgint = GINTSTS_SOF;
 
-    // Disable SOF interrupt since currently only used for remote wakeup detection
-    dwc2->gintmsk &= ~GINTMSK_SOFM;
+    if (_sof_en)
+    {
+      uint32_t frame = (dwc2->dsts & (DSTS_FNSOF)) >> 8;
+      dcd_event_sof(rhport, frame, true);
+    }
+    else
+    {
+      // Disable SOF interrupt if SOF was not explicitly enabled. SOF was used for remote wakeup detection
+      dwc2->gintmsk &= ~GINTMSK_SOFM;
+    }
 
     dcd_event_bus_signal(rhport, DCD_EVENT_SOF, true);
   }

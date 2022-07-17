@@ -90,6 +90,9 @@
 #elif defined(__riscv)
   #define TU_BREAKPOINT() do { __asm("ebreak\n"); } while(0)
 
+#elif defined(_mips)
+  #define TU_BREAKPOINT() do { __asm("sdbbp 0"); } while (0)
+
 #else
   #define TU_BREAKPOINT() do {} while (0)
 #endif

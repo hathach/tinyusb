@@ -43,17 +43,25 @@
 #define RHPORT_OFFSET     1
 #define RHPORT_PIO(_x)    ((_x)-RHPORT_OFFSET)
 
-static pio_usb_configuration_t pio_host_config = PIO_USB_DEFAULT_CONFIG;
+static pio_usb_configuration_t pio_host_cfg = PIO_USB_DEFAULT_CONFIG;
 
 //--------------------------------------------------------------------+
 // HCD API
 //--------------------------------------------------------------------+
+bool hcd_configure(uint8_t rhport, uint32_t cfg_id, const void* cfg_param)
+{
+  (void) rhport;
+  TU_VERIFY(cfg_id == TUH_CFGID_RPI_PIO_USB_CONFIGURATION);
+  memcpy(&pio_host_cfg, cfg_param, sizeof(pio_usb_configuration_t));
+  return true;
+}
+
 bool hcd_init(uint8_t rhport)
 {
   (void) rhport;
 
   // To run USB SOF interrupt in core1, call this init in core1
-  pio_usb_host_init(&pio_host_config);
+  pio_usb_host_init(&pio_host_cfg);
 
   return true;
 }

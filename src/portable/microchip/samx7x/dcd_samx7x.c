@@ -191,6 +191,14 @@ void dcd_disconnect(uint8_t rhport)
   USB_REG->DEVCTRL &=~(DEVCTRL_ADDEN | DEVCTRL_UADD);
 }
 
+void dcd_sof_enable(uint8_t rhport, bool en)
+{
+  (void) rhport;
+  (void) en;
+
+  // TODO implement later
+}
+
 static tusb_speed_t get_speed(void)
 {
   switch (USB_REG->SR & SR_SPEED) {

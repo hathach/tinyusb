@@ -297,7 +297,7 @@ static bool _update_streaming_parameters(videod_streaming_interface_t const *stm
 {
   tusb_desc_vs_itf_t const *vs = _get_desc_vs(stm);
   uint_fast8_t fmtnum = param->bFormatIndex;
-  TU_ASSERT(fmtnum <= vs->stm.bNumFormats);
+  TU_ASSERT(vs && fmtnum <= vs->stm.bNumFormats);
   if (!fmtnum) {
     if (1 < vs->stm.bNumFormats) return true; /* Need to negotiate all variables. */
     fmtnum = 1;
@@ -393,6 +393,7 @@ static bool _negotiate_streaming_parameters(videod_streaming_interface_t const *
   uint_fast8_t frmnum = param->bFrameIndex;
   if (!frmnum) {
     tusb_desc_vs_itf_t const *vs = _get_desc_vs(stm);
+    TU_ASSERT(vs);
     void const *end = _end_of_streaming_descriptor(vs);
     tusb_desc_cs_video_fmt_uncompressed_t const *fmt = _find_desc_format(tu_desc_next(vs), end, fmtnum);
     switch (request) {
@@ -407,15 +408,16 @@ static bool _negotiate_streaming_parameters(videod_streaming_interface_t const *
         break;
       default: return false;
     }
-    param->bFrameIndex = frmnum;
+    param->bFrameIndex = (uint8_t) frmnum;
     /* Set the parameters determined by the frame */
     tusb_desc_cs_video_frm_uncompressed_t const *frm = _find_desc_frame(tu_desc_next(fmt), end, frmnum);
-    param->dwMaxVideoFrameSize = frm->wWidth * frm->wHeight * fmt->bBitsPerPixel / 8;
+    param->dwMaxVideoFrameSize = (uint32_t) (frm->wWidth * frm->wHeight * fmt->bBitsPerPixel / 8);
     return true;
   }
 
   if (!param->dwFrameInterval) {
     tusb_desc_vs_itf_t const *vs = _get_desc_vs(stm);
+    TU_ASSERT(vs);
     void const *end = _end_of_streaming_descriptor(vs);
     tusb_desc_cs_video_fmt_uncompressed_t const *fmt = _find_desc_format(tu_desc_next(vs), end, fmtnum);
     tusb_desc_cs_video_frm_uncompressed_t const *frm = _find_desc_frame(tu_desc_next(fmt), end, frmnum);
@@ -532,7 +534,7 @@ static bool _open_vc_itf(uint8_t rhport, videod_interface_t *self, uint_fast8_t 
     /* Open the notification endpoint */
     TU_ASSERT(usbd_edpt_open(rhport, notif));
   }
-  self->cur = (void const*)vc - beg;
+  self->cur = (uint16_t) ((void const*)vc - beg);
   return true;
 }
 
@@ -550,7 +552,7 @@ static bool _open_vs_itf(uint8_t rhport, videod_streaming_interface_t *stm, uint
   for (i = 0; i < TU_ARRAY_SIZE(stm->desc.ep); ++i) {
     uint_fast16_t ofs_ep = stm->desc.ep[i];
     if (!ofs_ep) break;
-    uint_fast8_t  ep_adr = _desc_ep_addr(desc + ofs_ep);
+    uint8_t  ep_adr = _desc_ep_addr(desc + ofs_ep);
     usbd_edpt_close(rhport, ep_adr);
     stm->desc.ep[i] = 0;
     TU_LOG2("    close EP%02x\n", ep_adr);
@@ -567,7 +569,7 @@ static bool _open_vs_itf(uint8_t rhport, videod_streaming_interface_t *stm, uint
   TU_VERIFY(cur < end);
   uint_fast8_t numeps = ((tusb_desc_interface_t const *)cur)->bNumEndpoints;
   TU_ASSERT(numeps <= TU_ARRAY_SIZE(stm->desc.ep));
-  stm->desc.cur = cur - desc; /* Save the offset of the new settings */
+  stm->desc.cur = (uint16_t) (cur - desc); /* Save the offset of the new settings */
   if (!altnum) {
     /* initialize streaming settings */
     stm->max_payload_transfer_size = 0;
@@ -594,7 +596,7 @@ static bool _open_vs_itf(uint8_t rhport, videod_streaming_interface_t *stm, uint
       stm->max_payload_transfer_size = max_size;
     }
     TU_ASSERT(usbd_edpt_open(rhport, ep));
-    stm->desc.ep[i] = cur - desc;
+    stm->desc.ep[i] = (uint16_t) (cur - desc);
     TU_LOG2("    open EP%02x\n", _desc_ep_addr(cur));
   }
   /* initialize payload header */
@@ -976,7 +978,7 @@ bool tud_video_n_frame_xfer(uint_fast8_t ctl_idx, uint_fast8_t stm_idx, void *bu
 
   /* Find EP address */
   void const *desc = _videod_itf[stm->index_vc].beg;
-  uint_fast8_t ep_addr = 0;
+  uint8_t ep_addr = 0;
   for (uint_fast8_t i = 0; i < CFG_TUD_VIDEO_STREAMING; ++i) {
     uint_fast16_t ofs_ep = stm->desc.ep[i];
     if (!ofs_ep) continue;
@@ -985,7 +987,7 @@ bool tud_video_n_frame_xfer(uint_fast8_t ctl_idx, uint_fast8_t stm_idx, void *bu
   }
   if (!ep_addr) return false;
 
-  TU_VERIFY( usbd_edpt_claim(0, ep_addr));
+  TU_VERIFY( usbd_edpt_claim(0, ep_addr) );
   /* update the packet header */
   tusb_video_payload_header_t *hdr = (tusb_video_payload_header_t*)stm->ep_buf;
   hdr->FrameID   ^= 1;
@@ -994,7 +996,7 @@ bool tud_video_n_frame_xfer(uint_fast8_t ctl_idx, uint_fast8_t stm_idx, void *bu
   stm->buffer     = (uint8_t*)buffer;
   stm->bufsize    = bufsize;
   uint_fast16_t pkt_len = _prepare_in_payload(stm);
-  TU_ASSERT( usbd_edpt_xfer(0, ep_addr, stm->ep_buf, pkt_len), 0);
+  TU_ASSERT( usbd_edpt_xfer(0, ep_addr, stm->ep_buf, (uint16_t) pkt_len), 0);
   return true;
 }
 
@@ -1034,7 +1036,7 @@ uint16_t videod_open(uint8_t rhport, tusb_desc_interface_t const * itf_desc, uin
 
   /* Find available interface */
   videod_interface_t *self = NULL;
-  uint_fast8_t ctl_idx;
+  uint8_t ctl_idx;
   for (ctl_idx = 0; ctl_idx < CFG_TUD_VIDEO; ++ctl_idx) {
     if (_videod_itf[ctl_idx].beg) continue;
     self = &_videod_itf[ctl_idx];
@@ -1051,10 +1053,10 @@ uint16_t videod_open(uint8_t rhport, tusb_desc_interface_t const * itf_desc, uin
   uint_fast8_t bInCollection   = vc->ctl.bInCollection;
   /* Find the end of the video interface descriptor */
   void const *cur = _next_desc_itf(itf_desc, end);
-  for (uint_fast8_t stm_idx = 0; stm_idx < bInCollection; ++stm_idx) {
+  for (uint8_t stm_idx = 0; stm_idx < bInCollection; ++stm_idx) {
     videod_streaming_interface_t *stm = NULL;
     /* find free streaming interface handle */
-    for (uint_fast8_t i = 0; i < CFG_TUD_VIDEO_STREAMING; ++i) {
+    for (uint8_t i = 0; i < CFG_TUD_VIDEO_STREAMING; ++i) {
       if (_videod_streaming_itf[i].desc.beg) continue;
       stm = &_videod_streaming_itf[i];
       self->stm[stm_idx] = i;
@@ -1063,12 +1065,12 @@ uint16_t videod_open(uint8_t rhport, tusb_desc_interface_t const * itf_desc, uin
     TU_ASSERT(stm, 0);
     stm->index_vc = ctl_idx;
     stm->index_vs = stm_idx;
-    stm->desc.beg = (uintptr_t)cur - (uintptr_t)itf_desc;
+    stm->desc.beg = (uint16_t) ((uintptr_t)cur - (uintptr_t)itf_desc);
     cur = _next_desc_itf(cur, end);
-    stm->desc.end = (uintptr_t)cur - (uintptr_t)itf_desc;
+    stm->desc.end = (uint16_t) ((uintptr_t)cur - (uintptr_t)itf_desc);
   }
-  self->len = (uintptr_t)cur - (uintptr_t)itf_desc;
-  return (uintptr_t)cur - (uintptr_t)itf_desc;
+  self->len = (uint16_t) ((uintptr_t)cur - (uintptr_t)itf_desc);
+  return (uint16_t) ((uintptr_t)cur - (uintptr_t)itf_desc);
 }
 
 // Invoked when a control transfer occurred on an interface of this class
@@ -1134,7 +1136,7 @@ bool videod_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint3
     /* Claim the endpoint */
     TU_VERIFY( usbd_edpt_claim(rhport, ep_addr), 0);
     uint_fast16_t pkt_len = _prepare_in_payload(stm);
-    TU_ASSERT( usbd_edpt_xfer(rhport, ep_addr, stm->ep_buf, pkt_len), 0);
+    TU_ASSERT( usbd_edpt_xfer(rhport, ep_addr, stm->ep_buf, (uint16_t) pkt_len), 0);
   } else {
     stm->buffer  = NULL;
     stm->bufsize = 0;

@@ -32,7 +32,6 @@
 #endif
 
 #include "common/tusb_common.h"
-#include "hcd.h"
 
 //--------------------------------------------------------------------+
 // MACRO CONSTANT TYPEDEF
@@ -46,8 +45,8 @@ typedef void (*tuh_xfer_cb_t)(tuh_xfer_t* xfer);
 
 // Note1: layout and order of this will be changed in near future
 // it is advised to initialize it using member name
-// Note2: not all field is available/meaningful in callback, some info is not saved by
-// usbh to save SRAM
+// Note2: not all field is available/meaningful in callback,
+// some info is not saved by usbh to save SRAM
 struct tuh_xfer_s
 {
   uint8_t daddr;
@@ -69,6 +68,12 @@ struct tuh_xfer_s
   // uint32_t timeout_ms;    // place holder, not supported yet
 };
 
+// ConfigID for tuh_config()
+enum
+{
+  TUH_CFGID_RPI_PIO_USB_CONFIGURATION = OPT_MCU_RP2040 // cfg_param: pio_usb_configuration_t
+};
+
 //--------------------------------------------------------------------+
 // APPLICATION CALLBACK
 //--------------------------------------------------------------------+
@@ -85,8 +90,14 @@ TU_ATTR_WEAK void tuh_umount_cb(uint8_t daddr);
 // APPLICATION API
 //--------------------------------------------------------------------+
 
+// Configure host stack behavior with dynamic or port-specific parameters.
+// Should be called before tuh_init()
+// - cfg_id   : configure ID (TBD)
+// - cfg_param: configure data, structure depends on the ID
+bool tuh_configure(uint8_t controller_id, uint32_t cfg_id, const void* cfg_param);
+
 // Init host stack
-bool tuh_init(uint8_t rhport);
+bool tuh_init(uint8_t controller_id);
 
 // Check if host stack is already initialized
 bool tuh_inited(void);
@@ -103,8 +114,11 @@ void tuh_task(void)
   tuh_task_ext(UINT32_MAX, false);
 }
 
-// Interrupt handler, name alias to HCD
+#ifndef _TUSB_HCD_H_
 extern void hcd_int_handler(uint8_t rhport);
+#endif
+
+// Interrupt handler, name alias to HCD
 #define tuh_int_handler   hcd_int_handler
 
 bool tuh_vid_pid_get(uint8_t daddr, uint16_t* vid, uint16_t* pid);

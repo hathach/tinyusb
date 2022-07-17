@@ -228,7 +228,9 @@ int main(void)
 {
   /* initialize TinyUSB */
   board_init();
-  tusb_init();
+
+  // init device stack on configured roothub port
+  tud_init(BOARD_TUD_RHPORT);
 
   /* initialize lwip, dhcp-server, dns-server, and http */
   init_lwip();

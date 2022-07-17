@@ -180,6 +180,14 @@ void dcd_connect(uint8_t rhport)
    USB->DEVICE.CTRLB.reg &= ~USB_DEVICE_CTRLB_DETACH;
 }
 
+void dcd_sof_enable(uint8_t rhport, bool en)
+{
+  (void) rhport;
+  (void) en;
+
+  // TODO implement later
+}
+
 /*------------------------------------------------------------------*/
 /* DCD Endpoint port
  *------------------------------------------------------------------*/
@@ -242,6 +250,13 @@ bool dcd_edpt_open (uint8_t rhport, tusb_desc_endpoint_t const * desc_edpt)
   return true;
 }
 
+void dcd_edpt_close (uint8_t rhport, uint8_t ep_addr) {
+  (void) rhport;
+  (void) ep_addr;
+
+  // TODO: implement if necessary?
+}
+
 void dcd_edpt_close_all (uint8_t rhport)
 {
   (void) rhport;
@@ -271,14 +286,14 @@ bool dcd_edpt_xfer (uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t 
   {
     bank->PCKSIZE.bit.MULTI_PACKET_SIZE = total_bytes;
     bank->PCKSIZE.bit.BYTE_COUNT = 0;
-    ep->EPSTATUSCLR.reg |= USB_DEVICE_EPSTATUSCLR_BK0RDY;
-    ep->EPINTFLAG.reg |= USB_DEVICE_EPINTFLAG_TRFAIL0;
+    ep->EPSTATUSCLR.reg = USB_DEVICE_EPSTATUSCLR_BK0RDY;
+    ep->EPINTFLAG.reg = USB_DEVICE_EPINTFLAG_TRFAIL0;
   } else
   {
     bank->PCKSIZE.bit.MULTI_PACKET_SIZE = 0;
     bank->PCKSIZE.bit.BYTE_COUNT = total_bytes;
-    ep->EPSTATUSSET.reg |= USB_DEVICE_EPSTATUSSET_BK1RDY;
-    ep->EPINTFLAG.reg |= USB_DEVICE_EPINTFLAG_TRFAIL1;
+    ep->EPSTATUSSET.reg = USB_DEVICE_EPSTATUSSET_BK1RDY;
+    ep->EPINTFLAG.reg = USB_DEVICE_EPINTFLAG_TRFAIL1;
   }
 
   return true;

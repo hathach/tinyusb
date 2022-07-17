@@ -28,6 +28,7 @@
 
 #if (CFG_TUH_ENABLED && CFG_TUH_HUB)
 
+#include "hcd.h"
 #include "usbh.h"
 #include "usbh_classdriver.h"
 #include "hub.h"
@@ -169,7 +170,7 @@ bool hub_port_get_status(uint8_t hub_addr, uint8_t hub_port, void* resp,
   };
 
   TU_LOG2("HUB Get Port Status: addr = %u port = %u\r\n", hub_addr, hub_port);
-  TU_ASSERT( tuh_control_xfer(&xfer) );
+  TU_VERIFY( tuh_control_xfer(&xfer) );
   return true;
 }
 
@@ -332,7 +333,11 @@ bool hub_xfer_cb(uint8_t dev_addr, uint8_t ep_addr, xfer_result_t result, uint32
   {
     if ( tu_bit_test(p_hub->status_change, port) )
     {
-      hub_port_get_status(dev_addr, port, &p_hub->port_status, connection_get_status_complete, 0);
+      if (hub_port_get_status(dev_addr, port, &p_hub->port_status, connection_get_status_complete, 0) == false)
+      {
+        //Hub status control transfer failed, retry
+        hub_edpt_status_xfer(dev_addr);
+      }
       break;
     }
   }
