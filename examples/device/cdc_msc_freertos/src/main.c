@@ -123,15 +123,19 @@ void usb_device_task(void* param)
 {
   (void) param;
 
+  // init device stack on configured roothub port
   // This should be called after scheduler/kernel is started.
   // Otherwise it could cause kernel issue since USB IRQ handler does use RTOS queue API.
-  tusb_init();
+  tud_init(BOARD_TUD_RHPORT);
 
   // RTOS forever loop
   while (1)
   {
-    // tinyusb device task
+    // put this thread to waiting state until there is new events
     tud_task();
+
+    // following code only run if tud_task() process at least 1 event
+    tud_cdc_write_flush();
   }
 }
 
@@ -181,7 +185,7 @@ void cdc_task(void* params)
     // if ( tud_cdc_connected() )
     {
       // There are data available
-      if ( tud_cdc_available() )
+      while ( tud_cdc_available() )
       {
         uint8_t buf[64];
 
@@ -194,12 +198,13 @@ void cdc_task(void* params)
         // for throughput test e.g
         //    $ dd if=/dev/zero of=/dev/ttyACM0 count=10000
         tud_cdc_write(buf, count);
-        tud_cdc_write_flush();
       }
+
+      tud_cdc_write_flush();
     }
 
-    // For ESP32-S2 this delay is essential to allow idle how to run and reset wdt
-    vTaskDelay(pdMS_TO_TICKS(10));
+    // For ESP32-Sx this delay is essential to allow idle how to run and reset watchdog
+    vTaskDelay(1);
   }
 }
 

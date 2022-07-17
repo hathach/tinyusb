@@ -30,7 +30,7 @@ SRC_C += \
 	$(subst ../../../,,$(wildcard ../../../$(FREERTOS_SRC)/portable/GCC/$(FREERTOS_PORT)/*.c))
 
 # Suppress FreeRTOS warnings
-CFLAGS += -Wno-error=cast-qual
+CFLAGS += -Wno-error=cast-qual -Wno-error=redundant-decls
 
 # FreeRTOS (lto + Os) linker issue
 LDFLAGS += -Wl,--undefined=vTaskSwitchContext

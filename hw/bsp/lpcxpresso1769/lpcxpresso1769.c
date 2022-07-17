@@ -32,12 +32,12 @@
 //--------------------------------------------------------------------+
 void USB_IRQHandler(void)
 {
-  #if CFG_TUSB_RHPORT0_MODE & OPT_MODE_HOST
-    tuh_int_handler(0);
+  #if CFG_TUD_ENABLED
+    tud_int_handler(0);
   #endif
 
-  #if CFG_TUSB_RHPORT0_MODE & OPT_MODE_DEVICE
-    tud_int_handler(0);
+  #if CFG_TUH_ENABLED
+    tuh_int_handler(0);
   #endif
 }
 

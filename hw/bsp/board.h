@@ -41,7 +41,10 @@
 #include "ansi_escape.h"
 #include "tusb.h"
 
-#define CFG_BOARD_UART_BAUDRATE    115200
+// Define the default baudrate
+#ifndef CFG_BOARD_UART_BAUDRATE
+#define CFG_BOARD_UART_BAUDRATE 115200   ///< Default baud rate
+#endif
 
 //--------------------------------------------------------------------+
 // Board Porting API

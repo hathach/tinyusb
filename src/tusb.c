@@ -38,12 +38,14 @@
 
 bool tusb_init(void)
 {
-#if CFG_TUD_ENABLED
-  TU_ASSERT ( tud_init(TUD_OPT_RHPORT) ); // init device stack
+#if CFG_TUD_ENABLED && defined(TUD_OPT_RHPORT)
+  // init device stack CFG_TUSB_RHPORTx_MODE must be defined
+  TU_ASSERT ( tud_init(TUD_OPT_RHPORT) );
 #endif
 
-#if CFG_TUH_ENABLED
-  TU_ASSERT( tuh_init(TUH_OPT_RHPORT) ); // init host stack
+#if CFG_TUH_ENABLED && defined(TUH_OPT_RHPORT)
+  // init host stack CFG_TUSB_RHPORTx_MODE must be defined
+  TU_ASSERT( tuh_init(TUH_OPT_RHPORT) );
 #endif
 
   return true;
@@ -293,7 +295,7 @@ void tu_print_mem(void const *buf, uint32_t count, uint8_t indent)
 
   // fill up last row to 16 for printing ascii
   const uint32_t remain = count%16;
-  uint8_t nback = (remain ? remain : 16);
+  uint8_t nback = (uint8_t)(remain ? remain : 16);
 
   if ( remain )
   {

@@ -909,6 +909,14 @@ void dcd_disconnect(uint8_t rhport)
   USBC_REG_clear_bit_b(USBC_BP_POWER_D_SOFT_CONNECT, USBC_REG_PCTL(USBC0_BASE));
 }
 
+void dcd_sof_enable(uint8_t rhport, bool en)
+{
+  (void) rhport;
+  (void) en;
+
+  // TODO implement later
+}
+
 void dcd_int_enable(uint8_t rhport)
 {
   (void)rhport;

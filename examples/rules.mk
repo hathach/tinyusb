@@ -5,6 +5,7 @@
 # Set all as default goal
 .DEFAULT_GOAL := all
 
+# ---------------- GNU Make Start -----------------------
 # ESP32-Sx and RP2040 has its own CMake build system
 ifeq (,$(findstring $(FAMILY),esp32s2 esp32s3 rp2040))
 
@@ -141,7 +142,23 @@ $(BUILD)/obj/%_asm.o: %.S
 	@echo AS $(notdir $@)
 	@$(CC) -x assembler-with-cpp $(ASFLAGS) -c -o $@ $<
 
-endif # GNU Make
+endif
+
+.PHONY: clean
+clean:
+ifeq ($(CMDEXE),1)
+	rd /S /Q $(subst /,\,$(BUILD))
+else
+	$(RM) -rf $(BUILD)
+endif
+# ---------------- GNU Make End -----------------------
+
+# get depenecies
+.PHONY: get-deps
+get-deps:
+  ifdef DEPS_SUBMODULES
+	git -C $(TOP) submodule update --init $(DEPS_SUBMODULES)
+  endif
 
 size: $(BUILD)/$(PROJECT).elf
 	-@echo ''
@@ -151,14 +168,6 @@ size: $(BUILD)/$(PROJECT).elf
 # linkermap must be install previously at https://github.com/hathach/linkermap
 linkermap: $(BUILD)/$(PROJECT).elf
 	@linkermap -v $<.map
-
-.PHONY: clean
-clean:
-ifeq ($(CMDEXE),1)
-	rd /S /Q $(subst /,\,$(BUILD))
-else
-	$(RM) -rf $(BUILD)
-endif
 
 # ---------------------------------------
 # Flash Targets
@@ -199,7 +208,7 @@ flash-xfel: $(BUILD)/$(PROJECT)-sunxi.bin
 PYOCD_OPTION ?=
 flash-pyocd: $(BUILD)/$(PROJECT).hex
 	pyocd flash -t $(PYOCD_TARGET) $(PYOCD_OPTION) $<
-	pyocd reset -t $(PYOCD_TARGET)
+	#pyocd reset -t $(PYOCD_TARGET)
 
 # Flash using openocd
 OPENOCD_OPTION ?=

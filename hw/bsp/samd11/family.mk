@@ -12,7 +12,7 @@ CFLAGS += \
   -DCFG_TUSB_MCU=OPT_MCU_SAMD11
 
 # suppress warning caused by vendor mcu driver
-CFLAGS += -Wno-error=cast-qual
+CFLAGS += -Wno-error=cast-qual -Wno-error=redundant-decls
 
 SRC_C += \
 	src/portable/microchip/samd/dcd_samd.c \

@@ -45,7 +45,7 @@
  * Variables
  ******************************************************************************/
 /* System clock frequency. */
-extern uint32_t SystemCoreClock;
+// extern uint32_t SystemCoreClock;
 
 /*******************************************************************************
  * Variables for BOARD_BootClockRUN configuration

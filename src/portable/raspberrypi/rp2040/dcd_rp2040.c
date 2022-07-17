@@ -26,7 +26,7 @@
 
 #include "tusb_option.h"
 
-#if CFG_TUD_ENABLED && CFG_TUSB_MCU == OPT_MCU_RP2040
+#if CFG_TUD_ENABLED && (CFG_TUSB_MCU == OPT_MCU_RP2040) && !CFG_TUD_RPI_PIO_USB
 
 #include "pico.h"
 #include "rp2040_usb.h"
@@ -55,7 +55,10 @@ static uint8_t *next_buffer_ptr;
 // USB_MAX_ENDPOINTS Endpoints, direction TUSB_DIR_OUT for out and TUSB_DIR_IN for in.
 static struct hw_endpoint hw_endpoints[USB_MAX_ENDPOINTS][2];
 
-static inline struct hw_endpoint *hw_endpoint_get_by_num(uint8_t num, tusb_dir_t dir)
+// SOF may be used by remote wakeup as RESUME, this indicate whether SOF is actually used by usbd
+static bool _sof_enable = false;
+
+TU_ATTR_ALWAYS_INLINE static inline struct hw_endpoint *hw_endpoint_get_by_num(uint8_t num, tusb_dir_t dir)
 {
   return &hw_endpoints[num][dir];
 }
@@ -185,7 +188,7 @@ static void hw_endpoint_xfer(uint8_t ep_addr, uint8_t *buffer, uint16_t total_by
     hw_endpoint_xfer_start(ep, buffer, total_bytes);
 }
 
-static void hw_handle_buff_status(void)
+static void __tusb_irq_path_func(hw_handle_buff_status)(void)
 {
     uint32_t remaining_buffers = usb_hw->buf_status;
     pico_trace("buf_status = 0x%08x\n", remaining_buffers);
@@ -214,7 +217,7 @@ static void hw_handle_buff_status(void)
     }
 }
 
-static void reset_ep0_pid(void)
+TU_ATTR_ALWAYS_INLINE static inline void reset_ep0_pid(void)
 {
     // If we have finished this transfer on EP0 set pid back to 1 for next
     // setup transfer. Also clear a stall in case
@@ -226,7 +229,7 @@ static void reset_ep0_pid(void)
     }
 }
 
-static void reset_non_control_endpoints(void)
+static void __tusb_irq_path_func(reset_non_control_endpoints)(void)
 {
   // Disable all non-control
   for ( uint8_t i = 0; i < USB_MAX_ENDPOINTS-1; i++ )
@@ -242,10 +245,20 @@ static void reset_non_control_endpoints(void)
   next_buffer_ptr = &usb_dpram->epx_data[0];
 }
 
-static void dcd_rp2040_irq(void)
+static void __tusb_irq_path_func(dcd_rp2040_irq)(void)
 {
     uint32_t const status = usb_hw->ints;
     uint32_t handled = 0;
+
+    if (status & USB_INTF_DEV_SOF_BITS)
+    {
+      handled |= USB_INTF_DEV_SOF_BITS;
+
+      // disable SOF interrupt if it is used for RESUME in remote wakeup
+      if (!_sof_enable) usb_hw_clear->inte = USB_INTS_DEV_SOF_BITS;
+
+      dcd_event_sof(0, usb_hw->sof_rd & USB_SOF_RD_BITS, true);
+    }
 
     // xfer events are handled before setup req. So if a transfer completes immediately
     // before closing the EP, the events will be delivered in same order.
@@ -357,7 +370,7 @@ void dcd_init (uint8_t rhport)
   usb_hw->pwr = USB_USB_PWR_VBUS_DETECT_BITS | USB_USB_PWR_VBUS_DETECT_OVERRIDE_EN_BITS;
 #endif
 
-  irq_set_exclusive_handler(USBCTRL_IRQ, dcd_rp2040_irq);
+  irq_add_shared_handler(USBCTRL_IRQ, dcd_rp2040_irq, PICO_SHARED_IRQ_HANDLER_HIGHEST_ORDER_PRIORITY);
 
   // Init control endpoints
   tu_memclr(hw_endpoints[0], 2*sizeof(hw_endpoint_t));
@@ -405,9 +418,13 @@ void dcd_set_address (__unused uint8_t rhport, __unused uint8_t dev_addr)
 
 void dcd_remote_wakeup(__unused uint8_t rhport)
 {
-    pico_info("dcd_remote_wakeup %d\n", rhport);
-    assert(rhport == 0);
-    usb_hw_set->sie_ctrl = USB_SIE_CTRL_RESUME_BITS;
+  pico_info("dcd_remote_wakeup %d\n", rhport);
+  assert(rhport == 0);
+
+  // since RESUME interrupt is not triggered if we are the one initiate
+  // briefly enable SOF to notify usbd when bus is ready
+  usb_hw_set->inte = USB_INTS_DEV_SOF_BITS;
+  usb_hw_set->sie_ctrl = USB_SIE_CTRL_RESUME_BITS;
 }
 
 // disconnect by disabling internal pull-up resistor on D+/D-
@@ -422,6 +439,21 @@ void dcd_connect(__unused uint8_t rhport)
 {
   (void) rhport;
   usb_hw_set->sie_ctrl = USB_SIE_CTRL_PULLUP_EN_BITS;
+}
+
+void dcd_sof_enable(uint8_t rhport, bool en)
+{
+  (void) rhport;
+
+  _sof_enable = en;
+
+  if (en)
+  {
+    usb_hw_set->inte = USB_INTS_DEV_SOF_BITS;
+  }else
+  {
+    usb_hw_clear->inte = USB_INTS_DEV_SOF_BITS;
+  }
 }
 
 /*------------------------------------------------------------------*/
@@ -501,7 +533,7 @@ void dcd_edpt_close (uint8_t rhport, uint8_t ep_addr)
     hw_endpoint_close(ep_addr);
 }
 
-void dcd_int_handler(uint8_t rhport)
+void __tusb_irq_path_func(dcd_int_handler)(uint8_t rhport)
 {
   (void) rhport;
   dcd_rp2040_irq();

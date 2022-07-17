@@ -30,27 +30,42 @@
  extern "C" {
 #endif
 
+//--------------------------------------------------------------------+
+// Board Specific Configuration
+//--------------------------------------------------------------------+
+
+// RHPort number used for host can be defined by board.mk, default to port 0
+#ifndef BOARD_TUH_RHPORT
+#define BOARD_TUH_RHPORT      0
+#endif
+
+// RHPort max operational speed can defined by board.mk
+#ifndef BOARD_TUH_MAX_SPEED
+#define BOARD_TUH_MAX_SPEED   OPT_MODE_DEFAULT_SPEED
+#endif
+
 //--------------------------------------------------------------------
 // COMMON CONFIGURATION
 //--------------------------------------------------------------------
 
 // defined by compiler flags for flexibility
 #ifndef CFG_TUSB_MCU
-  #error CFG_TUSB_MCU must be defined
-#endif
-
-#if CFG_TUSB_MCU == OPT_MCU_LPC43XX || CFG_TUSB_MCU == OPT_MCU_LPC18XX || CFG_TUSB_MCU == OPT_MCU_MIMXRT10XX
-  #define CFG_TUSB_RHPORT0_MODE       (OPT_MODE_HOST | OPT_MODE_HIGH_SPEED)
-#else
-  #define CFG_TUSB_RHPORT0_MODE       OPT_MODE_HOST
+#error CFG_TUSB_MCU must be defined
 #endif
 
 #ifndef CFG_TUSB_OS
-#define CFG_TUSB_OS                 OPT_OS_NONE
+#define CFG_TUSB_OS           OPT_OS_NONE
 #endif
 
-// CFG_TUSB_DEBUG is defined by compiler in DEBUG build
-// #define CFG_TUSB_DEBUG           0
+#ifndef CFG_TUSB_DEBUG
+#define CFG_TUSB_DEBUG        0
+#endif
+
+// Enable Host stack
+#define CFG_TUH_ENABLED       1
+
+// Default is max speed that hardware controller could support with on-chip PHY
+#define CFG_TUH_MAX_SPEED     BOARD_TUH_MAX_SPEED
 
 /* USB DMA on some MCUs can only access a specific SRAM region with restriction on alignment.
  * Tinyusb use follows macros to declare transferring memory so that they can be put
@@ -81,11 +96,11 @@
 // 1 hub typically has 4 ports
 #define CFG_TUH_DEVICE_MAX          (CFG_TUH_HUB ? 4 : 1)
 
-#define CFG_TUH_ENDPOINT_MAX       8
+// Max endpoint per device
+#define CFG_TUH_ENDPOINT_MAX        8
 
-//------------- HID -------------//
-
-#define CFG_TUH_HID_EP_BUFSIZE      64
+// Enable tuh_edpt_xfer() API
+#define CFG_TUH_API_EDPT_XFER       1
 
 #ifdef __cplusplus
  }
