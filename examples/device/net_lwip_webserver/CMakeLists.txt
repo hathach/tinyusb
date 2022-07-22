@@ -69,9 +69,6 @@ if (EXISTS ${TOP}/lib/lwip/src)
             ${TOP}/lib/networking/rndis_reports.c
             )
 
-    # Example common such as compiler warnings
-    include(${CMAKE_CURRENT_SOURCE_DIR}/../../example.cmake)
-
     # due to warnings from other net source, we need to prevent error from some of the warnings options
     target_compile_options(${PROJECT} PUBLIC
         -Wno-error=null-dereference

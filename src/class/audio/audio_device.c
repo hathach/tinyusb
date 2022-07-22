@@ -66,7 +66,7 @@
 
 // Use ring buffer if it's available, some MCUs need extra RAM requirements
 #ifndef TUD_AUDIO_PREFER_RING_BUFFER
-#if CFG_TUSB_MCU == OPT_MCU_LPC43XX || CFG_TUSB_MCU == OPT_MCU_LPC18XX || CFG_TUSB_MCU == OPT_MCU_MIMXRT10XX
+#if CFG_TUSB_MCU == OPT_MCU_LPC43XX || CFG_TUSB_MCU == OPT_MCU_LPC18XX || CFG_TUSB_MCU == OPT_MCU_MIMXRT
 #define TUD_AUDIO_PREFER_RING_BUFFER 0
 #else
 #define TUD_AUDIO_PREFER_RING_BUFFER 1
@@ -102,7 +102,7 @@
     CFG_TUSB_MCU == OPT_MCU_GD32VF103                             || \
     CFG_TUSB_MCU == OPT_MCU_LPC18XX                               || \
     CFG_TUSB_MCU == OPT_MCU_LPC43XX                               || \
-    CFG_TUSB_MCU == OPT_MCU_MIMXRT10XX                            || \
+    CFG_TUSB_MCU == OPT_MCU_MIMXRT                                || \
     CFG_TUSB_MCU == OPT_MCU_MSP432E4
 #if TUD_AUDIO_PREFER_RING_BUFFER
 #define  USE_LINEAR_BUFFER     0
@@ -565,7 +565,7 @@ static bool audiod_rx_done_cb(uint8_t rhport, audiod_function_t* audio, uint16_t
 
     case AUDIO_FORMAT_TYPE_I:
 
-      switch (audio->format_type_I_tx)
+      switch (audio->format_type_I_rx)
       {
         case AUDIO_DATA_FORMAT_TYPE_I_PCM:
           TU_VERIFY(audiod_decode_type_I_pcm(rhport, audio, n_bytes_received));

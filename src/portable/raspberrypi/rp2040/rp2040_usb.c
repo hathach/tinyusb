@@ -60,7 +60,9 @@ void rp2040_usb_init(void)
   // Clear any previous state just in case
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Warray-bounds"
+#if __GNUC__ > 6
 #pragma GCC diagnostic ignored "-Wstringop-overflow"
+#endif
   memset(usb_hw, 0, sizeof(*usb_hw));
   memset(usb_dpram, 0, sizeof(*usb_dpram));
 #pragma GCC diagnostic pop
