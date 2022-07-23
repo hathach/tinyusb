@@ -99,11 +99,33 @@ jobs:
     - name: Linker Map
       run: |
         pip install linkermap/
-        for ex in `ls -d examples/device/*/`; do \
+        # find -quit to only print map of 1 board per example
+        for ex in `ls -d examples/*/*/`; do \
           find ${ex} -name *.map -print -quit | \
           xargs -I % sh -c 'echo "::group::%"; linkermap -v %; echo "::endgroup::"'; \
         done
 
+    # Following steps are for Hardware Test with self-hosted
+
+    - name: Prepare Artifacts
+      if: matrix.family == 'rp2040'
+      run: find examples/ -name "*.elf" -exec mv {} . \;
+
+    - name: Upload Artifacts for Hardware Test
+      if: matrix.family == 'rp2040'
+      uses: actions/upload-artifact@v3
+      with:
+        name: ${{ matrix.family }}
+        path: |
+          *.elf
+
+    - name: Trigger Hardware Test
+      if: matrix.family == 'rp2040'
+      uses: benc-uk/workflow-dispatch@v1
+      with:
+        workflow: Hardware Test
+        token: ${{ secrets.TRIGGER_SELF_HOSTED }}
+            
   # ---------------------------------------
   # Build all no-family (orphaned) boards
   # ---------------------------------------
