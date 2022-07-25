@@ -43,7 +43,7 @@ The stack supports the following MCUs:
 - **Nuvoton:** NUC120, NUC121/NUC125, NUC126, NUC505
 - **NXP:**
 
-  - iMX RT Series: RT1011, RT1015, RT1021, RT1052, RT1062, RT1064
+  - iMX RT Series: RT10xx, RT11xx
   - Kinetis: KL25, K32L2
   - LPC Series: 11u, 13, 15, 17, 18, 40, 43, 51u, 54, 55
 
