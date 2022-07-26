@@ -5,6 +5,7 @@ on:
 # Hardware in the loop (HIL)
 # Current self-hosted instance is running on an RPI4 with
 # - pico + pico-probe connected via USB
+# - pico-probe is /dev/ttyACM0
 
 jobs:
   hw-test:
@@ -26,13 +27,19 @@ jobs:
         workflow: build_arm.yml
         name: rp2040
         
-    - name: Flash cdc_msc
-      run: openocd -f "interface/picoprobe.cfg" -f "target/rp2040.cfg" -c "program cdc_msc.elf verify reset exit" 
- 
-    - name: Test
+    - name: Test cdc_dual_ports
+      env:
+        example: cdc_dual_ports
       run: |
+        openocd -f "interface/picoprobe.cfg" -f "target/rp2040.cfg" -c "program ${{ env.example }}.elf verify reset exit"
+        test -e /dev/ttyACM1
+        test -e /dev/ttyACM2
+
+    - name: Test cdc_msc
+      env:
+        example: cdc_dual_ports
+      run: |
+        openocd -f "interface/picoprobe.cfg" -f "target/rp2040.cfg" -c "program ${{ env.example }}.elf verify reset exit"
         test -e /dev/ttyACM1
         test -e /media/pi/TinyUSB\ MSC/README.TXT
         cat /media/pi/TinyUSB\ MSC/README.TXT
-        # failed on purpose
-        test -e /dev/ttyACM2
