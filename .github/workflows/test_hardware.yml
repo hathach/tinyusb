@@ -14,10 +14,11 @@ jobs:
     runs-on: [self-hosted, Linux, ARM64]
 
     steps:
-    - name: Test self-host
+    - name: Clean workspace
       run: |
-        echo "Running on self-hosted"
-        ls
+        echo "Cleaning up previous run"
+        rm -rf "${{ github.workspace }}"
+        mkdir -p "${{ github.workspace }}"
         
     - name: Download rp2040 Artifacts
       uses: dawidd6/action-download-artifact@v2
@@ -25,13 +26,13 @@ jobs:
         workflow: build_arm.yml
         name: rp2040
         
-    - name: List
-      run: ls
-
-#    - name: Clean workspace
-#      run: |
-#        echo "Cleaning up previous run"
-#        rm -rf "${{ github.workspace }}"
-#        mkdir -p "${{ github.workspace }}"
-
-    
+    - name: Flash cdc_msc
+      run: openocd -f "interface/picoprobe.cfg" -f "target/rp2040.cfg" -c "program cdc_msc.elf verify reset exit" 
+ 
+    - name: Test
+      run: |
+        test -e /dev/ttyACM1
+        test -e /media/pi/TinyUSB\ MSC/README.TXT
+        cat /media/pi/TinyUSB\ MSC/README.TXT
+        # failed on purpose
+        test -e /dev/ttyACM2
