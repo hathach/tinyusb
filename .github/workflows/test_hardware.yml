@@ -32,14 +32,20 @@ jobs:
         example: cdc_dual_ports
       run: |
         openocd -f "interface/picoprobe.cfg" -f "target/rp2040.cfg" -c "program ${{ env.example }}.elf verify reset exit"
+        echo "Waiting for enumeration"
+        while ! lsusb | grep "cafe:" ; do : ; done
+        # Test
         test -e /dev/ttyACM1
         test -e /dev/ttyACM2
 
     - name: Test cdc_msc
       env:
-        example: cdc_dual_ports
+        example: cdc_msc
       run: |
         openocd -f "interface/picoprobe.cfg" -f "target/rp2040.cfg" -c "program ${{ env.example }}.elf verify reset exit"
+        echo "Waiting for enumeration"
+        while ! lsusb | grep "cafe:" ; do : ; done
+        # Test
         test -e /dev/ttyACM1
         test -e /media/pi/TinyUSB\ MSC/README.TXT
         cat /media/pi/TinyUSB\ MSC/README.TXT
