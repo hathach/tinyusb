@@ -15,33 +15,38 @@ jobs:
     runs-on: [self-hosted, Linux, ARM64]
 
     steps:
-    - name: Prepare workspace
+    - name: Clean workspace
       run: |
         echo "Cleaning up previous run"
         rm -rf "${{ github.workspace }}"
         mkdir -p "${{ github.workspace }}"
-        echo "Create flash.sh"
-        touch flash.sh
-        chmod +x flash.sh
-        echo >> flash.sh 'openocd -f "interface/picoprobe.cfg" -f "target/rp2040.cfg" -c "program $1.elf reset exit"'
-        echo >> flash.sh '"Waiting for enumeration (500 ms for reset, 5s for enumeration)"'
-        echo >> flash.sh 'sleep 0.5'
-        echo >> flash.sh 'SECONDS=0'
-        echo >> flash.sh 'while (! lsusb | grep "cafe:") && [ $SECONDS -le 5 ] ; do : ; done'
 
     - name: Download rp2040 Artifacts
       uses: dawidd6/action-download-artifact@v2
       with:
         workflow: build_arm.yml
         name: rp2040
-        
+
+    - name: Create flash.sh
+      #working-directory: ${{github.workspace}}
+      run: |
+        touch flash.sh
+        chmod +x flash.sh
+        echo > flash.sh 'openocd -f "interface/picoprobe.cfg" -f "target/rp2040.cfg" -c "program $1.elf reset exit"'
+        echo >> flash.sh '"Waiting for enumeration (500 ms for reset, 5s for enumeration)"'
+        echo >> flash.sh 'sleep 0.5'
+        echo >> flash.sh 'SECONDS=0'
+        echo >> flash.sh 'while (! lsusb | grep "cafe:") && [ $SECONDS -le 5 ] ; do : ; done'
+
     - name: Test cdc_dual_ports
+      #working-directory: ${{github.workspace}}
       run: |
         ./flash_sh cdc_dual_ports
         test -e /dev/ttyACM1 && echo "ttyACM1 exists"
         test -e /dev/ttyACM2 && echo "ttyACM2 exists"
 
     - name: Test cdc_msc
+      #working-directory: ${{github.workspace}}
       run: |
         ./flash.sh cdc_msc
         test -e /dev/ttyACM1 && echo "ttyACM1 exists"
