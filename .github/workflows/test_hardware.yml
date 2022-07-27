@@ -41,7 +41,7 @@ jobs:
     - name: Test cdc_dual_ports
       #working-directory: ${{github.workspace}}
       run: |
-        ./flash_sh cdc_dual_ports
+        ./flash.sh cdc_dual_ports
         test -e /dev/ttyACM1 && echo "ttyACM1 exists"
         test -e /dev/ttyACM2 && echo "ttyACM2 exists"
 
