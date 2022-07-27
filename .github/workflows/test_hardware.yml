@@ -15,12 +15,20 @@ jobs:
     runs-on: [self-hosted, Linux, ARM64]
 
     steps:
-    - name: Clean workspace
+    - name: Prepare workspace
       run: |
         echo "Cleaning up previous run"
         rm -rf "${{ github.workspace }}"
         mkdir -p "${{ github.workspace }}"
-        
+        echo "Create flash.sh"
+        touch flash.sh
+        chmod +x flash.sh
+        echo >> flash.sh 'openocd -f "interface/picoprobe.cfg" -f "target/rp2040.cfg" -c "program $1.elf reset exit"'
+        echo >> flash.sh '"Waiting for enumeration (500 ms for reset, 5s for enumeration)"'
+        echo >> flash.sh 'sleep 0.5'
+        echo >> flash.sh 'SECONDS=0'
+        echo >> flash.sh 'while (! lsusb | grep "cafe:") && [ $SECONDS -le 5 ] ; do : ; done'
+
     - name: Download rp2040 Artifacts
       uses: dawidd6/action-download-artifact@v2
       with:
@@ -28,28 +36,14 @@ jobs:
         name: rp2040
         
     - name: Test cdc_dual_ports
-      env:
-        example: cdc_dual_ports
       run: |
-        openocd -f "interface/picoprobe.cfg" -f "target/rp2040.cfg" -c "program ${{ env.example }}.elf reset exit"
-        echo "Waiting for enumeration (200 ms for reset, 5s for enumeration)"
-        sleep 0.2
-        SECONDS=0
-        while (! lsusb | grep "cafe:") && [ $SECONDS -le 5 ] ; do : ; done
-        # Test
+        ./flash_sh cdc_dual_ports
         test -e /dev/ttyACM1 && echo "ttyACM1 exists"
         test -e /dev/ttyACM2 && echo "ttyACM2 exists"
 
     - name: Test cdc_msc
-      env:
-        example: cdc_msc
       run: |
-        openocd -f "interface/picoprobe.cfg" -f "target/rp2040.cfg" -c "program ${{ env.example }}.elf reset exit"
-        echo "Waiting for enumeration (200 ms for reset, 5s for enumeration)"
-        sleep 0.2
-        SECONDS=0
-        while (! lsusb | grep "cafe:") && [ $SECONDS -le 5 ] ; do : ; done
-        # Test
+        ./flash.sh cdc_msc
         test -e /dev/ttyACM1 && echo "ttyACM1 exists"
         test -f /media/pi/TinyUSB\ MSC/README.TXT && echo "MSC README.TXT exist"
         cat /media/pi/TinyUSB\ MSC/README.TXT
