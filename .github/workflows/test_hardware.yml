@@ -31,21 +31,25 @@ jobs:
       env:
         example: cdc_dual_ports
       run: |
-        openocd -f "interface/picoprobe.cfg" -f "target/rp2040.cfg" -c "program ${{ env.example }}.elf verify reset exit"
-        echo "Waiting for enumeration"
-        while ! lsusb | grep "cafe:" ; do : ; done
+        openocd -f "interface/picoprobe.cfg" -f "target/rp2040.cfg" -c "program ${{ env.example }}.elf reset exit"
+        echo "Waiting for enumeration (200 ms for reset, 5s for enumeration)"
+        sleep 0.2
+        SECONDS=0
+        while (! lsusb | grep "cafe:") && [ $SECONDS -le 5 ] ; do : ; done
         # Test
-        test -e /dev/ttyACM1
-        test -e /dev/ttyACM2
+        test -e /dev/ttyACM1 && echo "ttyACM1 exists"
+        test -e /dev/ttyACM2 && echo "ttyACM2 exists"
 
     - name: Test cdc_msc
       env:
         example: cdc_msc
       run: |
-        openocd -f "interface/picoprobe.cfg" -f "target/rp2040.cfg" -c "program ${{ env.example }}.elf verify reset exit"
-        echo "Waiting for enumeration"
-        while ! lsusb | grep "cafe:" ; do : ; done
+        openocd -f "interface/picoprobe.cfg" -f "target/rp2040.cfg" -c "program ${{ env.example }}.elf reset exit"
+        echo "Waiting for enumeration (200 ms for reset, 5s for enumeration)"
+        sleep 0.2
+        SECONDS=0
+        while (! lsusb | grep "cafe:") && [ $SECONDS -le 5 ] ; do : ; done
         # Test
-        test -e /dev/ttyACM1
-        test -e /media/pi/TinyUSB\ MSC/README.TXT
+        test -e /dev/ttyACM1 && echo "ttyACM1 exists"
+        test -f /media/pi/TinyUSB\ MSC/README.TXT && echo "MSC README.TXT exist"
         cat /media/pi/TinyUSB\ MSC/README.TXT
