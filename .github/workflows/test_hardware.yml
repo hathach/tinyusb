@@ -32,15 +32,9 @@ jobs:
         touch flash.sh
         chmod +x flash.sh
         echo > flash.sh 'openocd -f "interface/picoprobe.cfg" -f "target/rp2040.cfg" -c "program $1.elf reset exit"'
-        # echo >> flash.sh 'echo "Waiting for 0.5s for reset"'
-        # echo >> flash.sh 'sleep 0.5'
-        # echo >> flash.sh 'SECONDS=0'
-        # echo >> flash.sh 'lsusb | grep "cafe:"'
 
     - name: Test cdc_dual_ports
       run: |
-        #SECONDS=0
-        echo "Second = $SECONDS"
         ./flash.sh cdc_dual_ports
         while (! ([ -e /dev/ttyACM1 ] && [ -e /dev/ttyACM2 ])) && [ $SECONDS -le 5 ]; do :; done
         test -e /dev/ttyACM1 && echo "ttyACM1 exists"
@@ -48,8 +42,6 @@ jobs:
 
     - name: Test cdc_msc
       run: |
-        #SECONDS=0
-        echo "Second = $SECONDS"
         ./flash.sh cdc_msc
         readme='/media/pi/TinyUSB MSC/README.TXT'
         while (! ([ -e /dev/ttyACM1 ] && [ -f "$readme" ])) && [ $SECONDS -le 5 ]; do :; done
@@ -59,8 +51,6 @@ jobs:
 
     - name: Test dfu
       run: |
-        #SECONDS=0
-        echo "Second = $SECONDS"
         ./flash.sh dfu
         while (! (dfu-util -l | grep "Found DFU")) && [ $SECONDS -le 5 ]; do :; done
         dfu-util -d cafe -a 0 -U dfu0
