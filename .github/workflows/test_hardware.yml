@@ -42,7 +42,8 @@ jobs:
       #working-directory: ${{github.workspace}}
       run: |
         ./flash.sh cdc_dual_ports
-        while ! ([ -e /dev/ttyACM1 ] && [ -e /dev/ttyACM2 ]) && [$SECONDS -le 5]; do :; done
+        echo $SECONDS
+        while (! ([ -e /dev/ttyACM1 ] && [ -e /dev/ttyACM2 ])) && [$SECONDS -le 5]; do :; done
         test -e /dev/ttyACM1 && echo "ttyACM1 exists"
         test -e /dev/ttyACM2 && echo "ttyACM2 exists"
 
@@ -50,7 +51,8 @@ jobs:
       #working-directory: ${{github.workspace}}
       run: |
         ./flash.sh cdc_msc
-        while ! ([ -e /dev/ttyACM1 ] && [ -e /dev/sda ]) && [$SECONDS -le 5]; do :; done
+        echo $SECONDS
+        while (! ([ -e /dev/ttyACM1 ] && [ -e /dev/sda ])) && [$SECONDS -le 5]; do :; done
         test -e /dev/ttyACM1 && echo "ttyACM1 exists"
         test -e /dev/sda && echo "sda exists"
         test -f /media/pi/TinyUSB\ MSC/README.TXT && echo "MSC README.TXT exist"
