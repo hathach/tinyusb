@@ -99,9 +99,10 @@ void vApplicationGetTimerTaskMemory( StaticTask_t **ppxTimerTaskTCBBuffer, Stack
 void vApplicationSetupTimerInterrupt(void)
 {
   /* Enable CMT0 */
+  unsigned short oldPRCR = SYSTEM.PRCR.WORD;
   SYSTEM.PRCR.WORD = (0xA5u<<8) | TU_BIT(1);
   MSTP(CMT0)       = 0;
-  SYSTEM.PRCR.WORD = (0xA5u<<8);
+  SYSTEM.PRCR.WORD = (0xA5u<<8) | oldPRCR;
 
   CMT0.CMCNT      = 0;
   CMT0.CMCOR      = (unsigned short)(((configPERIPHERAL_CLOCK_HZ/configTICK_RATE_HZ)-1)/128);
