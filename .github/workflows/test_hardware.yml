@@ -33,15 +33,16 @@ jobs:
         touch flash.sh
         chmod +x flash.sh
         echo > flash.sh 'openocd -f "interface/picoprobe.cfg" -f "target/rp2040.cfg" -c "program $1.elf reset exit"'
-        echo >> flash.sh '"Waiting for enumeration (500 ms for reset, 5s for enumeration)"'
+        echo >> flash.sh 'echo "Waiting for 0.5s for reset"'
         echo >> flash.sh 'sleep 0.5'
         echo >> flash.sh 'SECONDS=0'
-        echo >> flash.sh 'while (! lsusb | grep "cafe:") && [ $SECONDS -le 5 ] ; do : ; done'
+        echo >> flash.sh 'lsusb | grep "cafe:"'
 
     - name: Test cdc_dual_ports
       #working-directory: ${{github.workspace}}
       run: |
         ./flash.sh cdc_dual_ports
+        while ! ([ -e /dev/ttyACM1 ] && [ -e /dev/ttyACM2 ]) && [$SECONDS -le 5]; do :; done
         test -e /dev/ttyACM1 && echo "ttyACM1 exists"
         test -e /dev/ttyACM2 && echo "ttyACM2 exists"
 
@@ -49,6 +50,8 @@ jobs:
       #working-directory: ${{github.workspace}}
       run: |
         ./flash.sh cdc_msc
+        while ! ([ -e /dev/ttyACM1 ] && [ -e /dev/sda ]) && [$SECONDS -le 5]; do :; done
         test -e /dev/ttyACM1 && echo "ttyACM1 exists"
+        test -e /dev/sda && echo "sda exists"
         test -f /media/pi/TinyUSB\ MSC/README.TXT && echo "MSC README.TXT exist"
         cat /media/pi/TinyUSB\ MSC/README.TXT
