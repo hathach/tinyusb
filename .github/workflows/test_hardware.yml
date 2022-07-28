@@ -28,7 +28,6 @@ jobs:
         name: rp2040
 
     - name: Create flash.sh
-      #working-directory: ${{github.workspace}}
       run: |
         touch flash.sh
         chmod +x flash.sh
@@ -40,22 +39,31 @@ jobs:
 
     - name: Test cdc_dual_ports
       run: |
+        #SECONDS=0
         echo "Second = $SECONDS"
         ./flash.sh cdc_dual_ports
-        echo "Second = $SECONDS"
         while (! ([ -e /dev/ttyACM1 ] && [ -e /dev/ttyACM2 ])) && [ $SECONDS -le 5 ]; do :; done
-        echo $SECONDS
         test -e /dev/ttyACM1 && echo "ttyACM1 exists"
         test -e /dev/ttyACM2 && echo "ttyACM2 exists"
 
     - name: Test cdc_msc
       run: |
-        readme='/media/pi/TinyUSB MSC/README.TXT'
+        #SECONDS=0
         echo "Second = $SECONDS"
         ./flash.sh cdc_msc
-        echo "Second = $SECONDS"
+        readme='/media/pi/TinyUSB MSC/README.TXT'
         while (! ([ -e /dev/ttyACM1 ] && [ -f "$readme" ])) && [ $SECONDS -le 5 ]; do :; done
-        echo "Second = $SECONDS"
         test -e /dev/ttyACM1 && echo "ttyACM1 exists"
         test -f "$readme" && echo "$readme exists"
         cat "$readme"
+
+    - name: Test dfu
+      run: |
+        #SECONDS=0
+        echo "Second = $SECONDS"
+        ./flash.sh dfu
+        while (! (dfu-util -l | grep "Found DFU")) && [ $SECONDS -le 5 ]; do :; done
+        dfu-util -d cafe -a 0 -U dfu0
+        dfu-util -d cafe -a 1 -U dfu1
+        grep "TinyUSB DFU! - Partition 0" dfu0
+        grep "TinyUSB DFU! - Partition 1" dfu1
