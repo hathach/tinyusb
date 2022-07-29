@@ -10,7 +10,6 @@ on:
 jobs:
   hw-test:
     # Limit the run to only hathach due to limited resource on RPI4
-    #if: github.repository_owner == 'hathach' && ${{ github.event.workflow_run.conclusion == 'success' }}
     if: github.repository_owner == 'hathach'
     runs-on: [self-hosted, Linux, ARM64]
 
@@ -57,3 +56,8 @@ jobs:
         dfu-util -d cafe -a 1 -U dfu1
         grep "TinyUSB DFU! - Partition 0" dfu0
         grep "TinyUSB DFU! - Partition 1" dfu1
+
+    - name: Test dfu
+      run: |
+        ./flash.sh dfu_runtime
+        while (! (dfu-util -l | grep "Found Runtime")) && [ $SECONDS -le 5 ]; do :; done

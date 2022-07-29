@@ -108,11 +108,11 @@ jobs:
     # Following steps are for Hardware Test with self-hosted
 
     - name: Prepare Artifacts
-      if: matrix.family == 'rp2040'
+      if: matrix.family == 'rp2040' && github.repository_owner == 'hathach'
       run: find examples/ -name "*.elf" -exec mv {} . \;
 
     - name: Upload Artifacts for Hardware Test
-      if: matrix.family == 'rp2040'
+      if: matrix.family == 'rp2040' && github.repository_owner == 'hathach'
       uses: actions/upload-artifact@v3
       with:
         name: ${{ matrix.family }}
@@ -120,7 +120,7 @@ jobs:
           *.elf
 
     - name: Trigger Hardware Test
-      if: matrix.family == 'rp2040'
+      if: matrix.family == 'rp2040' && github.repository_owner == 'hathach'
       uses: benc-uk/workflow-dispatch@v1
       with:
         workflow: Hardware Test
