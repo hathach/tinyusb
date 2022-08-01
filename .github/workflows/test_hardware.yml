@@ -30,18 +30,18 @@ jobs:
       run: |
         touch flash.sh
         chmod +x flash.sh
-        echo > flash.sh 'openocd -f "interface/picoprobe.cfg" -f "target/rp2040.cfg" -c "program $1.elf reset exit"'
+        echo > flash.sh 'openocd -f "interface/picoprobe.cfg" -f "target/rp2040.cfg" -c "program $1 reset exit"'
 
     - name: Test cdc_dual_ports
       run: |
-        ./flash.sh cdc_dual_ports
+        ./flash.sh cdc_dual_ports.elf
         while (! ([ -e /dev/ttyACM1 ] && [ -e /dev/ttyACM2 ])) && [ $SECONDS -le 5 ]; do :; done
         test -e /dev/ttyACM1 && echo "ttyACM1 exists"
         test -e /dev/ttyACM2 && echo "ttyACM2 exists"
 
     - name: Test cdc_msc
       run: |
-        ./flash.sh cdc_msc
+        ./flash.sh cdc_msc.elf
         readme='/media/pi/TinyUSB MSC/README.TXT'
         while (! ([ -e /dev/ttyACM1 ] && [ -f "$readme" ])) && [ $SECONDS -le 5 ]; do :; done
         test -e /dev/ttyACM1 && echo "ttyACM1 exists"
@@ -50,14 +50,20 @@ jobs:
 
     - name: Test dfu
       run: |
-        ./flash.sh dfu
+        ./flash.sh dfu.elf
         while (! (dfu-util -l | grep "Found DFU")) && [ $SECONDS -le 5 ]; do :; done
         dfu-util -d cafe -a 0 -U dfu0
         dfu-util -d cafe -a 1 -U dfu1
         grep "TinyUSB DFU! - Partition 0" dfu0
         grep "TinyUSB DFU! - Partition 1" dfu1
 
-    - name: Test dfu
+    - name: Test dfu_runtime
       run: |
-        ./flash.sh dfu_runtime
+        ./flash.sh dfu_runtime.elf
         while (! (dfu-util -l | grep "Found Runtime")) && [ $SECONDS -le 5 ]; do :; done
+
+#    - name: Test hid_boot_interface
+#      run: |
+#        ./flash.sh hid_boot_interface.elf
+#        while (! (dfu-util -l | grep "Found Runtime")) && [ $SECONDS -le 5 ]; do :; done
+        
