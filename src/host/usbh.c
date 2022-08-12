@@ -166,6 +166,17 @@ static usbh_class_driver_t const usbh_class_drivers[] =
     },
   #endif
 
+  #if CFG_TUH_MIDI
+    {
+      DRIVER_NAME("MIDI")
+      .init       = midih_init,
+      .open       = midih_open,
+      .set_config = midih_set_config,
+      .xfer_cb    = midih_xfer_cb,
+      .close      = midih_close
+    },
+  #endif
+
   #if CFG_TUH_HUB
     {
       DRIVER_NAME("HUB")

@@ -40,7 +40,7 @@
 //--------------------------------------------------------------------+
 
 #ifndef CFG_TUH_ENDPOINT_MAX
-  #define CFG_TUH_ENDPOINT_MAX   (CFG_TUH_HUB + CFG_TUH_HID*2 + CFG_TUH_MSC*2 + CFG_TUH_CDC*3)
+  #define CFG_TUH_ENDPOINT_MAX   (CFG_TUH_HUB + CFG_TUH_HID*2 + CFG_TUH_MSC*2 + CFG_TUH_CDC*3 + CFG_TUH_MIDI*2)
 //  #ifdef TUP_HCD_ENDPOINT_MAX
 //    #define CFG_TUH_ENDPPOINT_MAX   TUP_HCD_ENDPOINT_MAX
 //  #else
