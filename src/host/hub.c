@@ -408,7 +408,24 @@ static void hub_port_get_status_complete (tuh_xfer_t* xfer)
     hub_port_clear_feature(daddr, port_num, HUB_FEATURE_PORT_CONNECTION_CHANGE, connection_clear_conn_change_complete, 0);
   }else
   {
-    // Other changes are: Enable, Suspend, Over Current, Reset, L1 state
+    // Clear other port status change interrupts. TODO Not currently handled - just cleared.
+    if (p_hub->port_status.change.port_enable)
+    {
+      hub_port_clear_feature(daddr, port_num, HUB_FEATURE_PORT_ENABLE_CHANGE, hub_clear_feature_complete_stub, 0);
+    }
+    else if (p_hub->port_status.change.suspend)
+    {
+      hub_port_clear_feature(daddr, port_num, HUB_FEATURE_PORT_SUSPEND_CHANGE, hub_clear_feature_complete_stub, 0);
+    }
+    else if (p_hub->port_status.change.over_current)
+    {
+      hub_port_clear_feature(daddr, port_num, HUB_FEATURE_PORT_OVER_CURRENT_CHANGE, hub_clear_feature_complete_stub, 0);
+    }
+    else if (p_hub->port_status.change.reset)
+    {
+      hub_port_clear_feature(daddr, port_num, HUB_FEATURE_PORT_RESET_CHANGE, hub_clear_feature_complete_stub, 0);
+    }
+    // Other changes are: L1 state
     // TODO clear change
 
     // prepare for next hub status
