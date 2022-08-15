@@ -313,7 +313,7 @@ static void config_port_power_complete (tuh_xfer_t* xfer)
 // Connection Changes
 //--------------------------------------------------------------------+
 
-static void connection_get_status_complete (tuh_xfer_t* xfer);
+static void hub_port_get_status_complete (tuh_xfer_t* xfer);
 static void connection_clear_conn_change_complete (tuh_xfer_t* xfer);
 static void connection_port_reset_complete (tuh_xfer_t* xfer);
 
@@ -333,7 +333,7 @@ bool hub_xfer_cb(uint8_t dev_addr, uint8_t ep_addr, xfer_result_t result, uint32
   {
     if ( tu_bit_test(p_hub->status_change, port) )
     {
-      if (hub_port_get_status(dev_addr, port, &p_hub->port_status, connection_get_status_complete, 0) == false)
+      if (hub_port_get_status(dev_addr, port, &p_hub->port_status, hub_port_get_status_complete, 0) == false)
       {
         //Hub status control transfer failed, retry
         hub_edpt_status_xfer(dev_addr);
@@ -347,7 +347,7 @@ bool hub_xfer_cb(uint8_t dev_addr, uint8_t ep_addr, xfer_result_t result, uint32
   return true;
 }
 
-static void connection_get_status_complete (tuh_xfer_t* xfer)
+static void hub_port_get_status_complete (tuh_xfer_t* xfer)
 {
   TU_ASSERT(xfer->result == XFER_RESULT_SUCCESS, );
 
