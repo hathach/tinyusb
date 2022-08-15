@@ -85,7 +85,7 @@ bool hub_port_clear_feature(uint8_t hub_addr, uint8_t hub_port, uint8_t feature,
   {
     .bmRequestType_bit =
     {
-      .recipient = TUSB_REQ_RCPT_OTHER,
+      .recipient = (hub_port == 0) ? TUSB_REQ_RCPT_DEVICE : TUSB_REQ_RCPT_OTHER,
       .type      = TUSB_REQ_TYPE_CLASS,
       .direction = TUSB_DIR_OUT
     },
@@ -117,7 +117,7 @@ bool hub_port_set_feature(uint8_t hub_addr, uint8_t hub_port, uint8_t feature,
   {
     .bmRequestType_bit =
     {
-      .recipient = TUSB_REQ_RCPT_OTHER,
+      .recipient = (hub_port == 0) ? TUSB_REQ_RCPT_DEVICE : TUSB_REQ_RCPT_OTHER,
       .type      = TUSB_REQ_TYPE_CLASS,
       .direction = TUSB_DIR_OUT
     },
@@ -149,7 +149,7 @@ bool hub_port_get_status(uint8_t hub_addr, uint8_t hub_port, void* resp,
   {
     .bmRequestType_bit =
     {
-      .recipient = TUSB_REQ_RCPT_OTHER,
+      .recipient = (hub_port == 0) ? TUSB_REQ_RCPT_DEVICE : TUSB_REQ_RCPT_OTHER,
       .type      = TUSB_REQ_TYPE_CLASS,
       .direction = TUSB_DIR_IN
     },
