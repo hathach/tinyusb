@@ -127,6 +127,8 @@ void midih_init(void)
 
 bool midih_xfer_cb(uint8_t dev_addr, uint8_t ep_addr, xfer_result_t result, uint32_t xferred_bytes)
 {
+  TU_ASSERT(result == XFER_RESULT_SUCCESS);
+
   midih_interface_t *p_midi_host = get_midi_host(dev_addr);
   if ( ep_addr == p_midi_host->ep_in)
   {
@@ -347,14 +349,14 @@ bool midih_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_interface_t const *d
 
   if (in_desc)
   {
-    TU_ASSERT(usbh_edpt_open(rhport, dev_addr, in_desc));
+    TU_ASSERT(tuh_edpt_open(dev_addr, in_desc));
     // Some devices always return exactly the request length so transfers won't complete
     // unless you assume every transfer is the last one.
-    usbh_edpt_force_last_buffer(dev_addr, p_midi_host->ep_in, true);
+    // usbh_edpt_force_last_buffer(dev_addr, p_midi_host->ep_in, true); //TODO re-enable
   }
   if (out_desc)
   {
-    TU_ASSERT(usbh_edpt_open(rhport, dev_addr, out_desc));
+    TU_ASSERT(tuh_edpt_open(dev_addr, out_desc));
   }
   p_midi_host->dev_addr = dev_addr;
 

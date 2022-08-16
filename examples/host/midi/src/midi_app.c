@@ -201,5 +201,5 @@ void tuh_midi_rx_cb(uint8_t dev_addr, uint32_t num_packets)
 
 void tuh_midi_tx_cb(uint8_t dev_addr)
 {
-
+    (void ) dev_addr;
 }
