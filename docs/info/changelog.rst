@@ -2,6 +2,64 @@
 Changelog
 *********
 
+0.14.0
+======
+
+- Improve compiler support for CCRX and IAR
+- Add timeout to osal_queue_receive()
+- Add tud_task_ext(timeout, in_isr) as generic version of tud_task(). Same as tuh_task_ext(), tuh_task()
+- Enable more warnings -Wnull-dereference -Wuninitialized -Wunused -Wredundant-decls -Wconversion
+- Add new examples 
+  - host/bare_api to demonstrate generic (app-level) enumeration and endpoint transfer
+  - dual/host_hid_to_device_cdc to run both device and host stack concurrently, get HID report from host and print out to device CDC. This example only work with multiple-controller MCUs and rp2040 with the help of pio-usb as added controller.
+
+Controller Driver (DCD & HCD)
+-----------------------------
+
+- Enhance rhports management to better support dual roles
+  - CFG_TUD_ENABLED/CFG_TUH_ENABLED, CFG_TUD_MAX_SPEED/CFG_TUH_MAX_SPEED can be used to replace CFG_TUSB_RHPORT0_MODE/CFG_TUSB_RHPORT1_MODE
+  - tud_init(rphort), tuh_init(rhport) can be used to init stack on specified roothub port (controller) instead of tusb_init(void)
+- Add dcd/hcd port specific defines TUP_ (stand for tinyusb port-specific)
+- [dwc2]
+  - Update to support stm32 h72x, h73x with only 1 otg controller
+  - Fix overwrite with grstctl when disable endpoint
+- [EHCI] Fix an issue with EHCI driver
+- [msp430] Fix for possible bug in msp430-elf-gcc 9.3.0
+- [nrf5x] Fix DMA access race condition using atomic function 
+- [pic32] Fix PIC32 santiy
+- [rp2040]
+  - Add PICO-PIO-USB as controller (device/host) support for rp2040
+  - Use shared IRQ handlers, so user can also hook the USB IRQ
+  - Fix resumed signal not reported to device stack
+- [stm32fsdev] Add support for stm32wb55 
+
+Device Stack
+------------
+
+- [Audio] Add support for feedback endpoint computation
+  - New API tud_audio_feedback_params_cb(), tud_audio_feedback_interval_isr().
+  - Supported computation method are: frequency with fixed/float or power of 2. Feedback with fifo count is not yet supported.
+  - Fix nitfs (should be 3) in TUD_AUDIO_HEADSET_STEREO_DESCRIPTOR
+  - Fix typo in audiod_rx_done_cb()
+- [DFU] Fix coexistence with other interfaces BTH, RNDIS
+- [MSC] Fix inquiry response additional length field
+- [Venndor] Improve write performance
+
+Host Stack
+----------
+
+- Add new API tuh_configure(rhport, cfg_id, cfg_param) for dynamnic port specific behavior configuration
+- [HID] Open OUT endpoint if available
+- [Hub] hub clear port and device interrupts
+- [USBH] Major improvement
+  - Rework usbh control transfer with complete callback. New API tuh_control_xfer() though still only carry 1 usbh (no queueing) at a time.
+  - Add generic endpoint transfer with tuh_edpt_open(), tuh_edpt_xfer(). Require `CFG_TUH_API_EDPT_XFER=1`
+  - Support app-level enumeration with new APIs
+    - tuh_descriptor_get(), tuh_descriptor_get_device(), tuh_descriptor_get_configuration(), tuh_descriptor_get_hid_report()
+    - tuh_descriptor_get_string(), tuh_descriptor_get_manufacturer_string(), tuh_descriptor_get_product_string(), tuh_descriptor_get_serial_string()
+    - Also add _sync() as sync/blocking version for above APIs 
+    
+
 0.13.0
 ======
 
