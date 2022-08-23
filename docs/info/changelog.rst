@@ -57,8 +57,7 @@ Host Stack
   - Support app-level enumeration with new APIs
     - tuh_descriptor_get(), tuh_descriptor_get_device(), tuh_descriptor_get_configuration(), tuh_descriptor_get_hid_report()
     - tuh_descriptor_get_string(), tuh_descriptor_get_manufacturer_string(), tuh_descriptor_get_product_string(), tuh_descriptor_get_serial_string()
-    - Also add _sync() as sync/blocking version for above APIs 
-    
+    - Also add _sync() as sync/blocking version for above APIs
 
 0.13.0
 ======
