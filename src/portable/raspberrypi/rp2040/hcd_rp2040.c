@@ -56,8 +56,8 @@ static_assert(PICO_USB_HOST_INTERRUPT_ENDPOINTS <= USB_MAX_ENDPOINTS, "");
 static struct hw_endpoint ep_pool[1 + PICO_USB_HOST_INTERRUPT_ENDPOINTS];
 #define epx (ep_pool[0])
 
-#define usb_hw_set   hw_set_alias(usb_hw)
-#define usb_hw_clear hw_clear_alias(usb_hw)
+#define usb_hw_set   ((usb_hw_t *)hw_set_alias(usb_hw))
+#define usb_hw_clear ((usb_hw_t *)hw_clear_alias(usb_hw))
 
 // Flags we set by default in sie_ctrl (we add other bits on top)
 enum {
