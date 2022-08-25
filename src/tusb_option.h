@@ -427,9 +427,9 @@ typedef int make_iso_compilers_happy;
 //------------------------------------------------------------------
 // Configuration Validation
 //------------------------------------------------------------------
-#if CFG_TUD_ENDPOINT0_SIZE > 64
-  #error Control Endpoint Max Packet Size cannot be larger than 64
-#endif
+//#if CFG_TUD_ENDPOINT0_SIZE > 64
+//  #error Control Endpoint Max Packet Size cannot be larger than 64
+//#endif
 
 #endif /* _TUSB_OPTION_H_ */
 
