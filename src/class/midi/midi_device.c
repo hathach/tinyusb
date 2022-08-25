@@ -406,19 +406,25 @@ void midid_reset(uint8_t rhport)
 
 uint16_t midid_open(uint8_t rhport, tusb_desc_interface_t const * desc_itf, uint16_t max_len)
 {
+  uint16_t drv_len = 0;
+  uint8_t const * p_desc = (uint8_t const *)desc_itf;
   // 1st Interface is Audio Control v1
-  TU_VERIFY(TUSB_CLASS_AUDIO               == desc_itf->bInterfaceClass    &&
+  if (TUSB_CLASS_AUDIO               == desc_itf->bInterfaceClass    &&
             AUDIO_SUBCLASS_CONTROL         == desc_itf->bInterfaceSubClass &&
-            AUDIO_FUNC_PROTOCOL_CODE_UNDEF == desc_itf->bInterfaceProtocol, 0);
-
-  uint16_t drv_len = tu_desc_len(desc_itf);
-  uint8_t const * p_desc = tu_desc_next(desc_itf);
-
-  // Skip Class Specific descriptors
-  while ( TUSB_DESC_CS_INTERFACE == tu_desc_type(p_desc) && drv_len <= max_len )
+            AUDIO_FUNC_PROTOCOL_CODE_UNDEF == desc_itf->bInterfaceProtocol)
   {
-    drv_len += tu_desc_len(p_desc);
-    p_desc   = tu_desc_next(p_desc);
+    drv_len = tu_desc_len(desc_itf);
+    p_desc = tu_desc_next(desc_itf);
+    // Skip Class Specific descriptors
+    while ( TUSB_DESC_CS_INTERFACE == tu_desc_type(p_desc) && drv_len <= max_len )
+    {
+        drv_len += tu_desc_len(p_desc);
+        p_desc   = tu_desc_next(p_desc);
+    }
+  }
+  else
+  {
+    TU_LOG1("Warning: MIDI Device has no Audio Control Interface");
   }
 
   // 2nd Interface is MIDI Streaming
