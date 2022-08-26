@@ -438,6 +438,7 @@ void dcd_edpt_close (uint8_t rhport, uint8_t ep_addr)
     // When both ISO endpoint are close there is no need for SOF any more.
     if (_dcd.xfer[EP_ISO_NUM][TUSB_DIR_IN].mps + _dcd.xfer[EP_ISO_NUM][TUSB_DIR_OUT].mps == 0) NRF_USBD->INTENCLR = USBD_INTENCLR_SOF_Msk;
   }
+  _dcd.xfer[epnum][dir].started = false;
   __ISB(); __DSB();
 }
 
