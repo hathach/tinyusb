@@ -43,7 +43,7 @@ The stack supports the following MCUs:
 - **Nuvoton:** NUC120, NUC121/NUC125, NUC126, NUC505
 - **NXP:**
 
-  - iMX RT Series: RT1011, RT1015, RT1021, RT1052, RT1062, RT1064
+  - iMX RT Series: RT10xx, RT11xx
   - Kinetis: KL25, K32L2
   - LPC Series: 11u, 13, 15, 17, 18, 40, 43, 51u, 54, 55
 
@@ -51,7 +51,7 @@ The stack supports the following MCUs:
 - **Renesas:** RX63N, RX65N, RX72N
 - **Silabs:** EFM32GG
 - **Sony:** CXD56
-- **ST:** STM32 series: F0, F1, F2, F3, F4, F7, H7, G4, L0, L1, L4, L4+
+- **ST:** STM32 series: F0, F1, F2, F3, F4, F7, H7, G4, L0, L1, L4, L4+, WB
 - **TI:** MSP430, MSP432E4, TM4C123
 - **ValentyUSB:** eptri
 
@@ -94,8 +94,8 @@ TinyUSB is completely thread-safe by pushing all Interrupt Service Request (ISR)
 - `RT-Thread <https://github.com/RT-Thread/rt-thread>`_: `repo <https://github.com/RT-Thread-packages/tinyusb>`_
 - **Mynewt** Due to the newt package build system, Mynewt examples are better to be on its `own repo <https://github.com/hathach/mynewt-tinyusb-example>`_
 
-Local Docs
-==========
+Docs
+====
 
 - Info
 
