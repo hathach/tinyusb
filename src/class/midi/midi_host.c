@@ -474,13 +474,13 @@ uint32_t tuh_midi_stream_write (uint8_t dev_addr, uint8_t cable_num, uint8_t con
       else if ( (msg >= 0x8 && msg <= 0xB) || msg == 0xE )
       {
         // Channel Voice Messages
-        stream->buffer[0] = (cable_num << 4) | msg;
+        stream->buffer[0] = (uint8_t)((cable_num << 4) | msg);
         stream->total = 4;
       }
       else if ( msg == 0xC || msg == 0xD)
       {
         // Channel Voice Messages, two-byte variants (Program Change and Channel Pressure)
-        stream->buffer[0] = (cable_num << 4) | msg;
+        stream->buffer[0] = (uint8_t)((cable_num << 4) | msg);
         stream->total = 3;
       }
       else if ( msg == 0xf )
@@ -510,7 +510,7 @@ uint32_t tuh_midi_stream_write (uint8_t dev_addr, uint8_t cable_num, uint8_t con
       else
       {
         // Pack individual bytes if we don't support packing them into words.
-        stream->buffer[0] = cable_num << 4 | 0xf;
+        stream->buffer[0] = (uint8_t)(cable_num << 4 | 0xf);
         stream->buffer[2] = 0;
         stream->buffer[3] = 0;
         stream->index = 2;
@@ -628,7 +628,7 @@ uint32_t tuh_midi_stream_read (uint8_t dev_addr, uint8_t *p_cable_num, uint8_t *
             else if (p_midi_host->stream_read.buffer[idx] == MIDI_STATUS_SYSEX_END)
             {
               ++bytes_to_add_to_stream;
-              cable_sysex_in_progress &= ~cable_mask;
+              cable_sysex_in_progress &= (uint16_t)~cable_mask;
               idx = 4; // force the loop to exit; I hate break statements in loops
             }
           }
@@ -654,7 +654,7 @@ uint32_t tuh_midi_stream_read (uint8_t dev_addr, uint8_t *p_cable_num, uint8_t *
           default:
             break; // Should not get this
         }
-        cable_sysex_in_progress &= ~cable_mask;
+        cable_sysex_in_progress &= (uint16_t)~cable_mask;
       }
       else if (status < MIDI_STATUS_SYSREAL_TIMING_CLOCK)
       {
@@ -673,7 +673,7 @@ uint32_t tuh_midi_stream_read (uint8_t dev_addr, uint8_t *p_cable_num, uint8_t *
             break;
           default:
             break;
-          cable_sysex_in_progress &= ~cable_mask;
+          cable_sysex_in_progress &= (uint16_t)~cable_mask;
         }
       }
       else
