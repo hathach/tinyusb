@@ -98,6 +98,11 @@
   #undef USB_PMAADDR
   #define USB_PMAADDR USB1_PMAADDR
 
+// NOTE(lbayes): Added the following block for L4 support
+#elif CFG_TUSB_MCU == 309 // OPT_MCU_STM32L4
+  #include "stm32l4xx.h"
+  #define PMA_LENGTH (1024u)
+
 #else
   #error You are using an untested or unimplemented STM32 variant. Please update the driver.
   // This includes L1x0, L1x1, L1x2, L4x2 and L4x3, G1x1, G1x3, and G1x4
