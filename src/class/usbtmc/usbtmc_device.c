@@ -470,8 +470,10 @@ bool usbtmcd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint
     case STATE_IDLE:
       TU_VERIFY(xferred_bytes >= sizeof(usbtmc_msg_generic_t));
       msg = (usbtmc_msg_generic_t*)(usbtmc_state.ep_bulk_out_buf);
-      uint8_t invInvTag = (uint8_t)~(msg->header.bTagInverse);
-      TU_VERIFY(msg->header.bTag == invInvTag);
+      {
+        uint8_t invInvTag = (uint8_t)~(msg->header.bTagInverse);
+        TU_VERIFY(msg->header.bTag == invInvTag);
+      }
       TU_VERIFY(msg->header.bTag != 0x00);
 
       switch(msg->header.MsgID) {
