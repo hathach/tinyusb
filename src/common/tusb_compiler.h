@@ -189,7 +189,7 @@
   #define TU_ATTR_DEPRECATED(mess)      __attribute__ ((deprecated(mess))) // warn if function with this attribute is used
   #define TU_ATTR_UNUSED                __attribute__ ((unused))           // Function/Variable is meant to be possibly unused
   #define TU_ATTR_USED                  __attribute__ ((used))             // Function/Variable is meant to be used
-  #define TU_ATTR_FALLTHROUGH           __attribute__((fallthrough))
+  #define TU_ATTR_FALLTHROUGH
 
   #define TU_ATTR_PACKED_BEGIN
   #define TU_ATTR_PACKED_END

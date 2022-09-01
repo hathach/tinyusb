@@ -1273,7 +1273,7 @@ static void process_enumeration(tuh_xfer_t* xfer)
         break;
       }
       #endif
-      __attribute__((fallthrough));
+      TU_ATTR_FALLTHROUGH;
 #endif
 
     case ENUM_SET_ADDR:
