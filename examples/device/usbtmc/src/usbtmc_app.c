@@ -23,7 +23,11 @@
  *
  */
 
+#ifdef __ICCARM__
+#include <string.h>
+#else
 #include <strings.h>
+#endif
 #include <stdlib.h>     /* atoi */
 #include "tusb.h"
 #include "bsp/board.h"
