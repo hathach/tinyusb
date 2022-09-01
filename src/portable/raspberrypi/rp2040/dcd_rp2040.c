@@ -201,7 +201,7 @@ static void __tusb_irq_path_func(hw_handle_buff_status)(void)
             usb_hw_clear->buf_status = bit;
 
             // IN transfer for even i, OUT transfer for odd i
-            struct hw_endpoint *ep = hw_endpoint_get_by_num(i >> 1u, !(i & 1u));
+            struct hw_endpoint *ep = hw_endpoint_get_by_num(i >> 1u, !(i & 1u) ? TUSB_DIR_IN : TUSB_DIR_OUT);
 
             // Continue xfer
             bool done = hw_endpoint_xfer_continue(ep);

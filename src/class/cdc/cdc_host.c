@@ -245,7 +245,7 @@ bool cdch_set_config(uint8_t dev_addr, uint8_t itf_num)
 bool cdch_xfer_cb(uint8_t dev_addr, uint8_t ep_addr, xfer_result_t event, uint32_t xferred_bytes)
 {
   (void) ep_addr;
-  tuh_cdc_xfer_isr( dev_addr, event, 0, xferred_bytes );
+  tuh_cdc_xfer_isr( dev_addr, event, (cdc_pipeid_t) 0, xferred_bytes );
   return true;
 }
 
