@@ -154,7 +154,9 @@ TU_VERIFY_STATIC(USBTMCD_BUFFER_SIZE >= 32u,"USBTMC dev buffer size too small");
 static bool handle_devMsgOutStart(uint8_t rhport, void *data, size_t len);
 static bool handle_devMsgOut(uint8_t rhport, void *data, size_t len, size_t packetLen);
 
+#ifndef NDEBUG
 static uint8_t termChar;
+#endif
 static uint8_t termCharRequested = false;
 
 osal_mutex_def_t usbtmcLockBuffer;
@@ -440,7 +442,9 @@ static bool handle_devMsgIn(void *data, size_t len)
   usbtmc_state.transfer_size_sent = 0u;
 
   termCharRequested = msg->bmTransferAttributes.TermCharEnabled;
+#ifndef NDEBUG
   termChar = msg->TermChar;
+#endif
 
   if(termCharRequested)
     TU_VERIFY(usbtmc_state.capabilities->bmDevCapabilities.canEndBulkInOnTermChar);

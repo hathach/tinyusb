@@ -92,14 +92,6 @@ static size_t buffer_tx_ix; // for transmitting using multiple transfers
 static uint8_t buffer[225]; // A few packets long should be enough.
 
 
-static usbtmc_msg_dev_dep_msg_in_header_t rspMsg = {
-    .bmTransferAttributes =
-    {
-      .EOM = 1,
-      .UsingTermChar = 0
-    }
-};
-
 void tud_usbtmc_open_cb(uint8_t interface_id)
 {
   (void)interface_id;
@@ -188,9 +180,6 @@ static unsigned int msgReqLen;
 
 bool tud_usbtmc_msgBulkIn_request_cb(usbtmc_msg_request_dev_dep_in const * request)
 {
-  rspMsg.header.MsgID = request->header.MsgID,
-  rspMsg.header.bTag = request->header.bTag,
-  rspMsg.header.bTagInverse = request->header.bTagInverse;
   msgReqLen = request->TransferSize;
 
 #ifdef xDEBUG
