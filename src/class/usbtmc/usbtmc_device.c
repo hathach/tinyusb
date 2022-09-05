@@ -496,7 +496,6 @@ bool usbtmcd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint
       default:
         usbd_edpt_stall(rhport, usbtmc_state.ep_bulk_out);
         TU_VERIFY(false);
-        return false;
       }
       return true;
 
@@ -509,8 +508,8 @@ bool usbtmcd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint
       return true;
 
     case STATE_ABORTING_BULK_OUT:
-      TU_VERIFY(false);
-      return false; // Should be stalled by now, shouldn't have received a packet.
+      TU_VERIFY(false); // Should be stalled by now, shouldn't have received a packet.
+      TU_ATTR_FALLTHROUGH; // Not really - some compilers can't figure out that the above macro always returns.
 
     case STATE_TX_REQUESTED:
     case STATE_TX_INITIATED:
@@ -567,7 +566,6 @@ bool usbtmcd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint
 
     default:
       TU_ASSERT(false);
-      return false;
     }
   }
   else if (ep_addr == usbtmc_state.ep_int_in) {
@@ -872,15 +870,13 @@ bool usbtmcd_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request
     {
       TU_VERIFY(request->bmRequestType == 0xA1); // in,class,interface
       TU_VERIFY(false);
-      return false;
+      TU_ATTR_FALLTHROUGH; // Not really - some compilers can't figure out that the above macro always returns.
     }
 #endif
 
   default:
     TU_VERIFY(false);
-    return false;
   }
-  TU_VERIFY(false);
 }
 
 #endif /* CFG_TUD_TSMC */

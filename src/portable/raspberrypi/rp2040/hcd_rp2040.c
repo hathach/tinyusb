@@ -432,8 +432,7 @@ tusb_speed_t hcd_port_speed_get(uint8_t rhport)
       case 2:
           return TUSB_SPEED_FULL;
       default:
-          panic("Invalid speed\n");
-          return TUSB_SPEED_INVALID;
+          panic("Invalid speed\n"); // does not return
   }
 }
 
@@ -599,8 +598,7 @@ bool hcd_edpt_clear_stall(uint8_t dev_addr, uint8_t ep_addr)
     (void) dev_addr;
     (void) ep_addr;
 
-    panic("hcd_clear_stall");
-    return true;
+    panic("hcd_clear_stall"); // does not return
 }
 
 #endif

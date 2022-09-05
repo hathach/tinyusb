@@ -67,8 +67,6 @@ int main(void)
       led_state = 1 - led_state; // toggle
     }
   }
-
-  return 0;
 }
 
 #if CFG_TUSB_MCU == OPT_MCU_ESP32S2 || CFG_TUSB_MCU == OPT_MCU_ESP32S3

@@ -943,7 +943,6 @@ static int handle_video_stm_req(uint8_t rhport, uint8_t stage,
 
     default: return VIDEO_ERROR_INVALID_REQUEST;
   }
-  return VIDEO_ERROR_UNKNOWN;
 }
 
 //--------------------------------------------------------------------+
