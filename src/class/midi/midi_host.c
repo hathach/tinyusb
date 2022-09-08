@@ -100,7 +100,7 @@ typedef struct
 #define MAX_OUT_JACKS 8
   struct {
     uint8_t jack_id;
-    int8_t jack_type;
+    uint8_t jack_type;
     uint8_t string_index;
   } in_jack_info[MAX_IN_JACKS];
   uint8_t next_in_jack;
