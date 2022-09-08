@@ -333,10 +333,10 @@ bool midih_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_interface_t const *d
           p_midi_host->out_jack_info[p_midi_host->next_out_jack].jack_id = p_mdoj->bJackID;
           p_midi_host->out_jack_info[p_midi_host->next_out_jack].jack_type = p_mdoj->bJackType;
           p_midi_host->out_jack_info[p_midi_host->next_out_jack].num_source_ids = p_mdoj->bNrInputPins;
-          struct associated_jack_s {
+          const struct associated_jack_s {
               uint8_t id;
               uint8_t pin;
-          } *associated_jack = (struct associated_jack_s *)(p_desc+6);
+          } *associated_jack = (const struct associated_jack_s *)(p_desc+6);
           int jack;
           for (jack = 0; jack < p_mdoj->bNrInputPins; jack++)
           {
