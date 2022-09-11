@@ -122,7 +122,6 @@ void tuh_midi_mount_cb(uint8_t dev_addr, uint8_t in_ep, uint8_t out_ep, uint8_t 
 void tuh_midi_umount_cb(uint8_t dev_addr, uint8_t instance)
 {
     TU_LOG1("MIDI device address = %d, instance = %d is unmounted\r\n", dev_addr, instance);
-
     midi_dev_addr = 0;
 }
 
@@ -142,7 +141,7 @@ void tuh_midi_rx_cb(uint8_t dev_addr, uint32_t num_packets)
     uint8_t buffer[48];
     uint32_t bytes_read = tuh_midi_stream_read(dev_addr, &cable_num, buffer, sizeof(buffer));
 
-    TU_LOG1("Read bytes %u cable %u", bytes_read, cable_num);
+    TU_LOG1("Read bytes %lu cable %u", bytes_read, cable_num);
     TU_LOG1_MEM(buffer, bytes_read, 2);
 }
 
