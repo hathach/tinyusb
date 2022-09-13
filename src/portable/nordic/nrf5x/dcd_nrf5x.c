@@ -765,7 +765,7 @@ void dcd_int_handler(uint8_t rhport)
     if ( tu_bit_test(int_status, USBD_INTEN_ENDEPOUT0_Pos+epnum))
     {
       xfer_td_t* xfer = get_td(epnum, TUSB_DIR_OUT);
-      uint8_t const xact_len = NRF_USBD->EPOUT[epnum].AMOUNT;
+      uint16_t const xact_len = NRF_USBD->EPOUT[epnum].AMOUNT;
 
       xfer->buffer     += xact_len;
       xfer->actual_len += xact_len;
