@@ -447,6 +447,10 @@ static inline uint8_t tu_desc_subtype(void const* desc)
 }
 #endif
 
+#if CFG_TUD_AUDIO_ENABLE_EP_OUT && CFG_TUD_AUDIO_ENABLE_FEEDBACK_EP
+static bool set_fb_params_freq(audiod_function_t* audio, uint32_t sample_freq, uint32_t mclk_freq);
+#endif
+
 bool tud_audio_n_mounted(uint8_t func_id)
 {
   TU_VERIFY(func_id < CFG_TUD_AUDIO);
