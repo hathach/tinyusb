@@ -33,11 +33,6 @@
  extern "C" {
 #endif
 
-typedef struct {
-  pipe_handle_t pipe_in;
-  pipe_handle_t pipe_out;
-}custom_interface_info_t;
-
 //--------------------------------------------------------------------+
 // USBH-CLASS DRIVER API
 //--------------------------------------------------------------------+
@@ -56,8 +51,8 @@ bool tusbh_custom_write(uint8_t dev_addr, uint16_t vendor_id, uint16_t product_i
 // Internal Class Driver API
 //--------------------------------------------------------------------+
 void cush_init(void);
-bool cush_open_subtask(uint8_t dev_addr, tusb_desc_interface_t const *p_interface_desc, uint16_t *p_length);
-void cush_isr(pipe_handle_t pipe_hdl, xfer_result_t event);
+bool cush_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_interface_t const *itf_desc, uint16_t max_len);
+void cush_isr(uint8_t dev_addr, uint8_t ep_addr, xfer_result_t event, uint32_t idk);
 void cush_close(uint8_t dev_addr);
 
 #ifdef __cplusplus

@@ -181,8 +181,7 @@ static usbh_class_driver_t const usbh_class_drivers[] =
     {
       DRIVER_NAME("VENDOR")
       .init       = cush_init,
-      .open       = cush_open_subtask,
-      .xfer_cb    = cush_isr,
+      .open       = cush_open,
       .close      = cush_close
     }
   #endif

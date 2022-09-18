@@ -1,4 +1,4 @@
-/* 
+/*
  * The MIT License (MIT)
  *
  * Copyright (c) 2019 Ha Thach (tinyusb.org)
@@ -32,57 +32,58 @@
 // INCLUDE
 //--------------------------------------------------------------------+
 #include "host/usbh.h"
+#include "host/usbh_classdriver.h"
 #include "vendor_host.h"
 
 //--------------------------------------------------------------------+
 // MACRO CONSTANT TYPEDEF
 //--------------------------------------------------------------------+
-
+typedef struct
+{
+  uint8_t ep_in;
+  uint8_t ep_out;
+} custom_interface_info_t;
 //--------------------------------------------------------------------+
 // INTERNAL OBJECT & FUNCTION DECLARATION
 //--------------------------------------------------------------------+
 custom_interface_info_t custom_interface[CFG_TUH_DEVICE_MAX];
 
-static tusb_error_t cush_validate_paras(uint8_t dev_addr, uint16_t vendor_id, uint16_t product_id, void * p_buffer, uint16_t length)
+static bool cush_validate_paras(uint8_t dev_addr, uint16_t vendor_id, uint16_t product_id, void *p_buffer, uint16_t length)
 {
-  if ( !tusbh_custom_is_mounted(dev_addr, vendor_id, product_id) )
+  if (!tusbh_custom_is_mounted(dev_addr, vendor_id, product_id))
   {
-    return TUSB_ERROR_DEVICE_NOT_READY;
+    return false;
   }
 
-  TU_ASSERT( p_buffer != NULL && length != 0, TUSB_ERROR_INVALID_PARA);
+  TU_ASSERT(p_buffer != NULL && length != 0, 0);
 
-  return TUSB_ERROR_NONE;
+  return true;
 }
 //--------------------------------------------------------------------+
 // APPLICATION API (need to check parameters)
 //--------------------------------------------------------------------+
-tusb_error_t tusbh_custom_read(uint8_t dev_addr, uint16_t vendor_id, uint16_t product_id, void * p_buffer, uint16_t length)
+bool tusbh_custom_read(uint8_t dev_addr, uint16_t vendor_id, uint16_t product_id, void *p_buffer, uint16_t length)
 {
-  TU_ASSERT_ERR( cush_validate_paras(dev_addr, vendor_id, product_id, p_buffer, length) );
+  TU_VERIFY(tuh_mounted(dev_addr));
+  TU_VERIFY(p_buffer != NULL && length);
 
-  if ( !hcd_pipe_is_idle(custom_interface[dev_addr-1].pipe_in) )
-  {
-    return TUSB_ERROR_INTERFACE_IS_BUSY;
-  }
+  uint8_t const ep_in = custom_interface[dev_addr - 1].ep_in;
+  if (usbh_edpt_busy(dev_addr, ep_in))
+    return false;
 
-  (void) usbh_edpt_xfer( custom_interface[dev_addr-1].pipe_in, p_buffer, length);
-
-  return TUSB_ERROR_NONE;
+  return usbh_edpt_xfer(dev_addr, ep_in, (void *)(uintptr_t)p_buffer, (uint16_t)length);
 }
 
-tusb_error_t tusbh_custom_write(uint8_t dev_addr, uint16_t vendor_id, uint16_t product_id, void const * p_data, uint16_t length)
+bool tusbh_custom_write(uint8_t dev_addr, uint16_t vendor_id, uint16_t product_id, void const *p_data, uint16_t length)
 {
-  TU_ASSERT_ERR( cush_validate_paras(dev_addr, vendor_id, product_id, p_data, length) );
+  TU_VERIFY(tuh_mounted(dev_addr));
+  TU_VERIFY(p_data != NULL && length);
 
-  if ( !hcd_pipe_is_idle(custom_interface[dev_addr-1].pipe_out) )
-  {
-    return TUSB_ERROR_INTERFACE_IS_BUSY;
-  }
+  uint8_t const ep_out = custom_interface[dev_addr - 1].ep_out;
+  if (usbh_edpt_busy(dev_addr, ep_out))
+    return false;
 
-  (void) usbh_edpt_xfer( custom_interface[dev_addr-1].pipe_out, p_data, length);
-
-  return TUSB_ERROR_NONE;
+  return usbh_edpt_xfer(dev_addr, ep_out, (void *)(uintptr_t)p_data, (uint16_t)length);
 }
 
 //--------------------------------------------------------------------+
@@ -93,54 +94,27 @@ void cush_init(void)
   tu_memclr(&custom_interface, sizeof(custom_interface_info_t) * CFG_TUH_DEVICE_MAX);
 }
 
-tusb_error_t cush_open_subtask(uint8_t dev_addr, tusb_desc_interface_t const *p_interface_desc, uint16_t *p_length)
+bool cush_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_interface_t const *p_interface_desc, uint16_t max_len)
 {
+  (void) max_len;
+  (void) rhport;
   // FIXME quick hack to test lpc1k custom class with 2 bulk endpoints
-  uint8_t const *p_desc = (uint8_t const *) p_interface_desc;
+  uint8_t const *p_desc = (uint8_t const *)p_interface_desc;
   p_desc = tu_desc_next(p_desc);
 
-  //------------- Bulk Endpoints Descriptor -------------//
-  for(uint32_t i=0; i<2; i++)
-  {
-    tusb_desc_endpoint_t const *p_endpoint = (tusb_desc_endpoint_t const *) p_desc;
-    TU_ASSERT(TUSB_DESC_ENDPOINT == p_endpoint->bDescriptorType, TUSB_ERROR_INVALID_PARA);
+  tusb_desc_endpoint_t const *p_endpoint = (tusb_desc_endpoint_t const *)p_desc;
+  TU_ASSERT(TUSB_DESC_ENDPOINT == p_endpoint->bDescriptorType, 0);
+  uint8_t ep = (p_endpoint->bEndpointAddress & TUSB_DIR_IN_MASK) ? custom_interface[dev_addr - 1].ep_in : custom_interface[dev_addr - 1].ep_out;
+  TU_ASSERT(tuh_edpt_open(dev_addr, p_endpoint), 0);
 
-    pipe_handle_t * p_pipe_hdl =  ( p_endpoint->bEndpointAddress &  TUSB_DIR_IN_MASK ) ?
-                         &custom_interface[dev_addr-1].pipe_in : &custom_interface[dev_addr-1].pipe_out;
-    *p_pipe_hdl = usbh_edpt_open(dev_addr, p_endpoint, TUSB_CLASS_VENDOR_SPECIFIC);
-    TU_ASSERT ( pipehandle_is_valid(*p_pipe_hdl), TUSB_ERROR_HCD_OPEN_PIPE_FAILED );
-
-    p_desc = tu_desc_next(p_desc);
-  }
-
-  (*p_length) = sizeof(tusb_desc_interface_t) + 2*sizeof(tusb_desc_endpoint_t);
-  return TUSB_ERROR_NONE;
-}
-
-void cush_isr(pipe_handle_t pipe_hdl, xfer_result_t event)
-{
-
+  p_desc = tu_desc_next(p_desc);
+  return true;
 }
 
 void cush_close(uint8_t dev_addr)
 {
-  tusb_error_t err1, err2;
-  custom_interface_info_t * p_interface = &custom_interface[dev_addr-1];
-
-  // TODO re-consider to check pipe valid before calling pipe_close
-  if( pipehandle_is_valid( p_interface->pipe_in ) )
-  {
-    err1 = hcd_pipe_close( p_interface->pipe_in );
-  }
-
-  if ( pipehandle_is_valid( p_interface->pipe_out ) )
-  {
-    err2 = hcd_pipe_close( p_interface->pipe_out );
-  }
-
-  tu_memclr(p_interface, sizeof(custom_interface_info_t));
-
-  TU_ASSERT(err1 == TUSB_ERROR_NONE && err2 == TUSB_ERROR_NONE, (void) 0 );
+  custom_interface_info_t *p_cush = &custom_interface[dev_addr - 1];
+  tu_memclr(p_cush, sizeof(custom_interface_info_t));
 }
 
 #endif
