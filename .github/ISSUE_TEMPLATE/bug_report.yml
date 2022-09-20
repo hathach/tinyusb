@@ -76,3 +76,11 @@ body:
       description: If applicable, add screenshots to help explain your problem.
     validations:
       required: false
+
+  - type: checkboxes
+    attributes:
+      label: I have checked existing issues, dicussion and documentation
+      description: You agree to check all the resources above before opening a new issue.
+      options:
+        - label: I confirm I have checked existing issues, dicussion and documentation.
+          required: true

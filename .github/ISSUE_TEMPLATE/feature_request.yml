@@ -1,0 +1,49 @@
+name: Feature Request
+description: Suggest an idea for this project
+labels: 'Feature 💡'
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to fill out this request!
+        It's okay to leave some blank if it doesn't apply to your request.
+
+  - type: input
+    attributes:
+      label: Related area
+      description: Please briefly explain the area of your Feature Request.
+      placeholder: eg. new port support, device stack, class driver ...
+    validations:
+      required: true
+
+  - type: input
+    attributes:
+      label: Hardware specification
+      description: Please provide if your proposal depends on specific Hardware.
+      placeholder: eg. rp2040, samd51 ...
+    validations:
+      required: true
+
+  - type: textarea
+    attributes:
+      label: Is your feature request related to a problem?
+      description: Please provide a clear and concise description of what the problem is. Add relevant issue link.
+      placeholder: ex. I'm facing the issue/missing function...
+    validations:
+      required: true
+
+  - type: textarea
+    attributes:
+      label: Describe the solution you'd like
+      description: Please provide a clear and concise description of what you want to happen.
+      placeholder: ex. When using this function...
+    validations:
+      required: true
+
+  - type: checkboxes
+    attributes:
+      label: I have checked existing issues, dicussion and documentation
+      description: You agree to check all the resources above before opening a new issue.
+      options:
+        - label: I confirm I have checked existing issues, dicussion and documentation.
+          required: true

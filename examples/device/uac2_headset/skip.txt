@@ -4,3 +4,4 @@ mcu:NUC121
 mcu:SAMD11
 mcu:SAME5X
 mcu:SAMG
+board:stm32l052dap52

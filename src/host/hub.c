@@ -44,6 +44,7 @@ typedef struct
   uint8_t status_change; // data from status change interrupt endpoint
 
   hub_port_status_response_t port_status;
+  hub_status_response_t hub_status;
 } hub_interface_t;
 
 CFG_TUSB_MEM_SECTION static hub_interface_t hub_data[CFG_TUH_HUB];
@@ -85,7 +86,7 @@ bool hub_port_clear_feature(uint8_t hub_addr, uint8_t hub_port, uint8_t feature,
   {
     .bmRequestType_bit =
     {
-      .recipient = TUSB_REQ_RCPT_OTHER,
+      .recipient = (hub_port == 0) ? TUSB_REQ_RCPT_DEVICE : TUSB_REQ_RCPT_OTHER,
       .type      = TUSB_REQ_TYPE_CLASS,
       .direction = TUSB_DIR_OUT
     },
@@ -117,7 +118,7 @@ bool hub_port_set_feature(uint8_t hub_addr, uint8_t hub_port, uint8_t feature,
   {
     .bmRequestType_bit =
     {
-      .recipient = TUSB_REQ_RCPT_OTHER,
+      .recipient = (hub_port == 0) ? TUSB_REQ_RCPT_DEVICE : TUSB_REQ_RCPT_OTHER,
       .type      = TUSB_REQ_TYPE_CLASS,
       .direction = TUSB_DIR_OUT
     },
@@ -149,7 +150,7 @@ bool hub_port_get_status(uint8_t hub_addr, uint8_t hub_port, void* resp,
   {
     .bmRequestType_bit =
     {
-      .recipient = TUSB_REQ_RCPT_OTHER,
+      .recipient = (hub_port == 0) ? TUSB_REQ_RCPT_DEVICE : TUSB_REQ_RCPT_OTHER,
       .type      = TUSB_REQ_TYPE_CLASS,
       .direction = TUSB_DIR_IN
     },
@@ -313,7 +314,8 @@ static void config_port_power_complete (tuh_xfer_t* xfer)
 // Connection Changes
 //--------------------------------------------------------------------+
 
-static void connection_get_status_complete (tuh_xfer_t* xfer);
+static void hub_port_get_status_complete (tuh_xfer_t* xfer);
+static void hub_get_status_complete (tuh_xfer_t* xfer);
 static void connection_clear_conn_change_complete (tuh_xfer_t* xfer);
 static void connection_port_reset_complete (tuh_xfer_t* xfer);
 
@@ -326,19 +328,31 @@ bool hub_xfer_cb(uint8_t dev_addr, uint8_t ep_addr, xfer_result_t result, uint32
 
   hub_interface_t* p_hub = get_itf(dev_addr);
 
-  TU_LOG2("  Port Status Change = 0x%02X\r\n", p_hub->status_change);
+  TU_LOG2("  Hub Status Change = 0x%02X\r\n", p_hub->status_change);
 
-  // Hub ignore bit0 in status change
-  for (uint8_t port=1; port <= p_hub->port_count; port++)
+  // Hub bit 0 is for the hub device events
+  if (tu_bit_test(p_hub->status_change, 0))
   {
-    if ( tu_bit_test(p_hub->status_change, port) )
+    if (hub_port_get_status(dev_addr, 0, &p_hub->hub_status, hub_get_status_complete, 0) == false)
     {
-      if (hub_port_get_status(dev_addr, port, &p_hub->port_status, connection_get_status_complete, 0) == false)
+      //Hub status control transfer failed, retry
+      hub_edpt_status_xfer(dev_addr);
+    }
+  }
+  else
+  {
+    // Hub bits 1 to n are hub port events
+    for (uint8_t port=1; port <= p_hub->port_count; port++)
+    {
+      if ( tu_bit_test(p_hub->status_change, port) )
       {
-        //Hub status control transfer failed, retry
-        hub_edpt_status_xfer(dev_addr);
+        if (hub_port_get_status(dev_addr, port, &p_hub->port_status, hub_port_get_status_complete, 0) == false)
+        {
+          //Hub status control transfer failed, retry
+          hub_edpt_status_xfer(dev_addr);
+        }
+        break;
       }
-      break;
     }
   }
 
@@ -347,7 +361,36 @@ bool hub_xfer_cb(uint8_t dev_addr, uint8_t ep_addr, xfer_result_t result, uint32
   return true;
 }
 
-static void connection_get_status_complete (tuh_xfer_t* xfer)
+static void hub_clear_feature_complete_stub(tuh_xfer_t* xfer)
+{
+  TU_ASSERT(xfer->result == XFER_RESULT_SUCCESS, );
+  hub_edpt_status_xfer(xfer->daddr);
+}
+
+static void hub_get_status_complete (tuh_xfer_t* xfer)
+{
+  TU_ASSERT(xfer->result == XFER_RESULT_SUCCESS, );
+
+  uint8_t const daddr = xfer->daddr;
+  hub_interface_t* p_hub = get_itf(daddr);
+  uint8_t const port_num = (uint8_t) tu_le16toh(xfer->setup->wIndex);
+  TU_ASSERT(port_num == 0 , );
+
+  TU_LOG2("HUB Got hub status, addr = %u, status = %04x\r\n", daddr, p_hub->hub_status.change.value);
+
+  if (p_hub->hub_status.change.local_power_source)
+  {
+    TU_LOG2("HUB Local Power Change, addr = %u\r\n", daddr);
+    hub_port_clear_feature(daddr, port_num, HUB_FEATURE_HUB_LOCAL_POWER_CHANGE, hub_clear_feature_complete_stub, 0);
+  }
+  else if (p_hub->hub_status.change.over_current)
+  {
+    TU_LOG1("HUB Over Current, addr = %u\r\n", daddr);
+    hub_port_clear_feature(daddr, port_num, HUB_FEATURE_HUB_OVER_CURRENT_CHANGE, hub_clear_feature_complete_stub, 0);
+  }
+}
+
+static void hub_port_get_status_complete (tuh_xfer_t* xfer)
 {
   TU_ASSERT(xfer->result == XFER_RESULT_SUCCESS, );
 
@@ -365,7 +408,24 @@ static void connection_get_status_complete (tuh_xfer_t* xfer)
     hub_port_clear_feature(daddr, port_num, HUB_FEATURE_PORT_CONNECTION_CHANGE, connection_clear_conn_change_complete, 0);
   }else
   {
-    // Other changes are: Enable, Suspend, Over Current, Reset, L1 state
+    // Clear other port status change interrupts. TODO Not currently handled - just cleared.
+    if (p_hub->port_status.change.port_enable)
+    {
+      hub_port_clear_feature(daddr, port_num, HUB_FEATURE_PORT_ENABLE_CHANGE, hub_clear_feature_complete_stub, 0);
+    }
+    else if (p_hub->port_status.change.suspend)
+    {
+      hub_port_clear_feature(daddr, port_num, HUB_FEATURE_PORT_SUSPEND_CHANGE, hub_clear_feature_complete_stub, 0);
+    }
+    else if (p_hub->port_status.change.over_current)
+    {
+      hub_port_clear_feature(daddr, port_num, HUB_FEATURE_PORT_OVER_CURRENT_CHANGE, hub_clear_feature_complete_stub, 0);
+    }
+    else if (p_hub->port_status.change.reset)
+    {
+      hub_port_clear_feature(daddr, port_num, HUB_FEATURE_PORT_RESET_CHANGE, hub_clear_feature_complete_stub, 0);
+    }
+    // Other changes are: L1 state
     // TODO clear change
 
     // prepare for next hub status

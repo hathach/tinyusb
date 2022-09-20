@@ -33,7 +33,7 @@ typedef int make_iso_compilers_happy;
 #include "common/tusb_compiler.h"
 
 #define TUSB_VERSION_MAJOR     0
-#define TUSB_VERSION_MINOR     13
+#define TUSB_VERSION_MINOR     14
 #define TUSB_VERSION_REVISION  0
 #define TUSB_VERSION_STRING    TU_STRING(TUSB_VERSION_MAJOR) "." TU_STRING(TUSB_VERSION_MINOR) "." TU_STRING(TUSB_VERSION_REVISION)
 
@@ -223,7 +223,7 @@ typedef int make_iso_compilers_happy;
 #define TUSB_OPT_DEVICE_ENABLED CFG_TUD_ENABLED
 
 // highspeed support indicator
-#define TUD_OPT_HIGH_SPEED    (CFG_TUD_MAX_SPEED ? CFG_TUD_MAX_SPEED : TUP_RHPORT_HIGHSPEED)
+#define TUD_OPT_HIGH_SPEED    (CFG_TUD_MAX_SPEED ? (CFG_TUD_MAX_SPEED & OPT_MODE_HIGH_SPEED) : TUP_RHPORT_HIGHSPEED)
 
 //------------- Roothub as Host -------------//
 
