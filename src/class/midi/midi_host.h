@@ -52,7 +52,6 @@
 // Application API (Single Interface)
 //--------------------------------------------------------------------+
 bool     tuh_midi_configured      (uint8_t dev_addr);
-uint32_t tuh_midi_available    (uint8_t dev_addr);
 
 // return the number of virtual midi cables on the device's OUT endpoint
 uint8_t tuh_midih_get_num_tx_cables (uint8_t dev_addr);
