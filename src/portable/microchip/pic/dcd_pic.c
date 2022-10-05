@@ -39,14 +39,10 @@
 
 #if (CFG_TUSB_MCU == OPT_MCU_PIC32MX || CFG_TUSB_MCU == OPT_MCU_PIC32MM || CFG_TUSB_MCU == OPT_MCU_PIC32MK)
 
-#define TU_PIC_HAS_MMU          1
-#define TU_PIC_HAS_HW_RMW       1
 #define TU_PIC_INT_SIZE         4
 
 #elif (CFG_TUSB_MCU == OPT_MCU_PIC24 || CFG_TUSB_MCU == OPT_MCU_DSPIC33)
 
-#define TU_PIC_HAS_MMU          0
-#define TU_PIC_HAS_HW_RMW       0
 #define TU_PIC_INT_SIZE         2
 
 #else
@@ -56,7 +52,7 @@
 #endif
 
 
-#if TU_PIC_HAS_MMU
+#if TU_PIC_INT_SIZE == 4
 
 #ifndef KVA_TO_PA
 #define KVA_TO_PA(kva)    ((uint32_t)(kva) & 0x1fffffff)
@@ -89,6 +85,8 @@ enum {
   TOK_PID_SETUP = 0xDu,
 };
 
+// The BDT is 8 bytes on 32bit PICs and 4 bytes on 8/16bit PICs
+#if TU_PIC_INT_SIZE == 4
 typedef struct TU_ATTR_PACKED
 {
   union {
@@ -119,6 +117,37 @@ typedef struct TU_ATTR_PACKED
 } buffer_descriptor_t;
 
 TU_VERIFY_STATIC( sizeof(buffer_descriptor_t) == 8, "size is not correct" );
+#else
+typedef struct TU_ATTR_PACKED
+{
+  union {
+    uint16_t head;
+
+    struct {
+      uint16_t           :  10;
+      uint16_t tok_pid   :  4;
+      uint16_t data      :  1;
+      uint16_t own       :  1;
+    };
+    struct {
+      uint16_t           :  10;
+      uint16_t bdt_stall :  1;
+      uint16_t dts       :  1;
+      uint16_t ninc      :  1;
+      uint16_t keep      :  1;
+    };
+
+    struct {
+      uint16_t bc : 10;
+      uint16_t    :  6;
+    };
+  };
+  uint8_t *addr;
+} buffer_descriptor_t;
+
+TU_VERIFY_STATIC( sizeof(buffer_descriptor_t) == 4, "size is not correct" );
+#endif
+
 
 typedef struct TU_ATTR_PACKED
 {
@@ -142,7 +171,11 @@ typedef struct
   union {
     /* [#EP][OUT,IN][EVEN,ODD] */
     buffer_descriptor_t bdt[16][2][2];
-    uint16_t            bda[512];
+#if TU_PIC_INT_SIZE == 4
+    uint16_t            bda[256];
+#else
+    uint8_t            bda[256];
+#endif
   };
   TU_ATTR_ALIGNED(4) union {
     endpoint_state_t endpoint[16][2];
@@ -158,7 +191,11 @@ typedef struct
 // BDT(Buffer Descriptor Table) must be 256-byte aligned
 CFG_TUSB_MEM_SECTION TU_ATTR_ALIGNED(512) volatile static dcd_data_t _dcd;
 
+#if TU_PIC_INT_SIZE == 4
 TU_VERIFY_STATIC( sizeof(_dcd.bdt) == 512, "size is not correct" );
+#else
+TU_VERIFY_STATIC( sizeof(_dcd.bdt) == 256, "size is not correct" );
+#endif
 
 #if TU_PIC_INT_SIZE == 4
 typedef uint32_t ep_reg_t;
@@ -172,7 +209,12 @@ static inline volatile void *ep_addr(uint8_t rhport, uint8_t ep_num) {
 #else
   volatile void *ep_reg_base = &U1EP0;
 #endif
-  return ep_reg_base + 0x10 * ep_num;
+#if TU_PIC_INT_SIZE == 4
+  const size_t offset = 0x10;
+#else
+  const size_t offset = 0x2;
+#endif
+  return ep_reg_base + offset * ep_num;
 }
 
 static inline ep_reg_t ep_read(uint8_t rhport, uint8_t ep_num) {
@@ -186,7 +228,7 @@ static inline void ep_write(uint8_t rhport, uint8_t ep_num, ep_reg_t val) {
 }
 
 static inline void ep_clear(uint8_t rhport, uint8_t ep_num, ep_reg_t val) {
-#if TU_PIC_HAS_HW_RMW
+#if TU_PIC_INT_SIZE == 4
   volatile ep_reg_t *ep_clr = (ep_addr(rhport, ep_num) + 0x4);
   *ep_clr = val;
 #else
@@ -197,7 +239,7 @@ static inline void ep_clear(uint8_t rhport, uint8_t ep_num, ep_reg_t val) {
 }
 
 static inline void ep_set(uint8_t rhport, uint8_t ep_num, ep_reg_t val) {
-#if TU_PIC_HAS_HW_RMW
+#if TU_PIC_INT_SIZE == 4
   volatile ep_reg_t *ep_s = (ep_addr(rhport, ep_num) + 0x8);
   *ep_s = val;
 #else
@@ -278,7 +320,7 @@ static void prepare_next_setup_packet(uint8_t rhport)
   _dcd.bdt[0][1][in_odd].data      = 1;
   _dcd.bdt[0][1][in_odd ^ 1].data  = 0;
   dcd_edpt_xfer(rhport, tu_edpt_addr(0, TUSB_DIR_OUT),
-                _dcd.setup_packet, sizeof(_dcd.setup_packet));
+          _dcd.setup_packet, sizeof(_dcd.setup_packet));
 }
 
 static void process_stall(uint8_t rhport)
@@ -298,7 +340,7 @@ static void process_stall(uint8_t rhport)
 
 static void process_tokdne(uint8_t rhport)
 {
-  uint32_t s = U1STAT;
+  ep_reg_t s = U1STAT;
 
   U1IR = _U1IR_TRNIF_MASK;
 
@@ -321,7 +363,11 @@ static void process_tokdne(uint8_t rhport)
   ep->odd       = odd ^ 1;
   if (pid == TOK_PID_SETUP) {
     dcd_event_setup_received(rhport, (uint8_t *)PA_TO_KVA1(bd->addr), true);
+#if TU_PIC_INT_SIZE == 4
     U1CONCLR = _U1CON_PKTDIS_TOKBUSY_MASK;
+#else
+    U1CONbits.PKTDIS = 0;
+#endif
     return;
   }
 
@@ -341,8 +387,8 @@ static void process_tokdne(uint8_t rhport)
   }
   const unsigned length = ep->length;
   dcd_event_xfer_complete(rhport,
-                          tu_edpt_addr(epnum, dir),
-                          length - remaining, XFER_RESULT_SUCCESS, true);
+        tu_edpt_addr(epnum, dir),
+        length - remaining, XFER_RESULT_SUCCESS, true);
   if (0 == epnum && 0 == length) {
     /* After completion a ZLP of control transfer,
      * it prepares for the next steup transfer. */
@@ -358,11 +404,16 @@ static void process_tokdne(uint8_t rhport)
 
 static void process_bus_reset(uint8_t rhport)
 {
+#if TU_PIC_INT_SIZE == 4
   U1PWRCCLR = _U1PWRC_USUSPEND_MASK;
   U1CONSET = _U1CON_PPBRST_MASK;
+#else
+  U1PWRCbits.USUSPND = 0;
+  U1CONbits.PPBRST = 1;
+#endif
   U1ADDR = 0;
 
-  U1IE = _U1IE_URSTIE_DETACHIE_MASK | _U1IE_TRNIE_MASK | _U1IE_IDLEIE_MASK |
+  U1IE = _U1IE_URSTIE_MASK | _U1IE_TRNIE_MASK | _U1IE_IDLEIE_MASK |
          _U1IE_UERRIE_MASK | _U1IE_STALLIE_MASK;
 
   U1EP0 = _U1EP0_EPHSHK_MASK | _U1EP0_EPRXEN_MASK | _U1EP0_EPTXEN_MASK;
@@ -386,7 +437,11 @@ static void process_bus_reset(uint8_t rhport)
   tu_memclr(_dcd.endpoint[1], sizeof(_dcd.endpoint) - sizeof(_dcd.endpoint[0]));
   _dcd.addr = 0;
   prepare_next_setup_packet(rhport);
+#if TU_PIC_INT_SIZE == 4
   U1CONCLR = _U1CON_PPBRST_MASK;
+#else
+  U1CONbits.PPBRST = 0;
+#endif
   dcd_event_bus_reset(rhport, TUSB_SPEED_FULL, true);
 }
 
@@ -399,9 +454,15 @@ static void process_bus_sleep(uint8_t rhport)
 static void process_bus_resume(uint8_t rhport)
 {
   // Enable suspend & disable resume interrupt
+#if TU_PIC_INT_SIZE == 4
   U1PWRCCLR = _U1PWRC_USUSPEND_MASK;
   U1IECLR = _U1IE_RESUMEIE_MASK;
   U1IESET = _U1IE_IDLEIE_MASK;
+#else
+  U1PWRCbits.USUSPND = 0;
+  U1IEbits.RESUMEIE = 0;
+  U1IEbits.IDLEIE = 1;
+#endif
 
   dcd_event_bus_signal(rhport, DCD_EVENT_RESUME, true);
 }
@@ -418,26 +479,29 @@ void dcd_init(uint8_t rhport)
   TRISBbits.TRISB6 = 1;
 #endif
 
-#if (CFG_TUSB_MCU == OPT_MCU_PIC32MX) || (CFG_TUSB_MCU == OPT_MCU_PIC32MM)
-  U1PWRCSET = _U1PWRC_USBPWR_MASK;
-#elif CFG_TUSB_MCU == OPT_MCU_PIC32MK
-  // TODO
-#elif (CFG_TUSB_MCU == OPT_MCU_PIC24) || (CFG_TUSB_MCU == OPT_MCU_DSPIC33)
-  U1PWRCbits.USBPWR = 1;
-#endif
-
   tu_memclr(&_dcd, sizeof(_dcd));
 
+#if TU_PIC_INT_SIZE == 4
+  U1PWRCSET = _U1PWRC_USBPWR_MASK;
+#else
+  U1PWRCbits.USBPWR = 1;
+#endif
+  
+#if TU_PIC_INT_SIZE == 4
   uint32_t bdt_phys = KVA_TO_PA((uintptr_t)_dcd.bdt);
 
   U1BDTP1 = (uint8_t)(bdt_phys >>  8);
   U1BDTP2 = (uint8_t)(bdt_phys >> 16);
   U1BDTP3 = (uint8_t)(bdt_phys >> 24);
+#else
+  U1BDTP1 = (uint8_t)((uint16_t)(void *)_dcd.bdt >> 8);
 
-  U1IE = _U1IE_URSTIE_DETACHIE_MASK;
+  U1CNFG1bits.PPB = 2;
+#endif
+
+  U1IE = _U1IE_URSTIE_MASK;
 
   dcd_connect(rhport);
-
 }
 
 void dcd_int_enable(uint8_t rhport)
@@ -459,18 +523,30 @@ void dcd_set_address(uint8_t rhport, uint8_t dev_addr)
 
 void dcd_remote_wakeup(uint8_t rhport)
 {
+#if TU_PIC_INT_SIZE == 4
   U1CONSET = _U1CON_RESUME_MASK;
-
+#else
+  U1CONbits.RESUME = 1;
+#endif
   unsigned cnt = 25000000 / 1000;
   while (cnt--) asm volatile("nop");
 
+#if TU_PIC_INT_SIZE == 4
   U1CONCLR = _U1CON_RESUME_MASK;
+#else
+  U1CONbits.RESUME = 0;
+#endif
 }
 
 void dcd_connect(uint8_t rhport)
 {
-  while (!U1CONbits.USBEN)
+  while (!U1CONbits.USBEN) {
+#if TU_PIC_INT_SIZE == 4
     U1CONSET = _U1CON_USBEN_SOFEN_MASK;
+#else
+    U1CONbits.USBEN = 1;
+#endif
+  }
 }
 
 void dcd_disconnect(uint8_t rhport)
@@ -502,14 +578,14 @@ bool dcd_edpt_open(uint8_t rhport, tusb_desc_endpoint_t const * ep_desc)
 
   ep->max_packet_size = tu_edpt_packet_size(ep_desc);
 
+
   unsigned val = _U1EP0_EPCONDIS_MASK;
   val |= (xfer != TUSB_XFER_ISOCHRONOUS) ? _U1EP0_EPHSHK_MASK : 0;
   val |= dir ? _U1EP0_EPTXEN_MASK : _U1EP0_EPRXEN_MASK;
 
-  volatile void *ep_reg_base = &U1EP0;
-  volatile uint32_t *reg_ep = (ep_reg_base + 0x10 * epn);
-
-  *reg_ep |= val;
+  ep_reg_t tmp = ep_read(rhport, epn);
+  tmp |= val;
+  ep_write(rhport, epn, tmp);
 
   if (xfer != TUSB_XFER_ISOCHRONOUS) {
     bd[odd].dts      = 1;
@@ -569,6 +645,7 @@ void dcd_edpt_close(uint8_t rhport, uint8_t ep_addr)
 
 bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t* buffer, uint16_t total_bytes)
 {
+
   const unsigned epn      = tu_edpt_number(ep_addr);
   const unsigned dir      = tu_edpt_dir(ep_addr);
   endpoint_state_t    *ep = &_dcd.endpoint[epn][dir];
@@ -593,7 +670,6 @@ bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t* buffer, uint16_t to
   }
   bd->bc   = total_bytes >= mps ? mps: total_bytes;
   bd->addr = (uint8_t *)KVA_TO_PA(buffer);
-//  __DSB();
   bd->own  = 1; /* This bit must be set last */
 
   if (ie) intr_enable(rhport);
@@ -673,7 +749,7 @@ void dcd_int_handler(uint8_t rhport)
     U1IR   = is; /* discard any pending events */
   }
 
-  if (is & _U1IR_URSTIF_DETACHIF_MASK) {
+  if (is & _U1IR_URSTIF_MASK) {
     U1IR = is; /* discard any pending events */
     process_bus_reset(rhport);
   }
@@ -705,7 +781,6 @@ void dcd_int_handler(uint8_t rhport)
   }
 
   intr_clear(rhport);
-
 }
 
 #endif
