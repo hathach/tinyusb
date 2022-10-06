@@ -110,7 +110,7 @@ static unsigned tx_busy = 0;
 static unsigned interval_ms = 1000 / FRAME_RATE;
 
 /* YUY2 frame buffer */
-#if 1
+#ifdef CFG_EXAMPLE_VIDEO_READONLY
 #include "images.h"
 static struct {
   uint32_t       size;
@@ -181,7 +181,7 @@ void video_task(void)
     already_sent = 1;
     start_ms = board_millis();
 #ifdef CFG_EXAMPLE_VIDEO_READONLY
-    tud_video_n_frame_xfer(0, 0, (void*)(uintptr_t)&frames[frame_num % 8].buffer, frames[frame_num % 8].size);
+    tud_video_n_frame_xfer(0, 0, (void*)(uintptr_t)frames[frame_num % 8].buffer, frames[frame_num % 8].size);
 #else
     fill_color_bar(frame_buffer, frame_num);
     tud_video_n_frame_xfer(0, 0, (void*)frame_buffer, FRAME_WIDTH * FRAME_HEIGHT * 16/8);
@@ -194,7 +194,7 @@ void video_task(void)
   start_ms += interval_ms;
 
 #ifdef CFG_EXAMPLE_VIDEO_READONLY
-  tud_video_n_frame_xfer(0, 0, (void*)(uintptr_t)&frames[frame_num % 8].buffer, frames[frame_num % 8].size);
+  tud_video_n_frame_xfer(0, 0, (void*)(uintptr_t)frames[frame_num % 8].buffer, frames[frame_num % 8].size);
 #else
   fill_color_bar(frame_buffer, frame_num);
   tud_video_n_frame_xfer(0, 0, (void*)frame_buffer, FRAME_WIDTH * FRAME_HEIGHT * 16/8);
