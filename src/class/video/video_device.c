@@ -419,6 +419,8 @@ static bool _update_streaming_parameters(videod_streaming_interface_t const *stm
   uint_fast32_t interval_ms = interval / 10000;
   TU_ASSERT(interval_ms);
   uint_fast32_t payload_size = (frame_size + interval_ms - 1) / interval_ms + 2;
+  if (CFG_TUD_VIDEO_STREAMING_EP_BUFSIZE < payload_size)
+    payload_size = CFG_TUD_VIDEO_STREAMING_EP_BUFSIZE;
   param->dwMaxPayloadTransferSize = payload_size;
   return true;
 }
@@ -478,10 +480,10 @@ static bool _negotiate_streaming_parameters(videod_streaming_interface_t const *
         break;
       default: return false;
     }
-    param->bFrameIndex = (uint8_t) frmnum;
+    param->bFrameIndex = (uint8_t)frmnum;
     /* Set the parameters determined by the frame */
     tusb_desc_cs_video_frm_uncompressed_t const *frm = _find_desc_frame(tu_desc_next(fmt), end, frmnum);
-    param->dwMaxVideoFrameSize = (uint32_t) (frm->wWidth * frm->wHeight * fmt->bBitsPerPixel / 8);
+    param->dwMaxVideoFrameSize = (uint32_t)(frm->wWidth * frm->wHeight * fmt->bBitsPerPixel / 8);
     return true;
   }
 
@@ -536,11 +538,15 @@ static bool _negotiate_streaming_parameters(videod_streaming_interface_t const *
       param->dwMaxPayloadTransferSize = 0;
     } else {
       uint_fast32_t frame_size = param->dwMaxVideoFrameSize;
+      uint_fast32_t payload_size;
       if (!interval_ms) {
-        param->dwMaxPayloadTransferSize = frame_size + 2;
+        payload_size = frame_size + 2;
       } else {
-        param->dwMaxPayloadTransferSize = (frame_size + interval_ms - 1) / interval_ms + 2;
+        payload_size = (frame_size + interval_ms - 1) / interval_ms + 2;
       }
+      if (CFG_TUD_VIDEO_STREAMING_EP_BUFSIZE < payload_size)
+        payload_size = CFG_TUD_VIDEO_STREAMING_EP_BUFSIZE;
+      param->dwMaxPayloadTransferSize = payload_size;
     }
     return true;
   }
