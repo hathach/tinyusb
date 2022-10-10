@@ -88,7 +88,7 @@ static void _hw_endpoint_alloc(struct hw_endpoint *ep, uint8_t transfer_type)
   uint dpram_offset = hw_data_offset(ep->hw_data_buf);
   hard_assert(hw_data_offset(next_buffer_ptr) <= USB_DPRAM_MAX);
 
-  pico_info("  Alloced %d bytes at offset 0x%x (0x%p)\r\n", size, dpram_offset, ep->hw_data_buf);
+  pico_info("  Allocated %d bytes at offset 0x%x (0x%p)\r\n", size, dpram_offset, ep->hw_data_buf);
 
   // Fill in endpoint control register with buffer offset
   uint32_t const reg = EP_CTRL_ENABLE_BITS | ((uint)transfer_type << EP_CTRL_BUFFER_TYPE_LSB) | dpram_offset;
