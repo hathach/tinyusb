@@ -146,6 +146,11 @@ typedef int make_iso_compilers_happy;
 
 // PIC
 #define OPT_MCU_PIC32MZ          1900 ///< MicroChip PIC32MZ family
+#define OPT_MCU_PIC32MM          1901 ///< MicroChip PIC32MM family
+#define OPT_MCU_PIC32MX          1902 ///< MicroChip PIC32MX family
+#define OPT_MCU_PIC32MK          1903 ///< MicroChip PIC32MK family
+#define OPT_MCU_PIC24            1910 ///< MicroChip PIC24 family
+#define OPT_MCU_DSPIC33          1911 ///< MicroChip DSPIC33 family
 
 // BridgeTek
 #define OPT_MCU_FT90X            2000 ///< BridgeTek FT90x
