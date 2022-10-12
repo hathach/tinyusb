@@ -74,10 +74,13 @@ typedef union {
 
 typedef union {
   struct TU_ATTR_PACKED {
-    uint8_t bLength;
-    uint8_t bDescriptorType;
-    uint8_t bDescriptorSubType;
-    uint8_t bFrameIndex;
+    uint8_t  bLength;
+    uint8_t  bDescriptorType;
+    uint8_t  bDescriptorSubType;
+    uint8_t  bFrameIndex;
+    uint8_t  bmCapabilities;
+    uint16_t wWidth;
+    uint16_t wHeight;
   };
   tusb_desc_cs_video_frm_uncompressed_t uncompressed;
   tusb_desc_cs_video_frm_mjpeg_t        mjpeg;
@@ -396,10 +399,10 @@ static bool _update_streaming_parameters(videod_streaming_interface_t const *stm
   if (!frame_size) {
     switch (fmt->bDescriptorSubType) {
       case VIDEO_CS_ITF_VS_FORMAT_UNCOMPRESSED:
-        frame_size = (uint_fast32_t)frm->uncompressed.wWidth * frm->uncompressed.wHeight * fmt->uncompressed.bBitsPerPixel / 8;
+        frame_size = (uint_fast32_t)frm->wWidth * frm->wHeight * fmt->uncompressed.bBitsPerPixel / 8;
         break;
       case VIDEO_CS_ITF_VS_FORMAT_MJPEG:
-        frame_size = (uint_fast32_t)frm->mjpeg.wWidth * frm->mjpeg.wHeight * 16 / 8; /* YUV422 */
+        frame_size = (uint_fast32_t)frm->wWidth * frm->wHeight * 16 / 8; /* YUV422 */
         break;
       default: break;
     }
@@ -467,7 +470,7 @@ static bool _negotiate_streaming_parameters(videod_streaming_interface_t const *
     tusb_desc_vs_itf_t const *vs = _get_desc_vs(stm);
     TU_ASSERT(vs);
     void const *end = _end_of_streaming_descriptor(vs);
-    tusb_desc_cs_video_fmt_uncompressed_t const *fmt = _find_desc_format(tu_desc_next(vs), end, fmtnum);
+    tusb_desc_cs_video_fmt_t const *fmt = _find_desc_format(tu_desc_next(vs), end, fmtnum);
     switch (request) {
       case VIDEO_REQUEST_GET_MAX:
         frmnum = fmt->bNumFrameDescriptors;
@@ -476,14 +479,32 @@ static bool _negotiate_streaming_parameters(videod_streaming_interface_t const *
         frmnum = 1;
         break;
       case VIDEO_REQUEST_GET_DEF:
-        frmnum = fmt->bDefaultFrameIndex;
+        switch (fmt->bDescriptorSubType) {
+        case VIDEO_CS_ITF_VS_FORMAT_UNCOMPRESSED:
+          frmnum = fmt->uncompressed.bDefaultFrameIndex;
+          break;
+        case VIDEO_CS_ITF_VS_FORMAT_MJPEG:
+          frmnum = fmt->mjpeg.bDefaultFrameIndex;
+          break;
+        default: return false;
+        }
         break;
       default: return false;
     }
     param->bFrameIndex = (uint8_t)frmnum;
     /* Set the parameters determined by the frame */
-    tusb_desc_cs_video_frm_uncompressed_t const *frm = _find_desc_frame(tu_desc_next(fmt), end, frmnum);
-    param->dwMaxVideoFrameSize = (uint32_t)(frm->wWidth * frm->wHeight * fmt->bBitsPerPixel / 8);
+    tusb_desc_cs_video_frm_t const *frm = _find_desc_frame(tu_desc_next(fmt), end, frmnum);
+    uint_fast32_t frame_size;
+    switch (fmt->bDescriptorSubType) {
+      case VIDEO_CS_ITF_VS_FORMAT_UNCOMPRESSED:
+        frame_size = (uint_fast32_t)frm->wWidth * frm->wHeight * fmt->uncompressed.bBitsPerPixel / 8;
+        break;
+      case VIDEO_CS_ITF_VS_FORMAT_MJPEG:
+        frame_size = (uint_fast32_t)frm->wWidth * frm->wHeight * 16 / 8; /* YUV422 */
+        break;
+      default: return false;
+    }
+    param->dwMaxVideoFrameSize = frame_size;
     return true;
   }
 
@@ -491,17 +512,17 @@ static bool _negotiate_streaming_parameters(videod_streaming_interface_t const *
     tusb_desc_vs_itf_t const *vs = _get_desc_vs(stm);
     TU_ASSERT(vs);
     void const *end = _end_of_streaming_descriptor(vs);
-    tusb_desc_cs_video_fmt_uncompressed_t const *fmt = _find_desc_format(tu_desc_next(vs), end, fmtnum);
-    tusb_desc_cs_video_frm_uncompressed_t const *frm = _find_desc_frame(tu_desc_next(fmt), end, frmnum);
+    tusb_desc_cs_video_fmt_t const *fmt = _find_desc_format(tu_desc_next(vs), end, fmtnum);
+    tusb_desc_cs_video_frm_t const *frm = _find_desc_frame(tu_desc_next(fmt), end, frmnum);
 
     uint_fast32_t interval, interval_ms;
     switch (request) {
       case VIDEO_REQUEST_GET_MAX:
         {
           uint_fast32_t min_interval, max_interval;
-          uint_fast8_t num_intervals = frm->bFrameIntervalType;
-          max_interval = num_intervals ? frm->dwFrameInterval[num_intervals - 1]: frm->dwFrameInterval[1];
-          min_interval = frm->dwFrameInterval[0];
+          uint_fast8_t num_intervals = frm->uncompressed.bFrameIntervalType;
+          max_interval = num_intervals ? frm->uncompressed.dwFrameInterval[num_intervals - 1]: frm->uncompressed.dwFrameInterval[1];
+          min_interval = frm->uncompressed.dwFrameInterval[0];
           interval = max_interval;
           interval_ms = min_interval / 10000;
         }
@@ -509,24 +530,24 @@ static bool _negotiate_streaming_parameters(videod_streaming_interface_t const *
       case VIDEO_REQUEST_GET_MIN:
         {
           uint_fast32_t min_interval, max_interval;
-          uint_fast8_t num_intervals = frm->bFrameIntervalType;
-          max_interval = num_intervals ? frm->dwFrameInterval[num_intervals - 1]: frm->dwFrameInterval[1];
-          min_interval = frm->dwFrameInterval[0];
+          uint_fast8_t num_intervals = frm->uncompressed.bFrameIntervalType;
+          max_interval = num_intervals ? frm->uncompressed.dwFrameInterval[num_intervals - 1]: frm->uncompressed.dwFrameInterval[1];
+          min_interval = frm->uncompressed.dwFrameInterval[0];
           interval = min_interval;
           interval_ms = max_interval / 10000;
         }
         break;
       case VIDEO_REQUEST_GET_DEF:
-        interval = frm->dwDefaultFrameInterval;
+        interval = frm->uncompressed.dwDefaultFrameInterval;
         interval_ms = interval / 10000;
         break;
       case VIDEO_REQUEST_GET_RES:
         {
-          uint_fast8_t num_intervals = frm->bFrameIntervalType;
+          uint_fast8_t num_intervals = frm->uncompressed.bFrameIntervalType;
           if (num_intervals) {
             interval = 0;
           } else {
-            interval = frm->dwFrameInterval[2];
+            interval = frm->uncompressed.dwFrameInterval[2];
             interval_ms = interval / 10000;
           }
         }
