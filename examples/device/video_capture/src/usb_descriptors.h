@@ -43,7 +43,7 @@ enum {
   ITF_NUM_TOTAL
 };
 
-#define TUD_VIDEO_CAPTURE_DESC_LEN (\
+#define TUD_VIDEO_CAPTURE_DESC_UNCOMPR_LEN (\
     TUD_VIDEO_DESC_IAD_LEN\
     /* control */\
     + TUD_VIDEO_DESC_STD_VC_LEN\
@@ -61,7 +61,7 @@ enum {
     + 7/* Endpoint */\
   )
 
-#define TUD_VIDEO_CAPTURE_DESC_MJPG_LEN (\
+#define TUD_VIDEO_CAPTURE_DESC_MJPEG_LEN (\
     TUD_VIDEO_DESC_IAD_LEN\
     /* control */\
     + TUD_VIDEO_DESC_STD_VC_LEN\
@@ -91,7 +91,7 @@ enum {
 #define TUD_VIDEO_DESC_CS_VS_FMT_I420(_fmtidx, _numfmtdesc, _frmidx, _asrx, _asry, _interlace, _cp) \
   TUD_VIDEO_DESC_CS_VS_FMT_UNCOMPR(_fmtidx, _numfmtdesc, TUD_VIDEO_GUID_I420, 12, _frmidx, _asrx, _asry, _interlace, _cp)
 
-#define TUD_VIDEO_CAPTURE_DESCRIPTOR(_stridx, _epin, _width, _height, _fps, _epsize) \
+#define TUD_VIDEO_CAPTURE_DESCRIPTOR_UNCOMPR(_stridx, _epin, _width, _height, _fps, _epsize) \
   TUD_VIDEO_DESC_IAD(ITF_NUM_VIDEO_CONTROL, /* 2 Interfaces */ 0x02, _stridx), \
   /* Video control 0 */ \
   TUD_VIDEO_DESC_STD_VC(ITF_NUM_VIDEO_CONTROL, 0, _stridx), \
@@ -128,7 +128,7 @@ enum {
     /* EP */ \
     TUD_VIDEO_DESC_EP_ISO(_epin, _epsize, 1)
 
-#define TUD_VIDEO_CAPTURE_DESCRIPTOR_MJPG(_stridx, _epin, _width, _height, _fps, _epsize) \
+#define TUD_VIDEO_CAPTURE_DESCRIPTOR_MJPEG(_stridx, _epin, _width, _height, _fps, _epsize) \
   TUD_VIDEO_DESC_IAD(ITF_NUM_VIDEO_CONTROL, /* 2 Interfaces */ 0x02, _stridx), \
   /* Video control 0 */ \
   TUD_VIDEO_DESC_STD_VC(ITF_NUM_VIDEO_CONTROL, 0, _stridx), \
