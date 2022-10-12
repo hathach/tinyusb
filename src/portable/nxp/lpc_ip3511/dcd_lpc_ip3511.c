@@ -241,7 +241,7 @@ static void prepare_setup_packet(uint8_t rhport)
 
 static void edpt_reset(uint8_t rhport, uint8_t ep_id)
 {
-  const uint32_t offset = get_buf_offset((void*)dummy);
+  const uint32_t offset = get_buf_offset((void*)(uint32_t)dummy);
   tu_memclr(&_dcd.ep[ep_id], sizeof(_dcd.ep[ep_id]));
   if (_dcd_controller[rhport].max_speed == TUSB_SPEED_FULL )
   {
@@ -410,7 +410,7 @@ bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t* buffer, uint16_t to
   tu_memclr(&_dcd.dma[ep_id], sizeof(xfer_dma_t));
   _dcd.dma[ep_id].total_bytes = total_bytes;
 
-  prepare_ep_xfer(rhport, ep_id, buffer ? get_buf_offset(buffer) : get_buf_offset((void*)dummy), total_bytes);
+  prepare_ep_xfer(rhport, ep_id, buffer ? get_buf_offset(buffer) : get_buf_offset((void*)(uint32_t)dummy), total_bytes);
 
   return true;
 }
