@@ -189,6 +189,11 @@
 #elif TU_CHECK_MCU(OPT_MCU_STM32WB)
   #define TUP_DCD_ENDPOINT_MAX    8
 
+#elif TU_CHECK_MCU(OPT_MCU_STM32U5)
+  #define TUP_USBIP_DWC2
+  #define TUP_USBIP_DWC2_STM32
+  #define TUP_DCD_ENDPOINT_MAX    6
+
 //------------- Sony -------------//
 #elif TU_CHECK_MCU(OPT_MCU_CXD56)
   #define TUP_DCD_ENDPOINT_MAX    7
