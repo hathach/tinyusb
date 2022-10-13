@@ -375,6 +375,8 @@ void dcd_edpt_close_all (uint8_t rhport)
 
 void dcd_edpt_close(uint8_t rhport, uint8_t ep_addr)
 {
+  (void) rhport;
+  
   uint8_t ep_id = ep_addr2id(ep_addr);
   _dcd.ep[ep_id][0].active = _dcd.ep[ep_id][0].active = 0; // TODO proper way is to EPSKIP then wait ep[][].active then write ep[][].disable (see table 778 in LPC55S69 Use Manual)
   _dcd.ep[ep_id][0].disable = _dcd.ep[ep_id][1].disable = 1;
@@ -403,8 +405,6 @@ static void prepare_ep_xfer(uint8_t rhport, uint8_t ep_id, uint16_t buf_offset, 
 
 bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t* buffer, uint16_t total_bytes)
 {
-  (void) rhport;
-
   uint8_t const ep_id = ep_addr2id(ep_addr);
 
   tu_memclr(&_dcd.dma[ep_id], sizeof(xfer_dma_t));
