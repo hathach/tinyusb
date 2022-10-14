@@ -1270,6 +1270,7 @@ bool usbd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t 
 // into the USB buffer!
 bool usbd_edpt_xfer_fifo(uint8_t rhport, uint8_t ep_addr, tu_fifo_t * ff, uint16_t total_bytes)
 {
+  TU_ASSERT(dcd_edpt_xfer_fifo);
   rhport = _usbd_rhport;
 
   uint8_t const epnum = tu_edpt_number(ep_addr);
