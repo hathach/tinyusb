@@ -353,7 +353,9 @@ static inline bool  tud_hid_gamepad_report(uint8_t report_id, int8_t x, int8_t y
   HID_COLLECTION_END \
 
 // FIDO U2F Authenticator Descriptor Template
-#define TUD_HID_REPORT_DESC_FIDO_U2F(...) \
+// - 1st parameter is report size, which is 64 bytes maximum in U2F
+// - 2nd parameter is HID_REPORT_ID(n) (optional)
+#define TUD_HID_REPORT_DESC_FIDO_U2F(report_size, ...) \
   HID_USAGE_PAGE_N ( HID_USAGE_PAGE_FIDO_ALLIANCE, 2          ) ,\
   HID_USAGE      ( HID_USAGE_FIDO_U2F_AUTHENTICATOR_DEVICE    ) ,\
   HID_COLLECTION ( HID_COLLECTION_APPLICATION                 ) ,\
@@ -362,16 +364,16 @@ static inline bool  tud_hid_gamepad_report(uint8_t report_id, int8_t x, int8_t y
     /* Usage Data In */ \
     HID_USAGE         ( HID_USAGE_FIDO_INPUT_REPORT_DATA       ) ,\
     HID_LOGICAL_MIN   ( 0                                      ) ,\
-    HID_LOGICAL_MAX_N ( 255, 2                                 ) ,\
+    HID_LOGICAL_MAX_N ( 0xff, 2                                ) ,\
     HID_REPORT_SIZE   ( 8                                      ) ,\
-    HID_REPORT_COUNT  ( 64                                     ) ,\
+    HID_REPORT_COUNT  ( report_size                            ) ,\
     HID_INPUT         ( HID_DATA | HID_VARIABLE | HID_ABSOLUTE ) ,\
     /* Usage Data Out */ \
     HID_USAGE         ( HID_USAGE_FIDO_OUTPUT_REPORT_DATA      ) ,\
     HID_LOGICAL_MIN   ( 0                                      ) ,\
-    HID_LOGICAL_MAX_N ( 255, 2                                 ) ,\
+    HID_LOGICAL_MAX_N ( 0xff, 2                                ) ,\
     HID_REPORT_SIZE   ( 8                                      ) ,\
-    HID_REPORT_COUNT  ( 64                                     ) ,\
+    HID_REPORT_COUNT  ( report_size                            ) ,\
     HID_OUTPUT        ( HID_DATA | HID_VARIABLE | HID_ABSOLUTE ) ,\
   HID_COLLECTION_END \
 
