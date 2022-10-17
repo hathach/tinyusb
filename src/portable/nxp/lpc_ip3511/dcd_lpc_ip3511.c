@@ -78,7 +78,8 @@ typedef struct {
 
 // Max nbytes for each control/bulk/interrupt transfer
 enum {
-  NBYTES_CBI_FS_ISO_MAX = 1023, // FS ISO
+  NBYTES_ISO_FS_MAX = 1023, // FS ISO
+  NBYTES_ISO_HS_MAX = 1024, // HS ISO
   NBYTES_CBI_FS_MAX = 64, // FS control/bulk/interrupt
   NBYTES_CBI_HS_MAX = 32767 // can be up to all 15-bit, but only tested with 4096
 };
@@ -113,6 +114,8 @@ enum {
 typedef union TU_ATTR_PACKED
 {
   // Full and High speed has different bit layout for buffer_offset and nbytes
+  // TODO FS/HS layout depends on the max speed of controller e.g
+  // lpc55s69 PORT0 is only FS but actually has the same layout as HS on port1
 
   // Buffer (aligned 64) = DATABUFSTART [31:22]  | buffer_offset [21:6]
   volatile struct {
@@ -388,7 +391,7 @@ static void prepare_ep_xfer(uint8_t rhport, uint8_t ep_id, uint16_t buf_offset, 
 
   if (_dcd_controller[rhport].max_speed == TUSB_SPEED_FULL )
   {
-    nbytes = tu_min16(total_bytes, _dcd.ep[ep_id][0].is_iso ? NBYTES_CBI_FS_ISO_MAX : NBYTES_CBI_FS_MAX);
+    nbytes = tu_min16(total_bytes, _dcd.ep[ep_id][0].is_iso ? NBYTES_ISO_FS_MAX : NBYTES_CBI_FS_MAX);
     _dcd.ep[ep_id][0].buffer_fs.offset = buf_offset;
     _dcd.ep[ep_id][0].buffer_fs.nbytes = nbytes;
   }else
