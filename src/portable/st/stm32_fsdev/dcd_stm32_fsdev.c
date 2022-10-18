@@ -683,6 +683,7 @@ void dcd_edpt0_status_complete(uint8_t rhport, tusb_control_request_t const * re
 
 static void dcd_pma_alloc_reset(void)
 {
+  open_ep_count = 0;
   ep_buf_ptr = DCD_STM32_BTABLE_BASE + 8*MAX_EP_COUNT; // 8 bytes per endpoint (two TX and two RX words, each)
   //TU_LOG2("dcd_pma_alloc_reset()\r\n");
   for(uint32_t i=0; i<MAX_EP_COUNT; i++)
@@ -708,6 +709,8 @@ static uint16_t dcd_pma_alloc(uint8_t ep_addr, size_t length)
   uint8_t const epnum = tu_edpt_number(ep_addr);
   uint8_t const dir   = tu_edpt_dir(ep_addr);
   xfer_ctl_t* epXferCtl = xfer_ctl_ptr(epnum,dir);
+
+  open_ep_count++;
 
   if(epXferCtl->pma_alloc_size != 0U)
   {
