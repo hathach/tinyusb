@@ -25,7 +25,7 @@
  */
 
 #include "tusb_option.h"
-#include "common\tusb_allocator.h"
+#include "common/tusb_allocator.h"
 
 #if CFG_TUD_ENABLED && (CFG_TUSB_MCU == OPT_MCU_RP2040) && !CFG_TUD_RPI_PIO_USB
 
@@ -80,7 +80,7 @@ static void _hw_endpoint_alloc(struct hw_endpoint *ep, uint8_t transfer_type)
     size *= 2u;
   }
 
-  ep->hw_data_buf = (uint8_t*)tu_malloc(size);
+  ep->hw_data_buf = (uint8_t*)tu_malloc((uint16_t)size);
   uint dpram_offset = hw_data_offset(ep->hw_data_buf);
   pico_info("  Allocated %d bytes at offset 0x%x (0x%p)\r\n", size, dpram_offset, ep->hw_data_buf);
 
@@ -225,7 +225,7 @@ static void __tusb_irq_path_func(reset_non_control_endpoints)(void)
   tu_memclr(hw_endpoints[1], sizeof(hw_endpoints) - 2*sizeof(hw_endpoint_t));
 
   // register usb ram size
-  uint16_t size = USB_DPRAM_MAX - hw_data_offset(&usb_dpram->epx_data[0]);
+  uint16_t size = (uint16_t)(USB_DPRAM_MAX - hw_data_offset(&usb_dpram->epx_data[0]));
   tu_allocator_init((uint32_t)&usb_dpram->epx_data[0], size);
 }
 

@@ -16,7 +16,7 @@ static int cmp(const void* a, const void* b) {
 	return ((int)(((const Bucket*)a)->base) - ((int)((const Bucket*)b)->base));
 }
 
-static void garbage_collect()
+static void garbage_collect(void)
 {
 	qsort(buffer, MAX_EP_COUNT, sizeof(Bucket), cmp);
 	// Try merge buckets
@@ -72,7 +72,7 @@ static uint32_t tu_malloc_internal(uint16_t length, bool gc)
         garbage_collect();
 		return tu_malloc_internal(length, false);
 	}
-	return -1;
+	return 0xffffffff;
 }
 
 void tu_allocator_init(uint32_t base, uint16_t length)
