@@ -25,6 +25,7 @@
  */
 
 #include "tusb_option.h"
+#include "common\tusb_allocator.h"
 
 #if CFG_TUD_ENABLED && (CFG_TUSB_MCU == OPT_MCU_RP2040) && !CFG_TUD_RPI_PIO_USB
 
@@ -49,8 +50,6 @@
 #define usb_hw_set hw_set_alias(usb_hw)
 #define usb_hw_clear hw_clear_alias(usb_hw)
 
-// Init these in dcd_init
-static uint8_t *next_buffer_ptr;
 
 // USB_MAX_ENDPOINTS Endpoints, direction TUSB_DIR_OUT for out and TUSB_DIR_IN for in.
 static struct hw_endpoint hw_endpoints[USB_MAX_ENDPOINTS][2];
@@ -81,13 +80,8 @@ static void _hw_endpoint_alloc(struct hw_endpoint *ep, uint8_t transfer_type)
     size *= 2u;
   }
 
-  ep->hw_data_buf = next_buffer_ptr;
-  next_buffer_ptr += size;
-
-  assert(((uintptr_t )next_buffer_ptr & 0b111111u) == 0);
+  ep->hw_data_buf = (uint8_t*)tu_malloc(size);
   uint dpram_offset = hw_data_offset(ep->hw_data_buf);
-  hard_assert(hw_data_offset(next_buffer_ptr) <= USB_DPRAM_MAX);
-
   pico_info("  Allocated %d bytes at offset 0x%x (0x%p)\r\n", size, dpram_offset, ep->hw_data_buf);
 
   // Fill in endpoint control register with buffer offset
@@ -98,6 +92,10 @@ static void _hw_endpoint_alloc(struct hw_endpoint *ep, uint8_t transfer_type)
 
 static void _hw_endpoint_close(struct hw_endpoint *ep)
 {
+    if (!tu_free((uint32_t)ep->hw_data_buf))
+    {
+        panic("Fail to free the buffer\n");
+    }
     // Clear hardware registers and then zero the struct
     // Clears endpoint enable
     *ep->endpoint_control = 0;
@@ -105,21 +103,6 @@ static void _hw_endpoint_close(struct hw_endpoint *ep)
     *ep->buffer_control = 0;
     // Clear any endpoint state
     memset(ep, 0, sizeof(struct hw_endpoint));
-
-    // Reclaim buffer space if all endpoints are closed
-    bool reclaim_buffers = true;
-    for ( uint8_t i = 1; i < USB_MAX_ENDPOINTS; i++ )
-    {
-        if (hw_endpoint_get_by_num(i, TUSB_DIR_OUT)->hw_data_buf != NULL || hw_endpoint_get_by_num(i, TUSB_DIR_IN)->hw_data_buf != NULL)
-        {
-            reclaim_buffers = false;
-            break;
-        }
-    }
-    if (reclaim_buffers)
-    {
-        next_buffer_ptr = &usb_dpram->epx_data[0];
-    }
 }
 
 static void hw_endpoint_close(uint8_t ep_addr)
@@ -241,8 +224,9 @@ static void __tusb_irq_path_func(reset_non_control_endpoints)(void)
   // clear non-control hw endpoints
   tu_memclr(hw_endpoints[1], sizeof(hw_endpoints) - 2*sizeof(hw_endpoint_t));
 
-  // reclaim buffer space
-  next_buffer_ptr = &usb_dpram->epx_data[0];
+  // register usb ram size
+  uint16_t size = USB_DPRAM_MAX - hw_data_offset(&usb_dpram->epx_data[0]);
+  tu_allocator_init((uint32_t)&usb_dpram->epx_data[0], size);
 }
 
 static void __tusb_irq_path_func(dcd_rp2040_irq)(void)
