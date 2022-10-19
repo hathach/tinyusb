@@ -13,7 +13,7 @@ typedef struct
 static Bucket buffer[MAX_EP_COUNT];
 
 static int cmp(const void* a, const void* b) {
-	return (((const Bucket*)a)->base - ((const Bucket*)b)->base);
+	return ((int)(((const Bucket*)a)->base) - ((int)((const Bucket*)b)->base));
 }
 
 static void garbage_collect()
