@@ -249,6 +249,7 @@ if (NOT TARGET _rp2040_family_inclusion_marker)
 				set(CONVERSION_WARNING_FILES
 					${PICO_TINYUSB_PATH}/src/tusb.c
 					${PICO_TINYUSB_PATH}/src/common/tusb_fifo.c
+					${PICO_TINYUSB_PATH}/src/common/tusb_allocator.c
 					${PICO_TINYUSB_PATH}/src/device/usbd.c
 					${PICO_TINYUSB_PATH}/src/device/usbd_control.c
 					${PICO_TINYUSB_PATH}/src/host/usbh.c
