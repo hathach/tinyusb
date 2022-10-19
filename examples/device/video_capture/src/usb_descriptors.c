@@ -75,7 +75,11 @@ uint8_t const * tud_descriptor_device_cb(void)
 // Configuration Descriptor
 //--------------------------------------------------------------------+
 
-#define CONFIG_TOTAL_LEN    (TUD_CONFIG_DESC_LEN + TUD_VIDEO_CAPTURE_DESC_LEN)
+#if defined(CFG_EXAMPLE_VIDEO_READONLY) && !defined(CFG_EXAMPLE_VIDEO_DISABLE_MJPEG)
+#define CONFIG_TOTAL_LEN    (TUD_CONFIG_DESC_LEN + TUD_VIDEO_CAPTURE_DESC_MJPEG_LEN)
+#else
+#define CONFIG_TOTAL_LEN    (TUD_CONFIG_DESC_LEN + TUD_VIDEO_CAPTURE_DESC_UNCOMPR_LEN)
+#endif
 
 #if TU_CHECK_MCU(OPT_MCU_LPC175X_6X, OPT_MCU_LPC177X_8X, OPT_MCU_LPC40XX)
   // LPC 17xx and 40xx endpoint type (bulk/interrupt/iso) are fixed by its number
@@ -96,9 +100,15 @@ uint8_t const desc_fs_configuration[] =
   // Config number, interface count, string index, total length, attribute, power in mA
   TUD_CONFIG_DESCRIPTOR(1, ITF_NUM_TOTAL, 0, CONFIG_TOTAL_LEN, 0, 500),
   // IAD for Video Control
-  TUD_VIDEO_CAPTURE_DESCRIPTOR(4, EPNUM_VIDEO_IN,
-                               FRAME_WIDTH, FRAME_HEIGHT, FRAME_RATE,
-                               CFG_TUD_VIDEO_STREAMING_EP_BUFSIZE)
+#if defined(CFG_EXAMPLE_VIDEO_READONLY) && !defined(CFG_EXAMPLE_VIDEO_DISABLE_MJPEG)
+  TUD_VIDEO_CAPTURE_DESCRIPTOR_MJPEG(4, EPNUM_VIDEO_IN,
+                                     FRAME_WIDTH, FRAME_HEIGHT, FRAME_RATE,
+                                     CFG_TUD_VIDEO_STREAMING_EP_BUFSIZE)
+#else
+  TUD_VIDEO_CAPTURE_DESCRIPTOR_UNCOMPR(4, EPNUM_VIDEO_IN,
+                                       FRAME_WIDTH, FRAME_HEIGHT, FRAME_RATE,
+                                       CFG_TUD_VIDEO_STREAMING_EP_BUFSIZE)
+#endif
 };
 
 // Invoked when received GET CONFIGURATION DESCRIPTOR
