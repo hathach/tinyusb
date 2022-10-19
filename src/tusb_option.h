@@ -84,6 +84,7 @@ typedef int make_iso_compilers_happy;
 #define OPT_MCU_STM32G0           310 ///< ST G0
 #define OPT_MCU_STM32G4           311 ///< ST G4
 #define OPT_MCU_STM32WB           312 ///< ST WB
+#define OPT_MCU_STM32U5           313 ///< ST U5
 
 // Sony
 #define OPT_MCU_CXD56             400 ///< SONY CXD56
