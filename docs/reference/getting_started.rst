@@ -61,7 +61,7 @@ To build example, first change directory to an example folder.
 
    $ cd examples/device/cdc_msc
 
-Before building, we need to download MCU driver submodule to provide low-level MCU peripheral's driver first. Run the ``get-dpes`` target in one of the example folder as follow. You only need to do this once per mcu
+Before building, we need to download MCU driver submodule to provide low-level MCU peripheral's driver first. Run the ``get-deps`` target in one of the example folder as follow. You only need to do this once per mcu
 
 .. code-block::
 
