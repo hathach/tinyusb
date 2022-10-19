@@ -26,7 +26,7 @@ endif
 SRC_C += \
 	src/tusb.c \
 	src/common/tusb_fifo.c \
-	src/common/tusb_alloctor.c \
+	src/common/tusb_allocator.c \
 	src/device/usbd.c \
 	src/device/usbd_control.c \
 	src/class/audio/audio_device.c \
