@@ -31,6 +31,7 @@ if (NOT TARGET _rp2040_family_inclusion_marker)
 	target_sources(tinyusb_common_base INTERFACE
 			${TOP}/src/tusb.c
 			${TOP}/src/common/tusb_fifo.c
+			${TOP}/src/common/tusb_alloctor.c
 			)
 
 	target_include_directories(tinyusb_common_base INTERFACE
