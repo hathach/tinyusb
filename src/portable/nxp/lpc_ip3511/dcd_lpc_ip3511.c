@@ -421,7 +421,7 @@ static void bus_reset(uint8_t rhport)
   tu_memclr(&_dcd, sizeof(dcd_data_t));
   edpt_reset_all(rhport); 
 
-  // disable all endpoints as epecified by LPC55S69 UM Table 778
+  // disable all endpoints as specified by LPC55S69 UM Table 778
   for(uint8_t ep_id = 0; ep_id < 2*MAX_EP_PAIRS; ep_id++)
   {
     _dcd.ep[ep_id][0].disable = _dcd.ep[ep_id][1].disable = 1;
