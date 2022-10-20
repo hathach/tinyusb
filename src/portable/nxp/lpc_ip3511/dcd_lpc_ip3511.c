@@ -178,7 +178,7 @@ typedef struct
 //    For example: LPC55s69 port1 Highspeed must be USB_RAM (0x40100000)
 //    Use CFG_TUSB_MEM_SECTION to place it accordingly.
 CFG_TUSB_MEM_SECTION TU_ATTR_ALIGNED(256) static dcd_data_t _dcd;
-CFG_TUSB_MEM_SECTION TU_ATTR_ALIGNED(256) static volatile uint8_t dummy[64]; // TODO temp fix to prevent accidental overwrite due to ep[][].buffer_xx.offset being 0
+CFG_TUSB_MEM_SECTION TU_ATTR_ALIGNED(256) static volatile uint8_t dummy[8] = { 0 }; // a fix for EP0 OUT ZLPs overwriting the buffer
 
 //--------------------------------------------------------------------+
 // Multiple Controllers
@@ -244,16 +244,7 @@ static void prepare_setup_packet(uint8_t rhport)
 
 static void edpt_reset(uint8_t rhport, uint8_t ep_id)
 {
-  const uint32_t offset = get_buf_offset((void*)(uint32_t)dummy);
   tu_memclr(&_dcd.ep[ep_id], sizeof(_dcd.ep[ep_id]));
-  if (_dcd_controller[rhport].max_speed == TUSB_SPEED_FULL )
-  {
-    _dcd.ep[ep_id][0].buffer_fs.offset = _dcd.ep[ep_id][1].buffer_fs.offset = offset;
-  }
-  else
-  {
-    _dcd.ep[ep_id][0].buffer_hs.offset = _dcd.ep[ep_id][1].buffer_hs.offset = offset;
-  }
 }
 
 static void edpt_reset_all(uint8_t rhport)
@@ -413,7 +404,11 @@ bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t* buffer, uint16_t to
   tu_memclr(&_dcd.dma[ep_id], sizeof(xfer_dma_t));
   _dcd.dma[ep_id].total_bytes = total_bytes;
 
-  prepare_ep_xfer(rhport, ep_id, buffer ? get_buf_offset(buffer) : get_buf_offset((void*)(uint32_t)dummy), total_bytes);
+  if (!buffer && !ep_id) // for EP0 OUT ZLPs to prevent overwrites to buffer
+  {
+    buffer = (uint8_t*)(uint32_t)dummy;
+  }
+  prepare_ep_xfer(rhport, ep_id, get_buf_offset(buffer), total_bytes);
 
   return true;
 }
@@ -426,8 +421,8 @@ static void bus_reset(uint8_t rhport)
   tu_memclr(&_dcd, sizeof(dcd_data_t));
   edpt_reset_all(rhport); 
 
-  // disable all non-control endpoints on bus reset
-  for(uint8_t ep_id = 2; ep_id < 2*MAX_EP_PAIRS; ep_id++)
+  // disable all endpoints as epecified by LPC55S69 UM Table 778
+  for(uint8_t ep_id = 0; ep_id < 2*MAX_EP_PAIRS; ep_id++)
   {
     _dcd.ep[ep_id][0].disable = _dcd.ep[ep_id][1].disable = 1;
   }
