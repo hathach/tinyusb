@@ -244,6 +244,7 @@ static void prepare_setup_packet(uint8_t rhport)
 
 static void edpt_reset(uint8_t rhport, uint8_t ep_id)
 {
+  (void) rhport;
   tu_memclr(&_dcd.ep[ep_id], sizeof(_dcd.ep[ep_id]));
 }
 
