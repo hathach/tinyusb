@@ -341,7 +341,7 @@ typedef struct
 
   // Audio control interrupt buffer - no FIFO - 6 Bytes according to UAC 2 specification (p. 74)
 #if CFG_TUD_AUDIO_INT_CTR_EPSIZE_IN
-  CFG_TUSB_MEM_SECTION CFG_TUSB_MEM_ALIGN uint8_t ep_int_ctr_buf[CFG_TUD_AUDIO_INT_CTR_EP_IN_SW_BUFFER_SIZE];
+  CFG_TUSB_MEM_ALIGN uint8_t ep_int_ctr_buf[CFG_TUD_AUDIO_INT_CTR_EP_IN_SW_BUFFER_SIZE];
 #endif
 
   // Decoding parameters - parameters are set when alternate AS interface is set by host
@@ -464,7 +464,7 @@ bool tud_audio_n_mounted(uint8_t func_id)
   if (audio->ep_in == 0) return false;
 #endif
 
-#if CFG_TUD_AUDIO_INT_CTR_EPSIZE_IN
+#if CFG_TUD_AUDIO_ENABLE_INTERRUPT_EP
   if (audio->ep_int_ctr == 0) return false;
 #endif
 
@@ -813,11 +813,13 @@ tu_fifo_t* tud_audio_n_get_tx_support_ff(uint8_t func_id, uint8_t ff_idx)
 #endif
 
 
-#if CFG_TUD_AUDIO_INT_CTR_EPSIZE_IN
+#if CFG_TUD_AUDIO_ENABLE_INTERRUPT_EP
 
 // If no interrupt transmit is pending bytes get written into buffer and a transmit is scheduled - once transmit completed tud_audio_int_ctr_done_cb() is called in inform user
 uint16_t tud_audio_int_ctr_n_write(uint8_t func_id, uint8_t const* buffer, uint16_t len)
 {
+  TU_VERIFY(_audiod_fct[func_id].ep_int_ctr != 0);
+
   TU_VERIFY(func_id < CFG_TUD_AUDIO && _audiod_fct[func_id].p_desc != NULL);
 
   // We write directly into the EP's buffer - abort if previous transfer not complete
@@ -1076,6 +1078,52 @@ static uint16_t audiod_encode_type_I_pcm(uint8_t rhport, audiod_function_t* audi
 static inline bool audiod_fb_send(uint8_t rhport, audiod_function_t *audio)
 {
   return usbd_edpt_xfer(rhport, audio->ep_fb, (uint8_t *) &audio->feedback.value, 4);
+}
+#endif
+
+#if CFG_TUD_AUDIO_ENABLE_INTERRUPT_EP
+static bool set_int_ctr_number(audiod_function_t *audio)
+{
+
+  uint8_t const *p_desc = audio->p_desc;
+  // Get pointer at end
+  uint8_t const *p_desc_end = audio->p_desc + audio->desc_length - TUD_AUDIO_DESC_IAD_LEN;
+
+
+  // p_desc starts at required interface with alternate setting zero
+  while (p_desc < p_desc_end)
+  {
+    // Find correct interface
+    if (tu_desc_type(p_desc) == TUSB_DESC_INTERFACE && ((tusb_desc_interface_t const * )p_desc)->bInterfaceNumber == 0 && ((tusb_desc_interface_t const * )p_desc)->bAlternateSetting == 0)
+    {
+
+      uint8_t foundEPs = 0, nEps = ((tusb_desc_interface_t const * )p_desc)->bNumEndpoints;
+      while (foundEPs < nEps && p_desc < p_desc_end)
+      {
+        // found :n endpoint
+        if (tu_desc_type(p_desc) == TUSB_DESC_ENDPOINT)
+        {
+          tusb_desc_endpoint_t const* desc_ep = (tusb_desc_endpoint_t const *) p_desc;
+
+          uint8_t const ep_addr = desc_ep->bEndpointAddress;
+
+          if (tu_edpt_dir(ep_addr) == TUSB_DIR_IN && desc_ep->bmAttributes.xfer == 0x03)   // Check if usage is interrupt EP
+          {
+            audio->ep_int_ctr = ep_addr;
+            TU_ASSERT(usbd_edpt_open(audio->rhport, desc_ep));
+          }
+
+          foundEPs += 1;
+        }
+        p_desc = tu_desc_next(p_desc);
+      }
+      break;
+    }
+    p_desc = tu_desc_next(p_desc);
+  }
+
+  return true;
+
 }
 #endif
 
@@ -1483,6 +1531,10 @@ uint16_t audiod_open(uint8_t rhport, tusb_desc_interface_t const * itf_desc, uin
 
   // This is all we need so far - the EPs are setup by a later set_interface request (as per UAC2 specification)
   uint16_t drv_len = _audiod_fct[i].desc_length - TUD_AUDIO_DESC_IAD_LEN;    // - TUD_AUDIO_DESC_IAD_LEN since tinyUSB already handles the IAD descriptor
+
+#if CFG_TUD_AUDIO_ENABLE_INTERRUPT_EP
+  TU_ASSERT(set_int_ctr_number(&_audiod_fct[i]));
+#endif
 
   return drv_len;
 }
