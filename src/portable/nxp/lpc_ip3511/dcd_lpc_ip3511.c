@@ -178,7 +178,9 @@ typedef struct
 //    For example: LPC55s69 port1 Highspeed must be USB_RAM (0x40100000)
 //    Use CFG_TUSB_MEM_SECTION to place it accordingly.
 CFG_TUSB_MEM_SECTION TU_ATTR_ALIGNED(256) static dcd_data_t _dcd;
-CFG_TUSB_MEM_SECTION TU_ATTR_ALIGNED(256) static volatile uint8_t dummy[8] = { 0 }; // a fix for EP0 OUT ZLPs overwriting the buffer
+
+// Dummy buffer to fix ZLPs overwriting the buffer (probably an USB/DMA controller bug)
+CFG_TUSB_MEM_SECTION TU_ATTR_ALIGNED(64) static uint8_t dummy[8];
 
 //--------------------------------------------------------------------+
 // Multiple Controllers
@@ -405,10 +407,14 @@ bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t* buffer, uint16_t to
   tu_memclr(&_dcd.dma[ep_id], sizeof(xfer_dma_t));
   _dcd.dma[ep_id].total_bytes = total_bytes;
 
-  if (!buffer && !ep_id) // for EP0 OUT ZLPs to prevent overwrites to buffer
+  if (!buffer)
   {
+    // Although having no data, ZLPs can cause buffer overwritten to zeroes.
+    // Probably due to USB/DMA controller side effect/bug.
+    // Assigned buffer offset to (valid) dummy to prevent overwriting to DATABUFSTART
     buffer = (uint8_t*)(uint32_t)dummy;
   }
+
   prepare_ep_xfer(rhport, ep_id, get_buf_offset(buffer), total_bytes);
 
   return true;
