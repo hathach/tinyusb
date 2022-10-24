@@ -542,8 +542,7 @@ TU_ATTR_WEAK TU_ATTR_FAST_FUNC void tud_audio_feedback_interval_isr(uint8_t func
 #endif // CFG_TUD_AUDIO_ENABLE_EP_OUT && CFG_TUD_AUDIO_ENABLE_FEEDBACK_EP
 
 #if CFG_TUD_AUDIO_ENABLE_INTERRUPT_EP
-// UAC2 §9.6
-// Structure of "interrupt data message"
+// UAC2 §6.1 "interrupt data message"
 typedef struct TU_ATTR_PACKED
 {
   uint8_t bInfo;
