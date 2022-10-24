@@ -400,7 +400,7 @@ void dcd_set_address(uint8_t rhport, uint8_t dev_addr)
   (void) dev_addr;
 
   // Respond with status
-  dcd_edpt_xfer(rhport, tu_edpt_addr(0, TUSB_DIR_IN), NULL, 0);
+  dcd_edpt_xfer(rhport, TUSB_DIR_IN_MASK | 0x00, NULL, 0);
 
   // DCD can only set address after status for this request is complete.
   // do it at dcd_edpt0_status_complete()
@@ -479,7 +479,8 @@ static void dcd_ep_ctr_tx_handler(uint32_t wIstr)
   }
   else /* TX Complete */
   {
-    dcd_event_xfer_complete(0, (uint8_t)(0x80 + EPindex), xfer->total_len, XFER_RESULT_SUCCESS, true);
+    uint8_t ep_addr = wEPRegVal & USB_EPADDR_FIELD;
+    dcd_event_xfer_complete(0, (uint8_t)(TUSB_DIR_IN_MASK | ep_addr), xfer->total_len, XFER_RESULT_SUCCESS, true);
   }
 }
 
@@ -543,7 +544,8 @@ static void dcd_ep_ctr_rx_handler(uint32_t wIstr)
     if ((count < xfer->max_packet_size) || (xfer->queued_len == xfer->total_len))
     {
       /* RX COMPLETE */
-      dcd_event_xfer_complete(0, EPindex, xfer->queued_len, XFER_RESULT_SUCCESS, true);
+      uint8_t ep_addr = wEPRegVal & USB_EPADDR_FIELD;
+      dcd_event_xfer_complete(0, ep_addr, xfer->queued_len, XFER_RESULT_SUCCESS, true);
       // Though the host could still send, we don't know.
       // Does the bulk pipe need to be reset to valid to allow for a ZLP?
     }
@@ -706,7 +708,7 @@ static void dcd_pma_alloc_reset(void)
  */
 static uint16_t dcd_pma_alloc(uint8_t ep_addr, size_t length)
 {
-  uint8_t const epnum = tu_edpt_number(ep_addr);
+  uint8_t const epnum = tu_stm32_edpt_number_cb ? tu_stm32_edpt_number_cb(ep_addr) : tu_edpt_number(ep_addr);
   uint8_t const dir   = tu_edpt_dir(ep_addr);
   xfer_ctl_t* epXferCtl = xfer_ctl_ptr(epnum,dir);
 
@@ -737,7 +739,7 @@ static uint16_t dcd_pma_alloc(uint8_t ep_addr, size_t length)
  */
 static void dcd_pma_free(uint8_t ep_addr)
 {
-  uint8_t const epnum = tu_edpt_number(ep_addr);
+  uint8_t const epnum = tu_stm32_edpt_number_cb ? tu_stm32_edpt_number_cb(ep_addr) : tu_edpt_number(ep_addr);
   uint8_t const dir   = tu_edpt_dir(ep_addr);
 
   // Presently, this should never be called for EP0 IN/OUT
@@ -768,7 +770,7 @@ static void dcd_pma_free(uint8_t ep_addr)
 bool dcd_edpt_open (uint8_t rhport, tusb_desc_endpoint_t const * p_endpoint_desc)
 {
   (void)rhport;
-  uint8_t const epnum = tu_edpt_number(p_endpoint_desc->bEndpointAddress);
+  uint8_t const epnum = tu_stm32_edpt_number_cb ? tu_stm32_edpt_number_cb(p_endpoint_desc->bEndpointAddress) : tu_edpt_number(p_endpoint_desc->bEndpointAddress);
   uint8_t const dir   = tu_edpt_dir(p_endpoint_desc->bEndpointAddress);
   const uint16_t epMaxPktSize = tu_edpt_packet_size(p_endpoint_desc);
   uint16_t pma_addr;
@@ -798,7 +800,7 @@ bool dcd_edpt_open (uint8_t rhport, tusb_desc_endpoint_t const * p_endpoint_desc
   }
 
   pcd_set_eptype(USB, epnum, wType);
-  pcd_set_ep_address(USB, epnum, epnum);
+  pcd_set_ep_address(USB, epnum, tu_edpt_number(p_endpoint_desc->bEndpointAddress));
   // Be normal, for now, instead of only accepting zero-byte packets (on control endpoint)
   // or being double-buffered (bulk endpoints)
   pcd_clear_ep_kind(USB,0);
@@ -861,7 +863,7 @@ void dcd_edpt_close_all (uint8_t rhport)
 void dcd_edpt_close (uint8_t rhport, uint8_t ep_addr)
 {
   (void)rhport;
-  uint32_t const epnum = tu_edpt_number(ep_addr);
+  uint32_t const epnum = tu_stm32_edpt_number_cb ? tu_stm32_edpt_number_cb(ep_addr) : tu_edpt_number(ep_addr);
   uint32_t const dir   = tu_edpt_dir(ep_addr);
 
   if(dir == TUSB_DIR_IN)
@@ -907,7 +909,7 @@ bool dcd_edpt_xfer (uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t 
 {
   (void) rhport;
 
-  uint8_t const epnum = tu_edpt_number(ep_addr);
+  uint8_t const epnum = tu_stm32_edpt_number_cb ? tu_stm32_edpt_number_cb(ep_addr) : tu_edpt_number(ep_addr);
   uint8_t const dir   = tu_edpt_dir(ep_addr);
 
   xfer_ctl_t * xfer = xfer_ctl_ptr(epnum,dir);
@@ -945,7 +947,7 @@ bool dcd_edpt_xfer_fifo (uint8_t rhport, uint8_t ep_addr, tu_fifo_t * ff, uint16
 {
   (void) rhport;
 
-  uint8_t const epnum = tu_edpt_number(ep_addr);
+  uint8_t const epnum = tu_stm32_edpt_number_cb ? tu_stm32_edpt_number_cb(ep_addr) : tu_edpt_number(ep_addr);
   uint8_t const dir   = tu_edpt_dir(ep_addr);
 
   xfer_ctl_t * xfer = xfer_ctl_ptr(epnum,dir);
@@ -976,13 +978,16 @@ void dcd_edpt_stall (uint8_t rhport, uint8_t ep_addr)
 {
   (void)rhport;
 
-  if (ep_addr & 0x80)
+  uint8_t const epnum = tu_stm32_edpt_number_cb ? tu_stm32_edpt_number_cb(ep_addr) : tu_edpt_number(ep_addr);
+  uint8_t const dir   = tu_edpt_dir(ep_addr);
+
+  if (dir == TUSB_DIR_IN)
   { // IN
-    pcd_set_ep_tx_status(USB, ep_addr & 0x7F, USB_EP_TX_STALL);
+    pcd_set_ep_tx_status(USB, epnum, USB_EP_TX_STALL);
   }
   else
   { // OUT
-    pcd_set_ep_rx_status(USB, ep_addr, USB_EP_RX_STALL);
+    pcd_set_ep_rx_status(USB, epnum, USB_EP_RX_STALL);
   }
 }
 
@@ -990,24 +995,23 @@ void dcd_edpt_clear_stall (uint8_t rhport, uint8_t ep_addr)
 {
   (void)rhport;
 
-  if (ep_addr & 0x80)
-  { // IN
-    ep_addr &= 0x7F;
+  uint8_t const epnum = tu_stm32_edpt_number_cb ? tu_stm32_edpt_number_cb(ep_addr) : tu_edpt_number(ep_addr);
+  uint8_t const dir   = tu_edpt_dir(ep_addr);
 
-    uint8_t const epnum = tu_edpt_number(ep_addr);
+  if (dir == TUSB_DIR_IN)
+  { // IN
     if (pcd_get_eptype(USB, epnum) !=  USB_EP_ISOCHRONOUS) {
-      pcd_set_ep_tx_status(USB,ep_addr, USB_EP_TX_NAK);
+      pcd_set_ep_tx_status(USB, epnum, USB_EP_TX_NAK);
     }
 
     /* Reset to DATA0 if clearing stall condition. */
-    pcd_clear_tx_dtog(USB,ep_addr);
+    pcd_clear_tx_dtog(USB, epnum);
   }
   else
   { // OUT
     /* Reset to DATA0 if clearing stall condition. */
-    pcd_clear_rx_dtog(USB,ep_addr);
-
-    pcd_set_ep_rx_status(USB,ep_addr, USB_EP_RX_NAK);
+    pcd_clear_rx_dtog(USB, epnum);
+    pcd_set_ep_rx_status(USB, epnum, USB_EP_RX_NAK);
   }
 }
 
