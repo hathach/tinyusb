@@ -818,12 +818,6 @@ bool dcd_edpt_open (uint8_t rhport, tusb_desc_endpoint_t const * p_endpoint_desc
     *pcd_ep_tx_address_ptr(USB, epnum) = pma_addr;
     pcd_set_ep_tx_cnt(USB, epnum, epMaxPktSize);
     pcd_clear_tx_dtog(USB, epnum);
-
-    if(wType == USB_EP_ISOCHRONOUS) {
-      pcd_set_ep_tx_status(USB, epnum, USB_EP_TX_DIS);
-    } else {
-      pcd_set_ep_tx_status(USB, epnum, USB_EP_TX_NAK);
-    }
   }
 #if defined(ISOCHRONOUS_DOUBLEBUFFER)
   if( (dir == TUSB_DIR_OUT) || (wType == USB_EP_ISOCHRONOUS) )
@@ -834,7 +828,18 @@ bool dcd_edpt_open (uint8_t rhport, tusb_desc_endpoint_t const * p_endpoint_desc
     *pcd_ep_rx_address_ptr(USB, epnum) = pma_addr;
     pcd_set_ep_rx_cnt(USB, epnum, epMaxPktSize);
     pcd_clear_rx_dtog(USB, epnum);
+  }
 
+  /* Enable endpoint */
+  if (dir == TUSB_DIR_IN)
+  {
+    if(wType == USB_EP_ISOCHRONOUS) {
+      pcd_set_ep_tx_status(USB, epnum, USB_EP_TX_DIS);
+    } else {
+      pcd_set_ep_tx_status(USB, epnum, USB_EP_TX_NAK);
+    }
+  } else
+  {
     if(wType == USB_EP_ISOCHRONOUS) {
       pcd_set_ep_rx_status(USB, epnum, USB_EP_RX_DIS);
     } else {
