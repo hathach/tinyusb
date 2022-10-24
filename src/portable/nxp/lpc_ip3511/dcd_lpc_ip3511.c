@@ -78,8 +78,10 @@ typedef struct {
 
 // Max nbytes for each control/bulk/interrupt transfer
 enum {
-  NBYTES_CBI_FULLSPEED_MAX = 64,
-  NBYTES_CBI_HIGHSPEED_MAX = 32767 // can be up to all 15-bit, but only tested with 4096
+  NBYTES_ISO_FS_MAX = 1023, // FS ISO
+  NBYTES_ISO_HS_MAX = 1024, // HS ISO
+  NBYTES_CBI_FS_MAX = 64, // FS control/bulk/interrupt
+  NBYTES_CBI_HS_MAX = 32767 // can be up to all 15-bit, but only tested with 4096
 };
 
 enum {
@@ -112,6 +114,8 @@ enum {
 typedef union TU_ATTR_PACKED
 {
   // Full and High speed has different bit layout for buffer_offset and nbytes
+  // TODO FS/HS layout depends on the max speed of controller e.g
+  // lpc55s69 PORT0 is only FS but actually has the same layout as HS on port1
 
   // Buffer (aligned 64) = DATABUFSTART [31:22]  | buffer_offset [21:6]
   volatile struct {
@@ -175,6 +179,9 @@ typedef struct
 //    Use CFG_TUSB_MEM_SECTION to place it accordingly.
 CFG_TUSB_MEM_SECTION TU_ATTR_ALIGNED(256) static dcd_data_t _dcd;
 
+// Dummy buffer to fix ZLPs overwriting the buffer (probably an USB/DMA controller bug)
+CFG_TUSB_MEM_SECTION TU_ATTR_ALIGNED(64) static uint8_t dummy[8];
+
 //--------------------------------------------------------------------+
 // Multiple Controllers
 //--------------------------------------------------------------------+
@@ -225,8 +232,36 @@ static inline uint8_t ep_addr2id(uint8_t ep_addr)
 //--------------------------------------------------------------------+
 // CONTROLLER API
 //--------------------------------------------------------------------+
+
+static void prepare_setup_packet(uint8_t rhport)
+{
+  if (_dcd_controller[rhport].max_speed == TUSB_SPEED_FULL )
+  {
+    _dcd.ep[0][1].buffer_fs.offset = get_buf_offset(_dcd.setup_packet);
+  }else
+  {
+    _dcd.ep[0][1].buffer_hs.offset = get_buf_offset(_dcd.setup_packet);
+  }
+}
+
+static void edpt_reset(uint8_t rhport, uint8_t ep_id)
+{
+  (void) rhport;
+  tu_memclr(&_dcd.ep[ep_id], sizeof(_dcd.ep[ep_id]));
+}
+
+static void edpt_reset_all(uint8_t rhport)
+{
+  for (uint8_t ep_id = 0; ep_id < 2*_dcd_controller[rhport].ep_pairs; ++ep_id)
+  {
+    edpt_reset(rhport, ep_id);
+  }
+  prepare_setup_packet(rhport);
+}
 void dcd_init(uint8_t rhport)
 {
+  edpt_reset_all(rhport);
+
   dcd_registers_t* dcd_reg = _dcd_controller[rhport].regs;
 
   dcd_reg->EPLISTSTART  = (uint32_t) _dcd.ep;
@@ -310,18 +345,13 @@ void dcd_edpt_clear_stall(uint8_t rhport, uint8_t ep_addr)
 
 bool dcd_edpt_open(uint8_t rhport, tusb_desc_endpoint_t const * p_endpoint_desc)
 {
-  (void) rhport;
-
-  // TODO not support ISO yet
-  TU_VERIFY(p_endpoint_desc->bmAttributes.xfer != TUSB_XFER_ISOCHRONOUS);
-
   //------------- Prepare Queue Head -------------//
   uint8_t ep_id = ep_addr2id(p_endpoint_desc->bEndpointAddress);
 
   // Check if endpoint is available
   TU_ASSERT( _dcd.ep[ep_id][0].disable && _dcd.ep[ep_id][1].disable );
 
-  tu_memclr(_dcd.ep[ep_id], 2*sizeof(ep_cmd_sts_t));
+  edpt_reset(rhport, ep_id);
   _dcd.ep[ep_id][0].is_iso = (p_endpoint_desc->bmAttributes.xfer == TUSB_XFER_ISOCHRONOUS);
 
   // Enable EP interrupt
@@ -333,19 +363,20 @@ bool dcd_edpt_open(uint8_t rhport, tusb_desc_endpoint_t const * p_endpoint_desc)
 
 void dcd_edpt_close_all (uint8_t rhport)
 {
-  (void) rhport;
-  // TODO implement dcd_edpt_close_all()
+  for (uint8_t ep_id = 0; ep_id < 2*_dcd_controller[rhport].ep_pairs; ++ep_id)
+  {
+    _dcd.ep[ep_id][0].active = _dcd.ep[ep_id][0].active = 0; // TODO proper way is to EPSKIP then wait ep[][].active then write ep[][].disable (see table 778 in LPC55S69 Use Manual)
+    _dcd.ep[ep_id][0].disable = _dcd.ep[ep_id][1].disable = 1;
+  }
 }
 
-static void prepare_setup_packet(uint8_t rhport)
+void dcd_edpt_close(uint8_t rhport, uint8_t ep_addr)
 {
-  if (_dcd_controller[rhport].max_speed == TUSB_SPEED_FULL )
-  {
-    _dcd.ep[0][1].buffer_fs.offset = get_buf_offset(_dcd.setup_packet);;
-  }else
-  {
-    _dcd.ep[0][1].buffer_hs.offset = get_buf_offset(_dcd.setup_packet);;
-  }
+  (void) rhport;
+  
+  uint8_t ep_id = ep_addr2id(ep_addr);
+  _dcd.ep[ep_id][0].active = _dcd.ep[ep_id][0].active = 0; // TODO proper way is to EPSKIP then wait ep[][].active then write ep[][].disable (see table 778 in LPC55S69 Use Manual)
+  _dcd.ep[ep_id][0].disable = _dcd.ep[ep_id][1].disable = 1;
 }
 
 static void prepare_ep_xfer(uint8_t rhport, uint8_t ep_id, uint16_t buf_offset, uint16_t total_bytes)
@@ -354,13 +385,12 @@ static void prepare_ep_xfer(uint8_t rhport, uint8_t ep_id, uint16_t buf_offset, 
 
   if (_dcd_controller[rhport].max_speed == TUSB_SPEED_FULL )
   {
-    // TODO ISO FullSpeed can have up to 1023 bytes
-    nbytes = tu_min16(total_bytes, NBYTES_CBI_FULLSPEED_MAX);
+    nbytes = tu_min16(total_bytes, _dcd.ep[ep_id][0].is_iso ? NBYTES_ISO_FS_MAX : NBYTES_CBI_FS_MAX);
     _dcd.ep[ep_id][0].buffer_fs.offset = buf_offset;
     _dcd.ep[ep_id][0].buffer_fs.nbytes = nbytes;
   }else
   {
-    nbytes = tu_min16(total_bytes, NBYTES_CBI_HIGHSPEED_MAX);
+    nbytes = tu_min16(total_bytes, NBYTES_CBI_HS_MAX);
     _dcd.ep[ep_id][0].buffer_hs.offset = buf_offset;
     _dcd.ep[ep_id][0].buffer_hs.nbytes = nbytes;
   }
@@ -372,12 +402,18 @@ static void prepare_ep_xfer(uint8_t rhport, uint8_t ep_id, uint16_t buf_offset, 
 
 bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t* buffer, uint16_t total_bytes)
 {
-  (void) rhport;
-
   uint8_t const ep_id = ep_addr2id(ep_addr);
 
   tu_memclr(&_dcd.dma[ep_id], sizeof(xfer_dma_t));
   _dcd.dma[ep_id].total_bytes = total_bytes;
+
+  if (!buffer)
+  {
+    // Although having no data, ZLPs can cause buffer overwritten to zeroes.
+    // Probably due to USB/DMA controller side effect/bug.
+    // Assigned buffer offset to (valid) dummy to prevent overwriting to DATABUFSTART
+    buffer = (uint8_t*)(uint32_t)dummy;
+  }
 
   prepare_ep_xfer(rhport, ep_id, get_buf_offset(buffer), total_bytes);
 
@@ -390,14 +426,13 @@ bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t* buffer, uint16_t to
 static void bus_reset(uint8_t rhport)
 {
   tu_memclr(&_dcd, sizeof(dcd_data_t));
+  edpt_reset_all(rhport); 
 
-  // disable all non-control endpoints on bus reset
-  for(uint8_t ep_id = 2; ep_id < 2*MAX_EP_PAIRS; ep_id++)
+  // disable all endpoints as specified by LPC55S69 UM Table 778
+  for(uint8_t ep_id = 0; ep_id < 2*MAX_EP_PAIRS; ep_id++)
   {
     _dcd.ep[ep_id][0].disable = _dcd.ep[ep_id][1].disable = 1;
   }
-
-  prepare_setup_packet(rhport);
 
   dcd_registers_t* dcd_reg = _dcd_controller[rhport].regs;
 
@@ -506,23 +541,15 @@ void dcd_int_handler(uint8_t rhport)
       }
     }
 
-    // TODO support suspend & resume
     if (cmd_stat & CMDSTAT_SUSPEND_CHANGE_MASK)
     {
-      if (cmd_stat & CMDSTAT_DEVICE_SUSPEND_MASK)
-      { // suspend signal, bus idle for more than 3ms
-        // Note: Host may delay more than 3 ms before and/or after bus reset before doing enumeration.
-        if (cmd_stat & CMDSTAT_DEVICE_ADDR_MASK)
-        {
-          dcd_event_bus_signal(rhport, DCD_EVENT_SUSPEND, true);
-        }
+      // suspend signal, bus idle for more than 3ms
+      // Note: Host may delay more than 3 ms before and/or after bus reset before doing enumeration.
+      if (cmd_stat & CMDSTAT_DEVICE_ADDR_MASK)
+      {
+        dcd_event_bus_signal(rhport, (cmd_stat & CMDSTAT_DEVICE_SUSPEND_MASK) ? DCD_EVENT_SUSPEND : DCD_EVENT_RESUME, true);
       }
     }
-//        else
-//      { // resume signal
-//    dcd_event_bus_signal(rhport, DCD_EVENT_RESUME, true);
-//      }
-//    }
   }
 
   // Setup Receive
