@@ -64,10 +64,9 @@
  * - STALL handled, but not tested.
  *   - Does it work? No clue.
  * - All EP BTABLE buffers are created based on max packet size of first EP opened with that address.
- * - No isochronous endpoints
  * - Endpoint index is the ID of the endpoint
  *   - This means that priority is given to endpoints with lower ID numbers
- *   - Code is mixing up EP IX with EP ID. Everywhere.
+ *   - Manual override of this mapping is possible through callback
  * - Packet buffer memory is copied in the interrupt.
  *   - This is better for performance, but means interrupts are disabled for longer
  *   - DMA may be the best choice, but it could also be pushed to the USBD task.
@@ -776,17 +775,19 @@ bool dcd_edpt_open (uint8_t rhport, tusb_desc_endpoint_t const * p_endpoint_desc
   uint16_t pma_addr;
   uint32_t wType;
 
-  // Isochronous not supported (yet), and some other driver assumptions.
   TU_ASSERT(epnum < MAX_EP_COUNT);
+  TU_ASSERT(buffer_size <= 1024);
 
   // Set type
   switch(p_endpoint_desc->bmAttributes.xfer) {
   case TUSB_XFER_CONTROL:
     wType = USB_EP_CONTROL;
     break;
+#if defined(ISOCHRONOUS_DOUBLEBUFFER)
   case TUSB_XFER_ISOCHRONOUS:
     wType = USB_EP_ISOCHRONOUS;
     break;
+#endif
   case TUSB_XFER_BULK:
     wType = USB_EP_CONTROL;
     break;
