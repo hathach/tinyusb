@@ -723,7 +723,7 @@ static uint16_t dcd_pma_alloc(uint8_t ep_addr, size_t length)
     return epXferCtl->pma_ptr;
   }
   
-  uint16_t addr = ep_buf_ptr; 
+  uint16_t addr = ep_buf_ptr;
   ep_buf_ptr = (uint16_t)(ep_buf_ptr + length); // increment buffer pointer
   
   // Verify no overflow
@@ -772,7 +772,7 @@ bool dcd_edpt_open (uint8_t rhport, tusb_desc_endpoint_t const * p_endpoint_desc
   /* TODO: This hardware endpoint allocation could be more sensible. For now, simple allocation or manual allocation using callback */
   uint8_t const epnum = tu_stm32_edpt_number_cb ? tu_stm32_edpt_number_cb(p_endpoint_desc->bEndpointAddress) : tu_edpt_number(p_endpoint_desc->bEndpointAddress);
   uint8_t const dir   = tu_edpt_dir(p_endpoint_desc->bEndpointAddress);
-  const uint16_t epMaxPktSize = tu_edpt_packet_size(p_endpoint_desc);
+  const uint16_t buffer_size = pcd_aligned_buffer_size(tu_edpt_packet_size(p_endpoint_desc));
   uint16_t pma_addr;
   uint32_t wType;
 
@@ -809,7 +809,7 @@ bool dcd_edpt_open (uint8_t rhport, tusb_desc_endpoint_t const * p_endpoint_desc
 
   /* Create a packet memory buffer area. For isochronous endpoints,
    * use the same buffer as the double buffer, essentially disabling double buffering */
-  pma_addr = dcd_pma_alloc(p_endpoint_desc->bEndpointAddress, epMaxPktSize);
+  pma_addr = dcd_pma_alloc(p_endpoint_desc->bEndpointAddress, buffer_size);
 
 #if defined(ISOCHRONOUS_DOUBLEBUFFER)
   if( (dir == TUSB_DIR_IN) || (wType == USB_EP_ISOCHRONOUS) )
@@ -818,7 +818,6 @@ bool dcd_edpt_open (uint8_t rhport, tusb_desc_endpoint_t const * p_endpoint_desc
 #endif
   {
     *pcd_ep_tx_address_ptr(USB, epnum) = pma_addr;
-    pcd_set_ep_tx_cnt(USB, epnum, epMaxPktSize);
     pcd_clear_tx_dtog(USB, epnum);
   }
 #if defined(ISOCHRONOUS_DOUBLEBUFFER)
@@ -828,7 +827,7 @@ bool dcd_edpt_open (uint8_t rhport, tusb_desc_endpoint_t const * p_endpoint_desc
 #endif
   {
     *pcd_ep_rx_address_ptr(USB, epnum) = pma_addr;
-    pcd_set_ep_rx_cnt(USB, epnum, epMaxPktSize);
+    pcd_set_ep_rx_cnt(USB, epnum, buffer_size);
     pcd_clear_rx_dtog(USB, epnum);
   }
 
@@ -849,7 +848,7 @@ bool dcd_edpt_open (uint8_t rhport, tusb_desc_endpoint_t const * p_endpoint_desc
     }
   }
 
-  xfer_ctl_ptr(p_endpoint_desc->bEndpointAddress)->max_packet_size = epMaxPktSize;
+  xfer_ctl_ptr(p_endpoint_desc->bEndpointAddress)->max_packet_size = buffer_size;
   xfer_ctl_ptr(p_endpoint_desc->bEndpointAddress)->epnum = epnum;
 
   return true;

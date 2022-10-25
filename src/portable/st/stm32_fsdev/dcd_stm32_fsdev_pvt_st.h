@@ -131,6 +131,18 @@ static inline __IO uint16_t* pcd_ep_rx_cnt_ptr(USB_TypeDef * USBx, uint32_t bEpN
 static inline __IO uint16_t* pcd_ep_tx_cnt_ptr(USB_TypeDef * USBx, uint32_t bEpNum);
 static inline void pcd_set_endpoint(USB_TypeDef * USBx, uint32_t bEpNum, uint32_t wRegValue);
 
+/* Aligned buffer size according to hardware */
+static inline uint16_t pcd_aligned_buffer_size(uint16_t size)
+{
+  /* The STM32 full speed USB peripheral supports only a limited set of
+   * buffer sizes given by the RX buffer entry format in the USB_BTABLE. */
+  uint16_t blocksize = (size > 62) ? 32 : 2;
+
+  // Round up while dividing requested size by blocksize
+  uint16_t numblocks = (size + blocksize - 1) / blocksize ;
+
+  return numblocks * blocksize;
+}
 
 /* SetENDPOINT */
 static inline void pcd_set_endpoint(USB_TypeDef * USBx, uint32_t bEpNum, uint32_t wRegValue)
@@ -207,31 +219,17 @@ static inline uint32_t pcd_get_ep_rx_cnt(USB_TypeDef * USBx, uint32_t bEpNum)
   * @param  wNBlocks no. of Blocks.
   * @retval None
   */
+static inline void pcd_set_ep_cnt_rx_reg(__O uint16_t * pdwReg, size_t wCount)
+{
+  /* We assume that the buffer size is already aligned to hardware requirements. */
+  uint16_t blocksize = (wCount > 62) ? 1 : 0;
+  uint16_t numblocks = wCount / (blocksize ? 32 : 2);
 
-static inline void pcd_set_ep_cnt_rx_reg(__O uint16_t * pdwReg, size_t wCount)  {
-  uint32_t wNBlocks;
-  if(wCount > 62u)
-  {
-    wNBlocks = wCount >> 5u;
-    if((wCount & 0x1fU) == 0u)
-    {
-      wNBlocks--;
-    }
-    wNBlocks = wNBlocks << 10u;
-    wNBlocks |= 0x8000u; // Mark block size as 32byte
-    *pdwReg = (uint16_t)wNBlocks;
-  }
-  else
-  {
-    wNBlocks = wCount >> 1u;
-    if((wCount & 0x1U) != 0u)
-    {
-      wNBlocks++;
-    }
-    *pdwReg = (uint16_t)((wNBlocks) << 10u);
-  }
+  /* There should be no remainder in the above calculation */
+  TU_VERIFY((wCount - (numblocks * (blocksize ? 32 : 2))) == 0, /**/);
+
+  *pdwReg = (blocksize << 15) | (numblocks << 10);
 }
-
 
 /**
   * @brief  Sets address in an endpoint register.
