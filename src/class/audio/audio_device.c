@@ -1090,40 +1090,36 @@ static bool set_int_ctr_number(audiod_function_t *audio)
   uint8_t const *p_desc_end = audio->p_desc + audio->desc_length - TUD_AUDIO_DESC_IAD_LEN;
 
 
-  // p_desc starts at required interface with alternate setting zero
-  while (p_desc < p_desc_end)
+  bool found = false;
+  while (!found && p_desc < p_desc_end)
   {
-    // Find correct interface
-    if (tu_desc_type(p_desc) == TUSB_DESC_INTERFACE && ((tusb_desc_interface_t const * )p_desc)->bInterfaceNumber == 0 && ((tusb_desc_interface_t const * )p_desc)->bAlternateSetting == 0)
+    // For each interface/alternate
+    if (tu_desc_type(p_desc) == TUSB_DESC_INTERFACE)
     {
-
       uint8_t foundEPs = 0, nEps = ((tusb_desc_interface_t const * )p_desc)->bNumEndpoints;
-      while (foundEPs < nEps && p_desc < p_desc_end)
+      while (!found && foundEPs < nEps && p_desc < p_desc_end)
       {
-        // found :n endpoint
+        // For each endpoint
         if (tu_desc_type(p_desc) == TUSB_DESC_ENDPOINT)
         {
           tusb_desc_endpoint_t const* desc_ep = (tusb_desc_endpoint_t const *) p_desc;
-
           uint8_t const ep_addr = desc_ep->bEndpointAddress;
-
+          // If endpoint is input-direction and interrupt-type
           if (tu_edpt_dir(ep_addr) == TUSB_DIR_IN && desc_ep->bmAttributes.xfer == 0x03)   // Check if usage is interrupt EP
           {
+            // Store endpoint number and open endpoint
             audio->ep_int_ctr = ep_addr;
             TU_ASSERT(usbd_edpt_open(audio->rhport, desc_ep));
+            found = true;
           }
-
           foundEPs += 1;
         }
         p_desc = tu_desc_next(p_desc);
       }
-      break;
     }
     p_desc = tu_desc_next(p_desc);
   }
-
-  return true;
-
+  return found;
 }
 #endif
 
