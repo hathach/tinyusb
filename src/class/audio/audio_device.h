@@ -197,17 +197,17 @@
 #endif
 
 // Audio interrupt control EP size - disabled if 0
-#ifndef CFG_TUD_AUDIO_INT_CTR_EPSIZE_IN
+#ifndef CFG_TUD_AUDIO_INT_EPSIZE_IN
 // Audio interrupt control - if required - 6 Bytes according to UAC 2 specification (p. 74)
 #if CFG_TUD_AUDIO_ENABLE_INTERRUPT_EP
-#define CFG_TUD_AUDIO_INT_CTR_EPSIZE_IN                     6
+#define CFG_TUD_AUDIO_INT_EPSIZE_IN                     6
 #else
-#define CFG_TUD_AUDIO_INT_CTR_EPSIZE_IN                     0
+#define CFG_TUD_AUDIO_INT_EPSIZE_IN                     0
 #endif
 #endif
 
-#ifndef CFG_TUD_AUDIO_INT_CTR_EP_IN_SW_BUFFER_SIZE
-#define CFG_TUD_AUDIO_INT_CTR_EP_IN_SW_BUFFER_SIZE          6                             // Buffer size of audio control interrupt EP - 6 Bytes according to UAC 2 specification (p. 74)
+#ifndef CFG_TUD_AUDIO_INT_EP_IN_SW_BUFFER_SIZE
+#define CFG_TUD_AUDIO_INT_EP_IN_SW_BUFFER_SIZE          6                             // Buffer size of audio control interrupt EP - 6 Bytes according to UAC 2 specification (p. 74)
 #endif
 
 // Use software encoding/decoding
@@ -399,7 +399,7 @@ tu_fifo_t* tud_audio_n_get_tx_support_ff          (uint8_t func_id, uint8_t ff_i
 #endif
 
 #if CFG_TUD_AUDIO_ENABLE_INTERRUPT_EP
-uint16_t    tud_audio_int_ctr_n_write             (uint8_t func_id, uint8_t const* buffer, uint16_t len);
+uint16_t    tud_audio_int_n_write             (uint8_t func_id, uint8_t const* buffer, uint16_t len);
 #endif
 
 //--------------------------------------------------------------------+
@@ -442,7 +442,7 @@ static inline tu_fifo_t* tud_audio_get_tx_support_ff        (uint8_t ff_idx);
 // INT CTR API
 
 #if CFG_TUD_AUDIO_ENABLE_INTERRUPT_EP
-static inline uint16_t tud_audio_int_ctr_write              (uint8_t const* buffer, uint16_t len);
+static inline uint16_t tud_audio_int_write              (uint8_t const* buffer, uint16_t len);
 #endif
 
 // Buffer control EP data and schedule a transmit
@@ -567,7 +567,7 @@ typedef struct TU_ATTR_PACKED
   };
 } audio_status_update_t;
 
-TU_ATTR_WEAK bool tud_audio_int_ctr_done_cb(uint8_t rhport, uint16_t n_bytes_copied);
+TU_ATTR_WEAK bool tud_audio_int_done_cb(uint8_t rhport, uint16_t n_bytes_copied);
 #endif
 
 // Invoked when audio set interface request received
@@ -699,9 +699,9 @@ static inline tu_fifo_t* tud_audio_get_tx_support_ff(uint8_t ff_idx)
 #endif
 
 #if CFG_TUD_AUDIO_ENABLE_INTERRUPT_EP
-static inline uint16_t tud_audio_int_ctr_write(uint8_t const* buffer, uint16_t len)
+static inline uint16_t tud_audio_int_write(uint8_t const* buffer, uint16_t len)
 {
-  return tud_audio_int_ctr_n_write(0, buffer, len);
+  return tud_audio_int_n_write(0, buffer, len);
 }
 #endif
 
