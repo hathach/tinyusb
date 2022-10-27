@@ -557,9 +557,9 @@ static void dcd_ep_ctr_rx_handler(uint32_t wIstr)
     {
       uint32_t remaining = (uint32_t)xfer->total_len - (uint32_t)xfer->queued_len;
       if(remaining >= xfer->max_packet_size) {
-        pcd_set_ep_rx_cnt(USB, EPindex,xfer->max_packet_size);
+        pcd_set_ep_rx_bufsize(USB, EPindex,xfer->max_packet_size);
       } else {
-        pcd_set_ep_rx_cnt(USB, EPindex,remaining);
+        pcd_set_ep_rx_bufsize(USB, EPindex,remaining);
       }
       pcd_set_ep_rx_status(USB, EPindex, USB_EP_RX_VALID);
     }
@@ -571,7 +571,7 @@ static void dcd_ep_ctr_rx_handler(uint32_t wIstr)
   if(EPindex == 0u)
   {
       // Always be prepared for a status packet...
-    pcd_set_ep_rx_cnt(USB, EPindex, CFG_TUD_ENDPOINT0_SIZE);
+    pcd_set_ep_rx_bufsize(USB, EPindex, CFG_TUD_ENDPOINT0_SIZE);
     pcd_clear_rx_ep_ctr(USB, EPindex);
   }
 }
@@ -828,7 +828,7 @@ bool dcd_edpt_open (uint8_t rhport, tusb_desc_endpoint_t const * p_endpoint_desc
 #endif
   {
     *pcd_ep_rx_address_ptr(USB, epnum) = pma_addr;
-    pcd_set_ep_rx_cnt(USB, epnum, buffer_size);
+    pcd_set_ep_rx_bufsize(USB, epnum, buffer_size);
     pcd_clear_rx_dtog(USB, epnum);
   }
 
@@ -939,9 +939,9 @@ bool dcd_edpt_xfer (uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t 
 
     if(total_bytes > xfer->max_packet_size)
     {
-      pcd_set_ep_rx_cnt(USB,epnum,xfer->max_packet_size);
+      pcd_set_ep_rx_bufsize(USB,epnum,xfer->max_packet_size);
     } else {
-      pcd_set_ep_rx_cnt(USB,epnum,total_bytes);
+      pcd_set_ep_rx_bufsize(USB,epnum,total_bytes);
     }
     pcd_set_ep_rx_status(USB, epnum, USB_EP_RX_VALID);
   }
@@ -969,9 +969,9 @@ bool dcd_edpt_xfer_fifo (uint8_t rhport, uint8_t ep_addr, tu_fifo_t * ff, uint16
   {
     if(total_bytes > xfer->max_packet_size)
     {
-      pcd_set_ep_rx_cnt(USB,epnum,xfer->max_packet_size);
+      pcd_set_ep_rx_bufsize(USB,epnum,xfer->max_packet_size);
     } else {
-      pcd_set_ep_rx_cnt(USB,epnum,total_bytes);
+      pcd_set_ep_rx_bufsize(USB,epnum,total_bytes);
     }
     pcd_set_ep_rx_status(USB, epnum, USB_EP_RX_VALID);
   }

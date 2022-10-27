@@ -276,12 +276,20 @@ static inline __IO uint16_t* pcd_ep_rx_cnt_ptr(USB_TypeDef * USBx, uint32_t bEpN
 
 static inline void pcd_set_ep_tx_cnt(USB_TypeDef * USBx,  uint32_t bEpNum, uint32_t wCount)
 {
-  *pcd_ep_tx_cnt_ptr(USBx, bEpNum) = (uint16_t)wCount;
+  __IO uint16_t * reg = pcd_ep_tx_cnt_ptr(USBx, bEpNum);
+  *reg = (uint16_t) (*reg & (uint16_t) ~0x3FFU) | (wCount & 0x3FFU);
 }
 
 static inline void pcd_set_ep_rx_cnt(USB_TypeDef * USBx,  uint32_t bEpNum, uint32_t wCount)
 {
+  __IO uint16_t * reg = pcd_ep_rx_cnt_ptr(USBx, bEpNum);
+  *reg = (uint16_t) (*reg & (uint16_t) ~0x3FFU) | (wCount & 0x3FFU);
+}
+
+static inline void pcd_set_ep_rx_bufsize(USB_TypeDef * USBx,  uint32_t bEpNum, uint32_t wCount)
+{
   __IO uint16_t *pdwReg = pcd_ep_rx_cnt_ptr((USBx),(bEpNum));
+  wCount = pcd_aligned_buffer_size(wCount);
   pcd_set_ep_cnt_rx_reg(pdwReg, wCount);
 }
 
