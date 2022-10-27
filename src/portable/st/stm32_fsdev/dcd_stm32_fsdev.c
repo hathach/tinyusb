@@ -899,19 +899,26 @@ static void dcd_transmit_packet(xfer_ctl_t * xfer, uint16_t ep_ix)
     len = xfer->max_packet_size;
   }
 
-  uint16_t oldAddr = *pcd_ep_tx_address_ptr(USB,ep_ix);
+  uint16_t ep_reg = pcd_get_endpoint(USB, ep_ix);
+  uint16_t addr_ptr = *pcd_ep_tx_address_ptr(USB,ep_ix);
 
   if (xfer->ff)
   {
-    dcd_write_packet_memory_ff(xfer->ff, oldAddr, len);
+    dcd_write_packet_memory_ff(xfer->ff, addr_ptr, len);
   }
   else
   {
-    dcd_write_packet_memory(oldAddr, &(xfer->buffer[xfer->queued_len]), len);
+    dcd_write_packet_memory(addr_ptr, &(xfer->buffer[xfer->queued_len]), len);
   }
   xfer->queued_len = (uint16_t)(xfer->queued_len + len);
 
-  pcd_set_ep_tx_cnt(USB,ep_ix,len);
+  /* Write into correct register when ISOCHRONOUS (double buffered) */
+  if ( (ep_reg & USB_EP_DTOG_TX) && ( (ep_reg & USB_EP_TYPE_MASK) == USB_EP_ISOCHRONOUS) ) {
+    pcd_set_ep_rx_cnt(USB, ep_ix, len);
+  } else {
+    pcd_set_ep_tx_cnt(USB, ep_ix, len);
+  }
+
   pcd_set_ep_tx_status(USB, ep_ix, USB_EP_TX_VALID);
 }
 
