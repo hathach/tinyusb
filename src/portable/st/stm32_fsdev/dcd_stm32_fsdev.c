@@ -506,7 +506,6 @@ static void dcd_ep_ctr_rx_handler(uint32_t wIstr)
 {
   uint32_t EPindex = wIstr & USB_ISTR_EP_ID;
   uint32_t wEPRegVal = pcd_get_endpoint(USB, EPindex);
-  uint32_t count = pcd_get_ep_rx_cnt(USB,EPindex);
   uint8_t ep_addr = wEPRegVal & USB_EPADDR_FIELD;
 
   xfer_ctl_t *xfer = xfer_ctl_ptr(ep_addr);
@@ -518,11 +517,12 @@ static void dcd_ep_ctr_rx_handler(uint32_t wIstr)
     return;
   }
   
-  if((EPindex == 0U) && ((wEPRegVal & USB_EP_SETUP) != 0U)) /* Setup packet */
+  if((ep_addr == 0U) && ((wEPRegVal & USB_EP_SETUP) != 0U)) /* Setup packet */
   {
     // The setup_received function uses memcpy, so this must first copy the setup data into
     // user memory, to allow for the 32-bit access that memcpy performs.
     uint8_t userMemBuf[8];
+    uint32_t count = pcd_get_ep_rx_cnt(USB, EPindex);
     /* Get SETUP Packet*/
     if(count == 8) // Setup packet should always be 8 bytes. If not, ignore it, and try again.
     {
@@ -535,8 +535,16 @@ static void dcd_ep_ctr_rx_handler(uint32_t wIstr)
   }
   else
   {
+    uint32_t count;
+    /* Read from correct register when ISOCHRONOUS (double buffered) */
+    if ( (wEPRegVal & USB_EP_DTOG_RX) && ( (wEPRegVal & USB_EP_TYPE_MASK) == USB_EP_ISOCHRONOUS) ) {
+      count = pcd_get_ep_tx_cnt(USB, EPindex);
+    } else {
+      count = pcd_get_ep_rx_cnt(USB, EPindex);
+    }
+
     // Clear RX CTR interrupt flag
-    if(EPindex != 0u)
+    if(ep_addr != 0u)
     {
       pcd_clear_rx_ep_ctr(USB, EPindex);
     }
@@ -579,7 +587,7 @@ static void dcd_ep_ctr_rx_handler(uint32_t wIstr)
   // For EP0, prepare to receive another SETUP packet.
   // Clear CTR last so that a new packet does not overwrite the packing being read.
   // (Based on the docs, it seems SETUP will always be accepted after CTR is cleared)
-  if(EPindex == 0u)
+  if(ep_addr == 0u)
   {
       // Always be prepared for a status packet...
     pcd_set_ep_rx_bufsize(USB, EPindex, CFG_TUD_ENDPOINT0_SIZE);

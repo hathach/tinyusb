@@ -223,16 +223,17 @@ static inline uint32_t pcd_get_ep_rx_cnt(USB_TypeDef * USBx, uint32_t bEpNum)
   * @param  wNBlocks no. of Blocks.
   * @retval None
   */
-static inline void pcd_set_ep_cnt_rx_reg(__O uint16_t * pdwReg, size_t wCount)
+static inline void pcd_set_ep_cnt_reg(__O uint16_t * pdwReg, size_t wCount)
 {
   /* We assume that the buffer size is already aligned to hardware requirements. */
   uint16_t blocksize = (wCount > 62) ? 1 : 0;
   uint16_t numblocks = wCount / (blocksize ? 32 : 2);
 
   /* There should be no remainder in the above calculation */
-  TU_VERIFY((wCount - (numblocks * (blocksize ? 32 : 2))) == 0, /**/);
+  TU_ASSERT((wCount - (numblocks * (blocksize ? 32 : 2))) == 0, /**/);
 
-  *pdwReg = (blocksize << 15) | (numblocks << 10);
+  /* Encode into register. When BLSIZE==1, we need to substract 1 block count */
+  *pdwReg = (blocksize << 15) | ((numblocks - blocksize) << 10);
 }
 
 /**
@@ -294,7 +295,7 @@ static inline void pcd_set_ep_rx_bufsize(USB_TypeDef * USBx,  uint32_t bEpNum, u
 {
   __IO uint16_t *pdwReg = pcd_ep_rx_cnt_ptr((USBx),(bEpNum));
   wCount = pcd_aligned_buffer_size(wCount);
-  pcd_set_ep_cnt_rx_reg(pdwReg, wCount);
+  pcd_set_ep_cnt_reg(pdwReg, wCount);
 }
 
 /**
