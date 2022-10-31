@@ -175,7 +175,7 @@ typedef struct
 
 static xfer_ctl_t xfer_status[MAX_EP_COUNT][2];
 
-static inline xfer_ctl_t* xfer_ctl_ptr(uint32_t ep_addr)
+TU_ATTR_ALWAYS_INLINE static inline xfer_ctl_t* xfer_ctl_ptr(uint32_t ep_addr)
 {
   uint8_t epnum = tu_edpt_number(ep_addr);
   uint8_t dir = tu_edpt_dir(ep_addr);
@@ -207,12 +207,12 @@ static bool dcd_read_packet_memory_ff(tu_fifo_t * ff, uint16_t src, uint16_t wNB
 
 // Using a function due to better type checks
 // This seems better than having to do type casts everywhere else
-static inline void reg16_clear_bits(__IO uint16_t *reg, uint16_t mask) {
+TU_ATTR_ALWAYS_INLINE static inline void reg16_clear_bits(__IO uint16_t *reg, uint16_t mask) {
   *reg = (uint16_t)(*reg & ~mask);
 }
 
 // Bits in ISTR are cleared upon writing 0
-static inline void clear_istr_bits(uint16_t mask) {
+TU_ATTR_ALWAYS_INLINE static inline void clear_istr_bits(uint16_t mask) {
   USB->ISTR = ~mask;
 }
 
