@@ -1,7 +1,7 @@
 /* 
  * The MIT License (MIT)
  *
- * Copyright (c) 2022 Angel Molina (angelmolinu@gmail.com)
+ * Copyright (c) 2022 Angel Molina <angelmolinu@gmail.com>
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -23,20 +23,12 @@
  *
  */
 
-#include <stdlib.h>
 #include <stdio.h>
+#include <string.h>
 
 #include "bsp/board.h"
 #include "tusb.h"
 
-extern int spk_data_size;
-extern uint8_t current_resolution;
-extern int32_t mic_buf[];
-extern int32_t spk_buf[];
-
-void audio_task(void);
-
-/*------------- MAIN -------------*/
 int main(void)
 {
   board_init();
@@ -46,51 +38,35 @@ int main(void)
 
   while (1)
   {
-    tud_task();
-    audio_task();
+    tud_task(); // TinyUSB device task
   }
 
   return 0;
 }
 
-/*---------- AUDIO TASK ----------*/
-void audio_task(void)
+// Invoked when device is mounted
+void tud_mount_cb(void)
 {
-  // When new data arrived, copy data from speaker buffer, to microphone buffer
-  // and send it over
-  // Only support speaker & headphone both have the same resolution
-  // If one is 16bit another is 24bit be care of LOUD noise !
-  if (spk_data_size)
-  {
-    if (current_resolution == 16)
-    {
-      int16_t *src = (int16_t*)spk_buf;
-      int16_t *limit = (int16_t*)spk_buf + spk_data_size / 2;
-      int16_t *dst = (int16_t*)mic_buf;
-      while (src < limit)
-      {
-        // Combine two channels into one
-        int32_t left = *src++;
-        int32_t right = *src++;
-        *dst++ = (int16_t) ((left >> 1) + (right >> 1));
-      }
-      tud_audio_write((uint8_t *)mic_buf, (uint16_t) (spk_data_size / 2));
-      spk_data_size = 0;
-    }
-    else if (current_resolution == 24)
-    {
-      int32_t *src = spk_buf;
-      int32_t *limit = spk_buf + spk_data_size / 4;
-      int32_t *dst = mic_buf;
-      while (src < limit)
-      {
-        // Combine two channels into one
-        int32_t left = *src++;
-        int32_t right = *src++;
-        *dst++ = (int32_t) ((uint32_t) ((left >> 1) + (right >> 1)) & 0xffffff00ul);
-      }
-      tud_audio_write((uint8_t *)mic_buf, (uint16_t) (spk_data_size / 2));
-      spk_data_size = 0;
-    }
-  }
+  // MOUNTED
+}
+
+// Invoked when device is unmounted
+void tud_umount_cb(void)
+{
+  // UNMOUNTED
+}
+
+// Invoked when usb bus is suspended
+// remote_wakeup_en : if host allow us  to perform remote wakeup
+// Within 7ms, device must draw an average of current less than 2.5 mA from bus
+void tud_suspend_cb(bool remote_wakeup_en)
+{
+  (void)remote_wakeup_en;
+  // SUSPENDED
+}
+
+// Invoked when usb bus is resumed
+void tud_resume_cb(void)
+{
+  // RESUMED
 }
