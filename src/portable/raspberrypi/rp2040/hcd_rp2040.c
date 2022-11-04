@@ -138,10 +138,10 @@ static void __tusb_irq_path_func(hw_handle_buff_status)(void)
         _handle_buff_status_bit(bit, ep);
     }
 
-    // Check interrupt endpoints
+    // Check "interrupt" (asynchronous) endpoints for both IN and OUT
     for (uint i = 1; i <= USB_HOST_INTERRUPT_ENDPOINTS && remaining_buffers; i++)
     {
-        // EPX is bit 0
+        // EPX is bit 0 & 1
         // IEP1 IN  is bit 2
         // IEP1 OUT is bit 3
         // IEP2 IN  is bit 4
@@ -149,7 +149,8 @@ static void __tusb_irq_path_func(hw_handle_buff_status)(void)
         // IEP3 IN  is bit 6
         // IEP3 OUT is bit 7
         // etc
-        for(int j = 0; j < 2; j++){
+        for(uint j = 0; j < 2; j++)
+        {
             bit = 1 << (i*2+j);
             if (remaining_buffers & bit)
             {
@@ -279,6 +280,8 @@ static struct hw_endpoint *_hw_endpoint_allocate(uint8_t transfer_type)
 
     if (transfer_type != TUSB_XFER_CONTROL)
     {
+        // Note: even though datasheet name these "Interrupt" endpoints. These are actually
+        // "Asynchronous" endpoints and can be used for other type such as: Bulk  (ISO need confirmation)
         ep = _next_free_interrupt_ep();
         pico_info("Allocate %s ep %d\n", tu_edpt_type_str(transfer_type), ep->interrupt_num);
         assert(ep);
@@ -344,11 +347,10 @@ static void _hw_endpoint_init(struct hw_endpoint *ep, uint8_t dev_addr, uint8_t 
     if (ep != &epx)
     {
         // Endpoint has its own addr_endp and interrupt bits to be setup!
-        // This is an interrupt endpoint
-        // so need to set up interrupt endpoint address control register with:
-        // device address
-        // endpoint number / direction
-        // preamble
+        // This is an interrupt/async endpoint. so need to set up ADDR_ENDP register with:
+        // - device address
+        // - endpoint number / direction
+        // - preamble
         uint32_t reg = (uint32_t) (dev_addr | (num << USB_ADDR_ENDP1_ENDPOINT_LSB));
 
         if (dir == TUSB_DIR_OUT)
