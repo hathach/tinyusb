@@ -55,7 +55,7 @@ if (NOT TARGET _rp2040_family_inclusion_marker)
 	target_compile_definitions(tinyusb_common_base INTERFACE
 			CFG_TUSB_MCU=OPT_MCU_RP2040
 			CFG_TUSB_OS=OPT_OS_PICO
-			CFG_TUSB_DEBUG=${TINYUSB_DEBUG_LEVEL}
+			#CFG_TUSB_DEBUG=${TINYUSB_DEBUG_LEVEL}
 	)
 
 	#------------------------------------
