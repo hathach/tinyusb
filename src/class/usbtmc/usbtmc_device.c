@@ -64,7 +64,8 @@
 // USBTMC 3.2.2 error conditions not strictly followed
 // No local lock-out, REN, or GTL.
 // Clear message available status byte at the correct time? (488 4.3.1.3)
-
+// Ability to defer status byte transmission
+// Transmission of status byte in response to USB488 SRQ condition
 
 #include "tusb_option.h"
 
@@ -79,6 +80,11 @@
 #include "uart_util.h"
 static char logMsg[150];
 #endif
+
+// Buffer size must be an exact multiple of the max packet size for both
+// bulk  (up to 64 bytes for FS, 512 bytes for HS). In addation, this driver
+// imposes a minimum buffer size of 32 bytes. 
+#define USBTMCD_BUFFER_SIZE (TUD_OPT_HIGH_SPEED ? 512 : 64)
 
 /*
  * The state machine does not allow simultaneous reading and writing. This is
@@ -120,9 +126,12 @@ typedef struct
   uint8_t ep_int_in;
   // IN buffer is only used for first packet, not the remainder
   // in order to deal with prepending header
-  CFG_TUSB_MEM_ALIGN uint8_t ep_bulk_in_buf[USBTMCD_MAX_PACKET_SIZE];
+  CFG_TUSB_MEM_ALIGN uint8_t ep_bulk_in_buf[USBTMCD_BUFFER_SIZE];
+  uint32_t ep_bulk_in_wMaxPacketSize;
   // OUT buffer receives one packet at a time
-  CFG_TUSB_MEM_ALIGN uint8_t ep_bulk_out_buf[USBTMCD_MAX_PACKET_SIZE];
+  CFG_TUSB_MEM_ALIGN uint8_t ep_bulk_out_buf[USBTMCD_BUFFER_SIZE];
+  uint32_t ep_bulk_out_wMaxPacketSize;
+
   uint32_t transfer_size_remaining; // also used for requested length for bulk IN.
   uint32_t transfer_size_sent;      // To keep track of data bytes that have been queued in FIFO (not header bytes)
 
@@ -139,18 +148,14 @@ CFG_TUSB_MEM_SECTION static usbtmc_interface_state_t usbtmc_state =
     .itf_id = 0xFF,
 };
 
-// We need all headers to fit in a single packet in this implementation.
-TU_VERIFY_STATIC(USBTMCD_MAX_PACKET_SIZE >= 32u,"USBTMC dev EP packet size too small");
-TU_VERIFY_STATIC(
-    (sizeof(usbtmc_state.ep_bulk_in_buf) % USBTMCD_MAX_PACKET_SIZE) == 0,
-    "packet buffer must be a multiple of the packet size");
+// We need all headers to fit in a single packet in this implementation, 32 bytes will fit all standard USBTMC headers
+TU_VERIFY_STATIC(USBTMCD_BUFFER_SIZE >= 32u,"USBTMC dev buffer size too small");
 
 static bool handle_devMsgOutStart(uint8_t rhport, void *data, size_t len);
 static bool handle_devMsgOut(uint8_t rhport, void *data, size_t len, size_t packetLen);
 
 static uint8_t termChar;
 static uint8_t termCharRequested = false;
-
 
 osal_mutex_def_t usbtmcLockBuffer;
 static osal_mutex_t usbtmcLock;
@@ -282,12 +287,15 @@ uint16_t usbtmcd_open_cb(uint8_t rhport, tusb_desc_interface_t const * itf_desc,
       tusb_desc_endpoint_t const *ep_desc = (tusb_desc_endpoint_t const *)p_desc;
       switch(ep_desc->bmAttributes.xfer) {
         case TUSB_XFER_BULK:
-          TU_ASSERT(tu_edpt_packet_size(ep_desc) == USBTMCD_MAX_PACKET_SIZE, 0);
+          // Ensure  buffer is an exact multiple of the maxPacketSize
+          TU_ASSERT((USBTMCD_BUFFER_SIZE % tu_edpt_packet_size(ep_desc)) == 0, 0);
           if (tu_edpt_dir(ep_desc->bEndpointAddress) == TUSB_DIR_IN)
           {
             usbtmc_state.ep_bulk_in = ep_desc->bEndpointAddress;
+            usbtmc_state.ep_bulk_in_wMaxPacketSize = tu_edpt_packet_size(ep_desc);
           } else {
             usbtmc_state.ep_bulk_out = ep_desc->bEndpointAddress;
+            usbtmc_state.ep_bulk_out_wMaxPacketSize = tu_edpt_packet_size(ep_desc);
           }
 
           break;
@@ -395,7 +403,7 @@ static bool handle_devMsgOut(uint8_t rhport, void *data, size_t len, size_t pack
   // return true upon failure, as we can assume error is being handled elsewhere.
   TU_VERIFY(usbtmc_state.state == STATE_RCV,true);
 
-  bool shortPacket = (packetLen < USBTMCD_MAX_PACKET_SIZE);
+  bool shortPacket = (packetLen < usbtmc_state.ep_bulk_out_wMaxPacketSize);
 
   // Packet is to be considered complete when we get enough data or at a short packet.
   bool atEnd = false;
@@ -522,7 +530,7 @@ bool usbtmcd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint
       break;
 
     case STATE_TX_INITIATED:
-      if(usbtmc_state.transfer_size_remaining >=sizeof(usbtmc_state.ep_bulk_in_buf))
+      if(usbtmc_state.transfer_size_remaining >= sizeof(usbtmc_state.ep_bulk_in_buf))
       {
         // FIXME! This removes const below!
         TU_VERIFY( usbd_edpt_xfer(rhport, usbtmc_state.ep_bulk_in,
@@ -539,7 +547,7 @@ bool usbtmcd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint
         usbtmc_state.transfer_size_remaining = 0;
         usbtmc_state.devInBuffer = NULL;
         TU_VERIFY( usbd_edpt_xfer(rhport, usbtmc_state.ep_bulk_in, usbtmc_state.ep_bulk_in_buf, (uint16_t)packetLen) );
-        if(((packetLen % USBTMCD_MAX_PACKET_SIZE) != 0) || (packetLen == 0 ))
+        if(((packetLen % usbtmc_state.ep_bulk_in_wMaxPacketSize) != 0) || (packetLen == 0 ))
         {
           usbtmc_state.state = STATE_TX_SHORTED;
         }
@@ -589,18 +597,31 @@ bool usbtmcd_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request
   {
     uint32_t ep_addr = (request->wIndex);
 
+    // At this point, a transfer MAY be in progress. Based on USB spec, when clearing bulk EP HALT,
+    // the EP transfer buffer needs to be cleared and DTOG needs to be reset, even if 
+    // the EP is not halted. The only USBD API interface to do this is to stall and then unstall the EP.
     if(ep_addr == usbtmc_state.ep_bulk_out)
     {
       criticalEnter();
+      usbd_edpt_stall(rhport, (uint8_t)ep_addr);
+      usbd_edpt_clear_stall(rhport, (uint8_t)ep_addr);
       usbtmc_state.state = STATE_NAK; // USBD core has placed EP in NAK state for us
       criticalLeave();
       tud_usbtmc_bulkOut_clearFeature_cb();
     }
     else if (ep_addr == usbtmc_state.ep_bulk_in)
     {
+      usbd_edpt_stall(rhport, (uint8_t)ep_addr);
+      usbd_edpt_clear_stall(rhport, (uint8_t)ep_addr);
       tud_usbtmc_bulkIn_clearFeature_cb();
     }
-    else
+    else if ((usbtmc_state.ep_int_in != 0) && (ep_addr == usbtmc_state.ep_int_in))
+    {
+      // Clearing interrupt in EP
+      usbd_edpt_stall(rhport, (uint8_t)ep_addr);
+      usbd_edpt_clear_stall(rhport, (uint8_t)ep_addr);
+    }
+     else
     {
       return false;
     }
@@ -680,7 +701,7 @@ bool usbtmcd_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request
     usbtmc_state.transfer_size_remaining = 0u;
       // Check if we've queued a short packet
       criticalEnter();
-      usbtmc_state.state = ((usbtmc_state.transfer_size_sent % USBTMCD_MAX_PACKET_SIZE) == 0) ?
+      usbtmc_state.state = ((usbtmc_state.transfer_size_sent % usbtmc_state.ep_bulk_in_wMaxPacketSize) == 0) ?
               STATE_ABORTING_BULK_IN : STATE_ABORTING_BULK_IN_SHORTED;
       criticalLeave();
       if(usbtmc_state.transfer_size_sent  == 0)
@@ -810,25 +831,32 @@ bool usbtmcd_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request
 
       bTag = request->wValue & 0x7F;
       TU_VERIFY(request->bmRequestType == 0xA1);
-      TU_VERIFY((request->wValue & (~0x7F)) == 0u); // Other bits are required to be zero
+      TU_VERIFY((request->wValue & (~0x7F)) == 0u); // Other bits are required to be zero (USB488v1.0 Table 11)
       TU_VERIFY(bTag >= 0x02 && bTag <= 127);
       TU_VERIFY(request->wIndex == usbtmc_state.itf_id);
       TU_VERIFY(request->wLength == 0x0003);
       rsp.bTag = (uint8_t)bTag;
       if(usbtmc_state.ep_int_in != 0)
       {
-        rsp.USBTMC_status = USBTMC_STATUS_SUCCESS;
-        rsp.statusByte = 0x00; // Use interrupt endpoint, instead.
-
-        usbtmc_read_stb_interrupt_488_t intMsg =
+        rsp.statusByte = 0x00; // Use interrupt endpoint, instead. Must be 0x00 (USB488v1.0 4.3.1.2)
+        if(usbd_edpt_busy(rhport, usbtmc_state.ep_int_in))
         {
-          .bNotify1 = {
-              .one = 1,
-              .bTag = bTag & 0x7Fu,
-          },
-          .StatusByte = tud_usbtmc_get_stb_cb(&(rsp.USBTMC_status))
-        };
-        usbd_edpt_xfer(rhport, usbtmc_state.ep_int_in, (void*)&intMsg, sizeof(intMsg));
+          rsp.USBTMC_status = USB488_STATUS_INTERRUPT_IN_BUSY;
+        }
+        else
+        {
+          rsp.USBTMC_status = USBTMC_STATUS_SUCCESS;
+          usbtmc_read_stb_interrupt_488_t intMsg =
+          {
+            .bNotify1 = {
+                .one = 1,
+                .bTag = bTag & 0x7Fu,
+            },
+            .StatusByte = tud_usbtmc_get_stb_cb(&(rsp.USBTMC_status))
+          };
+          // Must be queued before control request response sent (USB488v1.0 4.3.1.2)
+          usbd_edpt_xfer(rhport, usbtmc_state.ep_int_in, (void*)&intMsg, sizeof(intMsg));
+        }
       }
       else
       {

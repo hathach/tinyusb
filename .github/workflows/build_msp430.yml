@@ -21,13 +21,13 @@ jobs:
       uses: actions/setup-python@v2
 
     - name: Checkout TinyUSB
-      uses: actions/checkout@v2
+      uses: actions/checkout@v3
 
     - name: Checkout common submodules in lib
       run: git submodule update --init lib/FreeRTOS-Kernel lib/lwip
 
     - name: Checkout hathach/linkermap
-      uses: actions/checkout@v2
+      uses: actions/checkout@v3
       with:
          repository: hathach/linkermap
          path: linkermap
@@ -51,6 +51,9 @@ jobs:
 
     - name: Set Toolchain Path
       run: echo >> $GITHUB_PATH `echo ~/cache/toolchain/*/bin`
+
+    - name: Get Dependencies
+      run: python3 tools/get_dependencies.py ${{ matrix.family }}
 
     - name: Build
       run: python3 tools/build_family.py ${{ matrix.family }}

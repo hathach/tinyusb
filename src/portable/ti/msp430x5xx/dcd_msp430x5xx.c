@@ -222,6 +222,14 @@ void dcd_disconnect(uint8_t rhport)
   dcd_int_enable(rhport);
 }
 
+void dcd_sof_enable(uint8_t rhport, bool en)
+{
+  (void) rhport;
+  (void) en;
+
+  // TODO implement later
+}
+
 /*------------------------------------------------------------------*/
 /* DCD Endpoint port
  *------------------------------------------------------------------*/
@@ -623,7 +631,18 @@ void dcd_int_handler(uint8_t rhport)
     handle_setup_packet();
   }
 
-  uint16_t curr_vector = USBVECINT;
+  // Workaround possible bug in MSP430 GCC 9.3.0 where volatile variable
+  // USBVECINT is read from twice when only once is intended. The second
+  // (garbage) read seems to be triggered by certain switch statement
+  // configurations.
+  uint16_t curr_vector;
+  #if __GNUC__ > 9 || (__GNUC__ == 9 && __GNUC_MINOR__ > 2)
+    asm volatile ("mov %1, %0"
+                  : "=r" (curr_vector)
+                  : "m" (USBVECINT));
+  #else
+    curr_vector = USBVECINT;
+  #endif
 
   switch(curr_vector)
   {

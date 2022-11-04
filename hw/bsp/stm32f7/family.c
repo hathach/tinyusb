@@ -125,7 +125,7 @@ void board_init(void)
   UartHandle.Init.OverSampling = UART_OVERSAMPLING_16;
   HAL_UART_Init(&UartHandle);
 
-#if BOARD_DEVICE_RHPORT_NUM == 0
+#if BOARD_TUD_RHPORT == 0
   // OTG_FS
 
   /* Configure DM DP Pins */
@@ -258,7 +258,7 @@ void board_init(void)
   USB_OTG_HS->GUSBCFG &= ~USB_OTG_GUSBCFG_FHMOD;
   USB_OTG_HS->GUSBCFG |= USB_OTG_GUSBCFG_FDMOD;
 
-#endif // BOARD_DEVICE_RHPORT_NUM
+#endif // BOARD_TUD_RHPORT
 
 }
 

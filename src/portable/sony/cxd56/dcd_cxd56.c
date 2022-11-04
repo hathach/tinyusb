@@ -247,6 +247,14 @@ void dcd_disconnect(uint8_t rhport)
   DEV_DISCONNECT(usbdev);
 }
 
+void dcd_sof_enable(uint8_t rhport, bool en)
+{
+  (void) rhport;
+  (void) en;
+
+  // TODO implement later
+}
+
 //--------------------------------------------------------------------+
 // Endpoint API
 //--------------------------------------------------------------------+
@@ -363,7 +371,7 @@ bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t *buffer, uint16_t to
 
     if (usbdcd_driver.setup_processed)
     {
-      if (osal_queue_receive(usbdcd_driver.setup_queue, &ctrl))
+      if (osal_queue_receive(usbdcd_driver.setup_queue, &ctrl, 100))
       {
         usbdcd_driver.setup_processed = false;
         dcd_event_setup_received(0, (uint8_t *)&ctrl, false);

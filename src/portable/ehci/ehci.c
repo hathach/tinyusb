@@ -163,15 +163,15 @@ void hcd_port_reset(uint8_t rhport)
   regs->portsc = portsc;
 }
 
-#if 0
 void hcd_port_reset_end(uint8_t rhport)
 {
   (void) rhport;
 
+#if 0
   ehci_registers_t* regs = ehci_data.regs;
   regs->portsc_bm.port_reset = 0;
-}
 #endif
+}
 
 bool hcd_port_connect_status(uint8_t rhport)
 {

@@ -53,6 +53,18 @@
 //    {0x02, 7, 0, 7  }, // SW6
 //};
 
+#ifdef BOARD_TUD_RHPORT
+  #define PORT_SUPPORT_DEVICE(_n)  (BOARD_TUD_RHPORT == _n)
+#else
+  #define PORT_SUPPORT_DEVICE(_n)  0
+#endif
+
+#ifdef BOARD_TUH_RHPORT
+  #define PORT_SUPPORT_HOST(_n)    (BOARD_TUH_RHPORT == _n)
+#else
+  #define PORT_SUPPORT_HOST(_n)    0
+#endif
+
 /*------------------------------------------------------------------*/
 /* BOARD API
  *------------------------------------------------------------------*/
@@ -116,7 +128,7 @@ void board_init(void)
   SysTick_Config(SystemCoreClock / 1000);
 #elif CFG_TUSB_OS == OPT_OS_FREERTOS
   // If freeRTOS is used, IRQ priority is limit by max syscall ( smaller is higher )
-  //NVIC_SetPriority(USB0_IRQn, configLIBRARY_MAX_SYSCALL_INTERRUPT_PRIORITY );
+  NVIC_SetPriority(USB0_IRQn, configLIBRARY_MAX_SYSCALL_INTERRUPT_PRIORITY);
 #endif
 
   Chip_GPIO_Init(LPC_GPIO_PORT);
@@ -170,7 +182,7 @@ void board_init(void)
    * - Insert jumpers in position 2-3 in JP17/JP18/JP19
    * - Insert jumpers in JP31 (OTG)
    */
-#if CFG_TUSB_RHPORT0_MODE
+#if PORT_SUPPORT_DEVICE(0) || PORT_SUPPORT_HOST(0)
   Chip_USB0_Init();
 #endif
 
@@ -195,14 +207,14 @@ void board_init(void)
    * - LED34 lights green when +5V is available on J20.
    * - JP15 shall not be inserted. JP16 has no effect
    */
-#if CFG_TUSB_RHPORT1_MODE
+#if PORT_SUPPORT_DEVICE(1) || PORT_SUPPORT_HOST(1)
   Chip_USB1_Init();
 #endif
 
   // USB0 Vbus Power: P2_3 on EA4357 channel B U20 GPIO26 active low (base board)
   Chip_SCU_PinMuxSet(2, 3, SCU_MODE_PULLUP | SCU_MODE_INBUFF_EN | SCU_MODE_FUNC7);
 
-  #if CFG_TUSB_RHPORT0_MODE & OPT_MODE_DEVICE
+  #if PORT_SUPPORT_DEVICE(0)
   // P9_5 (GPIO5[18]) (GPIO28 on oem base) as USB connect, active low.
   Chip_SCU_PinMuxSet(9, 5, SCU_MODE_PULLDOWN | SCU_MODE_FUNC4);
   Chip_GPIO_SetPinDIROutput(LPC_GPIO_PORT, 5, 18);
@@ -217,23 +229,23 @@ void board_init(void)
 //--------------------------------------------------------------------+
 void USB0_IRQHandler(void)
 {
-  #if CFG_TUSB_RHPORT0_MODE & OPT_MODE_HOST
-    tuh_int_handler(0);
+  #if PORT_SUPPORT_DEVICE(0)
+    tud_int_handler(0);
   #endif
 
-  #if CFG_TUSB_RHPORT0_MODE & OPT_MODE_DEVICE
-    tud_int_handler(0);
+  #if PORT_SUPPORT_HOST(0)
+    tuh_int_handler(0);
   #endif
 }
 
 void USB1_IRQHandler(void)
 {
-  #if CFG_TUSB_RHPORT1_MODE & OPT_MODE_HOST
-    tuh_int_handler(1);
+  #if PORT_SUPPORT_DEVICE(1)
+    tud_int_handler(1);
   #endif
 
-  #if CFG_TUSB_RHPORT1_MODE & OPT_MODE_DEVICE
-    tud_int_handler(1);
+  #if PORT_SUPPORT_HOST(1)
+    tuh_int_handler(1);
   #endif
 }
 

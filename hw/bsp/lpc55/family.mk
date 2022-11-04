@@ -16,11 +16,11 @@ CFLAGS += \
   -mfpu=fpv5-sp-d16 \
   -DCFG_TUSB_MCU=OPT_MCU_LPC55XX \
   -DCFG_TUSB_MEM_ALIGN='__attribute__((aligned(64)))' \
-  -DBOARD_DEVICE_RHPORT_NUM=$(PORT)
+  -DBOARD_TUD_RHPORT=$(PORT)
 
 ifeq ($(PORT), 1)
   $(info "PORT1 High Speed")
-  CFLAGS += -DBOARD_DEVICE_RHPORT_SPEED=OPT_MODE_HIGH_SPEED
+  CFLAGS += -DBOARD_TUD_MAX_SPEED=OPT_MODE_HIGH_SPEED
 
   # LPC55 Highspeed Port1 can only write to USB_SRAM region
   CFLAGS += -DCFG_TUSB_MEM_SECTION='__attribute__((section("m_usb_global")))'
@@ -43,6 +43,7 @@ SRC_C += \
 	$(MCU_DIR)/drivers/fsl_power.c \
 	$(MCU_DIR)/drivers/fsl_reset.c \
 	$(SDK_DIR)/drivers/lpc_gpio/fsl_gpio.c \
+	$(SDK_DIR)/drivers/common/fsl_common_arm.c \
 	$(SDK_DIR)/drivers/flexcomm/fsl_flexcomm.c \
 	$(SDK_DIR)/drivers/flexcomm/fsl_usart.c \
 	lib/sct_neopixel/sct_neopixel.c

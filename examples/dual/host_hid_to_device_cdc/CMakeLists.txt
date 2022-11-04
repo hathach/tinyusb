@@ -25,4 +25,16 @@ target_include_directories(${PROJECT} PUBLIC
 
 # Configure compilation flags and libraries for the example... see the corresponding function
 # in hw/bsp/FAMILY/family.cmake for details.
-family_configure_device_example(${PROJECT})
+family_configure_dual_usb_example(${PROJECT})
+
+# due to warnings from other net source, we need to prevent error from some of the warnings options
+target_compile_options(${PROJECT} PUBLIC
+        -Wno-error=shadow
+        -Wno-error=cast-align
+        -Wno-error=cast-qual
+        -Wno-error=redundant-decls
+        -Wno-error=sign-conversion
+        -Wno-error=conversion
+        -Wno-error=sign-compare
+        -Wno-error=unused-function
+        )

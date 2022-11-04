@@ -34,7 +34,7 @@
 #include "device/dcd.h"
 #include "ci_hs_type.h"
 
-#if CFG_TUSB_MCU == OPT_MCU_MIMXRT10XX
+#if CFG_TUSB_MCU == OPT_MCU_MIMXRT
   #include "ci_hs_imxrt.h"
 #elif TU_CHECK_MCU(OPT_MCU_LPC18XX, OPT_MCU_LPC43XX)
   #include "ci_hs_lpc18_43.h"
@@ -264,6 +264,14 @@ void dcd_disconnect(uint8_t rhport)
 {
   ci_hs_regs_t* dcd_reg = CI_HS_REG(rhport);
   dcd_reg->USBCMD &= ~USBCMD_RUN_STOP;
+}
+
+void dcd_sof_enable(uint8_t rhport, bool en)
+{
+  (void) rhport;
+  (void) en;
+
+  // TODO implement later
 }
 
 //--------------------------------------------------------------------+
