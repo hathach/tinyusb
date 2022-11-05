@@ -149,3 +149,9 @@
 [submodule "hw/mcu/raspberry_pi/Pico-PIO-USB"]
 	path = hw/mcu/raspberry_pi/Pico-PIO-USB
 	url = https://github.com/sekigon-gonnoc/Pico-PIO-USB.git
+[submodule "hw/mcu/st/cmsis_device_u5"]
+	path = hw/mcu/st/cmsis_device_u5
+	url = https://github.com/STMicroelectronics/cmsis_device_u5
+[submodule "hw/mcu/st/stm32u5xx_hal_driver"]
+	path = hw/mcu/st/stm32u5xx_hal_driver
+	url = https://github.com/STMicroelectronics/stm32u5xx_hal_driver
