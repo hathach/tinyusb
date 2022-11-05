@@ -233,6 +233,18 @@ static usbd_class_driver_t const _usbd_driver[] =
     .sof              = NULL
   },
   #endif
+
+  #if CFG_TUD_CH341
+  {
+    DRIVER_NAME("CH341")
+    .init = ch341d_init,
+    .reset = ch341d_reset,
+    .open = ch341d_open,
+    .control_xfer_cb = ch341d_control_xfer_cb,
+    .xfer_cb = ch341d_xfer_cb,
+    .sof = NULL
+  },
+  #endif
 };
 
 enum { BUILTIN_DRIVER_COUNT = TU_ARRAY_SIZE(_usbd_driver) };

@@ -358,6 +358,10 @@ typedef int make_iso_compilers_happy;
   #define CFG_TUD_BTH             0
 #endif
 
+#ifndef CFG_TUD_CH341
+  #define CFG_TUD_CH341           0
+#endif
+
 #ifndef CFG_TUD_ECM_RNDIS
   #ifdef CFG_TUD_NET
     #warning "CFG_TUD_NET is renamed to CFG_TUD_ECM_RNDIS"

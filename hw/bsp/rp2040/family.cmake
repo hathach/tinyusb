@@ -52,9 +52,13 @@ if (NOT TARGET _rp2040_family_inclusion_marker)
 		set(TINYUSB_DEBUG_LEVEL 1)
 	endif()
 	
+	if (NOT CFG_TUSB_OS)
+		set(CFG_TUSB_OS OPT_OS_PICO)
+	endif()
+	
 	target_compile_definitions(tinyusb_common_base INTERFACE
 			CFG_TUSB_MCU=OPT_MCU_RP2040
-			CFG_TUSB_OS=OPT_OS_PICO
+			CFG_TUSB_OS=${CFG_TUSB_OS}
 			CFG_TUSB_DEBUG=${TINYUSB_DEBUG_LEVEL}
 	)
 
@@ -79,6 +83,7 @@ if (NOT TARGET _rp2040_family_inclusion_marker)
 			${TOP}/src/class/usbtmc/usbtmc_device.c
 			${TOP}/src/class/vendor/vendor_device.c
 			${TOP}/src/class/video/video_device.c
+			${TOP}/src/class/ch341/ch341_device.c
 			)
 
 	#------------------------------------
