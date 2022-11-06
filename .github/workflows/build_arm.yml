@@ -65,7 +65,9 @@ jobs:
         - 'xmc4000'
     steps:
     - name: Setup Python
-      uses: actions/setup-python@v3
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.x'
 
     - name: Install ARM GCC
       uses: carlosperate/arm-none-eabi-gcc-action@v1
@@ -99,10 +101,25 @@ jobs:
     - name: Linker Map
       run: |
         pip install linkermap/
-        for ex in `ls -d examples/device/*/`; do \
-          find ${ex} -name *.map -print -quit | \
-          xargs -I % sh -c 'echo "::group::%"; linkermap -v %; echo "::endgroup::"'; \
+        # find -quit to only print linkermap of 1 board per example
+        for ex in `ls -d examples/*/*/`
+        do
+          find ${ex} -name *.map -print -quit | xargs -I % sh -c 'echo "::group::%"; linkermap -v %; echo "::endgroup::"'
         done
+
+    # Following steps are for Hardware Test with self-hosted
+
+    - name: Prepare Artifacts
+      if: matrix.family == 'rp2040' && github.repository_owner == 'hathach'
+      run: find examples/ -name "*.elf" -exec mv {} . \;
+
+    - name: Upload Artifacts for Hardware Test
+      if: matrix.family == 'rp2040' && github.repository_owner == 'hathach'
+      uses: actions/upload-artifact@v3
+      with:
+        name: ${{ matrix.family }}
+        path: |
+          *.elf
 
   # ---------------------------------------
   # Build all no-family (orphaned) boards
@@ -122,7 +139,9 @@ jobs:
 
     steps:
     - name: Setup Python
-      uses: actions/setup-python@v3
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.x'
 
     - name: Install ARM GCC
       uses: carlosperate/arm-none-eabi-gcc-action@v1
@@ -137,3 +156,69 @@ jobs:
 
     - name: Build
       run: python3 tools/build_board.py ${{ matrix.example }}
+
+  # ---------------------------------------
+  # Hardware in the loop (HIL)
+  # Current self-hosted instance is running on an RPI4 with
+  # - pico + pico-probe connected via USB
+  # - pico-probe is /dev/ttyACM0
+  # ---------------------------------------
+  hw-test:
+    # Limit the run to only hathach due to limited resource on RPI4
+    if: github.repository_owner == 'hathach'
+    needs: build-arm
+    runs-on: [self-hosted, Linux, ARM64]
+
+    steps:
+    - name: Clean workspace
+      run: |
+        echo "Cleaning up previous run"
+        rm -rf "${{ github.workspace }}"
+        mkdir -p "${{ github.workspace }}"
+
+    - name: Download rp2040 Artifacts
+      uses: actions/download-artifact@v3
+      with:
+        name: rp2040
+
+    - name: Create flash.sh
+      run: |
+        touch flash.sh
+        chmod +x flash.sh
+        echo > flash.sh 'openocd -f "interface/picoprobe.cfg" -f "target/rp2040.cfg" -c "program $1 reset exit"'
+
+    - name: Test cdc_dual_ports
+      run: |
+        ./flash.sh cdc_dual_ports.elf
+        while (! ([ -e /dev/ttyACM1 ] && [ -e /dev/ttyACM2 ])) && [ $SECONDS -le 5 ]; do :; done
+        test -e /dev/ttyACM1 && echo "ttyACM1 exists"
+        test -e /dev/ttyACM2 && echo "ttyACM2 exists"
+
+    - name: Test cdc_msc
+      run: |
+        ./flash.sh cdc_msc.elf
+        readme='/media/pi/TinyUSB MSC/README.TXT'
+        while (! ([ -e /dev/ttyACM1 ] && [ -f "$readme" ])) && [ $SECONDS -le 5 ]; do :; done
+        test -e /dev/ttyACM1 && echo "ttyACM1 exists"
+        test -f "$readme" && echo "$readme exists"
+        cat "$readme"
+
+    - name: Test dfu
+      run: |
+        ./flash.sh dfu.elf
+        while (! (dfu-util -l | grep "Found DFU")) && [ $SECONDS -le 5 ]; do :; done
+        dfu-util -d cafe -a 0 -U dfu0
+        dfu-util -d cafe -a 1 -U dfu1
+        grep "TinyUSB DFU! - Partition 0" dfu0
+        grep "TinyUSB DFU! - Partition 1" dfu1
+
+    - name: Test dfu_runtime
+      run: |
+        ./flash.sh dfu_runtime.elf
+        while (! (dfu-util -l | grep "Found Runtime")) && [ $SECONDS -le 5 ]; do :; done
+
+#    - name: Test hid_boot_interface
+#      run: |
+#        ./flash.sh hid_boot_interface.elf
+#        while (! (dfu-util -l | grep "Found Runtime")) && [ $SECONDS -le 5 ]; do :; done
+
