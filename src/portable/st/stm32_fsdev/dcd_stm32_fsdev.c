@@ -627,6 +627,13 @@ void dcd_int_handler(uint8_t rhport) {
   // dcd_ep_ctr_handler(), so less need to loop here. The other interrupts shouldn't
   // be triggered repeatedly.
 
+  /* Put SOF flag at the beginning of ISR in case to get least amount of jitter if it is used for timing purposes */
+  if(int_status & USB_ISTR_SOF) {
+    clear_istr_bits(USB_ISTR_SOF);
+    if (tu_stm32_sof_cb) tu_stm32_sof_cb();
+    dcd_event_sof(0, USB->FNR & USB_FNR_FN, true);
+  }
+
   if(int_status & USB_ISTR_RESET) {
     // USBRST is start of reset.
     clear_istr_bits(USB_ISTR_RESET);
@@ -662,11 +669,6 @@ void dcd_int_handler(uint8_t rhport) {
     /* clear of the ISTR bit must be done after setting of CNTR_FSUSP */
     clear_istr_bits(USB_ISTR_SUSP);
     dcd_event_bus_signal(0, DCD_EVENT_SUSPEND, true);
-  }
-
-  if(int_status & USB_ISTR_SOF) {
-    clear_istr_bits(USB_ISTR_SOF);
-    dcd_event_sof(0, USB->FNR & USB_FNR_FN, true);
   }
 
   if(int_status & USB_ISTR_ESOF) {

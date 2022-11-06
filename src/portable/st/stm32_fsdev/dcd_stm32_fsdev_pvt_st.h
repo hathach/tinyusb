@@ -130,6 +130,9 @@ static __IO uint16_t * const pma = (__IO uint16_t*)USB_PMAADDR;
 // this callback and defining a custom mapping in your application
 TU_ATTR_WEAK uint8_t tu_stm32_edpt_number_cb(uint8_t addr);
 
+// This callback is called on SOF and can be used to e.g. capture a timer value for timing purposes
+TU_ATTR_WEAK void tu_stm32_sof_cb(void);
+
 // prototypes
 TU_ATTR_ALWAYS_INLINE static inline __IO uint16_t* pcd_ep_rx_cnt_ptr(USB_TypeDef * USBx, uint32_t bEpNum);
 TU_ATTR_ALWAYS_INLINE static inline __IO uint16_t* pcd_ep_tx_cnt_ptr(USB_TypeDef * USBx, uint32_t bEpNum);
