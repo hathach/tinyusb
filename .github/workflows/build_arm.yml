@@ -121,11 +121,11 @@ jobs:
         path: |
           *.elf
 
-    - name: Trigger Hardware Test
-      if: matrix.family == 'rp2040' && github.repository_owner == 'hathach'
-      env:
-        GH_TOKEN: ${{ secrets.API_TOKEN_GITHUB }}
-      run: gh workflow run test_hardware.yml -r $GITHUB_REF
+#    - name: Trigger Hardware Test
+#      if: matrix.family == 'rp2040' && github.repository_owner == 'hathach'
+#      env:
+#        GH_TOKEN: ${{ secrets.API_TOKEN_GITHUB }}
+#      run: gh workflow run test_hardware.yml -r $GITHUB_REF
 
   # ---------------------------------------
   # Build all no-family (orphaned) boards
