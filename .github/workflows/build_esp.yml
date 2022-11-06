@@ -23,7 +23,7 @@ jobs:
 
     steps:
     - name: Setup Python
-      uses: actions/setup-python@v2
+      uses: actions/setup-python@v4
 
     - name: Pull ESP-IDF docker
       run: docker pull espressif/idf:latest

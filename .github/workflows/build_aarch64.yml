@@ -21,7 +21,7 @@ jobs:
         - 'broadcom_64bit'
     steps:
     - name: Setup Python
-      uses: actions/setup-python@v2
+      uses: actions/setup-python@v4
 
     - name: Checkout TinyUSB
       uses: actions/checkout@v3
