@@ -12,46 +12,42 @@
  extern "C" {
 #endif
 
-//--------------------------------------------------------------------
-// COMMON CONFIGURATION
-//--------------------------------------------------------------------
-
-// defined by board.mk
-#ifndef CFG_TUSB_MCU
-  #error CFG_TUSB_MCU must be defined
-#endif
+//--------------------------------------------------------------------+
+// Board Specific Configuration
+//--------------------------------------------------------------------+
 
 // RHPort number used for device can be defined by board.mk, default to port 0
-#ifndef BOARD_DEVICE_RHPORT_NUM
-  #define BOARD_DEVICE_RHPORT_NUM     0
+#ifndef BOARD_TUD_RHPORT
+#define BOARD_TUD_RHPORT      0
 #endif
 
 // RHPort max operational speed can defined by board.mk
-// Default to Highspeed for MCU with internal HighSpeed PHY (can be port specific), otherwise FullSpeed
-#ifndef BOARD_DEVICE_RHPORT_SPEED
-  #if (CFG_TUSB_MCU == OPT_MCU_LPC18XX || CFG_TUSB_MCU == OPT_MCU_LPC43XX || CFG_TUSB_MCU == OPT_MCU_MIMXRT10XX || \
-       CFG_TUSB_MCU == OPT_MCU_NUC505  || CFG_TUSB_MCU == OPT_MCU_CXD56)
-    #define BOARD_DEVICE_RHPORT_SPEED   OPT_MODE_HIGH_SPEED
-  #else
-    #define BOARD_DEVICE_RHPORT_SPEED   OPT_MODE_FULL_SPEED
-  #endif
+#ifndef BOARD_TUD_MAX_SPEED
+#define BOARD_TUD_MAX_SPEED   OPT_MODE_DEFAULT_SPEED
 #endif
 
-// Device mode with rhport and speed defined by board.mk
-#if   BOARD_DEVICE_RHPORT_NUM == 0
-  #define CFG_TUSB_RHPORT0_MODE     (OPT_MODE_DEVICE | BOARD_DEVICE_RHPORT_SPEED)
-#elif BOARD_DEVICE_RHPORT_NUM == 1
-  #define CFG_TUSB_RHPORT1_MODE     (OPT_MODE_DEVICE | BOARD_DEVICE_RHPORT_SPEED)
-#else
-  #error "Incorrect RHPort configuration"
+//--------------------------------------------------------------------
+// Common Configuration
+//--------------------------------------------------------------------
+
+// defined by compiler flags for flexibility
+#ifndef CFG_TUSB_MCU
+#error CFG_TUSB_MCU must be defined
 #endif
 
 #ifndef CFG_TUSB_OS
-#define CFG_TUSB_OS               OPT_OS_NONE
+#define CFG_TUSB_OS           OPT_OS_NONE
 #endif
 
-// CFG_TUSB_DEBUG is defined by compiler in DEBUG build
-// #define CFG_TUSB_DEBUG           0
+#ifndef CFG_TUSB_DEBUG
+#define CFG_TUSB_DEBUG        0
+#endif
+
+// Enable Device stack
+#define CFG_TUD_ENABLED       1
+
+// Default is max speed that hardware controller could support with on-chip PHY
+#define CFG_TUD_MAX_SPEED     BOARD_TUD_MAX_SPEED
 
 /* USB DMA on some MCUs can only access a specific SRAM region with restriction on alignment.
  * Tinyusb use follows macros to declare transferring memory so that they can be put
@@ -65,7 +61,7 @@
 #endif
 
 #ifndef CFG_TUSB_MEM_ALIGN
-#define CFG_TUSB_MEM_ALIGN          __attribute__ ((aligned(4)))
+#define CFG_TUSB_MEM_ALIGN        __attribute__ ((aligned(4)))
 #endif
 
 //--------------------------------------------------------------------

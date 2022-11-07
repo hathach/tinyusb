@@ -19,6 +19,19 @@
 
 #include "stdint.h"
 
+#ifdef __cplusplus
+ extern "C" {
+#endif
+
+// Controller
+typedef struct
+{
+  uintptr_t reg_base;
+  uint32_t  irqnum;
+  uint8_t   ep_count;
+  uint32_t  ep_fifo_size;
+}dwc2_controller_t;
+
 /* DWC OTG HW Release versions */
 #define DWC2_CORE_REV_2_71a   0x4f54271a
 #define DWC2_CORE_REV_2_72a   0x4f54272a
@@ -39,10 +52,6 @@
 #define DWC2_OTG_ID           0x4f540000
 #define DWC2_FS_IOT_ID        0x55310000
 #define DWC2_HS_IOT_ID        0x55320000
-
-#ifdef __cplusplus
- extern "C" {
-#endif
 
 #if 0
 // HS PHY
@@ -986,16 +995,16 @@ TU_VERIFY_STATIC(offsetof(dwc2_regs_t, fifo   ) == 0x1000, "incorrect size");
 
 /********************  Bit definition for OTG register  ********************/
 #define GNPTXFSIZ_NPTXFSA_Pos            (0U)
-#define GNPTXFSIZ_NPTXFSA_Msk            (0xFFFFUL << NPTXFSA_Pos)                // 0x0000FFFF */
+#define GNPTXFSIZ_NPTXFSA_Msk            (0xFFFFUL << GNPTXFSIZ_NPTXFSA_Pos)                // 0x0000FFFF */
 #define GNPTXFSIZ_NPTXFSA                GNPTXFSIZ_NPTXFSA_Msk                    // Nonperiodic transmit RAM start address */
 #define GNPTXFSIZ_NPTXFD_Pos             (16U)
-#define GNPTXFSIZ_NPTXFD_Msk             (0xFFFFUL << NPTXFD_Pos)                 // 0xFFFF0000 */
+#define GNPTXFSIZ_NPTXFD_Msk             (0xFFFFUL << GNPTXFSIZ_NPTXFD_Pos)                 // 0xFFFF0000 */
 #define GNPTXFSIZ_NPTXFD                 GNPTXFSIZ_NPTXFD_Msk                     // Nonperiodic TxFIFO depth               */
 #define DIEPTXF0_TX0FSA_Pos              (0U)
-#define DIEPTXF0_TX0FSA_Msk              (0xFFFFUL << TX0FSA_Pos)                 // 0x0000FFFF */
+#define DIEPTXF0_TX0FSA_Msk              (0xFFFFUL << DIEPTXF0_TX0FSA_Pos)                 // 0x0000FFFF */
 #define DIEPTXF0_TX0FSA                  DIEPTXF0_TX0FSA_Msk                      // Endpoint 0 transmit RAM start address  */
 #define DIEPTXF0_TX0FD_Pos               (16U)
-#define DIEPTXF0_TX0FD_Msk               (0xFFFFUL << TX0FD_Pos)                  // 0xFFFF0000 */
+#define DIEPTXF0_TX0FD_Msk               (0xFFFFUL << DIEPTXF0_TX0FD_Pos)                  // 0xFFFF0000 */
 #define DIEPTXF0_TX0FD                   DIEPTXF0_TX0FD_Msk                       // Endpoint 0 TxFIFO depth                */
 
 /********************  Bit definition for DVBUSPULSE register  ********************/

@@ -13,6 +13,10 @@ target_include_directories(${COMPONENT_TARGET} PUBLIC
   "${TOP}/src"
 )
 
+target_compile_definitions(${COMPONENT_TARGET} PUBLIC
+  ESP_PLATFORM
+)
+
 target_sources(${COMPONENT_TARGET} PUBLIC
   "${TOP}/src/tusb.c"
   "${TOP}/src/common/tusb_fifo.c"
@@ -27,5 +31,5 @@ target_sources(${COMPONENT_TARGET} PUBLIC
   "${TOP}/src/class/net/ncm_device.c"
   "${TOP}/src/class/usbtmc/usbtmc_device.c"
   "${TOP}/src/class/vendor/vendor_device.c"
-  "${TOP}/src/portable/espressif/esp32sx/dcd_esp32sx.c"
+  "${TOP}/src/portable/synopsys/dwc2/dcd_dwc2.c"
 )

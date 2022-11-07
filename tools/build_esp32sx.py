@@ -4,6 +4,8 @@ import sys
 import subprocess
 import time
 
+import build_utils
+
 SUCCEEDED = "\033[32msucceeded\033[0m"
 FAILED = "\033[31mfailed\033[0m"
 SKIPPED = "\033[33mskipped\033[0m"
@@ -51,7 +53,7 @@ def build_board(example, board):
     sram_size = "-"
 
     # Check if board is skipped
-    if skip_example(example, board):
+    if build_utils.skip_example(example, board):
         success = SKIPPED
         skip_count += 1
         print(build_format.format(example, board, success, '-', flash_size, sram_size))
@@ -82,9 +84,6 @@ def build_size(example, board):
     flash_size = int(size_list[0])
     sram_size = int(size_list[1]) + int(size_list[2])
     return (flash_size, sram_size)
-
-def skip_example(example, board):
-    return 0
 
 print(build_separator)
 print(build_format.format('Example', 'Board', '\033[39mResult\033[0m', 'Time', 'Flash', 'SRAM'))

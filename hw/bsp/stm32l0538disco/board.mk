@@ -17,7 +17,7 @@ CFLAGS += \
   -DCFG_TUSB_MCU=OPT_MCU_STM32L0
 
 # mcu driver cause following warnings
-CFLAGS += -Wno-error=unused-parameter -Wno-error=maybe-uninitialized
+CFLAGS += -Wno-error=unused-parameter -Wno-error=maybe-uninitialized -Wno-error=redundant-decls
 
 # All source paths should be relative to the top level.
 LD_FILE = hw/bsp/$(BOARD)/STM32L053C8Tx_FLASH.ld

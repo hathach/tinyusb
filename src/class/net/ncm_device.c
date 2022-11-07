@@ -28,7 +28,7 @@
 
 #include "tusb_option.h"
 
-#if ( TUSB_OPT_DEVICE_ENABLED && CFG_TUD_NCM )
+#if ( CFG_TUD_ENABLED && CFG_TUD_NCM )
 
 #include "device/usbd.h"
 #include "device/usbd_pvt.h"
@@ -188,7 +188,7 @@ static void ncm_start_tx(void) {
   ntb->ndp.datagram[ncm_interface.datagram_count].wDatagramLength = 0;
 
   // Kick off an endpoint transfer
-  usbd_edpt_xfer(TUD_OPT_RHPORT, ncm_interface.ep_in, ntb->data, ntb_length);
+  usbd_edpt_xfer(0, ncm_interface.ep_in, ntb->data, ntb_length);
   ncm_interface.transferring = true;
 
   // Swap to the other NTB and clear it out
@@ -229,7 +229,7 @@ void tud_network_recv_renew(void)
 {
   if (!ncm_interface.num_datagrams)
   {
-    usbd_edpt_xfer(TUD_OPT_RHPORT, ncm_interface.ep_out, receive_ntb, sizeof(receive_ntb));
+    usbd_edpt_xfer(0, ncm_interface.ep_out, receive_ntb, sizeof(receive_ntb));
     return;
   }
 
@@ -316,14 +316,15 @@ uint16_t netd_open(uint8_t rhport, tusb_desc_interface_t const * itf_desc, uint1
 
 static void ncm_report(void)
 {
+  uint8_t const rhport = 0;
   if (ncm_interface.report_state == REPORT_SPEED) {
     ncm_notify_speed_change.header.wIndex = ncm_interface.itf_num;
-    usbd_edpt_xfer(TUD_OPT_RHPORT, ncm_interface.ep_notif, (uint8_t *) &ncm_notify_speed_change, sizeof(ncm_notify_speed_change));
+    usbd_edpt_xfer(rhport, ncm_interface.ep_notif, (uint8_t *) &ncm_notify_speed_change, sizeof(ncm_notify_speed_change));
     ncm_interface.report_state = REPORT_CONNECTED;
     ncm_interface.report_pending = true;
   } else if (ncm_interface.report_state == REPORT_CONNECTED) {
     ncm_notify_connected.header.wIndex = ncm_interface.itf_num;
-    usbd_edpt_xfer(TUD_OPT_RHPORT, ncm_interface.ep_notif, (uint8_t *) &ncm_notify_connected, sizeof(ncm_notify_connected));
+    usbd_edpt_xfer(rhport, ncm_interface.ep_notif, (uint8_t *) &ncm_notify_connected, sizeof(ncm_notify_connected));
     ncm_interface.report_state = REPORT_DONE;
     ncm_interface.report_pending = true;
   }

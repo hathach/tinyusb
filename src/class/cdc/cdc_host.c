@@ -26,7 +26,7 @@
 
 #include "tusb_option.h"
 
-#if (TUSB_OPT_HOST_ENABLED && CFG_TUH_CDC)
+#if (CFG_TUH_ENABLED && CFG_TUH_CDC)
 
 #include "host/usbh.h"
 #include "host/usbh_classdriver.h"
@@ -100,29 +100,30 @@ bool tuh_cdc_send(uint8_t dev_addr, void const * p_data, uint32_t length, bool i
 {
   (void) is_notify;
   TU_VERIFY( tuh_cdc_mounted(dev_addr) );
-  TU_VERIFY( p_data != NULL && length, TUSB_ERROR_INVALID_PARA);
+  TU_VERIFY( p_data != NULL && length);
 
   uint8_t const ep_out = cdch_data[dev_addr-1].ep_out;
   if ( usbh_edpt_busy(dev_addr, ep_out) ) return false;
 
-  return usbh_edpt_xfer(dev_addr, ep_out, (void*)(uintptr_t) p_data, length);
+  return usbh_edpt_xfer(dev_addr, ep_out, (void*)(uintptr_t) p_data, (uint16_t) length);
 }
 
 bool tuh_cdc_receive(uint8_t dev_addr, void * p_buffer, uint32_t length, bool is_notify)
 {
   (void) is_notify;
   TU_VERIFY( tuh_cdc_mounted(dev_addr) );
-  TU_VERIFY( p_buffer != NULL && length, TUSB_ERROR_INVALID_PARA);
+  TU_VERIFY( p_buffer != NULL && length );
 
   uint8_t const ep_in = cdch_data[dev_addr-1].ep_in;
   if ( usbh_edpt_busy(dev_addr, ep_in) ) return false;
 
-  return usbh_edpt_xfer(dev_addr, ep_in, p_buffer, length);
+  return usbh_edpt_xfer(dev_addr, ep_in, p_buffer, (uint16_t) length);
 }
 
-bool tuh_cdc_set_control_line_state(uint8_t dev_addr, bool dtr, bool rts, tuh_control_complete_cb_t complete_cb)
+bool tuh_cdc_set_control_line_state(uint8_t dev_addr, bool dtr, bool rts, tuh_xfer_cb_t complete_cb)
 {
   cdch_data_t const * p_cdc = get_itf(dev_addr);
+
   tusb_control_request_t const request =
   {
     .bmRequestType_bit =
@@ -132,13 +133,22 @@ bool tuh_cdc_set_control_line_state(uint8_t dev_addr, bool dtr, bool rts, tuh_co
       .direction = TUSB_DIR_OUT
     },
     .bRequest = CDC_REQUEST_SET_CONTROL_LINE_STATE,
-    .wValue   = (rts ? 2 : 0) | (dtr ? 1 : 0),
-    .wIndex   = p_cdc->itf_num,
+    .wValue   = tu_htole16((uint16_t) ((dtr ? 1u : 0u) | (rts ? 2u : 0u))),
+    .wIndex   = tu_htole16(p_cdc->itf_num),
     .wLength  = 0
   };
 
-  TU_ASSERT( tuh_control_xfer(dev_addr, &request, NULL, complete_cb) );
-  return true;
+  tuh_xfer_t xfer =
+  {
+    .daddr       = dev_addr,
+    .ep_addr     = 0,
+    .setup       = &request,
+    .buffer      = NULL,
+    .complete_cb = complete_cb,
+    .user_data    = 0
+  };
+
+  return tuh_control_xfer(&xfer);
 }
 
 //--------------------------------------------------------------------+
@@ -151,6 +161,7 @@ void cdch_init(void)
 
 bool cdch_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_interface_t const *itf_desc, uint16_t max_len)
 {
+  (void) rhport;
   (void) max_len;
 
   // Only support ACM subclass
@@ -186,7 +197,7 @@ bool cdch_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_interface_t const *it
     // notification endpoint
     tusb_desc_endpoint_t const * desc_ep = (tusb_desc_endpoint_t const *) p_desc;
 
-    TU_ASSERT( usbh_edpt_open(rhport, dev_addr, desc_ep) );
+    TU_ASSERT( tuh_edpt_open(dev_addr, desc_ep) );
     p_cdc->ep_notif = desc_ep->bEndpointAddress;
 
     drv_len += tu_desc_len(p_desc);
@@ -207,7 +218,7 @@ bool cdch_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_interface_t const *it
       tusb_desc_endpoint_t const *desc_ep = (tusb_desc_endpoint_t const *) p_desc;
       TU_ASSERT(TUSB_DESC_ENDPOINT == desc_ep->bDescriptorType && TUSB_XFER_BULK == desc_ep->bmAttributes.xfer);
 
-      TU_ASSERT(usbh_edpt_open(rhport, dev_addr, desc_ep));
+      TU_ASSERT(tuh_edpt_open(dev_addr, desc_ep));
 
       if ( tu_edpt_dir(desc_ep->bEndpointAddress) == TUSB_DIR_IN )
       {

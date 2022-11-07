@@ -26,7 +26,7 @@
 
 #include "tusb_option.h"
 
-#if (TUSB_OPT_DEVICE_ENABLED && CFG_TUD_MIDI)
+#if (CFG_TUD_ENABLED && CFG_TUD_MIDI)
 
 //--------------------------------------------------------------------+
 // INCLUDE
@@ -92,7 +92,7 @@ bool tud_midi_n_mounted (uint8_t itf)
 
 static void _prep_out_transaction (midid_interface_t* p_midi)
 {
-  uint8_t const rhport = TUD_OPT_RHPORT;
+  uint8_t const rhport = 0;
   uint16_t available = tu_fifo_remaining(&p_midi->rx_ff);
 
   // Prepare for incoming data but only allow what we can store in the ring buffer.
@@ -127,7 +127,7 @@ uint32_t tud_midi_n_available(uint8_t itf, uint8_t cable_num)
   midid_stream_t const* stream = &midi->stream_read;
 
   // when using with packet API stream total & index are both zero
-  return tu_fifo_count(&midi->rx_ff) + (stream->total - stream->index);
+  return tu_fifo_count(&midi->rx_ff) + (uint8_t) (stream->total - stream->index);
 }
 
 uint32_t tud_midi_n_stream_read(uint8_t itf, uint8_t cable_num, void* buffer, uint32_t bufsize)
@@ -179,7 +179,7 @@ uint32_t tud_midi_n_stream_read(uint8_t itf, uint8_t cable_num, void* buffer, ui
     }
 
     // Copy data up to bufsize
-    uint32_t const count = tu_min32(stream->total - stream->index, bufsize);
+    uint8_t const count = (uint8_t) tu_min32(stream->total - stream->index, bufsize);
 
     // Skip the header (1st byte) in the buffer
     memcpy(buf8, stream->buffer + 1 + stream->index, count);
@@ -219,7 +219,7 @@ static uint32_t write_flush(midid_interface_t* midi)
   // No data to send
   if ( !tu_fifo_count(&midi->tx_ff) ) return 0;
 
-  uint8_t const rhport = TUD_OPT_RHPORT;
+  uint8_t const rhport = 0;
 
   // skip if previous transfer not complete
   TU_VERIFY( usbd_edpt_claim(rhport, midi->ep_in), 0 );
@@ -276,13 +276,13 @@ uint32_t tud_midi_n_stream_write(uint8_t itf, uint8_t cable_num, uint8_t const* 
       else if ( (msg >= 0x8 && msg <= 0xB) || msg == 0xE )
       {
         // Channel Voice Messages
-        stream->buffer[0] = (cable_num << 4) | msg;
+        stream->buffer[0] = (uint8_t) ((cable_num << 4) | msg);
         stream->total = 4;
       }
       else if ( msg == 0xC || msg == 0xD)
       {
         // Channel Voice Messages, two-byte variants (Program Change and Channel Pressure)
-        stream->buffer[0] = (cable_num << 4) | msg;
+        stream->buffer[0] = (uint8_t) ((cable_num << 4) | msg);
         stream->total = 3;
       }
       else if ( msg == 0xf )
@@ -312,7 +312,7 @@ uint32_t tud_midi_n_stream_write(uint8_t itf, uint8_t cable_num, uint8_t const* 
       else
       {
         // Pack individual bytes if we don't support packing them into words.
-        stream->buffer[0] = cable_num << 4 | 0xf;
+        stream->buffer[0] = (uint8_t) (cable_num << 4 | 0xf);
         stream->buffer[2] = 0;
         stream->buffer[3] = 0;
         stream->index = 2;
@@ -513,7 +513,7 @@ bool midid_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint32
   // receive new data
   if ( ep_addr == p_midi->ep_out )
   {
-    tu_fifo_write_n(&p_midi->rx_ff, p_midi->epout_buf, xferred_bytes);
+    tu_fifo_write_n(&p_midi->rx_ff, p_midi->epout_buf, (uint16_t) xferred_bytes);
 
     // invoke receive callback if available
     if (tud_midi_rx_cb) tud_midi_rx_cb(itf);

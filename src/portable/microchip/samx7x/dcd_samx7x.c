@@ -27,7 +27,7 @@
 
 #include "tusb_option.h"
 
-#if TUSB_OPT_DEVICE_ENABLED && CFG_TUSB_MCU == OPT_MCU_SAMX7X
+#if CFG_TUD_ENABLED && CFG_TUSB_MCU == OPT_MCU_SAMX7X
 
 #include "device/dcd.h"
 #include "sam.h"
@@ -189,6 +189,14 @@ void dcd_disconnect(uint8_t rhport)
   USB_REG->DEVCTRL |= DEVCTRL_DETACH;
   // Disable the device address
   USB_REG->DEVCTRL &=~(DEVCTRL_ADDEN | DEVCTRL_UADD);
+}
+
+void dcd_sof_enable(uint8_t rhport, bool en)
+{
+  (void) rhport;
+  (void) en;
+
+  // TODO implement later
 }
 
 static tusb_speed_t get_speed(void)

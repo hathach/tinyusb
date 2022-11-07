@@ -39,7 +39,8 @@ int main(void)
 {
   board_init();
 
-  tusb_init();
+  // init device stack on configured roothub port
+  tud_init(BOARD_TUD_RHPORT);
 
   while (1)
   {
@@ -54,17 +55,19 @@ int main(void)
 // with Serial0 as all lower case, Serial1 as all upper case
 static void echo_serial_port(uint8_t itf, uint8_t buf[], uint32_t count)
 {
+  uint8_t const case_diff = 'a' - 'A';
+
   for(uint32_t i=0; i<count; i++)
   {
     if (itf == 0)
     {
       // echo back 1st port as lower case
-      if (isupper(buf[i])) buf[i] += 'a' - 'A';
+      if (isupper(buf[i])) buf[i] += case_diff;
     }
     else
     {
       // echo back 2nd port as upper case
-      if (islower(buf[i])) buf[i] -= 'a' - 'A';
+      if (islower(buf[i])) buf[i] -= case_diff;
     }
 
     tud_cdc_n_write_char(itf, buf[i]);

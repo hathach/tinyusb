@@ -12,6 +12,12 @@ family_initialize_project(${PROJECT} ${CMAKE_CURRENT_LIST_DIR})
 
 add_executable(${PROJECT})
 
+if (FORCE_READONLY)
+target_compile_definitions(${PROJECT} PRIVATE
+  CFG_EXAMPLE_VIDEO_READONLY
+)
+endif()
+
 # Example source
 target_sources(${PROJECT} PUBLIC
   ${CMAKE_CURRENT_SOURCE_DIR}/src/main.c

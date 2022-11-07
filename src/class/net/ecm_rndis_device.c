@@ -27,7 +27,7 @@
 
 #include "tusb_option.h"
 
-#if ( TUSB_OPT_DEVICE_ENABLED && CFG_TUD_ECM_RNDIS )
+#if ( CFG_TUD_ENABLED && CFG_TUD_ECM_RNDIS )
 
 #include "device/usbd.h"
 #include "device/usbd_pvt.h"
@@ -108,20 +108,22 @@ static bool can_xmit;
 
 void tud_network_recv_renew(void)
 {
-  usbd_edpt_xfer(TUD_OPT_RHPORT, _netd_itf.ep_out, received, sizeof(received));
+  usbd_edpt_xfer(0, _netd_itf.ep_out, received, sizeof(received));
 }
 
 static void do_in_xfer(uint8_t *buf, uint16_t len)
 {
   can_xmit = false;
-  usbd_edpt_xfer(TUD_OPT_RHPORT, _netd_itf.ep_in, buf, len);
+  usbd_edpt_xfer(0, _netd_itf.ep_in, buf, len);
 }
 
 void netd_report(uint8_t *buf, uint16_t len)
 {
+  uint8_t const rhport = 0;
+
   // skip if previous report not yet acknowledged by host
-  if ( usbd_edpt_busy(TUD_OPT_RHPORT, _netd_itf.ep_notif) ) return;
-  usbd_edpt_xfer(TUD_OPT_RHPORT, _netd_itf.ep_notif, buf, len);
+  if ( usbd_edpt_busy(rhport, _netd_itf.ep_notif) ) return;
+  usbd_edpt_xfer(rhport, _netd_itf.ep_notif, buf, len);
 }
 
 //--------------------------------------------------------------------+
@@ -316,11 +318,11 @@ bool netd_control_xfer_cb (uint8_t rhport, uint8_t stage, tusb_control_request_t
             rndis_generic_msg_t *rndis_msg = (rndis_generic_msg_t *) ((void*) notify.rndis_buf);
             uint32_t msglen = tu_le32toh(rndis_msg->MessageLength);
             TU_ASSERT(msglen <= sizeof(notify.rndis_buf));
-            tud_control_xfer(rhport, request, notify.rndis_buf, msglen);
+            tud_control_xfer(rhport, request, notify.rndis_buf, (uint16_t) msglen);
           }
           else
           {
-            tud_control_xfer(rhport, request, notify.rndis_buf, sizeof(notify.rndis_buf));
+            tud_control_xfer(rhport, request, notify.rndis_buf, (uint16_t) sizeof(notify.rndis_buf));
           }
         }
       break;
@@ -367,7 +369,7 @@ static void handle_incoming_packet(uint32_t len)
         }
   }
 
-  if (!tud_network_recv_cb(pnt, size))
+  if (!tud_network_recv_cb(pnt, (uint16_t) size))
   {
     /* if a buffer was never handled by user code, we must renew on the user's behalf */
     tud_network_recv_renew();

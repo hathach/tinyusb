@@ -33,7 +33,12 @@
 //--------------------------------------------------------------------+
 void USB0_IRQHandler(void)
 {
+#if CFG_TUH_ENABLED
+  tuh_int_handler(0);
+#endif
+#if CFG_TUD_ENABLED
   tud_int_handler(0);
+#endif
 }
 
 //--------------------------------------------------------------------+
@@ -42,6 +47,7 @@ void USB0_IRQHandler(void)
 
 void board_init(void)
 {
+  unsigned bits;
   /* Turn off power domains that unused peripherals belong to */
   SYSCTL->PCCAN  = 0u;
 #ifdef __MCU_HAS_LCD0__
@@ -80,20 +86,23 @@ void board_init(void)
 #endif
 
   /* USR_LED1 ON1 */
-  SYSCTL->RCGCGPIO |= TU_BIT(CLK_LED);
-  while (!(SYSCTL->PRGPIO & TU_BIT(CLK_LED))) ;
+  bits              = TU_BIT(CLK_LED);
+  SYSCTL->RCGCGPIO |= bits;
+  while (bits != (SYSCTL->RCGCGPIO & bits)) ;
   GPIO_LED->DIR     = TU_BIT(GPIO_LED_PIN);
   GPIO_LED->DEN     = TU_BIT(GPIO_LED_PIN);
 
   /* USR_SW1 PJ0 */
-  SYSCTL->RCGCGPIO |= TU_BIT(CLK_BUTTON);
-  while (!(SYSCTL->PRGPIO & TU_BIT(CLK_BUTTON))) ;
+  bits              = TU_BIT(CLK_BUTTON);
+  SYSCTL->RCGCGPIO |= bits;
+  while (bits != (SYSCTL->RCGCGPIO & bits)) ;
   GPIO_BUTTON->PUR  = TU_BIT(GPIO_BUTTON_PIN);
   GPIO_BUTTON->DEN  = TU_BIT(GPIO_BUTTON_PIN);
 
   /* UART PA0,1 */
-  SYSCTL->RCGCGPIO |= 1u << 0;
-  while (!(SYSCTL->PRGPIO & (1u << 0))) ;
+  bits              = TU_BIT(0);
+  SYSCTL->RCGCGPIO |= bits;
+  while (bits != (SYSCTL->RCGCGPIO & bits)) ;
   GPIOA->AFSEL      = 3u;
   GPIOA->PCTL       = 0x11u;
   GPIOA->DEN        = 3u;
@@ -107,11 +116,22 @@ void board_init(void)
   UART0->CC         = UART_CC_CS_PIOSC; /* Set the baud clock to PIOSC */
   UART0->CTL        = UART_CTL_RXE | UART_CTL_TXE | UART_CTL_UARTEN;
 
-  /* USB PB1(VBUS) PL6,7(DP,DM) */
-  SYSCTL->RCGCGPIO |= (1u << 1) | (1u << 10);
-  while (((1u << 1) | (1u << 10)) != (SYSCTL->PRGPIO & ((1u << 1) | (1u << 10)))) ;
-  GPIOB->AMSEL      = 1u << 1;
-  GPIOL->AMSEL      = (1u << 6) | (1u << 7);
+  /* USB PB0(ID) PB1(VBUS) PL6,7(DP,DM) */
+  bits              = TU_BIT(1) | TU_BIT(10);
+  SYSCTL->RCGCGPIO |= bits;
+  while (bits != (SYSCTL->RCGCGPIO & bits)) ;
+  GPIOB->AMSEL      = TU_BIT(0) | TU_BIT(1);
+  GPIOL->AMSEL      = TU_BIT(6) | TU_BIT(7);
+
+#if CFG_TUH_ENABLED
+  /* USB PD6(EPEN) */
+  bits              = TU_BIT(3);
+  SYSCTL->RCGCGPIO |= bits;
+  while (bits != (SYSCTL->RCGCGPIO & bits)) ;
+  GPIOD->AFSEL      = TU_BIT(6);
+  GPIOD->PCTL       = 0x05000000u;
+  GPIOD->DEN        = TU_BIT(6);
+#endif
 
   SYSCTL->RCGCUSB   = 1u; /* Open the clock gate for SYSCLK */
   while (!(SYSCTL->PRUSB & (1u << 0))) ;
@@ -124,6 +144,13 @@ void board_init(void)
 
   USB0->CC          = USB_CC_CLKEN | (3u << USB_CC_CLKDIV_S); /* 60MHz = 240MHz / 4 */
   __DMB(); /* Wait for completion of opening of the clock gate */
+#if CFG_TUH_ENABLED
+  USB0->GPCS = USB_GPCS_DEVMOD_OTG;
+  USB0->EPC  = USB_EPC_EPENDE | USB_EPC_EPEN_HIGH;
+#endif
+#if CFG_TUD_ENABLED
+  USB0->GPCS = USB_GPCS_DEVMOD_DEVVBUS;
+#endif
 }
 
 //--------------------------------------------------------------------+

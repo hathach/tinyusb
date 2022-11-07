@@ -24,9 +24,9 @@
  * This file is part of the TinyUSB stack.
  */
 
-#include "host/hcd_attr.h"
+#include "tusb_option.h"
 
-#if TUSB_OPT_HOST_ENABLED && defined(HCD_ATTR_OHCI)
+#if CFG_TUH_ENABLED && defined(TUP_USBIP_OHCI)
 
 //--------------------------------------------------------------------+
 // INCLUDE
@@ -216,6 +216,11 @@ void hcd_port_reset(uint8_t hostid)
   OHCI_REG->rhport_status[0] = RHPORT_PORT_RESET_STATUS_MASK;
 }
 
+void hcd_port_reset_end(uint8_t rhport)
+{
+  (void) rhport;
+}
+
 bool hcd_port_connect_status(uint8_t hostid)
 {
   (void) hostid;
@@ -313,7 +318,7 @@ static ohci_ed_t * ed_from_addr(uint8_t dev_addr, uint8_t ep_addr)
 
   ohci_ed_t* ed_pool = ohci_data.ed_pool;
 
-  for(uint32_t i=0; i<HCD_MAX_ENDPOINT; i++)
+  for(uint32_t i=0; i<ED_MAX; i++)
   {
     if ( (ed_pool[i].dev_addr == dev_addr) &&
           ep_addr == tu_edpt_addr(ed_pool[i].ep_number, ed_pool[i].pid == PID_IN) )
@@ -329,7 +334,7 @@ static ohci_ed_t * ed_find_free(void)
 {
   ohci_ed_t* ed_pool = ohci_data.ed_pool;
 
-  for(uint8_t i = 0; i < HCD_MAX_ENDPOINT; i++)
+  for(uint8_t i = 0; i < ED_MAX; i++)
   {
     if ( !ed_pool[i].used ) return &ed_pool[i];
   }
@@ -368,7 +373,7 @@ static void ed_list_remove_by_addr(ohci_ed_t * p_head, uint8_t dev_addr)
 
 static ohci_gtd_t * gtd_find_free(void)
 {
-  for(uint8_t i=0; i < HCD_MAX_XFER; i++)
+  for(uint8_t i=0; i < GTD_MAX; i++)
   {
     if ( !ohci_data.gtd_pool[i].used ) return &ohci_data.gtd_pool[i];
   }

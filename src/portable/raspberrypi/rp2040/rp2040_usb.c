@@ -38,7 +38,7 @@ const char *ep_dir_string[] = {
         "in",
 };
 
-static inline void _hw_endpoint_lock_update(__unused struct hw_endpoint * ep, __unused int delta) {
+TU_ATTR_ALWAYS_INLINE static inline void _hw_endpoint_lock_update(__unused struct hw_endpoint * ep, __unused int delta) {
     // todo add critsec as necessary to prevent issues between worker and IRQ...
     //  note that this is perhaps as simple as disabling IRQs because it would make
     //  sense to have worker and IRQ on same core, however I think using critsec is about equivalent.
@@ -58,14 +58,20 @@ void rp2040_usb_init(void)
   unreset_block_wait(RESETS_RESET_USBCTRL_BITS);
 
   // Clear any previous state just in case
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Warray-bounds"
+#if __GNUC__ > 6
+#pragma GCC diagnostic ignored "-Wstringop-overflow"
+#endif
   memset(usb_hw, 0, sizeof(*usb_hw));
   memset(usb_dpram, 0, sizeof(*usb_dpram));
+#pragma GCC diagnostic pop
 
   // Mux the controller to the onboard usb phy
   usb_hw->muxing = USB_USB_MUXING_TO_PHY_BITS | USB_USB_MUXING_SOFTCON_BITS;
 }
 
-void hw_endpoint_reset_transfer(struct hw_endpoint *ep)
+void __tusb_irq_path_func(hw_endpoint_reset_transfer)(struct hw_endpoint *ep)
 {
   ep->active = false;
   ep->remaining_len = 0;
@@ -73,7 +79,7 @@ void hw_endpoint_reset_transfer(struct hw_endpoint *ep)
   ep->user_buf = 0;
 }
 
-void _hw_endpoint_buffer_control_update32(struct hw_endpoint *ep, uint32_t and_mask, uint32_t or_mask) {
+void __tusb_irq_path_func(_hw_endpoint_buffer_control_update32)(struct hw_endpoint *ep, uint32_t and_mask, uint32_t or_mask) {
     uint32_t value = 0;
     if (and_mask) {
         value = *ep->buffer_control & and_mask;
@@ -87,7 +93,7 @@ void _hw_endpoint_buffer_control_update32(struct hw_endpoint *ep, uint32_t and_m
             *ep->buffer_control = value & ~USB_BUF_CTRL_AVAIL;
             // 12 cycle delay.. (should be good for 48*12Mhz = 576Mhz)
             // Don't need delay in host mode as host is in charge
-#if !TUSB_OPT_HOST_ENABLED
+#if !CFG_TUH_ENABLED
             __asm volatile (
                     "b 1f\n"
                     "1: b 1f\n"
@@ -104,7 +110,7 @@ void _hw_endpoint_buffer_control_update32(struct hw_endpoint *ep, uint32_t and_m
 }
 
 // prepare buffer, return buffer control
-static uint32_t prepare_ep_buffer(struct hw_endpoint *ep, uint8_t buf_id)
+static uint32_t __tusb_irq_path_func(prepare_ep_buffer)(struct hw_endpoint *ep, uint8_t buf_id)
 {
   uint16_t const buflen = tu_min16(ep->remaining_len, ep->wMaxPacketSize);
   ep->remaining_len = (uint16_t)(ep->remaining_len - buflen);
@@ -139,7 +145,7 @@ static uint32_t prepare_ep_buffer(struct hw_endpoint *ep, uint8_t buf_id)
 }
 
 // Prepare buffer control register value
-static void _hw_endpoint_start_next_buffer(struct hw_endpoint *ep)
+static void __tusb_irq_path_func(_hw_endpoint_start_next_buffer)(struct hw_endpoint *ep)
 {
   uint32_t ep_ctrl = *ep->endpoint_control;
 
@@ -170,7 +176,7 @@ static void _hw_endpoint_start_next_buffer(struct hw_endpoint *ep)
 
   *ep->endpoint_control = ep_ctrl;
 
-  TU_LOG(3, "  Prepare BufCtrl: [0] = 0x%04u  [1] = 0x%04x\r\n", tu_u32_low16(buf_ctrl), tu_u32_high16(buf_ctrl));
+  TU_LOG(3, "  Prepare BufCtrl: [0] = 0x%04x  [1] = 0x%04x\r\n", tu_u32_low16(buf_ctrl), tu_u32_high16(buf_ctrl));
 
   // Finally, write to buffer_control which will trigger the transfer
   // the next time the controller polls this dpram address
@@ -201,7 +207,7 @@ void hw_endpoint_xfer_start(struct hw_endpoint *ep, uint8_t *buffer, uint16_t to
 }
 
 // sync endpoint buffer and return transferred bytes
-static uint16_t sync_ep_buffer(struct hw_endpoint *ep, uint8_t buf_id)
+static uint16_t __tusb_irq_path_func(sync_ep_buffer)(struct hw_endpoint *ep, uint8_t buf_id)
 {
   uint32_t buf_ctrl = _hw_endpoint_buffer_control_get_value32(ep);
   if (buf_id)  buf_ctrl = buf_ctrl >> 16;
@@ -237,13 +243,13 @@ static uint16_t sync_ep_buffer(struct hw_endpoint *ep, uint8_t buf_id)
   return xferred_bytes;
 }
 
-static void _hw_endpoint_xfer_sync (struct hw_endpoint *ep)
+static void __tusb_irq_path_func(_hw_endpoint_xfer_sync) (struct hw_endpoint *ep)
 {
   // Update hw endpoint struct with info from hardware
   // after a buff status interrupt
 
   uint32_t __unused buf_ctrl = _hw_endpoint_buffer_control_get_value32(ep);
-  TU_LOG(3, "  Sync BufCtrl: [0] = 0x%04u  [1] = 0x%04x\r\n", tu_u32_low16(buf_ctrl), tu_u32_high16(buf_ctrl));
+  TU_LOG(3, "  Sync BufCtrl: [0] = 0x%04x  [1] = 0x%04x\r\n", tu_u32_low16(buf_ctrl), tu_u32_high16(buf_ctrl));
 
   // always sync buffer 0
   uint16_t buf0_bytes = sync_ep_buffer(ep, 0);
@@ -281,20 +287,20 @@ static void _hw_endpoint_xfer_sync (struct hw_endpoint *ep)
       usb_hw->abort &= ~TU_BIT(ep_id);
 
       TU_LOG(3, "----SHORT PACKET buffer0 on EP %02X:\r\n", ep->ep_addr);
-      TU_LOG(3, "  BufCtrl: [0] = 0x%04u  [1] = 0x%04x\r\n", tu_u32_low16(buf_ctrl), tu_u32_high16(buf_ctrl));
+      TU_LOG(3, "  BufCtrl: [0] = 0x%04x  [1] = 0x%04x\r\n", tu_u32_low16(buf_ctrl), tu_u32_high16(buf_ctrl));
 #endif
     }
   }
 }
 
 // Returns true if transfer is complete
-bool hw_endpoint_xfer_continue(struct hw_endpoint *ep)
+bool __tusb_irq_path_func(hw_endpoint_xfer_continue)(struct hw_endpoint *ep)
 {
   _hw_endpoint_lock_update(ep, 1);
   // Part way through a transfer
   if (!ep->active)
   {
-    panic("Can't continue xfer on inactive ep %d %s", tu_edpt_number(ep->ep_addr), ep_dir_string);
+    panic("Can't continue xfer on inactive ep %d %s", tu_edpt_number(ep->ep_addr), ep_dir_string[tu_edpt_dir(ep->ep_addr)]);
   }
 
   // Update EP struct from hardware state

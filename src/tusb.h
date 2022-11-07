@@ -38,8 +38,10 @@
 #include "osal/osal.h"
 #include "common/tusb_fifo.h"
 
+#include "class/hid/hid.h"
+
 //------------- HOST -------------//
-#if TUSB_OPT_HOST_ENABLED
+#if CFG_TUH_ENABLED
   #include "host/usbh.h"
 
   #if CFG_TUH_HID
@@ -61,7 +63,7 @@
 #endif
 
 //------------- DEVICE -------------//
-#if TUSB_OPT_DEVICE_ENABLED
+#if CFG_TUD_ENABLED
   #include "device/usbd.h"
 
   #if CFG_TUD_HID
@@ -117,8 +119,6 @@
 //--------------------------------------------------------------------+
 // APPLICATION API
 //--------------------------------------------------------------------+
-/** \ingroup group_application_api
- *  @{ */
 
 // Initialize device/host stack
 // Note: when using with RTOS, this should be called after scheduler/kernel is started.
@@ -130,8 +130,6 @@ bool tusb_inited(void);
 
 // TODO
 // bool tusb_teardown(void);
-
-/** @} */
 
 #ifdef __cplusplus
  }

@@ -91,6 +91,13 @@
   #include "stm32g4xx.h"
   #define PMA_LENGTH (1024u)
 
+#elif CFG_TUSB_MCU == OPT_MCU_STM32WB
+  #include "stm32wbxx.h"
+  #define PMA_LENGTH (1024u)
+  /* ST provided header has incorrect value */
+  #undef USB_PMAADDR
+  #define USB_PMAADDR USB1_PMAADDR
+
 #elif CFG_TUSB_MCU == OPT_MCU_STM32L4
   #include "stm32l4xx.h"
   #define PMA_LENGTH (1024u)

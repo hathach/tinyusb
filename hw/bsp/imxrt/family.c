@@ -34,8 +34,24 @@
 
 #include "clock_config.h"
 
+#if defined(BOARD_TUD_RHPORT) && CFG_TUD_ENABLED
+  #define PORT_SUPPORT_DEVICE(_n)  (BOARD_TUD_RHPORT == _n)
+#else
+  #define PORT_SUPPORT_DEVICE(_n)  0
+#endif
+
+#if defined(BOARD_TUH_RHPORT) && CFG_TUH_ENABLED
+  #define PORT_SUPPORT_HOST(_n)    (BOARD_TUH_RHPORT == _n)
+#else
+  #define PORT_SUPPORT_HOST(_n)    0
+#endif
+
 // needed by fsl_flexspi_nor_boot
 const uint8_t dcd_data[] = { 0x00 };
+
+//--------------------------------------------------------------------+
+//
+//--------------------------------------------------------------------+
 
 void board_init(void)
 {
@@ -51,7 +67,10 @@ void board_init(void)
   SysTick_Config(SystemCoreClock / 1000);
 #elif CFG_TUSB_OS == OPT_OS_FREERTOS
   // If freeRTOS is used, IRQ priority is limit by max syscall ( smaller is higher )
-//  NVIC_SetPriority(USB0_IRQn, configLIBRARY_MAX_SYSCALL_INTERRUPT_PRIORITY );
+  NVIC_SetPriority(USB_OTG1_IRQn, configLIBRARY_MAX_SYSCALL_INTERRUPT_PRIORITY);
+#ifdef USBPHY2
+  NVIC_SetPriority(USB_OTG2_IRQn, configLIBRARY_MAX_SYSCALL_INTERRUPT_PRIORITY);
+#endif
 #endif
 
   // LED
@@ -98,13 +117,9 @@ void board_init(void)
   CLOCK_EnableUsbhs0PhyPllClock(kCLOCK_Usbphy480M, 480000000U);
   CLOCK_EnableUsbhs0Clock(kCLOCK_Usb480M, 480000000U);
 
-  // USB1
-//  CLOCK_EnableUsbhs1PhyPllClock(kCLOCK_Usbphy480M, 480000000U);
-//  CLOCK_EnableUsbhs1Clock(kCLOCK_Usb480M, 480000000U);
-
   USBPHY_Type* usb_phy;
 
-  // RT105x RT106x have dual USB controller. TODO support USB2
+  // RT105x RT106x have dual USB controller.
 #ifdef USBPHY1
   usb_phy = USBPHY1;
 #else
@@ -122,6 +137,27 @@ void board_init(void)
   phytx &= ~(USBPHY_TX_D_CAL_MASK | USBPHY_TX_TXCAL45DM_MASK | USBPHY_TX_TXCAL45DP_MASK);
   phytx |= USBPHY_TX_D_CAL(0x0C) | USBPHY_TX_TXCAL45DP(0x06) | USBPHY_TX_TXCAL45DM(0x06);
   usb_phy->TX = phytx;
+
+  // RT105x RT106x have dual USB controller.
+#ifdef USBPHY2
+  // USB1
+  CLOCK_EnableUsbhs1PhyPllClock(kCLOCK_Usbphy480M, 480000000U);
+  CLOCK_EnableUsbhs1Clock(kCLOCK_Usb480M, 480000000U);
+
+  usb_phy = USBPHY2;
+
+  // Enable PHY support for Low speed device + LS via FS Hub
+  usb_phy->CTRL |= USBPHY_CTRL_SET_ENUTMILEVEL2_MASK | USBPHY_CTRL_SET_ENUTMILEVEL3_MASK;
+
+  // Enable all power for normal operation
+  usb_phy->PWD = 0;
+
+  // TX Timing
+  phytx = usb_phy->TX;
+  phytx &= ~(USBPHY_TX_D_CAL_MASK | USBPHY_TX_TXCAL45DM_MASK | USBPHY_TX_TXCAL45DP_MASK);
+  phytx |= USBPHY_TX_D_CAL(0x0C) | USBPHY_TX_TXCAL45DP(0x06) | USBPHY_TX_TXCAL45DM(0x06);
+  usb_phy->TX = phytx;
+#endif
 }
 
 //--------------------------------------------------------------------+
@@ -129,23 +165,23 @@ void board_init(void)
 //--------------------------------------------------------------------+
 void USB_OTG1_IRQHandler(void)
 {
-  #if CFG_TUSB_RHPORT0_MODE & OPT_MODE_HOST
-    tuh_int_handler(0);
+  #if PORT_SUPPORT_DEVICE(0)
+    tud_int_handler(0);
   #endif
 
-  #if CFG_TUSB_RHPORT0_MODE & OPT_MODE_DEVICE
-    tud_int_handler(0);
+  #if PORT_SUPPORT_HOST(0)
+    tuh_int_handler(0);
   #endif
 }
 
 void USB_OTG2_IRQHandler(void)
 {
-  #if CFG_TUSB_RHPORT1_MODE & OPT_MODE_HOST
-    tuh_int_handler(1);
+  #if PORT_SUPPORT_DEVICE(1)
+    tud_int_handler(1);
   #endif
 
-  #if CFG_TUSB_RHPORT1_MODE & OPT_MODE_DEVICE
-    tud_int_handler(1);
+  #if PORT_SUPPORT_HOST(1)
+    tuh_int_handler(1);
   #endif
 }
 

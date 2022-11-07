@@ -35,7 +35,7 @@
 
 #include "tusb_option.h"
 
-#if TUSB_OPT_DEVICE_ENABLED && (CFG_TUSB_MCU == OPT_MCU_NUC505)
+#if CFG_TUD_ENABLED && (CFG_TUSB_MCU == OPT_MCU_NUC505)
 
 #include "device/dcd.h"
 #include "NUC505Series.h"
@@ -718,6 +718,14 @@ void dcd_connect(uint8_t rhport)
 {
   (void) rhport;
   usb_attach();
+}
+
+void dcd_sof_enable(uint8_t rhport, bool en)
+{
+  (void) rhport;
+  (void) en;
+
+  // TODO implement later
 }
 
 #endif

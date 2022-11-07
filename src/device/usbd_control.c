@@ -26,11 +26,11 @@
 
 #include "tusb_option.h"
 
-#if TUSB_OPT_DEVICE_ENABLED
+#if CFG_TUD_ENABLED
 
+#include "dcd.h"
 #include "tusb.h"
 #include "device/usbd_pvt.h"
-#include "dcd.h"
 
 #if CFG_TUSB_DEBUG >= 2
 extern void usbd_driver_print_control_complete_name(usbd_control_xfer_cb_t callback);
@@ -189,7 +189,7 @@ bool usbd_control_xfer_cb (uint8_t rhport, uint8_t ep_addr, xfer_result_t result
     TU_LOG_MEM(2, _usbd_ctrl_buf, xferred_bytes, 2);
   }
 
-  _ctrl_xfer.total_xferred += xferred_bytes;
+  _ctrl_xfer.total_xferred += (uint16_t) xferred_bytes;
   _ctrl_xfer.buffer += xferred_bytes;
 
   // Data Stage is complete when all request's length are transferred or

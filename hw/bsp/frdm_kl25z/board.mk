@@ -14,7 +14,7 @@ LDFLAGS += \
   -Wl,--defsym,__heap_size__=0
 
 # mcu driver cause following warnings
-CFLAGS += -Wno-error=unused-parameter -Wno-error=format
+CFLAGS += -Wno-error=unused-parameter -Wno-error=format -Wno-error=redundant-decls
 
 MCU_DIR = $(SDK_DIR)/devices/MKL25Z4
 
@@ -23,6 +23,7 @@ LD_FILE = $(MCU_DIR)/gcc/MKL25Z128xxx4_flash.ld
 
 SRC_C += \
 	src/portable/nxp/khci/dcd_khci.c \
+	src/portable/nxp/khci/hcd_khci.c \
 	$(MCU_DIR)/system_MKL25Z4.c \
 	$(MCU_DIR)/project_template/clock_config.c \
 	$(MCU_DIR)/drivers/fsl_clock.c \

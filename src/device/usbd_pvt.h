@@ -48,7 +48,7 @@ typedef struct
   uint16_t (* open             ) (uint8_t rhport, tusb_desc_interface_t const * desc_intf, uint16_t max_len);
   bool     (* control_xfer_cb  ) (uint8_t rhport, uint8_t stage, tusb_control_request_t const * request);
   bool     (* xfer_cb          ) (uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint32_t xferred_bytes);
-  void     (* sof              ) (uint8_t rhport); /* optional */
+  void     (* sof              ) (uint8_t rhport, uint32_t frame_count); // optional
 } usbd_class_driver_t;
 
 // Invoked when initializing device stack to get additional class drivers.
@@ -58,8 +58,11 @@ usbd_class_driver_t const* usbd_app_driver_get_cb(uint8_t* driver_count) TU_ATTR
 
 typedef bool (*usbd_control_xfer_cb_t)(uint8_t rhport, uint8_t stage, tusb_control_request_t const * request);
 
+void usbd_int_set(bool enabled);
+
 //--------------------------------------------------------------------+
 // USBD Endpoint API
+// Note: rhport should be 0 since device stack only support 1 rhport for now
 //--------------------------------------------------------------------+
 
 // Open an endpoint
@@ -78,7 +81,7 @@ bool usbd_edpt_xfer_fifo(uint8_t rhport, uint8_t ep_addr, tu_fifo_t * ff, uint16
 // If caller does not make any transfer, it must release endpoint for others.
 bool usbd_edpt_claim(uint8_t rhport, uint8_t ep_addr);
 
-// Release an endpoint without submitting a transfer
+// Release claimed endpoint without submitting a transfer
 bool usbd_edpt_release(uint8_t rhport, uint8_t ep_addr);
 
 // Check if endpoint is busy transferring
@@ -99,6 +102,9 @@ bool usbd_edpt_ready(uint8_t rhport, uint8_t ep_addr)
 {
   return !usbd_edpt_busy(rhport, ep_addr) && !usbd_edpt_stalled(rhport, ep_addr);
 }
+
+// Enable SOF interrupt
+void usbd_sof_enable(uint8_t rhport, bool en);
 
 /*------------------------------------------------------------------*/
 /* Helper

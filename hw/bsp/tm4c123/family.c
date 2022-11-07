@@ -7,7 +7,13 @@
 //--------------------------------------------------------------------+
 void USB0_Handler(void)
 {
+#if CFG_TUH_ENABLED
+  tuh_int_handler(0);
+#endif
+
+#if CFG_TUD_ENABLED
   tud_int_handler(0);
+#endif
 }
 
 //--------------------------------------------------------------------+
@@ -23,10 +29,12 @@ static void board_uart_init (void)
   GPIOA->PCTL |= (1 << 0) | (1 << 4);          // Configure the GPIOPCTL register to select UART0 in PA0 and PA1
   GPIOA->DEN |= (1 << 0) | (1 << 1);           // Enable the digital functionality in PA0 and PA1
 
-                                               /** BAUDRATE = 9600 bits per second, refer manual for calculation **/
+  // BAUDRATE = 115200, with SystemCoreClock = 50 Mhz refer manual for calculation
+  //  - BRDI = SystemCoreClock / (16* baud)
+  //  - BRDF = int(fraction*64 + 0.5)
   UART0->CTL &= ~(1 << 0);                     // Disable UART0 by clearing UARTEN bit in the UARTCTL register
-  UART0->IBRD = 325;                           // Write the integer portion of the BRD to the UARTIRD register
-  UART0->FBRD = 33;                            // Write the fractional portion of the BRD to the UARTFBRD registerer
+  UART0->IBRD = 27;                            // Write the integer portion of the BRD to the UARTIRD register
+  UART0->FBRD = 8;                             // Write the fractional portion of the BRD to the UARTFBRD registerer
 
   UART0->LCRH = (0x3 << 5);                    // 8-bit, no parity, 1 stop bit
   UART0->CC = 0x0;                             // Configure the UART clock source as system clock
@@ -40,8 +48,7 @@ static void initialize_board_led (GPIOA_Type *port, uint8_t PinMsk, uint8_t dirm
   SYSCTL->RCGCGPIO |= (1 << 5);
 
   /* Let the clock stabilize */
-  while ( !((SYSCTL->PRGPIO) & (1 << 5)) )
-    ;
+  while ( !((SYSCTL->PRGPIO) & (1 << 5)) ) {}
 
   /* Port Digital Enable */
   port->DEN |= PinMsk;
@@ -60,9 +67,13 @@ static void board_switch_init (void)
 static void WriteGPIOPin (GPIOA_Type *port, uint8_t PinMsk, bool state)
 {
   if ( state )
+  {
     port->DATA |= PinMsk;
+  }
   else
+  {
     port->DATA &= ~(PinMsk);
+  }
 }
 
 static uint32_t ReadGPIOPin (GPIOA_Type *port, uint8_t pinMsk)
@@ -99,8 +110,7 @@ void board_init (void)
   SYSCTL->RCGCGPIO |= (1u << 3);
 
   /* Let the clock stabilize */
-  while ( !(SYSCTL->PRGPIO & (1u << 3)) )
-    ;
+  while ( !(SYSCTL->PRGPIO & (1u << 3)) ) {}
 
   /* USB IOs to Analog Mode */
   GPIOD->AFSEL &= ~((1u << 4) | (1u << 5));
@@ -119,6 +129,7 @@ void board_init (void)
   /* Initialize board UART */
   board_uart_init();
 
+  TU_LOG1_INT(SystemCoreClock);
 }
 
 void board_led_write (bool state)

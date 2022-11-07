@@ -2,7 +2,7 @@ if (NOT TARGET _family_support_marker)
     add_library(_family_support_marker INTERFACE)
 
     if (NOT FAMILY)
-        message(FATAL_ERROR "You must set a FAMILY variable for the build (e.g. rp2040, eps32s2, esp32s3). You can do this via -DFAMILY=xxx on the camke command line")
+        message(FATAL_ERROR "You must set a FAMILY variable for the build (e.g. rp2040, eps32s2, esp32s3). You can do this via -DFAMILY=xxx on the cmake command line")
     endif()
 
     if (NOT EXISTS ${CMAKE_CURRENT_LIST_DIR}/${FAMILY}/family.cmake)
@@ -11,23 +11,52 @@ if (NOT TARGET _family_support_marker)
 
     function(family_filter RESULT DIR)
         get_filename_component(DIR ${DIR} ABSOLUTE BASE_DIR ${CMAKE_CURRENT_SOURCE_DIR})
-        file(GLOB ONLYS "${DIR}/.only.MCU_*")
-        if (ONLYS)
+
+        if (EXISTS "${DIR}/only.txt")
+            file(READ "${DIR}/only.txt" ONLYS)
+            # Replace newlines with semicolon so that it is treated as a list by CMake
+            string(REPLACE "\n" ";" ONLYS_LINES ${ONLYS})
+            # For each mcu
             foreach(MCU IN LISTS FAMILY_MCUS)
-                if (EXISTS ${DIR}/.only.MCU_${MCU})
-                    set(${RESULT} 1 PARENT_SCOPE)
-                    return()
-                endif()
+                # For each line in only.txt
+                foreach(_line ${ONLYS_LINES})
+                    # If mcu:xxx exists for this mcu then include
+                    if (${_line} STREQUAL "mcu:${MCU}")
+                        set(${RESULT} 1 PARENT_SCOPE)
+                        return()
+                    endif()
+                endforeach()
             endforeach()
+
+            # Didn't find it in only file so don't build
+            set(${RESULT} 0 PARENT_SCOPE)
+
+        elseif (EXISTS "${DIR}/skip.txt")
+            file(READ "${DIR}/skip.txt" SKIPS)
+            # Replace newlines with semicolon so that it is treated as a list by CMake
+            string(REPLACE "\n" ";" SKIPS_LINES ${SKIPS})
+            # For each mcu
+            foreach(MCU IN LISTS FAMILY_MCUS)
+                # For each line in only.txt
+                foreach(_line ${SKIPS_LINES})
+                    # If mcu:xxx exists for this mcu then skip
+                    if (${_line} STREQUAL "mcu:${MCU}")
+                        set(${RESULT} 0 PARENT_SCOPE)
+                        return()
+                    endif()
+                endforeach()
+            endforeach()
+
+            # Didn't find in skip file so build
+            set(${RESULT} 1 PARENT_SCOPE)
+
         else()
-            foreach(MCU IN LISTS FAMILY_MCUS)
-                if (EXISTS ${DIR}/.skip.MCU_${MCU})
-                    set(${RESULT} 0 PARENT_SCOPE)
-                    return()
-                endif()
-            endforeach()
+
+            # Didn't find skip or only file so build
+            set(${RESULT} 1 PARENT_SCOPE)
+
         endif()
-        set(${RESULT} 1 PARENT_SCOPE)
+
     endfunction()
 
     function(family_add_subdirectory DIR)
@@ -47,6 +76,48 @@ if (NOT TARGET _family_support_marker)
         if (NOT ALLOWED)
             get_filename_component(SHORT_NAME ${DIR} NAME)
             message(FATAL_ERROR "${SHORT_NAME} is not supported on FAMILY=${FAMILY}")
+        endif()
+    endfunction()
+
+    function(family_add_default_example_warnings TARGET)
+        target_compile_options(${TARGET} PUBLIC
+                -Wall
+                -Wextra
+                -Werror
+                -Wfatal-errors
+                -Wdouble-promotion
+                -Wfloat-equal
+                -Wshadow
+                -Wwrite-strings
+                -Wsign-compare
+                -Wmissing-format-attribute
+                -Wunreachable-code
+                -Wcast-align
+                -Wcast-qual
+                -Wnull-dereference
+                -Wuninitialized
+                -Wunused
+                -Wredundant-decls
+                #-Wstrict-prototypes
+                #-Werror-implicit-function-declaration
+                #-Wundef
+                )
+
+        if (CMAKE_C_COMPILER_ID STREQUAL "GNU")
+            # GCC 10
+            if (CMAKE_C_COMPILER_VERSION VERSION_GREATER_EQUAL 10.0)
+                target_compile_options(${TARGET} PUBLIC -Wconversion)
+            endif()
+
+            # GCC 8
+            if (CMAKE_C_COMPILER_VERSION VERSION_GREATER_EQUAL 8.0)
+                target_compile_options(${TARGET} PUBLIC -Wcast-function-type -Wstrict-overflow)
+            endif()
+
+            # GCC 6
+            if (CMAKE_C_COMPILER_VERSION VERSION_GREATER_EQUAL 6.0)
+                target_compile_options(${TARGET} PUBLIC -Wno-strict-aliasing)
+            endif()
         endif()
     endfunction()
 

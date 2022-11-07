@@ -31,8 +31,8 @@
 #include "tusb_option.h"
 
 //--------------------------------------------------------------------+
-// Low Level MCU header include. TinyUSB stack and example should be
-// platform independent and mostly doens't need to include this file.
+// Low Level MCU header include. Example should be
+// platform independent and mostly doesn't need to include this file.
 // However there are still certain situation where this file is needed:
 // - FreeRTOSConfig.h to set up correct clock and NVIC interrupts for ARM Cortex
 // - SWO logging for Cortex M with ITM_SendChar() / ITM_ReceiveChar()
@@ -80,6 +80,9 @@
 #elif CFG_TUSB_MCU == OPT_MCU_STM32F7
   #include "stm32f7xx.h"
 
+#elif CFG_TUSB_MCU == OPT_MCU_STM32G4
+  #include "stm32g4xx.h"
+
 #elif CFG_TUSB_MCU == OPT_MCU_STM32H7
   #include "stm32h7xx.h"
 
@@ -91,6 +94,12 @@
 
 #elif CFG_TUSB_MCU == OPT_MCU_STM32L4
   #include "stm32l4xx.h"
+
+#elif CFG_TUSB_MCU == OPT_MCU_STM32WB
+  #include "stm32wbxx.h"
+
+#elif CFG_TUSB_MCU == OPT_MCU_STM32U5
+  #include "stm32u5xx.h"
 
 #elif CFG_TUSB_MCU == OPT_MCU_CXD56
   // no header needed
@@ -104,7 +113,7 @@
 #elif CFG_TUSB_MCU == OPT_MCU_VALENTYUSB_EPTRI
   // no header needed
 
-#elif CFG_TUSB_MCU == OPT_MCU_MIMXRT10XX
+#elif CFG_TUSB_MCU == OPT_MCU_MIMXRT
   #include "fsl_device_registers.h"
 
 #elif CFG_TUSB_MCU == OPT_MCU_NUC120
@@ -145,6 +154,9 @@
 
 #elif CFG_TUSB_MCU == OPT_MCU_TM4C123
   #include "TM4C123.h"
+
+#elif TU_CHECK_MCU(OPT_MCU_BCM2711, OPT_MCU_BCM2835, OPT_MCU_BCM2837)
+  // no header needed
 
 #else
   #error "Missing MCU header"

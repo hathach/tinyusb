@@ -26,19 +26,20 @@
 
 #include "tusb_option.h"
 
-#if TUSB_OPT_DEVICE_ENABLED && CFG_TUSB_MCU == OPT_MCU_CXD56
+#if CFG_TUD_ENABLED && CFG_TUSB_MCU == OPT_MCU_CXD56
 
 #include <errno.h>
 #include <nuttx/usb/usbdev.h>
 #include <nuttx/arch.h>
 
 #include "device/dcd.h"
+#include "device/usbd_pvt.h"
 
 #define CXD56_EPNUM (7)
 #define CXD56_SETUP_QUEUE_DEPTH (4)
 #define CXD56_MAX_DATA_OUT_SIZE (64)
 
-OSAL_QUEUE_DEF(OPT_MODE_DEVICE, _setup_queue_def, CXD56_SETUP_QUEUE_DEPTH, struct usb_ctrlreq_s);
+OSAL_QUEUE_DEF(usbd_int_set, _setup_queue_def, CXD56_SETUP_QUEUE_DEPTH, struct usb_ctrlreq_s);
 
 struct usbdcd_driver_s
 {
@@ -246,6 +247,14 @@ void dcd_disconnect(uint8_t rhport)
   DEV_DISCONNECT(usbdev);
 }
 
+void dcd_sof_enable(uint8_t rhport, bool en)
+{
+  (void) rhport;
+  (void) en;
+
+  // TODO implement later
+}
+
 //--------------------------------------------------------------------+
 // Endpoint API
 //--------------------------------------------------------------------+
@@ -362,7 +371,7 @@ bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t *buffer, uint16_t to
 
     if (usbdcd_driver.setup_processed)
     {
-      if (osal_queue_receive(usbdcd_driver.setup_queue, &ctrl))
+      if (osal_queue_receive(usbdcd_driver.setup_queue, &ctrl, 100))
       {
         usbdcd_driver.setup_processed = false;
         dcd_event_setup_received(0, (uint8_t *)&ctrl, false);

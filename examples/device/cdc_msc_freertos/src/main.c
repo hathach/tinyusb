@@ -38,12 +38,17 @@
   #include "freertos/queue.h"
   #include "freertos/task.h"
   #include "freertos/timers.h"
+
+  #define USBD_STACK_SIZE     4096
 #else
   #include "FreeRTOS.h"
   #include "semphr.h"
   #include "queue.h"
   #include "task.h"
   #include "timers.h"
+
+  // Increase stack size when debug log is enabled
+  #define USBD_STACK_SIZE    (3*configMINIMAL_STACK_SIZE/2) * (CFG_TUSB_DEBUG ? 2 : 1)
 #endif
 
 //--------------------------------------------------------------------+
@@ -65,14 +70,7 @@ enum  {
 StaticTimer_t blinky_tmdef;
 TimerHandle_t blinky_tm;
 
-// static task for usbd
-// Increase stack size when debug log is enabled
-#if CFG_TUSB_DEBUG
-  #define USBD_STACK_SIZE     (3*configMINIMAL_STACK_SIZE)
-#else
-  #define USBD_STACK_SIZE     (3*configMINIMAL_STACK_SIZE/2)
-#endif
-
+// static task
 StackType_t  usb_device_stack[USBD_STACK_SIZE];
 StaticTask_t usb_device_taskdef;
 
@@ -125,15 +123,19 @@ void usb_device_task(void* param)
 {
   (void) param;
 
+  // init device stack on configured roothub port
   // This should be called after scheduler/kernel is started.
   // Otherwise it could cause kernel issue since USB IRQ handler does use RTOS queue API.
-  tusb_init();
+  tud_init(BOARD_TUD_RHPORT);
 
   // RTOS forever loop
   while (1)
   {
-    // tinyusb device task
+    // put this thread to waiting state until there is new events
     tud_task();
+
+    // following code only run if tud_task() process at least 1 event
+    tud_cdc_write_flush();
   }
 }
 
@@ -183,7 +185,7 @@ void cdc_task(void* params)
     // if ( tud_cdc_connected() )
     {
       // There are data available
-      if ( tud_cdc_available() )
+      while ( tud_cdc_available() )
       {
         uint8_t buf[64];
 
@@ -196,12 +198,13 @@ void cdc_task(void* params)
         // for throughput test e.g
         //    $ dd if=/dev/zero of=/dev/ttyACM0 count=10000
         tud_cdc_write(buf, count);
-        tud_cdc_write_flush();
       }
+
+      tud_cdc_write_flush();
     }
 
-    // For ESP32-S2 this delay is essential to allow idle how to run and reset wdt
-    vTaskDelay(pdMS_TO_TICKS(10));
+    // For ESP32-Sx this delay is essential to allow idle how to run and reset watchdog
+    vTaskDelay(1);
   }
 }
 

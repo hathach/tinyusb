@@ -26,7 +26,7 @@
 
 #include "tusb_option.h"
 
-#if (TUSB_OPT_DEVICE_ENABLED && CFG_TUD_CDC)
+#if (CFG_TUD_ENABLED && CFG_TUD_CDC)
 
 #include "device/usbd.h"
 #include "device/usbd_pvt.h"
@@ -80,30 +80,32 @@ typedef struct
 //--------------------------------------------------------------------+
 CFG_TUSB_MEM_SECTION static cdcd_interface_t _cdcd_itf[CFG_TUD_CDC];
 
-static void _prep_out_transaction (cdcd_interface_t* p_cdc)
+static bool _prep_out_transaction (cdcd_interface_t* p_cdc)
 {
-  uint8_t const rhport = TUD_OPT_RHPORT;
+  uint8_t const rhport = 0;
   uint16_t available = tu_fifo_remaining(&p_cdc->rx_ff);
 
   // Prepare for incoming data but only allow what we can store in the ring buffer.
   // TODO Actually we can still carry out the transfer, keeping count of received bytes
   // and slowly move it to the FIFO when read().
   // This pre-check reduces endpoint claiming
-  TU_VERIFY(available >= sizeof(p_cdc->epout_buf), );
+  TU_VERIFY(available >= sizeof(p_cdc->epout_buf));
 
   // claim endpoint
-  TU_VERIFY(usbd_edpt_claim(rhport, p_cdc->ep_out), );
+  TU_VERIFY(usbd_edpt_claim(rhport, p_cdc->ep_out));
 
   // fifo can be changed before endpoint is claimed
   available = tu_fifo_remaining(&p_cdc->rx_ff);
 
   if ( available >= sizeof(p_cdc->epout_buf) )
   {
-    usbd_edpt_xfer(rhport, p_cdc->ep_out, p_cdc->epout_buf, sizeof(p_cdc->epout_buf));
+    return usbd_edpt_xfer(rhport, p_cdc->ep_out, p_cdc->epout_buf, sizeof(p_cdc->epout_buf));
   }else
   {
     // Release endpoint since we don't make any transfer
     usbd_edpt_release(rhport, p_cdc->ep_out);
+
+    return false;
   }
 }
 
@@ -143,7 +145,7 @@ uint32_t tud_cdc_n_available(uint8_t itf)
 uint32_t tud_cdc_n_read(uint8_t itf, void* buffer, uint32_t bufsize)
 {
   cdcd_interface_t* p_cdc = &_cdcd_itf[itf];
-  uint32_t num_read = tu_fifo_read_n(&p_cdc->rx_ff, buffer, bufsize);
+  uint32_t num_read = tu_fifo_read_n(&p_cdc->rx_ff, buffer, (uint16_t) bufsize);
   _prep_out_transaction(p_cdc);
   return num_read;
 }
@@ -166,7 +168,7 @@ void tud_cdc_n_read_flush (uint8_t itf)
 uint32_t tud_cdc_n_write(uint8_t itf, void const* buffer, uint32_t bufsize)
 {
   cdcd_interface_t* p_cdc = &_cdcd_itf[itf];
-  uint16_t ret = tu_fifo_write_n(&p_cdc->tx_ff, buffer, bufsize);
+  uint16_t ret = tu_fifo_write_n(&p_cdc->tx_ff, buffer, (uint16_t) bufsize);
 
   // flush if queue more than packet size
   if ( tu_fifo_count(&p_cdc->tx_ff) >= BULK_PACKET_SIZE )
@@ -187,7 +189,7 @@ uint32_t tud_cdc_n_write_flush (uint8_t itf)
   // No data to send
   if ( !tu_fifo_count(&p_cdc->tx_ff) ) return 0;
 
-  uint8_t const rhport = TUD_OPT_RHPORT;
+  uint8_t const rhport = 0;
 
   // Claim the endpoint
   TU_VERIFY( usbd_edpt_claim(rhport, p_cdc->ep_in), 0 );
@@ -433,7 +435,7 @@ bool cdcd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint32_
   // Received new data
   if ( ep_addr == p_cdc->ep_out )
   {
-    tu_fifo_write_n(&p_cdc->rx_ff, &p_cdc->epout_buf, xferred_bytes);
+    tu_fifo_write_n(&p_cdc->rx_ff, &p_cdc->epout_buf, (uint16_t) xferred_bytes);
     
     // Check for wanted char and invoke callback if needed
     if ( tud_cdc_rx_wanted_cb && (((signed char) p_cdc->wanted_char) != -1) )

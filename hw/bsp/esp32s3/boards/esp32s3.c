@@ -32,8 +32,13 @@
 #include "hal/usb_hal.h"
 #include "soc/usb_periph.h"
 
-#include "driver/periph_ctrl.h"
 #include "driver/rmt.h"
+
+#if ESP_IDF_VERSION_MAJOR > 4
+  #include "esp_private/periph_ctrl.h"
+#else
+  #include "driver/periph_ctrl.h"
+#endif
 
 #ifdef NEOPIXEL_PIN
 #include "led_strip.h"
@@ -70,7 +75,7 @@ void board_init(void)
 #endif
 
   // Button
-  gpio_pad_select_gpio(BUTTON_PIN);
+  esp_rom_gpio_pad_select_gpio(BUTTON_PIN);
   gpio_set_direction(BUTTON_PIN, GPIO_MODE_INPUT);
   gpio_set_pull_mode(BUTTON_PIN, BUTTON_STATE_ACTIVE ? GPIO_PULLDOWN_ONLY : GPIO_PULLUP_ONLY);
 
@@ -98,7 +103,12 @@ static void configure_pins(usb_hal_context_t *usb)
         esp_rom_gpio_connect_out_signal(iopin->pin, iopin->func, false, false);
       } else {
         esp_rom_gpio_connect_in_signal(iopin->pin, iopin->func, false);
-        if ((iopin->pin != GPIO_FUNC_IN_LOW) && (iopin->pin != GPIO_FUNC_IN_HIGH)) {
+#if ESP_IDF_VERSION_MAJOR > 4
+        if ((iopin->pin != GPIO_MATRIX_CONST_ZERO_INPUT) && (iopin->pin != GPIO_MATRIX_CONST_ONE_INPUT))
+#else
+        if ((iopin->pin != GPIO_FUNC_IN_LOW) && (iopin->pin != GPIO_FUNC_IN_HIGH))
+#endif
+        {
           gpio_ll_input_enable(&GPIO, iopin->pin);
         }
       }

@@ -26,7 +26,7 @@
 
 #include "tusb_option.h"
 
-#if (TUSB_OPT_HOST_ENABLED && CFG_TUH_CDC && CFG_TUH_CDC_RNDIS)
+#if (CFG_TUH_ENABLED && CFG_TUH_CDC && CFG_TUH_CDC_RNDIS)
 
 //--------------------------------------------------------------------+
 // INCLUDE
@@ -34,6 +34,16 @@
 #include "common/tusb_common.h"
 #include "cdc_host.h"
 #include "cdc_rndis_host.h"
+
+#if 0  // TODO remove subtask related macros later
+// Sub Task
+#define OSAL_SUBTASK_BEGIN
+#define OSAL_SUBTASK_END                    return TUSB_ERROR_NONE;
+
+#define STASK_RETURN(_error)                return _error;
+#define STASK_INVOKE(_subtask, _status)     (_status) = _subtask
+#define STASK_ASSERT(_cond)                 TU_VERIFY(_cond, TUSB_ERROR_OSAL_TASK_FAILED)
+#endif
 
 //--------------------------------------------------------------------+
 // MACRO CONSTANT TYPEDEF

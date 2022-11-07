@@ -45,7 +45,7 @@
 #define STM32L4_SYNOPSYS
 #endif
 
-#if TUSB_OPT_DEVICE_ENABLED &&                                          \
+#if CFG_TUD_ENABLED &&                                          \
     ( (CFG_TUSB_MCU == OPT_MCU_STM32F1 && defined(STM32F1_SYNOPSYS)) || \
        CFG_TUSB_MCU == OPT_MCU_STM32F2                               || \
        CFG_TUSB_MCU == OPT_MCU_STM32F4                               || \
@@ -602,6 +602,13 @@ void dcd_disconnect(uint8_t rhport)
   dev->DCTL |= USB_OTG_DCTL_SDIS;
 }
 
+void dcd_sof_enable(uint8_t rhport, bool en)
+{
+  (void) rhport;
+  (void) en;
+
+  // TODO implement later
+}
 
 /*------------------------------------------------------------------*/
 /* DCD Endpoint port

@@ -28,28 +28,40 @@
 #include "bsp/board.h"
 #include "board.h"
 
+#ifdef BOARD_TUD_RHPORT
+  #define PORT_SUPPORT_DEVICE(_n)  (BOARD_TUD_RHPORT == _n)
+#else
+  #define PORT_SUPPORT_DEVICE(_n)  0
+#endif
+
+#ifdef BOARD_TUH_RHPORT
+  #define PORT_SUPPORT_HOST(_n)    (BOARD_TUH_RHPORT == _n)
+#else
+  #define PORT_SUPPORT_HOST(_n)    0
+#endif
+
 //--------------------------------------------------------------------+
 // USB Interrupt Handler
 //--------------------------------------------------------------------+
 void USB0_IRQHandler(void)
 {
-  #if CFG_TUSB_RHPORT0_MODE & OPT_MODE_HOST
-    tuh_int_handler(0);
+  #if PORT_SUPPORT_DEVICE(0)
+    tud_int_handler(0);
   #endif
 
-  #if CFG_TUSB_RHPORT0_MODE & OPT_MODE_DEVICE
-    tud_int_handler(0);
+  #if PORT_SUPPORT_HOST(0)
+    tuh_int_handler(0);
   #endif
 }
 
 void USB1_IRQHandler(void)
 {
-  #if CFG_TUSB_RHPORT1_MODE & OPT_MODE_HOST
-    tuh_int_handler(1);
+  #if PORT_SUPPORT_DEVICE(1)
+    tud_int_handler(1);
   #endif
 
-  #if CFG_TUSB_RHPORT1_MODE & OPT_MODE_DEVICE
-    tud_int_handler(1);
+  #if PORT_SUPPORT_HOST(1)
+    tuh_int_handler(1);
   #endif
 }
 
@@ -84,7 +96,8 @@ void board_init(void)
   SysTick_Config(SystemCoreClock / 1000);
 #elif CFG_TUSB_OS == OPT_OS_FREERTOS
   // If freeRTOS is used, IRQ priority is limit by max syscall ( smaller is higher )
-  //NVIC_SetPriority(USB0_IRQn, configLIBRARY_MAX_SYSCALL_INTERRUPT_PRIORITY );
+  NVIC_SetPriority(USB0_IRQn, configLIBRARY_MAX_SYSCALL_INTERRUPT_PRIORITY);
+  NVIC_SetPriority(USB1_IRQn, configLIBRARY_MAX_SYSCALL_INTERRUPT_PRIORITY);
 #endif
 
   Chip_GPIO_Init(LPC_GPIO_PORT);
@@ -102,11 +115,11 @@ void board_init(void)
   Chip_UART_TXEnable(UART_DEV);
 
   //------------- USB -------------//
-#if CFG_TUSB_RHPORT0_MODE
+#if PORT_SUPPORT_DEVICE(0) || PORT_SUPPORT_HOST(0)
   Chip_USB0_Init();
 #endif
 
-#if CFG_TUSB_RHPORT1_MODE
+#if PORT_SUPPORT_DEVICE(1) || PORT_SUPPORT_HOST(1)
   Chip_USB1_Init();
 #endif
 }

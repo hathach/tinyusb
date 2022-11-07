@@ -24,6 +24,10 @@
  * This file is part of the TinyUSB stack.
  */
 
+#include "tusb_option.h"
+
+#if CFG_TUD_ENABLED && (CFG_TUSB_MCU == OPT_MCU_VALENTYUSB_EPTRI)
+
 #ifndef DEBUG
 #define DEBUG 0
 #endif
@@ -31,10 +35,6 @@
 #ifndef LOG_USB
 #define LOG_USB 0
 #endif
-
-#include "tusb_option.h"
-
-#if TUSB_OPT_DEVICE_ENABLED && (CFG_TUSB_MCU == OPT_MCU_VALENTYUSB_EPTRI)
 
 #include "device/dcd.h"
 #include "dcd_eptri.h"
@@ -401,6 +401,13 @@ void dcd_disconnect(uint8_t rhport)
   usb_pullup_out_write(0);
 }
 
+void dcd_sof_enable(uint8_t rhport, bool en)
+{
+  (void) rhport;
+  (void) en;
+
+  // TODO implement later
+}
 
 //--------------------------------------------------------------------+
 // DCD Endpoint Port

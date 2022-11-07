@@ -39,12 +39,18 @@
   #include "freertos/queue.h"
   #include "freertos/task.h"
   #include "freertos/timers.h"
+
+  #define USBD_STACK_SIZE     4096
+
 #else
   #include "FreeRTOS.h"
   #include "semphr.h"
   #include "queue.h"
   #include "task.h"
   #include "timers.h"
+
+  // Increase stack size when debug log is enabled
+  #define USBD_STACK_SIZE    (3*configMINIMAL_STACK_SIZE/2) * (CFG_TUSB_DEBUG ? 2 : 1)
 #endif
 
 //--------------------------------------------------------------------+
@@ -66,13 +72,7 @@ enum  {
 StaticTimer_t blinky_tmdef;
 TimerHandle_t blinky_tm;
 
-// static task for usbd
-#if CFG_TUSB_DEBUG
-  #define USBD_STACK_SIZE     (3*configMINIMAL_STACK_SIZE)
-#else
-  #define USBD_STACK_SIZE     (3*configMINIMAL_STACK_SIZE/2)
-#endif
-
+// static task
 StackType_t  usb_device_stack[USBD_STACK_SIZE];
 StaticTask_t usb_device_taskdef;
 
@@ -125,15 +125,18 @@ void usb_device_task(void* param)
 {
   (void) param;
 
+  // init device stack on configured roothub port
   // This should be called after scheduler/kernel is started.
   // Otherwise it could cause kernel issue since USB IRQ handler does use RTOS queue API.
-  tusb_init();
+  tud_init(BOARD_TUD_RHPORT);
 
   // RTOS forever loop
   while (1)
   {
-    // tinyusb device task
+    // put this thread to waiting state until there is new events
     tud_task();
+
+    // following code only run if tud_task() process at least 1 event
   }
 }
 
@@ -291,7 +294,7 @@ void hid_task(void* param)
 // Invoked when sent REPORT successfully to host
 // Application can use this to send the next report
 // Note: For composite reports, report[0] is report ID
-void tud_hid_report_complete_cb(uint8_t instance, uint8_t const* report, uint8_t len)
+void tud_hid_report_complete_cb(uint8_t instance, uint8_t const* report, /*uint16_t*/ uint8_t len)
 {
   (void) instance;
   (void) len;

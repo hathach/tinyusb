@@ -26,7 +26,7 @@
 
 #include "tusb_option.h"
 
-#if TUSB_OPT_DEVICE_ENABLED && ( \
+#if CFG_TUD_ENABLED && ( \
       ( CFG_TUSB_MCU == OPT_MCU_MKL25ZXX ) || ( CFG_TUSB_MCU == OPT_MCU_K32L2BXX ) \
     )
 
@@ -326,6 +326,14 @@ void dcd_disconnect(uint8_t rhport)
   (void) rhport;
   KHCI->CTL      = 0;
   KHCI->CONTROL &= ~USB_CONTROL_DPPULLUPNONOTG_MASK;
+}
+
+void dcd_sof_enable(uint8_t rhport, bool en)
+{
+  (void) rhport;
+  (void) en;
+
+  // TODO implement later
 }
 
 //--------------------------------------------------------------------+

@@ -23,6 +23,7 @@ MCU_DIR = hw/mcu/ti/msp432e4
 
 SRC_C += \
 	src/portable/mentor/musb/dcd_musb.c \
+	src/portable/mentor/musb/hcd_musb.c \
 	$(MCU_DIR)/Source/system_msp432e401y.c
 
 INC += \

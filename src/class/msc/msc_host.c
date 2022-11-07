@@ -26,7 +26,7 @@
 
 #include "tusb_option.h"
 
-#if TUSB_OPT_HOST_ENABLED & CFG_TUH_MSC
+#if CFG_TUH_ENABLED && CFG_TUH_MSC
 
 #include "host/usbh.h"
 #include "host/usbh_classdriver.h"
@@ -325,19 +325,19 @@ bool msch_xfer_cb(uint8_t dev_addr, uint8_t ep_addr, xfer_result_t event, uint32
         p_msc->stage = MSC_STAGE_DATA;
 
         uint8_t const ep_data = (cbw->dir & TUSB_DIR_IN_MASK) ? p_msc->ep_in : p_msc->ep_out;
-        TU_ASSERT(usbh_edpt_xfer(dev_addr, ep_data, p_msc->buffer, cbw->total_bytes));
+        TU_ASSERT(usbh_edpt_xfer(dev_addr, ep_data, p_msc->buffer, (uint16_t) cbw->total_bytes));
       }else
       {
         // Status stage
         p_msc->stage = MSC_STAGE_STATUS;
-        TU_ASSERT(usbh_edpt_xfer(dev_addr, p_msc->ep_in, (uint8_t*) &p_msc->csw, sizeof(msc_csw_t)));
+        TU_ASSERT(usbh_edpt_xfer(dev_addr, p_msc->ep_in, (uint8_t*) &p_msc->csw, (uint16_t) sizeof(msc_csw_t)));
       }
     break;
 
     case MSC_STAGE_DATA:
       // Status stage
       p_msc->stage = MSC_STAGE_STATUS;
-      TU_ASSERT(usbh_edpt_xfer(dev_addr, p_msc->ep_in, (uint8_t*) &p_msc->csw, sizeof(msc_csw_t)));
+      TU_ASSERT(usbh_edpt_xfer(dev_addr, p_msc->ep_in, (uint8_t*) &p_msc->csw, (uint16_t) sizeof(msc_csw_t)));
     break;
 
     case MSC_STAGE_STATUS:
@@ -358,18 +358,19 @@ bool msch_xfer_cb(uint8_t dev_addr, uint8_t ep_addr, xfer_result_t event, uint32
 // MSC Enumeration
 //--------------------------------------------------------------------+
 
-static bool config_get_maxlun_complete (uint8_t dev_addr, tusb_control_request_t const * request, xfer_result_t result);
+static void config_get_maxlun_complete (tuh_xfer_t* xfer);
 static bool config_test_unit_ready_complete(uint8_t dev_addr, msc_cbw_t const* cbw, msc_csw_t const* csw);
 static bool config_request_sense_complete(uint8_t dev_addr, msc_cbw_t const* cbw, msc_csw_t const* csw);
 static bool config_read_capacity_complete(uint8_t dev_addr, msc_cbw_t const* cbw, msc_csw_t const* csw);
 
 bool msch_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_interface_t const *desc_itf, uint16_t max_len)
 {
+  (void) rhport;
   TU_VERIFY (MSC_SUBCLASS_SCSI == desc_itf->bInterfaceSubClass &&
              MSC_PROTOCOL_BOT  == desc_itf->bInterfaceProtocol);
 
   // msc driver length is fixed
-  uint16_t const drv_len = sizeof(tusb_desc_interface_t) + desc_itf->bNumEndpoints*sizeof(tusb_desc_endpoint_t);
+  uint16_t const drv_len = (uint16_t) (sizeof(tusb_desc_interface_t) + desc_itf->bNumEndpoints * sizeof(tusb_desc_endpoint_t));
   TU_ASSERT(drv_len <= max_len);
 
   msch_interface_t* p_msc = get_itf(dev_addr);
@@ -378,7 +379,7 @@ bool msch_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_interface_t const *de
   for(uint32_t i=0; i<2; i++)
   {
     TU_ASSERT(TUSB_DESC_ENDPOINT == ep_desc->bDescriptorType && TUSB_XFER_BULK == ep_desc->bmAttributes.xfer);
-    TU_ASSERT(usbh_edpt_open(rhport, dev_addr, ep_desc));
+    TU_ASSERT(tuh_edpt_open(dev_addr, ep_desc));
 
     if ( tu_edpt_dir(ep_desc->bEndpointAddress) == TUSB_DIR_IN )
     {
@@ -405,7 +406,7 @@ bool msch_set_config(uint8_t dev_addr, uint8_t itf_num)
 
   //------------- Get Max Lun -------------//
   TU_LOG2("MSC Get Max Lun\r\n");
-  tusb_control_request_t request =
+  tusb_control_request_t const request =
   {
     .bmRequestType_bit =
     {
@@ -418,27 +419,34 @@ bool msch_set_config(uint8_t dev_addr, uint8_t itf_num)
     .wIndex   = itf_num,
     .wLength  = 1
   };
-  TU_ASSERT(tuh_control_xfer(dev_addr, &request, &p_msc->max_lun, config_get_maxlun_complete));
+
+  tuh_xfer_t xfer =
+  {
+    .daddr       = dev_addr,
+    .ep_addr     = 0,
+    .setup       = &request,
+    .buffer      = &p_msc->max_lun,
+    .complete_cb = config_get_maxlun_complete,
+    .user_data    = 0
+  };
+  TU_ASSERT(tuh_control_xfer(&xfer));
 
   return true;
 }
 
-static bool config_get_maxlun_complete (uint8_t dev_addr, tusb_control_request_t const * request, xfer_result_t result)
+static void config_get_maxlun_complete (tuh_xfer_t* xfer)
 {
-  (void) request;
-
-  msch_interface_t* p_msc = get_itf(dev_addr);
+  uint8_t const daddr = xfer->daddr;
+  msch_interface_t* p_msc = get_itf(daddr);
 
   // STALL means zero
-  p_msc->max_lun = (XFER_RESULT_SUCCESS == result) ? _msch_buffer[0] : 0;
+  p_msc->max_lun = (XFER_RESULT_SUCCESS == xfer->result) ? _msch_buffer[0] : 0;
   p_msc->max_lun++; // MAX LUN is minus 1 by specs
 
   // TODO multiple LUN support
   TU_LOG2("SCSI Test Unit Ready\r\n");
   uint8_t const lun = 0;
-  tuh_msc_test_unit_ready(dev_addr, lun, config_test_unit_ready_complete);
-
-  return true;
+  tuh_msc_test_unit_ready(daddr, lun, config_test_unit_ready_complete);
 }
 
 static bool config_test_unit_ready_complete(uint8_t dev_addr, msc_cbw_t const* cbw, msc_csw_t const* csw)
@@ -476,7 +484,7 @@ static bool config_read_capacity_complete(uint8_t dev_addr, msc_cbw_t const* cbw
   // Capacity response field: Block size and Last LBA are both Big-Endian
   scsi_read_capacity10_resp_t* resp = (scsi_read_capacity10_resp_t*) ((void*) _msch_buffer);
   p_msc->capacity[cbw->lun].block_count = tu_ntohl(resp->last_lba) + 1;
-  p_msc->capacity[cbw->lun].block_size = tu_ntohl(resp->block_size);
+  p_msc->capacity[cbw->lun].block_size  = tu_ntohl(resp->block_size);
 
   // Mark enumeration is complete
   p_msc->mounted = true;

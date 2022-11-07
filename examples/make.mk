@@ -45,15 +45,12 @@ else
   SRC_C += $(subst $(TOP)/,,$(wildcard $(TOP)/$(FAMILY_PATH)/*.c))
 endif
 
-# Fetch submodules depended by family
-fetch_submodule_if_empty = $(if $(wildcard $(TOP)/$1/*),,$(info $(shell git -C $(TOP) submodule update --init $1)))
-ifdef DEPS_SUBMODULES
-  $(foreach s,$(DEPS_SUBMODULES),$(call fetch_submodule_if_empty,$(s)))
-endif
 
 #-------------- Cross Compiler  ------------
 # Can be set by board, default to ARM GCC
 CROSS_COMPILE ?= arm-none-eabi-
+# Allow for -Os to be changed by board makefiles in case -Os is not allowed
+CFLAGS_OPTIMIZED ?= -Os
 
 CC = $(CROSS_COMPILE)gcc
 CXX = $(CROSS_COMPILE)g++
@@ -88,13 +85,13 @@ CFLAGS += \
   -ffunction-sections \
   -fsingle-precision-constant \
   -fno-strict-aliasing \
-  -Wdouble-promotion \
-  -Wstrict-prototypes \
-  -Wstrict-overflow \
   -Wall \
   -Wextra \
   -Werror \
   -Wfatal-errors \
+  -Wdouble-promotion \
+  -Wstrict-prototypes \
+  -Wstrict-overflow \
   -Werror-implicit-function-declaration \
   -Wfloat-equal \
   -Wundef \
@@ -106,13 +103,19 @@ CFLAGS += \
   -Wcast-align \
   -Wcast-function-type \
   -Wcast-qual \
-  -Wnull-dereference
+  -Wnull-dereference \
+  -Wuninitialized \
+  -Wunused \
+  -Wredundant-decls
 
+# conversion is too strict for most mcu driver, may be disable sign/int/arith-conversion
+#  -Wconversion
+  
 # Debugging/Optimization
 ifeq ($(DEBUG), 1)
   CFLAGS += -Og
 else
-  CFLAGS += -Os
+  CFLAGS += $(CFLAGS_OPTIMIZED)
 endif
 
 # Log level is mapped to TUSB DEBUG option

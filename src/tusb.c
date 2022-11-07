@@ -26,23 +26,26 @@
 
 #include "tusb_option.h"
 
-#if TUSB_OPT_HOST_ENABLED || TUSB_OPT_DEVICE_ENABLED
+#if CFG_TUH_ENABLED || CFG_TUD_ENABLED
 
 #include "tusb.h"
+#include "common/tusb_private.h"
 
 // TODO clean up
-#if TUSB_OPT_DEVICE_ENABLED
+#if CFG_TUD_ENABLED
 #include "device/usbd_pvt.h"
 #endif
 
 bool tusb_init(void)
 {
-#if TUSB_OPT_DEVICE_ENABLED
-  TU_ASSERT ( tud_init(TUD_OPT_RHPORT) ); // init device stack
+#if CFG_TUD_ENABLED && defined(TUD_OPT_RHPORT)
+  // init device stack CFG_TUSB_RHPORTx_MODE must be defined
+  TU_ASSERT ( tud_init(TUD_OPT_RHPORT) );
 #endif
 
-#if TUSB_OPT_HOST_ENABLED
-  TU_ASSERT( tuh_init(TUH_OPT_RHPORT) ); // init host stack
+#if CFG_TUH_ENABLED && defined(TUH_OPT_RHPORT)
+  // init host stack CFG_TUSB_RHPORTx_MODE must be defined
+  TU_ASSERT( tuh_init(TUH_OPT_RHPORT) );
 #endif
 
   return true;
@@ -52,11 +55,11 @@ bool tusb_inited(void)
 {
   bool ret = false;
 
-#if TUSB_OPT_DEVICE_ENABLED
+#if CFG_TUD_ENABLED
   ret = ret || tud_inited();
 #endif
 
-#if TUSB_OPT_HOST_ENABLED
+#if CFG_TUH_ENABLED
   ret = ret || tuh_inited();
 #endif
 
@@ -66,6 +69,52 @@ bool tusb_inited(void)
 //--------------------------------------------------------------------+
 // Internal Helper for both Host and Device stack
 //--------------------------------------------------------------------+
+
+bool tu_edpt_claim(tu_edpt_state_t* ep_state, osal_mutex_t mutex)
+{
+  (void) mutex;
+
+#if TUSB_OPT_MUTEX
+  // pre-check to help reducing mutex lock
+  TU_VERIFY((ep_state->busy == 0) && (ep_state->claimed == 0));
+  osal_mutex_lock(mutex, OSAL_TIMEOUT_WAIT_FOREVER);
+#endif
+
+  // can only claim the endpoint if it is not busy and not claimed yet.
+  bool const available = (ep_state->busy == 0) && (ep_state->claimed == 0);
+  if (available)
+  {
+    ep_state->claimed = 1;
+  }
+
+#if TUSB_OPT_MUTEX
+  osal_mutex_unlock(mutex);
+#endif
+
+  return available;
+}
+
+bool tu_edpt_release(tu_edpt_state_t* ep_state, osal_mutex_t mutex)
+{
+  (void) mutex;
+
+#if TUSB_OPT_MUTEX
+  osal_mutex_lock(mutex, OSAL_TIMEOUT_WAIT_FOREVER);
+#endif
+
+  // can only release the endpoint if it is claimed and not busy
+  bool const ret = (ep_state->claimed == 1) && (ep_state->busy == 0);
+  if (ret)
+  {
+    ep_state->claimed = 0;
+  }
+
+#if TUSB_OPT_MUTEX
+  osal_mutex_unlock(mutex);
+#endif
+
+  return ret;
+}
 
 bool tu_edpt_validate(tusb_desc_endpoint_t const * desc_ep, tusb_speed_t speed)
 {
@@ -161,7 +210,27 @@ uint16_t tu_desc_get_interface_total_len(tusb_desc_interface_t const* desc_itf, 
 #if CFG_TUSB_DEBUG
 #include <ctype.h>
 
-char const* const tusb_strerr[TUSB_ERROR_COUNT] = { ERROR_TABLE(ERROR_STRING) };
+#if CFG_TUSB_DEBUG >= 2
+
+char const* const tu_str_speed[] = { "Full", "Low", "High" };
+char const* const tu_str_std_request[] =
+{
+  "Get Status"        ,
+  "Clear Feature"     ,
+  "Reserved"          ,
+  "Set Feature"       ,
+  "Reserved"          ,
+  "Set Address"       ,
+  "Get Descriptor"    ,
+  "Set Descriptor"    ,
+  "Get Configuration" ,
+  "Set Configuration" ,
+  "Get Interface"     ,
+  "Set Interface"     ,
+  "Synch Frame"
+};
+
+#endif
 
 static void dump_str_line(uint8_t const* buf, uint16_t count)
 {
@@ -226,7 +295,7 @@ void tu_print_mem(void const *buf, uint32_t count, uint8_t indent)
 
   // fill up last row to 16 for printing ascii
   const uint32_t remain = count%16;
-  uint8_t nback = (remain ? remain : 16);
+  uint8_t nback = (uint8_t)(remain ? remain : 16);
 
   if ( remain )
   {
