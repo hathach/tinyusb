@@ -109,10 +109,17 @@
 #define STM32F1_FSDEV
 #endif
 
+#if defined(STM32L412xx) || defined(STM32L422xx) || \
+    defined(STM32L432xx) || defined(STM32L433xx) || \
+    defined(STM32L442xx) || defined(STM32L443xx) || \
+    defined(STM32L452xx) || defined(STM32L462xx)
+#define STM32L4_FSDEV
+#endif
+
 #if CFG_TUD_ENABLED && \
       ( TU_CHECK_MCU(OPT_MCU_STM32F0, OPT_MCU_STM32F3, OPT_MCU_STM32L0, OPT_MCU_STM32L1, OPT_MCU_STM32G4, OPT_MCU_STM32WB) || \
         (TU_CHECK_MCU(OPT_MCU_STM32F1) && defined(STM32F1_FSDEV)) || \
-        (TU_CHECK_MCU(OPT_MCU_STM32L4) && !defined(DCD_ATTR_DWC2_STM32)) \
+        (TU_CHECK_MCU(OPT_MCU_STM32L4) && defined(STM32L4_FSDEV)) \
       )
 
 // In order to reduce the dependance on HAL, we undefine this.
