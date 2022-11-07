@@ -111,7 +111,8 @@
 
 #if TUSB_OPT_DEVICE_ENABLED && \
       ( TU_CHECK_MCU(OPT_MCU_STM32F0, OPT_MCU_STM32F3, OPT_MCU_STM32L0, OPT_MCU_STM32L1, OPT_MCU_STM32G4) || \
-        (TU_CHECK_MCU(OPT_MCU_STM32F1) && defined(STM32F1_FSDEV)) \
+        (TU_CHECK_MCU(OPT_MCU_STM32F1) && defined(STM32F1_FSDEV)) || \
+        (TU_CHECK_MCU(OPT_MCU_STM32L4) && !defined(DCD_ATTR_DWC2_STM32)) \
       )
 
 // In order to reduce the dependance on HAL, we undefine this.
@@ -294,7 +295,8 @@ void dcd_int_enable (uint8_t rhport)
   // Member here forces write to RAM before allowing ISR to execute
   __DSB();
   __ISB();
-#if CFG_TUSB_MCU == OPT_MCU_STM32F0 || CFG_TUSB_MCU == OPT_MCU_STM32L0
+#if CFG_TUSB_MCU == OPT_MCU_STM32F0 || CFG_TUSB_MCU == OPT_MCU_STM32L0 || \
+    CFG_TUSB_MCU == OPT_MCU_STM32L4
   NVIC_EnableIRQ(USB_IRQn);
 
 #elif CFG_TUSB_MCU == OPT_MCU_STM32L1
@@ -338,7 +340,8 @@ void dcd_int_disable(uint8_t rhport)
 {
   (void)rhport;
 
-#if CFG_TUSB_MCU == OPT_MCU_STM32F0 || CFG_TUSB_MCU == OPT_MCU_STM32L0
+#if CFG_TUSB_MCU == OPT_MCU_STM32F0 || CFG_TUSB_MCU == OPT_MCU_STM32L0 || \
+    CFG_TUSB_MCU == OPT_MCU_STM32L4
   NVIC_DisableIRQ(USB_IRQn);
 #elif CFG_TUSB_MCU == OPT_MCU_STM32L1
   NVIC_DisableIRQ(USB_LP_IRQn);
