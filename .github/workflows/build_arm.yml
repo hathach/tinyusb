@@ -86,10 +86,12 @@ jobs:
          repository: hathach/linkermap
          path: linkermap
 
-    - name: Checkout pico-sdk for rp2040
+    - name: Fetch pico-sdk for rp2040
       if: matrix.family == 'rp2040'
       run: |
-        git clone --depth 1 -b develop https://github.com/raspberrypi/pico-sdk ~/pico-sdk
+        wget https://github.com/raspberrypi/pico-sdk/archive/refs/tags/1.4.0.tar.gz
+        mkdir ~/pico-sdk
+        tar xfz 1.4.0.tar.gz --strip-components=1 -C ~/pico-sdk
         echo >> $GITHUB_ENV PICO_SDK_PATH=~/pico-sdk
 
     - name: Get Dependencies
