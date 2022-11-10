@@ -15,7 +15,7 @@ LIBS_GCC ?=  -lm
 LIBS += $(LIBS_GCC)
 
 ifneq ($(BOARD), spresense)
-LIBS += -lc -Wl,-Bstatic -lc++ -lc++abi -Wl,-Bdynamic
+LIBS += -lc -Wl,-Bstatic -lc++ -Wl,-Bdynamic
 endif
 
 # TinyUSB Stack source

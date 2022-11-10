@@ -1,0 +1,33 @@
+name: Build Fuzzer
+
+on:
+  pull_request:
+  push:
+  release:
+    types:
+      - created
+
+jobs:
+  # ---------------------------------------
+  # Build all no-family (orphaned) boards
+  # ---------------------------------------
+  build-board:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        fuzz_harness:
+        - "device/cdc"
+        - "device/msc"
+
+    steps:
+    - name: Setup Python
+      uses: actions/setup-python@v3
+
+    - name: Checkout TinyUSB
+      uses: actions/checkout@v3
+
+    - name: Fetch deps
+      run: sudo apt update && sudo apt install libc++abi-dev libc++-dev
+    - name: Build Fuzzer
+      run: make CC=clang CXX=clang++ -C fuzz/${{ matrix.fuzz_harness }}
