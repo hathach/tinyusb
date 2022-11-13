@@ -592,13 +592,13 @@ uint32_t tuh_midi_stream_write (uint8_t dev_addr, uint8_t cable_num, uint8_t con
       else if ( (msg >= 0x8 && msg <= 0xB) || msg == 0xE )
       {
         // Channel Voice Messages
-        stream->buffer[0] = (cable_num << 4) | msg;
+        stream->buffer[0] = (uint8_t) ((cable_num << 4) | msg);
         stream->total = 4;
       }
       else if ( msg == 0xC || msg == 0xD)
       {
         // Channel Voice Messages, two-byte variants (Program Change and Channel Pressure)
-        stream->buffer[0] = (cable_num << 4) | msg;
+        stream->buffer[0] = (uint8_t) ((cable_num << 4) | msg);
         stream->total = 3;
       }
       else if ( msg == 0xf )
@@ -628,7 +628,7 @@ uint32_t tuh_midi_stream_write (uint8_t dev_addr, uint8_t cable_num, uint8_t con
       else
       {
         // Pack individual bytes if we don't support packing them into words.
-        stream->buffer[0] = cable_num << 4 | 0xf;
+        stream->buffer[0] = (uint8_t) (cable_num << 4 | 0xf);
         stream->buffer[2] = 0;
         stream->buffer[3] = 0;
         stream->index = 2;
@@ -748,7 +748,7 @@ uint32_t tuh_midi_stream_read (uint8_t dev_addr, uint8_t *p_cable_num, uint8_t *
     {
       // ignore the CIN field; too many devices out there encode this wrong
       uint8_t status = p_midi_host->stream_read.buffer[1];
-      uint16_t cable_mask = 1 << *p_cable_num;
+      uint16_t cable_mask = (uint16_t) (1 << *p_cable_num);
       if (status <= MIDI_MAX_DATA_VAL || status == MIDI_STATUS_SYSEX_START)
       {
         if (status == MIDI_STATUS_SYSEX_START)
