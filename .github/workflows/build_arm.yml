@@ -163,11 +163,11 @@ jobs:
   # - pico + pico-probe connected via USB
   # - pico-probe is /dev/ttyACM0
   # ---------------------------------------
-  hw-test:
+  hw-pi4-test:
     # Limit the run to only hathach due to limited resource on RPI4
     if: github.repository_owner == 'hathach'
     needs: build-arm
-    runs-on: [self-hosted, Linux, ARM64]
+    runs-on: [self-hosted, Linux, ARM64, rp2040]
 
     steps:
     - name: Clean workspace
