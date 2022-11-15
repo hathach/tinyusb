@@ -37,13 +37,13 @@ jobs:
 
     - name: Create flash.sh
       run: |
-        echo > flash.sh "echo halt > flash.jlink"
-        echo >> flash.sh "echo r >> flash.jlink"
-        echo >> flash.sh "echo loadfile stm32l412nucleo/$1 >> flash.jlink"
-        echo >> flash.sh "echo r >> flash.jlink"
-        echo >> flash.sh "echo go >> flash.jlink"
-        echo >> flash.sh "echo exit >> flash.jlink"
-        echo >> flash.sh "JLinkExe -device stm32l412kb -if swd -JTAGConf -1,-1 -speed auto -CommandFile flash.jlink"
+        echo > flash.sh 'echo halt > flash.jlink'
+        echo >> flash.sh 'echo r >> flash.jlink'
+        echo >> flash.sh 'echo loadfile stm32l412nucleo/$1 >> flash.jlink'
+        echo >> flash.sh 'echo r >> flash.jlink'
+        echo >> flash.sh 'echo go >> flash.jlink'
+        echo >> flash.sh 'echo exit >> flash.jlink'
+        echo >> flash.sh 'JLinkExe -device stm32l412kb -if swd -JTAGConf -1,-1 -speed auto -CommandFile flash.jlink'
         chmod +x flash.sh
 
     - name: Test cdc_dual_ports
