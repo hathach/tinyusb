@@ -13,6 +13,7 @@ on:
 jobs:
   stm32l412nucleo-test:
     runs-on: [self-hosted, Linux, X64, hifiphile]
+
     steps:
     - name: Clean workspace
       run: |
@@ -36,15 +37,14 @@ jobs:
 
     - name: Create flash.sh
       run: |
-        touch flash.sh
-        chmod +x flash.sh
         echo > flash.sh "echo halt > flash.jlink"
-        echo > flash.sh "echo r >> flash.jlink"
-        echo > flash.sh "echo loadfile $1 >> flash.jlink"
-        echo > flash.sh "echo r >> flash.jlink"
-        echo > flash.sh "echo go >> flash.jlink"
-        echo > flash.sh "echo exit >> flash.jlink"
-        echo > flash.sh "JLinkExe -device stm32l412kb -if swd -JTAGConf -1,-1 -speed auto -CommandFile flash.jlink"
+        echo >> flash.sh "echo r >> flash.jlink"
+        echo >> flash.sh "echo loadfile $1 >> flash.jlink"
+        echo >> flash.sh "echo r >> flash.jlink"
+        echo >> flash.sh "echo go >> flash.jlink"
+        echo >> flash.sh "echo exit >> flash.jlink"
+        echo >> flash.sh "JLinkExe -device stm32l412kb -if swd -JTAGConf -1,-1 -speed auto -CommandFile flash.jlink"
+        chmod +x flash.sh
 
     - name: Test cdc_dual_ports
       run: |
