@@ -53,7 +53,9 @@ jobs:
         test -e /dev/ttyACM1 && echo "ttyACM1 exists"
         test -e /dev/ttyACM2 && echo "ttyACM2 exists"
 
+      # Debian does not auto mount usb drive. skip this test for now
     - name: Test cdc_msc
+      if: false
       run: |
         ./flash.sh cdc_msc.elf
         readme='/media/pi/TinyUSB MSC/README.TXT'
