@@ -8,7 +8,7 @@ on:
 
 # Hardware in the loop (HIL)
 # Current self-hosted instance is running on an EPYC 7232 server hosted by HiFiPhile user
-# - STM32L412 Nucleo with on-board jlink (with 1 ttyACM)
+# - STM32L412 Nucleo with on-board jlink as ttyACM0
 
 jobs:
   stm32l412nucleo-test:
@@ -39,7 +39,7 @@ jobs:
       run: |
         echo > flash.sh "echo halt > flash.jlink"
         echo >> flash.sh "echo r >> flash.jlink"
-        echo >> flash.sh "echo loadfile $1 >> flash.jlink"
+        echo >> flash.sh "echo loadfile stm32l412nucleo/$1 >> flash.jlink"
         echo >> flash.sh "echo r >> flash.jlink"
         echo >> flash.sh "echo go >> flash.jlink"
         echo >> flash.sh "echo exit >> flash.jlink"
