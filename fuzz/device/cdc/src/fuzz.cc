@@ -142,33 +142,33 @@ void cdc_task(FuzzedDataProvider *provider) {
 
     // TODO: Fuzz interface number
     (void)tud_cdc_n_write(0, buffer.data(), buffer.size());
-    break;
-  }
-  case kCdcNWriteChar:
-    // TODO: Fuzz interface number
-    (void)tud_cdc_n_write_char(0, provider->ConsumeIntegral<char>());
-    break;
-  case kCdcNWriteStr: {
-    std::string str = provider->ConsumeRandomLengthString(kMaxBufferSize);
-    // TODO: Fuzz interface number
-    (void)tud_cdc_n_write_str(0, str.c_str());
-    break;
-  }
-  case kCdcNWriteFlush:
-    // TODO: Fuzz interface number
-    (void)tud_cdc_n_write_flush(0);
-    break;
-  case kCdcNWriteAvailable:
-    // TODO: Fuzz interface number
-    (void)tud_cdc_n_write_available(0);
-    break;
-  case kCdcNWriteClear:
-    // TODO: Fuzz interface number
-    (void)tud_cdc_n_write_clear(0);
-    break;
-  case kMaxValue:
-    // Noop.
-    break;
-  }
+  } break;
+  
+case kCdcNWriteChar:
+  // TODO: Fuzz interface number
+  (void)tud_cdc_n_write_char(0, provider->ConsumeIntegral<char>());
+  break;
+case kCdcNWriteStr: {
+  std::string str = provider->ConsumeRandomLengthString(kMaxBufferSize);
+  // TODO: Fuzz interface number
+  (void)tud_cdc_n_write_str(0, str.c_str());
+  break;
+}
+case kCdcNWriteFlush:
+  // TODO: Fuzz interface number
+  (void)tud_cdc_n_write_flush(0);
+  break;
+case kCdcNWriteAvailable:
+  // TODO: Fuzz interface number
+  (void)tud_cdc_n_write_available(0);
+  break;
+case kCdcNWriteClear:
+  // TODO: Fuzz interface number
+  (void)tud_cdc_n_write_clear(0);
+  break;
+case kMaxValue:
+  // Noop.
+  break;
+}
 }
 }

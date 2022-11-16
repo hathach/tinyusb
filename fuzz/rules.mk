@@ -43,6 +43,7 @@ SRC_CXX += \
 	fuzz/dcd_fuzz.cc \
 	fuzz/fuzz.cc \
 	fuzz/msc_fuzz.cc \
+	fuzz/net_fuzz.cc \
 	fuzz/usbd_fuzz.cc
 
 # TinyUSB stack include

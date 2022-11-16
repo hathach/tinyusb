@@ -172,7 +172,13 @@ bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t *buffer,
     std::copy(temp.begin(), temp.end(), buffer);
   }
   // Ignore output data as it's not useful for fuzzing without a more
-  // complex fuzzed backend.
+  // complex fuzzed backend. But we need to make sure it's not
+  // optimised out.
+  volatile uint8_t *dont_optimise0 = buffer;
+  volatile uint16_t dont_optimise1 = total_bytes;
+  UNUSED(dont_optimise0);
+  UNUSED(dont_optimise1);
+
 
   return _fuzz_data_provider->ConsumeBool();
 }

@@ -43,6 +43,8 @@ INC   += $(TOP)/$(FAMILY_PATH)
 CFLAGS += \
   -ggdb \
   -fsanitize=fuzzer \
+  -fsanitize=address \
+  -fsanitize=undefined \
   -fdata-sections \
   -ffunction-sections \
   -fno-strict-aliasing \
@@ -66,7 +68,8 @@ CFLAGS += \
   -Wnull-dereference \
   -Wuninitialized \
   -Wunused \
-  -Wredundant-decls
+  -Wredundant-decls \
+  -O1
 
 CFLAGS += \
   -DOPT_MCU_FUZZ=1 \
