@@ -43,7 +43,8 @@ jobs:
         echo >> flash.sh 'echo r >> flash.jlink'
         echo >> flash.sh 'echo go >> flash.jlink'
         echo >> flash.sh 'echo exit >> flash.jlink'
-        echo >> flash.sh 'JLinkExe -device stm32l412kb -if swd -JTAGConf -1,-1 -speed auto -CommandFile flash.jlink'
+        echo >> flash.sh 'cmdout=$(JLinkExe -device stm32l412kb -if swd -JTAGConf -1,-1 -speed auto -NoGui 1 -ExitOnError 1 -CommandFile flash.jlink)'
+        echo >> flash.sh 'if (( $? )) ; then echo $cmdout ; fi'
         chmod +x flash.sh
 
     - name: Test cdc_dual_ports
