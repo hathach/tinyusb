@@ -73,7 +73,11 @@ struct ecm_notify_struct
 static const struct ecm_notify_struct ecm_notify_nc =
 {
   .header = {
+#if defined(__CCRX__)
+    .bmRequestType = { 0xA1 }, /* Note: CCRX needs the braces over this struct member */
+#else
     .bmRequestType = 0xA1,
+#endif
     .bRequest = 0 /* NETWORK_CONNECTION aka NetworkConnection */,
     .wValue = 1 /* Connected */,
     .wLength = 0,
@@ -83,7 +87,11 @@ static const struct ecm_notify_struct ecm_notify_nc =
 static const struct ecm_notify_struct ecm_notify_csc =
 {
   .header = {
+#if defined(__CCRX__)
+    .bmRequestType = { 0xA1 }, /* Note: CCRX needs the braces over this struct member */
+#else
     .bmRequestType = 0xA1,
+#endif
     .bRequest = 0x2A /* CONNECTION_SPEED_CHANGE aka ConnectionSpeedChange */,
     .wLength = 8,
   },
@@ -361,11 +369,11 @@ static void handle_incoming_packet(uint32_t len)
   {
     rndis_data_packet_t *r = (rndis_data_packet_t *) ((void*) pnt);
     if (len >= sizeof(rndis_data_packet_t))
-      if ( (r->MessageType == REMOTE_NDIS_PACKET_MSG) && (r->MessageLength <= len))
-        if ( (r->DataOffset + offsetof(rndis_data_packet_t, DataOffset) + r->DataLength) <= len)
+      if ( (r->MessageType == PP_RNDIS_HTONL(REMOTE_NDIS_PACKET_MSG)) && (tu_le32toh(r->MessageLength) <= len))
+        if ( (tu_le32toh(r->DataOffset) + offsetof(rndis_data_packet_t, DataOffset) + tu_le32toh(r->DataLength)) <= len)
         {
-          pnt = &received[r->DataOffset + offsetof(rndis_data_packet_t, DataOffset)];
-          size = r->DataLength;
+          pnt = &received[tu_le32toh(r->DataOffset) + offsetof(rndis_data_packet_t, DataOffset)];
+          size = tu_le32toh(r->DataLength);
         }
   }
 
@@ -435,10 +443,10 @@ void tud_network_xmit(void *ref, uint16_t arg)
   {
     rndis_data_packet_t *hdr = (rndis_data_packet_t *) ((void*) transmitted);
     memset(hdr, 0, sizeof(rndis_data_packet_t));
-    hdr->MessageType = REMOTE_NDIS_PACKET_MSG;
-    hdr->MessageLength = len;
-    hdr->DataOffset = sizeof(rndis_data_packet_t) - offsetof(rndis_data_packet_t, DataOffset);
-    hdr->DataLength = len - sizeof(rndis_data_packet_t);
+    hdr->MessageType = PP_RNDIS_HTONL(REMOTE_NDIS_PACKET_MSG);
+    hdr->MessageLength = tu_le32toh(len);
+    hdr->DataOffset = tu_le32toh(sizeof(rndis_data_packet_t) - offsetof(rndis_data_packet_t, DataOffset));
+    hdr->DataLength = tu_le32toh(len - sizeof(rndis_data_packet_t));
   }
 
   do_in_xfer(transmitted, len);

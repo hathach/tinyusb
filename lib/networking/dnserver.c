@@ -34,7 +34,7 @@
 static struct udp_pcb *pcb = NULL;
 dns_query_proc_t query_proc = NULL;
 
-#pragma pack(push, 1)
+PACK_STRUCT_BEGIN
 typedef struct
 {
 #if BYTE_ORDER == LITTLE_ENDIAN
@@ -74,7 +74,7 @@ typedef struct dns_answer
 	uint16_t len;
 	uint32_t addr;
 } dns_answer_t;
-#pragma pack(pop)
+PACK_STRUCT_END
 
 typedef struct dns_query
 {
