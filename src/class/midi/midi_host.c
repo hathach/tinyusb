@@ -490,7 +490,7 @@ bool midih_set_config(uint8_t dev_addr, uint8_t itf_num)
   p_midi_host->configured = true;
 
   // TODO I don't think there are any special config things to do for MIDI
-
+  usbh_driver_set_config_complete(dev_addr, p_midi_host->itf_num);
   return true;
 }
 
