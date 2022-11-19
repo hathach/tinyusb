@@ -41,7 +41,7 @@
 //------------- embedded-cli -------------//
 #define CLI_BUFFER_SIZE     512
 #define CLI_RX_BUFFER_SIZE  16
-#define CLI_CMD_BUFFER_SIZE 32
+#define CLI_CMD_BUFFER_SIZE 64
 #define CLI_HISTORY_SIZE    32
 #define CLI_BINDING_COUNT   8
 
@@ -58,22 +58,7 @@ static scsi_inquiry_resp_t inquiry_resp;
 //
 //--------------------------------------------------------------------+
 
-void cli_cmd_cd(EmbeddedCli *cli, char *args, void *context);
-void cli_cmd_cat(EmbeddedCli *cli, char *args, void *context);
-void cli_cmd_ls(EmbeddedCli *cli, char *args, void *context);
-void cli_cmd_mkdir(EmbeddedCli *cli, char *args, void *context);
-
-void cli_write_char(EmbeddedCli *cli, char c)
-{
-  (void) cli;
-  putchar((int) c);
-}
-
-void cli_cmd_unknown(EmbeddedCli *cli, CliCommand *command)
-{
-  (void) cli;
-  printf("%s: command not found\r\n", command->name);
-}
+bool cli_init(void);
 
 bool msc_app_init(void)
 {
@@ -81,53 +66,7 @@ bool msc_app_init(void)
 
   // disable stdout buffered for echoing typing command
   setbuf(stdout, NULL);
-
-  EmbeddedCliConfig *config = embeddedCliDefaultConfig();
-  config->cliBuffer         = cli_buffer;
-  config->cliBufferSize     = CLI_BUFFER_SIZE;
-  config->rxBufferSize      = CLI_RX_BUFFER_SIZE;
-  config->cmdBufferSize     = CLI_CMD_BUFFER_SIZE;
-  config->historyBufferSize = CLI_HISTORY_SIZE;
-  config->maxBindingCount   = CLI_BINDING_COUNT;
-
-  TU_ASSERT(embeddedCliRequiredSize(config) <= CLI_BUFFER_SIZE);
-
-  _cli = embeddedCliNew(config);
-  TU_ASSERT(_cli != NULL);
-
-  _cli->writeChar = cli_write_char;
-
-  embeddedCliAddBinding(_cli, (CliCommandBinding) {
-    "cat",
-    "Usage: cat [FILE]...\r\n\tConcatenate FILE(s) to standard output..",
-    true,
-    NULL,
-    cli_cmd_cat
-  });
-
-  embeddedCliAddBinding(_cli, (CliCommandBinding) {
-    "cd",
-    "Usage: cd [DIR]...\r\n\tChange the current directory to DIR.",
-    true,
-    NULL,
-    cli_cmd_cd
-  });
-
-  embeddedCliAddBinding(_cli, (CliCommandBinding) {
-    "ls",
-    "Usage: ls [DIR]...\r\n\tList information about the FILEs (the current directory by default).",
-    true,
-    NULL,
-    cli_cmd_ls
-  });
-
-  embeddedCliAddBinding(_cli, (CliCommandBinding) {
-    "mkdir",
-    "Usage: mkdir [DIR]...\r\n\tCreate the DIRECTORY(ies), if they do not already exist..",
-    true,
-    NULL,
-    cli_cmd_mkdir
-  });
+  cli_init();
 
   return true;
 }
@@ -330,6 +269,84 @@ DRESULT disk_ioctl (
 // CLI Commands
 //--------------------------------------------------------------------+
 
+void cli_cmd_cd(EmbeddedCli *cli, char *args, void *context);
+void cli_cmd_cat(EmbeddedCli *cli, char *args, void *context);
+void cli_cmd_ls(EmbeddedCli *cli, char *args, void *context);
+void cli_cmd_mkdir(EmbeddedCli *cli, char *args, void *context);
+void cli_cmd_mv(EmbeddedCli *cli, char *args, void *context);
+
+void cli_write_char(EmbeddedCli *cli, char c)
+{
+  (void) cli;
+  putchar((int) c);
+}
+
+void cli_cmd_unknown(EmbeddedCli *cli, CliCommand *command)
+{
+  (void) cli;
+  printf("%s: command not found\r\n", command->name);
+}
+
+bool cli_init(void)
+{
+  EmbeddedCliConfig *config = embeddedCliDefaultConfig();
+  config->cliBuffer         = cli_buffer;
+  config->cliBufferSize     = CLI_BUFFER_SIZE;
+  config->rxBufferSize      = CLI_RX_BUFFER_SIZE;
+  config->cmdBufferSize     = CLI_CMD_BUFFER_SIZE;
+  config->historyBufferSize = CLI_HISTORY_SIZE;
+  config->maxBindingCount   = CLI_BINDING_COUNT;
+
+  TU_ASSERT(embeddedCliRequiredSize(config) <= CLI_BUFFER_SIZE);
+
+  _cli = embeddedCliNew(config);
+  TU_ASSERT(_cli != NULL);
+
+  _cli->writeChar = cli_write_char;
+
+  embeddedCliAddBinding(_cli, (CliCommandBinding) {
+    "cat",
+    "Usage: cat [FILE]...\r\n\tConcatenate FILE(s) to standard output..",
+    true,
+    NULL,
+    cli_cmd_cat
+  });
+
+  embeddedCliAddBinding(_cli, (CliCommandBinding) {
+    "cd",
+    "Usage: cd [DIR]...\r\n\tChange the current directory to DIR.",
+    true,
+    NULL,
+    cli_cmd_cd
+  });
+
+  embeddedCliAddBinding(_cli, (CliCommandBinding) {
+    "ls",
+    "Usage: ls [DIR]...\r\n\tList information about the FILEs (the current directory by default).",
+    true,
+    NULL,
+    cli_cmd_ls
+  });
+
+  embeddedCliAddBinding(_cli, (CliCommandBinding) {
+    "mkdir",
+    "Usage: mkdir DIR...\r\n\tCreate the DIRECTORY(ies), if they do not already exist..",
+    true,
+    NULL,
+    cli_cmd_mkdir
+  });
+
+  embeddedCliAddBinding(_cli, (CliCommandBinding) {
+    "mv",
+    "Usage: mv SOURCE DEST...\r\n\tRename SOURCE to DEST",
+    true,
+    NULL,
+    cli_cmd_mv
+  });
+
+  return true;
+}
+
 void cli_cmd_cat(EmbeddedCli *cli, char *args, void *context)
 {
   (void) cli; (void) context;
@@ -433,7 +450,14 @@ void cli_cmd_ls(EmbeddedCli *cli, char *args, void *context)
         printf("/%s\r\n", fno.fname);
       }else
       {
-        printf("%-40s%lu KB\r\n", fno.fname, fno.fsize / 1000);
+        printf("%-40s", fno.fname);
+        if (fno.fsize < 1024)
+        {
+          printf("%lu B\r\n", fno.fsize);
+        }else
+        {
+          printf("%lu KB\r\n", fno.fsize / 1024);
+        }
       }
     }
   }
@@ -460,6 +484,28 @@ void cli_cmd_mkdir(EmbeddedCli *cli, char *args, void *context)
   if ( FR_OK != f_mkdir(dpath) )
   {
     printf("%s: cannot create this directory\r\n", dpath);
+    return;
+  }
+}
+
+void cli_cmd_mv(EmbeddedCli *cli, char *args, void *context)
+{
+  (void) cli; (void) context;
+
+  uint16_t argc = embeddedCliGetTokenCount(args);
+  if ( argc != 2 )
+  {
+    printf("invalid arguments\r\n");
+    return;
+  }
+
+  // default is current directory
+  const char* src = embeddedCliGetToken(args, 1);
+  const char* dst = embeddedCliGetToken(args, 2);
+
+  if ( FR_OK != f_rename(src, dst) )
+  {
+    printf("cannot mv %s to %s\r\n", src, dst);
     return;
   }
 }
