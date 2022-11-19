@@ -33,7 +33,11 @@
 //--------------------------------------------------------------------+
 // Forward USB interrupt events to TinyUSB IRQ Handler
 //--------------------------------------------------------------------+
+#if defined(USB_OTG_FS)
 void OTG_FS_IRQHandler(void)
+#else
+void USB_IRQHandler(void)
+#endif
 {
   tud_int_handler(0);
 }
@@ -53,9 +57,15 @@ void board_init(void)
   __HAL_RCC_GPIOB_CLK_ENABLE();
   __HAL_RCC_GPIOC_CLK_ENABLE();
   __HAL_RCC_GPIOD_CLK_ENABLE();
+#if defined(GPIOE)
   __HAL_RCC_GPIOE_CLK_ENABLE();
+#endif
+#if defined(GPIOF)
   __HAL_RCC_GPIOF_CLK_ENABLE();
+#endif
+#if defined(GPIOG)
   __HAL_RCC_GPIOG_CLK_ENABLE();
+#endif
   __HAL_RCC_GPIOH_CLK_ENABLE();
   UART_CLK_EN();
 
@@ -64,7 +74,11 @@ void board_init(void)
   SysTick_Config(SystemCoreClock / 1000);
 #elif CFG_TUSB_OS == OPT_OS_FREERTOS
   // If freeRTOS is used, IRQ priority is limit by max syscall ( smaller is higher )
-  //NVIC_SetPriority(USB0_IRQn, configLIBRARY_MAX_SYSCALL_INTERRUPT_PRIORITY );
+#if defined(USB_OTG_FS)
+  NVIC_SetPriority(OTG_FS_IRQn, configLIBRARY_MAX_SYSCALL_INTERRUPT_PRIORITY );
+#else
+  NVIC_SetPriority(USB_IRQn, configLIBRARY_MAX_SYSCALL_INTERRUPT_PRIORITY );
+#endif
 #endif
 
   /* Enable USB power on Pwrctrl CR2 register */
@@ -95,7 +109,10 @@ void board_init(void)
 
   // IOSV bit MUST be set to access GPIO port G[2:15] */
   __HAL_RCC_PWR_CLK_ENABLE();
+
+#if defined(PWR_CR2_IOSV)
   HAL_PWREx_EnableVddIO2();
+#endif
 
   // Uart
   GPIO_InitStruct.Pin       = UART_TX_PIN | UART_RX_PIN;
@@ -124,9 +141,14 @@ void board_init(void)
   GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_HIGH;
+#if defined(USB_OTG_FS)
   GPIO_InitStruct.Alternate = GPIO_AF10_OTG_FS;
+#else
+  GPIO_InitStruct.Alternate = GPIO_AF10_USB_FS;
+#endif
   HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
 
+#if defined(USB_OTG_FS)
   /* Configure VBUS Pin */
   GPIO_InitStruct.Pin = GPIO_PIN_9;
   GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
@@ -139,11 +161,16 @@ void board_init(void)
   GPIO_InitStruct.Pull = GPIO_PULLUP;
   GPIO_InitStruct.Alternate = GPIO_AF10_OTG_FS;
   HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
+#endif
 
   /* Enable USB FS Clocks */
+#if defined(USB_OTG_FS)
   __HAL_RCC_USB_OTG_FS_CLK_ENABLE();
-
   board_vbus_sense_init();
+#else
+  __HAL_RCC_USB_CLK_ENABLE();
+#endif
+
 }
 
 //--------------------------------------------------------------------+
@@ -187,7 +214,7 @@ uint32_t board_millis(void)
 
 void HardFault_Handler (void)
 {
-  asm("bkpt");
+  asm("bkpt 0x10");
 }
 
 // Required by __libc_init_array in startup code if we are compiling using
