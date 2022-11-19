@@ -23,6 +23,7 @@
  *
  */
 
+#include <ctype.h>
 #include "tusb.h"
 
 #include "ff.h"
@@ -31,6 +32,7 @@
 // lib/embedded-cli
 #define EMBEDDED_CLI_IMPL
 #include "embedded_cli.h"
+
 
 //--------------------------------------------------------------------+
 // MACRO TYPEDEF CONSTANT ENUM DECLARATION
@@ -58,6 +60,7 @@ static scsi_inquiry_resp_t inquiry_resp;
 
 void cli_cmd_ls(EmbeddedCli *cli, char *args, void *context);
 void cli_cmd_cd(EmbeddedCli *cli, char *args, void *context);
+void cli_cmd_cat(EmbeddedCli *cli, char *args, void *context);
 
 void cli_write_char(EmbeddedCli *cli, char c)
 {
@@ -92,6 +95,14 @@ bool msc_app_init(void)
   _cli->writeChar = cli_write_char;
 
   embeddedCliAddBinding(_cli, (CliCommandBinding) {
+    "cat",
+    "Usage: cat [FILE]...\r\n\tConcatenate FILE(s) to standard output..",
+    true,
+    NULL,
+    cli_cmd_cat
+  });
+
+  embeddedCliAddBinding(_cli, (CliCommandBinding) {
     "cd",
     "Usage: cd [DIR]...\r\n\tChange the current directory to DIR.",
     true,
@@ -115,13 +126,16 @@ void msc_app_task(void)
 {
   if (!_cli) return;
 
-  int ch;
-  while( (ch = getchar()) > 0 )
+  int ch = getchar();
+  if ( ch > 0 )
   {
-    embeddedCliReceiveChar(_cli, (char) ch);
+    while( ch > 0 )
+    {
+      embeddedCliReceiveChar(_cli, (char) ch);
+      ch = getchar();
+    }
+    embeddedCliProcess(_cli);
   }
-
-  embeddedCliProcess(_cli);
 }
 
 //--------------------------------------------------------------------+
@@ -308,8 +322,7 @@ DRESULT disk_ioctl (
 
 void cli_cmd_ls(EmbeddedCli *cli, char *args, void *context)
 {
-  (void) cli;
-  (void) context;
+  (void) cli; (void) context;
 
   uint16_t argc = embeddedCliGetTokenCount(args);
 
@@ -352,8 +365,7 @@ void cli_cmd_ls(EmbeddedCli *cli, char *args, void *context)
 
 void cli_cmd_cd(EmbeddedCli *cli, char *args, void *context)
 {
-  (void) cli;
-  (void) context;
+  (void) cli; (void) context;
 
   uint16_t argc = embeddedCliGetTokenCount(args);
 
@@ -371,5 +383,50 @@ void cli_cmd_cd(EmbeddedCli *cli, char *args, void *context)
   {
     printf("%s: No such file or directory\r\n", dpath);
     return;
+  }
+}
+
+void cli_cmd_cat(EmbeddedCli *cli, char *args, void *context)
+{
+  (void) cli; (void) context;
+
+  uint16_t argc = embeddedCliGetTokenCount(args);
+
+  // need at least 1 argument
+  if ( argc == 0 )
+  {
+    printf("invalid arguments\r\n");
+    return;
+  }
+
+  for(uint16_t i=0; i<argc; i++)
+  {
+    FIL fi;
+    const char* fpath = embeddedCliGetToken(args, i+1); // token count from 1
+
+    if ( FR_OK != f_open(&fi, fpath, FA_READ) )
+    {
+      printf("%s: No such file or directory\r\n", fpath);
+    }else
+    {
+      uint8_t buf[64];
+      size_t count = 0;
+      while ( (FR_OK == f_read(&fi, buf, sizeof(buf), &count)) && (count > 0) )
+      {
+        for(size_t c = 0; c < count; c++)
+        {
+          const char ch = buf[c];
+          if (isprint(ch) || iscntrl(ch))
+          {
+            putchar(ch);
+          }else
+          {
+            putchar('.');
+          }
+        }
+      }
+    }
+
+    f_close(&fi);
   }
 }
