@@ -43,7 +43,7 @@ int main(void)
 {
   board_init();
 
-  printf("TinyUSB Host CDC MSC HID Example\r\n");
+  printf("TinyUSB Host MSC Explorer Example\r\n");
 
   // init host stack on configured roothub port
   tuh_init(BOARD_TUH_RHPORT);
