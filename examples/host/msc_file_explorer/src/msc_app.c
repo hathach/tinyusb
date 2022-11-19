@@ -39,11 +39,11 @@
 //--------------------------------------------------------------------+
 
 //------------- embedded-cli -------------//
-#define CLI_BUFFER_SIZE     256
+#define CLI_BUFFER_SIZE     512
 #define CLI_RX_BUFFER_SIZE  16
 #define CLI_CMD_BUFFER_SIZE 32
 #define CLI_HISTORY_SIZE    32
-#define CLI_BINDING_COUNT   3
+#define CLI_BINDING_COUNT   8
 
 static EmbeddedCli *_cli;
 static CLI_UINT cli_buffer[BYTES_TO_CLI_UINTS(CLI_BUFFER_SIZE)];
@@ -58,9 +58,10 @@ static scsi_inquiry_resp_t inquiry_resp;
 //
 //--------------------------------------------------------------------+
 
-void cli_cmd_ls(EmbeddedCli *cli, char *args, void *context);
 void cli_cmd_cd(EmbeddedCli *cli, char *args, void *context);
 void cli_cmd_cat(EmbeddedCli *cli, char *args, void *context);
+void cli_cmd_ls(EmbeddedCli *cli, char *args, void *context);
+void cli_cmd_mkdir(EmbeddedCli *cli, char *args, void *context);
 
 void cli_write_char(EmbeddedCli *cli, char c)
 {
@@ -88,6 +89,8 @@ bool msc_app_init(void)
   config->cmdBufferSize     = CLI_CMD_BUFFER_SIZE;
   config->historyBufferSize = CLI_HISTORY_SIZE;
   config->maxBindingCount   = CLI_BINDING_COUNT;
+
+  TU_ASSERT(embeddedCliRequiredSize(config) <= CLI_BUFFER_SIZE);
 
   _cli = embeddedCliNew(config);
   TU_ASSERT(_cli != NULL);
@@ -118,6 +121,13 @@ bool msc_app_init(void)
     cli_cmd_ls
   });
 
+  embeddedCliAddBinding(_cli, (CliCommandBinding) {
+    "mkdir",
+    "Usage: mkdir [DIR]...\r\n\tCreate the DIRECTORY(ies), if they do not already exist..",
+    true,
+    NULL,
+    cli_cmd_mkdir
+  });
 
   return true;
 }
@@ -320,6 +330,74 @@ DRESULT disk_ioctl (
 // CLI Commands
 //--------------------------------------------------------------------+
 
+void cli_cmd_cat(EmbeddedCli *cli, char *args, void *context)
+{
+  (void) cli; (void) context;
+
+  uint16_t argc = embeddedCliGetTokenCount(args);
+
+  // need at least 1 argument
+  if ( argc == 0 )
+  {
+    printf("invalid arguments\r\n");
+    return;
+  }
+
+  for(uint16_t i=0; i<argc; i++)
+  {
+    FIL fi;
+    const char* fpath = embeddedCliGetToken(args, i+1); // token count from 1
+
+    if ( FR_OK != f_open(&fi, fpath, FA_READ) )
+    {
+      printf("%s: No such file or directory\r\n", fpath);
+    }else
+    {
+      uint8_t buf[64];
+      size_t count = 0;
+      while ( (FR_OK == f_read(&fi, buf, sizeof(buf), &count)) && (count > 0) )
+      {
+        for(size_t c = 0; c < count; c++)
+        {
+          const char ch = buf[c];
+          if (isprint(ch) || iscntrl(ch))
+          {
+            putchar(ch);
+          }else
+          {
+            putchar('.');
+          }
+        }
+      }
+    }
+
+    f_close(&fi);
+  }
+}
+
+void cli_cmd_cd(EmbeddedCli *cli, char *args, void *context)
+{
+  (void) cli; (void) context;
+
+  uint16_t argc = embeddedCliGetTokenCount(args);
+
+  // only support 1 argument
+  if ( argc != 1 )
+  {
+    printf("invalid arguments\r\n");
+    return;
+  }
+
+  // default is current directory
+  const char* dpath = args;
+
+  if ( FR_OK != f_chdir(dpath) )
+  {
+    printf("%s: No such file or directory\r\n", dpath);
+    return;
+  }
+}
+
 void cli_cmd_ls(EmbeddedCli *cli, char *args, void *context)
 {
   (void) cli; (void) context;
@@ -363,7 +441,7 @@ void cli_cmd_ls(EmbeddedCli *cli, char *args, void *context)
   f_closedir(&dir);
 }
 
-void cli_cmd_cd(EmbeddedCli *cli, char *args, void *context)
+void cli_cmd_mkdir(EmbeddedCli *cli, char *args, void *context)
 {
   (void) cli; (void) context;
 
@@ -379,54 +457,9 @@ void cli_cmd_cd(EmbeddedCli *cli, char *args, void *context)
   // default is current directory
   const char* dpath = args;
 
-  if ( FR_OK != f_chdir(dpath) )
+  if ( FR_OK != f_mkdir(dpath) )
   {
-    printf("%s: No such file or directory\r\n", dpath);
+    printf("%s: cannot create this directory\r\n", dpath);
     return;
-  }
-}
-
-void cli_cmd_cat(EmbeddedCli *cli, char *args, void *context)
-{
-  (void) cli; (void) context;
-
-  uint16_t argc = embeddedCliGetTokenCount(args);
-
-  // need at least 1 argument
-  if ( argc == 0 )
-  {
-    printf("invalid arguments\r\n");
-    return;
-  }
-
-  for(uint16_t i=0; i<argc; i++)
-  {
-    FIL fi;
-    const char* fpath = embeddedCliGetToken(args, i+1); // token count from 1
-
-    if ( FR_OK != f_open(&fi, fpath, FA_READ) )
-    {
-      printf("%s: No such file or directory\r\n", fpath);
-    }else
-    {
-      uint8_t buf[64];
-      size_t count = 0;
-      while ( (FR_OK == f_read(&fi, buf, sizeof(buf), &count)) && (count > 0) )
-      {
-        for(size_t c = 0; c < count; c++)
-        {
-          const char ch = buf[c];
-          if (isprint(ch) || iscntrl(ch))
-          {
-            putchar(ch);
-          }else
-          {
-            putchar('.');
-          }
-        }
-      }
-    }
-
-    f_close(&fi);
   }
 }
