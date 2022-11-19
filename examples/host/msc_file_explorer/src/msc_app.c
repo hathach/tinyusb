@@ -57,6 +57,7 @@ static scsi_inquiry_resp_t inquiry_resp;
 //--------------------------------------------------------------------+
 
 void cli_cmd_ls(EmbeddedCli *cli, char *args, void *context);
+void cli_cmd_cd(EmbeddedCli *cli, char *args, void *context);
 
 void cli_write_char(EmbeddedCli *cli, char c)
 {
@@ -67,7 +68,7 @@ void cli_write_char(EmbeddedCli *cli, char c)
 void cli_cmd_unknown(EmbeddedCli *cli, CliCommand *command)
 {
   (void) cli;
-  printf("Unknown commands: %s\r\n", command->name);
+  printf("%s: command not found\r\n", command->name);
 }
 
 bool msc_app_init(void)
@@ -91,12 +92,21 @@ bool msc_app_init(void)
   _cli->writeChar = cli_write_char;
 
   embeddedCliAddBinding(_cli, (CliCommandBinding) {
+    "cd",
+    "Usage: cd [DIR]...\r\n\tChange the current directory to DIR.",
+    true,
+    NULL,
+    cli_cmd_cd
+  });
+
+  embeddedCliAddBinding(_cli, (CliCommandBinding) {
     "ls",
-    "Usage: ls [FILE]...\r\n\tList information about the FILEs (the current directory by default).",
+    "Usage: ls [DIR]...\r\n\tList information about the FILEs (the current directory by default).",
     true,
     NULL,
     cli_cmd_ls
   });
+
 
   return true;
 }
@@ -304,7 +314,11 @@ void cli_cmd_ls(EmbeddedCli *cli, char *args, void *context)
   uint16_t argc = embeddedCliGetTokenCount(args);
 
   // only support 1 argument
-  if ( argc > 1 ) return;
+  if ( argc > 1 )
+  {
+    printf("invalid arguments\r\n");
+    return;
+  }
 
   // default is current directory
   const char* dpath = ".";
@@ -313,7 +327,7 @@ void cli_cmd_ls(EmbeddedCli *cli, char *args, void *context)
   DIR dir;
   if ( FR_OK != f_opendir(&dir, dpath) )
   {
-    printf("cannot access '%s': No such file or directory", dpath);
+    printf("cannot access '%s': No such file or directory\r\n", dpath);
     return;
   }
 
@@ -325,13 +339,37 @@ void cli_cmd_ls(EmbeddedCli *cli, char *args, void *context)
       if ( fno.fattrib & AM_DIR )
       {
         // directory
-        printf("/%s\n", fno.fname);
+        printf("/%s\r\n", fno.fname);
       }else
       {
-        printf("%-40s%lu KB\n", fno.fname, fno.fsize / 1000);
+        printf("%-40s%lu KB\r\n", fno.fname, fno.fsize / 1000);
       }
     }
   }
 
   f_closedir(&dir);
+}
+
+void cli_cmd_cd(EmbeddedCli *cli, char *args, void *context)
+{
+  (void) cli;
+  (void) context;
+
+  uint16_t argc = embeddedCliGetTokenCount(args);
+
+  // only support 1 argument
+  if ( argc != 1 )
+  {
+    printf("invalid arguments\r\n");
+    return;
+  }
+
+  // default is current directory
+  const char* dpath = args;
+
+  if ( FR_OK != f_chdir(dpath) )
+  {
+    printf("%s: No such file or directory\r\n", dpath);
+    return;
+  }
 }
