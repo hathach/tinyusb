@@ -269,8 +269,9 @@ DRESULT disk_ioctl (
 // CLI Commands
 //--------------------------------------------------------------------+
 
-void cli_cmd_cd(EmbeddedCli *cli, char *args, void *context);
 void cli_cmd_cat(EmbeddedCli *cli, char *args, void *context);
+void cli_cmd_cd(EmbeddedCli *cli, char *args, void *context);
+void cli_cmd_cp(EmbeddedCli *cli, char *args, void *context);
 void cli_cmd_ls(EmbeddedCli *cli, char *args, void *context);
 void cli_cmd_mkdir(EmbeddedCli *cli, char *args, void *context);
 void cli_cmd_mv(EmbeddedCli *cli, char *args, void *context);
@@ -318,6 +319,14 @@ bool cli_init(void)
     true,
     NULL,
     cli_cmd_cd
+  });
+
+  embeddedCliAddBinding(_cli, (CliCommandBinding) {
+    "cp",
+    "Usage: cp SOURCE DEST\r\n\tCopy SOURCE to DEST.",
+    true,
+    NULL,
+    cli_cmd_cp
   });
 
   embeddedCliAddBinding(_cli, (CliCommandBinding) {
@@ -370,7 +379,7 @@ void cli_cmd_cat(EmbeddedCli *cli, char *args, void *context)
       printf("%s: No such file or directory\r\n", fpath);
     }else
     {
-      uint8_t buf[64];
+      uint8_t buf[512];
       size_t count = 0;
       while ( (FR_OK == f_read(&fi, buf, sizeof(buf), &count)) && (count > 0) )
       {
@@ -413,6 +422,54 @@ void cli_cmd_cd(EmbeddedCli *cli, char *args, void *context)
     printf("%s: No such file or directory\r\n", dpath);
     return;
   }
+}
+
+void cli_cmd_cp(EmbeddedCli *cli, char *args, void *context)
+{
+  (void) cli; (void) context;
+
+  uint16_t argc = embeddedCliGetTokenCount(args);
+  if ( argc != 2 )
+  {
+    printf("invalid arguments\r\n");
+    return;
+  }
+
+  // default is current directory
+  const char* src = embeddedCliGetToken(args, 1);
+  const char* dst = embeddedCliGetToken(args, 2);
+
+  FIL f_src;
+  FIL f_dst;
+
+  if ( FR_OK != f_open(&f_src, src, FA_READ) )
+  {
+    printf("cannot stat '%s': No such file or directory\r\n", src);
+    return;
+  }
+
+  if ( FR_OK != f_open(&f_dst, dst, FA_WRITE | FA_CREATE_ALWAYS) )
+  {
+    printf("cannot create '%s'\r\n", dst);
+    return;
+  }else
+  {
+    uint8_t buf[512];
+    size_t rd_count = 0;
+    while ( (FR_OK == f_read(&f_src, buf, sizeof(buf), &rd_count)) && (rd_count > 0) )
+    {
+      size_t wr_count = 0;
+
+      if ( FR_OK != f_write(&f_dst, buf, rd_count, &wr_count) )
+      {
+        printf("cannot write to '%s'\r\n", dst);
+        break;
+      }
+    }
+  }
+
+  f_close(&f_src);
+  f_close(&f_dst);
 }
 
 void cli_cmd_ls(EmbeddedCli *cli, char *args, void *context)
