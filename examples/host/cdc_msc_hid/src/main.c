@@ -54,13 +54,8 @@ int main(void)
     tuh_task();
     led_blinking_task();
 
-#if CFG_TUH_CDC
     cdc_task();
-#endif
-
-#if CFG_TUH_HID
     hid_app_task();
-#endif
   }
 
   return 0;
@@ -69,7 +64,6 @@ int main(void)
 //--------------------------------------------------------------------+
 // USB CDC
 //--------------------------------------------------------------------+
-#if CFG_TUH_CDC
 CFG_TUSB_MEM_SECTION static char serial_in_buffer[64] = { 0 };
 
 // invoked ISR context
@@ -89,8 +83,6 @@ void cdc_task(void)
 {
 
 }
-
-#endif
 
 //--------------------------------------------------------------------+
 // TinyUSB Callbacks

@@ -103,8 +103,10 @@ TU_ATTR_USED int sys_write (int fhdl, const void *buf, size_t count)
 TU_ATTR_USED int sys_read (int fhdl, char *buf, size_t count)
 {
   (void) fhdl;
-  return SEGGER_RTT_Read(0, buf, count);
+  int rd = (int) SEGGER_RTT_Read(0, buf, count);
+  return (rd > 0) ? rd : -1;
 }
+
 #endif
 
 #elif defined(LOGGER_SWO)
@@ -143,7 +145,14 @@ TU_ATTR_USED int sys_write (int fhdl, const void *buf, size_t count)
 TU_ATTR_USED int sys_read (int fhdl, char *buf, size_t count)
 {
   (void) fhdl;
-  return board_uart_read((uint8_t*) buf, (int) count);
+  int rd = board_uart_read((uint8_t*) buf, (int) count);
+  return (rd > 0) ? rd : -1;
 }
 
 #endif
+
+int board_getchar(void)
+{
+  char c;
+  return ( sys_read(0, &c, 1) > 0 ) ? (int) c : (-1);
+}
