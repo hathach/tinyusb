@@ -22,6 +22,9 @@ SRC_C += \
   $(FATFS_PATH)/ffsystem.c \
   $(FATFS_PATH)/ffunicode.c \
 
+# suppress warning caused by fatfs
+CFLAGS += -Wno-error=cast-qual
+
 # TinyUSB Host Stack source
 SRC_C += \
 	src/class/cdc/cdc_host.c \
