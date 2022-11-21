@@ -769,7 +769,7 @@ uint32_t tuh_midi_stream_read (uint8_t dev_addr, uint8_t *p_cable_num, uint8_t *
             else if (p_midi_host->stream_read.buffer[idx] == MIDI_STATUS_SYSEX_END)
             {
               ++bytes_to_add_to_stream;
-              cable_sysex_in_progress &= ~cable_mask;
+              cable_sysex_in_progress &= (uint16_t) ~cable_mask;
               idx = 4; // force the loop to exit; I hate break statements in loops
             }
           }
