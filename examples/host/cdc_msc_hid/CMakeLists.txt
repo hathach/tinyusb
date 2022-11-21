@@ -29,4 +29,16 @@ target_include_directories(${PROJECT} PUBLIC
 family_configure_host_example(${PROJECT})
 
 # For rp2040, un-comment to enable pico-pio-usb
-# family_add_pico_pio_usb(${PROJECT})
+family_add_pico_pio_usb(${PROJECT})
+
+# due to warnings from Pico-PIO-USB
+target_compile_options(${PROJECT} PUBLIC
+        -Wno-error=shadow
+        -Wno-error=cast-align
+        -Wno-error=cast-qual
+        -Wno-error=redundant-decls
+        -Wno-error=sign-conversion
+        -Wno-error=conversion
+        -Wno-error=sign-compare
+        -Wno-error=unused-function
+        )

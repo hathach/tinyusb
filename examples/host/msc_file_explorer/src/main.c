@@ -35,6 +35,7 @@
 //--------------------------------------------------------------------+
 void led_blinking_task(void);
 
+// from msc_app.c
 extern bool msc_app_init(void);
 extern void msc_app_task(void);
 
@@ -74,7 +75,6 @@ void tuh_umount_cb(uint8_t dev_addr)
 {
   (void) dev_addr;
 }
-
 
 //--------------------------------------------------------------------+
 // Blinking Task

@@ -25,6 +25,7 @@
 
 #include <ctype.h>
 #include "tusb.h"
+#include "bsp/board.h"
 
 #include "ff.h"
 #include "diskio.h"
@@ -75,13 +76,13 @@ void msc_app_task(void)
 {
   if (!_cli) return;
 
-  int ch = getchar();
+  int ch = board_uart_getchar();
   if ( ch > 0 )
   {
     while( ch > 0 )
     {
       embeddedCliReceiveChar(_cli, (char) ch);
-      ch = getchar();
+      ch = board_uart_getchar();
     }
     embeddedCliProcess(_cli);
   }

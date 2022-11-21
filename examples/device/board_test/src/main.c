@@ -69,7 +69,7 @@ int main(void)
 
     // echo
     uint8_t ch;
-    if ( board_uart_read(&ch, 1) )
+    if ( board_uart_read(&ch, 1) > 0 )
     {
       board_uart_write(&ch, 1);
     }
