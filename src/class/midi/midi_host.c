@@ -795,7 +795,7 @@ uint32_t tuh_midi_stream_read (uint8_t dev_addr, uint8_t *p_cable_num, uint8_t *
           default:
             break; // Should not get this
         }
-        cable_sysex_in_progress &= ~cable_mask;
+        cable_sysex_in_progress &= (uint16_t)~cable_mask;
       }
       else if (status < MIDI_STATUS_SYSREAL_TIMING_CLOCK)
       {
@@ -814,7 +814,7 @@ uint32_t tuh_midi_stream_read (uint8_t dev_addr, uint8_t *p_cable_num, uint8_t *
             break;
           default:
             break;
-          cable_sysex_in_progress &= ~cable_mask;
+          cable_sysex_in_progress &= (uint16_t)~cable_mask;
         }
       }
       else
