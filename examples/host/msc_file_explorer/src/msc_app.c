@@ -76,13 +76,13 @@ void msc_app_task(void)
 {
   if (!_cli) return;
 
-  int ch = board_uart_getchar();
+  int ch = board_getchar();
   if ( ch > 0 )
   {
     while( ch > 0 )
     {
       embeddedCliReceiveChar(_cli, (char) ch);
-      ch = board_uart_getchar();
+      ch = board_getchar();
     }
     embeddedCliProcess(_cli);
   }

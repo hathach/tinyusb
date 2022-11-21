@@ -132,12 +132,8 @@ static inline void board_delay(uint32_t ms)
   }
 }
 
-// stdio getchar() is blocking, this is non-blocking version for uart
-static inline int board_uart_getchar(void)
-{
-  uint8_t c;
-  return ( board_uart_read(&c, 1) > 0 ) ? (int) c : (-1);
-}
+// stdio getchar() is blocking, this is non-blocking version
+int board_getchar(void);
 
 #ifdef __cplusplus
  }

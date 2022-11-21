@@ -219,6 +219,11 @@ int board_uart_write(void const * buf, int len)
 #endif
 }
 
+int board_getchar(void)
+{
+  return getchar_timeout_us(0);
+}
+
 //--------------------------------------------------------------------+
 // USB Interrupt Handler
 // rp2040 implementation will install approriate handler when initializing
