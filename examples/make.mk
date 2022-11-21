@@ -113,7 +113,8 @@ CFLAGS += \
   
 # Debugging/Optimization
 ifeq ($(DEBUG), 1)
-  CFLAGS += -Og
+  CFLAGS += -O0
+  NO_LTO = 1
 else
   CFLAGS += $(CFLAGS_OPTIMIZED)
 endif

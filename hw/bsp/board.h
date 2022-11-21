@@ -66,9 +66,11 @@ void board_led_write(bool state);
 uint32_t board_button_read(void);
 
 // Get characters from UART
+// Return number of read bytes
 int board_uart_read(uint8_t* buf, int len);
 
 // Send characters to UART
+// Return number of sent bytes
 int board_uart_write(void const * buf, int len);
 
 #if CFG_TUSB_OS == OPT_OS_NONE
@@ -130,16 +132,8 @@ static inline void board_delay(uint32_t ms)
   }
 }
 
-static inline int board_uart_getchar(void)
-{
-  uint8_t c;
-  return board_uart_read(&c, 1) ? (int) c : (-1);
-}
-
-static inline int board_uart_putchar(uint8_t c)
-{
-  return board_uart_write(&c, 1);
-}
+// stdio getchar() is blocking, this is non-blocking version
+int board_getchar(void);
 
 #ifdef __cplusplus
  }

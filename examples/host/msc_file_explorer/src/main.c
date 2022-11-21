@@ -28,59 +28,68 @@
 #include <string.h>
 
 #include "bsp/board.h"
+#include "tusb.h"
 
 //--------------------------------------------------------------------+
 // MACRO CONSTANT TYPEDEF PROTYPES
 //--------------------------------------------------------------------+
+void led_blinking_task(void);
 
-/* Blink pattern
- * - 250 ms  : button is not pressed
- * - 1000 ms : button is pressed (and hold)
- */
-enum  {
-  BLINK_PRESSED = 250,
-  BLINK_UNPRESSED = 1000
-};
+// from msc_app.c
+extern bool msc_app_init(void);
+extern void msc_app_task(void);
 
-#define HELLO_STR   "Hello from TinyUSB\r\n"
-
+/*------------- MAIN -------------*/
 int main(void)
 {
   board_init();
-  board_led_write(true);
 
-  uint32_t start_ms = 0;
-  bool led_state = false;
+  printf("TinyUSB Host MassStorage Explorer Example\r\n");
+
+  // init host stack on configured roothub port
+  tuh_init(BOARD_TUH_RHPORT);
+  msc_app_init();
 
   while (1)
   {
-    uint32_t interval_ms = board_button_read() ? BLINK_PRESSED : BLINK_UNPRESSED;
+    // tinyusb host task
+    tuh_task();
 
-    // Blink and print every interval ms
-    if ( !(board_millis() - start_ms < interval_ms) )
-    {
-      board_uart_write(HELLO_STR, strlen(HELLO_STR));
-
-      start_ms = board_millis();
-
-      board_led_write(led_state);
-      led_state = 1 - led_state; // toggle
-    }
-
-    // echo
-    uint8_t ch;
-    if ( board_uart_read(&ch, 1) > 0 )
-    {
-      board_uart_write(&ch, 1);
-    }
+    msc_app_task();
+    led_blinking_task();
   }
 
   return 0;
 }
 
-#if CFG_TUSB_MCU == OPT_MCU_ESP32S2 || CFG_TUSB_MCU == OPT_MCU_ESP32S3
-void app_main(void)
+//--------------------------------------------------------------------+
+// TinyUSB Callbacks
+//--------------------------------------------------------------------+
+
+void tuh_mount_cb(uint8_t dev_addr)
 {
-  main();
+  (void) dev_addr;
 }
-#endif
+
+void tuh_umount_cb(uint8_t dev_addr)
+{
+  (void) dev_addr;
+}
+
+//--------------------------------------------------------------------+
+// Blinking Task
+//--------------------------------------------------------------------+
+void led_blinking_task(void)
+{
+  const uint32_t interval_ms = 1000;
+  static uint32_t start_ms = 0;
+
+  static bool led_state = false;
+
+  // Blink every interval ms
+  if ( board_millis() - start_ms < interval_ms) return; // not enough time
+  start_ms += interval_ms;
+
+  board_led_write(led_state);
+  led_state = 1 - led_state; // toggle
+}
