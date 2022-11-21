@@ -529,7 +529,7 @@ bool tuh_midi_read_poll( uint8_t dev_addr )
   if (in_edpt_not_busy)
   {
     TU_LOG2("Requesting poll IN endpoint %d\r\n", p_midi_host->ep_in);
-    TU_ASSERT(usbh_edpt_xfer(p_midi_host->dev_addr, p_midi_host->ep_in, _midi_host->epin_buf, _midi_host->ep_in_max), 0);
+    TU_ASSERT(usbh_edpt_xfer(p_midi_host->dev_addr, p_midi_host->ep_in, p_midi_host->epin_buf, p_midi_host->ep_in_max), 0);
     result = true;
   }
   else
