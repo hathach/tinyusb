@@ -275,6 +275,7 @@ void cli_cmd_cp(EmbeddedCli *cli, char *args, void *context);
 void cli_cmd_ls(EmbeddedCli *cli, char *args, void *context);
 void cli_cmd_mkdir(EmbeddedCli *cli, char *args, void *context);
 void cli_cmd_mv(EmbeddedCli *cli, char *args, void *context);
+void cli_cmd_rm(EmbeddedCli *cli, char *args, void *context);
 
 void cli_write_char(EmbeddedCli *cli, char c)
 {
@@ -347,10 +348,18 @@ bool cli_init(void)
 
   embeddedCliAddBinding(_cli, (CliCommandBinding) {
     "mv",
-    "Usage: mv SOURCE DEST...\r\n\tRename SOURCE to DEST",
+    "Usage: mv SOURCE DEST...\r\n\tRename SOURCE to DEST.",
     true,
     NULL,
     cli_cmd_mv
+  });
+
+  embeddedCliAddBinding(_cli, (CliCommandBinding) {
+    "rm",
+    "Usage: rm [FILE]...\r\n\tRemove (unlink) the FILE(s).",
+    true,
+    NULL,
+    cli_cmd_rm
   });
 
   return true;
@@ -564,5 +573,29 @@ void cli_cmd_mv(EmbeddedCli *cli, char *args, void *context)
   {
     printf("cannot mv %s to %s\r\n", src, dst);
     return;
+  }
+}
+
+void cli_cmd_rm(EmbeddedCli *cli, char *args, void *context)
+{
+  (void) cli; (void) context;
+
+  uint16_t argc = embeddedCliGetTokenCount(args);
+
+  // need at least 1 argument
+  if ( argc == 0 )
+  {
+    printf("invalid arguments\r\n");
+    return;
+  }
+
+  for(uint16_t i=0; i<argc; i++)
+  {
+    const char* fpath = embeddedCliGetToken(args, i+1); // token count from 1
+
+    if ( FR_OK != f_unlink(fpath) )
+    {
+      printf("cannot remove '%s': No such file or directory\r\n", fpath);
+    }
   }
 }
