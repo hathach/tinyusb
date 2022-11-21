@@ -108,7 +108,7 @@ bool inquiry_complete_cb(uint8_t dev_addr, msc_cbw_t const* cbw, msc_csw_t const
   uint32_t const block_size = tuh_msc_get_block_size(dev_addr, cbw->lun);
 
   printf("Disk Size: %lu MB\r\n", block_count / ((1024*1024)/block_size));
-  printf("Block Count = %lu, Block Size: %lu\r\n", block_count, block_size);
+  // printf("Block Count = %lu, Block Size: %lu\r\n", block_count, block_size);
 
   // For simplicity: we only mount 1 LUN per device
   uint8_t const drive_num = dev_addr-1;
@@ -120,8 +120,15 @@ bool inquiry_complete_cb(uint8_t dev_addr, msc_cbw_t const* cbw, msc_csw_t const
     puts("mount failed");
   }
 
-  f_chdrive(drive_path); // change to newly mounted drive
-  f_chdir("/"); // root as current dir
+  // change to newly mounted drive
+  f_chdir(drive_path);
+
+  // print the drive label
+//  char label[34];
+//  if ( FR_OK == f_getlabel(drive_path, label, NULL) )
+//  {
+//    puts(label);
+//  }
 
   return true;
 }
@@ -137,7 +144,6 @@ void tuh_msc_mount_cb(uint8_t dev_addr)
 
 void tuh_msc_umount_cb(uint8_t dev_addr)
 {
-  (void) dev_addr;
   printf("A MassStorage device is unmounted\r\n");
 
   uint8_t const drive_num = dev_addr-1;
@@ -273,6 +279,7 @@ void cli_cmd_cat(EmbeddedCli *cli, char *args, void *context);
 void cli_cmd_cd(EmbeddedCli *cli, char *args, void *context);
 void cli_cmd_cp(EmbeddedCli *cli, char *args, void *context);
 void cli_cmd_ls(EmbeddedCli *cli, char *args, void *context);
+void cli_cmd_pwd(EmbeddedCli *cli, char *args, void *context);
 void cli_cmd_mkdir(EmbeddedCli *cli, char *args, void *context);
 void cli_cmd_mv(EmbeddedCli *cli, char *args, void *context);
 void cli_cmd_rm(EmbeddedCli *cli, char *args, void *context);
@@ -336,6 +343,14 @@ bool cli_init(void)
     true,
     NULL,
     cli_cmd_ls
+  });
+
+  embeddedCliAddBinding(_cli, (CliCommandBinding) {
+    "pwd",
+    "Usage: pwd\r\n\tPrint the name of the current working directory.",
+    true,
+    NULL,
+    cli_cmd_pwd
   });
 
   embeddedCliAddBinding(_cli, (CliCommandBinding) {
@@ -529,6 +544,26 @@ void cli_cmd_ls(EmbeddedCli *cli, char *args, void *context)
   }
 
   f_closedir(&dir);
+}
+
+void cli_cmd_pwd(EmbeddedCli *cli, char *args, void *context)
+{
+  (void) cli; (void) context;
+  uint16_t argc = embeddedCliGetTokenCount(args);
+
+  if (argc != 0)
+  {
+    printf("invalid arguments\r\n");
+    return;
+  }
+
+  char path[256];
+  if (FR_OK != f_getcwd(path, sizeof(path)))
+  {
+    printf("cannot get current working directory\r\n");
+  }
+
+  puts(path);
 }
 
 void cli_cmd_mkdir(EmbeddedCli *cli, char *args, void *context)
