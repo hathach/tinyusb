@@ -27,7 +27,7 @@ target_include_directories(${PROJECT} PUBLIC
 # in hw/bsp/FAMILY/family.cmake for details.
 family_configure_dual_usb_example(${PROJECT})
 
-# due to warnings from other net source, we need to prevent error from some of the warnings options
+# due to warnings from Pico-PIO-USB
 target_compile_options(${PROJECT} PUBLIC
         -Wno-error=shadow
         -Wno-error=cast-align

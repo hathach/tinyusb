@@ -22,9 +22,6 @@ SRC_C += \
   $(FATFS_PATH)/ffsystem.c \
   $(FATFS_PATH)/ffunicode.c \
 
-# TODO: suppress warning caused by host stack
-CFLAGS += -Wno-error=cast-align -Wno-error=null-dereference
-
 # TinyUSB Host Stack source
 SRC_C += \
 	src/class/cdc/cdc_host.c \
