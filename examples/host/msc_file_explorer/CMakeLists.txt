@@ -16,11 +16,16 @@ add_executable(${PROJECT})
 target_sources(${PROJECT} PUBLIC
         ${CMAKE_CURRENT_SOURCE_DIR}/src/main.c
         ${CMAKE_CURRENT_SOURCE_DIR}/src/msc_app.c
+        ${TOP}/lib/fatfs/source/ff.c
+        ${TOP}/lib/fatfs/source/ffsystem.c
+        ${TOP}/lib/fatfs/source/ffunicode.c
         )
 
 # Example include
 target_include_directories(${PROJECT} PUBLIC
         ${CMAKE_CURRENT_SOURCE_DIR}/src
+        ${TOP}/lib/fatfs/source
+        ${TOP}/lib/embedded-cli
         )
 
 # Configure compilation flags and libraries for the example... see the corresponding function
@@ -30,7 +35,7 @@ family_configure_host_example(${PROJECT})
 # For rp2040, un-comment to enable pico-pio-usb
 family_add_pico_pio_usb(${PROJECT})
 
-# due to warnings from Pico-PIO-USB
+# due to warnings from Pico-PIO-USB and fatfs
 target_compile_options(${PROJECT} PUBLIC
         -Wno-error=shadow
         -Wno-error=cast-align

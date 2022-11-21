@@ -205,7 +205,7 @@ DRESULT disk_read (
 	uint8_t const lun = 0;
 
 	_disk_busy[pdrv] = true;
-	tuh_msc_read10(dev_addr, lun, buff, sector, count, disk_io_complete);
+	tuh_msc_read10(dev_addr, lun, buff, sector, (uint16_t) count, disk_io_complete);
 	wait_for_disk_io(pdrv);
 
 	return RES_OK;
@@ -224,7 +224,7 @@ DRESULT disk_write (
 	uint8_t const lun = 0;
 
 	_disk_busy[pdrv] = true;
-	tuh_msc_write10(dev_addr, lun, buff, sector, count, disk_io_complete);
+	tuh_msc_write10(dev_addr, lun, buff, sector, (uint16_t) count, disk_io_complete);
 	wait_for_disk_io(pdrv);
 
 	return RES_OK;
@@ -247,11 +247,11 @@ DRESULT disk_ioctl (
       return RES_OK;
 
     case GET_SECTOR_COUNT:
-      *((DWORD*) buff) = tuh_msc_get_block_count(dev_addr, lun);
+      *((DWORD*) buff) = (WORD) tuh_msc_get_block_count(dev_addr, lun);
       return RES_OK;
 
     case GET_SECTOR_SIZE:
-      *((WORD*) buff) = tuh_msc_get_block_size(dev_addr, lun);
+      *((WORD*) buff) = (WORD) tuh_msc_get_block_size(dev_addr, lun);
       return RES_OK;
 
     case GET_BLOCK_SIZE:
@@ -380,10 +380,10 @@ void cli_cmd_cat(EmbeddedCli *cli, char *args, void *context)
     }else
     {
       uint8_t buf[512];
-      size_t count = 0;
+      UINT count = 0;
       while ( (FR_OK == f_read(&fi, buf, sizeof(buf), &count)) && (count > 0) )
       {
-        for(size_t c = 0; c < count; c++)
+        for(UINT c = 0; c < count; c++)
         {
           const char ch = buf[c];
           if (isprint(ch) || iscntrl(ch))
@@ -455,10 +455,10 @@ void cli_cmd_cp(EmbeddedCli *cli, char *args, void *context)
   }else
   {
     uint8_t buf[512];
-    size_t rd_count = 0;
+    UINT rd_count = 0;
     while ( (FR_OK == f_read(&f_src, buf, sizeof(buf), &rd_count)) && (rd_count > 0) )
     {
-      size_t wr_count = 0;
+      UINT wr_count = 0;
 
       if ( FR_OK != f_write(&f_dst, buf, rd_count, &wr_count) )
       {
