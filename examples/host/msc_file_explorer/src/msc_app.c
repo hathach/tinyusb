@@ -93,8 +93,11 @@ void msc_app_task(void)
 //--------------------------------------------------------------------+
 
 
-bool inquiry_complete_cb(uint8_t dev_addr, msc_cbw_t const* cbw, msc_csw_t const* csw)
+bool inquiry_complete_cb(uint8_t dev_addr, tuh_msc_complete_data_t const * cb_data)
 {
+  msc_cbw_t const* cbw = cb_data->cbw;
+  msc_csw_t const* csw = cb_data->csw;
+
   if (csw->status != 0)
   {
     printf("Inquiry failed\r\n");
@@ -140,7 +143,7 @@ void tuh_msc_mount_cb(uint8_t dev_addr)
   printf("A MassStorage device is mounted\r\n");
 
   uint8_t const lun = 0;
-  tuh_msc_inquiry(dev_addr, lun, &inquiry_resp, inquiry_complete_cb);
+  tuh_msc_inquiry(dev_addr, lun, &inquiry_resp, inquiry_complete_cb, 0);
 }
 
 void tuh_msc_umount_cb(uint8_t dev_addr)
@@ -178,9 +181,9 @@ static void wait_for_disk_io(BYTE pdrv)
   }
 }
 
-static bool disk_io_complete(uint8_t dev_addr, msc_cbw_t const* cbw, msc_csw_t const* csw)
+static bool disk_io_complete(uint8_t dev_addr, tuh_msc_complete_data_t const * cb_data)
 {
-  (void) dev_addr; (void) cbw; (void) csw;
+  (void) dev_addr; (void) cb_data;
   _disk_busy[dev_addr-1] = false;
   return true;
 }
@@ -212,7 +215,7 @@ DRESULT disk_read (
 	uint8_t const lun = 0;
 
 	_disk_busy[pdrv] = true;
-	tuh_msc_read10(dev_addr, lun, buff, sector, (uint16_t) count, disk_io_complete);
+	tuh_msc_read10(dev_addr, lun, buff, sector, (uint16_t) count, disk_io_complete, 0);
 	wait_for_disk_io(pdrv);
 
 	return RES_OK;
@@ -231,7 +234,7 @@ DRESULT disk_write (
 	uint8_t const lun = 0;
 
 	_disk_busy[pdrv] = true;
-	tuh_msc_write10(dev_addr, lun, buff, sector, (uint16_t) count, disk_io_complete);
+	tuh_msc_write10(dev_addr, lun, buff, sector, (uint16_t) count, disk_io_complete, 0);
 	wait_for_disk_io(pdrv);
 
 	return RES_OK;
