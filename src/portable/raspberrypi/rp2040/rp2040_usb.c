@@ -155,7 +155,9 @@ static void __tusb_irq_path_func(_hw_endpoint_start_next_buffer)(struct hw_endpo
   // For now: skip double buffered for Device mode, OUT endpoint since
   // host could send < 64 bytes and cause short packet on buffer0
   // NOTE this could happen to Host mode IN endpoint
-  bool const force_single = !(usb_hw->main_ctrl & USB_MAIN_CTRL_HOST_NDEVICE_BITS) && !tu_edpt_dir(ep->ep_addr);
+  // Also, Host mode interrupt endpoint hardware is only single buffered
+  bool const force_single = (!(usb_hw->main_ctrl & USB_MAIN_CTRL_HOST_NDEVICE_BITS) && !tu_edpt_dir(ep->ep_addr)) ||
+    ((usb_hw->main_ctrl & USB_MAIN_CTRL_HOST_NDEVICE_BITS) && tu_edpt_number(ep->ep_addr) != 0);
 
   if(ep->remaining_len && !force_single)
   {
