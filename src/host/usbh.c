@@ -620,9 +620,7 @@ static void _xfer_complete(uint8_t daddr, xfer_result_t result)
     .user_data   = _ctrl_xfer.user_data
   };
 
-  usbh_lock();
-  _ctrl_xfer.stage = CONTROL_STAGE_IDLE;
-  usbh_unlock();
+  _set_control_xfer_stage(CONTROL_STAGE_IDLE);
 
   if (xfer_temp.complete_cb)
   {
@@ -1182,12 +1180,28 @@ static void enum_full_complete(void);
 // process device enumeration
 static void process_enumeration(tuh_xfer_t* xfer)
 {
+  // Retry a few times with transfers in enumeration since device can be unstable when starting up
+  enum {
+    ATTEMPT_COUNT_MAX = 3,
+    ATTEMPT_DELAY_MS = 100
+  };
+  static uint8_t failed_count = 0;
+
   if (XFER_RESULT_SUCCESS != xfer->result)
   {
-    // stop enumeration, maybe we could retry this
-    enum_full_complete();
+    // retry if not reaching max attempt
+    if ( failed_count < ATTEMPT_COUNT_MAX )
+    {
+      failed_count++;
+      osal_task_delay(ATTEMPT_DELAY_MS); // delay a bit
+      TU_ASSERT(tuh_control_xfer(xfer), );
+    }else
+    {
+      enum_full_complete();
+    }
     return;
   }
+  failed_count = 0;
 
   uint8_t const daddr = xfer->daddr;
   uintptr_t const state = xfer->user_data;

@@ -38,12 +38,8 @@ if(FAMILY STREQUAL "rp2040")
 
   # due to warnings from Pico-PIO-USB
   target_compile_options(${PROJECT} PUBLIC
-          -Wno-error=shadow
-          -Wno-error=cast-align
           -Wno-error=cast-qual
-          -Wno-error=redundant-decls
           -Wno-error=sign-conversion
           -Wno-error=conversion
-          -Wno-error=unused-function
           )
 endif()
