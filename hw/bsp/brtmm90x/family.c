@@ -27,8 +27,8 @@
 #include "bsp/board.h"
 #include "board.h"
 
-#include <registers/ft900_registers.h>
 #include <ft900.h>
+#include <registers/ft900_registers.h>
 
 #if CFG_TUD_ENABLED
 int8_t board_ft90x_vbus(void); // Board specific implementation of VBUS detection for USB device.
@@ -213,3 +213,18 @@ uint32_t board_millis(void)
 
     return safe_ms;
 }
+
+// Restart the program
+// Called in the event of a watchdog timeout
+void chip_reboot(void)
+{
+    // SOFT reset
+    __asm__("call 0");
+ #if 0
+    // HARD reset
+    // Initiates data transfer from Flash Memory to Data Memory (DBG_CMDF2D3)
+    // followed by a system reboot
+ 	dbg_memory_copy(0xfe, 0, 0, 255);
+#endif
+}
+

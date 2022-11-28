@@ -21,7 +21,7 @@ endif
 
 # Add include files which are within the TinyUSB directory structure.
 INC += \
-	$(TOP)/$(BOARD_PATH)
+	$(TOP)/$(BOARD_PATH) 
 
 # Add required C Compiler flags for FT90X.
 CFLAGS += \
@@ -30,13 +30,13 @@ CFLAGS += \
 	-fvar-tracking-assignments \
 	-fmessage-length=0 \
 	-ffunction-sections \
-	-DCFG_TUSB_MCU=OPT_MCU_FT90X
+	-DCFG_TUSB_MCU=OPT_MCU_FT90X 
+
+# Maximum USB device speed supported by the board
+CFLAGS += -DBOARD_TUD_MAX_SPEED=OPT_MODE_HIGH_SPEED
 
 # lwip/src/core/raw.c:334:43: error: declaration of 'recv' shadows a global declaration
 CFLAGS += -Wno-error=shadow
-
-# Add include files outside the TinyUSB structure that are added manually.
-CFLAGS += -I"$(FT9XX_SDK)/include"
 
 # Set Linker flags.
 LD_FILE = hw/mcu/bridgetek/ft9xx/scripts/ldscript.ld

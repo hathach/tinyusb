@@ -38,9 +38,6 @@
 #include <ft900.h>
 #include <registers/ft900_registers.h>
 
-#include "board.h"
-#include "bsp/board.h"
-
 #define USBD_USE_STREAMS
 
 #include "device/dcd.h"
@@ -53,14 +50,20 @@
 extern int8_t board_ft90x_vbus(void);
 
 // Static array to store an incoming SETUP request for processing by tinyusb.
+CFG_TUSB_MEM_SECTION CFG_TUSB_MEM_ALIGN
 static uint8_t _ft90x_setup_packet[8];
+
+// Static array to store one SETUP DATA packet until required by dcd_edpt_xfer.
+CFG_TUSB_MEM_SECTION CFG_TUSB_MEM_ALIGN
+static uint8_t _ft90x_ctrl_buf[CFG_TUD_ENDPOINT0_SIZE];
+static uint8_t _ft90x_ctrl_buf_complete;
 
 struct ft90x_xfer_state
 {
   volatile uint8_t valid; // Transfer is pending and total_size, remain_size, and buff_ptr are valid.
-  volatile int16_t total_size; // Total transfer size in bytes for this transfer.
-  volatile int16_t remain_size; // Total remaining in transfer.
-  volatile uint8_t *buff_ptr; // Pointer to buffer to transmit from or receive to.
+  int16_t total_size; // Total transfer size in bytes for this transfer.
+  int16_t remain_size; // Total remaining in transfer.
+  uint8_t *buff_ptr; // Pointer to buffer to transmit from or receive to.
 
   uint8_t type; // Endpoint type. Of type USBD_ENDPOINT_TYPE from endpoint descriptor.
   uint8_t dir; // Endpoint direction. TUSB_DIR_OUT or TUSB_DIR_IN. For control endpoint this is the current direction.
@@ -766,13 +769,13 @@ bool dcd_edpt_open(uint8_t rhport, tusb_desc_endpoint_t const *ep_desc)
     USBD_EP_CR_REG(USBD_EP_0) = (ep_reg_size << BIT_USBD_EP0_MAX_SIZE);
   }
 
+  CRITICAL_SECTION_BEGIN
   // Store the endpoint characteristics for later reference.
   ep_xfer[ep_number].dir = ep_dir;
   ep_xfer[ep_number].type = ep_type;
   ep_xfer[ep_number].size = ep_size;
   ep_xfer[ep_number].buff_size = ep_buff_size;
 
-  CRITICAL_SECTION_BEGIN
   // Clear register transaction continuation and signalling state.
   ep_xfer[ep_number].valid = 0;
   ep_xfer[ep_number].buff_ptr = NULL;
@@ -809,12 +812,9 @@ bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t *buffer, uint16_t to
   // Transfer currently in progress.
   if (ep_xfer[ep_number].valid == 0)
   {
-    status = true;
-
     ep_xfer[ep_number].total_size = total_bytes;
     ep_xfer[ep_number].remain_size = total_bytes;
     ep_xfer[ep_number].buff_ptr = buffer;
-    ep_xfer[ep_number].valid = 1;
     
     if (ep_number == USBD_EP_0)
     {
@@ -835,10 +835,33 @@ bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t *buffer, uint16_t to
 
       ep_xfer[ep_number].buff_ptr += xfer_bytes;
       ep_xfer[ep_number].remain_size -= xfer_bytes;
+
+      // Tell the interrupt handler to signal dcd_event_xfer_complete on completion.
+      ep_xfer[ep_number].valid = 1;
     }
+    else
+    {
+      // For OUT transfers on the control endpoint.
+      // The host may already have performed the first data transfer after the SETUP packet
+      // before the transfer is setup for it.
+      if ((ep_number == USBD_EP_0) && (_ft90x_ctrl_buf_complete))
+      {
+        // Pull the received data packet from the packet cache and complete the transfer
+        // immediately.
+        memcpy(buffer, _ft90x_ctrl_buf, _ft90x_ctrl_buf_complete);
+        dcd_event_xfer_complete(BOARD_TUD_RHPORT, TUSB_DIR_OUT, _ft90x_ctrl_buf_complete, XFER_RESULT_SUCCESS, false);
+      }
+      else
+      {
+        // Tell the interrupt handler to wait for the packet to be received.
+        ep_xfer[ep_number].valid = 1;
+      }
+    } 
+    status = true;
   }
+
   CRITICAL_SECTION_END
-  
+
   return status;
 }
 
@@ -899,7 +922,7 @@ void dcd_edpt_clear_stall(uint8_t rhport, uint8_t ep_addr)
 
 void _ft90x_usbd_ISR(void)
 {
-  tud_int_handler(BOARD_TUD_RHPORT); // Resolves to dcd_int_handler().
+  dcd_int_handler(BOARD_TUD_RHPORT);
 }
 
 void dcd_int_handler(uint8_t rhport)
@@ -962,7 +985,6 @@ void dcd_int_handler(uint8_t rhport)
     {
       // Clear interrupt register.
       USBD_REG(epif) = MASK_USBD_EPIF_EP0IRQ;
-
       // Test for an incoming SETUP request on the control endpoint.
       if (USBD_EP_SR_REG(USBD_EP_0) & MASK_USBD_EP0SR_SETUP)
       {
@@ -976,7 +998,7 @@ void dcd_int_handler(uint8_t rhport)
           USBD_EP_SR_REG(USBD_EP_0) = MASK_USBD_EP0SR_STALL;
         }
 
-        // Host has sent a SETUP packet. Recieve this into the setup packet store.
+        // Host has sent a SETUP packet. Recieve this into the SETUP packet store.
         _ft90x_dusb_out(USBD_EP_0, (uint8_t *)_ft90x_setup_packet, sizeof(USB_device_request));
         
         // Send the packet to tinyusb.
@@ -984,6 +1006,9 @@ void dcd_int_handler(uint8_t rhport)
 
         // Clear the interrupt that signals a SETUP packet is received.
         USBD_EP_SR_REG(USBD_EP_0) = (MASK_USBD_EP0SR_SETUP);
+
+        // Invalidate cache packet.
+        _ft90x_ctrl_buf_complete = 0;
 
         // Allow new transfers on the control endpoint.
         ep_xfer[USBD_EP_0].valid = 0;
@@ -998,15 +1023,36 @@ void dcd_int_handler(uint8_t rhport)
 
           // Transfer incoming data from an OUT packet to the buffer supplied.        
           if (ep_xfer[USBD_EP_0].dir == TUSB_DIR_OUT)
-          { 
-            xfer_bytes = _ft90x_edpt_xfer_out(USBD_EP_0, (uint8_t *)ep_xfer[USBD_EP_0].buff_ptr, xfer_bytes);
+          {
+            xfer_bytes = _ft90x_edpt_xfer_out(USBD_EP_0, ep_xfer[USBD_EP_0].buff_ptr, xfer_bytes);
           }
           // Now signal completion of data packet.
           dcd_event_xfer_complete(BOARD_TUD_RHPORT, (ep_xfer[USBD_EP_0].dir ? TUSB_DIR_IN_MASK : 0), xfer_bytes, XFER_RESULT_SUCCESS, true);
 
+          // Invalidate cache packet.
+          _ft90x_ctrl_buf_complete = 0;
+
           // Allow new transfers on the control endpoint.
           ep_xfer[USBD_EP_0].valid = 0;
         }
+        else
+        {
+          // We have received a data packet on the control endpoint without a transfer
+          // being initialised. This can be because the host has sent this packet before
+          // a new transfer has been initiated on the control endpoint.
+          // We will cache upto the maximum packet size for the control endpoint and
+          // use it later in dcd_edpt_xfer.
+          xfer_bytes = CFG_TUD_ENDPOINT0_SIZE;
+
+          // Transfer incoming data from an OUT packet to the cache packet.
+          xfer_bytes = _ft90x_edpt_xfer_out(USBD_EP_0, _ft90x_ctrl_buf, xfer_bytes);
+          
+          // Set the size of the cache packet.
+          _ft90x_ctrl_buf_complete = xfer_bytes;
+        }
+
+        // Clear the interrupt that signals a SETUP DATA packet is received.
+        USBD_EP_SR_REG(USBD_EP_0) = (MASK_USBD_EP0SR_OPRDY);
       }
     }
     else // !(epif & MASK_USBD_EPIF_EP0IRQ)
@@ -1035,7 +1081,7 @@ void dcd_int_handler(uint8_t rhport)
           if (ep_xfer[ep_number].dir == TUSB_DIR_OUT)
           {
             xfer_bytes = _ft90x_edpt_xfer_out(ep_number, 
-                            (uint8_t *)ep_xfer[ep_number].buff_ptr, 
+                            ep_xfer[ep_number].buff_ptr, 
                             (uint16_t)ep_xfer[ep_number].remain_size);
 
             ep_xfer[ep_number].buff_ptr += xfer_bytes;
@@ -1047,7 +1093,7 @@ void dcd_int_handler(uint8_t rhport)
             if (ep_xfer[ep_number].remain_size > 0)
             {
               xfer_bytes = _ft90x_edpt_xfer_in(ep_number, 
-                            (uint8_t *)ep_xfer[ep_number].buff_ptr, 
+                            ep_xfer[ep_number].buff_ptr, 
                             (uint16_t)ep_xfer[ep_number].remain_size);
 
               ep_xfer[ep_number].buff_ptr += xfer_bytes;
