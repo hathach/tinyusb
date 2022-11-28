@@ -1183,7 +1183,7 @@ static void process_enumeration(tuh_xfer_t* xfer)
   // Retry a few times with transfers in enumeration since device can be unstable when starting up
   enum {
     ATTEMPT_COUNT_MAX = 3,
-    ATTEMPT_DELAY_MS = 10
+    ATTEMPT_DELAY_MS = 100
   };
   static uint8_t failed_count = 0;
 
