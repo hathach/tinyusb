@@ -31,8 +31,8 @@
 #include <registers/ft900_registers.h>
 
 #if CFG_TUD_ENABLED
-int8_t board_ft90x_vbus(void); // Board specific implementation of VBUS detection for USB device.
-extern void ft90x_usbd_pm_ISR(uint16_t pmcfg); // Interrupt handler for USB device power management
+int8_t board_ft9xx_vbus(void); // Board specific implementation of VBUS detection for USB device.
+extern void ft9xx_usbd_pm_ISR(uint16_t pmcfg); // Interrupt handler for USB device power management
 #endif
 
 #ifdef GPIO_REMOTE_WAKEUP
@@ -64,12 +64,10 @@ void board_init(void)
     // Use sizeof to avoid pulling in strlen unnecessarily.
     board_uart_write(WELCOME_MSG, sizeof(WELCOME_MSG));
 
-#if 0
-    // Ethernet LEDs
-    gpio_function(GPIO_ETH_LED0, pad_gpio4); /* ETH LED0 */
-    gpio_dir(GPIO_ETH_LED0, pad_dir_open_drain);
-    gpio_function(GPIO_ETH_LED1, pad_gpio5); /* ETH LED1 */
-    gpio_dir(GPIO_ETH_LED1, pad_dir_output);
+#ifdef GPIO_LED
+    gpio_function(GPIO_LED, pad_func_0); /* CN2 connector pin 4  */
+    gpio_idrive(GPIO_LED, pad_drive_12mA);
+    gpio_dir(GPIO_LED, pad_dir_output);
 #endif
 
 	sys_enable(sys_device_timer_wdt);
@@ -153,14 +151,14 @@ void board_pm_ISR(void)
     )
     {
 #if CFG_TUD_ENABLED
-        ft90x_usbd_pm_ISR(pmcfg);
+        ft9xx_usbd_pm_ISR(pmcfg);
 #endif
     }
 #endif
 }
 
 #if CFG_TUD_ENABLED
-int8_t board_ft90x_vbus(void)
+int8_t board_ft9xx_vbus(void)
 {
 	return gpio_read(USBD_VBUS_DTC_PIN);
 }
@@ -173,7 +171,11 @@ int8_t board_ft90x_vbus(void)
 // Turn LED on or off
 void board_led_write(bool state)
 {
+#if 0
     gpio_write(GPIO_ETH_LED0, state);
+#else
+    gpio_write(GPIO_LED, state);
+#endif
 }
 
 // Get the current state of button

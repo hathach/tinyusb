@@ -27,20 +27,28 @@
 #ifndef BOARD_H_
 #define BOARD_H_
 
-// Note: This definition file covers all MM900EV1B, MM900EV2B, and MM900EV3B boards.
+// Note: This definition file covers all MM900EV1B, MM900EV2B, MM900EV3B,
+// MM900EV-Lite boards.
 // Each of these boards has an FT900 device.
 
 #ifdef __cplusplus
  extern "C" {
 #endif
 
-#define GPIO_UART0_TX 48
-#define GPIO_UART0_RX 49
-#define GPIO_ETH_LED0 61
-#define GPIO_ETH_LED1 62
+// UART is on connector CN1.
+#define GPIO_UART0_TX 48 // Pin 4 of CN1.
+#define GPIO_UART0_RX 49 // Pin 6 of CN1.
+
+// LED is connected to pins 4 (signal) and 2 (GND) of CN2.
+#define GPIO_LED 36
+
+// Remote wakeup is wired to pin 40 of CN1.
 #define GPIO_REMOTE_WAKEUP_PIN 18
+
+// USB VBus signal is connected directly to the FT900.
 #define USBD_VBUS_DTC_PIN 3
 
+// Enable the Remote Wakeup signalling.
 #define GPIO_REMOTE_WAKEUP
 
 #ifdef __cplusplus

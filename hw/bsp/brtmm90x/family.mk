@@ -3,8 +3,8 @@ CROSS_COMPILE = ft32-elf-
 SKIP_NANOLIB = 1
 
 # Set to use FT90X prebuilt libraries.
-FT90X_PREBUILT_LIBS = 0
-ifeq ($(FT90X_PREBUILT_LIBS),1)
+FT9XX_PREBUILT_LIBS = 0
+ifeq ($(FT9XX_PREBUILT_LIBS),1)
 # If the FT90X toolchain is installed on Windows systems then the SDK 
 # include files and prebuilt libraries are at: %FT90X_TOOLCHAIN%/hardware
 FT9XX_SDK = $(FT90X_TOOLCHAIN)/hardware
@@ -48,7 +48,7 @@ LDFLAGS += $(addprefix -L,$(LDINC)) \
 SRC_C += src/portable/bridgetek/ft9xx/dcd_ft9xx.c 
 
 # Linker library.
-ifneq ($(FT90X_PREBUILT_LIBS),1)
+ifneq ($(FT9XX_PREBUILT_LIBS),1)
 # Optionally add in files from the Bridgetek SDK instead of the prebuilt
 # library. These are the minimum required.
 SRC_C += $(FT9XX_SDK)/src/sys.c
