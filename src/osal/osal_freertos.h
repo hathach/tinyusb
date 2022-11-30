@@ -62,12 +62,20 @@ TU_ATTR_ALWAYS_INLINE static inline void osal_task_delay(uint32_t msec)
 //--------------------------------------------------------------------+
 // Semaphore API
 //--------------------------------------------------------------------+
+#if configSUPPORT_STATIC_ALLOCATION	== 1
 typedef StaticSemaphore_t osal_semaphore_def_t;
+#else
+typedef SemaphoreHandle_t osal_semaphore_def_t;
+#endif
 typedef SemaphoreHandle_t osal_semaphore_t;
 
 TU_ATTR_ALWAYS_INLINE static inline osal_semaphore_t osal_semaphore_create(osal_semaphore_def_t* semdef)
 {
+#if configSUPPORT_STATIC_ALLOCATION	== 1
   return xSemaphoreCreateBinaryStatic(semdef);
+#else
+  return xSemaphoreCreateBinary();
+#endif
 }
 
 TU_ATTR_ALWAYS_INLINE static inline bool osal_semaphore_post(osal_semaphore_t sem_hdl, bool in_isr)
@@ -105,12 +113,21 @@ TU_ATTR_ALWAYS_INLINE static inline void osal_semaphore_reset(osal_semaphore_t c
 //--------------------------------------------------------------------+
 // MUTEX API (priority inheritance)
 //--------------------------------------------------------------------+
+#if configSUPPORT_STATIC_ALLOCATION	== 1
 typedef StaticSemaphore_t osal_mutex_def_t;
+#else
+typedef SemaphoreHandle_t osal_mutex_def_t;
+#endif
 typedef SemaphoreHandle_t osal_mutex_t;
 
 TU_ATTR_ALWAYS_INLINE static inline osal_mutex_t osal_mutex_create(osal_mutex_def_t* mdef)
 {
+#if configSUPPORT_STATIC_ALLOCATION	== 1
   return xSemaphoreCreateMutexStatic(mdef);
+#else
+  return xSemaphoreCreateMutex();
+#endif
+
 }
 
 TU_ATTR_ALWAYS_INLINE static inline bool osal_mutex_lock (osal_mutex_t mutex_hdl, uint32_t msec)
@@ -145,7 +162,11 @@ typedef QueueHandle_t osal_queue_t;
 
 TU_ATTR_ALWAYS_INLINE static inline osal_queue_t osal_queue_create(osal_queue_def_t* qdef)
 {
-  return xQueueCreateStatic(qdef->depth, qdef->item_sz, (uint8_t*) qdef->buf, &qdef->sq);
+#if configSUPPORT_STATIC_ALLOCATION	== 1
+	return xQueueCreateStatic(qdef->depth, qdef->item_sz, (uint8_t*) qdef->buf, &qdef->sq);
+#else
+  return xQueueCreate(qdef->depth, qdef->item_sz);
+#endif
 }
 
 TU_ATTR_ALWAYS_INLINE static inline bool osal_queue_receive(osal_queue_t qhdl, void* data, uint32_t msec)
