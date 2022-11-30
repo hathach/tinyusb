@@ -49,11 +49,16 @@ void board_pm_ISR(void);
 void board_init(void)
 {
 	sys_reset_all();
+
     // Enable the UART Device.
     sys_enable(sys_device_uart0);
     // Set UART0 GPIO functions to UART0_TXD and UART0_RXD.
+#ifdef GPIO_UART0_TX
     gpio_function(GPIO_UART0_TX, pad_uart0_txd); /* UART0 TXD */
+#endif
+#ifdef GPIO_UART0_RX
     gpio_function(GPIO_UART0_RX, pad_uart0_rxd); /* UART0 RXD */
+#endif
     uart_open(UART0,                             /* Device */
               1,                                 /* Prescaler = 1 */
               UART_DIVIDER_19200_BAUD,           /* Divider = 1302 */
@@ -65,9 +70,15 @@ void board_init(void)
     board_uart_write(WELCOME_MSG, sizeof(WELCOME_MSG));
 
 #ifdef GPIO_LED
-    gpio_function(GPIO_LED, pad_func_0); /* CN2 connector pin 4  */
+    gpio_function(GPIO_LED, pad_func_0); 
     gpio_idrive(GPIO_LED, pad_drive_12mA);
     gpio_dir(GPIO_LED, pad_dir_output);
+#endif
+
+#ifdef GPIO_BUTTON
+    gpio_function(GPIO_BUTTON, pad_func_0);
+    gpio_pull(GPIO_BUTTON, pad_pull_pullup);
+    gpio_dir(GPIO_BUTTON, pad_dir_input);
 #endif
 
 	sys_enable(sys_device_timer_wdt);
@@ -171,9 +182,7 @@ int8_t board_ft9xx_vbus(void)
 // Turn LED on or off
 void board_led_write(bool state)
 {
-#if 0
-    gpio_write(GPIO_ETH_LED0, state);
-#else
+#ifdef GPIO_LED
     gpio_write(GPIO_LED, state);
 #endif
 }
@@ -182,13 +191,23 @@ void board_led_write(bool state)
 // a '1' means active (pressed), a '0' means inactive.
 uint32_t board_button_read(void)
 {
-    return 0;
+    uint32_t state = 0;
+#ifdef GPIO_BUTTON
+    state = gpio_read(GPIO_BUTTON);
+    state = !state;
+#endif
+    return state;
 }
 
 // Get characters from UART
 int board_uart_read(uint8_t *buf, int len)
 {
-    int r = uart_readn(UART0, (uint8_t *)buf, len);
+    int r = 0;
+
+    if (uart_rx_has_data(UART0))
+    {
+        r = uart_readn(UART0, (uint8_t *)buf, len);
+    }
 
     return r;
 }

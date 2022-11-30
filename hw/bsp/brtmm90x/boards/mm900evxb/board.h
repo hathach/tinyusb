@@ -41,6 +41,8 @@
 
 // LED is connected to pins 4 (signal) and 2 (GND) of CN2.
 #define GPIO_LED 36
+// Button is connected to pins 6 (signal) and 2 (GND) of CN2.
+#define GPIO_BUTTON 37
 
 // Remote wakeup is wired to pin 40 of CN1.
 #define GPIO_REMOTE_WAKEUP_PIN 18

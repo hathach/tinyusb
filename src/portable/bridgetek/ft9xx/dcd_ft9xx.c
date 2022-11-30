@@ -48,6 +48,7 @@
 
 // Board code will determine the state of VBUS from USB host.
 extern int8_t board_ft9xx_vbus(void);
+extern int board_uart_write(void const *buf, int len);
 
 // Static array to store an incoming SETUP request for processing by tinyusb.
 CFG_TUSB_MEM_SECTION CFG_TUSB_MEM_ALIGN
@@ -154,17 +155,24 @@ static uint16_t _ft9xx_edpt_xfer_in(uint8_t ep_number, uint8_t *buffer, uint16_t
   }
   else
   {
-    uint8_t sr_reg;
     // If there is data to transmit then wait until the IN buffer
     // for the endpoint is empty.
-    do
+    // This does not apply to interrupt endpoints.
+    if (ep_xfer[ep_number].type != TUSB_XFER_INTERRUPT)
     {
-      sr_reg = USBD_EP_SR_REG(ep_number);
-    } while (sr_reg & MASK_USBD_EPxSR_INPRDY);
-    
+      uint8_t sr_reg;
+      do
+      {
+        sr_reg = USBD_EP_SR_REG(ep_number);
+      } while (sr_reg & MASK_USBD_EPxSR_INPRDY);
+    }
   }
 
-  xfer_bytes = _ft9xx_dusb_in(ep_number, (uint8_t *)buffer, xfer_bytes);
+  // Do not send a ZLP for interrupt endpoints.
+  if ((ep_xfer[ep_number].type != TUSB_XFER_INTERRUPT) || (xfer_bytes > 0))
+  {
+    xfer_bytes = _ft9xx_dusb_in(ep_number, (uint8_t *)buffer, xfer_bytes);
+  }
 
   if (ep_number == USBD_EP_0)
   {
@@ -749,11 +757,11 @@ bool dcd_edpt_open(uint8_t rhport, tusb_desc_endpoint_t const *ep_desc)
     }
 
     // Set the type of this endpoint in the control register.
-    if (ep_type == USBD_EP_BULK)
+    if (ep_type == TUSB_XFER_BULK)
       ep_reg_data |= (USBD_EP_DIS_BULK << BIT_USBD_EP_CONTROL_DIS);
-    else if (ep_type == USBD_EP_INT)
+    else if (ep_type == TUSB_XFER_INTERRUPT)
       ep_reg_data |= (USBD_EP_DIS_INT << BIT_USBD_EP_CONTROL_DIS);
-    else if (ep_type == USBD_EP_ISOC)
+    else if (ep_type == TUSB_XFER_ISOCHRONOUS)
       ep_reg_data |= (USBD_EP_DIS_ISO << BIT_USBD_EP_CONTROL_DIS);
     // Set the direction of this endpoint in the control register.
     if (ep_dir == USBD_DIR_IN)
@@ -761,7 +769,7 @@ bool dcd_edpt_open(uint8_t rhport, tusb_desc_endpoint_t const *ep_desc)
     // Do not perform double buffering.
     //if (<double buffering flag> != USBD_DB_OFF)
     //ep_reg_data |= MASK_USBD_EPxCR_DB;
-    // Set the control endpoint for this endpoint.
+    // Set the control register for this endpoint.
     USBD_EP_CR_REG(ep_number) = ep_reg_data;
     TU_LOG2("FT9xx endpoint setting %x\r\n", ep_reg_data);
   }
@@ -858,6 +866,7 @@ bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t *buffer, uint16_t to
 
         // Transfer incoming data from an OUT packet to the buffer.
         xfer_bytes = _ft9xx_edpt_xfer_out(ep_number, buffer, total_bytes);
+
         // Report completion of the transfer.
         dcd_event_xfer_complete(BOARD_TUD_RHPORT, ep_number /*| TUSB_DIR_OUT_MASK */, xfer_bytes, XFER_RESULT_SUCCESS, false);
       }
