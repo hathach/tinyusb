@@ -62,7 +62,7 @@ TU_ATTR_ALWAYS_INLINE static inline void osal_task_delay(uint32_t msec)
 //--------------------------------------------------------------------+
 // Semaphore API
 //--------------------------------------------------------------------+
-#if configSUPPORT_STATIC_ALLOCATION	== 1
+#if configSUPPORT_STATIC_ALLOCATION == 1
 typedef StaticSemaphore_t osal_semaphore_def_t;
 #else
 typedef SemaphoreHandle_t osal_semaphore_def_t;
@@ -71,7 +71,7 @@ typedef SemaphoreHandle_t osal_semaphore_t;
 
 TU_ATTR_ALWAYS_INLINE static inline osal_semaphore_t osal_semaphore_create(osal_semaphore_def_t* semdef)
 {
-#if configSUPPORT_STATIC_ALLOCATION	== 1
+#if configSUPPORT_STATIC_ALLOCATION == 1
   return xSemaphoreCreateBinaryStatic(semdef);
 #else
   return xSemaphoreCreateBinary();
@@ -113,7 +113,7 @@ TU_ATTR_ALWAYS_INLINE static inline void osal_semaphore_reset(osal_semaphore_t c
 //--------------------------------------------------------------------+
 // MUTEX API (priority inheritance)
 //--------------------------------------------------------------------+
-#if configSUPPORT_STATIC_ALLOCATION	== 1
+#if configSUPPORT_STATIC_ALLOCATION == 1
 typedef StaticSemaphore_t osal_mutex_def_t;
 #else
 typedef SemaphoreHandle_t osal_mutex_def_t;
@@ -122,7 +122,7 @@ typedef SemaphoreHandle_t osal_mutex_t;
 
 TU_ATTR_ALWAYS_INLINE static inline osal_mutex_t osal_mutex_create(osal_mutex_def_t* mdef)
 {
-#if configSUPPORT_STATIC_ALLOCATION	== 1
+#if configSUPPORT_STATIC_ALLOCATION == 1
   return xSemaphoreCreateMutexStatic(mdef);
 #else
   return xSemaphoreCreateMutex();
@@ -162,7 +162,7 @@ typedef QueueHandle_t osal_queue_t;
 
 TU_ATTR_ALWAYS_INLINE static inline osal_queue_t osal_queue_create(osal_queue_def_t* qdef)
 {
-#if configSUPPORT_STATIC_ALLOCATION	== 1
+#if configSUPPORT_STATIC_ALLOCATION == 1
 	return xQueueCreateStatic(qdef->depth, qdef->item_sz, (uint8_t*) qdef->buf, &qdef->sq);
 #else
   return xQueueCreate(qdef->depth, qdef->item_sz);
