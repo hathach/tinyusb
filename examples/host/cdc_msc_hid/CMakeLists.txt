@@ -15,6 +15,9 @@ add_executable(${PROJECT})
 # Example source
 target_sources(${PROJECT} PUBLIC
         ${CMAKE_CURRENT_SOURCE_DIR}/src/hid_app.c
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/hid_host_utils.c
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/hid_host_info.c
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/hid_host_joy.c
         ${CMAKE_CURRENT_SOURCE_DIR}/src/main.c
         ${CMAKE_CURRENT_SOURCE_DIR}/src/msc_app.c
         )

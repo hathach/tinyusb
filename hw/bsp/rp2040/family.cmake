@@ -91,6 +91,8 @@ if (NOT TARGET _rp2040_family_inclusion_marker)
 			${TOP}/src/host/usbh.c
 			${TOP}/src/host/hub.c
 			${TOP}/src/class/cdc/cdc_host.c
+			${TOP}/src/class/hid/hid_ri.c
+			${TOP}/src/class/hid/hid_rip.c
 			${TOP}/src/class/hid/hid_host.c
 			${TOP}/src/class/msc/msc_host.c
 			${TOP}/src/class/vendor/vendor_host.c
