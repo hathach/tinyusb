@@ -35,7 +35,7 @@ int8_t board_ft9xx_vbus(void); // Board specific implementation of VBUS detectio
 extern void ft9xx_usbd_pm_ISR(uint16_t pmcfg); // Interrupt handler for USB device power management
 #endif
 
-#ifdef GPIO_REMOTE_WAKEUP
+#ifdef BOARD_GPIO_REMOTE_WAKEUP
 void gpio_ISR(void);
 #endif
 void timer_ISR(void);
@@ -52,14 +52,14 @@ void board_init(void)
 
     // Enable the UART Device.
     sys_enable(sys_device_uart0);
-    // Set UART0 GPIO functions to UART0_TXD and UART0_RXD.
-#ifdef GPIO_UART0_TX
-    gpio_function(GPIO_UART0_TX, pad_uart0_txd); /* UART0 TXD */
+    // Set BOARD_UART GPIO function pins for TXD and RXD.
+#ifdef BOARD_GPIO_UART_TX
+    gpio_function(BOARD_GPIO_UART_TX, pad_uart0_txd); /* UART0 TXD */
 #endif
-#ifdef GPIO_UART0_RX
-    gpio_function(GPIO_UART0_RX, pad_uart0_rxd); /* UART0 RXD */
+#ifdef BOARD_GPIO_UART_RX
+    gpio_function(BOARD_GPIO_UART_RX, pad_uart0_rxd); /* UART0 RXD */
 #endif
-    uart_open(UART0,                             /* Device */
+    uart_open(BOARD_UART,                             /* Device */
               1,                                 /* Prescaler = 1 */
               UART_DIVIDER_19200_BAUD,           /* Divider = 1302 */
               uart_data_bits_8,                  /* No. Data Bits */
@@ -69,16 +69,17 @@ void board_init(void)
     // Use sizeof to avoid pulling in strlen unnecessarily.
     board_uart_write(WELCOME_MSG, sizeof(WELCOME_MSG));
 
-#ifdef GPIO_LED
-    gpio_function(GPIO_LED, pad_func_0); 
-    gpio_idrive(GPIO_LED, pad_drive_12mA);
-    gpio_dir(GPIO_LED, pad_dir_output);
+#ifdef BOARD_GPIO_LED
+    gpio_function(BOARD_GPIO_LED, pad_func_0); 
+    gpio_idrive(BOARD_GPIO_LED, pad_drive_12mA);
+    gpio_dir(BOARD_GPIO_LED, pad_dir_output);
 #endif
 
-#ifdef GPIO_BUTTON
-    gpio_function(GPIO_BUTTON, pad_func_0);
-    gpio_pull(GPIO_BUTTON, pad_pull_pullup);
-    gpio_dir(GPIO_BUTTON, pad_dir_input);
+#ifdef BOARD_GPIO_BUTTON
+    gpio_function(BOARD_GPIO_BUTTON, pad_func_0);
+    // Pull up if active low. Down if active high.
+    gpio_pull(BOARD_GPIO_BUTTON, (BOARD_GPIO_BUTTON_STATE_ACTIVE == 0)?pad_pull_pullup:pad_pull_pulldown);
+    gpio_dir(BOARD_GPIO_BUTTON, pad_dir_input);
 #endif
 
 	sys_enable(sys_device_timer_wdt);
@@ -91,26 +92,26 @@ void board_init(void)
 
     // Setup VBUS detect GPIO. If the device is connected then this
     // will set the MASK_SYS_PMCFG_DEV_DETECT_EN bit in PMCFG.
-    gpio_interrupt_disable(USBD_VBUS_DTC_PIN);
-    gpio_function(USBD_VBUS_DTC_PIN, pad_vbus_dtc);
-    gpio_pull(USBD_VBUS_DTC_PIN, pad_pull_pulldown);
-    gpio_dir(USBD_VBUS_DTC_PIN, pad_dir_input);
+    gpio_interrupt_disable(BOARD_USBD_VBUS_DTC_PIN);
+    gpio_function(BOARD_USBD_VBUS_DTC_PIN, pad_vbus_dtc);
+    gpio_pull(BOARD_USBD_VBUS_DTC_PIN, pad_pull_pulldown);
+    gpio_dir(BOARD_USBD_VBUS_DTC_PIN, pad_dir_input);
 
     interrupt_attach(interrupt_0, (int8_t)interrupt_0, board_pm_ISR);
 
-#ifdef GPIO_REMOTE_WAKEUP
-    //Configuring GPIO pin to wakeup.
+#ifdef BOARD_GPIO_REMOTE_WAKEUP
+    // Configuring GPIO pin to wakeup.
     // Set up the wakeup pin.
-    gpio_dir(GPIO_REMOTE_WAKEUP_PIN, pad_dir_input);
-    gpio_pull(GPIO_REMOTE_WAKEUP_PIN, pad_pull_pullup);
+    gpio_dir(BOARD_GPIO_REMOTE_WAKEUP, pad_dir_input);
+    gpio_pull(BOARD_GPIO_REMOTE_WAKEUP, pad_pull_pullup);
 
     // Attach an interrupt handler.
     interrupt_attach(interrupt_gpio, (uint8_t)interrupt_gpio, gpio_ISR);
-    gpio_interrupt_enable(GPIO_REMOTE_WAKEUP_PIN, gpio_int_edge_falling);
+    gpio_interrupt_enable(BOARD_GPIO_REMOTE_WAKEUP, gpio_int_edge_falling);
 #endif
 
-	uart_disable_interrupt(UART0, uart_interrupt_tx);
-	uart_disable_interrupt(UART0, uart_interrupt_rx);
+	uart_disable_interrupt(BOARD_UART, uart_interrupt_tx);
+	uart_disable_interrupt(BOARD_UART, uart_interrupt_rx);
 
     // Enable all peripheral interrupts.
     interrupt_enable_globally();
@@ -126,10 +127,10 @@ void timer_ISR(void)
     }
 }
 
-#ifdef GPIO_REMOTE_WAKEUP
+#ifdef BOARD_GPIO_REMOTE_WAKEUP
 void gpio_ISR(void)
 {
-    if (gpio_is_interrupted(GPIO_REMOTE_WAKEUP_PIN))
+    if (gpio_is_interrupted(BOARD_GPIO_REMOTE_WAKEUP))
     {
     }
 }
@@ -171,7 +172,7 @@ void board_pm_ISR(void)
 #if CFG_TUD_ENABLED
 int8_t board_ft9xx_vbus(void)
 {
-	return gpio_read(USBD_VBUS_DTC_PIN);
+	return gpio_read(BOARD_USBD_VBUS_DTC_PIN);
 }
 #endif
 
@@ -182,8 +183,8 @@ int8_t board_ft9xx_vbus(void)
 // Turn LED on or off
 void board_led_write(bool state)
 {
-#ifdef GPIO_LED
-    gpio_write(GPIO_LED, state);
+#ifdef BOARD_GPIO_LED
+    gpio_write(BOARD_GPIO_LED, (state == 0)?(BOARD_GPIO_LED_STATE_ON?0:1):BOARD_GPIO_LED_STATE_ON);
 #endif
 }
 
@@ -192,9 +193,8 @@ void board_led_write(bool state)
 uint32_t board_button_read(void)
 {
     uint32_t state = 0;
-#ifdef GPIO_BUTTON
-    state = gpio_read(GPIO_BUTTON);
-    state = !state;
+#ifdef BOARD_GPIO_BUTTON
+    state = (gpio_read(BOARD_GPIO_BUTTON) == BOARD_GPIO_BUTTON_STATE_ACTIVE)?1:0;
 #endif
     return state;
 }
@@ -204,10 +204,12 @@ int board_uart_read(uint8_t *buf, int len)
 {
     int r = 0;
 
-    if (uart_rx_has_data(UART0))
+#ifdef BOARD_UART
+    if (uart_rx_has_data(BOARD_UART))
     {
-        r = uart_readn(UART0, (uint8_t *)buf, len);
+        r = uart_readn(BOARD_UART, (uint8_t *)buf, len);
     }
+#endif
 
     return r;
 }
@@ -215,10 +217,14 @@ int board_uart_read(uint8_t *buf, int len)
 // Send characters to UART
 int board_uart_write(void const *buf, int len)
 {
+    int r = 0;
+
+#ifdef BOARD_UART
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wcast-qual" // uart_writen does not have const for buffer parameter.
-    int r = uart_writen(UART0, (uint8_t *)((const void *)buf), len);
+    r = uart_writen(BOARD_UART, (uint8_t *)((const void *)buf), len);
 #pragma GCC diagnostic pop
+#endif
 
     return r;
 }

@@ -35,23 +35,47 @@
  extern "C" {
 #endif
 
+#include <tinyprintf.h>
+
+// UART to use on this board.
+#ifndef BOARD_UART
+#define BOARD_UART UART0
+#endif
+
 // UART is on connector CN1.
-#define GPIO_UART0_TX 48 // Pin 4 of CN1.
-#define GPIO_UART0_RX 49 // Pin 6 of CN1.
+#ifndef BOARD_GPIO_UART0_TX
+#define BOARD_GPIO_UART0_TX 48 // Pin 4 of CN1.
+#endif
+#ifndef BOARD_GPIO_UART0_RX
+#define BOARD_GPIO_UART0_RX 49 // Pin 6 of CN1.
+#endif
 
-// LED is connected to pins 4 (signal) and 2 (GND) of CN2.
-#define GPIO_LED 36
-// Button is connected to pins 6 (signal) and 2 (GND) of CN2.
-#define GPIO_BUTTON 37
-
-// Remote wakeup is wired to pin 40 of CN1.
-#define GPIO_REMOTE_WAKEUP_PIN 18
-
-// USB VBus signal is connected directly to the FT900.
-#define USBD_VBUS_DTC_PIN 3
+// LED is connected to pins 17 (signal) and 15 (GND) of CN1.
+#ifndef BOARD_GPIO_LED
+#define BOARD_GPIO_LED 35
+#endif
+#ifndef BOARD_GPIO_LED_STATE_ON
+#define BOARD_GPIO_LED_STATE_ON 1
+#endif
+// Button is connected to pins 13 (signal) and 15 (GND) of CN1.
+#ifndef BOARD_GPIO_BUTTON
+#define BOARD_GPIO_BUTTON 56
+#endif
+// Button is pulled up and grounded for active.
+#ifndef BOARD_GPIO_BUTTON_STATE_ACTIVE
+#define BOARD_GPIO_BUTTON_STATE_ACTIVE 0
+#endif
 
 // Enable the Remote Wakeup signalling.
-#define GPIO_REMOTE_WAKEUP
+// Remote wakeup is wired to pin 40 of CN1.
+#ifndef BOARD_GPIO_REMOTE_WAKEUP
+#define BOARD_GPIO_REMOTE_WAKEUP 18
+#endif
+
+// USB VBus signal is connected directly to the FT900.
+#ifndef BOARD_USBD_VBUS_DTC_PIN
+#define BOARD_USBD_VBUS_DTC_PIN 3
+#endif
 
 #ifdef __cplusplus
  }
