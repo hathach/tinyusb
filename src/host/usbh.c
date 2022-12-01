@@ -246,8 +246,8 @@ static uint8_t _usbh_ctrl_buf[CFG_TUH_ENUMERATION_BUFSIZE];
 
 // Control transfer: since most controller does not support multiple control transfer
 // on multiple devices concurrently. And control transfer is not used much except enumeration
-// We will only execute control transfer one at a time.
-struct
+// We will only execute control transfer one at a time.CFG_TUSB_MEM_SECTION TU_ATTR_ALIGNED(4096)
+CFG_TUSB_MEM_SECTION struct
 {
   tusb_control_request_t request TU_ATTR_ALIGNED(4);
   uint8_t* buffer;
