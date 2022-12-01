@@ -509,7 +509,7 @@ void tuh_task_ext(uint32_t timeout_ms, bool in_isr)
       default: break;
     }
 
-#if CFG_TUSB_OS != OPT_OS_NONE && CFG_TUSB_OS != OPT_OS_PICO
+#if CFG_TUSB_OS != OPT_OS_NONE && CFG_TUSB_OS != OPT_OS_PICO && CFG_TUSB_OS != OPT_OS_FREERTOS
     // return if there is no more events, for application to run other background
     if (osal_queue_empty(_usbh_q)) return;
 #endif
