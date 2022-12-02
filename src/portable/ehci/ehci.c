@@ -193,7 +193,6 @@ static void list_remove_qhd_by_addr(ehci_link_t* list_head, uint8_t dev_addr)
   {
     // TODO check type for ISO iTD and siTD
     // TODO Suppress cast-align warning
-	if( prev == NULL ) break;
 	#pragma GCC diagnostic push
     #pragma GCC diagnostic ignored "-Wcast-align"
     ehci_qhd_t* qhd = (ehci_qhd_t*) list_next(prev);
