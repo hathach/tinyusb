@@ -74,6 +74,7 @@ TU_ATTR_ALWAYS_INLINE static inline osal_semaphore_t osal_semaphore_create(osal_
 #if configSUPPORT_STATIC_ALLOCATION == 1
   return xSemaphoreCreateBinaryStatic(semdef);
 #else
+  (void)(semdef);
   return xSemaphoreCreateBinary();
 #endif
 }
@@ -125,6 +126,7 @@ TU_ATTR_ALWAYS_INLINE static inline osal_mutex_t osal_mutex_create(osal_mutex_de
 #if configSUPPORT_STATIC_ALLOCATION == 1
   return xSemaphoreCreateMutexStatic(mdef);
 #else
+  (void)(mdef);
   return xSemaphoreCreateMutex();
 #endif
 
@@ -154,8 +156,9 @@ typedef struct
   uint16_t depth;
   uint16_t item_sz;
   void*    buf;
-
+#if configSUPPORT_STATIC_ALLOCATION == 1
   StaticQueue_t sq;
+#endif
 }osal_queue_def_t;
 
 typedef QueueHandle_t osal_queue_t;

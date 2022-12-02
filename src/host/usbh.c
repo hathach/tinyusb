@@ -246,8 +246,8 @@ static uint8_t _usbh_ctrl_buf[CFG_TUH_ENUMERATION_BUFSIZE];
 
 // Control transfer: since most controller does not support multiple control transfer
 // on multiple devices concurrently. And control transfer is not used much except enumeration
-// We will only execute control transfer one at a time.CFG_TUSB_MEM_SECTION TU_ATTR_ALIGNED(4096)
-CFG_TUSB_MEM_SECTION struct
+// We will only execute control transfer one at a time.
+struct
 {
   tusb_control_request_t request TU_ATTR_ALIGNED(4);
   uint8_t* buffer;
@@ -509,7 +509,7 @@ void tuh_task_ext(uint32_t timeout_ms, bool in_isr)
       default: break;
     }
 
-#if CFG_TUSB_OS != OPT_OS_NONE && CFG_TUSB_OS != OPT_OS_PICO && CFG_TUSB_OS != OPT_OS_FREERTOS
+#if CFG_TUSB_OS != OPT_OS_NONE && CFG_TUSB_OS != OPT_OS_PICO
     // return if there is no more events, for application to run other background
     if (osal_queue_empty(_usbh_q)) return;
 #endif
