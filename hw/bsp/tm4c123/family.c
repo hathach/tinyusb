@@ -39,7 +39,7 @@ static void board_uart_init (void)
   UART0->LCRH = (0x3 << 5);                    // 8-bit, no parity, 1 stop bit
   UART0->CC = 0x0;                             // Configure the UART clock source as system clock
 
-  UART0->CTL = (1 << 0) | (1 << 8) | (1 << 9); // UART0 Enable, Transmit Enable, Recieve Enable
+  UART0->CTL = (1 << 0) | (1 << 8) | (1 << 9); // UART0 Enable, Transmit Enable, Receive Enable
 }
 
 static void initialize_board_led (GPIOA_Type *port, uint8_t PinMsk, uint8_t dirmsk)

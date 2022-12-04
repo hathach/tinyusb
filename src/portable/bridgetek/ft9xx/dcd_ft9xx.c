@@ -587,7 +587,7 @@ void dcd_remote_wakeup(uint8_t rhport)
 
   SYS->MSC0CFG = SYS->MSC0CFG | MASK_SYS_MSC0CFG_DEV_RMWAKEUP;
 
-  // Atleast 2 ms of delay needed for RESUME Data K state.
+  // At least 2 ms of delay needed for RESUME Data K state.
   delayms(2); 
 
   SYS->MSC0CFG &= ~MASK_SYS_MSC0CFG_DEV_RMWAKEUP;
@@ -720,7 +720,7 @@ bool dcd_edpt_open(uint8_t rhport, tusb_desc_endpoint_t const *ep_desc)
     else
       total_ram = USBD_RAMTOTAL_OUT;
     // Work out how much has been allocated to existing endpoints.
-    // The total RAM allocated shoudl alsyes be a positive number as this
+    // The total RAM allocated should always be a positive number as this
     // algorithm should not let it go below zero.
     for (int i = 1; i < USBD_MAX_ENDPOINT_COUNT; i++)
     {
@@ -976,7 +976,7 @@ void dcd_int_handler(uint8_t rhport)
           USBD_EP_SR_REG(USBD_EP_0) = MASK_USBD_EP0SR_STALL;
         }
 
-        // Host has sent a SETUP packet. Recieve this into the setup packet store.
+        // Host has sent a SETUP packet. Receive this into the setup packet store.
         _ft90x_dusb_out(USBD_EP_0, (uint8_t *)_ft90x_setup_packet, sizeof(USB_device_request));
         
         // Send the packet to tinyusb.

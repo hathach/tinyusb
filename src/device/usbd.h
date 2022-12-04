@@ -648,7 +648,7 @@ TU_ATTR_WEAK bool tud_vendor_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb
 #define TUD_DFU_DESC_LEN(_alt_count)    (9 + (_alt_count) * 9)
 
 // Interface number, Alternate count, starting string index, attributes, detach timeout, transfer size
-// Note: Alternate count must be numberic or macro, string index is increased by one for each Alt interface
+// Note: Alternate count must be numeric or macro, string index is increased by one for each Alt interface
 #define TUD_DFU_DESCRIPTOR(_itfnum, _alt_count, _stridx, _attr, _timeout, _xfer_size) \
   TU_XSTRCAT(_TUD_DFU_ALT_,_alt_count)(_itfnum, 0, _stridx), \
   /* Function */ \

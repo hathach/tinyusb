@@ -122,7 +122,7 @@
         (TU_CHECK_MCU(OPT_MCU_STM32L4) && defined(STM32L4_FSDEV)) \
       )
 
-// In order to reduce the dependance on HAL, we undefine this.
+// In order to reduce the dependence on HAL, we undefine this.
 // Some definitions are copied to our private include file.
 #undef USE_HAL_DRIVER
 

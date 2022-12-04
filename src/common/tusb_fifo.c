@@ -28,7 +28,7 @@
 #include "osal/osal.h"
 #include "tusb_fifo.h"
 
-// Supress IAR warning
+// Suppress IAR warning
 // Warning[Pa082]: undefined behavior: the order of volatile accesses is undefined in this statement
 #if defined(__ICCARM__)
 #pragma diag_suppress = Pa082
@@ -98,7 +98,7 @@ static inline uint16_t _ff_mod(uint16_t idx, uint16_t depth)
 }
 
 // Intended to be used to read from hardware USB FIFO in e.g. STM32 where all data is read from a constant address
-// Code adapted from dcd_synopsis.c
+// Code adapted from dcd_synopsys.c
 // TODO generalize with configurable 1 byte or 4 byte each read
 static void _ff_push_const_addr(uint8_t * ff_buf, const void * app_buf, uint16_t len)
 {
@@ -857,7 +857,7 @@ bool tu_fifo_set_overwritable(tu_fifo_t *f, bool overwritable)
     As long as the DMA is the only process writing into the FIFO this is safe
     to use.
 
-    USE WITH CARE - WE DO NOT CONDUCT SAFTY CHECKS HERE!
+    USE WITH CARE - WE DO NOT CONDUCT SAFETY CHECKS HERE!
 
     @param[in]  f
                 Pointer to the FIFO buffer to manipulate
@@ -878,7 +878,7 @@ void tu_fifo_advance_write_pointer(tu_fifo_t *f, uint16_t n)
     FIFO. As long as the DMA is the only process reading from the FIFO this is
     safe to use.
 
-    USE WITH CARE - WE DO NOT CONDUCT SAFTY CHECKS HERE!
+    USE WITH CARE - WE DO NOT CONDUCT SAFETY CHECKS HERE!
 
     @param[in]  f
                 Pointer to the FIFO buffer to manipulate

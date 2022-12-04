@@ -599,7 +599,7 @@ bool usbtmcd_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request
 
     // At this point, a transfer MAY be in progress. Based on USB spec, when clearing bulk EP HALT,
     // the EP transfer buffer needs to be cleared and DTOG needs to be reset, even if 
-    // the EP is not halted. The only USBD API interface to do this is to stall and then unstall the EP.
+    // the EP is not halted. The only USBD API interface to do this is to stall and then un-stall the EP.
     if(ep_addr == usbtmc_state.ep_bulk_out)
     {
       criticalEnter();
