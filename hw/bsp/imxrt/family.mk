@@ -30,7 +30,7 @@ MCU_DIR = $(SDK_DIR)/devices/$(MCU_VARIANT)
 # All source paths should be relative to the top level.
 LD_FILE = $(MCU_DIR)/gcc/$(MCU_VARIANT)xxxxx_flexspi_nor.ld
 
-# TODO for net_lwip_webserver exmaple, but may not needed !! 
+# TODO for net_lwip_webserver example, but may not needed !! 
 LDFLAGS += \
 	-Wl,--defsym,__stack_size__=0x800 \
 

@@ -226,6 +226,6 @@ int board_getchar(void)
 
 //--------------------------------------------------------------------+
 // USB Interrupt Handler
-// rp2040 implementation will install approriate handler when initializing
+// rp2040 implementation will install appropriate handler when initializing
 // tinyusb. There is no need to forward IRQ from application
 //--------------------------------------------------------------------+

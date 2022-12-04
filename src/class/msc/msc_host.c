@@ -200,7 +200,7 @@ bool tuh_msc_test_unit_ready(uint8_t dev_addr, uint8_t lun, tuh_msc_complete_cb_
   return tuh_msc_scsi_command(dev_addr, &cbw, NULL, complete_cb, arg);
 }
 
-bool tuh_msc_request_sense(uint8_t dev_addr, uint8_t lun, void *resposne, tuh_msc_complete_cb_t complete_cb, uintptr_t arg)
+bool tuh_msc_request_sense(uint8_t dev_addr, uint8_t lun, void *response, tuh_msc_complete_cb_t complete_cb, uintptr_t arg)
 {
   msc_cbw_t cbw;
   cbw_init(&cbw, lun);
@@ -217,7 +217,7 @@ bool tuh_msc_request_sense(uint8_t dev_addr, uint8_t lun, void *resposne, tuh_ms
 
   memcpy(cbw.command, &cmd_request_sense, cbw.cmd_len);
 
-  return tuh_msc_scsi_command(dev_addr, &cbw, resposne, complete_cb, arg);
+  return tuh_msc_scsi_command(dev_addr, &cbw, response, complete_cb, arg);
 }
 
 bool tuh_msc_read10(uint8_t dev_addr, uint8_t lun, void * buffer, uint32_t lba, uint16_t block_count, tuh_msc_complete_cb_t complete_cb, uintptr_t arg)

@@ -50,7 +50,7 @@ typedef struct {
 } ws2812_t;
 
 /**
- * @brief Conver RGB data to RMT format.
+ * @brief Convert RGB data to RMT format.
  *
  * @note For WS2812, R,G,B each contains 256 different choices (i.e. uint8_t)
  *

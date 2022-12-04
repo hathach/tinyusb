@@ -186,7 +186,7 @@ static inline void timer_board_delay(TIM_HandleTypeDef* tim_hdl, uint32_t ms)
 
 static inline void board_stm32h7_post_init(void)
 {
-  // walkaround for reseting the ULPI PHY using Timer since systick is not
+  // walkaround for resetting the ULPI PHY using Timer since systick is not
   // available when RTOS is used.
 
   // Init timer

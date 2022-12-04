@@ -117,7 +117,7 @@ void rndish_init(void)
 
   //------------- Task creation -------------//
 
-  //------------- semaphore creation for notificaiton pipe -------------//
+  //------------- semaphore creation for notification pipe -------------//
   for(uint8_t i=0; i<CFG_TUH_DEVICE_MAX; i++)
   {
     rndish_data[i].sem_notification_hdl = osal_semaphore_create( OSAL_SEM_REF(rndish_data[i].semaphore_notification) );

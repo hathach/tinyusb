@@ -1275,7 +1275,7 @@ static void process_enumeration(tuh_xfer_t* xfer)
         // connected directly to roothub
         hcd_port_reset( _dev0.rhport );
         osal_task_delay(RESET_DELAY); // TODO may not work for no-OS on MCU that require reset_end() since
-                                      // sof of controller may not running while reseting
+                                      // sof of controller may not running while resetting
         hcd_port_reset_end(_dev0.rhport);
         // TODO: fall through to SET ADDRESS, refactor later
       }
@@ -1395,7 +1395,7 @@ static bool enum_new_device(hcd_event_t* event)
     // wait until device is stable TODO non blocking
     hcd_port_reset(_dev0.rhport);
     osal_task_delay(RESET_DELAY); // TODO may not work for no-OS on MCU that require reset_end() since
-                                  // sof of controller may not running while reseting
+                                  // sof of controller may not running while resetting
     hcd_port_reset_end( _dev0.rhport);
 
     // device unplugged while delaying

@@ -31,7 +31,7 @@
  *
  * $ dfu-util -e
  *
- * This will send DETTACH command to put device into bootloader. Since this example
+ * This will send DETACH command to put device into bootloader. Since this example
  * is minimal, it doesn't actually go into DFU mode but rather change the LED blinking
  * pattern to fast rate as indicator.
  */
