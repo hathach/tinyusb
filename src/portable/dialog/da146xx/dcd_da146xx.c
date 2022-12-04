@@ -243,7 +243,7 @@ static struct
 
 // Converts xfer pointer to epnum (0,1,2,3) regardless of xfer direction
 #define XFER_EPNUM(xfer)      ((xfer - &_dcd.xfer_status[0][0]) >> 1)
-// Converts xfer pinter to EPx_REGS pointer (returns same pointer for IN and OUT with same endpoint number)
+// Converts xfer pointer to EPx_REGS pointer (returns same pointer for IN and OUT with same endpoint number)
 #define XFER_REGS(xfer)       ep_regs[XFER_EPNUM(xfer)]
 // Converts epnum (0,1,2,3) to EPx_REGS pointer
 #define EPNUM_REGS(epnum)     ep_regs[epnum]

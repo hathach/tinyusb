@@ -112,7 +112,7 @@ void board_init(void) {
   otg_core_regs->GCCFG &= ~GCCFG_VBUSIG;
 #endif
 
-  /* Enable interrupts globaly */
+  /* Enable interrupts globally */
   __enable_irq();
 }
 
