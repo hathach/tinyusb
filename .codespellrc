@@ -5,4 +5,4 @@ ignore-words-list = synopsys, sie, tre, hsi, fro, dout, mot, te
 check-filenames =
 check-hidden =
 skip = .cproject,./.git,./hw/mcu,./lib,./examples/*/*/_build,./examples/*/*/ses,./examples/*/*/ozone,./hw/mcu,./test/vendor,./tests_obsolete
-exclude-file = .codespell/exclude-file.txt
+exclude-file = ./.codespell/exclude-file.txt

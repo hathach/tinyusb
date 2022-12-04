@@ -17,8 +17,20 @@ jobs:
       with:
         python-version: '3.x'
 
+    - name: Setup Ruby
+      uses: ruby/setup-ruby@v1
+      with:
+        ruby-version: '2.7'
+
     - name: Checkout TinyUSB
       uses: actions/checkout@v3
 
-    - name: Check Code Spelling
+    - name: Run codespell
       uses: codespell-project/actions-codespell@master
+
+    - name: Run Unit Tests
+      run: |
+        # Install Ceedling
+        gem install ceedling
+        cd test
+        ceedling test:all
