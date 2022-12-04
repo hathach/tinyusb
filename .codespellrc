@@ -1,0 +1,8 @@
+# See: https://github.com/codespell-project/codespell#using-a-config-file
+[codespell]
+# In the event of a false positive, add the problematic word, in all lowercase, to a comma-separated list here:
+ignore-words-list = synopsys, sie, tre, hsi, fro, dout, mot, te
+check-filenames =
+check-hidden =
+skip = .cproject,./.git,./hw/mcu,./lib,./examples/*/*/_build,./examples/*/*/ses,./examples/*/*/ozone,./hw/mcu,./test/vendor,./tests_obsolete
+exclude-file = .codespell/exclude-file.txt
