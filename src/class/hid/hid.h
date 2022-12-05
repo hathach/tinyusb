@@ -708,7 +708,7 @@ enum {
   HID_USAGE_PAGE_MSR             = 0x8e,
   HID_USAGE_PAGE_CAMERA          = 0x90,
   HID_USAGE_PAGE_ARCADE          = 0x91,
-  HID_USAGE_PAGE_FIDO_ALLIANCE   = 0xF1D0,
+  HID_USAGE_PAGE_FIDO            = 0xF1D0, // FIDO alliance HID usage page
   HID_USAGE_PAGE_VENDOR          = 0xFF00 // 0xFF00 - 0xFFFF
 };
 
@@ -848,9 +848,9 @@ enum
 /// HID Usage Table: FIDO Alliance Page (0xF1D0)
 enum
 {
-  HID_USAGE_FIDO_U2F_AUTHENTICATOR_DEVICE  = 0x01,
-  HID_USAGE_FIDO_INPUT_REPORT_DATA         = 0x20,
-  HID_USAGE_FIDO_OUTPUT_REPORT_DATA        = 0x21
+  HID_USAGE_FIDO_U2FHID   = 0x01, // U2FHID usage for top-level collection
+  HID_USAGE_FIDO_DATA_IN  = 0x20, // Raw IN data report
+  HID_USAGE_FIDO_DATA_OUT = 0x21  // Raw OUT data report
 };
 
 /*--------------------------------------------------------------------
