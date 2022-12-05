@@ -26,6 +26,9 @@
 #define __tusb_irq_path_func(x) x
 #endif
 
+#define usb_hw_set hw_set_alias(usb_hw)
+#define usb_hw_clear hw_clear_alias(usb_hw)
+
 #define pico_info(...)  TU_LOG(2, __VA_ARGS__)
 #define pico_trace(...) TU_LOG(3, __VA_ARGS__)
 
@@ -79,6 +82,13 @@ void rp2040_usb_init(void);
 void hw_endpoint_xfer_start(struct hw_endpoint *ep, uint8_t *buffer, uint16_t total_len);
 bool hw_endpoint_xfer_continue(struct hw_endpoint *ep);
 void hw_endpoint_reset_transfer(struct hw_endpoint *ep);
+void hw_endpoint_start_next_buffer(struct hw_endpoint *ep);
+
+TU_ATTR_ALWAYS_INLINE static inline void hw_endpoint_lock_update(__unused struct hw_endpoint * ep, __unused int delta) {
+  // todo add critsec as necessary to prevent issues between worker and IRQ...
+  //  note that this is perhaps as simple as disabling IRQs because it would make
+  //  sense to have worker and IRQ on same core, however I think using critsec is about equivalent.
+}
 
 void _hw_endpoint_buffer_control_update32(struct hw_endpoint *ep, uint32_t and_mask, uint32_t or_mask);
 

@@ -38,14 +38,11 @@ const char *ep_dir_string[] = {
         "in",
 };
 
-TU_ATTR_ALWAYS_INLINE static inline void _hw_endpoint_lock_update(__unused struct hw_endpoint * ep, __unused int delta) {
-    // todo add critsec as necessary to prevent issues between worker and IRQ...
-    //  note that this is perhaps as simple as disabling IRQs because it would make
-    //  sense to have worker and IRQ on same core, however I think using critsec is about equivalent.
-}
+#if TUD_OPT_RP2040_USB_DEVICE_UFRAME_FIX
+volatile uint32_t last_sof = 0;
+#endif
 
 static void _hw_endpoint_xfer_sync(struct hw_endpoint *ep);
-static void _hw_endpoint_start_next_buffer(struct hw_endpoint *ep);
 
 // if usb hardware is in host mode
 TU_ATTR_ALWAYS_INLINE static inline bool is_host_mode(void)
@@ -157,7 +154,7 @@ static uint32_t __tusb_irq_path_func(prepare_ep_buffer)(struct hw_endpoint *ep, 
 }
 
 // Prepare buffer control register value
-static void __tusb_irq_path_func(_hw_endpoint_start_next_buffer)(struct hw_endpoint *ep)
+void __tusb_irq_path_func(hw_endpoint_start_next_buffer)(struct hw_endpoint *ep)
 {
   uint32_t ep_ctrl = *ep->endpoint_control;
 
@@ -201,7 +198,7 @@ static void __tusb_irq_path_func(_hw_endpoint_start_next_buffer)(struct hw_endpo
 
 void hw_endpoint_xfer_start(struct hw_endpoint *ep, uint8_t *buffer, uint16_t total_len)
 {
-  _hw_endpoint_lock_update(ep, 1);
+  hw_endpoint_lock_update(ep, 1);
 
   if ( ep->active )
   {
@@ -218,8 +215,8 @@ void hw_endpoint_xfer_start(struct hw_endpoint *ep, uint8_t *buffer, uint16_t to
   ep->active        = true;
   ep->user_buf      = buffer;
 
-  _hw_endpoint_start_next_buffer(ep);
-  _hw_endpoint_lock_update(ep, -1);
+  hw_endpoint_start_next_buffer(ep);
+  hw_endpoint_lock_update(ep, -1);
 }
 
 // sync endpoint buffer and return transferred bytes
@@ -312,7 +309,7 @@ static void __tusb_irq_path_func(_hw_endpoint_xfer_sync) (struct hw_endpoint *ep
 // Returns true if transfer is complete
 bool __tusb_irq_path_func(hw_endpoint_xfer_continue)(struct hw_endpoint *ep)
 {
-  _hw_endpoint_lock_update(ep, 1);
+  hw_endpoint_lock_update(ep, 1);
   // Part way through a transfer
   if (!ep->active)
   {
@@ -329,15 +326,15 @@ bool __tusb_irq_path_func(hw_endpoint_xfer_continue)(struct hw_endpoint *ep)
     pico_trace("Completed transfer of %d bytes on ep %d %s\n",
                ep->xferred_len, tu_edpt_number(ep->ep_addr), ep_dir_string[tu_edpt_dir(ep->ep_addr)]);
     // Notify caller we are done so it can notify the tinyusb stack
-    _hw_endpoint_lock_update(ep, -1);
+    hw_endpoint_lock_update(ep, -1);
     return true;
   }
   else
   {
-    _hw_endpoint_start_next_buffer(ep);
+    hw_endpoint_start_next_buffer(ep);
   }
 
-  _hw_endpoint_lock_update(ep, -1);
+  hw_endpoint_lock_update(ep, -1);
   // More work to do
   return false;
 }

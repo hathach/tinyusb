@@ -46,9 +46,6 @@
 /* Low level controller
  *------------------------------------------------------------------*/
 
-#define usb_hw_set hw_set_alias(usb_hw)
-#define usb_hw_clear hw_clear_alias(usb_hw)
-
 // Init these in dcd_init
 static uint8_t *next_buffer_ptr;
 
