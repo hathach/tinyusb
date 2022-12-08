@@ -19,6 +19,11 @@ class TestIncludesExtractor
     gather_and_store_includes( test, extract_from_file(test) )
   end
 
+  # open, scan for, and sort & store includes of test file
+  def parse_test_file_source_include(test)
+    return extract_source_include_from_file(test)
+  end
+
   # mocks with no file extension
   def lookup_raw_mock_list(test)
     file_key = form_file_key(test)
@@ -63,6 +68,27 @@ class TestIncludesExtractor
     end
 
     return includes.uniq
+  end
+
+  def extract_source_include_from_file(file)
+    source_includes = []
+    source_extension = @configurator.extension_source
+
+    contents = @file_wrapper.read(file)
+
+    # remove line comments
+    contents = contents.gsub(/\/\/.*$/, '')
+    # remove block comments
+    contents = contents.gsub(/\/\*.*?\*\//m, '')
+
+    contents.split("\n").each do |line|
+      # look for include statement
+      scan_results = line.scan(/#include\s+\"\s*(.+#{'\\'+source_extension})\s*\"/)
+
+      source_includes << scan_results[0][0] if (scan_results.size > 0)
+    end
+
+    return source_includes.uniq
   end
 
   def gather_and_store_includes(file, includes)

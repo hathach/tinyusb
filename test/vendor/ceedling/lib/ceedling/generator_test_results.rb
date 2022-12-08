@@ -37,6 +37,10 @@ class GeneratorTestResults
         elements = extract_line_elements(line, results[:source][:file])
         results[:successes] << elements[0]
         results[:stdout] << elements[1] if (!elements[1].nil?)
+      when /(:PASS \(.* ms\)$)/
+        elements = extract_line_elements(line, results[:source][:file])
+        results[:successes] << elements[0]
+        results[:stdout] << elements[1] if (!elements[1].nil?)
       when /(:FAIL)/
         elements = extract_line_elements(line, results[:source][:file])
         results[:failures] << elements[0]
@@ -73,6 +77,7 @@ class GeneratorTestResults
     # handle anything preceding filename in line as extra output to be collected
     stdout = nil
     stdout_regex = /(.+)#{Regexp.escape(filename)}.+/i
+    unity_test_time = 0 
 
     if (line =~ stdout_regex)
       stdout = $1.clone
@@ -82,8 +87,14 @@ class GeneratorTestResults
     # collect up test results minus and extra output
     elements = (line.strip.split(':'))[1..-1]
 
-    return {:test => elements[1], :line => elements[0].to_i, :message => (elements[3..-1].join(':')).strip}, stdout if elements.size >= 3
-    return {:test => '???', :line => -1, :message => nil} #fallback safe option. TODO better handling
+    # find timestamp if available
+    if (elements[-1] =~ / \((\d*(?:\.\d*)?) ms\)/)
+      unity_test_time = $1.to_f / 1000
+      elements[-1].sub!(/ \((\d*(?:\.\d*)?) ms\)/, '')
+    end
+
+    return {:test => elements[1], :line => elements[0].to_i, :message => (elements[3..-1].join(':')).strip, :unity_test_time => unity_test_time}, stdout if elements.size >= 3
+    return {:test => '???', :line => -1, :message => nil, :unity_test_time => unity_test_time} #fallback safe option. TODO better handling
   end
 
 end

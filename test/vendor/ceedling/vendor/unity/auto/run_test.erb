@@ -1,5 +1,5 @@
 /*=======Test Runner Used To Run Each Test=====*/
-static void run_test(UnityTestFunction func, const char* name, int line_num)
+static void run_test(UnityTestFunction func, const char* name, UNITY_LINE_TYPE line_num)
 {
     Unity.CurrentTestName = name;
     Unity.CurrentTestLineNumber = line_num;
@@ -16,13 +16,14 @@ static void run_test(UnityTestFunction func, const char* name, int line_num)
 <% if @options[:plugins].include?(:cexception) %>
         CEXCEPTION_T e;
         Try {
-<% end %>
             <%= @options[:setup_name] %>();
             func();
-<% if @options[:plugins].include?(:cexception) %>
         } Catch(e) {
             TEST_ASSERT_EQUAL_HEX32_MESSAGE(CEXCEPTION_NONE, e, "Unhandled Exception!");
         }
+<% else %>
+        <%= @options[:setup_name] %>();
+        func();
 <% end %>
     }
     if (TEST_PROTECT())

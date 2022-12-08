@@ -21,9 +21,11 @@ class FilePathUtils
 
   # standardize path to use '/' path separator & have no trailing path separator
   def self.standardize(path)
-    path.strip!
-    path.gsub!(/\\/, '/')
-    path.chomp!('/')
+    if path.is_a? String
+      path.strip!
+      path.gsub!(/\\/, '/')
+      path.chomp!('/')
+    end
     return path
   end
 

@@ -18,4 +18,17 @@ class PreprocessinatorFileHandler
     @file_wrapper.write(preprocessed_filepath, contents.join("\n"))
   end
 
+  def preprocess_file_directives(filepath, includes)
+    preprocessed_filepath = @file_path_utils.form_preprocessed_file_filepath(filepath)
+
+    command = @tool_executor.build_command_line(@configurator.tools_test_file_preprocessor_directives, [], filepath, preprocessed_filepath)
+    @tool_executor.exec(command[:line], command[:options])
+
+    contents = @preprocessinator_extractor.extract_base_file_from_preprocessed_directives(preprocessed_filepath)
+
+    includes.each{|include| contents.unshift("#include \"#{include}\"")}
+
+    @file_wrapper.write(preprocessed_filepath, contents.join("\n"))
+  end
+
 end

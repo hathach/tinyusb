@@ -44,7 +44,7 @@ class JunitTestsReport < Plugin
   def write_header( results, stream )
     results[:counts][:time] = @time_result.reduce(0, :+)
     stream.puts '<?xml version="1.0" encoding="utf-8" ?>'
-    stream.puts('<testsuites tests="%<total>d" failures="%<failed>d" skipped="%<ignored>d" time="%<time>f">' % results[:counts])
+    stream.puts('<testsuites tests="%<total>d" failures="%<failed>d" time="%<time>.3f">' % results[:counts])
   end
 
   def write_footer( stream )
@@ -53,7 +53,7 @@ class JunitTestsReport < Plugin
 
   def reorganise_results( results )
     # Reorganise the output by test suite instead of by result
-    suites = Hash.new{ |h,k| h[k] = {collection: [], total: 0, success: 0, failed: 0, ignored: 0, stdout: []} }
+    suites = Hash.new{ |h,k| h[k] = {collection: [], total: 0, success: 0, failed: 0, ignored: 0, errors: 0, stdout: []} }
     results[:successes].each do |result|
       source = result[:source]
       name = source[:file].sub(/\..{1,4}$/, "")
@@ -85,7 +85,7 @@ class JunitTestsReport < Plugin
 
   def write_suite( suite, stream )
     suite[:time] = @time_result.shift
-    stream.puts('  <testsuite name="%<name>s" tests="%<total>d" failures="%<failed>d" skipped="%<ignored>d" time="%<time>f">' % suite)
+    stream.puts('  <testsuite name="%<name>s" tests="%<total>d" failures="%<failed>d" skipped="%<ignored>d" errors="%<errors>d" time="%<time>.3f">' % suite)
 
     suite[:collection].each do |test|
       write_test( test, stream )
@@ -108,12 +108,17 @@ class JunitTestsReport < Plugin
   end
 
   def write_test( test, stream )
-    test[:test].gsub!('"', '&quot;')
+    test[:test].gsub!(/&/, '&amp;')
+    test[:test].gsub!(/</, '&lt;')
+    test[:test].gsub!(/>/, '&gt;')
+    test[:test].gsub!(/"/, '&quot;')
+    test[:test].gsub!(/'/, '&apos;')
+
     case test[:result]
     when :success
-      stream.puts('    <testcase name="%<test>s" />' % test)
+      stream.puts('    <testcase name="%<test>s" time="%<unity_test_time>.3f"/>' % test)
     when :failed
-      stream.puts('    <testcase name="%<test>s">' % test)
+      stream.puts('    <testcase name="%<test>s" time="%<unity_test_time>.3f">' % test)
       if test[:message].empty?
         stream.puts('      <failure />')
       else
@@ -121,7 +126,7 @@ class JunitTestsReport < Plugin
       end
       stream.puts('    </testcase>')
     when :ignored
-      stream.puts('    <testcase name="%<test>s">' % test)
+      stream.puts('    <testcase name="%<test>s" time="%<unity_test_time>.3f">' % test)
       stream.puts('      <skipped />')
       stream.puts('    </testcase>')
     end

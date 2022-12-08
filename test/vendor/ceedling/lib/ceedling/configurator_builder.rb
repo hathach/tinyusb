@@ -250,8 +250,8 @@ class ConfiguratorBuilder
   def collect_test_support_source_include_vendor_paths(in_hash)
     return {
       :collection_paths_test_support_source_include_vendor =>
-        in_hash[:collection_paths_test_support_source_include] +
-        get_vendor_paths(in_hash)
+        get_vendor_paths(in_hash) +
+        in_hash[:collection_paths_test_support_source_include]
       }
   end
 
@@ -384,14 +384,26 @@ class ConfiguratorBuilder
   end
 
 
+  def get_vendor_defines(in_hash)
+    defines = in_hash[:unity_defines].clone
+    defines.concat(in_hash[:cmock_defines])      if (in_hash[:project_use_mocks])
+    defines.concat(in_hash[:cexception_defines]) if (in_hash[:project_use_exceptions])
+
+    return defines
+  end
+
+
+  def collect_vendor_defines(in_hash)
+    return {:collection_defines_vendor => get_vendor_defines(in_hash)}
+  end
+
+
   def collect_test_and_vendor_defines(in_hash)
-    test_defines = in_hash[:defines_test].clone
+    defines = in_hash[:defines_test].clone
+    vendor_defines = get_vendor_defines(in_hash)
+    defines.concat(vendor_defines) if vendor_defines
 
-    test_defines.concat(in_hash[:unity_defines])
-    test_defines.concat(in_hash[:cmock_defines])      if (in_hash[:project_use_mocks])
-    test_defines.concat(in_hash[:cexception_defines]) if (in_hash[:project_use_exceptions])
-
-    return {:collection_defines_test_and_vendor => test_defines}
+    return {:collection_defines_test_and_vendor => defines}
   end
 
 
@@ -418,28 +430,33 @@ class ConfiguratorBuilder
     #  Note: Symbols passed to compiler at command line can change Unity and CException behavior / configuration;
     #    we also handle those dependencies elsewhere in compilation dependencies
 
-    objects = [UNITY_C_FILE]
+    sources = [UNITY_C_FILE]
 
-    in_hash[:files_support].each { |file| objects << File.basename(file) }
+    in_hash[:files_support].each { |file| sources << file }
 
     # we don't include paths here because use of plugins or mixing different compilers may require different build paths
-    objects << CEXCEPTION_C_FILE if (in_hash[:project_use_exceptions])
-    objects << CMOCK_C_FILE      if (in_hash[:project_use_mocks])
+    sources << CEXCEPTION_C_FILE if (in_hash[:project_use_exceptions])
+    sources << CMOCK_C_FILE      if (in_hash[:project_use_mocks])
 
     # if we're using mocks & a unity helper is defined & that unity helper includes a source file component (not only a header of macros),
     # then link in the unity_helper object file too
     if ( in_hash[:project_use_mocks] and in_hash[:cmock_unity_helper] )
       in_hash[:cmock_unity_helper].each do |helper|
         if @file_wrapper.exist?(helper.ext(in_hash[:extension_source]))
-          objects << File.basename(helper)
+          sources << helper
         end
       end
     end
 
+    # create object files from all the sources
+    objects = sources.map { |file| File.basename(file) }
+
     # no build paths here so plugins can remap if necessary (i.e. path mapping happens at runtime)
     objects.map! { |object| object.ext(in_hash[:extension_object]) }
 
-    return { :collection_test_fixture_extra_link_objects => objects }
+    return { :collection_all_support => sources,
+             :collection_test_fixture_extra_link_objects => objects
+           }
   end
 
 

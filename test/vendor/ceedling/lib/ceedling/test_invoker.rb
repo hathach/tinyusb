@@ -23,49 +23,24 @@ class TestInvoker
     @mocks   = []
   end
 
-  def get_test_definition_str(test)
-    return "-D" + File.basename(test, File.extname(test)).upcase.sub(/@.*$/, "")
-  end
-
-  def get_tools_compilers
-    tools_compilers = Hash.new
-    tools_compilers["for unit test"] = TOOLS_TEST_COMPILER if defined? TOOLS_TEST_COMPILER
-    tools_compilers["for gcov"]      = TOOLS_GCOV_COMPILER if defined? TOOLS_GCOV_COMPILER
-    return tools_compilers
-  end
-
-  def add_test_definition(test)
-    test_definition_str = get_test_definition_str(test)
-    get_tools_compilers.each do |tools_compiler_key, tools_compiler_value|
-      tools_compiler_value[:arguments].push("-D#{File.basename(test, ".*").strip.upcase.sub(/@.*$/, "")}")
-      @streaminator.stdout_puts("Add the definition value in the build option #{tools_compiler_value[:arguments][-1]} #{tools_compiler_key}", Verbosity::OBNOXIOUS)
-    end
-  end
-
-  def delete_test_definition(test)
-    test_definition_str = get_test_definition_str(test)
-    get_tools_compilers.each do |tools_compiler_key, tools_compiler_value|
-      num_options = tools_compiler_value[:arguments].size
-      @streaminator.stdout_puts("Delete the definition value in the build option #{tools_compiler_value[:arguments][-1]} #{tools_compiler_key}", Verbosity::OBNOXIOUS)
-      tools_compiler_value[:arguments].delete_if{|i| i == test_definition_str}
-      if num_options > tools_compiler_value[:arguments].size + 1
-        @streaminator.stderr_puts("WARNING: duplicated test definition.")
-      end
-    end
-  end
 
   # Convert libraries configuration form YAML configuration
   # into a string that can be given to the compiler.
   def convert_libraries_to_arguments()
-    if @configurator.project_config_hash.has_key?(:libraries_test)
-      lib_args = @configurator.project_config_hash[:libraries_test]
-      lib_args.flatten!
-      lib_flag = @configurator.project_config_hash[:libraries_flag]
-      lib_args.map! {|v| lib_flag.gsub(/\$\{1\}/, v) } if (defined? lib_flag)
-      return lib_args
+    args = ((@configurator.project_config_hash[:libraries_test] || []) + ((defined? LIBRARIES_SYSTEM) ? LIBRARIES_SYSTEM : [])).flatten
+    if (defined? LIBRARIES_FLAG)
+      args.map! {|v| LIBRARIES_FLAG.gsub(/\$\{1\}/, v) }
     end
+    return args
   end
 
+  def get_library_paths_to_arguments()
+    paths = (defined? PATHS_LIBRARIES) ? (PATHS_LIBRARIES || []).clone : []
+    if (defined? LIBRARIES_PATH_FLAG)
+      paths.map! {|v| LIBRARIES_PATH_FLAG.gsub(/\$\{1\}/, v) }
+    end
+    return paths
+  end
 
   def setup_and_invoke(tests, context=TEST_SYM, options={:force_run => true, :build_only => false})
 
@@ -83,18 +58,25 @@ class TestInvoker
         test_name ="#{File.basename(test)}".chomp('.c')
         def_test_key="defines_#{test_name.downcase}"
 
-        # Re-define the project out path and pre-processor defines.
-        if @configurator.project_config_hash.has_key?(def_test_key.to_sym)
-          @project_config_manager.test_config_changed
+        if @configurator.project_config_hash.has_key?(def_test_key.to_sym) || @configurator.defines_use_test_definition
           defs_bkp = Array.new(COLLECTION_DEFINES_TEST_AND_VENDOR)
-          printf " ************** Specific test definitions for #{test_name} !!! \n"
-          tst_defs_cfg = @configurator.project_config_hash[def_test_key.to_sym]
+          tst_defs_cfg = Array.new(defs_bkp)
+          if @configurator.project_config_hash.has_key?(def_test_key.to_sym)
+            tst_defs_cfg.replace(@configurator.project_config_hash[def_test_key.to_sym])
+            tst_defs_cfg .concat(COLLECTION_DEFINES_VENDOR) if COLLECTION_DEFINES_VENDOR
+          end
+          if @configurator.defines_use_test_definition
+            tst_defs_cfg << File.basename(test, ".*").strip.upcase.sub(/@.*$/, "")
+          end
+          COLLECTION_DEFINES_TEST_AND_VENDOR.replace(tst_defs_cfg)
+        end
 
+        # redefine the project out path and preprocessor defines
+        if @configurator.project_config_hash.has_key?(def_test_key.to_sym)
+          @streaminator.stdout_puts("Updating test definitions for #{test_name}", Verbosity::NORMAL)
           orig_path = @configurator.project_test_build_output_path
           @configurator.project_config_hash[:project_test_build_output_path] = File.join(@configurator.project_test_build_output_path, test_name)
           @file_wrapper.mkdir(@configurator.project_test_build_output_path)
-          COLLECTION_DEFINES_TEST_AND_VENDOR.replace(tst_defs_cfg)
-          # printf " *  new defines = #{COLLECTION_DEFINES_TEST_AND_VENDOR}\n"
         end
 
         # collect up test fixture pieces & parts
@@ -103,16 +85,15 @@ class TestInvoker
         sources      = @test_invoker_helper.extract_sources( test )
         extras       = @configurator.collection_test_fixture_extra_link_objects
         core         = [test] + mock_list + sources
-        objects      = @file_path_utils.form_test_build_objects_filelist( [runner] + core + extras )
+        objects      = @file_path_utils.form_test_build_objects_filelist( [runner] + core + extras ).uniq
         results_pass = @file_path_utils.form_pass_results_filepath( test )
         results_fail = @file_path_utils.form_fail_results_filepath( test )
 
-        @project_config_manager.process_test_defines_change(sources)
+        # identify all the objects shall not be linked and then remove them from objects list.
+        no_link_objects = @file_path_utils.form_test_build_objects_filelist(@preprocessinator.preprocess_shallow_source_includes( test ))
+        objects = objects.uniq - no_link_objects
 
-        # add the definition value in the build option for the unit test
-        if @configurator.defines_use_test_definition
-          add_test_definition(test)
-        end
+        @project_config_manager.process_test_defines_change(@project_config_manager.filter_internal_sources(sources))
 
         # clean results files so we have a missing file with which to kick off rake's dependency rules
         @test_invoker_helper.clean_results( {:pass => results_pass, :fail => results_fail}, options )
@@ -129,7 +110,7 @@ class TestInvoker
         @dependinator.enhance_test_build_object_dependencies( objects )
 
         # associate object files with executable
-        @dependinator.setup_test_executable_dependencies( test, objects )
+        @dependinator.enhance_test_executable_dependencies( test, objects )
 
         # build test objects
         @task_invoker.invoke_test_objects( objects )
@@ -146,18 +127,14 @@ class TestInvoker
       rescue => e
         @build_invoker_utils.process_exception( e, context )
       ensure
-        # delete the definition value in the build option for the unit test
-        if @configurator.defines_use_test_definition
-          delete_test_definition(test)
-        end
         @plugin_manager.post_test( test )
         # restore the project test defines
-        if @configurator.project_config_hash.has_key?(def_test_key.to_sym)
-          # @configurator.project_config_hash[:defines_test] =
+        if @configurator.project_config_hash.has_key?(def_test_key.to_sym) || @configurator.defines_use_test_definition
           COLLECTION_DEFINES_TEST_AND_VENDOR.replace(defs_bkp)
-          # printf " ---- Restored defines at #{defs_bkp}"
-          @configurator.project_config_hash[:project_test_build_output_path] = orig_path
-          printf " ************** Restored defines and build path\n"
+          if @configurator.project_config_hash.has_key?(def_test_key.to_sym)
+            @configurator.project_config_hash[:project_test_build_output_path] = orig_path
+            @streaminator.stdout_puts("Restored defines and build path to standard", Verbosity::NORMAL)
+          end
         end
       end
 

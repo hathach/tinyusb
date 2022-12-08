@@ -26,6 +26,7 @@ class ConfiguratorPlugins
 
           if is_script_plugin
             @system_wrapper.add_load_path( File.join( path, 'lib') )
+            @system_wrapper.add_load_path( File.join( path, 'config') )
           end
           break
         end
@@ -92,7 +93,7 @@ class ConfiguratorPlugins
 
 
   # gather up and return default .yml filepaths that exist on-disk
-  def find_plugin_defaults(config, plugin_paths)
+  def find_plugin_yml_defaults(config, plugin_paths)
     defaults_with_path = []
 
     config[:plugins][:enabled].each do |plugin|
@@ -106,6 +107,25 @@ class ConfiguratorPlugins
     end
 
     return defaults_with_path
+  end
+
+  # gather up and return 
+  def find_plugin_hash_defaults(config, plugin_paths)
+    defaults_hash= []
+
+    config[:plugins][:enabled].each do |plugin|
+      if path = plugin_paths[(plugin + '_path').to_sym]
+        default_path = File.join(path, "config", "defaults_#{plugin}.rb")
+        if @file_wrapper.exist?(default_path)
+          @system_wrapper.require_file( "defaults_#{plugin}.rb")
+
+          object = eval("get_default_config()")
+          defaults_hash << object
+        end
+      end
+    end
+
+    return defaults_hash
   end
 
 end

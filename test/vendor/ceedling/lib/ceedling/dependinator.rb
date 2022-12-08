@@ -86,13 +86,12 @@ class Dependinator
 
 
   def enhance_results_dependencies(result_filepath)
-    @rake_wrapper[result_filepath].enhance( [@configurator.project_test_force_rebuild_filepath] ) if (@project_config_manager.test_config_changed ||
-      @project_config_manager.test_defines_changed)
+    @rake_wrapper[result_filepath].enhance( [@configurator.project_test_force_rebuild_filepath] ) if @project_config_manager.test_config_changed
   end
 
 
-  def setup_test_executable_dependencies(test, objects)
-    @rake_wrapper.create_file_task( @file_path_utils.form_test_executable_filepath(test), objects )
+  def enhance_test_executable_dependencies(test, objects)
+    @rake_wrapper[ @file_path_utils.form_test_executable_filepath(test) ].enhance( objects )
   end
 
 end

@@ -95,3 +95,5 @@ NULL_FILE_PATH = '/dev/null'
 
 TESTS_BASE_PATH   = TEST_ROOT_NAME
 RELEASE_BASE_PATH = RELEASE_ROOT_NAME
+
+VENDORS_FILES = %w(unity UnityHelper cmock CException).freeze

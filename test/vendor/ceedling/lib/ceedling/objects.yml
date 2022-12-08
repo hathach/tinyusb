@@ -17,11 +17,11 @@ reportinator:
 
 rake_utils:
   compose:
-    - rake_wrapper  
+    - rake_wrapper
 
 system_utils:
   compose:
-    - system_wrapper  
+    - system_wrapper
 
 file_path_utils:
   compose:
@@ -203,13 +203,13 @@ generator_helper:
 
 generator_test_results:
   compose:
-    - configurator  
+    - configurator
     - generator_test_results_sanity_checker
-    - yaml_wrapper  
+    - yaml_wrapper
 
 generator_test_results_sanity_checker:
   compose:
-    - configurator  
+    - configurator
     - streaminator
 
 generator_test_runner:
@@ -223,43 +223,46 @@ dependinator:
     - configurator
     - project_config_manager
     - test_includes_extractor
-    - file_path_utils        
+    - file_path_utils 
     - rake_wrapper
     - file_wrapper
 
 preprocessinator:
   compose:
-    - preprocessinator_helper          
+    - preprocessinator_helper
     - preprocessinator_includes_handler
     - preprocessinator_file_handler
-    - task_invoker    
+    - task_invoker
     - file_path_utils
     - yaml_wrapper
+    - project_config_manager
+    - configurator
 
 preprocessinator_helper:
-  compose:                    
-    - configurator            
-    - test_includes_extractor 
-    - task_invoker            
-    - file_finder             
-    - file_path_utils         
+  compose:
+    - configurator
+    - test_includes_extractor
+    - task_invoker
+    - file_finder
+    - file_path_utils
 
 preprocessinator_includes_handler:
   compose:
-    - configurator    
-    - tool_executor   
-    - task_invoker    
-    - file_path_utils 
-    - yaml_wrapper    
-    - file_wrapper    
+    - configurator
+    - tool_executor
+    - task_invoker
+    - file_path_utils
+    - yaml_wrapper
+    - file_wrapper
+    - file_finder
 
 preprocessinator_file_handler:
   compose:
     - preprocessinator_extractor
-    - configurator   
-    - tool_executor  
+    - configurator
+    - tool_executor
     - file_path_utils
-    - file_wrapper   
+    - file_wrapper
 
 preprocessinator_extractor:
 

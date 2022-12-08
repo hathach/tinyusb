@@ -15,6 +15,10 @@ class PreprocessinatorHelper
     end
   end
 
+  def preprocess_source_includes(test)
+    @test_includes_extractor.parse_test_file_source_include(test)
+  end
+
   def assemble_mocks_list(test)
     return @file_path_utils.form_mocks_source_filelist( @test_includes_extractor.lookup_raw_mock_list(test) )
   end

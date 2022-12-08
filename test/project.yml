@@ -15,6 +15,7 @@
 #  :release_build: TRUE
   :test_file_prefix: test_
   :which_ceedling: vendor/ceedling
+  :ceedling_version: 0.31.1
   :default_tasks:
     - test:all
 

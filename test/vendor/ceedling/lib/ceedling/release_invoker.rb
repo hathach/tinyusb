@@ -56,15 +56,40 @@ class ReleaseInvoker
   end
 
   def convert_libraries_to_arguments(libraries)
-    args = (libraries || []) + ((defined? LIBRARIES_SYSTEM) ? LIBRARIES_SYSTEM : [])
+    args = ((libraries || []) + ((defined? LIBRARIES_SYSTEM) ? LIBRARIES_SYSTEM : [])).flatten
     if (defined? LIBRARIES_FLAG)
       args.map! {|v| LIBRARIES_FLAG.gsub(/\$\{1\}/, v) }
     end
     return args
   end
 
+  def get_library_paths_to_arguments()
+    paths = (defined? PATHS_LIBRARIES) ? (PATHS_LIBRARIES || []).clone : []
+    if (defined? LIBRARIES_PATH_FLAG)
+      paths.map! {|v| LIBRARIES_PATH_FLAG.gsub(/\$\{1\}/, v) }
+    end
+    return paths
+  end
+
   def sort_objects_and_libraries(both)
-    extension = "\\" + ((defined? EXTENSION_SUBPROJECTS) ? EXTENSION_SUBPROJECTS : ".LIBRARY")
+    extension = if ((defined? EXTENSION_SUBPROJECTS) && (defined? EXTENSION_LIBRARIES))
+      extension_libraries = if (EXTENSION_LIBRARIES.class == Array)
+                              EXTENSION_LIBRARIES.join(")|(?:\\")
+                            else
+                              EXTENSION_LIBRARIES
+                            end
+      "(?:\\#{EXTENSION_SUBPROJECTS})|(?:\\#{extension_libraries})"
+    elsif (defined? EXTENSION_SUBPROJECTS)
+      "\\#{EXTENSION_SUBPROJECTS}"
+    elsif (defined? EXTENSION_LIBRARIES)
+      if (EXTENSION_LIBRARIES.class == Array)
+        "(?:\\#{EXTENSION_LIBRARIES.join(")|(?:\\")})"
+      else
+        "\\#{EXTENSION_LIBRARIES}"
+      end
+    else
+      "\\.LIBRARY"
+    end
     sorted_objects = both.group_by {|v| v.match(/.+#{extension}$/) ? :libraries : :objects }
     libraries = sorted_objects[:libraries] || []
     objects   = sorted_objects[:objects]   || []

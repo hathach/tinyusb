@@ -44,13 +44,15 @@ class GeneratorTestRunner
   def generate(module_name, runner_filepath, test_cases, mock_list, test_file_includes=[])
     require 'generate_test_runner.rb'
 
+    header_extension = @configurator.extension_header
+
     #actually build the test runner using Unity's test runner generator
     #(there is no need to use preprocessor here because we've already looked up test cases and are passing them in here)
     @test_runner_generator ||= UnityTestRunnerGenerator.new( @configurator.get_runner_config )
     @test_runner_generator.generate( module_name,
                                      runner_filepath,
                                      test_cases,
-                                     mock_list,
-                                     test_file_includes)
+                                     mock_list.map{|f| File.basename(f,'.*')+header_extension},
+                                     test_file_includes.map{|f| File.basename(f,'.*')+header_extension})
   end
 end

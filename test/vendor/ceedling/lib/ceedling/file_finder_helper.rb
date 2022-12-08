@@ -25,10 +25,12 @@ class FileFinderHelper
       
     end
     
-    case (complain)
-      when :error then blow_up(file_name, extra_message) if (file_to_find.nil?)
-      when :warn  then gripe(file_name, extra_message)   if (file_to_find.nil?)
-      #when :ignore then      
+    if file_to_find.nil?
+      case (complain)
+        when :error then blow_up(file_name, extra_message) 
+        when :warn  then gripe(file_name, extra_message)
+        #when :ignore then      
+      end
     end
     
     return file_to_find

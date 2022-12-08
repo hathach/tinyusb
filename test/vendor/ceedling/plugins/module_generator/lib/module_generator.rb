@@ -18,6 +18,14 @@ class ModuleGenerator < Plugin
     end
   end
 
+  def stub_from_header(module_name, optz={})
+    require "cmock.rb" #From CMock
+    stuboptz = divine_options(optz)
+    pathname = optz[:path_inc] || optz[:path_src] || "src"
+    filename = File.expand_path(optz[:module_root_path], File.join(pathname, module_name + ".h"))
+    CMock.new(stuboptz).setup_skeletons(filename)
+  end
+
   private
 
   def divine_options(optz={})
@@ -37,6 +45,8 @@ class ModuleGenerator < Plugin
       :boilerplates => ((defined? MODULE_GENERATOR_BOILERPLATES) ? MODULE_GENERATOR_BOILERPLATES : {} ),
       :naming       => ((defined? MODULE_GENERATOR_NAMING      ) ? MODULE_GENERATOR_NAMING : nil ),
       :update_svn   => ((defined? MODULE_GENERATOR_UPDATE_SVN  ) ? MODULE_GENERATOR_UPDATE_SVN : false ),
+      :skeleton_path=> ((defined? MODULE_GENERATOR_SOURCE_ROOT ) ? MODULE_GENERATOR_SOURCE_ROOT.gsub('\\', '/').sub(/^\//, '').sub(/\/$/, '') : "src" ),
+      :test_define  => ((defined? MODULE_GENERATOR_TEST_DEFINE ) ? MODULE_GENERATOR_TEST_DEFINE : "TEST" ),
     }
 
     # Read Boilerplate template file.
@@ -44,15 +54,15 @@ class ModuleGenerator < Plugin
 
       bf = MODULE_GENERATOR_BOILERPLATE_FILES
 
-      if !bf[:src].nil? && File.exists?(bf[:src]) 
+      if !bf[:src].nil? && File.exists?(bf[:src])
         unity_generator_options[:boilerplates][:src] = File.read(bf[:src])
       end
 
-      if !bf[:inc].nil? && File.exists?(bf[:inc]) 
+      if !bf[:inc].nil? && File.exists?(bf[:inc])
         unity_generator_options[:boilerplates][:inc] = File.read(bf[:inc])
       end
 
-      if !bf[:tst].nil? && File.exists?(bf[:tst]) 
+      if !bf[:tst].nil? && File.exists?(bf[:tst])
         unity_generator_options[:boilerplates][:tst] = File.read(bf[:tst])
       end
     end

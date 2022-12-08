@@ -26,6 +26,21 @@ namespace :module do
     end
   end
 
+  desc "Generate module stubs from header"
+  task :stub, :module_path do |t, args|
+    files = [args[:module_path]] + (args.extras || [])
+    optz = { :module_root_path => "" }
+    files.each do |v|
+      module_root_path, module_name = v.split(module_root_separator, 2)
+      if module_name
+        optz[:module_root_path] = module_root_path
+        v = module_name
+      end
+      # Otherwise, go through the normal procedure
+      @ceedling[:module_generator].stub_from_header(v, optz)
+    end
+  end
+
   desc "Destroy module (source, header and test files)"
   task :destroy, :module_path do |t, args|
     files = [args[:module_path]] + (args.extras || [])

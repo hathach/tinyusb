@@ -20,7 +20,7 @@ class Subprojects < Plugin
       end
     end
 
-    #gather information about the subprojects
+    # Gather information about the subprojects
     @subprojects = {}
     @subproject_lookup_by_path = {}
     SUBPROJECTS_PATHS.each do |subproj|
@@ -84,7 +84,7 @@ class Subprojects < Plugin
     Object.send(:remove_const, constant.to_sym) if (Object.const_defined? constant)
     Object.const_set(constant, new_value)
   end
- 
+
 end
 
 # end blocks always executed following rake run

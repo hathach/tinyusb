@@ -9,7 +9,7 @@ class BuildInvokerUtils
   ##
   # Processes exceptions and tries to display a useful message for the user.
   #
-  # ==== Attriboops...utes
+  # ==== Attributes
   #
   # * _exception_:  The exception given by a rescue statement.
   # * _context_:    A symbol representing where in the build the exception

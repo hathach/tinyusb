@@ -101,19 +101,21 @@ class Generator
       shell_result = ex.shell_result
       raise ex
     ensure
+      arg_hash[:shell_command] = command[:line]
       arg_hash[:shell_result] = shell_result
       @plugin_manager.post_compile_execute(arg_hash)
     end
   end
 
-  def generate_executable_file(tool, context, objects, executable, map='', libraries=[])
+  def generate_executable_file(tool, context, objects, executable, map='', libraries=[], libpaths=[])
     shell_result = {}
     arg_hash = { :tool => tool,
                  :context => context,
                  :objects => objects,
                  :executable => executable,
                  :map => map,
-                 :libraries => libraries
+                 :libraries => libraries,
+                 :libpaths => libpaths
                }
 
     @plugin_manager.pre_link_execute(arg_hash)
@@ -125,7 +127,8 @@ class Generator
                                          arg_hash[:objects],
                                          arg_hash[:executable],
                                          arg_hash[:map],
-                                         arg_hash[:libraries]
+                                         arg_hash[:libraries],
+                                         arg_hash[:libpaths]
                                        )
     @streaminator.stdout_puts("Command: #{command}", Verbosity::DEBUG)
 

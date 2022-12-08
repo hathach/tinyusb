@@ -4,28 +4,10 @@ require 'ceedling/version'
 
 desc "Display build environment version info."
 task :version do
-  puts "  Ceedling:: #{Ceedling::Version::CEEDLING}"
-
-  [
-      ['CException', File.join( CEEDLING_VENDOR, CEXCEPTION_ROOT_PATH)],
-      ['     CMock', File.join( CEEDLING_VENDOR, CMOCK_ROOT_PATH)],
-      ['     Unity', File.join( CEEDLING_VENDOR, UNITY_ROOT_PATH)],
-  ].each do |tool|
-    name      = tool[0]
-    base_path = tool[1]
-
-    version_string = begin
-      @ceedling[:file_wrapper].read( File.join(base_path, 'release', 'version.info') ).strip
-    rescue
-      "UNKNOWN"
-    end
-    build_string = begin
-      @ceedling[:file_wrapper].read( File.join(base_path, 'release', 'build.info') ).strip
-    rescue
-      "UNKNOWN"
-    end
-    puts "#{name}:: #{version_string.empty? ? '#.#.' : (version_string + '.')}#{build_string.empty? ? '?' : build_string}"
-  end
+  puts "   Ceedling:: #{Ceedling::Version::CEEDLING}"
+  puts "      Unity:: #{Ceedling::Version::UNITY}"
+  puts "      CMock:: #{Ceedling::Version::CMOCK}"
+  puts " CException:: #{Ceedling::Version::CEXCEPTION}"
 end
 
 desc "Set verbose output (silent:[#{Verbosity::SILENT}] - obnoxious:[#{Verbosity::OBNOXIOUS}])."
@@ -65,6 +47,12 @@ task :sanity_checks, :level do |t, args|
   @ceedling[:configurator].sanity_checks = check_level
 end
 
+# non advertised catch for calling upgrade in the wrong place
+task :upgrade do
+  puts "WARNING: You're currently IN your project directory. Take a step out and try"
+  puts "again if you'd like to perform an upgrade."
+end
+
 # list expanded environment variables
 if (not ENVIRONMENT.empty?)
 desc "List all configured environment variables."
@@ -73,7 +61,7 @@ task :environment do
   ENVIRONMENT.each do |env|
     env.each_key do |key|
       name = key.to_s.upcase
-	  env_list.push(" - #{name}: \"#{env[key]}\"")      
+	  env_list.push(" - #{name}: \"#{env[key]}\"")
     end
   end
   env_list.sort.each do |env_line|
@@ -88,7 +76,7 @@ namespace :options do
     option = File.basename(option_path, '.yml')
 
     desc "Merge #{option} project options."
-    task option.downcase.to_sym do
+    task option.to_sym do
       hash = @ceedling[:project_config_manager].merge_options( @ceedling[:setupinator].config_hash, option_path )
       @ceedling[:setupinator].do_setup( hash )
       if @ceedling[:configurator].project_release_build
@@ -97,6 +85,23 @@ namespace :options do
     end
   end
 
+  # This is to give nice errors when typing options
+  rule /^options:.*/ do |t, args|
+    filename = t.to_s.split(':')[-1] + '.yml'
+    filelist = COLLECTION_PROJECT_OPTIONS.map{|s| File.basename(s) }
+    @ceedling[:file_finder].find_file_from_list(filename, filelist, :error)
+  end
+
+  # This will output the fully-merged tools options to their own project.yml file
+  desc "Export tools options to a new project file"
+  task :export, :filename do |t, args|
+    outfile = args.filename || 'tools.yml'
+    toolcfg = {}
+    @ceedling[:configurator].project_config_hash.each_pair do |k,v|
+      toolcfg[k] = v if (k.to_s[0..5] == 'tools_')
+    end
+    File.open(outfile,'w') {|f| f << toolcfg.to_yaml({:indentation => 2})}
+  end
 end
 
 

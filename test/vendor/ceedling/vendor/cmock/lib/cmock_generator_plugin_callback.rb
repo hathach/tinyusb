@@ -5,7 +5,6 @@
 # ==========================================
 
 class CMockGeneratorPluginCallback
-
   attr_accessor :include_count
   attr_reader :priority
   attr_reader :config, :utils
@@ -20,7 +19,7 @@ class CMockGeneratorPluginCallback
 
   def instance_structure(function)
     func_name = function[:name]
-    "  int #{func_name}_CallbackBool;\n" \
+    "  char #{func_name}_CallbackBool;\n" \
     "  CMOCK_#{func_name}_CALLBACK #{func_name}_CallbackFunctionPointer;\n" \
     "  int #{func_name}_CallbackCalls;\n"
   end
@@ -30,7 +29,7 @@ class CMockGeneratorPluginCallback
     return_type = function[:return][:type]
     action = @config.callback_after_arg_check ? 'AddCallback' : 'Stub'
     style  = (@include_count ? 1 : 0) | (function[:args].empty? ? 0 : 2)
-    styles = [ "void", "int cmock_num_calls", function[:args_string], "#{function[:args_string]}, int cmock_num_calls" ]
+    styles = ['void', 'int cmock_num_calls', function[:args_string], "#{function[:args_string]}, int cmock_num_calls"]
     "typedef #{return_type} (* CMOCK_#{func_name}_CALLBACK)(#{styles[style]});\n" \
     "void #{func_name}_AddCallback(CMOCK_#{func_name}_CALLBACK Callback);\n" \
     "void #{func_name}_Stub(CMOCK_#{func_name}_CALLBACK Callback);\n" \
@@ -60,29 +59,30 @@ class CMockGeneratorPluginCallback
         "    UNITY_CLR_DETAILS();\n" \
         "    return;\n  }\n"
       else
-        "    #{function[:return][:type]} ret = #{generate_call(function)};\n" \
+        "    #{function[:return][:type]} cmock_cb_ret = #{generate_call(function)};\n" \
         "    UNITY_CLR_DETAILS();\n" \
-        "    return ret;\n  }\n"
+        "    return cmock_cb_ret;\n  }\n"
       end
   end
 
   def mock_interfaces(function)
     func_name = function[:name]
     has_ignore = @config.plugins.include? :ignore
-    lines = ""
+    lines = ''
     lines << "void #{func_name}_AddCallback(CMOCK_#{func_name}_CALLBACK Callback)\n{\n"
-    lines << "  Mock.#{func_name}_IgnoreBool = (int)0;\n" if has_ignore
-    lines << "  Mock.#{func_name}_CallbackBool = (int)1;\n"
+    lines << "  Mock.#{func_name}_IgnoreBool = (char)0;\n" if has_ignore
+    lines << "  Mock.#{func_name}_CallbackBool = (char)1;\n"
     lines << "  Mock.#{func_name}_CallbackFunctionPointer = Callback;\n}\n\n"
     lines << "void #{func_name}_Stub(CMOCK_#{func_name}_CALLBACK Callback)\n{\n"
-    lines << "  Mock.#{func_name}_IgnoreBool = (int)0;\n" if has_ignore
-    lines << "  Mock.#{func_name}_CallbackBool = (int)0;\n"
+    lines << "  Mock.#{func_name}_IgnoreBool = (char)0;\n" if has_ignore
+    lines << "  Mock.#{func_name}_CallbackBool = (char)0;\n"
     lines << "  Mock.#{func_name}_CallbackFunctionPointer = Callback;\n}\n\n"
   end
 
   def mock_verify(function)
     func_name = function[:name]
-    "  if (Mock.#{func_name}_CallbackFunctionPointer != NULL)\n    call_instance = CMOCK_GUTS_NONE;\n"
+    "  if (Mock.#{func_name}_CallbackFunctionPointer != NULL)\n  {\n" \
+    "    call_instance = CMOCK_GUTS_NONE;\n" \
+    "    (void)call_instance;\n  }\n"
   end
-
 end

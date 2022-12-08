@@ -13,7 +13,9 @@ require 'fileutils'
 require 'pathname'
 
 # TEMPLATE_TST
-TEMPLATE_TST ||= '#include "unity.h"
+TEMPLATE_TST ||= '#ifdef TEST
+
+#include "unity.h"
 
 %2$s#include "%1$s.h"
 
@@ -25,10 +27,12 @@ void tearDown(void)
 {
 }
 
-void test_%1$s_NeedToImplement(void)
+void test_%4$s_NeedToImplement(void)
 {
     TEST_IGNORE_MESSAGE("Need to Implement %1$s");
 }
+
+#endif // TEST
 '.freeze
 
 # TEMPLATE_SRC
@@ -164,23 +168,22 @@ class UnityModuleGenerator
   end
 
   ############################
+  def neutralize_filename(name, start_cap = true)
+    return name if name.empty?
+    name = name.split(/(?:\s+|_|(?=[A-Z][a-z]))|(?<=[a-z])(?=[A-Z])/).map { |v| v.capitalize }.join('_')
+    name = name[0].downcase + name[1..-1] unless start_cap
+    return name
+  end
+
+  ############################
   def create_filename(part1, part2 = '')
-    if part2.empty?
-      case (@options[:naming])
-      when 'bumpy' then part1
-      when 'camel' then part1
-      when 'snake' then part1.downcase
-      when 'caps'  then part1.upcase
-      else              part1
-      end
-    else
-      case (@options[:naming])
-      when 'bumpy' then part1 + part2
-      when 'camel' then part1 + part2
-      when 'snake' then part1.downcase + '_' + part2.downcase
-      when 'caps'  then part1.upcase + '_' + part2.upcase
-      else              part1 + '_' + part2
-      end
+    name = part2.empty? ? part1 : part1 + '_' + part2
+    case (@options[:naming])
+    when 'bumpy' then neutralize_filename(name,false).delete('_')
+    when 'camel' then neutralize_filename(name).delete('_')
+    when 'snake' then neutralize_filename(name).downcase
+    when 'caps'  then neutralize_filename(name).upcase
+    else              name
     end
   end
 
@@ -208,7 +211,8 @@ class UnityModuleGenerator
         f.write("#{file[:boilerplate]}\n" % [file[:name]]) unless file[:boilerplate].nil?
         f.write(file[:template] % [file[:name],
                                    file[:includes].map { |ff| "#include \"#{ff}\"\n" }.join,
-                                   file[:name].upcase])
+                                   file[:name].upcase.gsub(/-/, '_'),
+                                   file[:name].gsub(/-/, '_')])
       end
       if @options[:update_svn]
         `svn add \"#{file[:path]}\"`

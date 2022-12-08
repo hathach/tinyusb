@@ -82,10 +82,7 @@ class Gcov < Plugin
     banner = @ceedling[:plugin_reportinator].generate_banner "#{GCOV_ROOT_NAME.upcase}: CODE COVERAGE SUMMARY"
     @ceedling[:streaminator].stdout_puts "\n" + banner
 
-    coverage_sources = sources.clone
-    coverage_sources.delete_if { |item| item =~ /#{CMOCK_MOCK_PREFIX}.+#{EXTENSION_SOURCE}$/ }
-    coverage_sources.delete_if { |item| item =~ /#{GCOV_IGNORE_SOURCES.join('|')}#{EXTENSION_SOURCE}$/ }
-
+    coverage_sources = @ceedling[:project_config_manager].filter_internal_sources(sources)
     coverage_sources.each do |source|
       basename         = File.basename(source)
       command          = @ceedling[:tool_executor].build_command_line(TOOLS_GCOV_REPORT, [], [basename])
@@ -98,9 +95,35 @@ class Gcov < Plugin
       end
     end
 
+    ignore_path_list = @ceedling[:file_system_utils].collect_paths(@ceedling[:configurator].project_config_hash[:gcov_uncovered_ignore_list] || [])
+    ignore_uncovered_list = @ceedling[:file_wrapper].instantiate_file_list
+    ignore_path_list.each do |path|
+      if File.exists?(path) and not File.directory?(path)
+        ignore_uncovered_list.include(path)
+      else
+        ignore_uncovered_list.include(File.join(path, "*#{EXTENSION_SOURCE}"))
+      end
+    end
+
+    found_uncovered = false
     COLLECTION_ALL_SOURCE.each do |source|
       unless coverage_sources.include?(source)
-        @ceedling[:streaminator].stdout_puts("Could not find coverage results for " + source + "\n")
+        v = Verbosity::DEBUG
+        msg = "Could not find coverage results for " + source
+        if ignore_uncovered_list.include?(source)
+          msg += " [IGNORED]"
+        else
+          found_uncovered = true
+          v = Verbosity::NORMAL
+        end
+        msg += "\n"
+        @ceedling[:streaminator].stdout_puts(msg, v)
+      end
+    end
+    if found_uncovered
+      if @ceedling[:configurator].project_config_hash[:gcov_abort_on_uncovered]
+        @ceedling[:streaminator].stderr_puts("There were files with no coverage results: aborting.\n")
+        exit(-1)
       end
     end
   end

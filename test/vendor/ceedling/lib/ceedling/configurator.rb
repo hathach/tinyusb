@@ -54,6 +54,7 @@ class Configurator
      :test_fixture,
      :test_includes_preprocessor,
      :test_file_preprocessor,
+     :test_file_preprocessor_directives,
      :test_dependencies_generator,
      :release_compiler,
      :release_assembler,
@@ -183,15 +184,20 @@ class Configurator
     @rake_plugins   = @configurator_plugins.find_rake_plugins(config, paths_hash)
     @script_plugins = @configurator_plugins.find_script_plugins(config, paths_hash)
     config_plugins  = @configurator_plugins.find_config_plugins(config, paths_hash)
-    plugin_defaults = @configurator_plugins.find_plugin_defaults(config, paths_hash)
+    plugin_yml_defaults = @configurator_plugins.find_plugin_yml_defaults(config, paths_hash)
+    plugin_hash_defaults = @configurator_plugins.find_plugin_hash_defaults(config, paths_hash)
 
     config_plugins.each do |plugin|
       plugin_config = @yaml_wrapper.load(plugin)
       config.deep_merge(plugin_config)
     end
 
-    plugin_defaults.each do |defaults|
+    plugin_yml_defaults.each do |defaults|
       @configurator_builder.populate_defaults( config, @yaml_wrapper.load(defaults) )
+    end
+
+    plugin_hash_defaults.each do |defaults|
+      @configurator_builder.populate_defaults( config, defaults )
     end
 
     # special plugin setting for results printing
@@ -203,10 +209,19 @@ class Configurator
 
   def merge_imports(config)
     if config[:import]
-      until config[:import].empty?
-        path = config[:import].shift
-        path = @system_wrapper.module_eval(path) if (path =~ RUBY_STRING_REPLACEMENT_PATTERN)
-        config.deep_merge!(@yaml_wrapper.load(path))
+      if config[:import].is_a? Array
+        until config[:import].empty?
+          path = config[:import].shift
+          path = @system_wrapper.module_eval(path) if (path =~ RUBY_STRING_REPLACEMENT_PATTERN)
+          config.deep_merge!(@yaml_wrapper.load(path))
+        end
+      else
+        config[:import].each_value do |path|
+          if !path.nil?
+            path = @system_wrapper.module_eval(path) if (path =~ RUBY_STRING_REPLACEMENT_PATTERN)
+            config.deep_merge!(@yaml_wrapper.load(path))
+          end
+        end
       end
     end
     config.delete(:import)
@@ -222,7 +237,11 @@ class Configurator
       interstitial = ((key == :path) ? File::PATH_SEPARATOR : '')
       items = ((value.class == Array) ? hash[key] : [value])
 
-      items.each { |item| item.replace( @system_wrapper.module_eval( item ) ) if (item =~ RUBY_STRING_REPLACEMENT_PATTERN) }
+      items.each do |item|
+        if item.is_a? String and item =~ RUBY_STRING_REPLACEMENT_PATTERN
+          item.replace( @system_wrapper.module_eval( item ) )
+        end
+      end
       hash[key] = items.join( interstitial )
 
       @system_wrapper.env_set( key.to_s.upcase, hash[key] )

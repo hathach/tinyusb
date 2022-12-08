@@ -1,6 +1,6 @@
 /* =========================================================================
     Unity Project - A Test Framework for C
-    Copyright (c) 2007-19 Mike Karlesky, Mark VanderVoord, Greg Williams
+    Copyright (c) 2007-21 Mike Karlesky, Mark VanderVoord, Greg Williams
     [Released under MIT License. Please refer to license.txt for details]
 ============================================================================ */
 
@@ -21,7 +21,7 @@ void UNITY_OUTPUT_CHAR(int);
 /* Helpful macros for us to use here in Assert functions */
 #define UNITY_FAIL_AND_BAIL   { Unity.CurrentTestFailed  = 1; UNITY_OUTPUT_FLUSH(); TEST_ABORT(); }
 #define UNITY_IGNORE_AND_BAIL { Unity.CurrentTestIgnored = 1; UNITY_OUTPUT_FLUSH(); TEST_ABORT(); }
-#define RETURN_IF_FAIL_OR_IGNORE if (Unity.CurrentTestFailed || Unity.CurrentTestIgnored) return
+#define RETURN_IF_FAIL_OR_IGNORE if (Unity.CurrentTestFailed || Unity.CurrentTestIgnored) TEST_ABORT()
 
 struct UNITY_STORAGE_T Unity;
 
@@ -43,6 +43,7 @@ static const char PROGMEM UnityStrWas[]                    = " Was ";
 static const char PROGMEM UnityStrGt[]                     = " to be greater than ";
 static const char PROGMEM UnityStrLt[]                     = " to be less than ";
 static const char PROGMEM UnityStrOrEqual[]                = "or equal to ";
+static const char PROGMEM UnityStrNotEqual[]               = " to be not equal to ";
 static const char PROGMEM UnityStrElement[]                = " Element ";
 static const char PROGMEM UnityStrByte[]                   = " Byte ";
 static const char PROGMEM UnityStrMemory[]                 = " Memory Mismatch.";
@@ -66,9 +67,10 @@ static const char PROGMEM UnityStrBreaker[]                = "------------------
 static const char PROGMEM UnityStrResultsTests[]           = " Tests ";
 static const char PROGMEM UnityStrResultsFailures[]        = " Failures ";
 static const char PROGMEM UnityStrResultsIgnored[]         = " Ignored ";
+#ifndef UNITY_EXCLUDE_DETAILS
 static const char PROGMEM UnityStrDetail1Name[]            = UNITY_DETAIL1_NAME " ";
 static const char PROGMEM UnityStrDetail2Name[]            = " " UNITY_DETAIL2_NAME " ";
-
+#endif
 /*-----------------------------------------------
  * Pretty Printers & Test Result Output Handlers
  *-----------------------------------------------*/
@@ -146,121 +148,6 @@ void UnityPrint(const char* string)
         }
     }
 }
-
-/*-----------------------------------------------*/
-#ifdef UNITY_INCLUDE_PRINT_FORMATTED
-void UnityPrintFormatted(const char* format, ...)
-{
-    const char* pch = format;
-    va_list va;
-    va_start(va, format);
-
-    if (pch != NULL)
-    {
-        while (*pch)
-        {
-            /* format identification character */
-            if (*pch == '%')
-            {
-                pch++;
-
-                if (pch != NULL)
-                {
-                    switch (*pch)
-                    {
-                        case 'd':
-                        case 'i':
-                            {
-                                const int number = va_arg(va, int);
-                                UnityPrintNumber((UNITY_INT)number);
-                                break;
-                            }
-#ifndef UNITY_EXCLUDE_FLOAT_PRINT
-                        case 'f':
-                        case 'g':
-                            {
-                                const double number = va_arg(va, double);
-                                UnityPrintFloat((UNITY_DOUBLE)number);
-                                break;
-                            }
-#endif
-                        case 'u':
-                            {
-                                const unsigned int number = va_arg(va, unsigned int);
-                                UnityPrintNumberUnsigned((UNITY_UINT)number);
-                                break;
-                            }
-                        case 'b':
-                            {
-                                const unsigned int number = va_arg(va, unsigned int);
-                                const UNITY_UINT mask = (UNITY_UINT)0 - (UNITY_UINT)1;
-                                UNITY_OUTPUT_CHAR('0');
-                                UNITY_OUTPUT_CHAR('b');
-                                UnityPrintMask(mask, (UNITY_UINT)number);
-                                break;
-                            }
-                        case 'x':
-                        case 'X':
-                        case 'p':
-                            {
-                                const unsigned int number = va_arg(va, unsigned int);
-                                UNITY_OUTPUT_CHAR('0');
-                                UNITY_OUTPUT_CHAR('x');
-                                UnityPrintNumberHex((UNITY_UINT)number, 8);
-                                break;
-                            }
-                        case 'c':
-                            {
-                                const int ch = va_arg(va, int);
-                                UnityPrintChar((const char *)&ch);
-                                break;
-                            }
-                        case 's':
-                            {
-                                const char * string = va_arg(va, const char *);
-                                UnityPrint(string);
-                                break;
-                            }
-                        case '%':
-                            {
-                                UnityPrintChar(pch);
-                                break;
-                            }
-                        default:
-                            {
-                                /* print the unknown format character */
-                                UNITY_OUTPUT_CHAR('%');
-                                UnityPrintChar(pch);
-                                break;
-                            }
-                    }
-                }
-            }
-#ifdef UNITY_OUTPUT_COLOR
-            /* print ANSI escape code */
-            else if ((*pch == 27) && (*(pch + 1) == '['))
-            {
-                pch += UnityPrintAnsiEscapeString(pch);
-                continue;
-            }
-#endif
-            else if (*pch == '\n')
-            {
-                UNITY_PRINT_EOL();
-            }
-            else
-            {
-                UnityPrintChar(pch);
-            }
-
-            pch++;
-        }
-    }
-
-    va_end(va);
-}
-#endif /* ! UNITY_INCLUDE_PRINT_FORMATTED */
-
 /*-----------------------------------------------*/
 void UnityPrintLen(const char* string, const UNITY_UINT32 length)
 {
@@ -558,7 +445,7 @@ void UnityPrintFloat(const UNITY_DOUBLE input_number)
 
         /* build up buffer in reverse order */
         digits = 0;
-        while ((n != 0) || (digits < (decimals + 1)))
+        while ((n != 0) || (digits <= decimals))
         {
             buf[digits++] = (char)('0' + n % 10);
             n /= 10;
@@ -680,6 +567,10 @@ static void UnityAddMsgIfSpecified(const char* msg)
     if (msg)
     {
         UnityPrint(UnityStrSpacer);
+
+#ifdef UNITY_PRINT_TEST_CONTEXT
+        UNITY_PRINT_TEST_CONTEXT();
+#endif
 #ifndef UNITY_EXCLUDE_DETAILS
         if (Unity.CurrentDetail1)
         {
@@ -863,9 +754,10 @@ void UnityAssertGreaterOrLessOrEqualNumber(const UNITY_INT threshold,
         UnityTestResultsFailBegin(lineNumber);
         UnityPrint(UnityStrExpected);
         UnityPrintNumberByStyle(actual, style);
-        if (compare & UNITY_GREATER_THAN) { UnityPrint(UnityStrGt);      }
-        if (compare & UNITY_SMALLER_THAN) { UnityPrint(UnityStrLt);      }
-        if (compare & UNITY_EQUAL_TO)     { UnityPrint(UnityStrOrEqual); }
+        if (compare & UNITY_GREATER_THAN) { UnityPrint(UnityStrGt);       }
+        if (compare & UNITY_SMALLER_THAN) { UnityPrint(UnityStrLt);       }
+        if (compare & UNITY_EQUAL_TO)     { UnityPrint(UnityStrOrEqual);  }
+        if (compare == UNITY_NOT_EQUAL)   { UnityPrint(UnityStrNotEqual); }
         UnityPrintNumberByStyle(threshold, style);
         UnityAddMsgIfSpecified(msg);
         UNITY_FAIL_AND_BAIL;
@@ -1110,7 +1002,7 @@ void UnityAssertFloatSpecial(const UNITY_FLOAT actual,
             is_trait = !isinf(actual) && !isnan(actual);
             break;
 
-        default:
+        default: /* including UNITY_FLOAT_INVALID_TRAIT */
             trait_index = 0;
             trait_names[0] = UnityStrInvalidFloatTrait;
             break;
@@ -1250,7 +1142,7 @@ void UnityAssertDoubleSpecial(const UNITY_DOUBLE actual,
             is_trait = !isinf(actual) && !isnan(actual);
             break;
 
-        default:
+        default: /* including UNITY_FLOAT_INVALID_TRAIT */
             trait_index = 0;
             trait_names[0] = UnityStrInvalidFloatTrait;
             break;
@@ -1732,6 +1624,133 @@ UNITY_INTERNAL_PTR UnityDoubleToPtr(const double num)
 #endif
 
 /*-----------------------------------------------
+ * printf helper function
+ *-----------------------------------------------*/
+#ifdef UNITY_INCLUDE_PRINT_FORMATTED
+static void UnityPrintFVA(const char* format, va_list va)
+{
+    const char* pch = format;
+    if (pch != NULL)
+    {
+        while (*pch)
+        {
+            /* format identification character */
+            if (*pch == '%')
+            {
+                pch++;
+
+                if (pch != NULL)
+                {
+                    switch (*pch)
+                    {
+                        case 'd':
+                        case 'i':
+                            {
+                                const int number = va_arg(va, int);
+                                UnityPrintNumber((UNITY_INT)number);
+                                break;
+                            }
+#ifndef UNITY_EXCLUDE_FLOAT_PRINT
+                        case 'f':
+                        case 'g':
+                            {
+                                const double number = va_arg(va, double);
+                                UnityPrintFloat((UNITY_DOUBLE)number);
+                                break;
+                            }
+#endif
+                        case 'u':
+                            {
+                                const unsigned int number = va_arg(va, unsigned int);
+                                UnityPrintNumberUnsigned((UNITY_UINT)number);
+                                break;
+                            }
+                        case 'b':
+                            {
+                                const unsigned int number = va_arg(va, unsigned int);
+                                const UNITY_UINT mask = (UNITY_UINT)0 - (UNITY_UINT)1;
+                                UNITY_OUTPUT_CHAR('0');
+                                UNITY_OUTPUT_CHAR('b');
+                                UnityPrintMask(mask, (UNITY_UINT)number);
+                                break;
+                            }
+                        case 'x':
+                        case 'X':
+                        case 'p':
+                            {
+                                const unsigned int number = va_arg(va, unsigned int);
+                                UNITY_OUTPUT_CHAR('0');
+                                UNITY_OUTPUT_CHAR('x');
+                                UnityPrintNumberHex((UNITY_UINT)number, 8);
+                                break;
+                            }
+                        case 'c':
+                            {
+                                const int ch = va_arg(va, int);
+                                UnityPrintChar((const char *)&ch);
+                                break;
+                            }
+                        case 's':
+                            {
+                                const char * string = va_arg(va, const char *);
+                                UnityPrint(string);
+                                break;
+                            }
+                        case '%':
+                            {
+                                UnityPrintChar(pch);
+                                break;
+                            }
+                        default:
+                            {
+                                /* print the unknown format character */
+                                UNITY_OUTPUT_CHAR('%');
+                                UnityPrintChar(pch);
+                                break;
+                            }
+                    }
+                }
+            }
+#ifdef UNITY_OUTPUT_COLOR
+            /* print ANSI escape code */
+            else if ((*pch == 27) && (*(pch + 1) == '['))
+            {
+                pch += UnityPrintAnsiEscapeString(pch);
+                continue;
+            }
+#endif
+            else if (*pch == '\n')
+            {
+                UNITY_PRINT_EOL();
+            }
+            else
+            {
+                UnityPrintChar(pch);
+            }
+
+            pch++;
+        }
+    }
+}
+
+void UnityPrintF(const UNITY_LINE_TYPE line, const char* format, ...)
+{
+    UnityTestResultsBegin(Unity.TestFile, line);
+    UnityPrint("INFO");
+    if(format != NULL)
+    {
+        UnityPrint(": ");
+        va_list va;
+        va_start(va, format);
+        UnityPrintFVA(format, va);
+        va_end(va);
+    }
+    UNITY_PRINT_EOL();
+}
+#endif /* ! UNITY_INCLUDE_PRINT_FORMATTED */
+
+
+/*-----------------------------------------------
  * Control Functions
  *-----------------------------------------------*/
 
@@ -1746,6 +1765,9 @@ void UnityFail(const char* msg, const UNITY_LINE_TYPE line)
     {
         UNITY_OUTPUT_CHAR(':');
 
+#ifdef UNITY_PRINT_TEST_CONTEXT
+        UNITY_PRINT_TEST_CONTEXT();
+#endif
 #ifndef UNITY_EXCLUDE_DETAILS
         if (Unity.CurrentDetail1)
         {
@@ -1800,6 +1822,8 @@ void UnityMessage(const char* msg, const UNITY_LINE_TYPE line)
 }
 
 /*-----------------------------------------------*/
+/* If we have not defined our own test runner, then include our default test runner to make life easier */
+#ifndef UNITY_SKIP_DEFAULT_RUNNER
 void UnityDefaultTestRun(UnityTestFunction Func, const char* FuncName, const int FuncLineNum)
 {
     Unity.CurrentTestName = FuncName;
@@ -1819,6 +1843,7 @@ void UnityDefaultTestRun(UnityTestFunction Func, const char* FuncName, const int
     UNITY_EXEC_TIME_STOP();
     UnityConcludeTest();
 }
+#endif
 
 /*-----------------------------------------------*/
 void UnitySetTestFile(const char* filename)

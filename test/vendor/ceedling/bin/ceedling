@@ -49,16 +49,16 @@ unless (project_found)
     end
 
     desc "upgrade PROJECT_NAME", "upgrade ceedling for a project (not req'd if gem used)"
-    method_option :docs, :type => :boolean, :default => false, :desc => "Add docs in project vendor directory"
-    method_option :local, :type => :boolean, :default => false, :desc => "Create a copy of Ceedling in the project vendor directory"
-    method_option :no_configs, :type => :boolean, :default => false, :desc => "Don't install starter configuration files"
-    method_option :noconfigs, :type => :boolean, :default => false
-
-    #deprecated:
-    method_option :no_docs, :type => :boolean, :default => false
-    method_option :nodocs, :type => :boolean, :default => false
     def upgrade(name, silent = false)
-      copy_assets_and_create_structure(name, silent, true, options || {:upgrade => true})
+      as_local = true
+      begin
+        require "yaml"
+        as_local = (YAML.load_file(File.join(name, "project.yml"))[:project][:which_ceedling] != 'gem')
+      rescue
+        raise "ERROR: Could not find valid project file '#{yaml_path}'"
+      end
+      found_docs = File.exists?( File.join(name, "docs", "CeedlingPacket.md") )
+      copy_assets_and_create_structure(name, silent, true, {:upgrade => true, :no_configs => true, :local => as_local, :docs => found_docs})
     end
 
     no_commands do
@@ -90,26 +90,30 @@ unless (project_found)
         FileUtils.touch(File.join(test_support_path, '.gitkeep'))
 
         # If documentation requested, create a place to dump them and do so
+        doc_path = ""
         if use_docs
-          doc_path = File.join(ceedling_path, 'docs')
+          doc_path = use_gem ? File.join(name, 'docs') : File.join(ceedling_path, 'docs')
           FileUtils.mkdir_p doc_path
 
           in_doc_path = lambda {|f| File.join(doc_path, f)}
 
-          doc_files = [
-                        'docs/CeedlingPacket.md',
-                        'vendor/c_exception/docs/CException.md',
-                        'vendor/cmock/docs/CMock_Summary.md',
-                        'vendor/unity/docs/UnityAssertionsCheatSheetSuitableforPrintingandPossiblyFraming.pdf',
-                        'vendor/unity/docs/UnityAssertionsReference.md',
-                        'vendor/unity/docs/UnityConfigurationGuide.md',
-                        'vendor/unity/docs/UnityGettingStartedGuide.md',
-                        'vendor/unity/docs/UnityHelperScriptsGuide.md',
-                        'vendor/unity/docs/ThrowTheSwitchCodingStandard.md',
-                      ]
+          # Add documentation from main projects to list
+          doc_files = {}
+          ['docs','vendor/unity/docs','vendor/cmock/docs','vendor/cexception/docs'].each do |p|
+            Dir[ File.expand_path(File.join(here, p, '*.md')) ].each do |f|
+              doc_files[ File.basename(f) ] = f unless(doc_files.include? f)
+            end
+          end
 
-          doc_files.each do |f|
-            copy_file(f, in_doc_path.call(File.basename(f)), :force => force)
+          # Add documentation from plugins to list
+          Dir[ File.join(here, 'plugins/**/README.md') ].each do |plugin_path|
+            k = "plugin_" + plugin_path.split(/\\|\//)[-2] + ".md"
+            doc_files[ k ] = File.expand_path(plugin_path)
+          end
+
+          # Copy all documentation
+          doc_files.each_pair do |k, v|
+            copy_file(v, in_doc_path.call(k), :force => force)
           end
         end
 
@@ -133,7 +137,6 @@ unless (project_found)
             {:src => 'vendor/cmock/config/',        :dst => 'vendor/cmock/config'},
             {:src => 'vendor/cmock/lib/',           :dst => 'vendor/cmock/lib'},
             {:src => 'vendor/cmock/src/',           :dst => 'vendor/cmock/src'},
-            {:src => 'vendor/deep_merge/lib/',      :dst => 'vendor/deep_merge/lib'},
             {:src => 'vendor/diy/lib',              :dst => 'vendor/diy/lib'},
             {:src => 'vendor/unity/auto/',          :dst => 'vendor/unity/auto'},
             {:src => 'vendor/unity/src/',           :dst => 'vendor/unity/src'},
@@ -146,16 +149,24 @@ unless (project_found)
 
         # We're copying in a configuration file if we haven't said not to
         if (use_configs)
-          if use_gem
-            copy_file(File.join('assets', 'project_as_gem.yml'), File.join(name, 'project.yml'), :force => force)
+          dst_yaml = File.join(name, 'project.yml')
+          src_yaml = if use_gem
+            File.join(here, 'assets', 'project_as_gem.yml')
           else
-            copy_file(File.join('assets', 'project_with_guts.yml'), File.join(name, 'project.yml'), :force => force)
             if is_windows?
               copy_file(File.join('assets', 'ceedling.cmd'), File.join(name, 'ceedling.cmd'), :force => force)
             else
               copy_file(File.join('assets', 'ceedling'), File.join(name, 'ceedling'), :force => force)
               File.chmod(0755, File.join(name, 'ceedling'))
             end
+            File.join(here, 'assets', 'project_with_guts.yml')
+          end
+
+          # Perform the actual clone of the config file, while updating the version
+          File.open(dst_yaml,'w') do |dst|
+            require File.expand_path(File.join(File.dirname(__FILE__),"..","lib","ceedling","version.rb"))
+            dst << File.read(src_yaml).gsub(":ceedling_version: '?'",":ceedling_version: #{Ceedling::Version::CEEDLING}")
+            puts "      create  #{dst_yaml}"
           end
         end
 
@@ -167,8 +178,8 @@ unless (project_found)
         unless silent
           puts "\n"
           puts "Project '#{name}' #{force ? "upgraded" : "created"}!"
-          puts " - Tool documentation is located in vendor/ceedling/docs" if use_docs
-          puts " - Execute 'ceedling help' to view available test & build tasks"
+          puts " - Tool documentation is located in #{doc_path}" if use_docs
+          puts " - Execute 'ceedling help' from #{name} to view available test & build tasks"
           puts ''
         end
       end
@@ -206,10 +217,10 @@ unless (project_found)
 
     desc "version", "return the version of the tools installed"
     def version()
-      require 'ceedling/version.rb'
-      puts "  Ceedling::   #{Ceedling::Version::CEEDLING}"
-      puts "  CMock::      #{Ceedling::Version::CMOCK}"
-      puts "  Unity::      #{Ceedling::Version::UNITY}"
+      require File.expand_path(File.join(File.dirname(__FILE__),"..","lib","ceedling","version.rb"))
+      puts "    Ceedling:: #{Ceedling::Version::CEEDLING}"
+      puts "       CMock:: #{Ceedling::Version::CMOCK}"
+      puts "       Unity:: #{Ceedling::Version::UNITY}"
       puts "  CException:: #{Ceedling::Version::CEXCEPTION}"
     end
   end
@@ -286,6 +297,8 @@ else
       when /^help$/
         options[:list_tasks] = true
       when /^-T$/
+        options[:list_tasks] = true
+      when /^--tasks$/
         options[:list_tasks] = true
       when /^project:(\w+)/
         ENV['CEEDLING_USER_PROJECT_FILE'] = "#{$1}.yml"

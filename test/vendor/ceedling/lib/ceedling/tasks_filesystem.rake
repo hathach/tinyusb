@@ -45,26 +45,35 @@ task(:clobber => [:clean]) do
   @ceedling[:streaminator].stdout_puts("\nClobbering all generated files...\n(For large projects, this task may take a long time to complete)\n\n")
   begin
     CLOBBER.each { |fn| REMOVE_FILE_PROC.call(fn) }
+    @ceedling[:rake_wrapper][:directories].invoke
+    @ceedling[:dependinator].touch_force_rebuild_files
   rescue
   end
 end
 
-
+# create a directory task for each of the paths, so we know how to build them
 PROJECT_BUILD_PATHS.each { |path| directory(path) }
 
-# create directories that hold build output and generated files & touching rebuild dependency sources
-task(:directories => PROJECT_BUILD_PATHS) { @ceedling[:dependinator].touch_force_rebuild_files }
+# create a single directory task which verifies all the others get built
+task :directories => PROJECT_BUILD_PATHS
 
+# when the force file doesn't exist, it probably means we clobbered or are on a fresh
+# install. In either case, stuff was deleted, so assume we want to rebuild it all
+file @ceedling[:configurator].project_test_force_rebuild_filepath do
+  unless File.exists?(@ceedling[:configurator].project_test_force_rebuild_filepath)
+    @ceedling[:dependinator].touch_force_rebuild_files
+  end
+end
 
 # list paths discovered at load time
 namespace :paths do
-
-  paths = @ceedling[:setupinator].config_hash[:paths]
-  paths.each_key do |section|
-    name = section.to_s.downcase
+  standard_paths = ['test','source','include']
+  paths = @ceedling[:setupinator].config_hash[:paths].keys.map{|n| n.to_s.downcase}
+  paths = (paths + standard_paths).uniq
+  paths.each do |name|
     path_list = Object.const_get("COLLECTION_PATHS_#{name.upcase}")
 
-    if (path_list.size != 0)
+    if (path_list.size != 0) || (standard_paths.include?(name))
       desc "List all collected #{name} paths."
       task(name.to_sym) { puts "#{name} paths:"; path_list.sort.each {|path| puts " - #{path}" } }
     end
@@ -77,10 +86,11 @@ end
 namespace :files do
 
   categories = [
-    ['test',   COLLECTION_ALL_TESTS],
-    ['source', COLLECTION_ALL_SOURCE],
-    ['header', COLLECTION_ALL_HEADERS]
-    ]
+    ['test',    COLLECTION_ALL_TESTS],
+    ['source',  COLLECTION_ALL_SOURCE],
+    ['include', COLLECTION_ALL_HEADERS],
+    ['support', COLLECTION_ALL_SUPPORT]
+  ]
 
   using_assembly = (defined?(TEST_BUILD_USE_ASSEMBLY) && TEST_BUILD_USE_ASSEMBLY) ||
                    (defined?(RELEASE_BUILD_USE_ASSEMBLY) && RELEASE_BUILD_USE_ASSEMBLY)
