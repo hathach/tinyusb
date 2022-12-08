@@ -3,17 +3,17 @@ name: Build RISC-V
 on:
   push:
     paths:
-      - 'src'
-      - 'examples'
-      - 'lib'
-      - 'hw'
+      - 'src/**'
+      - 'examples/**'
+      - 'lib/**'
+      - 'hw/**'
   pull_request:
     branches: [ master ]
     paths:
-      - 'src'
-      - 'examples'
-      - 'lib'
-      - 'hw'
+      - 'src/**'
+      - 'examples/**'
+      - 'lib/**'
+      - 'hw/**'
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
