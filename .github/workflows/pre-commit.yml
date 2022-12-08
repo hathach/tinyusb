@@ -1,8 +1,9 @@
 name: pre-commit
 
 on:
-  pull_request:
   push:
+  pull_request:
+    branches: [ master ]
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
@@ -32,5 +33,5 @@ jobs:
       run: |
         # Install Ceedling
         gem install ceedling
-        cd test
+        cd test/unit-test
         ceedling test:all
