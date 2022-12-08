@@ -1,4 +1,4 @@
-include ../../../tools/top.mk
+include ../../../../tools/top.mk
 include ../../make.mk
 
 INC += \

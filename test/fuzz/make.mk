@@ -37,7 +37,7 @@ endif
 #-------------- Source files and compiler flags --------------
 
 
-INC   += $(TOP)/$(FAMILY_PATH)
+INC += $(TOP)/test
 
 # Compiler Flags
 CFLAGS += \
