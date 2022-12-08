@@ -9,6 +9,11 @@ on:
       - 'hw'
   pull_request:
     branches: [ master ]
+    paths:
+      - 'src'
+      - 'examples'
+      - 'lib'
+      - 'hw'
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
