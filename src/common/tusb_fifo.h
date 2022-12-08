@@ -101,10 +101,10 @@ bool tu_fifo_config(tu_fifo_t *f, void* buffer, uint16_t depth, uint16_t item_si
 
 #if CFG_FIFO_MUTEX
 TU_ATTR_ALWAYS_INLINE static inline
-void tu_fifo_config_mutex(tu_fifo_t *f, tu_fifo_mutex_t write_mutex_hdl, tu_fifo_mutex_t read_mutex_hdl)
+void tu_fifo_config_mutex(tu_fifo_t *f, tu_fifo_mutex_t wr_mutex, tu_fifo_mutex_t rd_mutex)
 {
-  f->mutex_wr = write_mutex_hdl;
-  f->mutex_rd = read_mutex_hdl;
+  f->mutex_wr = wr_mutex;
+  f->mutex_rd = rd_mutex;
 }
 #endif
 
