@@ -35,3 +35,20 @@ jobs:
         gem install ceedling
         cd test/unit-test
         ceedling test:all
+
+    - name: Fetch deps
+      run: |
+        sudo apt update && sudo apt install libc++abi-dev libc++-dev
+        fuzz_harness=$(ls -d test/fuzz/device/*/ test/fuzz/host/*/)
+        for h in $fuzz_harness
+        do
+          make $h get-deps
+        done
+
+    - name: Build Fuzzer
+      run: |
+        fuzz_harness=$(ls -d test/fuzz/device/*/ test/fuzz/host/*/)
+        for h in $fuzz_harness
+        do
+          make $h all
+        done

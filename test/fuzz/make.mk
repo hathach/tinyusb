@@ -16,9 +16,9 @@ __check_defined = \
 
 #-------------- Fuzz harness compiler  ------------
 
-CC ?=  clang
-CXX ?= clang++
-GDB ?= gdb
+CC = clang
+CXX = clang++
+GDB = gdb
 OBJCOPY = objcopy
 SIZE = size
 MKDIR = mkdir
