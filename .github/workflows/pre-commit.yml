@@ -36,18 +36,11 @@ jobs:
         cd test/unit-test
         ceedling test:all
 
-    - name: Fetch deps
-      run: |
-        fuzz_harness=$(ls -d test/fuzz/device/*/)
-        for h in $fuzz_harness
-        do
-          make $h get-deps
-        done
-
     - name: Build Fuzzer
       run: |
         fuzz_harness=$(ls -d test/fuzz/device/*/)
         for h in $fuzz_harness
         do
+          make $h get-deps
           make $h all
         done
