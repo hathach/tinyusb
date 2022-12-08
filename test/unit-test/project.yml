@@ -36,7 +36,7 @@
     - +:test/**
     - -:test/support
   :source:
-    - ../src/**
+    - ../../src/**
   :support:
     - test/support
 
