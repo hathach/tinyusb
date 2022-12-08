@@ -88,7 +88,7 @@ void net_task(FuzzedDataProvider *provider) {
   case kNetworkCanXmit:
  (void)tud_network_can_xmit(provider->ConsumeIntegral<uint16_t>());
   case kNetworkXmit:
-    // TODO: Actuall pass real values here later.
+    // TODO: Actually pass real values here later.
     tud_network_xmit(NULL, 0);
 
   case kMaxValue:
