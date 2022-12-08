@@ -1,0 +1,74 @@
+# List of supported OIDs
+RNDIS_OID_GEN_SUPPORTED_LIST="\x00\x01\x01\x01"
+# Hardware status
+RNDIS_OID_GEN_HARDWARE_STATUS="\x00\x01\x01\x02"
+# Media types supported (encoded)
+RNDIS_OID_GEN_MEDIA_SUPPORTED="\x00\x01\x01\x03"
+# Media types in use (encoded)
+RNDIS_OID_GEN_MEDIA_IN_USE="\x00\x01\x01\x04"
+RNDIS_OID_GEN_MAXIMUM_LOOKAHEAD="\x00\x01\x01\x05"
+# Maximum frame size in bytes
+RNDIS_OID_GEN_MAXIMUM_FRAME_SIZE="\x00\x01\x01\x06"
+# Link speed in units of 100 bps
+RNDIS_OID_GEN_LINK_SPEED="\x00\x01\x01\x07"
+# Transmit buffer space
+RNDIS_OID_GEN_TRANSMIT_BUFFER_SPACE="\x00\x01\x01\x08"
+# Receive buffer space
+RNDIS_OID_GEN_RECEIVE_BUFFER_SPACE="\x00\x01\x01\x09"
+# NDIS version number used by the driver
+RNDIS_OID_GEN_DRIVER_VERSION="\x00\x01\x01\x10"
+# Maximum total packet length in bytes
+RNDIS_OID_GEN_MAXIMUM_TOTAL_SIZE="\x00\x01\x01\x11"
+# Optional protocol flags (encoded)
+RNDIS_OID_GEN_PROTOCOL_OPTIONS="\x00\x01\x01\x12"
+# Optional NIC flags (encoded)
+RNDIS_OID_GEN_MAC_OPTIONS="\x00\x01\x01\x13"
+# Whether the NIC is connected to the network
+RNDIS_OID_GEN_MEDIA_CONNECT_STATUS="\x00\x01\x01\x14"
+# The maximum number of send packets the driver can accept per call to its MiniportSendPacketsfunction
+RNDIS_OID_GEN_MAXIMUM_SEND_PACKETS="\x00\x01\x01\x15"
+# Vendor-assigned version number of the driver
+RNDIS_OID_GEN_VENDOR_DRIVER_VERSION="\x00\x01\x01\x16"
+# The custom GUIDs (Globally Unique Identifier) supported by the miniport driver
+RNDIS_OID_GEN_SUPPORTED_GUIDS="\x00\x01\x01\x17"
+# List of network-layer addresses associated with the binding between a transport and the driver
+RNDIS_OID_GEN_NETWORK_LAYER_ADDRESSES="\x00\x01\x01\x18"
+# Size of packets' additional headers
+RNDIS_OID_GEN_TRANSPORT_HEADER_OFFSET="\x00\x01\x01\x19"
+RNDIS_OID_GEN_MEDIA_CAPABILITIES="\x00\x01\x02\x01"
+# Physical media supported by the miniport driver (encoded)
+RNDIS_OID_GEN_PHYSICAL_MEDIUM="\x00\x01\x02\x02"
+# Permanent station address
+RNDIS_OID_802_3_PERMANENT_ADDRESS="\x01\x01\x01\x01"
+# Current station address
+RNDIS_OID_802_3_CURRENT_ADDRESS="\x01\x01\x01\x02"
+# Current multicast address list
+RNDIS_OID_802_3_MULTICAST_LIST="\x01\x01\x01\x03"
+# Maximum size of multicast address list
+RNDIS_OID_802_3_MAXIMUM_LIST_SIZE="\x01\x01\x01\x04"
+# Directed packets. Directed packets contain a destination address equal to the station address of the NIC.
+RNDIS_PACKET_TYPE_DIRECTED="\x00\x00\x00\x01"
+# Multicast address packets sent to addresses in the multicast address list.
+RNDIS_PACKET_TYPE_MULTICAST="\x00\x00\x00\x02"
+# All multicast address packets, not just the ones enumerated in the multicast address list.
+RNDIS_PACKET_TYPE_ALL_MULTICAST="\x00\x00\x00\x04"
+# Broadcast packets.
+RNDIS_PACKET_TYPE_BROADCAST="\x00\x00\x00\x08"
+# All source routing packets. If the protocol driver sets this bit, the NDIS library attempts to act as a source routing bridge.
+RNDIS_PACKET_TYPE_SOURCE_ROUTING="\x00\x00\x00\x10"
+# Specifies all packets regardless of whether VLAN filtering is enabled or not and whether the VLAN identifier matches or not.
+RNDIS_PACKET_TYPE_PROMISCUOUS="\x00\x00\x00\x20"
+# SMT packets that an FDDI NIC receives.
+RNDIS_PACKET_TYPE_SMT="\x00\x00\x00\x40"
+# All packets sent by installed protocols and all packets indicated by the NIC that is identified by a given NdisBindingHandle.
+RNDIS_PACKET_TYPE_ALL_LOCAL="\x00\x00\x00\x80"
+# Packets sent to the current group address.
+RNDIS_PACKET_TYPE_GROUP="\x00\x00\x10\x00"
+# All functional address packets, not just the ones in the current functional address.
+RNDIS_PACKET_TYPE_ALL_FUNCTIONAL="\x00\x00\x20\x00"
+# Functional address packets sent to addresses included in the current functional address.
+RNDIS_PACKET_TYPE_FUNCTIONAL="\x00\x00\x40\x00"
+# NIC driver frames that a Token Ring NIC receives.
+RNDIS_PACKET_TYPE_MAC_FRAME="\x00\x00\x80\x00"
+RNDIS_PACKET_TYPE_NO_LOCAL="\x00\x01\x00\x00"
+

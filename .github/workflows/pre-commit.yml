@@ -35,3 +35,12 @@ jobs:
         gem install ceedling
         cd test/unit-test
         ceedling test:all
+
+    - name: Build Fuzzer
+      run: |
+        fuzz_harness=$(ls -d test/fuzz/device/*/)
+        for h in $fuzz_harness
+        do
+          make -C $h get-deps
+          make -C $h all
+        done
