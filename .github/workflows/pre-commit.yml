@@ -1,8 +1,9 @@
 name: pre-commit
 
 on:
-  pull_request:
   push:
+  pull_request:
+    branches: [ master ]
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
@@ -20,7 +21,7 @@ jobs:
     - name: Setup Ruby
       uses: ruby/setup-ruby@v1
       with:
-        ruby-version: '2.7'
+        ruby-version: '3.0'
 
     - name: Checkout TinyUSB
       uses: actions/checkout@v3
@@ -32,5 +33,5 @@ jobs:
       run: |
         # Install Ceedling
         gem install ceedling
-        cd test
+        cd test/unit-test
         ceedling test:all
