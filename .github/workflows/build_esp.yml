@@ -6,7 +6,7 @@ on:
       - 'src/**'
       - 'examples/**'
       - 'lib/**'
-      - 'hw/**'      
+      - 'hw/**'
   pull_request:
     branches: [ master ]
     paths:
