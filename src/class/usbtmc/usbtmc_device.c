@@ -364,7 +364,7 @@ bool tud_usbtmc_start_bus_read()
   default:
     TU_VERIFY(false);
   }
-  TU_VERIFY(usbd_edpt_xfer(usbtmc_state.rhport, usbtmc_state.ep_bulk_out, usbtmc_state.ep_bulk_out_buf, 64));
+  TU_VERIFY(usbd_edpt_xfer(usbtmc_state.rhport, usbtmc_state.ep_bulk_out, usbtmc_state.ep_bulk_out_buf, usbtmc_state.ep_bulk_out_wMaxPacketSize));
   return true;
 }
 
