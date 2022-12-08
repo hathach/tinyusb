@@ -31,7 +31,7 @@ jobs:
     - name: Fetch deps
       run: | 
        sudo apt update && sudo apt install libc++abi-dev libc++-dev
-       make CC=clang CXX=clang++ -C fuzz/${{ matrix.fuzz_harness }} get-deps
+       make CC=clang CXX=clang++ -C test/fuzz/${{ matrix.fuzz_harness }} get-deps
 
     - name: Build Fuzzer
-      run: make CC=clang CXX=clang++ -C fuzz/${{ matrix.fuzz_harness }}
+      run: make CC=clang CXX=clang++ -C test/fuzz/${{ matrix.fuzz_harness }}
