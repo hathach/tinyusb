@@ -41,6 +41,6 @@ jobs:
         fuzz_harness=$(ls -d test/fuzz/device/*/)
         for h in $fuzz_harness
         do
-          make $h get-deps
-          make $h all
+          make -C $h get-deps
+          make -C $h all
         done
