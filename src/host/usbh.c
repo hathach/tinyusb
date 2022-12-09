@@ -423,7 +423,7 @@ void tuh_task_ext(uint32_t timeout_ms, bool in_isr)
         if (_usbh_enumerating) {
           // send event to back of queue, so we can continue enumerating
           // the current device
-          TU_LOG2("[%u:] defer attach until enumeration complete");
+          TU_LOG2("[%u:] defer attach until enumeration complete\r\n", event.rhport);
           osal_queue_send(_usbh_q, &event, in_isr);
         } else {
           _usbh_enumerating = true;
