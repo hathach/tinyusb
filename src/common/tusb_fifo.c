@@ -178,7 +178,8 @@ static void _ff_push_n(tu_fifo_t* f, void const * app_buf, uint16_t n, uint16_t 
         // Write data to linear part of buffer
         memcpy(ff_buf, app_buf, nLin_bytes);
 
-        TU_ASSERT(nWrap_bytes <= f->depth, );
+        // Write data wrapped around
+        // TU_ASSERT(nWrap_bytes <= f->depth, );
         memcpy(f->buffer, ((uint8_t const*) app_buf) + nLin_bytes, nWrap_bytes);
       }
       break;
@@ -504,7 +505,8 @@ static uint16_t _tu_fifo_write_n(tu_fifo_t* f, const void * data, uint16_t n, tu
 
       // We start writing at the read pointer's position since we fill the whole buffer
       wr_idx = rd_idx;
-    }else if (overflowable_count + n >= 2*f->depth)
+    }
+    else if (overflowable_count + n >= 2*f->depth)
     {
       // Double overflowed
       // re-position write index to have a full fifo after pushed
