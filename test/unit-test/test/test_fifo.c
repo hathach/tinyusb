@@ -138,6 +138,34 @@ void test_write_n(void)
   TEST_ASSERT_EQUAL(24, tu_fifo_count(ff));
 }
 
+void test_write_double_overflowed(void)
+{
+  tu_fifo_set_overwritable(ff, true);
+
+  uint8_t rd_buf[FIFO_SIZE] = { 0 };
+  uint8_t* buf = test_data;
+
+  // full
+  buf += tu_fifo_write_n(ff, buf, FIFO_SIZE);
+  TEST_ASSERT_EQUAL(FIFO_SIZE, tu_fifo_count(ff));
+
+  // write more, should still full
+  buf += tu_fifo_write_n(ff, buf, FIFO_SIZE-8);
+  TEST_ASSERT_EQUAL(FIFO_SIZE, tu_fifo_count(ff));
+
+  // double overflowed: in total, write more than > 2*FIFO_SIZE
+  buf += tu_fifo_write_n(ff, buf, 16);
+  TEST_ASSERT_EQUAL(FIFO_SIZE, tu_fifo_count(ff));
+
+  // reading back should give back data from last FIFO_SIZE write
+  tu_fifo_read_n(ff, rd_buf, FIFO_SIZE);
+
+  TEST_ASSERT_EQUAL_MEMORY(buf-16, rd_buf+FIFO_SIZE-16, 16);
+
+  // TODO whole buffer should match, but we deliberately not implement it
+  // TEST_ASSERT_EQUAL_MEMORY(buf-FIFO_SIZE, rd_buf, FIFO_SIZE);
+}
+
 static uint16_t help_write(uint16_t total, uint16_t n)
 {
   tu_fifo_write_n(ff, test_data, n);
@@ -149,7 +177,7 @@ static uint16_t help_write(uint16_t total, uint16_t n)
   return total;
 }
 
-void test_write_overwritable(void)
+void test_write_overwritable2(void)
 {
   tu_fifo_set_overwritable(ff, true);
 
