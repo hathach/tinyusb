@@ -52,18 +52,74 @@ extern "C" {
 #define tu_fifo_mutex_t  osal_mutex_t
 #endif
 
+/* Write/Read index is always in the range of:
+ *      0 .. 2*depth-1
+ * The extra window allow us to determine the fifo state of empty or full with only 2 indexes
+ * Following are examples with depth = 3
+ *
+ * - empty: W = R
+ *                |
+ *    -------------------------
+ *    | 0 | RW| 2 | 3 | 4 | 5 |
+ *
+ * - full 1: W > R
+ *                |
+ *    -------------------------
+ *    | 0 | R | 2 | 3 | W | 5 |
+ *
+ * - full 2: W < R
+ *                |
+ *    -------------------------
+ *    | 0 | 1 | W | 3 | 4 | R |
+ *
+ * - Number of items in the fifo can be determined in either cases:
+ *    - case W > R: Count = W - R
+ *    - case W < R: Count = 2*depth - (R - W)
+ *
+ * In non-overwritable mode, computed Count (in above 2 cases) is at most equal to depth.
+ * However, in over-writable mode, write index can be repeatedly increased and count can be
+ * temporarily larger than depth (overflowed condition) e.g
+ *
+ *  - Overflowed 1: write(3), write(1)
+ *    In this case we will adjust Read index when read()/peek() is called so that count = depth.
+ *                  |
+ *      -------------------------
+ *      | R | 1 | 2 | 3 | W | 5 |
+ *
+ *  - Double Overflowed: write(3), write(1), write(2)
+ *    Continue to write after overflowed to 2nd overflowed.
+ *    We must prevent 2nd overflowed since it will cause incorrect computed of count, in above example
+ *    if not handled the fifo will be empty instead of continue-to-be full. Since we must not modify
+ *    read index in write() function, which cause race condition. We will re-position write index so that
+ *    after data is written it is a full fifo i.e W = depth - R
+ *
+ *      re-position W = 1 before write(2)
+ *      Note: we should also move data from mem[4] to read index as well, but deliberately skipped here
+ *      since it is an expensive operation !!!
+ *                  |
+ *      -------------------------
+ *      | R | W | 2 | 3 | 4 | 5 |
+ *
+ *      perform write(2), result is still a full fifo.
+ *
+ *                  |
+ *      -------------------------
+ *      | R | 1 | 2 | W | 4 | 5 |
+
+ */
 typedef struct
 {
   uint8_t* buffer               ; ///< buffer pointer
   uint16_t depth                ; ///< max items
   uint16_t item_size            ; ///< size of each item
+
   bool overwritable             ;
 
   uint16_t non_used_index_space ; ///< required for non-power-of-two buffer length
-  uint16_t max_pointer_idx      ; ///< maximum absolute pointer index
+  //uint16_t max_pointer_idx      ; ///< maximum absolute pointer index
 
-  volatile uint16_t wr_idx      ; ///< write pointer
-  volatile uint16_t rd_idx      ; ///< read pointer
+  volatile uint16_t wr_idx      ; ///< write index
+  volatile uint16_t rd_idx      ; ///< read index
 
 #if CFG_FIFO_MUTEX
   tu_fifo_mutex_t mutex_wr;
@@ -87,7 +143,6 @@ typedef struct
   .item_size            = sizeof(_type),                    \
   .overwritable         = _overwritable,                    \
   .non_used_index_space = UINT16_MAX - (2*(_depth)-1),      \
-  .max_pointer_idx      = 2*(_depth)-1,                     \
 }
 
 #define TU_FIFO_DEF(_name, _depth, _type, _overwritable)                      \
