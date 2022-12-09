@@ -243,6 +243,7 @@ static osal_queue_t _usbh_q;
 
 CFG_TUSB_MEM_SECTION CFG_TUSB_MEM_ALIGN
 static uint8_t _usbh_ctrl_buf[CFG_TUH_ENUMERATION_BUFSIZE];
+static bool _usbh_enumerating = false;
 
 // Control transfer: since most controller does not support multiple control transfer
 // on multiple devices concurrently. And control transfer is not used much except enumeration
@@ -417,10 +418,18 @@ void tuh_task_ext(uint32_t timeout_ms, bool in_isr)
     switch (event.event_id)
     {
       case HCD_EVENT_DEVICE_ATTACH:
-        // TODO due to the shared _usbh_ctrl_buf, we must complete enumerating
+        // due to the shared _usbh_ctrl_buf, we must complete enumerating
         // one device before enumerating another one.
-        TU_LOG2("[%u:] USBH DEVICE ATTACH\r\n", event.rhport);
-        enum_new_device(&event);
+        if (_usbh_enumerating) {
+          // send event to back of queue, so we can continue enumerating
+          // the current device
+          TU_LOG2("[%u:] defer attach until enumeration complete");
+          osal_queue_send(_usbh_q, &event, in_isr);
+        } else {
+          _usbh_enumerating = true;
+          TU_LOG2("[%u:] USBH DEVICE ATTACH\r\n", event.rhport);
+          enum_new_device(&event);
+        }
       break;
 
       case HCD_EVENT_DEVICE_REMOVE:
@@ -1610,6 +1619,7 @@ static void enum_full_complete(void)
   if (_dev0.hub_addr) hub_edpt_status_xfer(_dev0.hub_addr);
 #endif
 
+  _usbh_enumerating = false;
 }
 
 #endif
