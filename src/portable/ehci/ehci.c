@@ -188,7 +188,7 @@ tusb_speed_t hcd_port_speed_get(uint8_t rhport)
 static void list_remove_qhd_by_addr(ehci_link_t* list_head, uint8_t dev_addr)
 {
   for(ehci_link_t* prev = list_head;
-      !prev->terminate && (tu_align32(prev->address) != (uint32_t) list_head);
+      !prev->terminate && (tu_align32(prev->address) != (uint32_t) list_head) && prev != NULL;
       prev = list_next(prev) )
   {
     // TODO check type for ISO iTD and siTD
