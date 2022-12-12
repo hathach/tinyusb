@@ -82,7 +82,7 @@ bool tu_fifo_config(tu_fifo_t *f, void* buffer, uint16_t depth, uint16_t item_si
   // but limits the maximum depth to 2^16/2 = 2^15 and buffer overflows are detectable
   // only if overflow happens once (important for unsupervised DMA applications)
   //f->max_pointer_idx = (uint16_t) (2*depth - 1);
-  f->non_used_index_space = UINT16_MAX - (2*f->depth-1);
+  f->non_used_index_space = (uint16_t) (UINT16_MAX - (2*f->depth-1));
 
   f->rd_idx = f->wr_idx = 0;
 
@@ -867,7 +867,7 @@ bool tu_fifo_clear(tu_fifo_t *f)
 
   f->rd_idx = f->wr_idx = 0;
   //f->max_pointer_idx = (uint16_t) (2*f->depth-1);
-  f->non_used_index_space = UINT16_MAX - (2*f->depth-1);
+  f->non_used_index_space = (uint16_t) (UINT16_MAX - (2*f->depth-1));
 
   _ff_unlock(f->mutex_wr);
   _ff_unlock(f->mutex_rd);

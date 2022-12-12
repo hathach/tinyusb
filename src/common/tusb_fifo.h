@@ -136,13 +136,13 @@ typedef struct
   void * ptr_wrap   ; ///< wrapped part start pointer
 } tu_fifo_buffer_info_t;
 
-#define TU_FIFO_INIT(_buffer, _depth, _type, _overwritable) \
-{                                                           \
-  .buffer               = _buffer,                          \
-  .depth                = _depth,                           \
-  .item_size            = sizeof(_type),                    \
-  .overwritable         = _overwritable,                    \
-  .non_used_index_space = UINT16_MAX - (2*(_depth)-1),      \
+#define TU_FIFO_INIT(_buffer, _depth, _type, _overwritable)        \
+{                                                                  \
+  .buffer               = _buffer,                                 \
+  .depth                = _depth,                                  \
+  .item_size            = sizeof(_type),                           \
+  .overwritable         = _overwritable,                           \
+  .non_used_index_space = (uint16_t)(UINT16_MAX - (2*(_depth)-1)), \
 }
 
 #define TU_FIFO_DEF(_name, _depth, _type, _overwritable)                      \
