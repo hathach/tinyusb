@@ -115,7 +115,7 @@ void stdio_rtt_init(void)
 
 #endif
 
-#ifdef UART_DEV
+#if defined(UART_DEV) && defined(LIB_PICO_STDIO_UART)
 static uart_inst_t *uart_inst;
 #endif
 
@@ -191,7 +191,7 @@ uint32_t board_button_read(void)
 
 int board_uart_read(uint8_t* buf, int len)
 {
-#ifdef UART_DEV
+#if defined(UART_DEV) && defined(LIB_PICO_STDIO_UART)
   int count = 0;
   while ( (count < len) && uart_is_readable(uart_inst) )
   {
@@ -207,7 +207,7 @@ int board_uart_read(uint8_t* buf, int len)
 
 int board_uart_write(void const * buf, int len)
 {
-#ifdef UART_DEV
+#if defined(UART_DEV) && defined(LIB_PICO_STDIO_UART)
   char const* bufch = (char const*) buf;
   for(int i=0;i<len;i++) {
     uart_putc(uart_inst, bufch[i]);
