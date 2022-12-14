@@ -152,12 +152,42 @@ bool tuh_cdc_set_control_line_state(uint8_t dev_addr, bool dtr, bool rts, tuh_xf
 }
 
 //--------------------------------------------------------------------+
-// USBH-CLASS DRIVER API
+// CLASS-USBH API
 //--------------------------------------------------------------------+
+
 void cdch_init(void)
 {
   tu_memclr(cdch_data, sizeof(cdch_data));
 }
+
+void cdch_close(uint8_t dev_addr)
+{
+  TU_VERIFY(dev_addr <= CFG_TUH_DEVICE_MAX, );
+
+  cdch_data_t * p_cdc = get_itf(dev_addr);
+
+  // Invoke application callback
+  if (tuh_cdc_umount_cb)
+  {
+    if (p_cdc->ep_out || p_cdc->ep_in || p_cdc->ep_notif)
+    {
+      tuh_cdc_umount_cb(dev_addr);
+    }
+  }
+
+  tu_memclr(p_cdc, sizeof(cdch_data_t));
+}
+
+bool cdch_xfer_cb(uint8_t dev_addr, uint8_t ep_addr, xfer_result_t event, uint32_t xferred_bytes)
+{
+  (void) ep_addr;
+  tuh_cdc_xfer_isr( dev_addr, event, 0, xferred_bytes );
+  return true;
+}
+
+//--------------------------------------------------------------------+
+// Enumeration
+//--------------------------------------------------------------------+
 
 bool cdch_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_interface_t const *itf_desc, uint16_t max_len)
 {
@@ -175,7 +205,7 @@ bool cdch_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_interface_t const *it
   p_cdc->itf_num      = itf_desc->bInterfaceNumber;
   p_cdc->itf_protocol = itf_desc->bInterfaceProtocol;
 
-  //------------- Communication Interface -------------//
+  //------------- Control Interface -------------//
   uint16_t drv_len = tu_desc_len(itf_desc);
   uint8_t const * p_desc = tu_desc_next(itf_desc);
 
@@ -192,9 +222,10 @@ bool cdch_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_interface_t const *it
     p_desc = tu_desc_next(p_desc);
   }
 
-  if ( TUSB_DESC_ENDPOINT == tu_desc_type(p_desc) )
+  // Open notification endpoint of control interface if any
+  if (itf_desc->bNumEndpoints == 1)
   {
-    // notification endpoint
+    TU_ASSERT(TUSB_DESC_ENDPOINT == tu_desc_type(p_desc));
     tusb_desc_endpoint_t const * desc_ep = (tusb_desc_endpoint_t const *) p_desc;
 
     TU_ASSERT( tuh_edpt_open(dev_addr, desc_ep) );
@@ -242,31 +273,6 @@ bool cdch_set_config(uint8_t dev_addr, uint8_t itf_num)
 
   if (tuh_cdc_mount_cb) tuh_cdc_mount_cb(dev_addr);
   return true;
-}
-
-bool cdch_xfer_cb(uint8_t dev_addr, uint8_t ep_addr, xfer_result_t event, uint32_t xferred_bytes)
-{
-  (void) ep_addr;
-  tuh_cdc_xfer_isr( dev_addr, event, 0, xferred_bytes );
-  return true;
-}
-
-void cdch_close(uint8_t dev_addr)
-{
-  TU_VERIFY(dev_addr <= CFG_TUH_DEVICE_MAX, );
-
-  cdch_data_t * p_cdc = get_itf(dev_addr);
-
-  // Invoke application callback
-  if (tuh_cdc_umount_cb)
-  {
-    if (p_cdc->ep_out || p_cdc->ep_in || p_cdc->ep_notif)
-    {
-      tuh_cdc_umount_cb(dev_addr);
-    }
-  }
-
-  tu_memclr(p_cdc, sizeof(cdch_data_t));
 }
 
 #endif

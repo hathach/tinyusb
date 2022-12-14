@@ -1524,8 +1524,7 @@ static bool _parse_configuration_descriptor(uint8_t dev_addr, tusb_desc_configur
     TU_ASSERT(drv_len >= sizeof(tusb_desc_interface_t));
 
     // Find driver for this interface
-    uint8_t drv_id;
-    for (drv_id = 0; drv_id < USBH_CLASS_DRIVER_COUNT; drv_id++)
+    for (uint8_t drv_id = 0; drv_id < USBH_CLASS_DRIVER_COUNT; drv_id++)
     {
       usbh_class_driver_t const * driver = &usbh_class_drivers[drv_id];
 
