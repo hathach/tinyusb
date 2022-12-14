@@ -239,6 +239,8 @@ bool cdch_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_interface_t const *it
 bool cdch_set_config(uint8_t dev_addr, uint8_t itf_num)
 {
   (void) dev_addr; (void) itf_num;
+
+  if (tuh_cdc_mount_cb) tuh_cdc_mount_cb(dev_addr);
   return true;
 }
 
@@ -254,6 +256,16 @@ void cdch_close(uint8_t dev_addr)
   TU_VERIFY(dev_addr <= CFG_TUH_DEVICE_MAX, );
 
   cdch_data_t * p_cdc = get_itf(dev_addr);
+
+  // Invoke application callback
+  if (tuh_cdc_umount_cb)
+  {
+    if (p_cdc->ep_out || p_cdc->ep_in || p_cdc->ep_notif)
+    {
+      tuh_cdc_umount_cb(dev_addr);
+    }
+  }
+
   tu_memclr(p_cdc, sizeof(cdch_data_t));
 }
 

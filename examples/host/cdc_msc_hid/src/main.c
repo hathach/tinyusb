@@ -35,7 +35,7 @@
 //--------------------------------------------------------------------+
 void led_blinking_task(void);
 
-extern void cdc_task(void);
+extern void cdc_app_task(void);
 extern void hid_app_task(void);
 
 /*------------- MAIN -------------*/
@@ -52,9 +52,9 @@ int main(void)
   {
     // tinyusb host task
     tuh_task();
-    led_blinking_task();
 
-    cdc_task();
+    led_blinking_task();
+    cdc_app_task();
     hid_app_task();
   }
 
@@ -77,11 +77,6 @@ void tuh_cdc_xfer_isr(uint8_t dev_addr, xfer_result_t event, cdc_pipeid_t pipe_i
   tu_memclr(serial_in_buffer, sizeof(serial_in_buffer));
 
   tuh_cdc_receive(dev_addr, serial_in_buffer, sizeof(serial_in_buffer), true); // waiting for next data
-}
-
-void cdc_task(void)
-{
-
 }
 
 //--------------------------------------------------------------------+

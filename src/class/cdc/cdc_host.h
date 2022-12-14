@@ -34,13 +34,18 @@
 #endif
 
 //--------------------------------------------------------------------+
-// CDC APPLICATION PUBLIC API
+// Application API
 //--------------------------------------------------------------------+
-/** \ingroup ClassDriver_CDC Communication Device Class (CDC)
- * \addtogroup CDC_Serial Serial
- * @{
- * \defgroup   CDC_Serial_Host Host
- * @{ */
+
+
+//------------- Application Callback -------------//
+
+// Invoked when a device with CDC interface is mounted
+TU_ATTR_WEAK void tuh_cdc_mount_cb(uint8_t dev_addr);
+
+// Invoked when a device with CDC interface is unmounted
+TU_ATTR_WEAK void tuh_cdc_umount_cb(uint8_t dev_addr);
+
 
 bool tuh_cdc_set_control_line_state(uint8_t dev_addr, bool dtr, bool rts, tuh_xfer_cb_t complete_cb);
 
