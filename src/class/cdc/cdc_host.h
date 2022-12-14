@@ -34,19 +34,24 @@
 #endif
 
 //--------------------------------------------------------------------+
-// Application API
+// Class Driver Configuration
 //--------------------------------------------------------------------+
 
 
-//------------- Application Callback -------------//
+//--------------------------------------------------------------------+
+// Application API
+//--------------------------------------------------------------------+
 
-// Invoked when a device with CDC interface is mounted
-TU_ATTR_WEAK void tuh_cdc_mount_cb(uint8_t dev_addr);
+bool tuh_cdc_mounted(uint8_t dev_addr);
 
-// Invoked when a device with CDC interface is unmounted
-TU_ATTR_WEAK void tuh_cdc_umount_cb(uint8_t dev_addr);
+uint32_t tuh_cdc_write(uint8_t dev_addr, void const* buffer, uint32_t bufsize);
+//uint32_t tuh_cdc_read(uint8_t dev_addr, void* buffer, uint32_t bufsize);
 
+//--------------------------------------------------------------------+
+// Control Endpoint (Request) API
+//--------------------------------------------------------------------+
 
+// Set Control Line State (DTR, RTS)
 bool tuh_cdc_set_control_line_state(uint8_t dev_addr, bool dtr, bool rts, tuh_xfer_cb_t complete_cb);
 
 static inline bool tuh_cdc_connect(uint8_t dev_addr, tuh_xfer_cb_t complete_cb)
@@ -58,6 +63,15 @@ static inline bool tuh_cdc_disconnect(uint8_t dev_addr, tuh_xfer_cb_t complete_c
 {
   return tuh_cdc_set_control_line_state(dev_addr, false, false, complete_cb);
 }
+
+//------------- Application Callback -------------//
+
+// Invoked when a device with CDC interface is mounted
+TU_ATTR_WEAK void tuh_cdc_mount_cb(uint8_t dev_addr);
+
+// Invoked when a device with CDC interface is unmounted
+TU_ATTR_WEAK void tuh_cdc_umount_cb(uint8_t dev_addr);
+
 
 /** \brief 			Check if device support CDC Serial interface or not
  * \param[in]		dev_addr	device address

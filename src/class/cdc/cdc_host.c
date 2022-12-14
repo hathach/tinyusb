@@ -37,6 +37,7 @@
 // MACRO CONSTANT TYPEDEF
 //--------------------------------------------------------------------+
 typedef struct {
+  // uint8_t daddr;
   uint8_t itf_num;
   uint8_t itf_protocol;
 
@@ -46,21 +47,42 @@ typedef struct {
 
   cdc_acm_capability_t acm_capability;
 
-} cdch_data_t;
+  // Bit 0:  DTR (Data Terminal Ready), Bit 1: RTS (Request to Send)
+  // uint8_t line_state;
+#if 0
+
+  // FIFO
+  tu_fifo_t rx_ff;
+  tu_fifo_t tx_ff;
+
+  uint8_t rx_ff_buf[CFG_TUH_CDC_RX_BUFSIZE];
+  uint8_t tx_ff_buf[CFG_TUH_CDC_TX_BUFSIZE];
+
+#if CFG_FIFO_MUTEX
+  osal_mutex_def_t rx_ff_mutex;
+  osal_mutex_def_t tx_ff_mutex;
+#endif
+
+  // Endpoint Transfer buffer
+  CFG_TUSB_MEM_ALIGN uint8_t epout_buf[CFG_TUH_CDC_EP_BUFSIZE];
+  CFG_TUSB_MEM_ALIGN uint8_t epin_buf[CFG_TUH_CDC_EP_BUFSIZE];
+#endif
+
+} cdch_interface_t;
 
 //--------------------------------------------------------------------+
 // INTERNAL OBJECT & FUNCTION DECLARATION
 //--------------------------------------------------------------------+
-static cdch_data_t cdch_data[CFG_TUH_DEVICE_MAX];
+static cdch_interface_t cdch_data[CFG_TUH_DEVICE_MAX];
 
-static inline cdch_data_t* get_itf(uint8_t dev_addr)
+static inline cdch_interface_t* get_itf(uint8_t dev_addr)
 {
   return &cdch_data[dev_addr-1];
 }
 
 bool tuh_cdc_mounted(uint8_t dev_addr)
 {
-  cdch_data_t* cdc = get_itf(dev_addr);
+  cdch_interface_t* cdc = get_itf(dev_addr);
   return cdc->ep_in && cdc->ep_out;
 }
 
@@ -68,7 +90,7 @@ bool tuh_cdc_is_busy(uint8_t dev_addr, cdc_pipeid_t pipeid)
 {
   if ( !tuh_cdc_mounted(dev_addr) ) return false;
 
-  cdch_data_t const * p_cdc = get_itf(dev_addr);
+  cdch_interface_t const * p_cdc = get_itf(dev_addr);
 
   switch (pipeid)
   {
@@ -89,6 +111,17 @@ bool tuh_cdc_is_busy(uint8_t dev_addr, cdc_pipeid_t pipeid)
 //--------------------------------------------------------------------+
 // APPLICATION API (parameter validation needed)
 //--------------------------------------------------------------------+
+
+uint32_t tuh_cdc_write(uint8_t dev_addr, void const* buffer, uint32_t bufsize)
+{
+  (void) dev_addr;
+  (void) buffer;
+  (void) bufsize;
+
+  return 0;
+}
+
+
 bool tuh_cdc_serial_is_mounted(uint8_t dev_addr)
 {
   // TODO consider all AT Command as serial candidate
@@ -122,7 +155,7 @@ bool tuh_cdc_receive(uint8_t dev_addr, void * p_buffer, uint32_t length, bool is
 
 bool tuh_cdc_set_control_line_state(uint8_t dev_addr, bool dtr, bool rts, tuh_xfer_cb_t complete_cb)
 {
-  cdch_data_t const * p_cdc = get_itf(dev_addr);
+  cdch_interface_t const * p_cdc = get_itf(dev_addr);
 
   tusb_control_request_t const request =
   {
@@ -164,7 +197,7 @@ void cdch_close(uint8_t dev_addr)
 {
   TU_VERIFY(dev_addr <= CFG_TUH_DEVICE_MAX, );
 
-  cdch_data_t * p_cdc = get_itf(dev_addr);
+  cdch_interface_t * p_cdc = get_itf(dev_addr);
 
   // Invoke application callback
   if (tuh_cdc_umount_cb)
@@ -175,7 +208,7 @@ void cdch_close(uint8_t dev_addr)
     }
   }
 
-  tu_memclr(p_cdc, sizeof(cdch_data_t));
+  tu_memclr(p_cdc, sizeof(cdch_interface_t));
 }
 
 bool cdch_xfer_cb(uint8_t dev_addr, uint8_t ep_addr, xfer_result_t event, uint32_t xferred_bytes)
@@ -200,7 +233,7 @@ bool cdch_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_interface_t const *it
              CDC_COMM_SUBCLASS_ABSTRACT_CONTROL_MODEL == itf_desc->bInterfaceSubClass &&
              0xFF                                     != itf_desc->bInterfaceProtocol);
 
-  cdch_data_t * p_cdc = get_itf(dev_addr);
+  cdch_interface_t * p_cdc = get_itf(dev_addr);
 
   p_cdc->itf_num      = itf_desc->bInterfaceNumber;
   p_cdc->itf_protocol = itf_desc->bInterfaceProtocol;
