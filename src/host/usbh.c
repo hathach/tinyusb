@@ -212,28 +212,12 @@ static usbh_dev0_t _dev0;
 // TODO: hub can has its own simpler struct to save memory
 CFG_TUSB_MEM_SECTION usbh_device_t _usbh_devices[TOTAL_DEVICES];
 
-// Mutex for claiming endpoint, only needed when using with preempted RTOS
-#if TUSB_OPT_MUTEX
-static osal_mutex_def_t _usbh_mutexdef;
-static osal_mutex_t _usbh_mutex;
-
-TU_ATTR_ALWAYS_INLINE static inline void usbh_lock(void)
-{
-  osal_mutex_lock(_usbh_mutex, OSAL_TIMEOUT_WAIT_FOREVER);
-}
-
-TU_ATTR_ALWAYS_INLINE static inline void usbh_unlock(void)
-{
-  osal_mutex_unlock(_usbh_mutex);
-}
-
+// Mutex for claiming endpoint
+#if OSAL_MUTEX_REQUIRED
+  static osal_mutex_def_t _usbh_mutexdef;
+  static osal_mutex_t _usbh_mutex;
 #else
-
-#define _usbh_mutex   NULL
-
-#define usbh_lock()
-#define usbh_unlock()
-
+  #define _usbh_mutex   NULL
 #endif
 
 // Event queue
@@ -277,8 +261,6 @@ static bool usbh_control_xfer_cb (uint8_t daddr, uint8_t ep_addr, xfer_result_t 
 // TODO rework time-related function later
 void osal_task_delay(uint32_t msec)
 {
-  (void) msec;
-
   const uint32_t start = hcd_frame_number(_usbh_controller);
   while ( ( hcd_frame_number(_usbh_controller) - start ) < msec ) {}
 }
@@ -352,8 +334,8 @@ bool tuh_init(uint8_t controller_id)
   _usbh_q = osal_queue_create( &_usbh_qdef );
   TU_ASSERT(_usbh_q != NULL);
 
-#if TUSB_OPT_MUTEX
-  // Mutex
+#if OSAL_MUTEX_REQUIRED
+  // Init mutex
   _usbh_mutex = osal_mutex_create(&_usbh_mutexdef);
   TU_ASSERT(_usbh_mutex);
 #endif
@@ -537,8 +519,7 @@ bool tuh_control_xfer (tuh_xfer_t* xfer)
 
   uint8_t const daddr = xfer->daddr;
 
-  // TODO probably better to use semaphore as resource management than mutex
-  usbh_lock();
+  (void) osal_mutex_lock(_usbh_mutex, OSAL_TIMEOUT_WAIT_FOREVER);
 
   bool const is_idle = (_ctrl_xfer.stage == CONTROL_STAGE_IDLE);
   if (is_idle)
@@ -553,7 +534,7 @@ bool tuh_control_xfer (tuh_xfer_t* xfer)
     _ctrl_xfer.user_data   = xfer->user_data;
   }
 
-  usbh_unlock();
+  (void) osal_mutex_unlock(_usbh_mutex);
 
   TU_VERIFY(is_idle);
   const uint8_t rhport = usbh_get_rhport(daddr);
@@ -597,9 +578,9 @@ bool tuh_control_xfer (tuh_xfer_t* xfer)
 
 TU_ATTR_ALWAYS_INLINE static inline void _set_control_xfer_stage(uint8_t stage)
 {
-  usbh_lock();
+  osal_mutex_lock(_usbh_mutex, OSAL_TIMEOUT_WAIT_FOREVER);
   _ctrl_xfer.stage = stage;
-  usbh_unlock();
+  osal_mutex_unlock(_usbh_mutex);
 }
 
 static void _xfer_complete(uint8_t daddr, xfer_result_t result)

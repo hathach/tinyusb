@@ -74,11 +74,9 @@ bool tu_edpt_claim(tu_edpt_state_t* ep_state, osal_mutex_t mutex)
 {
   (void) mutex;
 
-#if TUSB_OPT_MUTEX
   // pre-check to help reducing mutex lock
   TU_VERIFY((ep_state->busy == 0) && (ep_state->claimed == 0));
-  osal_mutex_lock(mutex, OSAL_TIMEOUT_WAIT_FOREVER);
-#endif
+  (void) osal_mutex_lock(mutex, OSAL_TIMEOUT_WAIT_FOREVER);
 
   // can only claim the endpoint if it is not busy and not claimed yet.
   bool const available = (ep_state->busy == 0) && (ep_state->claimed == 0);
@@ -87,9 +85,7 @@ bool tu_edpt_claim(tu_edpt_state_t* ep_state, osal_mutex_t mutex)
     ep_state->claimed = 1;
   }
 
-#if TUSB_OPT_MUTEX
-  osal_mutex_unlock(mutex);
-#endif
+  (void) osal_mutex_unlock(mutex);
 
   return available;
 }
@@ -98,9 +94,7 @@ bool tu_edpt_release(tu_edpt_state_t* ep_state, osal_mutex_t mutex)
 {
   (void) mutex;
 
-#if TUSB_OPT_MUTEX
-  osal_mutex_lock(mutex, OSAL_TIMEOUT_WAIT_FOREVER);
-#endif
+  (void) osal_mutex_lock(mutex, OSAL_TIMEOUT_WAIT_FOREVER);
 
   // can only release the endpoint if it is claimed and not busy
   bool const ret = (ep_state->claimed == 1) && (ep_state->busy == 0);
@@ -109,9 +103,7 @@ bool tu_edpt_release(tu_edpt_state_t* ep_state, osal_mutex_t mutex)
     ep_state->claimed = 0;
   }
 
-#if TUSB_OPT_MUTEX
-  osal_mutex_unlock(mutex);
-#endif
+  (void) osal_mutex_unlock(mutex);
 
   return ret;
 }
