@@ -37,7 +37,7 @@
 // MACRO CONSTANT TYPEDEF
 //--------------------------------------------------------------------+
 typedef struct {
-  // uint8_t daddr;
+  uint8_t daddr;
   uint8_t itf_num;
   uint8_t itf_protocol;
 
@@ -49,7 +49,6 @@ typedef struct {
 
   // Bit 0:  DTR (Data Terminal Ready), Bit 1: RTS (Request to Send)
   // uint8_t line_state;
-#if 0
 
   // FIFO
   tu_fifo_t rx_ff;
@@ -64,53 +63,47 @@ typedef struct {
 #endif
 
   // Endpoint Transfer buffer
-  CFG_TUSB_MEM_ALIGN uint8_t epout_buf[CFG_TUH_CDC_EP_BUFSIZE];
-  CFG_TUSB_MEM_ALIGN uint8_t epin_buf[CFG_TUH_CDC_EP_BUFSIZE];
-#endif
+  CFG_TUSB_MEM_ALIGN uint8_t epin_buf[CFG_TUH_CDC_RX_EPSIZE];
+  CFG_TUSB_MEM_ALIGN uint8_t epout_buf[CFG_TUH_CDC_TX_EPSIZE];
 
 } cdch_interface_t;
 
 //--------------------------------------------------------------------+
 // INTERNAL OBJECT & FUNCTION DECLARATION
 //--------------------------------------------------------------------+
-static cdch_interface_t cdch_data[CFG_TUH_DEVICE_MAX];
+
+CFG_TUSB_MEM_SECTION
+static cdch_interface_t cdch_data[CFG_TUH_CDC];
 
 static inline cdch_interface_t* get_itf(uint8_t dev_addr)
 {
-  return &cdch_data[dev_addr-1];
-}
-
-bool tuh_cdc_mounted(uint8_t dev_addr)
-{
-  cdch_interface_t* cdc = get_itf(dev_addr);
-  return cdc->ep_in && cdc->ep_out;
-}
-
-bool tuh_cdc_is_busy(uint8_t dev_addr, cdc_pipeid_t pipeid)
-{
-  if ( !tuh_cdc_mounted(dev_addr) ) return false;
-
-  cdch_interface_t const * p_cdc = get_itf(dev_addr);
-
-  switch (pipeid)
+  for(size_t i=0; i<CFG_TUH_CDC; i++)
   {
-    case CDC_PIPE_NOTIFICATION:
-      return usbh_edpt_busy(dev_addr, p_cdc->ep_notif );
-
-    case CDC_PIPE_DATA_IN:
-      return usbh_edpt_busy(dev_addr, p_cdc->ep_in );
-
-    case CDC_PIPE_DATA_OUT:
-      return usbh_edpt_busy(dev_addr, p_cdc->ep_out );
-
-    default:
-      return false;
+    if (cdch_data[i].daddr == dev_addr) return &cdch_data[i];
   }
+
+  return NULL;
+}
+
+static cdch_interface_t* find_new_itf(void)
+{
+  for(size_t i=0; i<CFG_TUH_CDC; i++)
+  {
+    if (cdch_data[i].daddr == 0) return &cdch_data[i];
+  }
+
+  return NULL;
 }
 
 //--------------------------------------------------------------------+
 // APPLICATION API (parameter validation needed)
 //--------------------------------------------------------------------+
+
+bool tuh_cdc_mounted(uint8_t dev_addr)
+{
+  cdch_interface_t* p_cdc = get_itf(dev_addr);
+  return p_cdc != NULL;
+}
 
 uint32_t tuh_cdc_write(uint8_t dev_addr, void const* buffer, uint32_t bufsize)
 {
@@ -120,7 +113,6 @@ uint32_t tuh_cdc_write(uint8_t dev_addr, void const* buffer, uint32_t bufsize)
 
   return 0;
 }
-
 
 bool tuh_cdc_serial_is_mounted(uint8_t dev_addr)
 {
@@ -156,6 +148,7 @@ bool tuh_cdc_receive(uint8_t dev_addr, void * p_buffer, uint32_t length, bool is
 bool tuh_cdc_set_control_line_state(uint8_t dev_addr, bool dtr, bool rts, tuh_xfer_cb_t complete_cb)
 {
   cdch_interface_t const * p_cdc = get_itf(dev_addr);
+  TU_VERIFY(p_cdc && p_cdc->acm_capability.support_line_request);
 
   tusb_control_request_t const request =
   {
@@ -195,17 +188,13 @@ void cdch_init(void)
 
 void cdch_close(uint8_t dev_addr)
 {
-  TU_VERIFY(dev_addr <= CFG_TUH_DEVICE_MAX, );
-
   cdch_interface_t * p_cdc = get_itf(dev_addr);
+  TU_VERIFY(p_cdc, );
 
   // Invoke application callback
   if (tuh_cdc_umount_cb)
   {
-    if (p_cdc->ep_out || p_cdc->ep_in || p_cdc->ep_notif)
-    {
-      tuh_cdc_umount_cb(dev_addr);
-    }
+    tuh_cdc_umount_cb(dev_addr);
   }
 
   tu_memclr(p_cdc, sizeof(cdch_interface_t));
@@ -233,8 +222,10 @@ bool cdch_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_interface_t const *it
              CDC_COMM_SUBCLASS_ABSTRACT_CONTROL_MODEL == itf_desc->bInterfaceSubClass &&
              0xFF                                     != itf_desc->bInterfaceProtocol);
 
-  cdch_interface_t * p_cdc = get_itf(dev_addr);
+  cdch_interface_t * p_cdc = find_new_itf();
+  TU_VERIFY(p_cdc);
 
+  p_cdc->daddr        = dev_addr;
   p_cdc->itf_num      = itf_desc->bInterfaceNumber;
   p_cdc->itf_protocol = itf_desc->bInterfaceProtocol;
 
@@ -302,9 +293,11 @@ bool cdch_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_interface_t const *it
 
 bool cdch_set_config(uint8_t dev_addr, uint8_t itf_num)
 {
-  (void) dev_addr; (void) itf_num;
-
   if (tuh_cdc_mount_cb) tuh_cdc_mount_cb(dev_addr);
+
+  // notify usbh that driver enumeration is complete
+  usbh_driver_set_config_complete(dev_addr, itf_num);
+
   return true;
 }
 

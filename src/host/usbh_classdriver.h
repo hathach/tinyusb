@@ -34,6 +34,10 @@
  extern "C" {
 #endif
 
+enum {
+  USBH_EPSIZE_BULK_MAX = (TUH_OPT_HIGH_SPEED ? TUSB_EPSIZE_BULK_HS : TUSB_EPSIZE_BULK_FS)
+};
+
 //--------------------------------------------------------------------+
 // Class Driver API
 //--------------------------------------------------------------------+

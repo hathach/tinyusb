@@ -27,7 +27,6 @@
 #ifndef _TUSB_CDC_DEVICE_H_
 #define _TUSB_CDC_DEVICE_H_
 
-#include "common/tusb_common.h"
 #include "cdc.h"
 
 //--------------------------------------------------------------------+
