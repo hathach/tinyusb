@@ -36,6 +36,14 @@
 //--------------------------------------------------------------------+
 // MACRO CONSTANT TYPEDEF
 //--------------------------------------------------------------------+
+
+//typedef struct {
+//  tu_fifo_t fifo;
+//  OSAL_MUTEX_DEF(ff_mutex);
+//
+//
+//}usbh_edpt_stream_t;
+
 typedef struct {
   uint8_t daddr;
   uint8_t itf_num;
@@ -184,6 +192,13 @@ bool tuh_cdc_set_control_line_state(uint8_t dev_addr, bool dtr, bool rts, tuh_xf
 void cdch_init(void)
 {
   tu_memclr(cdch_data, sizeof(cdch_data));
+
+//  for(size_t i=0; i<CFG_TUH_CDC; i++)
+//  {
+//    cdch_interface_t* p_cdc = &cdch_data[i];
+//
+//
+//  }
 }
 
 void cdch_close(uint8_t dev_addr)
