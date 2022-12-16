@@ -578,9 +578,9 @@ bool tuh_control_xfer (tuh_xfer_t* xfer)
 
 TU_ATTR_ALWAYS_INLINE static inline void _set_control_xfer_stage(uint8_t stage)
 {
-  osal_mutex_lock(_usbh_mutex, OSAL_TIMEOUT_WAIT_FOREVER);
+  (void) osal_mutex_lock(_usbh_mutex, OSAL_TIMEOUT_WAIT_FOREVER);
   _ctrl_xfer.stage = stage;
-  osal_mutex_unlock(_usbh_mutex);
+  (void) osal_mutex_unlock(_usbh_mutex);
 }
 
 static void _xfer_complete(uint8_t daddr, xfer_result_t result)
