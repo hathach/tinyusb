@@ -36,13 +36,24 @@
 //--------------------------------------------------------------------+
 // MACRO CONSTANT TYPEDEF
 //--------------------------------------------------------------------+
+#if 0
+typedef struct {
+  tu_fifo_t ff;
+  OSAL_MUTEX_DEF(ff_mutex);
+}tu_edpt_stream_t;
 
-//typedef struct {
-//  tu_fifo_t fifo;
-//  OSAL_MUTEX_DEF(ff_mutex);
-//
-//
-//}usbh_edpt_stream_t;
+uint32_t tud_cdc_read_available (void);
+uint32_t tud_cdc_read (void *buffer, uint32_t bufsize);
+void tud_cdc_read_flush (void);
+bool tud_cdc_peek (uint8_t *ui8);
+
+uint32_t tud_cdc_write (void const *buffer, uint32_t bufsize);
+uint32_t tud_cdc_write_flush (void);
+uint32_t tud_cdc_write_available (void);
+
+//--------------------------------------------------------
+tu_edpt_stream_write()
+#endif
 
 typedef struct {
   uint8_t daddr;
@@ -65,10 +76,8 @@ typedef struct {
   uint8_t rx_ff_buf[CFG_TUH_CDC_RX_BUFSIZE];
   uint8_t tx_ff_buf[CFG_TUH_CDC_TX_BUFSIZE];
 
-#if CFG_FIFO_MUTEX
-  osal_mutex_def_t rx_ff_mutex;
-  osal_mutex_def_t tx_ff_mutex;
-#endif
+  OSAL_MUTEX_DEF(rx_ff_mutex);
+  OSAL_MUTEX_DEF(tx_ff_mutex);
 
   // Endpoint Transfer buffer
   CFG_TUSB_MEM_ALIGN uint8_t epin_buf[CFG_TUH_CDC_RX_EPSIZE];
@@ -311,7 +320,8 @@ bool cdch_set_config(uint8_t dev_addr, uint8_t itf_num)
   if (tuh_cdc_mount_cb) tuh_cdc_mount_cb(dev_addr);
 
   // notify usbh that driver enumeration is complete
-  usbh_driver_set_config_complete(dev_addr, itf_num);
+  // itf_num+1 to account for data interface as well
+  usbh_driver_set_config_complete(dev_addr, itf_num+1);
 
   return true;
 }

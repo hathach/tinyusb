@@ -1570,7 +1570,8 @@ void usbh_driver_set_config_complete(uint8_t dev_addr, uint8_t itf_num)
   for(itf_num++; itf_num < CFG_TUH_INTERFACE_MAX; itf_num++)
   {
     // continue with next valid interface
-    // TODO skip IAD binding interface such as CDCs
+    // IAD binding interface such as CDCs should return itf_num + 1 when complete
+    // with usbh_driver_set_config_complete()
     uint8_t const drv_id = dev->itf2drv[itf_num];
     if (drv_id != DRVID_INVALID)
     {
