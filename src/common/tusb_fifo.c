@@ -352,9 +352,10 @@ static uint16_t backward_pointer(tu_fifo_t* f, uint16_t p, uint16_t offset)
   return new_p;
 }
 
-// index to pointer, simply an modulo with minus
+// index to pointer, simply an modulo with minus.
 static inline uint16_t idx2ptr(uint16_t idx, uint16_t depth)
 {
+  // Only run at most 3 times since index is limit in the range of [0..2*depth)
   while ( idx >= depth ) idx -= depth;
   return idx;
 }
@@ -509,6 +510,7 @@ static uint16_t _tu_fifo_write_n(tu_fifo_t* f, const void * data, uint16_t n, tu
     else if (overflowable_count + n >= 2*f->depth)
     {
       // Double overflowed
+      // Index is bigger than the allowed range [0,2*depth)
       // re-position write index to have a full fifo after pushed
       wr_idx = advance_pointer(f, rd_idx, f->depth - n);
 
@@ -518,7 +520,9 @@ static uint16_t _tu_fifo_write_n(tu_fifo_t* f, const void * data, uint16_t n, tu
       // currently deliberately not implemented --> result in incorrect data read back
     }else
     {
-      // normal + single overflowed: just increase write index
+      // normal + single overflowed:
+      // Index is in the range of [0,2*depth) and thus detect and recoverable. Recovering is handled in read()
+      // Therefore we just increase write index
       // we will correct (re-position) read index later on in fifo_read() function
     }
   }
