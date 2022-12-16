@@ -157,12 +157,12 @@ static bool handle_devMsgOut(uint8_t rhport, void *data, size_t len, size_t pack
 static uint8_t termChar;
 static uint8_t termCharRequested = false;
 
-osal_mutex_def_t usbtmcLockBuffer;
+OSAL_MUTEX_DEF(usbtmcLockBuffer);
 static osal_mutex_t usbtmcLock;
 
 // Our own private lock, mostly for the state variable.
-#define criticalEnter() do {osal_mutex_lock(usbtmcLock,OSAL_TIMEOUT_WAIT_FOREVER); } while (0)
-#define criticalLeave() do {osal_mutex_unlock(usbtmcLock); } while (0)
+#define criticalEnter() do { (void) osal_mutex_lock(usbtmcLock,OSAL_TIMEOUT_WAIT_FOREVER); } while (0)
+#define criticalLeave() do { (void) osal_mutex_unlock(usbtmcLock); } while (0)
 
 bool atomicChangeState(usbtmcd_state_enum expectedState, usbtmcd_state_enum newState)
 {

@@ -26,6 +26,8 @@
 
 #include <string.h>
 #include "unity.h"
+
+#include "osal/osal.h"
 #include "tusb_fifo.h"
 
 #define FIFO_SIZE 10

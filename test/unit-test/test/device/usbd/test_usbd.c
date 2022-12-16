@@ -25,6 +25,7 @@
 #include "unity.h"
 
 // Files to test
+#include "osal/osal.h"
 #include "tusb_fifo.h"
 #include "tusb.h"
 #include "usbd.h"
