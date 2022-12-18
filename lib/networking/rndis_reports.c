@@ -31,7 +31,6 @@
 #include <string.h>
 #include "class/net/net_device.h"
 #include "rndis_protocol.h"
-#include "netif/ethernet.h"
 
 #define RNDIS_LINK_SPEED 12000000                       /* Link baudrate (12Mbit/s for USB-FS) */
 #define RNDIS_VENDOR     "TinyUSB"                      /* NIC vendor name */
@@ -130,7 +129,7 @@ static void rndis_query(void)
     case OID_GEN_VENDOR_ID:              rndis_query_cmplt32(RNDIS_STATUS_SUCCESS, 0x00FFFFFF); return;
     case OID_GEN_VENDOR_DESCRIPTION:     rndis_query_cmplt(RNDIS_STATUS_SUCCESS, rndis_vendor, strlen(rndis_vendor) + 1); return;
     case OID_GEN_CURRENT_PACKET_FILTER:  rndis_query_cmplt32(RNDIS_STATUS_SUCCESS, oid_packet_filter); return;
-    case OID_GEN_MAXIMUM_FRAME_SIZE:     rndis_query_cmplt32(RNDIS_STATUS_SUCCESS, CFG_TUD_NET_MTU - SIZEOF_ETH_HDR); return;
+    case OID_GEN_MAXIMUM_FRAME_SIZE:     rndis_query_cmplt32(RNDIS_STATUS_SUCCESS, CFG_TUD_NET_MTU - 14); return;
     case OID_GEN_MAXIMUM_TOTAL_SIZE:     rndis_query_cmplt32(RNDIS_STATUS_SUCCESS, CFG_TUD_NET_MTU); return;
     case OID_GEN_TRANSMIT_BLOCK_SIZE:    rndis_query_cmplt32(RNDIS_STATUS_SUCCESS, CFG_TUD_NET_MTU); return;
     case OID_GEN_RECEIVE_BLOCK_SIZE:     rndis_query_cmplt32(RNDIS_STATUS_SUCCESS, CFG_TUD_NET_MTU); return;
