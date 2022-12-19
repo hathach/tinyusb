@@ -343,6 +343,8 @@ bool hcd_edpt_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_endpoint_t const 
 {
   (void) rhport;
 
+  // Flush cache if required, see hcd.h for details
+  hcd_dcache_flush((uint32_t)ep_desc, sizeof(tusb_desc_endpoint_t));
   // TODO not support ISO yet
   TU_ASSERT (ep_desc->bmAttributes.xfer != TUSB_XFER_ISOCHRONOUS);
 
@@ -388,6 +390,8 @@ bool hcd_edpt_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_endpoint_t const 
 
   // TODO might need to disable async/period list
   list_insert(list_head, (ehci_link_t*) p_qhd, EHCI_QTYPE_QHD);
+  // Flush data cache if required, see hcd.h for details
+  hcd_dcache_flush((uint32_t)p_qhd, sizeof(ehci_qhd_t));
 
   return true;
 }
@@ -399,6 +403,8 @@ bool hcd_setup_send(uint8_t rhport, uint8_t dev_addr, uint8_t const setup_packet
   ehci_qhd_t* qhd = &ehci_data.control[dev_addr].qhd;
   ehci_qtd_t* td  = &ehci_data.control[dev_addr].qtd;
 
+  // Flush data cache if required, see hcd.h for details
+  hcd_dcache_flush((uint32_t)setup_packet, 8);
   qtd_init(td, setup_packet, 8);
   td->pid          = EHCI_PID_SETUP;
   td->int_on_complete = 1;
@@ -410,6 +416,9 @@ bool hcd_setup_send(uint8_t rhport, uint8_t dev_addr, uint8_t const setup_packet
 
   // attach TD
   qhd->qtd_overlay.next.address = (uint32_t) td;
+  // Flush data cache if required, see hcd.h for details
+  hcd_dcache_flush((uint32_t)qhd, sizeof(ehci_qhd_t));
+  hcd_dcache_flush((uint32_t)td, sizeof(ehci_qtd_t));
 
   return true;
 }
@@ -418,32 +427,36 @@ bool hcd_edpt_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr, uint8_t * 
 {
   (void) rhport;
 
+  ehci_qhd_t* p_qhd;
+  ehci_qtd_t* p_qtd;
   uint8_t const epnum = tu_edpt_number(ep_addr);
   uint8_t const dir   = tu_edpt_dir(ep_addr);
 
+  // Flush data cache if required, see hcd.h for details
+  hcd_dcache_flush((uint32_t)buffer, buflen);
   if ( epnum == 0 )
   {
-    ehci_qhd_t* qhd = qhd_control(dev_addr);
-    ehci_qtd_t* qtd = qtd_control(dev_addr);
+    p_qhd = qhd_control(dev_addr);
+    p_qtd = qtd_control(dev_addr);
 
-    qtd_init(qtd, buffer, buflen);
+    qtd_init(p_qtd, buffer, buflen);
 
     // first first data toggle is always 1 (data & setup stage)
-    qtd->data_toggle = 1;
-    qtd->pid = dir ? EHCI_PID_IN : EHCI_PID_OUT;
-    qtd->int_on_complete = 1;
-    qtd->next.terminate  = 1;
+    p_qtd->data_toggle = 1;
+    p_qtd->pid = dir ? EHCI_PID_IN : EHCI_PID_OUT;
+    p_qtd->int_on_complete = 1;
+    p_qtd->next.terminate  = 1;
 
     // sw region
-    qhd->p_qtd_list_head = qtd;
-    qhd->p_qtd_list_tail = qtd;
+    p_qhd->p_qtd_list_head = p_qtd;
+    p_qhd->p_qtd_list_tail = p_qtd;
 
     // attach TD
-    qhd->qtd_overlay.next.address = (uint32_t) qtd;
+    p_qhd->qtd_overlay.next.address = (uint32_t) p_qtd;
   }else
   {
-    ehci_qhd_t *p_qhd = qhd_get_from_addr(dev_addr, ep_addr);
-    ehci_qtd_t *p_qtd = qtd_find_free();
+    p_qhd = qhd_get_from_addr(dev_addr, ep_addr);
+    p_qtd = qtd_find_free();
     TU_ASSERT(p_qtd);
 
     qtd_init(p_qtd, buffer, buflen);
@@ -457,6 +470,9 @@ bool hcd_edpt_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr, uint8_t * 
     // attach head QTD to QHD start transferring
     p_qhd->qtd_overlay.next.address = (uint32_t) p_qhd->p_qtd_list_head;
   }
+  // Flush data cache if required, see hcd.h for details
+  hcd_dcache_flush((uint32_t)p_qhd, sizeof(ehci_qhd_t));
+  hcd_dcache_flush((uint32_t)p_qtd, sizeof(ehci_qtd_t));
 
   return true;
 }

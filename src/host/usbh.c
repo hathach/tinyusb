@@ -245,7 +245,7 @@ CFG_TUSB_MEM_SECTION CFG_TUSB_MEM_ALIGN
 static uint8_t _usbh_ctrl_buf[CFG_TUH_ENUMERATION_BUFSIZE];
 
 // Control transfers: since most controllers do not support multiple control transfers
-// on multiple devices concurrently, and control transfers are not used much except for
+// on multiple devices concurrently and control transfers are not used much except for
 // enumeration, we will only execute control transfers one at a time.
 CFG_TUSB_MEM_SECTION struct
 {
@@ -413,7 +413,6 @@ void tuh_task_ext(uint32_t timeout_ms, bool in_isr)
   {
     hcd_event_t event;
     if ( !osal_queue_receive(_usbh_q, &event, timeout_ms) ) return;
-
     switch (event.event_id)
     {
       case HCD_EVENT_DEVICE_ATTACH:
@@ -1262,6 +1261,7 @@ static void process_enumeration(tuh_xfer_t* xfer)
       // Get first 8 bytes of device descriptor for Control Endpoint size
       TU_LOG2("Get 8 byte of Device Descriptor\r\n");
       TU_ASSERT(tuh_descriptor_get_device(addr0, _usbh_ctrl_buf, 8, process_enumeration, ENUM_SET_ADDR), );
+
     }
     break;
 
@@ -1381,6 +1381,9 @@ static void process_enumeration(tuh_xfer_t* xfer)
       enum_full_complete();
     break;
   }
+  // If required invalidate data cache after DMA transfer complete - see hcd.h for details.
+  hcd_dcache_invalidate((uint32_t)_usbh_ctrl_buf, sizeof(_usbh_ctrl_buf));
+
 }
 
 static bool enum_new_device(hcd_event_t* event)

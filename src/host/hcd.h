@@ -124,8 +124,9 @@ void hcd_int_disable(uint8_t rhport);
 // Get frame number (1ms)
 uint32_t hcd_frame_number(uint8_t rhport);
 
-// Optional MCU Cache control if you require this please implement the function in your hcd_platform.c file
-TU_ATTR_WEAK extern void hcd_cache_flush(uint32_t addr, uint32_t data_size);
+// Optional MCU Data Cache control if you require this please implement the functions in your hcd_platform.c file
+TU_ATTR_WEAK extern void hcd_dcache_flush(uint32_t addr, uint32_t data_size);
+TU_ATTR_WEAK extern void hcd_dcache_invalidate( uint32_t addr, uint32_t data_size);
 
 //--------------------------------------------------------------------+
 // Port API
