@@ -413,6 +413,7 @@ void tuh_task_ext(uint32_t timeout_ms, bool in_isr)
   {
     hcd_event_t event;
     if ( !osal_queue_receive(_usbh_q, &event, timeout_ms) ) return;
+
     switch (event.event_id)
     {
       case HCD_EVENT_DEVICE_ATTACH:
@@ -1261,7 +1262,6 @@ static void process_enumeration(tuh_xfer_t* xfer)
       // Get first 8 bytes of device descriptor for Control Endpoint size
       TU_LOG2("Get 8 byte of Device Descriptor\r\n");
       TU_ASSERT(tuh_descriptor_get_device(addr0, _usbh_ctrl_buf, 8, process_enumeration, ENUM_SET_ADDR), );
-
     }
     break;
 
@@ -1383,7 +1383,6 @@ static void process_enumeration(tuh_xfer_t* xfer)
   }
   // If required invalidate data cache after DMA transfer complete - see hcd.h for details.
   hcd_dcache_invalidate((uint32_t)_usbh_ctrl_buf, sizeof(_usbh_ctrl_buf));
-
 }
 
 static bool enum_new_device(hcd_event_t* event)
