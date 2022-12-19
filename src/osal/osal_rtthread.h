@@ -63,7 +63,8 @@ TU_ATTR_ALWAYS_INLINE static inline bool osal_semaphore_wait(osal_semaphore_t se
 }
 
 TU_ATTR_ALWAYS_INLINE static inline void osal_semaphore_reset(osal_semaphore_t const sem_hdl) {
-    // TODO: implement
+    rt_ubase_t value = 0;
+    rt_sem_control(sem_hdl, RT_IPC_CMD_RESET, &value);
 }
 
 //--------------------------------------------------------------------+
