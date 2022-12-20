@@ -37,6 +37,11 @@
 // Class Driver Configuration
 //--------------------------------------------------------------------+
 
+// Set DTR ( bit 0), RTS (bit 1) on enumeration/mounted
+#ifndef CFG_TUH_CDC_SET_DTRRTS_ON_ENUM
+#define CFG_TUH_CDC_SET_DTRRTS_ON_ENUM    0
+#endif
+
 // RX FIFO size
 #ifndef CFG_TUH_CDC_RX_BUFSIZE
 #define CFG_TUH_CDC_RX_BUFSIZE USBH_EPSIZE_BULK_MAX
@@ -61,43 +66,76 @@
 // Application API
 //--------------------------------------------------------------------+
 
-bool tuh_cdc_mounted(uint8_t dev_addr);
+typedef struct
+{
+  uint8_t daddr;
+  uint8_t bInterfaceNumber;
+  uint8_t bInterfaceSubClass;
+  uint8_t bInterfaceProtocol;
+} tuh_cdc_itf_info_t;
 
-uint32_t tuh_cdc_write(uint8_t dev_addr, void const* buffer, uint32_t bufsize);
-//uint32_t tuh_cdc_read(uint8_t dev_addr, void* buffer, uint32_t bufsize);
+// Get Interface index from device address + interface number
+// return TUSB_INDEX_INVALID (0xFF) if not found
+uint8_t tuh_cdc_itf_get_index(uint8_t daddr, uint8_t itf_num);
+
+// Get Interface information
+// return true if index is correct and interface is currently mounted
+bool tuh_cdc_itf_get_info(uint8_t idx, tuh_cdc_itf_info_t* info);
+
+// Check if a interface is mounted
+bool tuh_cdc_mounted(uint8_t idx);
+
+// Get current DTR status
+bool tuh_cdc_get_dtr(uint8_t idx);
+
+// Get current RTS status
+bool tuh_cdc_get_rts(uint8_t idx);
+
+// Check if interface is connected (DTR active)
+TU_ATTR_ALWAYS_INLINE static inline bool tuh_cdc_connected(uint8_t idx)
+{
+  return tuh_cdc_get_dtr(idx);
+}
+
+// Write to cdc interface
+uint32_t tuh_cdc_write(uint8_t idx, void const* buffer, uint32_t bufsize);
+
+// Force sending data if possible, return number of forced bytes
+uint32_t tuh_cdc_write_flush(uint8_t idx);
+
+// Read from cdc interface
+uint32_t tuh_cdc_read (uint8_t idx, void* buffer, uint32_t bufsize);
+
+// Get the number of bytes available for reading
+uint32_t tuh_cdc_read_available(uint8_t idx);
 
 //--------------------------------------------------------------------+
 // Control Endpoint (Request) API
 //--------------------------------------------------------------------+
 
-// Set Control Line State (DTR, RTS)
-bool tuh_cdc_set_control_line_state(uint8_t dev_addr, bool dtr, bool rts, tuh_xfer_cb_t complete_cb);
+// Send control request to Set Control Line State: DTR (bit 0), RTS (bit 1)
+bool tuh_cdc_set_control_line_state(uint8_t idx, uint16_t line_state, tuh_xfer_cb_t complete_cb, uintptr_t user_data);
 
-static inline bool tuh_cdc_connect(uint8_t dev_addr, tuh_xfer_cb_t complete_cb)
+// Connect by set both DTR, RTS
+static inline bool tuh_cdc_connect(uint8_t idx, tuh_xfer_cb_t complete_cb, uintptr_t user_data)
 {
-  return tuh_cdc_set_control_line_state(dev_addr, true, true, complete_cb);
+  return tuh_cdc_set_control_line_state(idx, CDC_CONTROL_LINE_STATE_DTR | CDC_CONTROL_LINE_STATE_RTS, complete_cb, user_data);
 }
 
-static inline bool tuh_cdc_disconnect(uint8_t dev_addr, tuh_xfer_cb_t complete_cb)
+// Disconnect by clear both DTR, RTS
+static inline bool tuh_cdc_disconnect(uint8_t idx, tuh_xfer_cb_t complete_cb, uintptr_t user_data)
 {
-  return tuh_cdc_set_control_line_state(dev_addr, false, false, complete_cb);
+  return tuh_cdc_set_control_line_state(idx, 0x00, complete_cb, user_data);
 }
 
 //------------- Application Callback -------------//
 
 // Invoked when a device with CDC interface is mounted
-TU_ATTR_WEAK void tuh_cdc_mount_cb(uint8_t dev_addr);
+// idx is index of cdc interface in the internal pool.
+TU_ATTR_WEAK void tuh_cdc_mount_cb(uint8_t idx);
 
 // Invoked when a device with CDC interface is unmounted
-TU_ATTR_WEAK void tuh_cdc_umount_cb(uint8_t dev_addr);
-
-
-/** \brief 			Check if device support CDC Serial interface or not
- * \param[in]		dev_addr	device address
- * \retval      true if device supports
- * \retval      false if device does not support or is not mounted
- */
-bool tuh_cdc_serial_is_mounted(uint8_t dev_addr);
+TU_ATTR_WEAK void tuh_cdc_umount_cb(uint8_t idx);
 
 /** \brief      Check if the interface is currently busy or not
  * \param[in]   dev_addr device address
@@ -108,7 +146,7 @@ bool tuh_cdc_serial_is_mounted(uint8_t dev_addr);
  *              can be scheduled. User needs to make sure the corresponding interface is mounted
  *              (by \ref tuh_cdc_serial_is_mounted) before calling this function.
  */
-bool tuh_cdc_is_busy(uint8_t dev_addr, cdc_pipeid_t pipeid);
+// bool tuh_cdc_is_busy(uint8_t dev_addr, cdc_pipeid_t pipeid);
 
 /** \brief 			Perform USB OUT transfer to device
  * \param[in]		dev_addr	device address
@@ -121,7 +159,7 @@ bool tuh_cdc_is_busy(uint8_t dev_addr, cdc_pipeid_t pipeid);
  * \note        This function is non-blocking and returns immediately. The result of USB transfer will be reported by the
  *              interface's callback function. \a p_data must be declared with \ref CFG_TUSB_MEM_SECTION.
  */
-bool tuh_cdc_send(uint8_t dev_addr, void const * p_data, uint32_t length, bool is_notify);
+// bool tuh_cdc_send(uint8_t dev_addr, void const * p_data, uint32_t length, bool is_notify);
 
 /** \brief 			Perform USB IN transfer to get data from device
  * \param[in]		dev_addr	device address
@@ -134,7 +172,7 @@ bool tuh_cdc_send(uint8_t dev_addr, void const * p_data, uint32_t length, bool i
  * \note        This function is non-blocking and returns immediately. The result of USB transfer will be reported by the
  *              interface's callback function. \a p_data must be declared with \ref CFG_TUSB_MEM_SECTION.
  */
-bool tuh_cdc_receive(uint8_t dev_addr, void * p_buffer, uint32_t length, bool is_notify);
+// bool tuh_cdc_receive(uint8_t dev_addr, void * p_buffer, uint32_t length, bool is_notify);
 
 //--------------------------------------------------------------------+
 // CDC APPLICATION CALLBACKS
@@ -151,7 +189,7 @@ bool tuh_cdc_receive(uint8_t dev_addr, void * p_buffer, uint32_t length, bool is
  *              - XFER_RESULT_STALLED : previously scheduled transfer is stalled by device.
  * \note
  */
-void tuh_cdc_xfer_isr(uint8_t dev_addr, xfer_result_t event, cdc_pipeid_t pipe_id, uint32_t xferred_bytes);
+// void tuh_cdc_xfer_isr(uint8_t dev_addr, xfer_result_t event, cdc_pipeid_t pipe_id, uint32_t xferred_bytes);
 
 /// @} // group CDC_Serial_Host
 /// @}
