@@ -192,6 +192,12 @@ typedef enum
   CDC_REQUEST_MDLM_SEMANTIC_MODEL                          = 0x60,
 }cdc_management_request_t;
 
+enum
+{
+  CDC_CONTROL_LINE_STATE_DTR = 0x01,
+  CDC_CONTROL_LINE_STATE_RTS = 0x02,
+};
+
 //--------------------------------------------------------------------+
 // Management Element Notification (Notification Endpoint)
 //--------------------------------------------------------------------+
@@ -390,8 +396,8 @@ TU_VERIFY_STATIC(sizeof(cdc_line_coding_t) == 7, "size is not correct");
 
 typedef struct TU_ATTR_PACKED
 {
-  uint16_t dte_is_present : 1; ///< Indicates to DCE if DTE is presentor not. This signal corresponds to V.24 signal 108/2 and RS-232 signal DTR.
-  uint16_t half_duplex_carrier_control : 1;
+  uint16_t dtr : 1;
+  uint16_t rts : 1;
   uint16_t : 14;
 } cdc_line_control_state_t;
 

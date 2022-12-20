@@ -259,7 +259,7 @@ bool tuh_hid_receive_report(uint8_t dev_addr, uint8_t instance)
 
   if ( !usbh_edpt_xfer(dev_addr, hid_itf->ep_in, hid_itf->epin_buf, hid_itf->epin_size) )
   {
-    usbh_edpt_claim(dev_addr, hid_itf->ep_in);
+    usbh_edpt_release(dev_addr, hid_itf->ep_in);
     return false;
   }
 
