@@ -97,17 +97,31 @@ TU_ATTR_ALWAYS_INLINE static inline bool tuh_cdc_connected(uint8_t idx)
   return tuh_cdc_get_dtr(idx);
 }
 
+//--------------------------------------------------------------------+
+// Write API
+//--------------------------------------------------------------------+
+
+// Get the number of bytes available for writing
+uint32_t tuh_cdc_write_available(uint8_t idx);
+
 // Write to cdc interface
 uint32_t tuh_cdc_write(uint8_t idx, void const* buffer, uint32_t bufsize);
 
 // Force sending data if possible, return number of forced bytes
 uint32_t tuh_cdc_write_flush(uint8_t idx);
 
-// Read from cdc interface
-uint32_t tuh_cdc_read (uint8_t idx, void* buffer, uint32_t bufsize);
+//--------------------------------------------------------------------+
+// Read API
+//--------------------------------------------------------------------+
 
 // Get the number of bytes available for reading
 uint32_t tuh_cdc_read_available(uint8_t idx);
+
+// Read from cdc interface
+uint32_t tuh_cdc_read (uint8_t idx, void* buffer, uint32_t bufsize);
+
+// Clear the received FIFO
+void tuh_cdc_read_flush (uint8_t idx);
 
 //--------------------------------------------------------------------+
 // Control Endpoint (Request) API
@@ -132,47 +146,13 @@ static inline bool tuh_cdc_disconnect(uint8_t idx, tuh_xfer_cb_t complete_cb, ui
 
 // Invoked when a device with CDC interface is mounted
 // idx is index of cdc interface in the internal pool.
-TU_ATTR_WEAK void tuh_cdc_mount_cb(uint8_t idx);
+TU_ATTR_WEAK extern void tuh_cdc_mount_cb(uint8_t idx);
 
 // Invoked when a device with CDC interface is unmounted
-TU_ATTR_WEAK void tuh_cdc_umount_cb(uint8_t idx);
+TU_ATTR_WEAK extern void tuh_cdc_umount_cb(uint8_t idx);
 
-/** \brief      Check if the interface is currently busy or not
- * \param[in]   dev_addr device address
- * \param[in]   pipeid value from \ref cdc_pipeid_t to indicate target pipe.
- * \retval      true if the interface is busy, meaning the stack is still transferring/waiting data from/to device
- * \retval      false if the interface is not busy, meaning the stack successfully transferred data from/to device
- * \note        This function is used to check if previous transfer is complete (success or error), so that the next transfer
- *              can be scheduled. User needs to make sure the corresponding interface is mounted
- *              (by \ref tuh_cdc_serial_is_mounted) before calling this function.
- */
-// bool tuh_cdc_is_busy(uint8_t dev_addr, cdc_pipeid_t pipeid);
-
-/** \brief 			Perform USB OUT transfer to device
- * \param[in]		dev_addr	device address
- * \param[in]	  p_data    Buffer containing data. Must be accessible by USB controller (see \ref CFG_TUSB_MEM_SECTION)
- * \param[in]		length    Number of bytes to be transferred via USB bus
- * \retval      TUSB_ERROR_NONE on success
- * \retval      TUSB_ERROR_INTERFACE_IS_BUSY if the interface is already transferring data with device
- * \retval      TUSB_ERROR_DEVICE_NOT_READY if device is not yet configured (by SET CONFIGURED request)
- * \retval      TUSB_ERROR_INVALID_PARA if input parameters are not correct
- * \note        This function is non-blocking and returns immediately. The result of USB transfer will be reported by the
- *              interface's callback function. \a p_data must be declared with \ref CFG_TUSB_MEM_SECTION.
- */
-// bool tuh_cdc_send(uint8_t dev_addr, void const * p_data, uint32_t length, bool is_notify);
-
-/** \brief 			Perform USB IN transfer to get data from device
- * \param[in]		dev_addr	device address
- * \param[in]	  p_buffer  Buffer containing received data. Must be accessible by USB controller (see \ref CFG_TUSB_MEM_SECTION)
- * \param[in]		length    Number of bytes to be transferred via USB bus
- * \retval      TUSB_ERROR_NONE on success
- * \retval      TUSB_ERROR_INTERFACE_IS_BUSY if the interface is already transferring data with device
- * \retval      TUSB_ERROR_DEVICE_NOT_READY if device is not yet configured (by SET CONFIGURED request)
- * \retval      TUSB_ERROR_INVALID_PARA if input parameters are not correct
- * \note        This function is non-blocking and returns immediately. The result of USB transfer will be reported by the
- *              interface's callback function. \a p_data must be declared with \ref CFG_TUSB_MEM_SECTION.
- */
-// bool tuh_cdc_receive(uint8_t dev_addr, void * p_buffer, uint32_t length, bool is_notify);
+// Invoked when received new data
+TU_ATTR_WEAK extern void tuh_cdc_rx_cb(uint8_t idx);
 
 //--------------------------------------------------------------------+
 // CDC APPLICATION CALLBACKS

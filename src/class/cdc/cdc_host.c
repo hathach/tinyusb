@@ -185,6 +185,17 @@ uint32_t tu_edpt_stream_read_available(tu_edpt_stream_t* s)
   return (uint32_t) tu_fifo_count(&s->ff);
 }
 
+uint32_t tu_edpt_stream_write_available(tu_edpt_stream_t* s)
+{
+  return (uint32_t) tu_fifo_remaining(&s->ff);
+}
+
+void tu_edpt_stream_read_clear(uint8_t daddr, tu_edpt_stream_t* s)
+{
+  tu_fifo_clear(&s->ff);
+  tu_edpt_stream_read_xfer(daddr, s);
+}
+
 typedef struct {
   uint8_t daddr;
   uint8_t bInterfaceNumber;
@@ -225,6 +236,12 @@ static inline cdch_interface_t* get_itf(uint8_t idx)
   cdch_interface_t* p_cdc = &cdch_data[idx];
 
   return (p_cdc->daddr != 0) ? p_cdc : NULL;
+}
+
+TU_ATTR_ALWAYS_INLINE
+static inline uint8_t itf2idx(cdch_interface_t* p_cdc)
+{
+  return (uint8_t) (p_cdc - cdch_data);
 }
 
 static inline cdch_interface_t* get_itf_by_ep_addr(uint8_t daddr, uint8_t ep_addr)
@@ -320,6 +337,14 @@ uint32_t tuh_cdc_write_flush(uint8_t idx)
   return tu_edpt_stream_write_xfer(p_cdc->daddr, &p_cdc->stream.tx);
 }
 
+uint32_t tuh_cdc_write_available(uint8_t idx)
+{
+  cdch_interface_t* p_cdc = get_itf(idx);
+  TU_VERIFY(p_cdc);
+
+  return tu_edpt_stream_write_available(&p_cdc->stream.tx);
+}
+
 uint32_t tuh_cdc_read (uint8_t idx, void* buffer, uint32_t bufsize)
 {
   cdch_interface_t* p_cdc = get_itf(idx);
@@ -334,6 +359,14 @@ uint32_t tuh_cdc_read_available(uint8_t idx)
   TU_VERIFY(p_cdc);
 
   return tu_edpt_stream_read_available(&p_cdc->stream.rx);
+}
+
+void tuh_cdc_read_flush (uint8_t idx)
+{
+  cdch_interface_t* p_cdc = get_itf(idx);
+  TU_VERIFY(p_cdc, );
+
+  tu_edpt_stream_read_clear(p_cdc->daddr, &p_cdc->stream.rx);
 }
 
 //--------------------------------------------------------------------+
@@ -463,6 +496,7 @@ bool cdch_xfer_cb(uint8_t daddr, uint8_t ep_addr, xfer_result_t event, uint32_t 
     if (xferred_bytes) tu_edpt_stream_read_xfer_complete(&p_cdc->stream.rx, xferred_bytes);
 
     // invoke receive callback
+    if (tuh_cdc_rx_cb)  tuh_cdc_rx_cb(itf2idx(p_cdc));
 
     // prepare for next transfer if needed
     tu_edpt_stream_read_xfer(daddr, &p_cdc->stream.rx);

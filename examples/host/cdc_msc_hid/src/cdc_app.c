@@ -54,8 +54,8 @@ void cdc_app_task(void)
   uint8_t buf[64+1]; // +1 for extra null character
   uint32_t const bufsize = sizeof(buf)-1;
 
-  uint32_t console_count = get_console_inputs(buf, bufsize);
-  buf[console_count] = 0;
+  uint32_t count = get_console_inputs(buf, bufsize);
+  buf[count] = 0;
 
   // loop over all mounted interfaces
   for(uint8_t idx=0; idx<CFG_TUH_CDC; idx++)
@@ -63,23 +63,26 @@ void cdc_app_task(void)
     if ( tuh_cdc_mounted(idx) )
     {
       // console --> cdc interfaces
-      if (console_count)
+      if (count)
       {
-        tuh_cdc_write(idx, buf, console_count);
+        tuh_cdc_write(idx, buf, count);
         tuh_cdc_write_flush(idx);
-      }
-
-      // cdc interfaces -> console
-      if ( tuh_cdc_read_available(idx) )
-      {
-        uint8_t buf_cdc[64+1];
-        uint32_t cdc_count = tuh_cdc_read(idx, buf_cdc, sizeof(buf_cdc)-1);
-        buf_cdc[cdc_count] = 0;
-
-        printf((char*) buf_cdc);
       }
     }
   }
+}
+
+// Invoked when received new data
+void tuh_cdc_rx_cb(uint8_t idx)
+{
+  uint8_t buf[64+1]; // +1 for extra null character
+  uint32_t const bufsize = sizeof(buf)-1;
+
+  // forward cdc interfaces -> console
+  uint32_t count = tuh_cdc_read(idx, buf, bufsize);
+  buf[count] = 0;
+
+  printf((char*) buf);
 }
 
 void tuh_cdc_mount_cb(uint8_t idx)
