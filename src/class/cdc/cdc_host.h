@@ -110,6 +110,9 @@ uint32_t tuh_cdc_write(uint8_t idx, void const* buffer, uint32_t bufsize);
 // Force sending data if possible, return number of forced bytes
 uint32_t tuh_cdc_write_flush(uint8_t idx);
 
+// Clear the transmit FIFO
+bool tuh_cdc_write_clear(uint8_t idx);
+
 //--------------------------------------------------------------------+
 // Read API
 //--------------------------------------------------------------------+
@@ -121,7 +124,7 @@ uint32_t tuh_cdc_read_available(uint8_t idx);
 uint32_t tuh_cdc_read (uint8_t idx, void* buffer, uint32_t bufsize);
 
 // Clear the received FIFO
-void tuh_cdc_read_flush (uint8_t idx);
+bool tuh_cdc_read_clear (uint8_t idx);
 
 //--------------------------------------------------------------------+
 // Control Endpoint (Request) API

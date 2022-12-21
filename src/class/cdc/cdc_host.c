@@ -190,10 +190,16 @@ uint32_t tu_edpt_stream_write_available(tu_edpt_stream_t* s)
   return (uint32_t) tu_fifo_remaining(&s->ff);
 }
 
-void tu_edpt_stream_read_clear(uint8_t daddr, tu_edpt_stream_t* s)
+bool tu_edpt_stream_read_clear(uint8_t daddr, tu_edpt_stream_t* s)
 {
-  tu_fifo_clear(&s->ff);
+  bool ret = tu_fifo_clear(&s->ff);
   tu_edpt_stream_read_xfer(daddr, s);
+  return ret;
+}
+
+bool tu_edpt_stream_write_clear(tu_edpt_stream_t* s)
+{
+  return tu_fifo_clear(&s->ff);
 }
 
 typedef struct {
@@ -331,6 +337,14 @@ uint32_t tuh_cdc_write_flush(uint8_t idx)
   return tu_edpt_stream_write_xfer(p_cdc->daddr, &p_cdc->stream.tx);
 }
 
+bool tuh_cdc_write_clear(uint8_t idx)
+{
+  cdch_interface_t* p_cdc = get_itf(idx);
+  TU_VERIFY(p_cdc);
+
+  return tu_edpt_stream_write_clear(&p_cdc->stream.tx);
+}
+
 uint32_t tuh_cdc_write_available(uint8_t idx)
 {
   cdch_interface_t* p_cdc = get_itf(idx);
@@ -355,12 +369,12 @@ uint32_t tuh_cdc_read_available(uint8_t idx)
   return tu_edpt_stream_read_available(&p_cdc->stream.rx);
 }
 
-void tuh_cdc_read_flush (uint8_t idx)
+bool tuh_cdc_read_clear (uint8_t idx)
 {
   cdch_interface_t* p_cdc = get_itf(idx);
-  TU_VERIFY(p_cdc, );
+  TU_VERIFY(p_cdc);
 
-  tu_edpt_stream_read_clear(p_cdc->daddr, &p_cdc->stream.rx);
+  return tu_edpt_stream_read_clear(p_cdc->daddr, &p_cdc->stream.rx);
 }
 
 //--------------------------------------------------------------------+
