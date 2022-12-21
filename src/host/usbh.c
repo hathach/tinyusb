@@ -540,7 +540,7 @@ bool tuh_control_xfer (tuh_xfer_t* xfer)
   const uint8_t rhport = usbh_get_rhport(daddr);
 
   TU_LOG2("[%u:%u] %s: ", rhport, daddr, xfer->setup->bRequest <= TUSB_REQ_SYNCH_FRAME ? tu_str_std_request[xfer->setup->bRequest] : "Unknown Request");
-  TU_LOG2_VAR(xfer->setup);
+  TU_LOG2_PTR(xfer->setup);
   TU_LOG2("\r\n");
 
   if (xfer->complete_cb)
@@ -618,7 +618,11 @@ static bool usbh_control_xfer_cb (uint8_t dev_addr, uint8_t ep_addr, xfer_result
 
   if (XFER_RESULT_SUCCESS != result)
   {
-    TU_LOG1("[%u:%u] Control %s\r\n", rhport, dev_addr, result == XFER_RESULT_STALLED ? "STALLED" : "FAILED");
+    TU_LOG1("[%u:%u] Control %s, xferred_bytes = %lu\r\n", rhport, dev_addr, result == XFER_RESULT_STALLED ? "STALLED" : "FAILED", xferred_bytes);
+    #if CFG_TUSB_DEBUG == 1
+    TU_LOG1_PTR(request);
+    TU_LOG1("\r\n");
+    #endif
 
     // terminate transfer if any stage failed
     _xfer_complete(dev_addr, result);
