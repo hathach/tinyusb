@@ -54,6 +54,7 @@ bool tu_edpt_stream_init(tu_edpt_stream_t* s, bool use_wr_mutex, bool overwritab
 {
   osal_mutex_t new_mutex = osal_mutex_create(&s->ff_mutex);
   (void) new_mutex;
+  (void) use_wr_mutex;
 
   tu_fifo_config(&s->ff, ff_buf, ff_bufsize, 1, overwritable);
   tu_fifo_config_mutex(&s->ff, use_wr_mutex ? new_mutex : NULL, use_wr_mutex ? NULL : new_mutex);
