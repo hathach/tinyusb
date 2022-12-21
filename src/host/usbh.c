@@ -30,7 +30,6 @@
 
 #include "host/hcd.h"
 #include "tusb.h"
-#include "common/tusb_private.h"
 #include "host/usbh_classdriver.h"
 #include "hub.h"
 

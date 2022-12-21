@@ -31,10 +31,17 @@
 #include "tusb.h"
 #include "common/tusb_private.h"
 
-// TODO clean up
 #if CFG_TUD_ENABLED
 #include "device/usbd_pvt.h"
 #endif
+
+#if CFG_TUH_ENABLED
+#include "host/usbh_classdriver.h"
+#endif
+
+//--------------------------------------------------------------------+
+// Public API
+//--------------------------------------------------------------------+
 
 bool tusb_init(void)
 {
@@ -67,7 +74,7 @@ bool tusb_inited(void)
 }
 
 //--------------------------------------------------------------------+
-// Internal Helper for both Host and Device stack
+// Endpoint Helper for both Host and Device stack
 //--------------------------------------------------------------------+
 
 bool tu_edpt_claim(tu_edpt_state_t* ep_state, osal_mutex_t mutex)
@@ -196,9 +203,104 @@ uint16_t tu_desc_get_interface_total_len(tusb_desc_interface_t const* desc_itf, 
   return len;
 }
 
-/*------------------------------------------------------------------*/
-/* Debug
- *------------------------------------------------------------------*/
+//--------------------------------------------------------------------+
+// Endpoint Stream Helper for both Host and Device stack
+//--------------------------------------------------------------------+
+
+bool tu_edpt_stream_init(tu_edpt_stream_t* s, bool is_host, bool is_tx, bool overwritable,
+                         void* ff_buf, uint16_t ff_bufsize, uint8_t* ep_buf, uint16_t ep_bufsize)
+{
+  osal_mutex_t new_mutex = osal_mutex_create(&s->ff_mutex);
+  (void) new_mutex;
+  (void) is_tx;
+
+  s->is_host = is_host;
+  tu_fifo_config(&s->ff, ff_buf, ff_bufsize, 1, overwritable);
+  tu_fifo_config_mutex(&s->ff, is_tx ? new_mutex : NULL, is_tx ? NULL : new_mutex);
+
+  s->ep_buf = ep_buf;
+  s->ep_bufsize = ep_bufsize;
+
+  return true;
+}
+
+//------------- Stream Write -------------//
+
+//------------- Stream Read -------------//
+
+uint32_t tu_edpt_stream_read_xfer(tu_edpt_stream_t* s)
+{
+  uint16_t available = tu_fifo_remaining(&s->ff);
+
+  // Prepare for incoming data but only allow what we can store in the ring buffer.
+  // TODO Actually we can still carry out the transfer, keeping count of received bytes
+  // and slowly move it to the FIFO when read().
+  // This pre-check reduces endpoint claiming
+  TU_VERIFY(available >= s->ep_packetsize);
+
+  // claim endpoint
+  if (s->is_host)
+  {
+    #if CFG_TUH_ENABLED
+    TU_VERIFY(usbh_edpt_claim(s->daddr, s->ep_addr), 0);
+    #endif
+  }else
+  {
+    #if CFG_TUD_ENABLED
+    TU_VERIFY(usbd_edpt_claim(s->rhport, s->ep_addr), 0);
+    #endif
+  }
+
+  // get available again since fifo can be changed before endpoint is claimed
+  available = tu_fifo_remaining(&s->ff);
+
+  if ( available >= s->ep_packetsize )
+  {
+    // multiple of packet size limit by ep bufsize
+    uint16_t count = (uint16_t) (available & (s->ep_packetsize -1));
+    count = tu_min16(count, s->ep_bufsize);
+
+    if (s->is_host)
+    {
+      #if CFG_TUH_ENABLED
+      TU_ASSERT( usbh_edpt_xfer(s->daddr, s->ep_addr, s->ep_buf, count), 0 );
+      #endif
+    }else
+    {
+      #if CFG_TUD_ENABLED
+      TU_ASSERT( usbd_edpt_xfer(s->rhport, s->ep_addr, s->ep_buf, count), 0 );
+      #endif
+    }
+    return count;
+  }else
+  {
+    // Release endpoint since we don't make any transfer
+    if (s->is_host)
+    {
+      #if CFG_TUH_ENABLED
+      usbh_edpt_release(s->daddr, s->ep_addr);
+      #endif
+    }else
+    {
+      #if CFG_TUD_ENABLED
+      usbd_edpt_release(s->rhport, s->ep_addr);
+      #endif
+    }
+
+    return 0;
+  }
+}
+
+uint32_t tu_edpt_stream_read(tu_edpt_stream_t* s, void* buffer, uint32_t bufsize)
+{
+  uint32_t num_read = tu_fifo_read_n(&s->ff, buffer, (uint16_t) bufsize);
+  tu_edpt_stream_read_xfer(s);
+  return num_read;
+}
+
+//--------------------------------------------------------------------+
+// Debug
+//--------------------------------------------------------------------+
 #if CFG_TUSB_DEBUG
 #include <ctype.h>
 

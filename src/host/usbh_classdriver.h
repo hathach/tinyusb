@@ -29,6 +29,7 @@
 
 #include "osal/osal.h"
 #include "common/tusb_fifo.h"
+#include "common/tusb_private.h"
 
 #ifdef __cplusplus
  extern "C" {
