@@ -238,13 +238,7 @@ static inline cdch_interface_t* get_itf(uint8_t idx)
   return (p_cdc->daddr != 0) ? p_cdc : NULL;
 }
 
-TU_ATTR_ALWAYS_INLINE
-static inline uint8_t itf2idx(cdch_interface_t* p_cdc)
-{
-  return (uint8_t) (p_cdc - cdch_data);
-}
-
-static inline cdch_interface_t* get_itf_by_ep_addr(uint8_t daddr, uint8_t ep_addr)
+static inline uint8_t get_idx_by_ep_addr(uint8_t daddr, uint8_t ep_addr)
 {
   for(uint8_t i=0; i<CFG_TUH_CDC; i++)
   {
@@ -252,11 +246,11 @@ static inline cdch_interface_t* get_itf_by_ep_addr(uint8_t daddr, uint8_t ep_add
     if ( (p_cdc->daddr == daddr) &&
          (ep_addr == p_cdc->ep_notif || ep_addr == p_cdc->stream.rx.ep_addr || ep_addr == p_cdc->stream.tx.ep_addr))
     {
-      return p_cdc;
+      return i;
     }
   }
 
-  return NULL;
+  return TUSB_INDEX_INVALID;
 }
 
 
@@ -478,11 +472,15 @@ bool cdch_xfer_cb(uint8_t daddr, uint8_t ep_addr, xfer_result_t event, uint32_t 
   // TODO handle stall response, retry failed transfer ...
   TU_ASSERT(event == XFER_RESULT_SUCCESS);
 
-  cdch_interface_t * p_cdc = get_itf_by_ep_addr(daddr, ep_addr);
+  uint8_t const idx = get_idx_by_ep_addr(daddr, ep_addr);
+  cdch_interface_t * p_cdc = get_itf(idx);
   TU_ASSERT(p_cdc);
 
   if ( ep_addr == p_cdc->stream.tx.ep_addr )
   {
+    // invoke tx complete callback to possibly refill tx fifo
+    if (tuh_cdc_tx_complete_cb) tuh_cdc_tx_complete_cb(idx);
+
     if ( 0 == tu_edpt_stream_write_xfer(daddr, &p_cdc->stream.tx) )
     {
       // If there is no data left, a ZLP should be sent if needed
@@ -496,7 +494,7 @@ bool cdch_xfer_cb(uint8_t daddr, uint8_t ep_addr, xfer_result_t event, uint32_t 
     if (xferred_bytes) tu_edpt_stream_read_xfer_complete(&p_cdc->stream.rx, xferred_bytes);
 
     // invoke receive callback
-    if (tuh_cdc_rx_cb)  tuh_cdc_rx_cb(itf2idx(p_cdc));
+    if (tuh_cdc_rx_cb)  tuh_cdc_rx_cb(idx);
 
     // prepare for next transfer if needed
     tu_edpt_stream_read_xfer(daddr, &p_cdc->stream.rx);

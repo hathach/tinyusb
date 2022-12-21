@@ -87,7 +87,7 @@ void tuh_cdc_rx_cb(uint8_t idx)
 
 void tuh_cdc_mount_cb(uint8_t idx)
 {
-  tuh_cdc_itf_info_t itf_info;
+  tuh_cdc_itf_info_t itf_info = { 0 };
   tuh_cdc_itf_get_info(idx, &itf_info);
 
   printf("CDC Interface is mounted: device address = %u, itf_num = %u\r\n", itf_info.daddr, itf_info.bInterfaceNumber);
@@ -95,7 +95,7 @@ void tuh_cdc_mount_cb(uint8_t idx)
 
 void tuh_cdc_umount_cb(uint8_t idx)
 {
-  tuh_cdc_itf_info_t itf_info;
+  tuh_cdc_itf_info_t itf_info = { 0 };
   tuh_cdc_itf_get_info(idx, &itf_info);
 
   printf("CDC Interface is unmounted: device address = %u, itf_num = %u\r\n", itf_info.daddr, itf_info.bInterfaceNumber);
