@@ -76,7 +76,7 @@ bool tu_edpt_stream_clear(tu_edpt_stream_t* s)
   return tu_fifo_clear(&s->ff);
 }
 
-uint32_t tud_edpt_stream_write_flush(uint8_t dev_addr, tu_edpt_stream_t* s)
+uint32_t tud_edpt_stream_write_xfer(uint8_t dev_addr, tu_edpt_stream_t* s)
 {
   // No data to send
   if ( !tu_fifo_count(&s->ff) ) return 0;
@@ -114,7 +114,7 @@ uint32_t tu_edpt_stream_write(uint8_t daddr, tu_edpt_stream_t* s, void const *bu
   if ( (tu_fifo_count(&s->ff) >= bulk_packet_size)
       /* || ((CFG_TUD_CDC_TX_BUFSIZE < BULK_PACKET_SIZE) && tu_fifo_full(&p_cdc->tx_ff)) */ )
   {
-    tud_edpt_stream_write_flush(daddr, s);
+    tud_edpt_stream_write_xfer(daddr, s);
   }
 
   return ret;
@@ -302,7 +302,7 @@ uint32_t tuh_cdc_write_flush(uint8_t idx)
   cdch_interface_t* p_cdc = get_itf(idx);
   TU_VERIFY(p_cdc);
 
-  return tud_edpt_stream_write_flush(p_cdc->daddr, &p_cdc->stream.tx);
+  return tud_edpt_stream_write_xfer(p_cdc->daddr, &p_cdc->stream.tx);
 }
 
 uint32_t tuh_cdc_read (uint8_t idx, void* buffer, uint32_t bufsize)
@@ -435,7 +435,7 @@ bool cdch_xfer_cb(uint8_t daddr, uint8_t ep_addr, xfer_result_t event, uint32_t 
 
   if ( ep_addr == p_cdc->stream.tx.ep_addr )
   {
-    if ( 0 == tud_edpt_stream_write_flush(daddr, &p_cdc->stream.tx) )
+    if ( 0 == tud_edpt_stream_write_xfer(daddr, &p_cdc->stream.tx) )
     {
       // If there is no data left, a ZLP should be sent if
       // xferred_bytes is multiple of EP Packet size and not zero
