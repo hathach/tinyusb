@@ -76,15 +76,30 @@ bool tu_edpt_stream_clear(tu_edpt_stream_t* s)
   return tu_fifo_clear(&s->ff);
 }
 
-uint32_t tud_edpt_stream_write_xfer(uint8_t dev_addr, tu_edpt_stream_t* s)
+bool tu_edpt_stream_write_zlp_if_needed(uint8_t daddr, tu_edpt_stream_t* s, uint32_t last_xferred_bytes)
 {
-  // No data to send
-  if ( !tu_fifo_count(&s->ff) ) return 0;
+  uint16_t const bulk_packet_size = (tuh_speed_get(daddr) == TUSB_SPEED_HIGH) ? TUSB_EPSIZE_BULK_HS : TUSB_EPSIZE_BULK_FS;
+
+  // ZLP condition: no pending data, last transferred bytes is multiple of packet size
+  TU_VERIFY( !tu_fifo_count(&s->ff) && last_xferred_bytes && (0 == (last_xferred_bytes & (bulk_packet_size-1))) );
+
+  if ( usbh_edpt_claim(daddr, s->ep_addr) )
+  {
+    TU_ASSERT( usbh_edpt_xfer(daddr, s->ep_addr, NULL, 0) );
+  }
+
+  return true;
+}
+
+uint32_t tu_edpt_stream_write_xfer(uint8_t daddr, tu_edpt_stream_t* s)
+{
+  // skip if no data
+  TU_VERIFY( tu_fifo_count(&s->ff), 0 );
 
   // Claim the endpoint
   // uint8_t const rhport = 0;
   // TU_VERIFY( usbd_edpt_claim(rhport, p_cdc->ep_in), 0 );
-  TU_VERIFY( usbh_edpt_claim(dev_addr, s->ep_addr) );
+  TU_VERIFY( usbh_edpt_claim(daddr, s->ep_addr) );
 
   // Pull data from FIFO -> EP buf
   uint16_t const count = tu_fifo_read_n(&s->ff, s->ep_buf, s->ep_bufsize);
@@ -92,7 +107,7 @@ uint32_t tud_edpt_stream_write_xfer(uint8_t dev_addr, tu_edpt_stream_t* s)
   if ( count )
   {
     //TU_ASSERT( usbd_edpt_xfer(rhport, p_cdc->ep_in, p_cdc->epin_buf, count), 0 );
-    TU_ASSERT( usbh_edpt_xfer(dev_addr, s->ep_addr, s->ep_buf, count), 0 );
+    TU_ASSERT( usbh_edpt_xfer(daddr, s->ep_addr, s->ep_buf, count), 0 );
     return count;
   }else
   {
@@ -100,7 +115,7 @@ uint32_t tud_edpt_stream_write_xfer(uint8_t dev_addr, tu_edpt_stream_t* s)
     // Note: data is dropped if terminal is not connected
     //usbd_edpt_release(rhport, p_cdc->ep_in);
 
-    usbh_edpt_release(dev_addr, s->ep_addr);
+    usbh_edpt_release(daddr, s->ep_addr);
     return 0;
   }
 }
@@ -114,7 +129,7 @@ uint32_t tu_edpt_stream_write(uint8_t daddr, tu_edpt_stream_t* s, void const *bu
   if ( (tu_fifo_count(&s->ff) >= bulk_packet_size)
       /* || ((CFG_TUD_CDC_TX_BUFSIZE < BULK_PACKET_SIZE) && tu_fifo_full(&p_cdc->tx_ff)) */ )
   {
-    tud_edpt_stream_write_xfer(daddr, s);
+    tu_edpt_stream_write_xfer(daddr, s);
   }
 
   return ret;
@@ -302,7 +317,7 @@ uint32_t tuh_cdc_write_flush(uint8_t idx)
   cdch_interface_t* p_cdc = get_itf(idx);
   TU_VERIFY(p_cdc);
 
-  return tud_edpt_stream_write_xfer(p_cdc->daddr, &p_cdc->stream.tx);
+  return tu_edpt_stream_write_xfer(p_cdc->daddr, &p_cdc->stream.tx);
 }
 
 uint32_t tuh_cdc_read (uint8_t idx, void* buffer, uint32_t bufsize)
@@ -435,18 +450,11 @@ bool cdch_xfer_cb(uint8_t daddr, uint8_t ep_addr, xfer_result_t event, uint32_t 
 
   if ( ep_addr == p_cdc->stream.tx.ep_addr )
   {
-    if ( 0 == tud_edpt_stream_write_xfer(daddr, &p_cdc->stream.tx) )
+    if ( 0 == tu_edpt_stream_write_xfer(daddr, &p_cdc->stream.tx) )
     {
-      // If there is no data left, a ZLP should be sent if
+      // If there is no data left, a ZLP should be sent if needed
       // xferred_bytes is multiple of EP Packet size and not zero
-      uint16_t const bulk_packet_size = (tuh_speed_get(daddr) == TUSB_SPEED_HIGH) ? TUSB_EPSIZE_BULK_HS : TUSB_EPSIZE_BULK_FS;
-      if ( !tu_fifo_count(&p_cdc->stream.tx.ff) && xferred_bytes && (0 == (xferred_bytes & (bulk_packet_size-1))) )
-      {
-        if ( usbh_edpt_claim(daddr, p_cdc->stream.tx.ep_addr) )
-        {
-          usbh_edpt_xfer(daddr, p_cdc->stream.tx.ep_addr, NULL, 0);
-        }
-      }
+      tu_edpt_stream_write_zlp_if_needed(daddr, &p_cdc->stream.tx, xferred_bytes);
     }
   }
   else if ( ep_addr == p_cdc->stream.rx.ep_addr )
