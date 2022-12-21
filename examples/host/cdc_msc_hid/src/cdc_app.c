@@ -25,6 +25,7 @@
  */
 
 #include "tusb.h"
+#include "bsp/board.h"
 
 //--------------------------------------------------------------------+
 // MACRO TYPEDEF CONSTANT ENUM DECLARATION
@@ -33,19 +34,61 @@
 
 //------------- IMPLEMENTATION -------------//
 
+size_t get_console_inputs(uint8_t* buf, size_t bufsize)
+{
+  size_t count = 0;
+  while (count < bufsize)
+  {
+    int ch = board_getchar();
+    if ( ch <= 0 ) break;
+
+    buf[count] = (uint8_t) ch;
+    count++;
+  }
+
+  return count;
+}
+
 void cdc_app_task(void)
 {
+  uint8_t buf[64+1]; // +1 for extra null character
+  memset(buf, 0, sizeof(buf));
 
+  size_t count = get_console_inputs(buf, sizeof(buf)-1);
+
+  // loop over all mounted interfaces
+  for(size_t idx=0; idx<CFG_TUH_CDC; idx++)
+  {
+    if ( tuh_cdc_mounted(idx) )
+    {
+      // console --> cdc interfaces
+      if (count)
+      {
+        tuh_cdc_write(idx, buf, count);
+        tuh_cdc_write_flush(idx);
+      }
+
+      // cdc interfaces -> console
+      if ( tuh_cdc_read_available(idx) )
+      {
+        printf((char*) buf);
+      }
+    }
+  }
 }
 
-void tuh_cdc_mount_cb(uint8_t dev_addr)
+void tuh_cdc_mount_cb(uint8_t idx)
 {
-  (void) dev_addr;
-  printf("A CDC device is mounted\r\n");
+  tuh_cdc_itf_info_t itf_info;
+  tuh_cdc_itf_get_info(idx, &itf_info);
+
+  printf("CDC Interface is mounted: device address = %u, itf_num = %u\r\n", itf_info.daddr, itf_info.bInterfaceNumber);
 }
 
-void tuh_cdc_umount_cb(uint8_t dev_addr)
+void tuh_cdc_umount_cb(uint8_t idx)
 {
-  (void) dev_addr;
-  printf("A CDC device is unmounted\r\n");
+  tuh_cdc_itf_info_t itf_info;
+  tuh_cdc_itf_get_info(idx, &itf_info);
+
+  printf("CDC Interface is unmounted: device address = %u, itf_num = %u\r\n", itf_info.daddr, itf_info.bInterfaceNumber);
 }
