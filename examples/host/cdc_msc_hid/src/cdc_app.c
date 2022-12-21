@@ -52,26 +52,31 @@ size_t get_console_inputs(uint8_t* buf, size_t bufsize)
 void cdc_app_task(void)
 {
   uint8_t buf[64+1]; // +1 for extra null character
-  memset(buf, 0, sizeof(buf));
+  uint32_t const bufsize = sizeof(buf)-1;
 
-  size_t count = get_console_inputs(buf, sizeof(buf)-1);
+  uint32_t console_count = get_console_inputs(buf, bufsize);
+  buf[console_count] = 0;
 
   // loop over all mounted interfaces
-  for(size_t idx=0; idx<CFG_TUH_CDC; idx++)
+  for(uint8_t idx=0; idx<CFG_TUH_CDC; idx++)
   {
     if ( tuh_cdc_mounted(idx) )
     {
       // console --> cdc interfaces
-      if (count)
+      if (console_count)
       {
-        tuh_cdc_write(idx, buf, count);
+        tuh_cdc_write(idx, buf, console_count);
         tuh_cdc_write_flush(idx);
       }
 
       // cdc interfaces -> console
       if ( tuh_cdc_read_available(idx) )
       {
-        printf((char*) buf);
+        uint8_t buf_cdc[64+1];
+        uint32_t cdc_count = tuh_cdc_read(idx, buf_cdc, sizeof(buf_cdc)-1);
+        buf_cdc[cdc_count] = 0;
+
+        printf((char*) buf_cdc);
       }
     }
   }

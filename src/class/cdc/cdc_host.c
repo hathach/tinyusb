@@ -459,7 +459,8 @@ bool cdch_xfer_cb(uint8_t daddr, uint8_t ep_addr, xfer_result_t event, uint32_t 
   }
   else if ( ep_addr == p_cdc->stream.rx.ep_addr )
   {
-    tu_edpt_stream_read_xfer_complete(&p_cdc->stream.rx, xferred_bytes);
+    // skip if ZLP
+    if (xferred_bytes) tu_edpt_stream_read_xfer_complete(&p_cdc->stream.rx, xferred_bytes);
 
     // invoke receive callback
 
