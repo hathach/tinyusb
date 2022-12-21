@@ -33,6 +33,11 @@
 
 #include "msc_host.h"
 
+// Debug level, TUSB_CFG_DEBUG must be at least this level for debug message
+#define MSCH_DEBUG   2
+
+#define TU_LOG_MSCH(...)   TU_LOG(MSCH_DEBUG, __VA_ARGS__)
+
 //--------------------------------------------------------------------+
 // MACRO CONSTANT TYPEDEF
 //--------------------------------------------------------------------+
@@ -417,7 +422,7 @@ bool msch_set_config(uint8_t dev_addr, uint8_t itf_num)
   p_msc->configured = true;
 
   //------------- Get Max Lun -------------//
-  TU_LOG2("MSC Get Max Lun\r\n");
+  TU_LOG_MSCH("MSC Get Max Lun\r\n");
   tusb_control_request_t const request =
   {
     .bmRequestType_bit =
@@ -456,7 +461,7 @@ static void config_get_maxlun_complete (tuh_xfer_t* xfer)
   p_msc->max_lun++; // MAX LUN is minus 1 by specs
 
   // TODO multiple LUN support
-  TU_LOG2("SCSI Test Unit Ready\r\n");
+  TU_LOG_MSCH("SCSI Test Unit Ready\r\n");
   uint8_t const lun = 0;
   tuh_msc_test_unit_ready(daddr, lun, config_test_unit_ready_complete, 0);
 }
@@ -469,14 +474,14 @@ static bool config_test_unit_ready_complete(uint8_t dev_addr, tuh_msc_complete_d
   if (csw->status == 0)
   {
     // Unit is ready, read its capacity
-    TU_LOG2("SCSI Read Capacity\r\n");
+    TU_LOG_MSCH("SCSI Read Capacity\r\n");
     tuh_msc_read_capacity(dev_addr, cbw->lun, (scsi_read_capacity10_resp_t*) ((void*) _msch_buffer), config_read_capacity_complete, 0);
   }else
   {
     // Note: During enumeration, some device fails Test Unit Ready and require a few retries
     // with Request Sense to start working !!
     // TODO limit number of retries
-    TU_LOG2("SCSI Request Sense\r\n");
+    TU_LOG_MSCH("SCSI Request Sense\r\n");
     TU_ASSERT(tuh_msc_request_sense(dev_addr, cbw->lun, _msch_buffer, config_request_sense_complete, 0));
   }
 

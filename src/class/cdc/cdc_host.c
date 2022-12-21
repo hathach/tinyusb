@@ -33,6 +33,12 @@
 
 #include "cdc_host.h"
 
+
+// Debug level, TUSB_CFG_DEBUG must be at least this level for debug message
+#define CDCH_DEBUG   2
+
+#define TU_LOG_CDCH(...)   TU_LOG(CDCH_DEBUG, __VA_ARGS__)
+
 //--------------------------------------------------------------------+
 // MACRO CONSTANT TYPEDEF
 //--------------------------------------------------------------------+
@@ -347,6 +353,8 @@ bool tuh_cdc_set_control_line_state(uint8_t idx, uint16_t line_state, tuh_xfer_c
 {
   cdch_interface_t* p_cdc = get_itf(idx);
   TU_VERIFY(p_cdc && p_cdc->acm_capability.support_line_request);
+
+  TU_LOG_CDCH("CDC Set Control Line State\r\n");
 
   tusb_control_request_t const request =
   {
