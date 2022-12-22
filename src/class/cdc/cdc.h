@@ -41,16 +41,6 @@
 /** \defgroup ClassDriver_CDC_Common Common Definitions
  *  @{ */
 
-// TODO remove
-/// CDC Pipe ID, used to indicate which pipe the API is addressing to (Notification, Out, In)
-typedef enum
-{
-  CDC_PIPE_NOTIFICATION , ///< Notification pipe
-  CDC_PIPE_DATA_IN      , ///< Data in pipe
-  CDC_PIPE_DATA_OUT     , ///< Data out pipe
-  CDC_PIPE_ERROR        , ///< Invalid Pipe ID
-}cdc_pipeid_t;
-
 //--------------------------------------------------------------------+
 // CDC Communication Interface Class
 //--------------------------------------------------------------------+
@@ -223,13 +213,13 @@ typedef enum
 {
   CDC_NOTIF_NETWORK_CONNECTION               = 0x00, ///< This notification allows the device to notify the host about network connection status.
   CDC_NOTIF_RESPONSE_AVAILABLE               = 0x01, ///< This notification allows the device to notify the hostthat a response is available. This response can be retrieved with a subsequent \ref CDC_REQUEST_GET_ENCAPSULATED_RESPONSE request.
-  CDC_NOTIF_AUX_JACK_HOOK_STATE              = 0x08,///< CDC_NOTIF_AUX_JACK_HOOK_STATE
-  CDC_NOTIF_RING_DETECT                      = 0x09,///< CDC_NOTIF_RING_DETECT
-  CDC_NOTIF_SERIAL_STATE                     = 0x20,///< CDC_NOTIF_SERIAL_STATE
-  CDC_NOTIF_CALL_STATE_CHANGE                = 0x28,///< CDC_NOTIF_CALL_STATE_CHANGE
-  CDC_NOTIF_LINE_STATE_CHANGE                = 0x29,///< CDC_NOTIF_LINE_STATE_CHANGE
+  CDC_NOTIF_AUX_JACK_HOOK_STATE              = 0x08,
+  CDC_NOTIF_RING_DETECT                      = 0x09,
+  CDC_NOTIF_SERIAL_STATE                     = 0x20,
+  CDC_NOTIF_CALL_STATE_CHANGE                = 0x28,
+  CDC_NOTIF_LINE_STATE_CHANGE                = 0x29,
   CDC_NOTIF_CONNECTION_SPEED_CHANGE          = 0x2A, ///< This notification allows the device to inform the host-networking driver that a change in either the upstream or the downstream bit rate of the connection has occurred
-  CDC_NOTIF_MDLM_SEMANTIC_MODEL_NOTIFICATION = 0x40,///< CDC_NOTIF_MDLM_SEMANTIC_MODEL_NOTIFICATION
+  CDC_NOTIF_MDLM_SEMANTIC_MODEL_NOTIFICATION = 0x40,
 }cdc_notification_request_t;
 
 //--------------------------------------------------------------------+
