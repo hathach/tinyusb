@@ -340,8 +340,8 @@ bool cdch_xfer_cb(uint8_t daddr, uint8_t ep_addr, xfer_result_t event, uint32_t 
 
     if ( 0 == tu_edpt_stream_write_xfer(&p_cdc->stream.tx) )
     {
-      // If there is no data left, a ZLP should be sent if needed
-      // xferred_bytes is multiple of EP Packet size and not zero
+      // If there is no data left, a ZLP should be sent if:
+      // - xferred_bytes is multiple of EP Packet size and not zero
       tu_edpt_stream_write_zlp_if_needed(&p_cdc->stream.tx, xferred_bytes);
     }
   }

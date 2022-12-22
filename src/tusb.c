@@ -242,6 +242,41 @@ bool stream_claim(tu_edpt_stream_t* s)
   return false;
 }
 
+TU_ATTR_ALWAYS_INLINE static inline
+bool stream_xfer(tu_edpt_stream_t* s, uint16_t count)
+{
+  if (s->is_host)
+  {
+    #if CFG_TUH_ENABLED
+    return usbh_edpt_xfer(s->daddr, s->ep_addr, count ? s->ep_buf : NULL, count);
+    #endif
+  }else
+  {
+    #if CFG_TUD_ENABLED
+    return usbd_edpt_xfer(s->rhport, s->ep_addr, cont ? s->ep_buf : NULL, count);
+    #endif
+  }
+
+  return false;
+}
+
+TU_ATTR_ALWAYS_INLINE static inline
+bool stream_release(tu_edpt_stream_t* s)
+{
+  if (s->is_host)
+  {
+    #if CFG_TUH_ENABLED
+    return usbh_edpt_release(s->daddr, s->ep_addr);
+    #endif
+  }else
+  {
+    #if CFG_TUD_ENABLED
+    return usbd_edpt_release(s->rhport, s->ep_addr);
+    #endif
+  }
+
+  return false;
+}
 
 //--------------------------------------------------------------------+
 // Stream Write
@@ -253,7 +288,7 @@ bool tu_edpt_stream_write_zlp_if_needed(tu_edpt_stream_t* s, uint32_t last_xferr
   TU_VERIFY( !tu_fifo_count(&s->ff) && last_xferred_bytes && (0 == (last_xferred_bytes & (s->ep_packetsize-1))) );
 
   TU_VERIFY( stream_claim(s) );
-  TU_ASSERT( usbh_edpt_xfer(s->daddr, s->ep_addr, NULL, 0) );
+  TU_ASSERT( stream_xfer(s, 0) );
 
   return true;
 }
@@ -271,16 +306,13 @@ uint32_t tu_edpt_stream_write_xfer(tu_edpt_stream_t* s)
 
   if ( count )
   {
-    //TU_ASSERT( usbd_edpt_xfer(rhport, p_cdc->ep_in, p_cdc->epin_buf, count), 0 );
-    TU_ASSERT( usbh_edpt_xfer(s->daddr, s->ep_addr, s->ep_buf, count), 0 );
+    TU_ASSERT( stream_xfer(s, count), 0 );
     return count;
   }else
   {
     // Release endpoint since we don't make any transfer
     // Note: data is dropped if terminal is not connected
-    //usbd_edpt_release(rhport, p_cdc->ep_in);
-
-    usbh_edpt_release(s->daddr, s->ep_addr);
+    stream_release(s);
     return 0;
   }
 }
@@ -327,32 +359,13 @@ uint32_t tu_edpt_stream_read_xfer(tu_edpt_stream_t* s)
     uint16_t count = (uint16_t) (available & ~(s->ep_packetsize -1));
     count = tu_min16(count, s->ep_bufsize);
 
-    if (s->is_host)
-    {
-      #if CFG_TUH_ENABLED
-      TU_ASSERT( usbh_edpt_xfer(s->daddr, s->ep_addr, s->ep_buf, count), 0 );
-      #endif
-    }else
-    {
-      #if CFG_TUD_ENABLED
-      TU_ASSERT( usbd_edpt_xfer(s->rhport, s->ep_addr, s->ep_buf, count), 0 );
-      #endif
-    }
+    TU_ASSERT( stream_xfer(s, count), 0 );
+
     return count;
   }else
   {
     // Release endpoint since we don't make any transfer
-    if (s->is_host)
-    {
-      #if CFG_TUH_ENABLED
-      usbh_edpt_release(s->daddr, s->ep_addr);
-      #endif
-    }else
-    {
-      #if CFG_TUD_ENABLED
-      usbd_edpt_release(s->rhport, s->ep_addr);
-      #endif
-    }
+    stream_release(s);
 
     return 0;
   }
