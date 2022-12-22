@@ -330,6 +330,8 @@ bool tuh_init(uint8_t controller_id)
   TU_LOG_INT(USBH_DEBUG, sizeof(hcd_event_t));
   TU_LOG_INT(USBH_DEBUG, sizeof(_ctrl_xfer));
   TU_LOG_INT(USBH_DEBUG, sizeof(tuh_xfer_t));
+  TU_LOG_INT(USBH_DEBUG, sizeof(tu_fifo_t));
+  TU_LOG_INT(USBH_DEBUG, sizeof(tu_edpt_stream_t));
 
   // Event queue
   _usbh_q = osal_queue_create( &_usbh_qdef );
@@ -1275,7 +1277,7 @@ static void process_enumeration(tuh_xfer_t* xfer)
         break;
       }
       #endif
-      __attribute__((fallthrough));
+      TU_ATTR_FALLTHROUGH;
 #endif
 
     case ENUM_SET_ADDR:

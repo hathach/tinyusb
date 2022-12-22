@@ -522,7 +522,7 @@ static void process_cdc_config(tuh_xfer_t* xfer)
     #ifdef CFG_TUH_CDC_LINE_CODING_ON_ENUM
     {
       cdc_line_coding_t line_coding = CFG_TUH_CDC_LINE_CODING_ON_ENUM;
-      TU_ASSERT( tuh_cdc_set_line_coding(idx, &line_coding, process_cdc_config, 0), );
+      TU_ASSERT( tuh_cdc_set_line_coding(idx, &line_coding, process_cdc_config, CONFIG_COMPLETE), );
       break;
     }
     #endif
