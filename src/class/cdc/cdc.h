@@ -198,6 +198,22 @@ enum
   CDC_CONTROL_LINE_STATE_RTS = 0x02,
 };
 
+enum
+{
+  CDC_LINE_CONDING_STOP_BITS_1   = 0, // 1   bit
+  CDC_LINE_CONDING_STOP_BITS_1_5 = 1, // 1.5 bits
+  CDC_LINE_CONDING_STOP_BITS_2   = 2, // 2   bits
+};
+
+enum
+{
+  CDC_LINE_CODING_PARITY_NONE  = 0,
+  CDC_LINE_CODING_PARITY_ODD   = 1,
+  CDC_LINE_CODING_PARITY_EVEN  = 2,
+  CDC_LINE_CODING_PARITY_MARK  = 3,
+  CDC_LINE_CODING_PARITY_SPACE = 4,
+};
+
 //--------------------------------------------------------------------+
 // Management Element Notification (Notification Endpoint)
 //--------------------------------------------------------------------+
@@ -207,13 +223,13 @@ typedef enum
 {
   CDC_NOTIF_NETWORK_CONNECTION               = 0x00, ///< This notification allows the device to notify the host about network connection status.
   CDC_NOTIF_RESPONSE_AVAILABLE               = 0x01, ///< This notification allows the device to notify the hostthat a response is available. This response can be retrieved with a subsequent \ref CDC_REQUEST_GET_ENCAPSULATED_RESPONSE request.
-  CDC_NOTIF_AUX_JACK_HOOK_STATE              = 0x08,
-  CDC_NOTIF_RING_DETECT                      = 0x09,
-  CDC_NOTIF_SERIAL_STATE                     = 0x20,
-  CDC_NOTIF_CALL_STATE_CHANGE                = 0x28,
-  CDC_NOTIF_LINE_STATE_CHANGE                = 0x29,
+  CDC_NOTIF_AUX_JACK_HOOK_STATE              = 0x08,///< CDC_NOTIF_AUX_JACK_HOOK_STATE
+  CDC_NOTIF_RING_DETECT                      = 0x09,///< CDC_NOTIF_RING_DETECT
+  CDC_NOTIF_SERIAL_STATE                     = 0x20,///< CDC_NOTIF_SERIAL_STATE
+  CDC_NOTIF_CALL_STATE_CHANGE                = 0x28,///< CDC_NOTIF_CALL_STATE_CHANGE
+  CDC_NOTIF_LINE_STATE_CHANGE                = 0x29,///< CDC_NOTIF_LINE_STATE_CHANGE
   CDC_NOTIF_CONNECTION_SPEED_CHANGE          = 0x2A, ///< This notification allows the device to inform the host-networking driver that a change in either the upstream or the downstream bit rate of the connection has occurred
-  CDC_NOTIF_MDLM_SEMANTIC_MODEL_NOTIFICATION = 0x40,
+  CDC_NOTIF_MDLM_SEMANTIC_MODEL_NOTIFICATION = 0x40,///< CDC_NOTIF_MDLM_SEMANTIC_MODEL_NOTIFICATION
 }cdc_notification_request_t;
 
 //--------------------------------------------------------------------+
