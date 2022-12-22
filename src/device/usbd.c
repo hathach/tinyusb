@@ -39,12 +39,12 @@
 // USBD Configuration
 //--------------------------------------------------------------------+
 
-// Debug level of USBD
-#define USBD_DBG   2
-
 #ifndef CFG_TUD_TASK_QUEUE_SZ
   #define CFG_TUD_TASK_QUEUE_SZ   16
 #endif
+
+// Debug level of USBD
+#define USBD_DBG   2
 
 //--------------------------------------------------------------------+
 // Device Data
@@ -506,7 +506,7 @@ void tud_task_ext(uint32_t timeout_ms, bool in_isr)
       break;
 
       case DCD_EVENT_SETUP_RECEIVED:
-        TU_LOG_VAR(USBD_DBG, &event.setup_received);
+        TU_LOG_PTR(USBD_DBG, &event.setup_received);
         TU_LOG(USBD_DBG, "\r\n");
 
         // Mark as connected after receiving 1st setup packet.
