@@ -108,6 +108,10 @@
 #define CFG_TUH_HID_EPIN_BUFSIZE    64
 #define CFG_TUH_HID_EPOUT_BUFSIZE   64
 
+//------------- CDC -------------//
+// Set both DTR ( bit 0), RTS (bit 1) on enumeration/mounted
+#define CFG_TUH_CDC_SET_DTRRTS_ON_ENUM    0x03
+
 #ifdef __cplusplus
  }
 #endif

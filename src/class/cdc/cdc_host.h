@@ -49,7 +49,7 @@
 
 // RX Endpoint size
 #ifndef CFG_TUH_CDC_RX_EPSIZE
-#define CFG_TUH_CDC_RX_EPSIZE USBH_EPSIZE_BULK_MAX
+#define CFG_TUH_CDC_RX_EPSIZE  USBH_EPSIZE_BULK_MAX
 #endif
 
 // TX FIFO size
@@ -59,7 +59,7 @@
 
 // TX Endpoint size
 #ifndef CFG_TUH_CDC_TX_EPSIZE
-#define CFG_TUH_CDC_TX_EPSIZE USBH_EPSIZE_BULK_MAX
+#define CFG_TUH_CDC_TX_EPSIZE  USBH_EPSIZE_BULK_MAX
 #endif
 
 //--------------------------------------------------------------------+
@@ -145,7 +145,9 @@ static inline bool tuh_cdc_disconnect(uint8_t idx, tuh_xfer_cb_t complete_cb, ui
   return tuh_cdc_set_control_line_state(idx, 0x00, complete_cb, user_data);
 }
 
-//------------- Application Callback -------------//
+//--------------------------------------------------------------------+
+// CDC APPLICATION CALLBACKS
+//--------------------------------------------------------------------+
 
 // Invoked when a device with CDC interface is mounted
 // idx is index of cdc interface in the internal pool.
@@ -159,26 +161,6 @@ TU_ATTR_WEAK extern void tuh_cdc_rx_cb(uint8_t idx);
 
 // Invoked when a TX is complete and therefore space becomes available in TX buffer
 TU_ATTR_WEAK extern void tuh_cdc_tx_complete_cb(uint8_t idx);
-
-//--------------------------------------------------------------------+
-// CDC APPLICATION CALLBACKS
-//--------------------------------------------------------------------+
-
-/** \brief      Callback function that is invoked when an transferring event occurred
- * \param[in]		dev_addr	Address of device
- * \param[in]   event an value from \ref xfer_result_t
- * \param[in]   pipe_id value from \ref cdc_pipeid_t indicate the pipe
- * \param[in]   xferred_bytes Number of bytes transferred via USB bus
- * \note        event can be one of following
- *              - XFER_RESULT_SUCCESS : previously scheduled transfer completes successfully.
- *              - XFER_RESULT_FAILED   : previously scheduled transfer encountered a transaction error.
- *              - XFER_RESULT_STALLED : previously scheduled transfer is stalled by device.
- * \note
- */
-// void tuh_cdc_xfer_isr(uint8_t dev_addr, xfer_result_t event, cdc_pipeid_t pipe_id, uint32_t xferred_bytes);
-
-/// @} // group CDC_Serial_Host
-/// @}
 
 //--------------------------------------------------------------------+
 // Internal Class Driver API
