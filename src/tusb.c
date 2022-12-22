@@ -253,7 +253,7 @@ bool stream_xfer(tu_edpt_stream_t* s, uint16_t count)
   }else
   {
     #if CFG_TUD_ENABLED
-    return usbd_edpt_xfer(s->rhport, s->ep_addr, cont ? s->ep_buf : NULL, count);
+    return usbd_edpt_xfer(s->rhport, s->ep_addr, count ? s->ep_buf : NULL, count);
     #endif
   }
 
@@ -366,7 +366,6 @@ uint32_t tu_edpt_stream_read_xfer(tu_edpt_stream_t* s)
   {
     // Release endpoint since we don't make any transfer
     stream_release(s);
-
     return 0;
   }
 }
