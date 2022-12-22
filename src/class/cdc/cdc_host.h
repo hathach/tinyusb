@@ -102,6 +102,12 @@ TU_ATTR_ALWAYS_INLINE static inline bool tuh_cdc_connected(uint8_t idx)
   return tuh_cdc_get_dtr(idx);
 }
 
+// Get local (saved/cached) version of line coding.
+// This function should return correct values if tuh_cdc_set_line_coding() / tuh_cdc_get_line_coding()
+// are invoked previously or CFG_TUH_CDC_LINE_CODING_ON_ENUM is defined.
+// NOTE: This function does not make any USB transfer request to device.
+bool tuh_cdc_get_local_line_coding(uint8_t idx, cdc_line_coding_t* line_coding);
+
 //--------------------------------------------------------------------+
 // Write API
 //--------------------------------------------------------------------+
@@ -133,6 +139,7 @@ bool tuh_cdc_read_clear (uint8_t idx);
 
 //--------------------------------------------------------------------+
 // Control Endpoint (Request) API
+// Each Function will make a USB transfer request to/from device
 //--------------------------------------------------------------------+
 
 // Request to Set Control Line State: DTR (bit 0), RTS (bit 1)
@@ -140,6 +147,11 @@ bool tuh_cdc_set_control_line_state(uint8_t idx, uint16_t line_state, tuh_xfer_c
 
 // Request to Set Line Coding
 bool tuh_cdc_set_line_coding(uint8_t idx, cdc_line_coding_t const* line_coding, tuh_xfer_cb_t complete_cb, uintptr_t user_data);
+
+// Request to Get Line Coding
+// Should only use if tuh_cdc_set_line_coding() / tuh_cdc_get_line_coding() never got invoked and
+// CFG_TUH_CDC_LINE_CODING_ON_ENUM is not defined
+// bool tuh_cdc_get_line_coding(uint8_t idx, cdc_line_coding_t* coding);
 
 // Connect by set both DTR, RTS
 static inline bool tuh_cdc_connect(uint8_t idx, tuh_xfer_cb_t complete_cb, uintptr_t user_data)

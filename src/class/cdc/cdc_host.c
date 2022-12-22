@@ -52,8 +52,8 @@ typedef struct {
   cdc_acm_capability_t acm_capability;
   uint8_t ep_notif;
 
-  cdc_line_coding_t line_coding; // Baudrate, stop bits, parity, data width
-  uint8_t line_state; // DTR (bit0), RTS (bit1)
+  cdc_line_coding_t line_coding;  // Baudrate, stop bits, parity, data width
+  uint8_t line_state;             // DTR (bit0), RTS (bit1)
 
   tuh_xfer_cb_t user_control_cb;
 
@@ -162,6 +162,20 @@ bool tuh_cdc_get_rts(uint8_t idx)
   return (p_cdc->line_state & CDC_CONTROL_LINE_STATE_RTS) ? true : false;
 }
 
+bool tuh_cdc_get_local_line_coding(uint8_t idx, cdc_line_coding_t* line_coding)
+{
+  cdch_interface_t* p_cdc = get_itf(idx);
+  TU_VERIFY(p_cdc);
+
+  *line_coding = p_cdc->line_coding;
+
+  return true;
+}
+
+//--------------------------------------------------------------------+
+// Write
+//--------------------------------------------------------------------+
+
 uint32_t tuh_cdc_write(uint8_t idx, void const* buffer, uint32_t bufsize)
 {
   cdch_interface_t* p_cdc = get_itf(idx);
@@ -193,6 +207,10 @@ uint32_t tuh_cdc_write_available(uint8_t idx)
 
   return tu_edpt_stream_write_available(&p_cdc->stream.tx);
 }
+
+//--------------------------------------------------------------------+
+// Read
+//--------------------------------------------------------------------+
 
 uint32_t tuh_cdc_read (uint8_t idx, void* buffer, uint32_t bufsize)
 {
