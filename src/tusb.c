@@ -224,9 +224,86 @@ bool tu_edpt_stream_init(tu_edpt_stream_t* s, bool is_host, bool is_tx, bool ove
   return true;
 }
 
-//------------- Stream Write -------------//
+TU_ATTR_ALWAYS_INLINE static inline
+bool stream_claim(tu_edpt_stream_t* s)
+{
+  if (s->is_host)
+  {
+    #if CFG_TUH_ENABLED
+    return usbh_edpt_claim(s->daddr, s->ep_addr);
+    #endif
+  }else
+  {
+    #if CFG_TUD_ENABLED
+    return usbd_edpt_claim(s->rhport, s->ep_addr);
+    #endif
+  }
 
-//------------- Stream Read -------------//
+  return false;
+}
+
+
+//--------------------------------------------------------------------+
+// Stream Write
+//--------------------------------------------------------------------+
+
+bool tu_edpt_stream_write_zlp_if_needed(tu_edpt_stream_t* s, uint32_t last_xferred_bytes)
+{
+  // ZLP condition: no pending data, last transferred bytes is multiple of packet size
+  TU_VERIFY( !tu_fifo_count(&s->ff) && last_xferred_bytes && (0 == (last_xferred_bytes & (s->ep_packetsize-1))) );
+
+  TU_VERIFY( stream_claim(s) );
+  TU_ASSERT( usbh_edpt_xfer(s->daddr, s->ep_addr, NULL, 0) );
+
+  return true;
+}
+
+uint32_t tu_edpt_stream_write_xfer(tu_edpt_stream_t* s)
+{
+  // skip if no data
+  TU_VERIFY( tu_fifo_count(&s->ff), 0 );
+
+  // Claim the endpoint
+  TU_VERIFY( stream_claim(s), 0 );
+
+  // Pull data from FIFO -> EP buf
+  uint16_t const count = tu_fifo_read_n(&s->ff, s->ep_buf, s->ep_bufsize);
+
+  if ( count )
+  {
+    //TU_ASSERT( usbd_edpt_xfer(rhport, p_cdc->ep_in, p_cdc->epin_buf, count), 0 );
+    TU_ASSERT( usbh_edpt_xfer(s->daddr, s->ep_addr, s->ep_buf, count), 0 );
+    return count;
+  }else
+  {
+    // Release endpoint since we don't make any transfer
+    // Note: data is dropped if terminal is not connected
+    //usbd_edpt_release(rhport, p_cdc->ep_in);
+
+    usbh_edpt_release(s->daddr, s->ep_addr);
+    return 0;
+  }
+}
+
+uint32_t tu_edpt_stream_write(tu_edpt_stream_t* s, void const *buffer, uint32_t bufsize)
+{
+  TU_VERIFY(bufsize); // TODO support ZLP
+
+  uint16_t ret = tu_fifo_write_n(&s->ff, buffer, (uint16_t) bufsize);
+
+  // flush if fifo has more than packet size or
+  // in rare case: fifo depth is configured too small (which never reach packet size)
+  if ( (tu_fifo_count(&s->ff) >= s->ep_packetsize) || (tu_fifo_depth(&s->ff) < s->ep_packetsize) )
+  {
+    tu_edpt_stream_write_xfer(s);
+  }
+
+  return ret;
+}
+
+//--------------------------------------------------------------------+
+// Stream Read
+//--------------------------------------------------------------------+
 
 uint32_t tu_edpt_stream_read_xfer(tu_edpt_stream_t* s)
 {
@@ -239,17 +316,7 @@ uint32_t tu_edpt_stream_read_xfer(tu_edpt_stream_t* s)
   TU_VERIFY(available >= s->ep_packetsize);
 
   // claim endpoint
-  if (s->is_host)
-  {
-    #if CFG_TUH_ENABLED
-    TU_VERIFY(usbh_edpt_claim(s->daddr, s->ep_addr), 0);
-    #endif
-  }else
-  {
-    #if CFG_TUD_ENABLED
-    TU_VERIFY(usbd_edpt_claim(s->rhport, s->ep_addr), 0);
-    #endif
-  }
+  TU_VERIFY(stream_claim(s), 0);
 
   // get available again since fifo can be changed before endpoint is claimed
   available = tu_fifo_remaining(&s->ff);
@@ -257,7 +324,7 @@ uint32_t tu_edpt_stream_read_xfer(tu_edpt_stream_t* s)
   if ( available >= s->ep_packetsize )
   {
     // multiple of packet size limit by ep bufsize
-    uint16_t count = (uint16_t) (available & (s->ep_packetsize -1));
+    uint16_t count = (uint16_t) (available & ~(s->ep_packetsize -1));
     count = tu_min16(count, s->ep_bufsize);
 
     if (s->is_host)
@@ -301,6 +368,7 @@ uint32_t tu_edpt_stream_read(tu_edpt_stream_t* s, void* buffer, uint32_t bufsize
 //--------------------------------------------------------------------+
 // Debug
 //--------------------------------------------------------------------+
+
 #if CFG_TUSB_DEBUG
 #include <ctype.h>
 

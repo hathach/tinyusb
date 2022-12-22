@@ -43,67 +43,6 @@
 // MACRO CONSTANT TYPEDEF
 //--------------------------------------------------------------------+
 
-bool tu_edpt_stream_write_zlp_if_needed(tu_edpt_stream_t* s, uint32_t last_xferred_bytes)
-{
-  uint16_t const bulk_packet_size = (s->ep_speed == TUSB_SPEED_HIGH) ? TUSB_EPSIZE_BULK_HS : TUSB_EPSIZE_BULK_FS;
-
-  // ZLP condition: no pending data, last transferred bytes is multiple of packet size
-  TU_VERIFY( !tu_fifo_count(&s->ff) && last_xferred_bytes && (0 == (last_xferred_bytes & (bulk_packet_size-1))) );
-
-  if ( usbh_edpt_claim(s->daddr, s->ep_addr) )
-  {
-    TU_ASSERT( usbh_edpt_xfer(s->daddr, s->ep_addr, NULL, 0) );
-  }
-
-  return true;
-}
-
-uint32_t tu_edpt_stream_write_xfer(tu_edpt_stream_t* s)
-{
-  // skip if no data
-  TU_VERIFY( tu_fifo_count(&s->ff), 0 );
-
-  // Claim the endpoint
-  // uint8_t const rhport = 0;
-  // TU_VERIFY( usbd_edpt_claim(rhport, p_cdc->ep_in), 0 );
-  TU_VERIFY( usbh_edpt_claim(s->daddr, s->ep_addr) );
-
-  // Pull data from FIFO -> EP buf
-  uint16_t const count = tu_fifo_read_n(&s->ff, s->ep_buf, s->ep_bufsize);
-
-  if ( count )
-  {
-    //TU_ASSERT( usbd_edpt_xfer(rhport, p_cdc->ep_in, p_cdc->epin_buf, count), 0 );
-    TU_ASSERT( usbh_edpt_xfer(s->daddr, s->ep_addr, s->ep_buf, count), 0 );
-    return count;
-  }else
-  {
-    // Release endpoint since we don't make any transfer
-    // Note: data is dropped if terminal is not connected
-    //usbd_edpt_release(rhport, p_cdc->ep_in);
-
-    usbh_edpt_release(s->daddr, s->ep_addr);
-    return 0;
-  }
-}
-
-uint32_t tu_edpt_stream_write(tu_edpt_stream_t* s, void const *buffer, uint32_t bufsize)
-{
-  TU_VERIFY(bufsize); // TODO support ZLP
-
-  uint16_t ret = tu_fifo_write_n(&s->ff, buffer, (uint16_t) bufsize);
-
-  // flush if fifo has more than packet size or
-  // in rare case: fifo depth is configured too small (which never reach packet size)
-  uint16_t const bulk_packet_size = (s->ep_speed == TUSB_SPEED_HIGH) ? TUSB_EPSIZE_BULK_HS : TUSB_EPSIZE_BULK_FS;
-  if ( (tu_fifo_count(&s->ff) >= bulk_packet_size) || ( tu_fifo_depth(&s->ff) < bulk_packet_size) )
-  {
-    tu_edpt_stream_write_xfer(s);
-  }
-
-  return ret;
-}
-
 typedef struct {
   uint8_t daddr;
   uint8_t bInterfaceNumber;
@@ -379,6 +318,8 @@ void cdch_close(uint8_t daddr)
       //tu_memclr(p_cdc, sizeof(cdch_interface_t));
       p_cdc->daddr = 0;
       p_cdc->bInterfaceNumber = 0;
+      tu_edpt_stream_close(&p_cdc->stream.tx);
+      tu_edpt_stream_close(&p_cdc->stream.rx);
     }
   }
 }

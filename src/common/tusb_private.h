@@ -87,7 +87,7 @@ bool tu_edpt_release(tu_edpt_state_t* ep_state, osal_mutex_t mutex);
 // Endpoint Stream
 //--------------------------------------------------------------------+
 
-// Init an stream, should only called once
+// Init an stream, should only be called once
 bool tu_edpt_stream_init(tu_edpt_stream_t* s, bool is_host, bool is_tx, bool overwritable,
                          void* ff_buf, uint16_t ff_bufsize, uint8_t* ep_buf, uint16_t ep_bufsize);
 
@@ -102,6 +102,13 @@ void tu_edpt_stream_open(tu_edpt_stream_t* s, uint8_t hwid, tusb_desc_endpoint_t
   s->ep_packetsize = tu_edpt_packet_size(desc_ep);
 }
 
+TU_ATTR_ALWAYS_INLINE static inline
+void tu_edpt_stream_close(tu_edpt_stream_t* s)
+{
+  s->hwid = 0;
+  s->ep_addr = 0;
+}
+
 // Clear fifo
 TU_ATTR_ALWAYS_INLINE static inline
 bool tu_edpt_stream_clear(tu_edpt_stream_t* s)
@@ -109,13 +116,18 @@ bool tu_edpt_stream_clear(tu_edpt_stream_t* s)
   return tu_fifo_clear(&s->ff);
 }
 
-//------------- Write -------------//
+//--------------------------------------------------------------------+
+// Stream Write
+//--------------------------------------------------------------------+
 
 // Write to stream
 uint32_t tu_edpt_stream_write(tu_edpt_stream_t* s, void const *buffer, uint32_t bufsize);
 
 // Start an usb transfer if endpoint is not busy
 uint32_t tu_edpt_stream_write_xfer(tu_edpt_stream_t* s);
+
+// Start an zero-length packet if needed
+bool tu_edpt_stream_write_zlp_if_needed(tu_edpt_stream_t* s, uint32_t last_xferred_bytes);
 
 // Get the number of bytes available for writing
 TU_ATTR_ALWAYS_INLINE static inline
@@ -124,8 +136,9 @@ uint32_t tu_edpt_stream_write_available(tu_edpt_stream_t* s)
   return (uint32_t) tu_fifo_remaining(&s->ff);
 }
 
-
-//------------- Read -------------//
+//--------------------------------------------------------------------+
+// Stream Read
+//--------------------------------------------------------------------+
 
 // Read from stream
 uint32_t tu_edpt_stream_read(tu_edpt_stream_t* s, void* buffer, uint32_t bufsize);
