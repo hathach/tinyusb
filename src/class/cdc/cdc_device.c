@@ -432,7 +432,7 @@ bool cdcd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint32_
   // Received new data
   if ( ep_addr == p_cdc->ep_out )
   {
-    tu_fifo_write_n(&p_cdc->rx_ff, &p_cdc->epout_buf, (uint16_t) xferred_bytes);
+    tu_fifo_write_n(&p_cdc->rx_ff, p_cdc->epout_buf, (uint16_t) xferred_bytes);
     
     // Check for wanted char and invoke callback if needed
     if ( tud_cdc_rx_wanted_cb && (((signed char) p_cdc->wanted_char) != -1) )

@@ -134,7 +134,7 @@ TU_ATTR_WEAK void tud_cdc_rx_cb(uint8_t itf);
 // Invoked when received `wanted_char`
 TU_ATTR_WEAK void tud_cdc_rx_wanted_cb(uint8_t itf, char wanted_char);
 
-// Invoked when space becomes available in TX buffer
+// Invoked when a TX is complete and therefore space becomes available in TX buffer
 TU_ATTR_WEAK void tud_cdc_tx_complete_cb(uint8_t itf);
 
 // Invoked when line state DTR & RTS are changed via SET_CONTROL_LINE_STATE
