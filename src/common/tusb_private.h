@@ -160,6 +160,11 @@ uint32_t tu_edpt_stream_read_available(tu_edpt_stream_t* s)
   return (uint32_t) tu_fifo_count(&s->ff);
 }
 
+TU_ATTR_ALWAYS_INLINE static inline
+bool tu_edpt_stream_peek(tu_edpt_stream_t* s, uint8_t* ch)
+{
+  return tu_fifo_peek(&s->ff, ch);
+}
 
 #ifdef __cplusplus
  }

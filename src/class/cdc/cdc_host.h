@@ -134,6 +134,9 @@ uint32_t tuh_cdc_read_available(uint8_t idx);
 // Read from cdc interface
 uint32_t tuh_cdc_read (uint8_t idx, void* buffer, uint32_t bufsize);
 
+// Get a byte from RX FIFO without removing it
+bool tuh_cdc_peek(uint8_t idx, uint8_t* ch);
+
 // Clear the received FIFO
 bool tuh_cdc_read_clear (uint8_t idx);
 

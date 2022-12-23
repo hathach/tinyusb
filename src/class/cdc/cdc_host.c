@@ -228,6 +228,14 @@ uint32_t tuh_cdc_read_available(uint8_t idx)
   return tu_edpt_stream_read_available(&p_cdc->stream.rx);
 }
 
+bool tuh_cdc_peek(uint8_t idx, uint8_t* ch)
+{
+  cdch_interface_t* p_cdc = get_itf(idx);
+  TU_VERIFY(p_cdc);
+
+  return tu_edpt_stream_peek(&p_cdc->stream.rx, ch);
+}
+
 bool tuh_cdc_read_clear (uint8_t idx)
 {
   cdch_interface_t* p_cdc = get_itf(idx);
