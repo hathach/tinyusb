@@ -682,8 +682,6 @@ uint16_t tu_fifo_read_n_const_addr_full_words(tu_fifo_t* f, void * buffer, uint1
 
     @param[in]  f
                 Pointer to the FIFO buffer to manipulate
-    @param[in]  offset
-                Position to read from in the FIFO buffer with respect to read pointer
     @param[in]  p_buffer
                 Pointer to the place holder for data read from the buffer
 

@@ -80,7 +80,7 @@ int32_t  tud_cdc_n_read_char       (uint8_t itf);
 // Clear the received FIFO
 void     tud_cdc_n_read_flush      (uint8_t itf);
 
-// Get a byte from FIFO at the specified position without removing it
+// Get a byte from FIFO without removing it
 bool     tud_cdc_n_peek            (uint8_t itf, uint8_t* ui8);
 
 // Write bytes to TX FIFO, data may remain in the FIFO for a while
