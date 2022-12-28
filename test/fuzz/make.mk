@@ -16,9 +16,9 @@ __check_defined = \
 
 #-------------- Fuzz harness compiler  ------------
 
-CC = clang
-CXX = clang++
-GDB = gdb
+CC ?= clang
+CXX ?= clang++
+GDB ?= gdb
 OBJCOPY = objcopy
 SIZE = size
 MKDIR = mkdir
@@ -34,6 +34,13 @@ else
   PYTHON = python3
 endif
 
+#-------------- Fuzz harness flags ------------
+COVERAGE_FLAGS ?= -fsanitize-coverage=trace-pc-guard
+SANITIZER_FLAGS ?= -fsanitize=fuzzer \
+                   -fsanitize=address
+
+CFLAGS += $(COVERAGE_FLAGS) $(SANITIZER_FLAGS)
+
 #-------------- Source files and compiler flags --------------
 
 
@@ -42,9 +49,6 @@ INC += $(TOP)/test
 # Compiler Flags
 CFLAGS += \
   -ggdb \
-  -fsanitize=fuzzer \
-  -fsanitize=address \
-  -fsanitize=undefined \
   -fdata-sections \
   -ffunction-sections \
   -fno-strict-aliasing \
