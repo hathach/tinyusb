@@ -6,6 +6,8 @@
  * Portions:
  * Copyright (c) 2016 STMicroelectronics
  * Copyright (c) 2019 Ha Thach (tinyusb.org)
+ * Copyright (c) 2022 Simon Küppers (skuep)
+ * Copyright (c) 2022 HiFiPhile
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -987,7 +989,7 @@ bool dcd_edpt_xfer_fifo (uint8_t rhport, uint8_t ep_addr, tu_fifo_t * ff, uint16
   uint8_t const dir   = tu_edpt_dir(ep_addr);
 
   xfer->buffer = NULL;
-  xfer->ff     = ff; // TODO support dcd_edpt_xfer_fifo API
+  xfer->ff     = ff;
   xfer->total_len = total_bytes;
   xfer->queued_len = 0;
 
@@ -1088,7 +1090,7 @@ static bool dcd_write_packet_memory(uint16_t dst, const void *__restrict src, si
   if (wNBytes & 0x01)
   {
     temp1 = *srcVal;
-    *pdwVal = temp2;
+    *pdwVal = temp1;
   }
 
   return true;
@@ -1100,40 +1102,46 @@ static bool dcd_write_packet_memory(uint16_t dst, const void *__restrict src, si
   * @param   wNBytes no. of bytes to be copied.
   * @retval None
   */
-
-// THIS FUNCTION IS UNTESTED
-
 static bool dcd_write_packet_memory_ff(tu_fifo_t * ff, uint16_t dst, uint16_t wNBytes)
 {
   // Since we copy from a ring buffer FIFO, a wrap might occur making it necessary to conduct two copies
-  // Check for first linear part
   tu_fifo_buffer_info_t info;
-  tu_fifo_get_read_info(ff, &info);  // We want to read from the FIFO
-  TU_VERIFY(info.len_lin && dcd_write_packet_memory(dst, info.ptr_lin, info.len_lin));           // and write it into the PMA
-  tu_fifo_advance_read_pointer(ff, info.len_lin);
-
-  // Check for wrapped part
-  if (info.len_wrap)
+  tu_fifo_get_read_info(ff, &info); 
+  
+  uint16_t cnt_lin =  TU_MIN(wNBytes, info.len_lin);
+  uint16_t cnt_wrap = TU_MIN(wNBytes - cnt_lin, info.len_wrap);
+  
+  // We want to read from the FIFO and write it into the PMA, if LIN part is ODD and has WRAPPED part,
+  // last lin byte will be combined with wrapped part
+  // To ensure PMA is always access 16bit aligned (dst aligned to 16 bit)
+  if((cnt_lin & 0x01) && cnt_wrap)
   {
-    // Update destination pointer
-    dst += info.len_lin;
-    uint8_t* src = (uint8_t*)info.ptr_wrap;
-    uint16_t len2 = info.len_wrap;
+    // Copy first linear part
+    dcd_write_packet_memory(dst, info.ptr_lin, cnt_lin &~0x01);
+    dst += cnt_lin &~0x01;
 
-    // Since PMA is accessed 16-bit wise we need to handle the case when a 16 bit value was split
-    if (info.len_lin % 2)    // If len is uneven there is a byte left to copy
-    {
-      TU_ASSERT(false); // TODO: Step through and check -> untested
+    // Copy last linear byte & first wrapped byte
+    uint16_t tmp = ((uint8_t*)info.ptr_lin)[cnt_lin - 1] | ((uint16_t)(((uint8_t*)info.ptr_wrap)[0]) << 8U);
+    dcd_write_packet_memory(dst, &tmp, 2);
+    dst += 2;
 
-      uint16_t temp = ((uint8_t *)info.ptr_lin)[info.len_lin-1] | src[0] << 16; // CHECK endianess
-      pma[PMA_STRIDE*(dst>>1)] = temp;
-      src++;
-      len2--;
-    }
-
-    TU_VERIFY(dcd_write_packet_memory(dst, src, len2));
-    tu_fifo_advance_write_pointer(ff, info.len_wrap);
+    // Copy rest of wrapped byte
+    dcd_write_packet_memory(dst, ((uint8_t*)info.ptr_wrap) + 1, cnt_wrap - 1);
   }
+  else
+  {
+    // Copy linear part
+    dcd_write_packet_memory(dst, info.ptr_lin, cnt_lin);
+    dst += info.len_lin;
+
+    if(info.len_wrap)
+    {
+      // Copy wrapped byte
+      dcd_write_packet_memory(dst, info.ptr_wrap, cnt_wrap);
+    }
+  }
+
+  tu_fifo_advance_read_pointer(ff, cnt_lin + cnt_wrap);
 
   return true;
 }
@@ -1178,9 +1186,6 @@ static bool dcd_read_packet_memory(void *__restrict dst, uint16_t src, size_t wN
   * @param   wNBytes no. of bytes to be copied.
   * @retval None
   */
-
-// THIS FUNCTION IS UNTESTED
-
 static bool dcd_read_packet_memory_ff(tu_fifo_t * ff, uint16_t src, uint16_t wNBytes)
 {
   // Since we copy into a ring buffer FIFO, a wrap might occur making it necessary to conduct two copies
@@ -1188,29 +1193,43 @@ static bool dcd_read_packet_memory_ff(tu_fifo_t * ff, uint16_t src, uint16_t wNB
   tu_fifo_buffer_info_t info;
   tu_fifo_get_write_info(ff, &info);  // We want to read from the FIFO
 
-  TU_VERIFY(info.len_lin && dcd_read_packet_memory(info.ptr_lin, src, info.len_lin));
-  tu_fifo_advance_write_pointer(ff, info.len_lin);
+  uint16_t cnt_lin =  TU_MIN(wNBytes, info.len_lin);
+  uint16_t cnt_wrap = TU_MIN(wNBytes - cnt_lin, info.len_wrap);
 
-  // Check for wrapped part
-  if (info.len_wrap)
+  // We want to read from PMA and write it into the FIFO, if LIN part is ODD and has WRAPPED part,
+  // last lin byte will be combined with wrapped part
+  // To ensure PMA is always access 16bit aligned (src aligned to 16 bit)
+  if((cnt_lin & 0x01) && cnt_wrap)
   {
-    // Update source pointer
-    src += info.len_lin;
+    // Copy first linear part
+    dcd_read_packet_memory(info.ptr_lin, src, cnt_lin &~0x01);
+    src += cnt_lin &~0x01;
 
-    // Since PMA is accessed 16-bit wise we need to handle the case when a 16 bit value was split
-    if (info.len_lin % 2)    // If len is uneven there is a byte left to copy
-    {
-      TU_ASSERT(false); //TODO: step through -> untested
-      uint32_t temp = pma[PMA_STRIDE*(src>>1)];
-      *((uint8_t *)info.ptr_wrap++) = ((temp >> 8) & 0xFF);
-      src++;
-      tu_fifo_advance_write_pointer(ff, 1);
-      info.len_wrap--;
-    }
+    // Copy last linear byte & first wrapped byte
+    uint16_t tmp;
+    dcd_read_packet_memory(&tmp, src, 2);
+    
+    ((uint8_t*)info.ptr_lin)[cnt_lin - 1] = (uint8_t)tmp;
+    ((uint8_t*)info.ptr_wrap)[0] = (uint8_t)(tmp >> 8U);
+    src += 2;
 
-    TU_VERIFY(dcd_read_packet_memory(info.ptr_wrap, src, info.len_wrap));
-    tu_fifo_advance_write_pointer(ff, info.len_wrap);
+    // Copy rest of wrapped byte
+    dcd_read_packet_memory(((uint8_t*)info.ptr_wrap) + 1, src, cnt_wrap - 1);
   }
+  else
+  {
+    // Copy linear part
+    dcd_read_packet_memory(info.ptr_lin, src, cnt_lin);
+    src += cnt_lin;
+
+    if(info.len_wrap)
+    {
+      // Copy wrapped byte
+      dcd_read_packet_memory(info.ptr_wrap, src, cnt_wrap);
+    }
+  }
+
+  tu_fifo_advance_write_pointer(ff, cnt_lin + cnt_wrap);
 
   return true;
 }
