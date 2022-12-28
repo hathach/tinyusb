@@ -1064,8 +1064,7 @@ void dcd_edpt_clear_stall (uint8_t rhport, uint8_t ep_addr)
   */
 static bool dcd_write_packet_memory(uint16_t dst, const void *__restrict src, size_t wNBytes)
 {
-  uint32_t n =  ((uint32_t)wNBytes + 1U) >> 1U;
-  uint32_t i;
+  uint32_t n = (uint32_t)wNBytes >> 1U;
   uint16_t temp1, temp2;
   const uint8_t * srcVal;
 
@@ -1076,15 +1075,22 @@ static bool dcd_write_packet_memory(uint16_t dst, const void *__restrict src, si
   srcVal = src;
   pdwVal = &pma[PMA_STRIDE*(dst>>1)];
 
-  for (i = n; i != 0; i--)
+  while (n--)
   {
-    temp1 = (uint16_t) *srcVal;
+    temp1 = (uint16_t)*srcVal;
     srcVal++;
-    temp2 = temp1 | ((uint16_t)((uint16_t) ((*srcVal) << 8U))) ;
+    temp2 = temp1 | ((uint16_t)(((uint16_t)(*srcVal)) << 8U)) ;
     *pdwVal = temp2;
     pdwVal += PMA_STRIDE;
     srcVal++;
   }
+
+  if (wNBytes & 0x01)
+  {
+    temp1 = *srcVal;
+    *pdwVal = temp2;
+  }
+
   return true;
 }
 
@@ -1141,7 +1147,6 @@ static bool dcd_write_packet_memory_ff(tu_fifo_t * ff, uint16_t dst, uint16_t wN
 static bool dcd_read_packet_memory(void *__restrict dst, uint16_t src, size_t wNBytes)
 {
   uint32_t n = (uint32_t)wNBytes >> 1U;
-  uint32_t i;
   // The GCC optimizer will combine access to 32-bit sizes if we let it. Force
   // it volatile so that it won't do that.
   __IO const uint16_t *pdwVal;
@@ -1150,7 +1155,7 @@ static bool dcd_read_packet_memory(void *__restrict dst, uint16_t src, size_t wN
   pdwVal = &pma[PMA_STRIDE*(src>>1)];
   uint8_t *dstVal = (uint8_t*)dst;
 
-  for (i = n; i != 0U; i--)
+  while (n--)
   {
     temp = *pdwVal;
     pdwVal += PMA_STRIDE;
