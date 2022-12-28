@@ -66,9 +66,6 @@
  * - STALL handled, but not tested.
  *   - Does it work? No clue.
  * - All EP BTABLE buffers are created based on max packet size of first EP opened with that address.
- * - Endpoint index is the ID of the endpoint
- *   - This means that priority is given to endpoints with lower ID numbers
- *   - Manual override of this mapping is possible through callback
  * - Packet buffer memory is copied in the interrupt.
  *   - This is better for performance, but means interrupts are disabled for longer
  *   - DMA may be the best choice, but it could also be pushed to the USBD task.
@@ -186,6 +183,16 @@ TU_ATTR_ALWAYS_INLINE static inline xfer_ctl_t* xfer_ctl_ptr(uint32_t ep_addr)
   return &xfer_status[epnum][dir];
 }
 
+// EP allocator
+typedef struct
+{
+  uint8_t ep_num;
+  uint8_t ep_type;
+  bool allocated[2];
+} ep_alloc_t;
+
+static ep_alloc_t ep_alloc_status[STFSDEV_EP_COUNT];
+
 static TU_ATTR_ALIGNED(4) uint32_t _setup_packet[6];
 
 static uint8_t remoteWakeCountdown; // When wake is requested
@@ -201,6 +208,8 @@ static uint16_t ep_buf_ptr; ///< Points to first free memory location
 static void dcd_pma_alloc_reset(void);
 static uint16_t dcd_pma_alloc(uint8_t ep_addr, size_t length);
 static void dcd_pma_free(uint8_t ep_addr);
+static void dcd_ep_free(uint8_t ep_addr);
+static uint8_t dcd_ep_alloc(tusb_desc_endpoint_t const * p_endpoint_desc);
 static bool dcd_write_packet_memory(uint16_t dst, const void *__restrict src, size_t wNBytes);
 static bool dcd_read_packet_memory(void *__restrict dst, uint16_t src, size_t wNBytes);
 
@@ -458,10 +467,17 @@ static void dcd_handle_bus_reset(void)
   //__IO uint16_t * const epreg = &(EPREG(0));
   USB->DADDR = 0u; // disable USB peripheral by clearing the EF flag
 
-  // Clear all EPREG (or maybe this is automatic? I'm not sure)
+  
   for(uint32_t i=0; i<STFSDEV_EP_COUNT; i++)
   {
+    // Clear all EPREG (or maybe this is automatic? I'm not sure)
     pcd_set_endpoint(USB,i,0u);
+    
+    // Clear EP allocation status
+    ep_alloc_status[i].ep_num = 0xFF;
+    ep_alloc_status[i].ep_type = 0xFF;
+    ep_alloc_status[i].allocated[0] = false;
+    ep_alloc_status[i].allocated[1] = false;
   }
 
   dcd_pma_alloc_reset();
@@ -783,20 +799,85 @@ static void dcd_pma_free(uint8_t ep_addr)
   }
 }
 
+/***
+ * Allocate hardware endpoint
+ */
+static uint8_t dcd_ep_alloc(tusb_desc_endpoint_t const * p_endpoint_desc)
+{
+  uint8_t const epnum = tu_edpt_number(p_endpoint_desc->bEndpointAddress);
+  uint8_t const dir   = tu_edpt_dir(p_endpoint_desc->bEndpointAddress);
+  uint8_t const eptype = p_endpoint_desc->bmAttributes.xfer;
+
+  for(uint8_t i = 0; i < STFSDEV_EP_COUNT; i++)
+  {
+    // If EP of current direction is not allocated
+    // Except for ISO endpoint, both direction should be free
+    if(!ep_alloc_status[i].allocated[dir] &&
+       (eptype != TUSB_XFER_ISOCHRONOUS || !ep_alloc_status[i].allocated[dir ^ 1]))
+    {
+      // Check if EP number is the same
+      if(ep_alloc_status[i].ep_num == 0xFF ||
+         ep_alloc_status[i].ep_num == epnum)
+      {
+        // One EP pair has to be the same type
+        if(ep_alloc_status[i].ep_type == 0xFF ||
+           ep_alloc_status[i].ep_type == eptype)
+        {
+          ep_alloc_status[i].ep_num = epnum;
+          ep_alloc_status[i].ep_type = eptype;
+          ep_alloc_status[i].allocated[dir] = true;
+          
+          return i;
+        }
+      }
+    }
+  }
+
+  // Allocation failed
+  TU_ASSERT(0);
+}
+
+/***
+ * Free hardware endpoint
+ */
+static void dcd_ep_free(uint8_t ep_addr)
+{
+  uint8_t const epnum = tu_edpt_number(ep_addr);
+  uint8_t const dir   = tu_edpt_dir(ep_addr);
+
+  for(uint8_t i = 0; i < STFSDEV_EP_COUNT; i++)
+  {
+    // Check if EP number & dir are the same
+    if(ep_alloc_status[i].ep_num == epnum && 
+       ep_alloc_status[i].allocated[dir] == dir)
+    {
+      ep_alloc_status[i].allocated[dir] = false;
+      // Reset entry if ISO endpoint or both direction are free
+      if(ep_alloc_status[i].ep_type == TUSB_XFER_ISOCHRONOUS ||
+         !ep_alloc_status[i].allocated[dir ^ 1])
+      {
+        ep_alloc_status[i].ep_num = 0xFF;
+        ep_alloc_status[i].ep_type = 0xFF;
+
+        return;
+      }
+    }
+  }
+}
+
 // The STM32F0 doesn't seem to like |= or &= to manipulate the EP#R registers,
 // so I'm using the #define from HAL here, instead.
 
 bool dcd_edpt_open (uint8_t rhport, tusb_desc_endpoint_t const * p_endpoint_desc)
 {
   (void)rhport;
-  /* TODO: This hardware endpoint allocation could be more sensible. For now, simple allocation or manual allocation using callback */
-  uint8_t const epnum = tu_stm32_edpt_number_cb ? tu_stm32_edpt_number_cb(p_endpoint_desc->bEndpointAddress) : tu_edpt_number(p_endpoint_desc->bEndpointAddress);
+  uint8_t const epnum = dcd_ep_alloc(p_endpoint_desc);
   uint8_t const dir   = tu_edpt_dir(p_endpoint_desc->bEndpointAddress);
   const uint16_t buffer_size = pcd_aligned_buffer_size(tu_edpt_packet_size(p_endpoint_desc));
   uint16_t pma_addr;
   uint32_t wType;
 
-  TU_ASSERT(epnum < MAX_EP_COUNT);
+  TU_ASSERT(epnum < STFSDEV_EP_COUNT);
   TU_ASSERT(buffer_size <= 1024);
 
   // Set type
@@ -905,6 +986,8 @@ void dcd_edpt_close (uint8_t rhport, uint8_t ep_addr)
   {
     pcd_set_ep_rx_status(USB, epnum, USB_EP_RX_DIS);
   }
+
+  dcd_ep_free(ep_addr);
 
   dcd_pma_free(ep_addr);
 }
