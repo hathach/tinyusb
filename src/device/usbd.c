@@ -1386,7 +1386,10 @@ bool usbd_edpt_iso_alloc(uint8_t rhport, uint8_t ep_addr, uint16_t largest_packe
 
   TU_ASSERT(tu_edpt_number(ep_addr) < CFG_TUD_ENDPPOINT_MAX);
 
-  return dcd_edpt_iso_alloc(rhport, ep_addr, largest_packet_size);
+  if (dcd_edpt_iso_alloc)
+    return dcd_edpt_iso_alloc(rhport, ep_addr, largest_packet_size);
+  else
+    return false;
 }
 
 bool usbd_edpt_iso_activate(uint8_t rhport, tusb_desc_endpoint_t const * desc_ep)
@@ -1396,7 +1399,10 @@ bool usbd_edpt_iso_activate(uint8_t rhport, tusb_desc_endpoint_t const * desc_ep
   TU_ASSERT(tu_edpt_number(desc_ep->bEndpointAddress) < CFG_TUD_ENDPPOINT_MAX);
   TU_ASSERT(tu_edpt_validate(desc_ep, (tusb_speed_t) _usbd_dev.speed));
 
-  return dcd_edpt_iso_activate(rhport, desc_ep);
+  if (dcd_edpt_iso_activate)
+    return dcd_edpt_iso_activate(rhport, desc_ep);
+  else
+    return false;
 }
 
 #endif
