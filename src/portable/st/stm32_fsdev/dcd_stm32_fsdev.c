@@ -149,12 +149,6 @@
 #  define DCD_STM32_BTABLE_LENGTH (PMA_LENGTH - DCD_STM32_BTABLE_BASE)
 #endif
 
-// Since TinyUSB doesn't use SOF for now, and this interrupt too often (1ms interval)
-// We disable SOF for now until needed later on
-#ifndef USE_SOF
-#  define USE_SOF     0
-#endif
-
 /***************************************************
  * Checks, structs, defines, function definitions, etc.
  */
@@ -259,7 +253,7 @@ void dcd_init (uint8_t rhport)
     pcd_set_endpoint(USB,i,0u);
   }
 
-  USB->CNTR |= USB_CNTR_RESETM | (USE_SOF ? USB_CNTR_SOFM : 0) | USB_CNTR_ESOFM | USB_CNTR_CTRM | USB_CNTR_SUSPM | USB_CNTR_WKUPM;
+  USB->CNTR |= USB_CNTR_RESETM | USB_CNTR_ESOFM | USB_CNTR_CTRM | USB_CNTR_SUSPM | USB_CNTR_WKUPM;
   dcd_handle_bus_reset();
   
   // Enable pull-up if supported
@@ -304,7 +298,14 @@ void dcd_sof_enable(uint8_t rhport, bool en)
   (void) rhport;
   (void) en;
 
-  // TODO implement later
+  if (en)
+  {
+    USB->CNTR |= USB_CNTR_SOFM;
+  }
+  else
+  {
+    USB->CNTR &= (uint16_t) ~USB_CNTR_SOFM;
+  }
 }
 
 // Enable device interrupt
@@ -655,12 +656,10 @@ void dcd_int_handler(uint8_t rhport) {
     dcd_event_bus_signal(0, DCD_EVENT_SUSPEND, true);
   }
 
-#if USE_SOF
   if(int_status & USB_ISTR_SOF) {
     clear_istr_bits(USB_ISTR_SOF);
-    dcd_event_bus_signal(0, DCD_EVENT_SOF, true);
+    dcd_event_sof(0, USB->FNR & USB_FNR_FN, true);
   }
-#endif 
 
   if(int_status & USB_ISTR_ESOF) {
     if(remoteWakeCountdown == 1u)
