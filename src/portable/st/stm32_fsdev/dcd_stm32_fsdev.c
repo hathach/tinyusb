@@ -1170,9 +1170,11 @@ void dcd_edpt_clear_stall (uint8_t rhport, uint8_t ep_addr)
   }
   else
   { // OUT
+    if (pcd_get_eptype(USB, epnum) !=  USB_EP_ISOCHRONOUS) {
+      pcd_set_ep_rx_status(USB, epnum, USB_EP_RX_NAK);
+    }
     /* Reset to DATA0 if clearing stall condition. */
     pcd_clear_rx_dtog(USB, epnum);
-    pcd_set_ep_rx_status(USB, epnum, USB_EP_RX_NAK);
   }
 }
 
