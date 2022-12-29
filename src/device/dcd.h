@@ -169,10 +169,10 @@ void dcd_edpt_clear_stall     (uint8_t rhport, uint8_t ep_addr);
 
 // Allocate packet buffer used by ISO endpoints
 // Some MCU need manual packet buffer allocation, we allocation largest size to avoid clustering
-bool dcd_edpt_iso_alloc(uint8_t rhport, uint8_t ep_addr, uint16_t largest_packet_size);
+TU_ATTR_WEAK bool dcd_edpt_iso_alloc(uint8_t rhport, uint8_t ep_addr, uint16_t largest_packet_size);
 
 // Configure and enable an ISO endpoint according to descriptor
-bool dcd_edpt_iso_activate(uint8_t rhport,  tusb_desc_endpoint_t const * p_endpoint_desc);
+TU_ATTR_WEAK bool dcd_edpt_iso_activate(uint8_t rhport,  tusb_desc_endpoint_t const * p_endpoint_desc);
 //--------------------------------------------------------------------+
 // Event API (implemented by stack)
 //--------------------------------------------------------------------+

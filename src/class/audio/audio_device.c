@@ -76,26 +76,19 @@
 // Linear buffer in case target MCU is not capable of handling a ring buffer FIFO e.g. no hardware buffer
 // is available or driver is would need to be changed dramatically
 
-// Only STM32 synopsys and dcd_transdimension use non-linear buffer for now
-// Synopsys detection copied from dcd_synopsys.c (refactor later on)
-#if defined (STM32F105x8) || defined (STM32F105xB) || defined (STM32F105xC) || \
-    defined (STM32F107xB) || defined (STM32F107xC)
-#define STM32F1_SYNOPSYS
-#endif
-
-#if defined (STM32L475xx) || defined (STM32L476xx) ||                          \
-    defined (STM32L485xx) || defined (STM32L486xx) || defined (STM32L496xx) || \
-    defined (STM32L4R5xx) || defined (STM32L4R7xx) || defined (STM32L4R9xx) || \
-    defined (STM32L4S5xx) || defined (STM32L4S7xx) || defined (STM32L4S9xx)
-#define STM32L4_SYNOPSYS
-#endif
-
-#if (CFG_TUSB_MCU == OPT_MCU_STM32F1 && defined(STM32F1_SYNOPSYS)) || \
+// Only STM32 and dcd_transdimension use non-linear buffer for now
+#if CFG_TUSB_MCU == OPT_MCU_STM32F0                               || \
+    CFG_TUSB_MCU == OPT_MCU_STM32F1                               || \
     CFG_TUSB_MCU == OPT_MCU_STM32F2                               || \
+    CFG_TUSB_MCU == OPT_MCU_STM32F3                               || \
     CFG_TUSB_MCU == OPT_MCU_STM32F4                               || \
     CFG_TUSB_MCU == OPT_MCU_STM32F7                               || \
     CFG_TUSB_MCU == OPT_MCU_STM32H7                               || \
-    (CFG_TUSB_MCU == OPT_MCU_STM32L4 && defined(STM32L4_SYNOPSYS)) || \
+    CFG_TUSB_MCU == OPT_MCU_STM32L0                               || \
+    CFG_TUSB_MCU == OPT_MCU_STM32L1                               || \
+    CFG_TUSB_MCU == OPT_MCU_STM32L4                               || \
+    CFG_TUSB_MCU == OPT_MCU_STM32G4                               || \
+    CFG_TUSB_MCU == OPT_MCU_STM32WB                               || \
     CFG_TUSB_MCU == OPT_MCU_RX63X                                 || \
     CFG_TUSB_MCU == OPT_MCU_RX65X                                 || \
     CFG_TUSB_MCU == OPT_MCU_RX72N                                 || \
