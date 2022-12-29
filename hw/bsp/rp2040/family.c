@@ -121,16 +121,6 @@ static uart_inst_t *uart_inst;
 
 void board_init(void)
 {
-#ifdef LED_PIN
-  bi_decl(bi_1pin_with_name(LED_PIN, "LED"));
-  gpio_init(LED_PIN);
-  gpio_set_dir(LED_PIN, GPIO_OUT);
-#endif
-
-  // Button
-#ifndef BUTTON_BOOTSEL
-#endif
-
 #if CFG_TUH_RPI_PIO_USB || CFG_TUD_RPI_PIO_USB
   // Set the system clock to a multiple of 120mhz for bitbanging USB with pico-usb
   set_sys_clock_khz(120000, true);
@@ -146,6 +136,16 @@ void board_init(void)
   pio_usb_configuration_t pio_cfg = PIO_USB_DEFAULT_CONFIG;
   pio_cfg.pin_dp = PIO_USB_DP_PIN;
   tuh_configure(BOARD_TUH_RHPORT, TUH_CFGID_RPI_PIO_USB_CONFIGURATION, &pio_cfg);
+#endif
+
+#ifdef LED_PIN
+  bi_decl(bi_1pin_with_name(LED_PIN, "LED"));
+  gpio_init(LED_PIN);
+  gpio_set_dir(LED_PIN, GPIO_OUT);
+#endif
+
+  // Button
+#ifndef BUTTON_BOOTSEL
 #endif
 
 #if defined(UART_DEV) && defined(LIB_PICO_STDIO_UART)
@@ -192,10 +192,13 @@ uint32_t board_button_read(void)
 int board_uart_read(uint8_t* buf, int len)
 {
 #ifdef UART_DEV
-  for(int i=0;i<len;i++) {
-    buf[i] = uart_getc(uart_inst);
+  int count = 0;
+  while ( (count < len) && uart_is_readable(uart_inst) )
+  {
+    buf[count] = uart_getc(uart_inst);
+    count++;
   }
-  return len;
+  return count;
 #else
   (void) buf; (void) len;
   return 0;
@@ -216,8 +219,13 @@ int board_uart_write(void const * buf, int len)
 #endif
 }
 
+int board_getchar(void)
+{
+  return getchar_timeout_us(0);
+}
+
 //--------------------------------------------------------------------+
 // USB Interrupt Handler
-// rp2040 implementation will install approriate handler when initializing
+// rp2040 implementation will install appropriate handler when initializing
 // tinyusb. There is no need to forward IRQ from application
 //--------------------------------------------------------------------+

@@ -162,7 +162,6 @@ void tuh_hid_mount_cb(uint8_t dev_addr, uint8_t instance, uint8_t const* desc_re
 void tuh_hid_umount_cb(uint8_t dev_addr, uint8_t instance)
 {
   printf("HID device address = %d, instance = %d is unmounted\r\n", dev_addr, instance);
-
 }
 
 // check if different than 2

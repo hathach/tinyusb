@@ -240,7 +240,11 @@ static void udp_recv_proc(void *arg, struct udp_pcb *upcb, struct pbuf *p, const
 	unsigned n = p->len;
 	if (n > sizeof(dhcp_data)) n = sizeof(dhcp_data);
 	memcpy(&dhcp_data, p->payload, n);
-	switch (dhcp_data.dp_options[2])
+
+	ptr = find_dhcp_option(dhcp_data.dp_options, sizeof(dhcp_data.dp_options), DHCP_MESSAGETYPE);
+	if (ptr == NULL) return;
+
+	switch (ptr[2])
 	{
 		case DHCP_DISCOVER:
 			entry = entry_by_mac(dhcp_data.dp_chaddr);

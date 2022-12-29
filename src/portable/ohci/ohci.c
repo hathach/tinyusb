@@ -165,7 +165,7 @@ bool hcd_init(uint8_t rhport)
   //------------- Data Structure init -------------//
   tu_memclr(&ohci_data, sizeof(ohci_data_t));
   for(uint8_t i=0; i<32; i++)
-  { // assign all interrupt pointes to period head ed
+  { // assign all interrupt pointers to period head ed
     ohci_data.hcca.interrupt_table[i] = (uint32_t) &ohci_data.period_head_ed;
   }
 
