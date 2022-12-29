@@ -885,11 +885,9 @@ bool dcd_edpt_open (uint8_t rhport, tusb_desc_endpoint_t const * p_endpoint_desc
   case TUSB_XFER_CONTROL:
     wType = USB_EP_CONTROL;
     break;
-#if defined(ISOCHRONOUS_DOUBLEBUFFER)
   case TUSB_XFER_ISOCHRONOUS:
     wType = USB_EP_ISOCHRONOUS;
     break;
-#endif
   case TUSB_XFER_BULK:
     wType = USB_EP_CONTROL;
     break;
@@ -914,20 +912,13 @@ bool dcd_edpt_open (uint8_t rhport, tusb_desc_endpoint_t const * p_endpoint_desc
    * use the same buffer as the double buffer, essentially disabling double buffering */
   pma_addr = dcd_pma_alloc(p_endpoint_desc->bEndpointAddress, buffer_size);
 
-#if defined(ISOCHRONOUS_DOUBLEBUFFER)
   if( (dir == TUSB_DIR_IN) || (wType == USB_EP_ISOCHRONOUS) )
-#else
-  if(dir == TUSB_DIR_IN)
-#endif
   {
     *pcd_ep_tx_address_ptr(USB, epnum) = pma_addr;
     pcd_clear_tx_dtog(USB, epnum);
   }
-#if defined(ISOCHRONOUS_DOUBLEBUFFER)
+
   if( (dir == TUSB_DIR_OUT) || (wType == USB_EP_ISOCHRONOUS) )
-#else
-  else
-#endif
   {
     *pcd_ep_rx_address_ptr(USB, epnum) = pma_addr;
     pcd_set_ep_rx_bufsize(USB, epnum, buffer_size);
@@ -1035,7 +1026,7 @@ bool dcd_edpt_xfer (uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t 
   uint8_t const dir   = tu_edpt_dir(ep_addr);
 
   xfer->buffer = buffer;
-  xfer->ff     = NULL; // TODO support dcd_edpt_xfer_fifo API
+  xfer->ff     = NULL;
   xfer->total_len = total_bytes;
   xfer->queued_len = 0;
 

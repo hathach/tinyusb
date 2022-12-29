@@ -66,7 +66,6 @@
       defined(STM32F373xC)
   #include "stm32f3xx.h"
   #define PMA_LENGTH (512u)
-  #define ISOCHRONOUS_DOUBLEBUFFER
   // NO internal Pull-ups
   //         *B, and *C:    1 x 16 bits/word
   // PMA dedicated to USB (no sharing with CAN)
@@ -76,7 +75,6 @@
       defined(STM32F303xD) || defined(STM32F303xE)
   #include "stm32f3xx.h"
   #define PMA_LENGTH (1024u)
-  #define ISOCHRONOUS_DOUBLEBUFFER
   // NO internal Pull-ups
   // *6, *8, *D, and *E:    2 x 16 bits/word     LPM Support
   // When CAN clock is enabled, USB can use first 768 bytes ONLY.
