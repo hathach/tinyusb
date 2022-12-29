@@ -209,7 +209,7 @@ static void dcd_pma_alloc_reset(void);
 static uint16_t dcd_pma_alloc(uint8_t ep_addr, size_t length);
 static void dcd_pma_free(uint8_t ep_addr);
 static void dcd_ep_free(uint8_t ep_addr);
-static uint8_t dcd_ep_alloc(tusb_desc_endpoint_t const * p_endpoint_desc);
+static uint8_t dcd_ep_alloc(uint8_t ep_addr, uint8_t ep_type);
 static bool dcd_write_packet_memory(uint16_t dst, const void *__restrict src, size_t wNBytes);
 static bool dcd_read_packet_memory(void *__restrict dst, uint16_t src, size_t wNBytes);
 
@@ -758,13 +758,15 @@ static uint16_t dcd_pma_alloc(uint8_t ep_addr, size_t length)
     TU_ASSERT(length <= epXferCtl->pma_alloc_size, 0xFFFF);  // Verify no larger than previous alloc
     return epXferCtl->pma_ptr;
   }
-  
+
+  open_ep_count++;
+
   uint16_t addr = ep_buf_ptr;
   ep_buf_ptr = (uint16_t)(ep_buf_ptr + length); // increment buffer pointer
-  
+
   // Verify no overflow
   TU_ASSERT(ep_buf_ptr <= PMA_LENGTH, 0xFFFF);
-  
+
   epXferCtl->pma_ptr = addr;
   epXferCtl->pma_alloc_size = length;
   //TU_LOG2("dcd_pma_alloc(%x,%x)=%x\r\n",ep_addr,length,addr);
@@ -802,18 +804,17 @@ static void dcd_pma_free(uint8_t ep_addr)
 /***
  * Allocate hardware endpoint
  */
-static uint8_t dcd_ep_alloc(tusb_desc_endpoint_t const * p_endpoint_desc)
+static uint8_t dcd_ep_alloc(uint8_t ep_addr, uint8_t ep_type)
 {
-  uint8_t const epnum = tu_edpt_number(p_endpoint_desc->bEndpointAddress);
-  uint8_t const dir   = tu_edpt_dir(p_endpoint_desc->bEndpointAddress);
-  uint8_t const eptype = p_endpoint_desc->bmAttributes.xfer;
+  uint8_t const epnum = tu_edpt_number(ep_addr);
+  uint8_t const dir   = tu_edpt_dir(ep_addr);
 
   for(uint8_t i = 0; i < STFSDEV_EP_COUNT; i++)
   {
     // If EP of current direction is not allocated
     // Except for ISO endpoint, both direction should be free
     if(!ep_alloc_status[i].allocated[dir] &&
-       (eptype != TUSB_XFER_ISOCHRONOUS || !ep_alloc_status[i].allocated[dir ^ 1]))
+       (ep_type != TUSB_XFER_ISOCHRONOUS || !ep_alloc_status[i].allocated[dir ^ 1]))
     {
       // Check if EP number is the same
       if(ep_alloc_status[i].ep_num == 0xFF ||
@@ -821,10 +822,10 @@ static uint8_t dcd_ep_alloc(tusb_desc_endpoint_t const * p_endpoint_desc)
       {
         // One EP pair has to be the same type
         if(ep_alloc_status[i].ep_type == 0xFF ||
-           ep_alloc_status[i].ep_type == eptype)
+           ep_alloc_status[i].ep_type == ep_type)
         {
           ep_alloc_status[i].ep_num = epnum;
-          ep_alloc_status[i].ep_type = eptype;
+          ep_alloc_status[i].ep_type = ep_type;
           ep_alloc_status[i].allocated[dir] = true;
           
           return i;
@@ -871,7 +872,7 @@ static void dcd_ep_free(uint8_t ep_addr)
 bool dcd_edpt_open (uint8_t rhport, tusb_desc_endpoint_t const * p_endpoint_desc)
 {
   (void)rhport;
-  uint8_t const epnum = dcd_ep_alloc(p_endpoint_desc);
+  uint8_t const epnum = dcd_ep_alloc(p_endpoint_desc->bEndpointAddress, p_endpoint_desc->bmAttributes.xfer);
   uint8_t const dir   = tu_edpt_dir(p_endpoint_desc->bEndpointAddress);
   const uint16_t buffer_size = pcd_aligned_buffer_size(tu_edpt_packet_size(p_endpoint_desc));
   uint16_t pma_addr;
@@ -899,8 +900,6 @@ bool dcd_edpt_open (uint8_t rhport, tusb_desc_endpoint_t const * p_endpoint_desc
   default:
     TU_ASSERT(false);
   }
-
-  open_ep_count++;
 
   pcd_set_eptype(USB, epnum, wType);
   pcd_set_ep_address(USB, epnum, tu_edpt_number(p_endpoint_desc->bEndpointAddress));
@@ -981,6 +980,56 @@ void dcd_edpt_close (uint8_t rhport, uint8_t ep_addr)
   dcd_ep_free(ep_addr);
 
   dcd_pma_free(ep_addr);
+}
+
+bool dcd_edpt_iso_alloc(uint8_t rhport, uint8_t ep_addr, uint16_t largest_packet_size)
+{
+  (void)rhport;
+  
+  TU_ASSERT(largest_packet_size <= 1024);
+  
+  uint8_t const epnum = dcd_ep_alloc(ep_addr, TUSB_XFER_ISOCHRONOUS);
+  const uint16_t buffer_size = pcd_aligned_buffer_size(largest_packet_size);
+
+  /* Create a packet memory buffer area. For isochronous endpoints,
+   * use the same buffer as the double buffer, essentially disabling double buffering */
+  dcd_pma_alloc(ep_addr, buffer_size);
+
+  xfer_ctl_ptr(ep_addr)->epnum = epnum;
+
+  return true;
+}
+
+bool dcd_edpt_iso_activate(uint8_t rhport,  tusb_desc_endpoint_t const * p_endpoint_desc)
+{
+  (void)rhport;
+  uint8_t const epnum = xfer_ctl_ptr(p_endpoint_desc->bEndpointAddress)->epnum;
+  uint8_t const dir   = tu_edpt_dir(p_endpoint_desc->bEndpointAddress);
+  const uint16_t packet_size = tu_edpt_packet_size(p_endpoint_desc);
+  uint16_t pma_addr;
+
+  /* Disable endpoint */
+  pcd_set_ep_tx_status(USB, epnum, USB_EP_TX_DIS);
+  pcd_set_ep_rx_status(USB, epnum, USB_EP_RX_DIS);
+
+  pcd_set_eptype(USB, epnum, USB_EP_ISOCHRONOUS);
+  pcd_set_ep_address(USB, epnum, tu_edpt_number(p_endpoint_desc->bEndpointAddress));
+  // Be normal, for now, instead of only accepting zero-byte packets (on control endpoint)
+  // or being double-buffered (bulk endpoints)
+  pcd_clear_ep_kind(USB,0);
+
+  pma_addr = xfer_ctl_ptr(p_endpoint_desc->bEndpointAddress)->pma_ptr;
+
+  *pcd_ep_tx_address_ptr(USB, epnum) = pma_addr;
+  pcd_clear_tx_dtog(USB, epnum);
+
+  *pcd_ep_rx_address_ptr(USB, epnum) = pma_addr;
+  pcd_set_ep_rx_bufsize(USB, epnum, packet_size);
+  pcd_clear_rx_dtog(USB, epnum);
+
+  xfer_ctl_ptr(p_endpoint_desc->bEndpointAddress)->max_packet_size = packet_size;
+
+  return true;
 }
 
 // Currently, single-buffered, and only 64 bytes at a time (max)

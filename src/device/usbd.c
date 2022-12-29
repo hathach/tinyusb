@@ -1380,4 +1380,23 @@ void usbd_sof_enable(uint8_t rhport, bool en)
   dcd_sof_enable(rhport, en);
 }
 
+bool usbd_edpt_iso_alloc(uint8_t rhport, uint8_t ep_addr, uint16_t largest_packet_size)
+{
+  rhport = _usbd_rhport;
+
+  TU_ASSERT(tu_edpt_number(ep_addr) < CFG_TUD_ENDPPOINT_MAX);
+
+  return dcd_edpt_iso_alloc(rhport, ep_addr, largest_packet_size);
+}
+
+bool usbd_edpt_iso_activate(uint8_t rhport, tusb_desc_endpoint_t const * desc_ep)
+{
+  rhport = _usbd_rhport;
+
+  TU_ASSERT(tu_edpt_number(desc_ep->bEndpointAddress) < CFG_TUD_ENDPPOINT_MAX);
+  TU_ASSERT(tu_edpt_validate(desc_ep, (tusb_speed_t) _usbd_dev.speed));
+
+  return dcd_edpt_iso_activate(rhport, desc_ep);
+}
+
 #endif
