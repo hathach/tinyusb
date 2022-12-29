@@ -234,7 +234,7 @@ TU_ATTR_ALWAYS_INLINE static inline void pcd_set_ep_cnt_reg(__O uint16_t * pdwRe
   /* There should be no remainder in the above calculation */
   TU_ASSERT((wCount - (numblocks * (blocksize ? 32 : 2))) == 0, /**/);
 
-  /* Encode into register. When BLSIZE==1, we need to substract 1 block count */
+  /* Encode into register. When BLSIZE==1, we need to subtract 1 block count */
   *pdwReg = (blocksize << 15) | ((numblocks - blocksize) << 10);
 }
 

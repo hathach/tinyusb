@@ -178,7 +178,8 @@ TU_ATTR_ALWAYS_INLINE static inline xfer_ctl_t* xfer_ctl_ptr(uint32_t ep_addr)
 {
   uint8_t epnum = tu_edpt_number(ep_addr);
   uint8_t dir = tu_edpt_dir(ep_addr);
-  TU_ASSERT(epnum < MAX_EP_COUNT);
+  // Fix -Werror=null-dereference
+  TU_ASSERT(epnum < MAX_EP_COUNT, &xfer_status[0][0]);
 
   return &xfer_status[epnum][dir];
 }
@@ -1004,7 +1005,6 @@ bool dcd_edpt_iso_activate(uint8_t rhport,  tusb_desc_endpoint_t const * p_endpo
 {
   (void)rhport;
   uint8_t const epnum = xfer_ctl_ptr(p_endpoint_desc->bEndpointAddress)->epnum;
-  uint8_t const dir   = tu_edpt_dir(p_endpoint_desc->bEndpointAddress);
   const uint16_t packet_size = tu_edpt_packet_size(p_endpoint_desc);
   uint16_t pma_addr;
 
