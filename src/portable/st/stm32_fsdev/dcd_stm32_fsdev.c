@@ -812,6 +812,13 @@ static uint8_t dcd_ep_alloc(uint8_t ep_addr, uint8_t ep_type)
 
   for(uint8_t i = 0; i < STFSDEV_EP_COUNT; i++)
   {
+    // Check if already allocated
+    if(ep_alloc_status[i].allocated[dir] &&
+       ep_alloc_status[i].ep_type == ep_type &&
+       ep_alloc_status[i].ep_num == epnum)
+    {
+      return i;
+    }
     // If EP of current direction is not allocated
     // Except for ISO endpoint, both direction should be free
     if(!ep_alloc_status[i].allocated[dir] &&
@@ -971,7 +978,7 @@ void dcd_edpt_close (uint8_t rhport, uint8_t ep_addr)
 
   if(dir == TUSB_DIR_IN)
   {
-    pcd_set_ep_tx_status(USB,epnum, USB_EP_TX_DIS);
+    pcd_set_ep_tx_status(USB, epnum, USB_EP_TX_DIS);
   }
   else
   {
@@ -994,10 +1001,15 @@ bool dcd_edpt_iso_alloc(uint8_t rhport, uint8_t ep_addr, uint16_t largest_packet
 
   /* Create a packet memory buffer area. For isochronous endpoints,
    * use the same buffer as the double buffer, essentially disabling double buffering */
-  dcd_pma_alloc(ep_addr, buffer_size);
+  uint16_t pma_addr = dcd_pma_alloc(ep_addr, buffer_size);
 
   xfer_ctl_ptr(ep_addr)->epnum = epnum;
 
+  pcd_set_eptype(USB, epnum, USB_EP_ISOCHRONOUS);
+  
+  *pcd_ep_tx_address_ptr(USB, epnum) = pma_addr;
+  *pcd_ep_rx_address_ptr(USB, epnum) = pma_addr;
+  
   return true;
 }
 
@@ -1005,25 +1017,26 @@ bool dcd_edpt_iso_activate(uint8_t rhport,  tusb_desc_endpoint_t const * p_endpo
 {
   (void)rhport;
   uint8_t const epnum = xfer_ctl_ptr(p_endpoint_desc->bEndpointAddress)->epnum;
-  const uint16_t packet_size = tu_edpt_packet_size(p_endpoint_desc);
-  uint16_t pma_addr;
+  uint8_t const dir   = tu_edpt_dir(p_endpoint_desc->bEndpointAddress);
+  const uint16_t packet_size = pcd_aligned_buffer_size(tu_edpt_packet_size(p_endpoint_desc));
 
   /* Disable endpoint */
-  pcd_set_ep_tx_status(USB, epnum, USB_EP_TX_DIS);
-  pcd_set_ep_rx_status(USB, epnum, USB_EP_RX_DIS);
-
-  pcd_set_eptype(USB, epnum, USB_EP_ISOCHRONOUS);
+  if(dir == TUSB_DIR_IN)
+  {
+    pcd_set_ep_tx_status(USB, epnum, USB_EP_TX_DIS);
+  }
+  else
+  {
+    pcd_set_ep_rx_status(USB, epnum, USB_EP_RX_DIS);
+  }
+  
   pcd_set_ep_address(USB, epnum, tu_edpt_number(p_endpoint_desc->bEndpointAddress));
   // Be normal, for now, instead of only accepting zero-byte packets (on control endpoint)
   // or being double-buffered (bulk endpoints)
   pcd_clear_ep_kind(USB,0);
 
-  pma_addr = xfer_ctl_ptr(p_endpoint_desc->bEndpointAddress)->pma_ptr;
-
-  *pcd_ep_tx_address_ptr(USB, epnum) = pma_addr;
   pcd_clear_tx_dtog(USB, epnum);
 
-  *pcd_ep_rx_address_ptr(USB, epnum) = pma_addr;
   pcd_set_ep_rx_bufsize(USB, epnum, packet_size);
   pcd_clear_rx_dtog(USB, epnum);
 

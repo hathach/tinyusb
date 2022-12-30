@@ -1396,11 +1396,19 @@ bool usbd_edpt_iso_activate(uint8_t rhport, tusb_desc_endpoint_t const * desc_ep
 {
   rhport = _usbd_rhport;
 
-  TU_ASSERT(tu_edpt_number(desc_ep->bEndpointAddress) < CFG_TUD_ENDPPOINT_MAX);
+  uint8_t const epnum = tu_edpt_number(desc_ep->bEndpointAddress);
+  uint8_t const dir   = tu_edpt_dir(desc_ep->bEndpointAddress);
+  
+  TU_ASSERT(epnum < CFG_TUD_ENDPPOINT_MAX);
   TU_ASSERT(tu_edpt_validate(desc_ep, (tusb_speed_t) _usbd_dev.speed));
-
+  
   if (dcd_edpt_iso_activate)
+  {
+    _usbd_dev.ep_status[epnum][dir].stalled = false;
+    _usbd_dev.ep_status[epnum][dir].busy = false;
+    _usbd_dev.ep_status[epnum][dir].claimed = false;
     return dcd_edpt_iso_activate(rhport, desc_ep);
+  }
   else
     return false;
 }

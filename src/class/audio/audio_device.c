@@ -106,6 +106,18 @@
 #define  USE_LINEAR_BUFFER     1
 #endif
 
+// Temporarily put the check here for stm32_fsdev
+#if CFG_TUSB_MCU == OPT_MCU_STM32F0                               || \
+    CFG_TUSB_MCU == OPT_MCU_STM32F3                               || \
+    CFG_TUSB_MCU == OPT_MCU_STM32L0                               || \
+    CFG_TUSB_MCU == OPT_MCU_STM32L1                               || \
+    CFG_TUSB_MCU == OPT_MCU_STM32G4                               || \
+    CFG_TUSB_MCU == OPT_MCU_STM32WB
+#define  USE_ISO_EP_ALLOCATION   1
+#else
+#define  USE_ISO_EP_ALLOCATION   0
+#endif
+
 // Declaration of buffers
 
 // Check for maximum supported numbers
@@ -1467,6 +1479,104 @@ uint16_t audiod_open(uint8_t rhport, tusb_desc_interface_t const * itf_desc, uin
 #endif
       }
 
+#if USE_ISO_EP_ALLOCATION
+#if CFG_TUD_AUDIO_ENABLE_EP_IN
+      uint8_t ep_in = 0;
+      uint16_t ep_in_size = 0;
+#endif
+#if CFG_TUD_AUDIO_ENABLE_EP_OUT
+      uint8_t ep_out = 0;
+      uint16_t ep_out_size = 0;
+#endif
+#if CFG_TUD_AUDIO_ENABLE_FEEDBACK_EP
+      uint8_t ep_fb = 0;
+#endif
+
+      // First find EP addr
+      uint8_t const *p_desc = _audiod_fct[i].p_desc;
+      uint8_t const *p_desc_end = p_desc + _audiod_fct[i].desc_length - TUD_AUDIO_DESC_IAD_LEN;
+      while (p_desc < p_desc_end)
+      {
+        if (tu_desc_type(p_desc) == TUSB_DESC_ENDPOINT)
+        {
+          tusb_desc_endpoint_t const *desc_ep = (tusb_desc_endpoint_t const *) p_desc;
+          if (desc_ep->bmAttributes.xfer == TUSB_XFER_ISOCHRONOUS)
+          {
+#if CFG_TUD_AUDIO_ENABLE_FEEDBACK_EP
+            // Explicit feedback EP
+            if (desc_ep->bmAttributes.usage == 1)
+            {
+              ep_fb = desc_ep->bEndpointAddress;
+            }
+#endif      
+            // Data EP
+            if (desc_ep->bmAttributes.usage == 0)
+            {
+              if (tu_edpt_dir(desc_ep->bEndpointAddress) == TUSB_DIR_IN)
+              {
+#if CFG_TUD_AUDIO_ENABLE_EP_IN
+                ep_in = desc_ep->bEndpointAddress;
+#endif
+              } else
+              {
+#if CFG_TUD_AUDIO_ENABLE_EP_OUT
+                ep_out = desc_ep->bEndpointAddress;
+#endif
+              }
+            }
+            
+          }
+        }
+        p_desc = tu_desc_next(p_desc);
+      }
+
+      // Then find EP max size
+      p_desc = _audiod_fct[i].p_desc;
+      while (p_desc < p_desc_end)
+      {
+        if (tu_desc_type(p_desc) == TUSB_DESC_ENDPOINT)
+        {
+          tusb_desc_endpoint_t const *desc_ep = (tusb_desc_endpoint_t const *) p_desc;
+          if (desc_ep->bmAttributes.xfer == TUSB_XFER_ISOCHRONOUS)
+          {
+#if CFG_TUD_AUDIO_ENABLE_EP_IN
+            if (desc_ep->bEndpointAddress == ep_in)
+            {
+              ep_in_size = TU_MAX(tu_edpt_packet_size(desc_ep), ep_in_size);
+            }
+#endif
+#if CFG_TUD_AUDIO_ENABLE_EP_OUT
+            if (desc_ep->bEndpointAddress == ep_out)
+            {
+              ep_out_size = TU_MAX(tu_edpt_packet_size(desc_ep), ep_out_size);
+            }
+#endif
+          }
+        }
+        p_desc = tu_desc_next(p_desc);
+      }
+
+#if CFG_TUD_AUDIO_ENABLE_EP_IN
+      if (ep_in)
+      {
+        usbd_edpt_iso_alloc(rhport, ep_in, ep_in_size);
+      }
+#endif
+#if CFG_TUD_AUDIO_ENABLE_EP_OUT
+      if (ep_out)
+      {
+        usbd_edpt_iso_alloc(rhport, ep_out, ep_out_size);
+      }
+#endif
+#if CFG_TUD_AUDIO_ENABLE_FEEDBACK_EP
+      if (ep_fb)
+      {
+        usbd_edpt_iso_alloc(rhport, ep_fb, 4);
+      }
+#endif
+
+#endif
+
       break;
     }
   }
@@ -1528,8 +1638,9 @@ static bool audiod_set_interface(uint8_t rhport, tusb_control_request_t const * 
   if (audio->ep_in_as_intf_num == itf)
   {
     audio->ep_in_as_intf_num = 0;
+#if !USE_ISO_EP_ALLOCATION
     usbd_edpt_close(rhport, audio->ep_in);
-
+#endif
     // Clear FIFOs, since data is no longer valid
 #if !CFG_TUD_AUDIO_ENABLE_ENCODING
     tu_fifo_clear(&audio->ep_in_ff);
@@ -1552,8 +1663,9 @@ static bool audiod_set_interface(uint8_t rhport, tusb_control_request_t const * 
   if (audio->ep_out_as_intf_num == itf)
   {
     audio->ep_out_as_intf_num = 0;
+#if !USE_ISO_EP_ALLOCATION
     usbd_edpt_close(rhport, audio->ep_out);
-
+#endif
     // Clear FIFOs, since data is no longer valid
 #if !CFG_TUD_AUDIO_ENABLE_DECODING
     tu_fifo_clear(&audio->ep_out_ff);
@@ -1571,7 +1683,9 @@ static bool audiod_set_interface(uint8_t rhport, tusb_control_request_t const * 
 
     // Close corresponding feedback EP
 #if CFG_TUD_AUDIO_ENABLE_FEEDBACK_EP
+#if !USE_ISO_EP_ALLOCATION
     usbd_edpt_close(rhport, audio->ep_fb);
+#endif
     audio->ep_fb = 0;
     tu_memclr(&audio->feedback, sizeof(audio->feedback));
 #endif
@@ -1601,8 +1715,11 @@ static bool audiod_set_interface(uint8_t rhport, tusb_control_request_t const * 
         if (tu_desc_type(p_desc) == TUSB_DESC_ENDPOINT)
         {
           tusb_desc_endpoint_t const* desc_ep = (tusb_desc_endpoint_t const *) p_desc;
+#if USE_ISO_EP_ALLOCATION
+          TU_ASSERT(usbd_edpt_iso_activate(rhport, desc_ep));
+#else
           TU_ASSERT(usbd_edpt_open(rhport, desc_ep));
-
+#endif
           uint8_t const ep_addr = desc_ep->bEndpointAddress;
 
           //TODO: We need to set EP non busy since this is not taken care of right now in ep_close() - THIS IS A WORKAROUND!
