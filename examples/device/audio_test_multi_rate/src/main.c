@@ -266,7 +266,7 @@ bool tud_audio_set_req_entity_cb(uint8_t rhport, tusb_control_request_t const * 
       case AUDIO_CS_CTRL_SAM_FREQ:
         TU_VERIFY(p_request->wLength == sizeof(audio_control_cur_4_t));
 
-        sampFreq = ((audio_control_cur_4_t *)pBuff)->bCur;
+        sampFreq = (uint32_t)((audio_control_cur_4_t *)pBuff)->bCur;
 
         TU_LOG2("Clock set current freq: %d\r\n", sampFreq);
 
@@ -423,8 +423,8 @@ bool tud_audio_get_req_entity_cb(uint8_t rhport, tusb_control_request_t const * 
             TU_LOG1("Clock get %d freq ranges\r\n", N_sampleRates);
             for(uint8_t i = 0; i < N_sampleRates; i++)
             {
-                rangef.subrange[i].bMin = sampleRatesList[i];
-                rangef.subrange[i].bMax = sampleRatesList[i];
+                rangef.subrange[i].bMin = (int32_t)sampleRatesList[i];
+                rangef.subrange[i].bMax = (int32_t)sampleRatesList[i];
                 rangef.subrange[i].bRes = 0;
                 TU_LOG1("Range %d (%d, %d, %d)\r\n", i, (int)rangef.subrange[i].bMin, (int)rangef.subrange[i].bMax, (int)rangef.subrange[i].bRes);
             }
@@ -460,7 +460,7 @@ bool tud_audio_tx_done_pre_load_cb(uint8_t rhport, uint8_t itf, uint8_t ep_in, u
   (void) ep_in;
   (void) cur_alt_setting;
 
-  tud_audio_write ((uint8_t *)test_buffer_audio, sampFreq / (TUD_OPT_HIGH_SPEED ? 8000 : 1000) * bytesPerSample);
+  tud_audio_write((uint8_t *)test_buffer_audio, (uint16_t)(sampFreq / (TUD_OPT_HIGH_SPEED ? 8000 : 1000) * bytesPerSample));
 
   return true;
 }
@@ -476,7 +476,7 @@ bool tud_audio_tx_done_post_load_cb(uint8_t rhport, uint16_t n_bytes_copied, uin
   // 16bit
   if(bytesPerSample == 2)
   {
-    uint16_t* pData_16 = (uint16_t*)test_buffer_audio;
+    uint16_t* pData_16 = (uint16_t*)((void*)test_buffer_audio);
     for (size_t cnt = 0; cnt < sampFreq / (TUD_OPT_HIGH_SPEED ? 8000 : 1000); cnt++)
     {
       pData_16[cnt] = startVal++;
@@ -485,7 +485,7 @@ bool tud_audio_tx_done_post_load_cb(uint8_t rhport, uint16_t n_bytes_copied, uin
   // 24bit in 32bit slot
   else if(bytesPerSample == 4)
   {
-    uint32_t* pData_32 = (uint32_t*)test_buffer_audio;
+    uint32_t* pData_32 = (uint32_t*)((void*)test_buffer_audio);
     for (size_t cnt = 0; cnt < sampFreq / (TUD_OPT_HIGH_SPEED ? 8000 : 1000); cnt++)
     {
       pData_32[cnt] = (uint32_t)startVal++ << 16U;
