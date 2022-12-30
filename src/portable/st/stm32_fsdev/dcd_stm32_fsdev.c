@@ -167,8 +167,8 @@ typedef struct
   uint16_t total_len;
   uint16_t queued_len;
   uint16_t pma_ptr;
-  uint8_t max_packet_size;
-  uint8_t pma_alloc_size;
+  uint16_t max_packet_size;
+  uint16_t pma_alloc_size;
   uint8_t epnum;
 } xfer_ctl_t;
 
