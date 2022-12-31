@@ -106,13 +106,28 @@
 #define  USE_LINEAR_BUFFER     1
 #endif
 
+#if defined(STM32F102x6) || defined(STM32F102xB) || \
+    defined(STM32F103x6) || defined(STM32F103xB) || \
+    defined(STM32F103xE) || defined(STM32F103xG)
+#define STM32F1_FSDEV
+#endif
+
+#if defined(STM32L412xx) || defined(STM32L422xx) || \
+    defined(STM32L432xx) || defined(STM32L433xx) || \
+    defined(STM32L442xx) || defined(STM32L443xx) || \
+    defined(STM32L452xx) || defined(STM32L462xx)
+#define STM32L4_FSDEV
+#endif
+
 // Temporarily put the check here for stm32_fsdev
 #if CFG_TUSB_MCU == OPT_MCU_STM32F0                               || \
     CFG_TUSB_MCU == OPT_MCU_STM32F3                               || \
     CFG_TUSB_MCU == OPT_MCU_STM32L0                               || \
     CFG_TUSB_MCU == OPT_MCU_STM32L1                               || \
     CFG_TUSB_MCU == OPT_MCU_STM32G4                               || \
-    CFG_TUSB_MCU == OPT_MCU_STM32WB
+    CFG_TUSB_MCU == OPT_MCU_STM32WB                               || \
+    (TU_CHECK_MCU(OPT_MCU_STM32F1) && defined(STM32F1_FSDEV))     || \
+    (TU_CHECK_MCU(OPT_MCU_STM32L4) && defined(STM32L4_FSDEV))
 #define  USE_ISO_EP_ALLOCATION   1
 #else
 #define  USE_ISO_EP_ALLOCATION   0
@@ -1481,18 +1496,17 @@ uint16_t audiod_open(uint8_t rhport, tusb_desc_interface_t const * itf_desc, uin
 
 #if USE_ISO_EP_ALLOCATION
 #if CFG_TUD_AUDIO_ENABLE_EP_IN
-      uint8_t ep_in = 0;
+      uint8_t  ep_in = 0;
       uint16_t ep_in_size = 0;
 #endif
 #if CFG_TUD_AUDIO_ENABLE_EP_OUT
-      uint8_t ep_out = 0;
+      uint8_t  ep_out = 0;
       uint16_t ep_out_size = 0;
 #endif
 #if CFG_TUD_AUDIO_ENABLE_FEEDBACK_EP
       uint8_t ep_fb = 0;
 #endif
 
-      // First find EP addr
       uint8_t const *p_desc = _audiod_fct[i].p_desc;
       uint8_t const *p_desc_end = p_desc + _audiod_fct[i].desc_length - TUD_AUDIO_DESC_IAD_LEN;
       while (p_desc < p_desc_end)
@@ -1516,41 +1530,17 @@ uint16_t audiod_open(uint8_t rhport, tusb_desc_interface_t const * itf_desc, uin
               {
 #if CFG_TUD_AUDIO_ENABLE_EP_IN
                 ep_in = desc_ep->bEndpointAddress;
+                ep_in_size = TU_MAX(tu_edpt_packet_size(desc_ep), ep_in_size);
 #endif
               } else
               {
 #if CFG_TUD_AUDIO_ENABLE_EP_OUT
                 ep_out = desc_ep->bEndpointAddress;
+                ep_out_size = TU_MAX(tu_edpt_packet_size(desc_ep), ep_out_size);
 #endif
               }
             }
             
-          }
-        }
-        p_desc = tu_desc_next(p_desc);
-      }
-
-      // Then find EP max size
-      p_desc = _audiod_fct[i].p_desc;
-      while (p_desc < p_desc_end)
-      {
-        if (tu_desc_type(p_desc) == TUSB_DESC_ENDPOINT)
-        {
-          tusb_desc_endpoint_t const *desc_ep = (tusb_desc_endpoint_t const *) p_desc;
-          if (desc_ep->bmAttributes.xfer == TUSB_XFER_ISOCHRONOUS)
-          {
-#if CFG_TUD_AUDIO_ENABLE_EP_IN
-            if (desc_ep->bEndpointAddress == ep_in)
-            {
-              ep_in_size = TU_MAX(tu_edpt_packet_size(desc_ep), ep_in_size);
-            }
-#endif
-#if CFG_TUD_AUDIO_ENABLE_EP_OUT
-            if (desc_ep->bEndpointAddress == ep_out)
-            {
-              ep_out_size = TU_MAX(tu_edpt_packet_size(desc_ep), ep_out_size);
-            }
-#endif
           }
         }
         p_desc = tu_desc_next(p_desc);
