@@ -131,11 +131,17 @@ void dcd_init (uint8_t rhport)
 
   USBVECINT = 0;
 
-  // Enable reset and wait for it before continuing.
-  USBIE |= RSTRIE;
-
-  // Enable pullup.
-  USBCNF |= PUR_EN;
+  if(USBPWRCTL & USBBGVBV)  // Bus power detected?
+  {
+    USBPWRCTL |= VBOFFIE;   // Enable bus-power-removed interrupt.
+    USBIE |= RSTRIE;        // Enable reset and wait for it before continuing.
+    USBCNF |= PUR_EN;       // Enable pullup.
+  }
+  else
+  {
+    USBPWRCTL |= VBONIE;    // Enable bus-power-applied interrupt.
+    USBCNF &= ~USB_EN;      // Disable USB module until bus power is detected.
+  }
 
   USBKEYPID = 0;
 }
@@ -618,6 +624,48 @@ static void handle_setup_packet(void)
   dcd_event_setup_received(0, (uint8_t*) &_setup_packet[0], true);
 }
 
+static void handle_bus_power_event(void *param)
+{
+  (void) param;
+
+  osal_task_delay(2);                 // Bus power settling delay.
+
+  USBKEYPID = USBKEY;
+
+  if(USBPWRCTL & USBBGVBV)            // Event caused by application of bus power.
+  {
+    USBPWRCTL |= VBOFFIE;             // Enable bus-power-removed interrupt.
+    USBPLLDIVB = USBPLLDIVB;          // For some reason the PLL will *NOT* lock unless the divider
+                                      // register is re-written. The assumption here is that this
+                                      // register was already properly configured during board-level
+                                      // initialization.
+    USBPLLCTL |= (UPLLEN | UPFDEN);   // Enable the PLL.
+
+    uint16_t attempts = 0;
+
+    do                                // Poll the PLL to check for a successful lock.
+    {
+      USBPLLIR = 0;
+      osal_task_delay(1);
+      attempts++;
+    } while ((attempts < 10) && (USBPLLIR != 0));
+
+    if(!USBPLLIR)                     // A successful lock is indicated by all PLL-related interrupt
+    {                                 // flags being cleared.
+      dcd_init(0);                    // Re-initialize the USB module. 
+    }
+  }
+  else                                // Event caused by removal of bus power.
+  {
+    USBPWRCTL |= VBONIE;              // Enable bus-power-applied interrupt.
+    USBPLLCTL &= ~(UPLLEN | UPFDEN);  // Disable the PLL.
+    USBCNF = 0;                       // Disable the USB module.
+    dcd_event_bus_signal(0, DCD_EVENT_UNPLUGGED, false);
+  }
+
+  USBKEYPID = 0;
+}
+
 void dcd_int_handler(uint8_t rhport)
 {
   (void) rhport;
@@ -646,9 +694,30 @@ void dcd_int_handler(uint8_t rhport)
 
   switch(curr_vector)
   {
+    case USBVECINT_NONE:
+      break;
+
     case USBVECINT_RSTR:
       bus_reset();
       dcd_event_bus_reset(0, TUSB_SPEED_FULL, true);
+      break;
+
+    case USBVECINT_PWR_VBUSOn:
+    case USBVECINT_PWR_VBUSOff:
+      USBKEYPID = USBKEY;
+      // Prevent (possibly) unstable power from generating spurious interrupts.
+      USBPWRCTL &= ~(VBONIE | VBOFFIE);
+      USBKEYPID = 0;
+
+      {
+        dcd_event_t event;
+
+        event.rhport = 0;
+        event.event_id = USBD_EVENT_FUNC_CALL;
+        event.func_call.func = handle_bus_power_event;
+
+        dcd_event_handler(&event, true);
+      }
       break;
 
     // Clear the (hardware-enforced) NAK on EP 0 after a SETUP packet
@@ -710,7 +779,6 @@ void dcd_int_handler(uint8_t rhport)
 
     default:
       while(true);
-      break;
   }
 
 }
