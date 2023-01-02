@@ -25,6 +25,7 @@
  */
 
 #include "tusb_option.h"
+#include "tusb_verify.h"
 
 #if CFG_TUD_ENABLED
 
@@ -379,15 +380,13 @@ bool tud_inited(void)
   return _usbd_rhport != RHPORT_INVALID;
 }
 
-bool tud_init (uint8_t rhport)
+
+static bool init_persistent_state(void)
 {
-  // skip if already initialized
-  if ( tud_inited() ) return true;
-
-  TU_LOG(USBD_DBG, "USBD init on controller %u\r\n", rhport);
-  TU_LOG_INT(USBD_DBG, sizeof(usbd_device_t));
-
-  tu_varclr(&_usbd_dev);
+  static bool was_persistent_inited = false;
+  if(was_persistent_inited) {
+    return true;
+  }
 
 #if CFG_TUSB_OS != OPT_OS_NONE
   // Init device mutex
@@ -398,6 +397,25 @@ bool tud_init (uint8_t rhport)
   // Init device queue & task
   _usbd_q = osal_queue_create(&_usbd_qdef);
   TU_ASSERT(_usbd_q);
+
+  was_persistent_inited = true;
+  return true;
+}
+
+bool tud_init (uint8_t rhport)
+{
+  // skip if already initialized
+  if ( tud_inited() ) return true;
+
+  TU_LOG(USBD_DBG, "USBD init on controller %u\r\n", rhport);
+  TU_LOG_INT(USBD_DBG, sizeof(usbd_device_t));
+
+  tu_varclr(&_usbd_dev);
+
+  if(!init_persistent_state())
+    return false;
+
+  TU_ASSERT(osal_queue_empty(_usbd_q));
 
   // Get application driver if available
   if ( usbd_app_driver_get_cb )
@@ -421,6 +439,16 @@ bool tud_init (uint8_t rhport)
   dcd_int_enable(rhport);
 
   return true;
+}
+
+void tud_deinit(void)
+{
+  if(!tud_inited()) {
+    return;
+  }
+  dcd_int_disable(_usbd_rhport);
+  dcd_deinit(_usbd_rhport);
+  _usbd_rhport = RHPORT_INVALID;
 }
 
 static void configuration_reset(uint8_t rhport)
