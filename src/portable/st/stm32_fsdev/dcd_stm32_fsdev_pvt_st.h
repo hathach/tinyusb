@@ -119,15 +119,6 @@
 // Volatile is also needed to prevent the optimizer from changing access to 32-bit (as 32-bit access is forbidden)
 static __IO uint16_t * const pma = (__IO uint16_t*)USB_PMAADDR;
 
-// This array maps the endpoint address to a endpoint register in hardware
-// By default the tinyusb stack chooses the endpoint register using the endpoint number
-// However when using ISOCHRONOUS endpoints, the entire endpoint register (RX _and_ TX)
-// are used for a double buffer in a single direction. If you now want to use the same endpoint number with
-// different directions (e.g. 0x02 and 0x82), they would be mapped to the same register
-// In this case, this serves as a crude helper to overcome this limitation by implementing
-// this callback and defining a custom mapping in your application
-TU_ATTR_WEAK uint8_t tu_stm32_edpt_number_cb(uint8_t addr);
-
 // This callback is called on SOF and can be used to e.g. capture a timer value for timing purposes
 TU_ATTR_WEAK void tu_stm32_sof_cb(void);
 
