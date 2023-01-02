@@ -37,8 +37,11 @@ extern "C" {
 // Application API
 //--------------------------------------------------------------------+
 
-// Init device stack
+// Init device stack on roothub port
 bool tud_init (uint8_t rhport);
+
+// Deinit device stack on roothub port
+void tud_deinit(uint8_t rhport);
 
 // Check if device stack is already initialized
 bool tud_inited(void);
