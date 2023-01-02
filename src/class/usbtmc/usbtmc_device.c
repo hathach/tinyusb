@@ -157,12 +157,12 @@ static bool handle_devMsgOut(uint8_t rhport, void *data, size_t len, size_t pack
 static uint8_t termChar;
 static uint8_t termCharRequested = false;
 
-osal_mutex_def_t usbtmcLockBuffer;
+OSAL_MUTEX_DEF(usbtmcLockBuffer);
 static osal_mutex_t usbtmcLock;
 
 // Our own private lock, mostly for the state variable.
-#define criticalEnter() do {osal_mutex_lock(usbtmcLock,OSAL_TIMEOUT_WAIT_FOREVER); } while (0)
-#define criticalLeave() do {osal_mutex_unlock(usbtmcLock); } while (0)
+#define criticalEnter() do { (void) osal_mutex_lock(usbtmcLock,OSAL_TIMEOUT_WAIT_FOREVER); } while (0)
+#define criticalLeave() do { (void) osal_mutex_unlock(usbtmcLock); } while (0)
 
 bool atomicChangeState(usbtmcd_state_enum expectedState, usbtmcd_state_enum newState)
 {
@@ -364,7 +364,7 @@ bool tud_usbtmc_start_bus_read()
   default:
     TU_VERIFY(false);
   }
-  TU_VERIFY(usbd_edpt_xfer(usbtmc_state.rhport, usbtmc_state.ep_bulk_out, usbtmc_state.ep_bulk_out_buf, 64));
+  TU_VERIFY(usbd_edpt_xfer(usbtmc_state.rhport, usbtmc_state.ep_bulk_out, usbtmc_state.ep_bulk_out_buf, (uint16_t)usbtmc_state.ep_bulk_out_wMaxPacketSize));
   return true;
 }
 
@@ -599,7 +599,7 @@ bool usbtmcd_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request
 
     // At this point, a transfer MAY be in progress. Based on USB spec, when clearing bulk EP HALT,
     // the EP transfer buffer needs to be cleared and DTOG needs to be reset, even if 
-    // the EP is not halted. The only USBD API interface to do this is to stall and then unstall the EP.
+    // the EP is not halted. The only USBD API interface to do this is to stall and then un-stall the EP.
     if(ep_addr == usbtmc_state.ep_bulk_out)
     {
       criticalEnter();

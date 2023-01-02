@@ -19,7 +19,7 @@
 #define FSL_XIP_BOARD_DRIVER_VERSION (MAKE_VERSION(2, 0, 0))
 /*@}*/
 
-/* FLEXSPI memory config block related defintions */
+/* FLEXSPI memory config block related definitions */
 #define FLEXSPI_CFG_BLK_TAG (0x42464346UL)     // ascii "FCFB" Big Endian
 #define FLEXSPI_CFG_BLK_VERSION (0x56010400UL) // V1.4.0
 #define FLEXSPI_CFG_BLK_SIZE (512)
@@ -27,7 +27,7 @@
 /* FLEXSPI Feature related definitions */
 #define FLEXSPI_FEATURE_HAS_PARALLEL_MODE 1
 
-/* Lookup table related defintions */
+/* Lookup table related definitions */
 #define CMD_INDEX_READ 0
 #define CMD_INDEX_READSTATUS 1
 #define CMD_INDEX_WRITEENABLE 2
@@ -125,7 +125,7 @@ enum
     kFlexSpiDeviceType_SerialNAND   = 2,    //!< Flash devices are Serial NAND
     kFlexSpiDeviceType_SerialRAM    = 3,    //!< Flash devices are Serial RAM/HyperFLASH
     kFlexSpiDeviceType_MCP_NOR_NAND = 0x12, //!< Flash device is MCP device, A1 is Serial NOR, A2 is Serial NAND
-    kFlexSpiDeviceType_MCP_NOR_RAM  = 0x13, //!< Flash deivce is MCP device, A1 is Serial NOR, A2 is Serial RAMs
+    kFlexSpiDeviceType_MCP_NOR_RAM  = 0x13, //!< Flash device is MCP device, A1 is Serial NOR, A2 is Serial RAMs
 };
 
 //!@brief Flash Pad Definitions
@@ -186,7 +186,7 @@ typedef struct _FlexSPIConfig
     //! details
     uint8_t deviceType;    //!< [0x044-0x044] Device Type:  See Flash Type Definition for more details
     uint8_t sflashPadType; //!< [0x045-0x045] Serial Flash Pad Type: 1 - Single, 2 - Dual, 4 - Quad, 8 - Octal
-    uint8_t serialClkFreq; //!< [0x046-0x046] Serial Flash Frequencey, device specific definitions, See System Boot
+    uint8_t serialClkFreq; //!< [0x046-0x046] Serial Flash Frequency, device specific definitions, See System Boot
     //! Chapter for more details
     uint8_t lutCustomSeqEnable; //!< [0x047-0x047] LUT customization Enable, it is required if the program/erase cannot
     //! be done using 1 LUT sequence, currently, only applicable to HyperFLASH
@@ -254,7 +254,7 @@ typedef struct _flexspi_nor_config
     uint8_t serialNorType;          //!< Serial NOR Flash type: 0/1/2/3
     uint8_t needExitNoCmdMode;      //!< Need to exit NoCmd mode before other IP command
     uint8_t halfClkForNonReadCmd;   //!< Half the Serial Clock for non-read command: true/false
-    uint8_t needRestoreNoCmdMode;   //!< Need to Restore NoCmd mode after IP commmand execution
+    uint8_t needRestoreNoCmdMode;   //!< Need to Restore NoCmd mode after IP command execution
     uint32_t blockSize;             //!< Block size
     uint32_t reserve2[11];          //!< Reserved for future use
 } flexspi_nor_config_t;

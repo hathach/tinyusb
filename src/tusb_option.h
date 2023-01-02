@@ -256,6 +256,10 @@ typedef int make_iso_compilers_happy;
 // For backward compatible
 #define TUSB_OPT_HOST_ENABLED   CFG_TUH_ENABLED
 
+// highspeed support indicator
+#define TUH_OPT_HIGH_SPEED    (CFG_TUH_MAX_SPEED ? (CFG_TUH_MAX_SPEED & OPT_MODE_HIGH_SPEED) : TUP_RHPORT_HIGHSPEED)
+
+
 //--------------------------------------------------------------------+
 // TODO move later
 //--------------------------------------------------------------------+
@@ -298,9 +302,6 @@ typedef int make_iso_compilers_happy;
 #ifndef CFG_TUSB_OS_INC_PATH
   #define CFG_TUSB_OS_INC_PATH
 #endif
-
-// mutex is only needed for RTOS TODO also required with multiple core MCUs
-#define TUSB_OPT_MUTEX      (CFG_TUSB_OS != OPT_OS_NONE)
 
 //--------------------------------------------------------------------
 // Device Options (Default)

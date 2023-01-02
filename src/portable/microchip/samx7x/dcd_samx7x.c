@@ -42,7 +42,7 @@
 #  define USE_SOF         0
 #endif
 
-// Dual bank can imporve performance, but need 2 times bigger packet buffer
+// Dual bank can improve performance, but need 2 times bigger packet buffer
 // As SAM7x has only 4KB packet buffer, use with caution !
 // Enable in FS mode as packets are smaller
 #ifndef USE_DUAL_BANK
@@ -644,7 +644,7 @@ bool dcd_edpt_xfer (uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t 
     }
     __set_PRIMASK(irq_state);
 
-    // Here a ZLP has been recieved
+    // Here a ZLP has been received
     // and the DMA transfer must be not started.
     // It is the end of transfer
     return false;
@@ -734,7 +734,7 @@ bool dcd_edpt_xfer_fifo (uint8_t rhport, uint8_t ep_addr, tu_fifo_t * ff, uint16
     }
     __set_PRIMASK(irq_state);
 
-    // Here a ZLP has been recieved
+    // Here a ZLP has been received
     // and the DMA transfer must be not started.
     // It is the end of transfer
     return false;

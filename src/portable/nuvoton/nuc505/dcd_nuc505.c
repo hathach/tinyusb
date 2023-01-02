@@ -181,7 +181,7 @@ static void dcd_userEP_in_xfer(struct xfer_ctl_t *xfer, USBD_EP_T *ep)
     ep->EPINTEN = USBD_EPINTEN_TXPKIEN_Msk;
   }
 
-  /* provided buffers are thankfully 32-bit aligned, allowing most data to be transfered as 32-bit */
+  /* provided buffers are thankfully 32-bit aligned, allowing most data to be transferred as 32-bit */
 #if 0 // TODO support dcd_edpt_xfer_fifo API
   if (xfer->ff)
   {

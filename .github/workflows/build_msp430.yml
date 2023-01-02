@@ -1,11 +1,23 @@
 name: Build MSP430
 
 on:
-  pull_request:
   push:
-  release:
-    types:
-      - created
+    paths:
+      - 'src/**'
+      - 'examples/**'
+      - 'lib/**'
+      - 'hw/**'
+  pull_request:
+    branches: [ master ]
+    paths:
+      - 'src/**'
+      - 'examples/**'
+      - 'lib/**'
+      - 'hw/**'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
+  cancel-in-progress: true
 
 jobs:  
   build-msp430:
@@ -16,9 +28,12 @@ jobs:
         family:
         # Alphabetical order
         - 'msp430'
+
     steps:
     - name: Setup Python
       uses: actions/setup-python@v4
+      with:
+        python-version: '3.x'
 
     - name: Checkout TinyUSB
       uses: actions/checkout@v3
@@ -36,7 +51,7 @@ jobs:
       run: echo >> $GITHUB_ENV TOOLCHAIN_URL=http://software-dl.ti.com/msp430/msp430_public_sw/mcu/msp430/MSPGCC/9_2_0_0/export/msp430-gcc-9.2.0.50_linux64.tar.bz2
 
     - name: Cache Toolchain
-      uses: actions/cache@v2
+      uses: actions/cache@v3
       id: cache-toolchain
       with:
         path: ~/cache/

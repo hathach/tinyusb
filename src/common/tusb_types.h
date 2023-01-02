@@ -69,6 +69,15 @@ typedef enum
   TUSB_DIR_IN_MASK = 0x80
 }tusb_dir_t;
 
+enum
+{
+  TUSB_EPSIZE_BULK_FS = 64,
+  TUSB_EPSIZE_BULK_HS= 512,
+
+  TUSB_EPSIZE_ISO_FS_MAX = 1023,
+  TUSB_EPSIZE_ISO_HS_MAX = 1024,
+};
+
 /// Isochronous End Point Attributes
 typedef enum
 {
@@ -225,7 +234,7 @@ enum {
 
 typedef enum
 {
-  XFER_RESULT_SUCCESS,
+  XFER_RESULT_SUCCESS = 0,
   XFER_RESULT_FAILED,
   XFER_RESULT_STALLED,
   XFER_RESULT_TIMEOUT,
@@ -242,7 +251,6 @@ enum
 {
   INTERFACE_INVALID_NUMBER = 0xff
 };
-
 
 typedef enum
 {
@@ -263,6 +271,11 @@ enum
   CONTROL_STAGE_SETUP,
   CONTROL_STAGE_DATA,
   CONTROL_STAGE_ACK
+};
+
+enum
+{
+  TUSB_INDEX_INVALID = 0xff
 };
 
 //--------------------------------------------------------------------+

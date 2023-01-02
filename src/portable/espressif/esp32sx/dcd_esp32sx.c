@@ -741,7 +741,7 @@ static void handle_epin_ints(void)
 
       // XFER Timeout
       if (USB0.in_ep_reg[n].diepint & USB_D_TIMEOUT0_M) {
-        // Clear interrupt or enpoint will hang.
+        // Clear interrupt or endpoint will hang.
         USB0.in_ep_reg[n].diepint = USB_D_TIMEOUT0_M;
         // Maybe retry?
       }

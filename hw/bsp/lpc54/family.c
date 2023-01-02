@@ -170,7 +170,7 @@ void board_init(void)
     CLOCK_SetClkDiv(kCLOCK_DivUsb0Clk, 1, false);
     CLOCK_AttachClk(kFRO_HF_to_USB0_CLK);
 
-    /*According to reference mannual, device mode setting has to be set by access usb host register */
+    /*According to reference manual, device mode setting has to be set by access usb host register */
     CLOCK_EnableClock(kCLOCK_Usbhsl0); /* enable usb0 host clock */
     USBFSH->PORTMODE |= USBFSH_PORTMODE_DEV_ENABLE_MASK;
     CLOCK_DisableClock(kCLOCK_Usbhsl0); /* disable usb0 host clock */
@@ -182,7 +182,7 @@ void board_init(void)
     // Port1 is High Speed
     POWER_DisablePD(kPDRUNCFG_PD_USB1_PHY);
 
-    /*According to reference mannual, device mode setting has to be set by access usb host register */
+    /*According to reference manual, device mode setting has to be set by access usb host register */
     CLOCK_EnableClock(kCLOCK_Usbh1); /* enable usb1 host clock */
     USBHSH->PORTMODE |= USBHSH_PORTMODE_DEV_ENABLE_MASK;
     CLOCK_DisableClock(kCLOCK_Usbh1); /* enable usb1 host clock */

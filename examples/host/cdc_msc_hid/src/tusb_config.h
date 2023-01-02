@@ -34,6 +34,12 @@
 // Board Specific Configuration
 //--------------------------------------------------------------------+
 
+#if CFG_TUSB_MCU == OPT_MCU_RP2040
+// change to 1 if using pico-pio-usb as host controller for raspberry rp2040
+#define CFG_TUH_RPI_PIO_USB   0
+#define BOARD_TUH_RHPORT      CFG_TUH_RPI_PIO_USB
+#endif
+
 // RHPort number used for host can be defined by board.mk, default to port 0
 #ifndef BOARD_TUH_RHPORT
 #define BOARD_TUH_RHPORT      0
@@ -101,6 +107,17 @@
 //------------- HID -------------//
 #define CFG_TUH_HID_EPIN_BUFSIZE    64
 #define CFG_TUH_HID_EPOUT_BUFSIZE   64
+
+//------------- CDC -------------//
+
+// Set Line Control state on enumeration/mounted:
+// DTR ( bit 0), RTS (bit 1)
+#define CFG_TUH_CDC_LINE_CONTROL_ON_ENUM    0x03
+
+// Set Line Coding on enumeration/mounted, value for cdc_line_coding_t
+// bit rate = 115200, 1 stop bit, no parity, 8 bit data width
+#define CFG_TUH_CDC_LINE_CODING_ON_ENUM   { 115200, CDC_LINE_CONDING_STOP_BITS_1, CDC_LINE_CODING_PARITY_NONE, 8 }
+
 
 #ifdef __cplusplus
  }

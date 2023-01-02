@@ -47,6 +47,12 @@ TU_ATTR_ALWAYS_INLINE static inline void _hw_endpoint_lock_update(__unused struc
 static void _hw_endpoint_xfer_sync(struct hw_endpoint *ep);
 static void _hw_endpoint_start_next_buffer(struct hw_endpoint *ep);
 
+// if usb hardware is in host mode
+TU_ATTR_ALWAYS_INLINE static inline bool is_host_mode(void)
+{
+  return (usb_hw->main_ctrl & USB_MAIN_CTRL_HOST_NDEVICE_BITS) ? true : false;
+}
+
 //--------------------------------------------------------------------+
 //
 //--------------------------------------------------------------------+
@@ -69,6 +75,8 @@ void rp2040_usb_init(void)
 
   // Mux the controller to the onboard usb phy
   usb_hw->muxing = USB_USB_MUXING_TO_PHY_BITS | USB_USB_MUXING_SOFTCON_BITS;
+
+  TU_LOG2_INT(sizeof(hw_endpoint_t));
 }
 
 void __tusb_irq_path_func(hw_endpoint_reset_transfer)(struct hw_endpoint *ep)
@@ -80,19 +88,23 @@ void __tusb_irq_path_func(hw_endpoint_reset_transfer)(struct hw_endpoint *ep)
 }
 
 void __tusb_irq_path_func(_hw_endpoint_buffer_control_update32)(struct hw_endpoint *ep, uint32_t and_mask, uint32_t or_mask) {
-    uint32_t value = 0;
-    if (and_mask) {
-        value = *ep->buffer_control & and_mask;
-    }
-    if (or_mask) {
-        value |= or_mask;
-        if (or_mask & USB_BUF_CTRL_AVAIL) {
-            if (*ep->buffer_control & USB_BUF_CTRL_AVAIL) {
-                panic("ep %d %s was already available", tu_edpt_number(ep->ep_addr), ep_dir_string[tu_edpt_dir(ep->ep_addr)]);
-            }
-            *ep->buffer_control = value & ~USB_BUF_CTRL_AVAIL;
-            // 12 cycle delay.. (should be good for 48*12Mhz = 576Mhz)
-            // Don't need delay in host mode as host is in charge
+  uint32_t value = 0;
+  if ( and_mask )
+  {
+    value = *ep->buffer_control & and_mask;
+  }
+  if ( or_mask )
+  {
+    value |= or_mask;
+    if ( or_mask & USB_BUF_CTRL_AVAIL )
+    {
+      if ( *ep->buffer_control & USB_BUF_CTRL_AVAIL )
+      {
+        panic("ep %d %s was already available", tu_edpt_number(ep->ep_addr), ep_dir_string[tu_edpt_dir(ep->ep_addr)]);
+      }
+      *ep->buffer_control = value & ~USB_BUF_CTRL_AVAIL;
+      // 12 cycle delay.. (should be good for 48*12Mhz = 576Mhz)
+      // Don't need delay in host mode as host is in charge
 #if !CFG_TUH_ENABLED
             __asm volatile (
                     "b 1f\n"
@@ -104,9 +116,9 @@ void __tusb_irq_path_func(_hw_endpoint_buffer_control_update32)(struct hw_endpoi
                     "1:\n"
                     : : : "memory");
 #endif
-        }
     }
-    *ep->buffer_control = value;
+  }
+  *ep->buffer_control = value;
 }
 
 // prepare buffer, return buffer control
@@ -152,10 +164,14 @@ static void __tusb_irq_path_func(_hw_endpoint_start_next_buffer)(struct hw_endpo
   // always compute and start with buffer 0
   uint32_t buf_ctrl = prepare_ep_buffer(ep, 0) | USB_BUF_CTRL_SEL;
 
-  // For now: skip double buffered for Device mode, OUT endpoint since
+  // For now: skip double buffered for OUT endpoint in Device mode, since
   // host could send < 64 bytes and cause short packet on buffer0
-  // NOTE this could happen to Host mode IN endpoint
-  bool const force_single = !(usb_hw->main_ctrl & USB_MAIN_CTRL_HOST_NDEVICE_BITS) && !tu_edpt_dir(ep->ep_addr);
+  // NOTE: this could happen to Host mode IN endpoint
+  // Also, Host mode "interrupt" endpoint hardware is only single buffered,
+  // NOTE2: Currently Host bulk is implemented using "interrupt" endpoint
+  bool const is_host = is_host_mode();
+  bool const force_single = (!is_host && !tu_edpt_dir(ep->ep_addr)) ||
+                            (is_host && tu_edpt_number(ep->ep_addr) != 0);
 
   if(ep->remaining_len && !force_single)
   {

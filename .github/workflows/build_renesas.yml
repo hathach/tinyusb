@@ -1,11 +1,23 @@
 name: Build Renesas
 
 on:
-  pull_request:
   push:
-  release:
-    types:
-      - created
+    paths:
+      - 'src/**'
+      - 'examples/**'
+      - 'lib/**'
+      - 'hw/**'
+  pull_request:
+    branches: [ master ]
+    paths:
+      - 'src/**'
+      - 'examples/**'
+      - 'lib/**'
+      - 'hw/**'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
+  cancel-in-progress: true
 
 jobs:
   build-rx:
@@ -38,7 +50,7 @@ jobs:
       run: echo >> $GITHUB_ENV TOOLCHAIN_URL=http://gcc-renesas.com/downloads/get.php?f=rx/8.3.0.202004-gnurx/gcc-8.3.0.202004-GNURX-ELF.run
 
     - name: Cache Toolchain
-      uses: actions/cache@v2
+      uses: actions/cache@v3
       id: cache-toolchain
       with:
         path: ~/cache/

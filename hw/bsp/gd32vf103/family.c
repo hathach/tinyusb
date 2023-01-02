@@ -112,7 +112,7 @@ void board_init(void) {
   otg_core_regs->GCCFG &= ~GCCFG_VBUSIG;
 #endif
 
-  /* Enable interrupts globaly */
+  /* Enable interrupts globally */
   __enable_irq();
 }
 
@@ -120,7 +120,7 @@ void gd32vf103_reset(void) {
   /* The MTIMER unit of the GD32VF103 doesn't have the MSFRST
    * register to generate a software reset request.
    * BUT instead two undocumented registers in the debug peripheral
-   * that allow issueing a software reset.
+   * that allow issuing a software reset.
    * https://github.com/esmil/gd32vf103inator/blob/master/include/gd32vf103/dbg.h
    */
   DBG_KEY = DBG_KEY_UNLOCK;

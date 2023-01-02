@@ -243,7 +243,7 @@ static void USBC_Dev_SetAddress(u8 address)
 
 static void __USBC_Dev_Tx_SendStall(void)
 {
-	//send stall, and fifo is flushed automaticly
+	//send stall, and fifo is flushed automatically
 	USBC_REG_set_bit_w(USBC_BP_TXCSR_D_SEND_STALL, USBC_REG_TXCSR(USBC0_BASE));
 }
 static u32 __USBC_Dev_Tx_IsEpStall(void)

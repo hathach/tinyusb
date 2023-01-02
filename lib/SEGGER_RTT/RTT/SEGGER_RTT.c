@@ -1404,7 +1404,7 @@ int SEGGER_RTT_GetKey(void) {
 *       SEGGER_RTT_WaitKey
 *
 *  Function description
-*    Waits until at least one character is avaible in the SEGGER RTT buffer.
+*    Waits until at least one character is available in the SEGGER RTT buffer.
 *    Once a character is available, it is read and this function returns.
 *
 *  Return value

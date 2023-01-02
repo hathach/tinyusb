@@ -600,7 +600,7 @@ uint32_t hcd_frame_number(uint8_t rhport)
 bool hcd_port_connect_status(uint8_t rhport)
 {
   (void)rhport;
-  return USB0.INTSTS1.BIT.ATTCH ? true: false;
+  return USB0.INTSTS1.BIT.ATTCH ? true : false;
 }
 
 void hcd_port_reset(uint8_t rhport)

@@ -1,0 +1,94 @@
+name: Hardware Test
+
+on:
+  push:
+    paths:
+      - 'src/**'
+      - 'examples/**'
+      - 'lib/**'
+      - 'hw/**'
+  pull_request:
+    branches: [ master ]
+    paths:
+      - 'src/**'
+      - 'examples/**'
+      - 'lib/**'
+      - 'hw/**'
+
+# Hardware in the loop (HIL)
+# Current self-hosted instance is running on an EPYC 7232 server hosted by HiFiPhile user
+# - STM32L412 Nucleo with on-board jlink as ttyACM0
+
+jobs:
+  stm32l412nucleo-test:
+    runs-on: [self-hosted, Linux, X64, hifiphile]
+
+    steps:
+    - name: Clean workspace
+      run: |
+        echo "Cleaning up previous run"
+        rm -rf "${{ github.workspace }}"
+        mkdir -p "${{ github.workspace }}"
+
+    - name: Checkout TinyUSB
+      uses: actions/checkout@v3
+
+    - name: Get Dependencies and Build
+      run: |
+        git submodule update --init lib/FreeRTOS-Kernel lib/lwip
+        python3 tools/get_dependencies.py stm32l4
+        python3 tools/build_family.py stm32l4
+
+    - name: Pick-up elf files
+      run: |
+        mkdir stm32l412nucleo/
+        find examples/ -path "*stm32l412nucleo/*.elf" -exec mv {} stm32l412nucleo/ \;
+
+    - name: Create flash.sh
+      run: |
+        echo > flash.sh 'echo halt > flash.jlink'
+        echo >> flash.sh 'echo r >> flash.jlink'
+        echo >> flash.sh 'echo loadfile stm32l412nucleo/$1 >> flash.jlink'
+        echo >> flash.sh 'echo r >> flash.jlink'
+        echo >> flash.sh 'echo go >> flash.jlink'
+        echo >> flash.sh 'echo exit >> flash.jlink'
+        echo >> flash.sh 'cmdout=$(JLinkExe -device stm32l412kb -if swd -JTAGConf -1,-1 -speed auto -NoGui 1 -ExitOnError 1 -CommandFile flash.jlink)'
+        echo >> flash.sh 'if (( $? )) ; then echo $cmdout ; fi'
+        chmod +x flash.sh
+
+    - name: Test cdc_dual_ports
+      run: |
+        ./flash.sh cdc_dual_ports.elf
+        while (! ([ -e /dev/ttyACM1 ] && [ -e /dev/ttyACM2 ])) && [ $SECONDS -le 5 ]; do :; done
+        test -e /dev/ttyACM1 && echo "ttyACM1 exists"
+        test -e /dev/ttyACM2 && echo "ttyACM2 exists"
+
+      # Debian does not auto mount usb drive. skip this test for now
+    - name: Test cdc_msc
+      if: false
+      run: |
+        ./flash.sh cdc_msc.elf
+        readme='/media/pi/TinyUSB MSC/README.TXT'
+        while (! ([ -e /dev/ttyACM1 ] && [ -f "$readme" ])) && [ $SECONDS -le 5 ]; do :; done
+        test -e /dev/ttyACM1 && echo "ttyACM1 exists"
+        test -f "$readme" && echo "$readme exists"
+        cat "$readme"
+
+    - name: Test dfu
+      run: |
+        ./flash.sh dfu.elf
+        while (! (dfu-util -l | grep "Found DFU")) && [ $SECONDS -le 5 ]; do :; done
+        dfu-util -d cafe -a 0 -U dfu0
+        dfu-util -d cafe -a 1 -U dfu1
+        grep "TinyUSB DFU! - Partition 0" dfu0
+        grep "TinyUSB DFU! - Partition 1" dfu1
+
+    - name: Test dfu_runtime
+      run: |
+        ./flash.sh dfu_runtime.elf
+        while (! (dfu-util -l | grep "Found Runtime")) && [ $SECONDS -le 5 ]; do :; done
+
+#    - name: Test hid_boot_interface
+#      run: |
+#        ./flash.sh hid_boot_interface.elf
+#        while (! (dfu-util -l | grep "Found Runtime")) && [ $SECONDS -le 5 ]; do :; done

@@ -53,6 +53,8 @@
   #define USBD_STACK_SIZE    (3*configMINIMAL_STACK_SIZE/2) * (CFG_TUSB_DEBUG ? 2 : 1)
 #endif
 
+#define HID_STACK_SZIE      configMINIMAL_STACK_SIZE
+
 //--------------------------------------------------------------------+
 // MACRO CONSTANT TYPEDEF PROTYPES
 //--------------------------------------------------------------------+
@@ -68,19 +70,18 @@ enum  {
   BLINK_SUSPENDED = 2500,
 };
 
-// static timer
+// static timer & task
+#if configSUPPORT_STATIC_ALLOCATION
 StaticTimer_t blinky_tmdef;
-TimerHandle_t blinky_tm;
 
-// static task
 StackType_t  usb_device_stack[USBD_STACK_SIZE];
 StaticTask_t usb_device_taskdef;
 
-// static task for hid
-#define HID_STACK_SZIE      configMINIMAL_STACK_SIZE
 StackType_t  hid_stack[HID_STACK_SZIE];
 StaticTask_t hid_taskdef;
+#endif
 
+TimerHandle_t blinky_tm;
 
 void led_blinky_cb(TimerHandle_t xTimer);
 void usb_device_task(void* param);
@@ -94,15 +95,22 @@ int main(void)
 {
   board_init();
 
+#if configSUPPORT_STATIC_ALLOCATION
   // soft timer for blinky
   blinky_tm = xTimerCreateStatic(NULL, pdMS_TO_TICKS(BLINK_NOT_MOUNTED), true, NULL, led_blinky_cb, &blinky_tmdef);
-  xTimerStart(blinky_tm, 0);
 
   // Create a task for tinyusb device stack
-  (void) xTaskCreateStatic( usb_device_task, "usbd", USBD_STACK_SIZE, NULL, configMAX_PRIORITIES-1, usb_device_stack, &usb_device_taskdef);
+  xTaskCreateStatic(usb_device_task, "usbd", USBD_STACK_SIZE, NULL, configMAX_PRIORITIES-1, usb_device_stack, &usb_device_taskdef);
 
   // Create HID task
-  (void) xTaskCreateStatic( hid_task, "hid", HID_STACK_SZIE, NULL, configMAX_PRIORITIES-2, hid_stack, &hid_taskdef);
+  xTaskCreateStatic(hid_task, "hid", HID_STACK_SZIE, NULL, configMAX_PRIORITIES-2, hid_stack, &hid_taskdef);
+#else
+  blinky_tm = xTimerCreate(NULL, pdMS_TO_TICKS(BLINK_NOT_MOUNTED), true, NULL, led_blinky_cb);
+  xTaskCreate(usb_device_task, "usbd", USBD_STACK_SIZE, NULL, configMAX_PRIORITIES-1, NULL);
+  xTaskCreate(hid_task, "hid", HID_STACK_SZIE, NULL, configMAX_PRIORITIES-2, NULL);
+#endif
+
+  xTimerStart(blinky_tm, 0);
 
   // skip starting scheduler (and return) for ESP32-S2 or ESP32-S3
 #if !TU_CHECK_MCU(OPT_MCU_ESP32S2, OPT_MCU_ESP32S3)

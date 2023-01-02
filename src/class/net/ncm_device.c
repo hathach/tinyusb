@@ -392,7 +392,7 @@ bool netd_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request_t 
 
       if (NCM_GET_NTB_PARAMETERS == request->bRequest)
       {
-        tud_control_xfer(rhport, request, (void*)&ntb_parameters, sizeof(ntb_parameters));
+        tud_control_xfer(rhport, request, (void*)(uintptr_t) &ntb_parameters, sizeof(ntb_parameters));
       }
 
       break;

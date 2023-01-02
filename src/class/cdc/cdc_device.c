@@ -62,10 +62,8 @@ typedef struct
   uint8_t rx_ff_buf[CFG_TUD_CDC_RX_BUFSIZE];
   uint8_t tx_ff_buf[CFG_TUD_CDC_TX_BUFSIZE];
 
-#if CFG_FIFO_MUTEX
-  osal_mutex_def_t rx_ff_mutex;
-  osal_mutex_def_t tx_ff_mutex;
-#endif
+  OSAL_MUTEX_DEF(rx_ff_mutex);
+  OSAL_MUTEX_DEF(tx_ff_mutex);
 
   // Endpoint Transfer buffer
   CFG_TUSB_MEM_ALIGN uint8_t epout_buf[CFG_TUD_CDC_EP_BUFSIZE];
@@ -171,7 +169,8 @@ uint32_t tud_cdc_n_write(uint8_t itf, void const* buffer, uint32_t bufsize)
   uint16_t ret = tu_fifo_write_n(&p_cdc->tx_ff, buffer, (uint16_t) bufsize);
 
   // flush if queue more than packet size
-  if ( tu_fifo_count(&p_cdc->tx_ff) >= BULK_PACKET_SIZE )
+  // may need to suppress -Wunreachable-code since most of the time CFG_TUD_CDC_TX_BUFSIZE < BULK_PACKET_SIZE
+  if ( (tu_fifo_count(&p_cdc->tx_ff) >= BULK_PACKET_SIZE) || ((CFG_TUD_CDC_TX_BUFSIZE < BULK_PACKET_SIZE) && tu_fifo_full(&p_cdc->tx_ff)) )
   {
     tud_cdc_n_write_flush(itf);
   }
@@ -247,10 +246,8 @@ void cdcd_init(void)
     // In this way, the most current data is prioritized.
     tu_fifo_config(&p_cdc->tx_ff, p_cdc->tx_ff_buf, TU_ARRAY_SIZE(p_cdc->tx_ff_buf), 1, true);
 
-#if CFG_FIFO_MUTEX
     tu_fifo_config_mutex(&p_cdc->rx_ff, NULL, osal_mutex_create(&p_cdc->rx_ff_mutex));
     tu_fifo_config_mutex(&p_cdc->tx_ff, osal_mutex_create(&p_cdc->tx_ff_mutex), NULL);
-#endif
   }
 }
 
@@ -435,7 +432,7 @@ bool cdcd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint32_
   // Received new data
   if ( ep_addr == p_cdc->ep_out )
   {
-    tu_fifo_write_n(&p_cdc->rx_ff, &p_cdc->epout_buf, (uint16_t) xferred_bytes);
+    tu_fifo_write_n(&p_cdc->rx_ff, p_cdc->epout_buf, (uint16_t) xferred_bytes);
     
     // Check for wanted char and invoke callback if needed
     if ( tud_cdc_rx_wanted_cb && (((signed char) p_cdc->wanted_char) != -1) )

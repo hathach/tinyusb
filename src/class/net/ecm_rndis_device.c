@@ -51,7 +51,7 @@ typedef struct
 
   bool ecm_mode;
 
-  // Endpoint descriptor use to open/close when receving SetInterface
+  // Endpoint descriptor use to open/close when receiving SetInterface
   // TODO since configuration descriptor may not be long-lived memory, we should
   // keep a copy of endpoint attribute instead
   uint8_t const * ecm_desc_epdata;

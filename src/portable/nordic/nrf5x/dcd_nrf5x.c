@@ -170,7 +170,7 @@ static void xact_out_dma(uint8_t epnum)
   uint32_t xact_len;
 
   // DMA can't be active during read of SIZE.EPOUT or SIZE.ISOOUT, so try to lock,
-  // If already running deffer call regardless if it was called from ISR or task,
+  // If already running defer call regardless if it was called from ISR or task,
   if ( atomic_flag_test_and_set(&_dcd.dma_running) )
   {
     usbd_defer_func((osal_task_func_t)xact_out_dma_wrapper, (void *)(uint32_t)epnum, is_in_isr());

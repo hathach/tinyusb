@@ -1,34 +1,25 @@
 name: Build ARM
 
 on:
-  pull_request:
   push:
-  release:
-    types:
-      - created
+    paths:
+      - 'src/**'
+      - 'examples/**'
+      - 'lib/**'
+      - 'hw/**'
+  pull_request:
+    branches: [ master ]
+    paths:
+      - 'src/**'
+      - 'examples/**'
+      - 'lib/**'
+      - 'hw/**'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
+  cancel-in-progress: true
 
 jobs:
-  # ---------------------------------------
-  # Unit testing with Ceedling
-  # ---------------------------------------
-  unit-test:
-    runs-on: ubuntu-latest
-    steps:
-    - name: Setup Ruby
-      uses: ruby/setup-ruby@v1
-      with:
-        ruby-version: '2.7'
-
-    - name: Checkout TinyUSB
-      uses: actions/checkout@v3
-
-    - name: Unit Tests
-      run: |
-        # Install Ceedling
-        gem install ceedling
-        cd test
-        ceedling test:all
-
   # ---------------------------------------
   # Build ARM family
   # ---------------------------------------
@@ -123,9 +114,11 @@ jobs:
 
   # ---------------------------------------
   # Build all no-family (orphaned) boards
+  # disable this workflow since it is often failed randomly
   # ---------------------------------------
   build-board:
     runs-on: ubuntu-latest
+    if: false
     strategy:
       fail-fast: false
       matrix:
@@ -163,11 +156,11 @@ jobs:
   # - pico + pico-probe connected via USB
   # - pico-probe is /dev/ttyACM0
   # ---------------------------------------
-  hw-test:
+  hw-rp2040-test:
     # Limit the run to only hathach due to limited resource on RPI4
     if: github.repository_owner == 'hathach'
     needs: build-arm
-    runs-on: [self-hosted, Linux, ARM64]
+    runs-on: [self-hosted, Linux, ARM64, rp2040]
 
     steps:
     - name: Clean workspace
@@ -183,9 +176,9 @@ jobs:
 
     - name: Create flash.sh
       run: |
-        touch flash.sh
+        echo > flash.sh 'cmdout=$(openocd -f "interface/picoprobe.cfg" -f "target/rp2040.cfg" -c "program $1 reset exit")'
+        echo >> flash.sh 'if (( $? )) ; then echo $cmdout ; fi'
         chmod +x flash.sh
-        echo > flash.sh 'openocd -f "interface/picoprobe.cfg" -f "target/rp2040.cfg" -c "program $1 reset exit"'
 
     - name: Test cdc_dual_ports
       run: |

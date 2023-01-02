@@ -1003,7 +1003,7 @@ static void handle_rxflvl_irq(uint8_t rhport)
 
   switch ( pktsts )
   {
-    // Global OUT NAK: do nothign
+    // Global OUT NAK: do nothing
     case GRXSTS_PKTSTS_GLOBALOUTNAK: break;
 
     case GRXSTS_PKTSTS_SETUPRX:

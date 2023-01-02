@@ -465,7 +465,7 @@ void dcd_edpt_clear_stall(uint8_t rhport, uint8_t ep_addr)
       enable = 1;
     usb_out_ctrl_write((0 << CSR_USB_OUT_CTRL_STALL_OFFSET) | (enable << CSR_USB_OUT_CTRL_ENABLE_OFFSET) | tu_edpt_number(ep_addr));
   }
-  // IN endpoints will get unstalled when more data is written.
+  // IN endpoints will get un-stalled when more data is written.
 }
 
 bool dcd_edpt_xfer (uint8_t rhport, uint8_t ep_addr, uint8_t* buffer, uint16_t total_bytes)

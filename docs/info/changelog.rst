@@ -78,14 +78,14 @@ Controller Driver (DCD & HCD)
 - [MUSB] Add new DCD and HCD for Mentor musb with TI MSP432E4
 - [F1C100s] Add new DCD for Allwinner F1C100s family
 - [PIC32MZ] Add new DCD for PIC32MZ
-- [nRF] Fix/Enhance varous race condtion with: EASY DMA, request HFXO, EPOUT
+- [nRF] Fix/Enhance various race condition with: EASY DMA, request HFXO, EPOUT
 - [ChipIdea] rename Transdimension to more popular ChipIdea Highspeed, 
 - [RP2040] various update/fix for hcd/dcd
 - [FT9XX] new DCD port for Bridgetek FT90x and FT93x devices
 - [DA1469X] Fix resume
 - [OHCI] Fix device array out of bound
 
-Note: legacy drivers such as st/synopsys, nxp/transdimension are still present in this release but won't recieve more update and could be removed in the future.
+Note: legacy drivers such as st/synopsys, nxp/transdimension are still present in this release but won't receive more update and could be removed in the future.
 
 Device Stack
 ------------
@@ -166,7 +166,7 @@ RP2040
 ^^^^^^
 
 - Add RP2040 suspend & resume support
-- Implement double buffer for both host and device (#891). Howver device EPOUT is still single bufferred due to techinical issue with short packet 
+- Implement double buffer for both host and device (#891). However device EPOUT is still single buffered due to techinical issue with short packet 
 
 Device Stack
 ------------
@@ -175,7 +175,7 @@ USBD
 ^^^^
 
 - Better support big endian mcu
-- Add tuh_inited() and tud_inited(), will separte tusb_init/inited() to tud/tuh init/inited
+- Add tuh_inited() and tud_inited(), will separate tusb_init/inited() to tud/tuh init/inited
 - Add dcd_attr.h for defining common controller attribute such as max endpoints
 
 Bluetooth
@@ -220,8 +220,8 @@ Host Controller Driver (HCD)
 RP2040
 ^^^^^^
 
-- Implement double bufferred to fix E4 errata and boost performance
-- Lots of rp2040 update and enhancment
+- Implement double buffered to fix E4 errata and boost performance
+- Lots of rp2040 update and enhancement
 
 Host Stack
 ----------
@@ -229,7 +229,7 @@ Host Stack
 - Major update and rework most of host stack, still needs more improvement
 - Lots of improvement and update in parsing configuration and control
 - Rework and major update to HID driver. Will default to enable boot interface if available
-- Sepearate CFG_TUH_DEVICE_MAX and CFG_TUH_HUB for better management and reduce SRAM usage
+- Separate CFG_TUH_DEVICE_MAX and CFG_TUH_HUB for better management and reduce SRAM usage
 
 0.10.1 (2021-06-03)
 ===================
@@ -306,12 +306,12 @@ MIDI
 Host Controller Driver (HCD)
 ----------------------------
 
-- No noticable changes
+- No noticeable changes
 
 USB Host Driver (USBH)
 ----------------------
 
-- No noticable changes
+- No noticeable changes
 
 Host Class Driver
 -----------------
@@ -384,7 +384,7 @@ HID
 MIDI
 
 - Fix dropping MIDI sysex message when fifo is full
-- Fix typo in tud_midi_write24(), make example less ambigous for cable and channel
+- Fix typo in tud_midi_write24(), make example less ambiguous for cable and channel
 - Fix incorrect endpoint descriptor length, MIDI v1 use Audio v1 which has 9-byte endpoint descriptor (instead of 7)
 
 Host Stack
@@ -699,7 +699,7 @@ Changed
 - Generalized dcd_stm32f4.c to dcd_synopsys.c
 - Changed cdc_msc_hid to cdc_msc (drop hid) due to limited endpoints number of some MCUs
 - Improved DCD SAMD stability, fix missing setup packet occasionally
-- Improved usbd/usbd_control with proper hanlding of zero-length packet (ZLP)
+- Improved usbd/usbd_control with proper handling of zero-length packet (ZLP)
 - Improved STM32 DCD FSDev
 - Improved STM32 DCD Synopsys
 - Migrated CI from Travis to Github Action

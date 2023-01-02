@@ -52,7 +52,7 @@
 #endif
 
 // VBUS enable pin and its active state
-// #define PIO_USB_VBUSEN_PIN    22
+#define PIO_USB_VBUSEN_PIN    22
 
 #ifndef PIO_USB_VBUSEN_STATE
 #define PIO_USB_VBUSEN_STATE  1
