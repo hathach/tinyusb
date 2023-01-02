@@ -649,7 +649,6 @@ void dcd_int_handler(uint8_t rhport) {
   /* Put SOF flag at the beginning of ISR in case to get least amount of jitter if it is used for timing purposes */
   if(int_status & USB_ISTR_SOF) {
     clear_istr_bits(USB_ISTR_SOF);
-    if (tu_stm32_sof_cb) tu_stm32_sof_cb();
     dcd_event_sof(0, USB->FNR & USB_FNR_FN, true);
   }
 
