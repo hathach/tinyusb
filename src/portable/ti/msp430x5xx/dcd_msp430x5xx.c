@@ -628,7 +628,7 @@ static void handle_bus_power_event(void *param)
 {
   (void) param;
 
-  osal_task_delay(2);                 // Bus power settling delay.
+  osal_task_delay(5);                 // Bus power settling delay.
 
   USBKEYPID = USBKEY;
 
