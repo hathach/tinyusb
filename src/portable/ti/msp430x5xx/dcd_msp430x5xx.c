@@ -94,7 +94,12 @@ static void bus_reset(void)
   USBOEPCNT_0 &= ~NAK;
   USBIEPCNT_0 &= ~NAK;
 
-  USBCTL |= FEN; // Enable responding to packets.
+  // Disable (subsequent) bus reset events from causing a functional
+  // reset of the USB module.
+  USBCTL &= ~FRSTE;
+
+  // Enable responding to packets.
+  USBCTL |= FEN;
 
   // Dedicated buffers in hardware for SETUP and EP0, no setup needed.
   // Now safe to respond to SETUP packets.
@@ -334,6 +339,10 @@ bool dcd_edpt_xfer (uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t 
 
   if(epnum == 0)
   {
+    // Enables a bus reset to cause a functional reset of the USB
+    // module.
+    USBCTL |= FRSTE;
+
     if(dir == TUSB_DIR_OUT)
     {
       // Interrupt will notify us when data was received.
