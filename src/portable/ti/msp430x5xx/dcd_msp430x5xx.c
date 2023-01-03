@@ -616,11 +616,20 @@ static void handle_setup_packet(void)
     _setup_packet[i] = setup_buf[i];
   }
 
-  // Clearing SETUPIFG by reading USBVECINT does not set NAK, so now that we
-  // have a SETUP packet, force NAKs until tinyusb can handle the SETUP
-  // packet and prepare for a new xfer.
+  // Force NAKs until tinyusb can handle the SETUP packet and prepare
+  // for a new xfer.
   USBIEPCNT_0 |= NAK;
   USBOEPCNT_0 |= NAK;
+
+  // Clear SETUPIFG to avoid handling in the USBVECINT switch statement.
+  // When handled there the NAKs applied to the endpoints above are
+  // cleared by hardware and the host will receive stale/duplicate data.
+  //
+  // Excerpt from MSP430x5xx and MSP430x6xx Family User's Guide:
+  //
+  // "...the SETUPIFG is cleared upon reading USBIV. In addition, the NAK on
+  // input endpoint 0 and output endpoint 0 is also cleared."
+  USBIFG &= ~SETUPIFG;
   dcd_event_setup_received(0, (uint8_t*) &_setup_packet[0], true);
 }
 
