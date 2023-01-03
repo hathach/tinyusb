@@ -229,10 +229,10 @@ static osal_queue_t _usbh_q;
 CFG_TUSB_MEM_SECTION CFG_TUSB_MEM_ALIGN
 static uint8_t _usbh_ctrl_buf[CFG_TUH_ENUMERATION_BUFSIZE];
 
-// Control transfer: since most controller does not support multiple control transfer
-// on multiple devices concurrently. And control transfer is not used much except enumeration
-// We will only execute control transfer one at a time.
-struct
+// Control transfers: since most controllers do not support multiple control transfers
+// on multiple devices concurrently and control transfers are not used much except for
+// enumeration, we will only execute control transfers one at a time.
+CFG_TUSB_MEM_SECTION struct
 {
   tusb_control_request_t request TU_ATTR_ALIGNED(4);
   uint8_t* buffer;
