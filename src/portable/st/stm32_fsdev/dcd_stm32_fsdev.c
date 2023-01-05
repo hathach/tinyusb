@@ -562,6 +562,8 @@ static void dcd_ep_ctr_rx_handler(uint32_t wIstr)
       count = pcd_get_ep_rx_cnt(USB, EPindex);
     }
 
+    TU_ASSERT(count <= xfer->max_packet_size, /**/);
+
     // Clear RX CTR interrupt flag
     if(ep_addr != 0u)
     {
@@ -599,7 +601,12 @@ static void dcd_ep_ctr_rx_handler(uint32_t wIstr)
       } else {
         pcd_set_ep_rx_bufsize(USB, EPindex,remaining);
       }
-      pcd_set_ep_rx_status(USB, EPindex, USB_EP_RX_VALID);
+
+      if (!((wEPRegVal & USB_EP_TYPE_MASK) == USB_EP_ISOCHRONOUS)) {
+        /* Set endpoint active again for receiving more data.
+         * Note that isochronous endpoints stay active always */
+        pcd_set_ep_rx_status(USB, EPindex, USB_EP_RX_VALID);
+      }
     }
   }
 
@@ -881,7 +888,8 @@ bool dcd_edpt_open (uint8_t rhport, tusb_desc_endpoint_t const * p_endpoint_desc
   (void)rhport;
   uint8_t const epnum = dcd_ep_alloc(p_endpoint_desc->bEndpointAddress, p_endpoint_desc->bmAttributes.xfer);
   uint8_t const dir   = tu_edpt_dir(p_endpoint_desc->bEndpointAddress);
-  const uint16_t buffer_size = pcd_aligned_buffer_size(tu_edpt_packet_size(p_endpoint_desc));
+  const uint16_t packet_size = tu_edpt_packet_size(p_endpoint_desc);
+  const uint16_t buffer_size = pcd_aligned_buffer_size(packet_size);
   uint16_t pma_addr;
   uint32_t wType;
 
@@ -921,6 +929,7 @@ bool dcd_edpt_open (uint8_t rhport, tusb_desc_endpoint_t const * p_endpoint_desc
   if( (dir == TUSB_DIR_IN) || (wType == USB_EP_ISOCHRONOUS) )
   {
     *pcd_ep_tx_address_ptr(USB, epnum) = pma_addr;
+    pcd_set_ep_tx_bufsize(USB, epnum, buffer_size);
     pcd_clear_tx_dtog(USB, epnum);
   }
 
@@ -948,7 +957,7 @@ bool dcd_edpt_open (uint8_t rhport, tusb_desc_endpoint_t const * p_endpoint_desc
     }
   }
 
-  xfer_ctl_ptr(p_endpoint_desc->bEndpointAddress)->max_packet_size = buffer_size;
+  xfer_ctl_ptr(p_endpoint_desc->bEndpointAddress)->max_packet_size = packet_size;
   xfer_ctl_ptr(p_endpoint_desc->bEndpointAddress)->epnum = epnum;
 
   return true;
