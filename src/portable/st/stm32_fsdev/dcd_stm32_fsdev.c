@@ -1026,7 +1026,8 @@ bool dcd_edpt_iso_activate(uint8_t rhport,  tusb_desc_endpoint_t const * p_endpo
   (void)rhport;
   uint8_t const epnum = xfer_ctl_ptr(p_endpoint_desc->bEndpointAddress)->epnum;
   uint8_t const dir   = tu_edpt_dir(p_endpoint_desc->bEndpointAddress);
-  const uint16_t packet_size = pcd_aligned_buffer_size(tu_edpt_packet_size(p_endpoint_desc));
+  const uint16_t packet_size = tu_edpt_packet_size(p_endpoint_desc);
+  const uint16_t buffer_size = pcd_aligned_buffer_size(packet_size);
 
   /* Disable endpoint */
   if(dir == TUSB_DIR_IN)
@@ -1043,9 +1044,9 @@ bool dcd_edpt_iso_activate(uint8_t rhport,  tusb_desc_endpoint_t const * p_endpo
   // or being double-buffered (bulk endpoints)
   pcd_clear_ep_kind(USB,0);
 
+  pcd_set_ep_tx_bufsize(USB, epnum, buffer_size);
+  pcd_set_ep_rx_bufsize(USB, epnum, buffer_size);
   pcd_clear_tx_dtog(USB, epnum);
-
-  pcd_set_ep_rx_bufsize(USB, epnum, packet_size);
   pcd_clear_rx_dtog(USB, epnum);
 
   xfer_ctl_ptr(p_endpoint_desc->bEndpointAddress)->max_packet_size = packet_size;
