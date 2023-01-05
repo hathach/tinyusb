@@ -116,6 +116,7 @@ if (NOT TARGET _rp2040_family_inclusion_marker)
 
 	target_compile_definitions(tinyusb_additions INTERFACE
 		PICO_RP2040_USB_DEVICE_ENUMERATION_FIX=1
+		PICO_RP2040_USB_DEVICE_UFRAME_FIX=1
 	)
 
 	if(DEFINED LOG)

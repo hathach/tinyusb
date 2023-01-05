@@ -11,9 +11,19 @@
 #include "hardware/structs/usb.h"
 #include "hardware/irq.h"
 #include "hardware/resets.h"
+#include "hardware/timer.h"
 
 #if defined(PICO_RP2040_USB_DEVICE_ENUMERATION_FIX) && !defined(TUD_OPT_RP2040_USB_DEVICE_ENUMERATION_FIX)
 #define TUD_OPT_RP2040_USB_DEVICE_ENUMERATION_FIX PICO_RP2040_USB_DEVICE_ENUMERATION_FIX
+#endif
+
+#if defined(PICO_RP2040_USB_DEVICE_UFRAME_FIX) && !defined(TUD_OPT_RP2040_USB_DEVICE_UFRAME_FIX)
+#define TUD_OPT_RP2040_USB_DEVICE_UFRAME_FIX PICO_RP2040_USB_DEVICE_UFRAME_FIX
+#endif
+
+#if TUD_OPT_RP2040_USB_DEVICE_UFRAME_FIX
+#undef PICO_RP2040_USB_FAST_IRQ
+#define PICO_RP2040_USB_FAST_IRQ 1
 #endif
 
 #ifndef PICO_RP2040_USB_FAST_IRQ
@@ -67,7 +77,9 @@ typedef struct hw_endpoint
 
     // Interrupt, bulk, etc
     uint8_t transfer_type;
-    
+
+    // Transfer scheduled but not active
+    uint8_t pending;
 #if CFG_TUH_ENABLED
     // Only needed for host
     uint8_t dev_addr;
@@ -76,6 +88,16 @@ typedef struct hw_endpoint
     uint8_t interrupt_num;
 #endif
 } hw_endpoint_t;
+
+#if !TUD_OPT_RP2040_USB_DEVICE_UFRAME_FIX
+#define rp2040_critical_frame_period(x) false
+#define rp2040_ep_needs_sof(x) false
+#else
+extern volatile uint32_t last_sof;
+
+bool rp2040_critical_frame_period(struct hw_endpoint *ep);
+bool rp2040_ep_needs_sof(struct hw_endpoint *ep);
+#endif
 
 void rp2040_usb_init(void);
 
