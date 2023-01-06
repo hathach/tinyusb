@@ -62,6 +62,7 @@ typedef struct
   hidh_interface_t instances[CFG_TUH_HID];
 } hidh_device_t;
 
+CFG_TUSB_MEM_SECTION
 static hidh_device_t _hidh_dev[CFG_TUH_DEVICE_MAX];
 
 //------------- Internal prototypes -------------//
@@ -258,7 +259,7 @@ bool tuh_hid_receive_report(uint8_t dev_addr, uint8_t instance)
 
   if ( !usbh_edpt_xfer(dev_addr, hid_itf->ep_in, hid_itf->epin_buf, hid_itf->epin_size) )
   {
-    usbh_edpt_claim(dev_addr, hid_itf->ep_in);
+    usbh_edpt_release(dev_addr, hid_itf->ep_in);
     return false;
   }
 
