@@ -39,12 +39,12 @@
 // implement mutex lock and unlock
 #if CFG_FIFO_MUTEX
 
-static inline void _ff_lock(tu_fifo_mutex_t mutex)
+static inline void _ff_lock(osal_mutex_t mutex)
 {
   if (mutex) osal_mutex_lock(mutex, OSAL_TIMEOUT_WAIT_FOREVER);
 }
 
-static inline void _ff_unlock(tu_fifo_mutex_t mutex)
+static inline void _ff_unlock(osal_mutex_t mutex)
 {
   if (mutex) osal_mutex_unlock(mutex);
 }

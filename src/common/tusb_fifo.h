@@ -44,8 +44,6 @@ extern "C" {
 #include "common/tusb_common.h"
 #include "osal/osal.h"
 
-#define tu_fifo_mutex_t  osal_mutex_t
-
 // mutex is only needed for RTOS
 // for OS None, we don't get preempted
 #define CFG_FIFO_MUTEX      OSAL_MUTEX_REQUIRED
@@ -121,8 +119,8 @@ typedef struct
   volatile uint16_t rd_idx      ; ///< read index
 
 #if OSAL_MUTEX_REQUIRED
-  tu_fifo_mutex_t mutex_wr;
-  tu_fifo_mutex_t mutex_rd;
+  osal_mutex_t mutex_wr;
+  osal_mutex_t mutex_rd;
 #endif
 
 } tu_fifo_t;
@@ -155,7 +153,7 @@ bool tu_fifo_config(tu_fifo_t *f, void* buffer, uint16_t depth, uint16_t item_si
 
 #if OSAL_MUTEX_REQUIRED
 TU_ATTR_ALWAYS_INLINE static inline
-void tu_fifo_config_mutex(tu_fifo_t *f, tu_fifo_mutex_t wr_mutex, tu_fifo_mutex_t rd_mutex)
+void tu_fifo_config_mutex(tu_fifo_t *f, osal_mutex_t wr_mutex, osal_mutex_t rd_mutex)
 {
   f->mutex_wr = wr_mutex;
   f->mutex_rd = rd_mutex;
