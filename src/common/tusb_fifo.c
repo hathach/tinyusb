@@ -28,16 +28,15 @@
 #include "osal/osal.h"
 #include "tusb_fifo.h"
 
+#define TU_FIFO_DBG   0
+
 // Suppress IAR warning
 // Warning[Pa082]: undefined behavior: the order of volatile accesses is undefined in this statement
 #if defined(__ICCARM__)
 #pragma diag_suppress = Pa082
 #endif
 
-#define TU_FIFO_DBG   0
-
-// implement mutex lock and unlock
-#if CFG_FIFO_MUTEX
+#if OSAL_MUTEX_REQUIRED
 
 static inline void _ff_lock(osal_mutex_t mutex)
 {
@@ -80,8 +79,8 @@ bool tu_fifo_config(tu_fifo_t *f, void* buffer, uint16_t depth, uint16_t item_si
   f->depth        = depth;
   f->item_size    = (uint16_t) (item_size & 0x7FFF);
   f->overwritable = overwritable;
-
-  f->rd_idx = f->wr_idx = 0;
+  f->rd_idx       = 0;
+  f->wr_idx       = 0;
 
   _ff_unlock(f->mutex_wr);
   _ff_unlock(f->mutex_rd);
@@ -142,13 +141,13 @@ static void _ff_pull_const_addr(void * app_buf, const uint8_t * ff_buf, uint16_t
   }
 }
 
-// send one item to FIFO WITHOUT updating write pointer
+// send one item to fifo WITHOUT updating write pointer
 static inline void _ff_push(tu_fifo_t* f, void const * app_buf, uint16_t rel)
 {
   memcpy(f->buffer + (rel * f->item_size), app_buf, f->item_size);
 }
 
-// send n items to FIFO WITHOUT updating write pointer
+// send n items to fifo WITHOUT updating write pointer
 static void _ff_push_n(tu_fifo_t* f, void const * app_buf, uint16_t n, uint16_t rel, tu_fifo_copy_mode_t copy_mode)
 {
   uint16_t const nLin = f->depth - rel;
@@ -227,13 +226,13 @@ static void _ff_push_n(tu_fifo_t* f, void const * app_buf, uint16_t n, uint16_t 
   }
 }
 
-// get one item from FIFO WITHOUT updating read pointer
+// get one item from fifo WITHOUT updating read pointer
 static inline void _ff_pull(tu_fifo_t* f, void * app_buf, uint16_t rel)
 {
   memcpy(app_buf, f->buffer + (rel * f->item_size), f->item_size);
 }
 
-// get n items from FIFO WITHOUT updating read pointer
+// get n items from fifo WITHOUT updating read pointer
 static void _ff_pull_n(tu_fifo_t* f, void* app_buf, uint16_t n, uint16_t rel, tu_fifo_copy_mode_t copy_mode)
 {
   uint16_t const nLin = f->depth - rel;
@@ -475,14 +474,14 @@ static uint16_t _tu_fifo_write_n(tu_fifo_t* f, const void * data, uint16_t n, tu
   uint16_t rd_idx = f->rd_idx;
 
   uint8_t const* buf8 = (uint8_t const*) data;
-  uint16_t overflowable_count = _tu_fifo_count(f, wr_idx, rd_idx);
-  uint16_t const remain = _tu_fifo_remaining(f, wr_idx, rd_idx);
 
-  TU_LOG(TU_FIFO_DBG, "rd = %3u, wr = %3u, count = %3u, remain = %3u, n = %3u:  ", rd_idx, wr_idx, _tu_fifo_count(f, wr_idx, rd_idx), remain, n);
+  TU_LOG(TU_FIFO_DBG, "rd = %3u, wr = %3u, count = %3u, remain = %3u, n = %3u:  ",
+                       rd_idx, wr_idx, _tu_fifo_count(f, wr_idx, rd_idx), _tu_fifo_remaining(f, wr_idx, rd_idx), n);
 
   if ( !f->overwritable )
   {
     // limit up to full
+    uint16_t const remain = _tu_fifo_remaining(f, wr_idx, rd_idx);
     n = tu_min16(n, remain);
   }
   else
@@ -508,23 +507,27 @@ static uint16_t _tu_fifo_write_n(tu_fifo_t* f, const void * data, uint16_t n, tu
       // We start writing at the read pointer's position since we fill the whole buffer
       wr_idx = rd_idx;
     }
-    else if (overflowable_count + n >= 2*f->depth)
+    else
     {
-      // Double overflowed
-      // Index is bigger than the allowed range [0,2*depth)
-      // re-position write index to have a full fifo after pushed
-      wr_idx = advance_pointer(f, rd_idx, f->depth - n);
+      uint16_t const overflowable_count = _tu_fifo_count(f, wr_idx, rd_idx);
+      if (overflowable_count + n >= 2*f->depth)
+      {
+        // Double overflowed
+        // Index is bigger than the allowed range [0,2*depth)
+        // re-position write index to have a full fifo after pushed
+        wr_idx = advance_pointer(f, rd_idx, f->depth - n);
 
-      // TODO we should also shift out n bytes from read index since we avoid changing rd index !!
-      // However memmove() is expensive due to actual copying + wrapping consideration.
-      // Also race condition could happen anyway if read() is invoke while moving result in corrupted memory
-      // currently deliberately not implemented --> result in incorrect data read back
-    }else
-    {
-      // normal + single overflowed:
-      // Index is in the range of [0,2*depth) and thus detect and recoverable. Recovering is handled in read()
-      // Therefore we just increase write index
-      // we will correct (re-position) read index later on in fifo_read() function
+        // TODO we should also shift out n bytes from read index since we avoid changing rd index !!
+        // However memmove() is expensive due to actual copying + wrapping consideration.
+        // Also race condition could happen anyway if read() is invoke while moving result in corrupted memory
+        // currently deliberately not implemented --> result in incorrect data read back
+      }else
+      {
+        // normal + single overflowed:
+        // Index is in the range of [0,2*depth) and thus detect and recoverable. Recovering is handled in read()
+        // Therefore we just increase write index
+        // we will correct (re-position) read index later on in fifo_read() function
+      }
     }
   }
 
@@ -868,7 +871,8 @@ bool tu_fifo_clear(tu_fifo_t *f)
   _ff_lock(f->mutex_wr);
   _ff_lock(f->mutex_rd);
 
-  f->rd_idx = f->wr_idx = 0;
+  f->rd_idx = 0;
+  f->wr_idx = 0;
 
   _ff_unlock(f->mutex_wr);
   _ff_unlock(f->mutex_rd);
@@ -1031,9 +1035,9 @@ void tu_fifo_get_write_info(tu_fifo_t *f, tu_fifo_buffer_info_t *info)
 
   if (remain == 0)
   {
-    info->len_lin = 0;
+    info->len_lin  = 0;
     info->len_wrap = 0;
-    info->ptr_lin = NULL;
+    info->ptr_lin  = NULL;
     info->ptr_wrap = NULL;
     return;
   }
