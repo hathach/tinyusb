@@ -25,6 +25,7 @@
  */
 
 #include "tusb_option.h"
+#include "tusb_verify.h"
 
 #if CFG_TUH_ENABLED
 
@@ -320,6 +321,27 @@ bool tuh_inited(void)
   return _usbh_controller != CONTROLLER_INVALID;
 }
 
+static bool init_persistent_state(void)
+{
+  static bool was_persistent_inited = false;
+  if(was_persistent_inited) {
+    return true;
+  }
+
+  // Event queue
+  _usbh_q = osal_queue_create( &_usbh_qdef );
+  TU_ASSERT(_usbh_q != NULL);
+
+#if OSAL_MUTEX_REQUIRED
+  // Mutex
+  _usbh_mutex = osal_mutex_create(&_usbh_mutexdef);
+  TU_ASSERT(_usbh_mutex);
+#endif
+
+  was_persistent_inited = true;
+  return true;
+}
+
 bool tuh_init(uint8_t controller_id)
 {
   // skip if already initialized
@@ -333,14 +355,14 @@ bool tuh_init(uint8_t controller_id)
   TU_LOG_INT(USBH_DEBUG, sizeof(tu_fifo_t));
   TU_LOG_INT(USBH_DEBUG, sizeof(tu_edpt_stream_t));
 
-  // Event queue
-  _usbh_q = osal_queue_create( &_usbh_qdef );
-  TU_ASSERT(_usbh_q != NULL);
+  if(!init_persistent_state())
+    return false;
+
+  TU_ASSERT(osal_queue_empty(_usbh_q));
 
 #if OSAL_MUTEX_REQUIRED
-  // Init mutex
-  _usbh_mutex = osal_mutex_create(&_usbh_mutexdef);
-  TU_ASSERT(_usbh_mutex);
+  // ensure mutex is unlocked in any case
+  osal_mutex_unlock(_usbh_mutex);
 #endif
 
   // Device
@@ -366,6 +388,17 @@ bool tuh_init(uint8_t controller_id)
   hcd_int_enable(controller_id);
 
   return true;
+}
+
+void tuh_deinit(void)
+{
+  if(!tuh_inited()){
+    return;
+  }
+  hcd_int_disable(_usbh_controller);
+  hcd_deinit(_usbh_controller);
+
+  _usbh_controller = CONTROLLER_INVALID;
 }
 
 /* USB Host Driver task

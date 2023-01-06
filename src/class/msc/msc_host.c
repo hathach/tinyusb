@@ -24,6 +24,7 @@
  * This file is part of the TinyUSB stack.
  */
 
+#include "tusb_common.h"
 #include "tusb_option.h"
 
 #if CFG_TUH_ENABLED && CFG_TUH_MSC
@@ -319,6 +320,8 @@ bool msch_xfer_cb(uint8_t dev_addr, uint8_t ep_addr, xfer_result_t event, uint32
   msch_interface_t* p_msc = get_itf(dev_addr);
   msc_cbw_t const * cbw = &p_msc->cbw;
   msc_csw_t       * csw = &p_msc->csw;
+
+  TU_LOG2("msch_xfer_cb(dev_addr=%u, ep_addr=%u, event=%u, xferred_bytes=%u), stage=%d\n", dev_addr, ep_addr, event, xferred_bytes,p_msc->stage);
 
   switch (p_msc->stage)
   {
