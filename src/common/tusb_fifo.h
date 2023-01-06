@@ -69,8 +69,8 @@ extern "C" {
  *    | 0 | 1 | W | 3 | 4 | R |
  *
  * - Number of items in the fifo can be determined in either cases:
- *    - case W > R: Count = W - R
- *    - case W < R: Count = 2*depth - (R - W)
+ *    - case W >= R: Count = W - R
+ *    - case W <  R: Count = 2*depth - (R - W)
  *
  * In non-overwritable mode, computed Count (in above 2 cases) is at most equal to depth.
  * However, in over-writable mode, write index can be repeatedly increased and count can be
@@ -82,10 +82,10 @@ extern "C" {
  *      -------------------------
  *      | R | 1 | 2 | 3 | W | 5 |
  *
- *  - Double Overflowed i.e index is out of allowed range [0,2*depth) e.g:
+ *  - Double Overflowed i.e index is out of allowed range [0,2*depth)
+ *    This occurs when we continue to write after 1st overflowed to 2nd overflowed. e.g:
  *      write(3), write(1), write(2)
- *    Continue to write after overflowed to 2nd overflowed.
- *    We must prevent 2nd overflowed since it will cause incorrect computed of count, in above example
+ *    This must be prevented since it will cause unrecoverable state, in above example
  *    if not handled the fifo will be empty instead of continue-to-be full. Since we must not modify
  *    read index in write() function, which cause race condition. We will re-position write index so that
  *    after data is written it is a full fifo i.e W = depth - R
@@ -106,17 +106,16 @@ extern "C" {
  */
 typedef struct
 {
-  uint8_t* buffer               ; ///< buffer pointer
-  uint16_t depth                ; ///< max items
-  uint16_t item_size            ; ///< size of each item
+  uint8_t* buffer          ; // buffer pointer
+  uint16_t depth           ; // max items
 
-  bool overwritable             ;
+  struct TU_ATTR_PACKED {
+    uint16_t item_size : 15; // size of each item
+    bool overwritable  : 1 ; // ovwerwritable when full
+  };
 
-  uint16_t non_used_index_space ; ///< required for non-power-of-two buffer length
-  //uint16_t max_pointer_idx      ; ///< maximum absolute pointer index
-
-  volatile uint16_t wr_idx      ; ///< write index
-  volatile uint16_t rd_idx      ; ///< read index
+  volatile uint16_t wr_idx ; // write index
+  volatile uint16_t rd_idx ; // read index
 
 #if OSAL_MUTEX_REQUIRED
   osal_mutex_t mutex_wr;
@@ -133,13 +132,12 @@ typedef struct
   void * ptr_wrap   ; ///< wrapped part start pointer
 } tu_fifo_buffer_info_t;
 
-#define TU_FIFO_INIT(_buffer, _depth, _type, _overwritable)        \
-{                                                                  \
-  .buffer               = _buffer,                                 \
-  .depth                = _depth,                                  \
-  .item_size            = sizeof(_type),                           \
-  .overwritable         = _overwritable,                           \
-  .non_used_index_space = (uint16_t)(UINT16_MAX - (2*(_depth)-1)), \
+#define TU_FIFO_INIT(_buffer, _depth, _type, _overwritable) \
+{                                                           \
+  .buffer               = _buffer,                          \
+  .depth                = _depth,                           \
+  .item_size            = sizeof(_type),                    \
+  .overwritable         = _overwritable,                    \
 }
 
 #define TU_FIFO_DEF(_name, _depth, _type, _overwritable)                      \

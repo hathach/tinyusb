@@ -68,21 +68,18 @@ typedef enum
 
 bool tu_fifo_config(tu_fifo_t *f, void* buffer, uint16_t depth, uint16_t item_size, bool overwritable)
 {
-  if (depth > 0x8000) return false;               // Maximum depth is 2^15 items
+  // Limit index space to 2*depth - this allows for a fast "modulo" calculation
+  // but limits the maximum depth to 2^16/2 = 2^15 and buffer overflows are detectable
+  // only if overflow happens once (important for unsupervised DMA applications)
+  if (depth > 0x8000) return false;
 
   _ff_lock(f->mutex_wr);
   _ff_lock(f->mutex_rd);
 
-  f->buffer = (uint8_t*) buffer;
-  f->depth  = depth;
-  f->item_size = item_size;
+  f->buffer       = (uint8_t*) buffer;
+  f->depth        = depth;
+  f->item_size    = (uint16_t) (item_size & 0x7FFF);
   f->overwritable = overwritable;
-
-  // Limit index space to 2*depth - this allows for a fast "modulo" calculation
-  // but limits the maximum depth to 2^16/2 = 2^15 and buffer overflows are detectable
-  // only if overflow happens once (important for unsupervised DMA applications)
-  //f->max_pointer_idx = (uint16_t) (2*depth - 1);
-  f->non_used_index_space = (uint16_t) (UINT16_MAX - (2*f->depth-1));
 
   f->rd_idx = f->wr_idx = 0;
 
@@ -331,7 +328,8 @@ static uint16_t advance_pointer(tu_fifo_t* f, uint16_t idx, uint16_t offset)
   uint16_t next_p = (uint16_t) (idx + offset);
   if ( (idx > next_p) || (next_p >= 2*f->depth) )
   {
-    next_p = (uint16_t) (next_p + f->non_used_index_space);
+    uint16_t const non_used_index_space = (uint16_t) (UINT16_MAX - (2*f->depth-1));
+    next_p = (uint16_t) (next_p + non_used_index_space);
   }
 
   return next_p;
@@ -346,7 +344,8 @@ static uint16_t backward_pointer(tu_fifo_t* f, uint16_t p, uint16_t offset)
   uint16_t new_p = (uint16_t) (p - offset);
   if ( (p < new_p) || (new_p >= 2*f->depth) )
   {
-    new_p = (uint16_t) (new_p - f->non_used_index_space);
+    uint16_t const non_used_index_space = (uint16_t) (UINT16_MAX - (2*f->depth-1));
+    new_p = (uint16_t) (new_p - non_used_index_space);
   }
 
   return new_p;
@@ -363,13 +362,15 @@ static inline uint16_t idx2ptr(uint16_t idx, uint16_t depth)
 // Works on local copies of w and r - return only the difference and as such can be used to determine an overflow
 static inline uint16_t _tu_fifo_count(tu_fifo_t* f, uint16_t wr_idx, uint16_t rd_idx)
 {
-  uint16_t cnt = (uint16_t) (wr_idx-rd_idx);
+  uint16_t cnt;
 
   // In case we have non-power of two depth we need a further modification
-  if (rd_idx > wr_idx)
+  if (wr_idx >= rd_idx)
   {
-    // 2*f->depth - (rd_idx - wr_idx);
-    cnt = (uint16_t) (cnt - f->non_used_index_space);
+    cnt = (uint16_t) (wr_idx - rd_idx);
+  } else
+  {
+    cnt = (uint16_t) (2*f->depth - (rd_idx - wr_idx));
   }
 
   return cnt;
@@ -395,7 +396,7 @@ static inline bool _tu_fifo_full(tu_fifo_t* f, uint16_t wAbs, uint16_t rAbs)
 // use DMAs, write functions do not allow such an error.
 static inline bool _tu_fifo_overflowed(tu_fifo_t* f, uint16_t wr_idx, uint16_t rd_idx)
 {
-  return (_tu_fifo_count(f, wr_idx, rd_idx) > f->depth);
+  return _tu_fifo_count(f, wr_idx, rd_idx) > f->depth;
 }
 
 // Works on local copies of w
@@ -868,8 +869,6 @@ bool tu_fifo_clear(tu_fifo_t *f)
   _ff_lock(f->mutex_rd);
 
   f->rd_idx = f->wr_idx = 0;
-  //f->max_pointer_idx = (uint16_t) (2*f->depth-1);
-  f->non_used_index_space = (uint16_t) (UINT16_MAX - (2*f->depth-1));
 
   _ff_unlock(f->mutex_wr);
   _ff_unlock(f->mutex_rd);
