@@ -331,17 +331,6 @@ uint16_t _ff_count(uint16_t depth, uint16_t wr_idx, uint16_t rd_idx)
   }
 }
 
-// BE AWARE - THIS FUNCTION MIGHT NOT GIVE A CORRECT ANSWERE IN CASE WRITE POINTER "OVERFLOWS"
-// Only one overflow is allowed for this function to work e.g. if depth = 100, you must not
-// write more than 2*depth-1 items in one rush without updating write pointer. Otherwise
-// write pointer wraps and you pointer states are messed up. This can only happen if you
-// use DMAs, write functions do not allow such an error.
-TU_ATTR_ALWAYS_INLINE static inline
-bool _ff_overflowed(uint16_t depth, uint16_t wr_idx, uint16_t rd_idx)
-{
-  return _ff_count(depth, wr_idx, rd_idx) > depth;
-}
-
 // return remaining slot in fifo
 TU_ATTR_ALWAYS_INLINE static inline
 uint16_t _ff_remaining(uint16_t depth, uint16_t wr_idx, uint16_t rd_idx)
@@ -672,7 +661,7 @@ uint16_t tu_fifo_remaining(tu_fifo_t* f)
 /******************************************************************************/
 bool tu_fifo_overflowed(tu_fifo_t* f)
 {
-  return _ff_overflowed(f->depth, f->wr_idx, f->rd_idx);
+  return _ff_count(f->depth, f->wr_idx, f->rd_idx) > f->depth;
 }
 
 // Only use in case tu_fifo_overflow() returned true!
