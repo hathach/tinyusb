@@ -38,12 +38,12 @@
 
 #if OSAL_MUTEX_REQUIRED
 
-static inline void _ff_lock(osal_mutex_t mutex)
+TU_ATTR_ALWAYS_INLINE static inline void _ff_lock(osal_mutex_t mutex)
 {
   if (mutex) osal_mutex_lock(mutex, OSAL_TIMEOUT_WAIT_FOREVER);
 }
 
-static inline void _ff_unlock(osal_mutex_t mutex)
+TU_ATTR_ALWAYS_INLINE static inline void _ff_unlock(osal_mutex_t mutex)
 {
   if (mutex) osal_mutex_unlock(mutex);
 }
@@ -361,30 +361,14 @@ static inline uint16_t idx2ptr(uint16_t idx, uint16_t depth)
 // Works on local copies of w and r - return only the difference and as such can be used to determine an overflow
 static inline uint16_t _tu_fifo_count(tu_fifo_t* f, uint16_t wr_idx, uint16_t rd_idx)
 {
-  uint16_t cnt;
-
   // In case we have non-power of two depth we need a further modification
   if (wr_idx >= rd_idx)
   {
-    cnt = (uint16_t) (wr_idx - rd_idx);
+    return (uint16_t) (wr_idx - rd_idx);
   } else
   {
-    cnt = (uint16_t) (2*f->depth - (rd_idx - wr_idx));
+    return (uint16_t) (2*f->depth - (rd_idx - wr_idx));
   }
-
-  return cnt;
-}
-
-// Works on local copies of w and r
-static inline bool _tu_fifo_empty(uint16_t wr_idx, uint16_t rd_idx)
-{
-  return wr_idx == rd_idx;
-}
-
-// Works on local copies of w and r
-static inline bool _tu_fifo_full(tu_fifo_t* f, uint16_t wAbs, uint16_t rAbs)
-{
-  return _tu_fifo_count(f, wAbs, rAbs) == f->depth;
 }
 
 // Works on local copies of w and r
@@ -601,7 +585,7 @@ uint16_t tu_fifo_count(tu_fifo_t* f)
 /******************************************************************************/
 bool tu_fifo_empty(tu_fifo_t* f)
 {
-  return _tu_fifo_empty(f->wr_idx, f->rd_idx);
+  return f->wr_idx == f->rd_idx;
 }
 
 /******************************************************************************/
@@ -619,7 +603,7 @@ bool tu_fifo_empty(tu_fifo_t* f)
 /******************************************************************************/
 bool tu_fifo_full(tu_fifo_t* f)
 {
-  return _tu_fifo_full(f, f->wr_idx, f->rd_idx);
+  return _tu_fifo_count(f, f->wr_idx, f->rd_idx) >= f->depth;
 }
 
 /******************************************************************************/
@@ -798,7 +782,7 @@ bool tu_fifo_write(tu_fifo_t* f, const void * data)
   bool ret;
   uint16_t const wr_idx = f->wr_idx;
 
-  if ( _tu_fifo_full(f, wr_idx, f->rd_idx) && !f->overwritable )
+  if ( tu_fifo_full(f) && !f->overwritable )
   {
     ret = false;
   }else
