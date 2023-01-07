@@ -319,35 +319,35 @@ static void _ff_pull_n(tu_fifo_t* f, void* app_buf, uint16_t n, uint16_t rel, tu
 
 // Advance an absolute index
 // "absolute" index is only in the range of [0..2*depth)
-static uint16_t advance_pointer(tu_fifo_t* f, uint16_t idx, uint16_t offset)
+static uint16_t advance_index(uint16_t depth, uint16_t idx, uint16_t offset)
 {
   // We limit the index space of p such that a correct wrap around happens
   // Check for a wrap around or if we are in unused index space - This has to be checked first!!
   // We are exploiting the wrap around to the correct index
-  uint16_t next_p = (uint16_t) (idx + offset);
-  if ( (idx > next_p) || (next_p >= 2*f->depth) )
+  uint16_t new_idx = (uint16_t) (idx + offset);
+  if ( (idx > new_idx) || (new_idx >= 2*depth) )
   {
-    uint16_t const non_used_index_space = (uint16_t) (UINT16_MAX - (2*f->depth-1));
-    next_p = (uint16_t) (next_p + non_used_index_space);
+    uint16_t const non_used_index_space = (uint16_t) (UINT16_MAX - (2*depth-1));
+    new_idx = (uint16_t) (new_idx + non_used_index_space);
   }
 
-  return next_p;
+  return new_idx;
 }
 
-// Backward an absolute pointer
-static uint16_t backward_pointer(tu_fifo_t* f, uint16_t p, uint16_t offset)
+// Backward an absolute index
+static uint16_t backward_index(uint16_t depth, uint16_t idx, uint16_t offset)
 {
   // We limit the index space of p such that a correct wrap around happens
   // Check for a wrap around or if we are in unused index space - This has to be checked first!!
   // We are exploiting the wrap around to the correct index
-  uint16_t new_p = (uint16_t) (p - offset);
-  if ( (p < new_p) || (new_p >= 2*f->depth) )
+  uint16_t new_idx = (uint16_t) (idx - offset);
+  if ( (idx < new_idx) || (new_idx >= 2*depth) )
   {
-    uint16_t const non_used_index_space = (uint16_t) (UINT16_MAX - (2*f->depth-1));
-    new_p = (uint16_t) (new_p - non_used_index_space);
+    uint16_t const non_used_index_space = (uint16_t) (UINT16_MAX - (2*depth-1));
+    new_idx = (uint16_t) (new_idx - non_used_index_space);
   }
 
-  return new_p;
+  return new_idx;
 }
 
 // index to pointer, simply an modulo with minus.
@@ -394,9 +394,9 @@ uint16_t _ff_remaining(uint16_t depth, uint16_t wr_idx, uint16_t rd_idx)
 // Works on local copies of w
 // For more details see _tu_fifo_overflow()!
 TU_ATTR_ALWAYS_INLINE static inline
-void _tu_fifo_correct_read_pointer(tu_fifo_t* f, uint16_t wAbs)
+void _tu_fifo_correct_read_pointer(tu_fifo_t* f, uint16_t wr_idx)
 {
-  f->rd_idx = backward_pointer(f, wAbs, f->depth);
+  f->rd_idx = backward_index(f->depth, wr_idx, f->depth);
 }
 
 // Works on local copies of w and r
@@ -502,7 +502,7 @@ static uint16_t _tu_fifo_write_n(tu_fifo_t* f, const void * data, uint16_t n, tu
         // Double overflowed
         // Index is bigger than the allowed range [0,2*depth)
         // re-position write index to have a full fifo after pushed
-        wr_idx = advance_pointer(f, rd_idx, f->depth - n);
+        wr_idx = advance_index(f->depth, rd_idx, f->depth - n);
 
         // TODO we should also shift out n bytes from read index since we avoid changing rd index !!
         // However memmove() is expensive due to actual copying + wrapping consideration.
@@ -528,7 +528,7 @@ static uint16_t _tu_fifo_write_n(tu_fifo_t* f, const void * data, uint16_t n, tu
     _ff_push_n(f, buf8, n, wr_ptr, copy_mode);
 
     // Advance index
-    f->wr_idx = advance_pointer(f, wr_idx, n);
+    f->wr_idx = advance_index(f->depth, wr_idx, n);
 
     TU_LOG(TU_FIFO_DBG, "\tnew_wr = %u\n", f->wr_idx);
   }
@@ -547,7 +547,7 @@ static uint16_t _tu_fifo_read_n(tu_fifo_t* f, void * buffer, uint16_t n, tu_fifo
   n = _tu_fifo_peek_n(f, buffer, n, f->wr_idx, f->rd_idx, copy_mode);
 
   // Advance read pointer
-  f->rd_idx = advance_pointer(f, f->rd_idx, n);
+  f->rd_idx = advance_index(f->depth, f->rd_idx, n);
 
   _ff_unlock(f->mutex_rd);
   return n;
@@ -690,7 +690,7 @@ bool tu_fifo_read(tu_fifo_t* f, void * buffer)
   bool ret = _tu_fifo_peek(f, buffer, f->wr_idx, f->rd_idx);
 
   // Advance pointer
-  f->rd_idx = advance_pointer(f, f->rd_idx, ret);
+  f->rd_idx = advance_index(f->depth, f->rd_idx, ret);
 
   _ff_unlock(f->mutex_rd);
   return ret;
@@ -800,7 +800,7 @@ bool tu_fifo_write(tu_fifo_t* f, const void * data)
     _ff_push(f, data, wr_ptr);
 
     // Advance pointer
-    f->wr_idx = advance_pointer(f, wr_idx, 1);
+    f->wr_idx = advance_index(f->depth, wr_idx, 1);
 
     ret = true;
   }
@@ -911,7 +911,7 @@ bool tu_fifo_set_overwritable(tu_fifo_t *f, bool overwritable)
 /******************************************************************************/
 void tu_fifo_advance_write_pointer(tu_fifo_t *f, uint16_t n)
 {
-  f->wr_idx = advance_pointer(f, f->wr_idx, n);
+  f->wr_idx = advance_index(f->depth, f->wr_idx, n);
 }
 
 /******************************************************************************/
@@ -932,7 +932,7 @@ void tu_fifo_advance_write_pointer(tu_fifo_t *f, uint16_t n)
 /******************************************************************************/
 void tu_fifo_advance_read_pointer(tu_fifo_t *f, uint16_t n)
 {
-  f->rd_idx = advance_pointer(f, f->rd_idx, n);
+  f->rd_idx = advance_index(f->depth, f->rd_idx, n);
 }
 
 /******************************************************************************/
