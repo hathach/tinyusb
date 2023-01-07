@@ -30,7 +30,10 @@ CFLAGS += \
 	-nostdlib -nostartfiles \
 	-DCFG_TUSB_MCU=OPT_MCU_CH32V307 \
 	-Xlinker --gc-sections \
-    -DBOARD_DEVICE_RHPORT_SPEED=OPT_MODE_HIGH_SPEED
+	-DBOARD_DEVICE_RHPORT_SPEED=OPT_MODE_HIGH_SPEED
+
+# caused by extra void USART_Printf_Init() in debug_uart.h and EVT/EXAME/SRC/DEBUG/debug.h
+CFLAGS += -Wno-error=redundant-decls
 
 LDFLAGS += \
   -Xlinker --gc-sections --specs=nano.specs --specs=nosys.specs

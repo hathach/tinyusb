@@ -85,7 +85,7 @@ void board_init(void) {
   GPIO_InitStructure.GPIO_Speed = GPIO_Speed_50MHz;
   GPIO_Init(GPIOC, &GPIO_InitStructure);
 
-  /* Enable interrupts globaly */
+  /* Enable interrupts globally */
   __enable_irq();
 
   board_delay(2);
