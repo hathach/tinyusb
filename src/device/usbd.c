@@ -388,6 +388,8 @@ bool tud_init (uint8_t rhport)
 
   TU_LOG(USBD_DBG, "USBD init on controller %u\r\n", rhport);
   TU_LOG_INT(USBD_DBG, sizeof(usbd_device_t));
+  TU_LOG_INT(USBD_DBG, sizeof(tu_fifo_t));
+  TU_LOG_INT(USBD_DBG, sizeof(tu_edpt_stream_t));
 
   tu_varclr(&_usbd_dev);
 
