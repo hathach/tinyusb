@@ -305,6 +305,14 @@ void dcd_disconnect(uint8_t rhport)
   USB_OTG_FS->CTL      = 0;
 }
 
+void dcd_sof_enable(uint8_t rhport, bool en)
+{
+  (void) rhport;
+  (void) en;
+
+  // TODO implement later
+}
+
 //--------------------------------------------------------------------+
 // Endpoint API
 //--------------------------------------------------------------------+

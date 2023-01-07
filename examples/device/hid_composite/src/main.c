@@ -56,7 +56,9 @@ void hid_task(void);
 int main(void)
 {
   board_init();
-  tusb_init();
+
+  // init device stack on configured roothub port
+  tud_init(BOARD_TUD_RHPORT);
 
   while (1)
   {
@@ -223,12 +225,12 @@ void hid_task(void)
 // Invoked when sent REPORT successfully to host
 // Application can use this to send the next report
 // Note: For composite reports, report[0] is report ID
-void tud_hid_report_complete_cb(uint8_t instance, uint8_t const* report, uint8_t len)
+void tud_hid_report_complete_cb(uint8_t instance, uint8_t const* report, /*uint16_t*/ uint8_t len)
 {
   (void) instance;
   (void) len;
 
-  uint8_t next_report_id = report[0] + 1;
+  uint8_t next_report_id = report[0] + 1u;
 
   if (next_report_id < REPORT_ID_COUNT)
   {

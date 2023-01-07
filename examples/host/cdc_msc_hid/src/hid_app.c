@@ -247,7 +247,7 @@ static void process_generic_report(uint8_t dev_addr, uint8_t instance, uint8_t c
     // Composite report, 1st byte is report ID, data starts from 2nd byte
     uint8_t const rpt_id = report[0];
 
-    // Find report id in the arrray
+    // Find report id in the array
     for(uint8_t i=0; i<rpt_count; i++)
     {
       if (rpt_id == rpt_info_arr[i].report_id )

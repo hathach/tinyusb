@@ -55,4 +55,6 @@ jobs:
         git push origin ${{ github.event.release.tag_name }}
         
         # Send POST reqwuest to release https://docs.github.com/en/rest/reference/repos#create-a-release
-        curl -X POST -H "Authorization: token ${{ secrets.API_TOKEN_GITHUB }}" -H "Accept: application/vnd.github.v3+json" --data '{"tag_name": "${{ github.event.release.tag_name }}", "name": "${{ github.event.release.name }}", "body": "${{ github.event.release.body }}", "draft": ${{ github.event.release.draft }}, "prerelease": ${{ github.event.release.prerelease }}}' https://api.github.com/repos/hathach/tinyusb_src/releases
+        bb={{ github.event.release.body }}
+        bb=${bb//\n/\\\n}
+        curl -X POST -H "Authorization: token ${{ secrets.API_TOKEN_GITHUB }}" -H "Accept: application/vnd.github.v3+json" --data '{"tag_name": "${{ github.event.release.tag_name }}", "name": "${{ github.event.release.name }}", "body": "$bb", "draft": ${{ github.event.release.draft }}, "prerelease": ${{ github.event.release.prerelease }}}' https://api.github.com/repos/hathach/tinyusb_src/releases

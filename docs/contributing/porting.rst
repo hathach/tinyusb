@@ -195,7 +195,7 @@ Others (like the nRF52) may need each USB packet queued individually. To make th
 some state for yourself and queue up an intermediate USB packet from the interrupt handler.
 
 Once the transaction is going, the interrupt handler will notify TinyUSB of transfer completion.
-During transmission, the IN data buffer is guarenteed to remain unchanged in memory until the ``dcd_xfer_complete`` function is called.
+During transmission, the IN data buffer is guaranteed to remain unchanged in memory until the ``dcd_xfer_complete`` function is called.
 
 The dcd_edpt_xfer function must never add zero-length-packets (ZLP) on its own to a transfer. If a ZLP is required,
 then it must be explicitly sent by the stack calling dcd_edpt_xfer(), by calling dcd_edpt_xfer() a second time with len=0.
@@ -238,4 +238,4 @@ Use `WireShark <https://www.wireshark.org/>`_ or `a Beagle <https://www.totalpha
 
 * If the host sends a SETUP packet and its not ACKed then your USB peripheral probably isn't started correctly.
 * If the peripheral is started correctly but it still didn't work, then verify your usb clock is correct. (You did output a PWM based on it right? ;-) )
-* If the SETUP packet is ACKed but nothing is sent back then you interrupt handler isn't queueing the setup packet correctly. (Also, if you are using your own code instead of an example ``tud_task`` may not be called.) If thats OK, the ``dcd_xfer_complete`` may not be setting up the next transaction correctly.
+* If the SETUP packet is ACKed but nothing is sent back then you interrupt handler isn't queueing the setup packet correctly. (Also, if you are using your own code instead of an example ``tud_task`` may not be called.) If that's OK, the ``dcd_xfer_complete`` may not be setting up the next transaction correctly.

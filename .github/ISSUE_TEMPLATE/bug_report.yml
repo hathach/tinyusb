@@ -64,7 +64,7 @@ body:
       placeholder: |
         Attach your debug log txt file here, where the issue occurred, best with comments to explain the actual events.
         
-        Note1: Please DO NOT paste your lengthy log contents here since it hurts the readibility.
+        Note1: Please DO NOT paste your lengthy log contents here since it hurts the readability.
         Note2: To enable logging, add `LOG=3` to to the make command if building with stock examples or set `CFG_TUSB_DEBUG=3` in your tusb_config.h. 
         More information can be found at [example's readme](https://github.com/hathach/tinyusb/blob/master/docs/getting_started.md)
     validations:
@@ -76,3 +76,11 @@ body:
       description: If applicable, add screenshots to help explain your problem.
     validations:
       required: false
+
+  - type: checkboxes
+    attributes:
+      label: I have checked existing issues, dicussion and documentation
+      description: You agree to check all the resources above before opening a new issue.
+      options:
+        - label: I confirm I have checked existing issues, dicussion and documentation.
+          required: true

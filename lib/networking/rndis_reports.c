@@ -220,7 +220,7 @@ static void rndis_handle_set_msg(void)
     case OID_802_3_MULTICAST_LIST:
       break;
 
-    /* Power Managment: fails for now */
+    /* Power Management: fails for now */
     case OID_PNP_ADD_WAKE_UP_PATTERN:
     case OID_PNP_REMOVE_WAKE_UP_PATTERN:
     case OID_PNP_ENABLE_WAKE_UP:

@@ -13,24 +13,24 @@ CFLAGS += \
   -D__ARMVFP__=0 -D__ARMFPV5__=0\
   -DXIP_EXTERNAL_FLASH=1 \
   -DXIP_BOOT_HEADER_ENABLE=1 \
-  -DCFG_TUSB_MCU=OPT_MCU_MIMXRT10XX
+  -DCFG_TUSB_MCU=OPT_MCU_MIMXRT
 
-ifdef BOARD_DEVICE_RHPORT_NUM
-CFLAGS += -DBOARD_DEVICE_RHPORT_NUM=$(BOARD_DEVICE_RHPORT_NUM)
+ifdef BOARD_TUD_RHPORT
+CFLAGS += -DBOARD_TUD_RHPORT=$(BOARD_TUD_RHPORT)
 endif
-ifdef BOARD_HOST_RHPORT_NUM
-CFLAGS += -DBOARD_HOST_RHPORT_NUM=$(BOARD_HOST_RHPORT_NUM)
+ifdef BOARD_TUH_RHPORT
+CFLAGS += -DBOARD_TUH_RHPORT=$(BOARD_TUH_RHPORT)
 endif
 
 # mcu driver cause following warnings
-CFLAGS += -Wno-error=unused-parameter -Wno-error=implicit-fallthrough=
+CFLAGS += -Wno-error=unused-parameter -Wno-error=implicit-fallthrough -Wno-error=redundant-decls
 
 MCU_DIR = $(SDK_DIR)/devices/$(MCU_VARIANT)
 
 # All source paths should be relative to the top level.
 LD_FILE = $(MCU_DIR)/gcc/$(MCU_VARIANT)xxxxx_flexspi_nor.ld
 
-# TODO for net_lwip_webserver exmaple, but may not needed !! 
+# TODO for net_lwip_webserver example, but may not needed !! 
 LDFLAGS += \
 	-Wl,--defsym,__stack_size__=0x800 \
 

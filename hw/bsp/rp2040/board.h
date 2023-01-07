@@ -46,6 +46,18 @@
 #define UART_RX_PIN           PICO_DEFAULT_UART_RX_PIN
 #endif
 
+// PIO_USB_DP_PIN_DEFAULT is 0, which conflict with UART, change to other pin
+#ifndef PIO_USB_DP_PIN
+#define PIO_USB_DP_PIN        20
+#endif
+
+// VBUS enable pin and its active state
+#define PIO_USB_VBUSEN_PIN    22
+
+#ifndef PIO_USB_VBUSEN_STATE
+#define PIO_USB_VBUSEN_STATE  1
+#endif
+
 #ifdef __cplusplus
  }
 #endif

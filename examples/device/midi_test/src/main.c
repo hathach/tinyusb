@@ -62,7 +62,8 @@ int main(void)
 {
   board_init();
 
-  tusb_init();
+  // init device stack on configured roothub port
+  tud_init(BOARD_TUD_RHPORT);
 
   while (1)
   {
@@ -139,7 +140,7 @@ void midi_task(void)
   start_ms += 286;
 
   // Previous positions in the note sequence.
-  int previous = note_pos - 1;
+  int previous = (int) (note_pos - 1);
 
   // If we currently are at position 0, set the
   // previous position to the last note in the sequence.

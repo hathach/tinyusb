@@ -62,6 +62,7 @@ typedef struct
   hidh_interface_t instances[CFG_TUH_HID];
 } hidh_device_t;
 
+CFG_TUSB_MEM_SECTION
 static hidh_device_t _hidh_dev[CFG_TUH_DEVICE_MAX];
 
 //------------- Internal prototypes -------------//
@@ -258,7 +259,7 @@ bool tuh_hid_receive_report(uint8_t dev_addr, uint8_t instance)
 
   if ( !usbh_edpt_xfer(dev_addr, hid_itf->ep_in, hid_itf->epin_buf, hid_itf->epin_size) )
   {
-    usbh_edpt_claim(dev_addr, hid_itf->ep_in);
+    usbh_edpt_release(dev_addr, hid_itf->ep_in);
     return false;
   }
 
@@ -295,10 +296,10 @@ bool hidh_xfer_cb(uint8_t dev_addr, uint8_t ep_addr, xfer_result_t result, uint3
   {
     TU_LOG2("  Get Report callback (%u, %u)\r\n", dev_addr, instance);
     TU_LOG3_MEM(hid_itf->epin_buf, xferred_bytes, 2);
-    tuh_hid_report_received_cb(dev_addr, instance, hid_itf->epin_buf, xferred_bytes);
+    tuh_hid_report_received_cb(dev_addr, instance, hid_itf->epin_buf, (uint16_t) xferred_bytes);
   }else
   {
-    if (tuh_hid_report_sent_cb) tuh_hid_report_sent_cb(dev_addr, instance, hid_itf->epout_buf, xferred_bytes);
+    if (tuh_hid_report_sent_cb) tuh_hid_report_sent_cb(dev_addr, instance, hid_itf->epout_buf, (uint16_t) xferred_bytes);
   }
 
   return true;
@@ -332,7 +333,8 @@ bool hidh_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_interface_t const *de
   TU_LOG2("[%u] HID opening Interface %u\r\n", dev_addr, desc_itf->bInterfaceNumber);
 
   // len = interface + hid + n*endpoints
-  uint16_t const drv_len = sizeof(tusb_desc_interface_t) + sizeof(tusb_hid_descriptor_hid_t) + desc_itf->bNumEndpoints*sizeof(tusb_desc_endpoint_t);
+  uint16_t const drv_len = (uint16_t) (sizeof(tusb_desc_interface_t) + sizeof(tusb_hid_descriptor_hid_t) +
+                                       desc_itf->bNumEndpoints * sizeof(tusb_desc_endpoint_t));
   TU_ASSERT(max_len >= drv_len);
 
   uint8_t const *p_desc = (uint8_t const *) desc_itf;

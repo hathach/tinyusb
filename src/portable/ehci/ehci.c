@@ -188,7 +188,7 @@ tusb_speed_t hcd_port_speed_get(uint8_t rhport)
 static void list_remove_qhd_by_addr(ehci_link_t* list_head, uint8_t dev_addr)
 {
   for(ehci_link_t* prev = list_head;
-      !prev->terminate && (tu_align32(prev->address) != (uint32_t) list_head);
+      !prev->terminate && (tu_align32(prev->address) != (uint32_t) list_head) && prev != NULL;
       prev = list_next(prev) )
   {
     // TODO check type for ISO iTD and siTD
@@ -199,7 +199,7 @@ static void list_remove_qhd_by_addr(ehci_link_t* list_head, uint8_t dev_addr)
     #pragma GCC diagnostic pop
     if ( qhd->dev_addr == dev_addr )
     {
-      // TODO deactive all TD, wait for QHD to inactive before removal
+      // TODO deactivate all TD, wait for QHD to inactive before removal
       prev->address = qhd->next.address;
 
       // EHCI 4.8.2 link the removed qhd to async head (which always reachable by Host Controller)
@@ -839,7 +839,7 @@ static void qhd_init(ehci_qhd_t *p_qhd, uint8_t dev_addr, tusb_desc_endpoint_t c
     if (TUSB_SPEED_HIGH == p_qhd->ep_speed)
     {
       TU_ASSERT( interval <= 16, );
-      if ( interval < 4) // sub milisecond interval
+      if ( interval < 4) // sub millisecond interval
       {
         p_qhd->interval_ms = 0;
         p_qhd->int_smask   = (interval == 1) ? TU_BIN8(11111111) :

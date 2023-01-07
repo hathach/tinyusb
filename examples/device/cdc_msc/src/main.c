@@ -54,7 +54,9 @@ void cdc_task(void);
 int main(void)
 {
   board_init();
-  tusb_init();
+
+  // init device stack on configured roothub port
+  tud_init(BOARD_TUD_RHPORT);
 
   while (1)
   {
@@ -111,7 +113,7 @@ void cdc_task(void)
     // connected and there are data available
     if ( tud_cdc_available() )
     {
-      // read datas
+      // read data
       char buf[64];
       uint32_t count = tud_cdc_read(buf, sizeof(buf));
       (void) count;
