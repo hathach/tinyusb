@@ -917,7 +917,7 @@ static int handle_video_stm_cs_req(uint8_t rhport, uint8_t stage,
       switch (request->bRequest) {
         case VIDEO_REQUEST_SET_CUR:
           if (stage == CONTROL_STAGE_SETUP) {
-            TU_VERIFY(sizeof(video_probe_and_commit_control_t) == request->wLength, VIDEO_ERROR_UNKNOWN);
+            TU_VERIFY(sizeof(video_probe_and_commit_control_t) >= request->wLength, VIDEO_ERROR_UNKNOWN);
             TU_VERIFY(tud_control_xfer(rhport, request, self->ep_buf, sizeof(video_probe_and_commit_control_t)),
                       VIDEO_ERROR_UNKNOWN);
           } else if (stage == CONTROL_STAGE_DATA) {
@@ -973,7 +973,7 @@ static int handle_video_stm_cs_req(uint8_t rhport, uint8_t stage,
       switch (request->bRequest) {
         case VIDEO_REQUEST_SET_CUR:
           if (stage == CONTROL_STAGE_SETUP) {
-            TU_VERIFY(sizeof(video_probe_and_commit_control_t) == request->wLength, VIDEO_ERROR_UNKNOWN);
+            TU_VERIFY(sizeof(video_probe_and_commit_control_t) >= request->wLength, VIDEO_ERROR_UNKNOWN);
             TU_VERIFY(tud_control_xfer(rhport, request, self->ep_buf, sizeof(video_probe_and_commit_control_t)), VIDEO_ERROR_UNKNOWN);
           } else if (stage == CONTROL_STAGE_DATA) {
             TU_VERIFY(_update_streaming_parameters(self, (video_probe_and_commit_control_t*)self->ep_buf), VIDEO_ERROR_INVALID_VALUE_WITHIN_RANGE);
