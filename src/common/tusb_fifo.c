@@ -351,7 +351,8 @@ static uint16_t backward_index(uint16_t depth, uint16_t idx, uint16_t offset)
 }
 
 // index to pointer, simply an modulo with minus.
-static inline uint16_t idx2ptr(uint16_t idx, uint16_t depth)
+TU_ATTR_ALWAYS_INLINE static inline
+uint16_t idx2ptr(uint16_t depth, uint16_t idx)
 {
   // Only run at most 3 times since index is limit in the range of [0..2*depth)
   while ( idx >= depth ) idx -= depth;
@@ -415,7 +416,7 @@ static bool _tu_fifo_peek(tu_fifo_t* f, void * p_buffer, uint16_t wr_idx, uint16
   // Skip beginning of buffer
   if (cnt == 0) return false;
 
-  uint16_t rd_ptr = idx2ptr(rd_idx, f->depth);
+  uint16_t rd_ptr = idx2ptr(f->depth, rd_idx);
 
   // Peek data
   _ff_pull(f, p_buffer, rd_ptr);
@@ -443,7 +444,7 @@ static uint16_t _tu_fifo_peek_n(tu_fifo_t* f, void * p_buffer, uint16_t n, uint1
   // Check if we can read something at and after offset - if too less is available we read what remains
   if (cnt < n) n = cnt;
 
-  uint16_t rd_ptr = idx2ptr(rd_idx, f->depth);
+  uint16_t rd_ptr = idx2ptr(f->depth, rd_idx);
 
   // Peek data
   _ff_pull_n(f, p_buffer, n, rd_ptr, copy_mode);
@@ -520,7 +521,7 @@ static uint16_t _tu_fifo_write_n(tu_fifo_t* f, const void * data, uint16_t n, tu
 
   if (n)
   {
-    uint16_t wr_ptr = idx2ptr(wr_idx, f->depth);
+    uint16_t wr_ptr = idx2ptr(f->depth, wr_idx);
 
     TU_LOG(TU_FIFO_DBG, "actual_n = %u, wr_ptr = %u", n, wr_ptr);
 
@@ -794,7 +795,7 @@ bool tu_fifo_write(tu_fifo_t* f, const void * data)
     ret = false;
   }else
   {
-    uint16_t wr_ptr = idx2ptr(wr_idx, f->depth);
+    uint16_t wr_ptr = idx2ptr(f->depth, wr_idx);
 
     // Write data
     _ff_push(f, data, wr_ptr);
@@ -980,8 +981,8 @@ void tu_fifo_get_read_info(tu_fifo_t *f, tu_fifo_buffer_info_t *info)
   }
 
   // Get relative pointers
-  uint16_t wr_ptr = idx2ptr(wr_idx, f->depth);
-  uint16_t rd_ptr = idx2ptr(rd_idx, f->depth);
+  uint16_t wr_ptr = idx2ptr(f->depth, wr_idx);
+  uint16_t rd_ptr = idx2ptr(f->depth, rd_idx);
 
   // Copy pointer to buffer to start reading from
   info->ptr_lin = &f->buffer[rd_ptr];
@@ -1034,8 +1035,8 @@ void tu_fifo_get_write_info(tu_fifo_t *f, tu_fifo_buffer_info_t *info)
   }
 
   // Get relative pointers
-  uint16_t wr_ptr = idx2ptr(wr_idx, f->depth);
-  uint16_t rd_ptr = idx2ptr(rd_idx, f->depth);
+  uint16_t wr_ptr = idx2ptr(f->depth, wr_idx);
+  uint16_t rd_ptr = idx2ptr(f->depth, rd_idx);
 
   // Copy pointer to buffer to start writing to
   info->ptr_lin = &f->buffer[wr_ptr];
