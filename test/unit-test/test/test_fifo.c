@@ -30,8 +30,10 @@
 #include "osal/osal.h"
 #include "tusb_fifo.h"
 
-#define FIFO_SIZE 64
-TU_FIFO_DEF(tu_ff, FIFO_SIZE, uint8_t, false);
+#define FIFO_SIZE   64
+uint8_t tu_ff_buf[FIFO_SIZE * sizeof(uint8_t)];
+tu_fifo_t tu_ff = TU_FIFO_INIT(tu_ff_buf, FIFO_SIZE, uint8_t, false);
+
 tu_fifo_t* ff = &tu_ff;
 tu_fifo_buffer_info_t info;
 
@@ -68,7 +70,8 @@ void test_normal(void)
 
 void test_item_size(void)
 {
-  TU_FIFO_DEF(ff4, FIFO_SIZE, uint32_t, false);
+  uint8_t ff4_buf[FIFO_SIZE * sizeof(uint32_t)];
+  tu_fifo_t ff4 = TU_FIFO_INIT(ff4_buf, FIFO_SIZE, uint32_t, false);
 
   uint32_t data4[2*FIFO_SIZE];
   for(uint32_t i=0; i<sizeof(data4)/4; i++) data4[i] = i;
