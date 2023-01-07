@@ -314,50 +314,8 @@ static void _ff_pull_n(tu_fifo_t* f, void* app_buf, uint16_t n, uint16_t rel, tu
 }
 
 //--------------------------------------------------------------------+
-// Index (free-running and real buffer pointer)
+// Helper
 //--------------------------------------------------------------------+
-
-// Advance an absolute index
-// "absolute" index is only in the range of [0..2*depth)
-static uint16_t advance_index(uint16_t depth, uint16_t idx, uint16_t offset)
-{
-  // We limit the index space of p such that a correct wrap around happens
-  // Check for a wrap around or if we are in unused index space - This has to be checked first!!
-  // We are exploiting the wrap around to the correct index
-  uint16_t new_idx = (uint16_t) (idx + offset);
-  if ( (idx > new_idx) || (new_idx >= 2*depth) )
-  {
-    uint16_t const non_used_index_space = (uint16_t) (UINT16_MAX - (2*depth-1));
-    new_idx = (uint16_t) (new_idx + non_used_index_space);
-  }
-
-  return new_idx;
-}
-
-// Backward an absolute index
-static uint16_t backward_index(uint16_t depth, uint16_t idx, uint16_t offset)
-{
-  // We limit the index space of p such that a correct wrap around happens
-  // Check for a wrap around or if we are in unused index space - This has to be checked first!!
-  // We are exploiting the wrap around to the correct index
-  uint16_t new_idx = (uint16_t) (idx - offset);
-  if ( (idx < new_idx) || (new_idx >= 2*depth) )
-  {
-    uint16_t const non_used_index_space = (uint16_t) (UINT16_MAX - (2*depth-1));
-    new_idx = (uint16_t) (new_idx - non_used_index_space);
-  }
-
-  return new_idx;
-}
-
-// index to pointer, simply an modulo with minus.
-TU_ATTR_ALWAYS_INLINE static inline
-uint16_t idx2ptr(uint16_t depth, uint16_t idx)
-{
-  // Only run at most 3 times since index is limit in the range of [0..2*depth)
-  while ( idx >= depth ) idx -= depth;
-  return idx;
-}
 
 // return only the index difference and as such can be used to determine an overflow i.e overflowable count
 TU_ATTR_ALWAYS_INLINE static inline
@@ -392,12 +350,72 @@ uint16_t _ff_remaining(uint16_t depth, uint16_t wr_idx, uint16_t rd_idx)
   return (depth > count) ? (depth - count) : 0;
 }
 
-// Works on local copies of w
-// For more details see _tu_fifo_overflow()!
-TU_ATTR_ALWAYS_INLINE static inline
-void _tu_fifo_correct_read_pointer(tu_fifo_t* f, uint16_t wr_idx)
+//--------------------------------------------------------------------+
+// Index Helper
+//--------------------------------------------------------------------+
+
+// Advance an absolute index
+// "absolute" index is only in the range of [0..2*depth)
+static uint16_t advance_index(uint16_t depth, uint16_t idx, uint16_t offset)
 {
-  f->rd_idx = backward_index(f->depth, wr_idx, f->depth);
+  // We limit the index space of p such that a correct wrap around happens
+  // Check for a wrap around or if we are in unused index space - This has to be checked first!!
+  // We are exploiting the wrap around to the correct index
+  uint16_t new_idx = (uint16_t) (idx + offset);
+  if ( (idx > new_idx) || (new_idx >= 2*depth) )
+  {
+    uint16_t const non_used_index_space = (uint16_t) (UINT16_MAX - (2*depth-1));
+    new_idx = (uint16_t) (new_idx + non_used_index_space);
+  }
+
+  return new_idx;
+}
+
+#if 0 // not used but
+// Backward an absolute index
+static uint16_t backward_index(uint16_t depth, uint16_t idx, uint16_t offset)
+{
+  // We limit the index space of p such that a correct wrap around happens
+  // Check for a wrap around or if we are in unused index space - This has to be checked first!!
+  // We are exploiting the wrap around to the correct index
+  uint16_t new_idx = (uint16_t) (idx - offset);
+  if ( (idx < new_idx) || (new_idx >= 2*depth) )
+  {
+    uint16_t const non_used_index_space = (uint16_t) (UINT16_MAX - (2*depth-1));
+    new_idx = (uint16_t) (new_idx - non_used_index_space);
+  }
+
+  return new_idx;
+}
+#endif
+
+// index to pointer, simply an modulo with minus.
+TU_ATTR_ALWAYS_INLINE static inline
+uint16_t idx2ptr(uint16_t depth, uint16_t idx)
+{
+  // Only run at most 3 times since index is limit in the range of [0..2*depth)
+  while ( idx >= depth ) idx -= depth;
+  return idx;
+}
+
+// Works on local copies of w
+// When an overwritable fifo is overflowed, rd_idx will be re-index so that it forms
+// an full fifo i.e _ff_count() = depth
+TU_ATTR_ALWAYS_INLINE static inline
+uint16_t _ff_correct_read_index(tu_fifo_t* f, uint16_t wr_idx)
+{
+  uint16_t rd_idx;
+  if ( wr_idx >= f->depth )
+  {
+    rd_idx = wr_idx - f->depth;
+  }else
+  {
+    rd_idx = wr_idx + f->depth;
+  }
+
+  f->rd_idx = rd_idx;
+
+  return rd_idx;
 }
 
 // Works on local copies of w and r
@@ -407,14 +425,14 @@ static bool _tu_fifo_peek(tu_fifo_t* f, void * p_buffer, uint16_t wr_idx, uint16
   uint16_t cnt = _ff_count(f->depth, wr_idx, rd_idx);
 
   // Check overflow and correct if required
-  if (cnt > f->depth)
+  if ( cnt > f->depth )
   {
-    _tu_fifo_correct_read_pointer(f, wr_idx);
+    rd_idx = _ff_correct_read_index(f, wr_idx);
     cnt = f->depth;
   }
 
   // Skip beginning of buffer
-  if (cnt == 0) return false;
+  if ( cnt == 0 ) return false;
 
   uint16_t rd_ptr = idx2ptr(f->depth, rd_idx);
 
@@ -431,18 +449,17 @@ static uint16_t _tu_fifo_peek_n(tu_fifo_t* f, void * p_buffer, uint16_t n, uint1
   uint16_t cnt = _ff_count(f->depth, wr_idx, rd_idx);
 
   // Check overflow and correct if required
-  if (cnt > f->depth)
+  if ( cnt > f->depth )
   {
-    _tu_fifo_correct_read_pointer(f, wr_idx);
-    rd_idx = f->rd_idx;
+    rd_idx = _ff_correct_read_index(f, wr_idx);
     cnt = f->depth;
   }
 
   // Skip beginning of buffer
-  if (cnt == 0) return 0;
+  if ( cnt == 0 ) return 0;
 
   // Check if we can read something at and after offset - if too less is available we read what remains
-  if (cnt < n) n = cnt;
+  if ( cnt < n ) n = cnt;
 
   uint16_t rd_ptr = idx2ptr(f->depth, rd_idx);
 
@@ -662,7 +679,7 @@ bool tu_fifo_overflowed(tu_fifo_t* f)
 void tu_fifo_correct_read_pointer(tu_fifo_t* f)
 {
   _ff_lock(f->mutex_rd);
-  _tu_fifo_correct_read_pointer(f, f->wr_idx);
+  _ff_correct_read_index(f, f->wr_idx);
   _ff_unlock(f->mutex_rd);
 }
 
@@ -963,10 +980,9 @@ void tu_fifo_get_read_info(tu_fifo_t *f, tu_fifo_buffer_info_t *info)
   if (cnt > f->depth)
   {
     _ff_lock(f->mutex_rd);
-    _tu_fifo_correct_read_pointer(f, wr_idx);
+    rd_idx = _ff_correct_read_index(f, wr_idx);
     _ff_unlock(f->mutex_rd);
 
-    rd_idx = f->rd_idx;
     cnt = f->depth;
   }
 
@@ -988,7 +1004,8 @@ void tu_fifo_get_read_info(tu_fifo_t *f, tu_fifo_buffer_info_t *info)
   info->ptr_lin = &f->buffer[rd_ptr];
 
   // Check if there is a wrap around necessary
-  if (wr_ptr > rd_ptr) {
+  if (wr_ptr > rd_ptr)
+  {
     // Non wrapping case
     info->len_lin  = cnt;
 
