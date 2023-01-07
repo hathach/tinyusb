@@ -78,10 +78,24 @@
     :html_high_threshold: 90
     :xml_report: FALSE
 
-#:tools:
-# Ceedling defaults to using gcc for compiling, linking, etc.
-# As [:tools] is blank, gcc will be used (so long as it's in your system path)
-# See documentation to configure a given toolchain for use
+:tools:
+  :test_compiler:
+     :executable: clang
+     :name: 'clang compiler'
+     :arguments:
+        - -I"$": COLLECTION_PATHS_TEST_TOOLCHAIN_INCLUDE               #expands to -I search paths
+        - -I"$": COLLECTION_PATHS_TEST_SUPPORT_SOURCE_INCLUDE_VENDOR   #expands to -I search paths
+        - -D$: COLLECTION_DEFINES_TEST_AND_VENDOR  #expands to all -D defined symbols
+        - -fsanitize=address
+        - -c ${1}                       #source code input file (Ruby method call param list sub)
+        - -o ${2}                       #object file output (Ruby method call param list sub)
+  :test_linker:
+     :executable: clang
+     :name: 'clang linker'
+     :arguments:
+        - -fsanitize=address
+        - ${1}               #list of object files to link (Ruby method call param list sub)
+        - -o ${2}            #executable file output (Ruby method call param list sub)
 
 # LIBRARIES
 # These libraries are automatically injected into the build process. Those specified as
