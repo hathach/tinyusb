@@ -68,7 +68,7 @@ void board_init(void) {
   SysTick_Config(SystemCoreClock / 1000);
 #endif
 
-	USART_Printf_Init(115200);
+	usart_printf_init(115200);
 
   RCC_USBCLK48MConfig(RCC_USBCLK48MCLKSource_USBPHY);
   RCC_USBHSPLLCLKConfig(RCC_HSBHSPLLCLKSource_HSE);

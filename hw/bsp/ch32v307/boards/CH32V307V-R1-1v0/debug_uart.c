@@ -75,7 +75,7 @@ void uart_sync(void)
 }
 
 
-void USART_Printf_Init(uint32_t baudrate)
+void usart_printf_init(uint32_t baudrate)
 {
     GPIO_InitTypeDef  GPIO_InitStructure;
     USART_InitTypeDef USART_InitStructure;

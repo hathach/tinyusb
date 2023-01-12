@@ -28,4 +28,4 @@
 
 void uart_write(char c);
 void uart_sync(void);
-void USART_Printf_Init(uint32_t baudrate);
+void usart_printf_init(uint32_t baudrate);

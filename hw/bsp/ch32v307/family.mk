@@ -30,9 +30,6 @@ CFLAGS += \
 	-Xlinker --gc-sections \
 	-DBOARD_TUD_MAX_SPEED=OPT_MODE_HIGH_SPEED
 
-# caused by extra void USART_Printf_Init() in debug_uart.h and EVT/EXAME/SRC/DEBUG/debug.h
-CFLAGS += -Wno-error=redundant-decls
-
 LDFLAGS += \
   -Xlinker --gc-sections --specs=nano.specs --specs=nosys.specs
 
@@ -49,8 +46,7 @@ SRC_S += \
 
 INC += \
 	$(TOP)/$(BOARD_PATH) \
-	$(TOP)/$(CH32V307_SDK_SRC)/Peripheral/inc \
-	$(TOP)/$(CH32V307_SDK_SRC)/Debug
+	$(TOP)/$(CH32V307_SDK_SRC)/Peripheral/inc
 
 # For freeRTOS port source
 FREERTOS_PORT = RISC-V
