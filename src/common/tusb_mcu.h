@@ -278,7 +278,7 @@
 //------------- WCH -------------//
 #elif TU_CHECK_MCU(OPT_MCU_CH32V307)
   #define TUP_DCD_ENDPOINT_MAX    16
-
+  #define TUP_RHPORT_HIGHSPEED    1
 #endif
 
 //--------------------------------------------------------------------+
