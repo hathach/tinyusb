@@ -66,4 +66,4 @@ FREERTOS_PORT = RISC-V
 
 # flash target ROM bootloader
 flash: $(BUILD)/$(PROJECT).elf
-	openocd -f $(TOP)/$(FAMILY_PATH)/wch-riscv.cfg -c init -c halt -c "program $<" -c reset -c exit
+	openocd -f $(TOP)/$(FAMILY_PATH)/wch-riscv.cfg -c init -c halt -c "program $<" -c wlink_reset_resume -c exit
