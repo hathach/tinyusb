@@ -70,7 +70,7 @@ void dcd_init(uint8_t rhport) {
 
     USBHSD->CONTROL = 0;
 
-#if (BOARD_DEVICE_RHPORT_SPEED == OPT_MODE_HIGH_SPEED)
+#if TUD_OPT_HIGH_SPEED
     USBHSD->CONTROL = USBHS_DMA_EN | USBHS_INT_BUSY_EN | USBHS_HIGH_SPEED;
 #else
     #error OPT_MODE_FULL_SPEED not currently supported on CH32V307

@@ -30,7 +30,7 @@ CFLAGS += \
 	-nostdlib -nostartfiles \
 	-DCFG_TUSB_MCU=OPT_MCU_CH32V307 \
 	-Xlinker --gc-sections \
-	-DBOARD_DEVICE_RHPORT_SPEED=OPT_MODE_HIGH_SPEED
+	-DBOARD_TUD_MAX_SPEED=OPT_MODE_HIGH_SPEED
 
 # caused by extra void USART_Printf_Init() in debug_uart.h and EVT/EXAME/SRC/DEBUG/debug.h
 CFLAGS += -Wno-error=redundant-decls
@@ -51,7 +51,6 @@ SRC_S += \
 
 INC += \
 	src/portable/wch/ch32v307 \
-	$(TOP)/$(BOARD_PATH)/.. \
 	$(TOP)/$(BOARD_PATH) \
 	$(CH32V307_SDK_SRC_TOP)/Peripheral/inc \
 	$(CH32V307_SDK_SRC_TOP)/Debug \
@@ -60,6 +59,19 @@ INC += \
 # For freeRTOS port source
 FREERTOS_PORT = RISC-V
 
+# wch-link is not supported yet in official openOCD yet. We need to either use
+# 1. download openocd as part of mounriver studio http://www.mounriver.com/download or
+# 2. compiled from modified source https://github.com/kprasadvnsi/riscv-openocd-wch
+#
+# Note: For Linux, somehow openocd in mounriver studio does not seem to have wch-link enable, 
+# therefore we need to compile it from source as follows:
+# 	git clone https://github.com/kprasadvnsi/riscv-openocd-wch
+# 	cd riscv-openocd-wch
+#		./bootstrap
+#		./configure CFLAGS="-Wno-error" --enable-wlink
+#		make
+# openocd binaries will be generated in riscv-openocd-wch/src
+
 # flash target ROM bootloader
 flash: $(BUILD)/$(PROJECT).elf
-	openocd -f wch-riscv.cfg  -c init -c halt  -c "program  $<  0x08000000"  -c reset -c exit
+	openocd -f $(TOP)/$(FAMILY_PATH)/wch-riscv.cfg -c init -c halt -c "program $<" -c reset -c exit
