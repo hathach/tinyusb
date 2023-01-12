@@ -106,17 +106,22 @@ void board_init(void) {
 volatile uint32_t system_ticks = 0;
 
 /* Small workaround to support HW stack save/restore */
-void SysTick_Handler(void) __attribute__((naked));
-void SysTick_Handler(void) { 
-      __asm volatile ("call SysTick_Handler_impl; mret");
+void SysTick_Handler (void) __attribute__((naked));
+void SysTick_Handler (void)
+{
+  __asm volatile ("call SysTick_Handler_impl; mret");
 }
 
-__attribute__((used)) void SysTick_Handler_impl(void) { 
-  SysTick->SR=0;
+__attribute__((used)) void SysTick_Handler_impl (void)
+{
+  SysTick->SR = 0;
   system_ticks++;
 }
 
-uint32_t board_millis(void) { return system_ticks; }
+uint32_t board_millis (void)
+{
+  return system_ticks;
+}
 
 #endif
 

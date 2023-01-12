@@ -13,8 +13,6 @@ CH32V307_SDK_SRC = $(CH32V307_SDK)/EVT/EXAM/SRC
 
 include $(TOP)/$(BOARD_PATH)/board.mk
 
-SKIP_NANOLIB = 1
-
 CFLAGS += \
 	-flto \
 	-march=rv32imac \
@@ -29,9 +27,6 @@ CFLAGS += \
 	-DCFG_TUSB_MCU=OPT_MCU_CH32V307 \
 	-Xlinker --gc-sections \
 	-DBOARD_TUD_MAX_SPEED=OPT_MODE_HIGH_SPEED
-
-LDFLAGS += \
-  -Xlinker --gc-sections --specs=nano.specs --specs=nosys.specs
 
 SRC_C += \
 	src/portable/wch/ch32v307/dcd_usbhs.c \
