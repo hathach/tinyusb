@@ -29,7 +29,7 @@
 #if CFG_TUD_ENABLED && (CFG_TUSB_MCU == OPT_MCU_CH32V307)
 #include "device/dcd.h"
 
-#include "usb_ch32_usbhs_reg.h"
+#include "ch32_usbhs_reg.h"
 #include "core_riscv.h"
 
 // Max number of bi-directional endpoints including EP0

@@ -10,8 +10,6 @@ DEPS_SUBMODULES += $(CH32V307_SDK)
 
 # WCH-SDK paths
 CH32V307_SDK_SRC = $(CH32V307_SDK)/EVT/EXAM/SRC
-CH32V307_SDK_SRC_TOP = $(TOP)/$(CH32V307_SDK_SRC)
-CH32V307_STARTUP_ASM = $(CH32V307_SDK_SRC)/Startup
 
 include $(TOP)/$(BOARD_PATH)/board.mk
 
@@ -39,22 +37,20 @@ LDFLAGS += \
   -Xlinker --gc-sections --specs=nano.specs --specs=nosys.specs
 
 SRC_C += \
-	src/portable/wch/ch32v307/usb_dc_usbhs.c \
-	$(CH32V307_SDK_SRC_TOP)/Core/core_riscv.c \
-	$(CH32V307_SDK_SRC_TOP)/Peripheral/src/ch32v30x_gpio.c \
-	$(CH32V307_SDK_SRC_TOP)/Peripheral/src/ch32v30x_misc.c \
-	$(CH32V307_SDK_SRC_TOP)/Peripheral/src/ch32v30x_rcc.c \
-	$(CH32V307_SDK_SRC_TOP)/Peripheral/src/ch32v30x_usart.c 
+	src/portable/wch/ch32v307/dcd_usbhs.c \
+	$(CH32V307_SDK_SRC)/Core/core_riscv.c \
+	$(CH32V307_SDK_SRC)/Peripheral/src/ch32v30x_gpio.c \
+	$(CH32V307_SDK_SRC)/Peripheral/src/ch32v30x_misc.c \
+	$(CH32V307_SDK_SRC)/Peripheral/src/ch32v30x_rcc.c \
+	$(CH32V307_SDK_SRC)/Peripheral/src/ch32v30x_usart.c 
 	
 SRC_S += \
-	$(CH32V307_STARTUP_ASM)/startup_ch32v30x_D8C.S 
+	$(CH32V307_SDK_SRC)/Startup/startup_ch32v30x_D8C.S 
 
 INC += \
-	src/portable/wch/ch32v307 \
 	$(TOP)/$(BOARD_PATH) \
-	$(CH32V307_SDK_SRC_TOP)/Peripheral/inc \
-	$(CH32V307_SDK_SRC_TOP)/Debug \
-	$(CH32V307_SDK_SRC_TOP)
+	$(TOP)/$(CH32V307_SDK_SRC)/Peripheral/inc \
+	$(TOP)/$(CH32V307_SDK_SRC)/Debug
 
 # For freeRTOS port source
 FREERTOS_PORT = RISC-V
