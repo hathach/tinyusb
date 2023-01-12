@@ -130,6 +130,11 @@ void dcd_set_address(uint8_t rhport, uint8_t dev_addr) {
     dcd_edpt_xfer(rhport, 0x80, NULL, 0);
 }
 
+void dcd_remote_wakeup(uint8_t rhport)
+{
+  (void) rhport;
+}
+
 void dcd_edpt0_status_complete(uint8_t rhport, tusb_control_request_t const *request) {
     (void)rhport;
 
