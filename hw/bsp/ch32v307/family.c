@@ -28,19 +28,22 @@
 #include "debug_uart.h"
 #include "ch32v30x.h"
 
-#include "../board.h"
+#include "bsp/board.h"
+#include "board.h"
 
 //--------------------------------------------------------------------+
 // Forward USB interrupt events to TinyUSB IRQ Handler
 //--------------------------------------------------------------------+
 
-void USBHS_IRQHandler(void) __attribute__((naked));
-void USBHS_IRQHandler(void) { 
-        __asm volatile ("call USBHS_IRQHandler_impl; mret");
+void USBHS_IRQHandler (void) __attribute__((naked));
+void USBHS_IRQHandler (void)
+{
+  __asm volatile ("call USBHS_IRQHandler_impl; mret");
 }
 
-__attribute__ ((used)) void USBHS_IRQHandler_impl(void) { 
-  tud_int_handler(0); 
+__attribute__ ((used)) void USBHS_IRQHandler_impl (void)
+{
+  tud_int_handler(0);
 }
 
 //--------------------------------------------------------------------+
@@ -49,20 +52,19 @@ __attribute__ ((used)) void USBHS_IRQHandler_impl(void) {
 
 uint32_t SysTick_Config(uint32_t ticks)
 {
-    NVIC_EnableIRQ(SysTicK_IRQn);
-    SysTick->CTLR=0;
-    SysTick->SR=0;
-    SysTick->CNT=0;
-    SysTick->CMP=ticks-1;
-    SysTick->CTLR=0xF;
-    return 0;
+  NVIC_EnableIRQ(SysTicK_IRQn);
+  SysTick->CTLR=0;
+  SysTick->SR=0;
+  SysTick->CNT=0;
+  SysTick->CMP=ticks-1;
+  SysTick->CTLR=0xF;
+  return 0;
 }
 
 void board_init(void) {
 
   /* Disable interrupts during init */
   __disable_irq();
-
 
 #if CFG_TUSB_OS == OPT_OS_NONE
   SysTick_Config(SystemCoreClock / 1000);
@@ -79,11 +81,19 @@ void board_init(void) {
 
   GPIO_InitTypeDef GPIO_InitStructure = {0};
 
-  RCC_APB2PeriphClockCmd(RCC_APB2Periph_GPIOC, ENABLE);
-  GPIO_InitStructure.GPIO_Pin = GPIO_Pin_0;
+  // LED
+  LED_CLOCK_EN();
+  GPIO_InitStructure.GPIO_Pin = LED_PIN;
   GPIO_InitStructure.GPIO_Mode = GPIO_Mode_Out_OD;
   GPIO_InitStructure.GPIO_Speed = GPIO_Speed_50MHz;
-  GPIO_Init(GPIOC, &GPIO_InitStructure);
+  GPIO_Init(LED_PORT, &GPIO_InitStructure);
+
+  // Button
+  BUTTON_CLOCK_EN();
+  GPIO_InitStructure.GPIO_Pin = BUTTON_PIN;
+  GPIO_InitStructure.GPIO_Mode = GPIO_Mode_IPU;
+  GPIO_InitStructure.GPIO_Speed = GPIO_Speed_50MHz;
+  GPIO_Init(BUTTON_PORT, &GPIO_InitStructure);
 
   /* Enable interrupts globally */
   __enable_irq();
@@ -114,26 +124,29 @@ uint32_t board_millis(void) { return system_ticks; }
 // Board porting API
 //--------------------------------------------------------------------+
 
-void board_led_write(bool state) {
-  (void) state;
-
-  GPIO_WriteBit(GPIOC, GPIO_Pin_0, state);
+void board_led_write (bool state)
+{
+  GPIO_WriteBit(LED_PORT, LED_PIN, state);
 }
 
-uint32_t board_button_read(void) {
-  return false;
+uint32_t board_button_read (void)
+{
+  return BUTTON_STATE_ACTIVE == GPIO_ReadInputDataBit(BUTTON_PORT, BUTTON_PIN);
 }
 
-int board_uart_read(uint8_t* buf, int len) {
-  (void)buf;
-  (void)len;
+int board_uart_read (uint8_t *buf, int len)
+{
+  (void) buf;
+  (void) len;
   return 0;
 }
 
-int board_uart_write(void const* buf, int len) {
+int board_uart_write (void const *buf, int len)
+{
   int txsize = len;
-  while (txsize--) {
-    uart_write(*(uint8_t const*)buf);
+  while ( txsize-- )
+  {
+    uart_write(*(uint8_t const*) buf);
     buf++;
   }
   return len;
