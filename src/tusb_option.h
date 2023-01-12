@@ -160,6 +160,9 @@ typedef int make_iso_compilers_happy;
 // Allwinner
 #define OPT_MCU_F1C100S          2100 ///< Allwinner F1C100s family
 
+// WCH
+#define OPT_MCU_CH32V307         2200 ///< WCH CH32V307
+
 // Helper to check if configured MCU is one of listed
 // Apply _TU_CHECK_MCU with || as separator to list of input
 #define _TU_CHECK_MCU(_m)   (CFG_TUSB_MCU == _m)
