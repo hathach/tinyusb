@@ -83,6 +83,14 @@
 #define tu_memclr(buffer, size)  memset((buffer), 0, (size))
 #define tu_varclr(_var)          tu_memclr(_var, sizeof(*(_var)))
 
+// This is a backport of memset_s from c11
+int32_t tu_memset_s(void *dest, size_t destsz, int ch, size_t count); 
+
+// This is a backport of memcpy_s from c11
+int32_t tu_memcpy_s(void *dest, size_t destsz,
+                  const void * src, size_t count );
+
+
 //------------- Bytes -------------//
 TU_ATTR_ALWAYS_INLINE static inline uint32_t tu_u32(uint8_t b3, uint8_t b2, uint8_t b1, uint8_t b0)
 {

@@ -193,7 +193,7 @@ TU_ATTR_ALWAYS_INLINE static inline  void dcd_event_bus_reset (uint8_t rhport, t
 TU_ATTR_ALWAYS_INLINE static inline void dcd_event_setup_received(uint8_t rhport, uint8_t const * setup, bool in_isr)
 {
   dcd_event_t event = { .rhport = rhport, .event_id = DCD_EVENT_SETUP_RECEIVED };
-  memcpy(&event.setup_received, setup, 8);
+  memcpy(&event.setup_received, setup, sizeof(tusb_control_request_t));
 
   dcd_event_handler(&event, in_isr);
 }

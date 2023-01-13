@@ -823,10 +823,7 @@ uint16_t tud_audio_int_ctr_n_write(uint8_t func_id, uint8_t const* buffer, uint1
   // We write directly into the EP's buffer - abort if previous transfer not complete
   TU_VERIFY(!usbd_edpt_busy(_audiod_fct[func_id].rhport, _audiod_fct[func_id].ep_int_ctr));
 
-  // Check length
-  TU_VERIFY(len <= CFG_TUD_AUDIO_INT_CTR_EP_IN_SW_BUFFER_SIZE);
-
-  memcpy(_audiod_fct[func_id].ep_int_ctr_buf, buffer, len);
+  TU_VERIFY(tu_memcpy_s(_audiod_fct[func_id].ep_int_ctr_buf, CFG_TUD_AUDIO_INT_CTR_EP_IN_SW_BUFFER_SIZE,  buffer, len)==0);
 
   // Schedule transmit
   TU_VERIFY(usbd_edpt_xfer(_audiod_fct[func_id].rhport, _audiod_fct[func_id].ep_int_ctr, _audiod_fct[func_id].ep_int_ctr_buf, len));
@@ -2202,7 +2199,7 @@ bool tud_audio_buffer_and_schedule_control_xfer(uint8_t rhport, tusb_control_req
   if (len > _audiod_fct[func_id].ctrl_buf_sz) len = _audiod_fct[func_id].ctrl_buf_sz;
 
   // Copy into buffer
-  memcpy((void *)_audiod_fct[func_id].ctrl_buf, data, (size_t)len);
+  TU_VERIFY(tu_memcpy_s(_audiod_fct[func_id].ctrl_buf, sizeof(_audiod_fct[func_id].ctrl_buf), data, (size_t)len)==0);
 
   // Schedule transmit
   return tud_control_xfer(rhport, p_request, (void*)_audiod_fct[func_id].ctrl_buf, len);

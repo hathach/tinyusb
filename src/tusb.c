@@ -24,6 +24,7 @@
  * This file is part of the TinyUSB stack.
  */
 
+#include "common/tusb_common.h"
 #include "tusb_option.h"
 
 #if CFG_TUH_ENABLED || CFG_TUD_ENABLED
@@ -460,7 +461,7 @@ void tu_print_mem(void const *buf, uint32_t count, uint8_t indent)
       tu_printf("%04X: ", 16*i/item_per_line);
     }
 
-    memcpy(&value, buf8, size);
+    tu_memcpy_s(&value, sizeof(value), buf8, size);
     buf8 += size;
 
     tu_printf(" ");
@@ -486,3 +487,23 @@ void tu_print_mem(void const *buf, uint32_t count, uint8_t indent)
 #endif
 
 #endif // host or device enabled
+
+//--------------------------------------------------------------------+
+// Common
+//--------------------------------------------------------------------+
+
+int32_t tu_memset_s(void *dest, size_t destsz, int ch, size_t count) {
+  if (count > destsz) {
+    return -1;
+  }
+  memset(dest, ch, count);
+  return 0;
+}
+
+int32_t tu_memcpy_s(void *dest, size_t destsz, const void *src, size_t count) {
+  if (count > destsz) {
+    return -1;
+  }
+  memcpy(dest, src, count);
+  return 0;
+}

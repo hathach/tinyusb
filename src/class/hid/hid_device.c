@@ -92,16 +92,12 @@ bool tud_hid_n_report(uint8_t instance, uint8_t report_id, void const* report, u
   // prepare data
   if (report_id)
   {
-    len = tu_min16(len, CFG_TUD_HID_EP_BUFSIZE-1);
-
     p_hid->epin_buf[0] = report_id;
-    memcpy(p_hid->epin_buf+1, report, len);
+    TU_VERIFY(tu_memcpy_s(p_hid->epin_buf+1, CFG_TUD_HID_EP_BUFSIZE-1, report, len)==0);
     len++;
   }else
   {
-    // If report id = 0, skip ID field
-    len = tu_min16(len, CFG_TUD_HID_EP_BUFSIZE);
-    memcpy(p_hid->epin_buf, report, len);
+    TU_VERIFY(tu_memcpy_s(p_hid->epin_buf, CFG_TUD_HID_EP_BUFSIZE, report, len)==0);
   }
 
   return usbd_edpt_xfer(rhport, p_hid->ep_in, p_hid->epin_buf, len);
@@ -126,7 +122,7 @@ bool tud_hid_n_keyboard_report(uint8_t instance, uint8_t report_id, uint8_t modi
 
   if ( keycode )
   {
-    memcpy(report.keycode, keycode, 6);
+    TU_VERIFY(tu_memcpy_s(report.keycode, sizeof(report.keycode), keycode, sizeof(report.keycode))==0);
   }else
   {
     tu_memclr(report.keycode, 6);
@@ -151,8 +147,7 @@ bool tud_hid_n_mouse_report(uint8_t instance, uint8_t report_id,
 }
 
 bool tud_hid_n_gamepad_report(uint8_t instance, uint8_t report_id,
-                              int8_t x, int8_t y, int8_t z, int8_t rz, int8_t rx, int8_t ry, uint8_t hat, uint32_t buttons)
-{
+                              int8_t x, int8_t y, int8_t z, int8_t rz, int8_t rx, int8_t ry, uint8_t hat, uint32_t buttons) {
   hid_gamepad_report_t report =
   {
     .x       = x,
@@ -183,11 +178,12 @@ void hidd_reset(uint8_t rhport)
 }
 
 uint16_t hidd_open(uint8_t rhport, tusb_desc_interface_t const * desc_itf, uint16_t max_len)
-{
+ {
   TU_VERIFY(TUSB_CLASS_HID == desc_itf->bInterfaceClass, 0);
 
   // len = interface + hid + n*endpoints
-  uint16_t const drv_len = (uint16_t) (sizeof(tusb_desc_interface_t) + sizeof(tusb_hid_descriptor_hid_t) +
+  uint16_t const drv_len =
+      (uint16_t) (sizeof(tusb_desc_interface_t) + sizeof(tusb_hid_descriptor_hid_t) +
                                        desc_itf->bNumEndpoints * sizeof(tusb_desc_endpoint_t));
   TU_ASSERT(max_len >= drv_len, 0);
 
