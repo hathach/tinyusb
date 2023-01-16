@@ -26,9 +26,12 @@
 
 #include "tusb_option.h"
 
-#if CFG_TUD_ENABLED && ( \
-      ( CFG_TUSB_MCU == OPT_MCU_MKL25ZXX ) || ( CFG_TUSB_MCU == OPT_MCU_K32L2BXX ) \
-    )
+#if CFG_TUD_ENABLED &&                     \
+  (					   \
+   ( CFG_TUSB_MCU == OPT_MCU_MKL25ZXX ) || \
+   ( CFG_TUSB_MCU == OPT_MCU_K32L2AXX ) || \
+   ( CFG_TUSB_MCU == OPT_MCU_K32L2BXX )	   \
+  )
 
 #include "fsl_device_registers.h"
 #define KHCI        USB0
