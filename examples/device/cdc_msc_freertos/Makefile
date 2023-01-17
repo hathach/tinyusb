@@ -4,13 +4,14 @@ include ../../../tools/top.mk
 include ../../make.mk
 
 FREERTOS_SRC = lib/FreeRTOS-Kernel
+FREERTOS_PORTABLE_SRC= $(FREERTOS_SRC)/portable/$(if $(USE_IAR),IAR,GCC)/$(FREERTOS_PORT)
 
 INC += \
 	src \
 	src/FreeRTOSConfig \
 	$(TOP)/hw \
 	$(TOP)/$(FREERTOS_SRC)/include \
-	$(TOP)/$(FREERTOS_SRC)/portable/GCC/$(FREERTOS_PORT)
+	$(TOP)/$(FREERTOS_PORTABLE_SRC)
 	
 # Example source
 EXAMPLE_SOURCE = \
@@ -27,17 +28,20 @@ SRC_C += \
 	$(FREERTOS_SRC)/queue.c \
 	$(FREERTOS_SRC)/tasks.c \
 	$(FREERTOS_SRC)/timers.c \
-	$(subst ../../../,,$(wildcard ../../../$(FREERTOS_SRC)/portable/GCC/$(FREERTOS_PORT)/*.c))
+	$(subst ../../../,,$(wildcard ../../../$(FREERTOS_PORTABLE_SRC)/*.c))
+
+SRC_S += \
+	$(subst ../../../,,$(wildcard ../../../$(FREERTOS_PORTABLE_SRC)/*.s))
 
 # include heap manage if configSUPPORT_DYNAMIC_ALLOCATION = 1
 # SRC_C += $(FREERTOS_SRC)/portable/MemMang/heap_1.c
 # CFLAGS += -Wno-error=sign-compare
 
 # Suppress FreeRTOSConfig.h warnings
-CFLAGS += -Wno-error=redundant-decls
+GCC_CFLAGS += -Wno-error=redundant-decls
 
 # Suppress FreeRTOS source warnings
-CFLAGS += -Wno-error=cast-qual
+GCC_CFLAGS += -Wno-error=cast-qual
 
 # FreeRTOS (lto + Os) linker issue
 LDFLAGS += -Wl,--undefined=vTaskSwitchContext

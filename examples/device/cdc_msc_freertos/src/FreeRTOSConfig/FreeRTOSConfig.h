@@ -42,6 +42,9 @@
  * See http://www.freertos.org/a00110.html.
  *----------------------------------------------------------*/
 
+// skip if is compiled with assembler
+#if !defined(__ASSEMBLER__) && !defined(__IASMARM__)
+
 // Include MCU header
 #include "bsp/board_mcu.h"
 
@@ -55,6 +58,8 @@
 #else
   // FIXME cause redundant-decls warnings
   extern uint32_t SystemCoreClock;
+#endif
+
 #endif
 
 /* Cortex M23/M33 port configuration. */
@@ -166,7 +171,7 @@
 #elif defined(__ECLIC_INTCTLBITS)
   // RISC-V Bumblebee core from nuclei
   #define configPRIO_BITS       __ECLIC_INTCTLBITS
-#else
+#elif !defined(__ASSEMBLER__) && !defined(__IASMARM__)
   #error "FreeRTOS configPRIO_BITS to be defined"
 #endif
 

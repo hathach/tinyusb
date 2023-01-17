@@ -1,6 +1,6 @@
 CFLAGS += -DSTM32F070xB -DCFG_EXAMPLE_VIDEO_READONLY
 
-SRC_S += $(ST_CMSIS)/Source/Templates/gcc/startup_stm32f070xb.s
+GCC_SRC_S += $(ST_CMSIS)/Source/Templates/gcc/startup_stm32f070xb.s
 LD_FILE = $(BOARD_PATH)/stm32F070rbtx_flash.ld
 
 IAR_SRC_S += $(ST_CMSIS)/Source/Templates/iar/startup_stm32f070xb.s

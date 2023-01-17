@@ -48,8 +48,11 @@ CFLAGS += $(addprefix -I,$(INC))
 
 ifdef USE_IAR
 
-IAR_CFLAGS += $(CFLAGS) -e --debug
+IAR_CFLAGS += $(CFLAGS) -e --debug --silent
 IAR_LDFLAGS += --config $(TOP)/$(IAR_LD_FILE)
+IAR_ASFLAGS += $(CFLAGS) -S
+
+SRC_S += $(IAR_SRC_S)
 
 else
 
@@ -73,7 +76,9 @@ endif
 
 ASFLAGS += $(CFLAGS)
 
-endif
+SRC_S += $(GCC_SRC_S)
+
+endif # USE_IAR
 
 # Verbose mode
 ifeq ("$(V)","1")
@@ -84,17 +89,11 @@ endif
 
 # Assembly files can be name with upper case .S, convert it to .s
 SRC_S := $(SRC_S:.S=.s)
-IAR_SRC_S := $(IAR_SRC_S:.S=.s)
 
 # Due to GCC LTO bug https://bugs.launchpad.net/gcc-arm-embedded/+bug/1747966
 # assembly file should be placed first in linking order
 # '_asm' suffix is added to object of assembly file
-ifdef USE_IAR
-OBJ += $(addprefix $(BUILD)/obj/, $(IAR_SRC_S:.s=_asm.o))
-else
 OBJ += $(addprefix $(BUILD)/obj/, $(SRC_S:.s=_asm.o))
-endif
-
 OBJ += $(addprefix $(BUILD)/obj/, $(SRC_C:.c=.o))
 
 # ---------------------------------------
@@ -156,11 +155,11 @@ else
 
 $(BUILD)/$(PROJECT).bin: $(BUILD)/$(PROJECT).elf
 	@echo CREATE $@
-	@$(OBJCOPY) --bin $^ $@
+	@$(OBJCOPY) --silent --bin $^ $@
 
 $(BUILD)/$(PROJECT).hex: $(BUILD)/$(PROJECT).elf
 	@echo CREATE $@
-	@$(OBJCOPY) --ihex $^ $@
+	@$(OBJCOPY) --silent --ihex $^ $@
 
 $(BUILD)/$(PROJECT).elf: $(OBJ)
 	@echo LINK $@
