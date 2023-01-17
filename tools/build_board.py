@@ -52,7 +52,7 @@ if __name__ == '__main__':
     for example in all_examples:
         print(build_separator)
         with Pool(processes=os.cpu_count()) as pool:
-            pool_args = list((map(lambda b, e=example: [e, b], all_boards)))
+            pool_args = list((map(lambda b, e=example, o='': [e, b, o], all_boards)))
             result = pool.starmap(build_utils.build_example, pool_args)
             # sum all element of same index (column sum)
             result = list(map(sum, list(zip(*result))))

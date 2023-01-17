@@ -77,7 +77,7 @@ def skip_example(example, board):
     return False
 
 
-def build_example(example, board):
+def build_example(example, board, make_option):
     start_time = time.monotonic()
     flash_size = "-"
     sram_size = "-"
@@ -91,14 +91,14 @@ def build_example(example, board):
         ret[2] = 1
         print(build_format.format(example, board, status, '-', flash_size, sram_size))
     else:
-        build_result = subprocess.run("make -j -C examples/{} BOARD={} all".format(example, board), shell=True,
+        build_result = subprocess.run("make -j -C examples/{} BOARD={} {} all".format(example, board, make_option), shell=True,
                                       stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
 
         if build_result.returncode == 0:
             status = SUCCEEDED
             ret[0] = 1
             (flash_size, sram_size) = build_size(example, board)
-            subprocess.run("make -j -C examples/{} BOARD={} copy-artifact".format(example, board), shell=True,
+            subprocess.run("make -j -C examples/{} BOARD={} {} copy-artifact".format(example, board, make_option), shell=True,
                            stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
         else:
             status = FAILED

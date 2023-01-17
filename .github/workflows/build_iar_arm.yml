@@ -1,4 +1,4 @@
-name: Build IAR for ARM
+name: Build ARM with IAR
 
 on:
   push:
