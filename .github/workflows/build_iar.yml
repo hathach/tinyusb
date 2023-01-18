@@ -1,4 +1,4 @@
-name: Build ARM with IAR
+name: Build IAR
 
 on:
   push:
@@ -50,8 +50,4 @@ jobs:
         echo >> $GITHUB_ENV PICO_SDK_PATH=~/pico-sdk
 
     - name: Build
-      #run: python3 tools/build_family.py ${{ matrix.family }}
-      run: |
-        make -j -C examples/device/cdc_msc BOARD=stm32f070rbnucleo CC=iccarm all
-        make -j -C examples/device/cdc_msc BOARD=stm32f072disco CC=iccarm all
-        make -j -C examples/device/cdc_msc BOARD=stm32f072eval CC=iccarm all
+      run: python3 tools/build_family.py ${{ matrix.family }} CC=iccarm
