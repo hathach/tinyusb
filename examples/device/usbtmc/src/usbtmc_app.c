@@ -23,7 +23,7 @@
  *
  */
 
-#include <strings.h>
+#include <string.h>
 #include <stdlib.h>     /* atoi */
 #include "tusb.h"
 #include "bsp/board.h"
