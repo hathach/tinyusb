@@ -101,6 +101,23 @@ bool tud_connect(void);
 // - If len > wLength : it will be truncated
 bool tud_control_xfer(uint8_t rhport, tusb_control_request_t const * request, void* buffer, uint16_t len);
 
+TU_ATTR_ALWAYS_INLINE static inline
+bool tud_control_xfer_in(uint8_t rhport, tusb_control_request_t const * request, const void* buffer, uint16_t len)
+{
+    TU_VERIFY(request->bmRequestType_bit.direction & TUSB_DIR_IN);
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wcast-qual"
+    return tud_control_xfer(rhport, request, (void *)buffer, len);
+#pragma GCC diagnostic pop
+}
+
+TU_ATTR_ALWAYS_INLINE static inline
+bool tud_control_xfer_out(uint8_t rhport, tusb_control_request_t const * request, void* buffer, uint16_t len)
+{
+    TU_VERIFY(!(request->bmRequestType_bit.direction & TUSB_DIR_IN));
+    return tud_control_xfer(rhport, request, buffer, len);
+}
+
 // Send STATUS (zero length) packet
 bool tud_control_status(uint8_t rhport, tusb_control_request_t const * request);
 

@@ -179,7 +179,7 @@ bool tud_vendor_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_requ
         case VENDOR_REQUEST_WEBUSB:
           // match vendor request in BOS descriptor
           // Get landing page url
-          return tud_control_xfer(rhport, request, (void*)(uintptr_t) &desc_url, desc_url.bLength);
+          return tud_control_xfer_in(rhport, request, &desc_url, desc_url.bLength);
 
         case VENDOR_REQUEST_MICROSOFT:
           if ( request->wIndex == 7 )
@@ -188,7 +188,7 @@ bool tud_vendor_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_requ
             uint16_t total_len;
             memcpy(&total_len, desc_ms_os_20+8, 2);
 
-            return tud_control_xfer(rhport, request, (void*)(uintptr_t) desc_ms_os_20, total_len);
+            return tud_control_xfer_in(rhport, request, desc_ms_os_20, total_len);
           }else
           {
             return false;
