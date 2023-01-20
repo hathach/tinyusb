@@ -99,6 +99,7 @@ uint8_t const desc_fs_configuration[] =
 {
   // Config number, interface count, string index, total length, attribute, power in mA
   TUD_CONFIG_DESCRIPTOR(1, ITF_NUM_TOTAL, 0, CONFIG_TOTAL_LEN, 0, 500),
+
   // IAD for Video Control
 #if defined(CFG_EXAMPLE_VIDEO_READONLY) && !defined(CFG_EXAMPLE_VIDEO_DISABLE_MJPEG)
   TUD_VIDEO_CAPTURE_DESCRIPTOR_MJPEG(4, EPNUM_VIDEO_IN,
