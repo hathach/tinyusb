@@ -74,6 +74,41 @@ bool tusb_inited(void)
 }
 
 //--------------------------------------------------------------------+
+// Descriptor helper
+//--------------------------------------------------------------------+
+
+uint8_t const * tu_desc_find(uint8_t const* desc, uint8_t const* end, uint8_t byte1)
+{
+  while(desc+1 < end)
+  {
+    if ( desc[1] == byte1 ) return desc;
+    desc += desc[DESC_OFFSET_LEN];
+  }
+  return NULL;
+}
+
+uint8_t const * tu_desc_find2(uint8_t const* desc, uint8_t const* end, uint8_t byte1, uint8_t byte2)
+{
+  while(desc+2 < end)
+  {
+    if ( desc[1] == byte1 && desc[2] == byte2) return desc;
+    desc += desc[DESC_OFFSET_LEN];
+  }
+  return NULL;
+}
+
+uint8_t const * tu_desc_find3(uint8_t const* desc, uint8_t const* end, uint8_t byte1, uint8_t byte2, uint8_t byte3)
+{
+  while(desc+3 < end)
+  {
+    if (desc[1] == byte1 && desc[2] == byte2 && desc[3] == byte3) return desc;
+    desc += desc[DESC_OFFSET_LEN];
+  }
+  return NULL;
+}
+
+
+//--------------------------------------------------------------------+
 // Endpoint Helper for both Host and Device stack
 //--------------------------------------------------------------------+
 
