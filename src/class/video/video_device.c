@@ -108,7 +108,7 @@ typedef struct TU_ATTR_PACKED {
 
 /* video control interface */
 typedef struct TU_ATTR_PACKED {
-  void const *beg;  /* The head of the first video control interface descriptor */
+  uint8_t const *beg;  /* The head of the first video control interface descriptor */
   uint16_t    len;  /* Byte length of the descriptors */
   uint16_t    cur;  /* offset for current video control interface */
   uint8_t     stm[CFG_TUD_VIDEO_STREAMING]; /* Indices of streaming interface */
@@ -174,7 +174,7 @@ static tusb_desc_vc_itf_t const* _get_desc_vc(videod_interface_t const *self)
 static tusb_desc_vs_itf_t const* _get_desc_vs(videod_streaming_interface_t const *self)
 {
   if (!self->desc.cur) return NULL;
-  void const *desc = _videod_itf[self->index_vc].beg;
+  uint8_t const *desc = _videod_itf[self->index_vc].beg;
   return (tusb_desc_vs_itf_t const*)(desc + self->desc.cur);
 }
 
@@ -247,9 +247,9 @@ static void const* _next_desc_itf(void const *beg, void const *end)
  *
  * @return The pointer for interface descriptor.
  * @retval end   did not found interface descriptor */
-static inline void const* _find_desc_itf(void const *beg, void const *end, uint_fast8_t itfnum, uint_fast8_t altnum)
+static inline uint8_t const* _find_desc_itf(void const *beg, void const *end, uint_fast8_t itfnum, uint_fast8_t altnum)
 {
-  return _find_desc_3(beg, end, TUSB_DESC_INTERFACE, itfnum, altnum);
+  return (uint8_t const*) _find_desc_3(beg, end, TUSB_DESC_INTERFACE, itfnum, altnum);
 }
 
 /** Find the first endpoint descriptor belonging to the current interface descriptor.
@@ -275,7 +275,7 @@ static void const* _find_desc_ep(void const *beg, void const *end)
 static inline void const* _end_of_control_descriptor(void const *desc)
 {
   tusb_desc_vc_itf_t const *vc = (tusb_desc_vc_itf_t const *)desc;
-  return desc + vc->std.bLength + vc->ctl.wTotalLength;
+  return ((uint8_t const*) desc) + vc->std.bLength + tu_le16toh(vc->ctl.wTotalLength);
 }
 
 /** Find the first entity descriptor with the entity ID
@@ -305,7 +305,7 @@ static void const* _find_desc_entity(void const *desc, uint_fast8_t entityid)
 static inline void const* _end_of_streaming_descriptor(void const *desc)
 {
   tusb_desc_vs_itf_t const *vs = (tusb_desc_vs_itf_t const *)desc;
-  return desc + vs->std.bLength + vs->stm.wTotalLength;
+  return ((uint8_t const*) desc) + vs->std.bLength + tu_le16toh(vs->stm.wTotalLength);
 }
 
 /** Find the first format descriptor with the specified format number. */
@@ -581,8 +581,10 @@ static bool _negotiate_streaming_parameters(videod_streaming_interface_t const *
 static bool _close_vc_itf(uint8_t rhport, videod_interface_t *self)
 {
   tusb_desc_vc_itf_t const *vc = _get_desc_vc(self);
+
   /* The next descriptor after the class-specific VC interface header descriptor. */
-  void const *cur = (void const*)vc + vc->std.bLength + vc->ctl.bLength;
+  void const *cur = (uint8_t const*)vc + vc->std.bLength + vc->ctl.bLength;
+
   /* The end of the video control interface descriptor. */
   void const *end = _end_of_control_descriptor(vc);
   if (vc->std.bNumEndpoints) {
@@ -603,10 +605,11 @@ static bool _close_vc_itf(uint8_t rhport, videod_interface_t *self)
 static bool _open_vc_itf(uint8_t rhport, videod_interface_t *self, uint_fast8_t altnum)
 {
   TU_LOG2("    open VC %d\n", altnum);
-  void const *beg = self->beg;
-  void const *end = beg + self->len;
+  uint8_t const *beg = self->beg;
+  uint8_t const *end = beg + self->len;
+
   /* The first descriptor is a video control interface descriptor. */
-  void const *cur = _find_desc_itf(beg, end, _desc_itfnum(beg), altnum);
+  uint8_t const *cur = _find_desc_itf(beg, end, _desc_itfnum(beg), altnum);
   TU_LOG2("    cur %d\n", cur - beg);
   TU_VERIFY(cur < end);
 
@@ -616,7 +619,8 @@ static bool _open_vc_itf(uint8_t rhport, videod_interface_t *self, uint_fast8_t 
   TU_ASSERT(vc->ctl.bInCollection <= CFG_TUD_VIDEO_STREAMING);
 
   /* Update to point the end of the video control interface descriptor. */
-  end  = _end_of_control_descriptor(cur);
+  end = _end_of_control_descriptor(cur);
+
   /* Advance to the next descriptor after the class-specific VC interface header descriptor. */
   cur += vc->std.bLength + vc->ctl.bLength;
   TU_LOG2("    bNumEndpoints %d\n", vc->std.bNumEndpoints);
@@ -631,7 +635,7 @@ static bool _open_vc_itf(uint8_t rhport, videod_interface_t *self, uint_fast8_t 
     /* Open the notification endpoint */
     TU_ASSERT(usbd_edpt_open(rhport, notif));
   }
-  self->cur = (uint16_t) ((void const*)vc - beg);
+  self->cur = (uint16_t) ((uint8_t const*)vc - beg);
   return true;
 }
 
@@ -643,7 +647,7 @@ static bool _open_vs_itf(uint8_t rhport, videod_streaming_interface_t *stm, uint
 {
   uint_fast8_t i;
   TU_LOG2("    reopen VS %d\n", altnum);
-  void const *desc = _videod_itf[stm->index_vc].beg;
+  uint8_t const *desc = _videod_itf[stm->index_vc].beg;
 
   /* Close endpoints of previous settings. */
   for (i = 0; i < TU_ARRAY_SIZE(stm->desc.ep); ++i) {
@@ -654,16 +658,18 @@ static bool _open_vs_itf(uint8_t rhport, videod_streaming_interface_t *stm, uint
     stm->desc.ep[i] = 0;
     TU_LOG2("    close EP%02x\n", ep_adr);
   }
+
   /* clear transfer management information */
   stm->buffer  = NULL;
   stm->bufsize = 0;
   stm->offset  = 0;
 
   /* Find a alternate interface */
-  void const *beg = desc + stm->desc.beg;
-  void const *end = desc + stm->desc.end;
-  void const *cur = _find_desc_itf(beg, end, _desc_itfnum(beg), altnum);
+  uint8_t const *beg = desc + stm->desc.beg;
+  uint8_t const *end = desc + stm->desc.end;
+  uint8_t const *cur = _find_desc_itf(beg, end, _desc_itfnum(beg), altnum);
   TU_VERIFY(cur < end);
+
   uint_fast8_t numeps = ((tusb_desc_interface_t const *)cur)->bNumEndpoints;
   TU_ASSERT(numeps <= TU_ARRAY_SIZE(stm->desc.ep));
   stm->desc.cur = (uint16_t) (cur - desc); /* Save the offset of the new settings */
@@ -1043,7 +1049,6 @@ static int handle_video_stm_req(uint8_t rhport, uint8_t stage,
 
     default: return VIDEO_ERROR_INVALID_REQUEST;
   }
-  return VIDEO_ERROR_UNKNOWN;
 }
 
 //--------------------------------------------------------------------+
@@ -1076,7 +1081,7 @@ bool tud_video_n_frame_xfer(uint_fast8_t ctl_idx, uint_fast8_t stm_idx, void *bu
   if (!stm || !stm->desc.ep[0] || stm->buffer) return false;
 
   /* Find EP address */
-  void const *desc = _videod_itf[stm->index_vc].beg;
+  uint8_t const *desc = _videod_itf[stm->index_vc].beg;
   uint8_t ep_addr = 0;
   for (uint_fast8_t i = 0; i < CFG_TUD_VIDEO_STREAMING; ++i) {
     uint_fast16_t ofs_ep = stm->desc.ep[i];
@@ -1143,13 +1148,15 @@ uint16_t videod_open(uint8_t rhport, tusb_desc_interface_t const * itf_desc, uin
   }
   TU_ASSERT(ctl_idx < CFG_TUD_VIDEO, 0);
 
-  void const *end = (void const*)itf_desc + max_len;
-  self->beg = itf_desc;
+  uint8_t const *end = (uint8_t const*)itf_desc + max_len;
+  self->beg = (uint8_t const*) itf_desc;
   self->len = max_len;
+
   /*------------- Video Control Interface -------------*/
   TU_VERIFY(_open_vc_itf(rhport, self, 0), 0);
   tusb_desc_vc_itf_t const *vc = _get_desc_vc(self);
   uint_fast8_t bInCollection   = vc->ctl.bInCollection;
+
   /* Find the end of the video interface descriptor */
   void const *cur = _next_desc_itf(itf_desc, end);
   for (uint8_t stm_idx = 0; stm_idx < bInCollection; ++stm_idx) {
@@ -1200,7 +1207,7 @@ bool videod_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request_
   for (itf = 0; itf < CFG_TUD_VIDEO_STREAMING; ++itf) {
     videod_streaming_interface_t *stm = &_videod_streaming_itf[itf];
     if (!stm->desc.beg) continue;
-    void const *desc = _videod_itf[stm->index_vc].beg;
+    uint8_t const *desc = _videod_itf[stm->index_vc].beg;
     if (itfnum == _desc_itfnum(desc + stm->desc.beg)) break;
   }
 
@@ -1226,7 +1233,7 @@ bool videod_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint3
     uint_fast16_t const ep_ofs = stm->desc.ep[0];
     if (!ep_ofs) continue;
     ctl = &_videod_itf[stm->index_vc];
-    void const *desc = ctl->beg;
+    uint8_t const *desc = ctl->beg;
     if (ep_addr == _desc_ep_addr(desc + ep_ofs)) break;
   }
 
