@@ -48,15 +48,17 @@ CFLAGS += $(addprefix -I,$(INC))
 
 ifdef USE_IAR
 
-IAR_CFLAGS += $(CFLAGS) -e --debug --silent
-IAR_LDFLAGS += --config $(TOP)/$(IAR_LD_FILE)
-IAR_ASFLAGS += $(CFLAGS) -S
-
 SRC_S += $(IAR_SRC_S)
+
+ASFLAGS := $(CFLAGS) $(IAR_ASFLAGS) $(ASFLAGS) -S
+IAR_LDFLAGS += --config $(TOP)/$(IAR_LD_FILE)
+CFLAGS += $(IAR_CFLAGS) -e --debug --silent
 
 else
 
-CFLAGS += $(GCC_CFLAGS)
+SRC_S += $(GCC_SRC_S)
+
+CFLAGS += $(GCC_CFLAGS) -MD
 
 # LTO makes it difficult to analyze map file for optimizing size purpose
 # We will run this option in ci
@@ -75,8 +77,6 @@ LDFLAGS += -specs=nosys.specs -specs=nano.specs
 endif
 
 ASFLAGS += $(CFLAGS)
-
-SRC_S += $(GCC_SRC_S)
 
 endif # USE_IAR
 
@@ -120,9 +120,23 @@ vpath %.c . $(TOP)
 vpath %.s . $(TOP)
 vpath %.S . $(TOP)
 
+# Compile .c file
+$(BUILD)/obj/%.o: %.c
+	@echo CC $(notdir $@)
+	@$(CC) $(CFLAGS) -c -o $@ $<
+
+# ASM sources lower case .s
+$(BUILD)/obj/%_asm.o: %.s
+	@echo AS $(notdir $@)
+	@$(AS) $(ASFLAGS) -c -o $@ $<
+
+# ASM sources upper case .S
+$(BUILD)/obj/%_asm.o: %.S
+	@echo AS $(notdir $@)
+	@$(AS) $(ASFLAGS) -c -o $@ $<
+
 ifndef USE_IAR
 # GCC based compiler
-
 $(BUILD)/$(PROJECT).bin: $(BUILD)/$(PROJECT).elf
 	@echo CREATE $@
 	@$(OBJCOPY) -O binary $^ $@
@@ -135,24 +149,9 @@ $(BUILD)/$(PROJECT).elf: $(OBJ)
 	@echo LINK $@
 	@$(LD) -o $@ $(LDFLAGS) $^ -Wl,--start-group $(LIBS) -Wl,--end-group
 
-$(BUILD)/obj/%.o: %.c
-	@echo CC $(notdir $@)
-	@$(CC) $(CFLAGS) -c -MD -o $@ $<
-
-# ASM sources lower case .s
-$(BUILD)/obj/%_asm.o: %.s
-	@echo AS $(notdir $@)
-	@$(AS) $(ASFLAGS) -c -o $@ $<
-
-# ASM sources upper case .S
-$(BUILD)/obj/%_asm.o: %.S
-	@echo AS $(notdir $@)
-	@$(AS) $(ASFLAGS) -c -o $@ $<
-
 else
 
 # IAR Compiler
-
 $(BUILD)/$(PROJECT).bin: $(BUILD)/$(PROJECT).elf
 	@echo CREATE $@
 	@$(OBJCOPY) --silent --bin $^ $@
@@ -163,22 +162,7 @@ $(BUILD)/$(PROJECT).hex: $(BUILD)/$(PROJECT).elf
 
 $(BUILD)/$(PROJECT).elf: $(OBJ)
 	@echo LINK $@
-	@$(LD) $(IAR_LDFLAGS) $^ -o $@
-
-$(BUILD)/obj/%.o: %.c
-	@echo CC $(notdir $@)
-	@$(CC) $(IAR_CFLAGS) -c -o $@ $<
-
-# ASM sources lower case .s
-$(BUILD)/obj/%_asm.o: %.s
-	@echo AS $(notdir $@)
-	@$(AS) $(IAR_ASFLAGS) -c -o $@ $<
-
-# ASM sources upper case .S
-$(BUILD)/obj/%_asm.o: %.S
-	@echo AS $(notdir $@)
-	@$(AS) $(IAR_ASFLAGS) -c -o $@ $<
-
+	@$(LD) -o $@ $(IAR_LDFLAGS) $^
 endif
 
 # UF2 generation, iMXRT need to strip to text only before conversion
