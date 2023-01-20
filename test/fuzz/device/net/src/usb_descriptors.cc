@@ -45,7 +45,7 @@
 // Invoked when received GET DEVICE DESCRIPTOR
 // Application return pointer to descriptor
 uint8_t const *tud_descriptor_device_cb(void) {
-  static tusb_desc_device_t const desc_device = {
+  TU_STATIC tusb_desc_device_t const desc_device = {
       .bLength = sizeof(tusb_desc_device_t),
       .bDescriptorType = TUSB_DESC_DEVICE,
       .bcdUSB = USB_BCD,
@@ -189,7 +189,7 @@ char const *string_desc_arr[] = {
     "TinyUSB CDC",              // 4: CDC Interface
 };
 
-static uint16_t _desc_str[32];
+TU_STATIC uint16_t _desc_str[32];
 
 // Invoked when received GET STRING DESCRIPTOR request
 // Application return pointer to descriptor, whose contents must exist long

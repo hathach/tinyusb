@@ -50,7 +50,7 @@ void     tud_vendor_n_read_flush      (uint8_t itf);
 uint32_t tud_vendor_n_write           (uint8_t itf, void const* buffer, uint32_t bufsize);
 uint32_t tud_vendor_n_write_available (uint8_t itf);
 
-static inline
+TU_STATIC inline
 uint32_t tud_vendor_n_write_str       (uint8_t itf, char const* str);
 uint32_t tud_vendor_n_flush           (uint8_t itf);
 

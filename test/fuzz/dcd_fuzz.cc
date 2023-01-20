@@ -39,7 +39,7 @@ struct State {
   uint8_t address;
 };
 
-static State state = {false, 0, 0};
+TU_STATIC State state = {false, 0, 0};
 
 //--------------------------------------------------------------------+
 // Controller API

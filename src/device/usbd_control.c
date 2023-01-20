@@ -53,10 +53,10 @@ typedef struct
   usbd_control_xfer_cb_t complete_cb;
 } usbd_control_xfer_t;
 
-static usbd_control_xfer_t _ctrl_xfer;
+TU_STATIC usbd_control_xfer_t _ctrl_xfer;
 
 CFG_TUSB_MEM_SECTION CFG_TUSB_MEM_ALIGN
-static uint8_t _usbd_ctrl_buf[CFG_TUD_ENDPOINT0_SIZE];
+TU_STATIC uint8_t _usbd_ctrl_buf[CFG_TUD_ENDPOINT0_SIZE];
 
 //--------------------------------------------------------------------+
 // Application API
