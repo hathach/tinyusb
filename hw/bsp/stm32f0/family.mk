@@ -7,13 +7,14 @@ ST_HAL_DRIVER = hw/mcu/st/stm32$(ST_FAMILY)xx_hal_driver
 
 include $(TOP)/$(BOARD_PATH)/board.mk
 
+# --------------
+# Compiler Flags
+# --------------
 CFLAGS += \
   -DCFG_EXAMPLE_MSC_READONLY \
   -DCFG_TUSB_MCU=OPT_MCU_STM32F0
 
-# --------------
 # GCC Flags
-# --------------
 GCC_CFLAGS += \
   -flto \
   -mthumb \
@@ -25,11 +26,13 @@ GCC_CFLAGS += \
 # suppress warning caused by vendor mcu driver
 GCC_CFLAGS += -Wno-error=unused-parameter -Wno-error=cast-align -Wno-error=cast-qual
 
-# --------------
 # IAR Flags
-# --------------
 IAR_CFLAGS += --cpu cortex-m0
 IAR_ASFLAGS += --cpu cortex-m0
+
+# ------------------------
+# All source paths should be relative to the top level.
+# ------------------------
 
 SRC_C += \
   src/portable/st/stm32_fsdev/dcd_stm32_fsdev.c \

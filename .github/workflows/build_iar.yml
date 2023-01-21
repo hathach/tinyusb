@@ -28,6 +28,7 @@ jobs:
         family:
         # Alphabetical order
         - 'stm32f0'
+        - 'stm32f1'
     steps:
     - name: Clean workspace
       run: |

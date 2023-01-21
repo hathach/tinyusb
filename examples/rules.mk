@@ -72,6 +72,10 @@ ifdef LD_FILE
 LDFLAGS += -Wl,-T,$(TOP)/$(LD_FILE)
 endif
 
+ifdef GCC_LD_FILE
+LDFLAGS += -Wl,-T,$(TOP)/$(GCC_LD_FILE)
+endif
+
 ifneq ($(SKIP_NANOLIB), 1)
 LDFLAGS += -specs=nosys.specs -specs=nano.specs
 endif
