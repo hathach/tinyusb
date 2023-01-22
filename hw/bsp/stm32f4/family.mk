@@ -30,6 +30,10 @@ GCC_CFLAGS += -Wno-error=cast-align
 IAR_CFLAGS += --cpu cortex-m4
 IAR_ASFLAGS += --cpu cortex-m4
 
+# -----------------
+# Sources & Include
+# -----------------
+
 SRC_C += \
 	src/portable/synopsys/dwc2/dcd_dwc2.c \
 	$(ST_CMSIS)/Source/Templates/system_stm32$(ST_FAMILY)xx.c \
