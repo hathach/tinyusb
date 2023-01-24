@@ -51,7 +51,7 @@ typedef struct hw_endpoint
     // Transfer direction (i.e. IN is rx for host but tx for device)
     // allows us to common up transfer functions
     bool rx;
-    
+
     uint8_t ep_addr;
     uint8_t next_pid;
 
@@ -64,16 +64,18 @@ typedef struct hw_endpoint
     // Buffer pointer in usb dpram
     uint8_t *hw_data_buf;
 
-    // Current transfer information
-    bool active;
-    uint16_t remaining_len;
-    uint16_t xferred_len;
-
     // User buffer in main memory
     uint8_t *user_buf;
 
+    // Current transfer information
+    uint16_t remaining_len;
+    uint16_t xferred_len;
+
     // Data needed from EP descriptor
     uint16_t wMaxPacketSize;
+
+    // Endpoint is in use
+    bool active;
 
     // Interrupt, bulk, etc
     uint8_t transfer_type;
