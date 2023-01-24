@@ -121,7 +121,7 @@ static void _hw_endpoint_close(struct hw_endpoint *ep)
 {
   uint size = _hw_endpoint_data_size(ep);
   uint block_count = size / DPRAM_BLOCK_SIZE;
-  uint start_block = (ep->hw_data_buf - &usb_dpram->epx_data[0]) / DPRAM_BLOCK_SIZE + hw_data_offset(&usb_dpram->epx_data[0]) / DPRAM_BLOCK_SIZE;
+  uint start_block = (uint)(ep->hw_data_buf - &usb_dpram->epx_data[0]) / DPRAM_BLOCK_SIZE + hw_data_offset(&usb_dpram->epx_data[0]) / DPRAM_BLOCK_SIZE;
   uint64_t block_mask = ((1ull << block_count) - 1) << start_block;
 
   // Clear hardware registers and then zero the struct
