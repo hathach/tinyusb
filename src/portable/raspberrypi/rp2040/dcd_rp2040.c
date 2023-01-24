@@ -256,7 +256,7 @@ static void __tusb_irq_path_func(reset_non_control_endpoints)(void)
   tu_memclr(hw_endpoints[1], sizeof(hw_endpoints) - 2*sizeof(hw_endpoint_t));
 
   // reclaim buffer space
-  dpram_state = (1 << (hw_data_offset(&usb_dpram->epx_data[0]) / DPRAM_BLOCK_SIZE)) - 1;
+  dpram_state = (1ull<< (hw_data_offset(&usb_dpram->epx_data[0]) / DPRAM_BLOCK_SIZE)) - 1;
 }
 
 static void __tusb_irq_path_func(dcd_rp2040_irq)(void)
