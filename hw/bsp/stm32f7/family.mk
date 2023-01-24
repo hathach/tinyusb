@@ -40,8 +40,8 @@ GCC_CFLAGS += \
 GCC_CFLAGS += -Wno-error=shadow -Wno-error=cast-align
 
 # IAR Flags
-IAR_CFLAGS += --cpu cortex-m7
-IAR_ASFLAGS += --cpu cortex-m7
+IAR_CFLAGS += --cpu cortex-m7 --fpu VFPv5_D16
+IAR_ASFLAGS += --cpu cortex-m7 --fpu VFPv5_D16
 
 # -----------------
 # Sources & Include

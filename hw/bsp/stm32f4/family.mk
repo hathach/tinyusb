@@ -27,8 +27,8 @@ GCC_CFLAGS += \
 GCC_CFLAGS += -Wno-error=cast-align
 
 # IAR Flags
-IAR_CFLAGS += --cpu cortex-m4
-IAR_ASFLAGS += --cpu cortex-m4
+IAR_CFLAGS += --cpu cortex-m4 --fpu VFPv4
+IAR_ASFLAGS += --cpu cortex-m4 --fpu VFPv4
 
 # -----------------
 # Sources & Include
