@@ -86,7 +86,9 @@ void board_init(void)
   SysTick->CTRL &= ~1U;
 
   // If freeRTOS is used, IRQ priority is limit by max syscall ( smaller is higher )
+#ifdef USB_OTG_FS_PERIPH_BASE
   NVIC_SetPriority(OTG_FS_IRQn, configLIBRARY_MAX_SYSCALL_INTERRUPT_PRIORITY );
+#endif
   NVIC_SetPriority(OTG_HS_IRQn, configLIBRARY_MAX_SYSCALL_INTERRUPT_PRIORITY );
 #endif
   
