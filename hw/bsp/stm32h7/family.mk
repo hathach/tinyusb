@@ -7,14 +7,10 @@ ST_HAL_DRIVER = hw/mcu/st/stm32$(ST_FAMILY)xx_hal_driver
 
 include $(TOP)/$(BOARD_PATH)/board.mk
 
+# --------------
+# Compiler Flags
+# --------------
 CFLAGS += \
-  -flto \
-  -mthumb \
-  -mabi=aapcs \
-  -mcpu=cortex-m7 \
-  -mfloat-abi=hard \
-  -mfpu=fpv5-d16 \
-  -nostdlib -nostartfiles \
   -DCFG_TUSB_MCU=OPT_MCU_STM32H7 \
 	-DBOARD_TUD_RHPORT=$(PORT)
 
@@ -30,10 +26,26 @@ else
   $(info "Using OTG_FS")
 endif
 
-# suppress warning caused by vendor mcu driver
-CFLAGS += -Wno-error=maybe-uninitialized -Wno-error=cast-align
+# GCC Flags
+GCC_CFLAGS += \
+  -flto \
+  -mthumb \
+  -mabi=aapcs \
+  -mcpu=cortex-m7 \
+  -mfloat-abi=hard \
+  -mfpu=fpv5-d16 \
+  -nostdlib -nostartfiles
 
-# All source paths should be relative to the top level.
+# suppress warning caused by vendor mcu driver
+GCC_CFLAGS += -Wno-error=maybe-uninitialized -Wno-error=cast-align
+
+# IAR Flags
+IAR_CFLAGS += --cpu cortex-m7 --fpu VFPv5_D16
+IAR_ASFLAGS += --cpu cortex-m7 --fpu VFPv5_D16
+
+# -----------------
+# Sources & Include
+# -----------------
 
 SRC_C += \
 	src/portable/synopsys/dwc2/dcd_dwc2.c \
