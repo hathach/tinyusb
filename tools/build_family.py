@@ -11,6 +11,7 @@ SKIPPED = "\033[33mskipped\033[0m"
 
 build_separator = '-' * 106
 
+make_iar_option = 'CC=iccarm'
 
 def filter_with_input(mylist):
     if len(sys.argv) > 1:
@@ -19,7 +20,7 @@ def filter_with_input(mylist):
             mylist[:] = input_args
 
 
-def build_family(example, family):
+def build_family(example, family, make_option):
     all_boards = []
     for entry in os.scandir("hw/bsp/{}/boards".format(family)):
         if entry.is_dir() and entry.name != 'pico_sdk':
@@ -28,13 +29,17 @@ def build_family(example, family):
     all_boards.sort()
 
     with Pool(processes=os.cpu_count()) as pool:
-        pool_args = list((map(lambda b, e=example: [e, b], all_boards)))
+        pool_args = list((map(lambda b, e=example, o=make_option: [e, b, o], all_boards)))
         result = pool.starmap(build_utils.build_example, pool_args)
         # sum all element of same index (column sum)
         return list(map(sum, list(zip(*result))))
 
 
 if __name__ == '__main__':
+    # IAR CC
+    if make_iar_option not in sys.argv:
+        make_iar_option = ''
+
     # If examples are not specified in arguments, build all
     all_examples = []
     for dir1 in os.scandir("examples"):
@@ -62,7 +67,7 @@ if __name__ == '__main__':
     for example in all_examples:
         print(build_separator)
         for family in all_families:
-            fret = build_family(example, family)
+            fret = build_family(example, family, make_iar_option)
             total_result = list(map(lambda x, y: x + y, total_result, fret))
 
     total_time = time.monotonic() - total_time

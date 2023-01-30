@@ -27,9 +27,6 @@
 #ifndef _TUSB_OPTION_H_
 #define _TUSB_OPTION_H_
 
-// To avoid GCC compiler warnings when -pedantic option is used (strict ISO C)
-typedef int make_iso_compilers_happy;
-
 #include "common/tusb_compiler.h"
 
 #define TUSB_VERSION_MAJOR     0
@@ -434,6 +431,9 @@ typedef int make_iso_compilers_happy;
 #if CFG_TUD_ENDPOINT0_SIZE > 64
   #error Control Endpoint Max Packet Size cannot be larger than 64
 #endif
+
+// To avoid GCC compiler warnings when -pedantic option is used (strict ISO C)
+typedef int make_iso_compilers_happy;
 
 #endif /* _TUSB_OPTION_H_ */
 

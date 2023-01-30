@@ -49,14 +49,31 @@ endif
 #-------------- Cross Compiler  ------------
 # Can be set by board, default to ARM GCC
 CROSS_COMPILE ?= arm-none-eabi-
+
 # Allow for -Os to be changed by board makefiles in case -Os is not allowed
 CFLAGS_OPTIMIZED ?= -Os
 
-CC = $(CROSS_COMPILE)gcc
-CXX = $(CROSS_COMPILE)g++
-GDB = $(CROSS_COMPILE)gdb
-OBJCOPY = $(CROSS_COMPILE)objcopy
-SIZE = $(CROSS_COMPILE)size
+ifeq ($(CC),iccarm)
+USE_IAR = 1
+endif
+
+ifdef USE_IAR
+  AS = iasmarm
+  LD = ilinkarm
+  OBJCOPY = ielftool
+  SIZE = echo "size not available for IAR"
+
+else
+  CC = $(CROSS_COMPILE)gcc
+  CXX = $(CROSS_COMPILE)g++
+  AS = $(CC) -x assembler-with-cpp
+  LD = $(CC)
+  
+  GDB = $(CROSS_COMPILE)gdb
+  OBJCOPY = $(CROSS_COMPILE)objcopy
+  SIZE = $(CROSS_COMPILE)size
+endif
+
 MKDIR = mkdir
 
 ifeq ($(CMDEXE),1)
@@ -78,8 +95,8 @@ SRC_C += $(subst $(TOP)/,,$(wildcard $(TOP)/$(BOARD_PATH)/*.c))
 
 INC   += $(TOP)/$(FAMILY_PATH)
 
-# Compiler Flags
-CFLAGS += \
+# GCC Compiler Flags
+GCC_CFLAGS += \
   -ggdb \
   -fdata-sections \
   -ffunction-sections \
@@ -110,13 +127,13 @@ CFLAGS += \
 
 # conversion is too strict for most mcu driver, may be disable sign/int/arith-conversion
 #  -Wconversion
-  
+
 # Debugging/Optimization
 ifeq ($(DEBUG), 1)
-  CFLAGS += -O0
+  GCC_CFLAGS += -O0
   NO_LTO = 1
 else
-  CFLAGS += $(CFLAGS_OPTIMIZED)
+  GCC_CFLAGS += $(CFLAGS_OPTIMIZED)
 endif
 
 # Log level is mapped to TUSB DEBUG option

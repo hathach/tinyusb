@@ -212,9 +212,9 @@ static inline void board_stm32h7_post_init(void)
 
   // Reset PHY, change the delays as you see fit
   timer_board_delay(&tim2Handle, 5U);
-  HAL_GPIO_WritePin(ULPI_RST_PORT, ULPI_RST_PIN, 1U);
+  HAL_GPIO_WritePin(ULPI_RST_PORT, ULPI_RST_PIN, GPIO_PIN_SET);
   timer_board_delay(&tim2Handle, 20U);
-  HAL_GPIO_WritePin(ULPI_RST_PORT, ULPI_RST_PIN, 0U);
+  HAL_GPIO_WritePin(ULPI_RST_PORT, ULPI_RST_PIN, GPIO_PIN_RESET);
   timer_board_delay(&tim2Handle, 20U);
 
   //Disable the timer used for delays

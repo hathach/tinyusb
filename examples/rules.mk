@@ -46,22 +46,50 @@ INC += $(TOP)/src
 
 CFLAGS += $(addprefix -I,$(INC))
 
+ifdef USE_IAR
+
+SRC_S += $(IAR_SRC_S)
+
+ASFLAGS := $(CFLAGS) $(IAR_ASFLAGS) $(ASFLAGS) -S
+IAR_LDFLAGS += --config $(TOP)/$(IAR_LD_FILE)
+CFLAGS += $(IAR_CFLAGS) -e --debug --silent
+
+else
+
+SRC_S += $(GCC_SRC_S)
+
+CFLAGS += $(GCC_CFLAGS) -MD
+
 # LTO makes it difficult to analyze map file for optimizing size purpose
 # We will run this option in ci
 ifeq ($(NO_LTO),1)
 CFLAGS := $(filter-out -flto,$(CFLAGS))
 endif
 
-ifneq ($(LD_FILE),)
-LDFLAGS_LD_FILE ?= -Wl,-T,$(TOP)/$(LD_FILE)
+LDFLAGS += $(CFLAGS) -Wl,-Map=$@.map -Wl,-cref -Wl,-gc-sections
+
+ifdef LD_FILE
+LDFLAGS += -Wl,-T,$(TOP)/$(LD_FILE)
 endif
 
-LDFLAGS += $(CFLAGS) $(LDFLAGS_LD_FILE) -Wl,-Map=$@.map -Wl,-cref -Wl,-gc-sections
+ifdef GCC_LD_FILE
+LDFLAGS += -Wl,-T,$(TOP)/$(GCC_LD_FILE)
+endif
+
 ifneq ($(SKIP_NANOLIB), 1)
 LDFLAGS += -specs=nosys.specs -specs=nano.specs
 endif
 
 ASFLAGS += $(CFLAGS)
+
+endif # USE_IAR
+
+# Verbose mode
+ifeq ("$(V)","1")
+$(info CFLAGS  $(CFLAGS) ) $(info )
+$(info LDFLAGS $(LDFLAGS)) $(info )
+$(info ASFLAGS $(ASFLAGS)) $(info )
+endif
 
 # Assembly files can be name with upper case .S, convert it to .s
 SRC_S := $(SRC_S:.S=.s)
@@ -71,13 +99,6 @@ SRC_S := $(SRC_S:.S=.s)
 # '_asm' suffix is added to object of assembly file
 OBJ += $(addprefix $(BUILD)/obj/, $(SRC_S:.s=_asm.o))
 OBJ += $(addprefix $(BUILD)/obj/, $(SRC_C:.c=.o))
-
-# Verbose mode
-ifeq ("$(V)","1")
-$(info CFLAGS  $(CFLAGS) ) $(info )
-$(info LDFLAGS $(LDFLAGS)) $(info )
-$(info ASFLAGS $(ASFLAGS)) $(info )
-endif
 
 # ---------------------------------------
 # Rules
@@ -96,10 +117,30 @@ else
 	@$(MKDIR) -p $@
 endif
 
-$(BUILD)/$(PROJECT).elf: $(OBJ)
-	@echo LINK $@
-	@$(CC) -o $@ $(LDFLAGS) $^ -Wl,--start-group $(LIBS) -Wl,--end-group
+# We set vpath to point to the top of the tree so that the source files
+# can be located. By following this scheme, it allows a single build rule
+# to be used to compile all .c files.
+vpath %.c . $(TOP)
+vpath %.s . $(TOP)
+vpath %.S . $(TOP)
 
+# Compile .c file
+$(BUILD)/obj/%.o: %.c
+	@echo CC $(notdir $@)
+	@$(CC) $(CFLAGS) -c -o $@ $<
+
+# ASM sources lower case .s
+$(BUILD)/obj/%_asm.o: %.s
+	@echo AS $(notdir $@)
+	@$(AS) $(ASFLAGS) -c -o $@ $<
+
+# ASM sources upper case .S
+$(BUILD)/obj/%_asm.o: %.S
+	@echo AS $(notdir $@)
+	@$(AS) $(ASFLAGS) -c -o $@ $<
+
+ifndef USE_IAR
+# GCC based compiler
 $(BUILD)/$(PROJECT).bin: $(BUILD)/$(PROJECT).elf
 	@echo CREATE $@
 	@$(OBJCOPY) -O binary $^ $@
@@ -107,6 +148,26 @@ $(BUILD)/$(PROJECT).bin: $(BUILD)/$(PROJECT).elf
 $(BUILD)/$(PROJECT).hex: $(BUILD)/$(PROJECT).elf
 	@echo CREATE $@
 	@$(OBJCOPY) -O ihex $^ $@
+
+$(BUILD)/$(PROJECT).elf: $(OBJ)
+	@echo LINK $@
+	@$(LD) -o $@ $(LDFLAGS) $^ -Wl,--start-group $(LIBS) -Wl,--end-group
+
+else
+
+# IAR Compiler
+$(BUILD)/$(PROJECT).bin: $(BUILD)/$(PROJECT).elf
+	@echo CREATE $@
+	@$(OBJCOPY) --silent --bin $^ $@
+
+$(BUILD)/$(PROJECT).hex: $(BUILD)/$(PROJECT).elf
+	@echo CREATE $@
+	@$(OBJCOPY) --silent --ihex $^ $@
+
+$(BUILD)/$(PROJECT).elf: $(OBJ)
+	@echo LINK $@
+	@$(LD) -o $@ $(IAR_LDFLAGS) $^
+endif
 
 # UF2 generation, iMXRT need to strip to text only before conversion
 ifeq ($(FAMILY),imxrt)
@@ -122,27 +183,8 @@ endif
 
 copy-artifact: $(BUILD)/$(PROJECT).bin $(BUILD)/$(PROJECT).hex $(BUILD)/$(PROJECT).uf2
 
-# We set vpath to point to the top of the tree so that the source files
-# can be located. By following this scheme, it allows a single build rule
-# to be used to compile all .c files.
-vpath %.c . $(TOP)
-$(BUILD)/obj/%.o: %.c
-	@echo CC $(notdir $@)
-	@$(CC) $(CFLAGS) -c -MD -o $@ $<
-
-# ASM sources lower case .s
-vpath %.s . $(TOP)
-$(BUILD)/obj/%_asm.o: %.s
-	@echo AS $(notdir $@)
-	@$(CC) -x assembler-with-cpp $(ASFLAGS) -c -o $@ $<
-
-# ASM sources upper case .S
-vpath %.S . $(TOP)
-$(BUILD)/obj/%_asm.o: %.S
-	@echo AS $(notdir $@)
-	@$(CC) -x assembler-with-cpp $(ASFLAGS) -c -o $@ $<
-
 endif
+# ---------------- GNU Make End -----------------------
 
 .PHONY: clean
 clean:
@@ -151,7 +193,6 @@ ifeq ($(CMDEXE),1)
 else
 	$(RM) -rf $(BUILD)
 endif
-# ---------------- GNU Make End -----------------------
 
 # get depenecies
 .PHONY: get-deps
