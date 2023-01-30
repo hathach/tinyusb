@@ -31,6 +31,7 @@ jobs:
         - 'stm32f1'
         - 'stm32f4'
         - 'stm32f7'
+        - 'stm32g4'
         - 'stm32h7'
     steps:
     - name: Clean workspace

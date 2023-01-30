@@ -7,7 +7,14 @@ ST_HAL_DRIVER = hw/mcu/st/stm32$(ST_FAMILY)xx_hal_driver
 
 include $(TOP)/$(BOARD_PATH)/board.mk
 
+# --------------
+# Compiler Flags
+# --------------
 CFLAGS += \
+  -DCFG_TUSB_MCU=OPT_MCU_STM32G4
+  
+# GCC Flags
+GCC_CFLAGS += \
   -flto \
   -mthumb \
   -mabi=aapcs \
@@ -15,10 +22,17 @@ CFLAGS += \
   -mfloat-abi=hard \
   -mfpu=fpv4-sp-d16 \
   -nostdlib -nostartfiles \
-  -DCFG_TUSB_MCU=OPT_MCU_STM32G4
 
 # suppress warning caused by vendor mcu driver
-CFLAGS += -Wno-error=cast-align
+GCC_CFLAGS += -Wno-error=cast-align
+
+# IAR Flags
+IAR_CFLAGS += --cpu cortex-m4 --fpu VFPv4
+IAR_ASFLAGS += --cpu cortex-m4 --fpu VFPv4
+
+# -----------------
+# Sources & Include
+# -----------------
 
 SRC_C += \
 	src/portable/st/stm32_fsdev/dcd_stm32_fsdev.c \
