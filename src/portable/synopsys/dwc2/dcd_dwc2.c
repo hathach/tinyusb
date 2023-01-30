@@ -529,8 +529,10 @@ void dcd_init (uint8_t rhport)
   dwc2->dcfg |= DCFG_NZLSOHSK;
 
   // Clear all interrupts
-  dwc2->gintsts |= dwc2->gintsts;
-  dwc2->gotgint |= dwc2->gotgint;
+  uint32_t int_mask = dwc2->gintsts;
+  dwc2->gintsts |= int_mask;
+  int_mask = dwc2->gotgint;
+  dwc2->gotgint |= int_mask;
 
   // Required as part of core initialization.
   // TODO: How should mode mismatch be handled? It will cause
@@ -1219,7 +1221,8 @@ void dcd_int_handler(uint8_t rhport)
 {
   dwc2_regs_t *dwc2 = DWC2_REG(rhport);
 
-  uint32_t const int_status = dwc2->gintsts & dwc2->gintmsk;
+  uint32_t const int_mask = dwc2->gintmsk;
+  uint32_t const int_status = dwc2->gintsts & int_mask;
 
   if(int_status & GINTSTS_USBRST)
   {
