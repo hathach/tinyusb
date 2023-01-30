@@ -123,12 +123,12 @@ if (NOT TARGET _family_support_marker)
 
     # configure an executable target to link to tinyusb in device mode, and add the board implementation
     function(family_configure_device_example TARGET)
-        # default implentation is empty, the function should be redefined in the FAMILY/family.cmake
+        # default implementation is empty, the function should be redefined in the FAMILY/family.cmake
     endfunction()
 
     # configure an executable target to link to tinyusb in host mode, and add the board implementation
     function(family_configure_host_example TARGET)
-        # default implentation is empty, the function should be redefined in the FAMILY/family.cmake
+        # default implementation is empty, the function should be redefined in the FAMILY/family.cmake
     endfunction()
 
     include(${CMAKE_CURRENT_LIST_DIR}/${FAMILY}/family.cmake)

@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.5)
 
 # TOP is absolute path to root directory of TinyUSB git repo
-# needed for esp32sx build. TOOD could be removed later on
+# needed for esp32sx build. TODO could be removed later on
 set(TOP "../../..")
 get_filename_component(TOP "${TOP}" REALPATH)
 

@@ -1,11 +1,23 @@
 name: Build RISC-V
 
 on:
-  pull_request:
   push:
-  release:
-    types:
-      - created
+    paths:
+      - 'src/**'
+      - 'examples/**'
+      - 'lib/**'
+      - 'hw/**'
+  pull_request:
+    branches: [ master ]
+    paths:
+      - 'src/**'
+      - 'examples/**'
+      - 'lib/**'
+      - 'hw/**'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
+  cancel-in-progress: true
 
 jobs:
   build-riscv:
@@ -15,6 +27,7 @@ jobs:
       matrix:
         family:
         # Alphabetical order
+        - 'ch32v307'
         - 'fomu'
         - 'gd32vf103'
     steps:

@@ -595,7 +595,7 @@ void dcd_remote_wakeup(uint8_t rhport)
 
   SYS->MSC0CFG = SYS->MSC0CFG | MASK_SYS_MSC0CFG_DEV_RMWAKEUP;
 
-  // Atleast 2 ms of delay needed for RESUME Data K state.
+  // At least 2 ms of delay needed for RESUME Data K state.
   delayms(2); 
 
   SYS->MSC0CFG &= ~MASK_SYS_MSC0CFG_DEV_RMWAKEUP;

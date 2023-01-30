@@ -139,7 +139,7 @@ typedef union TU_ATTR_PACKED
     uint32_t stall        : 1 ;
     uint32_t disable      : 1 ;
     uint32_t active       : 1 ;
-  };
+  } cmd_sts;
 }ep_cmd_sts_t;
 
 TU_VERIFY_STATIC( sizeof(ep_cmd_sts_t) == 4, "size is not correct" );
@@ -329,7 +329,7 @@ void dcd_edpt_stall(uint8_t rhport, uint8_t ep_addr)
 
   // TODO cannot able to STALL Control OUT endpoint !!!!! FIXME try some walk-around
   uint8_t const ep_id = ep_addr2id(ep_addr);
-  _dcd.ep[ep_id][0].stall = 1;
+  _dcd.ep[ep_id][0].cmd_sts.stall = 1;
 }
 
 void dcd_edpt_clear_stall(uint8_t rhport, uint8_t ep_addr)
@@ -338,9 +338,9 @@ void dcd_edpt_clear_stall(uint8_t rhport, uint8_t ep_addr)
 
   uint8_t const ep_id = ep_addr2id(ep_addr);
 
-  _dcd.ep[ep_id][0].stall        = 0;
-  _dcd.ep[ep_id][0].toggle_reset = 1;
-  _dcd.ep[ep_id][0].toggle_mode  = 0;
+  _dcd.ep[ep_id][0].cmd_sts.stall        = 0;
+  _dcd.ep[ep_id][0].cmd_sts.toggle_reset = 1;
+  _dcd.ep[ep_id][0].cmd_sts.toggle_mode  = 0;
 }
 
 bool dcd_edpt_open(uint8_t rhport, tusb_desc_endpoint_t const * p_endpoint_desc)
@@ -349,10 +349,10 @@ bool dcd_edpt_open(uint8_t rhport, tusb_desc_endpoint_t const * p_endpoint_desc)
   uint8_t ep_id = ep_addr2id(p_endpoint_desc->bEndpointAddress);
 
   // Check if endpoint is available
-  TU_ASSERT( _dcd.ep[ep_id][0].disable && _dcd.ep[ep_id][1].disable );
+  TU_ASSERT( _dcd.ep[ep_id][0].cmd_sts.disable && _dcd.ep[ep_id][1].cmd_sts.disable );
 
   edpt_reset(rhport, ep_id);
-  _dcd.ep[ep_id][0].is_iso = (p_endpoint_desc->bmAttributes.xfer == TUSB_XFER_ISOCHRONOUS);
+  _dcd.ep[ep_id][0].cmd_sts.is_iso = (p_endpoint_desc->bmAttributes.xfer == TUSB_XFER_ISOCHRONOUS);
 
   // Enable EP interrupt
   dcd_registers_t* dcd_reg = _dcd_controller[rhport].regs;
@@ -365,8 +365,8 @@ void dcd_edpt_close_all (uint8_t rhport)
 {
   for (uint8_t ep_id = 0; ep_id < 2*_dcd_controller[rhport].ep_pairs; ++ep_id)
   {
-    _dcd.ep[ep_id][0].active = _dcd.ep[ep_id][0].active = 0; // TODO proper way is to EPSKIP then wait ep[][].active then write ep[][].disable (see table 778 in LPC55S69 Use Manual)
-    _dcd.ep[ep_id][0].disable = _dcd.ep[ep_id][1].disable = 1;
+    _dcd.ep[ep_id][0].cmd_sts.active = _dcd.ep[ep_id][0].cmd_sts.active = 0; // TODO proper way is to EPSKIP then wait ep[][].active then write ep[][].disable (see table 778 in LPC55S69 Use Manual)
+    _dcd.ep[ep_id][0].cmd_sts.disable = _dcd.ep[ep_id][1].cmd_sts.disable = 1;
   }
 }
 
@@ -375,8 +375,8 @@ void dcd_edpt_close(uint8_t rhport, uint8_t ep_addr)
   (void) rhport;
   
   uint8_t ep_id = ep_addr2id(ep_addr);
-  _dcd.ep[ep_id][0].active = _dcd.ep[ep_id][0].active = 0; // TODO proper way is to EPSKIP then wait ep[][].active then write ep[][].disable (see table 778 in LPC55S69 Use Manual)
-  _dcd.ep[ep_id][0].disable = _dcd.ep[ep_id][1].disable = 1;
+  _dcd.ep[ep_id][0].cmd_sts.active = _dcd.ep[ep_id][0].cmd_sts.active = 0; // TODO proper way is to EPSKIP then wait ep[][].active then write ep[][].disable (see table 778 in LPC55S69 Use Manual)
+  _dcd.ep[ep_id][0].cmd_sts.disable = _dcd.ep[ep_id][1].cmd_sts.disable = 1;
 }
 
 static void prepare_ep_xfer(uint8_t rhport, uint8_t ep_id, uint16_t buf_offset, uint16_t total_bytes)
@@ -385,7 +385,7 @@ static void prepare_ep_xfer(uint8_t rhport, uint8_t ep_id, uint16_t buf_offset, 
 
   if (_dcd_controller[rhport].max_speed == TUSB_SPEED_FULL )
   {
-    nbytes = tu_min16(total_bytes, _dcd.ep[ep_id][0].is_iso ? NBYTES_ISO_FS_MAX : NBYTES_CBI_FS_MAX);
+    nbytes = tu_min16(total_bytes, _dcd.ep[ep_id][0].cmd_sts.is_iso ? NBYTES_ISO_FS_MAX : NBYTES_CBI_FS_MAX);
     _dcd.ep[ep_id][0].buffer_fs.offset = buf_offset;
     _dcd.ep[ep_id][0].buffer_fs.nbytes = nbytes;
   }else
@@ -397,7 +397,7 @@ static void prepare_ep_xfer(uint8_t rhport, uint8_t ep_id, uint16_t buf_offset, 
 
   _dcd.dma[ep_id].nbytes = nbytes;
 
-  _dcd.ep[ep_id][0].active = 1;
+  _dcd.ep[ep_id][0].cmd_sts.active = 1;
 }
 
 bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t* buffer, uint16_t total_bytes)
@@ -431,7 +431,7 @@ static void bus_reset(uint8_t rhport)
   // disable all endpoints as specified by LPC55S69 UM Table 778
   for(uint8_t ep_id = 0; ep_id < 2*MAX_EP_PAIRS; ep_id++)
   {
-    _dcd.ep[ep_id][0].disable = _dcd.ep[ep_id][1].disable = 1;
+    _dcd.ep[ep_id][0].cmd_sts.disable = _dcd.ep[ep_id][1].cmd_sts.disable = 1;
   }
 
   dcd_registers_t* dcd_reg = _dcd_controller[rhport].regs;
@@ -459,7 +459,7 @@ static void process_xfer_isr(uint8_t rhport, uint32_t int_status)
       if ( ep_id == 0 || ep_id == 1)
       {
         // For control endpoint, we need to manually clear Active bit
-        ep_cs->active = 0;
+        ep_cs->cmd_sts.active = 0;
       }
 
       uint16_t buf_offset;
@@ -556,8 +556,8 @@ void dcd_int_handler(uint8_t rhport)
   if ( tu_bit_test(int_status, 0) && (cmd_stat & CMDSTAT_SETUP_RECEIVED_MASK) )
   {
     // Follow UM flowchart to clear Active & Stall on both Control IN/OUT endpoints
-    _dcd.ep[0][0].active = _dcd.ep[1][0].active = 0;
-    _dcd.ep[0][0].stall = _dcd.ep[1][0].stall = 0;
+    _dcd.ep[0][0].cmd_sts.active = _dcd.ep[1][0].cmd_sts.active = 0;
+    _dcd.ep[0][0].cmd_sts.stall = _dcd.ep[1][0].cmd_sts.stall = 0;
 
     dcd_reg->DEVCMDSTAT |= CMDSTAT_SETUP_RECEIVED_MASK;
 

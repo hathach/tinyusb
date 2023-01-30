@@ -275,11 +275,19 @@
 #elif TU_CHECK_MCU(OPT_MCU_F1C100S)
   #define TUP_DCD_ENDPOINT_MAX    4
 
+//------------- WCH -------------//
+#elif TU_CHECK_MCU(OPT_MCU_CH32V307)
+  #define TUP_DCD_ENDPOINT_MAX    16
+  #define TUP_RHPORT_HIGHSPEED    1
 #endif
 
 //--------------------------------------------------------------------+
 // Default Values
 //--------------------------------------------------------------------+
+
+#ifndef TUP_MCU_MULTIPLE_CORE
+#define TUP_MCU_MULTIPLE_CORE 0
+#endif
 
 #ifndef TUP_DCD_ENDPOINT_MAX
   #warning "TUP_DCD_ENDPOINT_MAX is not defined for this MCU, default to 8"
