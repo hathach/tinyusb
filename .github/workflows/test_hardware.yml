@@ -1,10 +1,19 @@
 name: Hardware Test
+
 on:
-  pull_request:
   push:
-  release:
-    types:
-      - created
+    paths:
+      - 'src/**'
+      - 'examples/**'
+      - 'lib/**'
+      - 'hw/**'
+  pull_request:
+    branches: [ master ]
+    paths:
+      - 'src/**'
+      - 'examples/**'
+      - 'lib/**'
+      - 'hw/**'
 
 # Hardware in the loop (HIL)
 # Current self-hosted instance is running on an EPYC 7232 server hosted by HiFiPhile user

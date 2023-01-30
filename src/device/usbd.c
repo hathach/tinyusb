@@ -39,12 +39,12 @@
 // USBD Configuration
 //--------------------------------------------------------------------+
 
-// Debug level of USBD
-#define USBD_DBG   2
-
 #ifndef CFG_TUD_TASK_QUEUE_SZ
   #define CFG_TUD_TASK_QUEUE_SZ   16
 #endif
+
+// Debug level of USBD
+#define USBD_DBG   2
 
 //--------------------------------------------------------------------+
 // Device Data
@@ -272,10 +272,12 @@ static uint8_t _usbd_rhport = RHPORT_INVALID;
 OSAL_QUEUE_DEF(usbd_int_set, _usbd_qdef, CFG_TUD_TASK_QUEUE_SZ, dcd_event_t);
 static osal_queue_t _usbd_q;
 
-// Mutex for claiming endpoint, only needed when using with preempted RTOS
-#if CFG_TUSB_OS != OPT_OS_NONE
-static osal_mutex_def_t _ubsd_mutexdef;
-static osal_mutex_t _usbd_mutex;
+// Mutex for claiming endpoint
+#if OSAL_MUTEX_REQUIRED
+  static osal_mutex_def_t _ubsd_mutexdef;
+  static osal_mutex_t _usbd_mutex;
+#else
+  #define _usbd_mutex   NULL
 #endif
 
 
@@ -386,10 +388,12 @@ bool tud_init (uint8_t rhport)
 
   TU_LOG(USBD_DBG, "USBD init on controller %u\r\n", rhport);
   TU_LOG_INT(USBD_DBG, sizeof(usbd_device_t));
+  TU_LOG_INT(USBD_DBG, sizeof(tu_fifo_t));
+  TU_LOG_INT(USBD_DBG, sizeof(tu_edpt_stream_t));
 
   tu_varclr(&_usbd_dev);
 
-#if CFG_TUSB_OS != OPT_OS_NONE
+#if OSAL_MUTEX_REQUIRED
   // Init device mutex
   _usbd_mutex = osal_mutex_create(&_ubsd_mutexdef);
   TU_ASSERT(_usbd_mutex);
@@ -504,7 +508,7 @@ void tud_task_ext(uint32_t timeout_ms, bool in_isr)
       break;
 
       case DCD_EVENT_SETUP_RECEIVED:
-        TU_LOG_VAR(USBD_DBG, &event.setup_received);
+        TU_LOG_PTR(USBD_DBG, &event.setup_received);
         TU_LOG(USBD_DBG, "\r\n");
 
         // Mark as connected after receiving 1st setup packet.
@@ -1209,11 +1213,7 @@ bool usbd_edpt_claim(uint8_t rhport, uint8_t ep_addr)
   uint8_t const dir         = tu_edpt_dir(ep_addr);
   tu_edpt_state_t* ep_state = &_usbd_dev.ep_status[epnum][dir];
 
-#if TUSB_OPT_MUTEX
   return tu_edpt_claim(ep_state, _usbd_mutex);
-#else
-  return tu_edpt_claim(ep_state, NULL);
-#endif
 }
 
 bool usbd_edpt_release(uint8_t rhport, uint8_t ep_addr)
@@ -1224,11 +1224,7 @@ bool usbd_edpt_release(uint8_t rhport, uint8_t ep_addr)
   uint8_t const dir         = tu_edpt_dir(ep_addr);
   tu_edpt_state_t* ep_state = &_usbd_dev.ep_status[epnum][dir];
 
-#if TUSB_OPT_MUTEX
   return tu_edpt_release(ep_state, _usbd_mutex);
-#else
-  return tu_edpt_release(ep_state, NULL);
-#endif
 }
 
 bool usbd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t total_bytes)

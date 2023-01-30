@@ -108,6 +108,17 @@
 #define CFG_TUH_HID_EPIN_BUFSIZE    64
 #define CFG_TUH_HID_EPOUT_BUFSIZE   64
 
+//------------- CDC -------------//
+
+// Set Line Control state on enumeration/mounted:
+// DTR ( bit 0), RTS (bit 1)
+#define CFG_TUH_CDC_LINE_CONTROL_ON_ENUM    0x03
+
+// Set Line Coding on enumeration/mounted, value for cdc_line_coding_t
+// bit rate = 115200, 1 stop bit, no parity, 8 bit data width
+#define CFG_TUH_CDC_LINE_CODING_ON_ENUM   { 115200, CDC_LINE_CONDING_STOP_BITS_1, CDC_LINE_CODING_PARITY_NONE, 8 }
+
+
 #ifdef __cplusplus
  }
 #endif

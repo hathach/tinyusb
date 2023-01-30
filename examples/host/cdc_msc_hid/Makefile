@@ -7,7 +7,8 @@ INC += \
 
 # Example source
 EXAMPLE_SOURCE = \
-	src/hid_app.c \
+  src/cdc_app.c \
+  src/hid_app.c \
   src/main.c \
   src/msc_app.c \
 

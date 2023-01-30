@@ -595,7 +595,7 @@ void dcd_remote_wakeup(uint8_t rhport)
 
   SYS->MSC0CFG = SYS->MSC0CFG | MASK_SYS_MSC0CFG_DEV_RMWAKEUP;
 
-  // Atleast 2 ms of delay needed for RESUME Data K state.
+  // At least 2 ms of delay needed for RESUME Data K state.
   delayms(2); 
 
   SYS->MSC0CFG &= ~MASK_SYS_MSC0CFG_DEV_RMWAKEUP;
@@ -1023,7 +1023,7 @@ void dcd_int_handler(uint8_t rhport)
           USBD_EP_SR_REG(USBD_EP_0) = MASK_USBD_EP0SR_STALL;
         }
 
-        // Host has sent a SETUP packet. Recieve this into the SETUP packet store.
+        // Host has sent a SETUP packet. Receive this into the SETUP packet store.
         _ft9xx_dusb_out(USBD_EP_0, (uint8_t *)_ft9xx_setup_packet, sizeof(USB_device_request));
         
         // Send the packet to tinyusb.

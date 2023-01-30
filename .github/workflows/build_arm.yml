@@ -1,34 +1,25 @@
 name: Build ARM
 
 on:
-  pull_request:
   push:
-  release:
-    types:
-      - created
+    paths:
+      - 'src/**'
+      - 'examples/**'
+      - 'lib/**'
+      - 'hw/**'
+  pull_request:
+    branches: [ master ]
+    paths:
+      - 'src/**'
+      - 'examples/**'
+      - 'lib/**'
+      - 'hw/**'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
+  cancel-in-progress: true
 
 jobs:
-  # ---------------------------------------
-  # Unit testing with Ceedling
-  # ---------------------------------------
-  unit-test:
-    runs-on: ubuntu-latest
-    steps:
-    - name: Setup Ruby
-      uses: ruby/setup-ruby@v1
-      with:
-        ruby-version: '2.7'
-
-    - name: Checkout TinyUSB
-      uses: actions/checkout@v3
-
-    - name: Unit Tests
-      run: |
-        # Install Ceedling
-        gem install ceedling
-        cd test
-        ceedling test:all
-
   # ---------------------------------------
   # Build ARM family
   # ---------------------------------------

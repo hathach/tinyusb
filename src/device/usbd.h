@@ -293,7 +293,7 @@ TU_ATTR_WEAK bool tud_vendor_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb
   /* MIDI Streaming (MS) Interface */\
   9, TUSB_DESC_INTERFACE, (uint8_t)((_itfnum) + 1), 0, 2, TUSB_CLASS_AUDIO, AUDIO_SUBCLASS_MIDI_STREAMING, AUDIO_FUNC_PROTOCOL_CODE_UNDEF, 0,\
   /* MS Header */\
-  7, TUSB_DESC_CS_INTERFACE, MIDI_CS_INTERFACE_HEADER, U16_TO_U8S_LE(0x0100), U16_TO_U8S_LE(7 + (_numcables) * TUD_MIDI_DESC_JACK_LEN)
+  7, TUSB_DESC_CS_INTERFACE, MIDI_CS_INTERFACE_HEADER, U16_TO_U8S_LE(0x0100), U16_TO_U8S_LE(7 + (_numcables) * TUD_MIDI_DESC_JACK_LEN + 2 * TUD_MIDI_DESC_EP_LEN(_numcables))
 
 #define TUD_MIDI_JACKID_IN_EMB(_cablenum) \
   (uint8_t)(((_cablenum) - 1) * 4 + 1)
@@ -317,6 +317,7 @@ TU_ATTR_WEAK bool tud_vendor_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb
   9, TUSB_DESC_CS_INTERFACE, MIDI_CS_INTERFACE_OUT_JACK, MIDI_JACK_EMBEDDED, TUD_MIDI_JACKID_OUT_EMB(_cablenum), 1, TUD_MIDI_JACKID_IN_EXT(_cablenum), 1, _stridx,\
   /* MS Out Jack (External), connected to In Jack Embedded */\
   9, TUSB_DESC_CS_INTERFACE, MIDI_CS_INTERFACE_OUT_JACK, MIDI_JACK_EXTERNAL, TUD_MIDI_JACKID_OUT_EXT(_cablenum), 1, TUD_MIDI_JACKID_IN_EMB(_cablenum), 1, _stridx
+
 #define TUD_MIDI_DESC_JACK(_cablenum) TUD_MIDI_DESC_JACK_DESC(_cablenum, 0)
 
 #define TUD_MIDI_DESC_EP_LEN(_numcables) (9 + 4 + (_numcables))
@@ -603,7 +604,7 @@ TU_ATTR_WEAK bool tud_vendor_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb
 /* optional interrupt endpoint */ \
 // _int_pollingInterval : for LS/FS, expressed in frames (1ms each). 16 may be a good number?
 #define TUD_USBTMC_INT_DESCRIPTOR(_ep_interrupt, _ep_interrupt_size, _int_pollingInterval ) \
-  7, TUSB_DESC_ENDPOINT, _ep_interrupt, TUSB_XFER_INTERRUPT, U16_TO_U8S_LE(_ep_interrupt_size), 0x16
+  7, TUSB_DESC_ENDPOINT, _ep_interrupt, TUSB_XFER_INTERRUPT, U16_TO_U8S_LE(_ep_interrupt_size), _int_pollingInterval
 
 #define TUD_USBTMC_INT_DESCRIPTOR_LEN (7u)
 
@@ -648,7 +649,7 @@ TU_ATTR_WEAK bool tud_vendor_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb
 #define TUD_DFU_DESC_LEN(_alt_count)    (9 + (_alt_count) * 9)
 
 // Interface number, Alternate count, starting string index, attributes, detach timeout, transfer size
-// Note: Alternate count must be numberic or macro, string index is increased by one for each Alt interface
+// Note: Alternate count must be numeric or macro, string index is increased by one for each Alt interface
 #define TUD_DFU_DESCRIPTOR(_itfnum, _alt_count, _stridx, _attr, _timeout, _xfer_size) \
   TU_XSTRCAT(_TUD_DFU_ALT_,_alt_count)(_itfnum, 0, _stridx), \
   /* Function */ \
