@@ -35,8 +35,6 @@
  extern "C" {
 #endif
 
-#include <tinyprintf.h>
-
 // UART to use on this board.
 #ifndef BOARD_UART
 #define BOARD_UART UART0
