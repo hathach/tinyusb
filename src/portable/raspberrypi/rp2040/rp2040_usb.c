@@ -32,6 +32,10 @@
 #include <stdlib.h>
 #include "rp2040_usb.h"
 
+//--------------------------------------------------------------------+
+// MACRO CONSTANT TYPEDEF PROTOTYPE
+//--------------------------------------------------------------------+
+
 // Direction strings for debug
 const char *ep_dir_string[] = {
         "out",
@@ -40,6 +44,14 @@ const char *ep_dir_string[] = {
 
 static void _hw_endpoint_xfer_sync(struct hw_endpoint *ep);
 
+#if TUD_OPT_RP2040_USB_DEVICE_UFRAME_FIX
+  static bool e15_is_bulkin_ep(struct hw_endpoint *ep);
+  static bool e15_is_critical_frame_period(struct hw_endpoint *ep);
+#else
+  #define e15_is_bulkin_ep(x)             (false)
+  #define e15_is_critical_frame_period(x) (false)
+#endif
+
 // if usb hardware is in host mode
 TU_ATTR_ALWAYS_INLINE static inline bool is_host_mode(void)
 {
@@ -47,46 +59,8 @@ TU_ATTR_ALWAYS_INLINE static inline bool is_host_mode(void)
 }
 
 //--------------------------------------------------------------------+
-//
+// Implementation
 //--------------------------------------------------------------------+
-
-#if TUD_OPT_RP2040_USB_DEVICE_UFRAME_FIX
-// Errata 15 Walkaround for Device Bulk-In endpoint to avoid schedule an transfer
-// within last 20% of an USB frame.
-
-volatile uint32_t e15_last_sof = 0;
-
-// check if Errata 15 walkround is needed for this endpoint
-static bool __tusb_irq_path_func(e15_is_bulkin_ep) (struct hw_endpoint *ep)
-{
-  return (!is_host_mode() && tu_edpt_dir(ep->ep_addr) == TUSB_DIR_IN &&
-          ep->transfer_type == TUSB_XFER_BULK);
-}
-
-// check if we need to apply Errata 15 workaround: ie.g
-// Enpoint is BULK IN and is currently in critical frame period i.e 20% of last usb frame
-static bool __tusb_irq_path_func(e15_is_critical_frame_period) (struct hw_endpoint *ep)
-{
-  TU_VERIFY(e15_is_bulkin_ep(ep));
-
-  /* Avoid the last 200us (uframe 6.5-7) of a frame, up to the EOF2 point.
-   * The device state machine cannot recover from receiving an incorrect PID
-   * when it is expecting an ACK.
-   */
-  uint32_t delta = time_us_32() - e15_last_sof;
-  if (delta < 800 || delta > 998) {
-    return false;
-  }
-  TU_LOG(3, "Avoiding sof %u now %lu last %lu\n", (usb_hw->sof_rd + 1) & USB_SOF_RD_BITS, time_us_32(), e15_last_sof);
-  return true;
-}
-
-#else
-
-#define e15_is_bulkin_ep(x)             false
-#define e15_is_critical_frame_period(x) false
-
-#endif
 
 void rp2040_usb_init(void)
 {
@@ -395,5 +369,57 @@ bool __tusb_irq_path_func(hw_endpoint_xfer_continue)(struct hw_endpoint *ep)
   // More work to do
   return false;
 }
+
+//--------------------------------------------------------------------+
+// Errata 15
+//--------------------------------------------------------------------+
+
+#if TUD_OPT_RP2040_USB_DEVICE_UFRAME_FIX
+
+/* Don't mark IN buffers as available during the last 200us of a full-speed
+   frame. This avoids a situation seen with the USB2.0 hub on a Raspberry
+   Pi 4 where a late IN token before the next full-speed SOF can cause port
+   babble and a corrupt ACK packet. The nature of the data corruption has a
+   chance to cause device lockup.
+
+   Use the next SOF to mark delayed buffers as available. This reduces
+   available Bulk IN bandwidth by approximately 20%, and requires that the
+   SOF interrupt is enabled while these transfers are ongoing.
+
+   Inherit the top-level enable from the corresponding Pico-SDK flag.
+   Applications that will not use the device in a situation where it could
+   be plugged into a Pi 4 or Pi 400 (for example, when directly connected
+   to a commodity hub or other host) can turn off the flag in the SDK.
+*/
+
+volatile uint32_t e15_last_sof = 0;
+
+// check if Errata 15 is needed for this endpoint i.e device bulk-in
+static bool __tusb_irq_path_func(e15_is_bulkin_ep) (struct hw_endpoint *ep)
+{
+  return (!is_host_mode() && tu_edpt_dir(ep->ep_addr) == TUSB_DIR_IN &&
+          ep->transfer_type == TUSB_XFER_BULK);
+}
+
+// check if we need to apply Errata 15 walk-around : i.e
+// Endpoint is BULK IN and is currently in critical frame period i.e 20% of last usb frame
+static bool __tusb_irq_path_func(e15_is_critical_frame_period) (struct hw_endpoint *ep)
+{
+  TU_VERIFY(e15_is_bulkin_ep(ep));
+
+  /* Avoid the last 200us (uframe 6.5-7) of a frame, up to the EOF2 point.
+   * The device state machine cannot recover from receiving an incorrect PID
+   * when it is expecting an ACK.
+   */
+  uint32_t delta = time_us_32() - e15_last_sof;
+  if (delta < 800 || delta > 998) {
+    return false;
+  }
+  TU_LOG(3, "Avoiding sof %u now %lu last %lu\n", (usb_hw->sof_rd + 1) & USB_SOF_RD_BITS, time_us_32(), e15_last_sof);
+  return true;
+}
+
+#endif
+
 
 #endif
