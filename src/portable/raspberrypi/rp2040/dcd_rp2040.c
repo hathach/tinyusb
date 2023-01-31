@@ -254,7 +254,7 @@ static void __tusb_irq_path_func(dcd_rp2040_irq)(void)
     handled |= USB_INTF_DEV_SOF_BITS;
 
 #if TUD_OPT_RP2040_USB_DEVICE_UFRAME_FIX
-    // Errata 15 Walkaround for Device Bulk-In endpoint
+    // Errata 15 workaround for Device Bulk-In endpoint
     e15_last_sof = time_us_32();
 
     for ( uint8_t i = 0; i < USB_MAX_ENDPOINTS; i++ )
@@ -340,7 +340,7 @@ static void __tusb_irq_path_func(dcd_rp2040_irq)(void)
     usb_hw_clear->sie_status = USB_SIE_STATUS_BUS_RESET_BITS;
 
 #if TUD_OPT_RP2040_USB_DEVICE_ENUMERATION_FIX
-    // Only run enumeration walk-around if pull up is enabled
+    // Only run enumeration workaround if pull up is enabled
     if ( usb_hw->sie_ctrl & USB_SIE_CTRL_PULLUP_EN_BITS ) rp2040_usb_device_enumeration_fix();
 #endif
   }

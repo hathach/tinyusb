@@ -401,7 +401,7 @@ static bool __tusb_irq_path_func(e15_is_bulkin_ep) (struct hw_endpoint *ep)
           ep->transfer_type == TUSB_XFER_BULK);
 }
 
-// check if we need to apply Errata 15 walk-around : i.e
+// check if we need to apply Errata 15 workaround : i.e
 // Endpoint is BULK IN and is currently in critical frame period i.e 20% of last usb frame
 static bool __tusb_irq_path_func(e15_is_critical_frame_period) (struct hw_endpoint *ep)
 {
