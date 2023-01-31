@@ -93,14 +93,8 @@ typedef struct hw_endpoint
 
 } hw_endpoint_t;
 
-#if !TUD_OPT_RP2040_USB_DEVICE_UFRAME_FIX
-#define rp2040_critical_frame_period(x) false
-#define rp2040_ep_needs_sof(x) false
-#else
-extern volatile uint32_t last_sof;
-
-bool rp2040_critical_frame_period(struct hw_endpoint *ep);
-bool rp2040_ep_needs_sof(struct hw_endpoint *ep);
+#if TUD_OPT_RP2040_USB_DEVICE_UFRAME_FIX
+extern volatile uint32_t e15_last_sof;
 #endif
 
 void rp2040_usb_init(void);
