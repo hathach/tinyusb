@@ -32,20 +32,25 @@
 #include <stdlib.h>
 #include "rp2040_usb.h"
 
+//--------------------------------------------------------------------+
+// MACRO CONSTANT TYPEDEF PROTOTYPE
+//--------------------------------------------------------------------+
+
 // Direction strings for debug
 const char *ep_dir_string[] = {
         "out",
         "in",
 };
 
-TU_ATTR_ALWAYS_INLINE static inline void _hw_endpoint_lock_update(__unused struct hw_endpoint * ep, __unused int delta) {
-    // todo add critsec as necessary to prevent issues between worker and IRQ...
-    //  note that this is perhaps as simple as disabling IRQs because it would make
-    //  sense to have worker and IRQ on same core, however I think using critsec is about equivalent.
-}
-
 static void _hw_endpoint_xfer_sync(struct hw_endpoint *ep);
-static void _hw_endpoint_start_next_buffer(struct hw_endpoint *ep);
+
+#if TUD_OPT_RP2040_USB_DEVICE_UFRAME_FIX
+  static bool e15_is_bulkin_ep(struct hw_endpoint *ep);
+  static bool e15_is_critical_frame_period(struct hw_endpoint *ep);
+#else
+  #define e15_is_bulkin_ep(x)             (false)
+  #define e15_is_critical_frame_period(x) (false)
+#endif
 
 // if usb hardware is in host mode
 TU_ATTR_ALWAYS_INLINE static inline bool is_host_mode(void)
@@ -54,7 +59,7 @@ TU_ATTR_ALWAYS_INLINE static inline bool is_host_mode(void)
 }
 
 //--------------------------------------------------------------------+
-//
+// Implementation
 //--------------------------------------------------------------------+
 
 void rp2040_usb_init(void)
@@ -87,12 +92,15 @@ void __tusb_irq_path_func(hw_endpoint_reset_transfer)(struct hw_endpoint *ep)
   ep->user_buf = 0;
 }
 
-void __tusb_irq_path_func(_hw_endpoint_buffer_control_update32)(struct hw_endpoint *ep, uint32_t and_mask, uint32_t or_mask) {
+void __tusb_irq_path_func(_hw_endpoint_buffer_control_update32)(struct hw_endpoint *ep, uint32_t and_mask, uint32_t or_mask)
+{
   uint32_t value = 0;
+
   if ( and_mask )
   {
     value = *ep->buffer_control & and_mask;
   }
+
   if ( or_mask )
   {
     value |= or_mask;
@@ -118,6 +126,7 @@ void __tusb_irq_path_func(_hw_endpoint_buffer_control_update32)(struct hw_endpoi
 #endif
     }
   }
+
   *ep->buffer_control = value;
 }
 
@@ -157,7 +166,7 @@ static uint32_t __tusb_irq_path_func(prepare_ep_buffer)(struct hw_endpoint *ep, 
 }
 
 // Prepare buffer control register value
-static void __tusb_irq_path_func(_hw_endpoint_start_next_buffer)(struct hw_endpoint *ep)
+void __tusb_irq_path_func(hw_endpoint_start_next_buffer)(struct hw_endpoint *ep)
 {
   uint32_t ep_ctrl = *ep->endpoint_control;
 
@@ -201,7 +210,7 @@ static void __tusb_irq_path_func(_hw_endpoint_start_next_buffer)(struct hw_endpo
 
 void hw_endpoint_xfer_start(struct hw_endpoint *ep, uint8_t *buffer, uint16_t total_len)
 {
-  _hw_endpoint_lock_update(ep, 1);
+  hw_endpoint_lock_update(ep, 1);
 
   if ( ep->active )
   {
@@ -218,8 +227,20 @@ void hw_endpoint_xfer_start(struct hw_endpoint *ep, uint8_t *buffer, uint16_t to
   ep->active        = true;
   ep->user_buf      = buffer;
 
-  _hw_endpoint_start_next_buffer(ep);
-  _hw_endpoint_lock_update(ep, -1);
+  if ( e15_is_bulkin_ep(ep) )
+  {
+    usb_hw_set->inte = USB_INTS_DEV_SOF_BITS;
+  }
+
+  if ( e15_is_critical_frame_period(ep) )
+  {
+    ep->pending = 1;
+  } else
+  {
+    hw_endpoint_start_next_buffer(ep);
+  }
+
+  hw_endpoint_lock_update(ep, -1);
 }
 
 // sync endpoint buffer and return transferred bytes
@@ -312,7 +333,8 @@ static void __tusb_irq_path_func(_hw_endpoint_xfer_sync) (struct hw_endpoint *ep
 // Returns true if transfer is complete
 bool __tusb_irq_path_func(hw_endpoint_xfer_continue)(struct hw_endpoint *ep)
 {
-  _hw_endpoint_lock_update(ep, 1);
+  hw_endpoint_lock_update(ep, 1);
+
   // Part way through a transfer
   if (!ep->active)
   {
@@ -329,17 +351,75 @@ bool __tusb_irq_path_func(hw_endpoint_xfer_continue)(struct hw_endpoint *ep)
     pico_trace("Completed transfer of %d bytes on ep %d %s\n",
                ep->xferred_len, tu_edpt_number(ep->ep_addr), ep_dir_string[tu_edpt_dir(ep->ep_addr)]);
     // Notify caller we are done so it can notify the tinyusb stack
-    _hw_endpoint_lock_update(ep, -1);
+    hw_endpoint_lock_update(ep, -1);
     return true;
   }
   else
   {
-    _hw_endpoint_start_next_buffer(ep);
+    if ( e15_is_critical_frame_period(ep) )
+    {
+      ep->pending = 1;
+    } else
+    {
+      hw_endpoint_start_next_buffer(ep);
+    }
   }
 
-  _hw_endpoint_lock_update(ep, -1);
+  hw_endpoint_lock_update(ep, -1);
   // More work to do
   return false;
 }
+
+//--------------------------------------------------------------------+
+// Errata 15
+//--------------------------------------------------------------------+
+
+#if TUD_OPT_RP2040_USB_DEVICE_UFRAME_FIX
+
+/* Don't mark IN buffers as available during the last 200us of a full-speed
+   frame. This avoids a situation seen with the USB2.0 hub on a Raspberry
+   Pi 4 where a late IN token before the next full-speed SOF can cause port
+   babble and a corrupt ACK packet. The nature of the data corruption has a
+   chance to cause device lockup.
+
+   Use the next SOF to mark delayed buffers as available. This reduces
+   available Bulk IN bandwidth by approximately 20%, and requires that the
+   SOF interrupt is enabled while these transfers are ongoing.
+
+   Inherit the top-level enable from the corresponding Pico-SDK flag.
+   Applications that will not use the device in a situation where it could
+   be plugged into a Pi 4 or Pi 400 (for example, when directly connected
+   to a commodity hub or other host) can turn off the flag in the SDK.
+*/
+
+volatile uint32_t e15_last_sof = 0;
+
+// check if Errata 15 is needed for this endpoint i.e device bulk-in
+static bool __tusb_irq_path_func(e15_is_bulkin_ep) (struct hw_endpoint *ep)
+{
+  return (!is_host_mode() && tu_edpt_dir(ep->ep_addr) == TUSB_DIR_IN &&
+          ep->transfer_type == TUSB_XFER_BULK);
+}
+
+// check if we need to apply Errata 15 workaround : i.e
+// Endpoint is BULK IN and is currently in critical frame period i.e 20% of last usb frame
+static bool __tusb_irq_path_func(e15_is_critical_frame_period) (struct hw_endpoint *ep)
+{
+  TU_VERIFY(e15_is_bulkin_ep(ep));
+
+  /* Avoid the last 200us (uframe 6.5-7) of a frame, up to the EOF2 point.
+   * The device state machine cannot recover from receiving an incorrect PID
+   * when it is expecting an ACK.
+   */
+  uint32_t delta = time_us_32() - e15_last_sof;
+  if (delta < 800 || delta > 998) {
+    return false;
+  }
+  TU_LOG(3, "Avoiding sof %u now %lu last %lu\n", (usb_hw->sof_rd + 1) & USB_SOF_RD_BITS, time_us_32(), e15_last_sof);
+  return true;
+}
+
+#endif
+
 
 #endif
