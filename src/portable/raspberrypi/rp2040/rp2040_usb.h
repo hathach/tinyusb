@@ -82,6 +82,7 @@ typedef struct hw_endpoint
 
     // Transfer scheduled but not active
     uint8_t pending;
+
 #if CFG_TUH_ENABLED
     // Only needed for host
     uint8_t dev_addr;
@@ -89,6 +90,7 @@ typedef struct hw_endpoint
     // If interrupt endpoint
     uint8_t interrupt_num;
 #endif
+
 } hw_endpoint_t;
 
 #if !TUD_OPT_RP2040_USB_DEVICE_UFRAME_FIX

@@ -57,13 +57,14 @@ bool rp2040_critical_frame_period(struct hw_endpoint *ep)
 {
   uint32_t delta;
 
-  if (usb_hw->main_ctrl & USB_MAIN_CTRL_HOST_NDEVICE_BITS)
-    return false;
+  if (usb_hw->main_ctrl & USB_MAIN_CTRL_HOST_NDEVICE_BITS) return false;
 
   if (tu_edpt_dir(ep->ep_addr) == TUSB_DIR_OUT ||
       ep->transfer_type == TUSB_XFER_INTERRUPT ||
       ep->transfer_type == TUSB_XFER_ISOCHRONOUS)
+  {
     return false;
+  }
 
   /* Avoid the last 200us (uframe 6.5-7) of a frame, up to the EOF2 point.
    * The device state machine cannot recover from receiving an incorrect PID
@@ -78,10 +79,8 @@ bool rp2040_critical_frame_period(struct hw_endpoint *ep)
 }
 
 bool rp2040_ep_needs_sof(struct hw_endpoint *ep) {
-  if (tu_edpt_dir(ep->ep_addr) == TUSB_DIR_IN &&
-      ep->transfer_type == TUSB_XFER_BULK)
-    return true;
-  return false;
+  return (tu_edpt_dir(ep->ep_addr) == TUSB_DIR_IN &&
+          ep->transfer_type == TUSB_XFER_BULK);
 }
 #endif
 
@@ -115,12 +114,15 @@ void __tusb_irq_path_func(hw_endpoint_reset_transfer)(struct hw_endpoint *ep)
   ep->user_buf = 0;
 }
 
-void __tusb_irq_path_func(_hw_endpoint_buffer_control_update32)(struct hw_endpoint *ep, uint32_t and_mask, uint32_t or_mask) {
+void __tusb_irq_path_func(_hw_endpoint_buffer_control_update32)(struct hw_endpoint *ep, uint32_t and_mask, uint32_t or_mask)
+{
   uint32_t value = 0;
+
   if ( and_mask )
   {
     value = *ep->buffer_control & and_mask;
   }
+
   if ( or_mask )
   {
     value |= or_mask;
@@ -146,6 +148,7 @@ void __tusb_irq_path_func(_hw_endpoint_buffer_control_update32)(struct hw_endpoi
 #endif
     }
   }
+
   *ep->buffer_control = value;
 }
 
@@ -247,13 +250,18 @@ void hw_endpoint_xfer_start(struct hw_endpoint *ep, uint8_t *buffer, uint16_t to
   ep->user_buf      = buffer;
 
   if (rp2040_ep_needs_sof(ep))
+  {
     usb_hw_set->inte = USB_INTS_DEV_SOF_BITS;
+  }
 
-  if(!rp2040_critical_frame_period(ep)) {
+  if(!rp2040_critical_frame_period(ep))
+  {
     hw_endpoint_start_next_buffer(ep);
-  } else {
+  } else
+  {
     ep->pending = 1;
   }
+
   hw_endpoint_lock_update(ep, -1);
 }
 

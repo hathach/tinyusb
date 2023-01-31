@@ -246,32 +246,37 @@ static void __tusb_irq_path_func(dcd_rp2040_irq)(void)
 {
     uint32_t const status = usb_hw->ints;
     uint32_t handled = 0;
-    bool keep_sof_alive = false;
 
     if (status & USB_INTF_DEV_SOF_BITS)
     {
+      bool keep_sof_alive = false;
+
       handled |= USB_INTF_DEV_SOF_BITS;
 
 #if TUD_OPT_RP2040_USB_DEVICE_UFRAME_FIX
       last_sof = time_us_32();
 
-      for (uint8_t i = 0; i < USB_MAX_ENDPOINTS; i++) {
+      for (uint8_t i = 0; i < USB_MAX_ENDPOINTS; i++)
+      {
         struct hw_endpoint *ep = hw_endpoint_get_by_num(i, TUSB_DIR_IN);
         hw_endpoint_lock_update(ep, 1);
+
         // Bulk IN endpoint in a transfer?
-        if (rp2040_ep_needs_sof(ep) && ep->active)
-          keep_sof_alive = true;
+        if (rp2040_ep_needs_sof(ep) && ep->active) keep_sof_alive = true;
+
         // Deferred enable?
-        if (ep->pending) {
+        if (ep->pending)
+        {
           hw_endpoint_start_next_buffer(ep);
           ep->pending = 0;
         }
+
         hw_endpoint_lock_update(ep, -1);
       }
 #endif
+
       // disable SOF interrupt if it is used for RESUME in remote wakeup
-      if (!keep_sof_alive && !_sof_enable)
-        usb_hw_clear->inte = USB_INTS_DEV_SOF_BITS;
+      if (!keep_sof_alive && !_sof_enable) usb_hw_clear->inte = USB_INTS_DEV_SOF_BITS;
 
       dcd_event_sof(0, usb_hw->sof_rd & USB_SOF_RD_BITS, true);
     }
