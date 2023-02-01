@@ -1,7 +1,7 @@
 .. figure:: docs/assets/logo.svg
    :alt: TinyUSB
 
-|Build Status| |Documentation Status| |License|
+|Build Status| |Documentation Status| |Fuzzing Status| |License|
 
 TinyUSB is an open-source cross-platform USB Host/Device stack for
 embedded system, designed to be memory-safe with no dynamic allocation
@@ -130,6 +130,8 @@ in your project.
    :target: https://github.com/hathach/tinyusb/actions
 .. |Documentation Status| image:: https://readthedocs.org/projects/tinyusb/badge/?version=latest
    :target: https://docs.tinyusb.org/en/latest/?badge=latest
+.. |Fuzzing Status| image:: https://oss-fuzz-build-logs.storage.googleapis.com/badges/tinyusb.svg
+   :target: https://oss-fuzz-build-logs.storage.googleapis.com/index.html#tinyusb
 .. |License| image:: https://img.shields.io/badge/license-MIT-brightgreen.svg
    :target: https://opensource.org/licenses/MIT
 
