@@ -7,6 +7,7 @@ on:
       - 'examples/**'
       - 'lib/**'
       - 'hw/**'
+      - '.github/workflows/build_aarch64.yml'
   pull_request:
     branches: [ master ]
     paths:
@@ -14,6 +15,7 @@ on:
       - 'examples/**'
       - 'lib/**'
       - 'hw/**'
+      - '.github/workflows/build_aarch64.yml'
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}

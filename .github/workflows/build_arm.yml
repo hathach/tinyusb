@@ -114,15 +114,15 @@ jobs:
           *.elf
 
     # Upload binaries for stm32l412nucleo hardware test with self-hosted
-    - name: Prepare stm32l4 Artifacts
+    - name: Prepare stm32l412nucleo Artifacts
       if: matrix.family == 'stm32l4'
       run: find examples/ -path "*stm32l412nucleo/*.elf" -exec mv {} . \;
 
-    - name: Upload stm32l4 Artifacts
+    - name: Upload stm32l412nucleo Artifacts
       if: matrix.family == 'stm32l4'
       uses: actions/upload-artifact@v3
       with:
-        name: ${{ matrix.family }}
+        name: stm32l412nucleo
         path: |
           *.elf
 
@@ -243,7 +243,7 @@ jobs:
     - name: Download stm32l4 Artifacts
       uses: actions/download-artifact@v3
       with:
-        name: stm32l4
+        name: stm32l412nucleo
 
     - name: Create flash.sh
       run: |
