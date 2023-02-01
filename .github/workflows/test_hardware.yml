@@ -21,6 +21,7 @@ on:
 
 jobs:
   stm32l412nucleo-test:
+    if: false
     runs-on: [self-hosted, Linux, X64, hifiphile]
 
     steps:

@@ -27,11 +27,12 @@ jobs:
       matrix:
         family:
         # Alphabetical order
+        # Due to long build time, we only enable build with different usb controller
         - 'stm32f0'
-        - 'stm32f1'
-        - 'stm32f4'
-        - 'stm32f7'
-        - 'stm32g4'
+        #- 'stm32f1'
+        #- 'stm32f4'
+        #- 'stm32f7'
+        #- 'stm32g4'
         - 'stm32h7'
         - 'stm32l4'
     steps:
