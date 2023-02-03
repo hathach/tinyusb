@@ -161,14 +161,22 @@ if (NOT TARGET _rp2040_family_inclusion_marker)
 		rp2040_family_configure_example_warnings(${TARGET})
 	endfunction()
 
+	function(family_add_pico_pio_usb TARGET)
+		target_link_libraries(${TARGET} PUBLIC tinyusb_pico_pio_usb)
+	endfunction()
+
 	function(family_configure_host_example TARGET)
 		family_configure_target(${TARGET})
 		target_link_libraries(${TARGET} PUBLIC pico_stdlib tinyusb_host)
 		rp2040_family_configure_example_warnings(${TARGET})
-	endfunction()
 
-	function(family_add_pico_pio_usb TARGET)
-		target_link_libraries(${TARGET} PUBLIC tinyusb_pico_pio_usb)
+		# For rp2040 enable pico-pio-usb
+		if (TARGET tinyusb_pico_pio_usb)
+			# code does not compile with GCC 12+
+			if (NOT (CMAKE_C_COMPILER_ID STREQUAL "GNU" AND CMAKE_C_COMPILER_VERSION VERSION_GREATER_EQUAL 11.3))
+				family_add_pico_pio_usb(${PROJECT})
+			endif()
+		endif()
 	endfunction()
 
 	function(family_configure_dual_usb_example TARGET)
@@ -272,9 +280,35 @@ if (NOT TARGET _rp2040_family_inclusion_marker)
 			endif()
 			if (CMAKE_C_COMPILER_VERSION VERSION_GREATER_EQUAL 11.0)
 				set_source_files_properties(
-						${PICO_TINYUSB_PATH}/src/portable/raspberrypi/rp2040/rp2040_usb.c
-						PROPERTIES
+						${PICO_TINYUSB_PATH}/lib/fatfs/source/ff.c
 						COMPILE_FLAGS "-Wno-stringop-overflow -Wno-array-bounds")
+			endif()
+			set_source_files_properties(
+					${PICO_TINYUSB_PATH}/lib/fatfs/source/ff.c
+					PROPERTIES
+					COMPILE_FLAGS "-Wno-conversion -Wno-cast-qual")
+
+			set_source_files_properties(
+					${PICO_TINYUSB_PATH}/lib/lwip/src/core/tcp_in.c
+					${PICO_TINYUSB_PATH}/lib/lwip/src/core/tcp_out.c
+					PROPERTIES
+					COMPILE_FLAGS "-Wno-conversion")
+
+			set_source_files_properties(
+					${PICO_TINYUSB_PATH}/lib/networking/dnserver.c
+					${PICO_TINYUSB_PATH}/lib/networking/dhserver.c
+					${PICO_TINYUSB_PATH}/lib/networking/rndis_reports.c
+					PROPERTIES
+					COMPILE_FLAGS "-Wno-conversion -Wno-sign-conversion")
+
+			if (TARGET tinyusb_pico_pio_usb)
+				set_source_files_properties(
+						${PICO_TINYUSB_PATH}/hw/mcu/raspberry_pi/Pico-PIO-USB/src/pio_usb_device.c
+						${PICO_TINYUSB_PATH}/hw/mcu/raspberry_pi/Pico-PIO-USB/src/pio_usb.c
+						${PICO_TINYUSB_PATH}/hw/mcu/raspberry_pi/Pico-PIO-USB/src/pio_usb_host.c
+						${PICO_TINYUSB_PATH}/src/portable/raspberrypi/pio_usb/hcd_pio_usb.c
+						PROPERTIES
+						COMPILE_FLAGS "-Wno-conversion -Wno-cast-qual -Wno-attributes")
 			endif()
 		endif()
 	endfunction()

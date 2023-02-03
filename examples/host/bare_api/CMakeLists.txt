@@ -25,15 +25,3 @@ target_include_directories(${PROJECT} PUBLIC
 # Configure compilation flags and libraries for the example... see the corresponding function
 # in hw/bsp/FAMILY/family.cmake for details.
 family_configure_host_example(${PROJECT})
-
-# For rp2040 enable pico-pio-usb
-if(FAMILY STREQUAL "rp2040")
-  family_add_pico_pio_usb(${PROJECT})
-
-  # due to warnings from Pico-PIO-USB
-  target_compile_options(${PROJECT} PUBLIC
-          -Wno-error=cast-qual
-          -Wno-error=sign-conversion
-          -Wno-error=conversion
-          )
-endif()
