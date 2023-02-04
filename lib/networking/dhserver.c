@@ -86,7 +86,7 @@ typedef struct
     uint8_t  dp_giaddr[4];    /* gateway IP address */
     uint8_t  dp_chaddr[16];   /* client hardware address */
     uint8_t  dp_legacy[192];
-    uint8_t  dp_magic[4];     
+    uint8_t  dp_magic[4];
     uint8_t  dp_options[275]; /* options area */
 } DHCP_TYPE;
 
@@ -242,7 +242,11 @@ static void udp_recv_proc(void *arg, struct udp_pcb *upcb, struct pbuf *p, const
 	memcpy(&dhcp_data, p->payload, n);
 
 	ptr = find_dhcp_option(dhcp_data.dp_options, sizeof(dhcp_data.dp_options), DHCP_MESSAGETYPE);
-	if (ptr == NULL) return;
+	if (ptr == NULL)
+	{
+		pbuf_free(p);
+		return;
+	}
 
 	switch (ptr[2])
 	{
