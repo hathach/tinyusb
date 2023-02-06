@@ -142,6 +142,9 @@ static void hw_endpoint_close(uint8_t ep_addr)
     _hw_endpoint_close(ep);
 }
 
+#pragma GCC push_options
+// prevent inlining of this function (__noinline is ignored on -O3)
+#pragma GCC optimize("-Os")
 static void hw_endpoint_init(uint8_t ep_addr, uint16_t wMaxPacketSize, uint8_t transfer_type)
 {
   struct hw_endpoint *ep = hw_endpoint_get_by_addr(ep_addr);
@@ -195,6 +198,7 @@ static void hw_endpoint_init(uint8_t ep_addr, uint16_t wMaxPacketSize, uint8_t t
     _hw_endpoint_alloc(ep);
   }
 }
+#pragma GCC pop_options
 
 static void hw_endpoint_xfer(uint8_t ep_addr, uint8_t *buffer, uint16_t total_bytes)
 {
