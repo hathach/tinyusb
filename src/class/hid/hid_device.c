@@ -403,7 +403,7 @@ bool hidd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint32_
   {
     if (tud_hid_report_complete_cb)
     {
-      tud_hid_report_complete_cb(instance, p_hid->epin_buf, (/*uint16_t*/ uint8_t) xferred_bytes);
+      tud_hid_report_complete_cb(instance, p_hid->epin_buf, (uint16_t) xferred_bytes);
     }
   }
   // Received report
