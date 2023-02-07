@@ -45,11 +45,6 @@
  extern "C" {
 #endif
 
-/** \addtogroup CDC_Serial Serial
- *  @{
- *  \defgroup   CDC_Serial_Device Device
- *  @{ */
-
 //--------------------------------------------------------------------+
 // Application API (Multiple Ports)
 // CFG_TUD_CDC > 1
@@ -87,15 +82,19 @@ bool     tud_cdc_n_peek            (uint8_t itf, uint8_t* ui8);
 uint32_t tud_cdc_n_write           (uint8_t itf, void const* buffer, uint32_t bufsize);
 
 // Write a byte
-static inline
+TU_ATTR_ALWAYS_INLINE static inline
 uint32_t tud_cdc_n_write_char      (uint8_t itf, char ch);
 
 // Write a null-terminated string
-static inline
+TU_ATTR_ALWAYS_INLINE static inline
 uint32_t tud_cdc_n_write_str       (uint8_t itf, char const* str);
 
-// Force sending data if possible, return number of forced bytes
+// Manually force sending data if possible, return number of forced bytes
 uint32_t tud_cdc_n_write_flush     (uint8_t itf);
+
+// Set bytes count for TX FIFO that will be auto flushed when reached.
+// Default value is the endpoint packet size
+bool     tud_cdc_n_write_auto_flush_level(uint8_t itf, uint16_t count);
 
 // Return the number of bytes (characters) available for writing to TX FIFO buffer in a single n_write operation.
 uint32_t tud_cdc_n_write_available (uint8_t itf);
@@ -106,23 +105,24 @@ bool tud_cdc_n_write_clear (uint8_t itf);
 //--------------------------------------------------------------------+
 // Application API (Single Port)
 //--------------------------------------------------------------------+
-static inline bool     tud_cdc_connected       (void);
-static inline uint8_t  tud_cdc_get_line_state  (void);
-static inline void     tud_cdc_get_line_coding (cdc_line_coding_t* coding);
-static inline void     tud_cdc_set_wanted_char (char wanted);
+TU_ATTR_ALWAYS_INLINE static inline bool     tud_cdc_connected       (void);
+TU_ATTR_ALWAYS_INLINE static inline uint8_t  tud_cdc_get_line_state  (void);
+TU_ATTR_ALWAYS_INLINE static inline void     tud_cdc_get_line_coding (cdc_line_coding_t* coding);
+TU_ATTR_ALWAYS_INLINE static inline void     tud_cdc_set_wanted_char (char wanted);
 
-static inline uint32_t tud_cdc_available       (void);
-static inline int32_t  tud_cdc_read_char       (void);
-static inline uint32_t tud_cdc_read            (void* buffer, uint32_t bufsize);
-static inline void     tud_cdc_read_flush      (void);
-static inline bool     tud_cdc_peek            (uint8_t* ui8);
+TU_ATTR_ALWAYS_INLINE static inline uint32_t tud_cdc_available       (void);
+TU_ATTR_ALWAYS_INLINE static inline int32_t  tud_cdc_read_char       (void);
+TU_ATTR_ALWAYS_INLINE static inline uint32_t tud_cdc_read            (void* buffer, uint32_t bufsize);
+TU_ATTR_ALWAYS_INLINE static inline void     tud_cdc_read_flush      (void);
+TU_ATTR_ALWAYS_INLINE static inline bool     tud_cdc_peek            (uint8_t* ui8);
 
-static inline uint32_t tud_cdc_write_char      (char ch);
-static inline uint32_t tud_cdc_write           (void const* buffer, uint32_t bufsize);
-static inline uint32_t tud_cdc_write_str       (char const* str);
-static inline uint32_t tud_cdc_write_flush     (void);
-static inline uint32_t tud_cdc_write_available (void);
-static inline bool     tud_cdc_write_clear     (void);
+TU_ATTR_ALWAYS_INLINE static inline uint32_t tud_cdc_write_char      (char ch);
+TU_ATTR_ALWAYS_INLINE static inline uint32_t tud_cdc_write           (void const* buffer, uint32_t bufsize);
+TU_ATTR_ALWAYS_INLINE static inline uint32_t tud_cdc_write_str       (char const* str);
+TU_ATTR_ALWAYS_INLINE static inline uint32_t tud_cdc_write_flush     (void);
+TU_ATTR_ALWAYS_INLINE static inline bool     tud_cdc_write_auto_flush_level(uint16_t count);
+TU_ATTR_ALWAYS_INLINE static inline uint32_t tud_cdc_write_available (void);
+TU_ATTR_ALWAYS_INLINE static inline bool     tud_cdc_write_clear     (void);
 
 //--------------------------------------------------------------------+
 // Application Callback API (weak is optional)
@@ -230,6 +230,11 @@ static inline uint32_t tud_cdc_write_flush (void)
   return tud_cdc_n_write_flush(0);
 }
 
+static inline bool tud_cdc_write_auto_flush_level(uint16_t count)
+{
+  return tud_cdc_n_write_auto_flush_level(0, count);
+}
+
 static inline uint32_t tud_cdc_write_available(void)
 {
   return tud_cdc_n_write_available(0);
@@ -239,9 +244,6 @@ static inline bool tud_cdc_write_clear(void)
 {
   return tud_cdc_n_write_clear(0);
 }
-
-/** @} */
-/** @} */
 
 //--------------------------------------------------------------------+
 // INTERNAL USBD-CLASS DRIVER API

@@ -52,7 +52,8 @@ typedef struct
   uint8_t line_state;
 
   /*------------- From this point, data is not cleared by bus reset -------------*/
-  char    wanted_char;
+  char     wanted_char;
+  uint16_t write_flush_level;
   cdc_line_coding_t line_coding;
 
   // FIFO
@@ -168,14 +169,24 @@ uint32_t tud_cdc_n_write(uint8_t itf, void const* buffer, uint32_t bufsize)
   cdcd_interface_t* p_cdc = &_cdcd_itf[itf];
   uint16_t ret = tu_fifo_write_n(&p_cdc->tx_ff, buffer, (uint16_t) bufsize);
 
-  // flush if queue more than packet size
-  // may need to suppress -Wunreachable-code since most of the time CFG_TUD_CDC_TX_BUFSIZE < BULK_PACKET_SIZE
-  if ( (tu_fifo_count(&p_cdc->tx_ff) >= BULK_PACKET_SIZE) || ((CFG_TUD_CDC_TX_BUFSIZE < BULK_PACKET_SIZE) && tu_fifo_full(&p_cdc->tx_ff)) )
+  // auto flush threshold is bulk packet size if not set by write_auto_flush_level())
+  // Note: in rare case where CFG_TUD_CDC_TX_BUFSIZE < BULK_PACKET_SIZE, it would be the TX BUFSIZE
+  uint16_t const threshold = p_cdc->write_flush_level ? p_cdc->write_flush_level : TU_MIN(BULK_PACKET_SIZE, CFG_TUD_CDC_TX_BUFSIZE);
+
+  // flush if queue more than above threshold
+  if ( tu_fifo_count(&p_cdc->tx_ff) >= threshold )
   {
     tud_cdc_n_write_flush(itf);
   }
 
   return ret;
+}
+
+bool tud_cdc_n_write_auto_flush_level(uint8_t itf, uint16_t count)
+{
+  cdcd_interface_t* p_cdc = &_cdcd_itf[itf];
+  p_cdc->write_flush_level = count;
+  return true;
 }
 
 uint32_t tud_cdc_n_write_flush (uint8_t itf)
