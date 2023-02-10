@@ -274,7 +274,7 @@ bool tuh_hid_receive_report(uint8_t dev_addr, uint8_t instance)
 //  return !usbh_edpt_busy(dev_addr, hid_itf->ep_in);
 //}
 
-bool tuh_hid_send_report(uint8_t dev_addr, uint8_t instance, uint8_t report_id, uint8_t const* report, uint16_t len)
+bool tuh_hid_send_report(uint8_t dev_addr, uint8_t instance, uint8_t report_id, const void* report, uint16_t len)
 {
   TU_LOG2("HID Send Report %d\r\n", report_id);
 
