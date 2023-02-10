@@ -2,6 +2,78 @@
 Changelog
 *********
 
+0.15.0
+======
+
+- Add codespell to detect typo
+- Add support for fuzzing and bagde for oss-fuzz
+- [osal]
+
+  - Allow the use of non-static allocation for FreeRTOS
+  - Fix FreeRTOS wrong task switch in some cases
+
+- Fix tu_fifo memory overflown when repeatedly write to overwritable fifo (accumulated more than 2 depths)
+- Better support for IAR (ARM) with ci build check for stm32 mcus.
+- Fix Windows build for some mingw gnu make situations
+  
+Controller Driver (DCD & HCD)
+-----------------------------
+
+- Add new port support (WIP) for WCH CH32V307 USB Highspeed
+- Add new port support (WIP) for PIC32MM/MX & PIC24
+
+- [nRF]
+
+  - Fix endpoint internal state when closed
+  - Fix reception of large ISO packets
+
+- [rp2040] 
+
+  - [dcd] Implement workaround for Errata 15. This enable SOF when bulk-in endpoint is in use and reduce its bandwidth to only 80%
+  - [hcd] Fix shared irq slots filling up when hcd_init() is called multiple times
+  - [hcd] Support host bulk endpoint using hw "interrupt" endpoint. Note speed limit is 64KB/s
+
+- [samd][dcd] Add support for ISO endpoint
+- [dwc2][dcd] Add support for stm32u5xx
+- [esp32sx] Fix Isochronous transfers only transmitted on even frame
+- [lpc_ip3511][dcd] Add isochronous support and fix endpoint accidental write
+- [ft90x] Improve and enhance support for FT9xx MCU, tested with more examples
+
+Device Stack
+------------
+
+- [Video]
+
+  - Add support for MJPEG
+  - Fix probe on macOS
+
+- [MIDI]
+
+  - Support port name strings
+  - fix MS Header wTotalLength computation
+ 
+- [HID]
+
+  - Add FIDO descriptor template
+  - change length in tud_hid_report_complete_cb() from uint8 to uint16
+
+- [CDC]
+
+  - Fix autoflush for FIFO < MPS
+  - Fix tx fifo memory overflown when DTR is not set and tud_cdc_write() is called repeatedly with large enough data  
+
+- [USBTMC] Fix packet size with highspeed
+
+Host Stack
+----------
+
+- Retry a few times with transfers in enumeration since device can be unstable when starting up
+- [MSC] Rework host masstorage API. Add new **host/msc_file_explorer** example
+- [CDC]
+
+  - Add suport for host cdc
+  - Fix host cdc with device without IAD e.g Arduino Due
+
 0.14.0
 ======
 
@@ -9,7 +81,8 @@ Changelog
 - Add timeout to osal_queue_receive()
 - Add tud_task_ext(timeout, in_isr) as generic version of tud_task(). Same as tuh_task_ext(), tuh_task()
 - Enable more warnings -Wnull-dereference -Wuninitialized -Wunused -Wredundant-decls -Wconversion
-- Add new examples 
+- Add new examples
+
   - host/bare_api to demonstrate generic (app-level) enumeration and endpoint transfer
   - dual/host_hid_to_device_cdc to run both device and host stack concurrently, get HID report from host and print out to device CDC. This example only work with multiple-controller MCUs and rp2040 with the help of pio-usb as added controller.
 
@@ -17,10 +90,12 @@ Controller Driver (DCD & HCD)
 -----------------------------
 
 - Enhance rhports management to better support dual roles
+
   - CFG_TUD_ENABLED/CFG_TUH_ENABLED, CFG_TUD_MAX_SPEED/CFG_TUH_MAX_SPEED can be used to replace CFG_TUSB_RHPORT0_MODE/CFG_TUSB_RHPORT1_MODE
   - tud_init(rphort), tuh_init(rhport) can be used to init stack on specified roothub port (controller) instead of tusb_init(void)
 - Add dcd/hcd port specific defines TUP_ (stand for tinyusb port-specific)
 - [dwc2]
+
   - Update to support stm32 h72x, h73x with only 1 otg controller
   - Fix overwrite with grstctl when disable endpoint
 - [EHCI] Fix an issue with EHCI driver
@@ -28,6 +103,7 @@ Controller Driver (DCD & HCD)
 - [nrf5x] Fix DMA access race condition using atomic function 
 - [pic32] Fix PIC32 santiy
 - [rp2040]
+
   - Add PICO-PIO-USB as controller (device/host) support for rp2040
   - Use shared IRQ handlers, so user can also hook the USB IRQ
   - Fix resumed signal not reported to device stack
@@ -37,10 +113,12 @@ Device Stack
 ------------
 
 - [Audio] Add support for feedback endpoint computation
+
   - New API tud_audio_feedback_params_cb(), tud_audio_feedback_interval_isr().
   - Supported computation method are: frequency with fixed/float or power of 2. Feedback with fifo count is not yet supported.
   - Fix nitfs (should be 3) in TUD_AUDIO_HEADSET_STEREO_DESCRIPTOR
   - Fix typo in audiod_rx_done_cb()
+
 - [DFU] Fix coexistence with other interfaces BTH, RNDIS
 - [MSC] Fix inquiry response additional length field
 - [Venndor] Improve write performance
@@ -52,9 +130,11 @@ Host Stack
 - [HID] Open OUT endpoint if available
 - [Hub] hub clear port and device interrupts
 - [USBH] Major improvement
+
   - Rework usbh control transfer with complete callback. New API tuh_control_xfer() though still only carry 1 usbh (no queueing) at a time.
   - Add generic endpoint transfer with tuh_edpt_open(), tuh_edpt_xfer(). Require `CFG_TUH_API_EDPT_XFER=1`
   - Support app-level enumeration with new APIs
+
     - tuh_descriptor_get(), tuh_descriptor_get_device(), tuh_descriptor_get_configuration(), tuh_descriptor_get_hid_report()
     - tuh_descriptor_get_string(), tuh_descriptor_get_manufacturer_string(), tuh_descriptor_get_product_string(), tuh_descriptor_get_serial_string()
     - Also add _sync() as sync/blocking version for above APIs
