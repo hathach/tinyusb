@@ -171,7 +171,7 @@ jobs:
   # - pico-probe is /dev/ttyACM0
   # ---------------------------------------
   hw-rp2040-test:
-    # Limit the run to only hathach due to limited resource on RPI4
+    # run only with hathach's commit due to limited resource on RPI4
     if: github.repository_owner == 'hathach'
     needs: build-arm
     runs-on: [self-hosted, Linux, ARM64, rp2040]
@@ -190,14 +190,15 @@ jobs:
 
     - name: Create flash.sh
       run: |
-        echo > flash.sh 'cmdout=$(openocd -f "interface/picoprobe.cfg" -f "target/rp2040.cfg" -c "program $1 reset exit")'
+        #echo > flash.sh 'cmdout=$(openocd -f "interface/picoprobe.cfg" -f "target/rp2040.cfg" -c "program $1 reset exit")'
+        echo > flash.sh 'pyocd flash -t rp2040 $1'
         echo >> flash.sh 'if (( $? )) ; then echo $cmdout ; fi'
         chmod +x flash.sh
 
     - name: Test cdc_dual_ports
       run: |
         ./flash.sh cdc_dual_ports.elf
-        while (! ([ -e /dev/ttyACM1 ] && [ -e /dev/ttyACM2 ])) && [ $SECONDS -le 5 ]; do :; done
+        while (! ([ -e /dev/ttyACM1 ] && [ -e /dev/ttyACM2 ])) && [ $SECONDS -le 10 ]; do :; done
         test -e /dev/ttyACM1 && echo "ttyACM1 exists"
         test -e /dev/ttyACM2 && echo "ttyACM2 exists"
 
@@ -205,7 +206,7 @@ jobs:
       run: |
         ./flash.sh cdc_msc.elf
         readme='/media/pi/TinyUSB MSC/README.TXT'
-        while (! ([ -e /dev/ttyACM1 ] && [ -f "$readme" ])) && [ $SECONDS -le 5 ]; do :; done
+        while (! ([ -e /dev/ttyACM1 ] && [ -f "$readme" ])) && [ $SECONDS -le 10 ]; do :; done
         test -e /dev/ttyACM1 && echo "ttyACM1 exists"
         test -f "$readme" && echo "$readme exists"
         cat "$readme"
@@ -213,7 +214,7 @@ jobs:
     - name: Test dfu
       run: |
         ./flash.sh dfu.elf
-        while (! (dfu-util -l | grep "Found DFU")) && [ $SECONDS -le 5 ]; do :; done
+        while (! (dfu-util -l | grep "Found DFU")) && [ $SECONDS -le 10 ]; do :; done
         dfu-util -d cafe -a 0 -U dfu0
         dfu-util -d cafe -a 1 -U dfu1
         grep "TinyUSB DFU! - Partition 0" dfu0
@@ -222,7 +223,7 @@ jobs:
     - name: Test dfu_runtime
       run: |
         ./flash.sh dfu_runtime.elf
-        while (! (dfu-util -l | grep "Found Runtime")) && [ $SECONDS -le 5 ]; do :; done
+        while (! (dfu-util -l | grep "Found Runtime")) && [ $SECONDS -le 10 ]; do :; done
 
   # ---------------------------------------
   # Hardware in the loop (HIL)
@@ -260,7 +261,7 @@ jobs:
     - name: Test cdc_dual_ports
       run: |
         ./flash.sh cdc_dual_ports.elf
-        while (! ([ -e /dev/ttyACM1 ] && [ -e /dev/ttyACM2 ])) && [ $SECONDS -le 5 ]; do :; done
+        while (! ([ -e /dev/ttyACM1 ] && [ -e /dev/ttyACM2 ])) && [ $SECONDS -le 10 ]; do :; done
         test -e /dev/ttyACM1 && echo "ttyACM1 exists"
         test -e /dev/ttyACM2 && echo "ttyACM2 exists"
 
@@ -270,7 +271,7 @@ jobs:
       run: |
         ./flash.sh cdc_msc.elf
         readme='/media/pi/TinyUSB MSC/README.TXT'
-        while (! ([ -e /dev/ttyACM1 ] && [ -f "$readme" ])) && [ $SECONDS -le 5 ]; do :; done
+        while (! ([ -e /dev/ttyACM1 ] && [ -f "$readme" ])) && [ $SECONDS -le 10 ]; do :; done
         test -e /dev/ttyACM1 && echo "ttyACM1 exists"
         test -f "$readme" && echo "$readme exists"
         cat "$readme"
@@ -278,7 +279,7 @@ jobs:
     - name: Test dfu
       run: |
         ./flash.sh dfu.elf
-        while (! (dfu-util -l | grep "Found DFU")) && [ $SECONDS -le 5 ]; do :; done
+        while (! (dfu-util -l | grep "Found DFU")) && [ $SECONDS -le 10 ]; do :; done
         dfu-util -d cafe -a 0 -U dfu0
         dfu-util -d cafe -a 1 -U dfu1
         grep "TinyUSB DFU! - Partition 0" dfu0
@@ -287,4 +288,4 @@ jobs:
     - name: Test dfu_runtime
       run: |
         ./flash.sh dfu_runtime.elf
-        while (! (dfu-util -l | grep "Found Runtime")) && [ $SECONDS -le 5 ]; do :; done  
+        while (! (dfu-util -l | grep "Found Runtime")) && [ $SECONDS -le 10 ]; do :; done  
