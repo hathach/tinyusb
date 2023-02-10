@@ -171,7 +171,7 @@ jobs:
   # - pico-probe is /dev/ttyACM0
   # ---------------------------------------
   hw-rp2040-test:
-    # Limit the run to only hathach due to limited resource on RPI4
+    # run only with hathach's commit due to limited resource on RPI4
     if: github.repository_owner == 'hathach'
     needs: build-arm
     runs-on: [self-hosted, Linux, ARM64, rp2040]
@@ -190,7 +190,8 @@ jobs:
 
     - name: Create flash.sh
       run: |
-        echo > flash.sh 'cmdout=$(openocd -f "interface/picoprobe.cfg" -f "target/rp2040.cfg" -c "program $1 reset exit")'
+        #echo > flash.sh 'cmdout=$(openocd -f "interface/picoprobe.cfg" -f "target/rp2040.cfg" -c "program $1 reset exit")'
+        echo > flash.sh 'pyocd flash -t rp2040 $1'
         echo >> flash.sh 'if (( $? )) ; then echo $cmdout ; fi'
         chmod +x flash.sh
 
