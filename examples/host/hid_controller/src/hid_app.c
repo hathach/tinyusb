@@ -106,7 +106,7 @@ typedef struct TU_ATTR_PACKED
 
 typedef struct TU_ATTR_PACKED {
   // First 16 bits set what data is pertinent in this structure (1 = set; 0 = not set)
-	uint8_t set_rumble : 1;
+  uint8_t set_rumble : 1;
   uint8_t set_led : 1;
   uint8_t set_led_blink : 1;
   uint8_t set_ext_write : 1;
@@ -116,16 +116,16 @@ typedef struct TU_ATTR_PACKED {
   uint8_t set_speaker_volume : 1;
   uint8_t set_flags2;
 
-	uint8_t reserved;
+  uint8_t reserved;
 
-	uint8_t motor_right;
-	uint8_t motor_left;
+  uint8_t motor_right;
+  uint8_t motor_left;
 
-	uint8_t lightbar_red;
-	uint8_t lightbar_green;
-	uint8_t lightbar_blue;
-	uint8_t lightbar_blink_on;
-	uint8_t lightbar_blink_off;
+  uint8_t lightbar_red;
+  uint8_t lightbar_green;
+  uint8_t lightbar_blue;
+  uint8_t lightbar_blink_on;
+  uint8_t lightbar_blink_off;
 
   uint8_t ext_data[8];
 
