@@ -71,7 +71,7 @@ Host Stack
 - [MSC] Rework host masstorage API. Add new **host/msc_file_explorer** example
 - [CDC]
 
-  - Add suport for host cdc
+  - Add support for host cdc
   - Fix host cdc with device without IAD e.g Arduino Due
 
 0.14.0
