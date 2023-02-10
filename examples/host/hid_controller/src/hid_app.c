@@ -167,9 +167,10 @@ void hid_app_task(void)
     const uint32_t interval_ms = 200;
     static uint32_t start_ms = 0;
 
-    if ( board_millis() - start_ms >= interval_ms)
+    uint32_t current_time_ms = board_millis();
+    if ( current_time_ms - start_ms >= interval_ms)
     {
-      start_ms += interval_ms;
+      start_ms = current_time_ms;
 
       sony_ds4_output_report_t output_report = {0};
       output_report.set_rumble = 1;
