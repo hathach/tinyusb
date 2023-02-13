@@ -57,8 +57,7 @@ void board_init(void)
 {
   // make sure the dcache is on.
 #if defined(__DCACHE_PRESENT) && __DCACHE_PRESENT
-    if (SCB_CCR_DC_Msk != (SCB_CCR_DC_Msk & SCB->CCR))
-        SCB_EnableDCache();
+  if (SCB_CCR_DC_Msk != (SCB_CCR_DC_Msk & SCB->CCR)) SCB_EnableDCache();
 #endif
 
   // Init clock
