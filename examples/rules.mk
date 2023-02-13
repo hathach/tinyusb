@@ -170,12 +170,7 @@ $(BUILD)/$(PROJECT).elf: $(OBJ)
 endif
 
 # UF2 generation, iMXRT need to strip to text only before conversion
-ifeq ($(FAMILY),imxrt)
-$(BUILD)/$(PROJECT).uf2: $(BUILD)/$(PROJECT).elf
-	@echo CREATE $@
-	@$(OBJCOPY) -O ihex -R .flash_config -R .ivt $^ $(BUILD)/$(PROJECT)-textonly.hex
-	$(PYTHON) $(TOP)/tools/uf2/utils/uf2conv.py -f $(UF2_FAMILY_ID) -c -o $@ $(BUILD)/$(PROJECT)-textonly.hex
-else
+ifneq ($(FAMILY),imxrt)
 $(BUILD)/$(PROJECT).uf2: $(BUILD)/$(PROJECT).hex
 	@echo CREATE $@
 	$(PYTHON) $(TOP)/tools/uf2/utils/uf2conv.py -f $(UF2_FAMILY_ID) -c -o $@ $^

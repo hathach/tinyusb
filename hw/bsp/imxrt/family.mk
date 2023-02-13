@@ -61,3 +61,8 @@ SRC_S += $(MCU_DIR)/gcc/startup_$(MCU_VARIANT).S
 # For freeRTOS port source
 FREERTOS_PORT = ARM_CM7/r0p1
 
+# UF2 generation, iMXRT need to strip to text only before conversion
+$(BUILD)/$(PROJECT).uf2: $(BUILD)/$(PROJECT).elf
+	@echo CREATE $@
+	@$(OBJCOPY) -O ihex -R .flash_config -R .ivt $^ $(BUILD)/$(PROJECT)-textonly.hex
+	$(PYTHON) $(TOP)/tools/uf2/utils/uf2conv.py -f $(UF2_FAMILY_ID) -c -o $@ $(BUILD)/$(PROJECT)-textonly.hex
