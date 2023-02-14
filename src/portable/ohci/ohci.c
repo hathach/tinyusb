@@ -648,7 +648,10 @@ void hcd_int_handler(uint8_t hostid)
   //------------- Transfer Complete -------------//
   if (int_status & OHCI_INT_WRITEBACK_DONEHEAD_MASK)
   {
+    OHCI_REG->interrupt_disable = OHCI_INT_WRITEBACK_DONEHEAD_MASK;
     done_queue_isr(hostid);
+    OHCI_REG->interrupt_status = OHCI_INT_WRITEBACK_DONEHEAD_MASK;
+    OHCI_REG->interrupt_enable = OHCI_INT_WRITEBACK_DONEHEAD_MASK;
   }
 
   OHCI_REG->interrupt_status = int_status; // Acknowledge handled interrupt
