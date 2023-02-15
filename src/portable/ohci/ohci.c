@@ -565,6 +565,7 @@ static void done_queue_isr(uint8_t hostid)
 
   // done head is written in reversed order of completion --> need to reverse the done queue first
   ohci_td_item_t* td_head = list_reverse ( (ohci_td_item_t*) tu_align16(ohci_data.hcca.done_head) );
+  ohci_data.hcca.done_head = 0;
 
   while( td_head != NULL )
   {
@@ -611,6 +612,9 @@ void hcd_int_handler(uint8_t hostid)
 
   if (int_status == 0) return;
 
+  // Disable MIE as per OHCI spec 5.3
+  OHCI_REG->interrupt_disable = OHCI_INT_MASTER_ENABLE_MASK;
+
   // Frame number overflow
   if ( int_status & OHCI_INT_FRAME_OVERFLOW_MASK )
   {
@@ -648,13 +652,12 @@ void hcd_int_handler(uint8_t hostid)
   //------------- Transfer Complete -------------//
   if (int_status & OHCI_INT_WRITEBACK_DONEHEAD_MASK)
   {
-    OHCI_REG->interrupt_disable = OHCI_INT_WRITEBACK_DONEHEAD_MASK;
     done_queue_isr(hostid);
-    OHCI_REG->interrupt_status = OHCI_INT_WRITEBACK_DONEHEAD_MASK;
-    OHCI_REG->interrupt_enable = OHCI_INT_WRITEBACK_DONEHEAD_MASK;
   }
 
   OHCI_REG->interrupt_status = int_status; // Acknowledge handled interrupt
+
+  OHCI_REG->interrupt_enable = OHCI_INT_MASTER_ENABLE_MASK; // Enable MIE
 }
 //--------------------------------------------------------------------+
 // HELPER
