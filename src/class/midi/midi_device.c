@@ -261,11 +261,11 @@ uint32_t tud_midi_n_stream_write(uint8_t itf, uint8_t cable_num, uint8_t const* 
       stream->buffer[1] = data;
 
       // Check to see if we're still in a SysEx transmit.
-      if ( stream->buffer[0] == MIDI_CIN_SYSEX_START )
+      if ( ((stream->buffer[0]) & 0xF) == MIDI_CIN_SYSEX_START )
       {
         if ( data == MIDI_STATUS_SYSEX_END )
         {
-          stream->buffer[0] = MIDI_CIN_SYSEX_END_1BYTE;
+          stream->buffer[0] = (uint8_t) ((cable_num << 4) | MIDI_CIN_SYSEX_END_1BYTE);
           stream->total = 2;
         }
         else
@@ -308,6 +308,7 @@ uint32_t tud_midi_n_stream_write(uint8_t itf, uint8_t cable_num, uint8_t const* 
           stream->buffer[0] = MIDI_CIN_SYSEX_END_1BYTE;
           stream->total = 2;
         }
+        stream->buffer[0] |= (uint8_t)(cable_num << 4);
       }
       else
       {
@@ -328,9 +329,9 @@ uint32_t tud_midi_n_stream_write(uint8_t itf, uint8_t cable_num, uint8_t const* 
       stream->index++;
 
       // See if this byte ends a SysEx.
-      if ( stream->buffer[0] == MIDI_CIN_SYSEX_START && data == MIDI_STATUS_SYSEX_END )
+      if ( (stream->buffer[0] & 0xF) == MIDI_CIN_SYSEX_START && data == MIDI_STATUS_SYSEX_END )
       {
-        stream->buffer[0] = MIDI_CIN_SYSEX_START + (stream->index - 1);
+        stream->buffer[0] = (uint8_t) ((cable_num << 4) | (MIDI_CIN_SYSEX_START + (stream->index - 1)));
         stream->total = stream->index;
       }
     }
