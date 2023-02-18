@@ -167,6 +167,17 @@ static usbh_class_driver_t const usbh_class_drivers[] =
     },
   #endif
 
+  #if CFG_TUH_MIDI
+    {
+      DRIVER_NAME("MIDI")
+      .init       = midih_init,
+      .open       = midih_open,
+      .set_config = midih_set_config,
+      .xfer_cb    = midih_xfer_cb,
+      .close      = midih_close
+    },
+  #endif
+
   #if CFG_TUH_HUB
     {
       DRIVER_NAME("HUB")
@@ -1316,7 +1327,7 @@ static void process_enumeration(tuh_xfer_t* xfer)
       dev->i_product      = desc_device->iProduct;
       dev->i_serial       = desc_device->iSerialNumber;
 
-    //  if (tuh_attach_cb) tuh_attach_cb((tusb_desc_device_t*) _usbh_ctrl_buf);
+      if (tuh_desc_device_cb) tuh_desc_device_cb(daddr, (tusb_desc_device_t const*) _usbh_ctrl_buf);
 
       // Get 9-byte for total length
       uint8_t const config_idx = CONFIG_NUM - 1;
@@ -1343,9 +1354,12 @@ static void process_enumeration(tuh_xfer_t* xfer)
     break;
 
     case ENUM_SET_CONFIG:
+      // Got the whole configuration descriptor. Make a copy
+      if (tuh_desc_config_cb) tuh_desc_config_cb(daddr, (const tusb_desc_configuration_t*) _usbh_ctrl_buf);
+
       // Parse configuration & set up drivers
       // Driver open aren't allowed to make any usb transfer yet
-      TU_ASSERT( _parse_configuration_descriptor(daddr, (tusb_desc_configuration_t*) _usbh_ctrl_buf), );
+      TU_ASSERT( _parse_configuration_descriptor(daddr, (const tusb_desc_configuration_t*  ) _usbh_ctrl_buf), );
 
       TU_ASSERT( tuh_configuration_set(daddr, CONFIG_NUM, process_enumeration, ENUM_CONFIG_DRIVER), );
     break;
