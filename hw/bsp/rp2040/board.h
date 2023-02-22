@@ -40,7 +40,8 @@
 #define BUTTON_BOOTSEL
 #define BUTTON_STATE_ACTIVE   0
 
-#if defined(PICO_DEFAULT_UART_TX_PIN) && defined(PICO_DEFAULT_UART_RX_PIN) && defined(PICO_DEFAULT_UART)
+#if defined(PICO_DEFAULT_UART_TX_PIN) && defined(PICO_DEFAULT_UART_RX_PIN) && \
+    defined(PICO_DEFAULT_UART) && defined(LIB_PICO_STDIO_UART)
 #define UART_DEV              PICO_DEFAULT_UART
 #define UART_TX_PIN           PICO_DEFAULT_UART_TX_PIN
 #define UART_RX_PIN           PICO_DEFAULT_UART_RX_PIN

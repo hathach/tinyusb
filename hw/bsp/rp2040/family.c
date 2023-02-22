@@ -148,7 +148,7 @@ void board_init(void)
 #ifndef BUTTON_BOOTSEL
 #endif
 
-#if defined(UART_DEV) && defined(LIB_PICO_STDIO_UART)
+#ifdef UART_DEV
   bi_decl(bi_2pins_with_func(UART_TX_PIN, UART_TX_PIN, GPIO_FUNC_UART));
   uart_inst = uart_get_instance(UART_DEV);
   stdio_uart_init_full(uart_inst, CFG_BOARD_UART_BAUDRATE, UART_TX_PIN, UART_RX_PIN);
