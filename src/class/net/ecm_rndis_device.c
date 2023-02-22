@@ -61,11 +61,8 @@ typedef struct
 #define CFG_TUD_NET_PACKET_PREFIX_LEN sizeof(rndis_data_packet_t)
 #define CFG_TUD_NET_PACKET_SUFFIX_LEN 0
 
-CFG_TUSB_MEM_SECTION CFG_TUSB_MEM_ALIGN static _fuzz_thread 
-uint8_t received[CFG_TUD_NET_PACKET_PREFIX_LEN + CFG_TUD_NET_MTU + CFG_TUD_NET_PACKET_PREFIX_LEN];
-
-CFG_TUSB_MEM_SECTION CFG_TUSB_MEM_ALIGN static _fuzz_thread 
-uint8_t transmitted[CFG_TUD_NET_PACKET_PREFIX_LEN + CFG_TUD_NET_MTU + CFG_TUD_NET_PACKET_PREFIX_LEN];
+CFG_TUSB_MEM_SECTION CFG_TUSB_MEM_ALIGN static uint8_t received[CFG_TUD_NET_PACKET_PREFIX_LEN + CFG_TUD_NET_MTU + CFG_TUD_NET_PACKET_PREFIX_LEN];
+CFG_TUSB_MEM_SECTION CFG_TUSB_MEM_ALIGN static uint8_t transmitted[CFG_TUD_NET_PACKET_PREFIX_LEN + CFG_TUD_NET_MTU + CFG_TUD_NET_PACKET_PREFIX_LEN];
 
 struct ecm_notify_struct
 {
@@ -73,7 +70,7 @@ struct ecm_notify_struct
   uint32_t downlink, uplink;
 };
 
-static _fuzz_thread const struct ecm_notify_struct ecm_notify_nc =
+static const struct ecm_notify_struct ecm_notify_nc =
 {
   .header = {
     .bmRequestType = 0xA1,
@@ -83,7 +80,7 @@ static _fuzz_thread const struct ecm_notify_struct ecm_notify_nc =
   },
 };
 
-static _fuzz_thread const struct ecm_notify_struct ecm_notify_csc =
+static const struct ecm_notify_struct ecm_notify_csc =
 {
   .header = {
     .bmRequestType = 0xA1,
@@ -95,7 +92,7 @@ static _fuzz_thread const struct ecm_notify_struct ecm_notify_csc =
 };
 
 // TODO remove CFG_TUSB_MEM_SECTION, control internal buffer is already in this special section
-CFG_TUSB_MEM_SECTION CFG_TUSB_MEM_ALIGN static _fuzz_thread union
+CFG_TUSB_MEM_SECTION CFG_TUSB_MEM_ALIGN static union
 {
   uint8_t rndis_buf[120];
   struct ecm_notify_struct ecm_buf;
@@ -105,9 +102,9 @@ CFG_TUSB_MEM_SECTION CFG_TUSB_MEM_ALIGN static _fuzz_thread union
 // INTERNAL OBJECT & FUNCTION DECLARATION
 //--------------------------------------------------------------------+
 // TODO remove CFG_TUSB_MEM_SECTION
-CFG_TUSB_MEM_SECTION static _fuzz_thread netd_interface_t _netd_itf;
+CFG_TUSB_MEM_SECTION static netd_interface_t _netd_itf;
 
-static _fuzz_thread bool can_xmit;
+static bool can_xmit;
 
 void tud_network_recv_renew(void)
 {

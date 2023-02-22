@@ -71,8 +71,8 @@ typedef struct
   uint8_t add_sense_qualifier;
 }mscd_interface_t;
 
-CFG_TUSB_MEM_SECTION CFG_TUSB_MEM_ALIGN static _fuzz_thread mscd_interface_t _mscd_itf;
-CFG_TUSB_MEM_SECTION CFG_TUSB_MEM_ALIGN static _fuzz_thread uint8_t _mscd_buf[CFG_TUD_MSC_EP_BUFSIZE];
+CFG_TUSB_MEM_SECTION CFG_TUSB_MEM_ALIGN static mscd_interface_t _mscd_itf;
+CFG_TUSB_MEM_SECTION CFG_TUSB_MEM_ALIGN static uint8_t _mscd_buf[CFG_TUD_MSC_EP_BUFSIZE];
 
 //--------------------------------------------------------------------+
 // INTERNAL OBJECT & FUNCTION DECLARATION
@@ -202,7 +202,7 @@ uint8_t rdwr10_validate_cmd(msc_cbw_t const* cbw)
 //--------------------------------------------------------------------+
 #if CFG_TUSB_DEBUG >= 2
 
-TU_ATTR_UNUSED static _fuzz_thread tu_lookup_entry_t const _msc_scsi_cmd_lookup[] =
+TU_ATTR_UNUSED static tu_lookup_entry_t const _msc_scsi_cmd_lookup[] =
 {
   { .key = SCSI_CMD_TEST_UNIT_READY              , .data = "Test Unit Ready" },
   { .key = SCSI_CMD_INQUIRY                      , .data = "Inquiry" },
@@ -217,7 +217,7 @@ TU_ATTR_UNUSED static _fuzz_thread tu_lookup_entry_t const _msc_scsi_cmd_lookup[
   { .key = SCSI_CMD_WRITE_10                     , .data = "Write10" }
 };
 
-TU_ATTR_UNUSED static _fuzz_thread tu_lookup_table_t const _msc_scsi_cmd_table =
+TU_ATTR_UNUSED static tu_lookup_table_t const _msc_scsi_cmd_table =
 {
   .count = TU_ARRAY_SIZE(_msc_scsi_cmd_lookup),
   .items = _msc_scsi_cmd_lookup
