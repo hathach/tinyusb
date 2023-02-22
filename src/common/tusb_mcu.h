@@ -28,8 +28,8 @@
 #define TUSB_MCU_H_
 
 //--------------------------------------------------------------------+
-// Port Specific
-// TUP stand for TinyUSB Port (can be renamed)
+// Port/Platform Specific
+// TUP stand for TinyUSB Port/Platform (can be renamed)
 //--------------------------------------------------------------------+
 
 //------------- Unaligned Memory Access -------------//
@@ -55,6 +55,7 @@
 #elif TU_CHECK_MCU(OPT_MCU_LPC175X_6X, OPT_MCU_LPC177X_8X, OPT_MCU_LPC40XX)
   #define TUP_DCD_ENDPOINT_MAX    16
   #define TUP_USBIP_OHCI
+  #define TUP_OHCI_RHPORTS        2
 
 #elif TU_CHECK_MCU(OPT_MCU_LPC18XX, OPT_MCU_LPC43XX)
   // TODO USB0 has 6, USB1 has 4
