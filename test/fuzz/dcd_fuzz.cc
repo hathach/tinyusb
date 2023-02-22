@@ -39,7 +39,7 @@ struct State {
   uint8_t address;
 };
 
-TU_STATIC State state = {false, 0, 0};
+static _fuzz_thread State state = {false, 0, 0};
 
 //--------------------------------------------------------------------+
 // Controller API
