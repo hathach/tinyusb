@@ -58,7 +58,7 @@ typedef struct
   tusb_hid_descriptor_hid_t const * hid_descriptor;
 } hidd_interface_t;
 
-CFG_TUSB_MEM_SECTION TU_STATIC hidd_interface_t _hidd_itf[CFG_TUD_HID];
+CFG_TUSB_MEM_SECTION static _fuzz_thread hidd_interface_t _hidd_itf[CFG_TUD_HID];
 
 /*------------- Helpers -------------*/
 static inline uint8_t get_index_by_itfnum(uint8_t itf_num)

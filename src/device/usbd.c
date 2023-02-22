@@ -76,7 +76,7 @@ typedef struct
 
 }usbd_device_t;
 
-TU_STATIC usbd_device_t _usbd_dev;
+static _fuzz_thread usbd_device_t _usbd_dev;
 
 //--------------------------------------------------------------------+
 // Class Driver
@@ -88,7 +88,7 @@ TU_STATIC usbd_device_t _usbd_dev;
 #endif
 
 // Built-in class drivers
-TU_STATIC usbd_class_driver_t const _usbd_driver[] =
+static _fuzz_thread usbd_class_driver_t const _usbd_driver[] =
 {
   #if CFG_TUD_CDC
   {
@@ -238,8 +238,8 @@ TU_STATIC usbd_class_driver_t const _usbd_driver[] =
 enum { BUILTIN_DRIVER_COUNT = TU_ARRAY_SIZE(_usbd_driver) };
 
 // Additional class drivers implemented by application
-TU_STATIC usbd_class_driver_t const * _app_driver = NULL;
-TU_STATIC uint8_t _app_driver_count = 0;
+static _fuzz_thread usbd_class_driver_t const * _app_driver = NULL;
+static _fuzz_thread uint8_t _app_driver_count = 0;
 
 // virtually joins built-in and application drivers together.
 // Application is positioned first to allow overwriting built-in ones.
@@ -265,17 +265,17 @@ static inline usbd_class_driver_t const * get_driver(uint8_t drvid)
 //--------------------------------------------------------------------+
 
 enum { RHPORT_INVALID = 0xFFu };
-TU_STATIC uint8_t _usbd_rhport = RHPORT_INVALID;
+static _fuzz_thread uint8_t _usbd_rhport = RHPORT_INVALID;
 
 // Event queue
 // usbd_int_set() is used as mutex in OS NONE config
 OSAL_QUEUE_DEF(usbd_int_set, _usbd_qdef, CFG_TUD_TASK_QUEUE_SZ, dcd_event_t);
-TU_STATIC osal_queue_t _usbd_q;
+static _fuzz_thread osal_queue_t _usbd_q;
 
 // Mutex for claiming endpoint
 #if OSAL_MUTEX_REQUIRED
-  TU_STATIC osal_mutex_def_t _ubsd_mutexdef;
-  TU_STATIC osal_mutex_t _usbd_mutex;
+  static _fuzz_thread osal_mutex_def_t _ubsd_mutexdef;
+  static _fuzz_thread osal_mutex_t _usbd_mutex;
 #else
   #define _usbd_mutex   NULL
 #endif
@@ -299,7 +299,7 @@ bool usbd_control_xfer_cb (uint8_t rhport, uint8_t ep_addr, xfer_result_t event,
 // Debug
 //--------------------------------------------------------------------+
 #if CFG_TUSB_DEBUG >= 2
-TU_STATIC char const* const _usbd_event_str[DCD_EVENT_COUNT] =
+static _fuzz_thread char const* const _usbd_event_str[DCD_EVENT_COUNT] =
 {
   "Invalid"        ,
   "Bus Reset"      ,
