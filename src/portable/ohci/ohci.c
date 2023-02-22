@@ -28,8 +28,8 @@
 
 #if CFG_TUH_ENABLED && defined(TUP_USBIP_OHCI)
 
-#ifndef OHCI_RHPORTS
-#error  OHCI is enabled, but OHCI_RHPORTS is not defined.
+#ifndef TUP_OHCI_RHPORTS
+#error  OHCI is enabled, but TUP_OHCI_RHPORTS is not defined.
 #endif
 
 //--------------------------------------------------------------------+
@@ -393,21 +393,20 @@ static void ed_list_remove_by_addr(ohci_ed_t * p_head, uint8_t dev_addr)
 
     if (ed->dev_addr == dev_addr)
     {
-      //Prevent Host Controller from processing this ED while we remove it
+      // Prevent Host Controller from processing this ED while we remove it
       ed->skip = 1;
 
-      // unlink ed
+      // unlink ed, will also move up p_prev
       p_prev->next = ed->next;
 
       // point the removed ED's next pointer to list head to make sure HC can always safely move away from this ED
       ed->next = (uint32_t) _phys_addr(p_head);
       ed->used = 0;
       ed->skip = 0;
-      continue;
+    }else
+    {
+      p_prev = (ohci_ed_t*) _virt_addr((void *)p_prev->next);
     }
-
-    // check next valid since we could remove it
-    if (p_prev->next) p_prev = (ohci_ed_t*) _virt_addr((void *)p_prev->next);
   }
 }
 
@@ -665,7 +664,7 @@ void hcd_int_handler(uint8_t hostid)
   //------------- RootHub status -------------//
   if ( int_status & OHCI_INT_RHPORT_STATUS_CHANGE_MASK )
   {
-    for (int i = 0; i < OHCI_RHPORTS; i++)
+    for (int i = 0; i < TUP_OHCI_RHPORTS; i++)
     {
       uint32_t const rhport_status = OHCI_REG->rhport_status[i] & RHPORT_ALL_CHANGE_MASK;
       if ( rhport_status & RHPORT_CONNECT_STATUS_CHANGE_MASK )
