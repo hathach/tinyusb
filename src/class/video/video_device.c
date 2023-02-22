@@ -125,11 +125,11 @@ typedef struct TU_ATTR_PACKED {
 //--------------------------------------------------------------------+
 // INTERNAL OBJECT & FUNCTION DECLARATION
 //--------------------------------------------------------------------+
-CFG_TUSB_MEM_SECTION static _fuzz_thread videod_interface_t _videod_itf[CFG_TUD_VIDEO];
-CFG_TUSB_MEM_SECTION static _fuzz_thread videod_streaming_interface_t _videod_streaming_itf[CFG_TUD_VIDEO_STREAMING];
+CFG_TUSB_MEM_SECTION tu_static videod_interface_t _videod_itf[CFG_TUD_VIDEO];
+CFG_TUSB_MEM_SECTION tu_static videod_streaming_interface_t _videod_streaming_itf[CFG_TUD_VIDEO_STREAMING];
 
-static _fuzz_thread uint8_t const _cap_get     = 0x1u; /* support for GET */
-static _fuzz_thread uint8_t const _cap_get_set = 0x3u; /* support for GET and SET */
+tu_static uint8_t const _cap_get     = 0x1u; /* support for GET */
+tu_static uint8_t const _cap_get_set = 0x3u; /* support for GET and SET */
 
 /** Get interface number from the interface descriptor
  *
