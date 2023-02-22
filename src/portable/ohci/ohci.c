@@ -169,6 +169,7 @@ TU_ATTR_ALWAYS_INLINE static inline void *_phys_addr(void *virtual_address)
   if (tusb_app_virt_to_phys) return tusb_app_virt_to_phys(virtual_address);
   return virtual_address;
 }
+
 TU_ATTR_ALWAYS_INLINE static inline void *_virt_addr(void *physical_address)
 {
   if (tusb_app_phys_to_virt) return tusb_app_phys_to_virt(physical_address);
@@ -238,7 +239,10 @@ bool hcd_init(uint8_t rhport)
   OHCI_REG->control_bit.hc_functional_state = OHCI_CONTROL_FUNCSTATE_OPERATIONAL; // make HC's state to operational state TODO use this to suspend (save power)
   OHCI_REG->rh_status_bit.local_power_status_change = 1; // set global power for ports
 
+#if CFG_TUSB_OS != OPT_OS_NONE
+  // TODO as above delay
   osal_task_delay(OHCI_REG->rh_descriptorA_bit.power_on_to_good_time * 2); // Wait POTG after power up
+#endif
 
   return true;
 }
