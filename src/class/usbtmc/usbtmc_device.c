@@ -78,7 +78,7 @@
 
 #ifdef xDEBUG
 #include "uart_util.h"
-static char logMsg[150];
+static _fuzz_thread char logMsg[150];
 #endif
 
 // Buffer size must be an exact multiple of the max packet size for both
@@ -143,7 +143,7 @@ typedef struct
   usbtmc_capabilities_specific_t const * capabilities;
 } usbtmc_interface_state_t;
 
-CFG_TUSB_MEM_SECTION static usbtmc_interface_state_t usbtmc_state =
+CFG_TUSB_MEM_SECTION static _fuzz_thread usbtmc_interface_state_t usbtmc_state =
 {
     .itf_id = 0xFF,
 };
@@ -154,8 +154,8 @@ TU_VERIFY_STATIC(USBTMCD_BUFFER_SIZE >= 32u,"USBTMC dev buffer size too small");
 static bool handle_devMsgOutStart(uint8_t rhport, void *data, size_t len);
 static bool handle_devMsgOut(uint8_t rhport, void *data, size_t len, size_t packetLen);
 
-static uint8_t termChar;
-static uint8_t termCharRequested = false;
+static _fuzz_thread uint8_t termChar;
+static _fuzz_thread uint8_t termCharRequested = false;
 
 #if OSAL_MUTEX_REQUIRED
 static OSAL_MUTEX_DEF(usbtmcLockBuffer);

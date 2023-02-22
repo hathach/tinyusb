@@ -78,7 +78,8 @@ CFLAGS += \
 CFLAGS += \
 	-Wno-error=unreachable-code \
   -DOPT_MCU_FUZZ=1 \
-  -DCFG_TUSB_MCU=OPT_MCU_FUZZ 
+  -DCFG_TUSB_MCU=OPT_MCU_FUZZ \
+  -D_FUZZ
 
 CXXFLAGS += \
   -xc++ \
