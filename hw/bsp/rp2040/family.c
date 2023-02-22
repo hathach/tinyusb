@@ -115,7 +115,7 @@ void stdio_rtt_init(void)
 
 #endif
 
-#if defined(UART_DEV) && defined(LIB_PICO_STDIO_UART)
+#if defined(UART_DEV)
 static uart_inst_t *uart_inst;
 #endif
 
@@ -148,7 +148,7 @@ void board_init(void)
 #ifndef BUTTON_BOOTSEL
 #endif
 
-#if defined(UART_DEV) && defined(LIB_PICO_STDIO_UART)
+#if defined(UART_DEV)
   bi_decl(bi_2pins_with_func(UART_TX_PIN, UART_TX_PIN, GPIO_FUNC_UART));
   uart_inst = uart_get_instance(UART_DEV);
   stdio_uart_init_full(uart_inst, CFG_BOARD_UART_BAUDRATE, UART_TX_PIN, UART_RX_PIN);
@@ -191,7 +191,7 @@ uint32_t board_button_read(void)
 
 int board_uart_read(uint8_t* buf, int len)
 {
-#if defined(UART_DEV) && defined(LIB_PICO_STDIO_UART)
+#if defined(UART_DEV)
   int count = 0;
   while ( (count < len) && uart_is_readable(uart_inst) )
   {
@@ -207,7 +207,7 @@ int board_uart_read(uint8_t* buf, int len)
 
 int board_uart_write(void const * buf, int len)
 {
-#if defined(UART_DEV) && defined(LIB_PICO_STDIO_UART)
+#if defined(UART_DEV)
   char const* bufch = (char const*) buf;
   for(int i=0;i<len;i++) {
     uart_putc(uart_inst, bufch[i]);
