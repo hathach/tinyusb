@@ -63,9 +63,9 @@
 
 /* --------------------- Fuzzing types -------------------------------------- */
 #ifdef _FUZZ
-  #define _fuzz_thread __thread
+  #define tu_static static __thread
 #else
-  #define _fuzz_thread
+  #define tu_static static
 #endif
 
 // for declaration of reserved field, make use of _TU_COUNTER_
