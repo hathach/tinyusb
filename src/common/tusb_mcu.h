@@ -28,8 +28,8 @@
 #define TUSB_MCU_H_
 
 //--------------------------------------------------------------------+
-// Port Specific
-// TUP stand for TinyUSB Port (can be renamed)
+// Port/Platform Specific
+// TUP stand for TinyUSB Port/Platform (can be renamed)
 //--------------------------------------------------------------------+
 
 //------------- Unaligned Memory Access -------------//

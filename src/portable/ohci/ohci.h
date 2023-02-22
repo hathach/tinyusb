@@ -58,7 +58,9 @@ typedef struct {
 
 TU_VERIFY_STATIC( sizeof(ohci_hcca_t) == 256, "size is not correct" );
 
-typedef struct {
+// common link item for gtd and itd for list travel
+// use as pointer only
+typedef struct TU_ATTR_ALIGNED(16) {
   uint32_t reserved[2];
   volatile uint32_t next;
   uint32_t reserved2;

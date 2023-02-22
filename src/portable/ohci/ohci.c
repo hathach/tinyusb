@@ -162,18 +162,16 @@ static void ed_list_remove_by_addr(ohci_ed_t * p_head, uint8_t dev_addr);
 // USBH-HCD API
 //--------------------------------------------------------------------+
 
-//If your system requires separation of virtual and physical memory, implement
-//tuh_get_phys_addr and tuh_get_virt_addr in your application.
-TU_ATTR_WEAK void *tuh_get_phys_addr(void *virtual_address);
-TU_ATTR_WEAK void *tuh_get_virt_addr(void *physical_address);
-TU_ATTR_ALWAYS_INLINE static void *_phys_addr(void *virtual_address)
+// If your system requires separation of virtual and physical memory, implement
+// tusb_app_virt_to_phys and tusb_app_virt_to_phys in your application.
+TU_ATTR_ALWAYS_INLINE static inline void *_phys_addr(void *virtual_address)
 {
-  if (tuh_get_phys_addr) return tuh_get_phys_addr(virtual_address);
+  if (tusb_app_virt_to_phys) return tusb_app_virt_to_phys(virtual_address);
   return virtual_address;
 }
-TU_ATTR_ALWAYS_INLINE static void *_virt_addr(void *physical_address)
+TU_ATTR_ALWAYS_INLINE static inline void *_virt_addr(void *physical_address)
 {
-  if (tuh_get_virt_addr) return tuh_get_virt_addr(physical_address);
+  if (tusb_app_phys_to_virt) return tusb_app_phys_to_virt(physical_address);
   return physical_address;
 }
 
@@ -206,7 +204,13 @@ bool hcd_init(uint8_t rhport)
   {
     //Wait 20 ms. (Ref Usb spec 7.1.7.7)
     OHCI_REG->control_bit.hc_functional_state = OHCI_CONTROL_FUNCSTATE_RESUME;
+
+#if CFG_TUSB_OS != OPT_OS_NONE
+    // os_none implement task delay using usb frame counter which is not started yet
+    // therefore cause infinite delay.
+    // TODO find a way to delay in case of os none e.g __nop
     osal_task_delay(20);
+#endif
   }
 
   // reset controller
@@ -233,6 +237,7 @@ bool hcd_init(uint8_t rhport)
 
   OHCI_REG->control_bit.hc_functional_state = OHCI_CONTROL_FUNCSTATE_OPERATIONAL; // make HC's state to operational state TODO use this to suspend (save power)
   OHCI_REG->rh_status_bit.local_power_status_change = 1; // set global power for ports
+
   osal_task_delay(OHCI_REG->rh_descriptorA_bit.power_on_to_good_time * 2); // Wait POTG after power up
 
   return true;

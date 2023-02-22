@@ -76,6 +76,21 @@
 #include "tusb_timeout.h" // TODO remove
 
 //--------------------------------------------------------------------+
+// Optional API implemented by application if needed
+// TODO move to a more ovious place/file
+//--------------------------------------------------------------------+
+
+// flush data cache
+TU_ATTR_WEAK extern void tusb_app_dcache_flush(uintptr_t addr, uint32_t data_size);
+
+// invalidate data cache
+TU_ATTR_WEAK extern void tusb_app_dcache_invalidate(uintptr_t addr, uint32_t data_size);
+
+// Optional physical <-> virtual address translation
+TU_ATTR_WEAK extern void* tusb_app_virt_to_phys(void *virt_addr);
+TU_ATTR_WEAK extern void* tusb_app_phys_to_virt(void *phys_addr);
+
+//--------------------------------------------------------------------+
 // Internal Inline Functions
 //--------------------------------------------------------------------+
 
