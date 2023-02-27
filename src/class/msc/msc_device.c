@@ -707,7 +707,7 @@ static int32_t proc_builtin_scsi(uint8_t lun, uint8_t const scsi_cmd[16], uint8_
         read_capa10.block_size = tu_htonl(block_size);
 
         resplen = sizeof(read_capa10);
-        memcpy(buffer, &read_capa10, (size_t) resplen);
+        TU_VERIFY(0 == tu_memcpy_s(buffer, bufsize, &read_capa10, (size_t) resplen));
       }
     }
     break;
@@ -741,7 +741,7 @@ static int32_t proc_builtin_scsi(uint8_t lun, uint8_t const scsi_cmd[16], uint8_
         read_fmt_capa.block_size_u16 = tu_htons(block_size);
 
         resplen = sizeof(read_fmt_capa);
-        memcpy(buffer, &read_fmt_capa, (size_t) resplen);
+        TU_VERIFY(0 == tu_memcpy_s(buffer, bufsize, &read_fmt_capa, (size_t) resplen));
       }
     }
     break;
@@ -764,7 +764,7 @@ static int32_t proc_builtin_scsi(uint8_t lun, uint8_t const scsi_cmd[16], uint8_
       tud_msc_inquiry_cb(lun, inquiry_rsp.vendor_id, inquiry_rsp.product_id, inquiry_rsp.product_rev);
 
       resplen = sizeof(inquiry_rsp);
-      memcpy(buffer, &inquiry_rsp, (size_t) resplen);
+      TU_VERIFY(0 == tu_memcpy_s(buffer, bufsize, &inquiry_rsp, (size_t) resplen));
     }
     break;
 
@@ -788,7 +788,7 @@ static int32_t proc_builtin_scsi(uint8_t lun, uint8_t const scsi_cmd[16], uint8_
       mode_resp.write_protected = !writable;
 
       resplen = sizeof(mode_resp);
-      memcpy(buffer, &mode_resp, (size_t) resplen);
+      TU_VERIFY(0 == tu_memcpy_s(buffer, bufsize, &mode_resp, (size_t) resplen));
     }
     break;
 
@@ -806,7 +806,7 @@ static int32_t proc_builtin_scsi(uint8_t lun, uint8_t const scsi_cmd[16], uint8_
       sense_rsp.add_sense_qualifier = p_msc->add_sense_qualifier;
 
       resplen = sizeof(sense_rsp);
-      memcpy(buffer, &sense_rsp, (size_t) resplen);
+      TU_VERIFY(0 == tu_memcpy_s(buffer, bufsize, &sense_rsp, (size_t) resplen));
 
       // request sense callback could overwrite the sense data
       if (tud_msc_request_sense_cb)

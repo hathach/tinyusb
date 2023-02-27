@@ -495,7 +495,7 @@ void tu_print_mem(void const *buf, uint32_t count, uint8_t indent)
       tu_printf("%04X: ", 16*i/item_per_line);
     }
 
-    memcpy(&value, buf8, size);
+    tu_memcpy_s(&value, sizeof(value), buf8, size);
     buf8 += size;
 
     tu_printf(" ");
