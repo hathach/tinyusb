@@ -93,11 +93,11 @@ bool tud_hid_n_report(uint8_t instance, uint8_t report_id, void const* report, u
   if (report_id)
   {
     p_hid->epin_buf[0] = report_id;
-    TU_VERIFY(tu_memcpy_s(p_hid->epin_buf+1, CFG_TUD_HID_EP_BUFSIZE-1, report, len)==0);
+    TU_VERIFY(0 == tu_memcpy_s(p_hid->epin_buf+1, CFG_TUD_HID_EP_BUFSIZE-1, report, len));
     len++;
   }else
   {
-    TU_VERIFY(tu_memcpy_s(p_hid->epin_buf, CFG_TUD_HID_EP_BUFSIZE, report, len)==0);
+    TU_VERIFY(0 == tu_memcpy_s(p_hid->epin_buf, CFG_TUD_HID_EP_BUFSIZE, report, len));
   }
 
   return usbd_edpt_xfer(rhport, p_hid->ep_in, p_hid->epin_buf, len);
@@ -122,7 +122,7 @@ bool tud_hid_n_keyboard_report(uint8_t instance, uint8_t report_id, uint8_t modi
 
   if ( keycode )
   {
-    TU_VERIFY(tu_memcpy_s(report.keycode, sizeof(report.keycode), keycode, sizeof(report.keycode))==0);
+    memcpy(report.keycode, keycode, sizeof(report.keycode));
   }else
   {
     tu_memclr(report.keycode, 6);

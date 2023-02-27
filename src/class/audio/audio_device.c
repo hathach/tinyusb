@@ -2199,7 +2199,7 @@ bool tud_audio_buffer_and_schedule_control_xfer(uint8_t rhport, tusb_control_req
   if (len > _audiod_fct[func_id].ctrl_buf_sz) len = _audiod_fct[func_id].ctrl_buf_sz;
 
   // Copy into buffer
-  TU_VERIFY(tu_memcpy_s(_audiod_fct[func_id].ctrl_buf, sizeof(_audiod_fct[func_id].ctrl_buf), data, (size_t)len)==0);
+  TU_VERIFY(0 == tu_memcpy_s(_audiod_fct[func_id].ctrl_buf, sizeof(_audiod_fct[func_id].ctrl_buf), data, (size_t)len));
 
   // Schedule transmit
   return tud_control_xfer(rhport, p_request, (void*)_audiod_fct[func_id].ctrl_buf, len);

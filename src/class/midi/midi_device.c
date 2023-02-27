@@ -182,7 +182,7 @@ uint32_t tud_midi_n_stream_read(uint8_t itf, uint8_t cable_num, void* buffer, ui
     uint8_t const count = (uint8_t) tu_min32(stream->total - stream->index, bufsize);
 
     // Skip the header (1st byte) in the buffer
-    TU_VERIFY(tu_memcpy_s(buf8, bufsize, stream->buffer + 1 + stream->index, count)==0);
+    TU_VERIFY(0 == tu_memcpy_s(buf8, bufsize, stream->buffer + 1 + stream->index, count));
 
     total_read += count;
     stream->index += count;

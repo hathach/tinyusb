@@ -94,7 +94,7 @@ static bool _data_stage_xact(uint8_t rhport)
   {
     ep_addr = EDPT_CTRL_IN;
     if ( xact_len ) {
-      TU_VERIFY(tu_memcpy_s(_usbd_ctrl_buf, CFG_TUD_ENDPOINT0_SIZE, _ctrl_xfer.buffer, xact_len)==0);
+      TU_VERIFY(0 == tu_memcpy_s(_usbd_ctrl_buf, CFG_TUD_ENDPOINT0_SIZE, _ctrl_xfer.buffer, xact_len));
     }
   }
 

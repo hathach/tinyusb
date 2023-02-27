@@ -84,11 +84,26 @@
 #define tu_varclr(_var)          tu_memclr(_var, sizeof(*(_var)))
 
 // This is a backport of memset_s from c11
-int32_t tu_memset_s(void *dest, size_t destsz, int ch, size_t count); 
+TU_ATTR_ALWAYS_INLINE static inline int tu_memset_s(void *dest, size_t destsz, int ch, size_t count)
+{
+  // TODO may check if desst and src is not NULL
+  if (count > destsz) {
+    return -1;
+  }
+  memset(dest, ch, count);
+  return 0;
+}
 
 // This is a backport of memcpy_s from c11
-int32_t tu_memcpy_s(void *dest, size_t destsz,
-                  const void * src, size_t count );
+TU_ATTR_ALWAYS_INLINE static inline int tu_memcpy_s(void *dest, size_t destsz, const void * src, size_t count )
+{
+  // TODO may check if desst and src is not NULL
+  if (count > destsz) {
+    return -1;
+  }
+  memcpy(dest, src, count);
+  return 0;
+}
 
 
 //------------- Bytes -------------//
