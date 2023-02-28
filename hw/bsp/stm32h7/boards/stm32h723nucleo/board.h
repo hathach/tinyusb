@@ -111,7 +111,7 @@ static inline void board_stm32h7_clock_init(void)
      separate. However, the main system PLL (PLL1) doesn't have a direct
      connection to the USB peripheral clock to generate 48 MHz, so we do this
      dance. This will connect PLL1's Q output to the USB peripheral clock. */
-  RCC_PeriphCLKInitTypeDef RCC_PeriphCLKInitStruct;
+  RCC_PeriphCLKInitTypeDef RCC_PeriphCLKInitStruct = { 0 };
 
   RCC_PeriphCLKInitStruct.PeriphClockSelection = RCC_PERIPHCLK_USB;
   RCC_PeriphCLKInitStruct.UsbClockSelection = RCC_USBCLKSOURCE_PLL;
