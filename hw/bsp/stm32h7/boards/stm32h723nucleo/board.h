@@ -64,8 +64,8 @@
 //--------------------------------------------------------------------+
 static inline void board_stm32h7_clock_init(void)
 {
-  RCC_ClkInitTypeDef RCC_ClkInitStruct;
-  RCC_OscInitTypeDef RCC_OscInitStruct;
+  RCC_ClkInitTypeDef RCC_ClkInitStruct = { 0 };
+  RCC_OscInitTypeDef RCC_OscInitStruct = { 0 };
 
   /* The PWR block is always enabled on the H7 series- there is no clock
      enable. For now, use the default VOS3 scale mode (lowest) and limit clock
