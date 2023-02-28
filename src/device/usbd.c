@@ -1384,12 +1384,10 @@ bool usbd_edpt_iso_alloc(uint8_t rhport, uint8_t ep_addr, uint16_t largest_packe
 {
   rhport = _usbd_rhport;
 
+  TU_ASSERT(dcd_edpt_iso_alloc);
   TU_ASSERT(tu_edpt_number(ep_addr) < CFG_TUD_ENDPPOINT_MAX);
 
-  if (dcd_edpt_iso_alloc)
-    return dcd_edpt_iso_alloc(rhport, ep_addr, largest_packet_size);
-  else
-    return false;
+  return dcd_edpt_iso_alloc(rhport, ep_addr, largest_packet_size);
 }
 
 bool usbd_edpt_iso_activate(uint8_t rhport, tusb_desc_endpoint_t const * desc_ep)
@@ -1399,18 +1397,14 @@ bool usbd_edpt_iso_activate(uint8_t rhport, tusb_desc_endpoint_t const * desc_ep
   uint8_t const epnum = tu_edpt_number(desc_ep->bEndpointAddress);
   uint8_t const dir   = tu_edpt_dir(desc_ep->bEndpointAddress);
   
+  TU_ASSERT(dcd_edpt_iso_activate);
   TU_ASSERT(epnum < CFG_TUD_ENDPPOINT_MAX);
   TU_ASSERT(tu_edpt_validate(desc_ep, (tusb_speed_t) _usbd_dev.speed));
   
-  if (dcd_edpt_iso_activate)
-  {
-    _usbd_dev.ep_status[epnum][dir].stalled = false;
-    _usbd_dev.ep_status[epnum][dir].busy = false;
-    _usbd_dev.ep_status[epnum][dir].claimed = false;
-    return dcd_edpt_iso_activate(rhport, desc_ep);
-  }
-  else
-    return false;
+  _usbd_dev.ep_status[epnum][dir].stalled = false;
+  _usbd_dev.ep_status[epnum][dir].busy = false;
+  _usbd_dev.ep_status[epnum][dir].claimed = false;
+  return dcd_edpt_iso_activate(rhport, desc_ep);
 }
 
 #endif
