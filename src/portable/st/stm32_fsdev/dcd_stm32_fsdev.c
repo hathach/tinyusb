@@ -101,32 +101,15 @@
 
 #include "tusb_option.h"
 
-#if defined(STM32F102x6) || defined(STM32F102xB) || \
-    defined(STM32F103x6) || defined(STM32F103xB) || \
-    defined(STM32F103xE) || defined(STM32F103xG)
-#define STM32F1_FSDEV
-#endif
-
-#if defined(STM32L412xx) || defined(STM32L422xx) || \
-    defined(STM32L432xx) || defined(STM32L433xx) || \
-    defined(STM32L442xx) || defined(STM32L443xx) || \
-    defined(STM32L452xx) || defined(STM32L462xx)
-#define STM32L4_FSDEV
-#endif
-
-#if CFG_TUD_ENABLED && \
-      ( TU_CHECK_MCU(OPT_MCU_STM32F0, OPT_MCU_STM32F3, OPT_MCU_STM32L0, OPT_MCU_STM32L1, OPT_MCU_STM32G4, OPT_MCU_STM32WB) || \
-        (TU_CHECK_MCU(OPT_MCU_STM32F1) && defined(STM32F1_FSDEV)) || \
-        (TU_CHECK_MCU(OPT_MCU_STM32L4) && defined(STM32L4_FSDEV)) \
-      )
-
-// In order to reduce the dependence on HAL, we undefine this.
-// Some definitions are copied to our private include file.
-#undef USE_HAL_DRIVER
+#if CFG_TUD_ENABLED && defined(TUP_USBIP_FSDEV)
 
 #include "device/dcd.h"
-#include "portable/st/stm32_fsdev/dcd_stm32_fsdev_pvt_st.h"
 
+#ifdef TUP_USBIP_FSDEV_STM32
+  // Undefine to reduce the dependence on HAL
+  #undef USE_HAL_DRIVER
+  #include "portable/st/stm32_fsdev/dcd_stm32_fsdev_pvt_st.h"
+#endif
 
 /*****************************************************
  * Configuration
@@ -153,10 +136,7 @@
  */
 
 TU_VERIFY_STATIC((MAX_EP_COUNT) <= STFSDEV_EP_COUNT, "Only 8 endpoints supported on the hardware");
-
-TU_VERIFY_STATIC(((DCD_STM32_BTABLE_BASE) + (DCD_STM32_BTABLE_LENGTH))<=(PMA_LENGTH),
-    "BTABLE does not fit in PMA RAM");
-
+TU_VERIFY_STATIC(((DCD_STM32_BTABLE_BASE) + (DCD_STM32_BTABLE_LENGTH))<=(PMA_LENGTH), "BTABLE does not fit in PMA RAM");
 TU_VERIFY_STATIC(((DCD_STM32_BTABLE_BASE) % 8) == 0, "BTABLE base must be aligned to 8 bytes");
 
 //--------------------------------------------------------------------+
