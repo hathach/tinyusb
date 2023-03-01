@@ -1,12 +1,6 @@
 /**
-  ******************************************************************************
-  * @file    dcd_stm32f0_pvt_st.h
-  * @brief   DCD utilities from ST code
-  ******************************************************************************
-  * @attention
-  *
-  * <h2><center>&copy; COPYRIGHT(c) 2016 STMicroelectronics</center></h2>
-  * <h2><center>&copy; parts COPYRIGHT(c) N Conrad</center></h2>
+  * Copyright(c) 2016 STMicroelectronics
+  * Copyright(c) N Conrad
   *
   * Redistribution and use in source and binary forms, with or without modification,
   * are permitted provided that the following conditions are met:
@@ -30,7 +24,7 @@
   * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
   * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
   *
-  **********/
+  */
 
 // This file contains source copied from ST's HAL, and thus should have their copyright statement.
 
@@ -41,10 +35,7 @@
 #ifndef PORTABLE_ST_STM32F0_DCD_STM32F0_FSDEV_PVT_ST_H_
 #define PORTABLE_ST_STM32F0_DCD_STM32F0_FSDEV_PVT_ST_H_
 
-#if defined(STM32F042x6) || \
-    defined(STM32F070x6) || defined(STM32F070xB) || \
-    defined(STM32F072xB) || \
-    defined(STM32F078xx)
+#if CFG_TUSB_MCU == OPT_MCU_STM32F0
   #include "stm32f0xx.h"
   #define PMA_LENGTH (1024u)
   // F0x2 models are crystal-less
@@ -52,7 +43,7 @@
   // 070RB:    2 x 16 bits/word memory     LPM Support, BCD Support
   // PMA dedicated to USB (no sharing with CAN)
 
-#elif defined(STM32F1_FSDEV)
+#elif CFG_TUSB_MCU == OPT_MCU_STM32F1
   #include "stm32f1xx.h"
   #define PMA_LENGTH (512u)
   // NO internal Pull-ups
