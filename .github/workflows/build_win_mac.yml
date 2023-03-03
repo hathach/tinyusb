@@ -53,4 +53,4 @@ jobs:
       run: python3 tools/get_dependencies.py stm32f0
 
     - name: Build
-      run: python3 tools/build_family.py stm32f0
+      run: python3 tools/build_family.py stm32f0 stm32f072disco
