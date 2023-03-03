@@ -26,20 +26,21 @@ THIS_MAKEFILE := $(lastword $(MAKEFILE_LIST))
 
 # strip off /tools/top.mk to get for example ../../..
 TOP := $(patsubst %/tools/top.mk,%,$(THIS_MAKEFILE))
-#$(info top.mk: Initial TOP=$(TOP))
+$(info top.mk: Initial TOP=$(TOP))
 
 # Set TOP to an absolute path, for example /tinyUSB (from ../../..)
 ifeq ($(CMDEXE),1)
 TOP := $(subst \,/,$(shell for %%i in ( $(TOP) ) do echo %%~fi))
 else
-TOP := $(shell realpath $(TOP))
+TOP := $(abspath $(TOP))
 endif
-#$(info top.mk: Top directory is $(TOP))
+
+$(info top.mk: Top directory is $(TOP))
 
 # Set CURRENT_PATH to the relative path from TOP to the current directory, ie examples/device/cdc_msc_freertos
 ifeq ($(CMDEXE),1)
 CURRENT_PATH := $(subst $(TOP)/,,$(subst \,/,$(shell echo %CD%)))
 else
-CURRENT_PATH := $(shell realpath --relative-to=$(TOP) `pwd`)
+CURRENT_PATH = $(subst $(TOP)/,,$(abspath .))
 endif
-#$(info top.mk: Path from top is $(CURRENT_PATH))
+$(info top.mk: CURRENT_PATH = $(CURRENT_PATH))
