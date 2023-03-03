@@ -680,24 +680,30 @@ static bool _open_vs_itf(uint8_t rhport, videod_streaming_interface_t *stm, uint
       (video_probe_and_commit_control_t *)&stm->ep_buf;
     tu_memclr(param, sizeof(*param));
     TU_LOG2("    done 0\n");
-    return _update_streaming_parameters(stm, param);
+    if (!_update_streaming_parameters(stm, param))
+      return false;
+    /* Open bulk endpoint if present. */
+    for (i = 0, cur = tu_desc_next(cur); i < numeps; ++i, cur = tu_desc_next(cur)) {
+      cur = _find_desc_ep(cur, end);
+      TU_ASSERT(cur < end);
+      tusb_desc_endpoint_t const *ep = (tusb_desc_endpoint_t const*)cur;
+      TU_VERIFY(TUSB_XFER_BULK == ep->bmAttributes.xfer);
+      TU_ASSERT(usbd_edpt_open(rhport, ep));
+      stm->desc.ep[i] = (uint16_t)(cur - desc);
+      TU_LOG2("    open EP%02x\n", _desc_ep_addr(cur));
+    }
+    return true;
   }
-  /* Open endpoints of the new settings. */
+  /* Open isochronous endpoints of the new settings. */
   for (i = 0, cur = tu_desc_next(cur); i < numeps; ++i, cur = tu_desc_next(cur)) {
     cur = _find_desc_ep(cur, end);
     TU_ASSERT(cur < end);
     tusb_desc_endpoint_t const *ep = (tusb_desc_endpoint_t const*)cur;
-    if (!stm->max_payload_transfer_size) {
-      video_probe_and_commit_control_t const *param = (video_probe_and_commit_control_t const*)&stm->ep_buf;
-      uint_fast32_t max_size = param->dwMaxPayloadTransferSize;
-      if ((TUSB_XFER_ISOCHRONOUS == ep->bmAttributes.xfer) &&
-          (tu_edpt_packet_size(ep) < max_size))
-      {
-        /* FS must be less than or equal to max packet size */
-        return false;
-      }
-      /* Set the negotiated value */
-      stm->max_payload_transfer_size = max_size;
+    uint_fast32_t max_size = stm->max_payload_transfer_size;
+    if ((TUSB_XFER_ISOCHRONOUS == ep->bmAttributes.xfer) &&
+        (tu_edpt_packet_size(ep) < max_size)) {
+      /* FS must be less than or equal to max packet size */
+      return false;
     }
     TU_ASSERT(usbd_edpt_open(rhport, ep));
     stm->desc.ep[i] = (uint16_t) (cur - desc);
@@ -982,9 +988,12 @@ static int handle_video_stm_cs_req(uint8_t rhport, uint8_t stage,
             TU_VERIFY(sizeof(video_probe_and_commit_control_t) >= request->wLength, VIDEO_ERROR_UNKNOWN);
             TU_VERIFY(tud_control_xfer(rhport, request, self->ep_buf, sizeof(video_probe_and_commit_control_t)), VIDEO_ERROR_UNKNOWN);
           } else if (stage == CONTROL_STAGE_DATA) {
-            TU_VERIFY(_update_streaming_parameters(self, (video_probe_and_commit_control_t*)self->ep_buf), VIDEO_ERROR_INVALID_VALUE_WITHIN_RANGE);
+            video_probe_and_commit_control_t *param = (video_probe_and_commit_control_t*)self->ep_buf;
+            TU_VERIFY(_update_streaming_parameters(self, param), VIDEO_ERROR_INVALID_VALUE_WITHIN_RANGE);
+            /* Set the negotiated value */
+            self->max_payload_transfer_size = param->dwMaxPayloadTransferSize;
             if (tud_video_commit_cb) {
-              return tud_video_commit_cb(self->index_vc, self->index_vs, (video_probe_and_commit_control_t*)self->ep_buf);
+              return tud_video_commit_cb(self->index_vc, self->index_vs, param);
             }
           }
           return VIDEO_ERROR_NONE;
