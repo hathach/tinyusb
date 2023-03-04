@@ -38,10 +38,13 @@ jobs:
       with:
         python-version: '3.x'
 
+    - if: matrix.os == 'macos-latest'
+      run: uname -a
+
     - name: Install ARM GCC
       uses: carlosperate/arm-none-eabi-gcc-action@v1
       with:
-        release: '11.2-2022.02'
+        release: '12.2.Rel1'
 
     - name: Checkout TinyUSB
       uses: actions/checkout@v3
