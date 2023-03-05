@@ -44,7 +44,7 @@ jobs:
     - name: Install ARM GCC
       uses: carlosperate/arm-none-eabi-gcc-action@v1
       with:
-        release: '11.2-2022.02'
+        release: '12.2.Rel1'
 
     - name: Checkout TinyUSB
       uses: actions/checkout@v3
@@ -53,7 +53,7 @@ jobs:
       run: git submodule update --init lib/FreeRTOS-Kernel lib/lwip
 
     - name: Get Dependencies
-      run: python3 tools/get_dependencies.py stm32f0
+      run: python3 tools/get_dependencies.py stm32f4
 
     - name: Build
-      run: python3 tools/build_family.py stm32f0 stm32f072disco
+      run: python3 tools/build_family.py stm32f4 stm32f411disco
