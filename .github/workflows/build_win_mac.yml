@@ -44,7 +44,7 @@ jobs:
     - name: Install ARM GCC
       uses: carlosperate/arm-none-eabi-gcc-action@v1
       with:
-        release: '10.3-2021.10'
+        release: '11.2-2022.02'
 
     - name: Checkout TinyUSB
       uses: actions/checkout@v3

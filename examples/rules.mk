@@ -112,7 +112,7 @@ OBJ_DIRS = $(sort $(dir $(OBJ)))
 $(OBJ): | $(OBJ_DIRS)
 $(OBJ_DIRS):
 ifeq ($(CMDEXE),1)
-	@$(MKDIR) $(subst /,\,$@)
+	-@$(MKDIR) $(subst /,\,$@)
 else
 	@$(MKDIR) -p $@
 endif
