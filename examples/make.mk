@@ -77,10 +77,9 @@ endif
 ifeq ($(CMDEXE),1)
   CP = copy
   RM = del
+  MKDIR = mkdir
   PYTHON = python
-  MKDIR = cmd /e /c mkdir
 else
-  SED = sed
   CP = cp
   RM = rm
   MKDIR = mkdir

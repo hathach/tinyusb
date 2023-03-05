@@ -265,7 +265,11 @@ debug-bmp: $(BUILD)/$(PROJECT).elf
 
 # Create binary directory
 $(BIN):
+ifeq ($(CMDEXE),1)
+	@$(MKDIR) $(subst /,\,$@)
+else
 	@$(MKDIR) -p $@
+endif
 
 # Copy binaries .elf, .bin, .hex, .uf2 to BIN for upload
 # due to large size of combined artifacts, only uf2 is uploaded for now
