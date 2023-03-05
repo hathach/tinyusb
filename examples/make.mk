@@ -74,16 +74,16 @@ else
   SIZE = $(CROSS_COMPILE)size
 endif
 
-MKDIR = mkdir
-
 ifeq ($(CMDEXE),1)
   CP = copy
   RM = del
   PYTHON = python
+  MKDIR = cmd /e /c mkdir
 else
   SED = sed
   CP = cp
   RM = rm
+  MKDIR = mkdir
   PYTHON = python3
 endif
 

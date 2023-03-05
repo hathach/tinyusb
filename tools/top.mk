@@ -25,7 +25,7 @@ endif
 THIS_MAKEFILE := $(lastword $(MAKEFILE_LIST))
 
 # strip off /tools/top.mk to get for example ../../..
-TOP := $(patsubst %/tools/top.mk,%,$(THIS_MAKEFILE))
+TOP := $(subst /tools/top.mk,,$(THIS_MAKEFILE))
 $(info top.mk: Initial TOP=$(TOP))
 
 # Set TOP to an absolute path, for example /tinyUSB (from ../../..)
