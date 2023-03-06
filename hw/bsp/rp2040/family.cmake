@@ -152,6 +152,9 @@ if (NOT TARGET _rp2040_family_inclusion_marker)
 		if (NOT PICO_TINYUSB_NO_EXAMPLE_WARNINGS)
 			family_add_default_example_warnings(${TARGET})
 		endif()
+		if(CMAKE_C_COMPILER_ID STREQUAL "Clang")
+			target_compile_options(${TARGET} PRIVATE -Wno-unreachable-code)
+		endif()
 		suppress_tinyusb_warnings()
 	endfunction()
 
@@ -172,8 +175,8 @@ if (NOT TARGET _rp2040_family_inclusion_marker)
 
 		# For rp2040 enable pico-pio-usb
 		if (TARGET tinyusb_pico_pio_usb)
-			# code does not compile with GCC 12+
-			if (NOT (CMAKE_C_COMPILER_ID STREQUAL "GNU" AND CMAKE_C_COMPILER_VERSION VERSION_GREATER_EQUAL 11.3))
+			# code does not compile with non GCC, or GCC 11.3+
+			if (CMAKE_C_COMPILER_ID STREQUAL "GNU" AND NOT CMAKE_C_COMPILER_VERSION VERSION_GREATER_EQUAL 11.3)
 				family_add_pico_pio_usb(${PROJECT})
 			endif()
 		endif()
@@ -278,7 +281,7 @@ if (NOT TARGET _rp2040_family_inclusion_marker)
 							COMPILE_FLAGS "-Wno-conversion")
 				endforeach()
 			endif()
-			if (CMAKE_C_COMPILER_VERSION VERSION_GREATER_EQUAL 11.0)
+			if (CMAKE_C_COMPILER_ID STREQUAL "GNU" AND CMAKE_C_COMPILER_VERSION VERSION_GREATER_EQUAL 11.0)
 				set_source_files_properties(
 						${PICO_TINYUSB_PATH}/lib/fatfs/source/ff.c
 						COMPILE_FLAGS "-Wno-stringop-overflow -Wno-array-bounds")
@@ -310,6 +313,17 @@ if (NOT TARGET _rp2040_family_inclusion_marker)
 						PROPERTIES
 						COMPILE_FLAGS "-Wno-conversion -Wno-cast-qual -Wno-attributes")
 			endif()
+		elseif(CMAKE_C_COMPILER_ID STREQUAL "Clang")
+			set_source_files_properties(
+					${PICO_TINYUSB_PATH}/src/class/cdc/cdc_device.c
+					COMPILE_FLAGS "-Wno-unreachable-code")
+			set_source_files_properties(
+					${PICO_TINYUSB_PATH}/src/class/cdc/cdc_host.c
+					COMPILE_FLAGS "-Wno-unreachable-code-fallthrough")
+			set_source_files_properties(
+					${PICO_TINYUSB_PATH}/lib/fatfs/source/ff.c
+					PROPERTIES
+					COMPILE_FLAGS "-Wno-cast-qual")
 		endif()
 	endfunction()
 endif()

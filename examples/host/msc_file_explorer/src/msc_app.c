@@ -413,7 +413,7 @@ void cli_cmd_cat(EmbeddedCli *cli, char *args, void *context)
       {
         for(UINT c = 0; c < count; c++)
         {
-          const char ch = buf[c];
+          const uint8_t ch = buf[c];
           if (isprint(ch) || iscntrl(ch))
           {
             putchar(ch);
