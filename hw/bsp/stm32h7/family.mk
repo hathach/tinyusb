@@ -37,7 +37,7 @@ GCC_CFLAGS += \
   -nostdlib -nostartfiles
 
 # suppress warning caused by vendor mcu driver
-GCC_CFLAGS += -Wno-error=maybe-uninitialized -Wno-error=cast-align
+GCC_CFLAGS += -Wno-error=maybe-uninitialized -Wno-error=cast-align -Wno-error=unused-parameter
 
 # IAR Flags
 IAR_CFLAGS += --cpu cortex-m7 --fpu VFPv5_D16

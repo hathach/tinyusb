@@ -30,43 +30,6 @@ CMDEXE := 1
 SHELL := cmd.exe
 endif
 
-#-------------- Cross Compiler  ------------
-# Can be set by board, default to ARM GCC
-CROSS_COMPILE ?= arm-none-eabi-
-
-ifeq ($(CC),iccarm)
-USE_IAR = 1
-endif
-
-ifdef USE_IAR
-  AS = iasmarm
-  LD = ilinkarm
-  OBJCOPY = ielftool
-  SIZE = size
-
-else
-  CC = $(CROSS_COMPILE)gcc
-  CXX = $(CROSS_COMPILE)g++
-  AS = $(CC) -x assembler-with-cpp
-  LD = $(CC)
-
-  GDB = $(CROSS_COMPILE)gdb
-  OBJCOPY = $(CROSS_COMPILE)objcopy
-  SIZE = $(CROSS_COMPILE)size
-endif
-
-ifeq ($(CMDEXE),1)
-  CP = copy
-  RM = del
-  MKDIR = mkdir
-  PYTHON = python
-else
-  CP = cp
-  RM = rm
-  MKDIR = mkdir
-  PYTHON = python3
-endif
-
 
 # Build directory
 BUILD := _build/$(BOARD)
@@ -109,6 +72,43 @@ else
   include $(TOP)/$(FAMILY_PATH)/family.mk
 
   SRC_C += $(subst $(TOP)/,,$(wildcard $(TOP)/$(FAMILY_PATH)/*.c))
+endif
+
+#-------------- Cross Compiler  ------------
+# Can be set by board, default to ARM GCC
+CROSS_COMPILE ?= arm-none-eabi-
+
+ifeq ($(CC),iccarm)
+USE_IAR = 1
+endif
+
+ifdef USE_IAR
+  AS = iasmarm
+  LD = ilinkarm
+  OBJCOPY = ielftool
+  SIZE = size
+
+else
+  CC = $(CROSS_COMPILE)gcc
+  CXX = $(CROSS_COMPILE)g++
+  AS = $(CC) -x assembler-with-cpp
+  LD = $(CC)
+
+  GDB = $(CROSS_COMPILE)gdb
+  OBJCOPY = $(CROSS_COMPILE)objcopy
+  SIZE = $(CROSS_COMPILE)size
+endif
+
+ifeq ($(CMDEXE),1)
+  CP = copy
+  RM = del
+  MKDIR = mkdir
+  PYTHON = python
+else
+  CP = cp
+  RM = rm
+  MKDIR = mkdir
+  PYTHON = python3
 endif
 
 #-------------- Source files and compiler flags --------------
