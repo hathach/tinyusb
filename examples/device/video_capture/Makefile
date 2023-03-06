@@ -1,4 +1,3 @@
-include ../../../tools/top.mk
 include ../../make.mk
 
 ifeq ($(DISABLE_MJPEG),1)
