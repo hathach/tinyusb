@@ -2,6 +2,72 @@
 # Common make definition for all examples
 # ---------------------------------------
 
+#-------------- TOP and CURRENT_PATH ------------
+
+# Set TOP to be the path to get from the current directory (where make was
+# invoked) to the top of the tree. $(lastword $(MAKEFILE_LIST)) returns
+# the name of this makefile relative to where make was invoked.
+THIS_MAKEFILE := $(lastword $(MAKEFILE_LIST))
+
+# strip off /tools/top.mk to get for example ../../..
+# and Set TOP to an absolute path
+TOP = $(abspath $(subst make.mk,..,$(THIS_MAKEFILE)))
+
+# Set CURRENT_PATH to the relative path from TOP to the current directory, ie examples/device/cdc_msc_freertos
+CURRENT_PATH = $(subst $(TOP)/,,$(abspath .))
+
+# Detect whether shell style is windows or not
+# https://stackoverflow.com/questions/714100/os-detecting-makefile/52062069#52062069
+ifeq '$(findstring ;,$(PATH))' ';'
+# PATH contains semicolon - so we're definitely on Windows.
+CMDEXE := 1
+
+# makefile shell commands should use syntax for DOS CMD, not unix sh
+# Unfortunately, SHELL may point to sh or bash, which can't accept DOS syntax.
+# We can't just use sh, because while sh and/or bash shell may be available,
+# many Windows environments won't have utilities like realpath used below, so...
+# Force DOS command shell on Windows.
+SHELL := cmd.exe
+endif
+
+#-------------- Cross Compiler  ------------
+# Can be set by board, default to ARM GCC
+CROSS_COMPILE ?= arm-none-eabi-
+
+ifeq ($(CC),iccarm)
+USE_IAR = 1
+endif
+
+ifdef USE_IAR
+  AS = iasmarm
+  LD = ilinkarm
+  OBJCOPY = ielftool
+  SIZE = size
+
+else
+  CC = $(CROSS_COMPILE)gcc
+  CXX = $(CROSS_COMPILE)g++
+  AS = $(CC) -x assembler-with-cpp
+  LD = $(CC)
+
+  GDB = $(CROSS_COMPILE)gdb
+  OBJCOPY = $(CROSS_COMPILE)objcopy
+  SIZE = $(CROSS_COMPILE)size
+endif
+
+ifeq ($(CMDEXE),1)
+  CP = copy
+  RM = del
+  MKDIR = mkdir
+  PYTHON = python
+else
+  CP = cp
+  RM = rm
+  MKDIR = mkdir
+  PYTHON = python3
+endif
+
+
 # Build directory
 BUILD := _build/$(BOARD)
 
@@ -45,47 +111,6 @@ else
   SRC_C += $(subst $(TOP)/,,$(wildcard $(TOP)/$(FAMILY_PATH)/*.c))
 endif
 
-
-#-------------- Cross Compiler  ------------
-# Can be set by board, default to ARM GCC
-CROSS_COMPILE ?= arm-none-eabi-
-
-# Allow for -Os to be changed by board makefiles in case -Os is not allowed
-CFLAGS_OPTIMIZED ?= -Os
-
-ifeq ($(CC),iccarm)
-USE_IAR = 1
-endif
-
-ifdef USE_IAR
-  AS = iasmarm
-  LD = ilinkarm
-  OBJCOPY = ielftool
-  SIZE = size
-
-else
-  CC = $(CROSS_COMPILE)gcc
-  CXX = $(CROSS_COMPILE)g++
-  AS = $(CC) -x assembler-with-cpp
-  LD = $(CC)
-  
-  GDB = $(CROSS_COMPILE)gdb
-  OBJCOPY = $(CROSS_COMPILE)objcopy
-  SIZE = $(CROSS_COMPILE)size
-endif
-
-ifeq ($(CMDEXE),1)
-  CP = copy
-  RM = del
-  MKDIR = mkdir
-  PYTHON = python
-else
-  CP = cp
-  RM = rm
-  MKDIR = mkdir
-  PYTHON = python3
-endif
-
 #-------------- Source files and compiler flags --------------
 
 # Include all source C in family & board folder
@@ -93,6 +118,9 @@ SRC_C += hw/bsp/board.c
 SRC_C += $(subst $(TOP)/,,$(wildcard $(TOP)/$(BOARD_PATH)/*.c))
 
 INC   += $(TOP)/$(FAMILY_PATH)
+
+# Allow for -Os to be changed by board makefiles in case -Os is not allowed
+CFLAGS_OPTIMIZED ?= -Os
 
 # GCC Compiler Flags
 GCC_CFLAGS += \
