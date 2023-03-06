@@ -120,9 +120,8 @@ def build_size(example, board):
         text_title = 'text	   data	    bss	    dec'
         if text_title in l:
             size_list = size_output[i+1].split('\t')
-            break
+            flash_size = int(size_list[0])
+            sram_size = int(size_list[1]) + int(size_list[2])
+            return (flash_size, sram_size)
 
-    flash_size = int(size_list[0])
-    sram_size = int(size_list[1]) + int(size_list[2])
-    return (flash_size, sram_size)
-
+    return (0, 0)

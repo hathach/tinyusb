@@ -139,7 +139,21 @@ $(BUILD)/obj/%_asm.o: %.S
 	@echo AS $(notdir $@)
 	@$(AS) $(ASFLAGS) -c -o $@ $<
 
-ifndef USE_IAR
+ifdef USE_IAR
+# IAR Compiler
+$(BUILD)/$(PROJECT).bin: $(BUILD)/$(PROJECT).elf
+	@echo CREATE $@
+	@$(OBJCOPY) --silent --bin $^ $@
+
+$(BUILD)/$(PROJECT).hex: $(BUILD)/$(PROJECT).elf
+	@echo CREATE $@
+	@$(OBJCOPY) --silent --ihex $^ $@
+
+$(BUILD)/$(PROJECT).elf: $(OBJ)
+	@echo LINK $@
+	@$(LD) -o $@ $(IAR_LDFLAGS) $^
+
+else
 # GCC based compiler
 $(BUILD)/$(PROJECT).bin: $(BUILD)/$(PROJECT).elf
 	@echo CREATE $@
@@ -153,20 +167,6 @@ $(BUILD)/$(PROJECT).elf: $(OBJ)
 	@echo LINK $@
 	@$(LD) -o $@ $(LDFLAGS) $^ -Wl,--start-group $(LIBS) -Wl,--end-group
 
-else
-
-# IAR Compiler
-$(BUILD)/$(PROJECT).bin: $(BUILD)/$(PROJECT).elf
-	@echo CREATE $@
-	@$(OBJCOPY) --silent --bin $^ $@
-
-$(BUILD)/$(PROJECT).hex: $(BUILD)/$(PROJECT).elf
-	@echo CREATE $@
-	@$(OBJCOPY) --silent --ihex $^ $@
-
-$(BUILD)/$(PROJECT).elf: $(OBJ)
-	@echo LINK $@
-	@$(LD) -o $@ $(IAR_LDFLAGS) $^
 endif
 
 # UF2 generation, iMXRT need to strip to text only before conversion
