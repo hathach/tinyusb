@@ -61,7 +61,7 @@ ifdef USE_IAR
   AS = iasmarm
   LD = ilinkarm
   OBJCOPY = ielftool
-  SIZE = echo "size not available for IAR"
+  SIZE = size
 
 else
   CC = $(CROSS_COMPILE)gcc

@@ -114,9 +114,15 @@ def build_example(example, board, make_option):
 
 
 def build_size(example, board):
-    elf_file = 'examples/{}/_build/{}/*.elf'.format(example, board)
-    size_output = subprocess.run('size {}'.format(elf_file), shell=True, stdout=subprocess.PIPE).stdout.decode("utf-8")
-    size_list = size_output.split('\n')[1].split('\t')
+    size_cmd = 'make -j -C examples/{} BOARD={} size'.format(example, board)
+    size_output = subprocess.run(size_cmd, shell=True, stdout=subprocess.PIPE).stdout.decode("utf-8").splitlines()
+    for i, l in enumerate(size_output):
+        text_title = 'text	   data	    bss	    dec'
+        if text_title in l:
+            size_list = size_output[i+1].split('\t')
+            break
+
     flash_size = int(size_list[0])
     sram_size = int(size_list[1]) + int(size_list[2])
     return (flash_size, sram_size)
+
