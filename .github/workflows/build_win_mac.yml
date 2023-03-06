@@ -38,9 +38,6 @@ jobs:
       with:
         python-version: '3.x'
 
-    - if: matrix.os == 'macos-latest'
-      run: uname -a
-
     - name: Install ARM GCC
       uses: carlosperate/arm-none-eabi-gcc-action@v1
       with:
