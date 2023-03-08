@@ -196,6 +196,7 @@ get-deps:
 	git -C $(TOP) submodule update --init $(DEPS_SUBMODULES)
   endif
 
+.PHONY: size
 size: $(BUILD)/$(PROJECT).elf
 	-@echo ''
 	@$(SIZE) $<
