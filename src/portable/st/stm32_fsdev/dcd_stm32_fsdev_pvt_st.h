@@ -83,7 +83,7 @@
   #define PMA_LENGTH (1024u)
 
 #elif CFG_TUSB_MCU == OPT_MCU_STM32G0
-  #include "STM32/stm32g0xx.h"
+  #include "stm32g0xx.h"
   #define PMA_32BIT_ACCESS
   #define PMA_LENGTH (1024u) // FIXME it is 2048, really
   #undef USB_PMAADDR
