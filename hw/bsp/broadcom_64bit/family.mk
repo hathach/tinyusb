@@ -15,7 +15,7 @@ CFLAGS += \
 CROSS_COMPILE = aarch64-none-elf-
 
 # mcu driver cause following warnings
-CFLAGS += -Wno-error=cast-qual
+CFLAGS += -Wno-error=cast-qual -Wno-error=redundant-decls
 
 SRC_C += \
 	src/portable/synopsys/dwc2/dcd_dwc2.c \

@@ -1,10 +1,9 @@
 DEPS_SUBMODULES += lib/FreeRTOS-Kernel
 
-include ../../../tools/top.mk
 include ../../make.mk
 
 FREERTOS_SRC = lib/FreeRTOS-Kernel
-FREERTOS_PORT_PATH = lib/FreeRTOS-Kernel/portable/GCC
+FREERTOS_PORT_PATH= $(FREERTOS_SRC)/portable/$(if $(USE_IAR),IAR,GCC)
 
 INC += \
 	src \
@@ -18,7 +17,7 @@ EXAMPLE_SOURCE = \
 	src/freertos_hook.c \
 	src/main.c \
 	src/usb_descriptors.c
-
+	
 SRC_C += $(addprefix $(CURRENT_PATH)/, $(EXAMPLE_SOURCE))
 
 # FreeRTOS source, all files in port folder
@@ -29,8 +28,18 @@ SRC_C += \
 	$(FREERTOS_SRC)/timers.c \
 	$(subst $(TOP)/,,$(wildcard $(TOP)/$(FREERTOS_PORT)/*.c))
 
-# Suppress FreeRTOS warnings
-CFLAGS += -Wno-error=cast-qual
+SRC_S += \
+	$(subst $(TOP)/,,$(wildcard $(TOP)/$(FREERTOS_PORTABLE_SRC)/*.s))
+
+# include heap manage if configSUPPORT_DYNAMIC_ALLOCATION = 1
+# SRC_C += $(FREERTOS_SRC)/portable/MemMang/heap_1.c
+# CFLAGS += -Wno-error=sign-compare
+
+# Suppress FreeRTOSConfig.h warnings
+GCC_CFLAGS += -Wno-error=redundant-decls
+
+# Suppress FreeRTOS source warnings
+GCC_CFLAGS += -Wno-error=cast-qual
 
 # FreeRTOS (lto + Os) linker issue
 LDFLAGS += -Wl,--undefined=vTaskSwitchContext

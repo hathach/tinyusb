@@ -28,9 +28,9 @@
 
 #if CFG_TUD_ENABLED
 
+#include "dcd.h"
 #include "tusb.h"
 #include "device/usbd_pvt.h"
-#include "dcd.h"
 
 #if CFG_TUSB_DEBUG >= 2
 extern void usbd_driver_print_control_complete_name(usbd_control_xfer_cb_t callback);
@@ -53,10 +53,10 @@ typedef struct
   usbd_control_xfer_cb_t complete_cb;
 } usbd_control_xfer_t;
 
-static usbd_control_xfer_t _ctrl_xfer;
+tu_static usbd_control_xfer_t _ctrl_xfer;
 
 CFG_TUSB_MEM_SECTION CFG_TUSB_MEM_ALIGN
-static uint8_t _usbd_ctrl_buf[CFG_TUD_ENDPOINT0_SIZE];
+tu_static uint8_t _usbd_ctrl_buf[CFG_TUD_ENDPOINT0_SIZE];
 
 //--------------------------------------------------------------------+
 // Application API
@@ -93,7 +93,9 @@ static bool _data_stage_xact(uint8_t rhport)
   if ( _ctrl_xfer.request.bmRequestType_bit.direction == TUSB_DIR_IN )
   {
     ep_addr = EDPT_CTRL_IN;
-    if ( xact_len ) memcpy(_usbd_ctrl_buf, _ctrl_xfer.buffer, xact_len);
+    if ( xact_len ) {
+      TU_VERIFY(0 == tu_memcpy_s(_usbd_ctrl_buf, CFG_TUD_ENDPOINT0_SIZE, _ctrl_xfer.buffer, xact_len));
+    }
   }
 
   return usbd_edpt_xfer(rhport, ep_addr, xact_len ? _usbd_ctrl_buf : NULL, xact_len);
@@ -189,7 +191,7 @@ bool usbd_control_xfer_cb (uint8_t rhport, uint8_t ep_addr, xfer_result_t result
     TU_LOG_MEM(2, _usbd_ctrl_buf, xferred_bytes, 2);
   }
 
-  _ctrl_xfer.total_xferred += xferred_bytes;
+  _ctrl_xfer.total_xferred += (uint16_t) xferred_bytes;
   _ctrl_xfer.buffer += xferred_bytes;
 
   // Data Stage is complete when all request's length are transferred or

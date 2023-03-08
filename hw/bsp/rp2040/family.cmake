@@ -55,7 +55,7 @@ if (NOT TARGET _rp2040_family_inclusion_marker)
 	target_compile_definitions(tinyusb_common_base INTERFACE
 			CFG_TUSB_MCU=OPT_MCU_RP2040
 			CFG_TUSB_OS=OPT_OS_PICO
-			CFG_TUSB_DEBUG=${TINYUSB_DEBUG_LEVEL}
+			#CFG_TUSB_DEBUG=${TINYUSB_DEBUG_LEVEL}
 	)
 
 	#------------------------------------
@@ -116,6 +116,7 @@ if (NOT TARGET _rp2040_family_inclusion_marker)
 
 	target_compile_definitions(tinyusb_additions INTERFACE
 		PICO_RP2040_USB_DEVICE_ENUMERATION_FIX=1
+		PICO_RP2040_USB_DEVICE_UFRAME_FIX=1
 	)
 
 	if(DEFINED LOG)
@@ -147,24 +148,45 @@ if (NOT TARGET _rp2040_family_inclusion_marker)
 		target_link_libraries(${TARGET} PUBLIC pico_stdlib pico_bootsel_via_double_reset tinyusb_board tinyusb_additions)
 	endfunction()
 
+	function(rp2040_family_configure_example_warnings TARGET)
+		if (NOT PICO_TINYUSB_NO_EXAMPLE_WARNINGS)
+			family_add_default_example_warnings(${TARGET})
+		endif()
+		if(CMAKE_C_COMPILER_ID STREQUAL "Clang")
+			target_compile_options(${TARGET} PRIVATE -Wno-unreachable-code)
+		endif()
+		suppress_tinyusb_warnings()
+	endfunction()
+
 	function(family_configure_device_example TARGET)
 		family_configure_target(${TARGET})
 		target_link_libraries(${TARGET} PUBLIC pico_stdlib tinyusb_device)
-	endfunction()
-
-	function(family_configure_host_example TARGET)
-		family_configure_target(${TARGET})
-		target_link_libraries(${TARGET} PUBLIC pico_stdlib tinyusb_host)
+		rp2040_family_configure_example_warnings(${TARGET})
 	endfunction()
 
 	function(family_add_pico_pio_usb TARGET)
 		target_link_libraries(${TARGET} PUBLIC tinyusb_pico_pio_usb)
 	endfunction()
 
+	function(family_configure_host_example TARGET)
+		family_configure_target(${TARGET})
+		target_link_libraries(${TARGET} PUBLIC pico_stdlib tinyusb_host)
+		rp2040_family_configure_example_warnings(${TARGET})
+
+		# For rp2040 enable pico-pio-usb
+		if (TARGET tinyusb_pico_pio_usb)
+			# code does not compile with non GCC, or GCC 11.3+
+			if (CMAKE_C_COMPILER_ID STREQUAL "GNU" AND NOT CMAKE_C_COMPILER_VERSION VERSION_GREATER_EQUAL 11.3)
+				family_add_pico_pio_usb(${PROJECT})
+			endif()
+		endif()
+	endfunction()
+
 	function(family_configure_dual_usb_example TARGET)
 		family_configure_target(${TARGET})
 		# require tinyusb_pico_pio_usb
 		target_link_libraries(${TARGET} PUBLIC pico_stdlib tinyusb_device tinyusb_host tinyusb_pico_pio_usb )
+		rp2040_family_configure_example_warnings(${TARGET})
 	endfunction()
 
 	function(check_and_add_pico_pio_usb_support)
@@ -232,6 +254,76 @@ if (NOT TARGET _rp2040_family_inclusion_marker)
 
 	# This method must be called from the project scope to suppress known warnings in TinyUSB source files
 	function(suppress_tinyusb_warnings)
-		# there are currently no warnings to suppress, however this function must still exist
+		# some of these are pretty silly warnings only occurring in some older GCC versions 9 or prior
+		if (CMAKE_C_COMPILER_ID STREQUAL "GNU")
+			if (CMAKE_C_COMPILER_VERSION VERSION_LESS 10.0)
+				set(CONVERSION_WARNING_FILES
+					${PICO_TINYUSB_PATH}/src/tusb.c
+					${PICO_TINYUSB_PATH}/src/common/tusb_fifo.c
+					${PICO_TINYUSB_PATH}/src/device/usbd.c
+					${PICO_TINYUSB_PATH}/src/device/usbd_control.c
+					${PICO_TINYUSB_PATH}/src/host/usbh.c
+					${PICO_TINYUSB_PATH}/src/class/cdc/cdc_device.c
+					${PICO_TINYUSB_PATH}/src/class/cdc/cdc_host.c
+					${PICO_TINYUSB_PATH}/src/class/hid/hid_device.c
+					${PICO_TINYUSB_PATH}/src/class/hid/hid_host.c
+					${PICO_TINYUSB_PATH}/src/class/audio/audio_device.c
+					${PICO_TINYUSB_PATH}/src/class/dfu/dfu_device.c
+					${PICO_TINYUSB_PATH}/src/class/dfu/dfu_rt_device.c
+					${PICO_TINYUSB_PATH}/src/class/midi/midi_device.c
+					${PICO_TINYUSB_PATH}/src/class/usbtmc/usbtmc_device.c
+					${PICO_TINYUSB_PATH}/src/portable/raspberrypi/rp2040/hcd_rp2040.c
+					)
+				foreach(SOURCE_FILE IN LISTS CONVERSION_WARNING_FILES)
+					set_source_files_properties(
+							${SOURCE_FILE}
+							PROPERTIES
+							COMPILE_FLAGS "-Wno-conversion")
+				endforeach()
+			endif()
+			if (CMAKE_C_COMPILER_ID STREQUAL "GNU" AND CMAKE_C_COMPILER_VERSION VERSION_GREATER_EQUAL 11.0)
+				set_source_files_properties(
+						${PICO_TINYUSB_PATH}/lib/fatfs/source/ff.c
+						COMPILE_FLAGS "-Wno-stringop-overflow -Wno-array-bounds")
+			endif()
+			set_source_files_properties(
+					${PICO_TINYUSB_PATH}/lib/fatfs/source/ff.c
+					PROPERTIES
+					COMPILE_FLAGS "-Wno-conversion -Wno-cast-qual")
+
+			set_source_files_properties(
+					${PICO_TINYUSB_PATH}/lib/lwip/src/core/tcp_in.c
+					${PICO_TINYUSB_PATH}/lib/lwip/src/core/tcp_out.c
+					PROPERTIES
+					COMPILE_FLAGS "-Wno-conversion")
+
+			set_source_files_properties(
+					${PICO_TINYUSB_PATH}/lib/networking/dnserver.c
+					${PICO_TINYUSB_PATH}/lib/networking/dhserver.c
+					${PICO_TINYUSB_PATH}/lib/networking/rndis_reports.c
+					PROPERTIES
+					COMPILE_FLAGS "-Wno-conversion -Wno-sign-conversion")
+
+			if (TARGET tinyusb_pico_pio_usb)
+				set_source_files_properties(
+						${PICO_TINYUSB_PATH}/hw/mcu/raspberry_pi/Pico-PIO-USB/src/pio_usb_device.c
+						${PICO_TINYUSB_PATH}/hw/mcu/raspberry_pi/Pico-PIO-USB/src/pio_usb.c
+						${PICO_TINYUSB_PATH}/hw/mcu/raspberry_pi/Pico-PIO-USB/src/pio_usb_host.c
+						${PICO_TINYUSB_PATH}/src/portable/raspberrypi/pio_usb/hcd_pio_usb.c
+						PROPERTIES
+						COMPILE_FLAGS "-Wno-conversion -Wno-cast-qual -Wno-attributes")
+			endif()
+		elseif(CMAKE_C_COMPILER_ID STREQUAL "Clang")
+			set_source_files_properties(
+					${PICO_TINYUSB_PATH}/src/class/cdc/cdc_device.c
+					COMPILE_FLAGS "-Wno-unreachable-code")
+			set_source_files_properties(
+					${PICO_TINYUSB_PATH}/src/class/cdc/cdc_host.c
+					COMPILE_FLAGS "-Wno-unreachable-code-fallthrough")
+			set_source_files_properties(
+					${PICO_TINYUSB_PATH}/lib/fatfs/source/ff.c
+					PROPERTIES
+					COMPILE_FLAGS "-Wno-cast-qual")
+		endif()
 	endfunction()
 endif()

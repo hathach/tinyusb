@@ -1,0 +1,350 @@
+#!/usr/bin/env ruby
+
+#these are always used
+require 'rubygems'
+require 'fileutils'
+
+# Check for the main project file (either the one defined in the ENV or the default)
+main_filepath = ENV['CEEDLING_MAIN_PROJECT_FILE']
+project_found = (!main_filepath.nil? && File.exists?(main_filepath))
+if (!project_found)
+  main_filepath = "project.yml"
+  project_found = File.exists?(main_filepath)
+end
+
+def is_windows?
+  return ((RbConfig::CONFIG['host_os'] =~ /mswin|mingw/) ? true : false) if defined?(RbConfig)
+  return ((Config::CONFIG['host_os'] =~ /mswin|mingw/) ? true : false)
+end
+
+unless (project_found)
+#===================================== We Do Not Have A Project ================================================
+
+  puts "Welcome to Ceedling!"
+  require 'thor'
+
+  def here
+    File.dirname(__FILE__) + "/.."
+  end
+
+  class CeedlingTasks < Thor
+    include Thor::Actions
+
+    desc "new PROJECT_NAME", "create a new ceedling project"
+    method_option :docs, :type => :boolean, :default => false, :desc => "Add docs in project vendor directory"
+    method_option :local, :type => :boolean, :default => false, :desc => "Create a copy of Ceedling in the project vendor directory"
+    method_option :gitignore, :type => :boolean, :default => false, :desc => "Create a gitignore file for ignoring ceedling generated files"
+    method_option :no_configs, :type => :boolean, :default => false, :desc => "Don't install starter configuration files"
+    method_option :noconfigs, :type => :boolean, :default => false
+
+    #deprecated:
+    method_option :no_docs, :type => :boolean, :default => false
+    method_option :nodocs, :type => :boolean, :default => false
+    method_option :as_gem, :type => :boolean, :default => false
+    method_option :asgem, :type => :boolean, :default => false
+    method_option :with_ignore, :type => :boolean, :default => false
+    method_option :withignore, :type => :boolean, :default => false
+    def new(name, silent = false)
+      copy_assets_and_create_structure(name, silent, false, options)
+    end
+
+    desc "upgrade PROJECT_NAME", "upgrade ceedling for a project (not req'd if gem used)"
+    def upgrade(name, silent = false)
+      as_local = true
+      begin
+        require "yaml"
+        as_local = (YAML.load_file(File.join(name, "project.yml"))[:project][:which_ceedling] != 'gem')
+      rescue
+        raise "ERROR: Could not find valid project file '#{yaml_path}'"
+      end
+      found_docs = File.exists?( File.join(name, "docs", "CeedlingPacket.md") )
+      copy_assets_and_create_structure(name, silent, true, {:upgrade => true, :no_configs => true, :local => as_local, :docs => found_docs})
+    end
+
+    no_commands do
+      def copy_assets_and_create_structure(name, silent=false, force=false, options = {})
+
+        puts "WARNING: --no_docs deprecated. It is now the default. Specify -docs if you want docs installed." if (options[:no_docs] || options[:nodocs])
+        puts "WARNING: --as_gem deprecated. It is now the default. Specify -local if you want ceedling installed to this project." if (options[:as_gem] || options[:asgem])
+        puts "WARNING: --with_ignore deprecated. It is now called -gitignore" if (options[:with_ignore] || options[:with_ignore])
+
+        use_docs     = options[:docs] || false
+        use_configs  = !(options[:no_configs] || options[:noconfigs] || false)
+        use_gem      = !(options[:local])
+        use_ignore   = options[:gitignore] || false
+        is_upgrade   = options[:upgrade] || false
+
+        ceedling_path     = File.join(name, 'vendor', 'ceedling')
+        source_path       = File.join(name, 'src')
+        test_path         = File.join(name, 'test')
+        test_support_path = File.join(name, 'test/support')
+
+        # If it's not an upgrade, make sure we have the paths we expect
+        if (!is_upgrade)
+          [source_path, test_path, test_support_path].each do |d|
+            FileUtils.mkdir_p d
+          end
+        end
+
+        # Genarate gitkeep in test support path
+        FileUtils.touch(File.join(test_support_path, '.gitkeep'))
+
+        # If documentation requested, create a place to dump them and do so
+        doc_path = ""
+        if use_docs
+          doc_path = use_gem ? File.join(name, 'docs') : File.join(ceedling_path, 'docs')
+          FileUtils.mkdir_p doc_path
+
+          in_doc_path = lambda {|f| File.join(doc_path, f)}
+
+          # Add documentation from main projects to list
+          doc_files = {}
+          ['docs','vendor/unity/docs','vendor/cmock/docs','vendor/cexception/docs'].each do |p|
+            Dir[ File.expand_path(File.join(here, p, '*.md')) ].each do |f|
+              doc_files[ File.basename(f) ] = f unless(doc_files.include? f)
+            end
+          end
+
+          # Add documentation from plugins to list
+          Dir[ File.join(here, 'plugins/**/README.md') ].each do |plugin_path|
+            k = "plugin_" + plugin_path.split(/\\|\//)[-2] + ".md"
+            doc_files[ k ] = File.expand_path(plugin_path)
+          end
+
+          # Copy all documentation
+          doc_files.each_pair do |k, v|
+            copy_file(v, in_doc_path.call(k), :force => force)
+          end
+        end
+
+        # If installed locally to project, copy ceedling, unity, cmock, & supports to vendor
+        unless use_gem
+          FileUtils.mkdir_p ceedling_path
+
+          #copy full folders from ceedling gem into project
+          %w{plugins lib bin}.map do |f|
+            {:src => f, :dst => File.join(ceedling_path, f)}
+          end.each do |f|
+            directory(f[:src], f[:dst], :force => force)
+          end
+
+          # mark ceedling as an executable
+          File.chmod(0755, File.join(ceedling_path, 'bin', 'ceedling')) unless is_windows?
+
+          #copy necessary subcomponents from ceedling gem into project
+          sub_components = [
+            {:src => 'vendor/c_exception/lib/',     :dst => 'vendor/c_exception/lib'},
+            {:src => 'vendor/cmock/config/',        :dst => 'vendor/cmock/config'},
+            {:src => 'vendor/cmock/lib/',           :dst => 'vendor/cmock/lib'},
+            {:src => 'vendor/cmock/src/',           :dst => 'vendor/cmock/src'},
+            {:src => 'vendor/diy/lib',              :dst => 'vendor/diy/lib'},
+            {:src => 'vendor/unity/auto/',          :dst => 'vendor/unity/auto'},
+            {:src => 'vendor/unity/src/',           :dst => 'vendor/unity/src'},
+          ]
+
+          sub_components.each do |c|
+            directory(c[:src], File.join(ceedling_path, c[:dst]), :force => force)
+          end
+        end
+
+        # We're copying in a configuration file if we haven't said not to
+        if (use_configs)
+          dst_yaml = File.join(name, 'project.yml')
+          src_yaml = if use_gem
+            File.join(here, 'assets', 'project_as_gem.yml')
+          else
+            if is_windows?
+              copy_file(File.join('assets', 'ceedling.cmd'), File.join(name, 'ceedling.cmd'), :force => force)
+            else
+              copy_file(File.join('assets', 'ceedling'), File.join(name, 'ceedling'), :force => force)
+              File.chmod(0755, File.join(name, 'ceedling'))
+            end
+            File.join(here, 'assets', 'project_with_guts.yml')
+          end
+
+          # Perform the actual clone of the config file, while updating the version
+          File.open(dst_yaml,'w') do |dst|
+            require File.expand_path(File.join(File.dirname(__FILE__),"..","lib","ceedling","version.rb"))
+            dst << File.read(src_yaml).gsub(":ceedling_version: '?'",":ceedling_version: #{Ceedling::Version::CEEDLING}")
+            puts "      create  #{dst_yaml}"
+          end
+        end
+
+        # Copy the gitignore file if requested
+        if (use_ignore)
+          copy_file(File.join('assets', 'default_gitignore'), File.join(name, '.gitignore'), :force => force)
+        end
+
+        unless silent
+          puts "\n"
+          puts "Project '#{name}' #{force ? "upgraded" : "created"}!"
+          puts " - Tool documentation is located in #{doc_path}" if use_docs
+          puts " - Execute 'ceedling help' from #{name} to view available test & build tasks"
+          puts ''
+        end
+      end
+    end
+
+    desc "examples", "list available example projects"
+    def examples()
+      puts "Available sample projects:"
+      FileUtils.cd(File.join(here, "examples")) do
+        Dir["*"].each {|proj| puts "  #{proj}"}
+      end
+    end
+
+    desc "example PROJ_NAME [DEST]", "new specified example project (in DEST, if specified)"
+    def example(proj_name, dest=nil)
+      if dest.nil? then dest = proj_name end
+
+      copy_assets_and_create_structure(dest, true, false, {:local=>true, :docs=>true})
+
+      dest_src      = File.join(dest,'src')
+      dest_test     = File.join(dest,'test')
+      dest_project  = File.join(dest,'project.yml')
+
+      directory "examples/#{proj_name}/src",         dest_src
+      directory "examples/#{proj_name}/test",        dest_test
+      remove_file dest_project
+      copy_file "examples/#{proj_name}/project.yml", dest_project
+
+      puts "\n"
+      puts "Example project '#{proj_name}' created!"
+      puts " - Tool documentation is located in vendor/ceedling/docs"
+      puts " - Execute 'ceedling help' to view available test & build tasks"
+      puts ''
+    end
+
+    desc "version", "return the version of the tools installed"
+    def version()
+      require File.expand_path(File.join(File.dirname(__FILE__),"..","lib","ceedling","version.rb"))
+      puts "    Ceedling:: #{Ceedling::Version::CEEDLING}"
+      puts "       CMock:: #{Ceedling::Version::CMOCK}"
+      puts "       Unity:: #{Ceedling::Version::UNITY}"
+      puts "  CException:: #{Ceedling::Version::CEXCEPTION}"
+    end
+  end
+
+  if (ARGV[0] =~ /^\-T$/)
+    puts "\n(No Project Detected, Therefore Showing Options to Create Projects)"
+    CeedlingTasks.tasks.each_pair do |k,v|
+      puts v.usage.ljust(25,' ') + v.description
+    end
+    puts "\n"
+  else
+    CeedlingTasks.source_root here
+    CeedlingTasks.start
+  end
+
+#===================================== We Have A Project Already ================================================
+else
+  require 'yaml'
+  require 'rbconfig'
+
+  #determine platform
+  platform = begin
+    case(RbConfig::CONFIG['host_os'])
+      when /mswin|mingw|cygwin/i
+        :mswin
+      when /darwin/
+        :osx
+      else
+        :linux
+    end
+  rescue
+    :linux
+  end
+
+  #create our default meta-runner option set
+  options = {
+    :pretest => nil,
+    :args => [],
+    :add_path => [],
+    :path_connector => (platform == :mswin) ? ";" : ":",
+    :graceful_fail => false,
+    :which_ceedling => (Dir.exists?("vendor/ceedling") ? "vendor/ceedling" : 'gem'),
+    :default_tasks => [ 'test:all' ],
+    :list_tasks => false
+  }
+
+  #guess that we need a special script file first if it exists
+  if (platform == :mswin)
+    options[:pretest] = File.exists?("#{ platform.to_s }_setup.bat") ? "#{ platform.to_s }_setup.bat" : nil
+  else
+    options[:pretest] = File.exists?("#{ platform.to_s }_setup.sh") ? "source #{ platform.to_s }_setup.sh" : nil
+  end
+
+  #merge in project settings if they can be found here
+  yaml_options = YAML.load_file(main_filepath)
+  if (yaml_options[:paths])
+    options[:add_path] = yaml_options[:paths][:tools] || []
+  else
+    options[:add_path] = []
+  end
+  options[:graceful_fail]  = yaml_options[:graceful_fail] if yaml_options[:graceful_fail]
+  options[:which_ceedling] = yaml_options[:project][:which_ceedling] if (yaml_options[:project] && yaml_options[:project][:which_ceedling])
+  options[:default_tasks]  = yaml_options[:default_tasks] if yaml_options[:default_tasks]
+
+  #sort through command line options
+  ARGV.each do |v|
+    case(v)
+      when /^(?:new|examples?|templates?)$/
+        puts "\nOops. You called ceedling with argument '#{v}'.\n" +
+             "      This is an operation that will create a new project... \n" +
+             "      but it looks like you're already in a project. If you really \n" +
+             "      want to do this, try moving to an empty folder.\n\n"
+        abort
+      when /^help$/
+        options[:list_tasks] = true
+      when /^-T$/
+        options[:list_tasks] = true
+      when /^--tasks$/
+        options[:list_tasks] = true
+      when /^project:(\w+)/
+        ENV['CEEDLING_USER_PROJECT_FILE'] = "#{$1}.yml"
+      else
+        options[:args].push(v)
+    end
+  end
+
+  #add to the path
+  if (options[:add_path] && !options[:add_path].empty?)
+    path = ENV["PATH"]
+    options[:add_path].each do |p|
+      f = File.expand_path(File.dirname(__FILE__),p)
+      path = (f + options[:path_connector] + path) unless path.include? f
+    end
+    ENV["PATH"] = path
+  end
+
+  # Load Ceedling (either through the rakefile OR directly)
+  if (File.exists?("rakefile.rb"))
+    load 'rakefile.rb'
+  else
+    if (options[:which_ceedling] == 'gem')
+      require 'ceedling'
+    else
+      load "#{options[:which_ceedling]}/lib/ceedling.rb"
+    end
+    Ceedling.load_project
+  end
+
+  Rake.application.standard_exception_handling do
+    if options[:list_tasks]
+      # Display helpful task list when requested. This required us to dig into Rake internals a bit
+      Rake.application.define_singleton_method(:name=) {|n| @name = n}
+      Rake.application.name = 'ceedling'
+      Rake.application.options.show_tasks = :tasks
+      Rake.application.options.show_task_pattern = /^(?!.*build).*$/
+      Rake.application.display_tasks_and_comments()
+    else
+      task :default => options[:default_tasks]
+
+      # Run our Tasks!
+      Rake.application.collect_command_line_tasks(options[:args])
+      Rake.application.top_level
+    end
+  end
+  true
+#===================================================================================================================
+end

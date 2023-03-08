@@ -5,6 +5,7 @@
 # Set all as default goal
 .DEFAULT_GOAL := all
 
+# ---------------- GNU Make Start -----------------------
 # ESP32-Sx and RP2040 has its own CMake build system
 ifeq (,$(findstring $(FAMILY),esp32s2 esp32s3 rp2040))
 
@@ -45,22 +46,50 @@ INC += $(TOP)/src
 
 CFLAGS += $(addprefix -I,$(INC))
 
+ifdef USE_IAR
+
+SRC_S += $(IAR_SRC_S)
+
+ASFLAGS := $(CFLAGS) $(IAR_ASFLAGS) $(ASFLAGS) -S
+IAR_LDFLAGS += --config $(TOP)/$(IAR_LD_FILE)
+CFLAGS += $(IAR_CFLAGS) -e --debug --silent
+
+else
+
+SRC_S += $(GCC_SRC_S)
+
+CFLAGS += $(GCC_CFLAGS) -MD
+
 # LTO makes it difficult to analyze map file for optimizing size purpose
 # We will run this option in ci
 ifeq ($(NO_LTO),1)
 CFLAGS := $(filter-out -flto,$(CFLAGS))
 endif
 
-ifneq ($(LD_FILE),)
-LDFLAGS_LD_FILE ?= -Wl,-T,$(TOP)/$(LD_FILE)
+LDFLAGS += $(CFLAGS) -Wl,-Map=$@.map -Wl,-cref -Wl,-gc-sections
+
+ifdef LD_FILE
+LDFLAGS += -Wl,-T,$(TOP)/$(LD_FILE)
 endif
 
-LDFLAGS += $(CFLAGS) $(LDFLAGS_LD_FILE) -Wl,-Map=$@.map -Wl,-cref -Wl,-gc-sections
+ifdef GCC_LD_FILE
+LDFLAGS += -Wl,-T,$(TOP)/$(GCC_LD_FILE)
+endif
+
 ifneq ($(SKIP_NANOLIB), 1)
 LDFLAGS += -specs=nosys.specs -specs=nano.specs
 endif
 
 ASFLAGS += $(CFLAGS)
+
+endif # USE_IAR
+
+# Verbose mode
+ifeq ("$(V)","1")
+$(info CFLAGS  $(CFLAGS) ) $(info )
+$(info LDFLAGS $(LDFLAGS)) $(info )
+$(info ASFLAGS $(ASFLAGS)) $(info )
+endif
 
 # Assembly files can be name with upper case .S, convert it to .s
 SRC_S := $(SRC_S:.S=.s)
@@ -70,13 +99,6 @@ SRC_S := $(SRC_S:.S=.s)
 # '_asm' suffix is added to object of assembly file
 OBJ += $(addprefix $(BUILD)/obj/, $(SRC_S:.s=_asm.o))
 OBJ += $(addprefix $(BUILD)/obj/, $(SRC_C:.c=.o))
-
-# Verbose mode
-ifeq ("$(V)","1")
-$(info CFLAGS  $(CFLAGS) ) $(info )
-$(info LDFLAGS $(LDFLAGS)) $(info )
-$(info ASFLAGS $(ASFLAGS)) $(info )
-endif
 
 # ---------------------------------------
 # Rules
@@ -90,15 +112,49 @@ OBJ_DIRS = $(sort $(dir $(OBJ)))
 $(OBJ): | $(OBJ_DIRS)
 $(OBJ_DIRS):
 ifeq ($(CMDEXE),1)
-	@$(MKDIR) $(subst /,\,$@)
+	-@$(MKDIR) $(subst /,\,$@)
 else
 	@$(MKDIR) -p $@
 endif
 
+# We set vpath to point to the top of the tree so that the source files
+# can be located. By following this scheme, it allows a single build rule
+# to be used to compile all .c files.
+vpath %.c . $(TOP)
+vpath %.s . $(TOP)
+vpath %.S . $(TOP)
+
+# Compile .c file
+$(BUILD)/obj/%.o: %.c
+	@echo CC $(notdir $@)
+	@$(CC) $(CFLAGS) -c -o $@ $<
+
+# ASM sources lower case .s
+$(BUILD)/obj/%_asm.o: %.s
+	@echo AS $(notdir $@)
+	@$(AS) $(ASFLAGS) -c -o $@ $<
+
+# ASM sources upper case .S
+$(BUILD)/obj/%_asm.o: %.S
+	@echo AS $(notdir $@)
+	@$(AS) $(ASFLAGS) -c -o $@ $<
+
+ifdef USE_IAR
+# IAR Compiler
+$(BUILD)/$(PROJECT).bin: $(BUILD)/$(PROJECT).elf
+	@echo CREATE $@
+	@$(OBJCOPY) --silent --bin $^ $@
+
+$(BUILD)/$(PROJECT).hex: $(BUILD)/$(PROJECT).elf
+	@echo CREATE $@
+	@$(OBJCOPY) --silent --ihex $^ $@
+
 $(BUILD)/$(PROJECT).elf: $(OBJ)
 	@echo LINK $@
-	@$(CC) -o $@ $(LDFLAGS) $^ -Wl,--start-group $(LIBS) -Wl,--end-group
+	@$(LD) -o $@ $(IAR_LDFLAGS) $^
 
+else
+# GCC based compiler
 $(BUILD)/$(PROJECT).bin: $(BUILD)/$(PROJECT).elf
 	@echo CREATE $@
 	@$(OBJCOPY) -O binary $^ $@
@@ -107,13 +163,14 @@ $(BUILD)/$(PROJECT).hex: $(BUILD)/$(PROJECT).elf
 	@echo CREATE $@
 	@$(OBJCOPY) -O ihex $^ $@
 
+$(BUILD)/$(PROJECT).elf: $(OBJ)
+	@echo LINK $@
+	@$(LD) -o $@ $(LDFLAGS) $^ -Wl,--start-group $(LIBS) -Wl,--end-group
+
+endif
+
 # UF2 generation, iMXRT need to strip to text only before conversion
-ifeq ($(FAMILY),imxrt)
-$(BUILD)/$(PROJECT).uf2: $(BUILD)/$(PROJECT).elf
-	@echo CREATE $@
-	@$(OBJCOPY) -O ihex -R .flash_config -R .ivt $^ $(BUILD)/$(PROJECT)-textonly.hex
-	$(PYTHON) $(TOP)/tools/uf2/utils/uf2conv.py -f $(UF2_FAMILY_ID) -c -o $@ $(BUILD)/$(PROJECT)-textonly.hex
-else
+ifneq ($(FAMILY),imxrt)
 $(BUILD)/$(PROJECT).uf2: $(BUILD)/$(PROJECT).hex
 	@echo CREATE $@
 	$(PYTHON) $(TOP)/tools/uf2/utils/uf2conv.py -f $(UF2_FAMILY_ID) -c -o $@ $^
@@ -121,36 +178,8 @@ endif
 
 copy-artifact: $(BUILD)/$(PROJECT).bin $(BUILD)/$(PROJECT).hex $(BUILD)/$(PROJECT).uf2
 
-# We set vpath to point to the top of the tree so that the source files
-# can be located. By following this scheme, it allows a single build rule
-# to be used to compile all .c files.
-vpath %.c . $(TOP)
-$(BUILD)/obj/%.o: %.c
-	@echo CC $(notdir $@)
-	@$(CC) $(CFLAGS) -c -MD -o $@ $<
-
-# ASM sources lower case .s
-vpath %.s . $(TOP)
-$(BUILD)/obj/%_asm.o: %.s
-	@echo AS $(notdir $@)
-	@$(CC) -x assembler-with-cpp $(ASFLAGS) -c -o $@ $<
-
-# ASM sources upper case .S
-vpath %.S . $(TOP)
-$(BUILD)/obj/%_asm.o: %.S
-	@echo AS $(notdir $@)
-	@$(CC) -x assembler-with-cpp $(ASFLAGS) -c -o $@ $<
-
-endif # GNU Make
-
-size: $(BUILD)/$(PROJECT).elf
-	-@echo ''
-	@$(SIZE) $<
-	-@echo ''
-
-# linkermap must be install previously at https://github.com/hathach/linkermap
-linkermap: $(BUILD)/$(PROJECT).elf
-	@linkermap -v $<.map
+endif
+# ---------------- GNU Make End -----------------------
 
 .PHONY: clean
 clean:
@@ -159,6 +188,23 @@ ifeq ($(CMDEXE),1)
 else
 	$(RM) -rf $(BUILD)
 endif
+
+# get depenecies
+.PHONY: get-deps
+get-deps:
+  ifdef DEPS_SUBMODULES
+	git -C $(TOP) submodule update --init $(DEPS_SUBMODULES)
+  endif
+
+.PHONY: size
+size: $(BUILD)/$(PROJECT).elf
+	-@echo ''
+	@$(SIZE) $<
+	-@echo ''
+
+# linkermap must be install previously at https://github.com/hathach/linkermap
+linkermap: $(BUILD)/$(PROJECT).elf
+	@linkermap -v $<.map
 
 # ---------------------------------------
 # Flash Targets
@@ -220,7 +266,11 @@ debug-bmp: $(BUILD)/$(PROJECT).elf
 
 # Create binary directory
 $(BIN):
+ifeq ($(CMDEXE),1)
+	@$(MKDIR) $(subst /,\,$@)
+else
 	@$(MKDIR) -p $@
+endif
 
 # Copy binaries .elf, .bin, .hex, .uf2 to BIN for upload
 # due to large size of combined artifacts, only uf2 is uploaded for now

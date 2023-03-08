@@ -13,6 +13,9 @@ CFLAGS += \
   -mlittle-endian-data \
   -DSSIZE_MAX=__INT_MAX__
 
+# suppress warning caused by vendor mcu driver
+CFLAGS += -Wno-error=redundant-decls
+
 SRC_C += \
 	src/portable/renesas/link/dcd_link.c \
 	src/portable/renesas/link/hcd_link.c \

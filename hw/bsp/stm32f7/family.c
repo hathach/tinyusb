@@ -125,7 +125,7 @@ void board_init(void)
   UartHandle.Init.OverSampling = UART_OVERSAMPLING_16;
   HAL_UART_Init(&UartHandle);
 
-#if BOARD_DEVICE_RHPORT_NUM == 0
+#if BOARD_TUD_RHPORT == 0
   // OTG_FS
 
   /* Configure DM DP Pins */
@@ -258,7 +258,7 @@ void board_init(void)
   USB_OTG_HS->GUSBCFG &= ~USB_OTG_GUSBCFG_FHMOD;
   USB_OTG_HS->GUSBCFG |= USB_OTG_GUSBCFG_FDMOD;
 
-#endif // BOARD_DEVICE_RHPORT_NUM
+#endif // BOARD_TUD_RHPORT
 
 }
 
@@ -268,7 +268,8 @@ void board_init(void)
 
 void board_led_write(bool state)
 {
-  HAL_GPIO_WritePin(LED_PORT, LED_PIN, state ? LED_STATE_ON : (1-LED_STATE_ON));
+  GPIO_PinState pin_state = (GPIO_PinState) (state ? LED_STATE_ON : (1-LED_STATE_ON));
+  HAL_GPIO_WritePin(LED_PORT, LED_PIN, pin_state);
 }
 
 uint32_t board_button_read(void)
@@ -303,7 +304,7 @@ uint32_t board_millis(void)
 
 void HardFault_Handler (void)
 {
-  asm("bkpt");
+  __asm("BKPT #0\n");
 }
 
 // Required by __libc_init_array in startup code if we are compiling using

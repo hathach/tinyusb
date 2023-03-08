@@ -41,6 +41,8 @@ Supported MCUs
 |              | NUC505                | ✔      |      | ✔         |                   |              |
 +--------------+---------+-------------+--------+------+-----------+-------------------+--------------+
 | NXP          | iMXRT   | RT10xx      | ✔      | ✔    | ✔         | ci_hs             |              |
+|              |         +-------------+--------+------+-----------+-------------------+--------------+
+|              |         | RT11xx      | ✔      | ✔    | ✔         | ci_hs             |              |
 |              +---------+-------------+--------+------+-----------+-------------------+--------------+
 |              | Kinetis | KL25        | ✔      | ⚠    | ✖         |                   |              |
 |              |         +-------------+--------+------+-----------+-------------------+--------------+
@@ -58,7 +60,7 @@ Supported MCUs
 |              |         +-------------+--------+------+-----------+-------------------+--------------+
 |              |         | 55          | ✔      |      | ✔         | lpc_ip3511        |              |
 +--------------+---------+-------------+--------+------+-----------+-------------------+--------------+
-| Raspberry Pi | RP2040                | ✔      | ✔    | ✖         | rp2040            |              |
+| Raspberry Pi | RP2040                | ✔      | ✔    | ✖         | rp2040, pio_usb   |              |
 +--------------+-----+-----------------+--------+------+-----------+-------------------+--------------+
 | Renesas      | RX  | 63N, 65N, 72N   | ✔      | ✔    | ✖         | link              |              |
 |              +-----+-----------------+--------+------+-----------+-------------------+--------------+
@@ -95,6 +97,8 @@ Supported MCUs
 |              | L4+                   | ✔      |      |           | dwc2              |              |
 |              +-----------------------+--------+------+-----------+-------------------+--------------+
 |              | U5                    | ⚠      |      |           | dwc2              |              |
+|              +-----------------------+--------+------+-----------+-------------------+--------------+
+|              | WBx5                  | ✔      |      |           | stm32_fsdev       |              |
 +--------------+-----------------------+--------+------+-----------+-------------------+--------------+
 | TI           | MSP430                | ✔      | ✖    | ✖         | msp430x5xx        |              |
 |              +-----------------------+--------+------+-----------+-------------------+--------------+
@@ -103,6 +107,8 @@ Supported MCUs
 |              | TM4C123               | ✔      |      | ✖         | musb              |              |
 +--------------+-----------------------+--------+------+-----------+-------------------+--------------+
 | ValentyUSB   | eptri                 | ✔      | ✖    | ✖         | eptri             |              |
++--------------+-----------------------+--------+------+-----------+-------------------+--------------+
+| WCH          | CH32V307              | ✔      |      | ✔         | ch32v307          |              |
 +--------------+-----------------------+--------+------+-----------+-------------------+--------------+
 
 
@@ -241,6 +247,7 @@ iMX RT
 -  `MIMX RT1060 Evaluation Kit <https://www.nxp.com/design/development-boards/i.mx-evaluation-and-development-boards/mimxrt1060-evk-i.mx-rt1060-evaluation-kit:MIMXRT1060-EVK>`__
 -  `MIMX RT1064 Evaluation Kit <https://www.nxp.com/design/development-boards/i.mx-evaluation-and-development-boards/mimxrt1064-evk-i.mx-rt1064-evaluation-kit:MIMXRT1064-EVK>`__
 -  `Teensy 4.0 Development Board <https://www.pjrc.com/store/teensy40.html>`__
+-  `Teensy 4.1 Development Board <https://www.pjrc.com/store/teensy41.html>`__
 
 Kinetis
 ^^^^^^^
@@ -379,6 +386,10 @@ L4
 -  `STM32 L4P5zg Nucleo <https://www.st.com/en/evaluation-tools/nucleo-l4p5zg.html>`__
 -  `STM32 L4R5zi Nucleo <https://www.st.com/en/evaluation-tools/nucleo-l4r5zi.html>`__
 
+WB
+^^
+-  `STM32 WB55 Nucleo <https://www.st.com/en/evaluation-tools/p-nucleo-wb55.html>`__
+
 TI
 --
 
@@ -390,3 +401,8 @@ Tomu
 ----
 
 -  `Fomu <https://www.crowdsupply.com/sutajio-kosagi/fomu>`__
+
+WCH
+---
+
+- `CH32V307V-R1-1v0 <https://lcsc.com/product-detail/Development-Boards-Kits_WCH-Jiangsu-Qin-Heng-CH32V307V-EVT-R1_C2943980.html>`

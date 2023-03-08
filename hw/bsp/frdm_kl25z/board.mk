@@ -14,7 +14,7 @@ LDFLAGS += \
   -Wl,--defsym,__heap_size__=0
 
 # mcu driver cause following warnings
-CFLAGS += -Wno-error=unused-parameter -Wno-error=format
+CFLAGS += -Wno-error=unused-parameter -Wno-error=format -Wno-error=redundant-decls
 
 MCU_DIR = $(SDK_DIR)/devices/MKL25Z4
 

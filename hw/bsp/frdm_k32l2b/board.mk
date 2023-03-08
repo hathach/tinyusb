@@ -9,7 +9,7 @@ CFLAGS += \
   -DCFG_TUSB_MCU=OPT_MCU_K32L2BXX
 
 # mcu driver cause following warnings
-CFLAGS += -Wno-error=unused-parameter
+CFLAGS += -Wno-error=unused-parameter -Wno-error=redundant-decls
 
 MCU_DIR = $(SDK_DIR)/devices/K32L2B31A
 

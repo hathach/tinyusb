@@ -1,7 +1,7 @@
 .. figure:: docs/assets/logo.svg
    :alt: TinyUSB
 
-|Build Status| |Documentation Status| |License|
+|Build Status| |Documentation Status| |Fuzzing Status| |License|
 
 TinyUSB is an open-source cross-platform USB Host/Device stack for
 embedded system, designed to be memory-safe with no dynamic allocation
@@ -43,7 +43,7 @@ The stack supports the following MCUs:
 - **Nuvoton:** NUC120, NUC121/NUC125, NUC126, NUC505
 - **NXP:**
 
-  - iMX RT Series: RT1011, RT1015, RT1021, RT1052, RT1062, RT1064
+  - iMX RT Series: RT10xx, RT11xx
   - Kinetis: KL25, K32L2
   - LPC Series: 11u, 13, 15, 17, 18, 40, 43, 51u, 54, 55
 
@@ -55,9 +55,10 @@ The stack supports the following MCUs:
 
 - **Silabs:** EFM32GG
 - **Sony:** CXD56
-- **ST:** STM32 series: F0, F1, F2, F3, F4, F7, H7, G4, L0, L1, L4, L4+
+- **ST:** STM32 series: F0, F1, F2, F3, F4, F7, H7, G4, L0, L1, L4, L4+, WB
 - **TI:** MSP430, MSP432E4, TM4C123
 - **ValentyUSB:** eptri
+- **WCH:** CH32V307
 
 Here is the list of `Supported Devices`_ that can be used with provided examples.
 
@@ -86,7 +87,7 @@ Host Stack
 
 - Human Interface Device (HID): Keyboard, Mouse, Generic
 - Mass Storage Class (MSC)
-- Hub currently only supports 1 level of hub (due to my laziness)
+- Hub with multiple-level support
 
 OS Abstraction layer
 ====================
@@ -98,8 +99,8 @@ TinyUSB is completely thread-safe by pushing all Interrupt Service Request (ISR)
 - `RT-Thread <https://github.com/RT-Thread/rt-thread>`_: `repo <https://github.com/RT-Thread-packages/tinyusb>`_
 - **Mynewt** Due to the newt package build system, Mynewt examples are better to be on its `own repo <https://github.com/hathach/mynewt-tinyusb-example>`_
 
-Local Docs
-==========
+Docs
+====
 
 - Info
 
@@ -133,6 +134,8 @@ in your project.
    :target: https://github.com/hathach/tinyusb/actions
 .. |Documentation Status| image:: https://readthedocs.org/projects/tinyusb/badge/?version=latest
    :target: https://docs.tinyusb.org/en/latest/?badge=latest
+.. |Fuzzing Status| image:: https://oss-fuzz-build-logs.storage.googleapis.com/badges/tinyusb.svg
+   :target: https://oss-fuzz-build-logs.storage.googleapis.com/index.html#tinyusb
 .. |License| image:: https://img.shields.io/badge/license-MIT-brightgreen.svg
    :target: https://opensource.org/licenses/MIT
 

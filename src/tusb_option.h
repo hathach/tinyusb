@@ -27,13 +27,10 @@
 #ifndef _TUSB_OPTION_H_
 #define _TUSB_OPTION_H_
 
-// To avoid GCC compiler warnings when -pedantic option is used (strict ISO C)
-typedef int make_iso_compilers_happy ;
-
 #include "common/tusb_compiler.h"
 
 #define TUSB_VERSION_MAJOR     0
-#define TUSB_VERSION_MINOR     13
+#define TUSB_VERSION_MINOR     15
 #define TUSB_VERSION_REVISION  0
 #define TUSB_VERSION_STRING    TU_STRING(TUSB_VERSION_MAJOR) "." TU_STRING(TUSB_VERSION_MINOR) "." TU_STRING(TUSB_VERSION_REVISION)
 
@@ -84,6 +81,7 @@ typedef int make_iso_compilers_happy ;
 #define OPT_MCU_STM32G0           310 ///< ST G0
 #define OPT_MCU_STM32G4           311 ///< ST G4
 #define OPT_MCU_STM32WB           312 ///< ST WB
+#define OPT_MCU_STM32U5           313 ///< ST U5
 
 // Sony
 #define OPT_MCU_CXD56             400 ///< SONY CXD56
@@ -98,7 +96,9 @@ typedef int make_iso_compilers_happy ;
 #define OPT_MCU_VALENTYUSB_EPTRI  600 ///< Fomu eptri config
 
 // NXP iMX RT
-#define OPT_MCU_MIMXRT10XX        700 ///< NXP iMX RT10xx
+#define OPT_MCU_MIMXRT            700             ///< NXP iMX RT Series
+#define OPT_MCU_MIMXRT10XX        OPT_MCU_MIMXRT  ///< RT10xx
+#define OPT_MCU_MIMXRT11XX        OPT_MCU_MIMXRT  ///< RT11xx
 
 // Nuvoton
 #define OPT_MCU_NUC121            800
@@ -146,6 +146,11 @@ typedef int make_iso_compilers_happy ;
 
 // PIC
 #define OPT_MCU_PIC32MZ          1900 ///< MicroChip PIC32MZ family
+#define OPT_MCU_PIC32MM          1901 ///< MicroChip PIC32MM family
+#define OPT_MCU_PIC32MX          1902 ///< MicroChip PIC32MX family
+#define OPT_MCU_PIC32MK          1903 ///< MicroChip PIC32MK family
+#define OPT_MCU_PIC24            1910 ///< MicroChip PIC24 family
+#define OPT_MCU_DSPIC33          1911 ///< MicroChip DSPIC33 family
 
 // BridgeTek
 #define OPT_MCU_FT90X            2000 ///< BridgeTek FT90x
@@ -153,6 +158,9 @@ typedef int make_iso_compilers_happy ;
 
 // Allwinner
 #define OPT_MCU_F1C100S          2100 ///< Allwinner F1C100s family
+
+// WCH
+#define OPT_MCU_CH32V307         2200 ///< WCH CH32V307
 
 // Helper to check if configured MCU is one of listed
 // Apply _TU_CHECK_MCU with || as separator to list of input
@@ -197,60 +205,67 @@ typedef int make_iso_compilers_happy ;
 #define OPT_MODE_HIGH_SPEED     0x0400 ///< High Speed
 #define OPT_MODE_SPEED_MASK     0xff00
 
-#ifndef CFG_TUSB_RHPORT0_MODE
-  #define CFG_TUSB_RHPORT0_MODE OPT_MODE_NONE
-#endif
-
-#ifndef CFG_TUSB_RHPORT1_MODE
-  #define CFG_TUSB_RHPORT1_MODE OPT_MODE_NONE
-#endif
-
-#if (((CFG_TUSB_RHPORT0_MODE) & OPT_MODE_HOST  ) && ((CFG_TUSB_RHPORT1_MODE) & OPT_MODE_HOST  )) || \
-    (((CFG_TUSB_RHPORT0_MODE) & OPT_MODE_DEVICE) && ((CFG_TUSB_RHPORT1_MODE) & OPT_MODE_DEVICE))
-  #error "TinyUSB currently does not support same modes on more than 1 roothub port"
-#endif
-
 //------------- Roothub as Device -------------//
 
-#if (CFG_TUSB_RHPORT0_MODE) & OPT_MODE_DEVICE
+#if defined(CFG_TUSB_RHPORT0_MODE) && ((CFG_TUSB_RHPORT0_MODE) & OPT_MODE_DEVICE)
   #define TUD_RHPORT_MODE     (CFG_TUSB_RHPORT0_MODE)
   #define TUD_OPT_RHPORT      0
-#elif (CFG_TUSB_RHPORT1_MODE) & OPT_MODE_DEVICE
+#elif defined(CFG_TUSB_RHPORT1_MODE) && ((CFG_TUSB_RHPORT1_MODE) & OPT_MODE_DEVICE)
   #define TUD_RHPORT_MODE     (CFG_TUSB_RHPORT1_MODE)
   #define TUD_OPT_RHPORT      1
 #else
   #define TUD_RHPORT_MODE     OPT_MODE_NONE
-  #define TUD_OPT_RHPORT      -1
 #endif
 
-#define CFG_TUD_ENABLED       (TUD_RHPORT_MODE & OPT_MODE_DEVICE)
-
-#if CFG_TUD_ENABLED
-  #define TUD_OPT_HIGH_SPEED  ((TUD_RHPORT_MODE & OPT_MODE_SPEED_MASK) ? (TUD_RHPORT_MODE & OPT_MODE_HIGH_SPEED) : (TUP_RHPORT_HIGHSPEED & (1 << TUD_OPT_RHPORT)))
-#else
-  #define TUD_OPT_HIGH_SPEED  0
+#ifndef CFG_TUD_ENABLED
+  // fallback to use CFG_TUSB_RHPORTx_MODE
+  #define CFG_TUD_ENABLED     (TUD_RHPORT_MODE & OPT_MODE_DEVICE)
 #endif
+
+#ifndef CFG_TUD_MAX_SPEED
+  // fallback to use CFG_TUSB_RHPORTx_MODE
+  #define CFG_TUD_MAX_SPEED   (TUD_RHPORT_MODE & OPT_MODE_SPEED_MASK)
+#endif
+
+// For backward compatible
+#define TUSB_OPT_DEVICE_ENABLED CFG_TUD_ENABLED
+
+// highspeed support indicator
+#define TUD_OPT_HIGH_SPEED    (CFG_TUD_MAX_SPEED ? (CFG_TUD_MAX_SPEED & OPT_MODE_HIGH_SPEED) : TUP_RHPORT_HIGHSPEED)
 
 //------------- Roothub as Host -------------//
 
-#if (CFG_TUSB_RHPORT0_MODE) & OPT_MODE_HOST
+#if defined(CFG_TUSB_RHPORT0_MODE) && ((CFG_TUSB_RHPORT0_MODE) & OPT_MODE_HOST)
   #define TUH_RHPORT_MODE  (CFG_TUSB_RHPORT0_MODE)
   #define TUH_OPT_RHPORT   0
-#elif (CFG_TUSB_RHPORT1_MODE) & OPT_MODE_HOST
+#elif defined(CFG_TUSB_RHPORT1_MODE) && ((CFG_TUSB_RHPORT1_MODE) & OPT_MODE_HOST)
   #define TUH_RHPORT_MODE  (CFG_TUSB_RHPORT1_MODE)
   #define TUH_OPT_RHPORT   1
 #else
   #define TUH_RHPORT_MODE   OPT_MODE_NONE
-  #define TUH_OPT_RHPORT   -1
 #endif
 
-#define CFG_TUH_ENABLED     (TUH_RHPORT_MODE & OPT_MODE_HOST)
+#ifndef CFG_TUH_ENABLED
+  // fallback to use CFG_TUSB_RHPORTx_MODE
+  #define CFG_TUH_ENABLED     (TUH_RHPORT_MODE & OPT_MODE_HOST)
+#endif
+
+#ifndef CFG_TUH_MAX_SPEED
+  // fallback to use CFG_TUSB_RHPORTx_MODE
+  #define CFG_TUH_MAX_SPEED   (TUH_RHPORT_MODE & OPT_MODE_SPEED_MASK)
+#endif
 
 // For backward compatible
-#define TUSB_OPT_DEVICE_ENABLED CFG_TUD_ENABLED
 #define TUSB_OPT_HOST_ENABLED   CFG_TUH_ENABLED
 
+// highspeed support indicator
+#define TUH_OPT_HIGH_SPEED    (CFG_TUH_MAX_SPEED ? (CFG_TUH_MAX_SPEED & OPT_MODE_HIGH_SPEED) : TUP_RHPORT_HIGHSPEED)
+
+
+//--------------------------------------------------------------------+
 // TODO move later
+//--------------------------------------------------------------------+
+
 // TUP_MCU_STRICT_ALIGN will overwrite TUP_ARCH_STRICT_ALIGN.
 // In case TUP_MCU_STRICT_ALIGN = 1 and TUP_ARCH_STRICT_ALIGN =0, we will not reply on compiler
 // to generate unaligned access code.
@@ -289,9 +304,6 @@ typedef int make_iso_compilers_happy ;
 #ifndef CFG_TUSB_OS_INC_PATH
   #define CFG_TUSB_OS_INC_PATH
 #endif
-
-// mutex is only needed for RTOS TODO also required with multiple core MCUs
-#define TUSB_OPT_MUTEX      (CFG_TUSB_OS != OPT_OS_NONE)
 
 //--------------------------------------------------------------------
 // Device Options (Default)
@@ -421,6 +433,9 @@ typedef int make_iso_compilers_happy ;
 #if CFG_TUD_ENDPOINT0_SIZE > 64
   #error Control Endpoint Max Packet Size cannot be larger than 64
 #endif
+
+// To avoid GCC compiler warnings when -pedantic option is used (strict ISO C)
+typedef int make_iso_compilers_happy;
 
 #endif /* _TUSB_OPTION_H_ */
 

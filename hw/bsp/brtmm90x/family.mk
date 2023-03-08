@@ -3,12 +3,12 @@ CROSS_COMPILE = ft32-elf-
 SKIP_NANOLIB = 1
 
 # Set to use FT90X prebuilt libraries.
-FT90X_PREBUILT_LIBS = 0
-ifeq ($(FT90X_PREBUILT_LIBS),1)
+FT9XX_PREBUILT_LIBS = 0
+ifeq ($(FT9XX_PREBUILT_LIBS),1)
 # If the FT90X toolchain is installed on Windows systems then the SDK 
 # include files and prebuilt libraries are at: %FT90X_TOOLCHAIN%/hardware
 FT9XX_SDK = $(FT90X_TOOLCHAIN)/hardware
-INC += $(FT9XX_SDK)/include
+INC += "$(FT9XX_SDK)/include"
 else
 # The submodule BRTSG-FOSS/ft90x-sdk contains header files and source
 # code for the Bridgetek SDK. This can be used instead of the prebuilt
@@ -16,12 +16,12 @@ else
 DEPS_SUBMODULES += hw/mcu/bridgetek/ft9xx/ft90x-sdk
 # The SDK can be used to load specific files from the Bridgetek SDK.
 FT9XX_SDK = hw/mcu/bridgetek/ft9xx/ft90x-sdk/Source
-INC += $(TOP)/$(FT9XX_SDK)/include
+INC += "$(TOP)/$(FT9XX_SDK)/include"
 endif
 
 # Add include files which are within the TinyUSB directory structure.
 INC += \
-	$(TOP)/$(BOARD_PATH)
+	$(TOP)/$(BOARD_PATH) 
 
 # Add required C Compiler flags for FT90X.
 CFLAGS += \
@@ -30,13 +30,13 @@ CFLAGS += \
 	-fvar-tracking-assignments \
 	-fmessage-length=0 \
 	-ffunction-sections \
-	-DCFG_TUSB_MCU=OPT_MCU_FT90X
+	-DCFG_TUSB_MCU=OPT_MCU_FT90X 
+
+# Maximum USB device speed supported by the board
+CFLAGS += -DBOARD_TUD_MAX_SPEED=OPT_MODE_HIGH_SPEED
 
 # lwip/src/core/raw.c:334:43: error: declaration of 'recv' shadows a global declaration
 CFLAGS += -Wno-error=shadow
-
-# Add include files outside the TinyUSB structure that are added manually.
-CFLAGS += -I"$(FT9XX_SDK)/include"
 
 # Set Linker flags.
 LD_FILE = hw/mcu/bridgetek/ft9xx/scripts/ldscript.ld
@@ -48,7 +48,7 @@ LDFLAGS += $(addprefix -L,$(LDINC)) \
 SRC_C += src/portable/bridgetek/ft9xx/dcd_ft9xx.c 
 
 # Linker library.
-ifneq ($(FT90X_PREBUILT_LIBS),1)
+ifneq ($(FT9XX_PREBUILT_LIBS),1)
 # Optionally add in files from the Bridgetek SDK instead of the prebuilt
 # library. These are the minimum required.
 SRC_C += $(FT9XX_SDK)/src/sys.c

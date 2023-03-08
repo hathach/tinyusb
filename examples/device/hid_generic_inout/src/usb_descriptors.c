@@ -103,7 +103,7 @@ uint8_t const desc_configuration[] =
   // Config number, interface count, string index, total length, attribute, power in mA
   TUD_CONFIG_DESCRIPTOR(1, ITF_NUM_TOTAL, 0, CONFIG_TOTAL_LEN, 0x00, 100),
 
-  // Interface number, string index, protocol, report descriptor len, EP In & Out address, size & polling interval
+  // Interface number, string index, protocol, report descriptor len, EP Out & In address, size & polling interval
   TUD_HID_INOUT_DESCRIPTOR(ITF_NUM_HID, 0, HID_ITF_PROTOCOL_NONE, sizeof(desc_hid_report), EPNUM_HID, 0x80 | EPNUM_HID, CFG_TUD_HID_EP_BUFSIZE, 10)
 };
 
@@ -153,7 +153,7 @@ uint16_t const* tud_descriptor_string_cb(uint8_t index, uint16_t langid)
     const char* str = string_desc_arr[index];
 
     // Cap at max char
-    chr_count = strlen(str);
+    chr_count = (uint8_t) strlen(str);
     if ( chr_count > 31 ) chr_count = 31;
 
     // Convert ASCII string into UTF-16
@@ -164,7 +164,7 @@ uint16_t const* tud_descriptor_string_cb(uint8_t index, uint16_t langid)
   }
 
   // first byte is length (including header), second byte is string type
-  _desc_str[0] = (TUSB_DESC_STRING << 8 ) | (2*chr_count + 2);
+  _desc_str[0] = (uint16_t) ((TUSB_DESC_STRING << 8 ) | (2*chr_count + 2));
 
   return _desc_str;
 }

@@ -1,11 +1,25 @@
 name: Build MSP430
 
 on:
-  pull_request:
   push:
-  release:
-    types:
-      - created
+    paths:
+      - 'src/**'
+      - 'examples/**'
+      - 'lib/**'
+      - 'hw/**'
+      - '.github/workflows/build_msp430.yml'
+  pull_request:
+    branches: [ master ]
+    paths:
+      - 'src/**'
+      - 'examples/**'
+      - 'lib/**'
+      - 'hw/**'
+      - '.github/workflows/build_msp430.yml'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
+  cancel-in-progress: true
 
 jobs:  
   build-msp430:
@@ -16,9 +30,12 @@ jobs:
         family:
         # Alphabetical order
         - 'msp430'
+
     steps:
     - name: Setup Python
-      uses: actions/setup-python@v2
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.x'
 
     - name: Checkout TinyUSB
       uses: actions/checkout@v3
@@ -36,7 +53,7 @@ jobs:
       run: echo >> $GITHUB_ENV TOOLCHAIN_URL=http://software-dl.ti.com/msp430/msp430_public_sw/mcu/msp430/MSPGCC/9_2_0_0/export/msp430-gcc-9.2.0.50_linux64.tar.bz2
 
     - name: Cache Toolchain
-      uses: actions/cache@v2
+      uses: actions/cache@v3
       id: cache-toolchain
       with:
         path: ~/cache/
@@ -52,13 +69,17 @@ jobs:
     - name: Set Toolchain Path
       run: echo >> $GITHUB_PATH `echo ~/cache/toolchain/*/bin`
 
+    - name: Get Dependencies
+      run: python3 tools/get_dependencies.py ${{ matrix.family }}
+
     - name: Build
       run: python3 tools/build_family.py ${{ matrix.family }}
 
     - name: Linker Map
       run: |
         pip install linkermap/
-        for ex in `ls -d examples/device/*/`; do \
-          find ${ex} -name *.map -print -quit | \
-          xargs -I % sh -c 'echo "::group::%"; linkermap -v %; echo "::endgroup::"'; \
+        # find -quit to only print linkermap of 1 board per example
+        for ex in `ls -d examples/device/*/`
+        do
+          find ${ex} -name *.map -print -quit | xargs -I % sh -c 'echo "::group::%"; linkermap -v %; echo "::endgroup::"'
         done

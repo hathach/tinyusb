@@ -1,0 +1,48 @@
+name: pre-commit
+
+on:
+  push:
+  pull_request:
+    branches: [ master ]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
+  cancel-in-progress: true
+
+jobs:
+  pre-commit:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Setup Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.x'
+
+    - name: Setup Ruby
+      uses: ruby/setup-ruby@v1
+      with:
+        ruby-version: '3.0'
+
+    - name: Checkout TinyUSB
+      uses: actions/checkout@v3
+
+    - name: Run codespell
+      uses: codespell-project/actions-codespell@master
+
+    - name: Run Unit Tests
+      run: |
+        # Install Ceedling
+        gem install ceedling
+        cd test/unit-test
+        ceedling test:all
+
+    - name: Build Fuzzer
+      run: |
+        export CC=clang
+        export CXX=clang++
+        fuzz_harness=$(ls -d test/fuzz/device/*/)
+        for h in $fuzz_harness
+        do
+          make -C $h get-deps
+          make -C $h all
+        done

@@ -59,6 +59,7 @@ typedef struct {
     uint16_t queued_len;
     uint16_t max_size;
     bool short_packet;
+    uint8_t interval;
 } xfer_ctl_t;
 
 static const char *TAG = "TUSB:DCD";
@@ -267,6 +268,7 @@ bool dcd_edpt_open(uint8_t rhport, tusb_desc_endpoint_t const *desc_edpt)
 
   xfer_ctl_t *xfer = XFER_CTL_BASE(epnum, dir);
   xfer->max_size = tu_edpt_packet_size(desc_edpt);
+  xfer->interval = desc_edpt->bInterval;
 
   if (dir == TUSB_DIR_OUT) {
     out_ep[epnum].doepctl |= USB_USBACTEP1_M |
@@ -379,6 +381,13 @@ bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t *buffer, uint16_t to
     USB0.in_ep_reg[epnum].dieptsiz = (num_packets << USB_D_PKTCNT0_S) | total_bytes;
     USB0.in_ep_reg[epnum].diepctl |= USB_D_EPENA1_M | USB_D_CNAK1_M; // Enable | CNAK
 
+    // For ISO endpoint with interval=1 set correct DATA0/DATA1 bit for next frame
+    if ((USB0.in_ep_reg[epnum].diepctl & USB_D_EPTYPE0_M) == (1 << USB_D_EPTYPE1_S) && xfer->interval == 1) {
+      // Take odd/even bit from frame counter.
+      uint32_t const odd_frame_now = (USB0.dsts & (1u << USB_SOFFN_S));
+      USB0.in_ep_reg[epnum].diepctl |= (odd_frame_now ? USB_DI_SETD0PID1 : USB_DI_SETD1PID1);
+    }
+
     // Enable fifo empty interrupt only if there are something to put in the fifo.
     if(total_bytes != 0) {
       USB0.dtknqr4_fifoemptymsk |= (1 << epnum);
@@ -387,6 +396,13 @@ bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t *buffer, uint16_t to
     // Each complete packet for OUT xfers triggers XFRC.
     USB0.out_ep_reg[epnum].doeptsiz |= USB_PKTCNT0_M | ((xfer->max_size & USB_XFERSIZE0_V) << USB_XFERSIZE0_S);
     USB0.out_ep_reg[epnum].doepctl  |= USB_EPENA0_M | USB_CNAK0_M;
+
+    // For ISO endpoint with interval=1 set correct DATA0/DATA1 bit for next frame
+    if ((USB0.out_ep_reg[epnum].doepctl & USB_D_EPTYPE0_M) == (1 << USB_D_EPTYPE1_S) && xfer->interval == 1) {
+      // Take odd/even bit from frame counter.
+      uint32_t const odd_frame_now = (USB0.dsts & (1u << USB_SOFFN_S));
+      USB0.out_ep_reg[epnum].doepctl |= (odd_frame_now ? USB_DO_SETD0PID1 : USB_DO_SETD1PID1);
+    }
   }
   return true;
 }
@@ -725,7 +741,7 @@ static void handle_epin_ints(void)
 
       // XFER Timeout
       if (USB0.in_ep_reg[n].diepint & USB_D_TIMEOUT0_M) {
-        // Clear interrupt or enpoint will hang.
+        // Clear interrupt or endpoint will hang.
         USB0.in_ep_reg[n].diepint = USB_D_TIMEOUT0_M;
         // Maybe retry?
       }

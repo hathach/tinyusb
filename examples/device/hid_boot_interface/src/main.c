@@ -55,7 +55,9 @@ void hid_task(void);
 int main(void)
 {
   board_init();
-  tusb_init();
+
+  // init device stack on configured roothub port
+  tud_init(BOARD_TUD_RHPORT);
 
   while (1)
   {
@@ -155,11 +157,11 @@ void hid_task(void)
       {
         uint8_t const report_id   = 0;
         uint8_t const button_mask = 0;
-        uint8_t const veritical   = 0;
+        uint8_t const vertical    = 0;
         uint8_t const horizontal  = 0;
         int8_t  const delta       = 5;
 
-        tud_hid_n_mouse_report(ITF_NUM_MOUSE, report_id, button_mask, delta, delta, veritical, horizontal);
+        tud_hid_n_mouse_report(ITF_NUM_MOUSE, report_id, button_mask, delta, delta, vertical, horizontal);
       }
     }
   }
@@ -173,13 +175,13 @@ void tud_hid_set_protocol_cb(uint8_t instance, uint8_t protocol)
   (void) protocol;
 
   // nothing to do since we use the same compatible boot report for both Boot and Report mode.
-  // TOOD set a indicator for user
+  // TODO set a indicator for user
 }
 
 // Invoked when sent REPORT successfully to host
 // Application can use this to send the next report
 // Note: For composite reports, report[0] is report ID
-void tud_hid_report_complete_cb(uint8_t instance, uint8_t const* report, uint8_t len)
+void tud_hid_report_complete_cb(uint8_t instance, uint8_t const* report, uint16_t len)
 {
   (void) instance;
   (void) report;

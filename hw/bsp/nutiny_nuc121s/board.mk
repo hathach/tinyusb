@@ -10,6 +10,9 @@ CFLAGS += \
   -DCFG_EXAMPLE_MSC_READONLY \
   -DCFG_TUSB_MCU=OPT_MCU_NUC121
 
+# mcu driver cause following warnings
+CFLAGS += -Wno-error=redundant-decls
+
 # All source paths should be relative to the top level.
 LD_FILE = hw/bsp/$(BOARD)/nuc121_flash.ld
 

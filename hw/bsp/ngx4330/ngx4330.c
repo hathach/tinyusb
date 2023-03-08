@@ -40,6 +40,18 @@
 #define BOARD_UART_PIN_TX         10 // PF.10 : UART0_TXD
 #define BOARD_UART_PIN_RX         11 // PF.11 : UART0_RXD
 
+#ifdef BOARD_TUD_RHPORT
+  #define PORT_SUPPORT_DEVICE(_n)  (BOARD_TUD_RHPORT == _n)
+#else
+  #define PORT_SUPPORT_DEVICE(_n)  0
+#endif
+
+#ifdef BOARD_TUH_RHPORT
+  #define PORT_SUPPORT_HOST(_n)    (BOARD_TUH_RHPORT == _n)
+#else
+  #define PORT_SUPPORT_HOST(_n)    0
+#endif
+
 /*------------------------------------------------------------------*/
 /* BOARD API
  *------------------------------------------------------------------*/
@@ -120,7 +132,7 @@ void board_init(void)
   SysTick_Config(SystemCoreClock / 1000);
 #elif CFG_TUSB_OS == OPT_OS_FREERTOS
   // If freeRTOS is used, IRQ priority is limit by max syscall ( smaller is higher )
-  //NVIC_SetPriority(USB0_IRQn, configLIBRARY_MAX_SYSCALL_INTERRUPT_PRIORITY );
+  NVIC_SetPriority(USB0_IRQn, configLIBRARY_MAX_SYSCALL_INTERRUPT_PRIORITY);
 #endif
 
   Chip_GPIO_Init(LPC_GPIO_PORT);
@@ -167,9 +179,7 @@ void board_init(void)
    * status feedback from the distribution switch. GPIO54 is used for VBUS sensing. 15Kohm pull-down
    * resistors are always active
    */
-#if CFG_TUSB_RHPORT0_MODE
   Chip_USB0_Init();
-#endif
 
   /* USB1
    * When USB channel #1 is used as USB Host, 15Kohm pull-down resistors are needed on the USB data
@@ -189,12 +199,9 @@ void board_init(void)
    * of VBUS can be read via U31.
    * JP16 shall not be inserted.
    */
-#if CFG_TUSB_RHPORT1_MODE
   Chip_USB1_Init();
-
 //	Chip_GPIO_SetPinDIROutput(LPC_GPIO_PORT, 5, 6);							/* GPIO5[6] = USB1_PWR_EN */
 //	Chip_GPIO_SetPinState(LPC_GPIO_PORT, 5, 6, true);							/* GPIO5[6] output high */
-#endif
 }
 
 //--------------------------------------------------------------------+
@@ -202,23 +209,23 @@ void board_init(void)
 //--------------------------------------------------------------------+
 void USB0_IRQHandler(void)
 {
-  #if CFG_TUSB_RHPORT0_MODE & OPT_MODE_HOST
-    tuh_int_handler(0);
+  #if PORT_SUPPORT_DEVICE(0)
+    tud_int_handler(0);
   #endif
 
-  #if CFG_TUSB_RHPORT0_MODE & OPT_MODE_DEVICE
-    tud_int_handler(0);
+  #if PORT_SUPPORT_HOST(0)
+    tuh_int_handler(0);
   #endif
 }
 
 void USB1_IRQHandler(void)
 {
-  #if CFG_TUSB_RHPORT1_MODE & OPT_MODE_HOST
-    tuh_int_handler(1);
+  #if PORT_SUPPORT_DEVICE(1)
+    tud_int_handler(1);
   #endif
 
-  #if CFG_TUSB_RHPORT1_MODE & OPT_MODE_DEVICE
-    tud_int_handler(1);
+  #if PORT_SUPPORT_HOST(1)
+    tuh_int_handler(1);
   #endif
 }
 

@@ -58,7 +58,7 @@ typedef struct
   tusb_hid_descriptor_hid_t const * hid_descriptor;
 } hidd_interface_t;
 
-CFG_TUSB_MEM_SECTION static hidd_interface_t _hidd_itf[CFG_TUD_HID];
+CFG_TUSB_MEM_SECTION tu_static hidd_interface_t _hidd_itf[CFG_TUD_HID];
 
 /*------------- Helpers -------------*/
 static inline uint8_t get_index_by_itfnum(uint8_t itf_num)
@@ -76,11 +76,12 @@ static inline uint8_t get_index_by_itfnum(uint8_t itf_num)
 //--------------------------------------------------------------------+
 bool tud_hid_n_ready(uint8_t instance)
 {
+  uint8_t const rhport = 0;
   uint8_t const ep_in = _hidd_itf[instance].ep_in;
-  return tud_ready() && (ep_in != 0) && !usbd_edpt_busy(TUD_OPT_RHPORT, ep_in);
+  return tud_ready() && (ep_in != 0) && !usbd_edpt_busy(rhport, ep_in);
 }
 
-bool tud_hid_n_report(uint8_t instance, uint8_t report_id, void const* report, uint8_t len)
+bool tud_hid_n_report(uint8_t instance, uint8_t report_id, void const* report, uint16_t len)
 {
   uint8_t const rhport = 0;
   hidd_interface_t * p_hid = &_hidd_itf[instance];
@@ -91,19 +92,15 @@ bool tud_hid_n_report(uint8_t instance, uint8_t report_id, void const* report, u
   // prepare data
   if (report_id)
   {
-    len = tu_min8(len, CFG_TUD_HID_EP_BUFSIZE-1);
-
     p_hid->epin_buf[0] = report_id;
-    memcpy(p_hid->epin_buf+1, report, len);
+    TU_VERIFY(0 == tu_memcpy_s(p_hid->epin_buf+1, CFG_TUD_HID_EP_BUFSIZE-1, report, len));
     len++;
   }else
   {
-    // If report id = 0, skip ID field
-    len = tu_min8(len, CFG_TUD_HID_EP_BUFSIZE);
-    memcpy(p_hid->epin_buf, report, len);
+    TU_VERIFY(0 == tu_memcpy_s(p_hid->epin_buf, CFG_TUD_HID_EP_BUFSIZE, report, len));
   }
 
-  return usbd_edpt_xfer(TUD_OPT_RHPORT, p_hid->ep_in, p_hid->epin_buf, len);
+  return usbd_edpt_xfer(rhport, p_hid->ep_in, p_hid->epin_buf, len);
 }
 
 uint8_t tud_hid_n_interface_protocol(uint8_t instance)
@@ -125,7 +122,7 @@ bool tud_hid_n_keyboard_report(uint8_t instance, uint8_t report_id, uint8_t modi
 
   if ( keycode )
   {
-    memcpy(report.keycode, keycode, 6);
+    memcpy(report.keycode, keycode, sizeof(report.keycode));
   }else
   {
     tu_memclr(report.keycode, 6);
@@ -150,8 +147,7 @@ bool tud_hid_n_mouse_report(uint8_t instance, uint8_t report_id,
 }
 
 bool tud_hid_n_gamepad_report(uint8_t instance, uint8_t report_id,
-                              int8_t x, int8_t y, int8_t z, int8_t rz, int8_t rx, int8_t ry, uint8_t hat, uint32_t buttons)
-{
+                              int8_t x, int8_t y, int8_t z, int8_t rz, int8_t rx, int8_t ry, uint8_t hat, uint32_t buttons) {
   hid_gamepad_report_t report =
   {
     .x       = x,
@@ -172,7 +168,7 @@ bool tud_hid_n_gamepad_report(uint8_t instance, uint8_t report_id,
 //--------------------------------------------------------------------+
 void hidd_init(void)
 {
-  hidd_reset(TUD_OPT_RHPORT);
+  hidd_reset(0);
 }
 
 void hidd_reset(uint8_t rhport)
@@ -182,11 +178,13 @@ void hidd_reset(uint8_t rhport)
 }
 
 uint16_t hidd_open(uint8_t rhport, tusb_desc_interface_t const * desc_itf, uint16_t max_len)
-{
+ {
   TU_VERIFY(TUSB_CLASS_HID == desc_itf->bInterfaceClass, 0);
 
   // len = interface + hid + n*endpoints
-  uint16_t const drv_len = sizeof(tusb_desc_interface_t) + sizeof(tusb_hid_descriptor_hid_t) + desc_itf->bNumEndpoints*sizeof(tusb_desc_endpoint_t);
+  uint16_t const drv_len =
+      (uint16_t) (sizeof(tusb_desc_interface_t) + sizeof(tusb_hid_descriptor_hid_t) +
+                                       desc_itf->bNumEndpoints * sizeof(tusb_desc_endpoint_t));
   TU_ASSERT(max_len >= drv_len, 0);
 
   // Find available interface
@@ -401,13 +399,13 @@ bool hidd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint32_
   {
     if (tud_hid_report_complete_cb)
     {
-      tud_hid_report_complete_cb(instance, p_hid->epin_buf, (uint8_t) xferred_bytes);
+      tud_hid_report_complete_cb(instance, p_hid->epin_buf, (uint16_t) xferred_bytes);
     }
   }
   // Received report
   else if (ep_addr == p_hid->ep_out)
   {
-    tud_hid_set_report_cb(instance, 0, HID_REPORT_TYPE_INVALID, p_hid->epout_buf, xferred_bytes);
+    tud_hid_set_report_cb(instance, 0, HID_REPORT_TYPE_INVALID, p_hid->epout_buf, (uint16_t) xferred_bytes);
     TU_ASSERT(usbd_edpt_xfer(rhport, p_hid->ep_out, p_hid->epout_buf, sizeof(p_hid->epout_buf)));
   }
 

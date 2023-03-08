@@ -1,0 +1,57 @@
+name: Build IAR
+
+on:
+  push:
+    paths:
+      - 'src/**'
+      - 'examples/**'
+      - 'lib/**'
+      - 'hw/**'
+      - '.github/workflows/build_iar.yml'
+  pull_request:
+    branches: [ master ]
+    paths:
+      - 'src/**'
+      - 'examples/**'
+      - 'lib/**'
+      - 'hw/**'
+      - '.github/workflows/build_iar.yml'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
+  cancel-in-progress: true
+
+jobs:
+  build-arm:
+    runs-on: [self-hosted, Linux, X64, hifiphile]
+    strategy:
+      fail-fast: false
+      matrix:
+        family:
+        # Alphabetical order
+        # Note: bundle multiple families into a matrix since there is only one self-hosted instance can
+        # run IAR build. Too many matrix can hurt due to setup/teardown overhead. 
+        - 'stm32f0 stm32f1 stm32f4 stm32f7 stm32g4 stm32h7 stm32l4'
+    steps:
+    - name: Clean workspace
+      run: |
+        echo "Cleaning up previous run"
+        rm -rf "${{ github.workspace }}"
+        mkdir -p "${{ github.workspace }}"
+
+    - name: Checkout TinyUSB
+      uses: actions/checkout@v3
+
+    - name: Checkout submodules and dependencies
+      run: |
+        git submodule update --init lib/FreeRTOS-Kernel lib/lwip lib/sct_neopixel
+        python3 tools/get_dependencies.py ${{ matrix.family }}
+
+    #- name: Checkout pico-sdk for rp2040
+    #  if: matrix.family == 'rp2040'
+    #  run: |
+    #    git clone --depth 1 -b develop https://github.com/raspberrypi/pico-sdk ~/pico-sdk
+    #    echo >> $GITHUB_ENV PICO_SDK_PATH=~/pico-sdk
+
+    - name: Build
+      run: python3 tools/build_family.py ${{ matrix.family }} CC=iccarm

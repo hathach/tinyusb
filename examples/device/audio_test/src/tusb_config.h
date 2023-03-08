@@ -30,6 +30,20 @@
 extern "C" {
 #endif
 
+//--------------------------------------------------------------------+
+// Board Specific Configuration
+//--------------------------------------------------------------------+
+
+// RHPort number used for device can be defined by board.mk, default to port 0
+#ifndef BOARD_TUD_RHPORT
+#define BOARD_TUD_RHPORT      0
+#endif
+
+// RHPort max operational speed can defined by board.mk
+#ifndef BOARD_TUD_MAX_SPEED
+#define BOARD_TUD_MAX_SPEED   OPT_MODE_DEFAULT_SPEED
+#endif
+
 //--------------------------------------------------------------------
 // COMMON CONFIGURATION
 //--------------------------------------------------------------------
@@ -39,8 +53,6 @@ extern "C" {
 #error CFG_TUSB_MCU must be defined
 #endif
 
-#define CFG_TUSB_RHPORT0_MODE       OPT_MODE_DEVICE
-
 #ifndef CFG_TUSB_OS
 #define CFG_TUSB_OS                 OPT_OS_NONE
 #endif
@@ -48,6 +60,12 @@ extern "C" {
 #ifndef CFG_TUSB_DEBUG
 #define CFG_TUSB_DEBUG              0
 #endif
+
+// Enable Device stack
+#define CFG_TUD_ENABLED       1
+
+// Default is max speed that hardware controller could support with on-chip PHY
+#define CFG_TUD_MAX_SPEED     BOARD_TUD_MAX_SPEED
 
 // CFG_TUSB_DEBUG is defined by compiler in DEBUG build
 // #define CFG_TUSB_DEBUG           0
@@ -76,11 +94,11 @@ extern "C" {
 #endif
 
 //------------- CLASS -------------//
+#define CFG_TUD_AUDIO             1
 #define CFG_TUD_CDC               0
 #define CFG_TUD_MSC               0
 #define CFG_TUD_HID               0
 #define CFG_TUD_MIDI              0
-#define CFG_TUD_AUDIO             1
 #define CFG_TUD_VENDOR            0
 
 //--------------------------------------------------------------------
@@ -96,7 +114,7 @@ extern "C" {
 #define CFG_TUD_AUDIO_ENABLE_EP_IN                                    1
 #define CFG_TUD_AUDIO_FUNC_1_N_BYTES_PER_SAMPLE_TX                    2                                       // Driver gets this info from the descriptors - we define it here to use it to setup the descriptors and to do calculations with it below
 #define CFG_TUD_AUDIO_FUNC_1_N_CHANNELS_TX                            1                                       // Driver gets this info from the descriptors - we define it here to use it to setup the descriptors and to do calculations with it below - be aware: for different number of channels you need another descriptor!
-#define CFG_TUD_AUDIO_EP_SZ_IN                                        48 * CFG_TUD_AUDIO_FUNC_1_N_BYTES_PER_SAMPLE_TX * CFG_TUD_AUDIO_FUNC_1_N_CHANNELS_TX      // 48 Samples (48 kHz) x 2 Bytes/Sample x 1 Channel
+#define CFG_TUD_AUDIO_EP_SZ_IN                                        (48 + 1) * CFG_TUD_AUDIO_FUNC_1_N_BYTES_PER_SAMPLE_TX * CFG_TUD_AUDIO_FUNC_1_N_CHANNELS_TX      // 48 Samples (48 kHz) x 2 Bytes/Sample x CFG_TUD_AUDIO_N_CHANNELS_TX Channels - One extra sample is needed for asynchronous transfer adjustment, see feedback EP
 #define CFG_TUD_AUDIO_FUNC_1_EP_IN_SZ_MAX                             CFG_TUD_AUDIO_EP_SZ_IN                  // Maximum EP IN size for all AS alternate settings used
 #define CFG_TUD_AUDIO_FUNC_1_EP_IN_SW_BUF_SZ                          CFG_TUD_AUDIO_EP_SZ_IN + 1
 

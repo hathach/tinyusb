@@ -46,16 +46,16 @@
 /* Low level controller
  *------------------------------------------------------------------*/
 
-#define usb_hw_set hw_set_alias(usb_hw)
-#define usb_hw_clear hw_clear_alias(usb_hw)
-
 // Init these in dcd_init
 static uint8_t *next_buffer_ptr;
 
 // USB_MAX_ENDPOINTS Endpoints, direction TUSB_DIR_OUT for out and TUSB_DIR_IN for in.
 static struct hw_endpoint hw_endpoints[USB_MAX_ENDPOINTS][2];
 
-static inline struct hw_endpoint *hw_endpoint_get_by_num(uint8_t num, tusb_dir_t dir)
+// SOF may be used by remote wakeup as RESUME, this indicate whether SOF is actually used by usbd
+static bool _sof_enable = false;
+
+TU_ATTR_ALWAYS_INLINE static inline struct hw_endpoint *hw_endpoint_get_by_num(uint8_t num, tusb_dir_t dir)
 {
   return &hw_endpoints[num][dir];
 }
@@ -85,7 +85,7 @@ static void _hw_endpoint_alloc(struct hw_endpoint *ep, uint8_t transfer_type)
   uint dpram_offset = hw_data_offset(ep->hw_data_buf);
   hard_assert(hw_data_offset(next_buffer_ptr) <= USB_DPRAM_MAX);
 
-  pico_info("  Alloced %d bytes at offset 0x%x (0x%p)\r\n", size, dpram_offset, ep->hw_data_buf);
+  pico_info("  Allocated %d bytes at offset 0x%x (0x%p)\r\n", size, dpram_offset, ep->hw_data_buf);
 
   // Fill in endpoint control register with buffer offset
   uint32_t const reg = EP_CTRL_ENABLE_BITS | ((uint)transfer_type << EP_CTRL_BUFFER_TYPE_LSB) | dpram_offset;
@@ -185,7 +185,7 @@ static void hw_endpoint_xfer(uint8_t ep_addr, uint8_t *buffer, uint16_t total_by
     hw_endpoint_xfer_start(ep, buffer, total_bytes);
 }
 
-static void hw_handle_buff_status(void)
+static void __tusb_irq_path_func(hw_handle_buff_status)(void)
 {
     uint32_t remaining_buffers = usb_hw->buf_status;
     pico_trace("buf_status = 0x%08x\n", remaining_buffers);
@@ -214,7 +214,7 @@ static void hw_handle_buff_status(void)
     }
 }
 
-static void reset_ep0_pid(void)
+TU_ATTR_ALWAYS_INLINE static inline void reset_ep0_pid(void)
 {
     // If we have finished this transfer on EP0 set pid back to 1 for next
     // setup transfer. Also clear a stall in case
@@ -226,7 +226,7 @@ static void reset_ep0_pid(void)
     }
 }
 
-static void reset_non_control_endpoints(void)
+static void __tusb_irq_path_func(reset_non_control_endpoints)(void)
 {
   // Disable all non-control
   for ( uint8_t i = 0; i < USB_MAX_ENDPOINTS-1; i++ )
@@ -242,102 +242,135 @@ static void reset_non_control_endpoints(void)
   next_buffer_ptr = &usb_dpram->epx_data[0];
 }
 
-static void dcd_rp2040_irq(void)
+static void __tusb_irq_path_func(dcd_rp2040_irq)(void)
 {
-    uint32_t const status = usb_hw->ints;
-    uint32_t handled = 0;
+  uint32_t const status = usb_hw->ints;
+  uint32_t handled = 0;
 
-    if (status & USB_INTF_DEV_SOF_BITS)
+  if ( status & USB_INTF_DEV_SOF_BITS )
+  {
+    bool keep_sof_alive = false;
+
+    handled |= USB_INTF_DEV_SOF_BITS;
+
+#if TUD_OPT_RP2040_USB_DEVICE_UFRAME_FIX
+    // Errata 15 workaround for Device Bulk-In endpoint
+    e15_last_sof = time_us_32();
+
+    for ( uint8_t i = 0; i < USB_MAX_ENDPOINTS; i++ )
     {
-      handled |= USB_INTF_DEV_SOF_BITS;
-      dcd_event_sof(0, usb_hw->sof_rd & USB_SOF_RD_BITS, true);
-    }
+      struct hw_endpoint * ep = hw_endpoint_get_by_num(i, TUSB_DIR_IN);
 
-    // xfer events are handled before setup req. So if a transfer completes immediately
-    // before closing the EP, the events will be delivered in same order.
-    if (status & USB_INTS_BUFF_STATUS_BITS)
-    {
-        handled |= USB_INTS_BUFF_STATUS_BITS;
-        hw_handle_buff_status();
-    }
+      // Active Bulk IN endpoint requires SOF
+      if ( (ep->transfer_type == TUSB_XFER_BULK) && ep->active )
+      {
+        keep_sof_alive = true;
 
-    if (status & USB_INTS_SETUP_REQ_BITS)
-    {
-        handled |= USB_INTS_SETUP_REQ_BITS;
-        uint8_t const *setup = (uint8_t const *)&usb_dpram->setup_packet;
+        hw_endpoint_lock_update(ep, 1);
 
-        // reset pid to both 1 (data and ack)
-        reset_ep0_pid();
-
-        // Pass setup packet to tiny usb
-        dcd_event_setup_received(0, setup, true);
-        usb_hw_clear->sie_status = USB_SIE_STATUS_SETUP_REC_BITS;
-    }
-
-#if FORCE_VBUS_DETECT == 0
-    // Since we force VBUS detect On, device will always think it is connected and
-    // couldn't distinguish between disconnect and suspend
-    if (status & USB_INTS_DEV_CONN_DIS_BITS)
-    {
-        handled |= USB_INTS_DEV_CONN_DIS_BITS;
-
-        if ( usb_hw->sie_status & USB_SIE_STATUS_CONNECTED_BITS )
+        // Deferred enable?
+        if ( ep->pending )
         {
-          // Connected: nothing to do
-        }else
-        {
-          // Disconnected
-          dcd_event_bus_signal(0, DCD_EVENT_UNPLUGGED, true);
+          ep->pending = 0;
+          hw_endpoint_start_next_buffer(ep);
         }
 
-        usb_hw_clear->sie_status = USB_SIE_STATUS_CONNECTED_BITS;
+        hw_endpoint_lock_update(ep, -1);
+      }
     }
 #endif
 
-    // SE0 for 2.5 us or more (will last at least 10ms)
-    if (status & USB_INTS_BUS_RESET_BITS)
+    // disable SOF interrupt if it is used for RESUME in remote wakeup
+    if ( !keep_sof_alive && !_sof_enable ) usb_hw_clear->inte = USB_INTS_DEV_SOF_BITS;
+
+    dcd_event_sof(0, usb_hw->sof_rd & USB_SOF_RD_BITS, true);
+  }
+
+  // xfer events are handled before setup req. So if a transfer completes immediately
+  // before closing the EP, the events will be delivered in same order.
+  if ( status & USB_INTS_BUFF_STATUS_BITS )
+  {
+    handled |= USB_INTS_BUFF_STATUS_BITS;
+    hw_handle_buff_status();
+  }
+
+  if ( status & USB_INTS_SETUP_REQ_BITS )
+  {
+    handled |= USB_INTS_SETUP_REQ_BITS;
+    uint8_t const * setup = remove_volatile_cast(uint8_t const*, &usb_dpram->setup_packet);
+
+    // reset pid to both 1 (data and ack)
+    reset_ep0_pid();
+
+    // Pass setup packet to tiny usb
+    dcd_event_setup_received(0, setup, true);
+    usb_hw_clear->sie_status = USB_SIE_STATUS_SETUP_REC_BITS;
+  }
+
+#if FORCE_VBUS_DETECT == 0
+  // Since we force VBUS detect On, device will always think it is connected and
+  // couldn't distinguish between disconnect and suspend
+  if (status & USB_INTS_DEV_CONN_DIS_BITS)
+  {
+    handled |= USB_INTS_DEV_CONN_DIS_BITS;
+
+    if ( usb_hw->sie_status & USB_SIE_STATUS_CONNECTED_BITS )
     {
-        pico_trace("BUS RESET\n");
+      // Connected: nothing to do
+    }else
+    {
+      // Disconnected
+      dcd_event_bus_signal(0, DCD_EVENT_UNPLUGGED, true);
+    }
 
-        handled |= USB_INTS_BUS_RESET_BITS;
+    usb_hw_clear->sie_status = USB_SIE_STATUS_CONNECTED_BITS;
+  }
+#endif
 
-        usb_hw->dev_addr_ctrl = 0;
-        reset_non_control_endpoints();
-        dcd_event_bus_reset(0, TUSB_SPEED_FULL, true);
-        usb_hw_clear->sie_status = USB_SIE_STATUS_BUS_RESET_BITS;
+  // SE0 for 2.5 us or more (will last at least 10ms)
+  if ( status & USB_INTS_BUS_RESET_BITS )
+  {
+    pico_trace("BUS RESET\n");
+
+    handled |= USB_INTS_BUS_RESET_BITS;
+
+    usb_hw->dev_addr_ctrl = 0;
+    reset_non_control_endpoints();
+    dcd_event_bus_reset(0, TUSB_SPEED_FULL, true);
+    usb_hw_clear->sie_status = USB_SIE_STATUS_BUS_RESET_BITS;
 
 #if TUD_OPT_RP2040_USB_DEVICE_ENUMERATION_FIX
-        // Only run enumeration walk-around if pull up is enabled
-        if ( usb_hw->sie_ctrl & USB_SIE_CTRL_PULLUP_EN_BITS ) rp2040_usb_device_enumeration_fix();
+    // Only run enumeration workaround if pull up is enabled
+    if ( usb_hw->sie_ctrl & USB_SIE_CTRL_PULLUP_EN_BITS ) rp2040_usb_device_enumeration_fix();
 #endif
-    }
+  }
 
-    /* Note from pico datasheet 4.1.2.6.4 (v1.2)
-     * If you enable the suspend interrupt, it is likely you will see a suspend interrupt when
-     * the device is first connected but the bus is idle. The bus can be idle for a few ms before
-     * the host begins sending start of frame packets. You will also see a suspend interrupt
-     * when the device is disconnected if you do not have a VBUS detect circuit connected. This is
-     * because without VBUS detection, it is impossible to tell the difference between
-     * being disconnected and suspended.
-     */
-    if (status & USB_INTS_DEV_SUSPEND_BITS)
-    {
-        handled |= USB_INTS_DEV_SUSPEND_BITS;
-        dcd_event_bus_signal(0, DCD_EVENT_SUSPEND, true);
-        usb_hw_clear->sie_status = USB_SIE_STATUS_SUSPENDED_BITS;
-    }
+  /* Note from pico datasheet 4.1.2.6.4 (v1.2)
+   * If you enable the suspend interrupt, it is likely you will see a suspend interrupt when
+   * the device is first connected but the bus is idle. The bus can be idle for a few ms before
+   * the host begins sending start of frame packets. You will also see a suspend interrupt
+   * when the device is disconnected if you do not have a VBUS detect circuit connected. This is
+   * because without VBUS detection, it is impossible to tell the difference between
+   * being disconnected and suspended.
+   */
+  if ( status & USB_INTS_DEV_SUSPEND_BITS )
+  {
+    handled |= USB_INTS_DEV_SUSPEND_BITS;
+    dcd_event_bus_signal(0, DCD_EVENT_SUSPEND, true);
+    usb_hw_clear->sie_status = USB_SIE_STATUS_SUSPENDED_BITS;
+  }
 
-    if (status & USB_INTS_DEV_RESUME_FROM_HOST_BITS)
-    {
-        handled |= USB_INTS_DEV_RESUME_FROM_HOST_BITS;
-        dcd_event_bus_signal(0, DCD_EVENT_RESUME, true);
-        usb_hw_clear->sie_status = USB_SIE_STATUS_RESUME_BITS;
-    }
+  if ( status & USB_INTS_DEV_RESUME_FROM_HOST_BITS )
+  {
+    handled |= USB_INTS_DEV_RESUME_FROM_HOST_BITS;
+    dcd_event_bus_signal(0, DCD_EVENT_RESUME, true);
+    usb_hw_clear->sie_status = USB_SIE_STATUS_RESUME_BITS;
+  }
 
-    if (status ^ handled)
-    {
-        panic("Unhandled IRQ 0x%x\n", (uint) (status ^ handled));
-    }
+  if ( status ^ handled )
+  {
+    panic("Unhandled IRQ 0x%x\n", (uint) (status ^ handled));
+  }
 }
 
 #define USB_INTS_ERROR_BITS ( \
@@ -363,7 +396,7 @@ void dcd_init (uint8_t rhport)
   usb_hw->pwr = USB_USB_PWR_VBUS_DETECT_BITS | USB_USB_PWR_VBUS_DETECT_OVERRIDE_EN_BITS;
 #endif
 
-  irq_set_exclusive_handler(USBCTRL_IRQ, dcd_rp2040_irq);
+  irq_add_shared_handler(USBCTRL_IRQ, dcd_rp2040_irq, PICO_SHARED_IRQ_HANDLER_HIGHEST_ORDER_PRIORITY);
 
   // Init control endpoints
   tu_memclr(hw_endpoints[0], 2*sizeof(hw_endpoint_t));
@@ -411,9 +444,13 @@ void dcd_set_address (__unused uint8_t rhport, __unused uint8_t dev_addr)
 
 void dcd_remote_wakeup(__unused uint8_t rhport)
 {
-    pico_info("dcd_remote_wakeup %d\n", rhport);
-    assert(rhport == 0);
-    usb_hw_set->sie_ctrl = USB_SIE_CTRL_RESUME_BITS;
+  pico_info("dcd_remote_wakeup %d\n", rhport);
+  assert(rhport == 0);
+
+  // since RESUME interrupt is not triggered if we are the one initiate
+  // briefly enable SOF to notify usbd when bus is ready
+  usb_hw_set->inte = USB_INTS_DEV_SOF_BITS;
+  usb_hw_set->sie_ctrl = USB_SIE_CTRL_RESUME_BITS;
 }
 
 // disconnect by disabling internal pull-up resistor on D+/D-
@@ -434,17 +471,19 @@ void dcd_sof_enable(uint8_t rhport, bool en)
 {
   (void) rhport;
 
-  uint32_t inte = usb_hw->inte;
+  _sof_enable = en;
 
   if (en)
   {
-    inte |= USB_INTS_DEV_SOF_BITS;
+    usb_hw_set->inte = USB_INTS_DEV_SOF_BITS;
   }else
   {
-    inte &= ~USB_INTS_DEV_SOF_BITS;
+    // Don't clear immediately if the SOF workaround is in use.
+    // The SOF handler will conditionally disable the interrupt.
+#if !TUD_OPT_RP2040_USB_DEVICE_UFRAME_FIX
+    usb_hw_clear->inte = USB_INTS_DEV_SOF_BITS;
+#endif
   }
-
-  usb_hw->inte = inte;
 }
 
 /*------------------------------------------------------------------*/
@@ -524,7 +563,7 @@ void dcd_edpt_close (uint8_t rhport, uint8_t ep_addr)
     hw_endpoint_close(ep_addr);
 }
 
-void dcd_int_handler(uint8_t rhport)
+void __tusb_irq_path_func(dcd_int_handler)(uint8_t rhport)
 {
   (void) rhport;
   dcd_rp2040_irq();

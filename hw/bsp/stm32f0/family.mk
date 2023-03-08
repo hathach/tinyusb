@@ -7,18 +7,32 @@ ST_HAL_DRIVER = hw/mcu/st/stm32$(ST_FAMILY)xx_hal_driver
 
 include $(TOP)/$(BOARD_PATH)/board.mk
 
+# --------------
+# Compiler Flags
+# --------------
 CFLAGS += \
+  -DCFG_EXAMPLE_MSC_READONLY \
+  -DCFG_TUSB_MCU=OPT_MCU_STM32F0
+
+# GCC Flags
+GCC_CFLAGS += \
   -flto \
   -mthumb \
   -mabi=aapcs \
   -mcpu=cortex-m0 \
   -mfloat-abi=soft \
   -nostdlib -nostartfiles \
-  -DCFG_EXAMPLE_MSC_READONLY \
-  -DCFG_TUSB_MCU=OPT_MCU_STM32F0
 
 # suppress warning caused by vendor mcu driver
-CFLAGS += -Wno-error=unused-parameter -Wno-error=cast-align -Wno-error=cast-qual
+GCC_CFLAGS += -Wno-error=unused-parameter -Wno-error=cast-align
+
+# IAR Flags
+IAR_CFLAGS += --cpu cortex-m0
+IAR_ASFLAGS += --cpu cortex-m0
+
+# ------------------------
+# All source paths should be relative to the top level.
+# ------------------------
 
 SRC_C += \
   src/portable/st/stm32_fsdev/dcd_stm32_fsdev.c \
@@ -28,7 +42,9 @@ SRC_C += \
   $(ST_HAL_DRIVER)/Src/stm32$(ST_FAMILY)xx_hal_rcc.c \
   $(ST_HAL_DRIVER)/Src/stm32$(ST_FAMILY)xx_hal_rcc_ex.c \
   $(ST_HAL_DRIVER)/Src/stm32$(ST_FAMILY)xx_hal_gpio.c \
-  $(ST_HAL_DRIVER)/Src/stm32$(ST_FAMILY)xx_hal_uart.c
+  $(ST_HAL_DRIVER)/Src/stm32$(ST_FAMILY)xx_hal_dma.c \
+  $(ST_HAL_DRIVER)/Src/stm32$(ST_FAMILY)xx_hal_uart.c \
+  $(ST_HAL_DRIVER)/Src/stm32$(ST_FAMILY)xx_hal_uart_ex.c
 
 INC += \
 	$(TOP)/$(BOARD_PATH) \

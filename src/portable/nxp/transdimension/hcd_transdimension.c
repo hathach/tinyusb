@@ -29,14 +29,14 @@
 // NXP Trans-Dimension USB IP implement EHCI for host functionality
 
 #if CFG_TUH_ENABLED && \
-    (CFG_TUSB_MCU == OPT_MCU_LPC18XX || CFG_TUSB_MCU == OPT_MCU_LPC43XX || CFG_TUSB_MCU == OPT_MCU_MIMXRT10XX)
+    (CFG_TUSB_MCU == OPT_MCU_LPC18XX || CFG_TUSB_MCU == OPT_MCU_LPC43XX || CFG_TUSB_MCU == OPT_MCU_MIMXRT)
 
 #warning "transdimenion is renamed to chipidea (portable/chipidea/ci_hs) to match other opensource naming convention such as linux. This file will be removed in the future, please update your makefile accordingly"
 
 //--------------------------------------------------------------------+
 // INCLUDE
 //--------------------------------------------------------------------+
-#if CFG_TUSB_MCU == OPT_MCU_MIMXRT10XX
+#if CFG_TUSB_MCU == OPT_MCU_MIMXRT
   #include "fsl_device_registers.h"
 #else
   // LPCOpen for 18xx & 43xx
@@ -58,7 +58,7 @@ typedef struct
   const IRQn_Type irqnum; // IRQ number
 }hcd_controller_t;
 
-#if CFG_TUSB_MCU == OPT_MCU_MIMXRT10XX
+#if CFG_TUSB_MCU == OPT_MCU_MIMXRT
   static const hcd_controller_t _hcd_controller[] =
   {
     // RT1010 and RT1020 only has 1 USB controller

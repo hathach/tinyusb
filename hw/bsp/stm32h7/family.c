@@ -66,10 +66,12 @@ void board_init(void)
   __HAL_RCC_GPIOC_CLK_ENABLE(); // USB ULPI NXT
   __HAL_RCC_GPIOD_CLK_ENABLE();
   __HAL_RCC_GPIOE_CLK_ENABLE();
-  __HAL_RCC_GPIOE_CLK_ENABLE();
+  __HAL_RCC_GPIOF_CLK_ENABLE();
   __HAL_RCC_GPIOG_CLK_ENABLE();
   __HAL_RCC_GPIOH_CLK_ENABLE(); // USB ULPI NXT
+#ifdef __HAL_RCC_GPIOI_CLK_ENABLE
   __HAL_RCC_GPIOI_CLK_ENABLE(); // USB ULPI NXT
+#endif
   __HAL_RCC_GPIOJ_CLK_ENABLE();
 
   // Enable UART Clock
@@ -84,7 +86,9 @@ void board_init(void)
   SysTick->CTRL &= ~1U;
 
   // If freeRTOS is used, IRQ priority is limit by max syscall ( smaller is higher )
+#ifdef USB_OTG_FS_PERIPH_BASE
   NVIC_SetPriority(OTG_FS_IRQn, configLIBRARY_MAX_SYSCALL_INTERRUPT_PRIORITY );
+#endif
   NVIC_SetPriority(OTG_HS_IRQn, configLIBRARY_MAX_SYSCALL_INTERRUPT_PRIORITY );
 #endif
   
@@ -122,7 +126,7 @@ void board_init(void)
   UartHandle.Init.OverSampling = UART_OVERSAMPLING_16;
   HAL_UART_Init(&UartHandle);
 
-#if BOARD_DEVICE_RHPORT_NUM == 0
+#if BOARD_TUD_RHPORT == 0
   // Despite being call USB2_OTG
   // OTG_FS is marked as RHPort0 by TinyUSB to be consistent across stm32 port
   // PA9 VUSB, PA10 ID, PA11 DM, PA12 DP
@@ -166,7 +170,7 @@ void board_init(void)
   USB_OTG_FS->GOTGCTL |= USB_OTG_GOTGCTL_BVALOVAL;
 #endif // vbus sense
 
-#elif BOARD_DEVICE_RHPORT_NUM == 1
+#elif BOARD_TUD_RHPORT == 1
   // Despite being call USB2_OTG
   // OTG_HS is marked as RHPort1 by TinyUSB to be consistent across stm32 port
 
@@ -221,7 +225,8 @@ void board_init(void)
 
 void board_led_write(bool state)
 {
-  HAL_GPIO_WritePin(LED_PORT, LED_PIN, state ? LED_STATE_ON : (1-LED_STATE_ON));
+  GPIO_PinState pin_state = (GPIO_PinState) (state ? LED_STATE_ON : (1-LED_STATE_ON));
+  HAL_GPIO_WritePin(LED_PORT, LED_PIN, pin_state);
 }
 
 uint32_t board_button_read(void)
@@ -257,7 +262,7 @@ uint32_t board_millis(void)
 
 void HardFault_Handler(void)
 {
-  asm("bkpt");
+  __asm("BKPT #0\n");
 }
 
 // Required by __libc_init_array in startup code if we are compiling using
