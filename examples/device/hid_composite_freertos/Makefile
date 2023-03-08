@@ -29,7 +29,7 @@ SRC_C += \
 	$(subst $(TOP)/,,$(wildcard $(TOP)/$(FREERTOS_PORT)/*.c))
 
 SRC_S += \
-	$(subst $(TOP)/,,$(wildcard $(TOP)/$(FREERTOS_PORTABLE_SRC)/*.s))
+	$(subst $(TOP)/,,$(wildcard $(TOP)/$(FREERTOS_PORT)/*.s))
 
 # include heap manage if configSUPPORT_DYNAMIC_ALLOCATION = 1
 # SRC_C += $(FREERTOS_SRC)/portable/MemMang/heap_1.c
