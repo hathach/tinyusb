@@ -35,9 +35,8 @@ jobs:
         - 'broadcom_32bit'
         - 'imxrt'
         - 'lpc15 lpc18'
-        - 'lpc54 lpc55' 
-        - 'mm32'
-        - 'msp432e4'
+        - 'lpc54 lpc55'
+        - 'mm32 msp432e4'
         - 'nrf'
         - 'rp2040'
         - 'samd11'
@@ -50,8 +49,7 @@ jobs:
         - 'stm32g4 stm32wb'
         - 'stm32h7'
         - 'stm32l4'
-        - 'tm4c123'
-        - 'xmc4000'
+        - 'tm4c123 xmc4000'
     steps:
     - name: Setup Python
       uses: actions/setup-python@v4
@@ -97,7 +95,7 @@ jobs:
         done
 
     # Upload binaries for rp2040/stm32l412nucleo hardware test with self-hosted
-    
+
     - name: Prepare rp2040 Artifacts
       if: matrix.family == 'rp2040' && github.repository_owner == 'hathach'
       run: find examples/ -name "*.elf" -exec mv {} . \;
