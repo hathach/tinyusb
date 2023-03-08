@@ -216,7 +216,7 @@ TU_ATTR_ALWAYS_INLINE static inline void reg16_clear_bits(__IO uint16_t *reg, ui
 }
 
 // Bits in ISTR are cleared upon writing 0
-TU_ATTR_ALWAYS_INLINE static inline void clear_istr_bits(uint16_t mask) {
+TU_ATTR_ALWAYS_INLINE static inline void clear_istr_bits(uint32_t mask) {
   USB->ISTR = ~mask;
 }
 
@@ -242,16 +242,23 @@ void dcd_init (uint8_t rhport)
   {
     asm("NOP");
   }
+
+#ifdef PMA_32BIT_ACCESS // CNTR register is 32bits on STM32G0, 16bit on older versions
+  USB->CNTR &= ~USB_CNTR_PDWN;
+#else
   reg16_clear_bits(&USB->CNTR, USB_CNTR_PDWN);// Remove powerdown
+#endif
+
   // Wait startup time, for F042 and F070, this is <= 1 us.
   for(uint32_t i = 0; i<200; i++) // should be a few us
   {
     asm("NOP");
   }
   USB->CNTR = 0; // Enable USB
-  
-  USB->BTABLE = DCD_STM32_BTABLE_BASE;
 
+#ifndef STM32G0 // BTABLE register does not exist any more on STM32G0, it is fixed to USB SRAM base address
+  USB->BTABLE = DCD_STM32_BTABLE_BASE;
+#endif
   USB->ISTR = 0; // Clear pending interrupts
 
   // Reset endpoints to disabled
@@ -312,7 +319,7 @@ void dcd_sof_enable(uint8_t rhport, bool en)
   }
   else
   {
-    USB->CNTR &= (uint16_t) ~USB_CNTR_SOFM;
+    USB->CNTR &= ~USB_CNTR_SOFM;
   }
 }
 
@@ -357,6 +364,9 @@ void dcd_int_enable (uint8_t rhport)
   NVIC_EnableIRQ(USB_HP_IRQn);
   NVIC_EnableIRQ(USB_LP_IRQn);
   NVIC_EnableIRQ(USBWakeUp_IRQn);
+
+#elif CFG_TUSB_MCU == OPT_MCU_STM32G0
+  NVIC_EnableIRQ(USB_UCPD1_2_IRQn);
 
 #elif CFG_TUSB_MCU == OPT_MCU_STM32WB
   NVIC_EnableIRQ(USB_HP_IRQn);
@@ -405,6 +415,9 @@ void dcd_int_disable(uint8_t rhport)
   NVIC_DisableIRQ(USB_LP_IRQn);
   NVIC_DisableIRQ(USBWakeUp_IRQn);
 
+#elif CFG_TUSB_MCU == OPT_MCU_STM32G0
+  NVIC_DisableIRQ(USB_UCPD1_2_IRQn);
+
 #elif CFG_TUSB_MCU == OPT_MCU_STM32WB
   NVIC_DisableIRQ(USB_HP_IRQn);
   NVIC_DisableIRQ(USB_LP_IRQn);
@@ -433,7 +446,7 @@ void dcd_remote_wakeup(uint8_t rhport)
 {
   (void) rhport;
 
-  USB->CNTR |= (uint16_t) USB_CNTR_RESUME;
+  USB->CNTR |= USB_CNTR_RESUME;
   remoteWakeCountdown = 4u; // required to be 1 to 15 ms, ESOF should trigger every 1ms.
 }
 
@@ -534,9 +547,6 @@ static void dcd_ep_ctr_rx_handler(uint32_t wIstr)
   
   if((ep_addr == 0U) && ((wEPRegVal & USB_EP_SETUP) != 0U)) /* Setup packet */
   {
-    // The setup_received function uses memcpy, so this must first copy the setup data into
-    // user memory, to allow for the 32-bit access that memcpy performs.
-    uint8_t userMemBuf[8];
     uint32_t count = pcd_get_ep_rx_cnt(USB, EPindex);
     /* Get SETUP Packet*/
     if(count == 8) // Setup packet should always be 8 bytes. If not, ignore it, and try again.
@@ -544,8 +554,15 @@ static void dcd_ep_ctr_rx_handler(uint32_t wIstr)
       // Must reset EP to NAK (in case it had been stalling) (though, maybe too late here)
       pcd_set_ep_rx_status(USB,0u,USB_EP_RX_NAK);
       pcd_set_ep_tx_status(USB,0u,USB_EP_TX_NAK);
-      dcd_read_packet_memory(userMemBuf, *pcd_ep_rx_address_ptr(USB,EPindex), 8);
+#ifdef PMA_32BIT_ACCESS
+      dcd_event_setup_received(0, (uint8_t*)(USB_PMAADDR + pcd_get_ep_rx_address(USB, EPindex)), true);
+#else
+      // The setup_received function uses memcpy, so this must first copy the setup data into
+      // user memory, to allow for the 32-bit access that memcpy performs.
+      uint8_t userMemBuf[8];
+      dcd_read_packet_memory(userMemBuf, pcd_get_ep_rx_address(USB,EPindex), 8);
       dcd_event_setup_received(0, (uint8_t*)userMemBuf, true);
+#endif
     }
   }
   else
@@ -568,7 +585,7 @@ static void dcd_ep_ctr_rx_handler(uint32_t wIstr)
 
     if (count != 0U)
     {
-      uint16_t addr = *pcd_ep_rx_address_ptr(USB, EPindex);
+      uint16_t addr = pcd_get_ep_rx_address(USB, EPindex);
 
       if (xfer->ff)
       {
@@ -672,8 +689,13 @@ void dcd_int_handler(uint8_t rhport) {
 
   if (int_status & USB_ISTR_WKUP)
   {
+#ifdef PMA_32BIT_ACCESS // CNTR register is 32bits on STM32G0, 16bit on older versions
+    USB->CNTR &= ~USB_CNTR_LPMODE;
+    USB->CNTR &= ~USB_CNTR_FSUSP;
+#else
     reg16_clear_bits(&USB->CNTR, USB_CNTR_LPMODE);
     reg16_clear_bits(&USB->CNTR, USB_CNTR_FSUSP);
+#endif
     clear_istr_bits(USB_ISTR_WKUP);
     dcd_event_bus_signal(0, DCD_EVENT_RESUME, true);
   }
@@ -695,7 +717,7 @@ void dcd_int_handler(uint8_t rhport) {
   if(int_status & USB_ISTR_ESOF) {
     if(remoteWakeCountdown == 1u)
     {
-      USB->CNTR &= (uint16_t)(~USB_CNTR_RESUME);
+      USB->CNTR &= ~USB_CNTR_RESUME;
     }
     if(remoteWakeCountdown > 0u)
     {
@@ -722,8 +744,13 @@ void dcd_edpt0_status_complete(uint8_t rhport, tusb_control_request_t const * re
     uint8_t const dev_addr = (uint8_t) request->wValue;
 
     // Setting new address after the whole request is complete
+#ifdef PMA_32BIT_ACCESS
+    USB->DADDR &= ~USB_DADDR_ADD;
+    USB->DADDR = (USB->DADDR & ~USB_DADDR_ADD_Msk) | dev_addr; // leave the enable bit set
+#else
     reg16_clear_bits(&USB->DADDR, USB_DADDR_ADD);
     USB->DADDR = (uint16_t)(USB->DADDR | dev_addr); // leave the enable bit set
+#endif
   }
 }
 
@@ -925,14 +952,14 @@ bool dcd_edpt_open (uint8_t rhport, tusb_desc_endpoint_t const * p_endpoint_desc
 
   if( (dir == TUSB_DIR_IN) || (wType == USB_EP_ISOCHRONOUS) )
   {
-    *pcd_ep_tx_address_ptr(USB, ep_idx) = pma_addr;
+    pcd_set_ep_tx_address(USB, ep_idx, pma_addr);
     pcd_set_ep_tx_bufsize(USB, ep_idx, buffer_size);
     pcd_clear_tx_dtog(USB, ep_idx);
   }
 
   if( (dir == TUSB_DIR_OUT) || (wType == USB_EP_ISOCHRONOUS) )
   {
-    *pcd_ep_rx_address_ptr(USB, ep_idx) = pma_addr;
+    pcd_set_ep_rx_address(USB, ep_idx, pma_addr);
     pcd_set_ep_rx_bufsize(USB, ep_idx, buffer_size);
     pcd_clear_rx_dtog(USB, ep_idx);
   }
@@ -1011,10 +1038,10 @@ bool dcd_edpt_iso_alloc(uint8_t rhport, uint8_t ep_addr, uint16_t largest_packet
   xfer_ctl_ptr(ep_addr)->ep_idx = ep_idx;
 
   pcd_set_eptype(USB, ep_idx, USB_EP_ISOCHRONOUS);
-  
-  *pcd_ep_tx_address_ptr(USB, ep_idx) = pma_addr;
-  *pcd_ep_rx_address_ptr(USB, ep_idx) = pma_addr;
-  
+
+  pcd_set_ep_tx_address(USB, ep_idx, pma_addr);
+  pcd_set_ep_rx_address(USB, ep_idx, pma_addr);
+
   return true;
 }
 
@@ -1063,7 +1090,7 @@ static void dcd_transmit_packet(xfer_ctl_t * xfer, uint16_t ep_ix)
   }
 
   uint16_t ep_reg = pcd_get_endpoint(USB, ep_ix);
-  uint16_t addr_ptr = *pcd_ep_tx_address_ptr(USB,ep_ix);
+  uint16_t addr_ptr = pcd_get_ep_tx_address(USB, ep_ix);
 
   if (xfer->ff)
   {
@@ -1197,6 +1224,19 @@ void dcd_edpt_clear_stall (uint8_t rhport, uint8_t ep_addr)
   }
 }
 
+#ifdef PMA_32BIT_ACCESS
+static bool dcd_write_packet_memory(uint16_t dst, const void *__restrict src, size_t wNBytes)
+{
+  // FIXME original function uses byte-access to source memory (to support non-aligned buffers)
+  const uint32_t* src32 = (uint32_t*)(src);
+  uint32_t* dst32 = (uint32_t*)(USB_PMAADDR + dst);
+  for (unsigned n=wNBytes/4; n>0; --n) {
+    *dst32++ = *src32++;
+  }
+  *dst32 = (*src32) & ((1<<8*(wNBytes % 4)) - 1);
+  return true;
+}
+#else
 // Packet buffer access can only be 8- or 16-bit.
 /**
   * @brief Copy a buffer from user memory area to packet memory area (PMA).
@@ -1239,6 +1279,7 @@ static bool dcd_write_packet_memory(uint16_t dst, const void *__restrict src, si
 
   return true;
 }
+#endif
 
 /**
   * @brief Copy from FIFO to packet memory area (PMA).
@@ -1290,6 +1331,14 @@ static bool dcd_write_packet_memory_ff(tu_fifo_t * ff, uint16_t dst, uint16_t wN
   return true;
 }
 
+#ifdef PMA_32BIT_ACCESS
+static bool dcd_read_packet_memory(void *__restrict dst, uint16_t src, size_t wNBytes)
+{
+    // FIXME this should probably be modified for possible unaligned access?
+    memcpy(dst, (void*)(USB_PMAADDR+src), wNBytes);
+    return true;
+}
+#else
 /**
   * @brief Copy a buffer from packet memory area (PMA) to user memory area.
   *        Uses byte-access of system memory and 16-bit access of packet memory
@@ -1323,6 +1372,7 @@ static bool dcd_read_packet_memory(void *__restrict dst, uint16_t src, size_t wN
   }
   return true;
 }
+#endif
 
 /**
   * @brief Copy a buffer from user packet memory area (PMA) to FIFO.
