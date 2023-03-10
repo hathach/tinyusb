@@ -709,11 +709,6 @@ static bool _open_vs_itf(uint8_t rhport, videod_streaming_interface_t *stm, uint
     stm->desc.ep[i] = (uint16_t) (cur - desc);
     TU_LOG2("    open EP%02x\n", _desc_ep_addr(cur));
   }
-  /* initialize payload header */
-  tusb_video_payload_header_t *hdr = (tusb_video_payload_header_t*)stm->ep_buf;
-  hdr->bHeaderLength = sizeof(*hdr);
-  hdr->bmHeaderInfo  = 0;
-
   TU_LOG2("    done\n");
   return true;
 }
@@ -992,8 +987,15 @@ static int handle_video_stm_cs_req(uint8_t rhport, uint8_t stage,
             TU_VERIFY(_update_streaming_parameters(self, param), VIDEO_ERROR_INVALID_VALUE_WITHIN_RANGE);
             /* Set the negotiated value */
             self->max_payload_transfer_size = param->dwMaxPayloadTransferSize;
+            int ret = VIDEO_ERROR_NONE;
             if (tud_video_commit_cb) {
-              return tud_video_commit_cb(self->index_vc, self->index_vs, param);
+              ret = tud_video_commit_cb(self->index_vc, self->index_vs, param);
+            }
+            if (VIDEO_ERROR_NONE == ret) {
+              /* initialize payload header */
+              tusb_video_payload_header_t *hdr = (tusb_video_payload_header_t*)self->ep_buf;
+              hdr->bHeaderLength = sizeof(*hdr);
+              hdr->bmHeaderInfo  = 0;
             }
           }
           return VIDEO_ERROR_NONE;
@@ -1166,6 +1168,7 @@ uint16_t videod_open(uint8_t rhport, tusb_desc_interface_t const * itf_desc, uin
   tusb_desc_vc_itf_t const *vc = _get_desc_vc(self);
   uint_fast8_t bInCollection   = vc->ctl.bInCollection;
 
+  videod_streaming_interface_t *default_stm = NULL;
   /* Find the end of the video interface descriptor */
   void const *cur = _next_desc_itf(itf_desc, end);
   for (uint8_t stm_idx = 0; stm_idx < bInCollection; ++stm_idx) {
@@ -1183,7 +1186,9 @@ uint16_t videod_open(uint8_t rhport, tusb_desc_interface_t const * itf_desc, uin
     stm->desc.beg = (uint16_t) ((uintptr_t)cur - (uintptr_t)itf_desc);
     cur = _next_desc_itf(cur, end);
     stm->desc.end = (uint16_t) ((uintptr_t)cur - (uintptr_t)itf_desc);
+    if (!default_stm) default_stm = stm;
   }
+  TU_VERIFY(_open_vs_itf(rhport, default_stm, 0), 0);
   self->len = (uint16_t) ((uintptr_t)cur - (uintptr_t)itf_desc);
   return (uint16_t) ((uintptr_t)cur - (uintptr_t)itf_desc);
 }
