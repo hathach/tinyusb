@@ -1,8 +1,9 @@
 import sys
 import subprocess
 from pathlib import Path
+from multiprocessing import Pool
 
-# path, url, commit
+# path, url, commit (Alphabet sorted by path)
 deps_list = {
     'hw/mcu/allwinner'                            : [ 'https://github.com/hathach/allwinner_driver.git',                '8e5e89e8e132c0fd90e72d5422e5d3d68232b756'],
     'hw/mcu/bridgetek/ft9xx/ft90x-sdk'            : [ 'https://github.com/BRTSG-FOSS/ft90x-sdk.git',                    '91060164afe239fcb394122e8bf9eb24d3194eb1'],
@@ -53,10 +54,10 @@ deps_list = {
     'hw/mcu/ti'                                   : [ 'https://github.com/hathach/ti_driver.git',                       '143ed6cc20a7615d042b03b21e070197d473e6e5'],
     'hw/mcu/wch/ch32v307'                         : [ 'https://github.com/openwch/ch32v307.git',                        '17761f5cf9dbbf2dcf665b7c04934188add20082'],
     'lib/CMSIS_5'                                 : [ 'https://github.com/ARM-software/CMSIS_5.git',                    '20285262657d1b482d132d20d755c8c330d55c1f'],
-    'lib/FreeRTOS-Kernel'                         : [ 'https://github.com/FreeRTOS/FreeRTOS-Kernel.git',                '2a604f4a2818b8354b5e1a39e388eb5e16cfbc1f'],
-    'lib/lwip'                                    : [ 'https://github.com/lwip-tcpip/lwip.git',                         '159e31b689577dbf69cf0683bbaffbd71fa5ee10'],
+    #'lib/FreeRTOS-Kernel'                         : [ 'https://github.com/FreeRTOS/FreeRTOS-Kernel.git',                '2a604f4a2818b8354b5e1a39e388eb5e16cfbc1f'],
+    #'lib/lwip'                                    : [ 'https://github.com/lwip-tcpip/lwip.git',                         '159e31b689577dbf69cf0683bbaffbd71fa5ee10'],
     'lib/sct_neopixel'                            : [ 'https://github.com/gsteiert/sct_neopixel.git',                   'e73e04ca63495672d955f9268e003cffe168fcd8'],
-    'tools/uf2'                                   : [ 'https://github.com/microsoft/uf2.git',                           '19615407727073e36d81bf239c52108ba92e7660'],
+    #'tools/uf2'                                   : [ 'https://github.com/microsoft/uf2.git',                           '19615407727073e36d81bf239c52108ba92e7660'],
 }
 
 # TOP is tinyusb root dir
@@ -77,21 +78,24 @@ def get_a_dep(d):
     # Init git deps if not existed
     if not p.exists():
         p.mkdir(parents=True)
-        subprocess.run("{} init".format(git_cmd), shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
-        subprocess.run("{} remote add origin {}".format(git_cmd, url), shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+        subprocess.run("{} init".format(git_cmd), shell=True)
+        subprocess.run("{} remote add origin {}".format(git_cmd, url), shell=True)
 
     # Check if commit is already fetched
     result = subprocess.run("{} rev-parse HEAD".format(git_cmd, commit), shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
     head = result.stdout.decode("utf-8").splitlines()[0]
+
     if commit != head:
-        subprocess.run("{} fetch --depth 1 origin {}".format(git_cmd, commit), shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
-        subprocess.run("{} checkout FETCH_HEAD".format(git_cmd), shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+        subprocess.run("{} fetch --depth 1 origin {}".format(git_cmd, commit), shell=True)
+        subprocess.run("{} checkout FETCH_HEAD".format(git_cmd), shell=True)
 
     return 0
 
 
-status = 0
-for d in sys.argv[1:]:
-    status += get_a_dep(d)
-
-sys.exit(status)
+if __name__ == "__main__":
+    status = 0
+    all_deps = sys.argv[1:]
+    with Pool() as pool:
+        result = pool.map(get_a_dep, all_deps)
+        status = sum(result)
+    sys.exit(status)
