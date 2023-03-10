@@ -50,7 +50,7 @@ jobs:
       run: git submodule update --init lib/FreeRTOS-Kernel lib/lwip
 
     - name: Get Dependencies
-      run: python3 tools/get_dependencies.py stm32f4
+      run: python3 tools/get_family_deps.py stm32f4
 
     - name: Build
       run: python3 tools/build_family.py stm32f4 stm32f411disco
