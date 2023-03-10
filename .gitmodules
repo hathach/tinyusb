@@ -1,16 +1,9 @@
 [submodule "tools/uf2"]
 	path = tools/uf2
 	url = https://github.com/microsoft/uf2.git
-[submodule "hw/mcu/ti"]
-	path = hw/mcu/ti
-	url = https://github.com/hathach/ti_driver.git
 [submodule "lib/lwip"]
 	path = lib/lwip
 	url = https://github.com/lwip-tcpip/lwip.git
 [submodule "lib/FreeRTOS-Kernel"]
 	path = lib/FreeRTOS-Kernel
 	url = https://github.com/FreeRTOS/FreeRTOS-Kernel.git
-[submodule "hw/mcu/broadcom"]
-	path = hw/mcu/broadcom
-	url = https://github.com/adafruit/broadcom-peripherals.git
-	branch = main-build
