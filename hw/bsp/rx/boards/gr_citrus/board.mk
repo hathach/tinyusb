@@ -1,5 +1,3 @@
-DEPS_SUBMODULES += hw/mcu/renesas/rx
-
 CFLAGS += \
   -mcpu=rx610 \
   -misa=v1 \

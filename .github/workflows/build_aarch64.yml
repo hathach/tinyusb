@@ -43,7 +43,7 @@ jobs:
       uses: actions/checkout@v3
 
     - name: Checkout common submodules in lib
-      run: git submodule update --init lib/FreeRTOS-Kernel lib/lwip lib/sct_neopixel
+      run: git submodule update --init lib/FreeRTOS-Kernel lib/lwip
 
     - name: Checkout hathach/linkermap
       uses: actions/checkout@v3

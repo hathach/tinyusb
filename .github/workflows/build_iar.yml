@@ -44,14 +44,8 @@ jobs:
 
     - name: Checkout submodules and dependencies
       run: |
-        git submodule update --init lib/FreeRTOS-Kernel lib/lwip lib/sct_neopixel
+        git submodule update --init lib/FreeRTOS-Kernel lib/lwip
         python3 tools/get_family_deps.py ${{ matrix.family }}
-
-    #- name: Checkout pico-sdk for rp2040
-    #  if: matrix.family == 'rp2040'
-    #  run: |
-    #    git clone --depth 1 -b develop https://github.com/raspberrypi/pico-sdk ~/pico-sdk
-    #    echo >> $GITHUB_ENV PICO_SDK_PATH=~/pico-sdk
 
     - name: Build
       run: python3 tools/build_family.py ${{ matrix.family }} CC=iccarm
