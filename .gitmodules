@@ -1,6 +1,3 @@
-[submodule "hw/mcu/nordic/nrfx"]
-	path = hw/mcu/nordic/nrfx
-	url = https://github.com/NordicSemiconductor/nrfx.git
 [submodule "tools/uf2"]
 	path = tools/uf2
 	url = https://github.com/microsoft/uf2.git
@@ -109,9 +106,6 @@
 [submodule "lib/FreeRTOS-Kernel"]
 	path = lib/FreeRTOS-Kernel
 	url = https://github.com/FreeRTOS/FreeRTOS-Kernel.git
-[submodule "lib/CMSIS_5"]
-	path = lib/CMSIS_5
-	url = https://github.com/ARM-software/CMSIS_5.git
 [submodule "hw/mcu/silabs/cmsis-dfp-efm32gg12b"]
 	path = hw/mcu/silabs/cmsis-dfp-efm32gg12b
 	url = https://github.com/cmsis-packs/cmsis-dfp-efm32gg12b
