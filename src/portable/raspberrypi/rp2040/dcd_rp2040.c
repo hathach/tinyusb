@@ -385,6 +385,11 @@ static void __tusb_irq_path_func(dcd_rp2040_irq)(void)
 /* Controller API
  *------------------------------------------------------------------*/
 
+// older SDK
+#ifndef PICO_SHARED_IRQ_HANDLER_HIGHEST_ORDER_PRIORITY
+#define PICO_SHARED_IRQ_HANDLER_HIGHEST_ORDER_PRIORITY 0xff
+#endif
+
 void dcd_init (uint8_t rhport)
 {
   assert(rhport == 0);
