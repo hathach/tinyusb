@@ -193,7 +193,7 @@ endif
 .PHONY: get-deps
 get-deps:
   ifdef DEPS_SUBMODULES
-	git -C $(TOP) submodule update --init $(DEPS_SUBMODULES)
+	$(PYTHON) $(TOP)/tools/get_deps.py $(DEPS_SUBMODULES)
   endif
 
 .PHONY: size
