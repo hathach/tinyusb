@@ -79,8 +79,8 @@ def get_a_dep(d):
     # Init git deps if not existed
     if not p.exists():
         p.mkdir(parents=True)
-        subprocess.run("{} init".format(git_cmd), shell=True)
-        subprocess.run("{} remote add origin {}".format(git_cmd, url), shell=True)
+        subprocess.run("{} init".format(git_cmd), shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+        subprocess.run("{} remote add origin {}".format(git_cmd, url), shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
 
     # Check if commit is already fetched
     result = subprocess.run("{} rev-parse HEAD".format(git_cmd, commit), shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
@@ -88,7 +88,7 @@ def get_a_dep(d):
 
     if commit != head:
         subprocess.run("{} fetch --depth 1 origin {}".format(git_cmd, commit), shell=True)
-        subprocess.run("{} checkout FETCH_HEAD".format(git_cmd), shell=True)
+        subprocess.run("{} checkout FETCH_HEAD".format(git_cmd), shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
 
     return 0
 
