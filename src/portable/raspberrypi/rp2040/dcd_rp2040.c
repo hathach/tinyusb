@@ -29,6 +29,7 @@
 #if CFG_TUD_ENABLED && (CFG_TUSB_MCU == OPT_MCU_RP2040) && !CFG_TUD_RPI_PIO_USB
 
 #include "pico.h"
+#include "hardware/sync.h"
 #include "rp2040_usb.h"
 
 #if TUD_OPT_RP2040_USB_DEVICE_ENUMERATION_FIX
