@@ -18,6 +18,7 @@ deps_list = {
     'hw/mcu/nxp/mcux-sdk'                         : [ 'https://github.com/NXPmicro/mcux-sdk.git',                       'ae2ab01d9d70ad00cd0e935c2552bd5f0e5c0294'],
     'hw/mcu/nxp/nxp_sdk'                          : [ 'https://github.com/hathach/nxp_sdk.git',                         '845c8fc49b6fb660f06a5c45225494eacb06f00c'],
     'hw/mcu/raspberry_pi/Pico-PIO-USB'            : [ 'https://github.com/sekigon-gonnoc/Pico-PIO-USB.git',             '9ff3f52fd3c1f81532bce8dd311aa8fc8d9b2665'],
+    'hw/mcu/renesas/fsp'                          : [ 'https://github.com/renesas/fsp.git',                             '8dc14709f2a6518b43f71efad70d900b7718d9f1'],
     'hw/mcu/renesas/rx'                           : [ 'https://github.com/kkitayam/rx_device.git',                      '706b4e0cf485605c32351e2f90f5698267996023'],
     'hw/mcu/silabs/cmsis-dfp-efm32gg12b'          : [ 'https://github.com/cmsis-packs/cmsis-dfp-efm32gg12b.git',        'f1c31b7887669cb230b3ea63f9b56769078960bc'],
     'hw/mcu/sony/cxd56/spresense-exported-sdk'    : [ 'https://github.com/sonydevworld/spresense-exported-sdk.git',     '2ec2a1538362696118dc3fdf56f33dacaf8f4067'],

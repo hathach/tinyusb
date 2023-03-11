@@ -40,7 +40,7 @@ SRC_C += \
 	$(FSP_BOARD_DIR)/board_leds.c
 
 INC += \
-  	$(TOP)/lib/CMSIS_5/CMSIS/Core/Include \
+	$(TOP)/lib/CMSIS_5/CMSIS/Core/Include \
 	$(TOP)/hw/mcu/renesas/fsp/ra/fsp/src/bsp/cmsis/Device/RENESAS/Include \
 	$(TOP)/$(BOARD_PATH) \
 	$(TOP)/$(BOARD_PATH)/fsp_cfg \
