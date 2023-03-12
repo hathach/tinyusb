@@ -27,10 +27,8 @@
 
 #include "tusb_option.h"
 
-#if CFG_TUH_ENABLED && (CFG_TUSB_MCU == OPT_MCU_RX63X || \
-                        CFG_TUSB_MCU == OPT_MCU_RX65X || \
-                        CFG_TUSB_MCU == OPT_MCU_RX72N || \
-                        CFG_TUSB_MCU == OPT_MCU_RAXXX)
+#if CFG_TUH_ENABLED && (TU_CHECK_MCU(OPT_MCU_RX63X, OPT_MCU_RX65X, OPT_MCU_RX72N) || \
+                        TU_CHECK_MCU(OPT_MCU_RAXXX))
 
 #include "host/hcd.h"
 #include "link_type.h"
@@ -217,8 +215,9 @@ static bool pipe0_xfer_in(void)
     pipe_read_packet(buf, (volatile void*)&LINK_REG->CFIFO, len);
     pipe->buf = (uint8_t*)buf + len;
   }
-  if (len < mps)
+  if (len < mps) {
     LINK_REG->CFIFOCTR = LINK_REG_CFIFOCTR_BCLR_Msk;
+  }
   pipe->remaining = rem - len;
   if ((len < mps) || (rem == len)) {
     pipe->buf = NULL;
@@ -243,8 +242,9 @@ static bool pipe0_xfer_out(void)
     pipe_write_packet(buf, (volatile void*)&LINK_REG->CFIFO, len);
     pipe->buf = (uint8_t*)buf + len;
   }
-  if (len < mps)
+  if (len < mps) {
     LINK_REG->CFIFOCTR = LINK_REG_CFIFOCTR_BVAL_Msk;
+  }
   pipe->remaining = rem - len;
   return false;
 }
@@ -264,8 +264,9 @@ static bool pipe_xfer_in(unsigned num)
     pipe_read_packet(buf, (volatile void*)&LINK_REG->D0FIFO, len);
     pipe->buf = (uint8_t*)buf + len;
   }
-  if (len < mps)
+  if (len < mps) {
     LINK_REG->D0FIFOCTR = LINK_REG_CFIFOCTR_BCLR_Msk;
+  }
   LINK_REG->D0FIFOSEL = 0;
   while (LINK_REG->D0FIFOSEL_b.CURPIPE) ; /* if CURPIPE bits changes, check written value */
   pipe->remaining = rem - len;
@@ -314,7 +315,7 @@ static bool process_pipe0_xfer(uint8_t dev_addr, uint8_t ep_addr, void* buffer, 
     while (LINK_REG->CFIFOSEL & LINK_REG_CFIFOSEL_ISEL_WRITE) ;
   } else { /* OUT, 2 bytes */
     LINK_REG->CFIFOSEL = LINK_REG_CFIFOSEL_ISEL_WRITE | LINK_REG_FIFOSEL_MBW_16BIT |
-             (TU_BYTE_ORDER == TU_BIG_ENDIAN ? LINK_REG_FIFOSEL_BIGEND : 0);
+                         (TU_BYTE_ORDER == TU_BIG_ENDIAN ? LINK_REG_FIFOSEL_BIGEND : 0);
     while (!(LINK_REG->CFIFOSEL & LINK_REG_CFIFOSEL_ISEL_WRITE)) ;
   }
 
@@ -363,7 +364,7 @@ static bool process_pipe_xfer(uint8_t dev_addr, uint8_t ep_addr, void *buffer, u
       pipe_wait_for_ready(num);
       LINK_REG->D0FIFOCTR = LINK_REG_CFIFOCTR_BVAL_Msk;
       LINK_REG->D0FIFOSEL = 0;
-      while (LINK_REG->D0FIFOSEL_b.CURPIPE) continue; /* if CURPIPE bits changes, check written value */
+      while (LINK_REG->D0FIFOSEL_b.CURPIPE) {} /* if CURPIPE bits changes, check written value */
     }
   } else {
     volatile uint16_t     *ctr = get_pipectr(num);
@@ -447,9 +448,42 @@ static void process_pipe_brdy(uint8_t rhport, unsigned num)
 /*------------------------------------------------------------------*/
 /* Host API
  *------------------------------------------------------------------*/
+
+#if 0 // previously present in the rx driver before generalization
+static uint32_t disable_interrupt(void)
+{
+  uint32_t pswi;
+#if defined(__CCRX__)
+  pswi = get_psw() & 0x010000;
+  clrpsw_i();
+#else
+  pswi = __builtin_rx_mvfc(0) & 0x010000;
+  __builtin_rx_clrpsw('I');
+#endif
+  return pswi;
+}
+
+static void enable_interrupt(uint32_t pswi)
+{
+#if defined(__CCRX__)
+  set_psw(get_psw() | pswi);
+#else
+  __builtin_rx_mvtc(0, __builtin_rx_mvfc(0) | pswi);
+#endif
+}
+#endif
+
 bool hcd_init(uint8_t rhport)
 {
   (void)rhport;
+
+#if 0 // previously present in the rx driver before generalization
+  uint32_t pswi = disable_interrupt();
+  SYSTEM.PRCR.WORD = SYSTEM_PRCR_PRKEY | SYSTEM_PRCR_PRC1;
+  MSTP(USB0) = 0;
+  SYSTEM.PRCR.WORD = SYSTEM_PRCR_PRKEY;
+  enable_interrupt(pswi);
+#endif
 
   LINK_REG->SYSCFG_b.SCKE = 1;
   while (!LINK_REG->SYSCFG_b.SCKE) ;
@@ -470,7 +504,7 @@ bool hcd_init(uint8_t rhport)
   LINK_REG->DPUSR0R_FS_b.FIXPHY0 = 0u; /* Transceiver Output fixed */
 
   /* Setup default control pipe */
-  LINK_REG->DCPCFG = LINK_REG_PIPECFG_SHTNAK_Msk;
+  LINK_REG->DCPCFG  = LINK_REG_PIPECFG_SHTNAK_Msk;
   LINK_REG->DCPMAXP = 64;
   LINK_REG->INTENB0 = LINK_REG_INTSTS0_BRDY_Msk | LINK_REG_INTSTS0_NRDY_Msk | LINK_REG_INTSTS0_BEMP_Msk;
   LINK_REG->INTENB1 = LINK_REG_INTSTS1_SACK_Msk | LINK_REG_INTSTS1_SIGN_Msk | LINK_REG_INTSTS1_ATTCH_Msk | LINK_REG_INTSTS1_DTCH_Msk;
@@ -515,8 +549,9 @@ void hcd_port_reset(uint8_t rhport)
   while (LINK_REG->DCPCTR_b.PBUSY) ;
   hcd_int_disable(rhport);
   LINK_REG->DVSTCTR0_b.UACT = 0;
-  if (LINK_REG->DCPCTR_b.SUREQ)
+  if (LINK_REG->DCPCTR_b.SUREQ) {
     LINK_REG->DCPCTR_b.SUREQCLR = 1;
+  }
   hcd_int_enable(rhport);
   /* Reset should be asserted 10-20ms. */
   LINK_REG->DVSTCTR0_b.USBRST = 1;
@@ -580,10 +615,10 @@ bool hcd_setup_send(uint8_t rhport, uint8_t dev_addr, uint8_t const setup_packet
 
   LINK_REG->DCPCTR = LINK_REG_PIPE_CTR_PID_NAK;
 
-  _hcd.pipe[0].buf = NULL;
-  _hcd.pipe[0].length = 8;
+  _hcd.pipe[0].buf       = NULL;
+  _hcd.pipe[0].length    = 8;
   _hcd.pipe[0].remaining = 0;
-  _hcd.pipe[0].dev = dev_addr;
+  _hcd.pipe[0].dev       = dev_addr;
 
   while (LINK_REG->DCPCTR_b.PBUSY) ;
   LINK_REG->DCPMAXP = (dev_addr << 12) | _hcd.ctl_mps[dev_addr];
@@ -593,8 +628,8 @@ bool hcd_setup_send(uint8_t rhport, uint8_t dev_addr, uint8_t const setup_packet
   LINK_REG->DCPCFG_b.DIR = tu_edpt_dir(bmRequesttype) ? 0: 1;
 
   uint16_t const* p = (uint16_t const*)(uintptr_t)&setup_packet[0];
-  LINK_REG->USBREQ = tu_htole16(p[0]);
-  LINK_REG->USBVAL = p[1];
+  LINK_REG->USBREQ  = tu_htole16(p[0]);
+  LINK_REG->USBVAL  = p[1];
   LINK_REG->USBINDX = p[2];
   LINK_REG->USBLENG = p[3];
 
@@ -717,12 +752,10 @@ void hcd_int_handler(uint8_t rhport)
   if (is1 & LINK_REG_INTSTS1_SACK_Msk) {
     /* Set DATA1 in advance for the next transfer. */
     LINK_REG->DCPCTR_b.SQSET = 1;
-    hcd_event_xfer_complete(
-      LINK_REG->DCPMAXP_b.DEVSEL, tu_edpt_addr(0, TUSB_DIR_OUT), 8, XFER_RESULT_SUCCESS, true);
+    hcd_event_xfer_complete(LINK_REG->DCPMAXP_b.DEVSEL, tu_edpt_addr(0, TUSB_DIR_OUT), 8, XFER_RESULT_SUCCESS, true);
   }
   if (is1 & LINK_REG_INTSTS1_SIGN_Msk) {
-    hcd_event_xfer_complete(
-      LINK_REG->DCPMAXP_b.DEVSEL, tu_edpt_addr(0, TUSB_DIR_OUT), 8, XFER_RESULT_FAILED, true);
+    hcd_event_xfer_complete(LINK_REG->DCPMAXP_b.DEVSEL, tu_edpt_addr(0, TUSB_DIR_OUT), 8, XFER_RESULT_FAILED, true);
   }
   if (is1 & LINK_REG_INTSTS1_ATTCH_Msk) {
     LINK_REG->DVSTCTR0_b.UACT = 1;
@@ -732,8 +765,9 @@ void hcd_int_handler(uint8_t rhport)
   }
   if (is1 & LINK_REG_INTSTS1_DTCH_Msk) {
     LINK_REG->DVSTCTR0_b.UACT = 0;
-    if (LINK_REG->DCPCTR_b.SUREQ)
+    if (LINK_REG->DCPCTR_b.SUREQ) {
       LINK_REG->DCPCTR_b.SUREQCLR = 1;
+    }
     LINK_REG->INTENB1 = (LINK_REG->INTENB1 & ~LINK_REG_INTSTS1_DTCH_Msk) | LINK_REG_INTSTS1_ATTCH_Msk;
     hcd_event_device_remove(rhport, true);
   }

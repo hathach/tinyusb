@@ -39,7 +39,7 @@ extern "C" {
 
 #define LINK_REG_BASE (0x000A0000)
 
-static inline void link_int_enable(uint8_t rhport)
+TU_ATTR_ALWAYS_INLINE static inline void link_int_enable(uint8_t rhport)
 {
   (void) rhport;
 #if (CFG_TUSB_MCU == OPT_MCU_RX72N)
@@ -49,7 +49,7 @@ static inline void link_int_enable(uint8_t rhport)
 #endif
 }
 
-static inline void link_int_disable(uint8_t rhport)
+TU_ATTR_ALWAYS_INLINE static inline void link_int_disable(uint8_t rhport)
 {
   (void) rhport;
 #if (CFG_TUSB_MCU == OPT_MCU_RX72N)
@@ -60,7 +60,7 @@ static inline void link_int_disable(uint8_t rhport)
 }
 
 // MCU specific PHY init
-static inline void link_phy_init(void)
+TU_ATTR_ALWAYS_INLINE static inline void link_phy_init(void)
 {
 #if (CFG_TUSB_MCU == OPT_MCU_RX72N)
   IR(PERIB, INTB185) = 0;

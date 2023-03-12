@@ -31,10 +31,8 @@
 // We disable SOF for now until needed later on
 #define USE_SOF     0
 
-#if CFG_TUD_ENABLED && (CFG_TUSB_MCU == OPT_MCU_RX63X || \
-                        CFG_TUSB_MCU == OPT_MCU_RX65X || \
-                        CFG_TUSB_MCU == OPT_MCU_RX72N || \
-                        CFG_TUSB_MCU == OPT_MCU_RAXXX)
+#if CFG_TUD_ENABLED && (TU_CHECK_MCU(OPT_MCU_RX63X, OPT_MCU_RX65X, OPT_MCU_RX72N) || \
+                        TU_CHECK_MCU(OPT_MCU_RAXXX))
 
 #include "device/dcd.h"
 #include "link_type.h"
@@ -250,8 +248,9 @@ static bool pipe0_xfer_in(void)
       pipe->buf = (uint8_t*)buf + len;
     }
   }
-  if (len < mps)
+  if (len < mps) {
     LINK_REG->CFIFOCTR = LINK_REG_CFIFOCTR_BVAL_Msk;
+  }
   pipe->remaining = rem - len;
   return false;
 }
@@ -273,8 +272,9 @@ static bool pipe0_xfer_out(void)
       pipe->buf = (uint8_t*)buf + len;
     }
   }
-  if (len < mps)
+  if (len < mps) {
     LINK_REG->CFIFOCTR = LINK_REG_CFIFOCTR_BCLR_Msk;
+  }
   pipe->remaining = rem - len;
   if ((len < mps) || (rem == len)) {
     pipe->buf = NULL;
@@ -306,10 +306,11 @@ static bool pipe_xfer_in(unsigned num)
       pipe->buf = (uint8_t*)buf + len;
     }
   }
-  if (len < mps)
+  if (len < mps) {
     LINK_REG->D0FIFOCTR = LINK_REG_CFIFOCTR_BVAL_Msk;
+  }
   LINK_REG->D0FIFOSEL = 0;
-  while (LINK_REG->D0FIFOSEL_b.CURPIPE) continue; /* if CURPIPE bits changes, check written value */
+  while (LINK_REG->D0FIFOSEL_b.CURPIPE) {} /* if CURPIPE bits changes, check written value */
   pipe->remaining = rem - len;
   return false;
 }
@@ -333,10 +334,11 @@ static bool pipe_xfer_out(unsigned num)
       pipe->buf = (uint8_t*)buf + len;
     }
   }
-  if (len < mps)
+  if (len < mps) {
     LINK_REG->D0FIFOCTR = LINK_REG_CFIFOCTR_BCLR_Msk;
+  }
   LINK_REG->D0FIFOSEL = 0;
-  while (LINK_REG->D0FIFOSEL_b.CURPIPE) ; /* if CURPIPE bits changes, check written value */
+  while (LINK_REG->D0FIFOSEL_b.CURPIPE) {} /* if CURPIPE bits changes, check written value */
   pipe->remaining = rem - len;
   if ((len < mps) || (rem == len)) {
     pipe->buf = NULL;
@@ -377,7 +379,7 @@ static bool process_pipe0_xfer(int buffer_type, uint8_t ep_addr, void* buffer, u
   /* configure fifo direction and access unit settings */
   if (ep_addr) { /* IN, 2 bytes */
     LINK_REG->CFIFOSEL = LINK_REG_CFIFOSEL_ISEL_WRITE | LINK_REG_FIFOSEL_MBW_16BIT |
-             (TU_BYTE_ORDER == TU_BIG_ENDIAN ? LINK_REG_FIFOSEL_BIGEND : 0);
+                         (TU_BYTE_ORDER == TU_BIG_ENDIAN ? LINK_REG_FIFOSEL_BIGEND : 0);
     while (!(LINK_REG->CFIFOSEL & LINK_REG_CFIFOSEL_ISEL_WRITE)) ;
   } else { /* OUT, a byte */
     LINK_REG->CFIFOSEL = LINK_REG_FIFOSEL_MBW_8BIT;
@@ -541,9 +543,42 @@ static void process_set_address(uint8_t rhport)
 /*------------------------------------------------------------------*/
 /* Device API
  *------------------------------------------------------------------*/
+
+#if 0 // previously present in the rx driver before generalization
+static uint32_t disable_interrupt(void)
+{
+  uint32_t pswi;
+#if defined(__CCRX__)
+  pswi = get_psw() & 0x010000;
+  clrpsw_i();
+#else
+  pswi = __builtin_rx_mvfc(0) & 0x010000;
+  __builtin_rx_clrpsw('I');
+#endif
+  return pswi;
+}
+
+static void enable_interrupt(uint32_t pswi)
+{
+#if defined(__CCRX__)
+  set_psw(get_psw() | pswi);
+#else
+  __builtin_rx_mvtc(0, __builtin_rx_mvfc(0) | pswi);
+#endif
+}
+#endif
+
 void dcd_init(uint8_t rhport)
 {
   (void)rhport;
+
+#if 0 // previously present in the rx driver before generalization
+  uint32_t pswi = disable_interrupt();
+  SYSTEM.PRCR.WORD = SYSTEM_PRCR_PRKEY | SYSTEM_PRCR_PRC1;
+  MSTP(USB0) = 0;
+  SYSTEM.PRCR.WORD = SYSTEM_PRCR_PRKEY;
+  enable_interrupt(pswi);
+#endif
 
   LINK_REG->SYSCFG_b.SCKE = 1;
   while (!LINK_REG->SYSCFG_b.SCKE) ;
