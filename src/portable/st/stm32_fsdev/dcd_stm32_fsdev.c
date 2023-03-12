@@ -1228,8 +1228,8 @@ void dcd_edpt_clear_stall (uint8_t rhport, uint8_t ep_addr)
 static bool dcd_write_packet_memory(uint16_t dst, const void *__restrict src, size_t wNBytes)
 {
   // FIXME original function uses byte-access to source memory (to support non-aligned buffers)
-  const uint32_t* src32 = (uint32_t*)(src);
-  uint32_t* dst32 = (uint32_t*)(USB_PMAADDR + dst);
+  const uint32_t* src32 = (const uint32_t*)(src);
+  volatile uint32_t* dst32 = (volatile uint32_t*)(USB_PMAADDR + dst);
   for (unsigned n=wNBytes/4; n>0; --n) {
     *dst32++ = *src32++;
   }
