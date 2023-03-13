@@ -1,4 +1,4 @@
-/* 
+/*
  * The MIT License (MIT)
  *
  * Copyright (c) 2019 Ha Thach (tinyusb.org)
@@ -274,7 +274,49 @@ bool tuh_hid_receive_report(uint8_t dev_addr, uint8_t instance)
 //  return !usbh_edpt_busy(dev_addr, hid_itf->ep_in);
 //}
 
-//void tuh_hid_send_report(uint8_t dev_addr, uint8_t instance, uint8_t report_id, uint8_t const* report, uint16_t len);
+bool tuh_hid_send_report(uint8_t dev_addr, uint8_t instance, uint8_t report_id, const void* report, uint16_t len)
+{
+  TU_LOG2("HID Send Report %d\r\n", report_id);
+
+  hidh_interface_t* hid_itf = get_instance(dev_addr, instance);
+
+  if (hid_itf->ep_out == 0)
+  {
+    // This HID does not have an out endpoint (other than control)
+    return false;
+  }
+  else if (len > CFG_TUH_HID_EPOUT_BUFSIZE
+           || (report_id != 0 && len > (CFG_TUH_HID_EPOUT_BUFSIZE - 1)))
+  {
+    // ep_out buffer is not large enough to hold contents
+    return false;
+  }
+
+  // claim endpoint
+  TU_VERIFY( usbh_edpt_claim(dev_addr, hid_itf->ep_out) );
+
+  if (report_id == 0)
+  {
+    // No report ID in transmission
+    memcpy(&hid_itf->epout_buf[0], report, len);
+  }
+  else
+  {
+    hid_itf->epout_buf[0] = report_id;
+    memcpy(&hid_itf->epout_buf[1], report, len);
+    ++len; // 1 more byte for report_id
+  }
+
+  TU_LOG3_MEM(hid_itf->epout_buf, len, 2);
+
+  if ( !usbh_edpt_xfer(dev_addr, hid_itf->ep_out, hid_itf->epout_buf, len) )
+  {
+    usbh_edpt_release(dev_addr, hid_itf->ep_out);
+    return false;
+  }
+
+  return true;
+}
 
 //--------------------------------------------------------------------+
 // USBH API
@@ -349,7 +391,7 @@ bool hidh_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_interface_t const *de
   hidh_device_t* hid_dev = get_dev(dev_addr);
   TU_ASSERT(hid_dev->inst_count < CFG_TUH_HID, 0);
 
-  hidh_interface_t* hid_itf = get_instance(dev_addr, hid_dev->inst_count);  
+  hidh_interface_t* hid_itf = get_instance(dev_addr, hid_dev->inst_count);
 
   //------------- Endpoint Descriptors -------------//
   p_desc = tu_desc_next(p_desc);
