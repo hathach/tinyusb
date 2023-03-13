@@ -1168,7 +1168,6 @@ uint16_t videod_open(uint8_t rhport, tusb_desc_interface_t const * itf_desc, uin
   tusb_desc_vc_itf_t const *vc = _get_desc_vc(self);
   uint_fast8_t bInCollection   = vc->ctl.bInCollection;
 
-  videod_streaming_interface_t *default_stm = NULL;
   /* Find the end of the video interface descriptor */
   void const *cur = _next_desc_itf(itf_desc, end);
   for (uint8_t stm_idx = 0; stm_idx < bInCollection; ++stm_idx) {
@@ -1186,9 +1185,16 @@ uint16_t videod_open(uint8_t rhport, tusb_desc_interface_t const * itf_desc, uin
     stm->desc.beg = (uint16_t) ((uintptr_t)cur - (uintptr_t)itf_desc);
     cur = _next_desc_itf(cur, end);
     stm->desc.end = (uint16_t) ((uintptr_t)cur - (uintptr_t)itf_desc);
-    if (!default_stm) default_stm = stm;
+    if (0 == stm_idx && 1 == bInCollection) {
+      /* If there is only one streaming interface and no alternate settings,
+       * host may not issue set_interface so open the streaming interface here. */
+      uint8_t const *sbeg = (uint8_t const*)itf_desc + stm->desc.beg;
+      uint8_t const *send = (uint8_t const*)itf_desc + stm->desc.end;
+      if (end == _find_desc_itf(sbeg, send, _desc_itfnum(sbeg), 1)) {
+        TU_VERIFY(_open_vs_itf(rhport, stm, 0), 0);
+      }
+    }
   }
-  TU_VERIFY(_open_vs_itf(rhport, default_stm, 0), 0);
   self->len = (uint16_t) ((uintptr_t)cur - (uintptr_t)itf_desc);
   return (uint16_t) ((uintptr_t)cur - (uintptr_t)itf_desc);
 }
@@ -1201,7 +1207,6 @@ bool videod_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request_
   int err;
   TU_VERIFY(request->bmRequestType_bit.recipient == TUSB_REQ_RCPT_INTERFACE);
   uint_fast8_t itfnum = tu_u16_low(request->wIndex);
-
   /* Identify which control interface to use */
   uint_fast8_t itf;
   for (itf = 0; itf < CFG_TUD_VIDEO; ++itf) {
