@@ -526,12 +526,15 @@ static void process_pipe_brdy(uint8_t rhport, unsigned num)
  *------------------------------------------------------------------*/
 bool hcd_init(uint8_t rhport)
 {
+  unsigned short oldPRCR;
+
   (void)rhport;
   /* Enable USB0 */
   uint32_t pswi = disable_interrupt();
+  oldPRCR = SYSTEM.PRCR.WORD;
   SYSTEM.PRCR.WORD = SYSTEM_PRCR_PRKEY | SYSTEM_PRCR_PRC1;
   MSTP(USB0) = 0;
-  SYSTEM.PRCR.WORD = SYSTEM_PRCR_PRKEY;
+  SYSTEM.PRCR.WORD = SYSTEM_PRCR_PRKEY | oldPRCR;
   enable_interrupt(pswi);
   USB0.SYSCFG.BIT.SCKE = 1;
   while (!USB0.SYSCFG.BIT.SCKE) ;
