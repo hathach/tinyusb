@@ -1,0 +1,20 @@
+# SPDX-FileCopyrightText: 2020 Diego Elio Pettenò
+#
+# SPDX-License-Identifier: Unlicense
+
+repos:
+-   repo: local
+    hooks:
+    -   id: codespell
+        name: codespell
+        entry: codespell
+        types_or: [c, header]
+        language: system
+
+    -   id: unit-test
+        name: unit-test
+        files: ^(src/|test/unit-test/)
+        entry: sh -c "cd test/unit-test && ceedling test:all"
+        pass_filenames: false
+        types_or: [c, header]
+        language: system
