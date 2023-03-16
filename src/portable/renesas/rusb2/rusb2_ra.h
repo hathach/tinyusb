@@ -34,24 +34,22 @@ extern "C" {
 /* renesas fsp api */
 #include "bsp_api.h"
 
-#define LINK_REG_BASE (0x40090000)
+#define RUSB2_REG_BASE (0x40090000)
 
-TU_ATTR_ALWAYS_INLINE
-static inline void link_int_enable(uint8_t rhport)
+TU_ATTR_ALWAYS_INLINE static inline void rusb2_int_enable(uint8_t rhport)
 {
   (void) rhport;
   NVIC_EnableIRQ(TU_IRQn);
 }
 
-TU_ATTR_ALWAYS_INLINE
-static inline void link_int_disable(uint8_t rhport)
+TU_ATTR_ALWAYS_INLINE static inline void rusb2_int_disable(uint8_t rhport)
 {
   (void) rhport;
   NVIC_DisableIRQ(TU_IRQn);
 }
 
 // MCU specific PHY init
-static inline void link_phy_init(void)
+TU_ATTR_ALWAYS_INLINE static inline void rusb2_phy_init(void)
 {
 }
 
