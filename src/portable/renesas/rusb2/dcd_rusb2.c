@@ -35,14 +35,14 @@
                         TU_CHECK_MCU(OPT_MCU_RAXXX))
 
 #include "device/dcd.h"
-#include "link_type.h"
+#include "rusb2_type.h"
 
 #if TU_CHECK_MCU(OPT_MCU_RX63X, OPT_MCU_RX65X, OPT_MCU_RX72N)
-#include "link_rx.h"
+  #include "rusb2_rx.h"
 #elif TU_CHECK_MCU(OPT_MCU_RAXXX)
-#include "link_ra.h"
+  #include "rusb2_ra.h"
 #else
-#error "Unsupported MCU"
+  #error "Unsupported MCU"
 #endif
 
 //--------------------------------------------------------------------+

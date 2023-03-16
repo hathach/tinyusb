@@ -20,8 +20,8 @@ CFLAGS += \
 	-ffreestanding
 
 SRC_C += \
-	src/portable/renesas/link/dcd_link.c \
-	src/portable/renesas/link/hcd_link.c \
+	src/portable/renesas/rusb2/dcd_rusb2.c \
+	src/portable/renesas/rusb2/hcd_rusb2.c \
 	hw/mcu/renesas/fsp/ra/fsp/src/bsp/cmsis/Device/RENESAS/Source/startup.c \
 	hw/mcu/renesas/fsp/ra/fsp/src/bsp/cmsis/Device/RENESAS/Source/system.c \
 	hw/mcu/renesas/fsp/ra/fsp/src/bsp/mcu/all/bsp_clocks.c \

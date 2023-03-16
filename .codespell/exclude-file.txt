@@ -1,4 +1,0 @@
-  return LINK_REG->INTSTS1_b.ATTCH ? true : false;
-      volatile uint16_t ATTCH     : 1; /* [11..11] ATTCH Interrupt Status */
-#define LINK_REG_INTSTS1_ATTCH_Pos         (11UL)       /* ATTCH (Bit 11) */
-#define LINK_REG_INTSTS1_ATTCH_Msk         (0x800UL)    /* ATTCH (Bitfield-Mask: 0x01) */

@@ -31,8 +31,6 @@
 extern "C" {
 #endif
 
-#include "link_type.h"
-
 /* renesas fsp api */
 #include "bsp_api.h"
 

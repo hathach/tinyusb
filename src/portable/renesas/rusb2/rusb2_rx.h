@@ -33,8 +33,6 @@
 extern "C" {
 #endif
 
-#include "link_type.h"
-
 #include "iodefine.h"
 
 #define LINK_REG_BASE (0x000A0000)
