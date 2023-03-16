@@ -13,3 +13,5 @@ LD_FILE = $(BOARD_PATH)/ra4m3_ek.ld
 # For flash-jlink target
 JLINK_DEVICE = R7FA4M3AF
 JLINK_IF     = SWD
+
+flash: flash-jlink

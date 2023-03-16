@@ -37,11 +37,11 @@
 #define BSP_PRV_PRCR_PRC1_UNLOCK ((BSP_PRV_PRCR_KEY) | 0x2U)
 #define BSP_PRV_PRCR_LOCK	 ((BSP_PRV_PRCR_KEY) | 0x0U)
 
-#define SW1  (BSP_IO_PORT_00_PIN_05)
-#define SW2  (BSP_IO_PORT_00_PIN_06)
-#define LED1 (BSP_IO_PORT_04_PIN_15)
-#define LED3 (BSP_IO_PORT_04_PIN_00)
-#define LED2 (BSP_IO_PORT_04_PIN_04)
+#define SW1  (BSP_IO_PORT_01_PIN_05)
+#define LED1 (BSP_IO_PORT_01_PIN_06)
+
+#define LED_STATE_ON          1
+#define BUTTON_STATE_ACTIVE   0
 
 /* ISR prototypes */
 void usbfs_interrupt_handler(void);
@@ -64,17 +64,14 @@ const bsp_interrupt_event_t g_interrupt_event_link_select[BSP_ICU_VECTOR_MAX_ENT
 };
 
 const ioport_pin_cfg_t g_bsp_pin_cfg_data[] = {
-  {.pin = BSP_IO_PORT_04_PIN_07,
-   .pin_cfg = ((uint32_t) IOPORT_CFG_PERIPHERAL_PIN | (uint32_t) IOPORT_PERIPHERAL_USB_FS)},
-  {.pin = BSP_IO_PORT_05_PIN_00,
-   .pin_cfg = ((uint32_t) IOPORT_CFG_PERIPHERAL_PIN | (uint32_t) IOPORT_PERIPHERAL_USB_FS)},
-  {.pin = BSP_IO_PORT_05_PIN_01,
-   .pin_cfg = ((uint32_t) IOPORT_CFG_PERIPHERAL_PIN | (uint32_t) IOPORT_PERIPHERAL_USB_FS)},
-  {.pin = LED1, .pin_cfg = ((uint32_t) IOPORT_CFG_PORT_DIRECTION_OUTPUT | (uint32_t) IOPORT_CFG_PORT_OUTPUT_LOW)},
-  {.pin = LED2, .pin_cfg = ((uint32_t) IOPORT_CFG_PORT_DIRECTION_OUTPUT | (uint32_t) IOPORT_CFG_PORT_OUTPUT_LOW)},
-  {.pin = LED3, .pin_cfg = ((uint32_t) IOPORT_CFG_PORT_DIRECTION_OUTPUT | (uint32_t) IOPORT_CFG_PORT_OUTPUT_LOW)},
-  {.pin = SW1, .pin_cfg = ((uint32_t) IOPORT_CFG_PORT_DIRECTION_INPUT)},
-  {.pin = SW2, .pin_cfg = ((uint32_t) IOPORT_CFG_PORT_DIRECTION_INPUT)}};
+  { .pin = LED1, .pin_cfg = ((uint32_t) IOPORT_CFG_PORT_DIRECTION_OUTPUT | (uint32_t) IOPORT_CFG_PORT_OUTPUT_LOW) },
+  { .pin = SW1 , .pin_cfg = ((uint32_t) IOPORT_CFG_PORT_DIRECTION_INPUT) },
+
+  { .pin = BSP_IO_PORT_04_PIN_07, .pin_cfg = ((uint32_t) IOPORT_CFG_PERIPHERAL_PIN | (uint32_t) IOPORT_PERIPHERAL_USB_FS) },
+  { .pin = BSP_IO_PORT_09_PIN_14, .pin_cfg = ((uint32_t) IOPORT_CFG_PERIPHERAL_PIN | (uint32_t) IOPORT_PERIPHERAL_USB_FS) },
+  { .pin = BSP_IO_PORT_09_PIN_15, .pin_cfg = ((uint32_t) IOPORT_CFG_PERIPHERAL_PIN | (uint32_t) IOPORT_PERIPHERAL_USB_FS) },
+
+};
 
 const ioport_cfg_t g_bsp_pin_cfg = {
   .number_of_pins = sizeof(g_bsp_pin_cfg_data) / sizeof(ioport_pin_cfg_t),
@@ -99,6 +96,7 @@ void usbfs_interrupt_handler(void)
   tud_int_handler(0);
 #endif
 }
+
 void usbfs_resume_handler(void)
 {
   IRQn_Type irq = R_FSP_CurrentIrqGet();
@@ -171,16 +169,14 @@ void board_init(void)
 
 void board_led_write(bool state)
 {
-  R_IOPORT_PinWrite(&g_ioport_ctrl, LED1, state);
-  R_IOPORT_PinWrite(&g_ioport_ctrl, LED2, state);
-  R_IOPORT_PinWrite(&g_ioport_ctrl, LED3, state);
+  R_IOPORT_PinWrite(&g_ioport_ctrl, LED1, state ? LED_STATE_ON : !LED_STATE_ON);
 }
 
 uint32_t board_button_read(void)
 {
   bsp_io_level_t lvl;
   R_IOPORT_PinRead(&g_ioport_ctrl, SW1, &lvl);
-  return lvl;
+  return lvl == BUTTON_STATE_ACTIVE;
 }
 
 int board_uart_read(uint8_t *buf, int len)
