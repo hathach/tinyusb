@@ -179,6 +179,7 @@ int board_uart_write(void const *buf, int len)
 volatile uint32_t system_ticks = 0;
 void SysTick_Handler(void)
 {
+  HAL_IncTick();
   system_ticks++;
 }
 
