@@ -26,8 +26,8 @@
  * This file is part of the TinyUSB stack.
  */
 
-#ifndef _LINK_RX_H_
-#define _LINK_RX_H_
+#ifndef _RUSB2_RX_H_
+#define _RUSB2_RX_H_
 
 #ifdef __cplusplus
 extern "C" {
@@ -71,4 +71,4 @@ TU_ATTR_ALWAYS_INLINE static inline void rusb2_phy_init(void)
 }
 #endif
 
-#endif /* _LINK_RX_H_ */
+#endif /* _RUSB2_RX_H_ */

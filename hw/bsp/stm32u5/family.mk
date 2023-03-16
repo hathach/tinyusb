@@ -39,7 +39,7 @@ INC += \
 	$(TOP)/$(BOARD_PATH)
 
 # For freeRTOS port source
-FREERTOS_PORTABLE_SRC = ARM_CM33_NTZ/non_secure
+FREERTOS_PORTABLE_SRC = $(FREERTOS_PORTABLE_PATH)/ARM_CM33_NTZ/non_secure
 
 # flash target using on-board stlink
 flash: flash-stlink
