@@ -9,7 +9,7 @@ CFLAGS += \
   -DCPU_LPC51U68JBD64 \
   -DCFG_TUSB_MCU=OPT_MCU_LPC51UXX \
   -DCFG_TUSB_MEM_SECTION='__attribute__((section(".data")))' \
-  -DCFG_TUSB_MEM_ALIGN='__attribute__((aligned(64)))' 
+  -DCFG_TUSB_MEM_ALIGN='__attribute__((aligned(64)))'
 
 # mcu driver cause following warnings
 CFLAGS += -Wno-error=unused-parameter
@@ -36,14 +36,14 @@ INC += \
 	$(TOP)/$(SDK_DIR)/drivers/common \
 	$(TOP)/$(SDK_DIR)/drivers/flexcomm \
 	$(TOP)/$(SDK_DIR)/drivers/lpc_iocon \
-	$(TOP)/$(SDK_DIR)/drivers/lpc_gpio	
+	$(TOP)/$(SDK_DIR)/drivers/lpc_gpio
 
 SRC_S += $(MCU_DIR)/gcc/startup_LPC51U68.S
 
 LIBS += $(TOP)/$(MCU_DIR)/gcc/libpower.a
 
 # For freeRTOS port source
-FREERTOS_PORT = $(FREERTOS_PORT_PATH)/ARM_CM0
+FREERTOS_PORTABLE_SRC = $(FREERTOS_PORTABLE_PATH)/ARM_CM0
 
 JLINK_DEVICE = LPC51U68
 PYOCD_TARGET = LPC51U68

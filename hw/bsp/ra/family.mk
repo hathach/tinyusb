@@ -52,4 +52,4 @@ INC += \
 
 # For freeRTOS port source
 # hack to use the port provided by renesas
-FREERTOS_PORT = hw/mcu/renesas/fsp/ra/fsp/src/rm_freertos_port
+FREERTOS_PORTABLE_SRC = hw/mcu/renesas/fsp/ra/fsp/src/rm_freertos_port

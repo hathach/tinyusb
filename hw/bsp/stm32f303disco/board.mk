@@ -40,7 +40,7 @@ INC += \
   $(TOP)/hw/bsp/$(BOARD)
 
 # For freeRTOS port source
-FREERTOS_PORT = $(FREERTOS_PORT_PATH)/ARM_CM4F
+FREERTOS_PORTABLE_SRC = $(FREERTOS_PORTABLE_PATH)/ARM_CM4F
 
 # For flash-jlink target
 JLINK_DEVICE = stm32f303vc

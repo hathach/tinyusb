@@ -12,7 +12,7 @@ CFLAGS += \
   -DCFG_TUSB_MCU=OPT_MCU_TM4C123 \
   -uvectors \
   -DTM4C123GH6PM
-  
+
 # mcu driver cause following warnings
 CFLAGS += -Wno-error=strict-prototypes -Wno-error=cast-qual
 
@@ -33,4 +33,4 @@ SRC_C += \
 	$(MCU_DIR)/Source/GCC/tm4c123_startup.c
 
 # For freeRTOS port source
-FREERTOS_PORT = $(FREERTOS_PORT_PATH)/ARM_CM4F
+FREERTOS_PORTABLE_SRC = $(FREERTOS_PORTABLE_PATH)/ARM_CM4F

@@ -37,7 +37,7 @@ INC += \
 	$(TOP)/hw/mcu/microchip/samd21/CMSIS/Include
 
 # For freeRTOS port source
-FREERTOS_PORT = $(FREERTOS_PORT_PATH)/ARM_CM0
+FREERTOS_PORTABLE_SRC = $(FREERTOS_PORTABLE_PATH)/ARM_CM0
 
 # flash using bossac at least version 1.8
 # can be found in arduino15/packages/arduino/tools/bossac/

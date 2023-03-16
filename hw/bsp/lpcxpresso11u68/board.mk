@@ -11,7 +11,7 @@ CFLAGS += \
   -D__USE_LPCOPEN \
   -DCFG_TUSB_MCU=OPT_MCU_LPC11UXX \
   -DCFG_TUSB_MEM_SECTION='__attribute__((section(".data.$$RAM3")))' \
-  -DCFG_TUSB_MEM_ALIGN='__attribute__((aligned(64)))' 
+  -DCFG_TUSB_MEM_ALIGN='__attribute__((aligned(64)))'
 
 MCU_DIR = hw/mcu/nxp/lpcopen/lpc11u6x/lpc_chip_11u6x
 
@@ -32,11 +32,11 @@ INC += \
 	$(TOP)/$(MCU_DIR)/inc
 
 # For freeRTOS port source
-FREERTOS_PORT = $(FREERTOS_PORT_PATH)/ARM_CM0
+FREERTOS_PORTABLE_SRC = $(FREERTOS_PORTABLE_PATH)/ARM_CM0
 
 # For flash-jlink target
 JLINK_DEVICE = LPC11U68
 
-# flash using pyocd 
+# flash using pyocd
 flash: $(BUILD)/$(PROJECT).hex
 	pyocd flash -t lpc11u68 $<

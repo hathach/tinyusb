@@ -35,12 +35,12 @@ INC += \
 	$(TOP)/$(SDK_DIR)/drivers/port \
 	$(TOP)/$(SDK_DIR)/drivers/lpuart \
 	$(TOP)/$(MCU_DIR) \
-	$(TOP)/$(MCU_DIR)/drivers 
+	$(TOP)/$(MCU_DIR)/drivers
 
 SRC_S += $(MCU_DIR)/gcc/startup_K32L2B31A.S
 
 # For freeRTOS port source
-FREERTOS_PORT = $(FREERTOS_PORT_PATH)/ARM_CM0
+FREERTOS_PORTABLE_SRC = $(FREERTOS_PORTABLE_PATH)/ARM_CM0
 
 # For flash-jlink target
 JLINK_DEVICE = MKL25Z128xxx4

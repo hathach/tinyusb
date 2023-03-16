@@ -3,14 +3,14 @@ DEPS_SUBMODULES += lib/FreeRTOS-Kernel
 include ../../make.mk
 
 FREERTOS_SRC = lib/FreeRTOS-Kernel
-FREERTOS_PORT_PATH= $(FREERTOS_SRC)/portable/$(if $(USE_IAR),IAR,GCC)
+FREERTOS_PORTABLE_PATH= $(FREERTOS_SRC)/portable/$(if $(USE_IAR),IAR,GCC)
 
 INC += \
 	src \
 	src/FreeRTOSConfig \
 	$(TOP)/hw \
 	$(TOP)/$(FREERTOS_SRC)/include \
-	$(TOP)/$(FREERTOS_PORT)
+	$(TOP)/$(FREERTOS_PORTABLE_SRC)
 
 # Example source
 EXAMPLE_SOURCE = \
@@ -27,10 +27,10 @@ SRC_C += \
 	$(FREERTOS_SRC)/queue.c \
 	$(FREERTOS_SRC)/tasks.c \
 	$(FREERTOS_SRC)/timers.c \
-	$(subst $(TOP)/,,$(wildcard $(TOP)/$(FREERTOS_PORT)/*.c))
+	$(subst $(TOP)/,,$(wildcard $(TOP)/$(FREERTOS_PORTABLE_SRC)/*.c))
 
 SRC_S += \
-	$(subst $(TOP)/,,$(wildcard $(TOP)/$(FREERTOS_PORT)/*.s))
+	$(subst $(TOP)/,,$(wildcard $(TOP)/$(FREERTOS_PORTABLE_SRC)/*.s))
 
 # include heap manage if configSUPPORT_DYNAMIC_ALLOCATION = 1
 # SRC_C += $(FREERTOS_SRC)/portable/MemMang/heap_1.c

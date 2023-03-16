@@ -34,12 +34,11 @@ INC += \
 	$(TOP)/$(MCU_DIR)/inc
 
 # For freeRTOS port source
-FREERTOS_PORT = $(FREERTOS_PORT_PATH)/ARM_CM3
+FREERTOS_PORTABLE_SRC = $(FREERTOS_PORTABLE_PATH)/ARM_CM3
 
 # For flash-jlink target
 JLINK_DEVICE = LPC1768
 
-# flash using pyocd 
+# flash using pyocd
 flash: $(BUILD)/$(PROJECT).hex
 	pyocd flash -t lpc1768 $<
-

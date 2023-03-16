@@ -9,7 +9,7 @@ MCU_DIR = hw/mcu/renesas/rx/rx63n
 LD_FILE = $(BOARD_PATH)/r5f5631fd.ld
 
 # For freeRTOS port source
-FREERTOS_PORT = $(FREERTOS_PORT_PATH)/RX600
+FREERTOS_PORTABLE_SRC = $(FREERTOS_PORTABLE_PATH)/RX600
 
 # For flash-jlink target
 JLINK_DEVICE = R5F5631F

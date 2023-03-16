@@ -30,7 +30,7 @@ MCU_DIR = $(SDK_DIR)/devices/$(MCU_VARIANT)
 # All source paths should be relative to the top level.
 LD_FILE ?= $(MCU_DIR)/gcc/$(MCU_VARIANT)xxxxx_flexspi_nor.ld
 
-# TODO for net_lwip_webserver example, but may not needed !! 
+# TODO for net_lwip_webserver example, but may not needed !!
 LDFLAGS += \
 	-Wl,--defsym,__stack_size__=0x800 \
 
@@ -59,7 +59,7 @@ INC += \
 SRC_S += $(MCU_DIR)/gcc/startup_$(MCU_VARIANT).S
 
 # For freeRTOS port source
-FREERTOS_PORT = $(FREERTOS_PORT_PATH)/ARM_CM7/r0p1
+FREERTOS_PORTABLE_SRC = $(FREERTOS_PORTABLE_PATH)/ARM_CM7/r0p1
 
 # UF2 generation, iMXRT need to strip to text only before conversion
 APPLICATION_ADDR = 0x6000C000
