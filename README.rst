@@ -50,8 +50,8 @@ The stack supports the following MCUs:
 - **Raspberry Pi:** RP2040
 - **Renesas:**
 
-	- RX Series: 63N, 65N, 72N
-	- RA Series: RA4M1, RA4M3
+  - RX Series: 63N, 65N, 72N
+  - RA Series: RA4M1, RA4M3
 
 - **Silabs:** EFM32GG
 - **Sony:** CXD56
