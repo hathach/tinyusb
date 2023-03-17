@@ -6,7 +6,7 @@ from multiprocessing import Pool
 # Mandatory Dependencies that is always fetched
 # path, url, commit (Alphabet sorted by path)
 deps_mandatory = {
-    'lib/FreeRTOS-Kernel'                      : ['2a604f4a2818b8354b5e1a39e388eb5e16cfbc1f', 'https://github.com/FreeRTOS/FreeRTOS-Kernel.git'               ],
+    'lib/FreeRTOS-Kernel'                      : ['def7d2df2b0506d3d249334974f51e427c17a41c', 'https://github.com/FreeRTOS/FreeRTOS-Kernel.git'               ],
     'lib/lwip'                                 : ['159e31b689577dbf69cf0683bbaffbd71fa5ee10', 'https://github.com/lwip-tcpip/lwip.git'                        ],
     'tools/uf2'                                : ['19615407727073e36d81bf239c52108ba92e7660', 'https://github.com/microsoft/uf2.git'                          ],
 }
@@ -96,6 +96,7 @@ def get_a_dep(d):
     head = result.stdout.decode("utf-8").splitlines()[0]
 
     if commit != head:
+        subprocess.run("{} reset --hard".format(git_cmd, commit), shell=True)
         subprocess.run("{} fetch --depth 1 origin {}".format(git_cmd, commit), shell=True)
         subprocess.run("{} checkout FETCH_HEAD".format(git_cmd), shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
 
