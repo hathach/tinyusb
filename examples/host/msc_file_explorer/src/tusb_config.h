@@ -1,4 +1,4 @@
-/* 
+/*
  * The MIT License (MIT)
  *
  * Copyright (c) 2019 Ha Thach (tinyusb.org)
@@ -101,8 +101,8 @@
 #define CFG_TUH_HID                 0 // typical keyboard + mouse device can have 3-4 HID interfaces
 #define CFG_TUH_VENDOR              0
 
-// max device support (excluding hub device)
-#define CFG_TUH_DEVICE_MAX          (CFG_TUH_HUB ? 4 : 1) // hub typically has 4 ports
+// max device support (excluding hub device): 1 hub typically has 4 ports
+#define CFG_TUH_DEVICE_MAX          (3*CFG_TUH_HUB + 1)
 
 //------------- MSC -------------//
 #define CFG_TUH_MSC_MAXLUN    4 // typical for most card reader
