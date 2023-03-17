@@ -118,10 +118,6 @@ typedef struct {
 // MACRO CONSTANT TYPEDEF
 //--------------------------------------------------------------------+
 
-// Invalid driver ID in itf2drv[] ep2drv[][] mapping
-enum { DRVID_INVALID = 0xFFu };
-enum { CONTROLLER_INVALID = 0xFFu };
-
 #if CFG_TUSB_DEBUG >= 2
   #define DRIVER_NAME(_name)    .name = _name,
 #else
@@ -199,7 +195,7 @@ enum { CONFIG_NUM = 1 }; // default to use configuration 1
 // sum of end device + hub
 #define TOTAL_DEVICES   (CFG_TUH_DEVICE_MAX + CFG_TUH_HUB)
 
-static uint8_t _usbh_controller = CONTROLLER_INVALID;
+static uint8_t _usbh_controller = TU_INDEX_INVALID_8;
 
 // Device with address = 0 for enumeration
 static usbh_dev0_t _dev0;
@@ -307,13 +303,13 @@ tusb_speed_t tuh_speed_get (uint8_t dev_addr)
 static void clear_device(usbh_device_t* dev)
 {
   tu_memclr(dev, sizeof(usbh_device_t));
-  memset(dev->itf2drv, DRVID_INVALID, sizeof(dev->itf2drv)); // invalid mapping
-  memset(dev->ep2drv , DRVID_INVALID, sizeof(dev->ep2drv )); // invalid mapping
+  memset(dev->itf2drv, TU_INDEX_INVALID_8, sizeof(dev->itf2drv)); // invalid mapping
+  memset(dev->ep2drv , TU_INDEX_INVALID_8, sizeof(dev->ep2drv )); // invalid mapping
 }
 
 bool tuh_inited(void)
 {
-  return _usbh_controller != CONTROLLER_INVALID;
+  return _usbh_controller != TU_INDEX_INVALID_8;
 }
 
 bool tuh_init(uint8_t controller_id)
@@ -402,11 +398,11 @@ void tuh_task_ext(uint32_t timeout_ms, bool in_isr)
         // one device before enumerating another one.
         if ( _dev0.enumerating )
         {
-          TU_LOG1("[%u:] USBH Defer Attach until current enumeration complete\r\n", event.rhport);
+          TU_LOG_USBH("[%u:] USBH Defer Attach until current enumeration complete\r\n", event.rhport);
           osal_queue_send(_usbh_q, &event, in_isr);
         }else
         {
-          TU_LOG1("[%u:] USBH DEVICE ATTACH\r\n", event.rhport);
+          TU_LOG_USBH("[%u:] USBH DEVICE ATTACH\r\n", event.rhport);
           _dev0.enumerating = 1;
           enum_new_device(&event);
         }
@@ -1362,11 +1358,11 @@ static void process_enumeration(tuh_xfer_t* xfer)
 
       dev->configured = 1;
 
-      // Start the Set Configuration process for interfaces (itf = DRVID_INVALID)
+      // Start the Set Configuration process for interfaces (itf = TU_INDEX_INVALID_8)
       // Since driver can perform control transfer within its set_config, this is done asynchronously.
       // The process continue with next interface when class driver complete its sequence with usbh_driver_set_config_complete()
-      // TODO use separated API instead of using DRVID_INVALID
-      usbh_driver_set_config_complete(daddr, DRVID_INVALID);
+      // TODO use separated API instead of using TU_INDEX_INVALID_8
+      usbh_driver_set_config_complete(daddr, TU_INDEX_INVALID_8);
     }
     break;
 
@@ -1566,7 +1562,7 @@ static bool _parse_configuration_descriptor(uint8_t dev_addr, tusb_desc_configur
           uint8_t const itf_num = desc_itf->bInterfaceNumber+i;
 
           // Interface number must not be used already
-          TU_ASSERT( DRVID_INVALID == dev->itf2drv[itf_num] );
+          TU_ASSERT( TU_INDEX_INVALID_8 == dev->itf2drv[itf_num] );
           dev->itf2drv[itf_num] = drv_id;
         }
 
@@ -1600,7 +1596,7 @@ void usbh_driver_set_config_complete(uint8_t dev_addr, uint8_t itf_num)
     // IAD binding interface such as CDCs should return itf_num + 1 when complete
     // with usbh_driver_set_config_complete()
     uint8_t const drv_id = dev->itf2drv[itf_num];
-    if (drv_id != DRVID_INVALID)
+    if (drv_id != TU_INDEX_INVALID_8)
     {
       usbh_class_driver_t const * driver = &usbh_class_drivers[drv_id];
       TU_LOG_USBH("%s set config: itf = %u\r\n", driver->name, itf_num);
