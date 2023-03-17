@@ -20,7 +20,7 @@ deps_optional = {
     'hw/mcu/gd/nuclei-sdk'                     : ['7eb7bfa9ea4fbeacfafe1d5f77d5a0e6ed3922e7', 'https://github.com/Nuclei-Software/nuclei-sdk.git'             ],
     'hw/mcu/infineon/mtb-xmclib-cat3'          : ['daf5500d03cba23e68c2f241c30af79cd9d63880', 'https://github.com/Infineon/mtb-xmclib-cat3.git'               ],
     'hw/mcu/microchip'                         : ['9e8b37e307d8404033bb881623a113931e1edf27', 'https://github.com/hathach/microchip_driver.git'               ],
-    'hw/mcu/mindmotion/mm32sdk'                : ['708a7152952ac595d24837069dcc0f7f59a4c30b', 'https://github.com/hathach/mm32sdk.git'                        ],
+    'hw/mcu/mindmotion/mm32sdk'                : ['0b79559eb411149d36e073c1635c620e576308d4', 'https://github.com/hathach/mm32sdk.git'                        ],
     'hw/mcu/nordic/nrfx'                       : ['281cc2e178fd9a470d844b3afdea9eb322a0b0e8', 'https://github.com/NordicSemiconductor/nrfx.git'               ],
     'hw/mcu/nuvoton'                           : ['2204191ec76283371419fbcec207da02e1bc22fa', 'https://github.com/majbthrd/nuc_driver.git'                    ],
     'hw/mcu/nxp/lpcopen'                       : ['43c45c85405a5dd114fff0ea95cca62837740c13', 'https://github.com/hathach/nxp_lpcopen.git'                    ],
