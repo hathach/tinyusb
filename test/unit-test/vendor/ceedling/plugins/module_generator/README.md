@@ -82,7 +82,7 @@ by adding to the `:includes` array. For example:
 ### Boilerplates
 
 You can specify the actual boilerplate used for each of your files. This is the handy place to
-put that corporate copyright notice (or maybe a copyleft notice, if that's your perference?)
+put that corporate copyright notice (or maybe a copyleft notice, if that's your preference?)
 
 ```
 :module_generator:

@@ -77,7 +77,7 @@ module Ceedling
   # * The gem name must be prefixed with 'ceedling-' followed by the plugin
   #   name (ex. 'ceedling-bullseye')
   #
-  # * The contents of the plugin must be isntalled into a subdirectory of
+  # * The contents of the plugin must be installed into a subdirectory of
   #   the gem with the same name as the plugin (ex. 'bullseye/')
   #
   # === Arguments

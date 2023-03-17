@@ -119,7 +119,7 @@ class CMockHeaderParser
     square_bracket_pair_regex_format = /\{[^\{\}]*\}/ # Regex to match one whole block enclosed by two square brackets
 
     # Convert user provided string patterns to regex
-    # Use word bounderies before and after the user regex to limit matching to actual word iso part of a word
+    # Use word boundaries before and after the user regex to limit matching to actual word iso part of a word
     @inline_function_patterns.each do |user_format_string|
       user_regex = Regexp.new(user_format_string)
       word_boundary_before_user_regex = /\b/
@@ -258,7 +258,7 @@ class CMockHeaderParser
 
     source.gsub!(/\s*=\s*['"a-zA-Z0-9_\.]+\s*/, '')                                        # remove default value statements from argument lists
     source.gsub!(/^(?:[\w\s]*\W)?typedef\W[^;]*/m, '')                                     # remove typedef statements
-    source.gsub!(/\)(\w)/, ') \1')                                                         # add space between parenthese and alphanumeric
+    source.gsub!(/\)(\w)/, ') \1')                                                         # add space between parentheses and alphanumeric
     source.gsub!(/(^|\W+)(?:#{@c_strippables.join('|')})(?=$|\W+)/, '\1') unless @c_strippables.empty? # remove known attributes slated to be stripped
 
     # scan standalone function pointers and remove them, because they can just be ignored

@@ -7,4 +7,4 @@ exclude-file = .codespell/exclude-file.txt
 check-filenames =
 check-hidden =
 count =
-skip = .cproject,./.git,./hw/mcu,./lib,./examples/*/*/_build,./examples/*/*/ses,./examples/*/*/ozone,./hw/mcu,./test/unit-test/vendor,./tests_obsolete,./tools/uf2
+skip = *.rb,.cproject,.git,./lib,./examples/*/*/_build,./examples/*/*/ses,./examples/*/*/ozone,./hw/mcu,./tests_obsolete

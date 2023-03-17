@@ -9,7 +9,7 @@ rule(/#{PROJECT_TEST_PREPROCESS_FILES_PATH}\/.+/ => [
     end
   ]) do |file|
   if (not @ceedling[:configurator].project_use_deep_dependencies)
-    raise 'ERROR: Ceedling preprocessing rule invoked though neccessary auxiliary dependency support not enabled.'
+    raise 'ERROR: Ceedling preprocessing rule invoked though necessary auxiliary dependency support not enabled.'
   end
   @ceedling[:generator].generate_preprocessed_file(TEST_SYM, file.source)
 end

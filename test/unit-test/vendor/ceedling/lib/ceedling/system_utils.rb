@@ -7,7 +7,7 @@ end
 
 
 ##
-# Class containing system utility funcions.
+# Class containing system utility functions.
 class SystemUtils
 
   constructor :system_wrapper

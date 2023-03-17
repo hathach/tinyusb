@@ -7,3 +7,5 @@ dout
 mot
 te
 attch
+endianess
+pris
