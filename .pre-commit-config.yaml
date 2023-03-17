@@ -3,26 +3,25 @@
 # SPDX-License-Identifier: Unlicense
 
 repos:
--   repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v4.4.0
-    hooks:
-    - id: check-yaml
-    - id: trailing-whitespace
-    - id: end-of-file-fixer
-    - id: forbid-submodules
+- repo: https://github.com/pre-commit/pre-commit-hooks
+  rev: v4.4.0
+  hooks:
+  - id: check-yaml
+  - id: trailing-whitespace
+  - id: end-of-file-fixer
+  - id: forbid-submodules
 
--   repo: local
-    hooks:
-    #-   id: codespell
-    #    name: codespell
-    #    entry: codespell
-    #    types_or: [c, header]
-    #    language: system
+- repo: https://github.com/codespell-project/codespell
+  rev: v2.2.4
+  hooks:
+  - id: codespell
 
-    -   id: unit-test
-        name: unit-test
-        files: ^(src/|test/unit-test/)
-        entry: sh -c "cd test/unit-test && ceedling test:all"
-        pass_filenames: false
-        types_or: [c, header]
-        language: system
+- repo: local
+  hooks:
+  - id: unit-test
+    name: unit-test
+    files: ^(src/|test/unit-test/)
+    entry: sh -c "cd test/unit-test && ceedling test:all"
+    pass_filenames: false
+    types_or: [c, header]
+    language: system
