@@ -18,6 +18,7 @@ deps_list = {
     'hw/mcu/nxp/mcux-sdk'                      : ['ae2ab01d9d70ad00cd0e935c2552bd5f0e5c0294', 'https://github.com/NXPmicro/mcux-sdk.git'                      ],
     'hw/mcu/nxp/nxp_sdk'                       : ['845c8fc49b6fb660f06a5c45225494eacb06f00c', 'https://github.com/hathach/nxp_sdk.git'                        ],
     'hw/mcu/raspberry_pi/Pico-PIO-USB'         : ['9ff3f52fd3c1f81532bce8dd311aa8fc8d9b2665', 'https://github.com/sekigon-gonnoc/Pico-PIO-USB.git'            ],
+    'hw/mcu/renesas/fsp'                       : ['8dc14709f2a6518b43f71efad70d900b7718d9f1', 'https://github.com/renesas/fsp.git'                            ],    
     'hw/mcu/renesas/rx'                        : ['706b4e0cf485605c32351e2f90f5698267996023', 'https://github.com/kkitayam/rx_device.git'                     ],
     'hw/mcu/silabs/cmsis-dfp-efm32gg12b'       : ['f1c31b7887669cb230b3ea63f9b56769078960bc', 'https://github.com/cmsis-packs/cmsis-dfp-efm32gg12b.git'       ],
     'hw/mcu/sony/cxd56/spresense-exported-sdk' : ['2ec2a1538362696118dc3fdf56f33dacaf8f4067', 'https://github.com/sonydevworld/spresense-exported-sdk.git'    ],
@@ -78,8 +79,8 @@ def get_a_dep(d):
     # Init git deps if not existed
     if not p.exists():
         p.mkdir(parents=True)
-        subprocess.run("{} init".format(git_cmd), shell=True)
-        subprocess.run("{} remote add origin {}".format(git_cmd, url), shell=True)
+        subprocess.run("{} init".format(git_cmd), shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+        subprocess.run("{} remote add origin {}".format(git_cmd, url), shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
 
     # Check if commit is already fetched
     result = subprocess.run("{} rev-parse HEAD".format(git_cmd, commit), shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
@@ -87,7 +88,7 @@ def get_a_dep(d):
 
     if commit != head:
         subprocess.run("{} fetch --depth 1 origin {}".format(git_cmd, commit), shell=True)
-        subprocess.run("{} checkout FETCH_HEAD".format(git_cmd), shell=True)
+        subprocess.run("{} checkout FETCH_HEAD".format(git_cmd), shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
 
     return 0
 

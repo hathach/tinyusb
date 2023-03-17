@@ -13,6 +13,7 @@ latex
 .env
 .settings/
 .idea/
+.vscode/
 .gdb_history
 /examples/*/*/build*
 test_old/

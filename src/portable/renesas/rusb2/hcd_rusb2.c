@@ -1,4 +1,4 @@
-/* 
+/*
  * The MIT License (MIT)
  *
  * Copyright (c) 2021 Koji Kitayama
@@ -27,86 +27,35 @@
 
 #include "tusb_option.h"
 
-#if CFG_TUH_ENABLED && ( CFG_TUSB_MCU == OPT_MCU_RX63X || \
-                               CFG_TUSB_MCU == OPT_MCU_RX65X || \
-                               CFG_TUSB_MCU == OPT_MCU_RX72N )
+#if CFG_TUH_ENABLED && (TU_CHECK_MCU(OPT_MCU_RX63X, OPT_MCU_RX65X, OPT_MCU_RX72N) || \
+                        TU_CHECK_MCU(OPT_MCU_RAXXX))
+
 #include "host/hcd.h"
-#include "iodefine.h"
+#include "rusb2_type.h"
+
+#if TU_CHECK_MCU(OPT_MCU_RX63X, OPT_MCU_RX65X, OPT_MCU_RX72N)
+  #include "rusb2_rx.h"
+#elif TU_CHECK_MCU(OPT_MCU_RAXXX)
+  #include "rusb2_ra.h"
+#else
+  #error "Unsupported MCU"
+#endif
 
 //--------------------------------------------------------------------+
 // MACRO TYPEDEF CONSTANT ENUM DECLARATION
 //--------------------------------------------------------------------+
-#define SYSTEM_PRCR_PRC1     (1<<1)
-#define SYSTEM_PRCR_PRKEY    (0xA5u<<8)
 
-#define USB_DVSTCTR0_LOW     (1u)
-#define USB_DVSTCTR0_FULL    (2u)
+/* LINK core registers */
+#if defined(__CCRX__)
+  #define RUSB2 ((RUSB2_REG_t __evenaccess*) RUSB2_REG_BASE)
+#else
+  #define RUSB2 ((RUSB2_REG_t*) RUSB2_REG_BASE)
+#endif
 
-#define USB_FIFOSEL_TX       ((uint16_t)(1u<<5))
-#define USB_FIFOSEL_BIGEND   ((uint16_t)(1u<<8))
-#define USB_FIFOSEL_MBW_8    ((uint16_t)(0u<<10))
-#define USB_FIFOSEL_MBW_16   ((uint16_t)(1u<<10))
-#define USB_IS0_CTSQ         ((uint16_t)(7u))
-#define USB_IS0_DVSQ         ((uint16_t)(7u<<4))
-#define USB_IS0_VALID        ((uint16_t)(1u<<3))
-#define USB_IS0_BRDY         ((uint16_t)(1u<<8))
-#define USB_IS0_NRDY         ((uint16_t)(1u<<9))
-#define USB_IS0_BEMP         ((uint16_t)(1u<<10))
-#define USB_IS0_CTRT         ((uint16_t)(1u<<11))
-#define USB_IS0_DVST         ((uint16_t)(1u<<12))
-#define USB_IS0_SOFR         ((uint16_t)(1u<<13))
-#define USB_IS0_RESM         ((uint16_t)(1u<<14))
-#define USB_IS0_VBINT        ((uint16_t)(1u<<15))
-#define USB_IS1_SACK         ((uint16_t)(1u<<4))
-#define USB_IS1_SIGN         ((uint16_t)(1u<<5))
-#define USB_IS1_EOFERR       ((uint16_t)(1u<<6))
-#define USB_IS1_ATTCH        ((uint16_t)(1u<<11))
-#define USB_IS1_DTCH         ((uint16_t)(1u<<12))
-#define USB_IS1_BCHG         ((uint16_t)(1u<<14))
-#define USB_IS1_OVRCR        ((uint16_t)(1u<<15))
-
-#define USB_IS0_CTSQ_MSK     (7u)
-#define USB_IS0_CTSQ_SETUP   (1u)
-#define USB_IS0_DVSQ_DEF     (1u<<4)
-#define USB_IS0_DVSQ_ADDR    (2u<<4)
-#define USB_IS0_DVSQ_SUSP0   (4u<<4)
-#define USB_IS0_DVSQ_SUSP1   (5u<<4)
-#define USB_IS0_DVSQ_SUSP2   (6u<<4)
-#define USB_IS0_DVSQ_SUSP3   (7u<<4)
-
-#define USB_PIPECTR_PID_MSK   (3u)
-#define USB_PIPECTR_PID_NAK   (0u)
-#define USB_PIPECTR_PID_BUF   (1u)
-#define USB_PIPECTR_PID_STALL (2u)
-#define USB_PIPECTR_CCPL      (1u<<2)
-#define USB_PIPECTR_SQMON     (1u<<6)
-#define USB_PIPECTR_SQCLR     (1u<<8)
-#define USB_PIPECTR_ACLRM     (1u<<9)
-#define USB_PIPECTR_INBUFM    (1u<<14)
-#define USB_PIPECTR_BSTS      (1u<<15)
-
-#define USB_FIFOCTR_DTLN     (0x1FF)
-#define USB_FIFOCTR_FRDY     (1u<<13)
-#define USB_FIFOCTR_BCLR     (1u<<14)
-#define USB_FIFOCTR_BVAL     (1u<<15)
-
-#define USB_PIPECFG_SHTNAK   (1u<<7)
-#define USB_PIPECFG_DBLB     (1u<<9)
-#define USB_PIPECFG_BULK     (1u<<14)
-#define USB_PIPECFG_ISO      (3u<<14)
-#define USB_PIPECFG_INT      (2u<<14)
-
-#define USB_DEVADD_LOW       (1u<<6)
-#define USB_DEVADD_FULL      (2u<<6)
-
-#define FIFO_REQ_CLR         (1u)
-#define FIFO_COMPLETE        (1u<<1)
-
-// Start of definition of packed structs (used by the CCRX toolchain)
 TU_ATTR_PACKED_BEGIN
 TU_ATTR_BIT_FIELD_ORDER_BEGIN
 
-typedef struct {
+typedef struct TU_ATTR_PACKED {
   union {
     struct {
       uint16_t      : 8;
@@ -119,7 +68,7 @@ typedef struct {
   uint16_t TRN;
 } reg_pipetre_t;
 
-typedef union {
+typedef union TU_ATTR_PACKED {
   struct {
     volatile uint16_t u8: 8;
     volatile uint16_t   : 0;
@@ -127,8 +76,7 @@ typedef union {
   volatile uint16_t u16;
 } hw_fifo_t;
 
-typedef struct TU_ATTR_PACKED
-{
+typedef struct TU_ATTR_PACKED {
   void      *buf;      /* the start address of a transfer data buffer */
   uint16_t  length;    /* the number of bytes in the buffer */
   uint16_t  remaining; /* the number of bytes remaining in the buffer */
@@ -155,28 +103,6 @@ typedef struct
 // INTERNAL OBJECT & FUNCTION DECLARATION
 //--------------------------------------------------------------------+
 static hcd_data_t _hcd;
-
-static uint32_t disable_interrupt(void)
-{
-  uint32_t pswi;
-#if defined(__CCRX__)
-  pswi = get_psw() & 0x010000;
-  clrpsw_i();
-#else
-  pswi = __builtin_rx_mvfc(0) & 0x010000;
-  __builtin_rx_clrpsw('I');
-#endif
-  return pswi;
-}
-
-static void enable_interrupt(uint32_t pswi)
-{
-#if defined(__CCRX__)
-  set_psw(get_psw() | pswi);
-#else
-  __builtin_rx_mvtc(0, __builtin_rx_mvfc(0) | pswi);
-#endif
-}
 
 static unsigned find_pipe(unsigned xfer)
 {
@@ -208,58 +134,49 @@ static unsigned find_pipe(unsigned xfer)
 
 static volatile uint16_t* get_pipectr(unsigned num)
 {
-  volatile uint16_t *ctr = NULL;
   if (num) {
-    ctr = (volatile uint16_t*)&USB0.PIPE1CTR.WORD;
-    ctr += num - 1;
+    return (volatile uint16_t*)&(RUSB2->PIPE_CTR[num - 1]);
   } else {
-    ctr = (volatile uint16_t*)&USB0.DCPCTR.WORD;
+    return (volatile uint16_t*)&(RUSB2->DCPCTR);
   }
-  return ctr;
 }
 
 static volatile reg_pipetre_t* get_pipetre(unsigned num)
 {
   volatile reg_pipetre_t* tre = NULL;
   if ((1 <= num) && (num <= 5)) {
-    tre = (volatile reg_pipetre_t*)&USB0.PIPE1TRE.WORD;
-    tre += num - 1;
+    tre = (volatile reg_pipetre_t*)&(RUSB2->PIPE_TR[num - 1].E);
   }
   return tre;
 }
 
 static volatile uint16_t* addr_to_pipectr(uint8_t dev_addr, unsigned ep_addr)
 {
-  volatile uint16_t *ctr = NULL;
-  const unsigned epn   = tu_edpt_number(ep_addr);
+  const unsigned epn = tu_edpt_number(ep_addr);
   if (epn) {
     const unsigned dir_in = tu_edpt_dir(ep_addr);
-    const unsigned num    = _hcd.ep[dev_addr][dir_in][epn - 1];
-    if (num) {
-      ctr = (volatile uint16_t*)&USB0.PIPE1CTR.WORD;
-      ctr += num - 1;
-    }
+    const unsigned num = _hcd.ep[dev_addr][dir_in][epn - 1];
+    return get_pipectr(num);
   } else {
-    ctr = (volatile uint16_t*)&USB0.DCPCTR.WORD;
+    return get_pipectr(0);
   }
-  return ctr;
 }
 
 static unsigned edpt0_max_packet_size(void)
 {
-  return USB0.DCPMAXP.BIT.MXPS;
+  return RUSB2->DCPMAXP_b.MXPS;
 }
 
 static unsigned edpt_max_packet_size(unsigned num)
 {
-  USB0.PIPESEL.WORD = num;
-  return USB0.PIPEMAXP.BIT.MXPS;
+  RUSB2->PIPESEL = num;
+  return RUSB2->PIPEMAXP_b.MXPS;
 }
 
 static inline void pipe_wait_for_ready(unsigned num)
 {
-  while (USB0.D0FIFOSEL.BIT.CURPIPE != num) ;
-  while (!USB0.D0FIFOCTR.BIT.FRDY) ;
+  while (RUSB2->D0FIFOSEL_b.CURPIPE != num) ;
+  while (!RUSB2->D0FIFOCTR_b.FRDY) ;
 }
 
 static void pipe_write_packet(void *buf, volatile void *fifo, unsigned len)
@@ -290,21 +207,23 @@ static bool pipe0_xfer_in(void)
   const unsigned rem = pipe->remaining;
 
   const unsigned mps = edpt0_max_packet_size();
-  const unsigned vld = USB0.CFIFOCTR.BIT.DTLN;
+  const unsigned vld = RUSB2->CFIFOCTR_b.DTLN;
   const unsigned len = TU_MIN(TU_MIN(rem, mps), vld);
   void          *buf = pipe->buf;
   if (len) {
-    USB0.DCPCTR.WORD = USB_PIPECTR_PID_NAK;
-    pipe_read_packet(buf, (volatile void*)&USB0.CFIFO.WORD, len);
+    RUSB2->DCPCTR = RUSB2_PIPE_CTR_PID_NAK;
+    pipe_read_packet(buf, (volatile void*)&RUSB2->CFIFO, len);
     pipe->buf = (uint8_t*)buf + len;
   }
-  if (len < mps) USB0.CFIFOCTR.WORD = USB_FIFOCTR_BCLR;
+  if (len < mps) {
+    RUSB2->CFIFOCTR = RUSB2_CFIFOCTR_BCLR_Msk;
+  }
   pipe->remaining = rem - len;
   if ((len < mps) || (rem == len)) {
     pipe->buf = NULL;
     return true;
   }
-  USB0.DCPCTR.WORD = USB_PIPECTR_PID_BUF;
+  RUSB2->DCPCTR = RUSB2_PIPE_CTR_PID_BUF;
   return false;
 }
 
@@ -320,10 +239,12 @@ static bool pipe0_xfer_out(void)
   const unsigned len = TU_MIN(mps, rem);
   void          *buf = pipe->buf;
   if (len) {
-    pipe_write_packet(buf, (volatile void*)&USB0.CFIFO.WORD, len);
+    pipe_write_packet(buf, (volatile void*)&RUSB2->CFIFO, len);
     pipe->buf = (uint8_t*)buf + len;
   }
-  if (len < mps) USB0.CFIFOCTR.WORD = USB_FIFOCTR_BVAL;
+  if (len < mps) {
+    RUSB2->CFIFOCTR = RUSB2_CFIFOCTR_BVAL_Msk;
+  }
   pipe->remaining = rem - len;
   return false;
 }
@@ -333,20 +254,22 @@ static bool pipe_xfer_in(unsigned num)
   pipe_state_t  *pipe = &_hcd.pipe[num];
   const unsigned rem  = pipe->remaining;
 
-  USB0.D0FIFOSEL.WORD = num | USB_FIFOSEL_MBW_8;
+  RUSB2->D0FIFOSEL = num | RUSB2_FIFOSEL_MBW_8BIT;
   const unsigned mps  = edpt_max_packet_size(num);
   pipe_wait_for_ready(num);
-  const unsigned vld  = USB0.D0FIFOCTR.BIT.DTLN;
+  const unsigned vld  = RUSB2->D0FIFOCTR_b.DTLN;
   const unsigned len  = TU_MIN(TU_MIN(rem, mps), vld);
   void          *buf  = pipe->buf;
   if (len) {
-    pipe_read_packet(buf, (volatile void*)&USB0.D0FIFO.WORD, len);
+    pipe_read_packet(buf, (volatile void*)&RUSB2->D0FIFO, len);
     pipe->buf = (uint8_t*)buf + len;
   }
-  if (len < mps) USB0.D0FIFOCTR.WORD = USB_FIFOCTR_BCLR;
-  USB0.D0FIFOSEL.WORD = 0;
-  while (USB0.D0FIFOSEL.BIT.CURPIPE) ; /* if CURPIPE bits changes, check written value */
-  pipe->remaining     = rem - len;
+  if (len < mps) {
+    RUSB2->D0FIFOCTR = RUSB2_CFIFOCTR_BCLR_Msk;
+  }
+  RUSB2->D0FIFOSEL = 0;
+  while (RUSB2->D0FIFOSEL_b.CURPIPE) ; /* if CURPIPE bits changes, check written value */
+  pipe->remaining = rem - len;
   if ((len < mps) || (rem == len)) {
     pipe->buf = NULL;
     return NULL != buf;
@@ -364,18 +287,19 @@ static bool pipe_xfer_out(unsigned num)
     return true;
   }
 
-  USB0.D0FIFOSEL.WORD = num | USB_FIFOSEL_MBW_16 | (TU_BYTE_ORDER == TU_BIG_ENDIAN ? USB_FIFOSEL_BIGEND : 0);
+  RUSB2->D0FIFOSEL = num | RUSB2_FIFOSEL_MBW_16BIT | (TU_BYTE_ORDER == TU_BIG_ENDIAN ? RUSB2_FIFOSEL_BIGEND : 0);
   const unsigned mps  = edpt_max_packet_size(num);
   pipe_wait_for_ready(num);
   const unsigned len  = TU_MIN(rem, mps);
   void          *buf  = pipe->buf;
   if (len) {
-    pipe_write_packet(buf, (volatile void*)&USB0.D0FIFO.WORD, len);
+    pipe_write_packet(buf, (volatile void*)&RUSB2->D0FIFO, len);
     pipe->buf = (uint8_t*)buf + len;
   }
-  if (len < mps) USB0.D0FIFOCTR.WORD = USB_FIFOCTR_BVAL;
-  USB0.D0FIFOSEL.WORD = 0;
-  while (USB0.D0FIFOSEL.BIT.CURPIPE) ; /* if CURPIPE bits changes, check written value */
+  if (len < mps)
+    RUSB2->D0FIFOCTR = RUSB2_CFIFOCTR_BVAL_Msk;
+  RUSB2->D0FIFOSEL = 0;
+  while (RUSB2->D0FIFOSEL_b.CURPIPE) ; /* if CURPIPE bits changes, check written value */
   pipe->remaining = rem - len;
   return false;
 }
@@ -387,11 +311,12 @@ static bool process_pipe0_xfer(uint8_t dev_addr, uint8_t ep_addr, void* buffer, 
 
   /* configure fifo direction and access unit settings */
   if (dir_in) { /* IN, a byte */
-    USB0.CFIFOSEL.WORD  = USB_FIFOSEL_MBW_8;
-    while (USB0.CFIFOSEL.WORD & USB_FIFOSEL_TX) ;
-  } else {       /* OUT, 2 bytes */
-    USB0.CFIFOSEL.WORD  = USB_FIFOSEL_TX | USB_FIFOSEL_MBW_16 | (TU_BYTE_ORDER == TU_BIG_ENDIAN ? USB_FIFOSEL_BIGEND : 0);
-    while (!(USB0.CFIFOSEL.WORD & USB_FIFOSEL_TX)) ;
+    RUSB2->CFIFOSEL = RUSB2_FIFOSEL_MBW_8BIT;
+    while (RUSB2->CFIFOSEL & RUSB2_CFIFOSEL_ISEL_WRITE) ;
+  } else { /* OUT, 2 bytes */
+    RUSB2->CFIFOSEL = RUSB2_CFIFOSEL_ISEL_WRITE | RUSB2_FIFOSEL_MBW_16BIT |
+                         (TU_BYTE_ORDER == TU_BIG_ENDIAN ? RUSB2_FIFOSEL_BIGEND : 0);
+    while (!(RUSB2->CFIFOSEL & RUSB2_CFIFOSEL_ISEL_WRITE)) ;
   }
 
   pipe_state_t *pipe = &_hcd.pipe[0];
@@ -401,25 +326,25 @@ static bool process_pipe0_xfer(uint8_t dev_addr, uint8_t ep_addr, void* buffer, 
   if (buflen) {
     pipe->buf     = buffer;
     if (!dir_in) { /* OUT */
-      TU_ASSERT(USB0.DCPCTR.BIT.BSTS && (USB0.USBREQ.WORD & 0x80));
+      TU_ASSERT(RUSB2->DCPCTR_b.BSTS && (RUSB2->USBREQ & 0x80));
       pipe0_xfer_out();
     }
   } else { /* ZLP */
     pipe->buf        = NULL;
     if (!dir_in) { /* OUT */
-      USB0.CFIFOCTR.WORD = USB_FIFOCTR_BVAL;
+      RUSB2->CFIFOCTR = RUSB2_CFIFOCTR_BVAL_Msk;
     }
-    if (dir_in == USB0.DCPCFG.BIT.DIR) {
-      TU_ASSERT(USB_PIPECTR_PID_NAK == USB0.DCPCTR.BIT.PID);
-      USB0.DCPCTR.BIT.SQSET = 1;
-      USB0.DCPCFG.BIT.DIR = dir_in ^ 1;
+    if (dir_in == RUSB2->DCPCFG_b.DIR) {
+      TU_ASSERT(RUSB2_PIPE_CTR_PID_NAK == RUSB2->DCPCTR_b.PID);
+      RUSB2->DCPCTR_b.SQSET = 1;
+      RUSB2->DCPCFG_b.DIR = dir_in ^ 1;
     }
   }
-  USB0.DCPCTR.WORD = USB_PIPECTR_PID_BUF;
+  RUSB2->DCPCTR = RUSB2_PIPE_CTR_PID_BUF;
   return true;
 }
 
-static bool process_pipe_xfer(uint8_t dev_addr, uint8_t ep_addr, void* buffer, uint16_t buflen)
+static bool process_pipe_xfer(uint8_t dev_addr, uint8_t ep_addr, void *buffer, uint16_t buflen)
 {
   const unsigned epn    = tu_edpt_number(ep_addr);
   const unsigned dir_in = tu_edpt_dir(ep_addr);
@@ -435,23 +360,23 @@ static bool process_pipe_xfer(uint8_t dev_addr, uint8_t ep_addr, void* buffer, u
     if (buflen) {
       pipe_xfer_out(num);
     } else { /* ZLP */
-      USB0.D0FIFOSEL.WORD = num;
+      RUSB2->D0FIFOSEL = num;
       pipe_wait_for_ready(num);
-      USB0.D0FIFOCTR.WORD = USB_FIFOCTR_BVAL;
-      USB0.D0FIFOSEL.WORD = 0;
-      while (USB0.D0FIFOSEL.BIT.CURPIPE) ; /* if CURPIPE bits changes, check written value */
+      RUSB2->D0FIFOCTR = RUSB2_CFIFOCTR_BVAL_Msk;
+      RUSB2->D0FIFOSEL = 0;
+      while (RUSB2->D0FIFOSEL_b.CURPIPE) {} /* if CURPIPE bits changes, check written value */
     }
   } else {
     volatile uint16_t     *ctr = get_pipectr(num);
     volatile reg_pipetre_t *pt = get_pipetre(num);
     if (pt) {
       const unsigned     mps = edpt_max_packet_size(num);
-      if (*ctr & 0x3) *ctr = USB_PIPECTR_PID_NAK;
+      if (*ctr & 0x3) *ctr = RUSB2_PIPE_CTR_PID_NAK;
       pt->TRE   = TU_BIT(8);
       pt->TRN   = (buflen + mps - 1) / mps;
       pt->TRENB = 1;
     }
-    *ctr = USB_PIPECTR_PID_BUF;
+    *ctr = RUSB2_PIPE_CTR_PID_BUF;
   }
   return true;
 }
@@ -485,10 +410,10 @@ static void process_pipe_nrdy(uint8_t rhport, unsigned num)
   unsigned result;
   uint16_t volatile *ctr = get_pipectr(num);
   // TU_LOG1("NRDY %d %x\n", num, *ctr);
-  switch (*ctr & USB_PIPECTR_PID_MSK) {
+  switch (*ctr & RUSB2_PIPE_CTR_PID_Msk) {
     default: return;
-    case USB_PIPECTR_PID_STALL: result = XFER_RESULT_STALLED; break;
-    case USB_PIPECTR_PID_NAK:   result = XFER_RESULT_FAILED;  break;
+    case RUSB2_PIPE_CTR_PID_STALL: result = XFER_RESULT_STALLED; break;
+    case RUSB2_PIPE_CTR_PID_NAK:   result = XFER_RESULT_FAILED;  break;
   }
   pipe_state_t *pipe = &_hcd.pipe[num];
   hcd_event_xfer_complete(pipe->dev, pipe->ep,
@@ -520,78 +445,93 @@ static void process_pipe_brdy(uint8_t rhport, unsigned num)
   }
 }
 
-
 /*------------------------------------------------------------------*/
 /* Host API
  *------------------------------------------------------------------*/
+
+#if 0 // previously present in the rx driver before generalization
+static uint32_t disable_interrupt(void)
+{
+  uint32_t pswi;
+#if defined(__CCRX__)
+  pswi = get_psw() & 0x010000;
+  clrpsw_i();
+#else
+  pswi = __builtin_rx_mvfc(0) & 0x010000;
+  __builtin_rx_clrpsw('I');
+#endif
+  return pswi;
+}
+
+static void enable_interrupt(uint32_t pswi)
+{
+#if defined(__CCRX__)
+  set_psw(get_psw() | pswi);
+#else
+  __builtin_rx_mvtc(0, __builtin_rx_mvfc(0) | pswi);
+#endif
+}
+#endif
+
 bool hcd_init(uint8_t rhport)
 {
   (void)rhport;
-  /* Enable USB0 */
+
+#if 0 // previously present in the rx driver before generalization
   uint32_t pswi = disable_interrupt();
   SYSTEM.PRCR.WORD = SYSTEM_PRCR_PRKEY | SYSTEM_PRCR_PRC1;
   MSTP(USB0) = 0;
   SYSTEM.PRCR.WORD = SYSTEM_PRCR_PRKEY;
   enable_interrupt(pswi);
-  USB0.SYSCFG.BIT.SCKE = 1;
-  while (!USB0.SYSCFG.BIT.SCKE) ;
-  USB0.SYSCFG.BIT.DPRPU = 0;
-  USB0.SYSCFG.BIT.DRPD = 0;
-  USB0.SYSCFG.BIT.DCFM = 1;
-
-  USB0.DVSTCTR0.BIT.VBUSEN = 1;
-
-  USB0.SYSCFG.BIT.DRPD = 1;
-  for (volatile int i = 0; i < 30000; ++i) ;
-  USB0.SYSCFG.BIT.USBE = 1;
-
-  USB.DPUSR0R.BIT.FIXPHY0 = 0u;    /* USB0 Transceiver Output fixed */
-#if ( CFG_TUSB_MCU == OPT_MCU_RX72N )
-  USB0.PHYSLEW.LONG = 0x5;
-  IR(PERIB, INTB185) = 0;
-#else
-  IR(USB0, USBI0)   = 0;
 #endif
 
+  RUSB2->SYSCFG_b.SCKE = 1;
+  while (!RUSB2->SYSCFG_b.SCKE) ;
+  RUSB2->SYSCFG_b.DPRPU = 0;
+  RUSB2->SYSCFG_b.DRPD = 0;
+  RUSB2->SYSCFG_b.DCFM = 1;
+
+  RUSB2->DVSTCTR0_b.VBUSEN = 1;
+
+  RUSB2->SYSCFG_b.DRPD = 1;
+  for (volatile int i = 0; i < 30000; ++i) ;
+  RUSB2->SYSCFG_b.USBE = 1;
+
+  // MCU specific PHY init
+  rusb2_phy_init();
+
+  RUSB2->PHYSLEW = 0x5;
+  RUSB2->DPUSR0R_FS_b.FIXPHY0 = 0u; /* Transceiver Output fixed */
+
   /* Setup default control pipe */
-  USB0.DCPCFG.WORD  = USB_PIPECFG_SHTNAK;
-  USB0.DCPMAXP.WORD = 64;
-  USB0.INTENB0.WORD = USB_IS0_BRDY | USB_IS0_NRDY | USB_IS0_BEMP;
-  USB0.INTENB1.WORD = USB_IS1_SACK | USB_IS1_SIGN |
-    USB_IS1_ATTCH | USB_IS1_DTCH;
-  USB0.BEMPENB.WORD = 1;
-  USB0.NRDYENB.WORD = 1;
-  USB0.BRDYENB.WORD = 1;
+  RUSB2->DCPCFG  = RUSB2_PIPECFG_SHTNAK_Msk;
+  RUSB2->DCPMAXP = 64;
+  RUSB2->INTENB0 = RUSB2_INTSTS0_BRDY_Msk | RUSB2_INTSTS0_NRDY_Msk | RUSB2_INTSTS0_BEMP_Msk;
+  RUSB2->INTENB1 = RUSB2_INTSTS1_SACK_Msk | RUSB2_INTSTS1_SIGN_Msk | RUSB2_INTSTS1_ATTCH_Msk | RUSB2_INTSTS1_DTCH_Msk;
+  RUSB2->BEMPENB = 1;
+  RUSB2->NRDYENB = 1;
+  RUSB2->BRDYENB = 1;
+
   return true;
 }
 
 void hcd_int_enable(uint8_t rhport)
 {
-  (void)rhport;
-#if ( CFG_TUSB_MCU == OPT_MCU_RX72N )
-  IEN(PERIB, INTB185) = 1;
-#else
-  IEN(USB0, USBI0) = 1;
-#endif
+  rusb2_int_enable(rhport);
 }
 
 void hcd_int_disable(uint8_t rhport)
 {
-  (void)rhport;
-#if ( CFG_TUSB_MCU == OPT_MCU_RX72N )
-  IEN(PERIB, INTB185) = 0;
-#else
-  IEN(USB0, USBI0) = 0;
-#endif
+  rusb2_int_disable(rhport);
 }
 
 uint32_t hcd_frame_number(uint8_t rhport)
 {
   (void)rhport;
-  /* The device must be reset at least once after connection 
+  /* The device must be reset at least once after connection
    * in order to start the frame counter. */
   if (_hcd.need_reset) hcd_port_reset(rhport);
-  return USB0.FRMNUM.BIT.FRNM;
+  return RUSB2->FRMNUM_b.FRNM;
 }
 
 /*--------------------------------------------------------------------+
@@ -600,23 +540,24 @@ uint32_t hcd_frame_number(uint8_t rhport)
 bool hcd_port_connect_status(uint8_t rhport)
 {
   (void)rhport;
-  return USB0.INTSTS1.BIT.ATTCH ? true : false;
+  return RUSB2->INTSTS1_b.ATTCH ? true : false;
 }
 
 void hcd_port_reset(uint8_t rhport)
 {
-  USB0.DCPCTR.WORD = USB_PIPECTR_PID_NAK;
-  while (USB0.DCPCTR.BIT.PBUSY) ;
+  RUSB2->DCPCTR = RUSB2_PIPE_CTR_PID_NAK;
+  while (RUSB2->DCPCTR_b.PBUSY) ;
   hcd_int_disable(rhport);
-  USB0.DVSTCTR0.BIT.UACT   = 0;
-  if (USB0.DCPCTR.BIT.SUREQ)
-    USB0.DCPCTR.BIT.SUREQCLR = 1;
+  RUSB2->DVSTCTR0_b.UACT = 0;
+  if (RUSB2->DCPCTR_b.SUREQ) {
+    RUSB2->DCPCTR_b.SUREQCLR = 1;
+  }
   hcd_int_enable(rhport);
   /* Reset should be asserted 10-20ms. */
-  USB0.DVSTCTR0.BIT.USBRST = 1;
+  RUSB2->DVSTCTR0_b.USBRST = 1;
   for (volatile int i = 0; i < 2400000; ++i) ;
-  USB0.DVSTCTR0.BIT.USBRST = 0;
-  USB0.DVSTCTR0.BIT.UACT   = 1;
+  RUSB2->DVSTCTR0_b.USBRST = 0;
+  RUSB2->DVSTCTR0_b.UACT = 1;
   _hcd.need_reset = false;
 }
 
@@ -628,10 +569,10 @@ void hcd_port_reset_end(uint8_t rhport)
 tusb_speed_t hcd_port_speed_get(uint8_t rhport)
 {
   (void)rhport;
-  switch (USB0.DVSTCTR0.BIT.RHST) {
+  switch (RUSB2->DVSTCTR0_b.RHST) {
     default: return TUSB_SPEED_INVALID;
-    case USB_DVSTCTR0_FULL: return TUSB_SPEED_FULL;
-    case USB_DVSTCTR0_LOW:  return TUSB_SPEED_LOW;
+    case RUSB2_DVSTCTR0_RHST_FS: return TUSB_SPEED_FULL;
+    case RUSB2_DVSTCTR0_RHST_LS:  return TUSB_SPEED_LOW;
   }
 }
 
@@ -647,13 +588,13 @@ void hcd_device_close(uint8_t rhport, uint8_t dev_addr)
     unsigned num = *ep;
     if (!num || dev_addr != _hcd.pipe[num].dev) continue;
 
-    ctr  = (uint16_t volatile*)&USB0.PIPE1CTR.WORD + num - 1;
+    ctr = (uint16_t volatile*)&RUSB2->PIPE_CTR[num - 1];
     *ctr = 0;
-    USB0.NRDYENB.WORD &= ~TU_BIT(num);
-    USB0.BRDYENB.WORD &= ~TU_BIT(num);
-    USB0.PIPESEL.WORD  = num;
-    USB0.PIPECFG.WORD  = 0;
-    USB0.PIPEMAXP.WORD = 0;
+    RUSB2->NRDYENB &= ~TU_BIT(num);
+    RUSB2->BRDYENB &= ~TU_BIT(num);
+    RUSB2->PIPESEL = num;
+    RUSB2->PIPECFG = 0;
+    RUSB2->PIPEMAXP = 0;
 
     _hcd.pipe[num].ep  = 0;
     _hcd.pipe[num].dev = 0;
@@ -667,36 +608,36 @@ void hcd_device_close(uint8_t rhport, uint8_t dev_addr)
 bool hcd_setup_send(uint8_t rhport, uint8_t dev_addr, uint8_t const setup_packet[8])
 {
   (void)rhport;
-  //  TU_LOG1("S %d %x\n", dev_addr, USB0.DCPCTR.WORD);
+  //  TU_LOG1("S %d %x\n", dev_addr, RUSB2->DCPCTR);
 
   TU_ASSERT(dev_addr < 6); /* USBa can only handle addresses from 0 to 5. */
-  TU_ASSERT(0 == USB0.DCPCTR.BIT.SUREQ);
+  TU_ASSERT(0 == RUSB2->DCPCTR_b.SUREQ);
 
-  USB0.DCPCTR.WORD = USB_PIPECTR_PID_NAK;
+  RUSB2->DCPCTR = RUSB2_PIPE_CTR_PID_NAK;
 
   _hcd.pipe[0].buf       = NULL;
   _hcd.pipe[0].length    = 8;
   _hcd.pipe[0].remaining = 0;
   _hcd.pipe[0].dev       = dev_addr;
 
-  while (USB0.DCPCTR.BIT.PBUSY) ;
-  USB0.DCPMAXP.WORD      = (dev_addr << 12) | _hcd.ctl_mps[dev_addr];
+  while (RUSB2->DCPCTR_b.PBUSY) ;
+  RUSB2->DCPMAXP = (dev_addr << 12) | _hcd.ctl_mps[dev_addr];
 
   /* Set direction in advance for DATA stage */
   uint8_t const bmRequesttype = setup_packet[0];
-  USB0.DCPCFG.BIT.DIR = tu_edpt_dir(bmRequesttype) ? 0: 1;
+  RUSB2->DCPCFG_b.DIR = tu_edpt_dir(bmRequesttype) ? 0: 1;
 
   uint16_t const* p = (uint16_t const*)(uintptr_t)&setup_packet[0];
-  USB0.USBREQ.WORD = tu_htole16(p[0]);
-  USB0.USBVAL      = p[1];
-  USB0.USBINDX     = p[2];
-  USB0.USBLENG     = p[3];
+  RUSB2->USBREQ  = tu_htole16(p[0]);
+  RUSB2->USBVAL  = p[1];
+  RUSB2->USBINDX = p[2];
+  RUSB2->USBLENG = p[3];
 
-  USB0.DCPCTR.BIT.SUREQ = 1;
+  RUSB2->DCPCTR_b.SUREQ = 1;
   return true;
 }
 
-bool hcd_edpt_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_endpoint_t const * ep_desc)
+bool hcd_edpt_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_endpoint_t const *ep_desc)
 {
   (void)rhport;
   TU_ASSERT(dev_addr < 6); /* USBa can only handle addresses from 0 to 5. */
@@ -705,14 +646,14 @@ bool hcd_edpt_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_endpoint_t const 
   const unsigned epn     = tu_edpt_number(ep_addr);
   const unsigned mps     = tu_edpt_packet_size(ep_desc);
   if (0 == epn) {
-    USB0.DCPCTR.WORD = USB_PIPECTR_PID_NAK;
+    RUSB2->DCPCTR = RUSB2_PIPE_CTR_PID_NAK;
     hcd_devtree_info_t devtree;
     hcd_devtree_get_info(dev_addr, &devtree);
-    uint16_t volatile *devadd = (uint16_t volatile *)(uintptr_t)&USB0.DEVADD0.WORD;
+    uint16_t volatile *devadd = (uint16_t volatile *)(uintptr_t) &RUSB2->DEVADD[0];
     devadd += dev_addr;
-    while (USB0.DCPCTR.BIT.PBUSY) ;
-    USB0.DCPMAXP.WORD = (dev_addr << 12) | mps;
-    *devadd = (TUSB_SPEED_FULL == devtree.speed) ? USB_DEVADD_FULL : USB_DEVADD_LOW;
+    while (RUSB2->DCPCTR_b.PBUSY) ;
+    RUSB2->DCPMAXP = (dev_addr << 12) | mps;
+    *devadd = (TUSB_SPEED_FULL == devtree.speed) ? RUSB2_DEVADD_USBSPD_FS : RUSB2_DEVADD_USBSPD_LS;
     _hcd.ctl_mps[dev_addr] = mps;
     return true;
   }
@@ -731,25 +672,25 @@ bool hcd_edpt_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_endpoint_t const 
 
   /* setup pipe */
   hcd_int_disable(rhport);
-  USB0.PIPESEL.WORD  = num;
-  USB0.PIPEMAXP.WORD = (dev_addr << 12) | mps;
+  RUSB2->PIPESEL = num;
+  RUSB2->PIPEMAXP = (dev_addr << 12) | mps;
   volatile uint16_t *ctr = get_pipectr(num);
-  *ctr = USB_PIPECTR_ACLRM | USB_PIPECTR_SQCLR;
+  *ctr = RUSB2_PIPE_CTR_ACLRM_Msk | RUSB2_PIPE_CTR_SQCLR_Msk;
   *ctr = 0;
   unsigned cfg = ((1 ^ dir_in) << 4) | epn;
   if (xfer == TUSB_XFER_BULK) {
-    cfg |= USB_PIPECFG_BULK | USB_PIPECFG_SHTNAK | USB_PIPECFG_DBLB;
+    cfg |= RUSB2_PIPECFG_TYPE_BULK | RUSB2_PIPECFG_SHTNAK_Msk | RUSB2_PIPECFG_DBLB_Msk;
   } else if (xfer == TUSB_XFER_INTERRUPT) {
-    cfg |= USB_PIPECFG_INT;
+    cfg |= RUSB2_PIPECFG_TYPE_INT;
   } else {
-    cfg |= USB_PIPECFG_ISO | USB_PIPECFG_DBLB;
+    cfg |= RUSB2_PIPECFG_TYPE_ISO | RUSB2_PIPECFG_DBLB_Msk;
   }
-  USB0.PIPECFG.WORD  = cfg;
-  USB0.BRDYSTS.WORD  = 0x1FFu ^ TU_BIT(num);
-  USB0.NRDYENB.WORD |= TU_BIT(num);
-  USB0.BRDYENB.WORD |= TU_BIT(num);
+  RUSB2->PIPECFG = cfg;
+  RUSB2->BRDYSTS = 0x1FFu ^ TU_BIT(num);
+  RUSB2->NRDYENB |= TU_BIT(num);
+  RUSB2->BRDYENB |= TU_BIT(num);
   if (!dir_in) {
-    *ctr = USB_PIPECTR_PID_BUF;
+    *ctr = RUSB2_PIPE_CTR_PID_BUF;
   }
   hcd_int_enable(rhport);
 
@@ -776,12 +717,12 @@ bool hcd_edpt_clear_stall(uint8_t dev_addr, uint8_t ep_addr)
     *ctr = pid & 2;
     *ctr = 0;
   }
-  *ctr = USB_PIPECTR_SQCLR;
+  *ctr = RUSB2_PIPE_CTR_SQCLR_Msk;
   unsigned const epn = tu_edpt_number(ep_addr);
   if (!epn) return true;
 
   if (!tu_edpt_dir(ep_addr)) { /* OUT */
-    *ctr = USB_PIPECTR_PID_BUF;
+    *ctr = RUSB2_PIPE_CTR_PID_BUF;
   }
   return true;
 }
@@ -799,52 +740,49 @@ void hcd_int_handler(uint8_t rhport)
     20, 8, 19, 18};
 #endif
 
-  unsigned is1 = USB0.INTSTS1.WORD;
-  unsigned is0 = USB0.INTSTS0.WORD;
+  unsigned is1 = RUSB2->INTSTS1;
+  unsigned is0 = RUSB2->INTSTS0;
   /* clear active bits except VALID (don't write 0 to already cleared bits according to the HW manual) */
-  USB0.INTSTS1.WORD = ~((USB_IS1_SACK | USB_IS1_SIGN | USB_IS1_ATTCH | USB_IS1_DTCH) & is1);
-  USB0.INTSTS0.WORD = ~((USB_IS0_BRDY | USB_IS0_NRDY | USB_IS0_BEMP) & is0);
+  RUSB2->INTSTS1 = ~((RUSB2_INTSTS1_SACK_Msk | RUSB2_INTSTS1_SIGN_Msk | RUSB2_INTSTS1_ATTCH_Msk | RUSB2_INTSTS1_DTCH_Msk) & is1);
+  RUSB2->INTSTS0 = ~((RUSB2_INTSTS0_BRDY_Msk | RUSB2_INTSTS0_NRDY_Msk | RUSB2_INTSTS0_BEMP_Msk) & is0);
   // TU_LOG1("IS %04x %04x\n", is0, is1);
-  is1 &= USB0.INTENB1.WORD;
-  is0 &= USB0.INTENB0.WORD;
+  is1 &= RUSB2->INTENB1;
+  is0 &= RUSB2->INTENB0;
 
-  if (is1 & USB_IS1_SACK) {
+  if (is1 & RUSB2_INTSTS1_SACK_Msk) {
     /* Set DATA1 in advance for the next transfer. */
-    USB0.DCPCTR.BIT.SQSET = 1;
-    hcd_event_xfer_complete(USB0.DCPMAXP.BIT.DEVSEL,
-                            tu_edpt_addr(0, TUSB_DIR_OUT),
-                            8, XFER_RESULT_SUCCESS, true);
+    RUSB2->DCPCTR_b.SQSET = 1;
+    hcd_event_xfer_complete(RUSB2->DCPMAXP_b.DEVSEL, tu_edpt_addr(0, TUSB_DIR_OUT), 8, XFER_RESULT_SUCCESS, true);
   }
-  if (is1 & USB_IS1_SIGN) {
-    hcd_event_xfer_complete(USB0.DCPMAXP.BIT.DEVSEL,
-                            tu_edpt_addr(0, TUSB_DIR_OUT),
-                            8, XFER_RESULT_FAILED, true);
+  if (is1 & RUSB2_INTSTS1_SIGN_Msk) {
+    hcd_event_xfer_complete(RUSB2->DCPMAXP_b.DEVSEL, tu_edpt_addr(0, TUSB_DIR_OUT), 8, XFER_RESULT_FAILED, true);
   }
-  if (is1 & USB_IS1_ATTCH) {
-    USB0.DVSTCTR0.BIT.UACT = 1;
+  if (is1 & RUSB2_INTSTS1_ATTCH_Msk) {
+    RUSB2->DVSTCTR0_b.UACT = 1;
     _hcd.need_reset = true;
-    USB0.INTENB1.WORD = (USB0.INTENB1.WORD & ~USB_IS1_ATTCH) | USB_IS1_DTCH;
+    RUSB2->INTENB1 = (RUSB2->INTENB1 & ~RUSB2_INTSTS1_ATTCH_Msk) | RUSB2_INTSTS1_DTCH_Msk;
     hcd_event_device_attach(rhport, true);
   }
-  if (is1 & USB_IS1_DTCH) {
-    USB0.DVSTCTR0.BIT.UACT = 0;
-    if (USB0.DCPCTR.BIT.SUREQ)
-      USB0.DCPCTR.BIT.SUREQCLR = 1;
-    USB0.INTENB1.WORD = (USB0.INTENB1.WORD & ~USB_IS1_DTCH) | USB_IS1_ATTCH;
+  if (is1 & RUSB2_INTSTS1_DTCH_Msk) {
+    RUSB2->DVSTCTR0_b.UACT = 0;
+    if (RUSB2->DCPCTR_b.SUREQ) {
+      RUSB2->DCPCTR_b.SUREQCLR = 1;
+    }
+    RUSB2->INTENB1 = (RUSB2->INTENB1 & ~RUSB2_INTSTS1_DTCH_Msk) | RUSB2_INTSTS1_ATTCH_Msk;
     hcd_event_device_remove(rhport, true);
   }
 
-  if (is0 & USB_IS0_BEMP) {
-    const unsigned s = USB0.BEMPSTS.WORD;
-    USB0.BEMPSTS.WORD = 0;
+  if (is0 & RUSB2_INTSTS0_BEMP_Msk) {
+    const unsigned s = RUSB2->BEMPSTS;
+    RUSB2->BEMPSTS = 0;
     if (s & 1) {
       process_pipe0_bemp(rhport);
     }
   }
-  if (is0 & USB_IS0_NRDY) {
-    const unsigned m = USB0.NRDYENB.WORD;
-    unsigned s       = USB0.NRDYSTS.WORD & m;
-    USB0.NRDYSTS.WORD = ~s;
+  if (is0 & RUSB2_INTSTS0_NRDY_Msk) {
+    const unsigned m = RUSB2->NRDYENB;
+    unsigned s = RUSB2->NRDYSTS & m;
+    RUSB2->NRDYSTS = ~s;
     while (s) {
 #if defined(__CCRX__)
       const unsigned num = Mod37BitPosition[(-s & s) % 37];
@@ -855,11 +793,11 @@ void hcd_int_handler(uint8_t rhport)
       s &= ~TU_BIT(num);
     }
   }
-  if (is0 & USB_IS0_BRDY) {
-    const unsigned m = USB0.BRDYENB.WORD;
-    unsigned s       = USB0.BRDYSTS.WORD & m;
+  if (is0 & RUSB2_INTSTS0_BRDY_Msk) {
+    const unsigned m = RUSB2->BRDYENB;
+    unsigned s = RUSB2->BRDYSTS & m;
     /* clear active bits (don't write 0 to already cleared bits according to the HW manual) */
-    USB0.BRDYSTS.WORD = ~s;
+    RUSB2->BRDYSTS = ~s;
     while (s) {
 #if defined(__CCRX__)
       const unsigned num = Mod37BitPosition[(-s & s) % 37];

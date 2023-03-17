@@ -17,8 +17,8 @@ CFLAGS += \
 CFLAGS += -Wno-error=redundant-decls
 
 SRC_C += \
-	src/portable/renesas/usba/dcd_usba.c \
-	src/portable/renesas/usba/hcd_usba.c \
+	src/portable/renesas/rusb2/dcd_rusb2.c \
+	src/portable/renesas/rusb2/hcd_rusb2.c \
 	$(MCU_DIR)/vects.c
 
 INC += \

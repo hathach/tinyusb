@@ -201,6 +201,11 @@ void board_init(void)
   IEN(SCI0, RXI0) = 1;
   IEN(SCI0, TXI0) = 1;
   IEN(SCI0, TEI0) = 1;
+
+  /* Enable USB0 */
+  SYSTEM.PRCR.WORD = SYSTEM_PRCR_PRKEY | SYSTEM_PRCR_PRC1;
+  MSTP(USB0) = 0;
+  SYSTEM.PRCR.WORD = SYSTEM_PRCR_PRKEY;
 }
 
 //--------------------------------------------------------------------+

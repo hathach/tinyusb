@@ -11,7 +11,7 @@ CFLAGS += \
   -mfloat-abi=hard \
   -mfpu=fpv4-sp-d16 \
   -DCFG_TUSB_MCU=OPT_MCU_LPC54XXX \
-  -DCFG_TUSB_MEM_ALIGN='__attribute__((aligned(64)))' 
+  -DCFG_TUSB_MEM_ALIGN='__attribute__((aligned(64)))'
 
 ifeq ($(PORT), 1)
   $(info "PORT1 High Speed")
@@ -51,4 +51,4 @@ INC += \
 SRC_S += $(MCU_DIR)/gcc/startup_$(MCU_CORE).S
 
 # For freeRTOS port source
-FREERTOS_PORT = ARM_CM4F
+FREERTOS_PORTABLE_SRC = $(FREERTOS_PORTABLE_PATH)/ARM_CM4F

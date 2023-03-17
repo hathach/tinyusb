@@ -48,7 +48,11 @@ The stack supports the following MCUs:
   - LPC Series: 11u, 13, 15, 17, 18, 40, 43, 51u, 54, 55
 
 - **Raspberry Pi:** RP2040
-- **Renesas:** RX63N, RX65N, RX72N
+- **Renesas:**
+
+	- RX Series: 63N, 65N, 72N
+	- RA Series: RA4M1, RA4M3
+
 - **Silabs:** EFM32GG
 - **Sony:** CXD56
 - **ST:** STM32 series: F0, F1, F2, F3, F4, F7, H7, G4, L0, L1, L4, L4+, WB
