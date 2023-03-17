@@ -35,9 +35,6 @@ jobs:
     - name: Run pre-commit
       uses: pre-commit/action@v3.0.0
 
-    - name: Run codespell
-      uses: codespell-project/actions-codespell@master
-
     - name: Build Fuzzer
       run: |
         export CC=clang
