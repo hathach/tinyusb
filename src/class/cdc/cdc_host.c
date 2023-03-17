@@ -1,4 +1,4 @@
-/* 
+/*
  * The MIT License (MIT)
  *
  * Copyright (c) 2019 Ha Thach (tinyusb.org)
@@ -97,7 +97,7 @@ static inline uint8_t get_idx_by_ep_addr(uint8_t daddr, uint8_t ep_addr)
     }
   }
 
-  return TUSB_INDEX_INVALID;
+  return TU_INDEX_INVALID_8;
 }
 
 
@@ -124,7 +124,7 @@ uint8_t tuh_cdc_itf_get_index(uint8_t daddr, uint8_t itf_num)
     if (p_cdc->daddr == daddr && p_cdc->bInterfaceNumber == itf_num) return i;
   }
 
-  return TUSB_INDEX_INVALID;
+  return TU_INDEX_INVALID_8;
 }
 
 bool tuh_cdc_itf_get_info(uint8_t idx, tuh_cdc_itf_info_t* info)
@@ -533,7 +533,7 @@ static void process_cdc_config(tuh_xfer_t* xfer)
   uintptr_t const state = xfer->user_data;
   uint8_t const itf_num = (uint8_t) tu_le16toh(xfer->setup->wIndex);
   uint8_t const idx = tuh_cdc_itf_get_index(xfer->daddr, itf_num);
-  TU_ASSERT(idx != TUSB_INDEX_INVALID, );
+  TU_ASSERT(idx != TU_INDEX_INVALID_8, );
 
   switch(state)
   {
