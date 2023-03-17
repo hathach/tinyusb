@@ -23,6 +23,10 @@ if (NOT TARGET _rp2040_family_inclusion_marker)
 		set(PICO_TINYUSB_PATH ${TOP})
 	endif()
 
+	if (NOT TINYUSB_OPT_OS)
+		set(TINYUSB_OPT_OS OPT_OS_PICO)
+	endif()
+
 	#------------------------------------
 	# Base config for both device and host; wrapped by SDK's tinyusb_common
 	#------------------------------------
@@ -54,7 +58,7 @@ if (NOT TARGET _rp2040_family_inclusion_marker)
 	
 	target_compile_definitions(tinyusb_common_base INTERFACE
 			CFG_TUSB_MCU=OPT_MCU_RP2040
-			CFG_TUSB_OS=OPT_OS_PICO
+			CFG_TUSB_OS=${TINYUSB_OPT_OS}
 			#CFG_TUSB_DEBUG=${TINYUSB_DEBUG_LEVEL}
 	)
 
