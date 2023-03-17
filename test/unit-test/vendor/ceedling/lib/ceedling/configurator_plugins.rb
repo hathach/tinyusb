@@ -109,7 +109,7 @@ class ConfiguratorPlugins
     return defaults_with_path
   end
 
-  # gather up and return 
+  # gather up and return
   def find_plugin_hash_defaults(config, plugin_paths)
     defaults_hash= []
 

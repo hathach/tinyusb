@@ -55,7 +55,7 @@ if (NOT TARGET _rp2040_family_inclusion_marker)
 		message("Compiling TinyUSB with CFG_TUSB_DEBUG=1")
 		set(TINYUSB_DEBUG_LEVEL 1)
 	endif()
-	
+
 	target_compile_definitions(tinyusb_common_base INTERFACE
 			CFG_TUSB_MCU=OPT_MCU_RP2040
 			CFG_TUSB_OS=${TINYUSB_OPT_OS}

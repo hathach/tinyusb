@@ -71,4 +71,3 @@ RNDIS_PACKET_TYPE_FUNCTIONAL="\x00\x00\x40\x00"
 # NIC driver frames that a Token Ring NIC receives.
 RNDIS_PACKET_TYPE_MAC_FRAME="\x00\x00\x80\x00"
 RNDIS_PACKET_TYPE_NO_LOCAL="\x00\x01\x00\x00"
-

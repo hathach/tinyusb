@@ -1,5 +1,5 @@
 PORT ?= 0
-SPEED ?= full 
+SPEED ?= full
 
 CFLAGS += \
   -DSTM32F767xx \

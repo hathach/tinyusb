@@ -114,7 +114,7 @@ CXXFLAGS += \
 
 # conversion is too strict for most mcu driver, may be disable sign/int/arith-conversion
 #  -Wconversion
-  
+
 # Debugging/Optimization
 ifeq ($(DEBUG), 1)
   CFLAGS += -Og
@@ -132,4 +132,3 @@ endif
 ifneq ($(LOGGER),)
 	CMAKE_DEFSYM +=	-DLOGGER=$(LOGGER)
 endif
-

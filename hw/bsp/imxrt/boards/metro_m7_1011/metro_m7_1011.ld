@@ -35,7 +35,7 @@ MEMORY
 {
   m_flash_config        (RX)  : ORIGIN = 0x60000400, LENGTH = 0x00000C00
   m_ivt                 (RX)  : ORIGIN = 0x60001000, LENGTH = 0x00001000
-  
+
   m_interrupts          (RX)  : ORIGIN = 0x6000C000, LENGTH = 0x00000400
   m_text                (RX)  : ORIGIN = 0x6000C400, LENGTH = (8*1024*1024 - 0xC400)
   m_qacode              (RX)  : ORIGIN = 0x00000000, LENGTH = 0x00008000

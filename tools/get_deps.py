@@ -3,8 +3,17 @@ import subprocess
 from pathlib import Path
 from multiprocessing import Pool
 
+# Mandatory Dependencies that is always fetched
 # path, url, commit (Alphabet sorted by path)
-deps_list = {
+deps_mandatory = {
+    'lib/FreeRTOS-Kernel'                      : ['def7d2df2b0506d3d249334974f51e427c17a41c', 'https://github.com/FreeRTOS/FreeRTOS-Kernel.git'               ],
+    'lib/lwip'                                 : ['159e31b689577dbf69cf0683bbaffbd71fa5ee10', 'https://github.com/lwip-tcpip/lwip.git'                        ],
+    'tools/uf2'                                : ['19615407727073e36d81bf239c52108ba92e7660', 'https://github.com/microsoft/uf2.git'                          ],
+}
+
+# Optional Dependencies per MCU
+# path, url, commit (Alphabet sorted by path)
+deps_optional = {
     'hw/mcu/allwinner'                         : ['8e5e89e8e132c0fd90e72d5422e5d3d68232b756', 'https://github.com/hathach/allwinner_driver.git'               ],
     'hw/mcu/bridgetek/ft9xx/ft90x-sdk'         : ['91060164afe239fcb394122e8bf9eb24d3194eb1', 'https://github.com/BRTSG-FOSS/ft90x-sdk.git'                   ],
     'hw/mcu/broadcom'                          : ['08370086080759ed54ac1136d62d2ad24c6fa267', 'https://github.com/adafruit/broadcom-peripherals.git'          ],
@@ -55,22 +64,22 @@ deps_list = {
     'hw/mcu/ti'                                : ['143ed6cc20a7615d042b03b21e070197d473e6e5', 'https://github.com/hathach/ti_driver.git'                      ],
     'hw/mcu/wch/ch32v307'                      : ['17761f5cf9dbbf2dcf665b7c04934188add20082', 'https://github.com/openwch/ch32v307.git'                       ],
     'lib/CMSIS_5'                              : ['20285262657d1b482d132d20d755c8c330d55c1f', 'https://github.com/ARM-software/CMSIS_5.git'                   ],
-    'lib/FreeRTOS-Kernel'                      : ['2a604f4a2818b8354b5e1a39e388eb5e16cfbc1f', 'https://github.com/FreeRTOS/FreeRTOS-Kernel.git'               ],
-    'lib/lwip'                                 : ['159e31b689577dbf69cf0683bbaffbd71fa5ee10', 'https://github.com/lwip-tcpip/lwip.git'                        ],
     'lib/sct_neopixel'                         : ['e73e04ca63495672d955f9268e003cffe168fcd8', 'https://github.com/gsteiert/sct_neopixel.git'                  ],
-    'tools/uf2'                                : ['19615407727073e36d81bf239c52108ba92e7660', 'https://github.com/microsoft/uf2.git'                          ],
 }
+
+# combined 2 deps
+deps_all = {**deps_mandatory, **deps_optional}
 
 # TOP is tinyusb root dir
 TOP = Path(__file__).parent.parent.resolve()
 
 
 def get_a_dep(d):
-    if d not in deps_list.keys():
+    if d not in deps_all.keys():
         print('{} is not found in dependency list')
         return 1
-    commit = deps_list[d][0]
-    url = deps_list[d][1]
+    commit = deps_all[d][0]
+    url = deps_all[d][1]
     print('cloning {} with {}'.format(d, url))
 
     p = Path(TOP / d)
@@ -87,6 +96,7 @@ def get_a_dep(d):
     head = result.stdout.decode("utf-8").splitlines()[0]
 
     if commit != head:
+        subprocess.run("{} reset --hard".format(git_cmd, commit), shell=True)
         subprocess.run("{} fetch --depth 1 origin {}".format(git_cmd, commit), shell=True)
         subprocess.run("{} checkout FETCH_HEAD".format(git_cmd), shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
 
@@ -95,7 +105,7 @@ def get_a_dep(d):
 
 if __name__ == "__main__":
     status = 0
-    all_deps = sys.argv[1:]
+    deps = list(deps_mandatory.keys()) + sys.argv[1:]
     with Pool() as pool:
-        status = sum(pool.map(get_a_dep, all_deps))
+        status = sum(pool.map(get_a_dep, deps))
     sys.exit(status)

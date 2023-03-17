@@ -16,7 +16,7 @@ class StreamWrapper
   def stdout_flush
     $stdout.flush
   end
-  
+
   def stderr_puts(string)
     $stderr.puts(string)
   end

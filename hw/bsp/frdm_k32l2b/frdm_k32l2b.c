@@ -1,4 +1,4 @@
-/* 
+/*
  * The MIT License (MIT)
  *
  * Copyright (c) 2018, hathach (tinyusb.org)
@@ -56,10 +56,10 @@ void board_init(void)
   gpio_pin_config_t button_config = { kGPIO_DigitalInput, 0 };
   GPIO_PinInit(BUTTON_GPIO, BUTTON_PIN, &button_config);
   const port_pin_config_t BUTTON_CFG = {
-    kPORT_PullUp, 
-    kPORT_FastSlewRate, 
-    kPORT_PassiveFilterDisable, 
-    kPORT_LowDriveStrength, 
+    kPORT_PullUp,
+    kPORT_FastSlewRate,
+    kPORT_PassiveFilterDisable,
+    kPORT_LowDriveStrength,
     kPORT_MuxAsGpio
   };
   PORT_SetPinConfig(BUTTON_PORT, BUTTON_PIN, &BUTTON_CFG);
@@ -68,7 +68,7 @@ void board_init(void)
   PORT_SetPinMux(PORTA, 1U, kPORT_MuxAlt2);
   /* PORTA2 (pin 24) is configured as LPUART0_TX */
   PORT_SetPinMux(PORTA, 2U, kPORT_MuxAlt2);
-  
+
   SIM->SOPT5 = ((SIM->SOPT5 &
                /* Mask bits to zero which are setting */
                (~(SIM_SOPT5_LPUART0TXSRC_MASK | SIM_SOPT5_LPUART0RXSRC_MASK)))

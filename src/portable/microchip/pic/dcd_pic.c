@@ -1,4 +1,4 @@
-/* 
+/*
  * The MIT License (MIT)
  *
  * Copyright (c) 2020 Koji Kitayama
@@ -486,7 +486,7 @@ void dcd_init(uint8_t rhport)
 #else
   U1PWRCbits.USBPWR = 1;
 #endif
-  
+
 #if TU_PIC_INT_SIZE == 4
   uint32_t bdt_phys = KVA_TO_PA((uintptr_t)_dcd.bdt);
 

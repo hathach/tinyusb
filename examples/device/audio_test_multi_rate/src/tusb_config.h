@@ -111,7 +111,7 @@ extern "C" {
 
 // How many formats are used, need to adjust USB descriptor if changed
 #define CFG_TUD_AUDIO_FUNC_1_N_FORMATS                               2
-  
+
 // 16bit in 16bit slots
 #define CFG_TUD_AUDIO_FUNC_1_FORMAT_1_N_BYTES_PER_SAMPLE_TX          2
 #define CFG_TUD_AUDIO_FUNC_1_FORMAT_1_RESOLUTION_RX                  16

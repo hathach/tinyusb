@@ -2,7 +2,7 @@
 idf_component_register(SRCS "main.c"
                     INCLUDE_DIRS "."
                     REQUIRES freertos soc)
-                    
+
 file(TO_NATIVE_PATH "${TOP}/hw/bsp/${FAMILY}/boards/${BOARD}/board.cmake" board_cmake)
 
 if(EXISTS ${board_cmake})

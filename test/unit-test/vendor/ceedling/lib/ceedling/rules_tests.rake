@@ -70,4 +70,3 @@ namespace TEST_SYM do
     @ceedling[:test_invoker].setup_and_invoke([test.source])
   end
 end
-

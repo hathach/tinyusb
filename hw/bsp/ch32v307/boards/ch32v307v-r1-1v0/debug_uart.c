@@ -36,7 +36,7 @@ static unsigned int tx_produce;
 static volatile unsigned int tx_consume;
 
 void USART1_IRQHandler(void) __attribute__((naked));
-void USART1_IRQHandler(void) { 
+void USART1_IRQHandler(void) {
       __asm volatile ("call USART1_IRQHandler_impl; mret");
 }
 
@@ -57,7 +57,7 @@ __attribute__((used)) void USART1_IRQHandler_impl(void)
 void uart_write(char c)
 {
 	unsigned int tx_produce_next = (tx_produce + 1) & UART_RINGBUFFER_MASK_TX;
-	
+
     NVIC_DisableIRQ(USART1_IRQn);
     if((tx_consume != tx_produce) || (USART_GetFlagStatus(USART1, USART_FLAG_TXE) == RESET)) {
 		tx_buf[tx_produce] = c;

@@ -20,7 +20,7 @@ SECTIONS
     KEEP(*(.svc_data))
     PROVIDE(__stop_svc_data = .);
   } > RAM
-  
+
   .fs_data :
   {
     PROVIDE(__start_fs_data = .);

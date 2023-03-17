@@ -1,4 +1,4 @@
-/* 
+/*
  * The MIT License (MIT)
  *
  * Copyright (c) 2019 Ha Thach (tinyusb.org)
@@ -64,7 +64,7 @@ const uint32_t ExtRateIn = 0;
 
 /* Pin muxing table, only items that need changing from their default pin
    state are in this table. */
-static const PINMUX_GRP_T pinmuxing[] = 
+static const PINMUX_GRP_T pinmuxing[] =
 {
   {0,  1,  (IOCON_FUNC1 | IOCON_RESERVED_BIT_7 | IOCON_MODE_INACT)},	/* PIO0_1 used for CLKOUT */
   {0,  2,  (IOCON_FUNC1 | IOCON_RESERVED_BIT_7 | IOCON_MODE_PULLUP)},	/* PIO0_2 used for SSEL */

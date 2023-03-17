@@ -1,4 +1,4 @@
-/* 
+/*
  * The MIT License (MIT)
  *
  * Copyright (c) 2020 Reinhard Panhuber
@@ -165,7 +165,7 @@ bool tud_audio_set_itf_cb(uint8_t rhport, tusb_control_request_t const * p_reque
   (void)rhport;
   //uint8_t const itf = tu_u16_low(tu_le16toh(p_request->wIndex));
   uint8_t const alt = tu_u16_low(tu_le16toh(p_request->wValue));
-  
+
   // Clear buffer when streaming format is changed
   if(alt != 0)
   {
@@ -257,7 +257,7 @@ bool tud_audio_set_req_entity_cb(uint8_t rhport, tusb_control_request_t const * 
       return false;
     }
   }
-  
+
   // Clock Source unit
   if ( entityID == UAC2_ENTITY_CLOCK )
   {
@@ -279,7 +279,7 @@ bool tud_audio_set_req_entity_cb(uint8_t rhport, tusb_control_request_t const * 
         return false;
     }
   }
-  
+
   return false;    // Yet not implemented
 }
 
@@ -491,7 +491,7 @@ bool tud_audio_tx_done_post_load_cb(uint8_t rhport, uint16_t n_bytes_copied, uin
       pData_32[cnt] = (uint32_t)startVal++ << 16U;
     }
   }
-  
+
   return true;
 }
 

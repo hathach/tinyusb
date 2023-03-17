@@ -1,4 +1,4 @@
-/* 
+/*
  * The MIT License (MIT)
  *
  * Copyright (c) 2019 Nathan Conrad
@@ -181,7 +181,7 @@ static void dcd_handle_bus_reset(void);
 static void dcd_transmit_packet(xfer_ctl_t * xfer, uint16_t ep_ix);
 static void dcd_ep_ctr_handler(void);
 
-// PMA allocation/access 
+// PMA allocation/access
 static uint8_t open_ep_count;
 static uint16_t ep_buf_ptr; ///< Points to first free memory location
 static void dcd_pma_alloc_reset(void);
@@ -249,7 +249,7 @@ void dcd_init (uint8_t rhport)
     asm("NOP");
   }
   USB->CNTR = 0; // Enable USB
-  
+
   USB->BTABLE = DCD_STM32_BTABLE_BASE;
 
   USB->ISTR = 0; // Clear pending interrupts
@@ -263,7 +263,7 @@ void dcd_init (uint8_t rhport)
 
   USB->CNTR |= USB_CNTR_RESETM | USB_CNTR_ESOFM | USB_CNTR_CTRM | USB_CNTR_SUSPM | USB_CNTR_WKUPM;
   dcd_handle_bus_reset();
-  
+
   // Enable pull-up if supported
   if ( dcd_connect ) dcd_connect(rhport);
 }
@@ -464,12 +464,12 @@ static void dcd_handle_bus_reset(void)
   //__IO uint16_t * const epreg = &(EPREG(0));
   USB->DADDR = 0u; // disable USB peripheral by clearing the EF flag
 
-  
+
   for(uint32_t i=0; i<STFSDEV_EP_COUNT; i++)
   {
     // Clear all EPREG (or maybe this is automatic? I'm not sure)
     pcd_set_endpoint(USB,i,0u);
-    
+
     // Clear EP allocation status
     ep_alloc_status[i].ep_num = 0xFF;
     ep_alloc_status[i].ep_type = 0xFF;
@@ -531,7 +531,7 @@ static void dcd_ep_ctr_rx_handler(uint32_t wIstr)
   {
     return;
   }
-  
+
   if((ep_addr == 0U) && ((wEPRegVal & USB_EP_SETUP) != 0U)) /* Setup packet */
   {
     // The setup_received function uses memcpy, so this must first copy the setup data into
@@ -743,11 +743,11 @@ static void dcd_pma_alloc_reset(void)
 
 /***
  * Allocate a section of PMA
- * 
+ *
  * If the EP number has already been allocated, and the new allocation
  * is larger than the old allocation, then this will fail with a TU_ASSERT.
  * (This is done to simplify the code. More complicated algorithms could be used)
- * 
+ *
  * During failure, TU_ASSERT is used. If this happens, rework/reallocate memory manually.
  */
 static uint16_t dcd_pma_alloc(uint8_t ep_addr, size_t length)
@@ -838,7 +838,7 @@ static uint8_t dcd_ep_alloc(uint8_t ep_addr, uint8_t ep_type)
           ep_alloc_status[i].ep_num = epnum;
           ep_alloc_status[i].ep_type = ep_type;
           ep_alloc_status[i].allocated[dir] = true;
-          
+
           return i;
         }
       }
@@ -860,7 +860,7 @@ static void dcd_ep_free(uint8_t ep_addr)
   for(uint8_t i = 0; i < STFSDEV_EP_COUNT; i++)
   {
     // Check if EP number & dir are the same
-    if(ep_alloc_status[i].ep_num == epnum && 
+    if(ep_alloc_status[i].ep_num == epnum &&
        ep_alloc_status[i].allocated[dir] == dir)
     {
       ep_alloc_status[i].allocated[dir] = false;
@@ -968,9 +968,9 @@ void dcd_edpt_close_all (uint8_t rhport)
 
 /**
  * Close an endpoint.
- * 
+ *
  * This function may be called with interrupts enabled or disabled.
- * 
+ *
  * This also clears transfers in progress, should there be any.
  */
 void dcd_edpt_close (uint8_t rhport, uint8_t ep_addr)
@@ -998,9 +998,9 @@ void dcd_edpt_close (uint8_t rhport, uint8_t ep_addr)
 bool dcd_edpt_iso_alloc(uint8_t rhport, uint8_t ep_addr, uint16_t largest_packet_size)
 {
   (void)rhport;
-  
+
   TU_ASSERT(largest_packet_size <= 1024);
-  
+
   uint8_t const ep_idx = dcd_ep_alloc(ep_addr, TUSB_XFER_ISOCHRONOUS);
   const uint16_t buffer_size = pcd_aligned_buffer_size(largest_packet_size);
 
@@ -1011,10 +1011,10 @@ bool dcd_edpt_iso_alloc(uint8_t rhport, uint8_t ep_addr, uint16_t largest_packet
   xfer_ctl_ptr(ep_addr)->ep_idx = ep_idx;
 
   pcd_set_eptype(USB, ep_idx, USB_EP_ISOCHRONOUS);
-  
+
   *pcd_ep_tx_address_ptr(USB, ep_idx) = pma_addr;
   *pcd_ep_rx_address_ptr(USB, ep_idx) = pma_addr;
-  
+
   return true;
 }
 
@@ -1035,7 +1035,7 @@ bool dcd_edpt_iso_activate(uint8_t rhport,  tusb_desc_endpoint_t const * p_endpo
   {
     pcd_set_ep_rx_status(USB, ep_idx, USB_EP_RX_DIS);
   }
-  
+
   pcd_set_ep_address(USB, ep_idx, tu_edpt_number(p_endpoint_desc->bEndpointAddress));
   // Be normal, for now, instead of only accepting zero-byte packets (on control endpoint)
   // or being double-buffered (bulk endpoints)
@@ -1250,11 +1250,11 @@ static bool dcd_write_packet_memory_ff(tu_fifo_t * ff, uint16_t dst, uint16_t wN
 {
   // Since we copy from a ring buffer FIFO, a wrap might occur making it necessary to conduct two copies
   tu_fifo_buffer_info_t info;
-  tu_fifo_get_read_info(ff, &info); 
-  
+  tu_fifo_get_read_info(ff, &info);
+
   uint16_t cnt_lin =  TU_MIN(wNBytes, info.len_lin);
   uint16_t cnt_wrap = TU_MIN(wNBytes - cnt_lin, info.len_wrap);
-  
+
   // We want to read from the FIFO and write it into the PMA, if LIN part is ODD and has WRAPPED part,
   // last lin byte will be combined with wrapped part
   // To ensure PMA is always access 16bit aligned (dst aligned to 16 bit)
@@ -1352,7 +1352,7 @@ static bool dcd_read_packet_memory_ff(tu_fifo_t * ff, uint16_t src, uint16_t wNB
     // Copy last linear byte & first wrapped byte
     uint16_t tmp;
     dcd_read_packet_memory(&tmp, src, 2);
-    
+
     ((uint8_t*)info.ptr_lin)[cnt_lin - 1] = (uint8_t)tmp;
     ((uint8_t*)info.ptr_wrap)[0] = (uint8_t)(tmp >> 8U);
     src += 2;
@@ -1379,4 +1379,3 @@ static bool dcd_read_packet_memory_ff(tu_fifo_t * ff, uint16_t src, uint16_t wNB
 }
 
 #endif
-

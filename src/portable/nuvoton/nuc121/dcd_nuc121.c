@@ -27,9 +27,9 @@
 /*
   Theory of operation:
 
-  The NUC121/NUC125/NUC126 USBD peripheral has eight "EP"s, but each is simplex, 
-  so two collectively (peripheral nomenclature of "EP0" and "EP1") are needed to 
-  implement USB EP0.  PERIPH_EP0 and PERIPH_EP1 are used by this driver for 
+  The NUC121/NUC125/NUC126 USBD peripheral has eight "EP"s, but each is simplex,
+  so two collectively (peripheral nomenclature of "EP0" and "EP1") are needed to
+  implement USB EP0.  PERIPH_EP0 and PERIPH_EP1 are used by this driver for
   EP0_IN and EP0_OUT respectively.  This leaves up to six for user usage.
 */
 

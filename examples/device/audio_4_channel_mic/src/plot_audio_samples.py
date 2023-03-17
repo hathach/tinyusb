@@ -31,4 +31,3 @@ if __name__ == '__main__':
     plt.ylabel('Amplitude')
     plt.title('MicNode 4 Channel')
     plt.show()
-    

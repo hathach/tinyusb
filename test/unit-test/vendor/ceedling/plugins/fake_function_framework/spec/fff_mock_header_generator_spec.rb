@@ -254,7 +254,7 @@ describe "FffMockGenerator.create_mock_header" do
       )
     end
   end
-  
+
   context "when there is a function that returns a const int" do
     let(:mock_header){
       parsed_header = {}

@@ -1,4 +1,4 @@
-/* 
+/*
  * The MIT License (MIT)
  *
  * Copyright (c) 2019 Ha Thach (tinyusb.org)
@@ -239,7 +239,7 @@
   #define TU_BSWAP16(u16) ((unsigned short)_builtin_revw((unsigned long)u16))
   #define TU_BSWAP32(u32) (_builtin_revl(u32))
 
-#else 
+#else
   #error "Compiler attribute porting is required"
 #endif
 

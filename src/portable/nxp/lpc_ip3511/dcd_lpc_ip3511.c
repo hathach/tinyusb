@@ -1,4 +1,4 @@
-/* 
+/*
  * The MIT License (MIT)
  *
  * Copyright (c) 2019 Ha Thach (tinyusb.org)
@@ -373,7 +373,7 @@ void dcd_edpt_close_all (uint8_t rhport)
 void dcd_edpt_close(uint8_t rhport, uint8_t ep_addr)
 {
   (void) rhport;
-  
+
   uint8_t ep_id = ep_addr2id(ep_addr);
   _dcd.ep[ep_id][0].cmd_sts.active = _dcd.ep[ep_id][0].cmd_sts.active = 0; // TODO proper way is to EPSKIP then wait ep[][].active then write ep[][].disable (see table 778 in LPC55S69 Use Manual)
   _dcd.ep[ep_id][0].cmd_sts.disable = _dcd.ep[ep_id][1].cmd_sts.disable = 1;
@@ -426,7 +426,7 @@ bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t* buffer, uint16_t to
 static void bus_reset(uint8_t rhport)
 {
   tu_memclr(&_dcd, sizeof(dcd_data_t));
-  edpt_reset_all(rhport); 
+  edpt_reset_all(rhport);
 
   // disable all endpoints as specified by LPC55S69 UM Table 778
   for(uint8_t ep_id = 0; ep_id < 2*MAX_EP_PAIRS; ep_id++)
@@ -575,4 +575,3 @@ void dcd_int_handler(uint8_t rhport)
 }
 
 #endif
-

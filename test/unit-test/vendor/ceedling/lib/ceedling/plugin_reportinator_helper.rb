@@ -4,11 +4,11 @@ require 'rake' # for ext()
 require 'ceedling/constants'
 
 class PluginReportinatorHelper
-  
+
   attr_writer :ceedling
-  
+
   constructor :configurator, :streaminator, :yaml_wrapper, :file_wrapper
-  
+
   def fetch_results(results_path, options)
     pass_path = File.join(results_path.ext( @configurator.extension_testpass ))
     fail_path = File.join(results_path.ext( @configurator.extension_testfail ))
@@ -23,7 +23,7 @@ class PluginReportinatorHelper
         raise
       end
     end
-    
+
     return {}
   end
 
@@ -47,5 +47,5 @@ class PluginReportinatorHelper
     output = ERB.new(template, 0, "%<>")
     @streaminator.stream_puts(stream, output.result(binding()), verbosity)
   end
-  
+
 end

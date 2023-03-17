@@ -12,7 +12,7 @@ class Streaminator
       @stream_wrapper.stdout_puts(string)
       @stream_wrapper.stdout_flush
     end
-    
+
     # write to log as though Verbosity::OBNOXIOUS
     @loginator.log( string, @streaminator_helper.extract_name($stdout) )
   end

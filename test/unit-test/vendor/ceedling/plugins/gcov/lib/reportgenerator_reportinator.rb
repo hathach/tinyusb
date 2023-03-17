@@ -138,7 +138,7 @@ class ReportGeneratorReportinator
       # Removing trailing ';' after the last report type.
       args = args.chomp(";")
 
-      # Append a space seperator after the report type.
+      # Append a space separator after the report type.
       args += "\" "
     end
 

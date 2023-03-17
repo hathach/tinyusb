@@ -47,7 +47,7 @@ typedef struct hw_endpoint
 {
     // Is this a valid struct
     bool configured;
-    
+
     // Transfer direction (i.e. IN is rx for host but tx for device)
     // allows us to common up transfer functions
     bool rx;

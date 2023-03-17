@@ -1,4 +1,4 @@
-/* 
+/*
  * The MIT License (MIT)
  *
  * Copyright (c) 2019 Ha Thach (tinyusb.org)
@@ -68,4 +68,3 @@ void tuh_msc_umount_cb(uint8_t dev_addr)
   (void) dev_addr;
   printf("A MassStorage device is unmounted\r\n");
 }
-

@@ -192,9 +192,7 @@ endif
 # get depenecies
 .PHONY: get-deps
 get-deps:
-  ifdef DEPS_SUBMODULES
 	$(PYTHON) $(TOP)/tools/get_deps.py $(DEPS_SUBMODULES)
-  endif
 
 .PHONY: size
 size: $(BUILD)/$(PROJECT).elf

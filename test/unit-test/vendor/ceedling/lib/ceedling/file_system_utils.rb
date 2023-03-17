@@ -6,7 +6,7 @@ require 'ceedling/file_path_utils'
 
 
 class FileSystemUtils
-  
+
   constructor :file_wrapper
 
   # build up path list from input of one or more strings or arrays of (+/-) paths & globs
@@ -14,7 +14,7 @@ class FileSystemUtils
     raw   = []  # all paths and globs
     plus  = Set.new # all paths to expand and add
     minus = Set.new # all paths to remove from plus set
-    
+
     # assemble all globs and simple paths, reforming our glob notation to ruby globs
     paths.each do |paths_container|
       case (paths_container)
@@ -26,29 +26,29 @@ class FileSystemUtils
 
     # iterate through each path and glob
     raw.each do |path|
-    
+
       dirs = []  # container for only (expanded) paths
-    
+
       # if a glob, expand it and slurp up all non-file paths
       if path.include?('*')
         # grab base directory only if globs are snug up to final path separator
         if (path =~ /\/\*+$/)
           dirs << FilePathUtils.extract_path(path)
         end
-        
+
         # grab expanded sub-directory globs
         expanded = @file_wrapper.directory_listing( FilePathUtils.extract_path_no_aggregation_operators(path) )
         expanded.each do |entry|
           dirs << entry if @file_wrapper.directory?(entry)
         end
-        
+
       # else just grab simple path
       # note: we could just run this through glob expansion but such an
       #       approach doesn't handle a path not yet on disk)
       else
         dirs << FilePathUtils.extract_path_no_aggregation_operators(path)
       end
-      
+
       # add dirs to the appropriate set based on path aggregation modifier if present
       FilePathUtils.add_path?(path) ? plus.merge(dirs) : minus.merge(dirs)
     end

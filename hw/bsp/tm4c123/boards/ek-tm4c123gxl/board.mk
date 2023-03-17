@@ -1,5 +1,5 @@
 CFLAGS += -DTM4C123GH6PM
- 
+
 LD_FILE = $(BOARD_PATH)/tm4c123.ld
 
 # For flash-jlink target

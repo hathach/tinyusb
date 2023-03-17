@@ -7,13 +7,13 @@ end
 
 
 ##
-# Class containing system utility funcions.
+# Class containing system utility functions.
 class SystemUtils
 
   constructor :system_wrapper
 
   ##
-  # Sets up the class. 
+  # Sets up the class.
   def setup
     @tcsh_shell = nil
   end
@@ -23,7 +23,7 @@ class SystemUtils
   def tcsh_shell?
     # once run a single time, return state determined at that execution
     return @tcsh_shell if not @tcsh_shell.nil?
-  
+
     result = @system_wrapper.shell_backticks('echo $version')
 
     if ((result[:exit_code] == 0) and (result[:output].strip =~ /^tcsh/))
@@ -31,7 +31,7 @@ class SystemUtils
     else
       @tcsh_shell = false
     end
-  
+
     return @tcsh_shell
   end
 end
