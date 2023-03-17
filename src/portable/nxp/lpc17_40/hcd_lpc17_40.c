@@ -1,4 +1,4 @@
-/* 
+/*
  * The MIT License (MIT)
  *
  * Copyright (c) 2019, Ha Thach (tinyusb.org)
@@ -44,4 +44,3 @@ void hcd_int_disable(uint8_t rhport)
 }
 
 #endif
-

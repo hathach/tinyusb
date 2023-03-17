@@ -1,4 +1,4 @@
-/* 
+/*
  * The MIT License (MIT)
  *
  * Copyright (c) 2020 Peter Lawrence
@@ -51,7 +51,7 @@ typedef struct
 
   bool ecm_mode;
 
-  // Endpoint descriptor use to open/close when receving SetInterface
+  // Endpoint descriptor use to open/close when receiving SetInterface
   // TODO since configuration descriptor may not be long-lived memory, we should
   // keep a copy of endpoint attribute instead
   uint8_t const * ecm_desc_epdata;
@@ -61,8 +61,11 @@ typedef struct
 #define CFG_TUD_NET_PACKET_PREFIX_LEN sizeof(rndis_data_packet_t)
 #define CFG_TUD_NET_PACKET_SUFFIX_LEN 0
 
-CFG_TUSB_MEM_SECTION CFG_TUSB_MEM_ALIGN static uint8_t received[CFG_TUD_NET_PACKET_PREFIX_LEN + CFG_TUD_NET_MTU + CFG_TUD_NET_PACKET_PREFIX_LEN];
-CFG_TUSB_MEM_SECTION CFG_TUSB_MEM_ALIGN static uint8_t transmitted[CFG_TUD_NET_PACKET_PREFIX_LEN + CFG_TUD_NET_MTU + CFG_TUD_NET_PACKET_PREFIX_LEN];
+CFG_TUSB_MEM_SECTION CFG_TUSB_MEM_ALIGN tu_static
+uint8_t received[CFG_TUD_NET_PACKET_PREFIX_LEN + CFG_TUD_NET_MTU + CFG_TUD_NET_PACKET_PREFIX_LEN];
+
+CFG_TUSB_MEM_SECTION CFG_TUSB_MEM_ALIGN tu_static
+uint8_t transmitted[CFG_TUD_NET_PACKET_PREFIX_LEN + CFG_TUD_NET_MTU + CFG_TUD_NET_PACKET_PREFIX_LEN];
 
 struct ecm_notify_struct
 {
@@ -70,7 +73,7 @@ struct ecm_notify_struct
   uint32_t downlink, uplink;
 };
 
-static const struct ecm_notify_struct ecm_notify_nc =
+tu_static const struct ecm_notify_struct ecm_notify_nc =
 {
   .header = {
     .bmRequestType = 0xA1,
@@ -80,7 +83,7 @@ static const struct ecm_notify_struct ecm_notify_nc =
   },
 };
 
-static const struct ecm_notify_struct ecm_notify_csc =
+tu_static const struct ecm_notify_struct ecm_notify_csc =
 {
   .header = {
     .bmRequestType = 0xA1,
@@ -92,7 +95,7 @@ static const struct ecm_notify_struct ecm_notify_csc =
 };
 
 // TODO remove CFG_TUSB_MEM_SECTION, control internal buffer is already in this special section
-CFG_TUSB_MEM_SECTION CFG_TUSB_MEM_ALIGN static union
+CFG_TUSB_MEM_SECTION CFG_TUSB_MEM_ALIGN tu_static union
 {
   uint8_t rndis_buf[120];
   struct ecm_notify_struct ecm_buf;
@@ -102,9 +105,9 @@ CFG_TUSB_MEM_SECTION CFG_TUSB_MEM_ALIGN static union
 // INTERNAL OBJECT & FUNCTION DECLARATION
 //--------------------------------------------------------------------+
 // TODO remove CFG_TUSB_MEM_SECTION
-CFG_TUSB_MEM_SECTION static netd_interface_t _netd_itf;
+CFG_TUSB_MEM_SECTION tu_static netd_interface_t _netd_itf;
 
-static bool can_xmit;
+tu_static bool can_xmit;
 
 void tud_network_recv_renew(void)
 {

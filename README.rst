@@ -1,7 +1,7 @@
 .. figure:: docs/assets/logo.svg
    :alt: TinyUSB
 
-|Build Status| |Documentation Status| |License|
+|Build Status| |Documentation Status| |Fuzzing Status| |License|
 
 TinyUSB is an open-source cross-platform USB Host/Device stack for
 embedded system, designed to be memory-safe with no dynamic allocation
@@ -48,12 +48,17 @@ The stack supports the following MCUs:
   - LPC Series: 11u, 13, 15, 17, 18, 40, 43, 51u, 54, 55
 
 - **Raspberry Pi:** RP2040
-- **Renesas:** RX63N, RX65N, RX72N
+- **Renesas:**
+
+  - RX Series: 63N, 65N, 72N
+  - RA Series: RA4M1, RA4M3
+
 - **Silabs:** EFM32GG
 - **Sony:** CXD56
 - **ST:** STM32 series: F0, F1, F2, F3, F4, F7, H7, G4, L0, L1, L4, L4+, WB
 - **TI:** MSP430, MSP432E4, TM4C123
 - **ValentyUSB:** eptri
+- **WCH:** CH32V307
 
 Here is the list of `Supported Devices`_ that can be used with provided examples.
 
@@ -129,6 +134,8 @@ in your project.
    :target: https://github.com/hathach/tinyusb/actions
 .. |Documentation Status| image:: https://readthedocs.org/projects/tinyusb/badge/?version=latest
    :target: https://docs.tinyusb.org/en/latest/?badge=latest
+.. |Fuzzing Status| image:: https://oss-fuzz-build-logs.storage.googleapis.com/badges/tinyusb.svg
+   :target: https://oss-fuzz-build-logs.storage.googleapis.com/index.html#tinyusb
 .. |License| image:: https://img.shields.io/badge/license-MIT-brightgreen.svg
    :target: https://opensource.org/licenses/MIT
 

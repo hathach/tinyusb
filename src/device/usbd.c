@@ -39,12 +39,12 @@
 // USBD Configuration
 //--------------------------------------------------------------------+
 
-// Debug level of USBD
-#define USBD_DBG   2
-
 #ifndef CFG_TUD_TASK_QUEUE_SZ
   #define CFG_TUD_TASK_QUEUE_SZ   16
 #endif
+
+// Debug level of USBD
+#define USBD_DBG   2
 
 //--------------------------------------------------------------------+
 // Device Data
@@ -76,7 +76,7 @@ typedef struct
 
 }usbd_device_t;
 
-static usbd_device_t _usbd_dev;
+tu_static usbd_device_t _usbd_dev;
 
 //--------------------------------------------------------------------+
 // Class Driver
@@ -88,7 +88,7 @@ static usbd_device_t _usbd_dev;
 #endif
 
 // Built-in class drivers
-static usbd_class_driver_t const _usbd_driver[] =
+tu_static usbd_class_driver_t const _usbd_driver[] =
 {
   #if CFG_TUD_CDC
   {
@@ -238,8 +238,8 @@ static usbd_class_driver_t const _usbd_driver[] =
 enum { BUILTIN_DRIVER_COUNT = TU_ARRAY_SIZE(_usbd_driver) };
 
 // Additional class drivers implemented by application
-static usbd_class_driver_t const * _app_driver = NULL;
-static uint8_t _app_driver_count = 0;
+tu_static usbd_class_driver_t const * _app_driver = NULL;
+tu_static uint8_t _app_driver_count = 0;
 
 // virtually joins built-in and application drivers together.
 // Application is positioned first to allow overwriting built-in ones.
@@ -265,17 +265,19 @@ static inline usbd_class_driver_t const * get_driver(uint8_t drvid)
 //--------------------------------------------------------------------+
 
 enum { RHPORT_INVALID = 0xFFu };
-static uint8_t _usbd_rhport = RHPORT_INVALID;
+tu_static uint8_t _usbd_rhport = RHPORT_INVALID;
 
 // Event queue
 // usbd_int_set() is used as mutex in OS NONE config
 OSAL_QUEUE_DEF(usbd_int_set, _usbd_qdef, CFG_TUD_TASK_QUEUE_SZ, dcd_event_t);
-static osal_queue_t _usbd_q;
+tu_static osal_queue_t _usbd_q;
 
-// Mutex for claiming endpoint, only needed when using with preempted RTOS
-#if CFG_TUSB_OS != OPT_OS_NONE
-static osal_mutex_def_t _ubsd_mutexdef;
-static osal_mutex_t _usbd_mutex;
+// Mutex for claiming endpoint
+#if OSAL_MUTEX_REQUIRED
+  tu_static osal_mutex_def_t _ubsd_mutexdef;
+  tu_static osal_mutex_t _usbd_mutex;
+#else
+  #define _usbd_mutex   NULL
 #endif
 
 
@@ -297,7 +299,7 @@ bool usbd_control_xfer_cb (uint8_t rhport, uint8_t ep_addr, xfer_result_t event,
 // Debug
 //--------------------------------------------------------------------+
 #if CFG_TUSB_DEBUG >= 2
-static char const* const _usbd_event_str[DCD_EVENT_COUNT] =
+tu_static char const* const _usbd_event_str[DCD_EVENT_COUNT] =
 {
   "Invalid"        ,
   "Bus Reset"      ,
@@ -386,10 +388,12 @@ bool tud_init (uint8_t rhport)
 
   TU_LOG(USBD_DBG, "USBD init on controller %u\r\n", rhport);
   TU_LOG_INT(USBD_DBG, sizeof(usbd_device_t));
+  TU_LOG_INT(USBD_DBG, sizeof(tu_fifo_t));
+  TU_LOG_INT(USBD_DBG, sizeof(tu_edpt_stream_t));
 
   tu_varclr(&_usbd_dev);
 
-#if CFG_TUSB_OS != OPT_OS_NONE
+#if OSAL_MUTEX_REQUIRED
   // Init device mutex
   _usbd_mutex = osal_mutex_create(&_ubsd_mutexdef);
   TU_ASSERT(_usbd_mutex);
@@ -504,7 +508,7 @@ void tud_task_ext(uint32_t timeout_ms, bool in_isr)
       break;
 
       case DCD_EVENT_SETUP_RECEIVED:
-        TU_LOG_VAR(USBD_DBG, &event.setup_received);
+        TU_LOG_PTR(USBD_DBG, &event.setup_received);
         TU_LOG(USBD_DBG, "\r\n");
 
         // Mark as connected after receiving 1st setup packet.
@@ -1209,11 +1213,7 @@ bool usbd_edpt_claim(uint8_t rhport, uint8_t ep_addr)
   uint8_t const dir         = tu_edpt_dir(ep_addr);
   tu_edpt_state_t* ep_state = &_usbd_dev.ep_status[epnum][dir];
 
-#if TUSB_OPT_MUTEX
   return tu_edpt_claim(ep_state, _usbd_mutex);
-#else
-  return tu_edpt_claim(ep_state, NULL);
-#endif
 }
 
 bool usbd_edpt_release(uint8_t rhport, uint8_t ep_addr)
@@ -1224,11 +1224,7 @@ bool usbd_edpt_release(uint8_t rhport, uint8_t ep_addr)
   uint8_t const dir         = tu_edpt_dir(ep_addr);
   tu_edpt_state_t* ep_state = &_usbd_dev.ep_status[epnum][dir];
 
-#if TUSB_OPT_MUTEX
   return tu_edpt_release(ep_state, _usbd_mutex);
-#else
-  return tu_edpt_release(ep_state, NULL);
-#endif
 }
 
 bool usbd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t total_bytes)
@@ -1384,6 +1380,33 @@ void usbd_sof_enable(uint8_t rhport, bool en)
   // TODO: Check needed if all drivers including the user sof_cb does not need an active SOF ISR any more.
   // Only if all drivers switched off SOF calls the SOF interrupt may be disabled
   dcd_sof_enable(rhport, en);
+}
+
+bool usbd_edpt_iso_alloc(uint8_t rhport, uint8_t ep_addr, uint16_t largest_packet_size)
+{
+  rhport = _usbd_rhport;
+
+  TU_ASSERT(dcd_edpt_iso_alloc);
+  TU_ASSERT(tu_edpt_number(ep_addr) < CFG_TUD_ENDPPOINT_MAX);
+
+  return dcd_edpt_iso_alloc(rhport, ep_addr, largest_packet_size);
+}
+
+bool usbd_edpt_iso_activate(uint8_t rhport, tusb_desc_endpoint_t const * desc_ep)
+{
+  rhport = _usbd_rhport;
+
+  uint8_t const epnum = tu_edpt_number(desc_ep->bEndpointAddress);
+  uint8_t const dir   = tu_edpt_dir(desc_ep->bEndpointAddress);
+
+  TU_ASSERT(dcd_edpt_iso_activate);
+  TU_ASSERT(epnum < CFG_TUD_ENDPPOINT_MAX);
+  TU_ASSERT(tu_edpt_validate(desc_ep, (tusb_speed_t) _usbd_dev.speed));
+
+  _usbd_dev.ep_status[epnum][dir].stalled = false;
+  _usbd_dev.ep_status[epnum][dir].busy = false;
+  _usbd_dev.ep_status[epnum][dir].claimed = false;
+  return dcd_edpt_iso_activate(rhport, desc_ep);
 }
 
 #endif

@@ -56,7 +56,7 @@ typedef struct
 } dfu_state_ctx_t;
 
 // Only a single dfu state is allowed
-CFG_TUSB_MEM_SECTION static dfu_state_ctx_t _dfu_ctx;
+CFG_TUSB_MEM_SECTION tu_static dfu_state_ctx_t _dfu_ctx;
 
 static void reset_state(void)
 {
@@ -74,7 +74,7 @@ static bool process_manifest_get_status(uint8_t rhport, uint8_t stage, tusb_cont
 //--------------------------------------------------------------------+
 #if CFG_TUSB_DEBUG >= 2
 
-static tu_lookup_entry_t const _dfu_request_lookup[] =
+tu_static tu_lookup_entry_t const _dfu_request_lookup[] =
 {
   { .key = DFU_REQUEST_DETACH         , .data = "DETACH"    },
   { .key = DFU_REQUEST_DNLOAD         , .data = "DNLOAD"    },
@@ -85,13 +85,13 @@ static tu_lookup_entry_t const _dfu_request_lookup[] =
   { .key = DFU_REQUEST_ABORT          , .data = "ABORT"     },
 };
 
-static tu_lookup_table_t const _dfu_request_table =
+tu_static tu_lookup_table_t const _dfu_request_table =
 {
   .count = TU_ARRAY_SIZE(_dfu_request_lookup),
   .items = _dfu_request_lookup
 };
 
-static tu_lookup_entry_t const _dfu_state_lookup[] =
+tu_static tu_lookup_entry_t const _dfu_state_lookup[] =
 {
   { .key = APP_IDLE                   , .data = "APP_IDLE"                },
   { .key = APP_DETACH                 , .data = "APP_DETACH"              },
@@ -106,13 +106,13 @@ static tu_lookup_entry_t const _dfu_state_lookup[] =
   { .key = DFU_ERROR                  , .data = "ERROR"               },
 };
 
-static tu_lookup_table_t const _dfu_state_table =
+tu_static tu_lookup_table_t const _dfu_state_table =
 {
   .count = TU_ARRAY_SIZE(_dfu_state_lookup),
   .items = _dfu_state_lookup
 };
 
-static tu_lookup_entry_t const _dfu_status_lookup[] =
+tu_static tu_lookup_entry_t const _dfu_status_lookup[] =
 {
   { .key = DFU_STATUS_OK               , .data = "OK"              },
   { .key = DFU_STATUS_ERR_TARGET       , .data = "errTARGET"       },
@@ -132,7 +132,7 @@ static tu_lookup_entry_t const _dfu_status_lookup[] =
   { .key = DFU_STATUS_ERR_STALLEDPKT   , .data = "errSTALLEDPKT"   },
 };
 
-static tu_lookup_table_t const _dfu_status_table =
+tu_static tu_lookup_table_t const _dfu_status_table =
 {
   .count = TU_ARRAY_SIZE(_dfu_status_lookup),
   .items = _dfu_status_lookup

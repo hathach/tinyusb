@@ -1,0 +1,313 @@
+
+file_wrapper:
+
+file_system_wrapper:
+
+stream_wrapper:
+
+rake_wrapper:
+
+yaml_wrapper:
+
+system_wrapper:
+
+cmock_builder:
+
+reportinator:
+
+rake_utils:
+  compose:
+    - rake_wrapper
+
+system_utils:
+  compose:
+    - system_wrapper
+
+file_path_utils:
+  compose:
+    - configurator
+    - file_wrapper
+
+file_system_utils:
+  compose: file_wrapper
+
+project_file_loader:
+  compose:
+    - yaml_wrapper
+    - stream_wrapper
+    - system_wrapper
+    - file_wrapper
+
+project_config_manager:
+  compose:
+    - cacheinator
+    - configurator
+    - yaml_wrapper
+    - file_wrapper
+
+cacheinator:
+  compose:
+    - cacheinator_helper
+    - file_path_utils
+    - file_wrapper
+    - yaml_wrapper
+
+cacheinator_helper:
+  compose:
+    - file_wrapper
+    - yaml_wrapper
+
+tool_executor:
+  compose:
+    - configurator
+    - tool_executor_helper
+    - streaminator
+    - system_wrapper
+
+tool_executor_helper:
+  compose:
+    - streaminator
+    - system_utils
+    - system_wrapper
+
+configurator:
+  compose:
+    - configurator_setup
+    - configurator_plugins
+    - configurator_builder
+    - cmock_builder
+    - yaml_wrapper
+    - system_wrapper
+
+configurator_setup:
+  compose:
+    - configurator_builder
+    - configurator_validator
+    - configurator_plugins
+    - stream_wrapper
+
+configurator_plugins:
+  compose:
+    - stream_wrapper
+    - file_wrapper
+    - system_wrapper
+
+configurator_validator:
+  compose:
+    - file_wrapper
+    - stream_wrapper
+    - system_wrapper
+
+configurator_builder:
+  compose:
+    - file_system_utils
+    - file_wrapper
+    - system_wrapper
+
+loginator:
+  compose:
+    - configurator
+    - project_file_loader
+    - project_config_manager
+    - file_wrapper
+    - system_wrapper
+
+streaminator:
+  compose:
+    - streaminator_helper
+    - verbosinator
+    - loginator
+    - stream_wrapper
+
+streaminator_helper:
+
+setupinator:
+
+plugin_builder:
+
+plugin_manager:
+  compose:
+    - configurator
+    - plugin_manager_helper
+    - streaminator
+    - reportinator
+    - system_wrapper
+
+plugin_manager_helper:
+
+plugin_reportinator:
+  compose:
+    - plugin_reportinator_helper
+    - plugin_manager
+    - reportinator
+
+plugin_reportinator_helper:
+  compose:
+    - configurator
+    - streaminator
+    - yaml_wrapper
+    - file_wrapper
+
+verbosinator:
+  compose: configurator
+
+file_finder:
+  compose:
+    - configurator
+    - file_finder_helper
+    - cacheinator
+    - file_path_utils
+    - file_wrapper
+    - yaml_wrapper
+
+file_finder_helper:
+  compose: streaminator
+
+test_includes_extractor:
+  compose:
+    - configurator
+    - yaml_wrapper
+    - file_wrapper
+
+task_invoker:
+  compose:
+    - dependinator
+    - rake_utils
+    - rake_wrapper
+    - project_config_manager
+
+flaginator:
+  compose:
+    - configurator
+
+generator:
+  compose:
+    - configurator
+    - generator_helper
+    - preprocessinator
+    - cmock_builder
+    - generator_test_runner
+    - generator_test_results
+    - flaginator
+    - test_includes_extractor
+    - tool_executor
+    - file_finder
+    - file_path_utils
+    - streaminator
+    - plugin_manager
+    - file_wrapper
+
+generator_helper:
+  compose:
+    - streaminator
+
+generator_test_results:
+  compose:
+    - configurator
+    - generator_test_results_sanity_checker
+    - yaml_wrapper
+
+generator_test_results_sanity_checker:
+  compose:
+    - configurator
+    - streaminator
+
+generator_test_runner:
+  compose:
+    - configurator
+    - file_path_utils
+    - file_wrapper
+
+dependinator:
+  compose:
+    - configurator
+    - project_config_manager
+    - test_includes_extractor
+    - file_path_utils
+    - rake_wrapper
+    - file_wrapper
+
+preprocessinator:
+  compose:
+    - preprocessinator_helper
+    - preprocessinator_includes_handler
+    - preprocessinator_file_handler
+    - task_invoker
+    - file_path_utils
+    - yaml_wrapper
+    - project_config_manager
+    - configurator
+
+preprocessinator_helper:
+  compose:
+    - configurator
+    - test_includes_extractor
+    - task_invoker
+    - file_finder
+    - file_path_utils
+
+preprocessinator_includes_handler:
+  compose:
+    - configurator
+    - tool_executor
+    - task_invoker
+    - file_path_utils
+    - yaml_wrapper
+    - file_wrapper
+    - file_finder
+
+preprocessinator_file_handler:
+  compose:
+    - preprocessinator_extractor
+    - configurator
+    - tool_executor
+    - file_path_utils
+    - file_wrapper
+
+preprocessinator_extractor:
+
+test_invoker:
+  compose:
+    - configurator
+    - test_invoker_helper
+    - plugin_manager
+    - streaminator
+    - preprocessinator
+    - task_invoker
+    - dependinator
+    - project_config_manager
+    - build_invoker_utils
+    - file_path_utils
+    - file_wrapper
+
+test_invoker_helper:
+  compose:
+    - configurator
+    - task_invoker
+    - test_includes_extractor
+    - file_finder
+    - file_path_utils
+    - file_wrapper
+
+release_invoker:
+  compose:
+    - configurator
+    - release_invoker_helper
+    - build_invoker_utils
+    - dependinator
+    - task_invoker
+    - file_path_utils
+    - file_wrapper
+
+release_invoker_helper:
+  compose:
+    - configurator
+    - dependinator
+    - task_invoker
+
+build_invoker_utils:
+  compose:
+    - configurator
+    - streaminator
+
+erb_wrapper:

@@ -222,14 +222,14 @@ bool dcd_edpt_open (uint8_t rhport, tusb_desc_endpoint_t const * desc_edpt)
   UsbDeviceDescBank* bank = &sram_registers[epnum][dir];
   uint32_t size_value = 0;
   while (size_value < 7) {
-    if (1 << (size_value + 3) == tu_edpt_packet_size(desc_edpt)) {
+    if (1 << (size_value + 3) >= tu_edpt_packet_size(desc_edpt)) {
       break;
     }
     size_value++;
   }
 
   // unsupported endpoint size
-  if ( size_value == 7 && tu_edpt_packet_size(desc_edpt) != 1023 ) return false;
+  if ( size_value == 7 && tu_edpt_packet_size(desc_edpt) > 1023 ) return false;
 
   bank->PCKSIZE.bit.SIZE = size_value;
 

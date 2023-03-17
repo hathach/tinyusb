@@ -1,4 +1,4 @@
-/* 
+/*
  * The MIT License (MIT)
  *
  * Copyright (c) 2019 Ha Thach (tinyusb.org)
@@ -170,7 +170,7 @@ static void xact_out_dma(uint8_t epnum)
   uint32_t xact_len;
 
   // DMA can't be active during read of SIZE.EPOUT or SIZE.ISOOUT, so try to lock,
-  // If already running deffer call regardless if it was called from ISR or task,
+  // If already running defer call regardless if it was called from ISR or task,
   if ( atomic_flag_test_and_set(&_dcd.dma_running) )
   {
     usbd_defer_func((osal_task_func_t)xact_out_dma_wrapper, (void *)(uint32_t)epnum, is_in_isr());
@@ -187,11 +187,16 @@ static void xact_out_dma(uint8_t epnum)
     }
     else
     {
-      // Trigger DMA move data from Endpoint -> SRAM
-      NRF_USBD->ISOOUT.PTR = (uint32_t) xfer->buffer;
-      NRF_USBD->ISOOUT.MAXCNT = xact_len;
+      if (xfer->started)
+      {
+        // Trigger DMA move data from Endpoint -> SRAM
+        NRF_USBD->ISOOUT.PTR = (uint32_t) xfer->buffer;
+        NRF_USBD->ISOOUT.MAXCNT = xact_len;
 
-      start_dma(&NRF_USBD->TASKS_STARTISOOUT);
+        start_dma(&NRF_USBD->TASKS_STARTISOOUT);
+      } else {
+        atomic_flag_clear(&_dcd.dma_running);
+      }
     }
   }
   else
@@ -765,7 +770,7 @@ void dcd_int_handler(uint8_t rhport)
     if ( tu_bit_test(int_status, USBD_INTEN_ENDEPOUT0_Pos+epnum))
     {
       xfer_td_t* xfer = get_td(epnum, TUSB_DIR_OUT);
-      uint8_t const xact_len = NRF_USBD->EPOUT[epnum].AMOUNT;
+      uint16_t const xact_len = NRF_USBD->EPOUT[epnum].AMOUNT;
 
       xfer->buffer     += xact_len;
       xfer->actual_len += xact_len;

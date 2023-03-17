@@ -31,7 +31,7 @@ INC += \
 	$(TOP)/$(MCU_FAMILY_DIR)/SDK_10.0.8.105/sdk/bsp/include
 
 # For freeRTOS port source
-FREERTOS_PORT = ARM_CM33_NTZ/non_secure
+FREERTOS_PORTABLE_SRC = $(FREERTOS_PORTABLE_PATH)/ARM_CM33_NTZ/non_secure
 
 # For flash-jlink target
 JLINK_DEVICE = DA14695
@@ -52,4 +52,3 @@ flash-dialog: $(BUILD)/$(PROJECT).bin
 	@echo go >> $(BUILD)/$(BOARD).jlink
 	@echo exit >> $(BUILD)/$(BOARD).jlink
 	$(JLINKEXE) -device $(JLINK_DEVICE) -if $(JLINK_IF) -JTAGConf -1,-1 -speed auto -CommandFile $(BUILD)/$(BOARD).jlink
-

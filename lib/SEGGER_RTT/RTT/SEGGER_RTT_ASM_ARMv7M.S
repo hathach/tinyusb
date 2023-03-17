@@ -36,9 +36,9 @@ Additional information:
   #define _THUMB_CODE          .code 16
   #define _WORD                .word
   #define _SECTION(Sect, Type, AlignExp) .section Sect ##, "ax"
-  #define _ALIGN(Exp)          .align Exp 
+  #define _ALIGN(Exp)          .align Exp
   #define _PLACE_LITS          .ltorg
-  #define _DATA_SECT_START 
+  #define _DATA_SECT_START
   #define _C_STARTUP           _start
   #define _STACK_END           __stack_end__
   #define _RAMFUNC
@@ -58,7 +58,7 @@ Additional information:
   #define _THUMB_CODE          THUMB
   #define _WORD                DCD
   #define _SECTION(Sect, Type, AlignExp) SECTION Sect ## : ## Type ## :REORDER:NOROOT ## (AlignExp)
-  #define _ALIGN(Exp)          alignrom Exp 
+  #define _ALIGN(Exp)          alignrom Exp
   #define _PLACE_LITS
   #define _DATA_SECT_START     DATA
   #define _C_STARTUP           __iar_program_start

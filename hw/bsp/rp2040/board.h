@@ -1,4 +1,4 @@
-/* 
+/*
  * The MIT License (MIT)
  *
  * Copyright (c) 2021, Ha Thach (tinyusb.org)
@@ -40,10 +40,23 @@
 #define BUTTON_BOOTSEL
 #define BUTTON_STATE_ACTIVE   0
 
-#if defined(PICO_DEFAULT_UART_TX_PIN) && defined(PICO_DEFAULT_UART_RX_PIN) && defined(PICO_DEFAULT_UART)
+#if defined(PICO_DEFAULT_UART_TX_PIN) && defined(PICO_DEFAULT_UART_RX_PIN) && \
+    defined(PICO_DEFAULT_UART) && defined(LIB_PICO_STDIO_UART)
 #define UART_DEV              PICO_DEFAULT_UART
 #define UART_TX_PIN           PICO_DEFAULT_UART_TX_PIN
 #define UART_RX_PIN           PICO_DEFAULT_UART_RX_PIN
+#endif
+
+// PIO_USB_DP_PIN_DEFAULT is 0, which conflict with UART, change to other pin
+#ifndef PIO_USB_DP_PIN
+#define PIO_USB_DP_PIN        20
+#endif
+
+// VBUS enable pin and its active state
+#define PIO_USB_VBUSEN_PIN    22
+
+#ifndef PIO_USB_VBUSEN_STATE
+#define PIO_USB_VBUSEN_STATE  1
 #endif
 
 #ifdef __cplusplus

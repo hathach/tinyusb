@@ -6,19 +6,28 @@ ST_HAL_DRIVER = hw/mcu/st/stm32$(ST_FAMILY)xx_hal_driver
 
 include $(TOP)/$(BOARD_PATH)/board.mk
 
+# --------------
+# Compiler Flags
+# --------------
 CFLAGS += \
+  -DCFG_TUSB_MCU=OPT_MCU_STM32F1
+
+# GCC Flags
+GCC_CFLAGS += \
   -flto \
   -mthumb \
   -mabi=aapcs \
   -mcpu=cortex-m3 \
   -mfloat-abi=soft \
   -nostdlib -nostartfiles \
-  -DCFG_TUSB_MCU=OPT_MCU_STM32F1
 
-# mcu driver cause following warnings
-#CFLAGS += -Wno-error=unused-parameter
+# IAR Flags
+IAR_CFLAGS += --cpu cortex-m3
+IAR_ASFLAGS += --cpu cortex-m3
 
+# ------------------------
 # All source paths should be relative to the top level.
+# ------------------------
 SRC_C += \
   src/portable/st/stm32_fsdev/dcd_stm32_fsdev.c \
   $(ST_CMSIS)/Source/Templates/system_stm32$(ST_FAMILY)xx.c \
@@ -35,7 +44,7 @@ INC += \
   $(TOP)/$(ST_HAL_DRIVER)/Inc
 
 # For freeRTOS port source
-FREERTOS_PORT = ARM_CM3
+FREERTOS_PORTABLE_SRC = $(FREERTOS_PORTABLE_PATH)/ARM_CM3
 
 # For flash-jlink target
 JLINK_DEVICE = stm32f103c8

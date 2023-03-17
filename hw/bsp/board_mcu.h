@@ -98,6 +98,9 @@
 #elif CFG_TUSB_MCU == OPT_MCU_STM32WB
   #include "stm32wbxx.h"
 
+#elif CFG_TUSB_MCU == OPT_MCU_STM32U5
+  #include "stm32u5xx.h"
+
 #elif CFG_TUSB_MCU == OPT_MCU_CXD56
   // no header needed
 
@@ -133,12 +136,15 @@
 
 #elif CFG_TUSB_MCU == OPT_MCU_RP2040
   #include "pico.h"
-  
+
 #elif CFG_TUSB_MCU == OPT_MCU_EFM32GG
   #include "em_device.h"
 
 #elif CFG_TUSB_MCU == OPT_MCU_RX63X || CFG_TUSB_MCU == OPT_MCU_RX65X
   // no header needed
+
+#elif CFG_TUSB_MCU == OPT_MCU_RAXXX
+  #include "bsp_api.h"
 
 #elif CFG_TUSB_MCU == OPT_MCU_GD32VF103
   #include "gd32vf103.h"

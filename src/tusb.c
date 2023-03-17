@@ -31,10 +31,17 @@
 #include "tusb.h"
 #include "common/tusb_private.h"
 
-// TODO clean up
 #if CFG_TUD_ENABLED
 #include "device/usbd_pvt.h"
 #endif
+
+#if CFG_TUH_ENABLED
+#include "host/usbh_classdriver.h"
+#endif
+
+//--------------------------------------------------------------------+
+// Public API
+//--------------------------------------------------------------------+
 
 bool tusb_init(void)
 {
@@ -67,18 +74,51 @@ bool tusb_inited(void)
 }
 
 //--------------------------------------------------------------------+
-// Internal Helper for both Host and Device stack
+// Descriptor helper
+//--------------------------------------------------------------------+
+
+uint8_t const * tu_desc_find(uint8_t const* desc, uint8_t const* end, uint8_t byte1)
+{
+  while(desc+1 < end)
+  {
+    if ( desc[1] == byte1 ) return desc;
+    desc += desc[DESC_OFFSET_LEN];
+  }
+  return NULL;
+}
+
+uint8_t const * tu_desc_find2(uint8_t const* desc, uint8_t const* end, uint8_t byte1, uint8_t byte2)
+{
+  while(desc+2 < end)
+  {
+    if ( desc[1] == byte1 && desc[2] == byte2) return desc;
+    desc += desc[DESC_OFFSET_LEN];
+  }
+  return NULL;
+}
+
+uint8_t const * tu_desc_find3(uint8_t const* desc, uint8_t const* end, uint8_t byte1, uint8_t byte2, uint8_t byte3)
+{
+  while(desc+3 < end)
+  {
+    if (desc[1] == byte1 && desc[2] == byte2 && desc[3] == byte3) return desc;
+    desc += desc[DESC_OFFSET_LEN];
+  }
+  return NULL;
+}
+
+
+//--------------------------------------------------------------------+
+// Endpoint Helper for both Host and Device stack
 //--------------------------------------------------------------------+
 
 bool tu_edpt_claim(tu_edpt_state_t* ep_state, osal_mutex_t mutex)
 {
   (void) mutex;
 
-#if TUSB_OPT_MUTEX
   // pre-check to help reducing mutex lock
   TU_VERIFY((ep_state->busy == 0) && (ep_state->claimed == 0));
-  osal_mutex_lock(mutex, OSAL_TIMEOUT_WAIT_FOREVER);
-#endif
+  (void) osal_mutex_lock(mutex, OSAL_TIMEOUT_WAIT_FOREVER);
 
   // can only claim the endpoint if it is not busy and not claimed yet.
   bool const available = (ep_state->busy == 0) && (ep_state->claimed == 0);
@@ -87,9 +127,7 @@ bool tu_edpt_claim(tu_edpt_state_t* ep_state, osal_mutex_t mutex)
     ep_state->claimed = 1;
   }
 
-#if TUSB_OPT_MUTEX
-  osal_mutex_unlock(mutex);
-#endif
+  (void) osal_mutex_unlock(mutex);
 
   return available;
 }
@@ -98,9 +136,7 @@ bool tu_edpt_release(tu_edpt_state_t* ep_state, osal_mutex_t mutex)
 {
   (void) mutex;
 
-#if TUSB_OPT_MUTEX
-  osal_mutex_lock(mutex, OSAL_TIMEOUT_WAIT_FOREVER);
-#endif
+  (void) osal_mutex_lock(mutex, OSAL_TIMEOUT_WAIT_FOREVER);
 
   // can only release the endpoint if it is claimed and not busy
   bool const ret = (ep_state->claimed == 1) && (ep_state->busy == 0);
@@ -109,9 +145,7 @@ bool tu_edpt_release(tu_edpt_state_t* ep_state, osal_mutex_t mutex)
     ep_state->claimed = 0;
   }
 
-#if TUSB_OPT_MUTEX
-  osal_mutex_unlock(mutex);
-#endif
+  (void) osal_mutex_unlock(mutex);
 
   return ret;
 }
@@ -204,9 +238,184 @@ uint16_t tu_desc_get_interface_total_len(tusb_desc_interface_t const* desc_itf, 
   return len;
 }
 
-/*------------------------------------------------------------------*/
-/* Debug
- *------------------------------------------------------------------*/
+//--------------------------------------------------------------------+
+// Endpoint Stream Helper for both Host and Device stack
+//--------------------------------------------------------------------+
+
+bool tu_edpt_stream_init(tu_edpt_stream_t* s, bool is_host, bool is_tx, bool overwritable,
+                         void* ff_buf, uint16_t ff_bufsize, uint8_t* ep_buf, uint16_t ep_bufsize)
+{
+  osal_mutex_t new_mutex = osal_mutex_create(&s->ff_mutex);
+  (void) new_mutex;
+  (void) is_tx;
+
+  s->is_host = is_host;
+  tu_fifo_config(&s->ff, ff_buf, ff_bufsize, 1, overwritable);
+  tu_fifo_config_mutex(&s->ff, is_tx ? new_mutex : NULL, is_tx ? NULL : new_mutex);
+
+  s->ep_buf = ep_buf;
+  s->ep_bufsize = ep_bufsize;
+
+  return true;
+}
+
+TU_ATTR_ALWAYS_INLINE static inline
+bool stream_claim(tu_edpt_stream_t* s)
+{
+  if (s->is_host)
+  {
+    #if CFG_TUH_ENABLED
+    return usbh_edpt_claim(s->daddr, s->ep_addr);
+    #endif
+  }else
+  {
+    #if CFG_TUD_ENABLED
+    return usbd_edpt_claim(s->rhport, s->ep_addr);
+    #endif
+  }
+
+  return false;
+}
+
+TU_ATTR_ALWAYS_INLINE static inline
+bool stream_xfer(tu_edpt_stream_t* s, uint16_t count)
+{
+  if (s->is_host)
+  {
+    #if CFG_TUH_ENABLED
+    return usbh_edpt_xfer(s->daddr, s->ep_addr, count ? s->ep_buf : NULL, count);
+    #endif
+  }else
+  {
+    #if CFG_TUD_ENABLED
+    return usbd_edpt_xfer(s->rhport, s->ep_addr, count ? s->ep_buf : NULL, count);
+    #endif
+  }
+
+  return false;
+}
+
+TU_ATTR_ALWAYS_INLINE static inline
+bool stream_release(tu_edpt_stream_t* s)
+{
+  if (s->is_host)
+  {
+    #if CFG_TUH_ENABLED
+    return usbh_edpt_release(s->daddr, s->ep_addr);
+    #endif
+  }else
+  {
+    #if CFG_TUD_ENABLED
+    return usbd_edpt_release(s->rhport, s->ep_addr);
+    #endif
+  }
+
+  return false;
+}
+
+//--------------------------------------------------------------------+
+// Stream Write
+//--------------------------------------------------------------------+
+
+bool tu_edpt_stream_write_zlp_if_needed(tu_edpt_stream_t* s, uint32_t last_xferred_bytes)
+{
+  // ZLP condition: no pending data, last transferred bytes is multiple of packet size
+  TU_VERIFY( !tu_fifo_count(&s->ff) && last_xferred_bytes && (0 == (last_xferred_bytes & (s->ep_packetsize-1))) );
+
+  TU_VERIFY( stream_claim(s) );
+  TU_ASSERT( stream_xfer(s, 0) );
+
+  return true;
+}
+
+uint32_t tu_edpt_stream_write_xfer(tu_edpt_stream_t* s)
+{
+  // skip if no data
+  TU_VERIFY( tu_fifo_count(&s->ff), 0 );
+
+  // Claim the endpoint
+  TU_VERIFY( stream_claim(s), 0 );
+
+  // Pull data from FIFO -> EP buf
+  uint16_t const count = tu_fifo_read_n(&s->ff, s->ep_buf, s->ep_bufsize);
+
+  if ( count )
+  {
+    TU_ASSERT( stream_xfer(s, count), 0 );
+    return count;
+  }else
+  {
+    // Release endpoint since we don't make any transfer
+    // Note: data is dropped if terminal is not connected
+    stream_release(s);
+    return 0;
+  }
+}
+
+uint32_t tu_edpt_stream_write(tu_edpt_stream_t* s, void const *buffer, uint32_t bufsize)
+{
+  TU_VERIFY(bufsize); // TODO support ZLP
+
+  uint16_t ret = tu_fifo_write_n(&s->ff, buffer, (uint16_t) bufsize);
+
+  // flush if fifo has more than packet size or
+  // in rare case: fifo depth is configured too small (which never reach packet size)
+  if ( (tu_fifo_count(&s->ff) >= s->ep_packetsize) || (tu_fifo_depth(&s->ff) < s->ep_packetsize) )
+  {
+    tu_edpt_stream_write_xfer(s);
+  }
+
+  return ret;
+}
+
+//--------------------------------------------------------------------+
+// Stream Read
+//--------------------------------------------------------------------+
+
+uint32_t tu_edpt_stream_read_xfer(tu_edpt_stream_t* s)
+{
+  uint16_t available = tu_fifo_remaining(&s->ff);
+
+  // Prepare for incoming data but only allow what we can store in the ring buffer.
+  // TODO Actually we can still carry out the transfer, keeping count of received bytes
+  // and slowly move it to the FIFO when read().
+  // This pre-check reduces endpoint claiming
+  TU_VERIFY(available >= s->ep_packetsize);
+
+  // claim endpoint
+  TU_VERIFY(stream_claim(s), 0);
+
+  // get available again since fifo can be changed before endpoint is claimed
+  available = tu_fifo_remaining(&s->ff);
+
+  if ( available >= s->ep_packetsize )
+  {
+    // multiple of packet size limit by ep bufsize
+    uint16_t count = (uint16_t) (available & ~(s->ep_packetsize -1));
+    count = tu_min16(count, s->ep_bufsize);
+
+    TU_ASSERT( stream_xfer(s, count), 0 );
+
+    return count;
+  }else
+  {
+    // Release endpoint since we don't make any transfer
+    stream_release(s);
+    return 0;
+  }
+}
+
+uint32_t tu_edpt_stream_read(tu_edpt_stream_t* s, void* buffer, uint32_t bufsize)
+{
+  uint32_t num_read = tu_fifo_read_n(&s->ff, buffer, (uint16_t) bufsize);
+  tu_edpt_stream_read_xfer(s);
+  return num_read;
+}
+
+//--------------------------------------------------------------------+
+// Debug
+//--------------------------------------------------------------------+
+
 #if CFG_TUSB_DEBUG
 #include <ctype.h>
 
@@ -286,7 +495,7 @@ void tu_print_mem(void const *buf, uint32_t count, uint8_t indent)
       tu_printf("%04X: ", 16*i/item_per_line);
     }
 
-    memcpy(&value, buf8, size);
+    tu_memcpy_s(&value, sizeof(value), buf8, size);
     buf8 += size;
 
     tu_printf(" ");

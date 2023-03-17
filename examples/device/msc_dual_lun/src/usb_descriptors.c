@@ -1,4 +1,4 @@
-/* 
+/*
  * The MIT License (MIT)
  *
  * Copyright (c) 2019 Ha Thach (tinyusb.org)
@@ -87,6 +87,12 @@ enum
 #elif CFG_TUSB_MCU == OPT_MCU_SAMG
   // SAMG doesn't support a same endpoint number with different direction IN and OUT
   //  e.g EP1 OUT & EP1 IN cannot exist together
+  #define EPNUM_MSC_OUT   0x01
+  #define EPNUM_MSC_IN    0x82
+
+#elif CFG_TUSB_MCU == OPT_MCU_FT90X || CFG_TUSB_MCU == OPT_MCU_FT93X
+  // FT9XX doesn't support a same endpoint number with different direction IN and OUT
+  //    e.g EP1 OUT & EP1 IN cannot exist together
   #define EPNUM_MSC_OUT   0x01
   #define EPNUM_MSC_IN    0x82
 

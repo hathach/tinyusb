@@ -39,9 +39,6 @@
 #include "pio_usb.h"
 #endif
 
-// PIO_USB_DP_PIN_DEFAULT is 0, which conflict with UART, change to 2
-#define PICO_PIO_USB_PIN_DP   2
-
 #ifdef BUTTON_BOOTSEL
 // This example blinks the Picoboard LED when the BOOTSEL button is pressed.
 //
@@ -124,6 +121,23 @@ static uart_inst_t *uart_inst;
 
 void board_init(void)
 {
+#if CFG_TUH_RPI_PIO_USB || CFG_TUD_RPI_PIO_USB
+  // Set the system clock to a multiple of 120mhz for bitbanging USB with pico-usb
+  set_sys_clock_khz(120000, true);
+
+#ifdef PIO_USB_VBUSEN_PIN
+  gpio_init(PIO_USB_VBUSEN_PIN);
+  gpio_set_dir(PIO_USB_VBUSEN_PIN, GPIO_OUT);
+  gpio_put(PIO_USB_VBUSEN_PIN, PIO_USB_VBUSEN_STATE);
+#endif
+
+  // rp2040 use pico-pio-usb for host tuh_configure() can be used to passed pio configuration to the host stack
+  // Note: tuh_configure() must be called before tuh_init()
+  pio_usb_configuration_t pio_cfg = PIO_USB_DEFAULT_CONFIG;
+  pio_cfg.pin_dp = PIO_USB_DP_PIN;
+  tuh_configure(BOARD_TUH_RHPORT, TUH_CFGID_RPI_PIO_USB_CONFIGURATION, &pio_cfg);
+#endif
+
 #ifdef LED_PIN
   bi_decl(bi_1pin_with_name(LED_PIN, "LED"));
   gpio_init(LED_PIN);
@@ -134,18 +148,7 @@ void board_init(void)
 #ifndef BUTTON_BOOTSEL
 #endif
 
-#if CFG_TUH_RPI_PIO_USB || CFG_TUD_RPI_PIO_USB
-  // Set the system clock to a multiple of 120mhz for bitbanging USB with pico-usb
-  set_sys_clock_khz(120000, true);
-
-  // rp2040 use pico-pio-usb for host tuh_configure() can be used to passed pio configuration to the host stack
-  // Note: tuh_configure() must be called before tuh_init()
-  pio_usb_configuration_t pio_cfg = PIO_USB_DEFAULT_CONFIG;
-  pio_cfg.pin_dp = PICO_PIO_USB_PIN_DP;
-  tuh_configure(BOARD_TUH_RHPORT, TUH_CFGID_RPI_PIO_USB_CONFIGURATION, &pio_cfg);
-#endif
-
-#if defined(UART_DEV) && defined(LIB_PICO_STDIO_UART)
+#ifdef UART_DEV
   bi_decl(bi_2pins_with_func(UART_TX_PIN, UART_TX_PIN, GPIO_FUNC_UART));
   uart_inst = uart_get_instance(UART_DEV);
   stdio_uart_init_full(uart_inst, CFG_BOARD_UART_BAUDRATE, UART_TX_PIN, UART_RX_PIN);
@@ -189,10 +192,13 @@ uint32_t board_button_read(void)
 int board_uart_read(uint8_t* buf, int len)
 {
 #ifdef UART_DEV
-  for(int i=0;i<len;i++) {
-    buf[i] = uart_getc(uart_inst);
+  int count = 0;
+  while ( (count < len) && uart_is_readable(uart_inst) )
+  {
+    buf[count] = uart_getc(uart_inst);
+    count++;
   }
-  return len;
+  return count;
 #else
   (void) buf; (void) len;
   return 0;
@@ -213,8 +219,13 @@ int board_uart_write(void const * buf, int len)
 #endif
 }
 
+int board_getchar(void)
+{
+  return getchar_timeout_us(0);
+}
+
 //--------------------------------------------------------------------+
 // USB Interrupt Handler
-// rp2040 implementation will install approriate handler when initializing
+// rp2040 implementation will install appropriate handler when initializing
 // tinyusb. There is no need to forward IRQ from application
 //--------------------------------------------------------------------+

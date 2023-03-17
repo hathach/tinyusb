@@ -11,29 +11,29 @@
 MEMORY
 {
   /* Define each memory region */
-  MFlash256 (rx) : ORIGIN = 0x0, LENGTH = 0x40000 /* 256K bytes (alias Flash) */  
-  Ram0_32 (rwx) : ORIGIN = 0x10000000, LENGTH = 0x8000 /* 32K bytes (alias RAM) */  
-  Ram1_2 (rwx) : ORIGIN = 0x20000000, LENGTH = 0x800 /* 2K bytes (alias RAM2) */  
-  Ram2USB_2 (rwx) : ORIGIN = 0x20004000, LENGTH = 0x800 /* 2K bytes (alias RAM3) */  
+  MFlash256 (rx) : ORIGIN = 0x0, LENGTH = 0x40000 /* 256K bytes (alias Flash) */
+  Ram0_32 (rwx) : ORIGIN = 0x10000000, LENGTH = 0x8000 /* 32K bytes (alias RAM) */
+  Ram1_2 (rwx) : ORIGIN = 0x20000000, LENGTH = 0x800 /* 2K bytes (alias RAM2) */
+  Ram2USB_2 (rwx) : ORIGIN = 0x20004000, LENGTH = 0x800 /* 2K bytes (alias RAM3) */
 }
 
   /* Define a symbol for the top of each memory region */
-  __base_MFlash256 = 0x0  ; /* MFlash256 */  
-  __base_Flash = 0x0 ; /* Flash */  
-  __top_MFlash256 = 0x0 + 0x40000 ; /* 256K bytes */  
-  __top_Flash = 0x0 + 0x40000 ; /* 256K bytes */  
-  __base_Ram0_32 = 0x10000000  ; /* Ram0_32 */  
-  __base_RAM = 0x10000000 ; /* RAM */  
-  __top_Ram0_32 = 0x10000000 + 0x8000 ; /* 32K bytes */  
-  __top_RAM = 0x10000000 + 0x8000 ; /* 32K bytes */  
-  __base_Ram1_2 = 0x20000000  ; /* Ram1_2 */  
-  __base_RAM2 = 0x20000000 ; /* RAM2 */  
-  __top_Ram1_2 = 0x20000000 + 0x800 ; /* 2K bytes */  
-  __top_RAM2 = 0x20000000 + 0x800 ; /* 2K bytes */  
-  __base_Ram2USB_2 = 0x20004000  ; /* Ram2USB_2 */  
-  __base_RAM3 = 0x20004000 ; /* RAM3 */  
-  __top_Ram2USB_2 = 0x20004000 + 0x800 ; /* 2K bytes */  
-  __top_RAM3 = 0x20004000 + 0x800 ; /* 2K bytes */  
+  __base_MFlash256 = 0x0  ; /* MFlash256 */
+  __base_Flash = 0x0 ; /* Flash */
+  __top_MFlash256 = 0x0 + 0x40000 ; /* 256K bytes */
+  __top_Flash = 0x0 + 0x40000 ; /* 256K bytes */
+  __base_Ram0_32 = 0x10000000  ; /* Ram0_32 */
+  __base_RAM = 0x10000000 ; /* RAM */
+  __top_Ram0_32 = 0x10000000 + 0x8000 ; /* 32K bytes */
+  __top_RAM = 0x10000000 + 0x8000 ; /* 32K bytes */
+  __base_Ram1_2 = 0x20000000  ; /* Ram1_2 */
+  __base_RAM2 = 0x20000000 ; /* RAM2 */
+  __top_Ram1_2 = 0x20000000 + 0x800 ; /* 2K bytes */
+  __top_RAM2 = 0x20000000 + 0x800 ; /* 2K bytes */
+  __base_Ram2USB_2 = 0x20004000  ; /* Ram2USB_2 */
+  __base_RAM3 = 0x20004000 ; /* RAM3 */
+  __top_Ram2USB_2 = 0x20004000 + 0x800 ; /* 2K bytes */
+  __top_RAM3 = 0x20004000 + 0x800 ; /* 2K bytes */
 
 ENTRY(ResetISR)
 
@@ -82,9 +82,9 @@ SECTIONS
     } > MFlash256
     /*
      * for exception handling/unwind - some Newlib functions (in common
-     * with C++ and STDC++) use this. 
+     * with C++ and STDC++) use this.
      */
-    .ARM.extab : ALIGN(4) 
+    .ARM.extab : ALIGN(4)
     {
         *(.ARM.extab* .gnu.linkonce.armextab.*)
     } > MFlash256
@@ -98,7 +98,7 @@ SECTIONS
     __exidx_end = .;
 
     _etext = .;
-        
+
     /* possible MTB section for Ram1_2 */
     .mtb_buffer_RAM2 (NOLOAD) :
     {
@@ -172,7 +172,7 @@ SECTIONS
        *(.bss.$Ram1_2*)
        . = ALIGN (. != 0 ? 4 : 1) ; /* avoid empty segment */
        PROVIDE(__end_bss_RAM2 = .) ;
-    } > Ram1_2 
+    } > Ram1_2
 
     /* BSS section for Ram2USB_2 */
     .bss_RAM3 : ALIGN(4)
@@ -182,7 +182,7 @@ SECTIONS
        *(.bss.$Ram2USB_2*)
        . = ALIGN (. != 0 ? 4 : 1) ; /* avoid empty segment */
        PROVIDE(__end_bss_RAM3 = .) ;
-    } > Ram2USB_2 
+    } > Ram2USB_2
 
     /* MAIN BSS SECTION */
     .bss : ALIGN(4)
@@ -201,7 +201,7 @@ SECTIONS
        *(.noinit.$RAM2*)
        *(.noinit.$Ram1_2*)
        . = ALIGN(4) ;
-    } > Ram1_2 
+    } > Ram1_2
 
     /* NOINIT section for Ram2USB_2 */
     .noinit_RAM3 (NOLOAD) : ALIGN(4)
@@ -209,13 +209,13 @@ SECTIONS
        *(.noinit.$RAM3*)
        *(.noinit.$Ram2USB_2*)
        . = ALIGN(4) ;
-    } > Ram2USB_2 
+    } > Ram2USB_2
 
     /* DEFAULT NOINIT SECTION */
     .noinit (NOLOAD): ALIGN(4)
     {
         _noinit = .;
-        *(.noinit*) 
+        *(.noinit*)
          . = ALIGN(4) ;
         _end_noinit = .;
     } > Ram0_32
@@ -223,11 +223,11 @@ SECTIONS
     PROVIDE(_vStackTop = DEFINED(__user_stack_top) ? __user_stack_top : __top_Ram0_32 - 0);
 
     /* ## Create checksum value (used in startup) ## */
-    PROVIDE(__valid_user_code_checksum = 0 - 
-                                         (_vStackTop 
-                                         + (ResetISR + 1) 
-                                         + (( DEFINED(NMI_Handler) ? NMI_Handler : M0_NMI_Handler ) + 1) 
-                                         + (( DEFINED(HardFault_Handler) ? HardFault_Handler : M0_HardFault_Handler ) + 1) 
+    PROVIDE(__valid_user_code_checksum = 0 -
+                                         (_vStackTop
+                                         + (ResetISR + 1)
+                                         + (( DEFINED(NMI_Handler) ? NMI_Handler : M0_NMI_Handler ) + 1)
+                                         + (( DEFINED(HardFault_Handler) ? HardFault_Handler : M0_HardFault_Handler ) + 1)
                                          )
            );
 

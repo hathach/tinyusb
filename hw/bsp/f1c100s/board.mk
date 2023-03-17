@@ -32,7 +32,7 @@ SRC_C += \
 	$(MCU_DIR)/machine/sys-spi-flash.c \
 	$(MCU_DIR)/machine/f1c100s-intc.c \
 	$(MCU_DIR)/lib/malloc.c \
-	$(MCU_DIR)/lib/printf.c 
+	$(MCU_DIR)/lib/printf.c
 
 SRC_S += \
   $(MCU_DIR)/machine/start.S \
@@ -47,6 +47,6 @@ INC += \
 flash: flash-xfel
 
 exec: $(BUILD)/$(PROJECT).bin
-	xfel ddr 
+	xfel ddr
 	xfel write 0x80000000 $<
 	xfel exec 0x80000000

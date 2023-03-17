@@ -23,11 +23,7 @@
  *
  */
 
-#ifdef __ICCARM__
 #include <string.h>
-#else
-#include <strings.h>
-#endif
 #include <stdlib.h>     /* atoi */
 #include "tusb.h"
 #include "bsp/board.h"
@@ -144,11 +140,14 @@ bool tud_usbtmc_msg_data_cb(void *data, size_t len, bool transfer_complete)
   queryState = transfer_complete;
   idnQuery = 0;
 
-  if(transfer_complete && (len >=4) && !strncasecmp("*idn?",data,4))
+  if ( transfer_complete && (len >= 4) &&
+       (!strncmp("*idn?", data, 4) || !strncmp("*IDN?", data, 4)) )
   {
     idnQuery = 1;
   }
-  if(transfer_complete && !strncasecmp("delay ",data,5))
+
+  if ( transfer_complete &&
+       (!strncmp("delay ", data, 5) || !strncmp("DELAY ", data, 5)) )
   {
     queryState = 0;
     int d = atoi((char*)data + 5);
@@ -243,6 +242,7 @@ void usbtmc_app_task_iter(void) {
     break;
   default:
     TU_ASSERT(false,);
+    return;
   }
 }
 

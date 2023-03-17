@@ -1,4 +1,4 @@
-/* 
+/*
  * The MIT License (MIT)
  *
  * Copyright (c) 2019 Ha Thach (tinyusb.org)
@@ -202,7 +202,7 @@ bool hub_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_interface_t const *itf
 
   TU_ASSERT(TUSB_DESC_ENDPOINT  == desc_ep->bDescriptorType &&
             TUSB_XFER_INTERRUPT == desc_ep->bmAttributes.xfer, 0);
-  
+
   TU_ASSERT(tuh_edpt_open(dev_addr, desc_ep));
 
   hub_interface_t* p_hub = get_itf(dev_addr);

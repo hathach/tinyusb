@@ -1,10 +1,9 @@
 DEPS_SUBMODULES += lib/lwip
 
-include ../../../tools/top.mk
 include ../../make.mk
 
 # suppress warning caused by lwip
-CFLAGS += \
+GCC_CFLAGS += \
   -Wno-error=null-dereference \
   -Wno-error=unused-parameter \
   -Wno-error=unused-variable

@@ -1,4 +1,4 @@
-/* 
+/*
  * The MIT License (MIT)
  *
  * Copyright (c) 2020 MM32 SE TEAM
@@ -57,7 +57,7 @@ const int baudrate = 115200;
 
 void board_init (void)
 {
-//   usb clock	
+//   usb clock
   USB_DeviceClockInit();
 
   if ( SysTick_Config(SystemCoreClock / 1000) )

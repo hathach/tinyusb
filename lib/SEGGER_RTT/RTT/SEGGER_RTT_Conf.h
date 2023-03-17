@@ -91,12 +91,12 @@ Revision: $Rev: 18601 $
 *
 *       RTT memcpy configuration
 *
-*       memcpy() is good for large amounts of data, 
+*       memcpy() is good for large amounts of data,
 *       but the overhead is big for small amounts, which are usually stored via RTT.
 *       With SEGGER_RTT_MEMCPY_USE_BYTELOOP a simple byte loop can be used instead.
 *
 *       SEGGER_RTT_MEMCPY() can be used to replace standard memcpy() in RTT functions.
-*       This is may be required with memory access restrictions, 
+*       This is may be required with memory access restrictions,
 *       such as on Cortex-A devices with MMU.
 */
 #ifndef   SEGGER_RTT_MEMCPY_USE_BYTELOOP
@@ -105,7 +105,7 @@ Revision: $Rev: 18601 $
 //
 // Example definition of SEGGER_RTT_MEMCPY to external memcpy with GCC toolchains and Cortex-A targets
 //
-//#if ((defined __SES_ARM) || (defined __CROSSWORKS_ARM) || (defined __GNUC__)) && (defined (__ARM_ARCH_7A__))  
+//#if ((defined __SES_ARM) || (defined __CROSSWORKS_ARM) || (defined __GNUC__)) && (defined (__ARM_ARCH_7A__))
 //  #define SEGGER_RTT_MEMCPY(pDest, pSrc, NumBytes)      SEGGER_memcpy((pDest), (pSrc), (NumBytes))
 //#endif
 
@@ -204,7 +204,7 @@ Revision: $Rev: 18601 $
                                                  :                             \
                                                  :                             \
                                                 );
-                               
+
   #define SEGGER_RTT_UNLOCK()    __asm volatile ("csrr  a1, mstatus  \n\t"     \
                                                  "or    %0, %0, a1   \n\t"     \
                                                  "csrs  mstatus, %0  \n\t"     \
@@ -345,8 +345,8 @@ Revision: $Rev: 18601 $
   #define SEGGER_RTT_LOCK()   {                                                                     \
                                 unsigned long LockState;                                            \
                                 LockState = get_psw() & 0x010000;                                   \
-                                clrpsw_i();                           
-                                    
+                                clrpsw_i();
+
   #define SEGGER_RTT_UNLOCK()   set_psw(get_psw() | LockState);                                     \
                               }
 #endif

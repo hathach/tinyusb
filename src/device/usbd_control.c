@@ -53,10 +53,10 @@ typedef struct
   usbd_control_xfer_cb_t complete_cb;
 } usbd_control_xfer_t;
 
-static usbd_control_xfer_t _ctrl_xfer;
+tu_static usbd_control_xfer_t _ctrl_xfer;
 
 CFG_TUSB_MEM_SECTION CFG_TUSB_MEM_ALIGN
-static uint8_t _usbd_ctrl_buf[CFG_TUD_ENDPOINT0_SIZE];
+tu_static uint8_t _usbd_ctrl_buf[CFG_TUD_ENDPOINT0_SIZE];
 
 //--------------------------------------------------------------------+
 // Application API
@@ -93,7 +93,9 @@ static bool _data_stage_xact(uint8_t rhport)
   if ( _ctrl_xfer.request.bmRequestType_bit.direction == TUSB_DIR_IN )
   {
     ep_addr = EDPT_CTRL_IN;
-    if ( xact_len ) memcpy(_usbd_ctrl_buf, _ctrl_xfer.buffer, xact_len);
+    if ( xact_len ) {
+      TU_VERIFY(0 == tu_memcpy_s(_usbd_ctrl_buf, CFG_TUD_ENDPOINT0_SIZE, _ctrl_xfer.buffer, xact_len));
+    }
   }
 
   return usbd_edpt_xfer(rhport, ep_addr, xact_len ? _usbd_ctrl_buf : NULL, xact_len);

@@ -243,7 +243,7 @@ static void USBC_Dev_SetAddress(u8 address)
 
 static void __USBC_Dev_Tx_SendStall(void)
 {
-	//send stall, and fifo is flushed automaticly
+	//send stall, and fifo is flushed automatically
 	USBC_REG_set_bit_w(USBC_BP_TXCSR_D_SEND_STALL, USBC_REG_TXCSR(USBC0_BASE));
 }
 static u32 __USBC_Dev_Tx_IsEpStall(void)
@@ -996,7 +996,7 @@ bool dcd_edpt_open(uint8_t rhport, tusb_desc_endpoint_t const * ep_desc)
   if (dir_in) {
     USBC_Writew(mps, USBC_REG_TXMAXP(USBC0_BASE));
 
-    reg_val = (1 << USBC_BP_TXCSR_D_MODE) 
+    reg_val = (1 << USBC_BP_TXCSR_D_MODE)
       | (1 << USBC_BP_TXCSR_D_FLUSH_FIFO)
       | (1 << USBC_BP_TXCSR_D_CLEAR_DATA_TOGGLE);
     if  (xfer == TUSB_XFER_ISOCHRONOUS)
@@ -1048,7 +1048,7 @@ void dcd_edpt_close_all(uint8_t rhport)
       USBC_REG_TXCSR(USBC0_BASE));
 
     USBC_Writew(0, USBC_REG_RXMAXP(USBC0_BASE));
-	  USBC_Writew((1 << USBC_BP_RXCSR_D_CLEAR_DATA_TOGGLE) | (1 << USBC_BP_RXCSR_D_FLUSH_FIFO), 
+	  USBC_Writew((1 << USBC_BP_RXCSR_D_CLEAR_DATA_TOGGLE) | (1 << USBC_BP_RXCSR_D_FLUSH_FIFO),
       USBC_REG_RXCSR(USBC0_BASE));
 
     USBC_Writew(0, USBC_REG_TXFIFOAD(USBC0_BASE));
@@ -1078,7 +1078,7 @@ void dcd_edpt_close(uint8_t rhport, uint8_t ep_addr)
   } else {
     USBC_INT_DisableRxEp(epn);
     USBC_Writew(0, USBC_REG_RXMAXP(USBC0_BASE));
-	  USBC_Writew((1 << USBC_BP_RXCSR_D_CLEAR_DATA_TOGGLE) | (1 << USBC_BP_RXCSR_D_FLUSH_FIFO), 
+	  USBC_Writew((1 << USBC_BP_RXCSR_D_CLEAR_DATA_TOGGLE) | (1 << USBC_BP_RXCSR_D_FLUSH_FIFO),
       USBC_REG_RXCSR(USBC0_BASE));
 
     USBC_Writew(0, USBC_REG_RXFIFOAD(USBC0_BASE));

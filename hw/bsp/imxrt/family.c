@@ -1,4 +1,4 @@
-/* 
+/*
  * The MIT License (MIT)
  *
  * Copyright (c) 2018, hathach (tinyusb.org)
@@ -55,6 +55,11 @@ const uint8_t dcd_data[] = { 0x00 };
 
 void board_init(void)
 {
+  // make sure the dcache is on.
+#if defined(__DCACHE_PRESENT) && __DCACHE_PRESENT
+  if (SCB_CCR_DC_Msk != (SCB_CCR_DC_Msk & SCB->CCR)) SCB_EnableDCache();
+#endif
+
   // Init clock
   BOARD_BootClockRUN();
   SystemCoreClockUpdate();

@@ -42,18 +42,24 @@
  * See http://www.freertos.org/a00110.html.
  *----------------------------------------------------------*/
 
+// skip if included from IAR assembler
+#ifndef __IASMARM__
+
 // Include MCU header
 #include "bsp/board_mcu.h"
 
 #if CFG_TUSB_MCU == OPT_MCU_ESP32S2 || CFG_TUSB_MCU == OPT_MCU_ESP32S3
-#error "ESP32-Sx should use IDF's FreeRTOSConfig.h"
+  #error "ESP32-Sx should use IDF's FreeRTOSConfig.h"
 #endif
 
+// TODO fix later
 #if CFG_TUSB_MCU == OPT_MCU_MM32F327X
-  // TODO fix/remove later  
   extern u32 SystemCoreClock;
 #else
+  // FIXME cause redundant-decls warnings
   extern uint32_t SystemCoreClock;
+#endif
+
 #endif
 
 /* Cortex M23/M33 port configuration. */
@@ -68,7 +74,7 @@
 #define configTICK_RATE_HZ                      ( 1000 )
 #define configMAX_PRIORITIES                    ( 5 )
 #define configMINIMAL_STACK_SIZE                ( 128 )
-#define configTOTAL_HEAP_SIZE                   ( 0*1024 ) // dynamic is not used
+#define configTOTAL_HEAP_SIZE                   ( configSUPPORT_DYNAMIC_ALLOCATION*4*1024 )
 #define configMAX_TASK_NAME_LEN                 16
 #define configUSE_16_BIT_TICKS                  0
 #define configIDLE_SHOULD_YIELD                 1
@@ -143,10 +149,10 @@
 
 #ifdef __RX__
 /* Renesas RX series */
-#define vSoftwareInterruptISR					INT_Excep_ICU_SWINT
-#define vTickISR								INT_Excep_CMT0_CMI0
-#define configPERIPHERAL_CLOCK_HZ				(configCPU_CLOCK_HZ/2)
-#define configKERNEL_INTERRUPT_PRIORITY			1
+#define vSoftwareInterruptISR					        INT_Excep_ICU_SWINT
+#define vTickISR								              INT_Excep_CMT0_CMI0
+#define configPERIPHERAL_CLOCK_HZ				      (configCPU_CLOCK_HZ/2)
+#define configKERNEL_INTERRUPT_PRIORITY			  1
 #define configMAX_SYSCALL_INTERRUPT_PRIORITY	4
 
 #else
@@ -162,9 +168,18 @@
 #if defined(__NVIC_PRIO_BITS)
   // For Cortex-M specific: __NVIC_PRIO_BITS is defined in core_cmx.h
 	#define configPRIO_BITS       __NVIC_PRIO_BITS
+
 #elif defined(__ECLIC_INTCTLBITS)
   // RISC-V Bumblebee core from nuclei
   #define configPRIO_BITS       __ECLIC_INTCTLBITS
+
+#elif defined(__IASMARM__)
+  // FIXME: IAR Assembler cannot include mcu header directly to get __NVIC_PRIO_BITS.
+  // Therefore we will hard coded it to minimum value of 2 to get pass ci build.
+  // IAR user must update this to correct value of the target MCU
+  #message "configPRIO_BITS is hard coded to 2 to pass IAR build only. User should update it per MCU"
+  #define configPRIO_BITS       2
+
 #else
   #error "FreeRTOS configPRIO_BITS to be defined"
 #endif

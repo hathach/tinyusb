@@ -1,4 +1,4 @@
-/* 
+/*
  * The MIT License (MIT)
  *
  * Copyright (c) 2019 Ha Thach (tinyusb.org)
@@ -105,7 +105,7 @@ void SystemClock_Config(void)
 void board_init(void)
 {
   SystemClock_Config();
-  
+
   #if CFG_TUSB_OS  == OPT_OS_NONE
   // 1ms tick timer
   SysTick_Config(SystemCoreClock / 1000);
@@ -191,6 +191,7 @@ int board_uart_write(void const * buf, int len)
 volatile uint32_t system_ticks = 0;
 void SysTick_Handler (void)
 {
+  HAL_IncTick();
   system_ticks++;
 }
 

@@ -14,6 +14,7 @@ add_executable(${PROJECT})
 
 # Example source
 target_sources(${PROJECT} PUBLIC
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/cdc_app.c
         ${CMAKE_CURRENT_SOURCE_DIR}/src/hid_app.c
         ${CMAKE_CURRENT_SOURCE_DIR}/src/main.c
         ${CMAKE_CURRENT_SOURCE_DIR}/src/msc_app.c
@@ -28,5 +29,7 @@ target_include_directories(${PROJECT} PUBLIC
 # in hw/bsp/FAMILY/family.cmake for details.
 family_configure_host_example(${PROJECT})
 
-# For rp2040, un-comment to enable pico-pio-usb
-# family_add_pico_pio_usb(${PROJECT})
+# Add pico-pio-usb for rp2040 since user can choose to run on bit-banging host
+if(FAMILY STREQUAL "rp2040")
+  family_add_pico_pio_usb(${PROJECT})
+endif()

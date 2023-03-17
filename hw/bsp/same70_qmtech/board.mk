@@ -44,7 +44,7 @@ INC += \
 	$(TOP)/$(ASF_DIR)/CMSIS/Core/Include
 
 # For freeRTOS port source
-FREERTOS_PORT = ARM_CM7
+FREERTOS_PORTABLE_SRC = $(FREERTOS_PORTABLE_PATH)/ARM_CM7
 
 # For flash-jlink target
 JLINK_DEVICE = SAME70N19B

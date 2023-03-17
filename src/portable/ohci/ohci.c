@@ -1,4 +1,4 @@
-/* 
+/*
  * The MIT License (MIT)
  *
  * Copyright (c) 2019 Ha Thach (tinyusb.org)
@@ -27,6 +27,10 @@
 #include "tusb_option.h"
 
 #if CFG_TUH_ENABLED && defined(TUP_USBIP_OHCI)
+
+#ifndef TUP_OHCI_RHPORTS
+#error  OHCI is enabled, but TUP_OHCI_RHPORTS is not defined.
+#endif
 
 //--------------------------------------------------------------------+
 // INCLUDE
@@ -157,6 +161,21 @@ static void ed_list_remove_by_addr(ohci_ed_t * p_head, uint8_t dev_addr);
 //--------------------------------------------------------------------+
 // USBH-HCD API
 //--------------------------------------------------------------------+
+
+// If your system requires separation of virtual and physical memory, implement
+// tusb_app_virt_to_phys and tusb_app_virt_to_phys in your application.
+TU_ATTR_ALWAYS_INLINE static inline void *_phys_addr(void *virtual_address)
+{
+  if (tusb_app_virt_to_phys) return tusb_app_virt_to_phys(virtual_address);
+  return virtual_address;
+}
+
+TU_ATTR_ALWAYS_INLINE static inline void *_virt_addr(void *physical_address)
+{
+  if (tusb_app_phys_to_virt) return tusb_app_phys_to_virt(physical_address);
+  return physical_address;
+}
+
 // Initialization according to 5.1.1.4
 bool hcd_init(uint8_t rhport)
 {
@@ -165,22 +184,44 @@ bool hcd_init(uint8_t rhport)
   //------------- Data Structure init -------------//
   tu_memclr(&ohci_data, sizeof(ohci_data_t));
   for(uint8_t i=0; i<32; i++)
-  { // assign all interrupt pointes to period head ed
-    ohci_data.hcca.interrupt_table[i] = (uint32_t) &ohci_data.period_head_ed;
+  { // assign all interrupt pointers to period head ed
+    ohci_data.hcca.interrupt_table[i] = (uint32_t) _phys_addr(&ohci_data.period_head_ed);
   }
 
   ohci_data.control[0].ed.skip  = 1;
   ohci_data.bulk_head_ed.skip   = 1;
   ohci_data.period_head_ed.skip = 1;
 
+  //If OHCI hardware is in SMM mode, gain ownership (Ref OHCI spec 5.1.1.3.3)
+  if (OHCI_REG->control_bit.interrupt_routing == 1)
+  {
+    OHCI_REG->command_status_bit.ownership_change_request = 1;
+    while (OHCI_REG->control_bit.interrupt_routing == 1) {}
+  }
+
+  //If OHCI hardware has come from warm-boot, signal resume (Ref OHCI spec 5.1.1.3.4)
+  else if (OHCI_REG->control_bit.hc_functional_state != OHCI_CONTROL_FUNCSTATE_RESET &&
+           OHCI_REG->control_bit.hc_functional_state != OHCI_CONTROL_FUNCSTATE_OPERATIONAL)
+  {
+    //Wait 20 ms. (Ref Usb spec 7.1.7.7)
+    OHCI_REG->control_bit.hc_functional_state = OHCI_CONTROL_FUNCSTATE_RESUME;
+
+#if CFG_TUSB_OS != OPT_OS_NONE
+    // os_none implement task delay using usb frame counter which is not started yet
+    // therefore cause infinite delay.
+    // TODO find a way to delay in case of os none e.g __nop
+    osal_task_delay(20);
+#endif
+  }
+
   // reset controller
   OHCI_REG->command_status_bit.controller_reset = 1;
   while( OHCI_REG->command_status_bit.controller_reset ) {} // should not take longer than 10 us
 
   //------------- init ohci registers -------------//
-  OHCI_REG->control_head_ed = (uint32_t) &ohci_data.control[0].ed;
-  OHCI_REG->bulk_head_ed    = (uint32_t) &ohci_data.bulk_head_ed;
-  OHCI_REG->hcca            = (uint32_t) &ohci_data.hcca;
+  OHCI_REG->control_head_ed = (uint32_t) _phys_addr(&ohci_data.control[0].ed);
+  OHCI_REG->bulk_head_ed    = (uint32_t) _phys_addr(&ohci_data.bulk_head_ed);
+  OHCI_REG->hcca            = (uint32_t) _phys_addr(&ohci_data.hcca);
 
   OHCI_REG->interrupt_disable = OHCI_REG->interrupt_enable; // disable all interrupts
   OHCI_REG->interrupt_status  = OHCI_REG->interrupt_status; // clear current set bits
@@ -188,14 +229,20 @@ bool hcd_init(uint8_t rhport)
       OHCI_INT_UNRECOVERABLE_ERROR_MASK | OHCI_INT_FRAME_OVERFLOW_MASK | OHCI_INT_RHPORT_STATUS_CHANGE_MASK |
       OHCI_INT_MASTER_ENABLE_MASK;
 
-  OHCI_REG->control |= OHCI_CONTROL_CONTROL_BULK_RATIO | OHCI_CONTROL_LIST_CONTROL_ENABLE_MASK |
+  OHCI_REG->control = OHCI_CONTROL_CONTROL_BULK_RATIO | OHCI_CONTROL_LIST_CONTROL_ENABLE_MASK |
        OHCI_CONTROL_LIST_BULK_ENABLE_MASK | OHCI_CONTROL_LIST_PERIODIC_ENABLE_MASK; // TODO Isochronous
 
   OHCI_REG->frame_interval = (OHCI_FMINTERVAL_FSMPS << 16) | OHCI_FMINTERVAL_FI;
+  OHCI_REG->frame_interval ^= (1 << 31); //Must toggle when frame_interval is updated.
   OHCI_REG->periodic_start = (OHCI_FMINTERVAL_FI * 9) / 10; // Periodic start is 90% of frame interval
 
   OHCI_REG->control_bit.hc_functional_state = OHCI_CONTROL_FUNCSTATE_OPERATIONAL; // make HC's state to operational state TODO use this to suspend (save power)
   OHCI_REG->rh_status_bit.local_power_status_change = 1; // set global power for ports
+
+#if CFG_TUSB_OS != OPT_OS_NONE
+  // TODO as above delay
+  osal_task_delay(OHCI_REG->rh_descriptorA_bit.power_on_to_good_time * 2); // Wait POTG after power up
+#endif
 
   return true;
 }
@@ -212,8 +259,7 @@ uint32_t hcd_frame_number(uint8_t rhport)
 //--------------------------------------------------------------------+
 void hcd_port_reset(uint8_t hostid)
 {
-  (void) hostid;
-  OHCI_REG->rhport_status[0] = RHPORT_PORT_RESET_STATUS_MASK;
+  OHCI_REG->rhport_status[hostid] = RHPORT_PORT_RESET_STATUS_MASK;
 }
 
 void hcd_port_reset_end(uint8_t rhport)
@@ -223,14 +269,12 @@ void hcd_port_reset_end(uint8_t rhport)
 
 bool hcd_port_connect_status(uint8_t hostid)
 {
-  (void) hostid;
-  return OHCI_REG->rhport_status_bit[0].current_connect_status;
+  return OHCI_REG->rhport_status_bit[hostid].current_connect_status;
 }
 
 tusb_speed_t hcd_port_speed_get(uint8_t hostid)
 {
-  (void) hostid;
-  return OHCI_REG->rhport_status_bit[0].low_speed_device_attached ? TUSB_SPEED_LOW : TUSB_SPEED_FULL;
+  return OHCI_REG->rhport_status_bit[hostid].low_speed_device_attached ? TUSB_SPEED_LOW : TUSB_SPEED_FULL;
 }
 
 // endpoints are tied to an address, which only reclaim after a long delay when enumerating
@@ -308,8 +352,8 @@ static void gtd_init(ohci_gtd_t* p_td, uint8_t* data_ptr, uint16_t total_bytes)
   p_td->delay_interrupt        = OHCI_INT_ON_COMPLETE_NO;
   p_td->condition_code         = OHCI_CCODE_NOT_ACCESSED;
 
-  p_td->current_buffer_pointer = data_ptr;
-  p_td->buffer_end             = total_bytes ? (data_ptr + total_bytes-1) : data_ptr;
+  p_td->current_buffer_pointer = _phys_addr(data_ptr);
+  p_td->buffer_end             = total_bytes ? (_phys_addr(data_ptr + total_bytes - 1)) : (uint8_t *)p_td->current_buffer_pointer;
 }
 
 static ohci_ed_t * ed_from_addr(uint8_t dev_addr, uint8_t ep_addr)
@@ -345,7 +389,7 @@ static ohci_ed_t * ed_find_free(void)
 static void ed_list_insert(ohci_ed_t * p_pre, ohci_ed_t * p_ed)
 {
   p_ed->next = p_pre->next;
-  p_pre->next = (uint32_t) p_ed;
+  p_pre->next = (uint32_t) _phys_addr(p_ed);
 }
 
 static void ed_list_remove_by_addr(ohci_ed_t * p_head, uint8_t dev_addr)
@@ -354,20 +398,24 @@ static void ed_list_remove_by_addr(ohci_ed_t * p_head, uint8_t dev_addr)
 
   while( p_prev->next )
   {
-    ohci_ed_t* ed = (ohci_ed_t*) p_prev->next;
+    ohci_ed_t* ed = (ohci_ed_t*) _virt_addr((void *)p_prev->next);
 
     if (ed->dev_addr == dev_addr)
     {
-      // unlink ed
+      // Prevent Host Controller from processing this ED while we remove it
+      ed->skip = 1;
+
+      // unlink ed, will also move up p_prev
       p_prev->next = ed->next;
 
       // point the removed ED's next pointer to list head to make sure HC can always safely move away from this ED
-      ed->next = (uint32_t) p_head;
+      ed->next = (uint32_t) _phys_addr(p_head);
       ed->used = 0;
+      ed->skip = 0;
+    }else
+    {
+      p_prev = (ohci_ed_t*) _virt_addr((void *)p_prev->next);
     }
-
-    // check next valid since we could remove it
-    if (p_prev->next) p_prev = (ohci_ed_t*) p_prev->next;
   }
 }
 
@@ -386,11 +434,11 @@ static void td_insert_to_ed(ohci_ed_t* p_ed, ohci_gtd_t * p_gtd)
   // tail is always NULL
   if ( tu_align16(p_ed->td_head.address) == 0 )
   { // TD queue is empty --> head = TD
-    p_ed->td_head.address |= (uint32_t) p_gtd;
+    p_ed->td_head.address |= (uint32_t) _phys_addr(p_gtd);
   }
   else
   { // TODO currently only support queue up to 2 TD each endpoint at a time
-    ((ohci_gtd_t*) tu_align16(p_ed->td_head.address))->next = (uint32_t) p_gtd;
+    ((ohci_gtd_t*) tu_align16((uint32_t)_virt_addr((void *)p_ed->td_head.address)))->next = (uint32_t) _phys_addr(p_gtd);
   }
 }
 
@@ -443,10 +491,10 @@ bool hcd_setup_send(uint8_t rhport, uint8_t dev_addr, uint8_t const setup_packet
   qtd->index           = dev_addr;
   qtd->pid             = PID_SETUP;
   qtd->data_toggle     = GTD_DT_DATA0;
-  qtd->delay_interrupt = 0;
+  qtd->delay_interrupt = OHCI_INT_ON_COMPLETE_YES;
 
   //------------- Attach TDs list to Control Endpoint -------------//
-  ed->td_head.address = (uint32_t) qtd;
+  ed->td_head.address = (uint32_t) _phys_addr(qtd);
 
   OHCI_REG->command_status_bit.control_list_filled = 1;
 
@@ -470,9 +518,9 @@ bool hcd_edpt_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr, uint8_t * 
     gtd->index           = dev_addr;
     gtd->pid             = dir ? PID_IN : PID_OUT;
     gtd->data_toggle     = GTD_DT_DATA1; // Both Data and Ack stage start with DATA1
-    gtd->delay_interrupt = 0;
+    gtd->delay_interrupt = OHCI_INT_ON_COMPLETE_YES;
 
-    ed->td_head.address = (uint32_t) gtd;
+    ed->td_head.address = (uint32_t) _phys_addr(gtd);
 
     OHCI_REG->command_status_bit.control_list_filled = 1;
   }else
@@ -484,7 +532,7 @@ bool hcd_edpt_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr, uint8_t * 
 
     gtd_init(gtd, buffer, buflen);
     gtd->index = ed-ohci_data.ed_pool;
-    gtd->delay_interrupt = 0;
+    gtd->delay_interrupt = OHCI_INT_ON_COMPLETE_YES;
 
     td_insert_to_ed(ed, gtd);
 
@@ -520,16 +568,17 @@ static ohci_td_item_t* list_reverse(ohci_td_item_t* td_head)
 
   while(td_head != NULL)
   {
+    td_head = _virt_addr(td_head);
     uint32_t next = td_head->next;
 
     // make current's item become reverse's first item
     td_head->next = (uint32_t) td_reverse_head;
-    td_reverse_head  = td_head;
+    td_reverse_head  = _phys_addr(td_head);
 
     td_head = (ohci_td_item_t*) next; // advance to next item
   }
 
-  return td_reverse_head;
+  return _virt_addr(td_reverse_head);
 }
 
 static inline bool gtd_is_control(ohci_gtd_t const * const p_qtd)
@@ -565,6 +614,7 @@ static void done_queue_isr(uint8_t hostid)
 
   // done head is written in reversed order of completion --> need to reverse the done queue first
   ohci_td_item_t* td_head = list_reverse ( (ohci_td_item_t*) tu_align16(ohci_data.hcca.done_head) );
+  ohci_data.hcca.done_head = 0;
 
   while( td_head != NULL )
   {
@@ -600,7 +650,7 @@ static void done_queue_isr(uint8_t hostid)
       hcd_event_xfer_complete(ed->dev_addr, tu_edpt_addr(ed->ep_number, dir), xferred_bytes, event, true);
     }
 
-    td_head = (ohci_td_item_t*) td_head->next;
+    td_head = (ohci_td_item_t*) _virt_addr((void *)td_head->next);
   }
 }
 
@@ -611,6 +661,9 @@ void hcd_int_handler(uint8_t hostid)
 
   if (int_status == 0) return;
 
+  // Disable MIE as per OHCI spec 5.3
+  OHCI_REG->interrupt_disable = OHCI_INT_MASTER_ENABLE_MASK;
+
   // Frame number overflow
   if ( int_status & OHCI_INT_FRAME_OVERFLOW_MASK )
   {
@@ -620,29 +673,30 @@ void hcd_int_handler(uint8_t hostid)
   //------------- RootHub status -------------//
   if ( int_status & OHCI_INT_RHPORT_STATUS_CHANGE_MASK )
   {
-    uint32_t const rhport_status = OHCI_REG->rhport_status[0] & RHPORT_ALL_CHANGE_MASK;
-
-    // TODO dual port is not yet supported
-    if ( rhport_status & RHPORT_CONNECT_STATUS_CHANGE_MASK )
+    for (int i = 0; i < TUP_OHCI_RHPORTS; i++)
     {
-      // TODO check if remote wake-up
-      if ( OHCI_REG->rhport_status_bit[0].current_connect_status )
+      uint32_t const rhport_status = OHCI_REG->rhport_status[i] & RHPORT_ALL_CHANGE_MASK;
+      if ( rhport_status & RHPORT_CONNECT_STATUS_CHANGE_MASK )
       {
-        // TODO reset port immediately, without this controller will got 2-3 (debouncing connection status change)
-        OHCI_REG->rhport_status[0] = RHPORT_PORT_RESET_STATUS_MASK;
-        hcd_event_device_attach(hostid, true);
-      }else
-      {
-        hcd_event_device_remove(hostid, true);
+        // TODO check if remote wake-up
+        if ( OHCI_REG->rhport_status_bit[i].current_connect_status )
+        {
+          // TODO reset port immediately, without this controller will got 2-3 (debouncing connection status change)
+          OHCI_REG->rhport_status[i] = RHPORT_PORT_RESET_STATUS_MASK;
+          hcd_event_device_attach(i, true);
+        }else
+        {
+          hcd_event_device_remove(i, true);
+        }
       }
+
+      if ( rhport_status & RHPORT_PORT_SUSPEND_CHANGE_MASK)
+      {
+
+      }
+
+      OHCI_REG->rhport_status[i] = rhport_status; // acknowledge all interrupt
     }
-
-    if ( rhport_status & RHPORT_PORT_SUSPEND_CHANGE_MASK)
-    {
-
-    }
-
-    OHCI_REG->rhport_status[0] = rhport_status; // acknowledge all interrupt
   }
 
   //------------- Transfer Complete -------------//
@@ -652,6 +706,8 @@ void hcd_int_handler(uint8_t hostid)
   }
 
   OHCI_REG->interrupt_status = int_status; // Acknowledge handled interrupt
+
+  OHCI_REG->interrupt_enable = OHCI_INT_MASTER_ENABLE_MASK; // Enable MIE
 }
 //--------------------------------------------------------------------+
 // HELPER
@@ -659,4 +715,3 @@ void hcd_int_handler(uint8_t hostid)
 
 
 #endif
-

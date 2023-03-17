@@ -15,7 +15,7 @@
   *                        opensource.org/licenses/BSD-3-Clause
   *
   ******************************************************************************
-  */ 
+  */
 
 /* Define to prevent recursive inclusion -------------------------------------*/
 #ifndef __STM32F3xx_HAL_CONF_H
@@ -30,9 +30,9 @@
 
 /* ########################## Module Selection ############################## */
 /**
-  * @brief This is the list of modules to be used in the HAL driver 
+  * @brief This is the list of modules to be used in the HAL driver
   */
-#define HAL_MODULE_ENABLED  
+#define HAL_MODULE_ENABLED
 /* #define HAL_ADC_MODULE_ENABLED */
 /* #define HAL_CAN_MODULE_ENABLED */
 /* #define HAL_CAN_LEGACY_MODULE_ENABLED */
@@ -57,7 +57,7 @@
 /* #define HAL_OPAMP_MODULE_ENABLED */
 /* #define HAL_PCD_MODULE_ENABLED */
 /* #define HAL_PWR_MODULE_ENABLED */
-#define HAL_RCC_MODULE_ENABLED 
+#define HAL_RCC_MODULE_ENABLED
 /* #define HAL_RTC_MODULE_ENABLED */
 /* #define HAL_SDADC_MODULE_ENABLED */
 /* #define HAL_SMARTCARD_MODULE_ENABLED */
@@ -73,15 +73,15 @@
 /**
   * @brief Adjust the value of External High Speed oscillator (HSE) used in your application.
   *        This value is used by the RCC HAL module to compute the system frequency
-  *        (when HSE is used as system clock source, directly or through the PLL).  
+  *        (when HSE is used as system clock source, directly or through the PLL).
   */
-#if !defined  (HSE_VALUE) 
+#if !defined  (HSE_VALUE)
   #define HSE_VALUE    (8000000U) /*!< Value of the External oscillator in Hz */
 #endif /* HSE_VALUE */
 
 /**
-  * @brief In the following line adjust the External High Speed oscillator (HSE) Startup 
-  *        Timeout value 
+  * @brief In the following line adjust the External High Speed oscillator (HSE) Startup
+  *        Timeout value
   */
 #if !defined  (HSE_STARTUP_TIMEOUT)
   #define HSE_STARTUP_TIMEOUT    (100U)   /*!< Time out for HSE start up, in ms */
@@ -90,25 +90,25 @@
 /**
   * @brief Internal High Speed oscillator (HSI) value.
   *        This value is used by the RCC HAL module to compute the system frequency
-  *        (when HSI is used as system clock source, directly or through the PLL). 
+  *        (when HSI is used as system clock source, directly or through the PLL).
   */
 #if !defined  (HSI_VALUE)
   #define HSI_VALUE    (8000000U) /*!< Value of the Internal oscillator in Hz*/
 #endif /* HSI_VALUE */
 
 /**
-  * @brief In the following line adjust the Internal High Speed oscillator (HSI) Startup 
-  *        Timeout value 
+  * @brief In the following line adjust the Internal High Speed oscillator (HSI) Startup
+  *        Timeout value
   */
-#if !defined  (HSI_STARTUP_TIMEOUT) 
+#if !defined  (HSI_STARTUP_TIMEOUT)
  #define HSI_STARTUP_TIMEOUT   (5000U) /*!< Time out for HSI start up */
-#endif /* HSI_STARTUP_TIMEOUT */  
+#endif /* HSI_STARTUP_TIMEOUT */
 
 /**
   * @brief Internal Low Speed oscillator (LSI) value.
   */
-#if !defined  (LSI_VALUE) 
- #define LSI_VALUE  (40000U)    
+#if !defined  (LSI_VALUE)
+ #define LSI_VALUE  (40000U)
 #endif /* LSI_VALUE */                      /*!< Value of the Internal Low Speed oscillator in Hz
                                              The real value may vary depending on the variations
                                              in voltage and temperature.  */
@@ -124,11 +124,11 @@
   */
 #if !defined  (LSE_STARTUP_TIMEOUT)
   #define LSE_STARTUP_TIMEOUT    (5000U)   /*!< Time out for LSE start up, in ms */
-#endif /* LSE_STARTUP_TIMEOUT */     
+#endif /* LSE_STARTUP_TIMEOUT */
 
 /**
   * @brief External clock source for I2S peripheral
-  *        This value is used by the I2S HAL module to compute the I2S clock source 
+  *        This value is used by the I2S HAL module to compute the I2S clock source
   *        frequency, this source is inserted directly through I2S_CKIN pad.
   *        - External clock generated through external PLL component on EVAL 303 (based on MCO or crystal)
   *        - External clock not generated on EVAL 373
@@ -256,8 +256,8 @@
 
 #ifdef HAL_PCCARD_MODULE_ENABLED
   #include "stm32f3xx_hal_pccard.h"
-#endif /* HAL_PCCARD_MODULE_ENABLED */ 
-  
+#endif /* HAL_PCCARD_MODULE_ENABLED */
+
 #ifdef HAL_HRTIM_MODULE_ENABLED
  #include "stm32f3xx_hal_hrtim.h"
 #endif /* HAL_HRTIM_MODULE_ENABLED */

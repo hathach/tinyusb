@@ -1,4 +1,4 @@
-/* 
+/*
  * The MIT License (MIT)
  *
  * Copyright (c) 2019 Ha Thach (tinyusb.org)
@@ -35,6 +35,10 @@
 // TASK API
 //--------------------------------------------------------------------+
 
+#if CFG_TUH_ENABLED
+// currently only needed/available in host mode
+void osal_task_delay(uint32_t msec);
+#endif
 
 //--------------------------------------------------------------------+
 // Binary Semaphore API
@@ -82,6 +86,10 @@ TU_ATTR_ALWAYS_INLINE static inline void osal_semaphore_reset(osal_semaphore_t s
 typedef osal_semaphore_def_t osal_mutex_def_t;
 typedef osal_semaphore_t osal_mutex_t;
 
+#if OSAL_MUTEX_REQUIRED
+// Note: multiple cores MCUs usually do provide IPC API for mutex
+// or we can use std atomic function
+
 TU_ATTR_ALWAYS_INLINE static inline osal_mutex_t osal_mutex_create(osal_mutex_def_t* mdef)
 {
   mdef->count = 1;
@@ -97,6 +105,14 @@ TU_ATTR_ALWAYS_INLINE static inline bool osal_mutex_unlock(osal_mutex_t mutex_hd
 {
   return osal_semaphore_post(mutex_hdl, false);
 }
+
+#else
+
+#define osal_mutex_create(_mdef)          (NULL)
+#define osal_mutex_lock(_mutex_hdl, _ms)  (true)
+#define osal_mutex_unlock(_mutex_hdl)     (true)
+
+#endif
 
 //--------------------------------------------------------------------+
 // QUEUE API

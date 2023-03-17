@@ -71,8 +71,8 @@ typedef struct
   uint8_t add_sense_qualifier;
 }mscd_interface_t;
 
-CFG_TUSB_MEM_SECTION CFG_TUSB_MEM_ALIGN static mscd_interface_t _mscd_itf;
-CFG_TUSB_MEM_SECTION CFG_TUSB_MEM_ALIGN static uint8_t _mscd_buf[CFG_TUD_MSC_EP_BUFSIZE];
+CFG_TUSB_MEM_SECTION CFG_TUSB_MEM_ALIGN tu_static mscd_interface_t _mscd_itf;
+CFG_TUSB_MEM_SECTION CFG_TUSB_MEM_ALIGN tu_static uint8_t _mscd_buf[CFG_TUD_MSC_EP_BUFSIZE];
 
 //--------------------------------------------------------------------+
 // INTERNAL OBJECT & FUNCTION DECLARATION
@@ -202,7 +202,7 @@ uint8_t rdwr10_validate_cmd(msc_cbw_t const* cbw)
 //--------------------------------------------------------------------+
 #if CFG_TUSB_DEBUG >= 2
 
-TU_ATTR_UNUSED static tu_lookup_entry_t const _msc_scsi_cmd_lookup[] =
+TU_ATTR_UNUSED tu_static tu_lookup_entry_t const _msc_scsi_cmd_lookup[] =
 {
   { .key = SCSI_CMD_TEST_UNIT_READY              , .data = "Test Unit Ready" },
   { .key = SCSI_CMD_INQUIRY                      , .data = "Inquiry" },
@@ -217,7 +217,7 @@ TU_ATTR_UNUSED static tu_lookup_entry_t const _msc_scsi_cmd_lookup[] =
   { .key = SCSI_CMD_WRITE_10                     , .data = "Write10" }
 };
 
-TU_ATTR_UNUSED static tu_lookup_table_t const _msc_scsi_cmd_table =
+TU_ATTR_UNUSED tu_static tu_lookup_table_t const _msc_scsi_cmd_table =
 {
   .count = TU_ARRAY_SIZE(_msc_scsi_cmd_lookup),
   .items = _msc_scsi_cmd_lookup
@@ -707,7 +707,7 @@ static int32_t proc_builtin_scsi(uint8_t lun, uint8_t const scsi_cmd[16], uint8_
         read_capa10.block_size = tu_htonl(block_size);
 
         resplen = sizeof(read_capa10);
-        memcpy(buffer, &read_capa10, (size_t) resplen);
+        TU_VERIFY(0 == tu_memcpy_s(buffer, bufsize, &read_capa10, (size_t) resplen));
       }
     }
     break;
@@ -741,7 +741,7 @@ static int32_t proc_builtin_scsi(uint8_t lun, uint8_t const scsi_cmd[16], uint8_
         read_fmt_capa.block_size_u16 = tu_htons(block_size);
 
         resplen = sizeof(read_fmt_capa);
-        memcpy(buffer, &read_fmt_capa, (size_t) resplen);
+        TU_VERIFY(0 == tu_memcpy_s(buffer, bufsize, &read_fmt_capa, (size_t) resplen));
       }
     }
     break;
@@ -764,7 +764,7 @@ static int32_t proc_builtin_scsi(uint8_t lun, uint8_t const scsi_cmd[16], uint8_
       tud_msc_inquiry_cb(lun, inquiry_rsp.vendor_id, inquiry_rsp.product_id, inquiry_rsp.product_rev);
 
       resplen = sizeof(inquiry_rsp);
-      memcpy(buffer, &inquiry_rsp, (size_t) resplen);
+      TU_VERIFY(0 == tu_memcpy_s(buffer, bufsize, &inquiry_rsp, (size_t) resplen));
     }
     break;
 
@@ -788,7 +788,7 @@ static int32_t proc_builtin_scsi(uint8_t lun, uint8_t const scsi_cmd[16], uint8_
       mode_resp.write_protected = !writable;
 
       resplen = sizeof(mode_resp);
-      memcpy(buffer, &mode_resp, (size_t) resplen);
+      TU_VERIFY(0 == tu_memcpy_s(buffer, bufsize, &mode_resp, (size_t) resplen));
     }
     break;
 
@@ -806,7 +806,7 @@ static int32_t proc_builtin_scsi(uint8_t lun, uint8_t const scsi_cmd[16], uint8_
       sense_rsp.add_sense_qualifier = p_msc->add_sense_qualifier;
 
       resplen = sizeof(sense_rsp);
-      memcpy(buffer, &sense_rsp, (size_t) resplen);
+      TU_VERIFY(0 == tu_memcpy_s(buffer, bufsize, &sense_rsp, (size_t) resplen));
 
       // request sense callback could overwrite the sense data
       if (tud_msc_request_sense_cb)

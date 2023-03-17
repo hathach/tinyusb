@@ -162,4 +162,3 @@ void mcu_gpio_exit_sleep(void);
 #endif
 
 #endif /* __MCU_MCU_H_ */
-

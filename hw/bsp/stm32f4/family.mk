@@ -7,18 +7,32 @@ ST_HAL_DRIVER = hw/mcu/st/stm32$(ST_FAMILY)xx_hal_driver
 
 include $(TOP)/$(BOARD_PATH)/board.mk
 
+# --------------
+# Compiler Flags
+# --------------
 CFLAGS += \
+  -DCFG_TUSB_MCU=OPT_MCU_STM32F4
+
+# GCC Flags
+GCC_CFLAGS += \
   -flto \
   -mthumb \
   -mabi=aapcs \
   -mcpu=cortex-m4 \
   -mfloat-abi=hard \
   -mfpu=fpv4-sp-d16 \
-  -nostdlib -nostartfiles \
-  -DCFG_TUSB_MCU=OPT_MCU_STM32F4
+  -nostdlib -nostartfiles
 
 # suppress warning caused by vendor mcu driver
-CFLAGS += -Wno-error=cast-align
+GCC_CFLAGS += -Wno-error=cast-align
+
+# IAR Flags
+IAR_CFLAGS += --cpu cortex-m4 --fpu VFPv4
+IAR_ASFLAGS += --cpu cortex-m4 --fpu VFPv4
+
+# -----------------
+# Sources & Include
+# -----------------
 
 SRC_C += \
 	src/portable/synopsys/dwc2/dcd_dwc2.c \
@@ -28,6 +42,7 @@ SRC_C += \
 	$(ST_HAL_DRIVER)/Src/stm32$(ST_FAMILY)xx_hal_rcc.c \
 	$(ST_HAL_DRIVER)/Src/stm32$(ST_FAMILY)xx_hal_rcc_ex.c \
 	$(ST_HAL_DRIVER)/Src/stm32$(ST_FAMILY)xx_hal_uart.c \
+	$(ST_HAL_DRIVER)/Src/stm32$(ST_FAMILY)xx_hal_dma.c \
 	$(ST_HAL_DRIVER)/Src/stm32$(ST_FAMILY)xx_hal_gpio.c
 
 INC += \
@@ -37,7 +52,7 @@ INC += \
 	$(TOP)/$(ST_HAL_DRIVER)/Inc
 
 # For freeRTOS port source
-FREERTOS_PORT = ARM_CM4F
+FREERTOS_PORTABLE_SRC = $(FREERTOS_PORTABLE_PATH)/ARM_CM4F
 
 # flash target using on-board stlink
 flash: flash-stlink

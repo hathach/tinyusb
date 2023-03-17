@@ -1,0 +1,14 @@
+% function_string = hash[:coverage][:functions].to_s
+% branch_string   = hash[:coverage][:branches].to_s
+% format_string   = "%#{[function_string.length, branch_string.length].max}i"
+<%=@ceedling[:plugin_reportinator].generate_banner("#{hash[:header]}: CODE COVERAGE SUMMARY")%>
+% if (!hash[:coverage][:functions].nil?)
+FUNCTIONS: <%=sprintf(format_string, hash[:coverage][:functions])%>%
+% else
+FUNCTIONS: none
+% end
+% if (!hash[:coverage][:branches].nil?)
+BRANCHES:  <%=sprintf(format_string, hash[:coverage][:branches])%>%
+% else
+BRANCHES:  none
+% end

@@ -130,7 +130,7 @@ typedef struct
 // INTERNAL OBJECT & FUNCTION DECLARATION
 //--------------------------------------------------------------------+
 
-CFG_TUSB_MEM_SECTION CFG_TUSB_MEM_ALIGN static const ntb_parameters_t ntb_parameters = {
+CFG_TUSB_MEM_SECTION CFG_TUSB_MEM_ALIGN tu_static const ntb_parameters_t ntb_parameters = {
     .wLength                 = sizeof(ntb_parameters_t),
     .bmNtbFormatsSupported   = 0x01,
     .dwNtbInMaxSize          = CFG_TUD_NCM_IN_NTB_MAX_SIZE,
@@ -145,11 +145,11 @@ CFG_TUSB_MEM_SECTION CFG_TUSB_MEM_ALIGN static const ntb_parameters_t ntb_parame
     .wNtbOutMaxDatagrams     = 0
 };
 
-CFG_TUSB_MEM_SECTION CFG_TUSB_MEM_ALIGN static transmit_ntb_t transmit_ntb[2];
+CFG_TUSB_MEM_SECTION CFG_TUSB_MEM_ALIGN tu_static transmit_ntb_t transmit_ntb[2];
 
-CFG_TUSB_MEM_SECTION CFG_TUSB_MEM_ALIGN static uint8_t receive_ntb[CFG_TUD_NCM_OUT_NTB_MAX_SIZE];
+CFG_TUSB_MEM_SECTION CFG_TUSB_MEM_ALIGN tu_static uint8_t receive_ntb[CFG_TUD_NCM_OUT_NTB_MAX_SIZE];
 
-static ncm_interface_t ncm_interface;
+tu_static ncm_interface_t ncm_interface;
 
 /*
  * Set up the NTB state in ncm_interface to be ready to add datagrams.
@@ -196,7 +196,7 @@ static void ncm_start_tx(void) {
   ncm_prepare_for_tx();
 }
 
-static struct ecm_notify_struct ncm_notify_connected =
+tu_static struct ecm_notify_struct ncm_notify_connected =
 {
     .header = {
         .bmRequestType_bit = {
@@ -210,7 +210,7 @@ static struct ecm_notify_struct ncm_notify_connected =
     },
 };
 
-static struct ecm_notify_struct ncm_notify_speed_change =
+tu_static struct ecm_notify_struct ncm_notify_speed_change =
 {
     .header = {
         .bmRequestType_bit = {
@@ -392,7 +392,7 @@ bool netd_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request_t 
 
       if (NCM_GET_NTB_PARAMETERS == request->bRequest)
       {
-        tud_control_xfer(rhport, request, (void*)&ntb_parameters, sizeof(ntb_parameters));
+        tud_control_xfer(rhport, request, (void*)(uintptr_t) &ntb_parameters, sizeof(ntb_parameters));
       }
 
       break;
@@ -430,7 +430,7 @@ static void handle_incoming_datagram(uint32_t len)
   {
     ncm_interface.num_datagrams++;
   }
-  
+
   tud_network_recv_renew();
 }
 

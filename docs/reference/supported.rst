@@ -61,9 +61,11 @@ Supported MCUs
 |              |         | 55          | ✔      |      | ✔         | lpc_ip3511        |              |
 +--------------+---------+-------------+--------+------+-----------+-------------------+--------------+
 | Raspberry Pi | RP2040                | ✔      | ✔    | ✖         | rp2040, pio_usb   |              |
-+--------------+-----------------------+--------+------+-----------+-------------------+--------------+
-| Renesas      | RX 63N, 65N, 72N      | ✔      | ✔    | ✖         | usba              |              |
-+--------------+-----------------------+--------+------+-----------+-------------------+--------------+
++--------------+-----+-----------------+--------+------+-----------+-------------------+--------------+
+| Renesas      | RX  | 63N, 65N, 72N   | ✔      | ✔    | ✖         | rusb2             |              |
+|              +-----+-----------------+--------+------+-----------+-------------------+--------------+
+|              | RA  | XXX             | ✔      | ✔    |           | rusb2             |              |
++--------------+-----+-----------------+--------+------+-----------+-------------------+--------------+
 | Silabs       | EFM32GG12             | ✔      |      | ✖         | dwc2              |              |
 +--------------+-----------------------+--------+------+-----------+-------------------+--------------+
 | Sony         | CXD56                 | ✔      | ✖    | ✔         | cxd56             |              |
@@ -105,6 +107,8 @@ Supported MCUs
 |              | TM4C123               | ✔      |      | ✖         | musb              |              |
 +--------------+-----------------------+--------+------+-----------+-------------------+--------------+
 | ValentyUSB   | eptri                 | ✔      | ✖    | ✖         | eptri             |              |
++--------------+-----------------------+--------+------+-----------+-------------------+--------------+
+| WCH          | CH32V307              | ✔      |      | ✔         | ch32v307          |              |
 +--------------+-----------------------+--------+------+-----------+-------------------+--------------+
 
 
@@ -293,8 +297,17 @@ LPC55
 -  `LPCXpresso 55s69 EVK <https://www.nxp.com/design/development-boards/lpcxpresso-boards/lpcxpresso55s69-development-board:LPC55S69-EVK>`__
 -  `MCU-Link <https://www.nxp.com/design/development-boards/lpcxpresso-boards/mcu-link-debug-probe:MCU-LINK>`__
 
-Renesas RX
-----------
+Renesas
+-------
+
+RA
+^^
+
+-  `Evaluation Kit for RA4M1 <https://www.renesas.com/us/en/products/microcontrollers-microprocessors/ra-cortex-m-mcus/ek-ra4m1-evaluation-kit-ra4m1-mcu-group>`__
+-  `Evaluation Kit for RA4M3 <https://www.renesas.com/us/en/products/microcontrollers-microprocessors/ra-cortex-m-mcus/ek-ra4m3-evaluation-kit-ra4m3-mcu-group>`__
+
+RX
+^^
 
 -  `GR-CITRUS <https://www.renesas.com/us/en/products/gadget-renesas/boards/gr-citrus>`__
 -  `Renesas RX65N Target Board <https://www.renesas.com/us/en/products/microcontrollers-microprocessors/rx-32-bit-performance-efficiency-mcus/rtk5rx65n0c00000br-target-board-rx65n>`__
@@ -397,3 +410,8 @@ Tomu
 ----
 
 -  `Fomu <https://www.crowdsupply.com/sutajio-kosagi/fomu>`__
+
+WCH
+---
+
+- `CH32V307V-R1-1v0 <https://lcsc.com/product-detail/Development-Boards-Kits_WCH-Jiangsu-Qin-Heng-CH32V307V-EVT-R1_C2943980.html>`

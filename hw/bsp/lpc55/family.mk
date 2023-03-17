@@ -43,6 +43,7 @@ SRC_C += \
 	$(MCU_DIR)/drivers/fsl_power.c \
 	$(MCU_DIR)/drivers/fsl_reset.c \
 	$(SDK_DIR)/drivers/lpc_gpio/fsl_gpio.c \
+	$(SDK_DIR)/drivers/common/fsl_common_arm.c \
 	$(SDK_DIR)/drivers/flexcomm/fsl_flexcomm.c \
 	$(SDK_DIR)/drivers/flexcomm/fsl_usart.c \
 	lib/sct_neopixel/sct_neopixel.c
@@ -64,4 +65,4 @@ SRC_S += $(MCU_DIR)/gcc/startup_$(MCU_CORE).S
 LIBS += $(TOP)/$(MCU_DIR)/gcc/libpower_hardabi.a
 
 # For freeRTOS port source
-FREERTOS_PORT = ARM_CM33_NTZ/non_secure
+FREERTOS_PORTABLE_SRC = $(FREERTOS_PORTABLE_PATH)/ARM_CM33_NTZ/non_secure

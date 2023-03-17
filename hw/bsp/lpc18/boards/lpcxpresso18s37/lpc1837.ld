@@ -12,43 +12,43 @@
 MEMORY
 {
   /* Define each memory region */
-  MFlashA512 (rx) : ORIGIN = 0x1a000000, LENGTH = 0x80000 /* 512K bytes (alias Flash) */  
-  MFlashB512 (rx) : ORIGIN = 0x1b000000, LENGTH = 0x80000 /* 512K bytes (alias Flash2) */  
-  RamLoc32 (rwx) : ORIGIN = 0x10000000, LENGTH = 0x8000 /* 32K bytes (alias RAM) */  
-  RamLoc40 (rwx) : ORIGIN = 0x10080000, LENGTH = 0xa000 /* 40K bytes (alias RAM2) */  
-  RamAHB32 (rwx) : ORIGIN = 0x20000000, LENGTH = 0x8000 /* 32K bytes (alias RAM3) */  
-  RamAHB16 (rwx) : ORIGIN = 0x20008000, LENGTH = 0x4000 /* 16K bytes (alias RAM4) */  
-  RamAHB_ETB16 (rwx) : ORIGIN = 0x2000c000, LENGTH = 0x4000 /* 16K bytes (alias RAM5) */  
+  MFlashA512 (rx) : ORIGIN = 0x1a000000, LENGTH = 0x80000 /* 512K bytes (alias Flash) */
+  MFlashB512 (rx) : ORIGIN = 0x1b000000, LENGTH = 0x80000 /* 512K bytes (alias Flash2) */
+  RamLoc32 (rwx) : ORIGIN = 0x10000000, LENGTH = 0x8000 /* 32K bytes (alias RAM) */
+  RamLoc40 (rwx) : ORIGIN = 0x10080000, LENGTH = 0xa000 /* 40K bytes (alias RAM2) */
+  RamAHB32 (rwx) : ORIGIN = 0x20000000, LENGTH = 0x8000 /* 32K bytes (alias RAM3) */
+  RamAHB16 (rwx) : ORIGIN = 0x20008000, LENGTH = 0x4000 /* 16K bytes (alias RAM4) */
+  RamAHB_ETB16 (rwx) : ORIGIN = 0x2000c000, LENGTH = 0x4000 /* 16K bytes (alias RAM5) */
 }
 
 /* Define a symbol for the top of each memory region */
-__base_MFlashA512 = 0x1a000000  ; /* MFlashA512 */  
-__base_Flash = 0x1a000000 ; /* Flash */  
-__top_MFlashA512 = 0x1a000000 + 0x80000 ; /* 512K bytes */  
-__top_Flash = 0x1a000000 + 0x80000 ; /* 512K bytes */  
-__base_MFlashB512 = 0x1b000000  ; /* MFlashB512 */  
-__base_Flash2 = 0x1b000000 ; /* Flash2 */  
-__top_MFlashB512 = 0x1b000000 + 0x80000 ; /* 512K bytes */  
-__top_Flash2 = 0x1b000000 + 0x80000 ; /* 512K bytes */  
-__base_RamLoc32 = 0x10000000  ; /* RamLoc32 */  
-__base_RAM = 0x10000000 ; /* RAM */  
-__top_RamLoc32 = 0x10000000 + 0x8000 ; /* 32K bytes */  
-__top_RAM = 0x10000000 + 0x8000 ; /* 32K bytes */  
-__base_RamLoc40 = 0x10080000  ; /* RamLoc40 */  
-__base_RAM2 = 0x10080000 ; /* RAM2 */  
-__top_RamLoc40 = 0x10080000 + 0xa000 ; /* 40K bytes */  
-__top_RAM2 = 0x10080000 + 0xa000 ; /* 40K bytes */  
-__base_RamAHB32 = 0x20000000  ; /* RamAHB32 */  
-__base_RAM3 = 0x20000000 ; /* RAM3 */  
-__top_RamAHB32 = 0x20000000 + 0x8000 ; /* 32K bytes */  
-__top_RAM3 = 0x20000000 + 0x8000 ; /* 32K bytes */  
-__base_RamAHB16 = 0x20008000  ; /* RamAHB16 */  
-__base_RAM4 = 0x20008000 ; /* RAM4 */  
-__top_RamAHB16 = 0x20008000 + 0x4000 ; /* 16K bytes */  
-__top_RAM4 = 0x20008000 + 0x4000 ; /* 16K bytes */  
-__base_RamAHB_ETB16 = 0x2000c000  ; /* RamAHB_ETB16 */  
-__base_RAM5 = 0x2000c000 ; /* RAM5 */  
-__top_RamAHB_ETB16 = 0x2000c000 + 0x4000 ; /* 16K bytes */  
+__base_MFlashA512 = 0x1a000000  ; /* MFlashA512 */
+__base_Flash = 0x1a000000 ; /* Flash */
+__top_MFlashA512 = 0x1a000000 + 0x80000 ; /* 512K bytes */
+__top_Flash = 0x1a000000 + 0x80000 ; /* 512K bytes */
+__base_MFlashB512 = 0x1b000000  ; /* MFlashB512 */
+__base_Flash2 = 0x1b000000 ; /* Flash2 */
+__top_MFlashB512 = 0x1b000000 + 0x80000 ; /* 512K bytes */
+__top_Flash2 = 0x1b000000 + 0x80000 ; /* 512K bytes */
+__base_RamLoc32 = 0x10000000  ; /* RamLoc32 */
+__base_RAM = 0x10000000 ; /* RAM */
+__top_RamLoc32 = 0x10000000 + 0x8000 ; /* 32K bytes */
+__top_RAM = 0x10000000 + 0x8000 ; /* 32K bytes */
+__base_RamLoc40 = 0x10080000  ; /* RamLoc40 */
+__base_RAM2 = 0x10080000 ; /* RAM2 */
+__top_RamLoc40 = 0x10080000 + 0xa000 ; /* 40K bytes */
+__top_RAM2 = 0x10080000 + 0xa000 ; /* 40K bytes */
+__base_RamAHB32 = 0x20000000  ; /* RamAHB32 */
+__base_RAM3 = 0x20000000 ; /* RAM3 */
+__top_RamAHB32 = 0x20000000 + 0x8000 ; /* 32K bytes */
+__top_RAM3 = 0x20000000 + 0x8000 ; /* 32K bytes */
+__base_RamAHB16 = 0x20008000  ; /* RamAHB16 */
+__base_RAM4 = 0x20008000 ; /* RAM4 */
+__top_RamAHB16 = 0x20008000 + 0x4000 ; /* 16K bytes */
+__top_RAM4 = 0x20008000 + 0x4000 ; /* 16K bytes */
+__base_RamAHB_ETB16 = 0x2000c000  ; /* RamAHB_ETB16 */
+__base_RAM5 = 0x2000c000 ; /* RAM5 */
+__top_RamAHB_ETB16 = 0x2000c000 + 0x4000 ; /* 16K bytes */
 __top_RAM5 = 0x2000c000 + 0x4000 ; /* 16K bytes */
 
 ENTRY(ResetISR)
@@ -137,9 +137,9 @@ SECTIONS
         *(.ARM.exidx* .gnu.linkonce.armexidx.*)
         __exidx_end = .;
     } > MFlashA512
- 
+
     _etext = .;
-        
+
     /* DATA section for RamLoc40 */
 
     .data_RAM2 : ALIGN(4)
@@ -377,17 +377,17 @@ SECTIONS
          . = ALIGN(4) ;
         _end_noinit = .;
        PROVIDE(__end_noinit_RAM = .) ;
-       PROVIDE(__end_noinit_RamLoc32 = .) ;        
+       PROVIDE(__end_noinit_RamLoc32 = .) ;
     } > RamLoc32 AT> RamLoc32
     PROVIDE(_pvHeapStart = DEFINED(__user_heap_base) ? __user_heap_base : .);
     PROVIDE(_vStackTop = DEFINED(__user_stack_top) ? __user_stack_top : __top_RamLoc32 - 0);
 
     /* ## Create checksum value (used in startup) ## */
-    PROVIDE(__valid_user_code_checksum = 0 - 
-                                         (_vStackTop 
-                                         + (ResetISR + 1) 
-                                         + (NMI_Handler + 1) 
-                                         + (HardFault_Handler + 1) 
+    PROVIDE(__valid_user_code_checksum = 0 -
+                                         (_vStackTop
+                                         + (ResetISR + 1)
+                                         + (NMI_Handler + 1)
+                                         + (HardFault_Handler + 1)
                                          + (( DEFINED(MemManage_Handler) ? MemManage_Handler : 0 ) + 1)   /* MemManage_Handler may not be defined */
                                          + (( DEFINED(BusFault_Handler) ? BusFault_Handler : 0 ) + 1)     /* BusFault_Handler may not be defined */
                                          + (( DEFINED(UsageFault_Handler) ? UsageFault_Handler : 0 ) + 1) /* UsageFault_Handler may not be defined */

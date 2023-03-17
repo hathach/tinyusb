@@ -48,7 +48,7 @@ if( deviceInfo ) {
 
 
 function anySupportedBoard(d) {
-	
+
 	for (var key in boards) {
 	    if (boards.hasOwnProperty(key)) {
 	        if (isDevice(boards[key],d)) {
@@ -65,4 +65,3 @@ function isDevice(board,d){
 	// product id 0xff is matches all
 	return d.vendorId==board[0] && (d.productId==board[1] || board[1] == 0xFFFF);
 }
-

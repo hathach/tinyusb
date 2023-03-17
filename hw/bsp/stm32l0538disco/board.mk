@@ -41,12 +41,12 @@ INC += \
   $(TOP)/hw/bsp/$(BOARD)
 
 # For freeRTOS port source
-FREERTOS_PORT = ARM_CM0
+FREERTOS_PORTABLE_SRC = $(FREERTOS_PORTABLE_PATH)/ARM_CM0
 
 # For flash-jlink target
 JLINK_DEVICE = STM32L053R8
 
-# Path to STM32 Cube Programmer CLI, should be added into system path 
+# Path to STM32 Cube Programmer CLI, should be added into system path
 STM32Prog = STM32_Programmer_CLI
 
 # flash target using on-board stlink

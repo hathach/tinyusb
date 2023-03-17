@@ -1,4 +1,4 @@
-/* 
+/*
  * The MIT License (MIT)
  *
  * Copyright (c) 2019 Ha Thach (tinyusb.org)
@@ -111,7 +111,7 @@ void cdc_task(void)
     // connected and there are data available
     if ( tud_cdc_available() )
     {
-      // read datas
+      // read data
       char buf[64];
       uint32_t count = tud_cdc_read(buf, sizeof(buf));
       (void) count;

@@ -1,4 +1,4 @@
-/* 
+/*
  * The MIT License (MIT)
  *
  * Copyright (c) 2018, hathach (tinyusb.org)
@@ -103,7 +103,7 @@ void board_init(void)
   // Button
   CLOCK_EnableClock(BUTTON_PIN_CLOCK);
   port_pin_config_t button_port = {
-    .pullSelect = kPORT_PullUp, 
+    .pullSelect = kPORT_PullUp,
     .mux = BUTTON_PIN_FUNCTION,
   };
   PORT_SetPinConfig(BUTTON_PIN_PORT, BUTTON_PIN, &button_port);

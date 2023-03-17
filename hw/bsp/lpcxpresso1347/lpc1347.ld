@@ -11,29 +11,29 @@
 MEMORY
 {
   /* Define each memory region */
-  MFlash64 (rx) : ORIGIN = 0x0, LENGTH = 0x10000 /* 64K bytes (alias Flash) */  
-  RamLoc8 (rwx) : ORIGIN = 0x10000000, LENGTH = 0x2000 /* 8K bytes (alias RAM) */  
-  RamUsb2 (rwx) : ORIGIN = 0x20004000, LENGTH = 0x800 /* 2K bytes (alias RAM2) */  
-  RamPeriph2 (rwx) : ORIGIN = 0x20000000, LENGTH = 0x800 /* 2K bytes (alias RAM3) */  
+  MFlash64 (rx) : ORIGIN = 0x0, LENGTH = 0x10000 /* 64K bytes (alias Flash) */
+  RamLoc8 (rwx) : ORIGIN = 0x10000000, LENGTH = 0x2000 /* 8K bytes (alias RAM) */
+  RamUsb2 (rwx) : ORIGIN = 0x20004000, LENGTH = 0x800 /* 2K bytes (alias RAM2) */
+  RamPeriph2 (rwx) : ORIGIN = 0x20000000, LENGTH = 0x800 /* 2K bytes (alias RAM3) */
 }
 
   /* Define a symbol for the top of each memory region */
-  __base_MFlash64 = 0x0  ; /* MFlash64 */  
-  __base_Flash = 0x0 ; /* Flash */  
-  __top_MFlash64 = 0x0 + 0x10000 ; /* 64K bytes */  
-  __top_Flash = 0x0 + 0x10000 ; /* 64K bytes */  
-  __base_RamLoc8 = 0x10000000  ; /* RamLoc8 */  
-  __base_RAM = 0x10000000 ; /* RAM */  
-  __top_RamLoc8 = 0x10000000 + 0x2000 ; /* 8K bytes */  
-  __top_RAM = 0x10000000 + 0x2000 ; /* 8K bytes */  
-  __base_RamUsb2 = 0x20004000  ; /* RamUsb2 */  
-  __base_RAM2 = 0x20004000 ; /* RAM2 */  
-  __top_RamUsb2 = 0x20004000 + 0x800 ; /* 2K bytes */  
-  __top_RAM2 = 0x20004000 + 0x800 ; /* 2K bytes */  
-  __base_RamPeriph2 = 0x20000000  ; /* RamPeriph2 */  
-  __base_RAM3 = 0x20000000 ; /* RAM3 */  
-  __top_RamPeriph2 = 0x20000000 + 0x800 ; /* 2K bytes */  
-  __top_RAM3 = 0x20000000 + 0x800 ; /* 2K bytes */  
+  __base_MFlash64 = 0x0  ; /* MFlash64 */
+  __base_Flash = 0x0 ; /* Flash */
+  __top_MFlash64 = 0x0 + 0x10000 ; /* 64K bytes */
+  __top_Flash = 0x0 + 0x10000 ; /* 64K bytes */
+  __base_RamLoc8 = 0x10000000  ; /* RamLoc8 */
+  __base_RAM = 0x10000000 ; /* RAM */
+  __top_RamLoc8 = 0x10000000 + 0x2000 ; /* 8K bytes */
+  __top_RAM = 0x10000000 + 0x2000 ; /* 8K bytes */
+  __base_RamUsb2 = 0x20004000  ; /* RamUsb2 */
+  __base_RAM2 = 0x20004000 ; /* RAM2 */
+  __top_RamUsb2 = 0x20004000 + 0x800 ; /* 2K bytes */
+  __top_RAM2 = 0x20004000 + 0x800 ; /* 2K bytes */
+  __base_RamPeriph2 = 0x20000000  ; /* RamPeriph2 */
+  __base_RAM3 = 0x20000000 ; /* RAM3 */
+  __top_RamPeriph2 = 0x20000000 + 0x800 ; /* 2K bytes */
+  __top_RAM3 = 0x20000000 + 0x800 ; /* 2K bytes */
 
 ENTRY(ResetISR)
 
@@ -82,9 +82,9 @@ SECTIONS
     } > MFlash64
     /*
      * for exception handling/unwind - some Newlib functions (in common
-     * with C++ and STDC++) use this. 
+     * with C++ and STDC++) use this.
      */
-    .ARM.extab : ALIGN(4) 
+    .ARM.extab : ALIGN(4)
     {
         *(.ARM.extab* .gnu.linkonce.armextab.*)
     } > MFlash64
@@ -98,7 +98,7 @@ SECTIONS
     __exidx_end = .;
 
     _etext = .;
-        
+
     /* DATA section for RamUsb2 */
 
     .data_RAM2 : ALIGN(4)
@@ -153,7 +153,7 @@ SECTIONS
        *(.bss.$RamUsb2*)
        . = ALIGN (. != 0 ? 4 : 1) ; /* avoid empty segment */
        PROVIDE(__end_bss_RAM2 = .) ;
-    } > RamUsb2 
+    } > RamUsb2
 
     /* BSS section for RamPeriph2 */
     .bss_RAM3 : ALIGN(4)
@@ -163,7 +163,7 @@ SECTIONS
        *(.bss.$RamPeriph2*)
        . = ALIGN (. != 0 ? 4 : 1) ; /* avoid empty segment */
        PROVIDE(__end_bss_RAM3 = .) ;
-    } > RamPeriph2 
+    } > RamPeriph2
 
     /* MAIN BSS SECTION */
     .bss : ALIGN(4)
@@ -182,7 +182,7 @@ SECTIONS
        *(.noinit.$RAM2*)
        *(.noinit.$RamUsb2*)
        . = ALIGN(4) ;
-    } > RamUsb2 
+    } > RamUsb2
 
     /* NOINIT section for RamPeriph2 */
     .noinit_RAM3 (NOLOAD) : ALIGN(4)
@@ -190,13 +190,13 @@ SECTIONS
        *(.noinit.$RAM3*)
        *(.noinit.$RamPeriph2*)
        . = ALIGN(4) ;
-    } > RamPeriph2 
+    } > RamPeriph2
 
     /* DEFAULT NOINIT SECTION */
     .noinit (NOLOAD): ALIGN(4)
     {
         _noinit = .;
-        *(.noinit*) 
+        *(.noinit*)
          . = ALIGN(4) ;
         _end_noinit = .;
     } > RamLoc8
@@ -204,11 +204,11 @@ SECTIONS
     PROVIDE(_vStackTop = DEFINED(__user_stack_top) ? __user_stack_top : __top_RamLoc8 - 0);
 
     /* ## Create checksum value (used in startup) ## */
-    PROVIDE(__valid_user_code_checksum = 0 - 
-                                         (_vStackTop 
-                                         + (ResetISR + 1) 
-                                         + (NMI_Handler + 1) 
-                                         + (HardFault_Handler + 1) 
+    PROVIDE(__valid_user_code_checksum = 0 -
+                                         (_vStackTop
+                                         + (ResetISR + 1)
+                                         + (NMI_Handler + 1)
+                                         + (HardFault_Handler + 1)
                                          + (( DEFINED(MemManage_Handler) ? MemManage_Handler : 0 ) + 1)   /* MemManage_Handler may not be defined */
                                          + (( DEFINED(BusFault_Handler) ? BusFault_Handler : 0 ) + 1)     /* BusFault_Handler may not be defined */
                                          + (( DEFINED(UsageFault_Handler) ? UsageFault_Handler : 0 ) + 1) /* UsageFault_Handler may not be defined */

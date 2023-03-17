@@ -44,7 +44,7 @@ INC += \
 	$(TOP)/$(ASF_DIR)/CMSIS/Core/Include
 
 # For freeRTOS port source
-FREERTOS_PORT = ARM_CM7
+FREERTOS_PORTABLE_SRC = $(FREERTOS_PORTABLE_PATH)/ARM_CM7
 
 # For flash-jlink target
 JLINK_DEVICE = SAME70Q21B
@@ -53,4 +53,4 @@ JLINK_DEVICE = SAME70Q21B
 # Note: SAME70's GPNVM1 must be set to 1 to boot from flash with
 # 	edbg -t same70 -F w0,1,1
 flash: $(BUILD)/$(PROJECT).bin
-	edbg --verbose -t same70 -pv -f $< 
+	edbg --verbose -t same70 -pv -f $<

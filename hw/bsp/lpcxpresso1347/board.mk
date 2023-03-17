@@ -12,7 +12,7 @@ CFLAGS += \
   -DCFG_EXAMPLE_VIDEO_READONLY \
   -DCFG_TUSB_MCU=OPT_MCU_LPC13XX \
   -DCFG_TUSB_MEM_SECTION='__attribute__((section(".data.$$RAM2")))' \
-  -DCFG_TUSB_MEM_ALIGN='__attribute__((aligned(64)))' 
+  -DCFG_TUSB_MEM_ALIGN='__attribute__((aligned(64)))'
 
 # startup.c and lpc_types.h cause following errors
 CFLAGS += -Wno-error=strict-prototypes -Wno-error=redundant-decls
@@ -36,7 +36,7 @@ INC += \
 	$(TOP)/$(MCU_DIR)/inc
 
 # For freeRTOS port source
-FREERTOS_PORT = ARM_CM3
+FREERTOS_PORTABLE_SRC = $(FREERTOS_PORTABLE_PATH)/ARM_CM3
 
 # For flash-jlink target
 JLINK_DEVICE = LPC1347

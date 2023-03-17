@@ -1,3 +1,4 @@
+mcu:CH32V307
 mcu:CXD56
 mcu:F1C100S
 mcu:GD32VF103

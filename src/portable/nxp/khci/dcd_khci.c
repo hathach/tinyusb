@@ -1,4 +1,4 @@
-/* 
+/*
  * The MIT License (MIT)
  *
  * Copyright (c) 2020 Koji Kitayama
@@ -296,7 +296,7 @@ void dcd_int_disable(uint8_t rhport)
 
 void dcd_set_address(uint8_t rhport, uint8_t dev_addr)
 {
-  _dcd.addr = dev_addr & 0x7F; 
+  _dcd.addr = dev_addr & 0x7F;
   /* Response with status first before changing device address */
   dcd_edpt_xfer(rhport, tu_edpt_addr(0, TUSB_DIR_IN), NULL, 0);
 }
@@ -528,7 +528,7 @@ void dcd_int_handler(uint8_t rhport)
   if (is & USB_ISTAT_SLEEP_MASK) {
     // TU_LOG2("Suspend: "); TU_LOG2_HEX(is);
 
-    // Note Host usually has extra delay after bus reset (without SOF), which could falsely 
+    // Note Host usually has extra delay after bus reset (without SOF), which could falsely
     // detected as Sleep event. Though usbd has debouncing logic so we are good
     KHCI->ISTAT = USB_ISTAT_SLEEP_MASK;
     process_bus_sleep(rhport);

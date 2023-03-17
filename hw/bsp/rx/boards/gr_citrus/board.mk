@@ -1,5 +1,3 @@
-DEPS_SUBMODULES += hw/mcu/renesas/rx
-
 CFLAGS += \
   -mcpu=rx610 \
   -misa=v1 \
@@ -11,7 +9,7 @@ MCU_DIR = hw/mcu/renesas/rx/rx63n
 LD_FILE = $(BOARD_PATH)/r5f5631fd.ld
 
 # For freeRTOS port source
-FREERTOS_PORT = RX600
+FREERTOS_PORTABLE_SRC = $(FREERTOS_PORTABLE_PATH)/RX600
 
 # For flash-jlink target
 JLINK_DEVICE = R5F5631F

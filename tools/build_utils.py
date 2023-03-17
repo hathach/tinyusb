@@ -77,7 +77,7 @@ def skip_example(example, board):
     return False
 
 
-def build_example(example, board):
+def build_example(example, board, make_option):
     start_time = time.monotonic()
     flash_size = "-"
     sram_size = "-"
@@ -85,21 +85,22 @@ def build_example(example, board):
     # succeeded, failed, skipped
     ret = [0, 0, 0]
 
+    make_cmd = "make -j -C examples/{} BOARD={} {}".format(example, board, make_option)
+
     # Check if board is skipped
     if skip_example(example, board):
         status = SKIPPED
         ret[2] = 1
         print(build_format.format(example, board, status, '-', flash_size, sram_size))
     else:
-        build_result = subprocess.run("make -j -C examples/{} BOARD={} all".format(example, board), shell=True,
-                                      stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+        subprocess.run(make_cmd + " clean", shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+        build_result = subprocess.run(make_cmd + " all", shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
 
         if build_result.returncode == 0:
             status = SUCCEEDED
             ret[0] = 1
-            (flash_size, sram_size) = build_size(example, board)
-            subprocess.run("make -j -C examples/{} BOARD={} copy-artifact".format(example, board), shell=True,
-                           stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+            (flash_size, sram_size) = build_size(make_cmd)
+            #subprocess.run(make_cmd + " copy-artifact", shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
         else:
             status = FAILED
             ret[1] = 1
@@ -113,10 +114,14 @@ def build_example(example, board):
     return ret
 
 
-def build_size(example, board):
-    elf_file = 'examples/{}/_build/{}/*.elf'.format(example, board)
-    size_output = subprocess.run('size {}'.format(elf_file), shell=True, stdout=subprocess.PIPE).stdout.decode("utf-8")
-    size_list = size_output.split('\n')[1].split('\t')
-    flash_size = int(size_list[0])
-    sram_size = int(size_list[1]) + int(size_list[2])
-    return (flash_size, sram_size)
+def build_size(make_cmd):
+    size_output = subprocess.run(make_cmd + ' size', shell=True, stdout=subprocess.PIPE).stdout.decode("utf-8").splitlines()
+    for i, l in enumerate(size_output):
+        text_title = 'text	   data	    bss	    dec'
+        if text_title in l:
+            size_list = size_output[i+1].split('\t')
+            flash_size = int(size_list[0])
+            sram_size = int(size_list[1]) + int(size_list[2])
+            return (flash_size, sram_size)
+
+    return (0, 0)
