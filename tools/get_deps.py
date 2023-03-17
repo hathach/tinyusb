@@ -104,9 +104,6 @@ def get_a_dep(d):
 
 
 if __name__ == "__main__":
-    if len(sys.argv) <= 1:
-        sys.exit(1)
-
     status = 0
     deps = list(deps_mandatory.keys()) + sys.argv[1:]
     with Pool() as pool:
