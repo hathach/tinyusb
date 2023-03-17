@@ -142,9 +142,7 @@ endif
 # get depenecies
 .PHONY: get-deps
 get-deps:
-  ifdef DEPS_SUBMODULES
-	git -C $(TOP) submodule update --init $(DEPS_SUBMODULES)
-  endif
+	$(PYTHON) $(TOP)/tools/get_deps.py $(DEPS_SUBMODULES)
 
 size: $(BUILD)/$(PROJECT)
 	-@echo ''
