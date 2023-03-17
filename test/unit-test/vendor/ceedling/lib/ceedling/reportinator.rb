@@ -14,8 +14,8 @@ class Reportinator
   # ==== Examples
   #
   #    rp = Reportinator.new
-  #    rp.generate_banner("Hello world!") => "------------\nHello world!\n------------\n" 
-  #    rp.generate_banner("Hello world!", 3) => "---\nHello world!\n---\n" 
+  #    rp.generate_banner("Hello world!") => "------------\nHello world!\n------------\n"
+  #    rp.generate_banner("Hello world!", 3) => "---\nHello world!\n---\n"
   #
   #
   def generate_banner(message, width=nil)

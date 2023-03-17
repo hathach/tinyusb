@@ -96,4 +96,3 @@ module Ceedling
     DEFAULT_CEEDLING_CONFIG[:plugins][:load_paths] << gem_dir
   end
 end
-

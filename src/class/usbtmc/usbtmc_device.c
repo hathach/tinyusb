@@ -83,7 +83,7 @@ tu_static char logMsg[150];
 
 // Buffer size must be an exact multiple of the max packet size for both
 // bulk  (up to 64 bytes for FS, 512 bytes for HS). In addation, this driver
-// imposes a minimum buffer size of 32 bytes. 
+// imposes a minimum buffer size of 32 bytes.
 #define USBTMCD_BUFFER_SIZE (TUD_OPT_HIGH_SPEED ? 512 : 64)
 
 /*
@@ -598,7 +598,7 @@ bool usbtmcd_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request
     uint32_t ep_addr = (request->wIndex);
 
     // At this point, a transfer MAY be in progress. Based on USB spec, when clearing bulk EP HALT,
-    // the EP transfer buffer needs to be cleared and DTOG needs to be reset, even if 
+    // the EP transfer buffer needs to be cleared and DTOG needs to be reset, even if
     // the EP is not halted. The only USBD API interface to do this is to stall and then un-stall the EP.
     if(ep_addr == usbtmc_state.ep_bulk_out)
     {

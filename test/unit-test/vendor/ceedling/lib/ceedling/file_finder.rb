@@ -146,4 +146,3 @@ class FileFinder
     return @file_finder_helper.find_file_in_collection(file_path, file_list, complain)
   end
 end
-

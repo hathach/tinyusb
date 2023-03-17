@@ -94,7 +94,7 @@ class PreprocessinatorIncludesHandler
     target_file = make_rule.split[0].gsub(':', '').gsub('\\','/')
     base = File.basename(target_file, File.extname(target_file))
     make_rule_dependencies = make_rule.gsub(/.*\b#{Regexp.escape(base)}\S*/, '').gsub(/\\$/, '')
-    
+
     # Extract the headers dependencies from the make rule
     hdr_ext = @configurator.extension_header
     headers_dependencies = make_rule_dependencies.split.find_all {|path| path.end_with?(hdr_ext) }.uniq

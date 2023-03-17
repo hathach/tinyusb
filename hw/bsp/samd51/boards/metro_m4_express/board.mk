@@ -7,4 +7,3 @@ LD_FILE = $(BOARD_PATH)/$(BOARD).ld
 JLINK_DEVICE = ATSAMD51J19
 
 flash: flash-bossac
-

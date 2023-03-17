@@ -27,9 +27,9 @@
 /*
   Theory of operation:
 
-  The NUC505 USBD peripheral has twelve "EP"s, where each is simplex, in addition 
+  The NUC505 USBD peripheral has twelve "EP"s, where each is simplex, in addition
   to dedicated support for the control endpoint (EP0).  The non-user endpoints
-  are referred to as "user" EPs in this code, and follow the datasheet 
+  are referred to as "user" EPs in this code, and follow the datasheet
   nomenclature of EPA through EPL.
 */
 
@@ -389,7 +389,7 @@ bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t *buffer, uint16_t to
       while (total_bytes < USBD->CEPRXCNT);
       for (int count = 0; count < total_bytes; count++)
         *buffer++ = USBD->CEPDAT_BYTE;
-      
+
       dcd_event_xfer_complete(0, ep_addr, total_bytes, XFER_RESULT_SUCCESS, true);
     }
   }

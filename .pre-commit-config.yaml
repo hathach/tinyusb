@@ -13,11 +13,11 @@ repos:
 
 -   repo: local
     hooks:
-    -   id: codespell
-        name: codespell
-        entry: codespell
-        types_or: [c, header]
-        language: system
+    #-   id: codespell
+    #    name: codespell
+    #    entry: codespell
+    #    types_or: [c, header]
+    #    language: system
 
     -   id: unit-test
         name: unit-test

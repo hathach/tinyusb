@@ -79,7 +79,7 @@ class ConfiguratorSetup
 
     if config[:cmock][:unity_helper]
       config[:cmock][:unity_helper].each do |path|
-        validation << @configurator_validator.validate_filepath_simple( path, :cmock, :unity_helper ) 
+        validation << @configurator_validator.validate_filepath_simple( path, :cmock, :unity_helper )
       end
     end
 

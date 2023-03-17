@@ -874,4 +874,3 @@ void dcd_int_disable (uint8_t rhport)
 }
 
 #endif // #if OPT_MCU_ESP32S2 || OPT_MCU_ESP32S3
-

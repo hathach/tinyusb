@@ -89,7 +89,7 @@ endif
 # Rules
 # ---------------------------------------
 
-all: $(BUILD)/$(PROJECT) 
+all: $(BUILD)/$(PROJECT)
 
 OBJ_DIRS = $(sort $(dir $(OBJ)))
 $(OBJ): | $(OBJ_DIRS)
@@ -111,7 +111,7 @@ vpath %.c . $(TOP)
 $(BUILD)/obj/%.o: %.c
 	@echo CC $(notdir $@)
 	@$(CC) $(CFLAGS) -c -MD -o $@ $<
-	
+
 # All cpp srcs
 vpath %.cc . $(TOP)
 $(BUILD)/obj/%_cxx.o: %.cc

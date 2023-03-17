@@ -430,7 +430,7 @@ static void handle_incoming_datagram(uint32_t len)
   {
     ncm_interface.num_datagrams++;
   }
-  
+
   tud_network_recv_renew();
 }
 

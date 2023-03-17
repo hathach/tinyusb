@@ -1,4 +1,4 @@
-/* 
+/*
  * The MIT License (MIT)
  *
  * Copyright (c) 2018, hathach (tinyusb.org)
@@ -96,10 +96,10 @@ void board_init(void)
   CLOCK_EnableClock(kCLOCK_PortD);
   CLOCK_EnableClock(kCLOCK_PortE);
 
-  
+
   gpio_pin_config_t led_config = { kGPIO_DigitalOutput, 1 };
   GPIO_PinInit(GPIOA, 1U, &led_config);
-  PORT_SetPinMux(PORTA, 1U, kPORT_MuxAsGpio);  
+  PORT_SetPinMux(PORTA, 1U, kPORT_MuxAsGpio);
   led_config.outputLogic = 0;
   GPIO_PinInit(GPIOA, 2U, &led_config);
   PORT_SetPinMux(PORTA, 2U, kPORT_MuxAsGpio);
@@ -108,10 +108,10 @@ void board_init(void)
   gpio_pin_config_t button_config = { kGPIO_DigitalInput, 0 };
   GPIO_PinInit(BUTTON_GPIO, BUTTON_PIN, &button_config);
   const port_pin_config_t BUTTON_CFG = {
-    kPORT_PullUp, 
-    kPORT_FastSlewRate, 
-    kPORT_PassiveFilterDisable, 
-    kPORT_LowDriveStrength, 
+    kPORT_PullUp,
+    kPORT_FastSlewRate,
+    kPORT_PassiveFilterDisable,
+    kPORT_LowDriveStrength,
     kPORT_MuxAsGpio
   };
   PORT_SetPinConfig(BUTTON_PORT, BUTTON_PIN, &BUTTON_CFG);
@@ -121,7 +121,7 @@ void board_init(void)
   PORT_SetPinMux(PORTC, 3U, kPORT_MuxAlt3);
   /* PORTA2 (pin 24) is configured as LPUART0_TX */
   PORT_SetPinMux(PORTE, 0U, kPORT_MuxAlt3);
-  
+
   SIM->SOPT5 = ((SIM->SOPT5 &
                /* Mask bits to zero which are setting */
                (~(SIM_SOPT5_LPUART1TXSRC_MASK | SIM_SOPT5_LPUART1RXSRC_MASK)))

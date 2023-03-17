@@ -23,7 +23,7 @@ class PluginBuilder
   end
 
   private
-  
+
   def camelize(underscored_name)
     return underscored_name.gsub(/(_|^)([a-z0-9])/) {$2.upcase}
   end

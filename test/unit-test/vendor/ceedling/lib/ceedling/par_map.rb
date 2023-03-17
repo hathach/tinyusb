@@ -16,4 +16,3 @@ def par_map(n, things, &block)
   end
   threads.each { |t| t.join }
 end
-

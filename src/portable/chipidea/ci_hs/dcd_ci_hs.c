@@ -545,7 +545,7 @@ static void process_edpt_complete_isr(uint8_t rhport, uint8_t epnum, uint8_t dir
       tu_fifo_advance_write_pointer(p_qhd->ff, xferred_bytes);
     }
   }
-  
+
   // only number of bytes in the IOC qtd
   dcd_event_xfer_complete(rhport, tu_edpt_addr(epnum, dir), xferred_bytes, result, true);
 }

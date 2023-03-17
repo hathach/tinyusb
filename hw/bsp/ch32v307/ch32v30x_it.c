@@ -45,5 +45,3 @@ __attribute__((used)) void HardFault_Handler_impl(void)
   {
   }
 }
-
-

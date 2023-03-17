@@ -91,7 +91,7 @@ void board_init(void)
 #endif
   NVIC_SetPriority(OTG_HS_IRQn, configLIBRARY_MAX_SYSCALL_INTERRUPT_PRIORITY );
 #endif
-  
+
   GPIO_InitTypeDef  GPIO_InitStruct;
 
   // LED

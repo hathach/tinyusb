@@ -33,9 +33,9 @@
  * - Short EMLE pad and 3.3V(GR-CITRUS pin name) with a wire.
  *
  * The pads are [the back side of GR-CITRUS](https://www.slideshare.net/MinaoYamamoto/grcitrusrx631/2).
- * 
+ *
  * Connect the pins between GR-CITRUS and JLink as follows.
- * 
+ *
  * | Function  | GR-CITRUS pin | JLink pin No.| note     |
  * |:---------:|:-------------:|:------------:|:--------:|
  * | VTref     |   3.3V        |   1          |          |
@@ -91,7 +91,7 @@ void INT_Excep_SCI0_TXI0(void)
 {
   uint8_t *buf = sci0_buf[0].buf;
   uint32_t cnt = sci0_buf[0].cnt;
-  
+
   if (!buf || !cnt) {
     SCI0.SCR.BYTE &= ~(SCI_SCR_TEIE | SCI_SCR_TE | SCI_SCR_TIE);
     return;
