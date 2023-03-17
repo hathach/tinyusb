@@ -1,4 +1,4 @@
-/* 
+/*
  * The MIT License (MIT)
  *
  * Copyright (c) 2019 Ha Thach (tinyusb.org)
@@ -54,8 +54,6 @@
 // USBH-HCD common data structure
 //--------------------------------------------------------------------+
 
-// device0 struct must be strictly a subset of normal device struct
-// TODO refactor later
 typedef struct
 {
   // port
@@ -63,15 +61,13 @@ typedef struct
   uint8_t hub_addr;
   uint8_t hub_port;
   uint8_t speed;
+  volatile uint8_t enumerating;
 
-  struct TU_ATTR_PACKED
-  {
-    volatile uint8_t connected  : 1;
-    volatile uint8_t addressed  : 1;
-    volatile uint8_t configured : 1;
-    volatile uint8_t suspended  : 1;
-  };
-
+//  struct TU_ATTR_PACKED {
+//    uint8_t          speed       : 4; // packed speed to save footprint
+//    volatile uint8_t enumerating : 1;
+//    uint8_t TU_RESERVED : 3;
+//  };
 } usbh_dev0_t;
 
 typedef struct {
@@ -402,10 +398,18 @@ void tuh_task_ext(uint32_t timeout_ms, bool in_isr)
     switch (event.event_id)
     {
       case HCD_EVENT_DEVICE_ATTACH:
-        // TODO due to the shared _usbh_ctrl_buf, we must complete enumerating
+        // due to the shared _usbh_ctrl_buf, we must complete enumerating
         // one device before enumerating another one.
-        TU_LOG_USBH("[%u:] USBH DEVICE ATTACH\r\n", event.rhport);
-        enum_new_device(&event);
+        if ( _dev0.enumerating )
+        {
+          TU_LOG1("[%u:] USBH Defer Attach until current enumeration complete\r\n", event.rhport);
+          osal_queue_send(_usbh_q, &event, in_isr);
+        }else
+        {
+          TU_LOG1("[%u:] USBH DEVICE ATTACH\r\n", event.rhport);
+          _dev0.enumerating = 1;
+          enum_new_device(&event);
+        }
       break;
 
       case HCD_EVENT_DEVICE_REMOVE:
@@ -1623,6 +1627,9 @@ void usbh_driver_set_config_complete(uint8_t dev_addr, uint8_t itf_num)
 
 static void enum_full_complete(void)
 {
+  // mark enumeration as complete
+  _dev0.enumerating = 0;
+
 #if CFG_TUH_HUB
   // get next hub status
   if (_dev0.hub_addr) hub_edpt_status_xfer(_dev0.hub_addr);
