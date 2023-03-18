@@ -8,3 +8,4 @@ mcu:MKL25ZXX
 family:broadcom_64bit
 family:broadcom_32bit
 board:curiosity_nano
+board:frdm_kl25z
