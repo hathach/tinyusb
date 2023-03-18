@@ -242,7 +242,6 @@ void usbtmc_app_task_iter(void) {
     break;
   default:
     TU_ASSERT(false,);
-    return;
   }
 }
 
