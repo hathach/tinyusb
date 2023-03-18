@@ -34,6 +34,7 @@ jobs:
         # Alphabetical order
         - 'broadcom_32bit'
         - 'imxrt'
+        - 'kinetis_k32 kinetis_kl'
         - 'lpc15 lpc18'
         - 'lpc54 lpc55'
         - 'mm32 msp432e4'
