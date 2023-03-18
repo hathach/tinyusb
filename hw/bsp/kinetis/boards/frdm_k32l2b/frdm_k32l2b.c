@@ -25,7 +25,7 @@
  * This file is part of the TinyUSB stack.
  */
 
-#include "../board.h"
+#include "bsp/board.h"
 #include "board.h"
 #include "fsl_gpio.h"
 #include "fsl_port.h"
@@ -59,43 +59,27 @@ void board_init(void)
     kPORT_PullUp,
     kPORT_FastSlewRate,
     kPORT_PassiveFilterDisable,
-    kPORT_OpenDrainDisable,
     kPORT_LowDriveStrength,
-    kPORT_MuxAsGpio,
-    kPORT_UnlockRegister
+    kPORT_MuxAsGpio
   };
   PORT_SetPinConfig(BUTTON_PORT, BUTTON_PIN, &BUTTON_CFG);
 
-  /*
-    Enable LPUART0 clock and configure port pins.
-    FIR clock is being used so the USB examples work.
-  */
-  PCC_LPUART0  = 0U;                          /* Clock must be off to set PCS */
-  PCC_LPUART0  = PCC_CLKCFG_PCS( 3U );        /* Select the clock. 1:OSCCLK/Bus Clock, 2:Slow IRC, 3: Fast IRC, 6: System PLL */
-  PCC_LPUART0 |= PCC_CLKCFG_CGC( 1U );        /* Enable LPUART */
+  /* PORTA1 (pin 23) is configured as LPUART0_RX */
+  PORT_SetPinMux(PORTA, 1U, kPORT_MuxAlt2);
+  /* PORTA2 (pin 24) is configured as LPUART0_TX */
+  PORT_SetPinMux(PORTA, 2U, kPORT_MuxAlt2);
 
-  /* PORTB16 (pin 62) is configured as LPUART0_RX */
-  gpio_pin_config_t const lpuart_config_rx = { kGPIO_DigitalInput, 0 };
-  GPIO_PinInit(UART_PIN_GPIO, UART_PIN_RX, &lpuart_config_rx);
-  const port_pin_config_t UART_CFG = {
-    kPORT_PullUp,
-    kPORT_FastSlewRate,
-    kPORT_PassiveFilterDisable,
-    kPORT_OpenDrainDisable,
-    kPORT_LowDriveStrength,
-    kPORT_MuxAsGpio,
-    kPORT_UnlockRegister
-  };
-  PORT_SetPinConfig(UART_PIN_PORT, UART_PIN_RX, &UART_CFG);
-  PORT_SetPinMux(   UART_PIN_PORT, UART_PIN_RX, kPORT_MuxAlt3);
-
-  /* PORTB17 (pin 63) is configured as LPUART0_TX */
-  gpio_pin_config_t const lpuart_config_tx = { kGPIO_DigitalOutput, 0 };
-  GPIO_PinInit(   UART_PIN_GPIO, UART_PIN_TX, &lpuart_config_tx);
-  PORT_SetPinMux( UART_PIN_PORT, UART_PIN_TX, kPORT_MuxAlt3);
+  SIM->SOPT5 = ((SIM->SOPT5 &
+               /* Mask bits to zero which are setting */
+               (~(SIM_SOPT5_LPUART0TXSRC_MASK | SIM_SOPT5_LPUART0RXSRC_MASK)))
+               /* LPUART0 Transmit Data Source Select: LPUART0_TX pin. */
+               | SIM_SOPT5_LPUART0TXSRC(SOPT5_LPUART0TXSRC_LPUART_TX)
+               /* LPUART0 Receive Data Source Select: LPUART_RX pin. */
+               | SIM_SOPT5_LPUART0RXSRC(SOPT5_LPUART0RXSRC_LPUART_RX));
 
   BOARD_BootClockRUN();
   SystemCoreClockUpdate();
+  CLOCK_SetLpuart0Clock(1);
 
 #if CFG_TUSB_OS == OPT_OS_NONE
   // 1ms tick timer
@@ -110,10 +94,10 @@ void board_init(void)
   uart_config.baudRate_Bps = CFG_BOARD_UART_BAUDRATE;
   uart_config.enableTx = true;
   uart_config.enableRx = true;
-  LPUART_Init(UART_PORT, &uart_config, CLOCK_GetFreq(kCLOCK_ScgFircClk));
+  LPUART_Init(UART_PORT, &uart_config, CLOCK_GetFreq(kCLOCK_McgIrc48MClk));
 
   // USB
-  CLOCK_EnableUsbfs0Clock(kCLOCK_IpSrcFircAsync, 48000000U);
+  CLOCK_EnableUsbfs0Clock(kCLOCK_UsbSrcIrc48M, 48000000U);
 }
 
 //--------------------------------------------------------------------+
@@ -132,23 +116,8 @@ uint32_t board_button_read(void)
 
 int board_uart_read(uint8_t* buf, int len)
 {
-#if 0 /*
-	Use this version if want the LED to blink during BOARD=board_test,
-	without having to hit a key.
-      */
-  if( 0U != (kLPUART_RxDataRegFullFlag & LPUART_GetStatusFlags( UART_PORT )) )
-    {
-      LPUART_ReadBlocking(UART_PORT, buf, len);
-      return len;
-    }
-
-  return( 0 );
-#else /* Wait for 'len' characters to come in */
-
   LPUART_ReadBlocking(UART_PORT, buf, len);
   return len;
-
-#endif
 }
 
 int board_uart_write(void const * buf, int len)
