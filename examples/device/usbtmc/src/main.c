@@ -63,8 +63,6 @@ int main(void)
     led_blinking_task();
     usbtmc_app_task_iter();
   }
-
-  return 0;
 }
 
 //--------------------------------------------------------------------+
