@@ -154,7 +154,10 @@ TU_VERIFY_STATIC(USBTMCD_BUFFER_SIZE >= 32u,"USBTMC dev buffer size too small");
 static bool handle_devMsgOutStart(uint8_t rhport, void *data, size_t len);
 static bool handle_devMsgOut(uint8_t rhport, void *data, size_t len, size_t packetLen);
 
+#ifndef NDEBUG
 tu_static uint8_t termChar;
+#endif
+
 tu_static uint8_t termCharRequested = false;
 
 #if OSAL_MUTEX_REQUIRED
@@ -442,7 +445,10 @@ static bool handle_devMsgIn(void *data, size_t len)
   usbtmc_state.transfer_size_sent = 0u;
 
   termCharRequested = msg->bmTransferAttributes.TermCharEnabled;
+
+#ifndef NDEBUG
   termChar = msg->TermChar;
+#endif
 
   if(termCharRequested)
     TU_VERIFY(usbtmc_state.capabilities->bmDevCapabilities.canEndBulkInOnTermChar);
@@ -511,6 +517,7 @@ bool usbtmcd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint
       return true;
 
     case STATE_ABORTING_BULK_OUT:
+      // Should be stalled by now, shouldn't have received a packet.
       return false;
 
     case STATE_TX_REQUESTED:

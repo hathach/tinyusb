@@ -36,8 +36,8 @@
 #define __tusb_irq_path_func(x) x
 #endif
 
-#define usb_hw_set hw_set_alias(usb_hw)
-#define usb_hw_clear hw_clear_alias(usb_hw)
+#define usb_hw_set    ((usb_hw_t *) hw_set_alias(usb_hw))
+#define usb_hw_clear  ((usb_hw_t *) hw_clear_alias(usb_hw))
 
 #define pico_info(...)  TU_LOG(2, __VA_ARGS__)
 #define pico_trace(...) TU_LOG(3, __VA_ARGS__)
