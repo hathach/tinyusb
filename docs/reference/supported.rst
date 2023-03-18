@@ -253,7 +253,7 @@ Kinetis
 ^^^^^^^
 
 -  `Freedom FRDM-KL25Z <https://www.nxp.com/design/development-boards/freedom-development-boards/mcu-boards/freedom-development-platform-for-kinetis-kl14-kl15-kl24-kl25-mcus:FRDM-KL25Z>`__
--  `Freedom FRDM-K32L2A  <https://www.nxp.com/design/development-boards/freedom-development-boards/mcu-boards/nxp-freedom-platform-for-k32-l2a-mcus:FRDM-K32L2A4S>`__
+-  `Freedom FRDM-K32L2A4S  <https://www.nxp.com/design/development-boards/freedom-development-boards/mcu-boards/nxp-freedom-platform-for-k32-l2a-mcus:FRDM-K32L2A4S>`__
 -  `Freedom FRDM-K32L2B3 <https://www.nxp.com/design/development-boards/freedom-development-boards/mcu-boards/nxp-freedom-development-platform-for-k32-l2b-mcus:FRDM-K32L2B3>`__
 -  `KUIIC <https://github.com/nxf58843/kuiic>`__
 
