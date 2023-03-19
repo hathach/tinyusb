@@ -117,42 +117,6 @@ jobs:
         path: |
           *.elf
 
-
-  # ---------------------------------------
-  # Build all no-family (orphaned) boards
-  # disable this workflow since it is often failed randomly
-  # ---------------------------------------
-  build-board:
-    runs-on: ubuntu-latest
-    if: false
-    strategy:
-      fail-fast: false
-      matrix:
-        example:
-        # Alphabetical order, a group of 4
-        - 'device/audio_test device/board_test device/cdc_dual_ports device/cdc_msc'
-        - 'device/cdc_msc_freertos device/dfu_runtime device/hid_composite device/hid_composite_freertos'
-        - 'device/hid_generic_inout device/hid_multiple_interface device/midi_test device/msc_dual_lun'
-        - 'device/net_lwip_webserver'
-        - 'device/uac2_headset device/usbtmc device/webusb_serial host/cdc_msc_hid'
-
-    steps:
-    - name: Setup Python
-      uses: actions/setup-python@v4
-      with:
-        python-version: '3.x'
-
-    - name: Install ARM GCC
-      uses: carlosperate/arm-none-eabi-gcc-action@v1
-      with:
-        release: '11.2-2022.02'
-
-    - name: Checkout TinyUSB
-      uses: actions/checkout@v3
-
-    - name: Build
-      run: python3 tools/build_board.py ${{ matrix.example }}
-
   # ---------------------------------------
   # Hardware in the loop (HIL)
   # Current self-hosted instance is running on an RPI4 with
