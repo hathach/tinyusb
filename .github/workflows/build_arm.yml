@@ -94,20 +94,29 @@ jobs:
     # Upload binaries for rp2040/stm32l412nucleo hardware test with self-hosted
 
     - name: Prepare rp2040 Artifacts
-      if: matrix.family == 'rp2040' && github.repository_owner == 'hathach'
+      if: contains(matrix.family, 'rp2040') && github.repository_owner == 'hathach'
       run: find examples/ -name "*.elf" -exec mv {} . \;
 
     - name: Prepare stm32l412nucleo Artifacts
-      if: matrix.family == 'stm32l4'
+      if: contains(matrix.family, 'stm32l4')
       run: find examples/ -path "*stm32l412nucleo/*.elf" -exec mv {} . \;
 
-    - name: Upload Artifacts for hardware testing
-      if: matrix.family == 'stm32l4' || (matrix.family == 'rp2040' && github.repository_owner == 'hathach')
+    - name: Upload Artifacts for rp2040
+      if: contains(matrix.family,'rp2040') && github.repository_owner == 'hathach')
       uses: actions/upload-artifact@v3
       with:
-        name: ${{ matrix.family }}
+        name: rp2040
         path: |
           *.elf
+
+    - name: Upload Artifacts for stm32l412nucleo
+      if: contains(matrix.family, 'stm32l4') && github.repository_owner == 'hathach')
+      uses: actions/upload-artifact@v3
+      with:
+        name: stm32l4
+        path: |
+          *.elf
+
 
   # ---------------------------------------
   # Build all no-family (orphaned) boards
