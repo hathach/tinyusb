@@ -66,6 +66,10 @@ ifeq ($(NO_LTO),1)
 CFLAGS := $(filter-out -flto,$(CFLAGS))
 endif
 
+ifneq ($(CFLAGS_SKIP),)
+CFLAGS := $(filter-out $(CFLAGS_SKIP),$(CFLAGS))
+endif
+
 LDFLAGS += $(CFLAGS) -Wl,-Map=$@.map -Wl,-cref -Wl,-gc-sections
 
 ifdef LD_FILE

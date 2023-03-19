@@ -11,7 +11,10 @@ CFLAGS += \
   -DCFG_TUSB_MCU=OPT_MCU_SAMX7X
 
 # suppress following warnings from mcu driver
-CFLAGS += -Wno-error=unused-parameter -Wno-error=cast-align -Wno-error=cast-qual -Wno-error=redundant-decls
+CFLAGS += -Wno-error=unused-parameter -Wno-error=cast-align -Wno-error=redundant-decls
+
+# SAM driver is flooded with -Wcast-qual which slow down complication significantly
+CFLAGS_SKIP += -Wcast-qual
 
 ASF_DIR = hw/mcu/microchip/same70
 

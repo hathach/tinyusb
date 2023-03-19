@@ -48,9 +48,8 @@ jobs:
         - 'stm32f0 stm32f1'
         - 'stm32f4'
         - 'stm32f7'
-        - 'stm32g4 stm32wb'
-        - 'stm32h7'
-        - 'stm32l0 stm32l4'
+        - 'stm32g4 stm32h7'
+        - 'stm32l0 stm32l4 stm32u5 stm32wb'
         - 'tm4c123 xmc4000'
     steps:
     - name: Setup Python

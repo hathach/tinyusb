@@ -12,7 +12,10 @@ CFLAGS += \
   -DCFG_TUSB_MCU=OPT_MCU_SAMG
 
 # suppress following warnings from mcu driver
-CFLAGS += -Wno-error=undef -Wno-error=cast-qual -Wno-error=null-dereference -Wno-error=redundant-decls
+CFLAGS += -Wno-error=undef -Wno-error=null-dereference -Wno-error=redundant-decls
+
+# SAM driver is flooded with -Wcast-qual which slow down complication significantly
+CFLAGS_SKIP += -Wcast-qual
 
 ASF_DIR = hw/mcu/microchip/samg55
 
