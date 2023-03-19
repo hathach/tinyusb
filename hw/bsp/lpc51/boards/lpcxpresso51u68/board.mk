@@ -1,23 +1,8 @@
-SDK_DIR = hw/mcu/nxp/mcux-sdk
-DEPS_SUBMODULES += $(SDK_DIR)
+MCU = LPC51U68
 
 CFLAGS += \
-  -flto \
-  -mthumb \
-  -mabi=aapcs \
-  -mcpu=cortex-m0plus \
   -DCPU_LPC51U68JBD64 \
-  -DCFG_TUSB_MCU=OPT_MCU_LPC51UXX \
-  -DCFG_TUSB_MEM_SECTION='__attribute__((section(".data")))' \
-  -DCFG_TUSB_MEM_ALIGN='__attribute__((aligned(64)))'
-
-# mcu driver cause following warnings
-CFLAGS += -Wno-error=unused-parameter
-
-MCU_DIR = $(SDK_DIR)/devices/LPC51U68
-
-# All source paths should be relative to the top level.
-LD_FILE = $(MCU_DIR)/gcc/LPC51U68_flash.ld
+  -DCFG_TUSB_MEM_SECTION='__attribute__((section(".data")))'
 
 SRC_C += \
 	src/portable/nxp/lpc_ip3511/dcd_lpc_ip3511.c \
