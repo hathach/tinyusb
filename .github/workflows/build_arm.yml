@@ -41,7 +41,7 @@ jobs:
         - 'nrf'
         - 'ra'
         - 'rp2040'
-        - 'samd11'
+        - 'samd11 same5x'
         - 'samd21'
         - 'samd51'
         - 'saml2x'
