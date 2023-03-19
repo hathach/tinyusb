@@ -24,14 +24,14 @@
  * This file is part of the TinyUSB stack.
  */
 
-#include "stm32l0xx_hal.h"
 #include "bsp/board.h"
-#include "board.h"
+
+#include "stm32f2xx_hal.h"
 
 //--------------------------------------------------------------------+
 // Forward USB interrupt events to TinyUSB IRQ Handler
 //--------------------------------------------------------------------+
-void USB_IRQHandler(void)
+void OTG_FS_IRQHandler(void)
 {
   tud_int_handler(0);
 }
@@ -39,34 +39,84 @@ void USB_IRQHandler(void)
 //--------------------------------------------------------------------+
 // MACRO TYPEDEF CONSTANT ENUM
 //--------------------------------------------------------------------+
-#ifdef UART_DEV
-UART_HandleTypeDef UartHandle;
-#endif
+
+#define LED_PORT              GPIOB
+#define LED_PIN               GPIO_PIN_14
+#define LED_STATE_ON          1
+
+#define BUTTON_PORT           GPIOC
+#define BUTTON_PIN            GPIO_PIN_13
+#define BUTTON_STATE_ACTIVE   1
+
+
+// enable all LED, Button, Uart, USB clock
+static void all_rcc_clk_enable(void)
+{
+  __HAL_RCC_GPIOA_CLK_ENABLE();  // USB D+, D-
+  __HAL_RCC_GPIOB_CLK_ENABLE();  // LED
+  __HAL_RCC_GPIOC_CLK_ENABLE();  // Button
+}
+
+/**
+  * @brief  System Clock Configuration
+  *         The system Clock is configured as follow :
+  *            System Clock source            = PLL (HSE)
+  *            SYSCLK(Hz)                     = 120000000
+  *            HCLK(Hz)                       = 120000000
+  *            AHB Prescaler                  = 1
+  *            APB1 Prescaler                 = 4
+  *            APB2 Prescaler                 = 2
+  *            HSE Frequency(Hz)              = 8000000
+  *            PLL_M                          = HSE_VALUE/1000000
+  *            PLL_N                          = 240
+  *            PLL_P                          = 2
+  *            PLL_Q                          = 5
+  *            VDD(V)                         = 3.3
+  *            Flash Latency(WS)              = 3
+  * @param  None
+  * @retval None
+  */
+void SystemClock_Config(void)
+{
+  RCC_ClkInitTypeDef RCC_ClkInitStruct;
+  RCC_OscInitTypeDef RCC_OscInitStruct;
+
+  /* Enable HSE Oscillator and activate PLL with HSE as source */
+  RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSE;
+  RCC_OscInitStruct.HSEState = RCC_HSE_BYPASS;
+  RCC_OscInitStruct.PLL.PLLState = RCC_PLL_ON;
+  RCC_OscInitStruct.PLL.PLLSource = RCC_PLLSOURCE_HSE;
+  RCC_OscInitStruct.PLL.PLLM = HSE_VALUE/1000000;
+  RCC_OscInitStruct.PLL.PLLN = 240;
+  RCC_OscInitStruct.PLL.PLLP = RCC_PLLP_DIV2;
+  RCC_OscInitStruct.PLL.PLLQ = 5;
+  HAL_RCC_OscConfig(&RCC_OscInitStruct);
+
+  /* Select PLL as system clock source and configure the HCLK, PCLK1 and PCLK2
+     clocks dividers */
+  RCC_ClkInitStruct.ClockType = (RCC_CLOCKTYPE_SYSCLK | RCC_CLOCKTYPE_HCLK | RCC_CLOCKTYPE_PCLK1 | RCC_CLOCKTYPE_PCLK2);
+  RCC_ClkInitStruct.SYSCLKSource = RCC_SYSCLKSOURCE_PLLCLK;
+  RCC_ClkInitStruct.AHBCLKDivider = RCC_SYSCLK_DIV1;
+  RCC_ClkInitStruct.APB1CLKDivider = RCC_HCLK_DIV4;
+  RCC_ClkInitStruct.APB2CLKDivider = RCC_HCLK_DIV2;
+  HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_3);
+}
 
 void board_init(void)
 {
-  board_stm32l0_clock_init();
+  SystemClock_Config();
 
-#if CFG_TUSB_OS == OPT_OS_NONE
+  #if CFG_TUSB_OS  == OPT_OS_NONE
   // 1ms tick timer
   SysTick_Config(SystemCoreClock / 1000);
+  #endif
 
-#elif CFG_TUSB_OS == OPT_OS_FREERTOS
-  // Explicitly disable systick to prevent its ISR runs before scheduler start
-  SysTick->CTRL &= ~1U;
 
-  // If freeRTOS is used, IRQ priority is limit by max syscall ( smaller is higher )
-  NVIC_SetPriority(USB_IRQn, configLIBRARY_MAX_SYSCALL_INTERRUPT_PRIORITY);
-#endif
+  all_rcc_clk_enable();
 
-  // Enable All GPIOs clocks
-  __HAL_RCC_GPIOA_CLK_ENABLE();
-  __HAL_RCC_GPIOB_CLK_ENABLE();
-  __HAL_RCC_GPIOC_CLK_ENABLE();
-  __HAL_RCC_GPIOD_CLK_ENABLE();
+  GPIO_InitTypeDef  GPIO_InitStruct;
 
   // LED
-  GPIO_InitTypeDef  GPIO_InitStruct;
   GPIO_InitStruct.Pin = LED_PIN;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_PULLUP;
@@ -82,38 +132,33 @@ void board_init(void)
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_HIGH;
   HAL_GPIO_Init(BUTTON_PORT, &GPIO_InitStruct);
 
-#ifdef UART_DEV
-  // Enable UART Clock
-  UART_CLK_EN();
-
-  GPIO_InitStruct.Pin       = UART_TX_PIN | UART_RX_PIN;
-  GPIO_InitStruct.Mode      = GPIO_MODE_AF_PP;
-  GPIO_InitStruct.Pull      = GPIO_PULLUP;
-  GPIO_InitStruct.Speed     = GPIO_SPEED_FREQ_HIGH;
-  GPIO_InitStruct.Alternate = UART_GPIO_AF;
-  HAL_GPIO_Init(UART_GPIO_PORT, &GPIO_InitStruct);
-
-  UartHandle.Instance        = UART_DEV;
-  UartHandle.Init.BaudRate   = CFG_BOARD_UART_BAUDRATE;
-  UartHandle.Init.WordLength = UART_WORDLENGTH_8B;
-  UartHandle.Init.StopBits   = UART_STOPBITS_1;
-  UartHandle.Init.Parity     = UART_PARITY_NONE;
-  UartHandle.Init.HwFlowCtl  = UART_HWCONTROL_NONE;
-  UartHandle.Init.Mode       = UART_MODE_TX_RX;
-  UartHandle.Init.OverSampling = UART_OVERSAMPLING_16;
-  HAL_UART_Init(&UartHandle);
-#endif
-
-  // USB Pins
-  // Configure USB DM and DP pins. This is optional, and maintained only for user guidance.
+  /* Configure DM DP Pins */
   GPIO_InitStruct.Pin = (GPIO_PIN_11 | GPIO_PIN_12);
-  GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
+  GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
-  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_VERY_HIGH;
+  GPIO_InitStruct.Speed = GPIO_SPEED_HIGH;
+  GPIO_InitStruct.Alternate = GPIO_AF10_OTG_FS;
   HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
 
-  // USB Clock enable
-  __HAL_RCC_USB_CLK_ENABLE();
+  /* Configure VBUS Pin */
+  GPIO_InitStruct.Pin = GPIO_PIN_9;
+  GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
+
+  /* Configure ID pin */
+  GPIO_InitStruct.Pin = GPIO_PIN_10;
+  GPIO_InitStruct.Mode = GPIO_MODE_AF_OD;
+  GPIO_InitStruct.Pull = GPIO_PULLUP;
+  GPIO_InitStruct.Alternate = GPIO_AF10_OTG_FS;
+  HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
+
+  /* Enable USB FS Clocks */
+  __HAL_RCC_USB_OTG_FS_CLK_ENABLE();
+
+  // Enable VBUS sense (B device) via pin PA9
+  USB_OTG_FS->GCCFG &= ~USB_OTG_GCCFG_NOVBUSSENS;
+  USB_OTG_FS->GCCFG |= USB_OTG_GCCFG_VBUSBSEN;
 }
 
 //--------------------------------------------------------------------+
@@ -138,13 +183,8 @@ int board_uart_read(uint8_t* buf, int len)
 
 int board_uart_write(void const * buf, int len)
 {
-#ifdef UART_DEV
-  HAL_UART_Transmit(&UartHandle, (uint8_t*)(uintptr_t) buf, len, 0xffff);
-  return len;
-#else
   (void) buf; (void) len;
   return 0;
-#endif
 }
 
 #if CFG_TUSB_OS  == OPT_OS_NONE
@@ -165,24 +205,6 @@ void HardFault_Handler (void)
 {
   asm("bkpt");
 }
-
-#ifdef  USE_FULL_ASSERT
-/**
-  * @brief  Reports the name of the source file and the source line number
-  *         where the assert_param error has occurred.
-  * @param  file: pointer to the source file name
-  * @param  line: assert_param error line source number
-  * @retval None
-  */
-void assert_failed(uint8_t* file, uint32_t line)
-{
-  (void) file; (void) line;
-  /* USER CODE BEGIN 6 */
-  /* User can add his own implementation to report the file name and line number,
-     tex: printf("Wrong parameters value: file %s on line %d\r\n", file, line) */
-  /* USER CODE END 6 */
-}
-#endif /* USE_FULL_ASSERT */
 
 // Required by __libc_init_array in startup code if we are compiling using
 // -nostdlib/-nostartfiles.
