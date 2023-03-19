@@ -1,5 +1,8 @@
 DEPS_SUBMODULES += hw/mcu/nxp/lpcopen
 
+MCU_DIR = hw/mcu/nxp/lpcopen/lpc175x_6x/lpc_chip_175x_6x
+include $(TOP)/$(BOARD_PATH)/board.mk
+
 CFLAGS += \
   -flto \
   -mthumb \
@@ -11,13 +14,13 @@ CFLAGS += \
   -DCFG_TUSB_MCU=OPT_MCU_LPC175X_6X \
   -DRTC_EV_SUPPORT=0
 
-# startup.c and lpc_types.h cause following errors
+# lpc_types.h cause following errors
 CFLAGS += -Wno-error=strict-prototypes -Wno-error=cast-qual
 
-MCU_DIR = hw/mcu/nxp/lpcopen/lpc175x_6x/lpc_chip_175x_6x
+# caused by freeRTOS port !!
+CFLAGS += -Wno-error=maybe-uninitialized
 
-# All source paths should be relative to the top level.
-LD_FILE = hw/bsp/$(BOARD)/lpc1768.ld
+MCU_DIR = hw/mcu/nxp/lpcopen/lpc175x_6x/lpc_chip_175x_6x
 
 SRC_C += \
 	src/portable/nxp/lpc17_40/dcd_lpc17_40.c \
@@ -35,10 +38,3 @@ INC += \
 
 # For freeRTOS port source
 FREERTOS_PORTABLE_SRC = $(FREERTOS_PORTABLE_PATH)/ARM_CM3
-
-# For flash-jlink target
-JLINK_DEVICE = LPC1768
-
-# flash using pyocd
-flash: $(BUILD)/$(PROJECT).hex
-	pyocd flash -t lpc1768 $<
