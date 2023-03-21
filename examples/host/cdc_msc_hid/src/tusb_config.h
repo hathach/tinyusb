@@ -36,7 +36,7 @@
 
 #if CFG_TUSB_MCU == OPT_MCU_RP2040
 // change to 1 if using pico-pio-usb as host controller for raspberry rp2040
-#define CFG_TUH_RPI_PIO_USB   0
+#define CFG_TUH_RPI_PIO_USB   1
 #define BOARD_TUH_RHPORT      CFG_TUH_RPI_PIO_USB
 #endif
 
@@ -97,7 +97,7 @@
 
 #define CFG_TUH_HUB                 1 // number of supported hubs
 #define CFG_TUH_CDC                 1
-#define CFG_TUH_HID                 4 // typical keyboard + mouse device can have 3-4 HID interfaces
+#define CFG_TUH_HID                 (4*CFG_TUH_DEVICE_MAX) // typical keyboard + mouse device can have 3-4 HID interfaces
 #define CFG_TUH_MSC                 1
 #define CFG_TUH_VENDOR              0
 
