@@ -568,6 +568,8 @@ bool tuh_control_xfer (tuh_xfer_t* xfer)
       // only need to call task if not preempted RTOS
       #if CFG_TUSB_OS == OPT_OS_NONE || CFG_TUSB_OS == OPT_OS_PICO
       tuh_task();
+      #else
+      osal_task_delay(1); // TODO maybe yield()
       #endif
 
       // TODO probably some timeout to prevent hanged
