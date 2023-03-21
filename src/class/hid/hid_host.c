@@ -465,8 +465,10 @@ bool hidh_set_config(uint8_t dev_addr, uint8_t itf_num)
 
 static void process_set_config(tuh_xfer_t* xfer)
 {
-  // Stall is a valid response for SET_IDLE, therefore we could ignore its result
-  if ( xfer->setup->bRequest != HID_REQ_CONTROL_SET_IDLE )
+  // Stall is a valid response for SET_IDLE, sometime SET_PROTOCOL as well
+  // therefore we could ignore its result
+  if ( !(xfer->setup->bRequest == HID_REQ_CONTROL_SET_IDLE ||
+         xfer->setup->bRequest == HID_REQ_CONTROL_SET_PROTOCOL) )
   {
     TU_ASSERT(xfer->result == XFER_RESULT_SUCCESS, );
   }
