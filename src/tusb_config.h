@@ -49,7 +49,7 @@ extern "C"
 #endif
 #endif
 // SAMD21
-#if (defined(ARDUINO_ARCH_SAMD) && defined(ARDUINO_SAM_ZERO))
+#ifdef ARDUINO_ARCH_SAMD
 #define CFG_TUSB_MCU OPT_MCU_SAMD21
 #endif
 // LPC176x
