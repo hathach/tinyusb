@@ -150,6 +150,7 @@ GCC_CFLAGS += \
   -Wnull-dereference \
   -Wuninitialized \
   -Wunused \
+  -Wreturn-type \
   -Wredundant-decls
 
 # conversion is too strict for most mcu driver, may be disable sign/int/arith-conversion
