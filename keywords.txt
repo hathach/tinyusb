@@ -1,0 +1,8 @@
+tusb_cdc_init	KEYWORD2
+tusb_cdc_isr_handler	KEYWORD2
+tusb_cdc_task	KEYWORD2
+tusb_cdc_available	KEYWORD2
+tusb_cdc_read	KEYWORD2
+tusb_cdc_flush	KEYWORD2
+tusb_cdc_write	KEYWORD2
+tusb_cdc_write_available	KEYWORD2
