@@ -168,11 +168,13 @@ bool tuh_edpt_open(uint8_t dev_addr, tusb_desc_endpoint_t const * desc_ep);
 // Set Configuration (control transfer)
 // config_num = 0 will un-configure device. Note: config_num = config_descriptor_index + 1
 // true on success, false if there is on-going control transfer or incorrect parameters
+// if complete_cb == NULL i.e blocking, user_data should be pointed to xfer_reuslt_t*
 bool tuh_configuration_set(uint8_t daddr, uint8_t config_num,
                            tuh_xfer_cb_t complete_cb, uintptr_t user_data);
 
 // Set Interface (control transfer)
 // true on success, false if there is on-going control transfer or incorrect parameters
+// if complete_cb == NULL i.e blocking, user_data should be pointed to xfer_reuslt_t*
 bool tuh_interface_set(uint8_t daddr, uint8_t itf_num, uint8_t itf_alt,
                        tuh_xfer_cb_t complete_cb, uintptr_t user_data);
 

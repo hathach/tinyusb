@@ -1030,7 +1030,15 @@ bool tuh_configuration_set(uint8_t daddr, uint8_t config_num,
     .user_data   = user_data
   };
 
-  return tuh_control_xfer(&xfer);
+  bool ret = tuh_control_xfer(&xfer);
+
+  // if blocking, user_data could be pointed to xfer_result
+  if ( !complete_cb && user_data )
+  {
+    *((xfer_result_t*) user_data) = xfer.result;
+  }
+
+  return ret;
 }
 
 bool tuh_interface_set(uint8_t daddr, uint8_t itf_num, uint8_t itf_alt,
@@ -1062,7 +1070,15 @@ bool tuh_interface_set(uint8_t daddr, uint8_t itf_num, uint8_t itf_alt,
     .user_data   = user_data
   };
 
-  return tuh_control_xfer(&xfer);
+  bool ret = tuh_control_xfer(&xfer);
+
+  // if blocking, user_data could be pointed to xfer_result
+  if ( !complete_cb && user_data )
+  {
+    *((xfer_result_t*) user_data) = xfer.result;
+  }
+
+  return ret;
 }
 
 //--------------------------------------------------------------------+
