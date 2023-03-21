@@ -83,3 +83,4 @@ lib/FreeRTOS-Kernel
 lib/lwip
 lib/sct_neopixel
 tools/uf2
+*.zip

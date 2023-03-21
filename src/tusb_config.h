@@ -103,6 +103,13 @@ extern "C"
 #error "Incorrect RHPort configuration"
 #endif
 
+#ifndef CFG_TUSB_RHPORT0_MODE
+#define CFG_TUSB_RHPORT0_MODE 0
+#endif
+#ifndef CFG_TUSB_RHPORT1_MODE
+#define CFG_TUSB_RHPORT1_MODE 0
+#endif
+
 #ifndef CFG_TUSB_OS
 #define CFG_TUSB_OS OPT_OS_NONE
 #endif
