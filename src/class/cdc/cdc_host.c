@@ -127,15 +127,25 @@ uint8_t tuh_cdc_itf_get_index(uint8_t daddr, uint8_t itf_num)
   return TUSB_INDEX_INVALID_8;
 }
 
-bool tuh_cdc_itf_get_info(uint8_t idx, tuh_cdc_itf_info_t* info)
+bool tuh_cdc_itf_get_info(uint8_t idx, tuh_itf_info_t* info)
 {
   cdch_interface_t* p_cdc = get_itf(idx);
   TU_VERIFY(p_cdc && info);
 
-  info->daddr              = p_cdc->daddr;
-  info->bInterfaceNumber   = p_cdc->bInterfaceNumber;
-  info->bInterfaceSubClass = p_cdc->bInterfaceSubClass;
-  info->bInterfaceProtocol = p_cdc->bInterfaceProtocol;
+  info->daddr = p_cdc->daddr;
+
+  // re-construct descriptor
+  tusb_desc_interface_t* desc = &info->desc;
+  desc->bLength            = sizeof(tusb_desc_interface_t);
+  desc->bDescriptorType    = TUSB_DESC_INTERFACE;
+
+  desc->bInterfaceNumber   = p_cdc->bInterfaceNumber;
+  desc->bAlternateSetting  = 0;
+  desc->bNumEndpoints      = 2u + (p_cdc->ep_notif ? 1u : 0u);
+  desc->bInterfaceClass    = TUSB_CLASS_CDC;
+  desc->bInterfaceSubClass = p_cdc->bInterfaceSubClass;
+  desc->bInterfaceProtocol = p_cdc->bInterfaceProtocol;
+  desc->iInterface         = 0; // not used yet
 
   return true;
 }

@@ -134,6 +134,29 @@ bool tuh_hid_mounted(uint8_t daddr, uint8_t idx)
   return p_hid != NULL;
 }
 
+bool tuh_hid_itf_get_info(uint8_t daddr, uint8_t idx, tuh_itf_info_t* info)
+{
+  hidh_interface_t* p_hid = get_hid_itf(daddr, idx);
+  TU_VERIFY(p_hid && info);
+
+  info->daddr = daddr;
+
+  // re-construct descriptor
+  tusb_desc_interface_t* desc = &info->desc;
+  desc->bLength            = sizeof(tusb_desc_interface_t);
+  desc->bDescriptorType    = TUSB_DESC_INTERFACE;
+
+  desc->bInterfaceNumber   = p_hid->itf_num;
+  desc->bAlternateSetting  = 0;
+  desc->bNumEndpoints      = (uint8_t) ((p_hid->ep_in ? 1u : 0u) + (p_hid->ep_out ? 1u : 0u));
+  desc->bInterfaceClass    = TUSB_CLASS_HID;
+  desc->bInterfaceSubClass = (p_hid->itf_protocol ? HID_SUBCLASS_BOOT : HID_SUBCLASS_NONE);
+  desc->bInterfaceProtocol = p_hid->itf_protocol;
+  desc->iInterface         = 0; // not used yet
+
+  return true;
+}
+
 uint8_t tuh_hid_itf_get_index(uint8_t daddr, uint8_t itf_num)
 {
   for ( uint8_t idx = 0; idx < CFG_TUH_HID; idx++ )

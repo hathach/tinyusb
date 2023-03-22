@@ -71,8 +71,8 @@ uint8_t tuh_hid_itf_get_total_count(void);
 // backward compatible rename
 #define tuh_hid_instance_count    tuh_hid_itf_get_count
 
-// Check if HID interface is mounted
-bool tuh_hid_mounted(uint8_t dev_addr, uint8_t idx);
+// Get Interface information
+bool tuh_hid_itf_get_info(uint8_t daddr, uint8_t idx, tuh_itf_info_t* itf_info);
 
 // Get Interface index from device address + interface number
 // return TUSB_INDEX_INVALID_8 (0xFF) if not found
@@ -80,6 +80,9 @@ uint8_t tuh_hid_itf_get_index(uint8_t daddr, uint8_t itf_num);
 
 // Get interface supported protocol (bInterfaceProtocol) check out hid_interface_protocol_enum_t for possible values
 uint8_t tuh_hid_interface_protocol(uint8_t dev_addr, uint8_t idx);
+
+// Check if HID interface is mounted
+bool tuh_hid_mounted(uint8_t dev_addr, uint8_t idx);
 
 // Parse report descriptor into array of report_info struct and return number of reports.
 // For complicated report, application should write its own parser.

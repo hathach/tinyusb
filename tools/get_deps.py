@@ -105,7 +105,13 @@ def get_a_dep(d):
 
 if __name__ == "__main__":
     status = 0
-    deps = list(deps_mandatory.keys()) + sys.argv[1:]
+    deps = list(deps_mandatory.keys())
+    # get all if executed with all as argument
+    if len(sys.argv) == 2 and sys.argv[1] == 'all':
+        deps += deps_optional
+    else:
+        deps += sys.argv[1:]
+
     with Pool() as pool:
         status = sum(pool.map(get_a_dep, deps))
     sys.exit(status)
