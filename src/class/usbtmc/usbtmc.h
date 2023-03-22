@@ -262,14 +262,14 @@ typedef struct TU_ATTR_PACKED
 
   struct TU_ATTR_PACKED
   {
-    unsigned int listenOnly :1;
-    unsigned int talkOnly :1;
-    unsigned int supportsIndicatorPulse :1;
+    uint8_t listenOnly :1;
+    uint8_t talkOnly :1;
+    uint8_t supportsIndicatorPulse :1;
   } bmIntfcCapabilities;
 
   struct TU_ATTR_PACKED
   {
-    unsigned int canEndBulkInOnTermChar :1;
+    uint8_t canEndBulkInOnTermChar :1;
   } bmDevCapabilities;
 
   uint8_t _reserved2[6];
