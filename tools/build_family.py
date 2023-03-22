@@ -34,7 +34,6 @@ def build_family(example, family, make_option):
         # sum all element of same index (column sum)
         return list(map(sum, list(zip(*result))))
 
-
 if __name__ == '__main__':
     # IAR CC
     if make_iar_option not in sys.argv:
@@ -68,7 +67,8 @@ if __name__ == '__main__':
         print(build_separator)
         for family in all_families:
             fret = build_family(example, family, make_iar_option)
-            total_result = list(map(lambda x, y: x + y, total_result, fret))
+            if len(fret) == len(total_result):
+                total_result = [total_result[i] + fret[i] for i in range(len(fret))]
 
     total_time = time.monotonic() - total_time
     print(build_separator)

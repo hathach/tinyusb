@@ -450,7 +450,7 @@ static void usbd_reset(uint8_t rhport)
 bool tud_task_event_ready(void)
 {
   // Skip if stack is not initialized
-  if ( !tusb_inited() ) return false;
+  if ( !tud_inited() ) return false;
 
   return !osal_queue_empty(_usbd_q);
 }
@@ -478,7 +478,7 @@ void tud_task_ext(uint32_t timeout_ms, bool in_isr)
   (void) in_isr; // not implemented yet
 
   // Skip if stack is not initialized
-  if ( !tusb_inited() ) return;
+  if ( !tud_inited() ) return;
 
   // Loop until there is no more events in the queue
   while (1)
