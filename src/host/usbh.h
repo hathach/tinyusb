@@ -69,6 +69,13 @@ struct tuh_xfer_s
   // uint32_t timeout_ms;    // place holder, not supported yet
 };
 
+// Subject to change
+typedef struct
+{
+  uint8_t daddr;
+  tusb_desc_interface_t desc;
+} tuh_itf_info_t;
+
 // ConfigID for tuh_config()
 enum
 {
@@ -117,6 +124,9 @@ void tuh_task(void)
 {
   tuh_task_ext(UINT32_MAX, false);
 }
+
+// Check if there is pending events need processing by tuh_task()
+bool tuh_task_event_ready(void);
 
 #ifndef _TUSB_HCD_H_
 extern void hcd_int_handler(uint8_t rhport);

@@ -360,6 +360,14 @@ bool tuh_init(uint8_t controller_id)
   return true;
 }
 
+bool tuh_task_event_ready(void)
+{
+  // Skip if stack is not initialized
+  if ( !tuh_inited() ) return false;
+
+  return !osal_queue_empty(_usbh_q);
+}
+
 /* USB Host Driver task
  * This top level thread manages all host controller event and delegates events to class-specific drivers.
  * This should be called periodically within the mainloop or rtos thread.
@@ -383,7 +391,7 @@ void tuh_task_ext(uint32_t timeout_ms, bool in_isr)
   (void) in_isr; // not implemented yet
 
   // Skip if stack is not initialized
-  if ( !tusb_inited() ) return;
+  if ( !tuh_inited() ) return;
 
   // Loop until there is no more events in the queue
   while (1)
@@ -565,12 +573,12 @@ bool tuh_control_xfer (tuh_xfer_t* xfer)
 
     while (result == XFER_RESULT_INVALID)
     {
-      // only need to call task if not preempted RTOS
-      #if CFG_TUSB_OS == OPT_OS_NONE || CFG_TUSB_OS == OPT_OS_PICO
-      tuh_task();
-      #else
-      osal_task_delay(1); // TODO maybe yield()
-      #endif
+      // Note: this can be called within an callback ie. part of tuh_task()
+      // therefore event with RTOS tuh_task() still need to be invoked
+      if (tuh_task_event_ready())
+      {
+        tuh_task();
+      }
 
       // TODO probably some timeout to prevent hanged
     }
