@@ -277,17 +277,17 @@ typedef struct TU_ATTR_PACKED
 
   struct TU_ATTR_PACKED
   {
-    unsigned int is488_2 :1;
-    unsigned int supportsREN_GTL_LLO :1;
-    unsigned int supportsTrigger :1;
+    uint8_t supportsTrigger :1;
+    uint8_t supportsREN_GTL_LLO :1;
+    uint8_t is488_2 :1;
   } bmIntfcCapabilities488;
 
   struct TU_ATTR_PACKED
   {
-    unsigned int SCPI :1;
-    unsigned int SR1 :1;
-    unsigned int RL1 :1;
-    unsigned int DT1 :1;
+    uint8_t DT1 :1;
+    uint8_t RL1 :1;
+    uint8_t SR1 :1;
+    uint8_t SCPI :1;
   } bmDevCapabilities488;
   uint8_t _reserved3[8];
 } usbtmc_response_capabilities_488_t;
