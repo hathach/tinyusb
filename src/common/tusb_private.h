@@ -34,6 +34,8 @@
  extern "C" {
 #endif
 
+#include "tusb.h"
+
 typedef struct TU_ATTR_PACKED
 {
   volatile uint8_t busy    : 1;
