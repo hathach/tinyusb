@@ -126,15 +126,15 @@ void board_init(void)
   set_sys_clock_khz(120000, true);
 
 #ifdef PIO_USB_VBUSEN_PIN
-  gpio_init(PIO_USB_VBUSEN_PIN);
-  gpio_set_dir(PIO_USB_VBUSEN_PIN, GPIO_OUT);
-  gpio_put(PIO_USB_VBUSEN_PIN, PIO_USB_VBUSEN_STATE);
+  gpio_init(PICO_DEFAULT_PIO_USB_VBUSEN_PIN);
+  gpio_set_dir(PICO_DEFAULT_PIO_USB_VBUSEN_PIN, GPIO_OUT);
+  gpio_put(PICO_DEFAULT_PIO_USB_VBUSEN_PIN, PIO_USB_VBUSEN_STATE);
 #endif
 
   // rp2040 use pico-pio-usb for host tuh_configure() can be used to passed pio configuration to the host stack
   // Note: tuh_configure() must be called before tuh_init()
   pio_usb_configuration_t pio_cfg = PIO_USB_DEFAULT_CONFIG;
-  pio_cfg.pin_dp = PIO_USB_DP_PIN;
+  pio_cfg.pin_dp = PICO_DEFAULT_PIO_USB_DP_PIN;
   tuh_configure(BOARD_TUH_RHPORT, TUH_CFGID_RPI_PIO_USB_CONFIGURATION, &pio_cfg);
 #endif
 
