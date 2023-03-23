@@ -112,6 +112,7 @@ Docs
 
   - `Supported Devices`_
   - `Getting Started`_
+  - `Dependencies`_
   - `Concurrency`_
 
 - `Contributing`_
@@ -146,6 +147,7 @@ in your project.
 .. _Reference: docs/reference/index.rst
 .. _Supported Devices: docs/reference/supported.rst
 .. _Getting Started: docs/reference/getting_started.rst
+.. _Dependencies: docs/reference/dependencies.rst
 .. _Concurrency: docs/reference/concurrency.rst
 .. _Contributing: docs/contributing/index.rst
 .. _Code of Conduct: CODE_OF_CONDUCT.rst
