@@ -575,7 +575,6 @@ static void process_cdc_config(tuh_xfer_t* xfer)
       if (tuh_cdc_mount_cb) tuh_cdc_mount_cb(idx);
 
       // Prepare for incoming data
-      cdch_interface_t* p_cdc = get_itf(idx);
       tu_edpt_stream_read_xfer(&p_cdc->stream.rx);
 
       // notify usbh that driver enumeration is complete
