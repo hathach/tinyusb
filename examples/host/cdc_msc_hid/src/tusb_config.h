@@ -80,12 +80,12 @@
  * - CFG_TUSB_MEM SECTION : __attribute__ (( section(".usb_ram") ))
  * - CFG_TUSB_MEM_ALIGN   : __attribute__ ((aligned(4)))
  */
-#ifndef CFG_TUSB_MEM_SECTION
-#define CFG_TUSB_MEM_SECTION
+#ifndef CFG_TUH_MEM_SECTION
+#define CFG_TUH_MEM_SECTION
 #endif
 
-#ifndef CFG_TUSB_MEM_ALIGN
-#define CFG_TUSB_MEM_ALIGN          __attribute__ ((aligned(4)))
+#ifndef CFG_TUH_MEM_ALIGN
+#define CFG_TUH_MEM_ALIGN        __attribute__ ((aligned(4)))
 #endif
 
 //--------------------------------------------------------------------
