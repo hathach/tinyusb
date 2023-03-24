@@ -54,11 +54,11 @@ typedef struct
   uint16_t epin_size;
   uint16_t epout_size;
 
-  uint8_t epin_buf[CFG_TUH_HID_EPIN_BUFSIZE];
-  uint8_t epout_buf[CFG_TUH_HID_EPOUT_BUFSIZE];
+  CFG_TUH_MEM_ALIGN uint8_t epin_buf[CFG_TUH_HID_EPIN_BUFSIZE];
+  CFG_TUH_MEM_ALIGN uint8_t epout_buf[CFG_TUH_HID_EPOUT_BUFSIZE];
 } hidh_interface_t;
 
-CFG_TUSB_MEM_SECTION
+CFG_TUH_MEM_SECTION
 tu_static hidh_interface_t _hidh_itf[CFG_TUH_HID];
 
 //--------------------------------------------------------------------+

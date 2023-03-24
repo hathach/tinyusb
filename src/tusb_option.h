@@ -289,12 +289,15 @@
   #define CFG_TUSB_DEBUG 0
 #endif
 
-// place data in accessible RAM for usb controller
+// TODO MEM_SECTION can be different for host and device controller
+// should use CFG_TUD_MEM_SECTION, CFG_TUH_MEM_SECTION
 #ifndef CFG_TUSB_MEM_SECTION
   #define CFG_TUSB_MEM_SECTION
 #endif
 
 // alignment requirement of buffer used for endpoint transferring
+// TODO MEM_ALIGN can be different for host and device controller
+// should use CFG_TUD_MEM_ALIGN, CFG_TUH_MEM_ALIGN
 #ifndef CFG_TUSB_MEM_ALIGN
   #define CFG_TUSB_MEM_ALIGN      TU_ATTR_ALIGNED(4)
 #endif
@@ -311,6 +314,26 @@
 //--------------------------------------------------------------------
 // Device Options (Default)
 //--------------------------------------------------------------------
+
+// Attribute to place data in accessible RAM for device controller
+// default to CFG_TUSB_MEM_SECTION for backward-compatible
+#ifndef CFG_TUD_MEM_SECTION
+  #ifdef CFG_TUSB_MEM_SECTION
+    #define CFG_TUD_MEM_SECTION   CFG_TUSB_MEM_SECTION
+  #else
+    #define CFG_TUD_MEM_SECTION
+  #endif
+#endif
+
+// Attribute to align memory for device controller
+// default to CFG_TUSB_MEM_ALIGN for backward-compatible
+#ifndef CFG_TUD_MEM_ALIGN
+  #ifdef CFG_TUSB_MEM_ALIGN
+    #define CFG_TUD_MEM_ALIGN   CFG_TUSB_MEM_ALIGN
+  #else
+    #define CFG_TUD_MEM_ALIGN   TU_ATTR_ALIGNED(4)
+  #endif
+#endif
 
 #ifndef CFG_TUD_ENDPOINT0_SIZE
   #define CFG_TUD_ENDPOINT0_SIZE  64
@@ -389,6 +412,21 @@
     #define CFG_TUH_ENUMERATION_BUFSIZE 256
   #endif
 #endif // CFG_TUH_ENABLED
+
+// Attribute to place data in accessible RAM for host controller
+// default to CFG_TUSB_MEM_SECTION for backward-compatible
+#ifndef CFG_TUH_MEM_SECTION
+  #ifdef CFG_TUSB_MEM_SECTION
+    #define CFG_TUH_MEM_SECTION   CFG_TUSB_MEM_SECTION
+  #else
+    #define CFG_TUH_MEM_SECTION
+  #endif
+#endif
+
+// Attribute to align memory for host controller
+#ifndef CFG_TUH_MEM_ALIGN
+  #define CFG_TUH_MEM_ALIGN   TU_ATTR_ALIGNED(4)
+#endif
 
 //------------- CLASS -------------//
 

@@ -50,8 +50,8 @@
 //--------------------------------------------------------------------+
 #define RNDIS_MSG_PAYLOAD_MAX   (1024*4)
 
-CFG_TUSB_MEM_SECTION static uint8_t msg_notification[CFG_TUH_DEVICE_MAX][8];
-CFG_TUSB_MEM_SECTION TU_ATTR_ALIGNED(4) static uint8_t msg_payload[RNDIS_MSG_PAYLOAD_MAX];
+CFG_TUH_MEM_SECTION static uint8_t msg_notification[CFG_TUH_DEVICE_MAX][8];
+CFG_TUH_MEM_SECTION CFG_TUH_MEM_ALIGN static uint8_t msg_payload[RNDIS_MSG_PAYLOAD_MAX];
 
 static rndish_data_t rndish_data[CFG_TUH_DEVICE_MAX];
 
