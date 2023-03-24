@@ -85,7 +85,7 @@ typedef struct
 }ehci_data_t;
 
 // Periodic frame list must be 4K alignment
-CFG_TUSB_MEM_SECTION TU_ATTR_ALIGNED(4096) static ehci_data_t ehci_data;
+CFG_TUH_MEM_SECTION TU_ATTR_ALIGNED(4096) static ehci_data_t ehci_data;
 
 //--------------------------------------------------------------------+
 // PROTOTYPE

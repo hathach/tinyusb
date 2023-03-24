@@ -203,7 +203,7 @@ static usbh_dev0_t _dev0;
 // all devices excluding zero-address
 // hub address start from CFG_TUH_DEVICE_MAX+1
 // TODO: hub can has its own simpler struct to save memory
-CFG_TUSB_MEM_SECTION usbh_device_t _usbh_devices[TOTAL_DEVICES];
+static usbh_device_t _usbh_devices[TOTAL_DEVICES];
 
 // Mutex for claiming endpoint
 #if OSAL_MUTEX_REQUIRED
@@ -218,15 +218,15 @@ CFG_TUSB_MEM_SECTION usbh_device_t _usbh_devices[TOTAL_DEVICES];
 OSAL_QUEUE_DEF(usbh_int_set, _usbh_qdef, CFG_TUH_TASK_QUEUE_SZ, hcd_event_t);
 static osal_queue_t _usbh_q;
 
-CFG_TUSB_MEM_SECTION CFG_TUSB_MEM_ALIGN
+CFG_TUH_MEM_SECTION CFG_TUH_MEM_ALIGN
 static uint8_t _usbh_ctrl_buf[CFG_TUH_ENUMERATION_BUFSIZE];
 
 // Control transfers: since most controllers do not support multiple control transfers
 // on multiple devices concurrently and control transfers are not used much except for
 // enumeration, we will only execute control transfers one at a time.
-CFG_TUSB_MEM_SECTION struct
+CFG_TUH_MEM_SECTION struct
 {
-  tusb_control_request_t request TU_ATTR_ALIGNED(4);
+  CFG_TUH_MEM_ALIGN tusb_control_request_t request;
   uint8_t* buffer;
   tuh_xfer_cb_t complete_cb;
   uintptr_t user_data;

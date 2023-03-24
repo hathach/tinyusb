@@ -93,7 +93,7 @@ def build_example(example, board, make_option):
         ret[2] = 1
         print(build_format.format(example, board, status, '-', flash_size, sram_size))
     else:
-        subprocess.run(make_cmd + " clean", shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+        #subprocess.run(make_cmd + " clean", shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
         build_result = subprocess.run(make_cmd + " all", shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
 
         if build_result.returncode == 0:

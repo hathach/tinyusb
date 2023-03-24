@@ -71,15 +71,15 @@ typedef struct
   tuh_msc_complete_cb_t complete_cb;
   uintptr_t complete_arg;
 
-  msc_cbw_t cbw;
-  msc_csw_t csw;
+  CFG_TUH_MEM_ALIGN msc_cbw_t cbw;
+  CFG_TUH_MEM_ALIGN msc_csw_t csw;
 }msch_interface_t;
 
-CFG_TUSB_MEM_SECTION static msch_interface_t _msch_itf[CFG_TUH_DEVICE_MAX];
+CFG_TUH_MEM_SECTION static msch_interface_t _msch_itf[CFG_TUH_DEVICE_MAX];
 
 // buffer used to read scsi information when mounted
 // largest response data currently is inquiry TODO Inquiry is not part of enum anymore
-CFG_TUSB_MEM_SECTION TU_ATTR_ALIGNED(4)
+CFG_TUH_MEM_SECTION CFG_TUH_MEM_ALIGN
 static uint8_t _msch_buffer[sizeof(scsi_inquiry_resp_t)];
 
 TU_ATTR_ALWAYS_INLINE

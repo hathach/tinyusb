@@ -43,12 +43,12 @@ typedef struct
   uint8_t port_count;
   uint8_t status_change; // data from status change interrupt endpoint
 
-  hub_port_status_response_t port_status;
-  hub_status_response_t hub_status;
+  CFG_TUH_MEM_ALIGN hub_port_status_response_t port_status;
+  CFG_TUH_MEM_ALIGN hub_status_response_t hub_status;
 } hub_interface_t;
 
-CFG_TUSB_MEM_SECTION static hub_interface_t hub_data[CFG_TUH_HUB];
-CFG_TUSB_MEM_SECTION TU_ATTR_ALIGNED(4) static uint8_t _hub_buffer[sizeof(descriptor_hub_desc_t)];
+CFG_TUH_MEM_SECTION static hub_interface_t hub_data[CFG_TUH_HUB];
+CFG_TUH_MEM_SECTION CFG_TUH_MEM_ALIGN static uint8_t _hub_buffer[sizeof(descriptor_hub_desc_t)];
 
 TU_ATTR_ALWAYS_INLINE
 static inline hub_interface_t* get_itf(uint8_t dev_addr)

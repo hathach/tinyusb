@@ -62,10 +62,10 @@ typedef struct {
     tu_edpt_stream_t rx;
 
     uint8_t tx_ff_buf[CFG_TUH_CDC_TX_BUFSIZE];
-    CFG_TUSB_MEM_ALIGN uint8_t tx_ep_buf[CFG_TUH_CDC_TX_EPSIZE];
+    CFG_TUH_MEM_ALIGN uint8_t tx_ep_buf[CFG_TUH_CDC_TX_EPSIZE];
 
     uint8_t rx_ff_buf[CFG_TUH_CDC_TX_BUFSIZE];
-    CFG_TUSB_MEM_ALIGN uint8_t rx_ep_buf[CFG_TUH_CDC_TX_EPSIZE];
+    CFG_TUH_MEM_ALIGN uint8_t rx_ep_buf[CFG_TUH_CDC_TX_EPSIZE];
   } stream;
 
 } cdch_interface_t;
@@ -74,7 +74,7 @@ typedef struct {
 // INTERNAL OBJECT & FUNCTION DECLARATION
 //--------------------------------------------------------------------+
 
-CFG_TUSB_MEM_SECTION
+CFG_TUH_MEM_SECTION
 static cdch_interface_t cdch_data[CFG_TUH_CDC];
 
 static inline cdch_interface_t* get_itf(uint8_t idx)
