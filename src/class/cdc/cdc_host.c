@@ -323,7 +323,8 @@ bool tuh_cdc_set_control_line_state(uint8_t idx, uint16_t line_state, tuh_xfer_c
     .user_data   = user_data
   };
 
-  return tuh_control_xfer(&xfer);
+  TU_ASSERT(tuh_control_xfer(&xfer));
+  return true;
 }
 
 bool tuh_cdc_set_line_coding(uint8_t idx, cdc_line_coding_t const* line_coding, tuh_xfer_cb_t complete_cb, uintptr_t user_data)
@@ -363,7 +364,8 @@ bool tuh_cdc_set_line_coding(uint8_t idx, cdc_line_coding_t const* line_coding, 
     .user_data   = user_data
   };
 
-  return tuh_control_xfer(&xfer);
+  TU_ASSERT(tuh_control_xfer(&xfer));
+  return true;
 }
 
 //--------------------------------------------------------------------+
@@ -543,26 +545,31 @@ static void process_cdc_config(tuh_xfer_t* xfer)
   uintptr_t const state = xfer->user_data;
   uint8_t const itf_num = (uint8_t) tu_le16toh(xfer->setup->wIndex);
   uint8_t const idx = tuh_cdc_itf_get_index(xfer->daddr, itf_num);
-  TU_ASSERT(idx != TUSB_INDEX_INVALID_8, );
+  cdch_interface_t * p_cdc = get_itf(idx);
+  TU_ASSERT(p_cdc, );
 
   switch(state)
   {
     case CONFIG_SET_CONTROL_LINE_STATE:
-    #if CFG_TUH_CDC_LINE_CONTROL_ON_ENUM
-      TU_ASSERT( tuh_cdc_set_control_line_state(idx, CFG_TUH_CDC_LINE_CONTROL_ON_ENUM, process_cdc_config, CONFIG_SET_LINE_CODING), );
-      break;
-    #endif
-    TU_ATTR_FALLTHROUGH;
+      #if CFG_TUH_CDC_LINE_CONTROL_ON_ENUM
+      if (p_cdc->acm_capability.support_line_request)
+      {
+        TU_ASSERT( tuh_cdc_set_control_line_state(idx, CFG_TUH_CDC_LINE_CONTROL_ON_ENUM, process_cdc_config, CONFIG_SET_LINE_CODING), );
+        break;
+      }
+      #endif
+      TU_ATTR_FALLTHROUGH;
 
     case CONFIG_SET_LINE_CODING:
-    #ifdef CFG_TUH_CDC_LINE_CODING_ON_ENUM
-    {
-      cdc_line_coding_t line_coding = CFG_TUH_CDC_LINE_CODING_ON_ENUM;
-      TU_ASSERT( tuh_cdc_set_line_coding(idx, &line_coding, process_cdc_config, CONFIG_COMPLETE), );
-      break;
-    }
-    #endif
-    TU_ATTR_FALLTHROUGH;
+      #ifdef CFG_TUH_CDC_LINE_CODING_ON_ENUM
+      if (p_cdc->acm_capability.support_line_request)
+      {
+        cdc_line_coding_t line_coding = CFG_TUH_CDC_LINE_CODING_ON_ENUM;
+        TU_ASSERT( tuh_cdc_set_line_coding(idx, &line_coding, process_cdc_config, CONFIG_COMPLETE), );
+        break;
+      }
+      #endif
+      TU_ATTR_FALLTHROUGH;
 
     case CONFIG_COMPLETE:
       if (tuh_cdc_mount_cb) tuh_cdc_mount_cb(idx);
