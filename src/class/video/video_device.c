@@ -37,6 +37,10 @@
 //--------------------------------------------------------------------+
 // MACRO CONSTANT TYPEDEF
 //--------------------------------------------------------------------+
+#define VS_STATE_PROBING      0     /* Configuration in progress */
+#define VS_STATE_COMMITTED    1     /* Ready for streaming or Streaming via bulk endpoint */
+#define VS_STATE_STREAMING    2     /* Streaming via isochronous endpoint */
+
 typedef struct {
   tusb_desc_interface_t            std;
   tusb_desc_cs_video_ctl_itf_hdr_t ctl;
@@ -102,6 +106,7 @@ typedef struct TU_ATTR_PACKED {
   uint32_t offset;   /* offset for the next payload transfer */
   uint32_t max_payload_transfer_size;
   uint8_t  error_code;/* error code */
+  uint8_t  state;    /* 0:probing 1:committed 2:streaming */
   /*------------- From this point, data is not cleared by bus reset -------------*/
   CFG_TUSB_MEM_ALIGN uint8_t ep_buf[CFG_TUD_VIDEO_STREAMING_EP_BUFSIZE]; /* EP transfer buffer for streaming */
 } videod_streaming_interface_t;
@@ -639,6 +644,17 @@ static bool _open_vc_itf(uint8_t rhport, videod_interface_t *self, uint_fast8_t 
   return true;
 }
 
+static bool _init_vs_configuration(videod_streaming_interface_t *stm)
+{
+  /* initialize streaming settings */
+  stm->state = VS_STATE_PROBING;
+  stm->max_payload_transfer_size = 0;
+  video_probe_and_commit_control_t *param =
+    (video_probe_and_commit_control_t *)&stm->ep_buf;
+  tu_memclr(param, sizeof(*param));
+  return _update_streaming_parameters(stm, param);
+}
+
 /** Set the alternate setting to own video streaming interface.
  *
  * @param[in,out] stm      Streaming interface context.
@@ -672,42 +688,31 @@ static bool _open_vs_itf(uint8_t rhport, videod_streaming_interface_t *stm, uint
 
   uint_fast8_t numeps = ((tusb_desc_interface_t const *)cur)->bNumEndpoints;
   TU_ASSERT(numeps <= TU_ARRAY_SIZE(stm->desc.ep));
-  stm->desc.cur = (uint16_t) (cur - desc); /* Save the offset of the new settings */
-  if (!altnum) {
-    /* initialize streaming settings */
-    stm->max_payload_transfer_size = 0;
-    video_probe_and_commit_control_t *param =
-      (video_probe_and_commit_control_t *)&stm->ep_buf;
-    tu_memclr(param, sizeof(*param));
-    TU_LOG2("    done 0\n");
-    if (!_update_streaming_parameters(stm, param))
-      return false;
-    /* Open bulk endpoint if present. */
-    for (i = 0, cur = tu_desc_next(cur); i < numeps; ++i, cur = tu_desc_next(cur)) {
-      cur = _find_desc_ep(cur, end);
-      TU_ASSERT(cur < end);
-      tusb_desc_endpoint_t const *ep = (tusb_desc_endpoint_t const*)cur;
-      TU_VERIFY(TUSB_XFER_BULK == ep->bmAttributes.xfer);
-      TU_ASSERT(usbd_edpt_open(rhport, ep));
-      stm->desc.ep[i] = (uint16_t)(cur - desc);
-      TU_LOG2("    open EP%02x\n", _desc_ep_addr(cur));
-    }
-    return true;
+  stm->desc.cur = (uint16_t)(cur - desc); /* Save the offset of the new settings */
+  if (!altnum && (VS_STATE_COMMITTED != stm->state)) {
+    TU_VERIFY(_init_vs_configuration(stm));
   }
-  /* Open isochronous endpoints of the new settings. */
+  /* Open bulk or isochronous endpoints of the new settings. */
   for (i = 0, cur = tu_desc_next(cur); i < numeps; ++i, cur = tu_desc_next(cur)) {
     cur = _find_desc_ep(cur, end);
     TU_ASSERT(cur < end);
     tusb_desc_endpoint_t const *ep = (tusb_desc_endpoint_t const*)cur;
     uint_fast32_t max_size = stm->max_payload_transfer_size;
-    if ((TUSB_XFER_ISOCHRONOUS == ep->bmAttributes.xfer) &&
-        (tu_edpt_packet_size(ep) < max_size)) {
-      /* FS must be less than or equal to max packet size */
-      return false;
+    if (altnum) {
+      if ((TUSB_XFER_ISOCHRONOUS == ep->bmAttributes.xfer) &&
+          (tu_edpt_packet_size(ep) < max_size)) {
+        /* FS must be less than or equal to max packet size */
+        return false;
+      }
+    } else {
+      TU_VERIFY(TUSB_XFER_BULK == ep->bmAttributes.xfer);
     }
     TU_ASSERT(usbd_edpt_open(rhport, ep));
     stm->desc.ep[i] = (uint16_t) (cur - desc);
     TU_LOG2("    open EP%02x\n", _desc_ep_addr(cur));
+  }
+  if (altnum) {
+    stm->state = VS_STATE_STREAMING;
   }
   TU_LOG2("    done\n");
   return true;
@@ -921,6 +926,10 @@ static int handle_video_stm_cs_req(uint8_t rhport, uint8_t stage,
       break;
 
     case VIDEO_VS_CTL_PROBE:
+      if (self->state != VS_STATE_PROBING) {
+        self->state = VS_STATE_PROBING;
+        _init_vs_configuration(self);
+      }
       switch (request->bRequest) {
         case VIDEO_REQUEST_SET_CUR:
           if (stage == CONTROL_STAGE_SETUP) {
@@ -992,6 +1001,10 @@ static int handle_video_stm_cs_req(uint8_t rhport, uint8_t stage,
               ret = tud_video_commit_cb(self->index_vc, self->index_vs, param);
             }
             if (VIDEO_ERROR_NONE == ret) {
+              self->state   = VS_STATE_COMMITTED;
+              self->buffer  = NULL;
+              self->bufsize = 0;
+              self->offset  = 0;
               /* initialize payload header */
               tusb_video_payload_header_t *hdr = (tusb_video_payload_header_t*)self->ep_buf;
               hdr->bHeaderLength = sizeof(*hdr);
@@ -1080,6 +1093,7 @@ bool tud_video_n_streaming(uint_fast8_t ctl_idx, uint_fast8_t stm_idx)
   TU_ASSERT(stm_idx < CFG_TUD_VIDEO_STREAMING);
   videod_streaming_interface_t *stm = _get_instance_streaming(ctl_idx, stm_idx);
   if (!stm || !stm->desc.ep[0]) return false;
+  if (stm->state == VS_STATE_PROBING) return false;
   return true;
 }
 
@@ -1090,6 +1104,7 @@ bool tud_video_n_frame_xfer(uint_fast8_t ctl_idx, uint_fast8_t stm_idx, void *bu
   if (!buffer || !bufsize) return false;
   videod_streaming_interface_t *stm = _get_instance_streaming(ctl_idx, stm_idx);
   if (!stm || !stm->desc.ep[0] || stm->buffer) return false;
+  if (stm->state == VS_STATE_PROBING) return false;
 
   /* Find EP address */
   uint8_t const *desc = _videod_itf[stm->index_vc].beg;
@@ -1185,6 +1200,7 @@ uint16_t videod_open(uint8_t rhport, tusb_desc_interface_t const * itf_desc, uin
     stm->desc.beg = (uint16_t) ((uintptr_t)cur - (uintptr_t)itf_desc);
     cur = _next_desc_itf(cur, end);
     stm->desc.end = (uint16_t) ((uintptr_t)cur - (uintptr_t)itf_desc);
+    stm->state = VS_STATE_PROBING;
     if (0 == stm_idx && 1 == bInCollection) {
       /* If there is only one streaming interface and no alternate settings,
        * host may not issue set_interface so open the streaming interface here. */
