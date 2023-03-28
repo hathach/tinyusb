@@ -59,7 +59,7 @@ typedef struct
   CFG_TUSB_MEM_ALIGN uint8_t epin_buf[CFG_TUD_VENDOR_EPSIZE];
 } vendord_interface_t;
 
-CFG_TUSB_MEM_SECTION tu_static vendord_interface_t _vendord_itf[CFG_TUD_VENDOR];
+CFG_TUSB_MEM_SECTION static vendord_interface_t _vendord_itf[CFG_TUD_VENDOR];
 
 #define ITF_MEM_RESET_SIZE   offsetof(vendord_interface_t, rx_ff)
 
@@ -86,14 +86,19 @@ static void _prep_out_transaction (vendord_interface_t* p_itf)
 {
   uint8_t const rhport = 0;
 
-  // skip if previous transfer not complete
-  if ( usbd_edpt_busy(rhport, p_itf->ep_out) ) return;
+    // claim endpoint
+  TU_VERIFY(usbd_edpt_claim(rhport, p_itf->ep_out), );
 
   // Prepare for incoming data but only allow what we can store in the ring buffer.
   uint16_t max_read = tu_fifo_remaining(&p_itf->rx_ff);
   if ( max_read >= CFG_TUD_VENDOR_EPSIZE )
   {
     usbd_edpt_xfer(rhport, p_itf->ep_out, p_itf->epout_buf, CFG_TUD_VENDOR_EPSIZE);
+  }
+  else
+  {
+    // Release endpoint since we don't make any transfer
+    usbd_edpt_release(rhport, p_itf->ep_out);
   }
 }
 
@@ -115,37 +120,47 @@ void tud_vendor_n_read_flush (uint8_t itf)
 //--------------------------------------------------------------------+
 // Write API
 //--------------------------------------------------------------------+
-static uint16_t maybe_transmit(vendord_interface_t* p_itf)
-{
-  uint8_t const rhport = 0;
-
-  // skip if previous transfer not complete
-  TU_VERIFY( !usbd_edpt_busy(rhport, p_itf->ep_in) );
-
-  uint16_t count = tu_fifo_read_n(&p_itf->tx_ff, p_itf->epin_buf, CFG_TUD_VENDOR_EPSIZE);
-  if (count > 0)
-  {
-    TU_ASSERT( usbd_edpt_xfer(rhport, p_itf->ep_in, p_itf->epin_buf, count) );
-  }
-  return count;
-}
-
 uint32_t tud_vendor_n_write (uint8_t itf, void const* buffer, uint32_t bufsize)
 {
   vendord_interface_t* p_itf = &_vendord_itf[itf];
   uint16_t ret = tu_fifo_write_n(&p_itf->tx_ff, buffer, (uint16_t) bufsize);
+
+  // flush if queue more than packet size
   if (tu_fifo_count(&p_itf->tx_ff) >= CFG_TUD_VENDOR_EPSIZE) {
-    maybe_transmit(p_itf);
+    tud_vendor_n_write_flush(itf);
   }
   return ret;
 }
 
-uint32_t tud_vendor_n_flush (uint8_t itf)
+uint32_t tud_vendor_n_write_flush (uint8_t itf)
 {
   vendord_interface_t* p_itf = &_vendord_itf[itf];
-  uint32_t ret = maybe_transmit(p_itf);
 
-  return ret;
+  // Skip if usb is not ready yet
+  TU_VERIFY( tud_ready(), 0 );
+
+  // No data to send
+  if ( !tu_fifo_count(&p_itf->tx_ff) ) return 0;
+
+  uint8_t const rhport = 0;
+
+  // Claim the endpoint
+  TU_VERIFY( usbd_edpt_claim(rhport, p_itf->ep_in), 0 );
+
+  // Pull data from FIFO
+  uint16_t const count = tu_fifo_read_n(&p_itf->tx_ff, p_itf->epin_buf, sizeof(p_itf->epin_buf));
+
+  if ( count )
+  {
+    TU_ASSERT( usbd_edpt_xfer(rhport, p_itf->ep_in, p_itf->epin_buf, count), 0 );
+    return count;
+  }else
+  {
+    // Release endpoint since we don't make any transfer
+    // Note: data is dropped if terminal is not connected
+    usbd_edpt_release(rhport, p_itf->ep_in);
+    return 0;
+  }
 }
 
 uint32_t tud_vendor_n_write_available (uint8_t itf)
@@ -225,10 +240,10 @@ uint16_t vendord_open(uint8_t rhport, tusb_desc_interface_t const * desc_itf, ui
     // Prepare for incoming data
     if ( p_vendor->ep_out )
     {
-      TU_ASSERT(usbd_edpt_xfer(rhport, p_vendor->ep_out, p_vendor->epout_buf, sizeof(p_vendor->epout_buf)), 0);
+      _prep_out_transaction(p_vendor);
     }
 
-    if ( p_vendor->ep_in ) maybe_transmit(p_vendor);
+    if ( p_vendor->ep_in ) tud_vendor_n_write_flush((uint8_t)(p_vendor - _vendord_itf));
   }
 
   return (uint16_t) ((uintptr_t) p_desc - (uintptr_t) desc_itf);
@@ -263,7 +278,7 @@ bool vendord_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint
   {
     if (tud_vendor_tx_cb) tud_vendor_tx_cb(itf, (uint16_t) xferred_bytes);
     // Send complete, try to send more if possible
-    maybe_transmit(p_itf);
+    tud_vendor_n_write_flush(itf);
   }
 
   return true;
