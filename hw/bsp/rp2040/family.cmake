@@ -23,133 +23,194 @@ if (NOT TARGET _rp2040_family_inclusion_marker)
 		set(PICO_TINYUSB_PATH ${TOP})
 	endif()
 
-	if (NOT TINYUSB_OPT_OS)
-		set(TINYUSB_OPT_OS OPT_OS_PICO)
-	endif()
+#	if (NOT TINYUSB_OPT_OS)
+#		set(TINYUSB_OPT_OS OPT_OS_PICO)
+#	endif()
+	set(PROJ_SUFFIX "")
+	foreach(SUPPORTED_OS IN ITEMS OPT_OS_PICO OPT_OS_FREERTOS)
+		if (${SUPPORTED_OS} MATCHES OPT_OS_FREERTOS)
+			# see if FreeRTOS kernel source is available; based on <FREERTOS_KERNEL_PATH>/portable/ThirdParty/GCC/RP2040/FreeRTOS_Kernel_import.cmake
+			if (DEFINED ENV{FREERTOS_KERNEL_PATH} AND (NOT FREERTOS_KERNEL_PATH))
+				set(FREERTOS_KERNEL_PATH $ENV{FREERTOS_KERNEL_PATH})
+				message("Using FREERTOS_KERNEL_PATH from environment ('${FREERTOS_KERNEL_PATH}')")
+			endif ()
 
-	#------------------------------------
-	# Base config for both device and host; wrapped by SDK's tinyusb_common
-	#------------------------------------
-	add_library(tinyusb_common_base INTERFACE)
+			set(FREERTOS_KERNEL_RP2040_RELATIVE_PATH "portable/ThirdParty/GCC/RP2040")
+			# undo the above
+			set(FREERTOS_KERNEL_RP2040_BACK_PATH "../../../..")
 
-	target_sources(tinyusb_common_base INTERFACE
-			${TOP}/src/tusb.c
-			${TOP}/src/common/tusb_fifo.c
-			)
+			if (NOT FREERTOS_KERNEL_PATH)
+				# check if we are inside the FreeRTOS kernel tree (i.e. this file has been included directly)
+				get_filename_component(_ACTUAL_PATH ${CMAKE_CURRENT_LIST_DIR} REALPATH)
+				get_filename_component(_POSSIBLE_PATH ${CMAKE_CURRENT_LIST_DIR}/${FREERTOS_KERNEL_RP2040_BACK_PATH}/${FREERTOS_KERNEL_RP2040_RELATIVE_PATH} REALPATH)
+				if (_ACTUAL_PATH STREQUAL _POSSIBLE_PATH)
+					get_filename_component(FREERTOS_KERNEL_PATH ${CMAKE_CURRENT_LIST_DIR}/${FREERTOS_KERNEL_RP2040_BACK_PATH} REALPATH)
+				endif()
+				if (_ACTUAL_PATH STREQUAL _POSSIBLE_PATH)
+					get_filename_component(FREERTOS_KERNEL_PATH ${CMAKE_CURRENT_LIST_DIR}/${FREERTOS_KERNEL_RP2040_BACK_PATH} REALPATH)
+					message("Setting FREERTOS_KERNEL_PATH to ${FREERTOS_KERNEL_PATH} based on location of family.cmake")
+				elseif (PICO_SDK_PATH AND EXISTS "${PICO_SDK_PATH}/../FreeRTOS-Kernel")
+					set(FREERTOS_KERNEL_PATH ${PICO_SDK_PATH}/../FreeRTOS-Kernel)
+					message("Defaulting FREERTOS_KERNEL_PATH as sibling of PICO_SDK_PATH: ${FREERTOS_KERNEL_PATH}")
+				endif()
+			endif ()
 
-	target_include_directories(tinyusb_common_base INTERFACE
-			${TOP}/src
-			${TOP}/src/common
-			${TOP}/hw
-			)
+			if (NOT FREERTOS_KERNEL_PATH)
+				foreach(POSSIBLE_SUFFIX Source FreeRTOS-Kernel FreeRTOS/Source)
+					# check if FreeRTOS-Kernel exists under directory that included us
+					set(SEARCH_ROOT ${CMAKE_CURRENT_SOURCE_DIR})
+					set(SEARCH_ROOT ../../../..)
+					get_filename_component(_POSSIBLE_PATH ${SEARCH_ROOT}/${POSSIBLE_SUFFIX} REALPATH)
+					if (EXISTS ${_POSSIBLE_PATH}/${FREERTOS_KERNEL_RP2040_RELATIVE_PATH}/CMakeLists.txt)
+						get_filename_component(FREERTOS_KERNEL_PATH ${_POSSIBLE_PATH} REALPATH)
+						message("Setting FREERTOS_KERNEL_PATH to '${FREERTOS_KERNEL_PATH}' found relative to enclosing project")
+						break()
+					endif()
+				endforeach()
+			endif()
+			if (NOT FREERTOS_KERNEL_PATH)
+				message(STATUS "FREERTOS_KERNEL_PATH not defined. Skipping tinyusb OPT_OS_FREERTOS")
+				coninue()
+			else()
+				set(PROJ_SUFFIX "_freertos")
+				if (NOT DEFINED ENV{FREERTOS_KERNEL_PATH})
+					set(ENV{FREERTOS_KERNEL_PATH} ${FREERTOS_KERNEL_PATH})
+				endif()
+			endif()
+		endif()
+		set(TINYUSB_OPT_OS ${SUPPORTED_OS})
+		message(STATUS "Configuring for TINYUSB_OPT_OS=${TINYUSB_OPT_OS}")
+		#------------------------------------
+		# Base config for both device and host; wrapped by SDK's tinyusb_common
+		#------------------------------------
+		set(TUSB_COMMON_BASE tinyusb_common_base${PROJ_SUFFIX})
+		add_library(${TUSB_COMMON_BASE} INTERFACE)
 
-	target_link_libraries(tinyusb_common_base INTERFACE
-			hardware_structs
-			hardware_irq
-			hardware_resets
-			pico_sync
-			)
+		target_sources(${TUSB_COMMON_BASE} INTERFACE
+				${TOP}/src/tusb.c
+				${TOP}/src/common/tusb_fifo.c
+				)
 
-	set(TINYUSB_DEBUG_LEVEL 0)
-	if (CMAKE_BUILD_TYPE STREQUAL "Debug")
-		message("Compiling TinyUSB with CFG_TUSB_DEBUG=1")
-		set(TINYUSB_DEBUG_LEVEL 1)
-	endif()
+		target_include_directories(${TUSB_COMMON_BASE} INTERFACE
+				${TOP}/src
+				${TOP}/src/common
+				${TOP}/hw
+				)
 
-	target_compile_definitions(tinyusb_common_base INTERFACE
-			CFG_TUSB_MCU=OPT_MCU_RP2040
-			CFG_TUSB_OS=${TINYUSB_OPT_OS}
-			#CFG_TUSB_DEBUG=${TINYUSB_DEBUG_LEVEL}
-	)
+		target_link_libraries(${TUSB_COMMON_BASE} INTERFACE
+				hardware_structs
+				hardware_irq
+				hardware_resets
+				pico_sync
+				)
 
-	#------------------------------------
-	# Base config for device mode; wrapped by SDK's tinyusb_device
-	#------------------------------------
-	add_library(tinyusb_device_base INTERFACE)
-	target_sources(tinyusb_device_base INTERFACE
-			${TOP}/src/portable/raspberrypi/rp2040/dcd_rp2040.c
-			${TOP}/src/portable/raspberrypi/rp2040/rp2040_usb.c
-			${TOP}/src/device/usbd.c
-			${TOP}/src/device/usbd_control.c
-			${TOP}/src/class/audio/audio_device.c
-			${TOP}/src/class/cdc/cdc_device.c
-			${TOP}/src/class/dfu/dfu_device.c
-			${TOP}/src/class/dfu/dfu_rt_device.c
-			${TOP}/src/class/hid/hid_device.c
-			${TOP}/src/class/midi/midi_device.c
-			${TOP}/src/class/msc/msc_device.c
-			${TOP}/src/class/net/ecm_rndis_device.c
-			${TOP}/src/class/net/ncm_device.c
-			${TOP}/src/class/usbtmc/usbtmc_device.c
-			${TOP}/src/class/vendor/vendor_device.c
-			${TOP}/src/class/video/video_device.c
-			)
+		set(TINYUSB_DEBUG_LEVEL 0)
+		if (CMAKE_BUILD_TYPE STREQUAL "Debug")
+			message("Compiling TinyUSB with CFG_TUSB_DEBUG=1")
+			set(TINYUSB_DEBUG_LEVEL 1)
+		endif()
 
-	#------------------------------------
-	# Base config for host mode; wrapped by SDK's tinyusb_host
-	#------------------------------------
-	add_library(tinyusb_host_base INTERFACE)
-	target_sources(tinyusb_host_base INTERFACE
-			${TOP}/src/portable/raspberrypi/rp2040/hcd_rp2040.c
-			${TOP}/src/portable/raspberrypi/rp2040/rp2040_usb.c
-			${TOP}/src/host/usbh.c
-			${TOP}/src/host/hub.c
-			${TOP}/src/class/cdc/cdc_host.c
-			${TOP}/src/class/hid/hid_host.c
-			${TOP}/src/class/msc/msc_host.c
-			${TOP}/src/class/vendor/vendor_host.c
-			)
-
-	# Sometimes have to do host specific actions in mostly common functions
-	target_compile_definitions(tinyusb_host_base INTERFACE
-			RP2040_USB_HOST_MODE=1
-	)
-
-	#------------------------------------
-	# BSP & Additions
-	#------------------------------------
-	add_library(tinyusb_bsp INTERFACE)
-	target_sources(tinyusb_bsp INTERFACE
-			${TOP}/hw/bsp/rp2040/family.c
-			)
-	#	target_include_directories(tinyusb_bsp INTERFACE
-	#			${TOP}/hw/bsp/rp2040)
-
-	# tinyusb_additions will hold our extra settings for examples
-	add_library(tinyusb_additions INTERFACE)
-
-	target_compile_definitions(tinyusb_additions INTERFACE
-		PICO_RP2040_USB_DEVICE_ENUMERATION_FIX=1
-		PICO_RP2040_USB_DEVICE_UFRAME_FIX=1
-	)
-
-	if(DEFINED LOG)
-		target_compile_definitions(tinyusb_additions INTERFACE CFG_TUSB_DEBUG=${LOG})
-	endif()
-
-	if(LOGGER STREQUAL "rtt")
-		target_compile_definitions(tinyusb_additions INTERFACE
-				LOGGER_RTT
-				SEGGER_RTT_MODE_DEFAULT=SEGGER_RTT_MODE_BLOCK_IF_FIFO_FULL
+		target_compile_definitions(${TUSB_COMMON_BASE} INTERFACE
+				CFG_TUSB_MCU=OPT_MCU_RP2040
+				CFG_TUSB_OS=${TINYUSB_OPT_OS}
+				#CFG_TUSB_DEBUG=${TINYUSB_DEBUG_LEVEL}
 		)
 
-		target_sources(tinyusb_additions INTERFACE
-				${TOP}/lib/SEGGER_RTT/RTT/SEGGER_RTT.c
+		#------------------------------------
+		# Base config for device mode; wrapped by SDK's tinyusb_device
+		#------------------------------------
+		set(TUSB_DEV_BASE tinyusb_device_base${PROJ_SUFFIX})
+		add_library(${TUSB_DEV_BASE} INTERFACE)
+		target_sources(${TUSB_DEV_BASE} INTERFACE
+				${TOP}/src/portable/raspberrypi/rp2040/dcd_rp2040.c
+				${TOP}/src/portable/raspberrypi/rp2040/rp2040_usb.c
+				${TOP}/src/device/usbd.c
+				${TOP}/src/device/usbd_control.c
+				${TOP}/src/class/audio/audio_device.c
+				${TOP}/src/class/cdc/cdc_device.c
+				${TOP}/src/class/dfu/dfu_device.c
+				${TOP}/src/class/dfu/dfu_rt_device.c
+				${TOP}/src/class/hid/hid_device.c
+				${TOP}/src/class/midi/midi_device.c
+				${TOP}/src/class/msc/msc_device.c
+				${TOP}/src/class/net/ecm_rndis_device.c
+				${TOP}/src/class/net/ncm_device.c
+				${TOP}/src/class/usbtmc/usbtmc_device.c
+				${TOP}/src/class/vendor/vendor_device.c
+				${TOP}/src/class/video/video_device.c
+				)
+
+		#------------------------------------
+		# Base config for host mode; wrapped by SDK's tinyusb_host
+		#------------------------------------
+		set(TUSB_HOST_BASE tinyusb_host_base${PROJ_SUFFIX})
+		add_library(${TUSB_HOST_BASE} INTERFACE)
+		target_sources(${TUSB_HOST_BASE} INTERFACE
+				${TOP}/src/portable/raspberrypi/rp2040/hcd_rp2040.c
+				${TOP}/src/portable/raspberrypi/rp2040/rp2040_usb.c
+				${TOP}/src/host/usbh.c
+				${TOP}/src/host/hub.c
+				${TOP}/src/class/cdc/cdc_host.c
+				${TOP}/src/class/hid/hid_host.c
+				${TOP}/src/class/msc/msc_host.c
+				${TOP}/src/class/vendor/vendor_host.c
+				)
+
+		# Sometimes have to do host specific actions in mostly common functions
+		target_compile_definitions(${TUSB_HOST_BASE} INTERFACE
+				RP2040_USB_HOST_MODE=1
 		)
 
-		target_include_directories(tinyusb_additions INTERFACE
-				${TOP}/lib/SEGGER_RTT/RTT
+		#------------------------------------
+		# BSP & Additions
+		#------------------------------------
+		add_library(tinyusb_bsp${PROJ_SUFFIX} INTERFACE)
+		target_sources(tinyusb_bsp${PROJ_SUFFIX} INTERFACE
+				${TOP}/hw/bsp/rp2040/family.c
+				)
+		#	target_include_directories(tinyusb_bsp INTERFACE
+		#			${TOP}/hw/bsp/rp2040)
+
+		# tinyusb_additions will hold our extra settings for examples
+		add_library(tinyusb_additions${PROJ_SUFFIX} INTERFACE)
+
+		target_compile_definitions(tinyusb_additions${PROJ_SUFFIX} INTERFACE
+			PICO_RP2040_USB_DEVICE_ENUMERATION_FIX=1
+			PICO_RP2040_USB_DEVICE_UFRAME_FIX=1
 		)
-	endif()
+
+		if(DEFINED LOG)
+			target_compile_definitions(tinyusb_additions${PROJ_SUFFIX} INTERFACE CFG_TUSB_DEBUG=${LOG})
+		endif()
+
+		if(LOGGER STREQUAL "rtt")
+			target_compile_definitions(tinyusb_additions${PROJ_SUFFIX} INTERFACE
+					LOGGER_RTT
+					SEGGER_RTT_MODE_DEFAULT=SEGGER_RTT_MODE_BLOCK_IF_FIFO_FULL
+			)
+
+			target_sources(tinyusb_additions${PROJ_SUFFIX} INTERFACE
+					${TOP}/lib/SEGGER_RTT/RTT/SEGGER_RTT.c
+			)
+
+			target_include_directories(tinyusb_additions${PROJ_SUFFIX} INTERFACE
+					${TOP}/lib/SEGGER_RTT/RTT
+			)
+		endif()
+	endforeach()
 
 	#------------------------------------
 	# Functions
 	#------------------------------------
 
-	function(family_configure_target TARGET)
+	function(family_configure_target TARGET PR_SUFFIX)
 		pico_add_extra_outputs(${TARGET})
 		pico_enable_stdio_uart(${TARGET} 1)
-		target_link_libraries(${TARGET} PUBLIC pico_stdlib pico_bootsel_via_double_reset tinyusb_board tinyusb_additions)
+		target_link_libraries(${TARGET} PUBLIC pico_stdlib pico_bootsel_via_double_reset tinyusb_board${PR_SUFFIX} tinyusb_additions${PR_SUFFIX})
+		if (${PR_SUFFIX} MATCHES "_freertos")
+			message(STATUS "${TARGET}: Adding FreeRTOS-Kernel and FreeRTOS-Kernel-Heap4 libraries")
+			target_link_libraries(${TARGET} PUBLIC FreeRTOS-Kernel FreeRTOS-Kernel-Heap4)
+		endif()
 	endfunction()
 
 	function(rp2040_family_configure_example_warnings TARGET)
@@ -163,8 +224,15 @@ if (NOT TARGET _rp2040_family_inclusion_marker)
 	endfunction()
 
 	function(family_configure_device_example TARGET)
-		family_configure_target(${TARGET})
+		family_configure_target(${TARGET} "")
 		target_link_libraries(${TARGET} PUBLIC pico_stdlib tinyusb_device)
+		rp2040_family_configure_example_warnings(${TARGET})
+	endfunction()
+
+	function(family_configure_device_freertos_example TARGET)
+		message(STATUS "configuring freertos example ${TARGET}")
+		family_configure_target(${TARGET} "_freertos")
+		target_link_libraries(${TARGET} PUBLIC pico_stdlib tinyusb_device_freertos)
 		rp2040_family_configure_example_warnings(${TARGET})
 	endfunction()
 
@@ -173,7 +241,7 @@ if (NOT TARGET _rp2040_family_inclusion_marker)
 	endfunction()
 
 	function(family_configure_host_example TARGET)
-		family_configure_target(${TARGET})
+		family_configure_target(${TARGET} "")
 		target_link_libraries(${TARGET} PUBLIC pico_stdlib tinyusb_host)
 		rp2040_family_configure_example_warnings(${TARGET})
 
@@ -187,7 +255,7 @@ if (NOT TARGET _rp2040_family_inclusion_marker)
 	endfunction()
 
 	function(family_configure_dual_usb_example TARGET)
-		family_configure_target(${TARGET})
+		family_configure_target(${TARGET} "")
 		# require tinyusb_pico_pio_usb
 		target_link_libraries(${TARGET} PUBLIC pico_stdlib tinyusb_device tinyusb_host tinyusb_pico_pio_usb )
 		rp2040_family_configure_example_warnings(${TARGET})
