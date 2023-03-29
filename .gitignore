@@ -28,6 +28,8 @@ cov-int
 *-build-dir
 /_bin/
 __pycache__
+cmake-build-*
+sdkconfig
 
 # submodules
 hw/mcu/allwinner
