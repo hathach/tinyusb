@@ -80,7 +80,7 @@ int board_uart_write(void const * buf, int len);
 #elif CFG_TUSB_OS == OPT_OS_FREERTOS
   static inline uint32_t board_millis(void)
   {
-    return ( ( ((uint64_t) xTaskGetTickCount()) * 1000) / configTICK_RATE_HZ );
+    return (uint32_t)( ( ((uint64_t) xTaskGetTickCount()) * 1000) / configTICK_RATE_HZ );
   }
 
 #elif CFG_TUSB_OS == OPT_OS_MYNEWT
