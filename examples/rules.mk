@@ -7,7 +7,7 @@
 
 # ---------------- GNU Make Start -----------------------
 # ESP32-Sx and RP2040 has its own CMake build system
-ifeq (,$(findstring $(FAMILY),esp32s2 esp32s3 rp2040))
+ifeq (,$(findstring $(FAMILY),espressif rp2040))
 
 # ---------------------------------------
 # Compiler Flags

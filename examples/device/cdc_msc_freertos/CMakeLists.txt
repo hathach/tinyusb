@@ -16,7 +16,6 @@ project(${PROJECT})
 family_initialize_project(${PROJECT} ${CMAKE_CURRENT_LIST_DIR})
 
 # Check for -DFAMILY=
-if(FAMILY MATCHES "^esp32s[2-3]")
-else()
+if(NOT FAMILY  STREQUAL "espressif")
   message(FATAL_ERROR "Invalid FAMILY specified: ${FAMILY}")
 endif()

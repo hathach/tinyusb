@@ -1,9 +1,21 @@
 #DEPS_SUBMODULES +=
 
+UF2_FAMILY_ID_esp32s2 = 0xbfdd4eee
+UF2_FAMILY_ID_esp32s3 = 0xc47e5767
+
+BOARD_CMAKE := $(file < $(TOP)/$(BOARD_PATH)/board.cmake)
+ifneq ($(findstring esp32s2,$(BOARD_CMAKE)),)
+	IDF_TARGET = esp32s2
+else
+ifneq ($(findstring esp32s3,$(BOARD_CMAKE)),)
+	IDF_TARGET = esp32s3
+endif
+endif
+
 .PHONY: all clean flash bootloader-flash app-flash erase monitor dfu-flash dfu
 
 all:
-	idf.py -B$(BUILD) -DFAMILY=$(FAMILY) -DBOARD=$(BOARD) $(CMAKE_DEFSYM) -DIDF_TARGET=esp32s2 build
+	idf.py -B$(BUILD) -DFAMILY=$(FAMILY) -DBOARD=$(BOARD) $(CMAKE_DEFSYM) build
 
 build: all
 
@@ -17,7 +29,6 @@ clean flash bootloader-flash app-flash erase monitor dfu-flash dfu size size-com
 
 uf2: $(BUILD)/$(PROJECT).uf2
 
-UF2_FAMILY_ID = 0xbfdd4eee
 $(BUILD)/$(PROJECT).uf2: $(BUILD)/$(PROJECT).bin
 	@echo CREATE $@
-	$(PYTHON) $(TOP)/tools/uf2/utils/uf2conv.py -f $(UF2_FAMILY_ID) -b 0x0 -c -o $@ $^
+	$(PYTHON) $(TOP)/tools/uf2/utils/uf2conv.py -f $(UF2_FAMILY_ID_$(IDF_TARGET)) -b 0x0 -c -o $@ $^

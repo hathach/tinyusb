@@ -52,7 +52,7 @@ if __name__ == '__main__':
     # If family are not specified in arguments, build all
     all_families = []
     for entry in os.scandir("hw/bsp"):
-        if entry.is_dir() and os.path.isdir(entry.path + "/boards") and entry.name not in ("esp32s2", "esp32s3"):
+        if entry.is_dir() and os.path.isdir(entry.path + "/boards") and entry.name != 'espressif'
             all_families.append(entry.name)
     filter_with_input(all_families)
     all_families.sort()
