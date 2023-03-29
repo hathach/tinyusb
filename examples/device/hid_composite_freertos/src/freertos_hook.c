@@ -37,7 +37,7 @@ void vApplicationMallocFailedHook(void)
   TU_ASSERT(false, );
 }
 
-void vApplicationStackOverflowHook(xTaskHandle pxTask, char *pcTaskName)
+void vApplicationStackOverflowHook(TaskHandle_t pxTask, char *pcTaskName)
 {
   (void) pxTask;
   (void) pcTaskName;
@@ -46,6 +46,11 @@ void vApplicationStackOverflowHook(xTaskHandle pxTask, char *pcTaskName)
   TU_ASSERT(false, );
 }
 
+void vApplicationTickHook( void )
+{
+}
+
+#if configSUPPORT_STATIC_ALLOCATION
 /* configSUPPORT_STATIC_ALLOCATION is set to 1, so the application must provide an
  * implementation of vApplicationGetIdleTaskMemory() to provide the memory that is
  * used by the Idle task. */
@@ -93,7 +98,7 @@ void vApplicationGetTimerTaskMemory( StaticTask_t **ppxTimerTaskTCBBuffer, Stack
     configTIMER_TASK_STACK_DEPTH is specified in words, not bytes. */
   *pulTimerTaskStackSize = configTIMER_TASK_STACK_DEPTH;
 }
-
+#endif
 #if CFG_TUSB_MCU == OPT_MCU_RX63X | CFG_TUSB_MCU == OPT_MCU_RX65X
 #include "iodefine.h"
 void vApplicationSetupTimerInterrupt(void)
