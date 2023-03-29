@@ -199,6 +199,25 @@ if (NOT TARGET _rp2040_family_inclusion_marker)
 		endif()
 	endforeach()
 
+	# TODO: For FreeRTOS support, add wrapper libraries. This should happen
+	# in ${PICO_SDK_PATH}/src/rp2common/tinyusb/CMakeLists.txt
+	# but it is done here for testing purposes
+	if (DEFINED FREERTOS_KERNEL_PATH)
+		add_library(tinyusb_common_freertos INTERFACE)
+		target_link_libraries(tinyusb_common_freertos INTERFACE tinyusb_common_base_freertos)
+
+		pico_add_library(tinyusb_device_freertos)
+		target_link_libraries(tinyusb_device_freertos INTERFACE tinyusb_common_freertos pico_fix_rp2040_usb_device_enumeration tinyusb_device_base_freertos)
+
+		pico_add_library(tinyusb_host_freertos)
+		target_link_libraries(tinyusb_host_freertos INTERFACE tinyusb_host_base_freertos tinyusb_common_freertos)
+
+		pico_add_library(tinyusb_board_freertos)
+		target_link_libraries(tinyusb_board_freertos INTERFACE tinyusb_bsp_freertos)
+	else()
+		message(STATUS "FREERTOS_KERNEL_PATH not defined")
+	endif()
+
 	#------------------------------------
 	# Functions
 	#------------------------------------
