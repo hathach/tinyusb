@@ -312,8 +312,7 @@ typedef struct TU_ATTR_PACKED
     int8_t pan;      // using AC Pan
 } hid_abs_mouse_report_t;
 
-  
-  
+
 /// Standard Mouse Buttons Bitmap
 typedef enum
 {
