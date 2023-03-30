@@ -72,6 +72,16 @@ bool tud_hid_n_keyboard_report(uint8_t instance, uint8_t report_id, uint8_t modi
 // use template layout report as defined by hid_mouse_report_t
 bool tud_hid_n_mouse_report(uint8_t instance, uint8_t report_id, uint8_t buttons, int8_t x, int8_t y, int8_t vertical, int8_t horizontal);
 
+// ABSOLUTE MOUSE: convenient helper to send absolute mouse report if application
+// use template layout report as defined by hid_abs_mouse_report_t
+bool tud_hid_n_abs_mouse_report(uint8_t instance, uint8_t report_id, uint8_t buttons, int16_t x, int16_t y, int8_t vertical, int8_t horizontal);
+
+
+static inline bool tud_hid_abs_mouse_report(uint8_t report_id, uint8_t buttons, int16_t x, int16_t y, int8_t vertical, int8_t horizontal)
+{
+  return tud_hid_n_abs_mouse_report(0, report_id, buttons, x, y, vertical, horizontal);
+}
+
 // Gamepad: convenient helper to send gamepad report if application
 // use template layout report TUD_HID_REPORT_DESC_GAMEPAD
 bool tud_hid_n_gamepad_report(uint8_t instance, uint8_t report_id, int8_t x, int8_t y, int8_t z, int8_t rz, int8_t rx, int8_t ry, uint8_t hat, uint32_t buttons);
@@ -314,7 +324,7 @@ static inline bool  tud_hid_gamepad_report(uint8_t report_id, int8_t x, int8_t y
         HID_INPUT       ( HID_DATA | HID_VARIABLE | HID_RELATIVE ), \
     HID_COLLECTION_END                                            , \
   HID_COLLECTION_END \
-     
+
 // Consumer Control Report Descriptor Template
 #define TUD_HID_REPORT_DESC_CONSUMER(...) \
   HID_USAGE_PAGE ( HID_USAGE_PAGE_CONSUMER    )              ,\
