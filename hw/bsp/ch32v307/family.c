@@ -31,11 +31,16 @@
 #include "bsp/board.h"
 #include "board.h"
 
+#define SYSCLK_FREQ_48MHz   48000000
+#define SYSCLK_FREQ_96MHz   96000000
+#define SYSCLK_FREQ_144MHz 144000000
+
 //--------------------------------------------------------------------+
 // Forward USB interrupt events to TinyUSB IRQ Handler
 //--------------------------------------------------------------------+
-
-void USBHS_IRQHandler (void) __attribute__((naked));
+// using interrupt is maybe inefficient but it does not depend
+// on the compiler used
+void USBHS_IRQHandler (void) __attribute__((interrupt));
 void USBHS_IRQHandler (void)
 {
   __asm volatile ("call USBHS_IRQHandler_impl; mret");
@@ -45,6 +50,18 @@ __attribute__ ((used)) void USBHS_IRQHandler_impl (void)
 {
   tud_int_handler(0);
 }
+//---
+void OTG_FS_IRQHandler (void) __attribute__((interrupt));
+void OTG_FS_IRQHandler (void)
+{
+  __asm volatile ("call OTG_FS_IRQHandler_impl; mret");
+}
+
+__attribute__ ((used)) void OTG_FS_IRQHandler_impl (void)
+{
+  tud_int_handler(0);
+}
+
 
 //--------------------------------------------------------------------+
 // MACRO TYPEDEF CONSTANT ENUM
@@ -78,6 +95,21 @@ void board_init(void) {
   RCC_USBHSPLLCKREFCLKConfig(RCC_USBHSPLLCKREFCLK_4M);
   RCC_USBHSPHYPLLALIVEcmd(ENABLE);
   RCC_AHBPeriphClockCmd(RCC_AHBPeriph_USBHS, ENABLE);
+
+  // Set usb clock divider
+  uint32_t div=0;
+  switch(SystemCoreClock)
+    {
+      case SYSCLK_FREQ_48MHz:  div=RCC_OTGFSCLKSource_PLLCLK_Div1;break;
+      case SYSCLK_FREQ_96MHz:  div=RCC_OTGFSCLKSource_PLLCLK_Div2;break;
+      case SYSCLK_FREQ_144MHz: div=RCC_OTGFSCLKSource_PLLCLK_Div3;break;
+      default:
+	  TU_ASSERT(0,);
+	  break;
+    }
+  RCC_OTGFSCLKConfig(div);
+  // also enable USB OTG clock
+  RCC_AHBPeriphClockCmd(RCC_AHBPeriph_OTG_FS, ENABLE);
 
   GPIO_InitTypeDef GPIO_InitStructure = {0};
 

@@ -29,7 +29,8 @@ CFLAGS += \
 	-DBOARD_TUD_MAX_SPEED=OPT_MODE_HIGH_SPEED
 
 SRC_C += \
-	src/portable/wch/ch32v307/dcd_usbhs.c \
+	src/portable/wch/wch_fs_otg/dcd_usbfs.c \
+	src/portable/wch/wch_fs_otg/dcd_usbfs_platform.c \
 	$(CH32V307_SDK_SRC)/Core/core_riscv.c \
 	$(CH32V307_SDK_SRC)/Peripheral/src/ch32v30x_gpio.c \
 	$(CH32V307_SDK_SRC)/Peripheral/src/ch32v30x_misc.c \
