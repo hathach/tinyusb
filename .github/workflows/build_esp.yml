@@ -1,11 +1,25 @@
 name: Build ESP
 
 on:
-  pull_request:
   push:
-  release:
-    types:
-      - created
+    paths:
+      - 'src/**'
+      - 'examples/**'
+      - 'lib/**'
+      - 'hw/**'
+      - '.github/workflows/build_esp.yml'
+  pull_request:
+    branches: [ master ]
+    paths:
+      - 'src/**'
+      - 'examples/**'
+      - 'lib/**'
+      - 'hw/**'
+      - '.github/workflows/build_esp.yml'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
+  cancel-in-progress: true
 
 jobs:
   build-esp:
@@ -23,16 +37,18 @@ jobs:
 
     steps:
     - name: Setup Python
-      uses: actions/setup-python@v2
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.x'
 
     - name: Pull ESP-IDF docker
       run: docker pull espressif/idf:latest
 
     - name: Checkout TinyUSB
-      uses: actions/checkout@v2
+      uses: actions/checkout@v3
 
     - name: Checkout hathach/linkermap
-      uses: actions/checkout@v2
+      uses: actions/checkout@v3
       with:
          repository: hathach/linkermap
          path: linkermap
@@ -43,7 +59,8 @@ jobs:
     - name: Linker Map
       run: |
         pip install linkermap/
-        for ex in `ls -d examples/device/*/`; do \
-          find ${ex} -maxdepth 3 -name *.map -print -quit | \
-          xargs -I % sh -c 'echo "::group::%"; linkermap -v %; echo "::endgroup::"'; \
+        # find -quit to only print linkermap of 1 board per example
+        for ex in `ls -d examples/device/*/`
+        do
+          find ${ex} -maxdepth 3 -name *.map -print -quit | xargs -I % sh -c 'echo "::group::%"; linkermap -v %; echo "::endgroup::"'
         done

@@ -17,4 +17,4 @@ Flash: `make BOARD=f1c100s flash` will write the image to SPI flash, and then re
 
 ## TODO
 
-* Add F1C100s to `#if CFG_TUSB_MCU == OPT_MCU_LPC43XX || CFG_TUSB_MCU == OPT_MCU_LPC18XX || CFG_TUSB_MCU == OPT_MCU_MIMXRT10XX` high speed MCU check in examples (maybe we should extract the logic?)
+* Add F1C100s to `#if CFG_TUSB_MCU == OPT_MCU_LPC43XX || CFG_TUSB_MCU == OPT_MCU_LPC18XX || CFG_TUSB_MCU == OPT_MCU_MIMXRT` high speed MCU check in examples (maybe we should extract the logic?)

@@ -1,4 +1,4 @@
-/* 
+/*
  * The MIT License (MIT)
  *
  * Copyright (c) 2020, Ha Thach (tinyusb.org)
@@ -93,7 +93,7 @@ static inline void board_clock_init(void)
 
 static inline void board_vbus_sense_init(void)
 {
-  // Blackpill doens't use VBUS sense (B device) explicitly disable it
+  // Blackpill doesn't use VBUS sense (B device) explicitly disable it
   USB_OTG_FS->GCCFG |= USB_OTG_GCCFG_NOVBUSSENS;
   USB_OTG_FS->GCCFG &= ~USB_OTG_GCCFG_VBUSBSEN;
   USB_OTG_FS->GCCFG &= ~USB_OTG_GCCFG_VBUSASEN;

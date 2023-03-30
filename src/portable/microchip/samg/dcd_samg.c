@@ -1,4 +1,4 @@
-/* 
+/*
  * The MIT License (MIT)
  *
  * Copyright (c) 2018, hathach (tinyusb.org)
@@ -208,6 +208,14 @@ void dcd_disconnect(uint8_t rhport)
 
   // disable both pullup and transceiver
   UDP->UDP_TXVC = UDP_TXVC_TXVDIS_Msk;
+}
+
+void dcd_sof_enable(uint8_t rhport, bool en)
+{
+  (void) rhport;
+  (void) en;
+
+  // TODO implement later
 }
 
 //--------------------------------------------------------------------+

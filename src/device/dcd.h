@@ -1,4 +1,4 @@
-/* 
+/*
  * The MIT License (MIT)
  *
  * Copyright (c) 2019 Ha Thach (tinyusb.org)
@@ -77,6 +77,11 @@ typedef struct TU_ATTR_ALIGNED(4)
       tusb_speed_t speed;
     } bus_reset;
 
+    // SOF
+    struct {
+      uint32_t frame_count;
+    }sof;
+
     // SETUP_RECEIVED
     tusb_control_request_t setup_received;
 
@@ -105,14 +110,7 @@ typedef struct TU_ATTR_ALIGNED(4)
 void dcd_init       (uint8_t rhport);
 
 // Interrupt Handler
-#if __GNUC__ && !defined(__ARMCC_VERSION)
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wredundant-decls"
-#endif
 void dcd_int_handler(uint8_t rhport);
-#if __GNUC__ && !defined(__ARMCC_VERSION)
-#pragma GCC diagnostic pop
-#endif
 
 // Enable device interrupt
 void dcd_int_enable (uint8_t rhport);
@@ -131,6 +129,9 @@ void dcd_connect(uint8_t rhport) TU_ATTR_WEAK;
 
 // Disconnect by disabling internal pull-up resistor on D+/D-
 void dcd_disconnect(uint8_t rhport) TU_ATTR_WEAK;
+
+// Enable/Disable Start-of-frame interrupt. Default is disabled
+void dcd_sof_enable(uint8_t rhport, bool en);
 
 //--------------------------------------------------------------------+
 // Endpoint API
@@ -166,6 +167,12 @@ void dcd_edpt_stall           (uint8_t rhport, uint8_t ep_addr);
 // This API never calls with control endpoints, since it is auto cleared when receiving setup packet
 void dcd_edpt_clear_stall     (uint8_t rhport, uint8_t ep_addr);
 
+// Allocate packet buffer used by ISO endpoints
+// Some MCU need manual packet buffer allocation, we allocation largest size to avoid clustering
+TU_ATTR_WEAK bool dcd_edpt_iso_alloc(uint8_t rhport, uint8_t ep_addr, uint16_t largest_packet_size);
+
+// Configure and enable an ISO endpoint according to descriptor
+TU_ATTR_WEAK bool dcd_edpt_iso_activate(uint8_t rhport,  tusb_desc_endpoint_t const * p_endpoint_desc);
 //--------------------------------------------------------------------+
 // Event API (implemented by stack)
 //--------------------------------------------------------------------+
@@ -174,16 +181,47 @@ void dcd_edpt_clear_stall     (uint8_t rhport, uint8_t ep_addr);
 extern void dcd_event_handler(dcd_event_t const * event, bool in_isr);
 
 // helper to send bus signal event
-extern void dcd_event_bus_signal (uint8_t rhport, dcd_eventid_t eid, bool in_isr);
+TU_ATTR_ALWAYS_INLINE static inline void dcd_event_bus_signal (uint8_t rhport, dcd_eventid_t eid, bool in_isr)
+{
+  dcd_event_t event = { .rhport = rhport, .event_id = eid };
+  dcd_event_handler(&event, in_isr);
+}
 
 // helper to send bus reset event
-extern void dcd_event_bus_reset (uint8_t rhport, tusb_speed_t speed, bool in_isr);
+TU_ATTR_ALWAYS_INLINE static inline  void dcd_event_bus_reset (uint8_t rhport, tusb_speed_t speed, bool in_isr)
+{
+  dcd_event_t event = { .rhport = rhport, .event_id = DCD_EVENT_BUS_RESET };
+  event.bus_reset.speed = speed;
+  dcd_event_handler(&event, in_isr);
+}
 
 // helper to send setup received
-extern void dcd_event_setup_received(uint8_t rhport, uint8_t const * setup, bool in_isr);
+TU_ATTR_ALWAYS_INLINE static inline void dcd_event_setup_received(uint8_t rhport, uint8_t const * setup, bool in_isr)
+{
+  dcd_event_t event = { .rhport = rhport, .event_id = DCD_EVENT_SETUP_RECEIVED };
+  memcpy(&event.setup_received, setup, sizeof(tusb_control_request_t));
+
+  dcd_event_handler(&event, in_isr);
+}
 
 // helper to send transfer complete event
-extern void dcd_event_xfer_complete (uint8_t rhport, uint8_t ep_addr, uint32_t xferred_bytes, uint8_t result, bool in_isr);
+TU_ATTR_ALWAYS_INLINE static inline void dcd_event_xfer_complete (uint8_t rhport, uint8_t ep_addr, uint32_t xferred_bytes, uint8_t result, bool in_isr)
+{
+  dcd_event_t event = { .rhport = rhport, .event_id = DCD_EVENT_XFER_COMPLETE };
+
+  event.xfer_complete.ep_addr = ep_addr;
+  event.xfer_complete.len     = xferred_bytes;
+  event.xfer_complete.result  = result;
+
+  dcd_event_handler(&event, in_isr);
+}
+
+static inline void dcd_event_sof(uint8_t rhport, uint32_t frame_count, bool in_isr)
+{
+  dcd_event_t event = { .rhport = rhport, .event_id = DCD_EVENT_SOF };
+  event.sof.frame_count = frame_count;
+  dcd_event_handler(&event, in_isr);
+}
 
 #ifdef __cplusplus
  }

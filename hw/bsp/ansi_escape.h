@@ -1,4 +1,4 @@
-/* 
+/*
  * The MIT License (MIT)
  *
  * Copyright (c) 2019 Ha Thach (tinyusb.org)
@@ -25,7 +25,7 @@
  */
 
 /** \ingroup group_board
- *  \defgroup group_ansi_esc ANSI Esacpe Code
+ *  \defgroup group_ansi_esc ANSI Escape Code
  *  @{ */
 
 #ifndef _TUSB_ANSI_ESC_CODE_H_

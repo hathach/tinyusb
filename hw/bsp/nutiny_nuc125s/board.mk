@@ -10,6 +10,9 @@ CFLAGS += \
   -DCFG_EXAMPLE_MSC_READONLY \
   -DCFG_TUSB_MCU=OPT_MCU_NUC121
 
+# mcu driver cause following warnings
+CFLAGS += -Wno-error=redundant-decls
+
 # All source paths should be relative to the top level.
 LD_FILE = hw/bsp/$(BOARD)/nuc125_flash.ld
 
@@ -28,7 +31,7 @@ INC += \
   $(TOP)/hw/mcu/nuvoton/nuc121_125/CMSIS/Include
 
 # For freeRTOS port source
-FREERTOS_PORT = ARM_CM0
+FREERTOS_PORTABLE_SRC = $(FREERTOS_PORTABLE_PATH)/ARM_CM0
 
 # For flash-jlink target
 JLINK_DEVICE = NUC125SC2AE

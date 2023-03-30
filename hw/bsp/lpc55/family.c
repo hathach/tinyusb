@@ -1,4 +1,4 @@
-/* 
+/*
  * The MIT License (MIT)
  *
  * Copyright (c) 2018, hathach (tinyusb.org)
@@ -33,6 +33,18 @@
 #include "fsl_usart.h"
 #include "fsl_sctimer.h"
 #include "sct_neopixel.h"
+
+#ifdef BOARD_TUD_RHPORT
+  #define PORT_SUPPORT_DEVICE(_n)  (BOARD_TUD_RHPORT == _n)
+#else
+  #define PORT_SUPPORT_DEVICE(_n)  0
+#endif
+
+#ifdef BOARD_TUH_RHPORT
+  #define PORT_SUPPORT_HOST(_n)    (BOARD_TUH_RHPORT == _n)
+#else
+  #define PORT_SUPPORT_HOST(_n)    0
+#endif
 
 //--------------------------------------------------------------------+
 // MACRO TYPEDEF CONSTANT ENUM
@@ -164,7 +176,7 @@ void board_init(void)
   /* PORT0 PIN22 configured as USB0_VBUS */
   IOCON_PinMuxSet(IOCON, 0U, 22U, IOCON_PIO_DIG_FUNC7_EN);
 
-#if CFG_TUSB_RHPORT0_MODE & OPT_MODE_DEVICE
+#if PORT_SUPPORT_DEVICE(0)
   // Port0 is Full Speed
 
   /* Turn on USB0 Phy */
@@ -180,7 +192,7 @@ void board_init(void)
   CLOCK_SetClkDiv(kCLOCK_DivUsb0Clk, 1, false);
   CLOCK_AttachClk(kFRO_HF_to_USB0_CLK);
 
-  /*According to reference mannual, device mode setting has to be set by access usb host register */
+  /*According to reference manual, device mode setting has to be set by access usb host register */
   CLOCK_EnableClock(kCLOCK_Usbhsl0);  // enable usb0 host clock
   USBFSH->PORTMODE |= USBFSH_PORTMODE_DEV_ENABLE_MASK;
   CLOCK_DisableClock(kCLOCK_Usbhsl0); // disable usb0 host clock
@@ -189,7 +201,7 @@ void board_init(void)
   CLOCK_EnableUsbfs0DeviceClock(kCLOCK_UsbfsSrcFro, CLOCK_GetFreq(kCLOCK_FroHf));
 #endif
 
-#if CFG_TUSB_RHPORT1_MODE & OPT_MODE_DEVICE
+#if PORT_SUPPORT_DEVICE(1)
   // Port1 is High Speed
 
   /* Turn on USB1 Phy */
@@ -201,7 +213,7 @@ void board_init(void)
   RESET_PeripheralReset(kUSB1_RST_SHIFT_RSTn);
   RESET_PeripheralReset(kUSB1RAM_RST_SHIFT_RSTn);
 
-  /* According to reference mannual, device mode setting has to be set by access usb host register */
+  /* According to reference manual, device mode setting has to be set by access usb host register */
   CLOCK_EnableClock(kCLOCK_Usbh1); // enable usb0 host clock
 
   USBHSH->PORTMODE = USBHSH_PORTMODE_SW_PDCOM_MASK; // Put PHY powerdown under software control

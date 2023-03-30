@@ -14,7 +14,10 @@ CFLAGS += \
   -DCFG_TUSB_MCU=OPT_MCU_SAML22
 
 # suppress warning caused by vendor mcu driver
-CFLAGS += -Wno-error=cast-qual
+CFLAGS += -Wno-error=redundant-decls
+
+# SAM driver is flooded with -Wcast-qual which slow down complication significantly
+CFLAGS_SKIP += -Wcast-qual
 
 SRC_C += \
 	src/portable/microchip/samd/dcd_samd.c \
@@ -39,7 +42,7 @@ INC += \
 	$(TOP)/lib/CMSIS_5/CMSIS/Core/Include
 
 # For freeRTOS port source
-FREERTOS_PORT = ARM_CM0
+FREERTOS_PORTABLE_SRC = $(FREERTOS_PORTABLE_PATH)/ARM_CM0
 
 # flash using bossac at least version 1.8
 # can be found in arduino15/packages/arduino/tools/bossac/

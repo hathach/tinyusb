@@ -27,9 +27,9 @@
 /*
   Theory of operation:
 
-  The NUC505 USBD peripheral has twelve "EP"s, where each is simplex, in addition 
+  The NUC505 USBD peripheral has twelve "EP"s, where each is simplex, in addition
   to dedicated support for the control endpoint (EP0).  The non-user endpoints
-  are referred to as "user" EPs in this code, and follow the datasheet 
+  are referred to as "user" EPs in this code, and follow the datasheet
   nomenclature of EPA through EPL.
 */
 
@@ -181,7 +181,7 @@ static void dcd_userEP_in_xfer(struct xfer_ctl_t *xfer, USBD_EP_T *ep)
     ep->EPINTEN = USBD_EPINTEN_TXPKIEN_Msk;
   }
 
-  /* provided buffers are thankfully 32-bit aligned, allowing most data to be transfered as 32-bit */
+  /* provided buffers are thankfully 32-bit aligned, allowing most data to be transferred as 32-bit */
 #if 0 // TODO support dcd_edpt_xfer_fifo API
   if (xfer->ff)
   {
@@ -389,7 +389,7 @@ bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t *buffer, uint16_t to
       while (total_bytes < USBD->CEPRXCNT);
       for (int count = 0; count < total_bytes; count++)
         *buffer++ = USBD->CEPDAT_BYTE;
-      
+
       dcd_event_xfer_complete(0, ep_addr, total_bytes, XFER_RESULT_SUCCESS, true);
     }
   }
@@ -718,6 +718,14 @@ void dcd_connect(uint8_t rhport)
 {
   (void) rhport;
   usb_attach();
+}
+
+void dcd_sof_enable(uint8_t rhport, bool en)
+{
+  (void) rhport;
+  (void) en;
+
+  // TODO implement later
 }
 
 #endif

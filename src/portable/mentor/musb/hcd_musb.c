@@ -1,4 +1,4 @@
-/* 
+/*
  * The MIT License (MIT)
  *
  * Copyright (c) 2021 Koji KITAYAMA
@@ -588,7 +588,7 @@ void hcd_int_disable(uint8_t rhport)
 uint32_t hcd_frame_number(uint8_t rhport)
 {
   (void)rhport;
-  /* The device must be reset at least once after connection 
+  /* The device must be reset at least once after connection
    * in order to start the frame counter. */
   if (_hcd.need_reset) hcd_port_reset(rhport);
   return USB0->FRAME;
@@ -615,6 +615,11 @@ void hcd_port_reset(uint8_t rhport)
   while (cnt--) __NOP();
   USB0->POWER &= ~USB_POWER_RESET;
   _hcd.need_reset = false;
+}
+
+void hcd_port_reset_end(uint8_t rhport)
+{
+  (void) rhport;
 }
 
 tusb_speed_t hcd_port_speed_get(uint8_t rhport)

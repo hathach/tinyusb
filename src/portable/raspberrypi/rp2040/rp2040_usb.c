@@ -32,23 +32,34 @@
 #include <stdlib.h>
 #include "rp2040_usb.h"
 
+//--------------------------------------------------------------------+
+// MACRO CONSTANT TYPEDEF PROTOTYPE
+//--------------------------------------------------------------------+
+
 // Direction strings for debug
 const char *ep_dir_string[] = {
         "out",
         "in",
 };
 
-static inline void _hw_endpoint_lock_update(__unused struct hw_endpoint * ep, __unused int delta) {
-    // todo add critsec as necessary to prevent issues between worker and IRQ...
-    //  note that this is perhaps as simple as disabling IRQs because it would make
-    //  sense to have worker and IRQ on same core, however I think using critsec is about equivalent.
+static void _hw_endpoint_xfer_sync(struct hw_endpoint *ep);
+
+#if TUD_OPT_RP2040_USB_DEVICE_UFRAME_FIX
+  static bool e15_is_bulkin_ep(struct hw_endpoint *ep);
+  static bool e15_is_critical_frame_period(struct hw_endpoint *ep);
+#else
+  #define e15_is_bulkin_ep(x)             (false)
+  #define e15_is_critical_frame_period(x) (false)
+#endif
+
+// if usb hardware is in host mode
+TU_ATTR_ALWAYS_INLINE static inline bool is_host_mode(void)
+{
+  return (usb_hw->main_ctrl & USB_MAIN_CTRL_HOST_NDEVICE_BITS) ? true : false;
 }
 
-static void _hw_endpoint_xfer_sync(struct hw_endpoint *ep);
-static void _hw_endpoint_start_next_buffer(struct hw_endpoint *ep);
-
 //--------------------------------------------------------------------+
-//
+// Implementation
 //--------------------------------------------------------------------+
 
 void rp2040_usb_init(void)
@@ -57,19 +68,27 @@ void rp2040_usb_init(void)
   reset_block(RESETS_RESET_USBCTRL_BITS);
   unreset_block_wait(RESETS_RESET_USBCTRL_BITS);
 
+#ifdef __GNUC__
   // Clear any previous state just in case
-  // TODO Suppress warning array-bounds with gcc11
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Warray-bounds"
+#if __GNUC__ > 6
+#pragma GCC diagnostic ignored "-Wstringop-overflow"
+#endif
+#endif
   memset(usb_hw, 0, sizeof(*usb_hw));
   memset(usb_dpram, 0, sizeof(*usb_dpram));
+#ifdef __GNUC__
 #pragma GCC diagnostic pop
+#endif
 
   // Mux the controller to the onboard usb phy
   usb_hw->muxing = USB_USB_MUXING_TO_PHY_BITS | USB_USB_MUXING_SOFTCON_BITS;
+
+  TU_LOG2_INT(sizeof(hw_endpoint_t));
 }
 
-void hw_endpoint_reset_transfer(struct hw_endpoint *ep)
+void __tusb_irq_path_func(hw_endpoint_reset_transfer)(struct hw_endpoint *ep)
 {
   ep->active = false;
   ep->remaining_len = 0;
@@ -77,20 +96,27 @@ void hw_endpoint_reset_transfer(struct hw_endpoint *ep)
   ep->user_buf = 0;
 }
 
-void _hw_endpoint_buffer_control_update32(struct hw_endpoint *ep, uint32_t and_mask, uint32_t or_mask) {
-    uint32_t value = 0;
-    if (and_mask) {
-        value = *ep->buffer_control & and_mask;
-    }
-    if (or_mask) {
-        value |= or_mask;
-        if (or_mask & USB_BUF_CTRL_AVAIL) {
-            if (*ep->buffer_control & USB_BUF_CTRL_AVAIL) {
-                panic("ep %d %s was already available", tu_edpt_number(ep->ep_addr), ep_dir_string[tu_edpt_dir(ep->ep_addr)]);
-            }
-            *ep->buffer_control = value & ~USB_BUF_CTRL_AVAIL;
-            // 12 cycle delay.. (should be good for 48*12Mhz = 576Mhz)
-            // Don't need delay in host mode as host is in charge
+void __tusb_irq_path_func(_hw_endpoint_buffer_control_update32)(struct hw_endpoint *ep, uint32_t and_mask, uint32_t or_mask)
+{
+  uint32_t value = 0;
+
+  if ( and_mask )
+  {
+    value = *ep->buffer_control & and_mask;
+  }
+
+  if ( or_mask )
+  {
+    value |= or_mask;
+    if ( or_mask & USB_BUF_CTRL_AVAIL )
+    {
+      if ( *ep->buffer_control & USB_BUF_CTRL_AVAIL )
+      {
+        panic("ep %d %s was already available", tu_edpt_number(ep->ep_addr), ep_dir_string[tu_edpt_dir(ep->ep_addr)]);
+      }
+      *ep->buffer_control = value & ~USB_BUF_CTRL_AVAIL;
+      // 12 cycle delay.. (should be good for 48*12Mhz = 576Mhz)
+      // Don't need delay in host mode as host is in charge
 #if !CFG_TUH_ENABLED
             __asm volatile (
                     "b 1f\n"
@@ -102,13 +128,14 @@ void _hw_endpoint_buffer_control_update32(struct hw_endpoint *ep, uint32_t and_m
                     "1:\n"
                     : : : "memory");
 #endif
-        }
     }
-    *ep->buffer_control = value;
+  }
+
+  *ep->buffer_control = value;
 }
 
 // prepare buffer, return buffer control
-static uint32_t prepare_ep_buffer(struct hw_endpoint *ep, uint8_t buf_id)
+static uint32_t __tusb_irq_path_func(prepare_ep_buffer)(struct hw_endpoint *ep, uint8_t buf_id)
 {
   uint16_t const buflen = tu_min16(ep->remaining_len, ep->wMaxPacketSize);
   ep->remaining_len = (uint16_t)(ep->remaining_len - buflen);
@@ -143,17 +170,21 @@ static uint32_t prepare_ep_buffer(struct hw_endpoint *ep, uint8_t buf_id)
 }
 
 // Prepare buffer control register value
-static void _hw_endpoint_start_next_buffer(struct hw_endpoint *ep)
+void __tusb_irq_path_func(hw_endpoint_start_next_buffer)(struct hw_endpoint *ep)
 {
   uint32_t ep_ctrl = *ep->endpoint_control;
 
   // always compute and start with buffer 0
   uint32_t buf_ctrl = prepare_ep_buffer(ep, 0) | USB_BUF_CTRL_SEL;
 
-  // For now: skip double buffered for Device mode, OUT endpoint since
+  // For now: skip double buffered for OUT endpoint in Device mode, since
   // host could send < 64 bytes and cause short packet on buffer0
-  // NOTE this could happen to Host mode IN endpoint
-  bool const force_single = !(usb_hw->main_ctrl & USB_MAIN_CTRL_HOST_NDEVICE_BITS) && !tu_edpt_dir(ep->ep_addr);
+  // NOTE: this could happen to Host mode IN endpoint
+  // Also, Host mode "interrupt" endpoint hardware is only single buffered,
+  // NOTE2: Currently Host bulk is implemented using "interrupt" endpoint
+  bool const is_host = is_host_mode();
+  bool const force_single = (!is_host && !tu_edpt_dir(ep->ep_addr)) ||
+                            (is_host && tu_edpt_number(ep->ep_addr) != 0);
 
   if(ep->remaining_len && !force_single)
   {
@@ -174,7 +205,7 @@ static void _hw_endpoint_start_next_buffer(struct hw_endpoint *ep)
 
   *ep->endpoint_control = ep_ctrl;
 
-  TU_LOG(3, "  Prepare BufCtrl: [0] = 0x%04u  [1] = 0x%04x\r\n", tu_u32_low16(buf_ctrl), tu_u32_high16(buf_ctrl));
+  TU_LOG(3, "  Prepare BufCtrl: [0] = 0x%04x  [1] = 0x%04x\r\n", tu_u32_low16(buf_ctrl), tu_u32_high16(buf_ctrl));
 
   // Finally, write to buffer_control which will trigger the transfer
   // the next time the controller polls this dpram address
@@ -183,7 +214,7 @@ static void _hw_endpoint_start_next_buffer(struct hw_endpoint *ep)
 
 void hw_endpoint_xfer_start(struct hw_endpoint *ep, uint8_t *buffer, uint16_t total_len)
 {
-  _hw_endpoint_lock_update(ep, 1);
+  hw_endpoint_lock_update(ep, 1);
 
   if ( ep->active )
   {
@@ -200,12 +231,24 @@ void hw_endpoint_xfer_start(struct hw_endpoint *ep, uint8_t *buffer, uint16_t to
   ep->active        = true;
   ep->user_buf      = buffer;
 
-  _hw_endpoint_start_next_buffer(ep);
-  _hw_endpoint_lock_update(ep, -1);
+  if ( e15_is_bulkin_ep(ep) )
+  {
+    usb_hw_set->inte = USB_INTS_DEV_SOF_BITS;
+  }
+
+  if ( e15_is_critical_frame_period(ep) )
+  {
+    ep->pending = 1;
+  } else
+  {
+    hw_endpoint_start_next_buffer(ep);
+  }
+
+  hw_endpoint_lock_update(ep, -1);
 }
 
 // sync endpoint buffer and return transferred bytes
-static uint16_t sync_ep_buffer(struct hw_endpoint *ep, uint8_t buf_id)
+static uint16_t __tusb_irq_path_func(sync_ep_buffer)(struct hw_endpoint *ep, uint8_t buf_id)
 {
   uint32_t buf_ctrl = _hw_endpoint_buffer_control_get_value32(ep);
   if (buf_id)  buf_ctrl = buf_ctrl >> 16;
@@ -241,13 +284,13 @@ static uint16_t sync_ep_buffer(struct hw_endpoint *ep, uint8_t buf_id)
   return xferred_bytes;
 }
 
-static void _hw_endpoint_xfer_sync (struct hw_endpoint *ep)
+static void __tusb_irq_path_func(_hw_endpoint_xfer_sync) (struct hw_endpoint *ep)
 {
   // Update hw endpoint struct with info from hardware
   // after a buff status interrupt
 
   uint32_t __unused buf_ctrl = _hw_endpoint_buffer_control_get_value32(ep);
-  TU_LOG(3, "  Sync BufCtrl: [0] = 0x%04u  [1] = 0x%04x\r\n", tu_u32_low16(buf_ctrl), tu_u32_high16(buf_ctrl));
+  TU_LOG(3, "  Sync BufCtrl: [0] = 0x%04x  [1] = 0x%04x\r\n", tu_u32_low16(buf_ctrl), tu_u32_high16(buf_ctrl));
 
   // always sync buffer 0
   uint16_t buf0_bytes = sync_ep_buffer(ep, 0);
@@ -285,16 +328,17 @@ static void _hw_endpoint_xfer_sync (struct hw_endpoint *ep)
       usb_hw->abort &= ~TU_BIT(ep_id);
 
       TU_LOG(3, "----SHORT PACKET buffer0 on EP %02X:\r\n", ep->ep_addr);
-      TU_LOG(3, "  BufCtrl: [0] = 0x%04u  [1] = 0x%04x\r\n", tu_u32_low16(buf_ctrl), tu_u32_high16(buf_ctrl));
+      TU_LOG(3, "  BufCtrl: [0] = 0x%04x  [1] = 0x%04x\r\n", tu_u32_low16(buf_ctrl), tu_u32_high16(buf_ctrl));
 #endif
     }
   }
 }
 
 // Returns true if transfer is complete
-bool hw_endpoint_xfer_continue(struct hw_endpoint *ep)
+bool __tusb_irq_path_func(hw_endpoint_xfer_continue)(struct hw_endpoint *ep)
 {
-  _hw_endpoint_lock_update(ep, 1);
+  hw_endpoint_lock_update(ep, 1);
+
   // Part way through a transfer
   if (!ep->active)
   {
@@ -311,17 +355,75 @@ bool hw_endpoint_xfer_continue(struct hw_endpoint *ep)
     pico_trace("Completed transfer of %d bytes on ep %d %s\n",
                ep->xferred_len, tu_edpt_number(ep->ep_addr), ep_dir_string[tu_edpt_dir(ep->ep_addr)]);
     // Notify caller we are done so it can notify the tinyusb stack
-    _hw_endpoint_lock_update(ep, -1);
+    hw_endpoint_lock_update(ep, -1);
     return true;
   }
   else
   {
-    _hw_endpoint_start_next_buffer(ep);
+    if ( e15_is_critical_frame_period(ep) )
+    {
+      ep->pending = 1;
+    } else
+    {
+      hw_endpoint_start_next_buffer(ep);
+    }
   }
 
-  _hw_endpoint_lock_update(ep, -1);
+  hw_endpoint_lock_update(ep, -1);
   // More work to do
   return false;
 }
+
+//--------------------------------------------------------------------+
+// Errata 15
+//--------------------------------------------------------------------+
+
+#if TUD_OPT_RP2040_USB_DEVICE_UFRAME_FIX
+
+/* Don't mark IN buffers as available during the last 200us of a full-speed
+   frame. This avoids a situation seen with the USB2.0 hub on a Raspberry
+   Pi 4 where a late IN token before the next full-speed SOF can cause port
+   babble and a corrupt ACK packet. The nature of the data corruption has a
+   chance to cause device lockup.
+
+   Use the next SOF to mark delayed buffers as available. This reduces
+   available Bulk IN bandwidth by approximately 20%, and requires that the
+   SOF interrupt is enabled while these transfers are ongoing.
+
+   Inherit the top-level enable from the corresponding Pico-SDK flag.
+   Applications that will not use the device in a situation where it could
+   be plugged into a Pi 4 or Pi 400 (for example, when directly connected
+   to a commodity hub or other host) can turn off the flag in the SDK.
+*/
+
+volatile uint32_t e15_last_sof = 0;
+
+// check if Errata 15 is needed for this endpoint i.e device bulk-in
+static bool __tusb_irq_path_func(e15_is_bulkin_ep) (struct hw_endpoint *ep)
+{
+  return (!is_host_mode() && tu_edpt_dir(ep->ep_addr) == TUSB_DIR_IN &&
+          ep->transfer_type == TUSB_XFER_BULK);
+}
+
+// check if we need to apply Errata 15 workaround : i.e
+// Endpoint is BULK IN and is currently in critical frame period i.e 20% of last usb frame
+static bool __tusb_irq_path_func(e15_is_critical_frame_period) (struct hw_endpoint *ep)
+{
+  TU_VERIFY(e15_is_bulkin_ep(ep));
+
+  /* Avoid the last 200us (uframe 6.5-7) of a frame, up to the EOF2 point.
+   * The device state machine cannot recover from receiving an incorrect PID
+   * when it is expecting an ACK.
+   */
+  uint32_t delta = time_us_32() - e15_last_sof;
+  if (delta < 800 || delta > 998) {
+    return false;
+  }
+  TU_LOG(3, "Avoiding sof %u now %lu last %lu\n", (usb_hw->sof_rd + 1) & USB_SOF_RD_BITS, time_us_32(), e15_last_sof);
+  return true;
+}
+
+#endif
+
 
 #endif

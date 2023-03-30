@@ -1,4 +1,4 @@
-/* 
+/*
  * The MIT License (MIT)
  *
  * Copyright (c) 2020 Reinhard Panhuber
@@ -81,7 +81,8 @@ int main(void)
 {
   board_init();
 
-  tusb_init();
+  // init device stack on configured roothub port
+  tud_init(BOARD_TUD_RHPORT);
 
   // Init values
   sampFreq = AUDIO_SAMPLE_RATE;
@@ -98,9 +99,6 @@ int main(void)
     led_blinking_task();
     audio_task();
   }
-
-
-  return 0;
 }
 
 //--------------------------------------------------------------------+
@@ -220,7 +218,7 @@ bool tud_audio_set_req_entity_cb(uint8_t rhport, tusb_control_request_t const * 
         // Request uses format layout 2
         TU_VERIFY(p_request->wLength == sizeof(audio_control_cur_2_t));
 
-        volume[channelNum] = ((audio_control_cur_2_t*) pBuff)->bCur;
+        volume[channelNum] = (uint16_t) ((audio_control_cur_2_t*) pBuff)->bCur;
 
         TU_LOG2("    Set Volume: %d dB of channel: %u\r\n", volume[channelNum], channelNum);
       return true;
@@ -289,7 +287,7 @@ bool tud_audio_get_req_entity_cb(uint8_t rhport, tusb_control_request_t const * 
 
         // Those are dummy values for now
         ret.bNrChannels = 1;
-        ret.bmChannelConfig = 0;
+        ret.bmChannelConfig = (audio_channel_config_t) 0;
         ret.iChannelNames = 0;
 
         TU_LOG2("    Get terminal connector\r\n");

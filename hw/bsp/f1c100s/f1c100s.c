@@ -1,4 +1,4 @@
-/* 
+/*
  * The MIT License (MIT)
  *
  * Copyright (c) 2019 Ha Thach (tinyusb.org)
@@ -125,6 +125,6 @@ static void timer_init(void) {
   f1c100s_intc_set_isr(F1C100S_IRQ_TIMER0, timer_handler);
   f1c100s_intc_enable_irq(F1C100S_IRQ_TIMER0);
 }
-#else 
+#else
 static void timer_init(void) { }
 #endif

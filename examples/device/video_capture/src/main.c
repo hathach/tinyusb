@@ -1,4 +1,4 @@
-/* 
+/*
  * The MIT License (MIT)
  *
  * Copyright (c) 2019 Ha Thach (tinyusb.org)
@@ -55,7 +55,9 @@ void video_task(void);
 int main(void)
 {
   board_init();
-  tusb_init();
+
+  // init device stack on configured roothub port
+  tud_init(BOARD_TUD_RHPORT);
 
   while (1)
   {
@@ -64,8 +66,6 @@ int main(void)
 
     video_task();
   }
-
-  return 0;
 }
 
 //--------------------------------------------------------------------+
@@ -110,6 +110,23 @@ static unsigned interval_ms = 1000 / FRAME_RATE;
 /* YUY2 frame buffer */
 #ifdef CFG_EXAMPLE_VIDEO_READONLY
 #include "images.h"
+
+# if !defined(CFG_EXAMPLE_VIDEO_DISABLE_MJPG)
+static struct {
+  uint32_t       size;
+  uint8_t const *buffer;
+} const frames[] = {
+  {color_bar_0_jpg_len, color_bar_0_jpg},
+  {color_bar_1_jpg_len, color_bar_1_jpg},
+  {color_bar_2_jpg_len, color_bar_2_jpg},
+  {color_bar_3_jpg_len, color_bar_3_jpg},
+  {color_bar_4_jpg_len, color_bar_4_jpg},
+  {color_bar_5_jpg_len, color_bar_5_jpg},
+  {color_bar_6_jpg_len, color_bar_6_jpg},
+  {color_bar_7_jpg_len, color_bar_7_jpg},
+};
+# endif
+
 #else
 static uint8_t frame_buffer[FRAME_WIDTH * FRAME_HEIGHT * 16 / 8];
 static void fill_color_bar(uint8_t *buffer, unsigned start_position)
@@ -166,8 +183,12 @@ void video_task(void)
     already_sent = 1;
     start_ms = board_millis();
 #ifdef CFG_EXAMPLE_VIDEO_READONLY
-    tud_video_n_frame_xfer(0, 0, (void*)(uintptr_t) &frame_buffer[(frame_num % (FRAME_WIDTH / 2)) * 4],
+# if defined(CFG_EXAMPLE_VIDEO_DISABLE_MJPG)
+    tud_video_n_frame_xfer(0, 0, (void*)(uintptr_t)&frame_buffer[(frame_num % (FRAME_WIDTH / 2)) * 4],
                            FRAME_WIDTH * FRAME_HEIGHT * 16/8);
+# else
+    tud_video_n_frame_xfer(0, 0, (void*)(uintptr_t)frames[frame_num % 8].buffer, frames[frame_num % 8].size);
+# endif
 #else
     fill_color_bar(frame_buffer, frame_num);
     tud_video_n_frame_xfer(0, 0, (void*)frame_buffer, FRAME_WIDTH * FRAME_HEIGHT * 16/8);
@@ -180,8 +201,12 @@ void video_task(void)
   start_ms += interval_ms;
 
 #ifdef CFG_EXAMPLE_VIDEO_READONLY
-  tud_video_n_frame_xfer(0, 0, (void*)(uintptr_t) &frame_buffer[(frame_num % (FRAME_WIDTH / 2)) * 4],
+# if defined(CFG_EXAMPLE_VIDEO_DISABLE_MJPG)
+  tud_video_n_frame_xfer(0, 0, (void*)(uintptr_t)&frame_buffer[(frame_num % (FRAME_WIDTH / 2)) * 4],
                          FRAME_WIDTH * FRAME_HEIGHT * 16/8);
+# else
+  tud_video_n_frame_xfer(0, 0, (void*)(uintptr_t)frames[frame_num % 8].buffer, frames[frame_num % 8].size);
+# endif
 #else
   fill_color_bar(frame_buffer, frame_num);
   tud_video_n_frame_xfer(0, 0, (void*)frame_buffer, FRAME_WIDTH * FRAME_HEIGHT * 16/8);

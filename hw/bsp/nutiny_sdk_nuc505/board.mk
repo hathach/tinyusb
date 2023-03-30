@@ -9,6 +9,9 @@ CFLAGS += \
   -mfpu=fpv4-sp-d16 \
   -DCFG_TUSB_MCU=OPT_MCU_NUC505
 
+# mcu driver cause following warnings
+CFLAGS += -Wno-error=redundant-decls
+
 # All source paths should be relative to the top level.
 LD_FILE = hw/bsp/$(BOARD)/nuc505_flashtoram.ld
 
@@ -39,14 +42,14 @@ INC += \
   $(TOP)/hw/mcu/nuvoton/nuc505/CMSIS/Include
 
 # For freeRTOS port source
-FREERTOS_PORT = ARM_CM4F
+FREERTOS_PORTABLE_SRC = $(FREERTOS_PORTABLE_PATH)/ARM_CM4F
 
 # For flash-jlink target
 JLINK_DEVICE = NUC505YO13Y
 
 # Note
-# To be able to program the SPI flash, it need to boot with ICP mode "1011". 
-# However, in ICP mode, opencod cannot establish connection to the mcu. 
+# To be able to program the SPI flash, it need to boot with ICP mode "1011".
+# However, in ICP mode, opencod cannot establish connection to the mcu.
 # Therefore, there is no easy command line flash for NUC505
 # It is probably better to just use Nuvoton NuMicro ICP programming on windows to program the board
 # - 1111 "SPI" (run from internal flash)

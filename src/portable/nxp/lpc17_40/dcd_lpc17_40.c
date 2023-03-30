@@ -1,4 +1,4 @@
-/* 
+/*
  * The MIT License (MIT)
  *
  * Copyright (c) 2019 Ha Thach (tinyusb.org)
@@ -226,6 +226,14 @@ void dcd_disconnect(uint8_t rhport)
 {
   (void) rhport;
   sie_write(SIE_CMDCODE_DEVICE_STATUS, 1, 0);
+}
+
+void dcd_sof_enable(uint8_t rhport, bool en)
+{
+  (void) rhport;
+  (void) en;
+
+  // TODO implement later
 }
 
 //--------------------------------------------------------------------+

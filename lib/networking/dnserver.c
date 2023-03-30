@@ -2,17 +2,17 @@
  * The MIT License (MIT)
  *
  * Copyright (c) 2015 by Sergey Fetisov <fsenok@gmail.com>
- * 
+ *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
  * in the Software without restriction, including without limitation the rights
  * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
  * copies of the Software, and to permit persons to whom the Software is
  * furnished to do so, subject to the following conditions:
- * 
+ *
  * The above copyright notice and this permission notice shall be included in all
  * copies or substantial portions of the Software.
- * 
+ *
  * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
  * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
  * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
@@ -93,11 +93,11 @@ static uint16_t get_uint16(const uint8_t *pnt)
 static int parse_next_query(void *data, int size, dns_query_t *query)
 {
 	int len;
-	int lables;
+	int labels;
 	uint8_t *ptr;
 
 	len = 0;
-	lables = 0;
+	labels = 0;
 	ptr = (uint8_t *)data;
 
 	while (true)
@@ -107,7 +107,7 @@ static int parse_next_query(void *data, int size, dns_query_t *query)
 		lable_len = *ptr++;
 		size--;
 		if (lable_len == 0) break;
-		if (lables > 0)
+		if (labels > 0)
 		{
 			if (len == DNS_MAX_HOST_NAME_LEN) return -2;
 			query->name[len++] = '.';
@@ -118,7 +118,7 @@ static int parse_next_query(void *data, int size, dns_query_t *query)
 		len += lable_len;
 		ptr += lable_len;
 		size -= lable_len;
-		lables++;
+		labels++;
 	}
 
 	if (size < 4) return -1;
@@ -165,7 +165,7 @@ static void udp_recv_proc(void *arg, struct udp_pcb *upcb, struct pbuf *p, const
 	answer->ttl = htonl(32);
 	answer->len = htons(4);
 	answer->addr = host_addr.addr;
-	
+
 	udp_sendto(upcb, out, addr, port);
 	pbuf_free(out);
 

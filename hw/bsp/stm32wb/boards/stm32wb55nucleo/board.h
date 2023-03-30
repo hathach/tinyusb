@@ -59,7 +59,7 @@ static inline void board_clock_init(void)
   RCC_ClkInitTypeDef RCC_ClkInitStruct = {0};
   RCC_PeriphCLKInitTypeDef PeriphClkInit = {0};
 
-  // Initializes the CPU, AHB and APB busses clocks
+  // Initializes the CPU, AHB and APB buses clocks
   RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSI48 | RCC_OSCILLATORTYPE_HSE;
   RCC_OscInitStruct.HSEState       = RCC_HSE_ON;
   RCC_OscInitStruct.HSI48State     = RCC_HSI48_ON;
@@ -72,7 +72,7 @@ static inline void board_clock_init(void)
   RCC_OscInitStruct.PLL.PLLR       = RCC_PLLR_DIV3;
   HAL_RCC_OscConfig(&RCC_OscInitStruct);
 
-  // Initializes the CPU, AHB and APB busses clocks
+  // Initializes the CPU, AHB and APB buses clocks
   RCC_ClkInitStruct.ClockType      = RCC_CLOCKTYPE_HCLK | RCC_CLOCKTYPE_SYSCLK | RCC_CLOCKTYPE_PCLK1 | RCC_CLOCKTYPE_PCLK2;
   RCC_ClkInitStruct.SYSCLKSource   = RCC_SYSCLKSOURCE_PLLCLK;
   RCC_ClkInitStruct.AHBCLKDivider  = RCC_SYSCLK_DIV1;

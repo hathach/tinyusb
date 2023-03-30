@@ -27,14 +27,14 @@
 #include "tusb_option.h"
 
 #if CFG_TUD_ENABLED && \
-    (CFG_TUSB_MCU == OPT_MCU_LPC18XX || CFG_TUSB_MCU == OPT_MCU_LPC43XX || CFG_TUSB_MCU == OPT_MCU_MIMXRT10XX)
+    (CFG_TUSB_MCU == OPT_MCU_LPC18XX || CFG_TUSB_MCU == OPT_MCU_LPC43XX || CFG_TUSB_MCU == OPT_MCU_MIMXRT)
 
 #warning "transdimenion is renamed to chipidea (portable/chipidea/ci_hs) to match other opensource naming convention such as linux. This file will be removed in the future, please update your makefile accordingly"
 
 //--------------------------------------------------------------------+
 // INCLUDE
 //--------------------------------------------------------------------+
-#if CFG_TUSB_MCU == OPT_MCU_MIMXRT10XX
+#if CFG_TUSB_MCU == OPT_MCU_MIMXRT
   #include "fsl_device_registers.h"
   #define INCLUDE_FSL_DEVICE_REGISTERS
 #else
@@ -153,7 +153,7 @@ typedef struct
   const uint8_t ep_count; // Max bi-directional Endpoints
 }dcd_controller_t;
 
-#if CFG_TUSB_MCU == OPT_MCU_MIMXRT10XX
+#if CFG_TUSB_MCU == OPT_MCU_MIMXRT
   static const dcd_controller_t _dcd_controller[] =
   {
     // RT1010 and RT1020 only has 1 USB controller
@@ -292,6 +292,14 @@ void dcd_disconnect(uint8_t rhport)
 {
   dcd_registers_t* dcd_reg = _dcd_controller[rhport].regs;
   dcd_reg->USBCMD &= ~USBCMD_RUN_STOP;
+}
+
+void dcd_sof_enable(uint8_t rhport, bool en)
+{
+  (void) rhport;
+  (void) en;
+
+  // TODO implement later
 }
 
 //--------------------------------------------------------------------+
@@ -561,7 +569,7 @@ static void process_edpt_complete_isr(uint8_t rhport, uint8_t epnum, uint8_t dir
       tu_fifo_advance_write_pointer(p_qhd->ff, xferred_bytes);
     }
   }
-  
+
   // only number of bytes in the IOC qtd
   dcd_event_xfer_complete(rhport, tu_edpt_addr(epnum, dir), xferred_bytes, result, true);
 }

@@ -1,4 +1,4 @@
-/* 
+/*
  * The MIT License (MIT)
  *
  * Copyright (c) 2021 Koji Kitayama
@@ -26,12 +26,14 @@
 
 #include "tusb_option.h"
 
-#if CFG_TUH_ENABLED && ( \
-      ( CFG_TUSB_MCU == OPT_MCU_MKL25ZXX ) || ( CFG_TUSB_MCU == OPT_MCU_K32L2BXX ) \
-    )
+#if CFG_TUH_ENABLED && defined(TUP_USBIP_CHIPIDEA_FS)
 
-#include "fsl_device_registers.h"
-#define KHCI        USB0
+#ifdef TUP_USBIP_CHIPIDEA_FS_KINETIS
+  #include "fsl_device_registers.h"
+  #define KHCI        USB0
+#else
+  #error "MCU is not supported"
+#endif
 
 #include "host/hcd.h"
 
@@ -135,8 +137,8 @@ typedef struct
 // INTERNAL OBJECT & FUNCTION DECLARATION
 //--------------------------------------------------------------------+
 // BDT(Buffer Descriptor Table) must be 256-byte aligned
-CFG_TUSB_MEM_SECTION TU_ATTR_ALIGNED(512) static hcd_data_t _hcd;
-//CFG_TUSB_MEM_SECTION TU_ATTR_ALIGNED(4) static uint8_t _rx_buf[1024];
+CFG_TUH_MEM_SECTION TU_ATTR_ALIGNED(512) static hcd_data_t _hcd;
+//CFG_TUH_MEM_SECTION TU_ATTR_ALIGNED(4) static uint8_t _rx_buf[1024];
 
 int find_pipe(uint8_t dev_addr, uint8_t ep_addr)
 {
@@ -414,7 +416,7 @@ void hcd_int_disable(uint8_t rhport)
 uint32_t hcd_frame_number(uint8_t rhport)
 {
   (void)rhport;
-  /* The device must be reset at least once after connection 
+  /* The device must be reset at least once after connection
    * in order to start the frame counter. */
   if (_hcd.need_reset) hcd_port_reset(rhport);
   uint32_t frmnum = KHCI->FRMNUML;

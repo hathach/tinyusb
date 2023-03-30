@@ -69,11 +69,13 @@ if (EXISTS ${TOP}/lib/lwip/src)
             ${TOP}/lib/networking/rndis_reports.c
             )
 
-    target_compile_definitions(${PROJECT} PUBLIC
-            PBUF_POOL_SIZE=2
-            TCP_WND=2*TCP_MSS
-            HTTPD_USE_CUSTOM_FSDATA=0
-            )
+    # due to warnings from other net source, we need to prevent error from some of the warnings options
+    target_compile_options(${PROJECT} PUBLIC
+        -Wno-error=null-dereference
+        -Wno-error=conversion
+        -Wno-error=sign-conversion
+        -Wno-error=sign-compare
+        )
 
     # Configure compilation flags and libraries for the example... see the corresponding function
     # in hw/bsp/FAMILY/family.cmake for details.

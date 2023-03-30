@@ -1,0 +1,12 @@
+synopsys
+sie
+tre
+hsi
+fro
+dout
+mot
+te
+attch
+endianess
+pris
+busses

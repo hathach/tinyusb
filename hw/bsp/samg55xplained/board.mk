@@ -12,7 +12,10 @@ CFLAGS += \
   -DCFG_TUSB_MCU=OPT_MCU_SAMG
 
 # suppress following warnings from mcu driver
-CFLAGS += -Wno-error=undef -Wno-error=cast-qual -Wno-error=null-dereference
+CFLAGS += -Wno-error=undef -Wno-error=null-dereference -Wno-error=redundant-decls
+
+# SAM driver is flooded with -Wcast-qual which slow down complication significantly
+CFLAGS_SKIP += -Wcast-qual
 
 ASF_DIR = hw/mcu/microchip/samg55
 
@@ -42,11 +45,11 @@ INC += \
 	$(TOP)/$(ASF_DIR)/CMSIS/Core/Include
 
 # For freeRTOS port source
-FREERTOS_PORT = ARM_CM4F
+FREERTOS_PORTABLE_SRC = $(FREERTOS_PORTABLE_PATH)/ARM_CM4F
 
 # For flash-jlink target
 JLINK_DEVICE = ATSAMG55J19
 
 # flash using edbg from https://github.com/ataradov/edbg
 flash: $(BUILD)/$(PROJECT).bin
-	edbg --verbose -t samg55 -pv -f $< 
+	edbg --verbose -t samg55 -pv -f $<

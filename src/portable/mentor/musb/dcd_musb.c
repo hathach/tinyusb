@@ -1,4 +1,4 @@
-/* 
+/*
  * The MIT License (MIT)
  *
  * Copyright (c) 2021 Koji KITAYAMA
@@ -572,7 +572,7 @@ static void process_bus_reset(uint8_t rhport)
   _dcd.pipe0.buf = NULL;
 
   USB0->TXIE = 1; /* Enable only EP0 */
-  USB0->RXIE = 0; 
+  USB0->RXIE = 0;
 
   /* Clear FIFO settings */
   for (unsigned i = 1; i < TUP_DCD_ENDPOINT_MAX; ++i) {
@@ -648,6 +648,14 @@ void dcd_disconnect(uint8_t rhport)
   USB0->POWER &= ~USB_POWER_SOFTCONN;
 }
 
+void dcd_sof_enable(uint8_t rhport, bool en)
+{
+  (void) rhport;
+  (void) en;
+
+  // TODO implement later
+}
+
 //--------------------------------------------------------------------+
 // Endpoint API
 //--------------------------------------------------------------------+
@@ -714,7 +722,7 @@ void dcd_edpt_close_all(uint8_t rhport)
   unsigned const ie = NVIC_GetEnableIRQ(USB0_IRQn);
   NVIC_DisableIRQ(USB0_IRQn);
   USB0->TXIE = 1; /* Enable only EP0 */
-  USB0->RXIE = 0; 
+  USB0->RXIE = 0;
   for (unsigned i = 1; i < TUP_DCD_ENDPOINT_MAX; ++i) {
     regs->TXMAXP = 0;
     regs->TXCSRH = 0;
@@ -846,7 +854,7 @@ void dcd_edpt_clear_stall(uint8_t rhport, uint8_t ep_addr)
   if (tu_edpt_dir(ep_addr)) { /* IN */
     regs->TXCSRL = USB_TXCSRL1_CLRDT;
   } else { /* OUT */
-    regs->RXCSRL = USB_RXCSRL1_CLRDT; 
+    regs->RXCSRL = USB_RXCSRL1_CLRDT;
   }
   if (ie) NVIC_EnableIRQ(USB0_IRQn);
 }

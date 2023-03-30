@@ -126,7 +126,7 @@ void INT_Excep_SCI5_TXI5(void)
 {
   uint8_t *buf = sci_buf[0].buf;
   uint32_t cnt = sci_buf[0].cnt;
-  
+
   if (!buf || !cnt) {
     SCI5.SCR.BYTE &= ~(SCI_SCR_TEIE | SCI_SCR_TE | SCI_SCR_TIE);
     return;
@@ -247,6 +247,11 @@ void board_init(void)
   IEN(SCI5, TXI5)    = 1;
   IEN(ICU,GROUPBL0)  = 1;
   EN(SCI5, TEI5)     = 1;
+
+  /* Enable USB0 */
+  SYSTEM.PRCR.WORD = SYSTEM_PRCR_PRKEY | SYSTEM_PRCR_PRC1;
+  MSTP(USB0) = 0;
+  SYSTEM.PRCR.WORD = SYSTEM_PRCR_PRKEY;
 
   /* setup USBI0 interrupt. */
   IR(USB0, USBI0)  = 0;

@@ -243,7 +243,7 @@ static struct
 
 // Converts xfer pointer to epnum (0,1,2,3) regardless of xfer direction
 #define XFER_EPNUM(xfer)      ((xfer - &_dcd.xfer_status[0][0]) >> 1)
-// Converts xfer pinter to EPx_REGS pointer (returns same pointer for IN and OUT with same endpoint number)
+// Converts xfer pointer to EPx_REGS pointer (returns same pointer for IN and OUT with same endpoint number)
 #define XFER_REGS(xfer)       ep_regs[XFER_EPNUM(xfer)]
 // Converts epnum (0,1,2,3) to EPx_REGS pointer
 #define EPNUM_REGS(epnum)     ep_regs[epnum]
@@ -880,6 +880,14 @@ void dcd_disconnect(uint8_t rhport)
   (void)rhport;
 
   REG_CLR_BIT(USB_MCTRL_REG, USB_NAT);
+}
+
+void dcd_sof_enable(uint8_t rhport, bool en)
+{
+  (void) rhport;
+  (void) en;
+
+  // TODO implement later
 }
 
 TU_ATTR_ALWAYS_INLINE static inline bool is_in_isr(void)

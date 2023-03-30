@@ -23,4 +23,3 @@ UF2_FAMILY_ID = 0xc47e5767
 $(BUILD)/$(PROJECT).uf2: $(BUILD)/$(PROJECT).bin
 	@echo CREATE $@
 	$(PYTHON) $(TOP)/tools/uf2/utils/uf2conv.py -f $(UF2_FAMILY_ID) -b 0x0 -c -o $@ $^
-

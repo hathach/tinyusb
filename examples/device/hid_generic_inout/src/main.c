@@ -1,4 +1,4 @@
-/* 
+/*
  * The MIT License (MIT)
  *
  * Copyright (c) 2019 Ha Thach (tinyusb.org)
@@ -80,15 +80,14 @@ int main(void)
 {
   board_init();
 
-  tusb_init();
+  // init device stack on configured roothub port
+  tud_init(BOARD_TUD_RHPORT);
 
   while (1)
   {
     tud_task(); // tinyusb device task
     led_blinking_task();
   }
-
-  return 0;
 }
 
 //--------------------------------------------------------------------+

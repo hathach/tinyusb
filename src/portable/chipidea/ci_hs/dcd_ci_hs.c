@@ -34,7 +34,7 @@
 #include "device/dcd.h"
 #include "ci_hs_type.h"
 
-#if CFG_TUSB_MCU == OPT_MCU_MIMXRT10XX
+#if CFG_TUSB_MCU == OPT_MCU_MIMXRT
   #include "ci_hs_imxrt.h"
 #elif TU_CHECK_MCU(OPT_MCU_LPC18XX, OPT_MCU_LPC43XX)
   #include "ci_hs_lpc18_43.h"
@@ -48,6 +48,8 @@
 
 #define CI_HS_REG(_port)      ((ci_hs_regs_t*) _ci_controller[_port].reg_base)
 
+// Clean means to push any cached changes to RAM and invalidate "removes" the
+// entry from the cache.
 #if defined(__CORTEX_M) && __CORTEX_M == 7 && __DCACHE_PRESENT == 1
   #define CleanInvalidateDCache_by_Addr   SCB_CleanInvalidateDCache_by_Addr
 #else
@@ -199,6 +201,8 @@ static void bus_reset(uint8_t rhport)
   _dcd_data.qhd[0][0].qtd_overlay.next = _dcd_data.qhd[0][1].qtd_overlay.next = QTD_NEXT_INVALID;
 
   _dcd_data.qhd[0][0].int_on_setup = 1; // OUT only
+
+  CleanInvalidateDCache_by_Addr((uint32_t*) &_dcd_data, sizeof(dcd_data_t));
 }
 
 void dcd_init(uint8_t rhport)
@@ -264,6 +268,14 @@ void dcd_disconnect(uint8_t rhport)
 {
   ci_hs_regs_t* dcd_reg = CI_HS_REG(rhport);
   dcd_reg->USBCMD &= ~USBCMD_RUN_STOP;
+}
+
+void dcd_sof_enable(uint8_t rhport, bool en)
+{
+  (void) rhport;
+  (void) en;
+
+  // TODO implement later
 }
 
 //--------------------------------------------------------------------+
@@ -533,7 +545,7 @@ static void process_edpt_complete_isr(uint8_t rhport, uint8_t epnum, uint8_t dir
       tu_fifo_advance_write_pointer(p_qhd->ff, xferred_bytes);
     }
   }
-  
+
   // only number of bytes in the IOC qtd
   dcd_event_xfer_complete(rhport, tu_edpt_addr(epnum, dir), xferred_bytes, result, true);
 }

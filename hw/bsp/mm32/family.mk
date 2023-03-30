@@ -11,7 +11,7 @@ CFLAGS += \
   -mcpu=cortex-m3 \
   -mfloat-abi=soft \
   -nostdlib -nostartfiles \
-  -DCFG_TUSB_MCU=OPT_MCU_MM32F327X 
+  -DCFG_TUSB_MCU=OPT_MCU_MM32F327X
 
 # suppress warning caused by vendor mcu driver
 CFLAGS += -Wno-error=unused-parameter -Wno-error=maybe-uninitialized -Wno-error=cast-qual
@@ -22,7 +22,7 @@ SRC_C += \
 	$(SDK_DIR)/mm32f327x/MM32F327x/HAL_Lib/Src/hal_gpio.c \
 	$(SDK_DIR)/mm32f327x/MM32F327x/HAL_Lib/Src/hal_rcc.c \
 	$(SDK_DIR)/mm32f327x/MM32F327x/HAL_Lib/Src/hal_uart.c \
-	
+
 INC += \
 	$(TOP)/$(BOARD_PATH) \
 	$(TOP)/lib/CMSIS_5/CMSIS/Core/Include \
@@ -30,7 +30,7 @@ INC += \
 	$(TOP)/$(SDK_DIR)/mm32f327x/MM32F327x/HAL_Lib/Inc
 
 # For freeRTOS port source
-FREERTOS_PORT = ARM_CM3
+FREERTOS_PORTABLE_SRC = $(FREERTOS_PORTABLE_PATH)/ARM_CM3
 
 # flash target using on-board
 flash: flash-jlink

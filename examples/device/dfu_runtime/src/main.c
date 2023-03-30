@@ -1,4 +1,4 @@
-/* 
+/*
  * The MIT License (MIT)
  *
  * Copyright (c) 2019 Ha Thach (tinyusb.org)
@@ -31,7 +31,7 @@
  *
  * $ dfu-util -e
  *
- * This will send DETTACH command to put device into bootloader. Since this example
+ * This will send DETACH command to put device into bootloader. Since this example
  * is minimal, it doesn't actually go into DFU mode but rather change the LED blinking
  * pattern to fast rate as indicator.
  */
@@ -69,15 +69,14 @@ int main(void)
 {
   board_init();
 
-  tusb_init();
+  // init device stack on configured roothub port
+  tud_init(BOARD_TUD_RHPORT);
 
   while (1)
   {
     tud_task(); // tinyusb device task
     led_blinking_task();
   }
-
-  return 0;
 }
 
 //--------------------------------------------------------------------+

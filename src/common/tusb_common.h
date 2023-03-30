@@ -76,12 +76,50 @@
 #include "tusb_timeout.h" // TODO remove
 
 //--------------------------------------------------------------------+
+// Optional API implemented by application if needed
+// TODO move to a more ovious place/file
+//--------------------------------------------------------------------+
+
+// flush data cache
+TU_ATTR_WEAK extern void tusb_app_dcache_flush(uintptr_t addr, uint32_t data_size);
+
+// invalidate data cache
+TU_ATTR_WEAK extern void tusb_app_dcache_invalidate(uintptr_t addr, uint32_t data_size);
+
+// Optional physical <-> virtual address translation
+TU_ATTR_WEAK extern void* tusb_app_virt_to_phys(void *virt_addr);
+TU_ATTR_WEAK extern void* tusb_app_phys_to_virt(void *phys_addr);
+
+//--------------------------------------------------------------------+
 // Internal Inline Functions
 //--------------------------------------------------------------------+
 
 //------------- Mem -------------//
 #define tu_memclr(buffer, size)  memset((buffer), 0, (size))
 #define tu_varclr(_var)          tu_memclr(_var, sizeof(*(_var)))
+
+// This is a backport of memset_s from c11
+TU_ATTR_ALWAYS_INLINE static inline int tu_memset_s(void *dest, size_t destsz, int ch, size_t count)
+{
+  // TODO may check if desst and src is not NULL
+  if (count > destsz) {
+    return -1;
+  }
+  memset(dest, ch, count);
+  return 0;
+}
+
+// This is a backport of memcpy_s from c11
+TU_ATTR_ALWAYS_INLINE static inline int tu_memcpy_s(void *dest, size_t destsz, const void * src, size_t count )
+{
+  // TODO may check if desst and src is not NULL
+  if (count > destsz) {
+    return -1;
+  }
+  memcpy(dest, src, count);
+  return 0;
+}
+
 
 //------------- Bytes -------------//
 TU_ATTR_ALWAYS_INLINE static inline uint32_t tu_u32(uint8_t b3, uint8_t b2, uint8_t b1, uint8_t b0)
@@ -134,12 +172,6 @@ TU_ATTR_ALWAYS_INLINE static inline uint32_t tu_offset4k(uint32_t value) { retur
 //------------- Mathematics -------------//
 TU_ATTR_ALWAYS_INLINE static inline uint32_t tu_div_ceil(uint32_t v, uint32_t d) { return (v + d -1)/d; }
 
-/// inclusive range checking TODO remove
-TU_ATTR_ALWAYS_INLINE static inline bool tu_within(uint32_t lower, uint32_t value, uint32_t upper)
-{
-  return (lower <= value) && (value <= upper);
-}
-
 // log2 of a value is its MSB's position
 // TODO use clz TODO remove
 static inline uint8_t tu_log2(uint32_t value)
@@ -147,6 +179,16 @@ static inline uint8_t tu_log2(uint32_t value)
   uint8_t result = 0;
   while (value >>= 1) { result++; }
   return result;
+}
+
+//static inline uint8_t tu_log2(uint32_t value)
+//{
+//   return sizeof(uint32_t) * CHAR_BIT - __builtin_clz(x) - 1;
+//}
+
+static inline bool tu_is_power_of_two(uint32_t value)
+{
+   return (value != 0) && ((value & (value - 1)) == 0);
 }
 
 //------------- Unaligned Access -------------//

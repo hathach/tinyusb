@@ -25,7 +25,7 @@ Supports multiple device configurations by dynamically changing usb descriptors.
 -  Vendor-specific class support with generic In & Out endpoints. Can be used with MS OS 2.0 compatible descriptor to load winUSB driver without INF file.
 -  `WebUSB <https://github.com/WICG/webusb>`__ with vendor-specific class
 
-If you have special need, `usbd_app_driver_get_cb()` can be used to write your own class driver without modifying the stack. Here is how RPi team add their reset interface [raspberrypi/pico-sdk#197](https://github.com/raspberrypi/pico-sdk/pull/197)
+If you have special need, `usbd_app_driver_get_cb()` can be used to write your own class driver without modifying the stack. Here is how RPi team add their reset interface `raspberrypi/pico-sdk#197 <https://github.com/raspberrypi/pico-sdk/pull/197>`__
 
 Host Stack
 ==========
@@ -41,7 +41,7 @@ TinyUSB is completely thread-safe by pushing all ISR events into a central queue
 
 - **No OS**
 - **FreeRTOS**
-- **Mynewt** Due to the newt package build system, Mynewt examples are better to be on its [own repo](https://github.com/hathach/mynewt-tinyusb-example)
+- **Mynewt** Due to the newt package build system, Mynewt examples are better to be on its `own repo <https://github.com/hathach/mynewt-tinyusb-example>`__
 
 License
 =======
@@ -56,4 +56,5 @@ Index
 
    supported
    getting_started
+   dependencies
    concurrency

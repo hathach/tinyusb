@@ -30,6 +30,11 @@
  extern "C" {
 #endif
 
+// board_test example is special example that doesn't enable device or host stack
+// This can cause some TinyUSB API missing, this define hack to allow us to fill those API
+// to pass the compilation process
+#define tud_int_handler(x)
+
 //--------------------------------------------------------------------
 // COMMON CONFIGURATION
 //--------------------------------------------------------------------
@@ -43,7 +48,9 @@
   #define CFG_TUSB_OS               OPT_OS_NONE
 #endif
 
-#define CFG_TUSB_RHPORT0_MODE       OPT_MODE_NONE
+// This example only test LED & GPIO, disable both device and host stack
+#define CFG_TUD_ENABLED   0
+#define CFG_TUH_ENABLED   0
 
 // CFG_TUSB_DEBUG is defined by compiler in DEBUG build
 // #define CFG_TUSB_DEBUG           0
@@ -62,21 +69,6 @@
 #ifndef CFG_TUSB_MEM_ALIGN
 #define CFG_TUSB_MEM_ALIGN          __attribute__ ((aligned(4)))
 #endif
-
-//--------------------------------------------------------------------
-// DEVICE CONFIGURATION
-//--------------------------------------------------------------------
-
-#ifndef CFG_TUD_ENDPOINT0_SIZE
-#define CFG_TUD_ENDPOINT0_SIZE   64
-#endif
-
-//------------- CLASS -------------//
-#define CFG_TUD_CDC             0
-#define CFG_TUD_MSC             0
-#define CFG_TUD_HID             0
-#define CFG_TUD_MIDI            0
-#define CFG_TUD_VENDOR          0
 
 #ifdef __cplusplus
  }

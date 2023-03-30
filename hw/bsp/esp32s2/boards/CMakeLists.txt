@@ -8,5 +8,5 @@ include("${BOARD}/board.cmake")
 
 target_include_directories(${COMPONENT_TARGET} PUBLIC
   "${TOP}/hw"
-  "${TOP}/src"  
+  "${TOP}/src"
 )

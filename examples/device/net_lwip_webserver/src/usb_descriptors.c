@@ -1,4 +1,4 @@
-/* 
+/*
  * The MIT License (MIT)
  *
  * Copyright (c) 2019 Ha Thach (tinyusb.org)
@@ -77,7 +77,7 @@ tusb_desc_device_t const desc_device =
     .bDeviceClass       = TUSB_CLASS_MISC,
     .bDeviceSubClass    = MISC_SUBCLASS_COMMON,
     .bDeviceProtocol    = MISC_PROTOCOL_IAD,
-    
+
     .bMaxPacketSize0    = CFG_TUD_ENDPOINT0_SIZE,
 
     .idVendor           = 0xCafe,
@@ -231,7 +231,7 @@ uint16_t const* tud_descriptor_string_cb(uint8_t index, uint16_t langid)
     const char* str = string_desc_arr[index];
 
     // Cap at max char
-    chr_count = strlen(str);
+    chr_count = (uint8_t) strlen(str);
     if ( chr_count > (TU_ARRAY_SIZE(_desc_str) - 1)) chr_count = TU_ARRAY_SIZE(_desc_str) - 1;
 
     // Convert ASCII string into UTF-16
@@ -242,7 +242,7 @@ uint16_t const* tud_descriptor_string_cb(uint8_t index, uint16_t langid)
   }
 
   // first byte is length (including header), second byte is string type
-  _desc_str[0] = (TUSB_DESC_STRING << 8 ) | (2*chr_count + 2);
+  _desc_str[0] = (uint16_t) ((TUSB_DESC_STRING << 8 ) | (2*chr_count + 2));
 
   return _desc_str;
 }

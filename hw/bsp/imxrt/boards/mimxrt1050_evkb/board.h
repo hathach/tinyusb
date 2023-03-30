@@ -1,4 +1,4 @@
-/* 
+/*
  * The MIT License (MIT)
  *
  * Copyright (c) 2019, Ha Thach (tinyusb.org)
@@ -45,7 +45,7 @@
 
 // UART
 #define UART_PORT             LPUART1
-#define UART_RX_PINMUX        IOMUXC_GPIO_AD_B0_13_LPUART1_RX
-#define UART_TX_PINMUX        IOMUXC_GPIO_AD_B0_12_LPUART1_TX
+#define UART_RX_PINMUX        IOMUXC_GPIO_AD_B0_13_LPUART1_RXD
+#define UART_TX_PINMUX        IOMUXC_GPIO_AD_B0_12_LPUART1_TXD
 
 #endif /* BOARD_H_ */

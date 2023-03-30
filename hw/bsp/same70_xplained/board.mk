@@ -11,7 +11,10 @@ CFLAGS += \
   -DCFG_TUSB_MCU=OPT_MCU_SAMX7X
 
 # suppress following warnings from mcu driver
-CFLAGS += -Wno-error=unused-parameter -Wno-error=cast-align -Wno-error=cast-qual
+CFLAGS += -Wno-error=unused-parameter -Wno-error=cast-align -Wno-error=redundant-decls
+
+# SAM driver is flooded with -Wcast-qual which slow down complication significantly
+CFLAGS_SKIP += -Wcast-qual
 
 ASF_DIR = hw/mcu/microchip/same70
 
@@ -44,7 +47,7 @@ INC += \
 	$(TOP)/$(ASF_DIR)/CMSIS/Core/Include
 
 # For freeRTOS port source
-FREERTOS_PORT = ARM_CM7
+FREERTOS_PORTABLE_SRC = $(FREERTOS_PORTABLE_PATH)/ARM_CM7
 
 # For flash-jlink target
 JLINK_DEVICE = SAME70Q21B
@@ -53,4 +56,4 @@ JLINK_DEVICE = SAME70Q21B
 # Note: SAME70's GPNVM1 must be set to 1 to boot from flash with
 # 	edbg -t same70 -F w0,1,1
 flash: $(BUILD)/$(PROJECT).bin
-	edbg --verbose -t same70 -pv -f $< 
+	edbg --verbose -t same70 -pv -f $<

@@ -57,7 +57,7 @@ void tu_print_mem(void const *buf, uint32_t count, uint8_t indent);
   #define tu_printf    printf
 #endif
 
-static inline void tu_print_var(uint8_t const* buf, uint32_t bufsize)
+static inline void tu_print_arr(uint8_t const* buf, uint32_t bufsize)
 {
   for(uint32_t i=0; i<bufsize; i++) tu_printf("%02X ", buf[i]);
 }
@@ -65,7 +65,8 @@ static inline void tu_print_var(uint8_t const* buf, uint32_t bufsize)
 // Log with Level
 #define TU_LOG(n, ...)        TU_XSTRCAT(TU_LOG, n)(__VA_ARGS__)
 #define TU_LOG_MEM(n, ...)    TU_XSTRCAT3(TU_LOG, n, _MEM)(__VA_ARGS__)
-#define TU_LOG_VAR(n, ...)    TU_XSTRCAT3(TU_LOG, n, _VAR)(__VA_ARGS__)
+#define TU_LOG_ARR(n, ...)    TU_XSTRCAT3(TU_LOG, n, _ARR)(__VA_ARGS__)
+#define TU_LOG_PTR(n, ...)    TU_XSTRCAT3(TU_LOG, n, _PTR)(__VA_ARGS__)
 #define TU_LOG_INT(n, ...)    TU_XSTRCAT3(TU_LOG, n, _INT)(__VA_ARGS__)
 #define TU_LOG_HEX(n, ...)    TU_XSTRCAT3(TU_LOG, n, _HEX)(__VA_ARGS__)
 #define TU_LOG_LOCATION()     tu_printf("%s: %d:\r\n", __PRETTY_FUNCTION__, __LINE__)
@@ -74,7 +75,8 @@ static inline void tu_print_var(uint8_t const* buf, uint32_t bufsize)
 // Log Level 1: Error
 #define TU_LOG1               tu_printf
 #define TU_LOG1_MEM           tu_print_mem
-#define TU_LOG1_VAR(_x)       tu_print_var((uint8_t const*)(_x), sizeof(*(_x)))
+#define TU_LOG1_ARR(_x, _n)   tu_print_arr((uint8_t const*)(_x), _n)
+#define TU_LOG1_PTR(_x)       tu_print_arr((uint8_t const*)(_x), sizeof(*(_x)))
 #define TU_LOG1_INT(_x)       tu_printf(#_x " = %ld\r\n", (unsigned long) (_x) )
 #define TU_LOG1_HEX(_x)       tu_printf(#_x " = %lX\r\n", (unsigned long) (_x) )
 
@@ -82,7 +84,8 @@ static inline void tu_print_var(uint8_t const* buf, uint32_t bufsize)
 #if CFG_TUSB_DEBUG >= 2
   #define TU_LOG2             TU_LOG1
   #define TU_LOG2_MEM         TU_LOG1_MEM
-  #define TU_LOG2_VAR         TU_LOG1_VAR
+  #define TU_LOG2_ARR         TU_LOG1_ARR
+  #define TU_LOG2_PTR         TU_LOG1_PTR
   #define TU_LOG2_INT         TU_LOG1_INT
   #define TU_LOG2_HEX         TU_LOG1_HEX
 #endif
@@ -91,7 +94,8 @@ static inline void tu_print_var(uint8_t const* buf, uint32_t bufsize)
 #if CFG_TUSB_DEBUG >= 3
   #define TU_LOG3             TU_LOG1
   #define TU_LOG3_MEM         TU_LOG1_MEM
-  #define TU_LOG3_VAR         TU_LOG1_VAR
+  #define TU_LOG3_ARR         TU_LOG1_ARR
+  #define TU_LOG3_PTR         TU_LOG1_PTR
   #define TU_LOG3_INT         TU_LOG1_INT
   #define TU_LOG3_HEX         TU_LOG1_HEX
 #endif
@@ -110,7 +114,7 @@ typedef struct
 
 static inline const char* tu_lookup_find(tu_lookup_table_t const* p_table, uint32_t key)
 {
-  static char not_found[11];
+  tu_static char not_found[11];
 
   for(uint16_t i=0; i<p_table->count; i++)
   {
@@ -128,7 +132,7 @@ static inline const char* tu_lookup_find(tu_lookup_table_t const* p_table, uint3
 #ifndef TU_LOG
   #define TU_LOG(n, ...)
   #define TU_LOG_MEM(n, ...)
-  #define TU_LOG_VAR(n, ...)
+  #define TU_LOG_PTR(n, ...)
   #define TU_LOG_INT(n, ...)
   #define TU_LOG_HEX(n, ...)
   #define TU_LOG_LOCATION()
@@ -139,14 +143,14 @@ static inline const char* tu_lookup_find(tu_lookup_table_t const* p_table, uint3
 
 #define TU_LOG0(...)
 #define TU_LOG0_MEM(...)
-#define TU_LOG0_VAR(...)
+#define TU_LOG0_PTR(...)
 #define TU_LOG0_INT(...)
 #define TU_LOG0_HEX(...)
 
 #ifndef TU_LOG1
   #define TU_LOG1(...)
   #define TU_LOG1_MEM(...)
-  #define TU_LOG1_VAR(...)
+  #define TU_LOG1_PTR(...)
   #define TU_LOG1_INT(...)
   #define TU_LOG1_HEX(...)
 #endif
@@ -154,7 +158,7 @@ static inline const char* tu_lookup_find(tu_lookup_table_t const* p_table, uint3
 #ifndef TU_LOG2
   #define TU_LOG2(...)
   #define TU_LOG2_MEM(...)
-  #define TU_LOG2_VAR(...)
+  #define TU_LOG2_PTR(...)
   #define TU_LOG2_INT(...)
   #define TU_LOG2_HEX(...)
 #endif
@@ -162,7 +166,7 @@ static inline const char* tu_lookup_find(tu_lookup_table_t const* p_table, uint3
 #ifndef TU_LOG3
   #define TU_LOG3(...)
   #define TU_LOG3_MEM(...)
-  #define TU_LOG3_VAR(...)
+  #define TU_LOG3_PTR(...)
   #define TU_LOG3_INT(...)
   #define TU_LOG3_HEX(...)
 #endif

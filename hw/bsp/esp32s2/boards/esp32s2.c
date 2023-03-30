@@ -1,4 +1,4 @@
-/* 
+/*
  * The MIT License (MIT)
  *
  * Copyright (c) 2020, Ha Thach (tinyusb.org)
@@ -150,4 +150,3 @@ int board_uart_write(void const * buf, int len)
   (void) buf; (void) len;
   return 0;
 }
-

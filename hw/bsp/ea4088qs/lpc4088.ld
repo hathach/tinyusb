@@ -11,24 +11,24 @@
 MEMORY
 {
   /* Define each memory region */
-  MFlash512 (rx) : ORIGIN = 0x0, LENGTH = 0x80000 /* 512K bytes (alias Flash) */  
-  RamLoc64 (rwx) : ORIGIN = 0x10000000, LENGTH = 0x10000 /* 64K bytes (alias RAM) */  
-  RamPeriph32 (rwx) : ORIGIN = 0x20000000, LENGTH = 0x8000 /* 32K bytes (alias RAM2) */  
+  MFlash512 (rx) : ORIGIN = 0x0, LENGTH = 0x80000 /* 512K bytes (alias Flash) */
+  RamLoc64 (rwx) : ORIGIN = 0x10000000, LENGTH = 0x10000 /* 64K bytes (alias RAM) */
+  RamPeriph32 (rwx) : ORIGIN = 0x20000000, LENGTH = 0x8000 /* 32K bytes (alias RAM2) */
 }
 
   /* Define a symbol for the top of each memory region */
-  __base_MFlash512 = 0x0  ; /* MFlash512 */  
-  __base_Flash = 0x0 ; /* Flash */  
-  __top_MFlash512 = 0x0 + 0x80000 ; /* 512K bytes */  
-  __top_Flash = 0x0 + 0x80000 ; /* 512K bytes */  
-  __base_RamLoc64 = 0x10000000  ; /* RamLoc64 */  
-  __base_RAM = 0x10000000 ; /* RAM */  
-  __top_RamLoc64 = 0x10000000 + 0x10000 ; /* 64K bytes */  
-  __top_RAM = 0x10000000 + 0x10000 ; /* 64K bytes */  
-  __base_RamPeriph32 = 0x20000000  ; /* RamPeriph32 */  
-  __base_RAM2 = 0x20000000 ; /* RAM2 */  
-  __top_RamPeriph32 = 0x20000000 + 0x8000 ; /* 32K bytes */  
-  __top_RAM2 = 0x20000000 + 0x8000 ; /* 32K bytes */  
+  __base_MFlash512 = 0x0  ; /* MFlash512 */
+  __base_Flash = 0x0 ; /* Flash */
+  __top_MFlash512 = 0x0 + 0x80000 ; /* 512K bytes */
+  __top_Flash = 0x0 + 0x80000 ; /* 512K bytes */
+  __base_RamLoc64 = 0x10000000  ; /* RamLoc64 */
+  __base_RAM = 0x10000000 ; /* RAM */
+  __top_RamLoc64 = 0x10000000 + 0x10000 ; /* 64K bytes */
+  __top_RAM = 0x10000000 + 0x10000 ; /* 64K bytes */
+  __base_RamPeriph32 = 0x20000000  ; /* RamPeriph32 */
+  __base_RAM2 = 0x20000000 ; /* RAM2 */
+  __top_RamPeriph32 = 0x20000000 + 0x8000 ; /* 32K bytes */
+  __top_RAM2 = 0x20000000 + 0x8000 ; /* 32K bytes */
 
 ENTRY(ResetISR)
 
@@ -72,9 +72,9 @@ SECTIONS
     } > MFlash512
     /*
      * for exception handling/unwind - some Newlib functions (in common
-     * with C++ and STDC++) use this. 
+     * with C++ and STDC++) use this.
      */
-    .ARM.extab : ALIGN(4) 
+    .ARM.extab : ALIGN(4)
     {
         *(.ARM.extab* .gnu.linkonce.armextab.*)
     } > MFlash512
@@ -88,7 +88,7 @@ SECTIONS
     __exidx_end = .;
 
     _etext = .;
-        
+
     /* DATA section for RamPeriph32 */
 
     .data_RAM2 : ALIGN(4)
@@ -130,7 +130,7 @@ SECTIONS
        *(.bss.$RamPeriph32*)
        . = ALIGN (. != 0 ? 4 : 1) ; /* avoid empty segment */
        PROVIDE(__end_bss_RAM2 = .) ;
-    } > RamPeriph32 
+    } > RamPeriph32
 
     /* MAIN BSS SECTION */
     .bss : ALIGN(4)
@@ -149,13 +149,13 @@ SECTIONS
        *(.noinit.$RAM2*)
        *(.noinit.$RamPeriph32*)
        . = ALIGN(4) ;
-    } > RamPeriph32 
+    } > RamPeriph32
 
     /* DEFAULT NOINIT SECTION */
     .noinit (NOLOAD): ALIGN(4)
     {
         _noinit = .;
-        *(.noinit*) 
+        *(.noinit*)
          . = ALIGN(4) ;
         _end_noinit = .;
     } > RamLoc64
@@ -163,11 +163,11 @@ SECTIONS
     PROVIDE(_vStackTop = DEFINED(__user_stack_top) ? __user_stack_top : __top_RamLoc64 - 0);
 
     /* ## Create checksum value (used in startup) ## */
-    PROVIDE(__valid_user_code_checksum = 0 - 
-                                         (_vStackTop 
-                                         + (ResetISR + 1) 
-                                         + (NMI_Handler + 1) 
-                                         + (HardFault_Handler + 1) 
+    PROVIDE(__valid_user_code_checksum = 0 -
+                                         (_vStackTop
+                                         + (ResetISR + 1)
+                                         + (NMI_Handler + 1)
+                                         + (HardFault_Handler + 1)
                                          + (( DEFINED(MemManage_Handler) ? MemManage_Handler : 0 ) + 1)   /* MemManage_Handler may not be defined */
                                          + (( DEFINED(BusFault_Handler) ? BusFault_Handler : 0 ) + 1)     /* BusFault_Handler may not be defined */
                                          + (( DEFINED(UsageFault_Handler) ? UsageFault_Handler : 0 ) + 1) /* UsageFault_Handler may not be defined */

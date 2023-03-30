@@ -11,11 +11,11 @@ CFLAGS += \
   -mfloat-abi=hard \
   -mfpu=fpv4-sp-d16 \
   -DCFG_TUSB_MCU=OPT_MCU_LPC54XXX \
-  -DCFG_TUSB_MEM_ALIGN='__attribute__((aligned(64)))' 
+  -DCFG_TUSB_MEM_ALIGN='__attribute__((aligned(64)))'
 
 ifeq ($(PORT), 1)
   $(info "PORT1 High Speed")
-  CFLAGS += -DBOARD_DEVICE_RHPORT_SPEED=OPT_MODE_HIGH_SPEED
+  CFLAGS += -DBOARD_TUD_MAX_SPEED=OPT_MODE_HIGH_SPEED
 
   # LPC55 Highspeed Port1 can only write to USB_SRAM region
   CFLAGS += -DCFG_TUSB_MEM_SECTION='__attribute__((section("m_usb_global")))'
@@ -51,4 +51,4 @@ INC += \
 SRC_S += $(MCU_DIR)/gcc/startup_$(MCU_CORE).S
 
 # For freeRTOS port source
-FREERTOS_PORT = ARM_CM4F
+FREERTOS_PORTABLE_SRC = $(FREERTOS_PORTABLE_PATH)/ARM_CM4F
