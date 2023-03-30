@@ -5,7 +5,3 @@ idf_component_register(SRCS "main.c" "usb_descriptors.c" "msc_disk.c"
 target_include_directories(${COMPONENT_TARGET} PUBLIC
   "${TOP}/hw"
 )
-
-target_compile_definitions(${COMPONENT_TARGET} PUBLIC
-  ESP_PLATFORM
-)

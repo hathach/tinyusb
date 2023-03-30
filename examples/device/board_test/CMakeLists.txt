@@ -1,29 +1,24 @@
 cmake_minimum_required(VERSION 3.5)
 
-include(${CMAKE_CURRENT_SOURCE_DIR}/../../../hw/bsp/family_support.cmake)
-
-# Check for -DFAMILY=
-if(FAMILY MATCHES "^esp32s[2-3]")
-  # use BOARD-Directory name for project id
-  get_filename_component(PROJECT ${CMAKE_CURRENT_SOURCE_DIR} NAME)
-  set(PROJECT ${BOARD}-${PROJECT})
-
+# -DFAMILY=espressif
+if(FAMILY STREQUAL "espressif")
   # TOP is absolute path to root directory of TinyUSB git repo
   set(TOP "../../..")
   get_filename_component(TOP "${TOP}" REALPATH)
+endif()
 
-  project(${PROJECT})
+include(${CMAKE_CURRENT_SOURCE_DIR}/../../../hw/bsp/family_support.cmake)
 
-else()
+# gets PROJECT name for the example (e.g. <BOARD>-<DIR_NAME>)
+family_get_project_name(PROJECT ${CMAKE_CURRENT_LIST_DIR})
 
-  # gets PROJECT name for the example (e.g. <BOARD>-<DIR_NAME>)
-  family_get_project_name(PROJECT ${CMAKE_CURRENT_LIST_DIR})
+project(${PROJECT})
 
-  project(${PROJECT})
+# Checks this example is valid for the family and initializes the project
+family_initialize_project(${PROJECT} ${CMAKE_CURRENT_LIST_DIR})
 
-  # Checks this example is valid for the family and initializes the project
-  family_initialize_project(${PROJECT} ${CMAKE_CURRENT_LIST_DIR})
-
+# Other family such as rp2040
+if(NOT FAMILY STREQUAL "espressif")
   add_executable(${PROJECT})
 
   # Example source

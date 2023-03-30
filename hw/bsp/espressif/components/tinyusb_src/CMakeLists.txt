@@ -19,6 +19,7 @@ endif()
 
 list(APPEND compile_options
     "-DCFG_TUSB_MCU=${tusb_mcu}"
+    "-DCFG_TUSB_OS=OPT_OS_FREERTOS"
     #"-DCFG_TUSB_DEBUG=1"
     )
 
