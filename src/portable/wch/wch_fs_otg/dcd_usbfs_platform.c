@@ -11,7 +11,6 @@
 
 void dcd_int_enable(uint8_t rhport) {
     (void)rhport;
-    //lnEnableInterrupt(LN_IRQ_OTG_FS);
     NVIC_EnableIRQ(OTG_FS_IRQn);    
 }
 /**
@@ -22,7 +21,7 @@ void dcd_int_disable(uint8_t rhport) {
 }
 void dcd_fs_platform_init(void)
 {
-    // put your clock etc initialization code hee if not done already
+    // put your clock etc initialization code here if not done already
 }
 void dcd_fs_platform_delay(int ms)
 {
