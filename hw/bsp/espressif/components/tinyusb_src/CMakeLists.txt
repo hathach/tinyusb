@@ -2,9 +2,8 @@ idf_build_get_property(target IDF_TARGET)
 
 set(srcs)
 set(includes_public)
-set(includes_private)
 set(compile_options)
-set(tusb_src "${TOP}/src")
+set(tusb_src "${CMAKE_CURRENT_SOURCE_DIR}/../../../../../src")
 
 if(target STREQUAL "esp32s3")
   set(tusb_mcu "OPT_MCU_ESP32S3")
@@ -24,10 +23,6 @@ list(APPEND compile_options
     )
 
 idf_component_get_property(freertos_component_dir freertos COMPONENT_DIR)
-
-list(APPEND includes_private
-    "${tusb_src}"
-    )
 
 list(APPEND includes_public
     "${tusb_src}"
@@ -54,8 +49,7 @@ list(APPEND srcs
 
 idf_component_register(SRCS ${srcs}
     INCLUDE_DIRS ${includes_public}
-    PRIV_INCLUDE_DIRS ${includes_private}
-    PRIV_REQUIRES src
+    REQUIRES src
     )
 
 target_compile_options(${COMPONENT_LIB} PUBLIC ${compile_options})

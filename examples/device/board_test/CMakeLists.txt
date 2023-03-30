@@ -1,12 +1,5 @@
 cmake_minimum_required(VERSION 3.5)
 
-# -DFAMILY=espressif
-if(FAMILY STREQUAL "espressif")
-  # TOP is absolute path to root directory of TinyUSB git repo
-  set(TOP "../../..")
-  get_filename_component(TOP "${TOP}" REALPATH)
-endif()
-
 include(${CMAKE_CURRENT_SOURCE_DIR}/../../../hw/bsp/family_support.cmake)
 
 # gets PROJECT name for the example (e.g. <BOARD>-<DIR_NAME>)
