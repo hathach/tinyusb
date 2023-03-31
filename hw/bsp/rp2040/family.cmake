@@ -23,11 +23,16 @@ if (NOT TARGET _rp2040_family_inclusion_marker)
 		set(PICO_TINYUSB_PATH ${TOP})
 	endif()
 
-#	if (NOT TINYUSB_OPT_OS)
-#		set(TINYUSB_OPT_OS OPT_OS_PICO)
-#	endif()
+	unset(SUPPORTED_OS_LIST)
+	if (DEFINED TINYUSB_OPT_OS)
+		# for backward compatibility, let the user force the OS option
+		list(APPEND SUPPORTED_OS_LIST ${TINYUSB_OPT_OS})
+	else()
+		# otherwise, build both the pico-sdk and FreeRTOS versions of the library
+		list(APPEND SUPPORTED_OS_LIST OPT_OS_PICO OPT_OS_FREERTOS)
+	endif()
 	set(PROJ_SUFFIX "")
-	foreach(SUPPORTED_OS IN ITEMS OPT_OS_PICO OPT_OS_FREERTOS)
+	foreach(SUPPORTED_OS IN LISTS SUPPORTED_OS_LIST)
 		if (${SUPPORTED_OS} MATCHES OPT_OS_FREERTOS)
 			# see if FreeRTOS kernel source is available; based on <FREERTOS_KERNEL_PATH>/portable/ThirdParty/GCC/RP2040/FreeRTOS_Kernel_import.cmake
 			if (DEFINED ENV{FREERTOS_KERNEL_PATH} AND (NOT FREERTOS_KERNEL_PATH))
