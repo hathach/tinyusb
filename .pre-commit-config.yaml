@@ -9,6 +9,7 @@ repos:
   - id: check-yaml
   - id: trailing-whitespace
   - id: end-of-file-fixer
+    exclude: ^.idea/
   - id: forbid-submodules
 
 - repo: https://github.com/codespell-project/codespell
