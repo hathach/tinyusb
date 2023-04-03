@@ -54,7 +54,7 @@ jobs:
          path: linkermap
 
     - name: Build
-      run: docker run --rm -v $PWD:/project -w /project espressif/idf:latest python3 tools/build_esp32sx.py ${{ matrix.board }}
+      run: docker run --rm -v $PWD:/project -w /project espressif/idf:latest python3 tools/build_esp32.py ${{ matrix.board }}
 
     - name: Linker Map
       run: |
