@@ -362,6 +362,9 @@ void dcd_int_enable (uint8_t rhport)
   NVIC_EnableIRQ(USB_HP_IRQn);
   NVIC_EnableIRQ(USB_LP_IRQn);
 
+#elif CFG_TUSB_MCU == OPT_MCU_STM32L5
+  NVIC_EnableIRQ(USB_FS_IRQn);
+
 #else
   #error Unknown arch in USB driver
 #endif
@@ -408,6 +411,9 @@ void dcd_int_disable(uint8_t rhport)
 #elif CFG_TUSB_MCU == OPT_MCU_STM32WB
   NVIC_DisableIRQ(USB_HP_IRQn);
   NVIC_DisableIRQ(USB_LP_IRQn);
+
+#elif CFG_TUSB_MCU == OPT_MCU_STM32L5
+  NVIC_DisableIRQ(USB_FS_IRQn);
 
 #else
   #error Unknown arch in USB driver
