@@ -41,7 +41,6 @@
   #include "freertos/timers.h"
 
   #define USBD_STACK_SIZE     4096
-
 #else
   #include "FreeRTOS.h"
   #include "semphr.h"
