@@ -62,7 +62,7 @@ typedef struct
 // Interface API
 //--------------------------------------------------------------------+
 
-// Get the number of mounted HID interfaces of a device
+// Get the total number of mounted HID interfaces of a device
 uint8_t tuh_hid_itf_get_count(uint8_t dev_addr);
 
 // Get all mounted interfaces across devices
@@ -109,13 +109,16 @@ bool tuh_hid_set_report(uint8_t dev_addr, uint8_t idx, uint8_t report_id, uint8_
 // Interrupt Endpoint API
 //--------------------------------------------------------------------+
 
-// Check if the interface is ready to use
-//bool tuh_n_hid_n_ready(uint8_t dev_addr, uint8_t idx);
+// Check if HID interface is ready to receive report
+bool tuh_hid_receive_ready(uint8_t dev_addr, uint8_t idx);
 
 // Try to receive next report on Interrupt Endpoint. Immediately return
 // - true If succeeded, tuh_hid_report_received_cb() callback will be invoked when report is available
 // - false if failed to queue the transfer e.g endpoint is busy
 bool tuh_hid_receive_report(uint8_t dev_addr, uint8_t idx);
+
+// Check if HID interface is ready to send report
+bool tuh_hid_send_ready(uint8_t dev_addr, uint8_t idx);
 
 // Send report using interrupt endpoint
 // If report_id > 0 (composite), it will be sent as 1st byte, then report contents. Otherwise only report content is sent.

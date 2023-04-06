@@ -331,6 +331,15 @@ static bool _hidh_set_idle(uint8_t daddr, uint8_t itf_num, uint16_t idle_rate, t
 // Interrupt Endpoint API
 //--------------------------------------------------------------------+
 
+// Check if HID interface is ready to receive report
+bool tuh_hid_receive_ready(uint8_t dev_addr, uint8_t idx)
+{
+  hidh_interface_t* p_hid = get_hid_itf(dev_addr, idx);
+  TU_VERIFY(p_hid);
+
+  return !usbh_edpt_busy(dev_addr, p_hid->ep_in);
+}
+
 bool tuh_hid_receive_report(uint8_t daddr, uint8_t idx)
 {
   hidh_interface_t* p_hid = get_hid_itf(daddr, idx);
@@ -348,13 +357,13 @@ bool tuh_hid_receive_report(uint8_t daddr, uint8_t idx)
   return true;
 }
 
-//bool tuh_n_hid_n_ready(uint8_t dev_addr, uint8_t instance)
-//{
-//  TU_VERIFY(tuh_n_hid_n_mounted(dev_addr, instance));
-//
-//  hidh_interface_t* hid_itf = get_instance(dev_addr, instance);
-//  return !usbh_edpt_busy(dev_addr, hid_itf->ep_in);
-//}
+bool tuh_hid_send_ready(uint8_t dev_addr, uint8_t idx)
+{
+  hidh_interface_t* p_hid = get_hid_itf(dev_addr, idx);
+  TU_VERIFY(p_hid);
+
+  return !usbh_edpt_busy(dev_addr, p_hid->ep_out);
+}
 
 bool tuh_hid_send_report(uint8_t daddr, uint8_t idx, uint8_t report_id, const void* report, uint16_t len)
 {
