@@ -52,7 +52,9 @@ uint32_t tud_vendor_n_write_flush     (uint8_t itf);
 uint32_t tud_vendor_n_write_available (uint8_t itf);
 
 static inline uint32_t tud_vendor_n_write_str (uint8_t itf, char const* str);
-uint32_t tud_vendor_n_flush           (uint8_t itf);
+
+// backward compatible
+#define tud_vendor_n_flush(itf) tud_vendor_n_write_flush(itf)
 
 //--------------------------------------------------------------------+
 // Application API (Single Port)
@@ -66,6 +68,9 @@ static inline uint32_t tud_vendor_write           (void const* buffer, uint32_t 
 static inline uint32_t tud_vendor_write_str       (char const* str);
 static inline uint32_t tud_vendor_write_available (void);
 static inline uint32_t tud_vendor_write_flush     (void);
+
+// backward compatible
+#define tud_vendor_flush() tud_vendor_write_flush()
 
 //--------------------------------------------------------------------+
 // Application Callback API (weak is optional)
