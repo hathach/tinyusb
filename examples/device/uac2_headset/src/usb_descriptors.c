@@ -106,7 +106,7 @@ uint8_t const * tud_descriptor_device_cb(void)
 
 uint8_t const desc_configuration[] =
 {
-    // Config number, Interface count, string index, total length, attribute, power in mA
+    // Config number, interface count, string index, total length, attribute, power in mA
     TUD_CONFIG_DESCRIPTOR(1, ITF_NUM_TOTAL, 0, CONFIG_TOTAL_LEN, 0x00, 100),
 
     // Interface number, string index, EP Out & EP In address, EP size
