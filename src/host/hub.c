@@ -361,6 +361,13 @@ bool hub_xfer_cb(uint8_t dev_addr, uint8_t ep_addr, xfer_result_t result, uint32
         break;
       }
     }
+
+    // The status change event was neither for the hub, nor for any of
+    // its ports. (For example `p_hub->status_change == 0`.) This
+    // shouldn't happen, but it does with some devices. Initiate the
+    // next interrupt poll here, because we've scheduled no other work
+    // whose completion can initiate it.
+    hub_edpt_status_xfer(dev_addr);
   }
 
   // NOTE: next status transfer is queued by usbh.c after handling this request
