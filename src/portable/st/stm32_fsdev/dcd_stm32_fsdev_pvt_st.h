@@ -184,6 +184,7 @@ TU_ATTR_ALWAYS_INLINE static inline uint16_t pcd_aligned_buffer_size(uint16_t si
 TU_ATTR_ALWAYS_INLINE static inline void pcd_set_endpoint(USB_TypeDef * USBx, uint32_t bEpIdx, uint32_t wRegValue)
 {
 #ifdef PMA_32BIT_ACCESS
+  (void) USBx;
   __O uint32_t *reg = (__O uint32_t *)(USB_DRD_BASE + bEpIdx*4);
   *reg = wRegValue;
 #else
@@ -195,6 +196,7 @@ TU_ATTR_ALWAYS_INLINE static inline void pcd_set_endpoint(USB_TypeDef * USBx, ui
 /* GetENDPOINT */
 TU_ATTR_ALWAYS_INLINE static inline uint32_t pcd_get_endpoint(USB_TypeDef * USBx, uint32_t bEpIdx) {
 #ifdef PMA_32BIT_ACCESS
+  (void) USBx;
   __I uint32_t *reg = (__I uint32_t *)(USB_DRD_BASE + bEpIdx*4);
 #else
   __I uint16_t *reg = (__I uint16_t *)((&USBx->EP0R) + bEpIdx*2u);
@@ -249,6 +251,7 @@ TU_ATTR_ALWAYS_INLINE static inline void pcd_clear_tx_ep_ctr(USB_TypeDef * USBx,
 TU_ATTR_ALWAYS_INLINE static inline uint32_t pcd_get_ep_tx_cnt(USB_TypeDef * USBx, uint32_t bEpIdx)
 {
 #ifdef PMA_32BIT_ACCESS
+  (void) USBx;
   return (pma32[2*bEpIdx] & 0x03FF0000) >> 16;
 #else
   __I uint16_t *regPtr = pcd_ep_tx_cnt_ptr(USBx, bEpIdx);
@@ -259,6 +262,7 @@ TU_ATTR_ALWAYS_INLINE static inline uint32_t pcd_get_ep_tx_cnt(USB_TypeDef * USB
 TU_ATTR_ALWAYS_INLINE static inline uint32_t pcd_get_ep_rx_cnt(USB_TypeDef * USBx, uint32_t bEpIdx)
 {
 #ifdef PMA_32BIT_ACCESS
+  (void) USBx;
   return (pma32[2*bEpIdx + 1] & 0x03FF0000) >> 16;
 #else
   __I uint16_t *regPtr = pcd_ep_rx_cnt_ptr(USBx, bEpIdx);
@@ -285,6 +289,7 @@ TU_ATTR_ALWAYS_INLINE static inline void pcd_set_ep_address(USB_TypeDef * USBx, 
 TU_ATTR_ALWAYS_INLINE static inline uint32_t pcd_get_ep_tx_address(USB_TypeDef * USBx, uint32_t bEpIdx)
 {
 #ifdef PMA_32BIT_ACCESS
+  (void) USBx;
   return pma32[2*bEpIdx] & 0x0000FFFFu ;
 #else
   return *pcd_btable_word_ptr(USBx,(bEpIdx)*4u + 0u);
@@ -294,6 +299,7 @@ TU_ATTR_ALWAYS_INLINE static inline uint32_t pcd_get_ep_tx_address(USB_TypeDef *
 TU_ATTR_ALWAYS_INLINE static inline uint32_t pcd_get_ep_rx_address(USB_TypeDef * USBx, uint32_t bEpIdx)
 {
 #ifdef PMA_32BIT_ACCESS
+  (void) USBx;
   return pma32[2*bEpIdx + 1] & 0x0000FFFFu;
 #else
   return *pcd_btable_word_ptr(USBx,(bEpIdx)*4u + 2u);
@@ -303,6 +309,7 @@ TU_ATTR_ALWAYS_INLINE static inline uint32_t pcd_get_ep_rx_address(USB_TypeDef *
 TU_ATTR_ALWAYS_INLINE static inline void pcd_set_ep_tx_address(USB_TypeDef * USBx, uint32_t bEpIdx, uint32_t addr)
 {
 #ifdef PMA_32BIT_ACCESS
+  (void) USBx;
   pma32[2*bEpIdx] = (pma32[2*bEpIdx] & 0xFFFF0000u) | (addr & 0x0000FFFCu);
 #else
   *pcd_btable_word_ptr(USBx,(bEpIdx)*4u + 0u) = addr;
@@ -312,6 +319,7 @@ TU_ATTR_ALWAYS_INLINE static inline void pcd_set_ep_tx_address(USB_TypeDef * USB
 TU_ATTR_ALWAYS_INLINE static inline void pcd_set_ep_rx_address(USB_TypeDef * USBx, uint32_t bEpIdx, uint32_t addr)
 {
 #ifdef PMA_32BIT_ACCESS
+  (void) USBx;
   pma32[2*bEpIdx + 1] = (pma32[2*bEpIdx + 1] & 0xFFFF0000u) | (addr & 0x0000FFFCu);
 #else
   *pcd_btable_word_ptr(USBx,(bEpIdx)*4u + 2u) = addr;
@@ -321,6 +329,7 @@ TU_ATTR_ALWAYS_INLINE static inline void pcd_set_ep_rx_address(USB_TypeDef * USB
 TU_ATTR_ALWAYS_INLINE static inline void pcd_set_ep_tx_cnt(USB_TypeDef * USBx, uint32_t bEpIdx, uint32_t wCount)
 {
 #ifdef PMA_32BIT_ACCESS
+  (void) USBx;
   pma32[2*bEpIdx] = (pma32[2*bEpIdx] & ~0x03FF0000u) | ((wCount & 0x3FFu) << 16);
 #else
   __IO uint16_t * reg = pcd_ep_tx_cnt_ptr(USBx, bEpIdx);
@@ -331,6 +340,7 @@ TU_ATTR_ALWAYS_INLINE static inline void pcd_set_ep_tx_cnt(USB_TypeDef * USBx, u
 TU_ATTR_ALWAYS_INLINE static inline void pcd_set_ep_rx_cnt(USB_TypeDef * USBx, uint32_t bEpIdx, uint32_t wCount)
 {
 #ifdef PMA_32BIT_ACCESS
+  (void) USBx;
   pma32[2*bEpIdx + 1] = (pma32[2*bEpIdx + 1] & ~0x03FF0000u) | ((wCount & 0x3FFu) << 16);
 #else
   __IO uint16_t * reg = pcd_ep_rx_cnt_ptr(USBx, bEpIdx);
@@ -342,6 +352,7 @@ TU_ATTR_ALWAYS_INLINE static inline void pcd_set_ep_blsize_num_blocks(USB_TypeDe
 {
   /* Encode into register. When BLSIZE==1, we need to subtract 1 block count */
 #ifdef PMA_32BIT_ACCESS
+  (void) USBx;
   pma32[rxtx_idx] = (pma32[rxtx_idx] & 0x0000FFFFu) | (blocksize << 31) | ((numblocks - blocksize) << 26);
 #else
   __IO uint16_t *pdwReg = pcd_btable_word_ptr(USBx, rxtx_idx*2u + 1u);
