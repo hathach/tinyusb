@@ -57,7 +57,6 @@
 		<group name="src/host">
 			<path>$TUSB_DIR$/src/host/hub.c</path>
 			<path>$TUSB_DIR$/src/host/usbh.c</path>
-			<path>$TUSB_DIR$/src/host/usbh_control.c</path>
 		</group>
 		<group name="src/portable/synopsys/dwc2">
 			<path>$TUSB_DIR$/src/portable/synopsys/dwc2/dcd_dwc2.c</path>
@@ -120,8 +119,9 @@
 			<path>$TUSB_DIR$/src/portable/raspberrypi/rp2040/hcd_rp2040.c</path>
 			<path>$TUSB_DIR$/src/portable/raspberrypi/rp2040/rp2040_usb.c</path>
 		</group>
-		<group name="src/portable/renesas/usba">
-			<path>$TUSB_DIR$/src/portable/renesas/usba/dcd_usba.c</path>
+		<group name="src/portable/renesas/rusb2">
+			<path>$TUSB_DIR$/src/portable/renesas/rusb2/dcd_rusb2.c</path>
+            <path>$TUSB_DIR$/src/portable/renesas/rusb2/hcd_rusb2.c</path>
 		</group>
 		<group name="src/portable/sony/cxd56">
 			<path>$TUSB_DIR$/src/portable/sony/cxd56/dcd_cxd56.c</path>
