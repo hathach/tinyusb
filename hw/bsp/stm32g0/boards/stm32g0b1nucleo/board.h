@@ -67,7 +67,7 @@ static inline void board_clock_init(void)
   /** Tick priority is used in HAL_RCC_OscConfig, so we need to enable it now
   */
   HAL_InitTick(0);
-  
+
   /** Configure the main internal regulator output voltage
   */
   HAL_PWREx_ControlVoltageScaling(PWR_REGULATOR_VOLTAGE_SCALE1);

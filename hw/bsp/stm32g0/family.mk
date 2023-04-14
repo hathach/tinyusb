@@ -11,7 +11,7 @@ include $(TOP)/$(BOARD_PATH)/board.mk
 # --------------
 CFLAGS += \
   -DCFG_TUSB_MCU=OPT_MCU_STM32G0
-  
+
 # GCC Flags
 GCC_CFLAGS += \
   -flto \
