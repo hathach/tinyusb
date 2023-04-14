@@ -1,4 +1,4 @@
-/* 
+/*
  * The MIT License (MIT)
  *
  * Copyright (c) 2020 Reinhard Panhuber
@@ -99,9 +99,6 @@ int main(void)
     led_blinking_task();
     audio_task();
   }
-
-
-  return 0;
 }
 
 //--------------------------------------------------------------------+
@@ -290,7 +287,7 @@ bool tud_audio_get_req_entity_cb(uint8_t rhport, tusb_control_request_t const * 
 
         // Those are dummy values for now
         ret.bNrChannels = 1;
-        ret.bmChannelConfig = 0;
+        ret.bmChannelConfig = (audio_channel_config_t) 0;
         ret.iChannelNames = 0;
 
         TU_LOG2("    Get terminal connector\r\n");

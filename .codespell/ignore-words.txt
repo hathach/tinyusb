@@ -6,3 +6,7 @@ fro
 dout
 mot
 te
+attch
+endianess
+pris
+busses

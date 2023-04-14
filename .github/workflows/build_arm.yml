@@ -34,21 +34,21 @@ jobs:
         # Alphabetical order
         - 'broadcom_32bit'
         - 'imxrt'
-        - 'lpc15 lpc18'
-        - 'lpc54 lpc55'
+        - 'kinetis_k32 kinetis_kl'
+        - 'lpc11 lpc13 lpc15 lpc17 lpc18'
+        - 'lpc51 lpc54 lpc55'
         - 'mm32 msp432e4'
         - 'nrf'
+        - 'ra'
         - 'rp2040'
-        - 'samd11'
-        - 'samd21'
-        - 'samd51'
+        - 'samd11 samd21'
+        - 'samd51 same5x'
         - 'saml2x'
-        - 'stm32f0 stm32f1'
+        - 'stm32f0 stm32f1 stm32f2 stm32f3'
         - 'stm32f4'
         - 'stm32f7'
-        - 'stm32g4 stm32wb'
-        - 'stm32h7'
-        - 'stm32l4'
+        - 'stm32g4 stm32h7'
+        - 'stm32l0 stm32l4 stm32u5 stm32wb'
         - 'tm4c123 xmc4000'
     steps:
     - name: Setup Python
@@ -64,9 +64,6 @@ jobs:
     - name: Checkout TinyUSB
       uses: actions/checkout@v3
 
-    - name: Checkout common submodules in lib
-      run: git submodule update --init lib/FreeRTOS-Kernel lib/lwip
-
     - name: Checkout hathach/linkermap
       uses: actions/checkout@v3
       with:
@@ -80,7 +77,7 @@ jobs:
         echo >> $GITHUB_ENV PICO_SDK_PATH=~/pico-sdk
 
     - name: Get Dependencies
-      run: python3 tools/get_dependencies.py ${{ matrix.family }}
+      run: python3 tools/get_family_deps.py ${{ matrix.family }}
 
     - name: Build
       run: python3 tools/build_family.py ${{ matrix.family }}
@@ -97,58 +94,28 @@ jobs:
     # Upload binaries for rp2040/stm32l412nucleo hardware test with self-hosted
 
     - name: Prepare rp2040 Artifacts
-      if: matrix.family == 'rp2040' && github.repository_owner == 'hathach'
+      if: contains(matrix.family, 'rp2040') && github.repository_owner == 'hathach'
       run: find examples/ -name "*.elf" -exec mv {} . \;
 
     - name: Prepare stm32l412nucleo Artifacts
-      if: matrix.family == 'stm32l4'
+      if: contains(matrix.family, 'stm32l4')
       run: find examples/ -path "*stm32l412nucleo/*.elf" -exec mv {} . \;
 
-    - name: Upload Artifacts for hardware testing
-      if: matrix.family == 'stm32l4' || (matrix.family == 'rp2040' && github.repository_owner == 'hathach')
+    - name: Upload Artifacts for rp2040
+      if: contains(matrix.family,'rp2040') && github.repository_owner == 'hathach'
       uses: actions/upload-artifact@v3
       with:
-        name: ${{ matrix.family }}
+        name: rp2040
         path: |
           *.elf
 
-  # ---------------------------------------
-  # Build all no-family (orphaned) boards
-  # disable this workflow since it is often failed randomly
-  # ---------------------------------------
-  build-board:
-    runs-on: ubuntu-latest
-    if: false
-    strategy:
-      fail-fast: false
-      matrix:
-        example:
-        # Alphabetical order, a group of 4
-        - 'device/audio_test device/board_test device/cdc_dual_ports device/cdc_msc'
-        - 'device/cdc_msc_freertos device/dfu_runtime device/hid_composite device/hid_composite_freertos'
-        - 'device/hid_generic_inout device/hid_multiple_interface device/midi_test device/msc_dual_lun'
-        - 'device/net_lwip_webserver'
-        - 'device/uac2_headset device/usbtmc device/webusb_serial host/cdc_msc_hid'
-
-    steps:
-    - name: Setup Python
-      uses: actions/setup-python@v4
+    - name: Upload Artifacts for stm32l412nucleo
+      if: contains(matrix.family, 'stm32l4') && github.repository_owner == 'hathach'
+      uses: actions/upload-artifact@v3
       with:
-        python-version: '3.x'
-
-    - name: Install ARM GCC
-      uses: carlosperate/arm-none-eabi-gcc-action@v1
-      with:
-        release: '11.2-2022.02'
-
-    - name: Checkout TinyUSB
-      uses: actions/checkout@v3
-
-    - name: Checkout common submodules in lib
-      run: git submodule update --init lib/FreeRTOS-Kernel lib/lwip
-
-    - name: Build
-      run: python3 tools/build_board.py ${{ matrix.example }}
+        name: stm32l4
+        path: |
+          *.elf
 
   # ---------------------------------------
   # Hardware in the loop (HIL)
@@ -274,4 +241,4 @@ jobs:
     - name: Test dfu_runtime
       run: |
         ./flash.sh dfu_runtime.elf
-        while (! (dfu-util -l | grep "Found Runtime")) && [ $SECONDS -le 10 ]; do :; done  
+        while (! (dfu-util -l | grep "Found Runtime")) && [ $SECONDS -le 10 ]; do :; done

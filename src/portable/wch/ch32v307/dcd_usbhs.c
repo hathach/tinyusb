@@ -1,7 +1,7 @@
-/* 
+/*
  * The MIT License (MIT)
  *
- * Copyright (c) 2022 Greg Davill 
+ * Copyright (c) 2022 Greg Davill
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -261,7 +261,7 @@ bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t *buffer, uint16_t to
                 USBHS_Dev_Endp0_Tog ^= 1;
             } else {
                 xfer->queued_len += short_packet_size;
-                
+
                 EP_TX_DMA_ADDR(epnum) = (uint32_t)buffer;
                 USBHSD->ENDP_CONFIG |= (USBHS_EP0_T_EN << epnum);
                 EP_TX_LEN(epnum) = short_packet_size;
@@ -366,7 +366,7 @@ void dcd_int_handler(uint8_t rhport) {
     } else if (intflag & USBHS_SETUP_FLAG) {
         USBHS_Dev_Endp0_Tog = 1;
         dcd_event_setup_received(0, EP0_DatabufHD, true);
-        
+
         USBHSD->INT_FG = USBHS_SETUP_FLAG; /* Clear flag */
     } else if (intflag & USBHS_DETECT_FLAG) {
         USBHS_Dev_Endp0_Tog = 1;

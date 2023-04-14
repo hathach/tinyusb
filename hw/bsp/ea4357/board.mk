@@ -39,7 +39,7 @@ INC += \
 	$(TOP)/$(MCU_DIR)/inc/config_43xx
 
 # For freeRTOS port source
-FREERTOS_PORT = ARM_CM4F
+FREERTOS_PORTABLE_SRC = $(FREERTOS_PORTABLE_PATH)/ARM_CM4F
 
 # For flash-jlink target
 JLINK_DEVICE = LPC4357_M4

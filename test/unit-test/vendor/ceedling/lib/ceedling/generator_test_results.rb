@@ -77,7 +77,7 @@ class GeneratorTestResults
     # handle anything preceding filename in line as extra output to be collected
     stdout = nil
     stdout_regex = /(.+)#{Regexp.escape(filename)}.+/i
-    unity_test_time = 0 
+    unity_test_time = 0
 
     if (line =~ stdout_regex)
       stdout = $1.clone

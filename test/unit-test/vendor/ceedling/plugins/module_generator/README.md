@@ -82,7 +82,7 @@ by adding to the `:includes` array. For example:
 ### Boilerplates
 
 You can specify the actual boilerplate used for each of your files. This is the handy place to
-put that corporate copyright notice (or maybe a copyleft notice, if that's your perference?)
+put that corporate copyright notice (or maybe a copyleft notice, if that's your preference?)
 
 ```
 :module_generator:
@@ -96,7 +96,7 @@ put that corporate copyright notice (or maybe a copyleft notice, if that's your 
 ### Test Defines
 
 You can specify the "#ifdef TEST" at the top of the test files with a custom define.
-This example will put a "#ifdef CEEDLING_TEST" at the top of the test files.  
+This example will put a "#ifdef CEEDLING_TEST" at the top of the test files.
 
 ```
 :module_generator:
@@ -115,5 +115,3 @@ Your options are as follows:
   - `:camel` - camelFilesAreSimilarButStartLow
   - `:snake` - snake_case_is_all_lower_and_uses_underscores
   - `:caps`  - CAPS_FEELS_LIKE_YOU_ARE_SCREAMING
-
-

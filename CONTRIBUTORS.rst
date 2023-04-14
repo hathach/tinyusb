@@ -119,6 +119,7 @@ Notable contributors
 
 -  Port DCD Synopsys to support Silabs EFM32GG12 with SLTB009A board
 -  Rewrite documentation in rst and setup for readthedocs
+-  Generalize Renesas driver and support RA family with EK-RA4M3 board
 
 
 `Raspberry Pi Team <https://github.com/raspberrypi>`__

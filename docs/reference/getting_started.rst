@@ -44,40 +44,36 @@ For your convenience, TinyUSB contains a handful of examples for both host and d
    $ git clone https://github.com/hathach/tinyusb tinyusb
    $ cd tinyusb
 
-Some TinyUSB examples also requires external submodule libraries in ``/lib`` such as FreeRTOS, Lightweight IP to build. Run following command to fetch them 
-
-.. code-block::
-
-   $ git submodule update --init lib
-
-Some ports will also require a port-specific SDK (e.g. RP2040) or binary (e.g. Sony Spresense) to build examples. They are out of scope for tinyusb, you should download/install it first according to its manufacturer guide. 
+Some ports will also require a port-specific SDK (e.g. RP2040) or binary (e.g. Sony Spresense) to build examples. They are out of scope for tinyusb, you should download/install it first according to its manufacturer guide.
 
 Build
 ^^^^^
 
-To build example, first change directory to an example folder. 
+To build example, first change directory to an example folder.
 
 .. code-block::
 
    $ cd examples/device/cdc_msc
 
-Before building, we need to download MCU driver submodule to provide low-level MCU peripheral's driver first. Run the ``get-deps`` target in one of the example folder as follow. You only need to do this once per mcu
+Before building, we firstly need to download dependencies such as: MCU low-level peripheral driver and external libraries e.g FreeRTOS (required by some examples). Run the ``get-deps`` target in one of the example folder as follow. You only need to do this once per mcu. Check out `complete list of dependencies and their designated path here <dependencies.rst>`_
 
 .. code-block::
 
-   $ make BOARD=feather_nrf52840_express get-deps
-
-
-Some modules (e.g. RP2040 and ESP32s2) require the project makefiles to be customized using CMake. If necessary apply any setup steps for the platform's SDK.
+   $ make BOARD=raspberry_pi_pico get-deps
 
 Then compile with ``make BOARD=[board_name] all``\ , for example
 
 .. code-block::
 
-   $ make BOARD=feather_nrf52840_express all
+   $ make BOARD=raspberry_pi_pico all
 
 Note: ``BOARD`` can be found as directory name in ``hw/bsp``\ , either in its family/boards or directly under bsp (no family).
-Note: some examples especially those that uses Vendor class (e.g webUSB) may requires udev permission on Linux (and/or macOS) to access usb device. It depends on your OS distro, typically copy ``/examples/device/99-tinyusb.rules`` file to /etc/udev/rules.d/ then run ``sudo udevadm control --reload-rules && sudo udevadm trigger`` is good enough.
+Note: some examples especially those that uses Vendor class (e.g webUSB) may requires udev permission on Linux (and/or macOS) to access usb device. It depends on your OS distro, typically copy ``99-tinyusb.rules`` and reload your udev is good to go
+
+.. code-block::
+
+   $ cp examples/device/99-tinyusb.rules /etc/udev/rules.d/
+   $ sudo udevadm control --reload-rules && sudo udevadm trigger
 
 Port Selection
 ~~~~~~~~~~~~~~
@@ -118,7 +114,7 @@ To compile for debugging add ``DEBUG=1``\ , for example
 Log
 ~~~
 
-Should you have an issue running example and/or submitting an bug report. You could enable TinyUSB built-in debug logging with optional ``LOG=``. LOG=1 will only print out error message, LOG=2 print more information with on-going events. LOG=3 or higher is not used yet. 
+Should you have an issue running example and/or submitting an bug report. You could enable TinyUSB built-in debug logging with optional ``LOG=``. LOG=1 will only print out error message, LOG=2 print more information with on-going events. LOG=3 or higher is not used yet.
 
 .. code-block::
 
@@ -127,7 +123,7 @@ Should you have an issue running example and/or submitting an bug report. You co
 Logger
 ~~~~~~
 
-By default log message is printed via on-board UART which is slow and take lots of CPU time comparing to USB speed. If your board support on-board/external debugger, it would be more efficient to use it for logging. There are 2 protocols: 
+By default log message is printed via on-board UART which is slow and take lots of CPU time comparing to USB speed. If your board support on-board/external debugger, it would be more efficient to use it for logging. There are 2 protocols:
 
 
 * `LOGGER=rtt`: use `Segger RTT protocol <https://www.segger.com/products/debug-probes/j-link/technology/about-real-time-transfer/>`_
@@ -178,12 +174,12 @@ IAR Project Connection files are provided to import TinyUSB stack into your proj
 
 
   * Take example of STM32F0:
-  
+
     -  You need `stm32l0xx.h`, `startup_stm32f0xx.s`, `system_stm32f0xx.c`.
 
     - `STM32L0xx_HAL_Driver` is only needed to run examples, TinyUSB stack itself doesn't rely on MCU's SDKs.
 
-* Open `Tools -> Configure Custom Argument Variables` (Switch to `Global` tab if you want to do it for all your projects) 
+* Open `Tools -> Configure Custom Argument Variables` (Switch to `Global` tab if you want to do it for all your projects)
    Click `New Group ...`, name it to `TUSB`, Click `Add Variable ...`, name it to `TUSB_DIR`, change it's value to the path of your TinyUSB stack,
    for example `C:\\tinyusb`
 

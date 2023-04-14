@@ -21,7 +21,7 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
   cancel-in-progress: true
 
-jobs:  
+jobs:
   build-msp430:
     runs-on: ubuntu-latest
     strategy:
@@ -39,9 +39,6 @@ jobs:
 
     - name: Checkout TinyUSB
       uses: actions/checkout@v3
-
-    - name: Checkout common submodules in lib
-      run: git submodule update --init lib/FreeRTOS-Kernel lib/lwip
 
     - name: Checkout hathach/linkermap
       uses: actions/checkout@v3
@@ -70,7 +67,7 @@ jobs:
       run: echo >> $GITHUB_PATH `echo ~/cache/toolchain/*/bin`
 
     - name: Get Dependencies
-      run: python3 tools/get_dependencies.py ${{ matrix.family }}
+      run: python3 tools/get_family_deps.py ${{ matrix.family }}
 
     - name: Build
       run: python3 tools/build_family.py ${{ matrix.family }}

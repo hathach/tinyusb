@@ -1,4 +1,4 @@
-/* 
+/*
  * The MIT License (MIT)
  *
  * Copyright (c) 2019 Ha Thach (tinyusb.org)
@@ -187,11 +187,16 @@ static void xact_out_dma(uint8_t epnum)
     }
     else
     {
-      // Trigger DMA move data from Endpoint -> SRAM
-      NRF_USBD->ISOOUT.PTR = (uint32_t) xfer->buffer;
-      NRF_USBD->ISOOUT.MAXCNT = xact_len;
+      if (xfer->started)
+      {
+        // Trigger DMA move data from Endpoint -> SRAM
+        NRF_USBD->ISOOUT.PTR = (uint32_t) xfer->buffer;
+        NRF_USBD->ISOOUT.MAXCNT = xact_len;
 
-      start_dma(&NRF_USBD->TASKS_STARTISOOUT);
+        start_dma(&NRF_USBD->TASKS_STARTISOOUT);
+      } else {
+        atomic_flag_clear(&_dcd.dma_running);
+      }
     }
   }
   else

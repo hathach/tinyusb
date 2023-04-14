@@ -44,7 +44,7 @@ void USBFS_IRQHandler(void) { tud_int_handler(0); }
 
 // According to GD32VF103 user manual clock tree:
 // Systick clock = AHB clock / 4.
-#define TIMER_TICKS         ((SystemCoreClock / 4) / 1000) 
+#define TIMER_TICKS         ((SystemCoreClock / 4) / 1000)
 
 #define BUTTON_PORT         GPIOA
 #define BUTTON_PIN          GPIO_PIN_0

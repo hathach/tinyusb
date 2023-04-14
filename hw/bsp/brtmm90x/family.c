@@ -1,4 +1,4 @@
-/* 
+/*
  * The MIT License (MIT)
  *
  * Copyright 2021 Bridgetek Pte Ltd
@@ -70,7 +70,7 @@ void board_init(void)
     board_uart_write(WELCOME_MSG, sizeof(WELCOME_MSG));
 
 #ifdef BOARD_GPIO_LED
-    gpio_function(BOARD_GPIO_LED, pad_func_0); 
+    gpio_function(BOARD_GPIO_LED, pad_func_0);
     gpio_idrive(BOARD_GPIO_LED, pad_drive_12mA);
     gpio_dir(BOARD_GPIO_LED, pad_dir_output);
 #endif
@@ -233,7 +233,7 @@ int board_uart_write(void const *buf, int len)
 uint32_t board_millis(void)
 {
     uint32_t safe_ms;
-    
+
     CRITICAL_SECTION_BEGIN
     safe_ms = timer_ms;
     CRITICAL_SECTION_END
@@ -254,4 +254,3 @@ void chip_reboot(void)
  	dbg_memory_copy(0xfe, 0, 0, 255);
 #endif
 }
-

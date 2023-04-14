@@ -33,7 +33,7 @@ class JsonTestsReport < Plugin
           "IgnoredTests" => write_tests(results[:ignores]),
           "Summary" => write_statistics(results[:counts])
         }
-        
+
         f << JSON.pretty_generate(json)
       end
     end
@@ -62,7 +62,7 @@ class JsonTestsReport < Plugin
     results.each do |result|
       result[:collection].each do |item|
         @test_counter += 1
-        retval << { 
+        retval << {
           "file" => File.join(result[:source][:path], result[:source][:file]),
           "test" => item[:test]
         }

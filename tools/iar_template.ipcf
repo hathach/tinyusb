@@ -141,5 +141,5 @@
             <path>$TUSB_DIR$/lib/SEGGER_RTT/Syscalls/SEGGER_RTT_Syscalls_IAR.c</path>
 		</group>
     </files>
-    
+
 </iarProjectConnection>

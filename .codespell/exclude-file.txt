@@ -1,1 +1,0 @@
-  return USB0.INTSTS1.BIT.ATTCH ? true : false;

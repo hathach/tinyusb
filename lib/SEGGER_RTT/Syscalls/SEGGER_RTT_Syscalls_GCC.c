@@ -44,7 +44,7 @@
 ---------------------------END-OF-HEADER------------------------------
 File    : SEGGER_RTT_Syscalls_GCC.c
 Purpose : Low-level functions for using printf() via RTT in GCC.
-          To use RTT for printf output, include this file in your 
+          To use RTT for printf output, include this file in your
           application.
 Revision: $Rev: 17697 $
 ----------------------------------------------------------------------
@@ -62,7 +62,7 @@ Revision: $Rev: 17697 $
 **********************************************************************
 */
 //
-// If necessary define the _reent struct 
+// If necessary define the _reent struct
 // to match the one passed by the used standard library.
 //
 struct _reent;

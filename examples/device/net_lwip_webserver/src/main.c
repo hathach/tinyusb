@@ -1,4 +1,4 @@
-/* 
+/*
  * The MIT License (MIT)
  *
  * Copyright (c) 2020 Peter Lawrence
@@ -39,7 +39,7 @@ and likely their manufacturer has not tested such functionality.  Some code work
 The smartphone may only have an ECM driver, but refuse to automatically pick ECM (unlike the OSes above);
 try modifying ./examples/devices/net_lwip_webserver/usb_descriptors.c so that CONFIG_ID_ECM is default.
 
-The smartphone may be artificially picky about which Ethernet MAC address to recognize; if this happens, 
+The smartphone may be artificially picky about which Ethernet MAC address to recognize; if this happens,
 try changing the first byte of tud_network_mac_address[] below from 0x02 to 0x00 (clearing bit 1).
 */
 
@@ -64,7 +64,7 @@ static struct pbuf *received_frame;
 /* this is used by this code, ./class/net/net_driver.c, and usb_descriptors.c */
 /* ideally speaking, this should be generated from the hardware's unique ID (if available) */
 /* it is suggested that the first byte is 0x02 to indicate a link-local address */
-const uint8_t tud_network_mac_address[6] = {0x02,0x02,0x84,0x6A,0x96,0x00};
+uint8_t tud_network_mac_address[6] = {0x02,0x02,0x84,0x6A,0x96,0x00};
 
 /* network parameters of this MCU */
 static const ip4_addr_t ipaddr  = INIT_IP4(192, 168, 7, 1);
@@ -170,7 +170,7 @@ bool dns_query_proc(const char *name, ip4_addr_t *addr)
 
 bool tud_network_recv_cb(const uint8_t *src, uint16_t size)
 {
-  /* this shouldn't happen, but if we get another packet before 
+  /* this shouldn't happen, but if we get another packet before
   parsing the previous, we must signal our inability to accept it */
   if (received_frame) return false;
 

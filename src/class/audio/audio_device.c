@@ -1,4 +1,4 @@
-/* 
+/*
  * The MIT License (MIT)
  *
  * Copyright (c) 2020 Reinhard Panhuber, Jerzy Kasenberg
@@ -312,7 +312,7 @@ typedef struct
 
 #if CFG_TUD_AUDIO_ENABLE_FEEDBACK_EP
   struct {
-    uint32_t value;       // Feedback value for asynchronous mode (in 16.16 format).
+    CFG_TUSB_MEM_ALIGN uint32_t value;  // Feedback value for asynchronous mode (in 16.16 format).
     uint32_t min_value;   // min value according to UAC2 FMT-2.0 section 2.3.1.1.
     uint32_t max_value;   // max value according to UAC2 FMT-2.0 section 2.3.1.1.
 
@@ -1525,7 +1525,7 @@ uint16_t audiod_open(uint8_t rhport, tusb_desc_interface_t const * itf_desc, uin
   #endif
               }
             }
-            
+
           }
         }
         p_desc = tu_desc_next(p_desc);
@@ -2124,7 +2124,7 @@ bool audiod_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint3
     {
       if (tud_audio_fb_done_cb) tud_audio_fb_done_cb(func_id);
 
-      // Schedule a transmit with the new value if EP is not busy 
+      // Schedule a transmit with the new value if EP is not busy
       if (!usbd_edpt_busy(rhport, audio->ep_fb))
       {
         // Schedule next transmission - value is changed bytud_audio_n_fb_set() in the meantime or the old value gets sent

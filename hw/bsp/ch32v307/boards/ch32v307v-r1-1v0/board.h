@@ -1,4 +1,4 @@
-/* 
+/*
  * The MIT License (MIT)
  *
  * Copyright (c) 2023 Ha Thach (tinyusb.org) for Adafruit Industries

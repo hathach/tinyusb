@@ -1,4 +1,4 @@
-/* 
+/*
  * The MIT License (MIT)
  *
  * Copyright (c) 2019 Ha Thach (tinyusb.org)
@@ -67,8 +67,6 @@ int main(void)
 
     hid_task();
   }
-
-  return 0;
 }
 
 //--------------------------------------------------------------------+

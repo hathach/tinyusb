@@ -48,6 +48,8 @@
 
 #define CI_HS_REG(_port)      ((ci_hs_regs_t*) _ci_controller[_port].reg_base)
 
+// Clean means to push any cached changes to RAM and invalidate "removes" the
+// entry from the cache.
 #if defined(__CORTEX_M) && __CORTEX_M == 7 && __DCACHE_PRESENT == 1
   #define CleanInvalidateDCache_by_Addr   SCB_CleanInvalidateDCache_by_Addr
 #else
@@ -199,6 +201,8 @@ static void bus_reset(uint8_t rhport)
   _dcd_data.qhd[0][0].qtd_overlay.next = _dcd_data.qhd[0][1].qtd_overlay.next = QTD_NEXT_INVALID;
 
   _dcd_data.qhd[0][0].int_on_setup = 1; // OUT only
+
+  CleanInvalidateDCache_by_Addr((uint32_t*) &_dcd_data, sizeof(dcd_data_t));
 }
 
 void dcd_init(uint8_t rhport)
@@ -541,7 +545,7 @@ static void process_edpt_complete_isr(uint8_t rhport, uint8_t epnum, uint8_t dir
       tu_fifo_advance_write_pointer(p_qhd->ff, xferred_bytes);
     }
   }
-  
+
   // only number of bytes in the IOC qtd
   dcd_event_xfer_complete(rhport, tu_edpt_addr(epnum, dir), xferred_bytes, result, true);
 }

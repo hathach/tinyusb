@@ -26,15 +26,14 @@ jobs:
     - name: Checkout TinyUSB
       uses: actions/checkout@v3
 
-    - name: Run codespell
-      uses: codespell-project/actions-codespell@master
-
-    - name: Run Unit Tests
+    - name: Get Dependencies
       run: |
-        # Install Ceedling
         gem install ceedling
-        cd test/unit-test
-        ceedling test:all
+        #cd test/unit-test
+        #ceedling test:all
+
+    - name: Run pre-commit
+      uses: pre-commit/action@v3.0.0
 
     - name: Build Fuzzer
       run: |

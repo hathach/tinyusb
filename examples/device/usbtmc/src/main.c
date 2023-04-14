@@ -1,4 +1,4 @@
-/* 
+/*
  * The MIT License (MIT)
  *
  * Copyright (c) 2019 Ha Thach (tinyusb.org)
@@ -63,8 +63,6 @@ int main(void)
     led_blinking_task();
     usbtmc_app_task_iter();
   }
-
-  return 0;
 }
 
 //--------------------------------------------------------------------+

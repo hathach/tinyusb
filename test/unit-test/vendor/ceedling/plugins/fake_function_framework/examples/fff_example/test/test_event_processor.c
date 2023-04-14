@@ -41,7 +41,7 @@ test_whenThePowerReadingIsLessThan5_thenTheStatusLedIsNotTurnedOn(void)
 }
 
 /*
-    Test that a single function was called with the correct arugment.
+    Test that a single function was called with the correct argument.
 */
 void
 test_whenTheVolumeKnobIsMaxed_thenVolumeDisplayIsSetTo11(void)

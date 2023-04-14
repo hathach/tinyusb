@@ -19,12 +19,12 @@ INC += \
 	$(TOP)/$(FAMILY_PATH)/include
 
 # For freeRTOS port source
-FREERTOS_PORT = RISC-V
+FREERTOS_PORTABLE_SRC = $(FREERTOS_PORTABLE_PATH)/RISC-V
 
 # flash using dfu-util
 $(BUILD)/$(PROJECT).dfu: $(BUILD)/$(PROJECT).bin
 	@echo "Create $@"
 	python $(TOP)/hw/bsp/$(BOARD)/dfu.py -b $^ -D 0x1209:0x5bf0 $@
-	
+
 flash: $(BUILD)/$(PROJECT).dfu
 	dfu-util -D $^

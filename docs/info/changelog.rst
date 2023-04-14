@@ -15,7 +15,7 @@ Changelog
 - Fix tu_fifo memory overflown when repeatedly write to overwritable fifo (accumulated more than 2 depths)
 - Better support for IAR (ARM) with ci build check for stm32 mcus.
 - Fix Windows build for some mingw gnu make situations
-  
+
 Controller Driver (DCD & HCD)
 -----------------------------
 
@@ -27,7 +27,7 @@ Controller Driver (DCD & HCD)
   - Fix endpoint internal state when closed
   - Fix reception of large ISO packets
 
-- [rp2040] 
+- [rp2040]
 
   - [dcd] Implement workaround for Errata 15. This enable SOF when bulk-in endpoint is in use and reduce its bandwidth to only 80%
   - [hcd] Fix shared irq slots filling up when hcd_init() is called multiple times
@@ -51,7 +51,7 @@ Device Stack
 
   - Support port name strings
   - fix MS Header wTotalLength computation
- 
+
 - [HID]
 
   - Add FIDO descriptor template
@@ -60,7 +60,7 @@ Device Stack
 - [CDC]
 
   - Fix autoflush for FIFO < MPS
-  - Fix tx fifo memory overflown when DTR is not set and tud_cdc_write() is called repeatedly with large enough data  
+  - Fix tx fifo memory overflown when DTR is not set and tud_cdc_write() is called repeatedly with large enough data
 
 - [USBTMC] Fix packet size with highspeed
 
@@ -100,14 +100,14 @@ Controller Driver (DCD & HCD)
   - Fix overwrite with grstctl when disable endpoint
 - [EHCI] Fix an issue with EHCI driver
 - [msp430] Fix for possible bug in msp430-elf-gcc 9.3.0
-- [nrf5x] Fix DMA access race condition using atomic function 
+- [nrf5x] Fix DMA access race condition using atomic function
 - [pic32] Fix PIC32 santiy
 - [rp2040]
 
   - Add PICO-PIO-USB as controller (device/host) support for rp2040
   - Use shared IRQ handlers, so user can also hook the USB IRQ
   - Fix resumed signal not reported to device stack
-- [stm32fsdev] Add support for stm32wb55 
+- [stm32fsdev] Add support for stm32wb55
 
 Device Stack
 ------------
@@ -159,7 +159,7 @@ Controller Driver (DCD & HCD)
 - [F1C100s] Add new DCD for Allwinner F1C100s family
 - [PIC32MZ] Add new DCD for PIC32MZ
 - [nRF] Fix/Enhance various race condition with: EASY DMA, request HFXO, EPOUT
-- [ChipIdea] rename Transdimension to more popular ChipIdea Highspeed, 
+- [ChipIdea] rename Transdimension to more popular ChipIdea Highspeed,
 - [RP2040] various update/fix for hcd/dcd
 - [FT9XX] new DCD port for Bridgetek FT90x and FT93x devices
 - [DA1469X] Fix resume
@@ -246,7 +246,7 @@ RP2040
 ^^^^^^
 
 - Add RP2040 suspend & resume support
-- Implement double buffer for both host and device (#891). However device EPOUT is still single buffered due to techinical issue with short packet 
+- Implement double buffer for both host and device (#891). However device EPOUT is still single buffered due to techinical issue with short packet
 
 Device Stack
 ------------
@@ -267,7 +267,7 @@ DFU
 ^^^
 
 - Enhance DFU implementation to support multiple alternate interface and better support bwPollTimeout
-- Rename CFG_TUD_DFU_MODE to simply CFG_TUD_DFU 
+- Rename CFG_TUD_DFU_MODE to simply CFG_TUD_DFU
 
 HID
 ^^^
@@ -287,7 +287,7 @@ UAC2
 ^^^^
 
 - Fix bug and enhance of UAC2
- 
+
 Vendor
 ^^^^^^
 
@@ -479,7 +479,7 @@ Host Controller Driver (HCD)
   - Move echi/ohci files to portable/
   - Rename hcd_lpc18_43 to hcd_transdimension
   - Sub hcd API with hcd_ehci_init(), hcd_ehci_register_addr()
-  
+
 - Update NXP transdimention hcd_init() to reset controller to host mode
 
   - Ported hcd to rt10xx
@@ -529,13 +529,13 @@ Device Controller Driver
 
 - ESP32-S2:
   - Add bus suspend and wakeup support
-  
+
 - SAMD21:
   - Fix (walkaround) samd21 setup_packet overflow by USB DMA
-  
+
 - STM32 Synopsys:
   - Rework USB FIFO allocation scheme and allow RX FIFO size reduction
-  
+
 - Sony CXD56
   - Update Update Spresense SDK to 2.0.2
   - Fix dcd issues with setup packets
@@ -554,17 +554,17 @@ USB Device
 
 - CDC
   - Allow to transmit data, even if the host does not support control line states i.e set DTR
-  
+
 - HID
   - change default CFG_TUD_HID_EP_BUFSIZE from 16 to 64
-  
+
 - MIDI
   - Fix midi sysex sending bug
-  
+
 - MSC
   - Invoke only scsi complete callback after status transaction is complete.
   - Fix scsi_mode_sense6_t padding, which cause IAR compiler internal error.
-  
+
 - USBTMC
   - Change interrupt endpoint example size to 8 instead of 2 for better compatibility with mcu
 
@@ -614,20 +614,20 @@ Device Controller Driver
   - Fix FIFO flush during stall
   - Implement dcd_edpt_close() API
   - Support F105, F107
-  
+
 - Enhance STM32 fsdev
   - Improve dcd fifo allocation
   - Fix ISTR race condition
   - Support remap USB IRQ on supported MCUs
   - Implement dcd_edpt_close() API
-  
+
 - Enhance NUC 505: enhance set configure behavior
 
 - Enhance SAMD
   - Fix race condition with setup packet
   - Add SAMD11 option `OPT_MCU_SAMD11`
   - Add SAME5x option `OPT_MCU_SAME5X`
-  
+
 - Fix SAMG control data toggle and stall race condition
 
 - Enhance nRF
@@ -659,7 +659,7 @@ USB Device
   - `usbd_driver_open()` add max length argument, and return length of interface (0 for not supported). Return value is used for finding appropriate driver
   - Add application implemented class driver via `usbd_app_driver_get_cb()`
   - IAD is handled to assign driver id
-  
+
 - Added `tud_descriptor_device_qualifier_cb()` callback
 - Optimize `tu_fifo` bulk write/read transfer
 - Forward non-std control request to class driver
@@ -675,12 +675,12 @@ USB Device
   - Send zero length packet for end of data when needed
   - Add `tud_cdc_tx_complete_cb()` callback
   - Change tud_cdc_n_write_flush() return number of bytes forced to transfer, and flush when writing enough data to fifo
-  
+
 - MIDI:
   - Add packet interface
   - Add multiple jack descriptors
   - Fix MIDI driver for sysex
-  
+
 - DFU Runtime: fix response to SET_INTERFACE and DFU_GETSTATUS request
 
 - Rename some configure macro to make it clear that those are used directly for endpoint transfer
@@ -688,7 +688,7 @@ USB Device
   - CFG_TUD_CDC_EPSIZE to CFG_TUD_CDC_EP_BUFSIZE
   - CFG_TUD_MSC_BUFSIZE to CFG_TUD_MSC_EP_BUFSIZE
   - CFG_TUD_MIDI_EPSIZE to CFG_TUD_MIDI_EP_BUFSIZE
-  
+
 - HID:
   - Fix gamepad template descriptor
   - Add multiple HID interface API
@@ -700,7 +700,7 @@ USB Host
 - Rework USB host stack (still work in progress)
    - Fix compile error with pipehandle
    - Rework usbh control and enumeration as non-blocking
-   
+
 - Improve Hub, MSC, HID host driver
 
 Examples
@@ -713,7 +713,7 @@ Examples
 - Enhance `net_lwip_webserver` example
   - Add multiple configuration: RNDIS for Windows, CDC-ECM for macOS (Linux will work with both)
   - Update lwip to STABLE-2_1_2_RELEASE for net_lwip_webserver
-  
+
 - Added new Audio example: audio_test uac2_headsest
 
 New Boards

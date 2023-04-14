@@ -29,25 +29,25 @@ class Flaginator
 
   def get_flag(hash, file_name)
     file_key = file_name.to_sym
-   
+
     # 1. try literals
-    literals, magic = partition(hash) { |k, v| k.to_s =~ /^\w+$/ }  
+    literals, magic = partition(hash) { |k, v| k.to_s =~ /^\w+$/ }
     return literals[file_key] if literals.include?(file_key)
-    
+
     any, regex = partition(magic) { |k, v| (k == :'*') || (k == :'.*')  } # glob or regex wild card
-    
+
     # 2. try regexes
     find_res = regex.find { |k, v| file_name =~ /^#{k.to_s}$/ }
     return find_res[1] if find_res
-    
+
     # 3. try anything
     find_res = any.find { |k, v| file_name =~ /.*/ }
     return find_res[1] if find_res
-      
+
     # 4. well, we've tried
     return []
   end
-  
+
   def flag_down( operation, context, file )
     # create configurator accessor method
     accessor = ('flags_' + context.to_s).to_sym

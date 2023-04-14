@@ -19,4 +19,3 @@ JLINK_DEVICE = stm32h745xi_m7
 
 # flash target using on-board stlink
 flash: flash-stlink
-

@@ -1,4 +1,4 @@
-/* 
+/*
  * The MIT License (MIT)
  *
  * Copyright (c) 2019 Ha Thach (tinyusb.org)
@@ -54,8 +54,6 @@
 // USBH-HCD common data structure
 //--------------------------------------------------------------------+
 
-// device0 struct must be strictly a subset of normal device struct
-// TODO refactor later
 typedef struct
 {
   // port
@@ -63,15 +61,13 @@ typedef struct
   uint8_t hub_addr;
   uint8_t hub_port;
   uint8_t speed;
+  volatile uint8_t enumerating;
 
-  struct TU_ATTR_PACKED
-  {
-    volatile uint8_t connected  : 1;
-    volatile uint8_t addressed  : 1;
-    volatile uint8_t configured : 1;
-    volatile uint8_t suspended  : 1;
-  };
-
+//  struct TU_ATTR_PACKED {
+//    uint8_t          speed       : 4; // packed speed to save footprint
+//    volatile uint8_t enumerating : 1;
+//    uint8_t TU_RESERVED : 3;
+//  };
 } usbh_dev0_t;
 
 typedef struct {
@@ -121,10 +117,6 @@ typedef struct {
 //--------------------------------------------------------------------+
 // MACRO CONSTANT TYPEDEF
 //--------------------------------------------------------------------+
-
-// Invalid driver ID in itf2drv[] ep2drv[][] mapping
-enum { DRVID_INVALID = 0xFFu };
-enum { CONTROLLER_INVALID = 0xFFu };
 
 #if CFG_TUSB_DEBUG >= 2
   #define DRIVER_NAME(_name)    .name = _name,
@@ -203,7 +195,7 @@ enum { CONFIG_NUM = 1 }; // default to use configuration 1
 // sum of end device + hub
 #define TOTAL_DEVICES   (CFG_TUH_DEVICE_MAX + CFG_TUH_HUB)
 
-static uint8_t _usbh_controller = CONTROLLER_INVALID;
+static uint8_t _usbh_controller = TUSB_INDEX_INVALID_8;
 
 // Device with address = 0 for enumeration
 static usbh_dev0_t _dev0;
@@ -211,7 +203,7 @@ static usbh_dev0_t _dev0;
 // all devices excluding zero-address
 // hub address start from CFG_TUH_DEVICE_MAX+1
 // TODO: hub can has its own simpler struct to save memory
-CFG_TUSB_MEM_SECTION usbh_device_t _usbh_devices[TOTAL_DEVICES];
+static usbh_device_t _usbh_devices[TOTAL_DEVICES];
 
 // Mutex for claiming endpoint
 #if OSAL_MUTEX_REQUIRED
@@ -226,15 +218,15 @@ CFG_TUSB_MEM_SECTION usbh_device_t _usbh_devices[TOTAL_DEVICES];
 OSAL_QUEUE_DEF(usbh_int_set, _usbh_qdef, CFG_TUH_TASK_QUEUE_SZ, hcd_event_t);
 static osal_queue_t _usbh_q;
 
-CFG_TUSB_MEM_SECTION CFG_TUSB_MEM_ALIGN
+CFG_TUH_MEM_SECTION CFG_TUH_MEM_ALIGN
 static uint8_t _usbh_ctrl_buf[CFG_TUH_ENUMERATION_BUFSIZE];
 
 // Control transfers: since most controllers do not support multiple control transfers
 // on multiple devices concurrently and control transfers are not used much except for
 // enumeration, we will only execute control transfers one at a time.
-CFG_TUSB_MEM_SECTION struct
+CFG_TUH_MEM_SECTION struct
 {
-  tusb_control_request_t request TU_ATTR_ALIGNED(4);
+  CFG_TUH_MEM_ALIGN tusb_control_request_t request;
   uint8_t* buffer;
   tuh_xfer_cb_t complete_cb;
   uintptr_t user_data;
@@ -311,13 +303,13 @@ tusb_speed_t tuh_speed_get (uint8_t dev_addr)
 static void clear_device(usbh_device_t* dev)
 {
   tu_memclr(dev, sizeof(usbh_device_t));
-  memset(dev->itf2drv, DRVID_INVALID, sizeof(dev->itf2drv)); // invalid mapping
-  memset(dev->ep2drv , DRVID_INVALID, sizeof(dev->ep2drv )); // invalid mapping
+  memset(dev->itf2drv, TUSB_INDEX_INVALID_8, sizeof(dev->itf2drv)); // invalid mapping
+  memset(dev->ep2drv , TUSB_INDEX_INVALID_8, sizeof(dev->ep2drv )); // invalid mapping
 }
 
 bool tuh_inited(void)
 {
-  return _usbh_controller != CONTROLLER_INVALID;
+  return _usbh_controller != TUSB_INDEX_INVALID_8;
 }
 
 bool tuh_init(uint8_t controller_id)
@@ -368,6 +360,14 @@ bool tuh_init(uint8_t controller_id)
   return true;
 }
 
+bool tuh_task_event_ready(void)
+{
+  // Skip if stack is not initialized
+  if ( !tuh_inited() ) return false;
+
+  return !osal_queue_empty(_usbh_q);
+}
+
 /* USB Host Driver task
  * This top level thread manages all host controller event and delegates events to class-specific drivers.
  * This should be called periodically within the mainloop or rtos thread.
@@ -391,7 +391,7 @@ void tuh_task_ext(uint32_t timeout_ms, bool in_isr)
   (void) in_isr; // not implemented yet
 
   // Skip if stack is not initialized
-  if ( !tusb_inited() ) return;
+  if ( !tuh_inited() ) return;
 
   // Loop until there is no more events in the queue
   while (1)
@@ -402,10 +402,18 @@ void tuh_task_ext(uint32_t timeout_ms, bool in_isr)
     switch (event.event_id)
     {
       case HCD_EVENT_DEVICE_ATTACH:
-        // TODO due to the shared _usbh_ctrl_buf, we must complete enumerating
+        // due to the shared _usbh_ctrl_buf, we must complete enumerating
         // one device before enumerating another one.
-        TU_LOG_USBH("[%u:] USBH DEVICE ATTACH\r\n", event.rhport);
-        enum_new_device(&event);
+        if ( _dev0.enumerating )
+        {
+          TU_LOG_USBH("[%u:] USBH Defer Attach until current enumeration complete\r\n", event.rhport);
+          osal_queue_send(_usbh_q, &event, in_isr);
+        }else
+        {
+          TU_LOG_USBH("[%u:] USBH DEVICE ATTACH\r\n", event.rhport);
+          _dev0.enumerating = 1;
+          enum_new_device(&event);
+        }
       break;
 
       case HCD_EVENT_DEVICE_REMOVE:
@@ -434,7 +442,7 @@ void tuh_task_ext(uint32_t timeout_ms, bool in_isr)
         {
           // device 0 only has control endpoint
           TU_ASSERT(epnum == 0, );
-          usbh_control_xfer_cb(event.dev_addr, ep_addr, event.xfer_complete.result, event.xfer_complete.len);
+          usbh_control_xfer_cb(event.dev_addr, ep_addr, (xfer_result_t) event.xfer_complete.result, event.xfer_complete.len);
         }
         else
         {
@@ -446,14 +454,14 @@ void tuh_task_ext(uint32_t timeout_ms, bool in_isr)
 
           if ( 0 == epnum )
           {
-            usbh_control_xfer_cb(event.dev_addr, ep_addr, event.xfer_complete.result, event.xfer_complete.len);
+            usbh_control_xfer_cb(event.dev_addr, ep_addr, (xfer_result_t) event.xfer_complete.result, event.xfer_complete.len);
           }else
           {
             uint8_t drv_id = dev->ep2drv[epnum][ep_dir];
             if(drv_id < USBH_CLASS_DRIVER_COUNT)
             {
               TU_LOG_USBH("%s xfer callback\r\n", usbh_class_drivers[drv_id].name);
-              usbh_class_drivers[drv_id].xfer_cb(event.dev_addr, ep_addr, event.xfer_complete.result, event.xfer_complete.len);
+              usbh_class_drivers[drv_id].xfer_cb(event.dev_addr, ep_addr, (xfer_result_t) event.xfer_complete.result, event.xfer_complete.len);
             }
             else
             {
@@ -565,10 +573,12 @@ bool tuh_control_xfer (tuh_xfer_t* xfer)
 
     while (result == XFER_RESULT_INVALID)
     {
-      // only need to call task if not preempted RTOS
-      #if CFG_TUSB_OS == OPT_OS_NONE || CFG_TUSB_OS == OPT_OS_PICO
-      tuh_task();
-      #endif
+      // Note: this can be called within an callback ie. part of tuh_task()
+      // therefore event with RTOS tuh_task() still need to be invoked
+      if (tuh_task_event_ready())
+      {
+        tuh_task();
+      }
 
       // TODO probably some timeout to prevent hanged
     }
@@ -1030,7 +1040,55 @@ bool tuh_configuration_set(uint8_t daddr, uint8_t config_num,
     .user_data   = user_data
   };
 
-  return tuh_control_xfer(&xfer);
+  bool ret = tuh_control_xfer(&xfer);
+
+  // if blocking, user_data could be pointed to xfer_result
+  if ( !complete_cb && user_data )
+  {
+    *((xfer_result_t*) user_data) = xfer.result;
+  }
+
+  return ret;
+}
+
+bool tuh_interface_set(uint8_t daddr, uint8_t itf_num, uint8_t itf_alt,
+                       tuh_xfer_cb_t complete_cb, uintptr_t user_data)
+{
+  TU_LOG_USBH("Set Interface %u Alternate %u\r\n", itf_num, itf_alt);
+
+  tusb_control_request_t const request =
+  {
+    .bmRequestType_bit =
+    {
+      .recipient = TUSB_REQ_RCPT_DEVICE,
+      .type      = TUSB_REQ_TYPE_STANDARD,
+      .direction = TUSB_DIR_OUT
+    },
+    .bRequest = TUSB_REQ_SET_INTERFACE,
+    .wValue   = tu_htole16(itf_alt),
+    .wIndex   = tu_htole16(itf_num),
+    .wLength  = 0
+  };
+
+  tuh_xfer_t xfer =
+  {
+    .daddr       = daddr,
+    .ep_addr     = 0,
+    .setup       = &request,
+    .buffer      = NULL,
+    .complete_cb = complete_cb,
+    .user_data   = user_data
+  };
+
+  bool ret = tuh_control_xfer(&xfer);
+
+  // if blocking, user_data could be pointed to xfer_result
+  if ( !complete_cb && user_data )
+  {
+    *((xfer_result_t*) user_data) = xfer.result;
+  }
+
+  return ret;
 }
 
 //--------------------------------------------------------------------+
@@ -1358,11 +1416,11 @@ static void process_enumeration(tuh_xfer_t* xfer)
 
       dev->configured = 1;
 
-      // Start the Set Configuration process for interfaces (itf = DRVID_INVALID)
+      // Start the Set Configuration process for interfaces (itf = TUSB_INDEX_INVALID_8)
       // Since driver can perform control transfer within its set_config, this is done asynchronously.
       // The process continue with next interface when class driver complete its sequence with usbh_driver_set_config_complete()
-      // TODO use separated API instead of using DRVID_INVALID
-      usbh_driver_set_config_complete(daddr, DRVID_INVALID);
+      // TODO use separated API instead of using TUSB_INDEX_INVALID_8
+      usbh_driver_set_config_complete(daddr, TUSB_INDEX_INVALID_8);
     }
     break;
 
@@ -1562,7 +1620,7 @@ static bool _parse_configuration_descriptor(uint8_t dev_addr, tusb_desc_configur
           uint8_t const itf_num = desc_itf->bInterfaceNumber+i;
 
           // Interface number must not be used already
-          TU_ASSERT( DRVID_INVALID == dev->itf2drv[itf_num] );
+          TU_ASSERT( TUSB_INDEX_INVALID_8 == dev->itf2drv[itf_num] );
           dev->itf2drv[itf_num] = drv_id;
         }
 
@@ -1596,7 +1654,7 @@ void usbh_driver_set_config_complete(uint8_t dev_addr, uint8_t itf_num)
     // IAD binding interface such as CDCs should return itf_num + 1 when complete
     // with usbh_driver_set_config_complete()
     uint8_t const drv_id = dev->itf2drv[itf_num];
-    if (drv_id != DRVID_INVALID)
+    if (drv_id != TUSB_INDEX_INVALID_8)
     {
       usbh_class_driver_t const * driver = &usbh_class_drivers[drv_id];
       TU_LOG_USBH("%s set config: itf = %u\r\n", driver->name, itf_num);
@@ -1623,6 +1681,9 @@ void usbh_driver_set_config_complete(uint8_t dev_addr, uint8_t itf_num)
 
 static void enum_full_complete(void)
 {
+  // mark enumeration as complete
+  _dev0.enumerating = 0;
+
 #if CFG_TUH_HUB
   // get next hub status
   if (_dev0.hub_addr) hub_edpt_status_xfer(_dev0.hub_addr);

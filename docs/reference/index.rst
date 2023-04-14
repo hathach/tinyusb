@@ -56,4 +56,5 @@ Index
 
    supported
    getting_started
+   dependencies
    concurrency

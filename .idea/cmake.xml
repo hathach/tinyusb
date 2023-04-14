@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="CMakeSharedSettings">
+    <configurations>
+      <configuration PROFILE_NAME="esp32s3" ENABLED="false" GENERATION_OPTIONS="-DFAMILY=espressif -DBOARD=espressif_s3_devkitm -DIDF_TARGET=esp32s3">
+        <ADDITIONAL_GENERATION_ENVIRONMENT>
+          <envs>
+            <env name="ESPBAUD" value="1500000" />
+            <env name="ESPPORT" value="/dev/ttyUSB0" />
+            <env name="IDF_PATH" value="$PROJECT_DIR$/../esp-idf" />
+            <env name="PATH" value="$PROJECT_DIR$/../esp-idf/components/esptool_py/esptool:/home/hathach/code/esp-idf/components/espcoredump:/home/hathach/code/esp-idf/components/partition_table:/home/hathach/code/esp-idf/components/app_update:/home/hathach/.espressif/tools/xtensa-esp-elf-gdb/11.2_20220823/xtensa-esp-elf-gdb/bin:/home/hathach/.espressif/tools/riscv32-esp-elf-gdb/11.2_20220823/riscv32-esp-elf-gdb/bin:/home/hathach/.espressif/tools/xtensa-esp32-elf/esp-2021r2-patch5-8.4.0/xtensa-esp32-elf/bin:/home/hathach/.espressif/tools/xtensa-esp32s2-elf/esp-2021r2-patch5-8.4.0/xtensa-esp32s2-elf/bin:/home/hathach/.espressif/tools/xtensa-esp32s3-elf/esp-2021r2-patch5-8.4.0/xtensa-esp32s3-elf/bin:/home/hathach/.espressif/tools/riscv32-esp-elf/esp-2021r2-patch5-8.4.0/riscv32-esp-elf/bin:/home/hathach/.espressif/tools/esp32ulp-elf/2.35_20220830/esp32ulp-elf/bin:/home/hathach/.espressif/tools/openocd-esp32/v0.11.0-esp32-20221026/openocd-esp32/bin:/home/hathach/.espressif/python_env/idf4.4_py3.10_env/bin:/home/hathach/code/esp-idf/tools:/home/hathach/app/riscv-openocd-wch/src:/home/hathach/app/arm-gnu-toolchain-12.2.rel1-x86_64-arm-none-eabi/bin:/home/hathach/.local/bin:/home/hathach/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin:/snap/bin:/opt/SEGGER/JLink:/home/hathach/app/gcc-arm-10.3-2021.07-x86_64-aarch64-none-elf/bin:/home/hathach/.local/xPacks/@xpack-dev-tools/riscv-none-embed-gcc/10.2.0-1.2.1/.content/bin:/home/hathach/.local/xPacks/@xpack-dev-tools/openocd/*/.content/bin:/home/hathach/ti/msp430-gcc/bin:/home/hathach/ti/MSPFlasher_1.3.20:/home/hathach/ti/uniflash_7.0.0:/home/hathach/app/gcc_8.3.0.202102_gnurx-elf/bin:/home/hathach/app/RFP_CLI_Linux_V31101_x64/linux-x64:/home/hathach/app/fomu-toolchain-linux_x86_64-v1.5.5/bin:/home/hathach/app/nuclei_riscv_newlibc_prebuilt_linux64_2020.08/gcc/bin:/home/hathach/app/riscv32-embecosm-ubuntu2004-gcc11.1.0/bin:/home/hathach/app/cov-analysis-linux64-2019.03/bin:/opt/iarsystems/bxarm/arm/bin:/home/hathach/.local/bin" />
+          </envs>
+        </ADDITIONAL_GENERATION_ENVIRONMENT>
+      </configuration>
+      <configuration PROFILE_NAME="esp32s2" ENABLED="false" GENERATION_OPTIONS="-DFAMILY=espressif -DBOARD=espressif_saola_1 -DIDF_TARGET=esp32s2">
+        <ADDITIONAL_GENERATION_ENVIRONMENT>
+          <envs>
+            <env name="ESPBAUD" value="1500000" />
+            <env name="ESPPORT" value="/dev/ttyUSB0" />
+            <env name="IDF_PATH" value="$PROJECT_DIR$/../esp-idf" />
+            <env name="PATH" value="$PROJECT_DIR$/../esp-idf/components/esptool_py/esptool:/home/hathach/code/esp-idf/components/espcoredump:/home/hathach/code/esp-idf/components/partition_table:/home/hathach/code/esp-idf/components/app_update:/home/hathach/.espressif/tools/xtensa-esp-elf-gdb/11.2_20220823/xtensa-esp-elf-gdb/bin:/home/hathach/.espressif/tools/riscv32-esp-elf-gdb/11.2_20220823/riscv32-esp-elf-gdb/bin:/home/hathach/.espressif/tools/xtensa-esp32-elf/esp-2021r2-patch5-8.4.0/xtensa-esp32-elf/bin:/home/hathach/.espressif/tools/xtensa-esp32s2-elf/esp-2021r2-patch5-8.4.0/xtensa-esp32s2-elf/bin:/home/hathach/.espressif/tools/xtensa-esp32s3-elf/esp-2021r2-patch5-8.4.0/xtensa-esp32s3-elf/bin:/home/hathach/.espressif/tools/riscv32-esp-elf/esp-2021r2-patch5-8.4.0/riscv32-esp-elf/bin:/home/hathach/.espressif/tools/esp32ulp-elf/2.35_20220830/esp32ulp-elf/bin:/home/hathach/.espressif/tools/openocd-esp32/v0.11.0-esp32-20221026/openocd-esp32/bin:/home/hathach/.espressif/python_env/idf4.4_py3.10_env/bin:/home/hathach/code/esp-idf/tools:/home/hathach/app/riscv-openocd-wch/src:/home/hathach/app/arm-gnu-toolchain-12.2.rel1-x86_64-arm-none-eabi/bin:/home/hathach/.local/bin:/home/hathach/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin:/snap/bin:/opt/SEGGER/JLink:/home/hathach/app/gcc-arm-10.3-2021.07-x86_64-aarch64-none-elf/bin:/home/hathach/.local/xPacks/@xpack-dev-tools/riscv-none-embed-gcc/10.2.0-1.2.1/.content/bin:/home/hathach/.local/xPacks/@xpack-dev-tools/openocd/*/.content/bin:/home/hathach/ti/msp430-gcc/bin:/home/hathach/ti/MSPFlasher_1.3.20:/home/hathach/ti/uniflash_7.0.0:/home/hathach/app/gcc_8.3.0.202102_gnurx-elf/bin:/home/hathach/app/RFP_CLI_Linux_V31101_x64/linux-x64:/home/hathach/app/fomu-toolchain-linux_x86_64-v1.5.5/bin:/home/hathach/app/nuclei_riscv_newlibc_prebuilt_linux64_2020.08/gcc/bin:/home/hathach/app/riscv32-embecosm-ubuntu2004-gcc11.1.0/bin:/home/hathach/app/cov-analysis-linux64-2019.03/bin:/opt/iarsystems/bxarm/arm/bin:/home/hathach/.local/bin" />
+          </envs>
+        </ADDITIONAL_GENERATION_ENVIRONMENT>
+      </configuration>
+      <configuration PROFILE_NAME="rp2040" ENABLED="true" CONFIG_NAME="Debug" GENERATION_OPTIONS="-DFAMILY=rp2040 -DBOARD=raspberry_pi_pico" />
+    </configurations>
+  </component>
+</project>

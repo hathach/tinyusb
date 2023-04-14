@@ -56,7 +56,7 @@ if __name__ == '__main__':
             result = pool.starmap(build_utils.build_example, pool_args)
             # sum all element of same index (column sum)
             result = list(map(sum, list(zip(*result))))
-            
+
             # add to total result
             total_result = list(map(lambda x, y: x + y, total_result, result))
 

@@ -1,4 +1,4 @@
-/* 
+/*
  * The MIT License (MIT)
  *
  * Copyright (c) 2019 Ha Thach (tinyusb.org)
@@ -47,8 +47,6 @@ int main(void)
     tud_task(); // tinyusb device task
     cdc_task();
   }
-
-  return 0;
 }
 
 // echo to either Serial0 or Serial1

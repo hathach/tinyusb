@@ -143,7 +143,7 @@ void cdc_task(FuzzedDataProvider *provider) {
     // TODO: Fuzz interface number
     (void)tud_cdc_n_write(0, buffer.data(), buffer.size());
   } break;
-  
+
 case kCdcNWriteChar:
   // TODO: Fuzz interface number
   (void)tud_cdc_n_write_char(0, provider->ConsumeIntegral<char>());

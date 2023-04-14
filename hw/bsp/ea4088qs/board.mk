@@ -10,7 +10,8 @@ CFLAGS += \
   -nostdlib \
   -DCORE_M4 \
   -D__USE_LPCOPEN \
-  -DCFG_TUSB_MEM_SECTION='__attribute__((section(".data.$$RAM2")))' \
+  -DCFG_TUD_MEM_SECTION='__attribute__((section(".data.$$RAM2")))' \
+  -DCFG_TUH_MEM_SECTION='__attribute__((section(".data.$$RAM2")))' \
   -DCFG_TUSB_MCU=OPT_MCU_LPC40XX
 
 # mcu driver cause following warnings
@@ -37,7 +38,7 @@ INC += \
 	$(TOP)/$(MCU_DIR)/inc
 
 # For freeRTOS port source
-FREERTOS_PORT = ARM_CM4F
+FREERTOS_PORTABLE_SRC = $(FREERTOS_PORTABLE_PATH)/ARM_CM4F
 
 # For flash-jlink target
 JLINK_DEVICE = LPC4088

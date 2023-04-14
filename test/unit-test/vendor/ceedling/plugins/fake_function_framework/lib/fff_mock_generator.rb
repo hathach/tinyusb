@@ -90,7 +90,7 @@ class FffMockGenerator
     # In the init function, reset the FFF globals. These are used for things
     # like the call history.
     output.puts "    FFF_RESET_HISTORY();"
-    
+
     # Also, reset all of the fakes.
     if parsed_header[:functions]
       parsed_header[:functions].each do |function|

@@ -7,7 +7,7 @@
 
 # ---------------- GNU Make Start -----------------------
 # ESP32-Sx and RP2040 has its own CMake build system
-ifeq (,$(findstring $(FAMILY),esp32s2 esp32s3 rp2040))
+ifeq (,$(findstring $(FAMILY),espressif rp2040))
 
 # ---------------------------------------
 # Compiler Flags
@@ -64,6 +64,10 @@ CFLAGS += $(GCC_CFLAGS) -MD
 # We will run this option in ci
 ifeq ($(NO_LTO),1)
 CFLAGS := $(filter-out -flto,$(CFLAGS))
+endif
+
+ifneq ($(CFLAGS_SKIP),)
+CFLAGS := $(filter-out $(CFLAGS_SKIP),$(CFLAGS))
 endif
 
 LDFLAGS += $(CFLAGS) -Wl,-Map=$@.map -Wl,-cref -Wl,-gc-sections
@@ -192,9 +196,7 @@ endif
 # get depenecies
 .PHONY: get-deps
 get-deps:
-  ifdef DEPS_SUBMODULES
-	git -C $(TOP) submodule update --init $(DEPS_SUBMODULES)
-  endif
+	$(PYTHON) $(TOP)/tools/get_deps.py $(DEPS_SUBMODULES)
 
 .PHONY: size
 size: $(BUILD)/$(PROJECT).elf

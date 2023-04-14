@@ -1,4 +1,4 @@
-/* 
+/*
  * The MIT License (MIT)
  *
  * Copyright (c) 2019 Ha Thach (tinyusb.org)
@@ -85,7 +85,7 @@ typedef struct
 }ehci_data_t;
 
 // Periodic frame list must be 4K alignment
-CFG_TUSB_MEM_SECTION TU_ATTR_ALIGNED(4096) static ehci_data_t ehci_data;
+CFG_TUH_MEM_SECTION TU_ATTR_ALIGNED(4096) static ehci_data_t ehci_data;
 
 //--------------------------------------------------------------------+
 // PROTOTYPE
@@ -566,7 +566,7 @@ static void period_list_xfer_complete_isr(uint8_t hostid, uint32_t interval_ms)
       case EHCI_QTYPE_ITD: // TODO support hs/fs ISO
       case EHCI_QTYPE_SITD:
       case EHCI_QTYPE_FSTN:
-				
+
       default: break;
     }
 
@@ -683,7 +683,7 @@ void hcd_int_handler(uint8_t rhport)
 
   uint32_t int_status = regs->status;
   int_status &= regs->inten;
-  
+
   regs->status = int_status; // Acknowledge handled interrupt
 
   if (int_status == 0) return;

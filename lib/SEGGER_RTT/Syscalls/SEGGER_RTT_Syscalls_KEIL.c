@@ -110,7 +110,7 @@ const char __stderr_name[] = "STDERR";
 *
 *  Parameters:
 *    c    - character to output
-*  
+*
 */
 void _ttywrch(int c) {
   fputc(c, stdout); // stdout
@@ -127,9 +127,9 @@ void _ttywrch(int c) {
 *  Parameters:
 *    sName        - sName of the device/file to open
 *    OpenMode    - This parameter is currently ignored
-*  
+*
 *  Return value:
-*    != 0     - Handle to the object to open, otherwise 
+*    != 0     - Handle to the object to open, otherwise
 *    == 0     -"device" is not handled by this module
 *
 */
@@ -153,7 +153,7 @@ FILEHANDLE _sys_open(const char * sName, int OpenMode) {
 *
 *  Parameters:
 *    hFile    - Handle to a file opened via _sys_open
-*  
+*
 *  Return value:
 *    0     - device/file closed
 *
@@ -176,7 +176,7 @@ int _sys_close(FILEHANDLE hFile) {
 *    pBuffer  - Pointer to the data that shall be written
 *    NumBytes      - Number of bytes to write
 *    Mode     - The Mode that shall be used
-*  
+*
 *  Return value:
 *    Number of bytes *not* written to the file/device
 *
@@ -205,7 +205,7 @@ int _sys_write(FILEHANDLE hFile, const unsigned char * pBuffer, unsigned NumByte
 *    pBuffer  - Pointer to buffer to store the read data
 *    NumBytes      - Number of bytes to read
 *    Mode     - The Mode that shall be used
-*  
+*
 *  Return value:
 *    Number of bytes read from the file/device
 *
@@ -223,12 +223,12 @@ int _sys_read(FILEHANDLE hFile, unsigned char * pBuffer, unsigned NumBytes, int 
 *       _sys_istty
 *
 *  Function description:
-*    This function shall return whether the opened file 
+*    This function shall return whether the opened file
 *    is a console device or not.
 *
 *  Parameters:
 *    hFile    - Handle to a file opened via _sys_open
-*  
+*
 *  Return value:
 *    1       - Device is     a console
 *    0       - Device is not a console
@@ -250,10 +250,10 @@ int _sys_istty(FILEHANDLE hFile) {
 *
 *  Parameters:
 *    hFile  - Handle to a file opened via _sys_open
-*    Pos    - 
-*  
+*    Pos    -
+*
 *  Return value:
-*    int       - 
+*    int       -
 *
 */
 int _sys_seek(FILEHANDLE hFile, long Pos) {
@@ -267,13 +267,13 @@ int _sys_seek(FILEHANDLE hFile, long Pos) {
 *       _sys_ensure
 *
 *  Function description:
-*    
+*
 *
 *  Parameters:
 *    hFile    - Handle to a file opened via _sys_open
-*  
+*
 *  Return value:
-*    int       - 
+*    int       -
 *
 */
 int _sys_ensure(FILEHANDLE hFile) {
@@ -290,7 +290,7 @@ int _sys_ensure(FILEHANDLE hFile) {
 *
 *  Parameters:
 *    hFile    - Handle to a file opened via _sys_open
-*  
+*
 *  Return value:
 *    Length of the file
 *
@@ -305,17 +305,17 @@ long _sys_flen(FILEHANDLE hFile) {
 *       _sys_tmpnam
 *
 *  Function description:
-*    This function converts the file number fileno for a temporary 
+*    This function converts the file number fileno for a temporary
 *    file to a unique filename, for example, tmp0001.
 *
 *  Parameters:
 *    pBuffer    - Pointer to a buffer to store the name
 *    FileNum    - file number to convert
 *    MaxLen     - Size of the buffer
-*  
+*
 *  Return value:
 *     1 - Error
-*     0 - Success  
+*     0 - Success
 *
 */
 int _sys_tmpnam(char * pBuffer, int FileNum, unsigned MaxLen) {
@@ -335,7 +335,7 @@ int _sys_tmpnam(char * pBuffer, int FileNum, unsigned MaxLen) {
 *  Parameters:
 *    cmd    - Pointer to the command string
 *    len    - Length of the string
-*  
+*
 *  Return value:
 *    == NULL - Command was not successfully executed
 *    == sCmd - Command was passed successfully
@@ -355,7 +355,7 @@ char * _sys_command_string(char * cmd, int len) {
 *
 *  Parameters:
 *    ReturnCode    - Return code from the main function
-*  
+*
 *
 */
 void _sys_exit(int ReturnCode) {
@@ -373,7 +373,7 @@ void _sys_exit(int ReturnCode) {
 *
 *  Parameters:
 *    ch    - Character to output
-*  
+*
 *
 */
 int stdout_putchar(int ch) {

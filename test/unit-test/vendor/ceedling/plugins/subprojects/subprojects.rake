@@ -73,6 +73,5 @@ SUBPROJECTS_PATHS.each do |subproj|
   task :directories => subproj_directories.clone
 
   # Finally, add the static library to our RELEASE build dependency list
-  task RELEASE_SYM => ["#{subproj_build_root}/#{subproj_name}#{EXTENSION_SUBPROJECTS}"] 
+  task RELEASE_SYM => ["#{subproj_build_root}/#{subproj_name}#{EXTENSION_SUBPROJECTS}"]
 end
-

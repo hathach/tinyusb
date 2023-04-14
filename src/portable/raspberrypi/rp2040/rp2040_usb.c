@@ -68,15 +68,19 @@ void rp2040_usb_init(void)
   reset_block(RESETS_RESET_USBCTRL_BITS);
   unreset_block_wait(RESETS_RESET_USBCTRL_BITS);
 
+#ifdef __GNUC__
   // Clear any previous state just in case
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Warray-bounds"
 #if __GNUC__ > 6
 #pragma GCC diagnostic ignored "-Wstringop-overflow"
 #endif
+#endif
   memset(usb_hw, 0, sizeof(*usb_hw));
   memset(usb_dpram, 0, sizeof(*usb_dpram));
+#ifdef __GNUC__
 #pragma GCC diagnostic pop
+#endif
 
   // Mux the controller to the onboard usb phy
   usb_hw->muxing = USB_USB_MUXING_TO_PHY_BITS | USB_USB_MUXING_SOFTCON_BITS;

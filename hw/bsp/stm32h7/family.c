@@ -91,7 +91,7 @@ void board_init(void)
 #endif
   NVIC_SetPriority(OTG_HS_IRQn, configLIBRARY_MAX_SYSCALL_INTERRUPT_PRIORITY );
 #endif
-  
+
   GPIO_InitTypeDef  GPIO_InitStruct;
 
   // LED
@@ -251,6 +251,7 @@ int board_uart_write(void const * buf, int len)
 volatile uint32_t system_ticks = 0;
 void SysTick_Handler(void)
 {
+  HAL_IncTick();
   system_ticks++;
 }
 

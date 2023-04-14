@@ -35,7 +35,7 @@ INC += \
   $(TOP)/hw/mcu/nuvoton/nuc121_125/CMSIS/Include
 
 # For freeRTOS port source
-FREERTOS_PORT = ARM_CM0
+FREERTOS_PORTABLE_SRC = $(FREERTOS_PORTABLE_PATH)/ARM_CM0
 
 # For flash-jlink target
 JLINK_DEVICE = NUC121SC2AE

@@ -16,7 +16,7 @@ CFLAGS += \
   -nostdlib -nostartfiles \
   -DCFG_TUSB_MCU=OPT_MCU_STM32U5
 
-# suppress warning caused by vendor mcu driver 
+# suppress warning caused by vendor mcu driver
 CFLAGS += -Wno-error=maybe-uninitialized -Wno-error=cast-align -Wno-error=undef -Wno-error=unused-parameter
 
 #src/portable/st/synopsys/dcd_synopsys.c
@@ -39,7 +39,7 @@ INC += \
 	$(TOP)/$(BOARD_PATH)
 
 # For freeRTOS port source
-FREERTOS_PORT = ARM_CM33_NTZ/non_secure
+FREERTOS_PORTABLE_SRC = $(FREERTOS_PORTABLE_PATH)/ARM_CM33_NTZ/non_secure
 
 # flash target using on-board stlink
 flash: flash-stlink

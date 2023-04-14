@@ -34,7 +34,6 @@ def build_family(example, family, make_option):
         # sum all element of same index (column sum)
         return list(map(sum, list(zip(*result))))
 
-
 if __name__ == '__main__':
     # IAR CC
     if make_iar_option not in sys.argv:
@@ -43,7 +42,7 @@ if __name__ == '__main__':
     # If examples are not specified in arguments, build all
     all_examples = []
     for dir1 in os.scandir("examples"):
-        if dir1.is_dir():
+        if dir1.is_dir() and 'cmake-build' not in dir1.name:
             for entry in os.scandir(dir1.path):
                 if entry.is_dir():
                     all_examples.append(dir1.name + '/' + entry.name)
@@ -53,7 +52,7 @@ if __name__ == '__main__':
     # If family are not specified in arguments, build all
     all_families = []
     for entry in os.scandir("hw/bsp"):
-        if entry.is_dir() and os.path.isdir(entry.path + "/boards") and entry.name not in ("esp32s2", "esp32s3"):
+        if entry.is_dir() and os.path.isdir(entry.path + "/boards") and entry.name != 'espressif':
             all_families.append(entry.name)
     filter_with_input(all_families)
     all_families.sort()
@@ -68,7 +67,8 @@ if __name__ == '__main__':
         print(build_separator)
         for family in all_families:
             fret = build_family(example, family, make_iar_option)
-            total_result = list(map(lambda x, y: x + y, total_result, fret))
+            if len(fret) == len(total_result):
+                total_result = [total_result[i] + fret[i] for i in range(len(fret))]
 
     total_time = time.monotonic() - total_time
     print(build_separator)

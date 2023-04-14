@@ -1,4 +1,4 @@
-/* 
+/*
  * The MIT License (MIT)
  *
  * Copyright (c) 2019 Ha Thach (tinyusb.org)
@@ -71,15 +71,15 @@ typedef struct
   tuh_msc_complete_cb_t complete_cb;
   uintptr_t complete_arg;
 
-  msc_cbw_t cbw;
-  msc_csw_t csw;
+  CFG_TUH_MEM_ALIGN msc_cbw_t cbw;
+  CFG_TUH_MEM_ALIGN msc_csw_t csw;
 }msch_interface_t;
 
-CFG_TUSB_MEM_SECTION static msch_interface_t _msch_itf[CFG_TUH_DEVICE_MAX];
+CFG_TUH_MEM_SECTION static msch_interface_t _msch_itf[CFG_TUH_DEVICE_MAX];
 
 // buffer used to read scsi information when mounted
 // largest response data currently is inquiry TODO Inquiry is not part of enum anymore
-CFG_TUSB_MEM_SECTION TU_ATTR_ALIGNED(4)
+CFG_TUH_MEM_SECTION CFG_TUH_MEM_ALIGN
 static uint8_t _msch_buffer[sizeof(scsi_inquiry_resp_t)];
 
 TU_ATTR_ALWAYS_INLINE
@@ -232,23 +232,23 @@ bool tuh_msc_read10(uint8_t dev_addr, uint8_t lun, void * buffer, uint32_t lba, 
 
   msc_cbw_t cbw;
   cbw_init(&cbw, lun);
- 
+
   cbw.total_bytes = block_count*p_msc->capacity[lun].block_size;
   cbw.dir         = TUSB_DIR_IN_MASK;
   cbw.cmd_len     = sizeof(scsi_read10_t);
- 
+
   scsi_read10_t const cmd_read10 =
   {
     .cmd_code    = SCSI_CMD_READ_10,
     .lba         = tu_htonl(lba),
     .block_count = tu_htons(block_count)
   };
- 
+
   memcpy(cbw.command, &cmd_read10, cbw.cmd_len);
- 
+
   return tuh_msc_scsi_command(dev_addr, &cbw, buffer, complete_cb, arg);
 }
- 
+
 bool tuh_msc_write10(uint8_t dev_addr, uint8_t lun, void const * buffer, uint32_t lba, uint16_t block_count, tuh_msc_complete_cb_t complete_cb, uintptr_t arg)
 {
   msch_interface_t* p_msc = get_itf(dev_addr);

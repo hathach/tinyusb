@@ -223,7 +223,7 @@ dependinator:
     - configurator
     - project_config_manager
     - test_includes_extractor
-    - file_path_utils 
+    - file_path_utils
     - rake_wrapper
     - file_wrapper
 

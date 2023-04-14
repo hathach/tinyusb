@@ -175,4 +175,3 @@ uint32_t board_millis (void)
   return system_ticks;
 }
 #endif
-

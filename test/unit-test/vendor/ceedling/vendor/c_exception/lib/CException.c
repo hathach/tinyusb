@@ -43,4 +43,3 @@ void Throw(CEXCEPTION_T ExceptionID)
     }                                                                   <- finish off that local scope we created to have our own variables
     if (CExceptionFrames[CEXCEPTION_GET_ID].Exception != CEXCEPTION_NONE)  <- start the actual 'catch' processing if we have an exception id saved away
  */
-

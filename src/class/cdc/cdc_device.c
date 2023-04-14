@@ -1,4 +1,4 @@
-/* 
+/*
  * The MIT License (MIT)
  *
  * Copyright (c) 2019 Ha Thach (tinyusb.org)
@@ -386,7 +386,7 @@ bool cdcd_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request_t 
         bool const rts = tu_bit_test(request->wValue, 1);
 
         p_cdc->line_state = (uint8_t) request->wValue;
-        
+
         // Disable fifo overwriting if DTR bit is set
         tu_fifo_set_overwritable(&p_cdc->tx_ff, !dtr);
 
@@ -433,7 +433,7 @@ bool cdcd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint32_
   if ( ep_addr == p_cdc->ep_out )
   {
     tu_fifo_write_n(&p_cdc->rx_ff, p_cdc->epout_buf, (uint16_t) xferred_bytes);
-    
+
     // Check for wanted char and invoke callback if needed
     if ( tud_cdc_rx_wanted_cb && (((signed char) p_cdc->wanted_char) != -1) )
     {
@@ -445,14 +445,14 @@ bool cdcd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint32_
         }
       }
     }
-    
+
     // invoke receive callback (if there is still data)
     if (tud_cdc_rx_cb && !tu_fifo_empty(&p_cdc->rx_ff) ) tud_cdc_rx_cb(itf);
-    
+
     // prepare for OUT transaction
     _prep_out_transaction(p_cdc);
   }
-  
+
   // Data sent to host, we continue to fetch from tx fifo to send.
   // Note: This will cause incorrect baudrate set in line coding.
   //       Though maybe the baudrate is not really important !!!

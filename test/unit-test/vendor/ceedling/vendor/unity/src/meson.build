@@ -6,6 +6,6 @@
 #
 unity_dir = include_directories('.')
 
-unity_lib = static_library(meson.project_name(), 
+unity_lib = static_library(meson.project_name(),
     files('unity.c'),
     include_directories: unity_dir)

@@ -39,15 +39,15 @@
 //--------------------------------------------------------------------+
 
 // Include order follows OPT_MCU_ number
-#if   CFG_TUSB_MCU == OPT_MCU_LPC11UXX   || CFG_TUSB_MCU == OPT_MCU_LPC13XX    || \
-      CFG_TUSB_MCU == OPT_MCU_LPC15XX    || CFG_TUSB_MCU == OPT_MCU_LPC175X_6X || \
-      CFG_TUSB_MCU == OPT_MCU_LPC177X_8X || CFG_TUSB_MCU == OPT_MCU_LPC18XX    || \
-      CFG_TUSB_MCU == OPT_MCU_LPC40XX    || CFG_TUSB_MCU == OPT_MCU_LPC43XX
+#if   TU_CHECK_MCU(OPT_MCU_LPC11UXX, OPT_MCU_LPC13XX, OPT_MCU_LPC15XX) || \
+      TU_CHECK_MCU(OPT_MCU_LPC175X_6X, OPT_MCU_LPC177X_8X, OPT_MCU_LPC18XX)  || \
+      TU_CHECK_MCU(OPT_MCU_LPC40XX, OPT_MCU_LPC43XX)
   #include "chip.h"
 
-#elif CFG_TUSB_MCU == OPT_MCU_LPC51UXX || CFG_TUSB_MCU == OPT_MCU_LPC54XXX || \
-      CFG_TUSB_MCU == OPT_MCU_LPC55XX  || CFG_TUSB_MCU == OPT_MCU_MKL25ZXX || \
-      CFG_TUSB_MCU == OPT_MCU_K32L2BXX
+#elif TU_CHECK_MCU(OPT_MCU_LPC51UXX, OPT_MCU_LPC54XXX, OPT_MCU_LPC55XX)
+  #include "fsl_device_registers.h"
+
+#elif TU_CHECK_MCU(OPT_MCU_KINETIS_KL, OPT_MCU_KINETIS_K32)
   #include "fsl_device_registers.h"
 
 #elif CFG_TUSB_MCU == OPT_MCU_NRF5X
@@ -136,12 +136,15 @@
 
 #elif CFG_TUSB_MCU == OPT_MCU_RP2040
   #include "pico.h"
-  
+
 #elif CFG_TUSB_MCU == OPT_MCU_EFM32GG
   #include "em_device.h"
 
 #elif CFG_TUSB_MCU == OPT_MCU_RX63X || CFG_TUSB_MCU == OPT_MCU_RX65X
   // no header needed
+
+#elif CFG_TUSB_MCU == OPT_MCU_RAXXX
+  #include "bsp_api.h"
 
 #elif CFG_TUSB_MCU == OPT_MCU_GD32VF103
   #include "gd32vf103.h"

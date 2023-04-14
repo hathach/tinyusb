@@ -1,4 +1,4 @@
-/* 
+/*
  * The MIT License (MIT)
  *
  * Copyright (c) 2019 Ha Thach (tinyusb.org)
@@ -53,7 +53,7 @@ void USBWakeUp_IRQHandler(void)
 void board_init(void)
 {
   board_stm32f1_clock_init();
-  
+
   // Enable All GPIOs clocks
   __HAL_RCC_GPIOA_CLK_ENABLE();
   __HAL_RCC_GPIOB_CLK_ENABLE();
@@ -70,7 +70,7 @@ void board_init(void)
   NVIC_SetPriority(USB_LP_CAN1_RX0_IRQn, configLIBRARY_MAX_SYSCALL_INTERRUPT_PRIORITY);
   NVIC_SetPriority(USBWakeUp_IRQn, configLIBRARY_MAX_SYSCALL_INTERRUPT_PRIORITY);
 #endif
-  
+
   // LED
   GPIO_InitTypeDef  GPIO_InitStruct;
   GPIO_InitStruct.Pin = LED_PIN;
@@ -129,6 +129,7 @@ int board_uart_write(void const * buf, int len)
 volatile uint32_t system_ticks = 0;
 void SysTick_Handler (void)
 {
+  HAL_IncTick();
   system_ticks++;
 }
 
@@ -152,7 +153,7 @@ void HardFault_Handler (void)
   * @retval None
   */
 void assert_failed(const char *file, uint32_t line)
-{ 
+{
   /* USER CODE BEGIN 6 */
   /* User can add his own implementation to report the file name and line number,
      tex: printf("Wrong parameters value: file %s on line %d\r\n", file, line) */

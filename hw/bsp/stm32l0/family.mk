@@ -1,5 +1,8 @@
 ST_FAMILY = l0
-DEPS_SUBMODULES += lib/CMSIS_5 hw/mcu/st/cmsis_device_$(ST_FAMILY) hw/mcu/st/stm32$(ST_FAMILY)xx_hal_driver
+DEPS_SUBMODULES += \
+	lib/CMSIS_5 \
+	hw/mcu/st/cmsis_device_$(ST_FAMILY) \
+	hw/mcu/st/stm32$(ST_FAMILY)xx_hal_driver
 
 ST_CMSIS = hw/mcu/st/cmsis_device_$(ST_FAMILY)
 ST_HAL_DRIVER = hw/mcu/st/stm32$(ST_FAMILY)xx_hal_driver
@@ -17,8 +20,12 @@ CFLAGS += \
   -DCFG_EXAMPLE_VIDEO_READONLY \
   -DCFG_TUSB_MCU=OPT_MCU_STM32L0
 
-# suppress warning caused by vendor mcu driver
-CFLAGS += -Wno-error=unused-parameter -Wno-error=redundant-decls -Wno-error=cast-align -Wno-error=maybe-uninitialized
+# mcu driver cause following warnings
+CFLAGS += \
+	-Wno-error=unused-parameter \
+	-Wno-error=redundant-decls \
+	-Wno-error=cast-align \
+	-Wno-error=maybe-uninitialized
 
 SRC_C += \
   src/portable/st/stm32_fsdev/dcd_stm32_fsdev.c \
@@ -37,4 +44,4 @@ INC += \
   $(TOP)/$(ST_HAL_DRIVER)/Inc
 
 # For freeRTOS port source
-FREERTOS_PORT = ARM_CM0
+FREERTOS_PORTABLE_SRC = $(FREERTOS_PORTABLE_PATH)/ARM_CM0

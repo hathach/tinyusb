@@ -31,4 +31,3 @@
 
 // UART
 #define UART_SERCOM           0
-

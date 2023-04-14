@@ -1,4 +1,4 @@
-/* 
+/*
  * The MIT License (MIT)
  *
  * Copyright (c) 2019, hathach (tinyusb.org)
@@ -197,7 +197,7 @@ void setUp(void)
   dcd_int_disable_Ignore();
   dcd_int_enable_Ignore();
 
-  if ( !tusb_inited() )
+  if ( !tud_inited() )
   {
     dcd_init_Expect(rhport);
     tusb_init();

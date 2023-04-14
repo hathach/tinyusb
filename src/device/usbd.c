@@ -450,7 +450,7 @@ static void usbd_reset(uint8_t rhport)
 bool tud_task_event_ready(void)
 {
   // Skip if stack is not initialized
-  if ( !tusb_inited() ) return false;
+  if ( !tud_inited() ) return false;
 
   return !osal_queue_empty(_usbd_q);
 }
@@ -478,7 +478,7 @@ void tud_task_ext(uint32_t timeout_ms, bool in_isr)
   (void) in_isr; // not implemented yet
 
   // Skip if stack is not initialized
-  if ( !tusb_inited() ) return;
+  if ( !tud_inited() ) return;
 
   // Loop until there is no more events in the queue
   while (1)
@@ -1398,11 +1398,11 @@ bool usbd_edpt_iso_activate(uint8_t rhport, tusb_desc_endpoint_t const * desc_ep
 
   uint8_t const epnum = tu_edpt_number(desc_ep->bEndpointAddress);
   uint8_t const dir   = tu_edpt_dir(desc_ep->bEndpointAddress);
-  
+
   TU_ASSERT(dcd_edpt_iso_activate);
   TU_ASSERT(epnum < CFG_TUD_ENDPPOINT_MAX);
   TU_ASSERT(tu_edpt_validate(desc_ep, (tusb_speed_t) _usbd_dev.speed));
-  
+
   _usbd_dev.ep_status[epnum][dir].stalled = false;
   _usbd_dev.ep_status[epnum][dir].busy = false;
   _usbd_dev.ep_status[epnum][dir].claimed = false;

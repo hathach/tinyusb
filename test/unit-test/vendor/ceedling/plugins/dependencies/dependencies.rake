@@ -113,7 +113,7 @@ end
 # Add any artifact:include or :source folders to our release & test includes paths so linking and mocking work.
 @ceedling[DEPENDENCIES_SYM].add_headers_and_sources()
 
-# Add tasks for building or cleaning ALL depencies
+# Add tasks for building or cleaning ALL dependencies
 namespace DEPENDENCIES_SYM do
   desc "Deploy missing dependencies."
   task :deploy => DEPENDENCIES_LIBRARIES.map{|deplib| "#{DEPENDENCIES_SYM}:deploy:#{@ceedling[DEPENDENCIES_SYM].get_name(deplib)}"}
