@@ -186,12 +186,12 @@ static void dcd_ep_ctr_handler(void);
 static uint8_t open_ep_count;
 static uint16_t ep_buf_ptr; ///< Points to first free memory location
 static void dcd_pma_alloc_reset(void);
-static uint16_t dcd_pma_alloc(uint8_t ep_addr, size_t length);
+static uint16_t dcd_pma_alloc(uint8_t ep_addr, uint16_t length);
 static void dcd_pma_free(uint8_t ep_addr);
 static void dcd_ep_free(uint8_t ep_addr);
 static uint8_t dcd_ep_alloc(uint8_t ep_addr, uint8_t ep_type);
-static bool dcd_write_packet_memory(uint16_t dst, const void *__restrict src, size_t wNBytes);
-static bool dcd_read_packet_memory(void *__restrict dst, uint16_t src, size_t wNBytes);
+static bool dcd_write_packet_memory(uint16_t dst, const void *__restrict src, uint16_t wNBytes);
+static bool dcd_read_packet_memory(void *__restrict dst, uint16_t src, uint16_t wNBytes);
 
 static bool dcd_write_packet_memory_ff(tu_fifo_t * ff, uint16_t dst, uint16_t wNBytes);
 static bool dcd_read_packet_memory_ff(tu_fifo_t * ff, uint16_t src, uint16_t wNBytes);
@@ -792,7 +792,7 @@ static void dcd_pma_alloc_reset(void)
  *
  * During failure, TU_ASSERT is used. If this happens, rework/reallocate memory manually.
  */
-static uint16_t dcd_pma_alloc(uint8_t ep_addr, size_t length)
+static uint16_t dcd_pma_alloc(uint8_t ep_addr, uint16_t length)
 {
   xfer_ctl_t* epXferCtl = xfer_ctl_ptr(ep_addr);
 
@@ -804,6 +804,13 @@ static uint16_t dcd_pma_alloc(uint8_t ep_addr, size_t length)
     return epXferCtl->pma_ptr;
   }
 
+  // Ensure allocated buffer is aligned
+#ifdef PMA_32BIT_ACCESS
+  length = (length + 3) & ~0x03;
+#else
+  length = (length + 1) & ~0x01;
+#endif
+
   open_ep_count++;
 
   uint16_t addr = ep_buf_ptr;
@@ -814,7 +821,7 @@ static uint16_t dcd_pma_alloc(uint8_t ep_addr, size_t length)
 
   epXferCtl->pma_ptr = addr;
   epXferCtl->pma_alloc_size = length;
-  //TU_LOG2("dcd_pma_alloc(%x,%x)=%x\r\n",ep_addr,length,addr);
+  //TU_LOG1("dcd_pma_alloc(%x,%x)=%x\r\n",ep_addr,length,addr);
 
   return addr;
 }
@@ -1240,15 +1247,36 @@ void dcd_edpt_clear_stall (uint8_t rhport, uint8_t ep_addr)
 }
 
 #ifdef PMA_32BIT_ACCESS
-static bool dcd_write_packet_memory(uint16_t dst, const void *__restrict src, size_t wNBytes)
+static bool dcd_write_packet_memory(uint16_t dst, const void *__restrict src, uint16_t wNBytes)
 {
-  // FIXME original function uses byte-access to source memory (to support non-aligned buffers)
-  const uint32_t* src32 = (const uint32_t*)(src);
+  const uint8_t* srcVal = src;
   volatile uint32_t* dst32 = (volatile uint32_t*)(USB_PMAADDR + dst);
-  for (unsigned n=wNBytes/4; n>0; --n) {
-    *dst32++ = *src32++;
+
+  for (uint32_t n = wNBytes / 4; n > 0; --n) {
+    *dst32++ = tu_unaligned_read32(srcVal);
+    srcVal += 4;
   }
-  *dst32 = (*src32) & ((1<<8*(wNBytes % 4)) - 1);
+
+  wNBytes = wNBytes & 0x03;
+  if (wNBytes)
+  {
+    uint32_t wrVal = *srcVal;
+    wNBytes--;
+
+    if (wNBytes)
+    {
+      wrVal |= *++srcVal << 8;
+      wNBytes--;
+
+      if (wNBytes)
+      {
+        wrVal |= *++srcVal << 16;
+      }
+    }
+
+    *dst32 = wrVal;
+  }
+
   return true;
 }
 #else
@@ -1263,7 +1291,7 @@ static bool dcd_write_packet_memory(uint16_t dst, const void *__restrict src, si
   * @param   wNBytes no. of bytes to be copied.
   * @retval None
   */
-static bool dcd_write_packet_memory(uint16_t dst, const void *__restrict src, size_t wNBytes)
+static bool dcd_write_packet_memory(uint16_t dst, const void *__restrict src, uint16_t wNBytes)
 {
   uint32_t n = (uint32_t)wNBytes >> 1U;
   uint16_t temp1, temp2;
@@ -1286,7 +1314,7 @@ static bool dcd_write_packet_memory(uint16_t dst, const void *__restrict src, si
     srcVal++;
   }
 
-  if (wNBytes & 0x01)
+  if (wNBytes)
   {
     temp1 = *srcVal;
     *pdwVal = temp1;
@@ -1313,7 +1341,37 @@ static bool dcd_write_packet_memory_ff(tu_fifo_t * ff, uint16_t dst, uint16_t wN
 
   // We want to read from the FIFO and write it into the PMA, if LIN part is ODD and has WRAPPED part,
   // last lin byte will be combined with wrapped part
-  // To ensure PMA is always access 16bit aligned (dst aligned to 16 bit)
+  // To ensure PMA is always access aligned (dst aligned to 16 or 32 bit)
+#ifdef PMA_32BIT_ACCESS
+  if((cnt_lin & 0x03) && cnt_wrap)
+  {
+    // Copy first linear part
+    dcd_write_packet_memory(dst, info.ptr_lin, cnt_lin &~0x03);
+    dst += cnt_lin &~0x03;
+
+    // Copy last linear bytes & first wrapped bytes to buffer
+    uint32_t i;
+    uint8_t tmp[4];
+    for (i = 0; i < (cnt_lin & 0x03); i++)
+    {
+      tmp[i] = ((uint8_t*)info.ptr_lin)[(cnt_lin &~0x03) + i];
+    }
+    uint32_t wCnt = cnt_wrap;
+    for (; i < 4 && wCnt > 0; i++, wCnt--)
+    {
+      tmp[i] = *(uint8_t*)info.ptr_wrap;
+      info.ptr_wrap = (uint8_t*)info.ptr_wrap + 1;
+    }
+
+    // Write unaligned buffer
+    dcd_write_packet_memory(dst, &tmp, 4);
+    dst += 4;
+
+    // Copy rest of wrapped byte
+    if (wCnt)
+        dcd_write_packet_memory(dst, info.ptr_wrap, wCnt);
+  }
+#else
   if((cnt_lin & 0x01) && cnt_wrap)
   {
     // Copy first linear part
@@ -1328,6 +1386,7 @@ static bool dcd_write_packet_memory_ff(tu_fifo_t * ff, uint16_t dst, uint16_t wN
     // Copy rest of wrapped byte
     dcd_write_packet_memory(dst, ((uint8_t*)info.ptr_wrap) + 1, cnt_wrap - 1);
   }
+#endif
   else
   {
     // Copy linear part
@@ -1347,11 +1406,37 @@ static bool dcd_write_packet_memory_ff(tu_fifo_t * ff, uint16_t dst, uint16_t wN
 }
 
 #ifdef PMA_32BIT_ACCESS
-static bool dcd_read_packet_memory(void *__restrict dst, uint16_t src, size_t wNBytes)
+static bool dcd_read_packet_memory(void *__restrict dst, uint16_t src, uint16_t wNBytes)
 {
-    // FIXME this should probably be modified for possible unaligned access?
-    memcpy(dst, (void*)(USB_PMAADDR+src), wNBytes);
-    return true;
+  uint8_t* dstVal = dst;
+  volatile uint32_t* src32 = (volatile uint32_t*)(USB_PMAADDR + src);
+
+  for (uint32_t n = wNBytes / 4; n > 0; --n) {
+    tu_unaligned_write32(dstVal, *src32++);
+    dstVal += 4;
+  }
+
+  wNBytes = wNBytes & 0x03;
+  if (wNBytes)
+  {
+    uint32_t rdVal = *src32;
+
+    *dstVal = tu_u32_byte0(rdVal);
+    wNBytes--;
+
+    if (wNBytes)
+    {
+      *++dstVal = tu_u32_byte1(rdVal);
+      wNBytes--;
+
+      if (wNBytes)
+      {
+        *++dstVal = tu_u32_byte2(rdVal);
+      }
+    }
+  }
+
+  return true;
 }
 #else
 /**
@@ -1360,7 +1445,7 @@ static bool dcd_read_packet_memory(void *__restrict dst, uint16_t src, size_t wN
   * @param   wNBytes no. of bytes to be copied.
   * @retval None
   */
-static bool dcd_read_packet_memory(void *__restrict dst, uint16_t src, size_t wNBytes)
+static bool dcd_read_packet_memory(void *__restrict dst, uint16_t src, uint16_t wNBytes)
 {
   uint32_t n = (uint32_t)wNBytes >> 1U;
   // The GCC optimizer will combine access to 32-bit sizes if we let it. Force
@@ -1405,9 +1490,39 @@ static bool dcd_read_packet_memory_ff(tu_fifo_t * ff, uint16_t src, uint16_t wNB
   uint16_t cnt_lin =  TU_MIN(wNBytes, info.len_lin);
   uint16_t cnt_wrap = TU_MIN(wNBytes - cnt_lin, info.len_wrap);
 
+
   // We want to read from PMA and write it into the FIFO, if LIN part is ODD and has WRAPPED part,
   // last lin byte will be combined with wrapped part
-  // To ensure PMA is always access 16bit aligned (src aligned to 16 bit)
+  // To ensure PMA is always access aligned (src aligned to 16 or 32 bit)
+#ifdef PMA_32BIT_ACCESS
+  if((cnt_lin & 0x03) && cnt_wrap)
+  {
+    // Copy first linear part
+    dcd_read_packet_memory(info.ptr_lin, src, cnt_lin &~0x03);
+    src += cnt_lin &~0x03;
+
+    // Copy last linear bytes & first wrapped bytes
+    uint8_t tmp[4];
+    dcd_read_packet_memory(tmp, src, 4);
+    src += 4;
+
+    uint32_t i;
+    for (i = 0; i < (cnt_lin & 0x03); i++)
+    {
+      ((uint8_t*)info.ptr_lin)[(cnt_lin &~0x03) + i] = tmp[i];
+    }
+    uint32_t wCnt = cnt_wrap;
+    for (; i < 4 && wCnt > 0; i++, wCnt--)
+    {
+      *(uint8_t*)info.ptr_wrap = tmp[i];
+      info.ptr_wrap = (uint8_t*)info.ptr_wrap + 1;
+    }
+
+    // Copy rest of wrapped byte
+    if (wCnt)
+      dcd_read_packet_memory(info.ptr_wrap, src, wCnt);
+  }
+#else
   if((cnt_lin & 0x01) && cnt_wrap)
   {
     // Copy first linear part
@@ -1415,16 +1530,17 @@ static bool dcd_read_packet_memory_ff(tu_fifo_t * ff, uint16_t src, uint16_t wNB
     src += cnt_lin &~0x01;
 
     // Copy last linear byte & first wrapped byte
-    uint16_t tmp;
-    dcd_read_packet_memory(&tmp, src, 2);
-
-    ((uint8_t*)info.ptr_lin)[cnt_lin - 1] = (uint8_t)tmp;
-    ((uint8_t*)info.ptr_wrap)[0] = (uint8_t)(tmp >> 8U);
+    uint8_t tmp[2];
+    dcd_read_packet_memory(tmp, src, 2);
     src += 2;
+
+    ((uint8_t*)info.ptr_lin)[cnt_lin - 1] = tmp[0];
+    ((uint8_t*)info.ptr_wrap)[0] = tmp[1];
 
     // Copy rest of wrapped byte
     dcd_read_packet_memory(((uint8_t*)info.ptr_wrap) + 1, src, cnt_wrap - 1);
   }
+#endif
   else
   {
     // Copy linear part
