@@ -44,6 +44,7 @@
  * L0x2, L0x3                     1024 byte buffer
  * L1                              512 byte buffer
  * L4x2, L4x3                     1024 byte buffer
+ * G0                             2048 byte buffer
  *
  * To use this driver, you must:
  * - If you are using a device with crystal-less USB, set up the clock recovery system (CRS)

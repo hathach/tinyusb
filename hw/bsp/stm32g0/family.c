@@ -53,6 +53,9 @@ void board_init(void)
   __HAL_RCC_GPIOD_CLK_ENABLE();
   __HAL_RCC_GPIOE_CLK_ENABLE();
 
+  __HAL_RCC_SYSCFG_CLK_ENABLE();
+  __HAL_RCC_PWR_CLK_ENABLE();
+
   UART_CLK_EN();
 
 #if CFG_TUSB_OS == OPT_OS_NONE
@@ -119,16 +122,7 @@ void board_init(void)
   __HAL_RCC_USB_CLK_ENABLE();
 
   /* Enable VDDUSB */
-  if(__HAL_RCC_PWR_IS_CLK_DISABLED())
-  {
-    __HAL_RCC_PWR_CLK_ENABLE();
-    HAL_PWREx_EnableVddUSB();
-    __HAL_RCC_PWR_CLK_DISABLE();
-  }
-  else
-  {
-    HAL_PWREx_EnableVddUSB();
-  }
+  HAL_PWREx_EnableVddUSB();
 }
 
 //--------------------------------------------------------------------+
