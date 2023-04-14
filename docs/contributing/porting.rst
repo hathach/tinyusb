@@ -69,7 +69,7 @@ The code is almost entirely agnostic of MCU and lives in ``src/osal``.
 Device API
 ^^^^^^^^^^
 
-After the USB device is setup, the USB device code works by processing events on the main thread (by calling ``tud_task``\ ). These events are queued by the USB interrupt handler. So, there are three parts to the device low-level API: device setup, endpoint setup and interrupt processing.
+After the USB device is setup, the USB device code works by processing events on the main thread (by calling ``tud_task``\ ). In RTOS configurations, tud_task blocks behind a synchronization structure when the event queue is empty, so that the scheduler may give the CPU to a different task. To take advantage of the library's capability to yield the CPU when there are no actionable USB device events, ensure that the `CFG_TUSB_OS` symbol is defined in your modified ``tusb_config.h``. For example `#define CFG_TUSB_OS  OPT_OS_FREERTOS` enables the FreeRTOS scheduler to schedule other threads than that which calls `tud_task`. These events are queued by the USB interrupt handler. So, there are three parts to the device low-level API: device setup, endpoint setup and interrupt processing. 
 
 All of the code for the low-level device API is in ``src/portable/<vendor>/<chip family>/dcd_<chip family>.c``.
 
