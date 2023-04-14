@@ -183,7 +183,7 @@ uint8_t const desc_configuration_0[] =
 };
 
 
-uint8_t const desc_configuraiton_1[] =
+uint8_t const desc_configuration_1[] =
 {
   // Config number, interface count, string index, total length, attribute, power in mA
   TUD_CONFIG_DESCRIPTOR(1, ITF_1_NUM_TOTAL, 0, CONFIG_1_TOTAL_LEN, 0x00, 100),
@@ -199,7 +199,7 @@ uint8_t const desc_configuraiton_1[] =
 uint8_t const * tud_descriptor_configuration_cb(uint8_t index)
 {
   (void) index; // for multiple configurations
-  return mode ? desc_configuraiton_1 : desc_configuration_0;
+  return mode ? desc_configuration_1 : desc_configuration_0;
 }
 
 //--------------------------------------------------------------------+
