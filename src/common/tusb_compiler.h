@@ -155,8 +155,17 @@
     #define TU_BYTE_ORDER TU_BIG_ENDIAN
   #endif
 
-  #define TU_BSWAP16(u16) (__builtin_bswap16(u16))
-  #define TU_BSWAP32(u32) (__builtin_bswap32(u32))
+  // Unfortunately XC16 doesn't provide builtins for 32bit endian conversion
+  #if defined(__XC16)
+    #define TU_BSWAP16(u16) (__builtin_swap(u16))
+    #define TU_BSWAP32(u32) ((((u32) & 0xff000000) >> 24) |  \
+                            (((u32) & 0x00ff0000) >> 8)  |  \
+                            (((u32) & 0x0000ff00) << 8)  |  \
+                            (((u32) & 0x000000ff) << 24))
+  #else
+    #define TU_BSWAP16(u16) (__builtin_bswap16(u16))
+    #define TU_BSWAP32(u32) (__builtin_bswap32(u32))
+  #endif
 
 	#ifndef __ARMCC_VERSION
   // List of obsolete callback function that is renamed and should not be defined.
