@@ -210,17 +210,6 @@ TU_ATTR_ALWAYS_INLINE static inline xfer_ctl_t* xfer_ctl_ptr(uint32_t ep_addr)
   return &xfer_status[epnum][dir];
 }
 
-// Using a function due to better type checks
-// This seems better than having to do type casts everywhere else
-TU_ATTR_ALWAYS_INLINE static inline void reg16_clear_bits(__IO uint16_t *reg, uint16_t mask) {
-  *reg = (uint16_t)(*reg & ~mask);
-}
-
-// Bits in ISTR are cleared upon writing 0
-TU_ATTR_ALWAYS_INLINE static inline void clear_istr_bits(uint32_t mask) {
-  USB->ISTR = ~mask;
-}
-
 //--------------------------------------------------------------------+
 // Controller API
 //--------------------------------------------------------------------+
@@ -244,11 +233,7 @@ void dcd_init (uint8_t rhport)
     asm("NOP");
   }
 
-#ifdef PMA_32BIT_ACCESS // CNTR register is 32bits on STM32G0, 16bit on older versions
   USB->CNTR &= ~USB_CNTR_PDWN;
-#else
-  reg16_clear_bits(&USB->CNTR, USB_CNTR_PDWN);// Remove powerdown
-#endif
 
   // Wait startup time, for F042 and F070, this is <= 1 us.
   for(uint32_t i = 0; i<200; i++) // should be a few us
@@ -492,7 +477,6 @@ static void dcd_handle_bus_reset(void)
   //__IO uint16_t * const epreg = &(EPREG(0));
   USB->DADDR = 0u; // disable USB peripheral by clearing the EF flag
 
-
   for(uint32_t i=0; i<STFSDEV_EP_COUNT; i++)
   {
     // Clear all EPREG (or maybe this is automatic? I'm not sure)
@@ -683,13 +667,13 @@ void dcd_int_handler(uint8_t rhport) {
 
   /* Put SOF flag at the beginning of ISR in case to get least amount of jitter if it is used for timing purposes */
   if(int_status & USB_ISTR_SOF) {
-    clear_istr_bits(USB_ISTR_SOF);
+    USB->ISTR &=~USB_ISTR_SOF;
     dcd_event_sof(0, USB->FNR & USB_FNR_FN, true);
   }
 
   if(int_status & USB_ISTR_RESET) {
     // USBRST is start of reset.
-    clear_istr_bits(USB_ISTR_RESET);
+    USB->ISTR &=~USB_ISTR_RESET;
     dcd_handle_bus_reset();
     dcd_event_bus_reset(0, TUSB_SPEED_FULL, true);
     return; // Don't do the rest of the things here; perhaps they've been cleared?
@@ -704,14 +688,10 @@ void dcd_int_handler(uint8_t rhport) {
 
   if (int_status & USB_ISTR_WKUP)
   {
-#ifdef PMA_32BIT_ACCESS // CNTR register is 32bits on STM32G0, 16bit on older versions
     USB->CNTR &= ~USB_CNTR_LPMODE;
     USB->CNTR &= ~USB_CNTR_FSUSP;
-#else
-    reg16_clear_bits(&USB->CNTR, USB_CNTR_LPMODE);
-    reg16_clear_bits(&USB->CNTR, USB_CNTR_FSUSP);
-#endif
-    clear_istr_bits(USB_ISTR_WKUP);
+
+    USB->ISTR &=~USB_ISTR_WKUP;
     dcd_event_bus_signal(0, DCD_EVENT_RESUME, true);
   }
 
@@ -725,7 +705,7 @@ void dcd_int_handler(uint8_t rhport) {
     USB->CNTR |= USB_CNTR_LPMODE;
 
     /* clear of the ISTR bit must be done after setting of CNTR_FSUSP */
-    clear_istr_bits(USB_ISTR_SUSP);
+    USB->ISTR &=~USB_ISTR_SUSP;
     dcd_event_bus_signal(0, DCD_EVENT_SUSPEND, true);
   }
 
@@ -738,7 +718,7 @@ void dcd_int_handler(uint8_t rhport) {
     {
       remoteWakeCountdown--;
     }
-    clear_istr_bits(USB_ISTR_ESOF);
+    USB->ISTR &=~USB_ISTR_ESOF;
   }
 }
 
@@ -759,13 +739,8 @@ void dcd_edpt0_status_complete(uint8_t rhport, tusb_control_request_t const * re
     uint8_t const dev_addr = (uint8_t) request->wValue;
 
     // Setting new address after the whole request is complete
-#ifdef PMA_32BIT_ACCESS
     USB->DADDR &= ~USB_DADDR_ADD;
-    USB->DADDR = (USB->DADDR & ~USB_DADDR_ADD_Msk) | dev_addr; // leave the enable bit set
-#else
-    reg16_clear_bits(&USB->DADDR, USB_DADDR_ADD);
-    USB->DADDR = (uint16_t)(USB->DADDR | dev_addr); // leave the enable bit set
-#endif
+    USB->DADDR |= dev_addr; // leave the enable bit set
   }
 }
 
