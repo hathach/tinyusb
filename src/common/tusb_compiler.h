@@ -138,10 +138,14 @@
   #define TU_ATTR_BIT_FIELD_ORDER_BEGIN
   #define TU_ATTR_BIT_FIELD_ORDER_END
 
-  #if __has_attribute(__fallthrough__)
-    #define TU_ATTR_FALLTHROUGH         __attribute__((fallthrough))
-  #else
+  #if defined(__XC16)
     #define TU_ATTR_FALLTHROUGH         do {} while (0)  /* fallthrough */
+  #else
+    #if __has_attribute(__fallthrough__)
+      #define TU_ATTR_FALLTHROUGH         __attribute__((fallthrough))
+    #else
+      #define TU_ATTR_FALLTHROUGH         do {} while (0)  /* fallthrough */
+    #endif
   #endif
 
   // Endian conversion use well-known host to network (big endian) naming
