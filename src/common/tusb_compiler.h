@@ -138,7 +138,7 @@
   #define TU_ATTR_BIT_FIELD_ORDER_BEGIN
   #define TU_ATTR_BIT_FIELD_ORDER_END
 
-  #if defined(__XC16)
+  #if __GNUC__ < 5
     #define TU_ATTR_FALLTHROUGH         do {} while (0)  /* fallthrough */
   #else
     #if __has_attribute(__fallthrough__)
