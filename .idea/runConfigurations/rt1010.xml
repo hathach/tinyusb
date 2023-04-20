@@ -1,0 +1,10 @@
+<component name="ProjectRunConfigurationManager">
+  <configuration default="false" name="rt1010" type="com.jetbrains.cidr.embedded.customgdbserver.type" factoryName="com.jetbrains.cidr.embedded.customgdbserver.factory" folderName="imxrt" PROGRAM_PARAMS="gdbserver -p 55503 -t mimxrt1010" REDIRECT_INPUT="false" ELEVATE="false" USE_EXTERNAL_CONSOLE="false" PASS_PARENT_ENVS_2="true" PROJECT_NAME="board_test" TARGET_NAME="board_test" CONFIG_NAME="rp2040" version="1" RUN_TARGET_PROJECT_NAME="board_test" RUN_TARGET_NAME="board_test">
+    <custom-gdb-server version="1" gdb-connect="tcp::55503" executable="$USER_HOME$/.local/bin/pyocd" warmup-ms="0" download-type="UPDATED_ONLY" reset-cmd="monitor reset" reset-type="AFTER_DOWNLOAD">
+      <debugger kind="GDB" isBundled="true" />
+    </custom-gdb-server>
+    <method v="2">
+      <option name="CLION.COMPOUND.BUILD" enabled="true" />
+    </method>
+  </configuration>
+</component>

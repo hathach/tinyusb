@@ -26,12 +26,7 @@ else ()
   target_link_options(${PROJECT} PUBLIC
     --specs=nosys.specs
     --specs=nano.specs
-    #-lgcc -lm -lnosys
     )
-
-#  target_link_libraries(${PROJECT} PUBLIC
-#    -lgcc -lm -lnosys
-#    )
 
   target_sources(${PROJECT} PUBLIC
     # TinyUSB
@@ -52,6 +47,10 @@ else ()
   if (TOOLCHAIN STREQUAL "gcc")
     target_sources(${PROJECT} PUBLIC
       ${SDK_DIR}/devices/${MCU_VARIANT}/gcc/startup_${MCU_VARIANT}.S
+      )
+
+    target_link_options(${PROJECT} PUBLIC
+      "LINKER:--script=${SDK_DIR}/devices/${MCU_VARIANT}/gcc/${MCU_VARIANT}xxxxx_flexspi_nor.ld"
       )
   endif ()
 
