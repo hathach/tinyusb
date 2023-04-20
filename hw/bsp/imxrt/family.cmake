@@ -1,5 +1,7 @@
-# toolchain set up, include before project()
+
+
 if (NOT TARGET ${PROJECT})
+  # toolchain set up, include before project()
   set(CMAKE_SYSTEM_PROCESSOR cortex-m7 CACHE INTERNAL "System Processor")
   set(CMAKE_TOOLCHAIN_FILE ${CMAKE_CURRENT_LIST_DIR}/../../../cmake/toolchain/arm_${TOOLCHAIN}.cmake)
 else ()

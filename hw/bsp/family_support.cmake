@@ -1,4 +1,11 @@
 if (NOT TARGET _family_support_marker)
+    include(CMakePrintHelpers)
+
+    # Default to gcc
+    if(NOT DEFINED TOOLCHAIN)
+        set(TOOLCHAIN gcc)
+    endif()
+
     add_library(_family_support_marker INTERFACE)
 
     if (NOT FAMILY)
