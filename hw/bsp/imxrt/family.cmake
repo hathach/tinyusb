@@ -1,23 +1,27 @@
+# toolchain set up
+set(CMAKE_SYSTEM_PROCESSOR cortex-m7 CACHE INTERNAL "System Processor")
+set(CMAKE_TOOLCHAIN_FILE ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/../../../cmake/toolchain/arm_${TOOLCHAIN}.cmake)
 
-
-if (NOT TARGET ${PROJECT})
-  # toolchain set up, include before project()
-  set(CMAKE_SYSTEM_PROCESSOR cortex-m7 CACHE INTERNAL "System Processor")
-  set(CMAKE_TOOLCHAIN_FILE ${CMAKE_CURRENT_LIST_DIR}/../../../cmake/toolchain/arm_${TOOLCHAIN}.cmake)
-else ()
+function(family_configure_target TARGET)
   if (NOT BOARD)
     message(FATAL_ERROR "BOARD not specified")
   endif ()
 
+  # set output name to .elf
+  set_target_properties(${TARGET} PROPERTIES OUTPUT_NAME ${TARGET}.elf)
+
+  # TOP is absolute path to root directory of TinyUSB git repo
+  set(TOP "${CMAKE_CURRENT_FUNCTION_LIST_DIR}/../../..")
+  get_filename_component(TOP "${TOP}" REALPATH)
+
   set(SDK_DIR ${TOP}/hw/mcu/nxp/mcux-sdk)
   set(DEPS_SUBMODULES ${SDK_DIR})
 
-  # include basic family CMake functionality
-  #set(FAMILY_MCUS RP2040)
+  include(${CMAKE_CURRENT_FUNCTION_LIST_DIR}/boards/${BOARD}/board.cmake)
 
-  include(${CMAKE_CURRENT_LIST_DIR}/boards/${BOARD}/board.cmake)
+  cmake_print_variables(TOP CMAKE_CURRENT_FUNCTION_LIST_DIR)
 
-  target_compile_definitions(${PROJECT} PUBLIC
+  target_compile_definitions(${TARGET} PUBLIC
     CFG_TUSB_MCU=OPT_MCU_MIMXRT
     __ARMVFP__=0
     __ARMFPV5__=0
@@ -25,18 +29,18 @@ else ()
     XIP_BOOT_HEADER_ENABLE=1
     )
 
-  target_link_options(${PROJECT} PUBLIC
+  target_link_options(${TARGET} PUBLIC
     --specs=nosys.specs
     --specs=nano.specs
     )
 
-  target_sources(${PROJECT} PUBLIC
+  target_sources(${TARGET} PUBLIC
     # TinyUSB
     ${TOP}/src/portable/chipidea/ci_hs/dcd_ci_hs.c
     ${TOP}/src/portable/chipidea/ci_hs/hcd_ci_hs.c
     ${TOP}/src/portable/ehci/ehci.c
     # BSP
-    ${CMAKE_CURRENT_LIST_DIR}/family.c
+    ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/family.c
     ${SDK_DIR}/drivers/common/fsl_common.c
     ${SDK_DIR}/drivers/igpio/fsl_gpio.c
     ${SDK_DIR}/drivers/lpuart/fsl_lpuart.c
@@ -47,18 +51,19 @@ else ()
     )
 
   if (TOOLCHAIN STREQUAL "gcc")
-    target_sources(${PROJECT} PUBLIC
+    target_sources(${TARGET} PUBLIC
       ${SDK_DIR}/devices/${MCU_VARIANT}/gcc/startup_${MCU_VARIANT}.S
       )
 
-    target_link_options(${PROJECT} PUBLIC
+    target_link_options(${TARGET} PUBLIC
       "LINKER:--script=${SDK_DIR}/devices/${MCU_VARIANT}/gcc/${MCU_VARIANT}xxxxx_flexspi_nor.ld"
       )
   endif ()
 
-  target_include_directories(${PROJECT} PUBLIC
-    ${CMAKE_CURRENT_LIST_DIR}
-    ${CMAKE_CURRENT_LIST_DIR}/boards/${BOARD}
+  target_include_directories(${TARGET} PUBLIC
+    ${CMAKE_CURRENT_FUNCTION_LIST_DIR}
+    ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/../../
+    ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/boards/${BOARD}
     ${SDK_DIR}/CMSIS/Include
     ${SDK_DIR}/devices/${MCU_VARIANT}
     ${SDK_DIR}/devices/${MCU_VARIANT}/project_template
@@ -67,4 +72,11 @@ else ()
     ${SDK_DIR}/drivers/igpio
     ${SDK_DIR}/drivers/lpuart
     )
-endif ()
+
+  # include tinyusb cmake
+  include(${TOP}/src/CMakeLists.txt)
+endfunction()
+
+function(family_configure_device_example TARGET)
+  family_configure_target(${TARGET})
+endfunction()
