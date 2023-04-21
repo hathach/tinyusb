@@ -58,6 +58,8 @@ function(family_configure_target TARGET)
     target_link_options(${TARGET} PUBLIC
       "LINKER:--script=${SDK_DIR}/devices/${MCU_VARIANT}/gcc/${MCU_VARIANT}xxxxx_flexspi_nor.ld"
       )
+  else ()
+    # TODO support IAR
   endif ()
 
   target_include_directories(${TARGET} PUBLIC
@@ -75,6 +77,22 @@ function(family_configure_target TARGET)
 
   # include tinyusb cmake
   include(${TOP}/src/CMakeLists.txt)
+endfunction()
+
+function(family_add_freertos_config TARGET)
+  add_library(freertos_config INTERFACE)
+
+  # add path to FreeRTOSConfig.h
+  target_include_directories(freertos_config SYSTEM INTERFACE
+    ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/FreeRTOSConfig
+    )
+
+  # select freertos port
+  if (TOOLCHAIN STREQUAL "gcc")
+    set(FREERTOS_PORT "GCC_ARM_CM7" CACHE INTERNAL "")
+  else ()
+    # TODO support IAR
+  endif ()
 endfunction()
 
 function(family_configure_device_example TARGET)

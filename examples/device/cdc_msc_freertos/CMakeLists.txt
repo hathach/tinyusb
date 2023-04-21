@@ -5,12 +5,41 @@ include(${CMAKE_CURRENT_SOURCE_DIR}/../../../hw/bsp/family_support.cmake)
 # gets PROJECT name for the example (e.g. <BOARD>-<DIR_NAME>)
 family_get_project_name(PROJECT ${CMAKE_CURRENT_LIST_DIR})
 
-project(${PROJECT})
+project(${PROJECT} C CXX ASM)
 
 # Checks this example is valid for the family and initializes the project
 family_initialize_project(${PROJECT} ${CMAKE_CURRENT_LIST_DIR})
 
-# Check for -DFAMILY=
-if(NOT FAMILY STREQUAL "espressif")
-  message(FATAL_ERROR "Invalid FAMILY specified: ${FAMILY}")
+# Espressif has its own cmake build system
+if(FAMILY STREQUAL "espressif")
+  return()
 endif()
+
+add_executable(${PROJECT})
+
+set(freertos_path ${CMAKE_CURRENT_SOURCE_DIR}/../../../lib/FreeRTOS-Kernel)
+
+# Example source
+target_sources(${PROJECT} PUBLIC
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/freertos_hook.c
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/main.c
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/msc_disk.c
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/usb_descriptors.c
+  )
+
+# Example include
+target_include_directories(${PROJECT} PUBLIC
+  ${CMAKE_CURRENT_SOURCE_DIR}/src
+  ${freertos_path}/include
+  )
+
+# Configure compilation flags and libraries for the example... see the corresponding function
+# in hw/bsp/FAMILY/family.cmake for details.
+family_configure_device_example(${PROJECT})
+
+family_add_freertos_config(${PROJECT})
+add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/../../../lib/FreeRTOS-Kernel lib/FreeRTOS-Kernel)
+
+target_link_libraries(${PROJECT} PUBLIC
+  freertos_kernel
+  )
