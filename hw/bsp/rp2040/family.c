@@ -125,10 +125,10 @@ void board_init(void)
   // Set the system clock to a multiple of 120mhz for bitbanging USB with pico-usb
   set_sys_clock_khz(120000, true);
 
-#ifdef PIO_USB_VBUSEN_PIN
+#ifdef PICO_DEFAULT_PIO_USB_VBUSEN_PIN
   gpio_init(PICO_DEFAULT_PIO_USB_VBUSEN_PIN);
   gpio_set_dir(PICO_DEFAULT_PIO_USB_VBUSEN_PIN, GPIO_OUT);
-  gpio_put(PICO_DEFAULT_PIO_USB_VBUSEN_PIN, PIO_USB_VBUSEN_STATE);
+  gpio_put(PICO_DEFAULT_PIO_USB_VBUSEN_PIN, PICO_DEFAULT_PIO_USB_VBUSEN_STATE);
 #endif
 
   // rp2040 use pico-pio-usb for host tuh_configure() can be used to passed pio configuration to the host stack
