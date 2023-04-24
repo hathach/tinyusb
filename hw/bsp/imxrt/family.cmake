@@ -19,8 +19,6 @@ function(family_configure_target TARGET)
 
   include(${CMAKE_CURRENT_FUNCTION_LIST_DIR}/boards/${BOARD}/board.cmake)
 
-  cmake_print_variables(TOP CMAKE_CURRENT_FUNCTION_LIST_DIR)
-
   target_compile_definitions(${TARGET} PUBLIC
     CFG_TUSB_MCU=OPT_MCU_MIMXRT
     __ARMVFP__=0
@@ -77,6 +75,8 @@ function(family_configure_target TARGET)
 
   # include tinyusb cmake
   include(${TOP}/src/CMakeLists.txt)
+  add_tinyusb(${TARGET})
+
 endfunction()
 
 function(family_add_freertos_config TARGET)

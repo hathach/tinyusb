@@ -1,22 +1,20 @@
-get_property(IS_IN_TRY_COMPILE GLOBAL PROPERTY IN_TRY_COMPILE)
-
-# join the toolchain flags into a single string
-list(JOIN TOOLCHAIN_COMMON_FLAGS " " TOOLCHAIN_COMMON_FLAGS)
-
+include(CMakePrintHelpers)
 foreach(LANG IN ITEMS C CXX ASM)
-    set(CMAKE_${LANG}_FLAGS_INIT "${TOOLCHAIN_COMMON_FLAGS}")
-    if (PICO_DEOPTIMIZED_DEBUG)
-        set(CMAKE_${LANG}_FLAGS_DEBUG_INIT "-O0")
-    else()
-        set(CMAKE_${LANG}_FLAGS_DEBUG_INIT "-Og")
-    endif()
-    set(CMAKE_${LANG}_LINK_FLAGS "-Wl,--build-id=none")
+    # join the toolchain flags into a single string
+    list(APPEND TOOLCHAIN_${LANG}_FLAGS ${TOOLCHAIN_COMMON_FLAGS})
+    list(JOIN TOOLCHAIN_${LANG}_FLAGS " " TOOLCHAIN_${LANG}_FLAGS)
+    set(CMAKE_${LANG}_FLAGS_INIT "${TOOLCHAIN_${LANG}_FLAGS}")
 
-    # try_compile is where the feature testing is done, and at that point,
-    # pico_standard_link is not ready to be linked in to provide essential
-    # functions like _exit. So pass -nostdlib so it doesn't link in an exit()
-    # function at all.
-    if(IS_IN_TRY_COMPILE)
-        set(CMAKE_${LANG}_LINK_FLAGS "${CMAKE_${LANG}_LINK_FLAGS} -nostdlib")
-    endif()
+    #cmake_print_variables(CMAKE_${LANG}_FLAGS_INIT)
+
+    # optimization flags
+    set(CMAKE_${LANG}_FLAGS_DEBUG_INIT "-Og")
 endforeach()
+
+# try_compile is cmake test compiling its own example,
+# pass -nostdlib to skip stdlib linking
+get_property(IS_IN_TRY_COMPILE GLOBAL PROPERTY IN_TRY_COMPILE)
+if(IS_IN_TRY_COMPILE)
+    set(CMAKE_C_LINK_FLAGS "${CMAKE_C_LINK_FLAGS} -nostdlib")
+    set(CMAKE_CXX_LINK_FLAGS "${CMAKE_CXX_LINK_FLAGS} -nostdlib")
+endif()
