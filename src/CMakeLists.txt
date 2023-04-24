@@ -1,5 +1,7 @@
-# cmake_minimum_required(VERSION 3.17)
 # TODO make tinyusb as library that depends on 'tusb_config' interface that exposes the tusb_config.h file
+# This file is WIP and should not used yet
+
+cmake_minimum_required(VERSION 3.17)
 
 function(add_tinyusb TARGET)
   target_sources(${TARGET} PUBLIC
