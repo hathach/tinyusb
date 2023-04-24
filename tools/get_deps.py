@@ -6,7 +6,7 @@ from multiprocessing import Pool
 # Mandatory Dependencies that is always fetched
 # path, url, commit (Alphabet sorted by path)
 deps_mandatory = {
-    'lib/FreeRTOS-Kernel'                      : ['def7d2df2b0506d3d249334974f51e427c17a41c', 'https://github.com/FreeRTOS/FreeRTOS-Kernel.git'               ],
+    'lib/FreeRTOS-Kernel'                      : ['5f19e34f878af97810a7662a75eac59bd74d628b', 'https://github.com/FreeRTOS/FreeRTOS-Kernel.git'               ],
     'lib/lwip'                                 : ['159e31b689577dbf69cf0683bbaffbd71fa5ee10', 'https://github.com/lwip-tcpip/lwip.git'                        ],
     'tools/uf2'                                : ['19615407727073e36d81bf239c52108ba92e7660', 'https://github.com/microsoft/uf2.git'                          ],
 }
