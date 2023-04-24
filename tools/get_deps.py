@@ -24,7 +24,7 @@ deps_optional = {
     'hw/mcu/nordic/nrfx'                       : ['281cc2e178fd9a470d844b3afdea9eb322a0b0e8', 'https://github.com/NordicSemiconductor/nrfx.git'               ],
     'hw/mcu/nuvoton'                           : ['2204191ec76283371419fbcec207da02e1bc22fa', 'https://github.com/majbthrd/nuc_driver.git'                    ],
     'hw/mcu/nxp/lpcopen'                       : ['43c45c85405a5dd114fff0ea95cca62837740c13', 'https://github.com/hathach/nxp_lpcopen.git'                    ],
-    'hw/mcu/nxp/mcux-sdk'                      : ['ae2ab01d9d70ad00cd0e935c2552bd5f0e5c0294', 'https://github.com/NXPmicro/mcux-sdk.git'                      ],
+    'hw/mcu/nxp/mcux-sdk'                      : ['f357a1150f6cf6c6b844f53f2d426bfb3e649850', 'https://github.com/NXPmicro/mcux-sdk.git'                      ],
     'hw/mcu/nxp/nxp_sdk'                       : ['845c8fc49b6fb660f06a5c45225494eacb06f00c', 'https://github.com/hathach/nxp_sdk.git'                        ],
     'hw/mcu/raspberry_pi/Pico-PIO-USB'         : ['c3715ce94b6f6391856de56081d4d9b3e98fa93d', 'https://github.com/sekigon-gonnoc/Pico-PIO-USB.git'            ],
     'hw/mcu/renesas/fsp'                       : ['8dc14709f2a6518b43f71efad70d900b7718d9f1', 'https://github.com/renesas/fsp.git'                            ],
