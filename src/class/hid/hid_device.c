@@ -405,7 +405,11 @@ bool hidd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint32_
   // Received report
   else if (ep_addr == p_hid->ep_out)
   {
+    #if (CFG_TUSB_REPORT_ID_COUNT > 0)
+    tud_hid_set_report_cb(instance, p_hid->epout_buf[0], HID_REPORT_TYPE_OUTPUT, &p_hid->epout_buf[1], xferred_bytes - 1);
+    #else
     tud_hid_set_report_cb(instance, 0, HID_REPORT_TYPE_INVALID, p_hid->epout_buf, (uint16_t) xferred_bytes);
+    #endif
     TU_ASSERT(usbd_edpt_xfer(rhport, p_hid->ep_out, p_hid->epout_buf, sizeof(p_hid->epout_buf)));
   }
 

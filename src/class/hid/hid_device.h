@@ -380,7 +380,30 @@ static inline bool  tud_hid_gamepad_report(uint8_t report_id, int8_t x, int8_t y
 // HID Generic Input & Output
 // - 1st parameter is report size (mandatory)
 // - 2nd parameter is report id HID_REPORT_ID(n) (optional)
-#define TUD_HID_REPORT_DESC_GENERIC_INOUT(report_size, ...) \
+#if (CFG_TUSB_REPORT_ID_COUNT == 2)
+  #define TUD_HID_REPORT_DESC_GENERIC_INOUT(report_size, ...) \
+    HID_USAGE_PAGE_N ( HID_USAGE_PAGE_VENDOR, 2   ),\
+    HID_USAGE        ( 0x01                       ),\
+    HID_COLLECTION   ( HID_COLLECTION_APPLICATION ),\
+      GET_1ST_2ND_ARGS(__VA_ARGS__), \
+      /* Input */ \
+      HID_USAGE       ( 0x02                                   ),\
+      HID_LOGICAL_MIN ( 0x00                                   ),\
+      HID_LOGICAL_MAX_N ( 0xff, 2                              ),\
+      HID_REPORT_SIZE ( 8                                      ),\
+      HID_REPORT_COUNT_N( report_size, 2                       ),\
+      HID_INPUT       ( HID_DATA | HID_VARIABLE | HID_ABSOLUTE ),\
+      /* Output */ \
+      GET_3RD_4TH_ARGS(__VA_ARGS__), \
+      HID_USAGE       ( 0x03                                   ),\
+      HID_LOGICAL_MIN ( 0x00                                   ),\
+      HID_LOGICAL_MAX_N ( 0xff, 2                              ),\
+      HID_REPORT_SIZE ( 8                                      ),\
+      HID_REPORT_COUNT_N( report_size, 2                       ),\
+      HID_OUTPUT      ( HID_DATA | HID_VARIABLE | HID_ABSOLUTE  ),\
+    HID_COLLECTION_END
+#elif (CFG_TUSB_REPORT_ID_COUNT < 2)
+  #define TUD_HID_REPORT_DESC_GENERIC_INOUT(report_size, ...) \
     HID_USAGE_PAGE_N ( HID_USAGE_PAGE_VENDOR, 2   ),\
     HID_USAGE        ( 0x01                       ),\
     HID_COLLECTION   ( HID_COLLECTION_APPLICATION ),\
@@ -391,16 +414,17 @@ static inline bool  tud_hid_gamepad_report(uint8_t report_id, int8_t x, int8_t y
       HID_LOGICAL_MIN ( 0x00                                   ),\
       HID_LOGICAL_MAX_N ( 0xff, 2                              ),\
       HID_REPORT_SIZE ( 8                                      ),\
-      HID_REPORT_COUNT( report_size                            ),\
+      HID_REPORT_COUNT_N( report_size, 2                       ),\
       HID_INPUT       ( HID_DATA | HID_VARIABLE | HID_ABSOLUTE ),\
       /* Output */ \
       HID_USAGE       ( 0x03                                    ),\
       HID_LOGICAL_MIN ( 0x00                                    ),\
       HID_LOGICAL_MAX_N ( 0xff, 2                               ),\
       HID_REPORT_SIZE ( 8                                       ),\
-      HID_REPORT_COUNT( report_size                             ),\
+      HID_REPORT_COUNT_N( report_size, 2                       ),\
       HID_OUTPUT      ( HID_DATA | HID_VARIABLE | HID_ABSOLUTE  ),\
     HID_COLLECTION_END \
+#endif
 
 //--------------------------------------------------------------------+
 // Internal Class Driver API
