@@ -445,7 +445,7 @@ void dcd_int_out0(void)
     }
    
 
-    if(rx_len==xfer->max_size) // more ?
+    if(rx_len==xfer->max_size &&  xfer->xfered_so_far<xfer->total_len  ) // more ?
     {
         rxSet(0,  USBOTG_EP_RES_ACK + ep0_rx_tog * USBOTG_EP_RES_TOG1);
     }else
@@ -454,7 +454,7 @@ void dcd_int_out0(void)
         xfer->active=false;
         dcd_event_xfer_complete(0, 0, xfer->xfered_so_far, XFER_RESULT_SUCCESS, true);
     }
-    
+    ep0_rx_tog^=1;
 }
 // out-> write
 void dcd_int_out(int end_num)
