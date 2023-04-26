@@ -439,6 +439,11 @@
 #define CFG_TUH_CDC    0
 #endif
 
+#ifndef CFG_TUH_CDC_FTDI
+  // FTDI is not part of CDC class, CDC is used for Serial-over-USB here
+  #define CFG_TUH_CDC_FTDI 0
+#endif
+
 #ifndef CFG_TUH_HID
 #define CFG_TUH_HID    0
 #endif

@@ -33,6 +33,10 @@
 
 #include "cdc_host.h"
 
+#if CFG_TUH_CDC_FTDI
+  #include "serial/ftdi_host.h"
+#endif
+
 
 // Debug level, TUSB_CFG_DEBUG must be at least this level for debug message
 #define CDCH_DEBUG   2
@@ -43,12 +47,18 @@
 // MACRO CONSTANT TYPEDEF
 //--------------------------------------------------------------------+
 
+enum {
+  SERIAL_PROTOCOL_ACM  = 0,
+  SERIAL_PROTOCOL_FTDI = 1,
+};
+
 typedef struct {
   uint8_t daddr;
   uint8_t bInterfaceNumber;
   uint8_t bInterfaceSubClass;
   uint8_t bInterfaceProtocol;
 
+  uint8_t serial_protocol;
   cdc_acm_capability_t acm_capability;
   uint8_t ep_notif;
 
@@ -109,6 +119,11 @@ static cdch_interface_t* find_new_itf(void)
   }
 
   return NULL;
+}
+
+static inline bool support_line_request(cdch_interface_t const* p_cdc) {
+  return (p_cdc->serial_protocol == SERIAL_PROTOCOL_ACM && p_cdc->acm_capability.support_line_request) ||
+          (p_cdc->serial_protocol == SERIAL_PROTOCOL_FTDI);
 }
 
 //--------------------------------------------------------------------+
@@ -270,21 +285,32 @@ static void cdch_internal_control_complete(tuh_xfer_t* xfer)
 
   if (xfer->result == XFER_RESULT_SUCCESS)
   {
-    switch(xfer->setup->bRequest)
-    {
-      case CDC_REQUEST_SET_CONTROL_LINE_STATE:
-        p_cdc->line_state = (uint8_t) tu_le16toh(xfer->setup->wValue);
-      break;
+    if (p_cdc->serial_protocol == SERIAL_PROTOCOL_ACM) {
+      switch (xfer->setup->bRequest) {
+        case CDC_REQUEST_SET_CONTROL_LINE_STATE:
+          p_cdc->line_state = (uint8_t) tu_le16toh(xfer->setup->wValue);
+          break;
 
-      case CDC_REQUEST_SET_LINE_CODING:
-      {
-        uint16_t const len = tu_min16(sizeof(cdc_line_coding_t), tu_le16toh(xfer->setup->wLength));
-        memcpy(&p_cdc->line_coding, xfer->buffer, len);
+        case CDC_REQUEST_SET_LINE_CODING: {
+          uint16_t const len = tu_min16(sizeof(cdc_line_coding_t), tu_le16toh(xfer->setup->wLength));
+          memcpy(&p_cdc->line_coding, xfer->buffer, len);
+        }
+          break;
+
+        default: break;
       }
-      break;
-
-      default: break;
     }
+    #if CFG_TUH_CDC_FTDI
+    else if (p_cdc->serial_protocol == SERIAL_PROTOCOL_FTDI) {
+      switch (xfer->setup->bRequest) {
+        case FTDI_SIO_MODEM_CTRL:
+          p_cdc->line_state = (uint8_t) (tu_le16toh(xfer->setup->wValue) & 0x00ff);
+          break;
+
+        default: break;
+      }
+    }
+    #endif
   }
 
   xfer->complete_cb = p_cdc->user_control_cb;
@@ -294,27 +320,51 @@ static void cdch_internal_control_complete(tuh_xfer_t* xfer)
 bool tuh_cdc_set_control_line_state(uint8_t idx, uint16_t line_state, tuh_xfer_cb_t complete_cb, uintptr_t user_data)
 {
   cdch_interface_t* p_cdc = get_itf(idx);
-  TU_VERIFY(p_cdc && p_cdc->acm_capability.support_line_request);
+  TU_VERIFY(p_cdc && support_line_request(p_cdc));
 
   TU_LOG_CDCH("CDC Set Control Line State\r\n");
 
-  tusb_control_request_t const request =
-  {
-    .bmRequestType_bit =
-    {
-      .recipient = TUSB_REQ_RCPT_INTERFACE,
-      .type      = TUSB_REQ_TYPE_CLASS,
-      .direction = TUSB_DIR_OUT
-    },
-    .bRequest = CDC_REQUEST_SET_CONTROL_LINE_STATE,
-    .wValue   = tu_htole16(line_state),
-    .wIndex   = tu_htole16((uint16_t) p_cdc->bInterfaceNumber),
-    .wLength  = 0
-  };
+  tusb_control_request_t request;
+
+  if(p_cdc->serial_protocol == SERIAL_PROTOCOL_ACM ) {
+    tusb_control_request_t const acm_request = {
+      .bmRequestType_bit = {
+        .recipient = TUSB_REQ_RCPT_INTERFACE,
+        .type      = TUSB_REQ_TYPE_CLASS,
+        .direction = TUSB_DIR_OUT
+      },
+      .bRequest = CDC_REQUEST_SET_CONTROL_LINE_STATE,
+      .wValue   = tu_htole16(line_state),
+      .wIndex   = tu_htole16((uint16_t) p_cdc->bInterfaceNumber),
+      .wLength  = 0
+    };
+
+    request = acm_request;
+  }
+  #if CFG_TUH_CDC_FTDI
+  else if (p_cdc->serial_protocol == SERIAL_PROTOCOL_FTDI) {
+    // FTDI use vendor specific request to set control line state
+    tusb_control_request_t const ftdi_request = {
+      .bmRequestType_bit = {
+        .recipient = TUSB_REQ_RCPT_INTERFACE,
+        .type      = TUSB_REQ_TYPE_VENDOR,
+        .direction = TUSB_DIR_OUT
+      },
+      .bRequest = FTDI_SIO_MODEM_CTRL,
+      .wValue   = tu_htole16(0x0300 | line_state), // 0x0300 is DTR and RTS enable
+      .wIndex   = 0, // port
+      .wLength  = 0
+    };
+
+    request = ftdi_request;
+  }
+  #endif
+  else {
+    return false;
+  }
 
   p_cdc->user_control_cb = complete_cb;
-  tuh_xfer_t xfer =
-  {
+  tuh_xfer_t xfer = {
     .daddr       = p_cdc->daddr,
     .ep_addr     = 0,
     .setup       = &request,
@@ -324,34 +374,60 @@ bool tuh_cdc_set_control_line_state(uint8_t idx, uint16_t line_state, tuh_xfer_c
   };
 
   TU_ASSERT(tuh_control_xfer(&xfer));
+
   return true;
 }
 
 bool tuh_cdc_set_line_coding(uint8_t idx, cdc_line_coding_t const* line_coding, tuh_xfer_cb_t complete_cb, uintptr_t user_data)
 {
   cdch_interface_t* p_cdc = get_itf(idx);
-  TU_VERIFY(p_cdc && p_cdc->acm_capability.support_line_request);
+  TU_VERIFY(p_cdc && support_line_request(p_cdc));
 
   TU_LOG_CDCH("CDC Set Line Conding\r\n");
 
-  tusb_control_request_t const request =
-  {
-    .bmRequestType_bit =
-    {
-      .recipient = TUSB_REQ_RCPT_INTERFACE,
-      .type      = TUSB_REQ_TYPE_CLASS,
-      .direction = TUSB_DIR_OUT
-    },
-    .bRequest = CDC_REQUEST_SET_LINE_CODING,
-    .wValue   = 0,
-    .wIndex   = tu_htole16(p_cdc->bInterfaceNumber),
-    .wLength  = tu_htole16(sizeof(cdc_line_coding_t))
-  };
+  tusb_control_request_t request;
+  uint8_t* enum_buf = NULL;
 
-  // use usbh enum buf to hold line coding since user line_coding variable may not live long enough
-  // for the transfer to complete
-  uint8_t* enum_buf = usbh_get_enum_buf();
-  memcpy(enum_buf, line_coding, sizeof(cdc_line_coding_t));
+  if (p_cdc->serial_protocol == SERIAL_PROTOCOL_ACM) {
+    tusb_control_request_t const acm_request = {
+      .bmRequestType_bit = {
+        .recipient = TUSB_REQ_RCPT_INTERFACE,
+        .type      = TUSB_REQ_TYPE_CLASS,
+        .direction = TUSB_DIR_OUT
+      },
+      .bRequest = CDC_REQUEST_SET_LINE_CODING,
+      .wValue   = 0,
+      .wIndex   = tu_htole16(p_cdc->bInterfaceNumber),
+      .wLength  = tu_htole16(sizeof(cdc_line_coding_t))
+    };
+
+    request = acm_request;
+
+    // use usbh enum buf to hold line coding since user line_coding variable does not live long enough
+    enum_buf = usbh_get_enum_buf();
+    memcpy(enum_buf, line_coding, sizeof(cdc_line_coding_t));
+  }
+  #if CFG_TUH_CDC_FTDI
+  else if (p_cdc->serial_protocol == SERIAL_PROTOCOL_FTDI) {
+    // FTDI need to set baud rate and data bits, parity, stop bits separately
+    tusb_control_request_t const ftdi_request = {
+      .bmRequestType_bit = {
+        .recipient = TUSB_REQ_RCPT_INTERFACE,
+        .type      = TUSB_REQ_TYPE_VENDOR,
+        .direction = TUSB_DIR_OUT
+      },
+      .bRequest = FTDI_SIO_SET_BAUD_RATE,
+      .wValue   = 0x4138, // FIXME hardcoded to 9600 baud
+      .wIndex   = 0, // port
+      .wLength  = tu_htole16(sizeof(cdc_line_coding_t))
+    };
+
+    request = ftdi_request;
+  }
+  #endif
+  else {
+    return false;
+  }
 
   p_cdc->user_control_cb = complete_cb;
   tuh_xfer_t xfer =
@@ -434,8 +510,17 @@ bool cdch_xfer_cb(uint8_t daddr, uint8_t ep_addr, xfer_result_t event, uint32_t 
   {
     tu_edpt_stream_read_xfer_complete(&p_cdc->stream.rx, xferred_bytes);
 
+    #if CFG_TUH_CDC_FTDI
+    // FTDI reserve 2 bytes for status
+    if (p_cdc->serial_protocol == SERIAL_PROTOCOL_FTDI) {
+      uint8_t status[2];
+      tu_edpt_stream_read(&p_cdc->stream.rx, status, 2);
+      (void) status; // TODO handle status
+    }
+    #endif
+
     // invoke receive callback
-    if (tuh_cdc_rx_cb)  tuh_cdc_rx_cb(idx);
+    if (tuh_cdc_rx_cb) tuh_cdc_rx_cb(idx);
 
     // prepare for next transfer if needed
     tu_edpt_stream_read_xfer(&p_cdc->stream.rx);
@@ -453,17 +538,99 @@ bool cdch_xfer_cb(uint8_t daddr, uint8_t ep_addr, xfer_result_t event, uint32_t 
 //--------------------------------------------------------------------+
 // Enumeration
 //--------------------------------------------------------------------+
-
-bool cdch_open(uint8_t rhport, uint8_t daddr, tusb_desc_interface_t const *itf_desc, uint16_t max_len)
+enum
 {
-  (void) rhport;
+  // ACM
+  CONFIG_SET_CONTROL_LINE_STATE,
+  CONFIG_SET_LINE_CODING,
+  CONFIG_COMPLETE,
 
-  // Only support ACM subclass
-  // Protocol 0xFF can be RNDIS device for windows XP
-  TU_VERIFY( TUSB_CLASS_CDC                           == itf_desc->bInterfaceClass &&
-             CDC_COMM_SUBCLASS_ABSTRACT_CONTROL_MODEL == itf_desc->bInterfaceSubClass &&
-             0xFF                                     != itf_desc->bInterfaceProtocol);
+  // FTDI
+  CONFIG_FTDI_RESET
+};
 
+static bool open_ep_stream_pair(cdch_interface_t* p_cdc , tusb_desc_endpoint_t const *desc_ep)
+{
+  for(size_t i=0; i<2; i++)
+  {
+    TU_ASSERT(TUSB_DESC_ENDPOINT == desc_ep->bDescriptorType &&
+              TUSB_XFER_BULK     == desc_ep->bmAttributes.xfer);
+
+    TU_ASSERT(tuh_edpt_open(p_cdc->daddr, desc_ep));
+
+    if ( tu_edpt_dir(desc_ep->bEndpointAddress) == TUSB_DIR_IN )
+    {
+      tu_edpt_stream_open(&p_cdc->stream.rx, p_cdc->daddr, desc_ep);
+    }else
+    {
+      tu_edpt_stream_open(&p_cdc->stream.tx, p_cdc->daddr, desc_ep);
+    }
+
+    desc_ep = (tusb_desc_endpoint_t const*) tu_desc_next(desc_ep);
+  }
+
+  return true;
+}
+
+#if CFG_TUH_CDC_FTDI
+bool ftdih_open(uint8_t daddr, tusb_desc_interface_t const *itf_desc, uint16_t max_len) {
+  // FTDI configuration includes 1 vendor interface + 2 bulk endpoints
+  TU_VERIFY(itf_desc->bInterfaceSubClass == 0xff && itf_desc->bInterfaceProtocol == 0xff && itf_desc->bNumEndpoints == 2);
+  TU_VERIFY(sizeof(tusb_desc_interface_t) + 2*sizeof(tusb_desc_endpoint_t) <= max_len);
+
+  cdch_interface_t * p_cdc = find_new_itf();
+  TU_VERIFY(p_cdc);
+
+  p_cdc->daddr              = daddr;
+  p_cdc->bInterfaceNumber   = itf_desc->bInterfaceNumber;
+  p_cdc->bInterfaceSubClass = itf_desc->bInterfaceSubClass;
+  p_cdc->bInterfaceProtocol = itf_desc->bInterfaceProtocol;
+  p_cdc->line_state         = 0;
+  p_cdc->serial_protocol    = SERIAL_PROTOCOL_FTDI;
+
+  // endpoint pair
+  tusb_desc_endpoint_t const * desc_ep = (tusb_desc_endpoint_t const *) tu_desc_next(itf_desc);
+
+  // data endpoints expected to be in pairs
+  TU_ASSERT(open_ep_stream_pair(p_cdc, desc_ep));
+
+  return true;
+}
+
+static bool ftdih_sio_reset(cdch_interface_t* p_cdc, tuh_xfer_cb_t complete_cb, uintptr_t user_data)
+{
+  tusb_control_request_t const request = {
+    .bmRequestType_bit = {
+      .recipient = TUSB_REQ_RCPT_DEVICE,
+      .type      = TUSB_REQ_TYPE_VENDOR,
+      .direction = TUSB_DIR_OUT
+    },
+    .bRequest = FTDI_SIO_RESET,
+    .wValue   = tu_htole16(FTDI_SIO_RESET_SIO),
+    .wIndex   = 0,
+    .wLength  = 0
+  };
+
+  p_cdc->user_control_cb = complete_cb;
+
+  tuh_xfer_t xfer = {
+    .daddr       = p_cdc->daddr,
+    .ep_addr     = 0,
+    .setup       = &request,
+    .buffer      = NULL,
+    .complete_cb = complete_cb,
+    .user_data   = user_data
+  };
+
+  TU_ASSERT(tuh_control_xfer(&xfer));
+  return true;
+}
+
+#endif
+
+
+static bool acm_open(uint8_t daddr, tusb_desc_interface_t const *itf_desc, uint16_t max_len)
+{
   uint8_t const * p_desc_end = ((uint8_t const*) itf_desc) + max_len;
 
   cdch_interface_t * p_cdc = find_new_itf();
@@ -474,6 +641,7 @@ bool cdch_open(uint8_t rhport, uint8_t daddr, tusb_desc_interface_t const *itf_d
   p_cdc->bInterfaceSubClass = itf_desc->bInterfaceSubClass;
   p_cdc->bInterfaceProtocol = itf_desc->bInterfaceProtocol;
   p_cdc->line_state         = 0;
+  p_cdc->serial_protocol    = SERIAL_PROTOCOL_ACM;
 
   //------------- Control Interface -------------//
   uint8_t const * p_desc = tu_desc_next(itf_desc);
@@ -510,35 +678,45 @@ bool cdch_open(uint8_t rhport, uint8_t daddr, tusb_desc_interface_t const *itf_d
     p_desc = tu_desc_next(p_desc);
 
     // data endpoints expected to be in pairs
-    for(uint32_t i=0; i<2; i++)
-    {
-      tusb_desc_endpoint_t const *desc_ep = (tusb_desc_endpoint_t const *) p_desc;
-      TU_ASSERT(TUSB_DESC_ENDPOINT == desc_ep->bDescriptorType &&
-                TUSB_XFER_BULK     == desc_ep->bmAttributes.xfer);
-
-      TU_ASSERT(tuh_edpt_open(daddr, desc_ep));
-
-      if ( tu_edpt_dir(desc_ep->bEndpointAddress) == TUSB_DIR_IN )
-      {
-        tu_edpt_stream_open(&p_cdc->stream.rx, daddr, desc_ep);
-      }else
-      {
-        tu_edpt_stream_open(&p_cdc->stream.tx, daddr, desc_ep);
-      }
-
-      p_desc = tu_desc_next(p_desc);
-    }
+    TU_ASSERT(open_ep_stream_pair(p_cdc, (tusb_desc_endpoint_t const *) p_desc));
   }
 
   return true;
 }
 
-enum
+
+bool cdch_open(uint8_t rhport, uint8_t daddr, tusb_desc_interface_t const *itf_desc, uint16_t max_len)
 {
-  CONFIG_SET_CONTROL_LINE_STATE,
-  CONFIG_SET_LINE_CODING,
-  CONFIG_COMPLETE
-};
+  (void) rhport;
+
+  // Only support ACM subclass
+  // Note: Protocol 0xFF can be RNDIS device
+  if ( TUSB_CLASS_CDC                           == itf_desc->bInterfaceClass &&
+       CDC_COMM_SUBCLASS_ABSTRACT_CONTROL_MODEL == itf_desc->bInterfaceSubClass)
+  {
+    return acm_open(daddr, itf_desc, max_len);
+  }
+  else if ( 0xff == itf_desc->bInterfaceClass )
+  {
+    uint16_t vid, pid;
+    TU_VERIFY(tuh_vid_pid_get(daddr, &vid, &pid));
+
+#if CFG_TUH_CDC_FTDI
+    if (TU_FTDI_VID == vid) {
+      uint16_t const ftdi_pids[] = {TU_FTDI_PID_LIST};
+      enum { FTDI_PID_COUNT = sizeof(ftdi_pids) / sizeof(ftdi_pids[0]) };
+
+      for (size_t i = 0; i < FTDI_PID_COUNT; i++) {
+        if (ftdi_pids[i] == pid) {
+          return ftdih_open(daddr, itf_desc, max_len);
+        }
+      }
+    }
+#endif
+  }
+
+  return false;
+}
 
 static void process_cdc_config(tuh_xfer_t* xfer)
 {
@@ -550,9 +728,16 @@ static void process_cdc_config(tuh_xfer_t* xfer)
 
   switch(state)
   {
+    #if CFG_TUH_CDC_FTDI
+    // Note may need to read FTDI eeprom
+    case CONFIG_FTDI_RESET:
+      TU_ASSERT(ftdih_sio_reset(p_cdc, process_cdc_config, CONFIG_SET_CONTROL_LINE_STATE), );
+      break;
+    #endif
+
     case CONFIG_SET_CONTROL_LINE_STATE:
       #if CFG_TUH_CDC_LINE_CONTROL_ON_ENUM
-      if (p_cdc->acm_capability.support_line_request)
+      if (support_line_request(p_cdc))
       {
         TU_ASSERT( tuh_cdc_set_control_line_state(idx, CFG_TUH_CDC_LINE_CONTROL_ON_ENUM, process_cdc_config, CONFIG_SET_LINE_CODING), );
         break;
@@ -562,7 +747,7 @@ static void process_cdc_config(tuh_xfer_t* xfer)
 
     case CONFIG_SET_LINE_CODING:
       #ifdef CFG_TUH_CDC_LINE_CODING_ON_ENUM
-      if (p_cdc->acm_capability.support_line_request)
+      if (support_line_request(p_cdc))
       {
         cdc_line_coding_t line_coding = CFG_TUH_CDC_LINE_CODING_ON_ENUM;
         TU_ASSERT( tuh_cdc_set_line_coding(idx, &line_coding, process_cdc_config, CONFIG_COMPLETE), );
@@ -588,7 +773,6 @@ static void process_cdc_config(tuh_xfer_t* xfer)
 
 bool cdch_set_config(uint8_t daddr, uint8_t itf_num)
 {
-  // fake transfer to kick-off process
   tusb_control_request_t request;
   request.wIndex = tu_htole16((uint16_t) itf_num);
 
@@ -596,7 +780,25 @@ bool cdch_set_config(uint8_t daddr, uint8_t itf_num)
   xfer.daddr     = daddr;
   xfer.result    = XFER_RESULT_SUCCESS;
   xfer.setup     = &request;
-  xfer.user_data = CONFIG_SET_CONTROL_LINE_STATE;
+
+  // fake transfer to kick-off process
+  uint8_t const idx = tuh_cdc_itf_get_index(daddr, itf_num);
+  cdch_interface_t * p_cdc = get_itf(idx);
+  TU_ASSERT(p_cdc);
+
+  switch (p_cdc->serial_protocol) {
+    case SERIAL_PROTOCOL_ACM:
+      xfer.user_data = CONFIG_SET_CONTROL_LINE_STATE;
+      break;
+
+  #if CFG_TUH_CDC_FTDI
+    case SERIAL_PROTOCOL_FTDI:
+      xfer.user_data = CONFIG_FTDI_RESET;
+      break;
+  #endif
+
+      default: return false;
+  }
 
   process_cdc_config(&xfer);
 
