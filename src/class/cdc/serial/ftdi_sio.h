@@ -22,8 +22,8 @@
  * THE SOFTWARE.
  */
 
-#ifndef TUSB_FTDI_HOST_H
-#define TUSB_FTDI_HOST_H
+#ifndef TUSB_FTDI_SIO_H
+#define TUSB_FTDI_SIO_H
 
 // VID/PID for matching FTDI devices
 #define TU_FTDI_VID 0x0403
@@ -246,13 +246,4 @@
 #define FTDI_RS_TEMT	(1<<6)
 #define FTDI_RS_FIFO	(1<<7)
 
-//--------------------------------------------------------------------+
-// Internal Class Driver API
-//--------------------------------------------------------------------+
-void ftdih_init       (void);
-bool ftdih_open       (uint8_t daddr, tusb_desc_interface_t const *itf_desc, uint16_t max_len);
-bool ftdih_set_config (uint8_t daddr, uint8_t itf_num);
-bool ftdih_xfer_cb    (uint8_t daddr, uint8_t ep_addr, xfer_result_t event, uint32_t xferred_bytes);
-void ftdih_close      (uint8_t daddr);
-
-#endif //TUSB_FTDI_HOST_H
+#endif //TUSB_FTDI_SIO_H

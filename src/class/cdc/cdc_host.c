@@ -34,7 +34,7 @@
 #include "cdc_host.h"
 
 #if CFG_TUH_CDC_FTDI
-  #include "serial/ftdi_host.h"
+  #include "serial/ftdi_sio.h"
 #endif
 
 
