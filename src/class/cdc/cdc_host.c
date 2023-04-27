@@ -847,13 +847,36 @@ static bool ftdi_sio_set_modem_ctrl(cdch_interface_t* p_cdc, uint16_t line_state
   return true;
 }
 
+static uint32_t ftdi_232bm_baud_base_to_divisor(uint32_t baud, uint32_t base)
+{
+  const uint8_t divfrac[8] = { 0, 3, 2, 4, 1, 5, 6, 7 };
+  uint32_t divisor;
+
+  /* divisor shifted 3 bits to the left */
+  uint32_t divisor3 = base / (2 * baud);
+  divisor = (divisor3 >> 3);
+  divisor |= (uint32_t) divfrac[divisor3 & 0x7] << 14;
+
+  /* Deal with special cases for highest baud rates. */
+  if (divisor == 1) { /* 1.0 */
+    divisor = 0;
+  }
+  else if (divisor == 0x4001) { /* 1.5 */
+    divisor = 1;
+  }
+
+  return divisor;
+}
+
+static uint32_t ftdi_232bm_baud_to_divisor(uint32_t baud)
+{
+  return ftdi_232bm_baud_base_to_divisor(baud, 48000000u);
+}
+
 static bool ftdi_sio_set_baudrate(cdch_interface_t* p_cdc, uint32_t baudrate, tuh_xfer_cb_t complete_cb, uintptr_t user_data)
 {
-  // TODO baudrate to baud divisor
-  (void) baudrate;
-  uint16_t divisor = 0x4138; // FIXME hardcoded to 9600 baud
-
-  TU_LOG_CDCH("CDC FTDI Set BaudRate = %u, divisor = %u\n", baudrate, divisor);
+  uint16_t const divisor = (uint16_t) ftdi_232bm_baud_to_divisor(baudrate);
+  TU_LOG_CDCH("CDC FTDI Set BaudRate = %lu, divisor = 0x%04x\n", baudrate, divisor);
 
   p_cdc->user_control_cb = complete_cb;
   TU_ASSERT(ftdi_sio_set_request(p_cdc, FTDI_SIO_SET_BAUD_RATE, divisor, cdch_internal_control_complete, user_data));
@@ -985,7 +1008,7 @@ static bool cp210x_ifc_enable(cdch_interface_t* p_cdc, uint16_t enabled, tuh_xfe
 }
 
 static bool cp210x_set_baudrate(cdch_interface_t* p_cdc, uint32_t baudrate, tuh_xfer_cb_t complete_cb, uintptr_t user_data) {
-  TU_LOG_CDCH("CDC CP210x Set BaudRate = %u\n", baudrate);
+  TU_LOG_CDCH("CDC CP210x Set BaudRate = %lu\n", baudrate);
   baudrate = tu_htole32(baudrate);
   return cp210x_set_request(p_cdc, CP210X_SET_BAUDRATE, 0, (uint8_t *) &baudrate, 4, complete_cb, user_data);
 }
