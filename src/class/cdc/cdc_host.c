@@ -126,11 +126,6 @@ static cdch_interface_t* make_new_itf(uint8_t daddr, tusb_desc_interface_t const
   return NULL;
 }
 
-static inline bool support_line_request(cdch_interface_t const* p_cdc) {
-  return (p_cdc->serial_protocol == SERIAL_PROTOCOL_ACM && p_cdc->acm_capability.support_line_request) ||
-          (p_cdc->serial_protocol == SERIAL_PROTOCOL_FTDI);
-}
-
 static bool open_ep_stream_pair(cdch_interface_t* p_cdc , tusb_desc_endpoint_t const *desc_ep);
 static void set_config_complete(cdch_interface_t * p_cdc, uint8_t idx, uint8_t itf_num);
 static void cdch_internal_control_complete(tuh_xfer_t* xfer);
@@ -391,10 +386,11 @@ static bool acm_set_control_line_state(cdch_interface_t* p_cdc, uint16_t line_st
 bool tuh_cdc_set_control_line_state(uint8_t idx, uint16_t line_state, tuh_xfer_cb_t complete_cb, uintptr_t user_data)
 {
   cdch_interface_t* p_cdc = get_itf(idx);
-  TU_VERIFY(p_cdc && support_line_request(p_cdc));
+  TU_VERIFY(p_cdc);
 
   switch(p_cdc->serial_protocol) {
     case SERIAL_PROTOCOL_ACM:
+      TU_VERIFY(p_cdc->acm_capability.support_line_request);
       return acm_set_control_line_state(p_cdc, line_state, complete_cb, user_data);
 
     #if CFG_TUH_CDC_FTDI
@@ -413,6 +409,8 @@ bool tuh_cdc_set_control_line_state(uint8_t idx, uint16_t line_state, tuh_xfer_c
 }
 
 bool acm_set_line_coding(cdch_interface_t* p_cdc, cdc_line_coding_t const* line_coding, tuh_xfer_cb_t complete_cb, uintptr_t user_data) {
+  TU_LOG_CDCH("CDC ACM Set Line Conding\r\n");
+
   tusb_control_request_t const request = {
     .bmRequestType_bit = {
       .recipient = TUSB_REQ_RCPT_INTERFACE,
@@ -446,11 +444,11 @@ bool acm_set_line_coding(cdch_interface_t* p_cdc, cdc_line_coding_t const* line_
 bool tuh_cdc_set_line_coding(uint8_t idx, cdc_line_coding_t const* line_coding, tuh_xfer_cb_t complete_cb, uintptr_t user_data)
 {
   cdch_interface_t* p_cdc = get_itf(idx);
-  TU_VERIFY(p_cdc && support_line_request(p_cdc));
-  TU_LOG_CDCH("CDC Set Line Conding\r\n");
+  TU_VERIFY(p_cdc);
 
   switch(p_cdc->serial_protocol) {
     case SERIAL_PROTOCOL_ACM:
+      TU_VERIFY(p_cdc->acm_capability.support_line_request);
       return acm_set_line_coding(p_cdc, line_coding, complete_cb, user_data);
 
     #if CFG_TUH_CDC_FTDI
@@ -462,6 +460,33 @@ bool tuh_cdc_set_line_coding(uint8_t idx, cdc_line_coding_t const* line_coding, 
     #if CFG_TUH_CDC_CP210X
     case SERIAL_PROTOCOL_CP210X:
       return cp210x_set_baudrate(p_cdc, line_coding->bit_rate, complete_cb, user_data);
+    #endif
+
+    default: return false;
+  }
+}
+
+bool tuh_cdc_set_baudrate(uint8_t idx, uint32_t baudrate, tuh_xfer_cb_t complete_cb, uintptr_t user_data) {
+  cdch_interface_t* p_cdc = get_itf(idx);
+  TU_VERIFY(p_cdc);
+
+  switch(p_cdc->serial_protocol) {
+    case SERIAL_PROTOCOL_ACM: {
+      TU_VERIFY(p_cdc->acm_capability.support_line_request);
+      cdc_line_coding_t line_coding = p_cdc->line_coding;
+      line_coding.bit_rate = baudrate;
+      return acm_set_line_coding(p_cdc, &line_coding, complete_cb, user_data);
+    }
+
+    #if CFG_TUH_CDC_FTDI
+    case SERIAL_PROTOCOL_FTDI:
+      // FTDI need to set baud rate and data bits, parity, stop bits separately
+      return ftdi_sio_set_baudrate(p_cdc, baudrate, complete_cb, user_data);
+    #endif
+
+    #if CFG_TUH_CDC_CP210X
+    case SERIAL_PROTOCOL_CP210X:
+      return cp210x_set_baudrate(p_cdc, baudrate, complete_cb, user_data);
     #endif
 
     default: return false;
@@ -722,7 +747,7 @@ static void process_acm_config(tuh_xfer_t* xfer)
       if (p_cdc->acm_capability.support_line_request)
       {
         cdc_line_coding_t line_coding = CFG_TUH_CDC_LINE_CODING_ON_ENUM;
-        TU_ASSERT(tuh_cdc_set_line_coding(idx, &line_coding, process_acm_config, CONFIG_ACM_COMPLETE), );
+        TU_ASSERT(acm_set_line_coding(p_cdc, &line_coding, process_acm_config, CONFIG_ACM_COMPLETE), );
         break;
       }
       #endif
