@@ -97,7 +97,8 @@
 
 #define CFG_TUH_HUB                 1 // number of supported hubs
 #define CFG_TUH_CDC                 1 // CDC ACM
-#define CFG_TUH_CDC_FTDI            1 // FTDI UART
+#define CFG_TUH_CDC_FTDI            1 // FTDI Serial
+#define CFG_TUH_CDC_CP210X          1 // CP210x Serial
 #define CFG_TUH_HID                 (3*CFG_TUH_DEVICE_MAX) // typical keyboard + mouse device can have 3-4 HID interfaces
 #define CFG_TUH_MSC                 1
 #define CFG_TUH_VENDOR              0
