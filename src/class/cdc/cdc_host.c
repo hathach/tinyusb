@@ -33,14 +33,6 @@
 
 #include "cdc_host.h"
 
-#if CFG_TUH_CDC_FTDI
-  #include "serial/ftdi_sio.h"
-#endif
-
-#if CFG_TUH_CDC_CP210X
-  #include "serial/cp210x.h"
-#endif
-
 // Debug level, TUSB_CFG_DEBUG must be at least this level for debug message
 #define CDCH_DEBUG   2
 
@@ -145,6 +137,8 @@ static void cdch_internal_control_complete(tuh_xfer_t* xfer);
 
 //------------- FTDI prototypes -------------//
 #if CFG_TUH_CDC_FTDI
+#include "serial/ftdi_sio.h"
+
 static uint16_t const ftdi_pids[] = { TU_FTDI_PID_LIST };
 enum {
   FTDI_PID_COUNT = sizeof(ftdi_pids) / sizeof(ftdi_pids[0])
@@ -159,6 +153,8 @@ static bool ftdi_sio_set_baudrate(cdch_interface_t* p_cdc, uint32_t baudrate, tu
 
 //------------- CP210X prototypes -------------//
 #if CFG_TUH_CDC_CP210X
+#include "serial/cp210x.h"
+
 static uint16_t const cp210x_pids[] = { TU_CP210X_PID_LIST };
 enum {
   CP210X_PID_COUNT = sizeof(cp210x_pids) / sizeof(cp210x_pids[0])
