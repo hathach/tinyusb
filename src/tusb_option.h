@@ -440,8 +440,13 @@
 #endif
 
 #ifndef CFG_TUH_CDC_FTDI
-  // FTDI is not part of CDC class, CDC is used for Serial-over-USB here
+  // FTDI is not part of CDC class, only to re-use CDC driver API
   #define CFG_TUH_CDC_FTDI 0
+#endif
+
+#ifndef CFG_TUH_CDC_CP210X
+  // CP210X is not part of CDC class, only to re-use CDC driver API
+  #define CFG_TUH_CDC_CP210X 0
 #endif
 
 #ifndef CFG_TUH_HID
