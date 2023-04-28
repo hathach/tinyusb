@@ -1322,7 +1322,7 @@ void dcd_int_handler(uint8_t rhport)
     do
     {
       handle_rxflvl_irq(rhport);
-    } while(dwc2->gotgint & GINTSTS_RXFLVL);
+    } while(dwc2->gintsts & GINTSTS_RXFLVL);
 
     // Manage RX FIFO size
     if (_out_ep_closed)
