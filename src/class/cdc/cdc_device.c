@@ -53,7 +53,7 @@ typedef struct
 
   /*------------- From this point, data is not cleared by bus reset -------------*/
   char    wanted_char;
-  cdc_line_coding_t line_coding;
+  CFG_TUSB_MEM_ALIGN cdc_line_coding_t line_coding;
 
   // FIFO
   tu_fifo_t rx_ff;
