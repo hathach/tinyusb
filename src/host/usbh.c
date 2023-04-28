@@ -571,19 +571,19 @@ bool tuh_control_xfer (tuh_xfer_t* xfer)
 
     TU_ASSERT( hcd_setup_send(rhport, daddr, (uint8_t*) &_ctrl_xfer.request) );
 
-    while (result == XFER_RESULT_INVALID)
-    {
+    while (result == XFER_RESULT_INVALID) {
       // Note: this can be called within an callback ie. part of tuh_task()
       // therefore event with RTOS tuh_task() still need to be invoked
-      if (tuh_task_event_ready())
-      {
+      if (tuh_task_event_ready()) {
         tuh_task();
       }
-
       // TODO probably some timeout to prevent hanged
     }
 
-    // update transfer result
+    // update transfer result, user_data is expected to point to xfer_result_t
+    if (xfer->user_data != 0) {
+      *((xfer_result_t*) xfer->user_data) = result;
+    }
     xfer->result     = result;
     xfer->actual_len = _ctrl_xfer.actual_len;
   }
@@ -877,7 +877,7 @@ TU_ATTR_FAST_FUNC void hcd_event_handler(hcd_event_t const* event, bool in_isr)
 //--------------------------------------------------------------------+
 
 // generic helper to get a descriptor
-// if blocking, user_data could be pointed to xfer_result
+// if blocking, user_data is pointed to xfer_result
 static bool _get_descriptor(uint8_t daddr, uint8_t type, uint8_t index, uint16_t language_id, void* buffer, uint16_t len,
                             tuh_xfer_cb_t complete_cb, uintptr_t user_data)
 {
@@ -905,15 +905,7 @@ static bool _get_descriptor(uint8_t daddr, uint8_t type, uint8_t index, uint16_t
     .user_data   = user_data
   };
 
-  bool const ret = tuh_control_xfer(&xfer);
-
-  // if blocking, user_data could be pointed to xfer_result
-  if ( !complete_cb && user_data )
-  {
-    *((xfer_result_t*) user_data) = xfer.result;
-  }
-
-  return ret;
+  return tuh_control_xfer(&xfer);
 }
 
 bool tuh_descriptor_get(uint8_t daddr, uint8_t type, uint8_t index, void* buffer, uint16_t len,
@@ -971,7 +963,7 @@ bool tuh_descriptor_get_serial_string(uint8_t daddr, uint16_t language_id, void*
 }
 
 // Get HID report descriptor
-// if blocking, user_data could be pointed to xfer_result
+// if blocking, user_data is pointed to xfer_result
 bool tuh_descriptor_get_hid_report(uint8_t daddr, uint8_t itf_num, uint8_t desc_type, uint8_t index, void* buffer, uint16_t len,
                                    tuh_xfer_cb_t complete_cb, uintptr_t user_data)
 {
@@ -1000,15 +992,7 @@ bool tuh_descriptor_get_hid_report(uint8_t daddr, uint8_t itf_num, uint8_t desc_
     .user_data   = user_data
   };
 
-  bool const ret = tuh_control_xfer(&xfer);
-
-  // if blocking, user_data could be pointed to xfer_result
-  if ( !complete_cb && user_data )
-  {
-    *((xfer_result_t*) user_data) = xfer.result;
-  }
-
-  return ret;
+  return tuh_control_xfer(&xfer);
 }
 
 bool tuh_configuration_set(uint8_t daddr, uint8_t config_num,
@@ -1040,15 +1024,7 @@ bool tuh_configuration_set(uint8_t daddr, uint8_t config_num,
     .user_data   = user_data
   };
 
-  bool ret = tuh_control_xfer(&xfer);
-
-  // if blocking, user_data could be pointed to xfer_result
-  if ( !complete_cb && user_data )
-  {
-    *((xfer_result_t*) user_data) = xfer.result;
-  }
-
-  return ret;
+  return tuh_control_xfer(&xfer);
 }
 
 bool tuh_interface_set(uint8_t daddr, uint8_t itf_num, uint8_t itf_alt,
@@ -1080,15 +1056,7 @@ bool tuh_interface_set(uint8_t daddr, uint8_t itf_num, uint8_t itf_alt,
     .user_data   = user_data
   };
 
-  bool ret = tuh_control_xfer(&xfer);
-
-  // if blocking, user_data could be pointed to xfer_result
-  if ( !complete_cb && user_data )
-  {
-    *((xfer_result_t*) user_data) = xfer.result;
-  }
-
-  return ret;
+  return tuh_control_xfer(&xfer);
 }
 
 //--------------------------------------------------------------------+

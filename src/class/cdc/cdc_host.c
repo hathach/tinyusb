@@ -39,14 +39,8 @@
 #define TU_LOG_CDCH(...)   TU_LOG(CDCH_DEBUG, __VA_ARGS__)
 
 //--------------------------------------------------------------------+
-// MACRO CONSTANT TYPEDEF
+// Host CDC Interface
 //--------------------------------------------------------------------+
-
-enum {
-  SERIAL_PROTOCOL_ACM = 0,
-  SERIAL_PROTOCOL_FTDI,
-  SERIAL_PROTOCOL_CP210X,
-};
 
 typedef struct {
   uint8_t daddr;
@@ -54,7 +48,7 @@ typedef struct {
   uint8_t bInterfaceSubClass;
   uint8_t bInterfaceProtocol;
 
-  uint8_t serial_protocol;
+  uint8_t serial_drid; // Serial Driver ID
   cdc_acm_capability_t acm_capability;
   uint8_t ep_notif;
 
@@ -76,12 +70,102 @@ typedef struct {
 
 } cdch_interface_t;
 
+CFG_TUH_MEM_SECTION
+static cdch_interface_t cdch_data[CFG_TUH_CDC];
+
+//--------------------------------------------------------------------+
+// Serial Driver
+//--------------------------------------------------------------------+
+
+//------------- ACM prototypes -------------//
+static void acm_process_config(tuh_xfer_t* xfer);
+
+static bool acm_set_line_coding(cdch_interface_t* p_cdc, cdc_line_coding_t const* line_coding, tuh_xfer_cb_t complete_cb, uintptr_t user_data);
+static bool acm_set_control_line_state(cdch_interface_t* p_cdc, uint16_t line_state, tuh_xfer_cb_t complete_cb, uintptr_t user_data);
+static bool acm_set_baudrate(cdch_interface_t* p_cdc, uint32_t baudrate, tuh_xfer_cb_t complete_cb, uintptr_t user_data);
+
+//------------- FTDI prototypes -------------//
+#if CFG_TUH_CDC_FTDI
+#include "serial/ftdi_sio.h"
+
+static uint16_t const ftdi_pids[] = { TU_FTDI_PID_LIST };
+enum {
+  FTDI_PID_COUNT = sizeof(ftdi_pids) / sizeof(ftdi_pids[0])
+};
+
+// Store last request baudrate since divisor to baudrate is not easy
+static uint32_t _ftdi_requested_baud;
+
+static bool ftdi_open(uint8_t daddr, const tusb_desc_interface_t *itf_desc, uint16_t max_len);
+static void ftdi_process_config(tuh_xfer_t* xfer);
+
+static bool ftdi_sio_set_modem_ctrl(cdch_interface_t* p_cdc, uint16_t line_state, tuh_xfer_cb_t complete_cb, uintptr_t user_data);
+static bool ftdi_sio_set_baudrate(cdch_interface_t* p_cdc, uint32_t baudrate, tuh_xfer_cb_t complete_cb, uintptr_t user_data);
+#endif
+
+//------------- CP210X prototypes -------------//
+#if CFG_TUH_CDC_CP210X
+#include "serial/cp210x.h"
+
+static uint16_t const cp210x_pids[] = { TU_CP210X_PID_LIST };
+enum {
+  CP210X_PID_COUNT = sizeof(cp210x_pids) / sizeof(cp210x_pids[0])
+};
+
+static bool cp210x_open(uint8_t daddr, tusb_desc_interface_t const *itf_desc, uint16_t max_len);
+static void cp210x_process_config(tuh_xfer_t* xfer);
+
+static bool cp210x_set_modem_ctrl(cdch_interface_t* p_cdc, uint16_t line_state, tuh_xfer_cb_t complete_cb, uintptr_t user_data);
+static bool cp210x_set_baudrate(cdch_interface_t* p_cdc, uint32_t baudrate, tuh_xfer_cb_t complete_cb, uintptr_t user_data);
+#endif
+
+enum {
+  SERIAL_DRIVER_ACM = 0,
+
+#if CFG_TUH_CDC_FTDI
+  SERIAL_DRIVER_FTDI,
+#endif
+
+#if CFG_TUH_CDC_CP210X
+  SERIAL_DRIVER_CP210X,
+#endif
+};
+
+typedef struct {
+  void (*const process_set_config)(tuh_xfer_t* xfer);
+  bool (*const set_control_line_state)(cdch_interface_t* p_cdc, uint16_t line_state, tuh_xfer_cb_t complete_cb, uintptr_t user_data);
+  bool (*const set_baudrate)(cdch_interface_t* p_cdc, uint32_t baudrate, tuh_xfer_cb_t complete_cb, uintptr_t user_data);
+} cdch_serial_driver_t;
+
+// Note driver list must be in the same order as SERIAL_DRIVER enum
+static const cdch_serial_driver_t serial_drivers[] = {
+  { .process_set_config     = acm_process_config,
+    .set_control_line_state = acm_set_control_line_state,
+    .set_baudrate           = acm_set_baudrate
+  },
+
+  #if CFG_TUH_CDC_FTDI
+  { .process_set_config     = ftdi_process_config,
+    .set_control_line_state = ftdi_sio_set_modem_ctrl,
+    .set_baudrate           = ftdi_sio_set_baudrate
+  },
+  #endif
+
+  #if CFG_TUH_CDC_CP210X
+  { .process_set_config     = cp210x_process_config,
+    .set_control_line_state = cp210x_set_modem_ctrl,
+    .set_baudrate           = cp210x_set_baudrate
+  },
+  #endif
+};
+
+enum {
+  SERIAL_DRIVER_COUNT = sizeof(serial_drivers) / sizeof(serial_drivers[0])
+};
+
 //--------------------------------------------------------------------+
 // INTERNAL OBJECT & FUNCTION DECLARATION
 //--------------------------------------------------------------------+
-
-CFG_TUH_MEM_SECTION
-static cdch_interface_t cdch_data[CFG_TUH_CDC];
 
 static inline cdch_interface_t* get_itf(uint8_t idx)
 {
@@ -129,39 +213,6 @@ static cdch_interface_t* make_new_itf(uint8_t daddr, tusb_desc_interface_t const
 static bool open_ep_stream_pair(cdch_interface_t* p_cdc , tusb_desc_endpoint_t const *desc_ep);
 static void set_config_complete(cdch_interface_t * p_cdc, uint8_t idx, uint8_t itf_num);
 static void cdch_internal_control_complete(tuh_xfer_t* xfer);
-
-//------------- FTDI prototypes -------------//
-#if CFG_TUH_CDC_FTDI
-#include "serial/ftdi_sio.h"
-
-static uint16_t const ftdi_pids[] = { TU_FTDI_PID_LIST };
-enum {
-  FTDI_PID_COUNT = sizeof(ftdi_pids) / sizeof(ftdi_pids[0])
-};
-
-static bool ftdi_open(uint8_t daddr, const tusb_desc_interface_t *itf_desc, uint16_t max_len);
-static void process_ftdi_config(tuh_xfer_t* xfer);
-
-static bool ftdi_sio_set_modem_ctrl(cdch_interface_t* p_cdc, uint16_t line_state, tuh_xfer_cb_t complete_cb, uintptr_t user_data);
-static bool ftdi_sio_set_baudrate(cdch_interface_t* p_cdc, uint32_t baudrate, tuh_xfer_cb_t complete_cb, uintptr_t user_data);
-#endif
-
-//------------- CP210X prototypes -------------//
-#if CFG_TUH_CDC_CP210X
-#include "serial/cp210x.h"
-
-static uint16_t const cp210x_pids[] = { TU_CP210X_PID_LIST };
-enum {
-  CP210X_PID_COUNT = sizeof(cp210x_pids) / sizeof(cp210x_pids[0])
-};
-
-static bool cp210x_open(uint8_t daddr, tusb_desc_interface_t const *itf_desc, uint16_t max_len);
-static void process_cp210x_config(tuh_xfer_t* xfer);
-
-static bool cp210x_set_modem_ctrl(cdch_interface_t* p_cdc, uint16_t line_state, tuh_xfer_cb_t complete_cb, uintptr_t user_data);
-static bool cp210x_set_baudrate(cdch_interface_t* p_cdc, uint32_t baudrate, tuh_xfer_cb_t complete_cb, uintptr_t user_data);
-#endif
-
 
 //--------------------------------------------------------------------+
 // APPLICATION API
@@ -322,174 +373,138 @@ static void cdch_internal_control_complete(tuh_xfer_t* xfer)
 
   if (xfer->result == XFER_RESULT_SUCCESS)
   {
-    if (p_cdc->serial_protocol == SERIAL_PROTOCOL_ACM) {
-      switch (xfer->setup->bRequest) {
-        case CDC_REQUEST_SET_CONTROL_LINE_STATE:
-          p_cdc->line_state = (uint8_t) tu_le16toh(xfer->setup->wValue);
-          break;
+    switch (p_cdc->serial_drid) {
+      case SERIAL_DRIVER_ACM:
+        switch (xfer->setup->bRequest) {
+          case CDC_REQUEST_SET_CONTROL_LINE_STATE:
+            p_cdc->line_state = (uint8_t) tu_le16toh(xfer->setup->wValue);
+            break;
 
-        case CDC_REQUEST_SET_LINE_CODING: {
-          uint16_t const len = tu_min16(sizeof(cdc_line_coding_t), tu_le16toh(xfer->setup->wLength));
-          memcpy(&p_cdc->line_coding, xfer->buffer, len);
+          case CDC_REQUEST_SET_LINE_CODING: {
+            uint16_t const len = tu_min16(sizeof(cdc_line_coding_t), tu_le16toh(xfer->setup->wLength));
+            memcpy(&p_cdc->line_coding, xfer->buffer, len);
+          }
+            break;
+
+          default: break;
         }
-          break;
+        break;
 
-        default: break;
-      }
-    }
-    #if CFG_TUH_CDC_FTDI
-    else if (p_cdc->serial_protocol == SERIAL_PROTOCOL_FTDI) {
-      switch (xfer->setup->bRequest) {
-        case FTDI_SIO_MODEM_CTRL:
-          p_cdc->line_state = (uint8_t) (tu_le16toh(xfer->setup->wValue) & 0x00ff);
-          break;
+      #if CFG_TUH_CDC_FTDI
+      case SERIAL_DRIVER_FTDI:
+        switch (xfer->setup->bRequest) {
+          case FTDI_SIO_MODEM_CTRL:
+            p_cdc->line_state = (uint8_t) (tu_le16toh(xfer->setup->wValue) & 0x00ff);
+            break;
 
-        default: break;
-      }
+          case FTDI_SIO_SET_BAUD_RATE:
+            // convert from divisor to baudrate is not supported
+            p_cdc->line_coding.bit_rate = _ftdi_requested_baud;
+            break;
+
+          default: break;
+        }
+        break;
+      #endif
+
+      #if CFG_TUH_CDC_CP210X
+      case SERIAL_DRIVER_CP210X:
+        switch(xfer->setup->bRequest) {
+          case CP210X_SET_MHS:
+            p_cdc->line_state = (uint8_t) (tu_le16toh(xfer->setup->wValue) & 0x00ff);
+            break;
+
+          case CP210X_SET_BAUDRATE: {
+            uint32_t baudrate;
+            memcpy(&baudrate, xfer->buffer, sizeof(uint32_t));
+            p_cdc->line_coding.bit_rate = tu_le32toh(baudrate);
+          }
+            break;
+        }
+        break;
+      #endif
+
+      default: break;
     }
-    #endif
   }
 
   xfer->complete_cb = p_cdc->user_control_cb;
-  xfer->complete_cb(xfer);
-}
-
-static bool acm_set_control_line_state(cdch_interface_t* p_cdc, uint16_t line_state, tuh_xfer_cb_t complete_cb, uintptr_t user_data) {
-  TU_LOG_CDCH("CDC ACM Set Control Line State\r\n");
-  tusb_control_request_t const request = {
-    .bmRequestType_bit = {
-      .recipient = TUSB_REQ_RCPT_INTERFACE,
-      .type      = TUSB_REQ_TYPE_CLASS,
-      .direction = TUSB_DIR_OUT
-    },
-    .bRequest = CDC_REQUEST_SET_CONTROL_LINE_STATE,
-    .wValue   = tu_htole16(line_state),
-    .wIndex   = tu_htole16((uint16_t) p_cdc->bInterfaceNumber),
-    .wLength  = 0
-  };
-
-  p_cdc->user_control_cb = complete_cb;
-
-  tuh_xfer_t xfer = {
-    .daddr       = p_cdc->daddr,
-    .ep_addr     = 0,
-    .setup       = &request,
-    .buffer      = NULL,
-    .complete_cb = cdch_internal_control_complete,
-    .user_data   = user_data
-  };
-
-  TU_ASSERT(tuh_control_xfer(&xfer));
-  return true;
-}
-
-bool tuh_cdc_set_control_line_state(uint8_t idx, uint16_t line_state, tuh_xfer_cb_t complete_cb, uintptr_t user_data)
-{
-  cdch_interface_t* p_cdc = get_itf(idx);
-  TU_VERIFY(p_cdc);
-
-  switch(p_cdc->serial_protocol) {
-    case SERIAL_PROTOCOL_ACM:
-      TU_VERIFY(p_cdc->acm_capability.support_line_request);
-      return acm_set_control_line_state(p_cdc, line_state, complete_cb, user_data);
-
-    #if CFG_TUH_CDC_FTDI
-    case SERIAL_PROTOCOL_FTDI:
-      return ftdi_sio_set_modem_ctrl(p_cdc, line_state, complete_cb, user_data);
-    #endif
-
-    #if CFG_TUH_CDC_CP210X
-    case SERIAL_PROTOCOL_CP210X:
-      return ftdi_sio_set_modem_ctrl(p_cdc, line_state, complete_cb, user_data);
-    #endif
-
-    default:
-      return false;
+  if (xfer->complete_cb) {
+    xfer->complete_cb(xfer);
   }
 }
 
-bool acm_set_line_coding(cdch_interface_t* p_cdc, cdc_line_coding_t const* line_coding, tuh_xfer_cb_t complete_cb, uintptr_t user_data) {
-  TU_LOG_CDCH("CDC ACM Set Line Conding\r\n");
-
-  tusb_control_request_t const request = {
-    .bmRequestType_bit = {
-      .recipient = TUSB_REQ_RCPT_INTERFACE,
-      .type      = TUSB_REQ_TYPE_CLASS,
-      .direction = TUSB_DIR_OUT
-    },
-    .bRequest = CDC_REQUEST_SET_LINE_CODING,
-    .wValue   = 0,
-    .wIndex   = tu_htole16(p_cdc->bInterfaceNumber),
-    .wLength  = tu_htole16(sizeof(cdc_line_coding_t))
-  };
-
-  // use usbh enum buf to hold line coding since user line_coding variable does not live long enough
-  uint8_t* enum_buf = usbh_get_enum_buf();
-  memcpy(enum_buf, line_coding, sizeof(cdc_line_coding_t));
-
-  p_cdc->user_control_cb = complete_cb;
-  tuh_xfer_t xfer = {
-    .daddr       = p_cdc->daddr,
-    .ep_addr     = 0,
-    .setup       = &request,
-    .buffer      = enum_buf,
-    .complete_cb = cdch_internal_control_complete,
-    .user_data   = user_data
-  };
-
-  TU_ASSERT(tuh_control_xfer(&xfer));
-  return true;
-}
-
-bool tuh_cdc_set_line_coding(uint8_t idx, cdc_line_coding_t const* line_coding, tuh_xfer_cb_t complete_cb, uintptr_t user_data)
-{
+bool tuh_cdc_set_control_line_state(uint8_t idx, uint16_t line_state, tuh_xfer_cb_t complete_cb, uintptr_t user_data) {
   cdch_interface_t* p_cdc = get_itf(idx);
-  TU_VERIFY(p_cdc);
+  TU_VERIFY(p_cdc && p_cdc->serial_drid < SERIAL_DRIVER_COUNT);
+  cdch_serial_driver_t const* driver = &serial_drivers[p_cdc->serial_drid];
 
-  switch(p_cdc->serial_protocol) {
-    case SERIAL_PROTOCOL_ACM:
-      TU_VERIFY(p_cdc->acm_capability.support_line_request);
-      return acm_set_line_coding(p_cdc, line_coding, complete_cb, user_data);
+  if ( complete_cb ) {
+    return driver->set_control_line_state(p_cdc, line_state, complete_cb, user_data);
+  }else {
+    // blocking
+    xfer_result_t result = XFER_RESULT_INVALID;
+    bool ret = driver->set_control_line_state(p_cdc, line_state, complete_cb, (uintptr_t) &result);
 
-    #if CFG_TUH_CDC_FTDI
-    case SERIAL_PROTOCOL_FTDI:
-      // FTDI need to set baud rate and data bits, parity, stop bits separately
-      return ftdi_sio_set_baudrate(p_cdc, line_coding->bit_rate, complete_cb, user_data);
-    #endif
+    if (user_data) {
+      // user_data is not NULL, return result via user_data
+      *((xfer_result_t*) user_data) = result;
+    }
 
-    #if CFG_TUH_CDC_CP210X
-    case SERIAL_PROTOCOL_CP210X:
-      return cp210x_set_baudrate(p_cdc, line_coding->bit_rate, complete_cb, user_data);
-    #endif
+    TU_VERIFY(ret && result == XFER_RESULT_SUCCESS);
 
-    default: return false;
+    p_cdc->line_state = (uint8_t) line_state;
+    return true;
   }
 }
 
 bool tuh_cdc_set_baudrate(uint8_t idx, uint32_t baudrate, tuh_xfer_cb_t complete_cb, uintptr_t user_data) {
   cdch_interface_t* p_cdc = get_itf(idx);
-  TU_VERIFY(p_cdc);
+  TU_VERIFY(p_cdc && p_cdc->serial_drid < SERIAL_DRIVER_COUNT);
+  cdch_serial_driver_t const* driver = &serial_drivers[p_cdc->serial_drid];
 
-  switch(p_cdc->serial_protocol) {
-    case SERIAL_PROTOCOL_ACM: {
-      TU_VERIFY(p_cdc->acm_capability.support_line_request);
-      cdc_line_coding_t line_coding = p_cdc->line_coding;
-      line_coding.bit_rate = baudrate;
-      return acm_set_line_coding(p_cdc, &line_coding, complete_cb, user_data);
+  if ( complete_cb ) {
+    return driver->set_baudrate(p_cdc, baudrate, complete_cb, user_data);
+  }else {
+    // blocking
+    xfer_result_t result = XFER_RESULT_INVALID;
+    bool ret = driver->set_baudrate(p_cdc, baudrate, complete_cb, (uintptr_t) &result);
+
+    if (user_data) {
+      // user_data is not NULL, return result via user_data
+      *((xfer_result_t*) user_data) = result;
     }
 
-    #if CFG_TUH_CDC_FTDI
-    case SERIAL_PROTOCOL_FTDI:
-      // FTDI need to set baud rate and data bits, parity, stop bits separately
-      return ftdi_sio_set_baudrate(p_cdc, baudrate, complete_cb, user_data);
-    #endif
+    TU_VERIFY(ret && result == XFER_RESULT_SUCCESS);
 
-    #if CFG_TUH_CDC_CP210X
-    case SERIAL_PROTOCOL_CP210X:
-      return cp210x_set_baudrate(p_cdc, baudrate, complete_cb, user_data);
-    #endif
+    p_cdc->line_coding.bit_rate = baudrate;
+    return true;
+  }
+}
 
-    default: return false;
+bool tuh_cdc_set_line_coding(uint8_t idx, cdc_line_coding_t const* line_coding, tuh_xfer_cb_t complete_cb, uintptr_t user_data)
+{
+  cdch_interface_t* p_cdc = get_itf(idx);
+  // only ACM support this set line coding request
+  TU_VERIFY(p_cdc && p_cdc->serial_drid == SERIAL_DRIVER_ACM);
+  TU_VERIFY(p_cdc->acm_capability.support_line_request);
+
+  if ( complete_cb ) {
+    return acm_set_line_coding(p_cdc, line_coding, complete_cb, user_data);
+  }else {
+    // blocking
+    xfer_result_t result = XFER_RESULT_INVALID;
+    bool ret = acm_set_line_coding(p_cdc, line_coding, complete_cb, (uintptr_t) &result);
+
+    if (user_data) {
+      // user_data is not NULL, return result via user_data
+      *((xfer_result_t*) user_data) = result;
+    }
+
+    TU_VERIFY(ret && result == XFER_RESULT_SUCCESS);
+
+    p_cdc->line_coding = *line_coding;
+    return true;
   }
 }
 
@@ -561,7 +576,7 @@ bool cdch_xfer_cb(uint8_t daddr, uint8_t ep_addr, xfer_result_t event, uint32_t 
 
     #if CFG_TUH_CDC_FTDI
     // FTDI reserve 2 bytes for status
-    if (p_cdc->serial_protocol == SERIAL_PROTOCOL_FTDI) {
+    if (p_cdc->serial_drid == SERIAL_DRIVER_FTDI) {
       uint8_t status[2];
       tu_edpt_stream_read(&p_cdc->stream.rx, status, 2);
       (void) status; // TODO handle status
@@ -587,15 +602,10 @@ bool cdch_xfer_cb(uint8_t daddr, uint8_t ep_addr, xfer_result_t event, uint32_t 
 //--------------------------------------------------------------------+
 // Enumeration
 //--------------------------------------------------------------------+
-enum
-{
-  // ACM
-  CONFIG_ACM_SET_CONTROL_LINE_STATE = 0,
-  CONFIG_ACM_SET_LINE_CODING,
-  CONFIG_ACM_COMPLETE,
-};
 
-static bool open_ep_stream_pair(cdch_interface_t* p_cdc , tusb_desc_endpoint_t const *desc_ep)
+static bool acm_open(uint8_t daddr, tusb_desc_interface_t const *itf_desc, uint16_t max_len);
+
+static bool open_ep_stream_pair(cdch_interface_t* p_cdc, tusb_desc_endpoint_t const *desc_ep)
 {
   for(size_t i=0; i<2; i++)
   {
@@ -617,57 +627,6 @@ static bool open_ep_stream_pair(cdch_interface_t* p_cdc , tusb_desc_endpoint_t c
 
   return true;
 }
-
-static bool acm_open(uint8_t daddr, tusb_desc_interface_t const *itf_desc, uint16_t max_len)
-{
-  uint8_t const * p_desc_end = ((uint8_t const*) itf_desc) + max_len;
-
-  cdch_interface_t * p_cdc = make_new_itf(daddr, itf_desc);
-  TU_VERIFY(p_cdc);
-
-  p_cdc->serial_protocol = SERIAL_PROTOCOL_ACM;
-
-  //------------- Control Interface -------------//
-  uint8_t const * p_desc = tu_desc_next(itf_desc);
-
-  // Communication Functional Descriptors
-  while( (p_desc < p_desc_end) && (TUSB_DESC_CS_INTERFACE == tu_desc_type(p_desc)) )
-  {
-    if ( CDC_FUNC_DESC_ABSTRACT_CONTROL_MANAGEMENT == cdc_functional_desc_typeof(p_desc) )
-    {
-      // save ACM bmCapabilities
-      p_cdc->acm_capability = ((cdc_desc_func_acm_t const *) p_desc)->bmCapabilities;
-    }
-
-    p_desc = tu_desc_next(p_desc);
-  }
-
-  // Open notification endpoint of control interface if any
-  if (itf_desc->bNumEndpoints == 1)
-  {
-    TU_ASSERT(TUSB_DESC_ENDPOINT == tu_desc_type(p_desc));
-    tusb_desc_endpoint_t const * desc_ep = (tusb_desc_endpoint_t const *) p_desc;
-
-    TU_ASSERT( tuh_edpt_open(daddr, desc_ep) );
-    p_cdc->ep_notif = desc_ep->bEndpointAddress;
-
-    p_desc = tu_desc_next(p_desc);
-  }
-
-  //------------- Data Interface (if any) -------------//
-  if ( (TUSB_DESC_INTERFACE == tu_desc_type(p_desc)) &&
-       (TUSB_CLASS_CDC_DATA == ((tusb_desc_interface_t const *) p_desc)->bInterfaceClass) )
-  {
-    // next to endpoint descriptor
-    p_desc = tu_desc_next(p_desc);
-
-    // data endpoints expected to be in pairs
-    TU_ASSERT(open_ep_stream_pair(p_cdc, (tusb_desc_endpoint_t const *) p_desc));
-  }
-
-  return true;
-}
-
 
 bool cdch_open(uint8_t rhport, uint8_t daddr, tusb_desc_interface_t const *itf_desc, uint16_t max_len)
 {
@@ -721,7 +680,88 @@ static void set_config_complete(cdch_interface_t * p_cdc, uint8_t idx, uint8_t i
   usbh_driver_set_config_complete(p_cdc->daddr, itf_num);
 }
 
-static void process_acm_config(tuh_xfer_t* xfer)
+
+bool cdch_set_config(uint8_t daddr, uint8_t itf_num)
+{
+  tusb_control_request_t request;
+  request.wIndex = tu_htole16((uint16_t) itf_num);
+
+  // fake transfer to kick-off process
+  tuh_xfer_t xfer;
+  xfer.daddr  = daddr;
+  xfer.result = XFER_RESULT_SUCCESS;
+  xfer.setup  = &request;
+  xfer.user_data = 0; // initial state
+
+  uint8_t const idx = tuh_cdc_itf_get_index(daddr, itf_num);
+  cdch_interface_t * p_cdc = get_itf(idx);
+  TU_ASSERT(p_cdc && p_cdc->serial_drid < SERIAL_DRIVER_COUNT);
+
+  serial_drivers[p_cdc->serial_drid].process_set_config(&xfer);
+  return true;
+}
+
+//--------------------------------------------------------------------+
+// ACM
+//--------------------------------------------------------------------+
+
+enum {
+  CONFIG_ACM_SET_CONTROL_LINE_STATE = 0,
+  CONFIG_ACM_SET_LINE_CODING,
+  CONFIG_ACM_COMPLETE,
+};
+
+static bool acm_open(uint8_t daddr, tusb_desc_interface_t const *itf_desc, uint16_t max_len)
+{
+  uint8_t const * p_desc_end = ((uint8_t const*) itf_desc) + max_len;
+
+  cdch_interface_t * p_cdc = make_new_itf(daddr, itf_desc);
+  TU_VERIFY(p_cdc);
+
+  p_cdc->serial_drid = SERIAL_DRIVER_ACM;
+
+  //------------- Control Interface -------------//
+  uint8_t const * p_desc = tu_desc_next(itf_desc);
+
+  // Communication Functional Descriptors
+  while( (p_desc < p_desc_end) && (TUSB_DESC_CS_INTERFACE == tu_desc_type(p_desc)) )
+  {
+    if ( CDC_FUNC_DESC_ABSTRACT_CONTROL_MANAGEMENT == cdc_functional_desc_typeof(p_desc) )
+    {
+      // save ACM bmCapabilities
+      p_cdc->acm_capability = ((cdc_desc_func_acm_t const *) p_desc)->bmCapabilities;
+    }
+
+    p_desc = tu_desc_next(p_desc);
+  }
+
+  // Open notification endpoint of control interface if any
+  if (itf_desc->bNumEndpoints == 1)
+  {
+    TU_ASSERT(TUSB_DESC_ENDPOINT == tu_desc_type(p_desc));
+    tusb_desc_endpoint_t const * desc_ep = (tusb_desc_endpoint_t const *) p_desc;
+
+    TU_ASSERT( tuh_edpt_open(daddr, desc_ep) );
+    p_cdc->ep_notif = desc_ep->bEndpointAddress;
+
+    p_desc = tu_desc_next(p_desc);
+  }
+
+  //------------- Data Interface (if any) -------------//
+  if ( (TUSB_DESC_INTERFACE == tu_desc_type(p_desc)) &&
+       (TUSB_CLASS_CDC_DATA == ((tusb_desc_interface_t const *) p_desc)->bInterfaceClass) )
+  {
+    // next to endpoint descriptor
+    p_desc = tu_desc_next(p_desc);
+
+    // data endpoints expected to be in pairs
+    TU_ASSERT(open_ep_stream_pair(p_cdc, (tusb_desc_endpoint_t const *) p_desc));
+  }
+
+  return true;
+}
+
+static void acm_process_config(tuh_xfer_t* xfer)
 {
   uintptr_t const state = xfer->user_data;
   uint8_t const itf_num = (uint8_t) tu_le16toh(xfer->setup->wIndex);
@@ -735,70 +775,102 @@ static void process_acm_config(tuh_xfer_t* xfer)
       #if CFG_TUH_CDC_LINE_CONTROL_ON_ENUM
       if (p_cdc->acm_capability.support_line_request)
       {
-        TU_ASSERT(acm_set_control_line_state(p_cdc, CFG_TUH_CDC_LINE_CONTROL_ON_ENUM, process_acm_config,
-                                                 CONFIG_ACM_SET_LINE_CODING), );
+        TU_ASSERT(acm_set_control_line_state(p_cdc, CFG_TUH_CDC_LINE_CONTROL_ON_ENUM, acm_process_config,
+                                             CONFIG_ACM_SET_LINE_CODING), );
         break;
       }
-      #endif
+          #endif
       TU_ATTR_FALLTHROUGH;
 
     case CONFIG_ACM_SET_LINE_CODING:
-      #ifdef CFG_TUH_CDC_LINE_CODING_ON_ENUM
+        #ifdef CFG_TUH_CDC_LINE_CODING_ON_ENUM
       if (p_cdc->acm_capability.support_line_request)
       {
         cdc_line_coding_t line_coding = CFG_TUH_CDC_LINE_CODING_ON_ENUM;
-        TU_ASSERT(acm_set_line_coding(p_cdc, &line_coding, process_acm_config, CONFIG_ACM_COMPLETE), );
+        TU_ASSERT(acm_set_line_coding(p_cdc, &line_coding, acm_process_config, CONFIG_ACM_COMPLETE), );
         break;
       }
-      #endif
+        #endif
       TU_ATTR_FALLTHROUGH;
 
     case CONFIG_ACM_COMPLETE:
       // itf_num+1 to account for data interface as well
       set_config_complete(p_cdc, idx, itf_num+1);
-    break;
+      break;
 
     default: break;
   }
 }
 
-bool cdch_set_config(uint8_t daddr, uint8_t itf_num)
-{
-  tusb_control_request_t request;
-  request.wIndex = tu_htole16((uint16_t) itf_num);
+static bool acm_set_control_line_state(cdch_interface_t* p_cdc, uint16_t line_state, tuh_xfer_cb_t complete_cb, uintptr_t user_data) {
+  TU_VERIFY(p_cdc->acm_capability.support_line_request);
+  TU_LOG_CDCH("CDC ACM Set Control Line State\r\n");
 
-  tuh_xfer_t xfer;
-  xfer.daddr  = daddr;
-  xfer.result = XFER_RESULT_SUCCESS;
-  xfer.setup  = &request;
-  xfer.user_data = 0;
+  tusb_control_request_t const request = {
+    .bmRequestType_bit = {
+      .recipient = TUSB_REQ_RCPT_INTERFACE,
+      .type      = TUSB_REQ_TYPE_CLASS,
+      .direction = TUSB_DIR_OUT
+    },
+    .bRequest = CDC_REQUEST_SET_CONTROL_LINE_STATE,
+    .wValue   = tu_htole16(line_state),
+    .wIndex   = tu_htole16((uint16_t) p_cdc->bInterfaceNumber),
+    .wLength  = 0
+  };
 
-  // fake transfer to kick-off process
-  uint8_t const idx = tuh_cdc_itf_get_index(daddr, itf_num);
-  cdch_interface_t * p_cdc = get_itf(idx);
-  TU_ASSERT(p_cdc);
+  p_cdc->user_control_cb = complete_cb;
 
-  switch (p_cdc->serial_protocol) {
-    case SERIAL_PROTOCOL_ACM:
-      process_acm_config(&xfer);
-      break;
+  tuh_xfer_t xfer = {
+    .daddr       = p_cdc->daddr,
+    .ep_addr     = 0,
+    .setup       = &request,
+    .buffer      = NULL,
+    .complete_cb = complete_cb ? cdch_internal_control_complete : NULL, // complete_cb is NULL for sync call
+    .user_data   = user_data
+  };
 
-    #if CFG_TUH_CDC_FTDI
-    case SERIAL_PROTOCOL_FTDI:
-      process_ftdi_config(&xfer);
-      break;
-    #endif
-
-    #if CFG_TUH_CDC_CP210X
-    case SERIAL_PROTOCOL_CP210X:
-      process_cp210x_config(&xfer);
-      break;
-    #endif
-
-      default: return false;
-  }
-
+  TU_ASSERT(tuh_control_xfer(&xfer));
   return true;
+}
+
+static bool acm_set_line_coding(cdch_interface_t* p_cdc, cdc_line_coding_t const* line_coding, tuh_xfer_cb_t complete_cb, uintptr_t user_data) {
+  TU_LOG_CDCH("CDC ACM Set Line Conding\r\n");
+
+  tusb_control_request_t const request = {
+    .bmRequestType_bit = {
+      .recipient = TUSB_REQ_RCPT_INTERFACE,
+      .type      = TUSB_REQ_TYPE_CLASS,
+      .direction = TUSB_DIR_OUT
+    },
+    .bRequest = CDC_REQUEST_SET_LINE_CODING,
+    .wValue   = 0,
+    .wIndex   = tu_htole16(p_cdc->bInterfaceNumber),
+    .wLength  = tu_htole16(sizeof(cdc_line_coding_t))
+  };
+
+  // use usbh enum buf to hold line coding since user line_coding variable does not live long enough
+  uint8_t* enum_buf = usbh_get_enum_buf();
+  memcpy(enum_buf, line_coding, sizeof(cdc_line_coding_t));
+
+  p_cdc->user_control_cb = complete_cb;
+  tuh_xfer_t xfer = {
+    .daddr       = p_cdc->daddr,
+    .ep_addr     = 0,
+    .setup       = &request,
+    .buffer      = enum_buf,
+    .complete_cb = complete_cb ? cdch_internal_control_complete : NULL, // complete_cb is NULL for sync call
+    .user_data   = user_data
+  };
+
+  TU_ASSERT(tuh_control_xfer(&xfer));
+  return true;
+}
+
+static bool acm_set_baudrate(cdch_interface_t* p_cdc, uint32_t baudrate, tuh_xfer_cb_t complete_cb, uintptr_t user_data) {
+  TU_VERIFY(p_cdc->acm_capability.support_line_request);
+  cdc_line_coding_t line_coding = p_cdc->line_coding;
+  line_coding.bit_rate = baudrate;
+  return acm_set_line_coding(p_cdc, &line_coding, complete_cb, user_data);
 }
 
 //--------------------------------------------------------------------+
@@ -824,7 +896,7 @@ static bool ftdi_open(uint8_t daddr, const tusb_desc_interface_t *itf_desc, uint
 
   TU_LOG_CDCH("FTDI opened\r\n");
 
-  p_cdc->serial_protocol = SERIAL_PROTOCOL_FTDI;
+  p_cdc->serial_drid = SERIAL_DRIVER_FTDI;
 
   // endpoint pair
   tusb_desc_endpoint_t const * desc_ep = (tusb_desc_endpoint_t const *) tu_desc_next(itf_desc);
@@ -868,7 +940,8 @@ static bool ftdi_sio_set_modem_ctrl(cdch_interface_t* p_cdc, uint16_t line_state
 {
   TU_LOG_CDCH("CDC FTDI Set Control Line State\r\n");
   p_cdc->user_control_cb = complete_cb;
-  TU_ASSERT(ftdi_sio_set_request(p_cdc, FTDI_SIO_MODEM_CTRL, 0x0300 | line_state, cdch_internal_control_complete, user_data));
+  TU_ASSERT(ftdi_sio_set_request(p_cdc, FTDI_SIO_MODEM_CTRL, 0x0300 | line_state,
+                                 complete_cb ? cdch_internal_control_complete : NULL, user_data));
   return true;
 }
 
@@ -904,11 +977,14 @@ static bool ftdi_sio_set_baudrate(cdch_interface_t* p_cdc, uint32_t baudrate, tu
   TU_LOG_CDCH("CDC FTDI Set BaudRate = %lu, divisor = 0x%04x\n", baudrate, divisor);
 
   p_cdc->user_control_cb = complete_cb;
-  TU_ASSERT(ftdi_sio_set_request(p_cdc, FTDI_SIO_SET_BAUD_RATE, divisor, cdch_internal_control_complete, user_data));
+  _ftdi_requested_baud = baudrate;
+  TU_ASSERT(ftdi_sio_set_request(p_cdc, FTDI_SIO_SET_BAUD_RATE, divisor,
+                                 complete_cb ? cdch_internal_control_complete : NULL, user_data));
+
   return true;
 }
 
-static void process_ftdi_config(tuh_xfer_t* xfer) {
+static void ftdi_process_config(tuh_xfer_t* xfer) {
   uintptr_t const state = xfer->user_data;
   uint8_t const itf_num = (uint8_t) tu_le16toh(xfer->setup->wIndex);
   uint8_t const idx = tuh_cdc_itf_get_index(xfer->daddr, itf_num);
@@ -918,13 +994,13 @@ static void process_ftdi_config(tuh_xfer_t* xfer) {
   switch(state) {
     // Note may need to read FTDI eeprom
     case CONFIG_FTDI_RESET:
-      TU_ASSERT(ftdi_sio_reset(p_cdc, process_ftdi_config, CONFIG_FTDI_MODEM_CTRL),);
+      TU_ASSERT(ftdi_sio_reset(p_cdc, ftdi_process_config, CONFIG_FTDI_MODEM_CTRL),);
       break;
 
     case CONFIG_FTDI_MODEM_CTRL:
       #if CFG_TUH_CDC_LINE_CONTROL_ON_ENUM
       TU_ASSERT(
-        ftdi_sio_set_modem_ctrl(p_cdc, CFG_TUH_CDC_LINE_CONTROL_ON_ENUM, process_ftdi_config, CONFIG_FTDI_SET_BAUDRATE),);
+        ftdi_sio_set_modem_ctrl(p_cdc, CFG_TUH_CDC_LINE_CONTROL_ON_ENUM, ftdi_process_config, CONFIG_FTDI_SET_BAUDRATE),);
       break;
       #else
       TU_ATTR_FALLTHROUGH;
@@ -933,7 +1009,7 @@ static void process_ftdi_config(tuh_xfer_t* xfer) {
     case CONFIG_FTDI_SET_BAUDRATE: {
       #ifdef CFG_TUH_CDC_LINE_CODING_ON_ENUM
       cdc_line_coding_t line_coding = CFG_TUH_CDC_LINE_CODING_ON_ENUM;
-      TU_ASSERT(ftdi_sio_set_baudrate(p_cdc, line_coding.bit_rate, process_ftdi_config, CONFIG_FTDI_SET_DATA),);
+      TU_ASSERT(ftdi_sio_set_baudrate(p_cdc, line_coding.bit_rate, ftdi_process_config, CONFIG_FTDI_SET_DATA),);
       break;
       #else
       TU_ATTR_FALLTHROUGH;
@@ -986,7 +1062,7 @@ static bool cp210x_open(uint8_t daddr, tusb_desc_interface_t const *itf_desc, ui
   TU_VERIFY(p_cdc);
 
   TU_LOG_CDCH("CP210x opened\r\n");
-  p_cdc->serial_protocol = SERIAL_PROTOCOL_CP210X;
+  p_cdc->serial_drid = SERIAL_DRIVER_CP210X;
 
   // endpoint pair
   tusb_desc_endpoint_t const * desc_ep = (tusb_desc_endpoint_t const *) tu_desc_next(itf_desc);
@@ -1034,18 +1110,21 @@ static bool cp210x_ifc_enable(cdch_interface_t* p_cdc, uint16_t enabled, tuh_xfe
 
 static bool cp210x_set_baudrate(cdch_interface_t* p_cdc, uint32_t baudrate, tuh_xfer_cb_t complete_cb, uintptr_t user_data) {
   TU_LOG_CDCH("CDC CP210x Set BaudRate = %lu\n", baudrate);
-  baudrate = tu_htole32(baudrate);
-  return cp210x_set_request(p_cdc, CP210X_SET_BAUDRATE, 0, (uint8_t *) &baudrate, 4, complete_cb, user_data);
+  uint32_t baud_le = tu_htole32(baudrate);
+  p_cdc->user_control_cb = complete_cb;
+  return cp210x_set_request(p_cdc, CP210X_SET_BAUDRATE, 0, (uint8_t *) &baud_le, 4,
+                            complete_cb ? cdch_internal_control_complete : NULL, user_data);
 }
 
 static bool cp210x_set_modem_ctrl(cdch_interface_t* p_cdc, uint16_t line_state, tuh_xfer_cb_t complete_cb, uintptr_t user_data)
 {
   TU_LOG_CDCH("CDC CP210x Set Control Line State\r\n");
   p_cdc->user_control_cb = complete_cb;
-  return cp210x_set_request(p_cdc, CP210X_SET_MHS, 0x0300 | line_state, NULL, 0, cdch_internal_control_complete, user_data);
+  return cp210x_set_request(p_cdc, CP210X_SET_MHS, 0x0300 | line_state, NULL, 0,
+                            complete_cb ? cdch_internal_control_complete : NULL, user_data);
 }
 
-static void process_cp210x_config(tuh_xfer_t* xfer) {
+static void cp210x_process_config(tuh_xfer_t* xfer) {
   uintptr_t const state   = xfer->user_data;
   uint8_t const   itf_num = (uint8_t) tu_le16toh(xfer->setup->wIndex);
   uint8_t const   idx     = tuh_cdc_itf_get_index(xfer->daddr, itf_num);
@@ -1054,13 +1133,13 @@ static void process_cp210x_config(tuh_xfer_t* xfer) {
 
   switch (state) {
     case CONFIG_CP210X_IFC_ENABLE:
-      TU_ASSERT(cp210x_ifc_enable(p_cdc, 1, process_cp210x_config, CONFIG_CP210X_SET_BAUDRATE),);
+      TU_ASSERT(cp210x_ifc_enable(p_cdc, 1, cp210x_process_config, CONFIG_CP210X_SET_BAUDRATE),);
       break;
 
     case CONFIG_CP210X_SET_BAUDRATE: {
       #ifdef CFG_TUH_CDC_LINE_CODING_ON_ENUM
       cdc_line_coding_t line_coding = CFG_TUH_CDC_LINE_CODING_ON_ENUM;
-      TU_ASSERT(cp210x_set_baudrate(p_cdc, line_coding.bit_rate, process_cp210x_config, CONFIG_CP210X_SET_LINE_CTL),);
+      TU_ASSERT(cp210x_set_baudrate(p_cdc, line_coding.bit_rate, cp210x_process_config, CONFIG_CP210X_SET_LINE_CTL),);
       break;
       #else
       TU_ATTR_FALLTHROUGH;
@@ -1078,7 +1157,8 @@ static void process_cp210x_config(tuh_xfer_t* xfer) {
 
     case CONFIG_CP210X_SET_DTR_RTS:
       #if CFG_TUH_CDC_LINE_CONTROL_ON_ENUM
-      TU_ASSERT(cp210x_set_modem_ctrl(p_cdc, CFG_TUH_CDC_LINE_CONTROL_ON_ENUM, process_cp210x_config, CONFIG_CP210X_COMPLETE),);
+      TU_ASSERT(
+        cp210x_set_modem_ctrl(p_cdc, CFG_TUH_CDC_LINE_CONTROL_ON_ENUM, cp210x_process_config, CONFIG_CP210X_COMPLETE),);
       break;
       #else
       TU_ATTR_FALLTHROUGH;
