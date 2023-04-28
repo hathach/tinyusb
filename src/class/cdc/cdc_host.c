@@ -58,8 +58,8 @@ typedef struct {
   cdc_acm_capability_t acm_capability;
   uint8_t ep_notif;
 
-  cdc_line_coding_t line_coding;  // Baudrate, stop bits, parity, data width
-  uint8_t line_state;             // DTR (bit0), RTS (bit1)
+  uint8_t line_state;                               // DTR (bit0), RTS (bit1)
+  TU_ATTR_ALIGNED(4) cdc_line_coding_t line_coding; // Baudrate, stop bits, parity, data width
 
   tuh_xfer_cb_t user_control_cb;
 
