@@ -437,22 +437,78 @@ static void cdch_internal_control_complete(tuh_xfer_t* xfer)
 bool tuh_cdc_set_control_line_state(uint8_t idx, uint16_t line_state, tuh_xfer_cb_t complete_cb, uintptr_t user_data) {
   cdch_interface_t* p_cdc = get_itf(idx);
   TU_VERIFY(p_cdc && p_cdc->serial_drid < SERIAL_DRIVER_COUNT);
-  return serial_drivers[p_cdc->serial_drid].set_control_line_state(p_cdc, line_state, complete_cb, user_data);
+  cdch_serial_driver_t const* driver = &serial_drivers[p_cdc->serial_drid];
+
+  if ( complete_cb ) {
+    return driver->set_control_line_state(p_cdc, line_state, complete_cb, user_data);
+  }else {
+    // blocking
+    xfer_result_t result;
+    bool ret = driver->set_control_line_state(p_cdc, line_state, complete_cb, (uintptr_t) &result);
+
+    if (user_data) {
+      // user_data is not NULL, return result via user_data
+      *((xfer_result_t*) user_data) = result;
+    }
+
+    if (result == XFER_RESULT_SUCCESS) {
+      p_cdc->line_state = (uint8_t) line_state;
+    }
+
+    return ret;
+  }
 }
 
 bool tuh_cdc_set_baudrate(uint8_t idx, uint32_t baudrate, tuh_xfer_cb_t complete_cb, uintptr_t user_data) {
   cdch_interface_t* p_cdc = get_itf(idx);
   TU_VERIFY(p_cdc && p_cdc->serial_drid < SERIAL_DRIVER_COUNT);
-  return serial_drivers[p_cdc->serial_drid].set_baudrate(p_cdc, baudrate, complete_cb, user_data);
+  cdch_serial_driver_t const* driver = &serial_drivers[p_cdc->serial_drid];
+
+  if ( complete_cb ) {
+    return driver->set_baudrate(p_cdc, baudrate, complete_cb, user_data);
+  }else {
+    // blocking
+    xfer_result_t result;
+    bool ret = driver->set_baudrate(p_cdc, baudrate, complete_cb, (uintptr_t) &result);
+
+    if (user_data) {
+      // user_data is not NULL, return result via user_data
+      *((xfer_result_t*) user_data) = result;
+    }
+
+    if (result == XFER_RESULT_SUCCESS) {
+      p_cdc->line_coding.bit_rate = baudrate;
+    }
+
+    return ret;
+  }
 }
 
 bool tuh_cdc_set_line_coding(uint8_t idx, cdc_line_coding_t const* line_coding, tuh_xfer_cb_t complete_cb, uintptr_t user_data)
 {
   cdch_interface_t* p_cdc = get_itf(idx);
-  TU_VERIFY(p_cdc);
   // only ACM support this set line coding request
-  TU_VERIFY(p_cdc->serial_drid == SERIAL_DRIVER_ACM && p_cdc->acm_capability.support_line_request);
-  return acm_set_line_coding(p_cdc, line_coding, complete_cb, user_data);
+  TU_VERIFY(p_cdc && p_cdc->serial_drid == SERIAL_DRIVER_ACM);
+  TU_VERIFY(p_cdc->acm_capability.support_line_request);
+
+  if ( complete_cb ) {
+    return acm_set_line_coding(p_cdc, line_coding, complete_cb, user_data);
+  }else {
+    // blocking
+    xfer_result_t result;
+    bool ret = acm_set_line_coding(p_cdc, line_coding, complete_cb, (uintptr_t) &result);
+
+    if (user_data) {
+      // user_data is not NULL, return result via user_data
+      *((xfer_result_t*) user_data) = result;
+    }
+
+    if (result == XFER_RESULT_SUCCESS) {
+      p_cdc->line_coding = *line_coding;
+    }
+
+    return ret;
+  }
 }
 
 //--------------------------------------------------------------------+
@@ -752,6 +808,7 @@ static void acm_process_config(tuh_xfer_t* xfer)
 static bool acm_set_control_line_state(cdch_interface_t* p_cdc, uint16_t line_state, tuh_xfer_cb_t complete_cb, uintptr_t user_data) {
   TU_VERIFY(p_cdc->acm_capability.support_line_request);
   TU_LOG_CDCH("CDC ACM Set Control Line State\r\n");
+
   tusb_control_request_t const request = {
     .bmRequestType_bit = {
       .recipient = TUSB_REQ_RCPT_INTERFACE,
@@ -771,7 +828,7 @@ static bool acm_set_control_line_state(cdch_interface_t* p_cdc, uint16_t line_st
     .ep_addr     = 0,
     .setup       = &request,
     .buffer      = NULL,
-    .complete_cb = cdch_internal_control_complete,
+    .complete_cb = complete_cb ? cdch_internal_control_complete : NULL, // complete_cb is NULL for sync call
     .user_data   = user_data
   };
 
@@ -804,7 +861,7 @@ static bool acm_set_line_coding(cdch_interface_t* p_cdc, cdc_line_coding_t const
     .ep_addr     = 0,
     .setup       = &request,
     .buffer      = enum_buf,
-    .complete_cb = cdch_internal_control_complete,
+    .complete_cb = complete_cb ? cdch_internal_control_complete : NULL, // complete_cb is NULL for sync call
     .user_data   = user_data
   };
 
@@ -886,7 +943,8 @@ static bool ftdi_sio_set_modem_ctrl(cdch_interface_t* p_cdc, uint16_t line_state
 {
   TU_LOG_CDCH("CDC FTDI Set Control Line State\r\n");
   p_cdc->user_control_cb = complete_cb;
-  TU_ASSERT(ftdi_sio_set_request(p_cdc, FTDI_SIO_MODEM_CTRL, 0x0300 | line_state, cdch_internal_control_complete, user_data));
+  TU_ASSERT(ftdi_sio_set_request(p_cdc, FTDI_SIO_MODEM_CTRL, 0x0300 | line_state,
+                                 complete_cb ? cdch_internal_control_complete : NULL, user_data));
   return true;
 }
 
@@ -923,7 +981,8 @@ static bool ftdi_sio_set_baudrate(cdch_interface_t* p_cdc, uint32_t baudrate, tu
 
   p_cdc->user_control_cb = complete_cb;
   _ftdi_requested_baud = baudrate;
-  TU_ASSERT(ftdi_sio_set_request(p_cdc, FTDI_SIO_SET_BAUD_RATE, divisor, cdch_internal_control_complete, user_data));
+  TU_ASSERT(ftdi_sio_set_request(p_cdc, FTDI_SIO_SET_BAUD_RATE, divisor,
+                                 complete_cb ? cdch_internal_control_complete : NULL, user_data));
 
   return true;
 }
@@ -1056,14 +1115,16 @@ static bool cp210x_set_baudrate(cdch_interface_t* p_cdc, uint32_t baudrate, tuh_
   TU_LOG_CDCH("CDC CP210x Set BaudRate = %lu\n", baudrate);
   uint32_t baud_le = tu_htole32(baudrate);
   p_cdc->user_control_cb = complete_cb;
-  return cp210x_set_request(p_cdc, CP210X_SET_BAUDRATE, 0, (uint8_t *) &baud_le, 4, cdch_internal_control_complete, user_data);
+  return cp210x_set_request(p_cdc, CP210X_SET_BAUDRATE, 0, (uint8_t *) &baud_le, 4,
+                            complete_cb ? cdch_internal_control_complete : NULL, user_data);
 }
 
 static bool cp210x_set_modem_ctrl(cdch_interface_t* p_cdc, uint16_t line_state, tuh_xfer_cb_t complete_cb, uintptr_t user_data)
 {
   TU_LOG_CDCH("CDC CP210x Set Control Line State\r\n");
   p_cdc->user_control_cb = complete_cb;
-  return cp210x_set_request(p_cdc, CP210X_SET_MHS, 0x0300 | line_state, NULL, 0, cdch_internal_control_complete, user_data);
+  return cp210x_set_request(p_cdc, CP210X_SET_MHS, 0x0300 | line_state, NULL, 0,
+                            complete_cb ? cdch_internal_control_complete : NULL, user_data);
 }
 
 static void cp210x_process_config(tuh_xfer_t* xfer) {

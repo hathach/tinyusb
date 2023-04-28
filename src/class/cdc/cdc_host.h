@@ -148,6 +148,7 @@ bool tuh_cdc_set_control_line_state(uint8_t idx, uint16_t line_state, tuh_xfer_c
 bool tuh_cdc_set_baudrate(uint8_t idx, uint32_t baudrate, tuh_xfer_cb_t complete_cb, uintptr_t user_data);
 
 // Request to Set Line Coding (ACM only)
+// Should only use if you don't work with serial devices such as FTDI/CP210x
 bool tuh_cdc_set_line_coding(uint8_t idx, cdc_line_coding_t const* line_coding, tuh_xfer_cb_t complete_cb, uintptr_t user_data);
 
 // Request to Get Line Coding (ACM only)
