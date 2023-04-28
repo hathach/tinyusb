@@ -443,7 +443,7 @@ bool tuh_cdc_set_control_line_state(uint8_t idx, uint16_t line_state, tuh_xfer_c
     return driver->set_control_line_state(p_cdc, line_state, complete_cb, user_data);
   }else {
     // blocking
-    xfer_result_t result;
+    xfer_result_t result = XFER_RESULT_INVALID;
     bool ret = driver->set_control_line_state(p_cdc, line_state, complete_cb, (uintptr_t) &result);
 
     if (user_data) {
@@ -451,11 +451,10 @@ bool tuh_cdc_set_control_line_state(uint8_t idx, uint16_t line_state, tuh_xfer_c
       *((xfer_result_t*) user_data) = result;
     }
 
-    if (result == XFER_RESULT_SUCCESS) {
-      p_cdc->line_state = (uint8_t) line_state;
-    }
+    TU_VERIFY(ret && result == XFER_RESULT_SUCCESS);
 
-    return ret;
+    p_cdc->line_state = (uint8_t) line_state;
+    return true;
   }
 }
 
@@ -468,7 +467,7 @@ bool tuh_cdc_set_baudrate(uint8_t idx, uint32_t baudrate, tuh_xfer_cb_t complete
     return driver->set_baudrate(p_cdc, baudrate, complete_cb, user_data);
   }else {
     // blocking
-    xfer_result_t result;
+    xfer_result_t result = XFER_RESULT_INVALID;
     bool ret = driver->set_baudrate(p_cdc, baudrate, complete_cb, (uintptr_t) &result);
 
     if (user_data) {
@@ -476,11 +475,10 @@ bool tuh_cdc_set_baudrate(uint8_t idx, uint32_t baudrate, tuh_xfer_cb_t complete
       *((xfer_result_t*) user_data) = result;
     }
 
-    if (result == XFER_RESULT_SUCCESS) {
-      p_cdc->line_coding.bit_rate = baudrate;
-    }
+    TU_VERIFY(ret && result == XFER_RESULT_SUCCESS);
 
-    return ret;
+    p_cdc->line_coding.bit_rate = baudrate;
+    return true;
   }
 }
 
@@ -495,7 +493,7 @@ bool tuh_cdc_set_line_coding(uint8_t idx, cdc_line_coding_t const* line_coding, 
     return acm_set_line_coding(p_cdc, line_coding, complete_cb, user_data);
   }else {
     // blocking
-    xfer_result_t result;
+    xfer_result_t result = XFER_RESULT_INVALID;
     bool ret = acm_set_line_coding(p_cdc, line_coding, complete_cb, (uintptr_t) &result);
 
     if (user_data) {
@@ -503,11 +501,10 @@ bool tuh_cdc_set_line_coding(uint8_t idx, cdc_line_coding_t const* line_coding, 
       *((xfer_result_t*) user_data) = result;
     }
 
-    if (result == XFER_RESULT_SUCCESS) {
-      p_cdc->line_coding = *line_coding;
-    }
+    TU_VERIFY(ret && result == XFER_RESULT_SUCCESS);
 
-    return ret;
+    p_cdc->line_coding = *line_coding;
+    return true;
   }
 }
 

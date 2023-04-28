@@ -138,7 +138,8 @@ bool tuh_cdc_read_clear (uint8_t idx);
 // - If complete_cb is provided, the function will return immediately and invoke
 // the callback when request is complete.
 // - If complete_cb is NULL, the function will block until request is complete.
-// In this case, user_data should be pointed to xfer_result_t to hold the transfer result.
+//   - In this case, user_data should be pointed to xfer_result_t to hold the transfer result.
+//   - The function will return true if transfer is successful, false otherwise.
 //--------------------------------------------------------------------+
 
 // Request to Set Control Line State: DTR (bit 0), RTS (bit 1)
