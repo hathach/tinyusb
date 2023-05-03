@@ -33,6 +33,11 @@
 #include "host/hcd.h"
 #include "rusb2_type.h"
 
+#if !defined(CFG_TUSB_RHPORT0_MODE) && !defined(CFG_TUSB_RHPORT1_MODE)
+// fallback
+#define CFG_TUSB_RHPORT0_MODE   OPT_MODE_HOST
+#endif
+
 #if TU_CHECK_MCU(OPT_MCU_RX63X, OPT_MCU_RX65X, OPT_MCU_RX72N)
   #include "rusb2_rx.h"
 #elif TU_CHECK_MCU(OPT_MCU_RAXXX)
