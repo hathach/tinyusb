@@ -48,8 +48,10 @@
 /* LINK core registers */
 #if defined(__CCRX__)
   #define RUSB2 ((RUSB2_REG_t __evenaccess*) RUSB2_REG_BASE)
+#elif (CFG_TUSB_RHPORT1_MODE & OPT_MODE_HOST)
+  #define RUSB2 ((R_USB_HS0_Type*) R_USB_HS0_BASE)
 #else
-  #define RUSB2 ((RUSB2_REG_t*) RUSB2_REG_BASE)
+  #define RUSB2 ((R_USB_FS0_Type*) R_USB_FS0_BASE)
 #endif
 
 TU_ATTR_PACKED_BEGIN
@@ -477,31 +479,49 @@ bool hcd_init(uint8_t rhport)
 {
   (void)rhport;
 
-#if 0 // previously present in the rx driver before generalization
-  uint32_t pswi = disable_interrupt();
-  SYSTEM.PRCR.WORD = SYSTEM_PRCR_PRKEY | SYSTEM_PRCR_PRC1;
-  MSTP(USB0) = 0;
-  SYSTEM.PRCR.WORD = SYSTEM_PRCR_PRKEY;
-  enable_interrupt(pswi);
-#endif
-
-  RUSB2->SYSCFG_b.SCKE = 1;
-  while (!RUSB2->SYSCFG_b.SCKE) ;
-  RUSB2->SYSCFG_b.DPRPU = 0;
-  RUSB2->SYSCFG_b.DRPD = 0;
+#if (CFG_TUSB_RHPORT1_MODE & OPT_MODE_HOST)
+  RUSB2->SYSCFG_b.HSE = 1;
+  RUSB2->PHYSET_b.HSEB = 0;
+  RUSB2->PHYSET_b.DIRPD = 0;
+  R_BSP_SoftwareDelay((uint32_t) 1, BSP_DELAY_UNITS_MILLISECONDS);
+  RUSB2->PHYSET_b.PLLRESET = 0;
+  RUSB2->LPSTS_b.SUSPENDM = 1;
+  while (!RUSB2->PLLSTA_b.PLLLOCK);
+  RUSB2->SYSCFG_b.DRPD = 1;
   RUSB2->SYSCFG_b.DCFM = 1;
+  RUSB2->SYSCFG_b.DPRPU = 0;
+  RUSB2->SYSCFG_b.CNEN = 1;
+  RUSB2->BUSWAIT |= 0x0F00U;
+  RUSB2->SOFCFG_b.INTL = 1;
+  RUSB2->DVSTCTR0_b.VBUSEN = 1;
+  RUSB2->CFIFOSEL_b.MBW = 1;
+  RUSB2->D0FIFOSEL_b.MBW = 1;
+  RUSB2->D1FIFOSEL_b.MBW = 1;
+  RUSB2->INTSTS0 = 0;
+  for (volatile int i = 0; i < 30000; ++i) ;
+  RUSB2->SYSCFG_b.USBE = 1;
+#else
+  /* HOST DEVICE Full SPEED */
+  RUSB2->SYSCFG_b.SCKE = 1;         /* USB Clock enable */
+  while (!RUSB2->SYSCFG_b.SCKE) ;
+  RUSB2->SYSCFG_b.DPRPU = 0;        /* D+ pull up enable - 0/disable in host mode */
+  RUSB2->SYSCFG_b.DRPD = 1;         /* D+/D- pull down - 1/in Host mode (pag.834)*/
+  RUSB2->SYSCFG_b.DCFM = 1;         /* HOST or Device - 1/HOST */
 
   RUSB2->DVSTCTR0_b.VBUSEN = 1;
 
   RUSB2->SYSCFG_b.DRPD = 1;
   for (volatile int i = 0; i < 30000; ++i) ;
   RUSB2->SYSCFG_b.USBE = 1;
+#endif
 
   // MCU specific PHY init
   rusb2_phy_init();
 
+#if (CFG_TUSB_RHPORT0_MODE & OPT_MODE_HOST)
   RUSB2->PHYSLEW = 0x5;
   RUSB2->DPUSR0R_FS_b.FIXPHY0 = 0u; /* Transceiver Output fixed */
+#endif
 
   /* Setup default control pipe */
   RUSB2->DCPCFG  = RUSB2_PIPECFG_SHTNAK_Msk;

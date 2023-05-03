@@ -52,8 +52,10 @@
 /* LINK core registers */
 #if defined(__CCRX__)
   #define RUSB2 ((RUSB2_REG_t __evenaccess*) RUSB2_REG_BASE)
+#elif (CFG_TUSB_RHPORT1_MODE & OPT_MODE_DEVICE)
+  #define RUSB2 ((R_USB_HS0_Type*)R_USB_HS0_BASE)
 #else
-  #define RUSB2 ((RUSB2_REG_t*) RUSB2_REG_BASE)
+  #define RUSB2 ((R_USB_FS0_Type*)R_USB_FS0_BASE)
 #endif
 
 /* Start of definition of packed structs (used by the CCRX toolchain) */
@@ -80,6 +82,18 @@ typedef union TU_ATTR_PACKED {
   };
   volatile uint16_t u16;
 } hw_fifo_t;
+
+typedef union TU_ATTR_PACKED {
+  struct {
+    volatile uint32_t  : 24;
+    volatile uint32_t u8: 8;
+  };
+  struct {
+    volatile uint32_t    : 16;
+    volatile uint32_t u16: 16;
+  };
+  volatile uint32_t u32;
+} hw_fifo32_t;
 
 typedef struct TU_ATTR_PACKED
 {
@@ -185,14 +199,18 @@ static inline void pipe_wait_for_ready(unsigned num)
 
 static void pipe_write_packet(void *buf, volatile void *fifo, unsigned len)
 {
+#if (CFG_TUSB_RHPORT1_MODE & OPT_MODE_DEVICE)
+  volatile hw_fifo32_t *reg = (volatile hw_fifo32_t*) fifo;
+#else
   volatile hw_fifo_t *reg = (volatile hw_fifo_t*) fifo;
+#endif
   uintptr_t addr = (uintptr_t)buf;
   while (len >= 2) {
     reg->u16 = *(const uint16_t *)addr;
     addr += 2;
     len  -= 2;
   }
-  if (len) {
+  if (len > 0) {
     reg->u8 = *(const uint8_t *)addr;
     ++addr;
   }
@@ -519,12 +537,17 @@ static void process_bus_reset(uint8_t rhport)
     ++ctr;
   }
   tu_varclr(&_dcd);
+
+#if (CFG_TUSB_RHPORT1_MODE & OPT_MODE_DEVICE)
+  dcd_event_bus_reset(rhport, TUSB_SPEED_HIGH, true);
+#else
   dcd_event_bus_reset(rhport, TUSB_SPEED_FULL, true);
+#endif
 }
 
 static void process_set_address(uint8_t rhport)
 {
-  const uint32_t addr = RUSB2->USBADDR_b.USBADDR;
+  const uint32_t addr = RUSB2->USBADDR & 0xFF;
   if (!addr) return;
   const tusb_control_request_t setup_packet = {
 #if defined(__CCRX__)
@@ -572,33 +595,52 @@ void dcd_init(uint8_t rhport)
 {
   (void)rhport;
 
-#if 0 // previously present in the rx driver before generalization
-  uint32_t pswi = disable_interrupt();
-  SYSTEM.PRCR.WORD = SYSTEM_PRCR_PRKEY | SYSTEM_PRCR_PRC1;
-  MSTP(USB0) = 0;
-  SYSTEM.PRCR.WORD = SYSTEM_PRCR_PRKEY;
-  enable_interrupt(pswi);
-#endif
-
+#if (CFG_TUSB_RHPORT1_MODE & OPT_MODE_DEVICE)
+  RUSB2->SYSCFG_b.HSE = 1;
+  RUSB2->PHYSET_b.DIRPD = 0;
+  R_BSP_SoftwareDelay((uint32_t) 1, BSP_DELAY_UNITS_MILLISECONDS);
+  RUSB2->PHYSET_b.PLLRESET = 0;
+  //RUSB2->PHYSET_b.REPSTART = 1;
+  RUSB2->SYSCFG_b.DRPD = 0;
+  RUSB2->SYSCFG_b.USBE = 1;
+  RUSB2->LPSTS_b.SUSPENDM = 1;
+  while (!RUSB2->PLLSTA_b.PLLLOCK);
+  //RUSB2->BUSWAIT |= 0x0F00U;
+  //RUSB2->PHYSET_b.REPSEL = 1;
+  RUSB2->CFIFOSEL_b.MBW = 1;
+  RUSB2->D0FIFOSEL_b.MBW = 1;
+  RUSB2->D1FIFOSEL_b.MBW = 1;
+  RUSB2->INTSTS0 = 0;
+#else
   RUSB2->SYSCFG_b.SCKE = 1;
   while (!RUSB2->SYSCFG_b.SCKE) ;
   RUSB2->SYSCFG_b.DRPD = 0;
   RUSB2->SYSCFG_b.DCFM = 0;
   RUSB2->SYSCFG_b.USBE = 1;
+#endif
 
   // MCU specific PHY init
   rusb2_phy_init();
 
+#if (CFG_TUSB_RHPORT0_MODE & OPT_MODE_DEVICE)
   RUSB2->PHYSLEW = 0x5;
   RUSB2->DPUSR0R_FS_b.FIXPHY0 = 0u; /* USB_BASE Transceiver Output fixed */
+
+  #define USB_VDCEN                 (0x0080U) /* b7: Regulator ON/OFF control */
+  RUSB2->USBMC = (uint16_t) (RUSB2->USBMC | (USB_VDCEN));
+#endif
 
   /* Setup default control pipe */
   RUSB2->DCPMAXP_b.MXPS = 64;
   RUSB2->INTENB0 = RUSB2_INTSTS0_VBINT_Msk | RUSB2_INTSTS0_BRDY_Msk | RUSB2_INTSTS0_BEMP_Msk |
           RUSB2_INTSTS0_DVST_Msk | RUSB2_INTSTS0_CTRT_Msk | (USE_SOF ? RUSB2_INTSTS0_SOFR_Msk : 0) |
-          RUSB2_INTSTS0_RESM_Msk;
+          RUSB2_INTSTS0_RESM_Msk | RUSB2_INTSTS0_NRDY_Msk;
   RUSB2->BEMPENB = 1;
   RUSB2->BRDYENB = 1;
+
+#if (CFG_TUSB_RHPORT0_MODE & OPT_MODE_DEVICE)
+  RUSB2->SYSCFG_b.DPRPU = 1;  /* necessary in this position */
+#endif
 
   if (RUSB2->INTSTS0_b.VBSTS) {
     dcd_connect(rhport);
@@ -630,6 +672,10 @@ void dcd_remote_wakeup(uint8_t rhport)
 void dcd_connect(uint8_t rhport)
 {
   (void)rhport;
+  #if (CFG_TUSB_RHPORT1_MODE & OPT_MODE_DEVICE)
+  RUSB2->SYSCFG_b.CNEN = 1;
+  R_BSP_SoftwareDelay((uint32_t) 10, BSP_DELAY_UNITS_MILLISECONDS);
+  #endif
   RUSB2->SYSCFG_b.DPRPU = 1;
 }
 
@@ -672,6 +718,9 @@ bool dcd_edpt_open(uint8_t rhport, tusb_desc_endpoint_t const * ep_desc)
 
   /* setup pipe */
   dcd_int_disable(rhport);
+  #if (CFG_TUSB_RHPORT1_MODE & OPT_MODE_DEVICE)
+  RUSB2->PIPEBUF = 0x7C08;
+  #endif
   RUSB2->PIPESEL = num;
   RUSB2->PIPEMAXP = mps;
   volatile uint16_t *ctr = get_pipectr(num);
@@ -825,6 +874,9 @@ void dcd_int_handler(uint8_t rhport)
     default:
       break;
     }
+  }
+  if (is0 & RUSB2_INTSTS0_NRDY_Msk) {
+    RUSB2->NRDYSTS = 0;
   }
   if (is0 & RUSB2_INTSTS0_CTRT_Msk) {
     if (is0 & RUSB2_INTSTS0_CTSQ_CTRL_RDATA) {

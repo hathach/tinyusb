@@ -22,6 +22,7 @@ CFLAGS += \
 SRC_C += \
 	src/portable/renesas/rusb2/dcd_rusb2.c \
 	src/portable/renesas/rusb2/hcd_rusb2.c \
+	src/portable/renesas/rusb2/rusb2_ra.c \
 	hw/mcu/renesas/fsp/ra/fsp/src/bsp/cmsis/Device/RENESAS/Source/startup.c \
 	hw/mcu/renesas/fsp/ra/fsp/src/bsp/cmsis/Device/RENESAS/Source/system.c \
 	hw/mcu/renesas/fsp/ra/fsp/src/bsp/mcu/all/bsp_clocks.c \
@@ -47,6 +48,7 @@ INC += \
 	$(TOP)/hw/mcu/renesas/fsp/ra/fsp/inc \
 	$(TOP)/hw/mcu/renesas/fsp/ra/fsp/inc/api \
 	$(TOP)/hw/mcu/renesas/fsp/ra/fsp/inc/instances \
+	$(TOP)/hw/mcu/renesas/fsp/ra/fsp/src/bsp/mcu/all \
 	$(TOP)/$(FSP_MCU_DIR) \
 	$(TOP)/$(FSP_BOARD_DIR)
 
