@@ -41,6 +41,15 @@
   #include "rusb2_rx.h"
 #elif TU_CHECK_MCU(OPT_MCU_RAXXX)
   #include "rusb2_ra.h"
+  #if defined(RENESAS_CORTEX_M23)
+    #define D0FIFO CFIFO
+    #define D0FIFOSEL CFIFOSEL
+    #define D0FIFOSEL_b CFIFOSEL_b
+    #define D1FIFOSEL CFIFOSEL
+    #define D1FIFOSEL_b CFIFOSEL_b
+    #define D0FIFOCTR CFIFOCTR
+    #define D0FIFOCTR_b CFIFOCTR_b
+  #endif
 #else
   #error "Unsupported MCU"
 #endif
@@ -121,6 +130,10 @@ typedef struct
 //--------------------------------------------------------------------+
 static dcd_data_t _dcd;
 
+#ifndef FIRST_BULK_PIPE
+#define FIRST_BULK_PIPE 3
+#endif
+
 static unsigned find_pipe(unsigned xfer)
 {
   switch (xfer) {
@@ -130,7 +143,7 @@ static unsigned find_pipe(unsigned xfer)
     }
     break;
   case TUSB_XFER_BULK:
-    for (int i = 3; i <= 5; ++i) {
+    for (int i = FIRST_BULK_PIPE; i <= 5; ++i) {
       if (0 == _dcd.pipe[i].ep) return  i;
     }
     for (int i = 1; i <= 1; ++i) {
