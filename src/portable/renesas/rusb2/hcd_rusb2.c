@@ -759,9 +759,10 @@ void hcd_int_handler(uint8_t rhport)
     7, 17, 0, 25, 22, 31, 15, 29, 10, 12, 6, 0, 21, 14, 9, 5,
     20, 8, 19, 18};
 #endif
-
+  static unsigned char attach_attempt = 0;
   unsigned is1 = RUSB2->INTSTS1;
   unsigned is0 = RUSB2->INTSTS0;
+
   /* clear active bits except VALID (don't write 0 to already cleared bits according to the HW manual) */
   RUSB2->INTSTS1 = ~((RUSB2_INTSTS1_SACK_Msk | RUSB2_INTSTS1_SIGN_Msk | RUSB2_INTSTS1_ATTCH_Msk | RUSB2_INTSTS1_DTCH_Msk) & is1);
   RUSB2->INTSTS0 = ~((RUSB2_INTSTS0_BRDY_Msk | RUSB2_INTSTS0_NRDY_Msk | RUSB2_INTSTS0_BEMP_Msk) & is0);
@@ -772,12 +773,21 @@ void hcd_int_handler(uint8_t rhport)
   if (is1 & RUSB2_INTSTS1_SACK_Msk) {
     /* Set DATA1 in advance for the next transfer. */
     RUSB2->DCPCTR_b.SQSET = 1;
+    attach_attempt = 0;
     hcd_event_xfer_complete(RUSB2->DCPMAXP_b.DEVSEL, tu_edpt_addr(0, TUSB_DIR_OUT), 8, XFER_RESULT_SUCCESS, true);
   }
   if (is1 & RUSB2_INTSTS1_SIGN_Msk) {
     hcd_event_xfer_complete(RUSB2->DCPMAXP_b.DEVSEL, tu_edpt_addr(0, TUSB_DIR_OUT), 8, XFER_RESULT_FAILED, true);
+    if(attach_attempt > 0) {
+      RUSB2->DVSTCTR0_b.UACT = 1;
+      _hcd.need_reset = true;
+      RUSB2->INTENB1 = (RUSB2->INTENB1 & ~RUSB2_INTSTS1_ATTCH_Msk) | RUSB2_INTSTS1_DTCH_Msk;
+      hcd_event_device_attach(rhport, true);
+    }
+    attach_attempt--;
   }
   if (is1 & RUSB2_INTSTS1_ATTCH_Msk) {
+    attach_attempt = 10;
     RUSB2->DVSTCTR0_b.UACT = 1;
     _hcd.need_reset = true;
     RUSB2->INTENB1 = (RUSB2->INTENB1 & ~RUSB2_INTSTS1_ATTCH_Msk) | RUSB2_INTSTS1_DTCH_Msk;
