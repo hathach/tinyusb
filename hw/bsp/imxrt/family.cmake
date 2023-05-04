@@ -73,9 +73,22 @@ function(family_configure_target TARGET)
     ${SDK_DIR}/drivers/lpuart
     )
 
+  # define tinyusb_config target
+
+  #target_include_directories(tinyusb_config INTERFACE
+  #  )
+
+  target_compile_definitions(tinyusb_config PUBLIC
+    )
+
   # include tinyusb cmake
-  include(${TOP}/src/CMakeLists.txt)
-  add_tinyusb(${TARGET})
+  add_subdirectory(${TOP}/src ${CMAKE_CURRENT_BINARY_DIR}/tinyusb)
+  target_link_libraries(${TARGET} PUBLIC
+    tinyusb
+    )
+
+  #include(${TOP}/src/CMakeLists.txt)
+  #add_tinyusb(${TARGET})
 
 endfunction()
 

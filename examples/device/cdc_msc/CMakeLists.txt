@@ -29,6 +29,13 @@ target_include_directories(${PROJECT} PUBLIC
         ${CMAKE_CURRENT_SOURCE_DIR}/src
         )
 
+# define tinyusb_config target
+add_library(tinyusb_config INTERFACE)
+
+target_include_directories(tinyusb_config INTERFACE
+  ${CMAKE_CURRENT_SOURCE_DIR}/src
+  )
+
 # Configure compilation flags and libraries for the example... see the corresponding function
 # in hw/bsp/FAMILY/family.cmake for details.
 family_configure_device_example(${PROJECT})
