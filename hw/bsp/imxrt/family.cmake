@@ -1,6 +1,6 @@
 # toolchain set up
 set(CMAKE_SYSTEM_PROCESSOR cortex-m7 CACHE INTERNAL "System Processor")
-set(CMAKE_TOOLCHAIN_FILE ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/../../../cmake/toolchain/arm_${TOOLCHAIN}.cmake)
+set(CMAKE_TOOLCHAIN_FILE ${CMAKE_CURRENT_LIST_DIR}/../../../examples/cmake/toolchain/arm_${TOOLCHAIN}.cmake)
 
 function(family_configure_target TARGET)
   if (NOT BOARD)
