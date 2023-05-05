@@ -2,6 +2,7 @@
 set(CMAKE_SYSTEM_PROCESSOR cortex-m7 CACHE INTERNAL "System Processor")
 set(CMAKE_TOOLCHAIN_FILE ${CMAKE_CURRENT_LIST_DIR}/../../../examples/cmake/toolchain/arm_${TOOLCHAIN}.cmake)
 
+
 function(family_configure_target TARGET)
   if (NOT BOARD)
     message(FATAL_ERROR "BOARD not specified")
@@ -17,9 +18,14 @@ function(family_configure_target TARGET)
   set(SDK_DIR ${TOP}/hw/mcu/nxp/mcux-sdk)
   set(DEPS_SUBMODULES ${SDK_DIR})
 
+  # define BSP target
+  add_library(bsp STATIC
+    )
+
+  # include board specific cmake
   include(${CMAKE_CURRENT_FUNCTION_LIST_DIR}/boards/${BOARD}/board.cmake)
 
-  target_compile_definitions(${TARGET} PUBLIC
+  target_compile_definitions(bsp PUBLIC
     CFG_TUSB_MCU=OPT_MCU_MIMXRT
     __ARMVFP__=0
     __ARMFPV5__=0
@@ -32,11 +38,11 @@ function(family_configure_target TARGET)
     --specs=nano.specs
     )
 
-  target_sources(${TARGET} PUBLIC
+  target_sources(bsp PUBLIC
     # TinyUSB
-    ${TOP}/src/portable/chipidea/ci_hs/dcd_ci_hs.c
-    ${TOP}/src/portable/chipidea/ci_hs/hcd_ci_hs.c
-    ${TOP}/src/portable/ehci/ehci.c
+#    ${TOP}/src/portable/chipidea/ci_hs/dcd_ci_hs.c
+#    ${TOP}/src/portable/chipidea/ci_hs/hcd_ci_hs.c
+#    ${TOP}/src/portable/ehci/ehci.c
     # BSP
     ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/family.c
     ${SDK_DIR}/drivers/common/fsl_common.c
@@ -49,18 +55,18 @@ function(family_configure_target TARGET)
     )
 
   if (TOOLCHAIN STREQUAL "gcc")
-    target_sources(${TARGET} PUBLIC
+    target_sources(bsp PUBLIC
       ${SDK_DIR}/devices/${MCU_VARIANT}/gcc/startup_${MCU_VARIANT}.S
       )
 
-    target_link_options(${TARGET} PUBLIC
+    target_link_options(bsp PUBLIC
       "LINKER:--script=${SDK_DIR}/devices/${MCU_VARIANT}/gcc/${MCU_VARIANT}xxxxx_flexspi_nor.ld"
       )
   else ()
     # TODO support IAR
   endif ()
 
-  target_include_directories(${TARGET} PUBLIC
+  target_include_directories(bsp PUBLIC
     ${CMAKE_CURRENT_FUNCTION_LIST_DIR}
     ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/../../
     ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/boards/${BOARD}
@@ -73,24 +79,30 @@ function(family_configure_target TARGET)
     ${SDK_DIR}/drivers/lpuart
     )
 
-  # define tinyusb_config target
+  if(NOT TARGET tinyusb_config)
+    message(FATAL_ERROR "tinyusb_config target not found")
+  endif()
 
-  #target_include_directories(tinyusb_config INTERFACE
-  #  )
-
-  target_compile_definitions(tinyusb_config PUBLIC
+  target_compile_definitions(tinyusb_config INTERFACE
+    CFG_TUSB_MCU=OPT_MCU_MIMXRT
     )
 
-  # include tinyusb cmake
+  # include tinyusb CMakeList.txt for tinyusb target
   add_subdirectory(${TOP}/src ${CMAKE_CURRENT_BINARY_DIR}/tinyusb)
+
+  add_library(tinyusb_port STATIC
+    ${TOP}/src/portable/chipidea/ci_hs/dcd_ci_hs.c
+    ${TOP}/src/portable/chipidea/ci_hs/hcd_ci_hs.c
+    ${TOP}/src/portable/ehci/ehci.c
+    )
+
+
   target_link_libraries(${TARGET} PUBLIC
     tinyusb
+    bsp
     )
-
-  #include(${TOP}/src/CMakeLists.txt)
-  #add_tinyusb(${TARGET})
-
 endfunction()
+
 
 function(family_add_freertos_config TARGET)
   add_library(freertos_config INTERFACE)
