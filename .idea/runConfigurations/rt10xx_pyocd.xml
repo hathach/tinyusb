@@ -1,0 +1,7 @@
+<component name="ProjectRunConfigurationManager">
+  <configuration default="false" name="rt10xx pyocd" type="CMakeRunConfiguration" factoryName="Application" PROGRAM_PARAMS="flash -t mimxrt1010 $CMakeCurrentProductFile$" REDIRECT_INPUT="false" ELEVATE="false" USE_EXTERNAL_CONSOLE="false" PASS_PARENT_ENVS_2="true" PROJECT_NAME="cdc_msc_hid" TARGET_NAME="msc_dual_lun" RUN_PATH="$USER_HOME$/.local/bin/pyocd">
+    <method v="2">
+      <option name="com.jetbrains.cidr.execution.CidrBuildBeforeRunTaskProvider$BuildBeforeRunTask" enabled="true" />
+    </method>
+  </configuration>
+</component>
