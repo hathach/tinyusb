@@ -1,50 +1,34 @@
+if (TARGET _imxrt_family_inclusion_marker)
+  return()
+endif ()
+
+add_library(_imxrt_family_inclusion_marker INTERFACE)
+
+if (NOT BOARD)
+  message(FATAL_ERROR "BOARD not specified")
+endif ()
+
 # toolchain set up
 set(CMAKE_SYSTEM_PROCESSOR cortex-m7 CACHE INTERNAL "System Processor")
 set(CMAKE_TOOLCHAIN_FILE ${CMAKE_CURRENT_LIST_DIR}/../../../examples/cmake/toolchain/arm_${TOOLCHAIN}.cmake)
 
+# include board specific
+include(${CMAKE_CURRENT_LIST_DIR}/boards/${BOARD}/board.cmake)
 
-function(family_configure_target TARGET)
-  if (NOT BOARD)
-    message(FATAL_ERROR "BOARD not specified")
-  endif ()
 
-  # set output name to .elf
-  set_target_properties(${TARGET} PROPERTIES OUTPUT_NAME ${TARGET}.elf)
-
-  # TOP is absolute path to root directory of TinyUSB git repo
-  set(TOP "${CMAKE_CURRENT_FUNCTION_LIST_DIR}/../../..")
-  get_filename_component(TOP "${TOP}" REALPATH)
+#------------------------------------
+# BOARD_TARGET
+#------------------------------------
+# only need to be built ONCE for all examples
+set(BOARD_TARGET board_${BOARD})
+if (NOT TARGET ${BOARD_TARGET})
+  # TOP is path to root directory
+  set(TOP "${CMAKE_CURRENT_LIST_DIR}/../../..")
 
   set(SDK_DIR ${TOP}/hw/mcu/nxp/mcux-sdk)
-  set(DEPS_SUBMODULES ${SDK_DIR})
+  set(CMSIS_DIR ${TOP}/lib/CMSIS_5)
 
-  # define BSP target
-  add_library(bsp STATIC
-    )
-
-  # include board specific cmake
-  include(${CMAKE_CURRENT_FUNCTION_LIST_DIR}/boards/${BOARD}/board.cmake)
-
-  target_compile_definitions(bsp PUBLIC
-    CFG_TUSB_MCU=OPT_MCU_MIMXRT
-    __ARMVFP__=0
-    __ARMFPV5__=0
-    XIP_EXTERNAL_FLASH=1
-    XIP_BOOT_HEADER_ENABLE=1
-    )
-
-  target_link_options(${TARGET} PUBLIC
-    --specs=nosys.specs
-    --specs=nano.specs
-    )
-
-  target_sources(bsp PUBLIC
-    # TinyUSB
-#    ${TOP}/src/portable/chipidea/ci_hs/dcd_ci_hs.c
-#    ${TOP}/src/portable/chipidea/ci_hs/hcd_ci_hs.c
-#    ${TOP}/src/portable/ehci/ehci.c
-    # BSP
-    ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/family.c
+  add_library(${BOARD_TARGET} STATIC
     ${SDK_DIR}/drivers/common/fsl_common.c
     ${SDK_DIR}/drivers/igpio/fsl_gpio.c
     ${SDK_DIR}/drivers/lpuart/fsl_lpuart.c
@@ -53,24 +37,15 @@ function(family_configure_target TARGET)
     ${SDK_DIR}/devices/${MCU_VARIANT}/project_template/clock_config.c
     ${SDK_DIR}/devices/${MCU_VARIANT}/drivers/fsl_clock.c
     )
-
-  if (TOOLCHAIN STREQUAL "gcc")
-    target_sources(bsp PUBLIC
-      ${SDK_DIR}/devices/${MCU_VARIANT}/gcc/startup_${MCU_VARIANT}.S
-      )
-
-    target_link_options(bsp PUBLIC
-      "LINKER:--script=${SDK_DIR}/devices/${MCU_VARIANT}/gcc/${MCU_VARIANT}xxxxx_flexspi_nor.ld"
-      )
-  else ()
-    # TODO support IAR
-  endif ()
-
-  target_include_directories(bsp PUBLIC
-    ${CMAKE_CURRENT_FUNCTION_LIST_DIR}
-    ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/../../
-    ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/boards/${BOARD}
-    ${SDK_DIR}/CMSIS/Include
+  target_compile_definitions(${BOARD_TARGET} PUBLIC
+    CFG_TUSB_MCU=OPT_MCU_MIMXRT
+    __ARMVFP__=0
+    __ARMFPV5__=0
+    XIP_EXTERNAL_FLASH=1
+    XIP_BOOT_HEADER_ENABLE=1
+    )
+  target_include_directories(${BOARD_TARGET} PUBLIC
+    ${CMSIS_DIR}/CMSIS/Core/Include
     ${SDK_DIR}/devices/${MCU_VARIANT}
     ${SDK_DIR}/devices/${MCU_VARIANT}/project_template
     ${SDK_DIR}/devices/${MCU_VARIANT}/drivers
@@ -78,33 +53,71 @@ function(family_configure_target TARGET)
     ${SDK_DIR}/drivers/igpio
     ${SDK_DIR}/drivers/lpuart
     )
+  update_board(${BOARD_TARGET})
 
-  if(NOT TARGET tinyusb_config)
-    message(FATAL_ERROR "tinyusb_config target not found")
-  endif()
+  if (TOOLCHAIN STREQUAL "gcc")
+    target_sources(${BOARD_TARGET} PUBLIC
+      ${SDK_DIR}/devices/${MCU_VARIANT}/gcc/startup_${MCU_VARIANT}.S
+      )
+    target_link_options(${BOARD_TARGET} PUBLIC
+      "LINKER:--script=${SDK_DIR}/devices/${MCU_VARIANT}/gcc/${MCU_VARIANT}xxxxx_flexspi_nor.ld"
+      --specs=nosys.specs
+      --specs=nano.specs
+      )
+  else ()
+    # TODO support IAR
+  endif ()
+endif () # BOARD_TARGET
 
-  target_compile_definitions(tinyusb_config INTERFACE
-    CFG_TUSB_MCU=OPT_MCU_MIMXRT
-    )
+#------------------------------------
+# Functions
+#------------------------------------
+function(family_configure_target TARGET)
+  # set output name to .elf
+  set_target_properties(${TARGET} PROPERTIES OUTPUT_NAME ${TARGET}.elf)
 
-  # include tinyusb CMakeList.txt for tinyusb target
-  add_subdirectory(${TOP}/src ${CMAKE_CURRENT_BINARY_DIR}/tinyusb)
+  # TOP is path to root directory
+  set(TOP "${CMAKE_CURRENT_FUNCTION_LIST_DIR}/../../..")
 
-  add_library(tinyusb_port STATIC
+  #---------- BSP_TARGET ----------
+  # BSP_TARGET is built for each example since it depends on example's tusb_config.h
+  set(BSP_TARGET "${TARGET}_bsp_${BOARD}")
+  add_library(${BSP_TARGET} STATIC
+    # TinyUSB
     ${TOP}/src/portable/chipidea/ci_hs/dcd_ci_hs.c
     ${TOP}/src/portable/chipidea/ci_hs/hcd_ci_hs.c
     ${TOP}/src/portable/ehci/ehci.c
+    # BSP
+    ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/family.c
+    )
+  target_include_directories(${BSP_TARGET} PUBLIC
+    ${CMAKE_CURRENT_FUNCTION_LIST_DIR}
+    ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/../../
+    ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/boards/${BOARD}
     )
 
+  #---------- TinyUSB ----------
+  # tinyusb target is built for each example since it depends on example's tusb_config.h
+  set(TINYUSB_TARGET_PREFIX ${TARGET})
+  add_library(${TARGET}_tinyusb_config INTERFACE)
 
-  target_link_libraries(${TARGET} PUBLIC
-    tinyusb
-    bsp
+  target_include_directories(${TARGET}_tinyusb_config INTERFACE
+    ${CMAKE_CURRENT_SOURCE_DIR}/src
     )
+  target_compile_definitions(${TARGET}_tinyusb_config INTERFACE
+    CFG_TUSB_MCU=OPT_MCU_MIMXRT
+    )
+
+  # tinyusb's CMakeList.txt
+  add_subdirectory(${TOP}/src ${CMAKE_CURRENT_BINARY_DIR}/tinyusb)
+
+  # Link dependencies
+  target_link_libraries(${BSP_TARGET} PUBLIC ${BOARD_TARGET} ${TARGET}_tinyusb)
+  target_link_libraries(${TARGET} PUBLIC ${BSP_TARGET} ${TARGET}_tinyusb)
 endfunction()
 
 
-function(family_add_freertos_config TARGET)
+function(family_configure_freertos_example TARGET)
   add_library(freertos_config INTERFACE)
 
   # add path to FreeRTOSConfig.h

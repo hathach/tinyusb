@@ -19,20 +19,13 @@ add_executable(${PROJECT})
 
 # Example source
 target_sources(${PROJECT} PUBLIC
-        ${CMAKE_CURRENT_SOURCE_DIR}/src/main.c
-        ${CMAKE_CURRENT_SOURCE_DIR}/src/msc_disk.c
-        ${CMAKE_CURRENT_SOURCE_DIR}/src/usb_descriptors.c
-        )
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/main.c
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/msc_disk.c
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/usb_descriptors.c
+  )
 
 # Example include
 target_include_directories(${PROJECT} PUBLIC
-        ${CMAKE_CURRENT_SOURCE_DIR}/src
-        )
-
-# define tinyusb_config target
-add_library(tinyusb_config INTERFACE)
-
-target_include_directories(tinyusb_config INTERFACE
   ${CMAKE_CURRENT_SOURCE_DIR}/src
   )
 

@@ -35,7 +35,7 @@ target_include_directories(${PROJECT} PUBLIC
 family_configure_device_example(${PROJECT})
 
 if (NOT TARGET freertos_kernel)
-family_add_freertos_config(${PROJECT})
+family_configure_freertos_example(${PROJECT})
 add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/../../../lib/FreeRTOS-Kernel lib/FreeRTOS-Kernel)
 endif()
 
