@@ -12,6 +12,8 @@ endif ()
 set(CMAKE_SYSTEM_PROCESSOR cortex-m7 CACHE INTERNAL "System Processor")
 set(CMAKE_TOOLCHAIN_FILE ${CMAKE_CURRENT_LIST_DIR}/../../../examples/cmake/toolchain/arm_${TOOLCHAIN}.cmake)
 
+set(FAMILY_MCUS MIMXRT CACHE INTERNAL "")
+
 # include board specific
 include(${CMAKE_CURRENT_LIST_DIR}/boards/${BOARD}/board.cmake)
 
@@ -89,6 +91,7 @@ function(family_configure_target TARGET)
     ${TOP}/src/portable/ehci/ehci.c
     # BSP
     ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/family.c
+    ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/../board.c
     )
   target_include_directories(${BSP_TARGET} PUBLIC
     ${CMAKE_CURRENT_FUNCTION_LIST_DIR}
@@ -150,5 +153,9 @@ function(family_add_freertos TARGET)
 endfunction()
 
 function(family_configure_device_example TARGET)
+  family_configure_target(${TARGET})
+endfunction()
+
+function(family_configure_host_example TARGET)
   family_configure_target(${TARGET})
 endfunction()

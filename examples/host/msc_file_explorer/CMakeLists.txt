@@ -14,19 +14,19 @@ add_executable(${PROJECT})
 
 # Example source
 target_sources(${PROJECT} PUBLIC
-        ${CMAKE_CURRENT_SOURCE_DIR}/src/main.c
-        ${CMAKE_CURRENT_SOURCE_DIR}/src/msc_app.c
-        ${TOP}/lib/fatfs/source/ff.c
-        ${TOP}/lib/fatfs/source/ffsystem.c
-        ${TOP}/lib/fatfs/source/ffunicode.c
-        )
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/main.c
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/msc_app.c
+  ${TOP}/lib/fatfs/source/ff.c
+  ${TOP}/lib/fatfs/source/ffsystem.c
+  ${TOP}/lib/fatfs/source/ffunicode.c
+  )
 
 # Example include
 target_include_directories(${PROJECT} PUBLIC
-        ${CMAKE_CURRENT_SOURCE_DIR}/src
-        ${TOP}/lib/fatfs/source
-        ${TOP}/lib/embedded-cli
-        )
+  ${CMAKE_CURRENT_SOURCE_DIR}/src
+  ${TOP}/lib/fatfs/source
+  ${TOP}/lib/embedded-cli
+  )
 
 # Configure compilation flags and libraries for the example... see the corresponding function
 # in hw/bsp/FAMILY/family.cmake for details.

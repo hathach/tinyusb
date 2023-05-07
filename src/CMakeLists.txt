@@ -6,8 +6,10 @@ cmake_minimum_required(VERSION 3.17)
 # Add tinyusb to a target
 function(add_tinyusb TARGET)
   target_sources(${TARGET} PUBLIC
+    # common
     ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/tusb.c
     ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/common/tusb_fifo.c
+    # device
     ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/device/usbd.c
     ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/device/usbd_control.c
     ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/class/audio/audio_device.c
@@ -22,6 +24,13 @@ function(add_tinyusb TARGET)
     ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/class/usbtmc/usbtmc_device.c
     ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/class/vendor/vendor_device.c
     ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/class/video/video_device.c
+    # host
+    ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/host/usbh.c
+    ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/host/hub.c
+    ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/class/cdc/cdc_host.c
+    ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/class/hid/hid_host.c
+    ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/class/msc/msc_host.c
+    ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/class/vendor/vendor_host.c
     )
   target_include_directories(${TARGET} PUBLIC
     ${CMAKE_CURRENT_FUNCTION_LIST_DIR}
