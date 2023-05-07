@@ -1,5 +1,8 @@
 set(MCU_VARIANT MIMXRT1011)
 
+set(JLINK_DEVICE MIMXRT1011DAE5A)
+set(PYOCD_TARGET mimxrt1010)
+
 function(update_board TARGET)
   target_sources(${TARGET} PUBLIC
     ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/evkmimxrt1010_flexspi_nor_config.c

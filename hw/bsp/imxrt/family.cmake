@@ -81,7 +81,7 @@ function(family_configure_target TARGET)
 
   #---------- BSP_TARGET ----------
   # BSP_TARGET is built for each example since it depends on example's tusb_config.h
-  set(BSP_TARGET "${TARGET}_bsp_${BOARD}")
+  set(BSP_TARGET "${TARGET}-bsp")
   add_library(${BSP_TARGET} STATIC
     # TinyUSB
     ${TOP}/src/portable/chipidea/ci_hs/dcd_ci_hs.c
@@ -98,13 +98,13 @@ function(family_configure_target TARGET)
 
   #---------- TinyUSB ----------
   # tinyusb target is built for each example since it depends on example's tusb_config.h
-  set(TINYUSB_TARGET_PREFIX ${TARGET})
-  add_library(${TARGET}_tinyusb_config INTERFACE)
+  set(TINYUSB_TARGET_PREFIX ${TARGET}-)
+  add_library(${TARGET}-tinyusb_config INTERFACE)
 
-  target_include_directories(${TARGET}_tinyusb_config INTERFACE
+  target_include_directories(${TARGET}-tinyusb_config INTERFACE
     ${CMAKE_CURRENT_SOURCE_DIR}/src
     )
-  target_compile_definitions(${TARGET}_tinyusb_config INTERFACE
+  target_compile_definitions(${TARGET}-tinyusb_config INTERFACE
     CFG_TUSB_MCU=OPT_MCU_MIMXRT
     )
 
@@ -112,25 +112,41 @@ function(family_configure_target TARGET)
   add_subdirectory(${TOP}/src ${CMAKE_CURRENT_BINARY_DIR}/tinyusb)
 
   # Link dependencies
-  target_link_libraries(${BSP_TARGET} PUBLIC ${BOARD_TARGET} ${TARGET}_tinyusb)
-  target_link_libraries(${TARGET} PUBLIC ${BSP_TARGET} ${TARGET}_tinyusb)
+  target_link_libraries(${BSP_TARGET} PUBLIC ${BOARD_TARGET} ${TARGET}-tinyusb)
+  target_link_libraries(${TARGET} PUBLIC ${BSP_TARGET} ${TARGET}-tinyusb)
+
+  # Flash Target
+  add_custom_target(${TARGET}-pyocd
+    COMMAND pyocd flash -t ${PYOCD_TARGET} $<TARGET_FILE:${TARGET}>
+    )
 endfunction()
 
 
-function(family_configure_freertos_example TARGET)
-  add_library(freertos_config INTERFACE)
+function(family_add_freertos TARGET)
+  # freertos_config
+  add_subdirectory(${CMAKE_CURRENT_FUNCTION_LIST_DIR}/FreeRTOSConfig ${CMAKE_CURRENT_BINARY_DIR}/freertos_config)
 
-  # add path to FreeRTOSConfig.h
-  target_include_directories(freertos_config SYSTEM INTERFACE
-    ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/FreeRTOSConfig
+  ## freertos
+  if (NOT TARGET freertos_kernel)
+    add_subdirectory(${CMAKE_CURRENT_FUNCTION_LIST_DIR}/../../../lib/FreeRTOS-Kernel ${CMAKE_CURRENT_BINARY_DIR}/freertos_kernel)
+  endif ()
+
+  # Add FreeRTOS option to tinyusb_config
+  target_compile_definitions(${TARGET}-tinyusb_config INTERFACE
+    CFG_TUSB_OS=OPT_OS_FREERTOS
+    )
+  # tinyusb need to be linked with freeRTOS kernel
+  target_link_libraries(${TARGET}-tinyusb PUBLIC
+    freertos_kernel
     )
 
-  # select freertos port
-  if (TOOLCHAIN STREQUAL "gcc")
-    set(FREERTOS_PORT "GCC_ARM_CM7" CACHE INTERNAL "")
-  else ()
-    # TODO support IAR
-  endif ()
+  target_link_libraries(${TARGET}-tinyusb PUBLIC
+    freertos_kernel
+    )
+
+  target_link_libraries(${TARGET} PUBLIC
+    freertos_kernel
+    )
 endfunction()
 
 function(family_configure_device_example TARGET)

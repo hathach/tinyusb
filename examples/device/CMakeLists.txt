@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.5)
+cmake_minimum_required(VERSION 3.17)
 
 include(${CMAKE_CURRENT_SOURCE_DIR}/../../hw/bsp/family_support.cmake)
 

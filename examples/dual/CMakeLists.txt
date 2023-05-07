@@ -1,8 +1,8 @@
-cmake_minimum_required(VERSION 3.5)
+cmake_minimum_required(VERSION 3.17)
 
 include(${CMAKE_CURRENT_SOURCE_DIR}/../../hw/bsp/family_support.cmake)
 
-project(tinyusb_dual_examples)
+project(tinyusb_dual_examples C CXX ASM)
 family_initialize_project(tinyusb_dual_examples ${CMAKE_CURRENT_LIST_DIR})
 if (FAMILY STREQUAL "rp2040" AND NOT TARGET tinyusb_pico_pio_usb)
     message("Skipping dual host/device mode examples as Pico-PIO-USB is not available")
