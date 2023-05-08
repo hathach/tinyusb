@@ -63,8 +63,13 @@ if (NOT TARGET ${BOARD_TARGET})
       )
     target_link_options(${BOARD_TARGET} PUBLIC
       "LINKER:--script=${SDK_DIR}/devices/${MCU_VARIANT}/gcc/${MCU_VARIANT}xxxxx_flexspi_nor.ld"
+      "LINKER:-Map=$<IF:$<BOOL:$<TARGET_PROPERTY:OUTPUT_NAME>>,$<TARGET_PROPERTY:OUTPUT_NAME>,$<TARGET_PROPERTY:NAME>>${CMAKE_EXECUTABLE_SUFFIX}.map"
+      # nanolib
       --specs=nosys.specs
       --specs=nano.specs
+      # force linker to look for these symbols
+      -Wl,-uimage_vector_table
+      -Wl,-ug_boot_data
       )
   else ()
     # TODO support IAR
@@ -116,11 +121,16 @@ function(family_configure_target TARGET)
 
   # Link dependencies
   target_link_libraries(${BSP_TARGET} PUBLIC ${BOARD_TARGET} ${TARGET}-tinyusb)
-  target_link_libraries(${TARGET} PUBLIC ${BSP_TARGET} ${TARGET}-tinyusb)
+  target_link_libraries(${TARGET} PUBLIC ${BOARD_TARGET} ${BSP_TARGET} ${TARGET}-tinyusb)
 
   # Flash Target
   add_custom_target(${TARGET}-pyocd
     COMMAND pyocd flash -t ${PYOCD_TARGET} $<TARGET_FILE:${TARGET}>
+    )
+
+  # group target
+  set_target_properties(${BSP_TARGET} ${TARGET}-tinyusb ${TARGET}-tinyusb_config ${TARGET}-pyocd
+    PROPERTIES FOLDER ${TARGET}
     )
 endfunction()
 

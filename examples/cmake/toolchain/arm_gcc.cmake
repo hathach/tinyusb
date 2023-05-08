@@ -25,7 +25,13 @@ list(APPEND TOOLCHAIN_COMMON_FLAGS
   -fno-strict-aliasing
   )
 
-set(TOOLCHAIN_WARNING_FLAGS
+list(APPEND TOOLCHAIN_EXE_LINKER_FLAGS
+  -Wl,--print-memory-usage
+  -Wl,--gc-sections
+  -Wl,--cref
+  )
+
+list(APPEND TOOLCHAIN_WARNING_FLAGS
   -Wall
   -Wextra
   -Werror

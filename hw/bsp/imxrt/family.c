@@ -47,6 +47,7 @@
 #endif
 
 // needed by fsl_flexspi_nor_boot
+TU_ATTR_USED
 const uint8_t dcd_data[] = { 0x00 };
 
 //--------------------------------------------------------------------+

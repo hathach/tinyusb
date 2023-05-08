@@ -11,6 +11,9 @@ foreach(LANG IN ITEMS C CXX ASM)
     set(CMAKE_${LANG}_FLAGS_DEBUG_INIT "-Og")
 endforeach()
 
+# Linker
+list(JOIN TOOLCHAIN_EXE_LINKER_FLAGS " " CMAKE_EXE_LINKER_FLAGS_INIT)
+
 # try_compile is cmake test compiling its own example,
 # pass -nostdlib to skip stdlib linking
 get_property(IS_IN_TRY_COMPILE GLOBAL PROPERTY IN_TRY_COMPILE)

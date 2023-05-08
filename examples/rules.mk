@@ -169,7 +169,7 @@ $(BUILD)/$(PROJECT).hex: $(BUILD)/$(PROJECT).elf
 
 $(BUILD)/$(PROJECT).elf: $(OBJ)
 	@echo LINK $@
-	@$(LD) -o $@ $(LDFLAGS) $^ -Wl,--start-group $(LIBS) -Wl,--end-group
+	@$(LD) -o $@ $(LDFLAGS) $^ -Wl,--print-memory-usage -Wl,--start-group $(LIBS) -Wl,--end-group
 
 endif
 
