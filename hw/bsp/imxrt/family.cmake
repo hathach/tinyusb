@@ -137,8 +137,8 @@ function(family_configure_target TARGET)
   # LinkServer has a bug that can only execute with full path otherwise it throws:
   # realpath error: No such file or directory
   execute_process(COMMAND which LinkServer OUTPUT_VARIABLE LINKSERVER_PATH OUTPUT_STRIP_TRAILING_WHITESPACE)
-  add_custom_target(${TARGET}-redlink
-    COMMAND ${LINKSERVER_PATH} flash ${NXPLS_DEVICE} load $<TARGET_FILE:${TARGET}>
+  add_custom_target(${TARGET}-nxplink
+    COMMAND ${LINKSERVER_PATH} flash ${NXPLINK_DEVICE} load $<TARGET_FILE:${TARGET}>
     )
 
 endfunction()

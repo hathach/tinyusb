@@ -72,6 +72,11 @@ endif
 
 LDFLAGS += $(CFLAGS) -Wl,-Map=$@.map -Wl,-cref -Wl,-gc-sections
 
+# Some toolchain such as renesas rx does not support --print-memory-usage flags
+ifneq ($(FAMILY),rx)
+LDFLAGS += -Wl,--print-memory-usage
+endif
+
 ifdef LD_FILE
 LDFLAGS += -Wl,-T,$(TOP)/$(LD_FILE)
 endif
@@ -169,7 +174,7 @@ $(BUILD)/$(PROJECT).hex: $(BUILD)/$(PROJECT).elf
 
 $(BUILD)/$(PROJECT).elf: $(OBJ)
 	@echo LINK $@
-	@$(LD) -o $@ $(LDFLAGS) $^ -Wl,--print-memory-usage -Wl,--start-group $(LIBS) -Wl,--end-group
+	@$(LD) -o $@ $(LDFLAGS) $^ -Wl,--start-group $(LIBS) -Wl,--end-group
 
 endif
 
