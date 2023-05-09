@@ -86,11 +86,10 @@ function(family_configure_target TARGET)
   # TOP is path to root directory
   set(TOP "${CMAKE_CURRENT_FUNCTION_LIST_DIR}/../../..")
 
-  #---------- BSP_TARGET ----------
-  # BSP_TARGET is built for each example since it depends on example's tusb_config.h
-  set(BSP_TARGET "${TARGET}-bsp")
-  add_library(${BSP_TARGET} STATIC
-    # TinyUSB
+  #---------- Port Specific ----------
+  # These files are built for each example since it depends on example's tusb_config.h
+  target_sources(${TARGET} PUBLIC
+    # TinyUSB Port
     ${TOP}/src/portable/chipidea/ci_hs/dcd_ci_hs.c
     ${TOP}/src/portable/chipidea/ci_hs/hcd_ci_hs.c
     ${TOP}/src/portable/ehci/ehci.c
@@ -98,7 +97,7 @@ function(family_configure_target TARGET)
     ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/family.c
     ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/../board.c
     )
-  target_include_directories(${BSP_TARGET} PUBLIC
+  target_include_directories(${TARGET} PUBLIC
     ${CMAKE_CURRENT_FUNCTION_LIST_DIR}
     ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/../../
     ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/boards/${BOARD}
@@ -120,8 +119,7 @@ function(family_configure_target TARGET)
   add_subdirectory(${TOP}/src ${CMAKE_CURRENT_BINARY_DIR}/tinyusb)
 
   # Link dependencies
-  target_link_libraries(${BSP_TARGET} PUBLIC ${BOARD_TARGET} ${TARGET}-tinyusb)
-  target_link_libraries(${TARGET} PUBLIC ${BOARD_TARGET} ${BSP_TARGET} ${TARGET}-tinyusb)
+  target_link_libraries(${TARGET} PUBLIC ${BOARD_TARGET} ${TARGET}-tinyusb)
 
   # Flash Target
   add_custom_target(${TARGET}-pyocd
@@ -129,8 +127,8 @@ function(family_configure_target TARGET)
     )
 
   # group target
-  set_target_properties(${BSP_TARGET} ${TARGET}-tinyusb ${TARGET}-tinyusb_config ${TARGET}-pyocd
-    PROPERTIES FOLDER ${TARGET}
+  set_target_properties(${TARGET}-tinyusb ${TARGET}-tinyusb_config
+    PROPERTIES FOLDER ${TARGET}_sub
     )
 endfunction()
 
@@ -148,15 +146,10 @@ function(family_add_freertos TARGET)
   target_compile_definitions(${TARGET}-tinyusb_config INTERFACE
     CFG_TUSB_OS=OPT_OS_FREERTOS
     )
-  # tinyusb need to be linked with freeRTOS kernel
+  # link tinyusb with freeRTOS kernel
   target_link_libraries(${TARGET}-tinyusb PUBLIC
     freertos_kernel
     )
-
-  target_link_libraries(${TARGET}-tinyusb PUBLIC
-    freertos_kernel
-    )
-
   target_link_libraries(${TARGET} PUBLIC
     freertos_kernel
     )
