@@ -121,15 +121,26 @@ function(family_configure_target TARGET)
   # Link dependencies
   target_link_libraries(${TARGET} PUBLIC ${BOARD_TARGET} ${TARGET}-tinyusb)
 
-  # Flash Target
+  # group target (not yet supported by clion)
+  set_target_properties(${TARGET}-tinyusb ${TARGET}-tinyusb_config
+    PROPERTIES FOLDER ${TARGET}_sub
+    )
+
+  #---------- Flash ----------
+  # Flash using pyocd
   add_custom_target(${TARGET}-pyocd
     COMMAND pyocd flash -t ${PYOCD_TARGET} $<TARGET_FILE:${TARGET}>
     )
 
-  # group target
-  set_target_properties(${TARGET}-tinyusb ${TARGET}-tinyusb_config
-    PROPERTIES FOLDER ${TARGET}_sub
+  # Flash using NXP LinkServer (redlink)
+  # https://www.nxp.com/design/software/development-software/mcuxpresso-software-and-tools-/linkserver-for-microcontrollers:LINKERSERVER
+  # LinkServer has a bug that can only execute with full path otherwise it throws:
+  # realpath error: No such file or directory
+  execute_process(COMMAND which LinkServer OUTPUT_VARIABLE LINKSERVER_PATH OUTPUT_STRIP_TRAILING_WHITESPACE)
+  add_custom_target(${TARGET}-redlink
+    COMMAND ${LINKSERVER_PATH} flash ${NXPLS_DEVICE} load $<TARGET_FILE:${TARGET}>
     )
+
 endfunction()
 
 

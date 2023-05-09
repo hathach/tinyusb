@@ -79,13 +79,34 @@ typedef struct
   ehci_qhd_t qhd_pool[QHD_MAX];
   ehci_qtd_t qtd_pool[QTD_MAX] TU_ATTR_ALIGNED(32);
 
-  ehci_registers_t* regs;
+  ehci_registers_t* regs;         // operational register
+  ehci_cap_registers_t* cap_regs; // capability register
 
   volatile uint32_t uframe_number;
 }ehci_data_t;
 
 // Periodic frame list must be 4K alignment
 CFG_TUH_MEM_SECTION TU_ATTR_ALIGNED(4096) static ehci_data_t ehci_data;
+
+//--------------------------------------------------------------------+
+// Debug
+//--------------------------------------------------------------------+
+#if CFG_TUSB_DEBUG >= EHCI_DBG
+static inline void print_portsc(ehci_registers_t* regs)
+{
+  TU_LOG_HEX(EHCI_DBG, regs->portsc);
+  TU_LOG(EHCI_DBG, "  Current Connect Status: %u\r\n", regs->portsc_bm.current_connect_status);
+  TU_LOG(EHCI_DBG, "  Connect Status Change : %u\r\n", regs->portsc_bm.connect_status_change);
+  TU_LOG(EHCI_DBG, "  Port Enabled          : %u\r\n", regs->portsc_bm.port_enabled);
+  TU_LOG(EHCI_DBG, "  Port Enabled Change   : %u\r\n", regs->portsc_bm.port_enable_change);
+
+  TU_LOG(EHCI_DBG, "  Port Reset            : %u\r\n", regs->portsc_bm.port_reset);
+  TU_LOG(EHCI_DBG, "  Port Power            : %u\r\n", regs->portsc_bm.port_power);
+}
+
+#else
+#define print_portsc(_reg)
+#endif
 
 //--------------------------------------------------------------------+
 // PROTOTYPE
@@ -152,11 +173,11 @@ void hcd_port_reset(uint8_t rhport)
 
   ehci_registers_t* regs = ehci_data.regs;
 
-//  regs->portsc_bm.port_enabled = 0; // disable port before reset
-//  regs->portsc_bm.port_reset = 1;
+  // mask out all change bits since they are Write 1 to clear
+  uint32_t portsc = regs->portsc & ~EHCI_PORTSC_MASK_CHANGE_ALL;
 
-  uint32_t portsc = regs->portsc;
-
+  // EHCI Table 2-16 PortSC
+  // when software writes Port Reset bit to a one, it must also write a zero to the Port Enable bit.
   portsc &= ~(EHCI_PORTSC_MASK_PORT_EANBLED);
   portsc |= EHCI_PORTSC_MASK_PORT_RESET;
 
@@ -167,9 +188,14 @@ void hcd_port_reset_end(uint8_t rhport)
 {
   (void) rhport;
 
-#if 0
+#if 0 // TODO check if this is necessary
   ehci_registers_t* regs = ehci_data.regs;
-  regs->portsc_bm.port_reset = 0;
+
+  // mask out all change bits since they are Write 1 to clear
+  uint32_t portsc = regs->portsc & ~EHCI_PORTSC_MASK_CHANGE_ALL;
+  portsc &= ~(EHCI_PORTSC_MASK_PORT_RESET);
+
+  regs->portsc = portsc;
 #endif
 }
 
@@ -240,19 +266,26 @@ void hcd_device_close(uint8_t rhport, uint8_t dev_addr)
 
 bool ehci_init(uint8_t rhport, uint32_t capability_reg, uint32_t operatial_reg)
 {
-  (void) capability_reg; // not used yet
-
   tu_memclr(&ehci_data, sizeof(ehci_data_t));
 
-  ehci_data.regs = (ehci_registers_t* ) operatial_reg;
+  ehci_data.regs = (ehci_registers_t*) operatial_reg;
+  ehci_data.cap_regs = (ehci_cap_registers_t*) capability_reg;
 
   ehci_registers_t* regs = ehci_data.regs;
 
-  //------------- CTRLDSSEGMENT Register (skip) -------------//
-  //------------- USB INT Register -------------//
-  regs->inten  = 0;                 // 1. disable all the interrupt
-  regs->status = EHCI_INT_MASK_ALL; // 2. clear all status
+  // EHCI 4.1 Host Controller Initialization
 
+  //------------- CTRLDSSEGMENT Register (skip) -------------//
+
+  //------------- USB INT Register -------------//
+
+  // disable all the interrupt
+  regs->inten  = 0;
+
+  // clear all status except port change since device maybe connected before this driver is initialized
+  regs->status = (EHCI_INT_MASK_ALL & ~EHCI_INT_MASK_PORT_CHANGE);
+
+  // Enable interrupts
   regs->inten  = EHCI_INT_MASK_ERROR | EHCI_INT_MASK_PORT_CHANGE | EHCI_INT_MASK_ASYNC_ADVANCE |
                  EHCI_INT_MASK_NXP_PERIODIC | EHCI_INT_MASK_NXP_ASYNC | EHCI_INT_MASK_FRAMELIST_ROLLOVER;
 
@@ -316,7 +349,16 @@ bool ehci_init(uint8_t rhport, uint32_t capability_reg, uint32_t operatial_reg)
                    FRAMELIST_SIZE_USBCMD_VALUE;
 
   //------------- ConfigFlag Register (skip) -------------//
-  regs->portsc_bm.port_power = 1; // enable port power
+
+  // enable port power bit in portsc. The function of this bit depends on the value of the Port
+  // Power Control (PPC) field in the HCSPARAMS register.
+  if (ehci_data.cap_regs->hcsparams_bm.port_power_control) {
+    // mask out all change bits since they are Write 1 to clear
+    uint32_t portsc = (regs->portsc & ~EHCI_PORTSC_MASK_CHANGE_ALL);
+    portsc |= ECHI_PORTSC_MASK_PORT_POWER;
+
+    regs->portsc = portsc;
+  }
 
   return true;
 }
@@ -656,26 +698,6 @@ static void xfer_error_isr(uint8_t hostid)
   }
 }
 
-#if CFG_TUSB_DEBUG >= EHCI_DBG
-
-static inline void print_portsc(ehci_registers_t* regs)
-{
-  TU_LOG_HEX(EHCI_DBG, regs->portsc);
-  TU_LOG(EHCI_DBG, "  Current Connect Status: %u\r\n", regs->portsc_bm.current_connect_status);
-  TU_LOG(EHCI_DBG, "  Connect Status Change : %u\r\n", regs->portsc_bm.connect_status_change);
-  TU_LOG(EHCI_DBG, "  Port Enabled          : %u\r\n", regs->portsc_bm.port_enabled);
-  TU_LOG(EHCI_DBG, "  Port Enabled Change   : %u\r\n", regs->portsc_bm.port_enable_change);
-
-  TU_LOG(EHCI_DBG, "  Port Reset            : %u\r\n", regs->portsc_bm.port_reset);
-  TU_LOG(EHCI_DBG, "  Port Power            : %u\r\n", regs->portsc_bm.port_power);
-}
-
-#else
-
-#define print_portsc(_reg)
-
-#endif
-
 //------------- Host Controller Driver's Interrupt Handler -------------//
 void hcd_int_handler(uint8_t rhport)
 {
@@ -695,7 +717,7 @@ void hcd_int_handler(uint8_t rhport)
 
   if (int_status & EHCI_INT_MASK_PORT_CHANGE)
   {
-    uint32_t const port_status = regs->portsc & EHCI_PORTSC_MASK_ALL;
+    uint32_t const port_status = regs->portsc & EHCI_PORTSC_MASK_CHANGE_ALL;
     print_portsc(regs);
 
     if (regs->portsc_bm.connect_status_change)
