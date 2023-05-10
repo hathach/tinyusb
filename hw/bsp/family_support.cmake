@@ -27,8 +27,8 @@ if (NOT TARGET _family_support_marker)
             foreach(MCU IN LISTS FAMILY_MCUS)
                 # For each line in only.txt
                 foreach(_line ${ONLYS_LINES})
-                    # If mcu:xxx exists for this mcu then include
-                    if (${_line} STREQUAL "mcu:${MCU}")
+                    # If mcu:xxx exists for this mcu or board:xxx then include
+                    if (${_line} STREQUAL "mcu:${MCU}" OR ${_line} STREQUAL "board:${BOARD}")
                         set(${RESULT} 1 PARENT_SCOPE)
                         return()
                     endif()

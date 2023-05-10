@@ -8,7 +8,8 @@ foreach(LANG IN ITEMS C CXX ASM)
     #cmake_print_variables(CMAKE_${LANG}_FLAGS_INIT)
 
     # optimization flags
-    set(CMAKE_${LANG}_FLAGS_DEBUG_INIT "-Og")
+    set(CMAKE_${LANG}_FLAGS_RELEASE_INIT "-Os")
+    set(CMAKE_${LANG}_FLAGS_DEBUG_INIT "-O0")
 endforeach()
 
 # Linker

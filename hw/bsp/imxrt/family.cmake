@@ -173,3 +173,7 @@ endfunction()
 function(family_configure_host_example TARGET)
   family_configure_target(${TARGET})
 endfunction()
+
+function(family_configure_dual_usb_example TARGET)
+  family_configure_target(${TARGET})
+endfunction()
