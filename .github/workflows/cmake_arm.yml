@@ -45,7 +45,7 @@ jobs:
         release: '11.2-2022.02'
 
     - name: Install Ninja
-      run: apt install -y ninja-build
+      run: sudo apt install -y ninja-build
 
     - name: Checkout TinyUSB
       uses: actions/checkout@v3
