@@ -1,0 +1,58 @@
+name: CMake Build ARM
+
+on:
+  push:
+    paths:
+      - 'src/**'
+      - 'examples/**'
+      - 'lib/**'
+      - 'hw/**'
+      - '.github/workflows/cmake_arm.yml'
+  pull_request:
+    branches: [ master ]
+    paths:
+      - 'src/**'
+      - 'examples/**'
+      - 'lib/**'
+      - 'hw/**'
+      - '.github/workflows/cmake_arm.yml'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
+  cancel-in-progress: true
+
+jobs:
+  # ---------------------------------------
+  # Build ARM family
+  # ---------------------------------------
+  build-arm:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        family:
+        # Alphabetical order
+        - 'imxrt'
+    steps:
+    - name: Setup Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.x'
+
+    - name: Install ARM GCC
+      uses: carlosperate/arm-none-eabi-gcc-action@v1
+      with:
+        release: '11.2-2022.02'
+
+    - name: Checkout TinyUSB
+      uses: actions/checkout@v3
+
+    - name: Get Dependencies
+      run: python3 tools/get_family_deps.py ${{ matrix.family }}
+
+    - name: Build
+      run: |
+        mkdir -p examples/build
+        cd examples/build
+        cmake -DFAMILY=${{ matrix.family }} -DBOARD=mimxrt1060_evk ..
+        cmake --build .

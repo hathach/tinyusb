@@ -22,7 +22,12 @@ family_add_subdirectory(hid_generic_inout)
 family_add_subdirectory(hid_multiple_interface)
 family_add_subdirectory(midi_test)
 family_add_subdirectory(msc_dual_lun)
-family_add_subdirectory(net_lwip_webserver)
+
+# FIXME temp skip net_lwip_webserver for imxrt for now
+if (NOT ${FAMILY} STREQUAL "imxrt")
+  family_add_subdirectory(net_lwip_webserver)
+endif()
+
 family_add_subdirectory(uac2_headset)
 family_add_subdirectory(usbtmc)
 family_add_subdirectory(video_capture)
