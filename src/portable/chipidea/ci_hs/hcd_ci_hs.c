@@ -76,6 +76,8 @@ bool hcd_init(uint8_t rhport)
 #endif
 
   // FIXME force full speed, still have issue with Highspeed enumeration
+  // 1. Have issue when plug/unplug devices, maybe the port is not reset properly
+  // 2. Also does not seems to detect disconnection
   hcd_reg->PORTSC1 |= PORTSC1_FORCE_FULL_SPEED;
 
   return ehci_init(rhport, (uint32_t) &hcd_reg->CAPLENGTH, (uint32_t) &hcd_reg->USBCMD);

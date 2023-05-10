@@ -1,6 +1,8 @@
 import os
 import sys
 import time
+import subprocess
+import pathlib
 from multiprocessing import Pool
 
 import build_utils
@@ -20,34 +22,54 @@ def filter_with_input(mylist):
             mylist[:] = input_args
 
 
-def build_family(example, family, make_option):
+def build_family(family, make_option):
     all_boards = []
     for entry in os.scandir("hw/bsp/{}/boards".format(family)):
         if entry.is_dir() and entry.name != 'pico_sdk':
             all_boards.append(entry.name)
-    filter_with_input(all_boards)
     all_boards.sort()
 
-    with Pool(processes=os.cpu_count()) as pool:
-        pool_args = list((map(lambda b, e=example, o=make_option: [e, b, o], all_boards)))
-        result = pool.starmap(build_utils.build_example, pool_args)
-        # sum all element of same index (column sum)
-        return list(map(sum, list(zip(*result))))
+    # success, failed, skipped
+    ret = [0, 0, 0]
+    for board in all_boards:
+        start_time = time.monotonic()
+
+        # Generate build
+        r = subprocess.run(f"cmake examples -B cmake-build-ci-{board} -G \"Ninja\" -DFAMILY={family} -DBOARD"
+                           f"={board}", shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+
+        # Build
+        if r.returncode == 0:
+            r = subprocess.run(f"cmake --build cmake-build-ci-{board}", shell=True, stdout=subprocess.PIPE,
+                               stderr=subprocess.STDOUT)
+
+        duration = time.monotonic() - start_time
+
+        if r.returncode == 0:
+            status = SUCCEEDED
+            ret[0] += 1
+        else:
+            status = FAILED
+            ret[1] += 1
+
+        flash_size = "-"
+        sram_size = "-"
+        example = 'all'
+        print(build_utils.build_format.format(example, board, status, "{:.2f}s".format(duration), flash_size, sram_size))
+
+        if r.returncode != 0:
+            # group output in CI
+            print(f"::group::{board} build error")
+            print(r.stdout.decode("utf-8"))
+            print(f"::endgroup::")
+
+    return ret
+
 
 if __name__ == '__main__':
     # IAR CC
     if make_iar_option not in sys.argv:
         make_iar_option = ''
-
-    # If examples are not specified in arguments, build all
-    all_examples = []
-    for d in os.scandir("examples"):
-        if d.is_dir() and 'cmake-build' not in d.name and 'cmake' not in d.name:
-            for entry in os.scandir(d.path):
-                if entry.is_dir():
-                    all_examples.append(d.name + '/' + entry.name)
-    filter_with_input(all_examples)
-    all_examples.sort()
 
     # If family are not specified in arguments, build all
     all_families = []
@@ -63,12 +85,10 @@ if __name__ == '__main__':
 
     # succeeded, failed, skipped
     total_result = [0, 0, 0]
-    for example in all_examples:
-        print(build_separator)
-        for family in all_families:
-            fret = build_family(example, family, make_iar_option)
-            if len(fret) == len(total_result):
-                total_result = [total_result[i] + fret[i] for i in range(len(fret))]
+    for family in all_families:
+        fret = build_family(family, make_iar_option)
+        if len(fret) == len(total_result):
+            total_result = [total_result[i] + fret[i] for i in range(len(fret))]
 
     total_time = time.monotonic() - total_time
     print(build_separator)

@@ -1,12 +1,12 @@
 if (NOT TARGET _family_support_marker)
+    add_library(_family_support_marker INTERFACE)
+
     include(CMakePrintHelpers)
 
     # Default to gcc
     if(NOT DEFINED TOOLCHAIN)
         set(TOOLCHAIN gcc)
     endif()
-
-    add_library(_family_support_marker INTERFACE)
 
     if (NOT FAMILY)
         message(FATAL_ERROR "You must set a FAMILY variable for the build (e.g. rp2040, eps32s2, esp32s3). You can do this via -DFAMILY=xxx on the cmake command line")
@@ -27,8 +27,8 @@ if (NOT TARGET _family_support_marker)
             foreach(MCU IN LISTS FAMILY_MCUS)
                 # For each line in only.txt
                 foreach(_line ${ONLYS_LINES})
-                    # If mcu:xxx exists for this mcu then include
-                    if (${_line} STREQUAL "mcu:${MCU}")
+                    # If mcu:xxx exists for this mcu or board:xxx then include
+                    if (${_line} STREQUAL "mcu:${MCU}" OR ${_line} STREQUAL "board:${BOARD}")
                         set(${RESULT} 1 PARENT_SCOPE)
                         return()
                     endif()

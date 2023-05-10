@@ -1,8 +1,8 @@
-cmake_minimum_required(VERSION 3.5)
+cmake_minimum_required(VERSION 3.17)
 
 include(${CMAKE_CURRENT_SOURCE_DIR}/../../hw/bsp/family_support.cmake)
 
-project(tinyusb_device_examples)
+project(tinyusb_device_examples C CXX ASM)
 family_initialize_project(tinyusb_device_examples ${CMAKE_CURRENT_LIST_DIR})
 
 # family_add_subdirectory will filter what to actually add based on selected FAMILY
@@ -22,7 +22,12 @@ family_add_subdirectory(hid_generic_inout)
 family_add_subdirectory(hid_multiple_interface)
 family_add_subdirectory(midi_test)
 family_add_subdirectory(msc_dual_lun)
-family_add_subdirectory(net_lwip_webserver)
+
+# FIXME temp skip net_lwip_webserver for imxrt for now
+if (NOT ${FAMILY} STREQUAL "imxrt")
+  family_add_subdirectory(net_lwip_webserver)
+endif()
+
 family_add_subdirectory(uac2_headset)
 family_add_subdirectory(usbtmc)
 family_add_subdirectory(video_capture)
