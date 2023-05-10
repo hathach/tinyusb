@@ -1,4 +1,4 @@
-name: CMake Build ARM
+name: CMake ARM
 
 on:
   push:
@@ -51,8 +51,4 @@ jobs:
       run: python3 tools/get_family_deps.py ${{ matrix.family }}
 
     - name: Build
-      run: |
-        mkdir -p examples/build
-        cd examples/build
-        cmake -DFAMILY=${{ matrix.family }} -DBOARD=mimxrt1060_evk ..
-        cmake --build .
+      run: python tools/build_cmake.py ${{ matrix.family }}
