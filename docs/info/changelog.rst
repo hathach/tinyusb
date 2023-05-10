@@ -93,7 +93,7 @@ Controller Driver (DCD & HCD)
 
   - CFG_TUD_ENABLED/CFG_TUH_ENABLED, CFG_TUD_MAX_SPEED/CFG_TUH_MAX_SPEED can be used to replace CFG_TUSB_RHPORT0_MODE/CFG_TUSB_RHPORT1_MODE
   - tud_init(rphort), tuh_init(rhport) can be used to init stack on specified roothub port (controller) instead of tusb_init(void)
-- Add dcd/hcd port specific defines TUP_ (stand for tinyusb port-specific)
+- Add dcd/hcd port specific defines `TUP_` (stand for tinyusb port-specific)
 - [dwc2]
 
   - Update to support stm32 h72x, h73x with only 1 otg controller
