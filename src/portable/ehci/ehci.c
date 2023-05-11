@@ -142,8 +142,11 @@ static inline ehci_qhd_t* qhd_get_from_addr (uint8_t dev_addr, uint8_t ep_addr);
 // determine if a queue head has bus-related error
 static inline bool qhd_has_xact_error (ehci_qhd_t * p_qhd)
 {
-  return (p_qhd->qtd_overlay.buffer_err || p_qhd->qtd_overlay.babble_err || p_qhd->qtd_overlay.xact_err);
-  //p_qhd->qtd_overlay.non_hs_period_missed_uframe || p_qhd->qtd_overlay.pingstate_err TODO split transaction error
+  volatile ehci_qtd_t *qtd_overlay = &p_qhd->qtd_overlay;
+
+  // Error count = 0 often occurs when device disconnected
+  return (qtd_overlay->err_count == 0 || qtd_overlay->buffer_err || qtd_overlay->babble_err || qtd_overlay->xact_err);
+  //qtd_overlay->non_hs_period_missed_uframe || qtd_overlay->pingstate_err TODO split transaction error
 }
 
 static void qhd_init(ehci_qhd_t *p_qhd, uint8_t dev_addr, tusb_desc_endpoint_t const * ep_desc);
@@ -630,7 +633,9 @@ static void qhd_xfer_error_isr(ehci_qhd_t * p_qhd)
 
     p_qhd->total_xferred_bytes += p_qhd->p_qtd_list_head->expected_bytes - p_qhd->p_qtd_list_head->total_bytes;
 
-//    if ( XFER_RESULT_FAILED == error_event )    TU_BREAKPOINT(); // TODO skip unplugged device
+//    if ( XFER_RESULT_FAILED == error_event ) {
+//      TU_BREAKPOINT(); // TODO skip unplugged device
+//    }
 
     p_qhd->p_qtd_list_head->used = 0; // free QTD
     qtd_remove_1st_from_qhd(p_qhd);

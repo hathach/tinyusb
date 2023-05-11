@@ -35,8 +35,7 @@
 
 // Debug level, TUSB_CFG_DEBUG must be at least this level for debug message
 #define CDCH_DEBUG   2
-
-#define TU_LOG_CDCH(...)   TU_LOG(CDCH_DEBUG, __VA_ARGS__)
+#define TU_LOG_DRV(...)   TU_LOG(CDCH_DEBUG, __VA_ARGS__)
 
 //--------------------------------------------------------------------+
 // Host CDC Interface
@@ -537,6 +536,8 @@ void cdch_close(uint8_t daddr)
     cdch_interface_t* p_cdc = &cdch_data[idx];
     if (p_cdc->daddr == daddr)
     {
+      TU_LOG_DRV("  CDCh close addr = %u index = %u\r\n", daddr, idx);
+
       // Invoke application callback
       if (tuh_cdc_umount_cb) tuh_cdc_umount_cb(idx);
 
@@ -804,7 +805,7 @@ static void acm_process_config(tuh_xfer_t* xfer)
 
 static bool acm_set_control_line_state(cdch_interface_t* p_cdc, uint16_t line_state, tuh_xfer_cb_t complete_cb, uintptr_t user_data) {
   TU_VERIFY(p_cdc->acm_capability.support_line_request);
-  TU_LOG_CDCH("CDC ACM Set Control Line State\r\n");
+  TU_LOG_DRV("CDC ACM Set Control Line State\r\n");
 
   tusb_control_request_t const request = {
     .bmRequestType_bit = {
@@ -834,7 +835,7 @@ static bool acm_set_control_line_state(cdch_interface_t* p_cdc, uint16_t line_st
 }
 
 static bool acm_set_line_coding(cdch_interface_t* p_cdc, cdc_line_coding_t const* line_coding, tuh_xfer_cb_t complete_cb, uintptr_t user_data) {
-  TU_LOG_CDCH("CDC ACM Set Line Conding\r\n");
+  TU_LOG_DRV("CDC ACM Set Line Conding\r\n");
 
   tusb_control_request_t const request = {
     .bmRequestType_bit = {
@@ -894,7 +895,7 @@ static bool ftdi_open(uint8_t daddr, const tusb_desc_interface_t *itf_desc, uint
   cdch_interface_t * p_cdc = make_new_itf(daddr, itf_desc);
   TU_VERIFY(p_cdc);
 
-  TU_LOG_CDCH("FTDI opened\r\n");
+  TU_LOG_DRV("FTDI opened\r\n");
 
   p_cdc->serial_drid = SERIAL_DRIVER_FTDI;
 
@@ -938,7 +939,7 @@ static bool ftdi_sio_reset(cdch_interface_t* p_cdc, tuh_xfer_cb_t complete_cb, u
 
 static bool ftdi_sio_set_modem_ctrl(cdch_interface_t* p_cdc, uint16_t line_state, tuh_xfer_cb_t complete_cb, uintptr_t user_data)
 {
-  TU_LOG_CDCH("CDC FTDI Set Control Line State\r\n");
+  TU_LOG_DRV("CDC FTDI Set Control Line State\r\n");
   p_cdc->user_control_cb = complete_cb;
   TU_ASSERT(ftdi_sio_set_request(p_cdc, FTDI_SIO_MODEM_CTRL, 0x0300 | line_state,
                                  complete_cb ? cdch_internal_control_complete : NULL, user_data));
@@ -974,7 +975,7 @@ static uint32_t ftdi_232bm_baud_to_divisor(uint32_t baud)
 static bool ftdi_sio_set_baudrate(cdch_interface_t* p_cdc, uint32_t baudrate, tuh_xfer_cb_t complete_cb, uintptr_t user_data)
 {
   uint16_t const divisor = (uint16_t) ftdi_232bm_baud_to_divisor(baudrate);
-  TU_LOG_CDCH("CDC FTDI Set BaudRate = %lu, divisor = 0x%04x\n", baudrate, divisor);
+  TU_LOG_DRV("CDC FTDI Set BaudRate = %lu, divisor = 0x%04x\n", baudrate, divisor);
 
   p_cdc->user_control_cb = complete_cb;
   _ftdi_requested_baud = baudrate;
@@ -1061,7 +1062,7 @@ static bool cp210x_open(uint8_t daddr, tusb_desc_interface_t const *itf_desc, ui
   cdch_interface_t * p_cdc = make_new_itf(daddr, itf_desc);
   TU_VERIFY(p_cdc);
 
-  TU_LOG_CDCH("CP210x opened\r\n");
+  TU_LOG_DRV("CP210x opened\r\n");
   p_cdc->serial_drid = SERIAL_DRIVER_CP210X;
 
   // endpoint pair
@@ -1109,7 +1110,7 @@ static bool cp210x_ifc_enable(cdch_interface_t* p_cdc, uint16_t enabled, tuh_xfe
 }
 
 static bool cp210x_set_baudrate(cdch_interface_t* p_cdc, uint32_t baudrate, tuh_xfer_cb_t complete_cb, uintptr_t user_data) {
-  TU_LOG_CDCH("CDC CP210x Set BaudRate = %lu\n", baudrate);
+  TU_LOG_DRV("CDC CP210x Set BaudRate = %lu\n", baudrate);
   uint32_t baud_le = tu_htole32(baudrate);
   p_cdc->user_control_cb = complete_cb;
   return cp210x_set_request(p_cdc, CP210X_SET_BAUDRATE, 0, (uint8_t *) &baud_le, 4,
@@ -1118,7 +1119,7 @@ static bool cp210x_set_baudrate(cdch_interface_t* p_cdc, uint32_t baudrate, tuh_
 
 static bool cp210x_set_modem_ctrl(cdch_interface_t* p_cdc, uint16_t line_state, tuh_xfer_cb_t complete_cb, uintptr_t user_data)
 {
-  TU_LOG_CDCH("CDC CP210x Set Control Line State\r\n");
+  TU_LOG_DRV("CDC CP210x Set Control Line State\r\n");
   p_cdc->user_control_cb = complete_cb;
   return cp210x_set_request(p_cdc, CP210X_SET_MHS, 0x0300 | line_state, NULL, 0,
                             complete_cb ? cdch_internal_control_complete : NULL, user_data);

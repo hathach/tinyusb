@@ -33,6 +33,10 @@
 #include "usbh_classdriver.h"
 #include "hub.h"
 
+// Debug level, TUSB_CFG_DEBUG must be at least this level for debug message
+#define HUB_DEBUG   2
+#define TU_LOG_DRV(...)   TU_LOG(HUB_DEBUG, __VA_ARGS__)
+
 //--------------------------------------------------------------------+
 // MACRO CONSTANT TYPEDEF
 //--------------------------------------------------------------------+
@@ -218,7 +222,10 @@ void hub_close(uint8_t dev_addr)
   TU_VERIFY(dev_addr > CFG_TUH_DEVICE_MAX, );
   hub_interface_t* p_hub = get_itf(dev_addr);
 
-  if (p_hub->ep_in) tu_memclr(p_hub, sizeof( hub_interface_t));
+  if (p_hub->ep_in) {
+    TU_LOG_DRV("  HUB close addr = %d\r\n", dev_addr);
+    tu_memclr(p_hub, sizeof( hub_interface_t));
+  }
 }
 
 bool hub_edpt_status_xfer(uint8_t dev_addr)

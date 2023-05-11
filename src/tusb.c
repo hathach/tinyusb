@@ -439,6 +439,10 @@ char const* const tu_str_std_request[] =
   "Synch Frame"
 };
 
+char const* const tu_str_xfer_result[] = {
+    "OK", "Failed", "Stalled", "Timeout"
+};
+
 #endif
 
 static void dump_str_line(uint8_t const* buf, uint16_t count)

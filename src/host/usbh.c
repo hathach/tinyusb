@@ -61,6 +61,8 @@ typedef struct
   uint8_t hub_addr;
   uint8_t hub_port;
   uint8_t speed;
+
+  // enumeration is in progress, done when all interfaces are configured
   volatile uint8_t enumerating;
 
 //  struct TU_ATTR_PACKED {
@@ -436,7 +438,8 @@ void tuh_task_ext(uint32_t timeout_ms, bool in_isr)
         uint8_t const epnum   = tu_edpt_number(ep_addr);
         uint8_t const ep_dir  = tu_edpt_dir(ep_addr);
 
-        TU_LOG_USBH("on EP %02X with %u bytes\r\n", ep_addr, (unsigned int) event.xfer_complete.len);
+        TU_LOG_USBH("on EP %02X with %u bytes %s\r\n", ep_addr, (unsigned int) event.xfer_complete.len,
+                    tu_str_xfer_result[event.xfer_complete.result]);
 
         if (event.dev_addr == 0)
         {
@@ -866,6 +869,10 @@ TU_ATTR_FAST_FUNC void hcd_event_handler(hcd_event_t const* event, bool in_isr)
 {
   switch (event->event_id)
   {
+//    case HCD_EVENT_DEVICE_REMOVE:
+//
+//      break;
+
     default:
       osal_queue_send(_usbh_q, event, in_isr);
     break;
@@ -1128,30 +1135,28 @@ static void process_device_unplugged(uint8_t rhport, uint8_t hub_addr, uint8_t h
     usbh_device_t* dev = &_usbh_devices[dev_id];
     uint8_t const dev_addr = dev_id+1;
 
-    // TODO Hub multiple level
     if (dev->rhport == rhport   &&
         (hub_addr == 0 || dev->hub_addr == hub_addr) && // hub_addr = 0 means roothub
         (hub_port == 0 || dev->hub_port == hub_port) && // hub_port = 0 means all devices of downstream hub
         dev->connected)
     {
-      TU_LOG_USBH("  Address = %u\r\n", dev_addr);
+      TU_LOG_USBH("Device unplugged address = %u\r\n", dev_addr);
 
       if (is_hub_addr(dev_addr))
       {
-        TU_LOG(USBH_DEBUG, "HUB address = %u is unmounted\r\n", dev_addr);
+        TU_LOG(USBH_DEBUG, "  is a HUB device\r\n", dev_addr);
         // If the device itself is a usb hub, unplug downstream devices.
         // FIXME un-roll recursive calls to prevent potential stack overflow
         process_device_unplugged(rhport, dev_addr, 0);
       }else
       {
-        // Invoke callback before closing driver
+        // Invoke callback before closing driver (maybe call it later ?)
         if (tuh_umount_cb) tuh_umount_cb(dev_addr);
       }
 
       // Close class driver
       for (uint8_t drv_id = 0; drv_id < USBH_CLASS_DRIVER_COUNT; drv_id++)
       {
-        TU_LOG_USBH("%s close\r\n", usbh_class_drivers[drv_id].name);
         usbh_class_drivers[drv_id].close(dev_addr);
       }
 
@@ -1449,6 +1454,7 @@ static uint8_t get_new_address(bool is_hub)
 {
   uint8_t start;
   uint8_t end;
+
   if ( is_hub )
   {
     start = CFG_TUH_DEVICE_MAX;
@@ -1459,7 +1465,7 @@ static uint8_t get_new_address(bool is_hub)
     end   = start + CFG_TUH_DEVICE_MAX;
   }
 
-  for ( uint8_t idx = start; idx < end; idx++)
+  for (uint8_t idx = start; idx < end; idx++)
   {
     if (!_usbh_devices[idx].connected) return (idx+1);
   }
