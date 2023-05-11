@@ -81,10 +81,12 @@ typedef struct {
 
   // Device State
   struct TU_ATTR_PACKED {
-    volatile uint8_t connected  : 1;
-    volatile uint8_t addressed  : 1;
-    volatile uint8_t configured : 1;
-    volatile uint8_t suspended  : 1;
+    volatile uint8_t connected  : 1; // After 1st transfer
+    volatile uint8_t addressed  : 1; // After SET_ADDR
+    volatile uint8_t configured : 1; // After SET_CONFIG and all drivers are configured
+    volatile uint8_t suspended  : 1; // Bus suspended
+
+    // volatile uint8_t removing : 1; // Physically disconnected, waiting to be processed by usbh
   };
 
   // Device Descriptor
@@ -248,7 +250,7 @@ static inline usbh_device_t* get_device(uint8_t dev_addr)
 }
 
 static bool enum_new_device(hcd_event_t* event);
-static void process_device_unplugged(uint8_t rhport, uint8_t hub_addr, uint8_t hub_port);
+static void process_removing_device(uint8_t rhport, uint8_t hub_addr, uint8_t hub_port);
 static bool usbh_edpt_control_open(uint8_t dev_addr, uint8_t max_packet_size);
 static bool usbh_control_xfer_cb (uint8_t daddr, uint8_t ep_addr, xfer_result_t result, uint32_t xferred_bytes);
 
@@ -420,7 +422,7 @@ void tuh_task_ext(uint32_t timeout_ms, bool in_isr)
 
       case HCD_EVENT_DEVICE_REMOVE:
         TU_LOG_USBH("[%u:%u:%u] USBH DEVICE REMOVED\r\n", event.rhport, event.connection.hub_addr, event.connection.hub_port);
-        process_device_unplugged(event.rhport, event.connection.hub_addr, event.connection.hub_port);
+        process_removing_device(event.rhport, event.connection.hub_addr, event.connection.hub_port);
 
         #if CFG_TUH_HUB
         // TODO remove
@@ -450,7 +452,7 @@ void tuh_task_ext(uint32_t timeout_ms, bool in_isr)
         else
         {
           usbh_device_t* dev = get_device(event.dev_addr);
-          TU_ASSERT(dev, );
+          TU_VERIFY(dev && dev->connected, );
 
           dev->ep_status[epnum][ep_dir].busy    = 0;
           dev->ep_status[epnum][ep_dir].claimed = 0;
@@ -739,29 +741,33 @@ void usbh_int_set(bool enabled)
 // TODO has some duplication code with device, refactor later
 bool usbh_edpt_claim(uint8_t dev_addr, uint8_t ep_addr)
 {
+  // Note: addr0 only use tuh_control_xfer
   usbh_device_t* dev = get_device(dev_addr);
-
-  // addr0 only use tuh_control_xfer
-  TU_ASSERT(dev);
+  TU_ASSERT(dev && dev->connected);
 
   uint8_t const epnum = tu_edpt_number(ep_addr);
   uint8_t const dir   = tu_edpt_dir(ep_addr);
 
-  return tu_edpt_claim(&dev->ep_status[epnum][dir], _usbh_mutex);
+  TU_VERIFY(tu_edpt_claim(&dev->ep_status[epnum][dir], _usbh_mutex));
+  TU_LOG_USBH("[%u] Claimed EP 0x%02x\r\n", dev_addr, ep_addr);
+
+  return true;
 }
 
 // TODO has some duplication code with device, refactor later
 bool usbh_edpt_release(uint8_t dev_addr, uint8_t ep_addr)
 {
+  // Note: addr0 only use tuh_control_xfer
   usbh_device_t* dev = get_device(dev_addr);
-
-  // addr0 only use tuh_control_xfer
-  TU_ASSERT(dev);
+  TU_VERIFY(dev && dev->connected);
 
   uint8_t const epnum = tu_edpt_number(ep_addr);
   uint8_t const dir   = tu_edpt_dir(ep_addr);
 
-  return tu_edpt_release(&dev->ep_status[epnum][dir], _usbh_mutex);
+  TU_VERIFY(tu_edpt_release(&dev->ep_status[epnum][dir], _usbh_mutex));
+  TU_LOG_USBH("[%u] Released EP 0x%02x\r\n", dev_addr, ep_addr);
+
+  return true;
 }
 
 // TODO has some duplication code with device, refactor later
@@ -870,7 +876,7 @@ TU_ATTR_FAST_FUNC void hcd_event_handler(hcd_event_t const* event, bool in_isr)
   switch (event->event_id)
   {
 //    case HCD_EVENT_DEVICE_REMOVE:
-//
+//      // mark device as removing to prevent further xfer before the event is processed in usbh task
 //      break;
 
     default:
@@ -1116,7 +1122,7 @@ uint8_t tuh_descriptor_get_serial_string_sync(uint8_t daddr, uint16_t language_i
 }
 
 //--------------------------------------------------------------------+
-//
+// Detaching
 //--------------------------------------------------------------------+
 
 TU_ATTR_ALWAYS_INLINE
@@ -1125,45 +1131,79 @@ static inline bool is_hub_addr(uint8_t daddr)
   return (CFG_TUH_HUB > 0) && (daddr > CFG_TUH_DEVICE_MAX);
 }
 
+//static void mark_removing_device_isr(uint8_t rhport, uint8_t hub_addr, uint8_t hub_port) {
+//  for (uint8_t dev_id = 0; dev_id < TOTAL_DEVICES; dev_id++) {
+//    usbh_device_t *dev = &_usbh_devices[dev_id];
+//    uint8_t const daddr = dev_id + 1;
+//
+//    // hub_addr = 0 means roothub, hub_port = 0 means all devices of downstream hub
+//    if (dev->rhport == rhport && dev->connected &&
+//        (hub_addr == 0 || dev->hub_addr == hub_addr) &&
+//        (hub_port == 0 || dev->hub_port == hub_port)) {
+//      if (is_hub_addr(daddr)) {
+//        // If the device itself is a usb hub, mark all downstream devices.
+//        // FIXME recursive calls
+//        mark_removing_device_isr(rhport, daddr, 0);
+//      }
+//
+//      dev->removing = 1;
+//    }
+//  }
+//}
+
 // a device unplugged from rhport:hub_addr:hub_port
-static void process_device_unplugged(uint8_t rhport, uint8_t hub_addr, uint8_t hub_port)
+static void process_removing_device(uint8_t rhport, uint8_t hub_addr, uint8_t hub_port)
 {
   //------------- find the all devices (star-network) under port that is unplugged -------------//
   // TODO mark as disconnected in ISR, also handle dev0
-  for ( uint8_t dev_id = 0; dev_id < TU_ARRAY_SIZE(_usbh_devices); dev_id++ )
-  {
-    usbh_device_t* dev = &_usbh_devices[dev_id];
-    uint8_t const dev_addr = dev_id+1;
 
-    if (dev->rhport == rhport   &&
-        (hub_addr == 0 || dev->hub_addr == hub_addr) && // hub_addr = 0 means roothub
-        (hub_port == 0 || dev->hub_port == hub_port) && // hub_port = 0 means all devices of downstream hub
-        dev->connected)
-    {
-      TU_LOG_USBH("Device unplugged address = %u\r\n", dev_addr);
+#if 0
+  // index as hub addr, value is hub port (0xFF for invalid)
+  uint8_t removing_hubs[CFG_TUH_HUB];
+  memset(removing_hubs, TUSB_INDEX_INVALID_8, sizeof(removing_hubs));
 
-      if (is_hub_addr(dev_addr))
-      {
-        TU_LOG(USBH_DEBUG, "  is a HUB device\r\n", dev_addr);
-        // If the device itself is a usb hub, unplug downstream devices.
-        // FIXME un-roll recursive calls to prevent potential stack overflow
-        process_device_unplugged(rhport, dev_addr, 0);
-      }else
-      {
+  removing_hubs[hub_addr-CFG_TUH_DEVICE_MAX] = hub_port;
+
+  // consecutive non-removing hub
+  uint8_t nop_count = 0;
+#endif
+
+  for (uint8_t dev_id = 0; dev_id < TOTAL_DEVICES; dev_id++) {
+    usbh_device_t *dev = &_usbh_devices[dev_id];
+    uint8_t const daddr = dev_id + 1;
+
+    // hub_addr = 0 means roothub, hub_port = 0 means all devices of downstream hub
+    if (dev->rhport == rhport && dev->connected &&
+        (hub_addr == 0 || dev->hub_addr == hub_addr) &&
+        (hub_port == 0 || dev->hub_port == hub_port)) {
+      TU_LOG_USBH("Device unplugged address = %u\r\n", daddr);
+
+      if (is_hub_addr(daddr)) {
+        TU_LOG(USBH_DEBUG, "  is a HUB device\r\n", daddr);
+
+        // Submit removed event If the device itself is a hub (un-rolled recursive)
+        // TODO a better to unroll recursrive is using array of removing_hubs and mark it here
+        hcd_event_t event;
+        event.rhport = rhport;
+        event.event_id = HCD_EVENT_DEVICE_REMOVE;
+        event.connection.hub_addr = daddr;
+        event.connection.hub_port = 0;
+
+        hcd_event_handler(&event, false);
+      } else {
         // Invoke callback before closing driver (maybe call it later ?)
-        if (tuh_umount_cb) tuh_umount_cb(dev_addr);
+        if (tuh_umount_cb) tuh_umount_cb(daddr);
       }
 
       // Close class driver
-      for (uint8_t drv_id = 0; drv_id < USBH_CLASS_DRIVER_COUNT; drv_id++)
-      {
-        usbh_class_drivers[drv_id].close(dev_addr);
+      for (uint8_t drv_id = 0; drv_id < USBH_CLASS_DRIVER_COUNT; drv_id++) {
+        usbh_class_drivers[drv_id].close(daddr);
       }
 
-      hcd_device_close(rhport, dev_addr);
+      hcd_device_close(rhport, daddr);
       clear_device(dev);
       // abort on-going control xfer if any
-      if (_ctrl_xfer.daddr == dev_addr) _set_control_xfer_stage(CONTROL_STAGE_IDLE);
+      if (_ctrl_xfer.daddr == daddr) _set_control_xfer_stage(CONTROL_STAGE_IDLE);
     }
   }
 }
