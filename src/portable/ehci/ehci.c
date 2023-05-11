@@ -58,7 +58,8 @@
 
 #define FRAMELIST_SIZE                  (1024 >> FRAMELIST_SIZE_BIT_VALUE)
 
-#define QHD_MAX      (CFG_TUH_DEVICE_MAX*CFG_TUH_ENDPOINT_MAX)
+// Total queue head pool. TODO should be user configurable and more optimize memory usage in the future
+#define QHD_MAX      (CFG_TUH_DEVICE_MAX*CFG_TUH_ENDPOINT_MAX + CFG_TUH_HUB)
 #define QTD_MAX      QHD_MAX
 
 typedef struct
@@ -138,17 +139,6 @@ static inline ehci_qtd_t* qtd_control(uint8_t dev_addr)
 static inline ehci_qhd_t* qhd_next (ehci_qhd_t const * p_qhd);
 static inline ehci_qhd_t* qhd_find_free (void);
 static inline ehci_qhd_t* qhd_get_from_addr (uint8_t dev_addr, uint8_t ep_addr);
-
-// determine if a queue head has bus-related error
-static inline bool qhd_has_xact_error (ehci_qhd_t * p_qhd)
-{
-  volatile ehci_qtd_t *qtd_overlay = &p_qhd->qtd_overlay;
-
-  // Error count = 0 often occurs when device disconnected
-  return (qtd_overlay->err_count == 0 || qtd_overlay->buffer_err || qtd_overlay->babble_err || qtd_overlay->xact_err);
-  //qtd_overlay->non_hs_period_missed_uframe || qtd_overlay->pingstate_err TODO split transaction error
-}
-
 static void qhd_init(ehci_qhd_t *p_qhd, uint8_t dev_addr, tusb_desc_endpoint_t const * ep_desc);
 
 static inline ehci_qtd_t* qtd_find_free (void);
@@ -392,15 +382,7 @@ bool hcd_edpt_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_endpoint_t const 
   TU_ASSERT (ep_desc->bmAttributes.xfer != TUSB_XFER_ISOCHRONOUS);
 
   //------------- Prepare Queue Head -------------//
-  ehci_qhd_t * p_qhd;
-
-  if ( ep_desc->bEndpointAddress == 0 )
-  {
-    p_qhd = qhd_control(dev_addr);
-  }else
-  {
-    p_qhd = qhd_find_free();
-  }
+  ehci_qhd_t *p_qhd = (ep_desc->bEndpointAddress == 0) ? qhd_control(dev_addr) : qhd_find_free();
   TU_ASSERT(p_qhd);
 
   qhd_init(p_qhd, dev_addr, ep_desc);
@@ -622,18 +604,23 @@ static void period_list_xfer_complete_isr(uint8_t hostid, uint32_t interval_ms)
 
 static void qhd_xfer_error_isr(ehci_qhd_t * p_qhd)
 {
-  if ( (p_qhd->dev_addr != 0 && p_qhd->qtd_overlay.halted) || // addr0 cannot be protocol STALL
-        qhd_has_xact_error(p_qhd) )
-  {
-    // current qhd has error in transaction
-    xfer_result_t error_event;
+  volatile ehci_qtd_t *qtd_overlay = &p_qhd->qtd_overlay;
 
-    // no error bits are set, endpoint is halted due to STALL
-    error_event = qhd_has_xact_error(p_qhd) ? XFER_RESULT_FAILED : XFER_RESULT_STALLED;
+  // TD has error
+  if (qtd_overlay->halted) {
+    xfer_result_t xfer_result;
+
+    if (qtd_overlay->err_count == 0 || qtd_overlay->buffer_err || qtd_overlay->babble_err || qtd_overlay->xact_err) {
+      // Error count = 0 often occurs when device disconnected, or other bus-related error
+      xfer_result = XFER_RESULT_FAILED;
+    }else {
+      // no error bits are set, endpoint is halted due to STALL
+      xfer_result = XFER_RESULT_STALLED;
+    }
 
     p_qhd->total_xferred_bytes += p_qhd->p_qtd_list_head->expected_bytes - p_qhd->p_qtd_list_head->total_bytes;
 
-//    if ( XFER_RESULT_FAILED == error_event ) {
+//    if (XFER_RESULT_FAILED == xfer_result ) {
 //      TU_BREAKPOINT(); // TODO skip unplugged device
 //    }
 
@@ -655,7 +642,8 @@ static void qhd_xfer_error_isr(ehci_qhd_t * p_qhd)
     }
 
     // call USBH callback
-    hcd_event_xfer_complete(p_qhd->dev_addr, tu_edpt_addr(p_qhd->ep_number, p_qhd->pid == EHCI_PID_IN ? 1 : 0), p_qhd->total_xferred_bytes, error_event, true);
+    uint8_t const ep_addr = tu_edpt_addr(p_qhd->ep_number, p_qhd->pid == EHCI_PID_IN ? 1 : 0);
+    hcd_event_xfer_complete(p_qhd->dev_addr, ep_addr, p_qhd->total_xferred_bytes, xfer_result, true);
 
     p_qhd->total_xferred_bytes = 0;
   }

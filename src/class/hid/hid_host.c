@@ -72,7 +72,7 @@ tu_static hidh_interface_t _hidh_itf[CFG_TUH_HID];
 TU_ATTR_ALWAYS_INLINE static inline
 hidh_interface_t* get_hid_itf(uint8_t daddr, uint8_t idx)
 {
-  TU_ASSERT(daddr && idx < CFG_TUH_HID, NULL);
+  TU_ASSERT(daddr > 0 && idx < CFG_TUH_HID, NULL);
   hidh_interface_t* p_hid = &_hidh_itf[idx];
   return (p_hid->daddr == daddr) ? p_hid : NULL;
 }
