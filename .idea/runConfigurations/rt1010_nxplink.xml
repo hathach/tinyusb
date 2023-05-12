@@ -1,0 +1,10 @@
+<component name="ProjectRunConfigurationManager">
+  <configuration default="false" name="rt1010 nxplink" type="com.jetbrains.cidr.embedded.customgdbserver.type" factoryName="com.jetbrains.cidr.embedded.customgdbserver.factory" PROGRAM_PARAMS="gdbserver --gdb-port 55503 --semihost-port -1 MIMXRT1011xxxxx:EVK-MIMXRT1010" REDIRECT_INPUT="false" ELEVATE="false" USE_EXTERNAL_CONSOLE="false" PASS_PARENT_ENVS_2="true" PROJECT_NAME="host_hid_to_device_cdc" TARGET_NAME="host_hid_to_device_cdc" CONFIG_NAME="rt1060 evk" version="1" RUN_TARGET_PROJECT_NAME="host_hid_to_device_cdc" RUN_TARGET_NAME="host_hid_to_device_cdc">
+    <custom-gdb-server version="1" gdb-connect="tcp::55503" executable="/usr/local/LinkServer/LinkServer" warmup-ms="0" download-type="ALWAYS" reset-cmd="monitor reset" reset-type="AFTER_DOWNLOAD">
+      <debugger kind="GDB" isBundled="true" />
+    </custom-gdb-server>
+    <method v="2">
+      <option name="CLION.COMPOUND.BUILD" enabled="true" />
+    </method>
+  </configuration>
+</component>
