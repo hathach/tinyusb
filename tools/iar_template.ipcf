@@ -147,9 +147,6 @@
 		<group name="src/portable/st/stm32_fsdev">
 			<path>$TUSB_DIR$/src/portable/st/stm32_fsdev/dcd_stm32_fsdev.c</path>
 		</group>
-		<group name="src/portable/st/synopsys">
-			<path>$TUSB_DIR$/src/portable/st/synopsys/dcd_synopsys.c</path>
-		</group>
 		<group name="src/portable/sunxi">
 			<path>$TUSB_DIR$/src/portable/sunxi/dcd_sunxi_musb.c</path>
 		</group>
