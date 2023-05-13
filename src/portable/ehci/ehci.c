@@ -93,16 +93,30 @@ CFG_TUH_MEM_SECTION TU_ATTR_ALIGNED(4096) static ehci_data_t ehci_data;
 // Debug
 //--------------------------------------------------------------------+
 #if CFG_TUSB_DEBUG >= EHCI_DBG
-static inline void print_portsc(ehci_registers_t* regs)
-{
+static inline void print_portsc(ehci_registers_t* regs) {
   TU_LOG_HEX(EHCI_DBG, regs->portsc);
-  TU_LOG(EHCI_DBG, "  Current Connect Status: %u\r\n", regs->portsc_bm.current_connect_status);
-  TU_LOG(EHCI_DBG, "  Connect Status Change : %u\r\n", regs->portsc_bm.connect_status_change);
-  TU_LOG(EHCI_DBG, "  Port Enabled          : %u\r\n", regs->portsc_bm.port_enabled);
-  TU_LOG(EHCI_DBG, "  Port Enabled Change   : %u\r\n", regs->portsc_bm.port_enable_change);
+  TU_LOG(EHCI_DBG, "  Connect Status : %u\r\n", regs->portsc_bm.current_connect_status);
+  TU_LOG(EHCI_DBG, "  Connect Change : %u\r\n", regs->portsc_bm.connect_status_change);
+  TU_LOG(EHCI_DBG, "  Enabled        : %u\r\n", regs->portsc_bm.port_enabled);
+  TU_LOG(EHCI_DBG, "  Enabled Change : %u\r\n", regs->portsc_bm.port_enable_change);
 
-  TU_LOG(EHCI_DBG, "  Port Reset            : %u\r\n", regs->portsc_bm.port_reset);
-  TU_LOG(EHCI_DBG, "  Port Power            : %u\r\n", regs->portsc_bm.port_power);
+  TU_LOG(EHCI_DBG, "  OverCurr Change: %u\r\n", regs->portsc_bm.over_current_change);
+  TU_LOG(EHCI_DBG, "  Force Resume   : %u\r\n", regs->portsc_bm.force_port_resume);
+  TU_LOG(EHCI_DBG, "  Suspend        : %u\r\n", regs->portsc_bm.suspend);
+  TU_LOG(EHCI_DBG, "  Reset          : %u\r\n", regs->portsc_bm.port_reset);
+  TU_LOG(EHCI_DBG, "  Power          : %u\r\n", regs->portsc_bm.port_power);
+}
+
+static inline void print_intr(uint32_t intr) {
+  TU_LOG_HEX(EHCI_DBG, intr);
+  TU_LOG(EHCI_DBG, "  USB Interrupt      : %u\r\n", (intr & EHCI_INT_MASK_USB) ? 1 : 0);
+  TU_LOG(EHCI_DBG, "  USB Error          : %u\r\n", (intr & EHCI_INT_MASK_ERROR) ? 1 : 0);
+  TU_LOG(EHCI_DBG, "  Port Change Detect : %u\r\n", (intr & EHCI_INT_MASK_PORT_CHANGE) ? 1 : 0);
+  TU_LOG(EHCI_DBG, "  Frame List Rollover: %u\r\n", (intr & EHCI_INT_MASK_FRAMELIST_ROLLOVER) ? 1 : 0);
+  TU_LOG(EHCI_DBG, "  Host System Error  : %u\r\n", (intr & EHCI_INT_MASK_PCI_HOST_SYSTEM_ERROR) ? 1 : 0);
+  TU_LOG(EHCI_DBG, "  Async Advance      : %u\r\n", (intr & EHCI_INT_MASK_ASYNC_ADVANCE) ? 1 : 0);
+//  TU_LOG(EHCI_DBG, "  Interrupt on Async: %u\r\n", (intr & EHCI_INT_MASK_NXP_ASYNC));
+//  TU_LOG(EHCI_DBG, "  Periodic Schedule : %u\r\n", (intr & EHCI_INT_MASK_NXP_PERIODIC));
 }
 
 #else
@@ -166,8 +180,8 @@ void hcd_port_reset(uint8_t rhport)
 
   ehci_registers_t* regs = ehci_data.regs;
 
-  // mask out all change bits since they are Write 1 to clear
-  uint32_t portsc = regs->portsc & ~EHCI_PORTSC_MASK_CHANGE_ALL;
+  // mask out Write-1-to-Clear bits
+  uint32_t portsc = regs->portsc & ~EHCI_PORTSC_MASK_W1C;
 
   // EHCI Table 2-16 PortSC
   // when software writes Port Reset bit to a one, it must also write a zero to the Port Enable bit.
@@ -347,7 +361,7 @@ bool ehci_init(uint8_t rhport, uint32_t capability_reg, uint32_t operatial_reg)
   // Power Control (PPC) field in the HCSPARAMS register.
   if (ehci_data.cap_regs->hcsparams_bm.port_power_control) {
     // mask out all change bits since they are Write 1 to clear
-    uint32_t portsc = (regs->portsc & ~EHCI_PORTSC_MASK_CHANGE_ALL);
+    uint32_t portsc = (regs->portsc & ~EHCI_PORTSC_MASK_W1C);
     portsc |= ECHI_PORTSC_MASK_PORT_POWER;
 
     regs->portsc = portsc;
@@ -621,8 +635,13 @@ static void qhd_xfer_error_isr(ehci_qhd_t * p_qhd)
     p_qhd->total_xferred_bytes += p_qhd->p_qtd_list_head->expected_bytes - p_qhd->p_qtd_list_head->total_bytes;
 
 //    if (XFER_RESULT_FAILED == xfer_result ) {
+//      TU_LOG1("  QHD xfer err count: %d\n", qtd_overlay->err_count);
 //      TU_BREAKPOINT(); // TODO skip unplugged device
+//      while(1){}
 //    }
+
+    // No TD, probably an signal noise ?
+    TU_VERIFY(p_qhd->p_qtd_list_head, );
 
     p_qhd->p_qtd_list_head->used = 0; // free QTD
     qtd_remove_1st_from_qhd(p_qhd);
@@ -710,7 +729,8 @@ void hcd_int_handler(uint8_t rhport)
 
   if (int_status & EHCI_INT_MASK_PORT_CHANGE)
   {
-    uint32_t const port_status = regs->portsc & EHCI_PORTSC_MASK_CHANGE_ALL;
+    // Including: Force port resume, over-current change, enable/disable change and connect status change.
+    uint32_t const port_status = regs->portsc & EHCI_PORTSC_MASK_W1C;
     print_portsc(regs);
 
     if (regs->portsc_bm.connect_status_change)
