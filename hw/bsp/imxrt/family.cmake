@@ -130,6 +130,7 @@ function(family_configure_target TARGET)
   #---------- Flash ----------
   # Flash using pyocd
   add_custom_target(${TARGET}-pyocd
+    DEPENDS ${TARGET}
     COMMAND pyocd flash -t ${PYOCD_TARGET} $<TARGET_FILE:${TARGET}>
     )
 
@@ -139,6 +140,7 @@ function(family_configure_target TARGET)
   # realpath error: No such file or directory
   execute_process(COMMAND which LinkServer OUTPUT_VARIABLE LINKSERVER_PATH OUTPUT_STRIP_TRAILING_WHITESPACE)
   add_custom_target(${TARGET}-nxplink
+    DEPENDS ${TARGET}
     COMMAND ${LINKSERVER_PATH} flash ${NXPLINK_DEVICE} load $<TARGET_FILE:${TARGET}>
     )
 

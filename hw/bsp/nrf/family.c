@@ -28,9 +28,9 @@
 #include "board.h"
 
 #include "nrfx.h"
-#include "nrfx/hal/nrf_gpio.h"
-#include "nrfx/drivers/include/nrfx_power.h"
-#include "nrfx/drivers/include/nrfx_uarte.h"
+#include "hal/nrf_gpio.h"
+#include "drivers/include/nrfx_power.h"
+#include "drivers/include/nrfx_uarte.h"
 
 #ifdef SOFTDEVICE_PRESENT
 #include "nrf_sdm.h"
@@ -48,6 +48,23 @@ void USBD_IRQHandler(void)
 /*------------------------------------------------------------------*/
 /* MACRO TYPEDEF CONSTANT ENUM
  *------------------------------------------------------------------*/
+
+// Value is chosen to be as same as NRFX_POWER_USB_EVT_* in nrfx_power.h
+enum {
+  USB_EVT_DETECTED = 0,
+  USB_EVT_REMOVED = 1,
+  USB_EVT_READY = 2
+};
+
+#ifdef NRF5340_XXAA
+  #define LFCLK_SRC_RC CLOCK_LFCLKSRC_SRC_LFRC
+  #define VBUSDETECT_Msk USBREG_USBREGSTATUS_VBUSDETECT_Msk
+  #define OUTPUTRDY_Msk USBREG_USBREGSTATUS_OUTPUTRDY_Msk
+#else
+  #define LFCLK_SRC_RC CLOCK_LFCLKSRC_SRC_RC
+  #define VBUSDETECT_Msk POWER_USBREGSTATUS_VBUSDETECT_Msk
+  #define OUTPUTRDY_Msk POWER_USBREGSTATUS_OUTPUTRDY_Msk
+#endif
 
 static nrfx_uarte_t _uart_id = NRFX_UARTE_INSTANCE(0);
 
@@ -68,7 +85,7 @@ void board_init(void)
   NRF_CLOCK->TASKS_LFCLKSTOP = 1UL;
 
   // Use Internal OSC to compatible with all boards
-  NRF_CLOCK->LFCLKSRC = CLOCK_LFCLKSRC_SRC_RC;
+  NRF_CLOCK->LFCLKSRC = LFCLK_SRC_RC;
   NRF_CLOCK->TASKS_LFCLKSTART = 1UL;
 
   // LED
@@ -123,21 +140,26 @@ void board_init(void)
 #endif
   {
     // Power module init
-    const nrfx_power_config_t pwr_cfg = { 0 };
+    const nrfx_power_config_t pwr_cfg = {0};
     nrfx_power_init(&pwr_cfg);
 
     // Register tusb function as USB power handler
     // cause cast-function-type warning
-    const nrfx_power_usbevt_config_t config = { .handler = power_event_handler };
+    const nrfx_power_usbevt_config_t config = {.handler = power_event_handler};
     nrfx_power_usbevt_init(&config);
-
     nrfx_power_usbevt_enable();
 
+    // USB power may already be ready at this time -> no event generated
+    // We need to invoke the handler based on the status initially
+    #ifdef NRF5340_XXAA
+    usb_reg = NRF_USBREGULATOR->USBREGSTATUS;
+    #else
     usb_reg = NRF_POWER->USBREGSTATUS;
+    #endif
   }
 
-  if ( usb_reg & POWER_USBREGSTATUS_VBUSDETECT_Msk ) tusb_hal_nrf_power_event(NRFX_POWER_USB_EVT_DETECTED);
-  if ( usb_reg & POWER_USBREGSTATUS_OUTPUTRDY_Msk  ) tusb_hal_nrf_power_event(NRFX_POWER_USB_EVT_READY);
+  if ( usb_reg & VBUSDETECT_Msk ) tusb_hal_nrf_power_event(USB_EVT_DETECTED);
+  if ( usb_reg & OUTPUTRDY_Msk  ) tusb_hal_nrf_power_event(USB_EVT_READY);
 #endif
 }
 

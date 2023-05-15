@@ -8,12 +8,6 @@ if (NOT BOARD)
   message(FATAL_ERROR "BOARD not specified")
 endif ()
 
-# toolchain set up
-set(CMAKE_SYSTEM_PROCESSOR cortex-m4 CACHE INTERNAL "System Processor")
-set(CMAKE_TOOLCHAIN_FILE ${CMAKE_CURRENT_LIST_DIR}/../../../examples/cmake/toolchain/arm_${TOOLCHAIN}.cmake)
-
-set(FAMILY_MCUS NRF5X CACHE INTERNAL "")
-
 # TOP is path to root directory
 set(TOP "${CMAKE_CURRENT_LIST_DIR}/../../..")
 set(NRFX_DIR ${TOP}/hw/mcu/nordic/nrfx)
@@ -21,7 +15,19 @@ set(CMSIS_DIR ${TOP}/lib/CMSIS_5)
 
 # include board specific
 include(${CMAKE_CURRENT_LIST_DIR}/boards/${BOARD}/board.cmake)
-set(JLINK_DEVICE $(MCU_VARIANT)_xxaa)
+
+# toolchain set up
+if (MCU_VARIANT STREQUAL "nrf5340_application")
+  set(CMAKE_SYSTEM_PROCESSOR cortex-m33 CACHE INTERNAL "System Processor")
+  set(JLINK_DEVICE nrf5340_xxaa_app)
+else ()
+  set(CMAKE_SYSTEM_PROCESSOR cortex-m4 CACHE INTERNAL "System Processor")
+  set(JLINK_DEVICE ${MCU_VARIANT}_xxaa)
+endif ()
+
+set(CMAKE_TOOLCHAIN_FILE ${TOP}/examples/cmake/toolchain/arm_${TOOLCHAIN}.cmake)
+
+set(FAMILY_MCUS NRF5X CACHE INTERNAL "")
 
 #------------------------------------
 # BOARD_TARGET
@@ -40,8 +46,7 @@ if (NOT TARGET ${BOARD_TARGET})
     CONFIG_GPIO_AS_PINRESET
     )
   target_include_directories(${BOARD_TARGET} PUBLIC
-    ${NRFX_DIR}/../ # hw/mcu/nordic: remove later
-    # driver
+    ${CMAKE_CURRENT_LIST_DIR}
     ${NRFX_DIR}
     ${NRFX_DIR}/mdk
     ${NRFX_DIR}/hal
@@ -78,6 +83,8 @@ endif () # BOARD_TARGET
 # Functions
 #------------------------------------
 function(family_configure_target TARGET)
+  #family_add_default_example_warnings(${TARGET})
+
   # set output name to .elf
   set_target_properties(${TARGET} PROPERTIES OUTPUT_NAME ${TARGET}.elf)
 
@@ -126,16 +133,23 @@ function(family_configure_target TARGET)
   #---------- Flash ----------
   # Flash using pyocd
   add_custom_target(${TARGET}-pyocd
+    DEPENDS ${TARGET}
     COMMAND pyocd flash -t ${PYOCD_TARGET} $<TARGET_FILE:${TARGET}>
     )
 
-  # Flash using NXP LinkServer (redlink)
-  # https://www.nxp.com/design/software/development-software/mcuxpresso-software-and-tools-/linkserver-for-microcontrollers:LINKERSERVER
-  # LinkServer has a bug that can only execute with full path otherwise it throws:
-  # realpath error: No such file or directory
-  execute_process(COMMAND which LinkServer OUTPUT_VARIABLE LINKSERVER_PATH OUTPUT_STRIP_TRAILING_WHITESPACE)
-  add_custom_target(${TARGET}-nxplink
-    COMMAND ${LINKSERVER_PATH} flash ${NXPLINK_DEVICE} load $<TARGET_FILE:${TARGET}>
+  # Flash using jlink
+  set(JLINKEXE JLinkExe)
+  file(GENERATE
+    OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/${TARGET}.jlink
+    CONTENT "halt
+loadfile $<TARGET_FILE:${TARGET}>
+r
+go
+exit"
+    )
+  add_custom_target(${TARGET}-jlink
+    DEPENDS ${TARGET}
+    COMMAND ${JLINKEXE} -device ${JLINK_DEVICE} -if swd -JTAGConf -1,-1 -speed auto -CommandFile ${CMAKE_CURRENT_BINARY_DIR}/${TARGET}.jlink
     )
 
 endfunction()
