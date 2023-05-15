@@ -21,7 +21,7 @@ deps_optional = {
     'hw/mcu/infineon/mtb-xmclib-cat3'          : ['daf5500d03cba23e68c2f241c30af79cd9d63880', 'https://github.com/Infineon/mtb-xmclib-cat3.git'               ],
     'hw/mcu/microchip'                         : ['9e8b37e307d8404033bb881623a113931e1edf27', 'https://github.com/hathach/microchip_driver.git'               ],
     'hw/mcu/mindmotion/mm32sdk'                : ['0b79559eb411149d36e073c1635c620e576308d4', 'https://github.com/hathach/mm32sdk.git'                        ],
-    'hw/mcu/nordic/nrfx'                       : ['281cc2e178fd9a470d844b3afdea9eb322a0b0e8', 'https://github.com/NordicSemiconductor/nrfx.git'               ],
+    'hw/mcu/nordic/nrfx'                       : ['2527e3c8449cfd38aee41598e8af8492f410ed15', 'https://github.com/NordicSemiconductor/nrfx.git'               ],
     'hw/mcu/nuvoton'                           : ['2204191ec76283371419fbcec207da02e1bc22fa', 'https://github.com/majbthrd/nuc_driver.git'                    ],
     'hw/mcu/nxp/lpcopen'                       : ['43c45c85405a5dd114fff0ea95cca62837740c13', 'https://github.com/hathach/nxp_lpcopen.git'                    ],
     'hw/mcu/nxp/mcux-sdk'                      : ['f357a1150f6cf6c6b844f53f2d426bfb3e649850', 'https://github.com/NXPmicro/mcux-sdk.git'                      ],
