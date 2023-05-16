@@ -14,10 +14,7 @@ CFLAGS += \
   -DCONFIG_GPIO_AS_PINRESET
 
 # suppress warning caused by vendor mcu driver
-CFLAGS += -Wno-error=undef -Wno-error=unused-parameter -Wno-error=cast-align -Wno-error=cast-qual
-
-# All source paths should be relative to the top level.
-LD_FILE ?= hw/bsp/nrf/boards/$(BOARD)/nrf52840_s140_v6.ld
+CFLAGS += -Wno-error=undef -Wno-error=unused-parameter -Wno-error=cast-align -Wno-error=cast-qual -Wno-error=redundant-decls
 
 LDFLAGS += -L$(TOP)/hw/mcu/nordic/nrfx/mdk
 
@@ -30,7 +27,6 @@ SRC_C += \
 INC += \
   $(TOP)/$(BOARD_PATH) \
   $(TOP)/lib/CMSIS_5/CMSIS/Core/Include \
-  $(TOP)/hw/mcu/nordic \
   $(TOP)/hw/mcu/nordic/nrfx \
   $(TOP)/hw/mcu/nordic/nrfx/mdk \
   $(TOP)/hw/mcu/nordic/nrfx/hal \
@@ -45,4 +41,4 @@ ASFLAGS += -D__HEAP_SIZE=0
 FREERTOS_PORTABLE_SRC = $(FREERTOS_PORTABLE_PATH)/ARM_CM4F
 
 # For flash-jlink target
-JLINK_DEVICE = $(MCU_VARIANT)_xxaa
+JLINK_DEVICE ?= $(MCU_VARIANT)_xxaa
