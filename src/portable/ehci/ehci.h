@@ -268,6 +268,7 @@ TU_VERIFY_STATIC( sizeof(ehci_sitd_t) == 32, "size is not correct" );
 // EHCI Operational Register
 //--------------------------------------------------------------------+
 enum {
+  // Bit 0-5 has maskable in interrupt enabled register
   EHCI_INT_MASK_USB                   = TU_BIT(0),
   EHCI_INT_MASK_ERROR                 = TU_BIT(1),
   EHCI_INT_MASK_PORT_CHANGE           = TU_BIT(2),
@@ -276,6 +277,12 @@ enum {
   EHCI_INT_MASK_ASYNC_ADVANCE         = TU_BIT(5),
 
   EHCI_INT_MASK_NXP_SOF               = TU_BIT(7),
+
+  EHCI_INT_MASK_HC_HALTED             = TU_BIT(12),
+  EHCI_INT_MASK_RECLAIMATION          = TU_BIT(13),
+  EHCI_INT_MASK_PERIODIC_SCHED_STATUS = TU_BIT(14),
+  EHCI_INT_MASK_ASYNC_SCHED_STATUS    = TU_BIT(15),
+
   EHCI_INT_MASK_NXP_ASYNC             = TU_BIT(18),
   EHCI_INT_MASK_NXP_PERIODIC          = TU_BIT(19),
 

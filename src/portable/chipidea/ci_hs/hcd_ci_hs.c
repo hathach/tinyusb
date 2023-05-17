@@ -41,6 +41,15 @@
 
 #if CFG_TUSB_MCU == OPT_MCU_MIMXRT
   #include "ci_hs_imxrt.h"
+
+  void hcd_dcache_clean(void* addr, uint32_t data_size) {
+    SCB_CleanDCache_by_Addr((uint32_t*) addr, (int32_t) data_size);
+  }
+
+  void hcd_dcache_invalidate(void* addr, uint32_t data_size) {
+    SCB_InvalidateDCache_by_Addr(addr, (int32_t) data_size);
+  }
+
 #elif TU_CHECK_MCU(OPT_MCU_LPC18XX, OPT_MCU_LPC43XX)
   #include "ci_hs_lpc18_43.h"
 #else

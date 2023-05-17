@@ -105,6 +105,16 @@ typedef struct
 } hcd_devtree_info_t;
 
 //--------------------------------------------------------------------+
+// Memory API
+//--------------------------------------------------------------------+
+
+// clean/flush data cache: write cache -> memory
+void hcd_dcache_clean(void* addr, uint32_t data_size) TU_ATTR_WEAK;
+
+// invalidate data cache: mark cache as invalid, next read will read from memory
+void hcd_dcache_invalidate(void* addr, uint32_t data_size) TU_ATTR_WEAK;
+
+//--------------------------------------------------------------------+
 // Controller API
 //--------------------------------------------------------------------+
 

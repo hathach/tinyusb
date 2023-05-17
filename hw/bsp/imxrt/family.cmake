@@ -144,6 +144,21 @@ function(family_configure_target TARGET)
     COMMAND ${LINKSERVER_PATH} flash ${NXPLINK_DEVICE} load $<TARGET_FILE:${TARGET}>
     )
 
+  # Flash using jlink
+  set(JLINKEXE JLinkExe)
+  file(GENERATE
+    OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/${TARGET}.jlink
+    CONTENT "halt
+loadfile $<TARGET_FILE:${TARGET}>
+r
+go
+exit"
+    )
+  add_custom_target(${TARGET}-jlink
+    DEPENDS ${TARGET}
+    COMMAND ${JLINKEXE} -device ${JLINK_DEVICE} -if swd -JTAGConf -1,-1 -speed auto -CommandFile ${CMAKE_CURRENT_BINARY_DIR}/${TARGET}.jlink
+    )
+
 endfunction()
 
 
