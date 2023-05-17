@@ -40,6 +40,7 @@ extern IRQn_Type _usb_hs_irqn;
 #if !defined(CFG_TUSB_RHPORT0_MODE) && !defined(CFG_TUSB_RHPORT1_MODE)
 // fallback
 #define CFG_TUSB_RHPORT0_MODE   ( CFG_TUD_ENABLED ? OPT_MODE_DEVICE : OPT_MODE_HOST )
+#define CFG_TUSB_RHPORT1_MODE   0
 #endif
 
 TU_ATTR_ALWAYS_INLINE static inline void rusb2_int_enable(uint8_t rhport)
