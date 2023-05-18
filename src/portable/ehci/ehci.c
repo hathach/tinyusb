@@ -154,6 +154,7 @@ static inline ehci_qhd_t* qhd_next (ehci_qhd_t const * p_qhd);
 static inline ehci_qhd_t* qhd_find_free (void);
 static inline ehci_qhd_t* qhd_get_from_addr (uint8_t dev_addr, uint8_t ep_addr);
 static void qhd_init(ehci_qhd_t *p_qhd, uint8_t dev_addr, tusb_desc_endpoint_t const * ep_desc);
+static void qhd_attach_qtd(ehci_qhd_t *qhd, ehci_qtd_t *qtd);
 
 static inline ehci_qtd_t* qtd_find_free (void);
 static void qtd_init (ehci_qtd_t* qtd, void const* buffer, uint16_t total_bytes);
@@ -468,13 +469,9 @@ bool hcd_setup_send(uint8_t rhport, uint8_t dev_addr, uint8_t const setup_packet
   td->pid = EHCI_PID_SETUP;
 
   hcd_dcache_clean((void *) setup_packet, 8);
-  hcd_dcache_clean_invalidate(td, sizeof(ehci_qtd_t));
 
-  // attach TD
-  qhd->p_attached_qtd = td; // software management
-  qhd->qtd_overlay.next.address = (uint32_t) td;
-
-  hcd_dcache_clean_invalidate(qhd, sizeof(ehci_qhd_t));
+  // attach TD to QHD -> start transferring
+  qhd_attach_qtd(qhd, td);
 
   return true;
 }
@@ -513,13 +510,9 @@ bool hcd_edpt_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr, uint8_t * 
   }else {
     hcd_dcache_clean(buffer, buflen);
   }
-  hcd_dcache_clean_invalidate(qtd, sizeof(ehci_qtd_t));
 
-  // attach TD to QHD start transferring
-  qhd->p_attached_qtd = qtd; // software management
-  qhd->qtd_overlay.next.address = (uint32_t) qtd;
-
-  hcd_dcache_clean_invalidate(qhd, sizeof(ehci_qhd_t));
+  // attach TD to QHD -> start transferring
+  qhd_attach_qtd(qhd, qtd);
 
   return true;
 }
@@ -569,10 +562,9 @@ void port_connect_status_change_isr(uint8_t rhport)
 }
 
 TU_ATTR_ALWAYS_INLINE static inline
-void qhd_xfer_complete_isr(ehci_qhd_t * p_qhd)
-{
+void qhd_xfer_complete_isr(ehci_qhd_t * qhd) {
   // examine TD attached to queue head
-  ehci_qtd_t * volatile qtd = (ehci_qtd_t * volatile) p_qhd->p_attached_qtd;
+  ehci_qtd_t * volatile qtd = (ehci_qtd_t * volatile) qhd->attached_qtd;
   if (qtd == NULL) return; // no TD attached
   hcd_dcache_invalidate(qtd, sizeof(ehci_qtd_t));
 
@@ -581,15 +573,22 @@ void qhd_xfer_complete_isr(ehci_qhd_t * p_qhd)
     return;
   }
 
+  uint8_t dir = (qtd->pid == EHCI_PID_IN) ? 1 : 0;
   uint32_t const xferred_bytes = qtd->expected_bytes - qtd->total_bytes;
-  uint8_t const ep_addr = tu_edpt_addr(p_qhd->ep_number, qtd->pid == EHCI_PID_IN ? 1 : 0);
+
+  // invalidate dcache if IN transfer
+  if (dir == 1 && qhd->attached_buffer != 0) {
+    hcd_dcache_invalidate((void*) qhd->attached_buffer, xferred_bytes);
+  }
 
   // remove and free TD before invoking callback
-  p_qhd->p_attached_qtd = NULL;
+  qhd->attached_qtd = NULL;
+  qhd->attached_buffer = 0;
   qtd->used = 0; // free QTD
 
-  // IOC is always set
-  hcd_event_xfer_complete(p_qhd->dev_addr, ep_addr, xferred_bytes, XFER_RESULT_SUCCESS, true);
+  // notify usbh
+  uint8_t const ep_addr = tu_edpt_addr(qhd->ep_number, dir);
+  hcd_event_xfer_complete(qhd->dev_addr, ep_addr, xferred_bytes, XFER_RESULT_SUCCESS, true);
 }
 
 TU_ATTR_ALWAYS_INLINE static inline
@@ -651,10 +650,11 @@ void period_list_xfer_complete_isr(uint8_t rhport, uint32_t interval_ms)
   }
 }
 
+// TODO merge with qhd_xfer_complete_isr()
 TU_ATTR_ALWAYS_INLINE static inline
-void qhd_xfer_error_isr(ehci_qhd_t * p_qhd)
+void qhd_xfer_error_isr(ehci_qhd_t * qhd)
 {
-  volatile ehci_qtd_t *qtd_overlay = &p_qhd->qtd_overlay;
+  volatile ehci_qtd_t *qtd_overlay = &qhd->qtd_overlay;
 
   // TD has error
   if (qtd_overlay->halted) {
@@ -674,28 +674,37 @@ void qhd_xfer_error_isr(ehci_qhd_t * p_qhd)
 //      while(1){}
 //    }
 
-    ehci_qtd_t * volatile qtd = (ehci_qtd_t * volatile) p_qhd->p_attached_qtd;
+    ehci_qtd_t * volatile qtd = (ehci_qtd_t * volatile) qhd->attached_qtd;
     TU_ASSERT(qtd, ); // No TD yet, probably a race condition or cache issue !?
 
     hcd_dcache_invalidate(qtd, sizeof(ehci_qtd_t));
+
+    uint8_t dir = (qtd->pid == EHCI_PID_IN) ? 1 : 0;
     uint32_t const xferred_bytes = qtd->expected_bytes - qtd->total_bytes;
 
-    p_qhd->p_attached_qtd = NULL;
+    // invalidate dcache if IN transfer
+    if (dir == 1 && qhd->attached_buffer != 0) {
+      hcd_dcache_invalidate((void*) qhd->attached_buffer, xferred_bytes);
+    }
+
+    // remove and free TD before invoking callback
+    qhd->attached_qtd = NULL;
+    qhd->attached_buffer = 0;
     qtd->used = 0; // free QTD
 
-    if ( 0 == p_qhd->ep_number ) {
+    if (0 == qhd->ep_number ) {
       // control cannot be halted
-      p_qhd->qtd_overlay.next.terminate      = 1;
-      p_qhd->qtd_overlay.alternate.terminate = 1;
-      p_qhd->qtd_overlay.halted              = 0;
+      qhd->qtd_overlay.next.terminate      = 1;
+      qhd->qtd_overlay.alternate.terminate = 1;
+      qhd->qtd_overlay.halted              = 0;
 
-      ehci_qtd_t *p_setup = qtd_control(p_qhd->dev_addr);
+      ehci_qtd_t *p_setup = qtd_control(qhd->dev_addr);
       p_setup->used = 0;
     }
 
     // notify usbh
-    uint8_t const ep_addr = tu_edpt_addr(p_qhd->ep_number, p_qhd->pid == EHCI_PID_IN ? 1 : 0);
-    hcd_event_xfer_complete(p_qhd->dev_addr, ep_addr, xferred_bytes, xfer_result, true);
+    uint8_t const ep_addr = tu_edpt_addr(qhd->ep_number, dir);
+    hcd_event_xfer_complete(qhd->dev_addr, ep_addr, xferred_bytes, xfer_result, true);
   }
 }
 
@@ -846,22 +855,10 @@ static inline ehci_qhd_t* qhd_get_from_addr(uint8_t dev_addr, uint8_t ep_addr)
   return NULL;
 }
 
-//------------- TD helper -------------//
-static inline ehci_qtd_t* qtd_find_free(void)
-{
-  for (uint32_t i=0; i<QTD_MAX; i++)
-  {
-    if ( !ehci_data.qtd_pool[i].used ) return &ehci_data.qtd_pool[i];
-  }
-
-  return NULL;
-}
-
 static void qhd_init(ehci_qhd_t *p_qhd, uint8_t dev_addr, tusb_desc_endpoint_t const * ep_desc)
 {
   // address 0 is used as async head, which always on the list --> cannot be cleared (ehci halted otherwise)
-  if (dev_addr != 0)
-  {
+  if (dev_addr != 0) {
     tu_memclr(p_qhd, sizeof(ehci_qhd_t));
   }
 
@@ -911,24 +908,45 @@ static void qhd_init(ehci_qhd_t *p_qhd, uint8_t dev_addr, tusb_desc_endpoint_t c
     p_qhd->int_smask = p_qhd->fl_int_cmask = 0;
   }
 
-  p_qhd->fl_hub_addr    = devtree_info.hub_addr;
-  p_qhd->fl_hub_port    = devtree_info.hub_port;
-  p_qhd->mult           = 1; // TODO not use high bandwidth/park mode yet
+  p_qhd->fl_hub_addr  = devtree_info.hub_addr;
+  p_qhd->fl_hub_port  = devtree_info.hub_port;
+  p_qhd->mult         = 1; // TODO not use high bandwidth/park mode yet
 
   //------------- HCD Management Data -------------//
-  p_qhd->used           = 1;
-  p_qhd->removing       = 0;
-  p_qhd->p_attached_qtd = NULL;
+  p_qhd->used         = 1;
+  p_qhd->removing     = 0;
+  p_qhd->attached_qtd = NULL;
   p_qhd->pid = tu_edpt_dir(ep_desc->bEndpointAddress) ? EHCI_PID_IN : EHCI_PID_OUT; // PID for TD under this endpoint
 
   //------------- active, but no TD list -------------//
   p_qhd->qtd_overlay.halted              = 0;
   p_qhd->qtd_overlay.next.terminate      = 1;
   p_qhd->qtd_overlay.alternate.terminate = 1;
+
   if (TUSB_XFER_BULK == xfer_type && p_qhd->ep_speed == TUSB_SPEED_HIGH && p_qhd->pid == EHCI_PID_OUT)
   {
     p_qhd->qtd_overlay.ping_err = 1; // do PING for Highspeed Bulk OUT, EHCI section 4.11
   }
+}
+
+static void qhd_attach_qtd(ehci_qhd_t *qhd, ehci_qtd_t *qtd) {
+  qhd->attached_qtd = qtd;
+  qhd->attached_buffer = qtd->buffer[0];
+
+  // clean and invalidate cache before physically write
+  hcd_dcache_clean_invalidate(qtd, sizeof(ehci_qtd_t));
+
+  qhd->qtd_overlay.next.address = (uint32_t) qtd;
+  hcd_dcache_clean_invalidate(qhd, sizeof(ehci_qhd_t));
+}
+
+
+//------------- TD helper -------------//
+static inline ehci_qtd_t *qtd_find_free(void) {
+  for (uint32_t i = 0; i < QTD_MAX; i++) {
+    if (!ehci_data.qtd_pool[i].used) return &ehci_data.qtd_pool[i];
+  }
+  return NULL;
 }
 
 static void qtd_init(ehci_qtd_t* qtd, void const* buffer, uint16_t total_bytes)

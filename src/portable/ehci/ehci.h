@@ -164,10 +164,12 @@ typedef struct TU_ATTR_ALIGNED(32)
 	uint8_t pid;
 	uint8_t interval_ms; // polling interval in frames (or millisecond)
 
-	uint8_t TU_RESERVED[8];
+	uint8_t TU_RESERVED[4];
 
-  // usbh will only queue 1 TD per QHD
-	ehci_qtd_t * volatile p_attached_qtd;
+  // Attached TD management, note usbh will only queue 1 TD per QHD.
+  // buffer for dcache invalidate since td's buffer is modified by HC and finding initial buffer address is not trivial
+  uint32_t attached_buffer;
+	ehci_qtd_t * volatile attached_qtd;
 } ehci_qhd_t;
 
 TU_VERIFY_STATIC( sizeof(ehci_qhd_t) == 64, "size is not correct" );
