@@ -165,6 +165,7 @@ typedef struct TU_ATTR_ALIGNED(32)
 	uint16_t total_xferred_bytes; // number of bytes xferred until a qtd with ioc bit set
 	uint8_t reserved2[2];
 
+  // TODO USBH will only queue 1 TD per QHD, thus we can remove the list
 	ehci_qtd_t * volatile p_qtd_list_head;	// head of the scheduled TD list
 	ehci_qtd_t * volatile p_qtd_list_tail;	// tail of the scheduled TD list
 } ehci_qhd_t;

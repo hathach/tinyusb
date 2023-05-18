@@ -50,6 +50,10 @@
     SCB_InvalidateDCache_by_Addr(addr, (int32_t) data_size);
   }
 
+void hcd_dcache_clean_invalidate(void* addr, uint32_t data_size) {
+    SCB_CleanInvalidateDCache_by_Addr(addr, (int32_t) data_size);
+  }
+
 #elif TU_CHECK_MCU(OPT_MCU_LPC18XX, OPT_MCU_LPC43XX)
   #include "ci_hs_lpc18_43.h"
 #else

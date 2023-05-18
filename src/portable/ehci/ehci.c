@@ -92,7 +92,7 @@ CFG_TUH_MEM_SECTION TU_ATTR_ALIGNED(4096) static ehci_data_t ehci_data;
 //--------------------------------------------------------------------+
 // Debug
 //--------------------------------------------------------------------+
-#if CFG_TUSB_DEBUG >= EHCI_DBG
+#if CFG_TUSB_DEBUG >= (EHCI_DBG + 1)
 static inline void print_portsc(ehci_registers_t* regs) {
   TU_LOG_HEX(EHCI_DBG, regs->portsc);
   TU_LOG(EHCI_DBG, "  Connect Status : %u\r\n", regs->portsc_bm.current_connect_status);
@@ -159,7 +159,7 @@ static inline ehci_qtd_t* qtd_find_free (void);
 static inline ehci_qtd_t* qtd_next (ehci_qtd_t const * p_qtd);
 static inline void qtd_insert_to_qhd (ehci_qhd_t *p_qhd, ehci_qtd_t *p_qtd_new);
 static inline void qtd_remove_1st_from_qhd (ehci_qhd_t *p_qhd);
-static void qtd_init (ehci_qtd_t* p_qtd, void const* buffer, uint16_t total_bytes);
+static void qtd_init (ehci_qtd_t* qtd, void const* buffer, uint16_t total_bytes);
 
 static inline void list_insert (ehci_link_t *current, ehci_link_t *new, uint8_t new_type);
 static inline ehci_link_t* list_next (ehci_link_t *p_link_pointer);
@@ -325,27 +325,26 @@ bool ehci_init(uint8_t rhport, uint32_t capability_reg, uint32_t operatial_reg)
   // 3 --> period_head_arr[3] (8ms)
 
   // TODO EHCI_FRAMELIST_SIZE with other size than 8
-  for(uint32_t i=0; i<FRAMELIST_SIZE; i++)
-  {
+  for (uint32_t i = 0; i < FRAMELIST_SIZE; i++) {
     framelist[i].address = (uint32_t) period_1ms;
-    framelist[i].type    = EHCI_QTYPE_QHD;
+    framelist[i].type = EHCI_QTYPE_QHD;
   }
 
-  for(uint32_t i=0; i<FRAMELIST_SIZE; i+=2)
-  {
+  for (uint32_t i = 0; i < FRAMELIST_SIZE; i += 2) {
     list_insert(framelist + i, get_period_head(rhport, 2u), EHCI_QTYPE_QHD);
   }
 
-  for(uint32_t i=1; i<FRAMELIST_SIZE; i+=4)
-  {
+  for (uint32_t i = 1; i < FRAMELIST_SIZE; i += 4) {
     list_insert(framelist + i, get_period_head(rhport, 4u), EHCI_QTYPE_QHD);
   }
-
-  list_insert(framelist+3, get_period_head(rhport, 8u), EHCI_QTYPE_QHD);
-
+  list_insert(framelist + 3, get_period_head(rhport, 8u), EHCI_QTYPE_QHD);
   period_1ms->terminate    = 1;
 
   regs->periodic_list_base = (uint32_t) framelist;
+
+  if(hcd_dcache_clean) {
+    hcd_dcache_clean(&ehci_data, sizeof(ehci_data_t));
+  }
 
   //------------- TT Control (NXP only) -------------//
   regs->nxp_tt_control = 0;
@@ -430,6 +429,11 @@ bool hcd_edpt_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_endpoint_t const 
   // TODO might need to disable async/period list
   list_insert(list_head, (ehci_link_t*) p_qhd, EHCI_QTYPE_QHD);
 
+  if(hcd_dcache_clean) {
+    hcd_dcache_clean(p_qhd, sizeof(ehci_qhd_t));
+    hcd_dcache_clean(list_head, sizeof(ehci_link_t));
+  }
+
   return true;
 }
 
@@ -441,9 +445,12 @@ bool hcd_setup_send(uint8_t rhport, uint8_t dev_addr, uint8_t const setup_packet
   ehci_qtd_t* td  = &ehci_data.control[dev_addr].qtd;
 
   qtd_init(td, setup_packet, 8);
-  td->pid          = EHCI_PID_SETUP;
-  td->int_on_complete = 1;
-  td->next.terminate  = 1;
+  td->pid = EHCI_PID_SETUP;
+
+  if (hcd_dcache_clean && hcd_dcache_clean_invalidate) {
+    hcd_dcache_clean((void *) setup_packet, 8);
+    hcd_dcache_clean_invalidate(td, sizeof(ehci_qtd_t));
+  }
 
   // sw region
   qhd->p_qtd_list_head = td;
@@ -451,6 +458,10 @@ bool hcd_setup_send(uint8_t rhport, uint8_t dev_addr, uint8_t const setup_packet
 
   // attach TD
   qhd->qtd_overlay.next.address = (uint32_t) td;
+
+  if (hcd_dcache_clean_invalidate) {
+    hcd_dcache_clean_invalidate(qhd, sizeof(ehci_qhd_t));
+  }
 
   return true;
 }
@@ -462,41 +473,48 @@ bool hcd_edpt_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr, uint8_t * 
   uint8_t const epnum = tu_edpt_number(ep_addr);
   uint8_t const dir   = tu_edpt_dir(ep_addr);
 
+  ehci_qhd_t* qhd;
+  ehci_qtd_t* qtd;
+
   if ( epnum == 0 )
   {
-    ehci_qhd_t* qhd = qhd_control(dev_addr);
-    ehci_qtd_t* qtd = qtd_control(dev_addr);
+    qhd = qhd_control(dev_addr);
+    qtd = qtd_control(dev_addr);
 
     qtd_init(qtd, buffer, buflen);
 
     // first first data toggle is always 1 (data & setup stage)
     qtd->data_toggle = 1;
     qtd->pid = dir ? EHCI_PID_IN : EHCI_PID_OUT;
-    qtd->int_on_complete = 1;
-    qtd->next.terminate  = 1;
-
-    // sw region
-    qhd->p_qtd_list_head = qtd;
-    qhd->p_qtd_list_tail = qtd;
-
-    // attach TD
-    qhd->qtd_overlay.next.address = (uint32_t) qtd;
   }else
   {
-    ehci_qhd_t *p_qhd = qhd_get_from_addr(dev_addr, ep_addr);
-    ehci_qtd_t *p_qtd = qtd_find_free();
-    TU_ASSERT(p_qtd);
+    qhd = qhd_get_from_addr(dev_addr, ep_addr);
+    qtd = qtd_find_free();
+    TU_ASSERT(qtd);
 
-    qtd_init(p_qtd, buffer, buflen);
-    p_qtd->pid = p_qhd->pid;
+    qtd_init(qtd, buffer, buflen);
+    qtd->pid = qhd->pid;
+  }
 
-    // Insert TD to QH
-    qtd_insert_to_qhd(p_qhd, p_qtd);
+  if (hcd_dcache_clean && hcd_dcache_clean_invalidate) {
+    // IN transfer: invalidate buffer, OUT transfer: clean buffer
+    if (dir) {
+      hcd_dcache_invalidate(buffer, buflen);
+    }else {
+      hcd_dcache_clean(buffer, buflen);
+    }
+    hcd_dcache_clean_invalidate(qtd, sizeof(ehci_qtd_t));
+  }
 
-    p_qhd->p_qtd_list_tail->int_on_complete = 1;
+  // Software: assign TD to QHD
+  qhd->p_qtd_list_head = qtd;
+  qhd->p_qtd_list_tail = qtd;
 
-    // attach head QTD to QHD start transferring
-    p_qhd->qtd_overlay.next.address = (uint32_t) p_qhd->p_qtd_list_head;
+  // attach TD to QHD start transferring
+  qhd->qtd_overlay.next.address = (uint32_t) qtd;
+
+  if (hcd_dcache_clean_invalidate) {
+    hcd_dcache_clean_invalidate(qhd, sizeof(ehci_qhd_t));
   }
 
   return true;
@@ -551,6 +569,11 @@ static void qhd_xfer_complete_isr(ehci_qhd_t * p_qhd)
   while(p_qhd->p_qtd_list_head != NULL && !p_qhd->p_qtd_list_head->active)
   {
     ehci_qtd_t * volatile qtd = (ehci_qtd_t * volatile) p_qhd->p_qtd_list_head;
+
+    if (hcd_dcache_invalidate) {
+      hcd_dcache_invalidate(qtd, sizeof(ehci_qtd_t));
+    }
+
     bool const is_ioc = (qtd->int_on_complete != 0);
     uint8_t const ep_addr = tu_edpt_addr(p_qhd->ep_number, qtd->pid == EHCI_PID_IN ? 1 : 0);
 
@@ -573,8 +596,12 @@ static void async_list_xfer_complete_isr(ehci_qhd_t * const async_head)
   ehci_qhd_t *p_qhd = async_head;
   do
   {
-    if ( !p_qhd->qtd_overlay.halted ) // halted or error is processed in error isr
-    {
+    if (hcd_dcache_invalidate) {
+      hcd_dcache_invalidate(p_qhd, sizeof(ehci_qhd_t));
+    }
+
+    // halted or error is processed in error isr
+    if ( !p_qhd->qtd_overlay.halted ) {
       qhd_xfer_complete_isr(p_qhd);
     }
     p_qhd = qhd_next(p_qhd);
@@ -640,8 +667,8 @@ static void qhd_xfer_error_isr(ehci_qhd_t * p_qhd)
 //      while(1){}
 //    }
 
-    // No TD, probably an signal noise ?
-    TU_VERIFY(p_qhd->p_qtd_list_head, );
+    // No TD yet, it is probably the probably an signal noise ?
+    TU_ASSERT(p_qhd->p_qtd_list_head, );
 
     p_qhd->p_qtd_list_head->used = 0; // free QTD
     qtd_remove_1st_from_qhd(p_qhd);
@@ -714,17 +741,19 @@ static void xfer_error_isr(uint8_t hostid)
 void hcd_int_handler(uint8_t rhport)
 {
   ehci_registers_t* regs = ehci_data.regs;
+  uint32_t const int_status = regs->status;
 
-  uint32_t int_status = regs->status;
-  int_status &= regs->inten;
-
-  regs->status = int_status; // Acknowledge handled interrupt
-
-  if (int_status == 0) return;
+  if (int_status & EHCI_INT_MASK_HC_HALTED) {
+    // something seriously wrong, maybe forget to flush/invalidate cache
+    TU_BREAKPOINT();
+    TU_LOG1("  HC halted\n");
+    return;
+  }
 
   if (int_status & EHCI_INT_MASK_FRAMELIST_ROLLOVER)
   {
     ehci_data.uframe_number += (FRAMELIST_SIZE << 3);
+    regs->status = EHCI_INT_MASK_FRAMELIST_ROLLOVER; // Acknowledge
   }
 
   if (int_status & EHCI_INT_MASK_PORT_CHANGE)
@@ -739,31 +768,41 @@ void hcd_int_handler(uint8_t rhport)
     }
 
     regs->portsc |= port_status; // Acknowledge change bits in portsc
+    regs->status = EHCI_INT_MASK_PORT_CHANGE; // Acknowledge
   }
 
   if (int_status & EHCI_INT_MASK_ERROR)
   {
     xfer_error_isr(rhport);
+    regs->status = EHCI_INT_MASK_ERROR; // Acknowledge
   }
 
   //------------- some QTD/SITD/ITD with IOC set is completed -------------//
   if (int_status & EHCI_INT_MASK_NXP_ASYNC)
   {
-    async_list_xfer_complete_isr( qhd_async_head(rhport) );
+    async_list_xfer_complete_isr(qhd_async_head(rhport));
+    regs->status = EHCI_INT_MASK_NXP_ASYNC; // Acknowledge
   }
 
   if (int_status & EHCI_INT_MASK_NXP_PERIODIC)
   {
     for (uint32_t i=1; i <= FRAMELIST_SIZE; i *= 2)
     {
-      period_list_xfer_complete_isr( rhport, i );
+      period_list_xfer_complete_isr(rhport, i);
     }
+    regs->status = EHCI_INT_MASK_NXP_PERIODIC; // Acknowledge
+  }
+
+  if (int_status & EHCI_INT_MASK_USB) {
+    // TODO standard EHCI xfer complete
+    regs->status = EHCI_INT_MASK_USB; // Acknowledge
   }
 
   //------------- There is some removed async previously -------------//
-  if (int_status & EHCI_INT_MASK_ASYNC_ADVANCE) // need to place after EHCI_INT_MASK_NXP_ASYNC
-  {
+  // need to place after EHCI_INT_MASK_NXP_ASYNC
+  if (int_status & EHCI_INT_MASK_ASYNC_ADVANCE) {
     async_advance_isr(rhport);
+    regs->status = EHCI_INT_MASK_ASYNC_ADVANCE; // Acknowledge
   }
 }
 
@@ -918,28 +957,30 @@ static void qhd_init(ehci_qhd_t *p_qhd, uint8_t dev_addr, tusb_desc_endpoint_t c
   }
 }
 
-static void qtd_init(ehci_qtd_t* p_qtd, void const* buffer, uint16_t total_bytes)
+static void qtd_init(ehci_qtd_t* qtd, void const* buffer, uint16_t total_bytes)
 {
-  tu_memclr(p_qtd, sizeof(ehci_qtd_t));
+  tu_memclr(qtd, sizeof(ehci_qtd_t));
+  qtd->used                = 1;
 
-  p_qtd->used                = 1;
+  qtd->next.terminate      = 1; // init to null
+  qtd->alternate.terminate = 1; // not used, always set to terminated
+  qtd->active              = 1;
+  qtd->err_count           = 3; // TODO 3 consecutive errors tolerance
+  qtd->data_toggle         = 0;
+  qtd->int_on_complete     = 1;
+  qtd->total_bytes         = total_bytes;
+  qtd->expected_bytes      = total_bytes;
 
-  p_qtd->next.terminate      = 1; // init to null
-  p_qtd->alternate.terminate = 1; // not used, always set to terminated
-  p_qtd->active              = 1;
-  p_qtd->err_count           = 3; // TODO 3 consecutive errors tolerance
-  p_qtd->data_toggle         = 0;
-  p_qtd->total_bytes         = total_bytes;
-  p_qtd->expected_bytes      = total_bytes;
-
-  p_qtd->buffer[0] = (uint32_t) buffer;
+  qtd->buffer[0] = (uint32_t) buffer;
   for(uint8_t i=1; i<5; i++)
   {
-    p_qtd->buffer[i] |= tu_align4k( p_qtd->buffer[i-1] ) + 4096;
+    qtd->buffer[i] |= tu_align4k(qtd->buffer[i - 1] ) + 4096;
   }
 }
 
 //------------- List Managing Helper -------------//
+
+// insert at head
 static inline void list_insert(ehci_link_t *current, ehci_link_t *new, uint8_t new_type)
 {
   new->address = current->address;
