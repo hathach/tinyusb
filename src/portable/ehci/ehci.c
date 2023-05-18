@@ -162,7 +162,7 @@ static inline void qtd_remove_1st_from_qhd (ehci_qhd_t *p_qhd);
 static void qtd_init (ehci_qtd_t* qtd, void const* buffer, uint16_t total_bytes);
 
 static inline void list_insert (ehci_link_t *current, ehci_link_t *new, uint8_t new_type);
-static inline ehci_link_t* list_next (ehci_link_t *p_link_pointer);
+static inline ehci_link_t* list_next (ehci_link_t const *p_link);
 
 TU_ATTR_WEAK void hcd_dcache_clean(void* addr, uint32_t data_size) {
   (void) addr;
@@ -237,24 +237,22 @@ tusb_speed_t hcd_port_speed_get(uint8_t rhport)
   return (tusb_speed_t) ehci_data.regs->portsc_bm.nxp_port_speed; // NXP specific port speed
 }
 
-static void list_remove_qhd_by_addr(ehci_link_t* list_head, uint8_t dev_addr)
-{
-  for(ehci_link_t* prev = list_head;
-      !prev->terminate && (tu_align32(prev->address) != (uint32_t) list_head) && prev != NULL;
-      prev = list_next(prev) )
-  {
-    // TODO check type for ISO iTD and siTD
-    // TODO Suppress cast-align warning
-    #pragma GCC diagnostic push
-    #pragma GCC diagnostic ignored "-Wcast-align"
-    ehci_qhd_t* qhd = (ehci_qhd_t*) list_next(prev);
-    #pragma GCC diagnostic pop
-    if ( qhd->dev_addr == dev_addr )
-    {
+static void list_remove_qhd_by_daddr(ehci_link_t* list_head, uint8_t dev_addr) {
+  ehci_link_t* prev = list_head;
+
+  while (prev && !prev->terminate) {
+    ehci_qhd_t* qhd = (ehci_qhd_t*) (uintptr_t) list_next(prev);
+
+    // done if loop back to head
+    if ( (uintptr_t) qhd == (uintptr_t) list_head) {
+      break;
+    }
+
+    if ( qhd->dev_addr == dev_addr ) {
       // TODO deactivate all TD, wait for QHD to inactive before removal
       prev->address = qhd->next.address;
 
-      // EHCI 4.8.2 link the removed qhd to async head (which always reachable by Host Controller)
+      // EHCI 4.8.2 link the removed qhd's next to async head (which always reachable by Host Controller)
       qhd->next.address = ((uint32_t) list_head) | (EHCI_QTYPE_QHD << 1);
 
       if ( qhd->int_smask )
@@ -267,6 +265,11 @@ static void list_remove_qhd_by_addr(ehci_link_t* list_head, uint8_t dev_addr)
         // mark as removing, will completely re-usable when async advance isr occurs
         qhd->removing = 1;
       }
+
+      hcd_dcache_clean(qhd, sizeof(ehci_qhd_t));
+      hcd_dcache_clean(prev, sizeof(ehci_qhd_t));
+    }else {
+      prev = list_next(prev);
     }
   }
 }
@@ -275,15 +278,16 @@ static void list_remove_qhd_by_addr(ehci_link_t* list_head, uint8_t dev_addr)
 void hcd_device_close(uint8_t rhport, uint8_t dev_addr)
 {
   // skip dev0
-  if (dev_addr == 0) return;
+  if (dev_addr == 0) {
+    return;
+  }
 
   // Remove from async list
-  list_remove_qhd_by_addr( (ehci_link_t*) qhd_async_head(rhport), dev_addr );
+  list_remove_qhd_by_daddr((ehci_link_t *) qhd_async_head(rhport), dev_addr);
 
   // Remove from all interval period list
-  for(uint8_t i = 0; i < TU_ARRAY_SIZE(ehci_data.period_head_arr); i++)
-  {
-    list_remove_qhd_by_addr( (ehci_link_t*) &ehci_data.period_head_arr[i], dev_addr);
+  for(uint8_t i = 0; i < TU_ARRAY_SIZE(ehci_data.period_head_arr); i++) {
+    list_remove_qhd_by_daddr((ehci_link_t *) &ehci_data.period_head_arr[i], dev_addr);
   }
 
   // Async doorbell (EHCI 4.8.2 for operational details)
@@ -990,9 +994,9 @@ static inline void list_insert(ehci_link_t *current, ehci_link_t *new, uint8_t n
   current->address = ((uint32_t) new) | (new_type << 1);
 }
 
-static inline ehci_link_t* list_next(ehci_link_t *p_link_pointer)
+static inline ehci_link_t* list_next(ehci_link_t const *p_link)
 {
-  return (ehci_link_t*) tu_align32(p_link_pointer->address);
+  return (ehci_link_t*) tu_align32(p_link->address);
 }
 
 #endif

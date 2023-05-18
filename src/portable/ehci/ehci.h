@@ -81,6 +81,8 @@ typedef union {
 	};
 }ehci_link_t;
 
+TU_VERIFY_STATIC( sizeof(ehci_link_t) == 4, "size is not correct" );
+
 /// Queue Element Transfer Descriptor
 /// Qtd is used to declare overlay in ehci_qhd_t -> cannot be declared with TU_ATTR_ALIGNED(32)
 typedef struct
