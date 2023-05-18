@@ -156,9 +156,6 @@ static inline ehci_qhd_t* qhd_get_from_addr (uint8_t dev_addr, uint8_t ep_addr);
 static void qhd_init(ehci_qhd_t *p_qhd, uint8_t dev_addr, tusb_desc_endpoint_t const * ep_desc);
 
 static inline ehci_qtd_t* qtd_find_free (void);
-static inline ehci_qtd_t* qtd_next (ehci_qtd_t const * p_qtd);
-static inline void qtd_insert_to_qhd (ehci_qhd_t *p_qhd, ehci_qtd_t *p_qtd_new);
-static inline void qtd_remove_1st_from_qhd (ehci_qhd_t *p_qhd);
 static void qtd_init (ehci_qtd_t* qtd, void const* buffer, uint16_t total_bytes);
 
 static inline void list_insert (ehci_link_t *current, ehci_link_t *new, uint8_t new_type);
@@ -473,11 +470,8 @@ bool hcd_setup_send(uint8_t rhport, uint8_t dev_addr, uint8_t const setup_packet
   hcd_dcache_clean((void *) setup_packet, 8);
   hcd_dcache_clean_invalidate(td, sizeof(ehci_qtd_t));
 
-  // sw region
-  qhd->p_qtd_list_head = td;
-  qhd->p_qtd_list_tail = td;
-
   // attach TD
+  qhd->p_attached_qtd = td; // software management
   qhd->qtd_overlay.next.address = (uint32_t) td;
 
   hcd_dcache_clean_invalidate(qhd, sizeof(ehci_qhd_t));
@@ -501,7 +495,7 @@ bool hcd_edpt_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr, uint8_t * 
 
     qtd_init(qtd, buffer, buflen);
 
-    // first first data toggle is always 1 (data & setup stage)
+    // first data toggle is always 1 (data & setup stage)
     qtd->data_toggle = 1;
     qtd->pid = dir ? EHCI_PID_IN : EHCI_PID_OUT;
   } else {
@@ -521,11 +515,8 @@ bool hcd_edpt_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr, uint8_t * 
   }
   hcd_dcache_clean_invalidate(qtd, sizeof(ehci_qtd_t));
 
-  // Software: assign TD to QHD
-  qhd->p_qtd_list_head = qtd;
-  qhd->p_qtd_list_tail = qtd;
-
   // attach TD to QHD start transferring
+  qhd->p_attached_qtd = qtd; // software management
   qhd->qtd_overlay.next.address = (uint32_t) qtd;
 
   hcd_dcache_clean_invalidate(qhd, sizeof(ehci_qhd_t));
@@ -580,27 +571,25 @@ void port_connect_status_change_isr(uint8_t rhport)
 TU_ATTR_ALWAYS_INLINE static inline
 void qhd_xfer_complete_isr(ehci_qhd_t * p_qhd)
 {
-  // free all TDs from the head td to the first active TD
-  while(p_qhd->p_qtd_list_head != NULL && !p_qhd->p_qtd_list_head->active)
-  {
-    ehci_qtd_t * volatile qtd = (ehci_qtd_t * volatile) p_qhd->p_qtd_list_head;
-    hcd_dcache_invalidate(qtd, sizeof(ehci_qtd_t));
+  // examine TD attached to queue head
+  ehci_qtd_t * volatile qtd = (ehci_qtd_t * volatile) p_qhd->p_attached_qtd;
+  if (qtd == NULL) return; // no TD attached
+  hcd_dcache_invalidate(qtd, sizeof(ehci_qtd_t));
 
-    bool const is_ioc = (qtd->int_on_complete != 0);
-    uint8_t const ep_addr = tu_edpt_addr(p_qhd->ep_number, qtd->pid == EHCI_PID_IN ? 1 : 0);
-
-    p_qhd->total_xferred_bytes += qtd->expected_bytes - qtd->total_bytes;
-
-    // TD need to be freed and removed from qhd, before invoking callback
-    qtd->used = 0; // free QTD
-    qtd_remove_1st_from_qhd(p_qhd);
-
-    if (is_ioc)
-    {
-      hcd_event_xfer_complete(p_qhd->dev_addr, ep_addr, p_qhd->total_xferred_bytes, XFER_RESULT_SUCCESS, true);
-      p_qhd->total_xferred_bytes = 0;
-    }
+  // TD is still active, no need to process
+  if (qtd->active) {
+    return;
   }
+
+  uint32_t const xferred_bytes = qtd->expected_bytes - qtd->total_bytes;
+  uint8_t const ep_addr = tu_edpt_addr(p_qhd->ep_number, qtd->pid == EHCI_PID_IN ? 1 : 0);
+
+  // remove and free TD before invoking callback
+  p_qhd->p_attached_qtd = NULL;
+  qtd->used = 0; // free QTD
+
+  // IOC is always set
+  hcd_event_xfer_complete(p_qhd->dev_addr, ep_addr, xferred_bytes, XFER_RESULT_SUCCESS, true);
 }
 
 TU_ATTR_ALWAYS_INLINE static inline
@@ -685,20 +674,17 @@ void qhd_xfer_error_isr(ehci_qhd_t * p_qhd)
 //      while(1){}
 //    }
 
-    ehci_qtd_t * volatile qtd = (ehci_qtd_t * volatile) p_qhd->p_qtd_list_head;
+    ehci_qtd_t * volatile qtd = (ehci_qtd_t * volatile) p_qhd->p_attached_qtd;
     TU_ASSERT(qtd, ); // No TD yet, probably a race condition or cache issue !?
 
     hcd_dcache_invalidate(qtd, sizeof(ehci_qtd_t));
-    p_qhd->total_xferred_bytes += qtd->expected_bytes - qtd->total_bytes;
+    uint32_t const xferred_bytes = qtd->expected_bytes - qtd->total_bytes;
 
+    p_qhd->p_attached_qtd = NULL;
     qtd->used = 0; // free QTD
-    qtd_remove_1st_from_qhd(p_qhd);
 
     if ( 0 == p_qhd->ep_number ) {
-      // control cannot be halted --> clear all qtd list
-      p_qhd->p_qtd_list_head = NULL;
-      p_qhd->p_qtd_list_tail = NULL;
-
+      // control cannot be halted
       p_qhd->qtd_overlay.next.terminate      = 1;
       p_qhd->qtd_overlay.alternate.terminate = 1;
       p_qhd->qtd_overlay.halted              = 0;
@@ -707,19 +693,17 @@ void qhd_xfer_error_isr(ehci_qhd_t * p_qhd)
       p_setup->used = 0;
     }
 
-    // call USBH callback
+    // notify usbh
     uint8_t const ep_addr = tu_edpt_addr(p_qhd->ep_number, p_qhd->pid == EHCI_PID_IN ? 1 : 0);
-    hcd_event_xfer_complete(p_qhd->dev_addr, ep_addr, p_qhd->total_xferred_bytes, xfer_result, true);
-
-    p_qhd->total_xferred_bytes = 0;
+    hcd_event_xfer_complete(p_qhd->dev_addr, ep_addr, xferred_bytes, xfer_result, true);
   }
 }
 
 TU_ATTR_ALWAYS_INLINE static inline
-void xfer_error_isr(uint8_t hostid)
+void xfer_error_isr(uint8_t rhport)
 {
   //------------- async list -------------//
-  ehci_qhd_t * const async_head = qhd_async_head(hostid);
+  ehci_qhd_t * const async_head = qhd_async_head(rhport);
   ehci_qhd_t *p_qhd = async_head;
   do
   {
@@ -729,10 +713,10 @@ void xfer_error_isr(uint8_t hostid)
   }while(p_qhd != async_head); // async list traversal, stop if loop around
 
   //------------- TODO refractor period list -------------//
-  uint32_t const period_1ms_addr = (uint32_t) get_period_head(hostid, 1u);
+  uint32_t const period_1ms_addr = (uint32_t) get_period_head(rhport, 1u);
   for (uint32_t interval_ms=1; interval_ms <= FRAMELIST_SIZE; interval_ms *= 2)
   {
-    ehci_link_t next_item = * get_period_head(hostid, interval_ms);
+    ehci_link_t next_item = * get_period_head(rhport, interval_ms);
 
     // TODO abstract max loop guard for period
     while( !next_item.terminate &&
@@ -873,34 +857,6 @@ static inline ehci_qtd_t* qtd_find_free(void)
   return NULL;
 }
 
-static inline ehci_qtd_t* qtd_next(ehci_qtd_t const * p_qtd )
-{
-  return (ehci_qtd_t*) tu_align32(p_qtd->next.address);
-}
-
-static inline void qtd_remove_1st_from_qhd(ehci_qhd_t *p_qhd)
-{
-  if (p_qhd->p_qtd_list_head == p_qhd->p_qtd_list_tail) // last TD --> make it NULL
-  {
-    p_qhd->p_qtd_list_head = p_qhd->p_qtd_list_tail = NULL;
-  }else
-  {
-    p_qhd->p_qtd_list_head = qtd_next( p_qhd->p_qtd_list_head );
-  }
-}
-
-static inline void qtd_insert_to_qhd(ehci_qhd_t *p_qhd, ehci_qtd_t *p_qtd_new)
-{
-  if (p_qhd->p_qtd_list_head == NULL) // empty list
-  {
-    p_qhd->p_qtd_list_head               = p_qhd->p_qtd_list_tail = p_qtd_new;
-  }else
-  {
-    p_qhd->p_qtd_list_tail->next.address = (uint32_t) p_qtd_new;
-    p_qhd->p_qtd_list_tail               = p_qtd_new;
-  }
-}
-
 static void qhd_init(ehci_qhd_t *p_qhd, uint8_t dev_addr, tusb_desc_endpoint_t const * ep_desc)
 {
   // address 0 is used as async head, which always on the list --> cannot be cleared (ehci halted otherwise)
@@ -955,15 +911,14 @@ static void qhd_init(ehci_qhd_t *p_qhd, uint8_t dev_addr, tusb_desc_endpoint_t c
     p_qhd->int_smask = p_qhd->fl_int_cmask = 0;
   }
 
-  p_qhd->fl_hub_addr     = devtree_info.hub_addr;
-  p_qhd->fl_hub_port     = devtree_info.hub_port;
-  p_qhd->mult            = 1; // TODO not use high bandwidth/park mode yet
+  p_qhd->fl_hub_addr    = devtree_info.hub_addr;
+  p_qhd->fl_hub_port    = devtree_info.hub_port;
+  p_qhd->mult           = 1; // TODO not use high bandwidth/park mode yet
 
   //------------- HCD Management Data -------------//
-  p_qhd->used            = 1;
-  p_qhd->removing        = 0;
-  p_qhd->p_qtd_list_head = NULL;
-  p_qhd->p_qtd_list_tail = NULL;
+  p_qhd->used           = 1;
+  p_qhd->removing       = 0;
+  p_qhd->p_attached_qtd = NULL;
   p_qhd->pid = tu_edpt_dir(ep_desc->bEndpointAddress) ? EHCI_PID_IN : EHCI_PID_OUT; // PID for TD under this endpoint
 
   //------------- active, but no TD list -------------//

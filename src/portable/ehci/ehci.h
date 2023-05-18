@@ -164,12 +164,10 @@ typedef struct TU_ATTR_ALIGNED(32)
 	uint8_t pid;
 	uint8_t interval_ms; // polling interval in frames (or millisecond)
 
-	uint16_t total_xferred_bytes; // number of bytes xferred until a qtd with ioc bit set
-	uint8_t reserved2[2];
+	uint8_t TU_RESERVED[8];
 
-  // TODO USBH will only queue 1 TD per QHD, thus we can remove the list
-	ehci_qtd_t * volatile p_qtd_list_head;	// head of the scheduled TD list
-	ehci_qtd_t * volatile p_qtd_list_tail;	// tail of the scheduled TD list
+  // usbh will only queue 1 TD per QHD
+	ehci_qtd_t * volatile p_attached_qtd;
 } ehci_qhd_t;
 
 TU_VERIFY_STATIC( sizeof(ehci_qhd_t) == 64, "size is not correct" );
@@ -247,14 +245,6 @@ typedef struct TU_ATTR_ALIGNED(32)
 
 	/// Word 4-5: Buffer Pointer List
 	uint32_t buffer[2];		// buffer[1] TP: Transaction Position - T-Count: Transaction Count
-
-// 	union{
-// 		uint32_t BufferPointer1;
-// 		struct  {
-// 			volatile uint32_t TCount : 3;
-// 			volatile uint32_t TPosition : 2;
-// 		};
-// 	};
 
 	/*---------- Word 6 ----------*/
 	ehci_link_t back;
