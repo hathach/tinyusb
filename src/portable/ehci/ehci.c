@@ -164,6 +164,25 @@ static void qtd_init (ehci_qtd_t* qtd, void const* buffer, uint16_t total_bytes)
 static inline void list_insert (ehci_link_t *current, ehci_link_t *new, uint8_t new_type);
 static inline ehci_link_t* list_next (ehci_link_t *p_link_pointer);
 
+TU_ATTR_WEAK void hcd_dcache_clean(void* addr, uint32_t data_size) {
+  (void) addr;
+  (void) data_size;
+}
+
+// invalidate data cache: mark cache as invalid, next read will read from memory
+// Required BOTH before and after an DMA RX transfer
+TU_ATTR_WEAK void hcd_dcache_invalidate(void* addr, uint32_t data_size) {
+  (void) addr;
+  (void) data_size;
+}
+
+// clean and invalidate data cache
+// Required before an DMA transfer where memory is both read/write by DMA
+TU_ATTR_WEAK void hcd_dcache_clean_invalidate(void* addr, uint32_t data_size) {
+  (void) addr;
+  (void) data_size;
+}
+
 //--------------------------------------------------------------------+
 // HCD API
 //--------------------------------------------------------------------+
@@ -342,9 +361,7 @@ bool ehci_init(uint8_t rhport, uint32_t capability_reg, uint32_t operatial_reg)
 
   regs->periodic_list_base = (uint32_t) framelist;
 
-  if(hcd_dcache_clean) {
-    hcd_dcache_clean(&ehci_data, sizeof(ehci_data_t));
-  }
+  hcd_dcache_clean(&ehci_data, sizeof(ehci_data_t));
 
   //------------- TT Control (NXP only) -------------//
   regs->nxp_tt_control = 0;
@@ -429,10 +446,8 @@ bool hcd_edpt_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_endpoint_t const 
   // TODO might need to disable async/period list
   list_insert(list_head, (ehci_link_t*) p_qhd, EHCI_QTYPE_QHD);
 
-  if(hcd_dcache_clean) {
-    hcd_dcache_clean(p_qhd, sizeof(ehci_qhd_t));
-    hcd_dcache_clean(list_head, sizeof(ehci_link_t));
-  }
+  hcd_dcache_clean(p_qhd, sizeof(ehci_qhd_t));
+  hcd_dcache_clean(list_head, sizeof(ehci_link_t));
 
   return true;
 }
@@ -447,10 +462,8 @@ bool hcd_setup_send(uint8_t rhport, uint8_t dev_addr, uint8_t const setup_packet
   qtd_init(td, setup_packet, 8);
   td->pid = EHCI_PID_SETUP;
 
-  if (hcd_dcache_clean && hcd_dcache_clean_invalidate) {
-    hcd_dcache_clean((void *) setup_packet, 8);
-    hcd_dcache_clean_invalidate(td, sizeof(ehci_qtd_t));
-  }
+  hcd_dcache_clean((void *) setup_packet, 8);
+  hcd_dcache_clean_invalidate(td, sizeof(ehci_qtd_t));
 
   // sw region
   qhd->p_qtd_list_head = td;
@@ -459,9 +472,7 @@ bool hcd_setup_send(uint8_t rhport, uint8_t dev_addr, uint8_t const setup_packet
   // attach TD
   qhd->qtd_overlay.next.address = (uint32_t) td;
 
-  if (hcd_dcache_clean_invalidate) {
-    hcd_dcache_clean_invalidate(qhd, sizeof(ehci_qhd_t));
-  }
+  hcd_dcache_clean_invalidate(qhd, sizeof(ehci_qhd_t));
 
   return true;
 }
@@ -496,15 +507,13 @@ bool hcd_edpt_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr, uint8_t * 
     qtd->pid = qhd->pid;
   }
 
-  if (hcd_dcache_clean && hcd_dcache_clean_invalidate) {
-    // IN transfer: invalidate buffer, OUT transfer: clean buffer
-    if (dir) {
-      hcd_dcache_invalidate(buffer, buflen);
-    }else {
-      hcd_dcache_clean(buffer, buflen);
-    }
-    hcd_dcache_clean_invalidate(qtd, sizeof(ehci_qtd_t));
+  // IN transfer: invalidate buffer, OUT transfer: clean buffer
+  if (dir) {
+    hcd_dcache_invalidate(buffer, buflen);
+  }else {
+    hcd_dcache_clean(buffer, buflen);
   }
+  hcd_dcache_clean_invalidate(qtd, sizeof(ehci_qtd_t));
 
   // Software: assign TD to QHD
   qhd->p_qtd_list_head = qtd;
@@ -513,9 +522,7 @@ bool hcd_edpt_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr, uint8_t * 
   // attach TD to QHD start transferring
   qhd->qtd_overlay.next.address = (uint32_t) qtd;
 
-  if (hcd_dcache_clean_invalidate) {
-    hcd_dcache_clean_invalidate(qhd, sizeof(ehci_qhd_t));
-  }
+  hcd_dcache_clean_invalidate(qhd, sizeof(ehci_qhd_t));
 
   return true;
 }
@@ -570,9 +577,7 @@ static void qhd_xfer_complete_isr(ehci_qhd_t * p_qhd)
   {
     ehci_qtd_t * volatile qtd = (ehci_qtd_t * volatile) p_qhd->p_qtd_list_head;
 
-    if (hcd_dcache_invalidate) {
-      hcd_dcache_invalidate(qtd, sizeof(ehci_qtd_t));
-    }
+    hcd_dcache_invalidate(qtd, sizeof(ehci_qtd_t));
 
     bool const is_ioc = (qtd->int_on_complete != 0);
     uint8_t const ep_addr = tu_edpt_addr(p_qhd->ep_number, qtd->pid == EHCI_PID_IN ? 1 : 0);
@@ -596,9 +601,7 @@ static void async_list_xfer_complete_isr(ehci_qhd_t * const async_head)
   ehci_qhd_t *p_qhd = async_head;
   do
   {
-    if (hcd_dcache_invalidate) {
-      hcd_dcache_invalidate(p_qhd, sizeof(ehci_qhd_t));
-    }
+    hcd_dcache_invalidate(p_qhd, sizeof(ehci_qhd_t));
 
     // halted or error is processed in error isr
     if ( !p_qhd->qtd_overlay.halted ) {
