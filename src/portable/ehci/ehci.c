@@ -577,7 +577,7 @@ void qhd_xfer_complete_isr(ehci_qhd_t * qhd) {
   uint32_t const xferred_bytes = qtd->expected_bytes - qtd->total_bytes;
 
   // invalidate dcache if IN transfer
-  if (dir == 1 && qhd->attached_buffer != 0) {
+  if (dir == 1 && qhd->attached_buffer != 0 && xferred_bytes > 0) {
     hcd_dcache_invalidate((void*) qhd->attached_buffer, xferred_bytes);
   }
 
@@ -660,7 +660,7 @@ void qhd_xfer_error_isr(ehci_qhd_t * qhd)
   if (qtd_overlay->halted) {
     xfer_result_t xfer_result;
 
-    if (qtd_overlay->err_count == 0 || qtd_overlay->buffer_err || qtd_overlay->babble_err || qtd_overlay->xact_err) {
+    if (qtd_overlay->xact_err || qtd_overlay->err_count == 0 || qtd_overlay->buffer_err || qtd_overlay->babble_err) {
       // Error count = 0 often occurs when device disconnected, or other bus-related error
       xfer_result = XFER_RESULT_FAILED;
     }else {
@@ -671,7 +671,6 @@ void qhd_xfer_error_isr(ehci_qhd_t * qhd)
 //    if (XFER_RESULT_FAILED == xfer_result ) {
 //      TU_LOG1("  QHD xfer err count: %d\n", qtd_overlay->err_count);
 //      TU_BREAKPOINT(); // TODO skip unplugged device
-//      while(1){}
 //    }
 
     ehci_qtd_t * volatile qtd = (ehci_qtd_t * volatile) qhd->attached_qtd;
@@ -683,7 +682,7 @@ void qhd_xfer_error_isr(ehci_qhd_t * qhd)
     uint32_t const xferred_bytes = qtd->expected_bytes - qtd->total_bytes;
 
     // invalidate dcache if IN transfer
-    if (dir == 1 && qhd->attached_buffer != 0) {
+    if (dir == 1 && qhd->attached_buffer != 0 && xferred_bytes > 0) {
       hcd_dcache_invalidate((void*) qhd->attached_buffer, xferred_bytes);
     }
 
@@ -698,8 +697,7 @@ void qhd_xfer_error_isr(ehci_qhd_t * qhd)
       qhd->qtd_overlay.alternate.terminate = 1;
       qhd->qtd_overlay.halted              = 0;
 
-      ehci_qtd_t *p_setup = qtd_control(qhd->dev_addr);
-      p_setup->used = 0;
+      hcd_dcache_clean(qhd, sizeof(ehci_qhd_t));
     }
 
     // notify usbh

@@ -440,7 +440,7 @@ void tuh_task_ext(uint32_t timeout_ms, bool in_isr)
         uint8_t const epnum   = tu_edpt_number(ep_addr);
         uint8_t const ep_dir  = tu_edpt_dir(ep_addr);
 
-        TU_LOG_USBH("on EP %02X with %u bytes %s\r\n", ep_addr, (unsigned int) event.xfer_complete.len,
+        TU_LOG_USBH("on EP %02X with %u bytes: %s\r\n", ep_addr, (unsigned int) event.xfer_complete.len,
                     tu_str_xfer_result[event.xfer_complete.result]);
 
         if (event.dev_addr == 0)
@@ -1255,6 +1255,7 @@ static void process_enumeration(tuh_xfer_t* xfer)
     {
       failed_count++;
       osal_task_delay(ATTEMPT_DELAY_MS); // delay a bit
+      TU_LOG1("Enumeration attempt %u\r\n", failed_count);
       TU_ASSERT(tuh_control_xfer(xfer), );
     }else
     {

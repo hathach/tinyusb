@@ -440,7 +440,7 @@ char const* const tu_str_std_request[] =
 };
 
 char const* const tu_str_xfer_result[] = {
-    "OK", "Failed", "Stalled", "Timeout"
+    "OK", "FAILED", "STALLED", "TIMEOUT"
 };
 
 #endif
