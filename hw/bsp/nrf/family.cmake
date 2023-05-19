@@ -25,9 +25,10 @@ else ()
   set(JLINK_DEVICE ${MCU_VARIANT}_xxaa)
 endif ()
 
-set(CMAKE_TOOLCHAIN_FILE ${TOP}/examples/cmake/toolchain/arm_${TOOLCHAIN}.cmake)
+set(CMAKE_TOOLCHAIN_FILE ${TOP}/tools/cmake/toolchain/arm_${TOOLCHAIN}.cmake)
 
 set(FAMILY_MCUS NRF5X CACHE INTERNAL "")
+
 
 #------------------------------------
 # BOARD_TARGET
@@ -131,26 +132,7 @@ function(family_configure_target TARGET)
     )
 
   #---------- Flash ----------
-  # Flash using pyocd
-  add_custom_target(${TARGET}-pyocd
-    DEPENDS ${TARGET}
-    COMMAND pyocd flash -t ${PYOCD_TARGET} $<TARGET_FILE:${TARGET}>
-    )
-
-  # Flash using jlink
-  set(JLINKEXE JLinkExe)
-  file(GENERATE
-    OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/${TARGET}.jlink
-    CONTENT "halt
-loadfile $<TARGET_FILE:${TARGET}>
-r
-go
-exit"
-    )
-  add_custom_target(${TARGET}-jlink
-    DEPENDS ${TARGET}
-    COMMAND ${JLINKEXE} -device ${JLINK_DEVICE} -if swd -JTAGConf -1,-1 -speed auto -CommandFile ${CMAKE_CURRENT_BINARY_DIR}/${TARGET}.jlink
-    )
+  family_flash_jlink(${TARGET})
 
 endfunction()
 

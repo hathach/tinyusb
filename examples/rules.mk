@@ -227,14 +227,19 @@ endif
 # Jlink Interface
 JLINK_IF ?= swd
 
+# Jlink script
+define jlink_script
+halt
+loadfile $^
+r
+go
+exit
+endef
+export jlink_script
+
 # Flash using jlink
 flash-jlink: $(BUILD)/$(PROJECT).hex
-	@echo halt > $(BUILD)/$(BOARD).jlink
-	@echo r >> $(BUILD)/$(BOARD).jlink
-	@echo loadfile $^ >> $(BUILD)/$(BOARD).jlink
-	@echo r >> $(BUILD)/$(BOARD).jlink
-	@echo go >> $(BUILD)/$(BOARD).jlink
-	@echo exit >> $(BUILD)/$(BOARD).jlink
+	@echo "$$jlink_script" > $(BUILD)/$(BOARD).jlink
 	$(JLINKEXE) -device $(JLINK_DEVICE) -if $(JLINK_IF) -JTAGConf -1,-1 -speed auto -CommandFile $(BUILD)/$(BOARD).jlink
 
 # Flash STM32 MCU using stlink with STM32 Cube Programmer CLI
