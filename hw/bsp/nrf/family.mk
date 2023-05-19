@@ -3,13 +3,12 @@ DEPS_SUBMODULES += lib/CMSIS_5 hw/mcu/nordic/nrfx
 
 include $(TOP)/$(BOARD_PATH)/board.mk
 
+CPU_CORE ?= cortex-m4
+
+include $(TOP)/tools/make/cpu/$(CPU_CORE).mk
+
 CFLAGS += \
   -flto \
-  -mthumb \
-  -mabi=aapcs \
-  -mcpu=cortex-m4 \
-  -mfloat-abi=hard \
-  -mfpu=fpv4-sp-d16 \
   -DCFG_TUSB_MCU=OPT_MCU_NRF5X \
   -DCONFIG_GPIO_AS_PINRESET
 
