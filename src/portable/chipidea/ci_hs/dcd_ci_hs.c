@@ -616,15 +616,6 @@ void dcd_int_handler(uint8_t rhport)
     uint32_t const edpt_complete = dcd_reg->ENDPTCOMPLETE;
     dcd_reg->ENDPTCOMPLETE = edpt_complete; // acknowledge
 
-    if (dcd_reg->ENDPTSETUPSTAT)
-    {
-      //------------- Set up Received -------------//
-      // 23.10.10.2 Operational model for setup transfers
-      dcd_reg->ENDPTSETUPSTAT = dcd_reg->ENDPTSETUPSTAT;
-
-      dcd_event_setup_received(rhport, (uint8_t*)(uintptr_t) &_dcd_data.qhd[0][0].setup_request, true);
-    }
-
     // 23.10.12.3 Failed QTD also get ENDPTCOMPLETE set
     // nothing to do, we will submit xfer as error to usbd
     // if (int_status & INTR_ERROR) { }
@@ -636,6 +627,15 @@ void dcd_int_handler(uint8_t rhport)
         if ( tu_bit_test(edpt_complete, epnum)    ) process_edpt_complete_isr(rhport, epnum, TUSB_DIR_OUT);
         if ( tu_bit_test(edpt_complete, epnum+16) ) process_edpt_complete_isr(rhport, epnum, TUSB_DIR_IN);
       }
+    }
+
+    // Set up Received
+    // 23.10.10.2 Operational model for setup transfers
+    // Must be after normal transfer complete since it is possible to have both previous control status + new setup
+    // in the same frame and we should handle previous status first.
+    if (dcd_reg->ENDPTSETUPSTAT) {
+      dcd_reg->ENDPTSETUPSTAT = dcd_reg->ENDPTSETUPSTAT;
+      dcd_event_setup_received(rhport, (uint8_t *) (uintptr_t) &_dcd_data.qhd[0][0].setup_request, true);
     }
   }
 

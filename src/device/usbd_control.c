@@ -32,7 +32,10 @@
 #include "tusb.h"
 #include "device/usbd_pvt.h"
 
-#if CFG_TUSB_DEBUG >= 2
+// Debug level of USBD Control
+#define USBD_CONTROL_DEBUG   2
+
+#if CFG_TUSB_DEBUG >= USBD_CONTROL_DEBUG
 extern void usbd_driver_print_control_complete_name(usbd_control_xfer_cb_t callback);
 #endif
 
@@ -188,7 +191,7 @@ bool usbd_control_xfer_cb (uint8_t rhport, uint8_t ep_addr, xfer_result_t result
   {
     TU_VERIFY(_ctrl_xfer.buffer);
     memcpy(_ctrl_xfer.buffer, _usbd_ctrl_buf, xferred_bytes);
-    TU_LOG_MEM(2, _usbd_ctrl_buf, xferred_bytes, 2);
+    TU_LOG_MEM(USBD_CONTROL_DEBUG, _usbd_ctrl_buf, xferred_bytes, 2);
   }
 
   _ctrl_xfer.total_xferred += (uint16_t) xferred_bytes;
@@ -205,7 +208,7 @@ bool usbd_control_xfer_cb (uint8_t rhport, uint8_t ep_addr, xfer_result_t result
     // callback can still stall control in status phase e.g out data does not make sense
     if ( _ctrl_xfer.complete_cb )
     {
-      #if CFG_TUSB_DEBUG >= 2
+      #if CFG_TUSB_DEBUG >= USBD_CONTROL_DEBUG
       usbd_driver_print_control_complete_name(_ctrl_xfer.complete_cb);
       #endif
 

@@ -131,7 +131,10 @@ void board_init(void)
     freq = CLOCK_GetOscFreq() / (CLOCK_GetDiv(kCLOCK_UartDiv) + 1U);
   }
 
-  LPUART_Init(UART_PORT, &uart_config, freq);
+  if ( kStatus_Success != LPUART_Init(UART_PORT, &uart_config, freq) ) {
+    // failed to init uart, probably baudrate is not supported
+    // TU_BREAKPOINT();
+  }
 
   //------------- USB -------------//
   // Note: RT105x RT106x and later have dual USB controllers.

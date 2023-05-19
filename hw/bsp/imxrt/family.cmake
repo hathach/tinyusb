@@ -57,12 +57,16 @@ if (NOT TARGET ${BOARD_TARGET})
     )
   update_board(${BOARD_TARGET})
 
+  if (NOT DEFINED LD_FILE_${TOOLCHAIN})
+    set(LD_FILE_gcc ${SDK_DIR}/devices/${MCU_VARIANT}/gcc/${MCU_VARIANT}xxxxx_flexspi_nor.ld)
+  endif ()
+
   if (TOOLCHAIN STREQUAL "gcc")
     target_sources(${BOARD_TARGET} PUBLIC
       ${SDK_DIR}/devices/${MCU_VARIANT}/gcc/startup_${MCU_VARIANT}.S
       )
     target_link_options(${BOARD_TARGET} PUBLIC
-      "LINKER:--script=${SDK_DIR}/devices/${MCU_VARIANT}/gcc/${MCU_VARIANT}xxxxx_flexspi_nor.ld"
+      "LINKER:--script=${LD_FILE_gcc}"
       "LINKER:-Map=$<IF:$<BOOL:$<TARGET_PROPERTY:OUTPUT_NAME>>,$<TARGET_PROPERTY:OUTPUT_NAME>,$<TARGET_PROPERTY:NAME>>${CMAKE_EXECUTABLE_SUFFIX}.map"
       # nanolib
       --specs=nosys.specs
@@ -142,6 +146,21 @@ function(family_configure_target TARGET)
   add_custom_target(${TARGET}-nxplink
     DEPENDS ${TARGET}
     COMMAND ${LINKSERVER_PATH} flash ${NXPLINK_DEVICE} load $<TARGET_FILE:${TARGET}>
+    )
+
+  # Flash using jlink
+  set(JLINKEXE JLinkExe)
+  file(GENERATE
+    OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/${TARGET}.jlink
+    CONTENT "halt
+loadfile $<TARGET_FILE:${TARGET}>
+r
+go
+exit"
+    )
+  add_custom_target(${TARGET}-jlink
+    DEPENDS ${TARGET}
+    COMMAND ${JLINKEXE} -device ${JLINK_DEVICE} -if swd -JTAGConf -1,-1 -speed auto -CommandFile ${CMAKE_CURRENT_BINARY_DIR}/${TARGET}.jlink
     )
 
 endfunction()
