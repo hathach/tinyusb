@@ -8,9 +8,12 @@ if (NOT BOARD)
   message(FATAL_ERROR "BOARD not specified")
 endif ()
 
+# TOP is path to root directory
+set(TOP "${CMAKE_CURRENT_LIST_DIR}/../../..")
+
 # toolchain set up
 set(CMAKE_SYSTEM_PROCESSOR cortex-m7 CACHE INTERNAL "System Processor")
-set(CMAKE_TOOLCHAIN_FILE ${CMAKE_CURRENT_LIST_DIR}/../../../examples/cmake/toolchain/arm_${TOOLCHAIN}.cmake)
+set(CMAKE_TOOLCHAIN_FILE ${TOP}/tools/cmake/toolchain/arm_${TOOLCHAIN}.cmake)
 
 set(FAMILY_MCUS MIMXRT CACHE INTERNAL "")
 
@@ -24,9 +27,6 @@ include(${CMAKE_CURRENT_LIST_DIR}/boards/${BOARD}/board.cmake)
 # only need to be built ONCE for all examples
 set(BOARD_TARGET board_${BOARD})
 if (NOT TARGET ${BOARD_TARGET})
-  # TOP is path to root directory
-  set(TOP "${CMAKE_CURRENT_LIST_DIR}/../../..")
-
   set(SDK_DIR ${TOP}/hw/mcu/nxp/mcux-sdk)
   set(CMSIS_DIR ${TOP}/lib/CMSIS_5)
 

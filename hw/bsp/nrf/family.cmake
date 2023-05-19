@@ -25,9 +25,10 @@ else ()
   set(JLINK_DEVICE ${MCU_VARIANT}_xxaa)
 endif ()
 
-set(CMAKE_TOOLCHAIN_FILE ${TOP}/examples/cmake/toolchain/arm_${TOOLCHAIN}.cmake)
+set(CMAKE_TOOLCHAIN_FILE ${TOP}/tools/cmake/toolchain/arm_${TOOLCHAIN}.cmake)
 
 set(FAMILY_MCUS NRF5X CACHE INTERNAL "")
+
 
 #------------------------------------
 # BOARD_TARGET
