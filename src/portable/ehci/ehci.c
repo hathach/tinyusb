@@ -273,19 +273,19 @@ static void list_remove_qhd_by_daddr(ehci_link_t* list_head, uint8_t dev_addr) {
 }
 
 // Close all opened endpoint belong to this device
-void hcd_device_close(uint8_t rhport, uint8_t dev_addr)
+void hcd_device_close(uint8_t rhport, uint8_t daddr)
 {
   // skip dev0
-  if (dev_addr == 0) {
+  if (daddr == 0) {
     return;
   }
 
   // Remove from async list
-  list_remove_qhd_by_daddr((ehci_link_t *) qhd_async_head(rhport), dev_addr);
+  list_remove_qhd_by_daddr((ehci_link_t *) qhd_async_head(rhport), daddr);
 
   // Remove from all interval period list
   for(uint8_t i = 0; i < TU_ARRAY_SIZE(ehci_data.period_head_arr); i++) {
-    list_remove_qhd_by_daddr((ehci_link_t *) &ehci_data.period_head_arr[i], dev_addr);
+    list_remove_qhd_by_daddr((ehci_link_t *) &ehci_data.period_head_arr[i], daddr);
   }
 
   // Async doorbell (EHCI 4.8.2 for operational details)
@@ -453,7 +453,7 @@ bool hcd_edpt_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_endpoint_t const 
   list_insert(list_head, (ehci_link_t*) p_qhd, EHCI_QTYPE_QHD);
 
   hcd_dcache_clean(p_qhd, sizeof(ehci_qhd_t));
-  hcd_dcache_clean(list_head, sizeof(ehci_link_t));
+  hcd_dcache_clean(list_head, sizeof(ehci_qhd_t));
 
   return true;
 }
