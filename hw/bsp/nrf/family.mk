@@ -3,8 +3,8 @@ DEPS_SUBMODULES += lib/CMSIS_5 hw/mcu/nordic/nrfx
 
 include $(TOP)/$(BOARD_PATH)/board.mk
 
+# nRF52 is cortex-m4, nRF53 is cortex-m33
 CPU_CORE ?= cortex-m4
-
 include $(TOP)/tools/make/cpu/$(CPU_CORE).mk
 
 CFLAGS += \
@@ -35,9 +35,6 @@ INC += \
 SRC_S += hw/mcu/nordic/nrfx/mdk/gcc_startup_$(MCU_VARIANT).S
 
 ASFLAGS += -D__HEAP_SIZE=0
-
-# For freeRTOS port source
-FREERTOS_PORTABLE_SRC = $(FREERTOS_PORTABLE_PATH)/ARM_CM4F
 
 # For flash-jlink target
 JLINK_DEVICE ?= $(MCU_VARIANT)_xxaa
