@@ -24,39 +24,22 @@
  * This file is part of the TinyUSB stack.
  */
 
-#ifndef _CI_HS_IMXRT_H_
-#define _CI_HS_IMXRT_H_
+#ifndef _CI_HS_MCX_H_
+#define _CI_HS_MCX_H_
 
 #include "fsl_device_registers.h"
 
-#if !defined(USB1_BASE) && defined(USB_OTG1_BASE)
-#define USB1_BASE USB_OTG1_BASE
-#endif
-
-#if !defined(USB2_BASE) && defined(USB_OTG2_BASE)
-#define USB2_BASE USB_OTG2_BASE
-#endif
-
-// RT1040 calls its only USB USB_OTG (no 1)
-#if defined(MIMXRT1042_SERIES)
-#define USB_OTG1_IRQn USB_OTG_IRQn
-#endif
-
-static const ci_hs_controller_t _ci_controller[] =
-{
-  // RT1010 and RT1020 only has 1 USB controller
-  #if FSL_FEATURE_SOC_USBHS_COUNT == 1
-    { .reg_base = USB_BASE , .irqnum = USB_OTG1_IRQn, .ep_count = 8 }
-  #else
-    { .reg_base = USB1_BASE, .irqnum = USB_OTG1_IRQn, .ep_count = 8 },
-    { .reg_base = USB2_BASE, .irqnum = USB_OTG2_IRQn, .ep_count = 8 }
-  #endif
+static const ci_hs_controller_t _ci_controller[] = {
+    {.reg_base = USBHS1__USBC_BASE, .irqnum = USB1_HS_IRQn, .ep_count = 8}
 };
 
-#define CI_HS_REG(_port)        ((ci_hs_regs_t*) _ci_controller[_port].reg_base)
+TU_ATTR_ALWAYS_INLINE static inline ci_hs_regs_t* CI_HS_REG(uint8_t port) {
+  (void) port;
+  return ((ci_hs_regs_t*) _ci_controller[0].reg_base);
+}
 
-#define CI_DCD_INT_ENABLE(_p)   NVIC_EnableIRQ (_ci_controller[_p].irqnum)
-#define CI_DCD_INT_DISABLE(_p)  NVIC_DisableIRQ(_ci_controller[_p].irqnum)
+#define CI_DCD_INT_ENABLE(_p)   do { (void) _p; NVIC_EnableIRQ (_ci_controller[0].irqnum); } while (0)
+#define CI_DCD_INT_DISABLE(_p)  do { (void) _p; NVIC_DisableIRQ(_ci_controller[0].irqnum); } while (0)
 
 #define CI_HCD_INT_ENABLE(_p)   NVIC_EnableIRQ (_ci_controller[_p].irqnum)
 #define CI_HCD_INT_DISABLE(_p)  NVIC_DisableIRQ(_ci_controller[_p].irqnum)

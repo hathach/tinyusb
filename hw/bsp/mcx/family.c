@@ -52,12 +52,12 @@
 //--------------------------------------------------------------------+
 // Forward USB interrupt events to TinyUSB IRQ Handler
 //--------------------------------------------------------------------+
-void USB0_IRQHandler(void)
+void USB0_FS_IRQHandler(void)
 {
   tud_int_handler(0);
 }
 
-void USB1_IRQHandler(void)
+void USB1_HS_IRQHandler(void)
 {
   tud_int_handler(1);
 }
@@ -74,6 +74,8 @@ void board_init(void)
   // If freeRTOS is used, IRQ priority is limit by max syscall ( smaller is higher )
   NVIC_SetPriority(USB0_IRQn, configLIBRARY_MAX_SYSCALL_INTERRUPT_PRIORITY );
 #endif
+
+  NVIC_SetPriority(USB1_HS_IRQn, 3);
 
   // LED
   CLOCK_EnableClock(LED_CLK);
@@ -122,6 +124,8 @@ void board_init(void)
   // USB VBUS
   /* PORT0 PIN22 configured as USB0_VBUS */
 
+  CLOCK_SetupExtClocking(XTAL0_CLK_HZ);
+
 #if PORT_SUPPORT_DEVICE(0)
   // Port0 is Full Speed
 
@@ -150,27 +154,42 @@ void board_init(void)
 #if PORT_SUPPORT_DEVICE(1)
   // Port1 is High Speed
 
-  /* Turn on USB1 Phy */
-  POWER_DisablePD(kPDRUNCFG_PD_USB1_PHY);
+  // Power
+  SPC0->ACTIVE_VDELAY = 0x0500;
+  /* Change the power DCDC to 1.8v (By default, DCDC is 1.8V), CORELDO to 1.1v (By default, CORELDO is 1.0V) */
+  SPC0->ACTIVE_CFG &= ~SPC_ACTIVE_CFG_CORELDO_VDD_DS_MASK;
+  SPC0->ACTIVE_CFG |= SPC_ACTIVE_CFG_DCDC_VDD_LVL(0x3) | SPC_ACTIVE_CFG_CORELDO_VDD_LVL(0x3) |
+                      SPC_ACTIVE_CFG_SYSLDO_VDD_DS_MASK | SPC_ACTIVE_CFG_DCDC_VDD_DS(0x2u);
+  /* Wait until it is done */
+  while (SPC0->SC & SPC_SC_BUSY_MASK) {}
+  if (0u == (SCG0->LDOCSR & SCG_LDOCSR_LDOEN_MASK)) {
+    SCG0->TRIM_LOCK = 0x5a5a0001U;
+    SCG0->LDOCSR |= SCG_LDOCSR_LDOEN_MASK;
+    /* wait LDO ready */
+    while (0U == (SCG0->LDOCSR & SCG_LDOCSR_VOUT_OK_MASK));
+  }
+  SYSCON->AHBCLKCTRLSET[2] |= SYSCON_AHBCLKCTRL2_USB_HS_MASK | SYSCON_AHBCLKCTRL2_USB_HS_PHY_MASK;
+  SCG0->SOSCCFG &= ~(SCG_SOSCCFG_RANGE_MASK | SCG_SOSCCFG_EREFS_MASK);
+  /* xtal = 20 ~ 30MHz */
+  SCG0->SOSCCFG = (1U << SCG_SOSCCFG_RANGE_SHIFT) | (1U << SCG_SOSCCFG_EREFS_SHIFT);
+  SCG0->SOSCCSR |= SCG_SOSCCSR_SOSCEN_MASK;
+  while (1) {
+    if (SCG0->SOSCCSR & SCG_SOSCCSR_SOSCVLD_MASK) {
+      break;
+    }
+  }
 
-  /* reset the IP to make sure it's in reset state. */
-  RESET_PeripheralReset(kUSB1H_RST_SHIFT_RSTn);
-  RESET_PeripheralReset(kUSB1D_RST_SHIFT_RSTn);
-  RESET_PeripheralReset(kUSB1_RST_SHIFT_RSTn);
-  RESET_PeripheralReset(kUSB1RAM_RST_SHIFT_RSTn);
+  // Clock
+  SYSCON->CLOCK_CTRL |= SYSCON_CLOCK_CTRL_CLKIN_ENA_MASK | SYSCON_CLOCK_CTRL_CLKIN_ENA_FM_USBH_LPT_MASK;
+  CLOCK_EnableClock(kCLOCK_UsbHs);
+  CLOCK_EnableClock(kCLOCK_UsbHsPhy);
+  CLOCK_EnableUsbhsPhyPllClock(kCLOCK_Usbphy480M, 24000000U);
+  CLOCK_EnableUsbhsClock();
 
-  /* According to reference manual, device mode setting has to be set by access usb host register */
-  CLOCK_EnableClock(kCLOCK_Usbh1); // enable usb0 host clock
-
-  USBHSH->PORTMODE = USBHSH_PORTMODE_SW_PDCOM_MASK; // Put PHY powerdown under software control
-  USBHSH->PORTMODE |= USBHSH_PORTMODE_DEV_ENABLE_MASK;
-
-  CLOCK_DisableClock(kCLOCK_Usbh1); // disable usb0 host clock
-
-  /* enable USB Device clock */
-  CLOCK_EnableUsbhs0PhyPllClock(kCLOCK_UsbPhySrcExt, XTAL0_CLK_HZ);
-  CLOCK_EnableUsbhs0DeviceClock(kCLOCK_UsbSrcUnused, 0U);
-  CLOCK_EnableClock(kCLOCK_UsbRam1);
+  // USB PHY
+#if ((!(defined FSL_FEATURE_SOC_CCM_ANALOG_COUNT)) && (!(defined FSL_FEATURE_SOC_ANATOP_COUNT)))
+  USBPHY->TRIM_OVERRIDE_EN = 0x001fU; /* override IFR value */
+#endif
 
   // Enable PHY support for Low speed device + LS via FS Hub
   USBPHY->CTRL |= USBPHY_CTRL_SET_ENUTMILEVEL2_MASK | USBPHY_CTRL_SET_ENUTMILEVEL3_MASK;
@@ -178,14 +197,11 @@ void board_init(void)
   // Enable all power for normal operation
   USBPHY->PWD = 0;
 
-  USBPHY->CTRL_SET = USBPHY_CTRL_SET_ENAUTOCLR_CLKGATE_MASK;
-  USBPHY->CTRL_SET = USBPHY_CTRL_SET_ENAUTOCLR_PHY_PWD_MASK;
-
   // TX Timing
-//  uint32_t phytx = USBPHY->TX;
-//  phytx &= ~(USBPHY_TX_D_CAL_MASK | USBPHY_TX_TXCAL45DM_MASK | USBPHY_TX_TXCAL45DP_MASK);
-//  phytx |= USBPHY_TX_D_CAL(0x0C) | USBPHY_TX_TXCAL45DP(0x06) | USBPHY_TX_TXCAL45DM(0x06);
-//  USBPHY->TX = phytx;
+  uint32_t phytx = USBPHY->TX;
+  phytx &= ~(USBPHY_TX_D_CAL_MASK | USBPHY_TX_TXCAL45DM_MASK | USBPHY_TX_TXCAL45DP_MASK);
+  phytx |= USBPHY_TX_D_CAL(0x04) | USBPHY_TX_TXCAL45DP(0x07) | USBPHY_TX_TXCAL45DM(0x07);
+  USBPHY->TX = phytx;
 #endif
 }
 

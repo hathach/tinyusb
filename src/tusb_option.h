@@ -168,7 +168,7 @@
 
 
 // NXP LPC MCX
-#define OPT_MCU_MCXN             2300  ///< NXP MCX N Series
+#define OPT_MCU_MCXN9            2300  ///< NXP MCX N9 Series
 
 // Helper to check if configured MCU is one of listed
 // Apply _TU_CHECK_MCU with || as separator to list of input
@@ -278,7 +278,7 @@
 // In case TUP_MCU_STRICT_ALIGN = 1 and TUP_ARCH_STRICT_ALIGN =0, we will not reply on compiler
 // to generate unaligned access code.
 // LPC_IP3511 Highspeed cannot access unaligned memory on USB_RAM
-#if TUD_OPT_HIGH_SPEED && (CFG_TUSB_MCU == OPT_MCU_LPC54XXX || CFG_TUSB_MCU == OPT_MCU_LPC55XX || CFG_TUSB_MCU == OPT_MCU_MCXN)
+#if TUD_OPT_HIGH_SPEED && TU_CHECK_MCU(OPT_MCU_LPC54XXX, OPT_MCU_LPC55XX)
   #define TUP_MCU_STRICT_ALIGN   1
 #else
   #define TUP_MCU_STRICT_ALIGN   0

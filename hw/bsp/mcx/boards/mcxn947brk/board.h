@@ -57,7 +57,7 @@ static inline void board_uart_init_clock(void) {
 //#define UART_TX_PINMUX        0, 25, IOCON_PIO_DIG_FUNC1_EN
 
 // XTAL
-#define XTAL0_CLK_HZ          (16 * 1000 * 1000U)
+#define XTAL0_CLK_HZ          (24 * 1000 * 1000U)
 
 #ifdef __cplusplus
  }

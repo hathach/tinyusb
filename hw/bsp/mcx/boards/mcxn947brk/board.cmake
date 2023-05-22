@@ -9,7 +9,7 @@ function(update_board TARGET)
   target_compile_definitions(${TARGET} PUBLIC
     CPU_MCXN947VDF_cm33_core0
     # port 1 is highspeed
-    # BOARD_TUD_RHPORT=1
+    BOARD_TUD_RHPORT=1
     )
   target_sources(${TARGET} PUBLIC
     ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/clock_config.c

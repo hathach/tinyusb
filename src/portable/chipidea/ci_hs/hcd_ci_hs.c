@@ -75,8 +75,6 @@ void hcd_dcache_clean_invalidate(void* addr, uint32_t data_size) {
 // MACRO CONSTANT TYPEDEF
 //--------------------------------------------------------------------+
 
-#define CI_HS_REG(_port)      ((ci_hs_regs_t*) _ci_controller[_port].reg_base)
-
 //--------------------------------------------------------------------+
 // Controller API
 //--------------------------------------------------------------------+

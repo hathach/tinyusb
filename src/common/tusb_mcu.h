@@ -78,11 +78,8 @@
   // TODO USB0 has 5, USB1 has 6
   #define TUP_DCD_ENDPOINT_MAX    6
 
-#elif TU_CHECK_MCU(OPT_MCU_MCXN94X)
-  // TODO USB0 has 5, USB1 has 6
-  #define TUP_DCD_ENDPOINT_MAX    6
-
-#elif TU_CHECK_MCU(OPT_MCU_MIMXRT)
+#elif TU_CHECK_MCU(OPT_MCU_MIMXRT, OPT_MCU_MCXN9)
+  // NOTE: MCXN943 port 1 use chipidea HS, port 0 use chipidea FS
   #define TUP_USBIP_CHIPIDEA_HS
   #define TUP_USBIP_EHCI
 

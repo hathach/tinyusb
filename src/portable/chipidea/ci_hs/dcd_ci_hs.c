@@ -38,6 +38,9 @@
   #include "ci_hs_imxrt.h"
 #elif TU_CHECK_MCU(OPT_MCU_LPC18XX, OPT_MCU_LPC43XX)
   #include "ci_hs_lpc18_43.h"
+#elif TU_CHECK_MCU(OPT_MCU_MCXN9)
+  // MCX N9 only port 1 use this controller
+  #include "ci_hs_mcx.h"
 #else
   #error "Unsupported MCUs"
 #endif
@@ -45,8 +48,6 @@
 //--------------------------------------------------------------------+
 // MACRO CONSTANT TYPEDEF
 //--------------------------------------------------------------------+
-
-#define CI_HS_REG(_port)      ((ci_hs_regs_t*) _ci_controller[_port].reg_base)
 
 // Clean means to push any cached changes to RAM and invalidate "removes" the
 // entry from the cache.

@@ -40,9 +40,8 @@ if (NOT TARGET ${BOARD_TARGET})
     ${SDK_DIR}/devices/${MCU_VARIANT}/drivers/fsl_reset.c
     ${SDK_DIR}/devices/${MCU_VARIANT}/system_${MCU_CORE}.c
     )
-  target_compile_definitions(${BOARD_TARGET} PUBLIC
-    CFG_TUSB_MCU=OPT_MCU_LPC55XX
-    )
+#  target_compile_definitions(${BOARD_TARGET} PUBLIC
+#    )
   target_include_directories(${BOARD_TARGET} PUBLIC
     # driver
     # mcu
@@ -89,7 +88,7 @@ function(family_configure_target TARGET)
   # These files are built for each example since it depends on example's tusb_config.h
   target_sources(${TARGET} PUBLIC
     # TinyUSB Port
-    #${TOP}/src/portable/nxp/lpc_ip3511/dcd_lpc_ip3511.c
+    ${TOP}/src/portable/chipidea/ci_hs/dcd_ci_hs.c
     # BSP
     ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/family.c
     ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/../board.c
@@ -110,7 +109,7 @@ function(family_configure_target TARGET)
     ${CMAKE_CURRENT_SOURCE_DIR}/src
     )
   target_compile_definitions(${TARGET}-tinyusb_config INTERFACE
-    CFG_TUSB_MCU=OPT_MCU_LPC55XX
+    CFG_TUSB_MCU=OPT_MCU_MCXN9
     )
 
   # tinyusb's CMakeList.txt
