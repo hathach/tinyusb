@@ -135,6 +135,13 @@ function(family_add_default_example_warnings TARGET)
     endif()
 endfunction()
 
+
+#  add_custom_command(TARGET ${TARGET} POST_BUILD
+#    COMMAND ${CMAKE_OBJCOPY} -O ihex $<TARGET_FILE:${TARGET}> ${TARGET}.hex
+#    COMMAND ${CMAKE_OBJCOPY} -O binary $<TARGET_FILE:${TARGET}> ${TARGET}.bin
+#    COMMENT "Creating ${TARGET}.hex and ${TARGET}.bin"
+#    )
+
 # Add flash jlink target
 function(family_flash_jlink TARGET)
     if (NOT DEFINED JLINKEXE)

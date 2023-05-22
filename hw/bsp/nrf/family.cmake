@@ -1,8 +1,4 @@
-if (TARGET _nrf_family_inclusion_marker)
-  return()
-endif ()
-
-add_library(_nrf_family_inclusion_marker INTERFACE)
+include_guard()
 
 if (NOT BOARD)
   message(FATAL_ERROR "BOARD not specified")
@@ -88,6 +84,11 @@ function(family_configure_target TARGET)
 
   # set output name to .elf
   set_target_properties(${TARGET} PROPERTIES OUTPUT_NAME ${TARGET}.elf)
+
+  # run size after build
+  add_custom_command(TARGET ${TARGET} POST_BUILD
+    COMMAND ${TOOLCHAIN_SIZE} $<TARGET_FILE:${TARGET}>
+    )
 
   # TOP is path to root directory
   set(TOP "${CMAKE_CURRENT_FUNCTION_LIST_DIR}/../../..")
