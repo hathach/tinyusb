@@ -6,24 +6,16 @@ endif ()
 
 # TOP is path to root directory
 set(TOP "${CMAKE_CURRENT_LIST_DIR}/../../..")
-set(NRFX_DIR ${TOP}/hw/mcu/nordic/nrfx)
-set(CMSIS_DIR ${TOP}/lib/CMSIS_5)
+set(SDK_DIR ${TOP}/hw/mcu/nxp/lpcopen/lpc18xx/lpc_chip_18xx)
+
+# toolchain set up
+set(CMAKE_SYSTEM_PROCESSOR cortex-m3 CACHE INTERNAL "System Processor")
+set(CMAKE_TOOLCHAIN_FILE ${TOP}/tools/cmake/toolchain/arm_${TOOLCHAIN}.cmake)
+
+set(FAMILY_MCUS LPC18XX CACHE INTERNAL "")
 
 # include board specific
 include(${CMAKE_CURRENT_LIST_DIR}/boards/${BOARD}/board.cmake)
-
-# toolchain set up
-if (MCU_VARIANT STREQUAL "nrf5340_application")
-  set(CMAKE_SYSTEM_PROCESSOR cortex-m33 CACHE INTERNAL "System Processor")
-  set(JLINK_DEVICE nrf5340_xxaa_app)
-else ()
-  set(CMAKE_SYSTEM_PROCESSOR cortex-m4 CACHE INTERNAL "System Processor")
-  set(JLINK_DEVICE ${MCU_VARIANT}_xxaa)
-endif ()
-
-set(CMAKE_TOOLCHAIN_FILE ${TOP}/tools/cmake/toolchain/arm_${TOOLCHAIN}.cmake)
-
-set(FAMILY_MCUS NRF5X CACHE INTERNAL "")
 
 
 #------------------------------------
@@ -33,39 +25,33 @@ set(FAMILY_MCUS NRF5X CACHE INTERNAL "")
 set(BOARD_TARGET board_${BOARD})
 if (NOT TARGET ${BOARD_TARGET})
   add_library(${BOARD_TARGET} STATIC
-    # driver
-    ${NRFX_DIR}/drivers/src/nrfx_power.c
-    ${NRFX_DIR}/drivers/src/nrfx_uarte.c
-    # mcu
-    ${NRFX_DIR}/mdk/system_${MCU_VARIANT}.c
+    ${SDK_DIR}/../gcc/cr_startup_lpc18xx.c
+    ${SDK_DIR}/src/chip_18xx_43xx.c
+    ${SDK_DIR}/src/clock_18xx_43xx.c
+    ${SDK_DIR}/src/gpio_18xx_43xx.c
+    ${SDK_DIR}/src/sysinit_18xx_43xx.c
+    ${SDK_DIR}/src/uart_18xx_43xx.c
+    )
+  target_compile_options(${BOARD_TARGET} PUBLIC
+    -nostdlib
     )
   target_compile_definitions(${BOARD_TARGET} PUBLIC
-    CONFIG_GPIO_AS_PINRESET
+    __USE_LPCOPEN
+    CORE_M3
     )
   target_include_directories(${BOARD_TARGET} PUBLIC
-    ${CMAKE_CURRENT_LIST_DIR}
-    ${NRFX_DIR}
-    ${NRFX_DIR}/mdk
-    ${NRFX_DIR}/hal
-    ${NRFX_DIR}/drivers/include
-    ${NRFX_DIR}/drivers/src
-    ${CMSIS_DIR}/CMSIS/Core/Include
+    ${SDK_DIR}/inc
+    ${SDK_DIR}/inc/config_18xx
     )
   update_board(${BOARD_TARGET})
 
   if (NOT DEFINED LD_FILE_${TOOLCHAIN})
-    set(LD_FILE_gcc ${NRFX_DIR}/mdk/${MCU_VARIANT}_xxaa.ld)
+    MESSAGE(FATAL_ERROR "LD_FILE_${TOOLCHAIN} not defined")
   endif ()
 
   if (TOOLCHAIN STREQUAL "gcc")
-    target_sources(${BOARD_TARGET} PUBLIC
-      ${NRFX_DIR}/mdk/gcc_startup_${MCU_VARIANT}.S
-      )
     target_link_options(${BOARD_TARGET} PUBLIC
-      # linker file
       "LINKER:--script=${LD_FILE_gcc}"
-      -L${NRFX_DIR}/mdk
-      # link map
       "LINKER:-Map=$<IF:$<BOOL:$<TARGET_PROPERTY:OUTPUT_NAME>>,$<TARGET_PROPERTY:OUTPUT_NAME>,$<TARGET_PROPERTY:NAME>>${CMAKE_EXECUTABLE_SUFFIX}.map"
       # nanolib
       --specs=nosys.specs
@@ -80,8 +66,6 @@ endif () # BOARD_TARGET
 # Functions
 #------------------------------------
 function(family_configure_target TARGET)
-  #family_add_default_example_warnings(${TARGET})
-
   # set output name to .elf
   set_target_properties(${TARGET} PROPERTIES OUTPUT_NAME ${TARGET}.elf)
 
@@ -90,14 +74,13 @@ function(family_configure_target TARGET)
     COMMAND ${TOOLCHAIN_SIZE} $<TARGET_FILE:${TARGET}>
     )
 
-  # TOP is path to root directory
-  set(TOP "${CMAKE_CURRENT_FUNCTION_LIST_DIR}/../../..")
-
   #---------- Port Specific ----------
   # These files are built for each example since it depends on example's tusb_config.h
   target_sources(${TARGET} PUBLIC
     # TinyUSB Port
-    ${TOP}/src/portable/nordic/nrf5x/dcd_nrf5x.c
+    ${TOP}/src/portable/chipidea/ci_hs/dcd_ci_hs.c
+    ${TOP}/src/portable/chipidea/ci_hs/hcd_ci_hs.c
+    ${TOP}/src/portable/ehci/ehci.c
     # BSP
     ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/family.c
     ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/../board.c
@@ -118,7 +101,7 @@ function(family_configure_target TARGET)
     ${CMAKE_CURRENT_SOURCE_DIR}/src
     )
   target_compile_definitions(${TARGET}-tinyusb_config INTERFACE
-    CFG_TUSB_MCU=OPT_MCU_NRF5X
+    CFG_TUSB_MCU=OPT_MCU_LPC18XX
     )
 
   # tinyusb's CMakeList.txt
@@ -134,7 +117,6 @@ function(family_configure_target TARGET)
 
   #---------- Flash ----------
   family_flash_jlink(${TARGET})
-
 endfunction()
 
 

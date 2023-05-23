@@ -24,7 +24,7 @@ family_add_subdirectory(midi_test)
 family_add_subdirectory(msc_dual_lun)
 
 # FIXME temp skip net_lwip_webserver for imxrt for now
-if (NOT ${FAMILY} STREQUAL "imxrt")
+if (NOT ${FAMILY} STREQUAL "imxrt" AND NOT ${FAMILY} STREQUAL "mcx")
   family_add_subdirectory(net_lwip_webserver)
 endif()
 

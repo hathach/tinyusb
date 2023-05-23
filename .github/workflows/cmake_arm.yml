@@ -32,6 +32,7 @@ jobs:
       matrix:
         family:
         # Alphabetical order
+        - 'mcx'
         - 'imxrt'
     steps:
     - name: Setup Python

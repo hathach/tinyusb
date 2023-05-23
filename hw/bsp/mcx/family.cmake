@@ -5,25 +5,18 @@ if (NOT BOARD)
 endif ()
 
 # TOP is path to root directory
-set(TOP "${CMAKE_CURRENT_LIST_DIR}/../../..")
-set(NRFX_DIR ${TOP}/hw/mcu/nordic/nrfx)
+set(TOP ${CMAKE_CURRENT_LIST_DIR}/../../..)
+set(SDK_DIR ${TOP}/hw/mcu/nxp/mcux-sdk)
 set(CMSIS_DIR ${TOP}/lib/CMSIS_5)
+
+# toolchain set up
+set(CMAKE_SYSTEM_PROCESSOR cortex-m33 CACHE INTERNAL "System Processor")
+set(CMAKE_TOOLCHAIN_FILE ${TOP}/tools/cmake/toolchain/arm_${TOOLCHAIN}.cmake)
+
+set(FAMILY_MCUS LPC55XX CACHE INTERNAL "")
 
 # include board specific
 include(${CMAKE_CURRENT_LIST_DIR}/boards/${BOARD}/board.cmake)
-
-# toolchain set up
-if (MCU_VARIANT STREQUAL "nrf5340_application")
-  set(CMAKE_SYSTEM_PROCESSOR cortex-m33 CACHE INTERNAL "System Processor")
-  set(JLINK_DEVICE nrf5340_xxaa_app)
-else ()
-  set(CMAKE_SYSTEM_PROCESSOR cortex-m4 CACHE INTERNAL "System Processor")
-  set(JLINK_DEVICE ${MCU_VARIANT}_xxaa)
-endif ()
-
-set(CMAKE_TOOLCHAIN_FILE ${TOP}/tools/cmake/toolchain/arm_${TOOLCHAIN}.cmake)
-
-set(FAMILY_MCUS NRF5X CACHE INTERNAL "")
 
 
 #------------------------------------
@@ -33,38 +26,37 @@ set(FAMILY_MCUS NRF5X CACHE INTERNAL "")
 set(BOARD_TARGET board_${BOARD})
 if (NOT TARGET ${BOARD_TARGET})
   add_library(${BOARD_TARGET} STATIC
+    # external driver
+    #lib/sct_neopixel/sct_neopixel.c
+
     # driver
-    ${NRFX_DIR}/drivers/src/nrfx_power.c
-    ${NRFX_DIR}/drivers/src/nrfx_uarte.c
+    ${SDK_DIR}/devices/${MCU_VARIANT}/drivers/fsl_gpio.c
+    ${SDK_DIR}/devices/${MCU_VARIANT}/drivers/fsl_common_arm.c
+    ${SDK_DIR}/devices/${MCU_VARIANT}/drivers/fsl_lpuart.c
+    ${SDK_DIR}/devices/${MCU_VARIANT}/drivers/fsl_lpflexcomm.c
     # mcu
-    ${NRFX_DIR}/mdk/system_${MCU_VARIANT}.c
+    ${SDK_DIR}/devices/${MCU_VARIANT}/drivers/fsl_clock.c
+    ${SDK_DIR}/devices/${MCU_VARIANT}/drivers/fsl_reset.c
+    ${SDK_DIR}/devices/${MCU_VARIANT}/system_${MCU_CORE}.c
     )
-  target_compile_definitions(${BOARD_TARGET} PUBLIC
-    CONFIG_GPIO_AS_PINRESET
-    )
+#  target_compile_definitions(${BOARD_TARGET} PUBLIC
+#    )
   target_include_directories(${BOARD_TARGET} PUBLIC
-    ${CMAKE_CURRENT_LIST_DIR}
-    ${NRFX_DIR}
-    ${NRFX_DIR}/mdk
-    ${NRFX_DIR}/hal
-    ${NRFX_DIR}/drivers/include
-    ${NRFX_DIR}/drivers/src
+    # driver
+    # mcu
     ${CMSIS_DIR}/CMSIS/Core/Include
+    ${SDK_DIR}/devices/${MCU_VARIANT}
+    ${SDK_DIR}/devices/${MCU_VARIANT}/drivers
     )
   update_board(${BOARD_TARGET})
 
-  if (NOT DEFINED LD_FILE_${TOOLCHAIN})
-    set(LD_FILE_gcc ${NRFX_DIR}/mdk/${MCU_VARIANT}_xxaa.ld)
-  endif ()
-
   if (TOOLCHAIN STREQUAL "gcc")
     target_sources(${BOARD_TARGET} PUBLIC
-      ${NRFX_DIR}/mdk/gcc_startup_${MCU_VARIANT}.S
+      ${SDK_DIR}/devices/${MCU_VARIANT}/gcc/startup_${MCU_CORE}.S
       )
     target_link_options(${BOARD_TARGET} PUBLIC
       # linker file
-      "LINKER:--script=${LD_FILE_gcc}"
-      -L${NRFX_DIR}/mdk
+      "LINKER:--script=${SDK_DIR}/devices/${MCU_VARIANT}/gcc/${MCU_CORE}_flash.ld"
       # link map
       "LINKER:-Map=$<IF:$<BOOL:$<TARGET_PROPERTY:OUTPUT_NAME>>,$<TARGET_PROPERTY:OUTPUT_NAME>,$<TARGET_PROPERTY:NAME>>${CMAKE_EXECUTABLE_SUFFIX}.map"
       # nanolib
@@ -80,8 +72,6 @@ endif () # BOARD_TARGET
 # Functions
 #------------------------------------
 function(family_configure_target TARGET)
-  #family_add_default_example_warnings(${TARGET})
-
   # set output name to .elf
   set_target_properties(${TARGET} PROPERTIES OUTPUT_NAME ${TARGET}.elf)
 
@@ -97,7 +87,7 @@ function(family_configure_target TARGET)
   # These files are built for each example since it depends on example's tusb_config.h
   target_sources(${TARGET} PUBLIC
     # TinyUSB Port
-    ${TOP}/src/portable/nordic/nrf5x/dcd_nrf5x.c
+    ${TOP}/src/portable/chipidea/ci_hs/dcd_ci_hs.c
     # BSP
     ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/family.c
     ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/../board.c
@@ -118,7 +108,7 @@ function(family_configure_target TARGET)
     ${CMAKE_CURRENT_SOURCE_DIR}/src
     )
   target_compile_definitions(${TARGET}-tinyusb_config INTERFACE
-    CFG_TUSB_MCU=OPT_MCU_NRF5X
+    CFG_TUSB_MCU=OPT_MCU_MCXN9
     )
 
   # tinyusb's CMakeList.txt
@@ -133,14 +123,30 @@ function(family_configure_target TARGET)
     )
 
   #---------- Flash ----------
-  family_flash_jlink(${TARGET})
+  # use MCUXpresso GUI Flash Tool to flash the elf
 
+#  set(REDLINK_EXE /usr/local/LinkServer/binaries/crt_emu_cm_redlink)
+#  add_custom_target(${TARGET}-redlink
+#    DEPENDS ${TARGET}
+#    COMMAND ${REDLINK_EXE} --flash-load-exec $<TARGET_FILE:${TARGET}> --vendor NXP -p MCXN947 --bootromstall
+#    0x50000040 -CoreIndex=0 --flash-driver= -x ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/flash --flash-dir
+#    ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/flash --flash-hashing
+#    )
+
+  #family_flash_jlink(${TARGET})
+  #family_flash_nxplink(${TARGET})
+  #family_flash_pyocd(${TARGET})
 endfunction()
 
 
 function(family_add_freertos TARGET)
   # freertos_config
-  add_subdirectory(${CMAKE_CURRENT_FUNCTION_LIST_DIR}/FreeRTOSConfig ${CMAKE_CURRENT_BINARY_DIR}/freertos_config)
+  if (NOT TARGET freertos_config)
+    add_library(freertos_config INTERFACE)
+    target_include_directories(freertos_config SYSTEM INTERFACE
+      ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/FreeRTOSConfig
+      )
+  endif()
 
   ## freertos
   if (NOT TARGET freertos_kernel)

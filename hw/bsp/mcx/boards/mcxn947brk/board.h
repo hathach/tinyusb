@@ -24,24 +24,43 @@
  * This file is part of the TinyUSB stack.
  */
 
-#ifndef _CI_HS_LPC18_43_H_
-#define _CI_HS_LPC18_43_H_
+#ifndef BOARD_H_
+#define BOARD_H_
 
-// LPCOpen for 18xx & 43xx
-#include "chip.h"
+#ifdef __cplusplus
+ extern "C" {
+#endif
 
-static const ci_hs_controller_t _ci_controller[] =
-{
-  { .reg_base = LPC_USB0_BASE, .irqnum = USB0_IRQn },
-  { .reg_base = LPC_USB1_BASE, .irqnum = USB1_IRQn }
-};
+// LED
+#define LED_GPIO              GPIO3
+#define LED_CLK               kCLOCK_Gpio3
+#define LED_PIN               4 // red
+#define LED_STATE_ON          0
 
-#define CI_HS_REG(_port)        ((ci_hs_regs_t*) _ci_controller[_port].reg_base)
+// WAKE button (Dummy, use unused pin
+#define BUTTON_GPIO           GPIO0
+#define BUTTON_CLK            kCLOCK_Gpio0
+#define BUTTON_PIN            6
+#define BUTTON_STATE_ACTIVE   0
 
-#define CI_DCD_INT_ENABLE(_p)   NVIC_EnableIRQ (_ci_controller[_p].irqnum)
-#define CI_DCD_INT_DISABLE(_p)  NVIC_DisableIRQ(_ci_controller[_p].irqnum)
+// UART
+#define UART_DEV              LPUART4
 
-#define CI_HCD_INT_ENABLE(_p)   NVIC_EnableIRQ (_ci_controller[_p].irqnum)
-#define CI_HCD_INT_DISABLE(_p)  NVIC_DisableIRQ(_ci_controller[_p].irqnum)
+static inline void board_uart_init_clock(void) {
+  /* attach FRO 12M to FLEXCOMM4 */
+  CLOCK_SetClkDiv(kCLOCK_DivFlexcom4Clk, 1u);
+  CLOCK_AttachClk(kFRO12M_to_FLEXCOMM4);
+  RESET_ClearPeripheralReset(kFC4_RST_SHIFT_RSTn);
+}
+
+//#define UART_RX_PINMUX        0, 24, IOCON_PIO_DIG_FUNC1_EN
+//#define UART_TX_PINMUX        0, 25, IOCON_PIO_DIG_FUNC1_EN
+
+// XTAL
+#define XTAL0_CLK_HZ          (24 * 1000 * 1000U)
+
+#ifdef __cplusplus
+ }
+#endif
 
 #endif

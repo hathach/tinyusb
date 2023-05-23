@@ -1,8 +1,4 @@
-if (TARGET _lpc55_family_inclusion_marker)
-  return()
-endif ()
-
-add_library(_lpc55_family_inclusion_marker INTERFACE)
+include_guard()
 
 if (NOT BOARD)
   message(FATAL_ERROR "BOARD not specified")

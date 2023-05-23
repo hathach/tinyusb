@@ -142,8 +142,7 @@ jobs:
 
     - name: Create flash.sh
       run: |
-        #echo > flash.sh 'cmdout=$(openocd -f "interface/picoprobe.cfg" -f "target/rp2040.cfg" -c "program $1 reset exit")'
-        echo > flash.sh 'pyocd flash -t rp2040 $1'
+        echo > flash.sh 'cmdout=$(openocd -f "interface/cmsis-dap.cfg" -f "target/rp2040.cfg" -c "adapter speed 5000" -c "program $1 reset exit")'
         echo >> flash.sh 'if (( $? )) ; then echo $cmdout ; fi'
         chmod +x flash.sh
 
