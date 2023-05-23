@@ -35,7 +35,7 @@ def build_family(family, make_option):
         start_time = time.monotonic()
 
         # Generate build
-        r = subprocess.run(f"cmake examples -B cmake-build-ci-{board} -G \"Ninja\" -DFAMILY={family} -DBOARD"
+        r = subprocess.run(f"cmake examples -B cmake-build-ci-{board} -DFAMILY={family} -DBOARD"
                            f"={board}", shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
 
         # Build
