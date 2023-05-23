@@ -33,8 +33,24 @@
 
 #if CFG_TUSB_MCU == OPT_MCU_MIMXRT
   #include "ci_hs_imxrt.h"
-#elif TU_CHECK_MCU(OPT_MCU_LPC18XX, OPT_MCU_LPC43XX)
+
+  void dcd_dcache_clean(void* addr, uint32_t data_size) {
+    imxrt_dcache_clean(addr, data_size);
+  }
+
+  void dcd_dcache_invalidate(void* addr, uint32_t data_size) {
+    imxrt_dcache_invalidate(addr, data_size);
+  }
+
+  void dcd_dcache_clean_invalidate(void* addr, uint32_t data_size) {
+    imxrt_dcache_clean_invalidate(addr, data_size);
+  }
+
+#else
+
+#if TU_CHECK_MCU(OPT_MCU_LPC18XX, OPT_MCU_LPC43XX)
   #include "ci_hs_lpc18_43.h"
+
 #elif TU_CHECK_MCU(OPT_MCU_MCXN9)
   // MCX N9 only port 1 use this controller
   #include "ci_hs_mcx.h"
@@ -42,18 +58,22 @@
   #error "Unsupported MCUs"
 #endif
 
+  TU_ATTR_WEAK void dcd_dcache_clean(void* addr, uint32_t data_size) {
+    (void) addr; (void) data_size;
+  }
+
+  TU_ATTR_WEAK void dcd_dcache_invalidate(void* addr, uint32_t data_size) {
+    (void) addr; (void) data_size;
+  }
+
+  TU_ATTR_WEAK void dcd_dcache_clean_invalidate(void* addr, uint32_t data_size) {
+    (void) addr; (void) data_size;
+  }
+#endif
+
 //--------------------------------------------------------------------+
 // MACRO CONSTANT TYPEDEF
 //--------------------------------------------------------------------+
-
-// Clean means to push any cached changes to RAM and invalidate "removes" the
-// entry from the cache.
-#if defined(__CORTEX_M) && __CORTEX_M == 7 && __DCACHE_PRESENT == 1
-  #define CleanInvalidateDCache_by_Addr   SCB_CleanInvalidateDCache_by_Addr
-#else
-  #define CleanInvalidateDCache_by_Addr(_addr, _dsize)
-#endif
-
 
 // ENDPTCTRL
 enum {
@@ -211,7 +231,7 @@ static void bus_reset(uint8_t rhport)
 
   _dcd_data.qhd[0][0].int_on_setup = 1; // OUT only
 
-  CleanInvalidateDCache_by_Addr((uint32_t*) &_dcd_data, sizeof(dcd_data_t));
+  dcd_dcache_clean_invalidate(&_dcd_data, sizeof(dcd_data_t));
 }
 
 void dcd_init(uint8_t rhport)
@@ -237,7 +257,7 @@ void dcd_init(uint8_t rhport)
   dcd_reg->PORTSC1 = PORTSC1_FORCE_FULL_SPEED;
 #endif
 
-  CleanInvalidateDCache_by_Addr((uint32_t*) &_dcd_data, sizeof(dcd_data_t));
+  dcd_dcache_clean_invalidate(&_dcd_data, sizeof(dcd_data_t));
 
   dcd_reg->ENDPTLISTADDR = (uint32_t) _dcd_data.qhd; // Endpoint List Address has to be 2K alignment
   dcd_reg->USBSTS  = dcd_reg->USBSTS;
@@ -303,7 +323,7 @@ static void qtd_init(dcd_qtd_t* p_qtd, void * data_ptr, uint16_t total_bytes)
 {
   // Force the CPU to flush the buffer. We increase the size by 31 because the call aligns the
   // address to 32-byte boundaries. Buffer must be word aligned
-  CleanInvalidateDCache_by_Addr((uint32_t*) tu_align((uint32_t) data_ptr, 4), total_bytes + 31);
+  dcd_dcache_clean_invalidate((uint32_t*) tu_align((uint32_t) data_ptr, 4), total_bytes + 31);
 
   tu_memclr(p_qtd, sizeof(dcd_qtd_t));
 
@@ -378,7 +398,7 @@ bool dcd_edpt_open(uint8_t rhport, tusb_desc_endpoint_t const * p_endpoint_desc)
 
   p_qhd->qtd_overlay.next        = QTD_NEXT_INVALID;
 
-  CleanInvalidateDCache_by_Addr((uint32_t*) &_dcd_data, sizeof(dcd_data_t));
+  dcd_dcache_clean_invalidate(&_dcd_data, sizeof(dcd_data_t));
 
   // Enable EP Control
   uint32_t const epctrl = (p_endpoint_desc->bmAttributes.xfer << ENDPTCTRL_TYPE_POS) | ENDPTCTRL_ENABLE | ENDPTCTRL_TOGGLE_RESET;
@@ -438,7 +458,7 @@ static void qhd_start_xfer(uint8_t rhport, uint8_t epnum, uint8_t dir)
   p_qhd->qtd_overlay.next   = (uint32_t) p_qtd; // link qtd to qhd
 
   // flush cache
-  CleanInvalidateDCache_by_Addr((uint32_t*) &_dcd_data, sizeof(dcd_data_t));
+  dcd_dcache_clean_invalidate(&_dcd_data, sizeof(dcd_data_t));
 
   if ( epnum == 0 )
   {
@@ -516,7 +536,7 @@ bool dcd_edpt_xfer_fifo (uint8_t rhport, uint8_t ep_addr, tu_fifo_t * ff, uint16
         }
       }
 
-      CleanInvalidateDCache_by_Addr((uint32_t*) tu_align((uint32_t) fifo_info.ptr_wrap, 4), total_bytes - fifo_info.len_wrap + 31);
+      dcd_dcache_clean_invalidate((uint32_t*) tu_align((uint32_t) fifo_info.ptr_wrap, 4), total_bytes - fifo_info.len_wrap + 31);
     }
     else
     {
@@ -629,7 +649,7 @@ void dcd_int_handler(uint8_t rhport)
   if (int_status & INTR_USB)
   {
     // Make sure we read the latest version of _dcd_data.
-    CleanInvalidateDCache_by_Addr((uint32_t*) &_dcd_data, sizeof(dcd_data_t));
+    dcd_dcache_clean_invalidate(&_dcd_data, sizeof(dcd_data_t));
 
     uint32_t const edpt_complete = dcd_reg->ENDPTCOMPLETE;
     dcd_reg->ENDPTCOMPLETE = edpt_complete; // acknowledge

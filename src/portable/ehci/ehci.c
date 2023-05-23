@@ -163,22 +163,15 @@ static inline void list_insert (ehci_link_t *current, ehci_link_t *new, uint8_t 
 static inline ehci_link_t* list_next (ehci_link_t const *p_link);
 
 TU_ATTR_WEAK void hcd_dcache_clean(void* addr, uint32_t data_size) {
-  (void) addr;
-  (void) data_size;
+  (void) addr; (void) data_size;
 }
 
-// invalidate data cache: mark cache as invalid, next read will read from memory
-// Required BOTH before and after an DMA RX transfer
 TU_ATTR_WEAK void hcd_dcache_invalidate(void* addr, uint32_t data_size) {
-  (void) addr;
-  (void) data_size;
+  (void) addr; (void) data_size;
 }
 
-// clean and invalidate data cache
-// Required before an DMA transfer where memory is both read/write by DMA
 TU_ATTR_WEAK void hcd_dcache_clean_invalidate(void* addr, uint32_t data_size) {
-  (void) addr;
-  (void) data_size;
+  (void) addr; (void) data_size;
 }
 
 //--------------------------------------------------------------------+
