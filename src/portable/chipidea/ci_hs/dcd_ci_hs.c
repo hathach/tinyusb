@@ -28,9 +28,6 @@
 
 #if CFG_TUD_ENABLED && defined(TUP_USBIP_CHIPIDEA_HS)
 
-//--------------------------------------------------------------------+
-// INCLUDE
-//--------------------------------------------------------------------+
 #include "device/dcd.h"
 #include "ci_hs_type.h"
 
@@ -162,6 +159,16 @@ CFG_TUSB_MEM_SECTION TU_ATTR_ALIGNED(2048)
 static dcd_data_t _dcd_data;
 
 //--------------------------------------------------------------------+
+// Prototypes and Helper Functions
+//--------------------------------------------------------------------+
+
+TU_ATTR_ALWAYS_INLINE
+static inline uint8_t ci_ep_count(ci_hs_regs_t const* dcd_reg)
+{
+  return dcd_reg->DCCPARAMS & DCCPARAMS_DEN_MASK;
+}
+
+//--------------------------------------------------------------------+
 // Controller API
 //--------------------------------------------------------------------+
 
@@ -175,7 +182,8 @@ static void bus_reset(uint8_t rhport)
   // endpoint type of the unused direction must be changed from the control type to any other
   // type (e.g. bulk). Leaving an un-configured endpoint control will cause undefined behavior
   // for the data PID tracking on the active endpoint.
-  for( uint8_t i=1; i < _ci_controller[rhport].ep_count; i++)
+  uint8_t const ep_count = ci_ep_count(dcd_reg);
+  for( uint8_t i=1; i < ep_count; i++)
   {
     dcd_reg->ENDPTCTRL[i] = (TUSB_XFER_BULK << ENDPTCTRL_TYPE_POS) | (TUSB_XFER_BULK << (16+ENDPTCTRL_TYPE_POS));
   }
@@ -212,12 +220,17 @@ void dcd_init(uint8_t rhport)
 
   ci_hs_regs_t* dcd_reg = CI_HS_REG(rhport);
 
+  TU_ASSERT(ci_ep_count(dcd_reg) <= TUP_DCD_ENDPOINT_MAX, );
+
   // Reset controller
   dcd_reg->USBCMD |= USBCMD_RESET;
   while( dcd_reg->USBCMD & USBCMD_RESET ) {}
 
   // Set mode to device, must be set immediately after reset
-  dcd_reg->USBMODE = USBMODE_CM_DEVICE;
+  uint32_t usbmode = dcd_reg->USBMODE & ~USBMOD_CM_MASK;
+  usbmode |= USBMODE_CM_DEVICE;
+  dcd_reg->USBMODE = usbmode;
+
   dcd_reg->OTGSC = OTGSC_VBUS_DISCHARGE | OTGSC_OTG_TERMINATION;
 
 #if !TUD_OPT_HIGH_SPEED
@@ -230,8 +243,11 @@ void dcd_init(uint8_t rhport)
   dcd_reg->USBSTS  = dcd_reg->USBSTS;
   dcd_reg->USBINTR = INTR_USB | INTR_ERROR | INTR_PORT_CHANGE | INTR_SUSPEND;
 
-  dcd_reg->USBCMD &= ~0x00FF0000;     // Interrupt Threshold Interval = 0
-  dcd_reg->USBCMD |= USBCMD_RUN_STOP; // Connect
+  uint32_t usbcmd = dcd_reg->USBCMD;
+  usbcmd &= ~USBCMD_INTR_THRESHOLD_MASK; // Interrupt Threshold Interval = 0
+  usbcmd |= USBCMD_RUN_STOP; // run
+
+  dcd_reg->USBCMD = usbcmd;
 }
 
 void dcd_int_enable(uint8_t rhport)
@@ -344,8 +360,10 @@ bool dcd_edpt_open(uint8_t rhport, tusb_desc_endpoint_t const * p_endpoint_desc)
   uint8_t const epnum = tu_edpt_number(p_endpoint_desc->bEndpointAddress);
   uint8_t const dir   = tu_edpt_dir(p_endpoint_desc->bEndpointAddress);
 
+  ci_hs_regs_t* dcd_reg = CI_HS_REG(rhport);
+
   // Must not exceed max endpoint number
-  TU_ASSERT( epnum < _ci_controller[rhport].ep_count );
+  TU_ASSERT(epnum < ci_ep_count(dcd_reg));
 
   //------------- Prepare Queue Head -------------//
   dcd_qhd_t * p_qhd = &_dcd_data.qhd[epnum][dir];
@@ -363,8 +381,6 @@ bool dcd_edpt_open(uint8_t rhport, tusb_desc_endpoint_t const * p_endpoint_desc)
   CleanInvalidateDCache_by_Addr((uint32_t*) &_dcd_data, sizeof(dcd_data_t));
 
   // Enable EP Control
-  ci_hs_regs_t* dcd_reg = CI_HS_REG(rhport);
-
   uint32_t const epctrl = (p_endpoint_desc->bmAttributes.xfer << ENDPTCTRL_TYPE_POS) | ENDPTCTRL_ENABLE | ENDPTCTRL_TOGGLE_RESET;
 
   if ( dir == TUSB_DIR_OUT )
@@ -383,7 +399,8 @@ void dcd_edpt_close_all (uint8_t rhport)
   ci_hs_regs_t* dcd_reg = CI_HS_REG(rhport);
 
   // Disable all non-control endpoints
-  for( uint8_t epnum=1; epnum < _ci_controller[rhport].ep_count; epnum++)
+  uint8_t const ep_count = ci_ep_count(dcd_reg);
+  for (uint8_t epnum = 1; epnum < ep_count; epnum++)
   {
     _dcd_data.qhd[epnum][TUSB_DIR_OUT].qtd_overlay.halted = 1;
     _dcd_data.qhd[epnum][TUSB_DIR_IN ].qtd_overlay.halted = 1;

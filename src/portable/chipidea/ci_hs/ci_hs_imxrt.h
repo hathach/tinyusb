@@ -46,10 +46,10 @@ static const ci_hs_controller_t _ci_controller[] =
 {
   // RT1010 and RT1020 only has 1 USB controller
   #if FSL_FEATURE_SOC_USBHS_COUNT == 1
-    { .reg_base = USB_BASE , .irqnum = USB_OTG1_IRQn, .ep_count = 8 }
+    { .reg_base = USB_BASE , .irqnum = USB_OTG1_IRQn }
   #else
-    { .reg_base = USB1_BASE, .irqnum = USB_OTG1_IRQn, .ep_count = 8 },
-    { .reg_base = USB2_BASE, .irqnum = USB_OTG2_IRQn, .ep_count = 8 }
+    { .reg_base = USB1_BASE, .irqnum = USB_OTG1_IRQn},
+    { .reg_base = USB2_BASE, .irqnum = USB_OTG2_IRQn}
   #endif
 };
 

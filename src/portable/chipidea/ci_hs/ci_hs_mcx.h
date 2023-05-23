@@ -29,8 +29,12 @@
 
 #include "fsl_device_registers.h"
 
+// NOTE: MCX N9 has 2 different USB Controller
+// - USB0 is KHCI FullSpeed
+// - USB1 is ChipIdea HighSpeed, therefore rhport = 1 is actually index 0
+
 static const ci_hs_controller_t _ci_controller[] = {
-    {.reg_base = USBHS1__USBC_BASE, .irqnum = USB1_HS_IRQn, .ep_count = 8}
+    {.reg_base = USBHS1__USBC_BASE, .irqnum = USB1_HS_IRQn}
 };
 
 TU_ATTR_ALWAYS_INLINE static inline ci_hs_regs_t* CI_HS_REG(uint8_t port) {
