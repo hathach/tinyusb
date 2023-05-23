@@ -7,7 +7,7 @@ if (TOOLCHAIN STREQUAL "gcc")
     -mfpu=fpv5-sp-d16
     )
 
-  set(FREERTOS_PORT GCC_ARM_CM33_NONSECURE CACHE INTERNAL "")
+  set(FREERTOS_PORT GCC_ARM_CM33_NTZ_NONSECURE CACHE INTERNAL "")
 else ()
   # TODO support IAR
 endif ()

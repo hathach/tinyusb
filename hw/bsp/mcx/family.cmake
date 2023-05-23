@@ -142,7 +142,12 @@ endfunction()
 
 function(family_add_freertos TARGET)
   # freertos_config
-  add_subdirectory(${CMAKE_CURRENT_FUNCTION_LIST_DIR}/FreeRTOSConfig ${CMAKE_CURRENT_BINARY_DIR}/freertos_config)
+  if (NOT TARGET freertos_config)
+    add_library(freertos_config INTERFACE)
+    target_include_directories(freertos_config SYSTEM INTERFACE
+      ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/FreeRTOSConfig
+      )
+  endif()
 
   ## freertos
   if (NOT TARGET freertos_kernel)
