@@ -4,7 +4,6 @@ DEPS_SUBMODULES += lib/CMSIS_5 hw/mcu/nordic/nrfx
 include $(TOP)/$(BOARD_PATH)/board.mk
 
 CPU_CORE ?= cortex-m4
-
 include $(TOP)/tools/make/cpu/$(CPU_CORE).mk
 
 CFLAGS += \
