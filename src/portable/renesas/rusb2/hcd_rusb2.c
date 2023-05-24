@@ -407,7 +407,7 @@ static void process_pipe0_bemp(uint8_t rhport)
 static void process_pipe_nrdy(uint8_t rhport, unsigned num)
 {
   (void)rhport;
-  unsigned result;
+  xfer_result_t result;
   uint16_t volatile *ctr = get_pipectr(num);
   // TU_LOG1("NRDY %d %x\n", num, *ctr);
   switch (*ctr & RUSB2_PIPE_CTR_PID_Msk) {
