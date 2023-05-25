@@ -1,6 +1,7 @@
 name: CMake ARM
 
 on:
+  workflow_dispatch:
   push:
     paths:
       - 'src/**'
