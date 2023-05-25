@@ -330,4 +330,8 @@ if (NOT TARGET _rp2040_family_inclusion_marker)
 					COMPILE_FLAGS "-Wno-cast-qual")
 		endif()
 	endfunction()
+
+	# rp2040 does not support freeRTOS example yet
+	function(family_add_freertos TARGET)
+	endfunction()
 endif()

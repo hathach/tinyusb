@@ -1,6 +1,7 @@
 name: Build MSP430
 
 on:
+  workflow_dispatch:
   push:
     paths:
       - 'src/**'

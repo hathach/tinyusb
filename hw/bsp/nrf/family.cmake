@@ -65,8 +65,6 @@ if (NOT TARGET ${BOARD_TARGET})
       # linker file
       "LINKER:--script=${LD_FILE_gcc}"
       -L${NRFX_DIR}/mdk
-      # link map
-      "LINKER:-Map=$<IF:$<BOOL:$<TARGET_PROPERTY:OUTPUT_NAME>>,$<TARGET_PROPERTY:OUTPUT_NAME>,$<TARGET_PROPERTY:NAME>>${CMAKE_EXECUTABLE_SUFFIX}.map"
       # nanolib
       --specs=nosys.specs
       --specs=nano.specs
@@ -76,22 +74,12 @@ if (NOT TARGET ${BOARD_TARGET})
   endif ()
 endif () # BOARD_TARGET
 
+
 #------------------------------------
 # Functions
 #------------------------------------
-function(family_configure_target TARGET)
-  #family_add_default_example_warnings(${TARGET})
-
-  # set output name to .elf
-  set_target_properties(${TARGET} PROPERTIES OUTPUT_NAME ${TARGET}.elf)
-
-  # run size after build
-  add_custom_command(TARGET ${TARGET} POST_BUILD
-    COMMAND ${TOOLCHAIN_SIZE} $<TARGET_FILE:${TARGET}>
-    )
-
-  # TOP is path to root directory
-  set(TOP "${CMAKE_CURRENT_FUNCTION_LIST_DIR}/../../..")
+function(family_configure_example TARGET)
+  family_support_configure_common(${TARGET})
 
   #---------- Port Specific ----------
   # These files are built for each example since it depends on example's tusb_config.h
@@ -134,40 +122,17 @@ function(family_configure_target TARGET)
 
   #---------- Flash ----------
   family_flash_jlink(${TARGET})
-
 endfunction()
 
-
-function(family_add_freertos TARGET)
-  # freertos_config
-  add_subdirectory(${CMAKE_CURRENT_FUNCTION_LIST_DIR}/FreeRTOSConfig ${CMAKE_CURRENT_BINARY_DIR}/freertos_config)
-
-  ## freertos
-  if (NOT TARGET freertos_kernel)
-    add_subdirectory(${CMAKE_CURRENT_FUNCTION_LIST_DIR}/../../../lib/FreeRTOS-Kernel ${CMAKE_CURRENT_BINARY_DIR}/freertos_kernel)
-  endif ()
-
-  # Add FreeRTOS option to tinyusb_config
-  target_compile_definitions(${TARGET}-tinyusb_config INTERFACE
-    CFG_TUSB_OS=OPT_OS_FREERTOS
-    )
-  # link tinyusb with freeRTOS kernel
-  target_link_libraries(${TARGET}-tinyusb PUBLIC
-    freertos_kernel
-    )
-  target_link_libraries(${TARGET} PUBLIC
-    freertos_kernel
-    )
-endfunction()
 
 function(family_configure_device_example TARGET)
-  family_configure_target(${TARGET})
+  family_configure_example(${TARGET})
 endfunction()
 
 function(family_configure_host_example TARGET)
-  family_configure_target(${TARGET})
+  family_configure_example(${TARGET})
 endfunction()
 
 function(family_configure_dual_usb_example TARGET)
-  family_configure_target(${TARGET})
+  family_configure_example(${TARGET})
 endfunction()

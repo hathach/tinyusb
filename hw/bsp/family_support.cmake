@@ -1,19 +1,15 @@
-if (TARGET _family_support_marker)
-    return()
-endif ()
-
-add_library(_family_support_marker INTERFACE)
+include_guard()
 
 include(CMakePrintHelpers)
 
 # Default to gcc
-if(NOT DEFINED TOOLCHAIN)
+if (NOT DEFINED TOOLCHAIN)
     set(TOOLCHAIN gcc)
-endif()
+endif ()
 
 if (NOT FAMILY)
     message(FATAL_ERROR "You must set a FAMILY variable for the build (e.g. rp2040, eps32s2, esp32s3). You can do this via -DFAMILY=xxx on the cmake command line")
-endif()
+endif ()
 
 if (NOT EXISTS ${CMAKE_CURRENT_LIST_DIR}/${FAMILY}/family.cmake)
     message(FATAL_ERROR "Family '${FAMILY}' is not known/supported")
@@ -136,6 +132,22 @@ function(family_add_default_example_warnings TARGET)
 endfunction()
 
 
+function(family_support_configure_common TARGET)
+  # set output name to .elf
+  set_target_properties(${TARGET} PROPERTIES OUTPUT_NAME ${TARGET}.elf)
+
+  # run size after build
+  add_custom_command(TARGET ${TARGET} POST_BUILD
+    COMMAND ${TOOLCHAIN_SIZE} $<TARGET_FILE:${TARGET}>
+    )
+
+  # Generate map file
+  target_link_options(${TARGET} PUBLIC
+    # link map
+    "LINKER:-Map=$<TARGET_FILE:${TARGET}>.map"
+    )
+endfunction()
+
 #  add_custom_command(TARGET ${TARGET} POST_BUILD
 #    COMMAND ${CMAKE_OBJCOPY} -O ihex $<TARGET_FILE:${TARGET}> ${TARGET}.hex
 #    COMMAND ${CMAKE_OBJCOPY} -O binary $<TARGET_FILE:${TARGET}> ${TARGET}.bin
@@ -144,23 +156,23 @@ endfunction()
 
 # Add flash jlink target
 function(family_flash_jlink TARGET)
-    if (NOT DEFINED JLINKEXE)
-        set(JLINKEXE JLinkExe)
-    endif ()
+  if (NOT DEFINED JLINKEXE)
+    set(JLINKEXE JLinkExe)
+  endif ()
 
-    file(GENERATE
-      OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/${TARGET}.jlink
-      CONTENT "halt
+  file(GENERATE
+    OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/${TARGET}.jlink
+    CONTENT "halt
 loadfile $<TARGET_FILE:${TARGET}>
 r
 go
 exit"
-      )
+    )
 
-    add_custom_target(${TARGET}-jlink
-      DEPENDS ${TARGET}
-      COMMAND ${JLINKEXE} -device ${JLINK_DEVICE} -if swd -JTAGConf -1,-1 -speed auto -CommandFile ${CMAKE_CURRENT_BINARY_DIR}/${TARGET}.jlink
-      )
+  add_custom_target(${TARGET}-jlink
+    DEPENDS ${TARGET}
+    COMMAND ${JLINKEXE} -device ${JLINK_DEVICE} -if swd -JTAGConf -1,-1 -speed auto -CommandFile ${CMAKE_CURRENT_BINARY_DIR}/${TARGET}.jlink
+    )
 endfunction()
 
 # Add flash pycod target
@@ -200,6 +212,35 @@ endfunction()
 # configure an executable target to link to tinyusb in host mode, and add the board implementation
 function(family_configure_host_example TARGET)
     # default implementation is empty, the function should be redefined in the FAMILY/family.cmake
+endfunction()
+
+# Add freeRTOS support to example, can be overridden by FAMILY/family.cmake
+function(family_add_freertos TARGET)
+    # freeros config
+    if (NOT TARGET freertos_config)
+        add_library(freertos_config INTERFACE)
+        target_include_directories(freertos_config SYSTEM INTERFACE
+          ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/${FAMILY}/FreeRTOSConfig
+          )
+    endif()
+
+    # freertos kernel should be generic as freertos_config however, CMAKE complains with missing variable
+    # such as CMAKE_C_COMPILE_OBJECT
+    if (NOT TARGET freertos_kernel)
+        add_subdirectory(${TOP}/lib/FreeRTOS-Kernel ${CMAKE_BINARY_DIR}/lib/freertos_kernel)
+    endif ()
+
+    # Add FreeRTOS option to tinyusb_config
+    target_compile_definitions(${TARGET}-tinyusb_config INTERFACE
+      CFG_TUSB_OS=OPT_OS_FREERTOS
+      )
+    # link tinyusb with freeRTOS kernel
+    target_link_libraries(${TARGET}-tinyusb PUBLIC
+      freertos_kernel
+      )
+    target_link_libraries(${TARGET} PUBLIC
+      freertos_kernel
+      )
 endfunction()
 
 include(${CMAKE_CURRENT_LIST_DIR}/${FAMILY}/family.cmake)
