@@ -62,6 +62,7 @@ if (NOT TARGET ${BOARD_TARGET})
   endif ()
 endif () # BOARD_TARGET
 
+
 #------------------------------------
 # Functions
 #------------------------------------
@@ -113,28 +114,6 @@ function(family_configure_example TARGET)
   family_flash_jlink(${TARGET})
 endfunction()
 
-
-function(family_add_freertos TARGET)
-  # freertos_config
-  add_subdirectory(${CMAKE_CURRENT_FUNCTION_LIST_DIR}/FreeRTOSConfig ${CMAKE_CURRENT_BINARY_DIR}/freertos_config)
-
-  ## freertos
-  if (NOT TARGET freertos_kernel)
-    add_subdirectory(${CMAKE_CURRENT_FUNCTION_LIST_DIR}/../../../lib/FreeRTOS-Kernel ${CMAKE_CURRENT_BINARY_DIR}/freertos_kernel)
-  endif ()
-
-  # Add FreeRTOS option to tinyusb_config
-  target_compile_definitions(${TARGET}-tinyusb_config INTERFACE
-    CFG_TUSB_OS=OPT_OS_FREERTOS
-    )
-  # link tinyusb with freeRTOS kernel
-  target_link_libraries(${TARGET}-tinyusb PUBLIC
-    freertos_kernel
-    )
-  target_link_libraries(${TARGET} PUBLIC
-    freertos_kernel
-    )
-endfunction()
 
 function(family_configure_device_example TARGET)
   family_configure_example(${TARGET})
