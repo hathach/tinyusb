@@ -1,6 +1,7 @@
 name: Build AArch64
 
 on:
+  workflow_dispatch:
   push:
     paths:
       - 'src/**'

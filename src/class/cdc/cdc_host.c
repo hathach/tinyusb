@@ -550,8 +550,7 @@ void cdch_close(uint8_t daddr)
   }
 }
 
-bool cdch_xfer_cb(uint8_t daddr, uint8_t ep_addr, xfer_result_t event, uint32_t xferred_bytes)
-{
+bool cdch_xfer_cb(uint8_t daddr, uint8_t ep_addr, xfer_result_t event, uint32_t xferred_bytes) {
   // TODO handle stall response, retry failed transfer ...
   TU_ASSERT(event == XFER_RESULT_SUCCESS);
 
@@ -559,41 +558,40 @@ bool cdch_xfer_cb(uint8_t daddr, uint8_t ep_addr, xfer_result_t event, uint32_t 
   cdch_interface_t * p_cdc = get_itf(idx);
   TU_ASSERT(p_cdc);
 
-  if ( ep_addr == p_cdc->stream.tx.ep_addr )
-  {
+  if ( ep_addr == p_cdc->stream.tx.ep_addr ) {
     // invoke tx complete callback to possibly refill tx fifo
     if (tuh_cdc_tx_complete_cb) tuh_cdc_tx_complete_cb(idx);
 
-    if ( 0 == tu_edpt_stream_write_xfer(&p_cdc->stream.tx) )
-    {
+    if ( 0 == tu_edpt_stream_write_xfer(&p_cdc->stream.tx) ) {
       // If there is no data left, a ZLP should be sent if:
       // - xferred_bytes is multiple of EP Packet size and not zero
       tu_edpt_stream_write_zlp_if_needed(&p_cdc->stream.tx, xferred_bytes);
     }
   }
-  else if ( ep_addr == p_cdc->stream.rx.ep_addr )
-  {
-    tu_edpt_stream_read_xfer_complete(&p_cdc->stream.rx, xferred_bytes);
-
+  else if ( ep_addr == p_cdc->stream.rx.ep_addr ) {
     #if CFG_TUH_CDC_FTDI
-    // FTDI reserve 2 bytes for status
     if (p_cdc->serial_drid == SERIAL_DRIVER_FTDI) {
-      uint8_t status[2];
-      tu_edpt_stream_read(&p_cdc->stream.rx, status, 2);
-      (void) status; // TODO handle status
-    }
+      // FTDI reserve 2 bytes for status
+      // FTDI status
+//      uint8_t status[2] = {
+//        p_cdc->stream.rx.ep_buf[0],
+//        p_cdc->stream.rx.ep_buf[1]
+//      };
+      tu_edpt_stream_read_xfer_complete_offset(&p_cdc->stream.rx, xferred_bytes, 2);
+    }else
     #endif
+    {
+      tu_edpt_stream_read_xfer_complete(&p_cdc->stream.rx, xferred_bytes);
+    }
 
     // invoke receive callback
     if (tuh_cdc_rx_cb) tuh_cdc_rx_cb(idx);
 
     // prepare for next transfer if needed
     tu_edpt_stream_read_xfer(&p_cdc->stream.rx);
-  }else if ( ep_addr == p_cdc->ep_notif )
-  {
+  }else if ( ep_addr == p_cdc->ep_notif ) {
     // TODO handle notification endpoint
-  }else
-  {
+  }else {
     TU_ASSERT(false);
   }
 

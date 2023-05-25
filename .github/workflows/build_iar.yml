@@ -1,6 +1,7 @@
 name: Build IAR
 
 on:
+  workflow_dispatch:
   push:
     paths:
       - 'src/**'

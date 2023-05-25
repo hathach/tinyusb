@@ -1,6 +1,7 @@
 name: Build Renesas
 
 on:
+  workflow_dispatch:
   push:
     paths:
       - 'src/**'

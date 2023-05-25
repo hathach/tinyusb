@@ -1,6 +1,7 @@
 name: Build ARM
 
 on:
+  workflow_dispatch:
   push:
     paths:
       - 'src/**'
