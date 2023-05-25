@@ -4,67 +4,176 @@ from pathlib import Path
 from multiprocessing import Pool
 
 # Mandatory Dependencies that is always fetched
-# path, url, commit (Alphabet sorted by path)
+# path, url, commit, family (Alphabet sorted by path)
 deps_mandatory = {
-    'lib/FreeRTOS-Kernel'                      : ['5f19e34f878af97810a7662a75eac59bd74d628b', 'https://github.com/FreeRTOS/FreeRTOS-Kernel.git'               ],
-    'lib/lwip'                                 : ['159e31b689577dbf69cf0683bbaffbd71fa5ee10', 'https://github.com/lwip-tcpip/lwip.git'                        ],
-    'tools/uf2'                                : ['19615407727073e36d81bf239c52108ba92e7660', 'https://github.com/microsoft/uf2.git'                          ],
+    'lib/FreeRTOS-Kernel': ['https://github.com/FreeRTOS/FreeRTOS-Kernel.git',
+                            '5f19e34f878af97810a7662a75eac59bd74d628b',
+                            'all'],
+    'lib/lwip': ['https://github.com/lwip-tcpip/lwip.git',
+                 '159e31b689577dbf69cf0683bbaffbd71fa5ee10',
+                 'all'],
+    'tools/uf2': ['https://github.com/microsoft/uf2.git',
+                  '19615407727073e36d81bf239c52108ba92e7660',
+                  'all'],
 }
 
 # Optional Dependencies per MCU
-# path, url, commit (Alphabet sorted by path)
+# path, url, commit, family (Alphabet sorted by path)
 deps_optional = {
-    'hw/mcu/allwinner'                         : ['8e5e89e8e132c0fd90e72d5422e5d3d68232b756', 'https://github.com/hathach/allwinner_driver.git'               ],
-    'hw/mcu/bridgetek/ft9xx/ft90x-sdk'         : ['91060164afe239fcb394122e8bf9eb24d3194eb1', 'https://github.com/BRTSG-FOSS/ft90x-sdk.git'                   ],
-    'hw/mcu/broadcom'                          : ['08370086080759ed54ac1136d62d2ad24c6fa267', 'https://github.com/adafruit/broadcom-peripherals.git'          ],
-    'hw/mcu/gd/nuclei-sdk'                     : ['7eb7bfa9ea4fbeacfafe1d5f77d5a0e6ed3922e7', 'https://github.com/Nuclei-Software/nuclei-sdk.git'             ],
-    'hw/mcu/infineon/mtb-xmclib-cat3'          : ['daf5500d03cba23e68c2f241c30af79cd9d63880', 'https://github.com/Infineon/mtb-xmclib-cat3.git'               ],
-    'hw/mcu/microchip'                         : ['9e8b37e307d8404033bb881623a113931e1edf27', 'https://github.com/hathach/microchip_driver.git'               ],
-    'hw/mcu/mindmotion/mm32sdk'                : ['0b79559eb411149d36e073c1635c620e576308d4', 'https://github.com/hathach/mm32sdk.git'                        ],
-    'hw/mcu/nordic/nrfx'                       : ['2527e3c8449cfd38aee41598e8af8492f410ed15', 'https://github.com/NordicSemiconductor/nrfx.git'               ],
-    'hw/mcu/nuvoton'                           : ['2204191ec76283371419fbcec207da02e1bc22fa', 'https://github.com/majbthrd/nuc_driver.git'                    ],
-    'hw/mcu/nxp/lpcopen'                       : ['43c45c85405a5dd114fff0ea95cca62837740c13', 'https://github.com/hathach/nxp_lpcopen.git'                    ],
-    'hw/mcu/nxp/mcux-sdk'                      : ['950819b7de9b32f92c3edf396bc5ffb8d66e7009', 'https://github.com/hathach/mcux-sdk.git'                       ],
-    'hw/mcu/nxp/nxp_sdk'                       : ['845c8fc49b6fb660f06a5c45225494eacb06f00c', 'https://github.com/hathach/nxp_sdk.git'                        ],
-    'hw/mcu/raspberry_pi/Pico-PIO-USB'         : ['c3715ce94b6f6391856de56081d4d9b3e98fa93d', 'https://github.com/sekigon-gonnoc/Pico-PIO-USB.git'            ],
-    'hw/mcu/renesas/fsp'                       : ['8dc14709f2a6518b43f71efad70d900b7718d9f1', 'https://github.com/renesas/fsp.git'                            ],
-    'hw/mcu/renesas/rx'                        : ['706b4e0cf485605c32351e2f90f5698267996023', 'https://github.com/kkitayam/rx_device.git'                     ],
-    'hw/mcu/silabs/cmsis-dfp-efm32gg12b'       : ['f1c31b7887669cb230b3ea63f9b56769078960bc', 'https://github.com/cmsis-packs/cmsis-dfp-efm32gg12b.git'       ],
-    'hw/mcu/sony/cxd56/spresense-exported-sdk' : ['2ec2a1538362696118dc3fdf56f33dacaf8f4067', 'https://github.com/sonydevworld/spresense-exported-sdk.git'    ],
-    'hw/mcu/st/cmsis_device_f0'                : ['2fc25ee22264bc27034358be0bd400b893ef837e', 'https://github.com/STMicroelectronics/cmsis_device_f0.git'     ],
-    'hw/mcu/st/cmsis_device_f1'                : ['6601104a6397299b7304fd5bcd9a491f56cb23a6', 'https://github.com/STMicroelectronics/cmsis_device_f1.git'     ],
-    'hw/mcu/st/cmsis_device_f2'                : ['182fcb3681ce116816feb41b7764f1b019ce796f', 'https://github.com/STMicroelectronics/cmsis_device_f2.git'     ],
-    'hw/mcu/st/cmsis_device_f3'                : ['5e4ee5ed7a7b6c85176bb70a9fd3c72d6eb99f1b', 'https://github.com/STMicroelectronics/cmsis_device_f3.git'     ],
-    'hw/mcu/st/cmsis_device_f4'                : ['2615e866fa48fe1ff1af9e31c348813f2b19e7ec', 'https://github.com/STMicroelectronics/cmsis_device_f4.git'     ],
-    'hw/mcu/st/cmsis_device_f7'                : ['fc676ef1ad177eb874eaa06444d3d75395fc51f4', 'https://github.com/STMicroelectronics/cmsis_device_f7.git'     ],
-    'hw/mcu/st/cmsis_device_g0'                : ['08258b28ee95f50cb9624d152a1cbf084be1f9a5', 'https://github.com/STMicroelectronics/cmsis_device_g0.git'     ],
-    'hw/mcu/st/cmsis_device_g4'                : ['ce822adb1dc552b3aedd13621edbc7fdae124878', 'https://github.com/STMicroelectronics/cmsis_device_g4.git'     ],
-    'hw/mcu/st/cmsis_device_h7'                : ['60dc2c913203dc8629dc233d4384dcc41c91e77f', 'https://github.com/STMicroelectronics/cmsis_device_h7.git'     ],
-    'hw/mcu/st/cmsis_device_l0'                : ['06748ca1f93827befdb8b794402320d94d02004f', 'https://github.com/STMicroelectronics/cmsis_device_l0.git'     ],
-    'hw/mcu/st/cmsis_device_l1'                : ['7f16ec0a1c4c063f84160b4cc6bf88ad554a823e', 'https://github.com/STMicroelectronics/cmsis_device_l1.git'     ],
-    'hw/mcu/st/cmsis_device_l4'                : ['6ca7312fa6a5a460b5a5a63d66da527fdd8359a6', 'https://github.com/STMicroelectronics/cmsis_device_l4.git'     ],
-    'hw/mcu/st/cmsis_device_l5'                : ['d922865fc0326a102c26211c44b8e42f52c1e53d', 'https://github.com/STMicroelectronics/cmsis_device_l5.git'     ],
-    'hw/mcu/st/cmsis_device_u5'                : ['bc00f3c9d8a4e25220f84c26d414902cc6bdf566', 'https://github.com/STMicroelectronics/cmsis_device_u5.git'     ],
-    'hw/mcu/st/cmsis_device_wb'                : ['9c5d1920dd9fabbe2548e10561d63db829bb744f', 'https://github.com/STMicroelectronics/cmsis_device_wb.git'     ],
-    'hw/mcu/st/stm32f0xx_hal_driver'           : ['0e95cd88657030f640a11e690a8a5186c7712ea5', 'https://github.com/STMicroelectronics/stm32f0xx_hal_driver.git'],
-    'hw/mcu/st/stm32f1xx_hal_driver'           : ['1dd9d3662fb7eb2a7f7d3bc0a4c1dc7537915a29', 'https://github.com/STMicroelectronics/stm32f1xx_hal_driver.git'],
-    'hw/mcu/st/stm32f2xx_hal_driver'           : ['c75ace9b908a9aca631193ebf2466963b8ea33d0', 'https://github.com/STMicroelectronics/stm32f2xx_hal_driver.git'],
-    'hw/mcu/st/stm32f3xx_hal_driver'           : ['1761b6207318ede021706e75aae78f452d72b6fa', 'https://github.com/STMicroelectronics/stm32f3xx_hal_driver.git'],
-    'hw/mcu/st/stm32f4xx_hal_driver'           : ['04e99fbdabd00ab8f370f377c66b0a4570365b58', 'https://github.com/STMicroelectronics/stm32f4xx_hal_driver.git'],
-    'hw/mcu/st/stm32f7xx_hal_driver'           : ['f7ffdf6bf72110e58b42c632b0a051df5997e4ee', 'https://github.com/STMicroelectronics/stm32f7xx_hal_driver.git'],
-    'hw/mcu/st/stm32g0xx_hal_driver'           : ['5b53e6cee664a82b16c86491aa0060e2110c00cb', 'https://github.com/STMicroelectronics/stm32g0xx_hal_driver.git'],
-    'hw/mcu/st/stm32g4xx_hal_driver'           : ['8b4518417706d42eef5c14e56a650005abf478a8', 'https://github.com/STMicroelectronics/stm32g4xx_hal_driver.git'],
-    'hw/mcu/st/stm32h7xx_hal_driver'           : ['d8461b980b59b1625207d8c4f2ce0a9c2a7a3b04', 'https://github.com/STMicroelectronics/stm32h7xx_hal_driver.git'],
-    'hw/mcu/st/stm32l0xx_hal_driver'           : ['fbdacaf6f8c82a4e1eb9bd74ba650b491e97e17b', 'https://github.com/STMicroelectronics/stm32l0xx_hal_driver.git'],
-    'hw/mcu/st/stm32l1xx_hal_driver'           : ['44efc446fa69ed8344e7fd966e68ed11043b35d9', 'https://github.com/STMicroelectronics/stm32l1xx_hal_driver.git'],
-    'hw/mcu/st/stm32l4xx_hal_driver'           : ['aee3d5bf283ae5df87532b781bdd01b7caf256fc', 'https://github.com/STMicroelectronics/stm32l4xx_hal_driver.git'],
-    'hw/mcu/st/stm32l5xx_hal_driver'           : ['675c32a75df37f39d50d61f51cb0dcf53f07e1cb', 'https://github.com/STMicroelectronics/stm32l5xx_hal_driver.git'],
-    'hw/mcu/st/stm32u5xx_hal_driver'           : ['2e1d4cdb386e33391cb261dfff4fefa92e4aa35a', 'https://github.com/STMicroelectronics/stm32u5xx_hal_driver.git'],
-    'hw/mcu/st/stm32wbxx_hal_driver'           : ['2c5f06638be516c1b772f768456ba637f077bac8', 'https://github.com/STMicroelectronics/stm32wbxx_hal_driver.git'],
-    'hw/mcu/ti'                                : ['143ed6cc20a7615d042b03b21e070197d473e6e5', 'https://github.com/hathach/ti_driver.git'                      ],
-    'hw/mcu/wch/ch32v307'                      : ['17761f5cf9dbbf2dcf665b7c04934188add20082', 'https://github.com/openwch/ch32v307.git'                       ],
-    'lib/CMSIS_5'                              : ['20285262657d1b482d132d20d755c8c330d55c1f', 'https://github.com/ARM-software/CMSIS_5.git'                   ],
-    'lib/sct_neopixel'                         : ['e73e04ca63495672d955f9268e003cffe168fcd8', 'https://github.com/gsteiert/sct_neopixel.git'                  ],
+    'hw/mcu/allwinner': ['https://github.com/hathach/allwinner_driver.git',
+                         '8e5e89e8e132c0fd90e72d5422e5d3d68232b756',
+                         'fc100s'],
+    'hw/mcu/bridgetek/ft9xx/ft90x-sdk': ['https://github.com/BRTSG-FOSS/ft90x-sdk.git',
+                                         '91060164afe239fcb394122e8bf9eb24d3194eb1',
+                                         'brtmm90x'],
+    'hw/mcu/broadcom': ['https://github.com/adafruit/broadcom-peripherals.git',
+                        '08370086080759ed54ac1136d62d2ad24c6fa267',
+                        'broadcom_32bit broadcom_64bit'],
+    'hw/mcu/gd/nuclei-sdk': ['https://github.com/Nuclei-Software/nuclei-sdk.git',
+                             '7eb7bfa9ea4fbeacfafe1d5f77d5a0e6ed3922e7',
+                             'gd32vf103'],
+    'hw/mcu/infineon/mtb-xmclib-cat3': ['https://github.com/Infineon/mtb-xmclib-cat3.git',
+                                        'daf5500d03cba23e68c2f241c30af79cd9d63880',
+                                        'xmc4000'],
+    'hw/mcu/microchip': ['https://github.com/hathach/microchip_driver.git',
+                         '9e8b37e307d8404033bb881623a113931e1edf27',
+                         'sam3x samd11 samd21 samd51 same5x same7x saml2x samg'],
+    'hw/mcu/mindmotion/mm32sdk': ['https://github.com/hathach/mm32sdk.git',
+                                  '0b79559eb411149d36e073c1635c620e576308d4',
+                                  'mm32'],
+    'hw/mcu/nordic/nrfx': ['https://github.com/NordicSemiconductor/nrfx.git',
+                           '2527e3c8449cfd38aee41598e8af8492f410ed15',
+                           'nrf'],
+    'hw/mcu/nuvoton': ['https://github.com/majbthrd/nuc_driver.git',
+                       '2204191ec76283371419fbcec207da02e1bc22fa',
+                       'nuc'],
+    'hw/mcu/nxp/lpcopen': ['https://github.com/hathach/nxp_lpcopen.git',
+                           '43c45c85405a5dd114fff0ea95cca62837740c13',
+                           'lpc11 lpc13 lpc15 lpc17 lpc18 lpc40 lpc43'],
+    'hw/mcu/nxp/mcux-sdk': ['https://github.com/hathach/mcux-sdk.git',
+                            '950819b7de9b32f92c3edf396bc5ffb8d66e7009',
+                            'kinetis_k32 lpc51 lpc54 lpc55 mcx imxrt'],
+    'hw/mcu/nxp/nxp_sdk': ['https://github.com/hathach/nxp_sdk.git',
+                           '845c8fc49b6fb660f06a5c45225494eacb06f00c',
+                           'kinetis_kl'],
+    'hw/mcu/raspberry_pi/Pico-PIO-USB': ['https://github.com/sekigon-gonnoc/Pico-PIO-USB.git',
+                                         'c3715ce94b6f6391856de56081d4d9b3e98fa93d',
+                                         'rp2040'],
+    'hw/mcu/renesas/fsp': ['https://github.com/renesas/fsp.git',
+                           '8dc14709f2a6518b43f71efad70d900b7718d9f1',
+                           'ra'],
+    'hw/mcu/renesas/rx': ['https://github.com/kkitayam/rx_device.git',
+                          '706b4e0cf485605c32351e2f90f5698267996023',
+                          'rx'],
+    'hw/mcu/silabs/cmsis-dfp-efm32gg12b': ['https://github.com/cmsis-packs/cmsis-dfp-efm32gg12b.git',
+                                           'f1c31b7887669cb230b3ea63f9b56769078960bc',
+                                           'efm32'],
+    'hw/mcu/sony/cxd56/spresense-exported-sdk': ['https://github.com/sonydevworld/spresense-exported-sdk.git',
+                                                 '2ec2a1538362696118dc3fdf56f33dacaf8f4067',
+                                                 'spresense'],
+    'hw/mcu/st/cmsis_device_f0': ['https://github.com/STMicroelectronics/cmsis_device_f0.git',
+                                  '2fc25ee22264bc27034358be0bd400b893ef837e',
+                                  'stm32f0'],
+    'hw/mcu/st/cmsis_device_f1': ['https://github.com/STMicroelectronics/cmsis_device_f1.git',
+                                  '6601104a6397299b7304fd5bcd9a491f56cb23a6',
+                                  'stm32f1'],
+    'hw/mcu/st/cmsis_device_f2': ['https://github.com/STMicroelectronics/cmsis_device_f2.git',
+                                  '182fcb3681ce116816feb41b7764f1b019ce796f',
+                                  'stm32f2'],
+    'hw/mcu/st/cmsis_device_f3': ['https://github.com/STMicroelectronics/cmsis_device_f3.git',
+                                  '5e4ee5ed7a7b6c85176bb70a9fd3c72d6eb99f1b',
+                                  'stm32f3'],
+    'hw/mcu/st/cmsis_device_f4': ['https://github.com/STMicroelectronics/cmsis_device_f4.git',
+                                  '2615e866fa48fe1ff1af9e31c348813f2b19e7ec',
+                                  'stm32f4'],
+    'hw/mcu/st/cmsis_device_f7': ['https://github.com/STMicroelectronics/cmsis_device_f7.git',
+                                  'fc676ef1ad177eb874eaa06444d3d75395fc51f4',
+                                  'stm32f7'],
+    'hw/mcu/st/cmsis_device_g0': ['https://github.com/STMicroelectronics/cmsis_device_g0.git',
+                                  '08258b28ee95f50cb9624d152a1cbf084be1f9a5',
+                                  'stm32g0'],
+    'hw/mcu/st/cmsis_device_g4': ['https://github.com/STMicroelectronics/cmsis_device_g4.git',
+                                  'ce822adb1dc552b3aedd13621edbc7fdae124878',
+                                  'stm32g4'],
+    'hw/mcu/st/cmsis_device_h7': ['https://github.com/STMicroelectronics/cmsis_device_h7.git',
+                                  '60dc2c913203dc8629dc233d4384dcc41c91e77f',
+                                  'stm32h7'],
+    'hw/mcu/st/cmsis_device_l0': ['https://github.com/STMicroelectronics/cmsis_device_l0.git',
+                                  '06748ca1f93827befdb8b794402320d94d02004f',
+                                  'stm32l0'],
+    'hw/mcu/st/cmsis_device_l1': ['https://github.com/STMicroelectronics/cmsis_device_l1.git',
+                                  '7f16ec0a1c4c063f84160b4cc6bf88ad554a823e',
+                                  'stm32l1'],
+    'hw/mcu/st/cmsis_device_l4': ['https://github.com/STMicroelectronics/cmsis_device_l4.git',
+                                  '6ca7312fa6a5a460b5a5a63d66da527fdd8359a6',
+                                  'stm32l4'],
+    'hw/mcu/st/cmsis_device_l5': ['https://github.com/STMicroelectronics/cmsis_device_l5.git',
+                                  'd922865fc0326a102c26211c44b8e42f52c1e53d',
+                                  'stm32l5'],
+    'hw/mcu/st/cmsis_device_u5': ['https://github.com/STMicroelectronics/cmsis_device_u5.git',
+                                  'bc00f3c9d8a4e25220f84c26d414902cc6bdf566',
+                                  'stm32u5'],
+    'hw/mcu/st/cmsis_device_wb': ['https://github.com/STMicroelectronics/cmsis_device_wb.git',
+                                  '9c5d1920dd9fabbe2548e10561d63db829bb744f',
+                                  'stm32wb'],
+    'hw/mcu/st/stm32f0xx_hal_driver': ['https://github.com/STMicroelectronics/stm32f0xx_hal_driver.git',
+                                       '0e95cd88657030f640a11e690a8a5186c7712ea5',
+                                       'stm32f0'],
+    'hw/mcu/st/stm32f1xx_hal_driver': ['https://github.com/STMicroelectronics/stm32f1xx_hal_driver.git',
+                                       '1dd9d3662fb7eb2a7f7d3bc0a4c1dc7537915a29',
+                                       'stm32f1'],
+    'hw/mcu/st/stm32f2xx_hal_driver': ['https://github.com/STMicroelectronics/stm32f2xx_hal_driver.git',
+                                       'c75ace9b908a9aca631193ebf2466963b8ea33d0',
+                                       'stm32f2'],
+    'hw/mcu/st/stm32f3xx_hal_driver': ['https://github.com/STMicroelectronics/stm32f3xx_hal_driver.git',
+                                       '1761b6207318ede021706e75aae78f452d72b6fa',
+                                       'stm32f3'],
+    'hw/mcu/st/stm32f4xx_hal_driver': ['https://github.com/STMicroelectronics/stm32f4xx_hal_driver.git',
+                                       '04e99fbdabd00ab8f370f377c66b0a4570365b58',
+                                       'stm32f4'],
+    'hw/mcu/st/stm32f7xx_hal_driver': ['https://github.com/STMicroelectronics/stm32f7xx_hal_driver.git',
+                                       'f7ffdf6bf72110e58b42c632b0a051df5997e4ee',
+                                       'stm32f7'],
+    'hw/mcu/st/stm32g0xx_hal_driver': ['https://github.com/STMicroelectronics/stm32g0xx_hal_driver.git',
+                                       '5b53e6cee664a82b16c86491aa0060e2110c00cb',
+                                       'stm32g0'],
+    'hw/mcu/st/stm32g4xx_hal_driver': ['https://github.com/STMicroelectronics/stm32g4xx_hal_driver.git',
+                                       '8b4518417706d42eef5c14e56a650005abf478a8',
+                                       'stm32g4'],
+    'hw/mcu/st/stm32h7xx_hal_driver': ['https://github.com/STMicroelectronics/stm32h7xx_hal_driver.git',
+                                       'd8461b980b59b1625207d8c4f2ce0a9c2a7a3b04',
+                                       'stm32h7'],
+    'hw/mcu/st/stm32l0xx_hal_driver': ['https://github.com/STMicroelectronics/stm32l0xx_hal_driver.git',
+                                       'fbdacaf6f8c82a4e1eb9bd74ba650b491e97e17b',
+                                       'stm32l0'],
+    'hw/mcu/st/stm32l1xx_hal_driver': ['https://github.com/STMicroelectronics/stm32l1xx_hal_driver.git',
+                                       '44efc446fa69ed8344e7fd966e68ed11043b35d9',
+                                       'stm32l1'],
+    'hw/mcu/st/stm32l4xx_hal_driver': ['https://github.com/STMicroelectronics/stm32l4xx_hal_driver.git',
+                                       'aee3d5bf283ae5df87532b781bdd01b7caf256fc',
+                                       'stm32l4'],
+    'hw/mcu/st/stm32l5xx_hal_driver': ['https://github.com/STMicroelectronics/stm32l5xx_hal_driver.git',
+                                       '675c32a75df37f39d50d61f51cb0dcf53f07e1cb',
+                                       'stm32l5'],
+    'hw/mcu/st/stm32u5xx_hal_driver': ['https://github.com/STMicroelectronics/stm32u5xx_hal_driver.git',
+                                       '2e1d4cdb386e33391cb261dfff4fefa92e4aa35a',
+                                       'stm32u5'],
+    'hw/mcu/st/stm32wbxx_hal_driver': ['https://github.com/STMicroelectronics/stm32wbxx_hal_driver.git',
+                                       '2c5f06638be516c1b772f768456ba637f077bac8',
+                                       'stm32wb'],
+    'hw/mcu/ti': ['https://github.com/hathach/ti_driver.git',
+                  '143ed6cc20a7615d042b03b21e070197d473e6e5',
+                  'msp430 msp432e4 tm4c123'],
+    'hw/mcu/wch/ch32v307': ['https://github.com/openwch/ch32v307.git',
+                            '17761f5cf9dbbf2dcf665b7c04934188add20082',
+                            'ch32v307'],
+    'lib/CMSIS_5': ['https://github.com/ARM-software/CMSIS_5.git',
+                    '20285262657d1b482d132d20d755c8c330d55c1f',
+                    'stm32f0 stm32f1 stm32f2 stm32f3 stm32f4 stm32f7 stm32g0 stm32g4 stm32h7 stm32l0 stm32l1 stm32l4 '
+                    'stm32l5 stm32u5 stm32wb'],
+    'lib/sct_neopixel': ['https://github.com/gsteiert/sct_neopixel.git',
+                         'e73e04ca63495672d955f9268e003cffe168fcd8',
+                         'lpc55'],
 }
 
 # combined 2 deps
@@ -78,8 +187,10 @@ def get_a_dep(d):
     if d not in deps_all.keys():
         print('{} is not found in dependency list')
         return 1
-    commit = deps_all[d][0]
-    url = deps_all[d][1]
+    url = deps_all[d][0]
+    commit = deps_all[d][1]
+    families = deps_all[d][2]
+
     print('cloning {} with {}'.format(d, url))
 
     p = Path(TOP / d)
@@ -103,14 +214,26 @@ def get_a_dep(d):
     return 0
 
 
+# Arguments can be
+# - family name
+# - specific deps path
+# - all
 if __name__ == "__main__":
     status = 0
     deps = list(deps_mandatory.keys())
-    # get all if executed with all as argument
+    # get all if  'all' is argument
     if len(sys.argv) == 2 and sys.argv[1] == 'all':
-        deps += deps_optional
+        deps += deps_optional.keys()
     else:
-        deps += sys.argv[1:]
+        for arg in sys.argv[1:]:
+            if arg in deps_all.keys():
+                # if arg is a dep, add it
+                deps.append(arg)
+            else:
+                # arg is a family name, add all deps of that family
+                for d in deps_optional:
+                    if arg in deps_optional[d][2]:
+                        deps.append(d)
 
     with Pool() as pool:
         status = sum(pool.map(get_a_dep, deps))
