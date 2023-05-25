@@ -136,6 +136,22 @@ function(family_add_default_example_warnings TARGET)
 endfunction()
 
 
+function(family_support_configure_common TARGET)
+    # set output name to .elf
+    set_target_properties(${TARGET} PROPERTIES OUTPUT_NAME ${TARGET}.elf)
+
+    # run size after build
+    add_custom_command(TARGET ${TARGET} POST_BUILD
+      COMMAND ${TOOLCHAIN_SIZE} $<TARGET_FILE:${TARGET}>
+      )
+
+    # Generate map file
+    target_link_options(${TARGET} PUBLIC
+      # link map
+      "LINKER:-Map=$<TARGET_FILE:${TARGET}>.map"
+      )
+endfunction()
+
 #  add_custom_command(TARGET ${TARGET} POST_BUILD
 #    COMMAND ${CMAKE_OBJCOPY} -O ihex $<TARGET_FILE:${TARGET}> ${TARGET}.hex
 #    COMMAND ${CMAKE_OBJCOPY} -O binary $<TARGET_FILE:${TARGET}> ${TARGET}.bin

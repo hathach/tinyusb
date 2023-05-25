@@ -63,8 +63,6 @@ if (NOT TARGET ${BOARD_TARGET})
     target_link_options(${BOARD_TARGET} PUBLIC
       # linker file
       "LINKER:--script=${SDK_DIR}/devices/${MCU_VARIANT}/gcc/${MCU_CORE}_flash.ld"
-      # link map
-      "LINKER:-Map=$<IF:$<BOOL:$<TARGET_PROPERTY:OUTPUT_NAME>>,$<TARGET_PROPERTY:OUTPUT_NAME>,$<TARGET_PROPERTY:NAME>>${CMAKE_EXECUTABLE_SUFFIX}.map"
       # nanolib
       --specs=nosys.specs
       --specs=nano.specs
@@ -77,12 +75,8 @@ endif () # BOARD_TARGET
 #------------------------------------
 # Functions
 #------------------------------------
-function(family_configure_target TARGET)
-  # set output name to .elf
-  set_target_properties(${TARGET} PROPERTIES OUTPUT_NAME ${TARGET}.elf)
-
-  # TOP is path to root directory
-  set(TOP "${CMAKE_CURRENT_FUNCTION_LIST_DIR}/../../..")
+function(family_configure_example TARGET)
+  family_support_configure_common(${TARGET})
 
   #---------- Port Specific ----------
   # These files are built for each example since it depends on example's tusb_config.h
@@ -153,13 +147,13 @@ function(family_add_freertos TARGET)
 endfunction()
 
 function(family_configure_device_example TARGET)
-  family_configure_target(${TARGET})
+  family_configure_example(${TARGET})
 endfunction()
 
 function(family_configure_host_example TARGET)
-  family_configure_target(${TARGET})
+  family_configure_example(${TARGET})
 endfunction()
 
 function(family_configure_dual_usb_example TARGET)
-  family_configure_target(${TARGET})
+  family_configure_example(${TARGET})
 endfunction()
