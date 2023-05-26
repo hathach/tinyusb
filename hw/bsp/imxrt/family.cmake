@@ -4,9 +4,6 @@ if (NOT BOARD)
   message(FATAL_ERROR "BOARD not specified")
 endif ()
 
-# TOP is path to root directory
-set(TOP "${CMAKE_CURRENT_LIST_DIR}/../../..")
-
 # toolchain set up
 set(CMAKE_SYSTEM_PROCESSOR cortex-m7 CACHE INTERNAL "System Processor")
 set(CMAKE_TOOLCHAIN_FILE ${TOP}/tools/cmake/toolchain/arm_${TOOLCHAIN}.cmake)

@@ -4,8 +4,6 @@ if (NOT BOARD)
   message(FATAL_ERROR "BOARD not specified")
 endif ()
 
-# TOP is path to root directory
-set(TOP "${CMAKE_CURRENT_LIST_DIR}/../../..")
 set(SDK_DIR ${TOP}/hw/mcu/nxp/mcux-sdk)
 set(CMSIS_DIR ${TOP}/lib/CMSIS_5)
 

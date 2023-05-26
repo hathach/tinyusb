@@ -16,8 +16,8 @@ if (NOT TARGET _rp2040_family_inclusion_marker)
 	include(${CMAKE_CURRENT_LIST_DIR}/boards/${BOARD}/board.cmake)
 
 	# TOP is absolute path to root directory of TinyUSB git repo
-	set(TOP "${CMAKE_CURRENT_LIST_DIR}/../../..")
-	get_filename_component(TOP "${TOP}" REALPATH)
+	#set(TOP "${CMAKE_CURRENT_LIST_DIR}/../../..")
+	#get_filename_component(TOP "${TOP}" REALPATH)
 
 	if (NOT PICO_TINYUSB_PATH)
 		set(PICO_TINYUSB_PATH ${TOP})
