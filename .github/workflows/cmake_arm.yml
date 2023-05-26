@@ -74,7 +74,11 @@ jobs:
     # Upload binaries for hardware test with self-hosted
     - name: Prepare rp2040 Artifacts
       if: contains(matrix.family, 'rp2040') && github.repository_owner == 'hathach'
-      run: find examples/ -name "*.elf" -exec mv {} . \;
+      working-directory: ${{github.workspace}}/cmake-build-ci-raspberry_pi_pico
+      run: |
+        find device/ -name "*.elf" -exec mv {} . \;
+        # find host/ -name "*.elf" -exec mv {} . \;
+        # find dual/ -name "*.elf" -exec mv {} . \;
 
     - name: Upload Artifacts for rp2040
       if: contains(matrix.family,'rp2040') && github.repository_owner == 'hathach'
