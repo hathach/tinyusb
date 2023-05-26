@@ -76,11 +76,9 @@ jobs:
       if: contains(matrix.family, 'rp2040') && github.repository_owner == 'hathach'
       working-directory: ${{github.workspace}}/cmake-build-ci-raspberry_pi_pico
       run: |
-        tree -L 3
-        find device/ -name "*.elf"
-        find device/ -name "*.elf" -exec mv {} . \;
-        # find host/ -name "*.elf" -exec mv {} . \;
-        # find dual/ -name "*.elf" -exec mv {} . \;
+        find device/ -name "*.elf" -exec mv {} ../ \;
+        # find host/ -name "*.elf" -exec mv {} ../ \;
+        # find dual/ -name "*.elf" -exec mv {} ../ \;
 
     - name: Upload Artifacts for rp2040
       if: contains(matrix.family,'rp2040') && github.repository_owner == 'hathach'
