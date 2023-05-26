@@ -77,7 +77,7 @@ jobs:
         echo >> $GITHUB_ENV PICO_SDK_PATH=~/pico-sdk
 
     - name: Get Dependencies
-      run: python3 tools/get_family_deps.py ${{ matrix.family }}
+      run: python3 tools/get_deps.py ${{ matrix.family }}
 
     - name: Build
       run: python3 tools/build_family.py ${{ matrix.family }}
