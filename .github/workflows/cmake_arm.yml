@@ -32,9 +32,11 @@ jobs:
       fail-fast: false
       matrix:
         family:
-        # Alphabetical order
-        - 'mcx'
-        - 'imxrt'
+          # Alphabetical order
+          - 'lpc18'
+          - 'mcx'
+          - 'imxrt'
+          - 'rp2040'
     steps:
     - name: Setup Python
       uses: actions/setup-python@v4
@@ -52,8 +54,19 @@ jobs:
     - name: Checkout TinyUSB
       uses: actions/checkout@v3
 
+    - name: Checkout pico-sdk for rp2040
+      if: matrix.family == 'rp2040'
+      uses: actions/checkout@v3
+      with:
+        repository: raspberrypi/pico-sdk
+        ref: develop
+        path: pico-sdk
+
     - name: Get Dependencies
       run: python3 tools/get_deps.py ${{ matrix.family }}
 
     - name: Build
       run: python tools/build_cmake.py ${{ matrix.family }}
+      env:
+        # for rp2040, there is no harm if defined for other families
+        PICO_SDK_PATH: ${{ github.workspace }}/pico-sdk

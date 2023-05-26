@@ -1,5 +1,5 @@
 UF2_FAMILY_ID = 0x68ed2b88
-DEPS_SUBMODULES += hw/mcu/microchip
+DEPS_SUBMODULES += lib/CMSIS_5 hw/mcu/microchip
 
 include $(TOP)/$(BOARD_PATH)/board.mk
 
@@ -33,13 +33,13 @@ SRC_C += \
 INC += \
 	$(TOP)/$(BOARD_PATH) \
 	$(TOP)/$(MCU_DIR) \
-	$(TOP)/$(MCU_DIR)/CMSIS/Include \
 	$(TOP)/$(MCU_DIR)/config \
 	$(TOP)/$(MCU_DIR)/include \
 	$(TOP)/$(MCU_DIR)/hal/include \
 	$(TOP)/$(MCU_DIR)/hal/utils/include \
 	$(TOP)/$(MCU_DIR)/hpl/port \
 	$(TOP)/$(MCU_DIR)/hri \
+	$(TOP)/lib/CMSIS_5/CMSIS/Core/Include
 
 # For freeRTOS port source
 FREERTOS_PORTABLE_SRC = $(FREERTOS_PORTABLE_PATH)/ARM_CM0

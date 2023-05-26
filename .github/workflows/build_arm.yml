@@ -35,12 +35,11 @@ jobs:
         # Alphabetical order
         - 'broadcom_32bit'
         - 'kinetis_k32l kinetis_kl'
-        - 'lpc11 lpc13 lpc15 lpc17 lpc18'
+        - 'lpc11 lpc13 lpc15 lpc17'
         - 'lpc51 lpc54 lpc55'
         - 'mm32 msp432e4'
         - 'nrf'
         - 'ra'
-        - 'rp2040'
         - 'samd11 samd21'
         - 'samd51 same5x'
         - 'saml2x'
