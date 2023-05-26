@@ -2,6 +2,9 @@ include_guard()
 
 include(CMakePrintHelpers)
 
+# TOP is path to root directory
+set(TOP "${CMAKE_CURRENT_LIST_DIR}/../..")
+
 # Default to gcc
 if (NOT DEFINED TOOLCHAIN)
     set(TOOLCHAIN gcc)

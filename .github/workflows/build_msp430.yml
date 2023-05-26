@@ -68,7 +68,7 @@ jobs:
       run: echo >> $GITHUB_PATH `echo ~/cache/toolchain/*/bin`
 
     - name: Get Dependencies
-      run: python3 tools/get_family_deps.py ${{ matrix.family }}
+      run: python3 tools/get_deps.py ${{ matrix.family }}
 
     - name: Build
       run: python3 tools/build_family.py ${{ matrix.family }}

@@ -1,11 +1,12 @@
-# TODO make tinyusb as library that depends on 'tusb_config' interface that exposes the tusb_config.h file
-# This file is WIP and should not used yet
+# TODO more docs and example on how to use this file
+# Usage: requires target tinyusb_config which expose tusb_config.h file
+# TINYUSB_TARGET_PREFIX and TINYUSB_TARGET_SUFFIX can be used to change the name of the target
 
 cmake_minimum_required(VERSION 3.17)
 
-# Add tinyusb to a target
+# Add tinyusb to a target, if user don't want to compile tinyusb as a library
 function(add_tinyusb TARGET)
-  target_sources(${TARGET} PUBLIC
+  target_sources(${TARGET} PRIVATE
     # common
     ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/tusb.c
     ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/common/tusb_fifo.c
@@ -34,12 +35,42 @@ function(add_tinyusb TARGET)
     )
   target_include_directories(${TARGET} PUBLIC
     ${CMAKE_CURRENT_FUNCTION_LIST_DIR}
+    # TODO for net driver, should be removed/changed
+    ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/../lib/networking
     )
-  # enable all possible warnings
-  target_compile_options(${TARGET} PUBLIC
-    )
+
+  if (CMAKE_C_COMPILER_ID STREQUAL "GNU")
+    target_compile_options(${TARGET} PRIVATE
+      -Wall
+      -Wextra
+      -Werror
+      -Wfatal-errors
+      -Wdouble-promotion
+      -Wstrict-prototypes
+      -Wstrict-overflow
+      -Werror-implicit-function-declaration
+      -Wfloat-equal
+      -Wundef
+      -Wshadow
+      -Wwrite-strings
+      -Wsign-compare
+      -Wmissing-format-attribute
+      -Wunreachable-code
+      -Wcast-align
+      -Wcast-function-type
+      -Wcast-qual
+      -Wnull-dereference
+      -Wuninitialized
+      -Wunused
+      -Wreturn-type
+      -Wredundant-decls
+      )
+  endif ()
 endfunction()
 
+#------------------------------------
+# TinyUSB as library target
+#------------------------------------
 set(TINYUSB_TARGET "tinyusb")
 set(TINYUSB_CONFIG_TARGET "tinyusb_config")
 
@@ -56,12 +87,12 @@ endif ()
 add_library(${TINYUSB_TARGET} STATIC)
 add_tinyusb(${TINYUSB_TARGET})
 
-# Link with tinyusb_config target
-
+# Check if tinyusb_config target is defined
 if (NOT TARGET ${TINYUSB_CONFIG_TARGET})
   message(FATAL_ERROR "${TINYUSB_CONFIG_TARGET} target is not defined")
 endif()
 
+# Link with tinyusb_config target
 target_link_libraries(${TINYUSB_TARGET} PUBLIC
   ${TINYUSB_CONFIG_TARGET}
   )

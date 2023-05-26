@@ -52,7 +52,7 @@ deps_optional = {
                            'lpc11 lpc13 lpc15 lpc17 lpc18 lpc40 lpc43'],
     'hw/mcu/nxp/mcux-sdk': ['https://github.com/hathach/mcux-sdk.git',
                             '950819b7de9b32f92c3edf396bc5ffb8d66e7009',
-                            'kinetis_k32 lpc51 lpc54 lpc55 mcx imxrt'],
+                            'kinetis_k32l lpc51 lpc54 lpc55 mcx imxrt'],
     'hw/mcu/nxp/nxp_sdk': ['https://github.com/hathach/nxp_sdk.git',
                            '845c8fc49b6fb660f06a5c45225494eacb06f00c',
                            'kinetis_kl'],
@@ -169,8 +169,9 @@ deps_optional = {
                             'ch32v307'],
     'lib/CMSIS_5': ['https://github.com/ARM-software/CMSIS_5.git',
                     '20285262657d1b482d132d20d755c8c330d55c1f',
-                    'imxrt mcx stm32f0 stm32f1 stm32f2 stm32f3 stm32f4 stm32f7 stm32g0 stm32g4 stm32h7 stm32l0 stm32l1 '
-                    'stm32l4 stm32l5 stm32u5 stm32wb'],
+                    'imxrt kinetis_k32l lpc51 lpc54 lpc55 mcx mm32 msp432e4 nrf ra saml2x'
+                    'stm32f0 stm32f1 stm32f2 stm32f3 stm32f4 stm32f7 stm32g0 stm32g4 '
+                    'stm32h7 stm32l0 stm32l1 stm32l4 stm32l5 stm32u5 stm32wb'],
     'lib/sct_neopixel': ['https://github.com/gsteiert/sct_neopixel.git',
                          'e73e04ca63495672d955f9268e003cffe168fcd8',
                          'lpc55'],
