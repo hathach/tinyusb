@@ -34,6 +34,8 @@ function(add_tinyusb TARGET)
     )
   target_include_directories(${TARGET} PUBLIC
     ${CMAKE_CURRENT_FUNCTION_LIST_DIR}
+    # TODO for net driver, should be removed/changed
+    ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/../lib/networking
     )
   # enable all possible warnings
   target_compile_options(${TARGET} PUBLIC
