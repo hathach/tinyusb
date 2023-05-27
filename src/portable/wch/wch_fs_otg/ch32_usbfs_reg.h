@@ -3,7 +3,7 @@
 
 typedef struct
 {
-    uint16_t tx_length;    
+    uint16_t tx_length;
     uint8_t  tx_ctrl;
     uint8_t  rx_ctrl;
 }endpoints;
@@ -16,7 +16,7 @@ typedef struct
     uint8_t DEVICE_CTRL;// 01
     uint8_t INT_EN;     // 02
     uint8_t DEV_ADDRESS;// 03
-    
+
     uint8_t STATUS;      // 04 -unsused ?
     uint8_t MIS_ST;      // 05
     uint8_t INT_FG;      // 06
@@ -91,5 +91,3 @@ typedef volatile LN_USB_OTG_DEVICEx LN_USB_OTG_DEVICE;
 #define PID_SOF   1
 #define PID_IN    2
 #define PID_SETUP 3
-
-
