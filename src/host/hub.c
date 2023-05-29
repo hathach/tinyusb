@@ -341,8 +341,7 @@ bool hub_xfer_cb(uint8_t dev_addr, uint8_t ep_addr, xfer_result_t result, uint32
     // The status change event was neither for the hub, nor for any of its ports.
     // This shouldn't happen, but it does with some devices.
     // Initiate the next interrupt poll here.
-    hub_edpt_status_xfer(dev_addr);
-    return true;
+    return hub_edpt_status_xfer(dev_addr);
   }
 
   if (tu_bit_test(status_change, 0)) {
