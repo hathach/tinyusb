@@ -84,8 +84,10 @@ endfunction()
 
 
 function(family_initialize_project PROJECT DIR)
-  # set output suffix to .elf
-  set(CMAKE_EXECUTABLE_SUFFIX .elf PARENT_SCOPE)
+  # set output suffix to .elf (skip espressif)
+  if(NOT FAMILY STREQUAL "espressif")
+    set(CMAKE_EXECUTABLE_SUFFIX .elf PARENT_SCOPE)
+  endif()
 
   family_filter(ALLOWED "${DIR}")
   if (NOT ALLOWED)
