@@ -4,9 +4,11 @@ set(CMAKE_ASM_COMPILER "arm-none-eabi-gcc")
 set(CMAKE_C_COMPILER "arm-none-eabi-gcc")
 set(CMAKE_CXX_COMPILER "arm-none-eabi-g++")
 
-set(TOOLCHAIN_SIZE "arm-none-eabi-size" CACHE INTERNAL "")
-set(GCC_ELF2BIN "arm-none-eabi-objcopy")
-set_property(GLOBAL PROPERTY ELF2BIN ${GCC_ELF2BIN})
+set(CMAKE_SIZE "arm-none-eabi-size" CACHE FILEPATH "")
+set(CMAKE_OBJCOPY "arm-none-eabi-objcopy" CACHE FILEPATH "")
+set(CMAKE_OBJDUMP "arm-none-eabi-objdump" CACHE FILEPATH "")
+
+set_property(GLOBAL PROPERTY TARGET_SUPPORTS_SHARED_LIBS FALSE)
 
 # Look for includes and libraries only in the target system prefix.
 set(CMAKE_FIND_ROOT_PATH_MODE_INCLUDE ONLY)

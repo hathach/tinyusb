@@ -7,6 +7,9 @@ endif ()
 set(SDK_DIR ${TOP}/hw/mcu/nxp/mcux-sdk)
 set(CMSIS_DIR ${TOP}/lib/CMSIS_5)
 
+# enable LTO
+set(CMAKE_INTERPROCEDURAL_OPTIMIZATION TRUE)
+
 # toolchain set up
 set(CMAKE_SYSTEM_PROCESSOR cortex-m33 CACHE INTERNAL "System Processor")
 set(CMAKE_TOOLCHAIN_FILE ${TOP}/tools/cmake/toolchain/arm_${TOOLCHAIN}.cmake)
@@ -70,7 +73,7 @@ endif () # BOARD_TARGET
 # Functions
 #------------------------------------
 function(family_configure_example TARGET)
-  family_support_configure_common(${TARGET})
+  family_configure_common(${TARGET})
 
   #---------- Port Specific ----------
   # These files are built for each example since it depends on example's tusb_config.h
@@ -112,17 +115,7 @@ function(family_configure_example TARGET)
     )
 
   #---------- Flash ----------
-  # use MCUXpresso GUI Flash Tool to flash the elf
-
-#  set(REDLINK_EXE /usr/local/LinkServer/binaries/crt_emu_cm_redlink)
-#  add_custom_target(${TARGET}-redlink
-#    DEPENDS ${TARGET}
-#    COMMAND ${REDLINK_EXE} --flash-load-exec $<TARGET_FILE:${TARGET}> --vendor NXP -p MCXN947 --bootromstall
-#    0x50000040 -CoreIndex=0 --flash-driver= -x ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/flash --flash-dir
-#    ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/flash --flash-hashing
-#    )
-
-  #family_flash_jlink(${TARGET})
+  family_flash_jlink(${TARGET})
   #family_flash_nxplink(${TARGET})
   #family_flash_pyocd(${TARGET})
 endfunction()

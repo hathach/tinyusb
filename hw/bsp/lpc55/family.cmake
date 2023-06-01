@@ -89,7 +89,7 @@ endif () # BOARD_TARGET
 # Functions
 #------------------------------------
 function(family_configure_example TARGET)
-  family_support_configure_common(${TARGET})
+  family_configure_common(${TARGET})
 
   #---------- Port Specific ----------
   # These files are built for each example since it depends on example's tusb_config.h

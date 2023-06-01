@@ -4,6 +4,9 @@ if (NOT BOARD)
   message(FATAL_ERROR "BOARD not specified")
 endif ()
 
+# enable LTO
+set(CMAKE_INTERPROCEDURAL_OPTIMIZATION TRUE)
+
 # toolchain set up
 set(CMAKE_SYSTEM_PROCESSOR cortex-m7 CACHE INTERNAL "System Processor")
 set(CMAKE_TOOLCHAIN_FILE ${TOP}/tools/cmake/toolchain/arm_${TOOLCHAIN}.cmake)
@@ -77,7 +80,7 @@ endif () # BOARD_TARGET
 # Functions
 #------------------------------------
 function(family_configure_example TARGET)
-  family_support_configure_common(${TARGET})
+  family_configure_common(${TARGET})
 
   #---------- Port Specific ----------
   # These files are built for each example since it depends on example's tusb_config.h
