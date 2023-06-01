@@ -59,6 +59,7 @@
 // RCC Clock
 //--------------------------------------------------------------------+
 #if 1
+// Clock configure for STM32G0B1RE Nucleo
 static inline void board_clock_init(void)
 {
   RCC_OscInitTypeDef RCC_OscInitStruct = {0};
@@ -114,6 +115,9 @@ static inline void board_clock_init(void)
   HAL_RCC_OscConfig(&osc_hsi48);
 }
 #else
+
+// Clock configure for STM32G0 nucleo with B0 mcu variant for someone that is skilled enough
+// to rework and solder the B0 chip. Note: SB17 may need to be soldered as well (check user manual)
 static inline void board_clock_init(void)
 {
   RCC_OscInitTypeDef RCC_OscInitStruct = {0};
