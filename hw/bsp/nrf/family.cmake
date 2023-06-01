@@ -10,6 +10,9 @@ set(CMSIS_DIR ${TOP}/lib/CMSIS_5)
 # include board specific
 include(${CMAKE_CURRENT_LIST_DIR}/boards/${BOARD}/board.cmake)
 
+# enable LTO
+set(CMAKE_INTERPROCEDURAL_OPTIMIZATION TRUE)
+
 # toolchain set up
 if (MCU_VARIANT STREQUAL "nrf5340_application")
   set(CMAKE_SYSTEM_PROCESSOR cortex-m33 CACHE INTERNAL "System Processor")
@@ -77,7 +80,7 @@ endif () # BOARD_TARGET
 # Functions
 #------------------------------------
 function(family_configure_example TARGET)
-  family_support_configure_common(${TARGET})
+  family_configure_common(${TARGET})
 
   #---------- Port Specific ----------
   # These files are built for each example since it depends on example's tusb_config.h
