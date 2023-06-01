@@ -44,6 +44,7 @@ UART_HandleTypeDef UartHandle;
 
 void board_init(void)
 {
+  HAL_Init(); // required for HAL_RCC_Osc TODO check with freeRTOS
   board_clock_init();
 
   // Enable All GPIOs clocks
@@ -162,6 +163,7 @@ volatile uint32_t system_ticks = 0;
 void SysTick_Handler (void)
 {
   system_ticks++;
+  HAL_IncTick();
 }
 
 uint32_t board_millis(void)
