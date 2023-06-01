@@ -3,21 +3,17 @@ DEPS_SUBMODULES += lib/CMSIS_5 hw/mcu/nordic/nrfx
 
 include $(TOP)/$(BOARD_PATH)/board.mk
 
+# nRF52 is cortex-m4, nRF53 is cortex-m33
+CPU_CORE ?= cortex-m4
+include $(TOP)/tools/make/cpu/$(CPU_CORE).mk
+
 CFLAGS += \
   -flto \
-  -mthumb \
-  -mabi=aapcs \
-  -mcpu=cortex-m4 \
-  -mfloat-abi=hard \
-  -mfpu=fpv4-sp-d16 \
   -DCFG_TUSB_MCU=OPT_MCU_NRF5X \
   -DCONFIG_GPIO_AS_PINRESET
 
 # suppress warning caused by vendor mcu driver
-CFLAGS += -Wno-error=undef -Wno-error=unused-parameter -Wno-error=cast-align -Wno-error=cast-qual
-
-# All source paths should be relative to the top level.
-LD_FILE ?= hw/bsp/nrf/boards/$(BOARD)/nrf52840_s140_v6.ld
+CFLAGS += -Wno-error=undef -Wno-error=unused-parameter -Wno-error=cast-align -Wno-error=cast-qual -Wno-error=redundant-decls
 
 LDFLAGS += -L$(TOP)/hw/mcu/nordic/nrfx/mdk
 
@@ -30,7 +26,6 @@ SRC_C += \
 INC += \
   $(TOP)/$(BOARD_PATH) \
   $(TOP)/lib/CMSIS_5/CMSIS/Core/Include \
-  $(TOP)/hw/mcu/nordic \
   $(TOP)/hw/mcu/nordic/nrfx \
   $(TOP)/hw/mcu/nordic/nrfx/mdk \
   $(TOP)/hw/mcu/nordic/nrfx/hal \
@@ -41,8 +36,5 @@ SRC_S += hw/mcu/nordic/nrfx/mdk/gcc_startup_$(MCU_VARIANT).S
 
 ASFLAGS += -D__HEAP_SIZE=0
 
-# For freeRTOS port source
-FREERTOS_PORTABLE_SRC = $(FREERTOS_PORTABLE_PATH)/ARM_CM4F
-
 # For flash-jlink target
-JLINK_DEVICE = $(MCU_VARIANT)_xxaa
+JLINK_DEVICE ?= $(MCU_VARIANT)_xxaa

@@ -33,6 +33,10 @@
 #include "usbh_classdriver.h"
 #include "hub.h"
 
+// Debug level, TUSB_CFG_DEBUG must be at least this level for debug message
+#define HUB_DEBUG   2
+#define TU_LOG_DRV(...)   TU_LOG(HUB_DEBUG, __VA_ARGS__)
+
 //--------------------------------------------------------------------+
 // MACRO CONSTANT TYPEDEF
 //--------------------------------------------------------------------+
@@ -218,7 +222,10 @@ void hub_close(uint8_t dev_addr)
   TU_VERIFY(dev_addr > CFG_TUH_DEVICE_MAX, );
   hub_interface_t* p_hub = get_itf(dev_addr);
 
-  if (p_hub->ep_in) tu_memclr(p_hub, sizeof( hub_interface_t));
+  if (p_hub->ep_in) {
+    TU_LOG_DRV("  HUB close addr = %d\r\n", dev_addr);
+    tu_memclr(p_hub, sizeof( hub_interface_t));
+  }
 }
 
 bool hub_edpt_status_xfer(uint8_t dev_addr)
@@ -320,34 +327,35 @@ static void connection_clear_conn_change_complete (tuh_xfer_t* xfer);
 static void connection_port_reset_complete (tuh_xfer_t* xfer);
 
 // callback as response of interrupt endpoint polling
-bool hub_xfer_cb(uint8_t dev_addr, uint8_t ep_addr, xfer_result_t result, uint32_t xferred_bytes)
-{
+bool hub_xfer_cb(uint8_t dev_addr, uint8_t ep_addr, xfer_result_t result, uint32_t xferred_bytes) {
   (void) xferred_bytes; // TODO can be more than 1 for hub with lots of ports
   (void) ep_addr;
   TU_ASSERT(result == XFER_RESULT_SUCCESS);
 
   hub_interface_t* p_hub = get_itf(dev_addr);
 
-  TU_LOG2("  Hub Status Change = 0x%02X\r\n", p_hub->status_change);
+  uint8_t const status_change = p_hub->status_change;
+  TU_LOG2("  Hub Status Change = 0x%02X\r\n", status_change);
 
-  // Hub bit 0 is for the hub device events
-  if (tu_bit_test(p_hub->status_change, 0))
-  {
-    if (hub_port_get_status(dev_addr, 0, &p_hub->hub_status, hub_get_status_complete, 0) == false)
-    {
+  if ( status_change == 0 ) {
+    // The status change event was neither for the hub, nor for any of its ports.
+    // This shouldn't happen, but it does with some devices.
+    // Initiate the next interrupt poll here.
+    return hub_edpt_status_xfer(dev_addr);
+  }
+
+  if (tu_bit_test(status_change, 0)) {
+    // Hub bit 0 is for the hub device events
+    if (hub_port_get_status(dev_addr, 0, &p_hub->hub_status, hub_get_status_complete, 0) == false) {
       //Hub status control transfer failed, retry
       hub_edpt_status_xfer(dev_addr);
     }
   }
-  else
-  {
+  else {
     // Hub bits 1 to n are hub port events
-    for (uint8_t port=1; port <= p_hub->port_count; port++)
-    {
-      if ( tu_bit_test(p_hub->status_change, port) )
-      {
-        if (hub_port_get_status(dev_addr, port, &p_hub->port_status, hub_port_get_status_complete, 0) == false)
-        {
+    for (uint8_t port=1; port <= p_hub->port_count; port++) {
+      if ( tu_bit_test(status_change, port) ) {
+        if (hub_port_get_status(dev_addr, port, &p_hub->port_status, hub_port_get_status_complete, 0) == false) {
           //Hub status control transfer failed, retry
           hub_edpt_status_xfer(dev_addr);
         }
@@ -357,7 +365,6 @@ bool hub_xfer_cb(uint8_t dev_addr, uint8_t ep_addr, xfer_result_t result, uint32
   }
 
   // NOTE: next status transfer is queued by usbh.c after handling this request
-
   return true;
 }
 

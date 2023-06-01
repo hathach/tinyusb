@@ -58,6 +58,13 @@
 			<path>$TUSB_DIR$/src/host/hub.c</path>
 			<path>$TUSB_DIR$/src/host/usbh.c</path>
 		</group>
+		<group name="src/portable/bridgetek/ft9xx">
+			<path>$TUSB_DIR$/src/portable/bridgetek/ft9xx/dcd_ft9xx.c</path>
+		</group>
+		<group name="src/portable/chipidea/ci_hs">
+			<path>$TUSB_DIR$/src/portable/chipidea/ci_hs/dcd_ci_hs.c</path>
+			<path>$TUSB_DIR$/src/portable/chipidea/ci_hs/hcd_ci_hs.c</path>
+		</group>
 		<group name="src/portable/synopsys/dwc2">
 			<path>$TUSB_DIR$/src/portable/synopsys/dwc2/dcd_dwc2.c</path>
 		</group>
@@ -72,6 +79,7 @@
 		</group>
 		<group name="src/portable/mentor/musb">
 			<path>$TUSB_DIR$/src/portable/mentor/musb/dcd_musb.c</path>
+			<path>$TUSB_DIR$/src/portable/mentor/musb/hcd_musb.c</path>
 		</group>
 		<group name="src/portable/microchip/samd">
 			<path>$TUSB_DIR$/src/portable/microchip/samd/dcd_samd.c</path>
@@ -81,6 +89,12 @@
 		</group>
 		<group name="src/portable/microchip/samx7x">
 			<path>$TUSB_DIR$/src/portable/microchip/samx7x/dcd_samx7x.c</path>
+		</group>
+		<group name="src/portable/microchip/pic">
+			<path>$TUSB_DIR$/src/portable/microchip/pic/dcd_pic.c</path>
+		</group>
+		<group name="src/portable/microchip/pic32mz">
+			<path>$TUSB_DIR$/src/portable/microchip/pic32mz/dcd_pic32mz.c</path>
 		</group>
 		<group name="src/portable/mindmotion/mm32">
 			<path>$TUSB_DIR$/src/portable/mindmotion/mm32/dcd_mm32f327x_otg.c</path>
@@ -99,6 +113,7 @@
 		</group>
 		<group name="src/portable/nxp/khci">
 			<path>$TUSB_DIR$/src/portable/nxp/khci/dcd_khci.c</path>
+			<path>$TUSB_DIR$/src/portable/nxp/khci/hcd_khci.c</path>
 		</group>
 		<group name="src/portable/nxp/lpc17_40">
 			<path>$TUSB_DIR$/src/portable/nxp/lpc17_40/dcd_lpc17_40.c</path>
@@ -114,14 +129,17 @@
 		<group name="src/portable/ohci">
 			<path>$TUSB_DIR$/src/portable/ohci/ohci.c</path>
 		</group>
+		<group name="src/portable/raspberrypi/pio_usb">
+			<path>$TUSB_DIR$/src/portable/raspberrypi/pio_usb/dcd_pio_usb.c</path>
+			<path>$TUSB_DIR$/src/portable/raspberrypi/pio_usb/hcd_pio_usb.c</path>
+		</group>
 		<group name="src/portable/raspberrypi/rp2040">
 			<path>$TUSB_DIR$/src/portable/raspberrypi/rp2040/dcd_rp2040.c</path>
 			<path>$TUSB_DIR$/src/portable/raspberrypi/rp2040/hcd_rp2040.c</path>
-			<path>$TUSB_DIR$/src/portable/raspberrypi/rp2040/rp2040_usb.c</path>
 		</group>
 		<group name="src/portable/renesas/rusb2">
 			<path>$TUSB_DIR$/src/portable/renesas/rusb2/dcd_rusb2.c</path>
-            <path>$TUSB_DIR$/src/portable/renesas/rusb2/hcd_rusb2.c</path>
+			<path>$TUSB_DIR$/src/portable/renesas/rusb2/hcd_rusb2.c</path>
 		</group>
 		<group name="src/portable/sony/cxd56">
 			<path>$TUSB_DIR$/src/portable/sony/cxd56/dcd_cxd56.c</path>
@@ -129,11 +147,17 @@
 		<group name="src/portable/st/stm32_fsdev">
 			<path>$TUSB_DIR$/src/portable/st/stm32_fsdev/dcd_stm32_fsdev.c</path>
 		</group>
+		<group name="src/portable/sunxi">
+			<path>$TUSB_DIR$/src/portable/sunxi/dcd_sunxi_musb.c</path>
+		</group>
 		<group name="src/portable/ti/msp430x5xx">
 			<path>$TUSB_DIR$/src/portable/ti/msp430x5xx/dcd_msp430x5xx.c</path>
 		</group>
 		<group name="src/portable/valentyusb/eptri">
 			<path>$TUSB_DIR$/src/portable/valentyusb/eptri/dcd_eptri.c</path>
+		</group>
+		<group name="src/portable/wch/ch32v307">
+			<path>$TUSB_DIR$/src/portable/wch/ch32v307/dcd_usbhs.c</path>
 		</group>
         <group name="lib/SEGGER_RTT">
 			<path>$TUSB_DIR$/lib/SEGGER_RTT/RTT/SEGGER_RTT.c</path>

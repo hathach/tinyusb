@@ -72,6 +72,11 @@ endif
 
 LDFLAGS += $(CFLAGS) -Wl,-Map=$@.map -Wl,-cref -Wl,-gc-sections
 
+# Some toolchain such as renesas rx does not support --print-memory-usage flags
+ifneq ($(FAMILY),rx)
+LDFLAGS += -Wl,--print-memory-usage
+endif
+
 ifdef LD_FILE
 LDFLAGS += -Wl,-T,$(TOP)/$(LD_FILE)
 endif
@@ -81,7 +86,7 @@ LDFLAGS += -Wl,-T,$(TOP)/$(GCC_LD_FILE)
 endif
 
 ifneq ($(SKIP_NANOLIB), 1)
-LDFLAGS += -specs=nosys.specs -specs=nano.specs
+LDFLAGS += --specs=nosys.specs --specs=nano.specs
 endif
 
 ASFLAGS += $(CFLAGS)
@@ -222,14 +227,19 @@ endif
 # Jlink Interface
 JLINK_IF ?= swd
 
+# Jlink script
+define jlink_script
+halt
+loadfile $^
+r
+go
+exit
+endef
+export jlink_script
+
 # Flash using jlink
 flash-jlink: $(BUILD)/$(PROJECT).hex
-	@echo halt > $(BUILD)/$(BOARD).jlink
-	@echo r > $(BUILD)/$(BOARD).jlink
-	@echo loadfile $^ >> $(BUILD)/$(BOARD).jlink
-	@echo r >> $(BUILD)/$(BOARD).jlink
-	@echo go >> $(BUILD)/$(BOARD).jlink
-	@echo exit >> $(BUILD)/$(BOARD).jlink
+	@echo "$$jlink_script" > $(BUILD)/$(BOARD).jlink
 	$(JLINKEXE) -device $(JLINK_DEVICE) -if $(JLINK_IF) -JTAGConf -1,-1 -speed auto -CommandFile $(BUILD)/$(BOARD).jlink
 
 # Flash STM32 MCU using stlink with STM32 Cube Programmer CLI

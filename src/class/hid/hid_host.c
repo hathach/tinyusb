@@ -33,6 +33,10 @@
 
 #include "hid_host.h"
 
+// Debug level, TUSB_CFG_DEBUG must be at least this level for debug message
+#define HIDH_DEBUG   2
+#define TU_LOG_DRV(...)   TU_LOG(HIDH_DEBUG, __VA_ARGS__)
+
 //--------------------------------------------------------------------+
 // MACRO CONSTANT TYPEDEF
 //--------------------------------------------------------------------+
@@ -68,7 +72,7 @@ tu_static hidh_interface_t _hidh_itf[CFG_TUH_HID];
 TU_ATTR_ALWAYS_INLINE static inline
 hidh_interface_t* get_hid_itf(uint8_t daddr, uint8_t idx)
 {
-  TU_ASSERT(daddr && idx < CFG_TUH_HID, NULL);
+  TU_ASSERT(daddr > 0 && idx < CFG_TUH_HID, NULL);
   hidh_interface_t* p_hid = &_hidh_itf[idx];
   return (p_hid->daddr == daddr) ? p_hid : NULL;
 }
@@ -207,7 +211,7 @@ static void set_protocol_complete(tuh_xfer_t* xfer)
 
 static bool _hidh_set_protocol(uint8_t daddr, uint8_t itf_num, uint8_t protocol, tuh_xfer_cb_t complete_cb, uintptr_t user_data)
 {
-  TU_LOG2("HID Set Protocol = %d\r\n", protocol);
+  TU_LOG_DRV("HID Set Protocol = %d\r\n", protocol);
 
   tusb_control_request_t const request =
   {
@@ -246,7 +250,7 @@ bool tuh_hid_set_protocol(uint8_t daddr, uint8_t idx, uint8_t protocol)
 
 static void set_report_complete(tuh_xfer_t* xfer)
 {
-  TU_LOG2("HID Set Report complete\r\n");
+  TU_LOG_DRV("HID Set Report complete\r\n");
 
   if (tuh_hid_set_report_complete_cb)
   {
@@ -266,7 +270,7 @@ bool tuh_hid_set_report(uint8_t daddr, uint8_t idx, uint8_t report_id, uint8_t r
   hidh_interface_t* p_hid = get_hid_itf(daddr, idx);
   TU_VERIFY(p_hid);
 
-  TU_LOG2("HID Set Report: id = %u, type = %u, len = %u\r\n", report_id, report_type, len);
+  TU_LOG_DRV("HID Set Report: id = %u, type = %u, len = %u\r\n", report_id, report_type, len);
 
   tusb_control_request_t const request =
   {
@@ -298,7 +302,7 @@ bool tuh_hid_set_report(uint8_t daddr, uint8_t idx, uint8_t report_id, uint8_t r
 static bool _hidh_set_idle(uint8_t daddr, uint8_t itf_num, uint16_t idle_rate, tuh_xfer_cb_t complete_cb, uintptr_t user_data)
 {
   // SET IDLE request, device can stall if not support this request
-  TU_LOG2("HID Set Idle \r\n");
+  TU_LOG_DRV("HID Set Idle \r\n");
 
   tusb_control_request_t const request =
   {
@@ -367,7 +371,7 @@ bool tuh_hid_send_ready(uint8_t dev_addr, uint8_t idx)
 
 bool tuh_hid_send_report(uint8_t daddr, uint8_t idx, uint8_t report_id, const void* report, uint16_t len)
 {
-  TU_LOG2("HID Send Report %d\r\n", report_id);
+  TU_LOG_DRV("HID Send Report %d\r\n", report_id);
 
   hidh_interface_t* p_hid = get_hid_itf(daddr, idx);
   TU_VERIFY(p_hid);
@@ -430,7 +434,7 @@ bool hidh_xfer_cb(uint8_t daddr, uint8_t ep_addr, xfer_result_t result, uint32_t
 
   if ( dir == TUSB_DIR_IN )
   {
-    TU_LOG2("  Get Report callback (%u, %u)\r\n", daddr, idx);
+    TU_LOG_DRV("  Get Report callback (%u, %u)\r\n", daddr, idx);
     TU_LOG3_MEM(p_hid->epin_buf, xferred_bytes, 2);
     tuh_hid_report_received_cb(daddr, idx, p_hid->epin_buf, (uint16_t) xferred_bytes);
   }else
@@ -448,8 +452,9 @@ void hidh_close(uint8_t daddr)
     hidh_interface_t* p_hid = &_hidh_itf[i];
     if (p_hid->daddr == daddr)
     {
-       if(tuh_hid_umount_cb) tuh_hid_umount_cb(daddr, i);
-       p_hid->daddr = 0;
+      TU_LOG_DRV("  HIDh close addr = %u index = %u\r\n", daddr, i);
+      if(tuh_hid_umount_cb) tuh_hid_umount_cb(daddr, i);
+      p_hid->daddr = 0;
     }
   }
 }
@@ -465,7 +470,7 @@ bool hidh_open(uint8_t rhport, uint8_t daddr, tusb_desc_interface_t const *desc_
 
   TU_VERIFY(TUSB_CLASS_HID == desc_itf->bInterfaceClass);
 
-  TU_LOG2("[%u] HID opening Interface %u\r\n", daddr, desc_itf->bInterfaceNumber);
+  TU_LOG_DRV("[%u] HID opening Interface %u\r\n", daddr, desc_itf->bInterfaceNumber);
 
   // len = interface + hid + n*endpoints
   uint16_t const drv_len = (uint16_t) (sizeof(tusb_desc_interface_t) + sizeof(tusb_hid_descriptor_hid_t) +
@@ -592,7 +597,7 @@ static void process_set_config(tuh_xfer_t* xfer)
       // using usbh enumeration buffer since report descriptor can be very long
       if( p_hid->report_desc_len > CFG_TUH_ENUMERATION_BUFSIZE )
       {
-        TU_LOG2("HID Skip Report Descriptor since it is too large %u bytes\r\n", p_hid->report_desc_len);
+        TU_LOG_DRV("HID Skip Report Descriptor since it is too large %u bytes\r\n", p_hid->report_desc_len);
 
         // Driver is mounted without report descriptor
         config_driver_mount_complete(daddr, idx, NULL, 0);
@@ -763,7 +768,7 @@ uint8_t tuh_hid_parse_report_descriptor(tuh_hid_report_info_t* report_info_arr, 
   for ( uint8_t i = 0; i < report_num; i++ )
   {
     info = report_info_arr+i;
-    TU_LOG2("%u: id = %u, usage_page = %u, usage = %u\r\n", i, info->report_id, info->usage_page, info->usage);
+    TU_LOG_DRV("%u: id = %u, usage_page = %u, usage = %u\r\n", i, info->report_id, info->usage_page, info->usage);
   }
 
   return report_num;

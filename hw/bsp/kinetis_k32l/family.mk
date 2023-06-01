@@ -1,5 +1,5 @@
 SDK_DIR = hw/mcu/nxp/mcux-sdk
-DEPS_SUBMODULES += $(SDK_DIR)
+DEPS_SUBMODULES += $(SDK_DIR) lib/CMSIS_5
 
 MCU_DIR = $(SDK_DIR)/devices/$(MCU)
 include $(TOP)/$(BOARD_PATH)/board.mk
@@ -19,7 +19,7 @@ SRC_C += \
 
 INC += \
 	$(TOP)/$(BOARD_PATH) \
-	$(TOP)/$(SDK_DIR)/CMSIS/Include \
+	$(TOP)/lib/CMSIS_5/CMSIS/Core/Include \
 	$(TOP)/$(MCU_DIR) \
 	$(TOP)/$(MCU_DIR)/project_template \
 	$(TOP)/$(MCU_DIR)/drivers \

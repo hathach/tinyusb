@@ -1,6 +1,7 @@
 name: Trigger Repos
 
 on:
+  workflow_dispatch:
   push:
     branches: master
   release:
