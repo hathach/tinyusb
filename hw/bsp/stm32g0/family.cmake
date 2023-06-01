@@ -120,6 +120,7 @@ function(family_configure_example TARGET)
     )
 
   #---------- Flash ----------
+  family_flash_stlink(${TARGET})
   family_flash_jlink(${TARGET})
 endfunction()
 
