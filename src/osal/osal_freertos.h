@@ -169,11 +169,16 @@ TU_ATTR_ALWAYS_INLINE static inline bool osal_mutex_unlock(osal_mutex_t mutex_hd
 
 TU_ATTR_ALWAYS_INLINE static inline osal_queue_t osal_queue_create(osal_queue_def_t* qdef)
 {
-#if configSUPPORT_STATIC_ALLOCATION
-	return xQueueCreateStatic(qdef->depth, qdef->item_sz, (uint8_t*) qdef->buf, &qdef->sq);
-#else
-  return xQueueCreate(qdef->depth, qdef->item_sz);
-#endif
+  osal_queue_t q;
+  #if configSUPPORT_STATIC_ALLOCATION
+    q = xQueueCreateStatic(qdef->depth, qdef->item_sz, (uint8_t*) qdef->buf, &qdef->sq);
+  #else
+    q = xQueueCreate(qdef->depth, qdef->item_sz);
+  #endif
+  #if defined(configQUEUE_REGISTRY_SIZE) && (configQUEUE_REGISTRY_SIZE>0)
+    vQueueAddToRegistry(q, "tinyUSB");
+  #endif
+  return q;
 }
 
 TU_ATTR_ALWAYS_INLINE static inline bool osal_queue_receive(osal_queue_t qhdl, void* data, uint32_t msec)
