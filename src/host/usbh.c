@@ -1179,7 +1179,7 @@ static void process_removing_device(uint8_t rhport, uint8_t hub_addr, uint8_t hu
       TU_LOG_USBH("Device unplugged address = %u\r\n", daddr);
 
       if (is_hub_addr(daddr)) {
-        TU_LOG(USBH_DEBUG, "  is a HUB device\r\n", daddr);
+        TU_LOG(USBH_DEBUG, "  is a HUB device %u\r\n", daddr);
 
         // Submit removed event If the device itself is a hub (un-rolled recursive)
         // TODO a better to unroll recursrive is using array of removing_hubs and mark it here
