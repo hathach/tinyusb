@@ -189,6 +189,19 @@ exit"
 endfunction()
 
 
+# Add flash stlink target
+function(family_flash_stlink TARGET)
+  if (NOT DEFINED STM32_PROGRAMMER_CLI)
+    set(STM32_PROGRAMMER_CLI STM32_Programmer_CLI)
+  endif ()
+
+  add_custom_target(${TARGET}-stlink
+    DEPENDS ${TARGET}
+    COMMAND ${STM32_PROGRAMMER_CLI} --connect port=swd --write $<TARGET_FILE:${TARGET}> --go
+    )
+endfunction()
+
+
 # Add flash pycod target
 function(family_flash_pyocd TARGET)
   if (NOT DEFINED PYOC)

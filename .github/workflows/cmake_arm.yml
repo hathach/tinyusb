@@ -37,6 +37,7 @@ jobs:
           - 'mcx'
           - 'imxrt'
           - 'rp2040'
+          - 'stm32g0'
     steps:
     - name: Setup Python
       uses: actions/setup-python@v4
