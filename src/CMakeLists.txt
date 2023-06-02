@@ -65,6 +65,8 @@ function(add_tinyusb TARGET)
       -Wreturn-type
       -Wredundant-decls
       )
+  elseif (CMAKE_C_COMPILER_ID STREQUAL "IAR")
+
   endif ()
 endfunction()
 

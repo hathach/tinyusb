@@ -48,7 +48,7 @@ if (NOT TARGET ${BOARD_TARGET})
 
   if (TOOLCHAIN STREQUAL "gcc")
     target_link_options(${BOARD_TARGET} PUBLIC
-      "LINKER:--script=${LD_FILE_gcc}"
+      "LINKER:--script=${LD_FILE_GCC}"
       # nanolib
       --specs=nosys.specs
       --specs=nano.specs

@@ -59,7 +59,7 @@ if (NOT TARGET ${BOARD_TARGET})
 
   if (TOOLCHAIN STREQUAL "gcc")
     target_link_options(${BOARD_TARGET} PUBLIC
-      "LINKER:--script=${LD_FILE_gcc}"
+      "LINKER:--script=${LD_FILE_GCC}"
       -nostartfiles
       # nanolib
       --specs=nosys.specs
@@ -68,7 +68,7 @@ if (NOT TARGET ${BOARD_TARGET})
   else ()
     # TODO support IAR
     target_link_options(${BOARD_TARGET} PUBLIC
-      "LINKER:--config=${LD_FILE_iar}"
+      "LINKER:--config=${LD_FILE_IAR}"
       )
   endif ()
 endif () # BOARD_TARGET

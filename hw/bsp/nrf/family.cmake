@@ -55,7 +55,7 @@ if (NOT TARGET ${BOARD_TARGET})
   update_board(${BOARD_TARGET})
 
   if (NOT DEFINED LD_FILE_${TOOLCHAIN})
-    set(LD_FILE_gcc ${NRFX_DIR}/mdk/${MCU_VARIANT}_xxaa.ld)
+    set(LD_FILE_GCC ${NRFX_DIR}/mdk/${MCU_VARIANT}_xxaa.ld)
   endif ()
 
   if (TOOLCHAIN STREQUAL "gcc")
@@ -64,7 +64,7 @@ if (NOT TARGET ${BOARD_TARGET})
       )
     target_link_options(${BOARD_TARGET} PUBLIC
       # linker file
-      "LINKER:--script=${LD_FILE_gcc}"
+      "LINKER:--script=${LD_FILE_GCC}"
       -L${NRFX_DIR}/mdk
       # nanolib
       --specs=nosys.specs

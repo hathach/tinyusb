@@ -65,7 +65,7 @@ if (NOT TARGET ${BOARD_TARGET})
   update_board(${BOARD_TARGET})
 
   if (NOT DEFINED LD_FILE_${TOOLCHAIN})
-    set(LD_FILE_gcc ${SDK_DIR}/devices/${MCU_VARIANT}/gcc/${MCU_CORE}_flash.ld)
+    set(LD_FILE_GCC ${SDK_DIR}/devices/${MCU_VARIANT}/gcc/${MCU_CORE}_flash.ld)
   endif ()
 
   if (TOOLCHAIN STREQUAL "gcc")
@@ -74,7 +74,7 @@ if (NOT TARGET ${BOARD_TARGET})
       )
     target_link_options(${BOARD_TARGET} PUBLIC
       # linker file
-      "LINKER:--script=${LD_FILE_gcc}"
+      "LINKER:--script=${LD_FILE_GCC}"
       # nanolib
       --specs=nosys.specs
       --specs=nano.specs
