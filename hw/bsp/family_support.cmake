@@ -84,8 +84,8 @@ endfunction()
 
 
 function(family_initialize_project PROJECT DIR)
-  # set output suffix to .elf (skip espressif)
-  if(NOT FAMILY STREQUAL "espressif")
+  # set output suffix to .elf (skip espressif and rp2040)
+  if(NOT FAMILY STREQUAL "espressif" AND NOT FAMILY STREQUAL "rp2040")
     set(CMAKE_EXECUTABLE_SUFFIX .elf PARENT_SCOPE)
   endif()
 
@@ -144,6 +144,11 @@ function(family_add_default_example_warnings TARGET)
 endfunction()
 
 
+#------------------------------------
+# Main target configure
+#------------------------------------
+
+# Add common configuration to example
 function(family_configure_common TARGET)
   # run size after build
   add_custom_command(TARGET ${TARGET} POST_BUILD
@@ -158,6 +163,66 @@ function(family_configure_common TARGET)
 endfunction()
 
 
+# configure an executable target to link to tinyusb in device mode, and add the board implementation
+function(family_configure_device_example TARGET)
+  # default implementation is empty, the function should be redefined in the FAMILY/family.cmake
+endfunction()
+
+
+# configure an executable target to link to tinyusb in host mode, and add the board implementation
+function(family_configure_host_example TARGET)
+  # default implementation is empty, the function should be redefined in the FAMILY/family.cmake
+endfunction()
+
+
+# Add tinyusb to example
+function(family_add_tinyusb TARGET OPT_MCU)
+  # tinyusb target is built for each example since it depends on example's tusb_config.h
+  set(TINYUSB_TARGET_PREFIX ${TARGET}-)
+  add_library(${TARGET}-tinyusb_config INTERFACE)
+
+  target_include_directories(${TARGET}-tinyusb_config INTERFACE
+    ${CMAKE_CURRENT_SOURCE_DIR}/src
+    )
+  target_compile_definitions(${TARGET}-tinyusb_config INTERFACE
+    CFG_TUSB_MCU=${OPT_MCU}
+    )
+
+  # tinyusb's CMakeList.txt
+  add_subdirectory(${TOP}/src ${CMAKE_CURRENT_BINARY_DIR}/tinyusb)
+endfunction()
+
+
+# Add freeRTOS support to example
+function(family_add_freertos TARGET)
+  # freeros config
+  if (NOT TARGET freertos_config)
+    add_library(freertos_config INTERFACE)
+    target_include_directories(freertos_config SYSTEM INTERFACE
+      ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/${FAMILY}/FreeRTOSConfig
+      )
+  endif()
+
+  # freertos kernel should be generic as freertos_config however, CMAKE complains with missing variable
+  # such as CMAKE_C_COMPILE_OBJECT
+  if (NOT TARGET freertos_kernel)
+    add_subdirectory(${TOP}/lib/FreeRTOS-Kernel ${CMAKE_BINARY_DIR}/lib/freertos_kernel)
+  endif ()
+
+  # Add FreeRTOS option to tinyusb_config
+  target_compile_definitions(${TARGET}-tinyusb_config INTERFACE
+    CFG_TUSB_OS=OPT_OS_FREERTOS
+    )
+  # link tinyusb with freeRTOS kernel
+  target_link_libraries(${TARGET}-tinyusb PUBLIC
+    freertos_kernel
+    )
+  target_link_libraries(${TARGET} PUBLIC
+    freertos_kernel
+    )
+endfunction()
+
+
 # Add bin/hex output
 function(family_add_bin_hex TARGET)
   add_custom_command(TARGET ${TARGET} POST_BUILD
@@ -166,6 +231,10 @@ function(family_add_bin_hex TARGET)
     VERBATIM)
 endfunction()
 
+
+#----------------------------------
+# Flashing target
+#----------------------------------
 
 # Add flash jlink target
 function(family_flash_jlink TARGET)
@@ -233,48 +302,7 @@ function(family_flash_nxplink TARGET)
 endfunction()
 
 
-# configure an executable target to link to tinyusb in device mode, and add the board implementation
-function(family_configure_device_example TARGET)
-  # default implementation is empty, the function should be redefined in the FAMILY/family.cmake
-endfunction()
-
-
-# configure an executable target to link to tinyusb in host mode, and add the board implementation
-function(family_configure_host_example TARGET)
-  # default implementation is empty, the function should be redefined in the FAMILY/family.cmake
-endfunction()
-
-
-# Add freeRTOS support to example, can be overridden by FAMILY/family.cmake
-function(family_add_freertos TARGET)
-  # freeros config
-  if (NOT TARGET freertos_config)
-    add_library(freertos_config INTERFACE)
-    target_include_directories(freertos_config SYSTEM INTERFACE
-      ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/${FAMILY}/FreeRTOSConfig
-      )
-  endif()
-
-  # freertos kernel should be generic as freertos_config however, CMAKE complains with missing variable
-  # such as CMAKE_C_COMPILE_OBJECT
-  if (NOT TARGET freertos_kernel)
-    add_subdirectory(${TOP}/lib/FreeRTOS-Kernel ${CMAKE_BINARY_DIR}/lib/freertos_kernel)
-  endif ()
-
-  # Add FreeRTOS option to tinyusb_config
-  target_compile_definitions(${TARGET}-tinyusb_config INTERFACE
-    CFG_TUSB_OS=OPT_OS_FREERTOS
-    )
-  # link tinyusb with freeRTOS kernel
-  target_link_libraries(${TARGET}-tinyusb PUBLIC
-    freertos_kernel
-    )
-  target_link_libraries(${TARGET} PUBLIC
-    freertos_kernel
-    )
-endfunction()
-
-
+# family specific: can override above functions
 include(${CMAKE_CURRENT_LIST_DIR}/${FAMILY}/family.cmake)
 
 if (NOT FAMILY_MCUS)

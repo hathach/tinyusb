@@ -36,7 +36,6 @@ if (NOT TARGET ${BOARD_TARGET})
     ${SDK_DIR}/devices/${MCU_VARIANT}/drivers/fsl_clock.c
     )
   target_compile_definitions(${BOARD_TARGET} PUBLIC
-    CFG_TUSB_MCU=OPT_MCU_MIMXRT
     __ARMVFP__=0
     __ARMFPV5__=0
     XIP_EXTERNAL_FLASH=1
@@ -100,33 +99,16 @@ function(family_configure_example TARGET)
     ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/boards/${BOARD}
     )
 
-  #---------- TinyUSB ----------
-  # tinyusb target is built for each example since it depends on example's tusb_config.h
-  set(TINYUSB_TARGET_PREFIX ${TARGET}-)
-  add_library(${TARGET}-tinyusb_config INTERFACE)
-
-  target_include_directories(${TARGET}-tinyusb_config INTERFACE
-    ${CMAKE_CURRENT_SOURCE_DIR}/src
-    )
-  target_compile_definitions(${TARGET}-tinyusb_config INTERFACE
-    CFG_TUSB_MCU=OPT_MCU_MIMXRT
-    )
-
-  # tinyusb's CMakeList.txt
-  add_subdirectory(${TOP}/src ${CMAKE_CURRENT_BINARY_DIR}/tinyusb)
+  # Add TinyUSB
+  family_add_tinyusb(${TARGET} OPT_MCU_MIMXRT)
 
   # Link dependencies
   target_link_libraries(${TARGET} PUBLIC ${BOARD_TARGET} ${TARGET}-tinyusb)
 
-  # group target (not yet supported by clion)
-  set_target_properties(${TARGET}-tinyusb ${TARGET}-tinyusb_config
-    PROPERTIES FOLDER ${TARGET}_sub
-    )
-
-  #---------- Flash ----------
+  # Flashing
   family_flash_jlink(${TARGET})
   family_flash_nxplink(${TARGET})
-  family_flash_pyocd(${TARGET})
+  #family_flash_pyocd(${TARGET})
 endfunction()
 
 

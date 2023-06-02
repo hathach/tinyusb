@@ -34,13 +34,15 @@ def build_family(family, make_option):
     for board in all_boards:
         start_time = time.monotonic()
 
+        build_dir = f"cmake-build/cmake-build-{board}"
+
         # Generate build
-        r = subprocess.run(f"cmake examples -B cmake-build-ci-{board} -G \"Ninja\" -DFAMILY={family} -DBOARD"
+        r = subprocess.run(f"cmake examples -B {build_dir} -G \"Ninja\" -DFAMILY={family} -DBOARD"
                            f"={board}", shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
 
         # Build
         if r.returncode == 0:
-            r = subprocess.run(f"cmake --build cmake-build-ci-{board}", shell=True, stdout=subprocess.PIPE,
+            r = subprocess.run(f"cmake --build {build_dir}", shell=True, stdout=subprocess.PIPE,
                                stderr=subprocess.STDOUT)
 
         duration = time.monotonic() - start_time
@@ -71,10 +73,10 @@ if __name__ == '__main__':
     if make_iar_option not in sys.argv:
         make_iar_option = ''
 
-    # If family are not specified in arguments, build all
+    # If family are not specified in arguments, build all supported
     all_families = []
     for entry in os.scandir("hw/bsp"):
-        if entry.is_dir() and os.path.isdir(entry.path + "/boards") and entry.name != 'espressif':
+        if entry.is_dir() and entry.name != 'espressif' and os.path.isfile(entry.path + "/family.cmake"):
             all_families.append(entry.name)
     filter_with_input(all_families)
     all_families.sort()
