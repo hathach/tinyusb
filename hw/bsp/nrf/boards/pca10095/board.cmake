@@ -1,5 +1,5 @@
 set(MCU_VARIANT nrf5340_application)
-set(LD_FILE_GCC ${NRFX_DIR}/mdk/nrf5340_xxaa_application.ld)
+set(LD_FILE_GNU ${NRFX_DIR}/mdk/nrf5340_xxaa_application.ld)
 
 function(update_board TARGET)
   target_compile_definitions(${TARGET} PUBLIC

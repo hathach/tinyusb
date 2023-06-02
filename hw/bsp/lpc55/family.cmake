@@ -31,58 +31,67 @@ endif()
 # BOARD_TARGET
 #------------------------------------
 # only need to be built ONCE for all examples
-set(BOARD_TARGET board_${BOARD})
-if (NOT TARGET ${BOARD_TARGET})
-  add_library(${BOARD_TARGET} STATIC
-    # driver
-    ${SDK_DIR}/drivers/lpc_gpio/fsl_gpio.c
-    ${SDK_DIR}/drivers/common/fsl_common_arm.c
-    ${SDK_DIR}/drivers/flexcomm/fsl_flexcomm.c
-    ${SDK_DIR}/drivers/flexcomm/fsl_usart.c
-    # mcu
-    ${SDK_DIR}/devices/${MCU_VARIANT}/system_${MCU_CORE}.c
-    ${SDK_DIR}/devices/${MCU_VARIANT}/drivers/fsl_clock.c
-    ${SDK_DIR}/devices/${MCU_VARIANT}/drivers/fsl_power.c
-    ${SDK_DIR}/devices/${MCU_VARIANT}/drivers/fsl_reset.c
-    )
-  target_compile_definitions(${BOARD_TARGET} PUBLIC
-    CFG_TUSB_MEM_ALIGN=TU_ATTR_ALIGNED\(64\)
-    )
-  target_include_directories(${BOARD_TARGET} PUBLIC
-    ${TOP}/lib/sct_neopixel
-    # driver
-    ${SDK_DIR}/drivers/common
-    ${SDK_DIR}/drivers/flexcomm
-    ${SDK_DIR}/drivers/lpc_iocon
-    ${SDK_DIR}/drivers/lpc_gpio
-    ${SDK_DIR}/drivers/lpuart
-    ${SDK_DIR}/drivers/sctimer
-    # mcu
-    ${CMSIS_DIR}/CMSIS/Core/Include
-    ${SDK_DIR}/devices/${MCU_VARIANT}
-    ${SDK_DIR}/devices/${MCU_VARIANT}/drivers
-    )
-  update_board(${BOARD_TARGET})
+function(add_board_target BOARD_TARGET)
+  if (NOT TARGET ${BOARD_TARGET})
+    add_library(${BOARD_TARGET} STATIC
+      # driver
+      ${SDK_DIR}/drivers/lpc_gpio/fsl_gpio.c
+      ${SDK_DIR}/drivers/common/fsl_common_arm.c
+      ${SDK_DIR}/drivers/flexcomm/fsl_flexcomm.c
+      ${SDK_DIR}/drivers/flexcomm/fsl_usart.c
+      # mcu
+      ${SDK_DIR}/devices/${MCU_VARIANT}/system_${MCU_CORE}.c
+      ${SDK_DIR}/devices/${MCU_VARIANT}/drivers/fsl_clock.c
+      ${SDK_DIR}/devices/${MCU_VARIANT}/drivers/fsl_power.c
+      ${SDK_DIR}/devices/${MCU_VARIANT}/drivers/fsl_reset.c
+      )
+    target_compile_definitions(${BOARD_TARGET} PUBLIC
+      CFG_TUSB_MEM_ALIGN=TU_ATTR_ALIGNED\(64\)
+      )
+    target_include_directories(${BOARD_TARGET} PUBLIC
+      ${TOP}/lib/sct_neopixel
+      # driver
+      ${SDK_DIR}/drivers/common
+      ${SDK_DIR}/drivers/flexcomm
+      ${SDK_DIR}/drivers/lpc_iocon
+      ${SDK_DIR}/drivers/lpc_gpio
+      ${SDK_DIR}/drivers/lpuart
+      ${SDK_DIR}/drivers/sctimer
+      # mcu
+      ${CMSIS_DIR}/CMSIS/Core/Include
+      ${SDK_DIR}/devices/${MCU_VARIANT}
+      ${SDK_DIR}/devices/${MCU_VARIANT}/drivers
+      )
 
-  if (NOT DEFINED LD_FILE_${TOOLCHAIN})
-    set(LD_FILE_GCC ${SDK_DIR}/devices/${MCU_VARIANT}/gcc/${MCU_CORE}_flash.ld)
-  endif ()
+    update_board(${BOARD_TARGET})
 
-  if (TOOLCHAIN STREQUAL "gcc")
+    if (NOT DEFINED LD_FILE_${CMAKE_C_COMPILER_ID})
+      set(LD_FILE_GNU ${SDK_DIR}/devices/${MCU_VARIANT}/gcc/${MCU_CORE}_flash.ld)
+    endif ()
+
+    if (NOT DEFINED STARTUP_FILE_${CMAKE_C_COMPILER_ID})
+      set(STARTUP_FILE_GNU ${SDK_DIR}/devices/${MCU_VARIANT}/gcc/startup_${MCU_CORE}.S)
+    endif ()
+
     target_sources(${BOARD_TARGET} PUBLIC
-      ${SDK_DIR}/devices/${MCU_VARIANT}/gcc/startup_${MCU_CORE}.S
+      ${STARTUP_FILE_${CMAKE_C_COMPILER_ID}}
       )
-    target_link_options(${BOARD_TARGET} PUBLIC
-      # linker file
-      "LINKER:--script=${LD_FILE_GCC}"
-      # nanolib
-      --specs=nosys.specs
-      --specs=nano.specs
-      )
-  else ()
-    # TODO support IAR
+
+    if (CMAKE_C_COMPILER_ID STREQUAL "GNU")
+      target_link_options(${BOARD_TARGET} PUBLIC
+        # linker file
+        "LINKER:--script=${LD_FILE_GNU}"
+        # nanolib
+        --specs=nosys.specs
+        --specs=nano.specs
+        )
+    elseif (CMAKE_C_COMPILER_ID STREQUAL "IAR")
+      target_link_options(${BOARD_TARGET} PUBLIC
+        "LINKER:--config=${LD_FILE_IAR}"
+        )
+    endif ()
   endif ()
-endif () # BOARD_TARGET
+endfunction()
 
 
 #------------------------------------
@@ -90,6 +99,9 @@ endif () # BOARD_TARGET
 #------------------------------------
 function(family_configure_example TARGET)
   family_configure_common(${TARGET})
+
+  # Board target
+  add_board_target(board_${BOARD})
 
   #---------- Port Specific ----------
   # These files are built for each example since it depends on example's tusb_config.h
@@ -113,7 +125,7 @@ function(family_configure_example TARGET)
   family_add_tinyusb(${TARGET} OPT_MCU_LPC55XX)
 
   # Link dependencies
-  target_link_libraries(${TARGET} PUBLIC ${BOARD_TARGET} ${TARGET}-tinyusb)
+  target_link_libraries(${TARGET} PUBLIC board_${BOARD} ${TARGET}-tinyusb)
 
   # Flashing
   family_flash_jlink(${TARGET})

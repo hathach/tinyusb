@@ -108,7 +108,7 @@ function(family_configure_common TARGET)
     COMMAND ${CMAKE_SIZE} $<TARGET_FILE:${TARGET}>
     )
 
-  if (CMAKE_C_COMPILER_ID STREQUAL "GCC")
+  if (CMAKE_C_COMPILER_ID STREQUAL "GNU")
     # Generate map file
     target_link_options(${TARGET} PUBLIC
       # link map

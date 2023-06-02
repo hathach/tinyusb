@@ -5,7 +5,7 @@ set(JLINK_DEVICE LPC55S69)
 set(PYOCD_TARGET LPC55S69)
 set(NXPLINK_DEVICE LPC55S69:LPCXpresso55S69)
 
-set(LD_FILE_GCC ${CMAKE_CURRENT_LIST_DIR}/LPC55S69_cm33_core0_uf2.ld)
+set(LD_FILE_GNU ${CMAKE_CURRENT_LIST_DIR}/LPC55S69_cm33_core0_uf2.ld)
 
 function(update_board TARGET)
   target_compile_definitions(${TARGET} PUBLIC

@@ -1,5 +1,5 @@
 if (TOOLCHAIN STREQUAL "gcc")
-  list(APPEND TOOLCHAIN_COMMON_FLAGS
+  set(TOOLCHAIN_COMMON_FLAGS
     -mthumb
     -mcpu=cortex-m33
     -mfloat-abi=hard
@@ -7,6 +7,13 @@ if (TOOLCHAIN STREQUAL "gcc")
     )
 
   set(FREERTOS_PORT GCC_ARM_CM33_NTZ_NONSECURE CACHE INTERNAL "")
-else ()
-  # TODO support IAR
+
+elseif (TOOLCHAIN STREQUAL "iar")
+  set(TOOLCHAIN_COMMON_FLAGS
+    --cpu cortex-m33
+    --fpu VFPv5-SP
+    )
+
+  set(FREERTOS_PORT IAR_ARM_CM4F CACHE INTERNAL "")
+
 endif ()

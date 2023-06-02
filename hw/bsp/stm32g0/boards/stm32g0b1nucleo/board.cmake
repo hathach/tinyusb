@@ -1,10 +1,10 @@
 #set(MCU_VARIANT MIMXRT1011)
 set(JLINK_DEVICE STM32G0B1RE)
 
-set(LD_FILE_GCC ${CMAKE_CURRENT_LIST_DIR}/STM32G0B1RETx_FLASH.ld)
+set(LD_FILE_GNU ${CMAKE_CURRENT_LIST_DIR}/STM32G0B1RETx_FLASH.ld)
 set(LD_FILE_IAR ${ST_CMSIS}/Source/Templates/iar/linker/stm32g0b1xx_flash.icf)
 
-set(STARTUP_FILE_GCC ${ST_CMSIS}/Source/Templates/gcc/startup_stm32g0b1xx.s)
+set(STARTUP_FILE_GNU ${ST_CMSIS}/Source/Templates/gcc/startup_stm32g0b1xx.s)
 set(STARTUP_FILE_IAR ${ST_CMSIS}/Source/Templates/iar/startup_stm32g0b1xx.s)
 
 function(update_board TARGET)
