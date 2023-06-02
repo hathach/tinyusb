@@ -13,7 +13,7 @@ SKIPPED = "\033[33mskipped\033[0m"
 
 build_separator = '-' * 106
 
-make_iar_option = 'CC=iccarm'
+toolchain_iar = '-DTOOLCHAIN=iar'
 
 def filter_with_input(mylist):
     if len(sys.argv) > 1:
@@ -22,7 +22,7 @@ def filter_with_input(mylist):
             mylist[:] = input_args
 
 
-def build_family(family, make_option):
+def build_family(family, toolchain_option):
     all_boards = []
     for entry in os.scandir("hw/bsp/{}/boards".format(family)):
         if entry.is_dir() and entry.name != 'pico_sdk':
@@ -34,13 +34,15 @@ def build_family(family, make_option):
     for board in all_boards:
         start_time = time.monotonic()
 
+        build_dir = f"cmake-build/cmake-build-{board}"
+
         # Generate build
-        r = subprocess.run(f"cmake examples -B cmake-build-ci-{board} -G \"Ninja\" -DFAMILY={family} -DBOARD"
-                           f"={board}", shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+        r = subprocess.run(f"cmake examples -B {build_dir} -G \"Ninja\" -DFAMILY={family} -DBOARD"
+                           f"={board} {toolchain_option}", shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
 
         # Build
         if r.returncode == 0:
-            r = subprocess.run(f"cmake --build cmake-build-ci-{board}", shell=True, stdout=subprocess.PIPE,
+            r = subprocess.run(f"cmake --build {build_dir}", shell=True, stdout=subprocess.PIPE,
                                stderr=subprocess.STDOUT)
 
         duration = time.monotonic() - start_time
@@ -55,26 +57,31 @@ def build_family(family, make_option):
         flash_size = "-"
         sram_size = "-"
         example = 'all'
-        print(build_utils.build_format.format(example, board, status, "{:.2f}s".format(duration), flash_size, sram_size))
+        title = build_utils.build_format.format(example, board, status, "{:.2f}s".format(duration), flash_size, sram_size)
 
-        if r.returncode != 0:
-            # group output in CI
-            print(f"::group::{board} build error")
+        if os.getenv('CI'):
+            # always print build output if in CI
+            print(f"::group::{title}")
             print(r.stdout.decode("utf-8"))
             print(f"::endgroup::")
+        else:
+            # print build output if failed
+            print(title)
+            if r.returncode != 0:
+                print(r.stdout.decode("utf-8"))
 
     return ret
 
 
 if __name__ == '__main__':
     # IAR CC
-    if make_iar_option not in sys.argv:
-        make_iar_option = ''
+    if toolchain_iar not in sys.argv:
+        toolchain_iar = ''
 
-    # If family are not specified in arguments, build all
+    # If family are not specified in arguments, build all supported
     all_families = []
     for entry in os.scandir("hw/bsp"):
-        if entry.is_dir() and os.path.isdir(entry.path + "/boards") and entry.name != 'espressif':
+        if entry.is_dir() and entry.name != 'espressif' and os.path.isfile(entry.path + "/family.cmake"):
             all_families.append(entry.name)
     filter_with_input(all_families)
     all_families.sort()
@@ -86,7 +93,7 @@ if __name__ == '__main__':
     # succeeded, failed, skipped
     total_result = [0, 0, 0]
     for family in all_families:
-        fret = build_family(family, make_iar_option)
+        fret = build_family(family, toolchain_iar)
         if len(fret) == len(total_result):
             total_result = [total_result[i] + fret[i] for i in range(len(fret))]
 

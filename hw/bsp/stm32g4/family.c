@@ -53,6 +53,7 @@ UART_HandleTypeDef UartHandle;
 
 void board_init(void)
 {
+  HAL_Init();
   board_clock_init();
 
   // Enable All GPIOs clocks

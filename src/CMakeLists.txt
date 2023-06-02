@@ -65,6 +65,8 @@ function(add_tinyusb TARGET)
       -Wreturn-type
       -Wredundant-decls
       )
+  elseif (CMAKE_C_COMPILER_ID STREQUAL "IAR")
+
   endif ()
 endfunction()
 
@@ -96,3 +98,7 @@ endif()
 target_link_libraries(${TINYUSB_TARGET} PUBLIC
   ${TINYUSB_CONFIG_TARGET}
   )
+
+# export target name
+# set(TINYUSB_TARGET ${TINYUSB_TARGET} PARENT_SCOPE)
+# set(TINYUSB_CONFIG_TARGET ${TINYUSB_CONFIG_TARGET} PARENT_SCOPE)
