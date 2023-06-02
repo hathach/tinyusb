@@ -61,7 +61,7 @@ def build_family(family, toolchain_option):
 
         if os.getenv('CI'):
             # always print build output if in CI
-            print(f"::group::{title} build error")
+            print(f"::group::{title}")
             print(r.stdout.decode("utf-8"))
             print(f"::endgroup::")
         else:
