@@ -1,6 +1,7 @@
 name: Build Windows/MacOS
 
 on:
+  workflow_dispatch:
   push:
     paths:
       - 'src/**'

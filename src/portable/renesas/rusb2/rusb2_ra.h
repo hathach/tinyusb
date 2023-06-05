@@ -43,6 +43,10 @@ extern IRQn_Type _usb_hs_irqn;
 #define CFG_TUSB_RHPORT1_MODE   0
 #endif
 
+#if defined(__ICCARM__)
+  #define __builtin_ctz(x)             __iar_builtin_CLZ(__iar_builtin_RBIT(x))
+#endif
+
 TU_ATTR_ALWAYS_INLINE static inline void rusb2_int_enable(uint8_t rhport)
 {
 #ifdef CFG_TUSB_RHPORT1_MODE

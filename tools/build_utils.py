@@ -47,6 +47,7 @@ def skip_example(example, board):
 
         mk_contents = board_mk.read_text()
 
+    mcu = "NONE"
     for token in mk_contents.split():
         if "CFG_TUSB_MCU=OPT_MCU_" in token:
             # Strip " because cmake files has them.

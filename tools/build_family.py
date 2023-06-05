@@ -41,11 +41,11 @@ if __name__ == '__main__':
 
     # If examples are not specified in arguments, build all
     all_examples = []
-    for dir1 in os.scandir("examples"):
-        if dir1.is_dir() and 'cmake-build' not in dir1.name:
-            for entry in os.scandir(dir1.path):
-                if entry.is_dir():
-                    all_examples.append(dir1.name + '/' + entry.name)
+    for d in os.scandir("examples"):
+        if d.is_dir() and 'cmake' not in d.name:
+            for entry in os.scandir(d.path):
+                if entry.is_dir() and 'cmake' not in entry.name:
+                    all_examples.append(d.name + '/' + entry.name)
     filter_with_input(all_examples)
     all_examples.sort()
 

@@ -41,6 +41,19 @@
 
 #if CFG_TUSB_MCU == OPT_MCU_MIMXRT
   #include "ci_hs_imxrt.h"
+
+  void hcd_dcache_clean(void* addr, uint32_t data_size) {
+    imxrt_dcache_clean(addr, data_size);
+  }
+
+  void hcd_dcache_invalidate(void* addr, uint32_t data_size) {
+    imxrt_dcache_invalidate(addr, data_size);
+  }
+
+  void hcd_dcache_clean_invalidate(void* addr, uint32_t data_size) {
+    imxrt_dcache_clean_invalidate(addr, data_size);
+  }
+
 #elif TU_CHECK_MCU(OPT_MCU_LPC18XX, OPT_MCU_LPC43XX)
   #include "ci_hs_lpc18_43.h"
 #else
@@ -50,8 +63,6 @@
 //--------------------------------------------------------------------+
 // MACRO CONSTANT TYPEDEF
 //--------------------------------------------------------------------+
-
-#define CI_HS_REG(_port)      ((ci_hs_regs_t*) _ci_controller[_port].reg_base)
 
 //--------------------------------------------------------------------+
 // Controller API
@@ -76,6 +87,8 @@ bool hcd_init(uint8_t rhport)
 #endif
 
   // FIXME force full speed, still have issue with Highspeed enumeration
+  // 1. Have issue when plug/unplug devices, maybe the port is not reset properly
+  // 2. Also does not seems to detect disconnection
   hcd_reg->PORTSC1 |= PORTSC1_FORCE_FULL_SPEED;
 
   return ehci_init(rhport, (uint32_t) &hcd_reg->CAPLENGTH, (uint32_t) &hcd_reg->USBCMD);

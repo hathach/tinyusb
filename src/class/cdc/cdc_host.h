@@ -134,7 +134,12 @@ bool tuh_cdc_read_clear (uint8_t idx);
 
 //--------------------------------------------------------------------+
 // Control Endpoint (Request) API
-// Each Function will make a USB transfer request to/from device
+// Each Function will make a USB control transfer request to/from device
+// - If complete_cb is provided, the function will return immediately and invoke
+// the callback when request is complete.
+// - If complete_cb is NULL, the function will block until request is complete.
+//   - In this case, user_data should be pointed to xfer_result_t to hold the transfer result.
+//   - The function will return true if transfer is successful, false otherwise.
 //--------------------------------------------------------------------+
 
 // Request to Set Control Line State: DTR (bit 0), RTS (bit 1)
@@ -144,6 +149,7 @@ bool tuh_cdc_set_control_line_state(uint8_t idx, uint16_t line_state, tuh_xfer_c
 bool tuh_cdc_set_baudrate(uint8_t idx, uint32_t baudrate, tuh_xfer_cb_t complete_cb, uintptr_t user_data);
 
 // Request to Set Line Coding (ACM only)
+// Should only use if you don't work with serial devices such as FTDI/CP210x
 bool tuh_cdc_set_line_coding(uint8_t idx, cdc_line_coding_t const* line_coding, tuh_xfer_cb_t complete_cb, uintptr_t user_data);
 
 // Request to Get Line Coding (ACM only)

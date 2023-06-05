@@ -32,7 +32,7 @@ SRC_C += \
 
 INC += \
 	$(TOP)/$(BOARD_PATH) \
-	$(TOP)/$(MCU_DIR)/ \
+	$(TOP)/$(MCU_DIR) \
 	$(TOP)/$(MCU_DIR)/config \
 	$(TOP)/$(MCU_DIR)/include \
 	$(TOP)/$(MCU_DIR)/hal/include \

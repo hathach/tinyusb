@@ -55,7 +55,7 @@ The stack supports the following MCUs:
 
 - **Silabs:** EFM32GG
 - **Sony:** CXD56
-- **ST:** STM32 series: F0, F1, F2, F3, F4, F7, H7, G4, L0, L1, L4, L4+, WB
+- **ST:** STM32 series: F0, F1, F2, F3, F4, F7, H7, G0, G4, L0, L1, L4, L4+, WB
 - **TI:** MSP430, MSP432E4, TM4C123
 - **ValentyUSB:** eptri
 - **WCH:** CH32V307

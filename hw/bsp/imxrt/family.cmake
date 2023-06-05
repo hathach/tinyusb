@@ -1,100 +1,143 @@
+include_guard()
+
+if (NOT BOARD)
+  message(FATAL_ERROR "BOARD not specified")
+endif ()
+
+set(SDK_DIR ${TOP}/hw/mcu/nxp/mcux-sdk)
+set(CMSIS_DIR ${TOP}/lib/CMSIS_5)
+
+# include board specific
+include(${CMAKE_CURRENT_LIST_DIR}/boards/${BOARD}/board.cmake)
+
 # toolchain set up
 set(CMAKE_SYSTEM_PROCESSOR cortex-m7 CACHE INTERNAL "System Processor")
-set(CMAKE_TOOLCHAIN_FILE ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/../../../cmake/toolchain/arm_${TOOLCHAIN}.cmake)
+set(CMAKE_TOOLCHAIN_FILE ${TOP}/tools/cmake/toolchain/arm_${TOOLCHAIN}.cmake)
 
-function(family_configure_target TARGET)
-  if (NOT BOARD)
-    message(FATAL_ERROR "BOARD not specified")
+set(FAMILY_MCUS MIMXRT CACHE INTERNAL "")
+
+# enable LTO if supported
+include(CheckIPOSupported)
+check_ipo_supported(RESULT IPO_SUPPORTED)
+if (IPO_SUPPORTED)
+  set(CMAKE_INTERPROCEDURAL_OPTIMIZATION TRUE)
+endif ()
+
+
+#------------------------------------
+# BOARD_TARGET
+#------------------------------------
+# only need to be built ONCE for all examples
+function(add_board_target BOARD_TARGET)
+  if (NOT TARGET ${BOARD_TARGET})
+    add_library(${BOARD_TARGET} STATIC
+      ${SDK_DIR}/drivers/common/fsl_common.c
+      ${SDK_DIR}/drivers/igpio/fsl_gpio.c
+      ${SDK_DIR}/drivers/lpuart/fsl_lpuart.c
+      ${SDK_DIR}/devices/${MCU_VARIANT}/system_${MCU_VARIANT}.c
+      ${SDK_DIR}/devices/${MCU_VARIANT}/xip/fsl_flexspi_nor_boot.c
+      ${SDK_DIR}/devices/${MCU_VARIANT}/project_template/clock_config.c
+      ${SDK_DIR}/devices/${MCU_VARIANT}/drivers/fsl_clock.c
+      )
+    target_compile_definitions(${BOARD_TARGET} PUBLIC
+      __ARMVFP__=0
+      __ARMFPV5__=0
+      XIP_EXTERNAL_FLASH=1
+      XIP_BOOT_HEADER_ENABLE=1
+      )
+    target_include_directories(${BOARD_TARGET} PUBLIC
+      ${CMSIS_DIR}/CMSIS/Core/Include
+      ${SDK_DIR}/devices/${MCU_VARIANT}
+      ${SDK_DIR}/devices/${MCU_VARIANT}/project_template
+      ${SDK_DIR}/devices/${MCU_VARIANT}/drivers
+      ${SDK_DIR}/drivers/common
+      ${SDK_DIR}/drivers/igpio
+      ${SDK_DIR}/drivers/lpuart
+      )
+
+    update_board(${BOARD_TARGET})
+
+    # LD_FILE and STARTUP_FILE can be defined in board.cmake
+    if (NOT DEFINED LD_FILE_${CMAKE_C_COMPILER_ID})
+      set(LD_FILE_GNU ${SDK_DIR}/devices/${MCU_VARIANT}/gcc/${MCU_VARIANT}xxxxx_flexspi_nor.ld)
+      #set(LD_FILE_IAR ${SDK_DIR}/devices/${MCU_VARIANT}/gcc/${MCU_VARIANT}xxxxx_flexspi_nor.ld)
+    endif ()
+
+    if (NOT DEFINED STARTUP_FILE_${CMAKE_C_COMPILER_ID})
+      set(STARTUP_FILE_GNU ${SDK_DIR}/devices/${MCU_VARIANT}/gcc/startup_${MCU_VARIANT}.S)
+      #set(STARTUP_FILE_IAR ${SDK_DIR}/devices/${MCU_VARIANT}/gcc/startup_${MCU_VARIANT}.S)
+    endif ()
+
+    target_sources(${BOARD_TARGET} PUBLIC
+      ${STARTUP_FILE_${CMAKE_C_COMPILER_ID}}
+      )
+
+    if (CMAKE_C_COMPILER_ID STREQUAL "GNU")
+      target_link_options(${BOARD_TARGET} PUBLIC
+        "LINKER:--script=${LD_FILE_GNU}"
+        # nanolib
+        --specs=nosys.specs
+        --specs=nano.specs
+        # force linker to look for these symbols
+        -Wl,-uimage_vector_table
+        -Wl,-ug_boot_data
+        )
+    elseif (CMAKE_C_COMPILER_ID STREQUAL "IAR")
+      target_link_options(${BOARD_TARGET} PUBLIC
+        "LINKER:--config=${LD_FILE_IAR}"
+        )
+    endif ()
   endif ()
+endfunction()
 
-  # set output name to .elf
-  set_target_properties(${TARGET} PROPERTIES OUTPUT_NAME ${TARGET}.elf)
 
-  # TOP is absolute path to root directory of TinyUSB git repo
-  set(TOP "${CMAKE_CURRENT_FUNCTION_LIST_DIR}/../../..")
-  get_filename_component(TOP "${TOP}" REALPATH)
+#------------------------------------
+# Functions
+#------------------------------------
+function(family_configure_example TARGET)
+  family_configure_common(${TARGET})
 
-  set(SDK_DIR ${TOP}/hw/mcu/nxp/mcux-sdk)
-  set(DEPS_SUBMODULES ${SDK_DIR})
+  # Board target
+  add_board_target(board_${BOARD})
 
-  include(${CMAKE_CURRENT_FUNCTION_LIST_DIR}/boards/${BOARD}/board.cmake)
-
-  target_compile_definitions(${TARGET} PUBLIC
-    CFG_TUSB_MCU=OPT_MCU_MIMXRT
-    __ARMVFP__=0
-    __ARMFPV5__=0
-    XIP_EXTERNAL_FLASH=1
-    XIP_BOOT_HEADER_ENABLE=1
-    )
-
-  target_link_options(${TARGET} PUBLIC
-    --specs=nosys.specs
-    --specs=nano.specs
-    )
-
+  #---------- Port Specific ----------
+  # These files are built for each example since it depends on example's tusb_config.h
   target_sources(${TARGET} PUBLIC
-    # TinyUSB
+    # TinyUSB Port
     ${TOP}/src/portable/chipidea/ci_hs/dcd_ci_hs.c
     ${TOP}/src/portable/chipidea/ci_hs/hcd_ci_hs.c
     ${TOP}/src/portable/ehci/ehci.c
     # BSP
     ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/family.c
-    ${SDK_DIR}/drivers/common/fsl_common.c
-    ${SDK_DIR}/drivers/igpio/fsl_gpio.c
-    ${SDK_DIR}/drivers/lpuart/fsl_lpuart.c
-    ${SDK_DIR}/devices/${MCU_VARIANT}/system_${MCU_VARIANT}.c
-    ${SDK_DIR}/devices/${MCU_VARIANT}/xip/fsl_flexspi_nor_boot.c
-    ${SDK_DIR}/devices/${MCU_VARIANT}/project_template/clock_config.c
-    ${SDK_DIR}/devices/${MCU_VARIANT}/drivers/fsl_clock.c
+    ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/../board.c
     )
-
-  if (TOOLCHAIN STREQUAL "gcc")
-    target_sources(${TARGET} PUBLIC
-      ${SDK_DIR}/devices/${MCU_VARIANT}/gcc/startup_${MCU_VARIANT}.S
-      )
-
-    target_link_options(${TARGET} PUBLIC
-      "LINKER:--script=${SDK_DIR}/devices/${MCU_VARIANT}/gcc/${MCU_VARIANT}xxxxx_flexspi_nor.ld"
-      )
-  else ()
-    # TODO support IAR
-  endif ()
-
   target_include_directories(${TARGET} PUBLIC
+    # family, hw, board
     ${CMAKE_CURRENT_FUNCTION_LIST_DIR}
     ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/../../
     ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/boards/${BOARD}
-    ${SDK_DIR}/CMSIS/Include
-    ${SDK_DIR}/devices/${MCU_VARIANT}
-    ${SDK_DIR}/devices/${MCU_VARIANT}/project_template
-    ${SDK_DIR}/devices/${MCU_VARIANT}/drivers
-    ${SDK_DIR}/drivers/common
-    ${SDK_DIR}/drivers/igpio
-    ${SDK_DIR}/drivers/lpuart
     )
 
-  # include tinyusb cmake
-  include(${TOP}/src/CMakeLists.txt)
-  add_tinyusb(${TARGET})
+  # Add TinyUSB
+  family_add_tinyusb(${TARGET} OPT_MCU_MIMXRT)
 
+  # Link dependencies
+  target_link_libraries(${TARGET} PUBLIC board_${BOARD} ${TARGET}-tinyusb)
+
+  # Flashing
+  family_flash_jlink(${TARGET})
+  #family_flash_nxplink(${TARGET})
 endfunction()
 
-function(family_add_freertos_config TARGET)
-  add_library(freertos_config INTERFACE)
-
-  # add path to FreeRTOSConfig.h
-  target_include_directories(freertos_config SYSTEM INTERFACE
-    ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/FreeRTOSConfig
-    )
-
-  # select freertos port
-  if (TOOLCHAIN STREQUAL "gcc")
-    set(FREERTOS_PORT "GCC_ARM_CM7" CACHE INTERNAL "")
-  else ()
-    # TODO support IAR
-  endif ()
-endfunction()
 
 function(family_configure_device_example TARGET)
-  family_configure_target(${TARGET})
+  family_configure_example(${TARGET})
+endfunction()
+
+function(family_configure_host_example TARGET)
+  family_configure_example(${TARGET})
+endfunction()
+
+function(family_configure_dual_usb_example TARGET)
+  family_configure_example(${TARGET})
 endfunction()

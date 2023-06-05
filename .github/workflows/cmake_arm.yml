@@ -1,0 +1,151 @@
+name: CMake ARM
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'src/**'
+      - 'examples/**'
+      - 'lib/**'
+      - 'hw/**'
+      - '.github/workflows/cmake_arm.yml'
+  pull_request:
+    branches: [ master ]
+    paths:
+      - 'src/**'
+      - 'examples/**'
+      - 'lib/**'
+      - 'hw/**'
+      - '.github/workflows/cmake_arm.yml'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
+  cancel-in-progress: true
+
+jobs:
+  # ---------------------------------------
+  # Build ARM family
+  # ---------------------------------------
+  build-arm:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        family:
+          # Alphabetical order
+          - 'lpc18'
+          - 'mcx'
+          - 'imxrt'
+          - 'rp2040'
+          - 'stm32g0'
+          - 'stm32g4'
+    steps:
+    - name: Setup Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.x'
+
+    - name: Install ARM GCC
+      uses: carlosperate/arm-none-eabi-gcc-action@v1
+      with:
+        release: '11.2-2022.02'
+
+    - name: Install Ninja
+      run: sudo apt install -y ninja-build
+
+    - name: Checkout TinyUSB
+      uses: actions/checkout@v3
+
+    - name: Checkout pico-sdk for rp2040
+      if: matrix.family == 'rp2040'
+      uses: actions/checkout@v3
+      with:
+        repository: raspberrypi/pico-sdk
+        ref: develop
+        path: pico-sdk
+
+    - name: Get Dependencies
+      run: python3 tools/get_deps.py ${{ matrix.family }}
+
+    - name: Build
+      run: python tools/build_cmake.py ${{ matrix.family }}
+      env:
+        # for rp2040, there is no harm if defined for other families
+        PICO_SDK_PATH: ${{ github.workspace }}/pico-sdk
+
+    # Upload binaries for hardware test with self-hosted
+    - name: Prepare rp2040 Artifacts
+      if: contains(matrix.family, 'rp2040') && github.repository_owner == 'hathach'
+      working-directory: ${{github.workspace}}/cmake-build/cmake-build-raspberry_pi_pico
+      run: |
+        find device/ -name "*.elf" -exec mv {} ../../ \;
+        # find host/ -name "*.elf" -exec mv {} ../../ \;
+        # find dual/ -name "*.elf" -exec mv {} ../../ \;
+
+    - name: Upload Artifacts for rp2040
+      if: contains(matrix.family,'rp2040') && github.repository_owner == 'hathach'
+      uses: actions/upload-artifact@v3
+      with:
+        name: rp2040
+        path: |
+          *.elf
+
+  # ---------------------------------------
+  # Hardware in the loop (HIL)
+  # Current self-hosted instance is running on an RPI4 with
+  # - pico + pico-probe connected via USB
+  # - pico-probe is /dev/ttyACM0
+  # ---------------------------------------
+  hw-rp2040-test:
+    # run only with hathach's commit due to limited resource on RPI4
+    if: github.repository_owner == 'hathach'
+    needs: build-arm
+    runs-on: [self-hosted, Linux, ARM64, rp2040]
+
+    steps:
+      - name: Clean workspace
+        run: |
+          echo "Cleaning up previous run"
+          rm -rf "${{ github.workspace }}"
+          mkdir -p "${{ github.workspace }}"
+
+      - name: Download rp2040 Artifacts
+        uses: actions/download-artifact@v3
+        with:
+          name: rp2040
+
+      - name: Create flash.sh
+        run: |
+          echo > flash.sh 'cmdout=$(openocd -f "interface/cmsis-dap.cfg" -f "target/rp2040.cfg" -c "adapter speed 5000" -c "program $1 reset exit")'
+          echo >> flash.sh 'if (( $? )) ; then echo $cmdout ; fi'
+          chmod +x flash.sh
+
+      - name: Test cdc_dual_ports
+        run: |
+          ./flash.sh cdc_dual_ports.elf
+          while (! ([ -e /dev/ttyACM1 ] && [ -e /dev/ttyACM2 ])) && [ $SECONDS -le 10 ]; do :; done
+          test -e /dev/ttyACM1 && echo "ttyACM1 exists"
+          test -e /dev/ttyACM2 && echo "ttyACM2 exists"
+
+      - name: Test cdc_msc
+        run: |
+          ./flash.sh cdc_msc.elf
+          readme='/media/pi/TinyUSB MSC/README.TXT'
+          while (! ([ -e /dev/ttyACM1 ] && [ -f "$readme" ])) && [ $SECONDS -le 10 ]; do :; done
+          test -e /dev/ttyACM1 && echo "ttyACM1 exists"
+          test -f "$readme" && echo "$readme exists"
+          cat "$readme"
+
+      - name: Test dfu
+        run: |
+          ./flash.sh dfu.elf
+          while (! (dfu-util -l | grep "Found DFU")) && [ $SECONDS -le 10 ]; do :; done
+          dfu-util -d cafe -a 0 -U dfu0
+          dfu-util -d cafe -a 1 -U dfu1
+          grep "TinyUSB DFU! - Partition 0" dfu0
+          grep "TinyUSB DFU! - Partition 1" dfu1
+
+      - name: Test dfu_runtime
+        run: |
+          ./flash.sh dfu_runtime.elf
+          while (! (dfu-util -l | grep "Found Runtime")) && [ $SECONDS -le 10 ]; do :; done

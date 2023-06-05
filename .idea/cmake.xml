@@ -2,6 +2,11 @@
 <project version="4">
   <component name="CMakeSharedSettings">
     <configurations>
+      <configuration PROFILE_NAME="mcxn947" ENABLED="false" CONFIG_NAME="Debug" GENERATION_OPTIONS="-DFAMILY=mcx -DBOARD=mcxn947brk" />
+      <configuration PROFILE_NAME="rt1060 evk" ENABLED="false" CONFIG_NAME="Debug" GENERATION_OPTIONS="-DFAMILY=imxrt -DBOARD=mimxrt1060_evk" />
+      <configuration PROFILE_NAME="pca10095" ENABLED="false" CONFIG_NAME="Debug" GENERATION_OPTIONS="-DFAMILY=nrf -DBOARD=pca10095" />
+      <configuration PROFILE_NAME="pca10056" ENABLED="false" CONFIG_NAME="Debug" GENERATION_OPTIONS="-DFAMILY=nrf -DBOARD=pca10056" BUILD_OPTIONS="-v" />
+      <configuration PROFILE_NAME="lpc55s69" ENABLED="false" CONFIG_NAME="Debug" GENERATION_OPTIONS="-DFAMILY=lpc55 -DBOARD=lpcxpresso55s69" />
       <configuration PROFILE_NAME="esp32s3" ENABLED="false" GENERATION_OPTIONS="-DFAMILY=espressif -DBOARD=espressif_s3_devkitm -DIDF_TARGET=esp32s3">
         <ADDITIONAL_GENERATION_ENVIRONMENT>
           <envs>
@@ -22,8 +27,14 @@
           </envs>
         </ADDITIONAL_GENERATION_ENVIRONMENT>
       </configuration>
-      <configuration PROFILE_NAME="rp2040" ENABLED="true" CONFIG_NAME="Debug" GENERATION_OPTIONS="-DFAMILY=rp2040 -DBOARD=raspberry_pi_pico" />
-      <configuration PROFILE_NAME="rt1010 evk" ENABLED="true" CONFIG_NAME="Debug" GENERATION_OPTIONS="-DFAMILY=imxrt -DBOARD=mimxrt1010_evk" />
+      <configuration PROFILE_NAME="rp2040" ENABLED="false" CONFIG_NAME="Debug" GENERATION_OPTIONS="-DFAMILY=rp2040 -DBOARD=raspberry_pi_pico" />
+      <configuration PROFILE_NAME="rt1010 evk" ENABLED="false" CONFIG_NAME="Debug" GENERATION_OPTIONS="-DFAMILY=imxrt -DBOARD=mimxrt1010_evk" />
+      <configuration PROFILE_NAME="rt1064 evk" ENABLED="false" CONFIG_NAME="Debug" GENERATION_OPTIONS="-DFAMILY=imxrt -DBOARD=mimxrt1064_evk" />
+      <configuration PROFILE_NAME="mcb1800" ENABLED="false" CONFIG_NAME="Debug" GENERATION_OPTIONS="-DFAMILY=lpc18 -DBOARD=mcb1800" />
+      <configuration PROFILE_NAME="lpcxpresso18s37" ENABLED="false" CONFIG_NAME="Debug" GENERATION_OPTIONS="-DFAMILY=lpc18 -DBOARD=lpcxpresso18s37" />
+      <configuration PROFILE_NAME="stm32g0b1nucleo" ENABLED="false" CONFIG_NAME="Debug" GENERATION_OPTIONS="-DFAMILY=stm32g0 -DBOARD=stm32g0b1nucleo" />
+      <configuration PROFILE_NAME="stm32g474nucleo" ENABLED="false" CONFIG_NAME="Debug" GENERATION_OPTIONS="-DFAMILY=stm32g4 -DBOARD=stm32g474nucleo" />
+      <configuration PROFILE_NAME="b_g474e_dpow1" ENABLED="true" CONFIG_NAME="Debug" GENERATION_OPTIONS="-DFAMILY=stm32g4 -DBOARD=b_g474e_dpow1" />
     </configurations>
   </component>
 </project>

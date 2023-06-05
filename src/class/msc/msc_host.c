@@ -35,7 +35,6 @@
 
 // Debug level, TUSB_CFG_DEBUG must be at least this level for debug message
 #define MSCH_DEBUG   2
-
 #define TU_LOG_MSCH(...)   TU_LOG(MSCH_DEBUG, __VA_ARGS__)
 
 //--------------------------------------------------------------------+
@@ -82,6 +81,7 @@ CFG_TUH_MEM_SECTION static msch_interface_t _msch_itf[CFG_TUH_DEVICE_MAX];
 CFG_TUH_MEM_SECTION CFG_TUH_MEM_ALIGN
 static uint8_t _msch_buffer[sizeof(scsi_inquiry_resp_t)];
 
+// FIXME potential nul reference
 TU_ATTR_ALWAYS_INLINE
 static inline msch_interface_t* get_itf(uint8_t dev_addr)
 {
@@ -305,11 +305,15 @@ void msch_init(void)
 void msch_close(uint8_t dev_addr)
 {
   TU_VERIFY(dev_addr <= CFG_TUH_DEVICE_MAX, );
-
   msch_interface_t* p_msc = get_itf(dev_addr);
+  TU_VERIFY(p_msc->configured, );
+
+  TU_LOG_MSCH("  MSCh close addr = %d\r\n", dev_addr);
 
   // invoke Application Callback
-  if (p_msc->mounted && tuh_msc_umount_cb) tuh_msc_umount_cb(dev_addr);
+  if (p_msc->mounted) {
+    if(tuh_msc_umount_cb) tuh_msc_umount_cb(dev_addr);
+  }
 
   tu_memclr(p_msc, sizeof(msch_interface_t));
 }

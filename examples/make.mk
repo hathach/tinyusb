@@ -2,6 +2,8 @@
 # Common make definition for all examples
 # ---------------------------------------
 
+TOOLCHAIN ?= gcc
+
 #-------------- TOP and CURRENT_PATH ------------
 
 # Set TOP to be the path to get from the current directory (where make was
@@ -75,6 +77,7 @@ else
 endif
 
 #-------------- Cross Compiler  ------------
+
 # Can be set by board, default to ARM GCC
 CROSS_COMPILE ?= arm-none-eabi-
 

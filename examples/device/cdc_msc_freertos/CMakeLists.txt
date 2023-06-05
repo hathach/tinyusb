@@ -34,11 +34,5 @@ target_include_directories(${PROJECT} PUBLIC
 # in hw/bsp/FAMILY/family.cmake for details.
 family_configure_device_example(${PROJECT})
 
-if (NOT TARGET freertos_kernel)
-family_add_freertos_config(${PROJECT})
-add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/../../../lib/FreeRTOS-Kernel lib/FreeRTOS-Kernel)
-endif()
-
-target_link_libraries(${PROJECT} PUBLIC
-  freertos_kernel
-  )
+# Add FreeRTOS for this example
+family_add_freertos(${PROJECT})
