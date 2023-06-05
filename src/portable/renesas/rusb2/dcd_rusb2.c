@@ -67,6 +67,8 @@
 /* LINK core registers */
 #if defined(__CCRX__)
   #define RUSB2 ((RUSB2_REG_t __evenaccess*) RUSB2_REG_BASE)
+#elif defined(__RX__)
+  #define RUSB2 ((RUSB2_REG_t*) RUSB2_REG_BASE)
 #elif (CFG_TUSB_RHPORT1_MODE & OPT_MODE_DEVICE)
   #define RUSB2 ((R_USB_HS0_Type*)R_USB_HS0_BASE)
 #else
