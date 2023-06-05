@@ -109,7 +109,7 @@ function(family_configure_example TARGET)
 
   # Flashing
   family_flash_stlink(${TARGET})
-  #family_flash_jlink(${TARGET})
+  family_flash_jlink(${TARGET})
 endfunction()
 
 

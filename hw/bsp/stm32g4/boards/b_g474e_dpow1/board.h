@@ -57,6 +57,8 @@
 //--------------------------------------------------------------------+
 // RCC Clock
 //--------------------------------------------------------------------+
+
+// CPU Frequency (Core Clock) is 170MHz
 static inline void board_clock_init(void)
 {
   RCC_OscInitTypeDef RCC_OscInitStruct = {0};

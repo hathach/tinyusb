@@ -39,7 +39,7 @@
   #define sys_read    _read
 #endif
 
-#if defined(LOGGER_RTT) || defined(LOGGER_rtt)
+#if defined(LOGGER_RTT)
 // Logging with RTT
 
 // If using SES IDE, use the Syscalls/SEGGER_RTT_Syscalls_SES.c instead
@@ -62,7 +62,7 @@ TU_ATTR_USED int sys_read (int fhdl, char *buf, size_t count)
 
 #endif
 
-#elif defined(LOGGER_SWO) || defined(LOGGER_swo)
+#elif defined(LOGGER_SWO)
 // Logging with SWO for ARM Cortex
 
 #include "board_mcu.h"
