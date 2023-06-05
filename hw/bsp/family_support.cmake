@@ -115,6 +115,12 @@ function(family_configure_common TARGET)
       "LINKER:-Map=$<TARGET_FILE:${TARGET}>.map"
       )
   endif()
+
+  # LOGGER
+  if (DEFINED LOGGER)
+    target_compile_definitions(${TARGET} PUBLIC LOGGER_${LOGGER})
+  endif ()
+
 endfunction()
 
 
@@ -136,12 +142,11 @@ function(family_add_tinyusb TARGET OPT_MCU)
   set(TINYUSB_TARGET_PREFIX ${TARGET}-)
   add_library(${TARGET}-tinyusb_config INTERFACE)
 
-  target_include_directories(${TARGET}-tinyusb_config INTERFACE
-    ${CMAKE_CURRENT_SOURCE_DIR}/src
-    )
-  target_compile_definitions(${TARGET}-tinyusb_config INTERFACE
-    CFG_TUSB_MCU=${OPT_MCU}
-    )
+  target_include_directories(${TARGET}-tinyusb_config INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/src)
+  target_compile_definitions(${TARGET}-tinyusb_config INTERFACE CFG_TUSB_MCU=${OPT_MCU})
+  if (DEFINED LOG)
+    target_compile_definitions(${TARGET}-tinyusb_config INTERFACE CFG_TUSB_DEBUG=${LOG})
+  endif()
 
   # tinyusb's CMakeList.txt
   add_subdirectory(${TOP}/src ${CMAKE_CURRENT_BINARY_DIR}/tinyusb)

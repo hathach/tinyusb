@@ -39,7 +39,7 @@
   #define sys_read    _read
 #endif
 
-#if defined(LOGGER_RTT)
+#if defined(LOGGER_RTT) || defined(LOGGER_rtt)
 // Logging with RTT
 
 // If using SES IDE, use the Syscalls/SEGGER_RTT_Syscalls_SES.c instead
@@ -62,7 +62,7 @@ TU_ATTR_USED int sys_read (int fhdl, char *buf, size_t count)
 
 #endif
 
-#elif defined(LOGGER_SWO)
+#elif defined(LOGGER_SWO) || defined(LOGGER_swo)
 // Logging with SWO for ARM Cortex
 
 #include "board_mcu.h"
@@ -71,11 +71,12 @@ TU_ATTR_USED int sys_write (int fhdl, const void *buf, size_t count)
 {
   (void) fhdl;
   uint8_t const* buf8 = (uint8_t const*) buf;
-  for(size_t i=0; i<count; i++)
-  {
+
+  for(size_t i=0; i<count; i++) {
     ITM_SendChar(buf8[i]);
   }
-  return count;
+
+  return (int) count;
 }
 
 TU_ATTR_USED int sys_read (int fhdl, char *buf, size_t count)

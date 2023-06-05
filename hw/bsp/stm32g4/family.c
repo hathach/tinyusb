@@ -79,32 +79,35 @@ void board_init(void)
   NVIC_SetPriority(USBWakeUp_IRQn, configLIBRARY_MAX_SYSCALL_INTERRUPT_PRIORITY);
 #endif
 
-  GPIO_InitTypeDef  GPIO_InitStruct;
+  GPIO_InitTypeDef gpio_init;
 
   // LED
-  GPIO_InitStruct.Pin = LED_PIN;
-  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
-  GPIO_InitStruct.Pull = GPIO_PULLUP;
-  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_HIGH;
-  HAL_GPIO_Init(LED_PORT, &GPIO_InitStruct);
+  memset(&gpio_init, 0, sizeof(gpio_init));
+  gpio_init.Pin = LED_PIN;
+  gpio_init.Mode = GPIO_MODE_OUTPUT_PP;
+  gpio_init.Pull = GPIO_PULLUP;
+  gpio_init.Speed = GPIO_SPEED_FREQ_HIGH;
+  HAL_GPIO_Init(LED_PORT, &gpio_init);
 
   board_led_write(false);
 
   // Button
-  GPIO_InitStruct.Pin = BUTTON_PIN;
-  GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
-  GPIO_InitStruct.Pull = BUTTON_STATE_ACTIVE ? GPIO_PULLDOWN : GPIO_PULLUP;
-  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_HIGH;
-  HAL_GPIO_Init(BUTTON_PORT, &GPIO_InitStruct);
+  memset(&gpio_init, 0, sizeof(gpio_init));
+  gpio_init.Pin = BUTTON_PIN;
+  gpio_init.Mode = GPIO_MODE_INPUT;
+  gpio_init.Pull = BUTTON_STATE_ACTIVE ? GPIO_PULLDOWN : GPIO_PULLUP;
+  gpio_init.Speed = GPIO_SPEED_FREQ_HIGH;
+  HAL_GPIO_Init(BUTTON_PORT, &gpio_init);
 
 #ifdef UART_DEV
   // UART
-  GPIO_InitStruct.Pin       = UART_TX_PIN | UART_RX_PIN;
-  GPIO_InitStruct.Mode      = GPIO_MODE_AF_PP;
-  GPIO_InitStruct.Pull      = GPIO_PULLUP;
-  GPIO_InitStruct.Speed     = GPIO_SPEED_FREQ_HIGH;
-  GPIO_InitStruct.Alternate = UART_GPIO_AF;
-  HAL_GPIO_Init(UART_GPIO_PORT, &GPIO_InitStruct);
+  memset(&gpio_init, 0, sizeof(gpio_init));
+  gpio_init.Pin       = UART_TX_PIN | UART_RX_PIN;
+  gpio_init.Mode      = GPIO_MODE_AF_PP;
+  gpio_init.Pull      = GPIO_PULLUP;
+  gpio_init.Speed     = GPIO_SPEED_FREQ_HIGH;
+  gpio_init.Alternate = UART_GPIO_AF;
+  HAL_GPIO_Init(UART_GPIO_PORT, &gpio_init);
 
   UartHandle = (UART_HandleTypeDef){
     .Instance        = UART_DEV,
@@ -121,15 +124,18 @@ void board_init(void)
 
   // USB Pins TODO double check USB clock and pin setup
   // Configure USB DM and DP pins. This is optional, and maintained only for user guidance.
-  GPIO_InitStruct.Pin = (GPIO_PIN_11 | GPIO_PIN_12);
-  GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
-  GPIO_InitStruct.Pull = GPIO_NOPULL;
-  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_HIGH;
-  HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
+  memset(&gpio_init, 0, sizeof(gpio_init));
+  gpio_init.Pin = (GPIO_PIN_11 | GPIO_PIN_12);
+  gpio_init.Mode = GPIO_MODE_INPUT;
+  gpio_init.Pull = GPIO_NOPULL;
+  gpio_init.Speed = GPIO_SPEED_FREQ_HIGH;
+  HAL_GPIO_Init(GPIOA, &gpio_init);
 
   __HAL_RCC_USB_CLK_ENABLE();
 
   board_vbus_sense_init();
+
+  // USB PD
 }
 
 //--------------------------------------------------------------------+
