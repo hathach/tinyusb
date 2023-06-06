@@ -87,7 +87,7 @@ static inline void board_clock_init(void)
   RCC_ClkInitStruct.AHBCLKDivider  = RCC_SYSCLK_DIV1;
   RCC_ClkInitStruct.APB1CLKDivider = RCC_HCLK_DIV1;
   RCC_ClkInitStruct.APB2CLKDivider = RCC_HCLK_DIV1;
-  HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_4);
+  HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_8);
 
   //------------- HSI48 and CRS for USB -------------//
   RCC_OscInitTypeDef osc_hsi48 = {0};

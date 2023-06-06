@@ -62,8 +62,7 @@ void usbpd_init(uint8_t port_num, tusb_typec_port_type_t port_type) {
   }
 
   // Enable interrupt
-  //NVIC_SetPriority(UCPD1_IRQn, 0);
-//  NVIC_EnableIRQ(UCPD1_IRQn);
+  NVIC_EnableIRQ(UCPD1_IRQn);
 }
 
 uint8_t pd_rx_buf[262];
@@ -253,7 +252,7 @@ void board_init(void)
 
   board_vbus_sense_init();
 
-#if 0
+#if 1
   // USB PD
   /* PWR register access (for disabling dead battery feature) */
   LL_APB1_GRP1_EnableClock(LL_APB1_GRP1_PERIPH_PWR);
