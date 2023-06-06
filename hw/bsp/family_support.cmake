@@ -97,6 +97,18 @@ function(family_initialize_project PROJECT DIR)
 endfunction()
 
 
+# Add segger rtt to example
+function(family_add_segger_rtt TARGET)
+  if (NOT TARGET segger_rtt)
+    add_library(segger_rtt STATIC
+      ${TOP}/lib/SEGGER_RTT/RTT/SEGGER_RTT.c
+      )
+    target_include_directories(segger_rtt PUBLIC ${TOP}/lib/SEGGER_RTT/RTT)
+  endif()
+
+  target_link_libraries(${TARGET} PUBLIC segger_rtt)
+endfunction()
+
 #------------------------------------
 # Main target configure
 #------------------------------------
@@ -119,6 +131,9 @@ function(family_configure_common TARGET)
   # LOGGER
   if (DEFINED LOGGER)
     target_compile_definitions(${TARGET} PUBLIC LOGGER_${LOGGER})
+    if(LOGGER STREQUAL "RTT" OR LOGGER STREQUAL "rtt")
+      family_add_segger_rtt(${TARGET})
+    endif ()
   endif ()
 
 endfunction()
