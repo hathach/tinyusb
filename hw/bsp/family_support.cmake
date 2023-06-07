@@ -4,6 +4,7 @@ include(CMakePrintHelpers)
 
 # TOP is path to root directory
 set(TOP "${CMAKE_CURRENT_LIST_DIR}/../..")
+get_filename_component(TOP ${TOP} ABSOLUTE)
 
 # Default to gcc
 if (NOT DEFINED TOOLCHAIN)
