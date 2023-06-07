@@ -38,13 +38,19 @@ extern "C" {
 //--------------------------------------------------------------------+
 //
 //--------------------------------------------------------------------+
+typedef struct {
+  uint8_t rhport;
+  uint8_t event_id;
+
+
+} tcd_event_t;;
 
 //--------------------------------------------------------------------+
 //
 //--------------------------------------------------------------------+
 
 // Initialize controller
-bool tcd_init(uint8_t rhport, typec_port_type_t port_type);
+bool tcd_init(uint8_t rhport, tusb_typec_port_type_t port_type);
 
 // Enable interrupt
 void tcd_int_enable (uint8_t rhport);
@@ -54,5 +60,12 @@ void tcd_int_disable(uint8_t rhport);
 
 // Interrupt Handler
 void tcd_int_handler(uint8_t rhport);
+
+//--------------------------------------------------------------------+
+//
+//--------------------------------------------------------------------+
+
+bool tcd_rx_start(uint8_t rhport, uint8_t* buffer, uint16_t total_bytes);
+bool tcd_tx_start(uint8_t rhport, uint8_t const* buffer, uint16_t total_bytes);
 
 #endif

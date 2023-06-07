@@ -34,11 +34,23 @@ extern "C" {
 #endif
 
 //--------------------------------------------------------------------+
+// TypeC Configuration
+//--------------------------------------------------------------------+
+
+#ifndef CFG_TUC_TASK_QUEUE_SZ
+#define CFG_TUC_TASK_QUEUE_SZ   16
+#endif
+
+
+//--------------------------------------------------------------------+
 // Application API
 //--------------------------------------------------------------------+
 
-// init typec stack
-bool tuc_init(uint8_t rhport, typec_port_type_t port_type);
+// Init typec stack on a port
+bool tuc_init(uint8_t rhport, tusb_typec_port_type_t port_type);
+
+// Check if typec port is initialized
+bool tuc_inited(uint8_t rhport);
 
 #ifndef _TUSB_TCD_H_
 extern void tcd_int_handler(uint8_t rhport);

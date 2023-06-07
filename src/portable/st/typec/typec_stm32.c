@@ -29,20 +29,43 @@
 
 #include "common/tusb_common.h"
 
-#include "stm32g4xx.h"
+#if CFG_TUSB_MCU == OPT_MCU_STM32G4
+  #include "stm32g4xx.h"
+#else
+  #error "Unsupported STM32 family"
+#endif
 
 //--------------------------------------------------------------------+
 //
 //--------------------------------------------------------------------+
-uint8_t pd_rx_buf[262];
-uint32_t pd_rx_count = 0;
-uint8_t pd_rx_order_set;
+
+#define PHY_SYNC1 0x18u
+#define PHY_SYNC2 0x11u
+#define PHY_SYNC3 0x06u
+#define PHY_RST1  0x07u
+#define PHY_RST2  0x19u
+#define PHY_EOP   0x0Du
+
+#define PHY_ORDERED_SET_SOP          (PHY_SYNC1 | (PHY_SYNC1<<5u) | (PHY_SYNC1<<10u) | (PHY_SYNC2<<15u)) // SOP Ordered set coding
+#define PHY_ORDERED_SET_SOP_P        (PHY_SYNC1 | (PHY_SYNC1<<5u) | (PHY_SYNC3<<10u) | (PHY_SYNC3<<15u)) // SOP' Ordered set coding
+#define PHY_ORDERED_SET_SOP_PP       (PHY_SYNC1 | (PHY_SYNC3<<5u) | (PHY_SYNC1<<10u) | (PHY_SYNC3<<15u)) // SOP'' Ordered set coding
+#define PHY_ORDERED_SET_HARD_RESET   (PHY_RST1  | (PHY_RST1<<5u)  | (PHY_RST1<<10u)  | (PHY_RST2<<15u )) // Hard Reset Ordered set coding
+#define PHY_ORDERED_SET_CABLE_RESET  (PHY_RST1  | (PHY_SYNC1<<5u) | (PHY_RST1<<10u)  | (PHY_SYNC3<<15u)) // Cable Reset Ordered set coding
+#define PHY_ORDERED_SET_SOP_P_DEBUG  (PHY_SYNC1 | (PHY_RST2<<5u)  | (PHY_RST2<<10u)  | (PHY_SYNC3<<15u)) // SOP' Debug Ordered set coding
+#define PHY_ORDERED_SET_SOP_PP_DEBUG (PHY_SYNC1 | (PHY_RST2<<5u)  | (PHY_SYNC3<<10u) | (PHY_SYNC2<<15u)) // SOP'' Debug Ordered set coding
+
+
+static uint8_t rx_buf[262] TU_ATTR_ALIGNED(4);
+static uint32_t rx_count = 0;
+
+static uint8_t tx_buf[262] TU_ATTR_ALIGNED(4);
+static uint32_t tx_count;
 
 //--------------------------------------------------------------------+
 //
 //--------------------------------------------------------------------+
 
-bool tcd_init(uint8_t rhport, typec_port_type_t port_type) {
+bool tcd_init(uint8_t rhport, tusb_typec_port_type_t port_type) {
   (void) rhport;
 
   // Initialization phase: CFG1
@@ -52,7 +75,7 @@ bool tcd_init(uint8_t rhport, typec_port_type_t port_type) {
   UCPD1->CFG1 |= UCPD_CFG1_UCPDEN;
 
   // General programming sequence (with UCPD configured then enabled)
-  if (port_type == TYPEC_PORT_SNK) {
+  if (port_type == TUSB_TYPEC_PORT_SNK) {
     // Enable both CC Phy
     UCPD1->CR = (0x01 << UCPD_CR_ANAMODE_Pos) | (0x03 << UCPD_CR_CCENABLE_Pos);
 
@@ -81,6 +104,19 @@ void tcd_int_enable (uint8_t rhport) {
 void tcd_int_disable(uint8_t rhport) {
   (void) rhport;
   NVIC_DisableIRQ(UCPD1_IRQn);
+}
+
+bool tcd_rx_start(uint8_t rhport, uint8_t* buffer, uint16_t total_bytes) {
+  (void) rhport;
+
+  return true;
+}
+
+bool tcd_tx_start(uint8_t rhport, uint8_t const* buffer, uint16_t total_bytes) {
+  (void) rhport;
+  (void) buffer;
+  (void) total_bytes;
+  return false;
 }
 
 void tcd_int_handler(uint8_t rhport) {
@@ -116,7 +152,7 @@ void tcd_int_handler(uint8_t rhport) {
 
     if (cr & UCPD_CR_PHYRXEN) {
       // Enable Interrupt
-      UCPD1->IMR |= UCPD_IMR_TXMSGDISCIE | UCPD_IMR_TXMSGSENTIE | UCPD_IMR_TXMSGABTIE | UCPD_IMR_TXUNDIE |
+      UCPD1->IMR |= UCPD_IMR_TXISIE | UCPD_IMR_TXMSGDISCIE | UCPD_IMR_TXMSGSENTIE | UCPD_IMR_TXMSGABTIE | UCPD_IMR_TXUNDIE |
                     UCPD_IMR_RXNEIE | UCPD_IMR_RXORDDETIE | UCPD_IMR_RXHRSTDETIE | UCPD_IMR_RXOVRIE |
                     UCPD_IMR_RXMSGENDIE | UCPD_IMR_HRSTDISCIE | UCPD_IMR_HRSTSENTIE;
     }
@@ -128,13 +164,13 @@ void tcd_int_handler(uint8_t rhport) {
     UCPD1->ICR = UCPD_ICR_TYPECEVT1CF | UCPD_ICR_TYPECEVT2CF;
   }
 
-  //------------- Receive -------------//
+  //------------- RX -------------//
   if (sr & UCPD_SR_RXORDDET) {
     // SOP: Start of Packet.
-    pd_rx_order_set = UCPD1->RX_ORDSET & UCPD_RX_ORDSET_RXORDSET_Msk;
+    // UCPD1->RX_ORDSET & UCPD_RX_ORDSET_RXORDSET_Msk;
 
     // reset count when received SOP
-    pd_rx_count = 0;
+    rx_count = 0;
 
     // ack
     UCPD1->ICR = UCPD_ICR_RXORDDETCF;
@@ -143,17 +179,38 @@ void tcd_int_handler(uint8_t rhport) {
   if (sr & UCPD_SR_RXNE) {
     // TODO DMA later
     do {
-      pd_rx_buf[pd_rx_count++] = UCPD1->RXDR;
+      rx_buf[rx_count++] = UCPD1->RXDR;
     } while (UCPD1->SR & UCPD_SR_RXNE);
+
+    // no ack needed
   }
 
+  // End of message
   if (sr & UCPD_SR_RXMSGEND) {
-    // End of message
 
     // Skip if CRC failed
     if (!(sr & UCPD_SR_RXERR)) {
       uint32_t payload_size = UCPD1->RX_PAYSZ;
-      TU_LOG1("RXMSGEND: payload_size = %u, rx count = %u\n", payload_size, pd_rx_count);
+      // TU_LOG1("RXMSGEND: payload_size = %u, rx count = %u\n", payload_size, pd_rx_count);
+
+      tusb_pd_header_t const* rx_header = (tusb_pd_header_t const*) rx_buf;
+      (*(tusb_pd_header_t*) tx_buf) = (tusb_pd_header_t) {
+          .msg_type = TUSB_PD_CTRL_GOOD_CRC,
+          .data_role = 0, // UFP
+          .specs_rev = TUSB_PD_REV30,
+          .power_role = 0, // Sink
+          .msg_id = rx_header->msg_id,
+          .n_data_obj = 0,
+          .extended = 0
+      };
+      tx_count = 0;
+
+      // response with good crc
+      UCPD1->TX_ORDSET = PHY_ORDERED_SET_SOP;
+      UCPD1->TX_PAYSZ = 2;
+      UCPD1->CR |= UCPD_CR_TXSEND; // will trigger TXIS interrupt
+
+      // notify stack after good crc ?
     }
 
     // ack
@@ -162,9 +219,29 @@ void tcd_int_handler(uint8_t rhport) {
 
   if (sr & UCPD_SR_RXOVR) {
     TU_LOG1("RXOVR\n");
-    TU_LOG1_HEX(pd_rx_count);
+    TU_LOG1_HEX(rx_count);
     // ack
     UCPD1->ICR = UCPD_ICR_RXOVRCF;
+  }
+
+  //------------- TX -------------//
+  if (sr & UCPD_SR_TXIS) {
+    // TU_LOG1("TXIS\n");
+
+    // TODO DMA later
+    do {
+      UCPD1->TXDR = tx_buf[tx_count++];
+    } while (UCPD1->SR & UCPD_SR_TXIS);
+
+    // no ack needed
+  }
+
+  if (sr & UCPD_SR_TXMSGSENT) {
+    // all byte sent
+    TU_LOG1("TXMSGSENT\n");
+
+    // ack
+    UCPD1->ICR = UCPD_ICR_TXMSGSENTCF;
   }
 
 //  if (sr & UCPD_SR_RXNE) {

@@ -504,67 +504,75 @@ TU_VERIFY_STATIC( sizeof(tusb_control_request_t) == 8, "size is not correct");
 //--------------------------------------------------------------------+
 
 typedef enum {
-  TYPEC_PORT_SRC,
-  TYPEC_PORT_SNK,
-  TYPEC_PORT_DRP
-} typec_port_type_t;
+  TUSB_TYPEC_PORT_SRC,
+  TUSB_TYPEC_PORT_SNK,
+  TUSB_TYPEC_PORT_DRP
+} tusb_typec_port_type_t;
 
 typedef enum {
-  TYPEC_MSG_CTRL_RESERVED = 0,            // 0b00000: 0
-  TYPEC_MSG_CTRL_GOOD_CRC,                // 0b00001: 1
-  TYPEC_MSG_CTRL_GO_TO_MIN,               // 0b00010: 2
-  TYPEC_MSG_CTRL_ACCEPT,                  // 0b00011: 3
-  TYPEC_MSG_CTRL_REJECT,                  // 0b00100: 4
-  TYPEC_MSG_CTRL_PING,                    // 0b00101: 5
-  TYPEC_MSG_CTRL_PS_RDY,                  // 0b00110: 6
-  TYPEC_MSG_CTRL_GET_SOURCE_CAP,          // 0b00111: 7
-  TYPEC_MSG_CTRL_GET_SINK_CAP,            // 0b01000: 8
-  TYPEC_MSG_CTRL_DR_SWAP,                 // 0b01001: 9
-  TYPEC_MSG_CTRL_PR_SWAP,                 // 0b01010: 10
-  TYPEC_MSG_CTRL_VCONN_SWAP,              // 0b01011: 11
-  TYPEC_MSG_CTRL_WAIT,                    // 0b01100: 12
-  TYPEC_MSG_CTRL_SOFT_RESET,              // 0b01101: 13
-  TYPEC_MSG_CTRL_DATA_RESET,              // 0b01110: 14
-  TYPEC_MSG_CTRL_DATA_RESET_COMPLETE,     // 0b01111: 15
-  TYPEC_MSG_CTRL_NOT_SUPPORTED,           // 0b10000: 16
-  TYPEC_MSG_CTRL_GET_SOURCE_CAP_EXTENDED, // 0b10001: 17
-  TYPEC_MSG_CTRL_GET_STATUS,              // 0b10010: 18
-  TYPEC_MSG_CTRL_FR_SWAP,                 // 0b10011: 19
-  TYPEC_MSG_CTRL_GET_PPS_STATUS,          // 0b10100: 20
-  TYPEC_MSG_CTRL_GET_COUNTRY_CODES,       // 0b10101: 21
-  TYPEC_MSG_CTRL_GET_SINK_CAP_EXTENDED,   // 0b10110: 22
-  TYPEC_MSG_CTRL_GET_SOURCE_INFO,         // 0b10111: 23
-  TYPEC_MSG_CTRL_REVISION,                // 0b11000: 24
-} typec_msg_ctrl_type_t;
+  TUSB_PD_CTRL_RESERVED = 0,            // 0b00000: 0
+  TUSB_PD_CTRL_GOOD_CRC,                // 0b00001: 1
+  TUSB_PD_CTRL_GO_TO_MIN,               // 0b00010: 2
+  TUSB_PD_CTRL_ACCEPT,                  // 0b00011: 3
+  TUSB_PD_CTRL_REJECT,                  // 0b00100: 4
+  TUSB_PD_CTRL_PING,                    // 0b00101: 5
+  TUSB_PD_CTRL_PS_RDY,                  // 0b00110: 6
+  TUSB_PD_CTRL_GET_SOURCE_CAP,          // 0b00111: 7
+  TUSB_PD_CTRL_GET_SINK_CAP,            // 0b01000: 8
+  TUSB_PD_CTRL_DR_SWAP,                 // 0b01001: 9
+  TUSB_PD_CTRL_PR_SWAP,                 // 0b01010: 10
+  TUSB_PD_CTRL_VCONN_SWAP,              // 0b01011: 11
+  TUSB_PD_CTRL_WAIT,                    // 0b01100: 12
+  TUSB_PD_CTRL_SOFT_RESET,              // 0b01101: 13
+  TUSB_PD_CTRL_DATA_RESET,              // 0b01110: 14
+  TUSB_PD_CTRL_DATA_RESET_COMPLETE,     // 0b01111: 15
+  TUSB_PD_CTRL_NOT_SUPPORTED,           // 0b10000: 16
+  TUSB_PD_CTRL_GET_SOURCE_CAP_EXTENDED, // 0b10001: 17
+  TUSB_PD_CTRL_GET_STATUS,              // 0b10010: 18
+  TUSB_PD_CTRL_FR_SWAP,                 // 0b10011: 19
+  TUSB_PD_CTRL_GET_PPS_STATUS,          // 0b10100: 20
+  TUSB_PD_CTRL_GET_COUNTRY_CODES,       // 0b10101: 21
+  TUSB_PD_CTRL_GET_SINK_CAP_EXTENDED,   // 0b10110: 22
+  TUSB_PD_CTRL_GET_SOURCE_INFO,         // 0b10111: 23
+  TUSB_PD_CTRL_REVISION,                // 0b11000: 24
+} tusb_pd_ctrl_type_t;
 
 typedef enum {
-  TYPEC_MSG_DATA_RESERVED = 0,     // 0b00000: 0
-  TYPEC_MSG_DATA_SOURCE_CAP,       // 0b00001: 1
-  TYPEC_MSG_DATA_REQUEST,          // 0b00010: 2
-  TYPEC_MSG_DATA_BIST,             // 0b00011: 3
-  TYPEC_MSG_DATA_SINK_CAP,         // 0b00100: 4
-  TYPEC_MSG_DATA_BATTERY_STATUS,   // 0b00101: 5
-  TYPEC_MSG_DATA_ALERT,            // 0b00110: 6
-  TYPEC_MSG_DATA_GET_COUNTRY_INFO, // 0b00111: 7
-  TYPEC_MSG_DATA_ENTER_USB,        // 0b01000: 8
-  TYPEC_MSG_DATA_EPR_REQUEST,      // 0b01001: 9
-  TYPEC_MSG_DATA_EPR_MODE,         // 0b01010: 10
-  TYPEC_MSG_DATA_SRC_INFO,         // 0b01011: 11
-  TYPEC_MSG_DATA_REVISION,         // 0b01100: 12
-  TYPEC_MSG_DATA_RESERVED_13,      // 0b01101: 13
-  TYPEC_MSG_DATA_RESERVED_14,      // 0b01110: 14
-  TYPEC_MSG_DATA_VENDOR_DEFINED,   // 0b01111: 15
-} typec_msg_data_type_t;
+  TUSB_PD_DATA_RESERVED = 0,     // 0b00000: 0
+  TUSB_PD_DATA_SOURCE_CAP,       // 0b00001: 1
+  TUSB_PD_DATA_REQUEST,          // 0b00010: 2
+  TUSB_PD_DATA_BIST,             // 0b00011: 3
+  TUSB_PD_DATA_SINK_CAP,         // 0b00100: 4
+  TUSB_PD_DATA_BATTERY_STATUS,   // 0b00101: 5
+  TUSB_PD_DATA_ALERT,            // 0b00110: 6
+  TUSB_PD_DATA_GET_COUNTRY_INFO, // 0b00111: 7
+  TUSB_PD_DATA_ENTER_USB,        // 0b01000: 8
+  TUSB_PD_DATA_EPR_REQUEST,      // 0b01001: 9
+  TUSB_PD_DATA_EPR_MODE,         // 0b01010: 10
+  TUSB_PD_DATA_SRC_INFO,         // 0b01011: 11
+  TUSB_PD_DATA_REVISION,         // 0b01100: 12
+  TUSB_PD_DATA_RESERVED_13,      // 0b01101: 13
+  TUSB_PD_DATA_RESERVED_14,      // 0b01110: 14
+  TUSB_PD_DATA_VENDOR_DEFINED,   // 0b01111: 15
+} tusb_pd_data_type_t;
+
+enum {
+  TUSB_PD_REV10	= 0x0,
+  TUSB_PD_REV20	= 0x1,
+  TUSB_PD_REV30	= 0x2,
+};
 
 typedef struct TU_ATTR_PACKED {
   uint16_t msg_type   : 5; // [0:4]
-  uint16_t data_role  : 1; // [5] SOP only
+  uint16_t data_role  : 1; // [5] SOP only: 0 UFP, 1 DFP
   uint16_t specs_rev  : 2; // [6:7]
-  uint16_t power_role : 1; // [8] SOP only
+  uint16_t power_role : 1; // [8] SOP only: 0 Sink, 1 Source
   uint16_t msg_id     : 3; // [9:11]
   uint16_t n_data_obj : 3; // [12:14]
   uint16_t extended   : 1; // [15]
-} tusb_typec_message_header_t;
+} tusb_pd_header_t;
+
+TU_VERIFY_STATIC( sizeof(tusb_pd_header_t) == 2, "size is not correct");
 
 typedef struct TU_ATTR_PACKED {
   uint16_t data_size     : 9; // [0:8]
@@ -572,7 +580,9 @@ typedef struct TU_ATTR_PACKED {
   uint16_t request_chunk : 1; // [10]
   uint16_t chunk_number  : 4; // [11:14]
   uint16_t chunked       : 1; // [15]
-} tusb_typec_message_header_extended_t;
+} tusb_pd_header_extended_t;
+
+TU_VERIFY_STATIC( sizeof(tusb_pd_header_extended_t) == 2, "size is not correct");
 
 
 TU_ATTR_PACKED_END  // End of all packed definitions

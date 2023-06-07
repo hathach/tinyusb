@@ -54,7 +54,7 @@ int main(void)
   board_init();
   board_led_write(true);
 
-  tuc_init(0, TYPEC_PORT_SNK);
+  tuc_init(0, TUSB_TYPEC_PORT_SNK);
 
   uint32_t start_ms = 0;
   bool led_state = false;

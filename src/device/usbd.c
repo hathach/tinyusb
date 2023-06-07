@@ -252,8 +252,18 @@ static inline usbd_class_driver_t const * get_driver(uint8_t drvid)
     drvid -= _app_driver_count;
   }
 
+  // when there is no built-in drivers BUILTIN_DRIVER_COUNT = 0 will cause -Wtype-limits warning
+#ifdef __GNUC__
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wtype-limits"
+#endif
+
   // Built-in drivers
   if (drvid < BUILTIN_DRIVER_COUNT) return &_usbd_driver[drvid];
+
+#ifdef __GNUC__
+#pragma GCC diagnostic pop
+#endif
 
   return NULL;
 }
