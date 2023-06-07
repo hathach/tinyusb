@@ -1599,6 +1599,7 @@ TU_ATTR_BIT_FIELD_ORDER_END
 //--------------------------------------------------------------------+
 
 TU_VERIFY_STATIC(sizeof(RUSB2_PIPE_TR_t) == 4, "incorrect size");
+TU_VERIFY_STATIC(sizeof(RUSB2_REG_t) == 1032, "incorrect size");
 
 TU_VERIFY_STATIC(offsetof(RUSB2_REG_t, SYSCFG     ) == 0x00000000, "incorrect offset");
 TU_VERIFY_STATIC(offsetof(RUSB2_REG_t, BUSWAIT    ) == 0x00000002, "incorrect offset");
