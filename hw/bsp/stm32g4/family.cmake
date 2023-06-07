@@ -90,6 +90,7 @@ function(family_configure_example TARGET)
   target_sources(${TARGET} PUBLIC
     # TinyUSB Port
     ${TOP}/src/portable/st/stm32_fsdev/dcd_stm32_fsdev.c
+    ${TOP}/src/portable/st/typec/typec_stm32.c
     # BSP
     ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/family.c
     ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/../board.c
