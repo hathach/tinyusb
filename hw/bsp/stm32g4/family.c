@@ -72,7 +72,7 @@ void UCPD1_IRQHandler(void) {
   uint32_t sr = UCPD1->SR;
   sr &= UCPD1->IMR;
 
-  TU_LOG1("UCPD1_IRQHandler: sr = 0x%08X\n", sr);
+//  TU_LOG1("UCPD1_IRQHandler: sr = 0x%08X\n", sr);
 
   if (sr & (UCPD_SR_TYPECEVT1 | UCPD_SR_TYPECEVT2)) {
     uint32_t vstate_cc[2];
@@ -83,6 +83,7 @@ void UCPD1_IRQHandler(void) {
 
     uint32_t cr = UCPD1->CR;
 
+    // TODO only support SNK for now, required highest voltage for now
     if ((sr & UCPD_SR_TYPECEVT1) && (vstate_cc[0] == 3)) {
       TU_LOG1("Attach CC1\n");
       cr &= ~UCPD_CR_PHYCCSEL;
@@ -96,10 +97,12 @@ void UCPD1_IRQHandler(void) {
       cr &= ~UCPD_CR_PHYRXEN;
     }
 
-    // Enable Interrupt
-    UCPD1->IMR |= UCPD_IMR_TXMSGDISCIE | UCPD_IMR_TXMSGSENTIE | UCPD_IMR_TXMSGABTIE | UCPD_IMR_TXUNDIE |
-        /*UCPD_IMR_RXNEIE |*/ UCPD_IMR_RXORDDETIE | UCPD_IMR_RXHRSTDETIE | UCPD_IMR_RXOVRIE | UCPD_IMR_RXMSGENDIE |
-        UCPD_IMR_HRSTDISCIE | UCPD_IMR_HRSTSENTIE;
+    if (cr & UCPD_CR_PHYRXEN) {
+      // Enable Interrupt
+      UCPD1->IMR |= UCPD_IMR_TXMSGDISCIE | UCPD_IMR_TXMSGSENTIE | UCPD_IMR_TXMSGABTIE | UCPD_IMR_TXUNDIE |
+                    UCPD_IMR_RXNEIE | UCPD_IMR_RXORDDETIE | UCPD_IMR_RXHRSTDETIE | UCPD_IMR_RXOVRIE |
+                    UCPD_IMR_RXMSGENDIE | UCPD_IMR_HRSTDISCIE | UCPD_IMR_HRSTSENTIE;
+    }
 
     // Enable PD RX
     UCPD1->CR = cr;
@@ -108,30 +111,38 @@ void UCPD1_IRQHandler(void) {
     UCPD1->ICR = UCPD_ICR_TYPECEVT1CF | UCPD_ICR_TYPECEVT2CF;
   }
 
+  //------------- Receive -------------//
   if (sr & UCPD_SR_RXORDDET) {
-    // SOP: Start of Packet
-    // TODO DMA later
-    uint8_t order_set = UCPD1->RX_ORDSET & UCPD_RX_ORDSET_RXORDSET_Msk;
-    TU_LOG1_HEX(order_set);
+    // SOP: Start of Packet.
+    // uint8_t order_set = UCPD1->RX_ORDSET & UCPD_RX_ORDSET_RXORDSET_Msk;
+
+    // reset count when received SOP
+    pd_rx_count = 0;
 
     // ack
     UCPD1->ICR = UCPD_ICR_RXORDDETCF;
   }
 
-  if ( sr & UCPD_SR_RXMSGEND) {
+  if (sr & UCPD_SR_RXNE) {
+    // TODO DMA later
+    do {
+      pd_rx_buf[pd_rx_count++] = UCPD1->RXDR;
+    } while (UCPD1->SR & UCPD_SR_RXNE);
+  }
+
+  if (sr & UCPD_SR_RXMSGEND) {
     // End of message
-//    uint32_t payload_size = UCPD1->RX_PAYSZ;
-//    TU_LOG1_HEX(payload_size);
-//
-//    for(uint32_t i=0; i<payload_size; i++) {
-//      pd_rx_buf[i] = UCPD1->RXDR;
-//
-//      TU_LOG1("0x%02X ", pd_rx_buf[i]);
-//    }
-//    TU_LOG1("\n");
+    uint32_t payload_size = UCPD1->RX_PAYSZ;
 
     // ack
     UCPD1->ICR = UCPD_ICR_RXMSGENDCF;
+  }
+
+  if (sr & UCPD_SR_RXOVR) {
+    TU_LOG1("RXOVR\n");
+    TU_LOG1_HEX(pd_rx_count);
+    // ack
+    UCPD1->ICR = UCPD_ICR_RXOVRCF;
   }
 
 //  if (sr & UCPD_SR_RXNE) {
