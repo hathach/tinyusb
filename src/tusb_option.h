@@ -489,6 +489,8 @@
 
 #ifndef CFG_TUC_ENABLED
 #define CFG_TUC_ENABLED 0
+
+#define tuc_int_handler(_p)
 #endif
 
 //------------------------------------------------------------------
