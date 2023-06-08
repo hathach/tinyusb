@@ -31,7 +31,7 @@
 
 #if CFG_TUSB_MCU == OPT_MCU_STM32G4
   #include "stm32g4xx.h"
-  #include "stm32g4xx_hal_dma.h"
+  #include "stm32g4xx_ll_dma.h" // for UCLP REQID
 #else
   #error "Unsupported STM32 family"
 #endif
@@ -39,6 +39,12 @@
 //--------------------------------------------------------------------+
 //
 //--------------------------------------------------------------------+
+
+enum {
+  IMR_ATTACHED = UCPD_IMR_TXMSGDISCIE | UCPD_IMR_TXMSGSENTIE | UCPD_IMR_TXMSGABTIE | UCPD_IMR_TXUNDIE |
+                 UCPD_IMR_RXHRSTDETIE | UCPD_IMR_RXOVRIE | UCPD_IMR_RXMSGENDIE | UCPD_IMR_RXORDDETIE |
+                 UCPD_IMR_HRSTDISCIE | UCPD_IMR_HRSTSENTIE | UCPD_IMR_FRSEVTIE
+};
 
 #define PHY_SYNC1 0x18u
 #define PHY_SYNC2 0x11u
@@ -57,55 +63,101 @@
 
 
 static uint8_t rx_buf[262] TU_ATTR_ALIGNED(4);
-static uint32_t rx_count = 0;
-
 static uint8_t tx_buf[262] TU_ATTR_ALIGNED(4);
-static uint32_t tx_count;
+static uint32_t tx_index;
 
-#define CFG_TUC_STM32_DMA_RX { DMA1_Channel1 }
-//#define CFG_TUC_STM32_DMA_TX { DMA1_Channel2 }
+// address of DMA channel rx, tx for each port
+#define CFG_TUC_STM32_DMA  { { DMA1_Channel1_BASE, DMA1_Channel2_BASE } }
 
-#ifdef CFG_TUC_STM32_DMA_RX
-static DMA_Channel_TypeDef* dma_rx_arr[TUP_TYPEC_RHPORTS_NUM] = CFG_TUC_STM32_DMA_RX;
+//--------------------------------------------------------------------+
+// DMA
+//--------------------------------------------------------------------+
 
-TU_ATTR_ALWAYS_INLINE static inline
-void dma_rx_start(uint8_t rhport)
-{
-  DMA_Channel_TypeDef* dma_rx_ch = dma_rx_arr[rhport];
+static const uint32_t dma_addr_arr[TUP_TYPEC_RHPORTS_NUM][2] = CFG_TUC_STM32_DMA;
 
-  dma_rx_ch->CMAR = (uint32_t) rx_buf;
-  dma_rx_ch->CNDTR = sizeof(rx_buf);
-  dma_rx_ch->CCR |= DMA_CCR_EN;
+TU_ATTR_ALWAYS_INLINE static inline uint32_t dma_get_addr(uint8_t rhport, bool is_rx) {
+  return dma_addr_arr[rhport][is_rx ? 0 : 1];
 }
-#endif
 
-#ifdef CFG_TUC_STM32_DMA_TX
-static DMA_Channel_TypeDef* dma_tx_arr[TUP_TYPEC_RHPORTS_NUM] = CFG_TUC_STM32_DMA_TX;
-#endif
+static void dma_init(uint8_t rhport, bool is_rx) {
+  uint32_t dma_addr = dma_get_addr(rhport, is_rx);
+  DMA_Channel_TypeDef* dma_ch = (DMA_Channel_TypeDef*) dma_addr;
+  uint32_t req_id;
+
+  if (is_rx) {
+    // Peripheral -> Memory, Memory inc, 8-bit, High priority
+    dma_ch->CCR = DMA_CCR_MINC | DMA_CCR_PL_1;
+    dma_ch->CPAR = (uint32_t) &UCPD1->RXDR;
+
+    req_id = LL_DMAMUX_REQ_UCPD1_RX;
+  } else {
+    // Memory -> Peripheral, Memory inc, 8-bit, High priority
+    dma_ch->CCR = DMA_CCR_MINC | DMA_CCR_PL_1 | DMA_CCR_DIR;
+    dma_ch->CPAR = (uint32_t) &UCPD1->TXDR;
+
+    req_id = LL_DMAMUX_REQ_UCPD1_TX;
+  }
+
+  // find and set up mux channel TODO support mcu with multiple DMAMUXs
+  enum {
+    CH_DIFF = DMA1_Channel2_BASE - DMA1_Channel1_BASE
+  };
+  uint32_t mux_ch_num;
+
+  #ifdef DMA2_BASE
+  if (dma_addr > DMA2_BASE) {
+    mux_ch_num = 8 * ((dma_addr - DMA2_Channel1_BASE) / CH_DIFF);
+  } else
+  #endif
+  {
+    mux_ch_num = (dma_addr - DMA1_Channel1_BASE) / CH_DIFF;
+  }
+
+  DMAMUX_Channel_TypeDef* mux_ch = DMAMUX1_Channel0 + mux_ch_num;
+
+  uint32_t mux_ccr = mux_ch->CCR & ~(DMAMUX_CxCR_DMAREQ_ID);
+  mux_ccr |= req_id;
+  mux_ch->CCR = mux_ccr;
+}
+
+TU_ATTR_ALWAYS_INLINE static inline void dma_start(uint8_t rhport, bool is_rx, void const* buf, uint16_t len) {
+  DMA_Channel_TypeDef* dma_ch = (DMA_Channel_TypeDef*) dma_get_addr(rhport, is_rx);
+
+  dma_ch->CMAR = (uint32_t) buf;
+  dma_ch->CNDTR = len;
+  dma_ch->CCR |= DMA_CCR_EN;
+}
+
+TU_ATTR_ALWAYS_INLINE static inline void dma_stop(uint8_t rhport, bool is_rx) {
+  DMA_Channel_TypeDef* dma_ch = (DMA_Channel_TypeDef*) dma_get_addr(rhport, is_rx);
+  dma_ch->CCR &= ~DMA_CCR_EN;
+}
+
+TU_ATTR_ALWAYS_INLINE static inline void dma_rx_start(uint8_t rhport) {
+  dma_start(rhport, true, rx_buf, sizeof(rx_buf));
+}
+
+TU_ATTR_ALWAYS_INLINE static inline void dma_tx_start(uint8_t rhport, void const* buf, uint16_t len) {
+  UCPD1->TX_ORDSET = PHY_ORDERED_SET_SOP;
+  UCPD1->TX_PAYSZ = len;
+  dma_start(rhport, false, buf, len);
+}
 
 //--------------------------------------------------------------------+
 //
 //--------------------------------------------------------------------+
-#include "stm32g4xx_ll_dma.h"
+
 
 bool tcd_init(uint8_t rhport, tusb_typec_port_type_t port_type) {
   (void) rhport;
 
-#ifdef CFG_TUC_STM32_DMA_RX
-  // Init DMA
-  DMA_Channel_TypeDef* dma_rx_ch = dma_rx_arr[rhport];
-
-  // Peripheral -> Memory, Memory inc, 8-bit, High priority
-  dma_rx_ch->CCR = DMA_CCR_MINC | DMA_CCR_PL_1;
-  dma_rx_ch->CPAR = (uint32_t) &UCPD1->RXDR;
-
-  LL_DMA_SetPeriphRequest(DMA1, LL_DMA_CHANNEL_1, LL_DMAMUX_REQ_UCPD1_RX);
-#endif
+  // Init DMA for RX, TX
+  dma_init(rhport, true);
+  dma_init(rhport, false);
 
   // Initialization phase: CFG1
   UCPD1->CFG1 = (0x0d << UCPD_CFG1_HBITCLKDIV_Pos) | (0x10 << UCPD_CFG1_IFRGAP_Pos) | (0x07 << UCPD_CFG1_TRANSWIN_Pos) |
-                (0x01 << UCPD_CFG1_PSC_UCPDCLK_Pos) | (0x1f << UCPD_CFG1_RXORDSETEN_Pos) |
-                (0 << UCPD_CFG1_TXDMAEN_Pos) | (0 << UCPD_CFG1_RXDMAEN_Pos);
+                (0x01 << UCPD_CFG1_PSC_UCPDCLK_Pos) | (0x1f << UCPD_CFG1_RXORDSETEN_Pos);
   UCPD1->CFG1 |= UCPD_CFG1_UCPDEN;
 
   // General programming sequence (with UCPD configured then enabled)
@@ -118,8 +170,7 @@ bool tcd_init(uint8_t rhport, tusb_typec_port_type_t port_type) {
     vstate_cc[0] = (UCPD1->SR >> UCPD_SR_TYPEC_VSTATE_CC1_Pos) & 0x03;
     vstate_cc[1] = (UCPD1->SR >> UCPD_SR_TYPEC_VSTATE_CC2_Pos) & 0x03;
 
-    TU_LOG1_INT(vstate_cc[0]);
-    TU_LOG1_INT(vstate_cc[1]);
+    TU_LOG1("Initial VState CC1 = %u, CC2 = %u\r\n", vstate_cc[0], vstate_cc[1]);
 
     // Enable CC1 & CC2 Interrupt
     UCPD1->IMR = UCPD_IMR_TYPECEVT1IE | UCPD_IMR_TYPECEVT2IE;
@@ -142,7 +193,8 @@ void tcd_int_disable(uint8_t rhport) {
 
 bool tcd_rx_start(uint8_t rhport, uint8_t* buffer, uint16_t total_bytes) {
   (void) rhport;
-
+  (void) buffer;
+  (void) total_bytes;
   return true;
 }
 
@@ -159,8 +211,6 @@ void tcd_int_handler(uint8_t rhport) {
   uint32_t sr = UCPD1->SR;
   sr &= UCPD1->IMR;
 
-//  TU_LOG1("UCPD1_IRQHandler: sr = 0x%08X\n", sr);
-
   if (sr & (UCPD_SR_TYPECEVT1 | UCPD_SR_TYPECEVT2)) {
     uint32_t vstate_cc[2];
     vstate_cc[0] = (UCPD1->SR >> UCPD_SR_TYPEC_VSTATE_CC1_Pos) & 0x03;
@@ -169,7 +219,6 @@ void tcd_int_handler(uint8_t rhport) {
     TU_LOG1("VState CC1 = %u, CC2 = %u\n", vstate_cc[0], vstate_cc[1]);
 
     uint32_t cr = UCPD1->CR;
-    uint32_t cfg1 = UCPD1->CFG1;
 
     // TODO only support SNK for now, required highest voltage for now
     // Enable PHY on correct CC and disable Rd on other CC
@@ -189,28 +238,18 @@ void tcd_int_handler(uint8_t rhport) {
     }
 
     if (cr & UCPD_CR_PHYRXEN) {
-      // Enable Interrupt
-      uint32_t imr = UCPD1->IMR;
-      imr |= UCPD_IMR_TXMSGDISCIE | UCPD_IMR_TXMSGSENTIE | UCPD_IMR_TXMSGABTIE | UCPD_IMR_TXUNDIE |
-          UCPD_IMR_RXHRSTDETIE | UCPD_IMR_RXOVRIE | UCPD_IMR_RXMSGENDIE | UCPD_IMR_RXORDDETIE |
-          UCPD_IMR_HRSTDISCIE | UCPD_IMR_HRSTSENTIE | UCPD_IMR_FRSEVTIE;
+      // Attached
+      UCPD1->IMR |= IMR_ATTACHED;
+      UCPD1->CFG1 |= UCPD_CFG1_RXDMAEN | UCPD_CFG1_TXDMAEN;
 
-      #ifdef CFG_TUC_STM32_DMA_RX
-      cfg1 |= UCPD_CFG1_RXDMAEN;
       dma_rx_start(rhport);
-      #else
-      imr |= UCPD_IMR_RXNEIE | UCPD_IMR_RXORDDETIE;
-      #endif
-
-      #ifndef CFG_TUC_STM32_DMA_TX
-      imr |= UCPD_IMR_TXISIE;
-      #endif
-
-      UCPD1->IMR = imr;
+    }else {
+      // Detached
+      UCPD1->CFG1 &= ~(UCPD_CFG1_RXDMAEN | UCPD_CFG1_TXDMAEN);
+      UCPD1->IMR &= ~IMR_ATTACHED;
     }
 
     UCPD1->CR = cr;
-    UCPD1->CFG1 = cfg1;
 
     // ack
     UCPD1->ICR = UCPD_ICR_TYPECEVT1CF | UCPD_ICR_TYPECEVT2CF;
@@ -221,26 +260,14 @@ void tcd_int_handler(uint8_t rhport) {
     // SOP: Start of Packet.
     // UCPD1->RX_ORDSET & UCPD_RX_ORDSET_RXORDSET_Msk;
 
-    // reset count when received SOP
-    rx_count = 0;
-
     // ack
     UCPD1->ICR = UCPD_ICR_RXORDDETCF;
   }
 
-#ifndef CFG_TUC_STM32_DMA_RX
-  if (sr & UCPD_SR_RXNE) {
-    // TODO DMA later
-    do {
-      rx_buf[rx_count++] = UCPD1->RXDR;
-    } while (UCPD1->SR & UCPD_SR_RXNE);
-
-    // no ack needed
-  }
-#endif
-
   // Received full message
   if (sr & UCPD_SR_RXMSGEND) {
+
+    dma_stop(rhport, true);
 
     // Skip if CRC failed
     if (!(sr & UCPD_SR_RXERR)) {
@@ -251,26 +278,23 @@ void tcd_int_handler(uint8_t rhport) {
       (*(tusb_pd_header_t*) tx_buf) = (tusb_pd_header_t) {
           .msg_type = TUSB_PD_CTRL_GOOD_CRC,
           .data_role = 0, // UFP
-          .specs_rev = TUSB_PD_REV30,
+          .specs_rev = TUSB_PD_REV20,
           .power_role = 0, // Sink
           .msg_id = rx_header->msg_id,
           .n_data_obj = 0,
           .extended = 0
       };
-      tx_count = 0;
 
       // response with good crc
-      UCPD1->TX_ORDSET = PHY_ORDERED_SET_SOP;
-      UCPD1->TX_PAYSZ = 2;
-      UCPD1->CR |= UCPD_CR_TXSEND; // will trigger TXIS interrupt
+      dma_tx_start(rhport, tx_buf, 2);
 
-      // notify stack after good crc ?
+      UCPD1->CR |= UCPD_CR_TXSEND;
+
+      // notify stack
     }
 
-    #ifdef CFG_TUC_STM32_DMA_RX
     // prepare next receive
     dma_rx_start(rhport);
-    #endif
 
     // ack
     UCPD1->ICR = UCPD_ICR_RXMSGENDCF;
@@ -283,34 +307,19 @@ void tcd_int_handler(uint8_t rhport) {
   }
 
   //------------- TX -------------//
-  if (sr & UCPD_SR_TXIS) {
-    // TU_LOG1("TXIS\n");
-
-    // TODO DMA later
-    do {
-      UCPD1->TXDR = tx_buf[tx_count++];
-    } while (UCPD1->SR & UCPD_SR_TXIS);
-
-    // no ack needed
-  }
-
   if (sr & UCPD_SR_TXMSGSENT) {
     // all byte sent
-    TU_LOG1("TXMSGSENT\n");
+    dma_stop(rhport, false);
 
     // ack
     UCPD1->ICR = UCPD_ICR_TXMSGSENTCF;
   }
 
-//  if (sr & UCPD_SR_RXNE) {
-//    uint8_t data = UCPD1->RXDR;
-//    pd_rx_buf[pd_rx_count++] = data;
-//    TU_LOG1_HEX(data);
-//  }
-
-//  else {
-//    TU_LOG_LOCATION();
-//  }
+  if (sr & (UCPD_SR_TXMSGDISC | UCPD_SR_TXMSGABT | UCPD_SR_TXUND)) {
+    TU_LOG1("TX Error\n");
+    dma_stop(rhport, false);
+    UCPD1->ICR = UCPD_SR_TXMSGDISC | UCPD_SR_TXMSGABT | UCPD_SR_TXUND;
+  }
 }
 
 #endif
