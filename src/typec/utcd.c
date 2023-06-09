@@ -90,13 +90,50 @@ bool tuc_init(uint8_t rhport, tusb_typec_port_type_t port_type) {
 //
 //--------------------------------------------------------------------+
 
-//bool parse_message(uint8_t const * data, uint16_t len, pd_msg_t * msg) {
-//  // TODO
-//  (void) data;
-//  (void) len;
-//  (void) msg;
-//  return false;
-//}
+bool parse_message(uint8_t rhport, uint8_t const* buf, uint16_t len) {
+  (void) rhport;
+  uint8_t const* p_end = buf + len;
+  tusb_pd_header_t const* header = (tusb_pd_header_t const*) buf;
+  uint8_t const * ptr = buf + sizeof(tusb_pd_header_t);
+
+  if (header->n_data_obj == 0) {
+    // control message
+  } else {
+    // data message
+    switch (header->msg_type) {
+      case TUSB_PD_DATA_SOURCE_CAP: {
+        for(size_t i=0; i<header->n_data_obj; i++) {
+          TU_VERIFY(ptr < p_end);
+          uint32_t const pdo = tu_le32toh(tu_unaligned_read32(ptr));
+
+          switch ((pdo >> 30) & 0x03ul) {
+            case PD_PDO_TYPE_FIXED: {
+              pd_pdo_fixed_t const* fixed = (pd_pdo_fixed_t const*) &pdo;
+              TU_LOG3("[Fixed] %u mV %u mA\r\n", fixed->voltage_50mv*50, fixed->current_max_10ma*10);
+              break;
+            }
+
+            case PD_PDO_TYPE_BATTERY:
+              break;
+
+            case PD_PDO_TYPE_VARIABLE:
+              break;
+
+            case PD_PDO_TYPE_APDO:
+              break;
+          }
+
+          ptr += 4;
+        }
+        break;
+      }
+
+      default: break;
+    }
+  }
+
+  return true;
+}
 
 void tcd_event_handler(tcd_event_t const * event, bool in_isr) {
   (void) in_isr;
@@ -112,10 +149,15 @@ void tcd_event_handler(tcd_event_t const * event, bool in_isr) {
 
     case TCD_EVENT_RX_COMPLETE:
       // TODO process message here in ISR, move to thread later
+      if (event->rx_complete.result == XFER_RESULT_SUCCESS) {
+        parse_message(event->rhport, _rx_buf, event->rx_complete.xferred_bytes);
+      }
 
       // start new rx
       tcd_rx_start(event->rhport, _rx_buf, sizeof(_rx_buf));
       break;
+
+    default: break;
   }
 }
 
