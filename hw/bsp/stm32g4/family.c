@@ -145,13 +145,13 @@ void board_init(void)
 #if 1
   // USB PD
   // Default CC1/CC2 is PB4/PB6
-  /* PWR register access (for disabling dead battery feature) */
-  LL_APB1_GRP1_EnableClock(LL_APB1_GRP1_PERIPH_PWR);
-  LL_AHB1_GRP1_EnableClock(LL_AHB1_GRP1_PERIPH_CRC);
 
+  // Enable pwr for disabling dead battery feature in Power's CR3
+  __HAL_RCC_PWR_CLK_ENABLE();
+  __HAL_RCC_CRC_CLK_ENABLE();
   __HAL_RCC_UCPD1_CLK_ENABLE();
 
-  // Enable DMA clock
+  // Enable DMA for USB PD
   __HAL_RCC_DMAMUX1_CLK_ENABLE();
   __HAL_RCC_DMA1_CLK_ENABLE();
 #endif

@@ -31,7 +31,7 @@
 
 #if CFG_TUSB_MCU == OPT_MCU_STM32G4
   #include "stm32g4xx.h"
-  #include "stm32g4xx_ll_dma.h" // for UCLP REQID
+  #include "stm32g4xx_ll_dma.h" // for UCPD REQID
 #else
   #error "Unsupported STM32 family"
 #endif
@@ -62,9 +62,17 @@ enum {
 #define PHY_ORDERED_SET_SOP_PP_DEBUG (PHY_SYNC1 | (PHY_RST2<<5u)  | (PHY_SYNC3<<10u) | (PHY_SYNC2<<15u)) // SOP'' Debug Ordered set coding
 
 
-static uint8_t rx_buf[262] TU_ATTR_ALIGNED(4);
-static uint8_t tx_buf[262] TU_ATTR_ALIGNED(4);
-static uint32_t tx_index;
+static uint8_t const* _rx_buf;
+
+static tusb_pd_header_t _good_crc = {
+    .msg_type   = TUSB_PD_CTRL_GOOD_CRC,
+    .data_role  = 0, // UFP
+    .specs_rev  = TUSB_PD_REV20,
+    .power_role = 0, // Sink
+    .msg_id     = 0,
+    .n_data_obj = 0,
+    .extended   = 0
+};
 
 // address of DMA channel rx, tx for each port
 #define CFG_TUC_STM32_DMA  { { DMA1_Channel1_BASE, DMA1_Channel2_BASE } }
@@ -73,10 +81,10 @@ static uint32_t tx_index;
 // DMA
 //--------------------------------------------------------------------+
 
-static const uint32_t dma_addr_arr[TUP_TYPEC_RHPORTS_NUM][2] = CFG_TUC_STM32_DMA;
+static const uint32_t _dma_addr_arr[TUP_TYPEC_RHPORTS_NUM][2] = CFG_TUC_STM32_DMA;
 
 TU_ATTR_ALWAYS_INLINE static inline uint32_t dma_get_addr(uint8_t rhport, bool is_rx) {
-  return dma_addr_arr[rhport][is_rx ? 0 : 1];
+  return _dma_addr_arr[rhport][is_rx ? 0 : 1];
 }
 
 static void dma_init(uint8_t rhport, bool is_rx) {
@@ -133,10 +141,6 @@ TU_ATTR_ALWAYS_INLINE static inline void dma_stop(uint8_t rhport, bool is_rx) {
   dma_ch->CCR &= ~DMA_CCR_EN;
 }
 
-TU_ATTR_ALWAYS_INLINE static inline void dma_rx_start(uint8_t rhport) {
-  dma_start(rhport, true, rx_buf, sizeof(rx_buf));
-}
-
 TU_ATTR_ALWAYS_INLINE static inline void dma_tx_start(uint8_t rhport, void const* buf, uint16_t len) {
   UCPD1->TX_ORDSET = PHY_ORDERED_SET_SOP;
   UCPD1->TX_PAYSZ = len;
@@ -147,7 +151,6 @@ TU_ATTR_ALWAYS_INLINE static inline void dma_tx_start(uint8_t rhport, void const
 //
 //--------------------------------------------------------------------+
 
-
 bool tcd_init(uint8_t rhport, tusb_typec_port_type_t port_type) {
   (void) rhport;
 
@@ -155,26 +158,29 @@ bool tcd_init(uint8_t rhport, tusb_typec_port_type_t port_type) {
   dma_init(rhport, true);
   dma_init(rhport, false);
 
-  // Initialization phase: CFG1
+  // Initialization phase: CFG1, detect all SOPs
   UCPD1->CFG1 = (0x0d << UCPD_CFG1_HBITCLKDIV_Pos) | (0x10 << UCPD_CFG1_IFRGAP_Pos) | (0x07 << UCPD_CFG1_TRANSWIN_Pos) |
                 (0x01 << UCPD_CFG1_PSC_UCPDCLK_Pos) | (0x1f << UCPD_CFG1_RXORDSETEN_Pos);
   UCPD1->CFG1 |= UCPD_CFG1_UCPDEN;
 
   // General programming sequence (with UCPD configured then enabled)
   if (port_type == TUSB_TYPEC_PORT_SNK) {
-    // Enable both CC Phy
-    UCPD1->CR = (0x01 << UCPD_CR_ANAMODE_Pos) | UCPD_CR_CCENABLE_0 | UCPD_CR_CCENABLE_1;
+    // Set analog mode enable both CC Phy
+    UCPD1->CR = (0x01 << UCPD_CR_ANAMODE_Pos) | (UCPD_CR_CCENABLE_0 | UCPD_CR_CCENABLE_1);
 
     // Read Voltage State on CC1 & CC2 fore initial state
-    uint32_t vstate_cc[2];
-    vstate_cc[0] = (UCPD1->SR >> UCPD_SR_TYPEC_VSTATE_CC1_Pos) & 0x03;
-    vstate_cc[1] = (UCPD1->SR >> UCPD_SR_TYPEC_VSTATE_CC2_Pos) & 0x03;
+    uint32_t v_cc[2];
+    v_cc[0] = (UCPD1->SR >> UCPD_SR_TYPEC_VSTATE_CC1_Pos) & 0x03;
+    v_cc[1] = (UCPD1->SR >> UCPD_SR_TYPEC_VSTATE_CC2_Pos) & 0x03;
 
-    TU_LOG1("Initial VState CC1 = %u, CC2 = %u\r\n", vstate_cc[0], vstate_cc[1]);
+    TU_LOG1("Initial VState CC1 = %u, CC2 = %u\r\n", v_cc[0], v_cc[1]);
 
     // Enable CC1 & CC2 Interrupt
     UCPD1->IMR = UCPD_IMR_TYPECEVT1IE | UCPD_IMR_TYPECEVT2IE;
   }
+
+  // Disable dead battery in PWR's CR3
+  PWR->CR3 |= PWR_CR3_UCPD_DBDIS;
 
   return true;
 }
@@ -192,9 +198,8 @@ void tcd_int_disable(uint8_t rhport) {
 }
 
 bool tcd_rx_start(uint8_t rhport, uint8_t* buffer, uint16_t total_bytes) {
-  (void) rhport;
-  (void) buffer;
-  (void) total_bytes;
+  _rx_buf = buffer;
+  dma_start(rhport, true, buffer, total_bytes);
   return true;
 }
 
@@ -212,27 +217,28 @@ void tcd_int_handler(uint8_t rhport) {
   sr &= UCPD1->IMR;
 
   if (sr & (UCPD_SR_TYPECEVT1 | UCPD_SR_TYPECEVT2)) {
-    uint32_t vstate_cc[2];
-    vstate_cc[0] = (UCPD1->SR >> UCPD_SR_TYPEC_VSTATE_CC1_Pos) & 0x03;
-    vstate_cc[1] = (UCPD1->SR >> UCPD_SR_TYPEC_VSTATE_CC2_Pos) & 0x03;
+    uint32_t v_cc[2];
+    v_cc[0] = (UCPD1->SR >> UCPD_SR_TYPEC_VSTATE_CC1_Pos) & 0x03;
+    v_cc[1] = (UCPD1->SR >> UCPD_SR_TYPEC_VSTATE_CC2_Pos) & 0x03;
 
-    TU_LOG1("VState CC1 = %u, CC2 = %u\n", vstate_cc[0], vstate_cc[1]);
+    TU_LOG3("VState CC1 = %u, CC2 = %u\n", v_cc[0], v_cc[1]);
 
     uint32_t cr = UCPD1->CR;
 
     // TODO only support SNK for now, required highest voltage for now
-    // Enable PHY on correct CC and disable Rd on other CC
-    if ((sr & UCPD_SR_TYPECEVT1) && (vstate_cc[0] == 3)) {
-      TU_LOG1("Attach CC1\n");
-
+    // Enable PHY on active CC and disable Rd on other CC
+    // FIXME somehow CC2 is vstate is not correct, always 1 even not attached.
+    // on DPOW1 board, it is connected to PA10 (USBPD_DBCC2), we probably miss something.
+    if ((sr & UCPD_SR_TYPECEVT1) && (v_cc[0] == 3)) {
+      TU_LOG3("Attach CC1\n");
       cr &= ~(UCPD_CR_PHYCCSEL | UCPD_CR_CCENABLE);
       cr |= UCPD_CR_PHYRXEN | UCPD_CR_CCENABLE_0;
-    } else if ((sr & UCPD_SR_TYPECEVT2) && (vstate_cc[1] == 3)) {
-      TU_LOG1("Attach CC2\n");
+    } else if ((sr & UCPD_SR_TYPECEVT2) && (v_cc[1] == 3)) {
+      TU_LOG3("Attach CC2\n");
       cr &= ~UCPD_CR_CCENABLE;
       cr |= (UCPD_CR_PHYCCSEL | UCPD_CR_PHYRXEN | UCPD_CR_CCENABLE_1);
     } else {
-      TU_LOG1("Detach\n");
+      TU_LOG3("Detach\n");
       cr &= ~UCPD_CR_PHYRXEN;
       cr |= UCPD_CR_CCENABLE_0 | UCPD_CR_CCENABLE_1;
     }
@@ -241,13 +247,14 @@ void tcd_int_handler(uint8_t rhport) {
       // Attached
       UCPD1->IMR |= IMR_ATTACHED;
       UCPD1->CFG1 |= UCPD_CFG1_RXDMAEN | UCPD_CFG1_TXDMAEN;
-
-      dma_rx_start(rhport);
     }else {
       // Detached
       UCPD1->CFG1 &= ~(UCPD_CFG1_RXDMAEN | UCPD_CFG1_TXDMAEN);
       UCPD1->IMR &= ~IMR_ATTACHED;
     }
+
+    // notify stack
+    tcd_event_cc_changed(rhport, v_cc[0], v_cc[1], true);
 
     UCPD1->CR = cr;
 
@@ -258,6 +265,7 @@ void tcd_int_handler(uint8_t rhport) {
   //------------- RX -------------//
   if (sr & UCPD_SR_RXORDDET) {
     // SOP: Start of Packet.
+    TU_LOG3("SOP\n");
     // UCPD1->RX_ORDSET & UCPD_RX_ORDSET_RXORDSET_Msk;
 
     // ack
@@ -266,48 +274,39 @@ void tcd_int_handler(uint8_t rhport) {
 
   // Received full message
   if (sr & UCPD_SR_RXMSGEND) {
-
+    TU_LOG3("RX MSG END\n");
     dma_stop(rhport, true);
 
-    // Skip if CRC failed
+    uint8_t result;
+
     if (!(sr & UCPD_SR_RXERR)) {
-      uint32_t payload_size = UCPD1->RX_PAYSZ;
-      // TU_LOG1("RXMSGEND: payload_size = %u, rx count = %u\n", payload_size, pd_rx_count);
-
-      tusb_pd_header_t const* rx_header = (tusb_pd_header_t const*) rx_buf;
-      (*(tusb_pd_header_t*) tx_buf) = (tusb_pd_header_t) {
-          .msg_type = TUSB_PD_CTRL_GOOD_CRC,
-          .data_role = 0, // UFP
-          .specs_rev = TUSB_PD_REV20,
-          .power_role = 0, // Sink
-          .msg_id = rx_header->msg_id,
-          .n_data_obj = 0,
-          .extended = 0
-      };
-
       // response with good crc
-      dma_tx_start(rhport, tx_buf, 2);
-
+      _good_crc.msg_id = ((tusb_pd_header_t const*) _rx_buf)->msg_id;
+      dma_tx_start(rhport, &_good_crc, 2);
       UCPD1->CR |= UCPD_CR_TXSEND;
 
-      // notify stack
+      result = XFER_RESULT_SUCCESS;
+    }else {
+      // CRC failed
+      result = XFER_RESULT_FAILED;
     }
 
-    // prepare next receive
-    dma_rx_start(rhport);
+    // notify stack
+    tcd_event_rx_complete(rhport, UCPD1->RX_PAYSZ, result, true);
 
     // ack
     UCPD1->ICR = UCPD_ICR_RXMSGENDCF;
   }
 
   if (sr & UCPD_SR_RXOVR) {
-    TU_LOG1("RXOVR\n");
+    TU_LOG3("RXOVR\n");
     // ack
     UCPD1->ICR = UCPD_ICR_RXOVRCF;
   }
 
   //------------- TX -------------//
   if (sr & UCPD_SR_TXMSGSENT) {
+    TU_LOG3("TX MSG SENT\n");
     // all byte sent
     dma_stop(rhport, false);
 
@@ -316,7 +315,7 @@ void tcd_int_handler(uint8_t rhport) {
   }
 
   if (sr & (UCPD_SR_TXMSGDISC | UCPD_SR_TXMSGABT | UCPD_SR_TXUND)) {
-    TU_LOG1("TX Error\n");
+    TU_LOG3("TX Error\n");
     dma_stop(rhport, false);
     UCPD1->ICR = UCPD_SR_TXMSGDISC | UCPD_SR_TXMSGABT | UCPD_SR_TXUND;
   }

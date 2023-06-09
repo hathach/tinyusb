@@ -38,7 +38,7 @@ extern "C" {
 //--------------------------------------------------------------------+
 
 #ifndef CFG_TUC_TASK_QUEUE_SZ
-#define CFG_TUC_TASK_QUEUE_SZ   16
+#define CFG_TUC_TASK_QUEUE_SZ   8
 #endif
 
 

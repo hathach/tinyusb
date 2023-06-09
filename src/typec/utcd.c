@@ -42,35 +42,38 @@
 // Event queue
 // utcd_int_set() is used as mutex in OS NONE config
 void utcd_int_set(bool enabled);
-OSAL_QUEUE_DEF(utcd_int_set, utcd_qdef, CFG_TUC_TASK_QUEUE_SZ, tcd_event_t);
-tu_static osal_queue_t utcd_q;
+OSAL_QUEUE_DEF(utcd_int_set, _utcd_qdef, CFG_TUC_TASK_QUEUE_SZ, tcd_event_t);
+tu_static osal_queue_t _utcd_q;
 
 // if stack is initialized
-static bool utcd_inited = false;
+static bool _utcd_inited = false;
 
 // if port is initialized
-static bool port_inited[TUP_TYPEC_RHPORTS_NUM];
+static bool _port_inited[TUP_TYPEC_RHPORTS_NUM];
+
+// Max possible PD size is 262 bytes
+static uint8_t _rx_buf[262] TU_ATTR_ALIGNED(4);
 
 //--------------------------------------------------------------------+
 //
 //--------------------------------------------------------------------+
 bool tuc_inited(uint8_t rhport) {
-  return utcd_inited && port_inited[rhport];
+  return _utcd_inited && _port_inited[rhport];
 }
 
 bool tuc_init(uint8_t rhport, tusb_typec_port_type_t port_type) {
   // Initialize stack
-  if (!utcd_inited) {
-    tu_memclr(port_inited, sizeof(port_inited));
+  if (!_utcd_inited) {
+    tu_memclr(_port_inited, sizeof(_port_inited));
 
-    utcd_q = osal_queue_create(&utcd_qdef);
-    TU_ASSERT(utcd_q != NULL);
+    _utcd_q = osal_queue_create(&_utcd_qdef);
+    TU_ASSERT(_utcd_q != NULL);
 
-    utcd_inited = true;
+    _utcd_inited = true;
   }
 
   // skip if port already initialized
-  if ( port_inited[rhport] ) {
+  if ( _port_inited[rhport] ) {
     return true;
   }
 
@@ -79,10 +82,42 @@ bool tuc_init(uint8_t rhport, tusb_typec_port_type_t port_type) {
   TU_ASSERT(tcd_init(rhport, port_type));
   tcd_int_enable(rhport);
 
-  port_inited[rhport] = true;
+  _port_inited[rhport] = true;
   return true;
 }
 
+//--------------------------------------------------------------------+
+//
+//--------------------------------------------------------------------+
+
+//bool parse_message(uint8_t const * data, uint16_t len, pd_msg_t * msg) {
+//  // TODO
+//  (void) data;
+//  (void) len;
+//  (void) msg;
+//  return false;
+//}
+
+void tcd_event_handler(tcd_event_t const * event, bool in_isr) {
+  (void) in_isr;
+  switch(event->event_id) {
+    case TCD_EVENT_CC_CHANGED:
+      if (event->cc_changed.cc_state[0] || event->cc_changed.cc_state[1]) {
+        // Attach
+        tcd_rx_start(event->rhport, _rx_buf, sizeof(_rx_buf));
+      }else {
+        // Detach
+      }
+      break;
+
+    case TCD_EVENT_RX_COMPLETE:
+      // TODO process message here in ISR, move to thread later
+
+      // start new rx
+      tcd_rx_start(event->rhport, _rx_buf, sizeof(_rx_buf));
+      break;
+  }
+}
 
 //--------------------------------------------------------------------+
 //
@@ -90,7 +125,7 @@ bool tuc_init(uint8_t rhport, tusb_typec_port_type_t port_type) {
 void utcd_int_set(bool enabled) {
   // Disable all controllers since they shared the same event queue
   for (uint8_t p = 0; p < TUP_TYPEC_RHPORTS_NUM; p++) {
-    if ( port_inited[p] ) {
+    if ( _port_inited[p] ) {
       if (enabled) {
         tcd_int_enable(p);
       }else {
