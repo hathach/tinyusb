@@ -52,6 +52,17 @@ bool tuc_init(uint8_t rhport, uint32_t port_type);
 // Check if typec port is initialized
 bool tuc_inited(uint8_t rhport);
 
+// Task function should be called in main/rtos loop, extended version of tud_task()
+// - timeout_ms: millisecond to wait, zero = no wait, 0xFFFFFFFF = wait forever
+// - in_isr: if function is called in ISR
+void tuc_task_ext(uint32_t timeout_ms, bool in_isr);
+
+// Task function should be called in main/rtos loop
+TU_ATTR_ALWAYS_INLINE static inline
+void tuc_task (void) {
+  tuc_task_ext(UINT32_MAX, false);
+}
+
 #ifndef _TUSB_TCD_H_
 extern void tcd_int_handler(uint8_t rhport);
 #endif
@@ -60,8 +71,17 @@ extern void tcd_int_handler(uint8_t rhport);
 #define tuc_int_handler tcd_int_handler
 
 //--------------------------------------------------------------------+
+// Callbacks
+//--------------------------------------------------------------------+
+
+TU_ATTR_WEAK bool tuc_pd_data_received_cb(uint8_t rhport, pd_header_t const* header, uint8_t const* dobj, uint8_t const* p_end);
+TU_ATTR_WEAK bool tuc_pd_control_received_cb(uint8_t rhport, pd_header_t const* header);
+
+//--------------------------------------------------------------------+
 //
 //--------------------------------------------------------------------+
+
+bool tuc_msg_request(uint8_t rhport, void const* rdo);
 
 
 #ifdef __cplusplus

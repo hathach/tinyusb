@@ -62,7 +62,8 @@ int main(void)
   while (1) {
     led_blinking_task();
 
-//    tuc_task();
+    // tinyusb typec task
+    tuc_task();
   }
 }
 
@@ -72,6 +73,93 @@ void app_main(void)
   main();
 }
 #endif
+
+//--------------------------------------------------------------------+
+// TypeC PD callbacks
+//--------------------------------------------------------------------+
+
+bool tuc_pd_data_received_cb(uint8_t rhport, pd_header_t const* header, uint8_t const* dobj, uint8_t const* p_end) {
+  switch (header->msg_type) {
+    case PD_DATA_SOURCE_CAP: {
+      printf("PD Source Capabilities\r\n");
+      // Examine source capability and select a suitable PDO (starting from 1 with safe5v)
+      uint8_t obj_pos = 1;
+
+      for(size_t i=0; i<header->n_data_obj; i++) {
+        TU_VERIFY(dobj < p_end);
+        uint32_t const pdo = tu_le32toh(tu_unaligned_read32(dobj));
+
+        switch ((pdo >> 30) & 0x03ul) {
+          case PD_PDO_TYPE_FIXED: {
+            pd_pdo_fixed_t const* fixed = (pd_pdo_fixed_t const*) &pdo;
+            printf("[Fixed] %u mV %u mA\r\n", fixed->voltage_50mv*50, fixed->current_max_10ma*10);
+            break;
+          }
+
+          case PD_PDO_TYPE_BATTERY:
+            break;
+
+          case PD_PDO_TYPE_VARIABLE:
+            break;
+
+          case PD_PDO_TYPE_APDO:
+            break;
+        }
+
+        dobj += 4;
+      }
+
+      //------------- Response with selected PDO -------------//
+      // Be careful and make sure your board can withstand the selected PDO voltage other than safe5v e.g 12v or 20v
+
+      // Send request with selected PDO position as response to Source Cap
+      pd_rdo_fixed_variable_t rdo = {
+          .current_extremum_10ma = 50, // max 500mA
+          .current_operate_10ma = 30, // 300mA
+          .reserved = 0,
+          .epr_mode_capable = 0,
+          .unchunked_ext_msg_support = 0,
+          .no_usb_suspend = 0,
+          .usb_comm_capable = 1,
+          .capability_mismatch = 0,
+          .give_back_flag = 0, // exteremum is max
+          .object_position = obj_pos,
+      };
+
+      tuc_msg_request(rhport, &rdo);
+
+      break;
+    }
+
+    default: break;
+  }
+
+  return true;
+}
+
+bool tuc_pd_control_received_cb(uint8_t rhport, pd_header_t const* header) {
+  switch (header->msg_type) {
+    case PD_CTRL_ACCEPT:
+      printf("PD Request Accepted\r\n");
+      // preparing for power transition
+      break;
+
+    case PD_CTRL_REJECT:
+      printf("PD Request Rejected\r\n");
+      // try to negotiate further power
+      break;
+
+    case PD_CTRL_PS_READY:
+      printf("PD Power Ready\r\n");
+      // Source is ready to supply power
+      break;
+
+    default:
+      break;
+  }
+
+  return true;
+}
 
 //--------------------------------------------------------------------+
 // BLINKING TASK

@@ -48,8 +48,7 @@ enum {
   TCD_EVENT_TX_COMPLETE,
 };
 
-
-typedef struct {
+typedef struct TU_ATTR_PACKED {
   uint8_t rhport;
   uint8_t event_id;
 
@@ -58,10 +57,10 @@ typedef struct {
       uint8_t cc_state[2];
     } cc_changed;
 
-    struct {
-      uint16_t xferred_bytes;
-      uint8_t result;
-    } rx_complete;
+    struct TU_ATTR_PACKED {
+      uint16_t result : 2;
+      uint16_t xferred_bytes : 14;
+    } xfer_complete;
   };
 
 } tcd_event_t;;
@@ -114,7 +113,7 @@ void tcd_event_rx_complete(uint8_t rhport, uint16_t xferred_bytes, uint8_t resul
   tcd_event_t event = {
     .rhport   = rhport,
     .event_id = TCD_EVENT_RX_COMPLETE,
-    .rx_complete = {
+    .xfer_complete = {
         .xferred_bytes = xferred_bytes,
         .result        = result
     }
@@ -128,7 +127,7 @@ void tcd_event_tx_complete(uint8_t rhport, uint16_t xferred_bytes, uint8_t resul
   tcd_event_t event = {
       .rhport   = rhport,
       .event_id = TCD_EVENT_TX_COMPLETE,
-      .rx_complete = {
+      .xfer_complete = {
           .xferred_bytes = xferred_bytes,
           .result        = result
       }
