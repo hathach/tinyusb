@@ -42,7 +42,7 @@ extern "C" {
 #endif
 
 //--------------------------------------------------------------------+
-//
+// Source Capability
 //--------------------------------------------------------------------+
 
 // All table references are from USBPD Specification rev3.1 version 1.8
@@ -101,6 +101,38 @@ typedef struct TU_ATTR_PACKED {
   uint32_t type              :  2; // [31..30] Augmented Power Data Object = PD_PDO_TYPE_APDO
 } pd_pdo_apdo_t;
 TU_VERIFY_STATIC(sizeof(pd_pdo_apdo_t) == 4, "Invalid size");
+
+//--------------------------------------------------------------------+
+// Request
+//--------------------------------------------------------------------+
+
+typedef struct TU_ATTR_PACKED {
+  uint32_t current_extremum_10ma     : 10; // [9..0] Max (give back = 0) or Min (give back = 1) current in 10mA unit
+  uint32_t current_operate_10ma      : 10; // [19..10] Operating current in 10mA unit
+  uint32_t reserved                  :  2; // [21..20] Reserved
+  uint32_t epr_mode_capable          :  1; // [22] EPR mode capable
+  uint32_t unchunked_ext_msg_support :  1; // [23] UnChunked Extended Message Supported
+  uint32_t no_usb_suspend            :  1; // [24] No USB Suspend
+  uint32_t usb_comm_capable          :  1; // [25] USB Communications Capable
+  uint32_t capability_mismatch       :  1; // [26] Capability Mismatch
+  uint32_t give_back_flag            :  1; // [27] GiveBack Flag: 0 = Max, 1 = Min
+  uint32_t object_position           :  4; // [31..28] Object Position
+} pd_rdo_fixed_variable_t;
+TU_VERIFY_STATIC(sizeof(pd_rdo_fixed_variable_t) == 4, "Invalid size");
+
+typedef struct TU_ATTR_PACKED {
+  uint32_t power_extremum_250mw      : 10; // [9..0] Max (give back = 0) or Min (give back = 1) operating power in 250mW unit
+  uint32_t power_operate_250mw       : 10; // [19..10] Operating power in 250mW unit
+  uint32_t reserved                  :  2; // [21..20] Reserved
+  uint32_t epr_mode_capable          :  1; // [22] EPR mode capable
+  uint32_t unchunked_ext_msg_support :  1; // [23] UnChunked Extended Message Supported
+  uint32_t no_usb_suspend            :  1; // [24] No USB Suspend
+  uint32_t usb_comm_capable          :  1; // [25] USB Communications Capable
+  uint32_t capability_mismatch       :  1; // [26] Capability Mismatch
+  uint32_t give_back_flag            :  1; // [27] GiveBack Flag: 0 = Max, 1 = Min
+  uint32_t object_position           :  4; // [31..28] Object Position
+} pd_rdo_battery_t;
+TU_VERIFY_STATIC(sizeof(pd_rdo_battery_t) == 4, "Invalid size");
 
 //--------------------------------------------------------------------+
 // Application API

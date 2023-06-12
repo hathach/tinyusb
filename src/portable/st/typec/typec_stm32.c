@@ -63,6 +63,9 @@ enum {
 
 
 static uint8_t const* _rx_buf;
+static uint8_t const* _tx_pending_buf;
+static uint16_t _tx_pending_bytes;
+static uint16_t _tx_xferring_bytes;
 
 static tusb_pd_header_t _good_crc = {
     .msg_type   = TUSB_PD_CTRL_GOOD_CRC,
@@ -141,10 +144,21 @@ TU_ATTR_ALWAYS_INLINE static inline void dma_stop(uint8_t rhport, bool is_rx) {
   dma_ch->CCR &= ~DMA_CCR_EN;
 }
 
+TU_ATTR_ALWAYS_INLINE static inline bool dma_enabled(uint8_t rhport, bool is_rx) {
+  DMA_Channel_TypeDef* dma_ch = (DMA_Channel_TypeDef*) dma_get_addr(rhport, is_rx);
+  return dma_ch->CCR & DMA_CCR_EN;
+}
+
+
 TU_ATTR_ALWAYS_INLINE static inline void dma_tx_start(uint8_t rhport, void const* buf, uint16_t len) {
   UCPD1->TX_ORDSET = PHY_ORDERED_SET_SOP;
   UCPD1->TX_PAYSZ = len;
   dma_start(rhport, false, buf, len);
+  UCPD1->CR |= UCPD_CR_TXSEND;
+}
+
+TU_ATTR_ALWAYS_INLINE static inline void dma_tx_stop(uint8_t rhport) {
+  dma_stop(rhport, false);
 }
 
 //--------------------------------------------------------------------+
@@ -203,11 +217,23 @@ bool tcd_rx_start(uint8_t rhport, uint8_t* buffer, uint16_t total_bytes) {
   return true;
 }
 
-bool tcd_tx_start(uint8_t rhport, uint8_t const* buffer, uint16_t total_bytes) {
+bool tcd_msg_send(uint8_t rhport, uint8_t const* buffer, uint16_t total_bytes) {
   (void) rhport;
-  (void) buffer;
-  (void) total_bytes;
-  return false;
+
+  if (dma_enabled(rhport, false)) {
+    // DMA is busy, probably sending GoodCRC, save as pending TX
+    _tx_pending_buf = buffer;
+    _tx_pending_bytes = total_bytes;
+  }else {
+    // DMA is free, start sending
+    _tx_pending_buf = NULL;
+    _tx_pending_bytes = 0;
+
+    _tx_xferring_bytes = total_bytes;
+    dma_tx_start(rhport, buffer, total_bytes);
+  }
+
+  return true;
 }
 
 void tcd_int_handler(uint8_t rhport) {
@@ -275,6 +301,8 @@ void tcd_int_handler(uint8_t rhport) {
   // Received full message
   if (sr & UCPD_SR_RXMSGEND) {
     TU_LOG3("RX MSG END\n");
+
+    // stop TX
     dma_stop(rhport, true);
 
     uint8_t result;
@@ -283,7 +311,6 @@ void tcd_int_handler(uint8_t rhport) {
       // response with good crc
       _good_crc.msg_id = ((tusb_pd_header_t const*) _rx_buf)->msg_id;
       dma_tx_start(rhport, &_good_crc, 2);
-      UCPD1->CR |= UCPD_CR_TXSEND;
 
       result = XFER_RESULT_SUCCESS;
     }else {
@@ -305,19 +332,38 @@ void tcd_int_handler(uint8_t rhport) {
   }
 
   //------------- TX -------------//
-  if (sr & UCPD_SR_TXMSGSENT) {
-    TU_LOG3("TX MSG SENT\n");
-    // all byte sent
-    dma_stop(rhport, false);
+  // All tx events: complete and error
+  if (sr & (UCPD_SR_TXMSGSENT | (UCPD_SR_TXMSGDISC | UCPD_SR_TXMSGABT | UCPD_SR_TXUND))) {
+    // force TX stop
+    dma_tx_stop(rhport);
 
-    // ack
-    UCPD1->ICR = UCPD_ICR_TXMSGSENTCF;
-  }
+    uint16_t const xferred_bytes = _tx_xferring_bytes - UCPD1->TX_PAYSZ;
+    uint8_t result;
 
-  if (sr & (UCPD_SR_TXMSGDISC | UCPD_SR_TXMSGABT | UCPD_SR_TXUND)) {
-    TU_LOG3("TX Error\n");
-    dma_stop(rhport, false);
-    UCPD1->ICR = UCPD_SR_TXMSGDISC | UCPD_SR_TXMSGABT | UCPD_SR_TXUND;
+    if ( sr & UCPD_SR_TXMSGSENT ) {
+      TU_LOG3("TX MSG SENT\n");
+      result = XFER_RESULT_SUCCESS;
+      // ack
+      UCPD1->ICR = UCPD_ICR_TXMSGSENTCF;
+    }else {
+      TU_LOG3("TX Error\n");
+      result = XFER_RESULT_FAILED;
+      // ack
+      UCPD1->ICR = UCPD_SR_TXMSGDISC | UCPD_SR_TXMSGABT | UCPD_SR_TXUND;
+    }
+
+    // start pending TX if any
+    if (_tx_pending_buf && _tx_pending_bytes ) {
+      // Start the pending TX
+      dma_tx_start(rhport, _tx_pending_buf, _tx_pending_bytes);
+
+      // clear pending
+      _tx_pending_buf = NULL;
+      _tx_pending_bytes = 0;
+    }
+
+    // notify stack
+    tcd_event_tx_complete(rhport, xferred_bytes, result, true);
   }
 }
 

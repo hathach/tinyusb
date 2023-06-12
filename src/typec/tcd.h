@@ -43,6 +43,7 @@ enum {
   TCD_EVENT_INVALID = 0,
   TCD_EVENT_CC_CHANGED,
   TCD_EVENT_RX_COMPLETE,
+  TCD_EVENT_TX_COMPLETE,
 };
 
 
@@ -84,7 +85,7 @@ void tcd_int_handler(uint8_t rhport);
 //--------------------------------------------------------------------+
 
 bool tcd_rx_start(uint8_t rhport, uint8_t* buffer, uint16_t total_bytes);
-bool tcd_tx_start(uint8_t rhport, uint8_t const* buffer, uint16_t total_bytes);
+bool tcd_msg_send(uint8_t rhport, uint8_t const* buffer, uint16_t total_bytes);
 
 //--------------------------------------------------------------------+
 // Event API (implemented by stack)
@@ -115,6 +116,20 @@ void tcd_event_rx_complete(uint8_t rhport, uint16_t xferred_bytes, uint8_t resul
         .xferred_bytes = xferred_bytes,
         .result        = result
     }
+  };
+
+  tcd_event_handler(&event, in_isr);
+}
+
+TU_ATTR_ALWAYS_INLINE static inline
+void tcd_event_tx_complete(uint8_t rhport, uint16_t xferred_bytes, uint8_t result, bool in_isr) {
+  tcd_event_t event = {
+      .rhport   = rhport,
+      .event_id = TCD_EVENT_TX_COMPLETE,
+      .rx_complete = {
+          .xferred_bytes = xferred_bytes,
+          .result        = result
+      }
   };
 
   tcd_event_handler(&event, in_isr);

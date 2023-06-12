@@ -562,6 +562,16 @@ enum {
   TUSB_PD_REV30	= 0x2,
 };
 
+enum {
+  TUSB_PD_DATA_ROLE_UFP	= 0x0,
+  TUSB_PD_DATA_ROLE_DFP	= 0x1,
+};
+
+enum {
+  TUSB_PD_POWER_ROLE_SINK	= 0x0,
+  TUSB_PD_POWER_ROLE_SOURCE	= 0x1,
+};
+
 typedef struct TU_ATTR_PACKED {
   uint16_t msg_type   : 5; // [0:4]
   uint16_t data_role  : 1; // [5] SOP only: 0 UFP, 1 DFP

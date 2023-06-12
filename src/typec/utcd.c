@@ -53,6 +53,7 @@ static bool _port_inited[TUP_TYPEC_RHPORTS_NUM];
 
 // Max possible PD size is 262 bytes
 static uint8_t _rx_buf[262] TU_ATTR_ALIGNED(4);
+static uint8_t _tx_buf[100] TU_ATTR_ALIGNED(4);
 
 //--------------------------------------------------------------------+
 //
@@ -90,6 +91,19 @@ bool tuc_init(uint8_t rhport, tusb_typec_port_type_t port_type) {
 //
 //--------------------------------------------------------------------+
 
+bool utcd_msg_send(uint8_t rhport, tusb_pd_header_t const* header, void const* data) {
+  // copy header
+  memcpy(_tx_buf, header, sizeof(tusb_pd_header_t));
+
+  // copy data objcet if available
+  uint16_t const n_data_obj = header->n_data_obj;
+  if (n_data_obj > 0) {
+    memcpy(_tx_buf + sizeof(tusb_pd_header_t), data, n_data_obj * 4);
+  }
+
+  return tcd_msg_send(rhport, _tx_buf, sizeof(tusb_pd_header_t) + n_data_obj * 4);
+}
+
 bool parse_message(uint8_t rhport, uint8_t const* buf, uint16_t len) {
   (void) rhport;
   uint8_t const* p_end = buf + len;
@@ -98,10 +112,28 @@ bool parse_message(uint8_t rhport, uint8_t const* buf, uint16_t len) {
 
   if (header->n_data_obj == 0) {
     // control message
+    switch (header->msg_type) {
+      case TUSB_PD_CTRL_GOOD_CRC:
+        break;
+
+      case TUSB_PD_CTRL_ACCEPT:
+        break;
+
+      case TUSB_PD_CTRL_REJECT:
+        break;
+
+      case TUSB_PD_CTRL_PS_RDY:
+        break;
+
+      default: break;
+    }
   } else {
     // data message
     switch (header->msg_type) {
       case TUSB_PD_DATA_SOURCE_CAP: {
+        // Examine source capability and select a suitable PDO (starting from 1 with safe5v)
+        uint8_t obj_pos = 1;
+
         for(size_t i=0; i<header->n_data_obj; i++) {
           TU_VERIFY(ptr < p_end);
           uint32_t const pdo = tu_le32toh(tu_unaligned_read32(ptr));
@@ -125,6 +157,33 @@ bool parse_message(uint8_t rhport, uint8_t const* buf, uint16_t len) {
 
           ptr += 4;
         }
+
+        // Send request with selected PDO position as response to Source Cap
+        pd_rdo_fixed_variable_t rdo = {
+            .current_extremum_10ma = 50, // max 500mA
+            .current_operate_10ma = 30, // 300mA
+            .reserved = 0,
+            .epr_mode_capable = 0,
+            .unchunked_ext_msg_support = 0,
+            .no_usb_suspend = 0,
+            .usb_comm_capable = 1,
+            .capability_mismatch = 0,
+            .give_back_flag = 0, // exteremum is max
+            .object_position = obj_pos,
+        };
+
+        tusb_pd_header_t const req_header = {
+            .msg_type = TUSB_PD_DATA_REQUEST,
+            .data_role = TUSB_PD_DATA_ROLE_UFP,
+            .specs_rev = TUSB_PD_REV20,
+            .power_role = TUSB_PD_POWER_ROLE_SINK,
+            .msg_id = 0,
+            .n_data_obj = 1,
+            .extended = 0,
+        };
+
+        utcd_msg_send(rhport, &req_header, &rdo);
+
         break;
       }
 
