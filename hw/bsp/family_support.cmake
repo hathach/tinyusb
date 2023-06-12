@@ -98,6 +98,18 @@ function(family_initialize_project PROJECT DIR)
 endfunction()
 
 
+# Add segger rtt to example
+function(family_add_segger_rtt TARGET)
+  if (NOT TARGET segger_rtt)
+    add_library(segger_rtt STATIC
+      ${TOP}/lib/SEGGER_RTT/RTT/SEGGER_RTT.c
+      )
+    target_include_directories(segger_rtt PUBLIC ${TOP}/lib/SEGGER_RTT/RTT)
+  endif()
+
+  target_link_libraries(${TARGET} PUBLIC segger_rtt)
+endfunction()
+
 #------------------------------------
 # Main target configure
 #------------------------------------
@@ -116,6 +128,15 @@ function(family_configure_common TARGET)
       "LINKER:-Map=$<TARGET_FILE:${TARGET}>.map"
       )
   endif()
+
+  # LOGGER
+  if (DEFINED LOGGER)
+    target_compile_definitions(${TARGET} PUBLIC LOGGER_${LOGGER})
+    if(LOGGER STREQUAL "RTT" OR LOGGER STREQUAL "rtt")
+      family_add_segger_rtt(${TARGET})
+    endif ()
+  endif ()
+
 endfunction()
 
 
@@ -137,12 +158,11 @@ function(family_add_tinyusb TARGET OPT_MCU)
   set(TINYUSB_TARGET_PREFIX ${TARGET}-)
   add_library(${TARGET}-tinyusb_config INTERFACE)
 
-  target_include_directories(${TARGET}-tinyusb_config INTERFACE
-    ${CMAKE_CURRENT_SOURCE_DIR}/src
-    )
-  target_compile_definitions(${TARGET}-tinyusb_config INTERFACE
-    CFG_TUSB_MCU=${OPT_MCU}
-    )
+  target_include_directories(${TARGET}-tinyusb_config INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/src)
+  target_compile_definitions(${TARGET}-tinyusb_config INTERFACE CFG_TUSB_MCU=${OPT_MCU})
+  if (DEFINED LOG)
+    target_compile_definitions(${TARGET}-tinyusb_config INTERFACE CFG_TUSB_DEBUG=${LOG})
+  endif()
 
   # tinyusb's CMakeList.txt
   add_subdirectory(${TOP}/src ${CMAKE_CURRENT_BINARY_DIR}/tinyusb)

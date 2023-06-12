@@ -724,7 +724,7 @@ uint8_t* usbh_get_enum_buf(void)
 
 void usbh_int_set(bool enabled)
 {
-  // TODO all host controller if multiple is used
+  // TODO all host controller if multiple are used since they shared the same event queue
   if (enabled)
   {
     hcd_int_enable(_usbh_controller);
