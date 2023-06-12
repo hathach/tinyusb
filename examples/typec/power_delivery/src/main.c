@@ -34,6 +34,13 @@
 // MACRO CONSTANT TYPEDEF PROTOTYPES
 //--------------------------------------------------------------------+
 
+// Voltage and current for selecting PDO
+// DANGEROUS: Please make sure your board can withstand the voltage and current
+// defined here. Otherwise, you may damage your board, smoke can come out
+#define VOLTAGE_MAX_MV       5000 // maximum voltage in mV
+#define CURRENT_MAX_MA       500  // maximum current in mA
+#define CURRENT_OPERATING_MA 100  // operating current in mA
+
 /* Blink pattern
  * - 250 ms  : button is not pressed
  * - 1000 ms : button is pressed (and hold)
@@ -83,7 +90,7 @@ bool tuc_pd_data_received_cb(uint8_t rhport, pd_header_t const* header, uint8_t 
     case PD_DATA_SOURCE_CAP: {
       printf("PD Source Capabilities\r\n");
       // Examine source capability and select a suitable PDO (starting from 1 with safe5v)
-      uint8_t obj_pos = 1;
+      uint8_t selected_pos = 1;
 
       for(size_t i=0; i<header->n_data_obj; i++) {
         TU_VERIFY(dobj < p_end);
@@ -92,7 +99,15 @@ bool tuc_pd_data_received_cb(uint8_t rhport, pd_header_t const* header, uint8_t 
         switch ((pdo >> 30) & 0x03ul) {
           case PD_PDO_TYPE_FIXED: {
             pd_pdo_fixed_t const* fixed = (pd_pdo_fixed_t const*) &pdo;
-            printf("[Fixed] %u mV %u mA\r\n", fixed->voltage_50mv*50, fixed->current_max_10ma*10);
+            uint32_t const voltage_mv = fixed->voltage_50mv*50;
+            uint32_t const current_ma = fixed->current_max_10ma*10;
+            printf("[Fixed] %lu mV %lu mA\r\n", voltage_mv, current_ma);
+
+            if (voltage_mv <= VOLTAGE_MAX_MV && current_ma >= CURRENT_MAX_MA) {
+              // Found a suitable PDO
+              selected_pos = i+1;
+            }
+
             break;
           }
 
@@ -110,7 +125,10 @@ bool tuc_pd_data_received_cb(uint8_t rhport, pd_header_t const* header, uint8_t 
       }
 
       //------------- Response with selected PDO -------------//
-      // Be careful and make sure your board can withstand the selected PDO voltage other than safe5v e.g 12v or 20v
+      // Be careful and make sure your board can withstand the selected PDO
+      // voltage other than safe5v e.g 12v or 20v
+
+      printf("Selected PDO %u\r\n", selected_pos);
 
       // Send request with selected PDO position as response to Source Cap
       pd_rdo_fixed_variable_t rdo = {
@@ -123,9 +141,8 @@ bool tuc_pd_data_received_cb(uint8_t rhport, pd_header_t const* header, uint8_t 
           .usb_comm_capable = 1,
           .capability_mismatch = 0,
           .give_back_flag = 0, // exteremum is max
-          .object_position = obj_pos,
+          .object_position = selected_pos,
       };
-
       tuc_msg_request(rhport, &rdo);
 
       break;
