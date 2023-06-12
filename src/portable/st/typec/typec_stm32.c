@@ -67,10 +67,10 @@ static uint8_t const* _tx_pending_buf;
 static uint16_t _tx_pending_bytes;
 static uint16_t _tx_xferring_bytes;
 
-static tusb_pd_header_t _good_crc = {
-    .msg_type   = TUSB_PD_CTRL_GOOD_CRC,
+static pd_header_t _good_crc = {
+    .msg_type   = PD_CTRL_GOOD_CRC,
     .data_role  = 0, // UFP
-    .specs_rev  = TUSB_PD_REV20,
+    .specs_rev  = PD_REV_20,
     .power_role = 0, // Sink
     .msg_id     = 0,
     .n_data_obj = 0,
@@ -149,7 +149,6 @@ TU_ATTR_ALWAYS_INLINE static inline bool dma_enabled(uint8_t rhport, bool is_rx)
   return dma_ch->CCR & DMA_CCR_EN;
 }
 
-
 TU_ATTR_ALWAYS_INLINE static inline void dma_tx_start(uint8_t rhport, void const* buf, uint16_t len) {
   UCPD1->TX_ORDSET = PHY_ORDERED_SET_SOP;
   UCPD1->TX_PAYSZ = len;
@@ -165,7 +164,7 @@ TU_ATTR_ALWAYS_INLINE static inline void dma_tx_stop(uint8_t rhport) {
 //
 //--------------------------------------------------------------------+
 
-bool tcd_init(uint8_t rhport, tusb_typec_port_type_t port_type) {
+bool tcd_init(uint8_t rhport, uint32_t port_type) {
   (void) rhport;
 
   // Init DMA for RX, TX
@@ -211,7 +210,7 @@ void tcd_int_disable(uint8_t rhport) {
   NVIC_DisableIRQ(UCPD1_IRQn);
 }
 
-bool tcd_rx_start(uint8_t rhport, uint8_t* buffer, uint16_t total_bytes) {
+bool tcd_msg_receive(uint8_t rhport, uint8_t* buffer, uint16_t total_bytes) {
   _rx_buf = buffer;
   dma_start(rhport, true, buffer, total_bytes);
   return true;
@@ -309,7 +308,7 @@ void tcd_int_handler(uint8_t rhport) {
 
     if (!(sr & UCPD_SR_RXERR)) {
       // response with good crc
-      _good_crc.msg_id = ((tusb_pd_header_t const*) _rx_buf)->msg_id;
+      _good_crc.msg_id = ((pd_header_t const*) _rx_buf)->msg_id;
       dma_tx_start(rhport, &_good_crc, 2);
 
       result = XFER_RESULT_SUCCESS;

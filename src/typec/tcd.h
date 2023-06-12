@@ -28,6 +28,8 @@
 #define _TUSB_TCD_H_
 
 #include "common/tusb_common.h"
+#include "pd_types.h"
+
 #include "osal/osal.h"
 #include "common/tusb_fifo.h"
 
@@ -69,7 +71,7 @@ typedef struct {
 //--------------------------------------------------------------------+
 
 // Initialize controller
-bool tcd_init(uint8_t rhport, tusb_typec_port_type_t port_type);
+bool tcd_init(uint8_t rhport, uint32_t port_type);
 
 // Enable interrupt
 void tcd_int_enable (uint8_t rhport);
@@ -84,7 +86,7 @@ void tcd_int_handler(uint8_t rhport);
 //
 //--------------------------------------------------------------------+
 
-bool tcd_rx_start(uint8_t rhport, uint8_t* buffer, uint16_t total_bytes);
+bool tcd_msg_receive(uint8_t rhport, uint8_t* buffer, uint16_t total_bytes);
 bool tcd_msg_send(uint8_t rhport, uint8_t const* buffer, uint16_t total_bytes);
 
 //--------------------------------------------------------------------+
@@ -134,5 +136,9 @@ void tcd_event_tx_complete(uint8_t rhport, uint16_t xferred_bytes, uint8_t resul
 
   tcd_event_handler(&event, in_isr);
 }
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif

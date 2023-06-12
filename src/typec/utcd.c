@@ -62,7 +62,7 @@ bool tuc_inited(uint8_t rhport) {
   return _utcd_inited && _port_inited[rhport];
 }
 
-bool tuc_init(uint8_t rhport, tusb_typec_port_type_t port_type) {
+bool tuc_init(uint8_t rhport, uint32_t port_type) {
   // Initialize stack
   if (!_utcd_inited) {
     tu_memclr(_port_inited, sizeof(_port_inited));
@@ -91,38 +91,38 @@ bool tuc_init(uint8_t rhport, tusb_typec_port_type_t port_type) {
 //
 //--------------------------------------------------------------------+
 
-bool utcd_msg_send(uint8_t rhport, tusb_pd_header_t const* header, void const* data) {
+bool utcd_msg_send(uint8_t rhport, pd_header_t const* header, void const* data) {
   // copy header
-  memcpy(_tx_buf, header, sizeof(tusb_pd_header_t));
+  memcpy(_tx_buf, header, sizeof(pd_header_t));
 
   // copy data objcet if available
   uint16_t const n_data_obj = header->n_data_obj;
   if (n_data_obj > 0) {
-    memcpy(_tx_buf + sizeof(tusb_pd_header_t), data, n_data_obj * 4);
+    memcpy(_tx_buf + sizeof(pd_header_t), data, n_data_obj * 4);
   }
 
-  return tcd_msg_send(rhport, _tx_buf, sizeof(tusb_pd_header_t) + n_data_obj * 4);
+  return tcd_msg_send(rhport, _tx_buf, sizeof(pd_header_t) + n_data_obj * 4);
 }
 
 bool parse_message(uint8_t rhport, uint8_t const* buf, uint16_t len) {
   (void) rhport;
   uint8_t const* p_end = buf + len;
-  tusb_pd_header_t const* header = (tusb_pd_header_t const*) buf;
-  uint8_t const * ptr = buf + sizeof(tusb_pd_header_t);
+  pd_header_t const* header = (pd_header_t const*) buf;
+  uint8_t const * ptr = buf + sizeof(pd_header_t);
 
   if (header->n_data_obj == 0) {
     // control message
     switch (header->msg_type) {
-      case TUSB_PD_CTRL_GOOD_CRC:
+      case PD_CTRL_GOOD_CRC:
         break;
 
-      case TUSB_PD_CTRL_ACCEPT:
+      case PD_CTRL_ACCEPT:
         break;
 
-      case TUSB_PD_CTRL_REJECT:
+      case PD_CTRL_REJECT:
         break;
 
-      case TUSB_PD_CTRL_PS_RDY:
+      case PD_CTRL_PS_READY:
         break;
 
       default: break;
@@ -130,7 +130,7 @@ bool parse_message(uint8_t rhport, uint8_t const* buf, uint16_t len) {
   } else {
     // data message
     switch (header->msg_type) {
-      case TUSB_PD_DATA_SOURCE_CAP: {
+      case PD_DATA_SOURCE_CAP: {
         // Examine source capability and select a suitable PDO (starting from 1 with safe5v)
         uint8_t obj_pos = 1;
 
@@ -172,11 +172,11 @@ bool parse_message(uint8_t rhport, uint8_t const* buf, uint16_t len) {
             .object_position = obj_pos,
         };
 
-        tusb_pd_header_t const req_header = {
-            .msg_type = TUSB_PD_DATA_REQUEST,
-            .data_role = TUSB_PD_DATA_ROLE_UFP,
-            .specs_rev = TUSB_PD_REV20,
-            .power_role = TUSB_PD_POWER_ROLE_SINK,
+        pd_header_t const req_header = {
+            .msg_type = PD_DATA_REQUEST,
+            .data_role = PD_DATA_ROLE_UFP,
+            .specs_rev = PD_REV_20,
+            .power_role = PD_POWER_ROLE_SINK,
             .msg_id = 0,
             .n_data_obj = 1,
             .extended = 0,
@@ -200,7 +200,7 @@ void tcd_event_handler(tcd_event_t const * event, bool in_isr) {
     case TCD_EVENT_CC_CHANGED:
       if (event->cc_changed.cc_state[0] || event->cc_changed.cc_state[1]) {
         // Attach
-        tcd_rx_start(event->rhport, _rx_buf, sizeof(_rx_buf));
+        tcd_msg_receive(event->rhport, _rx_buf, sizeof(_rx_buf));
       }else {
         // Detach
       }
@@ -213,7 +213,7 @@ void tcd_event_handler(tcd_event_t const * event, bool in_isr) {
       }
 
       // start new rx
-      tcd_rx_start(event->rhport, _rx_buf, sizeof(_rx_buf));
+      tcd_msg_receive(event->rhport, _rx_buf, sizeof(_rx_buf));
       break;
 
     default: break;
