@@ -29,24 +29,24 @@
 #if CFG_TUC_ENABLED
 
 #include "tcd.h"
-#include "utcd.h"
+#include "usbc.h"
 
 //--------------------------------------------------------------------+
 //
 //--------------------------------------------------------------------+
 
 // Debug level of USBD
-#define UTCD_DEBUG   2
-#define TU_LOG_UTCD(...)   TU_LOG(UTCD_DEBUG, __VA_ARGS__)
+#define USBC_DEBUG   2
+#define TU_LOG_USBC(...)   TU_LOG(USBC_DEBUG, __VA_ARGS__)
 
 // Event queue
-// utcd_int_set() is used as mutex in OS NONE config
-void utcd_int_set(bool enabled);
-OSAL_QUEUE_DEF(utcd_int_set, _utcd_qdef, CFG_TUC_TASK_QUEUE_SZ, tcd_event_t);
-tu_static osal_queue_t _utcd_q;
+// usbc_int_set() is used as mutex in OS NONE config
+void usbc_int_set(bool enabled);
+OSAL_QUEUE_DEF(usbc_int_set, _usbc_qdef, CFG_TUC_TASK_QUEUE_SZ, tcd_event_t);
+tu_static osal_queue_t _usbc_q;
 
 // if stack is initialized
-static bool _utcd_inited = false;
+static bool _usbc_inited = false;
 
 // if port is initialized
 static bool _port_inited[TUP_TYPEC_RHPORTS_NUM];
@@ -55,7 +55,7 @@ static bool _port_inited[TUP_TYPEC_RHPORTS_NUM];
 static uint8_t _rx_buf[64] TU_ATTR_ALIGNED(4);
 static uint8_t _tx_buf[64] TU_ATTR_ALIGNED(4);
 
-bool utcd_msg_send(uint8_t rhport, pd_header_t const* header, void const* data);
+bool usbc_msg_send(uint8_t rhport, pd_header_t const* header, void const* data);
 bool parse_msg_data(uint8_t rhport, pd_header_t const* header, uint8_t const* dobj, uint8_t const* p_end);
 bool parse_msg_control(uint8_t rhport, pd_header_t const* header);
 
@@ -63,18 +63,18 @@ bool parse_msg_control(uint8_t rhport, pd_header_t const* header);
 //
 //--------------------------------------------------------------------+
 bool tuc_inited(uint8_t rhport) {
-  return _utcd_inited && _port_inited[rhport];
+  return _usbc_inited && _port_inited[rhport];
 }
 
 bool tuc_init(uint8_t rhport, uint32_t port_type) {
   // Initialize stack
-  if (!_utcd_inited) {
+  if (!_usbc_inited) {
     tu_memclr(_port_inited, sizeof(_port_inited));
 
-    _utcd_q = osal_queue_create(&_utcd_qdef);
-    TU_ASSERT(_utcd_q != NULL);
+    _usbc_q = osal_queue_create(&_usbc_qdef);
+    TU_ASSERT(_usbc_q != NULL);
 
-    _utcd_inited = true;
+    _usbc_inited = true;
   }
 
   // skip if port already initialized
@@ -82,8 +82,8 @@ bool tuc_init(uint8_t rhport, uint32_t port_type) {
     return true;
   }
 
-  TU_LOG_UTCD("UTCD init on port %u\r\n", rhport);
-  TU_LOG_INT(UTCD_DEBUG, sizeof(tcd_event_t));
+  TU_LOG_USBC("USBC init on port %u\r\n", rhport);
+  TU_LOG_INT(USBC_DEBUG, sizeof(tcd_event_t));
 
   TU_ASSERT(tcd_init(rhport, port_type));
   tcd_int_enable(rhport);
@@ -96,12 +96,12 @@ void tuc_task_ext(uint32_t timeout_ms, bool in_isr) {
   (void) in_isr; // not implemented yet
 
   // Skip if stack is not initialized
-  if (!_utcd_inited) return;
+  if (!_usbc_inited) return;
 
   // Loop until there is no more events in the queue
   while (1) {
     tcd_event_t event;
-    if (!osal_queue_receive(_utcd_q, &event, timeout_ms)) return;
+    if (!osal_queue_receive(_usbc_q, &event, timeout_ms)) return;
 
     switch (event.event_id) {
       case TCD_EVENT_CC_CHANGED:
@@ -155,7 +155,7 @@ bool parse_msg_control(uint8_t rhport, pd_header_t const* header) {
 //
 //--------------------------------------------------------------------+
 
-bool utcd_msg_send(uint8_t rhport, pd_header_t const* header, void const* data) {
+bool usbc_msg_send(uint8_t rhport, pd_header_t const* header, void const* data) {
   // copy header
   memcpy(_tx_buf, header, sizeof(pd_header_t));
 
@@ -179,7 +179,7 @@ bool tuc_msg_request(uint8_t rhport, void const* rdo) {
       .extended = 0,
   };
 
-  return utcd_msg_send(rhport, &header, rdo);
+  return usbc_msg_send(rhport, &header, rdo);
 }
 
 void tcd_event_handler(tcd_event_t const * event, bool in_isr) {
@@ -197,13 +197,13 @@ void tcd_event_handler(tcd_event_t const * event, bool in_isr) {
     default: break;
   }
 
-  osal_queue_send(_utcd_q, event, in_isr);
+  osal_queue_send(_usbc_q, event, in_isr);
 }
 
 //--------------------------------------------------------------------+
 //
 //--------------------------------------------------------------------+
-void utcd_int_set(bool enabled) {
+void usbc_int_set(bool enabled) {
   // Disable all controllers since they shared the same event queue
   for (uint8_t p = 0; p < TUP_TYPEC_RHPORTS_NUM; p++) {
     if ( _port_inited[p] ) {
