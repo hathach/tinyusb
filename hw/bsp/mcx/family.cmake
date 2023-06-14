@@ -14,7 +14,7 @@ include(${CMAKE_CURRENT_LIST_DIR}/boards/${BOARD}/board.cmake)
 set(CMAKE_SYSTEM_PROCESSOR cortex-m33 CACHE INTERNAL "System Processor")
 set(CMAKE_TOOLCHAIN_FILE ${TOP}/tools/cmake/toolchain/arm_${TOOLCHAIN}.cmake)
 
-set(FAMILY_MCUS LPC55XX CACHE INTERNAL "")
+set(FAMILY_MCUS MCXN9 CACHE INTERNAL "")
 
 # enable LTO if supported
 include(CheckIPOSupported)
