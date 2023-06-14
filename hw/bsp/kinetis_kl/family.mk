@@ -1,5 +1,5 @@
-SDK_DIR = hw/mcu/nxp/nxp_sdk
-DEPS_SUBMODULES += $(SDK_DIR)
+SDK_DIR = hw/mcu/nxp/mcux-sdk
+DEPS_SUBMODULES += $(SDK_DIR) lib/CMSIS_5
 
 MCU_DIR = $(SDK_DIR)/devices/$(MCU)
 include $(TOP)/$(BOARD_PATH)/board.mk
@@ -18,20 +18,22 @@ SRC_C += \
 	src/portable/nxp/khci/dcd_khci.c \
 	src/portable/nxp/khci/hcd_khci.c \
 	$(MCU_DIR)/system_$(MCU).c \
-	$(MCU_DIR)/project_template/clock_config.c \
 	$(MCU_DIR)/drivers/fsl_clock.c \
-	$(MCU_DIR)/drivers/fsl_gpio.c \
-	$(MCU_DIR)/drivers/fsl_lpsci.c \
-	$(MCU_DIR)/drivers/fsl_uart.c
+	$(SDK_DIR)/drivers/gpio/fsl_gpio.c \
+	$(SDK_DIR)/drivers/lpsci/fsl_lpsci.c \
+	$(SDK_DIR)/drivers/uart/fsl_uart.c \
 
 INC += \
 	$(TOP)/$(BOARD_PATH) \
-	$(TOP)/$(SDK_DIR)/CMSIS/Include \
+	$(TOP)/lib/CMSIS_5/CMSIS/Core/Include \
 	$(TOP)/$(MCU_DIR) \
-	$(TOP)/$(MCU_DIR)/project_template \
-	$(TOP)/$(MCU_DIR)/drivers
-
-SRC_S += $(MCU_DIR)/gcc/startup_$(MCU).S
+	$(TOP)/$(MCU_DIR)/drivers \
+	$(TOP)/$(SDK_DIR)/drivers/common \
+	$(TOP)/$(SDK_DIR)/drivers/gpio \
+	$(TOP)/$(SDK_DIR)/drivers/lpsci \
+	$(TOP)/$(SDK_DIR)/drivers/port \
+	$(TOP)/$(SDK_DIR)/drivers/smc \
+	$(TOP)/$(SDK_DIR)/drivers/uart \
 
 # For freeRTOS port source
 FREERTOS_PORTABLE_SRC = $(FREERTOS_PORTABLE_PATH)/ARM_CM0
