@@ -88,7 +88,7 @@ function(family_configure_example TARGET)
   # These files are built for each example since it depends on example's tusb_config.h
   target_sources(${TARGET} PUBLIC
     # TinyUSB Port
-    ${TOP}/src/portable/nxp/khci/dcd_khci.c
+    ${TOP}/src/portable/chipidea/ci_fs/dcd_ci_fs.c
     ${TOP}/src/portable/nxp/khci/hcd_khci.c
     # BSP
     ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/family.c
