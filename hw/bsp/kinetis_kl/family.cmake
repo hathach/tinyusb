@@ -11,10 +11,10 @@ set(CMSIS_DIR ${TOP}/lib/CMSIS_5)
 include(${CMAKE_CURRENT_LIST_DIR}/boards/${BOARD}/board.cmake)
 
 # toolchain set up
-set(CMAKE_SYSTEM_PROCESSOR cortex-m33 CACHE INTERNAL "System Processor")
+set(CMAKE_SYSTEM_PROCESSOR cortex-m0plus CACHE INTERNAL "System Processor")
 set(CMAKE_TOOLCHAIN_FILE ${TOP}/tools/cmake/toolchain/arm_${TOOLCHAIN}.cmake)
 
-set(FAMILY_MCUS MCXN9 CACHE INTERNAL "")
+set(FAMILY_MCUS KINETIS_KL CACHE INTERNAL "")
 
 # enable LTO if supported
 include(CheckIPOSupported)
@@ -31,38 +31,37 @@ endif ()
 function(add_board_target BOARD_TARGET)
   if (NOT TARGET ${BOARD_TARGET})
     add_library(${BOARD_TARGET} STATIC
-      # external driver
-      #lib/sct_neopixel/sct_neopixel.c
-
-      # driver
-      ${SDK_DIR}/devices/${MCU_VARIANT}/drivers/fsl_gpio.c
-      ${SDK_DIR}/devices/${MCU_VARIANT}/drivers/fsl_common_arm.c
-      ${SDK_DIR}/devices/${MCU_VARIANT}/drivers/fsl_lpuart.c
-      ${SDK_DIR}/devices/${MCU_VARIANT}/drivers/fsl_lpflexcomm.c
-      # mcu
+      ${SDK_DIR}/drivers/gpio/fsl_gpio.c
+      ${SDK_DIR}/drivers/lpsci/fsl_lpsci.c
+      ${SDK_DIR}/drivers/uart/fsl_uart.c
       ${SDK_DIR}/devices/${MCU_VARIANT}/drivers/fsl_clock.c
-      ${SDK_DIR}/devices/${MCU_VARIANT}/drivers/fsl_reset.c
-      ${SDK_DIR}/devices/${MCU_VARIANT}/system_${MCU_CORE}.c
+      ${SDK_DIR}/devices/${MCU_VARIANT}/system_${MCU_VARIANT}.c
       )
-    #  target_compile_definitions(${BOARD_TARGET} PUBLIC
-    #    )
+    target_compile_definitions(${BOARD_TARGET} PUBLIC
+      )
     target_include_directories(${BOARD_TARGET} PUBLIC
-      # driver
-      # mcu
       ${CMSIS_DIR}/CMSIS/Core/Include
       ${SDK_DIR}/devices/${MCU_VARIANT}
       ${SDK_DIR}/devices/${MCU_VARIANT}/drivers
+      ${SDK_DIR}/drivers/common
+      ${SDK_DIR}/drivers/gpio
+      ${SDK_DIR}/drivers/lpsci
+      ${SDK_DIR}/drivers/port
+      ${SDK_DIR}/drivers/smc
+      ${SDK_DIR}/drivers/uart
       )
 
     update_board(${BOARD_TARGET})
 
+    # LD_FILE and STARTUP_FILE can be defined in board.cmake
+
+    target_sources(${BOARD_TARGET} PUBLIC
+      ${STARTUP_FILE_${CMAKE_C_COMPILER_ID}}
+      )
+
     if (CMAKE_C_COMPILER_ID STREQUAL "GNU")
-      target_sources(${BOARD_TARGET} PUBLIC
-        ${SDK_DIR}/devices/${MCU_VARIANT}/gcc/startup_${MCU_CORE}.S
-        )
       target_link_options(${BOARD_TARGET} PUBLIC
-        # linker file
-        "LINKER:--script=${SDK_DIR}/devices/${MCU_VARIANT}/gcc/${MCU_CORE}_flash.ld"
+        "LINKER:--script=${LD_FILE_GNU}"
         # nanolib
         --specs=nosys.specs
         --specs=nano.specs
@@ -88,8 +87,9 @@ function(family_configure_example TARGET)
   #---------- Port Specific ----------
   # These files are built for each example since it depends on example's tusb_config.h
   target_sources(${TARGET} PUBLIC
-    # TinyUSB: Port0 is chipidea FS, Port1 is chipidea HS
-    ${TOP}/src/portable/chipidea/$<IF:${PORT},ci_hs/dcd_ci_hs.c,ci_fs/dcd_ci_fs.c>
+    # TinyUSB Port
+    ${TOP}/src/portable/chipidea/ci_fs/dcd_ci_fs.c
+    ${TOP}/src/portable/nxp/khci/hcd_khci.c
     # BSP
     ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/family.c
     ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/../board.c
@@ -102,7 +102,7 @@ function(family_configure_example TARGET)
     )
 
   # Add TinyUSB
-  family_add_tinyusb(${TARGET} OPT_MCU_MCXN9)
+  family_add_tinyusb(${TARGET} OPT_MCU_KINETIS_KL)
 
   # Link dependencies
   target_link_libraries(${TARGET} PUBLIC board_${BOARD} ${TARGET}-tinyusb)
@@ -110,7 +110,6 @@ function(family_configure_example TARGET)
   # Flashing
   family_flash_jlink(${TARGET})
   #family_flash_nxplink(${TARGET})
-  #family_flash_pyocd(${TARGET})
 endfunction()
 
 
