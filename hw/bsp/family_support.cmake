@@ -19,6 +19,33 @@ if (NOT EXISTS ${CMAKE_CURRENT_LIST_DIR}/${FAMILY}/family.cmake)
   message(FATAL_ERROR "Family '${FAMILY}' is not known/supported")
 endif()
 
+set(WARNING_FLAGS_GNU
+  -Wall
+  -Wextra
+  -Werror
+  -Wfatal-errors
+  -Wdouble-promotion
+  -Wstrict-prototypes
+  -Wstrict-overflow
+  -Werror-implicit-function-declaration
+  -Wfloat-equal
+  -Wundef
+  -Wshadow
+  -Wwrite-strings
+  -Wsign-compare
+  -Wmissing-format-attribute
+  -Wunreachable-code
+  -Wcast-align
+  -Wcast-function-type
+  -Wcast-qual
+  -Wnull-dereference
+  -Wuninitialized
+  -Wunused
+  -Wreturn-type
+  -Wredundant-decls
+  )
+
+set(WARNINGS_FLAGS_IAR "")
 
 function(family_filter RESULT DIR)
   get_filename_component(DIR ${DIR} ABSOLUTE BASE_DIR ${CMAKE_CURRENT_SOURCE_DIR})
@@ -120,6 +147,8 @@ function(family_configure_common TARGET)
   add_custom_command(TARGET ${TARGET} POST_BUILD
     COMMAND ${CMAKE_SIZE} $<TARGET_FILE:${TARGET}>
     )
+
+  target_compile_options(${TARGET} PUBLIC ${WARNING_FLAGS_${CMAKE_C_COMPILER_ID}})
 
   if (CMAKE_C_COMPILER_ID STREQUAL "GNU")
     # Generate map file

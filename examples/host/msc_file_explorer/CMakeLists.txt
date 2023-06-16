@@ -21,6 +21,13 @@ target_sources(${PROJECT} PUBLIC
   ${TOP}/lib/fatfs/source/ffunicode.c
   )
 
+# Suppress warnings on fatfs
+set_source_files_properties(
+  ${TOP}/lib/fatfs/source/ff.c
+  PROPERTIES
+  COMPILE_FLAGS "-Wno-conversion -Wno-cast-qual"
+)
+
 # Example include
 target_include_directories(${PROJECT} PUBLIC
   ${CMAKE_CURRENT_SOURCE_DIR}/src

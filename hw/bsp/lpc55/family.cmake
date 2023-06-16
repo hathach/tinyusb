@@ -102,6 +102,7 @@ function(family_configure_example TARGET)
     # external driver
     ${TOP}/lib/sct_neopixel/sct_neopixel.c
     )
+
   target_include_directories(${TARGET} PUBLIC
     # family, hw, board
     ${CMAKE_CURRENT_FUNCTION_LIST_DIR}

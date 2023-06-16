@@ -27,6 +27,15 @@
 #include "bsp/board.h"
 #include "board.h"
 
+// Suppress warning caused by mcu driver
+#ifdef __GNUC__
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wcast-qual"
+#pragma GCC diagnostic ignored "-Wcast-align"
+#pragma GCC diagnostic ignored "-Wunused-parameter"
+#pragma GCC diagnostic ignored "-Wundef"
+#endif
+
 #include "nrfx.h"
 #include "hal/nrf_gpio.h"
 #include "drivers/include/nrfx_power.h"
@@ -36,6 +45,11 @@
 #include "nrf_sdm.h"
 #include "nrf_soc.h"
 #endif
+
+#ifdef __GNUC__
+#pragma GCC diagnostic pop
+#endif
+
 
 //--------------------------------------------------------------------+
 // Forward USB interrupt events to TinyUSB IRQ Handler
