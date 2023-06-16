@@ -114,10 +114,8 @@ function(family_configure_example TARGET)
     ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/boards/${BOARD}
     )
 
-  # Add TinyUSB
+  # Add TinyUSB target and port source
   family_add_tinyusb(${TARGET} OPT_MCU_MIMXRT1XXX)
-
-  # Add TinyUSB Port source
   target_sources(${TARGET}-tinyusb PUBLIC
     ${TOP}/src/portable/chipidea/ci_hs/dcd_ci_hs.c
     ${TOP}/src/portable/chipidea/ci_hs/hcd_ci_hs.c

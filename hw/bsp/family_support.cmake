@@ -192,12 +192,8 @@ function(family_add_freertos TARGET)
     CFG_TUSB_OS=OPT_OS_FREERTOS
     )
   # link tinyusb with freeRTOS kernel
-  target_link_libraries(${TARGET}-tinyusb PUBLIC
-    freertos_kernel
-    )
-  target_link_libraries(${TARGET} PUBLIC
-    freertos_kernel
-    )
+  target_link_libraries(${TARGET}-tinyusb PUBLIC freertos_kernel)
+  target_link_libraries(${TARGET} PUBLIC freertos_kernel)
 endfunction()
 
 

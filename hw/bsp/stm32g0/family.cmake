@@ -59,8 +59,6 @@ function(add_board_target BOARD_TARGET)
 
     update_board(${BOARD_TARGET})
 
-    cmake_print_variables(CMAKE_C_COMPILER_ID)
-
     if (CMAKE_C_COMPILER_ID STREQUAL "GNU")
       target_link_options(${BOARD_TARGET} PUBLIC
         "LINKER:--script=${LD_FILE_GNU}"
@@ -90,8 +88,6 @@ function(family_configure_example TARGET)
   #---------- Port Specific ----------
   # These files are built for each example since it depends on example's tusb_config.h
   target_sources(${TARGET} PUBLIC
-    # TinyUSB Port
-    ${TOP}/src/portable/st/stm32_fsdev/dcd_stm32_fsdev.c
     # BSP
     ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/family.c
     ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/../board.c
@@ -103,8 +99,13 @@ function(family_configure_example TARGET)
     ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/boards/${BOARD}
     )
 
-  # Add TinyUSB
+  # Add TinyUSB target and port source
   family_add_tinyusb(${TARGET} OPT_MCU_STM32G0)
+  target_sources(${TARGET}-tinyusb PUBLIC
+    ${TOP}/src/portable/st/stm32_fsdev/dcd_stm32_fsdev.c
+    ${TOP}/src/portable/st/typec/typec_stm32.c
+    )
+  target_link_libraries(${TARGET}-tinyusb PUBLIC board_${BOARD})
 
   # Link dependencies
   target_link_libraries(${TARGET} PUBLIC board_${BOARD} ${TARGET}-tinyusb)

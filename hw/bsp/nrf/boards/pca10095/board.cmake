@@ -6,7 +6,7 @@ function(update_board TARGET)
     NRF5340_XXAA
     NRF5340_XXAA_APPLICATION
     )
-  target_sources(${TARGET} PUBLIC
+  target_sources(${TARGET} PRIVATE
     ${NRFX_DIR}/drivers/src/nrfx_usbreg.c
     )
 endfunction()

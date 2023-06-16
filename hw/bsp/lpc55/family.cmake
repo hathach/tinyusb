@@ -16,16 +16,6 @@ set(FAMILY_MCUS LPC55XX CACHE INTERNAL "")
 # include board specific
 include(${CMAKE_CURRENT_LIST_DIR}/boards/${BOARD}/board.cmake)
 
-#------------------------------------
-# freertos
-#------------------------------------
-if (NOT TARGET freertos_config)
-  add_library(freertos_config INTERFACE)
-  target_include_directories(freertos_config SYSTEM INTERFACE
-    ${CMAKE_CURRENT_LIST_DIR}/FreeRTOSConfig
-    )
-endif()
-
 
 #------------------------------------
 # BOARD_TARGET
@@ -106,8 +96,6 @@ function(family_configure_example TARGET)
   #---------- Port Specific ----------
   # These files are built for each example since it depends on example's tusb_config.h
   target_sources(${TARGET} PUBLIC
-    # TinyUSB Port
-    ${TOP}/src/portable/nxp/lpc_ip3511/dcd_lpc_ip3511.c
     # BSP
     ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/family.c
     ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/../board.c
@@ -121,15 +109,19 @@ function(family_configure_example TARGET)
     ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/boards/${BOARD}
     )
 
-  # Add TinyUSB
+  # Add TinyUSB target and port source
   family_add_tinyusb(${TARGET} OPT_MCU_LPC55XX)
+  target_sources(${TARGET}-tinyusb PUBLIC
+    ${TOP}/src/portable/nxp/lpc_ip3511/dcd_lpc_ip3511.c
+    )
+  target_link_libraries(${TARGET}-tinyusb PUBLIC board_${BOARD})
 
   # Link dependencies
   target_link_libraries(${TARGET} PUBLIC board_${BOARD} ${TARGET}-tinyusb)
 
   # Flashing
   family_flash_jlink(${TARGET})
-  family_flash_nxplink(${TARGET})
+  #family_flash_nxplink(${TARGET})
   #family_flash_pyocd(${TARGET})
 endfunction()
 

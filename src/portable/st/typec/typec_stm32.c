@@ -186,7 +186,7 @@ bool tcd_init(uint8_t rhport, uint32_t port_type) {
     v_cc[0] = (UCPD1->SR >> UCPD_SR_TYPEC_VSTATE_CC1_Pos) & 0x03;
     v_cc[1] = (UCPD1->SR >> UCPD_SR_TYPEC_VSTATE_CC2_Pos) & 0x03;
 
-    TU_LOG1("Initial VState CC1 = %u, CC2 = %u\r\n", v_cc[0], v_cc[1]);
+    TU_LOG1("Initial VState CC1 = %lu, CC2 = %lu\r\n", v_cc[0], v_cc[1]);
 
     // Enable CC1 & CC2 Interrupt
     UCPD1->IMR = UCPD_IMR_TYPECEVT1IE | UCPD_IMR_TYPECEVT2IE;
@@ -246,7 +246,7 @@ void tcd_int_handler(uint8_t rhport) {
     v_cc[0] = (UCPD1->SR >> UCPD_SR_TYPEC_VSTATE_CC1_Pos) & 0x03;
     v_cc[1] = (UCPD1->SR >> UCPD_SR_TYPEC_VSTATE_CC2_Pos) & 0x03;
 
-    TU_LOG3("VState CC1 = %u, CC2 = %u\n", v_cc[0], v_cc[1]);
+    TU_LOG3("VState CC1 = %lu, CC2 = %lu\n", v_cc[0], v_cc[1]);
 
     uint32_t cr = UCPD1->CR;
 
