@@ -63,9 +63,6 @@ int main(void)
 
   tuc_init(0, TUSB_TYPEC_PORT_SNK);
 
-  uint32_t start_ms = 0;
-  bool led_state = false;
-
   while (1) {
     led_blinking_task();
 
@@ -155,6 +152,7 @@ bool tuc_pd_data_received_cb(uint8_t rhport, pd_header_t const* header, uint8_t 
 }
 
 bool tuc_pd_control_received_cb(uint8_t rhport, pd_header_t const* header) {
+  (void) rhport;
   switch (header->msg_type) {
     case PD_CTRL_ACCEPT:
       printf("PD Request Accepted\r\n");

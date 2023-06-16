@@ -83,7 +83,7 @@ board: FRDM-KL25Z
  * Variables
  ******************************************************************************/
 /* System clock frequency. */
-extern uint32_t SystemCoreClock;
+//extern uint32_t SystemCoreClock;
 
 /*******************************************************************************
  * Code

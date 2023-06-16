@@ -19,6 +19,33 @@ if (NOT EXISTS ${CMAKE_CURRENT_LIST_DIR}/${FAMILY}/family.cmake)
   message(FATAL_ERROR "Family '${FAMILY}' is not known/supported")
 endif()
 
+set(WARNING_FLAGS_GNU
+  -Wall
+  -Wextra
+  -Werror
+  -Wfatal-errors
+  -Wdouble-promotion
+  -Wstrict-prototypes
+  -Wstrict-overflow
+  -Werror-implicit-function-declaration
+  -Wfloat-equal
+  -Wundef
+  -Wshadow
+  -Wwrite-strings
+  -Wsign-compare
+  -Wmissing-format-attribute
+  -Wunreachable-code
+  -Wcast-align
+  -Wcast-function-type
+  -Wcast-qual
+  -Wnull-dereference
+  -Wuninitialized
+  -Wunused
+  -Wreturn-type
+  -Wredundant-decls
+  )
+
+set(WARNINGS_FLAGS_IAR "")
 
 function(family_filter RESULT DIR)
   get_filename_component(DIR ${DIR} ABSOLUTE BASE_DIR ${CMAKE_CURRENT_SOURCE_DIR})
@@ -121,6 +148,8 @@ function(family_configure_common TARGET)
     COMMAND ${CMAKE_SIZE} $<TARGET_FILE:${TARGET}>
     )
 
+  target_compile_options(${TARGET} PUBLIC ${WARNING_FLAGS_${CMAKE_C_COMPILER_ID}})
+
   if (CMAKE_C_COMPILER_ID STREQUAL "GNU")
     # Generate map file
     target_link_options(${TARGET} PUBLIC
@@ -177,6 +206,8 @@ function(family_add_freertos TARGET)
     target_include_directories(freertos_config INTERFACE
       ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/${FAMILY}/FreeRTOSConfig
       )
+    # add board definition to freertos_config mostly for SystemCoreClock
+    target_link_libraries(freertos_config INTERFACE board_${BOARD})
   endif()
 
   # freertos kernel should be generic as freertos_config however, CMAKE complains with missing variable
@@ -190,12 +221,8 @@ function(family_add_freertos TARGET)
     CFG_TUSB_OS=OPT_OS_FREERTOS
     )
   # link tinyusb with freeRTOS kernel
-  target_link_libraries(${TARGET}-tinyusb PUBLIC
-    freertos_kernel
-    )
-  target_link_libraries(${TARGET} PUBLIC
-    freertos_kernel
-    )
+  target_link_libraries(${TARGET}-tinyusb PUBLIC freertos_kernel)
+  target_link_libraries(${TARGET} PUBLIC freertos_kernel)
 endfunction()
 
 

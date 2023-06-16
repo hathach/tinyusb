@@ -88,8 +88,6 @@ function(family_configure_example TARGET)
   #---------- Port Specific ----------
   # These files are built for each example since it depends on example's tusb_config.h
   target_sources(${TARGET} PUBLIC
-    # TinyUSB: Port0 is chipidea FS, Port1 is chipidea HS
-    ${TOP}/src/portable/chipidea/$<IF:${PORT},ci_hs/dcd_ci_hs.c,ci_fs/dcd_ci_fs.c>
     # BSP
     ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/family.c
     ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/../board.c
@@ -101,8 +99,13 @@ function(family_configure_example TARGET)
     ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/boards/${BOARD}
     )
 
-  # Add TinyUSB
+  # Add TinyUSB target and port source
   family_add_tinyusb(${TARGET} OPT_MCU_MCXN9)
+  target_sources(${TARGET}-tinyusb PUBLIC
+    # TinyUSB: Port0 is chipidea FS, Port1 is chipidea HS
+    ${TOP}/src/portable/chipidea/$<IF:${PORT},ci_hs/dcd_ci_hs.c,ci_fs/dcd_ci_fs.c>
+    )
+  target_link_libraries(${TARGET}-tinyusb PUBLIC board_${BOARD})
 
   # Link dependencies
   target_link_libraries(${TARGET} PUBLIC board_${BOARD} ${TARGET}-tinyusb)

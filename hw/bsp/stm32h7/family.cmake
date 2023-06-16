@@ -4,7 +4,7 @@ if (NOT BOARD)
   message(FATAL_ERROR "BOARD not specified")
 endif ()
 
-set(ST_FAMILY g0)
+set(ST_FAMILY h7)
 set(ST_PREFIX stm32${ST_FAMILY}xx)
 
 set(ST_HAL_DRIVER ${TOP}/hw/mcu/st/stm32${ST_FAMILY}xx_hal_driver)
@@ -15,10 +15,10 @@ set(CMSIS_5 ${TOP}/lib/CMSIS_5)
 include(${CMAKE_CURRENT_LIST_DIR}/boards/${BOARD}/board.cmake)
 
 # toolchain set up
-set(CMAKE_SYSTEM_PROCESSOR cortex-m0plus CACHE INTERNAL "System Processor")
+set(CMAKE_SYSTEM_PROCESSOR cortex-m7 CACHE INTERNAL "System Processor")
 set(CMAKE_TOOLCHAIN_FILE ${TOP}/tools/cmake/toolchain/arm_${TOOLCHAIN}.cmake)
 
-set(FAMILY_MCUS STM32G0 CACHE INTERNAL "")
+set(FAMILY_MCUS STM32H7 CACHE INTERNAL "")
 
 # enable LTO if supported
 include(CheckIPOSupported)
@@ -38,10 +38,12 @@ function(add_board_target BOARD_TARGET)
       ${ST_CMSIS}/Source/Templates/system_${ST_PREFIX}.c
       ${ST_HAL_DRIVER}/Src/${ST_PREFIX}_hal.c
       ${ST_HAL_DRIVER}/Src/${ST_PREFIX}_hal_cortex.c
+      ${ST_HAL_DRIVER}/Src/${ST_PREFIX}_hal_dma.c
+      ${ST_HAL_DRIVER}/Src/${ST_PREFIX}_hal_gpio.c
+      ${ST_HAL_DRIVER}/Src/${ST_PREFIX}_hal_pwr.c
       ${ST_HAL_DRIVER}/Src/${ST_PREFIX}_hal_pwr_ex.c
       ${ST_HAL_DRIVER}/Src/${ST_PREFIX}_hal_rcc.c
       ${ST_HAL_DRIVER}/Src/${ST_PREFIX}_hal_rcc_ex.c
-      ${ST_HAL_DRIVER}/Src/${ST_PREFIX}_hal_gpio.c
       ${ST_HAL_DRIVER}/Src/${ST_PREFIX}_hal_uart.c
       ${ST_HAL_DRIVER}/Src/${ST_PREFIX}_hal_uart_ex.c
       ${STARTUP_FILE_${CMAKE_C_COMPILER_ID}}
@@ -100,10 +102,9 @@ function(family_configure_example TARGET)
     )
 
   # Add TinyUSB target and port source
-  family_add_tinyusb(${TARGET} OPT_MCU_STM32G0)
+  family_add_tinyusb(${TARGET} OPT_MCU_STM32H7)
   target_sources(${TARGET}-tinyusb PUBLIC
-    ${TOP}/src/portable/st/stm32_fsdev/dcd_stm32_fsdev.c
-    ${TOP}/src/portable/st/typec/typec_stm32.c
+    ${TOP}/src/portable/synopsys/dwc2/dcd_dwc2.c
     )
   target_link_libraries(${TARGET}-tinyusb PUBLIC board_${BOARD})
 
@@ -112,7 +113,7 @@ function(family_configure_example TARGET)
 
   # Flashing
   family_flash_stlink(${TARGET})
-  #family_flash_jlink(${TARGET})
+  family_flash_jlink(${TARGET})
 endfunction()
 
 

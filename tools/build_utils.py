@@ -30,13 +30,8 @@ def skip_example(example, board):
         family_dir = board_dir.parent.parent
         family = family_dir.name
 
-        # family CMake
-        family_mk = family_dir / "family.cmake"
-
         # family.mk
-        if not family_mk.exists():
-            family_mk = family_dir / "family.mk"
-
+        family_mk = family_dir / "family.mk"
         mk_contents = family_mk.read_text()
 
     # Find the mcu, first in family mk then board mk

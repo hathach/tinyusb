@@ -35,32 +35,6 @@ set(TOOLCHAIN_EXE_LINKER_FLAGS
   -Wl,--cref
   )
 
-set(TOOLCHAIN_WARNING_FLAGS
-  -Wall
-  -Wextra
-  -Werror
-  -Wfatal-errors
-  -Wdouble-promotion
-  -Wstrict-prototypes
-  -Wstrict-overflow
-  -Werror-implicit-function-declaration
-  -Wfloat-equal
-  -Wundef
-  -Wshadow
-  -Wwrite-strings
-  -Wsign-compare
-  -Wmissing-format-attribute
-  -Wunreachable-code
-  -Wcast-align
-  -Wcast-function-type
-  -Wcast-qual
-  -Wnull-dereference
-  -Wuninitialized
-  -Wunused
-  -Wreturn-type
-  -Wredundant-decls
-  )
-
 include(${CMAKE_CURRENT_LIST_DIR}/set_flags.cmake)
 
 # try_compile is cmake test compiling its own example,

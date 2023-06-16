@@ -26,11 +26,22 @@
 
 #include "bsp/board.h"
 #include "board.h"
+
+// Suppress warning caused by mcu driver
+#ifdef __GNUC__
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wunused-parameter"
+#endif
+
 #include "fsl_device_registers.h"
 #include "fsl_gpio.h"
 #include "fsl_iomuxc.h"
 #include "fsl_clock.h"
 #include "fsl_lpuart.h"
+
+#ifdef __GNUC__
+#pragma GCC diagnostic pop
+#endif
 
 #include "clock_config.h"
 
