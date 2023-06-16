@@ -177,6 +177,8 @@ function(family_add_freertos TARGET)
     target_include_directories(freertos_config INTERFACE
       ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/${FAMILY}/FreeRTOSConfig
       )
+    # add board definition to freertos_config mostly for SystemCoreClock
+    target_link_libraries(freertos_config INTERFACE board_${BOARD})
   endif()
 
   # freertos kernel should be generic as freertos_config however, CMAKE complains with missing variable

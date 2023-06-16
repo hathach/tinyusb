@@ -34,15 +34,15 @@
 #if CFG_TUSB_MCU == OPT_MCU_MIMXRT1XXX
   #include "ci_hs_imxrt.h"
 
-  void dcd_dcache_clean(void* addr, uint32_t data_size) {
+  void dcd_dcache_clean(void const* addr, uint32_t data_size) {
     imxrt_dcache_clean(addr, data_size);
   }
 
-  void dcd_dcache_invalidate(void* addr, uint32_t data_size) {
+  void dcd_dcache_invalidate(void const* addr, uint32_t data_size) {
     imxrt_dcache_invalidate(addr, data_size);
   }
 
-  void dcd_dcache_clean_invalidate(void* addr, uint32_t data_size) {
+  void dcd_dcache_clean_invalidate(void const* addr, uint32_t data_size) {
     imxrt_dcache_clean_invalidate(addr, data_size);
   }
 
@@ -58,15 +58,15 @@
   #error "Unsupported MCUs"
 #endif
 
-  TU_ATTR_WEAK void dcd_dcache_clean(void* addr, uint32_t data_size) {
+  TU_ATTR_WEAK void dcd_dcache_clean(void const* addr, uint32_t data_size) {
     (void) addr; (void) data_size;
   }
 
-  TU_ATTR_WEAK void dcd_dcache_invalidate(void* addr, uint32_t data_size) {
+  TU_ATTR_WEAK void dcd_dcache_invalidate(void const* addr, uint32_t data_size) {
     (void) addr; (void) data_size;
   }
 
-  TU_ATTR_WEAK void dcd_dcache_clean_invalidate(void* addr, uint32_t data_size) {
+  TU_ATTR_WEAK void dcd_dcache_clean_invalidate(void const* addr, uint32_t data_size) {
     (void) addr; (void) data_size;
   }
 #endif

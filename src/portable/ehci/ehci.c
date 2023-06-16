@@ -162,15 +162,15 @@ static void qtd_init (ehci_qtd_t* qtd, void const* buffer, uint16_t total_bytes)
 static inline void list_insert (ehci_link_t *current, ehci_link_t *new, uint8_t new_type);
 static inline ehci_link_t* list_next (ehci_link_t const *p_link);
 
-TU_ATTR_WEAK void hcd_dcache_clean(void* addr, uint32_t data_size) {
+TU_ATTR_WEAK void hcd_dcache_clean(void const* addr, uint32_t data_size) {
   (void) addr; (void) data_size;
 }
 
-TU_ATTR_WEAK void hcd_dcache_invalidate(void* addr, uint32_t data_size) {
+TU_ATTR_WEAK void hcd_dcache_invalidate(void const* addr, uint32_t data_size) {
   (void) addr; (void) data_size;
 }
 
-TU_ATTR_WEAK void hcd_dcache_clean_invalidate(void* addr, uint32_t data_size) {
+TU_ATTR_WEAK void hcd_dcache_clean_invalidate(void const* addr, uint32_t data_size) {
   (void) addr; (void) data_size;
 }
 
@@ -461,7 +461,7 @@ bool hcd_setup_send(uint8_t rhport, uint8_t dev_addr, uint8_t const setup_packet
   qtd_init(td, setup_packet, 8);
   td->pid = EHCI_PID_SETUP;
 
-  hcd_dcache_clean((void *) setup_packet, 8);
+  hcd_dcache_clean(setup_packet, 8);
 
   // attach TD to QHD -> start transferring
   qhd_attach_qtd(qhd, td);
