@@ -14,7 +14,7 @@ include(${CMAKE_CURRENT_LIST_DIR}/boards/${BOARD}/board.cmake)
 set(CMAKE_SYSTEM_PROCESSOR cortex-m7 CACHE INTERNAL "System Processor")
 set(CMAKE_TOOLCHAIN_FILE ${TOP}/tools/cmake/toolchain/arm_${TOOLCHAIN}.cmake)
 
-set(FAMILY_MCUS MIMXRT CACHE INTERNAL "")
+set(FAMILY_MCUS MIMXRT1XXX CACHE INTERNAL "")
 
 # enable LTO if supported
 include(CheckIPOSupported)
@@ -119,7 +119,7 @@ function(family_configure_example TARGET)
     )
 
   # Add TinyUSB
-  family_add_tinyusb(${TARGET} OPT_MCU_MIMXRT)
+  family_add_tinyusb(${TARGET} OPT_MCU_MIMXRT1XXX)
 
   # Link dependencies
   target_link_libraries(${TARGET} PUBLIC board_${BOARD} ${TARGET}-tinyusb)

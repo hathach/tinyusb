@@ -31,7 +31,7 @@
 #include "device/dcd.h"
 #include "ci_hs_type.h"
 
-#if CFG_TUSB_MCU == OPT_MCU_MIMXRT
+#if CFG_TUSB_MCU == OPT_MCU_MIMXRT1XXX
   #include "ci_hs_imxrt.h"
 
   void dcd_dcache_clean(void* addr, uint32_t data_size) {
