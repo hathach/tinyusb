@@ -32,7 +32,7 @@ jobs:
         # Alphabetical order
         # Note: bundle multiple families into a matrix since there is only one self-hosted instance can
         # run IAR build. Too many matrix can hurt due to setup/teardown overhead.
-        - 'stm32f0 stm32f1 stm32f7 stm32h7 stm32l4'
+        - 'stm32f0 stm32f1 stm32f7 stm32l4'
     steps:
     - name: Clean workspace
       run: |
@@ -58,7 +58,7 @@ jobs:
           # Alphabetical order
           # Note: bundle multiple families into a matrix since there is only one self-hosted instance can
           # run IAR build. Too many matrix can hurt due to setup/teardown overhead.
-          - 'stm32g0 stm32g4'
+          - 'stm32g0 stm32g4 stm32h7'
     steps:
       - name: Clean workspace
         run: |

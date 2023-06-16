@@ -6,7 +6,7 @@ SPEED ?= high
 
 # GCC
 GCC_SRC_S += $(ST_CMSIS)/Source/Templates/gcc/startup_stm32h743xx.s
-GCC_LD_FILE = $(BOARD_PATH)/stm32h743xx_flash.ld
+GCC_LD_FILE = $(FAMILY_PATH)/linker/stm32h743xx_flash.ld
 
 # IAR
 IAR_SRC_S += $(ST_CMSIS)/Source/Templates/iar/startup_stm32h743xx.s
