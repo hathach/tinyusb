@@ -69,7 +69,6 @@ void USB1_IRQHandler(void)
 // MACRO TYPEDEF CONSTANT ENUM DECLARATION
 //--------------------------------------------------------------------+
 
-
 /* System configuration variables used by chip driver */
 const uint32_t OscRateIn = 12000000;
 const uint32_t ExtRateIn = 0;
@@ -84,7 +83,15 @@ void SystemInit(void)
 #endif
 
   board_lpc18_pinmux();
-  Chip_SetupXtalClocking();
+
+  #ifdef TRACE_ETM
+  // Trace clock is limited to 60MHz, limit CPU clock to 120MHz
+  Chip_SetupCoreClock(CLKIN_CRYSTAL, 120000000UL, true);
+  #else
+  // CPU clock max to 180 Mhz
+  Chip_SetupCoreClock(CLKIN_CRYSTAL, MAX_CLOCK_FREQ, true);
+  #endif
+
 }
 
 void board_init(void)

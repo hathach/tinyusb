@@ -166,6 +166,11 @@ function(family_configure_common TARGET)
     endif ()
   endif ()
 
+  # ETM Trace
+  if (TRACE_ETM STREQUAL "1")
+    target_compile_definitions(${TARGET} PUBLIC TRACE_ETM)
+  endif ()
+
 endfunction()
 
 
