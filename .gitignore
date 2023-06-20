@@ -21,6 +21,8 @@ _build
 /examples/*/*/ses
 /examples/*/*/ozone
 /examples/obsolete
+hw/bsp/**/cubemx/*/
+.mxproject
 # coverity intermediate files
 cov-int
 # cppcheck build directories

@@ -9,9 +9,6 @@
 **********************************************************************
 */
 void OnProjectLoad (void) {
-  //
-  // Dialog-generated settings
-  //
   Project.AddSvdFile ("$(InstallDir)/Config/CPU/Cortex-M7F.svd");
   Project.AddSvdFile ("$(InstallDir)/Config/Peripherals/ARMv7M.svd");
   Project.AddSvdFile ("./STM32H743.svd");
@@ -21,17 +18,16 @@ void OnProjectLoad (void) {
   Project.SetTargetIF ("SWD");
   Project.SetTIFSpeed ("50 MHz");
 
-  //
-  // User settings
-  //
   Project.SetTraceSource ("Trace Pins");
+  Project.SetTracePortWidth (4);
+  // timing delay for trace pins in pico seconds, default is 2 nano seconds
   Project.SetTraceTiming (100, 100, 100, 100);
-  Edit.SysVar (VAR_TRACE_CORE_CLOCK, 150000000);
-  File.Open ("/home/hathach/code/tinyusb/examples/device/cdc_msc/cmake-build-h743eval/cdc_msc.elf");
+
+  File.Open ("../../../../../../examples/device/cdc_msc/cmake-build-stm32h743eval/cdc_msc.elf");
 }
 
 /*********************************************************************
-*
+*0
 *      TargetReset
 *
 * Function description
