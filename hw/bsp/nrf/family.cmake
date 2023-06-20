@@ -46,6 +46,12 @@ function(add_board_target BOARD_TARGET)
     target_compile_definitions(${BOARD_TARGET} PUBLIC
       CONFIG_GPIO_AS_PINRESET
       )
+
+    if (TRACE_ETM STREQUAL "1")
+      # ENABLE_TRACE will cause system_nrf5x.c to set up ETM trace
+      target_compile_definitions(${BOARD_TARGET} PUBLIC ENABLE_TRACE)
+    endif ()
+
     target_include_directories(${BOARD_TARGET} PUBLIC
       ${CMAKE_CURRENT_FUNCTION_LIST_DIR}
       ${NRFX_DIR}

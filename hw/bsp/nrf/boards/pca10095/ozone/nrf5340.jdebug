@@ -1,3 +1,13 @@
+/*********************************************************************
+*                 (c) SEGGER Microcontroller GmbH                    *
+*                      The Embedded Experts                          *
+*                         www.segger.com                             *
+**********************************************************************
+
+File          :
+Created       : 30 Jun 2021 13:37
+Ozone Version : V3.24a
+*/
 
 /*********************************************************************
 *
@@ -10,19 +20,32 @@
 */
 void OnProjectLoad (void) {
   // Dialog-generated settings
-  Project.AddSvdFile ("$(InstallDir)/Config/CPU/Cortex-M4F.svd");
-  Project.AddSvdFile ("$(InstallDir)/Config/Peripherals/ARMv7M.svd");
-
-  Project.SetDevice ("nRF52840_xxAA");
+  Project.AddSvdFile ("$(InstallDir)/Config/CPU/Cortex-M33F.svd");
+  Project.AddSvdFile ("./nrf5340_application.svd");
+  Project.SetDevice ("nRF5340_xxAA_APP");
   Project.SetHostIF ("USB", "");
   Project.SetTargetIF ("SWD");
-  Project.SetTIFSpeed ("8 MHz");
+  Project.SetTIFSpeed ("16 MHz");
+
   Project.SetTraceSource ("Trace Pins");
   Project.SetTracePortWidth (4);
 
   // User settings
-  File.Open ("../../../../../../examples/device/cdc_msc/cmake-build-pca10056/cdc_msc.elf");
+  File.Open ("../../../../../../examples/device/cdc_msc/cmake-build-pca10095/cdc_msc.elf");
 }
+
+/*********************************************************************
+*
+*       OnStartupComplete
+*
+* Function description
+*   Called when program execution has reached/passed
+*   the startup completion point. Optional.
+*
+**********************************************************************
+*/
+//void OnStartupComplete (void) {
+//}
 
 /*********************************************************************
 *
@@ -33,7 +56,7 @@ void OnProjectLoad (void) {
 *
 * Notes
 *   This example demonstrates the usage when
-*   debugging a RAM program on a Cortex-M target device
+*   debugging an application in RAM on a Cortex-M target device.
 *
 **********************************************************************
 */
@@ -43,19 +66,26 @@ void OnProjectLoad (void) {
 //  unsigned int PC;
 //  unsigned int VectorTableAddr;
 //
-//  Exec.Reset();
-//
 //  VectorTableAddr = Elf.GetBaseAddr();
-//
+//  //
+//  // Set up initial stack pointer
+//  //
 //  if (VectorTableAddr != 0xFFFFFFFF) {
-//
-//    Util.Log("Resetting Program.");
-//
 //    SP = Target.ReadU32(VectorTableAddr);
 //    Target.SetReg("SP", SP);
+//  }
+//  //
+//  // Set up entry point PC
+//  //
+//  PC = Elf.GetEntryPointPC();
 //
+//  if (PC != 0xFFFFFFFF) {
+//    Target.SetReg("PC", PC);
+//  } else if (VectorTableAddr != 0xFFFFFFFF) {
 //    PC = Target.ReadU32(VectorTableAddr + 4);
 //    Target.SetReg("PC", PC);
+//  } else {
+//    Util.Error("Project file error: failed to set entry point PC", 1);
 //  }
 //}
 
@@ -76,28 +106,13 @@ void OnProjectLoad (void) {
 *       AfterTargetReset
 *
 * Function description
-*   Event handler routine.
-*    - Sets the PC register to program reset value.
-*    - Sets the SP register to program reset value on Cortex-M.
-*
+*   Event handler routine. Optional.
+*   The default implementation initializes SP and PC to reset values.
+**
 **********************************************************************
 */
 void AfterTargetReset (void) {
-  unsigned int SP;
-  unsigned int PC;
-  unsigned int VectorTableAddr;
-
-  VectorTableAddr = Elf.GetBaseAddr();
-
-  if (VectorTableAddr == 0xFFFFFFFF) {
-    Util.Log("Project file error: failed to get program base");
-  } else {
-    SP = Target.ReadU32(VectorTableAddr);
-    Target.SetReg("SP", SP);
-
-    PC = Target.ReadU32(VectorTableAddr + 4);
-    Target.SetReg("PC", PC);
-  }
+  _SetupTarget();
 }
 
 /*********************************************************************
@@ -177,28 +192,13 @@ void BeforeTargetConnect (void) {
 *      AfterTargetDownload
 *
 * Function description
-*   Event handler routine.
-*    - Sets the PC register to program reset value.
-*    - Sets the SP register to program reset value on Cortex-M.
+*   Event handler routine. Optional.
+*   The default implementation initializes SP and PC to reset values.
 *
 **********************************************************************
 */
 void AfterTargetDownload (void) {
-  unsigned int SP;
-  unsigned int PC;
-  unsigned int VectorTableAddr;
-
-  VectorTableAddr = Elf.GetBaseAddr();
-
-  if (VectorTableAddr == 0xFFFFFFFF) {
-    Util.Log("Project file error: failed to get program base");
-  } else {
-    SP = Target.ReadU32(VectorTableAddr);
-    Target.SetReg("SP", SP);
-
-    PC = Target.ReadU32(VectorTableAddr + 4);
-    Target.SetReg("PC", PC);
-  }
+  _SetupTarget();
 }
 
 /*********************************************************************
@@ -236,3 +236,100 @@ void AfterTargetDownload (void) {
 */
 //void AfterTargetHalt (void) {
 //}
+
+/*********************************************************************
+*
+*       BeforeTargetResume
+*
+* Function description
+*   Event handler routine. Optional.
+*
+**********************************************************************
+*/
+//void BeforeTargetResume (void) {
+//}
+
+/*********************************************************************
+*
+*       OnSnapshotLoad
+*
+* Function description
+*   Called upon loading a snapshot. Optional.
+*
+* Additional information
+*   This function is used to restore the target state in cases
+*   where values cannot simply be written to the target.
+*   Typical use: GPIO clock needs to be enabled, before
+*   GPIO is configured.
+*
+**********************************************************************
+*/
+//void OnSnapshotLoad (void) {
+//}
+
+/*********************************************************************
+*
+*       OnSnapshotSave
+*
+* Function description
+*   Called upon saving a snapshot. Optional.
+*
+* Additional information
+*   This function is usually used to save values of the target
+*   state which can either not be trivially read,
+*   or need to be restored in a specific way or order.
+*   Typically use: Memory Mapped Registers,
+*   such as PLL and GPIO configuration.
+*
+**********************************************************************
+*/
+//void OnSnapshotSave (void) {
+//}
+
+/*********************************************************************
+*
+*       OnError
+*
+* Function description
+*   Called when an error occurred. Optional.
+*
+**********************************************************************
+*/
+//void OnError (void) {
+//}
+
+/*********************************************************************
+*
+*       _SetupTarget
+*
+* Function description
+*   Setup the target.
+*   Called by AfterTargetReset() and AfterTargetDownload().
+*
+*   Auto-generated function. May be overridden by Ozone.
+*
+**********************************************************************
+*/
+void _SetupTarget(void) {
+  unsigned int SP;
+  unsigned int PC;
+  unsigned int VectorTableAddr;
+
+  VectorTableAddr = Elf.GetBaseAddr();
+  //
+  // Set up initial stack pointer
+  //
+  SP = Target.ReadU32(VectorTableAddr);
+  if (SP != 0xFFFFFFFF) {
+    Target.SetReg("SP", SP);
+  }
+  //
+  // Set up entry point PC
+  //
+  PC = Elf.GetEntryPointPC();
+  if (PC != 0xFFFFFFFF) {
+    Target.SetReg("PC", PC);
+  } else {
+    Util.Error("Project script error: failed to set up entry point PC", 1);
+  }
+}
