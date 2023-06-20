@@ -77,7 +77,7 @@ void trace_etm_init(void) {
   DBGMCU->CR |= DBGMCU_CR_DBG_TRACECKEN | DBGMCU_CR_DBG_CKD1EN | DBGMCU_CR_DBG_CKD3EN;
 }
 #else
-  #define etm_trace_init()
+  #define trace_etm_init()
 #endif
 
 void board_init(void)

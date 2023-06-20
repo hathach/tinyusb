@@ -93,8 +93,33 @@ TU_ATTR_UNUSED static void power_event_handler(nrfx_power_usb_evt_t event)
   tusb_hal_nrf_power_event((uint32_t) event);
 }
 
+#ifdef TRACE_ETM
+void trace_etm_init(void) {
+  #ifdef NRF52840_XXAA
+  // Trace clk: P0.7, Trace D0..D3: P1.0, P0.11, P0.12, P1.09
+  // Setting drive strength to H0H1
+  uint32_t const pin_cnf = (GPIO_PIN_CNF_DRIVE_H0H1 << GPIO_PIN_CNF_DRIVE_Pos) |
+                           (GPIO_PIN_CNF_INPUT_Disconnect << GPIO_PIN_CNF_INPUT_Pos);
+  NRF_P0->PIN_CNF[ 7] = pin_cnf; // CLK
+  NRF_P1->PIN_CNF[ 0] = pin_cnf; // D0
+  NRF_P0->PIN_CNF[11] = pin_cnf; // D1
+  NRF_P0->PIN_CNF[12] = pin_cnf; // D2
+  NRF_P1->PIN_CNF[ 9] = pin_cnf; // D3
+
+  // trace clock = 16 Mhz, Trace mux = parallel
+  NRF_CLOCK->TRACECONFIG = (CLOCK_TRACECONFIG_TRACEPORTSPEED_32MHz << CLOCK_TRACECONFIG_TRACEPORTSPEED_Pos) |
+                           (CLOCK_TRACECONFIG_TRACEMUX_Parallel << CLOCK_TRACECONFIG_TRACEMUX_Pos);
+  #endif
+}
+#else
+
+#define trace_etm_init()
+#endif
+
 void board_init(void)
 {
+  trace_etm_init();
+
   // stop LF clock just in case we jump from application without reset
   NRF_CLOCK->TASKS_LFCLKSTOP = 1UL;
 

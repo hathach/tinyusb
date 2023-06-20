@@ -43,6 +43,15 @@
 
 static inline void board_lpc18_pinmux(void) {
   const PINMUX_GRP_T pinmuxing[] = {
+    // ETM Trace
+    #ifdef TRACE_ETM
+    { 0xF, 4, SCU_MODE_FUNC2 | SCU_MODE_HIGHSPEEDSLEW_EN },
+    { 0xF, 5, SCU_MODE_FUNC3 | SCU_MODE_HIGHSPEEDSLEW_EN },
+    { 0xF, 6, SCU_MODE_FUNC3 | SCU_MODE_HIGHSPEEDSLEW_EN },
+    { 0xF, 7, SCU_MODE_FUNC3 | SCU_MODE_HIGHSPEEDSLEW_EN },
+    { 0xF, 8, SCU_MODE_FUNC3 | SCU_MODE_HIGHSPEEDSLEW_EN },
+    #endif
+
     // LEDs
     { 0xD, 10, (SCU_MODE_INBUFF_EN | SCU_MODE_INACT | SCU_MODE_FUNC4) },
     { 0xD, 11, (SCU_MODE_INBUFF_EN | SCU_MODE_INACT | SCU_MODE_FUNC4 | SCU_MODE_PULLDOWN) },
@@ -65,15 +74,6 @@ static inline void board_lpc18_pinmux(void) {
 
     { 0x9, 5, SCU_MODE_PULLUP | SCU_MODE_INBUFF_EN | SCU_MODE_FUNC2 },			              // P9_5 USB1_VBUS_EN, USB1 VBus function
     { 0x2, 5, SCU_MODE_INACT  | SCU_MODE_INBUFF_EN | SCU_MODE_ZIF_DIS | SCU_MODE_FUNC2 }, // P2_5 USB1_VBUS, MUST CONFIGURE THIS SIGNAL FOR USB1 NORMAL OPERATION
-
-    // ETM Trace
-    #ifdef TRACE_ETM
-    { 0xF, 4, SCU_MODE_FUNC2 | SCU_MODE_HIGHSPEEDSLEW_EN },
-    { 0xF, 5, SCU_MODE_FUNC3 | SCU_MODE_HIGHSPEEDSLEW_EN },
-    { 0xF, 6, SCU_MODE_FUNC3 | SCU_MODE_HIGHSPEEDSLEW_EN },
-    { 0xF, 7, SCU_MODE_FUNC3 | SCU_MODE_HIGHSPEEDSLEW_EN },
-    { 0xF, 8, SCU_MODE_FUNC3 | SCU_MODE_HIGHSPEEDSLEW_EN },
-    #endif
   };
 
   Chip_SCU_SetPinMuxing(pinmuxing, sizeof(pinmuxing) / sizeof(PINMUX_GRP_T));
