@@ -50,6 +50,11 @@ typedef struct
   uint8_t idle_rate;     // up to application to handle idle rate
   uint16_t report_desc_len;
 
+  // for get/set feature reports (on control endpoint 0)
+  CFG_TUSB_MEM_ALIGN uint8_t epctrlin_buf[CFG_TUD_ENDPOINT0_SIZE];
+  CFG_TUSB_MEM_ALIGN uint8_t epctrlout_buf[CFG_TUD_ENDPOINT0_SIZE];
+
+  // for input/output reports (on hid endpoints)
   CFG_TUSB_MEM_ALIGN uint8_t epin_buf[CFG_TUD_HID_EP_BUFSIZE];
   CFG_TUSB_MEM_ALIGN uint8_t epout_buf[CFG_TUD_HID_EP_BUFSIZE];
 
@@ -279,8 +284,8 @@ bool hidd_control_xfer_cb (uint8_t rhport, uint8_t stage, tusb_control_request_t
           uint8_t const report_type = tu_u16_high(request->wValue);
           uint8_t const report_id   = tu_u16_low(request->wValue);
 
-          uint8_t* report_buf = p_hid->epin_buf;
-          uint16_t req_len = tu_min16(request->wLength, CFG_TUD_HID_EP_BUFSIZE);
+          uint8_t* report_buf = p_hid->epctrlin_buf;
+          uint16_t req_len = tu_min16(request->wLength, CFG_TUD_ENDPOINT0_SIZE);
 
           uint16_t xferlen = 0;
 
@@ -296,23 +301,23 @@ bool hidd_control_xfer_cb (uint8_t rhport, uint8_t stage, tusb_control_request_t
           xferlen += tud_hid_get_report_cb(hid_itf, report_id, (hid_report_type_t) report_type, report_buf, req_len);
           TU_ASSERT( xferlen > 0 );
 
-          tud_control_xfer(rhport, request, p_hid->epin_buf, xferlen);
+          tud_control_xfer(rhport, request, p_hid->epctrlin_buf, xferlen);
         }
       break;
 
       case  HID_REQ_CONTROL_SET_REPORT:
         if ( stage == CONTROL_STAGE_SETUP )
         {
-          TU_VERIFY(request->wLength <= sizeof(p_hid->epout_buf));
-          tud_control_xfer(rhport, request, p_hid->epout_buf, request->wLength);
+          TU_VERIFY(request->wLength <= sizeof(p_hid->epctrlout_buf));
+          tud_control_xfer(rhport, request, p_hid->epctrlout_buf, request->wLength);
         }
         else if ( stage == CONTROL_STAGE_ACK )
         {
           uint8_t const report_type = tu_u16_high(request->wValue);
           uint8_t const report_id   = tu_u16_low(request->wValue);
 
-          uint8_t const* report_buf = p_hid->epout_buf;
-          uint16_t report_len = tu_min16(request->wLength, CFG_TUD_HID_EP_BUFSIZE);
+          uint8_t const* report_buf = p_hid->epctrlout_buf;
+          uint16_t report_len = tu_min16(request->wLength, CFG_TUD_ENDPOINT0_SIZE);
 
           // If host request a specific Report ID, extract report ID in buffer before invoking callback
           if ( (report_id != HID_REPORT_TYPE_INVALID) && (report_len > 1) && (report_id == report_buf[0]) )
