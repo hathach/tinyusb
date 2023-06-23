@@ -116,7 +116,7 @@ static unsigned find_pipe(unsigned xfer)
     for (int i = 3; i <= 5; ++i) {
       if (0 == _hcd.pipe[i].ep) return  i;
     }
-    for (int i = 1; i <= 1; ++i) {
+    for (int i = 1; i <= 2; ++i) {
       if (0 == _hcd.pipe[i].ep) return  i;
     }
     break;
@@ -413,6 +413,7 @@ static void process_pipe_nrdy(uint8_t rhport, unsigned num)
   switch (*ctr & RUSB2_PIPE_CTR_PID_Msk) {
     default: return;
     case RUSB2_PIPE_CTR_PID_STALL: result = XFER_RESULT_STALLED; break;
+    case RUSB2_PIPE_CTR_PID_STALL2: result = XFER_RESULT_STALLED; break;
     case RUSB2_PIPE_CTR_PID_NAK:   result = XFER_RESULT_FAILED;  break;
   }
   pipe_state_t *pipe = &_hcd.pipe[num];
@@ -586,7 +587,7 @@ void hcd_device_close(uint8_t rhport, uint8_t dev_addr)
   uint8_t *ep = &_hcd.ep[dev_addr - 1][0][0];
   for (int i = 0; i < 2 * 15; ++i, ++ep) {
     unsigned num = *ep;
-    if (!num || dev_addr != _hcd.pipe[num].dev) continue;
+    if (!num || (dev_addr != _hcd.pipe[num].dev)) continue;
 
     ctr = (uint16_t volatile*)&RUSB2->PIPE_CTR[num - 1];
     *ctr = 0;
