@@ -45,6 +45,8 @@
   #error "Unsupported MCU"
 #endif
 
+#define TU_RUSB2_DCD_DBG   0
+
 //--------------------------------------------------------------------+
 // MACRO TYPEDEF CONSTANT ENUM
 //--------------------------------------------------------------------+
@@ -444,7 +446,7 @@ static bool process_pipe_xfer(int buffer_type, uint8_t ep_addr, void* buffer, ui
       *ctr = RUSB2_PIPE_CTR_PID_BUF;
     }
   }
-  //  TU_LOG1("X %x %d %d\r\n", ep_addr, total_bytes, buffer_type);
+  TU_LOG(TU_RUSB2_DCD_DBG ,"X %x %d %d\r\n", ep_addr, total_bytes, buffer_type);
   return true;
 }
 
@@ -487,7 +489,7 @@ static void process_pipe_brdy(uint8_t rhport, unsigned num)
     dcd_event_xfer_complete(rhport, pipe->ep,
                             pipe->length - pipe->remaining,
                             XFER_RESULT_SUCCESS, true);
-    //  TU_LOG1("C %d %d\r\n", num, pipe->length - pipe->remaining);
+    TU_LOG(TU_RUSB2_DCD_DBG, "C %d %d\r\n", num, pipe->length - pipe->remaining);
   }
 }
 
@@ -691,7 +693,7 @@ bool dcd_edpt_open(uint8_t rhport, tusb_desc_endpoint_t const * ep_desc)
   if (dir || (xfer != TUSB_XFER_BULK)) {
     *ctr = RUSB2_PIPE_CTR_PID_BUF;
   }
-  // TU_LOG1("O %d %x %x\r\n", RUSB2->PIPESEL, RUSB2->PIPECFG, RUSB2->PIPEMAXP);
+  TU_LOG(TU_RUSB2_DCD_DBG, "O %d %x %x\r\n", RUSB2->PIPESEL, RUSB2->PIPECFG, RUSB2->PIPEMAXP);
   dcd_int_enable(rhport);
 
   return true;
