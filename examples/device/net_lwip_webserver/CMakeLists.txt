@@ -77,12 +77,16 @@ target_sources(${PROJECT} PUBLIC
   )
 
 # due to warnings from other net source, we need to prevent error from some of the warnings options
-target_compile_options(${PROJECT} PUBLIC
-  -Wno-error=null-dereference
-  -Wno-error=conversion
-  -Wno-error=sign-conversion
-  -Wno-error=sign-compare
-  )
+if (CMAKE_C_COMPILER_ID STREQUAL "GNU")
+  target_compile_options(${PROJECT} PUBLIC
+    -Wno-error=null-dereference
+    -Wno-error=conversion
+    -Wno-error=sign-conversion
+    -Wno-error=sign-compare
+    )
+elseif (CMAKE_C_COMPILER_ID STREQUAL "IAR")
+
+endif ()
 
 # Configure compilation flags and libraries for the example... see the corresponding function
 # in hw/bsp/FAMILY/family.cmake for details.

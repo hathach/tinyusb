@@ -71,11 +71,12 @@ TU_ATTR_USED int sys_write (int fhdl, const void *buf, size_t count)
 {
   (void) fhdl;
   uint8_t const* buf8 = (uint8_t const*) buf;
-  for(size_t i=0; i<count; i++)
-  {
+
+  for(size_t i=0; i<count; i++) {
     ITM_SendChar(buf8[i]);
   }
-  return count;
+
+  return (int) count;
 }
 
 TU_ATTR_USED int sys_read (int fhdl, char *buf, size_t count)

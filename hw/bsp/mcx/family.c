@@ -66,6 +66,7 @@ void board_init(void)
 {
   BOARD_InitPins();
   BOARD_InitBootClocks();
+  CLOCK_SetupExtClocking(XTAL0_CLK_HZ);
 
   // 1ms tick timer
   SysTick_Config(SystemCoreClock / 1000);
@@ -122,31 +123,13 @@ void board_init(void)
   // USB VBUS
   /* PORT0 PIN22 configured as USB0_VBUS */
 
-  CLOCK_SetupExtClocking(XTAL0_CLK_HZ);
-
 #if PORT_SUPPORT_DEVICE(0)
   // Port0 is Full Speed
 
-  /* Turn on USB0 Phy */
-  POWER_DisablePD(kPDRUNCFG_PD_USB0_PHY);
-
-  /* reset the IP to make sure it's in reset state. */
-  RESET_PeripheralReset(kUSB0D_RST_SHIFT_RSTn);
-  RESET_PeripheralReset(kUSB0HSL_RST_SHIFT_RSTn);
-  RESET_PeripheralReset(kUSB0HMR_RST_SHIFT_RSTn);
-
-  // Enable USB Clock Adjustments to trim the FRO for the full speed controller
-  ANACTRL->FRO192M_CTRL |= ANACTRL_FRO192M_CTRL_USBCLKADJ_MASK;
-  CLOCK_SetClkDiv(kCLOCK_DivUsb0Clk, 1, false);
-  CLOCK_AttachClk(kFRO_HF_to_USB0_CLK);
-
-  /*According to reference manual, device mode setting has to be set by access usb host register */
-  CLOCK_EnableClock(kCLOCK_Usbhsl0);  // enable usb0 host clock
-  USBFSH->PORTMODE |= USBFSH_PORTMODE_DEV_ENABLE_MASK;
-  CLOCK_DisableClock(kCLOCK_Usbhsl0); // disable usb0 host clock
-
-  /* enable USB Device clock */
-  CLOCK_EnableUsbfs0DeviceClock(kCLOCK_UsbfsSrcFro, CLOCK_GetFreq(kCLOCK_FroHf));
+  CLOCK_AttachClk(kCLK_48M_to_USB0);
+  CLOCK_EnableClock(kCLOCK_Usb0Ram);
+  CLOCK_EnableClock(kCLOCK_Usb0Fs);
+  CLOCK_EnableUsbfsClock();
 #endif
 
 #if PORT_SUPPORT_DEVICE(1)

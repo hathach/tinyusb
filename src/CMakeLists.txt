@@ -32,6 +32,8 @@ function(add_tinyusb TARGET)
     ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/class/hid/hid_host.c
     ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/class/msc/msc_host.c
     ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/class/vendor/vendor_host.c
+    # typec
+    ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/typec/usbc.c
     )
   target_include_directories(${TARGET} PUBLIC
     ${CMAKE_CURRENT_FUNCTION_LIST_DIR}
@@ -65,6 +67,8 @@ function(add_tinyusb TARGET)
       -Wreturn-type
       -Wredundant-decls
       )
+  elseif (CMAKE_C_COMPILER_ID STREQUAL "IAR")
+
   endif ()
 endfunction()
 

@@ -30,13 +30,8 @@ def skip_example(example, board):
         family_dir = board_dir.parent.parent
         family = family_dir.name
 
-        # family CMake
-        family_mk = family_dir / "family.cmake"
-
         # family.mk
-        if not family_mk.exists():
-            family_mk = family_dir / "family.mk"
-
+        family_mk = family_dir / "family.mk"
         mk_contents = family_mk.read_text()
 
     # Find the mcu, first in family mk then board mk
@@ -47,6 +42,7 @@ def skip_example(example, board):
 
         mk_contents = board_mk.read_text()
 
+    mcu = "NONE"
     for token in mk_contents.split():
         if "CFG_TUSB_MCU=OPT_MCU_" in token:
             # Strip " because cmake files has them.

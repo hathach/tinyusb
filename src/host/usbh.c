@@ -411,7 +411,14 @@ void tuh_task_ext(uint32_t timeout_ms, bool in_isr)
         if ( _dev0.enumerating )
         {
           TU_LOG_USBH("[%u:] USBH Defer Attach until current enumeration complete\r\n", event.rhport);
+
+          bool is_empty = osal_queue_empty(_usbh_q);
           osal_queue_send(_usbh_q, &event, in_isr);
+
+          if (is_empty) {
+            // Exit if this is the only event in the queue, otherwise we may loop forever
+            return;
+          }
         }else
         {
           TU_LOG_USBH("[%u:] USBH DEVICE ATTACH\r\n", event.rhport);
@@ -724,7 +731,7 @@ uint8_t* usbh_get_enum_buf(void)
 
 void usbh_int_set(bool enabled)
 {
-  // TODO all host controller if multiple is used
+  // TODO all host controller if multiple are used since they shared the same event queue
   if (enabled)
   {
     hcd_int_enable(_usbh_controller);
@@ -1461,7 +1468,10 @@ static bool enum_new_device(hcd_event_t* event)
     hcd_port_reset_end( _dev0.rhport);
 
     // device unplugged while delaying
-    if ( !hcd_port_connect_status(_dev0.rhport) ) return true;
+    if ( !hcd_port_connect_status(_dev0.rhport) ) {
+      enum_full_complete();
+      return true;
+    }
 
     _dev0.speed = hcd_port_speed_get(_dev0.rhport );
     TU_LOG_USBH("%s Speed\r\n", tu_str_speed[_dev0.speed]);

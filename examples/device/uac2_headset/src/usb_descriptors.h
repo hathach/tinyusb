@@ -57,7 +57,7 @@ enum
     + TUD_AUDIO_DESC_OUTPUT_TERM_LEN\
     /* Interface 1, Alternate 0 */\
     + TUD_AUDIO_DESC_STD_AS_INT_LEN\
-    /* Interface 1, Alternate 0 */\
+    /* Interface 1, Alternate 1 */\
     + TUD_AUDIO_DESC_STD_AS_INT_LEN\
     + TUD_AUDIO_DESC_CS_AS_INT_LEN\
     + TUD_AUDIO_DESC_TYPE_I_FORMAT_LEN\
@@ -86,7 +86,7 @@ enum
 
 #define TUD_AUDIO_HEADSET_STEREO_DESCRIPTOR(_stridx, _epout, _epin) \
     /* Standard Interface Association Descriptor (IAD) */\
-    TUD_AUDIO_DESC_IAD(/*_firstitfs*/ ITF_NUM_AUDIO_CONTROL, /*_nitfs*/ 3, /*_stridx*/ 0x00),\
+    TUD_AUDIO_DESC_IAD(/*_firstitf*/ ITF_NUM_AUDIO_CONTROL, /*_nitfs*/ ITF_NUM_TOTAL, /*_stridx*/ 0x00),\
     /* Standard AC Interface Descriptor(4.7.1) */\
     TUD_AUDIO_DESC_STD_AC(/*_itfnum*/ ITF_NUM_AUDIO_CONTROL, /*_nEPs*/ 0x00, /*_stridx*/ _stridx),\
     /* Class-Specific AC Interface Header Descriptor(4.7.2) */\

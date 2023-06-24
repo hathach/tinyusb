@@ -97,9 +97,9 @@
 #define OPT_MCU_VALENTYUSB_EPTRI  600 ///< Fomu eptri config
 
 // NXP iMX RT
-#define OPT_MCU_MIMXRT            700             ///< NXP iMX RT Series
-#define OPT_MCU_MIMXRT10XX        OPT_MCU_MIMXRT  ///< RT10xx
-#define OPT_MCU_MIMXRT11XX        OPT_MCU_MIMXRT  ///< RT11xx
+#define OPT_MCU_MIMXRT1XXX        700                 ///< NXP iMX RT1xxx Series
+#define OPT_MCU_MIMXRT10XX        OPT_MCU_MIMXRT1XXX  ///< RT10xx
+#define OPT_MCU_MIMXRT11XX        OPT_MCU_MIMXRT1XXX  ///< RT11xx
 
 // Nuvoton
 #define OPT_MCU_NUC121            800
@@ -482,6 +482,16 @@
 #define CFG_TUD_RPI_PIO_USB 0
 #endif
 
+
+//--------------------------------------------------------------------+
+// TypeC Options (Default)
+//--------------------------------------------------------------------+
+
+#ifndef CFG_TUC_ENABLED
+#define CFG_TUC_ENABLED 0
+
+#define tuc_int_handler(_p)
+#endif
 
 //------------------------------------------------------------------
 // Configuration Validation
