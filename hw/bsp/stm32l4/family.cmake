@@ -110,7 +110,7 @@ function(family_configure_example TARGET)
   family_add_tinyusb(${TARGET} OPT_MCU_$(FAMILY_MCUS))
   target_sources(${TARGET}-tinyusb PUBLIC
     ${TOP}/src/portable/synopsys/dwc2/dcd_dwc2.c
-    ${TOP}/src/st/stm32_fsdev/dcd_stm32_fsdev.c
+    ${TOP}/src/portable/st/stm32_fsdev/dcd_stm32_fsdev.c
     )
   target_link_libraries(${TARGET}-tinyusb PUBLIC board_${BOARD})
 
