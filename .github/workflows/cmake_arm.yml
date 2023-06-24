@@ -33,9 +33,11 @@ jobs:
       matrix:
         family:
           # Alphabetical order
-          - 'lpc18'
-          - 'mcx'
           - 'imxrt'
+          - 'kinetis_kl'
+          - 'lpc18'
+          - 'lpc55'
+          - 'mcx'
           - 'rp2040'
           - 'stm32f0'
           - 'stm32f1'

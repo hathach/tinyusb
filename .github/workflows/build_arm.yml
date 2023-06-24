@@ -34,9 +34,9 @@ jobs:
         family:
         # Alphabetical order
         - 'broadcom_32bit'
-        - 'kinetis_k32l2 kinetis_kl'
+        - 'kinetis_k32l2'
         - 'lpc11 lpc13 lpc15 lpc17'
-        - 'lpc51 lpc54 lpc55'
+        - 'lpc51 lpc54'
         - 'mm32 msp432e4'
         - 'nrf'
         - 'ra'
