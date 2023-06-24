@@ -21,7 +21,7 @@ ifneq ($(CFLAGS_SKIP),)
 CFLAGS := $(filter-out $(CFLAGS_SKIP),$(CFLAGS))
 endif
 
-LDFLAGS += $(CFLAGS)
+LDFLAGS += $(CFLAGS) $(LDFLAGS_GCC)
 
 ifdef LD_FILE
 LDFLAGS += -Wl,-T,$(TOP)/$(LD_FILE)

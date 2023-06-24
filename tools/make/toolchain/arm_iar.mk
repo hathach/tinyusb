@@ -8,4 +8,4 @@ SIZE = size
 CFLAGS += -e --debug --silent
 
 # silent mode
-ASFLAGS += -S
+ASFLAGS += -S $(addprefix -I,$(INC))
