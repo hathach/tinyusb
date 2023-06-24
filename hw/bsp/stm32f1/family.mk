@@ -5,6 +5,7 @@ ST_CMSIS = hw/mcu/st/cmsis_device_$(ST_FAMILY)
 ST_HAL_DRIVER = hw/mcu/st/stm32$(ST_FAMILY)xx_hal_driver
 
 include $(TOP)/$(BOARD_PATH)/board.mk
+CPU_CORE ?= cortex-m3
 
 # --------------
 # Compiler Flags
@@ -15,15 +16,7 @@ CFLAGS += \
 # GCC Flags
 GCC_CFLAGS += \
   -flto \
-  -mthumb \
-  -mabi=aapcs \
-  -mcpu=cortex-m3 \
-  -mfloat-abi=soft \
   -nostdlib -nostartfiles \
-
-# IAR Flags
-IAR_CFLAGS += --cpu cortex-m3
-IAR_ASFLAGS += --cpu cortex-m3
 
 # ------------------------
 # All source paths should be relative to the top level.
@@ -42,12 +35,6 @@ INC += \
   $(TOP)/lib/CMSIS_5/CMSIS/Core/Include \
   $(TOP)/$(ST_CMSIS)/Include \
   $(TOP)/$(ST_HAL_DRIVER)/Inc
-
-# For freeRTOS port source
-FREERTOS_PORTABLE_SRC = $(FREERTOS_PORTABLE_PATH)/ARM_CM3
-
-# For flash-jlink target
-JLINK_DEVICE = stm32f103c8
 
 # flash target ROM bootloader
 flash-dfu-util: $(BUILD)/$(PROJECT).bin
