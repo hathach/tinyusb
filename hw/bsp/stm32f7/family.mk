@@ -33,7 +33,7 @@ CFLAGS_GCC += \
   -nostdlib -nostartfiles
 
 # mcu driver cause following warnings
-CFLAGS_GCC += -Wno-error=shadow -Wno-error=cast-align
+CFLAGS_GCC += -Wno-error=cast-align
 
 # -----------------
 # Sources & Include

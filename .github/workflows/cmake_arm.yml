@@ -75,7 +75,7 @@ jobs:
       run: python3 tools/get_deps.py ${{ matrix.family }}
 
     - name: Build
-      run: python tools/build_cmake.py ${{ matrix.family }}
+      run: python tools/build_cmake.py ${{ matrix.family }} -DCMAKE_BUILD_TYPE=MinSizeRel
       env:
         # for rp2040, there is no harm if defined for other families
         PICO_SDK_PATH: ${{ github.workspace }}/pico-sdk

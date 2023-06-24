@@ -47,4 +47,4 @@ jobs:
         run: python3 tools/get_deps.py ${{ matrix.family }}
 
       - name: Build
-        run: python3 tools/build_cmake.py ${{ matrix.family }} -DTOOLCHAIN=iar
+        run: python3 tools/build_cmake.py ${{ matrix.family }} -DTOOLCHAIN=iar -DCMAKE_BUILD_TYPE=MinSizeRel
