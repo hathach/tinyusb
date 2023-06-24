@@ -43,11 +43,9 @@ jobs:
         - 'samd11 samd21'
         - 'samd51 same5x'
         - 'saml2x'
-        - 'stm32f0 stm32f1 stm32f2 stm32f3'
+        - 'stm32f2 stm32f3'
         - 'stm32f4'
-        - 'stm32f7'
-        - 'stm32h7'
-        - 'stm32l0 stm32l4 stm32u5 stm32wb'
+        - 'stm32l0 stm32u5 stm32wb'
         - 'tm4c123 xmc4000'
     steps:
     - name: Setup Python
