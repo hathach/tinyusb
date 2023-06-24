@@ -14,7 +14,7 @@ CFLAGS += \
   -DCFG_TUSB_MCU=OPT_MCU_STM32F1
 
 # GCC Flags
-GCC_CFLAGS += \
+CFLAGS_GCC += \
   -flto \
   -nostdlib -nostartfiles \
 
@@ -35,6 +35,10 @@ INC += \
   $(TOP)/lib/CMSIS_5/CMSIS/Core/Include \
   $(TOP)/$(ST_CMSIS)/Include \
   $(TOP)/$(ST_HAL_DRIVER)/Inc
+
+# Startup
+SRC_S_GCC += $(ST_CMSIS)/Source/Templates/gcc/startup_$(MCU_VARIANT).s
+SRC_S_IAR += $(ST_CMSIS)/Source/Templates/iar/startup_$(MCU_VARIANT).s
 
 # flash target ROM bootloader
 flash-dfu-util: $(BUILD)/$(PROJECT).bin

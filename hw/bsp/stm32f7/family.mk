@@ -28,12 +28,12 @@ else
 endif
 
 # GCC Flags
-GCC_CFLAGS += \
+CFLAGS_GCC += \
   -flto \
   -nostdlib -nostartfiles
 
 # mcu driver cause following warnings
-GCC_CFLAGS += -Wno-error=shadow -Wno-error=cast-align
+CFLAGS_GCC += -Wno-error=shadow -Wno-error=cast-align
 
 # -----------------
 # Sources & Include

@@ -14,12 +14,12 @@ CPU_CORE ?= cortex-m3
 CFLAGS += \
 	-DCFG_TUSB_MCU=OPT_MCU_STM32F2
 
-GCC_CFLAGS += \
+CFLAGS_GCC += \
   -flto \
   -nostdlib -nostartfiles \
 
 # mcu driver cause following warnings
-GCC_CFLAGS += -Wno-error=sign-compare
+CFLAGS_GCC += -Wno-error=sign-compare
 
 SRC_C += \
   src/portable/synopsys/dwc2/dcd_dwc2.c \

@@ -14,12 +14,12 @@ CFLAGS += \
   -DCFG_TUSB_MCU=OPT_MCU_STM32G0
 
 # GCC Flags
-GCC_CFLAGS += \
+CFLAGS_GCC += \
   -flto \
   -nostdlib -nostartfiles
 
 # suppress warning caused by vendor mcu driver
-GCC_CFLAGS += -Wno-error=cast-align
+CFLAGS_GCC += -Wno-error=cast-align
 
 # -----------------
 # Sources & Include

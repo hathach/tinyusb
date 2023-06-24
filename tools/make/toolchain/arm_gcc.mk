@@ -69,6 +69,3 @@ LDFLAGS += \
 ifneq ($(FAMILY),rx)
 LDFLAGS += -Wl,--print-memory-usage
 endif
-
-LDFLAGS += \
-  -Wl,--print-memory-usage \

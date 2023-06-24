@@ -1,12 +1,12 @@
 CFLAGS += -DSTM32F401xC
 
 # GCC
-GCC_SRC_S += $(ST_CMSIS)/Source/Templates/gcc/startup_stm32f401xc.s
-GCC_LD_FILE = $(BOARD_PATH)/STM32F401VCTx_FLASH.ld
+SRC_S_GCC += $(ST_CMSIS)/Source/Templates/gcc/startup_stm32f401xc.s
+LD_FILE_GCC = $(BOARD_PATH)/STM32F401VCTx_FLASH.ld
 
 # IAR
-IAR_SRC_S += $(ST_CMSIS)/Source/Templates/iar/startup_stm32f401xc.s
-IAR_LD_FILE = $(ST_CMSIS)/Source/Templates/iar/linker/stm32f401xc_flash.icf
+SRC_S_IAR += $(ST_CMSIS)/Source/Templates/iar/startup_stm32f401xc.s
+LD_FILE_IAR = $(ST_CMSIS)/Source/Templates/iar/linker/stm32f401xc_flash.icf
 
 # For flash-jlink target
 JLINK_DEVICE = stm32f401cc

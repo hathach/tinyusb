@@ -1,4 +1,4 @@
-SRC_S += $(GCC_SRC_S)
+SRC_S += $(SRC_S_GCC)
 
 # Assembly files can be name with upper case .S, convert it to .s
 SRC_S := $(SRC_S:.S=.s)
@@ -9,7 +9,7 @@ SRC_S := $(SRC_S:.S=.s)
 OBJ += $(addprefix $(BUILD)/obj/, $(SRC_S:.s=_asm.o))
 OBJ += $(addprefix $(BUILD)/obj/, $(SRC_C:.c=.o))
 
-CFLAGS += $(GCC_CFLAGS) -MD
+CFLAGS += $(CFLAGS_GCC) -MD
 
 # LTO makes it difficult to analyze map file for optimizing size purpose
 # We will run this option in ci
@@ -27,8 +27,8 @@ ifdef LD_FILE
 LDFLAGS += -Wl,-T,$(TOP)/$(LD_FILE)
 endif
 
-ifdef GCC_LD_FILE
-LDFLAGS += -Wl,-T,$(TOP)/$(GCC_LD_FILE)
+ifdef LD_FILE_GCC
+LDFLAGS += -Wl,-T,$(TOP)/$(LD_FILE_GCC)
 endif
 
 ifneq ($(SKIP_NANOLIB), 1)

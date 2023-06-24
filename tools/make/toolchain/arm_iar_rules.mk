@@ -1,4 +1,4 @@
-SRC_S += $(IAR_SRC_S)
+SRC_S += $(SRC_S_IAR)
 
 # Assembly files can be name with upper case .S, convert it to .s
 SRC_S := $(SRC_S:.S=.s)
@@ -10,7 +10,7 @@ OBJ += $(addprefix $(BUILD)/obj/, $(SRC_S:.s=_asm.o))
 OBJ += $(addprefix $(BUILD)/obj/, $(SRC_C:.c=.o))
 
 # Linker script
-LDFLAGS += --config $(TOP)/$(IAR_LD_FILE)
+LDFLAGS += --config $(TOP)/$(LD_FILE_IAR)
 
 # ---------------------------------------
 # Rules

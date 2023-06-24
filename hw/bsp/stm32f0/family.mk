@@ -16,12 +16,12 @@ CFLAGS += \
   -DCFG_TUSB_MCU=OPT_MCU_STM32F0
 
 # GCC Flags
-GCC_CFLAGS += \
+CFLAGS_GCC += \
   -flto \
   -nostdlib -nostartfiles \
 
 # suppress warning caused by vendor mcu driver
-GCC_CFLAGS += -Wno-error=unused-parameter -Wno-error=cast-align
+CFLAGS_GCC += -Wno-error=unused-parameter -Wno-error=cast-align
 
 # ------------------------
 # All source paths should be relative to the top level.
@@ -44,3 +44,10 @@ INC += \
   $(TOP)/lib/CMSIS_5/CMSIS/Core/Include \
   $(TOP)/$(ST_CMSIS)/Include \
   $(TOP)/$(ST_HAL_DRIVER)/Inc
+
+# Startup
+SRC_S_GCC += $(ST_CMSIS)/Source/Templates/gcc/startup_$(MCU_VARIANT).s
+SRC_S_IAR += $(ST_CMSIS)/Source/Templates/iar/startup_$(MCU_VARIANT).s
+
+# Linker
+LD_FILE_IAR = $(ST_CMSIS)/Source/Templates/iar/linker/$(MCU_VARIANT)_flash.icf
