@@ -23,32 +23,6 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  makefile:
-    runs-on: [self-hosted, Linux, X64, hifiphile]
-    strategy:
-      fail-fast: false
-      matrix:
-        family:
-        # Alphabetical order
-        # Note: bundle multiple families into a matrix since there is only one self-hosted instance can
-        # run IAR build. Too many matrix can hurt due to setup/teardown overhead.
-        - 'stm32f7 stm32l4'
-    steps:
-    - name: Clean workspace
-      run: |
-        echo "Cleaning up previous run"
-        rm -rf "${{ github.workspace }}"
-        mkdir -p "${{ github.workspace }}"
-
-    - name: Checkout TinyUSB
-      uses: actions/checkout@v3
-
-    - name: Get Dependencies
-      run: python3 tools/get_deps.py ${{ matrix.family }}
-
-    - name: Build
-      run: python3 tools/build_family.py ${{ matrix.family }} TOOLCHAIN=iar
-
   cmake:
     runs-on: [self-hosted, Linux, X64, hifiphile]
     strategy:
@@ -58,7 +32,7 @@ jobs:
           # Alphabetical order
           # Note: bundle multiple families into a matrix since there is only one self-hosted instance can
           # run IAR build. Too many matrix can hurt due to setup/teardown overhead.
-          - 'stm32f0 stm32f1 stm32g0 stm32g4 stm32h7'
+          - 'stm32f0 stm32f1 stm32f7 stm32g0 stm32g4 stm32h7 stm32l4'
     steps:
       - name: Clean workspace
         run: |

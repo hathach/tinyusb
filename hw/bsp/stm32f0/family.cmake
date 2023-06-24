@@ -34,6 +34,11 @@ endif ()
 # only need to be built ONCE for all examples
 function(add_board_target BOARD_TARGET)
   if (NOT TARGET ${BOARD_TARGET})
+    # Startup & Linker script
+    set(STARTUP_FILE_GNU ${ST_CMSIS}/Source/Templates/gcc/startup_${MCU_VARIANT}.s)
+    set(STARTUP_FILE_IAR ${ST_CMSIS}/Source/Templates/iar/startup_${MCU_VARIANT}.s)
+    set(LD_FILE_IAR ${ST_CMSIS}/Source/Templates/iar/linker/${MCU_VARIANT}_flash.icf)
+
     add_library(${BOARD_TARGET} STATIC
       ${ST_CMSIS}/Source/Templates/system_${ST_PREFIX}.c
       ${ST_HAL_DRIVER}/Src/${ST_PREFIX}_hal.c
@@ -57,13 +62,6 @@ function(add_board_target BOARD_TARGET)
       )
 
     update_board(${BOARD_TARGET})
-
-    # Startup
-    set(STARTUP_FILE_GNU ${ST_CMSIS}/Source/Templates/gcc/startup_${MCU_VARIANT}.s)
-    set(STARTUP_FILE_IAR ${ST_CMSIS}/Source/Templates/iar/startup_${MCU_VARIANT}.s)
-
-    # Linker
-    set(LD_FILE_IAR ${ST_CMSIS}/Source/Templates/iar/linker/${MCU_VARIANT}_flash.icf)
 
     if (CMAKE_C_COMPILER_ID STREQUAL "GNU")
       target_link_options(${BOARD_TARGET} PUBLIC

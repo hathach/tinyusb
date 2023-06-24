@@ -1,11 +1,11 @@
-set(MCU_VARIANT stm32h743xx)
-set(JLINK_DEVICE stm32h743xi)
+set(MCU_VARIANT stm32f769xx)
+set(JLINK_DEVICE stm32f769xx)
 
-set(LD_FILE_GNU ${CMAKE_CURRENT_LIST_DIR}/../../linker/${MCU_VARIANT}_flash.ld)
+set(LD_FILE_GNU ${CMAKE_CURRENT_LIST_DIR}/STM32F769ZITx_FLASH.ld)
 
 function(update_board TARGET)
   target_compile_definitions(${TARGET} PUBLIC
-    STM32H743xx
+    STM32F769xx
     HSE_VALUE=25000000
     # default to PORT 1 High Speed
     BOARD_TUD_RHPORT=1
