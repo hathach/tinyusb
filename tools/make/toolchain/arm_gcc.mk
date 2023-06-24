@@ -9,9 +9,6 @@ GDB = $(CROSS_COMPILE)gdb
 OBJCOPY = $(CROSS_COMPILE)objcopy
 SIZE = $(CROSS_COMPILE)size
 
-# CPU specific flags
-include $(TOP)/tools/make/cpu/$(CPU_CORE).mk
-
 # ---------------------------------------
 # Compiler Flags
 # ---------------------------------------

@@ -47,7 +47,7 @@ jobs:
       run: python3 tools/get_deps.py ${{ matrix.family }}
 
     - name: Build
-      run: python3 tools/build_family.py ${{ matrix.family }} CC=iccarm
+      run: python3 tools/build_family.py ${{ matrix.family }} TOOLCHAIN=iar
 
   cmake:
     runs-on: [self-hosted, Linux, X64, hifiphile]

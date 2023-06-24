@@ -137,5 +137,10 @@ else ifeq ($(LOGGER),swo)
   CFLAGS += -DLOGGER_SWO
 endif
 
+# CPU specific flags
+ifdef CPU_CORE
+include $(TOP)/tools/make/cpu/$(CPU_CORE).mk
+endif
+
 # toolchain specific
 include $(TOP)/tools/make/toolchain/arm_$(TOOLCHAIN).mk
