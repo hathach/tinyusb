@@ -1,11 +1,9 @@
 DEPS_SUBMODULES += hw/mcu/renesas/fsp lib/CMSIS_5
 
-# Cross Compiler for RA
-CROSS_COMPILE = arm-none-eabi-
-
 include $(TOP)/$(BOARD_PATH)/board.mk
 
 CFLAGS += \
+  -DCFG_TUSB_MCU=OPT_MCU_RAXXX \
 	-Wno-error=undef \
 	-Wno-error=strict-prototypes \
 	-Wno-error=cast-align \

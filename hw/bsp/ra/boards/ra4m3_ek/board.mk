@@ -1,8 +1,4 @@
-CFLAGS += \
-	-mcpu=cortex-m33 \
-	-mfloat-abi=hard \
-	-mfpu=fpv5-sp-d16 \
-	-DCFG_TUSB_MCU=OPT_MCU_RAXXX
+CPU_CORE = cortex-m33
 
 FSP_MCU_DIR = hw/mcu/renesas/fsp/ra/fsp/src/bsp/mcu/ra4m3
 FSP_BOARD_DIR = hw/mcu/renesas/fsp/ra/board/ra4m3_ek

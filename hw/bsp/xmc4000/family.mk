@@ -4,14 +4,10 @@ MCU_DIR = hw/mcu/infineon/mtb-xmclib-cat3
 DEPS_SUBMODULES += $(MCU_DIR)
 
 include $(TOP)/$(BOARD_PATH)/board.mk
+CPU_CORE ?= cortex-m4
 
 CFLAGS += \
   -flto \
-  -mthumb \
-  -mabi=aapcs \
-  -mcpu=cortex-m4 \
-  -mfloat-abi=hard \
-  -mfpu=fpv4-sp-d16 \
   -nostdlib -nostartfiles \
   -DCFG_TUSB_MCU=OPT_MCU_XMC4000
 
@@ -27,7 +23,6 @@ SRC_C += \
 	$(MCU_DIR)/XMCLib/src/xmc4_gpio.c \
 	$(MCU_DIR)/XMCLib/src/xmc4_scu.c
 
-
 SRC_S += $(MCU_DIR)/CMSIS/Infineon/COMPONENT_$(MCU_VARIANT)/Source/TOOLCHAIN_GCC_ARM/startup_$(MCU_VARIANT).S
 
 INC += \
@@ -35,6 +30,3 @@ INC += \
 	$(TOP)/$(MCU_DIR)/CMSIS/Core/Include \
 	$(TOP)/$(MCU_DIR)/CMSIS/Infineon/COMPONENT_$(MCU_VARIANT)/Include \
 	$(TOP)/$(MCU_DIR)/XMCLib/inc
-
-# For freeRTOS port source
-FREERTOS_PORTABLE_SRC = $(FREERTOS_PORTABLE_PATH)/ARM_CM4F

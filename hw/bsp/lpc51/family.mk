@@ -3,12 +3,10 @@ DEPS_SUBMODULES += $(SDK_DIR) lib/CMSIS_5
 
 MCU_DIR = $(SDK_DIR)/devices/$(MCU)
 include $(TOP)/$(BOARD_PATH)/board.mk
+CPU_CORE ?= cortex-m0plus
 
 CFLAGS += \
   -flto \
-  -mthumb \
-  -mabi=aapcs \
-  -mcpu=cortex-m0plus \
   -DCFG_TUSB_MCU=OPT_MCU_LPC51UXX \
   -DCFG_TUSB_MEM_ALIGN='__attribute__((aligned(64)))'
 
@@ -40,6 +38,3 @@ INC += \
 SRC_S += $(MCU_DIR)/gcc/startup_$(MCU).S
 
 LIBS += $(TOP)/$(MCU_DIR)/gcc/libpower.a
-
-# For freeRTOS port source
-FREERTOS_PORTABLE_SRC = $(FREERTOS_PORTABLE_PATH)/ARM_CM0
