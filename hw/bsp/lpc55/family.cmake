@@ -103,6 +103,12 @@ function(family_configure_example TARGET)
     ${TOP}/lib/sct_neopixel/sct_neopixel.c
     )
 
+  # https://github.com/gsteiert/sct_neopixel/pull/1
+  if (CMAKE_C_COMPILER_ID STREQUAL "GNU")
+    set_source_files_properties(${TOP}/lib/sct_neopixel/sct_neopixel.c PROPERTIES
+      COMPILE_FLAGS "-Wno-unused-parameter")
+  endif ()
+
   target_include_directories(${TARGET} PUBLIC
     # family, hw, board
     ${CMAKE_CURRENT_FUNCTION_LIST_DIR}
