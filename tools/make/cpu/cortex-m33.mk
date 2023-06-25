@@ -5,10 +5,15 @@ ifeq ($(TOOLCHAIN),gcc)
     -mfloat-abi=hard \
     -mfpu=fpv5-sp-d16 \
 
-    #-mfpu=fpv5-d16 \
-
-  #set(FREERTOS_PORT GCC_ARM_CM33_NONSECURE CACHE INTERNAL "")
-  FREERTOS_PORTABLE_SRC = $(FREERTOS_PORTABLE_PATH)/ARM_CM33_NTZ/non_secure
 else ifeq ($(TOOLCHAIN),iar)
-  # TODO support IAR
+	CFLAGS += \
+		--cpu cortex-m33 \
+		--fpu VFPv5-SP \
+
+	ASFLAGS += \
+		--cpu cortex-m33 \
+		--fpu VFPv5-SP \
+
 endif
+
+FREERTOS_PORTABLE_SRC = $(FREERTOS_PORTABLE_PATH)/ARM_CM33_NTZ/non_secure

@@ -4,9 +4,6 @@ set(JLINK_DEVICE stm32h745xi_m7)
 set(LD_FILE_GNU ${ST_CMSIS}/Source/Templates/gcc/linker/${MCU_VARIANT}_flash_CM7.ld)
 set(LD_FILE_IAR ${ST_CMSIS}/Source/Templates/iar/linker/${MCU_VARIANT}_flash_CM7.icf)
 
-set(STARTUP_FILE_GNU ${ST_CMSIS}/Source/Templates/gcc/startup_${MCU_VARIANT}.s)
-set(STARTUP_FILE_IAR ${ST_CMSIS}/Source/Templates/iar/startup_${MCU_VARIANT}.s)
-
 function(update_board TARGET)
   target_compile_definitions(${TARGET} PUBLIC
     STM32H745xx

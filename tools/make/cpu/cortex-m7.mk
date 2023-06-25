@@ -5,8 +5,15 @@ ifeq ($(TOOLCHAIN),gcc)
     -mfloat-abi=hard \
     -mfpu=fpv5-d16 \
 
-  #set(FREERTOS_PORT GCC_ARM_CM7 CACHE INTERNAL "")
-  FREERTOS_PORTABLE_SRC = $(FREERTOS_PORTABLE_PATH)/ARM_CM7/r0p1
 else ifeq ($(TOOLCHAIN),iar)
-  # TODO support IAR
+  CFLAGS += \
+  	--cpu cortex-m7 \
+  	--fpu VFPv5_D16 \
+
+  ASFLAGS += \
+		--cpu cortex-m7 \
+		--fpu VFPv5_D16 \
+
 endif
+
+FREERTOS_PORTABLE_SRC = $(FREERTOS_PORTABLE_PATH)/ARM_CM7/r0p1

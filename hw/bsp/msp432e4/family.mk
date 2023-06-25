@@ -1,13 +1,11 @@
 DEPS_SUBMODULES += lib/CMSIS_5 hw/mcu/ti
 
+#include $(TOP)/$(BOARD_PATH)/board.mk
+CPU_CORE ?= cortex-m4
+
 CFLAGS += \
 	-flto \
-	-mthumb \
 	-mslow-flash-data \
-	-mabi=aapcs \
-	-mcpu=cortex-m4 \
-	-mfloat-abi=hard \
-	-mfpu=fpv4-sp-d16 \
 	-D__MSP432E401Y__ \
 	-DCFG_TUSB_MCU=OPT_MCU_MSP432E4
 
@@ -32,9 +30,6 @@ INC += \
 	$(TOP)/$(BOARD_PATH)
 
 SRC_S += $(MCU_DIR)/Source/startup_msp432e411y_gcc.S
-
-# For freeRTOS port source
-FREERTOS_PORTABLE_SRC = $(FREERTOS_PORTABLE_PATH)/ARM_CM4F
 
 # For flash-jlink target
 JLINK_DEVICE = MSP432E401Y

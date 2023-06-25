@@ -1,13 +1,13 @@
+UF2_FAMILY_ID = 0x7f83e793
 SDK_DIR = hw/mcu/nxp/mcux-sdk
 DEPS_SUBMODULES += $(SDK_DIR) lib/CMSIS_5
-
 MCU_DIR = $(SDK_DIR)/devices/$(MCU)
+
 include $(TOP)/$(BOARD_PATH)/board.mk
+CPU_CORE ?= cortex-m0plus
 
 CFLAGS += \
-  -mthumb \
-  -mabi=aapcs \
-	-DCFG_TUSB_MCU=OPT_MCU_KINETIS_K32
+	-DCFG_TUSB_MCU=OPT_MCU_KINETIS_K32L
 
 SRC_C += \
 	src/portable/nxp/khci/dcd_khci.c \
