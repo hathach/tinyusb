@@ -52,7 +52,9 @@ jobs:
       # Upload binaries for hardware test with self-hosted
       - name: Prepare stm32l412nucleo Artifacts
         if: contains(matrix.family, 'stm32l4')
-        run: find examples/ -path "*stm32l412nucleo/*.elf" -exec mv {} . \;
+        working-directory: ${{github.workspace}}/cmake-build/cmake-build-stm32l412nucleo
+        run: |
+          find device/ -name "*.elf" -exec mv {} ../../ \;
 
       - name: Upload Artifacts for stm32l412nucleo
         if: contains(matrix.family, 'stm32l4') && github.repository_owner == 'hathach'
