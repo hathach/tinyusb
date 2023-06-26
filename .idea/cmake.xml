@@ -25,7 +25,7 @@
           </envs>
         </ADDITIONAL_GENERATION_ENVIRONMENT>
       </configuration>
-      <configuration PROFILE_NAME="rp2040" ENABLED="false" CONFIG_NAME="Debug" GENERATION_OPTIONS="-DBOARD=raspberry_pi_pico" />
+      <configuration PROFILE_NAME="rp2040" ENABLED="true" CONFIG_NAME="Debug" GENERATION_OPTIONS="-DBOARD=raspberry_pi_pico -DLOG=2 -DLOGGER=RTT" />
       <configuration PROFILE_NAME="rt1010 evk" ENABLED="false" CONFIG_NAME="Debug" GENERATION_OPTIONS="-DBOARD=mimxrt1010_evk" />
       <configuration PROFILE_NAME="rt1060 evk" ENABLED="false" CONFIG_NAME="Debug" GENERATION_OPTIONS="-DBOARD=mimxrt1060_evk" />
       <configuration PROFILE_NAME="rt1064 evk" ENABLED="false" CONFIG_NAME="Debug" GENERATION_OPTIONS="-DBOARD=mimxrt1064_evk" />
