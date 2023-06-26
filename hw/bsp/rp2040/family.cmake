@@ -127,7 +127,7 @@ if (NOT TARGET _rp2040_family_inclusion_marker)
 		target_compile_definitions(tinyusb_additions INTERFACE CFG_TUSB_DEBUG=${LOG})
 	endif()
 
-	if(LOGGER STREQUAL "rtt")
+	if(LOGGER STREQUAL "RTT" OR LOGGER STREQUAL "rtt")
 		target_compile_definitions(tinyusb_additions INTERFACE
 				LOGGER_RTT
 				SEGGER_RTT_MODE_DEFAULT=SEGGER_RTT_MODE_BLOCK_IF_FIFO_FULL
@@ -136,6 +136,10 @@ if (NOT TARGET _rp2040_family_inclusion_marker)
 		target_sources(tinyusb_additions INTERFACE
 				${TOP}/lib/SEGGER_RTT/RTT/SEGGER_RTT.c
 		)
+
+		set_source_files_properties(${TOP}/lib/SEGGER_RTT/RTT/SEGGER_RTT.c
+			PROPERTIES
+			COMPILE_FLAGS "-Wno-cast-qual -Wno-cast-align -Wno-sign-conversion")
 
 		target_include_directories(tinyusb_additions INTERFACE
 				${TOP}/lib/SEGGER_RTT/RTT
