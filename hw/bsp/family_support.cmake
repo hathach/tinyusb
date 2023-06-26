@@ -11,8 +11,25 @@ if (NOT DEFINED TOOLCHAIN)
   set(TOOLCHAIN gcc)
 endif ()
 
-if (NOT FAMILY)
-  message(FATAL_ERROR "You must set a FAMILY variable for the build (e.g. rp2040, eps32s2, esp32s3). You can do this via -DFAMILY=xxx on the cmake command line")
+# FAMILY not defined, try to detect it from BOARD
+if (NOT DEFINED FAMILY)
+  if (NOT DEFINED BOARD)
+    message(FATAL_ERROR "You must set a FAMILY variable for the build (e.g. rp2040, espressif).
+    You can do this via -DFAMILY=xxx on the cmake command line")
+  endif ()
+
+  # Find path contains BOARD
+  file(GLOB BOARD_PATH LIST_DIRECTORIES true
+    RELATIVE ${TOP}/hw/bsp
+    ${TOP}/hw/bsp/*/boards/${BOARD}
+    )
+  if (NOT BOARD_PATH)
+    message(FATAL_ERROR "Could not detect FAMILY from BOARD=${BOARD}")
+  endif ()
+
+  # replace / with ; so that we can get the first element as FAMILY
+  string(REPLACE "/" ";" BOARD_PATH ${BOARD_PATH})
+  list(GET BOARD_PATH 0 FAMILY)
 endif ()
 
 if (NOT EXISTS ${CMAKE_CURRENT_LIST_DIR}/${FAMILY}/family.cmake)
