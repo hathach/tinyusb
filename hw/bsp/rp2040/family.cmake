@@ -14,10 +14,6 @@ set(FAMILY_MCUS RP2040)
 
 include(${CMAKE_CURRENT_LIST_DIR}/boards/${BOARD}/board.cmake)
 
-# TOP is absolute path to root directory of TinyUSB git repo
-#set(TOP "${CMAKE_CURRENT_LIST_DIR}/../../..")
-#get_filename_component(TOP "${TOP}" REALPATH)
-
 if (NOT PICO_TINYUSB_PATH)
 	set(PICO_TINYUSB_PATH ${TOP})
 endif()
@@ -38,28 +34,29 @@ target_sources(tinyusb_common_base INTERFACE
 
 target_include_directories(tinyusb_common_base INTERFACE
 		${TOP}/src
-		${TOP}/src/common
-		${TOP}/hw
 		)
 
-target_link_libraries(tinyusb_common_base INTERFACE
-		hardware_structs
-		hardware_irq
-		hardware_resets
-		pico_sync
-		)
-
-set(TINYUSB_DEBUG_LEVEL 0)
-if (CMAKE_BUILD_TYPE STREQUAL "Debug")
+if(DEFINED LOG)
+	set(TINYUSB_DEBUG_LEVEL ${LOG})
+elseif (CMAKE_BUILD_TYPE STREQUAL "Debug")
 	message("Compiling TinyUSB with CFG_TUSB_DEBUG=1")
 	set(TINYUSB_DEBUG_LEVEL 1)
+else ()
+	set(TINYUSB_DEBUG_LEVEL 0)
 endif()
 
 target_compile_definitions(tinyusb_common_base INTERFACE
 		CFG_TUSB_MCU=OPT_MCU_RP2040
 		CFG_TUSB_OS=${TINYUSB_OPT_OS}
-		#CFG_TUSB_DEBUG=${TINYUSB_DEBUG_LEVEL}
+		CFG_TUSB_DEBUG=${TINYUSB_DEBUG_LEVEL}
 )
+
+target_link_libraries(tinyusb_common_base INTERFACE
+	hardware_structs
+	hardware_irq
+	hardware_resets
+	pico_sync
+	)
 
 #------------------------------------
 # Base config for device mode; wrapped by SDK's tinyusb_device
@@ -109,10 +106,11 @@ target_compile_definitions(tinyusb_host_base INTERFACE
 #------------------------------------
 add_library(tinyusb_bsp INTERFACE)
 target_sources(tinyusb_bsp INTERFACE
-		${TOP}/hw/bsp/rp2040/family.c
-		)
-#	target_include_directories(tinyusb_bsp INTERFACE
-#			${TOP}/hw/bsp/rp2040)
+	${TOP}/hw/bsp/rp2040/family.c
+	)
+target_include_directories(tinyusb_bsp INTERFACE
+	${TOP}/hw
+	)
 
 # tinyusb_additions will hold our extra settings for examples
 add_library(tinyusb_additions INTERFACE)
@@ -121,10 +119,6 @@ target_compile_definitions(tinyusb_additions INTERFACE
 	PICO_RP2040_USB_DEVICE_ENUMERATION_FIX=1
 	PICO_RP2040_USB_DEVICE_UFRAME_FIX=1
 )
-
-if(DEFINED LOG)
-	target_compile_definitions(tinyusb_additions INTERFACE CFG_TUSB_DEBUG=${LOG})
-endif()
 
 if(LOGGER STREQUAL "RTT" OR LOGGER STREQUAL "rtt")
 	target_compile_definitions(tinyusb_additions INTERFACE
