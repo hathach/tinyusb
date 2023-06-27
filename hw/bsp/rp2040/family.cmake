@@ -11,6 +11,7 @@ include(${CMAKE_CURRENT_LIST_DIR}/pico_sdk_import.cmake)
 
 # include basic family CMake functionality
 set(FAMILY_MCUS RP2040)
+set(JLINK_DEVICE rp2040_m0_0)
 
 include(${CMAKE_CURRENT_LIST_DIR}/boards/${BOARD}/board.cmake)
 
@@ -143,11 +144,22 @@ endif()
 # Functions
 #------------------------------------
 
-function(family_configure_target TARGET)
+function(family_configure_target TARGET RTOS)
+	if (RTOS STREQUAL noos OR RTOS STREQUAL "")
+		set(RTOS_SUFFIX "")
+	else()
+		set(RTOS_SUFFIX _${RTOS})
+	endif()
+	# export RTOS_SUFFIX to parent scope
+	set(RTOS_SUFFIX ${RTOS_SUFFIX} PARENT_SCOPE)
+
 	pico_add_extra_outputs(${TARGET})
 	pico_enable_stdio_uart(${TARGET} 1)
-	target_link_libraries(${TARGET} PUBLIC pico_stdlib pico_bootsel_via_double_reset tinyusb_board tinyusb_additions)
+	target_link_libraries(${TARGET} PUBLIC pico_stdlib pico_bootsel_via_double_reset tinyusb_board${RTOS_SUFFIX} tinyusb_additions)
+
+	family_flash_jlink(${TARGET})
 endfunction()
+
 
 function(rp2040_family_configure_example_warnings TARGET)
 	if (NOT PICO_TINYUSB_NO_EXAMPLE_WARNINGS)
@@ -159,19 +171,22 @@ function(rp2040_family_configure_example_warnings TARGET)
 	suppress_tinyusb_warnings()
 endfunction()
 
-function(family_configure_device_example TARGET)
-	family_configure_target(${TARGET})
-	target_link_libraries(${TARGET} PUBLIC pico_stdlib tinyusb_device)
+
+function(family_configure_device_example TARGET RTOS)
+	family_configure_target(${TARGET} ${RTOS})
+	target_link_libraries(${TARGET} PUBLIC pico_stdlib tinyusb_device${RTOS_SUFFIX})
 	rp2040_family_configure_example_warnings(${TARGET})
 endfunction()
+
 
 function(family_add_pico_pio_usb TARGET)
 	target_link_libraries(${TARGET} PUBLIC tinyusb_pico_pio_usb)
 endfunction()
 
-function(family_configure_host_example TARGET)
-	family_configure_target(${TARGET})
-	target_link_libraries(${TARGET} PUBLIC pico_stdlib tinyusb_host)
+
+function(family_configure_host_example TARGET RTOS)
+	family_configure_target(${TARGET} ${RTOS})
+	target_link_libraries(${TARGET} PUBLIC pico_stdlib tinyusb_host${RTOS_SUFFIX})
 	rp2040_family_configure_example_warnings(${TARGET})
 
 	# For rp2040 enable pico-pio-usb
@@ -183,12 +198,14 @@ function(family_configure_host_example TARGET)
 	endif()
 endfunction()
 
-function(family_configure_dual_usb_example TARGET)
-	family_configure_target(${TARGET})
+
+function(family_configure_dual_usb_example TARGET RTOS)
+	family_configure_target(${TARGET} ${RTOS})
 	# require tinyusb_pico_pio_usb
 	target_link_libraries(${TARGET} PUBLIC pico_stdlib tinyusb_device tinyusb_host tinyusb_pico_pio_usb )
 	rp2040_family_configure_example_warnings(${TARGET})
 endfunction()
+
 
 function(check_and_add_pico_pio_usb_support)
 	# check for pico_generate_pio_header (as depending on environment we may be called before SDK is
@@ -243,6 +260,7 @@ endfunction()
 # when included by the SDK itself)
 check_and_add_pico_pio_usb_support()
 
+
 function(family_initialize_project PROJECT DIR)
 	# call the original version of this function from family_common.cmake
 	_family_initialize_project(${PROJECT} ${DIR})
@@ -252,6 +270,7 @@ function(family_initialize_project PROJECT DIR)
 	# now re-check for adding Pico-PIO_USB support now SDK is definitely available
 	check_and_add_pico_pio_usb_support()
 endfunction()
+
 
 # This method must be called from the project scope to suppress known warnings in TinyUSB source files
 function(suppress_tinyusb_warnings)
@@ -326,8 +345,4 @@ function(suppress_tinyusb_warnings)
 				PROPERTIES
 				COMPILE_FLAGS "-Wno-cast-qual")
 	endif()
-endfunction()
-
-# rp2040 does not support freeRTOS example yet
-function(family_add_freertos TARGET)
 endfunction()
