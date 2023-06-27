@@ -79,8 +79,8 @@ endfunction()
 #------------------------------------
 # Functions
 #------------------------------------
-function(family_configure_example TARGET)
-  family_configure_common(${TARGET})
+function(family_configure_example TARGET RTOS)
+  family_configure_common(${TARGET} ${RTOS})
 
   # Board target
   add_board_target(board_${BOARD})
@@ -100,7 +100,7 @@ function(family_configure_example TARGET)
     )
 
   # Add TinyUSB target and port source
-  family_add_tinyusb(${TARGET} OPT_MCU_MCXN9)
+  family_add_tinyusb(${TARGET} OPT_MCU_MCXN9 ${RTOS})
   target_sources(${TARGET}-tinyusb PUBLIC
     # TinyUSB: Port0 is chipidea FS, Port1 is chipidea HS
     ${TOP}/src/portable/chipidea/$<IF:${PORT},ci_hs/dcd_ci_hs.c,ci_fs/dcd_ci_fs.c>
@@ -114,17 +114,4 @@ function(family_configure_example TARGET)
   family_flash_jlink(${TARGET})
   #family_flash_nxplink(${TARGET})
   #family_flash_pyocd(${TARGET})
-endfunction()
-
-
-function(family_configure_device_example TARGET)
-  family_configure_example(${TARGET})
-endfunction()
-
-function(family_configure_host_example TARGET)
-  family_configure_example(${TARGET})
-endfunction()
-
-function(family_configure_dual_usb_example TARGET)
-  family_configure_example(${TARGET})
 endfunction()
