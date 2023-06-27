@@ -36,7 +36,13 @@
 #define LED_STATE_ON          0
 
 // Button
+#if ((_BOARD_REVISION_MAJOR_ == 0) && (_BOARD_REVISION_MINOR_ < 6))
 #define BUTTON_PIN            PIN_PA16 // pin PB22
+#define BUTTON_PULL_MODE      GPIO_PULL_UP
+#else
+#define BUTTON_PIN            PIN_PA02
+#define BUTTON_PULL_MODE      GPIO_PULL_OFF
+#endif
 #define BUTTON_STATE_ACTIVE   0
 
 #ifdef __cplusplus

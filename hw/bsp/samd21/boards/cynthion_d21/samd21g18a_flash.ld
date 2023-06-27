@@ -35,7 +35,7 @@ SEARCH_DIR(.)
 /* Memory Spaces Definitions */
 MEMORY
 {
-  rom      (rx)  : ORIGIN = 0x00000000 + 4K, LENGTH = 0x00040000 - 4K
+  rom      (rx)  : ORIGIN = 0x00000000 + BOOTLOADER_SIZE, LENGTH = 0x00040000 - BOOTLOADER_SIZE
   ram      (rwx) : ORIGIN = 0x20000000, LENGTH = 0x00008000
 }
 
