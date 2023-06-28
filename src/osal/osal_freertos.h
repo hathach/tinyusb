@@ -56,7 +56,7 @@ typedef SemaphoreHandle_t osal_mutex_t;
 // _int_set is not used with an RTOS
 #define OSAL_QUEUE_DEF(_int_set, _name, _depth, _type) \
   static _type _name##_##buf[_depth];\
-  osal_queue_def_t _name = { .depth = _depth, .item_sz = sizeof(_type), .buf = _name##_##buf };
+  osal_queue_def_t _name = { .depth = _depth, .item_sz = sizeof(_type), .buf = _name##_##buf, .pQueueName = #_name };
 
 typedef struct
 {
@@ -66,6 +66,7 @@ typedef struct
 #if configSUPPORT_STATIC_ALLOCATION
   StaticQueue_t sq;
 #endif
+  const char* pQueueName;
 }osal_queue_def_t;
 
 typedef QueueHandle_t osal_queue_t;
@@ -176,7 +177,7 @@ TU_ATTR_ALWAYS_INLINE static inline osal_queue_t osal_queue_create(osal_queue_de
     q = xQueueCreate(qdef->depth, qdef->item_sz);
   #endif
   #if defined(configQUEUE_REGISTRY_SIZE) && (configQUEUE_REGISTRY_SIZE>0)
-    vQueueAddToRegistry(q, "tinyUSB");
+    vQueueAddToRegistry(q, qdef->pQueueName);
   #endif
   return q;
 }

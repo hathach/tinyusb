@@ -279,7 +279,7 @@ tu_static uint8_t _usbd_rhport = RHPORT_INVALID;
 
 // Event queue
 // usbd_int_set() is used as mutex in OS NONE config
-OSAL_QUEUE_DEF(usbd_int_set, _usbd_qdef, CFG_TUD_TASK_QUEUE_SZ, dcd_event_t);
+OSAL_QUEUE_DEF(usbd_int_set, usbd_events, CFG_TUD_TASK_QUEUE_SZ, dcd_event_t);
 tu_static osal_queue_t _usbd_q;
 
 // Mutex for claiming endpoint
@@ -410,7 +410,7 @@ bool tud_init (uint8_t rhport)
 #endif
 
   // Init device queue & task
-  _usbd_q = osal_queue_create(&_usbd_qdef);
+  _usbd_q = osal_queue_create(&usbd_events);
   TU_ASSERT(_usbd_q);
 
   // Get application driver if available

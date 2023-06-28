@@ -219,7 +219,7 @@ static usbh_device_t _usbh_devices[TOTAL_DEVICES];
 
 // Event queue
 // usbh_int_set is used as mutex in OS NONE config
-OSAL_QUEUE_DEF(usbh_int_set, _usbh_qdef, CFG_TUH_TASK_QUEUE_SZ, hcd_event_t);
+OSAL_QUEUE_DEF(usbh_int_set, usbh_events, CFG_TUH_TASK_QUEUE_SZ, hcd_event_t);
 static osal_queue_t _usbh_q;
 
 CFG_TUH_MEM_SECTION CFG_TUH_MEM_ALIGN
@@ -330,7 +330,7 @@ bool tuh_init(uint8_t controller_id)
   TU_LOG_INT(USBH_DEBUG, sizeof(tu_edpt_stream_t));
 
   // Event queue
-  _usbh_q = osal_queue_create( &_usbh_qdef );
+  _usbh_q = osal_queue_create( &usbh_events );
   TU_ASSERT(_usbh_q != NULL);
 
 #if OSAL_MUTEX_REQUIRED
