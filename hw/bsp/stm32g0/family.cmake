@@ -34,6 +34,11 @@ endif ()
 # only need to be built ONCE for all examples
 function(add_board_target BOARD_TARGET)
   if (NOT TARGET ${BOARD_TARGET})
+    # Startup & Linker script
+    set(STARTUP_FILE_GNU ${ST_CMSIS}/Source/Templates/gcc/startup_${MCU_VARIANT}.s)
+    set(STARTUP_FILE_IAR ${ST_CMSIS}/Source/Templates/iar/startup_${MCU_VARIANT}.s)
+    set(LD_FILE_IAR ${ST_CMSIS}/Source/Templates/iar/linker/${MCU_VARIANT}_flash.icf)
+
     add_library(${BOARD_TARGET} STATIC
       ${ST_CMSIS}/Source/Templates/system_${ST_PREFIX}.c
       ${ST_HAL_DRIVER}/Src/${ST_PREFIX}_hal.c
@@ -79,8 +84,8 @@ endfunction()
 #------------------------------------
 # Functions
 #------------------------------------
-function(family_configure_example TARGET)
-  family_configure_common(${TARGET})
+function(family_configure_example TARGET RTOS)
+  family_configure_common(${TARGET} ${RTOS})
 
   # Board target
   add_board_target(board_${BOARD})
@@ -100,7 +105,7 @@ function(family_configure_example TARGET)
     )
 
   # Add TinyUSB target and port source
-  family_add_tinyusb(${TARGET} OPT_MCU_STM32G0)
+  family_add_tinyusb(${TARGET} OPT_MCU_STM32G0 ${RTOS})
   target_sources(${TARGET}-tinyusb PUBLIC
     ${TOP}/src/portable/st/stm32_fsdev/dcd_stm32_fsdev.c
     ${TOP}/src/portable/st/typec/typec_stm32.c
@@ -113,17 +118,4 @@ function(family_configure_example TARGET)
   # Flashing
   family_flash_stlink(${TARGET})
   #family_flash_jlink(${TARGET})
-endfunction()
-
-
-function(family_configure_device_example TARGET)
-  family_configure_example(${TARGET})
-endfunction()
-
-function(family_configure_host_example TARGET)
-  family_configure_example(${TARGET})
-endfunction()
-
-function(family_configure_dual_usb_example TARGET)
-  family_configure_example(${TARGET})
 endfunction()

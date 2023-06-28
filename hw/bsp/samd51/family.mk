@@ -2,14 +2,10 @@ UF2_FAMILY_ID = 0x55114460
 DEPS_SUBMODULES += hw/mcu/microchip
 
 include $(TOP)/$(BOARD_PATH)/board.mk
+CPU_CORE ?= cortex-m4
 
 CFLAGS += \
   -flto \
-  -mthumb \
-  -mabi=aapcs \
-  -mcpu=cortex-m4 \
-  -mfloat-abi=hard \
-  -mfpu=fpv4-sp-d16 \
   -nostdlib -nostartfiles \
   -DCFG_TUSB_MCU=OPT_MCU_SAMD51
 
@@ -36,9 +32,6 @@ INC += \
 	$(TOP)/hw/mcu/microchip/samd51/hpl/port \
 	$(TOP)/hw/mcu/microchip/samd51/hri \
 	$(TOP)/hw/mcu/microchip/samd51/CMSIS/Include
-
-# For freeRTOS port source
-FREERTOS_PORTABLE_SRC = $(FREERTOS_PORTABLE_PATH)/ARM_CM4F
 
 # flash using bossac at least version 1.8
 # can be found in arduino15/packages/arduino/tools/bossac/

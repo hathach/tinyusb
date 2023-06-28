@@ -419,7 +419,7 @@ static bool __tusb_irq_path_func(e15_is_critical_frame_period) (struct hw_endpoi
   if (delta < 800 || delta > 998) {
     return false;
   }
-  TU_LOG(3, "Avoiding sof %u now %lu last %lu\n", (usb_hw->sof_rd + 1) & USB_SOF_RD_BITS, time_us_32(), e15_last_sof);
+  TU_LOG(3, "Avoiding sof %lu now %lu last %lu\n", (usb_hw->sof_rd + 1) & USB_SOF_RD_BITS, time_us_32(), e15_last_sof);
   return true;
 }
 

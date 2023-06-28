@@ -88,6 +88,6 @@ elseif (CMAKE_C_COMPILER_ID STREQUAL "IAR")
 
 endif ()
 
-# Configure compilation flags and libraries for the example... see the corresponding function
-# in hw/bsp/FAMILY/family.cmake for details.
-family_configure_device_example(${PROJECT})
+# Configure compilation flags and libraries for the example without RTOS.
+# See the corresponding function in hw/bsp/FAMILY/family.cmake for details.
+family_configure_device_example(${PROJECT} noos)

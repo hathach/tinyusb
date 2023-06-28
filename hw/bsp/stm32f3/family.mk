@@ -9,14 +9,10 @@ DEPS_SUBMODULES += \
 	$(ST_HAL_DRIVER)
 
 include $(TOP)/$(BOARD_PATH)/board.mk
+CPU_CORE ?= cortex-m4
 
 CFLAGS += \
   -flto \
-  -mthumb \
-  -mabi=aapcs \
-  -mcpu=cortex-m4 \
-  -mfloat-abi=hard \
-  -mfpu=fpv4-sp-d16 \
   -nostdlib -nostartfiles \
   -DCFG_TUSB_MCU=OPT_MCU_STM32F3
 
@@ -37,6 +33,3 @@ INC += \
   $(TOP)/$(ST_CMSIS)/Include \
   $(TOP)/$(ST_HAL_DRIVER)/Inc \
   $(TOP)/$(BOARD_PATH)
-
-# For freeRTOS port source
-FREERTOS_PORTABLE_SRC = $(FREERTOS_PORTABLE_PATH)/ARM_CM4F

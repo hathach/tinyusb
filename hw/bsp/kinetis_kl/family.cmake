@@ -78,8 +78,8 @@ endfunction()
 #------------------------------------
 # Functions
 #------------------------------------
-function(family_configure_example TARGET)
-  family_configure_common(${TARGET})
+function(family_configure_example TARGET RTOS)
+  family_configure_common(${TARGET} ${RTOS})
 
   # Board target
   add_board_target(board_${BOARD})
@@ -99,7 +99,7 @@ function(family_configure_example TARGET)
     )
 
   # Add TinyUSB target and port source
-  family_add_tinyusb(${TARGET} OPT_MCU_KINETIS_KL)
+  family_add_tinyusb(${TARGET} OPT_MCU_KINETIS_KL ${RTOS})
   target_sources(${TARGET}-tinyusb PUBLIC
     ${TOP}/src/portable/chipidea/ci_fs/dcd_ci_fs.c
     ${TOP}/src/portable/nxp/khci/hcd_khci.c
@@ -112,17 +112,4 @@ function(family_configure_example TARGET)
   # Flashing
   family_flash_jlink(${TARGET})
   #family_flash_nxplink(${TARGET})
-endfunction()
-
-
-function(family_configure_device_example TARGET)
-  family_configure_example(${TARGET})
-endfunction()
-
-function(family_configure_host_example TARGET)
-  family_configure_example(${TARGET})
-endfunction()
-
-function(family_configure_dual_usb_example TARGET)
-  family_configure_example(${TARGET})
 endfunction()
