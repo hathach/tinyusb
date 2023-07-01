@@ -34,6 +34,7 @@ extern "C" {
 #ifdef __GNUC__
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wstrict-prototypes"
+#pragma GCC diagnostic ignored "-Wundef"
 
 // extra push due to https://github.com/renesas/fsp/pull/278
 #pragma GCC diagnostic push
