@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2022 Rafael Silva (@perigoso)
+ * Copyright (c) 2023 Ha Thach (tinyusb.org)
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -24,53 +24,29 @@
  * This file is part of the TinyUSB stack.
  */
 
-#ifndef _RUSB2_RA_H_
-#define _RUSB2_RA_H_
+#ifndef _BOARD_H_
+#define _BOARD_H_
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-#ifdef __GNUC__
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wstrict-prototypes"
+#define LED1 (BSP_IO_PORT_04_PIN_15)
+#define LED_STATE_ON          1
 
-// extra push due to https://github.com/renesas/fsp/pull/278
-#pragma GCC diagnostic push
-#endif
+#define SW1  (BSP_IO_PORT_00_PIN_05)
+#define BUTTON_STATE_ACTIVE   0
 
-/* renesas fsp api */
-#include "bsp_api.h"
-
-#ifdef __GNUC__
-#pragma GCC diagnostic pop
-#endif
-
-#define RUSB2_REG_BASE (0x40090000)
-
-#if defined(__ICCARM__)
-  #define __builtin_ctz(x)             __iar_builtin_CLZ(__iar_builtin_RBIT(x))
-#endif
-
-TU_ATTR_ALWAYS_INLINE static inline void rusb2_int_enable(uint8_t rhport)
-{
-  (void) rhport;
-  NVIC_EnableIRQ(TU_IRQn);
-}
-
-TU_ATTR_ALWAYS_INLINE static inline void rusb2_int_disable(uint8_t rhport)
-{
-  (void) rhport;
-  NVIC_DisableIRQ(TU_IRQn);
-}
-
-// MCU specific PHY init
-TU_ATTR_ALWAYS_INLINE static inline void rusb2_phy_init(void)
-{
-}
+const ioport_pin_cfg_t board_pin_cfg[] = {
+  {.pin = BSP_IO_PORT_04_PIN_07, .pin_cfg = ((uint32_t) IOPORT_CFG_PERIPHERAL_PIN | (uint32_t) IOPORT_PERIPHERAL_USB_FS)},
+  {.pin = BSP_IO_PORT_05_PIN_00, .pin_cfg = ((uint32_t) IOPORT_CFG_PERIPHERAL_PIN | (uint32_t) IOPORT_PERIPHERAL_USB_FS)},
+  {.pin = BSP_IO_PORT_05_PIN_01, .pin_cfg = ((uint32_t) IOPORT_CFG_PERIPHERAL_PIN | (uint32_t) IOPORT_PERIPHERAL_USB_FS)},
+  {.pin = LED1, .pin_cfg = ((uint32_t) IOPORT_CFG_PORT_DIRECTION_OUTPUT | (uint32_t) IOPORT_CFG_PORT_OUTPUT_LOW)},
+  {.pin = SW1, .pin_cfg = ((uint32_t) IOPORT_CFG_PORT_DIRECTION_INPUT)},
+};
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif /* _RUSB2_RA_H_ */
+#endif

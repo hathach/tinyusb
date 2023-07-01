@@ -2,7 +2,6 @@
 #ifndef BSP_CFG_H_
 #define BSP_CFG_H_
 
-#include "board.h"
 #include "bsp_clock_cfg.h"
 #include "bsp_mcu_family_cfg.h"
 
@@ -31,5 +30,10 @@
 #define BSP_CLOCK_CFG_SUBCLOCK_DRIVE		(0)
 #define BSP_CLOCK_CFG_SUBCLOCK_POPULATED	(1)
 #define BSP_CLOCK_CFG_SUBCLOCK_STABILIZATION_MS 1000
+
+#define BSP_FEATURE_TFU_SUPPORTED 0
+
+// for SystemInit()
+void bsp_init(void * p_args);
 
 #endif /* BSP_CFG_H_ */

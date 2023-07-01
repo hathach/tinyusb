@@ -38,6 +38,7 @@ jobs:
           - 'lpc18'
           - 'lpc55'
           - 'mcx'
+          - 'ra'
           - 'rp2040'
           - 'stm32f0'
           - 'stm32f1'

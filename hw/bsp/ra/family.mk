@@ -35,9 +35,9 @@ SRC_C += \
 
 INC += \
 	$(TOP)/lib/CMSIS_5/CMSIS/Core/Include \
-	$(TOP)/$(FSP_RA)/src/bsp/cmsis/Device/RENESAS/Include \
 	$(TOP)/$(BOARD_PATH) \
 	$(TOP)/$(BOARD_PATH)/fsp_cfg \
+	$(TOP)/$(FSP_RA)/src/bsp/cmsis/Device/RENESAS/Include \
 	$(TOP)/$(FSP_RA)/inc \
 	$(TOP)/$(FSP_RA)/inc/api \
 	$(TOP)/$(FSP_RA)/inc/instances \

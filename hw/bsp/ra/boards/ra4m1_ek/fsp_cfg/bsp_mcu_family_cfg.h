@@ -25,6 +25,11 @@
 #define BSP_CORTEX_VECTOR_TABLE_ENTRIES    (16U)
 #define BSP_VECTOR_TABLE_MAX_ENTRIES       (48U)
 
+#define BSP_TZ_SECURE_BUILD    (0)
+#define BSP_TZ_NONSECURE_BUILD (0)
+
+#define BSP_FEATURE_BSP_HAS_SCISPI_CLOCK 0
+
 #define OFS_SEQ1 0xA001A001 | (1 << 1) | (3 << 2)
 #define OFS_SEQ2 (15 << 4) | (3 << 8) | (3 << 10)
 #define OFS_SEQ3 (1 << 12) | (1 << 14) | (1 << 17)
