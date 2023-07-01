@@ -37,6 +37,7 @@ INC += \
 	$(TOP)/lib/CMSIS_5/CMSIS/Core/Include \
 	$(TOP)/$(BOARD_PATH) \
 	$(TOP)/$(BOARD_PATH)/fsp_cfg \
+	$(TOP)/$(BOARD_PATH)/fsp_cfg/bsp \
 	$(TOP)/$(FSP_RA)/src/bsp/cmsis/Device/RENESAS/Include \
 	$(TOP)/$(FSP_RA)/inc \
 	$(TOP)/$(FSP_RA)/inc/api \

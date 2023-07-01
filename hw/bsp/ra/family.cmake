@@ -49,6 +49,7 @@ function(add_board_target BOARD_TARGET)
       ${CMAKE_CURRENT_FUNCTION_LIST_DIR}
       ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/boards/${BOARD}
       ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/boards/${BOARD}/fsp_cfg
+      ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/boards/${BOARD}/fsp_cfg/bsp
       ${CMSIS_DIR}/CMSIS/Core/Include
       ${FSP_RA}/inc
       ${FSP_RA}/inc/api
