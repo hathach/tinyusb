@@ -55,6 +55,7 @@ function(add_board_target BOARD_TARGET)
       ${FSP_RA}/inc/api
       ${FSP_RA}/inc/instances
       ${FSP_RA}/src/bsp/cmsis/Device/RENESAS/Include
+      ${FSP_RA}/src/bsp/mcu/all
       ${FSP_RA}/src/bsp/mcu/${MCU_VARIANT}
       )
 
