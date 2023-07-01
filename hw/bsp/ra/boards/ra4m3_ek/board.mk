@@ -3,6 +3,5 @@ MCU_VARIANT = ra4m3
 
 # For flash-jlink target
 JLINK_DEVICE = R7FA4M3AF
-JLINK_IF     = SWD
 
 flash: flash-jlink
