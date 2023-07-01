@@ -9,6 +9,7 @@ set(FSP_RA ${TOP}/hw/mcu/renesas/fsp/ra/fsp)
 
 # include board specific
 include(${CMAKE_CURRENT_LIST_DIR}/boards/${BOARD}/board.cmake)
+#set(FREERTOS_PORT A_CUSTOM_PORT CACHE INTERNAL "")
 
 set(CMAKE_TOOLCHAIN_FILE ${TOP}/tools/cmake/toolchain/arm_${TOOLCHAIN}.cmake)
 
@@ -58,10 +59,15 @@ function(add_board_target BOARD_TARGET)
 
     update_board(${BOARD_TARGET})
 
+    if (NOT DEFINED LD_FILE_${CMAKE_C_COMPILER_ID})
+      set(LD_FILE_GNU ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/linker/gcc/${MCU_VARIANT}.ld)
+    endif ()
+
     if (CMAKE_C_COMPILER_ID STREQUAL "GNU")
       target_link_options(${BOARD_TARGET} PUBLIC
         # linker file
         "LINKER:--script=${LD_FILE_GNU}"
+        -L${CMAKE_CURRENT_FUNCTION_LIST_DIR}/linker/gcc
         -nostartfiles
         # nanolib
         --specs=nano.specs
@@ -98,7 +104,16 @@ function(family_configure_example TARGET RTOS)
     ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/../../
     )
 
-  # Add TinyUSB target and port source
+#  # RA has custom freertos port
+#  if (NOT TARGET freertos_kernel_port)
+#    add_library(freertos_kernel_port STATIC)
+#    target_sources(freertos_kernel_port PUBLIC ${FSP_RA}/src/rm_freertos_port/port.c)
+#    target_include_directories(freertos_kernel_port PUBLIC ${FSP_RA}/src/rm_freertos_port)
+#
+#    target_link_libraries(freertos_kernel_port PUBLIC freertos_kernel)
+#  endif ()
+
+    # Add TinyUSB target and port source
   family_add_tinyusb(${TARGET} OPT_MCU_RAXXX ${RTOS})
   target_sources(${TARGET}-tinyusb PUBLIC
     ${TOP}/src/portable/renesas/rusb2/dcd_rusb2.c

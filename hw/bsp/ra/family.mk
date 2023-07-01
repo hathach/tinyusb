@@ -43,6 +43,11 @@ INC += \
 	$(TOP)/$(FSP_RA)/inc/instances \
 	$(TOP)/$(FSP_RA)/src/bsp/mcu/$(MCU_VARIANT) \
 
+ifndef LD_FILE
+LD_FILE = $(FAMILY_PATH)/linker/gcc/$(MCU_VARIANT).ld
+LDFLAGS += -L$(TOP)/$(FAMILY_PATH)/linker/gcc
+endif
+
 # For freeRTOS port source
 # hack to use the port provided by renesas
 FREERTOS_PORTABLE_SRC = $(FSP_RA)/src/rm_freertos_port

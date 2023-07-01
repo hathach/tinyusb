@@ -49,9 +49,9 @@
 #include "board.h"
 
 /* Key code for writing PRCR register. */
-#define BSP_PRV_PRCR_KEY	 (0xA500U)
+#define BSP_PRV_PRCR_KEY	       (0xA500U)
 #define BSP_PRV_PRCR_PRC1_UNLOCK ((BSP_PRV_PRCR_KEY) | 0x2U)
-#define BSP_PRV_PRCR_LOCK	 ((BSP_PRV_PRCR_KEY) | 0x0U)
+#define BSP_PRV_PRCR_LOCK	       ((BSP_PRV_PRCR_KEY) | 0x0U)
 
 /* ISR prototypes */
 void usbfs_interrupt_handler(void);
@@ -59,26 +59,87 @@ void usbfs_resume_handler(void);
 void usbfs_d0fifo_handler(void);
 void usbfs_d1fifo_handler(void);
 
-BSP_DONT_REMOVE const
-fsp_vector_t g_vector_table[BSP_ICU_VECTOR_MAX_ENTRIES] BSP_PLACE_IN_SECTION(BSP_SECTION_APPLICATION_VECTORS) = {
+const fsp_vector_t g_vector_table[BSP_ICU_VECTOR_MAX_ENTRIES] BSP_PLACE_IN_SECTION(BSP_SECTION_APPLICATION_VECTORS) = {
     [0] = usbfs_interrupt_handler, /* USBFS INT (USBFS interrupt) */
     [1] = usbfs_resume_handler,    /* USBFS RESUME (USBFS resume interrupt) */
     [2] = usbfs_d0fifo_handler,    /* USBFS FIFO 0 (DMA transfer request 0) */
     [3] = usbfs_d1fifo_handler,    /* USBFS FIFO 1 (DMA transfer request 1) */
 };
 const bsp_interrupt_event_t g_interrupt_event_link_select[BSP_ICU_VECTOR_MAX_ENTRIES] = {
-  [0] = BSP_PRV_IELS_ENUM(EVENT_USBFS_INT),    /* USBFS INT (USBFS interrupt) */
-  [1] = BSP_PRV_IELS_ENUM(EVENT_USBFS_RESUME), /* USBFS RESUME (USBFS resume interrupt) */
-  [2] = BSP_PRV_IELS_ENUM(EVENT_USBFS_FIFO_0), /* USBFS FIFO 0 (DMA transfer request 0) */
-  [3] = BSP_PRV_IELS_ENUM(EVENT_USBFS_FIFO_1)  /* USBFS FIFO 1 (DMA transfer request 1) */
+    [0] = BSP_PRV_IELS_ENUM(EVENT_USBFS_INT),    /* USBFS INT (USBFS interrupt) */
+    [1] = BSP_PRV_IELS_ENUM(EVENT_USBFS_RESUME), /* USBFS RESUME (USBFS resume interrupt) */
+    [2] = BSP_PRV_IELS_ENUM(EVENT_USBFS_FIFO_0), /* USBFS FIFO 0 (DMA transfer request 0) */
+    [3] = BSP_PRV_IELS_ENUM(EVENT_USBFS_FIFO_1)  /* USBFS FIFO 1 (DMA transfer request 1) */
 };
 
-const ioport_cfg_t g_bsp_pin_cfg = {
-  .number_of_pins = sizeof(board_pin_cfg) / sizeof(ioport_pin_cfg_t),
-  .p_pin_cfg_data = board_pin_cfg,
+static const ioport_cfg_t family_pin_cfg = {
+    .number_of_pins = sizeof(board_pin_cfg) / sizeof(ioport_pin_cfg_t),
+    .p_pin_cfg_data = board_pin_cfg,
 };
-ioport_instance_ctrl_t g_ioport_ctrl;
-//const ioport_instance_t g_ioport = {.p_api = &g_ioport_on_ioport, .p_ctrl = &g_ioport_ctrl, .p_cfg = &g_bsp_pin_cfg};
+static ioport_instance_ctrl_t port_ctrl;
+
+//--------------------------------------------------------------------+
+// Board porting API
+//--------------------------------------------------------------------+
+
+void board_init(void)
+{
+  /* Configure pins. */
+  R_IOPORT_Open(&port_ctrl, &family_pin_cfg);
+
+  board_led_write(false);
+
+  /* Enable USB_BASE */
+  R_SYSTEM->PRCR = (uint16_t) BSP_PRV_PRCR_PRC1_UNLOCK;
+  R_MSTP->MSTPCRB &= ~(1U << 11U);
+  R_SYSTEM->PRCR = (uint16_t) BSP_PRV_PRCR_LOCK;
+
+#if CFG_TUSB_OS == OPT_OS_FREERTOS
+  // If freeRTOS is used, IRQ priority is limit by max syscall ( smaller is higher )
+  NVIC_SetPriority(TU_IRQn, configLIBRARY_MAX_SYSCALL_INTERRUPT_PRIORITY);
+  NVIC_SetPriority(USBFS_RESUME_IRQn, configLIBRARY_MAX_SYSCALL_INTERRUPT_PRIORITY);
+  NVIC_SetPriority(USBFS_FIFO_0_IRQn, configLIBRARY_MAX_SYSCALL_INTERRUPT_PRIORITY);
+  NVIC_SetPriority(USBFS_FIFO_1_IRQn, configLIBRARY_MAX_SYSCALL_INTERRUPT_PRIORITY);
+#endif
+
+#if CFG_TUSB_OS == OPT_OS_NONE
+  SysTick_Config(SystemCoreClock / 1000);
+#endif
+}
+
+void board_led_write(bool state) {
+  R_IOPORT_PinWrite(&port_ctrl, LED1, state ? LED_STATE_ON : !LED_STATE_ON);
+}
+
+uint32_t board_button_read(void) {
+  bsp_io_level_t lvl;
+  R_IOPORT_PinRead(&port_ctrl, SW1, &lvl);
+  return lvl == BUTTON_STATE_ACTIVE;
+}
+
+int board_uart_read(uint8_t *buf, int len) {
+  (void) buf;
+  (void) len;
+  return 0;
+}
+
+int board_uart_write(void const *buf, int len) {
+  (void) buf;
+  (void) len;
+  return 0;
+}
+
+#if CFG_TUSB_OS == OPT_OS_NONE
+volatile uint32_t system_ticks = 0;
+
+void SysTick_Handler(void) {
+  system_ticks++;
+}
+
+uint32_t board_millis(void) {
+  return system_ticks;
+}
+#endif
 
 //--------------------------------------------------------------------+
 // Forward USB interrupt events to TinyUSB IRQ Handler
@@ -139,93 +200,29 @@ void usbfs_d1fifo_handler(void)
 #endif
 }
 
-void board_init(void)
-{
-  /* Configure pins. */
-  R_IOPORT_Open(&g_ioport_ctrl, &g_bsp_pin_cfg);
-
-  /* Enable USB_BASE */
-  R_SYSTEM->PRCR = (uint16_t) BSP_PRV_PRCR_PRC1_UNLOCK;
-  R_MSTP->MSTPCRB &= ~(1U << 11U);
-  R_SYSTEM->PRCR = (uint16_t) BSP_PRV_PRCR_LOCK;
-
-#if CFG_TUSB_OS == OPT_OS_FREERTOS
-  // If freeRTOS is used, IRQ priority is limit by max syscall ( smaller is higher )
-  NVIC_SetPriority(TU_IRQn, configLIBRARY_MAX_SYSCALL_INTERRUPT_PRIORITY);
-  NVIC_SetPriority(USBFS_RESUME_IRQn, configLIBRARY_MAX_SYSCALL_INTERRUPT_PRIORITY);
-  NVIC_SetPriority(USBFS_FIFO_0_IRQn, configLIBRARY_MAX_SYSCALL_INTERRUPT_PRIORITY);
-  NVIC_SetPriority(USBFS_FIFO_1_IRQn, configLIBRARY_MAX_SYSCALL_INTERRUPT_PRIORITY);
-#endif
-
-#if CFG_TUSB_OS == OPT_OS_NONE
-  /* Init systick */
-  SysTick_Config(SystemCoreClock / 1000);
-#endif
-}
-
 //--------------------------------------------------------------------+
-// Board porting API
+// stdlib
 //--------------------------------------------------------------------+
 
-void board_led_write(bool state)
-{
-  R_IOPORT_PinWrite(&g_ioport_ctrl, LED1, state ? LED_STATE_ON : !LED_STATE_ON);
-}
-
-uint32_t board_button_read(void)
-{
-  bsp_io_level_t lvl;
-  R_IOPORT_PinRead(&g_ioport_ctrl, SW1, &lvl);
-  return lvl == BUTTON_STATE_ACTIVE;
-}
-
-int board_uart_read(uint8_t *buf, int len)
-{
-  (void) buf;
-  (void) len;
-  return 0;
-}
-
-int board_uart_write(void const *buf, int len)
-{
-  (void) buf;
-  (void) len;
-  return 0;
-}
-
-#if CFG_TUSB_OS == OPT_OS_NONE
-volatile uint32_t system_ticks = 0;
-void SysTick_Handler(void)
-{
-  system_ticks++;
-}
-
-uint32_t board_millis(void)
-{
-  return system_ticks;
-}
-#endif
-
-int close(int fd)
-{
+int close(int fd) {
   (void) fd;
   return -1;
 }
-int fstat(int fd, void *pstat)
-{
+
+int fstat(int fd, void *pstat) {
   (void) fd;
   (void) pstat;
   return 0;
 }
-off_t lseek(int fd, off_t pos, int whence)
-{
+
+off_t lseek(int fd, off_t pos, int whence) {
   (void) fd;
   (void) pos;
   (void) whence;
   return 0;
 }
-int isatty(int fd)
-{
+
+int isatty(int fd) {
   (void) fd;
   return 1;
 }
