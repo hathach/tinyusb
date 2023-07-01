@@ -143,8 +143,18 @@ void board_init(void)
   GPIO_InitStruct.Alternate = GPIO_AF10_OTG_FS;
   HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
 
+// Suppress warning caused by mcu driver
+#ifdef __GNUC__
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wshadow"
+#endif
+
   /* Enable USB FS Clocks */
   __HAL_RCC_USB_OTG_FS_CLK_ENABLE();
+
+#ifdef __GNUC__
+#pragma GCC diagnostic pop
+#endif
 
 #if OTG_FS_VBUS_SENSE
   /* Configure VBUS Pin */

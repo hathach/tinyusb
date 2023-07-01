@@ -8,13 +8,10 @@ ST_CMSIS = hw/mcu/st/cmsis_device_$(ST_FAMILY)
 ST_HAL_DRIVER = hw/mcu/st/stm32$(ST_FAMILY)xx_hal_driver
 
 include $(TOP)/$(BOARD_PATH)/board.mk
+CPU_CORE ?= cortex-m0plus
 
 CFLAGS += \
   -flto \
-  -mthumb \
-  -mabi=aapcs \
-  -mcpu=cortex-m0plus \
-  -mfloat-abi=soft \
   -nostdlib -nostartfiles \
   -DCFG_EXAMPLE_MSC_READONLY \
   -DCFG_EXAMPLE_VIDEO_READONLY \
@@ -42,6 +39,3 @@ INC += \
   $(TOP)/lib/CMSIS_5/CMSIS/Core/Include \
   $(TOP)/$(ST_CMSIS)/Include \
   $(TOP)/$(ST_HAL_DRIVER)/Inc
-
-# For freeRTOS port source
-FREERTOS_PORTABLE_SRC = $(FREERTOS_PORTABLE_PATH)/ARM_CM0

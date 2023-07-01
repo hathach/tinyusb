@@ -1,14 +1,10 @@
 DEPS_SUBMODULES += hw/mcu/ti
 
 include $(TOP)/$(BOARD_PATH)/board.mk
+CPU_CORE ?= cortex-m4
 
 CFLAGS += \
   -flto \
-  -mthumb \
-  -mabi=aapcs \
-  -mcpu=cortex-m4 \
-  -mfloat-abi=hard \
-  -mfpu=fpv4-sp-d16 \
   -DCFG_TUSB_MCU=OPT_MCU_TM4C123 \
   -uvectors \
   -DTM4C123GH6PM
@@ -31,6 +27,3 @@ SRC_C += \
 	src/portable/mentor/musb/hcd_musb.c \
 	$(MCU_DIR)/Source/system_TM4C123.c \
 	$(MCU_DIR)/Source/GCC/tm4c123_startup.c
-
-# For freeRTOS port source
-FREERTOS_PORTABLE_SRC = $(FREERTOS_PORTABLE_PATH)/ARM_CM4F

@@ -49,7 +49,10 @@
 #define UART_RX_PIN           PICO_DEFAULT_UART_RX_PIN
 #endif
 
+//--------------------------------------------------------------------+
 // PIO_USB
+// default to pin on Adafruit Feather rp2040 USB Host or Tester if defined
+//--------------------------------------------------------------------+
 
 // #define USE_ADAFRUIT_RP2040_TESTER
 #ifdef USE_ADAFRUIT_RP2040_TESTER
@@ -57,7 +60,6 @@
 #define PICO_DEFAULT_PIO_USB_VBUSEN_PIN   22
 #endif
 
-// following default to pin on Adafruit Feather rp2040 USB Host
 #ifndef PICO_DEFAULT_PIO_USB_DP_PIN
 #define PICO_DEFAULT_PIO_USB_DP_PIN       16
 #endif

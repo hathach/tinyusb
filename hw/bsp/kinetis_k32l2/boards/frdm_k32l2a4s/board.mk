@@ -1,8 +1,6 @@
 MCU = K32L2A41A
 
-CFLAGS += \
-  -mcpu=cortex-m0plus \
-  -DCPU_K32L2A41VLH1A \
+CFLAGS += -DCPU_K32L2A41VLH1A
 
 # mcu driver cause following warnings
 CFLAGS += -Wno-error=unused-parameter -Wno-error=redundant-decls -Wno-error=cast-qual
@@ -12,9 +10,6 @@ LD_FILE = $(MCU_DIR)/gcc/K32L2A41xxxxA_flash.ld
 
 SRC_C += \
 	$(MCU_DIR)/project_template/clock_config.c \
-
-# For freeRTOS port source
-FREERTOS_PORTABLE_SRC = $(FREERTOS_PORTABLE_PATH)/ARM_CM0
 
 # For flash-jlink target
 JLINK_DEVICE = K32L2A41xxxxA

@@ -4,9 +4,7 @@ SDK_DIR = hw/mcu/nxp/mcux-sdk
 DEPS_SUBMODULES += $(SDK_DIR) lib/CMSIS_5
 
 include $(TOP)/$(BOARD_PATH)/board.mk
-
 CPU_CORE ?= cortex-m33
-include $(TOP)/tools/make/cpu/$(CPU_CORE).mk
 
 # Default to Highspeed PORT1
 PORT ?= 1

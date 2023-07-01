@@ -189,7 +189,7 @@ static void hw_endpoint_xfer(uint8_t ep_addr, uint8_t *buffer, uint16_t total_by
 static void __tusb_irq_path_func(hw_handle_buff_status)(void)
 {
     uint32_t remaining_buffers = usb_hw->buf_status;
-    pico_trace("buf_status = 0x%08x\n", remaining_buffers);
+    pico_trace("buf_status = 0x%08lx\n", remaining_buffers);
     uint bit = 1u;
     for (uint8_t i = 0; remaining_buffers && i < USB_MAX_ENDPOINTS * 2; i++)
     {

@@ -5,7 +5,6 @@ DEPS_SUBMODULES += $(SDK_DIR) lib/CMSIS_5
 include $(TOP)/$(BOARD_PATH)/board.mk
 
 CPU_CORE ?= cortex-m7
-include $(TOP)/tools/make/cpu/$(CPU_CORE).mk
 
 CFLAGS += \
   -D__ARMVFP__=0 \
@@ -17,6 +16,7 @@ CFLAGS += \
 ifdef BOARD_TUD_RHPORT
 CFLAGS += -DBOARD_TUD_RHPORT=$(BOARD_TUD_RHPORT)
 endif
+
 ifdef BOARD_TUH_RHPORT
 CFLAGS += -DBOARD_TUH_RHPORT=$(BOARD_TUH_RHPORT)
 endif

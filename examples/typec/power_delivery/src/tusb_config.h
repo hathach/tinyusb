@@ -30,11 +30,6 @@
  extern "C" {
 #endif
 
-// special example that doesn't enable device or host stack
-// This can cause some TinyUSB API missing, this define hack to allow us to fill those API
-// to pass the compilation process
-#define tud_int_handler(x)
-
 //--------------------------------------------------------------------
 // COMMON CONFIGURATION
 //--------------------------------------------------------------------
@@ -53,6 +48,15 @@
 
 // Enable TYPEC stack
 #define CFG_TUC_ENABLED   1
+
+
+// special example that doesn't enable device or host stack
+// This can cause some TinyUSB API missing, this define hack to allow us to fill those API
+// to pass the compilation process
+#if CFG_TUD_ENABLED == 0
+#define tud_int_handler(x)
+#endif
+
 
 // CFG_TUSB_DEBUG is defined by compiler in DEBUG build
 // #define CFG_TUSB_DEBUG           0
