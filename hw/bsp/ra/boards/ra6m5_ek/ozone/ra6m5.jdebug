@@ -1,0 +1,35 @@
+
+/*********************************************************************
+*
+*       OnProjectLoad
+*
+* Function description
+*   Project load routine. Required.
+*
+**********************************************************************
+*/
+void OnProjectLoad (void) {
+  Project.AddSvdFile ("Cortex-M33.svd");
+  Project.AddSvdFile ("./R7FA6M5BH.svd");
+
+  Project.SetDevice ("R7FA6M5BH");
+  Project.SetHostIF ("USB", "");
+  Project.SetTargetIF ("SWD");
+  Project.SetTIFSpeed ("50 MHz");
+
+  Project.SetTraceSource ("Trace Pins");
+  Project.SetTracePortWidth (4);
+
+  File.Open ("../../../../../../examples/device/cdc_msc/cmake-build-ra6m5/cdc_msc.elf");
+}
+/*********************************************************************
+*
+*       BeforeTargetConnect
+*
+**********************************************************************
+*/
+void BeforeTargetConnect (void) {
+  //
+  // Trace pin init is done by J-Link script file as J-Link script files are IDE independent
+  //
+}

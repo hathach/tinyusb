@@ -87,6 +87,11 @@ void board_init(void)
   /* Configure pins. */
   R_IOPORT_Open(&port_ctrl, &family_pin_cfg);
 
+#ifdef TRACE_ETM
+  // Enable trace clock with div 1 (100 Mhz)
+  R_SYSTEM->TRCKCR = R_SYSTEM_TRCKCR_TRCKEN_Msk;
+#endif
+
   board_led_write(false);
 
   /* Enable USB_BASE */
