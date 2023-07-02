@@ -150,11 +150,11 @@ bool hcd_setup_send(uint8_t rhport, uint8_t dev_addr, uint8_t const setup_packet
 //    // so if any transfer is active on epx, we are busy. Interrupt endpoints have their own
 //    // EPX so ep->active will only be busy if there is a pending transfer on that interrupt endpoint
 //    // on that device
-//    pico_trace("hcd_edpt_busy dev addr %d ep_addr 0x%x\n", dev_addr, ep_addr);
+//    pico_trace("hcd_edpt_busy dev addr %d ep_addr 0x%x\r\n", dev_addr, ep_addr);
 //    struct hw_endpoint *ep = get_dev_ep(dev_addr, ep_addr);
 //    assert(ep);
 //    bool busy = ep->active;
-//    pico_trace("busy == %d\n", busy);
+//    pico_trace("busy == %d\r\n", busy);
 //    return busy;
 //}
 
