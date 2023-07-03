@@ -23,12 +23,6 @@ set(CMAKE_TOOLCHAIN_FILE ${TOP}/tools/cmake/toolchain/arm_${TOOLCHAIN}.cmake)
 
 set(FAMILY_MCUS NRF5X CACHE INTERNAL "")
 
-# enable LTO if supported
-include(CheckIPOSupported)
-check_ipo_supported(RESULT IPO_SUPPORTED)
-if (IPO_SUPPORTED)
-  set(CMAKE_INTERPROCEDURAL_OPTIMIZATION TRUE)
-endif ()
 
 #------------------------------------
 # BOARD_TARGET
@@ -123,8 +117,6 @@ function(family_configure_example TARGET RTOS)
     ${TOP}/src/portable/nordic/nrf5x/dcd_nrf5x.c
     )
   target_link_libraries(${TARGET}-tinyusb PUBLIC board_${BOARD})
-
-
 
   # Link dependencies
   target_link_libraries(${TARGET} PUBLIC board_${BOARD} ${TARGET}-tinyusb)
