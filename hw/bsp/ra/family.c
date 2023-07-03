@@ -63,12 +63,7 @@ static ioport_instance_ctrl_t port_ctrl;
 // Vector Data
 //--------------------------------------------------------------------+
 
-void usbfs_interrupt_handler(void);
-void usbfs_resume_handler(void);
-void usbfs_d0fifo_handler(void);
-void usbfs_d1fifo_handler(void);
-
-const fsp_vector_t g_vector_table[BSP_ICU_VECTOR_MAX_ENTRIES] BSP_PLACE_IN_SECTION(BSP_SECTION_APPLICATION_VECTORS) = {
+BSP_DONT_REMOVE const fsp_vector_t g_vector_table[BSP_ICU_VECTOR_MAX_ENTRIES] BSP_PLACE_IN_SECTION(BSP_SECTION_APPLICATION_VECTORS) = {
     [0] = usbfs_interrupt_handler, /* USBFS INT (USBFS interrupt) */
     [1] = usbfs_resume_handler,    /* USBFS RESUME (USBFS resume interrupt) */
     [2] = usbfs_d0fifo_handler,    /* USBFS FIFO 0 (DMA transfer request 0) */
