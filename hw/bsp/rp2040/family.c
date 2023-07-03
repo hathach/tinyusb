@@ -93,12 +93,12 @@ bool __no_inline_not_in_flash_func(get_bootsel_button)(void) {
 
 static void stdio_rtt_write (const char *buf, int length)
 {
-  SEGGER_RTT_Write(0, buf, length);
+  SEGGER_RTT_Write(0, buf, (unsigned) length);
 }
 
 static int stdio_rtt_read (char *buf, int len)
 {
-  return SEGGER_RTT_Read(0, buf, len);
+  return (int) SEGGER_RTT_Read(0, buf, (unsigned) len);
 }
 
 static stdio_driver_t stdio_rtt =

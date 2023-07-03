@@ -2,12 +2,10 @@ DEPS_SUBMODULES += hw/mcu/nxp/lpcopen
 
 MCU_DIR = hw/mcu/nxp/lpcopen/lpc13xx/lpc_chip_13xx
 include $(TOP)/$(BOARD_PATH)/board.mk
+CPU_CORE ?= cortex-m3
 
 CFLAGS += \
   -flto \
-  -mthumb \
-  -mabi=aapcs \
-  -mcpu=cortex-m3 \
   -nostdlib \
   -DCORE_M3 \
   -D__USE_LPCOPEN \
@@ -34,6 +32,3 @@ SRC_C += \
 
 INC += \
 	$(TOP)/$(MCU_DIR)/inc
-
-# For freeRTOS port source
-FREERTOS_PORTABLE_SRC = $(FREERTOS_PORTABLE_PATH)/ARM_CM3

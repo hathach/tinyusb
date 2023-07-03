@@ -13,85 +13,7 @@ ifeq (,$(findstring $(FAMILY),espressif rp2040))
 # Compiler Flags
 # ---------------------------------------
 
-LIBS_GCC ?= -lgcc -lm -lnosys
-
-# libc
-LIBS += $(LIBS_GCC)
-
-ifneq ($(BOARD), spresense)
-LIBS += -lc
-endif
-
-# TinyUSB Stack source
-SRC_C += \
-	src/tusb.c \
-	src/common/tusb_fifo.c \
-	src/device/usbd.c \
-	src/device/usbd_control.c \
-	src/class/audio/audio_device.c \
-	src/class/cdc/cdc_device.c \
-	src/class/dfu/dfu_device.c \
-	src/class/dfu/dfu_rt_device.c \
-	src/class/hid/hid_device.c \
-	src/class/midi/midi_device.c \
-	src/class/msc/msc_device.c \
-	src/class/net/ecm_rndis_device.c \
-	src/class/net/ncm_device.c \
-	src/class/usbtmc/usbtmc_device.c \
-	src/class/video/video_device.c \
-	src/class/vendor/vendor_device.c
-
-# TinyUSB stack include
-INC += $(TOP)/src
-
 CFLAGS += $(addprefix -I,$(INC))
-
-ifdef USE_IAR
-
-SRC_S += $(IAR_SRC_S)
-
-ASFLAGS := $(CFLAGS) $(IAR_ASFLAGS) $(ASFLAGS) -S
-IAR_LDFLAGS += --config $(TOP)/$(IAR_LD_FILE)
-CFLAGS += $(IAR_CFLAGS) -e --debug --silent
-
-else
-
-SRC_S += $(GCC_SRC_S)
-
-CFLAGS += $(GCC_CFLAGS) -MD
-
-# LTO makes it difficult to analyze map file for optimizing size purpose
-# We will run this option in ci
-ifeq ($(NO_LTO),1)
-CFLAGS := $(filter-out -flto,$(CFLAGS))
-endif
-
-ifneq ($(CFLAGS_SKIP),)
-CFLAGS := $(filter-out $(CFLAGS_SKIP),$(CFLAGS))
-endif
-
-LDFLAGS += $(CFLAGS) -Wl,-Map=$@.map -Wl,-cref -Wl,-gc-sections
-
-# Some toolchain such as renesas rx does not support --print-memory-usage flags
-ifneq ($(FAMILY),rx)
-LDFLAGS += -Wl,--print-memory-usage
-endif
-
-ifdef LD_FILE
-LDFLAGS += -Wl,-T,$(TOP)/$(LD_FILE)
-endif
-
-ifdef GCC_LD_FILE
-LDFLAGS += -Wl,-T,$(TOP)/$(GCC_LD_FILE)
-endif
-
-ifneq ($(SKIP_NANOLIB), 1)
-LDFLAGS += --specs=nosys.specs --specs=nano.specs
-endif
-
-ASFLAGS += $(CFLAGS)
-
-endif # USE_IAR
 
 # Verbose mode
 ifeq ("$(V)","1")
@@ -99,15 +21,6 @@ $(info CFLAGS  $(CFLAGS) ) $(info )
 $(info LDFLAGS $(LDFLAGS)) $(info )
 $(info ASFLAGS $(ASFLAGS)) $(info )
 endif
-
-# Assembly files can be name with upper case .S, convert it to .s
-SRC_S := $(SRC_S:.S=.s)
-
-# Due to GCC LTO bug https://bugs.launchpad.net/gcc-arm-embedded/+bug/1747966
-# assembly file should be placed first in linking order
-# '_asm' suffix is added to object of assembly file
-OBJ += $(addprefix $(BUILD)/obj/, $(SRC_S:.s=_asm.o))
-OBJ += $(addprefix $(BUILD)/obj/, $(SRC_C:.c=.o))
 
 # ---------------------------------------
 # Rules
@@ -117,15 +30,6 @@ all: $(BUILD)/$(PROJECT).bin $(BUILD)/$(PROJECT).hex size
 
 uf2: $(BUILD)/$(PROJECT).uf2
 
-OBJ_DIRS = $(sort $(dir $(OBJ)))
-$(OBJ): | $(OBJ_DIRS)
-$(OBJ_DIRS):
-ifeq ($(CMDEXE),1)
-	-@$(MKDIR) $(subst /,\,$@)
-else
-	@$(MKDIR) -p $@
-endif
-
 # We set vpath to point to the top of the tree so that the source files
 # can be located. By following this scheme, it allows a single build rule
 # to be used to compile all .c files.
@@ -133,49 +37,16 @@ vpath %.c . $(TOP)
 vpath %.s . $(TOP)
 vpath %.S . $(TOP)
 
-# Compile .c file
-$(BUILD)/obj/%.o: %.c
-	@echo CC $(notdir $@)
-	@$(CC) $(CFLAGS) -c -o $@ $<
+include $(TOP)/tools/make/toolchain/arm_$(TOOLCHAIN)_rules.mk
 
-# ASM sources lower case .s
-$(BUILD)/obj/%_asm.o: %.s
-	@echo AS $(notdir $@)
-	@$(AS) $(ASFLAGS) -c -o $@ $<
 
-# ASM sources upper case .S
-$(BUILD)/obj/%_asm.o: %.S
-	@echo AS $(notdir $@)
-	@$(AS) $(ASFLAGS) -c -o $@ $<
-
-ifdef USE_IAR
-# IAR Compiler
-$(BUILD)/$(PROJECT).bin: $(BUILD)/$(PROJECT).elf
-	@echo CREATE $@
-	@$(OBJCOPY) --silent --bin $^ $@
-
-$(BUILD)/$(PROJECT).hex: $(BUILD)/$(PROJECT).elf
-	@echo CREATE $@
-	@$(OBJCOPY) --silent --ihex $^ $@
-
-$(BUILD)/$(PROJECT).elf: $(OBJ)
-	@echo LINK $@
-	@$(LD) -o $@ $(IAR_LDFLAGS) $^
-
+OBJ_DIRS = $(sort $(dir $(OBJ)))
+$(OBJ): | $(OBJ_DIRS)
+$(OBJ_DIRS):
+ifeq ($(CMDEXE),1)
+	-@$(MKDIR) $(subst /,\,$@)
 else
-# GCC based compiler
-$(BUILD)/$(PROJECT).bin: $(BUILD)/$(PROJECT).elf
-	@echo CREATE $@
-	@$(OBJCOPY) -O binary $^ $@
-
-$(BUILD)/$(PROJECT).hex: $(BUILD)/$(PROJECT).elf
-	@echo CREATE $@
-	@$(OBJCOPY) -O ihex $^ $@
-
-$(BUILD)/$(PROJECT).elf: $(OBJ)
-	@echo LINK $@
-	@$(LD) -o $@ $(LDFLAGS) $^ -Wl,--start-group $(LIBS) -Wl,--end-group
-
+	@$(MKDIR) -p $@
 endif
 
 # UF2 generation, iMXRT need to strip to text only before conversion

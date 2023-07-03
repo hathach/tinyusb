@@ -29,10 +29,24 @@
 #if CFG_TUD_ENABLED && CFG_TUSB_MCU == OPT_MCU_NRF5X
 
 #include <stdatomic.h>
+
+// Suppress warning caused by nrfx driver
+#ifdef __GNUC__
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wcast-qual"
+#pragma GCC diagnostic ignored "-Wcast-align"
+#pragma GCC diagnostic ignored "-Wunused-parameter"
+#endif
+
 #include "nrf.h"
 #include "nrf_clock.h"
 #include "nrf_power.h"
 #include "nrfx_usbd_errata.h"
+
+#ifdef __GNUC__
+#pragma GCC diagnostic pop
+#endif
+
 #include "device/dcd.h"
 
 // TODO remove later

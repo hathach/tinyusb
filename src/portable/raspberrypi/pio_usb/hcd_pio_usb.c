@@ -105,7 +105,7 @@ void hcd_device_close(uint8_t rhport, uint8_t dev_addr)
 uint32_t hcd_frame_number(uint8_t rhport)
 {
   (void) rhport;
-  return 0;
+  return pio_usb_host_get_frame_number();
 }
 
 void hcd_int_enable(uint8_t rhport)

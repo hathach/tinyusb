@@ -4,20 +4,19 @@ DEPS_SUBMODULES += $(SDK_DIR) lib/CMSIS_5
 
 include $(TOP)/$(BOARD_PATH)/board.mk
 
+CPU_CORE ?= cortex-m7
+
 CFLAGS += \
-  -mthumb \
-  -mabi=aapcs \
-  -mcpu=cortex-m7 \
-  -mfloat-abi=hard \
-  -mfpu=fpv5-d16 \
-  -D__ARMVFP__=0 -D__ARMFPV5__=0\
+  -D__ARMVFP__=0 \
+  -D__ARMFPV5__=0 \
   -DXIP_EXTERNAL_FLASH=1 \
   -DXIP_BOOT_HEADER_ENABLE=1 \
-  -DCFG_TUSB_MCU=OPT_MCU_MIMXRT
+  -DCFG_TUSB_MCU=OPT_MCU_MIMXRT1XXX
 
 ifdef BOARD_TUD_RHPORT
 CFLAGS += -DBOARD_TUD_RHPORT=$(BOARD_TUD_RHPORT)
 endif
+
 ifdef BOARD_TUH_RHPORT
 CFLAGS += -DBOARD_TUH_RHPORT=$(BOARD_TUH_RHPORT)
 endif
@@ -57,9 +56,6 @@ INC += \
 	$(TOP)/$(SDK_DIR)/drivers/lpuart
 
 SRC_S += $(MCU_DIR)/gcc/startup_$(MCU_VARIANT).S
-
-# For freeRTOS port source
-FREERTOS_PORTABLE_SRC = $(FREERTOS_PORTABLE_PATH)/ARM_CM7/r0p1
 
 # UF2 generation, iMXRT need to strip to text only before conversion
 APPLICATION_ADDR = 0x6000C000

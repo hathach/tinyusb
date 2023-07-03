@@ -2,6 +2,7 @@
 # Common make definition for all examples
 # ---------------------------------------
 
+# Supported toolchain: gcc, iar
 TOOLCHAIN ?= gcc
 
 #-------------- TOP and CURRENT_PATH ------------
@@ -32,13 +33,6 @@ CMDEXE := 1
 SHELL := cmd.exe
 endif
 
-
-# Build directory
-BUILD := _build/$(BOARD)
-
-PROJECT := $(notdir $(CURDIR))
-BIN := $(TOP)/_bin/$(BOARD)/$(notdir $(CURDIR))
-
 # Handy check parameter function
 check_defined = \
     $(strip $(foreach 1,$1, \
@@ -46,6 +40,13 @@ check_defined = \
 __check_defined = \
     $(if $(value $1),, \
     $(error Undefined make flag: $1$(if $2, ($2))))
+
+
+# Build directory
+BUILD := _build/$(BOARD)
+
+PROJECT := $(notdir $(CURDIR))
+BIN := $(TOP)/_bin/$(BOARD)/$(notdir $(CURDIR))
 
 #-------------- Select the board to build for. ------------
 
@@ -81,25 +82,12 @@ endif
 # Can be set by board, default to ARM GCC
 CROSS_COMPILE ?= arm-none-eabi-
 
-ifeq ($(CC),iccarm)
-USE_IAR = 1
+ifeq ($(TOOLCHAIN),iar)
+CC := iccarm
 endif
 
-ifdef USE_IAR
-  AS = iasmarm
-  LD = ilinkarm
-  OBJCOPY = ielftool
-  SIZE = size
-
-else
-  CC = $(CROSS_COMPILE)gcc
-  CXX = $(CROSS_COMPILE)g++
-  AS = $(CC) -x assembler-with-cpp
-  LD = $(CC)
-
-  GDB = $(CROSS_COMPILE)gdb
-  OBJCOPY = $(CROSS_COMPILE)objcopy
-  SIZE = $(CROSS_COMPILE)size
+ifeq ($(CC),iccarm)
+USE_IAR = 1
 endif
 
 ifeq ($(CMDEXE),1)
@@ -115,57 +103,19 @@ else
 endif
 
 #-------------- Source files and compiler flags --------------
+# tinyusb makefile
+include $(TOP)/src/tinyusb.mk
 
 # Include all source C in family & board folder
 SRC_C += hw/bsp/board.c
 SRC_C += $(subst $(TOP)/,,$(wildcard $(TOP)/$(BOARD_PATH)/*.c))
 
-INC   += $(TOP)/$(FAMILY_PATH)
+SRC_C += $(TINYUSB_SRC_C)
 
-# Allow for -Os to be changed by board makefiles in case -Os is not allowed
-CFLAGS_OPTIMIZED ?= -Os
+INC += \
+  $(TOP)/$(FAMILY_PATH) \
+  $(TOP)/src \
 
-# GCC Compiler Flags
-GCC_CFLAGS += \
-  -ggdb \
-  -fdata-sections \
-  -ffunction-sections \
-  -fsingle-precision-constant \
-  -fno-strict-aliasing \
-  -Wall \
-  -Wextra \
-  -Werror \
-  -Wfatal-errors \
-  -Wdouble-promotion \
-  -Wstrict-prototypes \
-  -Wstrict-overflow \
-  -Werror-implicit-function-declaration \
-  -Wfloat-equal \
-  -Wundef \
-  -Wshadow \
-  -Wwrite-strings \
-  -Wsign-compare \
-  -Wmissing-format-attribute \
-  -Wunreachable-code \
-  -Wcast-align \
-  -Wcast-function-type \
-  -Wcast-qual \
-  -Wnull-dereference \
-  -Wuninitialized \
-  -Wunused \
-  -Wreturn-type \
-  -Wredundant-decls
-
-# conversion is too strict for most mcu driver, may be disable sign/int/arith-conversion
-#  -Wconversion
-
-# Debugging/Optimization
-ifeq ($(DEBUG), 1)
-  GCC_CFLAGS += -O0
-  NO_LTO = 1
-else
-  GCC_CFLAGS += $(CFLAGS_OPTIMIZED)
-endif
 
 # Log level is mapped to TUSB DEBUG option
 ifneq ($(LOG),)
@@ -186,3 +136,11 @@ ifeq ($(LOGGER),rtt)
 else ifeq ($(LOGGER),swo)
   CFLAGS += -DLOGGER_SWO
 endif
+
+# CPU specific flags
+ifdef CPU_CORE
+include $(TOP)/tools/make/cpu/$(CPU_CORE).mk
+endif
+
+# toolchain specific
+include $(TOP)/tools/make/toolchain/arm_$(TOOLCHAIN).mk

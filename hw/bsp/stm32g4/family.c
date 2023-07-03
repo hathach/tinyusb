@@ -25,6 +25,8 @@
  */
 
 #include "stm32g4xx_hal.h"
+#include "stm32g4xx_ll_bus.h"
+
 #include "bsp/board.h"
 #include "board.h"
 
@@ -44,6 +46,11 @@ void USB_LP_IRQHandler(void)
 void USBWakeUp_IRQHandler(void)
 {
   tud_int_handler(0);
+}
+
+// USB PD
+void UCPD1_IRQHandler(void) {
+  tuc_int_handler(0);
 }
 
 //--------------------------------------------------------------------+
@@ -79,9 +86,10 @@ void board_init(void)
   NVIC_SetPriority(USBWakeUp_IRQn, configLIBRARY_MAX_SYSCALL_INTERRUPT_PRIORITY);
 #endif
 
-  GPIO_InitTypeDef  GPIO_InitStruct;
+  GPIO_InitTypeDef GPIO_InitStruct;
 
   // LED
+  memset(&GPIO_InitStruct, 0, sizeof(GPIO_InitStruct));
   GPIO_InitStruct.Pin = LED_PIN;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_PULLUP;
@@ -91,6 +99,7 @@ void board_init(void)
   board_led_write(false);
 
   // Button
+  memset(&GPIO_InitStruct, 0, sizeof(GPIO_InitStruct));
   GPIO_InitStruct.Pin = BUTTON_PIN;
   GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
   GPIO_InitStruct.Pull = BUTTON_STATE_ACTIVE ? GPIO_PULLDOWN : GPIO_PULLUP;
@@ -99,6 +108,7 @@ void board_init(void)
 
 #ifdef UART_DEV
   // UART
+  memset(&GPIO_InitStruct, 0, sizeof(GPIO_InitStruct));
   GPIO_InitStruct.Pin       = UART_TX_PIN | UART_RX_PIN;
   GPIO_InitStruct.Mode      = GPIO_MODE_AF_PP;
   GPIO_InitStruct.Pull      = GPIO_PULLUP;
@@ -121,6 +131,7 @@ void board_init(void)
 
   // USB Pins TODO double check USB clock and pin setup
   // Configure USB DM and DP pins. This is optional, and maintained only for user guidance.
+  memset(&GPIO_InitStruct, 0, sizeof(GPIO_InitStruct));
   GPIO_InitStruct.Pin = (GPIO_PIN_11 | GPIO_PIN_12);
   GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
@@ -130,6 +141,21 @@ void board_init(void)
   __HAL_RCC_USB_CLK_ENABLE();
 
   board_vbus_sense_init();
+
+#if 1
+  // USB PD
+  // Default CC1/CC2 is PB4/PB6
+
+  // Enable pwr for disabling dead battery feature in Power's CR3
+  __HAL_RCC_PWR_CLK_ENABLE();
+  __HAL_RCC_CRC_CLK_ENABLE();
+  __HAL_RCC_UCPD1_CLK_ENABLE();
+
+  // Enable DMA for USB PD
+  __HAL_RCC_DMAMUX1_CLK_ENABLE();
+  __HAL_RCC_DMA1_CLK_ENABLE();
+#endif
+
 }
 
 //--------------------------------------------------------------------+

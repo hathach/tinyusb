@@ -31,8 +31,21 @@
 extern "C" {
 #endif
 
+#ifdef __GNUC__
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wstrict-prototypes"
+#pragma GCC diagnostic ignored "-Wundef"
+
+// extra push due to https://github.com/renesas/fsp/pull/278
+#pragma GCC diagnostic push
+#endif
+
 /* renesas fsp api */
 #include "bsp_api.h"
+
+#ifdef __GNUC__
+#pragma GCC diagnostic pop
+#endif
 
 extern IRQn_Type _usb_fs_irqn;
 extern IRQn_Type _usb_hs_irqn;

@@ -20,13 +20,6 @@ set(CMAKE_TOOLCHAIN_FILE ${TOP}/tools/cmake/toolchain/arm_${TOOLCHAIN}.cmake)
 
 set(FAMILY_MCUS STM32G0 CACHE INTERNAL "")
 
-# enable LTO if supported
-include(CheckIPOSupported)
-check_ipo_supported(RESULT IPO_SUPPORTED)
-if (IPO_SUPPORTED)
-  set(CMAKE_INTERPROCEDURAL_OPTIMIZATION TRUE)
-endif ()
-
 
 #------------------------------------
 # BOARD_TARGET
@@ -34,6 +27,11 @@ endif ()
 # only need to be built ONCE for all examples
 function(add_board_target BOARD_TARGET)
   if (NOT TARGET ${BOARD_TARGET})
+    # Startup & Linker script
+    set(STARTUP_FILE_GNU ${ST_CMSIS}/Source/Templates/gcc/startup_${MCU_VARIANT}.s)
+    set(STARTUP_FILE_IAR ${ST_CMSIS}/Source/Templates/iar/startup_${MCU_VARIANT}.s)
+    set(LD_FILE_IAR ${ST_CMSIS}/Source/Templates/iar/linker/${MCU_VARIANT}_flash.icf)
+
     add_library(${BOARD_TARGET} STATIC
       ${ST_CMSIS}/Source/Templates/system_${ST_PREFIX}.c
       ${ST_HAL_DRIVER}/Src/${ST_PREFIX}_hal.c
@@ -59,8 +57,6 @@ function(add_board_target BOARD_TARGET)
 
     update_board(${BOARD_TARGET})
 
-    cmake_print_variables(CMAKE_C_COMPILER_ID)
-
     if (CMAKE_C_COMPILER_ID STREQUAL "GNU")
       target_link_options(${BOARD_TARGET} PUBLIC
         "LINKER:--script=${LD_FILE_GNU}"
@@ -81,8 +77,8 @@ endfunction()
 #------------------------------------
 # Functions
 #------------------------------------
-function(family_configure_example TARGET)
-  family_configure_common(${TARGET})
+function(family_configure_example TARGET RTOS)
+  family_configure_common(${TARGET} ${RTOS})
 
   # Board target
   add_board_target(board_${BOARD})
@@ -90,8 +86,6 @@ function(family_configure_example TARGET)
   #---------- Port Specific ----------
   # These files are built for each example since it depends on example's tusb_config.h
   target_sources(${TARGET} PUBLIC
-    # TinyUSB Port
-    ${TOP}/src/portable/st/stm32_fsdev/dcd_stm32_fsdev.c
     # BSP
     ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/family.c
     ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/../board.c
@@ -103,8 +97,13 @@ function(family_configure_example TARGET)
     ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/boards/${BOARD}
     )
 
-  # Add TinyUSB
-  family_add_tinyusb(${TARGET} OPT_MCU_STM32G0)
+  # Add TinyUSB target and port source
+  family_add_tinyusb(${TARGET} OPT_MCU_STM32G0 ${RTOS})
+  target_sources(${TARGET}-tinyusb PUBLIC
+    ${TOP}/src/portable/st/stm32_fsdev/dcd_stm32_fsdev.c
+    ${TOP}/src/portable/st/typec/typec_stm32.c
+    )
+  target_link_libraries(${TARGET}-tinyusb PUBLIC board_${BOARD})
 
   # Link dependencies
   target_link_libraries(${TARGET} PUBLIC board_${BOARD} ${TARGET}-tinyusb)
@@ -112,17 +111,4 @@ function(family_configure_example TARGET)
   # Flashing
   family_flash_stlink(${TARGET})
   #family_flash_jlink(${TARGET})
-endfunction()
-
-
-function(family_configure_device_example TARGET)
-  family_configure_example(${TARGET})
-endfunction()
-
-function(family_configure_host_example TARGET)
-  family_configure_example(${TARGET})
-endfunction()
-
-function(family_configure_dual_usb_example TARGET)
-  family_configure_example(${TARGET})
 endfunction()

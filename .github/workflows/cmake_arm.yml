@@ -33,12 +33,20 @@ jobs:
       matrix:
         family:
           # Alphabetical order
-          - 'lpc18'
-          - 'mcx'
           - 'imxrt'
+          - 'kinetis_kl'
+          - 'lpc18'
+          - 'lpc55'
+          - 'mcx'
+          - 'ra'
           - 'rp2040'
+          - 'stm32f0'
+          - 'stm32f1'
+          - 'stm32f7'
           - 'stm32g0'
           - 'stm32g4'
+          - 'stm32h7'
+          - 'stm32l4'
     steps:
     - name: Setup Python
       uses: actions/setup-python@v4
@@ -68,7 +76,7 @@ jobs:
       run: python3 tools/get_deps.py ${{ matrix.family }}
 
     - name: Build
-      run: python tools/build_cmake.py ${{ matrix.family }}
+      run: python tools/build_cmake.py ${{ matrix.family }} -DCMAKE_BUILD_TYPE=MinSizeRel
       env:
         # for rp2040, there is no harm if defined for other families
         PICO_SDK_PATH: ${{ github.workspace }}/pico-sdk

@@ -13,8 +13,6 @@ SKIPPED = "\033[33mskipped\033[0m"
 
 build_separator = '-' * 106
 
-toolchain_iar = '-DTOOLCHAIN=iar'
-
 def filter_with_input(mylist):
     if len(sys.argv) > 1:
         input_args = list(set(mylist).intersection(sys.argv))
@@ -22,7 +20,7 @@ def filter_with_input(mylist):
             mylist[:] = input_args
 
 
-def build_family(family, toolchain_option):
+def build_family(family, cmake_option):
     all_boards = []
     for entry in os.scandir("hw/bsp/{}/boards".format(family)):
         if entry.is_dir() and entry.name != 'pico_sdk':
@@ -38,7 +36,7 @@ def build_family(family, toolchain_option):
 
         # Generate build
         r = subprocess.run(f"cmake examples -B {build_dir} -G \"Ninja\" -DFAMILY={family} -DBOARD"
-                           f"={board} {toolchain_option}", shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+                           f"={board} {cmake_option}", shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
 
         # Build
         if r.returncode == 0:
@@ -74,9 +72,10 @@ def build_family(family, toolchain_option):
 
 
 if __name__ == '__main__':
-    # IAR CC
-    if toolchain_iar not in sys.argv:
-        toolchain_iar = ''
+    cmake_options = ''
+    for a in sys.argv[1:]:
+        if a.startswith('-'):
+            cmake_options += ' ' + a
 
     # If family are not specified in arguments, build all supported
     all_families = []
@@ -93,7 +92,7 @@ if __name__ == '__main__':
     # succeeded, failed, skipped
     total_result = [0, 0, 0]
     for family in all_families:
-        fret = build_family(family, toolchain_iar)
+        fret = build_family(family, cmake_options)
         if len(fret) == len(total_result):
             total_result = [total_result[i] + fret[i] for i in range(len(fret))]
 

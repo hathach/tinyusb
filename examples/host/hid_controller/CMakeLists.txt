@@ -23,9 +23,9 @@ target_include_directories(${PROJECT} PUBLIC
   ${CMAKE_CURRENT_SOURCE_DIR}/src
   )
 
-# Configure compilation flags and libraries for the example... see the corresponding function
-# in hw/bsp/FAMILY/family.cmake for details.
-family_configure_host_example(${PROJECT})
+# Configure compilation flags and libraries for the example without RTOS.
+# See the corresponding function in hw/bsp/FAMILY/family.cmake for details.
+family_configure_host_example(${PROJECT} noos)
 
 # Add pico-pio-usb for rp2040 since user can choose to run on bit-banging host
 if(FAMILY STREQUAL "rp2040")

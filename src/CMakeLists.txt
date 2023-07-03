@@ -32,6 +32,8 @@ function(add_tinyusb TARGET)
     ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/class/hid/hid_host.c
     ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/class/msc/msc_host.c
     ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/class/vendor/vendor_host.c
+    # typec
+    ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/typec/usbc.c
     )
   target_include_directories(${TARGET} PUBLIC
     ${CMAKE_CURRENT_FUNCTION_LIST_DIR}
@@ -73,8 +75,11 @@ endfunction()
 #------------------------------------
 # TinyUSB as library target
 #------------------------------------
-set(TINYUSB_TARGET "tinyusb")
-set(TINYUSB_CONFIG_TARGET "tinyusb_config")
+if (NOT DEFINED TINYUSB_TARGET)
+  set(TINYUSB_TARGET "tinyusb")
+endif ()
+
+set(TINYUSB_CONFIG_TARGET "${TINYUSB_TARGET}_config")
 
 if (DEFINED TINYUSB_TARGET_PREFIX)
   set(TINYUSB_TARGET "${TINYUSB_TARGET_PREFIX}${TINYUSB_TARGET}")
@@ -98,7 +103,3 @@ endif()
 target_link_libraries(${TINYUSB_TARGET} PUBLIC
   ${TINYUSB_CONFIG_TARGET}
   )
-
-# export target name
-# set(TINYUSB_TARGET ${TINYUSB_TARGET} PARENT_SCOPE)
-# set(TINYUSB_CONFIG_TARGET ${TINYUSB_CONFIG_TARGET} PARENT_SCOPE)

@@ -60,7 +60,7 @@
 
 #define TUD_AUDIO_MIC_ONE_CH_2_FORMAT_DESCRIPTOR(_itfnum, _stridx, _epin) \
   /* Standard Interface Association Descriptor (IAD) */\
-  TUD_AUDIO_DESC_IAD(/*_firstitfs*/ _itfnum, /*_nitfs*/ 0x02, /*_stridx*/ 0x00),\
+  TUD_AUDIO_DESC_IAD(/*_firstitf*/ _itfnum, /*_nitfs*/ 0x02, /*_stridx*/ 0x00),\
   /* Standard AC Interface Descriptor(4.7.1) */\
   TUD_AUDIO_DESC_STD_AC(/*_itfnum*/ _itfnum, /*_nEPs*/ 0x00, /*_stridx*/ _stridx),\
   /* Class-Specific AC Interface Header Descriptor(4.7.2) */\

@@ -15,13 +15,6 @@ set(CMAKE_TOOLCHAIN_FILE ${TOP}/tools/cmake/toolchain/arm_${TOOLCHAIN}.cmake)
 
 set(FAMILY_MCUS LPC18XX CACHE INTERNAL "")
 
-# enable LTO if supported
-include(CheckIPOSupported)
-check_ipo_supported(RESULT IPO_SUPPORTED)
-if (IPO_SUPPORTED)
-  set(CMAKE_INTERPROCEDURAL_OPTIMIZATION TRUE)
-endif ()
-
 
 #------------------------------------
 # BOARD_TARGET
@@ -70,8 +63,8 @@ endfunction()
 #------------------------------------
 # Functions
 #------------------------------------
-function(family_configure_example TARGET)
-  family_configure_common(${TARGET})
+function(family_configure_example TARGET RTOS)
+  family_configure_common(${TARGET} ${RTOS})
 
   # Board target
   add_board_target(board_${BOARD})
@@ -79,10 +72,6 @@ function(family_configure_example TARGET)
   #---------- Port Specific ----------
   # These files are built for each example since it depends on example's tusb_config.h
   target_sources(${TARGET} PUBLIC
-    # TinyUSB Port
-    ${TOP}/src/portable/chipidea/ci_hs/dcd_ci_hs.c
-    ${TOP}/src/portable/chipidea/ci_hs/hcd_ci_hs.c
-    ${TOP}/src/portable/ehci/ehci.c
     # BSP
     ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/family.c
     ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/../board.c
@@ -94,8 +83,14 @@ function(family_configure_example TARGET)
     ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/boards/${BOARD}
     )
 
-  # Add TinyUSB
-  family_add_tinyusb(${TARGET} OPT_MCU_LPC18XX)
+  # Add TinyUSB target and port source
+  family_add_tinyusb(${TARGET} OPT_MCU_LPC18XX ${RTOS})
+  target_sources(${TARGET}-tinyusb PUBLIC
+    ${TOP}/src/portable/chipidea/ci_hs/dcd_ci_hs.c
+    ${TOP}/src/portable/chipidea/ci_hs/hcd_ci_hs.c
+    ${TOP}/src/portable/ehci/ehci.c
+    )
+  target_link_libraries(${TARGET}-tinyusb PUBLIC board_${BOARD})
 
   # Link dependencies
   target_link_libraries(${TARGET} PUBLIC board_${BOARD} ${TARGET}-tinyusb)
@@ -103,17 +98,4 @@ function(family_configure_example TARGET)
   # Flashing
   family_flash_jlink(${TARGET})
   #family_flash_nxplink(${TARGET})
-endfunction()
-
-
-function(family_configure_device_example TARGET)
-  family_configure_example(${TARGET})
-endfunction()
-
-function(family_configure_host_example TARGET)
-  family_configure_example(${TARGET})
-endfunction()
-
-function(family_configure_dual_usb_example TARGET)
-  family_configure_example(${TARGET})
 endfunction()

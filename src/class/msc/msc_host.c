@@ -118,7 +118,7 @@ bool tuh_msc_mounted(uint8_t dev_addr)
 bool tuh_msc_ready(uint8_t dev_addr)
 {
   msch_interface_t* p_msc = get_itf(dev_addr);
-  return p_msc->mounted && !usbh_edpt_busy(dev_addr, p_msc->ep_in);
+  return p_msc->mounted && !usbh_edpt_busy(dev_addr, p_msc->ep_in) && !usbh_edpt_busy(dev_addr, p_msc->ep_out);
 }
 
 //--------------------------------------------------------------------+
