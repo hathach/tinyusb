@@ -53,7 +53,16 @@
 #define BSP_PRV_PRCR_PRC1_UNLOCK ((BSP_PRV_PRCR_KEY) | 0x2U)
 #define BSP_PRV_PRCR_LOCK	       ((BSP_PRV_PRCR_KEY) | 0x0U)
 
-/* ISR prototypes */
+static const ioport_cfg_t family_pin_cfg = {
+    .number_of_pins = sizeof(board_pin_cfg) / sizeof(ioport_pin_cfg_t),
+    .p_pin_cfg_data = board_pin_cfg,
+};
+static ioport_instance_ctrl_t port_ctrl;
+
+//--------------------------------------------------------------------+
+// Vector Data
+//--------------------------------------------------------------------+
+
 void usbfs_interrupt_handler(void);
 void usbfs_resume_handler(void);
 void usbfs_d0fifo_handler(void);
@@ -71,12 +80,6 @@ const bsp_interrupt_event_t g_interrupt_event_link_select[BSP_ICU_VECTOR_MAX_ENT
     [2] = BSP_PRV_IELS_ENUM(EVENT_USBFS_FIFO_0), /* USBFS FIFO 0 (DMA transfer request 0) */
     [3] = BSP_PRV_IELS_ENUM(EVENT_USBFS_FIFO_1)  /* USBFS FIFO 1 (DMA transfer request 1) */
 };
-
-static const ioport_cfg_t family_pin_cfg = {
-    .number_of_pins = sizeof(board_pin_cfg) / sizeof(ioport_pin_cfg_t),
-    .p_pin_cfg_data = board_pin_cfg,
-};
-static ioport_instance_ctrl_t port_ctrl;
 
 //--------------------------------------------------------------------+
 // Board porting API
