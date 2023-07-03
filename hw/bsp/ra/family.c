@@ -90,12 +90,12 @@ void board_init(void)
   R_SYSTEM->TRCKCR = R_SYSTEM_TRCKCR_TRCKEN_Msk;
 #endif
 
-  board_led_write(false);
+  // Enable USB module
+  R_MSTP->MSTPCRB &= ~(1U << 11U); // FS
 
-  /* Enable USB_BASE */
-  R_SYSTEM->PRCR = (uint16_t) BSP_PRV_PRCR_PRC1_UNLOCK;
-  R_MSTP->MSTPCRB &= ~(1U << 11U);
-  R_SYSTEM->PRCR = (uint16_t) BSP_PRV_PRCR_LOCK;
+#ifdef R_USB_HS0_BASE
+  R_MSTP->MSTPCRB &= ~(1U << 12U); // HS
+#endif
 
 #if CFG_TUSB_OS == OPT_OS_FREERTOS
   // If freeRTOS is used, IRQ priority is limit by max syscall ( smaller is higher )
@@ -108,6 +108,8 @@ void board_init(void)
 #if CFG_TUSB_OS == OPT_OS_NONE
   SysTick_Config(SystemCoreClock / 1000);
 #endif
+
+  board_led_write(false);
 }
 
 void board_led_write(bool state) {
