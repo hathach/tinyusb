@@ -79,8 +79,9 @@ endfunction()
 #------------------------------------
 # Functions
 #------------------------------------
-function(family_configure_example TARGET)
-  family_configure_common(${TARGET})
+function(family_configure_example TARGET RTOS)
+  family_configure_common(${TARGET} ${RTOS})
+
 
   # Board target
   add_board_target(board_${BOARD})
@@ -100,7 +101,7 @@ function(family_configure_example TARGET)
     )
 
   # Add TinyUSB target and port source
-  family_add_tinyusb(${TARGET} OPT_MCU_STM32F4)
+  family_add_tinyusb(${TARGET} OPT_MCU_STM32F4 ${RTOS})
   if (MCU_VARIANT STREQUAL "stm32f407xx")
     target_sources(${TARGET}-tinyusb PUBLIC
             ${TOP}/src/portable/synopsys/dwc2/dcd_dwc2.c
