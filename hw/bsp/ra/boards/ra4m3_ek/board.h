@@ -38,11 +38,12 @@ extern "C" {
 #define BUTTON_STATE_ACTIVE   0
 
 const ioport_pin_cfg_t board_pin_cfg[] = {
-  {.pin = BSP_IO_PORT_04_PIN_07, .pin_cfg = ((uint32_t) IOPORT_CFG_PERIPHERAL_PIN | (uint32_t) IOPORT_PERIPHERAL_USB_FS)},
-  {.pin = BSP_IO_PORT_05_PIN_00, .pin_cfg = ((uint32_t) IOPORT_CFG_PERIPHERAL_PIN | (uint32_t) IOPORT_PERIPHERAL_USB_FS)},
-  {.pin = BSP_IO_PORT_05_PIN_01, .pin_cfg = ((uint32_t) IOPORT_CFG_PERIPHERAL_PIN | (uint32_t) IOPORT_PERIPHERAL_USB_FS)},
-  {.pin = LED1, .pin_cfg = ((uint32_t) IOPORT_CFG_PORT_DIRECTION_OUTPUT | (uint32_t) IOPORT_CFG_PORT_OUTPUT_LOW)},
-  {.pin = SW1, .pin_cfg = ((uint32_t) IOPORT_CFG_PORT_DIRECTION_INPUT)},
+  {.pin = LED1, .pin_cfg = IOPORT_CFG_PORT_DIRECTION_OUTPUT},
+  {.pin = SW1, .pin_cfg = IOPORT_CFG_PORT_DIRECTION_INPUT},
+    // USB FS D+, D-, VBus
+  {.pin = BSP_IO_PORT_04_PIN_07, .pin_cfg = IOPORT_CFG_PERIPHERAL_PIN | IOPORT_PERIPHERAL_USB_FS},
+  {.pin = BSP_IO_PORT_05_PIN_00, .pin_cfg = IOPORT_CFG_PERIPHERAL_PIN | IOPORT_PERIPHERAL_USB_FS},
+  {.pin = BSP_IO_PORT_05_PIN_01, .pin_cfg = IOPORT_CFG_PERIPHERAL_PIN | IOPORT_PERIPHERAL_USB_FS},
 };
 
 #ifdef __cplusplus
