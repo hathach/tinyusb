@@ -38,12 +38,10 @@ extern "C" {
 #define BUTTON_STATE_ACTIVE   0
 
 static const ioport_pin_cfg_t board_pin_cfg[] = {
-    {.pin = LED1, .pin_cfg = IOPORT_CFG_PORT_DIRECTION_OUTPUT},
-    {.pin = SW1, .pin_cfg = IOPORT_CFG_PORT_DIRECTION_INPUT},
-    // USB FS D+, D-, VBus
-    {.pin = BSP_IO_PORT_04_PIN_07, .pin_cfg = IOPORT_CFG_PERIPHERAL_PIN | IOPORT_PERIPHERAL_USB_FS},
-    {.pin = BSP_IO_PORT_09_PIN_14, .pin_cfg = IOPORT_CFG_PERIPHERAL_PIN | IOPORT_PERIPHERAL_USB_FS},
-    {.pin = BSP_IO_PORT_09_PIN_15, .pin_cfg = IOPORT_CFG_PERIPHERAL_PIN | IOPORT_PERIPHERAL_USB_FS},
+    { .pin = LED1, .pin_cfg = IOPORT_CFG_PORT_DIRECTION_OUTPUT },
+    { .pin = SW1, .pin_cfg = IOPORT_CFG_PORT_DIRECTION_INPUT },
+    // USB FS
+    { .pin = BSP_IO_PORT_04_PIN_07, .pin_cfg = IOPORT_CFG_PERIPHERAL_PIN | IOPORT_PERIPHERAL_USB_FS },
 };
 
 #ifdef __cplusplus

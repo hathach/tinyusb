@@ -31,12 +31,6 @@
 #define BSP_CLOCK_CFG_SUBCLOCK_POPULATED	(1)
 #define BSP_CLOCK_CFG_SUBCLOCK_STABILIZATION_MS 1000
 
-#define BSP_FEATURE_BSP_HAS_SCISPI_CLOCK 0
-
-#define BSP_FEATURE_TFU_SUPPORTED 0
-#define BSP_TZ_SECURE_BUILD    (0)
-#define BSP_TZ_NONSECURE_BUILD (0)
-
 // for SystemInit()
 void bsp_init(void * p_args);
 

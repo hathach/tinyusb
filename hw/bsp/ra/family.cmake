@@ -37,14 +37,14 @@ function(add_board_target BOARD_TARGET)
       ${FSP_RA}/src/bsp/mcu/all/bsp_security.c
       ${FSP_RA}/src/r_ioport/r_ioport.c
       )
-    target_compile_definitions(${BOARD_TARGET} PUBLIC
-      _RA_TZ_NONSECURE
-      )
+    # ETM Trace option
+    if (TRACE_ETM STREQUAL "1")
+      target_compile_definitions(${BOARD_TARGET} PUBLIC TRACE_ETM)
+    endif ()
 
     target_compile_options(${BOARD_TARGET} PUBLIC
       -ffreestanding
       )
-
     target_include_directories(${BOARD_TARGET} PUBLIC
       ${CMAKE_CURRENT_FUNCTION_LIST_DIR}
       ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/boards/${BOARD}

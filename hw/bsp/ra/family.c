@@ -36,14 +36,13 @@
 #endif
 
 #include "bsp_api.h"
+#include "r_ioport.h"
+#include "r_ioport_api.h"
+#include "renesas.h"
 
 #ifdef __GNUC__
 #pragma GCC diagnostic pop
 #endif
-
-#include "r_ioport.h"
-#include "r_ioport_api.h"
-#include "renesas.h"
 
 #include "bsp/board.h"
 #include "board.h"
@@ -86,15 +85,17 @@ void board_init(void)
   R_IOPORT_Open(&port_ctrl, &family_pin_cfg);
 
 #ifdef TRACE_ETM
-  // Enable trace clock with div 1 (100 Mhz)
-  R_SYSTEM->TRCKCR = R_SYSTEM_TRCKCR_TRCKEN_Msk;
+  // Enable trace clock (max 100Mhz) = PLL / div
+  // Somehow ozone/jtrace always fixed trace div to 1 therefore for ETM tracing working reliably
+  // PLL is limited around 100Mhz
+  R_SYSTEM->TRCKCR = R_SYSTEM_TRCKCR_TRCKEN_Msk | 0x01;
 #endif
 
   // Enable USB module
   R_MSTP->MSTPCRB &= ~(1U << 11U); // FS
 
 #ifdef R_USB_HS0_BASE
-  R_MSTP->MSTPCRB &= ~(1U << 12U); // HS
+//  R_MSTP->MSTPCRB &= ~(1U << 12U); // HS
 #endif
 
 #if CFG_TUSB_OS == OPT_OS_FREERTOS
