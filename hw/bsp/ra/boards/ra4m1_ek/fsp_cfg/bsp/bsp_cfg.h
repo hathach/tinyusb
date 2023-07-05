@@ -4,6 +4,7 @@
 
 #include "bsp_clock_cfg.h"
 #include "bsp_mcu_family_cfg.h"
+#include "board_cfg.h"
 
 #undef RA_NOT_DEFINED
 #define BSP_CFG_RTOS (0)
@@ -30,8 +31,5 @@
 #define BSP_CLOCK_CFG_SUBCLOCK_DRIVE		(0)
 #define BSP_CLOCK_CFG_SUBCLOCK_POPULATED	(1)
 #define BSP_CLOCK_CFG_SUBCLOCK_STABILIZATION_MS 1000
-
-// for SystemInit()
-void bsp_init(void * p_args);
 
 #endif /* BSP_CFG_H_ */

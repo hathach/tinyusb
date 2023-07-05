@@ -48,9 +48,9 @@
 #include "board.h"
 
 /* Key code for writing PRCR register. */
-#define BSP_PRV_PRCR_KEY	       (0xA500U)
+#define BSP_PRV_PRCR_KEY         (0xA500U)
 #define BSP_PRV_PRCR_PRC1_UNLOCK ((BSP_PRV_PRCR_KEY) | 0x2U)
-#define BSP_PRV_PRCR_LOCK	       ((BSP_PRV_PRCR_KEY) | 0x0U)
+#define BSP_PRV_PRCR_LOCK         ((BSP_PRV_PRCR_KEY) | 0x0U)
 
 static const ioport_cfg_t family_pin_cfg = {
     .number_of_pins = sizeof(board_pin_cfg) / sizeof(ioport_pin_cfg_t),
@@ -62,25 +62,38 @@ static ioport_instance_ctrl_t port_ctrl;
 // Vector Data
 //--------------------------------------------------------------------+
 
-BSP_DONT_REMOVE const fsp_vector_t g_vector_table[BSP_ICU_VECTOR_MAX_ENTRIES] BSP_PLACE_IN_SECTION(BSP_SECTION_APPLICATION_VECTORS) = {
+BSP_DONT_REMOVE BSP_PLACE_IN_SECTION(BSP_SECTION_APPLICATION_VECTORS)
+const fsp_vector_t g_vector_table[BSP_ICU_VECTOR_MAX_ENTRIES] = {
     [0] = usbfs_interrupt_handler, /* USBFS INT (USBFS interrupt) */
     [1] = usbfs_resume_handler,    /* USBFS RESUME (USBFS resume interrupt) */
     [2] = usbfs_d0fifo_handler,    /* USBFS FIFO 0 (DMA transfer request 0) */
     [3] = usbfs_d1fifo_handler,    /* USBFS FIFO 1 (DMA transfer request 1) */
+
+#ifdef BOARD_HAS_USB_HIGHSPEED
+    [4] = usbhs_interrupt_handler, /* USBHS INT (USBHS interrupt) */
+    [5] = usbhs_d0fifo_handler,    /* USBHS FIFO 0 (DMA transfer request 0) */
+    [6] = usbhs_d1fifo_handler,    /* USBHS FIFO 1 (DMA transfer request 1) */
+#endif
 };
+
 const bsp_interrupt_event_t g_interrupt_event_link_select[BSP_ICU_VECTOR_MAX_ENTRIES] = {
-    [0] = BSP_PRV_IELS_ENUM(EVENT_USBFS_INT),    /* USBFS INT (USBFS interrupt) */
-    [1] = BSP_PRV_IELS_ENUM(EVENT_USBFS_RESUME), /* USBFS RESUME (USBFS resume interrupt) */
-    [2] = BSP_PRV_IELS_ENUM(EVENT_USBFS_FIFO_0), /* USBFS FIFO 0 (DMA transfer request 0) */
-    [3] = BSP_PRV_IELS_ENUM(EVENT_USBFS_FIFO_1)  /* USBFS FIFO 1 (DMA transfer request 1) */
+    [0] = BSP_PRV_IELS_ENUM(EVENT_USBFS_INT),            /* USBFS INT (USBFS interrupt) */
+    [1] = BSP_PRV_IELS_ENUM(EVENT_USBFS_RESUME),         /* USBFS RESUME (USBFS resume interrupt) */
+    [2] = BSP_PRV_IELS_ENUM(EVENT_USBFS_FIFO_0),         /* USBFS FIFO 0 (DMA transfer request 0) */
+    [3] = BSP_PRV_IELS_ENUM(EVENT_USBFS_FIFO_1),         /* USBFS FIFO 1 (DMA transfer request 1) */
+
+#ifdef BOARD_HAS_USB_HIGHSPEED
+    [4] = BSP_PRV_IELS_ENUM(EVENT_USBHS_USB_INT_RESUME), /* USBHS USB INT RESUME (USBHS interrupt) */
+    [5] = BSP_PRV_IELS_ENUM(EVENT_USBHS_FIFO_0),         /* USBHS FIFO 0 (DMA transfer request 0) */
+    [6] = BSP_PRV_IELS_ENUM(EVENT_USBHS_FIFO_1),         /* USBHS FIFO 1 (DMA transfer request 1) */
+#endif
 };
 
 //--------------------------------------------------------------------+
 // Board porting API
 //--------------------------------------------------------------------+
 
-void board_init(void)
-{
+void board_init(void) {
   /* Configure pins. */
   R_IOPORT_Open(&port_ctrl, &family_pin_cfg);
 
@@ -94,8 +107,8 @@ void board_init(void)
   // Enable USB module
   R_MSTP->MSTPCRB &= ~(1U << 11U); // FS
 
-#ifdef R_USB_HS0_BASE
-//  R_MSTP->MSTPCRB &= ~(1U << 12U); // HS
+#ifdef BOARD_HAS_USB_HIGHSPEED
+  R_MSTP->MSTPCRB &= ~(1U << 12U);
 #endif
 
 #if CFG_TUSB_OS == OPT_OS_FREERTOS
@@ -145,66 +158,93 @@ void SysTick_Handler(void) {
 uint32_t board_millis(void) {
   return system_ticks;
 }
+
 #endif
 
 //--------------------------------------------------------------------+
 // Forward USB interrupt events to TinyUSB IRQ Handler
 //--------------------------------------------------------------------+
-void usbfs_interrupt_handler(void)
-{
+
+#if CFG_TUD_ENABLED && defined(BOARD_TUD_RHPORT)
+  #define PORT_SUPPORT_DEVICE(_n)  (BOARD_TUD_RHPORT == _n)
+#else
+  #define PORT_SUPPORT_DEVICE(_n)  0
+#endif
+
+#if CFG_TUH_ENABLED && defined(BOARD_TUH_RHPORT)
+  #define PORT_SUPPORT_HOST(_n)    (BOARD_TUH_RHPORT == _n)
+#else
+  #define PORT_SUPPORT_HOST(_n)    0
+#endif
+
+//------------- USB0 FullSpeed -------------//
+void usbfs_interrupt_handler(void) {
   IRQn_Type irq = R_FSP_CurrentIrqGet();
   R_BSP_IrqStatusClear(irq);
 
-#if CFG_TUH_ENABLED
+  #if PORT_SUPPORT_HOST(0)
   tuh_int_handler(0);
-#endif
+  #endif
 
-#if CFG_TUD_ENABLED
+  #if PORT_SUPPORT_DEVICE(0)
   tud_int_handler(0);
-#endif
+  #endif
 }
 
-void usbfs_resume_handler(void)
-{
+void usbfs_resume_handler(void) {
   IRQn_Type irq = R_FSP_CurrentIrqGet();
   R_BSP_IrqStatusClear(irq);
 
-#if CFG_TUH_ENABLED
+  #if PORT_SUPPORT_HOST(0)
   tuh_int_handler(0);
-#endif
+  #endif
 
-#if CFG_TUD_ENABLED
+  #if PORT_SUPPORT_DEVICE(0)
   tud_int_handler(0);
-#endif
+  #endif
 }
 
-void usbfs_d0fifo_handler(void)
-{
+void usbfs_d0fifo_handler(void) {
+  IRQn_Type irq = R_FSP_CurrentIrqGet();
+  R_BSP_IrqStatusClear(irq);
+  // TODO not used yet
+}
+
+void usbfs_d1fifo_handler(void) {
+  IRQn_Type irq = R_FSP_CurrentIrqGet();
+  R_BSP_IrqStatusClear(irq);
+  // TODO not used yet
+}
+
+//------------- USB1 HighSpeed -------------//
+#ifdef BOARD_HAS_USB_HIGHSPEED
+
+void usbhs_interrupt_handler(void) {
   IRQn_Type irq = R_FSP_CurrentIrqGet();
   R_BSP_IrqStatusClear(irq);
 
-#if CFG_TUH_ENABLED
-  tuh_int_handler(0);
-#endif
+  #if PORT_SUPPORT_HOST(1)
+  tuh_int_handler(1);
+  #endif
 
-#if CFG_TUD_ENABLED
-  tud_int_handler(0);
-#endif
+  #if PORT_SUPPORT_DEVICE(1)
+  tud_int_handler(1);
+  #endif
 }
 
-void usbfs_d1fifo_handler(void)
-{
+void usbhs_d0fifo_handler(void) {
   IRQn_Type irq = R_FSP_CurrentIrqGet();
   R_BSP_IrqStatusClear(irq);
-
-#if CFG_TUH_ENABLED
-  tuh_int_handler(0);
-#endif
-
-#if CFG_TUD_ENABLED
-  tud_int_handler(0);
-#endif
+  // TODO not used yet
 }
+
+void usbhs_d1fifo_handler(void) {
+  IRQn_Type irq = R_FSP_CurrentIrqGet();
+  R_BSP_IrqStatusClear(irq);
+  // TODO not used yet
+}
+
+#endif
 
 //--------------------------------------------------------------------+
 // stdlib

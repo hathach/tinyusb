@@ -31,8 +31,7 @@
 // We disable SOF for now until needed later on
 #define USE_SOF     0
 
-#if CFG_TUD_ENABLED && (TU_CHECK_MCU(OPT_MCU_RX63X, OPT_MCU_RX65X, OPT_MCU_RX72N) || \
-                        TU_CHECK_MCU(OPT_MCU_RAXXX))
+#if CFG_TUD_ENABLED && defined(TUP_USBIP_RUSB2)
 
 #include "device/dcd.h"
 #include "rusb2_type.h"

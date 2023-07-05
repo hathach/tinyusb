@@ -3,8 +3,22 @@ set(MCU_VARIANT ra6m5)
 
 set(JLINK_DEVICE R7FA6M5BH)
 
+# default to PORT1 Highspeed
+if (NOT DEFINED PORT)
+set(PORT 1)
+endif()
+
 function(update_board TARGET)
-#  target_compile_definitions(${TARGET} PUBLIC)
-#  target_sources(${TARGET} PRIVATE)
-#  target_include_directories(${BOARD_TARGET} PUBLIC)
+  target_compile_definitions(${TARGET} PUBLIC
+    BOARD_TUD_RHPORT=${PORT}
+    # port 0 is fullspeed, port 1 is highspeed
+    BOARD_TUD_MAX_SPEED=$<IF:${PORT},OPT_MODE_HIGH_SPEED,OPT_MODE_FULL_SPEED>
+    )
+
+  if (PORT STREQUAL 1)
+    target_compile_definitions(${TARGET} PUBLIC
+      CFG_TUSB_RHPORT1_MODE=OPT_MODE_DEVICE|OPT_MODE_HIGH_SPEED
+      CFG_TUSB_RHPORT0_MODE=0
+      )
+  endif ()
 endfunction()

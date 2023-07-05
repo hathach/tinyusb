@@ -8,6 +8,7 @@ extern "C" {
 
 #include "bsp_clock_cfg.h"
 #include "bsp_mcu_family_cfg.h"
+#include "board_cfg.h"
 
 #define RA_NOT_DEFINED 0
 #ifndef BSP_CFG_RTOS
@@ -59,9 +60,6 @@ extern "C" {
 #ifndef BSP_CLOCK_CFG_SUBCLOCK_STABILIZATION_MS
 #define BSP_CLOCK_CFG_SUBCLOCK_STABILIZATION_MS 1000
 #endif
-
-// for SystemInit()
-void bsp_init(void * p_args);
 
 #ifdef __cplusplus
 }
