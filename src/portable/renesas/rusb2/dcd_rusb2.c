@@ -93,20 +93,20 @@ typedef struct TU_ATTR_PACKED {
 
 typedef union TU_ATTR_PACKED {
   struct {
-    volatile uint16_t u8: 8;
-    volatile uint16_t   : 0;
+    volatile uint8_t u8;
+    volatile uint8_t reserved8;
   };
   volatile uint16_t u16;
 } hw_fifo_t;
 
 typedef union TU_ATTR_PACKED {
   struct {
-    volatile uint32_t  : 24;
-    volatile uint32_t u8: 8;
+    volatile uint8_t reserved8[3];
+    volatile uint8_t u8;
   };
   struct {
-    volatile uint32_t    : 16;
-    volatile uint32_t u16: 16;
+    volatile uint16_t reserved16;
+    volatile uint16_t u16;
   };
   volatile uint32_t u32;
 } hw_fifo32_t;
@@ -126,6 +126,19 @@ typedef struct TU_ATTR_PACKED
 TU_ATTR_PACKED_END  // End of definition of packed structs (used by the CCRX toolchain)
 TU_ATTR_BIT_FIELD_ORDER_END
 
+// Transfer conditions specifiable for each pipe:
+// - Pipe 0: Control transfer with 64-byte single buffer
+// - Pipes 1 and 2: Bulk isochronous transfer continuous transfer mode with programmable buffer size up
+//   to 2 KB and optional double buffer
+// - Pipes 3 to 5: Bulk transfer continuous transfer mode with programmable buffer size up to 2 KB and
+//   optional double buffer
+// - Pipes 6 to 9: Interrupt transfer with 64-byte single buffer
+enum {
+  PIPE_1ST_BULK = 3,
+  PIPE_1ST_INTERRUPT = 6,
+  PIPE_COUNT = 10,
+};
+
 typedef struct
 {
   pipe_state_t pipe[10];
@@ -137,34 +150,33 @@ typedef struct
 //--------------------------------------------------------------------+
 static dcd_data_t _dcd;
 
-#ifndef FIRST_BULK_PIPE
-#define FIRST_BULK_PIPE 3
-#endif
-
 static unsigned find_pipe(unsigned xfer)
 {
   switch (xfer) {
-  case TUSB_XFER_ISOCHRONOUS:
-    for (int i = 1; i <= 2; ++i) {
-      if (0 == _dcd.pipe[i].ep) return  i;
-    }
-    break;
-  case TUSB_XFER_BULK:
-    for (int i = FIRST_BULK_PIPE; i <= 5; ++i) {
-      if (0 == _dcd.pipe[i].ep) return  i;
-    }
-    for (int i = 1; i <= 1; ++i) {
-      if (0 == _dcd.pipe[i].ep) return  i;
-    }
-    break;
-  case TUSB_XFER_INTERRUPT:
-    for (int i = 6; i <= 9; ++i) {
-      if (0 == _dcd.pipe[i].ep) return  i;
-    }
-    break;
-  default:
-    /* No support for control transfer */
-    break;
+    case TUSB_XFER_ISOCHRONOUS:
+      for (int i = 1; i < PIPE_1ST_BULK; ++i) {
+        if (0 == _dcd.pipe[i].ep) return i;
+      }
+      break;
+
+    case TUSB_XFER_BULK:
+      for (int i = PIPE_1ST_BULK; i < PIPE_1ST_INTERRUPT; ++i) {
+        if (0 == _dcd.pipe[i].ep) return i;
+      }
+      for (int i = 1; i < PIPE_1ST_BULK; ++i) {
+        if (0 == _dcd.pipe[i].ep) return i;
+      }
+      break;
+
+    case TUSB_XFER_INTERRUPT:
+      for (int i = PIPE_1ST_INTERRUPT; i < PIPE_COUNT; ++i) {
+        if (0 == _dcd.pipe[i].ep) return i;
+      }
+      break;
+
+    default:
+      /* No support for control transfer */
+      break;
   }
   return 0;
 }
