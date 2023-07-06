@@ -36,12 +36,6 @@
 #include "device/dcd.h"
 #include "rusb2_type.h"
 
-#if !defined(CFG_TUSB_RHPORT0_MODE) && !defined(CFG_TUSB_RHPORT1_MODE)
-// fallback
-#define CFG_TUSB_RHPORT0_MODE   OPT_MODE_DEVICE
-#define CFG_TUSB_RHPORT1_MODE   0
-#endif
-
 #if TU_CHECK_MCU(OPT_MCU_RX63X, OPT_MCU_RX65X, OPT_MCU_RX72N)
   #include "rusb2_rx.h"
 #elif TU_CHECK_MCU(OPT_MCU_RAXXX)
@@ -86,7 +80,7 @@ typedef union TU_ATTR_PACKED {
     volatile uint8_t reserved8;
   };
   volatile uint16_t u16;
-} hw_fifo_t;
+} hw_fifo16_t;
 
 typedef union TU_ATTR_PACKED {
   struct {
@@ -140,9 +134,11 @@ static dcd_data_t _dcd;
 // INTERNAL OBJECT & FUNCTION DECLARATION
 //--------------------------------------------------------------------+
 
-TU_ATTR_ALWAYS_INLINE static inline bool is_highspeed(uint8_t rhport) {
-  return rhport == 1;
-}
+#ifdef RUSB2_SUPPORT_HIGHSPEED
+  #define is_highspeed_usbip(_p) (_p == 1)
+#else
+  #define is_highspeed_usbip(_p) (false)
+#endif
 
 static unsigned find_pipe(unsigned xfer)
 {
@@ -229,14 +225,17 @@ static void pipe_write_packet(void *buf, volatile void *fifo, unsigned len)
 #if (CFG_TUSB_RHPORT1_MODE & OPT_MODE_DEVICE)
   volatile hw_fifo32_t *reg = (volatile hw_fifo32_t*) fifo;
 #else
-  volatile hw_fifo_t *reg = (volatile hw_fifo_t*) fifo;
+  volatile hw_fifo16_t *reg = (volatile hw_fifo16_t*) fifo;
 #endif
+
   uintptr_t addr = (uintptr_t)buf;
+
   while (len >= 2) {
     reg->u16 = *(const uint16_t *)addr;
     addr += 2;
     len  -= 2;
   }
+
   if (len > 0) {
     reg->u8 = *(const uint8_t *)addr;
     ++addr;
@@ -260,11 +259,14 @@ static void pipe_read_write_packet_ff(tu_fifo_t *f, volatile void *fifo, unsigne
     /* OUT */ {tu_fifo_get_write_info,tu_fifo_advance_write_pointer,pipe_read_packet},
     /* IN  */ {tu_fifo_get_read_info, tu_fifo_advance_read_pointer, pipe_write_packet},
   };
+
   tu_fifo_buffer_info_t info;
   ops[dir].tu_fifo_get_info(f, &info);
+
   unsigned total_len = len;
   len = TU_MIN(total_len, info.len_lin);
   ops[dir].pipe_read_write(info.ptr_lin, fifo, len);
+
   unsigned rem = total_len - len;
   if (rem) {
     len = TU_MIN(rem, info.len_wrap);
@@ -689,7 +691,8 @@ void dcd_init(uint8_t rhport)
 
   rusb2_module_start(rhport, true);
 
-  if ( is_highspeed(rhport) ) {
+#ifdef RUSB2_SUPPORT_HIGHSPEED
+  if ( is_highspeed_usbip(rhport) ) {
     rusb->SYSCFG_b.HSE = 1;
 
     // leave CLKSEL as default (0x11) 24Mhz
@@ -715,7 +718,9 @@ void dcd_init(uint8_t rhport)
     rusb->CFIFOSEL_b.MBW = 1;
     rusb->D0FIFOSEL_b.MBW = 1;
     rusb->D1FIFOSEL_b.MBW = 1;
-  } else {
+  } else
+#endif
+  {
     rusb->SYSCFG_b.SCKE = 1;
     while (!rusb->SYSCFG_b.SCKE) {}
     rusb->SYSCFG_b.DRPD = 0;
@@ -772,7 +777,7 @@ void dcd_connect(uint8_t rhport)
 {
   rusb2_reg_t* rusb = RUSB2_REG(rhport);
 
-  if ( is_highspeed(rhport)) {
+  if ( is_highspeed_usbip(rhport)) {
     rusb->SYSCFG_b.CNEN = 1;
   }
   rusb->SYSCFG_b.DPRPU = 1;
@@ -809,7 +814,7 @@ bool dcd_edpt_open(uint8_t rhport, tusb_desc_endpoint_t const * ep_desc)
 
   if (xfer == TUSB_XFER_ISOCHRONOUS) {
     // Fullspeed ISO is limit to 256 bytes
-    if ( !is_highspeed(rhport) && mps > 256) {
+    if ( !is_highspeed_usbip(rhport) && mps > 256) {
       return false;
     }
   }
@@ -823,7 +828,7 @@ bool dcd_edpt_open(uint8_t rhport, tusb_desc_endpoint_t const * ep_desc)
   /* setup pipe */
   dcd_int_disable(rhport);
 
-  if ( is_highspeed(rhport) ) {
+  if ( is_highspeed_usbip(rhport) ) {
     // FIXME shouldn't be after pipe selection and config, also the BUFNMB should be changed
     // depending on the allocation scheme
     rusb->PIPEBUF = 0x7C08;
