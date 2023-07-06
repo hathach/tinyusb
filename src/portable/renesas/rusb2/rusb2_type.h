@@ -33,6 +33,13 @@
 extern "C" {
 #endif
 
+// CCRX specific attribute to generate a Code that Accesses Variables in the Declared Size
+#ifdef __CCRX__
+  #define _ccrx_evenaccess __evenaccess
+#else
+  #define _ccrx_evenaccess
+#endif
+
 /*--------------------------------------------------------------------*/
 /* Register Definitions                                           */
 /*--------------------------------------------------------------------*/
@@ -64,7 +71,7 @@ typedef struct {
 
 
 /* RUSB2 Registers Structure */
-typedef struct {
+typedef struct _ccrx_evenaccess {
   union {
     volatile uint16_t SYSCFG; /* (@ 0x00000000) System Configuration Control Register */
 
