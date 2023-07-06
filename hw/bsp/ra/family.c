@@ -104,13 +104,6 @@ void board_init(void) {
   R_SYSTEM->TRCKCR = R_SYSTEM_TRCKCR_TRCKEN_Msk | 0x01;
 #endif
 
-  // Enable USB module
-  R_MSTP->MSTPCRB &= ~(1U << 11U); // FS
-
-#ifdef BOARD_HAS_USB_HIGHSPEED
-  R_MSTP->MSTPCRB &= ~(1U << 12U);
-#endif
-
 #if CFG_TUSB_OS == OPT_OS_FREERTOS
   // If freeRTOS is used, IRQ priority is limit by max syscall ( smaller is higher )
   NVIC_SetPriority(USBFS_INT_IRQn, configLIBRARY_MAX_SYSCALL_INTERRUPT_PRIORITY);

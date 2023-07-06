@@ -1653,6 +1653,7 @@ TU_ATTR_BIT_FIELD_ORDER_END
 
 #define RUSB2_DVSTCTR0_RHST_LS          (1U << RUSB2_DVSTCTR0_RHST_Pos)   /*  Low-speed connection */
 #define RUSB2_DVSTCTR0_RHST_FS          (2U << RUSB2_DVSTCTR0_RHST_Pos)   /*  Full-speed connection */
+#define RUSB2_DVSTCTR0_RHST_HS          (3U << RUSB2_DVSTCTR0_RHST_Pos)   /*  Full-speed connection */
 
 #define RUSB2_DEVADD_USBSPD_LS          (1U << RUSB2_DEVADD_USBSPD_Pos)   /* Target Device Low-speed */
 #define RUSB2_DEVADD_USBSPD_FS          (2U << RUSB2_DEVADD_USBSPD_Pos)   /* Target Device Full-speed */

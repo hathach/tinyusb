@@ -65,9 +65,9 @@
 
 /* LINK core registers */
 #if defined(__CCRX__)
-  #define RUSB2 ((RUSB2_REG_t __evenaccess*) RUSB2_REG_BASE)
+  #define RUSB2 ((rusb2_reg_t __evenaccess*) RUSB2_REG_BASE)
 #elif defined(__RX__)
-  #define RUSB2 ((RUSB2_REG_t*) RUSB2_REG_BASE)
+  #define RUSB2 ((rusb2_reg_t*) RUSB2_REG_BASE)
 #elif (CFG_TUSB_RHPORT1_MODE & OPT_MODE_DEVICE)
   #define RUSB2 ((R_USB_HS0_Type*)R_USB_HS0_BASE)
 #else
@@ -145,10 +145,15 @@ typedef struct
   uint8_t ep[2][16];   /* a lookup table for a pipe index from an endpoint address */
 } dcd_data_t;
 
+static dcd_data_t _dcd;
+
 //--------------------------------------------------------------------+
 // INTERNAL OBJECT & FUNCTION DECLARATION
 //--------------------------------------------------------------------+
-static dcd_data_t _dcd;
+
+TU_ATTR_ALWAYS_INLINE static inline bool is_highspeed(uint8_t rhport) {
+  return rhport == 1;
+}
 
 static unsigned find_pipe(unsigned xfer)
 {
@@ -543,38 +548,60 @@ static void process_pipe_brdy(uint8_t rhport, unsigned num)
 
 static void process_bus_reset(uint8_t rhport)
 {
-  RUSB2->BEMPENB = 1;
-  RUSB2->BRDYENB = 1;
-  RUSB2->CFIFOCTR = RUSB2_CFIFOCTR_BCLR_Msk;
-  RUSB2->D0FIFOSEL = 0;
-  while (RUSB2->D0FIFOSEL_b.CURPIPE) ; /* if CURPIPE bits changes, check written value */
-  RUSB2->D1FIFOSEL = 0;
-  while (RUSB2->D1FIFOSEL_b.CURPIPE) ; /* if CURPIPE bits changes, check written value */
-  volatile uint16_t *ctr = (volatile uint16_t*)((uintptr_t) (&RUSB2->PIPE_CTR[0]));
-  volatile uint16_t *tre = (volatile uint16_t*)((uintptr_t) (&RUSB2->PIPE_TR[0].E));
+  rusb2_reg_t* rusb = RUSB2_REG(rhport);
+
+  rusb->BEMPENB = 1;
+  rusb->BRDYENB = 1;
+  rusb->CFIFOCTR = RUSB2_CFIFOCTR_BCLR_Msk;
+
+  rusb->D0FIFOSEL = 0;
+  while (rusb->D0FIFOSEL_b.CURPIPE) {} /* if CURPIPE bits changes, check written value */
+
+  rusb->D1FIFOSEL = 0;
+  while (rusb->D1FIFOSEL_b.CURPIPE) {} /* if CURPIPE bits changes, check written value */
+
+  volatile uint16_t *ctr = (volatile uint16_t*)((uintptr_t) (&rusb->PIPE_CTR[0]));
+  volatile uint16_t *tre = (volatile uint16_t*)((uintptr_t) (&rusb->PIPE_TR[0].E));
+
   for (int i = 1; i <= 5; ++i) {
-    RUSB2->PIPESEL = i;
-    RUSB2->PIPECFG = 0;
+    rusb->PIPESEL = i;
+    rusb->PIPECFG = 0;
     *ctr = RUSB2_PIPE_CTR_ACLRM_Msk;
     *ctr = 0;
     ++ctr;
     *tre = TU_BIT(8);
     tre += 2;
   }
+
   for (int i = 6; i <= 9; ++i) {
-    RUSB2->PIPESEL = i;
-    RUSB2->PIPECFG = 0;
+    rusb->PIPESEL = i;
+    rusb->PIPECFG = 0;
     *ctr = RUSB2_PIPE_CTR_ACLRM_Msk;
     *ctr = 0;
     ++ctr;
   }
   tu_varclr(&_dcd);
 
-#if (CFG_TUSB_RHPORT1_MODE & OPT_MODE_DEVICE)
-  dcd_event_bus_reset(rhport, TUSB_SPEED_HIGH, true);
-#else
-  dcd_event_bus_reset(rhport, TUSB_SPEED_FULL, true);
-#endif
+  TU_LOG3("Bus reset, RHST = %u\r\n", rusb->DVSTCTR0_b.RHST);
+  tusb_speed_t speed;
+  switch(rusb->DVSTCTR0 & RUSB2_DVSTCTR0_RHST_Msk) {
+    case RUSB2_DVSTCTR0_RHST_LS:
+      speed = TUSB_SPEED_LOW;
+      break;
+
+    case RUSB2_DVSTCTR0_RHST_FS:
+      speed = TUSB_SPEED_FULL;
+      break;
+
+    case RUSB2_DVSTCTR0_RHST_HS:
+      speed = TUSB_SPEED_HIGH;
+      break;
+
+    default:
+      TU_ASSERT(false, );
+  }
+
+  dcd_event_bus_reset(rhport, speed, true);
 }
 
 static void process_set_address(uint8_t rhport)
@@ -625,56 +652,63 @@ static void enable_interrupt(uint32_t pswi)
 
 void dcd_init(uint8_t rhport)
 {
-  (void)rhport;
+  rusb2_reg_t* rusb = RUSB2_REG(rhport);
 
-#if (CFG_TUSB_RHPORT1_MODE & OPT_MODE_DEVICE)
-  RUSB2->SYSCFG_b.HSE = 1;
-  RUSB2->PHYSET_b.DIRPD = 0;
-  R_BSP_SoftwareDelay((uint32_t) 1, BSP_DELAY_UNITS_MILLISECONDS);
-  RUSB2->PHYSET_b.PLLRESET = 0;
-  //RUSB2->PHYSET_b.REPSTART = 1;
-  RUSB2->SYSCFG_b.DRPD = 0;
-  RUSB2->SYSCFG_b.USBE = 1;
-  RUSB2->LPSTS_b.SUSPENDM = 1;
-  while (!RUSB2->PLLSTA_b.PLLLOCK);
-  //RUSB2->BUSWAIT |= 0x0F00U;
-  //RUSB2->PHYSET_b.REPSEL = 1;
-  RUSB2->CFIFOSEL_b.MBW = 1;
-  RUSB2->D0FIFOSEL_b.MBW = 1;
-  RUSB2->D1FIFOSEL_b.MBW = 1;
-  RUSB2->INTSTS0 = 0;
-#else
-  RUSB2->SYSCFG_b.SCKE = 1;
-  while (!RUSB2->SYSCFG_b.SCKE) ;
-  RUSB2->SYSCFG_b.DRPD = 0;
-  RUSB2->SYSCFG_b.DCFM = 0;
-  RUSB2->SYSCFG_b.USBE = 1;
-#endif
+  rusb2_module_start(rhport, true);
 
-  // MCU specific PHY init
-  rusb2_phy_init();
+  if ( is_highspeed(rhport) ) {
+    rusb->SYSCFG_b.HSE = 1;
 
-#if (CFG_TUSB_RHPORT0_MODE & OPT_MODE_DEVICE)
-  RUSB2->PHYSLEW = 0x5;
-  RUSB2->DPUSR0R_FS_b.FIXPHY0 = 0u; /* USB_BASE Transceiver Output fixed */
+    // leave CLKSEL as default (0x11) 24Mhz
 
-  #define USB_VDCEN                 (0x0080U) /* b7: Regulator ON/OFF control */
-  RUSB2->USBMC = (uint16_t) (RUSB2->USBMC | (USB_VDCEN));
-#endif
+    // Power and reset UTMI Phy
+    uint16_t physet = (rusb->PHYSET | RUSB2_PHYSET_PLLRESET_Msk) & ~RUSB2_PHYSET_DIRPD_Msk;
+    rusb->PHYSET = physet;
+    R_BSP_SoftwareDelay((uint32_t) 1, BSP_DELAY_UNITS_MILLISECONDS);
+    rusb->PHYSET_b.PLLRESET = 0;
+
+    // set UTMI to operating mode and wait for PLL lock confirmation
+    rusb->LPSTS_b.SUSPENDM = 1;
+    while (!rusb->PLLSTA_b.PLLLOCK) {}
+
+    rusb->SYSCFG_b.DRPD = 0;
+    rusb->SYSCFG_b.USBE = 1;
+
+    // Set CPU bus wait time (fine tunne later)
+    // rusb2->BUSWAIT |= 0x0F00U;
+
+    rusb->PHYSET_b.REPSEL = 1;
+
+    rusb->CFIFOSEL_b.MBW = 1;
+    rusb->D0FIFOSEL_b.MBW = 1;
+    rusb->D1FIFOSEL_b.MBW = 1;
+  } else {
+    rusb->SYSCFG_b.SCKE = 1;
+    while (!rusb->SYSCFG_b.SCKE) {}
+    rusb->SYSCFG_b.DRPD = 0;
+    rusb->SYSCFG_b.DCFM = 0;
+    rusb->SYSCFG_b.USBE = 1;
+
+    // MCU specific PHY init
+    rusb2_phy_init();
+
+    rusb->PHYSLEW = 0x5;
+    rusb->DPUSR0R_FS_b.FIXPHY0 = 0u; /* USB_BASE Transceiver Output fixed */
+
+    // rusb2->USBMC = (uint16_t) (rusb2->USBMC | RUSB2_USBMC_VDCEN_Msk);
+  }
 
   /* Setup default control pipe */
-  RUSB2->DCPMAXP_b.MXPS = 64;
-  RUSB2->INTENB0 = RUSB2_INTSTS0_VBINT_Msk | RUSB2_INTSTS0_BRDY_Msk | RUSB2_INTSTS0_BEMP_Msk |
-          RUSB2_INTSTS0_DVST_Msk | RUSB2_INTSTS0_CTRT_Msk | (USE_SOF ? RUSB2_INTSTS0_SOFR_Msk : 0) |
-          RUSB2_INTSTS0_RESM_Msk | RUSB2_INTSTS0_NRDY_Msk;
-  RUSB2->BEMPENB = 1;
-  RUSB2->BRDYENB = 1;
+  rusb->DCPMAXP_b.MXPS = 64;
 
-#if (CFG_TUSB_RHPORT0_MODE & OPT_MODE_DEVICE)
-  RUSB2->SYSCFG_b.DPRPU = 1;  /* necessary in this position */
-#endif
+  rusb->INTSTS0 = 0;
+  rusb->INTENB0 = RUSB2_INTSTS0_VBINT_Msk | RUSB2_INTSTS0_BRDY_Msk | RUSB2_INTSTS0_BEMP_Msk |
+                  RUSB2_INTSTS0_DVST_Msk | RUSB2_INTSTS0_CTRT_Msk | (USE_SOF ? RUSB2_INTSTS0_SOFR_Msk : 0) |
+                  RUSB2_INTSTS0_RESM_Msk | RUSB2_INTSTS0_NRDY_Msk;
+  rusb->BEMPENB = 1;
+  rusb->BRDYENB = 1;
 
-  if (RUSB2->INTSTS0_b.VBSTS) {
+  if (rusb->INTSTS0_b.VBSTS) {
     dcd_connect(rhport);
   }
 }
@@ -697,24 +731,24 @@ void dcd_set_address(uint8_t rhport, uint8_t dev_addr)
 
 void dcd_remote_wakeup(uint8_t rhport)
 {
-  (void)rhport;
-  RUSB2->DVSTCTR0_b.WKUP = 1;
+  rusb2_reg_t* rusb = RUSB2_REG(rhport);
+  rusb->DVSTCTR0_b.WKUP = 1;
 }
 
 void dcd_connect(uint8_t rhport)
 {
-  (void)rhport;
-  #if (CFG_TUSB_RHPORT1_MODE & OPT_MODE_DEVICE)
-  RUSB2->SYSCFG_b.CNEN = 1;
-  R_BSP_SoftwareDelay((uint32_t) 10, BSP_DELAY_UNITS_MILLISECONDS);
-  #endif
-  RUSB2->SYSCFG_b.DPRPU = 1;
+  rusb2_reg_t* rusb = RUSB2_REG(rhport);
+
+  if ( is_highspeed(rhport)) {
+    rusb->SYSCFG_b.CNEN = 1;
+  }
+  rusb->SYSCFG_b.DPRPU = 1;
 }
 
 void dcd_disconnect(uint8_t rhport)
 {
-  (void)rhport;
-  RUSB2->SYSCFG_b.DPRPU = 0;
+  rusb2_reg_t* rusb = RUSB2_REG(rhport);
+  rusb->SYSCFG_b.DPRPU = 0;
 }
 
 void dcd_sof_enable(uint8_t rhport, bool en)
@@ -861,76 +895,94 @@ void dcd_edpt_clear_stall(uint8_t rhport, uint8_t ep_addr)
 //--------------------------------------------------------------------+
 void dcd_int_handler(uint8_t rhport)
 {
-  (void)rhport;
+  rusb2_reg_t* rusb = RUSB2_REG(rhport);
 
-  unsigned is0 = RUSB2->INTSTS0;
+  uint16_t is0 = rusb->INTSTS0;
+
   /* clear active bits except VALID (don't write 0 to already cleared bits according to the HW manual) */
-  RUSB2->INTSTS0 = ~((RUSB2_INTSTS0_CTRT_Msk | RUSB2_INTSTS0_DVST_Msk | RUSB2_INTSTS0_SOFR_Msk |
-                         RUSB2_INTSTS0_RESM_Msk | RUSB2_INTSTS0_VBINT_Msk) & is0) | RUSB2_INTSTS0_VALID_Msk;
-  if (is0 & RUSB2_INTSTS0_VBINT_Msk) {
-    if (RUSB2->INTSTS0_b.VBSTS) {
+  rusb->INTSTS0 = ~((RUSB2_INTSTS0_CTRT_Msk | RUSB2_INTSTS0_DVST_Msk | RUSB2_INTSTS0_SOFR_Msk |
+                     RUSB2_INTSTS0_RESM_Msk | RUSB2_INTSTS0_VBINT_Msk) & is0) | RUSB2_INTSTS0_VALID_Msk;
+
+  // VBUS changes
+  if ( is0 & RUSB2_INTSTS0_VBINT_Msk ) {
+    if ( rusb->INTSTS0_b.VBSTS ) {
       dcd_connect(rhport);
     } else {
       dcd_disconnect(rhport);
     }
   }
-  if (is0 & RUSB2_INTSTS0_RESM_Msk) {
+
+  // Resumed
+  if ( is0 & RUSB2_INTSTS0_RESM_Msk ) {
     dcd_event_bus_signal(rhport, DCD_EVENT_RESUME, true);
-#if (0==USE_SOF)
-    RUSB2->INTENB0_b.SOFE = 0;
+#if (0 == USE_SOF)
+    rusb->INTENB0_b.SOFE = 0;
 #endif
   }
-  if ((is0 & RUSB2_INTSTS0_SOFR_Msk) && RUSB2->INTENB0_b.SOFE) {
+
+  // SOF received
+  if ( (is0 & RUSB2_INTSTS0_SOFR_Msk) && rusb->INTENB0_b.SOFE ) {
     // USBD will exit suspended mode when SOF event is received
     dcd_event_bus_signal(rhport, DCD_EVENT_SOF, true);
 #if (0 == USE_SOF)
-    RUSB2->INTENB0_b.SOFE = 0;
+    rusb->INTENB0_b.SOFE = 0;
 #endif
   }
-  if (is0 & RUSB2_INTSTS0_DVST_Msk) {
+
+  // Device state changes
+  if ( is0 & RUSB2_INTSTS0_DVST_Msk ) {
     switch (is0 & RUSB2_INTSTS0_DVSQ_Msk) {
-    case RUSB2_INTSTS0_DVSQ_STATE_DEF:
-      process_bus_reset(rhport);
-      break;
-    case RUSB2_INTSTS0_DVSQ_STATE_ADDR:
-      process_set_address(rhport);
-      break;
-    case RUSB2_INTSTS0_DVSQ_STATE_SUSP0:
-    case RUSB2_INTSTS0_DVSQ_STATE_SUSP1:
-    case RUSB2_INTSTS0_DVSQ_STATE_SUSP2:
-    case RUSB2_INTSTS0_DVSQ_STATE_SUSP3:
-       dcd_event_bus_signal(rhport, DCD_EVENT_SUSPEND, true);
-#if (0==USE_SOF)
-      RUSB2->INTENB0_b.SOFE = 1;
+      case RUSB2_INTSTS0_DVSQ_STATE_DEF:
+        process_bus_reset(rhport);
+        break;
+
+      case RUSB2_INTSTS0_DVSQ_STATE_ADDR:
+        process_set_address(rhport);
+        break;
+
+      case RUSB2_INTSTS0_DVSQ_STATE_SUSP0:
+      case RUSB2_INTSTS0_DVSQ_STATE_SUSP1:
+      case RUSB2_INTSTS0_DVSQ_STATE_SUSP2:
+      case RUSB2_INTSTS0_DVSQ_STATE_SUSP3:
+        dcd_event_bus_signal(rhport, DCD_EVENT_SUSPEND, true);
+#if (0 == USE_SOF)
+        rusb->INTENB0_b.SOFE = 1;
 #endif
-    default:
-      break;
+
+      default: break;
     }
   }
-  if (is0 & RUSB2_INTSTS0_NRDY_Msk) {
-    RUSB2->NRDYSTS = 0;
+
+  if ( is0 & RUSB2_INTSTS0_NRDY_Msk ) {
+    rusb->NRDYSTS = 0;
   }
-  if (is0 & RUSB2_INTSTS0_CTRT_Msk) {
-    if (is0 & RUSB2_INTSTS0_CTSQ_CTRL_RDATA) {
+
+  // Control transfer stage changes
+  if ( is0 & RUSB2_INTSTS0_CTRT_Msk ) {
+    if ( is0 & RUSB2_INTSTS0_CTSQ_CTRL_RDATA ) {
       /* A setup packet has been received. */
       process_setup_packet(rhport);
-    } else if (0 == (is0 & RUSB2_INTSTS0_CTSQ_Msk)) {
+    } else if ( 0 == (is0 & RUSB2_INTSTS0_CTSQ_Msk) ) {
       /* A ZLP has been sent/received. */
       process_status_completion(rhport);
     }
   }
-  if (is0 & RUSB2_INTSTS0_BEMP_Msk) {
-    const unsigned s = RUSB2->BEMPSTS;
-    RUSB2->BEMPSTS = 0;
-    if (s & 1) {
+
+  // Buffer empty
+  if ( is0 & RUSB2_INTSTS0_BEMP_Msk ) {
+    const unsigned s = rusb->BEMPSTS;
+    rusb->BEMPSTS = 0;
+    if ( s & 1 ) {
       process_pipe0_bemp(rhport);
     }
   }
-  if (is0 & RUSB2_INTSTS0_BRDY_Msk) {
-    const unsigned m = RUSB2->BRDYENB;
-    unsigned s = RUSB2->BRDYSTS & m;
+
+  // Buffer ready
+  if ( is0 & RUSB2_INTSTS0_BRDY_Msk ) {
+    const unsigned m = rusb->BRDYENB;
+    unsigned s = rusb->BRDYSTS & m;
     /* clear active bits (don't write 0 to already cleared bits according to the HW manual) */
-    RUSB2->BRDYSTS = ~s;
+    rusb->BRDYSTS = ~s;
     while (s) {
 #if defined(__CCRX__)
       static const int Mod37BitPosition[] = {

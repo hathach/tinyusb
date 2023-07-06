@@ -37,6 +37,12 @@ extern "C" {
 
 #define RUSB2_REG_BASE (0x000A0000)
 
+// Start/Stop MSTP TODO implement later
+TU_ATTR_ALWAYS_INLINE static inline void rusb2_module_start(uint8_t rhport, bool start) {
+  (void) rhport;
+  (void) start;
+}
+
 TU_ATTR_ALWAYS_INLINE static inline void rusb2_int_enable(uint8_t rhport)
 {
   (void) rhport;

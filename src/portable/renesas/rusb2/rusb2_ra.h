@@ -76,38 +76,34 @@ static rusb2_controller_t rusb2_controller[] = {
     #endif
 };
 
-TU_ATTR_ALWAYS_INLINE static inline void rusb2_int_enable(uint8_t rhport)
-{
-  #if RUSB2_CONTROLLER_COUNT > 1
-  NVIC_EnableIRQ(rusb2_controller[rhport].irqnum);
-  #else
-  (void) rhport;
-  NVIC_EnableIRQ(rusb2_controller[0].irqnum);
-  #endif
+#define RUSB2_REG(_p)      ((rusb2_reg_t*) rusb2_controller[_p].reg_base)
+
+TU_ATTR_ALWAYS_INLINE static inline void rusb2_module_start(uint8_t rhport, bool start) {
+  uint32_t const mask = 1U << (11+rhport);
+  if (start) {
+    R_MSTP->MSTPCRB &= ~mask;
+  }else {
+    R_MSTP->MSTPCRB |= mask;
+  }
 }
 
-TU_ATTR_ALWAYS_INLINE static inline void rusb2_int_disable(uint8_t rhport)
-{
-  #if RUSB2_CONTROLLER_COUNT > 1
+TU_ATTR_ALWAYS_INLINE static inline void rusb2_int_enable(uint8_t rhport) {
+  NVIC_EnableIRQ(rusb2_controller[rhport].irqnum);
+}
+
+TU_ATTR_ALWAYS_INLINE static inline void rusb2_int_disable(uint8_t rhport) {
   NVIC_DisableIRQ(rusb2_controller[rhport].irqnum);
-  #else
-  (void) rhport;
-  NVIC_DisableIRQ(rusb2_controller[0].irqnum);
-  #endif
 }
 
 // MCU specific PHY init
-TU_ATTR_ALWAYS_INLINE static inline void rusb2_phy_init(void)
-{
+TU_ATTR_ALWAYS_INLINE static inline void rusb2_phy_init(void) {
 }
 
+//--------------------------------------------------------------------+
+// Application API for setting IRQ number
+//--------------------------------------------------------------------+
 void tud_int_set_irqnum(uint8_t rhport, int32_t irqnum) {
-  #if RUSB2_CONTROLLER_COUNT > 1
   rusb2_controller[rhport].irqnum = irqnum;
-  #else
-  (void) rhport;
-  rusb2_controller[0].irqnum = irqnum;
-  #endif
 }
 
 #ifdef __cplusplus
