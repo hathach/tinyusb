@@ -227,8 +227,8 @@ function(family_add_tinyusb TARGET OPT_MCU RTOS)
 
   if (DEFINED LOG)
     target_compile_definitions(${TARGET}-tinyusb_config INTERFACE CFG_TUSB_DEBUG=${LOG})
-    if (LOG STREQUAL "3")
-      # no inline for debug level 3
+    if (LOG STREQUAL "4")
+      # no inline for debug level 4
       target_compile_definitions(${TARGET}-tinyusb_config INTERFACE TU_ATTR_ALWAYS_INLINE=)
     endif ()
   endif()

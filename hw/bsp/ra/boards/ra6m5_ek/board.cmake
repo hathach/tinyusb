@@ -14,11 +14,4 @@ function(update_board TARGET)
     # port 0 is fullspeed, port 1 is highspeed
     BOARD_TUD_MAX_SPEED=$<IF:${PORT},OPT_MODE_HIGH_SPEED,OPT_MODE_FULL_SPEED>
     )
-
-  if (PORT STREQUAL 1)
-    target_compile_definitions(${TARGET} PUBLIC
-      CFG_TUSB_RHPORT1_MODE=OPT_MODE_DEVICE|OPT_MODE_HIGH_SPEED
-      CFG_TUSB_RHPORT0_MODE=0
-      )
-  endif ()
 endfunction()

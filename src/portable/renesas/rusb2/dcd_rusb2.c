@@ -74,26 +74,6 @@ typedef struct TU_ATTR_PACKED _ccrx_evenaccess {
   uint16_t TRN;
 } reg_pipetre_t;
 
-typedef union TU_ATTR_PACKED {
-  struct {
-    volatile uint8_t u8;
-    volatile uint8_t reserved8;
-  };
-  volatile uint16_t u16;
-} hw_fifo16_t;
-
-typedef union TU_ATTR_PACKED {
-  struct {
-    volatile uint8_t reserved8[3];
-    volatile uint8_t u8;
-  };
-  struct {
-    volatile uint16_t reserved16;
-    volatile uint16_t u16;
-  };
-  volatile uint32_t u32;
-} hw_fifo32_t;
-
 typedef struct TU_ATTR_PACKED
 {
   void      *buf;      /* the start address of a transfer data buffer */
@@ -135,9 +115,11 @@ static dcd_data_t _dcd;
 //--------------------------------------------------------------------+
 
 #ifdef RUSB2_SUPPORT_HIGHSPEED
-  #define is_highspeed_usbip(_p) (_p == 1)
+  #define is_highspeed_usbip(_p)     (_p == 1)
+  #define is_highspeed_regbase(_reg) (_reg == RUSB2_REG(1))
 #else
-  #define is_highspeed_usbip(_p) (false)
+  #define is_highspeed_usbip(_p)     (false)
+  #define is_highspeed_regbase(_reg) (false)
 #endif
 
 static unsigned find_pipe(unsigned xfer)
@@ -225,48 +207,57 @@ static inline void pipe_wait_for_ready(rusb2_reg_t * rusb, unsigned num)
 //--------------------------------------------------------------------+
 
 // Write data buffer --> hw fifo
-static void pipe_write_packet(void *buf, volatile void *fifo, unsigned len)
+static void pipe_write_packet(rusb2_reg_t * rusb, void *buf, volatile void *fifo, unsigned len)
 {
-#if (CFG_TUSB_RHPORT1_MODE & OPT_MODE_DEVICE)
-  volatile hw_fifo32_t *reg = (volatile hw_fifo32_t*) fifo;
-#else
-  volatile hw_fifo16_t *reg = (volatile hw_fifo16_t*) fifo;
-#endif
+  (void) rusb;
+
+  volatile uint16_t *ff16;
+  volatile uint8_t *ff8;
+
+  // Highspeed FIFO is 32-bit
+  if ( is_highspeed_regbase(rusb) ) {
+    ff16 = (volatile uint16_t*) ((uintptr_t) fifo+2);
+    ff8  = (volatile uint8_t *) ((uintptr_t) fifo+3);
+  }else {
+    ff16 = (volatile uint16_t*) fifo;
+    ff8  = ((volatile uint8_t*) fifo);
+  }
 
   uint8_t const* buf8 = (uint8_t const*) buf;
 
   while (len >= 2) {
-    reg->u16 = tu_unaligned_read16(buf8);
+    *ff16 = tu_unaligned_read16(buf8);
     buf8 += 2;
     len  -= 2;
   }
 
   if (len > 0) {
-    reg->u8 = *buf8;
+    *ff8 = *buf8;
     ++buf8;
   }
 }
 
 // Read data buffer <-- hw fifo
-static void pipe_read_packet(void *buf, volatile void *fifo, unsigned len)
+static void pipe_read_packet(rusb2_reg_t * rusb, void *buf, volatile void *fifo, unsigned len)
 {
+  (void) rusb;
   uint8_t *p = (uint8_t*)buf;
   volatile uint8_t *reg = (volatile uint8_t*)fifo;  /* byte access is always at base register address */
   while (len--) *p++ = *reg;
 }
 
 // Write data sw fifo --> hw fifo
-static void pipe_write_packet_ff(tu_fifo_t *f, volatile void *fifo, uint16_t total_len) {
+static void pipe_write_packet_ff(rusb2_reg_t * rusb, tu_fifo_t *f, volatile void *fifo, uint16_t total_len) {
   tu_fifo_buffer_info_t info;
   tu_fifo_get_read_info(f, &info);
 
   uint16_t count = tu_min16(total_len, info.len_lin);
-  pipe_write_packet(info.ptr_lin, fifo, count);
+  pipe_write_packet(rusb, info.ptr_lin, fifo, count);
 
   uint16_t rem = total_len - count;
   if (rem) {
     rem = tu_min16(rem, info.len_wrap);
-    pipe_write_packet(info.ptr_wrap, fifo, rem);
+    pipe_write_packet(rusb, info.ptr_wrap, fifo, rem);
     count += rem;
   }
 
@@ -274,17 +265,17 @@ static void pipe_write_packet_ff(tu_fifo_t *f, volatile void *fifo, uint16_t tot
 }
 
 // Read data sw fifo <-- hw fifo
-static void pipe_read_packet_ff(tu_fifo_t *f, volatile void *fifo, uint16_t total_len) {
+static void pipe_read_packet_ff(rusb2_reg_t * rusb, tu_fifo_t *f, volatile void *fifo, uint16_t total_len) {
   tu_fifo_buffer_info_t info;
   tu_fifo_get_write_info(f, &info);
 
   uint16_t count = tu_min16(total_len, info.len_lin);
-  pipe_read_packet(info.ptr_lin, fifo, count);
+  pipe_read_packet(rusb, info.ptr_lin, fifo, count);
 
   uint16_t rem = total_len - count;
   if (rem) {
     rem = tu_min16(rem, info.len_wrap);
-    pipe_read_packet(info.ptr_wrap, fifo, rem);
+    pipe_read_packet(rusb, info.ptr_wrap, fifo, rem);
     count += rem;
   }
 
@@ -311,9 +302,9 @@ static bool pipe0_xfer_in(rusb2_reg_t* rusb)
 
   if (len) {
     if (pipe->ff) {
-      pipe_write_packet_ff((tu_fifo_t*)buf, (volatile void*)&rusb->CFIFO, len);
+      pipe_write_packet_ff(rusb, (tu_fifo_t*)buf, (volatile void*)&rusb->CFIFO, len);
     } else {
-      pipe_write_packet(buf, (volatile void*)&rusb->CFIFO, len);
+      pipe_write_packet(rusb, buf, (volatile void*)&rusb->CFIFO, len);
       pipe->buf = (uint8_t*)buf + len;
     }
   }
@@ -338,9 +329,9 @@ static bool pipe0_xfer_out(rusb2_reg_t* rusb)
 
   if (len) {
     if (pipe->ff) {
-      pipe_read_packet_ff((tu_fifo_t*)buf, (volatile void*)&rusb->CFIFO, len);
+      pipe_read_packet_ff(rusb, (tu_fifo_t*)buf, (volatile void*)&rusb->CFIFO, len);
     } else {
-      pipe_read_packet(buf, (volatile void*)&rusb->CFIFO, len);
+      pipe_read_packet(rusb, buf, (volatile void*)&rusb->CFIFO, len);
       pipe->buf = (uint8_t*)buf + len;
     }
   }
@@ -376,9 +367,9 @@ static bool pipe_xfer_in(rusb2_reg_t* rusb, unsigned num)
 
   if (len) {
     if (pipe->ff) {
-      pipe_write_packet_ff((tu_fifo_t*)buf, (volatile void*)&rusb->D0FIFO, len);
+      pipe_write_packet_ff(rusb, (tu_fifo_t*)buf, (volatile void*)&rusb->D0FIFO, len);
     } else {
-      pipe_write_packet(buf, (volatile void*)&rusb->D0FIFO, len);
+      pipe_write_packet(rusb, buf, (volatile void*)&rusb->D0FIFO, len);
       pipe->buf = (uint8_t*)buf + len;
     }
   }
@@ -410,9 +401,9 @@ static bool pipe_xfer_out(rusb2_reg_t* rusb, unsigned num)
 
   if (len) {
     if (pipe->ff) {
-      pipe_read_packet_ff((tu_fifo_t*)buf, (volatile void*)&rusb->D0FIFO, len);
+      pipe_read_packet_ff(rusb, (tu_fifo_t*)buf, (volatile void*)&rusb->D0FIFO, len);
     } else {
-      pipe_read_packet(buf, (volatile void*)&rusb->D0FIFO, len);
+      pipe_read_packet(rusb, buf, (volatile void*)&rusb->D0FIFO, len);
       pipe->buf = (uint8_t*)buf + len;
     }
   }
@@ -733,10 +724,6 @@ void dcd_init(uint8_t rhport)
     // rusb2->BUSWAIT |= 0x0F00U;
 
     rusb->PHYSET_b.REPSEL = 1;
-
-    rusb->CFIFOSEL_b.MBW = 1;
-    rusb->D0FIFOSEL_b.MBW = 1;
-    rusb->D1FIFOSEL_b.MBW = 1;
   } else
 #endif
   {

@@ -1670,6 +1670,7 @@ TU_ATTR_BIT_FIELD_ORDER_END
 #define RUSB2_FIFOSEL_BIGEND            (1U << RUSB2_CFIFOSEL_BIGEND_Pos) /* FIFO Big Endian */
 #define RUSB2_FIFOSEL_MBW_8BIT          (0U << RUSB2_CFIFOSEL_MBW_Pos)    /* 8-bit width */
 #define RUSB2_FIFOSEL_MBW_16BIT         (1U << RUSB2_CFIFOSEL_MBW_Pos)    /* 16-bit width */
+#define RUSB2_FIFOSEL_MBW_32BIT         (2U << RUSB2_CFIFOSEL_MBW_Pos)    /* 32-bit width */
 
 #define RUSB2_INTSTS0_CTSQ_CTRL_RDATA   (1U << RUSB2_INTSTS0_CTSQ_Pos)
 
