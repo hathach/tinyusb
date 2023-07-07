@@ -3,8 +3,12 @@ DEPS_SUBMODULES += hw/mcu/renesas/fsp lib/CMSIS_5
 FSP_RA = hw/mcu/renesas/fsp/ra/fsp
 include $(TOP)/$(BOARD_PATH)/board.mk
 
+# Default to port 0 fullspeed, board with port 1 highspeed should override this in board.mk
+PORT ?= 0
+
 CFLAGS += \
   -DCFG_TUSB_MCU=OPT_MCU_RAXXX \
+  -DBOARD_TUD_RHPORT=$(PORT) \
 	-Wno-error=undef \
 	-Wno-error=strict-prototypes \
 	-Wno-error=cast-align \
@@ -14,6 +18,14 @@ CFLAGS += \
 	-nostdlib \
 	-nostartfiles \
 	-ffreestanding
+
+ifeq ($(PORT), 1)
+  CFLAGS += -DBOARD_TUD_MAX_SPEED=OPT_MODE_HIGH_SPEED
+  $(info "Using PORT 1 HighSpeed")
+else
+  CFLAGS += -DBOARD_TUD_MAX_SPEED=OPT_MODE_FULL_SPEED
+  $(info "Using PORT 0 FullSpeed")
+endif
 
 SRC_C += \
 	src/portable/renesas/rusb2/dcd_rusb2.c \

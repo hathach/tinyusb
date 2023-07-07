@@ -216,6 +216,7 @@ static void pipe_write_packet(rusb2_reg_t * rusb, void *buf, volatile void *fifo
 
   // Highspeed FIFO is 32-bit
   if ( is_highspeed_regbase(rusb) ) {
+    // TODO 32-bit access for better performance
     ff16 = (volatile uint16_t*) ((uintptr_t) fifo+2);
     ff8  = (volatile uint8_t *) ((uintptr_t) fifo+3);
   }else {
@@ -241,6 +242,9 @@ static void pipe_write_packet(rusb2_reg_t * rusb, void *buf, volatile void *fifo
 static void pipe_read_packet(rusb2_reg_t * rusb, void *buf, volatile void *fifo, unsigned len)
 {
   (void) rusb;
+
+  // TODO 16/32-bit access for better performance
+
   uint8_t *p = (uint8_t*)buf;
   volatile uint8_t *reg = (volatile uint8_t*)fifo;  /* byte access is always at base register address */
   while (len--) *p++ = *reg;
