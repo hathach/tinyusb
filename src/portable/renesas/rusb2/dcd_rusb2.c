@@ -220,6 +220,11 @@ static inline void pipe_wait_for_ready(rusb2_reg_t * rusb, unsigned num)
   while ( !rusb->D0FIFOCTR_b.FRDY ) {}
 }
 
+//--------------------------------------------------------------------+
+// Pipe FIFO
+//--------------------------------------------------------------------+
+
+// Write data buffer --> hw fifo
 static void pipe_write_packet(void *buf, volatile void *fifo, unsigned len)
 {
 #if (CFG_TUSB_RHPORT1_MODE & OPT_MODE_DEVICE)
@@ -228,53 +233,67 @@ static void pipe_write_packet(void *buf, volatile void *fifo, unsigned len)
   volatile hw_fifo16_t *reg = (volatile hw_fifo16_t*) fifo;
 #endif
 
-  uintptr_t addr = (uintptr_t)buf;
+  uint8_t const* buf8 = (uint8_t const*) buf;
 
   while (len >= 2) {
-    reg->u16 = *(const uint16_t *)addr;
-    addr += 2;
+    reg->u16 = tu_unaligned_read16(buf8);
+    buf8 += 2;
     len  -= 2;
   }
 
   if (len > 0) {
-    reg->u8 = *(const uint8_t *)addr;
-    ++addr;
+    reg->u8 = *buf8;
+    ++buf8;
   }
 }
 
+// Read data buffer <-- hw fifo
 static void pipe_read_packet(void *buf, volatile void *fifo, unsigned len)
 {
-  uint8_t *p   = (uint8_t*)buf;
+  uint8_t *p = (uint8_t*)buf;
   volatile uint8_t *reg = (volatile uint8_t*)fifo;  /* byte access is always at base register address */
   while (len--) *p++ = *reg;
 }
 
-static void pipe_read_write_packet_ff(tu_fifo_t *f, volatile void *fifo, unsigned len, unsigned dir)
-{
-  static const struct {
-    void (*tu_fifo_get_info)(tu_fifo_t *f, tu_fifo_buffer_info_t *info);
-    void (*tu_fifo_advance)(tu_fifo_t *f, uint16_t n);
-    void (*pipe_read_write)(void *buf, volatile void *fifo, unsigned len);
-  } ops[] = {
-    /* OUT */ {tu_fifo_get_write_info,tu_fifo_advance_write_pointer,pipe_read_packet},
-    /* IN  */ {tu_fifo_get_read_info, tu_fifo_advance_read_pointer, pipe_write_packet},
-  };
-
+// Write data sw fifo --> hw fifo
+static void pipe_write_packet_ff(tu_fifo_t *f, volatile void *fifo, uint16_t total_len) {
   tu_fifo_buffer_info_t info;
-  ops[dir].tu_fifo_get_info(f, &info);
+  tu_fifo_get_read_info(f, &info);
 
-  unsigned total_len = len;
-  len = TU_MIN(total_len, info.len_lin);
-  ops[dir].pipe_read_write(info.ptr_lin, fifo, len);
+  uint16_t count = tu_min16(total_len, info.len_lin);
+  pipe_write_packet(info.ptr_lin, fifo, count);
 
-  unsigned rem = total_len - len;
+  uint16_t rem = total_len - count;
   if (rem) {
-    len = TU_MIN(rem, info.len_wrap);
-    ops[dir].pipe_read_write(info.ptr_wrap, fifo, len);
-    rem -= len;
+    rem = tu_min16(rem, info.len_wrap);
+    pipe_write_packet(info.ptr_wrap, fifo, rem);
+    count += rem;
   }
-  ops[dir].tu_fifo_advance(f, total_len - rem);
+
+  tu_fifo_advance_read_pointer(f, count);
 }
+
+// Read data sw fifo <-- hw fifo
+static void pipe_read_packet_ff(tu_fifo_t *f, volatile void *fifo, uint16_t total_len) {
+  tu_fifo_buffer_info_t info;
+  tu_fifo_get_write_info(f, &info);
+
+  uint16_t count = tu_min16(total_len, info.len_lin);
+  pipe_read_packet(info.ptr_lin, fifo, count);
+
+  uint16_t rem = total_len - count;
+  if (rem) {
+    rem = tu_min16(rem, info.len_wrap);
+    pipe_read_packet(info.ptr_wrap, fifo, rem);
+    count += rem;
+  }
+
+  tu_fifo_advance_write_pointer(f, count);
+}
+
+//--------------------------------------------------------------------+
+// Pipe Transfer
+//--------------------------------------------------------------------+
 
 static bool pipe0_xfer_in(rusb2_reg_t* rusb)
 {
@@ -292,7 +311,7 @@ static bool pipe0_xfer_in(rusb2_reg_t* rusb)
 
   if (len) {
     if (pipe->ff) {
-      pipe_read_write_packet_ff((tu_fifo_t*)buf, (volatile void*)&rusb->CFIFO, len, TUSB_DIR_IN);
+      pipe_write_packet_ff((tu_fifo_t*)buf, (volatile void*)&rusb->CFIFO, len);
     } else {
       pipe_write_packet(buf, (volatile void*)&rusb->CFIFO, len);
       pipe->buf = (uint8_t*)buf + len;
@@ -319,7 +338,7 @@ static bool pipe0_xfer_out(rusb2_reg_t* rusb)
 
   if (len) {
     if (pipe->ff) {
-      pipe_read_write_packet_ff((tu_fifo_t*)buf, (volatile void*)&rusb->CFIFO, len, TUSB_DIR_OUT);
+      pipe_read_packet_ff((tu_fifo_t*)buf, (volatile void*)&rusb->CFIFO, len);
     } else {
       pipe_read_packet(buf, (volatile void*)&rusb->CFIFO, len);
       pipe->buf = (uint8_t*)buf + len;
@@ -357,7 +376,7 @@ static bool pipe_xfer_in(rusb2_reg_t* rusb, unsigned num)
 
   if (len) {
     if (pipe->ff) {
-      pipe_read_write_packet_ff((tu_fifo_t*)buf, (volatile void*)&rusb->D0FIFO, len, TUSB_DIR_IN);
+      pipe_write_packet_ff((tu_fifo_t*)buf, (volatile void*)&rusb->D0FIFO, len);
     } else {
       pipe_write_packet(buf, (volatile void*)&rusb->D0FIFO, len);
       pipe->buf = (uint8_t*)buf + len;
@@ -391,7 +410,7 @@ static bool pipe_xfer_out(rusb2_reg_t* rusb, unsigned num)
 
   if (len) {
     if (pipe->ff) {
-      pipe_read_write_packet_ff((tu_fifo_t*)buf, (volatile void*)&rusb->D0FIFO, len, TUSB_DIR_OUT);
+      pipe_read_packet_ff((tu_fifo_t*)buf, (volatile void*)&rusb->D0FIFO, len);
     } else {
       pipe_read_packet(buf, (volatile void*)&rusb->D0FIFO, len);
       pipe->buf = (uint8_t*)buf + len;
