@@ -47,14 +47,14 @@ extern "C" {
 #pragma GCC diagnostic pop
 #endif
 
-//--------------------------------------------------------------------+
-//
-//--------------------------------------------------------------------+
-
 // IAR does not have __builtin_ctz
 #if defined(__ICCARM__)
   #define __builtin_ctz(x)   __iar_builtin_CLZ(__iar_builtin_RBIT(x))
 #endif
+
+//--------------------------------------------------------------------+
+//
+//--------------------------------------------------------------------+
 
 typedef struct {
   uint32_t reg_base;
@@ -77,6 +77,13 @@ static rusb2_controller_t rusb2_controller[] = {
 };
 
 #define RUSB2_REG(_p)      ((rusb2_reg_t*) rusb2_controller[_p].reg_base)
+
+#define rusb2_is_highspeed_rhport(_p)  (_p == 1)
+#define rusb2_is_highspeed_reg(_reg)   (_reg == RUSB2_REG(1))
+
+//--------------------------------------------------------------------+
+// RUSB2 API
+//--------------------------------------------------------------------+
 
 TU_ATTR_ALWAYS_INLINE static inline void rusb2_module_start(uint8_t rhport, bool start) {
   uint32_t const mask = 1U << (11+rhport);

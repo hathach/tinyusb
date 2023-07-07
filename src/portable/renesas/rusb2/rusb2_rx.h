@@ -42,6 +42,15 @@ TU_ATTR_ALWAYS_INLINE static inline rusb2_reg_t* RUSB2_REG(uint8_t rhport) {
   return (rusb2_reg_t *) RUSB2_REG_BASE;
 }
 
+
+#define rusb2_is_highspeed_rhport(_p)  (false)
+#define rusb2_is_highspeed_reg(_reg)   (false)
+
+//--------------------------------------------------------------------+
+//
+//--------------------------------------------------------------------+
+
+
 // Start/Stop MSTP TODO implement later
 TU_ATTR_ALWAYS_INLINE static inline void rusb2_module_start(uint8_t rhport, bool start) {
   (void) rhport;

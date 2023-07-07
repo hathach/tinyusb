@@ -61,19 +61,6 @@
 TU_ATTR_PACKED_BEGIN
 TU_ATTR_BIT_FIELD_ORDER_BEGIN
 
-typedef struct TU_ATTR_PACKED _ccrx_evenaccess {
-  union {
-    struct {
-      uint16_t      : 8;
-      uint16_t TRCLR: 1;
-      uint16_t TRENB: 1;
-      uint16_t      : 0;
-    };
-    uint16_t TRE;
-  };
-  uint16_t TRN;
-} reg_pipetre_t;
-
 typedef struct TU_ATTR_PACKED
 {
   void      *buf;      /* the start address of a transfer data buffer */
@@ -113,14 +100,6 @@ static dcd_data_t _dcd;
 //--------------------------------------------------------------------+
 // INTERNAL OBJECT & FUNCTION DECLARATION
 //--------------------------------------------------------------------+
-
-#ifdef RUSB2_SUPPORT_HIGHSPEED
-  #define is_highspeed_usbip(_p)     (_p == 1)
-  #define is_highspeed_regbase(_reg) (_reg == RUSB2_REG(1))
-#else
-  #define is_highspeed_usbip(_p)     (false)
-  #define is_highspeed_regbase(_reg) (false)
-#endif
 
 static unsigned find_pipe(unsigned xfer)
 {
@@ -215,7 +194,7 @@ static void pipe_write_packet(rusb2_reg_t * rusb, void *buf, volatile void *fifo
   volatile uint8_t *ff8;
 
   // Highspeed FIFO is 32-bit
-  if ( is_highspeed_regbase(rusb) ) {
+  if ( rusb2_is_highspeed_reg(rusb) ) {
     // TODO 32-bit access for better performance
     ff16 = (volatile uint16_t*) ((uintptr_t) fifo+2);
     ff8  = (volatile uint8_t *) ((uintptr_t) fifo+3);
@@ -706,7 +685,7 @@ void dcd_init(uint8_t rhport)
   rusb2_module_start(rhport, true);
 
 #ifdef RUSB2_SUPPORT_HIGHSPEED
-  if ( is_highspeed_usbip(rhport) ) {
+  if ( rusb2_is_highspeed_rhport(rhport) ) {
     rusb->SYSCFG_b.HSE = 1;
 
     // leave CLKSEL as default (0x11) 24Mhz
@@ -787,7 +766,7 @@ void dcd_connect(uint8_t rhport)
 {
   rusb2_reg_t* rusb = RUSB2_REG(rhport);
 
-  if ( is_highspeed_usbip(rhport)) {
+  if ( rusb2_is_highspeed_rhport(rhport)) {
     rusb->SYSCFG_b.CNEN = 1;
   }
   rusb->SYSCFG_b.DPRPU = 1;
@@ -824,7 +803,7 @@ bool dcd_edpt_open(uint8_t rhport, tusb_desc_endpoint_t const * ep_desc)
 
   if (xfer == TUSB_XFER_ISOCHRONOUS) {
     // Fullspeed ISO is limit to 256 bytes
-    if ( !is_highspeed_usbip(rhport) && mps > 256) {
+    if ( !rusb2_is_highspeed_rhport(rhport) && mps > 256) {
       return false;
     }
   }
@@ -838,7 +817,7 @@ bool dcd_edpt_open(uint8_t rhport, tusb_desc_endpoint_t const * ep_desc)
   /* setup pipe */
   dcd_int_disable(rhport);
 
-  if ( is_highspeed_usbip(rhport) ) {
+  if ( rusb2_is_highspeed_rhport(rhport) ) {
     // FIXME shouldn't be after pipe selection and config, also the BUFNMB should be changed
     // depending on the allocation scheme
     rusb->PIPEBUF = 0x7C08;

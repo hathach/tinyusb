@@ -48,6 +48,20 @@ extern "C" {
 TU_ATTR_PACKED_BEGIN
 TU_ATTR_BIT_FIELD_ORDER_BEGIN
 
+// TODO same as RUSB2_PIPE_TR_t
+typedef struct TU_ATTR_PACKED _ccrx_evenaccess {
+  union {
+    struct {
+      uint16_t      : 8;
+      uint16_t TRCLR: 1;
+      uint16_t TRENB: 1;
+      uint16_t      : 0;
+    };
+    uint16_t TRE;
+  };
+  uint16_t TRN;
+} reg_pipetre_t;
+
 typedef struct {
   union {
     volatile uint16_t E; /* (@ 0x00000000) Pipe Transaction Counter Enable Register */
