@@ -49,8 +49,6 @@
 
 /* Key code for writing PRCR register. */
 #define BSP_PRV_PRCR_KEY         (0xA500U)
-#define BSP_PRV_PRCR_PRC1_UNLOCK ((BSP_PRV_PRCR_KEY) | 0x2U)
-#define BSP_PRV_PRCR_LOCK         ((BSP_PRV_PRCR_KEY) | 0x0U)
 
 static const ioport_cfg_t family_pin_cfg = {
     .number_of_pins = sizeof(board_pin_cfg) / sizeof(ioport_pin_cfg_t),
@@ -98,10 +96,13 @@ void board_init(void) {
   R_IOPORT_Open(&port_ctrl, &family_pin_cfg);
 
 #ifdef TRACE_ETM
-  // Enable trace clock (max 100Mhz) = PLL / div
-  // Somehow ozone/jtrace always fixed trace div to 1 therefore for ETM tracing working reliably
-  // PLL is limited around 100Mhz
+  // TRCKCR is protected by PRCR bit0 register
+  R_SYSTEM->PRCR = (uint16_t) (BSP_PRV_PRCR_KEY | 0x01);
+
+  // Enable trace clock (max 100Mhz). Since PLL/CPU is 200Mhz, clock div = 2
   R_SYSTEM->TRCKCR = R_SYSTEM_TRCKCR_TRCKEN_Msk | 0x01;
+
+  R_SYSTEM->PRCR = (uint16_t) BSP_PRV_PRCR_KEY;
 #endif
 
 #if CFG_TUSB_OS == OPT_OS_FREERTOS

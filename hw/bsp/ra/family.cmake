@@ -37,10 +37,6 @@ function(add_board_target BOARD_TARGET)
       ${FSP_RA}/src/bsp/mcu/all/bsp_security.c
       ${FSP_RA}/src/r_ioport/r_ioport.c
       )
-    # ETM Trace option
-    if (TRACE_ETM STREQUAL "1")
-      target_compile_definitions(${BOARD_TARGET} PUBLIC TRACE_ETM)
-    endif ()
 
     target_compile_options(${BOARD_TARGET} PUBLIC
       -ffreestanding

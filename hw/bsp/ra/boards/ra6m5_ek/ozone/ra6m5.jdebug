@@ -29,9 +29,8 @@ void OnProjectLoad (void) {
 **********************************************************************
 */
 void BeforeTargetConnect (void) {
-  //
   // Trace pin init is done by J-Link script file as J-Link script files are IDE independent
-  //
+	Project.SetJLinkScript("../../../debug.jlinkscript");
 }
 
 /*********************************************************************

@@ -8,14 +8,7 @@
 #define BSP_CFG_HOCO_FREQUENCY  (2)                                /* HOCO 20MHz */
 #define BSP_CFG_PLL_SOURCE      (BSP_CLOCKS_SOURCE_CLOCK_MAIN_OSC) /* PLL Src: XTAL */
 #define BSP_CFG_PLL_DIV         (BSP_CLOCKS_PLL_DIV_3)             /* PLL Div /3 */
-
-#ifdef TRACE_ETM
-// Due to ozone fixed trace clock div = 1, PLL is limited around 100Mhz. This use 128 Mhz
-#define BSP_CFG_PLL_MUL         (BSP_CLOCKS_PLL_MUL(16U,0U))       /* PLL Mul x16.0 */
-#else
 #define BSP_CFG_PLL_MUL         (BSP_CLOCKS_PLL_MUL(25U,0U))       /* PLL Mul x25.0 */
-#endif
-
 #define BSP_CFG_PLL2_SOURCE     (BSP_CLOCKS_SOURCE_CLOCK_MAIN_OSC) /* PLL2 Src: XTAL */
 #define BSP_CFG_PLL2_DIV        (BSP_CLOCKS_PLL_DIV_2)             /* PLL2 Div /2 */
 #define BSP_CFG_PLL2_MUL        (BSP_CLOCKS_PLL_MUL(20U,0U))       /* PLL2 Mul x20.0 */
@@ -40,6 +33,5 @@
 #define BSP_CFG_OCTA_DIV        (BSP_CLOCKS_OCTA_CLOCK_DIV_1)      /* OCTASPICLK Div /1 */
 #define BSP_CFG_CANFDCLK_DIV    (BSP_CLOCKS_CANFD_CLOCK_DIV_1)     /* CANFDCLK Div /1 */
 #define BSP_CFG_CECCLK_DIV      (BSP_CLOCKS_CEC_CLOCK_DIV_1)       /* CECCLK Div /1 */
-
 
 #endif /* BSP_CLOCK_CFG_H_ */
