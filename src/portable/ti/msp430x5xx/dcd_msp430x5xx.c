@@ -688,7 +688,7 @@ static void handle_bus_power_event(void *param)
 
     if(!USBPLLIR)                     // A successful lock is indicated by all PLL-related interrupt
     {                                 // flags being cleared.
-      dcd_init(0);                    // Re-initialize the USB module. 
+      dcd_init(0);                    // Re-initialize the USB module.
     }
   }
   else                                // Event caused by removal of bus power.
