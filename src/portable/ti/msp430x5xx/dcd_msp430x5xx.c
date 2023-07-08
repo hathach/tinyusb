@@ -94,10 +94,6 @@ static void bus_reset(void)
   USBOEPCNT_0 &= ~NAK;
   USBIEPCNT_0 &= ~NAK;
 
-  // Disable (subsequent) bus reset events from causing a functional
-  // reset of the USB module.
-  USBCTL &= ~FRSTE;
-
   // Enable responding to packets.
   USBCTL |= FEN;
 
@@ -108,6 +104,28 @@ static void bus_reset(void)
   USBKEYPID = 0;
 }
 
+// Controls reset behavior of the USB module on receipt of a bus reset event.
+// - enable: When true, bus reset events will cause a reset the USB module.
+static void enable_functional_reset(const bool enable)
+{
+  // Check whether or not the USB configuration registers were
+  // locked prior to this function being called so that, if
+  // necessary, the lock state can be restored on exit.
+  bool unlocked = (USBKEYPID == 0xA528) ? true : false;
+
+  if(!unlocked) USBKEYPID = USBKEY;
+
+  if(enable)
+  {
+    USBCTL |= FRSTE;
+  }
+  else
+  {
+    USBCTL &= ~FRSTE;
+  }
+
+  if(!unlocked) USBKEYPID = 0;
+}
 
 /*------------------------------------------------------------------*/
 /* Controller API
@@ -339,10 +357,6 @@ bool dcd_edpt_xfer (uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t 
 
   if(epnum == 0)
   {
-    // Enables a bus reset to cause a functional reset of the USB
-    // module.
-    USBCTL |= FRSTE;
-
     if(dir == TUSB_DIR_OUT)
     {
       // Interrupt will notify us when data was received.
@@ -638,7 +652,11 @@ static void handle_setup_packet(void)
   //
   // "...the SETUPIFG is cleared upon reading USBIV. In addition, the NAK on
   // input endpoint 0 and output endpoint 0 is also cleared."
+  USBIEPCNF_0 &= ~UBME; // Errata USB10 workaround.
+  USBOEPCNF_0 &= ~UBME; // Errata USB10 workaround.
   USBIFG &= ~SETUPIFG;
+  USBIEPCNF_0 |= UBME;  // Errata USB10 workaround.
+  USBOEPCNF_0 |= UBME;  // Errata USB10 workaround.
   dcd_event_setup_received(0, (uint8_t*) &_setup_packet[0], true);
 }
 
@@ -661,7 +679,7 @@ static void handle_bus_power_event(void *param)
 
     uint16_t attempts = 0;
 
-    do                                // Poll the PLL to check for a successful lock.
+    do                                // Poll the PLL, checking for a successful lock.
     {
       USBPLLIR = 0;
       osal_task_delay(1);
@@ -694,6 +712,7 @@ void dcd_int_handler(uint8_t rhport)
 
   if(setup_status)
   {
+    enable_functional_reset(true);
     handle_setup_packet();
   }
 
@@ -716,6 +735,7 @@ void dcd_int_handler(uint8_t rhport)
       break;
 
     case USBVECINT_RSTR:
+      enable_functional_reset(false); // Errata USB4 workaround.
       bus_reset();
       dcd_event_bus_reset(0, TUSB_SPEED_FULL, true);
       break;
@@ -762,10 +782,12 @@ void dcd_int_handler(uint8_t rhport)
       break;
 
     case USBVECINT_INPUT_ENDPOINT0:
+      enable_functional_reset(true);
       transmit_packet(0);
       break;
 
     case USBVECINT_OUTPUT_ENDPOINT0:
+      enable_functional_reset(true);
       receive_packet(0);
       break;
 
