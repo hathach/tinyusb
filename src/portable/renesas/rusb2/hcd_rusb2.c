@@ -265,7 +265,7 @@ static bool pipe_xfer_in(rusb2_reg_t* rusb, unsigned num)
     pipe->buf = (uint8_t*)buf + len;
   }
   if (len < mps) {
-    rusb->D0FIFOCTR = RUSB2_CFIFOCTR_BCLR_Msk;
+    rusb->D0FIFOCTR = RUSB2_D0FIFOCTR_BCLR_Msk;
   }
   rusb->D0FIFOSEL = 0;
   while (rusb->D0FIFOSEL_b.CURPIPE) ; /* if CURPIPE bits changes, check written value */
@@ -297,7 +297,7 @@ static bool pipe_xfer_out(rusb2_reg_t* rusb, unsigned num)
     pipe->buf = (uint8_t*)buf + len;
   }
   if (len < mps) {
-    rusb->D0FIFOCTR = RUSB2_CFIFOCTR_BVAL_Msk;
+    rusb->D0FIFOCTR = RUSB2_D0FIFOCTR_BVAL_Msk;
   }
   rusb->D0FIFOSEL = 0;
   while (rusb->D0FIFOSEL_b.CURPIPE) ; /* if CURPIPE bits changes, check written value */
@@ -367,7 +367,7 @@ static bool process_pipe_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr,
     } else { /* ZLP */
       rusb->D0FIFOSEL = num;
       pipe_wait_for_ready(rusb, num);
-      rusb->D0FIFOCTR = RUSB2_CFIFOCTR_BVAL_Msk;
+      rusb->D0FIFOCTR = RUSB2_D0FIFOCTR_BVAL_Msk;
       rusb->D0FIFOSEL = 0;
       while (rusb->D0FIFOSEL_b.CURPIPE) {} /* if CURPIPE bits changes, check written value */
     }
