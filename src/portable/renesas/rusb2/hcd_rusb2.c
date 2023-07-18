@@ -41,6 +41,8 @@
   #error "Unsupported MCU"
 #endif
 
+#define TU_RUSB2_HCD_DBG   0
+
 //--------------------------------------------------------------------+
 // MACRO TYPEDEF CONSTANT ENUM DECLARATION
 //--------------------------------------------------------------------+
@@ -116,7 +118,7 @@ static unsigned find_pipe(unsigned xfer)
     for (int i = 3; i <= 5; ++i) {
       if (0 == _hcd.pipe[i].ep) return  i;
     }
-    for (int i = 1; i <= 1; ++i) {
+    for (int i = 1; i <= 2; ++i) {
       if (0 == _hcd.pipe[i].ep) return  i;
     }
     break;
@@ -409,10 +411,11 @@ static void process_pipe_nrdy(uint8_t rhport, unsigned num)
   (void)rhport;
   xfer_result_t result;
   uint16_t volatile *ctr = get_pipectr(num);
-  // TU_LOG1("NRDY %d %x\n", num, *ctr);
+  TU_LOG(TU_RUSB2_HCD_DBG, "NRDY %d %x\n", num, *ctr);
   switch (*ctr & RUSB2_PIPE_CTR_PID_Msk) {
     default: return;
     case RUSB2_PIPE_CTR_PID_STALL: result = XFER_RESULT_STALLED; break;
+    case RUSB2_PIPE_CTR_PID_STALL2: result = XFER_RESULT_STALLED; break;
     case RUSB2_PIPE_CTR_PID_NAK:   result = XFER_RESULT_FAILED;  break;
   }
   pipe_state_t *pipe = &_hcd.pipe[num];
@@ -441,7 +444,7 @@ static void process_pipe_brdy(uint8_t rhport, unsigned num)
     hcd_event_xfer_complete(pipe->dev, pipe->ep,
                             pipe->length - pipe->remaining,
                             XFER_RESULT_SUCCESS, true);
-    //  TU_LOG1("C %d %d\r\n", num, pipe->length - pipe->remaining);
+    TU_LOG(TU_RUSB2_HCD_DBG, "C %d %d\r\n", num, pipe->length - pipe->remaining);
   }
 }
 
@@ -586,7 +589,7 @@ void hcd_device_close(uint8_t rhport, uint8_t dev_addr)
   uint8_t *ep = &_hcd.ep[dev_addr - 1][0][0];
   for (int i = 0; i < 2 * 15; ++i, ++ep) {
     unsigned num = *ep;
-    if (!num || dev_addr != _hcd.pipe[num].dev) continue;
+    if (!num || (dev_addr != _hcd.pipe[num].dev)) continue;
 
     ctr = (uint16_t volatile*)&RUSB2->PIPE_CTR[num - 1];
     *ctr = 0;
@@ -608,7 +611,7 @@ void hcd_device_close(uint8_t rhport, uint8_t dev_addr)
 bool hcd_setup_send(uint8_t rhport, uint8_t dev_addr, uint8_t const setup_packet[8])
 {
   (void)rhport;
-  //  TU_LOG1("S %d %x\n", dev_addr, RUSB2->DCPCTR);
+  TU_LOG(TU_RUSB2_HCD_DBG, "S %d %x\n", dev_addr, RUSB2->DCPCTR);
 
   TU_ASSERT(dev_addr < 6); /* USBa can only handle addresses from 0 to 5. */
   TU_ASSERT(0 == RUSB2->DCPCTR_b.SUREQ);
@@ -701,7 +704,7 @@ bool hcd_edpt_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr, uint8_t *b
 {
   bool r;
   hcd_int_disable(rhport);
-  // TU_LOG1("X %d %x %u\n", dev_addr, ep_addr, buflen);
+  TU_LOG(TU_RUSB2_HCD_DBG, "X %d %x %u\n", dev_addr, ep_addr, buflen);
   r = process_edpt_xfer(dev_addr, ep_addr, buffer, buflen);
   hcd_int_enable(rhport);
   return r;
@@ -745,7 +748,7 @@ void hcd_int_handler(uint8_t rhport)
   /* clear active bits except VALID (don't write 0 to already cleared bits according to the HW manual) */
   RUSB2->INTSTS1 = ~((RUSB2_INTSTS1_SACK_Msk | RUSB2_INTSTS1_SIGN_Msk | RUSB2_INTSTS1_ATTCH_Msk | RUSB2_INTSTS1_DTCH_Msk) & is1);
   RUSB2->INTSTS0 = ~((RUSB2_INTSTS0_BRDY_Msk | RUSB2_INTSTS0_NRDY_Msk | RUSB2_INTSTS0_BEMP_Msk) & is0);
-  // TU_LOG1("IS %04x %04x\n", is0, is1);
+  TU_LOG(TU_RUSB2_HCD_DBG, "IS %04x %04x\n", is0, is1);
   is1 &= RUSB2->INTENB1;
   is0 &= RUSB2->INTENB0;
 
