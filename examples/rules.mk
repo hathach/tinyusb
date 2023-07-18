@@ -99,19 +99,16 @@ endif
 JLINK_IF ?= swd
 
 # Jlink script
-define jlink_script
-halt
-loadfile $^
-r
-go
-exit
-endef
-export jlink_script
+$(BUILD)/$(BOARD).jlink: $(BUILD)/$(PROJECT).hex
+	@echo halt > $@
+	@echo loadfile $^ >> $@
+	@echo r >> $@
+	@echo go >> $@
+	@echo exit >> $@
 
 # Flash using jlink
-flash-jlink: $(BUILD)/$(PROJECT).hex
-	@echo "$$jlink_script" > $(BUILD)/$(BOARD).jlink
-	$(JLINKEXE) -device $(JLINK_DEVICE) -if $(JLINK_IF) -JTAGConf -1,-1 -speed auto -CommandFile $(BUILD)/$(BOARD).jlink
+flash-jlink: $(BUILD)/$(BOARD).jlink
+	$(JLINKEXE) -device $(JLINK_DEVICE) -if $(JLINK_IF) -JTAGConf -1,-1 -speed auto -CommandFile $<
 
 # Flash STM32 MCU using stlink with STM32 Cube Programmer CLI
 flash-stlink: $(BUILD)/$(PROJECT).elf
