@@ -791,7 +791,7 @@ bool usbh_edpt_xfer_with_callback(uint8_t dev_addr, uint8_t ep_addr, uint8_t * b
   uint8_t const dir   = tu_edpt_dir(ep_addr);
   tu_edpt_state_t* ep_state = &dev->ep_status[epnum][dir];
 
-  TU_LOG_USBH("  Queue EP %02X with %u bytes ... ", ep_addr, total_bytes);
+  TU_LOG_USBH("  Queue EP %02X with %u bytes ... \r\n", ep_addr, total_bytes);
 
   // Attempt to transfer on a busy endpoint, sound like an race condition !
   TU_ASSERT(ep_state->busy == 0);

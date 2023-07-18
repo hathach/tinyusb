@@ -24,12 +24,14 @@ set(FAMILY_MCUS MIMXRT1XXX CACHE INTERNAL "")
 function(add_board_target BOARD_TARGET)
   if (NOT TARGET ${BOARD_TARGET})
     add_library(${BOARD_TARGET} STATIC
+      ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/boards/${BOARD}/board/clock_config.c
+      #${SDK_DIR}/drivers/adc_12b1msps_sar/fsl_adc.c
       ${SDK_DIR}/drivers/common/fsl_common.c
       ${SDK_DIR}/drivers/igpio/fsl_gpio.c
+      ${SDK_DIR}/drivers/lpspi/fsl_lpspi.c
       ${SDK_DIR}/drivers/lpuart/fsl_lpuart.c
       ${SDK_DIR}/devices/${MCU_VARIANT}/system_${MCU_VARIANT}.c
       ${SDK_DIR}/devices/${MCU_VARIANT}/xip/fsl_flexspi_nor_boot.c
-      ${SDK_DIR}/devices/${MCU_VARIANT}/project_template/clock_config.c
       ${SDK_DIR}/devices/${MCU_VARIANT}/drivers/fsl_clock.c
       )
     target_compile_definitions(${BOARD_TARGET} PUBLIC
@@ -39,12 +41,15 @@ function(add_board_target BOARD_TARGET)
       XIP_BOOT_HEADER_ENABLE=1
       )
     target_include_directories(${BOARD_TARGET} PUBLIC
+      ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/boards/${BOARD}
+      ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/boards/${BOARD}/board
       ${CMSIS_DIR}/CMSIS/Core/Include
       ${SDK_DIR}/devices/${MCU_VARIANT}
-      ${SDK_DIR}/devices/${MCU_VARIANT}/project_template
       ${SDK_DIR}/devices/${MCU_VARIANT}/drivers
+      #${SDK_DIR}/drivers/adc_12b1msps_sar
       ${SDK_DIR}/drivers/common
       ${SDK_DIR}/drivers/igpio
+      ${SDK_DIR}/drivers/lpspi
       ${SDK_DIR}/drivers/lpuart
       )
 
