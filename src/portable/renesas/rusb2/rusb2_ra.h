@@ -106,13 +106,6 @@ TU_ATTR_ALWAYS_INLINE static inline void rusb2_int_disable(uint8_t rhport) {
 TU_ATTR_ALWAYS_INLINE static inline void rusb2_phy_init(void) {
 }
 
-//--------------------------------------------------------------------+
-// Application API for setting IRQ number
-//--------------------------------------------------------------------+
-void tud_int_set_irqnum(uint8_t rhport, int32_t irqnum) {
-  rusb2_controller[rhport].irqnum = irqnum;
-}
-
 #ifdef __cplusplus
 }
 #endif

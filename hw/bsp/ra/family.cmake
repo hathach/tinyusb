@@ -13,7 +13,7 @@ include(${CMAKE_CURRENT_LIST_DIR}/boards/${BOARD}/board.cmake)
 
 set(CMAKE_TOOLCHAIN_FILE ${TOP}/tools/cmake/toolchain/arm_${TOOLCHAIN}.cmake)
 
-set(FAMILY_MCUS RAXXX CACHE INTERNAL "")
+set(FAMILY_MCUS RAXXX ${MCU_VARIANT} CACHE INTERNAL "")
 
 #------------------------------------
 # BOARD_TARGET

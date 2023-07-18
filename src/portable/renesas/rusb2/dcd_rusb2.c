@@ -27,11 +27,11 @@
 
 #include "tusb_option.h"
 
+#if CFG_TUD_ENABLED && defined(TUP_USBIP_RUSB2)
+
 // Since TinyUSB doesn't use SOF for now, and this interrupt too often (1ms interval)
 // We disable SOF for now until needed later on
 #define USE_SOF     0
-
-#if CFG_TUD_ENABLED && defined(TUP_USBIP_RUSB2)
 
 #include "device/dcd.h"
 #include "rusb2_type.h"
@@ -52,6 +52,13 @@
 #else
   #error "Unsupported MCU"
 #endif
+
+//--------------------------------------------------------------------+
+// Application API for setting IRQ number
+//--------------------------------------------------------------------+
+void tud_int_set_irqnum(uint8_t rhport, int32_t irqnum) {
+  rusb2_controller[rhport].irqnum = irqnum;
+}
 
 //--------------------------------------------------------------------+
 // MACRO TYPEDEF CONSTANT ENUM
@@ -681,7 +688,6 @@ static void enable_interrupt(uint32_t pswi)
 void dcd_init(uint8_t rhport)
 {
   rusb2_reg_t* rusb = RUSB2_REG(rhport);
-
   rusb2_module_start(rhport, true);
 
 #ifdef RUSB2_SUPPORT_HIGHSPEED

@@ -27,8 +27,7 @@
 
 #include "tusb_option.h"
 
-#if CFG_TUH_ENABLED && (TU_CHECK_MCU(OPT_MCU_RX63X, OPT_MCU_RX65X, OPT_MCU_RX72N) || \
-                        TU_CHECK_MCU(OPT_MCU_RAXXX))
+#if CFG_TUH_ENABLED && defined(TUP_USBIP_RUSB2)
 
 #include "host/hcd.h"
 #include "rusb2_type.h"
@@ -41,8 +40,14 @@
 
 #if TU_CHECK_MCU(OPT_MCU_RX63X, OPT_MCU_RX65X, OPT_MCU_RX72N)
   #include "rusb2_rx.h"
+
 #elif TU_CHECK_MCU(OPT_MCU_RAXXX)
   #include "rusb2_ra.h"
+
+  void osal_task_delay(uint32_t msec) {
+    R_BSP_SoftwareDelay(msec, BSP_DELAY_UNITS_MILLISECONDS);
+  }
+
 #else
   #error "Unsupported MCU"
 #endif
@@ -66,19 +71,6 @@
 
 TU_ATTR_PACKED_BEGIN
 TU_ATTR_BIT_FIELD_ORDER_BEGIN
-
-typedef struct TU_ATTR_PACKED {
-  union {
-    struct {
-      uint16_t      : 8;
-      uint16_t TRCLR: 1;
-      uint16_t TRENB: 1;
-      uint16_t      : 0;
-    };
-    uint16_t TRE;
-  };
-  uint16_t TRN;
-} reg_pipetre_t;
 
 typedef union TU_ATTR_PACKED {
   struct {
@@ -308,8 +300,9 @@ static bool pipe_xfer_out(unsigned num)
     pipe_write_packet(buf, (volatile void*)&RUSB2->D0FIFO, len);
     pipe->buf = (uint8_t*)buf + len;
   }
-  if (len < mps)
+  if (len < mps) {
     RUSB2->D0FIFOCTR = RUSB2_CFIFOCTR_BVAL_Msk;
+  }
   RUSB2->D0FIFOSEL = 0;
   while (RUSB2->D0FIFOSEL_b.CURPIPE) ; /* if CURPIPE bits changes, check written value */
   pipe->remaining = rem - len;
@@ -488,60 +481,60 @@ static void enable_interrupt(uint32_t pswi)
 
 bool hcd_init(uint8_t rhport)
 {
-  (void)rhport;
+  rusb2_reg_t* rusb = RUSB2_REG(rhport);
+  rusb2_module_start(rhport, true);
 
-#if (CFG_TUSB_RHPORT1_MODE & OPT_MODE_HOST)
-  RUSB2->SYSCFG_b.HSE = 1;
-  RUSB2->PHYSET_b.HSEB = 0;
-  RUSB2->PHYSET_b.DIRPD = 0;
-  R_BSP_SoftwareDelay((uint32_t) 1, BSP_DELAY_UNITS_MILLISECONDS);
-  RUSB2->PHYSET_b.PLLRESET = 0;
-  RUSB2->LPSTS_b.SUSPENDM = 1;
-  while (!RUSB2->PLLSTA_b.PLLLOCK);
-  RUSB2->SYSCFG_b.DRPD = 1;
-  RUSB2->SYSCFG_b.DCFM = 1;
-  RUSB2->SYSCFG_b.DPRPU = 0;
-  RUSB2->SYSCFG_b.CNEN = 1;
-  RUSB2->BUSWAIT |= 0x0F00U;
-  RUSB2->SOFCFG_b.INTL = 1;
-  RUSB2->DVSTCTR0_b.VBUSEN = 1;
-  RUSB2->CFIFOSEL_b.MBW = 1;
-  RUSB2->D0FIFOSEL_b.MBW = 1;
-  RUSB2->D1FIFOSEL_b.MBW = 1;
-  RUSB2->INTSTS0 = 0;
-  for (volatile int i = 0; i < 30000; ++i) ;
-  RUSB2->SYSCFG_b.USBE = 1;
-#else
-  /* HOST DEVICE Full SPEED */
-  RUSB2->SYSCFG_b.SCKE = 1;         /* USB Clock enable */
-  while (!RUSB2->SYSCFG_b.SCKE) ;
-  RUSB2->SYSCFG_b.DPRPU = 0;        /* D+ pull up enable - 0/disable in host mode */
-  RUSB2->SYSCFG_b.DRPD = 1;         /* D+/D- pull down - 1/in Host mode (pag.834)*/
-  RUSB2->SYSCFG_b.DCFM = 1;         /* HOST or Device - 1/HOST */
-
-  RUSB2->DVSTCTR0_b.VBUSEN = 1;
-
-  RUSB2->SYSCFG_b.DRPD = 1;
-  for (volatile int i = 0; i < 30000; ++i) ;
-  RUSB2->SYSCFG_b.USBE = 1;
+#ifdef RUSB2_SUPPORT_HIGHSPEED
+  if (rusb2_is_highspeed_rhport(rhport) ) {
+    rusb->SYSCFG_b.HSE = 1;
+    rusb->PHYSET_b.HSEB = 0;
+    rusb->PHYSET_b.DIRPD = 0;
+    R_BSP_SoftwareDelay((uint32_t) 1, BSP_DELAY_UNITS_MILLISECONDS);
+    rusb->PHYSET_b.PLLRESET = 0;
+    rusb->LPSTS_b.SUSPENDM = 1;
+    while ( !rusb->PLLSTA_b.PLLLOCK );
+    rusb->SYSCFG_b.DRPD = 1;
+    rusb->SYSCFG_b.DCFM = 1;
+    rusb->SYSCFG_b.DPRPU = 0;
+    rusb->SYSCFG_b.CNEN = 1;
+    rusb->BUSWAIT |= 0x0F00U;
+    rusb->SOFCFG_b.INTL = 1;
+    rusb->DVSTCTR0_b.VBUSEN = 1;
+    rusb->CFIFOSEL_b.MBW = 1;
+    rusb->D0FIFOSEL_b.MBW = 1;
+    rusb->D1FIFOSEL_b.MBW = 1;
+    rusb->INTSTS0 = 0;
+    for ( volatile int i = 0; i < 30000; ++i );
+    rusb->SYSCFG_b.USBE = 1;
+  } else
 #endif
+  {
+    rusb->SYSCFG_b.SCKE = 1;
+    while ( !rusb->SYSCFG_b.SCKE ) {}
+    rusb->SYSCFG_b.DCFM = 1;         // Host function
+    rusb->SYSCFG_b.DPRPU = 0;        // Disable D+ pull up
+    rusb->SYSCFG_b.DRPD = 1;         // Enable D+/D- pull down
 
-  // MCU specific PHY init
-  rusb2_phy_init();
+    rusb->DVSTCTR0_b.VBUSEN = 1;
+    for ( volatile int i = 0; i < 30000; ++i ) {} // FIXME do we need to wait here? how long ?
+    //R_BSP_SoftwareDelay(10, BSP_DELAY_UNITS_MILLISECONDS);
+    rusb->SYSCFG_b.USBE = 1;
 
-#if (CFG_TUSB_RHPORT0_MODE & OPT_MODE_HOST)
-  RUSB2->PHYSLEW = 0x5;
-  RUSB2->DPUSR0R_FS_b.FIXPHY0 = 0u; /* Transceiver Output fixed */
-#endif
+    // MCU specific PHY init
+    rusb2_phy_init();
+
+    rusb->PHYSLEW = 0x5;
+    rusb->DPUSR0R_FS_b.FIXPHY0 = 0u; /* Transceiver Output fixed */
+  }
 
   /* Setup default control pipe */
-  RUSB2->DCPCFG  = RUSB2_PIPECFG_SHTNAK_Msk;
-  RUSB2->DCPMAXP = 64;
-  RUSB2->INTENB0 = RUSB2_INTSTS0_BRDY_Msk | RUSB2_INTSTS0_NRDY_Msk | RUSB2_INTSTS0_BEMP_Msk;
-  RUSB2->INTENB1 = RUSB2_INTSTS1_SACK_Msk | RUSB2_INTSTS1_SIGN_Msk | RUSB2_INTSTS1_ATTCH_Msk | RUSB2_INTSTS1_DTCH_Msk;
-  RUSB2->BEMPENB = 1;
-  RUSB2->NRDYENB = 1;
-  RUSB2->BRDYENB = 1;
+  rusb->DCPCFG  = RUSB2_PIPECFG_SHTNAK_Msk;
+  rusb->DCPMAXP = 64;
+  rusb->INTENB0 = RUSB2_INTSTS0_BRDY_Msk | RUSB2_INTSTS0_NRDY_Msk | RUSB2_INTSTS0_BEMP_Msk;
+  rusb->INTENB1 = RUSB2_INTSTS1_SACK_Msk | RUSB2_INTSTS1_SIGN_Msk | RUSB2_INTSTS1_ATTCH_Msk | RUSB2_INTSTS1_DTCH_Msk;
+  rusb->BEMPENB = 1;
+  rusb->NRDYENB = 1;
+  rusb->BRDYENB = 1;
 
   return true;
 }
