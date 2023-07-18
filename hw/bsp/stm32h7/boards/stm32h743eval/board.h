@@ -61,8 +61,7 @@
 //--------------------------------------------------------------------+
 // RCC Clock
 //--------------------------------------------------------------------+
-static inline void board_stm32h7_clock_init(void)
-{
+static inline void board_stm32h7_clock_init(void) {
   RCC_ClkInitTypeDef RCC_ClkInitStruct = { 0 };
   RCC_OscInitTypeDef RCC_OscInitStruct = { 0 };
   RCC_PeriphCLKInitTypeDef PeriphClkInitStruct = { 0 };
@@ -75,7 +74,7 @@ static inline void board_stm32h7_clock_init(void)
      regarding system frequency refer to product datasheet.  */
   __HAL_PWR_VOLTAGESCALING_CONFIG(PWR_REGULATOR_VOLTAGE_SCALE1);
 
-  while ((PWR->D3CR & (PWR_D3CR_VOSRDY)) != PWR_D3CR_VOSRDY) {}
+  while ( (PWR->D3CR & (PWR_D3CR_VOSRDY)) != PWR_D3CR_VOSRDY ) {}
 
   /* Enable HSE Oscillator and activate PLL with HSE as source */
   RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSE;
@@ -85,40 +84,23 @@ static inline void board_stm32h7_clock_init(void)
   RCC_OscInitStruct.PLL.PLLState = RCC_PLL_ON;
   RCC_OscInitStruct.PLL.PLLSource = RCC_PLLSOURCE_HSE;
 
-  // PLL1 for System Clock
-#ifdef TRACE_ETM
-  // From H743 eval board manual
-  // - ETM can only work at 50 MHz clock by default because ETM signals are shared with other peripherals. If better
-  //   performance of ETM is required (84 MHz/98 MHz), R217, R230, R231, R234, R236, SB2, SB5, SB8, SB11,
-  //   SB42, SB57 must be removed to reduce the stub on ETM signals. In this configuration SAI and PDM are not
-  //   functional and NOR Flash and the address of SRAM are limited on A18.
-  // - ETM trace function would be abnormal as SAI_SDB share the same pins with TRACE_D0, and TRACE_D0
-  //   would be forced high by SAI_SDB. When using ETM trace it is necessary to set ADCDAT1 pin (SAI_SDB signal
-  //   of the STM32) of audio codec WM8994ECS/R (U22) by software to be tri-state.
-
-  // Since Trace CLK = PLL1 / 3 --> max PLL1 clock is 150Mhz
-  RCC_OscInitStruct.PLL.PLLM = 2;
-  RCC_OscInitStruct.PLL.PLLN = 24;
-  RCC_OscInitStruct.PLL.PLLP = 2;
-  RCC_OscInitStruct.PLL.PLLQ = 4;
-  RCC_OscInitStruct.PLL.PLLR = 2;
-  RCC_OscInitStruct.PLL.PLLFRACN = 0;
-#else
-  // Set PLL1 to 400Mhz
+  // PLL1 for System Clock (400Mhz)
+  // From H743 eval manual ETM can only work at 50 MHz clock by default because ETM signals
+  // are shared with other peripherals. Trace CLK = PLL1R.
   RCC_OscInitStruct.PLL.PLLM = 5;
   RCC_OscInitStruct.PLL.PLLN = 160;
   RCC_OscInitStruct.PLL.PLLP = 2;
-  RCC_OscInitStruct.PLL.PLLR = 2;
   RCC_OscInitStruct.PLL.PLLQ = 4;
-#endif
+  RCC_OscInitStruct.PLL.PLLR = 6; // Trace clock is 400/6 = 66.67 MHz (larger than 50 MHz but work well)
   RCC_OscInitStruct.PLL.PLLVCOSEL = RCC_PLL1VCOMEDIUM;
+  RCC_OscInitStruct.PLL.PLLFRACN = 0;
   RCC_OscInitStruct.PLL.PLLRGE = RCC_PLL1VCIRANGE_2;
   HAL_RCC_OscConfig(&RCC_OscInitStruct);
 
 
   /* Select PLL as system clock source and configure bus clocks dividers */
   RCC_ClkInitStruct.ClockType = RCC_CLOCKTYPE_HCLK | RCC_CLOCKTYPE_SYSCLK | RCC_CLOCKTYPE_PCLK1 |
-      RCC_CLOCKTYPE_PCLK2 | RCC_CLOCKTYPE_D1PCLK1 | RCC_CLOCKTYPE_D3PCLK1;
+                                RCC_CLOCKTYPE_PCLK2 | RCC_CLOCKTYPE_D1PCLK1 | RCC_CLOCKTYPE_D3PCLK1;
 
   RCC_ClkInitStruct.SYSCLKSource = RCC_SYSCLKSOURCE_PLLCLK;
   RCC_ClkInitStruct.SYSCLKDivider = RCC_SYSCLK_DIV1;
@@ -141,10 +123,10 @@ static inline void board_stm32h7_clock_init(void)
   HAL_RCCEx_PeriphCLKConfig(&PeriphClkInitStruct);
 
   /*activate CSI clock mondatory for I/O Compensation Cell*/
-  __HAL_RCC_CSI_ENABLE() ;
+  __HAL_RCC_CSI_ENABLE();
 
   /* Enable SYSCFG clock mondatory for I/O Compensation Cell */
-  __HAL_RCC_SYSCFG_CLK_ENABLE() ;
+  __HAL_RCC_SYSCFG_CLK_ENABLE();
 
   /* Enables the I/O Compensation Cell */
   HAL_EnableCompensationCell();
