@@ -38,17 +38,19 @@
 //--------------------------------------------------------------------+
 
 #ifndef CFG_TUH_TASK_QUEUE_SZ
-#define CFG_TUH_TASK_QUEUE_SZ   16
+  #define CFG_TUH_TASK_QUEUE_SZ   16
 #endif
 
 #ifndef CFG_TUH_INTERFACE_MAX
-#define CFG_TUH_INTERFACE_MAX   8
+  #define CFG_TUH_INTERFACE_MAX   8
 #endif
 
-// Debug level, TUSB_CFG_DEBUG must be at least this level for debug message
-#define USBH_DEBUG   2
+// Level where CFG_TUSB_DEBUG must be at least for USBH is logged
+#ifndef CFG_TUH_LOG_LEVEL
+  #define CFG_TUH_LOG_LEVEL   2
+#endif
 
-#define TU_LOG_USBH(...)   TU_LOG(USBH_DEBUG, __VA_ARGS__)
+#define TU_LOG_USBH(...)   TU_LOG(CFG_TUH_LOG_LEVEL, __VA_ARGS__)
 
 //--------------------------------------------------------------------+
 // USBH-HCD common data structure
@@ -322,12 +324,12 @@ bool tuh_init(uint8_t controller_id)
   if ( tuh_inited() ) return true;
 
   TU_LOG_USBH("USBH init on controller %u\r\n", controller_id);
-  TU_LOG_INT(USBH_DEBUG, sizeof(usbh_device_t));
-  TU_LOG_INT(USBH_DEBUG, sizeof(hcd_event_t));
-  TU_LOG_INT(USBH_DEBUG, sizeof(_ctrl_xfer));
-  TU_LOG_INT(USBH_DEBUG, sizeof(tuh_xfer_t));
-  TU_LOG_INT(USBH_DEBUG, sizeof(tu_fifo_t));
-  TU_LOG_INT(USBH_DEBUG, sizeof(tu_edpt_stream_t));
+  TU_LOG_INT(CFG_TUH_LOG_LEVEL, sizeof(usbh_device_t));
+  TU_LOG_INT(CFG_TUH_LOG_LEVEL, sizeof(hcd_event_t));
+  TU_LOG_INT(CFG_TUH_LOG_LEVEL, sizeof(_ctrl_xfer));
+  TU_LOG_INT(CFG_TUH_LOG_LEVEL, sizeof(tuh_xfer_t));
+  TU_LOG_INT(CFG_TUH_LOG_LEVEL, sizeof(tu_fifo_t));
+  TU_LOG_INT(CFG_TUH_LOG_LEVEL, sizeof(tu_edpt_stream_t));
 
   // Event queue
   _usbh_q = osal_queue_create( &_usbh_qdef );
@@ -565,7 +567,7 @@ bool tuh_control_xfer (tuh_xfer_t* xfer)
   TU_LOG_USBH("[%u:%u] %s: ", rhport, daddr,
               (xfer->setup->bmRequestType_bit.type == TUSB_REQ_TYPE_STANDARD && xfer->setup->bRequest <= TUSB_REQ_SYNCH_FRAME) ?
                   tu_str_std_request[xfer->setup->bRequest] : "Class Request");
-  TU_LOG_PTR(USBH_DEBUG, xfer->setup);
+  TU_LOG_PTR(CFG_TUH_LOG_LEVEL, xfer->setup);
   TU_LOG_USBH("\r\n");
 
   if (xfer->complete_cb)
@@ -671,7 +673,7 @@ static bool usbh_control_xfer_cb (uint8_t dev_addr, uint8_t ep_addr, xfer_result
         if (request->wLength)
         {
           TU_LOG_USBH("[%u:%u] Control data:\r\n", rhport, dev_addr);
-          TU_LOG_MEM(USBH_DEBUG, _ctrl_xfer.buffer, xferred_bytes, 2);
+          TU_LOG_MEM(CFG_TUH_LOG_LEVEL, _ctrl_xfer.buffer, xferred_bytes, 2);
         }
 
         _ctrl_xfer.actual_len = (uint16_t) xferred_bytes;
@@ -1186,7 +1188,7 @@ static void process_removing_device(uint8_t rhport, uint8_t hub_addr, uint8_t hu
       TU_LOG_USBH("Device unplugged address = %u\r\n", daddr);
 
       if (is_hub_addr(daddr)) {
-        TU_LOG(USBH_DEBUG, "  is a HUB device %u\r\n", daddr);
+        TU_LOG(CFG_TUH_LOG_LEVEL, "  is a HUB device %u\r\n", daddr);
 
         // Submit removed event If the device itself is a hub (un-rolled recursive)
         // TODO a better to unroll recursrive is using array of removing_hubs and mark it here
@@ -1657,7 +1659,7 @@ static bool _parse_configuration_descriptor(uint8_t dev_addr, tusb_desc_configur
 
       if( drv_id >= USBH_CLASS_DRIVER_COUNT )
       {
-        TU_LOG(USBH_DEBUG, "Interface %u: class = %u subclass = %u protocol = %u is not supported\r\n",
+        TU_LOG(CFG_TUH_LOG_LEVEL, "Interface %u: class = %u subclass = %u protocol = %u is not supported\r\n",
                desc_itf->bInterfaceNumber, desc_itf->bInterfaceClass, desc_itf->bInterfaceSubClass, desc_itf->bInterfaceProtocol);
       }
     }
@@ -1695,7 +1697,7 @@ void usbh_driver_set_config_complete(uint8_t dev_addr, uint8_t itf_num)
 
     if (is_hub_addr(dev_addr))
     {
-      TU_LOG(USBH_DEBUG, "HUB address = %u is mounted\r\n", dev_addr);
+      TU_LOG(CFG_TUH_LOG_LEVEL, "HUB address = %u is mounted\r\n", dev_addr);
     }else
     {
       // Invoke callback if available
