@@ -710,6 +710,19 @@ bool tuh_edpt_xfer(tuh_xfer_t* xfer)
   return true;
 }
 
+bool tuh_edpt_abort_xfer(uint8_t daddr, uint8_t ep_addr) {
+  usbh_device_t* dev = get_device(daddr);
+  TU_VERIFY(dev);
+
+  uint8_t const epnum = tu_edpt_number(ep_addr);
+  uint8_t const dir   = tu_edpt_dir(ep_addr);
+
+  // skip if not busy
+  if (!dev->ep_status[epnum][dir].busy) return true;
+
+  return hcd_edpt_abort_xfer(dev->rhport, daddr, ep_addr);
+}
+
 //--------------------------------------------------------------------+
 // USBH API For Class Driver
 //--------------------------------------------------------------------+
@@ -741,7 +754,7 @@ void usbh_int_set(bool enabled)
 // Endpoint API
 //--------------------------------------------------------------------+
 
-// TODO has some duplication code with device, refactor later
+// Claim an endpoint for transfer
 bool usbh_edpt_claim(uint8_t dev_addr, uint8_t ep_addr)
 {
   // Note: addr0 only use tuh_control_xfer
@@ -757,7 +770,7 @@ bool usbh_edpt_claim(uint8_t dev_addr, uint8_t ep_addr)
   return true;
 }
 
-// TODO has some duplication code with device, refactor later
+// Release an claimed endpoint due to failed transfer attempt
 bool usbh_edpt_release(uint8_t dev_addr, uint8_t ep_addr)
 {
   // Note: addr0 only use tuh_control_xfer
@@ -773,7 +786,7 @@ bool usbh_edpt_release(uint8_t dev_addr, uint8_t ep_addr)
   return true;
 }
 
-// TODO has some duplication code with device, refactor later
+// Submit an transfer
 bool usbh_edpt_xfer_with_callback(uint8_t dev_addr, uint8_t ep_addr, uint8_t * buffer, uint16_t total_bytes,
                                   tuh_xfer_cb_t complete_cb, uintptr_t user_data)
 {
@@ -840,13 +853,12 @@ bool tuh_edpt_open(uint8_t dev_addr, tusb_desc_endpoint_t const * desc_ep)
   return hcd_edpt_open(usbh_get_rhport(dev_addr), dev_addr, desc_ep);
 }
 
-bool usbh_edpt_busy(uint8_t dev_addr, uint8_t ep_addr)
-{
-  uint8_t const epnum = tu_edpt_number(ep_addr);
-  uint8_t const dir   = tu_edpt_dir(ep_addr);
-
+bool usbh_edpt_busy(uint8_t dev_addr, uint8_t ep_addr) {
   usbh_device_t* dev = get_device(dev_addr);
   TU_VERIFY(dev);
+
+  uint8_t const epnum = tu_edpt_number(ep_addr);
+  uint8_t const dir   = tu_edpt_dir(ep_addr);
 
   return dev->ep_status[epnum][dir].busy;
 }

@@ -510,6 +510,24 @@ bool hcd_edpt_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr, uint8_t * 
   return true;
 }
 
+bool hcd_edpt_abort_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr) {
+  (void) rhport;
+  (void) dev_addr;
+  (void) ep_addr;
+
+  return false;
+
+//  uint8_t const epnum = tu_edpt_number(ep_addr);
+//  ehci_qhd_t* qhd;
+//
+//  // TODO ISO not supported
+//  if (epnum == 0) {
+//    qhd = qhd_control(dev_addr);
+//  }else {
+//    qhd = qhd_get_from_addr(dev_addr, ep_addr);
+//  }
+}
+
 bool hcd_edpt_clear_stall(uint8_t daddr, uint8_t ep_addr)
 {
   ehci_qhd_t *qhd = qhd_get_from_addr(daddr, ep_addr);
