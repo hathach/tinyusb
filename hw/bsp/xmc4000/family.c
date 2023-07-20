@@ -86,7 +86,7 @@ void board_init(void)
   // USB Power Enable
 #if(UC_SERIES != XMC45)
   XMC_SCU_CLOCK_UngatePeripheralClock(XMC_SCU_PERIPHERAL_CLOCK_USB0);
-#endif  
+#endif
   XMC_SCU_RESET_DeassertPeripheralReset(XMC_SCU_PERIPHERAL_RESET_USB0);
   XMC_SCU_POWER_EnableUsb();
 }
