@@ -126,53 +126,29 @@ static inline void print_intr(uint32_t intr) {
 //--------------------------------------------------------------------+
 // PROTOTYPE
 //--------------------------------------------------------------------+
-static inline ehci_link_t* get_period_head(uint8_t rhport, uint32_t interval_ms)
-{
-  (void) rhport;
-  return (ehci_link_t*) &ehci_data.period_head_arr[ tu_log2( tu_min32(FRAMELIST_SIZE, interval_ms) ) ];
-}
 
-static inline ehci_qhd_t* qhd_control(uint8_t dev_addr)
-{
-  return &ehci_data.control[dev_addr].qhd;
-}
+// weak dcache for non-cacheable MCU
+TU_ATTR_WEAK void hcd_dcache_clean(void const* addr, uint32_t data_size) { (void) addr; (void) data_size; }
+TU_ATTR_WEAK void hcd_dcache_invalidate(void const* addr, uint32_t data_size) { (void) addr; (void) data_size; }
+TU_ATTR_WEAK void hcd_dcache_clean_invalidate(void const* addr, uint32_t data_size) { (void) addr; (void) data_size; }
 
-static inline ehci_qhd_t* qhd_async_head(uint8_t rhport)
-{
-  (void) rhport;
-  // control qhd of dev0 is used as async head
-  return qhd_control(0);
-}
+TU_ATTR_ALWAYS_INLINE static inline ehci_link_t* list_get_period_head(uint8_t rhport, uint32_t interval_ms);
+TU_ATTR_ALWAYS_INLINE static inline ehci_qhd_t* list_get_async_head(uint8_t rhport);
 
-static inline ehci_qtd_t* qtd_control(uint8_t dev_addr)
-{
-  return &ehci_data.control[dev_addr].qtd;
-}
-
-
-static inline ehci_qhd_t* qhd_next (ehci_qhd_t const * p_qhd);
-static inline ehci_qhd_t* qhd_find_free (void);
-static inline ehci_qhd_t* qhd_get_from_addr (uint8_t dev_addr, uint8_t ep_addr);
+TU_ATTR_ALWAYS_INLINE static inline ehci_qhd_t* qhd_control(uint8_t dev_addr);
+TU_ATTR_ALWAYS_INLINE static inline ehci_qhd_t* qhd_next (ehci_qhd_t const * p_qhd);
+TU_ATTR_ALWAYS_INLINE static inline ehci_qhd_t* qhd_find_free (void);
+static ehci_qhd_t* qhd_get_from_addr (uint8_t dev_addr, uint8_t ep_addr);
 static void qhd_init(ehci_qhd_t *p_qhd, uint8_t dev_addr, tusb_desc_endpoint_t const * ep_desc);
 static void qhd_attach_qtd(ehci_qhd_t *qhd, ehci_qtd_t *qtd);
 
-static inline ehci_qtd_t* qtd_find_free (void);
+TU_ATTR_ALWAYS_INLINE static inline ehci_qtd_t* qtd_control(uint8_t dev_addr);
+TU_ATTR_ALWAYS_INLINE static inline ehci_qtd_t* qtd_find_free (void);
 static void qtd_init (ehci_qtd_t* qtd, void const* buffer, uint16_t total_bytes);
 
 static inline void list_insert (ehci_link_t *current, ehci_link_t *new, uint8_t new_type);
 static inline ehci_link_t* list_next (ehci_link_t const *p_link);
-
-TU_ATTR_WEAK void hcd_dcache_clean(void const* addr, uint32_t data_size) {
-  (void) addr; (void) data_size;
-}
-
-TU_ATTR_WEAK void hcd_dcache_invalidate(void const* addr, uint32_t data_size) {
-  (void) addr; (void) data_size;
-}
-
-TU_ATTR_WEAK void hcd_dcache_clean_invalidate(void const* addr, uint32_t data_size) {
-  (void) addr; (void) data_size;
-}
+static void list_remove_qhd_by_daddr(ehci_link_t* list_head, uint8_t dev_addr);
 
 //--------------------------------------------------------------------+
 // HCD API
@@ -274,7 +250,7 @@ void hcd_device_close(uint8_t rhport, uint8_t daddr)
   }
 
   // Remove from async list
-  list_remove_qhd_by_daddr((ehci_link_t *) qhd_async_head(rhport), daddr);
+  list_remove_qhd_by_daddr((ehci_link_t *) list_get_async_head(rhport), daddr);
 
   // Remove from all interval period list
   for(uint8_t i = 0; i < TU_ARRAY_SIZE(ehci_data.period_head_arr); i++) {
@@ -286,37 +262,42 @@ void hcd_device_close(uint8_t rhport, uint8_t daddr)
 }
 
 static void init_periodic_list(uint8_t rhport) {
+  (void) rhport;
+
   // Build the polling interval tree with 1 ms, 2 ms, 4 ms and 8 ms (framesize) only
   for ( uint32_t i = 0; i < TU_ARRAY_SIZE(ehci_data.period_head_arr); i++ ) {
     ehci_data.period_head_arr[i].int_smask          = 1; // queue head in period list must have smask non-zero
     ehci_data.period_head_arr[i].qtd_overlay.halted = 1; // dummy node, always inactive
   }
 
-  ehci_link_t * const framelist  = ehci_data.period_framelist;
-  ehci_link_t * const period_1ms = get_period_head(rhport, 1u);
-
+  // TODO EHCI_FRAMELIST_SIZE with other size than 8
   // all links --> period_head_arr[0] (1ms)
   // 0, 2, 4, 6 etc --> period_head_arr[1] (2ms)
   // 1, 5 --> period_head_arr[2] (4ms)
   // 3 --> period_head_arr[3] (8ms)
 
-  // TODO EHCI_FRAMELIST_SIZE with other size than 8
+  ehci_link_t * const framelist  = ehci_data.period_framelist;
+  ehci_link_t * const head_1ms = (ehci_link_t *) &ehci_data.period_head_arr[0];
+  ehci_link_t * const head_2ms = (ehci_link_t *) &ehci_data.period_head_arr[1];
+  ehci_link_t * const head_4ms = (ehci_link_t *) &ehci_data.period_head_arr[2];
+  ehci_link_t * const head_8ms = (ehci_link_t *) &ehci_data.period_head_arr[3];
+
   for (uint32_t i = 0; i < FRAMELIST_SIZE; i++) {
-    framelist[i].address = (uint32_t) period_1ms;
+    framelist[i].address = (uint32_t) head_1ms;
     framelist[i].type = EHCI_QTYPE_QHD;
   }
 
   for (uint32_t i = 0; i < FRAMELIST_SIZE; i += 2) {
-    list_insert(framelist + i, get_period_head(rhport, 2u), EHCI_QTYPE_QHD);
+    list_insert(framelist + i, head_2ms, EHCI_QTYPE_QHD);
   }
 
   for (uint32_t i = 1; i < FRAMELIST_SIZE; i += 4) {
-    list_insert(framelist + i, get_period_head(rhport, 4u), EHCI_QTYPE_QHD);
+    list_insert(framelist + i, head_4ms, EHCI_QTYPE_QHD);
   }
 
-  list_insert(framelist + 3, get_period_head(rhport, 8u), EHCI_QTYPE_QHD);
+  list_insert(framelist + 3, head_8ms, EHCI_QTYPE_QHD);
 
-  period_1ms->terminate    = 1;
+  head_1ms->terminate = 1;
 }
 
 bool ehci_init(uint8_t rhport, uint32_t capability_reg, uint32_t operatial_reg)
@@ -345,7 +326,7 @@ bool ehci_init(uint8_t rhport, uint32_t capability_reg, uint32_t operatial_reg)
                  EHCI_INT_MASK_NXP_PERIODIC | EHCI_INT_MASK_NXP_ASYNC | EHCI_INT_MASK_FRAMELIST_ROLLOVER;
 
   //------------- Asynchronous List -------------//
-  ehci_qhd_t * const async_head = qhd_async_head(rhport);
+  ehci_qhd_t * const async_head = list_get_async_head(rhport);
   tu_memclr(async_head, sizeof(ehci_qhd_t));
 
   async_head->next.address                    = (uint32_t) async_head; // circular list, next is itself
@@ -426,11 +407,11 @@ bool hcd_edpt_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_endpoint_t const 
   {
     case TUSB_XFER_CONTROL:
     case TUSB_XFER_BULK:
-      list_head = (ehci_link_t*) qhd_async_head(rhport);
+      list_head = (ehci_link_t*) list_get_async_head(rhport);
     break;
 
     case TUSB_XFER_INTERRUPT:
-      list_head = get_period_head(rhport, p_qhd->interval_ms);
+      list_head = list_get_period_head(rhport, p_qhd->interval_ms);
     break;
 
     case TUSB_XFER_ISOCHRONOUS:
@@ -439,10 +420,8 @@ bool hcd_edpt_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_endpoint_t const 
 
     default: break;
   }
-
   TU_ASSERT(list_head);
 
-  // TODO might need to disable async/period list
   list_insert(list_head, (ehci_link_t*) p_qhd, EHCI_QTYPE_QHD);
 
   hcd_dcache_clean(p_qhd, sizeof(ehci_qhd_t));
@@ -622,8 +601,8 @@ void async_list_xfer_complete_isr(ehci_qhd_t * const async_head)
 TU_ATTR_ALWAYS_INLINE static inline
 void period_list_xfer_complete_isr(uint8_t rhport, uint32_t interval_ms)
 {
-  uint32_t const period_1ms_addr = (uint32_t) get_period_head(rhport, 1u);
-  ehci_link_t next_link = * get_period_head(rhport, interval_ms);
+  uint32_t const period_1ms_addr = (uint32_t) list_get_period_head(rhport, 1u);
+  ehci_link_t next_link = *list_get_period_head(rhport, interval_ms);
 
   while (!next_link.terminate) {
     if (interval_ms > 1 && period_1ms_addr == tu_align32(next_link.address)) {
@@ -721,7 +700,7 @@ TU_ATTR_ALWAYS_INLINE static inline
 void xfer_error_isr(uint8_t rhport)
 {
   //------------- async list -------------//
-  ehci_qhd_t * const async_head = qhd_async_head(rhport);
+  ehci_qhd_t * const async_head = list_get_async_head(rhport);
   ehci_qhd_t *p_qhd = async_head;
   do
   {
@@ -731,10 +710,10 @@ void xfer_error_isr(uint8_t rhport)
   }while(p_qhd != async_head); // async list traversal, stop if loop around
 
   //------------- TODO refractor period list -------------//
-  uint32_t const period_1ms_addr = (uint32_t) get_period_head(rhport, 1u);
+  uint32_t const period_1ms_addr = (uint32_t) list_get_period_head(rhport, 1u);
   for (uint32_t interval_ms=1; interval_ms <= FRAMELIST_SIZE; interval_ms *= 2)
   {
-    ehci_link_t next_item = * get_period_head(rhport, interval_ms);
+    ehci_link_t next_item = *list_get_period_head(rhport, interval_ms);
 
     // TODO abstract max loop guard for period
     while( !next_item.terminate &&
@@ -801,7 +780,7 @@ void hcd_int_handler(uint8_t rhport)
 
   //------------- some QTD/SITD/ITD with IOC set is completed -------------//
   if (int_status & EHCI_INT_MASK_NXP_ASYNC) {
-    async_list_xfer_complete_isr(qhd_async_head(rhport));
+    async_list_xfer_complete_isr(list_get_async_head(rhport));
     regs->status = EHCI_INT_MASK_NXP_ASYNC; // Acknowledge
   }
 
@@ -828,35 +807,62 @@ void hcd_int_handler(uint8_t rhport)
 }
 
 //--------------------------------------------------------------------+
-// HELPER
+// List Managing Helper
 //--------------------------------------------------------------------+
 
+// Get head of periodic list
+TU_ATTR_ALWAYS_INLINE static inline ehci_link_t* list_get_period_head(uint8_t rhport, uint32_t interval_ms) {
+  (void) rhport;
+  return (ehci_link_t*) &ehci_data.period_head_arr[ tu_log2( tu_min32(FRAMELIST_SIZE, interval_ms) ) ];
+}
 
-//------------- queue head helper -------------//
-static inline ehci_qhd_t* qhd_find_free (void)
+// Get head of async list
+TU_ATTR_ALWAYS_INLINE static inline ehci_qhd_t* list_get_async_head(uint8_t rhport) {
+  (void) rhport;
+  return qhd_control(0); // control qhd of dev0 is used as async head
+}
+
+// insert at head
+static inline void list_insert(ehci_link_t *current, ehci_link_t *new, uint8_t new_type)
 {
-  for (uint32_t i=0; i<QHD_MAX; i++)
-  {
+  new->address = current->address;
+  current->address = ((uint32_t) new) | (new_type << 1);
+}
+
+static inline ehci_link_t* list_next(ehci_link_t const *p_link)
+{
+  return (ehci_link_t*) tu_align32(p_link->address);
+}
+
+//--------------------------------------------------------------------+
+// Queue Header helper
+//--------------------------------------------------------------------+
+
+// Get queue head for control transfer (always available)
+TU_ATTR_ALWAYS_INLINE static inline ehci_qhd_t* qhd_control(uint8_t dev_addr) {
+  return &ehci_data.control[dev_addr].qhd;
+}
+
+// Find a free queue head
+TU_ATTR_ALWAYS_INLINE static inline ehci_qhd_t *qhd_find_free(void) {
+  for ( uint32_t i = 0; i < QHD_MAX; i++ ) {
     if ( !ehci_data.qhd_pool[i].used ) return &ehci_data.qhd_pool[i];
   }
-
   return NULL;
 }
 
-static inline ehci_qhd_t* qhd_next(ehci_qhd_t const * p_qhd)
-{
-  return (ehci_qhd_t*) tu_align32(p_qhd->next.address);
+// Next queue head link
+TU_ATTR_ALWAYS_INLINE static inline ehci_qhd_t *qhd_next(ehci_qhd_t const *p_qhd) {
+  return (ehci_qhd_t *) tu_align32(p_qhd->next.address);
 }
 
-static inline ehci_qhd_t* qhd_get_from_addr(uint8_t dev_addr, uint8_t ep_addr)
-{
-  ehci_qhd_t* qhd_pool = ehci_data.qhd_pool;
+// Get queue head from address
+static ehci_qhd_t *qhd_get_from_addr(uint8_t dev_addr, uint8_t ep_addr) {
+  ehci_qhd_t *qhd_pool = ehci_data.qhd_pool;
 
-  for(uint32_t i=0; i<QHD_MAX; i++)
-  {
+  for ( uint32_t i = 0; i < QHD_MAX; i++ ) {
     if ( (qhd_pool[i].dev_addr == dev_addr) &&
-          ep_addr == tu_edpt_addr(qhd_pool[i].ep_number, qhd_pool[i].pid) )
-    {
+         ep_addr == tu_edpt_addr(qhd_pool[i].ep_number, qhd_pool[i].pid) ) {
       return &qhd_pool[i];
     }
   }
@@ -864,6 +870,7 @@ static inline ehci_qhd_t* qhd_get_from_addr(uint8_t dev_addr, uint8_t ep_addr)
   return NULL;
 }
 
+// Init queue head with endpoint descriptor
 static void qhd_init(ehci_qhd_t *p_qhd, uint8_t dev_addr, tusb_desc_endpoint_t const * ep_desc)
 {
   // address 0 is used as async head, which always on the list --> cannot be cleared (ehci halted otherwise)
@@ -938,6 +945,7 @@ static void qhd_init(ehci_qhd_t *p_qhd, uint8_t dev_addr, tusb_desc_endpoint_t c
   }
 }
 
+// Attach a TD to queue head
 static void qhd_attach_qtd(ehci_qhd_t *qhd, ehci_qtd_t *qtd) {
   qhd->attached_qtd = qtd;
   qhd->attached_buffer = qtd->buffer[0];
@@ -949,9 +957,16 @@ static void qhd_attach_qtd(ehci_qhd_t *qhd, ehci_qtd_t *qtd) {
   hcd_dcache_clean_invalidate(qhd, sizeof(ehci_qhd_t));
 }
 
+//--------------------------------------------------------------------+
+// Queue TD helper
+//--------------------------------------------------------------------+
 
-//------------- TD helper -------------//
-static inline ehci_qtd_t *qtd_find_free(void) {
+// Get TD for control transfer (always available)
+TU_ATTR_ALWAYS_INLINE static inline ehci_qtd_t* qtd_control(uint8_t dev_addr) {
+  return &ehci_data.control[dev_addr].qtd;
+}
+
+TU_ATTR_ALWAYS_INLINE static inline ehci_qtd_t *qtd_find_free(void) {
   for (uint32_t i = 0; i < QTD_MAX; i++) {
     if (!ehci_data.qtd_pool[i].used) return &ehci_data.qtd_pool[i];
   }
@@ -977,20 +992,6 @@ static void qtd_init(ehci_qtd_t* qtd, void const* buffer, uint16_t total_bytes)
   {
     qtd->buffer[i] |= tu_align4k(qtd->buffer[i - 1] ) + 4096;
   }
-}
-
-//------------- List Managing Helper -------------//
-
-// insert at head
-static inline void list_insert(ehci_link_t *current, ehci_link_t *new, uint8_t new_type)
-{
-  new->address = current->address;
-  current->address = ((uint32_t) new) | (new_type << 1);
-}
-
-static inline ehci_link_t* list_next(ehci_link_t const *p_link)
-{
-  return (ehci_link_t*) tu_align32(p_link->address);
 }
 
 #endif
