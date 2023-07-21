@@ -48,8 +48,8 @@
 #ifdef TUP_USBIP_CHIPIDEA_HS
   // NXP Transdimension: 8 elements
   #define FRAMELIST_SIZE_BIT_VALUE      7u
-  #define FRAMELIST_SIZE_USBCMD_VALUE   (((FRAMELIST_SIZE_BIT_VALUE &  3) << EHCI_USBCMD_POS_FRAMELIST_SIZE) | \
-                                         ((FRAMELIST_SIZE_BIT_VALUE >> 2) << EHCI_USBCMD_POS_NXP_FRAMELIST_SIZE_MSB))
+  #define FRAMELIST_SIZE_USBCMD_VALUE   (((FRAMELIST_SIZE_BIT_VALUE &  3) << EHCI_USBCMD_FRAMELIST_SIZE_SHIFT) | \
+                                         ((FRAMELIST_SIZE_BIT_VALUE >> 2) << EHCI_USBCMD_CHIPIDEA_FRAMELIST_SIZE_MSB_SHIFT))
 #else
   // STD EHCI: 256 elements
   #define FRAMELIST_SIZE_BIT_VALUE      2u
@@ -132,23 +132,45 @@ TU_ATTR_WEAK void hcd_dcache_clean(void const* addr, uint32_t data_size) { (void
 TU_ATTR_WEAK void hcd_dcache_invalidate(void const* addr, uint32_t data_size) { (void) addr; (void) data_size; }
 TU_ATTR_WEAK void hcd_dcache_clean_invalidate(void const* addr, uint32_t data_size) { (void) addr; (void) data_size; }
 
-TU_ATTR_ALWAYS_INLINE static inline ehci_link_t* list_get_period_head(uint8_t rhport, uint32_t interval_ms);
-TU_ATTR_ALWAYS_INLINE static inline ehci_qhd_t* list_get_async_head(uint8_t rhport);
-
 TU_ATTR_ALWAYS_INLINE static inline ehci_qhd_t* qhd_control(uint8_t dev_addr);
 TU_ATTR_ALWAYS_INLINE static inline ehci_qhd_t* qhd_next (ehci_qhd_t const * p_qhd);
 TU_ATTR_ALWAYS_INLINE static inline ehci_qhd_t* qhd_find_free (void);
 static ehci_qhd_t* qhd_get_from_addr (uint8_t dev_addr, uint8_t ep_addr);
 static void qhd_init(ehci_qhd_t *p_qhd, uint8_t dev_addr, tusb_desc_endpoint_t const * ep_desc);
 static void qhd_attach_qtd(ehci_qhd_t *qhd, ehci_qtd_t *qtd);
+static void qhd_remove_qtd(ehci_qhd_t *qhd);
 
 TU_ATTR_ALWAYS_INLINE static inline ehci_qtd_t* qtd_control(uint8_t dev_addr);
 TU_ATTR_ALWAYS_INLINE static inline ehci_qtd_t* qtd_find_free (void);
 static void qtd_init (ehci_qtd_t* qtd, void const* buffer, uint16_t total_bytes);
 
-static inline void list_insert (ehci_link_t *current, ehci_link_t *new, uint8_t new_type);
-static inline ehci_link_t* list_next (ehci_link_t const *p_link);
+TU_ATTR_ALWAYS_INLINE static inline ehci_link_t* list_get_period_head(uint8_t rhport, uint32_t interval_ms);
+TU_ATTR_ALWAYS_INLINE static inline ehci_qhd_t* list_get_async_head(uint8_t rhport);
+TU_ATTR_ALWAYS_INLINE static inline void list_insert (ehci_link_t *current, ehci_link_t *new, uint8_t new_type);
+TU_ATTR_ALWAYS_INLINE static inline ehci_link_t* list_next (ehci_link_t const *p_link);
 static void list_remove_qhd_by_daddr(ehci_link_t* list_head, uint8_t dev_addr);
+
+static void ehci_disable_schedule(ehci_registers_t* regs, bool is_period) {
+  // maybe have a timeout for status
+  if (is_period) {
+    regs->command_bm.periodic_enable = 0;
+    while(regs->status_bm.periodic_status) {}
+  } else {
+    regs->command_bm.async_enable = 0;
+    while(regs->status_bm.async_status) {} // should have a timeout
+  }
+}
+
+static void ehci_enable_schedule(ehci_registers_t* regs, bool is_period) {
+  // maybe have a timeout for status
+  if (is_period) {
+    regs->command_bm.periodic_enable = 1;
+    while ( 0 == regs->status_bm.periodic_status ) {}
+  } else {
+    regs->command_bm.async_enable = 1;
+    while( 0 == regs->status_bm.async_status ) {}
+  }
+}
 
 //--------------------------------------------------------------------+
 // HCD API
@@ -202,43 +224,6 @@ tusb_speed_t hcd_port_speed_get(uint8_t rhport)
 {
   (void) rhport;
   return (tusb_speed_t) ehci_data.regs->portsc_bm.nxp_port_speed; // NXP specific port speed
-}
-
-static void list_remove_qhd_by_daddr(ehci_link_t* list_head, uint8_t dev_addr) {
-  ehci_link_t* prev = list_head;
-
-  while (prev && !prev->terminate) {
-    ehci_qhd_t* qhd = (ehci_qhd_t*) (uintptr_t) list_next(prev);
-
-    // done if loop back to head
-    if ( (uintptr_t) qhd == (uintptr_t) list_head) {
-      break;
-    }
-
-    if ( qhd->dev_addr == dev_addr ) {
-      // TODO deactivate all TD, wait for QHD to inactive before removal
-      prev->address = qhd->next.address;
-
-      // EHCI 4.8.2 link the removed qhd's next to async head (which always reachable by Host Controller)
-      qhd->next.address = ((uint32_t) list_head) | (EHCI_QTYPE_QHD << 1);
-
-      if ( qhd->int_smask )
-      {
-        // period list queue element is guarantee to be free in the next frame (1 ms)
-        qhd->used = 0;
-      }else
-      {
-        // async list use async advance handshake
-        // mark as removing, will completely re-usable when async advance isr occurs
-        qhd->removing = 1;
-      }
-
-      hcd_dcache_clean(qhd, sizeof(ehci_qhd_t));
-      hcd_dcache_clean(prev, sizeof(ehci_qhd_t));
-    }else {
-      prev = list_next(prev);
-    }
-  }
 }
 
 // Close all opened endpoint belong to this device
@@ -347,8 +332,7 @@ bool ehci_init(uint8_t rhport, uint32_t capability_reg, uint32_t operatial_reg)
   regs->nxp_tt_control = 0;
 
   //------------- USB CMD Register -------------//
-  regs->command |= TU_BIT(EHCI_USBCMD_POS_RUN_STOP) | TU_BIT(EHCI_USBCMD_POS_ASYNC_ENABLE) |
-                   TU_BIT(EHCI_USBCMD_POS_PERIOD_ENABLE) |  // TODO enable period list only there is int/iso endpoint
+  regs->command |= EHCI_USBCMD_RUN_STOP | EHCI_USBCMD_PERIOD_SCHEDULE_ENABLE | EHCI_USBCMD_ASYNC_SCHEDULE_ENABLE |
                    FRAMELIST_SIZE_USBCMD_VALUE;
 
   //------------- ConfigFlag Register (skip) -------------//
@@ -358,7 +342,7 @@ bool ehci_init(uint8_t rhport, uint32_t capability_reg, uint32_t operatial_reg)
   if (ehci_data.cap_regs->hcsparams_bm.port_power_control) {
     // mask out all change bits since they are Write 1 to clear
     uint32_t portsc = (regs->portsc & ~EHCI_PORTSC_MASK_W1C);
-    portsc |= ECHI_PORTSC_MASK_PORT_POWER;
+    portsc |= EHCI_PORTSC_MASK_PORT_POWER;
 
     regs->portsc = portsc;
   }
@@ -455,20 +439,17 @@ bool hcd_edpt_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr, uint8_t * 
   uint8_t const epnum = tu_edpt_number(ep_addr);
   uint8_t const dir   = tu_edpt_dir(ep_addr);
 
-  ehci_qhd_t* qhd;
+  ehci_qhd_t* qhd = qhd_get_from_addr(dev_addr, ep_addr);
   ehci_qtd_t* qtd;
 
   if (epnum == 0) {
-    qhd = qhd_control(dev_addr);
     qtd = qtd_control(dev_addr);
-
     qtd_init(qtd, buffer, buflen);
 
     // first data toggle is always 1 (data & setup stage)
     qtd->data_toggle = 1;
     qtd->pid = dir ? EHCI_PID_IN : EHCI_PID_OUT;
   } else {
-    qhd = qhd_get_from_addr(dev_addr, ep_addr);
     qtd = qtd_find_free();
     TU_ASSERT(qtd);
 
@@ -491,20 +472,34 @@ bool hcd_edpt_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr, uint8_t * 
 
 bool hcd_edpt_abort_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr) {
   (void) rhport;
-  (void) dev_addr;
-  (void) ep_addr;
 
-  return false;
+  // TODO ISO not supported yet
+  ehci_qhd_t* qhd = qhd_get_from_addr(dev_addr, ep_addr);
+  ehci_qtd_t * volatile qtd = qhd->attached_qtd;
+  TU_VERIFY(qtd != NULL); // no queued transfer
 
-//  uint8_t const epnum = tu_edpt_number(ep_addr);
-//  ehci_qhd_t* qhd;
-//
-//  // TODO ISO not supported
-//  if (epnum == 0) {
-//    qhd = qhd_control(dev_addr);
-//  }else {
-//    qhd = qhd_get_from_addr(dev_addr, ep_addr);
-//  }
+  hcd_dcache_invalidate(qtd, sizeof(ehci_qtd_t));
+  TU_VERIFY(qtd->active); // transfer is already complete
+
+  // HC is still processing, disable HC list schedule before making changes
+  bool const is_period = (qhd->interval_ms > 0);
+
+  ehci_disable_schedule(ehci_data.regs, is_period);
+
+  // check active bit again just in case HC has just processed the TD
+  bool const still_active = qtd->active;
+  if (still_active) {
+    // remove TD from QH overlay
+    qhd->qtd_overlay.next.terminate = 1;
+    hcd_dcache_clean(qhd, sizeof(ehci_qhd_t));
+
+    // remove TD from QH software list
+    qhd_remove_qtd(qhd);
+  }
+
+  ehci_enable_schedule(ehci_data.regs, is_period);
+
+  return still_active; // true if removed an active transfer
 }
 
 bool hcd_edpt_clear_stall(uint8_t daddr, uint8_t ep_addr)
@@ -554,8 +549,12 @@ void port_connect_status_change_isr(uint8_t rhport)
 TU_ATTR_ALWAYS_INLINE static inline
 void qhd_xfer_complete_isr(ehci_qhd_t * qhd) {
   // examine TD attached to queue head
-  ehci_qtd_t * volatile qtd = (ehci_qtd_t * volatile) qhd->attached_qtd;
-  if (qtd == NULL) return; // no TD attached
+  ehci_qtd_t * volatile qtd = qhd->attached_qtd;
+
+  if (qtd == NULL) {
+    return; // no TD attached
+  }
+
   hcd_dcache_invalidate(qtd, sizeof(ehci_qtd_t));
 
   // TD is still active, no need to process
@@ -572,9 +571,7 @@ void qhd_xfer_complete_isr(ehci_qhd_t * qhd) {
   }
 
   // remove and free TD before invoking callback
-  qhd->attached_qtd = NULL;
-  qhd->attached_buffer = 0;
-  qtd->used = 0; // free QTD
+  qhd_remove_qtd(qhd);
 
   // notify usbh
   uint8_t const ep_addr = tu_edpt_addr(qhd->ep_number, dir);
@@ -677,9 +674,7 @@ void qhd_xfer_error_isr(ehci_qhd_t * qhd)
     }
 
     // remove and free TD before invoking callback
-    qhd->attached_qtd = NULL;
-    qhd->attached_buffer = 0;
-    qtd->used = 0; // free QTD
+    qhd_remove_qtd(qhd);
 
     if (0 == qhd->ep_number ) {
       // control cannot be halted
@@ -822,17 +817,54 @@ TU_ATTR_ALWAYS_INLINE static inline ehci_qhd_t* list_get_async_head(uint8_t rhpo
   return qhd_control(0); // control qhd of dev0 is used as async head
 }
 
-// insert at head
-static inline void list_insert(ehci_link_t *current, ehci_link_t *new, uint8_t new_type)
+TU_ATTR_ALWAYS_INLINE static inline ehci_link_t* list_next(ehci_link_t const *p_link) {
+  return (ehci_link_t*) tu_align32(p_link->address);
+}
+
+TU_ATTR_ALWAYS_INLINE static inline void list_insert(ehci_link_t *current, ehci_link_t *new, uint8_t new_type)
 {
   new->address = current->address;
   current->address = ((uint32_t) new) | (new_type << 1);
 }
 
-static inline ehci_link_t* list_next(ehci_link_t const *p_link)
-{
-  return (ehci_link_t*) tu_align32(p_link->address);
+// Remove all queue head belong to this device address
+static void list_remove_qhd_by_daddr(ehci_link_t* list_head, uint8_t dev_addr) {
+  ehci_link_t* prev = list_head;
+
+  while (prev && !prev->terminate) {
+    ehci_qhd_t* qhd = (ehci_qhd_t*) (uintptr_t) list_next(prev);
+
+    // done if loop back to head
+    if ( (uintptr_t) qhd == (uintptr_t) list_head) {
+      break;
+    }
+
+    if ( qhd->dev_addr == dev_addr ) {
+      // TODO deactivate all TD, wait for QHD to inactive before removal
+      prev->address = qhd->next.address;
+
+      // EHCI 4.8.2 link the removed qhd's next to async head (which always reachable by Host Controller)
+      qhd->next.address = ((uint32_t) list_head) | (EHCI_QTYPE_QHD << 1);
+
+      if ( qhd->int_smask )
+      {
+        // period list queue element is guarantee to be free in the next frame (1 ms)
+        qhd->used = 0;
+      }else
+      {
+        // async list use async advance handshake
+        // mark as removing, will completely re-usable when async advance isr occurs
+        qhd->removing = 1;
+      }
+
+      hcd_dcache_clean(qhd, sizeof(ehci_qhd_t));
+      hcd_dcache_clean(prev, sizeof(ehci_qhd_t));
+    }else {
+      prev = list_next(prev);
+    }
+  }
 }
+
 
 //--------------------------------------------------------------------+
 // Queue Header helper
@@ -856,8 +888,12 @@ TU_ATTR_ALWAYS_INLINE static inline ehci_qhd_t *qhd_next(ehci_qhd_t const *p_qhd
   return (ehci_qhd_t *) tu_align32(p_qhd->next.address);
 }
 
-// Get queue head from address
+// Get queue head from device + endpoint address
 static ehci_qhd_t *qhd_get_from_addr(uint8_t dev_addr, uint8_t ep_addr) {
+  if ( 0 == tu_edpt_number(ep_addr) ) {
+    return qhd_control(dev_addr);
+  }
+
   ehci_qhd_t *qhd_pool = ehci_data.qhd_pool;
 
   for ( uint32_t i = 0; i < QHD_MAX; i++ ) {
@@ -955,6 +991,16 @@ static void qhd_attach_qtd(ehci_qhd_t *qhd, ehci_qtd_t *qtd) {
 
   qhd->qtd_overlay.next.address = (uint32_t) qtd;
   hcd_dcache_clean_invalidate(qhd, sizeof(ehci_qhd_t));
+}
+
+// Remove an attached TD from queue head
+static void qhd_remove_qtd(ehci_qhd_t *qhd) {
+  ehci_qtd_t * volatile qtd = qhd->attached_qtd;
+
+  qhd->attached_qtd = NULL;
+  qhd->attached_buffer = 0;
+
+  qtd->used = 0; // free QTD
 }
 
 //--------------------------------------------------------------------+

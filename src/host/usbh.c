@@ -718,9 +718,15 @@ bool tuh_edpt_abort_xfer(uint8_t daddr, uint8_t ep_addr) {
   uint8_t const dir   = tu_edpt_dir(ep_addr);
 
   // skip if not busy
-  if (!dev->ep_status[epnum][dir].busy) return true;
+  TU_VERIFY(dev->ep_status[epnum][dir].busy);
 
-  return hcd_edpt_abort_xfer(dev->rhport, daddr, ep_addr);
+  bool const ret = hcd_edpt_abort_xfer(dev->rhport, daddr, ep_addr);
+  if (ret) {
+    // mark as ready if transfer is aborted
+    dev->ep_status[epnum][dir].busy = false;
+  }
+
+  return ret;
 }
 
 //--------------------------------------------------------------------+
