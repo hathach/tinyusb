@@ -33,6 +33,7 @@
 
 #include <stdbool.h>
 #include <stdint.h>
+#include "tusb_helper.h"
 #include "tusb_compiler.h"
 
 #ifdef __cplusplus
