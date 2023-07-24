@@ -139,11 +139,8 @@ bool hcd_edpt_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr, uint8_t * 
 }
 
 bool hcd_edpt_abort_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr) {
-  (void) rhport;
-  (void) dev_addr;
-  (void) ep_addr;
-  // TODO not implemented yet
-  return false;
+  uint8_t const pio_rhport = RHPORT_PIO(rhport);
+  return pio_usb_host_endpoint_abort_transfer(pio_rhport, dev_addr, ep_addr);
 }
 
 bool hcd_setup_send(uint8_t rhport, uint8_t dev_addr, uint8_t const setup_packet[8])
