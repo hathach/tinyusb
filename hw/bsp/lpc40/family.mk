@@ -31,6 +31,3 @@ SRC_C += \
 INC += \
 	$(TOP)/$(MCU_DIR)/inc \
 	$(TOP)/$(BOARD_PATH)
-
-# For freeRTOS port source
-FREERTOS_PORTABLE_SRC = $(FREERTOS_PORTABLE_PATH)/ARM_CM4F
