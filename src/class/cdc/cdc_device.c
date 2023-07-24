@@ -76,7 +76,7 @@ typedef struct
 //--------------------------------------------------------------------+
 // INTERNAL OBJECT & FUNCTION DECLARATION
 //--------------------------------------------------------------------+
-CFG_TUSB_MEM_SECTION tu_static cdcd_interface_t _cdcd_itf[CFG_TUD_CDC];
+CFG_TUD_MEM_SECTION tu_static cdcd_interface_t _cdcd_itf[CFG_TUD_CDC];
 
 static bool _prep_out_transaction (cdcd_interface_t* p_cdc)
 {

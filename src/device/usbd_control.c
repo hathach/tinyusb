@@ -55,7 +55,7 @@ typedef struct
 
 tu_static usbd_control_xfer_t _ctrl_xfer;
 
-CFG_TUSB_MEM_SECTION CFG_TUSB_MEM_ALIGN
+CFG_TUD_MEM_SECTION CFG_TUSB_MEM_ALIGN
 tu_static uint8_t _usbd_ctrl_buf[CFG_TUD_ENDPOINT0_SIZE];
 
 //--------------------------------------------------------------------+
