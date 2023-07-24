@@ -719,19 +719,23 @@ void dcd_int_handler(uint8_t rhport) {
 
   if (int_status & USB_ISTR_SUSP)
   {
-    /* Suspend is asserted for both suspend and unplug events. without Vbus monitoring,
-     * these events cannot be differentiated, so we only trigger suspend. */
+    /* Don't suspend as long there is a pending remote wakeup */
+    if (USB->CNTR & USB_CNTR_RESUME) {
+      /* Suspend is asserted for both suspend and unplug events. without Vbus monitoring,
+       * these events cannot be differentiated, so we only trigger suspend. */
 
-    /* Force low-power mode in the macrocell */
-    USB->CNTR |= USB_CNTR_FSUSP;
-    USB->CNTR |= USB_CNTR_LPMODE;
+      /* Force low-power mode in the macrocell */
+      USB->CNTR |= USB_CNTR_FSUSP;
+      USB->CNTR |= USB_CNTR_LPMODE;
+
+      dcd_event_bus_signal(0, DCD_EVENT_SUSPEND, true);
+
+      /* Enable SOF as a failsafe for the case a remote wakeup from the host is omitted */
+      dcd_sof_enable(0, true);
+    }
 
     /* clear of the ISTR bit must be done after setting of CNTR_FSUSP */
     USB->ISTR &=~USB_ISTR_SUSP;
-    dcd_event_bus_signal(0, DCD_EVENT_SUSPEND, true);
-
-    /* Enable SOF as a failsafe for the case a remote wakeup from the host is omitted */
-    dcd_sof_enable(0, true);
   }
 
   if (int_status & USB_ISTR_ESOF) {
