@@ -176,11 +176,11 @@ typedef struct
 // EP list must be 256-byte aligned
 //    Some MCU controller may require this variable to be placed in specific SRAM region.
 //    For example: LPC55s69 port1 Highspeed must be USB_RAM (0x40100000)
-//    Use CFG_TUSB_MEM_SECTION to place it accordingly.
-CFG_TUSB_MEM_SECTION TU_ATTR_ALIGNED(256) static dcd_data_t _dcd;
+//    Use CFG_TUD_MEM_SECTION to place it accordingly.
+CFG_TUD_MEM_SECTION TU_ATTR_ALIGNED(256) static dcd_data_t _dcd;
 
 // Dummy buffer to fix ZLPs overwriting the buffer (probably an USB/DMA controller bug)
-CFG_TUSB_MEM_SECTION TU_ATTR_ALIGNED(64) static uint8_t dummy[8];
+CFG_TUD_MEM_SECTION TU_ATTR_ALIGNED(64) static uint8_t dummy[8];
 
 //--------------------------------------------------------------------+
 // Multiple Controllers

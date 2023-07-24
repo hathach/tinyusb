@@ -38,6 +38,7 @@ function(add_board_target BOARD_TARGET)
   target_compile_definitions(${BOARD_TARGET} PUBLIC
     __USE_LPCOPEN
     CORE_M4
+    CFG_TUSB_MEM_SECTION=__attribute__\(\(section\(\".data.$RAM2\"\)\)\)
     )
   target_include_directories(${BOARD_TARGET} PUBLIC
     ${SDK_DIR}/inc

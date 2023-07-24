@@ -74,8 +74,8 @@ typedef struct
   uint8_t add_sense_qualifier;
 }mscd_interface_t;
 
-CFG_TUSB_MEM_SECTION CFG_TUSB_MEM_ALIGN tu_static mscd_interface_t _mscd_itf;
-CFG_TUSB_MEM_SECTION CFG_TUSB_MEM_ALIGN tu_static uint8_t _mscd_buf[CFG_TUD_MSC_EP_BUFSIZE];
+CFG_TUD_MEM_SECTION CFG_TUSB_MEM_ALIGN tu_static mscd_interface_t _mscd_itf;
+CFG_TUD_MEM_SECTION CFG_TUSB_MEM_ALIGN tu_static uint8_t _mscd_buf[CFG_TUD_MSC_EP_BUFSIZE];
 
 //--------------------------------------------------------------------+
 // INTERNAL OBJECT & FUNCTION DECLARATION
