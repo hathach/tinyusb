@@ -31,86 +31,54 @@
 //--------------------------------------------------------------------+
 // USB Interrupt Handler
 //--------------------------------------------------------------------+
-void USB_IRQHandler(void)
-{
+void USB_IRQHandler(void) {
   #if CFG_TUD_ENABLED
-    tud_int_handler(0);
+  tud_int_handler(0);
   #endif
 
   #if CFG_TUH_ENABLED
-    tuh_int_handler(0);
+  tuh_int_handler(0);
   #endif
 }
 
 //--------------------------------------------------------------------+
 // MACRO TYPEDEF CONSTANT ENUM DECLARATION
 //--------------------------------------------------------------------+
-#define LED_PORT      2
-#define LED_PIN       19
-
-#define BUTTON_PORT   2
-#define BUTTON_PIN    10
-#define BUTTON_ACTIV_STATE 0
-
-
-/* System oscillator rate and RTC oscillator rate */
-const uint32_t OscRateIn = 12000000;
-const uint32_t RTCOscRateIn = 32768;
-
-/* Pin muxing configuration */
-static const PINMUX_GRP_T pinmuxing[] =
-{
-  // LED
-  {2, 19, (IOCON_FUNC0 | IOCON_MODE_INACT)},
-
-  // Button
-  {2, 10, (IOCON_FUNC0 | IOCON_MODE_INACT | IOCON_MODE_PULLUP)},
-};
-
-static const PINMUX_GRP_T pin_usb_mux[] =
-{
-  // USB1 as Host
-  {0, 29, (IOCON_FUNC1 | IOCON_MODE_INACT)}, // D+1
-  {0, 30, (IOCON_FUNC1 | IOCON_MODE_INACT)}, // D-1
-  {1, 18, (IOCON_FUNC1 | IOCON_MODE_INACT)}, // UP LED1
-  {1, 19, (IOCON_FUNC2 | IOCON_MODE_INACT)}, // PPWR1
-//  {2, 14, (IOCON_FUNC2 | IOCON_MODE_INACT)}, // VBUS1
-//  {2, 15, (IOCON_FUNC2 | IOCON_MODE_INACT)}, // OVRCR1
-
-  // USB2 as Device
-  {0, 31, (IOCON_FUNC1 | IOCON_MODE_INACT)}, // D+2
-  {0, 13, (IOCON_FUNC1 | IOCON_MODE_INACT)}, // UP LED
-  {0, 14, (IOCON_FUNC3 | IOCON_MODE_INACT)}, // CONNECT2
-
-  /* VBUS is not connected on this board, so leave the pin at default setting. */
-  /*Chip_IOCON_PinMux(LPC_IOCON, 1, 30, IOCON_MODE_INACT, IOCON_FUNC2);*/ /* USB VBUS */
-};
 
 // Invoked by startup code
-void SystemInit(void)
-{
+void SystemInit(void) {
 #ifdef __USE_LPCOPEN
-	extern void (* const g_pfnVectors[])(void);
+  extern void (*const g_pfnVectors[])(void);
   unsigned int *pSCB_VTOR = (unsigned int *) 0xE000ED08;
-	*pSCB_VTOR = (unsigned int) g_pfnVectors;
+  *pSCB_VTOR = (unsigned int) g_pfnVectors;
 
-#if __FPU_USED == 1
-	fpuInit();
-#endif
+  #if __FPU_USED == 1
+  fpuInit();
+  #endif
 #endif // __USE_LPCOPEN
 
   Chip_IOCON_Init(LPC_IOCON);
   Chip_IOCON_SetPinMuxing(LPC_IOCON, pinmuxing, sizeof(pinmuxing) / sizeof(PINMUX_GRP_T));
 
-	/* CPU clock source starts with IRC */
-	/* Enable PBOOST for CPU clock over 100MHz */
-	Chip_SYSCTL_EnableBoost();
+#ifdef TRACE_ETM
+  const PINMUX_GRP_T trace_pinmux[] = {
+      {2, 2, IOCON_FUNC5 | IOCON_FASTSLEW_EN },
+      {2, 3, IOCON_FUNC5 | IOCON_FASTSLEW_EN },
+      {2, 4, IOCON_FUNC5 | IOCON_FASTSLEW_EN },
+      {2, 5, IOCON_FUNC5 | IOCON_FASTSLEW_EN },
+      {2, 6, IOCON_FUNC5 | IOCON_FASTSLEW_EN },
+  };
+  Chip_IOCON_SetPinMuxing(LPC_IOCON, trace_pinmux, sizeof(trace_pinmux) / sizeof(PINMUX_GRP_T));
+#endif
+
+  /* CPU clock source starts with IRC */
+  /* Enable PBOOST for CPU clock over 100MHz */
+  Chip_SYSCTL_EnableBoost();
 
   Chip_SetupXtalClocking();
 }
 
-void board_init(void)
-{
+void board_init(void) {
   SystemCoreClockUpdate();
 
 #if CFG_TUSB_OS == OPT_OS_NONE
@@ -132,15 +100,14 @@ void board_init(void)
   // UART
 
   //------------- USB -------------//
-  Chip_IOCON_SetPinMuxing(LPC_IOCON, pin_usb_mux, sizeof(pin_usb_mux) / sizeof(PINMUX_GRP_T));
 
   // Port1 as Host, Port2: Device
   Chip_USB_Init();
 
   enum {
     USBCLK_DEVCIE = 0x12, // AHB + Device
-    USBCLK_HOST = 0x19 ,  // AHB + OTG + Host
-    USBCLK_ALL  = 0x1B    // Host + Device + OTG + AHB
+    USBCLK_HOST = 0x19,  // AHB + OTG + Host
+    USBCLK_ALL = 0x1B    // Host + Device + OTG + AHB
   };
 
   LPC_USB->OTGClkCtrl = USBCLK_ALL;
@@ -154,40 +121,37 @@ void board_init(void)
 // Board porting API
 //--------------------------------------------------------------------+
 
-void board_led_write(bool state)
-{
+void board_led_write(bool state) {
   Chip_GPIO_SetPinState(LPC_GPIO, LED_PORT, LED_PIN, state);
 }
 
-uint32_t board_button_read(void)
-{
-  // active low
+uint32_t board_button_read(void) {
   return BUTTON_ACTIV_STATE == Chip_GPIO_GetPinState(LPC_GPIO, BUTTON_PORT, BUTTON_PIN);
 }
 
-int board_uart_read(uint8_t* buf, int len)
-{
+int board_uart_read(uint8_t *buf, int len) {
   //return UART_ReceiveByte(BOARD_UART_PORT);
-  (void) buf; (void) len;
+  (void) buf;
+  (void) len;
   return 0;
 }
 
-int board_uart_write(void const * buf, int len)
-{
+int board_uart_write(void const *buf, int len) {
   //UART_Send(BOARD_UART_PORT, &c, 1, BLOCKING);
-  (void) buf; (void) len;
+  (void) buf;
+  (void) len;
   return 0;
 }
 
 #if CFG_TUSB_OS == OPT_OS_NONE
 volatile uint32_t system_ticks = 0;
-void SysTick_Handler (void)
-{
+
+void SysTick_Handler(void) {
   system_ticks++;
 }
 
-uint32_t board_millis(void)
-{
+uint32_t board_millis(void) {
   return system_ticks;
 }
+
 #endif
