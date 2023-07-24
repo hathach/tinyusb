@@ -562,6 +562,14 @@ bool hcd_edpt_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr, uint8_t * 
   return true;
 }
 
+bool hcd_edpt_abort_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr) {
+  (void) rhport;
+  (void) dev_addr;
+  (void) ep_addr;
+  // TODO not implemented yet
+  return false;
+}
+
 bool hcd_edpt_clear_stall(uint8_t dev_addr, uint8_t ep_addr)
 {
   if (!tu_edpt_number(ep_addr)) return true;
