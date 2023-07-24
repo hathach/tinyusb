@@ -162,16 +162,19 @@ static void qtd_init (ehci_qtd_t* qtd, void const* buffer, uint16_t total_bytes)
 static inline void list_insert (ehci_link_t *current, ehci_link_t *new, uint8_t new_type);
 static inline ehci_link_t* list_next (ehci_link_t const *p_link);
 
-TU_ATTR_WEAK void hcd_dcache_clean(void const* addr, uint32_t data_size) {
+TU_ATTR_WEAK bool hcd_dcache_clean(void const* addr, uint32_t data_size) {
   (void) addr; (void) data_size;
+  return true;
 }
 
-TU_ATTR_WEAK void hcd_dcache_invalidate(void const* addr, uint32_t data_size) {
+TU_ATTR_WEAK bool hcd_dcache_invalidate(void const* addr, uint32_t data_size) {
   (void) addr; (void) data_size;
+  return true;
 }
 
-TU_ATTR_WEAK void hcd_dcache_clean_invalidate(void const* addr, uint32_t data_size) {
+TU_ATTR_WEAK bool hcd_dcache_clean_invalidate(void const* addr, uint32_t data_size) {
   (void) addr; (void) data_size;
+  return true;
 }
 
 //--------------------------------------------------------------------+
