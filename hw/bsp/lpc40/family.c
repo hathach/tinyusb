@@ -25,7 +25,8 @@
  */
 
 #include "chip.h"
-#include "../board.h"
+#include "bsp/board.h"
+#include "board.h"
 
 //--------------------------------------------------------------------+
 // USB Interrupt Handler
@@ -49,6 +50,8 @@ void USB_IRQHandler(void)
 
 #define BUTTON_PORT   2
 #define BUTTON_PIN    10
+#define BUTTON_ACTIV_STATE 0
+
 
 /* System oscillator rate and RTC oscillator rate */
 const uint32_t OscRateIn = 12000000;
@@ -159,7 +162,7 @@ void board_led_write(bool state)
 uint32_t board_button_read(void)
 {
   // active low
-  return Chip_GPIO_GetPinState(LPC_GPIO, BUTTON_PORT, BUTTON_PIN) ? 0 : 1;
+  return BUTTON_ACTIV_STATE == Chip_GPIO_GetPinState(LPC_GPIO, BUTTON_PORT, BUTTON_PIN);
 }
 
 int board_uart_read(uint8_t* buf, int len)
