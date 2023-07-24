@@ -56,7 +56,7 @@ typedef struct
 } dfu_state_ctx_t;
 
 // Only a single dfu state is allowed
-CFG_TUSB_MEM_SECTION tu_static dfu_state_ctx_t _dfu_ctx;
+CFG_TUD_MEM_SECTION tu_static dfu_state_ctx_t _dfu_ctx;
 
 static void reset_state(void)
 {

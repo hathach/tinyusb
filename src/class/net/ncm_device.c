@@ -130,7 +130,7 @@ typedef struct
 // INTERNAL OBJECT & FUNCTION DECLARATION
 //--------------------------------------------------------------------+
 
-CFG_TUSB_MEM_SECTION CFG_TUSB_MEM_ALIGN tu_static const ntb_parameters_t ntb_parameters = {
+CFG_TUD_MEM_SECTION CFG_TUSB_MEM_ALIGN tu_static const ntb_parameters_t ntb_parameters = {
     .wLength                 = sizeof(ntb_parameters_t),
     .bmNtbFormatsSupported   = 0x01,
     .dwNtbInMaxSize          = CFG_TUD_NCM_IN_NTB_MAX_SIZE,
@@ -145,9 +145,9 @@ CFG_TUSB_MEM_SECTION CFG_TUSB_MEM_ALIGN tu_static const ntb_parameters_t ntb_par
     .wNtbOutMaxDatagrams     = 0
 };
 
-CFG_TUSB_MEM_SECTION CFG_TUSB_MEM_ALIGN tu_static transmit_ntb_t transmit_ntb[2];
+CFG_TUD_MEM_SECTION CFG_TUSB_MEM_ALIGN tu_static transmit_ntb_t transmit_ntb[2];
 
-CFG_TUSB_MEM_SECTION CFG_TUSB_MEM_ALIGN tu_static uint8_t receive_ntb[CFG_TUD_NCM_OUT_NTB_MAX_SIZE];
+CFG_TUD_MEM_SECTION CFG_TUSB_MEM_ALIGN tu_static uint8_t receive_ntb[CFG_TUD_NCM_OUT_NTB_MAX_SIZE];
 
 tu_static ncm_interface_t ncm_interface;
 

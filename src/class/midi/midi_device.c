@@ -82,7 +82,7 @@ typedef struct
 //--------------------------------------------------------------------+
 // INTERNAL OBJECT & FUNCTION DECLARATION
 //--------------------------------------------------------------------+
-CFG_TUSB_MEM_SECTION midid_interface_t _midid_itf[CFG_TUD_MIDI];
+CFG_TUD_MEM_SECTION midid_interface_t _midid_itf[CFG_TUD_MIDI];
 
 bool tud_midi_n_mounted (uint8_t itf)
 {
