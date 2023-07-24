@@ -173,6 +173,8 @@ static TU_ATTR_ALIGNED(4) uint32_t _setup_packet[6];
 
 static uint8_t remoteWakeCountdown; // When wake is requested
 
+static bool previousSofState = false;
+
 //--------------------------------------------------------------------+
 // Prototypes
 //--------------------------------------------------------------------+
@@ -307,6 +309,8 @@ void dcd_sof_enable(uint8_t rhport, bool en)
   {
     USB->CNTR &= ~USB_CNTR_SOFM;
   }
+
+  previousSofState = en;
 }
 
 // Enable device interrupt
@@ -656,7 +660,14 @@ void dcd_int_handler(uint8_t rhport) {
 
   (void) rhport;
 
-  uint32_t int_status = USB->ISTR;
+  // Only handle interrupts which are triggered and currently active 
+  uint32_t int_status = USB->ISTR & USB->CNTR;
+
+  // Only continue if there is something to do
+  if (!int_status) {
+    return;
+  }
+
   //const uint32_t handled_ints = USB_ISTR_CTR | USB_ISTR_RESET | USB_ISTR_WKUP
   //    | USB_ISTR_SUSP | USB_ISTR_SOF | USB_ISTR_ESOF;
   // unused IRQs: (USB_ISTR_PMAOVR | USB_ISTR_ERR | USB_ISTR_L1REQ )
@@ -666,16 +677,27 @@ void dcd_int_handler(uint8_t rhport) {
   // be triggered repeatedly.
 
   /* Put SOF flag at the beginning of ISR in case to get least amount of jitter if it is used for timing purposes */
-  if(int_status & USB_ISTR_SOF) {
+  if (int_status & USB_ISTR_SOF) {
     USB->ISTR &=~USB_ISTR_SOF;
     dcd_event_sof(0, USB->FNR & USB_FNR_FN, true);
+
+    /* Ensure normal USB operation as a failsafe if a remote wakeup from the host was omitted */
+    USB->CNTR &= ~USB_CNTR_LPMODE;
+    USB->CNTR &= ~USB_CNTR_FSUSP;
+
+    /* Disable SOF if it wasn't enabled to begin with */
+    dcd_sof_enable(0, previousSofState);
   }
 
-  if(int_status & USB_ISTR_RESET) {
+  if (int_status & USB_ISTR_RESET) {
     // USBRST is start of reset.
     USB->ISTR &=~USB_ISTR_RESET;
     dcd_handle_bus_reset();
     dcd_event_bus_reset(0, TUSB_SPEED_FULL, true);
+
+    /* Drop all potential pending USB interrupts because of the upcoming reset */
+    USB->ISTR = 0;
+ 
     return; // Don't do the rest of the things here; perhaps they've been cleared?
   }
 
@@ -707,14 +729,17 @@ void dcd_int_handler(uint8_t rhport) {
     /* clear of the ISTR bit must be done after setting of CNTR_FSUSP */
     USB->ISTR &=~USB_ISTR_SUSP;
     dcd_event_bus_signal(0, DCD_EVENT_SUSPEND, true);
+
+    /* Enable SOF as a failsafe for the case a remote wakeup from the host is omitted */
+    dcd_sof_enable(0, true);
   }
 
-  if(int_status & USB_ISTR_ESOF) {
-    if(remoteWakeCountdown == 1u)
+  if (int_status & USB_ISTR_ESOF) {
+    if (remoteWakeCountdown == 1u)
     {
       USB->CNTR &= ~USB_CNTR_RESUME;
     }
-    if(remoteWakeCountdown > 0u)
+    if (remoteWakeCountdown > 0u)
     {
       remoteWakeCountdown--;
     }
