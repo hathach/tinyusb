@@ -314,11 +314,11 @@ bool ehci_init(uint8_t rhport, uint32_t capability_reg, uint32_t operatial_reg)
   ehci_qhd_t * const async_head = list_get_async_head(rhport);
   tu_memclr(async_head, sizeof(ehci_qhd_t));
 
-  async_head->next.address                    = (uint32_t) async_head; // circular list, next is itself
-  async_head->next.type                       = EHCI_QTYPE_QHD;
-  async_head->head_list_flag                  = 1;
-  async_head->qtd_overlay.halted              = 1; // inactive most of time
-  async_head->qtd_overlay.next.terminate      = 1; // TODO removed if verified
+  async_head->next.address               = (uint32_t) async_head; // circular list, next is itself
+  async_head->next.type                  = EHCI_QTYPE_QHD;
+  async_head->head_list_flag             = 1;
+  async_head->qtd_overlay.halted         = 1; // inactive most of time
+  async_head->qtd_overlay.next.terminate = 1; // TODO removed if verified
 
   regs->async_list_addr = (uint32_t) async_head;
 
@@ -533,70 +533,74 @@ void async_advance_isr(uint8_t rhport)
 }
 
 TU_ATTR_ALWAYS_INLINE static inline
-void port_connect_status_change_isr(uint8_t rhport)
-{
+void port_connect_status_change_isr(uint8_t rhport) {
   // NOTE There is an sequence plug->unplug->…..-> plug if device is powering with pre-plugged device
-  if (ehci_data.regs->portsc_bm.current_connect_status)
-  {
+  if ( ehci_data.regs->portsc_bm.current_connect_status ) {
     hcd_port_reset(rhport);
     hcd_event_device_attach(rhport, true);
-  }else // device unplugged
+  } else // device unplugged
   {
     hcd_event_device_remove(rhport, true);
   }
 }
 
+// Check queue head for potential transfer complete (successful or error)
 TU_ATTR_ALWAYS_INLINE static inline
 void qhd_xfer_complete_isr(ehci_qhd_t * qhd) {
-  // examine TD attached to queue head
-  ehci_qtd_t * volatile qtd = qhd->attached_qtd;
+  hcd_dcache_invalidate(qhd, sizeof(ehci_qhd_t)); // HC may have updated the overlay
+  volatile ehci_qtd_t *qtd_overlay = &qhd->qtd_overlay;
 
-  if (qtd == NULL) {
-    return; // no TD attached
-  }
+  // process non-active (completed) QHD with attached (scheduled) TD
+  if ( !qtd_overlay->active && qhd->attached_qtd != NULL ) {
+    xfer_result_t xfer_result;
 
-  hcd_dcache_invalidate(qtd, sizeof(ehci_qtd_t));
-
-  // TD is still active, no need to process
-  if (qtd->active) {
-    return;
-  }
-
-  uint8_t dir = (qtd->pid == EHCI_PID_IN) ? 1 : 0;
-  uint32_t const xferred_bytes = qtd->expected_bytes - qtd->total_bytes;
-
-  // invalidate dcache if IN transfer
-  if (dir == 1 && qhd->attached_buffer != 0 && xferred_bytes > 0) {
-    hcd_dcache_invalidate((void*) qhd->attached_buffer, xferred_bytes);
-  }
-
-  // remove and free TD before invoking callback
-  qhd_remove_qtd(qhd);
-
-  // notify usbh
-  uint8_t const ep_addr = tu_edpt_addr(qhd->ep_number, dir);
-  hcd_event_xfer_complete(qhd->dev_addr, ep_addr, xferred_bytes, XFER_RESULT_SUCCESS, true);
-}
-
-TU_ATTR_ALWAYS_INLINE static inline
-void async_list_xfer_complete_isr(ehci_qhd_t * const async_head)
-{
-  ehci_qhd_t *p_qhd = async_head;
-  do
-  {
-    hcd_dcache_invalidate(p_qhd, sizeof(ehci_qhd_t));
-
-    // halted or error is processed in error isr
-    if ( !p_qhd->qtd_overlay.halted ) {
-      qhd_xfer_complete_isr(p_qhd);
+    if ( qtd_overlay->halted ) {
+      if (qtd_overlay->xact_err || qtd_overlay->err_count == 0 || qtd_overlay->buffer_err || qtd_overlay->babble_err) {
+        // Error count = 0 often occurs when device disconnected, or other bus-related error
+        xfer_result = XFER_RESULT_FAILED;
+        TU_LOG3("  QHD xfer err count: %d\n", qtd_overlay->err_count);
+        // TU_BREAKPOINT(); // TODO skip unplugged device
+      }else {
+        // no error bits are set, endpoint is halted due to STALL
+        xfer_result = XFER_RESULT_STALLED;
+      }
+    } else {
+      xfer_result = XFER_RESULT_SUCCESS;
     }
 
-    p_qhd = qhd_next(p_qhd);
-  }while(p_qhd != async_head); // async list traversal, stop if loop around
+    ehci_qtd_t * volatile qtd = qhd->attached_qtd;
+    hcd_dcache_invalidate(qtd, sizeof(ehci_qtd_t)); // HC may have written back TD
+
+    uint8_t const dir = (qtd->pid == EHCI_PID_IN) ? 1 : 0;
+    uint32_t const xferred_bytes = qtd->expected_bytes - qtd->total_bytes;
+
+    // invalidate dcache if IN transfer with data
+    if (dir == 1 && qhd->attached_buffer != 0 && xferred_bytes > 0) {
+      hcd_dcache_invalidate((void*) qhd->attached_buffer, xferred_bytes);
+    }
+
+    // remove and free TD before invoking callback
+    qhd_remove_qtd(qhd);
+
+    // notify usbh
+    uint8_t const ep_addr = tu_edpt_addr(qhd->ep_number, dir);
+    hcd_event_xfer_complete(qhd->dev_addr, ep_addr, xferred_bytes, xfer_result, true);
+  }
 }
 
 TU_ATTR_ALWAYS_INLINE static inline
-void period_list_xfer_complete_isr(uint8_t rhport, uint32_t interval_ms)
+void proccess_async_xfer_isr(ehci_qhd_t * const list_head)
+{
+  ehci_qhd_t *qhd = list_head;
+
+  do {
+    qhd_xfer_complete_isr(qhd);
+    qhd = qhd_next(qhd);
+  } while ( qhd != list_head ); // async list traversal, stop if loop around
+}
+
+TU_ATTR_ALWAYS_INLINE static inline
+void process_period_xfer_isr(uint8_t rhport, uint32_t interval_ms)
 {
   uint32_t const period_1ms_addr = (uint32_t) list_get_period_head(rhport, 1u);
   ehci_link_t next_link = *list_get_period_head(rhport, interval_ms);
@@ -612,128 +616,19 @@ void period_list_xfer_complete_isr(uint8_t rhport, uint32_t interval_ms)
     switch (next_link.type) {
       case EHCI_QTYPE_QHD: {
         ehci_qhd_t *qhd = (ehci_qhd_t *) entry_addr;
-        hcd_dcache_invalidate(qhd, sizeof(ehci_qhd_t));
-
-        if (!qhd->qtd_overlay.halted) {
-          qhd_xfer_complete_isr(qhd);
-        }
+        qhd_xfer_complete_isr(qhd);
       }
         break;
 
+      // TODO support hs/fs ISO
       case EHCI_QTYPE_ITD:
-        // TODO support hs ISO
-        break;
-
       case EHCI_QTYPE_SITD:
-        // TODO support split ISO
-        break;
-
       case EHCI_QTYPE_FSTN:
       default:
         break;
     }
 
     next_link = *list_next(&next_link);
-  }
-}
-
-// TODO merge with qhd_xfer_complete_isr()
-TU_ATTR_ALWAYS_INLINE static inline
-void qhd_xfer_error_isr(ehci_qhd_t * qhd)
-{
-  volatile ehci_qtd_t *qtd_overlay = &qhd->qtd_overlay;
-
-  // TD has error
-  if (qtd_overlay->halted) {
-    xfer_result_t xfer_result;
-
-    if (qtd_overlay->xact_err || qtd_overlay->err_count == 0 || qtd_overlay->buffer_err || qtd_overlay->babble_err) {
-      // Error count = 0 often occurs when device disconnected, or other bus-related error
-      xfer_result = XFER_RESULT_FAILED;
-    }else {
-      // no error bits are set, endpoint is halted due to STALL
-      xfer_result = XFER_RESULT_STALLED;
-    }
-
-//    if (XFER_RESULT_FAILED == xfer_result ) {
-//      TU_LOG1("  QHD xfer err count: %d\n", qtd_overlay->err_count);
-//      TU_BREAKPOINT(); // TODO skip unplugged device
-//    }
-
-    ehci_qtd_t * volatile qtd = (ehci_qtd_t * volatile) qhd->attached_qtd;
-    TU_ASSERT(qtd, ); // No TD yet, probably a race condition or cache issue !?
-
-    hcd_dcache_invalidate(qtd, sizeof(ehci_qtd_t));
-
-    uint8_t dir = (qtd->pid == EHCI_PID_IN) ? 1 : 0;
-    uint32_t const xferred_bytes = qtd->expected_bytes - qtd->total_bytes;
-
-    // invalidate dcache if IN transfer
-    if (dir == 1 && qhd->attached_buffer != 0 && xferred_bytes > 0) {
-      hcd_dcache_invalidate((void*) qhd->attached_buffer, xferred_bytes);
-    }
-
-    // remove and free TD before invoking callback
-    qhd_remove_qtd(qhd);
-
-    if (0 == qhd->ep_number ) {
-      // control cannot be halted
-      qhd->qtd_overlay.next.terminate      = 1;
-      qhd->qtd_overlay.alternate.terminate = 1;
-      qhd->qtd_overlay.halted              = 0;
-
-      hcd_dcache_clean(qhd, sizeof(ehci_qhd_t));
-    }
-
-    // notify usbh
-    uint8_t const ep_addr = tu_edpt_addr(qhd->ep_number, dir);
-    hcd_event_xfer_complete(qhd->dev_addr, ep_addr, xferred_bytes, xfer_result, true);
-  }
-}
-
-TU_ATTR_ALWAYS_INLINE static inline
-void xfer_error_isr(uint8_t rhport)
-{
-  //------------- async list -------------//
-  ehci_qhd_t * const async_head = list_get_async_head(rhport);
-  ehci_qhd_t *p_qhd = async_head;
-  do
-  {
-    hcd_dcache_invalidate(p_qhd, sizeof(ehci_qhd_t));
-    qhd_xfer_error_isr( p_qhd );
-    p_qhd = qhd_next(p_qhd);
-  }while(p_qhd != async_head); // async list traversal, stop if loop around
-
-  //------------- TODO refractor period list -------------//
-  uint32_t const period_1ms_addr = (uint32_t) list_get_period_head(rhport, 1u);
-  for (uint32_t interval_ms=1; interval_ms <= FRAMELIST_SIZE; interval_ms *= 2)
-  {
-    ehci_link_t next_item = *list_get_period_head(rhport, interval_ms);
-
-    // TODO abstract max loop guard for period
-    while( !next_item.terminate &&
-           !(interval_ms > 1 && period_1ms_addr == tu_align32(next_item.address)) )
-    {
-      switch ( next_item.type )
-      {
-        case EHCI_QTYPE_QHD:
-        {
-          ehci_qhd_t *p_qhd_int = (ehci_qhd_t *) tu_align32(next_item.address);
-          hcd_dcache_invalidate(p_qhd_int, sizeof(ehci_qhd_t));
-
-          qhd_xfer_error_isr(p_qhd_int);
-        }
-        break;
-
-				// TODO support hs/fs ISO
-        case EHCI_QTYPE_ITD:
-        case EHCI_QTYPE_SITD:
-        case EHCI_QTYPE_FSTN:
-        default: break;
-      }
-
-      next_item = *list_next(&next_item);
-    }
   }
 }
 
@@ -768,21 +663,16 @@ void hcd_int_handler(uint8_t rhport)
     regs->status = EHCI_INT_MASK_PORT_CHANGE; // Acknowledge
   }
 
-  // A USB transfer is completed with error
-  if (int_status & EHCI_INT_MASK_ERROR) {
-    xfer_error_isr(rhport);
-    regs->status = EHCI_INT_MASK_ERROR; // Acknowledge
-  }
+  // A USB transfer is completed (OK or error)
+  uint32_t const usb_int = int_status & (EHCI_INT_MASK_USB | EHCI_INT_MASK_ERROR);
+  if (usb_int) {
+    proccess_async_xfer_isr(list_get_async_head(rhport));
 
-  // A USB transfer is completed
-  if (int_status & EHCI_INT_MASK_USB) {
     for ( uint32_t i = 1; i <= FRAMELIST_SIZE; i *= 2 ) {
-      period_list_xfer_complete_isr(rhport, i);
+      process_period_xfer_isr(rhport, i);
     }
 
-    async_list_xfer_complete_isr(list_get_async_head(rhport));
-
-    regs->status = EHCI_INT_MASK_USB; // Acknowledge
+    regs->status = usb_int; // Acknowledge
   }
 
   //------------- There is some removed async previously -------------//
@@ -1011,8 +901,7 @@ TU_ATTR_ALWAYS_INLINE static inline ehci_qtd_t *qtd_find_free(void) {
   return NULL;
 }
 
-static void qtd_init(ehci_qtd_t* qtd, void const* buffer, uint16_t total_bytes)
-{
+static void qtd_init(ehci_qtd_t* qtd, void const* buffer, uint16_t total_bytes) {
   tu_memclr(qtd, sizeof(ehci_qtd_t));
   qtd->used                = 1;
 
@@ -1026,8 +915,7 @@ static void qtd_init(ehci_qtd_t* qtd, void const* buffer, uint16_t total_bytes)
   qtd->expected_bytes      = total_bytes;
 
   qtd->buffer[0] = (uint32_t) buffer;
-  for(uint8_t i=1; i<5; i++)
-  {
+  for(uint8_t i=1; i<5; i++) {
     qtd->buffer[i] |= tu_align4k(qtd->buffer[i - 1] ) + 4096;
   }
 }
