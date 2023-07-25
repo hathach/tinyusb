@@ -307,8 +307,8 @@ bool ehci_init(uint8_t rhport, uint32_t capability_reg, uint32_t operatial_reg)
   regs->status = (EHCI_INT_MASK_ALL & ~EHCI_INT_MASK_PORT_CHANGE);
 
   // Enable interrupts
-  regs->inten  = EHCI_INT_MASK_ERROR | EHCI_INT_MASK_PORT_CHANGE | EHCI_INT_MASK_ASYNC_ADVANCE |
-                 EHCI_INT_MASK_NXP_PERIODIC | EHCI_INT_MASK_NXP_ASYNC | EHCI_INT_MASK_FRAMELIST_ROLLOVER;
+  regs->inten  = EHCI_INT_MASK_USB | EHCI_INT_MASK_ERROR | EHCI_INT_MASK_PORT_CHANGE |
+                 EHCI_INT_MASK_ASYNC_ADVANCE | EHCI_INT_MASK_FRAMELIST_ROLLOVER;
 
   //------------- Asynchronous List -------------//
   ehci_qhd_t * const async_head = list_get_async_head(rhport);
@@ -768,28 +768,20 @@ void hcd_int_handler(uint8_t rhport)
     regs->status = EHCI_INT_MASK_PORT_CHANGE; // Acknowledge
   }
 
+  // A USB transfer is completed with error
   if (int_status & EHCI_INT_MASK_ERROR) {
     xfer_error_isr(rhport);
     regs->status = EHCI_INT_MASK_ERROR; // Acknowledge
   }
 
-  //------------- some QTD/SITD/ITD with IOC set is completed -------------//
-  if (int_status & EHCI_INT_MASK_NXP_ASYNC) {
-    async_list_xfer_complete_isr(list_get_async_head(rhport));
-    regs->status = EHCI_INT_MASK_NXP_ASYNC; // Acknowledge
-  }
-
-  if (int_status & EHCI_INT_MASK_NXP_PERIODIC)
-  {
-    for (uint32_t i=1; i <= FRAMELIST_SIZE; i *= 2)
-    {
+  // A USB transfer is completed
+  if (int_status & EHCI_INT_MASK_USB) {
+    for ( uint32_t i = 1; i <= FRAMELIST_SIZE; i *= 2 ) {
       period_list_xfer_complete_isr(rhport, i);
     }
-    regs->status = EHCI_INT_MASK_NXP_PERIODIC; // Acknowledge
-  }
 
-  if (int_status & EHCI_INT_MASK_USB) {
-    // TODO standard EHCI xfer complete
+    async_list_xfer_complete_isr(list_get_async_head(rhport));
+
     regs->status = EHCI_INT_MASK_USB; // Acknowledge
   }
 
