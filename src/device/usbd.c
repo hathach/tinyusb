@@ -503,6 +503,7 @@ void tud_task_ext(uint32_t timeout_ms, bool in_isr)
       case DCD_EVENT_BUS_RESET:
         TU_LOG_USBD(": %s Speed\r\n", tu_str_speed[event.bus_reset.speed]);
         _usbd_dev.speed = event.bus_reset.speed;
+        TU_ATTR_FALLTHROUGH;
 
       case DCD_EVENT_UNPLUGGED:
         TU_LOG_USBD("\r\n");
@@ -778,6 +779,8 @@ static bool process_control_request(uint8_t rhport, tusb_control_request_t const
         switch(p_request->bRequest)
         {
           case TUSB_REQ_GET_INTERFACE:
+            TU_ATTR_FALLTHROUGH;
+
           case TUSB_REQ_SET_INTERFACE:
             // Clear complete callback if driver set since it can also stall the request.
             usbd_control_set_complete_callback(NULL);
