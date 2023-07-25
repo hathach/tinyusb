@@ -661,7 +661,8 @@ void dcd_int_handler(uint8_t rhport) {
   (void) rhport;
 
   // Only handle interrupts which are triggered and currently active
-  uint32_t int_status = USB->ISTR & USB->CNTR;
+  uint32_t int_status = USB->ISTR;
+  int_status & = USB->CNTR;
 
   // Only continue if there is something to do
   if (!int_status) {
