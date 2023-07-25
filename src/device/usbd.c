@@ -779,8 +779,6 @@ static bool process_control_request(uint8_t rhport, tusb_control_request_t const
         switch(p_request->bRequest)
         {
           case TUSB_REQ_GET_INTERFACE:
-            TU_ATTR_FALLTHROUGH;
-
           case TUSB_REQ_SET_INTERFACE:
             // Clear complete callback if driver set since it can also stall the request.
             usbd_control_set_complete_callback(NULL);
