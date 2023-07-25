@@ -119,7 +119,7 @@ tu_static usbd_class_driver_t const _usbd_driver[] =
     .open             = hidd_open,
     .control_xfer_cb  = hidd_control_xfer_cb,
     .xfer_cb          = hidd_xfer_cb,
-    .sof              = NULL
+    .sof              = hidd_sof_isr
   },
   #endif
 
