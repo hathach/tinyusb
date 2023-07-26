@@ -83,6 +83,18 @@ typedef struct TU_ATTR_PACKED
 TU_ATTR_PACKED_END  // End of definition of packed structs (used by the CCRX toolchain)
 TU_ATTR_BIT_FIELD_ORDER_END
 
+typedef struct
+{
+  pipe_state_t pipe[10];
+  uint8_t ep[2][16];   /* a lookup table for a pipe index from an endpoint address */
+} dcd_data_t;
+
+static dcd_data_t _dcd;
+
+//--------------------------------------------------------------------+
+// INTERNAL OBJECT & FUNCTION DECLARATION
+//--------------------------------------------------------------------+
+
 // Transfer conditions specifiable for each pipe:
 // - Pipe 0: Control transfer with 64-byte single buffer
 // - Pipes 1 and 2: Bulk isochronous transfer continuous transfer mode with programmable buffer size up
@@ -95,18 +107,6 @@ enum {
   PIPE_1ST_INTERRUPT = 6,
   PIPE_COUNT = 10,
 };
-
-typedef struct
-{
-  pipe_state_t pipe[10];
-  uint8_t ep[2][16];   /* a lookup table for a pipe index from an endpoint address */
-} dcd_data_t;
-
-static dcd_data_t _dcd;
-
-//--------------------------------------------------------------------+
-// INTERNAL OBJECT & FUNCTION DECLARATION
-//--------------------------------------------------------------------+
 
 static unsigned find_pipe(unsigned xfer)
 {
@@ -746,20 +746,17 @@ void dcd_init(uint8_t rhport)
   }
 }
 
-void dcd_int_enable(uint8_t rhport)
-{
+void dcd_int_enable(uint8_t rhport) {
   rusb2_int_enable(rhport);
 }
 
-void dcd_int_disable(uint8_t rhport)
-{
+void dcd_int_disable(uint8_t rhport) {
   rusb2_int_disable(rhport);
 }
 
-void dcd_set_address(uint8_t rhport, uint8_t dev_addr)
-{
-  (void)rhport;
-  (void)dev_addr;
+void dcd_set_address(uint8_t rhport, uint8_t dev_addr) {
+  (void) rhport;
+  (void) dev_addr;
 }
 
 void dcd_remote_wakeup(uint8_t rhport)
