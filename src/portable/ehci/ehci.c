@@ -502,8 +502,8 @@ bool hcd_edpt_abort_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr) {
   return still_active; // true if removed an active transfer
 }
 
-bool hcd_edpt_clear_stall(uint8_t daddr, uint8_t ep_addr)
-{
+bool hcd_edpt_clear_stall(uint8_t rhport, uint8_t daddr, uint8_t ep_addr) {
+  (void) rhport;
   ehci_qhd_t *qhd = qhd_get_from_addr(daddr, ep_addr);
   qhd->qtd_overlay.halted = 0;
   hcd_dcache_clean_invalidate(qhd, sizeof(ehci_qhd_t));
