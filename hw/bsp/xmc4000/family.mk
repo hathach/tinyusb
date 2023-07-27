@@ -20,8 +20,11 @@ SRC_C += \
 	src/portable/synopsys/dwc2/dcd_dwc2.c \
 	$(MCU_DIR)/Newlib/syscalls.c \
 	$(MCU_DIR)/CMSIS/Infineon/COMPONENT_$(MCU_VARIANT)/Source/system_$(MCU_VARIANT).c \
+	$(MCU_DIR)/XMCLib/src/xmc_gpio.c \
 	$(MCU_DIR)/XMCLib/src/xmc4_gpio.c \
-	$(MCU_DIR)/XMCLib/src/xmc4_scu.c
+	$(MCU_DIR)/XMCLib/src/xmc4_scu.c \
+	$(MCU_DIR)/XMCLib/src/xmc_usic.c \
+	$(MCU_DIR)/XMCLib/src/xmc_uart.c
 
 SRC_S += $(MCU_DIR)/CMSIS/Infineon/COMPONENT_$(MCU_VARIANT)/Source/TOOLCHAIN_GCC_ARM/startup_$(MCU_VARIANT).S
 

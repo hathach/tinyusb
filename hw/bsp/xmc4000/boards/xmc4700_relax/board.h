@@ -31,48 +31,48 @@
  extern "C" {
 #endif
 
-// LED
-#ifdef PICO_DEFAULT_LED_PIN
-#define LED_PIN               PICO_DEFAULT_LED_PIN
-#define LED_STATE_ON          (!(PICO_DEFAULT_LED_PIN_INVERTED))
-#endif
+#define LED_PIN               P5_9
+#define LED_STATE_ON          1
 
-// Button pin is BOOTSEL which is flash CS pin
-#define BUTTON_BOOTSEL
+#define BUTTON_PIN            P15_13
 #define BUTTON_STATE_ACTIVE   0
 
-// UART
-#if defined(PICO_DEFAULT_UART_TX_PIN) && defined(PICO_DEFAULT_UART_RX_PIN) && \
-    defined(PICO_DEFAULT_UART) && defined(LIB_PICO_STDIO_UART)
-#define UART_DEV              PICO_DEFAULT_UART
-#define UART_TX_PIN           PICO_DEFAULT_UART_TX_PIN
-#define UART_RX_PIN           PICO_DEFAULT_UART_RX_PIN
-#endif
+#define UART_DEV              XMC_UART0_CH0
+#define UART_TX_PIN           P1_5
+#define UART_TX_PIN_AF        P1_5_AF_U0C0_DOUT0
+#define UART_RX_PIN           P1_4
+#define UART_RX_INPUT         USIC0_C0_DX0_P1_4
 
-//--------------------------------------------------------------------+
-// PIO_USB
-// default to pin on Adafruit Feather rp2040 USB Host or Tester if defined
-//--------------------------------------------------------------------+
+static inline void board_clock_init(void)
+{
+  /* Clock configuration */
+  /* fPLL = 144MHz */
+  /* fSYS = 144MHz */
+  /* fUSB = 48MHz */
+  const XMC_SCU_CLOCK_CONFIG_t clock_config =
+  {
+    .syspll_config.p_div  = 2,
+    .syspll_config.n_div  = 48,
+    .syspll_config.k_div  = 1,
+    .syspll_config.mode   = XMC_SCU_CLOCK_SYSPLL_MODE_NORMAL,
+    .syspll_config.clksrc = XMC_SCU_CLOCK_SYSPLLCLKSRC_OSCHP,
+    .enable_oschp         = true,
+    .calibration_mode     = XMC_SCU_CLOCK_FOFI_CALIBRATION_MODE_FACTORY,
+    .fsys_clksrc          = XMC_SCU_CLOCK_SYSCLKSRC_PLL,
+    .fsys_clkdiv          = 2,
+    .fcpu_clkdiv          = 1,
+    .fccu_clkdiv          = 1,
+    .fperipheral_clkdiv   = 1
+  };
 
-// #define USE_ADAFRUIT_FEATHER_RP2040_USBHOST
-#ifdef USE_ADAFRUIT_FEATHER_RP2040_USBHOST
-#define PICO_DEFAULT_PIO_USB_DP_PIN       16
-#define PICO_DEFAULT_PIO_USB_VBUSEN_PIN   18
-#endif
+  /* Setup settings for USB clock */
+  XMC_SCU_CLOCK_Init(&clock_config);
 
-#ifndef PICO_DEFAULT_PIO_USB_DP_PIN
-#define PICO_DEFAULT_PIO_USB_DP_PIN       20
-#endif
+  XMC_SCU_CLOCK_SetUsbClockDivider(6);
+  XMC_SCU_CLOCK_SetUsbClockSource(XMC_SCU_CLOCK_USBCLKSRC_SYSPLL);
+  XMC_SCU_CLOCK_EnableClock(XMC_SCU_CLOCK_USB);
+}
 
-// VBUS enable pin and its active state
-#ifndef PICO_DEFAULT_PIO_USB_VBUSEN_PIN
-#define PICO_DEFAULT_PIO_USB_VBUSEN_PIN   22
-#endif
-
-// VBUS enable state
-#ifndef PICO_DEFAULT_PIO_USB_VBUSEN_STATE
-#define PICO_DEFAULT_PIO_USB_VBUSEN_STATE 1
-#endif
 
 #ifdef __cplusplus
  }

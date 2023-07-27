@@ -175,7 +175,7 @@ typedef struct {
   dcd_qtd_t qtd[TUP_DCD_ENDPOINT_MAX][2] TU_ATTR_ALIGNED(32);
 }dcd_data_t;
 
-CFG_TUSB_MEM_SECTION TU_ATTR_ALIGNED(2048)
+CFG_TUD_MEM_SECTION TU_ATTR_ALIGNED(2048)
 static dcd_data_t _dcd_data;
 
 //--------------------------------------------------------------------+
