@@ -889,9 +889,20 @@ TU_ATTR_FAST_FUNC void hcd_event_handler(hcd_event_t const* event, bool in_isr)
 {
   switch (event->event_id)
   {
+#if CFG_TUH_HUB
 //    case HCD_EVENT_DEVICE_REMOVE:
 //      // mark device as removing to prevent further xfer before the event is processed in usbh task
 //      break;
+#else
+    /* In case of a single device attached we can clear anything in the queue safely */
+    /* Reset the enumaration process just in case of immature plugging/unplugging */
+    case HCD_EVENT_DEVICE_REMOVE:
+      _dev0.enumerating = 0;
+      tu_memclr(&_ctrl_xfer, sizeof(_ctrl_xfer));
+      tu_fifo_clear(&_usbh_q->ff);
+      osal_queue_send(_usbh_q, event, in_isr);
+    break;
+#endif
 
     default:
       osal_queue_send(_usbh_q, event, in_isr);
