@@ -443,6 +443,11 @@ bool hcd_edpt_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr, uint8_t * 
   ehci_qtd_t* qtd;
 
   if (epnum == 0) {
+    // Control endpoint never be stalled. Skip reset Data Toggle since it is fixed per stage
+    if (qhd->qtd_overlay.halted) {
+      qhd->qtd_overlay.halted = false;
+    }
+
     qtd = qtd_control(dev_addr);
     qtd_init(qtd, buffer, buflen);
 
@@ -450,6 +455,9 @@ bool hcd_edpt_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr, uint8_t * 
     qtd->data_toggle = 1;
     qtd->pid = dir ? EHCI_PID_IN : EHCI_PID_OUT;
   } else {
+    // skip if endpoint is halted
+    TU_VERIFY(!qhd->qtd_overlay.halted);
+
     qtd = qtd_find_free();
     TU_ASSERT(qtd);
 
@@ -506,8 +514,9 @@ bool hcd_edpt_clear_stall(uint8_t daddr, uint8_t ep_addr)
 {
   ehci_qhd_t *qhd = qhd_get_from_addr(daddr, ep_addr);
   qhd->qtd_overlay.halted = 0;
+  qhd->qtd_overlay.data_toggle = 0;
   hcd_dcache_clean_invalidate(qhd, sizeof(ehci_qhd_t));
-  // TODO reset data toggle ?
+
   return true;
 }
 
@@ -881,8 +890,10 @@ static void qhd_remove_qtd(ehci_qhd_t *qhd) {
 
   qhd->attached_qtd = NULL;
   qhd->attached_buffer = 0;
+  hcd_dcache_clean(qhd, sizeof(ehci_qhd_t));
 
   qtd->used = 0; // free QTD
+  hcd_dcache_clean(qtd, sizeof(ehci_qtd_t));
 }
 
 //--------------------------------------------------------------------+
