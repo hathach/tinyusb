@@ -32,21 +32,15 @@
 #include "host/hcd.h"
 #include "rusb2_type.h"
 
-#if !defined(CFG_TUSB_RHPORT0_MODE) && !defined(CFG_TUSB_RHPORT1_MODE)
-// fallback
-#define CFG_TUSB_RHPORT0_MODE   OPT_MODE_HOST
-#define CFG_TUSB_RHPORT1_MODE   0
-#endif
-
 #if TU_CHECK_MCU(OPT_MCU_RX63X, OPT_MCU_RX65X, OPT_MCU_RX72N)
   #include "rusb2_rx.h"
 
 #elif TU_CHECK_MCU(OPT_MCU_RAXXX)
   #include "rusb2_ra.h"
 
-  void osal_task_delay(uint32_t msec) {
-    R_BSP_SoftwareDelay(msec, BSP_DELAY_UNITS_MILLISECONDS);
-  }
+//  void osal_task_delay(uint32_t msec) {
+//    R_BSP_SoftwareDelay(msec, BSP_DELAY_UNITS_MILLISECONDS);
+//  }
 
 #else
   #error "Unsupported MCU"
@@ -785,7 +779,7 @@ bool hcd_edpt_clear_stall(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr) {
 void hcd_int_handler(uint8_t rhport)
 {
   rusb2_reg_t* rusb = RUSB2_REG(rhport);
-  static unsigned char attach_attempt = 0;
+  static unsigned char attach_attempt = 0; // TODO remove later
   unsigned is0 = rusb->INTSTS0;
   unsigned is1 = rusb->INTSTS1;
 

@@ -51,7 +51,7 @@
   #endif
 
   // Application API for setting IRQ number
-  void tud_int_set_irqnum(uint8_t rhport, int32_t irqnum) {
+  void tud_rusb2_set_irqnum(uint8_t rhport, int32_t irqnum) {
     rusb2_controller[rhport].irqnum = irqnum;
   }
 
@@ -638,7 +638,7 @@ static void process_bus_reset(uint8_t rhport)
 static void process_set_address(uint8_t rhport)
 {
   rusb2_reg_t* rusb = RUSB2_REG(rhport);
-  const uint32_t addr = rusb->USBADDR & 0xFF;
+  const uint16_t addr = rusb->USBADDR_b.USBADDR;
   if (!addr) return;
 
   const tusb_control_request_t setup_packet = {
@@ -821,7 +821,7 @@ bool dcd_edpt_open(uint8_t rhport, tusb_desc_endpoint_t const * ep_desc)
 
   if ( rusb2_is_highspeed_rhport(rhport) ) {
     // FIXME shouldn't be after pipe selection and config, also the BUFNMB should be changed
-    // depending on the allocation scheme
+    //       depending on the allocation scheme
     rusb->PIPEBUF = 0x7C08;
   }
 
