@@ -2,6 +2,10 @@
 #ifndef BSP_MCU_FAMILY_CFG_H_
 #define BSP_MCU_FAMILY_CFG_H_
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #include "bsp_mcu_device_pn_cfg.h"
 #include "bsp_mcu_device_cfg.h"
 #include "bsp_mcu_info.h"
@@ -24,6 +28,7 @@
 #endif
 #define BSP_CORTEX_VECTOR_TABLE_ENTRIES    (16U)
 #define BSP_VECTOR_TABLE_MAX_ENTRIES       (48U)
+#define BSP_MCU_VBATT_SUPPORT       (1)
 
 #define OFS_SEQ1 0xA001A001 | (1 << 1) | (3 << 2)
 #define OFS_SEQ2 (15 << 4) | (3 << 8) | (3 << 10)
@@ -73,6 +78,10 @@
 #define BSP_CFG_ID_CODE_LONG_2 (0xFFFFFFFF)
 #define BSP_CFG_ID_CODE_LONG_3 (0xFFFFFFFF)
 #define BSP_CFG_ID_CODE_LONG_4 (0xffFFFFFF)
+#endif
+
+#ifdef __cplusplus
+}
 #endif
 
 #endif /* BSP_MCU_FAMILY_CFG_H_ */

@@ -59,8 +59,9 @@ INC += \
 
 ifndef LD_FILE
 LD_FILE = $(FAMILY_PATH)/linker/gcc/$(MCU_VARIANT).ld
-LDFLAGS += -L$(TOP)/$(FAMILY_PATH)/linker/gcc
 endif
+
+LDFLAGS += -L$(TOP)/$(FAMILY_PATH)/linker/gcc
 
 # For freeRTOS port source
 # hack to use the port provided by renesas

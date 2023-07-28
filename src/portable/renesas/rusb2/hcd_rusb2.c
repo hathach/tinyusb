@@ -186,6 +186,7 @@ static inline void pipe_wait_for_ready(rusb2_reg_t* rusb, unsigned num)
 
 static void pipe_write_packet(void *buf, volatile void *fifo, unsigned len)
 {
+  // NOTE: unlike DCD, Highspeed 32-bit FIFO does not need to adjust the fifo address
   volatile hw_fifo_t *reg = (volatile hw_fifo_t*)fifo;
   uintptr_t addr = (uintptr_t)buf;
   while (len >= 2) {
