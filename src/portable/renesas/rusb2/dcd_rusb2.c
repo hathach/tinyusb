@@ -49,16 +49,15 @@
     #define D0FIFOCTR CFIFOCTR
     #define D0FIFOCTR_b CFIFOCTR_b
   #endif
+
+  // Application API for setting IRQ number
+  void tud_int_set_irqnum(uint8_t rhport, int32_t irqnum) {
+    rusb2_controller[rhport].irqnum = irqnum;
+  }
+
 #else
   #error "Unsupported MCU"
 #endif
-
-//--------------------------------------------------------------------+
-// Application API for setting IRQ number
-//--------------------------------------------------------------------+
-void tud_int_set_irqnum(uint8_t rhport, int32_t irqnum) {
-  rusb2_controller[rhport].irqnum = irqnum;
-}
 
 //--------------------------------------------------------------------+
 // MACRO TYPEDEF CONSTANT ENUM
