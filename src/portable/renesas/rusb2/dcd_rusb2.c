@@ -726,8 +726,6 @@ void dcd_init(uint8_t rhport)
 
     rusb->PHYSLEW = 0x5;
     rusb->DPUSR0R_FS_b.FIXPHY0 = 0u; /* USB_BASE Transceiver Output fixed */
-
-    // rusb2->USBMC = (uint16_t) (rusb2->USBMC | RUSB2_USBMC_VDCEN_Msk);
   }
 
   /* Setup default control pipe */

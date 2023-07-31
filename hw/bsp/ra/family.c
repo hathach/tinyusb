@@ -124,6 +124,13 @@ void board_init(void) {
   board_led_write(false);
 }
 
+void board_init_after_tusb(void) {
+  // For board that use USB LDO regulator
+#if defined(BOARD_UNO_R4)
+  R_USB_FS0->USBMC |= R_USB_FS0_USBMC_VDCEN_Msk;
+#endif
+}
+
 void board_led_write(bool state) {
   R_IOPORT_PinWrite(&port_ctrl, LED1, state ? LED_STATE_ON : !LED_STATE_ON);
 }

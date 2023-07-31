@@ -181,6 +181,11 @@ endfunction()
 function(family_configure_common TARGET RTOS)
   family_add_rtos(${TARGET} ${RTOS})
 
+  string(TOUPPER ${BOARD} BOARD_UPPER)
+  target_compile_definitions(${TARGET} PUBLIC
+    BOARD_${BOARD_UPPER}
+  )
+
   # run size after build
   add_custom_command(TARGET ${TARGET} POST_BUILD
     COMMAND ${CMAKE_SIZE} $<TARGET_FILE:${TARGET}>
