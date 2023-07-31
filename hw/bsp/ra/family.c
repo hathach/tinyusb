@@ -92,6 +92,10 @@ const bsp_interrupt_event_t g_interrupt_event_link_select[BSP_ICU_VECTOR_MAX_ENT
 //--------------------------------------------------------------------+
 
 void board_init(void) {
+  // Enable global interrupts in CPSR register since board with bootloader such as Arduino Uno R4
+  // can transfer CPU control with CPSR.I bit set to 0 (disable IRQ)
+  __enable_irq();
+
   /* Configure pins. */
   R_IOPORT_Open(&port_ctrl, &family_pin_cfg);
 

@@ -740,6 +740,7 @@ void dcd_init(uint8_t rhport)
   rusb->BEMPENB = 1;
   rusb->BRDYENB = 1;
 
+  // If VBUS (detect) pin is not used, application need to call tud_connect() manually after tud_init()
   if (rusb->INTSTS0_b.VBSTS) {
     dcd_connect(rhport);
   }
