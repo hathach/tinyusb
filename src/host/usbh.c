@@ -258,7 +258,7 @@ static bool usbh_control_xfer_cb (uint8_t daddr, uint8_t ep_addr, xfer_result_t 
 
 #if CFG_TUSB_OS == OPT_OS_NONE
 // TODO rework time-related function later
-TU_ATTR_WEAK void osal_task_delay(uint32_t msec)
+void osal_task_delay(uint32_t msec)
 {
   const uint32_t start = hcd_frame_number(_usbh_controller);
   while ( ( hcd_frame_number(_usbh_controller) - start ) < msec ) {}
