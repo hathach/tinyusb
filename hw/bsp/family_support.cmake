@@ -407,6 +407,18 @@ function(family_flash_nxplink TARGET)
 endfunction()
 
 
+function(family_flash_dfu_util TARGET OPTION)
+  if (NOT DEFINED DFU_UTIL)
+    set(DFU_UTIL dfu-util)
+  endif ()
+
+  add_custom_target(${TARGET}-dfu-util
+    DEPENDS ${TARGET}
+    COMMAND ${DFU_UTIL} -R -d ${DFU_UTIL_VID_PID} -a 0 -D $<TARGET_FILE_DIR:${TARGET}>/${TARGET}.bin
+    VERBATIM
+    )
+endfunction()
+
 #----------------------------------
 # Family specific
 #----------------------------------

@@ -124,4 +124,9 @@ function(family_configure_example TARGET RTOS)
 
   # Flashing
   family_flash_jlink(${TARGET})
+
+  if (DEFINED DFU_UTIL_VID_PID)
+    family_add_bin_hex(${TARGET})
+    family_flash_dfu_util(${TARGET} ${DFU_UTIL_VID_PID})
+  endif ()
 endfunction()

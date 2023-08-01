@@ -3,6 +3,8 @@ DEPS_SUBMODULES += hw/mcu/renesas/fsp lib/CMSIS_5
 FSP_RA = hw/mcu/renesas/fsp/ra/fsp
 include $(TOP)/$(BOARD_PATH)/board.mk
 
+OBJCOPY_BIN_OPTION = --only-section .text --only-section .data --only-section .rodata --only-section .bss
+
 # Default to port 0 fullspeed, board with port 1 highspeed should override this in board.mk
 PORT ?= 0
 
