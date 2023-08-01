@@ -182,6 +182,7 @@ function(family_configure_common TARGET RTOS)
   family_add_rtos(${TARGET} ${RTOS})
 
   string(TOUPPER ${BOARD} BOARD_UPPER)
+  string(REPLACE "-" "_" BOARD_UPPER ${BOARD_UPPER})
   target_compile_definitions(${TARGET} PUBLIC
     BOARD_${BOARD_UPPER}
   )
