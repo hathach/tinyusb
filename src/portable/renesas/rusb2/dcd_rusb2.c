@@ -50,11 +50,6 @@
     #define D0FIFOCTR_b CFIFOCTR_b
   #endif
 
-  // Application API for setting IRQ number
-  void tud_rusb2_set_irqnum(uint8_t rhport, int32_t irqnum) {
-    rusb2_controller[rhport].irqnum = irqnum;
-  }
-
 #else
   #error "Unsupported MCU"
 #endif

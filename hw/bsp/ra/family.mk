@@ -34,6 +34,7 @@ endif
 SRC_C += \
 	src/portable/renesas/rusb2/dcd_rusb2.c \
 	src/portable/renesas/rusb2/hcd_rusb2.c \
+	src/portable/renesas/rusb2/rusb2_common.c \
 	$(FSP_RA)/src/bsp/cmsis/Device/RENESAS/Source/startup.c \
 	$(FSP_RA)/src/bsp/cmsis/Device/RENESAS/Source/system.c \
 	$(FSP_RA)/src/bsp/mcu/all/bsp_clocks.c \

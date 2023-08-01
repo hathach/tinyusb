@@ -34,14 +34,8 @@
 
 #if TU_CHECK_MCU(OPT_MCU_RX63X, OPT_MCU_RX65X, OPT_MCU_RX72N)
   #include "rusb2_rx.h"
-
 #elif TU_CHECK_MCU(OPT_MCU_RAXXX)
   #include "rusb2_ra.h"
-
-//  void osal_task_delay(uint32_t msec) {
-//    R_BSP_SoftwareDelay(msec, BSP_DELAY_UNITS_MILLISECONDS);
-//  }
-
 #else
   #error "Unsupported MCU"
 #endif
