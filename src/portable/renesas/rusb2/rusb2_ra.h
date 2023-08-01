@@ -75,7 +75,6 @@ typedef struct {
 #endif
 
 extern rusb2_controller_t rusb2_controller[];
-
 #define RUSB2_REG(_p)      ((rusb2_reg_t*) rusb2_controller[_p].reg_base)
 
 //--------------------------------------------------------------------+
