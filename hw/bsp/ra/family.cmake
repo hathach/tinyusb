@@ -114,8 +114,9 @@ function(family_configure_example TARGET RTOS)
     # Add TinyUSB target and port source
   family_add_tinyusb(${TARGET} OPT_MCU_RAXXX ${RTOS})
   target_sources(${TARGET}-tinyusb PUBLIC
-    ${TOP}/src/portable/renesas/rusb2/dcd_rusb2.c
-    ${TOP}/src/portable/renesas/rusb2/hcd_rusb2.c
+  ${TOP}/src/portable/renesas/rusb2/dcd_rusb2.c
+  ${TOP}/src/portable/renesas/rusb2/hcd_rusb2.c
+  ${TOP}/src/portable/renesas/rusb2/rusb2_ra.c
     )
   target_link_libraries(${TARGET}-tinyusb PUBLIC board_${BOARD})
 
