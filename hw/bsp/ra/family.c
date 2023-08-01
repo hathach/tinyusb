@@ -136,7 +136,7 @@ void board_led_write(bool state) {
 }
 
 uint32_t board_button_read(void) {
-  bsp_io_level_t lvl;
+  bsp_io_level_t lvl = !BUTTON_STATE_ACTIVE;
   R_IOPORT_PinRead(&port_ctrl, SW1, &lvl);
   return lvl == BUTTON_STATE_ACTIVE;
 }
