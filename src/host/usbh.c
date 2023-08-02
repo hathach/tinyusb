@@ -45,13 +45,6 @@
   #define CFG_TUH_INTERFACE_MAX   8
 #endif
 
-// Level where CFG_TUSB_DEBUG must be at least for USBH is logged
-#ifndef CFG_TUH_LOG_LEVEL
-  #define CFG_TUH_LOG_LEVEL   2
-#endif
-
-#define TU_LOG_USBH(...)   TU_LOG(CFG_TUH_LOG_LEVEL, __VA_ARGS__)
-
 //--------------------------------------------------------------------+
 // USBH-HCD common data structure
 //--------------------------------------------------------------------+

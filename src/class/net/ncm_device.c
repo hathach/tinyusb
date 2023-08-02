@@ -34,6 +34,13 @@
 #include "device/usbd_pvt.h"
 #include "net_device.h"
 
+// Level where CFG_TUSB_DEBUG must be at least for this driver is logged
+#ifndef CFG_TUD_NCM_LOG_LEVEL
+  #define CFG_TUD_NCM_LOG_LEVEL   CFG_TUD_LOG_LEVEL
+#endif
+
+#define TU_LOG_DRV(...)   TU_LOG(CFG_TUD_NCM_LOG_LEVEL, __VA_ARGS__)
+
 //--------------------------------------------------------------------+
 // MACRO CONSTANT TYPEDEF
 //--------------------------------------------------------------------+
@@ -473,13 +480,13 @@ bool tud_network_can_xmit(uint16_t size)
   TU_VERIFY(ncm_interface.itf_data_alt == 1);
 
   if (ncm_interface.datagram_count >= ncm_interface.max_datagrams_per_ntb) {
-    TU_LOG2("NTB full [by count]\r\n");
+    TU_LOG_DRV("NTB full [by count]\r\n");
     return false;
   }
 
   size_t next_datagram_offset = ncm_interface.next_datagram_offset;
   if (next_datagram_offset + size > ncm_interface.ntb_in_size) {
-    TU_LOG2("ntb full [by size]\r\n");
+    TU_LOG_DRV("ntb full [by size]\r\n");
     return false;
   }
 
