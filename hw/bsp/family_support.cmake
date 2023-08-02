@@ -36,8 +36,8 @@ if (NOT EXISTS ${CMAKE_CURRENT_LIST_DIR}/${FAMILY}/family.cmake)
   message(FATAL_ERROR "Family '${FAMILY}' is not known/supported")
 endif()
 
-if (NOT TINYUSB_OPT_SKIP_CHECK_IPO_SUPPORTED)
-  # enable LTO if supported
+if (NOT FAMILY STREQUAL rp2040)
+  # enable LTO if supported skip rp2040
   include(CheckIPOSupported)
   check_ipo_supported(RESULT IPO_SUPPORTED)
   if (IPO_SUPPORTED)
