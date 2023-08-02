@@ -73,6 +73,14 @@ jobs:
         ref: develop
         path: pico-sdk
 
+    - name: Checkout pico-examples for rp2040
+      if: matrix.family == 'rp2040'
+      uses: actions/checkout@v3
+      with:
+        repository: raspberrypi/pico-examples
+        ref: develop
+        path: pico-examples
+
     - name: Get Dependencies
       run: python3 tools/get_deps.py ${{ matrix.family }}
 
@@ -81,6 +89,25 @@ jobs:
       env:
         # for rp2040, there is no harm if defined for other families
         PICO_SDK_PATH: ${{ github.workspace }}/pico-sdk
+
+    - name: Build pico-examples
+      if: matrix.family == 'rp2040'
+      env:
+        PICO_SDK_PATH: ${{ github.workspace }}/pico-sdk
+        PICO_EXAMPLES_PATH: ${{ github.workspace }}/pico-examples
+      run: |
+        # symlink tinyusb to pico-sdk
+        rm -rf $PICO_SDK_PATH/lib/tinyusb
+        ln -s ${{ github.workspace }} $PICO_SDK_PATH/lib/
+        # change CMakelists.txt to only build selected examples
+        cd $PICO_EXAMPLES_PATH
+        sed -i -r 's/add_subdirectory/#add_subdirectory/g' CMakeLists.txt
+        echo "" >> CMakeLists.txt
+        echo "add_subdirectory(usb/device/dev_hid_composite)" >> CMakeLists.txt
+        # TODO temporarily disable host examples since tinyusb API is changed
+        # echo "add_subdirectory(usb/host/host_cdc_msc_hid)" >> CMakeLists.txt
+        cmake -S . -B _build -G Ninja -DFAMILY=rp2040 -DBOARD=pico_sdk
+        cmake --build _build
 
     # Upload binaries for hardware test with self-hosted
     - name: Prepare rp2040 Artifacts
