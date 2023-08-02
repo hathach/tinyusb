@@ -965,7 +965,14 @@ static bool process_set_config(uint8_t rhport, uint8_t cfg_num)
   }
 
   // invoke callback
-  if (tud_mount_cb) tud_mount_cb();
+  if (cfg_num)
+  {
+    if (tud_mount_cb) tud_mount_cb();
+  }
+  else
+  {
+    if (tud_umount_cb) tud_umount_cb();
+  }
 
   return true;
 }
