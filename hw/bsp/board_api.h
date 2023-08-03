@@ -60,12 +60,13 @@ void board_led_write(bool state);
 // a '1' means active (pressed), a '0' means inactive.
 uint32_t board_button_read(void);
 
-// Get characters from UART
-// Return number of read bytes
+// Get board unique ID for USB serial number. Return number of bytes. Note max_len is typically 16
+TU_ATTR_WEAK size_t board_get_unique_id(uint8_t id[], size_t max_len);
+
+// Get characters from UART. Return number of read bytes
 int board_uart_read(uint8_t *buf, int len);
 
-// Send characters to UART
-// Return number of sent bytes
+// Send characters to UART. Return number of sent bytes
 int board_uart_write(void const *buf, int len);
 
 #if CFG_TUSB_OS == OPT_OS_NONE
@@ -106,6 +107,37 @@ static inline void board_led_on(void) {
 
 static inline void board_led_off(void) {
   board_led_write(false);
+}
+
+// Get USB Serial number string from unique ID if available. Return number of character.
+// Input is string descriptor from index 1 (index 0 is type + len)
+static inline size_t board_usb_get_serial(uint16_t desc_str1[], size_t max_chars) {
+  uint8_t serial_id[16] TU_ATTR_ALIGNED(4);
+  size_t serial_len;
+
+  if ( board_get_unique_id ) {
+    serial_len = board_get_unique_id(serial_id, sizeof(serial_id));
+  }else {
+    // fixed serial string is 01234567889ABCDEF
+    *((uint32_t*)(uintptr_t) serial_id) = 0x67452301;
+    *((uint32_t*)(uintptr_t) (serial_id+4)) = 0xEFCDAB89;
+    serial_len = 8;
+  }
+
+  if ( serial_len > max_chars / 2 ) serial_len = max_chars / 2;
+
+  for ( size_t i = 0; i < serial_len; i++ ) {
+    for ( size_t j = 0; j < 2; j++ ) {
+      const char nibble_to_hex[16] = {
+          '0', '1', '2', '3', '4', '5', '6', '7',
+          '8', '9', 'A', 'B', 'C', 'D', 'E', 'F'
+      };
+      uint8_t const nibble = (serial_id[i] >> (j * 4)) & 0xf;
+      desc_str1[i * 2 + (1 - j)] = nibble_to_hex[nibble]; // UTF-16-LE
+    }
+  }
+
+  return 2*serial_len;
 }
 
 // TODO remove

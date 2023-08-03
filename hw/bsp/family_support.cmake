@@ -289,7 +289,8 @@ function(family_add_default_example_warnings TARGET)
     -Wfatal-errors
     -Wdouble-promotion
     -Wfloat-equal
-    -Wshadow
+    # FIXME commented out because of https://github.com/raspberrypi/pico-sdk/issues/1468
+    #-Wshadow
     -Wwrite-strings
     -Wsign-compare
     -Wmissing-format-attribute
