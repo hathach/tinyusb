@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2021, Ha Thach (tinyusb.org)
+ * Copyright (c) 2023 Ha Thach (tinyusb.org)
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -24,33 +24,17 @@
  * This file is part of the TinyUSB stack.
  */
 
-#ifndef _CI_HS_LPC18_43_H_
-#define _CI_HS_LPC18_43_H_
+#ifndef _BOARD_EA4357_H
+#define _BOARD_EA4357_H
 
-#ifdef __GNUC__
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wunused-parameter"
+#ifdef __cplusplus
+extern "C" {
 #endif
 
-// LPCOpen for 18xx & 43xx
-#include "chip.h"
+#include "pca9532.h"
 
-#ifdef __GNUC__
-#pragma GCC diagnostic pop
+#ifdef __cplusplus
+}
 #endif
-
-static const ci_hs_controller_t _ci_controller[] =
-{
-  { .reg_base = LPC_USB0_BASE, .irqnum = USB0_IRQn },
-  { .reg_base = LPC_USB1_BASE, .irqnum = USB1_IRQn }
-};
-
-#define CI_HS_REG(_port)        ((ci_hs_regs_t*) _ci_controller[_port].reg_base)
-
-#define CI_DCD_INT_ENABLE(_p)   NVIC_EnableIRQ (_ci_controller[_p].irqnum)
-#define CI_DCD_INT_DISABLE(_p)  NVIC_DisableIRQ(_ci_controller[_p].irqnum)
-
-#define CI_HCD_INT_ENABLE(_p)   NVIC_EnableIRQ (_ci_controller[_p].irqnum)
-#define CI_HCD_INT_DISABLE(_p)  NVIC_DisableIRQ(_ci_controller[_p].irqnum)
 
 #endif

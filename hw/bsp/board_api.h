@@ -112,9 +112,13 @@ static inline void board_led_off(void) {
 static inline void board_delay(uint32_t ms) {
   uint32_t start_ms = board_millis();
   while ( board_millis() - start_ms < ms ) {
-    #if CFG_TUD_ENABLED
     // take chance to run usb background
+    #if CFG_TUD_ENABLED
     tud_task();
+    #endif
+
+    #if CFG_TUH_ENABLED
+    tuh_task();
     #endif
   }
 }
