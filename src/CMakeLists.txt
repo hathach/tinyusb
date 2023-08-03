@@ -64,6 +64,7 @@ function(add_tinyusb TARGET)
       -Wnull-dereference
       -Wuninitialized
       -Wunused
+      -Wunused-function
       -Wreturn-type
       -Wredundant-decls
       )
@@ -75,8 +76,11 @@ endfunction()
 #------------------------------------
 # TinyUSB as library target
 #------------------------------------
-set(TINYUSB_TARGET "tinyusb")
-set(TINYUSB_CONFIG_TARGET "tinyusb_config")
+if (NOT DEFINED TINYUSB_TARGET)
+  set(TINYUSB_TARGET "tinyusb")
+endif ()
+
+set(TINYUSB_CONFIG_TARGET "${TINYUSB_TARGET}_config")
 
 if (DEFINED TINYUSB_TARGET_PREFIX)
   set(TINYUSB_TARGET "${TINYUSB_TARGET_PREFIX}${TINYUSB_TARGET}")

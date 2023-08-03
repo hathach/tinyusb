@@ -33,9 +33,12 @@
 
 #include "msc_host.h"
 
-// Debug level, TUSB_CFG_DEBUG must be at least this level for debug message
-#define MSCH_DEBUG   2
-#define TU_LOG_MSCH(...)   TU_LOG(MSCH_DEBUG, __VA_ARGS__)
+// Level where CFG_TUSB_DEBUG must be at least for this driver is logged
+#ifndef CFG_TUH_MSC_LOG_LEVEL
+  #define CFG_TUH_MSC_LOG_LEVEL   CFG_TUH_LOG_LEVEL
+#endif
+
+#define TU_LOG_DRV(...)   TU_LOG(CFG_TUH_MSC_LOG_LEVEL, __VA_ARGS__)
 
 //--------------------------------------------------------------------+
 // MACRO CONSTANT TYPEDEF
@@ -118,7 +121,7 @@ bool tuh_msc_mounted(uint8_t dev_addr)
 bool tuh_msc_ready(uint8_t dev_addr)
 {
   msch_interface_t* p_msc = get_itf(dev_addr);
-  return p_msc->mounted && !usbh_edpt_busy(dev_addr, p_msc->ep_in);
+  return p_msc->mounted && !usbh_edpt_busy(dev_addr, p_msc->ep_in) && !usbh_edpt_busy(dev_addr, p_msc->ep_out);
 }
 
 //--------------------------------------------------------------------+
@@ -308,7 +311,7 @@ void msch_close(uint8_t dev_addr)
   msch_interface_t* p_msc = get_itf(dev_addr);
   TU_VERIFY(p_msc->configured, );
 
-  TU_LOG_MSCH("  MSCh close addr = %d\r\n", dev_addr);
+  TU_LOG_DRV("  MSCh close addr = %d\r\n", dev_addr);
 
   // invoke Application Callback
   if (p_msc->mounted) {
@@ -426,7 +429,7 @@ bool msch_set_config(uint8_t dev_addr, uint8_t itf_num)
   p_msc->configured = true;
 
   //------------- Get Max Lun -------------//
-  TU_LOG_MSCH("MSC Get Max Lun\r\n");
+  TU_LOG_DRV("MSC Get Max Lun\r\n");
   tusb_control_request_t const request =
   {
     .bmRequestType_bit =
@@ -465,7 +468,7 @@ static void config_get_maxlun_complete (tuh_xfer_t* xfer)
   p_msc->max_lun++; // MAX LUN is minus 1 by specs
 
   // TODO multiple LUN support
-  TU_LOG_MSCH("SCSI Test Unit Ready\r\n");
+  TU_LOG_DRV("SCSI Test Unit Ready\r\n");
   uint8_t const lun = 0;
   tuh_msc_test_unit_ready(daddr, lun, config_test_unit_ready_complete, 0);
 }
@@ -478,14 +481,14 @@ static bool config_test_unit_ready_complete(uint8_t dev_addr, tuh_msc_complete_d
   if (csw->status == 0)
   {
     // Unit is ready, read its capacity
-    TU_LOG_MSCH("SCSI Read Capacity\r\n");
+    TU_LOG_DRV("SCSI Read Capacity\r\n");
     tuh_msc_read_capacity(dev_addr, cbw->lun, (scsi_read_capacity10_resp_t*) ((void*) _msch_buffer), config_read_capacity_complete, 0);
   }else
   {
     // Note: During enumeration, some device fails Test Unit Ready and require a few retries
     // with Request Sense to start working !!
     // TODO limit number of retries
-    TU_LOG_MSCH("SCSI Request Sense\r\n");
+    TU_LOG_DRV("SCSI Request Sense\r\n");
     TU_ASSERT(tuh_msc_request_sense(dev_addr, cbw->lun, _msch_buffer, config_request_sense_complete, 0));
   }
 

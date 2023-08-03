@@ -23,12 +23,6 @@ set(CMAKE_TOOLCHAIN_FILE ${TOP}/tools/cmake/toolchain/arm_${TOOLCHAIN}.cmake)
 
 set(FAMILY_MCUS NRF5X CACHE INTERNAL "")
 
-# enable LTO if supported
-include(CheckIPOSupported)
-check_ipo_supported(RESULT IPO_SUPPORTED)
-if (IPO_SUPPORTED)
-  set(CMAKE_INTERPROCEDURAL_OPTIMIZATION TRUE)
-endif ()
 
 #------------------------------------
 # BOARD_TARGET
@@ -46,6 +40,12 @@ function(add_board_target BOARD_TARGET)
     target_compile_definitions(${BOARD_TARGET} PUBLIC
       CONFIG_GPIO_AS_PINRESET
       )
+
+    if (TRACE_ETM STREQUAL "1")
+      # ENABLE_TRACE will cause system_nrf5x.c to set up ETM trace
+      target_compile_definitions(${BOARD_TARGET} PUBLIC ENABLE_TRACE)
+    endif ()
+
     target_include_directories(${BOARD_TARGET} PUBLIC
       ${CMAKE_CURRENT_FUNCTION_LIST_DIR}
       ${NRFX_DIR}
@@ -91,8 +91,8 @@ endfunction()
 #------------------------------------
 # Functions
 #------------------------------------
-function(family_configure_example TARGET)
-  family_configure_common(${TARGET})
+function(family_configure_example TARGET RTOS)
+  family_configure_common(${TARGET} ${RTOS})
 
   # Board target
   add_board_target(board_${BOARD})
@@ -112,30 +112,15 @@ function(family_configure_example TARGET)
     )
 
   # Add TinyUSB target and port source
-  family_add_tinyusb(${TARGET} OPT_MCU_NRF5X)
+  family_add_tinyusb(${TARGET} OPT_MCU_NRF5X ${RTOS})
   target_sources(${TARGET}-tinyusb PUBLIC
     ${TOP}/src/portable/nordic/nrf5x/dcd_nrf5x.c
     )
   target_link_libraries(${TARGET}-tinyusb PUBLIC board_${BOARD})
-
-
 
   # Link dependencies
   target_link_libraries(${TARGET} PUBLIC board_${BOARD} ${TARGET}-tinyusb)
 
   # Flashing
   family_flash_jlink(${TARGET})
-endfunction()
-
-
-function(family_configure_device_example TARGET)
-  family_configure_example(${TARGET})
-endfunction()
-
-function(family_configure_host_example TARGET)
-  family_configure_example(${TARGET})
-endfunction()
-
-function(family_configure_dual_usb_example TARGET)
-  family_configure_example(${TARGET})
 endfunction()

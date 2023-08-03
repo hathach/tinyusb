@@ -119,7 +119,8 @@
 
 // NXP Kinetis
 #define OPT_MCU_KINETIS_KL       1200 ///< NXP KL series
-#define OPT_MCU_KINETIS_K32      1201 ///< NXP K32 series
+#define OPT_MCU_KINETIS_K32L     1201 ///< NXP K32L series
+#define OPT_MCU_KINETIS_K32      1201 ///< Alias to K32L
 
 #define OPT_MCU_MKL25ZXX         1200 ///< Alias to KL (obsolete)
 #define OPT_MCU_K32L2BXX         1201 ///< Alias to K32 (obsolete)
@@ -294,15 +295,14 @@
   #define CFG_TUSB_DEBUG 0
 #endif
 
-// TODO MEM_SECTION can be different for host and device controller
-// should use CFG_TUD_MEM_SECTION, CFG_TUH_MEM_SECTION
+// Memory section for placing buffer used for usb transferring. If MEM_SECTION is different for
+// host and device use: CFG_TUD_MEM_SECTION, CFG_TUH_MEM_SECTION instead
 #ifndef CFG_TUSB_MEM_SECTION
   #define CFG_TUSB_MEM_SECTION
 #endif
 
-// alignment requirement of buffer used for endpoint transferring
-// TODO MEM_ALIGN can be different for host and device controller
-// should use CFG_TUD_MEM_ALIGN, CFG_TUH_MEM_ALIGN
+// Alignment requirement of buffer used for usb transferring. if MEM_ALIGN is different for
+// host and device controller use: CFG_TUD_MEM_ALIGN, CFG_TUH_MEM_ALIGN instead
 #ifndef CFG_TUSB_MEM_ALIGN
   #define CFG_TUSB_MEM_ALIGN      TU_ATTR_ALIGNED(4)
 #endif
@@ -320,24 +320,14 @@
 // Device Options (Default)
 //--------------------------------------------------------------------
 
-// Attribute to place data in accessible RAM for device controller
-// default to CFG_TUSB_MEM_SECTION for backward-compatible
+// Attribute to place data in accessible RAM for device controller (default: CFG_TUSB_MEM_SECTION)
 #ifndef CFG_TUD_MEM_SECTION
-  #ifdef CFG_TUSB_MEM_SECTION
-    #define CFG_TUD_MEM_SECTION   CFG_TUSB_MEM_SECTION
-  #else
-    #define CFG_TUD_MEM_SECTION
-  #endif
+  #define CFG_TUD_MEM_SECTION     CFG_TUSB_MEM_SECTION
 #endif
 
-// Attribute to align memory for device controller
-// default to CFG_TUSB_MEM_ALIGN for backward-compatible
+// Attribute to align memory for device controller (default: CFG_TUSB_MEM_ALIGN)
 #ifndef CFG_TUD_MEM_ALIGN
-  #ifdef CFG_TUSB_MEM_ALIGN
-    #define CFG_TUD_MEM_ALIGN   CFG_TUSB_MEM_ALIGN
-  #else
-    #define CFG_TUD_MEM_ALIGN   TU_ATTR_ALIGNED(4)
-  #endif
+  #define CFG_TUD_MEM_ALIGN       CFG_TUSB_MEM_ALIGN
 #endif
 
 #ifndef CFG_TUD_ENDPOINT0_SIZE
@@ -418,19 +408,14 @@
   #endif
 #endif // CFG_TUH_ENABLED
 
-// Attribute to place data in accessible RAM for host controller
-// default to CFG_TUSB_MEM_SECTION for backward-compatible
+// Attribute to place data in accessible RAM for host controller (default: CFG_TUSB_MEM_SECTION)
 #ifndef CFG_TUH_MEM_SECTION
-  #ifdef CFG_TUSB_MEM_SECTION
-    #define CFG_TUH_MEM_SECTION   CFG_TUSB_MEM_SECTION
-  #else
-    #define CFG_TUH_MEM_SECTION
-  #endif
+  #define CFG_TUH_MEM_SECTION   CFG_TUSB_MEM_SECTION
 #endif
 
 // Attribute to align memory for host controller
 #ifndef CFG_TUH_MEM_ALIGN
-  #define CFG_TUH_MEM_ALIGN   TU_ATTR_ALIGNED(4)
+  #define CFG_TUH_MEM_ALIGN     CFG_TUSB_MEM_ALIGN
 #endif
 
 //------------- CLASS -------------//

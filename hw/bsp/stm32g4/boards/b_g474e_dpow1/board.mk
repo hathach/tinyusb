@@ -1,13 +1,10 @@
+MCU_VARIANT = stm32g474xx
+
 CFLAGS += \
 	-DSTM32G474xx \
 
-# GCC
-GCC_SRC_S += $(ST_CMSIS)/Source/Templates/gcc/startup_stm32g474xx.s
-GCC_LD_FILE = $(BOARD_PATH)/STM32G474RETx_FLASH.ld
-
-# IAR
-IAR_SRC_S += $(ST_CMSIS)/Source/Templates/iar/startup_stm32g474xx.s
-IAR_LD_FILE = $(ST_CMSIS)/Source/Templates/iar/linker/stm32g474xx_flash.icf
+# Linker
+LD_FILE_GCC = $(BOARD_PATH)/STM32G474RETx_FLASH.ld
 
 # For flash-jlink target
 JLINK_DEVICE = stm32g474re

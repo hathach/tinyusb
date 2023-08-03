@@ -93,12 +93,12 @@ bool __no_inline_not_in_flash_func(get_bootsel_button)(void) {
 
 static void stdio_rtt_write (const char *buf, int length)
 {
-  SEGGER_RTT_Write(0, buf, length);
+  SEGGER_RTT_Write(0, buf, (unsigned) length);
 }
 
 static int stdio_rtt_read (char *buf, int len)
 {
-  return SEGGER_RTT_Read(0, buf, len);
+  return (int) SEGGER_RTT_Read(0, buf, (unsigned) len);
 }
 
 static stdio_driver_t stdio_rtt =
@@ -149,7 +149,7 @@ void board_init(void)
 #endif
 
 #ifdef UART_DEV
-  bi_decl(bi_2pins_with_func(UART_TX_PIN, UART_TX_PIN, GPIO_FUNC_UART));
+  bi_decl(bi_2pins_with_func(UART_TX_PIN, UART_RX_PIN, GPIO_FUNC_UART));
   uart_inst = uart_get_instance(UART_DEV);
   stdio_uart_init_full(uart_inst, CFG_BOARD_UART_BAUDRATE, UART_TX_PIN, UART_RX_PIN);
 #endif

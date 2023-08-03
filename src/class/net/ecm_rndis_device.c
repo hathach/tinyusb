@@ -61,10 +61,10 @@ typedef struct
 #define CFG_TUD_NET_PACKET_PREFIX_LEN sizeof(rndis_data_packet_t)
 #define CFG_TUD_NET_PACKET_SUFFIX_LEN 0
 
-CFG_TUSB_MEM_SECTION CFG_TUSB_MEM_ALIGN tu_static
+CFG_TUD_MEM_SECTION CFG_TUSB_MEM_ALIGN tu_static
 uint8_t received[CFG_TUD_NET_PACKET_PREFIX_LEN + CFG_TUD_NET_MTU + CFG_TUD_NET_PACKET_PREFIX_LEN];
 
-CFG_TUSB_MEM_SECTION CFG_TUSB_MEM_ALIGN tu_static
+CFG_TUD_MEM_SECTION CFG_TUSB_MEM_ALIGN tu_static
 uint8_t transmitted[CFG_TUD_NET_PACKET_PREFIX_LEN + CFG_TUD_NET_MTU + CFG_TUD_NET_PACKET_PREFIX_LEN];
 
 struct ecm_notify_struct
@@ -94,8 +94,8 @@ tu_static const struct ecm_notify_struct ecm_notify_csc =
   .uplink = 9728000,
 };
 
-// TODO remove CFG_TUSB_MEM_SECTION, control internal buffer is already in this special section
-CFG_TUSB_MEM_SECTION CFG_TUSB_MEM_ALIGN tu_static union
+// TODO remove CFG_TUD_MEM_SECTION, control internal buffer is already in this special section
+CFG_TUD_MEM_SECTION CFG_TUSB_MEM_ALIGN tu_static union
 {
   uint8_t rndis_buf[120];
   struct ecm_notify_struct ecm_buf;
@@ -104,8 +104,8 @@ CFG_TUSB_MEM_SECTION CFG_TUSB_MEM_ALIGN tu_static union
 //--------------------------------------------------------------------+
 // INTERNAL OBJECT & FUNCTION DECLARATION
 //--------------------------------------------------------------------+
-// TODO remove CFG_TUSB_MEM_SECTION
-CFG_TUSB_MEM_SECTION tu_static netd_interface_t _netd_itf;
+// TODO remove CFG_TUD_MEM_SECTION
+CFG_TUD_MEM_SECTION tu_static netd_interface_t _netd_itf;
 
 tu_static bool can_xmit;
 

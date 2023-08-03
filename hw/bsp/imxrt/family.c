@@ -91,6 +91,16 @@ void board_init(void)
   BOARD_BootClockRUN();
   SystemCoreClockUpdate();
 
+#ifdef TRACE_ETM
+  // RT1011 ETM pins
+//  IOMUXC_SetPinMux(IOMUXC_GPIO_11_ARM_TRACE3, 0U);
+//  IOMUXC_SetPinMux(IOMUXC_GPIO_12_ARM_TRACE2, 0U);
+//  IOMUXC_SetPinMux(IOMUXC_GPIO_13_ARM_TRACE1, 0U);
+//  IOMUXC_SetPinMux(IOMUXC_GPIO_AD_00_ARM_TRACE0, 0U);
+//  IOMUXC_SetPinMux(IOMUXC_GPIO_AD_02_ARM_TRACE_CLK, 0U);
+//  CLOCK_EnableClock(kCLOCK_Trace);
+#endif
+
   // Enable IOCON clock
   CLOCK_EnableClock(kCLOCK_Iomuxc);
 
@@ -234,21 +244,18 @@ int board_uart_read(uint8_t* buf, int len)
   return count;
 }
 
-int board_uart_write(void const * buf, int len)
-{
+int board_uart_write(void const * buf, int len) {
   LPUART_WriteBlocking(UART_PORT, (uint8_t const*)buf, len);
   return len;
 }
 
 #if CFG_TUSB_OS == OPT_OS_NONE
 volatile uint32_t system_ticks = 0;
-void SysTick_Handler(void)
-{
+void SysTick_Handler(void) {
   system_ticks++;
 }
 
-uint32_t board_millis(void)
-{
+uint32_t board_millis(void) {
   return system_ticks;
 }
 #endif

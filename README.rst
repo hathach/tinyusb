@@ -138,7 +138,7 @@ Please make sure you understand all the license term for files you use
 in your project.
 
 
-.. |Build Status| image:: https://github.com/hathach/tinyusb/workflows/Build/badge.svg
+.. |Build Status| image:: https://github.com/hathach/tinyusb/actions/workflows/cmake_arm.yml/badge.svg
    :target: https://github.com/hathach/tinyusb/actions
 .. |Documentation Status| image:: https://readthedocs.org/projects/tinyusb/badge/?version=latest
    :target: https://docs.tinyusb.org/en/latest/?badge=latest

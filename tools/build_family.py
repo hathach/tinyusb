@@ -11,7 +11,7 @@ SKIPPED = "\033[33mskipped\033[0m"
 
 build_separator = '-' * 106
 
-make_iar_option = 'CC=iccarm'
+make_iar_option = 'TOOLCHAIN=iar'
 
 def filter_with_input(mylist):
     if len(sys.argv) > 1:

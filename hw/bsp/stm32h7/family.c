@@ -56,6 +56,30 @@ void OTG_HS_IRQHandler(void)
 
 UART_HandleTypeDef UartHandle;
 
+//--------------------------------------------------------------------+
+//
+//--------------------------------------------------------------------+
+
+#ifdef TRACE_ETM
+void trace_etm_init(void) {
+  // H7 trace pin is PE2 to PE6
+  // __HAL_RCC_GPIOE_CLK_ENABLE();
+
+  GPIO_InitTypeDef  gpio_init;
+  gpio_init.Pin       = GPIO_PIN_2 | GPIO_PIN_3 | GPIO_PIN_4 | GPIO_PIN_5 | GPIO_PIN_6;
+  gpio_init.Mode      = GPIO_MODE_AF_PP;
+  gpio_init.Pull      = GPIO_PULLUP;
+  gpio_init.Speed     = GPIO_SPEED_FREQ_VERY_HIGH;
+  gpio_init.Alternate = GPIO_AF0_TRACE;
+  HAL_GPIO_Init(GPIOE, &gpio_init);
+
+  // Enable trace clk, also in D1 and D3 domain
+  DBGMCU->CR |= DBGMCU_CR_DBG_TRACECKEN | DBGMCU_CR_DBG_CKD1EN | DBGMCU_CR_DBG_CKD3EN;
+}
+#else
+  #define trace_etm_init()
+#endif
+
 void board_init(void)
 {
   board_stm32h7_clock_init();
@@ -73,6 +97,8 @@ void board_init(void)
   __HAL_RCC_GPIOI_CLK_ENABLE(); // USB ULPI NXT
 #endif
   __HAL_RCC_GPIOJ_CLK_ENABLE();
+
+  trace_etm_init();
 
   // Enable UART Clock
   UART_CLK_EN();

@@ -55,7 +55,7 @@ typedef struct
 //--------------------------------------------------------------------+
 // INTERNAL OBJECT & FUNCTION DECLARATION
 //--------------------------------------------------------------------+
-CFG_TUSB_MEM_SECTION btd_interface_t _btd_itf;
+CFG_TUD_MEM_SECTION btd_interface_t _btd_itf;
 
 static bool bt_tx_data(uint8_t ep, void *data, uint16_t len)
 {
