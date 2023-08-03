@@ -112,32 +112,33 @@ static inline void board_led_off(void) {
 // Get USB Serial number string from unique ID if available. Return number of character.
 // Input is string descriptor from index 1 (index 0 is type + len)
 static inline size_t board_usb_get_serial(uint16_t desc_str1[], size_t max_chars) {
-  uint8_t serial_id[16] TU_ATTR_ALIGNED(4);
-  size_t serial_len;
+  uint8_t uid[16] TU_ATTR_ALIGNED(4);
+  size_t uid_len;
 
   if ( board_get_unique_id ) {
-    serial_len = board_get_unique_id(serial_id, sizeof(serial_id));
+    uid_len = board_get_unique_id(uid, sizeof(uid));
   }else {
     // fixed serial string is 01234567889ABCDEF
-    *((uint32_t*)(uintptr_t) serial_id) = 0x67452301;
-    *((uint32_t*)(uintptr_t) (serial_id+4)) = 0xEFCDAB89;
-    serial_len = 8;
+    uint32_t* uid32 = (uint32_t*) (uintptr_t) uid;
+    uid32[0] = 0x67452301;
+    uid32[1] = 0xEFCDAB89;
+    uid_len = 8;
   }
 
-  if ( serial_len > max_chars / 2 ) serial_len = max_chars / 2;
+  if ( uid_len > max_chars / 2 ) uid_len = max_chars / 2;
 
-  for ( size_t i = 0; i < serial_len; i++ ) {
+  for ( size_t i = 0; i < uid_len; i++ ) {
     for ( size_t j = 0; j < 2; j++ ) {
       const char nibble_to_hex[16] = {
           '0', '1', '2', '3', '4', '5', '6', '7',
           '8', '9', 'A', 'B', 'C', 'D', 'E', 'F'
       };
-      uint8_t const nibble = (serial_id[i] >> (j * 4)) & 0xf;
+      uint8_t const nibble = (uid[i] >> (j * 4)) & 0xf;
       desc_str1[i * 2 + (1 - j)] = nibble_to_hex[nibble]; // UTF-16-LE
     }
   }
 
-  return 2*serial_len;
+  return 2 * uid_len;
 }
 
 // TODO remove
