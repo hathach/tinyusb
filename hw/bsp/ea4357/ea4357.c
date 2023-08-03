@@ -25,7 +25,7 @@
  */
 
 #include "chip.h"
-#include "../board.h"
+#include "../board_api.h"
 #include "pca9532.h"
 
 #define UART_DEV        LPC_USART0

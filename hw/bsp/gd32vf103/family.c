@@ -28,7 +28,7 @@
 #include "drv_usb_hw.h"
 #include "drv_usb_dev.h"
 
-#include "../board.h"
+#include "../board_api.h"
 
 //--------------------------------------------------------------------+
 // Forward USB interrupt events to TinyUSB IRQ Handler

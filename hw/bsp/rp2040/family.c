@@ -32,7 +32,7 @@
 #include "hardware/structs/ioqspi.h"
 #include "hardware/structs/sio.h"
 
-#include "bsp/board.h"
+#include "bsp/board_api.h"
 #include "board.h"
 
 #if CFG_TUH_RPI_PIO_USB || CFG_TUD_RPI_PIO_USB

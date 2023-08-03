@@ -24,10 +24,6 @@
  * This file is part of the TinyUSB stack.
  */
 
-/** \ingroup group_demo
- * \defgroup group_board Boards Abstraction Layer
- *  @{ */
-
 #ifndef _BSP_BOARD_H_
 #define _BSP_BOARD_H_
 
@@ -38,7 +34,6 @@
 #include <stdint.h>
 #include <stdbool.h>
 
-#include "ansi_escape.h"
 #include "tusb.h"
 
 // Define the default baudrate
@@ -139,6 +134,4 @@ int board_getchar(void);
  }
 #endif
 
-#endif /* _BSP_BOARD_H_ */
-
-/** @} */
+#endif
