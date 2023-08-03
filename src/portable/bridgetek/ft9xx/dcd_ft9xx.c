@@ -51,7 +51,7 @@ extern int8_t board_ft9xx_vbus(void);
 extern int board_uart_write(void const *buf, int len);
 
 // Static array to store an incoming SETUP request for processing by tinyusb.
-CFG_TUSB_MEM_SECTION CFG_TUSB_MEM_ALIGN
+CFG_TUD_MEM_SECTION CFG_TUSB_MEM_ALIGN
 static uint8_t _ft9xx_setup_packet[8];
 
 struct ft9xx_xfer_state

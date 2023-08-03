@@ -5,7 +5,7 @@ MCU_VARIANT = MIMXRT1024
 CFLAGS += -Wno-error=array-bounds
 
 # For flash-jlink target
-JLINK_DEVICE = MIMXRT1024DAG5A
+JLINK_DEVICE = MIMXRT1024xxx5A
 
 # For flash-pyocd target
 PYOCD_TARGET = mimxrt1024

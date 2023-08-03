@@ -35,9 +35,10 @@ jobs:
           # Alphabetical order
           - 'imxrt'
           - 'kinetis_kl'
-          - 'lpc18'
+          - 'lpc18 lpc40'
           - 'lpc55'
           - 'mcx'
+          - 'ra'
           - 'rp2040'
           - 'stm32f0'
           - 'stm32f1'
