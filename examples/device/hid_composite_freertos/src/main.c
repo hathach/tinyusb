@@ -138,6 +138,10 @@ void usb_device_task(void* param)
   // Otherwise it could cause kernel issue since USB IRQ handler does use RTOS queue API.
   tud_init(BOARD_TUD_RHPORT);
 
+  if (board_init_after_tusb) {
+    board_init_after_tusb();
+  }
+
   // RTOS forever loop
   while (1)
   {

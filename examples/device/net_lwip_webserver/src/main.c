@@ -232,6 +232,10 @@ int main(void)
   // init device stack on configured roothub port
   tud_init(BOARD_TUD_RHPORT);
 
+  if (board_init_after_tusb) {
+    board_init_after_tusb();
+  }
+
   /* initialize lwip, dhcp-server, dns-server, and http */
   init_lwip();
   while (!netif_is_up(&netif_data));

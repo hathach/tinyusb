@@ -116,6 +116,8 @@ INC += \
   $(TOP)/$(FAMILY_PATH) \
   $(TOP)/src \
 
+BOARD_UPPER = $(shell echo $(subst -,_,$(BOARD)) | tr a-z A-Z)
+CFLAGS += -DBOARD_$(BOARD_UPPER)
 
 # Log level is mapped to TUSB DEBUG option
 ifneq ($(LOG),)

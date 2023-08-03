@@ -83,6 +83,10 @@ int main(void)
   tud_init(BOARD_TUD_RHPORT);
   tuh_init(BOARD_TUH_RHPORT);
 
+  if (board_init_after_tusb) {
+    board_init_after_tusb();
+  }
+
   while (1)
   {
     tud_task(); // tinyusb device task
