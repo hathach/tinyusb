@@ -13,7 +13,7 @@ include(${CMAKE_CURRENT_LIST_DIR}/boards/${BOARD}/board.cmake)
 
 set(CMAKE_TOOLCHAIN_FILE ${TOP}/tools/cmake/toolchain/arm_${TOOLCHAIN}.cmake)
 
-set(FAMILY_MCUS RA CACHE INTERNAL "")
+set(FAMILY_MCUS RAXXX ${MCU_VARIANT} CACHE INTERNAL "")
 
 #------------------------------------
 # BOARD_TARGET
@@ -37,14 +37,10 @@ function(add_board_target BOARD_TARGET)
       ${FSP_RA}/src/bsp/mcu/all/bsp_security.c
       ${FSP_RA}/src/r_ioport/r_ioport.c
       )
-    target_compile_definitions(${BOARD_TARGET} PUBLIC
-      _RA_TZ_NONSECURE
-      )
 
     target_compile_options(${BOARD_TARGET} PUBLIC
       -ffreestanding
       )
-
     target_include_directories(${BOARD_TARGET} PUBLIC
       ${CMAKE_CURRENT_FUNCTION_LIST_DIR}
       ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/boards/${BOARD}
@@ -120,6 +116,7 @@ function(family_configure_example TARGET RTOS)
   target_sources(${TARGET}-tinyusb PUBLIC
     ${TOP}/src/portable/renesas/rusb2/dcd_rusb2.c
     ${TOP}/src/portable/renesas/rusb2/hcd_rusb2.c
+    ${TOP}/src/portable/renesas/rusb2/rusb2_common.c
     )
   target_link_libraries(${TARGET}-tinyusb PUBLIC board_${BOARD})
 
@@ -128,4 +125,9 @@ function(family_configure_example TARGET RTOS)
 
   # Flashing
   family_flash_jlink(${TARGET})
+
+  if (DEFINED DFU_UTIL_VID_PID)
+    family_add_bin_hex(${TARGET})
+    family_flash_dfu_util(${TARGET} ${DFU_UTIL_VID_PID})
+  endif ()
 endfunction()

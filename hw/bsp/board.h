@@ -54,6 +54,9 @@
 // Initialize on-board peripherals : led, button, uart and USB
 void board_init(void);
 
+// Init board after tinyusb is initialized
+void board_init_after_tusb(void) TU_ATTR_WEAK;
+
 // Turn LED on or off
 void board_led_write(bool state);
 

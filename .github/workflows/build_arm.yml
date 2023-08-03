@@ -39,7 +39,6 @@ jobs:
         - 'lpc51 lpc54'
         - 'mm32 msp432e4'
         - 'nrf'
-        - 'ra'
         - 'samd11 samd21'
         - 'samd51 same5x'
         - 'saml2x'

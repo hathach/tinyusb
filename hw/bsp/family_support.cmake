@@ -181,6 +181,12 @@ endfunction()
 function(family_configure_common TARGET RTOS)
   family_add_rtos(${TARGET} ${RTOS})
 
+  string(TOUPPER ${BOARD} BOARD_UPPER)
+  string(REPLACE "-" "_" BOARD_UPPER ${BOARD_UPPER})
+  target_compile_definitions(${TARGET} PUBLIC
+    BOARD_${BOARD_UPPER}
+  )
+
   # run size after build
   add_custom_command(TARGET ${TARGET} POST_BUILD
     COMMAND ${CMAKE_SIZE} $<TARGET_FILE:${TARGET}>
@@ -227,6 +233,10 @@ function(family_add_tinyusb TARGET OPT_MCU RTOS)
 
   if (DEFINED LOG)
     target_compile_definitions(${TARGET}-tinyusb_config INTERFACE CFG_TUSB_DEBUG=${LOG})
+    if (LOG STREQUAL "4")
+      # no inline for debug level 4
+      target_compile_definitions(${TARGET}-tinyusb_config INTERFACE TU_ATTR_ALWAYS_INLINE=)
+    endif ()
   endif()
 
   if (RTOS STREQUAL "freertos")
@@ -396,6 +406,18 @@ function(family_flash_nxplink TARGET)
     )
 endfunction()
 
+
+function(family_flash_dfu_util TARGET OPTION)
+  if (NOT DEFINED DFU_UTIL)
+    set(DFU_UTIL dfu-util)
+  endif ()
+
+  add_custom_target(${TARGET}-dfu-util
+    DEPENDS ${TARGET}
+    COMMAND ${DFU_UTIL} -R -d ${DFU_UTIL_VID_PID} -a 0 -D $<TARGET_FILE_DIR:${TARGET}>/${TARGET}.bin
+    VERBATIM
+    )
+endfunction()
 
 #----------------------------------
 # Family specific

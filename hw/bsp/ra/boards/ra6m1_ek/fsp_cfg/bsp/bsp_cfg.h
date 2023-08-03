@@ -8,6 +8,7 @@ extern "C" {
 
 #include "bsp_clock_cfg.h"
 #include "bsp_mcu_family_cfg.h"
+#include "board_cfg.h"
 
 #define RA_NOT_DEFINED 0
 #ifndef BSP_CFG_RTOS
@@ -30,7 +31,7 @@ extern "C" {
 #endif
 
 #define BSP_CFG_MCU_VCC_MV (3300)
-#define BSP_CFG_STACK_MAIN_BYTES (0x400)
+#define BSP_CFG_STACK_MAIN_BYTES (0x1000)
 #define BSP_CFG_HEAP_BYTES (0x1000)
 #define BSP_CFG_PARAM_CHECKING_ENABLE (1)
 #define BSP_CFG_ASSERT (0)
@@ -59,16 +60,6 @@ extern "C" {
 #ifndef BSP_CLOCK_CFG_SUBCLOCK_STABILIZATION_MS
 #define BSP_CLOCK_CFG_SUBCLOCK_STABILIZATION_MS 1000
 #endif
-
-#define BSP_FEATURE_BSP_HAS_SCISPI_CLOCK 0
-#define BSP_FEATURE_TFU_SUPPORTED 0
-#define BSP_TZ_SECURE_BUILD    (0)
-#define BSP_TZ_NONSECURE_BUILD (0)
-
-#define BSP_CFG_USE_LOW_VOLTAGE_MODE 0
-
-// for SystemInit()
-void bsp_init(void * p_args);
 
 #ifdef __cplusplus
 }
