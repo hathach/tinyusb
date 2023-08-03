@@ -50,7 +50,7 @@
  * regarding downloading.
  */
 
-#include "bsp/board.h"
+#include "bsp/board_api.h"
 #include "iodefine.h"
 #include "interrupt_handlers.h"
 

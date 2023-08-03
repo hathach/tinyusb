@@ -27,7 +27,7 @@
 #include "stm32g4xx_hal.h"
 #include "stm32g4xx_ll_bus.h"
 
-#include "bsp/board.h"
+#include "bsp/board_api.h"
 #include "board.h"
 
 //--------------------------------------------------------------------+

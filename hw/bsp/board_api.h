@@ -24,11 +24,11 @@
  * This file is part of the TinyUSB stack.
  */
 
-#ifndef _BSP_BOARD_H_
-#define _BSP_BOARD_H_
+#ifndef _BOARD_API_H_
+#define _BOARD_API_H_
 
 #ifdef __cplusplus
- extern "C" {
+extern "C" {
 #endif
 
 #include <stdint.h>
@@ -62,40 +62,36 @@ uint32_t board_button_read(void);
 
 // Get characters from UART
 // Return number of read bytes
-int board_uart_read(uint8_t* buf, int len);
+int board_uart_read(uint8_t *buf, int len);
 
 // Send characters to UART
 // Return number of sent bytes
-int board_uart_write(void const * buf, int len);
+int board_uart_write(void const *buf, int len);
 
 #if CFG_TUSB_OS == OPT_OS_NONE
-  // Get current milliseconds, must be implemented when no RTOS is used
-  uint32_t board_millis(void);
+// Get current milliseconds, must be implemented when no RTOS is used
+uint32_t board_millis(void);
 
 #elif CFG_TUSB_OS == OPT_OS_FREERTOS
-  static inline uint32_t board_millis(void)
-  {
-    return ( ( ((uint64_t) xTaskGetTickCount()) * 1000) / configTICK_RATE_HZ );
-  }
+static inline uint32_t board_millis(void) {
+  return ( ( ((uint64_t) xTaskGetTickCount()) * 1000) / configTICK_RATE_HZ );
+}
 
 #elif CFG_TUSB_OS == OPT_OS_MYNEWT
-  static inline uint32_t board_millis(void)
-  {
-    return os_time_ticks_to_ms32( os_time_get() );
-  }
+static inline uint32_t board_millis(void) {
+  return os_time_ticks_to_ms32( os_time_get() );
+}
 
 #elif CFG_TUSB_OS == OPT_OS_PICO
-  #include "pico/time.h"
-  static inline uint32_t board_millis(void)
-  {
-    return to_ms_since_boot(get_absolute_time());
-  }
+#include "pico/time.h"
+static inline uint32_t board_millis(void) {
+  return to_ms_since_boot(get_absolute_time());
+}
 
 #elif CFG_TUSB_OS == OPT_OS_RTTHREAD
-  static inline uint32_t board_millis(void)
-  {
-    return (((uint64_t)rt_tick_get()) * 1000 / RT_TICK_PER_SECOND);
-  }
+static inline uint32_t board_millis(void) {
+  return (((uint64_t)rt_tick_get()) * 1000 / RT_TICK_PER_SECOND);
+}
 
 #else
   #error "board_millis() is not implemented for this OS"
@@ -104,22 +100,18 @@ int board_uart_write(void const * buf, int len);
 //--------------------------------------------------------------------+
 // Helper functions
 //--------------------------------------------------------------------+
-static inline void board_led_on(void)
-{
+static inline void board_led_on(void) {
   board_led_write(true);
 }
 
-static inline void board_led_off(void)
-{
+static inline void board_led_off(void) {
   board_led_write(false);
 }
 
 // TODO remove
-static inline void board_delay(uint32_t ms)
-{
+static inline void board_delay(uint32_t ms) {
   uint32_t start_ms = board_millis();
-  while (board_millis() - start_ms < ms)
-  {
+  while ( board_millis() - start_ms < ms ) {
     #if CFG_TUD_ENABLED
     // take chance to run usb background
     tud_task();
@@ -131,7 +123,7 @@ static inline void board_delay(uint32_t ms)
 int board_getchar(void);
 
 #ifdef __cplusplus
- }
+}
 #endif
 
 #endif
