@@ -22,7 +22,7 @@
           </envs>
         </ADDITIONAL_GENERATION_ENVIRONMENT>
       </configuration>
-      <configuration PROFILE_NAME="rp2040" ENABLED="true" CONFIG_NAME="Debug" GENERATION_OPTIONS="-DBOARD=raspberry_pi_pico -DLOG=2" />
+      <configuration PROFILE_NAME="rp2040" ENABLED="false" CONFIG_NAME="Debug" GENERATION_OPTIONS="-DBOARD=raspberry_pi_pico -DLOG=2" />
       <configuration PROFILE_NAME="feather_rp2040" ENABLED="false" CONFIG_NAME="Debug" GENERATION_OPTIONS="-DBOARD=pico_sdk -DPICO_BOARD=adafruit_feather_rp2040" />
       <configuration PROFILE_NAME="metro m7 1011" ENABLED="false" CONFIG_NAME="Debug" GENERATION_OPTIONS="-DBOARD=metro_m7_1011 -DLOG=3 -DLOGGER=RTT -DTRACE_ETM=1" />
       <configuration PROFILE_NAME="rt1010 evk" ENABLED="false" CONFIG_NAME="Debug" GENERATION_OPTIONS="-DBOARD=mimxrt1010_evk -DLOG=3 -DLOGGER=RTT" />
@@ -41,6 +41,7 @@
       <configuration PROFILE_NAME="frdm_kl25z" ENABLED="false" CONFIG_NAME="Debug" GENERATION_OPTIONS="-DBOARD=frdm_kl25z -DLOG=3 -DLOGGER=RTT" />
       <configuration PROFILE_NAME="stm32f072disco" ENABLED="false" CONFIG_NAME="Debug" GENERATION_OPTIONS="-DBOARD=stm32f072disco" />
       <configuration PROFILE_NAME="stm32f103_mini_2" ENABLED="false" CONFIG_NAME="Debug" GENERATION_OPTIONS="-DBOARD=stm32f103_mini_2" />
+      <configuration PROFILE_NAME="stm32f411disco" ENABLED="false" CONFIG_NAME="Debug" GENERATION_OPTIONS="-DBOARD=stm32f411disco -DLOG=2 -DLOGGER=RTT" />
       <configuration PROFILE_NAME="stm32f769disco" ENABLED="false" CONFIG_NAME="Debug" GENERATION_OPTIONS="-DBOARD=stm32f769disco -DLOG=3 -DLOGGER=RTT" />
       <configuration PROFILE_NAME="stm32h743eval" ENABLED="false" CONFIG_NAME="Debug" GENERATION_OPTIONS="-DBOARD=stm32h743eval -DLOG=3 -DLOGGER=RTT -DTRACE_ETM=1" />
       <configuration PROFILE_NAME="stm32l476disco" ENABLED="false" CONFIG_NAME="Debug" GENERATION_OPTIONS="-DBOARD=stm32l476disco" />

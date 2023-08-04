@@ -20,58 +20,58 @@ set(CMAKE_TOOLCHAIN_FILE ${TOP}/tools/cmake/toolchain/arm_${TOOLCHAIN}.cmake)
 
 set(FAMILY_MCUS STM32F4 CACHE INTERNAL "")
 
-# enable LTO if supported
-include(CheckIPOSupported)
-check_ipo_supported(RESULT IPO_SUPPORTED)
-if (IPO_SUPPORTED)
-  set(CMAKE_INTERPROCEDURAL_OPTIMIZATION TRUE)
-endif ()
-
 
 #------------------------------------
 # BOARD_TARGET
 #------------------------------------
 # only need to be built ONCE for all examples
 function(add_board_target BOARD_TARGET)
-  if (NOT TARGET ${BOARD_TARGET})
-    add_library(${BOARD_TARGET} STATIC
-      ${ST_CMSIS}/Source/Templates/system_${ST_PREFIX}.c
-      ${ST_HAL_DRIVER}/Src/${ST_PREFIX}_hal.c
-      ${ST_HAL_DRIVER}/Src/${ST_PREFIX}_hal_cortex.c
-      ${ST_HAL_DRIVER}/Src/${ST_PREFIX}_hal_pwr_ex.c
-      ${ST_HAL_DRIVER}/Src/${ST_PREFIX}_hal_rcc.c
-      ${ST_HAL_DRIVER}/Src/${ST_PREFIX}_hal_rcc_ex.c
-      ${ST_HAL_DRIVER}/Src/${ST_PREFIX}_hal_dma.c
-      ${ST_HAL_DRIVER}/Src/${ST_PREFIX}_hal_gpio.c
-      ${ST_HAL_DRIVER}/Src/${ST_PREFIX}_hal_uart.c
-      ${STARTUP_FILE_${CMAKE_C_COMPILER_ID}}
-      )
-    target_include_directories(${BOARD_TARGET} PUBLIC
-      ${CMAKE_CURRENT_FUNCTION_LIST_DIR}
-      ${CMSIS_5}/CMSIS/Core/Include
-      ${ST_CMSIS}/Include
-      ${ST_HAL_DRIVER}/Inc
-      )
-    target_compile_options(${BOARD_TARGET} PUBLIC
-      )
-    target_compile_definitions(${BOARD_TARGET} PUBLIC
-      )
+  if (TARGET ${BOARD_TARGET})
+    return()
+  endif ()
 
-    update_board(${BOARD_TARGET})
+  # Startup & Linker script
+  set(STARTUP_FILE_GNU ${ST_CMSIS}/Source/Templates/gcc/startup_${MCU_VARIANT}.s)
+  set(STARTUP_FILE_IAR ${ST_CMSIS}/Source/Templates/iar/startup_${MCU_VARIANT}.s)
+  set(LD_FILE_IAR ${ST_CMSIS}/Source/Templates/iar/linker/${MCU_VARIANT}_flash.icf)
 
-    if (CMAKE_C_COMPILER_ID STREQUAL "GNU")
-      target_link_options(${BOARD_TARGET} PUBLIC
-        "LINKER:--script=${LD_FILE_GNU}"
-        -nostartfiles
-        # nanolib
-        --specs=nosys.specs
-        --specs=nano.specs
-        )
-    elseif (CMAKE_C_COMPILER_ID STREQUAL "IAR")
-      target_link_options(${BOARD_TARGET} PUBLIC
-        "LINKER:--config=${LD_FILE_IAR}"
-        )
-    endif ()
+  add_library(${BOARD_TARGET} STATIC
+    ${ST_CMSIS}/Source/Templates/system_${ST_PREFIX}.c
+    ${ST_HAL_DRIVER}/Src/${ST_PREFIX}_hal.c
+    ${ST_HAL_DRIVER}/Src/${ST_PREFIX}_hal_cortex.c
+    ${ST_HAL_DRIVER}/Src/${ST_PREFIX}_hal_dma.c
+    ${ST_HAL_DRIVER}/Src/${ST_PREFIX}_hal_gpio.c
+    ${ST_HAL_DRIVER}/Src/${ST_PREFIX}_hal_pwr_ex.c
+    ${ST_HAL_DRIVER}/Src/${ST_PREFIX}_hal_rcc.c
+    ${ST_HAL_DRIVER}/Src/${ST_PREFIX}_hal_rcc_ex.c
+    ${ST_HAL_DRIVER}/Src/${ST_PREFIX}_hal_uart.c
+    ${STARTUP_FILE_${CMAKE_C_COMPILER_ID}}
+    )
+  target_include_directories(${BOARD_TARGET} PUBLIC
+    ${CMAKE_CURRENT_FUNCTION_LIST_DIR}
+    ${CMSIS_5}/CMSIS/Core/Include
+    ${ST_CMSIS}/Include
+    ${ST_HAL_DRIVER}/Inc
+    )
+  target_compile_options(${BOARD_TARGET} PUBLIC
+    )
+  target_compile_definitions(${BOARD_TARGET} PUBLIC
+    )
+
+  update_board(${BOARD_TARGET})
+
+  if (CMAKE_C_COMPILER_ID STREQUAL "GNU")
+    target_link_options(${BOARD_TARGET} PUBLIC
+      "LINKER:--script=${LD_FILE_GNU}"
+      -nostartfiles
+      # nanolib
+      --specs=nosys.specs
+      --specs=nano.specs
+      )
+  elseif (CMAKE_C_COMPILER_ID STREQUAL "IAR")
+    target_link_options(${BOARD_TARGET} PUBLIC
+      "LINKER:--config=${LD_FILE_IAR}"
+      )
   endif ()
 endfunction()
 
@@ -81,7 +81,6 @@ endfunction()
 #------------------------------------
 function(family_configure_example TARGET RTOS)
   family_configure_common(${TARGET} ${RTOS})
-
 
   # Board target
   add_board_target(board_${BOARD})
@@ -102,15 +101,9 @@ function(family_configure_example TARGET RTOS)
 
   # Add TinyUSB target and port source
   family_add_tinyusb(${TARGET} OPT_MCU_STM32F4 ${RTOS})
-  if (MCU_VARIANT STREQUAL "stm32f407xx")
-    target_sources(${TARGET}-tinyusb PUBLIC
-            ${TOP}/src/portable/synopsys/dwc2/dcd_dwc2.c
-            )
-  else()
-    target_sources(${TARGET}-tinyusb PUBLIC
-            ${TOP}/src/portable/st/stm32_fsdev/dcd_stm32_fsdev.c
-            )
-  endif()
+  target_sources(${TARGET}-tinyusb PUBLIC
+    ${TOP}/src/portable/synopsys/dwc2/dcd_dwc2.c
+    )
   target_link_libraries(${TARGET}-tinyusb PUBLIC board_${BOARD})
 
   # Link dependencies
@@ -119,17 +112,4 @@ function(family_configure_example TARGET RTOS)
   # Flashing
   family_flash_stlink(${TARGET})
   family_flash_jlink(${TARGET})
-endfunction()
-
-
-function(family_configure_device_example TARGET)
-  family_configure_example(${TARGET})
-endfunction()
-
-function(family_configure_host_example TARGET)
-  family_configure_example(${TARGET})
-endfunction()
-
-function(family_configure_dual_usb_example TARGET)
-  family_configure_example(${TARGET})
 endfunction()
