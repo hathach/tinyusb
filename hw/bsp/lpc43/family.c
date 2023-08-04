@@ -24,9 +24,20 @@
  * This file is part of the TinyUSB stack.
  */
 
+// Suppress warning caused by mcu driver
+#ifdef __GNUC__
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wunused-parameter"
+#endif
+
 #include "chip.h"
-#include "../board.h"
-#include "pca9532.h"
+
+#ifdef __GNUC__
+#pragma GCC diagnostic pop
+#endif
+
+#include "bsp/board_api.h"
+#include "board.h"
 
 #define UART_DEV        LPC_USART0
 #define UART_PORT       0x0f

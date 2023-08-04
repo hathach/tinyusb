@@ -23,7 +23,7 @@
  * THE SOFTWARE.
  */
 
-#include "bsp/board.h"
+#include "bsp/board_api.h"
 #include "board.h"
 #include "fsl_device_registers.h"
 #include "fsl_gpio.h"

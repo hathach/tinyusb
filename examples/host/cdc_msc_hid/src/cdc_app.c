@@ -25,7 +25,7 @@
  */
 
 #include "tusb.h"
-#include "bsp/board.h"
+#include "bsp/board_api.h"
 
 //--------------------------------------------------------------------+
 // MACRO TYPEDEF CONSTANT ENUM DECLARATION

@@ -26,7 +26,7 @@
  */
 
 #include "stm32u5xx_hal.h"
-#include "bsp/board.h"
+#include "bsp/board_api.h"
 #include "board.h"
 
 //--------------------------------------------------------------------+

@@ -44,7 +44,7 @@
 #pragma GCC diagnostic pop
 #endif
 
-#include "bsp/board.h"
+#include "bsp/board_api.h"
 #include "board.h"
 
 /* Key code for writing PRCR register. */

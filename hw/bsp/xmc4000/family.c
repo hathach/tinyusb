@@ -28,7 +28,7 @@
 #include "xmc_scu.h"
 #include "xmc_uart.h"
 
-#include "bsp/board.h"
+#include "bsp/board_api.h"
 #include "board.h"
 
 

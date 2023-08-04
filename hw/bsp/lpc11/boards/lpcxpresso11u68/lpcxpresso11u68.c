@@ -25,7 +25,7 @@
  */
 
 #include "chip.h"
-#include "bsp/board.h"
+#include "bsp/board_api.h"
 
 //--------------------------------------------------------------------+
 // Forward USB interrupt events to TinyUSB IRQ Handler

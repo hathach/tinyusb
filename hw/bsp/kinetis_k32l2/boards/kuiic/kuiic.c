@@ -25,7 +25,7 @@
  * This file is part of the TinyUSB stack.
  */
 
-#include "bsp/board.h"
+#include "bsp/board_api.h"
 #include "board.h"
 #include "fsl_smc.h"
 #include "fsl_gpio.h"
