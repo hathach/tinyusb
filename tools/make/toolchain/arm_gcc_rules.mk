@@ -65,9 +65,10 @@ $(BUILD)/obj/%_asm.o: %.S
 	@echo AS $(notdir $@)
 	@$(AS) $(ASFLAGS) -c -o $@ $<
 
+OBJCOPY_BIN_OPTION ?=
 $(BUILD)/$(PROJECT).bin: $(BUILD)/$(PROJECT).elf
 	@echo CREATE $@
-	@$(OBJCOPY) -O binary $^ $@
+	$(OBJCOPY) -O binary $(OBJCOPY_BIN_OPTION) $^ $@
 
 $(BUILD)/$(PROJECT).hex: $(BUILD)/$(PROJECT).elf
 	@echo CREATE $@

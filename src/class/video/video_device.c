@@ -34,6 +34,13 @@
 
 #include "video_device.h"
 
+// Level where CFG_TUSB_DEBUG must be at least for this driver is logged
+#ifndef CFG_TUD_VIDEO_LOG_LEVEL
+  #define CFG_TUD_VIDEO_LOG_LEVEL   CFG_TUD_LOG_LEVEL
+#endif
+
+#define TU_LOG_DRV(...)   TU_LOG(CFG_TUD_VIDEO_LOG_LEVEL, __VA_ARGS__)
+
 //--------------------------------------------------------------------+
 // MACRO CONSTANT TYPEDEF
 //--------------------------------------------------------------------+
@@ -130,8 +137,8 @@ typedef struct TU_ATTR_PACKED {
 //--------------------------------------------------------------------+
 // INTERNAL OBJECT & FUNCTION DECLARATION
 //--------------------------------------------------------------------+
-CFG_TUSB_MEM_SECTION tu_static videod_interface_t _videod_itf[CFG_TUD_VIDEO];
-CFG_TUSB_MEM_SECTION tu_static videod_streaming_interface_t _videod_streaming_itf[CFG_TUD_VIDEO_STREAMING];
+CFG_TUD_MEM_SECTION tu_static videod_interface_t _videod_itf[CFG_TUD_VIDEO];
+CFG_TUD_MEM_SECTION tu_static videod_streaming_interface_t _videod_streaming_itf[CFG_TUD_VIDEO_STREAMING];
 
 tu_static uint8_t const _cap_get     = 0x1u; /* support for GET */
 tu_static uint8_t const _cap_get_set = 0x3u; /* support for GET and SET */
@@ -609,17 +616,17 @@ static bool _close_vc_itf(uint8_t rhport, videod_interface_t *self)
  * @param[in]     altnum   The target alternate setting number. */
 static bool _open_vc_itf(uint8_t rhport, videod_interface_t *self, uint_fast8_t altnum)
 {
-  TU_LOG2("    open VC %d\n", altnum);
+  TU_LOG_DRV("    open VC %d\r\n", altnum);
   uint8_t const *beg = self->beg;
   uint8_t const *end = beg + self->len;
 
   /* The first descriptor is a video control interface descriptor. */
   uint8_t const *cur = _find_desc_itf(beg, end, _desc_itfnum(beg), altnum);
-  TU_LOG2("    cur %d\n", cur - beg);
+  TU_LOG_DRV("    cur %d\r\n", cur - beg);
   TU_VERIFY(cur < end);
 
   tusb_desc_vc_itf_t const *vc = (tusb_desc_vc_itf_t const *)cur;
-  TU_LOG2("    bInCollection %d\n", vc->ctl.bInCollection);
+  TU_LOG_DRV("    bInCollection %d\r\n", vc->ctl.bInCollection);
   /* Support for up to 2 streaming interfaces only. */
   TU_ASSERT(vc->ctl.bInCollection <= CFG_TUD_VIDEO_STREAMING);
 
@@ -628,7 +635,7 @@ static bool _open_vc_itf(uint8_t rhport, videod_interface_t *self, uint_fast8_t 
 
   /* Advance to the next descriptor after the class-specific VC interface header descriptor. */
   cur += vc->std.bLength + vc->ctl.bLength;
-  TU_LOG2("    bNumEndpoints %d\n", vc->std.bNumEndpoints);
+  TU_LOG_DRV("    bNumEndpoints %d\r\n", vc->std.bNumEndpoints);
   /* Open the notification endpoint if it exist. */
   if (vc->std.bNumEndpoints) {
     /* Support for 1 endpoint only. */
@@ -662,7 +669,7 @@ static bool _init_vs_configuration(videod_streaming_interface_t *stm)
 static bool _open_vs_itf(uint8_t rhport, videod_streaming_interface_t *stm, uint_fast8_t altnum)
 {
   uint_fast8_t i;
-  TU_LOG2("    reopen VS %d\n", altnum);
+  TU_LOG_DRV("    reopen VS %d\r\n", altnum);
   uint8_t const *desc = _videod_itf[stm->index_vc].beg;
 
   /* Close endpoints of previous settings. */
@@ -672,7 +679,7 @@ static bool _open_vs_itf(uint8_t rhport, videod_streaming_interface_t *stm, uint
     uint8_t  ep_adr = _desc_ep_addr(desc + ofs_ep);
     usbd_edpt_close(rhport, ep_adr);
     stm->desc.ep[i] = 0;
-    TU_LOG2("    close EP%02x\n", ep_adr);
+    TU_LOG_DRV("    close EP%02x\r\n", ep_adr);
   }
 
   /* clear transfer management information */
@@ -709,12 +716,12 @@ static bool _open_vs_itf(uint8_t rhport, videod_streaming_interface_t *stm, uint
     }
     TU_ASSERT(usbd_edpt_open(rhport, ep));
     stm->desc.ep[i] = (uint16_t) (cur - desc);
-    TU_LOG2("    open EP%02x\n", _desc_ep_addr(cur));
+    TU_LOG_DRV("    open EP%02x\r\n", _desc_ep_addr(cur));
   }
   if (altnum) {
     stm->state = VS_STATE_STREAMING;
   }
-  TU_LOG2("    done\n");
+  TU_LOG_DRV("    done\r\n");
   return true;
 }
 

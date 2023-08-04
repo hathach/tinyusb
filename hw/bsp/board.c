@@ -23,7 +23,7 @@
  *
  */
 
-#include "board.h"
+#include "board_api.h"
 
 //--------------------------------------------------------------------+
 // newlib read()/write() retarget

@@ -317,7 +317,7 @@ static bool handle_xfer_in(uint_fast8_t ep_addr)
   const unsigned mps = regs->TXMAXP;
   const unsigned len = TU_MIN(mps, rem);
   void          *buf = pipe->buf;
-  // TU_LOG1("   %p mps %d len %d rem %d\n", buf, mps, len, rem);
+  // TU_LOG1("   %p mps %d len %d rem %d\r\n", buf, mps, len, rem);
   if (len) {
     if (_dcd.pipe_buf_is_fifo[TUSB_DIR_IN] & TU_BIT(epnum_minus1)) {
       pipe_read_write_packet_ff(buf, &USB0->FIFO1_WORD + epnum_minus1, len, TUSB_DIR_IN);
@@ -328,7 +328,7 @@ static bool handle_xfer_in(uint_fast8_t ep_addr)
     pipe->remaining = rem - len;
   }
   regs->TXCSRL = USB_TXCSRL1_TXRDY;
-  // TU_LOG1(" TXCSRL%d = %x %d\n", epnum_minus1 + 1, regs->TXCSRL, rem - len);
+  // TU_LOG1(" TXCSRL%d = %x %d\r\n", epnum_minus1 + 1, regs->TXCSRL, rem - len);
   return false;
 }
 
@@ -337,7 +337,7 @@ static bool handle_xfer_out(uint_fast8_t ep_addr)
   unsigned epnum_minus1 = tu_edpt_number(ep_addr) - 1;
   pipe_state_t  *pipe = &_dcd.pipe[tu_edpt_dir(ep_addr)][epnum_minus1];
   volatile hw_endpoint_t *regs = edpt_regs(epnum_minus1);
-  // TU_LOG1(" RXCSRL%d = %x\n", epnum_minus1 + 1, regs->RXCSRL);
+  // TU_LOG1(" RXCSRL%d = %x\r\n", epnum_minus1 + 1, regs->RXCSRL);
 
   TU_ASSERT(regs->RXCSRL & USB_RXCSRL1_RXRDY);
 
@@ -399,14 +399,14 @@ static bool edpt0_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t *buffer, uint16_
      * may have already finished and received the next setup packet
      * without calling this function, so we have no choice but to
      * invoke the callback function of status packet here. */
-    // TU_LOG1(" STATUS OUT USB0->CSRL0 = %x\n", USB0->CSRL0);
+    // TU_LOG1(" STATUS OUT USB0->CSRL0 = %x\r\n", USB0->CSRL0);
     _dcd.status_out = 0;
     if (req == REQUEST_TYPE_INVALID) {
       dcd_event_xfer_complete(rhport, ep_addr, total_bytes, XFER_RESULT_SUCCESS, false);
     } else {
       /* The next setup packet has already been received, it aborts
        * invoking callback function to avoid confusing TUSB stack. */
-      TU_LOG1("Drop CONTROL_STAGE_ACK\n");
+      TU_LOG1("Drop CONTROL_STAGE_ACK\r\n");
     }
     return true;
   }
@@ -431,16 +431,16 @@ static bool edpt0_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t *buffer, uint16_
       } else {
         USB0->CSRL0 = USB_CSRL0_TXRDY; /* Flush TX FIFO to return ACK. */
       }
-      // TU_LOG1(" IN USB0->CSRL0 = %x\n", USB0->CSRL0);
+      // TU_LOG1(" IN USB0->CSRL0 = %x\r\n", USB0->CSRL0);
     } else {
-      // TU_LOG1(" OUT USB0->CSRL0 = %x\n", USB0->CSRL0);
+      // TU_LOG1(" OUT USB0->CSRL0 = %x\r\n", USB0->CSRL0);
       _dcd.pipe0.buf       = buffer;
       _dcd.pipe0.length    = len;
       _dcd.pipe0.remaining = len;
       USB0->CSRL0 = USB_CSRL0_RXRDYC; /* Clear RX FIFO to return ACK. */
     }
   } else if (dir_in) {
-    // TU_LOG1(" STATUS IN USB0->CSRL0 = %x\n", USB0->CSRL0);
+    // TU_LOG1(" STATUS IN USB0->CSRL0 = %x\r\n", USB0->CSRL0);
     _dcd.pipe0.buf = NULL;
     _dcd.pipe0.length    = 0;
     _dcd.pipe0.remaining = 0;
@@ -454,7 +454,7 @@ static void process_ep0(uint8_t rhport)
 {
   uint_fast8_t csrl = USB0->CSRL0;
 
-  // TU_LOG1(" EP0 USB0->CSRL0 = %x\n", csrl);
+  // TU_LOG1(" EP0 USB0->CSRL0 = %x\r\n", csrl);
 
   if (csrl & USB_CSRL0_STALLED) {
     /* Returned STALL packet to HOST. */
@@ -464,7 +464,7 @@ static void process_ep0(uint8_t rhport)
 
   unsigned req = _dcd.setup_packet.bmRequestType;
   if (csrl & USB_CSRL0_SETEND) {
-    TU_LOG1("   ABORT by the next packets\n");
+    TU_LOG1("   ABORT by the next packets\r\n");
     USB0->CSRL0 = USB_CSRL0_SETENDC;
     if (req != REQUEST_TYPE_INVALID && _dcd.pipe0.buf) {
       /* DATA stage was aborted by receiving STATUS or SETUP packet. */
@@ -539,14 +539,14 @@ static void process_edpt_n(uint8_t rhport, uint_fast8_t ep_addr)
 
   volatile hw_endpoint_t *regs = edpt_regs(epn_minus1);
   if (dir_in) {
-    // TU_LOG1(" TXCSRL%d = %x\n", epn_minus1 + 1, regs->TXCSRL);
+    // TU_LOG1(" TXCSRL%d = %x\r\n", epn_minus1 + 1, regs->TXCSRL);
     if (regs->TXCSRL & USB_TXCSRL1_STALLED) {
       regs->TXCSRL &= ~(USB_TXCSRL1_STALLED | USB_TXCSRL1_UNDRN);
       return;
     }
     completed = handle_xfer_in(ep_addr);
   } else {
-    // TU_LOG1(" RXCSRL%d = %x\n", epn_minus1 + 1, regs->RXCSRL);
+    // TU_LOG1(" RXCSRL%d = %x\r\n", epn_minus1 + 1, regs->RXCSRL);
     if (regs->RXCSRL & USB_RXCSRL1_STALLED) {
       regs->RXCSRL &= ~(USB_RXCSRL1_STALLED | USB_RXCSRL1_OVER);
       return;
@@ -789,7 +789,7 @@ bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t t
 {
   (void)rhport;
   bool ret;
-  // TU_LOG1("X %x %d\n", ep_addr, total_bytes);
+  // TU_LOG1("X %x %d\r\n", ep_addr, total_bytes);
   unsigned const epnum = tu_edpt_number(ep_addr);
   unsigned const ie = NVIC_GetEnableIRQ(USB0_IRQn);
   NVIC_DisableIRQ(USB0_IRQn);
@@ -807,7 +807,7 @@ bool dcd_edpt_xfer_fifo(uint8_t rhport, uint8_t ep_addr, tu_fifo_t * ff, uint16_
 {
   (void)rhport;
   bool ret;
-  // TU_LOG1("X %x %d\n", ep_addr, total_bytes);
+  // TU_LOG1("X %x %d\r\n", ep_addr, total_bytes);
   unsigned const epnum = tu_edpt_number(ep_addr);
   TU_ASSERT(epnum);
   unsigned const ie = NVIC_GetEnableIRQ(USB0_IRQn);
@@ -869,7 +869,7 @@ void dcd_int_handler(uint8_t rhport)
   is   = USB0->IS;   /* read and clear interrupt status */
   txis = USB0->TXIS; /* read and clear interrupt status */
   rxis = USB0->RXIS; /* read and clear interrupt status */
-  // TU_LOG1("D%2x T%2x R%2x\n", is, txis, rxis);
+  // TU_LOG1("D%2x T%2x R%2x\r\n", is, txis, rxis);
 
   is &= USB0->IE; /* Clear disabled interrupts */
   if (is & USB_IS_DISCON) {

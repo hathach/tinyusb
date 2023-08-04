@@ -45,8 +45,8 @@ typedef struct
   uint8_t itf_num;
   uint8_t ep_in;
   uint8_t port_count;
-  uint8_t status_change; // data from status change interrupt endpoint
 
+  CFG_TUH_MEM_ALIGN uint8_t status_change;
   CFG_TUH_MEM_ALIGN hub_port_status_response_t port_status;
   CFG_TUH_MEM_ALIGN hub_status_response_t hub_status;
 } hub_interface_t;

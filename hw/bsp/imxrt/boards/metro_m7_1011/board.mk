@@ -5,7 +5,7 @@ MCU_VARIANT = MIMXRT1011
 LD_FILE = $(BOARD_PATH)/$(BOARD).ld
 
 # For flash-jlink target
-JLINK_DEVICE = MIMXRT1011DAE5A
+JLINK_DEVICE = MIMXRT1011xxx5A
 
 # For flash-pyocd target
 PYOCD_TARGET = mimxrt1010
