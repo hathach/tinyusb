@@ -26,8 +26,9 @@
 
 #include "xmc_gpio.h"
 #include "xmc_scu.h"
+#include "xmc_uart.h"
 
-#include "bsp/board.h"
+#include "bsp/board_api.h"
 #include "board.h"
 
 
@@ -45,16 +46,30 @@ void board_init(void)
   SystemCoreClockUpdate();
 
   // LED
-  XMC_GPIO_CONFIG_t led_cfg;
+  XMC_GPIO_CONFIG_t led_cfg = {0};
   led_cfg.mode = XMC_GPIO_MODE_OUTPUT_PUSH_PULL;
   led_cfg.output_level = XMC_GPIO_OUTPUT_LEVEL_HIGH;
   led_cfg.output_strength = XMC_GPIO_OUTPUT_STRENGTH_MEDIUM;
   XMC_GPIO_Init(LED_PIN, &led_cfg);
 
   // Button
-  XMC_GPIO_CONFIG_t button_cfg;
+  XMC_GPIO_CONFIG_t button_cfg = {0};
   button_cfg.mode = XMC_GPIO_MODE_INPUT_TRISTATE;
   XMC_GPIO_Init(BUTTON_PIN, &button_cfg);
+
+#ifdef UART_DEV
+  XMC_UART_CH_CONFIG_t uart_cfg = {0};
+  uart_cfg.baudrate = CFG_BOARD_UART_BAUDRATE;
+  uart_cfg.data_bits = 8;
+  uart_cfg.stop_bits = 1;
+  XMC_UART_CH_Init(UART_DEV, &uart_cfg);
+
+  XMC_GPIO_SetMode(UART_RX_PIN, XMC_GPIO_MODE_INPUT_PULL_UP);
+  XMC_UART_CH_SetInputSource(UART_DEV, XMC_UART_CH_INPUT_RXD, UART_RX_INPUT);
+
+  XMC_UART_CH_Start(UART_DEV);
+  XMC_GPIO_SetMode(UART_TX_PIN, (XMC_GPIO_MODE_t)(XMC_GPIO_MODE_OUTPUT_PUSH_PULL | UART_TX_PIN_AF));
+#endif
 
 #if CFG_TUSB_OS == OPT_OS_NONE
   // 1ms tick timer
@@ -69,6 +84,9 @@ void board_init(void)
 #endif
 
   // USB Power Enable
+#if(UC_SERIES != XMC45)
+  XMC_SCU_CLOCK_UngatePeripheralClock(XMC_SCU_PERIPHERAL_CLOCK_USB0);
+#endif
   XMC_SCU_RESET_DeassertPeripheralReset(XMC_SCU_PERIPHERAL_RESET_USB0);
   XMC_SCU_POWER_EnableUsb();
 }
@@ -93,7 +111,7 @@ int board_uart_read(uint8_t* buf, int len)
 {
 #ifdef UART_DEV
   for(int i=0;i<len;i++) {
-    buf[i] = uart_getc(uart_inst);
+    buf[i] = XMC_UART_CH_GetReceivedData(UART_DEV);
   }
   return len;
 #else
@@ -107,7 +125,7 @@ int board_uart_write(void const * buf, int len)
 #ifdef UART_DEV
   char const* bufch = (char const*) buf;
   for(int i=0;i<len;i++) {
-    uart_putc(uart_inst, bufch[i]);
+    XMC_UART_CH_Transmit(UART_DEV, bufch[i]);
   }
   return len;
 #else

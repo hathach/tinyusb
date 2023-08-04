@@ -1,3 +1,5 @@
 board:mimxrt1060_evk
 board:mimxrt1064_evk
+board:mcb1800
 mcu:RP2040
+mcu:ra6m5

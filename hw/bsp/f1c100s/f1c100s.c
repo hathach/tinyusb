@@ -28,7 +28,7 @@
 #include <malloc.h>
 #include <irqflags.h>
 #include <f1c100s-irq.h>
-#include "bsp/board.h"
+#include "bsp/board_api.h"
 #include "board.h"
 
 extern void sys_uart_putc(char c);

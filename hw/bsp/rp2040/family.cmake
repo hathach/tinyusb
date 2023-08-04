@@ -112,6 +112,7 @@ target_sources(tinyusb_bsp INTERFACE
 target_include_directories(tinyusb_bsp INTERFACE
 	${TOP}/hw
 	)
+target_link_libraries(tinyusb_bsp	INTERFACE pico_unique_id)
 
 # tinyusb_additions will hold our extra settings for examples
 add_library(tinyusb_additions INTERFACE)
@@ -183,6 +184,15 @@ function(family_add_pico_pio_usb TARGET)
 	target_link_libraries(${TARGET} PUBLIC tinyusb_pico_pio_usb)
 endfunction()
 
+# since Pico-PIO_USB compiler support may lag, and change from version to version, add a function that pico-sdk/pico-examples
+# can check (if present) in case the user has updated their TinyUSB
+function(is_compiler_supported_by_pico_pio_usb OUTVAR)
+	if ((NOT CMAKE_C_COMPILER_ID STREQUAL "GNU"))
+		SET(${OUTVAR} 0 PARENT_SCOPE)
+	else()
+		set(${OUTVAR} 1 PARENT_SCOPE)
+	endif()
+endfunction()
 
 function(family_configure_host_example TARGET RTOS)
 	family_configure_target(${TARGET} ${RTOS})
@@ -191,8 +201,9 @@ function(family_configure_host_example TARGET RTOS)
 
 	# For rp2040 enable pico-pio-usb
 	if (TARGET tinyusb_pico_pio_usb)
-		# code does not compile with non GCC, or GCC 11.3+
-		if (CMAKE_C_COMPILER_ID STREQUAL "GNU" AND NOT CMAKE_C_COMPILER_VERSION VERSION_GREATER_EQUAL 11.3)
+		# Pico-PIO-USB does not compile with all pico-sdk supported compilers, so check before enabling it
+		is_compiler_supported_by_pico_pio_usb(PICO_PIO_USB_COMPILER_SUPPORTED)
+		if (PICO_PIO_USB_COMPILER_SUPPORTED)
 			family_add_pico_pio_usb(${PROJECT})
 		endif()
 	endif()

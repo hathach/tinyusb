@@ -34,10 +34,16 @@
 
 //------------- Unaligned Memory Access -------------//
 
-// ARMv7+ (M3-M7, M23-M33) can access unaligned memory
-#if (defined(__ARM_ARCH) && (__ARM_ARCH >= 7))
-  #define TUP_ARCH_STRICT_ALIGN   0
+#ifdef __ARM_ARCH
+  // ARM Architecture set __ARM_FEATURE_UNALIGNED to 1 for mcu supports unaligned access
+  #if defined(__ARM_FEATURE_UNALIGNED) && __ARM_FEATURE_UNALIGNED == 1
+    #define TUP_ARCH_STRICT_ALIGN   0
+  #else
+    #define TUP_ARCH_STRICT_ALIGN   1
+  #endif
 #else
+  // TODO default to strict align for others
+  // Should investigate other architecture such as risv, xtensa, mips for optimal setting
   #define TUP_ARCH_STRICT_ALIGN   1
 #endif
 
@@ -327,6 +333,7 @@
 // Renesas
 //--------------------------------------------------------------------+
 #elif TU_CHECK_MCU(OPT_MCU_RX63X, OPT_MCU_RX65X, OPT_MCU_RX72N, OPT_MCU_RAXXX)
+  #define TUP_USBIP_RUSB2
   #define TUP_DCD_ENDPOINT_MAX    10
 
 //--------------------------------------------------------------------+

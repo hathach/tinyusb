@@ -23,6 +23,7 @@
  *
  */
 
+#include "bsp/board_api.h"
 #include "tusb.h"
 
 /* A combination of interfaces must have a unique product id, since PC will save device driver after the first plug.
@@ -190,55 +191,56 @@ static char const* string_desc_arr [] =
   [STRID_LANGID]       = (const char[]) { 0x09, 0x04 }, // supported language is English (0x0409)
   [STRID_MANUFACTURER] = "TinyUSB",                     // Manufacturer
   [STRID_PRODUCT]      = "TinyUSB Device",              // Product
-  [STRID_SERIAL]       = "123456",                      // Serial
+  [STRID_SERIAL]       = NULL,                          // Serials will use unique ID if possible
   [STRID_INTERFACE]    = "TinyUSB Network Interface"    // Interface Description
 
   // STRID_MAC index is handled separately
 };
 
-static uint16_t _desc_str[32];
+static uint16_t _desc_str[32 + 1];
 
 // Invoked when received GET STRING DESCRIPTOR request
 // Application return pointer to descriptor, whose contents must exist long enough for transfer to complete
-uint16_t const* tud_descriptor_string_cb(uint8_t index, uint16_t langid)
-{
+uint16_t const* tud_descriptor_string_cb(uint8_t index, uint16_t langid) {
   (void) langid;
-
   unsigned int chr_count = 0;
 
-  if (STRID_LANGID == index)
-  {
-    memcpy(&_desc_str[1], string_desc_arr[STRID_LANGID], 2);
-    chr_count = 1;
-  }
-  else if (STRID_MAC == index)
-  {
-    // Convert MAC address into UTF-16
+  switch ( index ) {
+    case STRID_LANGID:
+      memcpy(&_desc_str[1], string_desc_arr[0], 2);
+      chr_count = 1;
+      break;
 
-    for (unsigned i=0; i<sizeof(tud_network_mac_address); i++)
-    {
-      _desc_str[1+chr_count++] = "0123456789ABCDEF"[(tud_network_mac_address[i] >> 4) & 0xf];
-      _desc_str[1+chr_count++] = "0123456789ABCDEF"[(tud_network_mac_address[i] >> 0) & 0xf];
-    }
-  }
-  else
-  {
-    // Note: the 0xEE index string is a Microsoft OS 1.0 Descriptors.
-    // https://docs.microsoft.com/en-us/windows-hardware/drivers/usbcon/microsoft-defined-usb-descriptors
+    case STRID_SERIAL:
+      chr_count = board_usb_get_serial(_desc_str + 1, 32);
+      break;
 
-    if ( !(index < sizeof(string_desc_arr)/sizeof(string_desc_arr[0])) ) return NULL;
+    case STRID_MAC:
+      // Convert MAC address into UTF-16
+      for (unsigned i=0; i<sizeof(tud_network_mac_address); i++) {
+        _desc_str[1+chr_count++] = "0123456789ABCDEF"[(tud_network_mac_address[i] >> 4) & 0xf];
+        _desc_str[1+chr_count++] = "0123456789ABCDEF"[(tud_network_mac_address[i] >> 0) & 0xf];
+      }
+      break;
 
-    const char* str = string_desc_arr[index];
+    default:
+      // Note: the 0xEE index string is a Microsoft OS 1.0 Descriptors.
+      // https://docs.microsoft.com/en-us/windows-hardware/drivers/usbcon/microsoft-defined-usb-descriptors
 
-    // Cap at max char
-    chr_count = (uint8_t) strlen(str);
-    if ( chr_count > (TU_ARRAY_SIZE(_desc_str) - 1)) chr_count = TU_ARRAY_SIZE(_desc_str) - 1;
+      if ( !(index < sizeof(string_desc_arr) / sizeof(string_desc_arr[0])) ) return NULL;
 
-    // Convert ASCII string into UTF-16
-    for (unsigned int i=0; i<chr_count; i++)
-    {
-      _desc_str[1+i] = str[i];
-    }
+      const char *str = string_desc_arr[index];
+
+      // Cap at max char
+      chr_count = strlen(str);
+      size_t const max_count = sizeof(_desc_str) / sizeof(_desc_str[0]) - 1; // -1 for string type
+      if ( chr_count > max_count ) chr_count = max_count;
+
+      // Convert ASCII string into UTF-16
+      for ( size_t i = 0; i < chr_count; i++ ) {
+        _desc_str[1 + i] = str[i];
+      }
+      break;
   }
 
   // first byte is length (including header), second byte is string type

@@ -30,7 +30,7 @@
 #include "fsl_iocon.h"
 #include "fsl_usart.h"
 
-#include "bsp/board.h"
+#include "bsp/board_api.h"
 #include "board.h"
 
 #ifdef BOARD_TUD_RHPORT

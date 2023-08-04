@@ -175,7 +175,7 @@ SAMD11 & SAMD21
 -  `Adafruit Feather M0 Express <https://www.adafruit.com/product/3403>`__
 -  `Adafruit ItsyBitsy M0 Express <https://www.adafruit.com/product/3727>`__
 -  `Adafruit Metro M0 Express <https://www.adafruit.com/product/3505>`__
--  `Great Scott Gadgets LUNA <https://greatscottgadgets.com/luna/>`__
+-  `Great Scott Gadgets Cynthion <https://greatscottgadgets.com/cynthion/>`__
 -  `Microchip SAMD11 Xplained Pro <https://www.microchip.com/developmenttools/ProductDetails/atsamd11-xpro>`__
 -  `Microchip SAMD21 Xplained Pro <https://www.microchip.com/DevelopmentTools/ProductDetails/ATSAMD21-XPRO>`__
 -  `Seeeduino Xiao <https://www.seeedstudio.com/Seeeduino-XIAO-Arduino-Microcontroller-SAMD21-Cortex-M0+-p-4426.html>`__

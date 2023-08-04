@@ -26,7 +26,7 @@
 
 #include <stdint.h>
 #include <stdbool.h>
-#include "../board.h"
+#include "../board_api.h"
 #include "csr.h"
 #include "irq.h"
 
