@@ -414,6 +414,7 @@ static int _count_utf8_bytes(const uint16_t *buf, size_t len) {
 }
 
 static void print_utf16(uint16_t *temp_buf, size_t buf_len) {
+    if ((temp_buf[0] & 0xff) == 0) return;  // empty
     size_t utf16_len = ((temp_buf[0] & 0xff) - 2) / sizeof(uint16_t);
     size_t utf8_len = (size_t) _count_utf8_bytes(temp_buf + 1, utf16_len);
     _convert_utf16le_to_utf8(temp_buf + 1, utf16_len, (uint8_t *) temp_buf, sizeof(uint16_t) * buf_len);
