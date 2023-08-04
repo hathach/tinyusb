@@ -78,7 +78,7 @@ void board_init(void)
 
   // Button init
   gpio_set_pin_direction(BUTTON_PIN, GPIO_DIRECTION_IN);
-  gpio_set_pin_pull_mode(BUTTON_PIN, GPIO_PULL_UP);
+  gpio_set_pin_pull_mode(BUTTON_PIN, BUTTON_PULL_MODE);
 
   /* USB Clock init
    * The USB module requires a GCLK_USB of 48 MHz ~ 0.25% clock
