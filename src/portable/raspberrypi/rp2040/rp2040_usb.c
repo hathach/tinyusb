@@ -219,7 +219,7 @@ void hw_endpoint_xfer_start(struct hw_endpoint *ep, uint8_t *buffer, uint16_t to
   if ( ep->active )
   {
     // TODO: Is this acceptable for interrupt packets?
-    TU_LOG(1, "WARN: starting new transfer on already active ep %d %s\n", tu_edpt_number(ep->ep_addr),
+    TU_LOG(1, "WARN: starting new transfer on already active ep %d %s\r\n", tu_edpt_number(ep->ep_addr),
               ep_dir_string[tu_edpt_dir(ep->ep_addr)]);
 
     hw_endpoint_reset_transfer(ep);
@@ -276,7 +276,7 @@ static uint16_t __tusb_irq_path_func(sync_ep_buffer)(struct hw_endpoint *ep, uin
   // Short packet
   if (xferred_bytes < ep->wMaxPacketSize)
   {
-    pico_trace("  Short packet on buffer %d with %u bytes\n", buf_id, xferred_bytes);
+    pico_trace("  Short packet on buffer %d with %u bytes\r\n", buf_id, xferred_bytes);
     // Reduce total length as this is last packet
     ep->remaining_len = 0;
   }
@@ -352,7 +352,7 @@ bool __tusb_irq_path_func(hw_endpoint_xfer_continue)(struct hw_endpoint *ep)
   // If we are done then notify tinyusb
   if (ep->remaining_len == 0)
   {
-    pico_trace("Completed transfer of %d bytes on ep %d %s\n",
+    pico_trace("Completed transfer of %d bytes on ep %d %s\r\n",
                ep->xferred_len, tu_edpt_number(ep->ep_addr), ep_dir_string[tu_edpt_dir(ep->ep_addr)]);
     // Notify caller we are done so it can notify the tinyusb stack
     hw_endpoint_lock_update(ep, -1);
@@ -419,7 +419,7 @@ static bool __tusb_irq_path_func(e15_is_critical_frame_period) (struct hw_endpoi
   if (delta < 800 || delta > 998) {
     return false;
   }
-  TU_LOG(3, "Avoiding sof %lu now %lu last %lu\n", (usb_hw->sof_rd + 1) & USB_SOF_RD_BITS, time_us_32(), e15_last_sof);
+  TU_LOG(3, "Avoiding sof %lu now %lu last %lu\r\n", (usb_hw->sof_rd + 1) & USB_SOF_RD_BITS, time_us_32(), e15_last_sof);
   return true;
 }
 

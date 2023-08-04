@@ -219,7 +219,7 @@ static void __tusb_irq_path_func(hcd_rp2040_irq)(void)
   if ( status & USB_INTS_BUFF_STATUS_BITS )
   {
     handled |= USB_INTS_BUFF_STATUS_BITS;
-    TU_LOG(2, "Buffer complete\n");
+    TU_LOG(2, "Buffer complete\r\n");
     hw_handle_buff_status();
   }
 
@@ -227,7 +227,7 @@ static void __tusb_irq_path_func(hcd_rp2040_irq)(void)
   {
     handled |= USB_INTS_TRANS_COMPLETE_BITS;
     usb_hw_clear->sie_status = USB_SIE_STATUS_TRANS_COMPLETE_BITS;
-    TU_LOG(2, "Transfer complete\n");
+    TU_LOG(2, "Transfer complete\r\n");
     hw_trans_complete();
   }
 

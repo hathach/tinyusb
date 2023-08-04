@@ -408,9 +408,9 @@ static inline unsigned free_block_size(free_block_t const *blk)
 #if 0
 static inline void print_block_list(free_block_t const *blk, unsigned num)
 {
-  TU_LOG1("*************\n");
+  TU_LOG1("*************\r\n");
   for (unsigned i = 0; i < num; ++i) {
-    TU_LOG1(" Blk%u %u %u\n", i, blk->beg, blk->end);
+    TU_LOG1(" Blk%u %u %u\r\n", i, blk->beg, blk->end);
     ++blk;
   }
 }
@@ -590,7 +590,7 @@ static bool handle_xfer_in(uint_fast8_t ep_addr)
   const unsigned mps = USBC_Readw(USBC_REG_TXMAXP(USBC0_BASE));
   const unsigned len = TU_MIN(mps, rem);
   uint8_t          *buf = pipe->buf;
-  // TU_LOG1("   %p mps %d len %d rem %d\n", buf, mps, len, rem);
+  // TU_LOG1("   %p mps %d len %d rem %d\r\n", buf, mps, len, rem);
   if (len) {
     volatile void* addr = (volatile void*)(USBC_REG_EPFIFO1(USBC0_BASE) + (epnum_minus1 << 2));
     if (_dcd.pipe_buf_is_fifo[TUSB_DIR_IN] & TU_BIT(epnum_minus1)) {
@@ -602,7 +602,7 @@ static bool handle_xfer_in(uint_fast8_t ep_addr)
     pipe->remaining = rem - len;
   }
   __USBC_Dev_Tx_WriteDataComplete();
-  // TU_LOG1(" TXCSRL%d = %x %d\n", epnum_minus1 + 1, regs->TXCSRL, rem - len);
+  // TU_LOG1(" TXCSRL%d = %x %d\r\n", epnum_minus1 + 1, regs->TXCSRL, rem - len);
   return false;
 }
 
@@ -610,7 +610,7 @@ static bool handle_xfer_out(uint_fast8_t ep_addr)
 {
   unsigned epnum_minus1 = tu_edpt_number(ep_addr) - 1;
   pipe_state_t  *pipe = &_dcd.pipe[tu_edpt_dir(ep_addr)][epnum_minus1];
-  // TU_LOG1(" RXCSRL%d = %x\n", epnum_minus1 + 1, regs->RXCSRL);
+  // TU_LOG1(" RXCSRL%d = %x\r\n", epnum_minus1 + 1, regs->RXCSRL);
 
   TU_ASSERT(__USBC_Dev_Rx_IsReadDataReady());
 
@@ -677,14 +677,14 @@ static bool edpt0_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t *buffer, uint16_
      * may have already finished and received the next setup packet
      * without calling this function, so we have no choice but to
      * invoke the callback function of status packet here. */
-    // TU_LOG1(" STATUS OUT CSRL0 = %x\n", CSRL0);
+    // TU_LOG1(" STATUS OUT CSRL0 = %x\r\n", CSRL0);
     _dcd.status_out = 0;
     if (req == REQUEST_TYPE_INVALID) {
       dcd_event_xfer_complete(rhport, ep_addr, total_bytes, XFER_RESULT_SUCCESS, false);
     } else {
       /* The next setup packet has already been received, it aborts
        * invoking callback function to avoid confusing TUSB stack. */
-      TU_LOG1("Drop CONTROL_STAGE_ACK\n");
+      TU_LOG1("Drop CONTROL_STAGE_ACK\r\n");
     }
     return true;
   }
@@ -709,16 +709,16 @@ static bool edpt0_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t *buffer, uint16_
       } else {
         __USBC_Dev_ep0_WriteDataHalf();
       }
-      // TU_LOG1(" IN CSRL0 = %x\n", CSRL0);
+      // TU_LOG1(" IN CSRL0 = %x\r\n", CSRL0);
     } else {
-      // TU_LOG1(" OUT CSRL0 = %x\n", CSRL0);
+      // TU_LOG1(" OUT CSRL0 = %x\r\n", CSRL0);
       _dcd.pipe0.buf       = buffer;
       _dcd.pipe0.length    = len;
       _dcd.pipe0.remaining = len;
       __USBC_Dev_ep0_ReadDataHalf();
     }
   } else if (dir_in) {
-    // TU_LOG1(" STATUS IN CSRL0 = %x\n", CSRL0);
+    // TU_LOG1(" STATUS IN CSRL0 = %x\r\n", CSRL0);
     _dcd.pipe0.buf = NULL;
     _dcd.pipe0.length    = 0;
     _dcd.pipe0.remaining = 0;
@@ -733,7 +733,7 @@ static void process_ep0(uint8_t rhport)
   USBC_SelectActiveEp(0);
   uint_fast8_t csrl = USBC_Readw(USBC_REG_CSR0(USBC0_BASE));
 
-  // TU_LOG1(" EP0 CSRL0 = %x\n", csrl);
+  // TU_LOG1(" EP0 CSRL0 = %x\r\n", csrl);
 
   if (csrl & USB_CSRL0_STALLED) {
     /* Returned STALL packet to HOST. */
@@ -743,7 +743,7 @@ static void process_ep0(uint8_t rhport)
 
   unsigned req = _dcd.setup_packet.bmRequestType;
   if (csrl & USB_CSRL0_SETEND) {
-    // TU_LOG1("   ABORT by the next packets\n");
+    // TU_LOG1("   ABORT by the next packets\r\n");
     USBC_Dev_Ctrl_ClearSetupEnd();
     if (req != REQUEST_TYPE_INVALID && _dcd.pipe0.buf) {
       /* DATA stage was aborted by receiving STATUS or SETUP packet. */
@@ -819,14 +819,14 @@ static void process_edpt_n(uint8_t rhport, uint_fast8_t ep_addr)
   USBC_SelectActiveEp(epn);
 
   if (dir_in) {
-    // TU_LOG1(" TXCSRL%d = %x\n", epn_minus1 + 1, regs->TXCSRL);
+    // TU_LOG1(" TXCSRL%d = %x\r\n", epn_minus1 + 1, regs->TXCSRL);
     if (__USBC_Dev_Tx_IsEpStall()) {
 	  __USBC_Dev_Tx_ClearStall();
       return;
     }
     completed = handle_xfer_in(ep_addr);
   } else {
-    // TU_LOG1(" RXCSRL%d = %x\n", epn_minus1 + 1, regs->RXCSRL);
+    // TU_LOG1(" RXCSRL%d = %x\r\n", epn_minus1 + 1, regs->RXCSRL);
     if (__USBC_Dev_Rx_IsEpStall()) {
 	    __USBC_Dev_Rx_ClearStall();
       return;
@@ -1092,7 +1092,7 @@ bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t t
 {
   (void)rhport;
   bool ret;
-  // TU_LOG1("X %x %d\n", ep_addr, total_bytes);
+  // TU_LOG1("X %x %d\r\n", ep_addr, total_bytes);
   unsigned const epnum = tu_edpt_number(ep_addr);
   musb_int_mask();
 
@@ -1111,7 +1111,7 @@ bool dcd_edpt_xfer_fifo(uint8_t rhport, uint8_t ep_addr, tu_fifo_t * ff, uint16_
 {
   (void)rhport;
   bool ret;
-  // TU_LOG1("X %x %d\n", ep_addr, total_bytes);
+  // TU_LOG1("X %x %d\r\n", ep_addr, total_bytes);
   unsigned const epnum = tu_edpt_number(ep_addr);
   TU_ASSERT(epnum);
 

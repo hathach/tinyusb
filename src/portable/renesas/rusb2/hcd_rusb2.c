@@ -414,7 +414,7 @@ static void process_pipe_nrdy(uint8_t rhport, unsigned num)
   rusb2_reg_t* rusb = RUSB2_REG(rhport);
   xfer_result_t result;
   uint16_t volatile *ctr = get_pipectr(rusb, num);
-  TU_LOG(TU_RUSB2_HCD_DBG, "NRDY %d %x\n", num, *ctr);
+  TU_LOG(TU_RUSB2_HCD_DBG, "NRDY %d %x\r\n", num, *ctr);
   switch (*ctr & RUSB2_PIPE_CTR_PID_Msk) {
     default: return;
     case RUSB2_PIPE_CTR_PID_STALL: result = XFER_RESULT_STALLED; break;
@@ -636,7 +636,7 @@ bool hcd_setup_send(uint8_t rhport, uint8_t dev_addr, uint8_t const setup_packet
   TU_ASSERT(dev_addr < 6); /* USBa can only handle addresses from 0 to 5. */
 
   rusb2_reg_t* rusb = RUSB2_REG(rhport);
-  TU_LOG(TU_RUSB2_HCD_DBG, "S %d %x\n", dev_addr, rusb->DCPCTR);
+  TU_LOG(TU_RUSB2_HCD_DBG, "S %d %x\r\n", dev_addr, rusb->DCPCTR);
 
   TU_ASSERT(0 == rusb->DCPCTR_b.SUREQ);
 
@@ -735,7 +735,7 @@ bool hcd_edpt_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr, uint8_t *b
 {
   bool r;
   hcd_int_disable(rhport);
-  TU_LOG(TU_RUSB2_HCD_DBG, "X %d %x %u\n", dev_addr, ep_addr, buflen);
+  TU_LOG(TU_RUSB2_HCD_DBG, "X %d %x %u\r\n", dev_addr, ep_addr, buflen);
   r = process_edpt_xfer(rhport, dev_addr, ep_addr, buffer, buflen);
   hcd_int_enable(rhport);
   return r;
@@ -781,7 +781,7 @@ void hcd_int_handler(uint8_t rhport)
   rusb->INTSTS1 = ~((RUSB2_INTSTS1_SACK_Msk | RUSB2_INTSTS1_SIGN_Msk | RUSB2_INTSTS1_ATTCH_Msk | RUSB2_INTSTS1_DTCH_Msk) & is1);
   rusb->INTSTS0 = ~((RUSB2_INTSTS0_BRDY_Msk | RUSB2_INTSTS0_NRDY_Msk | RUSB2_INTSTS0_BEMP_Msk) & is0);
 
-  TU_LOG3("IS %04x %04x\n", is0, is1);
+  TU_LOG3("IS %04x %04x\r\n", is0, is1);
   is1 &= rusb->INTENB1;
   is0 &= rusb->INTENB0;
 

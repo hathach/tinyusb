@@ -651,7 +651,7 @@ static void handle_epx_tx_ev(xfer_ctl_t *xfer)
   }
   if (txs & USB_USB_TXS1_REG_USB_TX_URUN_Msk)
   {
-    TU_LOG1("EP %d FIFO underrun\n", epnum);
+    TU_LOG1("EP %d FIFO underrun\r\n", epnum);
   }
   // Start next or repeated packet.
   start_tx_packet(xfer);
