@@ -172,7 +172,12 @@ def test_dfu_runtime(id):
 
 
 if __name__ == '__main__':
-    with open(f'{os.path.dirname(__file__)}/hitl_config.json') as f:
+    if len(sys.argv) != 2:
+        print('Usage:')
+        print('python hitl_test.py config.json')
+        sys.exit(-1)
+
+    with open(f'{os.path.dirname(__file__)}/{sys.argv[1]}') as f:
         config = json.load(f)
 
     for device in config['devices']:
