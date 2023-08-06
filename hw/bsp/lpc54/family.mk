@@ -7,7 +7,8 @@ CPU_CORE ?= cortex-m4
 CFLAGS += \
   -flto \
   -DCFG_TUSB_MCU=OPT_MCU_LPC54XXX \
-  -DCFG_TUSB_MEM_ALIGN='__attribute__((aligned(64)))'
+  -DCFG_TUSB_MEM_ALIGN='__attribute__((aligned(64)))' \
+  -DBOARD_TUD_RHPORT=$(PORT)
 
 ifeq ($(PORT), 1)
   $(info "PORT1 High Speed")
@@ -32,7 +33,8 @@ SRC_C += \
 	$(MCU_DIR)/drivers/fsl_reset.c \
 	$(SDK_DIR)/drivers/lpc_gpio/fsl_gpio.c \
 	$(SDK_DIR)/drivers/flexcomm/fsl_flexcomm.c \
-	$(SDK_DIR)/drivers/flexcomm/fsl_usart.c
+	$(SDK_DIR)/drivers/flexcomm/fsl_usart.c \
+	$(SDK_DIR)/drivers/common/fsl_common_arm.c
 
 INC += \
 	$(TOP)/$(BOARD_PATH) \
