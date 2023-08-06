@@ -8,12 +8,11 @@ CFLAGS += \
   -flto \
   -DCFG_TUSB_MCU=OPT_MCU_LPC54XXX \
   -DCFG_TUSB_MEM_ALIGN='__attribute__((aligned(64)))' \
-  -DBOARD_TUD_RHPORT=$(PORT)
 
 ifeq ($(PORT), 1)
   $(info "PORT1 High Speed")
   CFLAGS += -DBOARD_TUD_MAX_SPEED=OPT_MODE_HIGH_SPEED
-
+  CFLAGS += -DBOARD_TUD_RHPORT=1
   # LPC55 Highspeed Port1 can only write to USB_SRAM region
   CFLAGS += -DCFG_TUSB_MEM_SECTION='__attribute__((section("m_usb_global")))'
 else

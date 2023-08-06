@@ -1,0 +1,28 @@
+{
+    "devices": [
+        {
+            "uid": "41003B000E504E5457323020",
+            "debugger": "jlink",
+            "debugger_sn": "774470029",
+            "device": "stm32l412kb",
+            "tests": [
+                {
+                    "name": "cdc_dual_ports",
+                    "firmware": "examples/device/cdc_dual_ports/_build/stm32l412nucleo/cdc_dual_ports.elf"
+                },
+                {
+                    "name": "cdc_msc",
+                    "firmware": "examples/device/cdc_msc/_build/stm32l412nucleo/cdc_msc.elf"
+                },
+                {
+                    "name": "dfu",
+                    "firmware": "examples/device/dfu/_build/stm32l412nucleo/dfu.elf"
+                },
+                {
+                    "name": "dfu_runtime",
+                    "firmware": "examples/device/dfu_runtime/_build/stm32l412nucleo/dfu_runtime.elf"
+                }
+            ]
+        }
+    ]
+}
