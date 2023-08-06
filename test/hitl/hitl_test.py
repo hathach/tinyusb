@@ -39,8 +39,9 @@ def flash_jlink(sn, dev, firmware):
     f.close()
     ret = subprocess.run(f'JLinkExe -USB {sn} -device {dev} -if swd -JTAGConf -1,-1 -speed auto -NoGui 1 -ExitOnError 1 -CommandFile flash.jlink',
                          shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
-    os.remove('flash.jlink') 
-    assert ret.returncode == 0, 'Flash failed'
+    stdout = ret.stdout.decode()
+    os.remove('flash.jlink')
+    assert ret.returncode == 0, 'Flash failed\n' + stdout
 
 def test_cdc_dual_ports(id):
     port1 = f'/dev/ttyUSB_{id[-8:]}.00'
@@ -55,7 +56,7 @@ def test_cdc_dual_ports(id):
 
     assert os.path.exists(port1) and os.path.exists(port2), \
         'Device not available'
-    
+
     # Echo test
     ser1 = serial.Serial(port1)
     ser2 = serial.Serial(port2)
@@ -90,16 +91,16 @@ def test_cdc_msc(id):
 
     assert os.path.exists(port) and os.path.exists(block), \
         'Device not available'
-    
-    # Echo test
-    ser = serial.Serial(port)
 
-    ser.timeout = 1
+    # Echo test
+    ser1 = serial.Serial(port)
+
+    ser1.timeout = 1
 
     str = b"test_str"
-    ser.write(str)
-    ser.flush()
-    assert ser.read(100) == str, 'Port wrong data'
+    ser1.write(str)
+    ser1.flush()
+    assert ser1.read(100) == str, 'Port wrong data'
 
     # Block test
     f = open(block, 'rb')
@@ -124,12 +125,12 @@ def test_dfu(id):
             break
         time.sleep(1)
         timeout = timeout - 1
-    
+
     assert timeout, 'Device not available'
-    
+
     # Test upload
     try:
-        os.remove('dfu0') 
+        os.remove('dfu0')
         os.remove('dfu1')
     except OSError:
         pass
@@ -148,7 +149,7 @@ def test_dfu(id):
     with open('dfu1') as f:
         assert 'Hello world from TinyUSB DFU! - Partition 1' in f.read(),  'Wrong uploaded data'
 
-    os.remove('dfu0') 
+    os.remove('dfu0')
     os.remove('dfu1')
 
     print('dfu test done')
@@ -164,7 +165,7 @@ def test_dfu_runtime(id):
             break
         time.sleep(1)
         timeout = timeout - 1
-    
+
     assert timeout, 'Device not available'
 
     print('dfu_runtime test done')
@@ -173,11 +174,11 @@ def test_dfu_runtime(id):
 if __name__ == '__main__':
     with open(f'{os.path.dirname(__file__)}/hitl_config.json') as f:
         config = json.load(f)
-    
+
     for device in config['devices']:
         print(f"Testing device:{device['device']}")
         for test in device['tests']:
-            if device['debugger'] == 'jlink':
+            if device['debugger'].lower() == 'jlink':
                 flash_jlink(device['debugger_sn'], device['device'], test['firmware'])
             else:
                 # ToDo
