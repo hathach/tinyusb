@@ -299,7 +299,6 @@ void dcd_connect(uint8_t rhport)
 void dcd_sof_enable(uint8_t rhport, bool en)
 {
   (void) rhport;
-  (void) en;
 
   if (en)
   {
