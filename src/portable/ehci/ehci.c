@@ -188,6 +188,11 @@ void hcd_port_reset(uint8_t rhport)
 
   ehci_registers_t* regs = ehci_data.regs;
 
+  // skip if already in reset
+  if (regs->portsc_bm.port_reset) {
+    return;
+  }
+
   // mask out Write-1-to-Clear bits
   uint32_t portsc = regs->portsc & ~EHCI_PORTSC_MASK_W1C;
 
@@ -202,16 +207,18 @@ void hcd_port_reset(uint8_t rhport)
 void hcd_port_reset_end(uint8_t rhport)
 {
   (void) rhport;
-
-#if 0 // TODO check if this is necessary
   ehci_registers_t* regs = ehci_data.regs;
 
+  // skip if reset is already complete
+  if (!regs->portsc_bm.port_reset) {
+    return;
+  }
+
   // mask out all change bits since they are Write 1 to clear
-  uint32_t portsc = regs->portsc & ~EHCI_PORTSC_MASK_CHANGE_ALL;
-  portsc &= ~(EHCI_PORTSC_MASK_PORT_RESET);
+  uint32_t portsc = regs->portsc & ~EHCI_PORTSC_MASK_W1C;
+  portsc &= ~EHCI_PORTSC_MASK_PORT_RESET;
 
   regs->portsc = portsc;
-#endif
 }
 
 bool hcd_port_connect_status(uint8_t rhport)
@@ -425,6 +432,11 @@ bool hcd_setup_send(uint8_t rhport, uint8_t dev_addr, uint8_t const setup_packet
   td->pid = EHCI_PID_SETUP;
 
   hcd_dcache_clean(setup_packet, 8);
+
+  // Control endpoint never be stalled. Skip reset Data Toggle since it is fixed per stage
+  if (qhd->qtd_overlay.halted) {
+    qhd->qtd_overlay.halted = false;
+  }
 
   // attach TD to QHD -> start transferring
   qhd_attach_qtd(qhd, td);
@@ -662,7 +674,7 @@ void hcd_int_handler(uint8_t rhport)
   if (int_status & EHCI_INT_MASK_PORT_CHANGE) {
     // Including: Force port resume, over-current change, enable/disable change and connect status change.
     uint32_t const port_status = regs->portsc & EHCI_PORTSC_MASK_W1C;
-    print_portsc(regs);
+    // print_portsc(regs);
 
     if (regs->portsc_bm.connect_status_change) {
       port_connect_status_change_isr(rhport);

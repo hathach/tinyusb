@@ -330,7 +330,7 @@ static void connection_port_reset_complete (tuh_xfer_t* xfer);
 bool hub_xfer_cb(uint8_t dev_addr, uint8_t ep_addr, xfer_result_t result, uint32_t xferred_bytes) {
   (void) xferred_bytes; // TODO can be more than 1 for hub with lots of ports
   (void) ep_addr;
-  TU_ASSERT(result == XFER_RESULT_SUCCESS);
+  TU_VERIFY(result == XFER_RESULT_SUCCESS);
 
   hub_interface_t* p_hub = get_itf(dev_addr);
 
