@@ -710,9 +710,10 @@ static bool process_control_request(uint8_t rhport, tusb_control_request_t const
               _usbd_dev.speed = speed; // restore speed
             }
 
-            // switch to new configuration if not zero
+            // Handle the new configuration and execute the corresponding callback
             if ( cfg_num )
             {
+              // switch to new configuration if not zero
               TU_ASSERT( process_set_config(rhport, cfg_num) );
 
               if ( tud_mount_cb ) tud_mount_cb();
