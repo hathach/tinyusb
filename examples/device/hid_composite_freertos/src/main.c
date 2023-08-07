@@ -182,7 +182,7 @@ void tud_resume_cb(void)
   }
   else
   {
-    xTimerChangePeriod(blinky_tm, pdMS_TO_TICKS(BLINK_SUSPENDED), 0);
+    xTimerChangePeriod(blinky_tm, pdMS_TO_TICKS(BLINK_NOT_MOUNTED), 0);
   }
 }
 
