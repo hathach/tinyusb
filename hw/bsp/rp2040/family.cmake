@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.13)
-include_guard()
+include_guard(GLOBAL)
 
 if (NOT BOARD)
 	message("BOARD not specified, defaulting to pico_sdk")

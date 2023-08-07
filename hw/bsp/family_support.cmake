@@ -1,4 +1,4 @@
-include_guard()
+include_guard(GLOBAL)
 
 include(CMakePrintHelpers)
 
@@ -36,12 +36,14 @@ if (NOT EXISTS ${CMAKE_CURRENT_LIST_DIR}/${FAMILY}/family.cmake)
   message(FATAL_ERROR "Family '${FAMILY}' is not known/supported")
 endif()
 
-# enable LTO if supported
-include(CheckIPOSupported)
-check_ipo_supported(RESULT IPO_SUPPORTED)
-if (IPO_SUPPORTED)
-  set(CMAKE_INTERPROCEDURAL_OPTIMIZATION TRUE)
-endif ()
+if (NOT FAMILY STREQUAL rp2040)
+  # enable LTO if supported skip rp2040
+  include(CheckIPOSupported)
+  check_ipo_supported(RESULT IPO_SUPPORTED)
+  if (IPO_SUPPORTED)
+    set(CMAKE_INTERPROCEDURAL_OPTIMIZATION TRUE)
+  endif()
+endif()
 
 set(WARNING_FLAGS_GNU
   -Wall
@@ -286,6 +288,10 @@ endfunction()
 # Configure host + device example with RTOS
 function(family_configure_dual_usb_example TARGET RTOS)
   family_configure_example(${TARGET} ${RTOS})
+endfunction()
+
+function(family_example_missing_dependency TARGET DEPENDENCY)
+  message(WARNING "${DEPENDENCY} submodule needed by ${TARGET} not found, please run 'python tools/get_deps.py ${DEPENDENCY}' to fetch it")
 endfunction()
 
 #----------------------------------
