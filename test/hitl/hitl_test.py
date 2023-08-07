@@ -22,8 +22,8 @@
 # THE SOFTWARE.
 
 # udev rules :
-# SUBSYSTEM=="block", SUBSYSTEMS=="usb", MODE="0666", PROGRAM="/bin/sh -c 'echo $$ID_SERIAL_SHORT | rev | cut -c -8 | rev'", SYMLINK+="blkUSB_%c.%s{bInterfaceNumber}"
-# SUBSYSTEM=="tty", SUBSYSTEMS=="usb", MODE="0666", PROGRAM="/bin/sh -c 'echo $$ID_SERIAL_SHORT | rev | cut -c -8 | rev'", SYMLINK+="ttyUSB_%c.%s{bInterfaceNumber}"
+# ACTION=="add", SUBSYSTEM=="tty", SUBSYSTEMS=="usb", MODE="0666", PROGRAM="/bin/sh -c 'echo $$ID_SERIAL_SHORT | rev | cut -c -8 | rev'", SYMLINK+="ttyUSB_%c.%s{bInterfaceNumber}"
+# ACTION=="add", SUBSYSTEM=="block", SUBSYSTEMS=="usb", ENV{ID_FS_USAGE}=="filesystem", MODE="0666", PROGRAM="/bin/sh -c 'echo $$ID_SERIAL_SHORT | rev | cut -c -8 | rev'", RUN{program}+="/usr/bin/systemd-mount --no-block --automount=yes --collect $devnode /media/blkUSB_%c.%s{bInterfaceNumber}"
 
 import os
 import sys
@@ -80,16 +80,16 @@ def test_cdc_dual_ports(id):
 
 def test_cdc_msc(id):
     port  = f'/dev/ttyUSB_{id[-8:]}.00'
-    block = f'/dev/blkUSB_{id[-8:]}.02'
+    file = f'/media/blkUSB_{id[-8:]}.02/README.TXT'
     # Wait device enum
     timeout = 10
     while timeout:
-        if os.path.exists(port) and os.path.exists(block):
+        if os.path.exists(port) and os.path.isfile(file):
             break
         time.sleep(1)
         timeout = timeout - 1
 
-    assert os.path.exists(port) and os.path.exists(block), \
+    assert os.path.exists(port) and os.path.isfile(file), \
         'Device not available'
 
     # Echo test
@@ -100,10 +100,10 @@ def test_cdc_msc(id):
     str = b"test_str"
     ser1.write(str)
     ser1.flush()
-    assert ser1.read(100) == str, 'Port wrong data'
+    assert ser1.read(100) == str, 'CDC wrong data'
 
     # Block test
-    f = open(block, 'rb')
+    f = open(file, 'rb')
     data = f.read()
 
     readme = \
@@ -111,7 +111,7 @@ def test_cdc_msc(id):
 If you find any bugs or get any questions, feel free to file an\r\n\
 issue at github.com/hathach/tinyusb"
 
-    assert data[0x600:0x600 + len(readme)] == readme, 'Block wrong data'
+    assert data == readme, 'MSC wrong data'
     print('cdc_msc test done')
 
 def test_dfu(id):
