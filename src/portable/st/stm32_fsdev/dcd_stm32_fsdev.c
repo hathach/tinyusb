@@ -721,7 +721,8 @@ void dcd_int_handler(uint8_t rhport)
   if (int_status & USB_ISTR_SUSP)
   {
     /* Don't suspend as long there is a pending remote wakeup */
-    if (USB->CNTR & USB_CNTR_RESUME) {
+    if (!(USB->CNTR & USB_CNTR_RESUME))
+    {
       /* Suspend is asserted for both suspend and unplug events. without Vbus monitoring,
        * these events cannot be differentiated, so we only trigger suspend. */
 
