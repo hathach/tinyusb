@@ -149,10 +149,11 @@ uint32_t hcd_frame_number(uint8_t rhport);
 // Get the current connect status of roothub port
 bool hcd_port_connect_status(uint8_t rhport);
 
-// Reset USB bus on the port
+// Reset USB bus on the port. Return immediately, bus reset sequence may not be complete.
+// Some port would require hcd_port_reset_end() to be invoked after 10ms to complete the reset sequence.
 void hcd_port_reset(uint8_t rhport);
 
-// TODO implement later
+// Complete bus reset sequence, may be required by some controllers
 void hcd_port_reset_end(uint8_t rhport);
 
 // Get port link speed

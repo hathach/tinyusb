@@ -181,9 +181,6 @@ static usbh_class_driver_t const usbh_class_drivers[] =
 };
 
 enum { USBH_CLASS_DRIVER_COUNT = TU_ARRAY_SIZE(usbh_class_drivers) };
-
-enum { RESET_DELAY = 500 };  // 200 USB specs say only 50ms but many devices require much longer
-
 enum { CONFIG_NUM = 1 }; // default to use configuration 1
 
 
@@ -251,40 +248,27 @@ static bool usbh_control_xfer_cb (uint8_t daddr, uint8_t ep_addr, xfer_result_t 
 
 #if CFG_TUSB_OS == OPT_OS_NONE
 // TODO rework time-related function later
-TU_ATTR_WEAK void osal_task_delay(uint32_t msec)
-{
+// weak and overridable
+TU_ATTR_WEAK void osal_task_delay(uint32_t msec) {
   const uint32_t start = hcd_frame_number(_usbh_controller);
   while ( ( hcd_frame_number(_usbh_controller) - start ) < msec ) {}
 }
 #endif
 
 //--------------------------------------------------------------------+
-// PUBLIC API (Parameter Verification is required)
+// Device API
 //--------------------------------------------------------------------+
 
-bool tuh_configure(uint8_t rhport, uint32_t cfg_id, const void* cfg_param)
-{
-  if (hcd_configure)
-  {
-    return hcd_configure(rhport, cfg_id, cfg_param);
-  }else
-  {
-    return false;
-  }
-}
-
-bool tuh_mounted(uint8_t dev_addr)
-{
-  usbh_device_t* dev = get_device(dev_addr);
+bool tuh_mounted(uint8_t dev_addr) {
+  usbh_device_t *dev = get_device(dev_addr);
   TU_VERIFY(dev);
   return dev->configured;
 }
 
-bool tuh_vid_pid_get(uint8_t dev_addr, uint16_t* vid, uint16_t* pid)
-{
+bool tuh_vid_pid_get(uint8_t dev_addr, uint16_t *vid, uint16_t *pid) {
   *vid = *pid = 0;
 
-  usbh_device_t const* dev = get_device(dev_addr);
+  usbh_device_t const *dev = get_device(dev_addr);
   TU_VERIFY(dev && dev->addressed && dev->vid != 0);
 
   *vid = dev->vid;
@@ -293,26 +277,48 @@ bool tuh_vid_pid_get(uint8_t dev_addr, uint16_t* vid, uint16_t* pid)
   return true;
 }
 
-tusb_speed_t tuh_speed_get (uint8_t dev_addr)
-{
-  usbh_device_t* dev = get_device(dev_addr);
+tusb_speed_t tuh_speed_get(uint8_t dev_addr) {
+  usbh_device_t *dev = get_device(dev_addr);
   return (tusb_speed_t) (dev ? get_device(dev_addr)->speed : _dev0.speed);
 }
 
-static void clear_device(usbh_device_t* dev)
-{
+bool tuh_rhport_is_active(uint8_t rhport) {
+  return _usbh_controller == rhport;
+}
+
+bool tuh_rhport_reset_bus(uint8_t rhport, bool active) {
+  TU_VERIFY(tuh_rhport_is_active(rhport));
+  if ( active ) {
+    hcd_port_reset(rhport);
+  } else {
+    hcd_port_reset_end(rhport);
+  }
+  return true;
+}
+
+//--------------------------------------------------------------------+
+// PUBLIC API (Parameter Verification is required)
+//--------------------------------------------------------------------+
+
+bool tuh_configure(uint8_t rhport, uint32_t cfg_id, const void *cfg_param) {
+  if ( hcd_configure ) {
+    return hcd_configure(rhport, cfg_id, cfg_param);
+  } else {
+    return false;
+  }
+}
+
+static void clear_device(usbh_device_t* dev) {
   tu_memclr(dev, sizeof(usbh_device_t));
   memset(dev->itf2drv, TUSB_INDEX_INVALID_8, sizeof(dev->itf2drv)); // invalid mapping
   memset(dev->ep2drv , TUSB_INDEX_INVALID_8, sizeof(dev->ep2drv )); // invalid mapping
 }
 
-bool tuh_inited(void)
-{
+bool tuh_inited(void) {
   return _usbh_controller != TUSB_INDEX_INVALID_8;
 }
 
-bool tuh_init(uint8_t controller_id)
-{
+bool tuh_init(uint8_t controller_id) {
   // skip if already initialized
   if ( tuh_inited() ) return true;
 
@@ -359,8 +365,7 @@ bool tuh_init(uint8_t controller_id)
   return true;
 }
 
-bool tuh_task_event_ready(void)
-{
+bool tuh_task_event_ready(void) {
   // Skip if stack is not initialized
   if ( !tuh_inited() ) return false;
 
@@ -385,8 +390,7 @@ bool tuh_task_event_ready(void)
     }
     @endcode
  */
-void tuh_task_ext(uint32_t timeout_ms, bool in_isr)
-{
+void tuh_task_ext(uint32_t timeout_ms, bool in_isr) {
   (void) in_isr; // not implemented yet
 
   // Skip if stack is not initialized
@@ -403,8 +407,7 @@ void tuh_task_ext(uint32_t timeout_ms, bool in_isr)
       case HCD_EVENT_DEVICE_ATTACH:
         // due to the shared _usbh_ctrl_buf, we must complete enumerating
         // one device before enumerating another one.
-        if ( _dev0.enumerating )
-        {
+        if ( _dev0.enumerating ) {
           TU_LOG_USBH("[%u:] USBH Defer Attach until current enumeration complete\r\n", event.rhport);
 
           bool is_empty = osal_queue_empty(_usbh_q);
@@ -414,8 +417,7 @@ void tuh_task_ext(uint32_t timeout_ms, bool in_isr)
             // Exit if this is the only event in the queue, otherwise we may loop forever
             return;
           }
-        }else
-        {
+        }else {
           TU_LOG_USBH("[%u:] USBH DEVICE ATTACH\r\n", event.rhport);
           _dev0.enumerating = 1;
           enum_new_device(&event);
@@ -428,8 +430,7 @@ void tuh_task_ext(uint32_t timeout_ms, bool in_isr)
 
         #if CFG_TUH_HUB
         // TODO remove
-        if ( event.connection.hub_addr != 0)
-        {
+        if ( event.connection.hub_addr != 0) {
           // done with hub, waiting for next data on status pipe
           (void) hub_edpt_status_xfer( event.connection.hub_addr );
         }
@@ -1231,6 +1232,12 @@ static void process_removing_device(uint8_t rhport, uint8_t hub_addr, uint8_t hu
 //--------------------------------------------------------------------+
 
 enum {
+  ENUM_RESET_DELAY = 50, // USB specs: 10 to 50ms
+  ENUM_CONTACT_DEBOUNCING_DELAY = 450, // when plug/unplug a device, physical connection can be bouncing and may
+                                       // generate a series of attach/detach event. This delay wait for stable connection
+};
+
+enum {
   ENUM_IDLE,
   ENUM_RESET_1,         // 1st reset when attached
   //ENUM_HUB_GET_STATUS_1,
@@ -1311,7 +1318,7 @@ static void process_enumeration(tuh_xfer_t* xfer)
     break;
 
     case ENUM_HUB_GET_STATUS_2:
-      osal_task_delay(RESET_DELAY);
+      osal_task_delay(ENUM_RESET_DELAY);
       TU_ASSERT( hub_port_get_status(_dev0.hub_addr, _dev0.hub_port, _usbh_ctrl_buf, process_enumeration, ENUM_HUB_CLEAR_RESET_2), );
     break;
 
@@ -1468,11 +1475,13 @@ static bool enum_new_device(hcd_event_t* event)
   if (_dev0.hub_addr == 0)
   {
     // connected/disconnected directly with roothub
-    // wait until device is stable TODO non blocking
     hcd_port_reset(_dev0.rhport);
-    osal_task_delay(RESET_DELAY); // TODO may not work for no-OS on MCU that require reset_end() since
-                                  // sof of controller may not running while resetting
+    osal_task_delay(ENUM_RESET_DELAY); // TODO may not work for no-OS on MCU that require reset_end() since
+                                        // sof of controller may not running while resetting
     hcd_port_reset_end( _dev0.rhport);
+
+    // wait until device connection is stable TODO non blocking
+    osal_task_delay(ENUM_CONTACT_DEBOUNCING_DELAY);
 
     // device unplugged while delaying
     if ( !hcd_port_connect_status(_dev0.rhport) ) {
@@ -1489,6 +1498,7 @@ static bool enum_new_device(hcd_event_t* event)
     xfer.result    = XFER_RESULT_SUCCESS;
     xfer.user_data = ENUM_ADDR0_DEVICE_DESC;
 
+
     process_enumeration(&xfer);
 
   }
@@ -1496,8 +1506,8 @@ static bool enum_new_device(hcd_event_t* event)
   else
   {
     // connected/disconnected via external hub
-    // wait until device is stable
-    osal_task_delay(RESET_DELAY);
+    // wait until device connection is stable TODO non blocking
+    osal_task_delay(ENUM_CONTACT_DEBOUNCING_DELAY);
 
     // ENUM_HUB_GET_STATUS
     //TU_ASSERT( hub_port_get_status(_dev0.hub_addr, _dev0.hub_port, _usbh_ctrl_buf, enum_hub_get_status0_complete, 0) );
@@ -1508,23 +1518,19 @@ static bool enum_new_device(hcd_event_t* event)
   return true;
 }
 
-static uint8_t get_new_address(bool is_hub)
-{
+static uint8_t get_new_address(bool is_hub) {
   uint8_t start;
   uint8_t end;
 
-  if ( is_hub )
-  {
+  if ( is_hub ) {
     start = CFG_TUH_DEVICE_MAX;
     end   = start + CFG_TUH_HUB;
-  }else
-  {
+  }else {
     start = 0;
     end   = start + CFG_TUH_DEVICE_MAX;
   }
 
-  for (uint8_t idx = start; idx < end; idx++)
-  {
+  for (uint8_t idx = start; idx < end; idx++) {
     if (!_usbh_devices[idx].connected) return (idx+1);
   }
 
