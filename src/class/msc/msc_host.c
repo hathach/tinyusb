@@ -421,8 +421,7 @@ bool msch_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_interface_t const *de
   return true;
 }
 
-bool msch_set_config(uint8_t dev_addr, uint8_t itf_num)
-{
+bool msch_set_config(uint8_t dev_addr, uint8_t itf_num) {
   msch_interface_t* p_msc = get_itf(dev_addr);
   TU_ASSERT(p_msc->itf_num == itf_num);
 
@@ -430,10 +429,8 @@ bool msch_set_config(uint8_t dev_addr, uint8_t itf_num)
 
   //------------- Get Max Lun -------------//
   TU_LOG_DRV("MSC Get Max Lun\r\n");
-  tusb_control_request_t const request =
-  {
-    .bmRequestType_bit =
-    {
+  tusb_control_request_t const request = {
+    .bmRequestType_bit = {
       .recipient = TUSB_REQ_RCPT_INTERFACE,
       .type      = TUSB_REQ_TYPE_CLASS,
       .direction = TUSB_DIR_IN
@@ -444,12 +441,11 @@ bool msch_set_config(uint8_t dev_addr, uint8_t itf_num)
     .wLength  = 1
   };
 
-  tuh_xfer_t xfer =
-  {
+  tuh_xfer_t xfer = {
     .daddr       = dev_addr,
     .ep_addr     = 0,
     .setup       = &request,
-    .buffer      = &p_msc->max_lun,
+    .buffer      = _msch_buffer,
     .complete_cb = config_get_maxlun_complete,
     .user_data    = 0
   };
@@ -466,6 +462,8 @@ static void config_get_maxlun_complete (tuh_xfer_t* xfer)
   // STALL means zero
   p_msc->max_lun = (XFER_RESULT_SUCCESS == xfer->result) ? _msch_buffer[0] : 0;
   p_msc->max_lun++; // MAX LUN is minus 1 by specs
+
+  TU_LOG_DRV("  Max LUN = %u\r\n", p_msc->max_lun);
 
   // TODO multiple LUN support
   TU_LOG_DRV("SCSI Test Unit Ready\r\n");
