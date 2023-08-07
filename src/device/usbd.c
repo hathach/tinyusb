@@ -711,7 +711,16 @@ static bool process_control_request(uint8_t rhport, tusb_control_request_t const
             }
 
             // switch to new configuration if not zero
-            if ( cfg_num ) TU_ASSERT( process_set_config(rhport, cfg_num) );
+            if ( cfg_num )
+            {
+              TU_ASSERT( process_set_config(rhport, cfg_num) );
+
+              if ( tud_mount_cb ) tud_mount_cb();
+            }
+            else
+            {
+              if ( tud_umount_cb ) tud_umount_cb();
+            }
           }
 
           _usbd_dev.cfg_num = cfg_num;
@@ -962,16 +971,6 @@ static bool process_set_config(uint8_t rhport, uint8_t cfg_num)
 
     // Failed if there is no supported drivers
     TU_ASSERT(drv_id < TOTAL_DRIVER_COUNT);
-  }
-
-  // invoke callback
-  if (cfg_num)
-  {
-    if (tud_mount_cb) tud_mount_cb();
-  }
-  else
-  {
-    if (tud_umount_cb) tud_umount_cb();
   }
 
   return true;
