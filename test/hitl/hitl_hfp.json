@@ -21,6 +21,10 @@
                 {
                     "name": "dfu_runtime",
                     "firmware": "examples/device/dfu_runtime/_build/stm32l412nucleo/dfu_runtime.elf"
+                },
+                {
+                    "name": "board_test",
+                    "firmware": "examples/device/board_test/_build/stm32l412nucleo/board_test.elf"
                 }
             ]
         },
@@ -45,6 +49,10 @@
                 {
                     "name": "dfu_runtime",
                     "firmware": "examples/device/dfu_runtime/_build/stm32f746disco/dfu_runtime.elf"
+                },
+                {
+                    "name": "board_test",
+                    "firmware": "examples/device/board_test/_build/stm32f746disco/board_test.elf"
                 }
             ]
         },
@@ -59,16 +67,16 @@
                     "firmware": "examples/device/cdc_dual_ports/_build/lpcxpresso54628/cdc_dual_ports.elf"
                 },
                 {
-                    "name": "cdc_msc",
-                    "firmware": "examples/device/cdc_msc/_build/lpcxpresso54628/cdc_msc.elf"
-                },
-                {
                     "name": "dfu",
                     "firmware": "examples/device/dfu/_build/lpcxpresso54628/dfu.elf"
                 },
                 {
                     "name": "dfu_runtime",
                     "firmware": "examples/device/dfu_runtime/_build/lpcxpresso54628/dfu_runtime.elf"
+                },
+                {
+                    "name": "board_test",
+                    "firmware": "examples/device/board_test/_build/lpcxpresso54628/board_test.elf"
                 }
             ]
         }
