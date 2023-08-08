@@ -1,3 +1,4 @@
+
 /*
  * The MIT License (MIT)
  *
@@ -598,7 +599,7 @@ void tud_task_ext(uint32_t timeout_ms, bool in_isr)
 
       case DCD_EVENT_SOF:
         TU_LOG_USBD("\r\n");
-        if ( tud_sof_cb ) tud_sof_cb(event->rhport, event->sof.frame_count);
+        if ( tud_sof_cb ) tud_sof_cb(event->sof.frame_count);
       break;
 
       default:

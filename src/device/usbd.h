@@ -149,7 +149,7 @@ TU_ATTR_WEAK void tud_suspend_cb(bool remote_wakeup_en);
 TU_ATTR_WEAK void tud_resume_cb(void);
 
 // Invoked when a new (micro) frame started
-TU_ATTR_WEAK void tud_sof_cb(uint8_t rhport, uint32_t frame_count);
+TU_ATTR_WEAK void tud_sof_cb(uint32_t frame_count);
 
 // Invoked when received control request with VENDOR TYPE
 TU_ATTR_WEAK bool tud_vendor_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request_t const * request);
