@@ -59,6 +59,7 @@ function(add_board_target BOARD_TARGET)
         BOARD_TUD_MAX_SPEED=OPT_MODE_FULL_SPEED
         BOARD_TUH_MAX_SPEED=OPT_MODE_HIGH_SPEED
         CFG_TUH_MEM_SECTION=__attribute__\(\(section\(\"m_usb_global\"\)\)\)
+        #CFG_TUD_MEM_SECTION=__attribute__\(\(section\(\"m_usb_global\"\)\)\)
         )
     endif ()
 

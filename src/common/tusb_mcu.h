@@ -58,6 +58,7 @@
 // NXP
 //--------------------------------------------------------------------+
 #if   TU_CHECK_MCU(OPT_MCU_LPC11UXX, OPT_MCU_LPC13XX, OPT_MCU_LPC15XX)
+  #define TUP_USBIP_IP3511
   #define TUP_DCD_ENDPOINT_MAX    5
 
 #elif TU_CHECK_MCU(OPT_MCU_LPC175X_6X, OPT_MCU_LPC177X_8X, OPT_MCU_LPC40XX)
@@ -66,14 +67,17 @@
   #define TUP_OHCI_RHPORTS        2
 
 #elif TU_CHECK_MCU(OPT_MCU_LPC51UXX)
+   #define TUP_USBIP_IP3511
    #define TUP_DCD_ENDPOINT_MAX   5
 
-#elif TU_CHECK_MCU(OPT_MCU_LPC54XXX)
+#elif TU_CHECK_MCU(OPT_MCU_LPC54)
   // TODO USB0 has 5, USB1 has 6
+  #define TUP_USBIP_IP3511
   #define TUP_DCD_ENDPOINT_MAX    6
 
-#elif TU_CHECK_MCU(OPT_MCU_LPC55XX)
+#elif TU_CHECK_MCU(OPT_MCU_LPC55)
   // TODO USB0 has 5, USB1 has 6
+  #define TUP_USBIP_IP3511
   #define TUP_DCD_ENDPOINT_MAX    6
 
 #elif TU_CHECK_MCU(OPT_MCU_LPC18XX, OPT_MCU_LPC43XX)
