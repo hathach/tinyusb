@@ -54,8 +54,7 @@ def test_cdc_dual_ports(id):
         time.sleep(1)
         timeout = timeout - 1
 
-    assert os.path.exists(port1) and os.path.exists(port2), \
-        'Device not available'
+    assert timeout, 'Device not available'
 
     # Echo test
     ser1 = serial.Serial(port1)
@@ -89,8 +88,7 @@ def test_cdc_msc(id):
         time.sleep(1)
         timeout = timeout - 1
 
-    assert os.path.exists(port) and os.path.isfile(file), \
-        'Device not available'
+    assert timeout, 'Device not available'
 
     # Echo test
     ser1 = serial.Serial(port)
@@ -169,6 +167,22 @@ def test_dfu_runtime(id):
     assert timeout, 'Device not available'
 
     print('dfu_runtime test done')
+
+def test_hid_boot_interface(id):
+    kbd  = f'/dev/input/by-id/usb-TinyUSB_TinyUSB_Device_{id}-event-kbd'
+    mouse1  = f'/dev/input/by-id/usb-TinyUSB_TinyUSB_Device_{id}-if01-event-mouse'
+    mouse2  = f'/dev/input/by-id/usb-TinyUSB_TinyUSB_Device_{id}-if01-mouse'
+    # Wait device enum
+    timeout = 10
+    while timeout:
+        if os.path.exists(kbd) and os.path.exists(mouse1) and os.path.exists(mouse2):
+            break
+        time.sleep(1)
+        timeout = timeout - 1
+
+    assert timeout, 'Device not available'
+
+    print('hid_boot_interface test done')
 
 def test_board_test(id):
     # Dummy test

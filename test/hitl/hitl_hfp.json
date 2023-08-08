@@ -23,6 +23,10 @@
                     "firmware": "examples/device/dfu_runtime/_build/stm32l412nucleo/dfu_runtime.elf"
                 },
                 {
+                    "name": "hid_boot_interface",
+                    "firmware": "examples/device/hid_boot_interface/_build/stm32l412nucleo/hid_boot_interface.elf"
+                },
+                {
                     "name": "board_test",
                     "firmware": "examples/device/board_test/_build/stm32l412nucleo/board_test.elf"
                 }
@@ -49,6 +53,10 @@
                 {
                     "name": "dfu_runtime",
                     "firmware": "examples/device/dfu_runtime/_build/stm32f746disco/dfu_runtime.elf"
+                },
+                {
+                    "name": "hid_boot_interface",
+                    "firmware": "examples/device/hid_boot_interface/_build/stm32f746disco/hid_boot_interface.elf"
                 },
                 {
                     "name": "board_test",
