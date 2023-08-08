@@ -155,7 +155,7 @@ def test_dfu(id):
     print('dfu test done')
 
 def test_dfu_runtime(id):
-     # Wait device enum
+    # Wait device enum
     timeout = 10
     while timeout:
         ret = subprocess.run(f'dfu-util -l',
@@ -170,6 +170,9 @@ def test_dfu_runtime(id):
 
     print('dfu_runtime test done')
 
+def test_board_test(id):
+    # Dummy test
+    pass
 
 if __name__ == '__main__':
     if len(sys.argv) != 2:
