@@ -70,13 +70,11 @@
 //--------------------------------------------------------------------+
 // Forward USB interrupt events to TinyUSB IRQ Handler
 //--------------------------------------------------------------------+
-void USB0_IRQHandler(void)
-{
+void USB0_IRQHandler(void) {
   tud_int_handler(0);
 }
 
-void USB1_IRQHandler(void)
-{
+void USB1_IRQHandler(void) {
   tud_int_handler(1);
 }
 
