@@ -51,7 +51,7 @@ jobs:
 
       - name: Test on actual hardware (hardware in the loop)
         run: |
-          python3 tools/hitl_test.py hitl_hfp.json
+          python3 test/hil/hil_test.py hil_hfp.json
 
 #      # Upload binaries for hardware test with self-hosted
 #      - name: Prepare stm32l412nucleo Artifacts
