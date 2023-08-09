@@ -1,92 +1,18 @@
 {
-    "devices": [
+    "boards": [
         {
+            "name": "stm32l412nucleo",
             "uid": "41003B000E504E5457323020",
             "debugger": "jlink",
             "debugger_sn": "774470029",
-            "device": "STM32L412KB",
-            "tests": [
-                {
-                    "name": "cdc_dual_ports",
-                    "firmware": "examples/device/cdc_dual_ports/_build/stm32l412nucleo/cdc_dual_ports.elf"
-                },
-                {
-                    "name": "cdc_msc",
-                    "firmware": "examples/device/cdc_msc/_build/stm32l412nucleo/cdc_msc.elf"
-                },
-                {
-                    "name": "dfu",
-                    "firmware": "examples/device/dfu/_build/stm32l412nucleo/dfu.elf"
-                },
-                {
-                    "name": "dfu_runtime",
-                    "firmware": "examples/device/dfu_runtime/_build/stm32l412nucleo/dfu_runtime.elf"
-                },
-                {
-                    "name": "hid_boot_interface",
-                    "firmware": "examples/device/hid_boot_interface/_build/stm32l412nucleo/hid_boot_interface.elf"
-                },
-                {
-                    "name": "board_test",
-                    "firmware": "examples/device/board_test/_build/stm32l412nucleo/board_test.elf"
-                }
-            ]
+            "cpu": "STM32L412KB"
         },
         {
+            "name": "stm32f746disco",
             "uid": "210041000C51343237303334",
             "debugger": "jlink",
             "debugger_sn": "770935966",
-            "device": "STM32F746NG",
-            "tests": [
-                {
-                    "name": "cdc_dual_ports",
-                    "firmware": "examples/device/cdc_dual_ports/_build/stm32f746disco/cdc_dual_ports.elf"
-                },
-                {
-                    "name": "cdc_msc",
-                    "firmware": "examples/device/cdc_msc/_build/stm32f746disco/cdc_msc.elf"
-                },
-                {
-                    "name": "dfu",
-                    "firmware": "examples/device/dfu/_build/stm32f746disco/dfu.elf"
-                },
-                {
-                    "name": "dfu_runtime",
-                    "firmware": "examples/device/dfu_runtime/_build/stm32f746disco/dfu_runtime.elf"
-                },
-                {
-                    "name": "hid_boot_interface",
-                    "firmware": "examples/device/hid_boot_interface/_build/stm32f746disco/hid_boot_interface.elf"
-                },
-                {
-                    "name": "board_test",
-                    "firmware": "examples/device/board_test/_build/stm32f746disco/board_test.elf"
-                }
-            ]
-        },
-        {
-            "uid": "0123456789ABCDEF",
-            "debugger": "jlink",
-            "debugger_sn": "727600775",
-            "device": "LPC54608J512",
-            "tests": [
-                {
-                    "name": "cdc_dual_ports",
-                    "firmware": "examples/device/cdc_dual_ports/_build/lpcxpresso54628/cdc_dual_ports.elf"
-                },
-                {
-                    "name": "dfu",
-                    "firmware": "examples/device/dfu/_build/lpcxpresso54628/dfu.elf"
-                },
-                {
-                    "name": "dfu_runtime",
-                    "firmware": "examples/device/dfu_runtime/_build/lpcxpresso54628/dfu_runtime.elf"
-                },
-                {
-                    "name": "board_test",
-                    "firmware": "examples/device/board_test/_build/lpcxpresso54628/board_test.elf"
-                }
-            ]
+            "cpu": "STM32F746NG"
         }
     ]
 }
