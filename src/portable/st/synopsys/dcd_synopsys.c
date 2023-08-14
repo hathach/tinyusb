@@ -192,7 +192,7 @@ static void flush_tx_fifo(uint8_t rhport, uint8_t fifo_num)
 
   usb_otg->GRSTCTL &= ~USB_OTG_GRSTCTL_TXFNUM_Msk;
   usb_otg->GRSTCTL |= (fifo_num << USB_OTG_GRSTCTL_TXFNUM_Pos);
-  usb_otg->GRSTCTL = USB_OTG_GRSTCTL_TXFFLSH;
+  usb_otg->GRSTCTL |= USB_OTG_GRSTCTL_TXFFLSH;
   while (usb_otg->GRSTCTL & USB_OTG_GRSTCTL_TXFFLSH) ;
 }
 
@@ -298,11 +298,13 @@ static void bus_reset(uint8_t rhport)
   //   overwrite this.
 
   usb_otg->GRXFSIZ = calc_rx_ff_size(TUD_OPT_HIGH_SPEED ? 512 : 64);
+  flush_rx_fifo(rhport);
 
   _allocated_fifo_words_tx = 16;
 
   // Control IN uses FIFO 0 with 64 bytes ( 16 32-bit word )
   usb_otg->DIEPTXF0_HNPTXFSIZ = (16 << USB_OTG_TX0FD_Pos) | (EP_FIFO_SIZE/4 - _allocated_fifo_words_tx);
+  flush_tx_fifo(rhport, 0);
 
   // Fixed control EP0 size to 64 bytes
   in_ep[0].DIEPCTL &= ~(0x03 << USB_OTG_DIEPCTL_MPSIZ_Pos);
@@ -706,6 +708,7 @@ bool dcd_edpt_open (uint8_t rhport, tusb_desc_endpoint_t const * desc_edpt)
     // DIEPTXF starts at FIFO #1.
     // Both TXFD and TXSA are in unit of 32-bit words.
     usb_otg->DIEPTXF[epnum - 1] = (fifo_size << USB_OTG_DIEPTXF_INEPTXFD_Pos) | (EP_FIFO_SIZE/4 - _allocated_fifo_words_tx);
+    flush_tx_fifo(rhport, epnum);
 
     in_ep[epnum].DIEPCTL |= (1 << USB_OTG_DIEPCTL_USBAEP_Pos) |
         (epnum << USB_OTG_DIEPCTL_TXFNUM_Pos) |
@@ -835,10 +838,7 @@ static void dcd_edpt_disable (uint8_t rhport, uint8_t ep_addr, bool stall)
       in_ep[epnum].DIEPINT = USB_OTG_DIEPINT_EPDISD;
     }
 
-    // Flush the FIFO, and wait until we have confirmed it cleared.
-    usb_otg->GRSTCTL |= (epnum << USB_OTG_GRSTCTL_TXFNUM_Pos);
-    usb_otg->GRSTCTL |= USB_OTG_GRSTCTL_TXFFLSH;
-    while((usb_otg->GRSTCTL & USB_OTG_GRSTCTL_TXFFLSH_Msk) != 0);
+    flush_tx_fifo(rhport, epnum);
   } else {
     // Only disable currently enabled non-control endpoint
     if ( (epnum == 0) || !(out_ep[epnum].DOEPCTL & USB_OTG_DOEPCTL_EPENA) ){
