@@ -66,7 +66,10 @@ bool msc_app_init(void)
   for(size_t i=0; i<CFG_TUH_DEVICE_MAX; i++) _disk_busy[i] = false;
 
   // disable stdout buffered for echoing typing command
+  #ifndef __ICCARM__ // TODO IAR doesn't support stream control ?
   setbuf(stdout, NULL);
+  #endif
+
   cli_init();
 
   return true;
