@@ -39,31 +39,6 @@
 #include "bsp/board_api.h"
 #include "board.h"
 
-#define UART_DEV        LPC_USART0
-#define UART_PORT       0x0f
-#define UART_PIN_TX     10
-#define UART_PIN_RX     11
-
-// P9_1 joystick down
-#define BUTTON_PORT     4
-#define BUTTON_PIN      13
-
-//static const struct {
-//  uint8_t mux_port;
-//  uint8_t mux_pin;
-//
-//  uint8_t gpio_port;
-//  uint8_t gpio_pin;
-//}buttons[] =
-//{
-//    {0x0a, 3, 4, 10 }, // Joystick up
-//    {0x09, 1, 4, 13 }, // Joystick down
-//    {0x0a, 2, 4, 9  }, // Joystick left
-//    {0x09, 0, 4, 12 }, // Joystick right
-//    {0x0a, 1, 4, 8  }, // Joystick press
-//    {0x02, 7, 0, 7  }, // SW6
-//};
-
 #ifdef BOARD_TUD_RHPORT
   #define PORT_SUPPORT_DEVICE(_n)  (BOARD_TUD_RHPORT == _n)
 #else
@@ -76,34 +51,13 @@
   #define PORT_SUPPORT_HOST(_n)    0
 #endif
 
-/*------------------------------------------------------------------*/
-/* BOARD API
- *------------------------------------------------------------------*/
-
 /* System configuration variables used by chip driver */
 const uint32_t OscRateIn = 12000000;
 const uint32_t ExtRateIn = 0;
 
-static const PINMUX_GRP_T pinmuxing[] =
-{
-  // Button ( Joystick down )
-  {0x9, 1,  (SCU_MODE_INBUFF_EN | SCU_MODE_INACT | SCU_MODE_FUNC0 | SCU_MODE_PULLUP)},
-
-  // UART
-  {UART_PORT, UART_PIN_TX, SCU_MODE_PULLDOWN | SCU_MODE_FUNC1},
-  {UART_PORT, UART_PIN_RX, SCU_MODE_INACT | SCU_MODE_INBUFF_EN | SCU_MODE_ZIF_DIS | SCU_MODE_FUNC1},
-
-  // USB
-};
-
-/* Pin clock mux values, re-used structure, value in first index is meaningless */
-static const PINMUX_GRP_T pinclockmuxing[] =
-{
-  {0, 0,  (SCU_MODE_INACT | SCU_MODE_INBUFF_EN | SCU_MODE_ZIF_DIS | SCU_MODE_HIGHSPEEDSLEW_EN | SCU_MODE_FUNC0)},
-  {0, 1,  (SCU_MODE_INACT | SCU_MODE_INBUFF_EN | SCU_MODE_ZIF_DIS | SCU_MODE_HIGHSPEEDSLEW_EN | SCU_MODE_FUNC0)},
-  {0, 2,  (SCU_MODE_INACT | SCU_MODE_INBUFF_EN | SCU_MODE_ZIF_DIS | SCU_MODE_HIGHSPEEDSLEW_EN | SCU_MODE_FUNC0)},
-  {0, 3,  (SCU_MODE_INACT | SCU_MODE_INBUFF_EN | SCU_MODE_ZIF_DIS | SCU_MODE_HIGHSPEEDSLEW_EN | SCU_MODE_FUNC0)},
-};
+/*------------------------------------------------------------------*/
+/* BOARD API
+ *------------------------------------------------------------------*/
 
 // Invoked by startup code
 void SystemInit(void)
@@ -113,19 +67,18 @@ void SystemInit(void)
   unsigned int *pSCB_VTOR = (unsigned int *) 0xE000ED08;
 	*pSCB_VTOR = (unsigned int) g_pfnVectors;
 
-#if __FPU_USED == 1
+  #if __FPU_USED == 1
 	fpuInit();
+  #endif
 #endif
-#endif // __USE_LPCOPEN
 
-	/* Setup system level pin muxing */
-	Chip_SCU_SetPinMuxing(pinmuxing, sizeof(pinmuxing) / sizeof(PINMUX_GRP_T));
+  /* Setup system level pin muxing */
+  Chip_SCU_SetPinMuxing(pinmuxing, sizeof(pinmuxing) / sizeof(PINMUX_GRP_T));
 
-	/* Clock pins only, group field not used */
-	for (int i = 0; i <(int)  (sizeof(pinclockmuxing) / sizeof(pinclockmuxing[0])); i++)
-	{
-		Chip_SCU_ClockPinMuxSet(pinclockmuxing[i].pinnum, pinclockmuxing[i].modefunc);
-	}
+//  /* Clock pins only, group field not used */
+//  for ( int i = 0; i < (int) (sizeof(pinclockmuxing) / sizeof(pinclockmuxing[0])); i++ ) {
+//    Chip_SCU_ClockPinMuxSet(pinclockmuxing[i].pinnum, pinclockmuxing[i].modefunc);
+//  }
 
   Chip_SetupXtalClocking();
 }
@@ -144,13 +97,16 @@ void board_init(void)
 
   Chip_GPIO_Init(LPC_GPIO_PORT);
 
+#ifdef __PCA9532C_H
   // LED via pca9532 I2C
   Chip_SCU_I2C0PinConfig(I2C0_STANDARD_FAST_MODE);
   Chip_I2C_Init(I2C0);
   Chip_I2C_SetClockRate(I2C0, 100000);
   Chip_I2C_SetMasterEventHandler(I2C0, Chip_I2C_EventHandlerPolling);
-
   pca9532_init();
+#else
+  Chip_GPIO_SetPinDIROutput(LPC_GPIO_PORT, LED_PORT, LED_PIN);
+#endif
 
   // Button
   Chip_GPIO_SetPinDIRInput(LPC_GPIO_PORT, BUTTON_PORT, BUTTON_PIN);
@@ -264,34 +220,30 @@ void USB1_IRQHandler(void)
 // Board porting API
 //--------------------------------------------------------------------+
 
-void board_led_write(bool state)
-{
-  if (state)
-  {
-    pca9532_setLeds( LED1, 0 );
-  }else
-  {
-    pca9532_setLeds( 0, LED1);
+void board_led_write(bool state) {
+  #ifdef __PCA9532C_H
+  if ( state ) {
+    pca9532_setLeds(LED1, 0);
+  } else {
+    pca9532_setLeds(0, LED1);
   }
+  #else
+  Chip_GPIO_SetPinState(LPC_GPIO_PORT, LED_PORT, LED_PIN, state ? LED_STATE_ON : !LED_STATE_ON);
+  #endif
 }
 
-uint32_t board_button_read(void)
-{
-  // active low
-  return Chip_GPIO_GetPinState(LPC_GPIO_PORT, BUTTON_PORT, BUTTON_PIN) ? 0 : 1;
+uint32_t board_button_read(void) {
+  return BUTTON_STATE_ACTIVE == Chip_GPIO_GetPinState(LPC_GPIO_PORT, BUTTON_PORT, BUTTON_PIN);
 }
 
-int board_uart_read(uint8_t* buf, int len)
-{
+int board_uart_read(uint8_t *buf, int len) {
   return Chip_UART_Read(UART_DEV, buf, len);
 }
 
-int board_uart_write(void const * buf, int len)
-{
-  uint8_t const* buf8 = (uint8_t const*) buf;
-  for(int i=0; i<len; i++)
-  {
-    while ((Chip_UART_ReadLineStatus(UART_DEV) & UART_LSR_THRE) == 0) {}
+int board_uart_write(void const *buf, int len) {
+  uint8_t const *buf8 = (uint8_t const *) buf;
+  for ( int i = 0; i < len; i++ ) {
+    while ( (Chip_UART_ReadLineStatus(UART_DEV) & UART_LSR_THRE) == 0 ) {}
     Chip_UART_SendByte(UART_DEV, buf8[i]);
   }
 
@@ -300,13 +252,13 @@ int board_uart_write(void const * buf, int len)
 
 #if CFG_TUSB_OS == OPT_OS_NONE
 volatile uint32_t system_ticks = 0;
-void SysTick_Handler (void)
-{
+
+void SysTick_Handler(void) {
   system_ticks++;
 }
 
-uint32_t board_millis(void)
-{
+uint32_t board_millis(void) {
   return system_ticks;
 }
+
 #endif
