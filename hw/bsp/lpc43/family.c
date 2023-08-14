@@ -63,13 +63,25 @@ const uint32_t ExtRateIn = 0;
 void SystemInit(void)
 {
 #ifdef __USE_LPCOPEN
-	extern void (* const g_pfnVectors[])(void);
   unsigned int *pSCB_VTOR = (unsigned int *) 0xE000ED08;
-	*pSCB_VTOR = (unsigned int) g_pfnVectors;
 
-  #if __FPU_USED == 1
+#ifdef __ICCARM__
+  extern void *__vector_table;
+  *pSCB_VTOR = (unsigned int) &__vector_table;
+
+#elif defined(__ARMCC_VERSION)
+  extern void *__Vectors;
+	*pSCB_VTOR = (unsigned int) &__Vectors;
+
+#else // other compoiler using cr_startup_lpc43xx.c
+	extern void (* const g_pfnVectors[])(void);
+	*pSCB_VTOR = (unsigned int) g_pfnVectors;
+#endif
+
+#if __FPU_USED == 1
 	fpuInit();
-  #endif
+#endif
+
 #endif
 
   /* Setup system level pin muxing */
