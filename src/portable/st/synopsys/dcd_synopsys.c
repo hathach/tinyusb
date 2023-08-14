@@ -186,6 +186,24 @@ static inline uint16_t calc_rx_ff_size(uint16_t ep_size)
   return 15 + 2*(ep_size/4) + 2*EP_MAX;
 }
 
+static void flush_tx_fifo(uint8_t rhport, uint8_t fifo_num)
+{
+  USB_OTG_GlobalTypeDef * usb_otg = GLOBAL_BASE(rhport);
+
+  usb_otg->GRSTCTL &= ~USB_OTG_GRSTCTL_TXFNUM_Msk;
+  usb_otg->GRSTCTL |= (fifo_num << USB_OTG_GRSTCTL_TXFNUM_Pos);
+  usb_otg->GRSTCTL = USB_OTG_GRSTCTL_TXFFLSH;
+  while (usb_otg->GRSTCTL & USB_OTG_GRSTCTL_TXFFLSH) ;
+}
+
+static void flush_rx_fifo(uint8_t rhport)
+{
+  USB_OTG_GlobalTypeDef * usb_otg = GLOBAL_BASE(rhport);
+
+  usb_otg->GRSTCTL |= USB_OTG_GRSTCTL_RXFFLSH;
+  while (usb_otg->GRSTCTL & USB_OTG_GRSTCTL_RXFFLSH) ;
+}
+
 static void update_grxfsiz(uint8_t rhport)
 {
   (void) rhport;
