@@ -150,7 +150,7 @@ uint32_t tud_cdc_n_available(uint8_t itf)
 uint32_t tud_cdc_n_read(uint8_t itf, void* buffer, uint32_t bufsize)
 {
   cdcd_interface_t* p_cdc = &_cdcd_itf[itf];
-  uint32_t num_read = tu_fifo_read_n(&p_cdc->rx_ff, buffer, (uint16_t) bufsize);
+  uint32_t num_read = tu_fifo_read_n(&p_cdc->rx_ff, buffer, (uint16_t) TU_MIN(bufsize, 65535));
   _prep_out_transaction(p_cdc);
   return num_read;
 }
@@ -173,7 +173,7 @@ void tud_cdc_n_read_flush (uint8_t itf)
 uint32_t tud_cdc_n_write(uint8_t itf, void const* buffer, uint32_t bufsize)
 {
   cdcd_interface_t* p_cdc = &_cdcd_itf[itf];
-  uint16_t ret = tu_fifo_write_n(&p_cdc->tx_ff, buffer, (uint16_t) bufsize);
+  uint16_t ret = tu_fifo_write_n(&p_cdc->tx_ff, buffer, (uint16_t) TU_MIN(bufsize, 65535));
 
   // flush if queue more than packet size
   // may need to suppress -Wunreachable-code since most of the time CFG_TUD_CDC_TX_BUFSIZE < BULK_PACKET_SIZE
