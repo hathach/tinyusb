@@ -579,6 +579,7 @@ void qhd_xfer_complete_isr(ehci_qhd_t * qhd) {
       if (qtd_overlay->xact_err || qtd_overlay->err_count == 0 || qtd_overlay->buffer_err || qtd_overlay->babble_err) {
         // Error count = 0 often occurs when device disconnected, or other bus-related error
         xfer_result = XFER_RESULT_FAILED;
+        qtd_overlay->halted = false; // clear halted bit if it is not caused by STALL
         TU_LOG3("  QHD xfer err count: %d\n", qtd_overlay->err_count);
         // TU_BREAKPOINT(); // TODO skip unplugged device
       }else {
