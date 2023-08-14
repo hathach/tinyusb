@@ -167,7 +167,7 @@ tu_static usbd_class_driver_t const _usbd_driver[] =
     .open             = vendord_open,
     .control_xfer_cb  = tud_vendor_control_xfer_cb,
     .xfer_cb          = vendord_xfer_cb,
-    .sof              = tud_vendor_sof_isr ? tud_vendor_sof_isr : NULL
+    .sof              = tud_vendor_sof_isr
   },
   #endif
 
