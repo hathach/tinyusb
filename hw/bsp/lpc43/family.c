@@ -236,6 +236,13 @@ uint32_t board_button_read(void) {
   return BUTTON_STATE_ACTIVE == Chip_GPIO_GetPinState(LPC_GPIO_PORT, BUTTON_PORT, BUTTON_PIN);
 }
 
+size_t board_get_unique_id(uint8_t id[], size_t max_len) {
+  if ( max_len < 16 ) return 0;
+  uint32_t* id32 = (uint32_t*) (uintptr_t) id;
+  Chip_IAP_ReadUID(id32);
+  return 16;
+}
+
 int board_uart_read(uint8_t *buf, int len) {
   return Chip_UART_Read(UART_DEV, buf, len);
 }

@@ -24,6 +24,7 @@ function(add_board_target BOARD_TARGET)
       ${SDK_DIR}/src/clock_18xx_43xx.c
       ${SDK_DIR}/src/fpu_init.c
       ${SDK_DIR}/src/gpio_18xx_43xx.c
+      ${SDK_DIR}/src/iap_18xx_43xx.c
       ${SDK_DIR}/src/sysinit_18xx_43xx.c
       ${SDK_DIR}/src/uart_18xx_43xx.c
       )
