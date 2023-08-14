@@ -17,42 +17,48 @@ set(FAMILY_MCUS LPC43XX CACHE INTERNAL "")
 #------------------------------------
 # only need to be built ONCE for all examples
 function(add_board_target BOARD_TARGET)
-  if (NOT TARGET ${BOARD_TARGET})
-    add_library(${BOARD_TARGET} STATIC
-      ${SDK_DIR}/../gcc/cr_startup_lpc43xx.c
-      ${SDK_DIR}/src/chip_18xx_43xx.c
-      ${SDK_DIR}/src/clock_18xx_43xx.c
-      ${SDK_DIR}/src/fpu_init.c
-      ${SDK_DIR}/src/gpio_18xx_43xx.c
-      ${SDK_DIR}/src/sysinit_18xx_43xx.c
-      ${SDK_DIR}/src/uart_18xx_43xx.c
-      )
-    target_compile_options(${BOARD_TARGET} PUBLIC
-      -nostdlib
-      )
-    target_compile_definitions(${BOARD_TARGET} PUBLIC
-      __USE_LPCOPEN
-      CORE_M4
-      )
-    target_include_directories(${BOARD_TARGET} PUBLIC
-      ${SDK_DIR}/inc
-      ${SDK_DIR}/inc/config_43xx
-      )
+  if (TARGET ${BOARD_TARGET})
+    return()
+  endif ()
 
-    update_board(${BOARD_TARGET})
+  # Startup & Linker script
+  set(STARTUP_FILE_GNU ${SDK_DIR}/../gcc/cr_startup_lpc43xx.c)
+  set(STARTUP_FILE_IAR ${SDK_DIR}/../iar/iar_startup_lpc18xx43xx.s)
+  set(LD_FILE_IAR ${SDK_DIR}/../iar/linker/lpc18xx_43xx_ldscript_iflash.icf)
 
-    if (CMAKE_C_COMPILER_ID STREQUAL "GNU")
-      target_link_options(${BOARD_TARGET} PUBLIC
-        "LINKER:--script=${LD_FILE_GNU}"
-        # nanolib
-        --specs=nosys.specs
-        --specs=nano.specs
-        )
-    elseif (CMAKE_C_COMPILER_ID STREQUAL "IAR")
-      target_link_options(${BOARD_TARGET} PUBLIC
-        "LINKER:--config=${LD_FILE_IAR}"
-        )
-    endif ()
+  add_library(${BOARD_TARGET} STATIC
+    ${STARTUP_FILE_${CMAKE_C_COMPILER_ID}}
+    ${SDK_DIR}/src/chip_18xx_43xx.c
+    ${SDK_DIR}/src/clock_18xx_43xx.c
+    ${SDK_DIR}/src/fpu_init.c
+    ${SDK_DIR}/src/gpio_18xx_43xx.c
+    ${SDK_DIR}/src/iap_18xx_43xx.c
+    ${SDK_DIR}/src/sysinit_18xx_43xx.c
+    ${SDK_DIR}/src/uart_18xx_43xx.c
+    )
+  target_compile_definitions(${BOARD_TARGET} PUBLIC
+    __USE_LPCOPEN
+    CORE_M4
+    )
+  target_include_directories(${BOARD_TARGET} PUBLIC
+    ${SDK_DIR}/inc
+    ${SDK_DIR}/inc/config_43xx
+    )
+
+  update_board(${BOARD_TARGET})
+
+  if (CMAKE_C_COMPILER_ID STREQUAL "GNU")
+    target_compile_options(${BOARD_TARGET} PUBLIC -nostdlib)
+    target_link_options(${BOARD_TARGET} PUBLIC
+      "LINKER:--script=${LD_FILE_GNU}"
+      # nanolib
+      --specs=nosys.specs
+      --specs=nano.specs
+      )
+  elseif (CMAKE_C_COMPILER_ID STREQUAL "IAR")
+    target_link_options(${BOARD_TARGET} PUBLIC
+      "LINKER:--config=${LD_FILE_IAR}"
+      )
   endif ()
 endfunction()
 

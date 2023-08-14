@@ -24,8 +24,8 @@
  * This file is part of the TinyUSB stack.
  */
 
-#ifndef BOARD_H_
-#define BOARD_H_
+#ifndef _BOARD_LPCXPRESSO43S67_H_
+#define _BOARD_LPCXPRESSO43S67_H_
 
 // Note: For USB Host demo, install JP4
 // WARNING: don't install JP4 when running as device
@@ -37,22 +37,20 @@
 // LED Red
 #define LED_PORT      3
 #define LED_PIN       7
+#define LED_STATE_ON  0
 
-// ISP Button
+// ISP Button (SW2)
 #define BUTTON_PORT   0
 #define BUTTON_PIN    7
+#define BUTTON_STATE_ACTIVE   0
 
 #define UART_DEV      LPC_USART0
 
-static inline void board_lpc18_pinmux(void)
-{
-  const PINMUX_GRP_T pinmuxing[] =
-  {
-    // LEDs
-    { 0x6, 9 , SCU_MODE_INBUFF_EN | SCU_MODE_PULLUP | SCU_MODE_FUNC0 },
+static const PINMUX_GRP_T pinmuxing[] = {
+    // LEDs P6_11 as GPIO3[7]
     { 0x6, 11, SCU_MODE_INBUFF_EN | SCU_MODE_PULLUP | SCU_MODE_FUNC0 },
 
-    // Button
+    // Button P2_7 as GPIO0[7]
     { 0x2, 7, SCU_MODE_PULLUP | SCU_MODE_INBUFF_EN | SCU_MODE_ZIF_DIS | SCU_MODE_FUNC0 },
 
     // UART
@@ -62,14 +60,11 @@ static inline void board_lpc18_pinmux(void)
     // USB0
     //{ 0x6, 3, SCU_MODE_PULLUP | SCU_MODE_INBUFF_EN | SCU_MODE_FUNC1 },		                // P6_3 USB0_PWR_EN, USB0 VBus function
 
-    // USB1
+    // USB 1
     //{ 0x9, 5, SCU_MODE_PULLUP | SCU_MODE_INBUFF_EN | SCU_MODE_FUNC2 },			              // P9_5 USB1_VBUS_EN, USB1 VBus function
     //{ 0x2, 5, SCU_MODE_INACT  | SCU_MODE_INBUFF_EN | SCU_MODE_ZIF_DIS | SCU_MODE_FUNC2 }, // P2_5 USB1_VBUS, MUST CONFIGURE THIS SIGNAL FOR USB1 NORMAL OPERATION
     {0x2, 5, SCU_MODE_INBUFF_EN | SCU_MODE_PULLUP | SCU_MODE_FUNC4 },
-  };
-
-  Chip_SCU_SetPinMuxing(pinmuxing, sizeof(pinmuxing) / sizeof(PINMUX_GRP_T));
-}
+};
 
 #ifdef __cplusplus
  }
