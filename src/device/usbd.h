@@ -151,6 +151,9 @@ TU_ATTR_WEAK void tud_resume_cb(void);
 // Invoked when received control request with VENDOR TYPE
 TU_ATTR_WEAK bool tud_vendor_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request_t const * request);
 
+// Invoked when received SOF packet with VENDOR TYPE
+TU_ATTR_WEAK void tud_vendor_sof_isr(uint8_t rhport, uint32_t frame_count);
+
 //--------------------------------------------------------------------+
 // Binary Device Object Store (BOS) Descriptor Templates
 //--------------------------------------------------------------------+
