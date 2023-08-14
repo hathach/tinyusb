@@ -96,6 +96,14 @@ bool usbh_edpt_release(uint8_t dev_addr, uint8_t ep_addr);
 // Check if endpoint transferring is complete
 bool usbh_edpt_busy(uint8_t dev_addr, uint8_t ep_addr);
 
+//--------------------------------------------------------------------+
+// USBH application additional driver API
+//--------------------------------------------------------------------+
+// Invoked when initializing host stack to get additional class drivers.
+// Can optionally implemented by application to extend/overwrite class driver support.
+// Note: The drivers array must be accessible at all time when stack is active
+usbh_class_driver_t const* usbh_app_driver_get_cb(uint8_t* driver_count) TU_ATTR_WEAK;
+
 #ifdef __cplusplus
  }
 #endif
