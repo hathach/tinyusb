@@ -89,6 +89,8 @@ Host Stack
 - Mass Storage Class (MSC)
 - Hub with multiple-level support
 
+Similar to the Device Stack, if you have a special requirement, `usbh_app_driver_get_cb()` can be used to write your own class driver without modifying the stack.
+
 TypeC PD Stack
 ==============
 

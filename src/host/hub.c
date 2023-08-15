@@ -30,7 +30,7 @@
 
 #include "hcd.h"
 #include "usbh.h"
-#include "usbh_classdriver.h"
+#include "usbh_pvt.h"
 #include "hub.h"
 
 // Debug level, TUSB_CFG_DEBUG must be at least this level for debug message

@@ -36,7 +36,7 @@
 #endif
 
 #if CFG_TUH_ENABLED
-#include "host/usbh_classdriver.h"
+#include "host/usbh_pvt.h"
 #endif
 
 //--------------------------------------------------------------------+
