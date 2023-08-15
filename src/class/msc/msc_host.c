@@ -29,7 +29,7 @@
 #if CFG_TUH_ENABLED && CFG_TUH_MSC
 
 #include "host/usbh.h"
-#include "host/usbh_classdriver.h"
+#include "host/usbh_pvt.h"
 
 #include "msc_host.h"
 

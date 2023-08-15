@@ -30,7 +30,7 @@
 
 #include "host/hcd.h"
 #include "tusb.h"
-#include "host/usbh_classdriver.h"
+#include "host/usbh_pvt.h"
 #include "hub.h"
 
 //--------------------------------------------------------------------+
@@ -183,6 +183,23 @@ static usbh_class_driver_t const usbh_class_drivers[] =
 enum { USBH_BUILTIN_DRIVER_COUNT = TU_ARRAY_SIZE(usbh_class_drivers) };
 enum { CONFIG_NUM = 1 }; // default to use configuration 1
 
+// Additional class drivers implemented by application
+tu_static usbh_class_driver_t const * _app_driver = NULL;
+tu_static uint8_t _app_driver_count = 0;
+
+#define TOTAL_DRIVER_COUNT    (_app_driver_count + USBH_BUILTIN_DRIVER_COUNT)
+
+static inline usbh_class_driver_t const *get_driver(uint8_t drv_id) {
+  usbh_class_driver_t const *driver = NULL;
+
+  if ( drv_id < _app_driver_count ) {
+    driver = &_app_driver[drv_id];
+  } else if ( drv_id < TOTAL_DRIVER_COUNT && USBH_BUILTIN_DRIVER_COUNT > 0) {
+    driver = &usbh_class_drivers[drv_id - _app_driver_count];
+  }
+
+  return driver;
+}
 
 //--------------------------------------------------------------------+
 // INTERNAL OBJECT & FUNCTION DECLARATION
@@ -245,21 +262,6 @@ static bool enum_new_device(hcd_event_t* event);
 static void process_removing_device(uint8_t rhport, uint8_t hub_addr, uint8_t hub_port);
 static bool usbh_edpt_control_open(uint8_t dev_addr, uint8_t max_packet_size);
 static bool usbh_control_xfer_cb (uint8_t daddr, uint8_t ep_addr, xfer_result_t result, uint32_t xferred_bytes);
-
-// Additional class drivers implemented by application
-tu_static usbh_class_driver_t const * _app_driver = NULL;
-tu_static uint8_t _app_driver_count = 0;
-tu_static uint8_t _total_driver_count = USBH_BUILTIN_DRIVER_COUNT;
-
-static usbh_class_driver_t const * usbh_get_driver(uint8_t drv_id)
-{
-  usbh_class_driver_t const * driver = NULL;
-  if ( drv_id < _app_driver_count )
-    driver = &_app_driver[drv_id];
-  else if ( drv_id < _total_driver_count )
-    driver = &usbh_class_drivers[drv_id - _app_driver_count];
-  return driver;
-}
 
 #if CFG_TUSB_OS == OPT_OS_NONE
 // TODO rework time-related function later
@@ -354,11 +356,10 @@ bool tuh_init(uint8_t controller_id) {
   _usbh_mutex = osal_mutex_create(&_usbh_mutexdef);
   TU_ASSERT(_usbh_mutex);
 #endif
+
   // Get application driver if available
-  if ( usbh_app_driver_get_cb )
-  {
+  if ( usbh_app_driver_get_cb ) {
     _app_driver = usbh_app_driver_get_cb(&_app_driver_count);
-    _total_driver_count = USBH_BUILTIN_DRIVER_COUNT + _app_driver_count;
   }
 
   // Device
@@ -372,9 +373,9 @@ bool tuh_init(uint8_t controller_id) {
   }
 
   // Class drivers
-  for (uint8_t drv_id = 0; drv_id < _total_driver_count; drv_id++)
+  for (uint8_t drv_id = 0; drv_id < TOTAL_DRIVER_COUNT; drv_id++)
   {
-    usbh_class_driver_t const * driver = usbh_get_driver(drv_id);
+    usbh_class_driver_t const * driver = get_driver(drv_id);
     if ( driver )
     {
       TU_LOG_USBH("%s init\r\n", driver->name);
@@ -508,12 +509,12 @@ void tuh_task_ext(uint32_t timeout_ms, bool in_isr) {
             #endif
             {
               uint8_t drv_id = dev->ep2drv[epnum][ep_dir];
-              usbh_class_driver_t const * driver = usbh_get_driver(drv_id);
+              usbh_class_driver_t const * driver = get_driver(drv_id);
               if ( driver )
               {
                 TU_LOG_USBH("%s xfer callback\r\n", driver->name);
                 driver->xfer_cb(event.dev_addr, ep_addr, (xfer_result_t) event.xfer_complete.result,
-                                                   event.xfer_complete.len);
+                                event.xfer_complete.len);
               }
               else
               {
@@ -1220,12 +1221,10 @@ static void process_removing_device(uint8_t rhport, uint8_t hub_addr, uint8_t hu
     // hub_addr = 0 means roothub, hub_port = 0 means all devices of downstream hub
     if (dev->rhport == rhport && dev->connected &&
         (hub_addr == 0 || dev->hub_addr == hub_addr) &&
-        (hub_port == 0 || dev->hub_port == hub_port))
-    {
+        (hub_port == 0 || dev->hub_port == hub_port)) {
       TU_LOG_USBH("Device unplugged address = %u\r\n", daddr);
 
-      if (is_hub_addr(daddr))
-      {
+      if (is_hub_addr(daddr)) {
         TU_LOG(CFG_TUH_LOG_LEVEL, "  is a HUB device %u\r\n", daddr);
 
         // Submit removed event If the device itself is a hub (un-rolled recursive)
@@ -1243,14 +1242,11 @@ static void process_removing_device(uint8_t rhport, uint8_t hub_addr, uint8_t hu
       }
 
       // Close class driver
-      for (uint8_t drv_id = 0; drv_id < _total_driver_count; drv_id++)
-      {
-        usbh_class_driver_t const * driver = usbh_get_driver(drv_id);
-        if ( driver )
-        {
-          driver->close(daddr);
-        }
+      for (uint8_t drv_id = 0; drv_id < TOTAL_DRIVER_COUNT; drv_id++) {
+        usbh_class_driver_t const * driver = get_driver(drv_id);
+        if ( driver ) driver->close(daddr);
       }
+
       hcd_device_close(rhport, daddr);
       clear_device(dev);
       // abort on-going control xfer if any
@@ -1679,10 +1675,9 @@ static bool _parse_configuration_descriptor(uint8_t dev_addr, tusb_desc_configur
     TU_ASSERT(drv_len >= sizeof(tusb_desc_interface_t));
 
     // Find driver for this interface
-    uint8_t drv_id = 0;
-    for (; drv_id < _total_driver_count; drv_id++)
+    for (uint8_t drv_id = 0; drv_id < TOTAL_DRIVER_COUNT; drv_id++)
     {
-      usbh_class_driver_t const * driver = usbh_get_driver(drv_id);
+      usbh_class_driver_t const * driver = get_driver(drv_id);
 
       if (driver && driver->open(dev->rhport, dev_addr, desc_itf, drv_len) )
       {
@@ -1705,12 +1700,11 @@ static bool _parse_configuration_descriptor(uint8_t dev_addr, tusb_desc_configur
         break; // exit driver find loop
       }
 
-    }
-
-    if( drv_id >= _total_driver_count )
-    {
-      TU_LOG(CFG_TUH_LOG_LEVEL, "Interface %u: class = %u subclass = %u protocol = %u is not supported\r\n",
-            desc_itf->bInterfaceNumber, desc_itf->bInterfaceClass, desc_itf->bInterfaceSubClass, desc_itf->bInterfaceProtocol);
+      if ( drv_id == TOTAL_DRIVER_COUNT - 1 )
+      {
+        TU_LOG(CFG_TUH_LOG_LEVEL, "[%u:%u] Interface %u: class = %u subclass = %u protocol = %u is not supported\r\n",
+               dev->rhport, dev_addr, desc_itf->bInterfaceNumber, desc_itf->bInterfaceClass, desc_itf->bInterfaceSubClass, desc_itf->bInterfaceProtocol);
+      }
     }
 
     // next Interface or IAD descriptor
@@ -1730,9 +1724,9 @@ void usbh_driver_set_config_complete(uint8_t dev_addr, uint8_t itf_num)
     // IAD binding interface such as CDCs should return itf_num + 1 when complete
     // with usbh_driver_set_config_complete()
     uint8_t const drv_id = dev->itf2drv[itf_num];
-    if (drv_id != TUSB_INDEX_INVALID_8)
+    usbh_class_driver_t const * driver = get_driver(drv_id);
+    if (driver)
     {
-      usbh_class_driver_t const * driver = usbh_get_driver(drv_id);
       TU_LOG_USBH("%s set config: itf = %u\r\n", driver->name, itf_num);
       driver->set_config(dev_addr, itf_num);
       break;

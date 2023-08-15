@@ -29,7 +29,7 @@
 #if (CFG_TUH_ENABLED && CFG_TUH_HID)
 
 #include "host/usbh.h"
-#include "host/usbh_classdriver.h"
+#include "host/usbh_pvt.h"
 
 #include "hid_host.h"
 
