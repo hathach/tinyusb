@@ -180,21 +180,21 @@ static usbh_class_driver_t const usbh_class_drivers[] =
   #endif
 };
 
-enum { USBH_BUILTIN_DRIVER_COUNT = TU_ARRAY_SIZE(usbh_class_drivers) };
+enum { BUILTIN_DRIVER_COUNT = TU_ARRAY_SIZE(usbh_class_drivers) };
 enum { CONFIG_NUM = 1 }; // default to use configuration 1
 
 // Additional class drivers implemented by application
 tu_static usbh_class_driver_t const * _app_driver = NULL;
 tu_static uint8_t _app_driver_count = 0;
 
-#define TOTAL_DRIVER_COUNT    (_app_driver_count + USBH_BUILTIN_DRIVER_COUNT)
+#define TOTAL_DRIVER_COUNT    (_app_driver_count + BUILTIN_DRIVER_COUNT)
 
 static inline usbh_class_driver_t const *get_driver(uint8_t drv_id) {
   usbh_class_driver_t const *driver = NULL;
 
   if ( drv_id < _app_driver_count ) {
     driver = &_app_driver[drv_id];
-  } else if ( drv_id < TOTAL_DRIVER_COUNT && USBH_BUILTIN_DRIVER_COUNT > 0) {
+  } else if ( drv_id < TOTAL_DRIVER_COUNT && BUILTIN_DRIVER_COUNT > 0) {
     driver = &usbh_class_drivers[drv_id - _app_driver_count];
   }
 
