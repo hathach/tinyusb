@@ -738,19 +738,27 @@ bool tuh_edpt_abort_xfer(uint8_t daddr, uint8_t ep_addr) {
   usbh_device_t* dev = get_device(daddr);
   TU_VERIFY(dev);
 
+  TU_LOG_USBH("[%u] Aborted transfer on EP %02X\r\n", daddr, ep_addr);
+
   uint8_t const epnum = tu_edpt_number(ep_addr);
   uint8_t const dir   = tu_edpt_dir(ep_addr);
 
-  // skip if not busy
-  TU_VERIFY(dev->ep_status[epnum][dir].busy);
-
-  bool const ret = hcd_edpt_abort_xfer(dev->rhport, daddr, ep_addr);
-  if (ret) {
-    // mark as ready if transfer is aborted
+  if ( epnum == 0 ) {
+    // control transfer: only 1 control at a time, check if we are aborting the current one
+    TU_VERIFY(daddr == _ctrl_xfer.daddr && _ctrl_xfer.stage != CONTROL_STAGE_IDLE);
+    TU_VERIFY(hcd_edpt_abort_xfer(dev->rhport, daddr, ep_addr));
+    // reset control transfer state to idle
+    _set_control_xfer_stage(CONTROL_STAGE_IDLE);
+  } else {
+    // non-control skip if not busy
+    TU_VERIFY(dev->ep_status[epnum][dir].busy);
+    TU_VERIFY(hcd_edpt_abort_xfer(dev->rhport, daddr, ep_addr));
+    // mark as ready and release endpoint if transfer is aborted
     dev->ep_status[epnum][dir].busy = false;
+    usbh_edpt_release(daddr, ep_addr);
   }
 
-  return ret;
+  return true;
 }
 
 //--------------------------------------------------------------------+
