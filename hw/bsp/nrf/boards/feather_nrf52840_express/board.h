@@ -45,6 +45,13 @@
 #define UART_RX_PIN     24
 #define UART_TX_PIN     25
 
+// SPI for USB host shield
+#define SPI_SCK_PIN      14
+#define SPI_MOSI_PIN     13
+#define SPI_MISO_PIN     15
+#define SPI_CS_PIN       27
+#define MAX3241E_INT_PIN 26
+
 #ifdef __cplusplus
  }
 #endif

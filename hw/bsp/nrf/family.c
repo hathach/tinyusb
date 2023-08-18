@@ -40,6 +40,7 @@
 #include "hal/nrf_gpio.h"
 #include "drivers/include/nrfx_power.h"
 #include "drivers/include/nrfx_uarte.h"
+#include "drivers/include/nrfx_spim.h"
 
 #ifdef SOFTDEVICE_PRESENT
 #include "nrf_sdm.h"
@@ -54,8 +55,7 @@
 //--------------------------------------------------------------------+
 // Forward USB interrupt events to TinyUSB IRQ Handler
 //--------------------------------------------------------------------+
-void USBD_IRQHandler(void)
-{
+void USBD_IRQHandler(void) {
   tud_int_handler(0);
 }
 
@@ -81,6 +81,7 @@ enum {
 #endif
 
 static nrfx_uarte_t _uart_id = NRFX_UARTE_INSTANCE(0);
+static nrfx_spim_t _spi = NRFX_SPIM_INSTANCE(0);
 
 // tinyusb function that handles power event (detected, ready, removed)
 // We must call it within SD's SOC event handler, or set it as power event handler if SD is not enabled.
@@ -88,13 +89,11 @@ extern void tusb_hal_nrf_power_event(uint32_t event);
 
 
 // nrf power callback, could be unused if SD is enabled or usb is disabled (board_test example)
-TU_ATTR_UNUSED static void power_event_handler(nrfx_power_usb_evt_t event)
-{
+TU_ATTR_UNUSED static void power_event_handler(nrfx_power_usb_evt_t event) {
   tusb_hal_nrf_power_event((uint32_t) event);
 }
 
-void board_init(void)
-{
+void board_init(void) {
   // stop LF clock just in case we jump from application without reset
   NRF_CLOCK->TASKS_LFCLKSTOP = 1UL;
 
@@ -113,8 +112,7 @@ void board_init(void)
   SysTick_Config(SystemCoreClock/1000);
 
   // UART
-  nrfx_uarte_config_t uart_cfg =
-  {
+  nrfx_uarte_config_t uart_cfg = {
     .pseltxd   = UART_TX_PIN,
     .pselrxd   = UART_RX_PIN,
     .pselcts   = NRF_UARTE_PSEL_DISCONNECTED,
@@ -175,44 +173,77 @@ void board_init(void)
   if ( usb_reg & VBUSDETECT_Msk ) tusb_hal_nrf_power_event(USB_EVT_DETECTED);
   if ( usb_reg & OUTPUTRDY_Msk  ) tusb_hal_nrf_power_event(USB_EVT_READY);
 #endif
+
+  (void) _spi;
+#if CFG_TUH_ENABLED && defined(CFG_TUH_MAX3421E) && CFG_TUH_MAX3421E
+  // USB host using max3421e usb controller via SPI
+  nrfx_spim_config_t cfg = {
+      .sck_pin        = SPI_SCK_PIN,
+      .mosi_pin       = SPI_MOSI_PIN,
+      .miso_pin       = SPI_MISO_PIN,
+      .ss_pin         = SPI_CS_PIN,
+      .ss_active_high = false,
+      .irq_priority   = 3,
+      .orc            = 0xFF,
+      // default setting 4 Mhz, Mode 0, MSB first
+      .frequency      = NRF_SPIM_FREQ_4M,
+      .mode           = NRF_SPIM_MODE_0,
+      .bit_order      = NRF_SPIM_BIT_ORDER_MSB_FIRST,
+  };
+
+  // no handler --> blocking
+  nrfx_spim_init(&_spi, &cfg, NULL, NULL);
+#endif
+
 }
 
 //--------------------------------------------------------------------+
 // Board porting API
 //--------------------------------------------------------------------+
 
-void board_led_write(bool state)
-{
-  nrf_gpio_pin_write(LED_PIN, state ? LED_STATE_ON : (1-LED_STATE_ON));
+void board_led_write(bool state) {
+  nrf_gpio_pin_write(LED_PIN, state ? LED_STATE_ON : (1 - LED_STATE_ON));
 }
 
-uint32_t board_button_read(void)
-{
+uint32_t board_button_read(void) {
   return BUTTON_STATE_ACTIVE == nrf_gpio_pin_read(BUTTON_PIN);
 }
 
-int board_uart_read(uint8_t* buf, int len)
-{
-  (void) buf; (void) len;
+int board_uart_read(uint8_t *buf, int len) {
+  (void) buf;
+  (void) len;
   return 0;
 //  return NRFX_SUCCESS == nrfx_uart_rx(&_uart_id, buf, (size_t) len) ? len : 0;
 }
 
-int board_uart_write(void const * buf, int len)
-{
-  return (NRFX_SUCCESS == nrfx_uarte_tx(&_uart_id, (uint8_t const*) buf, (size_t) len)) ? len : 0;
+int board_uart_write(void const *buf, int len) {
+  return (NRFX_SUCCESS == nrfx_uarte_tx(&_uart_id, (uint8_t const *) buf, (size_t) len)) ? len : 0;
 }
 
 #if CFG_TUSB_OS == OPT_OS_NONE
 volatile uint32_t system_ticks = 0;
-void SysTick_Handler (void)
-{
+
+void SysTick_Handler(void) {
   system_ticks++;
 }
 
-uint32_t board_millis(void)
-{
+uint32_t board_millis(void) {
   return system_ticks;
+}
+
+#endif
+
+#if CFG_TUH_ENABLED && defined(CFG_TUH_MAX3421E) && CFG_TUH_MAX3421E
+// API: SPI transfer with MAX3421E, must be implemented by application
+bool tuh_max3421e_spi_xfer_api(uint8_t rhport, uint8_t const * tx_buf, size_t tx_len, uint8_t * rx_buf, size_t rx_len) {
+  (void) rhport;
+  nrfx_spim_xfer_desc_t xfer = {
+      .p_tx_buffer = tx_buf,
+      .tx_length   = tx_len,
+      .p_rx_buffer = rx_buf,
+      .rx_length   = rx_len,
+  };
+  return nrfx_spim_xfer(&_spi, &xfer, 0) == NRFX_SUCCESS;
 }
 #endif
 
@@ -251,8 +282,7 @@ void SD_EVT_IRQHandler(void)
   }
 }
 
-void nrf_error_cb(uint32_t id, uint32_t pc, uint32_t info)
-{
+void nrf_error_cb(uint32_t id, uint32_t pc, uint32_t info) {
   (void) id;
   (void) pc;
   (void) info;

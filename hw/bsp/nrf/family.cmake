@@ -122,7 +122,7 @@ function(family_configure_example TARGET RTOS)
   family_add_tinyusb(${TARGET} OPT_MCU_NRF5X ${RTOS})
   target_sources(${TARGET}-tinyusb PUBLIC
     ${TOP}/src/portable/nordic/nrf5x/dcd_nrf5x.c
-    #${TOP}/src/portable/analog/max3421e/hcd_max3421e.c
+    ${TOP}/src/portable/analog/max3421e/hcd_max3421e.c
     )
   target_link_libraries(${TARGET}-tinyusb PUBLIC board_${BOARD})
 
