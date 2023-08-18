@@ -33,13 +33,20 @@ function(add_board_target BOARD_TARGET)
     add_library(${BOARD_TARGET} STATIC
       # driver
       ${NRFX_DIR}/drivers/src/nrfx_power.c
+      ${NRFX_DIR}/drivers/src/nrfx_spim.c
       ${NRFX_DIR}/drivers/src/nrfx_uarte.c
       # mcu
       ${NRFX_DIR}/mdk/system_${MCU_VARIANT}.c
       )
-    target_compile_definitions(${BOARD_TARGET} PUBLIC
-      CONFIG_GPIO_AS_PINRESET
-      )
+    target_compile_definitions(${BOARD_TARGET} PUBLIC CONFIG_GPIO_AS_PINRESET)
+
+    if (MCU_VARIANT STREQUAL "nrf52840")
+      target_compile_definitions(${BOARD_TARGET} PUBLIC NRF52840_XXAA)
+    elseif (MCU_VARIANT STREQUAL "nrf52833")
+      target_compile_definitions(${BOARD_TARGET} PUBLIC NRF52833_XXAA)
+    elseif (MCU_VARIANT STREQUAL "nrf5340_application")
+      target_compile_definitions(${BOARD_TARGET} PUBLIC NRF5340_XXAA NRF5340_XXAA_APPLICATION)
+    endif ()
 
     if (TRACE_ETM STREQUAL "1")
       # ENABLE_TRACE will cause system_nrf5x.c to set up ETM trace
@@ -115,6 +122,7 @@ function(family_configure_example TARGET RTOS)
   family_add_tinyusb(${TARGET} OPT_MCU_NRF5X ${RTOS})
   target_sources(${TARGET}-tinyusb PUBLIC
     ${TOP}/src/portable/nordic/nrf5x/dcd_nrf5x.c
+    #${TOP}/src/portable/analog/max3421e/hcd_max3421e.c
     )
   target_link_libraries(${TARGET}-tinyusb PUBLIC board_${BOARD})
 

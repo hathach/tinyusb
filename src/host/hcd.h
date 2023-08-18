@@ -198,8 +198,7 @@ extern void hcd_event_handler(hcd_event_t const* event, bool in_isr);
 
 // Helper to send device attach event
 TU_ATTR_ALWAYS_INLINE static inline
-void hcd_event_device_attach(uint8_t rhport, bool in_isr)
-{
+void hcd_event_device_attach(uint8_t rhport, bool in_isr) {
   hcd_event_t event;
   event.rhport              = rhport;
   event.event_id            = HCD_EVENT_DEVICE_ATTACH;
@@ -211,8 +210,7 @@ void hcd_event_device_attach(uint8_t rhport, bool in_isr)
 
 // Helper to send device removal event
 TU_ATTR_ALWAYS_INLINE static inline
-void hcd_event_device_remove(uint8_t rhport, bool in_isr)
-{
+void hcd_event_device_remove(uint8_t rhport, bool in_isr) {
   hcd_event_t event;
   event.rhport              = rhport;
   event.event_id            = HCD_EVENT_DEVICE_REMOVE;
@@ -224,10 +222,8 @@ void hcd_event_device_remove(uint8_t rhport, bool in_isr)
 
 // Helper to send USB transfer event
 TU_ATTR_ALWAYS_INLINE static inline
-void hcd_event_xfer_complete(uint8_t dev_addr, uint8_t ep_addr, uint32_t xferred_bytes, xfer_result_t result, bool in_isr)
-{
-  hcd_event_t event =
-  {
+void hcd_event_xfer_complete(uint8_t dev_addr, uint8_t ep_addr, uint32_t xferred_bytes, xfer_result_t result, bool in_isr) {
+  hcd_event_t event = {
     .rhport   = 0, // TODO correct rhport
     .event_id = HCD_EVENT_XFER_COMPLETE,
     .dev_addr = dev_addr,
