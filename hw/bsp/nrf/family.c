@@ -38,6 +38,7 @@
 
 #include "nrfx.h"
 #include "hal/nrf_gpio.h"
+#include "drivers/include/nrfx_gpiote.h"
 #include "drivers/include/nrfx_power.h"
 #include "drivers/include/nrfx_uarte.h"
 #include "drivers/include/nrfx_spim.h"
@@ -81,17 +82,44 @@ enum {
 #endif
 
 static nrfx_uarte_t _uart_id = NRFX_UARTE_INSTANCE(0);
-static nrfx_spim_t _spi = NRFX_SPIM_INSTANCE(0);
 
 // tinyusb function that handles power event (detected, ready, removed)
 // We must call it within SD's SOC event handler, or set it as power event handler if SD is not enabled.
 extern void tusb_hal_nrf_power_event(uint32_t event);
 
-
 // nrf power callback, could be unused if SD is enabled or usb is disabled (board_test example)
 TU_ATTR_UNUSED static void power_event_handler(nrfx_power_usb_evt_t event) {
   tusb_hal_nrf_power_event((uint32_t) event);
 }
+
+//------------- Host using MAX2341E -------------//
+#if CFG_TUH_ENABLED && defined(CFG_TUH_MAX3421E) && CFG_TUH_MAX3421E
+static nrfx_spim_t _spi = NRFX_SPIM_INSTANCE(0);
+
+void max2342e_int_handler(nrfx_gpiote_pin_t pin, nrf_gpiote_polarity_t action) {
+  if ( !(pin == MAX3241E_INTR_PIN && action == NRF_GPIOTE_POLARITY_HITOLO) ) return;
+
+  tuh_int_handler(1);
+}
+
+// API: SPI transfer with MAX3421E, must be implemented by application
+bool tuh_max3421e_spi_xfer_api(uint8_t rhport, uint8_t const * tx_buf, size_t tx_len, uint8_t * rx_buf, size_t rx_len) {
+  (void) rhport;
+  nrfx_spim_xfer_desc_t xfer = {
+      .p_tx_buffer = tx_buf,
+      .tx_length   = tx_len,
+      .p_rx_buffer = rx_buf,
+      .rx_length   = rx_len,
+  };
+  return nrfx_spim_xfer(&_spi, &xfer, 0) == NRFX_SUCCESS;
+}
+
+#endif
+
+
+//--------------------------------------------------------------------+
+//
+//--------------------------------------------------------------------+
 
 void board_init(void) {
   // stop LF clock just in case we jump from application without reset
@@ -174,7 +202,6 @@ void board_init(void) {
   if ( usb_reg & OUTPUTRDY_Msk  ) tusb_hal_nrf_power_event(USB_EVT_READY);
 #endif
 
-  (void) _spi;
 #if CFG_TUH_ENABLED && defined(CFG_TUH_MAX3421E) && CFG_TUH_MAX3421E
   // USB host using max3421e usb controller via SPI
   nrfx_spim_config_t cfg = {
@@ -193,6 +220,14 @@ void board_init(void) {
 
   // no handler --> blocking
   nrfx_spim_init(&_spi, &cfg, NULL, NULL);
+
+  // max3421e interrupt pin
+  nrfx_gpiote_init(1);
+  nrfx_gpiote_in_config_t in_config = NRFX_GPIOTE_CONFIG_IN_SENSE_HITOLO(true);
+  in_config.pull = NRF_GPIO_PIN_PULLUP;
+
+  nrfx_gpiote_in_init(MAX3241E_INTR_PIN, &in_config, max2342e_int_handler);
+  nrfx_gpiote_in_event_enable(MAX3241E_INTR_PIN, true);
 #endif
 
 }
@@ -231,20 +266,6 @@ uint32_t board_millis(void) {
   return system_ticks;
 }
 
-#endif
-
-#if CFG_TUH_ENABLED && defined(CFG_TUH_MAX3421E) && CFG_TUH_MAX3421E
-// API: SPI transfer with MAX3421E, must be implemented by application
-bool tuh_max3421e_spi_xfer_api(uint8_t rhport, uint8_t const * tx_buf, size_t tx_len, uint8_t * rx_buf, size_t rx_len) {
-  (void) rhport;
-  nrfx_spim_xfer_desc_t xfer = {
-      .p_tx_buffer = tx_buf,
-      .tx_length   = tx_len,
-      .p_rx_buffer = rx_buf,
-      .rx_length   = rx_len,
-  };
-  return nrfx_spim_xfer(&_spi, &xfer, 0) == NRFX_SUCCESS;
-}
 #endif
 
 #ifdef SOFTDEVICE_PRESENT

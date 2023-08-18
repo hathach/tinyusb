@@ -136,6 +136,20 @@ enum {
   HRSL_JSTATUS     = 1u << 7,
 };
 
+//--------------------------------------------------------------------+
+//
+//--------------------------------------------------------------------+
+
+//typedef struct {
+//  uint8_t mode
+//} max2341e_data_t;
+//
+//max2341e_data_t max2341e_data;
+
+//--------------------------------------------------------------------+
+//
+//--------------------------------------------------------------------+
+
 // API: SPI transfer with MAX3421E, must be implemented by application
 bool tuh_max3421e_spi_xfer_api(uint8_t rhport, uint8_t const * tx_buf, size_t tx_len, uint8_t * rx_buf, size_t rx_len);
 
@@ -144,6 +158,7 @@ static uint8_t reg_write(uint8_t reg, uint8_t data) {
   uint8_t tx_buf[2] = {reg | CMDBYTE_WRITE, data};
   uint8_t rx_buf[2] = {0, 0};
   tuh_max3421e_spi_xfer_api(0, tx_buf, 2, rx_buf, 2);
+  TU_LOG2("HIRQ: %02X\r\n", rx_buf[0]);
   return rx_buf[0];
 }
 
@@ -167,6 +182,48 @@ bool hcd_configure(uint8_t rhport, uint32_t cfg_id, const void* cfg_param) {
   return false;
 }
 
+tusb_speed_t handle_connect_irq(uint8_t rhport) {
+  (void) rhport;
+
+  uint8_t const hrsl = reg_read(HRSL_ADDR);
+  uint8_t const jk = hrsl & (HRSL_JSTATUS | HRSL_KSTATUS);
+
+  tusb_speed_t speed;
+  uint8_t new_mode = MODE_DPPULLDN | MODE_DMPULLDN | MODE_HOST;
+
+  switch(jk) {
+    case 0x00:
+      // SEO is disconnected
+      speed = TUSB_SPEED_INVALID;
+      break;
+
+    case (HRSL_JSTATUS | HRSL_KSTATUS):
+      // SE1 is illegal
+      speed = TUSB_SPEED_INVALID;
+      break;
+
+    default: {
+      // Low speed if (LS = 1 and J-state) or (LS = 0 and K-State)
+      uint8_t const mode = reg_read(MODE_ADDR);
+      uint8_t const ls_bit = mode & MODE_LOWSPEED;
+
+      if ( (ls_bit && (jk == HRSL_JSTATUS)) || (!ls_bit && (jk == HRSL_KSTATUS)) ) {
+        speed = TUSB_SPEED_LOW;
+        new_mode |= MODE_LOWSPEED;
+      } else {
+        speed =  TUSB_SPEED_FULL;
+      }
+
+      new_mode |= MODE_SOFKAENAB; // enable SOF since there is new device
+
+      break;
+    }
+  }
+
+  reg_write(MODE_ADDR, new_mode);
+  return speed;
+}
+
 // Initialize controller to host mode
 bool hcd_init(uint8_t rhport) {
   (void) rhport;
@@ -184,15 +241,28 @@ bool hcd_init(uint8_t rhport) {
   // Mode: Host and DP/DM pull down
   reg_write(MODE_ADDR, MODE_DPPULLDN | MODE_DMPULLDN | MODE_HOST);
 
-  // Connection detection
-  reg_write(HIEN_ADDR, HIRQ_CONDET_IRQ /*| HIRQ_FRAME_IRQ */);
+  // Enable Connection IRQ
+  reg_write(HIEN_ADDR, HIRQ_CONDET_IRQ);
 
-  return false;
+  // Note: if device is already connected, CONDET IRQ may not be triggered. We need to detect it by sampling bus signal
+  reg_write(HCTL_ADDR, HCTL_SAMPLEBUS);
+  while( !(reg_read(HCTL_ADDR) & HCTL_SAMPLEBUS) ) {}
+
+  handle_connect_irq(rhport);
+  reg_write(HIRQ_ADDR, HIRQ_CONDET_IRQ);
+
+  // Enable Interrupt pin
+  reg_write(CPUCTL_ADDR, CPUCTL_IE);
+
+  return true;
 }
 
 // Interrupt Handler
 void hcd_int_handler(uint8_t rhport) {
   (void) rhport;
+
+  uint8_t hirq = reg_read(HIRQ_ADDR);
+  TU_LOG3_INT(hirq);
 }
 
 // Enable USB interrupt

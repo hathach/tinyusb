@@ -5,6 +5,7 @@
 #define NRFX_POWER_DEFAULT_CONFIG_IRQ_PRIORITY  7
 
 #define NRFX_CLOCK_ENABLED   0
+#define NRFX_GPIOTE_ENABLED  1
 
 #define NRFX_UARTE_ENABLED   1
 #define NRFX_UARTE0_ENABLED  1
@@ -40,6 +41,5 @@
 #else
     #error "Unknown device."
 #endif
-
 
 #endif // NRFX_CONFIG_H__

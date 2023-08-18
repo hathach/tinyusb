@@ -32,6 +32,8 @@ function(add_board_target BOARD_TARGET)
   if (NOT TARGET ${BOARD_TARGET})
     add_library(${BOARD_TARGET} STATIC
       # driver
+      ${NRFX_DIR}/helpers/nrfx_flag32_allocator.c
+      ${NRFX_DIR}/drivers/src/nrfx_gpiote.c
       ${NRFX_DIR}/drivers/src/nrfx_power.c
       ${NRFX_DIR}/drivers/src/nrfx_spim.c
       ${NRFX_DIR}/drivers/src/nrfx_uarte.c

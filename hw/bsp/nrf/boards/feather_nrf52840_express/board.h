@@ -50,7 +50,7 @@
 #define SPI_MOSI_PIN     13
 #define SPI_MISO_PIN     15
 #define SPI_CS_PIN       27
-#define MAX3241E_INT_PIN 26
+#define MAX3241E_INTR_PIN 26
 
 #ifdef __cplusplus
  }
