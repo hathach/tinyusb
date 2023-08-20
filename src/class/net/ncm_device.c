@@ -254,7 +254,7 @@ static void xmit_put_ntb_into_free_list(xmit_ntb_t *free_ntb)
             return;
         }
     }
-    ERROR_OUT("xmit_put_ntb_into_free_list - no entry in free list\n");  // this should not happen
+    ERROR_OUT("(EE) xmit_put_ntb_into_free_list - no entry in free list\n");  // this should not happen
 }   // xmit_put_ntb_into_free_list
 
 
@@ -283,7 +283,7 @@ static void xmit_put_ntb_into_ready_list(xmit_ntb_t *ready_ntb)
  * Put a filled NTB into the ready list
  */
 {
-    INFO_OUT("xmit_put_ntb_into_ready_list(%p) %d\n", ready_ntb, ready_ntb->len);
+    INFO_OUT("xmit_put_ntb_into_ready_list(%p) %d\n", ready_ntb, ready_ntb->nth.wBlockLength);
 
     for (int i = 0;  i < XMIT_NTB_N;  ++i) {
         if (ncm_interface.xmit_ready_ntb[i] == NULL) {
@@ -291,7 +291,7 @@ static void xmit_put_ntb_into_ready_list(xmit_ntb_t *ready_ntb)
             return;
         }
     }
-    ERROR_OUT("xmit_put_ntb_into_ready_list: ready list full\n");  // this should not happen
+    ERROR_OUT("(EE) xmit_put_ntb_into_ready_list: ready list full\n");  // this should not happen
 }   // xmit_put_ntb_into_ready_list
 
 
@@ -306,6 +306,7 @@ static xmit_ntb_t *xmit_get_next_ready_ntb(void)
 
     r = ncm_interface.xmit_ready_ntb[0];
     memmove(ncm_interface.xmit_ready_ntb + 0, ncm_interface.xmit_ready_ntb + 1, sizeof(ncm_interface.xmit_ready_ntb) - sizeof(ncm_interface.xmit_ready_ntb[0]));
+    ncm_interface.xmit_ready_ntb[XMIT_NTB_N - 1] = NULL;
 
     DEBUG_OUT("recv_get_next_ready_ntb: %p\n", r);
     return r;
@@ -357,7 +358,7 @@ static void xmit_start_if_possible(uint8_t rhport)
         return;
     }
     if (ncm_interface.itf_data_alt != 1) {
-        ERROR_OUT("  !xmit_start_if_possible 2\n");
+        ERROR_OUT("(II) !xmit_start_if_possible 2\n");
         return;
     }
     if (usbd_edpt_busy(rhport, ncm_interface.ep_in)) {
@@ -375,9 +376,9 @@ static void xmit_start_if_possible(uint8_t rhport)
         ncm_interface.xmit_glue_ntb = NULL;
     }
 
-#if DEBUG_OUT_ENABLED
+#ifdef DEBUG_OUT_ENABLED
     {
-        uint16_t len = ncm_interface.xmit_tinyusb_ntb->ntb.nth.wBlockLength;
+        uint16_t len = ncm_interface.xmit_tinyusb_ntb->nth.wBlockLength;
         DEBUG_OUT(" %d\n", len);
         for (int i = 0;  i < len;  ++i) {
             DEBUG_OUT(" %02x", ncm_interface.xmit_tinyusb_ntb->data[i]);
@@ -387,7 +388,7 @@ static void xmit_start_if_possible(uint8_t rhport)
 #endif
 
     if (ncm_interface.xmit_glue_ntb_datagram_ndx != 1) {
-        DEBUG_OUT(">> %d %d\n", ncm_interface.xmit_tinyusb_ntb->len, ncm_interface.xmit_glue_ntb_datagram_ndx);
+        DEBUG_OUT(">> %d %d\n", ncm_interface.xmit_tinyusb_ntb->nth.wBlockLength, ncm_interface.xmit_glue_ntb_datagram_ndx);
     }
 
     // Kick off an endpoint transfer
@@ -492,6 +493,7 @@ static recv_ntb_t *recv_get_next_ready_ntb(void)
 
     r = ncm_interface.recv_ready_ntb[0];
     memmove(ncm_interface.recv_ready_ntb + 0, ncm_interface.recv_ready_ntb + 1, sizeof(ncm_interface.recv_ready_ntb) - sizeof(ncm_interface.recv_ready_ntb[0]));
+    ncm_interface.recv_ready_ntb[RECV_NTB_N - 1] = NULL;
 
     DEBUG_OUT("recv_get_next_ready_ntb: %p\n", r);
     return r;
@@ -512,7 +514,7 @@ static void recv_put_ntb_into_free_list(recv_ntb_t *free_ntb)
             return;
         }
     }
-    ERROR_OUT("recv_put_ntb_into_free_list - no entry in free list\n");  // this should not happen
+    ERROR_OUT("(EE) recv_put_ntb_into_free_list - no entry in free list\n");  // this should not happen
 }   // recv_put_ntb_into_free_list
 
 
@@ -523,7 +525,7 @@ static void recv_put_ntb_into_ready_list(recv_ntb_t *ready_ntb)
  * put this buffer into the waiting list and free the receive logic.
  */
 {
-    DEBUG_OUT("recv_put_ntb_into_ready_list(%p) %d\n", ready_ntb, ready_ntb->len);
+    DEBUG_OUT("recv_put_ntb_into_ready_list(%p) %d\n", ready_ntb, ready_ntb->nth.wBlockLength);
 
     for (int i = 0;  i < RECV_NTB_N;  ++i) {
         if (ncm_interface.recv_ready_ntb[i] == NULL) {
@@ -531,7 +533,7 @@ static void recv_put_ntb_into_ready_list(recv_ntb_t *ready_ntb)
             return;
         }
     }
-    ERROR_OUT("recv_put_ntb_into_ready_list: ready list full\n");  // this should not happen
+    ERROR_OUT("(EE) recv_put_ntb_into_ready_list: ready list full\n");  // this should not happen
 }   // recv_put_ntb_into_ready_list
 
 
@@ -588,27 +590,27 @@ static bool recv_validate_datagram(const recv_ntb_t *ntb, uint16_t len)
     //
     if (nth16->wHeaderLength != sizeof(nth16_t))
     {
-        ERROR_OUT("  ill nth16 length: %d\n", nth16->wHeaderLength);
+        ERROR_OUT("(EE) ill nth16 length: %d\n", nth16->wHeaderLength);
         return false;
     }
     if (nth16->dwSignature != NTH16_SIGNATURE) {
-        ERROR_OUT("  ill signature: 0x%08x\n", (unsigned)nth16->dwSignature);
+        ERROR_OUT("(EE) ill signature: 0x%08x\n", (unsigned)nth16->dwSignature);
         return false;
     }
     if (len < sizeof(nth16_t) + sizeof(ndp16_t) + 2*sizeof(ndp16_datagram_t)) {
-        ERROR_OUT("  ill min len: %d\n", len);
+        ERROR_OUT("(EE) ill min len: %d\n", len);
         return false;
     }
     if (nth16->wBlockLength > len) {
-        ERROR_OUT("  ill block length: %d > %d\n", nth16->wBlockLength, len);
+        ERROR_OUT("(EE) ill block length: %d > %d\n", nth16->wBlockLength, len);
         return false;
     }
     if (nth16->wBlockLength > CFG_TUD_NCM_OUT_NTB_MAX_SIZE) {
-        ERROR_OUT("  ill block length2: %d > %d\n", nth16->wBlockLength, CFG_TUD_NCM_OUT_NTB_MAX_SIZE);
+        ERROR_OUT("(EE) ill block length2: %d > %d\n", nth16->wBlockLength, CFG_TUD_NCM_OUT_NTB_MAX_SIZE);
         return false;
     }
     if (nth16->wNdpIndex < sizeof(nth16)  ||  nth16->wNdpIndex > len - (sizeof(ndp16_t) + 2*sizeof(ndp16_datagram_t))) {
-        ERROR_OUT("  ill position of first ndp: %d (%d)\n", nth16->wNdpIndex, len);
+        ERROR_OUT("(EE) ill position of first ndp: %d (%d)\n", nth16->wNdpIndex, len);
         return false;
     }
 
@@ -618,15 +620,15 @@ static bool recv_validate_datagram(const recv_ntb_t *ntb, uint16_t len)
     const ndp16_t *ndp16 = (ndp16_t *)(ntb->data + nth16->wNdpIndex);
 
     if (ndp16->wLength < sizeof(ndp16_t) + 2*sizeof(ndp16_datagram_t)) {
-        ERROR_OUT("  ill ndp16 length: %d\n", ndp16->wLength);
+        ERROR_OUT("(EE) ill ndp16 length: %d\n", ndp16->wLength);
         return false;
     }
     if (ndp16->dwSignature != NDP16_SIGNATURE_NCM0  &&  ndp16->dwSignature != NDP16_SIGNATURE_NCM1) {
-        ERROR_OUT("  ill signature: 0x%08x\n", (unsigned)ndp16->dwSignature);
+        ERROR_OUT("(EE) ill signature: 0x%08x\n", (unsigned)ndp16->dwSignature);
         return false;
     }
     if (ndp16->wNextNdpIndex != 0) {
-        ERROR_OUT("  cannot handle wNextNdpIndex!=0 (%d)\n", ndp16->wNextNdpIndex);
+        ERROR_OUT("(EE) cannot handle wNextNdpIndex!=0 (%d)\n", ndp16->wNextNdpIndex);
         return false;
     }
 
@@ -636,7 +638,7 @@ static bool recv_validate_datagram(const recv_ntb_t *ntb, uint16_t len)
 
     if (max_ndx > 2) {
         // number of datagrams in NTB > 1
-        INFO_OUT("<< %d (%d)\n", max_ndx - 1, ntb->len);
+        INFO_OUT("<< %d (%d)\n", max_ndx - 1, ntb->nth.wBlockLength);
     }
     if (ndp16_datagram[max_ndx-1].wDatagramIndex != 0  ||  ndp16_datagram[max_ndx-1].wDatagramLength != 0) {
         INFO_OUT("  max_ndx != 0\n");
@@ -645,11 +647,11 @@ static bool recv_validate_datagram(const recv_ntb_t *ntb, uint16_t len)
     while (ndp16_datagram[ndx].wDatagramIndex != 0  &&  ndp16_datagram[ndx].wDatagramLength != 0) {
         DEBUG_OUT("  << %d %d\n", ndp16_datagram[ndx].wDatagramIndex, ndp16_datagram[ndx].wDatagramLength);
         if (ndp16_datagram[ndx].wDatagramIndex > len) {
-            ERROR_OUT("  ill start of datagram[%d]: %d (%d)\n", ndx, ndp16_datagram[ndx].wDatagramIndex, len);
+            ERROR_OUT("(EE) ill start of datagram[%d]: %d (%d)\n", ndx, ndp16_datagram[ndx].wDatagramIndex, len);
             return false;
         }
         if (ndp16_datagram[ndx].wDatagramIndex + ndp16_datagram[ndx].wDatagramLength > len) {
-            ERROR_OUT("  ill end of datagram[%d]: %d (%d)\n", ndx, ndp16_datagram[ndx].wDatagramIndex + ndp16_datagram[ndx].wDatagramLength, len);
+            ERROR_OUT("(EE) ill end of datagram[%d]: %d (%d)\n", ndx, ndp16_datagram[ndx].wDatagramIndex + ndp16_datagram[ndx].wDatagramLength, len);
             return false;
         }
         ++ndx;
@@ -686,10 +688,10 @@ static void recv_transfer_datagram_to_glue_logic(void)
                                                                     + sizeof(ndp16_t));
 
         if (ndp16_datagram[ncm_interface.recv_glue_ntb_datagram_ndx].wDatagramIndex == 0) {
-            ERROR_OUT("  SOMETHING WENT WRONG 1\n");
+            ERROR_OUT("(EE) SOMETHING WENT WRONG 1\n");
         }
         else if (ndp16_datagram[ncm_interface.recv_glue_ntb_datagram_ndx].wDatagramLength == 0) {
-            ERROR_OUT("  SOMETHING WENT WRONG 2\n");
+            ERROR_OUT("(EE) SOMETHING WENT WRONG 2\n");
         }
         else {
             uint16_t datagramIndex  = ndp16_datagram[ncm_interface.recv_glue_ntb_datagram_ndx].wDatagramIndex;
@@ -741,7 +743,7 @@ bool tud_network_can_xmit(uint16_t size)
         return true;
     }
     xmit_start_if_possible(ncm_interface.rhport);
-    ERROR_OUT("  tud_network_can_xmit: request blocked\n");     // could happen if all xmit buffers are full (but should happen rarely)
+    ERROR_OUT("(II) tud_network_can_xmit: request blocked\n");     // could happen if all xmit buffers are full (but should happen rarely)
     return false;
 }   // tud_network_can_xmit
 
@@ -756,7 +758,7 @@ void tud_network_xmit(void *ref, uint16_t arg)
     DEBUG_OUT("tud_network_xmit(%p, %d)\n", ref, arg);
 
     if (ncm_interface.xmit_glue_ntb == NULL) {
-        ERROR_OUT("tud_network_xmit: no buffer\n");             // must not happen (really)
+        ERROR_OUT("(EE) tud_network_xmit: no buffer\n");             // must not happen (really)
         return;
     }
 
@@ -773,7 +775,7 @@ void tud_network_xmit(void *ref, uint16_t arg)
     ntb->nth.wBlockLength += size + XMIT_ALIGN_OFFSET(size);
 
     if (ntb->nth.wBlockLength > CFG_TUD_NCM_OUT_NTB_MAX_SIZE) {
-        ERROR_OUT("tud_network_xmit: buffer overflow\n");       // must not happen (really)
+        ERROR_OUT("(II) tud_network_xmit: buffer overflow\n");       // must not happen (really)
         return;
     }
 
@@ -925,7 +927,7 @@ bool netd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint32_
         DEBUG_OUT("  EP_OUT %d %d %d %u\n", rhport, ep_addr, result, (unsigned)xferred_bytes);
         if ( !recv_validate_datagram( ncm_interface.recv_tinyusb_ntb, xferred_bytes)) {
             // verification failed: ignore NTB and return it to free
-            ERROR_OUT("  VALIDATION FAILED. WHAT CAN WE DO IN THIS CASE?\n");
+            ERROR_OUT("(EE) VALIDATION FAILED. WHAT CAN WE DO IN THIS CASE?\n");
         }
         else {
             // packet ok -> put it into ready list
