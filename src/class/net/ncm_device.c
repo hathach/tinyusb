@@ -46,7 +46,7 @@
 
 #include "tusb_option.h"
 
-#if ECLIPSE_GUI || ( CFG_TUD_ENABLED && CFG_TUD_NCM )
+#if defined(ECLIPSE_GUI) || ( CFG_TUD_ENABLED && CFG_TUD_NCM )
 
 #include <stdbool.h>
 #include <stdint.h>
