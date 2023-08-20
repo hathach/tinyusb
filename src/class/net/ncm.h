@@ -30,9 +30,46 @@
 
 #include "common/tusb_common.h"
 
-#ifdef __cplusplus
- extern "C" {
+
+#ifndef CFG_TUD_NCM_IN_NTB_MAX_SIZE
+    /// must be >> MTU
+    #define CFG_TUD_NCM_IN_NTB_MAX_SIZE        3200
 #endif
+#ifndef CFG_TUD_NCM_OUT_NTB_MAX_SIZE
+    /// must be >> MTU
+    #define CFG_TUD_NCM_OUT_NTB_MAX_SIZE       3200
+#endif
+
+#ifndef CFG_TUD_NCM_OUT_NTB_N
+    /// number of ntb buffers for reception side
+    /// 1  - good performance
+    /// 2  - up to 30% more performance with iperf with small packets
+    /// >2 - no performance gain
+    #define CFG_TUD_NCM_OUT_NTB_N              2
+#endif
+
+#ifndef CFG_TUD_NCM_IN_NTB_N
+    /// number of ntb buffers for transmission side
+    /// 1 - good performance but SystemView shows lost events (on load test)
+    /// 2 - up to 50% more performance with iperf with small packets, "tud_network_can_xmit: request blocked"
+    ///     happens from time to time with SystemView
+    /// 3 - "tud_network_can_xmit: request blocked" never happens
+    /// >2 - no performance gain
+    #define CFG_TUD_NCM_IN_NTB_N               3
+#endif
+
+#ifndef CFG_TUD_NCM_MAX_DATAGRAMS_PER_NTB
+    /// this is for the transmission size for allocation of \a ndp16_datagram_t
+    #define CFG_TUD_NCM_MAX_DATAGRAMS_PER_NTB  8
+#endif
+
+#ifndef CFG_TUD_NCM_ALIGNMENT
+    #define CFG_TUD_NCM_ALIGNMENT              4
+#endif
+#if (CFG_TUD_NCM_ALIGNMENT != 4)
+    #error "CFG_TUD_NCM_ALIGNMENT must be 4, otherwise the headers and start of datagrams have to be aligned (which they are currently not)"
+#endif
+
 
 // Table 4.3 Data Class Interface Protocol Codes
 typedef enum
@@ -62,8 +99,67 @@ typedef enum
   NCM_SET_CRC_MODE                                 = 0x8A,
 } ncm_request_code_t;
 
-#ifdef __cplusplus
- }
-#endif
+
+#define NTH16_SIGNATURE      0x484D434E
+#define NDP16_SIGNATURE_NCM0 0x304D434E
+#define NDP16_SIGNATURE_NCM1 0x314D434E
+
+typedef struct TU_ATTR_PACKED {
+    uint16_t wLength;
+    uint16_t bmNtbFormatsSupported;
+    uint32_t dwNtbInMaxSize;
+    uint16_t wNdbInDivisor;
+    uint16_t wNdbInPayloadRemainder;
+    uint16_t wNdbInAlignment;
+    uint16_t wReserved;
+    uint32_t dwNtbOutMaxSize;
+    uint16_t wNdbOutDivisor;
+    uint16_t wNdbOutPayloadRemainder;
+    uint16_t wNdbOutAlignment;
+    uint16_t wNtbOutMaxDatagrams;
+} ntb_parameters_t;
+
+typedef struct TU_ATTR_PACKED {
+    uint32_t dwSignature;
+    uint16_t wHeaderLength;
+    uint16_t wSequence;
+    uint16_t wBlockLength;
+    uint16_t wNdpIndex;
+} nth16_t;
+
+typedef struct TU_ATTR_PACKED {
+    uint16_t wDatagramIndex;
+    uint16_t wDatagramLength;
+} ndp16_datagram_t;
+
+typedef struct TU_ATTR_PACKED {
+    uint32_t dwSignature;
+    uint16_t wLength;
+    uint16_t wNextNdpIndex;
+    //ndp16_datagram_t datagram[];
+} ndp16_t;
+
+typedef union TU_ATTR_PACKED {
+    struct {
+        nth16_t          nth;
+        ndp16_t          ndp;
+        ndp16_datagram_t ndp_datagram[CFG_TUD_NCM_MAX_DATAGRAMS_PER_NTB + 1];
+    };
+    uint8_t data[CFG_TUD_NCM_IN_NTB_MAX_SIZE];
+} xmit_ntb_t;
+
+typedef union TU_ATTR_PACKED {
+    struct {
+        nth16_t nth;
+        // only the header is at a guaranteed position
+    };
+    uint8_t data[CFG_TUD_NCM_OUT_NTB_MAX_SIZE];
+} recv_ntb_t;
+
+struct ncm_notify_t {
+    tusb_control_request_t header;
+    uint32_t               downlink, uplink;
+};
+
 
 #endif
