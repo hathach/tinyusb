@@ -71,13 +71,6 @@
 #endif
 
 
-// Table 4.3 Data Class Interface Protocol Codes
-typedef enum
-{
-  NCM_DATA_PROTOCOL_NETWORK_TRANSFER_BLOCK = 0x01
-} ncm_data_interface_protocol_code_t;
-
-
 // Table 6.2 Class-Specific Request Codes for Network Control Model subclass
 typedef enum
 {
