@@ -140,11 +140,13 @@ enum {
 //
 //--------------------------------------------------------------------+
 
-//typedef struct {
-//  uint8_t mode
-//} max2341e_data_t;
-//
-//max2341e_data_t max2341e_data;
+typedef struct {
+  uint8_t mode;
+
+  volatile uint16_t frame_count;
+} max2341e_data_t;
+
+static max2341e_data_t _hcd_data;
 
 //--------------------------------------------------------------------+
 //
@@ -166,6 +168,11 @@ static uint8_t reg_read(uint8_t reg) {
   uint8_t tx_buf[2] = {reg, 0};
   uint8_t rx_buf[2] = {0, 0};
   return tuh_max3421e_spi_xfer_api(0, tx_buf, 2, rx_buf, 2) ? rx_buf[1] : 0;
+}
+
+static inline uint8_t mode_write(uint8_t data) {
+  _hcd_data.mode = data;
+  return reg_write(MODE_ADDR, data);
 }
 
 
@@ -220,13 +227,16 @@ tusb_speed_t handle_connect_irq(uint8_t rhport) {
     }
   }
 
-  reg_write(MODE_ADDR, new_mode);
+  mode_write(new_mode);
+  TU_LOG2_INT(speed);
   return speed;
 }
 
 // Initialize controller to host mode
 bool hcd_init(uint8_t rhport) {
   (void) rhport;
+
+  tu_memclr(&_hcd_data, sizeof(_hcd_data));
 
   // full duplex, interrupt level (should be configurable)
   reg_write(PINCTL_ADDR, PINCTL_FDUPSPI | PINCTL_INTLEVEL);
@@ -239,17 +249,21 @@ bool hcd_init(uint8_t rhport) {
   }
 
   // Mode: Host and DP/DM pull down
-  reg_write(MODE_ADDR, MODE_DPPULLDN | MODE_DMPULLDN | MODE_HOST);
+  mode_write(MODE_DPPULLDN | MODE_DMPULLDN | MODE_HOST);
 
   // Enable Connection IRQ
-  reg_write(HIEN_ADDR, HIRQ_CONDET_IRQ);
+  reg_write(HIEN_ADDR, HIRQ_CONDET_IRQ | HIRQ_FRAME_IRQ);
 
-  // Note: if device is already connected, CONDET IRQ may not be triggered. We need to detect it by sampling bus signal
+  #if 0
+  // Note: if device is already connected, CONDET IRQ may not be triggered.
+  // We need to detect it by sampling bus signal. FIXME not working
   reg_write(HCTL_ADDR, HCTL_SAMPLEBUS);
-  while( !(reg_read(HCTL_ADDR) & HCTL_SAMPLEBUS) ) {}
+  while ( reg_read(HCTL_ADDR) & HCTL_SAMPLEBUS ) {}
 
-  handle_connect_irq(rhport);
-  reg_write(HIRQ_ADDR, HIRQ_CONDET_IRQ);
+  if ( TUSB_SPEED_INVALID != handle_connect_irq(rhport) ) {
+    reg_write(HIRQ_ADDR, HIRQ_CONDET_IRQ); // clear connect irq
+  }
+  #endif
 
   // Enable Interrupt pin
   reg_write(CPUCTL_ADDR, CPUCTL_IE);
@@ -262,7 +276,26 @@ void hcd_int_handler(uint8_t rhport) {
   (void) rhport;
 
   uint8_t hirq = reg_read(HIRQ_ADDR);
-  TU_LOG3_INT(hirq);
+  TU_LOG3_HEX(hirq);
+
+  if (hirq & HIRQ_CONDET_IRQ) {
+    tusb_speed_t speed = handle_connect_irq(rhport);
+
+    if (speed == TUSB_SPEED_INVALID) {
+      hcd_event_device_remove(rhport, true);
+    }else {
+      hcd_event_device_attach(rhport, true);
+    }
+  }
+
+  if (hirq & HIRQ_FRAME_IRQ) {
+    _hcd_data.frame_count++;
+  }
+
+  // clear all interrupt
+  if ( hirq ) {
+    reg_write(HIRQ_ADDR, hirq);
+  }
 }
 
 // Enable USB interrupt
@@ -278,8 +311,7 @@ void hcd_int_disable(uint8_t rhport) {
 // Get frame number (1ms)
 uint32_t hcd_frame_number(uint8_t rhport) {
   (void) rhport;
-
-  return 0;
+  return (uint32_t ) _hcd_data.frame_count;
 }
 
 //--------------------------------------------------------------------+
@@ -289,26 +321,26 @@ uint32_t hcd_frame_number(uint8_t rhport) {
 // Get the current connect status of roothub port
 bool hcd_port_connect_status(uint8_t rhport) {
   (void) rhport;
-
-  return false;
+  return (_hcd_data.mode & MODE_SOFKAENAB) ? true : false;
 }
 
 // Reset USB bus on the port. Return immediately, bus reset sequence may not be complete.
 // Some port would require hcd_port_reset_end() to be invoked after 10ms to complete the reset sequence.
 void hcd_port_reset(uint8_t rhport) {
   (void) rhport;
+  reg_write(HCTL_ADDR, HCTL_BUSRST);
 }
 
 // Complete bus reset sequence, may be required by some controllers
 void hcd_port_reset_end(uint8_t rhport) {
   (void) rhport;
+  reg_write(HCTL_ADDR, 0);
 }
 
 // Get port link speed
 tusb_speed_t hcd_port_speed_get(uint8_t rhport) {
   (void) rhport;
-
-  return TUSB_SPEED_FULL;
+  return (_hcd_data.mode & MODE_LOWSPEED) ? TUSB_SPEED_LOW : TUSB_SPEED_FULL;
 }
 
 // HCD closes all opened endpoints belong to this device
