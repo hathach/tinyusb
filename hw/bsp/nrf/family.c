@@ -96,22 +96,38 @@ TU_ATTR_UNUSED static void power_event_handler(nrfx_power_usb_evt_t event) {
 #if CFG_TUH_ENABLED && defined(CFG_TUH_MAX3421E) && CFG_TUH_MAX3421E
 static nrfx_spim_t _spi = NRFX_SPIM_INSTANCE(0);
 
-void max2342e_int_handler(nrfx_gpiote_pin_t pin, nrf_gpiote_polarity_t action) {
+void max3421e_int_handler(nrfx_gpiote_pin_t pin, nrf_gpiote_polarity_t action) {
   if ( !(pin == MAX3241E_INTR_PIN && action == NRF_GPIOTE_POLARITY_HITOLO) ) return;
 
   tuh_int_handler(1);
 }
 
+static inline void max3421e_cs_assert(bool active) {
+  nrf_gpio_pin_write(MAX3421E_CS_PIN, active ? 0 : 1);
+}
+
+//--------------------------------------------------------------------+
 // API: SPI transfer with MAX3421E, must be implemented by application
-bool tuh_max3421e_spi_xfer_api(uint8_t rhport, uint8_t const * tx_buf, size_t tx_len, uint8_t * rx_buf, size_t rx_len) {
+//--------------------------------------------------------------------+
+
+bool tuh_max3421e_spi_xfer_api(uint8_t rhport, uint8_t const * tx_buf, size_t tx_len,
+                               uint8_t * rx_buf, size_t rx_len, bool keep_cs) {
   (void) rhport;
+
+  max3421e_cs_assert(true);
+
   nrfx_spim_xfer_desc_t xfer = {
       .p_tx_buffer = tx_buf,
       .tx_length   = tx_len,
       .p_rx_buffer = rx_buf,
       .rx_length   = rx_len,
   };
-  return nrfx_spim_xfer(&_spi, &xfer, 0) == NRFX_SUCCESS;
+
+  bool ret = (nrfx_spim_xfer(&_spi, &xfer, 0) == NRFX_SUCCESS);
+
+  if ( !keep_cs ) max3421e_cs_assert(false);
+
+  return ret;
 }
 
 #endif
@@ -203,12 +219,16 @@ void board_init(void) {
 #endif
 
 #if CFG_TUH_ENABLED && defined(CFG_TUH_MAX3421E) && CFG_TUH_MAX3421E
+  // manually manage CS
+  nrf_gpio_cfg_output(MAX3421E_CS_PIN);
+  max3421e_cs_assert(false);
+
   // USB host using max3421e usb controller via SPI
   nrfx_spim_config_t cfg = {
-      .sck_pin        = SPI_SCK_PIN,
-      .mosi_pin       = SPI_MOSI_PIN,
-      .miso_pin       = SPI_MISO_PIN,
-      .ss_pin         = SPI_CS_PIN,
+      .sck_pin        = MAX3421E_SCK_PIN,
+      .mosi_pin       = MAX3421E_MOSI_PIN,
+      .miso_pin       = MAX3421E_MISO_PIN,
+      .ss_pin         = NRFX_SPIM_PIN_NOT_USED,
       .ss_active_high = false,
       .irq_priority   = 3,
       .orc            = 0xFF,
@@ -226,7 +246,7 @@ void board_init(void) {
   nrfx_gpiote_in_config_t in_config = NRFX_GPIOTE_CONFIG_IN_SENSE_HITOLO(true);
   in_config.pull = NRF_GPIO_PIN_PULLUP;
 
-  nrfx_gpiote_in_init(MAX3241E_INTR_PIN, &in_config, max2342e_int_handler);
+  nrfx_gpiote_in_init(MAX3241E_INTR_PIN, &in_config, max3421e_int_handler);
   nrfx_gpiote_in_event_enable(MAX3241E_INTR_PIN, true);
 #endif
 
