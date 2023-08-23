@@ -170,7 +170,7 @@ void hcd_device_close(uint8_t rhport, uint8_t dev_addr);
 bool hcd_edpt_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_endpoint_t const * ep_desc);
 
 // Submit a transfer, when complete hcd_event_xfer_complete() must be invoked
-bool hcd_edpt_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr, uint8_t * buffer, uint16_t buflen);
+bool hcd_edpt_xfer(uint8_t rhport, uint8_t daddr, uint8_t ep_addr, uint8_t * buffer, uint16_t buflen);
 
 // Abort a queued transfer. Note: it can only abort transfer that has not been started
 // Return true if a queued transfer is aborted, false if there is no transfer to abort

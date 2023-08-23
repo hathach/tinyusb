@@ -93,7 +93,7 @@ TU_ATTR_UNUSED static void power_event_handler(nrfx_power_usb_evt_t event) {
 }
 
 //------------- Host using MAX2341E -------------//
-#if CFG_TUH_ENABLED && defined(CFG_TUH_MAX3421E) && CFG_TUH_MAX3421E
+#if CFG_TUH_ENABLED && defined(CFG_TUH_MAX3421) && CFG_TUH_MAX3421
 static nrfx_spim_t _spi = NRFX_SPIM_INSTANCE(0);
 
 void max3421e_int_handler(nrfx_gpiote_pin_t pin, nrf_gpiote_polarity_t action) {
@@ -102,19 +102,17 @@ void max3421e_int_handler(nrfx_gpiote_pin_t pin, nrf_gpiote_polarity_t action) {
   tuh_int_handler(1);
 }
 
-static inline void max3421e_cs_assert(bool active) {
-  nrf_gpio_pin_write(MAX3421E_CS_PIN, active ? 0 : 1);
-}
-
 //--------------------------------------------------------------------+
 // API: SPI transfer with MAX3421E, must be implemented by application
 //--------------------------------------------------------------------+
 
-bool tuh_max3421e_spi_xfer_api(uint8_t rhport, uint8_t const * tx_buf, size_t tx_len,
-                               uint8_t * rx_buf, size_t rx_len, bool keep_cs) {
+void tuh_max3421_spi_cs_api(uint8_t rhport, bool active) {
   (void) rhport;
+  nrf_gpio_pin_write(MAX3421E_CS_PIN, active ? 0 : 1);
+}
 
-  max3421e_cs_assert(true);
+bool tuh_max3421_spi_xfer_api(uint8_t rhport, uint8_t const * tx_buf, size_t tx_len, uint8_t * rx_buf, size_t rx_len) {
+  (void) rhport;
 
   nrfx_spim_xfer_desc_t xfer = {
       .p_tx_buffer = tx_buf,
@@ -123,11 +121,7 @@ bool tuh_max3421e_spi_xfer_api(uint8_t rhport, uint8_t const * tx_buf, size_t tx
       .rx_length   = rx_len,
   };
 
-  bool ret = (nrfx_spim_xfer(&_spi, &xfer, 0) == NRFX_SUCCESS);
-
-  if ( !keep_cs ) max3421e_cs_assert(false);
-
-  return ret;
+  return (nrfx_spim_xfer(&_spi, &xfer, 0) == NRFX_SUCCESS);
 }
 
 #endif
@@ -218,10 +212,10 @@ void board_init(void) {
   if ( usb_reg & OUTPUTRDY_Msk  ) tusb_hal_nrf_power_event(USB_EVT_READY);
 #endif
 
-#if CFG_TUH_ENABLED && defined(CFG_TUH_MAX3421E) && CFG_TUH_MAX3421E
+#if CFG_TUH_ENABLED && defined(CFG_TUH_MAX3421) && CFG_TUH_MAX3421
   // manually manage CS
   nrf_gpio_cfg_output(MAX3421E_CS_PIN);
-  max3421e_cs_assert(false);
+  tuh_max3421_spi_cs_api(0, false);
 
   // USB host using max3421e usb controller via SPI
   nrfx_spim_config_t cfg = {

@@ -26,7 +26,7 @@
 
 #include "tusb_option.h"
 
-#if CFG_TUH_ENABLED && defined(CFG_TUH_MAX3421E) && CFG_TUH_MAX3421E
+#if CFG_TUH_ENABLED && defined(CFG_TUH_MAX3421) && CFG_TUH_MAX3421
 
 #include "host/hcd.h"
 
@@ -110,14 +110,14 @@ enum {
 };
 
 enum {
-  HCTL_BUSRST    = 1u << 1,
-  HCTL_FRMRST    = 1u << 2,
-  HCTL_SAMPLEBUS = 1u << 3,
-  HCTL_SIGRSM    = 1u << 4,
-  HCTL_RCVTOG0   = 1u << 5,
-  HCTL_RCVTOG1   = 1u << 6,
-  HCTL_SNDTOG0   = 1u << 7,
-  HCTL_SNDTOG1   = 1u << 8,
+  HCTL_BUSRST    = 1u << 0,
+  HCTL_FRMRST    = 1u << 1,
+  HCTL_SAMPLEBUS = 1u << 2,
+  HCTL_SIGRSM    = 1u << 3,
+  HCTL_RCVTOG0   = 1u << 4,
+  HCTL_RCVTOG1   = 1u << 5,
+  HCTL_SNDTOG0   = 1u << 6,
+  HCTL_SNDTOG1   = 1u << 7,
 };
 
 enum {
@@ -155,45 +155,73 @@ enum {
   HRSL_BABBLE,
 };
 
+enum {
+  DEFAULT_HIEN = HIRQ_CONDET_IRQ | HIRQ_FRAME_IRQ | HIRQ_HXFRDN_IRQ
+};
 
 //--------------------------------------------------------------------+
 //
 //--------------------------------------------------------------------+
 
 typedef struct {
+  uint8_t xfer_type;
+  uint8_t data_toggle;
+  uint16_t packet_size;
+
+  uint16_t total_len;
+  uint16_t xferred_len;
+  uint8_t* buf;
+} hcd_ep_t;
+
+typedef struct {
+  bool inited;
+
   // cached register
+  uint8_t sndbc;
   uint8_t mode;
   uint8_t peraddr;
   uint8_t hxfr;
 
   volatile uint16_t frame_count;
 
-  struct {
-    uint16_t packet_size;
-    uint16_t total_len;
-    uint8_t xfer_type;
-  }ep[8][2];
-} max2341e_data_t;
+  hcd_ep_t ep[8][2];
+} max2341_data_t;
 
-static max2341e_data_t _hcd_data;
+static max2341_data_t _hcd_data;
 
 //--------------------------------------------------------------------+
 // API: SPI transfer with MAX3421E, must be implemented by application
 //--------------------------------------------------------------------+
 
-bool tuh_max3421e_spi_xfer_api(uint8_t rhport, uint8_t const * tx_buf, size_t tx_len,
-                               uint8_t * rx_buf, size_t rx_len, bool keep_cs);
+void tuh_max3421_spi_cs_api(uint8_t rhport, bool active);
+bool tuh_max3421_spi_xfer_api(uint8_t rhport, uint8_t const * tx_buf, size_t tx_len, uint8_t * rx_buf, size_t rx_len);
+
 //void tuh_max3421e_int_enable(uint8_t rhport, bool enabled);
 
 //--------------------------------------------------------------------+
 //
 //--------------------------------------------------------------------+
 
+static void fifo_write(uint8_t reg, uint8_t const * buffer, uint16_t len) {
+  reg |= CMDBYTE_WRITE;
+
+  tuh_max3421_spi_cs_api(0, true);
+
+  tuh_max3421_spi_xfer_api(0, &reg, 1, NULL, 0);
+  tuh_max3421_spi_xfer_api(0, buffer, len, NULL, 0);
+
+  tuh_max3421_spi_cs_api(0, false);
+}
+
 // return HIRQ register since we are in full-duplex mode
 static uint8_t reg_write(uint8_t reg, uint8_t data) {
   uint8_t tx_buf[2] = {reg | CMDBYTE_WRITE, data};
   uint8_t rx_buf[2] = {0, 0};
-  tuh_max3421e_spi_xfer_api(0, tx_buf, 2, rx_buf, 2, false);
+
+  tuh_max3421_spi_cs_api(0, true);
+  tuh_max3421_spi_xfer_api(0, tx_buf, 2, rx_buf, 2);
+  tuh_max3421_spi_cs_api(0, false);
+
   TU_LOG2("HIRQ: %02X\r\n", rx_buf[0]);
   return rx_buf[0];
 }
@@ -201,7 +229,12 @@ static uint8_t reg_write(uint8_t reg, uint8_t data) {
 static uint8_t reg_read(uint8_t reg) {
   uint8_t tx_buf[2] = {reg, 0};
   uint8_t rx_buf[2] = {0, 0};
-  return tuh_max3421e_spi_xfer_api(0, tx_buf, 2, rx_buf, 2, false) ? rx_buf[1] : 0;
+
+  tuh_max3421_spi_cs_api(0, true);
+  bool ret = tuh_max3421_spi_xfer_api(0, tx_buf, 2, rx_buf, 2);
+  tuh_max3421_spi_cs_api(0, false);
+
+  return ret ? rx_buf[1] : 0;
 }
 
 static inline uint8_t mode_write(uint8_t data) {
@@ -221,10 +254,9 @@ static inline uint8_t hxfr_write(uint8_t data) {
   return reg_write(HXFR_ADDR, data);
 }
 
-static void fifo_write(uint8_t reg, uint8_t const * buffer, uint16_t len) {
-  uint8_t tx_buf[1] = {reg | CMDBYTE_WRITE};
-  tuh_max3421e_spi_xfer_api(0, tx_buf, 1, NULL, 0, true);
-  tuh_max3421e_spi_xfer_api(0, buffer, len, NULL, 0, false);
+static inline uint8_t sndbc_write(uint8_t data) {
+  _hcd_data.sndbc = data;
+  return reg_write(SNDBC_ADDR, data);
 }
 
 
@@ -290,8 +322,8 @@ bool hcd_init(uint8_t rhport) {
 
   tu_memclr(&_hcd_data, sizeof(_hcd_data));
 
-  // full duplex, interrupt level (should be configurable)
-  reg_write(PINCTL_ADDR, PINCTL_FDUPSPI | PINCTL_INTLEVEL);
+  // full duplex, interrupt negative edge
+  reg_write(PINCTL_ADDR, PINCTL_FDUPSPI);
 
   // reset
   reg_write(USBCTL_ADDR, USBCTL_CHIPRES);
@@ -303,19 +335,16 @@ bool hcd_init(uint8_t rhport) {
   // Mode: Host and DP/DM pull down
   mode_write(MODE_DPPULLDN | MODE_DMPULLDN | MODE_HOST);
 
+  // bus reset, this will trigger CONDET IRQ if device is already connected
+  reg_write(HCTL_ADDR, HCTL_BUSRST);
+
+  // clear all previously pending IRQ
+  reg_write(HIRQ_ADDR, 0xff);
+
+  _hcd_data.inited = true;
+
   // Enable Connection IRQ
-  reg_write(HIEN_ADDR, HIRQ_CONDET_IRQ | HIRQ_FRAME_IRQ | HIRQ_HXFRDN_IRQ);
-
-  #if 0
-  // Note: if device is already connected, CONDET IRQ may not be triggered.
-  // We need to detect it by sampling bus signal. FIXME not working
-  reg_write(HCTL_ADDR, HCTL_SAMPLEBUS);
-  while ( reg_read(HCTL_ADDR) & HCTL_SAMPLEBUS ) {}
-
-  if ( TUSB_SPEED_INVALID != handle_connect_irq(rhport) ) {
-    reg_write(HIRQ_ADDR, HIRQ_CONDET_IRQ); // clear connect irq
-  }
-  #endif
+  reg_write(HIEN_ADDR, DEFAULT_HIEN);
 
   // Enable Interrupt pin
   reg_write(CPUCTL_ADDR, CPUCTL_IE);
@@ -353,6 +382,10 @@ bool hcd_port_connect_status(uint8_t rhport) {
 // Some port would require hcd_port_reset_end() to be invoked after 10ms to complete the reset sequence.
 void hcd_port_reset(uint8_t rhport) {
   (void) rhport;
+  // Bus reset will also trigger CONDET IRQ, disable it
+  uint8_t hien = DEFAULT_HIEN & ~HIRQ_CONDET_IRQ;
+  reg_write(HIEN_ADDR, hien);
+
   reg_write(HCTL_ADDR, HCTL_BUSRST);
 }
 
@@ -360,6 +393,10 @@ void hcd_port_reset(uint8_t rhport) {
 void hcd_port_reset_end(uint8_t rhport) {
   (void) rhport;
   reg_write(HCTL_ADDR, 0);
+
+  // Bus reset will also trigger CONDET IRQ, clear and re-enable it after reset
+  reg_write(HIRQ_ADDR, HIRQ_CONDET_IRQ);
+  reg_write(HIEN_ADDR, DEFAULT_HIEN);
 }
 
 // Get port link speed
@@ -393,14 +430,51 @@ bool hcd_edpt_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_endpoint_t const 
 }
 
 // Submit a transfer, when complete hcd_event_xfer_complete() must be invoked
-bool hcd_edpt_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr, uint8_t * buffer, uint16_t buflen) {
+bool hcd_edpt_xfer(uint8_t rhport, uint8_t daddr, uint8_t ep_addr, uint8_t * buffer, uint16_t buflen) {
   (void) rhport;
-  (void) dev_addr;
-  (void) ep_addr;
-  (void) buffer;
-  (void) buflen;
 
-  return false;
+  uint8_t const ep_num = tu_edpt_number(ep_addr);
+  uint8_t const ep_dir = tu_edpt_dir(ep_addr);
+
+  hcd_ep_t* ep = &_hcd_data.ep[ep_num][ep_dir];
+
+  ep->buf = buffer;
+  ep->total_len = buflen;
+  ep->xferred_len = 0;
+
+  uint8_t hirq = peraddr_write(daddr);
+
+  uint8_t hctl = 0;
+  uint8_t hxfr = ep_num;
+  if ( ep_num == 0 ) {
+    ep->data_toggle = 1;
+    if ( buffer == NULL || buflen == 0 ) {
+      // ZLP for ACK stage
+      hxfr |= HXFR_HS;
+    }
+  } else if ( ep->xfer_type == TUSB_XFER_ISOCHRONOUS ) {
+    hxfr |= HXFR_ISO;
+  }
+
+  if ( 0 == ep_dir ) {
+    // Page 12: Programming BULK-OUT Transfers
+    TU_ASSERT(hirq & HIRQ_RCVDAV_IRQ);
+
+    uint8_t const xact_len = (uint8_t) tu_min16(buflen, ep->packet_size);
+    fifo_write(SNDFIFO_ADDR, buffer, xact_len);
+    reg_write(SNDBC_ADDR, xact_len);
+
+    hctl = (ep->data_toggle ? HCTL_SNDTOG1 : HCTL_SNDTOG0);
+    hxfr |= HXFR_OUT_NIN;
+  } else {
+    // Page 13: Programming BULK-IN Transfers
+    hctl = (ep->data_toggle ? HCTL_RCVTOG1 : HCTL_RCVTOG0);
+  }
+
+  reg_write(HCTL_ADDR, hctl);
+  hxfr_write(hxfr);
+
+  return true;
 }
 
 // Abort a queued transfer. Note: it can only abort transfer that has not been started
@@ -416,10 +490,10 @@ bool hcd_edpt_abort_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr) {
 // Submit a special transfer to send 8-byte Setup Packet, when complete hcd_event_xfer_complete() must be invoked
 bool hcd_setup_send(uint8_t rhport, uint8_t daddr, uint8_t const setup_packet[8]) {
   (void) rhport;
-  (void) daddr;
-  (void) setup_packet;
 
-  _hcd_data.ep[0][0].total_len = 8;
+  hcd_ep_t* ep = &_hcd_data.ep[0][0];
+  ep->total_len  = 8;
+  ep->xferred_len = 0;
 
   peraddr_write(daddr);
   fifo_write(SUDFIFO_ADDR, setup_packet, 8);
@@ -437,10 +511,78 @@ bool hcd_edpt_clear_stall(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr) {
   return false;
 }
 
+static void handle_xfer_done(uint8_t rhport) {
+  (void) rhport;
+
+  uint8_t const hrsl = reg_read(HRSL_ADDR);
+  uint8_t const result = hrsl & HRSL_RESULT_MASK;
+  uint8_t xfer_result;
+
+  TU_LOG3("HRSL: %02X\r\n", hrsl);
+  switch(result) {
+    case HRSL_SUCCESS:
+      xfer_result = XFER_RESULT_SUCCESS;
+      break;
+
+    case HRSL_STALL:
+      xfer_result = XFER_RESULT_STALLED;
+      break;
+
+    case HRSL_BAD_REQ:
+      // occurred when initialized without any pending transfer. Skip for now
+      return;
+
+    default:
+      xfer_result = XFER_RESULT_FAILED;
+      break;
+  }
+
+  uint8_t ep_dir = 0;
+  uint8_t ep_num = _hcd_data.hxfr & HXFR_EPNUM_MASK;
+  uint8_t const xfer_type = _hcd_data.hxfr & 0xf0;
+
+  hcd_ep_t * ep;
+
+  if ( (xfer_type & HXFR_SETUP) || (xfer_type & HXFR_OUT_NIN) ) {
+    // SETUP or OUT transfer
+    ep_dir = 0;
+    ep = &_hcd_data.ep[ep_num][ep_dir];
+
+    uint8_t const xact_len = (xfer_type & HXFR_SETUP) ? 8 : _hcd_data.sndbc;
+    ep->xferred_len += xact_len;
+
+    if ( xact_len < ep->packet_size || ep->xferred_len >= ep->total_len ) {
+      hcd_event_xfer_complete(_hcd_data.peraddr, ep_num, ep->xferred_len, xfer_result, true);
+    }else {
+      // more to transfer
+    }
+  } else {
+    // IN transfer
+    ep_dir = 1;
+    ep = &_hcd_data.ep[ep_num][ep_dir];
+    uint8_t const xact_len = reg_read(RCVBC_ADDR);
+    ep->xferred_len += xact_len;
+
+    // short packet or all bytes transferred
+    if ( xact_len < ep->packet_size || ep->xferred_len >= ep->total_len ) {
+      hcd_event_xfer_complete(_hcd_data.peraddr, TUSB_DIR_IN_MASK | ep_num, ep->xferred_len, xfer_result, true);
+    }else {
+      // more to transfer
+    }
+  }
+}
+
 // Interrupt Handler
 void hcd_int_handler(uint8_t rhport) {
+  // not initialized, do nothing
+  if ( !_hcd_data.inited ) return;
+
   uint8_t hirq = reg_read(HIRQ_ADDR);
   TU_LOG3_HEX(hirq);
+
+  if (hirq & HIRQ_FRAME_IRQ) {
+    _hcd_data.frame_count++;
+  }
 
   if (hirq & HIRQ_CONDET_IRQ) {
     tusb_speed_t speed = handle_connect_irq(rhport);
@@ -452,49 +594,17 @@ void hcd_int_handler(uint8_t rhport) {
     }
   }
 
-  if (hirq & HIRQ_FRAME_IRQ) {
-    _hcd_data.frame_count++;
-  }
-
   if (hirq & HIRQ_HXFRDN_IRQ) {
-    uint8_t const hrsl = reg_read(HRSL_ADDR);
-    uint8_t const result = hrsl & HRSL_RESULT_MASK;
-    uint8_t xfer_result;
-
-    TU_LOG3("HRSL: %02X\r\n", hrsl);
-    switch(result) {
-      case HRSL_SUCCESS:
-        xfer_result = XFER_RESULT_SUCCESS;
-        break;
-
-      case HRSL_STALL:
-        xfer_result = XFER_RESULT_STALLED;
-        break;
-
-      default:
-        xfer_result = XFER_RESULT_FAILED;
-        break;
-    }
-
-    uint8_t ep_dir = 0;
-    uint8_t ep_num = _hcd_data.hxfr & HXFR_EPNUM_MASK;
-    uint8_t const xfer_type = _hcd_data.hxfr & 0xf0;
-
-    if ( xfer_type & HXFR_SETUP ) {
-      // SETUP transfer
-      ep_dir = 0;
-    }else if ( !(xfer_type & HXFR_OUT_NIN) ) {
-      // IN transfer
-      ep_dir = 1;
-    }
-
-    uint8_t const ep_addr = tu_edpt_addr(ep_num, ep_dir);
-    uint16_t xferred_len = _hcd_data.ep[ep_num][ep_dir].total_len;
-
-    hcd_event_xfer_complete(_hcd_data.peraddr, ep_addr, xferred_len, xfer_result, true);
+    handle_xfer_done(rhport);
   }
 
-  // clear all interrupt
+  if ( hirq & HIRQ_RCVDAV_IRQ ) {
+    TU_LOG3("RCVDAV\r\n");
+    TU_LOG3_INT(reg_read(RCVBC_ADDR));
+  }
+
+  // clear all interrupt execept SNDBAV_IRQ
+  hirq &= ~HIRQ_SNDBAV_IRQ;
   if ( hirq ) {
     reg_write(HIRQ_ADDR, hirq);
   }
