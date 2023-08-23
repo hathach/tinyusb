@@ -156,7 +156,7 @@ enum {
 };
 
 enum {
-  DEFAULT_HIEN = HIRQ_CONDET_IRQ | HIRQ_FRAME_IRQ | HIRQ_HXFRDN_IRQ
+  DEFAULT_HIEN = HIRQ_CONDET_IRQ | HIRQ_FRAME_IRQ | HIRQ_HXFRDN_IRQ | HIRQ_RCVDAV_IRQ
 };
 
 //--------------------------------------------------------------------+
@@ -178,6 +178,8 @@ typedef struct {
 
   // cached register
   uint8_t sndbc;
+  uint8_t hirq;
+  uint8_t hien;
   uint8_t mode;
   uint8_t peraddr;
   uint8_t hxfr;
@@ -203,60 +205,86 @@ bool tuh_max3421_spi_xfer_api(uint8_t rhport, uint8_t const * tx_buf, size_t tx_
 //--------------------------------------------------------------------+
 
 static void fifo_write(uint8_t reg, uint8_t const * buffer, uint16_t len) {
+  uint8_t const rhport = 0;
+  uint8_t hirq;
   reg |= CMDBYTE_WRITE;
 
-  tuh_max3421_spi_cs_api(0, true);
+  tuh_max3421_spi_cs_api(rhport, true);
 
-  tuh_max3421_spi_xfer_api(0, &reg, 1, NULL, 0);
-  tuh_max3421_spi_xfer_api(0, buffer, len, NULL, 0);
+  tuh_max3421_spi_xfer_api(rhport, &reg, 1, &hirq, 1);
+  _hcd_data.hirq = hirq;
+  tuh_max3421_spi_xfer_api(rhport, buffer, len, NULL, 0);
 
-  tuh_max3421_spi_cs_api(0, false);
+  tuh_max3421_spi_cs_api(rhport, false);
+
 }
 
-// return HIRQ register since we are in full-duplex mode
-static uint8_t reg_write(uint8_t reg, uint8_t data) {
+static void fifo_read(uint8_t * buffer, uint16_t len) {
+  uint8_t const rhport = 0;
+  uint8_t hirq;
+  uint8_t const reg = RCVVFIFO_ADDR;
+
+  tuh_max3421_spi_cs_api(rhport, true);
+
+  tuh_max3421_spi_xfer_api(rhport, &reg, 1, &hirq, 0);
+  _hcd_data.hirq = hirq;
+  tuh_max3421_spi_xfer_api(rhport, NULL, 0, buffer, len);
+
+  tuh_max3421_spi_cs_api(rhport, false);
+}
+
+static void reg_write(uint8_t reg, uint8_t data) {
+  uint8_t const rhport = 0;
   uint8_t tx_buf[2] = {reg | CMDBYTE_WRITE, data};
   uint8_t rx_buf[2] = {0, 0};
 
-  tuh_max3421_spi_cs_api(0, true);
-  tuh_max3421_spi_xfer_api(0, tx_buf, 2, rx_buf, 2);
-  tuh_max3421_spi_cs_api(0, false);
+  tuh_max3421_spi_cs_api(rhport, true);
+  tuh_max3421_spi_xfer_api(rhport, tx_buf, 2, rx_buf, 2);
+  tuh_max3421_spi_cs_api(rhport, false);
 
-  TU_LOG2("HIRQ: %02X\r\n", rx_buf[0]);
-  return rx_buf[0];
+  // HIRQ register since we are in full-duplex mode
+  _hcd_data.hirq = rx_buf[0];
+  TU_LOG3_HEX(_hcd_data.hirq);
 }
 
 static uint8_t reg_read(uint8_t reg) {
+  uint8_t const rhport = 0;
   uint8_t tx_buf[2] = {reg, 0};
   uint8_t rx_buf[2] = {0, 0};
 
-  tuh_max3421_spi_cs_api(0, true);
-  bool ret = tuh_max3421_spi_xfer_api(0, tx_buf, 2, rx_buf, 2);
-  tuh_max3421_spi_cs_api(0, false);
+  tuh_max3421_spi_cs_api(rhport, true);
+  bool ret = tuh_max3421_spi_xfer_api(rhport, tx_buf, 2, rx_buf, 2);
+  tuh_max3421_spi_cs_api(rhport, false);
 
+  _hcd_data.hirq = rx_buf[0];
   return ret ? rx_buf[1] : 0;
 }
 
-static inline uint8_t mode_write(uint8_t data) {
-  _hcd_data.mode = data;
-  return reg_write(MODE_ADDR, data);
+static inline void hien_write(uint8_t data) {
+  _hcd_data.hien = data;
+  reg_write(HIEN_ADDR, data);
 }
 
-static inline uint8_t peraddr_write(uint8_t data) {
-  if ( _hcd_data.peraddr == data ) return 0; // no need to change address
+static inline void mode_write(uint8_t data) {
+  _hcd_data.mode = data;
+  reg_write(MODE_ADDR, data);
+}
+
+static inline void peraddr_write(uint8_t data) {
+  if ( _hcd_data.peraddr == data ) return; // no need to change address
 
   _hcd_data.peraddr = data;
-  return reg_write(PERADDR_ADDR, data);
+  reg_write(PERADDR_ADDR, data);
 }
 
-static inline uint8_t hxfr_write(uint8_t data) {
+static inline void hxfr_write(uint8_t data) {
   _hcd_data.hxfr = data;
-  return reg_write(HXFR_ADDR, data);
+  reg_write(HXFR_ADDR, data);
 }
 
-static inline uint8_t sndbc_write(uint8_t data) {
+static inline void sndbc_write(uint8_t data) {
   _hcd_data.sndbc = data;
-  return reg_write(SNDBC_ADDR, data);
+  reg_write(SNDBC_ADDR, data);
 }
 
 
@@ -335,16 +363,16 @@ bool hcd_init(uint8_t rhport) {
   // Mode: Host and DP/DM pull down
   mode_write(MODE_DPPULLDN | MODE_DMPULLDN | MODE_HOST);
 
-  // bus reset, this will trigger CONDET IRQ if device is already connected
-  reg_write(HCTL_ADDR, HCTL_BUSRST);
+  // frame reset & bus reset, this will trigger CONDET IRQ if device is already connected
+  reg_write(HCTL_ADDR, HCTL_BUSRST | HCTL_FRMRST);
 
   // clear all previously pending IRQ
   reg_write(HIRQ_ADDR, 0xff);
 
   _hcd_data.inited = true;
 
-  // Enable Connection IRQ
-  reg_write(HIEN_ADDR, DEFAULT_HIEN);
+  // Enable IRQ
+  hien_write(DEFAULT_HIEN);
 
   // Enable Interrupt pin
   reg_write(CPUCTL_ADDR, CPUCTL_IE);
@@ -383,8 +411,8 @@ bool hcd_port_connect_status(uint8_t rhport) {
 void hcd_port_reset(uint8_t rhport) {
   (void) rhport;
   // Bus reset will also trigger CONDET IRQ, disable it
-  uint8_t hien = DEFAULT_HIEN & ~HIRQ_CONDET_IRQ;
-  reg_write(HIEN_ADDR, hien);
+  uint8_t const hien = DEFAULT_HIEN & ~HIRQ_CONDET_IRQ;
+  hien_write(hien);
 
   reg_write(HCTL_ADDR, HCTL_BUSRST);
 }
@@ -396,7 +424,7 @@ void hcd_port_reset_end(uint8_t rhport) {
 
   // Bus reset will also trigger CONDET IRQ, clear and re-enable it after reset
   reg_write(HIRQ_ADDR, HIRQ_CONDET_IRQ);
-  reg_write(HIEN_ADDR, DEFAULT_HIEN);
+  hien_write(DEFAULT_HIEN);
 }
 
 // Get port link speed
@@ -426,6 +454,10 @@ bool hcd_edpt_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_endpoint_t const 
 
   _hcd_data.ep[ep_num][ep_dir].packet_size = tu_edpt_packet_size(ep_desc);
 
+  if (ep_desc->bEndpointAddress == 0) {
+    _hcd_data.ep[ep_num][1].packet_size = tu_edpt_packet_size(ep_desc);
+  }
+
   return true;
 }
 
@@ -442,15 +474,18 @@ bool hcd_edpt_xfer(uint8_t rhport, uint8_t daddr, uint8_t ep_addr, uint8_t * buf
   ep->total_len = buflen;
   ep->xferred_len = 0;
 
-  uint8_t hirq = peraddr_write(daddr);
+  peraddr_write(daddr);
 
   uint8_t hctl = 0;
   uint8_t hxfr = ep_num;
   if ( ep_num == 0 ) {
     ep->data_toggle = 1;
     if ( buffer == NULL || buflen == 0 ) {
-      // ZLP for ACK stage
+      // ZLP for ACK stage, use HS
       hxfr |= HXFR_HS;
+      hxfr |= (ep_dir ? 0 : HXFR_OUT_NIN);
+      hxfr_write(hxfr);
+      return true;
     }
   } else if ( ep->xfer_type == TUSB_XFER_ISOCHRONOUS ) {
     hxfr |= HXFR_ISO;
@@ -458,7 +493,7 @@ bool hcd_edpt_xfer(uint8_t rhport, uint8_t daddr, uint8_t ep_addr, uint8_t * buf
 
   if ( 0 == ep_dir ) {
     // Page 12: Programming BULK-OUT Transfers
-    TU_ASSERT(hirq & HIRQ_RCVDAV_IRQ);
+    TU_ASSERT(_hcd_data.hirq & HIRQ_SNDBAV_IRQ);
 
     uint8_t const xact_len = (uint8_t) tu_min16(buflen, ep->packet_size);
     fifo_write(SNDFIFO_ADDR, buffer, xact_len);
@@ -516,7 +551,7 @@ static void handle_xfer_done(uint8_t rhport) {
 
   uint8_t const hrsl = reg_read(HRSL_ADDR);
   uint8_t const result = hrsl & HRSL_RESULT_MASK;
-  uint8_t xfer_result;
+  xfer_result_t xfer_result;
 
   TU_LOG3("HRSL: %02X\r\n", hrsl);
   switch(result) {
@@ -537,18 +572,21 @@ static void handle_xfer_done(uint8_t rhport) {
       break;
   }
 
-  uint8_t ep_dir = 0;
   uint8_t ep_num = _hcd_data.hxfr & HXFR_EPNUM_MASK;
   uint8_t const xfer_type = _hcd_data.hxfr & 0xf0;
 
-  hcd_ep_t * ep;
-
   if ( (xfer_type & HXFR_SETUP) || (xfer_type & HXFR_OUT_NIN) ) {
     // SETUP or OUT transfer
-    ep_dir = 0;
-    ep = &_hcd_data.ep[ep_num][ep_dir];
+    hcd_ep_t *ep = &_hcd_data.ep[ep_num][0];
+    uint8_t xact_len;
+    if (xfer_type & HXFR_SETUP) {
+      xact_len = 8;
+    } else if ( xfer_type & HXFR_HS ) {
+      xact_len = 0;
+    } else {
+      xact_len = _hcd_data.sndbc;
+    }
 
-    uint8_t const xact_len = (xfer_type & HXFR_SETUP) ? 8 : _hcd_data.sndbc;
     ep->xferred_len += xact_len;
 
     if ( xact_len < ep->packet_size || ep->xferred_len >= ep->total_len ) {
@@ -558,10 +596,27 @@ static void handle_xfer_done(uint8_t rhport) {
     }
   } else {
     // IN transfer
-    ep_dir = 1;
-    ep = &_hcd_data.ep[ep_num][ep_dir];
-    uint8_t const xact_len = reg_read(RCVBC_ADDR);
-    ep->xferred_len += xact_len;
+    hcd_ep_t *ep = &_hcd_data.ep[ep_num][1];
+    uint8_t xact_len;
+
+    if ( xfer_type & HXFR_HS ) {
+      xact_len = 0;
+    } else {
+      // RCVDAV_IRQ can trigger 2 times (dual buffered)
+      while ( _hcd_data.hirq & HIRQ_RCVDAV_IRQ ) {
+        uint8_t rcvbc = reg_read(RCVBC_ADDR);
+        xact_len = (uint8_t) tu_min16(rcvbc, ep->total_len - ep->xferred_len);
+        if ( xact_len ) {
+          fifo_read(ep->buf, xact_len);
+          ep->buf += xact_len;
+          ep->xferred_len += xact_len;
+        }
+
+        // ack RCVDVAV IRQ
+        reg_write(HIRQ_ADDR, HIRQ_RCVDAV_IRQ);
+        _hcd_data.hirq = reg_read(HIRQ_ADDR);
+      }
+    }
 
     // short packet or all bytes transferred
     if ( xact_len < ep->packet_size || ep->xferred_len >= ep->total_len ) {
@@ -572,13 +627,35 @@ static void handle_xfer_done(uint8_t rhport) {
   }
 }
 
+#if CFG_TUSB_DEBUG >= 3
+void print_hirq(uint8_t hirq) {
+  TU_LOG3_HEX(hirq);
+
+  if (hirq & HIRQ_HXFRDN_IRQ) TU_LOG3(" HXFRDN");
+  if (hirq & HIRQ_FRAME_IRQ)  TU_LOG3(" FRAME");
+  if (hirq & HIRQ_CONDET_IRQ) TU_LOG3(" CONDET");
+  if (hirq & HIRQ_SUSDN_IRQ)  TU_LOG3(" SUSDN");
+  if (hirq & HIRQ_SNDBAV_IRQ) TU_LOG3(" SNDBAV");
+  if (hirq & HIRQ_RCVDAV_IRQ) TU_LOG3(" RCVDAV");
+  if (hirq & HIRQ_RWU_IRQ)    TU_LOG3(" RWU");
+  if (hirq & HIRQ_BUSEVENT_IRQ) TU_LOG3(" BUSEVENT");
+
+  TU_LOG3("\r\n");
+}
+
+#else
+  #define print_hirq(hirq)
+#endif
+
 // Interrupt Handler
 void hcd_int_handler(uint8_t rhport) {
   // not initialized, do nothing
   if ( !_hcd_data.inited ) return;
 
-  uint8_t hirq = reg_read(HIRQ_ADDR);
-  TU_LOG3_HEX(hirq);
+  uint8_t hirq = reg_read(HIRQ_ADDR) & _hcd_data.hien;
+  if (!hirq) return;
+
+  print_hirq(hirq);
 
   if (hirq & HIRQ_FRAME_IRQ) {
     _hcd_data.frame_count++;
@@ -598,13 +675,8 @@ void hcd_int_handler(uint8_t rhport) {
     handle_xfer_done(rhport);
   }
 
-  if ( hirq & HIRQ_RCVDAV_IRQ ) {
-    TU_LOG3("RCVDAV\r\n");
-    TU_LOG3_INT(reg_read(RCVBC_ADDR));
-  }
-
-  // clear all interrupt execept SNDBAV_IRQ
-  hirq &= ~HIRQ_SNDBAV_IRQ;
+  // clear all interrupt except SNDBAV_IRQ and RCVDAV_IRQ must be clear after pulling data from FIFO
+  hirq &= ~ (HIRQ_SNDBAV_IRQ | HIRQ_RCVDAV_IRQ);
   if ( hirq ) {
     reg_write(HIRQ_ADDR, hirq);
   }
