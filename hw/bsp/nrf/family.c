@@ -105,6 +105,10 @@ void max3421e_int_handler(nrfx_gpiote_pin_t pin, nrf_gpiote_polarity_t action) {
 //--------------------------------------------------------------------+
 // API: SPI transfer with MAX3421E, must be implemented by application
 //--------------------------------------------------------------------+
+void tuh_max3421e_int_api(uint8_t rhport, bool enabled) {
+  (void) rhport;
+  nrfx_gpiote_trigger_enable(MAX3241E_INTR_PIN, enabled);
+}
 
 void tuh_max3421_spi_cs_api(uint8_t rhport, bool active) {
   (void) rhport;
@@ -241,7 +245,6 @@ void board_init(void) {
   in_config.pull = NRF_GPIO_PIN_PULLUP;
 
   nrfx_gpiote_in_init(MAX3241E_INTR_PIN, &in_config, max3421e_int_handler);
-  nrfx_gpiote_in_event_enable(MAX3241E_INTR_PIN, true);
 #endif
 
 }

@@ -166,6 +166,7 @@ enum {
 typedef struct {
   uint8_t xfer_type;
   uint8_t data_toggle;
+  uint8_t xfer_complete;
   uint16_t packet_size;
 
   uint16_t total_len;
@@ -244,7 +245,6 @@ static void reg_write(uint8_t reg, uint8_t data) {
 
   // HIRQ register since we are in full-duplex mode
   _hcd_data.hirq = rx_buf[0];
-  TU_LOG3_HEX(_hcd_data.hirq);
 }
 
 static uint8_t reg_read(uint8_t reg) {
@@ -473,6 +473,7 @@ bool hcd_edpt_xfer(uint8_t rhport, uint8_t daddr, uint8_t ep_addr, uint8_t * buf
   ep->buf = buffer;
   ep->total_len = buflen;
   ep->xferred_len = 0;
+  ep->xfer_complete = 0;
 
   peraddr_write(daddr);
 
@@ -595,34 +596,19 @@ static void handle_xfer_done(uint8_t rhport) {
       // more to transfer
     }
   } else {
-    // IN transfer
+    // IN transfer: fifo data is already received in RCVDAV IRQ
     hcd_ep_t *ep = &_hcd_data.ep[ep_num][1];
-    uint8_t xact_len;
 
     if ( xfer_type & HXFR_HS ) {
-      xact_len = 0;
-    } else {
-      // RCVDAV_IRQ can trigger 2 times (dual buffered)
-      while ( _hcd_data.hirq & HIRQ_RCVDAV_IRQ ) {
-        uint8_t rcvbc = reg_read(RCVBC_ADDR);
-        xact_len = (uint8_t) tu_min16(rcvbc, ep->total_len - ep->xferred_len);
-        if ( xact_len ) {
-          fifo_read(ep->buf, xact_len);
-          ep->buf += xact_len;
-          ep->xferred_len += xact_len;
-        }
-
-        // ack RCVDVAV IRQ
-        reg_write(HIRQ_ADDR, HIRQ_RCVDAV_IRQ);
-        _hcd_data.hirq = reg_read(HIRQ_ADDR);
-      }
+      ep->xfer_complete = 1;
     }
 
     // short packet or all bytes transferred
-    if ( xact_len < ep->packet_size || ep->xferred_len >= ep->total_len ) {
+    if ( ep->xfer_complete ) {
       hcd_event_xfer_complete(_hcd_data.peraddr, TUSB_DIR_IN_MASK | ep_num, ep->xferred_len, xfer_result, true);
     }else {
       // more to transfer
+      hxfr_write(_hcd_data.hxfr);
     }
   }
 }
@@ -655,7 +641,7 @@ void hcd_int_handler(uint8_t rhport) {
   uint8_t hirq = reg_read(HIRQ_ADDR) & _hcd_data.hien;
   if (!hirq) return;
 
-  print_hirq(hirq);
+//  print_hirq(hirq);
 
   if (hirq & HIRQ_FRAME_IRQ) {
     _hcd_data.frame_count++;
@@ -671,12 +657,44 @@ void hcd_int_handler(uint8_t rhport) {
     }
   }
 
-  if (hirq & HIRQ_HXFRDN_IRQ) {
-    handle_xfer_done(rhport);
+  // queue more transfer in handle_xfer_done() can cause hirq to be set again while external IRQ may not catch and/or
+  // not call this handler again. So we need to loop until all IRQ are cleared
+  while ( hirq & (HIRQ_RCVDAV_IRQ | HIRQ_HXFRDN_IRQ) ) {
+    if ( hirq & HIRQ_RCVDAV_IRQ ) {
+      uint8_t ep_num = _hcd_data.hxfr & HXFR_EPNUM_MASK;
+      hcd_ep_t *ep = &_hcd_data.ep[ep_num][1];
+      uint8_t xact_len;
+
+      // RCVDAV_IRQ can trigger 2 times (dual buffered)
+      while ( hirq & HIRQ_RCVDAV_IRQ ) {
+        uint8_t rcvbc = reg_read(RCVBC_ADDR);
+        xact_len = (uint8_t) tu_min16(rcvbc, ep->total_len - ep->xferred_len);
+        if ( xact_len ) {
+          fifo_read(ep->buf, xact_len);
+          ep->buf += xact_len;
+          ep->xferred_len += xact_len;
+        }
+
+        // ack RCVDVAV IRQ
+        reg_write(HIRQ_ADDR, HIRQ_RCVDAV_IRQ);
+        hirq = reg_read(HIRQ_ADDR);
+      }
+
+      if ( xact_len < ep->packet_size || ep->xferred_len >= ep->total_len ) {
+        ep->xfer_complete = 1;
+      }
+    }
+
+    if ( hirq & HIRQ_HXFRDN_IRQ ) {
+      reg_write(HIRQ_ADDR, HIRQ_HXFRDN_IRQ);
+      handle_xfer_done(rhport);
+    }
+
+    hirq = reg_read(HIRQ_ADDR);
   }
 
-  // clear all interrupt except SNDBAV_IRQ and RCVDAV_IRQ must be clear after pulling data from FIFO
-  hirq &= ~ (HIRQ_SNDBAV_IRQ | HIRQ_RCVDAV_IRQ);
+  // clear all interrupt except SNDBAV_IRQ (never clear by us). Note RCVDAV_IRQ, HXFRDN_IRQ already clear while processing
+  hirq &= ~HIRQ_SNDBAV_IRQ;
   if ( hirq ) {
     reg_write(HIRQ_ADDR, hirq);
   }
