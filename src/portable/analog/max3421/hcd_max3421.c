@@ -492,7 +492,9 @@ bool hcd_edpt_xfer(uint8_t rhport, uint8_t daddr, uint8_t ep_addr, uint8_t * buf
   uint8_t hctl = 0;
   uint8_t hxfr = ep_num;
 
-  if ( ep_num == 0 ) {
+  if ( ep->is_iso ) {
+    hxfr |= HXFR_ISO;
+  } else if ( ep_num == 0 ) {
     ep->data_toggle = 1;
     if ( buffer == NULL || buflen == 0 ) {
       // ZLP for ACK stage, use HS
@@ -501,8 +503,6 @@ bool hcd_edpt_xfer(uint8_t rhport, uint8_t daddr, uint8_t ep_addr, uint8_t * buf
       hxfr_write(hxfr);
       return true;
     }
-  } else if ( ep->is_iso ) {
-    hxfr |= HXFR_ISO;
   }
 
   if ( 0 == ep_dir ) {
@@ -511,7 +511,7 @@ bool hcd_edpt_xfer(uint8_t rhport, uint8_t daddr, uint8_t ep_addr, uint8_t * buf
 
     uint8_t const xact_len = (uint8_t) tu_min16(buflen, ep->packet_size);
     fifo_write(SNDFIFO_ADDR, buffer, xact_len);
-    reg_write(SNDBC_ADDR, xact_len);
+    sndbc_write(xact_len);
 
     hctl = (ep->data_toggle ? HCTL_SNDTOG1 : HCTL_SNDTOG0);
     hxfr |= HXFR_OUT_NIN;
@@ -585,7 +585,10 @@ static void handle_xfer_done(uint8_t rhport) {
 
     case HRSL_NAK:
       // NAK on control, retry immediately
-      if (ep_num == 0) hxfr_write(_hcd_data.hxfr);
+      //if (ep_num == 0)
+      {
+        hxfr_write(_hcd_data.hxfr);
+      }
       return;
 
     default:
@@ -609,8 +612,14 @@ static void handle_xfer_done(uint8_t rhport) {
     }
 
     ep->xferred_len += xact_len;
+    ep->buf += xact_len;
 
     if ( xact_len < ep->packet_size || ep->xferred_len >= ep->total_len ) {
+      if ( ep_num ) {
+        // save data toggle for non-control
+        ep->data_toggle = (hrsl & HRSL_SNDTOGRD) ? 1 : 0;
+      }
+
       hcd_event_xfer_complete(_hcd_data.peraddr, ep_num, ep->xferred_len, xfer_result, true);
     }else {
       // more to transfer
@@ -625,6 +634,11 @@ static void handle_xfer_done(uint8_t rhport) {
 
     // short packet or all bytes transferred
     if ( ep->xfer_complete ) {
+      if ( ep_num ) {
+        // save data toggle for non-control
+        ep->data_toggle = (hrsl & HRSL_RCVTOGRD) ? 1 : 0;
+      }
+
       hcd_event_xfer_complete(_hcd_data.peraddr, TUSB_DIR_IN_MASK | ep_num, ep->xferred_len, xfer_result, true);
     }else {
       // more to transfer
