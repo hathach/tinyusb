@@ -28,6 +28,7 @@
 
 #if CFG_TUH_ENABLED && defined(CFG_TUH_MAX3421) && CFG_TUH_MAX3421
 
+#include <stdatomic.h>
 #include "host/hcd.h"
 
 //--------------------------------------------------------------------+
@@ -164,10 +165,14 @@ enum {
 //--------------------------------------------------------------------+
 
 typedef struct {
-  uint8_t xfer_type;
-  uint8_t data_toggle;
-  uint8_t xfer_complete;
   uint16_t packet_size;
+
+  struct TU_ATTR_PACKED {
+    uint8_t is_iso        : 1;
+    uint8_t data_toggle   : 1;
+    uint8_t xfer_queued   : 1;
+    uint8_t xfer_complete : 1;
+  };
 
   uint16_t total_len;
   uint16_t xferred_len;
@@ -176,6 +181,7 @@ typedef struct {
 
 typedef struct {
   bool inited;
+  atomic_bool busy; // busy transferring
 
   // cached register
   uint8_t sndbc;
@@ -198,8 +204,7 @@ static max2341_data_t _hcd_data;
 
 void tuh_max3421_spi_cs_api(uint8_t rhport, bool active);
 bool tuh_max3421_spi_xfer_api(uint8_t rhport, uint8_t const * tx_buf, size_t tx_len, uint8_t * rx_buf, size_t rx_len);
-
-//void tuh_max3421e_int_enable(uint8_t rhport, bool enabled);
+void tuh_max3421e_int_api(uint8_t rhport, bool enabled);
 
 //--------------------------------------------------------------------+
 //
@@ -348,6 +353,9 @@ tusb_speed_t handle_connect_irq(uint8_t rhport) {
 bool hcd_init(uint8_t rhport) {
   (void) rhport;
 
+  TU_LOG2_INT(sizeof(hcd_ep_t));
+  TU_LOG2_INT(sizeof(max2341_data_t));
+
   tu_memclr(&_hcd_data, sizeof(_hcd_data));
 
   // full duplex, interrupt negative edge
@@ -382,12 +390,12 @@ bool hcd_init(uint8_t rhport) {
 
 // Enable USB interrupt
 void hcd_int_enable (uint8_t rhport) {
-  (void) rhport;
+  tuh_max3421e_int_api(rhport, true);
 }
 
 // Disable USB interrupt
 void hcd_int_disable(uint8_t rhport) {
-  (void) rhport;
+  tuh_max3421e_int_api(rhport, false);
 }
 
 // Get frame number (1ms)
@@ -447,16 +455,19 @@ void hcd_device_close(uint8_t rhport, uint8_t dev_addr) {
 bool hcd_edpt_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_endpoint_t const * ep_desc) {
   (void) rhport;
   (void) dev_addr;
-  (void) ep_desc;
 
   uint8_t ep_num = tu_edpt_number(ep_desc->bEndpointAddress);
   uint8_t ep_dir = tu_edpt_dir(ep_desc->bEndpointAddress);
 
-  _hcd_data.ep[ep_num][ep_dir].packet_size = tu_edpt_packet_size(ep_desc);
+  hcd_ep_t * ep = &_hcd_data.ep[ep_num][ep_dir];
+
+  ep->packet_size = tu_edpt_packet_size(ep_desc);
 
   if (ep_desc->bEndpointAddress == 0) {
-    _hcd_data.ep[ep_num][1].packet_size = tu_edpt_packet_size(ep_desc);
+    _hcd_data.ep[0][1].packet_size = ep->packet_size;
   }
+
+  ep->is_iso = (TUSB_XFER_ISOCHRONOUS == ep_desc->bmAttributes.xfer) ? 1 : 0;
 
   return true;
 }
@@ -474,11 +485,13 @@ bool hcd_edpt_xfer(uint8_t rhport, uint8_t daddr, uint8_t ep_addr, uint8_t * buf
   ep->total_len = buflen;
   ep->xferred_len = 0;
   ep->xfer_complete = 0;
+  ep->xfer_queued = 1;
 
   peraddr_write(daddr);
 
   uint8_t hctl = 0;
   uint8_t hxfr = ep_num;
+
   if ( ep_num == 0 ) {
     ep->data_toggle = 1;
     if ( buffer == NULL || buflen == 0 ) {
@@ -488,7 +501,7 @@ bool hcd_edpt_xfer(uint8_t rhport, uint8_t daddr, uint8_t ep_addr, uint8_t * buf
       hxfr_write(hxfr);
       return true;
     }
-  } else if ( ep->xfer_type == TUSB_XFER_ISOCHRONOUS ) {
+  } else if ( ep->is_iso ) {
     hxfr |= HXFR_ISO;
   }
 
@@ -551,11 +564,13 @@ static void handle_xfer_done(uint8_t rhport) {
   (void) rhport;
 
   uint8_t const hrsl = reg_read(HRSL_ADDR);
-  uint8_t const result = hrsl & HRSL_RESULT_MASK;
+  uint8_t const hresult = hrsl & HRSL_RESULT_MASK;
+  uint8_t ep_num = _hcd_data.hxfr & HXFR_EPNUM_MASK;
+
   xfer_result_t xfer_result;
 
-  TU_LOG3("HRSL: %02X\r\n", hrsl);
-  switch(result) {
+  //TU_LOG3("HRSL: %02X\r\n", hrsl);
+  switch(hresult) {
     case HRSL_SUCCESS:
       xfer_result = XFER_RESULT_SUCCESS;
       break;
@@ -568,21 +583,26 @@ static void handle_xfer_done(uint8_t rhport) {
       // occurred when initialized without any pending transfer. Skip for now
       return;
 
+    case HRSL_NAK:
+      // NAK on control, retry immediately
+      if (ep_num == 0) hxfr_write(_hcd_data.hxfr);
+      return;
+
     default:
       xfer_result = XFER_RESULT_FAILED;
       break;
   }
 
-  uint8_t ep_num = _hcd_data.hxfr & HXFR_EPNUM_MASK;
-  uint8_t const xfer_type = _hcd_data.hxfr & 0xf0;
+  uint8_t const hxfr_type = _hcd_data.hxfr & 0xf0;
 
-  if ( (xfer_type & HXFR_SETUP) || (xfer_type & HXFR_OUT_NIN) ) {
+  if ( (hxfr_type & HXFR_SETUP) || (hxfr_type & HXFR_OUT_NIN) ) {
     // SETUP or OUT transfer
     hcd_ep_t *ep = &_hcd_data.ep[ep_num][0];
     uint8_t xact_len;
-    if (xfer_type & HXFR_SETUP) {
+
+    if ( hxfr_type & HXFR_SETUP) {
       xact_len = 8;
-    } else if ( xfer_type & HXFR_HS ) {
+    } else if ( hxfr_type & HXFR_HS ) {
       xact_len = 0;
     } else {
       xact_len = _hcd_data.sndbc;
@@ -599,7 +619,7 @@ static void handle_xfer_done(uint8_t rhport) {
     // IN transfer: fifo data is already received in RCVDAV IRQ
     hcd_ep_t *ep = &_hcd_data.ep[ep_num][1];
 
-    if ( xfer_type & HXFR_HS ) {
+    if ( hxfr_type & HXFR_HS ) {
       ep->xfer_complete = 1;
     }
 
