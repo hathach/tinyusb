@@ -165,22 +165,26 @@ enum {
 //--------------------------------------------------------------------+
 
 typedef struct {
-  uint16_t packet_size;
-
   struct TU_ATTR_PACKED {
+    uint8_t ep_dir        : 1;
     uint8_t is_iso        : 1;
     uint8_t data_toggle   : 1;
-    uint8_t xfer_queued   : 1;
+    uint8_t xfer_pending  : 1;
     uint8_t xfer_complete : 1;
   };
+  struct TU_ATTR_PACKED {
+    uint8_t daddr : 4;
+    uint8_t ep_num : 4;
+  };
 
+  uint16_t packet_size;
   uint16_t total_len;
   uint16_t xferred_len;
   uint8_t* buf;
-} hcd_ep_t;
+} max3421_ep_t;
 
 typedef struct {
-  atomic_bool busy; // busy transferring
+  atomic_flag busy; // busy transferring
 
   // cached register
   uint8_t sndbc;
@@ -192,15 +196,16 @@ typedef struct {
 
   volatile uint16_t frame_count;
 
-  hcd_ep_t ep[8][2];
+  max3421_ep_t ep0_addr0; // control endpoint for addr0
+  max3421_ep_t ep[CFG_TUH_MAX3421_ENDPOINT_TOTAL];
 
   OSAL_MUTEX_DEF(spi_mutexdef);
 #if OSAL_MUTEX_REQUIRED
   osal_mutex_t spi_mutex;
 #endif
-} max2341_data_t;
+} max3421_data_t;
 
-static max2341_data_t _hcd_data;
+static max3421_data_t _hcd_data;
 
 //--------------------------------------------------------------------+
 // API: SPI transfer with MAX3421E, must be implemented by application
@@ -211,7 +216,7 @@ bool tuh_max3421_spi_xfer_api(uint8_t rhport, uint8_t const * tx_buf, size_t tx_
 void tuh_max3421e_int_api(uint8_t rhport, bool enabled);
 
 //--------------------------------------------------------------------+
-//
+// SPI Helper
 //--------------------------------------------------------------------+
 
 static void max3421_spi_lock(uint8_t rhport, bool in_isr) {
@@ -318,6 +323,44 @@ static inline void sndbc_write(uint8_t rhport, uint8_t data, bool in_isr) {
   reg_write(rhport, SNDBC_ADDR, data, in_isr);
 }
 
+//--------------------------------------------------------------------+
+// Endpoint helper
+//--------------------------------------------------------------------+
+
+static max3421_ep_t* find_ep_not_addr0(uint8_t daddr, uint8_t ep_num, uint8_t ep_dir) {
+  for(size_t i=0; i<CFG_TUH_MAX3421_ENDPOINT_TOTAL; i++) {
+    max3421_ep_t* ep = &_hcd_data.ep[i];
+    // for control endpoint, skip direction check
+    if ( daddr == ep->daddr && ep_num == ep->ep_num && (ep_dir == ep->ep_dir || ep_num == 0) ) {
+      return ep;
+    }
+  }
+
+  return NULL;
+}
+
+// daddr = 0 and ep_num = 0 means find a free (allocate) endpoint
+TU_ATTR_ALWAYS_INLINE static inline max3421_ep_t * allocate_ep(void) {
+  return find_ep_not_addr0(0, 0, 0);
+}
+
+// free all endpoints belong to device address
+static void free_ep(uint8_t daddr) {
+  for (size_t i=0; i<CFG_TUH_MAX3421_ENDPOINT_TOTAL; i++) {
+    max3421_ep_t* ep = &_hcd_data.ep[i];
+    if (ep->daddr == daddr) {
+      tu_memclr(ep, sizeof(max3421_ep_t));
+    }
+  }
+}
+
+TU_ATTR_ALWAYS_INLINE static inline max3421_ep_t * find_opened_ep(uint8_t daddr, uint8_t ep_num, uint8_t ep_dir) {
+  if (daddr == 0 && ep_num == 0) {
+    return &_hcd_data.ep0_addr0;
+  }else{
+    return find_ep_not_addr0(daddr, ep_num, ep_dir);
+  }
+}
 
 //--------------------------------------------------------------------+
 // Controller API
@@ -379,8 +422,8 @@ bool hcd_init(uint8_t rhport) {
 
   hcd_int_disable(rhport);
 
-  TU_LOG2_INT(sizeof(hcd_ep_t));
-  TU_LOG2_INT(sizeof(max2341_data_t));
+  TU_LOG2_INT(sizeof(max3421_ep_t));
+  TU_LOG2_INT(sizeof(max3421_data_t));
 
   tu_memclr(&_hcd_data, sizeof(_hcd_data));
 
@@ -478,22 +521,29 @@ void hcd_device_close(uint8_t rhport, uint8_t dev_addr) {
 //--------------------------------------------------------------------+
 
 // Open an endpoint
-bool hcd_edpt_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_endpoint_t const * ep_desc) {
+bool hcd_edpt_open(uint8_t rhport, uint8_t daddr, tusb_desc_endpoint_t const * ep_desc) {
   (void) rhport;
-  (void) dev_addr;
+  (void) daddr;
 
   uint8_t ep_num = tu_edpt_number(ep_desc->bEndpointAddress);
   uint8_t ep_dir = tu_edpt_dir(ep_desc->bEndpointAddress);
 
-  hcd_ep_t * ep = &_hcd_data.ep[ep_num][ep_dir];
-
-  ep->packet_size = tu_edpt_packet_size(ep_desc);
-
-  if (ep_desc->bEndpointAddress == 0) {
-    _hcd_data.ep[0][1].packet_size = ep->packet_size;
+  max3421_ep_t * ep;
+  if (daddr == 0 && ep_num == 0) {
+    ep = &_hcd_data.ep0_addr0;
+  }else {
+    ep = allocate_ep();
+    TU_ASSERT(ep);
+    ep->daddr = daddr;
+    ep->ep_num = ep_num;
+    ep->ep_dir = ep_dir;
   }
 
-  ep->is_iso = (TUSB_XFER_ISOCHRONOUS == ep_desc->bmAttributes.xfer) ? 1 : 0;
+  if ( TUSB_XFER_ISOCHRONOUS == ep_desc->bmAttributes.xfer ) {
+    ep->is_iso = 1;
+  }
+
+  ep->packet_size = tu_edpt_packet_size(ep_desc);
 
   return true;
 }
@@ -505,49 +555,54 @@ bool hcd_edpt_xfer(uint8_t rhport, uint8_t daddr, uint8_t ep_addr, uint8_t * buf
   uint8_t const ep_num = tu_edpt_number(ep_addr);
   uint8_t const ep_dir = tu_edpt_dir(ep_addr);
 
-  hcd_ep_t* ep = &_hcd_data.ep[ep_num][ep_dir];
+  max3421_ep_t* ep = find_opened_ep(daddr, ep_num, ep_dir);
+  TU_ASSERT(ep);
 
   ep->buf = buffer;
   ep->total_len = buflen;
   ep->xferred_len = 0;
   ep->xfer_complete = 0;
-  ep->xfer_queued = 1;
+  ep->xfer_pending = 1;
 
-  peraddr_write(rhport, daddr, false);
+  // carry out transfer if not busy
+//  if ( atomic_flag_test_and_set(&_hcd_data.busy) )
+  {
+    peraddr_write(rhport, daddr, false);
 
-  uint8_t hctl = 0;
-  uint8_t hxfr = ep_num;
+    uint8_t hctl = 0;
+    uint8_t hxfr = ep_num;
 
-  if ( ep->is_iso ) {
-    hxfr |= HXFR_ISO;
-  } else if ( ep_num == 0 ) {
-    ep->data_toggle = 1;
-    if ( buffer == NULL || buflen == 0 ) {
-      // ZLP for ACK stage, use HS
-      hxfr |= HXFR_HS;
-      hxfr |= (ep_dir ? 0 : HXFR_OUT_NIN);
-      hxfr_write(rhport, hxfr, false);
-      return true;
+    if ( ep->is_iso ) {
+      hxfr |= HXFR_ISO;
+    } else if ( ep_num == 0 ) {
+      ep->data_toggle = 1;
+      if ( buffer == NULL || buflen == 0 ) {
+        // ZLP for ACK stage, use HS
+        hxfr |= HXFR_HS;
+        hxfr |= (ep_dir ? 0 : HXFR_OUT_NIN);
+        hxfr_write(rhport, hxfr, false);
+        return true;
+      }
     }
+
+    if ( 0 == ep_dir ) {
+      // Page 12: Programming BULK-OUT Transfers
+      TU_ASSERT(_hcd_data.hirq & HIRQ_SNDBAV_IRQ);
+
+      uint8_t const xact_len = (uint8_t) tu_min16(buflen, ep->packet_size);
+      fifo_write(rhport, SNDFIFO_ADDR, buffer, xact_len, false);
+      sndbc_write(rhport, xact_len, false);
+
+      hctl = (ep->data_toggle ? HCTL_SNDTOG1 : HCTL_SNDTOG0);
+      hxfr |= HXFR_OUT_NIN;
+    } else {
+      // Page 13: Programming BULK-IN Transfers
+      hctl = (ep->data_toggle ? HCTL_RCVTOG1 : HCTL_RCVTOG0);
+    }
+
+    reg_write(rhport, HCTL_ADDR, hctl, false);
+    hxfr_write(rhport, hxfr, false);
   }
-
-  if ( 0 == ep_dir ) {
-    // Page 12: Programming BULK-OUT Transfers
-    TU_ASSERT(_hcd_data.hirq & HIRQ_SNDBAV_IRQ);
-
-    uint8_t const xact_len = (uint8_t) tu_min16(buflen, ep->packet_size);
-    fifo_write(rhport, SNDFIFO_ADDR, buffer, xact_len, false);
-    sndbc_write(rhport, xact_len, false);
-
-    hctl = (ep->data_toggle ? HCTL_SNDTOG1 : HCTL_SNDTOG0);
-    hxfr |= HXFR_OUT_NIN;
-  } else {
-    // Page 13: Programming BULK-IN Transfers
-    hctl = (ep->data_toggle ? HCTL_RCVTOG1 : HCTL_RCVTOG0);
-  }
-
-  reg_write(rhport, HCTL_ADDR, hctl, false);
-  hxfr_write(rhport, hxfr, false);
 
   return true;
 }
@@ -566,7 +621,7 @@ bool hcd_edpt_abort_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr) {
 bool hcd_setup_send(uint8_t rhport, uint8_t daddr, uint8_t const setup_packet[8]) {
   (void) rhport;
 
-  hcd_ep_t* ep = &_hcd_data.ep[0][0];
+  max3421_ep_t* ep = find_opened_ep(daddr, 0, 0);
   ep->total_len  = 8;
   ep->xferred_len = 0;
 
@@ -624,7 +679,7 @@ static void handle_xfer_done(uint8_t rhport) {
 
   if ( (hxfr_type & HXFR_SETUP) || (hxfr_type & HXFR_OUT_NIN) ) {
     // SETUP or OUT transfer
-    hcd_ep_t *ep = &_hcd_data.ep[ep_num][0];
+    max3421_ep_t *ep = find_opened_ep(_hcd_data.peraddr, ep_num, 0);
     uint8_t xact_len;
 
     if ( hxfr_type & HXFR_SETUP) {
@@ -644,10 +699,15 @@ static void handle_xfer_done(uint8_t rhport) {
       hcd_event_xfer_complete(_hcd_data.peraddr, ep_num, ep->xferred_len, xfer_result, true);
     }else {
       // more to transfer
+      xact_len = (uint8_t) tu_min16(ep->total_len - ep->xferred_len, ep->packet_size);
+      fifo_write(rhport, SNDFIFO_ADDR, ep->buf, xact_len, true);
+      sndbc_write(rhport, xact_len, true);
+
+      hxfr_write(rhport, _hcd_data.hxfr, true);
     }
   } else {
     // IN transfer: fifo data is already received in RCVDAV IRQ
-    hcd_ep_t *ep = &_hcd_data.ep[ep_num][1];
+    max3421_ep_t *ep = find_opened_ep(_hcd_data.peraddr, ep_num, 1);
 
     if ( hxfr_type & HXFR_HS ) {
       ep->xfer_complete = 1;
@@ -702,6 +762,10 @@ void hcd_int_handler(uint8_t rhport) {
     if (speed == TUSB_SPEED_INVALID) {
       hcd_event_device_remove(rhport, true);
     }else {
+      // FIXME multiple MAX3421 rootdevice address is not 1
+      uint8_t const daddr = 1;
+      free_ep(daddr);
+
       hcd_event_device_attach(rhport, true);
     }
   }
@@ -710,8 +774,8 @@ void hcd_int_handler(uint8_t rhport) {
   // not call this handler again. So we need to loop until all IRQ are cleared
   while ( hirq & (HIRQ_RCVDAV_IRQ | HIRQ_HXFRDN_IRQ) ) {
     if ( hirq & HIRQ_RCVDAV_IRQ ) {
-      uint8_t ep_num = _hcd_data.hxfr & HXFR_EPNUM_MASK;
-      hcd_ep_t *ep = &_hcd_data.ep[ep_num][1];
+      uint8_t const ep_num = _hcd_data.hxfr & HXFR_EPNUM_MASK;
+      max3421_ep_t *ep = find_opened_ep(_hcd_data.peraddr, ep_num, 1);
       uint8_t xact_len;
 
       // RCVDAV_IRQ can trigger 2 times (dual buffered)
