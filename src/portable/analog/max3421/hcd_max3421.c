@@ -331,7 +331,7 @@ static max3421_ep_t* find_ep_not_addr0(uint8_t daddr, uint8_t ep_num, uint8_t ep
   for(size_t i=0; i<CFG_TUH_MAX3421_ENDPOINT_TOTAL; i++) {
     max3421_ep_t* ep = &_hcd_data.ep[i];
     // for control endpoint, skip direction check
-    if ( daddr == ep->daddr && ep_num == ep->ep_num && (ep_dir == ep->ep_dir || ep_num == 0) ) {
+    if (daddr == ep->daddr && ep_num == ep->ep_num && (ep_dir == ep->ep_dir || ep_num == 0)) {
       return ep;
     }
   }
@@ -361,6 +361,28 @@ TU_ATTR_ALWAYS_INLINE static inline max3421_ep_t * find_opened_ep(uint8_t daddr,
     return find_ep_not_addr0(daddr, ep_num, ep_dir);
   }
 }
+
+//static max3421_ep_t * find_next_pending_ep(max3421_ep_t * cur_ep) {
+//  size_t idx = cur_ep - _hcd_data.ep;
+//
+//  // starting from next endpoint
+//  for (size_t i = idx + 1; i < CFG_TUH_MAX3421_ENDPOINT_TOTAL; i++) {
+//    max3421_ep_t* ep = &_hcd_data.ep[i];
+//    if (ep->xfer_pending) {
+//      return ep;
+//    }
+//  }
+//
+//  // wrap around including current endpoint
+//  for (size_t i = 0; i <= idx; i++) {
+//    max3421_ep_t* ep = &_hcd_data.ep[i];
+//    if (ep->xfer_pending) {
+//      return ep;
+//    }
+//  }
+//
+//  return NULL;
+//}
 
 //--------------------------------------------------------------------+
 // Controller API
@@ -548,6 +570,37 @@ bool hcd_edpt_open(uint8_t rhport, uint8_t daddr, tusb_desc_endpoint_t const * e
   return true;
 }
 
+void xact_out(uint8_t rhport, max3421_ep_t *ep, bool switch_ep, bool in_isr) {
+  // Page 12: Programming BULK-OUT Transfers
+  // TODO double buffered
+  if (switch_ep) {
+    peraddr_write(rhport, ep->daddr, in_isr);
+
+    uint8_t const hctl = (ep->data_toggle ? HCTL_SNDTOG1 : HCTL_SNDTOG0);
+    reg_write(rhport, HCTL_ADDR, hctl, in_isr);
+  }
+
+  uint8_t const xact_len = (uint8_t) tu_min16(ep->total_len - ep->xferred_len, ep->packet_size);
+  fifo_write(rhport, SNDFIFO_ADDR, ep->buf, xact_len, in_isr);
+  sndbc_write(rhport, xact_len, in_isr);
+
+  uint8_t const hxfr = ep->ep_num | HXFR_OUT_NIN | (ep->is_iso ? HXFR_ISO : 0);
+  hxfr_write(rhport, hxfr, in_isr);
+}
+
+void xact_in(uint8_t rhport, max3421_ep_t *ep, bool switch_ep, bool in_isr) {
+  // Page 13: Programming BULK-IN Transfers
+  if (switch_ep) {
+    peraddr_write(rhport, ep->daddr, in_isr);
+
+    uint8_t const hctl = (ep->data_toggle ? HCTL_RCVTOG1 : HCTL_RCVTOG0);
+    reg_write(rhport, HCTL_ADDR, hctl, in_isr);
+  }
+
+  uint8_t const hxfr = ep->ep_num | (ep->is_iso ? HXFR_ISO : 0);
+  hxfr_write(rhport, hxfr, in_isr);
+}
+
 // Submit a transfer, when complete hcd_event_xfer_complete() must be invoked
 bool hcd_edpt_xfer(uint8_t rhport, uint8_t daddr, uint8_t ep_addr, uint8_t * buffer, uint16_t buflen) {
   (void) rhport;
@@ -567,17 +620,14 @@ bool hcd_edpt_xfer(uint8_t rhport, uint8_t daddr, uint8_t ep_addr, uint8_t * buf
   // carry out transfer if not busy
 //  if ( atomic_flag_test_and_set(&_hcd_data.busy) )
   {
-    peraddr_write(rhport, daddr, false);
-
-    uint8_t hctl = 0;
     uint8_t hxfr = ep_num;
 
-    if ( ep->is_iso ) {
-      hxfr |= HXFR_ISO;
-    } else if ( ep_num == 0 ) {
+    if ( ep_num == 0 ) {
       ep->data_toggle = 1;
       if ( buffer == NULL || buflen == 0 ) {
         // ZLP for ACK stage, use HS
+        peraddr_write(rhport, daddr, false);
+
         hxfr |= HXFR_HS;
         hxfr |= (ep_dir ? 0 : HXFR_OUT_NIN);
         hxfr_write(rhport, hxfr, false);
@@ -586,22 +636,11 @@ bool hcd_edpt_xfer(uint8_t rhport, uint8_t daddr, uint8_t ep_addr, uint8_t * buf
     }
 
     if ( 0 == ep_dir ) {
-      // Page 12: Programming BULK-OUT Transfers
       TU_ASSERT(_hcd_data.hirq & HIRQ_SNDBAV_IRQ);
-
-      uint8_t const xact_len = (uint8_t) tu_min16(buflen, ep->packet_size);
-      fifo_write(rhport, SNDFIFO_ADDR, buffer, xact_len, false);
-      sndbc_write(rhport, xact_len, false);
-
-      hctl = (ep->data_toggle ? HCTL_SNDTOG1 : HCTL_SNDTOG0);
-      hxfr |= HXFR_OUT_NIN;
+      xact_out(rhport, ep, true, false);
     } else {
-      // Page 13: Programming BULK-IN Transfers
-      hctl = (ep->data_toggle ? HCTL_RCVTOG1 : HCTL_RCVTOG0);
+      xact_in(rhport, ep, true, false);
     }
-
-    reg_write(rhport, HCTL_ADDR, hctl, false);
-    hxfr_write(rhport, hxfr, false);
   }
 
   return true;
@@ -644,7 +683,12 @@ bool hcd_edpt_clear_stall(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr) {
 static void handle_xfer_done(uint8_t rhport) {
   uint8_t const hrsl = reg_read(rhport, HRSL_ADDR, true);
   uint8_t const hresult = hrsl & HRSL_RESULT_MASK;
-  uint8_t ep_num = _hcd_data.hxfr & HXFR_EPNUM_MASK;
+
+  uint8_t const ep_num = _hcd_data.hxfr & HXFR_EPNUM_MASK;
+  uint8_t const hxfr_type = _hcd_data.hxfr & 0xf0;
+  uint8_t const ep_dir = ((hxfr_type & HXFR_SETUP) || (hxfr_type & HXFR_OUT_NIN)) ? 0 : 1;
+
+  max3421_ep_t *ep = find_opened_ep(_hcd_data.peraddr, ep_num, ep_dir);
 
   xfer_result_t xfer_result;
 
@@ -663,10 +707,11 @@ static void handle_xfer_done(uint8_t rhport) {
       return;
 
     case HRSL_NAK:
-      // NAK on control, retry immediately
-      //if (ep_num == 0)
-      {
+      if (ep_num == 0) {
+        // NAK on control, retry immediately
         hxfr_write(rhport, _hcd_data.hxfr, true);
+      }else {
+        // NAK on non-control, find next pending to switch
       }
       return;
 
@@ -675,40 +720,8 @@ static void handle_xfer_done(uint8_t rhport) {
       break;
   }
 
-  uint8_t const hxfr_type = _hcd_data.hxfr & 0xf0;
-
-  if ( (hxfr_type & HXFR_SETUP) || (hxfr_type & HXFR_OUT_NIN) ) {
-    // SETUP or OUT transfer
-    max3421_ep_t *ep = find_opened_ep(_hcd_data.peraddr, ep_num, 0);
-    uint8_t xact_len;
-
-    if ( hxfr_type & HXFR_SETUP) {
-      xact_len = 8;
-    } else if ( hxfr_type & HXFR_HS ) {
-      xact_len = 0;
-    } else {
-      xact_len = _hcd_data.sndbc;
-    }
-
-    ep->xferred_len += xact_len;
-    ep->buf += xact_len;
-
-    if ( xact_len < ep->packet_size || ep->xferred_len >= ep->total_len ) {
-      // save data toggle
-      ep->data_toggle = (hrsl & HRSL_SNDTOGRD) ? 1 : 0;
-      hcd_event_xfer_complete(_hcd_data.peraddr, ep_num, ep->xferred_len, xfer_result, true);
-    }else {
-      // more to transfer
-      xact_len = (uint8_t) tu_min16(ep->total_len - ep->xferred_len, ep->packet_size);
-      fifo_write(rhport, SNDFIFO_ADDR, ep->buf, xact_len, true);
-      sndbc_write(rhport, xact_len, true);
-
-      hxfr_write(rhport, _hcd_data.hxfr, true);
-    }
-  } else {
+  if (ep_dir) {
     // IN transfer: fifo data is already received in RCVDAV IRQ
-    max3421_ep_t *ep = find_opened_ep(_hcd_data.peraddr, ep_num, 1);
-
     if ( hxfr_type & HXFR_HS ) {
       ep->xfer_complete = 1;
     }
@@ -721,6 +734,28 @@ static void handle_xfer_done(uint8_t rhport) {
     }else {
       // more to transfer
       hxfr_write(rhport, _hcd_data.hxfr, true);
+    }
+  } else {
+    // SETUP or OUT transfer
+    uint8_t xact_len;
+
+    if (hxfr_type & HXFR_SETUP) {
+      xact_len = 8;
+    } else if (hxfr_type & HXFR_HS) {
+      xact_len = 0;
+    } else {
+      xact_len = _hcd_data.sndbc;
+    }
+
+    ep->xferred_len += xact_len;
+    ep->buf += xact_len;
+
+    if (xact_len < ep->packet_size || ep->xferred_len >= ep->total_len) {
+      // save data toggle
+      ep->data_toggle = (hrsl & HRSL_SNDTOGRD) ? 1 : 0;
+      hcd_event_xfer_complete(_hcd_data.peraddr, ep_num, ep->xferred_len, xfer_result, true);
+    } else {
+      xact_out(rhport, ep, false, true);
     }
   }
 }
