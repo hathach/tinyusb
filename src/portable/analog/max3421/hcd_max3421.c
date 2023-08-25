@@ -194,7 +194,10 @@ typedef struct {
 
   hcd_ep_t ep[8][2];
 
-  OSAL_MUTEX_DEF(spi_mutex);
+  OSAL_MUTEX_DEF(spi_mutexdef);
+#if OSAL_MUTEX_REQUIRED
+  osal_mutex_t spi_mutex;
+#endif
 } max2341_data_t;
 
 static max2341_data_t _hcd_data;
@@ -215,6 +218,7 @@ static void max3421_spi_lock(uint8_t rhport, bool in_isr) {
   // disable interrupt and mutex lock (for pre-emptive RTOS) if not in_isr
   if (!in_isr) {
     tuh_max3421e_int_api(rhport, false);
+    (void) osal_mutex_lock(_hcd_data.spi_mutex, OSAL_TIMEOUT_WAIT_FOREVER);
   }
 
   // assert CS
@@ -228,6 +232,7 @@ static void max3421_spi_unlock(uint8_t rhport, bool in_isr) {
   // mutex unlock and re-enable interrupt
   if (!in_isr) {
     tuh_max3421e_int_api(rhport, true);
+    (void) osal_mutex_unlock(_hcd_data.spi_mutex);
   }
 }
 
@@ -372,12 +377,16 @@ tusb_speed_t handle_connect_irq(uint8_t rhport) {
 bool hcd_init(uint8_t rhport) {
   (void) rhport;
 
+  hcd_int_disable(rhport);
+
   TU_LOG2_INT(sizeof(hcd_ep_t));
   TU_LOG2_INT(sizeof(max2341_data_t));
 
   tu_memclr(&_hcd_data, sizeof(_hcd_data));
 
-  hcd_int_disable(rhport);
+#if OSAL_MUTEX_REQUIRED
+  _hcd_data.spi_mutex = osal_mutex_create(&_hcd_data.spi_mutexdef);
+#endif
 
   // full duplex, interrupt negative edge
   reg_write(rhport, PINCTL_ADDR, PINCTL_FDUPSPI, false);
