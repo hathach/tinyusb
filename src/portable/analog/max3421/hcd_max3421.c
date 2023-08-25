@@ -362,27 +362,27 @@ TU_ATTR_ALWAYS_INLINE static inline max3421_ep_t * find_opened_ep(uint8_t daddr,
   }
 }
 
-//static max3421_ep_t * find_next_pending_ep(max3421_ep_t * cur_ep) {
-//  size_t idx = cur_ep - _hcd_data.ep;
-//
-//  // starting from next endpoint
-//  for (size_t i = idx + 1; i < CFG_TUH_MAX3421_ENDPOINT_TOTAL; i++) {
-//    max3421_ep_t* ep = &_hcd_data.ep[i];
-//    if (ep->xfer_pending) {
-//      return ep;
-//    }
-//  }
-//
-//  // wrap around including current endpoint
-//  for (size_t i = 0; i <= idx; i++) {
-//    max3421_ep_t* ep = &_hcd_data.ep[i];
-//    if (ep->xfer_pending) {
-//      return ep;
-//    }
-//  }
-//
-//  return NULL;
-//}
+static max3421_ep_t * find_next_pending_ep(max3421_ep_t * cur_ep) {
+  size_t idx = cur_ep - _hcd_data.ep;
+
+  // starting from next endpoint
+  for (size_t i = idx + 1; i < CFG_TUH_MAX3421_ENDPOINT_TOTAL; i++) {
+    max3421_ep_t* ep = &_hcd_data.ep[i];
+    if (ep->xfer_pending) {
+      return ep;
+    }
+  }
+
+  // wrap around including current endpoint
+  for (size_t i = 0; i <= idx; i++) {
+    max3421_ep_t* ep = &_hcd_data.ep[i];
+    if (ep->xfer_pending) {
+      return ep;
+    }
+  }
+
+  return NULL;
+}
 
 //--------------------------------------------------------------------+
 // Controller API
@@ -443,6 +443,7 @@ bool hcd_init(uint8_t rhport) {
   (void) rhport;
 
   hcd_int_disable(rhport);
+  tuh_max3421_spi_cs_api(rhport, false);
 
   TU_LOG2_INT(sizeof(max3421_ep_t));
   TU_LOG2_INT(sizeof(max3421_data_t));
@@ -689,6 +690,7 @@ static void handle_xfer_done(uint8_t rhport) {
   uint8_t const ep_dir = ((hxfr_type & HXFR_SETUP) || (hxfr_type & HXFR_OUT_NIN)) ? 0 : 1;
 
   max3421_ep_t *ep = find_opened_ep(_hcd_data.peraddr, ep_num, ep_dir);
+  TU_ASSERT(ep, );
 
   xfer_result_t xfer_result;
 
@@ -712,6 +714,20 @@ static void handle_xfer_done(uint8_t rhport) {
         hxfr_write(rhport, _hcd_data.hxfr, true);
       }else {
         // NAK on non-control, find next pending to switch
+        max3421_ep_t *next_ep = find_next_pending_ep(ep);
+        TU_ASSERT(next_ep, );
+
+        if (ep == next_ep) {
+          // only one pending, retry immediately
+          hxfr_write(rhport, _hcd_data.hxfr, true);
+        }else {
+          // switch to next pending TODO could have issue with double buffered if not clear previously out data
+          if ( ep_dir ) {
+            xact_in(rhport, next_ep, true, true);
+          } else {
+            xact_out(rhport, next_ep, true, true);
+          }
+        }
       }
       return;
 
